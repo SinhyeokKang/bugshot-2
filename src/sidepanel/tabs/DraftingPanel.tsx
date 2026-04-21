@@ -62,7 +62,7 @@ export function DraftingPanel() {
             value={draft.body}
             onChange={(e) => setDraft({ ...draft, body: e.target.value })}
             placeholder="재현 경로, 기대 동작 등 추가 설명"
-            className="min-h-40 text-sm"
+            className="min-h-32 resize-none text-sm [field-sizing:content]"
           />
         </Section>
 
@@ -81,7 +81,7 @@ export function DraftingPanel() {
               setDraft({ ...draft, expectedResult: e.target.value })
             }
             placeholder="수정 후 기대되는 동작 / 디자인 기준 등"
-            className="min-h-24 text-sm"
+            className="min-h-32 resize-none text-sm [field-sizing:content]"
           />
         </Section>
       </PageScroll>
