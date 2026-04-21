@@ -285,15 +285,19 @@ function firstChildOf(el: Element): Element | null {
 
 function setMode(next: Mode): void {
   mode = next;
-  if (bannerEl) {
-    bannerEl.style.display = mode === "hover" ? "" : "none";
-  }
+  updateBanner();
   if (mode === "selected") {
     attachViewportListeners();
   } else {
     detachViewportListeners();
   }
   render();
+}
+
+function updateBanner(): void {
+  if (!bannerEl) return;
+  bannerEl.textContent = `${window.innerWidth} × ${window.innerHeight}`;
+  bannerEl.style.display = "";
 }
 
 function render(): void {
@@ -384,9 +388,10 @@ function ensureOverlay(): void {
 
   bannerEl = document.createElement("div");
   bannerEl.className = "banner";
-  bannerEl.textContent = "요소를 클릭해 선택 · ESC 취소";
-  bannerEl.style.display = "none";
+  bannerEl.textContent = `${window.innerWidth} × ${window.innerHeight}`;
   shadow.appendChild(bannerEl);
+
+  window.addEventListener("resize", updateBanner);
 
   document.documentElement.appendChild(hostEl);
 }

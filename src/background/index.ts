@@ -1,6 +1,6 @@
 import { JiraError } from "./jira-api";
 import { handleMessage } from "./messages";
-import { setupTabBindings } from "./tab-bindings";
+import { activateTab, setupTabBindings } from "./tab-bindings";
 
 const BG_REQUEST_TYPES = new Set([
   "ping",
@@ -19,8 +19,19 @@ function disableGlobalSidePanel(): void {
     .catch((err) => console.error("[bugshot] global disable failed", err));
 }
 
-chrome.runtime.onInstalled.addListener(disableGlobalSidePanel);
+chrome.runtime.onInstalled.addListener(() => {
+  disableGlobalSidePanel();
+  chrome.contextMenus.create({
+    id: "bugshot-activate",
+    title: chrome.i18n.getMessage("EXT_NAME"),
+    contexts: ["page"],
+  });
+});
 chrome.runtime.onStartup.addListener(disableGlobalSidePanel);
+
+chrome.contextMenus.onClicked.addListener((info, tab) => {
+  if (info.menuItemId === "bugshot-activate" && tab) activateTab(tab);
+});
 
 setupTabBindings();
 

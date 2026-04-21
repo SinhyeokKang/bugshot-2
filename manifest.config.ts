@@ -42,6 +42,7 @@ export default defineManifest({
     "scripting",
     "storage",
     "commands",
+    "contextMenus",
   ],
   host_permissions: ["https://*.atlassian.net/*"],
   commands: {

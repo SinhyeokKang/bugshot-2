@@ -75,23 +75,25 @@ async function clearIfPageChanged(
   }
 }
 
-export function setupTabBindings(): void {
-  chrome.action.onClicked.addListener((tab) => {
-    if (tab.id == null) return;
-    if (!isSupportedUrl(tab.url)) return;
-    const tabId = tab.id;
+export function activateTab(tab: chrome.tabs.Tab): void {
+  if (tab.id == null) return;
+  if (!isSupportedUrl(tab.url)) return;
+  const tabId = tab.id;
 
-    void chrome.sidePanel.setOptions({
-      tabId,
-      path: `${SIDEPANEL_PATH}?tabId=${tabId}`,
-      enabled: true,
-    });
-    void chrome.sidePanel
-      .open({ tabId })
-      .catch((err) => console.error("[bugshot] sidePanel.open", err));
-
-    void setActivated(tabId, true);
+  void chrome.sidePanel.setOptions({
+    tabId,
+    path: `${SIDEPANEL_PATH}?tabId=${tabId}`,
+    enabled: true,
   });
+  void chrome.sidePanel
+    .open({ tabId })
+    .catch((err) => console.error("[bugshot] sidePanel.open", err));
+
+  void setActivated(tabId, true);
+}
+
+export function setupTabBindings(): void {
+  chrome.action.onClicked.addListener(activateTab);
 
   chrome.tabs.onActivated.addListener(async ({ tabId }) => {
     try {

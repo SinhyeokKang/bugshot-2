@@ -1,17 +1,17 @@
 {
   "EXT_NAME": {
-    "message": "Bugshot — 디자인 이슈 Jira 등록기",
+    "message": "BugShot — 디자인 이슈 트래커",
     "description": "확장 프로그램 전체 이름"
   },
   "EXT_NAME_SHORT": {
-    "message": "Bugshot",
+    "message": "BugShot",
     "description": "액션 버튼/짧은 표시용 이름"
   },
   "EXT_DESCRIPTION": {
-    "message": "웹사이트의 UI 요소를 선택하고, 스타일을 수정한 뒤, 주석을 달아 Jira 이슈로 바로 등록하세요.",
+    "message": "디자인 이슈, 말로 설명하지 마세요. 직접 고치고 변경사항을 보내세요.",
     "description": "Chrome 웹스토어용 설명"
   },
   "CMD_TOGGLE_PANEL": {
-    "message": "Bugshot 사이드 패널 열기"
+    "message": "BugShot 사이드 패널 열기"
   }
 }
