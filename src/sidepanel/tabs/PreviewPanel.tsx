@@ -2,12 +2,7 @@ import { useMemo } from "react";
 import { ArrowLeft, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useEditorStore } from "@/store/editor-store";
-import {
-  PageFooter,
-  PageScroll,
-  PageShell,
-  Section,
-} from "../components/Section";
+import { PageFooter, PageScroll, PageShell } from "../components/Section";
 import {
   StyleChangesTable,
   buildStyleDiff,
@@ -31,31 +26,29 @@ export function PreviewPanel() {
   return (
     <PageShell>
       <PageScroll>
-        <Section title="이슈 제목">
-          <p className="text-sm font-medium">
-            {draft.title || <Placeholder />}
-          </p>
-        </Section>
+        <article className="flex flex-col gap-5 px-4">
+          <header className="flex flex-col gap-2">
+            <h1 className="text-lg font-semibold leading-snug">
+              {draft.title || (
+                <span className="text-muted-foreground/70">(제목 없음)</span>
+              )}
+            </h1>
+            <MetaRow />
+          </header>
 
-        <Section title="발생 현상">
-          <BodyView value={draft.body} />
-        </Section>
+          <DocHeading>발생 현상</DocHeading>
+          <DocBody value={draft.body} />
 
-        <Section title="스타일 변경사항">
+          <DocHeading>스타일 변경사항</DocHeading>
           <StyleChangesTable
             beforeImage={beforeImage}
             afterImage={afterImage}
             diffs={diffs}
           />
-        </Section>
 
-        <Section title="기대 결과">
-          <BodyView value={draft.expectedResult} />
-        </Section>
-
-        <Section title="Jira 필드">
-          <JiraFieldsPlaceholder />
-        </Section>
+          <DocHeading>기대 결과</DocHeading>
+          <DocBody value={draft.expectedResult} />
+        </article>
       </PageScroll>
       <PageFooter>
         <div className="flex items-center gap-2">
@@ -83,39 +76,41 @@ export function PreviewPanel() {
   );
 }
 
-function BodyView({ value }: { value: string }) {
-  if (!value.trim()) return <Placeholder />;
+function DocHeading({ children }: { children: React.ReactNode }) {
   return (
-    <pre className="whitespace-pre-wrap break-words rounded-md border border-border/60 bg-muted/30 p-3 font-sans text-sm leading-relaxed">
-      {value}
-    </pre>
+    <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+      {children}
+    </h2>
   );
 }
 
-function Placeholder() {
-  return <span className="text-sm text-muted-foreground/70">비어 있음</span>;
+function DocBody({ value }: { value: string }) {
+  if (!value.trim()) {
+    return (
+      <p className="text-sm text-muted-foreground/70">비어 있음</p>
+    );
+  }
+  return (
+    <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">
+      {value}
+    </div>
+  );
 }
 
-function JiraFieldsPlaceholder() {
-  const rows: { label: string; hint: string }[] = [
-    { label: "이슈 타입", hint: "Bug / Task / …" },
-    { label: "우선순위", hint: "Priority" },
-    { label: "담당자", hint: "Assignee" },
+function MetaRow() {
+  const items: { label: string; value: string }[] = [
+    { label: "이슈 타입", value: "—" },
+    { label: "우선순위", value: "—" },
+    { label: "담당자", value: "—" },
   ];
   return (
-    <div className="flex flex-col gap-2">
-      {rows.map((r) => (
-        <div
-          key={r.label}
-          className="flex items-center justify-between rounded-md border border-dashed border-border/60 bg-muted/20 px-3 py-2 text-sm"
-        >
-          <span className="text-muted-foreground">{r.label}</span>
-          <span className="text-xs text-muted-foreground/60">{r.hint}</span>
-        </div>
+    <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
+      {items.map((i) => (
+        <span key={i.label} className="inline-flex gap-1">
+          <span>{i.label}</span>
+          <span className="text-foreground/80">{i.value}</span>
+        </span>
       ))}
-      <p className="text-[11px] text-muted-foreground">
-        Combobox는 다음 작업에서 붙입니다.
-      </p>
     </div>
   );
 }
