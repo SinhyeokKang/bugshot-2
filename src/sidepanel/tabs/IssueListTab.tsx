@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { ExternalLink, FileEdit, Inbox } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useIssuesStore, type IssueRecord } from "@/store/issues-store";
+import { PageScroll, PageShell, Section } from "../components/Section";
 
 export function IssueListTab() {
   const issues = useIssuesStore((s) => s.issues);
@@ -13,29 +14,41 @@ export function IssueListTab() {
 
   if (sorted.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-10 text-center">
-        <div className="mb-3 rounded-full bg-muted p-3">
-          <Inbox className="h-6 w-6 text-muted-foreground" />
-        </div>
-        <h3 className="text-sm font-semibold">등록한 이슈가 없습니다</h3>
-        <p className="mt-1 max-w-xs text-xs text-muted-foreground">
-          프리뷰까지 진행한 초안과 Jira로 제출된 이슈가 여기에 최신순으로 쌓입니다.
-        </p>
-      </div>
+      <PageShell>
+        <PageScroll>
+          <Section>
+            <div className="flex flex-col items-center text-center">
+              <div className="mb-3 rounded-full bg-muted p-3">
+                <Inbox className="h-6 w-6 text-muted-foreground" />
+              </div>
+              <h3 className="text-sm font-semibold">등록한 이슈가 없습니다</h3>
+              <p className="mt-1 max-w-xs text-xs text-muted-foreground">
+                프리뷰까지 진행한 초안과 Jira로 제출된 이슈가 여기에 최신순으로 쌓입니다.
+              </p>
+            </div>
+          </Section>
+        </PageScroll>
+      </PageShell>
     );
   }
 
   return (
-    <ul className="flex flex-col gap-2">
-      {sorted.map((issue) => (
-        <IssueRow key={issue.id} issue={issue} />
-      ))}
-    </ul>
+    <PageShell>
+      <PageScroll>
+        <Section title="이슈 목록">
+          <ul className="flex flex-col gap-2">
+            {sorted.map((issue) => (
+              <IssueRow key={issue.id} issue={issue} />
+            ))}
+          </ul>
+        </Section>
+      </PageScroll>
+    </PageShell>
   );
 }
 
 function IssueRow({ issue }: { issue: IssueRecord }) {
-  const isSubmitted = issue.status === "submitted" && issue.url;
+  const isSubmitted = issue.status === "submitted" && !!issue.url;
 
   const handleClick = () => {
     if (isSubmitted && issue.url) {
@@ -51,9 +64,7 @@ function IssueRow({ issue }: { issue: IssueRecord }) {
         disabled={!isSubmitted}
         className={cn(
           "group flex w-full flex-col gap-1 rounded-lg border border-border/60 bg-background px-3 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
-          isSubmitted
-            ? "hover:bg-muted/50"
-            : "cursor-default",
+          isSubmitted ? "hover:bg-muted/50" : "cursor-default",
         )}
       >
         <div className="flex items-center gap-2">

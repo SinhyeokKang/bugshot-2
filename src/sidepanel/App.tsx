@@ -47,21 +47,21 @@ export default function App() {
 
         <TabsContent
           value="issue-list"
-          className="mt-0 flex-1 overflow-y-auto px-4 py-5"
+          className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden"
         >
           <IssueListTab />
         </TabsContent>
 
         <TabsContent
           value="issue-settings"
-          className="mt-0 flex-1 overflow-y-auto px-4 py-5"
+          className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden"
         >
           <SettingsTab />
         </TabsContent>
 
         <TabsContent
           value="app-settings"
-          className="mt-0 flex-1 overflow-y-auto px-4 py-5"
+          className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden"
         >
           <AppSettingsTab />
         </TabsContent>

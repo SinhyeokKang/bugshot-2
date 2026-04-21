@@ -54,6 +54,7 @@ import {
   startPicker,
   stopPicker,
 } from "../picker-control";
+import { PageFooter, PageScroll, PageShell, Section } from "../components/Section";
 import { DraftingPanel } from "./DraftingPanel";
 import { PreviewPanel } from "./PreviewPanel";
 
@@ -209,54 +210,60 @@ export function IssueTab() {
 
 function UnsupportedPage() {
   return (
-    <ScrollShell>
-      <EmptyShell
-        icon={<Crosshair className="h-6 w-6 text-muted-foreground" />}
-        title="지원하지 않는 페이지"
-        description="http, https, file 프로토콜 페이지에서만 동작합니다."
-      />
-    </ScrollShell>
+    <PageShell>
+      <PageScroll>
+        <Section>
+          <EmptyShell
+            icon={<Crosshair className="h-6 w-6 text-muted-foreground" />}
+            title="지원하지 않는 페이지"
+            description="http, https, file 프로토콜 페이지에서만 동작합니다."
+          />
+        </Section>
+      </PageScroll>
+    </PageShell>
   );
 }
 
 function EmptyState({ onStart }: { onStart: () => void }) {
   return (
-    <ScrollShell>
-      <EmptyShell
-        icon={<MousePointerClick className="h-6 w-6 text-muted-foreground" />}
-        title="선택된 요소가 없습니다"
-        description="페이지에서 이슈로 등록할 요소를 선택하세요."
-        action={
-          <Button onClick={onStart}>
-            <Crosshair />
-            요소 선택 시작
-          </Button>
-        }
-      />
-    </ScrollShell>
+    <PageShell>
+      <PageScroll>
+        <Section>
+          <EmptyShell
+            icon={<MousePointerClick className="h-6 w-6 text-muted-foreground" />}
+            title="선택된 요소가 없습니다"
+            description="페이지에서 이슈로 등록할 요소를 선택하세요."
+            action={
+              <Button onClick={onStart}>
+                <Crosshair />
+                요소 선택 시작
+              </Button>
+            }
+          />
+        </Section>
+      </PageScroll>
+    </PageShell>
   );
 }
 
 function PickingState({ onCancel }: { onCancel: () => void }) {
   return (
-    <ScrollShell>
-      <EmptyShell
-        icon={<Crosshair className="h-6 w-6 text-muted-foreground" />}
-        title="요소를 선택하세요"
-        description="페이지에서 이슈로 등록할 요소를 클릭하세요. ESC 로 취소할 수 있습니다."
-        action={
-          <Button variant="outline" onClick={onCancel}>
-            취소
-          </Button>
-        }
-      />
-    </ScrollShell>
-  );
-}
-
-function ScrollShell({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="min-h-0 flex-1 overflow-y-auto px-4 py-5">{children}</div>
+    <PageShell>
+      <PageScroll>
+        <Section>
+          <EmptyShell
+            icon={<Crosshair className="h-6 w-6 text-muted-foreground" />}
+            title="요소를 선택하세요"
+            description="페이지에서 이슈로 등록할 요소를 클릭하세요. ESC 로 취소할 수 있습니다."
+            action={
+              <Button variant="outline" onClick={onCancel}>
+                취소
+              </Button>
+            }
+          />
+        </Section>
+      </PageScroll>
+    </PageShell>
   );
 }
 
@@ -309,27 +316,26 @@ function SelectedPanel() {
   };
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-    <div className="min-h-0 flex-1 overflow-y-auto py-5">
-    <div className="flex flex-col gap-4">
-      <section className="border-b border-border/60 pb-4">
-        <div className="flex items-center gap-1 px-4">
-          <DomNavButton direction="parent" />
-          <div className="min-w-0 flex-1">
-            <DomTreeTitle selector={selection.selector} />
+    <PageShell>
+      <PageScroll>
+        <Section>
+          <div className="flex items-center gap-1">
+            <DomNavButton direction="parent" />
+            <div className="min-w-0 flex-1">
+              <DomTreeTitle selector={selection.selector} />
+            </div>
+            <DomNavButton direction="child" />
           </div>
-          <DomNavButton direction="child" />
-        </div>
-      </section>
+        </Section>
 
-      <StyleGroup title="Class" action={<ClassRevertButton />}>
-        <ClassEditor />
-      </StyleGroup>
+        <Section title="Class" action={<ClassRevertButton />}>
+          <ClassEditor />
+        </Section>
 
-      <StyleGroup
-        title="Layout"
-        action={<SectionRevertButton props={SECTION_PROPS.layout} />}
-      >
+        <Section
+          title="Layout"
+          action={<SectionRevertButton props={SECTION_PROPS.layout} />}
+        >
         <Row2>
           <SelectProp
             label="display"
@@ -388,9 +394,9 @@ function SelectedPanel() {
           <TextProp label="row-gap" prop="row-gap" />
           <TextProp label="column-gap" prop="column-gap" />
         </Row2>
-      </StyleGroup>
+      </Section>
 
-      <StyleGroup
+      <Section
         title="Size"
         action={<SectionRevertButton props={SECTION_PROPS.size} />}
       >
@@ -406,9 +412,9 @@ function SelectedPanel() {
           <TextProp label="min-height" prop="min-height" />
           <TextProp label="max-height" prop="max-height" />
         </Row2>
-      </StyleGroup>
+      </Section>
 
-      <StyleGroup
+      <Section
         title="Overflow"
         action={<SectionRevertButton props={SECTION_PROPS.overflow} />}
       >
@@ -449,15 +455,15 @@ function SelectedPanel() {
             options={["", "clip", "ellipsis"]}
           />
         </Row2>
-      </StyleGroup>
+      </Section>
 
       {selection.text !== null ? (
-        <StyleGroup title="Text" action={<TextRevertButton />}>
+        <Section title="Text" action={<TextRevertButton />}>
           <TextEditor />
-        </StyleGroup>
+        </Section>
       ) : null}
 
-      <StyleGroup
+      <Section
         title="Typography"
         action={<SectionRevertButton props={SECTION_PROPS.typography} />}
       >
@@ -471,9 +477,9 @@ function SelectedPanel() {
         </Row2>
         <AlignmentProp label="text-align" prop="text-align" />
         <TextProp label="color" prop="color" />
-      </StyleGroup>
+      </Section>
 
-      <StyleGroup
+      <Section
         title="Background"
         action={<SectionRevertButton props={SECTION_PROPS.background} />}
       >
@@ -481,9 +487,9 @@ function SelectedPanel() {
           <TextProp label="bg-color" prop="background-color" />
           <TextProp label="opacity" prop="opacity" />
         </Row2>
-      </StyleGroup>
+      </Section>
 
-      <StyleGroup
+      <Section
         title="Border"
         action={<SectionRevertButton props={SECTION_PROPS.border} />}
       >
@@ -492,9 +498,9 @@ function SelectedPanel() {
           <TextProp label="border-color" prop="border-color" />
           <TextProp label="radius" prop="border-radius" />
         </Row2>
-      </StyleGroup>
+      </Section>
 
-      <StyleGroup
+      <Section
         title="Effects"
         action={<SectionRevertButton props={SECTION_PROPS.effects} />}
       >
@@ -522,52 +528,50 @@ function SelectedPanel() {
             "luminosity",
           ]}
         />
-      </StyleGroup>
-
-    </div>
-    </div>
-    <div className="shrink-0 flex flex-col gap-2 border-t border-border/60 bg-background px-4 py-3">
-      <div className="flex items-center justify-between">
-        <span className="text-xs text-muted-foreground">
-          변경사항 {changeCount}개 적용 중
-        </span>
-        <Button
-          size="sm"
-          variant="ghost"
-          onClick={handleResetAll}
-          disabled={!hasChange}
-        >
-          <RotateCcw />
-          모두 초기화
-        </Button>
-      </div>
-      <div className="flex items-center gap-2">
-        <Button
-          size="lg"
-          variant="outline"
-          className="flex-1"
-          onClick={() => {
-            reset();
-            if (tabId) {
-              void clearPicker(tabId);
-              void startPicker(tabId);
-            }
-          }}
-        >
-          다시 선택
-        </Button>
-        <Button
-          size="lg"
-          className="flex-1"
-          onClick={() => void handleNext()}
-          disabled={proceeding || !hasChange}
-        >
-          다음
-          <ArrowRight />
-        </Button>
-      </div>
-    </div>
-    </div>
+        </Section>
+      </PageScroll>
+      <PageFooter>
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-muted-foreground">
+            변경사항 {changeCount}개 적용 중
+          </span>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={handleResetAll}
+            disabled={!hasChange}
+          >
+            <RotateCcw />
+            모두 초기화
+          </Button>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button
+            size="lg"
+            variant="outline"
+            className="flex-1"
+            onClick={() => {
+              reset();
+              if (tabId) {
+                void clearPicker(tabId);
+                void startPicker(tabId);
+              }
+            }}
+          >
+            다시 선택
+          </Button>
+          <Button
+            size="lg"
+            className="flex-1"
+            onClick={() => void handleNext()}
+            disabled={proceeding || !hasChange}
+          >
+            다음
+            <ArrowRight />
+          </Button>
+        </div>
+      </PageFooter>
+    </PageShell>
   );
 }
 
@@ -714,28 +718,6 @@ function ClassRevertButton() {
     >
       <RotateCcw />
     </Button>
-  );
-}
-
-function StyleGroup({
-  title,
-  action,
-  children,
-}: {
-  title: string;
-  action?: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="border-b border-border/60 pb-4 last:border-b-0 last:pb-0">
-      <div className="px-4">
-        <div className="mb-3 flex items-center justify-between gap-2">
-          <h3 className="text-base font-semibold">{title}</h3>
-          {action}
-        </div>
-        <div className="flex flex-col gap-3">{children}</div>
-      </div>
-    </section>
   );
 }
 

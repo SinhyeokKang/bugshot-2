@@ -3,6 +3,12 @@ import { ArrowLeft, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useEditorStore } from "@/store/editor-store";
 import {
+  PageFooter,
+  PageScroll,
+  PageShell,
+  Section,
+} from "../components/Section";
+import {
   StyleChangesTable,
   buildStyleDiff,
 } from "../components/StyleChangesTable";
@@ -23,74 +29,57 @@ export function PreviewPanel() {
   if (!selection || !draft) return null;
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <div className="min-h-0 flex-1 overflow-y-auto py-5">
-        <div className="flex flex-col gap-4">
-          <Section title="이슈 제목">
-            <p className="text-sm font-medium">
-              {draft.title || <Placeholder />}
-            </p>
-          </Section>
+    <PageShell>
+      <PageScroll>
+        <Section title="이슈 제목">
+          <p className="text-sm font-medium">
+            {draft.title || <Placeholder />}
+          </p>
+        </Section>
 
-          <Section title="발생 현상">
-            <BodyView value={draft.body} />
-          </Section>
+        <Section title="발생 현상">
+          <BodyView value={draft.body} />
+        </Section>
 
-          <Section title="스타일 변경사항">
-            <StyleChangesTable
-              beforeImage={beforeImage}
-              afterImage={afterImage}
-              diffs={diffs}
-            />
-          </Section>
+        <Section title="스타일 변경사항">
+          <StyleChangesTable
+            beforeImage={beforeImage}
+            afterImage={afterImage}
+            diffs={diffs}
+          />
+        </Section>
 
-          <Section title="기대 결과">
-            <BodyView value={draft.expectedResult} />
-          </Section>
+        <Section title="기대 결과">
+          <BodyView value={draft.expectedResult} />
+        </Section>
 
-          <Section title="Jira 필드">
-            <JiraFieldsPlaceholder />
-          </Section>
+        <Section title="Jira 필드">
+          <JiraFieldsPlaceholder />
+        </Section>
+      </PageScroll>
+      <PageFooter>
+        <div className="flex items-center gap-2">
+          <Button
+            size="lg"
+            variant="outline"
+            className="flex-1"
+            onClick={() => backToDraft()}
+          >
+            <ArrowLeft />
+            이전
+          </Button>
+          <Button
+            size="lg"
+            className="flex-1"
+            disabled
+            title="제출 기능은 준비 중입니다"
+          >
+            <Send />
+            제출
+          </Button>
         </div>
-      </div>
-      <div className="shrink-0 flex items-center gap-2 border-t border-border/60 bg-background px-4 py-3">
-        <Button
-          size="lg"
-          variant="outline"
-          className="flex-1"
-          onClick={() => backToDraft()}
-        >
-          <ArrowLeft />
-          이전
-        </Button>
-        <Button
-          size="lg"
-          className="flex-1"
-          disabled
-          title="제출 기능은 준비 중입니다"
-        >
-          <Send />
-          제출
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-function Section({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="border-b border-border/60 pb-4 last:border-b-0 last:pb-0">
-      <div className="px-4">
-        <h3 className="mb-3 text-base font-semibold">{title}</h3>
-        {children}
-      </div>
-    </section>
+      </PageFooter>
+    </PageShell>
   );
 }
 

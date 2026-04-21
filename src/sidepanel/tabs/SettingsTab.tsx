@@ -3,13 +3,13 @@ import { ExternalLink, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Separator } from "@/components/ui/separator";
 import {
   useSettingsStore,
   type JiraConfig,
 } from "@/store/settings-store";
 import type { JiraMyself } from "@/types/jira";
 import { sendBg } from "@/types/messages";
+import { PageScroll, PageShell, Section } from "../components/Section";
 import { IssueTypeCombobox } from "./IssueTypeCombobox";
 import { ProjectCombobox } from "./ProjectCombobox";
 
@@ -18,36 +18,36 @@ export function SettingsTab() {
   const connected = !!jiraConfig;
 
   return (
-    <div className="flex flex-col gap-6">
-      <section className="flex flex-col gap-3">
-        <h2 className="text-base font-semibold">Jira 연결</h2>
-        {connected ? <JiraSummary /> : <JiraForm />}
-      </section>
+    <PageShell>
+      <PageScroll>
+        <Section title="Jira 연결">
+          {connected ? <JiraSummary /> : <JiraForm />}
+        </Section>
 
-      <Separator />
+        <Section title="프로젝트">
+          {connected ? (
+            <ProjectCombobox />
+          ) : (
+            <p className="text-xs text-muted-foreground">
+              Jira 연결 후 선택할 수 있습니다.
+            </p>
+          )}
+        </Section>
 
-      <section className="flex flex-col gap-3">
-        <h2 className="text-base font-semibold">프로젝트</h2>
-        {connected ? <ProjectCombobox /> : null}
-      </section>
+        {connected ? (
+          <Section title="이슈 설정">
+            <div className="flex flex-col gap-3">
+              <div className="grid gap-1.5">
+                <Label>기본 이슈 타입</Label>
+                <IssueTypeCombobox />
+              </div>
 
-      {connected ? (
-        <>
-          <Separator />
-
-          <section className="flex flex-col gap-3">
-            <h2 className="text-base font-semibold">이슈 설정</h2>
-
-            <div className="grid gap-1.5">
-              <Label>기본 이슈 타입</Label>
-              <IssueTypeCombobox />
+              <TitlePrefixField />
             </div>
-
-            <TitlePrefixField />
-          </section>
-        </>
-      ) : null}
-    </div>
+          </Section>
+        ) : null}
+      </PageScroll>
+    </PageShell>
   );
 }
 
