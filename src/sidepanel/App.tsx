@@ -40,28 +40,28 @@ export default function App() {
 
         <TabsContent
           value="issue"
-          className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden"
+          className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden data-[state=inactive]:hidden"
         >
           <IssueTab />
         </TabsContent>
 
         <TabsContent
           value="issue-list"
-          className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden"
+          className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden data-[state=inactive]:hidden"
         >
           <IssueListTab />
         </TabsContent>
 
         <TabsContent
           value="issue-settings"
-          className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden"
+          className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden data-[state=inactive]:hidden"
         >
           <SettingsTab />
         </TabsContent>
 
         <TabsContent
           value="app-settings"
-          className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden"
+          className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden data-[state=inactive]:hidden"
         >
           <AppSettingsTab />
         </TabsContent>
