@@ -148,7 +148,15 @@ export async function searchEpics(
   ];
   if (query) {
     const q = query.replace(/'/g, "\\'");
-    conditions.push(`text ~ '${q}'`);
+    const keyMatch = /^([A-Z]+-)?(\d+)$/i.exec(query.trim());
+    if (keyMatch) {
+      const fullKey = keyMatch[1]
+        ? q.toUpperCase()
+        : `${projectKey}-${keyMatch[2]}`;
+      conditions.push(`(key = '${fullKey}' OR summary ~ '${q}')`);
+    } else {
+      conditions.push(`summary ~ '${q}'`);
+    }
   }
   const jql = conditions.join(" AND ") + " ORDER BY updated DESC";
   const params = new URLSearchParams({
