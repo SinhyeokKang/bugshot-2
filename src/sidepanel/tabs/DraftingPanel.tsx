@@ -18,7 +18,6 @@ import {
 
 export function DraftingPanel() {
   const selection = useEditorStore((s) => s.selection);
-  const target = useEditorStore((s) => s.target);
   const styleEdits = useEditorStore((s) => s.styleEdits);
   const beforeImage = useEditorStore((s) => s.beforeImage);
   const afterImage = useEditorStore((s) => s.afterImage);
@@ -40,10 +39,10 @@ export function DraftingPanel() {
     if (!selection) return;
     setDraft({
       title: defaultTitle(titlePrefix, selection.tagName, selection.selector),
-      body: defaultBody(target?.url ?? "", selection),
+      body: "",
       expectedResult: "",
     });
-  }, [draft, selection, setDraft, target, titlePrefix]);
+  }, [draft, selection, setDraft, titlePrefix]);
 
   if (!selection || !draft) return null;
 
@@ -118,34 +117,3 @@ function defaultTitle(
   return prefix.endsWith(" ") ? `${prefix}${body}` : `${prefix} ${body}`;
 }
 
-function defaultBody(
-  url: string,
-  selection: {
-    selector: string;
-    viewport: { width: number; height: number };
-    capturedAt: number;
-  },
-): string {
-  const lines = [
-    "",
-    "",
-    "---",
-    `Page: ${url || "-"}`,
-    `Selector: ${selection.selector}`,
-    `Viewport: ${selection.viewport.width}×${selection.viewport.height}`,
-    `Captured: ${formatTimestamp(selection.capturedAt)}`,
-  ];
-  return lines.join("\n");
-}
-
-function formatTimestamp(ts: number): string {
-  const d = new Date(ts);
-  return d.toLocaleString("ko-KR", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
-}

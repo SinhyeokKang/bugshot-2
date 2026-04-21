@@ -10,6 +10,7 @@ import {
 
 export function PreviewPanel() {
   const selection = useEditorStore((s) => s.selection);
+  const target = useEditorStore((s) => s.target);
   const styleEdits = useEditorStore((s) => s.styleEdits);
   const beforeImage = useEditorStore((s) => s.beforeImage);
   const afterImage = useEditorStore((s) => s.afterImage);
@@ -26,9 +27,9 @@ export function PreviewPanel() {
   return (
     <PageShell>
       <PageScroll>
-        <article className="flex flex-col gap-5 px-4">
+        <article className="flex flex-col gap-6 px-4">
           <header className="flex flex-col gap-2">
-            <h1 className="text-lg font-semibold leading-snug">
+            <h1 className="text-2xl font-semibold leading-tight">
               {draft.title || (
                 <span className="text-muted-foreground/70">(제목 없음)</span>
               )}
@@ -36,18 +37,30 @@ export function PreviewPanel() {
             <MetaRow />
           </header>
 
-          <DocHeading>발생 현상</DocHeading>
-          <DocBody value={draft.body} />
+          <Block title="발생 환경">
+            <EnvParagraph
+              url={target?.url ?? ""}
+              selector={selection.selector}
+              viewport={selection.viewport}
+              capturedAt={selection.capturedAt}
+            />
+          </Block>
 
-          <DocHeading>스타일 변경사항</DocHeading>
-          <StyleChangesTable
-            beforeImage={beforeImage}
-            afterImage={afterImage}
-            diffs={diffs}
-          />
+          <Block title="발생 현상">
+            <DocBody value={draft.body} />
+          </Block>
 
-          <DocHeading>기대 결과</DocHeading>
-          <DocBody value={draft.expectedResult} />
+          <Block title="스타일 변경사항">
+            <StyleChangesTable
+              beforeImage={beforeImage}
+              afterImage={afterImage}
+              diffs={diffs}
+            />
+          </Block>
+
+          <Block title="기대 결과">
+            <DocBody value={draft.expectedResult} />
+          </Block>
         </article>
       </PageScroll>
       <PageFooter>
@@ -76,24 +89,58 @@ export function PreviewPanel() {
   );
 }
 
-function DocHeading({ children }: { children: React.ReactNode }) {
+function Block({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
   return (
-    <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+    <section className="flex flex-col gap-2">
+      <h2 className="text-lg font-semibold leading-snug">{title}</h2>
       {children}
-    </h2>
+    </section>
   );
 }
 
 function DocBody({ value }: { value: string }) {
   if (!value.trim()) {
-    return (
-      <p className="text-sm text-muted-foreground/70">비어 있음</p>
-    );
+    return <p className="text-sm text-muted-foreground/70">비어 있음</p>;
   }
   return (
     <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">
       {value}
     </div>
+  );
+}
+
+function EnvParagraph({
+  url,
+  selector,
+  viewport,
+  capturedAt,
+}: {
+  url: string;
+  selector: string;
+  viewport: { width: number; height: number };
+  capturedAt: number;
+}) {
+  const rows: { label: string; value: string }[] = [
+    { label: "Page", value: url || "-" },
+    { label: "DOM", value: selector },
+    { label: "Viewport", value: `${viewport.width}×${viewport.height}` },
+    { label: "Captured", value: formatTimestamp(capturedAt) },
+  ];
+  return (
+    <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm leading-relaxed">
+      {rows.map((r) => (
+        <div key={r.label} className="contents">
+          <dt className="text-muted-foreground">{r.label}</dt>
+          <dd className="break-all">{r.value}</dd>
+        </div>
+      ))}
+    </dl>
   );
 }
 
@@ -113,4 +160,16 @@ function MetaRow() {
       ))}
     </div>
   );
+}
+
+function formatTimestamp(ts: number): string {
+  const d = new Date(ts);
+  return d.toLocaleString("ko-KR", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+  });
 }
