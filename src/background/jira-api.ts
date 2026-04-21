@@ -1,8 +1,11 @@
 import type {
   JiraConfigPayload,
+  JiraIssueSummary,
   JiraIssueType,
   JiraMyself,
+  JiraPriority,
   JiraProject,
+  JiraUser,
 } from "@/types/jira";
 
 export class JiraError extends Error {
@@ -107,4 +110,51 @@ export async function getIssueTypes(
     `/rest/api/3/issue/createmeta/${encodeURIComponent(projectKey)}/issuetypes`,
   );
   return (res.issueTypes ?? []).filter((t) => !t.subtask);
+}
+
+export async function getPriorities(
+  cfg: JiraConfigPayload,
+): Promise<JiraPriority[]> {
+  return jiraFetch<JiraPriority[]>(cfg, "/rest/api/3/priority");
+}
+
+export async function searchUsers(
+  cfg: JiraConfigPayload,
+  query?: string,
+): Promise<JiraUser[]> {
+  const params = new URLSearchParams({
+    query: query || "",
+    maxResults: "50",
+  });
+  return jiraFetch<JiraUser[]>(
+    cfg,
+    `/rest/api/3/user/search?${params.toString()}`,
+  );
+}
+
+interface JiraSearchResponse {
+  issues: JiraIssueSummary[];
+  total: number;
+}
+
+export async function searchEpics(
+  cfg: JiraConfigPayload,
+  projectKey: string,
+  query?: string,
+): Promise<JiraIssueSummary[]> {
+  const jql = [
+    `project = '${projectKey}'`,
+    `hierarchyLevel = 0`,
+    ...(query ? [`summary ~ '${query.replace(/'/g, "\\'")}'`] : []),
+  ].join(" AND ") + " ORDER BY updated DESC";
+  const params = new URLSearchParams({
+    jql,
+    maxResults: "30",
+    fields: "summary,issuetype",
+  });
+  const res = await jiraFetch<JiraSearchResponse>(
+    cfg,
+    `/rest/api/3/search/jql?${params.toString()}`,
+  );
+  return res.issues;
 }

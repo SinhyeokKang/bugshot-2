@@ -1,5 +1,12 @@
 import type { BgRequest } from "@/types/messages";
-import { getIssueTypes, getMyself, searchProjects } from "./jira-api";
+import {
+  getIssueTypes,
+  getMyself,
+  getPriorities,
+  searchEpics,
+  searchProjects,
+  searchUsers,
+} from "./jira-api";
 
 export async function handleMessage(
   message: BgRequest,
@@ -23,6 +30,15 @@ export async function handleMessage(
 
     case "jira.listIssueTypes":
       return getIssueTypes(message.config, message.projectKey);
+
+    case "jira.listPriorities":
+      return getPriorities(message.config);
+
+    case "jira.searchUsers":
+      return searchUsers(message.config, message.query);
+
+    case "jira.searchEpics":
+      return searchEpics(message.config, message.projectKey, message.query);
 
     default: {
       const _exhaustive: never = message;

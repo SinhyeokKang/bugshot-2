@@ -8,6 +8,9 @@ const BG_REQUEST_TYPES = new Set([
   "jira.myself",
   "jira.listProjects",
   "jira.listIssueTypes",
+  "jira.listPriorities",
+  "jira.searchUsers",
+  "jira.searchEpics",
 ]);
 
 function disableGlobalSidePanel(): void {

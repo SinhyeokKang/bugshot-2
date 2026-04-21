@@ -707,12 +707,33 @@ function collectSelection(el: Element): PickerSelectionPayload {
   };
 }
 
-function collectSpecifiedStyles(el: Element): Record<string, string> {
-  const all: Record<string, string> = {};
+const INHERITED_PROPS = new Set([
+  "color",
+  "font-size",
+  "font-weight",
+  "line-height",
+  "text-align",
+  "letter-spacing",
+]);
+
+const SHORTHAND_MAP: Record<string, string[]> = {
+  padding: ["padding-top", "padding-right", "padding-bottom", "padding-left"],
+  margin: ["margin-top", "margin-right", "margin-bottom", "margin-left"],
+  gap: ["row-gap", "column-gap"],
+  "border-radius": [
+    "border-top-left-radius",
+    "border-top-right-radius",
+    "border-bottom-right-radius",
+    "border-bottom-left-radius",
+  ],
+  overflow: ["overflow-x", "overflow-y"],
+};
+
+function collectRulesForElement(el: Element, out: Record<string, string>): void {
   for (const sheet of Array.from(document.styleSheets)) {
     try {
       const rules = sheet.cssRules;
-      if (rules) collectSpecifiedFromRules(rules, el, all);
+      if (rules) collectSpecifiedFromRules(rules, el, out);
     } catch {
       /* cross-origin, skip */
     }
@@ -721,9 +742,43 @@ function collectSpecifiedStyles(el: Element): Record<string, string> {
     const style = el.style;
     for (let i = 0; i < style.length; i++) {
       const name = style.item(i);
-      all[name] = style.getPropertyValue(name);
+      out[name] = style.getPropertyValue(name);
     }
   }
+}
+
+function expandShorthands(all: Record<string, string>): void {
+  for (const [shorthand, longhands] of Object.entries(SHORTHAND_MAP)) {
+    if (!(shorthand in all)) continue;
+    const value = all[shorthand];
+    for (const lh of longhands) {
+      if (!(lh in all)) all[lh] = value;
+    }
+  }
+}
+
+function collectSpecifiedStyles(el: Element): Record<string, string> {
+  const all: Record<string, string> = {};
+  collectRulesForElement(el, all);
+  expandShorthands(all);
+
+  const missing = [...INHERITED_PROPS].filter((p) => !(p in all));
+  if (missing.length > 0) {
+    let cur = el.parentElement;
+    while (cur && missing.length > 0) {
+      const parentAll: Record<string, string> = {};
+      collectRulesForElement(cur, parentAll);
+      expandShorthands(parentAll);
+      for (let i = missing.length - 1; i >= 0; i--) {
+        if (missing[i] in parentAll) {
+          all[missing[i]] = parentAll[missing[i]];
+          missing.splice(i, 1);
+        }
+      }
+      cur = cur.parentElement;
+    }
+  }
+
   const filtered: Record<string, string> = {};
   for (const p of INTERESTING_PROPS) {
     if (p in all) filtered[p] = all[p];
@@ -805,7 +860,7 @@ function collectTokens(): Token[] {
     const resolved = rootStyle.getPropertyValue(name).trim() || raw;
     tokens.push({ name, value: resolved, category: categorizeToken(resolved) });
   }
-  tokens.sort((a, b) => a.name.localeCompare(b.name));
+  tokens.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
   return tokens;
 }
 

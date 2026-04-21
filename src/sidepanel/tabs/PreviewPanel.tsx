@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, Check, Copy, Send } from "lucide-react";
+import { ArrowLeft, Check, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useEditorStore } from "@/store/editor-store";
 import {
@@ -13,6 +13,7 @@ import {
   buildStyleDiff,
 } from "../components/StyleChangesTable";
 import { buildIssueHtml, buildIssueMarkdown } from "../lib/buildIssueMarkdown";
+import { IssueCreateModal } from "./IssueCreateModal";
 
 export function PreviewPanel() {
   const selection = useEditorStore((s) => s.selection);
@@ -121,15 +122,7 @@ export function PreviewPanel() {
             <ArrowLeft />
             이전
           </Button>
-          <Button
-            size="xl"
-            className="flex-1"
-            disabled
-            title="제출 기능은 준비 중입니다"
-          >
-            <Send />
-            제출
-          </Button>
+          <IssueCreateModal />
         </div>
       </PageFooter>
     </PageShell>

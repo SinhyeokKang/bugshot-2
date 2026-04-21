@@ -1,8 +1,11 @@
 import type {
   JiraConfigPayload,
+  JiraIssueSummary,
   JiraIssueType,
   JiraMyself,
+  JiraPriority,
   JiraProject,
+  JiraUser,
 } from "./jira";
 
 export type BgRequest =
@@ -14,6 +17,18 @@ export type BgRequest =
       type: "jira.listIssueTypes";
       config: JiraConfigPayload;
       projectKey: string;
+    }
+  | { type: "jira.listPriorities"; config: JiraConfigPayload }
+  | {
+      type: "jira.searchUsers";
+      config: JiraConfigPayload;
+      query?: string;
+    }
+  | {
+      type: "jira.searchEpics";
+      config: JiraConfigPayload;
+      projectKey: string;
+      query?: string;
     };
 
 export type BgResponse<T = unknown> =
@@ -54,4 +69,12 @@ export function sendBg<T = unknown>(req: BgRequest): Promise<T> {
 }
 
 // Re-export common Jira types for consumers
-export type { JiraConfigPayload, JiraIssueType, JiraMyself, JiraProject };
+export type {
+  JiraConfigPayload,
+  JiraIssueSummary,
+  JiraIssueType,
+  JiraMyself,
+  JiraPriority,
+  JiraProject,
+  JiraUser,
+};

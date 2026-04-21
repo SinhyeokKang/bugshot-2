@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlignCenter,
   AlignJustify,
@@ -10,8 +10,10 @@ import {
   ChevronDown,
   ChevronRight,
   Crosshair,
+  Link,
   MousePointerClick,
   RotateCcw,
+  Unlink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -724,6 +726,53 @@ function Row2({ children }: { children: React.ReactNode }) {
   return <div className="grid grid-cols-2 gap-2">{children}</div>;
 }
 
+function useLinkedProps(props: string[]) {
+  const [linked, setLinked] = useState(false);
+  const tabId = useBoundTabId();
+
+  const setAllProps = useCallback(
+    (value: string) => {
+      const current = useEditorStore.getState().styleEdits.inlineStyle;
+      const nextInline = { ...current };
+      for (const p of props) {
+        if (value === "") delete nextInline[p];
+        else nextInline[p] = value;
+      }
+      useEditorStore.getState().setStyleEdits({ inlineStyle: nextInline });
+      if (tabId) void applyStyles(tabId, nextInline);
+    },
+    [props, tabId],
+  );
+
+  return { linked, toggle: () => setLinked((v) => !v), setAllProps };
+}
+
+function LinkToggle({
+  linked,
+  onToggle,
+}: {
+  linked: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      className={cn(
+        "flex h-9 w-7 shrink-0 items-center justify-center rounded-md border text-muted-foreground transition-colors hover:bg-muted",
+        linked && "border-primary/50 bg-primary/10 text-primary",
+      )}
+      title={linked ? "개별 편집" : "일괄 편집"}
+    >
+      {linked ? (
+        <Link className="h-3 w-3" />
+      ) : (
+        <Unlink className="h-3 w-3" />
+      )}
+    </button>
+  );
+}
+
 function useStyleProp(prop: string) {
   const value = useEditorStore(
     (s) => s.styleEdits.inlineStyle[prop] ?? "",
@@ -880,33 +929,46 @@ function SideEdgeIcon({
 }
 
 function QuadProp({ label, prefix }: { label: string; prefix: string }) {
+  const props = useMemo(
+    () => [`${prefix}-top`, `${prefix}-right`, `${prefix}-bottom`, `${prefix}-left`],
+    [prefix],
+  );
+  const { linked, toggle, setAllProps } = useLinkedProps(props);
+
   return (
     <PropRow label={label}>
-      <div className="grid grid-cols-4 gap-1">
-        <ValueCombobox
-          prop={`${prefix}-top`}
-          compact
-          icon={<SideEdgeIcon side="top" className="h-3.5 w-3.5" />}
-          iconTitle="위"
-        />
-        <ValueCombobox
-          prop={`${prefix}-right`}
-          compact
-          icon={<SideEdgeIcon side="right" className="h-3.5 w-3.5" />}
-          iconTitle="오른쪽"
-        />
-        <ValueCombobox
-          prop={`${prefix}-bottom`}
-          compact
-          icon={<SideEdgeIcon side="bottom" className="h-3.5 w-3.5" />}
-          iconTitle="아래"
-        />
-        <ValueCombobox
-          prop={`${prefix}-left`}
-          compact
-          icon={<SideEdgeIcon side="left" className="h-3.5 w-3.5" />}
-          iconTitle="왼쪽"
-        />
+      <div className="flex gap-1">
+        <div className="grid flex-1 grid-cols-4 gap-1">
+          <ValueCombobox
+            prop={props[0]}
+            compact
+            icon={<SideEdgeIcon side="top" className="h-3.5 w-3.5" />}
+            iconTitle="위"
+            onLinkedCommit={linked ? setAllProps : undefined}
+          />
+          <ValueCombobox
+            prop={props[1]}
+            compact
+            icon={<SideEdgeIcon side="right" className="h-3.5 w-3.5" />}
+            iconTitle="오른쪽"
+            onLinkedCommit={linked ? setAllProps : undefined}
+          />
+          <ValueCombobox
+            prop={props[2]}
+            compact
+            icon={<SideEdgeIcon side="bottom" className="h-3.5 w-3.5" />}
+            iconTitle="아래"
+            onLinkedCommit={linked ? setAllProps : undefined}
+          />
+          <ValueCombobox
+            prop={props[3]}
+            compact
+            icon={<SideEdgeIcon side="left" className="h-3.5 w-3.5" />}
+            iconTitle="왼쪽"
+            onLinkedCommit={linked ? setAllProps : undefined}
+          />
+        </div>
+        <LinkToggle linked={linked} onToggle={toggle} />
       </div>
     </PropRow>
   );
@@ -942,34 +1004,50 @@ function CornerRadiusIcon({
   );
 }
 
+const RADIUS_PROPS = [
+  "border-top-left-radius",
+  "border-top-right-radius",
+  "border-bottom-right-radius",
+  "border-bottom-left-radius",
+];
+
 function RadiusProp() {
+  const { linked, toggle, setAllProps } = useLinkedProps(RADIUS_PROPS);
+
   return (
     <PropRow label="radius">
-      <div className="grid grid-cols-4 gap-1">
-        <ValueCombobox
-          prop="border-top-left-radius"
-          compact
-          icon={<CornerRadiusIcon corner="tl" className="h-3.5 w-3.5" />}
-          iconTitle="좌상단"
-        />
-        <ValueCombobox
-          prop="border-top-right-radius"
-          compact
-          icon={<CornerRadiusIcon corner="tr" className="h-3.5 w-3.5" />}
-          iconTitle="우상단"
-        />
-        <ValueCombobox
-          prop="border-bottom-right-radius"
-          compact
-          icon={<CornerRadiusIcon corner="br" className="h-3.5 w-3.5" />}
-          iconTitle="우하단"
-        />
-        <ValueCombobox
-          prop="border-bottom-left-radius"
-          compact
-          icon={<CornerRadiusIcon corner="bl" className="h-3.5 w-3.5" />}
-          iconTitle="좌하단"
-        />
+      <div className="flex gap-1">
+        <div className="grid flex-1 grid-cols-4 gap-1">
+          <ValueCombobox
+            prop={RADIUS_PROPS[0]}
+            compact
+            icon={<CornerRadiusIcon corner="tl" className="h-3.5 w-3.5" />}
+            iconTitle="좌상단"
+            onLinkedCommit={linked ? setAllProps : undefined}
+          />
+          <ValueCombobox
+            prop={RADIUS_PROPS[1]}
+            compact
+            icon={<CornerRadiusIcon corner="tr" className="h-3.5 w-3.5" />}
+            iconTitle="우상단"
+            onLinkedCommit={linked ? setAllProps : undefined}
+          />
+          <ValueCombobox
+            prop={RADIUS_PROPS[2]}
+            compact
+            icon={<CornerRadiusIcon corner="br" className="h-3.5 w-3.5" />}
+            iconTitle="우하단"
+            onLinkedCommit={linked ? setAllProps : undefined}
+          />
+          <ValueCombobox
+            prop={RADIUS_PROPS[3]}
+            compact
+            icon={<CornerRadiusIcon corner="bl" className="h-3.5 w-3.5" />}
+            iconTitle="좌하단"
+            onLinkedCommit={linked ? setAllProps : undefined}
+          />
+        </div>
+        <LinkToggle linked={linked} onToggle={toggle} />
       </div>
     </PropRow>
   );
@@ -980,11 +1058,13 @@ function ValueCombobox({
   compact,
   icon,
   iconTitle,
+  onLinkedCommit,
 }: {
   prop: string;
   compact?: boolean;
   icon?: React.ReactNode;
   iconTitle?: string;
+  onLinkedCommit?: (value: string) => void;
 }) {
   const { value, placeholder, set } = useStyleProp(prop);
   const [open, setOpen] = useState(false);
@@ -996,18 +1076,24 @@ function ValueCombobox({
   const tokenName = extractTokenName(value);
   const placeholderTokenName = !value ? extractTokenName(placeholder) : null;
   const isDefault = !value && isKnownDefault(prop, placeholder);
+  const activeTokenName = tokenName || placeholderTokenName;
+  const familyPrefix = activeTokenName ? tokenFamilyPrefix(activeTokenName, tokens) : null;
 
-  const draftLooksLikeToken = /^(--|var\()/.test(draft.trim());
+  const draftLooksLikeToken = /^var\(/.test(draft.trim());
 
-  const { primary, extra } = useMemo(() => {
-    if (!category) return { primary: tokens, extra: [] as Token[] };
+  const { family, primary, extra } = useMemo(() => {
+    if (!category) return { family: [] as Token[], primary: tokens, extra: [] as Token[] };
+    const catTokens = tokens.filter((t) => t.category === category);
+    const others = tokens.filter(
+      (t) => t.category !== category && t.category !== "unknown",
+    );
+    if (!familyPrefix) return { family: [] as Token[], primary: catTokens, extra: others };
     return {
-      primary: tokens.filter((t) => t.category === category),
-      extra: tokens.filter(
-        (t) => t.category !== category && t.category !== "unknown",
-      ),
+      family: catTokens.filter((t) => t.name.startsWith(familyPrefix)),
+      primary: catTokens.filter((t) => !t.name.startsWith(familyPrefix)),
+      extra: others,
     };
-  }, [tokens, category]);
+  }, [tokens, category, familyPrefix]);
 
   const filterTokens = (list: Token[]) => {
     const q = draft.trim().toLowerCase();
@@ -1019,6 +1105,11 @@ function ValueCombobox({
     );
   };
 
+  const familyFiltered = useMemo(
+    () => filterTokens(family),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [family, draft, draftLooksLikeToken],
+  );
   const primaryFiltered = useMemo(
     () => filterTokens(primary),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1031,7 +1122,8 @@ function ValueCombobox({
   );
 
   const commit = (next: string) => {
-    set(next);
+    if (onLinkedCommit) onLinkedCommit(next);
+    else set(next);
     setOpen(false);
   };
 
@@ -1100,7 +1192,12 @@ function ValueCombobox({
         </button>
       </PopoverTrigger>
       <PopoverContent
-        className="w-80 rounded-lg p-0"
+        className={cn(
+          "rounded-lg p-0",
+          compact
+            ? "w-[calc(var(--radix-popover-trigger-width)*2)]"
+            : "w-[var(--radix-popover-trigger-width)]",
+        )}
         align="start"
         sideOffset={2}
       >
@@ -1110,7 +1207,8 @@ function ValueCombobox({
             value={draft}
             onValueChange={(v) => {
               setDraft(v);
-              set(v.trim());
+              if (onLinkedCommit) onLinkedCommit(v.trim());
+              else set(v.trim());
             }}
             className="h-9"
             onKeyDown={(e) => {
@@ -1135,10 +1233,17 @@ function ValueCombobox({
                 </CommandItem>
               </CommandGroup>
             ) : null}
+            {familyFiltered.length > 0 ? (
+              <CommandGroup heading={familyPrefix ?? "패밀리"}>
+                {familyFiltered.map((t) => (
+                  <TokenItem key={t.name} token={t} onCommit={commit} />
+                ))}
+              </CommandGroup>
+            ) : null}
             <CommandGroup
               heading={`토큰${category ? ` · ${category}` : ""}`}
             >
-              {primaryFiltered.length === 0 && extraFiltered.length === 0 ? (
+              {familyFiltered.length === 0 && primaryFiltered.length === 0 && extraFiltered.length === 0 ? (
                 <CommandEmpty>매칭 없음</CommandEmpty>
               ) : null}
               {primaryFiltered.map((t) => (
@@ -1240,8 +1345,22 @@ function shortValue(v: string): string {
 }
 
 function extractTokenName(value: string): string | null {
-  const m = /^var\(\s*(--[^\s,)]+)/.exec(value.trim());
+  const m = /var\(\s*(--[^\s,)]+)/.exec(value.trim());
   return m ? m[1] : null;
+}
+
+function tokenFamilyPrefix(
+  name: string,
+  allTokens: Token[],
+): string | null {
+  let end = name.lastIndexOf("-");
+  while (end > 2) {
+    const prefix = name.slice(0, end + 1);
+    const count = allTokens.filter((t) => t.name.startsWith(prefix)).length;
+    if (count >= 2) return prefix;
+    end = name.lastIndexOf("-", end - 1);
+  }
+  return null;
 }
 
 function findTokenValue(tokens: Token[], name: string): string | undefined {
