@@ -722,6 +722,7 @@ const INHERITED_PROPS = new Set([
 ]);
 
 const SHORTHAND_MAP: Record<string, string[]> = {
+  font: ["font-size", "font-weight", "line-height", "letter-spacing"],
   padding: ["padding-top", "padding-right", "padding-bottom", "padding-left"],
   margin: ["margin-top", "margin-right", "margin-bottom", "margin-left"],
   gap: ["row-gap", "column-gap"],

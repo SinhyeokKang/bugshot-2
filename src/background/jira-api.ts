@@ -142,11 +142,15 @@ export async function searchEpics(
   projectKey: string,
   query?: string,
 ): Promise<JiraIssueSummary[]> {
-  const jql = [
+  const conditions = [
     `project = '${projectKey}'`,
-    `hierarchyLevel = 0`,
-    ...(query ? [`summary ~ '${query.replace(/'/g, "\\'")}'`] : []),
-  ].join(" AND ") + " ORDER BY updated DESC";
+    `hierarchyLevel in (0, 1)`,
+  ];
+  if (query) {
+    const q = query.replace(/'/g, "\\'");
+    conditions.push(`text ~ '${q}'`);
+  }
+  const jql = conditions.join(" AND ") + " ORDER BY updated DESC";
   const params = new URLSearchParams({
     jql,
     maxResults: "30",

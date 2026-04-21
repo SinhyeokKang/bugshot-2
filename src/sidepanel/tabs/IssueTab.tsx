@@ -727,7 +727,17 @@ function Row2({ children }: { children: React.ReactNode }) {
 }
 
 function useLinkedProps(props: string[]) {
-  const [linked, setLinked] = useState(false);
+  const selection = useEditorStore((s) => s.selection);
+  const inlineStyle = useEditorStore((s) => s.styleEdits.inlineStyle);
+  const [linked, setLinked] = useState(() => {
+    const vals = props.map((p) => {
+      if (inlineStyle[p]) return inlineStyle[p];
+      if (selection?.specifiedStyles[p]) return selection.specifiedStyles[p];
+      if (selection?.computedStyles[p]) return selection.computedStyles[p];
+      return "";
+    });
+    return vals.length > 0 && vals.every((v) => v === vals[0] && v !== "");
+  });
   const tabId = useBoundTabId();
 
   const setAllProps = useCallback(
