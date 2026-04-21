@@ -2,7 +2,12 @@ import { useMemo } from "react";
 import { ArrowLeft, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useEditorStore } from "@/store/editor-store";
-import { PageFooter, PageScroll, PageShell } from "../components/Section";
+import {
+  PageFooter,
+  PageScroll,
+  PageShell,
+  Section,
+} from "../components/Section";
 import {
   StyleChangesTable,
   buildStyleDiff,
@@ -27,41 +32,39 @@ export function PreviewPanel() {
   return (
     <PageShell>
       <PageScroll>
-        <article className="flex flex-col gap-6 px-4">
-          <header className="flex flex-col gap-2">
-            <h1 className="text-2xl font-semibold leading-tight">
-              {draft.title || (
-                <span className="text-muted-foreground/70">(제목 없음)</span>
-              )}
-            </h1>
-            <MetaRow />
-          </header>
+        <Section>
+          <h1 className="text-2xl font-semibold leading-tight">
+            {draft.title || (
+              <span className="text-muted-foreground/70">(제목 없음)</span>
+            )}
+          </h1>
+          <MetaRow />
+        </Section>
 
-          <Block title="발생 환경">
-            <EnvParagraph
-              url={target?.url ?? ""}
-              selector={selection.selector}
-              viewport={selection.viewport}
-              capturedAt={selection.capturedAt}
-            />
-          </Block>
+        <Section title="발생 환경">
+          <EnvParagraph
+            url={target?.url ?? ""}
+            selector={selection.selector}
+            viewport={selection.viewport}
+            capturedAt={selection.capturedAt}
+          />
+        </Section>
 
-          <Block title="발생 현상">
-            <DocBody value={draft.body} />
-          </Block>
+        <Section title="발생 현상">
+          <DocBody value={draft.body} />
+        </Section>
 
-          <Block title="스타일 변경사항">
-            <StyleChangesTable
-              beforeImage={beforeImage}
-              afterImage={afterImage}
-              diffs={diffs}
-            />
-          </Block>
+        <Section title="스타일 변경사항">
+          <StyleChangesTable
+            beforeImage={beforeImage}
+            afterImage={afterImage}
+            diffs={diffs}
+          />
+        </Section>
 
-          <Block title="기대 결과">
-            <DocBody value={draft.expectedResult} />
-          </Block>
-        </article>
+        <Section title="기대 결과">
+          <DocBody value={draft.expectedResult} />
+        </Section>
       </PageScroll>
       <PageFooter>
         <div className="flex items-center gap-2">
@@ -86,21 +89,6 @@ export function PreviewPanel() {
         </div>
       </PageFooter>
     </PageShell>
-  );
-}
-
-function Block({
-  title,
-  children,
-}: {
-  title: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="flex flex-col gap-2">
-      <h2 className="text-lg font-semibold leading-snug">{title}</h2>
-      {children}
-    </section>
   );
 }
 
