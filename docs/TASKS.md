@@ -27,6 +27,7 @@ PRD(`docs/PRD.md`) 기준 작업 목록. 다른 환경에서 이어서 작업할
 - [x] 브랜딩: BugShot 파스칼 케이스 통일, 앱 설명 문구 개선
 - [x] en locale 추가
 - [x] PRD v0.4 최신화 (구현 기준 스펙 반영)
+- [x] AI 메타데이터 블록 (`<!-- bugshot-meta-for-ai -->`) — 마크다운 최상단, 구조화 JSON
 
 ## 진행 중
 

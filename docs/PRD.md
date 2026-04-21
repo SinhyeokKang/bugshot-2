@@ -192,6 +192,11 @@ Captured: {localized timestamp}
 
 **저장 형식**: 마크다운 원문 보관 → Jira 전송 시 ADF로 변환, 마크다운 추출 시 원문 그대로
 
+**AI 메타데이터 블록** (`<!-- bugshot-meta-for-ai -->`):
+- 마크다운/HTML 최상단에 HTML 코멘트로 삽입 (사람에게 비노출, AI 에이전트가 API로 파싱)
+- 구조화된 JSON: `version`, `url`, `selector`, `tagName`, `viewport`, `classListBefore/After`, `specifiedStyles` (authored CSS 값, var() 포함), `cssChanges` (property/from/to), `tokens` (변경 관련 토큰 name/value만 필터)
+- AI가 프로젝트 소스 위에서 작업하는 전제 — 파일 위치/컨벤션은 AI가 프로젝트 맥락에서 판단, 메타는 "뭘 바꿔야 하는지"만 전달
+
 ### 2.6 마크다운 추출
 - **출력**: `ClipboardItem`으로 `text/plain`(GFM) + `text/html`(`<h1>/<h2>/<p>/<table>`) 동시 복사
   - Jira/Notion/Confluence가 HTML의 네이티브 테이블로 변환, Slack/Gmail은 plain text fallback

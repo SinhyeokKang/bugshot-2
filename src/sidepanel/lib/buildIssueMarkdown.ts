@@ -6,6 +6,11 @@ export interface MarkdownContext {
   expectedResult: string;
   url: string;
   selector: string;
+  tagName: string;
+  classListBefore: string[];
+  classListAfter: string[];
+  specifiedStyles: Record<string, string>;
+  tokens: { name: string; value: string }[];
   viewport: { width: number; height: number };
   capturedAt: number;
   diffs: StyleDiffRow[];
@@ -14,6 +19,8 @@ export interface MarkdownContext {
 export function buildIssueMarkdown(ctx: MarkdownContext): string {
   const lines: string[] = [];
 
+  lines.push(buildMetaComment(ctx));
+  lines.push("");
   lines.push(`# ${ctx.title}`);
   lines.push("");
 
@@ -54,6 +61,7 @@ export function buildIssueMarkdown(ctx: MarkdownContext): string {
 export function buildIssueHtml(ctx: MarkdownContext): string {
   const parts: string[] = [];
 
+  parts.push(buildMetaComment(ctx));
   parts.push(`<h1>${escapeHtml(ctx.title)}</h1>`);
 
   parts.push(`<h2>발생 환경</h2>`);
@@ -88,6 +96,27 @@ export function buildIssueHtml(ctx: MarkdownContext): string {
   parts.push(paragraphize(ctx.expectedResult));
 
   return parts.join("\n");
+}
+
+function buildMetaComment(ctx: MarkdownContext): string {
+  const meta = {
+    version: 1,
+    url: ctx.url,
+    selector: ctx.selector,
+    tagName: ctx.tagName,
+    viewport: ctx.viewport,
+    capturedAt: ctx.capturedAt,
+    classListBefore: ctx.classListBefore,
+    classListAfter: ctx.classListAfter,
+    specifiedStyles: ctx.specifiedStyles,
+    cssChanges: ctx.diffs.map((d) => ({
+      property: d.prop,
+      from: d.asIs,
+      to: d.toBe,
+    })),
+    tokens: ctx.tokens,
+  };
+  return `<!-- bugshot-meta-for-ai\n${JSON.stringify(meta, null, 2)}\n-->`;
 }
 
 function escapeCell(value: string): string {

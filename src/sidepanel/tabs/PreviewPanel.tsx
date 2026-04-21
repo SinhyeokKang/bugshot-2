@@ -19,6 +19,7 @@ export function PreviewPanel() {
   const selection = useEditorStore((s) => s.selection);
   const target = useEditorStore((s) => s.target);
   const styleEdits = useEditorStore((s) => s.styleEdits);
+  const tokens = useEditorStore((s) => s.tokens);
   const beforeImage = useEditorStore((s) => s.beforeImage);
   const afterImage = useEditorStore((s) => s.afterImage);
   const draft = useEditorStore((s) => s.draft);
@@ -39,12 +40,25 @@ export function PreviewPanel() {
   if (!selection || !draft) return null;
 
   const handleCopyMarkdown = async () => {
+    const changedProps = new Set(diffs.map((d) => d.prop));
+    const relevantValues = Object.entries(selection.specifiedStyles)
+      .filter(([k]) => changedProps.has(k))
+      .map(([, v]) => v);
+    const relevantTokens = tokens
+      .filter((t) => relevantValues.some((v) => v.includes(t.name)))
+      .map((t) => ({ name: t.name, value: t.value }));
+
     const ctx = {
       title: draft.title,
       body: draft.body,
       expectedResult: draft.expectedResult,
       url: target?.url ?? "",
       selector: selection.selector,
+      tagName: selection.tagName,
+      classListBefore: selection.classList,
+      classListAfter: styleEdits.classList,
+      specifiedStyles: selection.specifiedStyles,
+      tokens: relevantTokens,
       viewport: selection.viewport,
       capturedAt: selection.capturedAt,
       diffs,
