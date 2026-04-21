@@ -15,9 +15,11 @@ export function IssueListTab() {
   if (sorted.length === 0) {
     return (
       <PageShell>
-        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 text-muted-foreground/60">
-          <Inbox className="h-9 w-9" strokeWidth={1.5} />
-          <span className="text-lg font-medium">등록한 이슈가 없습니다</span>
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 text-center">
+          <div className="mb-3 rounded-full bg-muted p-3">
+            <Inbox className="h-6 w-6 text-muted-foreground" />
+          </div>
+          <h3 className="text-[18px] font-semibold">등록한 이슈가 없습니다</h3>
         </div>
       </PageShell>
     );

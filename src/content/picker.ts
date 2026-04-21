@@ -367,7 +367,7 @@ function ensureOverlay(): void {
 
   borderEl = document.createElementNS(SVG_NS, "rect");
   borderEl.setAttribute("fill", "none");
-  borderEl.setAttribute("stroke", "#0ea5e9");
+  borderEl.setAttribute("stroke", "#2563eb");
   borderEl.setAttribute("stroke-width", "2");
   borderEl.style.display = "none";
   svg.appendChild(borderEl);

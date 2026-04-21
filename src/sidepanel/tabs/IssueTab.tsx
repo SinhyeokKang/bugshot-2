@@ -227,15 +227,10 @@ export function IssueTab() {
 function UnsupportedPage() {
   return (
     <PageShell>
-      <PageScroll>
-        <Section>
-          <EmptyShell
-            icon={<Crosshair className="h-6 w-6 text-muted-foreground" />}
-            title="지원하지 않는 페이지"
-            description="http, https, file 프로토콜 페이지에서만 동작합니다."
-          />
-        </Section>
-      </PageScroll>
+      <EmptyShell
+        icon={<Crosshair className="h-6 w-6 text-muted-foreground" />}
+        title="지원하지 않는 페이지"
+      />
     </PageShell>
   );
 }
@@ -243,14 +238,16 @@ function UnsupportedPage() {
 function EmptyState({ onStart }: { onStart: () => void }) {
   return (
     <PageShell>
-      <button
-        type="button"
-        onClick={onStart}
-        className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 text-muted-foreground/60 transition-colors hover:text-muted-foreground focus-visible:outline-none focus-visible:text-muted-foreground"
-      >
-        <MousePointerClick className="h-9 w-9" strokeWidth={1.5} />
-        <span className="text-lg font-medium">요소를 선택하세요</span>
-      </button>
+      <EmptyShell
+        icon={<MousePointerClick className="h-6 w-6 text-muted-foreground" />}
+        title="선택된 요소가 없습니다"
+        action={
+          <Button onClick={onStart}>
+            <Crosshair />
+            요소 선택 시작
+          </Button>
+        }
+      />
     </PageShell>
   );
 }
@@ -258,20 +255,15 @@ function EmptyState({ onStart }: { onStart: () => void }) {
 function PickingState({ onCancel }: { onCancel: () => void }) {
   return (
     <PageShell>
-      <PageScroll>
-        <Section>
-          <EmptyShell
-            icon={<Crosshair className="h-6 w-6 text-muted-foreground" />}
-            title="요소를 선택하세요"
-            description="페이지에서 이슈로 등록할 요소를 클릭하세요. ESC 로 취소할 수 있습니다."
-            action={
-              <Button variant="outline" onClick={onCancel}>
-                취소
-              </Button>
-            }
-          />
-        </Section>
-      </PageScroll>
+      <EmptyShell
+        icon={<Crosshair className="h-6 w-6 text-muted-foreground" />}
+        title="요소를 선택하세요"
+        action={
+          <Button variant="outline" onClick={onCancel}>
+            취소
+          </Button>
+        }
+      />
     </PageShell>
   );
 }
@@ -1495,21 +1487,16 @@ function DomTreeNode({
 function EmptyShell({
   icon,
   title,
-  description,
   action,
 }: {
   icon: React.ReactNode;
   title: string;
-  description: string;
   action?: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center py-10 text-center">
+    <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 text-center">
       <div className="mb-3 rounded-full bg-muted p-3">{icon}</div>
-      <h3 className="text-sm font-semibold">{title}</h3>
-      <p className="mt-1 max-w-xs text-xs text-muted-foreground">
-        {description}
-      </p>
+      <h3 className="text-[18px] font-semibold">{title}</h3>
       {action ? <div className="mt-4">{action}</div> : null}
     </div>
   );
