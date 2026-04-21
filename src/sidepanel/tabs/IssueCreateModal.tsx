@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Check,
   ChevronsUpDown,
@@ -143,15 +143,17 @@ function FieldRow({
 
 function useJiraConfig(): { config: JiraConfigPayload; projectKey: string } | null {
   const jiraConfig = useSettingsStore((s) => s.jiraConfig);
-  if (!jiraConfig?.projectKey) return null;
-  return {
-    config: {
-      baseUrl: jiraConfig.baseUrl,
-      email: jiraConfig.email,
-      apiToken: jiraConfig.apiToken,
-    },
-    projectKey: jiraConfig.projectKey,
-  };
+  return useMemo(() => {
+    if (!jiraConfig?.projectKey) return null;
+    return {
+      config: {
+        baseUrl: jiraConfig.baseUrl,
+        email: jiraConfig.email,
+        apiToken: jiraConfig.apiToken,
+      },
+      projectKey: jiraConfig.projectKey,
+    };
+  }, [jiraConfig?.baseUrl, jiraConfig?.email, jiraConfig?.apiToken, jiraConfig?.projectKey]);
 }
 
 function useDebouncedSearch<T>(

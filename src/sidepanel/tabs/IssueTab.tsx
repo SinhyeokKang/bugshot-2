@@ -759,7 +759,7 @@ function LinkToggle({
       type="button"
       onClick={onToggle}
       className={cn(
-        "flex h-9 w-7 shrink-0 items-center justify-center rounded-md border text-muted-foreground transition-colors hover:bg-muted",
+        "flex h-9 w-9 shrink-0 items-center justify-center rounded-md border text-muted-foreground transition-colors hover:bg-muted",
         linked && "border-primary/50 bg-primary/10 text-primary",
       )}
       title={linked ? "개별 편집" : "일괄 편집"}

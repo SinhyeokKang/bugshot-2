@@ -145,5 +145,50 @@ export function buildStyleDiff(
     if (pa !== pb) return pa - pb;
     return a.prop.localeCompare(b.prop);
   });
-  return rows;
+  return collapseShorthands(rows);
+}
+
+const SHORTHAND_GROUPS: Record<string, string[]> = {
+  padding: [
+    "padding-top",
+    "padding-right",
+    "padding-bottom",
+    "padding-left",
+  ],
+  margin: ["margin-top", "margin-right", "margin-bottom", "margin-left"],
+  "border-radius": [
+    "border-top-left-radius",
+    "border-top-right-radius",
+    "border-bottom-right-radius",
+    "border-bottom-left-radius",
+  ],
+};
+
+function collapseShorthands(rows: StyleDiffRow[]): StyleDiffRow[] {
+  const result: StyleDiffRow[] = [];
+  const consumed = new Set<string>();
+
+  for (const [shorthand, longhands] of Object.entries(SHORTHAND_GROUPS)) {
+    const matching = longhands
+      .map((l) => rows.find((r) => r.prop === l))
+      .filter((r): r is StyleDiffRow => r != null);
+    if (matching.length !== longhands.length) continue;
+
+    const allSameAsIs = matching.every((r) => r.asIs === matching[0].asIs);
+    const allSameToBe = matching.every((r) => r.toBe === matching[0].toBe);
+    if (allSameAsIs && allSameToBe) {
+      result.push({
+        prop: shorthand,
+        asIs: matching[0].asIs,
+        toBe: matching[0].toBe,
+      });
+      for (const l of longhands) consumed.add(l);
+    }
+  }
+
+  for (const row of rows) {
+    if (!consumed.has(row.prop)) result.push(row);
+  }
+
+  return result;
 }

@@ -747,7 +747,12 @@ function collectRulesForElement(el: Element, out: Record<string, string>): void 
     const style = el.style;
     for (let i = 0; i < style.length; i++) {
       const name = style.item(i);
-      out[name] = style.getPropertyValue(name);
+      const val = style.getPropertyValue(name);
+      if (val) out[name] = val;
+    }
+    for (const shorthand of Object.keys(SHORTHAND_MAP)) {
+      const val = style.getPropertyValue(shorthand);
+      if (val) out[shorthand] = val;
     }
   }
 }
@@ -809,7 +814,12 @@ function collectSpecifiedFromRules(
       for (let i = 0; i < decl.length; i++) {
         const name = decl.item(i);
         if (name.startsWith("--")) continue;
-        out[name] = decl.getPropertyValue(name);
+        const val = decl.getPropertyValue(name);
+        if (val) out[name] = val;
+      }
+      for (const shorthand of Object.keys(SHORTHAND_MAP)) {
+        const val = decl.getPropertyValue(shorthand);
+        if (val) out[shorthand] = val;
       }
       continue;
     }
