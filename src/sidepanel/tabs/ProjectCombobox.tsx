@@ -132,7 +132,7 @@ export function ProjectCombobox() {
                       />
                       <div className="flex min-w-0 flex-col">
                         <span className="truncate">{project.name}</span>
-                        <span className="truncate font-mono text-[11px] text-muted-foreground">
+                        <span className="truncate text-[11px] text-muted-foreground">
                           {project.key}
                         </span>
                       </div>

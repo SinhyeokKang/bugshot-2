@@ -90,7 +90,7 @@ function JiraSummary() {
   return (
     <div className="flex items-center justify-between rounded-md border px-3 py-2">
       <div className="flex min-w-0 flex-col gap-0.5 text-xs">
-        <span className="truncate font-mono text-foreground">{host}</span>
+        <span className="truncate text-foreground">{host}</span>
         <span className="truncate text-muted-foreground">
           {jiraConfig.email}
         </span>

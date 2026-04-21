@@ -1,33 +1,69 @@
+import { List, Settings, SlidersHorizontal, SquarePen } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { usePickerMessages } from "./hooks/usePickerMessages";
+import { useThemeEffect } from "./hooks/useThemeEffect";
+import { AppSettingsTab } from "./tabs/AppSettingsTab";
+import { IssueListTab } from "./tabs/IssueListTab";
 import { IssueTab } from "./tabs/IssueTab";
 import { SettingsTab } from "./tabs/SettingsTab";
 
 export default function App() {
+  usePickerMessages();
+  useThemeEffect();
+
   return (
-    <div className="flex min-h-screen flex-col">
+    <div className="flex h-screen flex-col">
       <Tabs
         defaultValue="issue"
         className="flex min-h-0 flex-1 flex-col gap-0"
       >
         <div className="border-b">
-          <TabsList className="mx-4 my-5 grid h-9 w-auto grid-cols-2">
-            <TabsTrigger value="issue">이슈 작성</TabsTrigger>
-            <TabsTrigger value="settings">설정</TabsTrigger>
+          <TabsList className="mx-4 my-5 grid h-9 w-auto grid-cols-4">
+            <TabsTrigger value="issue" className="gap-1.5">
+              <SquarePen className="h-3.5 w-3.5" />
+              이슈 작성
+            </TabsTrigger>
+            <TabsTrigger value="issue-list" className="gap-1.5">
+              <List className="h-3.5 w-3.5" />
+              이슈 목록
+            </TabsTrigger>
+            <TabsTrigger value="issue-settings" className="gap-1.5">
+              <SlidersHorizontal className="h-3.5 w-3.5" />
+              이슈 설정
+            </TabsTrigger>
+            <TabsTrigger value="app-settings" className="gap-1.5">
+              <Settings className="h-3.5 w-3.5" />
+              앱 설정
+            </TabsTrigger>
           </TabsList>
         </div>
 
         <TabsContent
           value="issue"
-          className="mt-0 flex-1 overflow-y-auto px-4 py-5"
+          className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden"
         >
           <IssueTab />
         </TabsContent>
 
         <TabsContent
-          value="settings"
+          value="issue-list"
+          className="mt-0 flex-1 overflow-y-auto px-4 py-5"
+        >
+          <IssueListTab />
+        </TabsContent>
+
+        <TabsContent
+          value="issue-settings"
           className="mt-0 flex-1 overflow-y-auto px-4 py-5"
         >
           <SettingsTab />
+        </TabsContent>
+
+        <TabsContent
+          value="app-settings"
+          className="mt-0 flex-1 overflow-y-auto px-4 py-5"
+        >
+          <AppSettingsTab />
         </TabsContent>
       </Tabs>
     </div>

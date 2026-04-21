@@ -29,6 +29,13 @@ export default defineManifest({
   side_panel: {
     default_path: "src/sidepanel/index.html",
   },
+  content_scripts: [
+    {
+      matches: ["<all_urls>"],
+      js: ["src/content/picker.ts"],
+      run_at: "document_idle",
+    },
+  ],
   permissions: [
     "sidePanel",
     "activeTab",
