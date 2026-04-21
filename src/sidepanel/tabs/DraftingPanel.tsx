@@ -38,13 +38,15 @@ export function DraftingPanel() {
     if (draft) return;
     if (!selection) return;
     setDraft({
-      title: defaultTitle(titlePrefix, selection.tagName, selection.selector),
+      title: defaultTitle(titlePrefix),
       body: "",
       expectedResult: "",
     });
   }, [draft, selection, setDraft, titlePrefix]);
 
   if (!selection || !draft) return null;
+
+  const titleMissing = !draft.title.trim();
 
   return (
     <PageShell>
@@ -88,7 +90,7 @@ export function DraftingPanel() {
       <PageFooter>
         <div className="flex items-center gap-2">
           <Button
-            size="lg"
+            size="xl"
             variant="outline"
             className="flex-1"
             onClick={() => backToStyling()}
@@ -96,7 +98,12 @@ export function DraftingPanel() {
             <ArrowLeft />
             이전
           </Button>
-          <Button size="lg" className="flex-1" onClick={() => confirmDraft()}>
+          <Button
+            size="xl"
+            className="flex-1"
+            onClick={() => confirmDraft()}
+            disabled={titleMissing}
+          >
             프리뷰
             <ArrowRight />
           </Button>
@@ -106,14 +113,8 @@ export function DraftingPanel() {
   );
 }
 
-function defaultTitle(
-  prefix: string,
-  tagName: string,
-  selector: string,
-): string {
-  const trimmed = selector.length > 60 ? `${selector.slice(0, 60)}…` : selector;
-  const body = `[${tagName}] ${trimmed}`;
-  if (!prefix) return body;
-  return prefix.endsWith(" ") ? `${prefix}${body}` : `${prefix} ${body}`;
+function defaultTitle(prefix: string): string {
+  if (!prefix) return "";
+  return prefix.endsWith(" ") ? prefix : `${prefix} `;
 }
 

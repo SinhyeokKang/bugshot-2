@@ -77,7 +77,22 @@ interface EditorState {
   setIssueFields: (patch: Partial<EditorIssueFields>) => void;
   onSubmitted: () => void;
   reset: () => void;
+  hydrate: (snapshot: EditorSnapshot) => void;
 }
+
+export type EditorSnapshot = Pick<
+  EditorState,
+  | "phase"
+  | "target"
+  | "selection"
+  | "styleEdits"
+  | "tokens"
+  | "beforeImage"
+  | "afterImage"
+  | "draft"
+  | "issueFields"
+  | "currentIssueId"
+>;
 
 const initial = {
   phase: "idle" as EditorPhase,
@@ -176,4 +191,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   onSubmitted: () => set({ phase: "done" }),
 
   reset: () => set({ ...initial }),
+
+  hydrate: (snapshot) => set(snapshot),
 }));

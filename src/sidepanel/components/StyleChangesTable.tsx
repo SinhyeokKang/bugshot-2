@@ -1,4 +1,10 @@
 import { cn } from "@/lib/utils";
+import {
+  DocTable,
+  docTableCell,
+  docTableHead,
+  docTableRow,
+} from "./DocTable";
 
 export interface StyleDiffRow {
   prop: string;
@@ -29,60 +35,55 @@ export function StyleChangesTable({
   diffs: StyleDiffRow[];
 }) {
   return (
-    <div className="overflow-hidden rounded-lg border border-border/60">
-      <table className="w-full table-fixed border-collapse text-sm">
-        <colgroup>
-          <col className="w-[22%]" />
-          <col />
-          <col />
-        </colgroup>
-        <thead>
-          <tr className="border-b border-border/60 bg-muted/40 text-left">
-            <th className="px-2 py-1.5 font-semibold" />
-            <th className="px-2 py-1.5 font-semibold">As is</th>
-            <th className="px-2 py-1.5 font-semibold">To be</th>
+    <DocTable>
+      <colgroup>
+        <col className="w-[22%]" />
+        <col />
+        <col />
+      </colgroup>
+      <thead>
+        <tr className={cn("bg-muted/40", docTableRow)}>
+          <th className={docTableHead} />
+          <th className={docTableHead}>As is</th>
+          <th className={docTableHead}>To be</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr className={docTableRow}>
+          <td className={cn(docTableCell, "text-muted-foreground")}>
+            스냅샷
+          </td>
+          <td className={docTableCell}>
+            <SnapshotCell image={beforeImage} />
+          </td>
+          <td className={docTableCell}>
+            <SnapshotCell image={afterImage} />
+          </td>
+        </tr>
+        {diffs.length === 0 ? (
+          <tr>
+            <td
+              colSpan={3}
+              className={cn(docTableCell, "text-center text-muted-foreground")}
+            >
+              변경 사항이 없습니다.
+            </td>
           </tr>
-        </thead>
-        <tbody>
-          <tr className="border-b border-border/60">
-            <td className="px-2 py-2 align-middle text-muted-foreground">
-              스냅샷
-            </td>
-            <td className="px-2 py-2">
-              <SnapshotCell image={beforeImage} />
-            </td>
-            <td className="px-2 py-2">
-              <SnapshotCell image={afterImage} />
-            </td>
-          </tr>
-          {diffs.length === 0 ? (
-            <tr>
-              <td
-                colSpan={3}
-                className="px-2 py-3 text-center text-muted-foreground"
-              >
-                변경 사항이 없습니다.
+        ) : (
+          diffs.map((d) => (
+            <tr key={d.prop} className={docTableRow}>
+              <td className={cn(docTableCell, "font-medium")}>{d.prop}</td>
+              <td className={docTableCell}>
+                <DiffValue value={d.asIs} muted />
+              </td>
+              <td className={docTableCell}>
+                <DiffValue value={d.toBe} />
               </td>
             </tr>
-          ) : (
-            diffs.map((d) => (
-              <tr
-                key={d.prop}
-                className="border-b border-border/60 last:border-b-0"
-              >
-                <td className="px-2 py-1.5 align-top font-medium">{d.prop}</td>
-                <td className="px-2 py-1.5 align-top">
-                  <DiffValue value={d.asIs} muted />
-                </td>
-                <td className="px-2 py-1.5 align-top">
-                  <DiffValue value={d.toBe} />
-                </td>
-              </tr>
-            ))
-          )}
-        </tbody>
-      </table>
-    </div>
+          ))
+        )}
+      </tbody>
+    </DocTable>
   );
 }
 

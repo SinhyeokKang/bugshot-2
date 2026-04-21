@@ -1,5 +1,7 @@
 import { List, Settings, SlidersHorizontal, SquarePen } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useBoundTabId } from "./hooks/useBoundTabId";
+import { useEditorSessionSync } from "./hooks/useEditorSessionSync";
 import { usePickerMessages } from "./hooks/usePickerMessages";
 import { useThemeEffect } from "./hooks/useThemeEffect";
 import { AppSettingsTab } from "./tabs/AppSettingsTab";
@@ -8,8 +10,12 @@ import { IssueTab } from "./tabs/IssueTab";
 import { SettingsTab } from "./tabs/SettingsTab";
 
 export default function App() {
+  const tabId = useBoundTabId();
+  const hydrated = useEditorSessionSync(tabId);
   usePickerMessages();
   useThemeEffect();
+
+  if (!hydrated) return null;
 
   return (
     <div className="flex h-screen flex-col">

@@ -85,6 +85,10 @@ const PROP_CATEGORY: Record<string, TokenCategory> = {
   "min-height": "length",
   "max-height": "length",
   "border-radius": "length",
+  "border-top-left-radius": "length",
+  "border-top-right-radius": "length",
+  "border-bottom-right-radius": "length",
+  "border-bottom-left-radius": "length",
   "font-weight": "number",
   opacity: "number",
 };
@@ -122,7 +126,15 @@ const SECTION_PROPS = {
     "color",
   ],
   background: ["background-color", "opacity"],
-  border: ["border", "border-color", "border-radius"],
+  border: [
+    "border",
+    "border-color",
+    "border-radius",
+    "border-top-left-radius",
+    "border-top-right-radius",
+    "border-bottom-right-radius",
+    "border-bottom-left-radius",
+  ],
   effects: ["box-shadow", "filter", "backdrop-filter", "mix-blend-mode"],
 } as const;
 
@@ -150,6 +162,10 @@ const KNOWN_DEFAULTS: Record<string, string[]> = {
   "background-color": ["rgba(0, 0, 0, 0)", "transparent"],
   "border-color": ["rgb(0, 0, 0)", "currentcolor"],
   "border-radius": ["0px"],
+  "border-top-left-radius": ["0px"],
+  "border-top-right-radius": ["0px"],
+  "border-bottom-right-radius": ["0px"],
+  "border-bottom-left-radius": ["0px"],
   border: ["", "0px none rgb(0, 0, 0)", "none"],
   "min-width": ["auto", "0px"],
   "max-width": ["none"],
@@ -227,21 +243,14 @@ function UnsupportedPage() {
 function EmptyState({ onStart }: { onStart: () => void }) {
   return (
     <PageShell>
-      <PageScroll>
-        <Section>
-          <EmptyShell
-            icon={<MousePointerClick className="h-6 w-6 text-muted-foreground" />}
-            title="선택된 요소가 없습니다"
-            description="페이지에서 이슈로 등록할 요소를 선택하세요."
-            action={
-              <Button onClick={onStart}>
-                <Crosshair />
-                요소 선택 시작
-              </Button>
-            }
-          />
-        </Section>
-      </PageScroll>
+      <button
+        type="button"
+        onClick={onStart}
+        className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 text-muted-foreground/60 transition-colors hover:text-muted-foreground focus-visible:outline-none focus-visible:text-muted-foreground"
+      >
+        <MousePointerClick className="h-9 w-9" strokeWidth={1.5} />
+        <span className="text-lg font-medium">요소를 선택하세요</span>
+      </button>
     </PageShell>
   );
 }
@@ -494,10 +503,8 @@ function SelectedPanel() {
         action={<SectionRevertButton props={SECTION_PROPS.border} />}
       >
         <TextProp label="border" prop="border" />
-        <Row2>
-          <TextProp label="border-color" prop="border-color" />
-          <TextProp label="radius" prop="border-radius" />
-        </Row2>
+        <TextProp label="border-color" prop="border-color" />
+        <RadiusProp />
       </Section>
 
       <Section
@@ -547,7 +554,7 @@ function SelectedPanel() {
         </div>
         <div className="flex items-center gap-2">
           <Button
-            size="lg"
+            size="xl"
             variant="outline"
             className="flex-1"
             onClick={() => {
@@ -561,7 +568,7 @@ function SelectedPanel() {
             다시 선택
           </Button>
           <Button
-            size="lg"
+            size="xl"
             className="flex-1"
             onClick={() => void handleNext()}
             disabled={proceeding || !hasChange}
@@ -844,14 +851,133 @@ function AlignmentProp({ label, prop }: { label: string; prop: string }) {
   );
 }
 
+const SIDE_LINES = {
+  top: { x1: 2.5, y1: 2.5, x2: 11.5, y2: 2.5 },
+  right: { x1: 11.5, y1: 2.5, x2: 11.5, y2: 11.5 },
+  bottom: { x1: 2.5, y1: 11.5, x2: 11.5, y2: 11.5 },
+  left: { x1: 2.5, y1: 2.5, x2: 2.5, y2: 11.5 },
+} as const;
+
+function SideEdgeIcon({
+  side,
+  className,
+}: {
+  side: keyof typeof SIDE_LINES;
+  className?: string;
+}) {
+  const l = SIDE_LINES[side];
+  return (
+    <svg
+      viewBox="0 0 14 14"
+      fill="none"
+      stroke="currentColor"
+      className={className}
+      aria-hidden="true"
+    >
+      <rect x="2.5" y="2.5" width="9" height="9" strokeWidth="1" opacity="0.35" />
+      <line
+        x1={l.x1}
+        y1={l.y1}
+        x2={l.x2}
+        y2={l.y2}
+        strokeWidth="2.5"
+        strokeLinecap="butt"
+      />
+    </svg>
+  );
+}
+
 function QuadProp({ label, prefix }: { label: string; prefix: string }) {
   return (
     <PropRow label={label}>
       <div className="grid grid-cols-4 gap-1">
-        <ValueCombobox prop={`${prefix}-top`} compact />
-        <ValueCombobox prop={`${prefix}-right`} compact />
-        <ValueCombobox prop={`${prefix}-bottom`} compact />
-        <ValueCombobox prop={`${prefix}-left`} compact />
+        <ValueCombobox
+          prop={`${prefix}-top`}
+          compact
+          icon={<SideEdgeIcon side="top" className="h-3.5 w-3.5" />}
+          iconTitle="위"
+        />
+        <ValueCombobox
+          prop={`${prefix}-right`}
+          compact
+          icon={<SideEdgeIcon side="right" className="h-3.5 w-3.5" />}
+          iconTitle="오른쪽"
+        />
+        <ValueCombobox
+          prop={`${prefix}-bottom`}
+          compact
+          icon={<SideEdgeIcon side="bottom" className="h-3.5 w-3.5" />}
+          iconTitle="아래"
+        />
+        <ValueCombobox
+          prop={`${prefix}-left`}
+          compact
+          icon={<SideEdgeIcon side="left" className="h-3.5 w-3.5" />}
+          iconTitle="왼쪽"
+        />
+      </div>
+    </PropRow>
+  );
+}
+
+const CORNER_PATHS = {
+  tl: "M2 12 V5 A3 3 0 0 1 5 2 H12",
+  tr: "M2 2 H9 A3 3 0 0 1 12 5 V12",
+  br: "M12 2 V9 A3 3 0 0 1 9 12 H2",
+  bl: "M12 12 H5 A3 3 0 0 1 2 9 V2",
+} as const;
+
+function CornerRadiusIcon({
+  corner,
+  className,
+}: {
+  corner: keyof typeof CORNER_PATHS;
+  className?: string;
+}) {
+  return (
+    <svg
+      viewBox="0 0 14 14"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.5"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d={CORNER_PATHS[corner]} />
+    </svg>
+  );
+}
+
+function RadiusProp() {
+  return (
+    <PropRow label="radius">
+      <div className="grid grid-cols-4 gap-1">
+        <ValueCombobox
+          prop="border-top-left-radius"
+          compact
+          icon={<CornerRadiusIcon corner="tl" className="h-3.5 w-3.5" />}
+          iconTitle="좌상단"
+        />
+        <ValueCombobox
+          prop="border-top-right-radius"
+          compact
+          icon={<CornerRadiusIcon corner="tr" className="h-3.5 w-3.5" />}
+          iconTitle="우상단"
+        />
+        <ValueCombobox
+          prop="border-bottom-right-radius"
+          compact
+          icon={<CornerRadiusIcon corner="br" className="h-3.5 w-3.5" />}
+          iconTitle="우하단"
+        />
+        <ValueCombobox
+          prop="border-bottom-left-radius"
+          compact
+          icon={<CornerRadiusIcon corner="bl" className="h-3.5 w-3.5" />}
+          iconTitle="좌하단"
+        />
       </div>
     </PropRow>
   );
@@ -860,9 +986,13 @@ function QuadProp({ label, prefix }: { label: string; prefix: string }) {
 function ValueCombobox({
   prop,
   compact,
+  icon,
+  iconTitle,
 }: {
   prop: string;
   compact?: boolean;
+  icon?: React.ReactNode;
+  iconTitle?: string;
 }) {
   const { value, placeholder, set } = useStyleProp(prop);
   const [open, setOpen] = useState(false);
@@ -932,10 +1062,13 @@ function ValueCombobox({
           type="button"
           className={cn(
             "flex h-9 w-full items-center rounded-md border px-2 text-sm outline-none transition-colors hover:bg-muted/50 focus-visible:ring-1 focus-visible:ring-ring",
-            compact && "px-1.5 justify-center",
+            compact && "px-1.5 gap-1",
           )}
-          title={value || placeholder}
+          title={iconTitle ? `${iconTitle} · ${value || placeholder}` : value || placeholder}
         >
+          {icon ? (
+            <span className="shrink-0 text-muted-foreground">{icon}</span>
+          ) : null}
           {tokenName ? (
             <TokenChip
               name={tokenName}
@@ -1197,9 +1330,7 @@ function DomTree({ onPicked }: { onPicked: () => void }) {
         return;
       }
       setTree(resp.tree);
-      const all = new Set<string>();
-      collectAllSelectors(resp.tree, all);
-      setExpanded(all);
+      setExpanded(new Set(resp.ancestorPath));
       setLoading(false);
     });
     return () => {
@@ -1264,11 +1395,6 @@ function DomTree({ onPicked }: { onPicked: () => void }) {
       />
     </div>
   );
-}
-
-function collectAllSelectors(node: TreeNode, out: Set<string>): void {
-  out.add(node.selector);
-  node.children?.forEach((c) => collectAllSelectors(c, out));
 }
 
 function DomTreeNode({

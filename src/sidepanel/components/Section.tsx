@@ -12,7 +12,7 @@ export function PageScroll({ children }: { children: React.ReactNode }) {
 
 export function PageFooter({ children }: { children: React.ReactNode }) {
   return (
-    <div className="shrink-0 flex flex-col gap-2 border-t border-border/60 bg-background px-4 py-3">
+    <div className="shrink-0 flex flex-col gap-2 border-t border-border/60 bg-background px-4 py-5">
       {children}
     </div>
   );

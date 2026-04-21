@@ -1,5 +1,5 @@
-import { useMemo } from "react";
-import { ArrowLeft, Send } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { ArrowLeft, Check, Copy, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useEditorStore } from "@/store/editor-store";
 import {
@@ -12,6 +12,7 @@ import {
   StyleChangesTable,
   buildStyleDiff,
 } from "../components/StyleChangesTable";
+import { buildIssueHtml, buildIssueMarkdown } from "../lib/buildIssueMarkdown";
 
 export function PreviewPanel() {
   const selection = useEditorStore((s) => s.selection);
@@ -27,18 +28,61 @@ export function PreviewPanel() {
     [selection, styleEdits],
   );
 
+  const [copied, setCopied] = useState(false);
+  useEffect(() => {
+    if (!copied) return;
+    const t = window.setTimeout(() => setCopied(false), 1500);
+    return () => window.clearTimeout(t);
+  }, [copied]);
+
   if (!selection || !draft) return null;
+
+  const handleCopyMarkdown = async () => {
+    const ctx = {
+      title: draft.title,
+      body: draft.body,
+      expectedResult: draft.expectedResult,
+      url: target?.url ?? "",
+      selector: selection.selector,
+      viewport: selection.viewport,
+      capturedAt: selection.capturedAt,
+      diffs,
+    };
+    const md = buildIssueMarkdown(ctx);
+    const html = buildIssueHtml(ctx);
+    try {
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          "text/plain": new Blob([md], { type: "text/plain" }),
+          "text/html": new Blob([html], { type: "text/html" }),
+        }),
+      ]);
+    } catch {
+      await navigator.clipboard.writeText(md);
+    }
+    setCopied(true);
+  };
 
   return (
     <PageShell>
       <PageScroll>
         <Section>
-          <h1 className="text-2xl font-semibold leading-tight">
-            {draft.title || (
-              <span className="text-muted-foreground/70">(제목 없음)</span>
-            )}
-          </h1>
-          <MetaRow />
+          <div className="flex items-start justify-between gap-3">
+            <h1 className="text-2xl font-semibold leading-tight">
+              {draft.title || (
+                <span className="text-muted-foreground/70">(제목 없음)</span>
+              )}
+            </h1>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void handleCopyMarkdown()}
+              className="shrink-0"
+            >
+              {copied ? <Check /> : <Copy />}
+              {copied ? "복사됨" : "마크다운 복사"}
+            </Button>
+          </div>
         </Section>
 
         <Section title="발생 환경">
@@ -69,7 +113,7 @@ export function PreviewPanel() {
       <PageFooter>
         <div className="flex items-center gap-2">
           <Button
-            size="lg"
+            size="xl"
             variant="outline"
             className="flex-1"
             onClick={() => backToDraft()}
@@ -78,7 +122,7 @@ export function PreviewPanel() {
             이전
           </Button>
           <Button
-            size="lg"
+            size="xl"
             className="flex-1"
             disabled
             title="제출 기능은 준비 중입니다"
@@ -121,30 +165,12 @@ function EnvParagraph({
     { label: "Captured", value: formatTimestamp(capturedAt) },
   ];
   return (
-    <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-sm leading-relaxed">
+    <div className="space-y-1 text-sm leading-relaxed">
       {rows.map((r) => (
-        <div key={r.label} className="contents">
-          <dt className="text-muted-foreground">{r.label}</dt>
-          <dd className="break-all">{r.value}</dd>
+        <div key={r.label} className="flex gap-3">
+          <span className="w-20 shrink-0 text-muted-foreground">{r.label}</span>
+          <span className="break-all">{r.value}</span>
         </div>
-      ))}
-    </dl>
-  );
-}
-
-function MetaRow() {
-  const items: { label: string; value: string }[] = [
-    { label: "이슈 타입", value: "—" },
-    { label: "우선순위", value: "—" },
-    { label: "담당자", value: "—" },
-  ];
-  return (
-    <div className="flex flex-wrap gap-x-4 gap-y-1 text-[11px] text-muted-foreground">
-      {items.map((i) => (
-        <span key={i.label} className="inline-flex gap-1">
-          <span>{i.label}</span>
-          <span className="text-foreground/80">{i.value}</span>
-        </span>
       ))}
     </div>
   );

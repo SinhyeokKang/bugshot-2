@@ -48,6 +48,10 @@ const INTERESTING_PROPS = [
   "opacity",
   "border",
   "border-radius",
+  "border-top-left-radius",
+  "border-top-right-radius",
+  "border-bottom-right-radius",
+  "border-bottom-left-radius",
   "overflow",
   "overflow-x",
   "overflow-y",
@@ -66,6 +70,7 @@ type Mode = "idle" | "hover" | "selected";
 let mode: Mode = "idle";
 let selectedEl: Element | null = null;
 let lastHover: Element | null = null;
+let pendingTarget: Element | null = null;
 let originalClassName: string | null = null;
 let originalStyle: string | null = null;
 let textNode: Text | null = null;
@@ -163,6 +168,7 @@ function handleStart(): void {
   ensureOverlay();
   selectedEl = null;
   lastHover = null;
+  pendingTarget = null;
   addHoverListeners();
   setMode("hover");
 }
@@ -398,7 +404,7 @@ function addHoverListeners(): void {
   window.addEventListener("pointerup", onMouseEat, true);
   window.addEventListener("mousedown", onMouseEat, true);
   window.addEventListener("mouseup", onMouseEat, true);
-  window.addEventListener("click", onMouseEat, true);
+  window.addEventListener("click", onClickCommit, true);
   window.addEventListener("auxclick", onMouseEat, true);
   window.addEventListener("dblclick", onMouseEat, true);
   window.addEventListener("contextmenu", onMouseEat, true);
@@ -411,7 +417,7 @@ function removeHoverListeners(): void {
   window.removeEventListener("pointerup", onMouseEat, true);
   window.removeEventListener("mousedown", onMouseEat, true);
   window.removeEventListener("mouseup", onMouseEat, true);
-  window.removeEventListener("click", onMouseEat, true);
+  window.removeEventListener("click", onClickCommit, true);
   window.removeEventListener("auxclick", onMouseEat, true);
   window.removeEventListener("dblclick", onMouseEat, true);
   window.removeEventListener("contextmenu", onMouseEat, true);
@@ -455,23 +461,33 @@ function onMouseMove(e: MouseEvent): void {
 
 function onPointerDown(e: PointerEvent): void {
   if (mode !== "hover") return;
-  if (e.button !== 0) return;
+  if (e.button !== 0) {
+    pendingTarget = null;
+    return;
+  }
   e.preventDefault();
   e.stopPropagation();
   e.stopImmediatePropagation();
-  const target = elementAtPoint(e.clientX, e.clientY);
+  pendingTarget = elementAtPoint(e.clientX, e.clientY);
+}
+
+// pointerdown과 click 사이에는 사용자 손가락 시간(수백 ms)이 있으므로,
+// mode 전환은 click이 실제 발사된 뒤에 해야 페이지 핸들러/기본 동작을 안전하게 가로챌 수 있다.
+function onClickCommit(e: Event): void {
+  if (mode !== "hover") return;
+  e.preventDefault();
+  e.stopPropagation();
+  (e as MouseEvent).stopImmediatePropagation?.();
+  const target = pendingTarget;
+  pendingTarget = null;
   if (!target) return;
-  // Defer so the subsequent pointerup/mousedown/mouseup/click fired by the browser
-  // are still intercepted by hover-mode listeners before we switch modes.
-  setTimeout(() => {
-    restoreOriginal();
-    selectedEl = target;
-    captureOriginal(target);
-    lastHover = null;
-    removeHoverListeners();
-    setMode("selected");
-    emitSelected(target);
-  }, 0);
+  restoreOriginal();
+  selectedEl = target;
+  captureOriginal(target);
+  lastHover = null;
+  removeHoverListeners();
+  setMode("selected");
+  emitSelected(target);
 }
 
 function onMouseEat(e: Event): void {
@@ -490,6 +506,7 @@ function onKeyDown(e: KeyboardEvent): void {
   restoreOriginal();
   selectedEl = null;
   lastHover = null;
+  pendingTarget = null;
   setMode("idle");
   chrome.runtime
     .sendMessage<PickerMessage>({ type: "picker.cancelled" })

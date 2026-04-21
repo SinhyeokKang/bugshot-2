@@ -15,19 +15,10 @@ export function IssueListTab() {
   if (sorted.length === 0) {
     return (
       <PageShell>
-        <PageScroll>
-          <Section>
-            <div className="flex flex-col items-center text-center">
-              <div className="mb-3 rounded-full bg-muted p-3">
-                <Inbox className="h-6 w-6 text-muted-foreground" />
-              </div>
-              <h3 className="text-sm font-semibold">등록한 이슈가 없습니다</h3>
-              <p className="mt-1 max-w-xs text-xs text-muted-foreground">
-                프리뷰까지 진행한 초안과 Jira로 제출된 이슈가 여기에 최신순으로 쌓입니다.
-              </p>
-            </div>
-          </Section>
-        </PageScroll>
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 text-muted-foreground/60">
+          <Inbox className="h-9 w-9" strokeWidth={1.5} />
+          <span className="text-lg font-medium">등록한 이슈가 없습니다</span>
+        </div>
       </PageShell>
     );
   }

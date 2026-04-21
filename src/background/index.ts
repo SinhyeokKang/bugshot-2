@@ -10,11 +10,14 @@ const BG_REQUEST_TYPES = new Set([
   "jira.listIssueTypes",
 ]);
 
-chrome.runtime.onInstalled.addListener(() => {
+function disableGlobalSidePanel(): void {
   chrome.sidePanel
-    .setPanelBehavior({ openPanelOnActionClick: true })
-    .catch((err) => console.error("[bugshot] sidePanel init failed", err));
-});
+    .setOptions({ enabled: false })
+    .catch((err) => console.error("[bugshot] global disable failed", err));
+}
+
+chrome.runtime.onInstalled.addListener(disableGlobalSidePanel);
+chrome.runtime.onStartup.addListener(disableGlobalSidePanel);
 
 setupTabBindings();
 
