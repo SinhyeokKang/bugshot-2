@@ -9,3 +9,4 @@ dist-*
 .vite
 *.tsbuildinfo
 .claude/settings.local.json
+.wrangler

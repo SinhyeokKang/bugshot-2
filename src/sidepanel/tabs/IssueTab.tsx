@@ -5,7 +5,6 @@ import {
   AlignLeft,
   AlignRight,
   ArrowDown,
-  ArrowRight,
   ArrowUp,
   ChevronDown,
   ChevronRight,
@@ -47,6 +46,7 @@ import {
   applyStyles,
   applyText,
   clearPicker,
+  describeChildren,
   describeInitialTree,
   navigatePicker,
   previewClear,
@@ -568,7 +568,6 @@ function SelectedPanel() {
             disabled={proceeding || !hasChange}
           >
             다음
-            <ArrowRight />
           </Button>
         </div>
       </PageFooter>
@@ -1434,6 +1433,19 @@ function DomTreeTitle({ selector }: { selector: string }) {
   );
 }
 
+function injectChildren(
+  tree: TreeNode,
+  selector: string,
+  children: TreeNode[],
+): TreeNode {
+  if (tree.selector === selector) return { ...tree, children };
+  if (!tree.children) return tree;
+  return {
+    ...tree,
+    children: tree.children.map((c) => injectChildren(c, selector, children)),
+  };
+}
+
 function DomTree({ onPicked }: { onPicked: () => void }) {
   const tabId = useBoundTabId();
   const currentSelector = useEditorStore((s) => s.selection?.selector);
@@ -1479,12 +1491,26 @@ function DomTree({ onPicked }: { onPicked: () => void }) {
   };
 
   const handleToggle = (node: TreeNode) => {
+    const willOpen = !expanded.has(node.selector);
     setExpanded((prev) => {
       const next = new Set(prev);
       if (next.has(node.selector)) next.delete(node.selector);
       else next.add(node.selector);
       return next;
     });
+    if (
+      willOpen &&
+      node.children === undefined &&
+      node.childCount > 0 &&
+      tabId
+    ) {
+      void describeChildren(tabId, node.selector).then((resp) => {
+        setTree((prev) => {
+          if (!prev) return prev;
+          return injectChildren(prev, node.selector, resp.children);
+        });
+      });
+    }
   };
 
   if (loading) {

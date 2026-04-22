@@ -43,11 +43,7 @@ export function IssueTypeCombobox() {
     setError(null);
     sendBg<JiraIssueType[]>({
       type: "jira.listIssueTypes",
-      config: {
-        baseUrl: jiraConfig.baseUrl,
-        email: jiraConfig.email,
-        apiToken: jiraConfig.apiToken,
-      },
+      config: jiraConfig.auth,
       projectKey,
     })
       .then((list) => {

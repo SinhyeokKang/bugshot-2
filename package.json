@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "build:store": "BUGSHOT_STORE_BUILD=1 tsc -b && BUGSHOT_STORE_BUILD=1 vite build",
     "preview": "vite preview",
     "typecheck": "tsc -b --noEmit"
   },

@@ -1,17 +1,27 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { ExternalLink, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   useSettingsStore,
   type JiraConfig,
+  jiraHostLabel,
 } from "@/store/settings-store";
-import type { JiraMyself } from "@/types/jira";
-import { sendBg } from "@/types/messages";
+import type {
+  JiraApiKeyAuth,
+  JiraAuth,
+  JiraMyself,
+  JiraOAuthAuth,
+  JiraSite,
+} from "@/types/jira";
+import { sendBg, type OAuthStartResultMsg } from "@/types/messages";
 import { PageScroll, PageShell, Section } from "../components/Section";
 import { IssueTypeCombobox } from "./IssueTypeCombobox";
 import { ProjectCombobox } from "./ProjectCombobox";
+
+type AuthKind = "oauth" | "apiKey";
 
 export function SettingsTab() {
   const jiraConfig = useSettingsStore((s) => s.jiraConfig);
@@ -21,7 +31,7 @@ export function SettingsTab() {
     <PageShell>
       <PageScroll>
         <Section title="Jira 연결">
-          {connected ? <JiraSummary /> : <JiraForm />}
+          {connected ? <JiraSummary /> : <JiraAuthForm />}
         </Section>
 
         <Section title="프로젝트">
@@ -80,20 +90,20 @@ function JiraSummary() {
   const clearJiraConfig = useSettingsStore((s) => s.clearJiraConfig);
   if (!jiraConfig) return null;
 
-  let host = jiraConfig.baseUrl;
-  try {
-    host = new URL(jiraConfig.baseUrl).hostname;
-  } catch {
-    /* keep raw */
-  }
+  const auth = jiraConfig.auth;
+  const host = jiraHostLabel(auth);
+  const kindLabel = auth.kind === "oauth" ? "OAuth" : "API Token";
 
   return (
     <div className="flex items-center justify-between rounded-md border px-3 py-2">
       <div className="flex min-w-0 flex-col gap-0.5 text-xs">
-        <span className="truncate text-foreground">{host}</span>
-        <span className="truncate text-muted-foreground">
-          {jiraConfig.email}
-        </span>
+        <div className="flex items-center gap-1.5">
+          <span className="truncate text-foreground">{host}</span>
+          <span className="rounded border px-1.5 py-[1px] text-[10px] uppercase tracking-wider text-muted-foreground">
+            {kindLabel}
+          </span>
+        </div>
+        <span className="truncate text-muted-foreground">{auth.email}</span>
       </div>
       <Button size="sm" variant="outline" onClick={() => clearJiraConfig()}>
         재설정
@@ -102,7 +112,170 @@ function JiraSummary() {
   );
 }
 
-function JiraForm() {
+function JiraAuthForm() {
+  const [kind, setKind] = useState<AuthKind>("oauth");
+  return (
+    <Tabs value={kind} onValueChange={(v) => setKind(v as AuthKind)}>
+      <TabsList className="grid w-full grid-cols-2">
+        <TabsTrigger value="oauth">OAuth</TabsTrigger>
+        <TabsTrigger value="apiKey">API Token</TabsTrigger>
+      </TabsList>
+      <TabsContent value="oauth" className="mt-3">
+        <OAuthForm />
+      </TabsContent>
+      <TabsContent value="apiKey" className="mt-3">
+        <ApiKeyForm />
+      </TabsContent>
+    </Tabs>
+  );
+}
+
+function OAuthForm() {
+  const setJiraConfig = useSettingsStore((s) => s.setJiraConfig);
+  const [connecting, setConnecting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [oauthAvailable, setOauthAvailable] = useState<boolean | null>(null);
+  const [candidate, setCandidate] = useState<OAuthStartResultMsg | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    sendBg<{ available: boolean }>({ type: "oauth.available" })
+      .then((res) => !cancelled && setOauthAvailable(res.available))
+      .catch(() => !cancelled && setOauthAvailable(false));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function startFlow() {
+    setError(null);
+    setConnecting(true);
+    try {
+      const result = await sendBg<OAuthStartResultMsg>({ type: "oauth.start" });
+      if (result.sites.length === 0) {
+        throw new Error("접근 가능한 Jira 사이트가 없습니다.");
+      }
+      if (result.sites.length === 1) {
+        await finalize(result, result.sites[0]);
+      } else {
+        setCandidate(result);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setConnecting(false);
+    }
+  }
+
+  async function finalize(result: OAuthStartResultMsg, site: JiraSite) {
+    setError(null);
+    setConnecting(true);
+    try {
+      const auth: JiraOAuthAuth = {
+        kind: "oauth",
+        cloudId: site.id,
+        siteUrl: site.url,
+        email: "",
+        accessToken: result.accessToken,
+        refreshToken: result.refreshToken,
+        expiresAt: result.expiresAt,
+      };
+      const me = await sendBg<JiraMyself>({
+        type: "jira.myself",
+        config: auth,
+      });
+      const next: JiraConfig = {
+        auth: { ...auth, email: me.emailAddress },
+      };
+      setJiraConfig(next);
+      setCandidate(null);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setConnecting(false);
+    }
+  }
+
+  if (oauthAvailable === false) {
+    return (
+      <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-amber-700 dark:text-amber-400">
+        <p className="font-medium">Atlassian OAuth 설정이 필요합니다.</p>
+        <p className="mt-1 text-muted-foreground">
+          빌드 시 <code className="text-[11px]">VITE_ATLASSIAN_CLIENT_ID</code>
+          와 <code className="text-[11px]">VITE_OAUTH_PROXY_URL</code> 환경
+          변수를 모두 지정하세요. 현재는 API Token 방식을 사용해주세요.
+        </p>
+      </div>
+    );
+  }
+
+  if (candidate) {
+    return (
+      <div className="flex flex-col gap-2">
+        <p className="text-xs text-muted-foreground">
+          연결할 사이트를 선택하세요.
+        </p>
+        {candidate.sites.map((site) => (
+          <button
+            key={site.id}
+            type="button"
+            disabled={connecting}
+            onClick={() => void finalize(candidate, site)}
+            className="flex items-center gap-2 rounded-md border px-3 py-2 text-left text-xs transition-colors hover:bg-accent disabled:opacity-60"
+          >
+            {site.avatarUrl ? (
+              <img
+                src={site.avatarUrl}
+                alt=""
+                className="h-6 w-6 rounded"
+              />
+            ) : null}
+            <div className="flex min-w-0 flex-col">
+              <span className="truncate font-medium">{site.name}</span>
+              <span className="truncate text-muted-foreground">
+                {site.url}
+              </span>
+            </div>
+          </button>
+        ))}
+        {error ? (
+          <p className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+            {error}
+          </p>
+        ) : null}
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      <p className="text-xs text-muted-foreground">
+        Atlassian 계정으로 로그인하여 권한을 부여합니다.
+      </p>
+      {error ? (
+        <p className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+          {error}
+        </p>
+      ) : null}
+      <Button
+        onClick={() => void startFlow()}
+        disabled={connecting || oauthAvailable === null}
+        className="w-full"
+      >
+        {connecting ? (
+          <>
+            <Loader2 className="animate-spin" />
+            연결 중...
+          </>
+        ) : (
+          "Jira 연결하기"
+        )}
+      </Button>
+    </div>
+  );
+}
+
+function ApiKeyForm() {
   const setJiraConfig = useSettingsStore((s) => s.setJiraConfig);
   const [baseUrl, setBaseUrl] = useState("");
   const [email, setEmail] = useState("");
@@ -110,7 +283,8 @@ function JiraForm() {
   const [error, setError] = useState<string | null>(null);
   const [validating, setValidating] = useState(false);
 
-  const trimmed = {
+  const trimmed: JiraApiKeyAuth = {
+    kind: "apiKey",
     baseUrl: baseUrl.trim(),
     email: email.trim(),
     apiToken: apiToken.trim(),
@@ -124,9 +298,9 @@ function JiraForm() {
     try {
       await sendBg<JiraMyself>({
         type: "jira.myself",
-        config: trimmed,
+        config: trimmed as JiraAuth,
       });
-      const next: JiraConfig = { ...trimmed };
+      const next: JiraConfig = { auth: trimmed };
       setJiraConfig(next);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));

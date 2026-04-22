@@ -5,12 +5,15 @@ import { activateTab, setupTabBindings } from "./tab-bindings";
 const BG_REQUEST_TYPES = new Set([
   "ping",
   "captureVisibleTab",
+  "oauth.start",
+  "oauth.available",
   "jira.myself",
   "jira.listProjects",
   "jira.listIssueTypes",
   "jira.listPriorities",
   "jira.searchUsers",
   "jira.searchEpics",
+  "jira.submitIssue",
 ]);
 
 function disableGlobalSidePanel(): void {

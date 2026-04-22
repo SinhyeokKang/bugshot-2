@@ -1,5 +1,4 @@
 import { useEffect, useMemo } from "react";
-import { ArrowLeft, ArrowRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -95,7 +94,6 @@ export function DraftingPanel() {
             className="flex-1"
             onClick={() => backToStyling()}
           >
-            <ArrowLeft />
             이전
           </Button>
           <Button
@@ -105,7 +103,6 @@ export function DraftingPanel() {
             disabled={titleMissing}
           >
             프리뷰
-            <ArrowRight />
           </Button>
         </div>
       </PageFooter>

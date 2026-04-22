@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, Check, Copy } from "lucide-react";
+import { Check, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useEditorStore } from "@/store/editor-store";
 import {
@@ -133,7 +133,6 @@ export function PreviewPanel() {
             className="flex-1"
             onClick={() => backToDraft()}
           >
-            <ArrowLeft />
             이전
           </Button>
           <IssueCreateModal />

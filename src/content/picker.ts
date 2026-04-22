@@ -941,21 +941,37 @@ function describeShallow(el: Element): TreeNode {
 }
 
 function buildInitialTree(): DescribeInitialResponse {
-  const ancestorPath: string[] = [];
-  let cur: Element | null = selectedEl;
-  while (cur) {
-    ancestorPath.unshift(buildSelector(cur));
-    cur = cur.parentElement;
+  const target = selectedEl;
+  const ancestorChain: Element[] = [];
+  if (target) {
+    let cur: Element | null = target;
+    while (cur) {
+      ancestorChain.unshift(cur);
+      cur = cur.parentElement;
+    }
   }
+  const ancestorSet = new Set<Element>(ancestorChain);
+  const ancestorPath = ancestorChain.map(buildSelector);
 
-  function walk(el: Element): TreeNode {
+  function expand(el: Element): TreeNode {
     const node = describeShallow(el);
     const kids = Array.from(el.children).filter(isRenderable);
-    node.children = kids.map(walk);
+    node.children = kids.map((child) =>
+      ancestorSet.has(child) ? expand(child) : describeShallow(child),
+    );
     return node;
   }
 
-  return { tree: walk(document.documentElement), ancestorPath };
+  if (!target) {
+    const root = describeShallow(document.documentElement);
+    const kids = Array.from(document.documentElement.children).filter(
+      isRenderable,
+    );
+    root.children = kids.map(describeShallow);
+    return { tree: root, ancestorPath: [] };
+  }
+
+  return { tree: expand(document.documentElement), ancestorPath };
 }
 
 function buildChildrenResponse(selector: string): DescribeChildrenResponse {

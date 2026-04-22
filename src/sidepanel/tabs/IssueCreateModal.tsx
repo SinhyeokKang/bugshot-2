@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  ArrowUpRight,
   Check,
   ChevronsUpDown,
   Loader2,
-  Send,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { useEditorStore } from "@/store/editor-store";
+import { useIssuesStore } from "@/store/issues-store";
 import {
   useSettingsStore,
   isJiraConfigComplete,
@@ -40,18 +41,122 @@ import type {
   JiraPriority,
   JiraUser,
 } from "@/types/jira";
-import { sendBg } from "@/types/messages";
+import { sendBg, type JiraSubmitResult } from "@/types/messages";
+import { buildStyleDiff } from "../components/StyleChangesTable";
+import { buildIssueAdf } from "../lib/buildIssueAdf";
+
+type SubmitState =
+  | { status: "idle" }
+  | { status: "submitting" }
+  | { status: "success"; result: JiraSubmitResult }
+  | { status: "error"; message: string };
 
 export function IssueCreateModal() {
   const [open, setOpen] = useState(false);
   const jiraConfig = useSettingsStore((s) => s.jiraConfig);
   const configured = isJiraConfigComplete(jiraConfig);
 
+  const selection = useEditorStore((s) => s.selection);
+  const target = useEditorStore((s) => s.target);
+  const styleEdits = useEditorStore((s) => s.styleEdits);
+  const tokens = useEditorStore((s) => s.tokens);
+  const beforeImage = useEditorStore((s) => s.beforeImage);
+  const afterImage = useEditorStore((s) => s.afterImage);
+  const draft = useEditorStore((s) => s.draft);
   const issueFields = useEditorStore((s) => s.issueFields);
   const setIssueFields = useEditorStore((s) => s.setIssueFields);
+  const onSubmitted = useEditorStore((s) => s.onSubmitted);
+  const reset = useEditorStore((s) => s.reset);
+  const currentIssueId = useEditorStore((s) => s.currentIssueId);
+  const markSubmitted = useIssuesStore((s) => s.markSubmitted);
+
+  const [submit, setSubmit] = useState<SubmitState>({ status: "idle" });
+
+  const canSubmit = !!(
+    configured &&
+    selection &&
+    draft &&
+    issueFields.issueTypeId &&
+    submit.status !== "submitting"
+  );
+
+  async function handleSubmit() {
+    if (!jiraConfig?.auth || !jiraConfig.projectKey) return;
+    if (!selection || !draft || !issueFields.issueTypeId) return;
+
+    const diffs = buildStyleDiff(selection, styleEdits);
+    const ctx = {
+      title: draft.title,
+      body: draft.body,
+      expectedResult: draft.expectedResult,
+      url: target?.url ?? "",
+      selector: selection.selector,
+      tagName: selection.tagName,
+      classListBefore: selection.classList,
+      classListAfter: styleEdits.classList,
+      specifiedStyles: selection.specifiedStyles,
+      tokens: tokens.map((t) => ({ name: t.name, value: t.value })),
+      viewport: selection.viewport,
+      capturedAt: selection.capturedAt,
+      diffs,
+    };
+    const description = buildIssueAdf(ctx);
+
+    const titlePrefix = jiraConfig.titlePrefix?.trim() ?? "";
+    const summary = titlePrefix && !draft.title.startsWith(titlePrefix)
+      ? `${titlePrefix}${draft.title}`.trim()
+      : draft.title.trim();
+
+    const attachments: { filename: string; dataUrl: string }[] = [];
+    if (beforeImage) attachments.push({ filename: "before.png", dataUrl: beforeImage });
+    if (afterImage) attachments.push({ filename: "after.png", dataUrl: afterImage });
+
+    setSubmit({ status: "submitting" });
+    try {
+      const result = await sendBg<JiraSubmitResult>({
+        type: "jira.submitIssue",
+        config: jiraConfig.auth,
+        payload: {
+          projectKey: jiraConfig.projectKey,
+          summary,
+          description,
+          issueTypeId: issueFields.issueTypeId,
+          assigneeAccountId: issueFields.assigneeId,
+          priorityId: issueFields.priorityId,
+          parentKey: issueFields.parentKey,
+        },
+        attachments,
+        relatesKey: issueFields.relatesKey,
+      });
+      if (currentIssueId) {
+        markSubmitted(currentIssueId, { key: result.key, url: result.url });
+      }
+      setSubmit({ status: "success", result });
+      onSubmitted();
+    } catch (err) {
+      setSubmit({
+        status: "error",
+        message: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+
+  function handleOpenChange(next: boolean) {
+    if (submit.status === "submitting") return;
+    setOpen(next);
+    if (!next && submit.status !== "success") {
+      setSubmit({ status: "idle" });
+    }
+  }
+
+  function handleStartNew() {
+    reset();
+    setSubmit({ status: "idle" });
+    setOpen(false);
+  }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogTrigger asChild>
         <Button
           size="xl"
@@ -59,15 +164,22 @@ export function IssueCreateModal() {
           disabled={!configured}
           title={configured ? undefined : "설정 탭에서 Jira를 먼저 연결하세요"}
         >
-          <Send />
           이슈 생성
         </Button>
       </DialogTrigger>
       <DialogContent className="w-[80vw] max-w-[80vw] gap-5 rounded-3xl p-6 sm:rounded-3xl">
         <DialogHeader>
-          <DialogTitle className="text-xl">이슈 생성</DialogTitle>
+          <DialogTitle className="text-xl">
+            {submit.status === "success" ? "이슈가 생성되었습니다" : "이슈 생성"}
+          </DialogTitle>
         </DialogHeader>
-        {configured ? (
+        {submit.status === "success" ? (
+          <SuccessView
+            result={submit.result}
+            onClose={() => setOpen(false)}
+            onStartNew={handleStartNew}
+          />
+        ) : configured ? (
           <div className="flex flex-col gap-4">
             <FieldRow label="이슈 타입">
               <IssueTypeField
@@ -104,25 +216,74 @@ export function IssueCreateModal() {
               />
             </FieldRow>
 
+            {submit.status === "error" ? (
+              <p className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
+                {submit.message}
+              </p>
+            ) : null}
+
             <div className="mt-2 flex justify-end gap-2">
               <Button
                 variant="outline"
-                onClick={() => setOpen(false)}
+                onClick={() => handleOpenChange(false)}
+                disabled={submit.status === "submitting"}
               >
                 닫기
               </Button>
               <Button
-                disabled
-                title="제출 기능은 준비 중입니다"
+                onClick={() => void handleSubmit()}
+                disabled={!canSubmit}
               >
-                <Send />
-                이슈 생성
+                {submit.status === "submitting" ? (
+                  <>
+                    <Loader2 className="animate-spin" />
+                    생성 중...
+                  </>
+                ) : (
+                  "이슈 생성"
+                )}
               </Button>
             </div>
           </div>
         ) : null}
       </DialogContent>
     </Dialog>
+  );
+}
+
+function SuccessView({
+  result,
+  onClose,
+  onStartNew,
+}: {
+  result: JiraSubmitResult;
+  onClose: () => void;
+  onStartNew: () => void;
+}) {
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="rounded-md border bg-muted/40 px-4 py-3">
+        <div className="text-xs text-muted-foreground">이슈 키</div>
+        <div className="mt-1 flex items-center gap-2">
+          <span className="text-base font-medium">{result.key}</span>
+          <a
+            href={result.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+          >
+            Jira에서 열기
+            <ArrowUpRight className="h-3 w-3" />
+          </a>
+        </div>
+      </div>
+      <div className="flex justify-end gap-2">
+        <Button variant="outline" onClick={onClose}>
+          닫기
+        </Button>
+        <Button onClick={onStartNew}>새 이슈 시작</Button>
+      </div>
+    </div>
   );
 }
 
@@ -144,16 +305,12 @@ function FieldRow({
 function useJiraConfig(): { config: JiraConfigPayload; projectKey: string } | null {
   const jiraConfig = useSettingsStore((s) => s.jiraConfig);
   return useMemo(() => {
-    if (!jiraConfig?.projectKey) return null;
+    if (!jiraConfig?.projectKey || !jiraConfig.auth) return null;
     return {
-      config: {
-        baseUrl: jiraConfig.baseUrl,
-        email: jiraConfig.email,
-        apiToken: jiraConfig.apiToken,
-      },
+      config: jiraConfig.auth,
       projectKey: jiraConfig.projectKey,
     };
-  }, [jiraConfig?.baseUrl, jiraConfig?.email, jiraConfig?.apiToken, jiraConfig?.projectKey]);
+  }, [jiraConfig?.auth, jiraConfig?.projectKey]);
 }
 
 function useDebouncedSearch<T>(
@@ -218,11 +375,7 @@ function IssueTypeField({
     setError(null);
     sendBg<JiraIssueType[]>({
       type: "jira.listIssueTypes",
-      config: {
-        baseUrl: jiraConfig.baseUrl,
-        email: jiraConfig.email,
-        apiToken: jiraConfig.apiToken,
-      },
+      config: jiraConfig.auth,
       projectKey,
     })
       .then((list) => !cancelled && setItems(list))
@@ -300,11 +453,7 @@ function PriorityField({
     setError(null);
     sendBg<JiraPriority[]>({
       type: "jira.listPriorities",
-      config: {
-        baseUrl: jiraConfig.baseUrl,
-        email: jiraConfig.email,
-        apiToken: jiraConfig.apiToken,
-      },
+      config: jiraConfig.auth,
     })
       .then((list) => !cancelled && setItems(list))
       .catch((err: unknown) =>

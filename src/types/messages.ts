@@ -1,16 +1,29 @@
 import type {
+  JiraAttachmentInput,
   JiraConfigPayload,
+  JiraCreateIssuePayload,
   JiraIssueSummary,
   JiraIssueType,
   JiraMyself,
   JiraPriority,
   JiraProject,
+  JiraSite,
+  JiraSubmitResult,
   JiraUser,
 } from "./jira";
+
+export interface OAuthStartResultMsg {
+  sites: JiraSite[];
+  accessToken: string;
+  refreshToken: string;
+  expiresAt: number;
+}
 
 export type BgRequest =
   | { type: "ping" }
   | { type: "captureVisibleTab"; tabId: number }
+  | { type: "oauth.start" }
+  | { type: "oauth.available" }
   | { type: "jira.myself"; config: JiraConfigPayload }
   | { type: "jira.listProjects"; config: JiraConfigPayload; query?: string }
   | {
@@ -29,6 +42,13 @@ export type BgRequest =
       config: JiraConfigPayload;
       projectKey: string;
       query?: string;
+    }
+  | {
+      type: "jira.submitIssue";
+      config: JiraConfigPayload;
+      payload: JiraCreateIssuePayload;
+      attachments: JiraAttachmentInput[];
+      relatesKey?: string;
     };
 
 export type BgResponse<T = unknown> =
@@ -70,11 +90,15 @@ export function sendBg<T = unknown>(req: BgRequest): Promise<T> {
 
 // Re-export common Jira types for consumers
 export type {
+  JiraAttachmentInput,
   JiraConfigPayload,
+  JiraCreateIssuePayload,
   JiraIssueSummary,
   JiraIssueType,
   JiraMyself,
   JiraPriority,
   JiraProject,
+  JiraSite,
+  JiraSubmitResult,
   JiraUser,
 };

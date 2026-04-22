@@ -1,9 +1,10 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
-import type { JiraConfigPayload } from "@/types/jira";
+import type { JiraAuth } from "@/types/jira";
 import { chromeLocalStorage } from "./chrome-storage";
 
-export interface JiraConfig extends JiraConfigPayload {
+export interface JiraConfig {
+  auth: JiraAuth;
   projectKey?: string;
   issueTypeId?: string;
   issueTypeName?: string;
@@ -15,6 +16,32 @@ interface SettingsState {
   setJiraConfig: (config: JiraConfig | null) => void;
   updateJiraConfig: (patch: Partial<JiraConfig>) => void;
   clearJiraConfig: () => void;
+}
+
+interface LegacyV1Config {
+  baseUrl?: string;
+  email?: string;
+  apiToken?: string;
+  projectKey?: string;
+  issueTypeId?: string;
+  issueTypeName?: string;
+  titlePrefix?: string;
+}
+
+function migrateLegacy(legacy: LegacyV1Config | null): JiraConfig | null {
+  if (!legacy?.baseUrl || !legacy.email || !legacy.apiToken) return null;
+  return {
+    auth: {
+      kind: "apiKey",
+      baseUrl: legacy.baseUrl,
+      email: legacy.email,
+      apiToken: legacy.apiToken,
+    },
+    projectKey: legacy.projectKey,
+    issueTypeId: legacy.issueTypeId,
+    issueTypeName: legacy.issueTypeName,
+    titlePrefix: legacy.titlePrefix,
+  };
 }
 
 export const useSettingsStore = create<SettingsState>()(
@@ -32,7 +59,16 @@ export const useSettingsStore = create<SettingsState>()(
     }),
     {
       name: "bugshot-settings",
+      version: 2,
       storage: createJSONStorage(() => chromeLocalStorage),
+      migrate: (persistedState, version) => {
+        if (version >= 2) return persistedState as SettingsState;
+        const legacy = (persistedState as { jiraConfig?: LegacyV1Config })
+          ?.jiraConfig;
+        return {
+          jiraConfig: migrateLegacy(legacy ?? null),
+        } as SettingsState;
+      },
     },
   ),
 );
@@ -40,9 +76,18 @@ export const useSettingsStore = create<SettingsState>()(
 export function isJiraConfigComplete(
   cfg: JiraConfig | null,
 ): cfg is JiraConfig & { projectKey: string } {
-  return !!cfg?.baseUrl && !!cfg.email && !!cfg.apiToken && !!cfg.projectKey;
+  return !!cfg?.auth && !!cfg.projectKey;
 }
 
 export function jiraCredentialsFilled(cfg: JiraConfig | null): boolean {
-  return !!cfg?.baseUrl && !!cfg.email && !!cfg.apiToken;
+  return !!cfg?.auth;
+}
+
+export function jiraHostLabel(auth: JiraAuth): string {
+  const url = auth.kind === "apiKey" ? auth.baseUrl : auth.siteUrl;
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return url;
+  }
 }
