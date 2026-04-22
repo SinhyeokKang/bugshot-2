@@ -116,7 +116,7 @@ chrome.runtime.onMessage.addListener(
         handleResetEdits();
         break;
       case "picker.collectTokens":
-        sendResponse({ tokens: collectTokens() });
+        sendResponse({ tokens: collectTokens(selectedEl ?? undefined) });
         return;
       case "picker.describeInitial":
         sendResponse(buildInitialTree());
@@ -723,6 +723,7 @@ const INHERITED_PROPS = new Set([
 
 const SHORTHAND_MAP: Record<string, string[]> = {
   font: ["font-size", "font-weight", "line-height", "letter-spacing"],
+  background: ["background-color"],
   padding: ["padding-top", "padding-right", "padding-bottom", "padding-left"],
   margin: ["margin-top", "margin-right", "margin-bottom", "margin-left"],
   gap: ["row-gap", "column-gap"],
@@ -755,6 +756,7 @@ function collectRulesForElement(el: Element, out: Record<string, string>): void 
       const val = style.getPropertyValue(shorthand);
       if (val) out[shorthand] = val;
     }
+    extractVarPropsFromCssText(style.cssText, out);
   }
 }
 
@@ -822,6 +824,7 @@ function collectSpecifiedFromRules(
         const val = decl.getPropertyValue(shorthand);
         if (val) out[shorthand] = val;
       }
+      extractVarPropsFromCssText(decl.cssText, out);
       continue;
     }
     const nested = (rule as { cssRules?: CSSRuleList }).cssRules;
@@ -846,6 +849,30 @@ function collectSpecifiedFromRules(
   }
 }
 
+const CSS_DECL_RE = /([\w-]+)\s*:\s*([^;]+)/g;
+
+function extractVarPropsFromCssText(
+  cssText: string,
+  out: Record<string, string>,
+): void {
+  const declared: Record<string, string> = {};
+  CSS_DECL_RE.lastIndex = 0;
+  let m: RegExpExecArray | null;
+  while ((m = CSS_DECL_RE.exec(cssText)) !== null) {
+    declared[m[1]] = m[2].trim();
+  }
+  for (const [prop, val] of Object.entries(declared)) {
+    if (!val.includes("var(")) continue;
+    if (!out[prop] || !out[prop].includes("var(")) out[prop] = val;
+    const longhands = SHORTHAND_MAP[prop];
+    if (!longhands) continue;
+    for (const lh of longhands) {
+      if (lh in declared) continue;
+      if (!out[lh] || !out[lh].includes("var(")) out[lh] = val;
+    }
+  }
+}
+
 function buildSelector(el: Element): string {
   try {
     return finder(el as HTMLElement, {
@@ -860,7 +887,7 @@ function buildSelector(el: Element): string {
   }
 }
 
-function collectTokens(): Token[] {
+function collectTokens(el?: Element): Token[] {
   const seen = new Map<string, string>();
   for (const sheet of Array.from(document.styleSheets)) {
     try {
@@ -870,14 +897,34 @@ function collectTokens(): Token[] {
       /* cross-origin sheet, skip */
     }
   }
+  if (el) collectInlineTokens(el, seen);
   const rootStyle = getComputedStyle(document.documentElement);
+  const elStyle = el ? getComputedStyle(el) : null;
   const tokens: Token[] = [];
   for (const [name, raw] of seen) {
-    const resolved = rootStyle.getPropertyValue(name).trim() || raw;
+    let resolved = (elStyle || rootStyle).getPropertyValue(name).trim() || raw;
+    if (resolved.startsWith("var(")) {
+      resolved = rootStyle.getPropertyValue(name).trim() || raw;
+    }
     tokens.push({ name, value: resolved, category: categorizeToken(resolved) });
   }
   tokens.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
   return tokens;
+}
+
+function collectInlineTokens(el: Element, seen: Map<string, string>): void {
+  let cur: Element | null = el;
+  while (cur) {
+    if (cur instanceof HTMLElement && cur.style.length > 0) {
+      for (let i = 0; i < cur.style.length; i++) {
+        const name = cur.style.item(i);
+        if (name.startsWith("--") && !seen.has(name)) {
+          seen.set(name, cur.style.getPropertyValue(name).trim());
+        }
+      }
+    }
+    cur = cur.parentElement;
+  }
 }
 
 function collectFromRules(rules: CSSRuleList, seen: Map<string, string>): void {

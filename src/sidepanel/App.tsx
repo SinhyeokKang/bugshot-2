@@ -35,7 +35,7 @@ export default function App() {
             </TabsTrigger>
             <TabsTrigger value="issue-settings" className="gap-1.5">
               <SlidersHorizontal className="h-3.5 w-3.5" />
-              이슈 설정
+              Jira 설정
             </TabsTrigger>
             <TabsTrigger value="app-settings" className="gap-1.5">
               <Settings className="h-3.5 w-3.5" />

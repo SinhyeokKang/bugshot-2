@@ -1,11 +1,29 @@
 import { useEffect, useState } from "react";
-import { ExternalLink, Loader2 } from "lucide-react";
+import { CircleCheck, ExternalLink, Loader2 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   useSettingsStore,
@@ -20,7 +38,7 @@ import type {
   JiraSite,
 } from "@/types/jira";
 import { sendBg, type OAuthStartResultMsg } from "@/types/messages";
-import { PageScroll, PageShell, Section } from "../components/Section";
+import { PageFooter, PageScroll, PageShell, Section } from "../components/Section";
 import { IssueTypeCombobox } from "./IssueTypeCombobox";
 import { ProjectCombobox } from "./ProjectCombobox";
 
@@ -37,21 +55,17 @@ export function SettingsTab() {
           {connected ? <JiraSummary /> : <JiraAuthForm />}
         </Section>
 
-        <Section title="프로젝트">
-          {connected ? (
+        {connected ? (
+          <Section title="프로젝트">
             <ProjectCombobox />
-          ) : (
-            <p className="text-xs text-muted-foreground">
-              Jira 연결 후 선택할 수 있습니다.
-            </p>
-          )}
-        </Section>
+          </Section>
+        ) : null}
 
         {connected ? (
           <Section title="이슈 설정">
             <div className="flex flex-col gap-3">
-              <div className="grid gap-1.5">
-                <Label>기본 이슈 타입</Label>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-xs text-muted-foreground">기본 이슈 타입</label>
                 <IssueTypeCombobox />
               </div>
 
@@ -59,8 +73,80 @@ export function SettingsTab() {
             </div>
           </Section>
         ) : null}
+
       </PageScroll>
+
+      {connected ? (
+        <PageFooter>
+          <DisconnectButton />
+        </PageFooter>
+      ) : null}
+
+      <SetupDialog />
     </PageShell>
+  );
+}
+
+function SetupDialog() {
+  const jiraConfig = useSettingsStore((s) => s.jiraConfig);
+  const clearJiraConfig = useSettingsStore((s) => s.clearJiraConfig);
+  const [open, setOpen] = useState(false);
+
+  useEffect(() => {
+    if (jiraConfig && !jiraConfig.projectKey) {
+      setOpen(true);
+    }
+  }, [jiraConfig]);
+
+  function handleCancel() {
+    setOpen(false);
+    clearJiraConfig();
+  }
+
+  function handleComplete() {
+    if (!jiraConfig?.projectKey) return;
+    setOpen(false);
+  }
+
+  return (
+    <Dialog
+      open={open}
+      onOpenChange={(v) => {
+        if (!v) handleCancel();
+      }}
+    >
+      <DialogContent
+        className="w-[80vw] max-w-[80vw] gap-5 rounded-3xl p-6 sm:rounded-3xl"
+        onInteractOutside={(e) => e.preventDefault()}
+        onEscapeKeyDown={(e) => e.preventDefault()}
+      >
+        <DialogHeader>
+          <DialogTitle className="text-xl">Jira 설정</DialogTitle>
+          <DialogDescription>
+            이슈를 생성할 프로젝트를 선택하세요.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="flex flex-col gap-1.5">
+          <label className="text-xs text-muted-foreground">
+            프로젝트
+          </label>
+          <ProjectCombobox />
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={handleCancel}>
+            취소
+          </Button>
+          <Button
+            disabled={!jiraConfig?.projectKey}
+            onClick={handleComplete}
+          >
+            완료
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -71,8 +157,8 @@ function TitlePrefixField() {
   const updateJiraConfig = useSettingsStore((s) => s.updateJiraConfig);
 
   return (
-    <div className="grid gap-1.5">
-      <Label htmlFor="jira-title-prefix">제목 Prefix</Label>
+    <div className="flex flex-col gap-1.5">
+      <label htmlFor="jira-title-prefix" className="text-xs text-muted-foreground">제목 Prefix</label>
       <Input
         id="jira-title-prefix"
         placeholder="[QA] "
@@ -81,7 +167,7 @@ function TitlePrefixField() {
         autoComplete="off"
         spellCheck={false}
       />
-      <p className="text-[11px] text-muted-foreground">
+      <p className="text-xs text-muted-foreground">
         이슈 제목 앞에 자동으로 붙습니다. 비워두면 사용하지 않습니다.
       </p>
     </div>
@@ -90,7 +176,6 @@ function TitlePrefixField() {
 
 function JiraSummary() {
   const jiraConfig = useSettingsStore((s) => s.jiraConfig);
-  const clearJiraConfig = useSettingsStore((s) => s.clearJiraConfig);
   if (!jiraConfig) return null;
 
   const auth = jiraConfig.auth;
@@ -98,22 +183,23 @@ function JiraSummary() {
   const kindLabel = auth.kind === "oauth" ? "OAuth" : "API Token";
 
   return (
-    <Card>
-      <CardContent className="flex items-center justify-between px-3 py-2">
-        <div className="flex min-w-0 flex-col gap-0.5 text-xs">
-          <div className="flex items-center gap-1.5">
-            <span className="min-w-0 flex-1 truncate text-foreground">{host}</span>
-            <Badge variant="outline" className="text-[10px] uppercase tracking-wider">
-              {kindLabel}
-            </Badge>
+    <div className="flex flex-col gap-1.5">
+      <Card>
+        <CardContent className="flex items-center justify-between px-4 py-3">
+          <div className="flex min-w-0 flex-col">
+            <span className="truncate text-base font-medium text-foreground">{host}</span>
+            <span className="truncate text-sm text-muted-foreground">{auth.email}</span>
           </div>
-          <span className="truncate text-muted-foreground">{auth.email}</span>
-        </div>
-        <Button size="sm" variant="outline" onClick={() => clearJiraConfig()}>
-          재설정
-        </Button>
-      </CardContent>
-    </Card>
+          <Badge className="shrink-0 gap-1 border-transparent bg-green-50 text-[11px] uppercase tracking-wider text-green-700 shadow-none dark:bg-green-900/40 dark:text-green-400">
+            <CircleCheck className="h-3 w-3" />
+            {kindLabel}
+          </Badge>
+        </CardContent>
+      </Card>
+      <p className="text-xs text-muted-foreground">
+        Jira에 정상적으로 연결되었습니다.
+      </p>
+    </div>
   );
 }
 
@@ -262,9 +348,6 @@ function OAuthForm() {
 
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-xs text-muted-foreground">
-        Atlassian 계정으로 로그인하여 권한을 부여합니다.
-      </p>
       <OAuthErrorBanner error={error} />
       <Button
         onClick={() => void startFlow()}
@@ -280,6 +363,9 @@ function OAuthForm() {
           "Jira 연결하기"
         )}
       </Button>
+      <p className="text-xs text-muted-foreground">
+        Atlassian 계정으로 로그인하여 권한을 부여합니다.
+      </p>
     </div>
   );
 }
@@ -354,8 +440,8 @@ function ApiKeyForm() {
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="grid gap-1.5">
-        <Label htmlFor="jira-baseUrl">워크스페이스 URL</Label>
+      <div className="flex flex-col gap-1.5">
+        <label htmlFor="jira-baseUrl" className="text-xs text-muted-foreground">워크스페이스 URL</label>
         <Input
           id="jira-baseUrl"
           placeholder="https://your-workspace.atlassian.net"
@@ -366,8 +452,8 @@ function ApiKeyForm() {
         />
       </div>
 
-      <div className="grid gap-1.5">
-        <Label htmlFor="jira-email">이메일</Label>
+      <div className="flex flex-col gap-1.5">
+        <label htmlFor="jira-email" className="text-xs text-muted-foreground">이메일</label>
         <Input
           id="jira-email"
           type="email"
@@ -378,9 +464,9 @@ function ApiKeyForm() {
         />
       </div>
 
-      <div className="grid gap-1.5">
+      <div className="flex flex-col gap-1.5">
         <div className="flex items-center justify-between">
-          <Label htmlFor="jira-token">API 토큰</Label>
+          <label htmlFor="jira-token" className="text-xs text-muted-foreground">API 토큰</label>
           <a
             href="https://id.atlassian.com/manage-profile/security/api-tokens"
             target="_blank"
@@ -422,5 +508,35 @@ function ApiKeyForm() {
         )}
       </Button>
     </div>
+  );
+}
+
+function DisconnectButton() {
+  const clearJiraConfig = useSettingsStore((s) => s.clearJiraConfig);
+
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button size="xl" variant="outline" className="w-full">
+          Jira 연결 해제
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Jira 연결을 해제할까요?</AlertDialogTitle>
+          <AlertDialogDescription>
+            인증 정보와 프로젝트 설정이 모두 초기화됩니다. 다시 연결하려면 재인증이 필요합니다.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>취소</AlertDialogCancel>
+          <AlertDialogAction
+            onClick={() => clearJiraConfig()}
+          >
+            연결 해제
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }

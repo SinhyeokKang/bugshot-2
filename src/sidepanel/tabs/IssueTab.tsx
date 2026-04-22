@@ -4,8 +4,8 @@ import {
   AlignJustify,
   AlignLeft,
   AlignRight,
-  ArrowDown,
-  ArrowUp,
+  CornerLeftUp,
+  CornerRightDown,
   ChevronDown,
   ChevronRight,
   Crosshair,
@@ -15,6 +15,7 @@ import {
   Unlink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Command,
   CommandEmpty,
@@ -44,10 +45,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  ToggleGroup,
-  ToggleGroupItem,
-} from "@/components/ui/toggle-group";
 import { cn } from "@/lib/utils";
 import { useEditorStore } from "@/store/editor-store";
 import type { Token, TokenCategory, TreeNode } from "@/types/picker";
@@ -139,8 +136,9 @@ const SECTION_PROPS = {
     "text-align",
     "color",
   ],
-  background: ["background-color", "opacity"],
-  border: [
+  container: [
+    "background-color",
+    "opacity",
     "border",
     "border-color",
     "border-radius",
@@ -293,6 +291,9 @@ function SelectedPanel() {
   const [proceeding, setProceeding] = useState(false);
   if (!selection) return null;
 
+  const hasSpecified = (props: readonly string[]) =>
+    props.some((p) => p in selection.specifiedStyles);
+
   const inlineCount = Object.keys(styleEdits.inlineStyle).length;
   const classDirty =
     selection.classList.length !== styleEdits.classList.length ||
@@ -350,6 +351,8 @@ function SelectedPanel() {
         <Section
           title="Layout"
           action={<SectionRevertButton props={SECTION_PROPS.layout} />}
+          collapsible
+          defaultOpen={hasSpecified(SECTION_PROPS.layout)}
         >
         <Row2>
           <SelectProp
@@ -385,24 +388,26 @@ function SelectedPanel() {
             options={["", "nowrap", "wrap", "wrap-reverse"]}
           />
         </Row2>
-        <SelectProp
-          label="justify-content"
-          prop="justify-content"
-          options={[
-            "",
-            "flex-start",
-            "flex-end",
-            "center",
-            "space-between",
-            "space-around",
-            "space-evenly",
-          ]}
-        />
-        <SelectProp
-          label="align-items"
-          prop="align-items"
-          options={["", "flex-start", "flex-end", "center", "stretch", "baseline"]}
-        />
+        <Row2>
+          <SelectProp
+            label="justify-content"
+            prop="justify-content"
+            options={[
+              "",
+              "flex-start",
+              "flex-end",
+              "center",
+              "space-between",
+              "space-around",
+              "space-evenly",
+            ]}
+          />
+          <SelectProp
+            label="align-items"
+            prop="align-items"
+            options={["", "flex-start", "flex-end", "center", "stretch", "baseline"]}
+          />
+        </Row2>
         <QuadProp label="margin" prefix="margin" />
         <QuadProp label="padding" prefix="padding" />
         <Row2>
@@ -412,8 +417,27 @@ function SelectedPanel() {
       </Section>
 
       <Section
+        title="Container"
+        action={<SectionRevertButton props={SECTION_PROPS.container} />}
+        collapsible
+        defaultOpen={hasSpecified(SECTION_PROPS.container)}
+      >
+        <Row2>
+          <TextProp label="bg-color" prop="background-color" />
+          <TextProp label="opacity" prop="opacity" />
+        </Row2>
+        <Row2>
+          <TextProp label="border" prop="border" />
+          <TextProp label="border-color" prop="border-color" />
+        </Row2>
+        <RadiusProp />
+      </Section>
+
+      <Section
         title="Size"
         action={<SectionRevertButton props={SECTION_PROPS.size} />}
+        collapsible
+        defaultOpen={hasSpecified(SECTION_PROPS.size)}
       >
         <Row2>
           <TextProp label="width" prop="width" />
@@ -432,6 +456,8 @@ function SelectedPanel() {
       <Section
         title="Overflow"
         action={<SectionRevertButton props={SECTION_PROPS.overflow} />}
+        collapsible
+        defaultOpen={hasSpecified(SECTION_PROPS.overflow)}
       >
         <SelectProp
           label="overflow"
@@ -481,6 +507,8 @@ function SelectedPanel() {
       <Section
         title="Typography"
         action={<SectionRevertButton props={SECTION_PROPS.typography} />}
+        collapsible
+        defaultOpen={hasSpecified(SECTION_PROPS.typography)}
       >
         <Row2>
           <TextProp label="font-size" prop="font-size" />
@@ -494,28 +522,12 @@ function SelectedPanel() {
         <TextProp label="color" prop="color" />
       </Section>
 
-      <Section
-        title="Background"
-        action={<SectionRevertButton props={SECTION_PROPS.background} />}
-      >
-        <Row2>
-          <TextProp label="bg-color" prop="background-color" />
-          <TextProp label="opacity" prop="opacity" />
-        </Row2>
-      </Section>
-
-      <Section
-        title="Border"
-        action={<SectionRevertButton props={SECTION_PROPS.border} />}
-      >
-        <TextProp label="border" prop="border" />
-        <TextProp label="border-color" prop="border-color" />
-        <RadiusProp />
-      </Section>
 
       <Section
         title="Effects"
         action={<SectionRevertButton props={SECTION_PROPS.effects} />}
+        collapsible
+        defaultOpen={hasSpecified(SECTION_PROPS.effects)}
       >
         <TextProp label="box-shadow" prop="box-shadow" />
         <TextProp label="filter" prop="filter" />
@@ -780,15 +792,15 @@ function LinkToggle({
       type="button"
       onClick={onToggle}
       className={cn(
-        "flex h-9 w-9 shrink-0 items-center justify-center rounded-md border text-muted-foreground transition-colors hover:bg-muted",
-        linked && "border-primary/50 bg-primary/10 text-primary",
+        "flex h-9 w-9 shrink-0 items-center justify-center rounded-md border text-muted-foreground transition-colors",
+        linked ? "border-foreground bg-foreground text-background hover:bg-foreground/80" : "hover:bg-muted",
       )}
       title={linked ? "개별 편집" : "일괄 편집"}
     >
       {linked ? (
-        <Link className="h-3 w-3" />
+        <Link className="h-3.5 w-3.5" />
       ) : (
-        <Unlink className="h-3 w-3" />
+        <Unlink className="h-3.5 w-3.5" />
       )}
     </button>
   );
@@ -863,12 +875,12 @@ function SelectProp({
             isDefault && "text-muted-foreground/50",
           )}
         >
-          <SelectValue placeholder={placeholder ? `(${placeholder})` : "—"} />
+          <SelectValue placeholder={`(${placeholder || "none"})`} />
         </SelectTrigger>
         <SelectContent>
           {options.map((o) => (
             <SelectItem key={o} value={o || "__empty__"}>
-              {o || (placeholder ? `(${placeholder})` : "—")}
+              {o || `(${placeholder || "none"})`}
             </SelectItem>
           ))}
         </SelectContent>
@@ -880,34 +892,29 @@ function SelectProp({
 function AlignmentProp({ label, prop }: { label: string; prop: string }) {
   const { value, placeholder, set } = useStyleProp(prop);
   const current = (value || placeholder || "").trim();
-  const options: { v: string; icon: React.ReactNode; label: string }[] = [
-    { v: "left", icon: <AlignLeft className="h-4 w-4" />, label: "왼쪽" },
-    { v: "center", icon: <AlignCenter className="h-4 w-4" />, label: "가운데" },
-    { v: "right", icon: <AlignRight className="h-4 w-4" />, label: "오른쪽" },
-    { v: "justify", icon: <AlignJustify className="h-4 w-4" />, label: "양쪽" },
+  const options: { v: string; icon: React.ReactNode; title: string }[] = [
+    { v: "left", icon: <AlignLeft className="h-4 w-4" />, title: "왼쪽" },
+    { v: "center", icon: <AlignCenter className="h-4 w-4" />, title: "가운데" },
+    { v: "right", icon: <AlignRight className="h-4 w-4" />, title: "오른쪽" },
+    { v: "justify", icon: <AlignJustify className="h-4 w-4" />, title: "양쪽" },
   ];
   const resolvedValue =
     current === "start" || current === "" ? "left" : current;
 
   return (
     <PropRow label={label}>
-      <ToggleGroup
-        type="single"
+      <Tabs
         value={resolvedValue}
         onValueChange={(v) => set(v === resolvedValue && value ? "" : v)}
-        className="inline-flex h-9 rounded-lg bg-muted p-1"
       >
-        {options.map((o) => (
-          <ToggleGroupItem
-            key={o.v}
-            value={o.v}
-            title={o.label}
-            className="rounded-md px-3 py-1 data-[state=on]:bg-background data-[state=on]:text-foreground data-[state=on]:shadow"
-          >
-            {o.icon}
-          </ToggleGroupItem>
-        ))}
-      </ToggleGroup>
+        <TabsList className="grid w-full grid-cols-4">
+          {options.map((o) => (
+            <TabsTrigger key={o.v} value={o.v} title={o.title}>
+              {o.icon}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+      </Tabs>
     </PropRow>
   );
 }
@@ -1206,7 +1213,7 @@ function ValueCombobox({
             >
               {compact && placeholder
                 ? shortValue(placeholder)
-                : placeholder || "—"}
+                : placeholder || "none"}
             </span>
           )}
         </button>
@@ -1402,7 +1409,7 @@ function DomNavButton({ direction }: { direction: "parent" | "child" }) {
       ? (s.selection?.hasParent ?? false)
       : (s.selection?.hasChild ?? false),
   );
-  const Icon = direction === "parent" ? ArrowUp : ArrowDown;
+  const Icon = direction === "parent" ? CornerLeftUp : CornerRightDown;
   const label = direction === "parent" ? "부모 요소" : "첫 자식 요소";
   return (
     <Button

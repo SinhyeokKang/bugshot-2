@@ -1,15 +1,5 @@
 import { Monitor, Moon, Sun } from "lucide-react";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  ToggleGroup,
-  ToggleGroupItem,
-} from "@/components/ui/toggle-group";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   useAppSettingsStore,
   type LocaleMode,
@@ -38,39 +28,29 @@ export function AppSettingsTab() {
     <PageShell>
       <PageScroll>
         <Section title="테마">
-          <ToggleGroup
-            type="single"
-            value={theme}
-            onValueChange={(v) => { if (v) setTheme(v as ThemeMode); }}
-            className="inline-flex h-9 rounded-lg bg-muted p-1"
-          >
-            {THEME_OPTIONS.map((o) => (
-              <ToggleGroupItem
-                key={o.value}
-                value={o.value}
-                className="gap-1.5 rounded-md px-3 py-1 text-sm data-[state=on]:bg-background data-[state=on]:text-foreground data-[state=on]:shadow"
-              >
-                {o.icon}
-                {o.label}
-              </ToggleGroupItem>
-            ))}
-          </ToggleGroup>
+          <Tabs value={theme} onValueChange={(v) => setTheme(v as ThemeMode)}>
+            <TabsList className="grid w-full grid-cols-3">
+              {THEME_OPTIONS.map((o) => (
+                <TabsTrigger key={o.value} value={o.value} className="gap-1.5">
+                  {o.icon}
+                  {o.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
         </Section>
 
         <Section title="언어">
           <div className="flex flex-col gap-1.5">
-            <Select value={locale} onValueChange={(v) => setLocale(v as LocaleMode)}>
-              <SelectTrigger className="h-9 w-full">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
+            <Tabs value={locale} onValueChange={(v) => setLocale(v as LocaleMode)}>
+              <TabsList className="grid w-full grid-cols-2">
                 {LOCALE_OPTIONS.map((o) => (
-                  <SelectItem key={o.value} value={o.value}>
+                  <TabsTrigger key={o.value} value={o.value}>
                     {o.label}
-                  </SelectItem>
+                  </TabsTrigger>
                 ))}
-              </SelectContent>
-            </Select>
+              </TabsList>
+            </Tabs>
             <p className="text-xs text-muted-foreground">
               언어 번역은 아직 적용되지 않습니다.
             </p>
