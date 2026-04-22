@@ -28,18 +28,23 @@ PRD(`docs/PRD.md`) 기준 작업 목록. 다른 환경에서 이어서 작업할
 - [x] en locale 추가
 - [x] PRD v0.4 최신화 (구현 기준 스펙 반영)
 - [x] AI 메타데이터 블록 (`<!-- bugshot-meta-for-ai -->`) — 마크다운 최상단, 구조화 JSON
+- [x] #31 마크다운 → ADF 변환 (`buildIssueAdf.ts`)
+- [x] #32 Background: Jira 제출 시퀀스 (이슈 생성 → attachment → issueLink)
+- [x] #34 단계 5 UI: 완료 다이얼로그 (이슈 키 + 열기 링크 + 새 이슈 시작)
+- [x] #41 이슈 상태 트래킹 (생성된 이슈 key/url 저장, IssueListTab에 상태 표시)
+- [x] OAuth 3LO 인증 (Cloudflare Worker 프록시 경유 `/token` 교환, accessible-resources 사이트 선택, 401 시 자동 refresh)
+- [x] 설정 스토어 v2 마이그레이션 (flat → discriminated `auth` union)
+- [x] manifest dev `key` 고정 + `build:store` (스토어 업로드 시 `key` 제거)
+- [x] host_permissions 동적 주입 (`VITE_OAUTH_PROXY_URL` origin)
+- [x] DOM 트리 Dialog lazy load (조상 path expand + `describeChildren` 온디맨드 → 큰 페이지 freeze 해결)
 
 ## 진행 중
 
-- [ ] #27 단계 3 UI: 이슈 작성 편집
+- [ ] #27 단계 3 UI: 이슈 작성 편집 (초안 자동 생성·편집은 구현, 다듬기 남음)
 - [ ] #35 Origin 변경 감지 + 편집 중 경고 (origin+pathname 기준 세션 클리어까지 구현됨, 편집 중 경고 UX는 미구현)
 
 ## 대기
-- [ ] #30 이슈 필드 마지막값 영속화
-- [ ] #31 마크다운 → ADF 변환
-- [ ] #32 Background: Jira 제출 시퀀스
+- [ ] #30 이슈 필드 마지막값 영속화 (현재는 세션 단위, local로 승격 필요)
 - [ ] #33 클립보드 마크다운 추출
-- [ ] #34 단계 5 UI: 완료 다이얼로그
 - [ ] #36 에러 처리 표준화
 - [ ] #37 미지원 URL 폴백 화면
-- [ ] #41 이슈 상태 트래킹 (생성된 이슈 key 저장 → status fetch)
