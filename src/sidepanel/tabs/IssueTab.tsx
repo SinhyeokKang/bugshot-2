@@ -1207,7 +1207,7 @@ function ValueCombobox({
               className={cn(
                 "min-w-0 flex-1 truncate text-left",
                 isDefault
-                  ? "text-muted-foreground/40"
+                  ? "text-muted-foreground/50"
                   : "text-muted-foreground",
               )}
             >

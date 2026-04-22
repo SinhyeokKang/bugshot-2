@@ -747,16 +747,20 @@ function collectRulesForElement(el: Element, out: Record<string, string>): void 
   }
   if (el instanceof HTMLElement) {
     const style = el.style;
+    extractVarPropsFromCssText(style.cssText, out);
     for (let i = 0; i < style.length; i++) {
       const name = style.item(i);
       const val = style.getPropertyValue(name);
-      if (val) out[name] = val;
+      if (val && !(out[name]?.includes("var(") && !val.includes("var("))) {
+        out[name] = val;
+      }
     }
     for (const shorthand of Object.keys(SHORTHAND_MAP)) {
       const val = style.getPropertyValue(shorthand);
-      if (val) out[shorthand] = val;
+      if (val && !(out[shorthand]?.includes("var(") && !val.includes("var("))) {
+        out[shorthand] = val;
+      }
     }
-    extractVarPropsFromCssText(style.cssText, out);
   }
 }
 
@@ -814,17 +818,21 @@ function collectSpecifiedFromRules(
       }
       if (!matched) continue;
       const decl = rule.style;
+      extractVarPropsFromCssText(decl.cssText, out);
       for (let i = 0; i < decl.length; i++) {
         const name = decl.item(i);
         if (name.startsWith("--")) continue;
         const val = decl.getPropertyValue(name);
-        if (val) out[name] = val;
+        if (val && !(out[name]?.includes("var(") && !val.includes("var("))) {
+          out[name] = val;
+        }
       }
       for (const shorthand of Object.keys(SHORTHAND_MAP)) {
         const val = decl.getPropertyValue(shorthand);
-        if (val) out[shorthand] = val;
+        if (val && !(out[shorthand]?.includes("var(") && !val.includes("var("))) {
+          out[shorthand] = val;
+        }
       }
-      extractVarPropsFromCssText(decl.cssText, out);
       continue;
     }
     const nested = (rule as { cssRules?: CSSRuleList }).cssRules;
