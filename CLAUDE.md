@@ -138,6 +138,7 @@ Jira는 마크다운 원본을 파싱하지 않고, 붙여넣기는 **ProseMirro
 
 - 스타일: `src/components/ui/` 이외에 주석 최소화. WHY가 비자명할 때만 한 줄.
 - 경로: `@/` → `src/`
+- **UI 컴포넌트**: 직접 스타일링 금지. shadcn/ui 컴포넌트를 우선 사용하고, 없으면 `npx shadcn@latest add <component>`로 설치해서 사용. 설치 후 `src/components/ui/`에 위치 확인 필수 (shadcn이 `@/` 루트에 생성할 수 있음)
 - Tailwind: shadcn CSS 변수 사용, 커스텀 색상 남발 금지
 - 버튼 사이즈: shadcn 기본 + `xl` 추가 (`h-11 px-10 text-base`, CTA용)
 - 탭 컨텐츠: `data-[state=inactive]:hidden` 필수 (비활성 탭 동시 렌더 버그 방지)

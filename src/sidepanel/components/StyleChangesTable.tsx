@@ -1,3 +1,4 @@
+import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import {
   DocTable,
@@ -90,13 +91,13 @@ export function StyleChangesTable({
 function SnapshotCell({ image }: { image: string | null }) {
   if (!image) return null;
   return (
-    <div className="flex items-center justify-center rounded border border-border/60 bg-muted/30 p-1">
+    <Card className="flex items-center justify-center bg-muted/30 p-1">
       <img
         src={image}
         alt="snapshot"
         className="max-h-40 w-auto max-w-full object-contain"
       />
-    </div>
+    </Card>
   );
 }
 

@@ -35,7 +35,19 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { Card } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  ToggleGroup,
+  ToggleGroupItem,
+} from "@/components/ui/toggle-group";
 import { cn } from "@/lib/utils";
 import { useEditorStore } from "@/store/editor-store";
 import type { Token, TokenCategory, TreeNode } from "@/types/picker";
@@ -843,21 +855,24 @@ function SelectProp({
   const isDefault = !value && isKnownDefault(prop, placeholder);
   return (
     <PropRow label={label}>
-      <select
-        value={value}
-        onChange={(e) => set(e.target.value)}
-        className={cn(
-          "h-9 rounded-md border bg-transparent px-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
-          !value && "text-muted-foreground",
-          isDefault && "text-muted-foreground/50",
-        )}
-      >
-        {options.map((o) => (
-          <option key={o} value={o}>
-            {o || (placeholder ? `(${placeholder})` : "—")}
-          </option>
-        ))}
-      </select>
+      <Select value={value} onValueChange={set}>
+        <SelectTrigger
+          className={cn(
+            "h-9 w-full",
+            !value && "text-muted-foreground",
+            isDefault && "text-muted-foreground/50",
+          )}
+        >
+          <SelectValue placeholder={placeholder ? `(${placeholder})` : "—"} />
+        </SelectTrigger>
+        <SelectContent>
+          {options.map((o) => (
+            <SelectItem key={o} value={o || "__empty__"}>
+              {o || (placeholder ? `(${placeholder})` : "—")}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
     </PropRow>
   );
 }
@@ -871,32 +886,28 @@ function AlignmentProp({ label, prop }: { label: string; prop: string }) {
     { v: "right", icon: <AlignRight className="h-4 w-4" />, label: "오른쪽" },
     { v: "justify", icon: <AlignJustify className="h-4 w-4" />, label: "양쪽" },
   ];
-  const isActive = (v: string) =>
-    current === v || (v === "left" && (current === "start" || current === ""));
+  const resolvedValue =
+    current === "start" || current === "" ? "left" : current;
 
   return (
     <PropRow label={label}>
-      <div className="inline-flex h-9 items-center justify-center rounded-lg bg-muted p-1 text-muted-foreground">
-        {options.map((o) => {
-          const active = isActive(o.v);
-          return (
-            <button
-              key={o.v}
-              type="button"
-              title={o.label}
-              onClick={() => set(active && value ? "" : o.v)}
-              className={cn(
-                "inline-flex flex-1 items-center justify-center whitespace-nowrap rounded-md px-3 py-1 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                active
-                  ? "bg-background text-foreground shadow"
-                  : "hover:text-foreground",
-              )}
-            >
-              {o.icon}
-            </button>
-          );
-        })}
-      </div>
+      <ToggleGroup
+        type="single"
+        value={resolvedValue}
+        onValueChange={(v) => set(v === resolvedValue && value ? "" : v)}
+        className="inline-flex h-9 rounded-lg bg-muted p-1"
+      >
+        {options.map((o) => (
+          <ToggleGroupItem
+            key={o.v}
+            value={o.v}
+            title={o.label}
+            className="rounded-md px-3 py-1 data-[state=on]:bg-background data-[state=on]:text-foreground data-[state=on]:shadow"
+          >
+            {o.icon}
+          </ToggleGroupItem>
+        ))}
+      </ToggleGroup>
     </PropRow>
   );
 }
@@ -1530,7 +1541,7 @@ function DomTree({ onPicked }: { onPicked: () => void }) {
   }
 
   return (
-    <div className="max-h-[80vh] overflow-y-auto rounded-xl border bg-muted/30 py-2 text-[13px]">
+    <Card className="max-h-[80vh] overflow-y-auto bg-muted/30 py-2 text-[13px]">
       <DomTreeNode
         node={tree}
         depth={0}
@@ -1540,7 +1551,7 @@ function DomTree({ onPicked }: { onPicked: () => void }) {
         onSelect={handleSelect}
         onToggle={handleToggle}
       />
-    </div>
+    </Card>
   );
 }
 

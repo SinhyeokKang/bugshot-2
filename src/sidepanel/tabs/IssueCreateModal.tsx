@@ -5,7 +5,9 @@ import {
   ChevronsUpDown,
   Loader2,
 } from "lucide-react";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Command,
   CommandEmpty,
@@ -217,9 +219,9 @@ export function IssueCreateModal() {
             </FieldRow>
 
             {submit.status === "error" ? (
-              <p className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
-                {submit.message}
-              </p>
+              <Alert variant="destructive" className="text-xs">
+                <AlertDescription>{submit.message}</AlertDescription>
+              </Alert>
             ) : null}
 
             <div className="mt-2 flex justify-end gap-2">
@@ -262,21 +264,23 @@ function SuccessView({
 }) {
   return (
     <div className="flex flex-col gap-4">
-      <div className="rounded-md border bg-muted/40 px-4 py-3">
-        <div className="text-xs text-muted-foreground">이슈 키</div>
-        <div className="mt-1 flex items-center gap-2">
-          <span className="text-base font-medium">{result.key}</span>
-          <a
-            href={result.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
-          >
-            Jira에서 열기
-            <ArrowUpRight className="h-3 w-3" />
-          </a>
-        </div>
-      </div>
+      <Card>
+        <CardContent className="px-4 py-3">
+          <div className="text-xs text-muted-foreground">이슈 키</div>
+          <div className="mt-1 flex items-center gap-2">
+            <span className="text-base font-medium">{result.key}</span>
+            <a
+              href={result.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
+            >
+              Jira에서 열기
+              <ArrowUpRight className="h-3 w-3" />
+            </a>
+          </div>
+        </CardContent>
+      </Card>
       <div className="flex justify-end gap-2">
         <Button variant="outline" onClick={onClose}>
           닫기

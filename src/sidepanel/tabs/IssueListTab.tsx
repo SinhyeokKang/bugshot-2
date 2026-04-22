@@ -1,5 +1,7 @@
 import { useMemo } from "react";
 import { ExternalLink, FileEdit, Inbox } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { useIssuesStore, type IssueRecord } from "@/store/issues-store";
 import { PageScroll, PageShell, Section } from "../components/Section";
@@ -51,15 +53,14 @@ function IssueRow({ issue }: { issue: IssueRecord }) {
 
   return (
     <li>
-      <button
-        type="button"
-        onClick={handleClick}
-        disabled={!isSubmitted}
+      <Card
         className={cn(
-          "group flex w-full flex-col gap-1 rounded-lg border border-border/60 bg-background px-3 py-2.5 text-left transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+          "group cursor-pointer transition-colors",
           isSubmitted ? "hover:bg-muted/50" : "cursor-default",
         )}
+        onClick={handleClick}
       >
+        <CardContent className="flex flex-col gap-1 px-3 py-2.5">
         <div className="flex items-center gap-2">
           <StatusBadge issue={issue} />
           <span className="min-w-0 flex-1 truncate text-sm font-medium">
@@ -90,7 +91,8 @@ function IssueRow({ issue }: { issue: IssueRecord }) {
             </>
           ) : null}
         </div>
-      </button>
+        </CardContent>
+      </Card>
     </li>
   );
 }
@@ -98,16 +100,16 @@ function IssueRow({ issue }: { issue: IssueRecord }) {
 function StatusBadge({ issue }: { issue: IssueRecord }) {
   if (issue.status === "submitted" && issue.key) {
     return (
-      <span className="shrink-0 rounded bg-muted px-1.5 py-[1px] font-mono text-[11px] text-foreground">
+      <Badge variant="secondary" className="shrink-0 font-mono text-[11px]">
         {issue.key}
-      </span>
+      </Badge>
     );
   }
   return (
-    <span className="inline-flex shrink-0 items-center gap-1 rounded bg-amber-100 px-1.5 py-[1px] text-[11px] font-medium text-amber-900 dark:bg-amber-500/15 dark:text-amber-200">
+    <Badge variant="outline" className="shrink-0 gap-1 border-amber-500/30 bg-amber-100 text-[11px] text-amber-900 dark:bg-amber-500/15 dark:text-amber-200">
       <FileEdit className="h-3 w-3" />
       초안
-    </span>
+    </Badge>
   );
 }
 

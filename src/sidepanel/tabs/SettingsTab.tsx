@@ -1,6 +1,9 @@
 import { useEffect, useState } from "react";
 import { ExternalLink, Loader2 } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -95,20 +98,22 @@ function JiraSummary() {
   const kindLabel = auth.kind === "oauth" ? "OAuth" : "API Token";
 
   return (
-    <div className="flex items-center justify-between rounded-md border px-3 py-2">
-      <div className="flex min-w-0 flex-col gap-0.5 text-xs">
-        <div className="flex items-center gap-1.5">
-          <span className="min-w-0 flex-1 truncate text-foreground">{host}</span>
-          <span className="shrink-0 rounded border px-1.5 py-[1px] text-[10px] uppercase tracking-wider text-muted-foreground">
-            {kindLabel}
-          </span>
+    <Card>
+      <CardContent className="flex items-center justify-between px-3 py-2">
+        <div className="flex min-w-0 flex-col gap-0.5 text-xs">
+          <div className="flex items-center gap-1.5">
+            <span className="min-w-0 flex-1 truncate text-foreground">{host}</span>
+            <Badge variant="outline" className="text-[10px] uppercase tracking-wider">
+              {kindLabel}
+            </Badge>
+          </div>
+          <span className="truncate text-muted-foreground">{auth.email}</span>
         </div>
-        <span className="truncate text-muted-foreground">{auth.email}</span>
-      </div>
-      <Button size="sm" variant="outline" onClick={() => clearJiraConfig()}>
-        재설정
-      </Button>
-    </div>
+        <Button size="sm" variant="outline" onClick={() => clearJiraConfig()}>
+          재설정
+        </Button>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -130,10 +135,22 @@ function JiraAuthForm() {
   );
 }
 
+type OAuthError = { kind: "noJira" } | { kind: "general"; message: string };
+
+const DISMISS_PATTERNS = /cancel|취소|not approve/i;
+const NO_JIRA_PATTERNS = /could not be loaded|Jira 사이트가 없/i;
+
+function classifyOAuthError(err: unknown): OAuthError | null {
+  const msg = err instanceof Error ? err.message : String(err);
+  if (DISMISS_PATTERNS.test(msg)) return null;
+  if (NO_JIRA_PATTERNS.test(msg)) return { kind: "noJira" };
+  return { kind: "general", message: msg };
+}
+
 function OAuthForm() {
   const setJiraConfig = useSettingsStore((s) => s.setJiraConfig);
   const [connecting, setConnecting] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState<OAuthError | null>(null);
   const [oauthAvailable, setOauthAvailable] = useState<boolean | null>(null);
   const [candidate, setCandidate] = useState<OAuthStartResultMsg | null>(null);
 
@@ -161,7 +178,7 @@ function OAuthForm() {
         setCandidate(result);
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(classifyOAuthError(err));
     } finally {
       setConnecting(false);
     }
@@ -190,7 +207,7 @@ function OAuthForm() {
       setJiraConfig(next);
       setCandidate(null);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(classifyOAuthError(err));
     } finally {
       setConnecting(false);
     }
@@ -198,14 +215,14 @@ function OAuthForm() {
 
   if (oauthAvailable === false) {
     return (
-      <div className="rounded-md border border-amber-500/30 bg-amber-500/5 p-3 text-xs text-amber-700 dark:text-amber-400">
-        <p className="font-medium">Atlassian OAuth 설정이 필요합니다.</p>
-        <p className="mt-1 text-muted-foreground">
+      <Alert className="border-amber-500/30 bg-amber-500/5 text-xs text-amber-700 dark:text-amber-400">
+        <AlertTitle className="text-xs">Atlassian OAuth 설정이 필요합니다.</AlertTitle>
+        <AlertDescription className="text-xs text-muted-foreground">
           빌드 시 <code className="text-[11px]">VITE_ATLASSIAN_CLIENT_ID</code>
           와 <code className="text-[11px]">VITE_OAUTH_PROXY_URL</code> 환경
           변수를 모두 지정하세요. 현재는 API Token 방식을 사용해주세요.
-        </p>
-      </div>
+        </AlertDescription>
+      </Alert>
     );
   }
 
@@ -216,12 +233,12 @@ function OAuthForm() {
           연결할 사이트를 선택하세요.
         </p>
         {candidate.sites.map((site) => (
-          <button
+          <Button
             key={site.id}
-            type="button"
+            variant="outline"
             disabled={connecting}
             onClick={() => void finalize(candidate, site)}
-            className="flex items-center gap-2 rounded-md border px-3 py-2 text-left text-xs transition-colors hover:bg-accent disabled:opacity-60"
+            className="h-auto justify-start gap-2 px-3 py-2 text-xs"
           >
             {site.avatarUrl ? (
               <img
@@ -236,13 +253,9 @@ function OAuthForm() {
                 {site.url}
               </span>
             </div>
-          </button>
+          </Button>
         ))}
-        {error ? (
-          <p className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
-            {error}
-          </p>
-        ) : null}
+        <OAuthErrorBanner error={error} />
       </div>
     );
   }
@@ -252,11 +265,7 @@ function OAuthForm() {
       <p className="text-xs text-muted-foreground">
         Atlassian 계정으로 로그인하여 권한을 부여합니다.
       </p>
-      {error ? (
-        <p className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
-          {error}
-        </p>
-      ) : null}
+      <OAuthErrorBanner error={error} />
       <Button
         onClick={() => void startFlow()}
         disabled={connecting || oauthAvailable === null}
@@ -272,6 +281,40 @@ function OAuthForm() {
         )}
       </Button>
     </div>
+  );
+}
+
+function OAuthErrorBanner({ error }: { error: OAuthError | null }) {
+  if (!error) return null;
+  if (error.kind === "noJira") {
+    return (
+      <Alert variant="destructive" className="text-xs">
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <AlertTitle className="text-xs">
+              Jira가 존재하지 않는 계정입니다.
+            </AlertTitle>
+            <AlertDescription className="text-xs text-destructive/80">
+              계정을 변경하여 재시도해주세요.
+            </AlertDescription>
+          </div>
+          <a
+            href="https://id.atlassian.com/logout"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-0.5 inline-flex shrink-0 items-center gap-1 text-[11px] text-destructive/70 underline underline-offset-2 transition-colors hover:text-destructive"
+          >
+            계정 전환
+            <ExternalLink className="h-3 w-3" />
+          </a>
+        </div>
+      </Alert>
+    );
+  }
+  return (
+    <Alert variant="destructive" className="text-xs">
+      <AlertDescription>{error.message}</AlertDescription>
+    </Alert>
   );
 }
 
@@ -359,9 +402,9 @@ function ApiKeyForm() {
       </div>
 
       {error ? (
-        <p className="rounded-md border border-destructive/30 bg-destructive/5 px-3 py-2 text-xs text-destructive">
-          {error}
-        </p>
+        <Alert variant="destructive" className="text-xs">
+          <AlertDescription>{error}</AlertDescription>
+        </Alert>
       ) : null}
 
       <Button

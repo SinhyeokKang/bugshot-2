@@ -1,5 +1,15 @@
 import { Monitor, Moon, Sun } from "lucide-react";
-import { cn } from "@/lib/utils";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  ToggleGroup,
+  ToggleGroupItem,
+} from "@/components/ui/toggle-group";
 import {
   useAppSettingsStore,
   type LocaleMode,
@@ -28,42 +38,39 @@ export function AppSettingsTab() {
     <PageShell>
       <PageScroll>
         <Section title="테마">
-        <div className="inline-flex h-9 items-center rounded-lg bg-muted p-1 text-muted-foreground">
-          {THEME_OPTIONS.map((o) => {
-            const active = theme === o.value;
-            return (
-              <button
+          <ToggleGroup
+            type="single"
+            value={theme}
+            onValueChange={(v) => { if (v) setTheme(v as ThemeMode); }}
+            className="inline-flex h-9 rounded-lg bg-muted p-1"
+          >
+            {THEME_OPTIONS.map((o) => (
+              <ToggleGroupItem
                 key={o.value}
-                type="button"
-                onClick={() => setTheme(o.value)}
-                className={cn(
-                  "inline-flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-md px-3 py-1 text-sm font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                  active
-                    ? "bg-background text-foreground shadow"
-                    : "hover:text-foreground",
-                )}
+                value={o.value}
+                className="gap-1.5 rounded-md px-3 py-1 text-sm data-[state=on]:bg-background data-[state=on]:text-foreground data-[state=on]:shadow"
               >
                 {o.icon}
                 {o.label}
-              </button>
-            );
-          })}
-        </div>
-      </Section>
+              </ToggleGroupItem>
+            ))}
+          </ToggleGroup>
+        </Section>
 
         <Section title="언어">
           <div className="flex flex-col gap-1.5">
-            <select
-              value={locale}
-              onChange={(e) => setLocale(e.target.value as LocaleMode)}
-              className="h-9 rounded-md border bg-transparent px-2 text-sm focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-            >
-              {LOCALE_OPTIONS.map((o) => (
-                <option key={o.value} value={o.value}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
+            <Select value={locale} onValueChange={(v) => setLocale(v as LocaleMode)}>
+              <SelectTrigger className="h-9 w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {LOCALE_OPTIONS.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>
+                    {o.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
             <p className="text-xs text-muted-foreground">
               언어 번역은 아직 적용되지 않습니다.
             </p>
