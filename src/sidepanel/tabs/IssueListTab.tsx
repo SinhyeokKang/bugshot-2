@@ -86,7 +86,7 @@ function IssueRow({ issue }: { issue: IssueRecord }) {
           {issue.assigneeName ? (
             <>
               <span>·</span>
-              <span className="truncate">{issue.assigneeName}</span>
+              <span className="min-w-0 truncate">{issue.assigneeName}</span>
             </>
           ) : null}
         </div>

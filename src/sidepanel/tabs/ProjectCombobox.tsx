@@ -77,7 +77,7 @@ export function ProjectCombobox() {
         >
           <span
             className={cn(
-              "truncate",
+              "min-w-0 flex-1 truncate text-left",
               !jiraConfig.projectKey && "text-muted-foreground",
             )}
           >
@@ -126,7 +126,7 @@ export function ProjectCombobox() {
                             : "opacity-0",
                         )}
                       />
-                      <div className="flex min-w-0 flex-col">
+                      <div className="flex min-w-0 flex-1 flex-col">
                         <span className="truncate">{project.name}</span>
                         <span className="truncate text-[11px] text-muted-foreground">
                           {project.key}

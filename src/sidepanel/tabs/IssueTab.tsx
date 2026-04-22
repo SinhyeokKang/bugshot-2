@@ -1173,7 +1173,7 @@ function ValueCombobox({
               compact={compact}
             />
           ) : value ? (
-            <span className="truncate">{value}</span>
+            <span className="min-w-0 flex-1 truncate text-left">{value}</span>
           ) : placeholderTokenName ? (
             <TokenChip
               name={placeholderTokenName}
@@ -1187,7 +1187,7 @@ function ValueCombobox({
           ) : (
             <span
               className={cn(
-                "truncate",
+                "min-w-0 flex-1 truncate text-left",
                 isDefault
                   ? "text-muted-foreground/40"
                   : "text-muted-foreground",
@@ -1310,8 +1310,8 @@ function TokenItem({
           style={{ backgroundColor: token.value }}
         />
       ) : null}
-      <span className="truncate text-sm">{token.name}</span>
-      <span className="ml-auto max-w-[120px] truncate text-[11px] text-muted-foreground">
+      <span className="min-w-0 flex-1 truncate text-sm">{token.name}</span>
+      <span className="ml-auto min-w-0 max-w-[120px] shrink-0 truncate text-[11px] text-muted-foreground">
         {token.value}
       </span>
     </CommandItem>
@@ -1340,7 +1340,7 @@ function TokenChip({
           style={{ backgroundColor: swatch }}
         />
       ) : null}
-      <span className="truncate">{name}</span>
+      <span className="min-w-0 truncate">{name}</span>
     </span>
   );
 }
@@ -1597,7 +1597,7 @@ function DomTreeNode({
         ) : (
           <span className="inline-block h-4 w-4 shrink-0" />
         )}
-        <span className="truncate">
+        <span className="min-w-0 flex-1 truncate">
           <span className="text-muted-foreground">&lt;</span>
           <span className="text-sky-600">{node.tag}</span>
           {node.id ? (

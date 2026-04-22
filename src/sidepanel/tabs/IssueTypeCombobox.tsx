@@ -85,7 +85,7 @@ export function IssueTypeCombobox() {
         >
           <span
             className={cn(
-              "truncate",
+              "min-w-0 flex-1 truncate text-left",
               !jiraConfig.issueTypeName && "text-muted-foreground",
             )}
           >
@@ -138,7 +138,7 @@ export function IssueTypeCombobox() {
                           className="mr-2 h-4 w-4"
                         />
                       ) : null}
-                      <span className="truncate">{it.name}</span>
+                      <span className="min-w-0 flex-1 truncate">{it.name}</span>
                     </CommandItem>
                   ))}
                 </CommandGroup>

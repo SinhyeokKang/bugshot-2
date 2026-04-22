@@ -425,7 +425,7 @@ function IssueTypeField({
           {it.iconUrl ? (
             <img src={it.iconUrl} alt="" className="mr-2 h-4 w-4" />
           ) : null}
-          <span className="truncate">{it.name}</span>
+          <span className="min-w-0 flex-1 truncate">{it.name}</span>
         </CommandItem>
       ))}
     </FieldCombobox>
@@ -496,7 +496,7 @@ function PriorityField({
           {p.iconUrl ? (
             <img src={p.iconUrl} alt="" className="mr-2 h-4 w-4" />
           ) : null}
-          <span className="truncate">{p.name}</span>
+          <span className="min-w-0 flex-1 truncate">{p.name}</span>
         </CommandItem>
       ))}
     </FieldCombobox>
@@ -567,7 +567,7 @@ function AssigneeField({
               className="mr-2 h-4 w-4 rounded-full"
             />
           ) : null}
-          <span className="truncate">{u.displayName}</span>
+          <span className="min-w-0 flex-1 truncate">{u.displayName}</span>
         </CommandItem>
       ))}
     </FieldCombobox>
@@ -635,7 +635,7 @@ function EpicField({
             )}
           />
           <span className="shrink-0 text-muted-foreground">{epic.key}</span>
-          <span className="ml-1.5 truncate">{epic.fields.summary}</span>
+          <span className="ml-1.5 min-w-0 flex-1 truncate">{epic.fields.summary}</span>
         </CommandItem>
       ))}
     </FieldCombobox>
@@ -679,7 +679,10 @@ function FieldCombobox({
           className="w-full justify-between font-normal"
         >
           <span
-            className={cn("truncate", !label && "text-muted-foreground")}
+            className={cn(
+              "min-w-0 flex-1 truncate text-left",
+              !label && "text-muted-foreground",
+            )}
           >
             {label || placeholder}
           </span>

@@ -98,8 +98,8 @@ function JiraSummary() {
     <div className="flex items-center justify-between rounded-md border px-3 py-2">
       <div className="flex min-w-0 flex-col gap-0.5 text-xs">
         <div className="flex items-center gap-1.5">
-          <span className="truncate text-foreground">{host}</span>
-          <span className="rounded border px-1.5 py-[1px] text-[10px] uppercase tracking-wider text-muted-foreground">
+          <span className="min-w-0 flex-1 truncate text-foreground">{host}</span>
+          <span className="shrink-0 rounded border px-1.5 py-[1px] text-[10px] uppercase tracking-wider text-muted-foreground">
             {kindLabel}
           </span>
         </div>
