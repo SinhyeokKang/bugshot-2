@@ -236,7 +236,7 @@ function JiraOnboarding() {
               ) : (
                 <>
                   <ExternalLink className="h-3.5 w-3.5" />
-                  Atlassian OAuth
+                  Atlassian 로그인
                 </>
               )}
             </Button>

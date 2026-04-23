@@ -222,7 +222,7 @@ export function SubmitFieldsDialog({
           />
         ) : configured ? (
           <div className="flex flex-col gap-4">
-            <FieldRow label="이슈 타입">
+            <FieldRow label="이슈 타입" required>
               <IssueTypeField
                 value={fields.issueTypeId}
                 onChange={(id) => onFieldsChange({ issueTypeId: id })}
@@ -330,14 +330,19 @@ function SuccessView({
 
 export function FieldRow({
   label,
+  required,
   children,
 }: {
   label: string;
+  required?: boolean;
   children: React.ReactNode;
 }) {
   return (
     <div className="grid gap-1.5">
-      <Label>{label}</Label>
+      <Label>
+        {label}
+        {required ? <span className="ml-0.5 text-destructive">*</span> : null}
+      </Label>
       {children}
     </div>
   );
@@ -430,6 +435,7 @@ export function IssueTypeField({
   }, [open, jiraConfig, projectKey, items.length]);
 
   const defaultId = jiraConfig?.issueTypeId;
+  const defaultName = jiraConfig?.issueTypeName;
   const effectiveValue = value ?? defaultId;
   const selected = items.find((i) => i.id === effectiveValue);
 
@@ -446,7 +452,7 @@ export function IssueTypeField({
       placeholder="이슈 타입 선택"
       searchPlaceholder="이슈 타입 검색..."
       emptyMessage="일치하는 이슈 타입이 없습니다."
-      label={selected?.name}
+      label={selected?.name ?? (effectiveValue ? defaultName : undefined)}
     >
       {items.map((it) => (
         <CommandItem
