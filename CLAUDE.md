@@ -115,6 +115,27 @@ chrome.action.onClicked.addListener((tab) => {
 
 **manifest 동적 host_permissions**: `manifest.config.ts`가 `VITE_OAUTH_PROXY_URL`의 origin을 자동으로 `host_permissions`에 추가한다. 빌드 시점에 결정되므로 런타임 권한 요청은 없음.
 
+### 토큰 매핑 한계 (CSSOM 제약)
+
+**shorthand(var 포함) + 같은 shorthand의 longhand 부분 override** 조합에서 Chrome이 shorthand를 explode하면서 **원본 var() 값을 빈 문자열로 대체**한다. 복구 불가.
+
+예:
+```css
+.user-message {
+  border-radius: var(--radius-xxl);
+  border-bottom-right-radius: 4px;
+}
+```
+
+CSSOM이 보여주는 것:
+- `border-top-left-radius: ""` / `border-top-right-radius: ""` / `border-bottom-left-radius: ""`
+- `border-bottom-right-radius: "4px"` (override만 유지)
+- `getPropertyValue("border-radius")` → `""`
+
+결과: picker는 override 안 된 3코너의 token을 못 잡고 computed literal(`16px`)로 fallback 표시. 해당 shorthand에 longhand override가 **없을 때**는 정상 (`padding: var(--spacing-8) var(--spacing-14)` 유지).
+
+**현재 대응**: 한계 인정, computed literal 폴백. 근본 해결은 `fetch`로 원본 CSS 다운받아 re-parse가 유일하지만 async 리팩터 비용 커서 유보. 워크어라운드: 원본 CSS를 4개 longhand 명시 작성.
+
 ### DOM 트리 Lazy Load
 
 DOM 트리 Dialog(`IssueTab.tsx`의 `DomTree`)는 큰 페이지에서 전체 DOM을 한 번에 직렬화하면 프리즈된다. 그래서 두 단계로 동작:

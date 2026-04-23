@@ -4,6 +4,7 @@ import {
   AlignJustify,
   AlignLeft,
   AlignRight,
+  Check,
   CornerLeftUp,
   CornerRightDown,
   ChevronDown,
@@ -518,8 +519,10 @@ function SelectedPanel() {
           <TextProp label="line-height" prop="line-height" />
           <TextProp label="letter-spacing" prop="letter-spacing" />
         </Row2>
-        <AlignmentProp label="text-align" prop="text-align" />
-        <TextProp label="color" prop="color" />
+        <Row2>
+          <AlignmentProp label="text-align" prop="text-align" />
+          <TextProp label="color" prop="color" />
+        </Row2>
       </Section>
 
 
@@ -623,7 +626,8 @@ function ClassEditor() {
       value={value}
       onChange={(e) => handleChange(e.target.value)}
       placeholder="공백 구분 class"
-      className="min-h-20 text-sm"
+      className="min-h-9 resize-none text-sm [field-sizing:content]"
+      rows={1}
       spellCheck={false}
     />
   );
@@ -675,7 +679,8 @@ function TextEditor() {
       value={value}
       onChange={(e) => handleChange(e.target.value)}
       placeholder="요소 텍스트"
-      className="min-h-16 text-sm"
+      className="min-h-9 resize-none text-sm [field-sizing:content]"
+      rows={1}
       spellCheck={false}
     />
   );
@@ -1213,7 +1218,7 @@ function ValueCombobox({
             >
               {compact && placeholder
                 ? shortValue(placeholder)
-                : placeholder || "none"}
+                : placeholder || "—"}
             </span>
           )}
         </button>
@@ -1263,7 +1268,12 @@ function ValueCombobox({
             {familyFiltered.length > 0 ? (
               <CommandGroup heading={familyPrefix ?? "패밀리"}>
                 {familyFiltered.map((t) => (
-                  <TokenItem key={t.name} token={t} onCommit={commit} />
+                  <TokenItem
+                  key={t.name}
+                  token={t}
+                  active={t.name === activeTokenName}
+                  onCommit={commit}
+                />
                 ))}
               </CommandGroup>
             ) : null}
@@ -1274,7 +1284,12 @@ function ValueCombobox({
                 <CommandEmpty>매칭 없음</CommandEmpty>
               ) : null}
               {primaryFiltered.map((t) => (
-                <TokenItem key={t.name} token={t} onCommit={commit} />
+                <TokenItem
+                  key={t.name}
+                  token={t}
+                  active={t.name === activeTokenName}
+                  onCommit={commit}
+                />
               ))}
               {category && extraFiltered.length > 0 && !effectiveShowAll ? (
                 <CommandItem
@@ -1291,7 +1306,12 @@ function ValueCombobox({
             {effectiveShowAll && extraFiltered.length > 0 ? (
               <CommandGroup heading="기타 토큰">
                 {extraFiltered.map((t) => (
-                  <TokenItem key={t.name} token={t} onCommit={commit} />
+                  <TokenItem
+                  key={t.name}
+                  token={t}
+                  active={t.name === activeTokenName}
+                  onCommit={commit}
+                />
                 ))}
               </CommandGroup>
             ) : null}
@@ -1312,23 +1332,39 @@ function ValueCombobox({
 
 function TokenItem({
   token,
+  active,
   onCommit,
 }: {
   token: Token;
+  active?: boolean;
   onCommit: (next: string) => void;
 }) {
   return (
     <CommandItem
       value={`${token.name} ${token.value}`}
       onSelect={() => onCommit(`var(${token.name})`)}
+      className={cn(active && "bg-accent/60 data-[selected=true]:bg-accent")}
     >
+      <Check
+        className={cn(
+          "h-3.5 w-3.5 shrink-0",
+          active ? "opacity-100" : "opacity-0",
+        )}
+      />
       {token.category === "color" ? (
         <span
           className="h-3 w-3 shrink-0 rounded border"
           style={{ backgroundColor: token.value }}
         />
       ) : null}
-      <span className="min-w-0 flex-1 truncate text-sm">{token.name}</span>
+      <span
+        className={cn(
+          "min-w-0 flex-1 truncate text-sm",
+          active && "font-medium",
+        )}
+      >
+        {token.name}
+      </span>
       <span className="ml-auto min-w-0 max-w-[120px] shrink-0 truncate text-[11px] text-muted-foreground">
         {token.value}
       </span>

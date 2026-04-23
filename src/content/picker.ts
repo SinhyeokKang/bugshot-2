@@ -14,6 +14,7 @@ const HOST_ID = "__bugshot_picker_host";
 
 const INTERESTING_PROPS = [
   "color",
+  "font-family",
   "font-size",
   "font-weight",
   "line-height",
@@ -70,7 +71,6 @@ type Mode = "idle" | "hover" | "selected";
 let mode: Mode = "idle";
 let selectedEl: Element | null = null;
 let lastHover: Element | null = null;
-let pendingTarget: Element | null = null;
 let originalClassName: string | null = null;
 let originalStyle: string | null = null;
 let textNode: Text | null = null;
@@ -79,6 +79,7 @@ let originalTextContent: string | null = null;
 let hostEl: HTMLDivElement | null = null;
 let shadow: ShadowRoot | null = null;
 let bannerEl: HTMLDivElement | null = null;
+let blockerEl: HTMLDivElement | null = null;
 let marginEl: SVGPathElement | null = null;
 let paddingEl: SVGPathElement | null = null;
 let gapEl: SVGPathElement | null = null;
@@ -168,7 +169,6 @@ function handleStart(): void {
   ensureOverlay();
   selectedEl = null;
   lastHover = null;
-  pendingTarget = null;
   addHoverListeners();
   setMode("hover");
 }
@@ -286,6 +286,14 @@ function firstChildOf(el: Element): Element | null {
 function setMode(next: Mode): void {
   mode = next;
   updateBanner();
+  if (blockerEl) {
+    if (mode === "hover") {
+      blockerEl.style.display = "";
+      blockerEl.style.pointerEvents = "auto";
+    } else {
+      blockerEl.style.display = "none";
+    }
+  }
   if (mode === "selected") {
     attachViewportListeners();
   } else {
@@ -337,8 +345,27 @@ function ensureOverlay(): void {
       font: 12px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       pointer-events: none;
     }
+    .interaction-blocker {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      z-index: 2147483646;
+      pointer-events: auto;
+      cursor: crosshair;
+    }
   `;
   shadow.appendChild(style);
+
+  blockerEl = document.createElement("div");
+  blockerEl.className = "interaction-blocker";
+  blockerEl.style.display = "none";
+  shadow.appendChild(blockerEl);
+  // wheel/touchmove 시 blocker를 잠깐 `none`으로 풀어 페이지 스크롤 허용.
+  // 다음 mousemove가 blocker를 다시 `auto`로 복귀시킴.
+  blockerEl.addEventListener("wheel", yieldToScroll, { passive: true });
+  blockerEl.addEventListener("touchmove", yieldToScroll, { passive: true });
 
   const svg = document.createElementNS(SVG_NS, "svg");
   svg.setAttribute("width", "100%");
@@ -372,7 +399,7 @@ function ensureOverlay(): void {
   borderEl = document.createElementNS(SVG_NS, "rect");
   borderEl.setAttribute("fill", "none");
   borderEl.setAttribute("stroke", "#2563eb");
-  borderEl.setAttribute("stroke-width", "2");
+  borderEl.setAttribute("stroke-width", "1");
   borderEl.style.display = "none";
   svg.appendChild(borderEl);
 
@@ -405,28 +432,33 @@ function hideOverlay(): void {
 
 function addHoverListeners(): void {
   window.addEventListener("mousemove", onMouseMove, true);
-  window.addEventListener("pointerdown", onPointerDown, true);
-  window.addEventListener("pointerup", onMouseEat, true);
-  window.addEventListener("mousedown", onMouseEat, true);
-  window.addEventListener("mouseup", onMouseEat, true);
-  window.addEventListener("click", onClickCommit, true);
-  window.addEventListener("auxclick", onMouseEat, true);
-  window.addEventListener("dblclick", onMouseEat, true);
-  window.addEventListener("contextmenu", onMouseEat, true);
   window.addEventListener("keydown", onKeyDown, true);
+  if (blockerEl) {
+    blockerEl.addEventListener("click", onClickCommit);
+    blockerEl.addEventListener("contextmenu", suppressEvent);
+    blockerEl.addEventListener("auxclick", suppressEvent);
+    blockerEl.addEventListener("dblclick", suppressEvent);
+  }
 }
 
 function removeHoverListeners(): void {
   window.removeEventListener("mousemove", onMouseMove, true);
-  window.removeEventListener("pointerdown", onPointerDown, true);
-  window.removeEventListener("pointerup", onMouseEat, true);
-  window.removeEventListener("mousedown", onMouseEat, true);
-  window.removeEventListener("mouseup", onMouseEat, true);
-  window.removeEventListener("click", onClickCommit, true);
-  window.removeEventListener("auxclick", onMouseEat, true);
-  window.removeEventListener("dblclick", onMouseEat, true);
-  window.removeEventListener("contextmenu", onMouseEat, true);
   window.removeEventListener("keydown", onKeyDown, true);
+  if (blockerEl) {
+    blockerEl.removeEventListener("click", onClickCommit);
+    blockerEl.removeEventListener("contextmenu", suppressEvent);
+    blockerEl.removeEventListener("auxclick", suppressEvent);
+    blockerEl.removeEventListener("dblclick", suppressEvent);
+  }
+}
+
+function yieldToScroll(): void {
+  if (blockerEl) blockerEl.style.pointerEvents = "none";
+}
+
+function suppressEvent(e: Event): void {
+  e.preventDefault();
+  e.stopPropagation();
 }
 
 function attachViewportListeners(): void {
@@ -447,45 +479,37 @@ function onViewportChange(): void {
   });
 }
 
+// blocker를 잠깐 `pointer-events: none`으로 풀어 실제 페이지 요소를 hit-test.
+// 토글 후에는 항상 `auto`로 복귀시켜 wheel 핸들러가 풀어놨던 상태도 같이 복구한다.
 function elementAtPoint(x: number, y: number): Element | null {
-  if (!hostEl) return document.elementFromPoint(x, y);
-  const prev = hostEl.style.display;
-  hostEl.style.display = "none";
+  if (!blockerEl) return document.elementFromPoint(x, y);
+  blockerEl.style.pointerEvents = "none";
   const el = document.elementFromPoint(x, y);
-  hostEl.style.display = prev;
+  blockerEl.style.pointerEvents = "auto";
   return el;
+}
+
+function isOwnUi(el: Element | null): boolean {
+  if (!el) return true;
+  if (el === hostEl) return true;
+  return !!hostEl && hostEl.contains(el);
 }
 
 function onMouseMove(e: MouseEvent): void {
   if (mode !== "hover") return;
   const target = elementAtPoint(e.clientX, e.clientY);
-  if (!target || target === lastHover) return;
+  if (isOwnUi(target) || target === lastHover) return;
   lastHover = target;
   render();
 }
 
-function onPointerDown(e: PointerEvent): void {
+function onClickCommit(e: MouseEvent): void {
   if (mode !== "hover") return;
-  if (e.button !== 0) {
-    pendingTarget = null;
-    return;
-  }
+  if (e.button !== 0) return;
   e.preventDefault();
   e.stopPropagation();
-  e.stopImmediatePropagation();
-  pendingTarget = elementAtPoint(e.clientX, e.clientY);
-}
-
-// pointerdown과 click 사이에는 사용자 손가락 시간(수백 ms)이 있으므로,
-// mode 전환은 click이 실제 발사된 뒤에 해야 페이지 핸들러/기본 동작을 안전하게 가로챌 수 있다.
-function onClickCommit(e: Event): void {
-  if (mode !== "hover") return;
-  e.preventDefault();
-  e.stopPropagation();
-  (e as MouseEvent).stopImmediatePropagation?.();
-  const target = pendingTarget;
-  pendingTarget = null;
-  if (!target) return;
+  const target = elementAtPoint(e.clientX, e.clientY);
+  if (isOwnUi(target) || !target) return;
   restoreOriginal();
   selectedEl = target;
   captureOriginal(target);
@@ -493,13 +517,6 @@ function onClickCommit(e: Event): void {
   removeHoverListeners();
   setMode("selected");
   emitSelected(target);
-}
-
-function onMouseEat(e: Event): void {
-  if (mode !== "hover") return;
-  e.preventDefault();
-  e.stopPropagation();
-  (e as MouseEvent).stopImmediatePropagation?.();
 }
 
 function onKeyDown(e: KeyboardEvent): void {
@@ -511,7 +528,6 @@ function onKeyDown(e: KeyboardEvent): void {
   restoreOriginal();
   selectedEl = null;
   lastHover = null;
-  pendingTarget = null;
   setMode("idle");
   chrome.runtime
     .sendMessage<PickerMessage>({ type: "picker.cancelled" })
@@ -714,6 +730,7 @@ function collectSelection(el: Element): PickerSelectionPayload {
 
 const INHERITED_PROPS = new Set([
   "color",
+  "font-family",
   "font-size",
   "font-weight",
   "line-height",
@@ -722,7 +739,13 @@ const INHERITED_PROPS = new Set([
 ]);
 
 const SHORTHAND_MAP: Record<string, string[]> = {
-  font: ["font-size", "font-weight", "line-height", "letter-spacing"],
+  font: [
+    "font-family",
+    "font-size",
+    "font-weight",
+    "line-height",
+    "letter-spacing",
+  ],
   background: ["background-color"],
   padding: ["padding-top", "padding-right", "padding-bottom", "padding-left"],
   margin: ["margin-top", "margin-right", "margin-bottom", "margin-left"],
@@ -736,22 +759,41 @@ const SHORTHAND_MAP: Record<string, string[]> = {
   overflow: ["overflow-x", "overflow-y"],
 };
 
-function collectRulesForElement(el: Element, out: Record<string, string>): void {
-  for (const sheet of Array.from(document.styleSheets)) {
+// Lit/Web Components 등은 document.adoptedStyleSheets에 CSSStyleSheet를 얹는다.
+// document.styleSheets는 <link>/<style>만 포함하므로 adopted를 명시적으로 합쳐야 놓치지 않음.
+function allStyleSheets(): readonly CSSStyleSheet[] {
+  const regular = Array.from(document.styleSheets) as CSSStyleSheet[];
+  const adopted = document.adoptedStyleSheets
+    ? Array.from(document.adoptedStyleSheets)
+    : [];
+  return [...regular, ...adopted];
+}
+
+function collectRulesForElement(
+  el: Element,
+  out: Record<string, string>,
+  customProps: Record<string, string>,
+): void {
+  for (const sheet of allStyleSheets()) {
     try {
       const rules = sheet.cssRules;
-      if (rules) collectSpecifiedFromRules(rules, el, out);
+      if (rules) collectSpecifiedFromRules(rules, el, out, customProps);
     } catch {
       /* cross-origin, skip */
     }
   }
   if (el instanceof HTMLElement) {
     const style = el.style;
-    extractVarPropsFromCssText(style.cssText, out);
+    extractVarPropsFromCssText(style.cssText, out, customProps);
     for (let i = 0; i < style.length; i++) {
       const name = style.item(i);
       const val = style.getPropertyValue(name);
-      if (val && !(out[name]?.includes("var(") && !val.includes("var("))) {
+      if (!val) continue;
+      if (name.startsWith("--")) {
+        if (!customProps[name]) customProps[name] = val.trim();
+        continue;
+      }
+      if (!(out[name]?.includes("var(") && !val.includes("var("))) {
         out[name] = val;
       }
     }
@@ -764,10 +806,63 @@ function collectRulesForElement(el: Element, out: Record<string, string>): void 
   }
 }
 
+// trbl 규칙으로 분해 가능한 shorthand 화이트리스트.
+// 값이 var()를 포함하거나 토큰이 혼합된 경우는 분해 비대상 — 원본 값 그대로 longhand에 복사.
+const TRBL_SHORTHANDS: Record<string, [string, string, string, string]> = {
+  padding: [
+    "padding-top",
+    "padding-right",
+    "padding-bottom",
+    "padding-left",
+  ],
+  margin: [
+    "margin-top",
+    "margin-right",
+    "margin-bottom",
+    "margin-left",
+  ],
+  "border-radius": [
+    "border-top-left-radius",
+    "border-top-right-radius",
+    "border-bottom-right-radius",
+    "border-bottom-left-radius",
+  ],
+};
+
+// CSS 1/2/3/4-value 표기를 [top, right, bottom, left] 네 값으로 분해.
+// - 1개: 모두 동일
+// - 2개: [top=bottom=v1, right=left=v2]
+// - 3개: [top=v1, right=left=v2, bottom=v3]
+// - 4개: [v1, v2, v3, v4]
+// border-radius는 `/` 구분된 x/y 쌍이 올 수 있는데 그 경우는 복잡도 때문에 분해 포기(원본 반환).
+function splitTrblValue(value: string): [string, string, string, string] | null {
+  if (value.includes("/")) return null;
+  const parts = value.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0 || parts.length > 4) return null;
+  const [a, b = a, c = a, d = b] = parts;
+  return [a, b, c, d];
+}
+
+// NOTE: Chrome CSSOM은 shorthand(var 포함) + 해당 shorthand의 longhand 부분 override
+// 조합에서 shorthand를 4개 longhand로 explode하며 **원본 var() 값을 빈 문자열로 대체**한다.
+// `rule.style.cssText` / `getPropertyValue`로 복구 불가 (예: `.user-message` border-radius).
+// 이 케이스는 현재 토큰 매핑 불가, 컴포넌트 literal fallback. CSS 원본 텍스트 fetch 방식으로만
+// 우회 가능하지만 async 리팩터 비용 커서 유보.
 function expandShorthands(all: Record<string, string>): void {
   for (const [shorthand, longhands] of Object.entries(SHORTHAND_MAP)) {
     if (!(shorthand in all)) continue;
     const value = all[shorthand];
+    const trbl = TRBL_SHORTHANDS[shorthand];
+    // var() 포함 값은 분해해도 토큰 이름이 쪼개져 의미 없음 → 기존처럼 통째 복사.
+    const canSplit = trbl && !value.includes("var(");
+    const split = canSplit ? splitTrblValue(value) : null;
+    if (split) {
+      for (let i = 0; i < trbl.length; i++) {
+        const lh = trbl[i];
+        if (!(lh in all)) all[lh] = split[i];
+      }
+      continue;
+    }
     for (const lh of longhands) {
       if (!(lh in all)) all[lh] = value;
     }
@@ -776,7 +871,8 @@ function expandShorthands(all: Record<string, string>): void {
 
 function collectSpecifiedStyles(el: Element): Record<string, string> {
   const all: Record<string, string> = {};
-  collectRulesForElement(el, all);
+  const customProps: Record<string, string> = {};
+  collectRulesForElement(el, all, customProps);
   expandShorthands(all);
 
   const missing = [...INHERITED_PROPS].filter((p) => !(p in all));
@@ -784,7 +880,7 @@ function collectSpecifiedStyles(el: Element): Record<string, string> {
     let cur = el.parentElement;
     while (cur && missing.length > 0) {
       const parentAll: Record<string, string> = {};
-      collectRulesForElement(cur, parentAll);
+      collectRulesForElement(cur, parentAll, customProps);
       expandShorthands(parentAll);
       for (let i = missing.length - 1; i >= 0; i--) {
         if (missing[i] in parentAll) {
@@ -796,6 +892,11 @@ function collectSpecifiedStyles(el: Element): Record<string, string> {
     }
   }
 
+  // private 중간변수(`--_padding` 같은) → 실제 design token으로 한 단계씩 펼침.
+  for (const prop of Object.keys(all)) {
+    all[prop] = resolveVarChain(all[prop], customProps);
+  }
+
   const filtered: Record<string, string> = {};
   for (const p of INTERESTING_PROPS) {
     if (p in all) filtered[p] = all[p];
@@ -803,10 +904,53 @@ function collectSpecifiedStyles(el: Element): Record<string, string> {
   return filtered;
 }
 
+const VAR_REF_RE = /var\(\s*(--[\w-]+)(?:\s*,\s*([^)]*))?\)/g;
+// fallback 자체가 단일 var 참조일 때만 따라간다. compound fallback(`var(--x, 1px solid var(--y))`)은 무시.
+const SIMPLE_VAR_FALLBACK_RE = /^\s*var\(\s*(--[\w-]+)(?:\s*,\s*[^)]*)?\s*\)\s*$/;
+
+function resolveVarChain(
+  value: string,
+  customProps: Record<string, string>,
+  depth = 0,
+  visited?: Set<string>,
+): string {
+  if (depth > 5 || !value.includes("var(")) return value;
+  const seen = visited ?? new Set<string>();
+  let changed = false;
+  VAR_REF_RE.lastIndex = 0;
+  const next = value.replace(
+    VAR_REF_RE,
+    (match, name: string, fallback: string | undefined) => {
+      if (seen.has(name)) return match;
+      let resolvedName = name;
+      let replacement = customProps[name];
+      // primary가 비었고 fallback이 단일 `var(--y)`면 --y 시도.
+      if (replacement === undefined && fallback) {
+        const fb = SIMPLE_VAR_FALLBACK_RE.exec(fallback.trim());
+        if (fb && !seen.has(fb[1]) && customProps[fb[1]] !== undefined) {
+          resolvedName = fb[1];
+          replacement = customProps[fb[1]];
+        }
+      }
+      if (replacement === undefined) return match;
+      // `--_xxx` 언더스코어 prefix는 컴포넌트 private alias 컨벤션 → 리터럴까지 resolve.
+      // 일반 design token(`--spacing-14 → "16px"`)은 leaf에서 멈춰 토큰 이름 보존.
+      const isPrivate = resolvedName.startsWith("--_");
+      if (!isPrivate && !replacement.includes("var(")) return match;
+      seen.add(resolvedName);
+      changed = true;
+      return replacement;
+    },
+  );
+  if (!changed) return value;
+  return resolveVarChain(next, customProps, depth + 1, seen);
+}
+
 function collectSpecifiedFromRules(
   rules: CSSRuleList,
   el: Element,
   out: Record<string, string>,
+  customProps: Record<string, string>,
 ): void {
   for (const rule of Array.from(rules)) {
     if (rule instanceof CSSStyleRule) {
@@ -818,12 +962,16 @@ function collectSpecifiedFromRules(
       }
       if (!matched) continue;
       const decl = rule.style;
-      extractVarPropsFromCssText(decl.cssText, out);
+      extractVarPropsFromCssText(decl.cssText, out, customProps);
       for (let i = 0; i < decl.length; i++) {
         const name = decl.item(i);
-        if (name.startsWith("--")) continue;
         const val = decl.getPropertyValue(name);
-        if (val && !(out[name]?.includes("var(") && !val.includes("var("))) {
+        if (!val) continue;
+        if (name.startsWith("--")) {
+          if (!customProps[name]) customProps[name] = val.trim();
+          continue;
+        }
+        if (!(out[name]?.includes("var(") && !val.includes("var("))) {
           out[name] = val;
         }
       }
@@ -843,16 +991,16 @@ function collectSpecifiedFromRules(
       } catch {
         /* fall through */
       }
-      collectSpecifiedFromRules(nested, el, out);
+      collectSpecifiedFromRules(nested, el, out, customProps);
     } else if (rule instanceof CSSSupportsRule) {
       try {
         if (!CSS.supports(rule.conditionText)) continue;
       } catch {
         /* fall through */
       }
-      collectSpecifiedFromRules(nested, el, out);
+      collectSpecifiedFromRules(nested, el, out, customProps);
     } else {
-      collectSpecifiedFromRules(nested, el, out);
+      collectSpecifiedFromRules(nested, el, out, customProps);
     }
   }
 }
@@ -862,6 +1010,7 @@ const CSS_DECL_RE = /([\w-]+)\s*:\s*([^;]+)/g;
 function extractVarPropsFromCssText(
   cssText: string,
   out: Record<string, string>,
+  customProps: Record<string, string>,
 ): void {
   const declared: Record<string, string> = {};
   CSS_DECL_RE.lastIndex = 0;
@@ -870,6 +1019,10 @@ function extractVarPropsFromCssText(
     declared[m[1]] = m[2].trim();
   }
   for (const [prop, val] of Object.entries(declared)) {
+    if (prop.startsWith("--")) {
+      if (!customProps[prop]) customProps[prop] = val;
+      continue;
+    }
     if (!val.includes("var(")) continue;
     if (!out[prop] || !out[prop].includes("var(")) out[prop] = val;
     const longhands = SHORTHAND_MAP[prop];
@@ -897,7 +1050,7 @@ function buildSelector(el: Element): string {
 
 function collectTokens(el?: Element): Token[] {
   const seen = new Map<string, string>();
-  for (const sheet of Array.from(document.styleSheets)) {
+  for (const sheet of allStyleSheets()) {
     try {
       const rules = sheet.cssRules;
       if (rules) collectFromRules(rules, seen);
