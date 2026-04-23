@@ -219,7 +219,7 @@ function JiraOnboarding() {
         </div>
         <h3 className="text-[18px] font-semibold">Jira 연결</h3>
         <p className="mt-1 text-sm text-muted-foreground">
-          Atlassian 계정으로 로그인 또는 API Token을 이용해 Jira와 연동합니다.
+          Atlassian 계정 또는 API Token을 이용해 Jira와 연동해 주세요.
         </p>
 
         <div className="mt-5 flex gap-2">
@@ -234,7 +234,10 @@ function JiraOnboarding() {
                   연결 중...
                 </>
               ) : (
-                "Atlassian으로 연결"
+                <>
+                  <ExternalLink className="h-3.5 w-3.5" />
+                  Atlassian OAuth
+                </>
               )}
             </Button>
           ) : null}
