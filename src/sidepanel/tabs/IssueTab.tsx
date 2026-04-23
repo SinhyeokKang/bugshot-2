@@ -1477,7 +1477,7 @@ function DomTreeTitle({ selector }: { selector: string }) {
           {selector}
         </button>
       </DialogTrigger>
-      <DialogContent className="w-[80vw] max-w-[80vw] gap-5 rounded-3xl p-6 sm:rounded-3xl">
+      <DialogContent className="w-[80vw] max-w-[80vw] max-h-[80vh] gap-5 rounded-3xl p-6 sm:rounded-3xl">
         <DialogHeader>
           <DialogTitle className="text-xl">DOM 선택</DialogTitle>
         </DialogHeader>
@@ -1584,7 +1584,7 @@ function DomTree({ onPicked }: { onPicked: () => void }) {
   }
 
   return (
-    <Card className="max-h-[80vh] overflow-y-auto bg-muted/30 py-2 text-[13px]">
+    <Card className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-background py-2 text-[13px]">
       <DomTreeNode
         node={tree}
         depth={0}

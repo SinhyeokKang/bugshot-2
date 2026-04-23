@@ -934,9 +934,10 @@ function resolveVarChain(
       }
       if (replacement === undefined) return match;
       // `--_xxx` 언더스코어 prefix는 컴포넌트 private alias 컨벤션 → 리터럴까지 resolve.
-      // 일반 design token(`--spacing-14 → "16px"`)은 leaf에서 멈춰 토큰 이름 보존.
+      // 공용(public) 토큰은 체인 더 내려가지 않고 이름 보존 — 원시 > 시맨틱 구조에서
+      // 시맨틱 레이어(`--color-text-semantic → var(--color-gray-scale-900)`)가 그대로 노출되도록.
       const isPrivate = resolvedName.startsWith("--_");
-      if (!isPrivate && !replacement.includes("var(")) return match;
+      if (!isPrivate) return match;
       seen.add(resolvedName);
       changed = true;
       return replacement;

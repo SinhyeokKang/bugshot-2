@@ -1,7 +1,19 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowUpRight, Loader2, Trash2 } from "lucide-react";
+import { Trash2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -20,13 +32,7 @@ import {
   buildStyleDiff,
 } from "../components/StyleChangesTable";
 import { buildIssueAdf } from "../lib/buildIssueAdf";
-import {
-  AssigneeField,
-  EpicField,
-  FieldRow,
-  IssueTypeField,
-  PriorityField,
-} from "./IssueCreateModal";
+import { SubmitFieldsDialog } from "./IssueCreateModal";
 
 type SubmitFields = {
   issueTypeId?: string;
@@ -35,12 +41,6 @@ type SubmitFields = {
   parentKey?: string;
   relatesKey?: string;
 };
-
-type SubmitState =
-  | { status: "idle" }
-  | { status: "submitting" }
-  | { status: "success"; result: JiraSubmitResult }
-  | { status: "error"; message: string };
 
 export function DraftDetailDialog({
   issue,
@@ -57,12 +57,12 @@ export function DraftDetailDialog({
   const markSubmitted = useIssuesStore((s) => s.markSubmitted);
 
   const [fields, setFields] = useState<SubmitFields>({});
-  const [submit, setSubmit] = useState<SubmitState>({ status: "idle" });
+  const [submitOpen, setSubmitOpen] = useState(false);
 
   useEffect(() => {
     if (!open) return;
     setFields({ issueTypeId: jiraConfig?.issueTypeId });
-    setSubmit({ status: "idle" });
+    setSubmitOpen(false);
   }, [open, issue?.id, jiraConfig?.issueTypeId]);
 
   const diffs = useMemo(() => {
@@ -84,18 +84,14 @@ export function DraftDetailDialog({
 
   if (!issue) return null;
 
-  const canSubmit =
-    configured &&
-    !!fields.issueTypeId &&
-    submit.status !== "submitting";
-
   const hasStyleBlock =
     !!issue.snapshot.before || !!issue.snapshot.after || diffs.length > 0;
 
-  async function handleSubmit() {
-    if (!issue) return;
-    if (!jiraConfig?.auth || !jiraConfig.projectKey) return;
-    if (!fields.issueTypeId) return;
+  async function handleSubmit(): Promise<JiraSubmitResult> {
+    if (!issue) throw new Error("초안 없음");
+    if (!jiraConfig?.auth || !jiraConfig.projectKey)
+      throw new Error("Jira 미설정");
+    if (!fields.issueTypeId) throw new Error("이슈 타입 선택 필요");
 
     const sel = issue.selectionSnapshot;
     const ctx = {
@@ -133,36 +129,23 @@ export function DraftDetailDialog({
         dataUrl: issue.snapshot.after,
       });
 
-    setSubmit({ status: "submitting" });
-    try {
-      const result = await sendBg<JiraSubmitResult>({
-        type: "jira.submitIssue",
-        config: jiraConfig.auth,
-        payload: {
-          projectKey: jiraConfig.projectKey,
-          summary,
-          description,
-          issueTypeId: fields.issueTypeId,
-          assigneeAccountId: fields.assigneeId,
-          priorityId: fields.priorityId,
-          parentKey: fields.parentKey,
-        },
-        attachments,
-        relatesKey: fields.relatesKey,
-      });
-      markSubmitted(issue.id, { key: result.key, url: result.url });
-      setSubmit({ status: "success", result });
-    } catch (err) {
-      setSubmit({
-        status: "error",
-        message: err instanceof Error ? err.message : String(err),
-      });
-    }
-  }
-
-  function handleOpenChange(next: boolean) {
-    if (submit.status === "submitting") return;
-    onOpenChange(next);
+    const result = await sendBg<JiraSubmitResult>({
+      type: "jira.submitIssue",
+      config: jiraConfig.auth,
+      payload: {
+        projectKey: jiraConfig.projectKey,
+        summary,
+        description,
+        issueTypeId: fields.issueTypeId,
+        assigneeAccountId: fields.assigneeId,
+        priorityId: fields.priorityId,
+        parentKey: fields.parentKey,
+      },
+      attachments,
+      relatesKey: fields.relatesKey,
+    });
+    markSubmitted(issue.id, { key: result.key, url: result.url });
+    return result;
   }
 
   function handleDelete() {
@@ -172,21 +155,14 @@ export function DraftDetailDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="w-[80vw] max-w-[80vw] max-h-[85vh] gap-5 overflow-y-auto rounded-3xl p-6 sm:rounded-3xl">
-        <DialogHeader>
-          <DialogTitle className="text-xl">
-            {submit.status === "success" ? "이슈가 생성되었습니다" : "초안 검토"}
-          </DialogTitle>
-        </DialogHeader>
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent className="w-[80vw] max-w-[80vw] max-h-[80vh] gap-5 rounded-3xl p-6 sm:rounded-3xl">
+          <DialogHeader>
+            <DialogTitle className="text-xl">초안 검토</DialogTitle>
+          </DialogHeader>
 
-        {submit.status === "success" ? (
-          <SuccessView
-            result={submit.result}
-            onClose={() => onOpenChange(false)}
-          />
-        ) : (
-          <div className="flex flex-col gap-4">
+          <Card className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain bg-background p-4 text-[13px]">
             <EnvBlock issue={issue} />
 
             <FieldSection label="제목">
@@ -201,12 +177,6 @@ export function DraftDetailDialog({
               </FieldSection>
             ) : null}
 
-            {issue.draft.expectedResult ? (
-              <FieldSection label="기대 결과">
-                <DocBody value={issue.draft.expectedResult} />
-              </FieldSection>
-            ) : null}
-
             {hasStyleBlock ? (
               <FieldSection label="스타일 변경">
                 <StyleChangesTable
@@ -217,101 +187,75 @@ export function DraftDetailDialog({
               </FieldSection>
             ) : null}
 
-            {configured ? (
-              <div className="flex flex-col gap-3 border-t pt-4">
-                <Label className="text-sm font-medium">Jira 필드</Label>
-                <FieldRow label="이슈 타입">
-                  <IssueTypeField
-                    value={fields.issueTypeId}
-                    onChange={(id) =>
-                      setFields((f) => ({ ...f, issueTypeId: id }))
-                    }
-                  />
-                </FieldRow>
-                <FieldRow label="담당자">
-                  <AssigneeField
-                    value={fields.assigneeId}
-                    onChange={(id) =>
-                      setFields((f) => ({ ...f, assigneeId: id }))
-                    }
-                  />
-                </FieldRow>
-                <FieldRow label="우선순위">
-                  <PriorityField
-                    value={fields.priorityId}
-                    onChange={(id) =>
-                      setFields((f) => ({ ...f, priorityId: id }))
-                    }
-                  />
-                </FieldRow>
-                <FieldRow label="부모 에픽">
-                  <EpicField
-                    value={fields.parentKey}
-                    onChange={(k) =>
-                      setFields((f) => ({ ...f, parentKey: k }))
-                    }
-                  />
-                </FieldRow>
-                <FieldRow label="연결 에픽">
-                  <EpicField
-                    value={fields.relatesKey}
-                    onChange={(k) =>
-                      setFields((f) => ({ ...f, relatesKey: k }))
-                    }
-                  />
-                </FieldRow>
-              </div>
-            ) : (
-              <Alert>
-                <AlertDescription>
-                  설정 탭에서 Jira를 먼저 연결하세요.
-                </AlertDescription>
-              </Alert>
-            )}
-
-            {submit.status === "error" ? (
-              <Alert variant="destructive" className="text-xs">
-                <AlertDescription>{submit.message}</AlertDescription>
-              </Alert>
+            {issue.draft.expectedResult ? (
+              <FieldSection label="기대 결과">
+                <DocBody value={issue.draft.expectedResult} />
+              </FieldSection>
             ) : null}
+          </Card>
 
-            <div className="mt-2 flex items-center justify-between gap-2">
-              <Button
-                variant="outline"
-                onClick={handleDelete}
-                disabled={submit.status === "submitting"}
-                className="text-destructive hover:text-destructive"
-              >
-                <Trash2 />
-                삭제
-              </Button>
-              <div className="flex gap-2">
+          {!configured ? (
+            <Alert>
+              <AlertDescription>
+                설정 탭에서 Jira를 먼저 연결하세요.
+              </AlertDescription>
+            </Alert>
+          ) : null}
+
+          <div className="flex items-center justify-between gap-2">
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
                 <Button
                   variant="outline"
-                  onClick={() => onOpenChange(false)}
-                  disabled={submit.status === "submitting"}
+                  className="text-destructive hover:text-destructive"
                 >
-                  닫기
+                  <Trash2 />
+                  삭제
                 </Button>
-                <Button
-                  onClick={() => void handleSubmit()}
-                  disabled={!canSubmit}
-                >
-                  {submit.status === "submitting" ? (
-                    <>
-                      <Loader2 className="animate-spin" />
-                      생성 중...
-                    </>
-                  ) : (
-                    "이슈 제출"
-                  )}
-                </Button>
-              </div>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>초안을 삭제할까요?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    삭제된 초안은 복구할 수 없습니다.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>취소</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={handleDelete}
+                    className={buttonVariants({ variant: "destructive" })}
+                  >
+                    삭제
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => onOpenChange(false)}>
+                닫기
+              </Button>
+              <Button
+                disabled={!configured}
+                onClick={() => setSubmitOpen(true)}
+              >
+                Jira 이슈 제출
+              </Button>
             </div>
           </div>
-        )}
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
+
+      <SubmitFieldsDialog
+        open={submitOpen}
+        onOpenChange={setSubmitOpen}
+        title="Jira 이슈 제출"
+        fields={fields}
+        onFieldsChange={(patch) => setFields((f) => ({ ...f, ...patch }))}
+        onSubmit={handleSubmit}
+        onSuccess={() => onOpenChange(false)}
+      />
+    </>
   );
 }
 
@@ -371,37 +315,6 @@ function DocBody({ value }: { value: string }) {
   return (
     <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">
       {value}
-    </div>
-  );
-}
-
-function SuccessView({
-  result,
-  onClose,
-}: {
-  result: JiraSubmitResult;
-  onClose: () => void;
-}) {
-  return (
-    <div className="flex flex-col gap-4">
-      <div className="rounded-md border bg-muted/40 px-4 py-3">
-        <div className="text-xs text-muted-foreground">이슈 키</div>
-        <div className="mt-1 flex items-center gap-2">
-          <span className="text-base font-medium">{result.key}</span>
-          <a
-            href={result.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
-          >
-            Jira에서 열기
-            <ArrowUpRight className="h-3 w-3" />
-          </a>
-        </div>
-      </div>
-      <div className="flex justify-end">
-        <Button onClick={onClose}>닫기</Button>
-      </div>
     </div>
   );
 }

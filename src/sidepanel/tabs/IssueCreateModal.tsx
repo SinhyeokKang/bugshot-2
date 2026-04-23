@@ -21,7 +21,6 @@ import {
   DialogContent,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import {
@@ -30,7 +29,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { useEditorStore } from "@/store/editor-store";
+import { useEditorStore, type EditorIssueFields } from "@/store/editor-store";
 import { useIssuesStore } from "@/store/issues-store";
 import {
   useSettingsStore,
@@ -72,19 +71,10 @@ export function IssueCreateModal() {
   const currentIssueId = useEditorStore((s) => s.currentIssueId);
   const markSubmitted = useIssuesStore((s) => s.markSubmitted);
 
-  const [submit, setSubmit] = useState<SubmitState>({ status: "idle" });
-
-  const canSubmit = !!(
-    configured &&
-    selection &&
-    draft &&
-    issueFields.issueTypeId &&
-    submit.status !== "submitting"
-  );
-
-  async function handleSubmit() {
-    if (!jiraConfig?.auth || !jiraConfig.projectKey) return;
-    if (!selection || !draft || !issueFields.issueTypeId) return;
+  async function handleSubmit(): Promise<JiraSubmitResult> {
+    if (!jiraConfig?.auth || !jiraConfig.projectKey) throw new Error("Jira 미설정");
+    if (!selection || !draft || !issueFields.issueTypeId)
+      throw new Error("필수 값 누락");
 
     const diffs = buildStyleDiff(selection, styleEdits);
     const ctx = {
@@ -113,28 +103,92 @@ export function IssueCreateModal() {
     if (beforeImage) attachments.push({ filename: "before.png", dataUrl: beforeImage });
     if (afterImage) attachments.push({ filename: "after.png", dataUrl: afterImage });
 
+    const result = await sendBg<JiraSubmitResult>({
+      type: "jira.submitIssue",
+      config: jiraConfig.auth,
+      payload: {
+        projectKey: jiraConfig.projectKey,
+        summary,
+        description,
+        issueTypeId: issueFields.issueTypeId,
+        assigneeAccountId: issueFields.assigneeId,
+        priorityId: issueFields.priorityId,
+        parentKey: issueFields.parentKey,
+      },
+      attachments,
+      relatesKey: issueFields.relatesKey,
+    });
+    if (currentIssueId) {
+      markSubmitted(currentIssueId, { key: result.key, url: result.url });
+    }
+    onSubmitted();
+    return result;
+  }
+
+  function handleStartNew() {
+    reset();
+    setOpen(false);
+  }
+
+  return (
+    <>
+      <Button
+        size="xl"
+        className="flex-1"
+        disabled={!configured}
+        onClick={() => setOpen(true)}
+        title={configured ? undefined : "설정 탭에서 Jira를 먼저 연결하세요"}
+      >
+        Jira 이슈 제출
+      </Button>
+      <SubmitFieldsDialog
+        open={open}
+        onOpenChange={setOpen}
+        fields={issueFields}
+        onFieldsChange={setIssueFields}
+        onSubmit={handleSubmit}
+        onStartNew={handleStartNew}
+      />
+    </>
+  );
+}
+
+export function SubmitFieldsDialog({
+  open,
+  onOpenChange,
+  title = "Jira 이슈 제출",
+  successTitle = "Jira 이슈가 제출되었습니다",
+  fields,
+  onFieldsChange,
+  onSubmit,
+  onSuccess,
+  onStartNew,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  title?: string;
+  successTitle?: string;
+  fields: EditorIssueFields;
+  onFieldsChange: (patch: Partial<EditorIssueFields>) => void;
+  onSubmit: () => Promise<JiraSubmitResult>;
+  onSuccess?: (result: JiraSubmitResult) => void;
+  onStartNew?: () => void;
+}) {
+  const jiraConfig = useSettingsStore((s) => s.jiraConfig);
+  const configured = isJiraConfigComplete(jiraConfig);
+  const [submit, setSubmit] = useState<SubmitState>({ status: "idle" });
+
+  useEffect(() => {
+    if (!open) setSubmit({ status: "idle" });
+  }, [open]);
+
+  async function handleSubmit() {
+    if (!configured || !fields.issueTypeId) return;
     setSubmit({ status: "submitting" });
     try {
-      const result = await sendBg<JiraSubmitResult>({
-        type: "jira.submitIssue",
-        config: jiraConfig.auth,
-        payload: {
-          projectKey: jiraConfig.projectKey,
-          summary,
-          description,
-          issueTypeId: issueFields.issueTypeId,
-          assigneeAccountId: issueFields.assigneeId,
-          priorityId: issueFields.priorityId,
-          parentKey: issueFields.parentKey,
-        },
-        attachments,
-        relatesKey: issueFields.relatesKey,
-      });
-      if (currentIssueId) {
-        markSubmitted(currentIssueId, { key: result.key, url: result.url });
-      }
+      const result = await onSubmit();
       setSubmit({ status: "success", result });
-      onSubmitted();
+      onSuccess?.(result);
     } catch (err) {
       setSubmit({
         status: "error",
@@ -145,76 +199,57 @@ export function IssueCreateModal() {
 
   function handleOpenChange(next: boolean) {
     if (submit.status === "submitting") return;
-    setOpen(next);
-    if (!next && submit.status !== "success") {
-      setSubmit({ status: "idle" });
-    }
+    onOpenChange(next);
   }
 
-  function handleStartNew() {
-    reset();
-    setSubmit({ status: "idle" });
-    setOpen(false);
-  }
+  const canSubmit = !!(
+    configured && fields.issueTypeId && submit.status !== "submitting"
+  );
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger asChild>
-        <Button
-          size="xl"
-          className="flex-1"
-          disabled={!configured}
-          title={configured ? undefined : "설정 탭에서 Jira를 먼저 연결하세요"}
-        >
-          이슈 생성
-        </Button>
-      </DialogTrigger>
       <DialogContent className="w-[80vw] max-w-[80vw] gap-5 rounded-3xl p-6 sm:rounded-3xl">
         <DialogHeader>
           <DialogTitle className="text-xl">
-            {submit.status === "success" ? "이슈가 생성되었습니다" : "이슈 생성"}
+            {submit.status === "success" ? successTitle : title}
           </DialogTitle>
         </DialogHeader>
         {submit.status === "success" ? (
           <SuccessView
             result={submit.result}
-            onClose={() => setOpen(false)}
-            onStartNew={handleStartNew}
+            onClose={() => onOpenChange(false)}
+            onStartNew={onStartNew}
           />
         ) : configured ? (
           <div className="flex flex-col gap-4">
             <FieldRow label="이슈 타입">
               <IssueTypeField
-                value={issueFields.issueTypeId}
-                onChange={(id) => setIssueFields({ issueTypeId: id })}
+                value={fields.issueTypeId}
+                onChange={(id) => onFieldsChange({ issueTypeId: id })}
               />
             </FieldRow>
-
             <FieldRow label="담당자">
               <AssigneeField
-                value={issueFields.assigneeId}
-                onChange={(id) => setIssueFields({ assigneeId: id })}
+                value={fields.assigneeId}
+                onChange={(id) => onFieldsChange({ assigneeId: id })}
               />
             </FieldRow>
-
             <FieldRow label="우선순위">
               <PriorityField
-                value={issueFields.priorityId}
-                onChange={(id) => setIssueFields({ priorityId: id })}
+                value={fields.priorityId}
+                onChange={(id) => onFieldsChange({ priorityId: id })}
               />
             </FieldRow>
-
             <FieldRow label="부모 에픽">
               <EpicField
-                value={issueFields.parentKey}
-                onChange={(key) => setIssueFields({ parentKey: key })}
+                value={fields.parentKey}
+                onChange={(key) => onFieldsChange({ parentKey: key })}
               />
             </FieldRow>
-
             <FieldRow label="연결 에픽">
               <EpicField
-                value={issueFields.relatesKey}
-                onChange={(key) => setIssueFields({ relatesKey: key })}
+                value={fields.relatesKey}
+                onChange={(key) => onFieldsChange({ relatesKey: key })}
               />
             </FieldRow>
 
@@ -239,10 +274,10 @@ export function IssueCreateModal() {
                 {submit.status === "submitting" ? (
                   <>
                     <Loader2 className="animate-spin" />
-                    생성 중...
+                    제출 중...
                   </>
                 ) : (
-                  "이슈 생성"
+                  "제출"
                 )}
               </Button>
             </div>
@@ -260,7 +295,7 @@ function SuccessView({
 }: {
   result: JiraSubmitResult;
   onClose: () => void;
-  onStartNew: () => void;
+  onStartNew?: () => void;
 }) {
   return (
     <div className="flex flex-col gap-4">
@@ -285,7 +320,9 @@ function SuccessView({
         <Button variant="outline" onClick={onClose}>
           닫기
         </Button>
-        <Button onClick={onStartNew}>새 이슈 시작</Button>
+        {onStartNew ? (
+          <Button onClick={onStartNew}>새 이슈 시작</Button>
+        ) : null}
       </div>
     </div>
   );
