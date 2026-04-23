@@ -291,7 +291,7 @@ function SuccessView({
   );
 }
 
-function FieldRow({
+export function FieldRow({
   label,
   children,
 }: {
@@ -352,7 +352,7 @@ function useDebouncedSearch<T>(
   return { items, loading, error, search };
 }
 
-function IssueTypeField({
+export function IssueTypeField({
   value,
   onChange,
 }: {
@@ -436,7 +436,7 @@ function IssueTypeField({
   );
 }
 
-function PriorityField({
+export function PriorityField({
   value,
   onChange,
 }: {
@@ -507,7 +507,7 @@ function PriorityField({
   );
 }
 
-function AssigneeField({
+export function AssigneeField({
   value,
   onChange,
 }: {
@@ -578,7 +578,7 @@ function AssigneeField({
   );
 }
 
-function EpicField({
+export function EpicField({
   value,
   onChange,
 }: {

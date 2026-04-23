@@ -21,6 +21,20 @@ export interface IssueDraftContent {
   expectedResult: string;
 }
 
+export interface IssueSelectionSnapshot {
+  classList: string[];
+  specifiedStyles: Record<string, string>;
+  computedStyles: Record<string, string>;
+  text: string | null;
+  viewport: { width: number; height: number };
+  capturedAt: number;
+}
+
+export interface IssueTokenSnapshot {
+  name: string;
+  value: string;
+}
+
 export interface IssueRecord {
   id: string;
   status: IssueStatus;
@@ -36,6 +50,10 @@ export interface IssueRecord {
   draft: IssueDraftContent;
   styleEdits: IssueStyleEdits;
   snapshot: IssueSnapshot;
+
+  // 초안 재제출을 위한 풀 컨텍스트. 구 초안은 없을 수 있음 (optional).
+  selectionSnapshot?: IssueSelectionSnapshot;
+  tokensSnapshot?: IssueTokenSnapshot[];
 
   key?: string;
   url?: string;

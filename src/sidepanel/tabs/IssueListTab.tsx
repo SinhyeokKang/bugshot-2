@@ -1,17 +1,29 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { ExternalLink, FileEdit, Inbox } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
-import { cn } from "@/lib/utils";
 import { useIssuesStore, type IssueRecord } from "@/store/issues-store";
 import { PageScroll, PageShell, Section } from "../components/Section";
+import { DraftDetailDialog } from "./DraftDetailDialog";
 
 export function IssueListTab() {
   const issues = useIssuesStore((s) => s.issues);
+  const [draftId, setDraftId] = useState<string | null>(null);
 
+  // selectionSnapshot 없는 구 초안은 재검토/재제출 불가 → 목록 노출 제외. submitted는 항상 노출.
   const sorted = useMemo(
-    () => [...issues].sort((a, b) => b.createdAt - a.createdAt),
+    () =>
+      issues
+        .filter(
+          (i) => i.status === "submitted" || !!i.selectionSnapshot,
+        )
+        .sort((a, b) => b.createdAt - a.createdAt),
     [issues],
+  );
+
+  const activeDraft = useMemo(
+    () => (draftId ? issues.find((i) => i.id === draftId) ?? null : null),
+    [issues, draftId],
   );
 
   if (sorted.length === 0) {
@@ -33,64 +45,78 @@ export function IssueListTab() {
         <Section title="이슈 목록">
           <ul className="flex flex-col gap-2">
             {sorted.map((issue) => (
-              <IssueRow key={issue.id} issue={issue} />
+              <IssueRow
+                key={issue.id}
+                issue={issue}
+                onOpenDraft={() => setDraftId(issue.id)}
+              />
             ))}
           </ul>
         </Section>
       </PageScroll>
+      <DraftDetailDialog
+        issue={activeDraft}
+        open={!!activeDraft}
+        onOpenChange={(v) => !v && setDraftId(null)}
+      />
     </PageShell>
   );
 }
 
-function IssueRow({ issue }: { issue: IssueRecord }) {
+function IssueRow({
+  issue,
+  onOpenDraft,
+}: {
+  issue: IssueRecord;
+  onOpenDraft: () => void;
+}) {
   const isSubmitted = issue.status === "submitted" && !!issue.url;
 
   const handleClick = () => {
     if (isSubmitted && issue.url) {
       chrome.tabs.create({ url: issue.url, active: true });
+    } else if (!isSubmitted) {
+      onOpenDraft();
     }
   };
 
   return (
     <li>
       <Card
-        className={cn(
-          "group cursor-pointer transition-colors",
-          isSubmitted ? "hover:bg-muted/50" : "cursor-default",
-        )}
+        className="group cursor-pointer transition-colors hover:bg-muted/50"
         onClick={handleClick}
       >
         <CardContent className="flex flex-col gap-1 px-3 py-2.5">
-        <div className="flex items-center gap-2">
-          <StatusBadge issue={issue} />
-          <span className="min-w-0 flex-1 truncate text-sm font-medium">
-            {issue.title || "(제목 없음)"}
-          </span>
-          {isSubmitted ? (
-            <ExternalLink className="h-3.5 w-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
-          ) : null}
-        </div>
-        <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-          <span>{formatDate(issue.createdAt)}</span>
-          {issue.issueTypeName ? (
-            <>
-              <span>·</span>
-              <span>{issue.issueTypeName}</span>
-            </>
-          ) : null}
-          {issue.priorityName ? (
-            <>
-              <span>·</span>
-              <span>{issue.priorityName}</span>
-            </>
-          ) : null}
-          {issue.assigneeName ? (
-            <>
-              <span>·</span>
-              <span className="min-w-0 truncate">{issue.assigneeName}</span>
-            </>
-          ) : null}
-        </div>
+          <div className="flex items-center gap-2">
+            <StatusBadge issue={issue} />
+            <span className="min-w-0 flex-1 truncate text-sm font-medium">
+              {issue.title || "(제목 없음)"}
+            </span>
+            {isSubmitted ? (
+              <ExternalLink className="h-3.5 w-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+            ) : null}
+          </div>
+          <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
+            <span>{formatDate(issue.createdAt)}</span>
+            {issue.issueTypeName ? (
+              <>
+                <span>·</span>
+                <span>{issue.issueTypeName}</span>
+              </>
+            ) : null}
+            {issue.priorityName ? (
+              <>
+                <span>·</span>
+                <span>{issue.priorityName}</span>
+              </>
+            ) : null}
+            {issue.assigneeName ? (
+              <>
+                <span>·</span>
+                <span className="min-w-0 truncate">{issue.assigneeName}</span>
+              </>
+            ) : null}
+          </div>
         </CardContent>
       </Card>
     </li>

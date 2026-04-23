@@ -179,6 +179,18 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         before: state.beforeImage,
         after: state.afterImage,
       },
+      selectionSnapshot: {
+        classList: [...state.selection.classList],
+        specifiedStyles: { ...state.selection.specifiedStyles },
+        computedStyles: { ...state.selection.computedStyles },
+        text: state.selection.text,
+        viewport: { ...state.selection.viewport },
+        capturedAt: state.selection.capturedAt,
+      },
+      tokensSnapshot: state.tokens.map((t) => ({
+        name: t.name,
+        value: t.value,
+      })),
     });
     set({ phase: "previewing", currentIssueId: id });
   },
