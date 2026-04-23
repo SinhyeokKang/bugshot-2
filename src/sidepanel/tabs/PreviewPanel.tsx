@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { Check, Copy } from "lucide-react";
+import { Check, Copy, Info } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { useEditorStore } from "@/store/editor-store";
+import { isJiraConfigComplete, useSettingsStore } from "@/store/settings-store";
 import {
   PageFooter,
   PageScroll,
@@ -24,6 +26,8 @@ export function PreviewPanel() {
   const afterImage = useEditorStore((s) => s.afterImage);
   const draft = useEditorStore((s) => s.draft);
   const backToDraft = useEditorStore((s) => s.backToDraft);
+  const jiraConfig = useSettingsStore((s) => s.jiraConfig);
+  const configured = isJiraConfigComplete(jiraConfig);
 
   const diffs = useMemo(
     () => (selection ? buildStyleDiff(selection, styleEdits) : []),
@@ -126,6 +130,15 @@ export function PreviewPanel() {
         </Section>
       </PageScroll>
       <PageFooter>
+        {!configured ? (
+          <Alert variant="ghost" className="mb-2">
+            <Info className="h-4 w-4" />
+            <AlertTitle>Jira가 연결되어 있지 않습니다</AlertTitle>
+            <AlertDescription>
+              Jira 이슈를 생성하시려면, 연동 탭에서 Jira를 먼저 연결해주세요.
+            </AlertDescription>
+          </Alert>
+        ) : null}
         <div className="flex items-center gap-2">
           <Button
             size="xl"

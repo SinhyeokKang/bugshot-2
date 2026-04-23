@@ -205,7 +205,7 @@ export function DraftDetailDialog({
               <Info className="h-4 w-4" />
               <AlertTitle>Jira가 연결되어 있지 않습니다</AlertTitle>
               <AlertDescription>
-                Jira 이슈를 생성하시려면, 설정 탭에서 Jira를 먼저 연결해주세요.
+                Jira 이슈를 생성하시려면, 연동 탭에서 Jira를 먼저 연결해주세요.
               </AlertDescription>
             </Alert>
           ) : null}
