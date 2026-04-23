@@ -100,7 +100,7 @@ export function PreviewPanel() {
           </div>
         </Section>
 
-        <Section title="발생 환경">
+        <Section title="재현 환경">
           <EnvParagraph
             url={target?.url ?? ""}
             selector={selection.selector}

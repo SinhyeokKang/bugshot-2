@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { Trash2 } from "lucide-react";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Info, Trash2 } from "lucide-react";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -162,13 +162,19 @@ export function DraftDetailDialog({
             <DialogTitle className="text-xl">초안 검토</DialogTitle>
           </DialogHeader>
 
-          <Card className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain bg-background p-4 text-[13px]">
-            <EnvBlock issue={issue} />
+          <Card className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overscroll-contain bg-background p-4">
+            <FieldSection label="이슈 제목">
+              {issue.draft.title ? (
+                <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">
+                  {issue.draft.title}
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground/70">비어 있음</p>
+              )}
+            </FieldSection>
 
-            <FieldSection label="제목">
-              <p className="text-sm font-medium break-words">
-                {issue.draft.title || "(제목 없음)"}
-              </p>
+            <FieldSection label="재현 환경">
+              <EnvBlock issue={issue} />
             </FieldSection>
 
             {issue.draft.body ? (
@@ -178,7 +184,7 @@ export function DraftDetailDialog({
             ) : null}
 
             {hasStyleBlock ? (
-              <FieldSection label="스타일 변경">
+              <FieldSection label="스타일 변경사항">
                 <StyleChangesTable
                   beforeImage={issue.snapshot.before}
                   afterImage={issue.snapshot.after}
@@ -195,9 +201,11 @@ export function DraftDetailDialog({
           </Card>
 
           {!configured ? (
-            <Alert>
+            <Alert variant="ghost">
+              <Info className="h-4 w-4" />
+              <AlertTitle>Jira가 연결되어 있지 않습니다</AlertTitle>
               <AlertDescription>
-                설정 탭에서 Jira를 먼저 연결하세요.
+                Jira 이슈를 생성하시려면, 설정 탭에서 Jira를 먼저 연결해주세요.
               </AlertDescription>
             </Alert>
           ) : null}
@@ -268,7 +276,7 @@ function FieldSection({
 }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <Label className="text-xs text-muted-foreground">{label}</Label>
+      <Label className="text-base font-semibold">{label}</Label>
       {children}
     </div>
   );
@@ -297,9 +305,9 @@ function EnvBlock({ issue }: { issue: IssueRecord }) {
   });
 
   return (
-    <div className="space-y-0.5 rounded-md border bg-muted/30 p-3 text-xs">
+    <div className="space-y-1 text-sm leading-relaxed">
       {rows.map((r) => (
-        <div key={r.label} className="flex gap-2">
+        <div key={r.label} className="flex gap-3">
           <span className="w-20 shrink-0 text-muted-foreground">{r.label}</span>
           <span className="break-all">{r.value}</span>
         </div>

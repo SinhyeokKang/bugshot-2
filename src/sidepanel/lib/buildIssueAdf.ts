@@ -17,7 +17,7 @@ export interface AdfDoc {
 export function buildIssueAdf(ctx: MarkdownContext): AdfDoc {
   const content: AdfNode[] = [];
 
-  content.push(heading(2, "발생 환경"));
+  content.push(heading(2, "재현 환경"));
   content.push(
     bulletList([
       keyValueItem("Page", ctx.url),

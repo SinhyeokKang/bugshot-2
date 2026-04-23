@@ -80,41 +80,30 @@ function IssueRow({
     }
   };
 
+  const metaParts = [formatDate(issue.createdAt)];
+  if (issue.issueTypeName) metaParts.push(issue.issueTypeName);
+  if (issue.priorityName) metaParts.push(issue.priorityName);
+  if (issue.assigneeName) metaParts.push(issue.assigneeName);
+
   return (
     <li>
       <Card
         className="group cursor-pointer transition-colors hover:bg-muted/50"
         onClick={handleClick}
       >
-        <CardContent className="flex flex-col gap-1 px-3 py-2.5">
-          <div className="flex items-center gap-2">
-            <StatusBadge issue={issue} />
-            <span className="min-w-0 flex-1 truncate text-sm font-medium">
+        <CardContent className="flex items-center justify-between gap-3 px-4 py-3">
+          <div className="flex min-w-0 flex-col">
+            <span className="truncate text-base font-medium text-foreground">
               {issue.title || "(제목 없음)"}
             </span>
-            {isSubmitted ? (
-              <ExternalLink className="h-3.5 w-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
-            ) : null}
+            <span className="truncate text-sm text-muted-foreground">
+              {metaParts.join(" · ")}
+            </span>
           </div>
-          <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
-            <span>{formatDate(issue.createdAt)}</span>
-            {issue.issueTypeName ? (
-              <>
-                <span>·</span>
-                <span>{issue.issueTypeName}</span>
-              </>
-            ) : null}
-            {issue.priorityName ? (
-              <>
-                <span>·</span>
-                <span>{issue.priorityName}</span>
-              </>
-            ) : null}
-            {issue.assigneeName ? (
-              <>
-                <span>·</span>
-                <span className="min-w-0 truncate">{issue.assigneeName}</span>
-              </>
+          <div className="flex shrink-0 items-center gap-2">
+            <StatusBadge issue={issue} />
+            {isSubmitted ? (
+              <ExternalLink className="h-3.5 w-3.5 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
             ) : null}
           </div>
         </CardContent>

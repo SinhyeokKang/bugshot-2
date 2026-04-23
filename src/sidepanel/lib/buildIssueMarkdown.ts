@@ -24,7 +24,7 @@ export function buildIssueMarkdown(ctx: MarkdownContext): string {
   lines.push(`# ${ctx.title}`);
   lines.push("");
 
-  lines.push("## 발생 환경");
+  lines.push("## 재현 환경");
   lines.push("");
   lines.push(`- **Page**: ${ctx.url}`);
   lines.push(`- **DOM**: ${ctx.selector}`);
@@ -64,7 +64,7 @@ export function buildIssueHtml(ctx: MarkdownContext): string {
   parts.push(buildMetaComment(ctx));
   parts.push(`<h1>${escapeHtml(ctx.title)}</h1>`);
 
-  parts.push(`<h2>발생 환경</h2>`);
+  parts.push(`<h2>재현 환경</h2>`);
   parts.push(`<ul>`);
   parts.push(`<li><strong>Page</strong>: ${escapeHtml(ctx.url)}</li>`);
   parts.push(`<li><strong>DOM</strong>: ${escapeHtml(ctx.selector)}</li>`);
