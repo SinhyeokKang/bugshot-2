@@ -2,7 +2,7 @@
 
 PRD(`docs/PRD.md`) 기준 작업 목록. 다른 환경에서 이어서 작업할 때 참고. Claude Code 세션의 TodoWrite 상태를 보강하는 용도 — 권위 있는 소스는 아니지만 방향성 유지용 스냅샷.
 
-**마지막 갱신: 2026-04-22**
+**마지막 갱신: 2026-04-23**
 
 ## 완료
 
@@ -37,6 +37,11 @@ PRD(`docs/PRD.md`) 기준 작업 목록. 다른 환경에서 이어서 작업할
 - [x] manifest dev `key` 고정 + `build:store` (스토어 업로드 시 `key` 제거)
 - [x] host_permissions 동적 주입 (`VITE_OAUTH_PROXY_URL` origin)
 - [x] DOM 트리 Dialog lazy load (조상 path expand + `describeChildren` 온디맨드 → 큰 페이지 freeze 해결)
+- [x] Picker interaction-blocker 오버레이 (disabled 요소 hover/click 처리 + 페이지 상호작용 전면 차단, ui-inspector 참고)
+- [x] Picker 토큰 매핑 v2 (adoptedStyleSheets 병합, 리터럴 shorthand trbl 분해, var fallback 추적, `--_` private alias 컨벤션)
+- [x] Dialog / AlertDialog 시각 통일 (라운드·헤더 스페이싱·타이틀 타이포그래피)
+- [x] 토큰 콤보박스 active 강조 + Typography 레이아웃 정리 + PageFooter 톤 조정
+- [x] CSSOM shorthand+longhand 혼용 한계 CLAUDE.md 기록
 
 ## 진행 중
 
