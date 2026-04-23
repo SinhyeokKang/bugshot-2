@@ -1,5 +1,7 @@
+import { useEffect, useState } from "react";
 import { List, Settings, SlidersHorizontal, SquarePen } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { jiraCredentialsFilled, useSettingsStore } from "@/store/settings-store";
 import { useBoundTabId } from "./hooks/useBoundTabId";
 import { useEditorSessionSync } from "./hooks/useEditorSessionSync";
 import { usePickerMessages } from "./hooks/usePickerMessages";
@@ -9,18 +11,36 @@ import { IssueListTab } from "./tabs/IssueListTab";
 import { IssueTab } from "./tabs/IssueTab";
 import { SettingsTab } from "./tabs/SettingsTab";
 
+function useSettingsHydrated() {
+  const [ready, setReady] = useState(
+    useSettingsStore.persist.hasHydrated(),
+  );
+  useEffect(
+    () => useSettingsStore.persist.onFinishHydration(() => setReady(true)),
+    [],
+  );
+  return ready;
+}
+
 export default function App() {
   const tabId = useBoundTabId();
-  const hydrated = useEditorSessionSync(tabId);
+  const editorHydrated = useEditorSessionSync(tabId);
+  const settingsHydrated = useSettingsHydrated();
   usePickerMessages();
   useThemeEffect();
 
-  if (!hydrated) return null;
+  const jiraConfig = useSettingsStore((s) => s.jiraConfig);
+
+  if (!editorHydrated || !settingsHydrated) return null;
+
+  const initialTab = jiraCredentialsFilled(jiraConfig)
+    ? "issue"
+    : "issue-settings";
 
   return (
     <div className="flex h-screen flex-col">
       <Tabs
-        defaultValue="issue"
+        defaultValue={initialTab}
         className="flex min-h-0 flex-1 flex-col gap-0"
       >
         <div className="border-b">
@@ -35,7 +55,7 @@ export default function App() {
             </TabsTrigger>
             <TabsTrigger value="issue-settings" className="gap-1.5">
               <SlidersHorizontal className="h-3.5 w-3.5" />
-              Jira 설정
+              Jira 연동
             </TabsTrigger>
             <TabsTrigger value="app-settings" className="gap-1.5">
               <Settings className="h-3.5 w-3.5" />
