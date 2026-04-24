@@ -300,15 +300,16 @@ export function SubmitFieldsDialog({
           <Button
             onClick={() => void handleSubmit()}
             disabled={!canSubmit}
+            className="relative"
           >
-            {submit.status === "submitting" ? (
-              <>
-                <Loader2 className="animate-spin" />
-                제출 중...
-              </>
-            ) : (
-              "제출"
+            {submit.status === "submitting" && (
+              <span className="absolute inset-0 flex items-center justify-center">
+                <Loader2 className="h-4 w-4 animate-spin" />
+              </span>
             )}
+            <span className={submit.status === "submitting" ? "opacity-0" : undefined}>
+              제출
+            </span>
           </Button>
         </DialogFooter>
       </DialogContent>

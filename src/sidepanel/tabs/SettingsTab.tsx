@@ -229,18 +229,17 @@ function JiraOnboarding() {
             <Button
               onClick={() => void startOAuth()}
               disabled={connecting || oauthAvailable === null}
+              className="relative"
             >
-              {connecting ? (
-                <>
-                  <Loader2 className="animate-spin" />
-                  연결 중...
-                </>
-              ) : (
-                <>
-                  <ExternalLink className="h-3.5 w-3.5" />
-                  Atlassian 로그인
-                </>
+              {connecting && (
+                <span className="absolute inset-0 flex items-center justify-center">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                </span>
               )}
+              <span className={connecting ? "opacity-0" : undefined}>
+                <ExternalLink className="h-3.5 w-3.5" />
+                Atlassian 로그인
+              </span>
             </Button>
           ) : null}
 
@@ -383,15 +382,15 @@ function ApiKeyDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             취소
           </Button>
-          <Button onClick={handleValidate} disabled={!canValidate}>
-            {validating ? (
-              <>
-                <Loader2 className="animate-spin" />
-                검증 중...
-              </>
-            ) : (
-              "검증"
+          <Button onClick={handleValidate} disabled={!canValidate} className="relative">
+            {validating && (
+              <span className="absolute inset-0 flex items-center justify-center">
+                <Loader2 className="h-4 w-4 animate-spin" />
+              </span>
             )}
+            <span className={validating ? "opacity-0" : undefined}>
+              검증
+            </span>
           </Button>
         </DialogFooter>
       </DialogContent>

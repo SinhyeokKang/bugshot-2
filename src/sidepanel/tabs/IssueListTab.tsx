@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { ArrowUpRight, CircleCheck, Inbox, Trash2 } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ArrowUpRight, CircleCheck, Inbox, Loader2, Trash2 } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -23,8 +23,11 @@ import { DraftDetailDialog } from "./DraftDetailDialog";
 
 export function IssueListTab() {
   const issues = useIssuesStore((s) => s.issues);
+  const clearIssues = useIssuesStore((s) => s.clearIssues);
   const [draftId, setDraftId] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const pendingRef = useRef(0);
   const [successResult, setSuccessResult] = useState<JiraSubmitResult | null>(null);
 
   const sorted = useMemo(
@@ -36,6 +39,26 @@ export function IssueListTab() {
         .sort((a, b) => b.createdAt - a.createdAt),
     [issues],
   );
+
+  const submittedCount = useMemo(
+    () => sorted.filter((i) => i.status === "submitted" && !!i.url && !!i.key).length,
+    [sorted],
+  );
+
+  const handleRefresh = useCallback(() => {
+    if (submittedCount === 0) {
+      setRefreshKey((k) => k + 1);
+      return;
+    }
+    pendingRef.current = submittedCount;
+    setIsRefreshing(true);
+    setRefreshKey((k) => k + 1);
+  }, [submittedCount]);
+
+  const handleBadgeLoaded = useCallback(() => {
+    pendingRef.current -= 1;
+    if (pendingRef.current <= 0) setIsRefreshing(false);
+  }, []);
 
   const activeDraft = useMemo(
     () => (draftId ? issues.find((i) => i.id === draftId) ?? null : null),
@@ -94,6 +117,7 @@ export function IssueListTab() {
                   issue={issue}
                   refreshKey={refreshKey}
                   onOpenDraft={() => setDraftId(issue.id)}
+                  onBadgeLoaded={handleBadgeLoaded}
                 />
               ))}
             </ul>
@@ -101,12 +125,42 @@ export function IssueListTab() {
         ))}
       </PageScroll>
       <PageFooter>
-        <div className="flex justify-end">
+        <div className="flex justify-between">
+          <AlertDialog>
+            <AlertDialogTrigger asChild>
+              <Button variant="outline" className="text-destructive">
+                모두 삭제
+              </Button>
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>모든 이슈를 삭제할까요?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  등록된 이슈 목록이 모두 삭제됩니다. 이 작업은 되돌릴 수 없습니다.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>닫기</AlertDialogCancel>
+                <AlertDialogAction onClick={clearIssues}>
+                  모두 삭제
+                </AlertDialogAction>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
           <Button
             variant="outline"
-            onClick={() => setRefreshKey((k) => k + 1)}
+            disabled={isRefreshing}
+            onClick={handleRefresh}
+            className="relative"
           >
-            목록 새로고침
+            {isRefreshing && (
+              <span className="absolute inset-0 flex items-center justify-center">
+                <Loader2 className="h-4 w-4 animate-spin" />
+              </span>
+            )}
+            <span className={isRefreshing ? "opacity-0" : undefined}>
+              목록 새로고침
+            </span>
           </Button>
         </div>
       </PageFooter>
@@ -127,10 +181,12 @@ function IssueRow({
   issue,
   refreshKey,
   onOpenDraft,
+  onBadgeLoaded,
 }: {
   issue: IssueRecord;
   refreshKey: number;
   onOpenDraft: () => void;
+  onBadgeLoaded: () => void;
 }) {
   const isSubmitted = issue.status === "submitted" && !!issue.url;
   const removeIssue = useIssuesStore((s) => s.removeIssue);
@@ -170,7 +226,7 @@ function IssueRow({
             </span>
           </div>
           {isSubmitted && issue.key ? (
-            <SubmittedBadge issueKey={issue.key} issueSiteId={issue.jiraSiteId} refreshKey={refreshKey} />
+            <SubmittedBadge issueKey={issue.key} issueSiteId={issue.jiraSiteId} refreshKey={refreshKey} onLoaded={onBadgeLoaded} />
           ) : (
             <AlertDialog>
               <AlertDialogTrigger asChild>
@@ -232,22 +288,23 @@ const STATUS_CATEGORY_COLORS: Record<
 };
 
 
-function SubmittedBadge({ issueKey, issueSiteId, refreshKey }: { issueKey: string; issueSiteId?: string; refreshKey: number }) {
+function SubmittedBadge({ issueKey, issueSiteId, refreshKey, onLoaded }: { issueKey: string; issueSiteId?: string; refreshKey: number; onLoaded: () => void }) {
   const jiraConfig = useSettingsStore((s) => s.jiraConfig);
   const currentSiteId = jiraConfig?.auth ? jiraSiteId(jiraConfig.auth) : null;
   const siteMatch = !issueSiteId || currentSiteId === issueSiteId;
   const [status, setStatus] = useState<JiraIssueStatus | "error" | null>(null);
 
   useEffect(() => {
-    if (!jiraConfig?.auth || !siteMatch) { setStatus("error"); return; }
+    if (!jiraConfig?.auth || !siteMatch) { setStatus("error"); onLoaded(); return; }
     sendBg<JiraIssueStatus>({
       type: "jira.getIssueStatus",
       config: jiraConfig.auth,
       issueKey,
     })
       .then(setStatus)
-      .catch(() => setStatus("error"));
-  }, [jiraConfig?.auth, issueKey, refreshKey, siteMatch]);
+      .catch(() => setStatus("error"))
+      .finally(onLoaded);
+  }, [jiraConfig?.auth, issueKey, refreshKey, siteMatch, onLoaded]);
 
   if (status === "error") {
     return (
