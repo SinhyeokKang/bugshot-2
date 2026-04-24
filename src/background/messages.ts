@@ -79,7 +79,6 @@ async function submitIssue(
 ): Promise<JiraSubmitResult> {
   const issue = await createIssue(auth, payload);
 
-  type UploadedFile = { kind: "media"; mediaId: string } | { kind: "external"; url: string };
   const uploadMap = new Map<string, UploadedFile>();
   for (const att of attachments) {
     try {

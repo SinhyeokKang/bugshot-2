@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState } from "react";
-import { List, Settings, SlidersHorizontal, SquarePen } from "lucide-react";
+import { Globe, List, Settings, SlidersHorizontal, SquarePen } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { jiraCredentialsFilled, useSettingsStore } from "@/store/settings-store";
 
@@ -54,6 +54,8 @@ export default function App() {
   }, [tabId]);
 
   if (!editorHydrated || !settingsHydrated) return null;
+
+  if (tabId == null) return <UnsupportedPage />;
 
   return (
     <TabNavContext.Provider value={setTab}>
@@ -114,5 +116,19 @@ export default function App() {
       </Tabs>
     </div>
     </TabNavContext.Provider>
+  );
+}
+
+function UnsupportedPage() {
+  return (
+    <div className="flex h-screen flex-col items-center justify-center gap-3 px-6 text-center">
+      <div className="rounded-full bg-muted p-3">
+        <Globe className="h-6 w-6 text-muted-foreground" />
+      </div>
+      <h3 className="text-[18px] font-semibold">이 페이지에서는 사용할 수 없습니다</h3>
+      <p className="text-sm text-muted-foreground">
+        웹 페이지(http, https, file)에서 BugShot을 실행해주세요.
+      </p>
+    </div>
   );
 }

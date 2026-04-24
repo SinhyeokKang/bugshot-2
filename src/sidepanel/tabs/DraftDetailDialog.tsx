@@ -39,9 +39,13 @@ import { SubmitFieldsDialog } from "./IssueCreateModal";
 type SubmitFields = {
   issueTypeId?: string;
   assigneeId?: string;
+  assigneeName?: string;
   priorityId?: string;
+  priorityName?: string;
   parentKey?: string;
+  parentLabel?: string;
   relatesKey?: string;
+  relatesLabel?: string;
 };
 
 export function DraftDetailDialog({
@@ -63,11 +67,21 @@ export function DraftDetailDialog({
   const [fields, setFields] = useState<SubmitFields>({});
   const [submitOpen, setSubmitOpen] = useState(false);
 
+  const lastSubmitFields = useSettingsStore((s) => s.lastSubmitFields);
+
   useEffect(() => {
     if (!open) return;
-    setFields({ issueTypeId: jiraConfig?.issueTypeId });
+    const base: SubmitFields = { issueTypeId: jiraConfig?.issueTypeId };
+    if (
+      lastSubmitFields.projectKey &&
+      lastSubmitFields.projectKey === jiraConfig?.projectKey
+    ) {
+      const { projectKey: _, ...restored } = lastSubmitFields;
+      Object.assign(base, restored);
+    }
+    setFields(base);
     setSubmitOpen(false);
-  }, [open, issue?.id, jiraConfig?.issueTypeId]);
+  }, [open, issue?.id, jiraConfig?.issueTypeId, jiraConfig?.projectKey, lastSubmitFields]);
 
   const diffs = useMemo(() => {
     if (!issue?.selectionSnapshot) return [];
@@ -152,6 +166,17 @@ export function DraftDetailDialog({
       key: result.key,
       url: result.url,
       jiraSiteId: jiraConfig?.auth ? jiraSiteId(jiraConfig.auth) : undefined,
+    });
+    useSettingsStore.getState().setLastSubmitFields({
+      projectKey: jiraConfig.projectKey,
+      assigneeId: fields.assigneeId,
+      assigneeName: fields.assigneeName,
+      priorityId: fields.priorityId,
+      priorityName: fields.priorityName,
+      parentKey: fields.parentKey,
+      parentLabel: fields.parentLabel,
+      relatesKey: fields.relatesKey,
+      relatesLabel: fields.relatesLabel,
     });
     return result;
   }

@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import type { Token } from "@/types/picker";
 import { useIssuesStore } from "./issues-store";
+import { useSettingsStore } from "./settings-store";
 
 export type EditorPhase =
   | "idle"
@@ -45,9 +46,13 @@ export interface EditorDraft {
 export interface EditorIssueFields {
   issueTypeId?: string;
   assigneeId?: string;
+  assigneeName?: string;
   priorityId?: string;
+  priorityName?: string;
   parentKey?: string;
+  parentLabel?: string;
   relatesKey?: string;
+  relatesLabel?: string;
 }
 
 interface EditorState {
@@ -162,6 +167,16 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     if (!state.draft || !state.selection || !state.target) {
       set({ phase: "previewing" });
       return;
+    }
+    const { lastSubmitFields, jiraConfig } = useSettingsStore.getState();
+    if (
+      lastSubmitFields.projectKey &&
+      lastSubmitFields.projectKey === jiraConfig?.projectKey &&
+      !state.issueFields.assigneeId &&
+      !state.issueFields.priorityId
+    ) {
+      const { projectKey: _, ...restored } = lastSubmitFields;
+      set((s) => ({ issueFields: { ...restored, ...s.issueFields } }));
     }
     const id = state.currentIssueId ?? newIssueId();
     useIssuesStore.getState().saveDraft({

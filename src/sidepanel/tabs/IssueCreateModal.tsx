@@ -3,6 +3,7 @@ import {
   Check,
   ChevronsUpDown,
   Loader2,
+  X,
 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -124,6 +125,17 @@ export function IssueCreateModal() {
         jiraSiteId: jiraSiteId(jiraConfig.auth),
       });
     }
+    useSettingsStore.getState().setLastSubmitFields({
+      projectKey: jiraConfig.projectKey,
+      assigneeId: issueFields.assigneeId,
+      assigneeName: issueFields.assigneeName,
+      priorityId: issueFields.priorityId,
+      priorityName: issueFields.priorityName,
+      parentKey: issueFields.parentKey,
+      parentLabel: issueFields.parentLabel,
+      relatesKey: issueFields.relatesKey,
+      relatesLabel: issueFields.relatesLabel,
+    });
     onSubmitted({ key: result.key, url: result.url });
     return result;
   }
@@ -215,26 +227,30 @@ export function SubmitFieldsDialog({
             <FieldRow label="담당자">
               <AssigneeField
                 value={fields.assigneeId}
-                onChange={(id) => onFieldsChange({ assigneeId: id })}
+                fallbackLabel={fields.assigneeName}
+                onChange={(id, name) => onFieldsChange({ assigneeId: id, assigneeName: name })}
               />
             </FieldRow>
             <FieldRow label="우선순위">
               <PriorityField
                 value={fields.priorityId}
-                onChange={(id) => onFieldsChange({ priorityId: id })}
+                fallbackLabel={fields.priorityName}
+                onChange={(id, name) => onFieldsChange({ priorityId: id, priorityName: name })}
               />
             </FieldRow>
             <FieldRow label="부모 에픽">
               <EpicField
                 value={fields.parentKey}
-                onChange={(key) => onFieldsChange({ parentKey: key })}
+                fallbackLabel={fields.parentLabel}
+                onChange={(key, label) => onFieldsChange({ parentKey: key, parentLabel: label })}
                 hierarchyLevels={[1]}
               />
             </FieldRow>
             <FieldRow label="연결 이슈">
               <EpicField
                 value={fields.relatesKey}
-                onChange={(key) => onFieldsChange({ relatesKey: key })}
+                fallbackLabel={fields.relatesLabel}
+                onChange={(key, label) => onFieldsChange({ relatesKey: key, relatesLabel: label })}
               />
             </FieldRow>
 
@@ -425,10 +441,12 @@ export function IssueTypeField({
 
 export function PriorityField({
   value,
+  fallbackLabel,
   onChange,
 }: {
   value?: string;
-  onChange: (id: string) => void;
+  fallbackLabel?: string;
+  onChange: (id: string | undefined, name?: string) => void;
 }) {
   const jiraConfig = useSettingsStore((s) => s.jiraConfig);
   const [open, setOpen] = useState(false);
@@ -468,13 +486,17 @@ export function PriorityField({
       searchPlaceholder="우선순위 검색..."
       emptyMessage="일치하는 우선순위가 없습니다."
       label={selected?.name}
+      fallbackLabel={fallbackLabel}
+      clearable={!!value}
+      onClear={() => onChange(undefined)}
+      groupLabel="우선순위"
     >
       {items.map((p) => (
         <CommandItem
           key={p.id}
           value={p.name}
           onSelect={() => {
-            onChange(p.id);
+            onChange(p.id, p.name);
             setOpen(false);
           }}
         >
@@ -496,10 +518,12 @@ export function PriorityField({
 
 export function AssigneeField({
   value,
+  fallbackLabel,
   onChange,
 }: {
   value?: string;
-  onChange: (id: string) => void;
+  fallbackLabel?: string;
+  onChange: (id: string | undefined, name?: string) => void;
 }) {
   const jira = useJiraConfig();
   const [open, setOpen] = useState(false);
@@ -534,14 +558,18 @@ export function AssigneeField({
       searchPlaceholder="이름으로 검색..."
       emptyMessage="일치하는 사용자가 없습니다."
       label={selected?.displayName}
+      fallbackLabel={fallbackLabel}
+      clearable={!!value}
+      onClear={() => onChange(undefined)}
       onSearch={search}
+      groupLabel="담당자"
     >
       {items.map((u) => (
         <CommandItem
           key={u.accountId}
           value={u.displayName}
           onSelect={() => {
-            onChange(u.accountId);
+            onChange(u.accountId, u.displayName);
             setOpen(false);
           }}
         >
@@ -567,11 +595,13 @@ export function AssigneeField({
 
 export function EpicField({
   value,
+  fallbackLabel,
   onChange,
   hierarchyLevels,
 }: {
   value?: string;
-  onChange: (key: string | undefined) => void;
+  fallbackLabel?: string;
+  onChange: (key: string | undefined, label?: string) => void;
   hierarchyLevels?: number[];
 }) {
   const jira = useJiraConfig();
@@ -609,16 +639,18 @@ export function EpicField({
       searchPlaceholder="이슈 검색..."
       emptyMessage="일치하는 이슈가 없습니다."
       label={selected ? `${selected.key} ${selected.fields.summary}` : undefined}
+      fallbackLabel={fallbackLabel}
       clearable={!!value}
       onClear={() => onChange(undefined)}
       onSearch={search}
+      groupLabel="이슈 목록"
     >
       {items.map((epic) => (
         <CommandItem
           key={epic.id}
           value={`${epic.key} ${epic.fields.summary}`}
           onSelect={() => {
-            onChange(epic.key);
+            onChange(epic.key, `${epic.key} ${epic.fields.summary}`);
             setOpen(false);
           }}
         >
@@ -645,9 +677,11 @@ function FieldCombobox({
   searchPlaceholder,
   emptyMessage,
   label,
+  fallbackLabel,
   clearable,
   onClear,
   onSearch,
+  groupLabel,
   children,
 }: {
   open: boolean;
@@ -658,9 +692,11 @@ function FieldCombobox({
   searchPlaceholder: string;
   emptyMessage: string;
   label?: string;
+  fallbackLabel?: string;
   clearable?: boolean;
   onClear?: () => void;
   onSearch?: (query: string) => void;
+  groupLabel?: string;
   children: React.ReactNode;
 }) {
   return (
@@ -675,10 +711,10 @@ function FieldCombobox({
           <span
             className={cn(
               "min-w-0 flex-1 truncate text-left",
-              !label && "text-muted-foreground",
+              !label && !fallbackLabel && "text-muted-foreground",
             )}
           >
-            {label || placeholder}
+            {label || fallbackLabel || placeholder}
           </span>
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
@@ -704,10 +740,8 @@ function FieldCombobox({
               </div>
             ) : (
               <>
-                <CommandEmpty>{emptyMessage}</CommandEmpty>
-                <CommandGroup>{children}</CommandGroup>
                 {clearable && onClear ? (
-                  <CommandGroup>
+                  <CommandGroup heading="동작">
                     <CommandItem
                       value="__clear__"
                       onSelect={() => {
@@ -715,12 +749,13 @@ function FieldCombobox({
                         onOpenChange(false);
                       }}
                     >
-                      <span className="text-xs text-muted-foreground">
-                        선택 해제
-                      </span>
+                      <X className="h-3.5 w-3.5" />
+                      <span className="text-xs">선택 해제</span>
                     </CommandItem>
                   </CommandGroup>
                 ) : null}
+                <CommandEmpty>{emptyMessage}</CommandEmpty>
+                <CommandGroup heading={groupLabel}>{children}</CommandGroup>
               </>
             )}
           </CommandList>

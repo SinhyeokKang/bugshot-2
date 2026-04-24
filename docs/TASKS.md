@@ -47,21 +47,25 @@ PRD(`docs/PRD.md`) 기준 작업 목록. 다른 환경에서 이어서 작업할
 - [x] 이슈 타입 필수 표시 + 기본값 라벨 선입력 버그 수정
 - [x] 프리뷰 Jira 미연결 Alert 추가 + "설정 탭" → "연동 탭" 문구 통일
 - [x] 앱 아이콘 교체 (BugShot SVG → 16/32/48/128 PNG)
+- [x] #27 단계 3 UI: 이슈 작성 편집 다듬기 (Dialog/AlertDialog 스타일링, 레이블 통일, 커서 UX 등)
+- [x] #35 Origin 변경 감지 + 편집 중 경고 (origin+pathname 기준 세션 클리어 + SessionExpiredDialog)
+- [x] #30 이슈 필드 마지막값 영속화 (lastSubmitFields → chrome.storage.local, projectKey 일치 시 복원)
+- [x] #33 클립보드 마크다운 추출 (buildIssueMarkdown + buildIssueHtml + ClipboardItem 복사)
+- [x] #36 에러 처리 표준화 (네트워크 에러 한국어화, sendBg 에러 메시지 통일)
+- [x] #37 미지원 URL 폴백 화면 (tabId 없을 때 UnsupportedPage 렌더)
 
 ## 진행 중
 
-- [ ] #27 단계 3 UI: 이슈 작성 편집 (초안 자동 생성·편집은 구현, 다듬기 남음)
-- [ ] #35 Origin 변경 감지 + 편집 중 경고 (origin+pathname 기준 세션 클리어까지 구현됨, 편집 중 경고 UX는 미구현)
+(없음)
 
-## 대기
-- [ ] #30 이슈 필드 마지막값 영속화 (현재는 세션 단위, local로 승격 필요)
-- [ ] #33 클립보드 마크다운 추출
-- [ ] #36 에러 처리 표준화
-- [ ] #37 미지원 URL 폴백 화면
+## 대기 — 리팩터 (스크린샷/비디오 진입 시 같이)
+
+- [ ] `IssueTab.tsx` 분리 (1968줄) — 캡처 모드 분기 추가 시 SelectedPanel/StyleEditor/TokenEditor 등으로 분리
+- [ ] `picker.ts` 분리 (1318줄) — 영역 선택 오버레이 추가 시 pickerOverlay/pickerStyles/pickerTokens 등으로 모듈화
+- [ ] `picker-control.ts` 에러 처리 공통 래퍼 — 20+개 함수 동일 try/catch 패턴 → `sendPickerMessage` 래퍼로 통합
 
 ## 배포 로드맵 (순서대로)
-1. 요소 선택 플로우 마무리 (위 진행 중/대기 항목)
-2. 스크린샷 영역 캡처 + 주석(markerjs2) 모드 추가
-3. 비디오 탭 녹화(tabCapture + offscreen) 모드 추가
-4. en locale 지원
-5. 웹스토어 배포 (`pnpm build:store`)
+1. 스크린샷 영역 캡처 + 주석(markerjs2) 모드 추가
+2. 비디오 탭 녹화(tabCapture + offscreen) 모드 추가
+3. en locale 지원
+4. 웹스토어 배포 (`pnpm build:store`)

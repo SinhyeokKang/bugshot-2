@@ -2,6 +2,13 @@ import { JiraError } from "./jira-api";
 import { handleMessage } from "./messages";
 import { activateTab, setupTabBindings } from "./tab-bindings";
 
+function friendlyError(error: unknown): string {
+  if (error instanceof TypeError && error.message === "Failed to fetch") {
+    return "네트워크 연결을 확인하세요. Jira 서버에 접근할 수 없습니다.";
+  }
+  return error instanceof Error ? error.message : String(error);
+}
+
 const BG_REQUEST_TYPES = new Set([
   "ping",
   "captureVisibleTab",
@@ -63,8 +70,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           body: error.body,
         });
       } else {
-        const msg = error instanceof Error ? error.message : String(error);
-        sendResponse({ ok: false, error: msg });
+        sendResponse({ ok: false, error: friendlyError(error) });
       }
     });
   return true;

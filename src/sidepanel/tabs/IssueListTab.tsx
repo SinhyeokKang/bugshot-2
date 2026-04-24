@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { ArrowUpRight, CircleCheck, Inbox, RefreshCw, Trash2 } from "lucide-react";
+import { Label } from "@/components/ui/label";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -98,16 +99,23 @@ export function IssueListTab() {
             </Button>
           }
         >
-          <ul className="flex flex-col gap-2">
-            {sorted.map((issue) => (
-              <IssueRow
-                key={issue.id}
-                issue={issue}
-                refreshKey={refreshKey}
-                onOpenDraft={() => setDraftId(issue.id)}
-              />
+          <div className="flex flex-col gap-5">
+            {groupByDate(sorted).map(([date, group]) => (
+              <div key={date} className="flex flex-col gap-1.5">
+                <Label>{date}</Label>
+                <ul className="flex flex-col gap-2">
+                  {group.map((issue) => (
+                    <IssueRow
+                      key={issue.id}
+                      issue={issue}
+                      refreshKey={refreshKey}
+                      onOpenDraft={() => setDraftId(issue.id)}
+                    />
+                  ))}
+                </ul>
+              </div>
             ))}
-          </ul>
+          </div>
         </Section>
       </PageScroll>
       <DraftDetailDialog
@@ -266,17 +274,31 @@ function SubmittedBadge({ issueKey, issueSiteId, refreshKey }: { issueKey: strin
   );
 }
 
+function dateLabel(ts: number): string {
+  return new Date(ts).toLocaleDateString("ko-KR", {
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+}
+
 function formatDate(ts: number): string {
-  const d = new Date(ts);
   const now = Date.now();
   const diff = now - ts;
   if (diff < 60_000) return "방금";
   if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}분 전`;
   if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}시간 전`;
   if (diff < 7 * 86_400_000) return `${Math.floor(diff / 86_400_000)}일 전`;
-  return d.toLocaleDateString("ko-KR", {
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  });
+  return dateLabel(ts);
+}
+
+function groupByDate(issues: IssueRecord[]): [string, IssueRecord[]][] {
+  const groups = new Map<string, IssueRecord[]>();
+  for (const issue of issues) {
+    const key = dateLabel(issue.createdAt);
+    const list = groups.get(key);
+    if (list) list.push(issue);
+    else groups.set(key, [issue]);
+  }
+  return Array.from(groups);
 }

@@ -11,11 +11,25 @@ export interface JiraConfig {
   titlePrefix?: string;
 }
 
+export interface LastSubmitFields {
+  projectKey?: string;
+  assigneeId?: string;
+  assigneeName?: string;
+  priorityId?: string;
+  priorityName?: string;
+  parentKey?: string;
+  parentLabel?: string;
+  relatesKey?: string;
+  relatesLabel?: string;
+}
+
 interface SettingsState {
   jiraConfig: JiraConfig | null;
+  lastSubmitFields: LastSubmitFields;
   setJiraConfig: (config: JiraConfig | null) => void;
   updateJiraConfig: (patch: Partial<JiraConfig>) => void;
   clearJiraConfig: () => void;
+  setLastSubmitFields: (fields: LastSubmitFields) => void;
 }
 
 interface LegacyV1Config {
@@ -48,6 +62,7 @@ export const useSettingsStore = create<SettingsState>()(
   persist(
     (set) => ({
       jiraConfig: null,
+      lastSubmitFields: {},
       setJiraConfig: (jiraConfig) => set({ jiraConfig }),
       updateJiraConfig: (patch) =>
         set((state) => ({
@@ -56,6 +71,7 @@ export const useSettingsStore = create<SettingsState>()(
             : null,
         })),
       clearJiraConfig: () => set({ jiraConfig: null }),
+      setLastSubmitFields: (fields) => set({ lastSubmitFields: fields }),
     }),
     {
       name: "bugshot-settings",
