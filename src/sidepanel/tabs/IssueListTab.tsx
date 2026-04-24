@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ArrowUpRight, CircleCheck, Inbox, RefreshCw, Trash2 } from "lucide-react";
-import { Label } from "@/components/ui/label";
+import { ArrowUpRight, CircleCheck, Inbox, Trash2 } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -19,7 +18,7 @@ import { useIssuesStore, type IssueRecord } from "@/store/issues-store";
 import { useSettingsStore, jiraSiteId } from "@/store/settings-store";
 import type { JiraIssueStatus } from "@/types/jira";
 import { sendBg, type JiraSubmitResult } from "@/types/messages";
-import { PageScroll, PageShell, Section } from "../components/Section";
+import { PageFooter, PageScroll, PageShell, Section } from "../components/Section";
 import { DraftDetailDialog } from "./DraftDetailDialog";
 
 export function IssueListTab() {
@@ -86,38 +85,31 @@ export function IssueListTab() {
   return (
     <PageShell>
       <PageScroll>
-        <Section
-          title="이슈 목록"
-          action={
-            <Button
-              variant="outline"
-              size="icon"
-              className="h-7 w-7 shrink-0"
-              onClick={() => setRefreshKey((k) => k + 1)}
-            >
-              <RefreshCw />
-            </Button>
-          }
-        >
-          <div className="flex flex-col gap-5">
-            {groupByDate(sorted).map(([date, group]) => (
-              <div key={date} className="flex flex-col gap-1.5">
-                <Label>{date}</Label>
-                <ul className="flex flex-col gap-2">
-                  {group.map((issue) => (
-                    <IssueRow
-                      key={issue.id}
-                      issue={issue}
-                      refreshKey={refreshKey}
-                      onOpenDraft={() => setDraftId(issue.id)}
-                    />
-                  ))}
-                </ul>
-              </div>
-            ))}
-          </div>
-        </Section>
+        {groupByDate(sorted).map(([date, group]) => (
+          <Section key={date} title={date} collapsible>
+            <ul className="flex flex-col gap-2">
+              {group.map((issue) => (
+                <IssueRow
+                  key={issue.id}
+                  issue={issue}
+                  refreshKey={refreshKey}
+                  onOpenDraft={() => setDraftId(issue.id)}
+                />
+              ))}
+            </ul>
+          </Section>
+        ))}
       </PageScroll>
+      <PageFooter>
+        <div className="flex justify-end">
+          <Button
+            variant="outline"
+            onClick={() => setRefreshKey((k) => k + 1)}
+          >
+            목록 새로고침
+          </Button>
+        </div>
+      </PageFooter>
       <DraftDetailDialog
         issue={activeDraft}
         open={!!activeDraft}

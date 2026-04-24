@@ -3,6 +3,8 @@ import type { Token } from "@/types/picker";
 import { useIssuesStore } from "./issues-store";
 import { useSettingsStore } from "./settings-store";
 
+export type CaptureMode = "element" | "screenshot" | "video";
+
 export type EditorPhase =
   | "idle"
   | "picking"
@@ -56,6 +58,7 @@ export interface EditorIssueFields {
 }
 
 interface EditorState {
+  captureMode: CaptureMode;
   phase: EditorPhase;
   target: EditorTarget | null;
   selection: EditorSelection | null;
@@ -69,7 +72,7 @@ interface EditorState {
   submitResult: { key: string; url: string } | null;
   sessionExpired: boolean;
 
-  startPicking: (target: EditorTarget) => void;
+  startPicking: (target: EditorTarget, mode?: CaptureMode) => void;
   cancelPicking: () => void;
   onElementSelected: (selection: EditorSelection) => void;
   setStyleEdits: (patch: Partial<EditorStyleEdits>) => void;
@@ -89,6 +92,7 @@ interface EditorState {
 
 export type EditorSnapshot = Pick<
   EditorState,
+  | "captureMode"
   | "phase"
   | "target"
   | "selection"
@@ -103,6 +107,7 @@ export type EditorSnapshot = Pick<
 >;
 
 const initial = {
+  captureMode: "element" as CaptureMode,
   phase: "idle" as EditorPhase,
   target: null,
   selection: null,
@@ -131,7 +136,7 @@ function newIssueId(): string {
 export const useEditorStore = create<EditorState>((set, get) => ({
   ...initial,
 
-  startPicking: (target) => set({ ...initial, phase: "picking", target }),
+  startPicking: (target, mode) => set({ ...initial, captureMode: mode ?? "element", phase: "picking", target }),
   cancelPicking: () => set({ ...initial }),
 
   onElementSelected: (selection) =>

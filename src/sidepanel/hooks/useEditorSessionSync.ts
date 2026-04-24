@@ -13,6 +13,7 @@ export function sessionKey(tabId: number): string {
 function snapshotFromState(): EditorSnapshot {
   const s = useEditorStore.getState();
   return {
+    captureMode: s.captureMode,
     phase: s.phase,
     target: s.target,
     selection: s.selection,

@@ -2,7 +2,7 @@
 
 PRD(`docs/PRD.md`) 기준 작업 목록. 다른 환경에서 이어서 작업할 때 참고. Claude Code 세션의 TodoWrite 상태를 보강하는 용도 — 권위 있는 소스는 아니지만 방향성 유지용 스냅샷.
 
-**마지막 갱신: 2026-04-24**
+**마지막 갱신: 2026-04-25**
 
 ## 완료
 
@@ -56,13 +56,19 @@ PRD(`docs/PRD.md`) 기준 작업 목록. 다른 환경에서 이어서 작업할
 
 ## 진행 중
 
-(없음)
+- [ ] 스크린샷 영역 캡처 + 주석(markerjs2) 모드 추가 — Phase 1 진입
+  - [x] store: `captureMode` 타입 + `EditorState` 확장
+  - [x] EmptyState 3버튼 (DOM 요소 선택 / 스크린샷 캡처 / 화면 녹화)
+  - [x] `IssueTab.tsx` 분리 → `StyleEditorPanel.tsx` + `DomTreeDialog.tsx` + `CancelConfirmDialog.tsx`
+  - [ ] 영역 선택 content script (crosshair + drag rect + dimming)
+  - [ ] markerjs2 설치 + 주석 에디터 UI
+  - [ ] 스크린샷 모드 drafting/preview/submit 분기
 
-## 대기 — 리팩터 (스크린샷/비디오 진입 시 같이)
+## 대기 — 리팩터
 
-- [ ] `IssueTab.tsx` 분리 (1968줄) — 캡처 모드 분기 추가 시 SelectedPanel/StyleEditor/TokenEditor 등으로 분리
-- [ ] `picker.ts` 분리 (1318줄) — 영역 선택 오버레이 추가 시 pickerOverlay/pickerStyles/pickerTokens 등으로 모듈화
-- [ ] `picker-control.ts` 에러 처리 공통 래퍼 — 20+개 함수 동일 try/catch 패턴 → `sendPickerMessage` 래퍼로 통합
+- [x] `IssueTab.tsx` 분리 (1973줄 → 242줄) — `StyleEditorPanel.tsx`(1447줄) + `DomTreeDialog.tsx`(283줄) + `CancelConfirmDialog.tsx`(36줄)
+- [ ] `picker.ts` 분리 (1318줄) — 영역 선택 오버레이 추가 시 모듈화
+- [ ] `picker-control.ts` 에러 처리 공통 래퍼
 
 ## 배포 로드맵 (순서대로)
 1. 스크린샷 영역 캡처 + 주석(markerjs2) 모드 추가

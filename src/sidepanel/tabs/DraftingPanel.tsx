@@ -6,7 +6,7 @@ import { useEditorStore } from "@/store/editor-store";
 import { useSettingsStore } from "@/store/settings-store";
 import { useBoundTabId } from "../hooks/useBoundTabId";
 import { clearPicker, startPicker } from "../picker-control";
-import { CancelConfirmDialog } from "./IssueTab";
+import { CancelConfirmDialog } from "../components/CancelConfirmDialog";
 import {
   PageFooter,
   PageScroll,
