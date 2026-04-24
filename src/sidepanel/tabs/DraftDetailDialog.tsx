@@ -83,6 +83,8 @@ export function DraftDetailDialog({
     setSubmitOpen(false);
   }, [open, issue?.id, jiraConfig?.issueTypeId, jiraConfig?.projectKey, lastSubmitFields]);
 
+  const isScreenshot = issue?.captureMode === "screenshot";
+
   const diffs = useMemo(() => {
     if (!issue?.selectionSnapshot || !issue.styleEdits) return [];
     return buildStyleDiff(
@@ -103,7 +105,9 @@ export function DraftDetailDialog({
   if (!issue) return null;
 
   const hasStyleBlock =
-    !!issue.snapshot.before || !!issue.snapshot.after || diffs.length > 0;
+    !isScreenshot &&
+    (!!issue.snapshot.before || !!issue.snapshot.after || diffs.length > 0);
+  const hasScreenshot = isScreenshot && !!issue.snapshot.before;
 
   async function handleSubmit(): Promise<JiraSubmitResult> {
     if (!issue) throw new Error("초안 없음");
@@ -124,7 +128,7 @@ export function DraftDetailDialog({
       classListAfter: issue.styleEdits?.classList ?? [],
       specifiedStyles: sel?.specifiedStyles ?? {},
       tokens: issue.tokensSnapshot ?? [],
-      viewport: sel?.viewport ?? { width: 0, height: 0 },
+      viewport: issue.viewport ?? sel?.viewport ?? { width: 0, height: 0 },
       capturedAt: sel?.capturedAt ?? issue.createdAt,
       diffs,
     };
@@ -137,16 +141,15 @@ export function DraftDetailDialog({
         : issue.draft.title.trim();
 
     const attachments: { filename: string; dataUrl: string }[] = [];
-    if (issue.snapshot.before)
-      attachments.push({
-        filename: "before.png",
-        dataUrl: issue.snapshot.before,
-      });
-    if (issue.snapshot.after)
-      attachments.push({
-        filename: "after.png",
-        dataUrl: issue.snapshot.after,
-      });
+    if (isScreenshot) {
+      if (issue.snapshot.before)
+        attachments.push({ filename: "screenshot.png", dataUrl: issue.snapshot.before });
+    } else {
+      if (issue.snapshot.before)
+        attachments.push({ filename: "before.png", dataUrl: issue.snapshot.before });
+      if (issue.snapshot.after)
+        attachments.push({ filename: "after.png", dataUrl: issue.snapshot.after });
+    }
 
     const result = await sendBg<JiraSubmitResult>({
       type: "jira.submitIssue",
@@ -217,7 +220,15 @@ export function DraftDetailDialog({
                   </FieldSection>
                 ) : null}
 
-                {hasStyleBlock ? (
+                {hasScreenshot ? (
+                  <FieldSection label="미디어">
+                    <img
+                      src={issue.snapshot.before!}
+                      alt="캡처 이미지"
+                      className="max-h-60 rounded-md border object-contain"
+                    />
+                  </FieldSection>
+                ) : hasStyleBlock ? (
                   <FieldSection label="스타일 변경사항">
                     <StyleChangesTable
                       beforeImage={issue.snapshot.before}
@@ -320,11 +331,9 @@ function EnvBlock({ issue }: { issue: IssueRecord }) {
     { label: "Page", value: issue.pageUrl || "-" },
     ...(issue.selector ? [{ label: "DOM", value: issue.selector }] : []),
   ];
-  if (issue.selectionSnapshot) {
-    rows.push({
-      label: "Viewport",
-      value: `${issue.selectionSnapshot.viewport.width}×${issue.selectionSnapshot.viewport.height}`,
-    });
+  const vp = issue.viewport ?? issue.selectionSnapshot?.viewport;
+  if (vp) {
+    rows.push({ label: "Viewport", value: `${vp.width}×${vp.height}` });
   }
   rows.push({
     label: "Captured",

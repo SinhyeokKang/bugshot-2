@@ -236,18 +236,26 @@ function SubmittedBadge({ issueKey, issueSiteId, refreshKey }: { issueKey: strin
   const jiraConfig = useSettingsStore((s) => s.jiraConfig);
   const currentSiteId = jiraConfig?.auth ? jiraSiteId(jiraConfig.auth) : null;
   const siteMatch = !issueSiteId || currentSiteId === issueSiteId;
-  const [status, setStatus] = useState<JiraIssueStatus | null>(null);
+  const [status, setStatus] = useState<JiraIssueStatus | "error" | null>(null);
 
   useEffect(() => {
-    if (!jiraConfig?.auth || !siteMatch) return;
+    if (!jiraConfig?.auth || !siteMatch) { setStatus("error"); return; }
     sendBg<JiraIssueStatus>({
       type: "jira.getIssueStatus",
       config: jiraConfig.auth,
       issueKey,
     })
       .then(setStatus)
-      .catch(() => {});
+      .catch(() => setStatus("error"));
   }, [jiraConfig?.auth, issueKey, refreshKey, siteMatch]);
+
+  if (status === "error") {
+    return (
+      <Badge variant="outline" className="w-fit shrink-0 text-[11px]">
+        알 수 없음
+      </Badge>
+    );
+  }
 
   const colors = status
     ? STATUS_CATEGORY_COLORS[status.categoryKey] ??

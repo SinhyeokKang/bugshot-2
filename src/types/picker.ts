@@ -75,4 +75,4 @@ export type PickerMessage =
   | { type: "picker.hideAnnotation" }
   | { type: "picker.selected"; payload: PickerSelectionPayload }
   | { type: "picker.cancelled" }
-  | { type: "picker.areaSelected"; rect: ViewportRect };
+  | { type: "picker.areaSelected"; rect: ViewportRect; viewport: { width: number; height: number } };

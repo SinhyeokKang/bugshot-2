@@ -66,6 +66,8 @@ export function IssueCreateModal() {
   const afterImage = useEditorStore((s) => s.afterImage);
   const screenshotAnnotated = useEditorStore((s) => s.screenshotAnnotated);
   const screenshotRaw = useEditorStore((s) => s.screenshotRaw);
+  const screenshotViewport = useEditorStore((s) => s.screenshotViewport);
+  const screenshotCapturedAt = useEditorStore((s) => s.screenshotCapturedAt);
   const draft = useEditorStore((s) => s.draft);
   const issueFields = useEditorStore((s) => s.issueFields);
   const setIssueFields = useEditorStore((s) => s.setIssueFields);
@@ -95,8 +97,8 @@ export function IssueCreateModal() {
         classListAfter: [] as string[],
         specifiedStyles: {} as Record<string, string>,
         tokens: [] as { name: string; value: string }[],
-        viewport: { width: 0, height: 0 },
-        capturedAt: Date.now(),
+        viewport: screenshotViewport ?? { width: 0, height: 0 },
+        capturedAt: screenshotCapturedAt ?? Date.now(),
         diffs: [],
       };
       description = buildIssueAdf(ctx);

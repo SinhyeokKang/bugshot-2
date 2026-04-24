@@ -35,8 +35,11 @@ src/
 │   ├── jira-api.ts      # Jira REST 래퍼 (Basic + Bearer, 401 시 refresh 재시도)
 │   ├── oauth.ts         # Atlassian 3LO (launchWebAuthFlow + proxy 교환)
 │   └── messages.ts      # 메시지 핸들러 디스패치
+├── annotation/
+│   ├── index.html       # markerjs2 주석 에디터 페이지 (content script iframe으로 로드)
+│   └── main.ts          # markerjs2 초기화 + chrome.storage.session 통신
 ├── content/
-│   └── picker.ts        # DOM picker (Shadow DOM + @medv/finder + Port) + describeInitial/describeChildren (lazy 트리)
+│   └── picker.ts        # DOM picker (Shadow DOM + @medv/finder + Port) + describeInitial/describeChildren (lazy 트리) + 영역 선택 오버레이
 ├── sidepanel/
 │   ├── App.tsx          # Radix Tabs 4개 (이슈 작성/목록/설정/앱 설정)
 │   ├── main.tsx
@@ -105,7 +108,7 @@ chrome.action.onClicked.addListener((tab) => {
 
 **왜 proxy가 필요한가**: Atlassian `/oauth/token`은 confidential client(`client_secret` 요구)라 확장에 비밀키를 번들할 수 없다. `oauth-proxy/` (Cloudflare Worker)가 `code↔token`·`refresh↔token` 교환만 중계한다.
 
-**토큰 갱신**: `jira-api.ts`가 요청 전 `expiresAt`을 확인해 프리-리프레시, 또는 401 수신 시 자동 `refreshOAuthToken` 후 원 요청 재시도. 새 토큰은 `persistOAuthTokens`가 storage envelope을 찾아 제자리 갱신.
+**토큰 갱신**: `jira-api.ts`가 요청 전 `expiresAt`을 확인해 프리-리프레시, 또는 401 수신 시 자동 `refreshOAuthToken` 후 원 요청 재시도. 새 토큰은 `persistOAuthTokens`가 storage envelope을 찾아 제자리 갱신. refresh token 자체가 무효화되면 `OAuthError` → `sendBg`의 `onOAuthExpired` 이벤트 → App.tsx AlertDialog로 재인증 안내 + Jira 연동 탭 이동.
 
 **환경 변수** (빌드 타임):
 - `VITE_ATLASSIAN_CLIENT_ID` — OAuth 앱 client_id

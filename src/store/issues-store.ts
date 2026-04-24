@@ -48,6 +48,7 @@ export interface IssueRecord {
   pageTitle?: string;
   selector?: string;
   tagName?: string;
+  viewport?: { width: number; height: number };
 
   draft: IssueDraftContent;
   styleEdits?: IssueStyleEdits;

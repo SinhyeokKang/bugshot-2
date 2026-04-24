@@ -21,12 +21,12 @@ export function buildIssueAdf(ctx: MarkdownContext): AdfDoc {
 
   content.push(heading(2, "재현 환경"));
   if (isScreenshot) {
-    content.push(
-      bulletList([
-        keyValueItem("Page", ctx.url),
-        keyValueItem("Captured", formatTimestamp(ctx.capturedAt)),
-      ]),
-    );
+    const items = [
+      keyValueItem("Page", ctx.url),
+      keyValueItem("Viewport", `${ctx.viewport.width}×${ctx.viewport.height}`),
+      keyValueItem("Captured", formatTimestamp(ctx.capturedAt)),
+    ];
+    content.push(bulletList(items));
   } else {
     content.push(
       bulletList([

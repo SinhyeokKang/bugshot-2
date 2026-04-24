@@ -29,7 +29,9 @@ export function buildIssueMarkdown(ctx: MarkdownContext): string {
   lines.push("## 재현 환경");
   lines.push("");
   lines.push(`- **Page**: ${ctx.url}`);
-  lines.push(`- **DOM**: ${ctx.selector}`);
+  if (ctx.captureMode !== "screenshot" && ctx.selector) {
+    lines.push(`- **DOM**: ${ctx.selector}`);
+  }
   lines.push(`- **Viewport**: ${ctx.viewport.width}×${ctx.viewport.height}`);
   lines.push(`- **Captured**: ${formatTimestamp(ctx.capturedAt)}`);
   lines.push("");
@@ -69,7 +71,9 @@ export function buildIssueHtml(ctx: MarkdownContext): string {
   parts.push(`<h2>재현 환경</h2>`);
   parts.push(`<ul>`);
   parts.push(`<li><strong>Page</strong>: ${escapeHtml(ctx.url)}</li>`);
-  parts.push(`<li><strong>DOM</strong>: ${escapeHtml(ctx.selector)}</li>`);
+  if (ctx.captureMode !== "screenshot" && ctx.selector) {
+    parts.push(`<li><strong>DOM</strong>: ${escapeHtml(ctx.selector)}</li>`);
+  }
   parts.push(
     `<li><strong>Viewport</strong>: ${ctx.viewport.width}×${ctx.viewport.height}</li>`,
   );

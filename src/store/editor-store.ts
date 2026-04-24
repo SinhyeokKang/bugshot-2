@@ -73,12 +73,14 @@ interface EditorState {
   currentIssueId: string | null;
   screenshotRaw: string | null;
   screenshotAnnotated: string | null;
+  screenshotViewport: { width: number; height: number } | null;
+  screenshotCapturedAt: number | null;
   submitResult: { key: string; url: string } | null;
   sessionExpired: boolean;
 
   startPicking: (target: EditorTarget, mode?: CaptureMode) => void;
   startCapturing: (target: EditorTarget) => void;
-  onAreaCaptured: (dataUrl: string) => void;
+  onAreaCaptured: (dataUrl: string, viewport: { width: number; height: number }) => void;
   onAnnotated: (dataUrl: string) => void;
   cancelPicking: () => void;
   onElementSelected: (selection: EditorSelection) => void;
@@ -109,6 +111,8 @@ export type EditorSnapshot = Pick<
   | "afterImage"
   | "screenshotRaw"
   | "screenshotAnnotated"
+  | "screenshotViewport"
+  | "screenshotCapturedAt"
   | "draft"
   | "issueFields"
   | "currentIssueId"
@@ -130,6 +134,8 @@ const initial = {
   afterImage: null,
   screenshotRaw: null as string | null,
   screenshotAnnotated: null as string | null,
+  screenshotViewport: null as { width: number; height: number } | null,
+  screenshotCapturedAt: null as number | null,
   draft: null,
   issueFields: {} as EditorIssueFields,
   currentIssueId: null as string | null,
@@ -151,7 +157,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   cancelPicking: () => set({ ...initial }),
 
   startCapturing: (target) => set({ ...initial, captureMode: "screenshot", phase: "capturing", target }),
-  onAreaCaptured: (dataUrl) => set({ phase: "annotating", screenshotRaw: dataUrl }),
+  onAreaCaptured: (dataUrl, viewport) => set({ phase: "annotating", screenshotRaw: dataUrl, screenshotViewport: viewport, screenshotCapturedAt: Date.now() }),
   onAnnotated: (dataUrl) => set({ phase: "drafting", screenshotAnnotated: dataUrl }),
 
   onElementSelected: (selection) =>
@@ -209,6 +215,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         pageUrl: state.target.url,
         pageTitle: state.target.title,
         captureMode: "screenshot",
+        viewport: state.screenshotViewport ?? undefined,
         draft: { ...state.draft },
         snapshot: {
           before: state.screenshotAnnotated ?? state.screenshotRaw,
@@ -230,6 +237,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         pageTitle: state.target.title,
         selector: state.selection.selector,
         tagName: state.selection.tagName,
+        viewport: { ...state.selection.viewport },
         draft: { ...state.draft },
         styleEdits: {
           classList: [...state.styleEdits.classList],

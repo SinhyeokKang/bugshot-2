@@ -1,7 +1,17 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { Globe, List, Settings, SlidersHorizontal, SquarePen } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { jiraCredentialsFilled, useSettingsStore } from "@/store/settings-store";
+import { onOAuthExpired } from "@/types/messages";
 
 const TabNavContext = createContext<(tab: string) => void>(() => {});
 export const useTabNav = () => useContext(TabNavContext);
@@ -34,12 +44,15 @@ export default function App() {
 
   const jiraConfig = useSettingsStore((s) => s.jiraConfig);
   const [tab, setTab] = useState("issue");
+  const [oauthExpired, setOAuthExpired] = useState(false);
 
   useEffect(() => {
     if (settingsHydrated && !jiraCredentialsFilled(jiraConfig)) {
       setTab("issue-settings");
     }
   }, [settingsHydrated]);
+
+  useEffect(() => onOAuthExpired.subscribe(() => setOAuthExpired(true)), []);
 
   useEffect(() => {
     if (tabId == null) return;
@@ -114,6 +127,22 @@ export default function App() {
           <AppSettingsTab />
         </TabsContent>
       </Tabs>
+
+      <AlertDialog open={oauthExpired} onOpenChange={setOAuthExpired}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Jira 인증이 만료되었습니다</AlertDialogTitle>
+            <AlertDialogDescription>
+              Jira 연동을 다시 설정해주세요.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => { setOAuthExpired(false); setTab("issue-settings"); }}>
+              확인
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
     </TabNavContext.Provider>
   );

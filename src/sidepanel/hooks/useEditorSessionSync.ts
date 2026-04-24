@@ -23,6 +23,8 @@ function snapshotFromState(): EditorSnapshot {
     afterImage: s.afterImage,
     screenshotRaw: s.screenshotRaw,
     screenshotAnnotated: s.screenshotAnnotated,
+    screenshotViewport: s.screenshotViewport,
+    screenshotCapturedAt: s.screenshotCapturedAt,
     draft: s.draft,
     issueFields: s.issueFields,
     currentIssueId: s.currentIssueId,

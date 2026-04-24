@@ -28,6 +28,8 @@ export function PreviewPanel() {
   const afterImage = useEditorStore((s) => s.afterImage);
   const screenshotAnnotated = useEditorStore((s) => s.screenshotAnnotated);
   const screenshotRaw = useEditorStore((s) => s.screenshotRaw);
+  const screenshotViewport = useEditorStore((s) => s.screenshotViewport);
+  const screenshotCapturedAt = useEditorStore((s) => s.screenshotCapturedAt);
   const draft = useEditorStore((s) => s.draft);
   const backToDraft = useEditorStore((s) => s.backToDraft);
   const reset = useEditorStore((s) => s.reset);
@@ -131,6 +133,18 @@ export function PreviewPanel() {
                 <span className="w-20 shrink-0 text-muted-foreground">Page</span>
                 <span className="break-all">{target?.url || "-"}</span>
               </div>
+              {screenshotViewport ? (
+                <div className="flex gap-3">
+                  <span className="w-20 shrink-0 text-muted-foreground">Viewport</span>
+                  <span>{screenshotViewport.width}×{screenshotViewport.height}</span>
+                </div>
+              ) : null}
+              {screenshotCapturedAt ? (
+                <div className="flex gap-3">
+                  <span className="w-20 shrink-0 text-muted-foreground">Captured</span>
+                  <span>{formatTimestamp(screenshotCapturedAt)}</span>
+                </div>
+              ) : null}
             </div>
           </Section>
         )}

@@ -80,19 +80,32 @@ export function sendBg<T = unknown>(req: BgRequest): Promise<T> {
         return;
       }
       if (!res?.ok) {
-        reject(
-          new BgError(
-            res?.error ?? "알 수 없는 오류가 발생했습니다.",
-            res?.status,
-            res?.body,
-          ),
+        const err = new BgError(
+          res?.error ?? "알 수 없는 오류가 발생했습니다.",
+          res?.status,
+          res?.body,
         );
+        if (isOAuthRefreshFailed(err)) onOAuthExpired.fire();
+        reject(err);
         return;
       }
       resolve(res.result);
     });
   });
 }
+
+export function isOAuthRefreshFailed(err: unknown): boolean {
+  return err instanceof BgError &&
+    !!err.body &&
+    (err.body as Record<string, unknown>).oauthRefreshFailed === true;
+}
+
+type Listener = () => void;
+export const onOAuthExpired = {
+  _listeners: new Set<Listener>(),
+  subscribe(fn: Listener) { this._listeners.add(fn); return () => { this._listeners.delete(fn); }; },
+  fire() { this._listeners.forEach((fn) => fn()); },
+};
 
 // Re-export common Jira types for consumers
 export type {

@@ -1,5 +1,6 @@
 import { JiraError } from "./jira-api";
 import { handleMessage } from "./messages";
+import { OAuthError } from "./oauth";
 import { activateTab, setupTabBindings } from "./tab-bindings";
 
 function friendlyError(error: unknown): string {
@@ -68,6 +69,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           error: error.message,
           status: error.status,
           body: error.body,
+        });
+      } else if (error instanceof OAuthError) {
+        sendResponse({
+          ok: false,
+          error: error.message,
+          status: 401,
+          body: { oauthRefreshFailed: true },
         });
       } else {
         sendResponse({ ok: false, error: friendlyError(error) });

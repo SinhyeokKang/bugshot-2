@@ -38,7 +38,7 @@ export function usePickerMessages(): void {
         }
       } else if (message.type === "picker.areaSelected") {
         const msg = message as Extract<PickerMessage, { type: "picker.areaSelected" }>;
-        void captureAndCrop(msg.rect);
+        void captureAndCrop(msg.rect, msg.viewport);
       } else if (message.type === "annotation.complete") {
         void handleAnnotationComplete();
       } else if (message.type === "annotation.cancelled") {
@@ -96,7 +96,7 @@ async function handleAnnotationCancelled(): Promise<void> {
   await chrome.storage.session.remove(ANNOTATE_KEY);
 }
 
-async function captureAndCrop(rect: ViewportRect): Promise<void> {
+async function captureAndCrop(rect: ViewportRect, viewport: { width: number; height: number }): Promise<void> {
   try {
     const tabId = useEditorStore.getState().target?.tabId;
     if (!tabId) return;
@@ -112,7 +112,7 @@ async function captureAndCrop(rect: ViewportRect): Promise<void> {
       width: rect.width * dpr,
       height: rect.height * dpr,
     });
-    useEditorStore.getState().onAreaCaptured(cropped);
+    useEditorStore.getState().onAreaCaptured(cropped, viewport);
   } catch (err) {
     console.error("[bugshot] capture and crop failed", err);
     useEditorStore.getState().reset();

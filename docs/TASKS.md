@@ -2,7 +2,7 @@
 
 PRD(`docs/PRD.md`) 기준 작업 목록. 다른 환경에서 이어서 작업할 때 참고. Claude Code 세션의 TodoWrite 상태를 보강하는 용도 — 권위 있는 소스는 아니지만 방향성 유지용 스냅샷.
 
-**마지막 갱신: 2026-04-25**
+**마지막 갱신: 2026-04-26**
 
 ## 완료
 
@@ -53,25 +53,32 @@ PRD(`docs/PRD.md`) 기준 작업 목록. 다른 환경에서 이어서 작업할
 - [x] #33 클립보드 마크다운 추출 (buildIssueMarkdown + buildIssueHtml + ClipboardItem 복사)
 - [x] #36 에러 처리 표준화 (네트워크 에러 한국어화, sendBg 에러 메시지 통일)
 - [x] #37 미지원 URL 폴백 화면 (tabId 없을 때 UnsupportedPage 렌더)
+- [x] 스크린샷 영역 캡처 + 주석(markerjs2) 모드 추가
+  - store `capturing`/`annotating` phase + `screenshotRaw`/`screenshotAnnotated`
+  - content script 영역 선택 오버레이 (crosshair + drag rect + dimming)
+  - markerjs2 주석 에디터 (annotation 페이지, iframe 오버레이)
+  - DraftingPanel/PreviewPanel 캡처 모드 분기 (미디어 섹션)
+  - Jira 제출: ADF 미디어 heading + mediaSingle 인라인 이미지
+- [x] DOM 타이틀 영역 sticky 고정
+- [x] 작성 취소 → 모드 선택 화면 복귀 (startPicker 자동 호출 제거)
+- [x] DraftDetailDialog 스크린샷 모드 대응 (미디어 섹션 + screenshot.png 첨부)
+- [x] OAuth refresh 실패 시 재인증 AlertDialog + Jira 연동 탭 이동
+- [x] 이슈 상태 뱃지 fetch 실패 시 "알 수 없음" fallback 뱃지
+- [x] 스크린샷 모드 viewport/capturedAt 메타 전체 표면 반영 (프리뷰/드래프트/마크다운/ADF)
 
 ## 진행 중
 
-- [ ] 스크린샷 영역 캡처 + 주석(markerjs2) 모드 추가 — Phase 1 진입
-  - [x] store: `captureMode` 타입 + `EditorState` 확장
-  - [x] EmptyState 3버튼 (DOM 요소 선택 / 스크린샷 캡처 / 화면 녹화)
-  - [x] `IssueTab.tsx` 분리 → `StyleEditorPanel.tsx` + `DomTreeDialog.tsx` + `CancelConfirmDialog.tsx`
-  - [ ] 영역 선택 content script (crosshair + drag rect + dimming)
-  - [ ] markerjs2 설치 + 주석 에디터 UI
-  - [ ] 스크린샷 모드 drafting/preview/submit 분기
+(없음)
 
 ## 대기 — 리팩터
 
 - [x] `IssueTab.tsx` 분리 (1973줄 → 242줄) — `StyleEditorPanel.tsx`(1447줄) + `DomTreeDialog.tsx`(283줄) + `CancelConfirmDialog.tsx`(36줄)
-- [ ] `picker.ts` 분리 (1318줄) — 영역 선택 오버레이 추가 시 모듈화
+- [ ] `picker.ts` 분리 (1582줄) — 영역 선택 오버레이 추가로 더 비대해짐
 - [ ] `picker-control.ts` 에러 처리 공통 래퍼
 
 ## 배포 로드맵 (순서대로)
-1. 스크린샷 영역 캡처 + 주석(markerjs2) 모드 추가
-2. 비디오 탭 녹화(tabCapture + offscreen) 모드 추가
-3. en locale 지원
-4. 웹스토어 배포 (`pnpm build:store`)
+1. ~~스크린샷 영역 캡처 + 주석(markerjs2) 모드 추가~~ ✅
+2. `picker.ts` 리팩터 (영역 선택 오버레이 분리)
+3. 비디오 탭 녹화(tabCapture + offscreen) 모드 추가
+4. en locale 지원
+5. 웹스토어 배포 (`pnpm build:store`)

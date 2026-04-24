@@ -1535,7 +1535,7 @@ function onAreaMouseUp(e: MouseEvent): void {
   if (blockerEl) blockerEl.style.display = "none";
   const rect: ViewportRect = { x, y, width: w, height: h };
   chrome.runtime
-    .sendMessage<PickerMessage>({ type: "picker.areaSelected", rect })
+    .sendMessage<PickerMessage>({ type: "picker.areaSelected", rect, viewport: { width: window.innerWidth, height: window.innerHeight } })
     .catch(() => {});
   cleanupAreaElements();
   mode = "idle";
