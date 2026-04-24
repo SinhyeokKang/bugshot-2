@@ -98,7 +98,7 @@ export function SettingsTab() {
 
 type OAuthError = { kind: "noJira" } | { kind: "general"; message: string };
 
-const DISMISS_PATTERNS = /cancel|취소|not approve/i;
+const DISMISS_PATTERNS = /cancel|취소|not approve|not authorize/i;
 const NO_JIRA_PATTERNS = /could not be loaded|Jira 사이트가 없/i;
 
 function classifyOAuthError(err: unknown): OAuthError | null {
@@ -236,7 +236,7 @@ function JiraOnboarding() {
                   <Loader2 className="h-4 w-4 animate-spin" />
                 </span>
               )}
-              <span className={connecting ? "opacity-0" : undefined}>
+              <span className={`inline-flex items-center gap-2 ${connecting ? "opacity-0" : ""}`}>
                 <ExternalLink className="h-3.5 w-3.5" />
                 Atlassian 로그인
               </span>

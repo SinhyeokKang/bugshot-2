@@ -71,11 +71,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           body: error.body,
         });
       } else if (error instanceof OAuthError) {
+        const cancelled = /cancel|취소|not authorize|not approve/i.test(error.message);
         sendResponse({
           ok: false,
           error: error.message,
-          status: 401,
-          body: { oauthRefreshFailed: true },
+          status: cancelled ? undefined : 401,
+          body: cancelled ? undefined : { oauthRefreshFailed: true },
         });
       } else {
         sendResponse({ ok: false, error: friendlyError(error) });
