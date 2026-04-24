@@ -23,6 +23,7 @@ function snapshotFromState(): EditorSnapshot {
     draft: s.draft,
     issueFields: s.issueFields,
     currentIssueId: s.currentIssueId,
+    submitResult: s.submitResult,
   };
 }
 

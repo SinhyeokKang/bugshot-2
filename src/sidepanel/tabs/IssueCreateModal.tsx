@@ -1,13 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
-  ArrowUpRight,
   Check,
   ChevronsUpDown,
   Loader2,
 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
 import {
   Command,
   CommandEmpty,
@@ -49,7 +47,6 @@ import { buildIssueAdf } from "../lib/buildIssueAdf";
 type SubmitState =
   | { status: "idle" }
   | { status: "submitting" }
-  | { status: "success"; result: JiraSubmitResult }
   | { status: "error"; message: string };
 
 export function IssueCreateModal() {
@@ -67,7 +64,7 @@ export function IssueCreateModal() {
   const issueFields = useEditorStore((s) => s.issueFields);
   const setIssueFields = useEditorStore((s) => s.setIssueFields);
   const onSubmitted = useEditorStore((s) => s.onSubmitted);
-  const reset = useEditorStore((s) => s.reset);
+
   const currentIssueId = useEditorStore((s) => s.currentIssueId);
   const markSubmitted = useIssuesStore((s) => s.markSubmitted);
 
@@ -121,13 +118,8 @@ export function IssueCreateModal() {
     if (currentIssueId) {
       markSubmitted(currentIssueId, { key: result.key, url: result.url });
     }
-    onSubmitted();
+    onSubmitted({ key: result.key, url: result.url });
     return result;
-  }
-
-  function handleStartNew() {
-    reset();
-    setOpen(false);
   }
 
   return (
@@ -147,7 +139,6 @@ export function IssueCreateModal() {
         fields={issueFields}
         onFieldsChange={setIssueFields}
         onSubmit={handleSubmit}
-        onStartNew={handleStartNew}
       />
     </>
   );
@@ -157,22 +148,18 @@ export function SubmitFieldsDialog({
   open,
   onOpenChange,
   title = "Jira 이슈 제출",
-  successTitle = "Jira 이슈가 제출되었습니다",
   fields,
   onFieldsChange,
   onSubmit,
   onSuccess,
-  onStartNew,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   title?: string;
-  successTitle?: string;
   fields: EditorIssueFields;
   onFieldsChange: (patch: Partial<EditorIssueFields>) => void;
   onSubmit: () => Promise<JiraSubmitResult>;
   onSuccess?: (result: JiraSubmitResult) => void;
-  onStartNew?: () => void;
 }) {
   const jiraConfig = useSettingsStore((s) => s.jiraConfig);
   const configured = isJiraConfigComplete(jiraConfig);
@@ -187,7 +174,7 @@ export function SubmitFieldsDialog({
     setSubmit({ status: "submitting" });
     try {
       const result = await onSubmit();
-      setSubmit({ status: "success", result });
+      onOpenChange(false);
       onSuccess?.(result);
     } catch (err) {
       setSubmit({
@@ -210,17 +197,9 @@ export function SubmitFieldsDialog({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="w-[80vw] max-w-[80vw] gap-5 rounded-3xl p-6 sm:rounded-3xl">
         <DialogHeader>
-          <DialogTitle className="text-xl">
-            {submit.status === "success" ? successTitle : title}
-          </DialogTitle>
+          <DialogTitle className="text-xl">{title}</DialogTitle>
         </DialogHeader>
-        {submit.status === "success" ? (
-          <SuccessView
-            result={submit.result}
-            onClose={() => onOpenChange(false)}
-            onStartNew={onStartNew}
-          />
-        ) : configured ? (
+        {configured ? (
           <div className="flex flex-col gap-4">
             <FieldRow label="이슈 타입" required>
               <IssueTypeField
@@ -244,9 +223,10 @@ export function SubmitFieldsDialog({
               <EpicField
                 value={fields.parentKey}
                 onChange={(key) => onFieldsChange({ parentKey: key })}
+                hierarchyLevels={[1]}
               />
             </FieldRow>
-            <FieldRow label="연결 에픽">
+            <FieldRow label="연결 이슈">
               <EpicField
                 value={fields.relatesKey}
                 onChange={(key) => onFieldsChange({ relatesKey: key })}
@@ -285,46 +265,6 @@ export function SubmitFieldsDialog({
         ) : null}
       </DialogContent>
     </Dialog>
-  );
-}
-
-function SuccessView({
-  result,
-  onClose,
-  onStartNew,
-}: {
-  result: JiraSubmitResult;
-  onClose: () => void;
-  onStartNew?: () => void;
-}) {
-  return (
-    <div className="flex flex-col gap-4">
-      <Card>
-        <CardContent className="px-4 py-3">
-          <div className="text-xs text-muted-foreground">이슈 키</div>
-          <div className="mt-1 flex items-center gap-2">
-            <span className="text-base font-medium">{result.key}</span>
-            <a
-              href={result.url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-xs text-muted-foreground transition-colors hover:text-foreground"
-            >
-              Jira에서 열기
-              <ArrowUpRight className="h-3 w-3" />
-            </a>
-          </div>
-        </CardContent>
-      </Card>
-      <div className="flex justify-end gap-2">
-        <Button variant="outline" onClick={onClose}>
-          닫기
-        </Button>
-        {onStartNew ? (
-          <Button onClick={onStartNew}>새 이슈 시작</Button>
-        ) : null}
-      </div>
-    </div>
   );
 }
 
@@ -624,9 +564,11 @@ export function AssigneeField({
 export function EpicField({
   value,
   onChange,
+  hierarchyLevels,
 }: {
   value?: string;
   onChange: (key: string | undefined) => void;
+  hierarchyLevels?: number[];
 }) {
   const jira = useJiraConfig();
   const [open, setOpen] = useState(false);
@@ -639,9 +581,10 @@ export function EpicField({
         config: jira.config,
         projectKey: jira.projectKey,
         query: query || undefined,
+        hierarchyLevels,
       });
     },
-    [jira],
+    [jira, hierarchyLevels],
   );
 
   const { items, loading, error, search } = useDebouncedSearch(fetchEpics);
@@ -658,9 +601,9 @@ export function EpicField({
       onOpenChange={setOpen}
       loading={loading}
       error={error}
-      placeholder="에픽 선택 (선택사항)"
-      searchPlaceholder="에픽 검색..."
-      emptyMessage="일치하는 에픽이 없습니다."
+      placeholder="이슈 선택 (선택사항)"
+      searchPlaceholder="이슈 검색..."
+      emptyMessage="일치하는 이슈가 없습니다."
       label={selected ? `${selected.key} ${selected.fields.summary}` : undefined}
       clearable={!!value}
       onClear={() => onChange(undefined)}

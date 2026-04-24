@@ -61,6 +61,7 @@ interface EditorState {
   draft: EditorDraft | null;
   issueFields: EditorIssueFields;
   currentIssueId: string | null;
+  submitResult: { key: string; url: string } | null;
 
   startPicking: (target: EditorTarget) => void;
   cancelPicking: () => void;
@@ -75,7 +76,7 @@ interface EditorState {
   confirmDraft: () => void;
   backToDraft: () => void;
   setIssueFields: (patch: Partial<EditorIssueFields>) => void;
-  onSubmitted: () => void;
+  onSubmitted: (result: { key: string; url: string }) => void;
   reset: () => void;
   hydrate: (snapshot: EditorSnapshot) => void;
 }
@@ -92,6 +93,7 @@ export type EditorSnapshot = Pick<
   | "draft"
   | "issueFields"
   | "currentIssueId"
+  | "submitResult"
 >;
 
 const initial = {
@@ -109,6 +111,7 @@ const initial = {
   draft: null,
   issueFields: {} as EditorIssueFields,
   currentIssueId: null as string | null,
+  submitResult: null as { key: string; url: string } | null,
 };
 
 function newIssueId(): string {
@@ -200,7 +203,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setIssueFields: (patch) =>
     set((s) => ({ issueFields: { ...s.issueFields, ...patch } })),
 
-  onSubmitted: () => set({ phase: "done" }),
+  onSubmitted: (result) => set({ phase: "done", submitResult: result }),
 
   reset: () => set({ ...initial }),
 

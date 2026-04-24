@@ -4,13 +4,16 @@ import {
   AlignJustify,
   AlignLeft,
   AlignRight,
+  ArrowUpRight,
   Check,
+  CircleCheck,
   CornerLeftUp,
   CornerRightDown,
   ChevronDown,
   ChevronRight,
   Crosshair,
   Link,
+  List,
   MousePointerClick,
   RotateCcw,
   Unlink,
@@ -67,6 +70,7 @@ import {
   stopPicker,
 } from "../picker-control";
 import { PageFooter, PageScroll, PageShell, Section } from "../components/Section";
+import { useTabNav } from "../App";
 import { DraftingPanel } from "./DraftingPanel";
 import { PreviewPanel } from "./PreviewPanel";
 
@@ -230,7 +234,11 @@ export function IssueTab() {
     return <DraftingPanel />;
   }
 
-  if (phase === "previewing" || phase === "done") {
+  if (phase === "done") {
+    return <SubmitSuccessView />;
+  }
+
+  if (phase === "previewing") {
     return <PreviewPanel />;
   }
 
@@ -532,30 +540,34 @@ function SelectedPanel() {
         collapsible
         defaultOpen={hasSpecified(SECTION_PROPS.effects)}
       >
-        <TextProp label="box-shadow" prop="box-shadow" />
-        <TextProp label="filter" prop="filter" />
-        <TextProp label="backdrop-filter" prop="backdrop-filter" />
-        <SelectProp
-          label="mix-blend-mode"
-          prop="mix-blend-mode"
-          options={[
-            "",
-            "normal",
-            "multiply",
-            "screen",
-            "overlay",
-            "darken",
-            "lighten",
-            "color-dodge",
-            "color-burn",
-            "difference",
-            "exclusion",
-            "hue",
-            "saturation",
-            "color",
-            "luminosity",
-          ]}
-        />
+        <Row2>
+          <TextProp label="box-shadow" prop="box-shadow" />
+          <TextProp label="filter" prop="filter" />
+        </Row2>
+        <Row2>
+          <TextProp label="backdrop-filter" prop="backdrop-filter" />
+          <SelectProp
+            label="mix-blend-mode"
+            prop="mix-blend-mode"
+            options={[
+              "",
+              "normal",
+              "multiply",
+              "screen",
+              "overlay",
+              "darken",
+              "lighten",
+              "color-dodge",
+              "color-burn",
+              "difference",
+              "exclusion",
+              "hue",
+              "saturation",
+              "color",
+              "luminosity",
+            ]}
+          />
+        </Row2>
         </Section>
       </PageScroll>
       <PageFooter>
@@ -1105,27 +1117,40 @@ function ValueCombobox({
   const tokens = useEditorStore((s) => s.tokens);
   const category = PROP_CATEGORY[prop];
 
-  const tokenName = extractTokenName(value);
-  const placeholderTokenName = !value ? extractTokenName(placeholder) : null;
+  const tokenNames = extractAllTokenNames(value);
+  const placeholderTokenNames = !value ? extractAllTokenNames(placeholder) : [];
   const isDefault = !value && isKnownDefault(prop, placeholder);
-  const activeTokenName = tokenName || placeholderTokenName;
-  const familyPrefix = activeTokenName ? tokenFamilyPrefix(activeTokenName, tokens) : null;
+  const activeTokenNames = tokenNames.length > 0 ? tokenNames : placeholderTokenNames;
+  const familyPrefixes = useMemo(() => {
+    const prefixes: string[] = [];
+    for (const n of activeTokenNames) {
+      const p = tokenFamilyPrefix(n, tokens);
+      if (p && !prefixes.includes(p)) prefixes.push(p);
+    }
+    return prefixes;
+  }, [activeTokenNames, tokens]);
 
   const draftLooksLikeToken = /^var\(/.test(draft.trim());
 
-  const { family, primary, extra } = useMemo(() => {
-    if (!category) return { family: [] as Token[], primary: tokens, extra: [] as Token[] };
-    const catTokens = tokens.filter((t) => t.category === category);
-    const others = tokens.filter(
-      (t) => t.category !== category && t.category !== "unknown",
-    );
-    if (!familyPrefix) return { family: [] as Token[], primary: catTokens, extra: others };
+
+  const { familyGroups, primary, extra } = useMemo(() => {
+    const base = !category ? tokens : tokens.filter((t) => t.category === category);
+    const others = category
+      ? tokens.filter((t) => t.category !== category && t.category !== "unknown")
+      : ([] as Token[]);
+    if (familyPrefixes.length === 0)
+      return { familyGroups: [] as { prefix: string; tokens: Token[] }[], primary: base, extra: others };
+    const groups = familyPrefixes.map((p) => ({
+      prefix: p,
+      tokens: base.filter((t) => t.name.startsWith(p)),
+    }));
+    const familySet = new Set(groups.flatMap((g) => g.tokens.map((t) => t.name)));
     return {
-      family: catTokens.filter((t) => t.name.startsWith(familyPrefix)),
-      primary: catTokens.filter((t) => !t.name.startsWith(familyPrefix)),
+      familyGroups: groups,
+      primary: base.filter((t) => !familySet.has(t.name)),
       extra: others,
     };
-  }, [tokens, category, familyPrefix]);
+  }, [tokens, category, familyPrefixes]);
 
   const filterTokens = (list: Token[]) => {
     const q = draft.trim().toLowerCase();
@@ -1137,10 +1162,13 @@ function ValueCombobox({
     );
   };
 
-  const familyFiltered = useMemo(
-    () => filterTokens(family),
+  const familyGroupsFiltered = useMemo(
+    () =>
+      familyGroups
+        .map((g) => ({ prefix: g.prefix, tokens: filterTokens(g.tokens) }))
+        .filter((g) => g.tokens.length > 0),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [family, draft, draftLooksLikeToken],
+    [familyGroups, draft, draftLooksLikeToken],
   );
   const primaryFiltered = useMemo(
     () => filterTokens(primary),
@@ -1153,16 +1181,43 @@ function ValueCombobox({
     [extra, draft, draftLooksLikeToken],
   );
 
+  const isMulti = activeTokenNames.length > 1;
+
   const commit = (next: string) => {
     if (onLinkedCommit) onLinkedCommit(next);
     else set(next);
     setOpen(false);
   };
 
+  const toggle = (tokenName: string) => {
+    const current = extractAllTokenNames(value);
+    const idx = current.indexOf(tokenName);
+    let next: string[];
+    if (idx >= 0) {
+      next = current.filter((_, i) => i !== idx);
+    } else {
+      next = [...current, tokenName];
+    }
+    if (next.length === 0) {
+      if (onLinkedCommit) onLinkedCommit("");
+      else set("");
+    } else {
+      const val = next.map((n) => `var(${n})`).join(", ");
+      if (onLinkedCommit) onLinkedCommit(val);
+      else set(val);
+    }
+  };
+
+  const onTokenSelect = isMulti
+    ? (tokenVarExpr: string) => {
+        const m = /^var\(\s*(--[^\s,)]+)/.exec(tokenVarExpr);
+        if (m) toggle(m[1]);
+      }
+    : commit;
+
   const handleOpenChange = (nextOpen: boolean) => {
     if (nextOpen) {
-      const tok = extractTokenName(value);
-      setDraft(tok ? "" : value);
+      setDraft(tokenNames.length > 0 ? "" : value);
       setShowAll(false);
     }
     setOpen(nextOpen);
@@ -1185,28 +1240,38 @@ function ValueCombobox({
           {icon ? (
             <span className="shrink-0 text-muted-foreground">{icon}</span>
           ) : null}
-          {tokenName ? (
-            <TokenChip
-              name={tokenName}
-              swatch={
-                category === "color"
-                  ? findTokenValue(tokens, tokenName)
-                  : undefined
-              }
-              compact={compact}
-            />
+          {tokenNames.length > 0 ? (
+            <span className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
+              {tokenNames.map((tn) => (
+                <TokenChip
+                  key={tn}
+                  name={tn}
+                  swatch={
+                    category === "color"
+                      ? findTokenValue(tokens, tn)
+                      : undefined
+                  }
+                  compact={compact}
+                />
+              ))}
+            </span>
           ) : value ? (
             <span className="min-w-0 flex-1 truncate text-left">{value}</span>
-          ) : placeholderTokenName ? (
-            <TokenChip
-              name={placeholderTokenName}
-              swatch={
-                category === "color"
-                  ? findTokenValue(tokens, placeholderTokenName)
-                  : undefined
-              }
-              compact={compact}
-            />
+          ) : placeholderTokenNames.length > 0 ? (
+            <span className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
+              {placeholderTokenNames.map((tn) => (
+                <TokenChip
+                  key={tn}
+                  name={tn}
+                  swatch={
+                    category === "color"
+                      ? findTokenValue(tokens, tn)
+                      : undefined
+                  }
+                  compact={compact}
+                />
+              ))}
+            </span>
           ) : (
             <span
               className={cn(
@@ -1265,30 +1330,30 @@ function ValueCombobox({
                 </CommandItem>
               </CommandGroup>
             ) : null}
-            {familyFiltered.length > 0 ? (
-              <CommandGroup heading={familyPrefix ?? "패밀리"}>
-                {familyFiltered.map((t) => (
+            {familyGroupsFiltered.map((g) => (
+              <CommandGroup key={g.prefix} heading={g.prefix}>
+                {g.tokens.map((t) => (
                   <TokenItem
-                  key={t.name}
-                  token={t}
-                  active={t.name === activeTokenName}
-                  onCommit={commit}
-                />
+                    key={t.name}
+                    token={t}
+                    active={activeTokenNames.includes(t.name)}
+                    onCommit={onTokenSelect}
+                  />
                 ))}
               </CommandGroup>
-            ) : null}
+            ))}
             <CommandGroup
               heading={`토큰${category ? ` · ${category}` : ""}`}
             >
-              {familyFiltered.length === 0 && primaryFiltered.length === 0 && extraFiltered.length === 0 ? (
+              {familyGroupsFiltered.length === 0 && primaryFiltered.length === 0 && extraFiltered.length === 0 ? (
                 <CommandEmpty>매칭 없음</CommandEmpty>
               ) : null}
               {primaryFiltered.map((t) => (
                 <TokenItem
                   key={t.name}
                   token={t}
-                  active={t.name === activeTokenName}
-                  onCommit={commit}
+                  active={activeTokenNames.includes(t.name)}
+                  onCommit={onTokenSelect}
                 />
               ))}
               {category && extraFiltered.length > 0 && !effectiveShowAll ? (
@@ -1309,8 +1374,8 @@ function ValueCombobox({
                   <TokenItem
                   key={t.name}
                   token={t}
-                  active={t.name === activeTokenName}
-                  onCommit={commit}
+                  active={activeTokenNames.includes(t.name)}
+                  onCommit={onTokenSelect}
                 />
                 ))}
               </CommandGroup>
@@ -1407,9 +1472,12 @@ function shortValue(v: string): string {
   return v;
 }
 
-function extractTokenName(value: string): string | null {
-  const m = /var\(\s*(--[^\s,)]+)/.exec(value.trim());
-  return m ? m[1] : null;
+function extractAllTokenNames(value: string): string[] {
+  const re = /var\(\s*(--[^\s,)]+)/g;
+  const names: string[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(value)) !== null) names.push(m[1]);
+  return names;
 }
 
 function tokenFamilyPrefix(
@@ -1651,7 +1719,7 @@ function DomTreeNode({
         ) : (
           <span className="inline-block h-4 w-4 shrink-0" />
         )}
-        <span className="min-w-0 flex-1 truncate">
+        <span className="min-w-0 flex-1 truncate text-sm">
           <span className="text-muted-foreground">&lt;</span>
           <span className="text-sky-600">{node.tag}</span>
           {node.id ? (
@@ -1690,6 +1758,55 @@ function DomTreeNode({
           ))
         : null}
     </div>
+  );
+}
+
+function SubmitSuccessView() {
+  const submitResult = useEditorStore((s) => s.submitResult);
+  const reset = useEditorStore((s) => s.reset);
+  const tabId = useBoundTabId();
+  const setTab = useTabNav();
+
+  if (!submitResult) return null;
+
+  return (
+    <PageShell>
+      <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 text-center">
+        <div className="mb-3 rounded-full bg-muted p-3">
+          <CircleCheck className="h-6 w-6 text-green-600" />
+        </div>
+        <h3 className="text-[18px] font-semibold">이슈가 제출되었습니다</h3>
+        <a
+          href={submitResult.url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-2 inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
+        >
+          {submitResult.key}
+          <ArrowUpRight className="h-3.5 w-3.5" />
+        </a>
+        <div className="mt-6 flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => {
+              reset();
+              setTab("issue-list");
+            }}
+          >
+            <List className="h-4 w-4" />
+            이슈 목록
+          </Button>
+          <Button
+            onClick={() => {
+              reset();
+              if (tabId) void startPicker(tabId);
+            }}
+          >
+            확인
+          </Button>
+        </div>
+      </div>
+    </PageShell>
   );
 }
 

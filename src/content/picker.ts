@@ -1070,7 +1070,22 @@ function collectTokens(el?: Element): Token[] {
     }
     tokens.push({ name, value: resolved, category: categorizeToken(resolved) });
   }
-  tokens.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+  tokens.sort((a, b) => {
+    const ai = a.name.lastIndexOf("-");
+    const bi = b.name.lastIndexOf("-");
+    const ap = a.name.slice(0, ai);
+    const bp = b.name.slice(0, bi);
+    if (ap === bp && ap.length > 0) {
+      const as = a.name.slice(ai + 1);
+      const bs = b.name.slice(bi + 1);
+      if (!/\d/.test(as) && !/\d/.test(bs)) {
+        const an = parseFloat(a.value);
+        const bn = parseFloat(b.value);
+        if (!isNaN(an) && !isNaN(bn)) return an - bn;
+      }
+    }
+    return a.name.localeCompare(b.name, undefined, { numeric: true });
+  });
   return tokens;
 }
 

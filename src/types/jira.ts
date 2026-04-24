@@ -101,3 +101,8 @@ export interface JiraSubmitResult {
   key: string;
   url: string;
 }
+
+export interface JiraIssueStatus {
+  name: string;
+  categoryKey: string;
+}

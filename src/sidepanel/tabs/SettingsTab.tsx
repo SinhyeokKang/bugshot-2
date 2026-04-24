@@ -540,7 +540,7 @@ function JiraSummary() {
             <span className="truncate text-base font-medium text-foreground">{host}</span>
             <span className="truncate text-sm text-muted-foreground">{auth.email}</span>
           </div>
-          <Badge className="shrink-0 gap-1 border-transparent bg-green-50 text-[11px] uppercase tracking-wider text-green-700 shadow-none dark:bg-green-900/40 dark:text-green-400">
+          <Badge className="shrink-0 gap-1 border-transparent bg-green-50 text-[11px] tracking-wider text-green-700 shadow-none dark:bg-green-900/40 dark:text-green-400">
             <CircleCheck className="h-3 w-3" />
             {kindLabel}
           </Badge>

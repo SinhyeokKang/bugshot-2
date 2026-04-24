@@ -3,6 +3,7 @@ import type { BgRequest } from "@/types/messages";
 import {
   createIssue,
   createIssueLink,
+  getIssueStatus,
   getIssueTypes,
   getMyself,
   getPriorities,
@@ -48,8 +49,11 @@ export async function handleMessage(
     case "jira.searchUsers":
       return searchUsers(message.config, message.query);
 
+    case "jira.getIssueStatus":
+      return getIssueStatus(message.config, message.issueKey);
+
     case "jira.searchEpics":
-      return searchEpics(message.config, message.projectKey, message.query);
+      return searchEpics(message.config, message.projectKey, message.query, message.hierarchyLevels);
 
     case "jira.submitIssue":
       return submitIssue(

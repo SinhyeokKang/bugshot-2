@@ -38,10 +38,16 @@ export type BgRequest =
       query?: string;
     }
   | {
+      type: "jira.getIssueStatus";
+      config: JiraConfigPayload;
+      issueKey: string;
+    }
+  | {
       type: "jira.searchEpics";
       config: JiraConfigPayload;
       projectKey: string;
       query?: string;
+      hierarchyLevels?: number[];
     }
   | {
       type: "jira.submitIssue";

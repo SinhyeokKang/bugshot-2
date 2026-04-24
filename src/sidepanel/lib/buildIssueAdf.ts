@@ -74,7 +74,7 @@ function hardBreak(): AdfNode {
 
 function textBlock(raw: string): AdfNode[] {
   const trimmed = raw.trim();
-  if (!trimmed) return [paragraph([textNode("")])];
+  if (!trimmed) return [paragraph([textNode("(없음)")])];
   const paragraphs = trimmed.split(/\n\s*\n/);
   return paragraphs.map((p) => {
     const lines = p.split(/\n/);

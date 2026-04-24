@@ -1,7 +1,10 @@
-import { useEffect, useState } from "react";
+import { createContext, useContext, useEffect, useState } from "react";
 import { List, Settings, SlidersHorizontal, SquarePen } from "lucide-react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { jiraCredentialsFilled, useSettingsStore } from "@/store/settings-store";
+
+const TabNavContext = createContext<(tab: string) => void>(() => {});
+export const useTabNav = () => useContext(TabNavContext);
 import { useBoundTabId } from "./hooks/useBoundTabId";
 import { useEditorSessionSync } from "./hooks/useEditorSessionSync";
 import { usePickerMessages } from "./hooks/usePickerMessages";
@@ -30,17 +33,22 @@ export default function App() {
   useThemeEffect();
 
   const jiraConfig = useSettingsStore((s) => s.jiraConfig);
+  const [tab, setTab] = useState("issue");
+
+  useEffect(() => {
+    if (settingsHydrated && !jiraCredentialsFilled(jiraConfig)) {
+      setTab("issue-settings");
+    }
+  }, [settingsHydrated]);
 
   if (!editorHydrated || !settingsHydrated) return null;
 
-  const initialTab = jiraCredentialsFilled(jiraConfig)
-    ? "issue"
-    : "issue-settings";
-
   return (
+    <TabNavContext.Provider value={setTab}>
     <div className="flex h-screen flex-col">
       <Tabs
-        defaultValue={initialTab}
+        value={tab}
+        onValueChange={setTab}
         className="flex min-h-0 flex-1 flex-col gap-0"
       >
         <div className="border-b">
@@ -93,5 +101,6 @@ export default function App() {
         </TabsContent>
       </Tabs>
     </div>
+    </TabNavContext.Provider>
   );
 }

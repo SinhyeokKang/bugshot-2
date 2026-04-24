@@ -17,9 +17,24 @@ export class JiraError extends Error {
     message: string,
     public body?: unknown,
   ) {
-    super(message);
+    super(message + extractDetail(body));
     this.name = "JiraError";
   }
+}
+
+function extractDetail(body: unknown): string {
+  if (!body || typeof body !== "object") return "";
+  const b = body as Record<string, unknown>;
+  const parts: string[] = [];
+  if (Array.isArray(b.errorMessages)) {
+    parts.push(...(b.errorMessages as string[]).filter(Boolean));
+  }
+  if (b.errors && typeof b.errors === "object") {
+    for (const [k, v] of Object.entries(b.errors as Record<string, string>)) {
+      if (v) parts.push(`${k}: ${v}`);
+    }
+  }
+  return parts.length > 0 ? `\n${parts.join("\n")}` : "";
 }
 
 function normalizeBaseUrl(url: string): string {
@@ -258,15 +273,29 @@ export async function createIssueLink(
   });
 }
 
+export async function getIssueStatus(
+  auth: JiraAuth,
+  issueKey: string,
+): Promise<{ name: string; categoryKey: string }> {
+  const res = await jiraFetch<{
+    fields: { status: { name: string; statusCategory: { key: string } } };
+  }>(auth, `/rest/api/3/issue/${encodeURIComponent(issueKey)}?fields=status`);
+  return {
+    name: res.fields.status.name,
+    categoryKey: res.fields.status.statusCategory.key,
+  };
+}
+
 export async function searchEpics(
   auth: JiraAuth,
   projectKey: string,
   query?: string,
+  hierarchyLevels?: number[],
 ): Promise<JiraIssueSummary[]> {
-  const conditions = [
-    `project = '${projectKey}'`,
-    `hierarchyLevel in (0, 1)`,
-  ];
+  const conditions = [`project = '${projectKey}'`];
+  if (hierarchyLevels && hierarchyLevels.length > 0) {
+    conditions.push(`hierarchyLevel in (${hierarchyLevels.join(", ")})`);
+  }
   if (query) {
     const q = query.replace(/'/g, "\\'");
     const keyMatch = /^([A-Z]+-)?(\d+)$/i.exec(query.trim());
