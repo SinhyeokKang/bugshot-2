@@ -9,6 +9,8 @@ export type EditorPhase =
   | "idle"
   | "picking"
   | "styling"
+  | "capturing"
+  | "annotating"
   | "drafting"
   | "previewing"
   | "done";
@@ -69,10 +71,15 @@ interface EditorState {
   draft: EditorDraft | null;
   issueFields: EditorIssueFields;
   currentIssueId: string | null;
+  screenshotRaw: string | null;
+  screenshotAnnotated: string | null;
   submitResult: { key: string; url: string } | null;
   sessionExpired: boolean;
 
   startPicking: (target: EditorTarget, mode?: CaptureMode) => void;
+  startCapturing: (target: EditorTarget) => void;
+  onAreaCaptured: (dataUrl: string) => void;
+  onAnnotated: (dataUrl: string) => void;
   cancelPicking: () => void;
   onElementSelected: (selection: EditorSelection) => void;
   setStyleEdits: (patch: Partial<EditorStyleEdits>) => void;
@@ -100,6 +107,8 @@ export type EditorSnapshot = Pick<
   | "tokens"
   | "beforeImage"
   | "afterImage"
+  | "screenshotRaw"
+  | "screenshotAnnotated"
   | "draft"
   | "issueFields"
   | "currentIssueId"
@@ -119,6 +128,8 @@ const initial = {
   tokens: [] as Token[],
   beforeImage: null,
   afterImage: null,
+  screenshotRaw: null as string | null,
+  screenshotAnnotated: null as string | null,
   draft: null,
   issueFields: {} as EditorIssueFields,
   currentIssueId: null as string | null,
@@ -138,6 +149,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   startPicking: (target, mode) => set({ ...initial, captureMode: mode ?? "element", phase: "picking", target }),
   cancelPicking: () => set({ ...initial }),
+
+  startCapturing: (target) => set({ ...initial, captureMode: "screenshot", phase: "capturing", target }),
+  onAreaCaptured: (dataUrl) => set({ phase: "annotating", screenshotRaw: dataUrl }),
+  onAnnotated: (dataUrl) => set({ phase: "drafting", screenshotAnnotated: dataUrl }),
 
   onElementSelected: (selection) =>
     set({
@@ -169,7 +184,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   confirmDraft: () => {
     const state = get();
-    if (!state.draft || !state.selection || !state.target) {
+    if (!state.draft || !state.target) {
       set({ phase: "previewing" });
       return;
     }
@@ -184,39 +199,61 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       set((s) => ({ issueFields: { ...restored, ...s.issueFields } }));
     }
     const id = state.currentIssueId ?? newIssueId();
-    useIssuesStore.getState().saveDraft({
-      id,
-      status: "draft",
-      title: state.draft.title,
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-      pageUrl: state.target.url,
-      pageTitle: state.target.title,
-      selector: state.selection.selector,
-      tagName: state.selection.tagName,
-      draft: { ...state.draft },
-      styleEdits: {
-        classList: [...state.styleEdits.classList],
-        inlineStyle: { ...state.styleEdits.inlineStyle },
-        text: state.styleEdits.text,
-      },
-      snapshot: {
-        before: state.beforeImage,
-        after: state.afterImage,
-      },
-      selectionSnapshot: {
-        classList: [...state.selection.classList],
-        specifiedStyles: { ...state.selection.specifiedStyles },
-        computedStyles: { ...state.selection.computedStyles },
-        text: state.selection.text,
-        viewport: { ...state.selection.viewport },
-        capturedAt: state.selection.capturedAt,
-      },
-      tokensSnapshot: state.tokens.map((t) => ({
-        name: t.name,
-        value: t.value,
-      })),
-    });
+    if (state.captureMode === "screenshot") {
+      useIssuesStore.getState().saveDraft({
+        id,
+        status: "draft",
+        title: state.draft.title,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        pageUrl: state.target.url,
+        pageTitle: state.target.title,
+        captureMode: "screenshot",
+        draft: { ...state.draft },
+        snapshot: {
+          before: state.screenshotAnnotated ?? state.screenshotRaw,
+          after: null,
+        },
+      });
+    } else {
+      if (!state.selection) {
+        set({ phase: "previewing" });
+        return;
+      }
+      useIssuesStore.getState().saveDraft({
+        id,
+        status: "draft",
+        title: state.draft.title,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        pageUrl: state.target.url,
+        pageTitle: state.target.title,
+        selector: state.selection.selector,
+        tagName: state.selection.tagName,
+        draft: { ...state.draft },
+        styleEdits: {
+          classList: [...state.styleEdits.classList],
+          inlineStyle: { ...state.styleEdits.inlineStyle },
+          text: state.styleEdits.text,
+        },
+        snapshot: {
+          before: state.beforeImage,
+          after: state.afterImage,
+        },
+        selectionSnapshot: {
+          classList: [...state.selection.classList],
+          specifiedStyles: { ...state.selection.specifiedStyles },
+          computedStyles: { ...state.selection.computedStyles },
+          text: state.selection.text,
+          viewport: { ...state.selection.viewport },
+          capturedAt: state.selection.capturedAt,
+        },
+        tokensSnapshot: state.tokens.map((t) => ({
+          name: t.name,
+          value: t.value,
+        })),
+      });
+    }
     set({ phase: "previewing", currentIssueId: id });
   },
 

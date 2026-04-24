@@ -69,5 +69,10 @@ export type PickerMessage =
   | { type: "picker.selectByPath"; selector: string }
   | { type: "picker.prepareCapture" }
   | { type: "picker.endCapture" }
+  | { type: "picker.startAreaSelect" }
+  | { type: "picker.cancelAreaSelect" }
+  | { type: "picker.showAnnotation" }
+  | { type: "picker.hideAnnotation" }
   | { type: "picker.selected"; payload: PickerSelectionPayload }
-  | { type: "picker.cancelled" };
+  | { type: "picker.cancelled" }
+  | { type: "picker.areaSelected"; rect: ViewportRect };

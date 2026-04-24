@@ -57,7 +57,6 @@ import {
   applyText,
   clearPicker,
   resetEdits,
-  startPicker,
 } from "../picker-control";
 import { PageFooter, PageScroll, PageShell, Section } from "../components/Section";
 import { CancelConfirmDialog } from "../components/CancelConfirmDialog";
@@ -228,15 +227,15 @@ export function SelectedPanel() {
   return (
     <PageShell>
       <PageScroll>
-        <Section>
-          <div className="flex items-center gap-1">
+        <div className="sticky top-0 z-10 border-b border-border bg-background py-6">
+          <div className="flex items-center gap-1 px-4">
             <DomNavButton direction="parent" />
             <div className="min-w-0 flex-1">
               <DomTreeTitle selector={selection.selector} />
             </div>
             <DomNavButton direction="child" />
           </div>
-        </Section>
+        </div>
 
         <Section title="Class" action={<ClassRevertButton />}>
           <ClassEditor />
@@ -456,10 +455,7 @@ export function SelectedPanel() {
           <CancelConfirmDialog
             onConfirm={() => {
               reset();
-              if (tabId) {
-                void clearPicker(tabId);
-                void startPicker(tabId);
-              }
+              if (tabId) void clearPicker(tabId);
             }}
           />
           <div className="flex items-center gap-2">

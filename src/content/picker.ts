@@ -8,6 +8,7 @@ import type {
   Token,
   TokenCategory,
   TreeNode,
+  ViewportRect,
 } from "@/types/picker";
 
 const HOST_ID = "__bugshot_picker_host";
@@ -66,7 +67,7 @@ const INTERESTING_PROPS = [
 
 const SVG_NS = "http://www.w3.org/2000/svg";
 
-type Mode = "idle" | "hover" | "selected";
+type Mode = "idle" | "hover" | "selected" | "area-select" | "area-dragging";
 
 let mode: Mode = "idle";
 let selectedEl: Element | null = null;
@@ -87,6 +88,15 @@ let borderEl: SVGRectElement | null = null;
 let previewEl: SVGRectElement | null = null;
 
 let rafHandle: number | null = null;
+
+let areaSelectEl: HTMLDivElement | null = null;
+let areaDimTopEl: HTMLDivElement | null = null;
+let areaDimBottomEl: HTMLDivElement | null = null;
+let areaDimLeftEl: HTMLDivElement | null = null;
+let areaDimRightEl: HTMLDivElement | null = null;
+let areaSizeEl: HTMLDivElement | null = null;
+let dragStart: { x: number; y: number } | null = null;
+let annotationIframe: HTMLIFrameElement | null = null;
 
 chrome.runtime.onConnect.addListener((port) => {
   if (port.name !== "bugshot-picker") return;
@@ -146,6 +156,18 @@ chrome.runtime.onMessage.addListener(
         return;
       case "picker.endCapture":
         handleEndCapture();
+        break;
+      case "picker.startAreaSelect":
+        handleStartAreaSelect();
+        break;
+      case "picker.cancelAreaSelect":
+        handleCancelAreaSelect();
+        break;
+      case "picker.showAnnotation":
+        showAnnotationIframe();
+        break;
+      case "picker.hideAnnotation":
+        hideAnnotationIframe();
         break;
       default:
         return;
@@ -378,6 +400,29 @@ function ensureOverlay(): void {
       z-index: 2147483646;
       pointer-events: auto;
       cursor: crosshair;
+    }
+    .area-dim {
+      position: fixed;
+      background: rgba(0, 0, 0, 0.4);
+      pointer-events: none;
+    }
+    .area-select-rect {
+      position: fixed;
+      border: 2px solid #2563eb;
+      background: transparent;
+      pointer-events: none;
+      display: none;
+    }
+    .area-size-label {
+      position: fixed;
+      background: rgba(0, 0, 0, 0.85);
+      color: white;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font: 11px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      pointer-events: none;
+      display: none;
+      white-space: nowrap;
     }
   `;
   shadow.appendChild(style);
@@ -1292,6 +1337,223 @@ function handleSelectByPath(selector: string): void {
   handlePreviewClear();
   setMode("selected");
   emitSelected(target);
+}
+
+/* ── Annotation Iframe ───────────────────────────── */
+
+function showAnnotationIframe(): void {
+  if (annotationIframe) return;
+  annotationIframe = document.createElement("iframe");
+  annotationIframe.src = chrome.runtime.getURL("src/annotation/index.html");
+  Object.assign(annotationIframe.style, {
+    position: "fixed",
+    top: "0",
+    left: "0",
+    width: "100vw",
+    height: "100vh",
+    border: "none",
+    zIndex: "2147483647",
+  });
+  annotationIframe.allow = "";
+  document.documentElement.appendChild(annotationIframe);
+}
+
+function hideAnnotationIframe(): void {
+  if (annotationIframe) {
+    annotationIframe.remove();
+    annotationIframe = null;
+  }
+}
+
+/* ── Area Select ─────────────────────────────────── */
+
+function handleStartAreaSelect(): void {
+  ensureOverlay();
+  hideOverlay();
+  if (bannerEl) bannerEl.style.display = "none";
+  ensureAreaElements();
+  showDimming(null);
+  mode = "area-select";
+  if (blockerEl) {
+    blockerEl.style.display = "";
+    blockerEl.style.pointerEvents = "auto";
+    blockerEl.style.cursor = "crosshair";
+  }
+  addAreaListeners();
+}
+
+function handleCancelAreaSelect(): void {
+  removeAreaListeners();
+  cleanupAreaElements();
+  mode = "idle";
+  if (blockerEl) {
+    blockerEl.style.display = "none";
+  }
+  handleClear();
+}
+
+function ensureAreaElements(): void {
+  if (!shadow) return;
+  if (!areaSelectEl) {
+    areaSelectEl = document.createElement("div");
+    areaSelectEl.className = "area-select-rect";
+    shadow.appendChild(areaSelectEl);
+  }
+  if (!areaDimTopEl) {
+    areaDimTopEl = document.createElement("div");
+    areaDimTopEl.className = "area-dim";
+    areaDimBottomEl = document.createElement("div");
+    areaDimBottomEl.className = "area-dim";
+    areaDimLeftEl = document.createElement("div");
+    areaDimLeftEl.className = "area-dim";
+    areaDimRightEl = document.createElement("div");
+    areaDimRightEl.className = "area-dim";
+    shadow.appendChild(areaDimTopEl);
+    shadow.appendChild(areaDimBottomEl);
+    shadow.appendChild(areaDimLeftEl);
+    shadow.appendChild(areaDimRightEl);
+  }
+  if (!areaSizeEl) {
+    areaSizeEl = document.createElement("div");
+    areaSizeEl.className = "area-size-label";
+    shadow.appendChild(areaSizeEl);
+  }
+}
+
+function cleanupAreaElements(): void {
+  areaSelectEl?.remove();
+  areaSelectEl = null;
+  areaDimTopEl?.remove();
+  areaDimTopEl = null;
+  areaDimBottomEl?.remove();
+  areaDimBottomEl = null;
+  areaDimLeftEl?.remove();
+  areaDimLeftEl = null;
+  areaDimRightEl?.remove();
+  areaDimRightEl = null;
+  areaSizeEl?.remove();
+  areaSizeEl = null;
+  dragStart = null;
+}
+
+function showDimming(rect: { x: number; y: number; w: number; h: number } | null): void {
+  const vw = window.innerWidth;
+  const vh = window.innerHeight;
+  if (!rect) {
+    // full-page dim before drag starts
+    if (areaDimTopEl) Object.assign(areaDimTopEl.style, { top: "0", left: "0", width: `${vw}px`, height: `${vh}px` });
+    if (areaDimBottomEl) areaDimBottomEl.style.display = "none";
+    if (areaDimLeftEl) areaDimLeftEl.style.display = "none";
+    if (areaDimRightEl) areaDimRightEl.style.display = "none";
+    return;
+  }
+  // 4-piece dimming around the selection rectangle
+  if (areaDimTopEl) {
+    Object.assign(areaDimTopEl.style, { display: "", top: "0", left: "0", width: `${vw}px`, height: `${rect.y}px` });
+  }
+  if (areaDimBottomEl) {
+    const bottomY = rect.y + rect.h;
+    Object.assign(areaDimBottomEl.style, { display: "", top: `${bottomY}px`, left: "0", width: `${vw}px`, height: `${vh - bottomY}px` });
+  }
+  if (areaDimLeftEl) {
+    Object.assign(areaDimLeftEl.style, { display: "", top: `${rect.y}px`, left: "0", width: `${rect.x}px`, height: `${rect.h}px` });
+  }
+  if (areaDimRightEl) {
+    const rightX = rect.x + rect.w;
+    Object.assign(areaDimRightEl.style, { display: "", top: `${rect.y}px`, left: `${rightX}px`, width: `${vw - rightX}px`, height: `${rect.h}px` });
+  }
+}
+
+function updateAreaRect(e: MouseEvent): void {
+  if (!dragStart || !areaSelectEl || !areaSizeEl) return;
+  const x = Math.min(dragStart.x, e.clientX);
+  const y = Math.min(dragStart.y, e.clientY);
+  const w = Math.abs(e.clientX - dragStart.x);
+  const h = Math.abs(e.clientY - dragStart.y);
+  Object.assign(areaSelectEl.style, {
+    display: "",
+    left: `${x}px`,
+    top: `${y}px`,
+    width: `${w}px`,
+    height: `${h}px`,
+  });
+  showDimming({ x, y, w, h });
+  areaSizeEl.textContent = `${Math.round(w)} × ${Math.round(h)}`;
+  Object.assign(areaSizeEl.style, {
+    display: "",
+    left: `${x}px`,
+    top: `${y + h + 6}px`,
+  });
+}
+
+function addAreaListeners(): void {
+  if (!blockerEl) return;
+  blockerEl.addEventListener("mousedown", onAreaMouseDown);
+  window.addEventListener("keydown", onAreaKeyDown, true);
+}
+
+function removeAreaListeners(): void {
+  if (blockerEl) {
+    blockerEl.removeEventListener("mousedown", onAreaMouseDown);
+  }
+  window.removeEventListener("mousemove", onAreaMouseMove, true);
+  window.removeEventListener("mouseup", onAreaMouseUp, true);
+  window.removeEventListener("keydown", onAreaKeyDown, true);
+}
+
+function onAreaMouseDown(e: MouseEvent): void {
+  if (e.button !== 0) return;
+  e.preventDefault();
+  dragStart = { x: e.clientX, y: e.clientY };
+  mode = "area-dragging";
+  window.addEventListener("mousemove", onAreaMouseMove, true);
+  window.addEventListener("mouseup", onAreaMouseUp, true);
+}
+
+function onAreaMouseMove(e: MouseEvent): void {
+  updateAreaRect(e);
+}
+
+function onAreaMouseUp(e: MouseEvent): void {
+  window.removeEventListener("mousemove", onAreaMouseMove, true);
+  window.removeEventListener("mouseup", onAreaMouseUp, true);
+  if (!dragStart) return;
+  const x = Math.min(dragStart.x, e.clientX);
+  const y = Math.min(dragStart.y, e.clientY);
+  const w = Math.abs(e.clientX - dragStart.x);
+  const h = Math.abs(e.clientY - dragStart.y);
+  if (w < 10 || h < 10) {
+    // too small — reset to area-select mode
+    dragStart = null;
+    mode = "area-select";
+    if (areaSelectEl) areaSelectEl.style.display = "none";
+    if (areaSizeEl) areaSizeEl.style.display = "none";
+    showDimming(null);
+    return;
+  }
+  removeAreaListeners();
+  if (blockerEl) blockerEl.style.display = "none";
+  const rect: ViewportRect = { x, y, width: w, height: h };
+  chrome.runtime
+    .sendMessage<PickerMessage>({ type: "picker.areaSelected", rect })
+    .catch(() => {});
+  cleanupAreaElements();
+  mode = "idle";
+  handleClear();
+}
+
+function onAreaKeyDown(e: KeyboardEvent): void {
+  if (e.key !== "Escape") return;
+  e.preventDefault();
+  e.stopPropagation();
+  removeAreaListeners();
+  cleanupAreaElements();
+  mode = "idle";
+  if (blockerEl) blockerEl.style.display = "none";
+  chrome.runtime
+    .sendMessage<PickerMessage>({ type: "picker.cancelled" })
+    .catch(() => {});
+  handleClear();
 }
 
 function pathSelector(el: Element): string {

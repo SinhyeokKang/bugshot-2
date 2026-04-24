@@ -17,27 +17,42 @@ export interface AdfDoc {
 
 export function buildIssueAdf(ctx: MarkdownContext): AdfDoc {
   const content: AdfNode[] = [];
+  const isScreenshot = ctx.captureMode === "screenshot";
 
   content.push(heading(2, "재현 환경"));
-  content.push(
-    bulletList([
-      keyValueItem("Page", ctx.url),
-      keyValueItem("DOM", ctx.selector),
-      keyValueItem("Viewport", `${ctx.viewport.width}×${ctx.viewport.height}`),
-      keyValueItem("Captured", formatTimestamp(ctx.capturedAt)),
-    ]),
-  );
+  if (isScreenshot) {
+    content.push(
+      bulletList([
+        keyValueItem("Page", ctx.url),
+        keyValueItem("Captured", formatTimestamp(ctx.capturedAt)),
+      ]),
+    );
+  } else {
+    content.push(
+      bulletList([
+        keyValueItem("Page", ctx.url),
+        keyValueItem("DOM", ctx.selector),
+        keyValueItem("Viewport", `${ctx.viewport.width}×${ctx.viewport.height}`),
+        keyValueItem("Captured", formatTimestamp(ctx.capturedAt)),
+      ]),
+    );
+  }
 
   content.push(heading(2, "발생 현상"));
   content.push(...textBlock(ctx.body));
 
-  content.push(heading(2, "스타일 변경사항"));
-  content.push(
-    table(
-      ["속성", "As is", "To be"],
-      ctx.diffs.map((d) => [d.prop, d.asIs, d.toBe]),
-    ),
-  );
+  if (isScreenshot) {
+    content.push(heading(2, "미디어"));
+    content.push(paragraph([textNode("(첨부 이미지 참조)")]));
+  } else {
+    content.push(heading(2, "스타일 변경사항"));
+    content.push(
+      table(
+        ["속성", "As is", "To be"],
+        ctx.diffs.map((d) => [d.prop, d.asIs, d.toBe]),
+      ),
+    );
+  }
 
   content.push(heading(2, "기대 결과"));
   content.push(...textBlock(ctx.expectedResult));

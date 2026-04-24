@@ -68,6 +68,12 @@ export default defineManifest({
     "https://auth.atlassian.com/*",
     ...(proxyMatch ? [proxyMatch] : []),
   ],
+  web_accessible_resources: [
+    {
+      resources: ["src/annotation/index.html"],
+      matches: ["<all_urls>"],
+    },
+  ],
   commands: {
     _execute_action: {
       suggested_key: {

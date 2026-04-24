@@ -45,7 +45,7 @@ import type {
 } from "@/types/jira";
 import { sendBg, type JiraSubmitResult } from "@/types/messages";
 import { buildStyleDiff } from "../components/StyleChangesTable";
-import { buildIssueAdf } from "../lib/buildIssueAdf";
+import { buildIssueAdf, type AdfDoc } from "../lib/buildIssueAdf";
 
 type SubmitState =
   | { status: "idle" }
@@ -57,12 +57,15 @@ export function IssueCreateModal() {
   const jiraConfig = useSettingsStore((s) => s.jiraConfig);
   const configured = isJiraConfigComplete(jiraConfig);
 
+  const captureMode = useEditorStore((s) => s.captureMode);
   const selection = useEditorStore((s) => s.selection);
   const target = useEditorStore((s) => s.target);
   const styleEdits = useEditorStore((s) => s.styleEdits);
   const tokens = useEditorStore((s) => s.tokens);
   const beforeImage = useEditorStore((s) => s.beforeImage);
   const afterImage = useEditorStore((s) => s.afterImage);
+  const screenshotAnnotated = useEditorStore((s) => s.screenshotAnnotated);
+  const screenshotRaw = useEditorStore((s) => s.screenshotRaw);
   const draft = useEditorStore((s) => s.draft);
   const issueFields = useEditorStore((s) => s.issueFields);
   const setIssueFields = useEditorStore((s) => s.setIssueFields);
@@ -73,35 +76,58 @@ export function IssueCreateModal() {
 
   async function handleSubmit(): Promise<JiraSubmitResult> {
     if (!jiraConfig?.auth || !jiraConfig.projectKey) throw new Error("Jira 미설정");
-    if (!selection || !draft || !issueFields.issueTypeId)
-      throw new Error("필수 값 누락");
+    if (!draft || !issueFields.issueTypeId) throw new Error("필수 값 누락");
 
-    const diffs = buildStyleDiff(selection, styleEdits);
-    const ctx = {
-      title: draft.title,
-      body: draft.body,
-      expectedResult: draft.expectedResult,
-      url: target?.url ?? "",
-      selector: selection.selector,
-      tagName: selection.tagName,
-      classListBefore: selection.classList,
-      classListAfter: styleEdits.classList,
-      specifiedStyles: selection.specifiedStyles,
-      tokens: tokens.map((t) => ({ name: t.name, value: t.value })),
-      viewport: selection.viewport,
-      capturedAt: selection.capturedAt,
-      diffs,
-    };
-    const description = buildIssueAdf(ctx);
+    let description: AdfDoc;
+    const attachments: { filename: string; dataUrl: string }[] = [];
+
+    if (captureMode === "screenshot") {
+      const screenshotImage = screenshotAnnotated ?? screenshotRaw;
+      const ctx = {
+        captureMode: "screenshot" as const,
+        title: draft.title,
+        body: draft.body,
+        expectedResult: draft.expectedResult,
+        url: target?.url ?? "",
+        selector: "",
+        tagName: "",
+        classListBefore: [] as string[],
+        classListAfter: [] as string[],
+        specifiedStyles: {} as Record<string, string>,
+        tokens: [] as { name: string; value: string }[],
+        viewport: { width: 0, height: 0 },
+        capturedAt: Date.now(),
+        diffs: [],
+      };
+      description = buildIssueAdf(ctx);
+      if (screenshotImage) attachments.push({ filename: "screenshot.png", dataUrl: screenshotImage });
+    } else {
+      if (!selection) throw new Error("필수 값 누락");
+      const diffs = buildStyleDiff(selection, styleEdits);
+      const ctx = {
+        title: draft.title,
+        body: draft.body,
+        expectedResult: draft.expectedResult,
+        url: target?.url ?? "",
+        selector: selection.selector,
+        tagName: selection.tagName,
+        classListBefore: selection.classList,
+        classListAfter: styleEdits.classList,
+        specifiedStyles: selection.specifiedStyles,
+        tokens: tokens.map((t) => ({ name: t.name, value: t.value })),
+        viewport: selection.viewport,
+        capturedAt: selection.capturedAt,
+        diffs,
+      };
+      description = buildIssueAdf(ctx);
+      if (beforeImage) attachments.push({ filename: "before.png", dataUrl: beforeImage });
+      if (afterImage) attachments.push({ filename: "after.png", dataUrl: afterImage });
+    }
 
     const titlePrefix = jiraConfig.titlePrefix?.trim() ?? "";
     const summary = titlePrefix && !draft.title.startsWith(titlePrefix)
       ? `${titlePrefix}${draft.title}`.trim()
       : draft.title.trim();
-
-    const attachments: { filename: string; dataUrl: string }[] = [];
-    if (beforeImage) attachments.push({ filename: "before.png", dataUrl: beforeImage });
-    if (afterImage) attachments.push({ filename: "after.png", dataUrl: afterImage });
 
     const result = await sendBg<JiraSubmitResult>({
       type: "jira.submitIssue",

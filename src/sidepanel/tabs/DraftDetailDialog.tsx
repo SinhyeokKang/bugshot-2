@@ -84,7 +84,7 @@ export function DraftDetailDialog({
   }, [open, issue?.id, jiraConfig?.issueTypeId, jiraConfig?.projectKey, lastSubmitFields]);
 
   const diffs = useMemo(() => {
-    if (!issue?.selectionSnapshot) return [];
+    if (!issue?.selectionSnapshot || !issue.styleEdits) return [];
     return buildStyleDiff(
       {
         classList: issue.selectionSnapshot.classList,
@@ -113,14 +113,15 @@ export function DraftDetailDialog({
 
     const sel = issue.selectionSnapshot;
     const ctx = {
+      captureMode: issue.captureMode,
       title: issue.draft.title,
       body: issue.draft.body,
       expectedResult: issue.draft.expectedResult,
       url: issue.pageUrl,
-      selector: issue.selector,
+      selector: issue.selector ?? "",
       tagName: issue.tagName ?? "",
       classListBefore: sel?.classList ?? [],
-      classListAfter: issue.styleEdits.classList,
+      classListAfter: issue.styleEdits?.classList ?? [],
       specifiedStyles: sel?.specifiedStyles ?? {},
       tokens: issue.tokensSnapshot ?? [],
       viewport: sel?.viewport ?? { width: 0, height: 0 },
@@ -317,7 +318,7 @@ function FieldSection({
 function EnvBlock({ issue }: { issue: IssueRecord }) {
   const rows: { label: string; value: string }[] = [
     { label: "Page", value: issue.pageUrl || "-" },
-    { label: "DOM", value: issue.selector },
+    ...(issue.selector ? [{ label: "DOM", value: issue.selector }] : []),
   ];
   if (issue.selectionSnapshot) {
     rows.push({

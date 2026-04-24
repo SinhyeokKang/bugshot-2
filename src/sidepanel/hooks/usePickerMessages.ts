@@ -1,27 +1,30 @@
 import { useEffect } from "react";
 import { useEditorStore } from "@/store/editor-store";
-import type { PickerMessage } from "@/types/picker";
+import type { PickerMessage, ViewportRect } from "@/types/picker";
 import { captureElementSnapshot } from "../capture";
-import { collectTokens } from "../picker-control";
+import { collectTokens, showAnnotation, hideAnnotation } from "../picker-control";
+
+const ANNOTATE_KEY = "annotate:image";
 
 export function usePickerMessages(): void {
   useEffect(() => {
-    function handler(message: PickerMessage) {
+    function handler(message: PickerMessage | { type: string }) {
       if (!message || typeof message !== "object" || !("type" in message)) {
         return;
       }
 
       if (message.type === "picker.selected") {
+        const msg = message as Extract<PickerMessage, { type: "picker.selected" }>;
         useEditorStore.getState().onElementSelected({
-          selector: message.payload.selector,
-          tagName: message.payload.tagName,
-          classList: message.payload.classList,
-          computedStyles: message.payload.computedStyles,
-          specifiedStyles: message.payload.specifiedStyles,
-          hasParent: message.payload.hasParent,
-          hasChild: message.payload.hasChild,
-          text: message.payload.text,
-          viewport: message.payload.viewport,
+          selector: msg.payload.selector,
+          tagName: msg.payload.tagName,
+          classList: msg.payload.classList,
+          computedStyles: msg.payload.computedStyles,
+          specifiedStyles: msg.payload.specifiedStyles,
+          hasParent: msg.payload.hasParent,
+          hasChild: msg.payload.hasChild,
+          text: msg.payload.text,
+          viewport: msg.payload.viewport,
           capturedAt: Date.now(),
         });
         const tabId = useEditorStore.getState().target?.tabId;
@@ -33,14 +36,115 @@ export function usePickerMessages(): void {
             if (img) useEditorStore.getState().setBeforeImage(img);
           });
         }
+      } else if (message.type === "picker.areaSelected") {
+        const msg = message as Extract<PickerMessage, { type: "picker.areaSelected" }>;
+        void captureAndCrop(msg.rect);
+      } else if (message.type === "annotation.complete") {
+        void handleAnnotationComplete();
+      } else if (message.type === "annotation.cancelled") {
+        void handleAnnotationCancelled();
       } else if (message.type === "picker.cancelled") {
-        useEditorStore.getState().cancelPicking();
+        const { phase } = useEditorStore.getState();
+        if (phase === "capturing") {
+          useEditorStore.getState().reset();
+        } else {
+          useEditorStore.getState().cancelPicking();
+        }
       }
     }
 
     chrome.runtime.onMessage.addListener(handler);
+
+    const unsubStore = useEditorStore.subscribe((state, prev) => {
+      if (state.phase === "annotating" && prev.phase !== "annotating") {
+        void openAnnotation();
+      }
+    });
+
     return () => {
       chrome.runtime.onMessage.removeListener(handler);
+      unsubStore();
     };
   }, []);
+}
+
+async function openAnnotation(): Promise<void> {
+  const { screenshotRaw, target } = useEditorStore.getState();
+  if (!screenshotRaw || !target?.tabId) return;
+  await chrome.storage.session.set({ [ANNOTATE_KEY]: screenshotRaw });
+  void showAnnotation(target.tabId);
+}
+
+async function handleAnnotationComplete(): Promise<void> {
+  const tabId = useEditorStore.getState().target?.tabId;
+  if (tabId) void hideAnnotation(tabId);
+  const data = await chrome.storage.session.get(ANNOTATE_KEY);
+  const annotatedUrl = data[ANNOTATE_KEY] as string | undefined;
+  if (annotatedUrl) {
+    useEditorStore.getState().onAnnotated(annotatedUrl);
+  } else {
+    const raw = useEditorStore.getState().screenshotRaw;
+    if (raw) useEditorStore.getState().onAnnotated(raw);
+  }
+  await chrome.storage.session.remove(ANNOTATE_KEY);
+}
+
+async function handleAnnotationCancelled(): Promise<void> {
+  const tabId = useEditorStore.getState().target?.tabId;
+  if (tabId) void hideAnnotation(tabId);
+  useEditorStore.getState().reset();
+  await chrome.storage.session.remove(ANNOTATE_KEY);
+}
+
+async function captureAndCrop(rect: ViewportRect): Promise<void> {
+  try {
+    const tabId = useEditorStore.getState().target?.tabId;
+    if (!tabId) return;
+    const tab = await chrome.tabs.get(tabId);
+    if (!tab.windowId) return;
+    const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, {
+      format: "png",
+    });
+    const dpr = window.devicePixelRatio || 1;
+    const cropped = await cropImage(dataUrl, {
+      x: rect.x * dpr,
+      y: rect.y * dpr,
+      width: rect.width * dpr,
+      height: rect.height * dpr,
+    });
+    useEditorStore.getState().onAreaCaptured(cropped);
+  } catch (err) {
+    console.error("[bugshot] capture and crop failed", err);
+    useEditorStore.getState().reset();
+  }
+}
+
+function cropImage(
+  dataUrl: string,
+  rect: { x: number; y: number; width: number; height: number },
+): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement("canvas");
+      canvas.width = rect.width;
+      canvas.height = rect.height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return reject(new Error("canvas context failed"));
+      ctx.drawImage(
+        img,
+        rect.x,
+        rect.y,
+        rect.width,
+        rect.height,
+        0,
+        0,
+        rect.width,
+        rect.height,
+      );
+      resolve(canvas.toDataURL("image/png"));
+    };
+    img.onerror = () => reject(new Error("image load failed"));
+    img.src = dataUrl;
+  });
 }

@@ -2,6 +2,7 @@ import type { StyleDiffRow } from "../components/StyleChangesTable";
 import { formatTimestamp } from "./formatTimestamp";
 
 export interface MarkdownContext {
+  captureMode?: "element" | "screenshot" | "video";
   title: string;
   body: string;
   expectedResult: string;

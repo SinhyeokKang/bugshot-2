@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { chromeLocalStorage } from "./chrome-storage";
+import type { CaptureMode } from "./editor-store";
 
 export type IssueStatus = "draft" | "submitted";
 
@@ -42,13 +43,14 @@ export interface IssueRecord {
   createdAt: number;
   updatedAt: number;
 
+  captureMode?: CaptureMode;
   pageUrl: string;
   pageTitle?: string;
-  selector: string;
+  selector?: string;
   tagName?: string;
 
   draft: IssueDraftContent;
-  styleEdits: IssueStyleEdits;
+  styleEdits?: IssueStyleEdits;
   snapshot: IssueSnapshot;
 
   // 초안 재제출을 위한 풀 컨텍스트. 구 초안은 없을 수 있음 (optional).

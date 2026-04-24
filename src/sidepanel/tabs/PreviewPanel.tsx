@@ -19,17 +19,22 @@ import { buildIssueHtml, buildIssueMarkdown } from "../lib/buildIssueMarkdown";
 import { IssueCreateModal } from "./IssueCreateModal";
 
 export function PreviewPanel() {
+  const captureMode = useEditorStore((s) => s.captureMode);
   const selection = useEditorStore((s) => s.selection);
   const target = useEditorStore((s) => s.target);
   const styleEdits = useEditorStore((s) => s.styleEdits);
   const tokens = useEditorStore((s) => s.tokens);
   const beforeImage = useEditorStore((s) => s.beforeImage);
   const afterImage = useEditorStore((s) => s.afterImage);
+  const screenshotAnnotated = useEditorStore((s) => s.screenshotAnnotated);
+  const screenshotRaw = useEditorStore((s) => s.screenshotRaw);
   const draft = useEditorStore((s) => s.draft);
   const backToDraft = useEditorStore((s) => s.backToDraft);
   const reset = useEditorStore((s) => s.reset);
   const jiraConfig = useSettingsStore((s) => s.jiraConfig);
   const configured = isJiraConfigComplete(jiraConfig);
+  const isElementMode = captureMode === "element";
+  const screenshotImage = screenshotAnnotated ?? screenshotRaw;
 
   const diffs = useMemo(
     () => (selection ? buildStyleDiff(selection, styleEdits) : []),
@@ -43,9 +48,11 @@ export function PreviewPanel() {
     return () => window.clearTimeout(t);
   }, [copied]);
 
-  if (!selection || !draft) return null;
+  if (!draft) return null;
+  if (isElementMode && !selection) return null;
 
   const handleCopyMarkdown = async () => {
+    if (!isElementMode || !selection) return;
     const changedProps = new Set(diffs.map((d) => d.prop));
     const relevantValues = Object.entries(selection.specifiedStyles)
       .filter(([k]) => changedProps.has(k))
@@ -94,38 +101,63 @@ export function PreviewPanel() {
                 <span className="text-muted-foreground/70">(제목 없음)</span>
               )}
             </h1>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => void handleCopyMarkdown()}
-              className="shrink-0"
-            >
-              {copied ? <Check /> : <Copy />}
-              {copied ? "복사됨" : "마크다운 복사"}
-            </Button>
+            {isElementMode ? (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => void handleCopyMarkdown()}
+                className="shrink-0"
+              >
+                {copied ? <Check /> : <Copy />}
+                {copied ? "복사됨" : "마크다운 복사"}
+              </Button>
+            ) : null}
           </div>
         </Section>
 
-        <Section title="재현 환경">
-          <EnvParagraph
-            url={target?.url ?? ""}
-            selector={selection.selector}
-            viewport={selection.viewport}
-            capturedAt={selection.capturedAt}
-          />
-        </Section>
+        {isElementMode && selection ? (
+          <Section title="재현 환경">
+            <EnvParagraph
+              url={target?.url ?? ""}
+              selector={selection.selector}
+              viewport={selection.viewport}
+              capturedAt={selection.capturedAt}
+            />
+          </Section>
+        ) : (
+          <Section title="재현 환경">
+            <div className="space-y-1 text-sm leading-relaxed">
+              <div className="flex gap-3">
+                <span className="w-20 shrink-0 text-muted-foreground">Page</span>
+                <span className="break-all">{target?.url || "-"}</span>
+              </div>
+            </div>
+          </Section>
+        )}
 
         <Section title="발생 현상">
           <DocBody value={draft.body} />
         </Section>
 
-        <Section title="스타일 변경사항">
-          <StyleChangesTable
-            beforeImage={beforeImage}
-            afterImage={afterImage}
-            diffs={diffs}
-          />
-        </Section>
+        {isElementMode ? (
+          <Section title="스타일 변경사항">
+            <StyleChangesTable
+              beforeImage={beforeImage}
+              afterImage={afterImage}
+              diffs={diffs}
+            />
+          </Section>
+        ) : (
+          <Section title="미디어">
+            {screenshotImage ? (
+              <img
+                src={screenshotImage}
+                alt="캡처 이미지"
+                className="w-full rounded-lg border"
+              />
+            ) : null}
+          </Section>
+        )}
 
         <Section title="기대 결과">
           <DocBody value={draft.expectedResult} />

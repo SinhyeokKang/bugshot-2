@@ -5,6 +5,7 @@ import {
   Camera,
   CircleCheck,
   Crosshair,
+  ImageIcon,
   List,
   Video,
 } from "lucide-react";
@@ -21,7 +22,7 @@ import { Button } from "@/components/ui/button";
 import { useEditorStore } from "@/store/editor-store";
 import { useBoundTabId } from "../hooks/useBoundTabId";
 import { captureElementSnapshot } from "../capture";
-import { startPicker, stopPicker } from "../picker-control";
+import { startPicker, stopPicker, startAreaCapture, cancelAreaCapture } from "../picker-control";
 import { PageShell } from "../components/Section";
 import { useTabNav } from "../App";
 import { DraftingPanel } from "./DraftingPanel";
@@ -30,6 +31,7 @@ import { SelectedPanel } from "./StyleEditorPanel";
 
 export function IssueTab() {
   const phase = useEditorStore((s) => s.phase);
+  const captureMode = useEditorStore((s) => s.captureMode);
   const selection = useEditorStore((s) => s.selection);
   const reset = useEditorStore((s) => s.reset);
   const sessionExpired = useEditorStore((s) => s.sessionExpired);
@@ -62,8 +64,12 @@ export function IssueTab() {
     return <PickingState onCancel={() => void stopPicker(tabId)} />;
   }
 
-  if (phase === "idle" || !selection) {
-    return <EmptyState onStartElement={() => void startPicker(tabId)} />;
+  if (phase === "capturing") {
+    return <CapturingState onCancel={() => void cancelAreaCapture(tabId)} />;
+  }
+
+  if (phase === "annotating") {
+    return <AnnotatingState />;
   }
 
   if (phase === "drafting") {
@@ -72,10 +78,7 @@ export function IssueTab() {
         <DraftingPanel />
         <SessionExpiredDialog
           open={sessionExpired}
-          onConfirm={() => {
-            reset();
-            if (tabId) void startPicker(tabId);
-          }}
+          onConfirm={() => reset()}
         />
       </>
     );
@@ -89,15 +92,21 @@ export function IssueTab() {
     return <PreviewPanel />;
   }
 
+  if (phase === "idle" || (captureMode === "element" && !selection)) {
+    return (
+      <EmptyState
+        onStartElement={() => void startPicker(tabId)}
+        onStartScreenshot={() => void startAreaCapture(tabId)}
+      />
+    );
+  }
+
   return (
     <>
       <SelectedPanel />
       <SessionExpiredDialog
         open={sessionExpired}
-        onConfirm={() => {
-          reset();
-          if (tabId) void startPicker(tabId);
-        }}
+        onConfirm={() => reset()}
       />
     </>
   );
@@ -114,7 +123,7 @@ function UnsupportedPage() {
   );
 }
 
-function EmptyState({ onStartElement }: { onStartElement: () => void }) {
+function EmptyState({ onStartElement, onStartScreenshot }: { onStartElement: () => void; onStartScreenshot: () => void }) {
   return (
     <PageShell>
       <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 px-6">
@@ -129,7 +138,7 @@ function EmptyState({ onStartElement }: { onStartElement: () => void }) {
             <Crosshair />
             DOM 요소 선택
           </Button>
-          <Button variant="outline" disabled>
+          <Button variant="outline" onClick={onStartScreenshot}>
             <Camera />
             화면 캡처
           </Button>
@@ -159,10 +168,36 @@ function PickingState({ onCancel }: { onCancel: () => void }) {
   );
 }
 
+function CapturingState({ onCancel }: { onCancel: () => void }) {
+  return (
+    <PageShell>
+      <EmptyShell
+        icon={<ImageIcon className="h-6 w-6 text-muted-foreground" />}
+        title="캡처 영역을 선택하세요"
+        action={
+          <Button variant="outline" onClick={onCancel}>
+            취소
+          </Button>
+        }
+      />
+    </PageShell>
+  );
+}
+
+function AnnotatingState() {
+  return (
+    <PageShell>
+      <EmptyShell
+        icon={<Camera className="h-6 w-6 text-muted-foreground" />}
+        title="주석을 추가하세요"
+      />
+    </PageShell>
+  );
+}
+
 function SubmitSuccessView() {
   const submitResult = useEditorStore((s) => s.submitResult);
   const reset = useEditorStore((s) => s.reset);
-  const tabId = useBoundTabId();
   const setTab = useTabNav();
 
   if (!submitResult) return null;
@@ -194,12 +229,7 @@ function SubmitSuccessView() {
             <List className="h-4 w-4" />
             이슈 목록
           </Button>
-          <Button
-            onClick={() => {
-              reset();
-              if (tabId) void startPicker(tabId);
-            }}
-          >
+          <Button onClick={() => reset()}>
             확인
           </Button>
         </div>

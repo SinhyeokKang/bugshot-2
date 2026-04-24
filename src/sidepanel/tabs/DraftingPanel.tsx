@@ -5,7 +5,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useEditorStore } from "@/store/editor-store";
 import { useSettingsStore } from "@/store/settings-store";
 import { useBoundTabId } from "../hooks/useBoundTabId";
-import { clearPicker, startPicker } from "../picker-control";
+import { clearPicker } from "../picker-control";
 import { CancelConfirmDialog } from "../components/CancelConfirmDialog";
 import {
   PageFooter,
@@ -20,10 +20,13 @@ import {
 
 export function DraftingPanel() {
   const tabId = useBoundTabId();
+  const captureMode = useEditorStore((s) => s.captureMode);
   const selection = useEditorStore((s) => s.selection);
   const styleEdits = useEditorStore((s) => s.styleEdits);
   const beforeImage = useEditorStore((s) => s.beforeImage);
   const afterImage = useEditorStore((s) => s.afterImage);
+  const screenshotAnnotated = useEditorStore((s) => s.screenshotAnnotated);
+  const screenshotRaw = useEditorStore((s) => s.screenshotRaw);
   const draft = useEditorStore((s) => s.draft);
   const setDraft = useEditorStore((s) => s.setDraft);
   const reset = useEditorStore((s) => s.reset);
@@ -32,7 +35,8 @@ export function DraftingPanel() {
   const titlePrefix = useSettingsStore(
     (s) => s.jiraConfig?.titlePrefix ?? "",
   );
-  const isElementMode = true;
+  const isElementMode = captureMode === "element";
+  const screenshotImage = screenshotAnnotated ?? screenshotRaw;
 
   const diffs = useMemo(
     () => (selection ? buildStyleDiff(selection, styleEdits) : []),
@@ -41,15 +45,18 @@ export function DraftingPanel() {
 
   useEffect(() => {
     if (draft) return;
-    if (!selection) return;
+    if (captureMode === "element" && !selection) return;
+    if (captureMode === "screenshot" && !screenshotImage) return;
     setDraft({
       title: defaultTitle(titlePrefix),
       body: "",
       expectedResult: "",
     });
-  }, [draft, selection, setDraft, titlePrefix]);
+  }, [draft, selection, setDraft, titlePrefix, captureMode, screenshotImage]);
 
-  if (!selection || !draft) return null;
+  if (!draft) return null;
+  if (captureMode === "element" && !selection) return null;
+  if (captureMode === "screenshot" && !screenshotImage) return null;
 
   const titleMissing = !draft.title.trim();
 
@@ -75,13 +82,25 @@ export function DraftingPanel() {
           />
         </Section>
 
-        <Section title="스타일 변경사항">
-          <StyleChangesTable
-            beforeImage={beforeImage}
-            afterImage={afterImage}
-            diffs={diffs}
-          />
-        </Section>
+        {isElementMode ? (
+          <Section title="스타일 변경사항">
+            <StyleChangesTable
+              beforeImage={beforeImage}
+              afterImage={afterImage}
+              diffs={diffs}
+            />
+          </Section>
+        ) : (
+          <Section title="미디어">
+            {screenshotImage ? (
+              <img
+                src={screenshotImage}
+                alt="캡처 이미지"
+                className="w-full rounded-lg border"
+              />
+            ) : null}
+          </Section>
+        )}
 
         <Section title="기대 결과">
           <Textarea
@@ -100,10 +119,7 @@ export function DraftingPanel() {
           <CancelConfirmDialog
             onConfirm={() => {
               reset();
-              if (tabId) {
-                void clearPicker(tabId);
-                void startPicker(tabId);
-              }
+              if (tabId) void clearPicker(tabId);
             }}
           />
           <div className="flex items-center gap-2">

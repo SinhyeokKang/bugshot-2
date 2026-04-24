@@ -211,3 +211,51 @@ export async function endCapture(tabId: number): Promise<void> {
     /* ignore */
   }
 }
+
+export async function startAreaCapture(tabId: number): Promise<void> {
+  try {
+    const tab = await chrome.tabs.get(tabId);
+    useEditorStore.getState().startCapturing({
+      tabId,
+      url: tab.url ?? "",
+      title: tab.title ?? "",
+    });
+    await chrome.tabs.sendMessage<PickerMessage>(tabId, {
+      type: "picker.startAreaSelect",
+    });
+  } catch (err) {
+    console.error("[bugshot] area capture start failed", err);
+    useEditorStore.getState().reset();
+  }
+}
+
+export async function cancelAreaCapture(tabId: number): Promise<void> {
+  try {
+    await chrome.tabs.sendMessage<PickerMessage>(tabId, {
+      type: "picker.cancelAreaSelect",
+    });
+  } catch {
+    /* ignore */
+  }
+  useEditorStore.getState().reset();
+}
+
+export async function showAnnotation(tabId: number): Promise<void> {
+  try {
+    await chrome.tabs.sendMessage<PickerMessage>(tabId, {
+      type: "picker.showAnnotation",
+    });
+  } catch {
+    /* ignore */
+  }
+}
+
+export async function hideAnnotation(tabId: number): Promise<void> {
+  try {
+    await chrome.tabs.sendMessage<PickerMessage>(tabId, {
+      type: "picker.hideAnnotation",
+    });
+  } catch {
+    /* ignore */
+  }
+}

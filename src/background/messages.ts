@@ -104,16 +104,37 @@ async function submitIssue(
     try {
       const desc = payload.description;
       const content: unknown[] = [...desc.content];
-      const tableIdx = content.findIndex(
-        (n) => (n as { type: string }).type === "table",
-      );
-      if (tableIdx >= 0) {
-        const tbl = content[tableIdx] as { content: unknown[] };
-        tbl.content.splice(
-          1,
-          0,
-          snapshotRow(uploadMap.get("before.png"), uploadMap.get("after.png")),
+      const screenshotFile = uploadMap.get("screenshot.png");
+      if (screenshotFile) {
+        const mediaPlaceholderIdx = content.findIndex(
+          (n) => {
+            const node = n as { type: string; content?: { text?: string }[] };
+            return node.type === "paragraph" && node.content?.[0]?.text === "(첨부 이미지 참조)";
+          },
         );
+        if (mediaPlaceholderIdx >= 0) {
+          const mediaNode =
+            screenshotFile.kind === "media"
+              ? { type: "media", attrs: { type: "file", id: screenshotFile.mediaId, collection: "" } }
+              : { type: "media", attrs: { type: "external", url: screenshotFile.url } };
+          content[mediaPlaceholderIdx] = {
+            type: "mediaSingle",
+            attrs: { layout: "center" },
+            content: [mediaNode],
+          };
+        }
+      } else {
+        const tableIdx = content.findIndex(
+          (n) => (n as { type: string }).type === "table",
+        );
+        if (tableIdx >= 0) {
+          const tbl = content[tableIdx] as { content: unknown[] };
+          tbl.content.splice(
+            1,
+            0,
+            snapshotRow(uploadMap.get("before.png"), uploadMap.get("after.png")),
+          );
+        }
       }
       await updateIssueDescription(auth, issue.key, {
         version: 1,
@@ -121,7 +142,7 @@ async function submitIssue(
         content,
       });
     } catch (err) {
-      console.warn("[bugshot] description update with images failed", err);
+      console.warn("[bugshot] description update with images failed", err, JSON.stringify([...uploadMap.entries()]));
     }
   }
 

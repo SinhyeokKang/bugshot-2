@@ -31,7 +31,7 @@ export function IssueListTab() {
     () =>
       issues
         .filter(
-          (i) => i.status === "submitted" || !!i.selectionSnapshot,
+          (i) => i.status === "submitted" || !!i.selectionSnapshot || i.captureMode === "screenshot",
         )
         .sort((a, b) => b.createdAt - a.createdAt),
     [issues],

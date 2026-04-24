@@ -21,6 +21,8 @@ function snapshotFromState(): EditorSnapshot {
     tokens: s.tokens,
     beforeImage: s.beforeImage,
     afterImage: s.afterImage,
+    screenshotRaw: s.screenshotRaw,
+    screenshotAnnotated: s.screenshotAnnotated,
     draft: s.draft,
     issueFields: s.issueFields,
     currentIssueId: s.currentIssueId,
@@ -69,7 +71,7 @@ export function useEditorSessionSync(tabId: number | null): boolean {
       if (!change) return;
       if (change.newValue == null) {
         const { phase } = useEditorStore.getState();
-        if (phase === "styling" || phase === "drafting") {
+        if (phase === "styling" || phase === "drafting" || phase === "capturing" || phase === "annotating") {
           useEditorStore.setState({ sessionExpired: true });
         }
       }
