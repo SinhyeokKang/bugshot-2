@@ -12,6 +12,7 @@ const BG_REQUEST_TYPES = new Set([
   "jira.listIssueTypes",
   "jira.listPriorities",
   "jira.searchUsers",
+  "jira.getIssueStatus",
   "jira.searchEpics",
   "jira.submitIssue",
 ]);
@@ -37,6 +38,16 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
 });
 
 setupTabBindings();
+
+const PANEL_PORT_PREFIX = "bugshot-panel:";
+chrome.runtime.onConnect.addListener((port) => {
+  if (!port.name.startsWith(PANEL_PORT_PREFIX)) return;
+  const tabId = Number(port.name.slice(PANEL_PORT_PREFIX.length));
+  if (Number.isNaN(tabId)) return;
+  port.onDisconnect.addListener(() => {
+    chrome.storage.session.remove(`editor:${tabId}`).catch(() => {});
+  });
+});
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (!message || !BG_REQUEST_TYPES.has(message.type)) return false;

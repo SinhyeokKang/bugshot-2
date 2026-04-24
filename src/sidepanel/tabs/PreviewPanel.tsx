@@ -26,6 +26,7 @@ export function PreviewPanel() {
   const afterImage = useEditorStore((s) => s.afterImage);
   const draft = useEditorStore((s) => s.draft);
   const backToDraft = useEditorStore((s) => s.backToDraft);
+  const reset = useEditorStore((s) => s.reset);
   const jiraConfig = useSettingsStore((s) => s.jiraConfig);
   const configured = isJiraConfigComplete(jiraConfig);
 
@@ -139,16 +140,24 @@ export function PreviewPanel() {
             </AlertDescription>
           </Alert>
         ) : null}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between gap-2">
           <Button
-            size="xl"
+            size="lg"
             variant="outline"
-            className="flex-1"
-            onClick={() => backToDraft()}
+            onClick={() => reset()}
           >
-            이전
+            다른 이슈 작성
           </Button>
-          <IssueCreateModal />
+          <div className="flex items-center gap-2">
+            <Button
+              size="lg"
+              variant="outline"
+              onClick={() => backToDraft()}
+            >
+              이전
+            </Button>
+            <IssueCreateModal />
+          </div>
         </div>
       </PageFooter>
     </PageShell>

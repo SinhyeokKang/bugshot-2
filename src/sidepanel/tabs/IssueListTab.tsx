@@ -1,15 +1,23 @@
 import { useEffect, useMemo, useState } from "react";
-import { ExternalLink, FileEdit, Inbox, RefreshCw, Trash2 } from "lucide-react";
+import { ArrowUpRight, CircleCheck, Inbox, RefreshCw, Trash2 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { useIssuesStore, type IssueRecord } from "@/store/issues-store";
-import {
-  isJiraConfigComplete,
-  useSettingsStore,
-} from "@/store/settings-store";
+import { useSettingsStore, jiraSiteId } from "@/store/settings-store";
 import type { JiraIssueStatus } from "@/types/jira";
-import { sendBg } from "@/types/messages";
+import { sendBg, type JiraSubmitResult } from "@/types/messages";
 import { PageScroll, PageShell, Section } from "../components/Section";
 import { DraftDetailDialog } from "./DraftDetailDialog";
 
@@ -17,6 +25,7 @@ export function IssueListTab() {
   const issues = useIssuesStore((s) => s.issues);
   const [draftId, setDraftId] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [successResult, setSuccessResult] = useState<JiraSubmitResult | null>(null);
 
   const sorted = useMemo(
     () =>
@@ -32,6 +41,33 @@ export function IssueListTab() {
     () => (draftId ? issues.find((i) => i.id === draftId) ?? null : null),
     [issues, draftId],
   );
+
+  if (successResult) {
+    return (
+      <PageShell>
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 text-center">
+          <div className="mb-3 rounded-full bg-muted p-3">
+            <CircleCheck className="h-6 w-6 text-green-600" />
+          </div>
+          <h3 className="text-[18px] font-semibold">이슈가 제출되었습니다</h3>
+          <a
+            href={successResult.url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-2 inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
+          >
+            {successResult.key}
+            <ArrowUpRight className="h-3.5 w-3.5" />
+          </a>
+          <div className="mt-6">
+            <Button variant="outline" onClick={() => setSuccessResult(null)}>
+              확인
+            </Button>
+          </div>
+        </div>
+      </PageShell>
+    );
+  }
 
   if (sorted.length === 0) {
     return (
@@ -53,12 +89,12 @@ export function IssueListTab() {
           title="이슈 목록"
           action={
             <Button
-              variant="ghost"
+              variant="outline"
               size="icon"
-              className="h-7 w-7"
+              className="h-7 w-7 shrink-0"
               onClick={() => setRefreshKey((k) => k + 1)}
             >
-              <RefreshCw className="h-3.5 w-3.5" />
+              <RefreshCw />
             </Button>
           }
         >
@@ -78,6 +114,10 @@ export function IssueListTab() {
         issue={activeDraft}
         open={!!activeDraft}
         onOpenChange={(v) => !v && setDraftId(null)}
+        onSubmitSuccess={(result) => {
+          setDraftId(null);
+          setSuccessResult(result);
+        }}
       />
     </PageShell>
   );
@@ -96,25 +136,32 @@ function IssueRow({
   const removeIssue = useIssuesStore((s) => s.removeIssue);
 
   const metaParts: string[] = [];
-  if (isSubmitted && issue.key) metaParts.push(issue.key);
   metaParts.push(formatDate(issue.createdAt));
+  if (isSubmitted && issue.url) {
+    try { metaParts.push(new URL(issue.url).hostname); } catch {}
+  }
+  if (isSubmitted && issue.key) metaParts.push(`[${issue.key}]`);
+  if (!isSubmitted) metaParts.push("초안");
   if (issue.issueTypeName) metaParts.push(issue.issueTypeName);
   if (issue.priorityName) metaParts.push(issue.priorityName);
   if (issue.assigneeName) metaParts.push(issue.assigneeName);
 
   const handleCardClick = () => {
-    if (!isSubmitted) onOpenDraft();
+    if (isSubmitted) {
+      chrome.tabs.create({ url: issue.url!, active: true });
+    } else {
+      onOpenDraft();
+    }
   };
 
   return (
     <li>
       <Card
-        className={`group transition-colors hover:bg-muted/50 ${!isSubmitted ? "cursor-pointer" : ""}`}
+        className="group cursor-pointer transition-colors hover:bg-muted/50"
         onClick={handleCardClick}
       >
-        <CardContent className="flex items-start justify-between gap-3 px-4 py-3">
-          <div className="flex min-w-0 flex-col gap-1.5">
-            <StatusBadge issue={issue} refreshKey={refreshKey} />
+        <CardContent className="flex items-center justify-between gap-3 px-4 py-3">
+          <div className="flex min-w-0 flex-col">
             <span className="truncate text-base font-medium text-foreground">
               {issue.title || "(제목 없음)"}
             </span>
@@ -122,29 +169,37 @@ function IssueRow({
               {metaParts.join(" · ")}
             </span>
           </div>
-          {isSubmitted ? (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="shrink-0"
-              onClick={() =>
-                chrome.tabs.create({ url: issue.url!, active: true })
-              }
-            >
-              <ExternalLink className="h-4 w-4" />
-            </Button>
+          {isSubmitted && issue.key ? (
+            <SubmittedBadge issueKey={issue.key} issueSiteId={issue.jiraSiteId} refreshKey={refreshKey} />
           ) : (
-            <Button
-              variant="ghost"
-              size="icon"
-              className="shrink-0 text-muted-foreground hover:text-destructive"
-              onClick={(e) => {
-                e.stopPropagation();
-                removeIssue(issue.id);
-              }}
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <Trash2 />
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent onClick={(e) => e.stopPropagation()}>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>초안을 삭제할까요?</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    삭제된 초안은 복구할 수 없습니다.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>닫기</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() => removeIssue(issue.id)}
+                  >
+                    이슈 삭제
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
           )}
         </CardContent>
       </Card>
@@ -176,25 +231,15 @@ const STATUS_CATEGORY_COLORS: Record<
   },
 };
 
-function StatusBadge({ issue, refreshKey }: { issue: IssueRecord; refreshKey: number }) {
-  if (issue.status === "submitted" && issue.key) {
-    return <SubmittedBadge issueKey={issue.key} refreshKey={refreshKey} />;
-  }
-  return (
-    <Badge className="w-fit shrink-0 gap-1 border-transparent bg-amber-100 text-[11px] text-amber-900 shadow-none dark:bg-amber-500/15 dark:text-amber-200">
-      <FileEdit className="h-3 w-3" />
-      초안
-    </Badge>
-  );
-}
 
-function SubmittedBadge({ issueKey, refreshKey }: { issueKey: string; refreshKey: number }) {
+function SubmittedBadge({ issueKey, issueSiteId, refreshKey }: { issueKey: string; issueSiteId?: string; refreshKey: number }) {
   const jiraConfig = useSettingsStore((s) => s.jiraConfig);
-  const configured = isJiraConfigComplete(jiraConfig);
+  const currentSiteId = jiraConfig?.auth ? jiraSiteId(jiraConfig.auth) : null;
+  const siteMatch = !issueSiteId || currentSiteId === issueSiteId;
   const [status, setStatus] = useState<JiraIssueStatus | null>(null);
 
   useEffect(() => {
-    if (!configured || !jiraConfig?.auth) return;
+    if (!jiraConfig?.auth || !siteMatch) return;
     sendBg<JiraIssueStatus>({
       type: "jira.getIssueStatus",
       config: jiraConfig.auth,
@@ -202,7 +247,7 @@ function SubmittedBadge({ issueKey, refreshKey }: { issueKey: string; refreshKey
     })
       .then(setStatus)
       .catch(() => {});
-  }, [configured, jiraConfig?.auth, issueKey, refreshKey]);
+  }, [jiraConfig?.auth, issueKey, refreshKey, siteMatch]);
 
   const colors = status
     ? STATUS_CATEGORY_COLORS[status.categoryKey] ??
@@ -213,7 +258,8 @@ function SubmittedBadge({ issueKey, refreshKey }: { issueKey: string; refreshKey
 
   return (
     <Badge
-      className={`w-fit shrink-0 border-transparent text-[11px] shadow-none ${colors.bg} ${colors.text} ${colors.darkBg} ${colors.darkText}`}
+      variant="outline"
+      className={`w-fit shrink-0 border-transparent text-[11px] ${colors.bg} ${colors.text} ${colors.darkBg} ${colors.darkText}`}
     >
       {status.name}
     </Badge>

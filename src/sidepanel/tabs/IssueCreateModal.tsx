@@ -17,6 +17,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -32,6 +33,7 @@ import { useIssuesStore } from "@/store/issues-store";
 import {
   useSettingsStore,
   isJiraConfigComplete,
+  jiraSiteId,
 } from "@/store/settings-store";
 import type {
   JiraConfigPayload,
@@ -116,7 +118,11 @@ export function IssueCreateModal() {
       relatesKey: issueFields.relatesKey,
     });
     if (currentIssueId) {
-      markSubmitted(currentIssueId, { key: result.key, url: result.url });
+      markSubmitted(currentIssueId, {
+        key: result.key,
+        url: result.url,
+        jiraSiteId: jiraSiteId(jiraConfig.auth),
+      });
     }
     onSubmitted({ key: result.key, url: result.url });
     return result;
@@ -125,8 +131,7 @@ export function IssueCreateModal() {
   return (
     <>
       <Button
-        size="xl"
-        className="flex-1"
+        size="lg"
         disabled={!configured}
         onClick={() => setOpen(true)}
         title={configured ? undefined : "설정 탭에서 Jira를 먼저 연결하세요"}
@@ -238,31 +243,30 @@ export function SubmitFieldsDialog({
                 <AlertDescription>{submit.message}</AlertDescription>
               </Alert>
             ) : null}
-
-            <div className="mt-2 flex justify-end gap-2">
-              <Button
-                variant="outline"
-                onClick={() => handleOpenChange(false)}
-                disabled={submit.status === "submitting"}
-              >
-                닫기
-              </Button>
-              <Button
-                onClick={() => void handleSubmit()}
-                disabled={!canSubmit}
-              >
-                {submit.status === "submitting" ? (
-                  <>
-                    <Loader2 className="animate-spin" />
-                    제출 중...
-                  </>
-                ) : (
-                  "제출"
-                )}
-              </Button>
-            </div>
           </div>
         ) : null}
+        <DialogFooter>
+          <Button
+            variant="outline"
+            onClick={() => handleOpenChange(false)}
+            disabled={submit.status === "submitting"}
+          >
+            닫기
+          </Button>
+          <Button
+            onClick={() => void handleSubmit()}
+            disabled={!canSubmit}
+          >
+            {submit.status === "submitting" ? (
+              <>
+                <Loader2 className="animate-spin" />
+                제출 중...
+              </>
+            ) : (
+              "제출"
+            )}
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

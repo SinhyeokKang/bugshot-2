@@ -62,6 +62,7 @@ interface EditorState {
   issueFields: EditorIssueFields;
   currentIssueId: string | null;
   submitResult: { key: string; url: string } | null;
+  sessionExpired: boolean;
 
   startPicking: (target: EditorTarget) => void;
   cancelPicking: () => void;
@@ -112,6 +113,7 @@ const initial = {
   issueFields: {} as EditorIssueFields,
   currentIssueId: null as string | null,
   submitResult: null as { key: string; url: string } | null,
+  sessionExpired: false,
 };
 
 function newIssueId(): string {

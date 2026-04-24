@@ -97,6 +97,13 @@ export interface JiraAttachmentInput {
   dataUrl: string;
 }
 
+export interface JiraAttachmentResult {
+  id: string;
+  filename: string;
+  content?: string;
+  mediaApiFileId?: string;
+}
+
 export interface JiraSubmitResult {
   key: string;
   url: string;

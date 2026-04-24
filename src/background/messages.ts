@@ -10,6 +10,7 @@ import {
   searchEpics,
   searchProjects,
   searchUsers,
+  updateIssueDescription,
   uploadAttachment,
 } from "./jira-api";
 import { isOAuthConfigured, startOAuthFlow } from "./oauth";
@@ -78,12 +79,50 @@ async function submitIssue(
 ): Promise<JiraSubmitResult> {
   const issue = await createIssue(auth, payload);
 
+  type UploadedFile = { kind: "media"; mediaId: string } | { kind: "external"; url: string };
+  const uploadMap = new Map<string, UploadedFile>();
   for (const att of attachments) {
     try {
       const blob = dataUrlToBlob(att.dataUrl);
-      await uploadAttachment(auth, issue.key, att.filename, blob);
+      const results = await uploadAttachment(auth, issue.key, att.filename, blob);
+      const r = results[0];
+      if (r?.mediaApiFileId) {
+        uploadMap.set(att.filename, { kind: "media", mediaId: r.mediaApiFileId });
+      } else if (r?.id) {
+        const base =
+          auth.kind === "apiKey"
+            ? auth.baseUrl.replace(/\/+$/, "")
+            : auth.siteUrl.replace(/\/+$/, "");
+        const url = `${base}/secure/attachment/${r.id}/${encodeURIComponent(r.filename)}`;
+        uploadMap.set(att.filename, { kind: "external", url });
+      }
     } catch (err) {
       console.warn("[bugshot] attachment upload failed", att.filename, err);
+    }
+  }
+
+  if (uploadMap.size > 0) {
+    try {
+      const desc = payload.description;
+      const content: unknown[] = [...desc.content];
+      const tableIdx = content.findIndex(
+        (n) => (n as { type: string }).type === "table",
+      );
+      if (tableIdx >= 0) {
+        const tbl = content[tableIdx] as { content: unknown[] };
+        tbl.content.splice(
+          1,
+          0,
+          snapshotRow(uploadMap.get("before.png"), uploadMap.get("after.png")),
+        );
+      }
+      await updateIssueDescription(auth, issue.key, {
+        version: 1,
+        type: "doc",
+        content,
+      });
+    } catch (err) {
+      console.warn("[bugshot] description update with images failed", err);
     }
   }
 
@@ -97,6 +136,55 @@ async function submitIssue(
 
   const url = buildIssueUrl(auth, issue.key);
   return { key: issue.key, url };
+}
+
+function snapshotRow(
+  beforeFile?: UploadedFile,
+  afterFile?: UploadedFile,
+) {
+  return {
+    type: "tableRow",
+    content: [
+      {
+        type: "tableCell",
+        attrs: {},
+        content: [
+          {
+            type: "paragraph",
+            content: [{ type: "text", text: "스냅샷", marks: [{ type: "strong" }] }],
+          },
+        ],
+      },
+      snapshotCell(beforeFile),
+      snapshotCell(afterFile),
+    ],
+  };
+}
+
+type UploadedFile = { kind: "media"; mediaId: string } | { kind: "external"; url: string };
+
+function snapshotCell(file?: UploadedFile) {
+  const emptyCell = {
+    type: "tableCell" as const,
+    attrs: {},
+    content: [{ type: "paragraph", content: [{ type: "text", text: "" }] }],
+  };
+  if (!file) return emptyCell;
+  const mediaNode =
+    file.kind === "media"
+      ? { type: "media", attrs: { type: "file", id: file.mediaId, collection: "" } }
+      : { type: "media", attrs: { type: "external", url: file.url } };
+  return {
+    type: "tableCell" as const,
+    attrs: {},
+    content: [
+      {
+        type: "mediaSingle",
+        attrs: { layout: "center" },
+        content: [mediaNode],
+      },
+    ],
+  };
 }
 
 function dataUrlToBlob(dataUrl: string): Blob {

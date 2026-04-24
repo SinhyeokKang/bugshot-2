@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Info, Trash2 } from "lucide-react";
+import { Info } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   AlertDialog,
@@ -12,11 +12,12 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -25,6 +26,7 @@ import { useIssuesStore, type IssueRecord } from "@/store/issues-store";
 import {
   useSettingsStore,
   isJiraConfigComplete,
+  jiraSiteId,
 } from "@/store/settings-store";
 import { sendBg, type JiraSubmitResult } from "@/types/messages";
 import {
@@ -46,10 +48,12 @@ export function DraftDetailDialog({
   issue,
   open,
   onOpenChange,
+  onSubmitSuccess,
 }: {
   issue: IssueRecord | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onSubmitSuccess?: (result: JiraSubmitResult) => void;
 }) {
   const jiraConfig = useSettingsStore((s) => s.jiraConfig);
   const configured = isJiraConfigComplete(jiraConfig);
@@ -144,7 +148,11 @@ export function DraftDetailDialog({
       attachments,
       relatesKey: fields.relatesKey,
     });
-    markSubmitted(issue.id, { key: result.key, url: result.url });
+    markSubmitted(issue.id, {
+      key: result.key,
+      url: result.url,
+      jiraSiteId: jiraConfig?.auth ? jiraSiteId(jiraConfig.auth) : undefined,
+    });
     return result;
   }
 
@@ -158,99 +166,95 @@ export function DraftDetailDialog({
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="w-[80vw] max-w-[80vw] max-h-[80vh] gap-5 rounded-3xl p-6 sm:rounded-3xl">
-          <DialogHeader>
-            <DialogTitle className="text-xl">초안 검토</DialogTitle>
-          </DialogHeader>
+              <DialogHeader>
+                <DialogTitle className="text-xl">초안 검토</DialogTitle>
+              </DialogHeader>
 
-          <Card className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overscroll-contain bg-background p-4">
-            <FieldSection label="이슈 제목">
-              {issue.draft.title ? (
-                <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">
-                  {issue.draft.title}
-                </div>
-              ) : (
-                <p className="text-sm text-muted-foreground/70">비어 있음</p>
-              )}
-            </FieldSection>
+              <Card className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overscroll-contain bg-background p-4">
+                <FieldSection label="이슈 제목">
+                  {issue.draft.title ? (
+                    <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">
+                      {issue.draft.title}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-muted-foreground/70">비어 있음</p>
+                  )}
+                </FieldSection>
 
-            <FieldSection label="재현 환경">
-              <EnvBlock issue={issue} />
-            </FieldSection>
+                <FieldSection label="재현 환경">
+                  <EnvBlock issue={issue} />
+                </FieldSection>
 
-            {issue.draft.body ? (
-              <FieldSection label="발생 현상">
-                <DocBody value={issue.draft.body} />
-              </FieldSection>
-            ) : null}
+                {issue.draft.body ? (
+                  <FieldSection label="발생 현상">
+                    <DocBody value={issue.draft.body} />
+                  </FieldSection>
+                ) : null}
 
-            {hasStyleBlock ? (
-              <FieldSection label="스타일 변경사항">
-                <StyleChangesTable
-                  beforeImage={issue.snapshot.before}
-                  afterImage={issue.snapshot.after}
-                  diffs={diffs}
-                />
-              </FieldSection>
-            ) : null}
+                {hasStyleBlock ? (
+                  <FieldSection label="스타일 변경사항">
+                    <StyleChangesTable
+                      beforeImage={issue.snapshot.before}
+                      afterImage={issue.snapshot.after}
+                      diffs={diffs}
+                    />
+                  </FieldSection>
+                ) : null}
 
-            {issue.draft.expectedResult ? (
-              <FieldSection label="기대 결과">
-                <DocBody value={issue.draft.expectedResult} />
-              </FieldSection>
-            ) : null}
-          </Card>
+                {issue.draft.expectedResult ? (
+                  <FieldSection label="기대 결과">
+                    <DocBody value={issue.draft.expectedResult} />
+                  </FieldSection>
+                ) : null}
+              </Card>
 
-          {!configured ? (
-            <Alert variant="ghost">
-              <Info className="h-4 w-4" />
-              <AlertTitle>Jira가 연결되어 있지 않습니다</AlertTitle>
-              <AlertDescription>
-                Jira 이슈를 생성하시려면, 연동 탭에서 Jira를 먼저 연결해주세요.
-              </AlertDescription>
-            </Alert>
-          ) : null}
+              {!configured ? (
+                <Alert variant="ghost">
+                  <Info className="h-4 w-4" />
+                  <AlertTitle>Jira가 연결되어 있지 않습니다</AlertTitle>
+                  <AlertDescription>
+                    Jira 이슈를 생성하시려면, 연동 탭에서 Jira를 먼저 연결해주세요.
+                  </AlertDescription>
+                </Alert>
+              ) : null}
 
-          <div className="flex items-center justify-between gap-2">
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button
-                  variant="outline"
-                  className="text-destructive hover:text-destructive"
-                >
-                  <Trash2 />
-                  삭제
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>초안을 삭제할까요?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    삭제된 초안은 복구할 수 없습니다.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>취소</AlertDialogCancel>
-                  <AlertDialogAction
-                    onClick={handleDelete}
-                    className={buttonVariants({ variant: "destructive" })}
+              <DialogFooter className="!flex-row items-center !justify-between">
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className="text-destructive hover:text-destructive"
+                    >
+                      이슈 삭제
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>초안을 삭제할까요?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        삭제된 초안은 복구할 수 없습니다.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>닫기</AlertDialogCancel>
+                      <AlertDialogAction onClick={handleDelete}>
+                        이슈 삭제
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={() => onOpenChange(false)}>
+                    닫기
+                  </Button>
+                  <Button
+                    disabled={!configured}
+                    onClick={() => setSubmitOpen(true)}
                   >
-                    삭제
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-            <div className="flex gap-2">
-              <Button variant="outline" onClick={() => onOpenChange(false)}>
-                닫기
-              </Button>
-              <Button
-                disabled={!configured}
-                onClick={() => setSubmitOpen(true)}
-              >
-                Jira 이슈 제출
-              </Button>
-            </div>
-          </div>
+                    Jira 이슈 제출
+                  </Button>
+                </div>
+              </DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -261,7 +265,10 @@ export function DraftDetailDialog({
         fields={fields}
         onFieldsChange={(patch) => setFields((f) => ({ ...f, ...patch }))}
         onSubmit={handleSubmit}
-        onSuccess={() => onOpenChange(false)}
+        onSuccess={(result) => {
+          onOpenChange(false);
+          onSubmitSuccess?.(result);
+        }}
       />
     </>
   );

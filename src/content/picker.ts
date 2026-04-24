@@ -88,6 +88,13 @@ let previewEl: SVGRectElement | null = null;
 
 let rafHandle: number | null = null;
 
+chrome.runtime.onConnect.addListener((port) => {
+  if (port.name !== "bugshot-picker") return;
+  port.onDisconnect.addListener(() => {
+    if (mode !== "idle") handleClear();
+  });
+});
+
 chrome.runtime.onMessage.addListener(
   (msg: PickerMessage, _sender, sendResponse) => {
     if (!msg || typeof msg !== "object" || !("type" in msg)) return;
@@ -180,10 +187,27 @@ function handleStop(): void {
 
 function handleClear(): void {
   removeHoverListeners();
+  detachViewportListeners();
   restoreOriginal();
   selectedEl = null;
   lastHover = null;
-  setMode("idle");
+  mode = "idle";
+  if (rafHandle != null) {
+    cancelAnimationFrame(rafHandle);
+    rafHandle = null;
+  }
+  if (hostEl) {
+    hostEl.remove();
+    hostEl = null;
+    shadow = null;
+    bannerEl = null;
+    blockerEl = null;
+    marginEl = null;
+    paddingEl = null;
+    gapEl = null;
+    borderEl = null;
+    previewEl = null;
+  }
 }
 
 function handleNavigate(direction: "parent" | "child"): void {
@@ -837,25 +861,39 @@ const TRBL_SHORTHANDS: Record<string, [string, string, string, string]> = {
 // border-radius는 `/` 구분된 x/y 쌍이 올 수 있는데 그 경우는 복잡도 때문에 분해 포기(원본 반환).
 function splitTrblValue(value: string): [string, string, string, string] | null {
   if (value.includes("/")) return null;
-  const parts = value.trim().split(/\s+/).filter(Boolean);
+  const parts = splitCssTokens(value);
   if (parts.length === 0 || parts.length > 4) return null;
   const [a, b = a, c = a, d = b] = parts;
   return [a, b, c, d];
 }
 
+function splitCssTokens(value: string): string[] {
+  const parts: string[] = [];
+  let current = "";
+  let depth = 0;
+  for (const ch of value) {
+    if (ch === "(") depth++;
+    else if (ch === ")") depth--;
+    if (ch === " " && depth === 0) {
+      if (current) parts.push(current);
+      current = "";
+    } else {
+      current += ch;
+    }
+  }
+  if (current) parts.push(current);
+  return parts;
+}
+
 // NOTE: Chrome CSSOM은 shorthand(var 포함) + 해당 shorthand의 longhand 부분 override
 // 조합에서 shorthand를 4개 longhand로 explode하며 **원본 var() 값을 빈 문자열로 대체**한다.
-// `rule.style.cssText` / `getPropertyValue`로 복구 불가 (예: `.user-message` border-radius).
-// 이 케이스는 현재 토큰 매핑 불가, 컴포넌트 literal fallback. CSS 원본 텍스트 fetch 방식으로만
-// 우회 가능하지만 async 리팩터 비용 커서 유보.
+// 이 케이스는 현재 토큰 매핑 불가, 컴포넌트 literal fallback.
 function expandShorthands(all: Record<string, string>): void {
   for (const [shorthand, longhands] of Object.entries(SHORTHAND_MAP)) {
     if (!(shorthand in all)) continue;
     const value = all[shorthand];
     const trbl = TRBL_SHORTHANDS[shorthand];
-    // var() 포함 값은 분해해도 토큰 이름이 쪼개져 의미 없음 → 기존처럼 통째 복사.
-    const canSplit = trbl && !value.includes("var(");
-    const split = canSplit ? splitTrblValue(value) : null;
+    const split = trbl ? splitTrblValue(value) : null;
     if (split) {
       for (let i = 0; i < trbl.length; i++) {
         const lh = trbl[i];
@@ -1028,9 +1066,13 @@ function extractVarPropsFromCssText(
     if (!out[prop] || !out[prop].includes("var(")) out[prop] = val;
     const longhands = SHORTHAND_MAP[prop];
     if (!longhands) continue;
-    for (const lh of longhands) {
+    const trbl = TRBL_SHORTHANDS[prop];
+    const split = trbl ? splitTrblValue(val) : null;
+    for (let j = 0; j < longhands.length; j++) {
+      const lh = longhands[j];
       if (lh in declared) continue;
-      if (!out[lh] || !out[lh].includes("var(")) out[lh] = val;
+      const lhVal = split ? split[j] : val;
+      if (!out[lh] || !out[lh].includes("var(")) out[lh] = lhVal;
     }
   }
 }

@@ -57,6 +57,12 @@ async function apply(tabId: number, url: string | undefined): Promise<void> {
   }
 }
 
+async function clearEditorSession(tabId: number): Promise<void> {
+  try {
+    await chrome.storage.session.remove(sessionKey(tabId));
+  } catch {}
+}
+
 async function clearIfPageChanged(
   tabId: number,
   newUrl: string | undefined,
@@ -108,7 +114,10 @@ export function setupTabBindings(): void {
     if (info.url) {
       void clearIfPageChanged(tabId, info.url);
       void apply(tabId, info.url);
-    } else if (info.status === "complete") {
+    } else if (info.status === "loading") {
+      void clearEditorSession(tabId);
+    }
+    if (info.status === "complete") {
       void apply(tabId, tab.url);
     }
   });

@@ -84,7 +84,9 @@ export function SettingsTab() {
       </PageScroll>
 
       <PageFooter>
-        <DisconnectButton />
+        <div className="flex justify-end">
+          <DisconnectButton />
+        </div>
       </PageFooter>
 
       <SetupDialog />
@@ -559,7 +561,7 @@ function DisconnectButton() {
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
-        <Button size="xl" variant="outline" className="w-full">
+        <Button size="lg" variant="outline">
           Jira 연결 해제
         </Button>
       </AlertDialogTrigger>
@@ -571,7 +573,7 @@ function DisconnectButton() {
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>취소</AlertDialogCancel>
+          <AlertDialogCancel>닫기</AlertDialogCancel>
           <AlertDialogAction
             onClick={() => clearJiraConfig()}
           >

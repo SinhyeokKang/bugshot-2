@@ -41,6 +41,18 @@ export default function App() {
     }
   }, [settingsHydrated]);
 
+  useEffect(() => {
+    if (tabId == null) return;
+    const pickerPort = chrome.tabs.connect(tabId, { name: "bugshot-picker" });
+    pickerPort.onDisconnect.addListener(() => {});
+    const bgPort = chrome.runtime.connect({ name: `bugshot-panel:${tabId}` });
+    bgPort.onDisconnect.addListener(() => {});
+    return () => {
+      try { pickerPort.disconnect(); } catch {}
+      try { bgPort.disconnect(); } catch {}
+    };
+  }, [tabId]);
+
   if (!editorHydrated || !settingsHydrated) return null;
 
   return (

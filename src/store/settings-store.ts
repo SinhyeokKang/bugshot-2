@@ -83,6 +83,15 @@ export function jiraCredentialsFilled(cfg: JiraConfig | null): boolean {
   return !!cfg?.auth;
 }
 
+export function jiraSiteId(auth: JiraAuth): string {
+  if (auth.kind === "oauth") return auth.cloudId;
+  try {
+    return new URL(auth.baseUrl).hostname;
+  } catch {
+    return auth.baseUrl;
+  }
+}
+
 export function jiraHostLabel(auth: JiraAuth): string {
   const url = auth.kind === "apiKey" ? auth.baseUrl : auth.siteUrl;
   try {

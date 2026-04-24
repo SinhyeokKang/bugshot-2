@@ -32,7 +32,7 @@ const AlertDialogContent = React.forwardRef<
     <AlertDialogPrimitive.Content
       ref={ref}
       className={cn(
-        "fixed inset-0 z-50 m-auto flex h-fit w-[calc(100%-2rem)] max-w-[360px] flex-col gap-4 rounded-2xl border bg-background p-6 shadow-lg data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 duration-300",
+        "fixed inset-0 z-50 m-auto flex h-fit w-[calc(100%-2rem)] max-w-[360px] flex-col gap-4 overflow-hidden rounded-2xl border bg-background p-5 shadow-lg data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 duration-300",
         className,
       )}
       {...props}
@@ -61,7 +61,7 @@ const AlertDialogFooter = ({
 }: React.HTMLAttributes<HTMLDivElement>) => (
   <div
     className={cn(
-      "flex flex-row justify-end gap-2",
+      "flex flex-row justify-end gap-2 -mx-5 -mb-5 border-t border-border bg-muted/50 p-5 rounded-b-2xl",
       className,
     )}
     {...props}
@@ -76,7 +76,7 @@ const AlertDialogTitle = React.forwardRef<
   <AlertDialogPrimitive.Title
     ref={ref}
     className={cn(
-      "text-lg font-semibold leading-none tracking-tight",
+      "text-base font-medium leading-none tracking-tight",
       className,
     )}
     {...props}

@@ -15,9 +15,22 @@ import {
   Link,
   List,
   MousePointerClick,
+  PenLine,
   RotateCcw,
   Unlink,
+  X,
 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -50,7 +63,8 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
-import { useEditorStore } from "@/store/editor-store";
+import { useEditorStore, type EditorStyleEdits } from "@/store/editor-store";
+import { useIssuesStore } from "@/store/issues-store";
 import type { Token, TokenCategory, TreeNode } from "@/types/picker";
 import { useBoundTabId } from "../hooks/useBoundTabId";
 import { captureElementSnapshot } from "../capture";
@@ -205,6 +219,10 @@ export function IssueTab() {
   const tabId = useBoundTabId();
   const phase = useEditorStore((s) => s.phase);
   const selection = useEditorStore((s) => s.selection);
+  const sessionExpired = useEditorStore((s) => s.sessionExpired);
+  const currentIssueId = useEditorStore((s) => s.currentIssueId);
+  const reset = useEditorStore((s) => s.reset);
+  const issues = useIssuesStore((s) => s.issues);
 
   useEffect(() => {
     if (!tabId) return;
@@ -212,11 +230,23 @@ export function IssueTab() {
       void startPicker(tabId);
     }
     return () => {
-      if (useEditorStore.getState().phase === "picking") {
+      const p = useEditorStore.getState().phase;
+      if (p === "picking") {
         void stopPicker(tabId);
+      } else if (p !== "idle") {
+        void clearPicker(tabId);
       }
     };
   }, [tabId]);
+
+  useEffect(() => {
+    if (!currentIssueId || phase !== "previewing") return;
+    const issue = issues.find((i) => i.id === currentIssueId);
+    if (issue?.status === "submitted") {
+      reset();
+      if (tabId) void startPicker(tabId);
+    }
+  }, [currentIssueId, phase, issues, reset, tabId]);
 
   if (!tabId) {
     return <UnsupportedPage />;
@@ -231,7 +261,18 @@ export function IssueTab() {
   }
 
   if (phase === "drafting") {
-    return <DraftingPanel />;
+    return (
+      <>
+        <DraftingPanel />
+        <SessionExpiredDialog
+          open={sessionExpired}
+          onConfirm={() => {
+            reset();
+            if (tabId) void startPicker(tabId);
+          }}
+        />
+      </>
+    );
   }
 
   if (phase === "done") {
@@ -242,7 +283,18 @@ export function IssueTab() {
     return <PreviewPanel />;
   }
 
-  return <SelectedPanel />;
+  return (
+    <>
+      <SelectedPanel />
+      <SessionExpiredDialog
+        open={sessionExpired}
+        onConfirm={() => {
+          reset();
+          if (tabId) void startPicker(tabId);
+        }}
+      />
+    </>
+  );
 }
 
 function UnsupportedPage() {
@@ -292,7 +344,6 @@ function PickingState({ onCancel }: { onCancel: () => void }) {
 function SelectedPanel() {
   const selection = useEditorStore((s) => s.selection);
   const styleEdits = useEditorStore((s) => s.styleEdits);
-  const setStyleEdits = useEditorStore((s) => s.setStyleEdits);
   const setAfterImage = useEditorStore((s) => s.setAfterImage);
   const confirmStyles = useEditorStore((s) => s.confirmStyles);
   const reset = useEditorStore((s) => s.reset);
@@ -312,21 +363,6 @@ function SelectedPanel() {
   const changeCount =
     inlineCount + (classDirty ? 1 : 0) + (textDirty ? 1 : 0);
   const hasChange = changeCount > 0;
-
-  const handleResetAll = () => {
-    const originalClass = [...selection.classList];
-    const originalText = selection.text ?? "";
-    setStyleEdits({
-      inlineStyle: {},
-      classList: originalClass,
-      text: originalText,
-    });
-    if (tabId) {
-      void resetEdits(tabId);
-      if (classDirty) void applyClasses(tabId, originalClass);
-      if (textDirty) void applyText(tabId, originalText);
-    }
-  };
 
   const handleNext = async () => {
     if (!tabId || proceeding) return;
@@ -540,74 +576,87 @@ function SelectedPanel() {
         collapsible
         defaultOpen={hasSpecified(SECTION_PROPS.effects)}
       >
-        <Row2>
-          <TextProp label="box-shadow" prop="box-shadow" />
-          <TextProp label="filter" prop="filter" />
-        </Row2>
-        <Row2>
-          <TextProp label="backdrop-filter" prop="backdrop-filter" />
-          <SelectProp
-            label="mix-blend-mode"
-            prop="mix-blend-mode"
-            options={[
-              "",
-              "normal",
-              "multiply",
-              "screen",
-              "overlay",
-              "darken",
-              "lighten",
-              "color-dodge",
-              "color-burn",
-              "difference",
-              "exclusion",
-              "hue",
-              "saturation",
-              "color",
-              "luminosity",
-            ]}
-          />
-        </Row2>
+        <BoxShadowProp />
+        <TextProp label="filter" prop="filter" />
+        <TextProp label="backdrop-filter" prop="backdrop-filter" />
+        <SelectProp
+          label="mix-blend-mode"
+          prop="mix-blend-mode"
+          options={[
+            "",
+            "normal",
+            "multiply",
+            "screen",
+            "overlay",
+            "darken",
+            "lighten",
+            "color-dodge",
+            "color-burn",
+            "difference",
+            "exclusion",
+            "hue",
+            "saturation",
+            "color",
+            "luminosity",
+          ]}
+        />
         </Section>
       </PageScroll>
       <PageFooter>
-        <div className="flex items-center justify-between">
-          <span className="text-xs text-muted-foreground">
-            변경사항 {changeCount}개 적용 중
-          </span>
-          <Button
-            size="sm"
-            variant="ghost"
-            onClick={handleResetAll}
-            disabled={!hasChange}
-          >
-            <RotateCcw />
-            모두 초기화
-          </Button>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button
-            size="xl"
-            variant="outline"
-            className="flex-1"
-            onClick={() => {
+        <div className="flex items-center justify-between gap-2">
+          <CancelConfirmDialog
+            onConfirm={() => {
               reset();
               if (tabId) {
                 void clearPicker(tabId);
                 void startPicker(tabId);
               }
             }}
-          >
-            다시 선택
-          </Button>
-          <Button
-            size="xl"
-            className="flex-1"
-            onClick={() => void handleNext()}
-            disabled={proceeding || !hasChange}
-          >
-            다음
-          </Button>
+          />
+          <div className="flex items-center gap-2">
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  size="lg"
+                  variant="outline"
+                  disabled={!hasChange}
+                >
+                  변경사항 초기화
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>변경사항 초기화</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    {changeCount}건의 변경사항을 초기화하시겠습니까? 모든 스타일이 원래 값으로 돌아갑니다.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>닫기</AlertDialogCancel>
+                  <AlertDialogAction
+                    onClick={() => {
+                      const initial: EditorStyleEdits = {
+                        classList: [...selection.classList],
+                        inlineStyle: {},
+                        text: selection.text ?? "",
+                      };
+                      useEditorStore.getState().setStyleEdits(initial);
+                      if (tabId) void resetEdits(tabId);
+                    }}
+                  >
+                    초기화
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+            <Button
+              size="lg"
+              onClick={() => void handleNext()}
+              disabled={proceeding || !hasChange}
+            >
+              다음
+            </Button>
+          </div>
         </div>
       </PageFooter>
     </PageShell>
@@ -637,7 +686,7 @@ function ClassEditor() {
     <Textarea
       value={value}
       onChange={(e) => handleChange(e.target.value)}
-      placeholder="공백 구분 class"
+      placeholder=""
       className="min-h-9 resize-none text-sm [field-sizing:content]"
       rows={1}
       spellCheck={false}
@@ -867,6 +916,62 @@ function TextProp({ label, prop }: { label: string; prop: string }) {
   return (
     <PropRow label={label}>
       <ValueCombobox prop={prop} />
+    </PropRow>
+  );
+}
+
+function splitShadowLayers(raw: string): string[] {
+  if (!raw || raw === "none") return [];
+  const parts: string[] = [];
+  let cur = "";
+  let depth = 0;
+  for (const ch of raw) {
+    if (ch === "(") depth++;
+    else if (ch === ")") depth--;
+    if (ch === "," && depth === 0) {
+      parts.push(cur.trim());
+      cur = "";
+    } else {
+      cur += ch;
+    }
+  }
+  if (cur.trim()) parts.push(cur.trim());
+  return parts;
+}
+
+function BoxShadowProp() {
+  const { value, placeholder, set } = useStyleProp("box-shadow");
+
+  const valueParts = useMemo(() => splitShadowLayers(value), [value]);
+  const placeholderParts = useMemo(() => splitShadowLayers(placeholder), [placeholder]);
+  const count = Math.max(placeholderParts.length, 1);
+
+  const setLayer = (i: number, v: string) => {
+    const parts =
+      valueParts.length > 0
+        ? [...valueParts]
+        : [...placeholderParts];
+    while (parts.length < count) parts.push("");
+    parts[i] = v;
+    const cleaned = parts.filter(Boolean);
+    set(cleaned.length > 0 ? cleaned.join(", ") : "");
+  };
+
+  return (
+    <PropRow label="box-shadow">
+      <div className="flex flex-col gap-1">
+        {Array.from({ length: count }, (_, i) => (
+          <ValueCombobox
+            key={i}
+            prop="box-shadow"
+            controlled={{
+              value: valueParts[i] ?? "",
+              placeholder: placeholderParts[i] ?? "",
+              set: (v) => setLayer(i, v),
+            }}
+          />
+        ))}
+      </div>
     </PropRow>
   );
 }
@@ -1103,14 +1208,19 @@ function ValueCombobox({
   icon,
   iconTitle,
   onLinkedCommit,
+  controlled,
 }: {
   prop: string;
   compact?: boolean;
   icon?: React.ReactNode;
   iconTitle?: string;
   onLinkedCommit?: (value: string) => void;
+  controlled?: { value: string; placeholder: string; set: (v: string) => void };
 }) {
-  const { value, placeholder, set } = useStyleProp(prop);
+  const styleProp = useStyleProp(prop);
+  const value = controlled?.value ?? styleProp.value;
+  const placeholder = controlled?.placeholder ?? styleProp.placeholder;
+  const set = controlled?.set ?? styleProp.set;
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(value);
   const [showAll, setShowAll] = useState(false);
@@ -1121,7 +1231,7 @@ function ValueCombobox({
   const placeholderTokenNames = !value ? extractAllTokenNames(placeholder) : [];
   const isDefault = !value && isKnownDefault(prop, placeholder);
   const activeTokenNames = tokenNames.length > 0 ? tokenNames : placeholderTokenNames;
-  const familyPrefixes = useMemo(() => {
+  const liveFamilyPrefixes = useMemo(() => {
     const prefixes: string[] = [];
     for (const n of activeTokenNames) {
       const p = tokenFamilyPrefix(n, tokens);
@@ -1129,6 +1239,8 @@ function ValueCombobox({
     }
     return prefixes;
   }, [activeTokenNames, tokens]);
+  const [pinnedPrefixes, setPinnedPrefixes] = useState<string[] | null>(null);
+  const familyPrefixes = pinnedPrefixes ?? liveFamilyPrefixes;
 
   const draftLooksLikeToken = /^var\(/.test(draft.trim());
 
@@ -1181,44 +1293,21 @@ function ValueCombobox({
     [extra, draft, draftLooksLikeToken],
   );
 
-  const isMulti = activeTokenNames.length > 1;
-
   const commit = (next: string) => {
     if (onLinkedCommit) onLinkedCommit(next);
     else set(next);
     setOpen(false);
   };
 
-  const toggle = (tokenName: string) => {
-    const current = extractAllTokenNames(value);
-    const idx = current.indexOf(tokenName);
-    let next: string[];
-    if (idx >= 0) {
-      next = current.filter((_, i) => i !== idx);
-    } else {
-      next = [...current, tokenName];
-    }
-    if (next.length === 0) {
-      if (onLinkedCommit) onLinkedCommit("");
-      else set("");
-    } else {
-      const val = next.map((n) => `var(${n})`).join(", ");
-      if (onLinkedCommit) onLinkedCommit(val);
-      else set(val);
-    }
-  };
-
-  const onTokenSelect = isMulti
-    ? (tokenVarExpr: string) => {
-        const m = /^var\(\s*(--[^\s,)]+)/.exec(tokenVarExpr);
-        if (m) toggle(m[1]);
-      }
-    : commit;
+  const onTokenSelect = commit;
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (nextOpen) {
       setDraft(tokenNames.length > 0 ? "" : value);
       setShowAll(false);
+      setPinnedPrefixes(liveFamilyPrefixes);
+    } else {
+      setPinnedPrefixes(null);
     }
     setOpen(nextOpen);
   };
@@ -1300,26 +1389,36 @@ function ValueCombobox({
       >
         <Command shouldFilter={false}>
           <CommandInput
-            placeholder="값 또는 토큰 검색"
+            placeholder="값 직접 입력 또는 토큰 검색"
             value={draft}
             onValueChange={(v) => {
               setDraft(v);
               if (onLinkedCommit) onLinkedCommit(v.trim());
               else set(v.trim());
             }}
+            icon={<PenLine className="mr-2 h-4 w-4 shrink-0 opacity-50" />}
             className="h-9"
             onKeyDown={(e) => {
-              if (
-                e.key === "Enter" &&
-                !(e.nativeEvent as unknown as { isComposing: boolean })
-                  .isComposing
-              ) {
-                e.preventDefault();
-                setOpen(false);
-              }
+              if (e.key === "Enter") e.preventDefault();
             }}
           />
           <CommandList>
+            {value || placeholder ? (
+              <CommandGroup heading="동작">
+                {value ? (
+                  <CommandItem value="__clear__" onSelect={() => commit("")}>
+                    <RotateCcw className="h-3.5 w-3.5" />
+                    <span className="text-xs">원래 값 (reset)</span>
+                  </CommandItem>
+                ) : null}
+                {value !== "unset" ? (
+                  <CommandItem value="__unset__" onSelect={() => commit("unset")}>
+                    <X className="h-3.5 w-3.5" />
+                    <span className="text-xs">값 해제 (unset)</span>
+                  </CommandItem>
+                ) : null}
+              </CommandGroup>
+            ) : null}
             {showRawItem && !draftLooksLikeToken ? (
               <CommandGroup heading="직접 입력">
                 <CommandItem
@@ -1378,14 +1477,6 @@ function ValueCombobox({
                   onCommit={onTokenSelect}
                 />
                 ))}
-              </CommandGroup>
-            ) : null}
-            {value ? (
-              <CommandGroup heading="동작">
-                <CommandItem value="__clear__" onSelect={() => commit("")}>
-                  <RotateCcw className="h-3.5 w-3.5" />
-                  <span className="text-xs">값 지우기</span>
-                </CommandItem>
               </CommandGroup>
             ) : null}
           </CommandList>
@@ -1478,6 +1569,54 @@ function extractAllTokenNames(value: string): string[] {
   let m: RegExpExecArray | null;
   while ((m = re.exec(value)) !== null) names.push(m[1]);
   return names;
+}
+
+export function CancelConfirmDialog({ onConfirm }: { onConfirm: () => void }) {
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button size="lg" variant="outline" className="text-destructive">
+          작성 취소
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>작성을 취소할까요?</AlertDialogTitle>
+          <AlertDialogDescription>
+            작성 중인 내용이 모두 초기화됩니다.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>닫기</AlertDialogCancel>
+          <AlertDialogAction onClick={onConfirm}>작성 취소</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
+function SessionExpiredDialog({
+  open,
+  onConfirm,
+}: {
+  open: boolean;
+  onConfirm: () => void;
+}) {
+  return (
+    <AlertDialog open={open}>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>페이지가 갱신되었습니다</AlertDialogTitle>
+          <AlertDialogDescription>
+            작성 중인 내용이 초기화됩니다.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogAction onClick={onConfirm}>확인</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
 }
 
 function tokenFamilyPrefix(

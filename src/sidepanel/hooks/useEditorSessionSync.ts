@@ -67,7 +67,10 @@ export function useEditorSessionSync(tabId: number | null): boolean {
       const change = changes[key];
       if (!change) return;
       if (change.newValue == null) {
-        useEditorStore.getState().reset();
+        const { phase } = useEditorStore.getState();
+        if (phase === "styling" || phase === "drafting") {
+          useEditorStore.setState({ sessionExpired: true });
+        }
       }
     };
     chrome.storage.onChanged.addListener(onChanged);

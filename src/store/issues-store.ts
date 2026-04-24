@@ -57,6 +57,7 @@ export interface IssueRecord {
 
   key?: string;
   url?: string;
+  jiraSiteId?: string;
   issueTypeName?: string;
   priorityName?: string;
   assigneeName?: string;

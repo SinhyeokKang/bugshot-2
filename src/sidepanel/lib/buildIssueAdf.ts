@@ -31,16 +31,12 @@ export function buildIssueAdf(ctx: MarkdownContext): AdfDoc {
   content.push(...textBlock(ctx.body));
 
   content.push(heading(2, "스타일 변경사항"));
-  if (ctx.diffs.length > 0) {
-    content.push(
-      table(
-        ["속성", "As is", "To be"],
-        ctx.diffs.map((d) => [d.prop, d.asIs, d.toBe]),
-      ),
-    );
-  } else {
-    content.push(paragraph([textNode("변경 사항 없음")]));
-  }
+  content.push(
+    table(
+      ["속성", "As is", "To be"],
+      ctx.diffs.map((d) => [d.prop, d.asIs, d.toBe]),
+    ),
+  );
 
   content.push(heading(2, "기대 결과"));
   content.push(...textBlock(ctx.expectedResult));

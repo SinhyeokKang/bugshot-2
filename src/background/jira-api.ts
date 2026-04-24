@@ -1,4 +1,5 @@
 import type {
+  JiraAttachmentResult,
   JiraAuth,
   JiraCreateIssuePayload,
   JiraCreateIssueResult,
@@ -9,6 +10,7 @@ import type {
   JiraProject,
   JiraUser,
 } from "@/types/jira";
+import type { JiraAdfDoc } from "@/types/jira";
 import { refreshOAuthToken, persistOAuthTokens } from "./oauth";
 
 export class JiraError extends Error {
@@ -247,13 +249,28 @@ export async function uploadAttachment(
   issueKey: string,
   filename: string,
   blob: Blob,
-): Promise<unknown> {
+): Promise<JiraAttachmentResult[]> {
   const form = new FormData();
   form.append("file", blob, filename);
-  return jiraMultipart(
+  return jiraMultipart<JiraAttachmentResult[]>(
     auth,
     `/rest/api/3/issue/${encodeURIComponent(issueKey)}/attachments`,
     form,
+  );
+}
+
+export async function updateIssueDescription(
+  auth: JiraAuth,
+  issueKey: string,
+  description: JiraAdfDoc,
+): Promise<void> {
+  await jiraFetch(
+    auth,
+    `/rest/api/3/issue/${encodeURIComponent(issueKey)}`,
+    {
+      method: "PUT",
+      body: JSON.stringify({ fields: { description } }),
+    },
   );
 }
 
