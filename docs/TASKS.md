@@ -2,7 +2,7 @@
 
 PRD(`docs/PRD.md`) 기준 작업 목록. 다른 환경에서 이어서 작업할 때 참고. Claude Code 세션의 TodoWrite 상태를 보강하는 용도 — 권위 있는 소스는 아니지만 방향성 유지용 스냅샷.
 
-**마지막 갱신: 2026-04-23**
+**마지막 갱신: 2026-04-24**
 
 ## 완료
 
@@ -42,6 +42,11 @@ PRD(`docs/PRD.md`) 기준 작업 목록. 다른 환경에서 이어서 작업할
 - [x] Dialog / AlertDialog 시각 통일 (라운드·헤더 스페이싱·타이틀 타이포그래피)
 - [x] 토큰 콤보박스 active 강조 + Typography 레이아웃 정리 + PageFooter 톤 조정
 - [x] CSSOM shorthand+longhand 혼용 한계 CLAUDE.md 기록
+- [x] Jira 연동 플로우 리디자인 (OnboardingView + ApiKeyDialog + ProjectDialog)
+- [x] 탭 라벨 "Jira 설정" → "Jira 연동" + 미연결 시 초기 탭 자동 전환
+- [x] 이슈 타입 필수 표시 + 기본값 라벨 선입력 버그 수정
+- [x] 프리뷰 Jira 미연결 Alert 추가 + "설정 탭" → "연동 탭" 문구 통일
+- [x] 앱 아이콘 교체 (BugShot SVG → 16/32/48/128 PNG)
 
 ## 진행 중
 
@@ -53,3 +58,10 @@ PRD(`docs/PRD.md`) 기준 작업 목록. 다른 환경에서 이어서 작업할
 - [ ] #33 클립보드 마크다운 추출
 - [ ] #36 에러 처리 표준화
 - [ ] #37 미지원 URL 폴백 화면
+
+## 배포 로드맵 (순서대로)
+1. 요소 선택 플로우 마무리 (위 진행 중/대기 항목)
+2. 스크린샷 영역 캡처 + 주석(markerjs2) 모드 추가
+3. 비디오 탭 녹화(tabCapture + offscreen) 모드 추가
+4. en locale 지원
+5. 웹스토어 배포 (`pnpm build:store`)
