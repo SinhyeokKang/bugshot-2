@@ -1,3 +1,4 @@
+import { t } from "@/i18n";
 import type { StyleDiffRow } from "../components/StyleChangesTable";
 import { formatTimestamp } from "./formatTimestamp";
 
@@ -26,7 +27,7 @@ export function buildIssueMarkdown(ctx: MarkdownContext): string {
   lines.push(`# ${ctx.title}`);
   lines.push("");
 
-  lines.push("## 재현 환경");
+  lines.push(`## ${t("md.section.env")}`);
   lines.push("");
   lines.push(`- **Page**: ${ctx.url}`);
   if (ctx.captureMode !== "screenshot" && ctx.captureMode !== "video" && ctx.selector) {
@@ -36,26 +37,26 @@ export function buildIssueMarkdown(ctx: MarkdownContext): string {
   lines.push(`- **Captured**: ${formatTimestamp(ctx.capturedAt)}`);
   lines.push("");
 
-  lines.push("## 발생 현상");
+  lines.push(`## ${t("md.section.description")}`);
   lines.push("");
   lines.push(ctx.body);
   lines.push("");
 
   if (ctx.captureMode === "video") {
-    lines.push("## 미디어");
+    lines.push(`## ${t("md.section.media")}`);
     lines.push("");
-    lines.push("(첨부 영상 참조)");
+    lines.push(t("md.videoAttached"));
     lines.push("");
   } else if (ctx.captureMode === "screenshot") {
-    lines.push("## 미디어");
+    lines.push(`## ${t("md.section.media")}`);
     lines.push("");
-    lines.push("(첨부 이미지 참조)");
+    lines.push(t("md.imageAttached"));
     lines.push("");
   } else {
-    lines.push("## 스타일 변경사항");
+    lines.push(`## ${t("md.section.styleChanges")}`);
     lines.push("");
     if (ctx.diffs.length > 0) {
-      lines.push("| 속성 | As is | To be |");
+      lines.push(`| ${t("md.column.property")} | As is | To be |`);
       lines.push("| --- | --- | --- |");
       for (const d of ctx.diffs) {
         lines.push(
@@ -66,7 +67,7 @@ export function buildIssueMarkdown(ctx: MarkdownContext): string {
     }
   }
 
-  lines.push("## 기대 결과");
+  lines.push(`## ${t("md.section.expectedResult")}`);
   lines.push("");
   lines.push(ctx.expectedResult);
   lines.push("");
@@ -80,7 +81,7 @@ export function buildIssueHtml(ctx: MarkdownContext): string {
   parts.push(buildMetaComment(ctx));
   parts.push(`<h1>${escapeHtml(ctx.title)}</h1>`);
 
-  parts.push(`<h2>재현 환경</h2>`);
+  parts.push(`<h2>${t("md.section.env")}</h2>`);
   parts.push(`<ul>`);
   parts.push(`<li><strong>Page</strong>: ${escapeHtml(ctx.url)}</li>`);
   if (ctx.captureMode !== "screenshot" && ctx.captureMode !== "video" && ctx.selector) {
@@ -94,20 +95,20 @@ export function buildIssueHtml(ctx: MarkdownContext): string {
   );
   parts.push(`</ul>`);
 
-  parts.push(`<h2>발생 현상</h2>`);
+  parts.push(`<h2>${t("md.section.description")}</h2>`);
   parts.push(paragraphize(ctx.body));
 
   if (ctx.captureMode === "video") {
-    parts.push(`<h2>미디어</h2>`);
-    parts.push(`<p>(첨부 영상 참조)</p>`);
+    parts.push(`<h2>${t("md.section.media")}</h2>`);
+    parts.push(`<p>${t("md.videoAttached")}</p>`);
   } else if (ctx.captureMode === "screenshot") {
-    parts.push(`<h2>미디어</h2>`);
-    parts.push(`<p>(첨부 이미지 참조)</p>`);
+    parts.push(`<h2>${t("md.section.media")}</h2>`);
+    parts.push(`<p>${t("md.imageAttached")}</p>`);
   } else {
-    parts.push(`<h2>스타일 변경사항</h2>`);
+    parts.push(`<h2>${t("md.section.styleChanges")}</h2>`);
     if (ctx.diffs.length > 0) {
       parts.push(
-        `<table><thead><tr><th>속성</th><th>As is</th><th>To be</th></tr></thead><tbody>`,
+        `<table><thead><tr><th>${t("md.column.property")}</th><th>As is</th><th>To be</th></tr></thead><tbody>`,
       );
       for (const d of ctx.diffs) {
         parts.push(
@@ -118,7 +119,7 @@ export function buildIssueHtml(ctx: MarkdownContext): string {
     }
   }
 
-  parts.push(`<h2>기대 결과</h2>`);
+  parts.push(`<h2>${t("md.section.expectedResult")}</h2>`);
   parts.push(paragraphize(ctx.expectedResult));
 
   return parts.join("\n");

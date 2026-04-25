@@ -1,13 +1,13 @@
-# BugShot-2 PRD v0.4
+# BugShot-2 PRD v0.5
 
 스펙 정의서. UX 플로우와 기능/통합/기술 제약만 나열.
 
-> **v0.4 스코프**: 단일 요소 = 단일 이슈. 5단계 선형 플로우. Tailwind + 일반 CSS 병행 편집. 출력은 Jira 이슈 생성 또는 마크다운 추출(클립보드). CSS 토큰 매핑 + 스타일 편집 UX 강화.
+> **v0.5 스코프**: 3가지 캡처 모드(DOM 요소 · 스크린샷 · 영상 녹화) → 이슈 작성 → Jira 제출 또는 마크다운 추출. CSS 토큰 매핑 + 스타일 편집(요소 모드). 스크린샷 주석(markerjs2). 영상 녹화(tabCapture, 최대 60초).
 
 ## 1. UX 플로우
 
 ### 1.1 초기 설정 (최초 1회)
-1. Side Panel 열기 → **설정** 탭
+1. Side Panel 열기 → Jira 미연결 시 **Jira 연동** 탭으로 자동 전환
 2. 인증 방식 선택 (세그먼트 컨트롤): **OAuth** 또는 **API Token**
    - OAuth: **[Atlassian으로 로그인]** → 브라우저 인가 창 → 권한 승인 → 접근 가능한 사이트가 2개 이상이면 사이트 선택 UI 노출 → `GET /rest/api/3/myself`로 이메일 추출 후 저장
    - API Token: `baseUrl` / `email` / `API token` 입력 → **[검증]** 버튼 → `GET /rest/api/3/myself` 성공 시 저장
@@ -17,54 +17,76 @@
 OAuth 환경변수 미설정 시(`VITE_ATLASSIAN_CLIENT_ID` / `VITE_OAUTH_PROXY_URL`) OAuth 탭은 안내 메시지로 대체되고 API Token만 사용 가능.
 
 ### 1.2 이슈 등록 (메인 플로우)
-선형 5단계. 단계 간 **[← 뒤로]** 버튼으로 이전 단계 수정 가능.
 
-**[1] DOM 선택**
-- [요소 선택 시작] → Background가 picker content script를 현재 탭에 on-demand 주입
+**캡처 모드 선택** — idle 상태에서 3가지 중 택 1:
+- **DOM 요소 선택** (element)
+- **화면 캡처** (screenshot)
+- **영상 녹화** (video)
+
+모드별 선형 플로우. 단계 간 **[← 뒤로]** 버튼으로 이전 단계 수정 가능.
+
+#### 1.2.1 Element 모드
+
+**[1] DOM 선택** (`picking`)
+- [DOM 요소 선택] → Background가 picker content script를 현재 탭에 on-demand 주입
 - 호버로 요소 하이라이트, 클릭으로 선택 (ESC로 취소)
 - **뷰포트 배너**: picker 활성 시 상단에 현재 뷰포트 크기(`{width} × {height}`) 상시 표시, 리사이즈 실시간 반영
-- **DOM 트리 Dialog** (선택 후 제목 클릭): 현재 요소 기준 조상 경로만 expand 상태로 초기 로드 (`picker.describeInitial`), 유저가 노드를 펼칠 때 자식 sibling을 온디맨드 fetch (`picker.describeChildren`). 큰 페이지에서도 프리즈 없이 탐색 가능
+- **Interaction-blocker 오버레이**: 페이지 상호작용 전면 차단, disabled 요소도 hover/click 가능
+- **DOM 트리 Dialog** (선택 후 제목 클릭): 조상 경로만 expand 상태로 초기 로드 (`picker.describeInitial`), 유저가 노드를 펼칠 때 자식을 온디맨드 fetch (`picker.describeChildren`)
 
-**[2] Style 수정**
-- Tailwind 클래스명 편집 + 일반 CSS(property/value) 편집 **병행**
+**[2] Style 수정** (`styling`)
+- Tailwind 클래스명 편집 + CSS property/value 편집 병행
 - 타이핑 즉시 페이지에 반영 (To-Be 실시간 확인)
 - As-Is는 `getComputedStyle` 스냅샷으로 자동 기록
-- **CSS 토큰 매핑**: 페이지의 CSS 커스텀 프로퍼티(`var(--xxx)`)를 수집, 스타일 값 편집 시 토큰 combobox로 제안
-  - `hsl(var(--xxx))` 등 래핑된 var()도 인식
-  - 상속 속성(color, font-size, font-weight, line-height, text-align, letter-spacing) 부모 체인 탐색
-  - shorthand(padding, margin, gap, border-radius, overflow) → longhand 자동 분해
-  - 토큰 정렬: `localeCompare({ numeric: true })`로 자연 정렬
-- **토큰 검색 UX**:
-  - 패밀리 그룹: 같은 prefix 토큰(`--color-primary-*` 등)을 상단 그룹으로 묶어 표시 (동적 prefix 탐색, 최소 2개 이상 sibling)
-  - `--`로 시작하는 검색어도 정상 검색 가능 (`var(`으로 시작할 때만 토큰 모드)
-- **Quad 속성 링크**: padding, margin, border-radius의 4개 서브 속성을 체인 아이콘으로 연동/해제, 연동 시 하나 변경하면 4개 동기화
+- CSS 토큰 매핑 + 패밀리 그룹 + Quad 속성 링크 (상세: §4)
 
-**[3] 이슈 작성**
-- 시스템이 **제목 / 본문 자동 초안** 생성 (템플릿 기반, §2.5)
-- 사용자가 초안을 편집 가능 (제목/본문 둘 다 editable)
+**[3] 이슈 작성** (`drafting`)
+- 제목 / 본문 / 기대 결과 자동 초안 생성 → 사용자 편집
+- 스타일 변경사항 테이블 (read-only)
+- Before/After 스크린샷 자동 캡처
 
-**[4] 프리뷰**
-- 본문 read-only (수정은 3단계로 [← 뒤로])
-- **[이슈 생성] 모달**: 버튼 클릭 시 Dialog 오픈, Jira 필드 선택 후 제출
-  - 이슈 타입 * (설정 탭의 기본값 pre-filled)
-  - 담당자 * (search-as-you-type, 워크스페이스 전체 검색)
-  - 우선순위 *
-  - 부모 에픽 (opt, `parent`, search-as-you-type)
-  - 연결 에픽 (opt, 단일, Issue Link `Relates`, search-as-you-type)
-  - 각 필드는 Combobox (FieldCombobox) — 서버 검색 필드는 debounce 300ms + sequence 기반 stale 응답 방지
-- **[마크다운 추출]**: 클립보드 복사 (`text/plain` GFM + `text/html` 동시), 항상 활성
-- **Jira 미설정 시**: [이슈 생성] disabled + 툴팁 "설정 탭에서 Jira를 먼저 연결하세요"
+**[4] 프리뷰 + 제출** (`previewing`)
+- 본문 read-only. [이슈 생성] 모달 또는 [마크다운 추출]
 
-**[5] 완료 다이얼로그**
-- Jira 생성: 이슈 키 + 브라우저에서 이슈 열기 링크
-- 마크다운 추출: "클립보드에 복사됨" 토스트 + 본문 프리뷰 재확인
-- [새 이슈 작성] 버튼 → [1]로 리셋
+**[5] 완료** (`done`)
+- 이슈 키 + 열기 링크 + [이슈 목록] / [확인] 버튼
+
+#### 1.2.2 Screenshot 모드
+
+**[1] 영역 캡처** (`capturing`)
+- [화면 캡��] → content script에 영역 선택 오버레이 ��입
+- 크로스헤어 커서 + 드래그로 영역 선택 (dimming + 사이즈 라벨)
+- 선택 완료 → `captureVisibleTab`으로 크롭 스냅샷
+
+**[2] 이슈 작성** (`drafting`)
+- 캡처 이미지에 주석 가능 (markerjs2, side panel 내 AnnotationOverlay)
+- 주석 제거(원복) 버튼 제공
+- 제목 / 본문 / 기대 결과 편집
+
+**[3] 프리뷰 + ���출** (`previewing`) → **[4] 완료** (`done`)
+
+#### 1.2.3 Video 모드
+
+**[1] 녹화** (`recording`)
+- [영상 녹화] → `tabCapture.getMediaStreamId` + `MediaRecorder`
+- 경과 시간 + 진행률 바 표시, 최대 60초 자동 종료
+- 완료 시 WebM blob + JPEG 썸네일 자동 생성
+
+**[2] 이슈 작성** (`drafting`)
+- 비디오 플레이어 또는 썸네일 표시
+- 제목 / 본문 / 기대 결과 편집
+
+**[3] 프리뷰 + 제출** (`previewing`) → **[4] 완료** (`done`)
 
 ### 1.3 편집 세션 라이프사이클
 - 탭별 `chrome.storage.session`의 `editor:${tabId}` 키에 영속화 (`useEditorSessionSync` 훅, debounce 300ms)
-- 상태 단계: `idle` → `picking` → `editing` → `drafting` → `previewing` → `submitting` → `done`
-- 같은 origin+pathname 내 이동 / 새로고침: 편집 세션 유지 (selector 재검증 안 함)
-- 다른 origin 또는 pathname으로 navigation: `clearIfPageChanged`에서 해당 탭 세션 자동 클리어 (편집 중 경고 UX는 미구현)
+- Phase: `idle` → `picking`/`capturing`/`recording` → [`styling` →] `drafting` → `previewing` → `done`
+- **세션 보존 규칙** (`shouldPreserveSession`):
+  - video 모드: 모든 phase 보존
+  - element/screenshot 모드: `drafting`, `previewing`, `done`만 보존
+  - 그 외 phase(`idle`, `picking`, `styling`, `capturing`, `recording`): 페이지 변경 시 세션 클리어
+- 같은 origin+pathname 내 이동: 보존 대상 세션 유지, picker/area-select UI만 정리
+- 다른 origin 또는 pathname으로 navigation: `clearIfPageChanged`에서 비보존 세��� 클리어. element+styling 중이면 `sessionExpired` 플래그 → "페이지가 갱신되었습니다" AlertDialog
 - 탭 닫힘: `onRemoved`에서 세션 정리
 - 브라우저 재시작: `chrome.storage.session` 소멸
 
@@ -76,148 +98,145 @@ OAuth 환경변수 미설정 시(`VITE_ATLASSIAN_CLIENT_ID` / `VITE_OAUTH_PROXY_
 상단 Radix Tabs 4개.
 
 **탭 1: 이슈 작성**
-- 편집 세션 상태에 따라 단계별 화면 전환 (1→2→3→4→5)
-- 각 단계에 [← 뒤로] 버튼 (단계 1 제외)
+- 캡처 모드 선택 (idle) → 모드별 단계 UI (§1.2)
 
 **탭 2: 이슈 목록**
-- 생성된 이슈 히스토리 (미구현)
+- 드래프트 + 제출 이슈 히스토리
+- 날짜 그룹핑, 상태별 필터 (초안/제출됨)
+- 제출 이슈: Jira 상태 뱃지 (new/indeterminate/done, 조회 실패 시 "알 수 없음")
+- 드래프트 클릭 → DraftDetailDialog (재제출/삭제 가능)
+- 모두 삭제 버튼
 
-**탭 3: 설정**
+**탭 3: Jira 연동**
 - **Jira 연결**: OAuth / API Token 세그먼트 컨트롤
   - OAuth: [Atlassian으로 로그인] → (다중 사이트 시) 사이트 선택 → 연결
   - API Token: baseUrl / email / apiToken / [검증]
 - 연결 후 `JiraSummary`에 사이트 host + 인증 방식 배지 노출, [재설정]으로 해제
-- **프로젝트**: 검증 후 프로젝트 드롭다운 (전역 1개)
+- **프로젝트**: 프로젝트 드롭다운 (전역 1개)
 - **기본 이슈 타입**: 프로젝트 변경 시 이슈 타입 드롭다운 노출
-- 담당자/우선순위 기본값 ❌ — 이슈별 마지막 선택값으로만 관리 (설정 탭엔 노출 안 함)
+- 담당자/우선순위는 이슈별 마지막 선택값으로만 관리 (설정 탭엔 노출 안 함)
 
 **탭 4: 앱 설정**
-- 앱 전반 설정 (미구현)
+- **테마**: light / dark / system
+- **언어**: ko / en (설정 스토어 + UI 토글 구현 완료, 문자열 외재화는 미구현)
 
 ### 2.2 요소 선택 (picker)
 - on-demand 주입 (`chrome.scripting.executeScript`, `activeTab` + `scripting`)
-- **오버레이 렌더링**: picker가 페이지에 생성하는 하이라이트/툴팁은 **Shadow DOM**(`attachShadow({ mode: "open" })`) 내부에만. `:host { all: initial !important }`로 페이지 CSS 오염 방지, 내부 스타일도 외부 영향 차단
+- **오버레이 렌더링**: Shadow DOM(`attachShadow({ mode: "open" })`) 내부에만. `:host { all: initial !important }`로 페이지 CSS 오염 방지
 - 호버: 경계 오버레이 + 태그/클래스 툴팁
 - ESC: 취소, 클릭: 선택 확정
-- 선택 시 패널로 전달: `{ selector, tagName, className, rect, computedStyle 스냅샷 }`
-- Selector 생성: [`@medv/finder`](https://github.com/antonmedv/finder) (DevTools cssPath 수준 + `id`/`data-testid` 자동 우선)
-- **메시징**: picker 세션은 `chrome.runtime.onConnect`/`connect` 장수명 Port. 선택 이벤트 Port 스트리밍, ESC/세션 종료 시 Port disconnect로 자동 cleanup. 단발성 요청(`captureVisibleTab` 등)은 `sendMessage`
-- 선택 확정 직후 picker cleanup (Shadow DOM 제거, Port disconnect)
-- **DOM 동적 변경 추적 out-of-scope**: selector는 선택 시점에만 유효성 확인. 이후 DOM 변경/재렌더링은 추적 안 함
+- 선택 시 패널로 전달: `{ selector, tagName, classList, computedStyles, specifiedStyles, hasParent, hasChild, text, viewport, capturedAt }`
+- Selector 생성: [`@medv/finder`](https://github.com/antonmedv/finder) (fallback: CSS path)
+- **Interaction-blocker 오버레이**: 전면 투명 블로커로 페이지 클릭/스크롤 차단, disabled 요소도 hover/click 정상 처리
+- **Parent/Child 내비게이션**: 선택 후 DOM 트리 상하 탐색
+- **메시징**: 장수명 Port로 picker 세션 관리. 단발성 요청은 `sendMessage`
+- 선택 확정 직후 picker cleanup (Shadow DOM 제거)
 
 ### 2.3 편집 세션 스키마
 ```ts
-IssueDraft {
-  tabId: number
-  pageUrl: string
-  pageTitle: string
+EditorState {
+  captureMode: "element" | "screenshot" | "video"
+  phase: "idle" | "picking" | "styling" | "capturing" | "recording"
+       | "drafting" | "previewing" | "done"
+  target: { tabId, url, title, frameUrl? } | null
 
-  // 선택된 요소
-  selector: string
-  tagName: string
-  classNameBefore: string     // 선택 시점의 element.className
+  // Element 모드
+  selection: { selector, tagName, classList, computedStyles, specifiedStyles,
+               hasParent, hasChild, text, viewport, capturedAt } | null
+  styleEdits: { classList, inlineStyle, text }
+  tokens: Token[]
+  beforeImage: string | null    // data URL
+  afterImage: string | null
 
-  // 수정 내용
-  classNameAfter: string      // 편집된 className (Tailwind 포함)
-  cssChanges: CssChange[]     // inline style로 주입한 CSS 속성
+  // Screenshot 모드
+  screenshotRaw: string | null
+  screenshotAnnotated: string | null
+  screenshotViewport: { width, height } | null
+  screenshotCapturedAt: number | null
 
-  // 첨부
-  screenshotDataUrl: string   // viewport PNG (제출 직전 캡처)
+  // Video 모드
+  videoBlob: Blob | null        // 비직렬화 — session storage 미포함
+  videoThumbnail: string | null // 480px JPEG data URL
+  videoViewport: { width, height } | null
+  videoCapturedAt: number | null
 
-  // 이슈 내용 (자동 초안 → 사용자 편집)
-  summary: string             // ≤255자 (Jira 제목 제한)
-  body: string                // 마크다운 원문 (ADF 변환은 제출 시)
-
-  // Jira 필드 (프리뷰에서 선택)
-  issueType: string           // 필수
-  assigneeAccountId: string   // 필수
-  priorityName: string        // 필수
-  parentEpicKey?: string      // 옵셔널
-  relatedEpicKey?: string     // 옵셔널, 단일
-
-  createdAt: number
+  // 공통
+  draft: { title, body, expectedResult } | null
+  issueFields: { issueTypeId?, assigneeId?, assigneeName?, priorityId?,
+                 priorityName?, parentKey?, parentLabel?, relatesKey?, relatesLabel? }
+  currentIssueId: string | null
+  submitResult: { key, url } | null
+  sessionExpired: boolean
 }
-CssChange { property: string; asIs: string; toBe: string; important: boolean }
 ```
 - 저장: Zustand + `chrome.storage.session` 탭별 영속화 (`editor:${tabId}`)
-- **이슈별 필드 기억값**은 `chrome.storage.local`에 따로 (`lastIssueType` / `lastAssignee` / `lastPriority`)
+- `EditorSnapshot`에서 `videoBlob`과 `sessionExpired` 제외 (비직렬화/일시적 플래그)
+- **이슈별 필드 마지막값**: `chrome.storage.local` (`lastSubmitFields`, 같은 projectKey일 때만 복원)
 
 ### 2.4 Jira 필드 섹션 (이슈 생성 모달)
-- **이슈 타입** (필수): `GET /rest/api/3/issue/createmeta/{projectKey}/issuetypes` (subtask 제외). 설정 탭 기본값 pre-filled
-- **담당자** (필수): `GET /rest/api/3/user/search?query=` (워크스페이스 전체, search-as-you-type)
-- **우선순위** (필수): `GET /rest/api/3/priority` 목록
-- **부모 에픽** (opt): `GET /rest/api/3/search/jql` with `hierarchyLevel = 0` (locale-independent), search-as-you-type
-- **연결 에픽** (opt): 동일 방식, 단일 선택, Issue Link type `Relates`로 생성 후 연결
-- 각 Combobox의 서버 검색 필드: debounce 300ms, sequence 번호로 stale 응답 폐기
+- **이슈 ���입** (필수): `GET /rest/api/3/issue/createmeta/{projectKey}/issuetypes` (subtask 제외). 설정 탭 기본값 pre-filled
+- **담당자** (선택): `GET /rest/api/3/user/search?query=` (워크스페이스 전체, search-as-you-type)
+- **우선순위** (선택): `GET /rest/api/3/priority` 목록
+- **부모 에픽** (선택): `GET /rest/api/3/search/jql` with `hierarchyLevel = 1`, search-as-you-type
+- **연결 이슈** (선택): 동일 방식, 단일 선택, Issue Link type `Relates`로 생성 후 연결
+- 각 Combobox: debounce 300ms, sequence 번호로 stale 응답 폐기
 
-### 2.5 이슈 본문 템플릿 (확정)
+### 2.5 이슈 본문 템플릿
 
-**제목 기본값** (자동 초안, 편집 가능):
-```
-[디자인 QA] {pageTitle} — {tagName} 스타일 수정
-```
-
-**본문 구조** — 5개 블록 고정:
+모든 모드 공통 4개 블록:
 
 ```markdown
-## [Issue Summary]
-{제목과 동일한 한 줄 요약. 자동 생성}
+<!-- bugshot-meta-for-ai { JSON } -->
 
-## [Context]
-{자동 초안: 선택한 요소(`{selector}`, {tagName})의 스타일을 수정합니다. — 사용자 편집 가능}
+# {제목}
 
-Page: {pageUrl}
-Captured: {localized timestamp}
+## 재현 환경
+- **Page**: {url}
+- **DOM**: {selector}        ← element 모드만
+- **Viewport**: {w}×{h}
+- **Captured**: {timestamp}
 
-## [CSS Changes] ({count})
-### className
-- **As-Is**: `{classNameBefore}`
-- **To-Be**: `{classNameAfter}`
+## 발생 현상
+{사용자 편집 가능한 본문}
 
-### properties
-| 속성 | As-Is | To-Be | !important |
-|---|---|---|---|
-| color | #000 | #333 |  |
-| border-radius | 4px | 999px | ✓ |
+## 스타일 변경사항 / 미디어    ← 모드별 분기
+(element: As is/To be 테이블 + before/after 이미지)
+(screenshot: 첨부 이미지 참조 → 제출 시 mediaSingle 치환)
+(video: 첨부 영상 참조 → 제출 시 mediaSingle 치환)
 
-## [Expected Result]
-{빈 칸 — 사용자가 수정 의도/요청사항 서술}
-
-## [Media]
-![screenshot](data:image/png;base64,...)
+## 기대 결과
+{사용자 서술 영역}
 ```
 
-**편집 가능성**
-- `[Issue Summary]`: 제목과 연동, 사용자 편집
-- `[Context]` 첫 문단: 사용자 편집 가능 (Page/Captured 라인은 자동 유지)
-- `[CSS Changes]` 전체: read-only (자동 생성 결과)
-- `[Expected Result]`: 사용자 서술 영역 (핵심)
-- `[Media]`: read-only
-
-**편집 UI (3단계)**
-- 제목 Input + Context Textarea + Expected Result Textarea 각각 노출
-- CSS Changes / Media는 프리뷰 형태로만 표시
-
-**저장 형식**: 마크다운 원문 보관 → Jira 전송 시 ADF로 변환, 마크다운 추출 시 원문 그대로
+**편집 UI (drafting 단계)**
+- 제목 Input + 본문 Textarea + 기대 결과 Textarea
+- Element: 스타일 변경사항 테이블 read-only 표시
+- Screenshot: 주석 가능한 이미지 (AnnotationOverlay)
+- Video: 비디오 플���이어 또는 썸네일
 
 **AI 메타데이터 블록** (`<!-- bugshot-meta-for-ai -->`):
-- 마크다운/HTML 최상단에 HTML 코멘트로 삽입 (사람에게 비노출, AI 에이전트가 API로 파싱)
-- 구조화된 JSON: `version`, `url`, `selector`, `tagName`, `viewport`, `classListBefore/After`, `specifiedStyles` (authored CSS 값, var() 포함), `cssChanges` (property/from/to), `tokens` (변경 관련 토큰 name/value만 필터)
-- AI가 프로젝트 소스 위에서 작업하는 전제 — 파일 위치/컨벤션은 AI가 프로젝트 맥락에서 판단, 메타는 "뭘 바꿔야 하는지"만 전달
+- 마크다운/HTML 최상단에 HTML 코멘트로 삽입
+- 구조화 JSON: `version`, `url`, `selector`, `tagName`, `viewport`, `capturedAt`, `classListBefore/After`, `specifiedStyles`, `cssChanges`, `tokens`
 
 ### 2.6 마크다운 추출
 - **출력**: `ClipboardItem`으로 `text/plain`(GFM) + `text/html`(`<h1>/<h2>/<p>/<table>`) 동시 복사
   - Jira/Notion/Confluence가 HTML의 네이티브 테이블로 변환, Slack/Gmail은 plain text fallback
-- **스크린샷**: base64 이미지는 Jira가 sanitize하므로 클립보드 출력에서 **제외**
+- **이미지**: base64 이미지는 Jira가 sanitize하므로 클립보드 출력에서 **제외**
 - **문법**: GFM 파이프 테이블 포함
-- 사용 후 토스트 "클립보드에 복사됨"
+
+### 2.7 이슈 목록 + 드래프트 관리
+- 이슈 생성 시 `IssuesStore`에 `IssueRecord` 저장 (chrome.storage.local)
+- 드래프트: previewing 진입 시 자동 저장 (타이틀, 본문, 스냅샷 등)
+- 제출 후: Jira key/url + siteId 기록, Jira 상태 뱃지 fetch
+- **DraftDetailDialog**: 드래프트 상세 보기 + Jira 재제출 + 삭제
+- Video 드래프트: IndexedDB에서 blob 복원하여 플레이어 표시
 
 ---
 
 ## 3. Jira 통합 스펙
 
 ### 3.1 대상
-- **Jira Cloud 전용** (v1). DC/Server는 v1 미지원
+- **Jira Cloud 전용** (v1). DC/Server는 미지원
 - baseUrl: `https://{workspace}.atlassian.net`
 
 ### 3.2 인증
@@ -238,7 +257,7 @@ Captured: {localized timestamp}
 - 사이트 선택: `GET https://api.atlassian.com/oauth/token/accessible-resources` → site가 2개 이상이면 유저가 선택
 - 이메일 보강: 선택된 사이트에 대해 `GET /rest/api/3/myself` 호출 후 envelope에 저장
 - 요청 호스트: `https://api.atlassian.com/ex/jira/{cloudId}`, `Authorization: Bearer {accessToken}`
-- 토큰 갱신: 요청 전 `expiresAt` 체크로 프리-리프레시 + 401 응답 시 `refresh_token`으로 재시도. 성공 시 storage envelope in-place 갱신 (`persistOAuthTokens`)
+- 토큰 갱신: 요청 전 `expiresAt` 체크로 프리-리프레시 + 401 응답 시 `refresh_token`으로 재시도. 성공 시 storage envelope in-place 갱신 (`persistOAuthTokens`). refresh token 무효 시 `OAuthError` → 재인증 AlertDialog + Jira 연동 탭 이동
 
 **공통**
 - 저장: `chrome.storage.local` (`bugshot-settings`, sync ❌ — 기기 간 토큰 동기화 회피)
@@ -264,8 +283,10 @@ Captured: {localized timestamp}
 | Epic 검색 | `GET /rest/api/3/search/jql?jql=project='{key}' AND hierarchyLevel=0` |
 | Issue Link 타입 목록 | `GET /rest/api/3/issueLinkType` (Relates 찾기 위함, 캐시) |
 | 이슈 생성 | `POST /rest/api/3/issue` |
-| Issue Link 생성 | `POST /rest/api/3/issueLink` (이슈 생성 후 2단계) |
+| 이슈 설명 업데이트 | `PUT /rest/api/3/issue/{idOrKey}` (첨부 업로드 후 미디어 노드 치환) |
+| Issue Link 생성 | `POST /rest/api/3/issueLink` (이슈 생성 후) |
 | 첨부 업로드 | `POST /rest/api/3/issue/{idOrKey}/attachments` (multipart, `X-Atlassian-Token: no-check`) |
+| 이슈 상태 조회 | `GET /rest/api/3/issue/{idOrKey}?fields=status` (이슈 목록 뱃지용) |
 
 **OAuth 전용**
 | 용도 | 메서드 + 경로 |
@@ -275,128 +296,143 @@ Captured: {localized timestamp}
 | 사이트 목록 | `GET https://api.atlassian.com/oauth/token/accessible-resources` |
 
 ### 3.4 필드 매핑
-- 필수: `project.key`, `issuetype.name`, `summary`, `description(ADF)`, `assignee.accountId`, `priority.name`
+- 필수: `project.key`, `issuetype.id`, `summary`, `description(ADF)`, `assignee.accountId`(선택), `priority.id`(선택)
 - 옵셔널: `parent.key` (부모 에픽)
-- 2단계: 이슈 생성 후 연결 에픽이 있으면 `POST /issueLink` 로 Relates 생성
+- 2단계: 이슈 생성 후 연결 이슈가 있으면 `POST /issueLink` 로 Relates 생성
 
 ### 3.5 제출 시퀀스
-1. 마크다운 본문 → ADF 변환
-2. `POST /issue` with 필수+옵셔널 필드 + ADF + summary
+1. 마크다운 본문 → ADF 변환 (`buildIssueAdf`)
+2. `POST /issue` with 필드 + ADF + summary
 3. 성공 응답 이슈 키 획득
-4. 스크린샷 첨부: `POST /issue/{key}/attachments`
-5. 연결 에픽 있으면: `POST /issueLink`
-6. 성공 시 완료 다이얼로그 표시
+4. 첨부 업로드: `POST /issue/{key}/attachments`
+   - Element: `before.png`, `after.png`
+   - Screenshot: `screenshot.png`
+   - Video: `recording.webm`
+5. 첨부 업로드 성공 시 `PUT /issue/{key}` — ADF 내 placeholder를 `mediaSingle` 노드로 치환 (Media API / External 이미지 응답 형식 분기)
+6. 연결 이슈 있으면: `POST /issueLink`
+7. 성공 시 완료 화면 표시 + IssuesStore에 결과 기록
 
 ### 3.6 에러 처리
-- `401/403`: 토큰 재입력 안내
+- `401/403`: OAuth는 자동 refresh 시도 → 실패 시 재인증 안내. API Token은 토큰 재입력 안내
 - `429 / 5xx`: 지수 백오프 (3회, base 1s)
 - 이슈 생성 성공 + 첨부 실패: 이슈 유지, UI에 부분 성공 + 첨부만 재시도 버튼
 - 이슈 생성 성공 + 링크 실패: 이슈 유지, 부분 성공 + 링크만 재시도 버튼
 
 ---
 
-## 4. 스타일 편집 스펙
+## 4. 스타일 편집 스펙 (Element 모드)
 
 ### 4.1 입력 모드 (병행)
-- **className 에디터**: `element.className` 원문을 텍스트 에디터에 노출, 사용자가 Tailwind 클래스 추가/삭제/수정. 변경 즉시 `element.className = newValue`로 반영
-  - 입력한 클래스가 페이지 CSS에 없으면 (JIT 미생성) 시각 반영 안 됨 → ⚠ 배지로 안내, 이슈에는 문자열로 기록
-- **CSS 에디터**: 멀티라인 `property: value;` 페어. 파싱해서 `CssChange[]`로 인코딩, inline `element.style`에 주입
-- 두 입력은 서로 독립적. 둘 다 이슈에 기록
+- **className 에디터**: `element.className` 원문을 텍스트 에디터에 노출, Tailwind 클래스 추가/삭제/수정. 변경 즉시 `element.className = newValue`로 반영
+  - 입력한 클래스가 페이지 CSS에 없으면 시각 반영 안 됨 → ⚠ 안내
+- **CSS 에디터**: property/value 페어. 인라인 `element.style`에 주입
 
 ### 4.2 To-Be 즉시 반영
 - className 변경: `element.className = value`
 - CSS 변경: `element.style.setProperty(prop, value, important ? 'important' : '')`
-- 디바운스 없이 입력 즉시 (성능 이슈 발생 시 조정)
 
 ### 4.3 As-Is 캡처
-- 선택 즉시 `getComputedStyle` 스냅샷 저장
-- `className`은 `element.className` 원문 저장 (class 문자열 diff용)
-- 원본 inline style 문자열도 별도 보관 (되돌리기용)
+- 선택 즉시 `getComputedStyle` 스냅샷 + `specifiedStyles` (authored CSS 값, var() 포함) 저장
+- `className`은 `element.className` 원문 저장
 
-### 4.4 `!important`
-- CSS 편집에서만 해당, 속성별 토글
-- ADF 표 및 마크다운 표에 표시
+### 4.4 CSS 토큰 매핑
+- 페이지의 CSS 커스텀 프로퍼티(`var(--xxx)`)를 수집, 값 편집 시 토큰 combobox로 제안
+- `hsl(var(--xxx))` 등 래핑된 var()도 인식
+- 상속 속성(color, font-size, font-weight, line-height, text-align, letter-spacing) 부모 체인 탐색
+- shorthand(padding, margin, gap, border-radius, overflow) → longhand 자동 분해
+- 토큰 정렬: `localeCompare({ numeric: true })`로 자연 정렬
+- **var() 체인 resolve**: 공용 토큰(`--spacing-*`, `--color-*` 등)은 이름 보존, private alias(`--_xxx`)는 리터럴까지 펼침
+- **adoptedStyleSheets** 포함 병합
 
-### 4.5 변경 취소
+### 4.5 토큰 검색 UX
+- 패밀리 그룹: 같은 prefix 토큰을 상단 그룹으로 묶어 표시 (동적 prefix 탐색, 최소 2개 이상 sibling)
+- `--`로 시작하는 ��색어도 정상 검색 가능
+- **Quad 속성 링크**: padding, margin, border-radius의 4개 서브 속성을 체인 아이콘으로 연동/해제
+
+### 4.6 변경 취소
 - 제출 전: **[초기화]** → className 원복 + inline style 원복
-- 제출 후: 페이지 새로고침 시 자연 원복 (BugShot이 cleanup 보장 ❌)
+- ���출 후: 페이지 새로고침 시 자연 원복 (BugShot이 cleanup 보장 ❌)
 
 ---
 
-## 5. 주석/설명
+## 5. 기술 제약
 
-v0.3에선 별도 "주석" 필드 ❌ — 이슈 본문 자동 초안을 사용자가 편집하는 방식으로 흡수.
-
----
-
-## 6. 기술 제약
-
-### 6.1 Manifest v3 / 권한
+### 5.1 Manifest v3 / 권한
 - `permissions`: `sidePanel`, `activeTab`, `scripting`, `storage`, `commands`, `contextMenus`, `identity` (OAuth용)
 - `host_permissions`:
   - `https://*.atlassian.net/*` (API Token 직접 호출)
   - `https://api.atlassian.com/*` (OAuth gateway + accessible-resources)
   - `https://auth.atlassian.com/*` (authorize)
   - `{VITE_OAUTH_PROXY_URL origin}/*` (빌드 타임에 `manifest.config.ts`가 동적 추가)
-- 클립보드 쓰기: Side Panel 내 사용자 클릭 컨텍스트에서 `navigator.clipboard.writeText()` 사용 (별도 `clipboardWrite` 권한 불필요)
-- 상시 `content_scripts` 없음 — picker만 `chrome.scripting.executeScript`로 on-demand 주입
-- **manifest `key`**: dev/언팩 빌드는 고정 `key`로 확장 ID를 고정 (OAuth redirect URI `chrome-extension://<ID>/` 안정화용). 스토어 업로드 시 `BUGSHOT_STORE_BUILD=1` → `key` 제거 (`pnpm build:store`)
+- 클립보드 쓰기: Side Panel 내 사용자 클릭 컨텍스트에서 `navigator.clipboard.write()` 사용
+- 상시 `content_scripts` 없음 — picker만 on-demand 주입
+- **manifest `key`**: dev/언팩 빌드는 고정 `key`로 확장 ID 고정 (OAuth redirect URI 안정화용). 스토어 업로드 시 `BUGSHOT_STORE_BUILD=1` → `key` 제거
 
-### 6.2 Chrome 최소 버전
+### 5.2 Chrome 최소 버전
 - **116+** (Side Panel API 안정)
 
-### 6.3 활성화 방법
+### 5.3 활성화 방법
 - **액션 아이콘 클릭**: 툴바 아이콘
 - **단축키**: `Alt+Shift+B` (`_execute_action`)
 - **컨텍스트 메뉴**: 페이지 우클릭 → "BugShot"
 
-### 6.4 i18n
+### 5.4 i18n
 - `default_locale: ko`
-- `_locales/ko/messages.json` 우선 (manifest 레벨만). UI 내부 텍스트는 v1에서 하드코딩 한국어 허용
+- `_locales/ko/messages.json` (manifest 레벨)
+- 앱 설정에 ko/en 토글 존재. UI 내부 문자열 외재화는 미구현 (하드코딩 한국어)
 
-### 6.5 스크린샷
-- `chrome.tabs.captureVisibleTab` — 뷰포트만, PNG, 원본 해상도
-- 이슈당 1장 (프리뷰 진입 또는 제출 직전 To-Be 상태 캡처)
+### 5.5 스크린샷
+- **Element 모드**: `chrome.tabs.captureVisibleTab` → 선택 요소 rect 기준 크롭 (before/after)
+- **Screenshot 모드**: content script 영역 선택 오버레이 → 드래그 rect 확정 → `captureVisibleTab` → 크롭
+- **주석**: markerjs2 (side panel 내 AnnotationOverlay). 주석 결과는 `screenshotAnnotated`에 저장, 원본은 `screenshotRaw` 보존
 - 전체 페이지 스크롤 스티칭은 out-of-scope
 
-### 6.6 Side Panel 동작
+### 5.6 영상 녹화
+- `chrome.tabCapture.getMediaStreamId` → `navigator.mediaDevices.getUserMedia` → `MediaRecorder`
+- 포맷: WebM (VP9/VP8 코덱, 1.5Mbps)
+- 최대 60초 (`MAX_DURATION_SEC`), 자동 종료
+- 썸네일: 480px JPEG quality 0.7
+- `videoBlob`은 Blob이므로 `chrome.storage.session` 직렬화 불가 → IndexedDB 영속화 (`bugshot-video` DB)
+- Jira WebM 인라인 재생 미지원 인지 — 첨부 파일로만 제공
+
+### 5.7 Side Panel 동작
 - 액션 아이콘 클릭, `Alt+Shift+B`, 또는 컨텍스트 메뉴 → 현재 탭에 Side Panel 오픈
 - **탭 스코프**: 활성화한 탭에서만 side panel 표시, 탭 이동 시 자동 닫힘, 돌아오면 재오픈
   - `chrome.storage.session`의 `sidePanel:activated` 키에 활성화 tabId 셋 관리
-  - `chrome.action.onClicked` + `contextMenus.onClicked`에서 `activateTab()` 호출
-  - `manifest.side_panel.default_path` 전역 fallback → `onInstalled`/`onStartup`에서 `sidePanel.setOptions({ enabled: false })`로 전역 비활성화
+  - manifest 전역 fallback → `onInstalled`/`onStartup`에서 전역 비활성화
   - **user gesture 보존**: `sidePanel.open()`을 리스너에서 동기적 호출 (await 금지)
 - **탭 바인딩**: `chrome.tabs.onActivated` / `onUpdated`에서 활성화 셋 기반 enable/disable
-- **Origin+pathname 변경 처리**: `clearIfPageChanged`에서 page key 비교 후 세션 클리어
 
-### 6.7 지원 URL 스킴
+### 5.8 지원 URL 스킴
 - 지원: `http://`, `https://`, `file://`
 - 미지원: `chrome://`, `chrome-extension://`, `about:`, Chrome 내장 PDF 뷰어, 웹스토어 페이지 등
-- 처리: background의 `tabs.onActivated` / `onUpdated` 핸들러에서 tab URL 스킴 체크 → 미지원 시 `chrome.sidePanel.setOptions({ tabId, enabled: false })`
-- 안전장치: 패널이 이미 열린 상태에서 미지원 URL로 이동 시 패널 내부에 "이 페이지는 지원하지 않습니다" 폴백 화면
+- 미지원 URL에서는 `sidePanel.setOptions({ tabId, enabled: false })`. 이미 열린 상태에서 이동 시 "이 페이지에서는 사용할 수 없습니다" 폴백 화면
 
-### 6.8 스토리지 레이어
+### 5.9 스토리지 레이어
 | 데이터 | 위치 | 수명 |
 |---|---|---|
-| `jiraConfig.auth` (discriminated: apiKey / oauth) | `chrome.storage.local` (`bugshot-settings`, v2) | 영구 |
+| Jira 설정 (`auth` discriminated union) | `chrome.storage.local` (`bugshot-settings`, v2) | 영구 |
 | 전역 프로젝트 (projectKey) | `chrome.storage.local` | 영구 |
-| 이슈 필드 마지막값 (issueType/assignee/priority) | `chrome.storage.local` | 영구 |
-| 편집 세션 (IssueDraft) | `chrome.storage.session` (`editor:${tabId}`) | 탭 수명 (탭 닫힘/브라우저 재시작 시 소멸) |
+| 이슈 필드 마지막값 | `chrome.storage.local` (`lastSubmitFields`) | 영구 |
+| 이슈 목록 (드래프트+제출) | `chrome.storage.local` (`bugshot-issues`) | 영구 |
+| 앱 설정 (테마/언어) | `chrome.storage.local` (`bugshot-app-settings`) | 영구 |
+| 편집 세션 (EditorSnapshot) | `chrome.storage.session` (`editor:${tabId}`) | 탭 수명 |
 | 활성화 탭 셋 | `chrome.storage.session` (`sidePanel:activated`) | 브라우저 세션 |
+| 비디오 blob | IndexedDB (`bugshot-video`, store: `blobs`) | 영구 (드래프트 삭제 시 정리) |
 
-**settings 마이그레이션 v2**: 초기 스키마는 flat (`{ baseUrl, email, apiToken }`). v2는 `auth: { kind, ... }`로 래핑된 discriminated union이며 OAuth 필드(`cloudId`, `siteUrl`, `accessToken`, `refreshToken`, `expiresAt`)를 포함. hydration 시 legacy shape은 자동 변환.
+**settings 마이그레이션 v2**: 초기 스키마는 flat (`{ baseUrl, email, apiToken }`). v2는 `auth: { kind, ... }`로 래핑된 discriminated union이며 OAuth 필드 포함. hydration 시 legacy shape은 자동 변환.
 
 ---
 
-## 7. Out-of-scope (v1 미포함, 추후 검토 가능)
+## 6. Out-of-scope (v1 미포함, 추후 검토 가능)
 - **배치(cart) 작성** — 여러 요소를 한 이슈에 묶음 (v2 우선 후보)
 - 액션 아이콘 뱃지 표시
-- 스크린샷 위 주석(그리기/화살표/블러)
 - DC/Server 지원, 다중 Jira 인스턴스
-- 전체 페이지 캡처, 화면 녹화
+- 전체 페이지 스크롤 캡처
 - GitHub / Linear / Notion 등 다른 트래커 연동
 - 이슈 업데이트/댓글 기능 (v1은 신규 생성만)
 - 팀 단위 설정 공유 (sync 스토리지)
 - Jira 필드 확장: `components`, `fixVersions`, `sprint`, `reporter`, labels, 커스텀 필드
 - Tailwind Play CDN 주입으로 JIT 런타임 지원
 - 마크다운 추출 시 이미지 별도 파일 + .zip
+- WebM → MP4 트랜스코딩 (Jira 인라인 재생 지원용)

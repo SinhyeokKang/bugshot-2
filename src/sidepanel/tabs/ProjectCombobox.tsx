@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Check, ChevronsUpDown, Loader2 } from "lucide-react";
+import { useT } from "@/i18n";
 import { Button } from "@/components/ui/button";
 import {
   Command,
@@ -20,6 +21,7 @@ import type { JiraProject } from "@/types/jira";
 import { sendBg } from "@/types/messages";
 
 export function ProjectCombobox() {
+  const t = useT();
   const jiraConfig = useSettingsStore((s) => s.jiraConfig);
   const updateJiraConfig = useSettingsStore((s) => s.updateJiraConfig);
 
@@ -64,7 +66,7 @@ export function ProjectCombobox() {
     ? `${selected.name} (${selected.key})`
     : jiraConfig.projectKey
       ? jiraConfig.projectKey
-      : "프로젝트 선택";
+      : t("project.select");
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -88,12 +90,12 @@ export function ProjectCombobox() {
       </PopoverTrigger>
       <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0">
         <Command>
-          <CommandInput placeholder="프로젝트 검색..." />
+          <CommandInput placeholder={t("project.search")} />
           <CommandList>
             {loading ? (
               <div className="flex items-center justify-center gap-2 py-6 text-xs text-muted-foreground">
                 <Loader2 className="h-3 w-3 animate-spin" />
-                불러오는 중...
+                {t("common.loading")}
               </div>
             ) : error ? (
               <div className="px-3 py-6 text-center text-xs text-destructive">
@@ -101,7 +103,7 @@ export function ProjectCombobox() {
               </div>
             ) : (
               <>
-                <CommandEmpty>일치하는 프로젝트가 없습니다.</CommandEmpty>
+                <CommandEmpty>{t("project.empty")}</CommandEmpty>
                 <CommandGroup>
                   {projects.map((project) => (
                     <CommandItem

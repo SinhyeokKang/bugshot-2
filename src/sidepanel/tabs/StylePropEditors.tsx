@@ -9,6 +9,7 @@ import {
   Unlink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useT } from "@/i18n";
 import {
   Select,
   SelectContent,
@@ -24,6 +25,7 @@ import { applyStyles } from "../picker-control";
 import { ValueCombobox, useStyleProp, isKnownDefault } from "./ValueCombobox";
 
 export function SectionRevertButton({ props }: { props: readonly string[] }) {
+  const t = useT();
   const dirty = useEditorStore((s) =>
     props.some((p) => p in s.styleEdits.inlineStyle),
   );
@@ -43,7 +45,7 @@ export function SectionRevertButton({ props }: { props: readonly string[] }) {
       variant="outline"
       onClick={handleRevert}
       disabled={!dirty}
-      title="이 섹션 인라인 원복"
+      title={t("editor.revertSection")}
       className="h-7 w-7 shrink-0"
     >
       <RotateCcw />
@@ -93,6 +95,7 @@ function LinkToggle({
   linked: boolean;
   onToggle: () => void;
 }) {
+  const t = useT();
   return (
     <button
       type="button"
@@ -101,7 +104,7 @@ function LinkToggle({
         "flex h-9 w-9 shrink-0 items-center justify-center rounded-md border text-muted-foreground transition-colors",
         linked ? "border-foreground bg-foreground text-background hover:bg-foreground/80" : "hover:bg-muted",
       )}
-      title={linked ? "개별 편집" : "일괄 편집"}
+      title={linked ? t("prop.editIndividual") : t("prop.editTogether")}
     >
       {linked ? (
         <Link className="h-3.5 w-3.5" />
@@ -227,13 +230,14 @@ export function SelectProp({
 }
 
 export function AlignmentProp({ label, prop }: { label: string; prop: string }) {
+  const t = useT();
   const { value, placeholder, set } = useStyleProp(prop);
   const current = (value || placeholder || "").trim();
   const options: { v: string; icon: React.ReactNode; title: string }[] = [
-    { v: "left", icon: <AlignLeft className="h-4 w-4" />, title: "왼쪽" },
-    { v: "center", icon: <AlignCenter className="h-4 w-4" />, title: "가운데" },
-    { v: "right", icon: <AlignRight className="h-4 w-4" />, title: "오른쪽" },
-    { v: "justify", icon: <AlignJustify className="h-4 w-4" />, title: "양쪽" },
+    { v: "left", icon: <AlignLeft className="h-4 w-4" />, title: t("prop.align.left") },
+    { v: "center", icon: <AlignCenter className="h-4 w-4" />, title: t("prop.align.center") },
+    { v: "right", icon: <AlignRight className="h-4 w-4" />, title: t("prop.align.right") },
+    { v: "justify", icon: <AlignJustify className="h-4 w-4" />, title: t("prop.align.justify") },
   ];
   const resolvedValue =
     current === "start" || current === "" ? "left" : current;
@@ -293,6 +297,7 @@ function SideEdgeIcon({
 }
 
 export function QuadProp({ label, prefix }: { label: string; prefix: string }) {
+  const t = useT();
   const props = useMemo(
     () => [`${prefix}-top`, `${prefix}-right`, `${prefix}-bottom`, `${prefix}-left`],
     [prefix],
@@ -307,28 +312,28 @@ export function QuadProp({ label, prefix }: { label: string; prefix: string }) {
             prop={props[0]}
             compact
             icon={<SideEdgeIcon side="top" className="h-3.5 w-3.5" />}
-            iconTitle="위"
+            iconTitle={t("prop.side.top")}
             onLinkedCommit={linked ? setAllProps : undefined}
           />
           <ValueCombobox
             prop={props[1]}
             compact
             icon={<SideEdgeIcon side="right" className="h-3.5 w-3.5" />}
-            iconTitle="오른쪽"
+            iconTitle={t("prop.side.right")}
             onLinkedCommit={linked ? setAllProps : undefined}
           />
           <ValueCombobox
             prop={props[2]}
             compact
             icon={<SideEdgeIcon side="bottom" className="h-3.5 w-3.5" />}
-            iconTitle="아래"
+            iconTitle={t("prop.side.bottom")}
             onLinkedCommit={linked ? setAllProps : undefined}
           />
           <ValueCombobox
             prop={props[3]}
             compact
             icon={<SideEdgeIcon side="left" className="h-3.5 w-3.5" />}
-            iconTitle="왼쪽"
+            iconTitle={t("prop.side.left")}
             onLinkedCommit={linked ? setAllProps : undefined}
           />
         </div>
@@ -376,6 +381,7 @@ const RADIUS_PROPS = [
 ];
 
 export function RadiusProp() {
+  const t = useT();
   const { linked, toggle, setAllProps } = useLinkedProps(RADIUS_PROPS);
 
   return (
@@ -386,28 +392,28 @@ export function RadiusProp() {
             prop={RADIUS_PROPS[0]}
             compact
             icon={<CornerRadiusIcon corner="tl" className="h-3.5 w-3.5" />}
-            iconTitle="좌상단"
+            iconTitle={t("prop.corner.topLeft")}
             onLinkedCommit={linked ? setAllProps : undefined}
           />
           <ValueCombobox
             prop={RADIUS_PROPS[1]}
             compact
             icon={<CornerRadiusIcon corner="tr" className="h-3.5 w-3.5" />}
-            iconTitle="우상단"
+            iconTitle={t("prop.corner.topRight")}
             onLinkedCommit={linked ? setAllProps : undefined}
           />
           <ValueCombobox
             prop={RADIUS_PROPS[2]}
             compact
             icon={<CornerRadiusIcon corner="br" className="h-3.5 w-3.5" />}
-            iconTitle="우하단"
+            iconTitle={t("prop.corner.bottomRight")}
             onLinkedCommit={linked ? setAllProps : undefined}
           />
           <ValueCombobox
             prop={RADIUS_PROPS[3]}
             compact
             icon={<CornerRadiusIcon corner="bl" className="h-3.5 w-3.5" />}
-            iconTitle="좌하단"
+            iconTitle={t("prop.corner.bottomLeft")}
             onLinkedCommit={linked ? setAllProps : undefined}
           />
         </div>

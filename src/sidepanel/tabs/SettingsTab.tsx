@@ -6,6 +6,7 @@ import {
   Link,
   Loader2,
 } from "lucide-react";
+import { useT } from "@/i18n";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   AlertDialog,
@@ -48,6 +49,7 @@ import { IssueTypeCombobox } from "./IssueTypeCombobox";
 import { ProjectCombobox } from "./ProjectCombobox";
 
 export function SettingsTab() {
+  const t = useT();
   const jiraConfig = useSettingsStore((s) => s.jiraConfig);
   const connected = !!jiraConfig;
 
@@ -63,18 +65,18 @@ export function SettingsTab() {
   return (
     <PageShell>
       <PageScroll>
-        <Section title="Jira 연결">
+        <Section title={t("settings.jiraConnection")}>
           <JiraSummary />
         </Section>
 
-        <Section title="프로젝트">
+        <Section title={t("settings.project")}>
           <ProjectCombobox />
         </Section>
 
-        <Section title="이슈 설정">
+        <Section title={t("settings.issueSettings")}>
           <div className="flex flex-col gap-3">
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs text-muted-foreground">기본 이슈 타입</label>
+              <label className="text-xs text-muted-foreground">{t("settings.defaultIssueType")}</label>
               <IssueTypeCombobox />
             </div>
 
@@ -96,24 +98,28 @@ export function SettingsTab() {
 
 /* ── Onboarding (empty state) ────────────────────────── */
 
-type OAuthError = { kind: "noJira" } | { kind: "general"; message: string };
+type OAuthClassified = { kind: "noJira" } | { kind: "general"; message: string };
+
+class NoJiraSitesError extends Error {
+  constructor(message: string) { super(message); this.name = "NoJiraSitesError"; }
+}
 
 const DISMISS_PATTERNS = /cancel|취소|not approve|not authorize/i;
-const NO_JIRA_PATTERNS = /could not be loaded|Jira 사이트가 없/i;
 
-function classifyOAuthError(err: unknown): OAuthError | null {
+function classifyOAuthClassified(err: unknown): OAuthClassified | null {
+  if (err instanceof NoJiraSitesError) return { kind: "noJira" };
   const msg = err instanceof Error ? err.message : String(err);
   if (DISMISS_PATTERNS.test(msg)) return null;
-  if (NO_JIRA_PATTERNS.test(msg)) return { kind: "noJira" };
   return { kind: "general", message: msg };
 }
 
 function JiraOnboarding() {
+  const t = useT();
   const setJiraConfig = useSettingsStore((s) => s.setJiraConfig);
 
   const [oauthAvailable, setOauthAvailable] = useState<boolean | null>(null);
   const [connecting, setConnecting] = useState(false);
-  const [error, setError] = useState<OAuthError | null>(null);
+  const [error, setError] = useState<OAuthClassified | null>(null);
   const [candidate, setCandidate] = useState<OAuthStartResultMsg | null>(null);
   const [apiKeyOpen, setApiKeyOpen] = useState(false);
 
@@ -133,7 +139,7 @@ function JiraOnboarding() {
     try {
       const result = await sendBg<OAuthStartResultMsg>({ type: "oauth.start" });
       if (result.sites.length === 0) {
-        throw new Error("접근 가능한 Jira 사이트가 없습니다.");
+        throw new NoJiraSitesError(t("settings.noJiraSites"));
       }
       if (result.sites.length === 1) {
         await finalize(result, result.sites[0]);
@@ -141,7 +147,7 @@ function JiraOnboarding() {
         setCandidate(result);
       }
     } catch (err) {
-      setError(classifyOAuthError(err));
+      setError(classifyOAuthClassified(err));
     } finally {
       setConnecting(false);
     }
@@ -170,7 +176,7 @@ function JiraOnboarding() {
       setJiraConfig(next);
       setCandidate(null);
     } catch (err) {
-      setError(classifyOAuthError(err));
+      setError(classifyOAuthClassified(err));
     } finally {
       setConnecting(false);
     }
@@ -182,7 +188,7 @@ function JiraOnboarding() {
       <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-6">
         <div className="flex w-full max-w-[260px] flex-col gap-2">
           <p className="mb-1 text-center text-sm font-medium">
-            연결할 사이트를 선택하세요
+            {t("settings.selectSite")}
           </p>
           {candidate.sites.map((site) => (
             <Button
@@ -207,7 +213,7 @@ function JiraOnboarding() {
               </div>
             </Button>
           ))}
-          <OAuthErrorBanner error={error} />
+          <OAuthClassifiedBanner error={error} />
         </div>
       </div>
     );
@@ -219,9 +225,9 @@ function JiraOnboarding() {
         <div className="mb-3 rounded-full bg-muted p-3">
           <Link className="h-6 w-6 text-muted-foreground" />
         </div>
-        <h3 className="text-[18px] font-semibold">Jira 연결</h3>
+        <h3 className="text-[18px] font-semibold">{t("settings.onboarding.title")}</h3>
         <p className="mt-1 text-sm text-muted-foreground">
-          Atlassian 계정 또는 API Token을 이용해 Jira와 연동해 주세요.
+          {t("settings.onboarding.body")}
         </p>
 
         <div className="mt-5 flex gap-2">
@@ -238,7 +244,7 @@ function JiraOnboarding() {
               )}
               <span className={`inline-flex items-center gap-2 ${connecting ? "opacity-0" : ""}`}>
                 <ExternalLink className="h-3.5 w-3.5" />
-                Atlassian 로그인
+                {t("settings.atlassianLogin")}
               </span>
             </Button>
           ) : null}
@@ -255,7 +261,7 @@ function JiraOnboarding() {
         </div>
 
         <div className="mt-3 w-full max-w-[260px]">
-          <OAuthErrorBanner error={error} />
+          <OAuthClassifiedBanner error={error} />
         </div>
       </div>
 
@@ -273,6 +279,7 @@ function ApiKeyDialog({
   open: boolean;
   onOpenChange: (v: boolean) => void;
 }) {
+  const t = useT();
   const setJiraConfig = useSettingsStore((s) => s.setJiraConfig);
   const [baseUrl, setBaseUrl] = useState("");
   const [email, setEmail] = useState("");
@@ -311,16 +318,16 @@ function ApiKeyDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-[80vw] max-w-[80vw] gap-5 rounded-3xl p-6 sm:rounded-3xl">
         <DialogHeader>
-          <DialogTitle className="text-xl">API Token 인증</DialogTitle>
+          <DialogTitle className="text-xl">{t("settings.apiKeyDialog.title")}</DialogTitle>
           <DialogDescription>
-            Jira 워크스페이스 URL과 인증 정보를 입력하세요.
+            {t("settings.apiKeyDialog.body")}
           </DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-col gap-3">
           <div className="flex flex-col gap-1.5">
             <label htmlFor="jira-baseUrl" className="text-xs text-muted-foreground">
-              워크스페이스 URL
+              {t("settings.workspaceUrl")}
             </label>
             <Input
               id="jira-baseUrl"
@@ -334,7 +341,7 @@ function ApiKeyDialog({
 
           <div className="flex flex-col gap-1.5">
             <label htmlFor="jira-email" className="text-xs text-muted-foreground">
-              이메일
+              {t("settings.email")}
             </label>
             <Input
               id="jira-email"
@@ -349,7 +356,7 @@ function ApiKeyDialog({
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center justify-between">
               <label htmlFor="jira-token" className="text-xs text-muted-foreground">
-                API 토큰
+                {t("settings.apiToken")}
               </label>
               <a
                 href="https://id.atlassian.com/manage-profile/security/api-tokens"
@@ -357,7 +364,7 @@ function ApiKeyDialog({
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground"
               >
-                발급 페이지
+                {t("settings.getToken")}
                 <ExternalLink className="h-3 w-3" />
               </a>
             </div>
@@ -380,7 +387,7 @@ function ApiKeyDialog({
 
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            취소
+            {t("common.cancel")}
           </Button>
           <Button onClick={handleValidate} disabled={!canValidate} className="relative">
             {validating && (
@@ -389,7 +396,7 @@ function ApiKeyDialog({
               </span>
             )}
             <span className={validating ? "opacity-0" : undefined}>
-              검증
+              {t("common.verify")}
             </span>
           </Button>
         </DialogFooter>
@@ -400,7 +407,8 @@ function ApiKeyDialog({
 
 /* ── OAuth Error Banner ──────────────────────────────── */
 
-function OAuthErrorBanner({ error }: { error: OAuthError | null }) {
+function OAuthClassifiedBanner({ error }: { error: OAuthClassified | null }) {
+  const t = useT();
   if (!error) return null;
   if (error.kind === "noJira") {
     return (
@@ -408,10 +416,10 @@ function OAuthErrorBanner({ error }: { error: OAuthError | null }) {
         <div className="flex items-start justify-between gap-2">
           <div>
             <AlertTitle className="text-xs">
-              Jira가 존재하지 않는 계정입니다.
+              {t("settings.oauthError.noJira.title")}
             </AlertTitle>
             <AlertDescription className="text-xs text-destructive/80">
-              계정을 변경하여 재시도해주세요.
+              {t("settings.oauthError.noJira.body")}
             </AlertDescription>
           </div>
           <a
@@ -420,7 +428,7 @@ function OAuthErrorBanner({ error }: { error: OAuthError | null }) {
             rel="noopener noreferrer"
             className="mt-0.5 inline-flex shrink-0 items-center gap-1 text-[11px] text-destructive/70 underline underline-offset-2 transition-colors hover:text-destructive"
           >
-            계정 전환
+            {t("settings.switchAccount")}
             <ExternalLink className="h-3 w-3" />
           </a>
         </div>
@@ -437,6 +445,7 @@ function OAuthErrorBanner({ error }: { error: OAuthError | null }) {
 /* ── Setup Dialog (project selection after auth) ─────── */
 
 function SetupDialog() {
+  const t = useT();
   const jiraConfig = useSettingsStore((s) => s.jiraConfig);
   const clearJiraConfig = useSettingsStore((s) => s.clearJiraConfig);
   const [open, setOpen] = useState(false);
@@ -470,28 +479,28 @@ function SetupDialog() {
         onEscapeKeyDown={(e) => e.preventDefault()}
       >
         <DialogHeader>
-          <DialogTitle className="text-xl">프로젝트 선택</DialogTitle>
+          <DialogTitle className="text-xl">{t("settings.projectDialog.title")}</DialogTitle>
           <DialogDescription>
-            이슈를 생성할 프로젝트를 선택하세요.
+            {t("settings.projectDialog.body")}
           </DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-col gap-1.5">
           <label className="text-xs text-muted-foreground">
-            프로젝트
+            {t("settings.projectDialog.label")}
           </label>
           <ProjectCombobox />
         </div>
 
         <DialogFooter>
           <Button variant="outline" onClick={handleCancel}>
-            취소
+            {t("common.cancel")}
           </Button>
           <Button
             disabled={!jiraConfig?.projectKey}
             onClick={handleComplete}
           >
-            완료
+            {t("common.done")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -502,6 +511,7 @@ function SetupDialog() {
 /* ── Connected state components ──────────────────────── */
 
 function TitlePrefixField() {
+  const t = useT();
   const titlePrefix = useSettingsStore(
     (s) => s.jiraConfig?.titlePrefix ?? "",
   );
@@ -509,7 +519,7 @@ function TitlePrefixField() {
 
   return (
     <div className="flex flex-col gap-1.5">
-      <label htmlFor="jira-title-prefix" className="text-xs text-muted-foreground">제목 Prefix</label>
+      <label htmlFor="jira-title-prefix" className="text-xs text-muted-foreground">{t("settings.titlePrefix")}</label>
       <Input
         id="jira-title-prefix"
         placeholder="[QA] "
@@ -519,13 +529,14 @@ function TitlePrefixField() {
         spellCheck={false}
       />
       <p className="text-xs text-muted-foreground">
-        이슈 제목 앞에 자동으로 붙습니다. 비워두면 사용하지 않습니다.
+        {t("settings.titlePrefix.help")}
       </p>
     </div>
   );
 }
 
 function JiraSummary() {
+  const t = useT();
   const jiraConfig = useSettingsStore((s) => s.jiraConfig);
   if (!jiraConfig) return null;
 
@@ -548,35 +559,36 @@ function JiraSummary() {
         </CardContent>
       </Card>
       <p className="text-xs text-muted-foreground">
-        Jira에 정상적으로 연결되었습니다.
+        {t("settings.connected")}
       </p>
     </div>
   );
 }
 
 function DisconnectButton() {
+  const t = useT();
   const clearJiraConfig = useSettingsStore((s) => s.clearJiraConfig);
 
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
         <Button size="lg" variant="outline">
-          Jira 연결 해제
+          {t("settings.disconnect")}
         </Button>
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Jira 연결을 해제할까요?</AlertDialogTitle>
+          <AlertDialogTitle>{t("settings.disconnect.title")}</AlertDialogTitle>
           <AlertDialogDescription>
-            인증 정보와 프로젝트 설정이 모두 초기화됩니다. 다시 연결하려면 재인증이 필요합니다.
+            {t("settings.disconnect.body")}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogCancel>닫기</AlertDialogCancel>
+          <AlertDialogCancel>{t("common.close")}</AlertDialogCancel>
           <AlertDialogAction
             onClick={() => clearJiraConfig()}
           >
-            연결 해제
+            {t("settings.disconnect.confirm")}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

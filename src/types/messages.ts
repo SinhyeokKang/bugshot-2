@@ -1,3 +1,4 @@
+import { t } from "@/i18n";
 import type {
   JiraAttachmentInput,
   JiraConfigPayload,
@@ -77,12 +78,12 @@ export function sendBg<T = unknown>(req: BgRequest): Promise<T> {
   return new Promise((resolve, reject) => {
     chrome.runtime.sendMessage(req, (res: BgResponse<T>) => {
       if (chrome.runtime.lastError) {
-        reject(new Error("확장 프로그램 내부 통신 오류. 페이지를 새로고침해주세요."));
+        reject(new Error(t("bg.error.communication")));
         return;
       }
       if (!res?.ok) {
         const err = new BgError(
-          res?.error ?? "알 수 없는 오류가 발생했습니다.",
+          res?.error ?? t("bg.error.unknown"),
           res?.status,
           res?.body,
         );

@@ -1,3 +1,5 @@
+import { t } from "@/i18n";
+import { IMAGE_PLACEHOLDER } from "@/lib/adf-sentinels";
 import type { MarkdownContext } from "./buildIssueMarkdown";
 import { formatTimestamp } from "./formatTimestamp";
 
@@ -20,7 +22,7 @@ export function buildIssueAdf(ctx: MarkdownContext): AdfDoc {
   const isVideo = ctx.captureMode === "video";
   const isScreenshot = ctx.captureMode === "screenshot";
 
-  content.push(heading(2, "재현 환경"));
+  content.push(heading(2, t("md.section.env")));
   if (isVideo) {
     const items = [
       keyValueItem("Page", ctx.url),
@@ -46,26 +48,26 @@ export function buildIssueAdf(ctx: MarkdownContext): AdfDoc {
     );
   }
 
-  content.push(heading(2, "발생 현상"));
+  content.push(heading(2, t("md.section.description")));
   content.push(...textBlock(ctx.body));
 
   if (isVideo) {
-    content.push(heading(2, "미디어"));
-    content.push(paragraph([textNode("(첨부 영상 참조)")]));
+    content.push(heading(2, t("md.section.media")));
+    content.push(paragraph([textNode(t("md.videoAttached"))]));
   } else if (isScreenshot) {
-    content.push(heading(2, "미디어"));
-    content.push(paragraph([textNode("(첨부 이미지 참조)")]));
+    content.push(heading(2, t("md.section.media")));
+    content.push(paragraph([textNode(IMAGE_PLACEHOLDER)]));
   } else {
-    content.push(heading(2, "스타일 변경사항"));
+    content.push(heading(2, t("md.section.styleChanges")));
     content.push(
       table(
-        ["속성", "As is", "To be"],
+        [t("md.column.property"), "As is", "To be"],
         ctx.diffs.map((d) => [d.prop, d.asIs, d.toBe]),
       ),
     );
   }
 
-  content.push(heading(2, "기대 결과"));
+  content.push(heading(2, t("md.section.expectedResult")));
   content.push(...textBlock(ctx.expectedResult));
 
   return { version: 1, type: "doc", content };
@@ -97,7 +99,7 @@ function hardBreak(): AdfNode {
 
 function textBlock(raw: string): AdfNode[] {
   const trimmed = raw.trim();
-  if (!trimmed) return [paragraph([textNode("(없음)")])];
+  if (!trimmed) return [paragraph([textNode(t("md.noValue"))])];
   const paragraphs = trimmed.split(/\n\s*\n/);
   return paragraphs.map((p) => {
     const lines = p.split(/\n/);

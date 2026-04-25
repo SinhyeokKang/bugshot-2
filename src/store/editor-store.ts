@@ -308,7 +308,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setIssueFields: (patch) =>
     set((s) => ({ issueFields: { ...s.issueFields, ...patch } })),
 
-  onSubmitted: (result) => set({ phase: "done", submitResult: result }),
+  onSubmitted: (result) => set({ phase: "done", submitResult: result, beforeImage: null, afterImage: null, screenshotRaw: null, screenshotAnnotated: null, videoBlob: null, videoThumbnail: null }),
 
   reset: () => set({ ...initial }),
 

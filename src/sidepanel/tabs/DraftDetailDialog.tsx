@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { getVideoBlob } from "@/store/video-db";
 import { Info } from "lucide-react";
+import { useT, dateBcp47 } from "@/i18n";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   AlertDialog,
@@ -61,6 +62,7 @@ export function DraftDetailDialog({
   onOpenChange: (open: boolean) => void;
   onSubmitSuccess?: (result: JiraSubmitResult) => void;
 }) {
+  const t = useT();
   const jiraConfig = useSettingsStore((s) => s.jiraConfig);
   const configured = isJiraConfigComplete(jiraConfig);
   const removeIssue = useIssuesStore((s) => s.removeIssue);
@@ -152,12 +154,12 @@ export function DraftDetailDialog({
       }
     } else if (isScreenshot) {
       if (issue.snapshot.before)
-        attachments.push({ filename: "screenshot.png", dataUrl: issue.snapshot.before });
+        attachments.push({ filename: "screenshot.jpg", dataUrl: issue.snapshot.before });
     } else {
       if (issue.snapshot.before)
-        attachments.push({ filename: "before.png", dataUrl: issue.snapshot.before });
+        attachments.push({ filename: "before.jpg", dataUrl: issue.snapshot.before });
       if (issue.snapshot.after)
-        attachments.push({ filename: "after.png", dataUrl: issue.snapshot.after });
+        attachments.push({ filename: "after.jpg", dataUrl: issue.snapshot.after });
     }
 
     const result = await sendBg<JiraSubmitResult>({
@@ -208,46 +210,46 @@ export function DraftDetailDialog({
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="w-[80vw] max-w-[80vw] max-h-[80vh] gap-5 rounded-3xl p-6 sm:rounded-3xl">
               <DialogHeader>
-                <DialogTitle className="text-xl">초안 검토</DialogTitle>
+                <DialogTitle className="text-xl">{t("draftDetail.title")}</DialogTitle>
               </DialogHeader>
 
               <Card className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overscroll-contain bg-background p-4">
-                <FieldSection label="이슈 제목">
+                <FieldSection label={t("section.issueTitle")}>
                   {issue.draft.title ? (
                     <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">
                       {issue.draft.title}
                     </div>
                   ) : (
-                    <p className="text-sm text-muted-foreground/70">비어 있음</p>
+                    <p className="text-sm text-muted-foreground/70">{t("common.empty")}</p>
                   )}
                 </FieldSection>
 
-                <FieldSection label="재현 환경">
+                <FieldSection label={t("section.env")}>
                   <EnvBlock issue={issue} />
                 </FieldSection>
 
                 {issue.draft.body ? (
-                  <FieldSection label="발생 현상">
+                  <FieldSection label={t("section.description")}>
                     <DocBody value={issue.draft.body} />
                   </FieldSection>
                 ) : null}
 
                 {isVideo && issue.snapshot.before ? (
-                  <FieldSection label="미디어">
+                  <FieldSection label={t("section.media")}>
                     <DraftVideoPreview issue={issue} />
                   </FieldSection>
                 ) : hasScreenshot ? (
-                  <FieldSection label="미디어">
+                  <FieldSection label={t("section.media")}>
                     <div className="aspect-video w-full overflow-hidden rounded-md border bg-muted/70">
                       <img
                         src={issue.snapshot.before!}
-                        alt="캡처 이미지"
+                        alt="Captured image"
                         className="h-full w-full object-contain"
                       />
                     </div>
                   </FieldSection>
                 ) : hasStyleBlock ? (
-                  <FieldSection label="스타일 변경사항">
+                  <FieldSection label={t("section.styleChanges")}>
                     <StyleChangesTable
                       beforeImage={issue.snapshot.before}
                       afterImage={issue.snapshot.after}
@@ -257,7 +259,7 @@ export function DraftDetailDialog({
                 ) : null}
 
                 {issue.draft.expectedResult ? (
-                  <FieldSection label="기대 결과">
+                  <FieldSection label={t("section.expectedResult")}>
                     <DocBody value={issue.draft.expectedResult} />
                   </FieldSection>
                 ) : null}
@@ -266,9 +268,9 @@ export function DraftDetailDialog({
               {!configured ? (
                 <Alert variant="ghost">
                   <Info className="h-4 w-4" />
-                  <AlertTitle>Jira가 연결되어 있지 않습니다</AlertTitle>
+                  <AlertTitle>{t("jira.notConnected.title")}</AlertTitle>
                   <AlertDescription>
-                    Jira 이슈를 생성하시려면, 연동 탭에서 Jira를 먼저 연결해주세요.
+                    {t("jira.notConnected.body")}
                   </AlertDescription>
                 </Alert>
               ) : null}
@@ -280,33 +282,33 @@ export function DraftDetailDialog({
                       variant="outline"
                       className="text-destructive hover:text-destructive"
                     >
-                      이슈 삭제
+                      {t("issueList.deleteIssue")}
                     </Button>
                   </AlertDialogTrigger>
                   <AlertDialogContent>
                     <AlertDialogHeader>
-                      <AlertDialogTitle>초안을 삭제할까요?</AlertDialogTitle>
+                      <AlertDialogTitle>{t("issueList.deleteDraft.title")}</AlertDialogTitle>
                       <AlertDialogDescription>
-                        삭제된 초안은 복구할 수 없습니다.
+                        {t("issueList.deleteDraft.body")}
                       </AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                      <AlertDialogCancel>닫기</AlertDialogCancel>
+                      <AlertDialogCancel>{t("common.close")}</AlertDialogCancel>
                       <AlertDialogAction onClick={handleDelete}>
-                        이슈 삭제
+                        {t("issueList.deleteIssue")}
                       </AlertDialogAction>
                     </AlertDialogFooter>
                   </AlertDialogContent>
                 </AlertDialog>
                 <div className="flex gap-2">
                   <Button variant="outline" onClick={() => onOpenChange(false)}>
-                    닫기
+                    {t("common.close")}
                   </Button>
                   <Button
                     disabled={!configured}
                     onClick={() => setSubmitOpen(true)}
                   >
-                    Jira 이슈 제출
+                    {t("jira.submit")}
                   </Button>
                 </div>
               </DialogFooter>
@@ -316,7 +318,7 @@ export function DraftDetailDialog({
       <SubmitFieldsDialog
         open={submitOpen}
         onOpenChange={setSubmitOpen}
-        title="Jira 이슈 제출"
+        title={t("jira.submit")}
         fields={fields}
         onFieldsChange={(patch) => setFields((f) => ({ ...f, ...patch }))}
         onSubmit={handleSubmit}
@@ -357,7 +359,7 @@ function EnvBlock({ issue }: { issue: IssueRecord }) {
   }
   rows.push({
     label: "Captured",
-    value: new Date(issue.createdAt).toLocaleString("ko-KR", {
+    value: new Date(issue.createdAt).toLocaleString(dateBcp47(), {
       year: "numeric",
       month: "2-digit",
       day: "2-digit",
@@ -408,7 +410,7 @@ function DraftVideoPreview({ issue }: { issue: IssueRecord }) {
       {src ? (
         <video src={src} controls className="max-h-60 w-full rounded-md border object-contain" />
       ) : issue.snapshot.before ? (
-        <img src={issue.snapshot.before} alt="녹화 썸네일" className="max-h-60 rounded-md border object-contain" />
+        <img src={issue.snapshot.before} alt="Recording thumbnail" className="max-h-60 rounded-md border object-contain" />
       ) : null}
     </div>
   );
@@ -424,8 +426,9 @@ function blobToDataUrl(blob: Blob): Promise<string> {
 }
 
 function DocBody({ value }: { value: string }) {
+  const t = useT();
   if (!value.trim()) {
-    return <p className="text-sm text-muted-foreground/70">비어 있음</p>;
+    return <p className="text-sm text-muted-foreground/70">{t("common.empty")}</p>;
   }
   return (
     <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">

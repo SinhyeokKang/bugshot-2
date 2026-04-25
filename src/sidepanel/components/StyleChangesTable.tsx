@@ -1,5 +1,6 @@
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
+import { useT } from "@/i18n";
 import {
   DocTable,
   docTableCell,
@@ -35,6 +36,7 @@ export function StyleChangesTable({
   afterImage: string | null;
   diffs: StyleDiffRow[];
 }) {
+  const t = useT();
   return (
     <DocTable>
       <colgroup>
@@ -52,7 +54,7 @@ export function StyleChangesTable({
       <tbody>
         <tr className={docTableRow}>
           <td className={cn(docTableCell, "text-muted-foreground")}>
-            스냅샷
+            {t("styleTable.snapshot")}
           </td>
           <td className={docTableCell}>
             <SnapshotCell image={beforeImage} />
@@ -67,7 +69,7 @@ export function StyleChangesTable({
               colSpan={3}
               className={cn(docTableCell, "text-center text-muted-foreground")}
             >
-              변경 사항이 없습니다.
+              {t("styleTable.noChanges")}
             </td>
           </tr>
         ) : (

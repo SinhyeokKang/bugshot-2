@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Check, ChevronsUpDown, Loader2 } from "lucide-react";
+import { useT } from "@/i18n";
 import { Button } from "@/components/ui/button";
 import {
   Command,
@@ -20,6 +21,7 @@ import type { JiraIssueType } from "@/types/jira";
 import { sendBg } from "@/types/messages";
 
 export function IssueTypeCombobox() {
+  const t = useT();
   const jiraConfig = useSettingsStore((s) => s.jiraConfig);
   const updateJiraConfig = useSettingsStore((s) => s.updateJiraConfig);
 
@@ -70,8 +72,8 @@ export function IssueTypeCombobox() {
   const label = jiraConfig.issueTypeName
     ? jiraConfig.issueTypeName
     : disabled
-      ? "프로젝트를 먼저 선택하세요"
-      : "이슈 타입 선택";
+      ? t("issueType.selectProjectFirst")
+      : t("field.issueType.select");
 
   return (
     <Popover open={open} onOpenChange={(v) => !disabled && setOpen(v)}>
@@ -96,12 +98,12 @@ export function IssueTypeCombobox() {
       </PopoverTrigger>
       <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0">
         <Command>
-          <CommandInput placeholder="이슈 타입 검색..." />
+          <CommandInput placeholder={t("field.issueType.search")} />
           <CommandList>
             {loading ? (
               <div className="flex items-center justify-center gap-2 py-6 text-xs text-muted-foreground">
                 <Loader2 className="h-3 w-3 animate-spin" />
-                불러오는 중...
+                {t("common.loading")}
               </div>
             ) : error ? (
               <div className="px-3 py-6 text-center text-xs text-destructive">
@@ -109,7 +111,7 @@ export function IssueTypeCombobox() {
               </div>
             ) : (
               <>
-                <CommandEmpty>일치하는 이슈 타입이 없습니다.</CommandEmpty>
+                <CommandEmpty>{t("field.issueType.empty")}</CommandEmpty>
                 <CommandGroup>
                   {issueTypes.map((it) => (
                     <CommandItem

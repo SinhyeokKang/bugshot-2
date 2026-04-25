@@ -1,3 +1,5 @@
+import { t } from "@/i18n";
+import { IMAGE_PLACEHOLDER } from "@/lib/adf-sentinels";
 import type { JiraAttachmentInput, JiraAuth, JiraSubmitResult } from "@/types/jira";
 import type { BgRequest } from "@/types/messages";
 import {
@@ -118,12 +120,12 @@ async function submitIssue(
     try {
       const desc = payload.description;
       const content: unknown[] = [...desc.content];
-      const screenshotFile = uploadMap.get("screenshot.png");
+      const screenshotFile = uploadMap.get("screenshot.jpg");
       if (screenshotFile) {
         const mediaPlaceholderIdx = content.findIndex(
           (n) => {
             const node = n as { type: string; content?: { text?: string }[] };
-            return node.type === "paragraph" && node.content?.[0]?.text === "(첨부 이미지 참조)";
+            return node.type === "paragraph" && node.content?.[0]?.text === IMAGE_PLACEHOLDER;
           },
         );
         if (mediaPlaceholderIdx >= 0) {
@@ -146,7 +148,7 @@ async function submitIssue(
           tbl.content.splice(
             1,
             0,
-            snapshotRow(uploadMap.get("before.png"), uploadMap.get("after.png")),
+            snapshotRow(uploadMap.get("before.jpg"), uploadMap.get("after.jpg")),
           );
           content[tableIdx] = tbl;
         }
@@ -186,7 +188,7 @@ function snapshotRow(
         content: [
           {
             type: "paragraph",
-            content: [{ type: "text", text: "스냅샷", marks: [{ type: "strong" }] }],
+            content: [{ type: "text", text: t("styleTable.snapshot"), marks: [{ type: "strong" }] }],
           },
         ],
       },

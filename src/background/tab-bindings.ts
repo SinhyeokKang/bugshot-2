@@ -1,10 +1,8 @@
+import { pageKeyOf, sessionKey } from "@/lib/session-keys";
+
 const SUPPORTED_SCHEMES = new Set(["http:", "https:", "file:"]);
 const SIDEPANEL_PATH = "src/sidepanel/index.html";
 const ACTIVATED_KEY = "sidePanel:activated";
-
-function sessionKey(tabId: number): string {
-  return `editor:${tabId}`;
-}
 
 function isSupportedUrl(url: string | undefined): boolean {
   if (!url) return false;
@@ -12,16 +10,6 @@ function isSupportedUrl(url: string | undefined): boolean {
     return SUPPORTED_SCHEMES.has(new URL(url).protocol);
   } catch {
     return false;
-  }
-}
-
-function pageKeyOf(url: string | undefined): string | null {
-  if (!url) return null;
-  try {
-    const u = new URL(url);
-    return `${u.origin}${u.pathname}`;
-  } catch {
-    return null;
   }
 }
 

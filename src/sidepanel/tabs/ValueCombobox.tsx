@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { Check, ChevronDown, PenLine, RotateCcw, X } from "lucide-react";
 import {
   Command,
@@ -13,6 +13,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { useT } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { useEditorStore } from "@/store/editor-store";
 import type { Token, TokenCategory } from "@/types/picker";
@@ -140,6 +141,7 @@ export function ValueCombobox({
   onLinkedCommit?: (value: string) => void;
   controlled?: { value: string; placeholder: string; set: (v: string) => void };
 }) {
+  const t = useT();
   const styleProp = useStyleProp(prop);
   const value = controlled?.value ?? styleProp.value;
   const placeholder = controlled?.placeholder ?? styleProp.placeholder;
@@ -192,33 +194,33 @@ export function ValueCombobox({
     };
   }, [tokens, category, familyPrefixes]);
 
-  const filterTokens = (list: Token[]) => {
-    const q = draft.trim().toLowerCase();
-    if (!q || draftLooksLikeToken) return list;
-    return list.filter(
-      (t) =>
-        t.name.toLowerCase().includes(q) ||
-        t.value.toLowerCase().includes(q),
-    );
-  };
+  const filterTokens = useCallback(
+    (list: Token[]) => {
+      const q = draft.trim().toLowerCase();
+      if (!q || draftLooksLikeToken) return list;
+      return list.filter(
+        (t) =>
+          t.name.toLowerCase().includes(q) ||
+          t.value.toLowerCase().includes(q),
+      );
+    },
+    [draft, draftLooksLikeToken],
+  );
 
   const familyGroupsFiltered = useMemo(
     () =>
       familyGroups
         .map((g) => ({ prefix: g.prefix, tokens: filterTokens(g.tokens) }))
         .filter((g) => g.tokens.length > 0),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [familyGroups, draft, draftLooksLikeToken],
+    [familyGroups, filterTokens],
   );
   const primaryFiltered = useMemo(
     () => filterTokens(primary),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [primary, draft, draftLooksLikeToken],
+    [primary, filterTokens],
   );
   const extraFiltered = useMemo(
     () => filterTokens(extra),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [extra, draft, draftLooksLikeToken],
+    [extra, filterTokens],
   );
 
   const commit = (next: string) => {
@@ -317,7 +319,7 @@ export function ValueCombobox({
       >
         <Command shouldFilter={false}>
           <CommandInput
-            placeholder="값 직접 입력 또는 토큰 검색"
+            placeholder={t("value.placeholder")}
             value={draft}
             onValueChange={(v) => {
               setDraft(v);
@@ -332,23 +334,23 @@ export function ValueCombobox({
           />
           <CommandList>
             {value || placeholder ? (
-              <CommandGroup heading="동작">
+              <CommandGroup heading={t("common.actions")}>
                 {value ? (
                   <CommandItem value="__clear__" onSelect={() => commit("")}>
                     <RotateCcw className="h-3.5 w-3.5" />
-                    <span className="text-xs">원래 값 (reset)</span>
+                    <span className="text-xs">{t("value.reset")}</span>
                   </CommandItem>
                 ) : null}
                 {value !== "unset" ? (
                   <CommandItem value="__unset__" onSelect={() => commit("unset")}>
                     <X className="h-3.5 w-3.5" />
-                    <span className="text-xs">값 해제 (unset)</span>
+                    <span className="text-xs">{t("value.unset")}</span>
                   </CommandItem>
                 ) : null}
               </CommandGroup>
             ) : null}
             {showRawItem && !draftLooksLikeToken ? (
-              <CommandGroup heading="직접 입력">
+              <CommandGroup heading={t("value.manualInput")}>
                 <CommandItem
                   value={`__raw__${draft}`}
                   onSelect={() => commit(draft.trim())}
@@ -373,7 +375,7 @@ export function ValueCombobox({
               heading={`토큰${category ? ` · ${category}` : ""}`}
             >
               {familyGroupsFiltered.length === 0 && primaryFiltered.length === 0 && extraFiltered.length === 0 ? (
-                <CommandEmpty>매칭 없음</CommandEmpty>
+                <CommandEmpty>{t("value.noMatch")}</CommandEmpty>
               ) : null}
               {primaryFiltered.map((t) => (
                 <TokenItem
@@ -390,13 +392,13 @@ export function ValueCombobox({
                 >
                   <ChevronDown className="h-3.5 w-3.5" />
                   <span className="text-xs text-muted-foreground">
-                    다른 토큰 {extraFiltered.length}개 더 보기
+                    {t("value.showMore", { count: extraFiltered.length })}
                   </span>
                 </CommandItem>
               ) : null}
             </CommandGroup>
             {effectiveShowAll && extraFiltered.length > 0 ? (
-              <CommandGroup heading="기타 토큰">
+              <CommandGroup heading={t("value.otherTokens")}>
                 {extraFiltered.map((t) => (
                   <TokenItem
                   key={t.name}

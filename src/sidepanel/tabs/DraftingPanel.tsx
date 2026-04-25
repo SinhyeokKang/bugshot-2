@@ -3,6 +3,7 @@ import { Pencil, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { useT } from "@/i18n";
 import { useEditorStore } from "@/store/editor-store";
 import { useSettingsStore } from "@/store/settings-store";
 import { useBoundTabId } from "../hooks/useBoundTabId";
@@ -21,6 +22,7 @@ import {
 } from "../components/StyleChangesTable";
 
 export function DraftingPanel() {
+  const t = useT();
   const tabId = useBoundTabId();
   const captureMode = useEditorStore((s) => s.captureMode);
   const selection = useEditorStore((s) => s.selection);
@@ -71,31 +73,31 @@ export function DraftingPanel() {
   return (
     <PageShell>
       <PageScroll>
-        <Section title="이슈 제목">
+        <Section title={t("section.issueTitle")}>
           <Input
             value={draft.title}
             onChange={(e) => setDraft({ ...draft, title: e.target.value })}
             onFocus={cursorToEnd}
-            placeholder="이슈 제목"
+            placeholder={t("draft.titlePlaceholder")}
           />
         </Section>
 
-        <Section title="발생 현상">
+        <Section title={t("section.description")}>
           <Textarea
             value={draft.body}
             onChange={(e) => setDraft({ ...draft, body: e.target.value })}
             onFocus={cursorToEnd}
-            placeholder="재현 경로, 기대 동작 등 추가 설명"
+            placeholder={t("draft.bodyPlaceholder")}
             className="min-h-32 resize-none text-sm [field-sizing:content]"
           />
         </Section>
 
         {isVideoMode ? (
-          <Section title="미디어">
+          <Section title={t("section.media")}>
             <VideoPreview blob={videoBlob} thumbnail={videoThumbnail} />
           </Section>
         ) : isElementMode ? (
-          <Section title="스타일 변경사항">
+          <Section title={t("section.styleChanges")}>
             <StyleChangesTable
               beforeImage={beforeImage}
               afterImage={afterImage}
@@ -104,7 +106,7 @@ export function DraftingPanel() {
           </Section>
         ) : (
           <Section
-            title="미디어"
+            title={t("section.media")}
             action={
               screenshotImage ? (
                 <>
@@ -113,7 +115,7 @@ export function DraftingPanel() {
                       size="icon"
                       variant="outline"
                       className="h-7 w-7 shrink-0"
-                      title="주석 제거"
+                      title={t("draft.removeAnnotation")}
                       onClick={() => useEditorStore.setState({ screenshotAnnotated: null })}
                     >
                       <RotateCcw />
@@ -123,7 +125,7 @@ export function DraftingPanel() {
                     size="icon"
                     variant="outline"
                     className="h-7 w-7 shrink-0"
-                    title={screenshotAnnotated ? "주석 수정" : "주석 추가"}
+                    title={screenshotAnnotated ? t("draft.editAnnotation") : t("draft.addAnnotation")}
                     onClick={() => setAnnotating(true)}
                   >
                     <Pencil />
@@ -136,7 +138,7 @@ export function DraftingPanel() {
               <div className="aspect-video w-full overflow-hidden rounded-lg border bg-muted/70">
                 <img
                   src={screenshotImage}
-                  alt="캡처 이미지"
+                  alt={t("section.media")}
                   className="h-full w-full object-contain"
                 />
               </div>
@@ -144,14 +146,14 @@ export function DraftingPanel() {
           </Section>
         )}
 
-        <Section title="기대 결과">
+        <Section title={t("section.expectedResult")}>
           <Textarea
             value={draft.expectedResult}
             onChange={(e) =>
               setDraft({ ...draft, expectedResult: e.target.value })
             }
             onFocus={cursorToEnd}
-            placeholder="수정 후 기대되는 동작 / 디자인 기준 등"
+            placeholder={t("draft.expectedResultPlaceholder")}
             className="min-h-32 resize-none text-sm [field-sizing:content]"
           />
         </Section>
@@ -172,7 +174,7 @@ export function DraftingPanel() {
                 variant="outline"
                 onClick={() => backToStyling()}
               >
-                이전
+                {t("common.back")}
               </Button>
             ) : null}
             <Button
@@ -183,7 +185,7 @@ export function DraftingPanel() {
               }}
               disabled={titleMissing}
             >
-              이슈 프리뷰
+              {t("draft.preview")}
             </Button>
           </div>
         </div>
@@ -220,7 +222,7 @@ function VideoPreview({ blob, thumbnail }: { blob: Blob | null; thumbnail: strin
       {src ? (
         <video src={src} controls className="w-full rounded-lg border" />
       ) : thumbnail ? (
-        <img src={thumbnail} alt="녹화 썸네일" className="w-full rounded-lg border" />
+        <img src={thumbnail} alt="Recording thumbnail" className="w-full rounded-lg border" />
       ) : null}
     </div>
   );

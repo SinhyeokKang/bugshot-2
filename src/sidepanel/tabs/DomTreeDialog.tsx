@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { useT } from "@/i18n";
 import {
   Dialog,
   DialogContent,
@@ -28,6 +29,7 @@ import {
 } from "../picker-control";
 
 export function DomNavButton({ direction }: { direction: "parent" | "child" }) {
+  const t = useT();
   const tabId = useBoundTabId();
   const canNavigate = useEditorStore((s) =>
     direction === "parent"
@@ -35,7 +37,7 @@ export function DomNavButton({ direction }: { direction: "parent" | "child" }) {
       : (s.selection?.hasChild ?? false),
   );
   const Icon = direction === "parent" ? CornerLeftUp : CornerRightDown;
-  const label = direction === "parent" ? "부모 요소" : "첫 자식 요소";
+  const label = direction === "parent" ? t("dom.parent") : t("dom.child");
   return (
     <Button
       type="button"
@@ -53,22 +55,30 @@ export function DomNavButton({ direction }: { direction: "parent" | "child" }) {
   );
 }
 
-export function DomTreeTitle({ selector }: { selector: string }) {
+export function formatElementName(tagName: string, classList: string[]): string {
+  const cls = classList.slice(0, 3).map((c) => `.${c}`).join("");
+  const extra = classList.length > 3 ? `+${classList.length - 3}` : "";
+  return `${tagName}${cls}${extra}`;
+}
+
+export function DomTreeTitle({ tagName, classList }: { tagName: string; classList: string[] }) {
+  const t = useT();
   const [open, setOpen] = useState(false);
+  const label = formatElementName(tagName, classList);
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <button
           type="button"
           className="block w-full truncate text-center text-2xl font-semibold outline-none hover:opacity-70 focus-visible:ring-1 focus-visible:ring-ring"
-          title={selector}
+          title={label}
         >
-          {selector}
+          {label}
         </button>
       </DialogTrigger>
       <DialogContent className="w-[80vw] max-w-[80vw] max-h-[80vh] gap-5 rounded-3xl p-6 sm:rounded-3xl">
         <DialogHeader>
-          <DialogTitle className="text-xl">DOM 선택</DialogTitle>
+          <DialogTitle className="text-xl">{t("dom.dialogTitle")}</DialogTitle>
         </DialogHeader>
         <DomTree onPicked={() => setOpen(false)} />
       </DialogContent>
@@ -90,6 +100,7 @@ function injectChildren(
 }
 
 function DomTree({ onPicked }: { onPicked: () => void }) {
+  const t = useT();
   const tabId = useBoundTabId();
   const currentSelector = useEditorStore((s) => s.selection?.selector);
   const [tree, setTree] = useState<TreeNode | null>(null);
@@ -167,7 +178,7 @@ function DomTree({ onPicked }: { onPicked: () => void }) {
   if (loading) {
     return (
       <div className="py-8 text-center text-sm text-muted-foreground">
-        DOM 트리를 불러오는 중...
+        {t("dom.loading")}
       </div>
     );
   }
@@ -175,7 +186,7 @@ function DomTree({ onPicked }: { onPicked: () => void }) {
   if (!tree) {
     return (
       <div className="py-8 text-center text-sm text-muted-foreground">
-        DOM 트리를 불러오지 못했습니다.
+        {t("dom.error")}
       </div>
     );
   }
@@ -212,6 +223,7 @@ function DomTreeNode({
   onSelect: (selector: string) => void;
   onToggle: (node: TreeNode) => void;
 }) {
+  const t = useT();
   const isOpen = expanded.has(node.selector);
   const kids = node.children;
   const isCurrent = node.selector === currentSelector;
@@ -237,7 +249,7 @@ function DomTreeNode({
               void onToggle(node);
             }}
             className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded hover:bg-muted-foreground/15"
-            aria-label={isOpen ? "접기" : "펼치기"}
+            aria-label={isOpen ? t("dom.collapse") : t("dom.expand")}
           >
             {isOpen ? (
               <ChevronDown className="h-3 w-3" />

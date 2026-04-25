@@ -1,11 +1,15 @@
+import { t } from "@/i18n";
+import { initBgLocale } from "@/i18n/bg-init";
 import { JiraError } from "./jira-api";
 import { handleMessage } from "./messages";
 import { OAuthError } from "./oauth";
 import { activateTab, setupTabBindings } from "./tab-bindings";
 
+initBgLocale();
+
 function friendlyError(error: unknown): string {
   if (error instanceof TypeError && error.message === "Failed to fetch") {
-    return "네트워크 연결을 확인하세요. Jira 서버에 접근할 수 없습니다.";
+    return t("bg.error.network");
   }
   return error instanceof Error ? error.message : String(error);
 }

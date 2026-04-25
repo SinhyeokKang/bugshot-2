@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { RotateCcw } from "lucide-react";
+import { useT } from "@/i18n";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -83,6 +84,7 @@ const SECTION_PROPS = {
 } as const;
 
 export function SelectedPanel() {
+  const t = useT();
   const selection = useEditorStore((s) => s.selection);
   const styleEdits = useEditorStore((s) => s.styleEdits);
   const setAfterImage = useEditorStore((s) => s.setAfterImage);
@@ -124,7 +126,7 @@ export function SelectedPanel() {
           <div className="flex items-center gap-1 px-4">
             <DomNavButton direction="parent" />
             <div className="min-w-0 flex-1">
-              <DomTreeTitle selector={selection.selector} />
+              <DomTreeTitle tagName={selection.tagName} classList={selection.classList} />
             </div>
             <DomNavButton direction="child" />
           </div>
@@ -359,18 +361,18 @@ export function SelectedPanel() {
                   variant="outline"
                   disabled={!hasChange}
                 >
-                  변경사항 초기화
+                  {t("editor.resetChanges")}
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>변경사항 초기화</AlertDialogTitle>
+                  <AlertDialogTitle>{t("editor.resetChanges")}</AlertDialogTitle>
                   <AlertDialogDescription>
-                    {changeCount}건의 변경사항을 초기화하시겠습니까? 모든 스타일이 원래 값으로 돌아갑니다.
+                    {t("editor.resetChanges.body", { count: changeCount })}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel>닫기</AlertDialogCancel>
+                  <AlertDialogCancel>{t("common.close")}</AlertDialogCancel>
                   <AlertDialogAction
                     onClick={() => {
                       const initial: EditorStyleEdits = {
@@ -382,7 +384,7 @@ export function SelectedPanel() {
                       if (tabId) void resetEdits(tabId);
                     }}
                   >
-                    초기화
+                    {t("common.reset")}
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
@@ -392,7 +394,7 @@ export function SelectedPanel() {
               onClick={() => void handleNext()}
               disabled={proceeding || !hasChange}
             >
-              다음
+              {t("common.next")}
             </Button>
           </div>
         </div>
@@ -433,6 +435,7 @@ function ClassEditor() {
 }
 
 function TextEditor() {
+  const t = useT();
   const selection = useEditorStore((s) => s.selection);
   const value = useEditorStore((s) => s.styleEdits.text);
   const setStyleEdits = useEditorStore((s) => s.setStyleEdits);
@@ -449,7 +452,7 @@ function TextEditor() {
     <Textarea
       value={value}
       onChange={(e) => handleChange(e.target.value)}
-      placeholder="요소 텍스트"
+      placeholder={t("editor.textPlaceholder")}
       className="min-h-9 resize-none text-sm [field-sizing:content]"
       rows={1}
       spellCheck={false}
@@ -458,6 +461,7 @@ function TextEditor() {
 }
 
 function TextRevertButton() {
+  const t = useT();
   const selection = useEditorStore((s) => s.selection);
   const styleEdits = useEditorStore((s) => s.styleEdits);
   const setStyleEdits = useEditorStore((s) => s.setStyleEdits);
@@ -479,7 +483,7 @@ function TextRevertButton() {
       variant="outline"
       onClick={handleRevert}
       disabled={!dirty}
-      title="원본 텍스트로 되돌리기"
+      title={t("editor.revertText")}
       className="h-7 w-7 shrink-0"
     >
       <RotateCcw />
@@ -488,6 +492,7 @@ function TextRevertButton() {
 }
 
 function ClassRevertButton() {
+  const t = useT();
   const selection = useEditorStore((s) => s.selection);
   const styleEdits = useEditorStore((s) => s.styleEdits);
   const setStyleEdits = useEditorStore((s) => s.setStyleEdits);
@@ -513,7 +518,7 @@ function ClassRevertButton() {
       variant="outline"
       onClick={handleRevert}
       disabled={!dirty}
-      title="원본 class로 되돌리기"
+      title={t("editor.revertClass")}
       className="h-7 w-7 shrink-0"
     >
       <RotateCcw />

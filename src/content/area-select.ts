@@ -142,9 +142,9 @@ function updateAreaRect(h: AreaSelectHandle, e: MouseEvent): void {
   showDimming(h, { x, y, w, h: hh });
   h._areaSizeEl.textContent = `${Math.round(w)} × ${Math.round(hh)}`;
   Object.assign(h._areaSizeEl.style, {
-    display: "",
+    display: "block",
     left: `${x}px`,
-    top: `${y + hh + 6}px`,
+    top: `${Math.max(0, y - 24)}px`,
   });
 }
 

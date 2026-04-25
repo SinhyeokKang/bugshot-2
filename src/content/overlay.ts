@@ -6,6 +6,7 @@ export interface OverlayHandle {
 
 interface OverlayInternal extends OverlayHandle {
   bannerEl: HTMLDivElement;
+  labelEl: HTMLDivElement;
   marginEl: SVGPathElement;
   paddingEl: SVGPathElement;
   gapEl: SVGPathElement;
@@ -41,6 +42,18 @@ const OVERLAY_CSS = `
     z-index: 2147483646;
     pointer-events: auto;
     cursor: crosshair;
+  }
+  .element-label {
+    position: fixed;
+    z-index: 2147483647;
+    background: #2563eb;
+    color: white;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font: 11px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    pointer-events: none;
+    white-space: nowrap;
+    display: none;
   }
   .area-dim {
     position: fixed;
@@ -154,6 +167,10 @@ export function createOverlay(): OverlayHandle {
 
   shadow.appendChild(svg);
 
+  const labelEl = document.createElement("div");
+  labelEl.className = "element-label";
+  shadow.appendChild(labelEl);
+
   const bannerEl = document.createElement("div");
   bannerEl.className = "banner";
   bannerEl.textContent = `${window.innerWidth} × ${window.innerHeight}`;
@@ -164,6 +181,7 @@ export function createOverlay(): OverlayHandle {
     shadow,
     blockerEl,
     bannerEl,
+    labelEl,
     marginEl,
     paddingEl,
     gapEl,
@@ -266,6 +284,18 @@ export function renderOutline(h: OverlayHandle, target: Element): void {
     contentTop: bt + pt,
     contentBottom: bt + bh - pb,
   });
+
+  const tag = target.tagName.toLowerCase();
+  const cls = Array.from(target.classList).slice(0, 3).map((c) => `.${c}`).join("");
+  const extra = target.classList.length > 3 ? `+${target.classList.length - 3}` : "";
+  const name = `${tag}${cls}${extra}`;
+  const lw = Math.round(rect.width);
+  const lh = Math.round(rect.height);
+  o.labelEl.textContent = `${name} · ${lw}×${lh}`;
+  const labelY = bt - mt - 22;
+  o.labelEl.style.top = `${Math.max(0, labelY)}px`;
+  o.labelEl.style.left = `${Math.max(0, bl - ml)}px`;
+  o.labelEl.style.display = "block";
 }
 
 export function hideOutline(h: OverlayHandle): void {
@@ -274,6 +304,7 @@ export function hideOutline(h: OverlayHandle): void {
   o.paddingEl.style.display = "none";
   o.gapEl.style.display = "none";
   o.borderEl.style.display = "none";
+  o.labelEl.style.display = "none";
 }
 
 export function renderPreview(h: OverlayHandle, selector: string): void {

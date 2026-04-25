@@ -1,3 +1,4 @@
+import { t } from "@/i18n";
 import type {
   JiraAttachmentResult,
   JiraAuth,
@@ -157,12 +158,12 @@ async function doFetch(
 }
 
 function messageFor(status: number): string {
-  if (status === 401) return "인증 실패: 자격 증명을 확인하세요.";
-  if (status === 403) return "권한 없음: 계정 권한을 확인하세요.";
-  if (status === 404) return "찾을 수 없음: workspace URL 또는 사이트를 확인하세요.";
-  if (status === 429) return "요청이 너무 많습니다. 잠시 후 다시 시도하세요.";
-  if (status >= 500) return "Jira 서버 오류. 잠시 후 다시 시도하세요.";
-  return `Jira 요청 실패 (${status})`;
+  if (status === 401) return t("jira.error.401");
+  if (status === 403) return t("jira.error.403");
+  if (status === 404) return t("jira.error.404");
+  if (status === 429) return t("jira.error.429");
+  if (status >= 500) return t("jira.error.5xx");
+  return t("jira.error.generic", { status });
 }
 
 export function getMyself(auth: JiraAuth): Promise<JiraMyself> {

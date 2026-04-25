@@ -58,7 +58,7 @@ async function cropImage(
     canvas.width,
     canvas.height,
   );
-  return canvas.toDataURL("image/png");
+  return canvas.toDataURL("image/jpeg", 0.92);
 }
 
 export function loadImage(src: string): Promise<HTMLImageElement> {

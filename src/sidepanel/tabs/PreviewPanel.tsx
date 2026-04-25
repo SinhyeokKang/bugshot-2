@@ -3,6 +3,7 @@ import { Check, Copy, Info } from "lucide-react";
 import { formatTimestamp } from "../lib/formatTimestamp";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { useT } from "@/i18n";
 import { useEditorStore } from "@/store/editor-store";
 import { isJiraConfigComplete, useSettingsStore } from "@/store/settings-store";
 import {
@@ -19,6 +20,7 @@ import { buildIssueHtml, buildIssueMarkdown } from "../lib/buildIssueMarkdown";
 import { IssueCreateModal } from "./IssueCreateModal";
 
 export function PreviewPanel() {
+  const t = useT();
   const captureMode = useEditorStore((s) => s.captureMode);
   const selection = useEditorStore((s) => s.selection);
   const target = useEditorStore((s) => s.target);
@@ -126,7 +128,7 @@ export function PreviewPanel() {
           <div className="flex items-start justify-between gap-3">
             <h1 className="text-2xl font-semibold leading-tight">
               {draft.title || (
-                <span className="text-muted-foreground/70">(제목 없음)</span>
+                <span className="text-muted-foreground/70">{t("common.untitled")}</span>
               )}
             </h1>
             {isElementMode || isVideoMode ? (
@@ -137,14 +139,14 @@ export function PreviewPanel() {
                 className="shrink-0"
               >
                 {copied ? <Check /> : <Copy />}
-                {copied ? "복사됨" : "마크다운 복사"}
+                {copied ? t("preview.copied") : t("preview.copyMarkdown")}
               </Button>
             ) : null}
           </div>
         </Section>
 
         {isElementMode && selection ? (
-          <Section title="재현 환경">
+          <Section title={t("section.env")}>
             <EnvParagraph
               url={target?.url ?? ""}
               selector={selection.selector}
@@ -153,7 +155,7 @@ export function PreviewPanel() {
             />
           </Section>
         ) : (
-          <Section title="재현 환경">
+          <Section title={t("section.env")}>
             <div className="space-y-1 text-sm leading-relaxed">
               <div className="flex gap-3">
                 <span className="w-20 shrink-0 text-muted-foreground">Page</span>
@@ -179,16 +181,16 @@ export function PreviewPanel() {
           </Section>
         )}
 
-        <Section title="발생 현상">
+        <Section title={t("section.description")}>
           <DocBody value={draft.body} />
         </Section>
 
         {isVideoMode ? (
-          <Section title="미디어">
+          <Section title={t("section.media")}>
             <PreviewVideo blob={videoBlob} thumbnail={videoThumbnail} />
           </Section>
         ) : isElementMode ? (
-          <Section title="스타일 변경사항">
+          <Section title={t("section.styleChanges")}>
             <StyleChangesTable
               beforeImage={beforeImage}
               afterImage={afterImage}
@@ -196,12 +198,12 @@ export function PreviewPanel() {
             />
           </Section>
         ) : (
-          <Section title="미디어">
+          <Section title={t("section.media")}>
             {screenshotImage ? (
               <div className="aspect-video w-full overflow-hidden rounded-lg border bg-muted/70">
                 <img
                   src={screenshotImage}
-                  alt="캡처 이미지"
+                  alt="Captured image"
                   className="h-full w-full object-contain"
                 />
               </div>
@@ -209,7 +211,7 @@ export function PreviewPanel() {
           </Section>
         )}
 
-        <Section title="기대 결과">
+        <Section title={t("section.expectedResult")}>
           <DocBody value={draft.expectedResult} />
         </Section>
       </PageScroll>
@@ -217,9 +219,9 @@ export function PreviewPanel() {
         {!configured ? (
           <Alert variant="ghost" className="mb-2">
             <Info className="h-4 w-4" />
-            <AlertTitle>Jira가 연결되어 있지 않습니다</AlertTitle>
+            <AlertTitle>{t("jira.notConnected.title")}</AlertTitle>
             <AlertDescription>
-              Jira 이슈를 생성하시려면, 연동 탭에서 Jira를 먼저 연결해주세요.
+              {t("jira.notConnected.body")}
             </AlertDescription>
           </Alert>
         ) : null}
@@ -229,7 +231,7 @@ export function PreviewPanel() {
             variant="outline"
             onClick={() => reset()}
           >
-            다른 이슈 작성
+            {t("preview.newIssue")}
           </Button>
           <div className="flex items-center gap-2">
             <Button
@@ -237,7 +239,7 @@ export function PreviewPanel() {
               variant="outline"
               onClick={() => backToDraft()}
             >
-              이전
+              {t("common.back")}
             </Button>
             <IssueCreateModal />
           </div>
@@ -261,13 +263,14 @@ function PreviewVideo({ blob, thumbnail }: { blob: Blob | null; thumbnail: strin
   }, []);
 
   if (src) return <video src={src} controls className="w-full rounded-lg border" />;
-  if (thumbnail) return <img src={thumbnail} alt="녹화 썸네일" className="w-full rounded-lg border" />;
+  if (thumbnail) return <img src={thumbnail} alt="Recording thumbnail" className="w-full rounded-lg border" />;
   return null;
 }
 
 function DocBody({ value }: { value: string }) {
+  const t = useT();
   if (!value.trim()) {
-    return <p className="text-sm text-muted-foreground/70">비어 있음</p>;
+    return <p className="text-sm text-muted-foreground/70">{t("common.empty")}</p>;
   }
   return (
     <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">

@@ -9,6 +9,7 @@ import {
   List,
   Video,
 } from "lucide-react";
+import { useT } from "@/i18n";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -125,11 +126,12 @@ export function IssueTab() {
 }
 
 function UnsupportedPage() {
+  const t = useT();
   return (
     <PageShell>
       <EmptyShell
         icon={<Crosshair className="h-6 w-6 text-muted-foreground" />}
-        title="지원하지 않는 페이지"
+        title={t("issue.unsupported")}
       />
     </PageShell>
   );
@@ -151,6 +153,7 @@ async function handleStartVideo(tabId: number) {
 }
 
 function EmptyState({ onStartElement, onStartScreenshot, onStartVideo }: { onStartElement: () => void; onStartScreenshot: () => void; onStartVideo: () => void }) {
+  const t = useT();
   return (
     <PageShell>
       <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 px-6">
@@ -158,20 +161,20 @@ function EmptyState({ onStartElement, onStartScreenshot, onStartVideo }: { onSta
           <div className="mb-1 rounded-full bg-muted p-3">
             <Bug className="h-6 w-6 text-muted-foreground" />
           </div>
-          <h3 className="text-[18px] font-semibold">이슈 작성 방식 선택</h3>
+          <h3 className="whitespace-pre-line text-center text-[18px] font-semibold">{t("issue.empty.title")}</h3>
         </div>
         <div className="grid grid-cols-2 gap-2">
           <Button className="col-span-2" onClick={onStartElement}>
             <Crosshair />
-            DOM 요소 선택
+            {t("issue.mode.element")}
           </Button>
           <Button variant="outline" onClick={onStartScreenshot}>
             <Camera />
-            화면 캡처
+            {t("issue.mode.screenshot")}
           </Button>
           <Button variant="outline" onClick={onStartVideo}>
             <Video />
-            영상 녹화
+            {t("issue.mode.video")}
           </Button>
         </div>
       </div>
@@ -180,14 +183,15 @@ function EmptyState({ onStartElement, onStartScreenshot, onStartVideo }: { onSta
 }
 
 function PickingState({ onCancel }: { onCancel: () => void }) {
+  const t = useT();
   return (
     <PageShell>
       <EmptyShell
         icon={<Crosshair className="h-6 w-6 text-muted-foreground" />}
-        title="요소를 선택하세요"
+        title={t("issue.picking.title")}
         action={
           <Button variant="outline" onClick={onCancel}>
-            취소
+            {t("common.cancel")}
           </Button>
         }
       />
@@ -196,14 +200,15 @@ function PickingState({ onCancel }: { onCancel: () => void }) {
 }
 
 function CapturingState({ onCancel }: { onCancel: () => void }) {
+  const t = useT();
   return (
     <PageShell>
       <EmptyShell
         icon={<ImageIcon className="h-6 w-6 text-muted-foreground" />}
-        title="캡처 영역을 선택하세요"
+        title={t("issue.capturing.title")}
         action={
           <Button variant="outline" onClick={onCancel}>
-            취소
+            {t("common.cancel")}
           </Button>
         }
       />
@@ -212,6 +217,7 @@ function CapturingState({ onCancel }: { onCancel: () => void }) {
 }
 
 function RecordingState({ onStop, onCancel }: { onStop: () => void; onCancel: () => void }) {
+  const t = useT();
   const [elapsed, setElapsed] = useState(0);
   const maxDuration = videoRecorder.getMaxDuration();
 
@@ -223,9 +229,8 @@ function RecordingState({ onStop, onCancel }: { onStop: () => void; onCancel: ()
     return () => window.clearInterval(id);
   }, []);
 
-  const minutes = Math.floor(elapsed / 60);
-  const seconds = elapsed % 60;
-  const timeStr = `${minutes}:${seconds.toString().padStart(2, "0")}`;
+  const fmt = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}`;
+  const timeStr = `${fmt(elapsed)} / ${fmt(maxDuration)}`;
   const progress = Math.min(elapsed / maxDuration, 1);
 
   return (
@@ -234,7 +239,7 @@ function RecordingState({ onStop, onCancel }: { onStop: () => void; onCancel: ()
         <div className="mb-3 rounded-full bg-red-100 p-3">
           <Video className="h-6 w-6 text-red-600" />
         </div>
-        <h3 className="text-[18px] font-semibold">녹화 중 {timeStr}</h3>
+        <h3 className="text-[18px] font-semibold">{t("issue.recording.title", { time: timeStr })}</h3>
         <div className="mt-3 h-1.5 w-40 overflow-hidden rounded-full bg-muted">
           <div
             className="h-full rounded-full bg-foreground transition-all duration-500"
@@ -242,8 +247,8 @@ function RecordingState({ onStop, onCancel }: { onStop: () => void; onCancel: ()
           />
         </div>
         <div className="mt-4 flex gap-2">
-          <Button variant="outline" onClick={onCancel}>취소</Button>
-          <Button onClick={onStop}>녹화 완료</Button>
+          <Button variant="outline" onClick={onCancel}>{t("common.cancel")}</Button>
+          <Button onClick={onStop}>{t("issue.recording.stop")}</Button>
         </div>
       </div>
     </PageShell>
@@ -251,6 +256,7 @@ function RecordingState({ onStop, onCancel }: { onStop: () => void; onCancel: ()
 }
 
 function SubmitSuccessView() {
+  const t = useT();
   const submitResult = useEditorStore((s) => s.submitResult);
   const reset = useEditorStore((s) => s.reset);
   const setTab = useTabNav();
@@ -263,7 +269,7 @@ function SubmitSuccessView() {
         <div className="mb-3 rounded-full bg-muted p-3">
           <CircleCheck className="h-6 w-6 text-green-600" />
         </div>
-        <h3 className="text-[18px] font-semibold">이슈가 제출되었습니다</h3>
+        <h3 className="text-[18px] font-semibold">{t("jira.submitted")}</h3>
         <a
           href={submitResult.url}
           target="_blank"
@@ -282,10 +288,10 @@ function SubmitSuccessView() {
             }}
           >
             <List className="h-4 w-4" />
-            이슈 목록
+            {t("app.tab.issueList")}
           </Button>
           <Button onClick={() => reset()}>
-            확인
+            {t("common.ok")}
           </Button>
         </div>
       </div>
@@ -300,17 +306,18 @@ function SessionExpiredDialog({
   open: boolean;
   onConfirm: () => void;
 }) {
+  const t = useT();
   return (
     <AlertDialog open={open}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>페이지가 갱신되었습니다</AlertDialogTitle>
+          <AlertDialogTitle>{t("issue.sessionExpired.title")}</AlertDialogTitle>
           <AlertDialogDescription>
-            작성 중인 내용이 초기화됩니다.
+            {t("issue.sessionExpired.body")}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
-          <AlertDialogAction onClick={onConfirm}>확인</AlertDialogAction>
+          <AlertDialogAction onClick={onConfirm}>{t("common.ok")}</AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
@@ -329,7 +336,7 @@ function EmptyShell({
   return (
     <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 text-center">
       <div className="mb-3 rounded-full bg-muted p-3">{icon}</div>
-      <h3 className="text-[18px] font-semibold">{title}</h3>
+      <h3 className="whitespace-pre-line text-[18px] font-semibold">{title}</h3>
       {action ? <div className="mt-4">{action}</div> : null}
     </div>
   );

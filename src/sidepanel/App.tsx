@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { Globe, List, Settings, SlidersHorizontal, SquarePen } from "lucide-react";
+import { useT } from "@/i18n";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -37,6 +38,7 @@ function useSettingsHydrated() {
 }
 
 export default function App() {
+  const t = useT();
   const tabId = useBoundTabId();
   const editorHydrated = useEditorSessionSync(tabId);
   const settingsHydrated = useSettingsHydrated();
@@ -94,19 +96,19 @@ export default function App() {
           <TabsList className="mx-4 my-5 grid h-9 w-auto grid-cols-4">
             <TabsTrigger value="issue" className="gap-1.5">
               <SquarePen className="h-3.5 w-3.5" />
-              이슈 작성
+              {t("app.tab.issue")}
             </TabsTrigger>
             <TabsTrigger value="issue-list" className="gap-1.5">
               <List className="h-3.5 w-3.5" />
-              이슈 목록
+              {t("app.tab.issueList")}
             </TabsTrigger>
             <TabsTrigger value="issue-settings" className="gap-1.5">
               <SlidersHorizontal className="h-3.5 w-3.5" />
-              Jira 연동
+              {t("app.tab.settings")}
             </TabsTrigger>
             <TabsTrigger value="app-settings" className="gap-1.5">
               <Settings className="h-3.5 w-3.5" />
-              앱 설정
+              {t("app.tab.appSettings")}
             </TabsTrigger>
           </TabsList>
         </div>
@@ -143,14 +145,14 @@ export default function App() {
       <AlertDialog open={oauthExpired} onOpenChange={setOAuthExpired}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Jira 인증이 만료되었습니다</AlertDialogTitle>
+            <AlertDialogTitle>{t("app.oauthExpired.title")}</AlertDialogTitle>
             <AlertDialogDescription>
-              Jira 연동을 다시 설정해주세요.
+              {t("app.oauthExpired.body")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogAction onClick={() => { setOAuthExpired(false); setTab("issue-settings"); }}>
-              확인
+              {t("common.ok")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -161,14 +163,15 @@ export default function App() {
 }
 
 function UnsupportedPage() {
+  const t = useT();
   return (
     <div className="flex h-screen flex-col items-center justify-center gap-3 px-6 text-center">
       <div className="rounded-full bg-muted p-3">
         <Globe className="h-6 w-6 text-muted-foreground" />
       </div>
-      <h3 className="text-[18px] font-semibold">이 페이지에서는 사용할 수 없습니다</h3>
+      <h3 className="text-[18px] font-semibold">{t("app.unsupported.title")}</h3>
       <p className="text-sm text-muted-foreground">
-        웹 페이지(http, https, file)에서 BugShot을 실행해주세요.
+        {t("app.unsupported.body")}
       </p>
     </div>
   );

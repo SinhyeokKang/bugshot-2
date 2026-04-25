@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowUpRight, CircleCheck, Inbox, Loader2, Trash2 } from "lucide-react";
+import { useT, dateBcp47 } from "@/i18n";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -22,6 +23,7 @@ import { PageFooter, PageScroll, PageShell, Section } from "../components/Sectio
 import { DraftDetailDialog } from "./DraftDetailDialog";
 
 export function IssueListTab() {
+  const t = useT();
   const issues = useIssuesStore((s) => s.issues);
   const clearIssues = useIssuesStore((s) => s.clearIssues);
   const [draftId, setDraftId] = useState<string | null>(null);
@@ -72,7 +74,7 @@ export function IssueListTab() {
           <div className="mb-3 rounded-full bg-muted p-3">
             <CircleCheck className="h-6 w-6 text-green-600" />
           </div>
-          <h3 className="text-[18px] font-semibold">이슈가 제출되었습니다</h3>
+          <h3 className="text-[18px] font-semibold">{t("jira.submitted")}</h3>
           <a
             href={successResult.url}
             target="_blank"
@@ -84,7 +86,7 @@ export function IssueListTab() {
           </a>
           <div className="mt-6">
             <Button variant="outline" onClick={() => setSuccessResult(null)}>
-              확인
+              {t("common.ok")}
             </Button>
           </div>
         </div>
@@ -99,7 +101,7 @@ export function IssueListTab() {
           <div className="mb-3 rounded-full bg-muted p-3">
             <Inbox className="h-6 w-6 text-muted-foreground" />
           </div>
-          <h3 className="text-[18px] font-semibold">등록한 이슈가 없습니다</h3>
+          <h3 className="text-[18px] font-semibold">{t("issueList.empty")}</h3>
         </div>
       </PageShell>
     );
@@ -129,20 +131,20 @@ export function IssueListTab() {
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button variant="outline" className="text-destructive">
-                모두 삭제
+                {t("issueList.deleteAll")}
               </Button>
             </AlertDialogTrigger>
             <AlertDialogContent>
               <AlertDialogHeader>
-                <AlertDialogTitle>모든 이슈를 삭제할까요?</AlertDialogTitle>
+                <AlertDialogTitle>{t("issueList.deleteAll.title")}</AlertDialogTitle>
                 <AlertDialogDescription>
-                  Bugshot의 이슈 목록만 삭제되며, Jira에 등록된 이슈는 영향받지 않습니다.
+                  {t("issueList.deleteAll.body")}
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                <AlertDialogCancel>닫기</AlertDialogCancel>
+                <AlertDialogCancel>{t("common.close")}</AlertDialogCancel>
                 <AlertDialogAction onClick={clearIssues}>
-                  모두 삭제
+                  {t("issueList.deleteAll")}
                 </AlertDialogAction>
               </AlertDialogFooter>
             </AlertDialogContent>
@@ -159,7 +161,7 @@ export function IssueListTab() {
               </span>
             )}
             <span className={isRefreshing ? "opacity-0" : undefined}>
-              목록 새로고침
+              {t("issueList.refresh")}
             </span>
           </Button>
         </div>
@@ -188,16 +190,17 @@ function IssueRow({
   onOpenDraft: () => void;
   onBadgeLoaded: () => void;
 }) {
+  const t = useT();
   const isSubmitted = issue.status === "submitted" && !!issue.url;
   const removeIssue = useIssuesStore((s) => s.removeIssue);
 
   const metaParts: string[] = [];
-  metaParts.push(formatDate(issue.createdAt));
+  metaParts.push(formatDate(issue.createdAt, t));
   if (isSubmitted && issue.url) {
     try { metaParts.push(new URL(issue.url).hostname); } catch {}
   }
   if (isSubmitted && issue.key) metaParts.push(`[${issue.key}]`);
-  if (!isSubmitted) metaParts.push("초안");
+  if (!isSubmitted) metaParts.push(t("issueList.draft"));
   if (issue.issueTypeName) metaParts.push(issue.issueTypeName);
   if (issue.priorityName) metaParts.push(issue.priorityName);
   if (issue.assigneeName) metaParts.push(issue.assigneeName);
@@ -219,7 +222,7 @@ function IssueRow({
         <CardContent className="flex items-center justify-between gap-3 px-4 py-3">
           <div className="flex min-w-0 flex-col">
             <span className="truncate text-base font-medium text-foreground">
-              {issue.title || "(제목 없음)"}
+              {issue.title || t("common.untitled")}
             </span>
             <span className="truncate text-sm text-muted-foreground">
               {metaParts.join(" · ")}
@@ -241,17 +244,17 @@ function IssueRow({
               </AlertDialogTrigger>
               <AlertDialogContent onClick={(e) => e.stopPropagation()}>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>초안을 삭제할까요?</AlertDialogTitle>
+                  <AlertDialogTitle>{t("issueList.deleteDraft.title")}</AlertDialogTitle>
                   <AlertDialogDescription>
-                    삭제된 초안은 복구할 수 없습니다.
+                    {t("issueList.deleteDraft.body")}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
-                  <AlertDialogCancel>닫기</AlertDialogCancel>
+                  <AlertDialogCancel>{t("common.close")}</AlertDialogCancel>
                   <AlertDialogAction
                     onClick={() => removeIssue(issue.id)}
                   >
-                    이슈 삭제
+                    {t("issueList.deleteIssue")}
                   </AlertDialogAction>
                 </AlertDialogFooter>
               </AlertDialogContent>
@@ -289,6 +292,7 @@ const STATUS_CATEGORY_COLORS: Record<
 
 
 function SubmittedBadge({ issueKey, issueSiteId, refreshKey, onLoaded }: { issueKey: string; issueSiteId?: string; refreshKey: number; onLoaded: () => void }) {
+  const t = useT();
   const jiraConfig = useSettingsStore((s) => s.jiraConfig);
   const currentSiteId = jiraConfig?.auth ? jiraSiteId(jiraConfig.auth) : null;
   const siteMatch = !issueSiteId || currentSiteId === issueSiteId;
@@ -309,7 +313,7 @@ function SubmittedBadge({ issueKey, issueSiteId, refreshKey, onLoaded }: { issue
   if (status === "error") {
     return (
       <Badge variant="outline" className="w-fit shrink-0 text-[11px]">
-        알 수 없음
+        {t("issueList.unknown")}
       </Badge>
     );
   }
@@ -332,20 +336,20 @@ function SubmittedBadge({ issueKey, issueSiteId, refreshKey, onLoaded }: { issue
 }
 
 function dateLabel(ts: number): string {
-  return new Date(ts).toLocaleDateString("ko-KR", {
+  return new Date(ts).toLocaleDateString(dateBcp47(), {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
   });
 }
 
-function formatDate(ts: number): string {
+function formatDate(ts: number, t: (key: any, params?: any) => string): string {
   const now = Date.now();
   const diff = now - ts;
-  if (diff < 60_000) return "방금";
-  if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}분 전`;
-  if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}시간 전`;
-  if (diff < 7 * 86_400_000) return `${Math.floor(diff / 86_400_000)}일 전`;
+  if (diff < 60_000) return t("time.justNow");
+  if (diff < 3_600_000) return t("time.minutesAgo", { n: Math.floor(diff / 60_000) });
+  if (diff < 86_400_000) return t("time.hoursAgo", { n: Math.floor(diff / 3_600_000) });
+  if (diff < 7 * 86_400_000) return t("time.daysAgo", { n: Math.floor(diff / 86_400_000) });
   return dateLabel(ts);
 }
 

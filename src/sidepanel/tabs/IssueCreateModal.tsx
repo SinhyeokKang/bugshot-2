@@ -28,6 +28,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { useT } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { useEditorStore, type EditorIssueFields } from "@/store/editor-store";
 import { useIssuesStore } from "@/store/issues-store";
@@ -53,6 +54,7 @@ type SubmitState =
   | { status: "error"; message: string };
 
 export function IssueCreateModal() {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const jiraConfig = useSettingsStore((s) => s.jiraConfig);
   const configured = isJiraConfigComplete(jiraConfig);
@@ -127,7 +129,7 @@ export function IssueCreateModal() {
         diffs: [],
       };
       description = buildIssueAdf(ctx);
-      if (screenshotImage) attachments.push({ filename: "screenshot.png", dataUrl: screenshotImage });
+      if (screenshotImage) attachments.push({ filename: "screenshot.jpg", dataUrl: screenshotImage });
     } else {
       if (!selection) throw new Error("필수 값 누락");
       const diffs = buildStyleDiff(selection, styleEdits);
@@ -147,8 +149,8 @@ export function IssueCreateModal() {
         diffs,
       };
       description = buildIssueAdf(ctx);
-      if (beforeImage) attachments.push({ filename: "before.png", dataUrl: beforeImage });
-      if (afterImage) attachments.push({ filename: "after.png", dataUrl: afterImage });
+      if (beforeImage) attachments.push({ filename: "before.jpg", dataUrl: beforeImage });
+      if (afterImage) attachments.push({ filename: "after.jpg", dataUrl: afterImage });
     }
 
     const titlePrefix = jiraConfig.titlePrefix?.trim() ?? "";
@@ -199,9 +201,9 @@ export function IssueCreateModal() {
         size="lg"
         disabled={!configured}
         onClick={() => setOpen(true)}
-        title={configured ? undefined : "설정 탭에서 Jira를 먼저 연결하세요"}
+        title={configured ? undefined : t("jira.connectFirst")}
       >
-        Jira 이슈 제출
+        {t("jira.submit")}
       </Button>
       <SubmitFieldsDialog
         open={open}
@@ -217,7 +219,7 @@ export function IssueCreateModal() {
 export function SubmitFieldsDialog({
   open,
   onOpenChange,
-  title = "Jira 이슈 제출",
+  title,
   fields,
   onFieldsChange,
   onSubmit,
@@ -231,6 +233,7 @@ export function SubmitFieldsDialog({
   onSubmit: () => Promise<JiraSubmitResult>;
   onSuccess?: (result: JiraSubmitResult) => void;
 }) {
+  const t = useT();
   const jiraConfig = useSettingsStore((s) => s.jiraConfig);
   const configured = isJiraConfigComplete(jiraConfig);
   const [submit, setSubmit] = useState<SubmitState>({ status: "idle" });
@@ -267,31 +270,31 @@ export function SubmitFieldsDialog({
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="w-[80vw] max-w-[80vw] gap-5 rounded-3xl p-6 sm:rounded-3xl">
         <DialogHeader>
-          <DialogTitle className="text-xl">{title}</DialogTitle>
+          <DialogTitle className="text-xl">{title ?? t("jira.submit")}</DialogTitle>
         </DialogHeader>
         {configured ? (
           <div className="flex flex-col gap-4">
-            <FieldRow label="이슈 타입" required>
+            <FieldRow label={t("create.issueType")} required>
               <IssueTypeField
                 value={fields.issueTypeId}
                 onChange={(id) => onFieldsChange({ issueTypeId: id })}
               />
             </FieldRow>
-            <FieldRow label="담당자">
+            <FieldRow label={t("create.assignee")}>
               <AssigneeField
                 value={fields.assigneeId}
                 fallbackLabel={fields.assigneeName}
                 onChange={(id, name) => onFieldsChange({ assigneeId: id, assigneeName: name })}
               />
             </FieldRow>
-            <FieldRow label="우선순위">
+            <FieldRow label={t("create.priority")}>
               <PriorityField
                 value={fields.priorityId}
                 fallbackLabel={fields.priorityName}
                 onChange={(id, name) => onFieldsChange({ priorityId: id, priorityName: name })}
               />
             </FieldRow>
-            <FieldRow label="부모 에픽">
+            <FieldRow label={t("create.parentEpic")}>
               <EpicField
                 value={fields.parentKey}
                 fallbackLabel={fields.parentLabel}
@@ -299,7 +302,7 @@ export function SubmitFieldsDialog({
                 hierarchyLevels={[1]}
               />
             </FieldRow>
-            <FieldRow label="연결 이슈">
+            <FieldRow label={t("create.linkedIssue")}>
               <EpicField
                 value={fields.relatesKey}
                 fallbackLabel={fields.relatesLabel}
@@ -314,13 +317,13 @@ export function SubmitFieldsDialog({
             ) : null}
           </div>
         ) : null}
-        <DialogFooter>
+        <DialogFooter className="flex-row justify-end">
           <Button
             variant="outline"
             onClick={() => handleOpenChange(false)}
             disabled={submit.status === "submitting"}
           >
-            닫기
+            {t("common.close")}
           </Button>
           <Button
             onClick={() => void handleSubmit()}
@@ -333,7 +336,7 @@ export function SubmitFieldsDialog({
               </span>
             )}
             <span className={submit.status === "submitting" ? "opacity-0" : undefined}>
-              제출
+              {t("common.submit")}
             </span>
           </Button>
         </DialogFooter>
@@ -415,6 +418,7 @@ export function IssueTypeField({
   value?: string;
   onChange: (id: string) => void;
 }) {
+  const t = useT();
   const jiraConfig = useSettingsStore((s) => s.jiraConfig);
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<JiraIssueType[]>([]);
@@ -463,9 +467,9 @@ export function IssueTypeField({
       onOpenChange={setOpen}
       loading={loading}
       error={error}
-      placeholder="이슈 타입 선택"
-      searchPlaceholder="이슈 타입 검색..."
-      emptyMessage="일치하는 이슈 타입이 없습니다."
+      placeholder={t("field.issueType.select")}
+      searchPlaceholder={t("field.issueType.search")}
+      emptyMessage={t("field.issueType.empty")}
       label={selected?.name ?? (effectiveValue ? defaultName : undefined)}
     >
       {items.map((it) => (
@@ -502,6 +506,7 @@ export function PriorityField({
   fallbackLabel?: string;
   onChange: (id: string | undefined, name?: string) => void;
 }) {
+  const t = useT();
   const jiraConfig = useSettingsStore((s) => s.jiraConfig);
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<JiraPriority[]>([]);
@@ -536,14 +541,14 @@ export function PriorityField({
       onOpenChange={setOpen}
       loading={loading}
       error={error}
-      placeholder="우선순위 선택"
-      searchPlaceholder="우선순위 검색..."
-      emptyMessage="일치하는 우선순위가 없습니다."
+      placeholder={t("field.priority.select")}
+      searchPlaceholder={t("field.priority.search")}
+      emptyMessage={t("field.priority.empty")}
       label={selected?.name}
       fallbackLabel={fallbackLabel}
       clearable={!!value}
       onClear={() => onChange(undefined)}
-      groupLabel="우선순위"
+      groupLabel={t("field.priority.label")}
     >
       {items.map((p) => (
         <CommandItem
@@ -579,6 +584,7 @@ export function AssigneeField({
   fallbackLabel?: string;
   onChange: (id: string | undefined, name?: string) => void;
 }) {
+  const t = useT();
   const jira = useJiraConfig();
   const [open, setOpen] = useState(false);
 
@@ -608,15 +614,15 @@ export function AssigneeField({
       onOpenChange={setOpen}
       loading={loading}
       error={error}
-      placeholder="담당자 선택"
-      searchPlaceholder="이름으로 검색..."
-      emptyMessage="일치하는 사용자가 없습니다."
+      placeholder={t("field.assignee.select")}
+      searchPlaceholder={t("field.assignee.search")}
+      emptyMessage={t("field.assignee.empty")}
       label={selected?.displayName}
       fallbackLabel={fallbackLabel}
       clearable={!!value}
       onClear={() => onChange(undefined)}
       onSearch={search}
-      groupLabel="담당자"
+      groupLabel={t("field.assignee.label")}
     >
       {items.map((u) => (
         <CommandItem
@@ -658,6 +664,7 @@ export function EpicField({
   onChange: (key: string | undefined, label?: string) => void;
   hierarchyLevels?: number[];
 }) {
+  const t = useT();
   const jira = useJiraConfig();
   const [open, setOpen] = useState(false);
 
@@ -689,15 +696,15 @@ export function EpicField({
       onOpenChange={setOpen}
       loading={loading}
       error={error}
-      placeholder="이슈 선택 (선택사항)"
-      searchPlaceholder="이슈 검색..."
-      emptyMessage="일치하는 이슈가 없습니다."
+      placeholder={t("field.epic.select")}
+      searchPlaceholder={t("field.epic.search")}
+      emptyMessage={t("field.epic.empty")}
       label={selected ? `${selected.key} ${selected.fields.summary}` : undefined}
       fallbackLabel={fallbackLabel}
       clearable={!!value}
       onClear={() => onChange(undefined)}
       onSearch={search}
-      groupLabel="이슈 목록"
+      groupLabel={t("field.epic.label")}
     >
       {items.map((epic) => (
         <CommandItem
@@ -753,6 +760,7 @@ function FieldCombobox({
   groupLabel?: string;
   children: React.ReactNode;
 }) {
+  const t = useT();
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
       <PopoverTrigger asChild>
@@ -786,7 +794,7 @@ function FieldCombobox({
             {loading ? (
               <div className="flex items-center justify-center gap-2 py-6 text-xs text-muted-foreground">
                 <Loader2 className="h-3 w-3 animate-spin" />
-                불러오는 중...
+                {t("common.loading")}
               </div>
             ) : error ? (
               <div className="px-3 py-6 text-center text-xs text-destructive">
@@ -795,7 +803,7 @@ function FieldCombobox({
             ) : (
               <>
                 {clearable && onClear ? (
-                  <CommandGroup heading="동작">
+                  <CommandGroup heading={t("common.actions")}>
                     <CommandItem
                       value="__clear__"
                       onSelect={() => {
@@ -804,7 +812,7 @@ function FieldCombobox({
                       }}
                     >
                       <X className="h-3.5 w-3.5" />
-                      <span className="text-xs">선택 해제</span>
+                      <span className="text-xs">{t("common.deselect")}</span>
                     </CommandItem>
                   </CommandGroup>
                 ) : null}

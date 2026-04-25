@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { pageKeyOf, sessionKey } from "@/lib/session-keys";
 import {
   type EditorSnapshot,
   useEditorStore,
@@ -6,20 +7,6 @@ import {
 import { clearPicker } from "../picker-control";
 
 const SAVE_DEBOUNCE_MS = 300;
-
-function pageKeyOf(url: string | undefined): string | null {
-  if (!url) return null;
-  try {
-    const u = new URL(url);
-    return `${u.origin}${u.pathname}`;
-  } catch {
-    return null;
-  }
-}
-
-export function sessionKey(tabId: number): string {
-  return `editor:${tabId}`;
-}
 
 function snapshotFromState(): EditorSnapshot {
   const s = useEditorStore.getState();
@@ -79,7 +66,13 @@ export function useEditorSessionSync(tabId: number | null): boolean {
       }
       saveTimer.current = window.setTimeout(() => {
         if (useEditorStore.getState().sessionExpired) return;
-        void chrome.storage.session.set({ [key]: snapshotFromState() });
+        const snap = snapshotFromState();
+        void chrome.storage.session
+          .set({ [key]: snap })
+          .catch(() => {
+            const lite = { ...snap, beforeImage: null, afterImage: null, screenshotRaw: null, screenshotAnnotated: null, videoThumbnail: null };
+            void chrome.storage.session.set({ [key]: lite }).catch(() => {});
+          });
       }, SAVE_DEBOUNCE_MS);
     });
 

@@ -1,0 +1,1 @@
+export const IMAGE_PLACEHOLDER = "__BUGSHOT_IMAGE__";

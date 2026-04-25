@@ -1,6 +1,7 @@
 import { useEffect, useRef } from "react";
 import * as markerjs2 from "markerjs2";
 import { Button } from "@/components/ui/button";
+import { useT } from "@/i18n";
 
 interface AnnotationOverlayProps {
   imageUrl: string;
@@ -13,6 +14,7 @@ export function AnnotationOverlay({
   onComplete,
   onCancel,
 }: AnnotationOverlayProps) {
+  const t = useT();
   const containerRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
   const maRef = useRef<markerjs2.MarkerArea | null>(null);
@@ -28,7 +30,8 @@ export function AnnotationOverlay({
     ma.uiStyleSettings.zIndex = "9999";
     ma.uiStyleSettings.resultButtonBlockVisible = false;
     ma.renderAtNaturalSize = true;
-    ma.renderImageType = "image/png";
+    ma.renderImageType = "image/jpeg";
+    ma.renderImageQuality = 0.92;
 
     ma.addEventListener("render", (event) => {
       img.src = event.dataUrl;
@@ -67,7 +70,7 @@ export function AnnotationOverlay({
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
       ctx.drawImage(img, 0, 0);
-      onComplete(canvas.toDataURL("image/png"));
+      onComplete(canvas.toDataURL("image/jpeg", 0.92));
     }, 300);
   };
 
@@ -86,9 +89,9 @@ export function AnnotationOverlay({
       </div>
       <div className="absolute inset-x-0 bottom-6 z-[10000] flex items-center justify-center gap-2">
         <Button size="lg" variant="secondary" onClick={onCancel}>
-          취소
+          {t("annotation.cancel")}
         </Button>
-        <Button size="lg" onClick={handleComplete}>주석 완료</Button>
+        <Button size="lg" onClick={handleComplete}>{t("annotation.done")}</Button>
       </div>
     </div>
   );

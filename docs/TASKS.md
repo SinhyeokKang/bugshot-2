@@ -2,7 +2,7 @@
 
 PRD(`docs/PRD.md`) 기준 작업 목록. 다른 환경에서 이어서 작업할 때 참고. Claude Code 세션의 TodoWrite 상태를 보강하는 용도 — 권위 있는 소스는 아니지만 방향성 유지용 스냅샷.
 
-**마지막 갱신: 2026-04-25**
+**마지막 갱신: 2026-04-26**
 
 ## 완료
 
@@ -25,7 +25,7 @@ PRD(`docs/PRD.md`) 기준 작업 목록. 다른 환경에서 이어서 작업할
 - [x] Picker 배너: 뷰포트 사이즈 상시 표시 + resize 실시간 갱신
 - [x] 우클릭 컨텍스트 메뉴 ("BugShot")
 - [x] 브랜딩: BugShot 파스칼 케이스 통일, 앱 설명 문구 개선
-- [x] en locale 추가
+- [x] en locale 설정 스토어 + UI 토글 (문자열 외재화는 미구현)
 - [x] PRD v0.4 최신화 (구현 기준 스펙 반영)
 - [x] AI 메타데이터 블록 (`<!-- bugshot-meta-for-ai -->`) — 마크다운 최상단, 구조화 JSON
 - [x] #31 마크다운 → ADF 변환 (`buildIssueAdf.ts`)
@@ -67,7 +67,7 @@ PRD(`docs/PRD.md`) 기준 작업 목록. 다른 환경에서 이어서 작업할
 - [x] 스크린샷 모드 viewport/capturedAt 메타 전체 표면 반영 (프리뷰/드래프트/마크다운/ADF)
 - [x] 영상 녹화 모드 (tabCapture + MediaRecorder, 최대 60초, IndexedDB blob 영속화)
   - video-recorder.ts: VP9/VP8 코덱, 1.5Mbps, 1초 청크, 썸네일 자동 생성
-  - editor-store: recording phase + videoBlob/videoThumbnail/videoDuration 상태
+  - editor-store: recording phase + videoBlob/videoThumbnail 상태
   - video-db.ts: IndexedDB "bugshot-video" 저장소 (드래프트 재제출용)
   - DraftingPanel/PreviewPanel/DraftDetailDialog: 비디오 모드 UI 분기
   - IssueCreateModal: recording.webm 첨부 + ADF mediaSingle 교체
@@ -82,6 +82,8 @@ PRD(`docs/PRD.md`) 기준 작업 목록. 다른 환경에서 이어서 작업할
   - annotation/ 디렉터리 삭제, 관련 메시지·storage 통신 제거
   - 스크린샷 이미지 16:9 컨테이너 + 주석 제거(원복) 버튼
   - content script 미로드 시 자동 주입 (ensureContentScript)
+- [x] videoDuration 제거 + 썸네일 480px JPEG 0.7 최적화
+- [x] 코드 정리: `pageKeyOf`/`sessionKey` 중복 제거 → `src/lib/session-keys.ts`, ValueCombobox eslint-disable 제거
 
 ## 진행 중
 
