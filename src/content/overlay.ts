@@ -12,6 +12,7 @@ interface OverlayInternal extends OverlayHandle {
   borderEl: SVGRectElement;
   previewEl: SVGRectElement;
   _onResize: () => void;
+  _cleanup: () => void;
 }
 
 export const HOST_ID = "__bugshot_picker_host";
@@ -86,11 +87,26 @@ export function createOverlay(): OverlayHandle {
   blockerEl.style.display = "none";
   shadow.appendChild(blockerEl);
 
+  let scrollTimer: ReturnType<typeof setTimeout> | null = null;
   function yieldToScroll() {
     blockerEl.style.pointerEvents = "none";
+    if (scrollTimer) clearTimeout(scrollTimer);
+    scrollTimer = setTimeout(() => {
+      blockerEl.style.pointerEvents = "auto";
+      scrollTimer = null;
+    }, 120);
   }
   blockerEl.addEventListener("wheel", yieldToScroll, { passive: true });
   blockerEl.addEventListener("touchmove", yieldToScroll, { passive: true });
+
+  function cleanupBlockerListeners() {
+    blockerEl.removeEventListener("wheel", yieldToScroll);
+    blockerEl.removeEventListener("touchmove", yieldToScroll);
+    if (scrollTimer) {
+      clearTimeout(scrollTimer);
+      scrollTimer = null;
+    }
+  }
 
   const svg = document.createElementNS(SVG_NS, "svg");
   svg.setAttribute("width", "100%");
@@ -154,6 +170,7 @@ export function createOverlay(): OverlayHandle {
     borderEl,
     previewEl,
     _onResize: () => updateBanner(handle),
+    _cleanup: cleanupBlockerListeners,
   };
 
   window.addEventListener("resize", handle._onResize);
@@ -164,6 +181,7 @@ export function createOverlay(): OverlayHandle {
 export function destroyOverlay(h: OverlayHandle): void {
   const o = h as OverlayInternal;
   window.removeEventListener("resize", o._onResize);
+  o._cleanup();
   o.hostEl.remove();
 }
 

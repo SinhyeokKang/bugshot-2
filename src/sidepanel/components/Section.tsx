@@ -34,11 +34,9 @@ export function Section({
   defaultOpen?: boolean;
 }) {
   const [open, setOpen] = React.useState(defaultOpen);
-  const prev = React.useRef(defaultOpen);
-  if (prev.current !== defaultOpen) {
-    prev.current = defaultOpen;
+  React.useEffect(() => {
     setOpen(defaultOpen);
-  }
+  }, [defaultOpen]);
 
   return (
     <section className="border-b border-border py-6 last:border-b-0">

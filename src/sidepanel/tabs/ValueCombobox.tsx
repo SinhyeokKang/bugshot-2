@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Check, ChevronDown, PenLine, RotateCcw, X } from "lucide-react";
 import {
   Command,
@@ -147,6 +147,11 @@ export function ValueCombobox({
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(value);
   const [showAll, setShowAll] = useState(false);
+  const prevValue = useRef(value);
+  if (prevValue.current !== value) {
+    prevValue.current = value;
+    setDraft(value);
+  }
   const tokens = useEditorStore((s) => s.tokens);
   const category = PROP_CATEGORY[prop];
 

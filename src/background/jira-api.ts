@@ -309,17 +309,18 @@ export async function searchEpics(
   query?: string,
   hierarchyLevels?: number[],
 ): Promise<JiraIssueSummary[]> {
-  const conditions = [`project = '${projectKey}'`];
+  const jqlEsc = (s: string) => s.replace(/'/g, "''");
+  const conditions = [`project = '${jqlEsc(projectKey)}'`];
   if (hierarchyLevels && hierarchyLevels.length > 0) {
     conditions.push(`hierarchyLevel in (${hierarchyLevels.join(", ")})`);
   }
   if (query) {
-    const q = query.replace(/'/g, "\\'");
+    const q = jqlEsc(query);
     const keyMatch = /^([A-Z]+-)?(\d+)$/i.exec(query.trim());
     if (keyMatch) {
       const fullKey = keyMatch[1]
         ? q.toUpperCase()
-        : `${projectKey}-${keyMatch[2]}`;
+        : `${jqlEsc(projectKey)}-${keyMatch[2]}`;
       conditions.push(`(key = '${fullKey}' OR summary ~ '${q}')`);
     } else {
       conditions.push(`summary ~ '${q}'`);

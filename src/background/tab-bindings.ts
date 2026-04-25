@@ -112,8 +112,9 @@ export function setupTabBindings(): void {
 
   chrome.tabs.onUpdated.addListener((tabId, info, tab) => {
     if (info.url) {
-      void clearIfPageChanged(tabId, info.url);
-      void apply(tabId, info.url);
+      void clearIfPageChanged(tabId, info.url).then(() =>
+        apply(tabId, info.url),
+      );
     } else if (info.status === "loading") {
       void clearEditorSession(tabId);
     }

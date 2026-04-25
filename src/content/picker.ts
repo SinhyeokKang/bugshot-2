@@ -58,71 +58,76 @@ chrome.runtime.onConnect.addListener((port) => {
 chrome.runtime.onMessage.addListener(
   (msg: PickerMessage, _sender, sendResponse) => {
     if (!msg || typeof msg !== "object" || !("type" in msg)) return;
-    switch (msg.type) {
-      case "picker.start":
-        handleStart();
-        break;
-      case "picker.stop":
-        handleStop();
-        break;
-      case "picker.clear":
-        handleClear();
-        break;
-      case "picker.navigate":
-        handleNavigate(msg.direction);
-        break;
-      case "picker.applyClasses":
-        handleApplyClasses(msg.classList);
-        break;
-      case "picker.applyStyles":
-        handleApplyStyles(msg.inlineStyle);
-        break;
-      case "picker.applyText":
-        handleApplyText(msg.text);
-        break;
-      case "picker.resetEdits":
-        handleResetEdits();
-        break;
-      case "picker.collectTokens":
-        sendResponse({ tokens: collectTokens(selectedEl ?? undefined) });
-        return;
-      case "picker.describeInitial":
-        sendResponse(buildInitialTree(selectedEl));
-        return;
-      case "picker.describeChildren":
-        sendResponse(buildChildrenResponse(msg.selector));
-        return;
-      case "picker.previewHover":
-        if (overlay) renderPreview(overlay, msg.selector);
-        break;
-      case "picker.previewClear":
-        if (overlay) clearPreview(overlay);
-        break;
-      case "picker.selectByPath":
-        handleSelectByPath(msg.selector);
-        break;
-      case "picker.prepareCapture":
-        sendResponse(handlePrepareCapture());
-        return;
-      case "picker.endCapture":
-        handleEndCapture();
-        break;
-      case "picker.startAreaSelect":
-        handleStartAreaSelect();
-        break;
-      case "picker.cancelAreaSelect":
-        handleCancelAreaSelect();
-        break;
-      case "picker.showAnnotation":
-        showAnnotationIframe();
-        break;
-      case "picker.hideAnnotation":
-        hideAnnotationIframe();
-        break;
-      default:
-        return;
+    try {
+      switch (msg.type) {
+        case "picker.start":
+          handleStart();
+          break;
+        case "picker.stop":
+          handleStop();
+          break;
+        case "picker.clear":
+          handleClear();
+          break;
+        case "picker.navigate":
+          handleNavigate(msg.direction);
+          break;
+        case "picker.applyClasses":
+          handleApplyClasses(msg.classList);
+          break;
+        case "picker.applyStyles":
+          handleApplyStyles(msg.inlineStyle);
+          break;
+        case "picker.applyText":
+          handleApplyText(msg.text);
+          break;
+        case "picker.resetEdits":
+          handleResetEdits();
+          break;
+        case "picker.collectTokens":
+          sendResponse({ tokens: collectTokens(selectedEl ?? undefined) });
+          return;
+        case "picker.describeInitial":
+          sendResponse(buildInitialTree(selectedEl));
+          return;
+        case "picker.describeChildren":
+          sendResponse(buildChildrenResponse(msg.selector));
+          return;
+        case "picker.previewHover":
+          if (overlay) renderPreview(overlay, msg.selector);
+          break;
+        case "picker.previewClear":
+          if (overlay) clearPreview(overlay);
+          break;
+        case "picker.selectByPath":
+          handleSelectByPath(msg.selector);
+          break;
+        case "picker.prepareCapture":
+          sendResponse(handlePrepareCapture());
+          return;
+        case "picker.endCapture":
+          handleEndCapture();
+          break;
+        case "picker.startAreaSelect":
+          handleStartAreaSelect();
+          break;
+        case "picker.cancelAreaSelect":
+          handleCancelAreaSelect();
+          break;
+        case "picker.showAnnotation":
+          showAnnotationIframe();
+          break;
+        case "picker.hideAnnotation":
+          hideAnnotationIframe();
+          break;
+        default:
+          return;
+      }
+      sendResponse({ ok: true });
+    } catch (err) {
+      console.error("[bugshot] picker message handler error", msg.type, err);
+      sendResponse({ ok: false, error: String(err) });
     }
-    sendResponse({ ok: true });
   },
 );
 

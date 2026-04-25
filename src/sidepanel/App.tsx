@@ -52,7 +52,10 @@ export default function App() {
     }
   }, [settingsHydrated]);
 
-  useEffect(() => onOAuthExpired.subscribe(() => setOAuthExpired(true)), []);
+  useEffect(() => {
+    const unsub = onOAuthExpired.subscribe(() => setOAuthExpired(true));
+    return unsub;
+  }, []);
 
   useEffect(() => {
     if (tabId == null) return;
