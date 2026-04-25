@@ -21,7 +21,7 @@ interface AppSettingsState {
 export const useAppSettingsStore = create<AppSettingsState>()(
   persist(
     (set) => ({
-      theme: "system",
+      theme: "light",
       locale: detectLocale(),
       setTheme: (theme) => set({ theme }),
       setLocale: (locale) => set({ locale }),
