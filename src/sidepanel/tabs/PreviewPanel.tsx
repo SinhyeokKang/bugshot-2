@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, Copy, Info } from "lucide-react";
 import { formatTimestamp } from "../lib/formatTimestamp";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -30,12 +30,18 @@ export function PreviewPanel() {
   const screenshotRaw = useEditorStore((s) => s.screenshotRaw);
   const screenshotViewport = useEditorStore((s) => s.screenshotViewport);
   const screenshotCapturedAt = useEditorStore((s) => s.screenshotCapturedAt);
+  const videoBlob = useEditorStore((s) => s.videoBlob);
+  const videoThumbnail = useEditorStore((s) => s.videoThumbnail);
+  const videoDuration = useEditorStore((s) => s.videoDuration);
+  const videoViewport = useEditorStore((s) => s.videoViewport);
+  const videoCapturedAt = useEditorStore((s) => s.videoCapturedAt);
   const draft = useEditorStore((s) => s.draft);
   const backToDraft = useEditorStore((s) => s.backToDraft);
   const reset = useEditorStore((s) => s.reset);
   const jiraConfig = useSettingsStore((s) => s.jiraConfig);
   const configured = isJiraConfigComplete(jiraConfig);
   const isElementMode = captureMode === "element";
+  const isVideoMode = captureMode === "video";
   const screenshotImage = screenshotAnnotated ?? screenshotRaw;
 
   const diffs = useMemo(
@@ -54,30 +60,51 @@ export function PreviewPanel() {
   if (isElementMode && !selection) return null;
 
   const handleCopyMarkdown = async () => {
-    if (!isElementMode || !selection) return;
-    const changedProps = new Set(diffs.map((d) => d.prop));
-    const relevantValues = Object.entries(selection.specifiedStyles)
-      .filter(([k]) => changedProps.has(k))
-      .map(([, v]) => v);
-    const relevantTokens = tokens
-      .filter((t) => relevantValues.some((v) => v.includes(t.name)))
-      .map((t) => ({ name: t.name, value: t.value }));
+    let ctx: Parameters<typeof buildIssueMarkdown>[0];
+    if (isVideoMode) {
+      ctx = {
+        captureMode: "video",
+        title: draft.title,
+        body: draft.body,
+        expectedResult: draft.expectedResult,
+        url: target?.url ?? "",
+        selector: "",
+        tagName: "",
+        classListBefore: [],
+        classListAfter: [],
+        specifiedStyles: {},
+        tokens: [],
+        viewport: videoViewport ?? { width: 0, height: 0 },
+        capturedAt: videoCapturedAt ?? Date.now(),
+        diffs: [],
+      };
+    } else if (isElementMode && selection) {
+      const changedProps = new Set(diffs.map((d) => d.prop));
+      const relevantValues = Object.entries(selection.specifiedStyles)
+        .filter(([k]) => changedProps.has(k))
+        .map(([, v]) => v);
+      const relevantTokens = tokens
+        .filter((t) => relevantValues.some((v) => v.includes(t.name)))
+        .map((t) => ({ name: t.name, value: t.value }));
 
-    const ctx = {
-      title: draft.title,
-      body: draft.body,
-      expectedResult: draft.expectedResult,
-      url: target?.url ?? "",
-      selector: selection.selector,
-      tagName: selection.tagName,
-      classListBefore: selection.classList,
-      classListAfter: styleEdits.classList,
-      specifiedStyles: selection.specifiedStyles,
-      tokens: relevantTokens,
-      viewport: selection.viewport,
-      capturedAt: selection.capturedAt,
-      diffs,
-    };
+      ctx = {
+        title: draft.title,
+        body: draft.body,
+        expectedResult: draft.expectedResult,
+        url: target?.url ?? "",
+        selector: selection.selector,
+        tagName: selection.tagName,
+        classListBefore: selection.classList,
+        classListAfter: styleEdits.classList,
+        specifiedStyles: selection.specifiedStyles,
+        tokens: relevantTokens,
+        viewport: selection.viewport,
+        capturedAt: selection.capturedAt,
+        diffs,
+      };
+    } else {
+      return;
+    }
     const md = buildIssueMarkdown(ctx);
     const html = buildIssueHtml(ctx);
     try {
@@ -103,7 +130,7 @@ export function PreviewPanel() {
                 <span className="text-muted-foreground/70">(제목 없음)</span>
               )}
             </h1>
-            {isElementMode ? (
+            {isElementMode || isVideoMode ? (
               <Button
                 variant="outline"
                 size="sm"
@@ -133,16 +160,26 @@ export function PreviewPanel() {
                 <span className="w-20 shrink-0 text-muted-foreground">Page</span>
                 <span className="break-all">{target?.url || "-"}</span>
               </div>
-              {screenshotViewport ? (
+              {(isVideoMode ? videoViewport : screenshotViewport) ? (
                 <div className="flex gap-3">
                   <span className="w-20 shrink-0 text-muted-foreground">Viewport</span>
-                  <span>{screenshotViewport.width}×{screenshotViewport.height}</span>
+                  <span>
+                    {isVideoMode
+                      ? `${videoViewport!.width}×${videoViewport!.height}`
+                      : `${screenshotViewport!.width}×${screenshotViewport!.height}`}
+                  </span>
                 </div>
               ) : null}
-              {screenshotCapturedAt ? (
+              {isVideoMode && videoDuration != null ? (
+                <div className="flex gap-3">
+                  <span className="w-20 shrink-0 text-muted-foreground">Duration</span>
+                  <span>{videoDuration.toFixed(1)}초</span>
+                </div>
+              ) : null}
+              {(isVideoMode ? videoCapturedAt : screenshotCapturedAt) ? (
                 <div className="flex gap-3">
                   <span className="w-20 shrink-0 text-muted-foreground">Captured</span>
-                  <span>{formatTimestamp(screenshotCapturedAt)}</span>
+                  <span>{formatTimestamp((isVideoMode ? videoCapturedAt : screenshotCapturedAt)!)}</span>
                 </div>
               ) : null}
             </div>
@@ -153,7 +190,11 @@ export function PreviewPanel() {
           <DocBody value={draft.body} />
         </Section>
 
-        {isElementMode ? (
+        {isVideoMode ? (
+          <Section title="미디어">
+            <PreviewVideo blob={videoBlob} thumbnail={videoThumbnail} />
+          </Section>
+        ) : isElementMode ? (
           <Section title="스타일 변경사항">
             <StyleChangesTable
               beforeImage={beforeImage}
@@ -209,6 +250,24 @@ export function PreviewPanel() {
       </PageFooter>
     </PageShell>
   );
+}
+
+function PreviewVideo({ blob, thumbnail }: { blob: Blob | null; thumbnail: string | null }) {
+  const urlRef = useRef<string | null>(null);
+  const src = blob ? (urlRef.current ??= URL.createObjectURL(blob)) : null;
+
+  useEffect(() => {
+    return () => {
+      if (urlRef.current) {
+        URL.revokeObjectURL(urlRef.current);
+        urlRef.current = null;
+      }
+    };
+  }, []);
+
+  if (src) return <video src={src} controls className="w-full rounded-lg border" />;
+  if (thumbnail) return <img src={thumbnail} alt="녹화 썸네일" className="w-full rounded-lg border" />;
+  return null;
 }
 
 function DocBody({ value }: { value: string }) {

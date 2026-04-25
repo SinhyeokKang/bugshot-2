@@ -37,7 +37,7 @@ export async function startPicker(tabId: number): Promise<void> {
 }
 
 export async function stopPicker(tabId: number): Promise<void> {
-  await send(tabId, { type: "picker.stop" });
+  await send(tabId, { type: "picker.clear" });
   useEditorStore.getState().cancelPicking();
 }
 

@@ -25,6 +25,10 @@ function snapshotFromState(): EditorSnapshot {
     screenshotAnnotated: s.screenshotAnnotated,
     screenshotViewport: s.screenshotViewport,
     screenshotCapturedAt: s.screenshotCapturedAt,
+    videoThumbnail: s.videoThumbnail,
+    videoDuration: s.videoDuration,
+    videoViewport: s.videoViewport,
+    videoCapturedAt: s.videoCapturedAt,
     draft: s.draft,
     issueFields: s.issueFields,
     currentIssueId: s.currentIssueId,
@@ -49,6 +53,9 @@ export function useEditorSessionSync(tabId: number | null): boolean {
       if (cancelled) return;
       const snap = data[key] as EditorSnapshot | undefined;
       if (snap) {
+        if (snap.phase === "recording" || snap.phase === "capturing" || snap.phase === "annotating") {
+          snap.phase = "idle";
+        }
         useEditorStore.getState().hydrate(snap);
       }
       setHydrated(true);
@@ -56,6 +63,7 @@ export function useEditorSessionSync(tabId: number | null): boolean {
 
     const unsubStore = useEditorStore.subscribe((state, prev) => {
       if (state === prev) return;
+      if (state.sessionExpired) return;
       if (saveTimer.current != null) {
         window.clearTimeout(saveTimer.current);
       }
@@ -72,8 +80,14 @@ export function useEditorSessionSync(tabId: number | null): boolean {
       const change = changes[key];
       if (!change) return;
       if (change.newValue == null) {
-        const { phase } = useEditorStore.getState();
-        if (phase === "styling" || phase === "drafting" || phase === "capturing" || phase === "annotating") {
+        const { phase, captureMode } = useEditorStore.getState();
+        const domBound = captureMode === "element" && (phase === "styling" || phase === "drafting");
+        const screenshotActive = captureMode === "screenshot" && (phase === "capturing" || phase === "annotating");
+        if (domBound || screenshotActive) {
+          if (saveTimer.current != null) {
+            window.clearTimeout(saveTimer.current);
+            saveTimer.current = null;
+          }
           useEditorStore.setState({ sessionExpired: true });
         }
       }

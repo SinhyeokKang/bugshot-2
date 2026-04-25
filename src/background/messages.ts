@@ -56,6 +56,20 @@ export async function handleMessage(
     case "jira.searchEpics":
       return searchEpics(message.config, message.projectKey, message.query, message.hierarchyLevels);
 
+    case "tabCapture.getStreamId":
+      return new Promise<string>((resolve, reject) => {
+        chrome.tabCapture.getMediaStreamId(
+          { targetTabId: message.tabId },
+          (streamId) => {
+            if (chrome.runtime.lastError) {
+              reject(new Error(chrome.runtime.lastError.message));
+            } else {
+              resolve(streamId);
+            }
+          },
+        );
+      });
+
     case "jira.submitIssue":
       return submitIssue(
         message.config,
@@ -105,7 +119,26 @@ async function submitIssue(
       const desc = payload.description;
       const content: unknown[] = [...desc.content];
       const screenshotFile = uploadMap.get("screenshot.png");
-      if (screenshotFile) {
+      const videoFile = uploadMap.get("recording.webm");
+      if (videoFile) {
+        const videoPlaceholderIdx = content.findIndex(
+          (n) => {
+            const node = n as { type: string; content?: { text?: string }[] };
+            return node.type === "paragraph" && node.content?.[0]?.text === "(첨부 영상 참조)";
+          },
+        );
+        if (videoPlaceholderIdx >= 0) {
+          const mediaNode =
+            videoFile.kind === "media"
+              ? { type: "media", attrs: { type: "file", id: videoFile.mediaId, collection: "" } }
+              : { type: "media", attrs: { type: "external", url: videoFile.url } };
+          content[videoPlaceholderIdx] = {
+            type: "mediaSingle",
+            attrs: { layout: "center" },
+            content: [mediaNode],
+          };
+        }
+      } else if (screenshotFile) {
         const mediaPlaceholderIdx = content.findIndex(
           (n) => {
             const node = n as { type: string; content?: { text?: string }[] };
@@ -209,7 +242,7 @@ function snapshotCell(file?: UploadedFile) {
 }
 
 function dataUrlToBlob(dataUrl: string): Blob {
-  const match = /^data:([^;]+);base64,(.+)$/.exec(dataUrl);
+  const match = /^data:(.*?);base64,(.+)$/.exec(dataUrl);
   if (!match) throw new Error("invalid data URL");
   const mime = match[1];
   const binary = atob(match[2]);

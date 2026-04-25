@@ -34,7 +34,7 @@ export function IssueListTab() {
     () =>
       issues
         .filter(
-          (i) => i.status === "submitted" || !!i.selectionSnapshot || i.captureMode === "screenshot",
+          (i) => i.status === "submitted" || !!i.selectionSnapshot || i.captureMode === "screenshot" || i.captureMode === "video",
         )
         .sort((a, b) => b.createdAt - a.createdAt),
     [issues],
@@ -136,7 +136,7 @@ export function IssueListTab() {
               <AlertDialogHeader>
                 <AlertDialogTitle>모든 이슈를 삭제할까요?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  등록된 이슈 목록이 모두 삭제됩니다. 이 작업은 되돌릴 수 없습니다.
+                  Bugshot의 이슈 목록만 삭제되며, Jira에 등록된 이슈는 영향받지 않습니다.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>

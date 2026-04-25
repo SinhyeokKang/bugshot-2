@@ -29,7 +29,7 @@ export function buildIssueMarkdown(ctx: MarkdownContext): string {
   lines.push("## 재현 환경");
   lines.push("");
   lines.push(`- **Page**: ${ctx.url}`);
-  if (ctx.captureMode !== "screenshot" && ctx.selector) {
+  if (ctx.captureMode !== "screenshot" && ctx.captureMode !== "video" && ctx.selector) {
     lines.push(`- **DOM**: ${ctx.selector}`);
   }
   lines.push(`- **Viewport**: ${ctx.viewport.width}×${ctx.viewport.height}`);
@@ -41,17 +41,29 @@ export function buildIssueMarkdown(ctx: MarkdownContext): string {
   lines.push(ctx.body);
   lines.push("");
 
-  lines.push("## 스타일 변경사항");
-  lines.push("");
-  if (ctx.diffs.length > 0) {
-    lines.push("| 속성 | As is | To be |");
-    lines.push("| --- | --- | --- |");
-    for (const d of ctx.diffs) {
-      lines.push(
-        `| ${escapeCell(d.prop)} | ${escapeCell(d.asIs)} | ${escapeCell(d.toBe)} |`,
-      );
-    }
+  if (ctx.captureMode === "video") {
+    lines.push("## 미디어");
     lines.push("");
+    lines.push("(첨부 영상 참조)");
+    lines.push("");
+  } else if (ctx.captureMode === "screenshot") {
+    lines.push("## 미디어");
+    lines.push("");
+    lines.push("(첨부 이미지 참조)");
+    lines.push("");
+  } else {
+    lines.push("## 스타일 변경사항");
+    lines.push("");
+    if (ctx.diffs.length > 0) {
+      lines.push("| 속성 | As is | To be |");
+      lines.push("| --- | --- | --- |");
+      for (const d of ctx.diffs) {
+        lines.push(
+          `| ${escapeCell(d.prop)} | ${escapeCell(d.asIs)} | ${escapeCell(d.toBe)} |`,
+        );
+      }
+      lines.push("");
+    }
   }
 
   lines.push("## 기대 결과");
@@ -71,7 +83,7 @@ export function buildIssueHtml(ctx: MarkdownContext): string {
   parts.push(`<h2>재현 환경</h2>`);
   parts.push(`<ul>`);
   parts.push(`<li><strong>Page</strong>: ${escapeHtml(ctx.url)}</li>`);
-  if (ctx.captureMode !== "screenshot" && ctx.selector) {
+  if (ctx.captureMode !== "screenshot" && ctx.captureMode !== "video" && ctx.selector) {
     parts.push(`<li><strong>DOM</strong>: ${escapeHtml(ctx.selector)}</li>`);
   }
   parts.push(
@@ -85,17 +97,25 @@ export function buildIssueHtml(ctx: MarkdownContext): string {
   parts.push(`<h2>발생 현상</h2>`);
   parts.push(paragraphize(ctx.body));
 
-  parts.push(`<h2>스타일 변경사항</h2>`);
-  if (ctx.diffs.length > 0) {
-    parts.push(
-      `<table><thead><tr><th>속성</th><th>As is</th><th>To be</th></tr></thead><tbody>`,
-    );
-    for (const d of ctx.diffs) {
+  if (ctx.captureMode === "video") {
+    parts.push(`<h2>미디어</h2>`);
+    parts.push(`<p>(첨부 영상 참조)</p>`);
+  } else if (ctx.captureMode === "screenshot") {
+    parts.push(`<h2>미디어</h2>`);
+    parts.push(`<p>(첨부 이미지 참조)</p>`);
+  } else {
+    parts.push(`<h2>스타일 변경사항</h2>`);
+    if (ctx.diffs.length > 0) {
       parts.push(
-        `<tr><td>${escapeHtml(d.prop)}</td><td>${escapeHtml(d.asIs)}</td><td>${escapeHtml(d.toBe)}</td></tr>`,
+        `<table><thead><tr><th>속성</th><th>As is</th><th>To be</th></tr></thead><tbody>`,
       );
+      for (const d of ctx.diffs) {
+        parts.push(
+          `<tr><td>${escapeHtml(d.prop)}</td><td>${escapeHtml(d.asIs)}</td><td>${escapeHtml(d.toBe)}</td></tr>`,
+        );
+      }
+      parts.push(`</tbody></table>`);
     }
-    parts.push(`</tbody></table>`);
   }
 
   parts.push(`<h2>기대 결과</h2>`);

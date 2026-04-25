@@ -2,6 +2,7 @@ import { create } from "zustand";
 import type { Token } from "@/types/picker";
 import { useIssuesStore } from "./issues-store";
 import { useSettingsStore } from "./settings-store";
+import { saveVideoBlob } from "./video-db";
 
 export type CaptureMode = "element" | "screenshot" | "video";
 
@@ -11,6 +12,7 @@ export type EditorPhase =
   | "styling"
   | "capturing"
   | "annotating"
+  | "recording"
   | "drafting"
   | "previewing"
   | "done";
@@ -75,11 +77,19 @@ interface EditorState {
   screenshotAnnotated: string | null;
   screenshotViewport: { width: number; height: number } | null;
   screenshotCapturedAt: number | null;
+  videoBlob: Blob | null;
+  videoThumbnail: string | null;
+  videoDuration: number | null;
+  videoViewport: { width: number; height: number } | null;
+  videoCapturedAt: number | null;
   submitResult: { key: string; url: string } | null;
   sessionExpired: boolean;
 
   startPicking: (target: EditorTarget, mode?: CaptureMode) => void;
   startCapturing: (target: EditorTarget) => void;
+  startRecording: (target: EditorTarget) => void;
+  onRecordingComplete: (blob: Blob, thumbnail: string, duration: number, viewport: { width: number; height: number }) => void;
+  cancelRecording: () => void;
   onAreaCaptured: (dataUrl: string, viewport: { width: number; height: number }) => void;
   onAnnotated: (dataUrl: string) => void;
   cancelPicking: () => void;
@@ -113,6 +123,10 @@ export type EditorSnapshot = Pick<
   | "screenshotAnnotated"
   | "screenshotViewport"
   | "screenshotCapturedAt"
+  | "videoThumbnail"
+  | "videoDuration"
+  | "videoViewport"
+  | "videoCapturedAt"
   | "draft"
   | "issueFields"
   | "currentIssueId"
@@ -136,6 +150,11 @@ const initial = {
   screenshotAnnotated: null as string | null,
   screenshotViewport: null as { width: number; height: number } | null,
   screenshotCapturedAt: null as number | null,
+  videoBlob: null as Blob | null,
+  videoThumbnail: null as string | null,
+  videoDuration: null as number | null,
+  videoViewport: null as { width: number; height: number } | null,
+  videoCapturedAt: null as number | null,
   draft: null,
   issueFields: {} as EditorIssueFields,
   currentIssueId: null as string | null,
@@ -157,6 +176,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   cancelPicking: () => set({ ...initial }),
 
   startCapturing: (target) => set({ ...initial, captureMode: "screenshot", phase: "capturing", target }),
+  startRecording: (target) => set({ ...initial, captureMode: "video", phase: "recording", target }),
+  onRecordingComplete: (blob, thumbnail, duration, viewport) => set({ phase: "drafting", videoBlob: blob, videoThumbnail: thumbnail, videoDuration: duration, videoViewport: viewport, videoCapturedAt: Date.now() }),
+  cancelRecording: () => set({ ...initial }),
   onAreaCaptured: (dataUrl, viewport) => set({ phase: "annotating", screenshotRaw: dataUrl, screenshotViewport: viewport, screenshotCapturedAt: Date.now() }),
   onAnnotated: (dataUrl) => set({ phase: "drafting", screenshotAnnotated: dataUrl }),
 
@@ -205,7 +227,28 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       set((s) => ({ issueFields: { ...restored, ...s.issueFields } }));
     }
     const id = state.currentIssueId ?? newIssueId();
-    if (state.captureMode === "screenshot") {
+    if (state.captureMode === "video") {
+      useIssuesStore.getState().saveDraft({
+        id,
+        status: "draft",
+        title: state.draft.title,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        pageUrl: state.target.url,
+        pageTitle: state.target.title,
+        captureMode: "video",
+        viewport: state.videoViewport ?? undefined,
+        draft: { ...state.draft },
+        snapshot: {
+          before: state.videoThumbnail,
+          after: null,
+        },
+        videoDuration: state.videoDuration ?? undefined,
+      });
+      if (state.videoBlob) {
+        saveVideoBlob(id, state.videoBlob).catch(() => {});
+      }
+    } else if (state.captureMode === "screenshot") {
       useIssuesStore.getState().saveDraft({
         id,
         status: "draft",

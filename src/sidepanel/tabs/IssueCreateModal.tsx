@@ -68,6 +68,9 @@ export function IssueCreateModal() {
   const screenshotRaw = useEditorStore((s) => s.screenshotRaw);
   const screenshotViewport = useEditorStore((s) => s.screenshotViewport);
   const screenshotCapturedAt = useEditorStore((s) => s.screenshotCapturedAt);
+  const videoBlob = useEditorStore((s) => s.videoBlob);
+  const videoViewport = useEditorStore((s) => s.videoViewport);
+  const videoCapturedAt = useEditorStore((s) => s.videoCapturedAt);
   const draft = useEditorStore((s) => s.draft);
   const issueFields = useEditorStore((s) => s.issueFields);
   const setIssueFields = useEditorStore((s) => s.setIssueFields);
@@ -83,7 +86,29 @@ export function IssueCreateModal() {
     let description: AdfDoc;
     const attachments: { filename: string; dataUrl: string }[] = [];
 
-    if (captureMode === "screenshot") {
+    if (captureMode === "video") {
+      const ctx = {
+        captureMode: "video" as const,
+        title: draft.title,
+        body: draft.body,
+        expectedResult: draft.expectedResult,
+        url: target?.url ?? "",
+        selector: "",
+        tagName: "",
+        classListBefore: [] as string[],
+        classListAfter: [] as string[],
+        specifiedStyles: {} as Record<string, string>,
+        tokens: [] as { name: string; value: string }[],
+        viewport: videoViewport ?? { width: 0, height: 0 },
+        capturedAt: videoCapturedAt ?? Date.now(),
+        diffs: [],
+      };
+      description = buildIssueAdf(ctx);
+      if (videoBlob) {
+        const dataUrl = await blobToDataUrl(videoBlob);
+        attachments.push({ filename: "recording.webm", dataUrl });
+      }
+    } else if (captureMode === "screenshot") {
       const screenshotImage = screenshotAnnotated ?? screenshotRaw;
       const ctx = {
         captureMode: "screenshot" as const,
@@ -695,6 +720,15 @@ export function EpicField({
       ))}
     </FieldCombobox>
   );
+}
+
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(new Error("Failed to read blob"));
+    reader.readAsDataURL(blob);
+  });
 }
 
 function FieldCombobox({

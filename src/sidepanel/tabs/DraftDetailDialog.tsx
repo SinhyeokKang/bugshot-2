@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import { getVideoBlob } from "@/store/video-db";
 import { Info } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
@@ -85,6 +86,7 @@ export function DraftDetailDialog({
   }, [open, issue?.id, jiraConfig?.issueTypeId, jiraConfig?.projectKey, lastSubmitFields]);
 
   const isScreenshot = issue?.captureMode === "screenshot";
+  const isVideo = issue?.captureMode === "video";
 
   const diffs = useMemo(() => {
     if (!issue?.selectionSnapshot || !issue.styleEdits) return [];
@@ -142,7 +144,13 @@ export function DraftDetailDialog({
         : issue.draft.title.trim();
 
     const attachments: { filename: string; dataUrl: string }[] = [];
-    if (isScreenshot) {
+    if (isVideo) {
+      const blob = await getVideoBlob(issue.id);
+      if (blob) {
+        const dataUrl = await blobToDataUrl(blob);
+        attachments.push({ filename: "recording.webm", dataUrl });
+      }
+    } else if (isScreenshot) {
       if (issue.snapshot.before)
         attachments.push({ filename: "screenshot.png", dataUrl: issue.snapshot.before });
     } else {
@@ -224,7 +232,11 @@ export function DraftDetailDialog({
                   </FieldSection>
                 ) : null}
 
-                {hasScreenshot ? (
+                {isVideo && issue.snapshot.before ? (
+                  <FieldSection label="미디어">
+                    <DraftVideoPreview issue={issue} />
+                  </FieldSection>
+                ) : hasScreenshot ? (
                   <FieldSection label="미디어">
                     <img
                       src={issue.snapshot.before!}
@@ -333,11 +345,16 @@ function FieldSection({
 function EnvBlock({ issue }: { issue: IssueRecord }) {
   const rows: { label: string; value: string }[] = [
     { label: "Page", value: issue.pageUrl || "-" },
-    ...(issue.selector ? [{ label: "DOM", value: issue.selector }] : []),
+    ...(issue.captureMode !== "video" && issue.selector
+      ? [{ label: "DOM", value: issue.selector }]
+      : []),
   ];
   const vp = issue.viewport ?? issue.selectionSnapshot?.viewport;
   if (vp) {
     rows.push({ label: "Viewport", value: `${vp.width}×${vp.height}` });
+  }
+  if (issue.captureMode === "video" && issue.videoDuration != null) {
+    rows.push({ label: "Duration", value: `${issue.videoDuration.toFixed(1)}초` });
   }
   rows.push({
     label: "Captured",
@@ -360,6 +377,54 @@ function EnvBlock({ issue }: { issue: IssueRecord }) {
       ))}
     </div>
   );
+}
+
+function DraftVideoPreview({ issue }: { issue: IssueRecord }) {
+  const editorBlob = useEditorStore(
+    (s) => s.currentIssueId === issue.id ? s.videoBlob : null,
+  );
+  const [dbBlob, setDbBlob] = useState<Blob | null>(null);
+  const [src, setSrc] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (editorBlob) return;
+    let cancelled = false;
+    getVideoBlob(issue.id).then((b) => {
+      if (!cancelled) setDbBlob(b);
+    });
+    return () => { cancelled = true; };
+  }, [issue.id, editorBlob]);
+
+  const blob = editorBlob ?? dbBlob;
+
+  useEffect(() => {
+    if (!blob) { setSrc(null); return; }
+    const url = URL.createObjectURL(blob);
+    setSrc(url);
+    return () => URL.revokeObjectURL(url);
+  }, [blob]);
+
+  return (
+    <div className="space-y-1.5">
+      {src ? (
+        <video src={src} controls className="max-h-60 w-full rounded-md border object-contain" />
+      ) : issue.snapshot.before ? (
+        <img src={issue.snapshot.before} alt="녹화 썸네일" className="max-h-60 rounded-md border object-contain" />
+      ) : null}
+      {issue.videoDuration != null ? (
+        <p className="text-xs text-muted-foreground">{issue.videoDuration.toFixed(1)}초</p>
+      ) : null}
+    </div>
+  );
+}
+
+function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(new Error("Failed to read blob"));
+    reader.readAsDataURL(blob);
+  });
 }
 
 function DocBody({ value }: { value: string }) {

@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { chromeLocalStorage } from "./chrome-storage";
 import type { CaptureMode } from "./editor-store";
+import { deleteVideoBlob, clearVideoBlobs } from "./video-db";
 
 export type IssueStatus = "draft" | "submitted";
 
@@ -58,6 +59,8 @@ export interface IssueRecord {
   selectionSnapshot?: IssueSelectionSnapshot;
   tokensSnapshot?: IssueTokenSnapshot[];
 
+  videoDuration?: number;
+
   key?: string;
   url?: string;
   jiraSiteId?: string;
@@ -98,9 +101,14 @@ export const useIssuesStore = create<IssuesState>()(
               : x,
           ),
         })),
-      removeIssue: (id) =>
-        set((s) => ({ issues: s.issues.filter((x) => x.id !== id) })),
-      clearIssues: () => set({ issues: [] }),
+      removeIssue: (id) => {
+        set((s) => ({ issues: s.issues.filter((x) => x.id !== id) }));
+        deleteVideoBlob(id).catch(() => {});
+      },
+      clearIssues: () => {
+        set({ issues: [] });
+        clearVideoBlobs().catch(() => {});
+      },
     }),
     {
       name: "bugshot-issues",

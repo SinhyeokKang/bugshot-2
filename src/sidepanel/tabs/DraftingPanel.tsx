@@ -1,4 +1,4 @@
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -27,6 +27,9 @@ export function DraftingPanel() {
   const afterImage = useEditorStore((s) => s.afterImage);
   const screenshotAnnotated = useEditorStore((s) => s.screenshotAnnotated);
   const screenshotRaw = useEditorStore((s) => s.screenshotRaw);
+  const videoBlob = useEditorStore((s) => s.videoBlob);
+  const videoThumbnail = useEditorStore((s) => s.videoThumbnail);
+  const videoDuration = useEditorStore((s) => s.videoDuration);
   const draft = useEditorStore((s) => s.draft);
   const setDraft = useEditorStore((s) => s.setDraft);
   const reset = useEditorStore((s) => s.reset);
@@ -36,6 +39,7 @@ export function DraftingPanel() {
     (s) => s.jiraConfig?.titlePrefix ?? "",
   );
   const isElementMode = captureMode === "element";
+  const isVideoMode = captureMode === "video";
   const screenshotImage = screenshotAnnotated ?? screenshotRaw;
 
   const diffs = useMemo(
@@ -47,16 +51,18 @@ export function DraftingPanel() {
     if (draft) return;
     if (captureMode === "element" && !selection) return;
     if (captureMode === "screenshot" && !screenshotImage) return;
+    if (captureMode === "video" && !videoThumbnail) return;
     setDraft({
       title: defaultTitle(titlePrefix),
       body: "",
       expectedResult: "",
     });
-  }, [draft, selection, setDraft, titlePrefix, captureMode, screenshotImage]);
+  }, [draft, selection, setDraft, titlePrefix, captureMode, screenshotImage, videoThumbnail]);
 
   if (!draft) return null;
   if (captureMode === "element" && !selection) return null;
   if (captureMode === "screenshot" && !screenshotImage) return null;
+  if (captureMode === "video" && !videoThumbnail) return null;
 
   const titleMissing = !draft.title.trim();
 
@@ -82,7 +88,11 @@ export function DraftingPanel() {
           />
         </Section>
 
-        {isElementMode ? (
+        {isVideoMode ? (
+          <Section title="미디어">
+            <VideoPreview blob={videoBlob} thumbnail={videoThumbnail} duration={videoDuration} />
+          </Section>
+        ) : isElementMode ? (
           <Section title="스타일 변경사항">
             <StyleChangesTable
               beforeImage={beforeImage}
@@ -143,6 +153,33 @@ export function DraftingPanel() {
         </div>
       </PageFooter>
     </PageShell>
+  );
+}
+
+function VideoPreview({ blob, thumbnail, duration }: { blob: Blob | null; thumbnail: string | null; duration: number | null }) {
+  const urlRef = useRef<string | null>(null);
+  const src = blob ? (urlRef.current ??= URL.createObjectURL(blob)) : null;
+
+  useEffect(() => {
+    return () => {
+      if (urlRef.current) {
+        URL.revokeObjectURL(urlRef.current);
+        urlRef.current = null;
+      }
+    };
+  }, []);
+
+  return (
+    <div className="space-y-1.5">
+      {src ? (
+        <video src={src} controls className="w-full rounded-lg border" />
+      ) : thumbnail ? (
+        <img src={thumbnail} alt="녹화 썸네일" className="w-full rounded-lg border" />
+      ) : null}
+      {duration != null ? (
+        <p className="text-xs text-muted-foreground">{duration.toFixed(1)}초</p>
+      ) : null}
+    </div>
   );
 }
 

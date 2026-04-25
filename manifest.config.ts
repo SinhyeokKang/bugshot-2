@@ -61,6 +61,7 @@ export default defineManifest({
     "commands",
     "contextMenus",
     "identity",
+    "tabCapture",
   ],
   host_permissions: [
     "https://*.atlassian.net/*",

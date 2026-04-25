@@ -17,10 +17,18 @@ export interface AdfDoc {
 
 export function buildIssueAdf(ctx: MarkdownContext): AdfDoc {
   const content: AdfNode[] = [];
+  const isVideo = ctx.captureMode === "video";
   const isScreenshot = ctx.captureMode === "screenshot";
 
   content.push(heading(2, "재현 환경"));
-  if (isScreenshot) {
+  if (isVideo) {
+    const items = [
+      keyValueItem("Page", ctx.url),
+      keyValueItem("Viewport", `${ctx.viewport.width}×${ctx.viewport.height}`),
+      keyValueItem("Captured", formatTimestamp(ctx.capturedAt)),
+    ];
+    content.push(bulletList(items));
+  } else if (isScreenshot) {
     const items = [
       keyValueItem("Page", ctx.url),
       keyValueItem("Viewport", `${ctx.viewport.width}×${ctx.viewport.height}`),
@@ -41,7 +49,10 @@ export function buildIssueAdf(ctx: MarkdownContext): AdfDoc {
   content.push(heading(2, "발생 현상"));
   content.push(...textBlock(ctx.body));
 
-  if (isScreenshot) {
+  if (isVideo) {
+    content.push(heading(2, "미디어"));
+    content.push(paragraph([textNode("(첨부 영상 참조)")]));
+  } else if (isScreenshot) {
     content.push(heading(2, "미디어"));
     content.push(paragraph([textNode("(첨부 이미지 참조)")]));
   } else {

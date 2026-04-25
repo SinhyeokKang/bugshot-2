@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
   ArrowUpRight,
   Bug,
@@ -23,6 +23,7 @@ import { useEditorStore } from "@/store/editor-store";
 import { useBoundTabId } from "../hooks/useBoundTabId";
 import { captureElementSnapshot } from "../capture";
 import { startPicker, stopPicker, startAreaCapture, cancelAreaCapture } from "../picker-control";
+import * as videoRecorder from "../video-recorder";
 import { PageShell } from "../components/Section";
 import { useTabNav } from "../App";
 import { DraftingPanel } from "./DraftingPanel";
@@ -65,11 +66,30 @@ export function IssueTab() {
   }
 
   if (phase === "capturing") {
-    return <CapturingState onCancel={() => void cancelAreaCapture(tabId)} />;
+    return (
+      <>
+        <CapturingState onCancel={() => void cancelAreaCapture(tabId)} />
+        <SessionExpiredDialog open={sessionExpired} onConfirm={() => reset()} />
+      </>
+    );
+  }
+
+  if (phase === "recording") {
+    return (
+      <RecordingState
+        onStop={() => videoRecorder.stopRecording()}
+        onCancel={() => videoRecorder.cancelRecording()}
+      />
+    );
   }
 
   if (phase === "annotating") {
-    return <AnnotatingState />;
+    return (
+      <>
+        <AnnotatingState />
+        <SessionExpiredDialog open={sessionExpired} onConfirm={() => reset()} />
+      </>
+    );
   }
 
   if (phase === "drafting") {
@@ -97,6 +117,7 @@ export function IssueTab() {
       <EmptyState
         onStartElement={() => void startPicker(tabId)}
         onStartScreenshot={() => void startAreaCapture(tabId)}
+        onStartVideo={() => void handleStartVideo(tabId)}
       />
     );
   }
@@ -123,7 +144,22 @@ function UnsupportedPage() {
   );
 }
 
-function EmptyState({ onStartElement, onStartScreenshot }: { onStartElement: () => void; onStartScreenshot: () => void }) {
+async function handleStartVideo(tabId: number) {
+  const tab = await chrome.tabs.get(tabId);
+  useEditorStore.getState().startRecording({
+    tabId,
+    url: tab.url ?? "",
+    title: tab.title ?? "",
+  });
+  try {
+    await videoRecorder.startRecording(tabId);
+  } catch (err) {
+    console.warn("[bugshot] video recording failed to start", err);
+    useEditorStore.getState().cancelRecording();
+  }
+}
+
+function EmptyState({ onStartElement, onStartScreenshot, onStartVideo }: { onStartElement: () => void; onStartScreenshot: () => void; onStartVideo: () => void }) {
   return (
     <PageShell>
       <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 px-6">
@@ -142,7 +178,7 @@ function EmptyState({ onStartElement, onStartScreenshot }: { onStartElement: () 
             <Camera />
             화면 캡처
           </Button>
-          <Button variant="outline" disabled>
+          <Button variant="outline" onClick={onStartVideo}>
             <Video />
             영상 녹화
           </Button>
@@ -191,6 +227,46 @@ function AnnotatingState() {
         icon={<Camera className="h-6 w-6 text-muted-foreground" />}
         title="주석을 추가하세요"
       />
+    </PageShell>
+  );
+}
+
+function RecordingState({ onStop, onCancel }: { onStop: () => void; onCancel: () => void }) {
+  const [elapsed, setElapsed] = useState(0);
+  const maxDuration = videoRecorder.getMaxDuration();
+
+  useEffect(() => {
+    setElapsed(videoRecorder.getElapsedSec());
+    const id = window.setInterval(() => {
+      setElapsed(videoRecorder.getElapsedSec());
+    }, 500);
+    return () => window.clearInterval(id);
+  }, []);
+
+  const minutes = Math.floor(elapsed / 60);
+  const seconds = elapsed % 60;
+  const timeStr = `${minutes}:${seconds.toString().padStart(2, "0")}`;
+  const progress = Math.min(elapsed / maxDuration, 1);
+
+  return (
+    <PageShell>
+      <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 text-center">
+        <div className="mb-3 rounded-full bg-red-100 p-3">
+          <Video className="h-6 w-6 text-red-600" />
+        </div>
+        <h3 className="text-[18px] font-semibold">녹화 중 {timeStr}</h3>
+        <div className="mt-3 h-1.5 w-40 overflow-hidden rounded-full bg-muted">
+          <div
+            className="h-full rounded-full bg-foreground transition-all duration-500"
+            style={{ width: `${progress * 100}%` }}
+          />
+        </div>
+        <p className="mt-1.5 text-xs text-muted-foreground">최대 {maxDuration}초</p>
+        <div className="mt-4 flex gap-2">
+          <Button variant="outline" onClick={onCancel}>취소</Button>
+          <Button onClick={onStop}>녹화 완료</Button>
+        </div>
+      </div>
     </PageShell>
   );
 }
