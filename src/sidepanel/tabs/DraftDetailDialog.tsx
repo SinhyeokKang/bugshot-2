@@ -238,11 +238,13 @@ export function DraftDetailDialog({
                   </FieldSection>
                 ) : hasScreenshot ? (
                   <FieldSection label="미디어">
-                    <img
-                      src={issue.snapshot.before!}
-                      alt="캡처 이미지"
-                      className="max-h-60 rounded-md border object-contain"
-                    />
+                    <div className="aspect-video w-full overflow-hidden rounded-md border bg-muted/70">
+                      <img
+                        src={issue.snapshot.before!}
+                        alt="캡처 이미지"
+                        className="h-full w-full object-contain"
+                      />
+                    </div>
                   </FieldSection>
                 ) : hasStyleBlock ? (
                   <FieldSection label="스타일 변경사항">

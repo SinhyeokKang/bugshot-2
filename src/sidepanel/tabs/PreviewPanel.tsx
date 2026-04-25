@@ -205,11 +205,13 @@ export function PreviewPanel() {
         ) : (
           <Section title="미디어">
             {screenshotImage ? (
-              <img
-                src={screenshotImage}
-                alt="캡처 이미지"
-                className="w-full rounded-lg border"
-              />
+              <div className="aspect-video w-full overflow-hidden rounded-lg border bg-muted/70">
+                <img
+                  src={screenshotImage}
+                  alt="캡처 이미지"
+                  className="h-full w-full object-contain"
+                />
+              </div>
             ) : null}
           </Section>
         )}

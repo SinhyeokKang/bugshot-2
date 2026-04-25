@@ -11,13 +11,7 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
-  build: {
-    rollupOptions: {
-      input: {
-        annotation: "src/annotation/index.html",
-      },
-    },
-  },
+  build: {},
   server: {
     port: 5173,
     strictPort: true,

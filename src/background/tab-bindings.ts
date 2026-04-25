@@ -39,6 +39,11 @@ async function setActivated(tabId: number, on: boolean): Promise<void> {
 }
 
 async function apply(tabId: number, url: string | undefined): Promise<void> {
+  const key = sessionKey(tabId);
+  const data = await chrome.storage.session.get(key);
+  const snap = data[key] as { captureMode?: string; phase?: string } | undefined;
+  if (shouldPreserveSession(snap)) return;
+
   const supported = isSupportedUrl(url);
   const set = await getActivatedSet();
   const activated = set.has(tabId);
@@ -57,10 +62,18 @@ async function apply(tabId: number, url: string | undefined): Promise<void> {
   }
 }
 
-async function clearEditorSession(tabId: number): Promise<void> {
-  try {
-    await chrome.storage.session.remove(sessionKey(tabId));
-  } catch {}
+function shouldPreserveSession(
+  snap: { captureMode?: string; phase?: string } | undefined,
+): boolean {
+  if (!snap) return false;
+  const mode = snap.captureMode;
+  const phase = snap.phase ?? "";
+  if (mode === "video") return true;
+  if (mode === "screenshot")
+    return phase === "drafting" || phase === "previewing" || phase === "done";
+  if (mode === "element")
+    return phase === "drafting" || phase === "previewing" || phase === "done";
+  return false;
 }
 
 async function clearIfPageChanged(
@@ -70,8 +83,17 @@ async function clearIfPageChanged(
   const key = sessionKey(tabId);
   try {
     const data = await chrome.storage.session.get(key);
-    const snap = data[key] as { target?: { url?: string } } | undefined;
-    const prevUrl = snap?.target?.url;
+    const snap = data[key] as
+      | { target?: { url?: string }; captureMode?: string; phase?: string }
+      | undefined;
+    if (!snap) return;
+    if (shouldPreserveSession(snap)) {
+      if (snap.captureMode === "element" && pageKeyOf(snap.target?.url) !== pageKeyOf(newUrl)) {
+        chrome.tabs.sendMessage(tabId, { type: "picker.clear" }).catch(() => {});
+      }
+      return;
+    }
+    const prevUrl = snap.target?.url;
     if (!prevUrl) return;
     if (pageKeyOf(prevUrl) !== pageKeyOf(newUrl)) {
       await chrome.storage.session.remove(key);
@@ -79,6 +101,18 @@ async function clearIfPageChanged(
   } catch (err) {
     console.error("[bugshot] clearIfPageChanged", err);
   }
+}
+
+async function clearEditorSessionIfVolatile(tabId: number): Promise<void> {
+  const key = sessionKey(tabId);
+  try {
+    const data = await chrome.storage.session.get(key);
+    const snap = data[key] as
+      | { captureMode?: string; phase?: string }
+      | undefined;
+    if (shouldPreserveSession(snap)) return;
+    await chrome.storage.session.remove(key);
+  } catch {}
 }
 
 export function activateTab(tab: chrome.tabs.Tab): void {
@@ -116,7 +150,7 @@ export function setupTabBindings(): void {
         apply(tabId, info.url),
       );
     } else if (info.status === "loading") {
-      void clearEditorSession(tabId);
+      void clearEditorSessionIfVolatile(tabId);
     } else if (info.status === "complete") {
       void apply(tabId, tab.url);
     }

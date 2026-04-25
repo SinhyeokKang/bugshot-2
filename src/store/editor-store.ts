@@ -11,7 +11,6 @@ export type EditorPhase =
   | "picking"
   | "styling"
   | "capturing"
-  | "annotating"
   | "recording"
   | "drafting"
   | "previewing"
@@ -179,8 +178,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   startRecording: (target) => set({ ...initial, captureMode: "video", phase: "recording", target }),
   onRecordingComplete: (blob, thumbnail, duration, viewport) => set({ phase: "drafting", videoBlob: blob, videoThumbnail: thumbnail, videoDuration: duration, videoViewport: viewport, videoCapturedAt: Date.now() }),
   cancelRecording: () => set({ ...initial }),
-  onAreaCaptured: (dataUrl, viewport) => set({ phase: "annotating", screenshotRaw: dataUrl, screenshotViewport: viewport, screenshotCapturedAt: Date.now() }),
-  onAnnotated: (dataUrl) => set({ phase: "drafting", screenshotAnnotated: dataUrl }),
+  onAreaCaptured: (dataUrl, viewport) => set({ phase: "drafting", screenshotRaw: dataUrl, screenshotViewport: viewport, screenshotCapturedAt: Date.now() }),
+  onAnnotated: (dataUrl) => set({ screenshotAnnotated: dataUrl }),
 
   onElementSelected: (selection) =>
     set({

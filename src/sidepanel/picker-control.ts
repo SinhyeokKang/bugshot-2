@@ -8,6 +8,17 @@ import type {
   Token,
 } from "@/types/picker";
 
+async function ensureContentScript(tabId: number): Promise<void> {
+  try {
+    await chrome.tabs.sendMessage(tabId, { type: "ping" });
+  } catch {
+    const manifest = chrome.runtime.getManifest();
+    const files = manifest.content_scripts?.[0]?.js;
+    if (!files?.length) return;
+    await chrome.scripting.executeScript({ target: { tabId }, files });
+  }
+}
+
 async function send<R = void>(
   tabId: number,
   msg: PickerMessage,
@@ -27,6 +38,7 @@ export async function startPicker(tabId: number): Promise<void> {
       url: tab.url ?? "",
       title: tab.title ?? "",
     });
+    await ensureContentScript(tabId);
     await chrome.tabs.sendMessage<PickerMessage>(tabId, {
       type: "picker.start",
     });
@@ -140,6 +152,7 @@ export async function startAreaCapture(tabId: number): Promise<void> {
       url: tab.url ?? "",
       title: tab.title ?? "",
     });
+    await ensureContentScript(tabId);
     await chrome.tabs.sendMessage<PickerMessage>(tabId, {
       type: "picker.startAreaSelect",
     });
@@ -154,10 +167,3 @@ export async function cancelAreaCapture(tabId: number): Promise<void> {
   useEditorStore.getState().reset();
 }
 
-export async function showAnnotation(tabId: number): Promise<void> {
-  await send(tabId, { type: "picker.showAnnotation" });
-}
-
-export async function hideAnnotation(tabId: number): Promise<void> {
-  await send(tabId, { type: "picker.hideAnnotation" });
-}

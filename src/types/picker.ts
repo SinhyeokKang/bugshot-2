@@ -71,8 +71,6 @@ export type PickerMessage =
   | { type: "picker.endCapture" }
   | { type: "picker.startAreaSelect" }
   | { type: "picker.cancelAreaSelect" }
-  | { type: "picker.showAnnotation" }
-  | { type: "picker.hideAnnotation" }
   | { type: "picker.selected"; payload: PickerSelectionPayload }
   | { type: "picker.cancelled" }
   | { type: "picker.areaSelected"; rect: ViewportRect; viewport: { width: number; height: number } };

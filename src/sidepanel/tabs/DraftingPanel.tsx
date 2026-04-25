@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Pencil, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -6,6 +7,7 @@ import { useEditorStore } from "@/store/editor-store";
 import { useSettingsStore } from "@/store/settings-store";
 import { useBoundTabId } from "../hooks/useBoundTabId";
 import { clearPicker } from "../picker-control";
+import { AnnotationOverlay } from "../components/AnnotationOverlay";
 import { CancelConfirmDialog } from "../components/CancelConfirmDialog";
 import {
   PageFooter,
@@ -35,6 +37,7 @@ export function DraftingPanel() {
   const reset = useEditorStore((s) => s.reset);
   const backToStyling = useEditorStore((s) => s.backToStyling);
   const confirmDraft = useEditorStore((s) => s.confirmDraft);
+  const [annotating, setAnnotating] = useState(false);
   const titlePrefix = useSettingsStore(
     (s) => s.jiraConfig?.titlePrefix ?? "",
   );
@@ -101,13 +104,43 @@ export function DraftingPanel() {
             />
           </Section>
         ) : (
-          <Section title="미디어">
+          <Section
+            title="미디어"
+            action={
+              screenshotImage ? (
+                <>
+                  {screenshotAnnotated ? (
+                    <Button
+                      size="icon"
+                      variant="outline"
+                      className="h-7 w-7 shrink-0"
+                      title="주석 제거"
+                      onClick={() => useEditorStore.setState({ screenshotAnnotated: null })}
+                    >
+                      <RotateCcw />
+                    </Button>
+                  ) : null}
+                  <Button
+                    size="icon"
+                    variant="outline"
+                    className="h-7 w-7 shrink-0"
+                    title={screenshotAnnotated ? "주석 수정" : "주석 추가"}
+                    onClick={() => setAnnotating(true)}
+                  >
+                    <Pencil />
+                  </Button>
+                </>
+              ) : undefined
+            }
+          >
             {screenshotImage ? (
-              <img
-                src={screenshotImage}
-                alt="캡처 이미지"
-                className="w-full rounded-lg border"
-              />
+              <div className="aspect-video w-full overflow-hidden rounded-lg border bg-muted/70">
+                <img
+                  src={screenshotImage}
+                  alt="캡처 이미지"
+                  className="h-full w-full object-contain"
+                />
+              </div>
             ) : null}
           </Section>
         )}
@@ -128,6 +161,7 @@ export function DraftingPanel() {
         <div className="flex items-center justify-between gap-2">
           <CancelConfirmDialog
             onConfirm={() => {
+              setAnnotating(false);
               reset();
               if (tabId) void clearPicker(tabId);
             }}
@@ -144,7 +178,10 @@ export function DraftingPanel() {
             ) : null}
             <Button
               size="lg"
-              onClick={() => confirmDraft()}
+              onClick={() => {
+                setAnnotating(false);
+                confirmDraft();
+              }}
               disabled={titleMissing}
             >
               이슈 프리뷰
@@ -152,6 +189,16 @@ export function DraftingPanel() {
           </div>
         </div>
       </PageFooter>
+      {annotating && screenshotRaw ? (
+        <AnnotationOverlay
+          imageUrl={screenshotAnnotated ?? screenshotRaw}
+          onComplete={(url) => {
+            useEditorStore.getState().onAnnotated(url);
+            setAnnotating(false);
+          }}
+          onCancel={() => setAnnotating(false)}
+        />
+      ) : null}
     </PageShell>
   );
 }

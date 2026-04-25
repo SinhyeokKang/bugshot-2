@@ -46,7 +46,6 @@ let rafHandle: number | null = null;
 
 let overlay: OverlayHandle | null = null;
 let areaHandle: AreaSelectHandle | null = null;
-let annotationIframe: HTMLIFrameElement | null = null;
 
 chrome.runtime.onConnect.addListener((port) => {
   if (port.name !== "bugshot-picker") return;
@@ -113,12 +112,6 @@ chrome.runtime.onMessage.addListener(
           break;
         case "picker.cancelAreaSelect":
           handleCancelAreaSelect();
-          break;
-        case "picker.showAnnotation":
-          showAnnotationIframe();
-          break;
-        case "picker.hideAnnotation":
-          hideAnnotationIframe();
           break;
         default:
           return;
@@ -407,32 +400,6 @@ function handleSelectByPath(selector: string): void {
   if (overlay) clearPreview(overlay);
   setMode("selected");
   emitSelected(target);
-}
-
-/* ── Annotation Iframe ───────────────────────────── */
-
-function showAnnotationIframe(): void {
-  if (annotationIframe) return;
-  annotationIframe = document.createElement("iframe");
-  annotationIframe.src = chrome.runtime.getURL("src/annotation/index.html");
-  Object.assign(annotationIframe.style, {
-    position: "fixed",
-    top: "0",
-    left: "0",
-    width: "100vw",
-    height: "100vh",
-    border: "none",
-    zIndex: "2147483647",
-  });
-  annotationIframe.allow = "";
-  document.documentElement.appendChild(annotationIframe);
-}
-
-function hideAnnotationIframe(): void {
-  if (annotationIframe) {
-    annotationIframe.remove();
-    annotationIframe = null;
-  }
 }
 
 /* ── Area Select ─────────────────────────────────── */

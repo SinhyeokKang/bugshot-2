@@ -83,15 +83,6 @@ export function IssueTab() {
     );
   }
 
-  if (phase === "annotating") {
-    return (
-      <>
-        <AnnotatingState />
-        <SessionExpiredDialog open={sessionExpired} onConfirm={() => reset()} />
-      </>
-    );
-  }
-
   if (phase === "drafting") {
     return (
       <>
@@ -215,17 +206,6 @@ function CapturingState({ onCancel }: { onCancel: () => void }) {
             취소
           </Button>
         }
-      />
-    </PageShell>
-  );
-}
-
-function AnnotatingState() {
-  return (
-    <PageShell>
-      <EmptyShell
-        icon={<Camera className="h-6 w-6 text-muted-foreground" />}
-        title="주석을 추가하세요"
       />
     </PageShell>
   );

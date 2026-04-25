@@ -2,9 +2,7 @@ import { useEffect } from "react";
 import { useEditorStore } from "@/store/editor-store";
 import type { PickerMessage, ViewportRect } from "@/types/picker";
 import { captureElementSnapshot, loadImage } from "../capture";
-import { collectTokens, showAnnotation, hideAnnotation } from "../picker-control";
-
-const ANNOTATE_KEY = "annotate:image";
+import { collectTokens } from "../picker-control";
 
 export function usePickerMessages(): void {
   useEffect(() => {
@@ -43,10 +41,6 @@ export function usePickerMessages(): void {
       } else if (message.type === "picker.areaSelected") {
         const msg = message as Extract<PickerMessage, { type: "picker.areaSelected" }>;
         void captureAndCrop(msg.rect, msg.viewport);
-      } else if (message.type === "annotation.complete") {
-        void handleAnnotationComplete();
-      } else if (message.type === "annotation.cancelled") {
-        void handleAnnotationCancelled();
       } else if (message.type === "picker.cancelled") {
         const { phase } = useEditorStore.getState();
         if (phase === "capturing") {
@@ -59,45 +53,10 @@ export function usePickerMessages(): void {
 
     chrome.runtime.onMessage.addListener(handler);
 
-    const unsubStore = useEditorStore.subscribe((state, prev) => {
-      if (state.phase === "annotating" && prev.phase !== "annotating") {
-        void openAnnotation();
-      }
-    });
-
     return () => {
       chrome.runtime.onMessage.removeListener(handler);
-      unsubStore();
     };
   }, []);
-}
-
-async function openAnnotation(): Promise<void> {
-  const { screenshotRaw, target } = useEditorStore.getState();
-  if (!screenshotRaw || !target?.tabId) return;
-  await chrome.storage.session.set({ [ANNOTATE_KEY]: screenshotRaw });
-  void showAnnotation(target.tabId);
-}
-
-async function handleAnnotationComplete(): Promise<void> {
-  const tabId = useEditorStore.getState().target?.tabId;
-  if (tabId) void hideAnnotation(tabId);
-  const data = await chrome.storage.session.get(ANNOTATE_KEY);
-  const annotatedUrl = data[ANNOTATE_KEY] as string | undefined;
-  if (annotatedUrl) {
-    useEditorStore.getState().onAnnotated(annotatedUrl);
-  } else {
-    const raw = useEditorStore.getState().screenshotRaw;
-    if (raw) useEditorStore.getState().onAnnotated(raw);
-  }
-  await chrome.storage.session.remove(ANNOTATE_KEY);
-}
-
-async function handleAnnotationCancelled(): Promise<void> {
-  const tabId = useEditorStore.getState().target?.tabId;
-  if (tabId) void hideAnnotation(tabId);
-  useEditorStore.getState().reset();
-  await chrome.storage.session.remove(ANNOTATE_KEY);
 }
 
 async function captureAndCrop(rect: ViewportRect, viewport: { width: number; height: number }): Promise<void> {

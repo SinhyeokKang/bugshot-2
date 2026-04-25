@@ -3,8 +3,19 @@ import {
   type EditorSnapshot,
   useEditorStore,
 } from "@/store/editor-store";
+import { clearPicker } from "../picker-control";
 
 const SAVE_DEBOUNCE_MS = 300;
+
+function pageKeyOf(url: string | undefined): string | null {
+  if (!url) return null;
+  try {
+    const u = new URL(url);
+    return `${u.origin}${u.pathname}`;
+  } catch {
+    return null;
+  }
+}
 
 export function sessionKey(tabId: number): string {
   return `editor:${tabId}`;
@@ -53,7 +64,7 @@ export function useEditorSessionSync(tabId: number | null): boolean {
       if (cancelled) return;
       const snap = data[key] as EditorSnapshot | undefined;
       if (snap) {
-        if (snap.phase === "picking" || snap.phase === "recording" || snap.phase === "capturing" || snap.phase === "annotating") {
+        if (snap.phase === "picking" || snap.phase === "recording" || snap.phase === "capturing") {
           snap.phase = "idle";
         }
         useEditorStore.getState().hydrate(snap);
@@ -68,6 +79,7 @@ export function useEditorSessionSync(tabId: number | null): boolean {
         window.clearTimeout(saveTimer.current);
       }
       saveTimer.current = window.setTimeout(() => {
+        if (useEditorStore.getState().sessionExpired) return;
         void chrome.storage.session.set({ [key]: snapshotFromState() });
       }, SAVE_DEBOUNCE_MS);
     });
@@ -81,26 +93,84 @@ export function useEditorSessionSync(tabId: number | null): boolean {
       if (!change) return;
       if (change.newValue == null) {
         const { phase, captureMode } = useEditorStore.getState();
-        const domBound = captureMode === "element" && (phase === "styling" || phase === "drafting");
-        const screenshotActive = captureMode === "screenshot" && (phase === "capturing" || phase === "annotating");
-        if (domBound || screenshotActive) {
+        const needsExpiry = captureMode === "element" && phase === "styling";
+        if (needsExpiry) {
           if (saveTimer.current != null) {
             window.clearTimeout(saveTimer.current);
             saveTimer.current = null;
           }
           useEditorStore.setState({ sessionExpired: true });
         }
-        if (phase === "picking") {
+        const needsReset = phase === "picking" ||
+          (captureMode === "screenshot" && phase === "capturing");
+        if (needsReset) {
           useEditorStore.getState().reset();
+        }
+        if (captureMode === "element" && (needsExpiry || needsReset)) {
+          void clearPicker(tabId).catch(() => {});
+        }
+        if (captureMode === "screenshot" && phase === "capturing") {
+          void chrome.tabs.sendMessage(tabId, { type: "picker.cancelAreaSelect" }).catch(() => {});
         }
       }
     };
     chrome.storage.onChanged.addListener(onChanged);
 
+    const onTabUpdated = (
+      updatedTabId: number,
+      info: chrome.tabs.TabChangeInfo,
+    ) => {
+      if (updatedTabId !== tabId || !info.url) return;
+      const state = useEditorStore.getState();
+      if (state.sessionExpired) return;
+      const prevKey = pageKeyOf(state.target?.url);
+      const newKey = pageKeyOf(info.url);
+      if (!prevKey || prevKey === newKey) return;
+
+      const { phase, captureMode } = state;
+
+      const needsExpiry = captureMode === "element" && phase === "styling";
+      if (needsExpiry) {
+        if (saveTimer.current != null) {
+          window.clearTimeout(saveTimer.current);
+          saveTimer.current = null;
+        }
+        useEditorStore.setState({ sessionExpired: true });
+        void clearPicker(tabId).catch(() => {});
+        return;
+      }
+
+      const needsReset =
+        phase === "picking" ||
+        (captureMode === "screenshot" && phase === "capturing");
+      if (needsReset) {
+        useEditorStore.getState().reset();
+        if (captureMode === "element") {
+          void clearPicker(tabId).catch(() => {});
+        }
+        if (captureMode === "screenshot") {
+          void chrome.tabs
+            .sendMessage(tabId, { type: "picker.cancelAreaSelect" })
+            .catch(() => {});
+        }
+        return;
+      }
+
+      if (
+        captureMode === "element" &&
+        (phase === "drafting" || phase === "previewing" || phase === "done")
+      ) {
+        void clearPicker(tabId).catch(() => {});
+      }
+
+    };
+    chrome.tabs.onUpdated.addListener(onTabUpdated);
+
     return () => {
       cancelled = true;
       unsubStore();
       chrome.storage.onChanged.removeListener(onChanged);
+      chrome.tabs.onUpdated.removeListener(onTabUpdated);
       if (saveTimer.current != null) {
         window.clearTimeout(saveTimer.current);
         saveTimer.current = null;
