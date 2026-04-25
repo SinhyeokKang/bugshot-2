@@ -73,12 +73,12 @@ PRD(`docs/PRD.md`) 기준 작업 목록. 다른 환경에서 이어서 작업할
 ## 대기 — 리팩터
 
 - [x] `IssueTab.tsx` 분리 (1973줄 → 242줄) — `StyleEditorPanel.tsx`(1447줄) + `DomTreeDialog.tsx`(283줄) + `CancelConfirmDialog.tsx`(36줄)
-- [ ] `picker.ts` 분리 (1582줄) — 영역 선택 오버레이 추가로 더 비대해짐
+- [x] `picker.ts` 분리 (1580줄 → 473줄) — `css-resolve.ts`(492) + `dom-describe.ts`(139) + `overlay.ts`(388) + `area-select.ts`(188)
 - [ ] `picker-control.ts` 에러 처리 공통 래퍼
 
 ## 배포 로드맵 (순서대로)
 1. ~~스크린샷 영역 캡처 + 주석(markerjs2) 모드 추가~~ ✅
-2. `picker.ts` 리팩터 (영역 선택 오버레이 분리)
+2. ~~`picker.ts` 리팩터 (영역 선택 오버레이 분리)~~ ✅
 3. 비디오 탭 녹화(tabCapture + offscreen) 모드 추가
 4. en locale 지원
 5. 웹스토어 배포 (`pnpm build:store`)
