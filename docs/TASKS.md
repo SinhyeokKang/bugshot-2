@@ -2,7 +2,7 @@
 
 PRD(`docs/PRD.md`) 기준 작업 목록. 다른 환경에서 이어서 작업할 때 참고. Claude Code 세션의 TodoWrite 상태를 보강하는 용도 — 권위 있는 소스는 아니지만 방향성 유지용 스냅샷.
 
-**마지막 갱신: 2026-04-26**
+**마지막 갱신: 2026-04-25**
 
 ## 완료
 
@@ -74,7 +74,7 @@ PRD(`docs/PRD.md`) 기준 작업 목록. 다른 환경에서 이어서 작업할
 
 - [x] `IssueTab.tsx` 분리 (1973줄 → 242줄) — `StyleEditorPanel.tsx`(1447줄) + `DomTreeDialog.tsx`(283줄) + `CancelConfirmDialog.tsx`(36줄)
 - [x] `picker.ts` 분리 (1580줄 → 473줄) — `css-resolve.ts`(492) + `dom-describe.ts`(139) + `overlay.ts`(388) + `area-select.ts`(188)
-- [ ] `picker-control.ts` 에러 처리 공통 래퍼
+- [x] `picker-control.ts` 에러 처리 공통 래퍼
 
 ## 배포 로드맵 (순서대로)
 1. ~~스크린샷 영역 캡처 + 주석(markerjs2) 모드 추가~~ ✅
