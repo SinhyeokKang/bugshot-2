@@ -83,12 +83,12 @@ export function AnnotationOverlay({
           alt=""
           className="max-h-[70vh] max-w-[90%] object-contain"
         />
-        <div className="flex items-center gap-2">
-          <Button size="lg" variant="secondary" onClick={onCancel}>
-            취소
-          </Button>
-          <Button size="lg" onClick={handleComplete}>주석 완료</Button>
-        </div>
+      </div>
+      <div className="absolute inset-x-0 bottom-6 z-[10000] flex items-center justify-center gap-2">
+        <Button size="lg" variant="secondary" onClick={onCancel}>
+          취소
+        </Button>
+        <Button size="lg" onClick={handleComplete}>주석 완료</Button>
       </div>
     </div>
   );

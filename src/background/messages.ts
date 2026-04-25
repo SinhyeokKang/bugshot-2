@@ -119,26 +119,7 @@ async function submitIssue(
       const desc = payload.description;
       const content: unknown[] = [...desc.content];
       const screenshotFile = uploadMap.get("screenshot.png");
-      const videoFile = uploadMap.get("recording.webm");
-      if (videoFile) {
-        const videoPlaceholderIdx = content.findIndex(
-          (n) => {
-            const node = n as { type: string; content?: { text?: string }[] };
-            return node.type === "paragraph" && node.content?.[0]?.text === "(첨부 영상 참조)";
-          },
-        );
-        if (videoPlaceholderIdx >= 0) {
-          const mediaNode =
-            videoFile.kind === "media"
-              ? { type: "media", attrs: { type: "file", id: videoFile.mediaId, collection: "" } }
-              : { type: "media", attrs: { type: "external", url: videoFile.url } };
-          content[videoPlaceholderIdx] = {
-            type: "mediaSingle",
-            attrs: { layout: "center" },
-            content: [mediaNode],
-          };
-        }
-      } else if (screenshotFile) {
+      if (screenshotFile) {
         const mediaPlaceholderIdx = content.findIndex(
           (n) => {
             const node = n as { type: string; content?: { text?: string }[] };

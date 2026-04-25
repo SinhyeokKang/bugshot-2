@@ -61,7 +61,6 @@ export async function startRecording(tabId: number): Promise<void> {
     s.stream.getTracks().forEach((t) => t.stop());
 
     const blob = new Blob(chunks, { type: "video/webm" });
-    const duration = (Date.now() - s.startTime) / 1000;
     const localTabId = s.tabId;
     state = null;
 
@@ -90,7 +89,7 @@ export async function startRecording(tabId: number): Promise<void> {
 
     useEditorStore
       .getState()
-      .onRecordingComplete(blob, thumbnail, duration, viewport);
+      .onRecordingComplete(blob, thumbnail, viewport);
   };
 
   recorder.start(1000);
@@ -161,12 +160,14 @@ async function generateThumbnail(blob: Blob): Promise<string> {
       video.currentTime = 0.001;
     });
 
+    const MAX_W = 480;
+    const scale = Math.min(1, MAX_W / video.videoWidth);
     const canvas = document.createElement("canvas");
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    canvas.width = Math.round(video.videoWidth * scale);
+    canvas.height = Math.round(video.videoHeight * scale);
     const ctx = canvas.getContext("2d")!;
-    ctx.drawImage(video, 0, 0);
-    return canvas.toDataURL("image/png");
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    return canvas.toDataURL("image/jpeg", 0.7);
   } finally {
     URL.revokeObjectURL(url);
   }

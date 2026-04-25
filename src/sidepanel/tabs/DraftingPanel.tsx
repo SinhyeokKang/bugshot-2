@@ -31,7 +31,6 @@ export function DraftingPanel() {
   const screenshotRaw = useEditorStore((s) => s.screenshotRaw);
   const videoBlob = useEditorStore((s) => s.videoBlob);
   const videoThumbnail = useEditorStore((s) => s.videoThumbnail);
-  const videoDuration = useEditorStore((s) => s.videoDuration);
   const draft = useEditorStore((s) => s.draft);
   const setDraft = useEditorStore((s) => s.setDraft);
   const reset = useEditorStore((s) => s.reset);
@@ -93,7 +92,7 @@ export function DraftingPanel() {
 
         {isVideoMode ? (
           <Section title="미디어">
-            <VideoPreview blob={videoBlob} thumbnail={videoThumbnail} duration={videoDuration} />
+            <VideoPreview blob={videoBlob} thumbnail={videoThumbnail} />
           </Section>
         ) : isElementMode ? (
           <Section title="스타일 변경사항">
@@ -203,7 +202,7 @@ export function DraftingPanel() {
   );
 }
 
-function VideoPreview({ blob, thumbnail, duration }: { blob: Blob | null; thumbnail: string | null; duration: number | null }) {
+function VideoPreview({ blob, thumbnail }: { blob: Blob | null; thumbnail: string | null }) {
   const urlRef = useRef<string | null>(null);
   const src = blob ? (urlRef.current ??= URL.createObjectURL(blob)) : null;
 
@@ -222,9 +221,6 @@ function VideoPreview({ blob, thumbnail, duration }: { blob: Blob | null; thumbn
         <video src={src} controls className="w-full rounded-lg border" />
       ) : thumbnail ? (
         <img src={thumbnail} alt="녹화 썸네일" className="w-full rounded-lg border" />
-      ) : null}
-      {duration != null ? (
-        <p className="text-xs text-muted-foreground">{duration.toFixed(1)}초</p>
       ) : null}
     </div>
   );

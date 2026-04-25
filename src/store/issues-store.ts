@@ -59,8 +59,6 @@ export interface IssueRecord {
   selectionSnapshot?: IssueSelectionSnapshot;
   tokensSnapshot?: IssueTokenSnapshot[];
 
-  videoDuration?: number;
-
   key?: string;
   url?: string;
   jiraSiteId?: string;

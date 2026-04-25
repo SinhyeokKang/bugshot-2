@@ -355,9 +355,6 @@ function EnvBlock({ issue }: { issue: IssueRecord }) {
   if (vp) {
     rows.push({ label: "Viewport", value: `${vp.width}×${vp.height}` });
   }
-  if (issue.captureMode === "video" && issue.videoDuration != null) {
-    rows.push({ label: "Duration", value: `${issue.videoDuration.toFixed(1)}초` });
-  }
   rows.push({
     label: "Captured",
     value: new Date(issue.createdAt).toLocaleString("ko-KR", {
@@ -412,9 +409,6 @@ function DraftVideoPreview({ issue }: { issue: IssueRecord }) {
         <video src={src} controls className="max-h-60 w-full rounded-md border object-contain" />
       ) : issue.snapshot.before ? (
         <img src={issue.snapshot.before} alt="녹화 썸네일" className="max-h-60 rounded-md border object-contain" />
-      ) : null}
-      {issue.videoDuration != null ? (
-        <p className="text-xs text-muted-foreground">{issue.videoDuration.toFixed(1)}초</p>
       ) : null}
     </div>
   );

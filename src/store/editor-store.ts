@@ -78,7 +78,6 @@ interface EditorState {
   screenshotCapturedAt: number | null;
   videoBlob: Blob | null;
   videoThumbnail: string | null;
-  videoDuration: number | null;
   videoViewport: { width: number; height: number } | null;
   videoCapturedAt: number | null;
   submitResult: { key: string; url: string } | null;
@@ -87,7 +86,7 @@ interface EditorState {
   startPicking: (target: EditorTarget, mode?: CaptureMode) => void;
   startCapturing: (target: EditorTarget) => void;
   startRecording: (target: EditorTarget) => void;
-  onRecordingComplete: (blob: Blob, thumbnail: string, duration: number, viewport: { width: number; height: number }) => void;
+  onRecordingComplete: (blob: Blob, thumbnail: string, viewport: { width: number; height: number }) => void;
   cancelRecording: () => void;
   onAreaCaptured: (dataUrl: string, viewport: { width: number; height: number }) => void;
   onAnnotated: (dataUrl: string) => void;
@@ -123,7 +122,6 @@ export type EditorSnapshot = Pick<
   | "screenshotViewport"
   | "screenshotCapturedAt"
   | "videoThumbnail"
-  | "videoDuration"
   | "videoViewport"
   | "videoCapturedAt"
   | "draft"
@@ -151,7 +149,6 @@ const initial = {
   screenshotCapturedAt: null as number | null,
   videoBlob: null as Blob | null,
   videoThumbnail: null as string | null,
-  videoDuration: null as number | null,
   videoViewport: null as { width: number; height: number } | null,
   videoCapturedAt: null as number | null,
   draft: null,
@@ -176,7 +173,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   startCapturing: (target) => set({ ...initial, captureMode: "screenshot", phase: "capturing", target }),
   startRecording: (target) => set({ ...initial, captureMode: "video", phase: "recording", target }),
-  onRecordingComplete: (blob, thumbnail, duration, viewport) => set({ phase: "drafting", videoBlob: blob, videoThumbnail: thumbnail, videoDuration: duration, videoViewport: viewport, videoCapturedAt: Date.now() }),
+  onRecordingComplete: (blob, thumbnail, viewport) => set({ phase: "drafting", videoBlob: blob, videoThumbnail: thumbnail, videoViewport: viewport, videoCapturedAt: Date.now() }),
   cancelRecording: () => set({ ...initial }),
   onAreaCaptured: (dataUrl, viewport) => set({ phase: "drafting", screenshotRaw: dataUrl, screenshotViewport: viewport, screenshotCapturedAt: Date.now() }),
   onAnnotated: (dataUrl) => set({ screenshotAnnotated: dataUrl }),
@@ -242,7 +239,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           before: state.videoThumbnail || null,
           after: null,
         },
-        videoDuration: state.videoDuration ?? undefined,
       });
       if (state.videoBlob) {
         saveVideoBlob(id, state.videoBlob).catch(() => {});

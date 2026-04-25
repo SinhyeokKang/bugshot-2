@@ -32,7 +32,6 @@ export function PreviewPanel() {
   const screenshotCapturedAt = useEditorStore((s) => s.screenshotCapturedAt);
   const videoBlob = useEditorStore((s) => s.videoBlob);
   const videoThumbnail = useEditorStore((s) => s.videoThumbnail);
-  const videoDuration = useEditorStore((s) => s.videoDuration);
   const videoViewport = useEditorStore((s) => s.videoViewport);
   const videoCapturedAt = useEditorStore((s) => s.videoCapturedAt);
   const draft = useEditorStore((s) => s.draft);
@@ -168,12 +167,6 @@ export function PreviewPanel() {
                       ? `${videoViewport!.width}×${videoViewport!.height}`
                       : `${screenshotViewport!.width}×${screenshotViewport!.height}`}
                   </span>
-                </div>
-              ) : null}
-              {isVideoMode && videoDuration != null ? (
-                <div className="flex gap-3">
-                  <span className="w-20 shrink-0 text-muted-foreground">Duration</span>
-                  <span>{videoDuration.toFixed(1)}초</span>
                 </div>
               ) : null}
               {(isVideoMode ? videoCapturedAt : screenshotCapturedAt) ? (

@@ -37,7 +37,6 @@ function snapshotFromState(): EditorSnapshot {
     screenshotViewport: s.screenshotViewport,
     screenshotCapturedAt: s.screenshotCapturedAt,
     videoThumbnail: s.videoThumbnail,
-    videoDuration: s.videoDuration,
     videoViewport: s.videoViewport,
     videoCapturedAt: s.videoCapturedAt,
     draft: s.draft,

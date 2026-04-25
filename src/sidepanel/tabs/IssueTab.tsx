@@ -241,7 +241,6 @@ function RecordingState({ onStop, onCancel }: { onStop: () => void; onCancel: ()
             style={{ width: `${progress * 100}%` }}
           />
         </div>
-        <p className="mt-1.5 text-xs text-muted-foreground">최대 {maxDuration}초</p>
         <div className="mt-4 flex gap-2">
           <Button variant="outline" onClick={onCancel}>취소</Button>
           <Button onClick={onStop}>녹화 완료</Button>
