@@ -39,7 +39,11 @@ src/
 │   ├── index.html       # markerjs2 주석 에디터 페이지 (content script iframe으로 로드)
 │   └── main.ts          # markerjs2 초기화 + chrome.storage.session 통신
 ├── content/
-│   └── picker.ts        # DOM picker (Shadow DOM + @medv/finder + Port) + describeInitial/describeChildren (lazy 트리) + 영역 선택 오버레이
+│   ├── picker.ts        # DOM picker 메인 (메시지 라우터 + 모드 FSM + hover/select 이벤트)
+│   ├── css-resolve.ts   # CSS 스타일 수집·토큰 resolve (resolveVarChain, collectSelection, collectTokens)
+│   ├── dom-describe.ts  # DOM 트리 직렬화 (buildSelector, buildInitialTree, buildChildrenResponse)
+│   ├── overlay.ts       # Shadow DOM 오버레이 (아웃라인·배너·블로커·프리뷰)
+│   └── area-select.ts   # 영역 드래그 선택 (dimming + 사이즈 라벨)
 ├── sidepanel/
 │   ├── App.tsx          # Radix Tabs 4개 (이슈 작성/목록/설정/앱 설정)
 │   ├── main.tsx
@@ -47,7 +51,7 @@ src/
 │   ├── picker-control.ts
 │   ├── hooks/           # useBoundTabId, useEditorSessionSync, usePickerMessages, useThemeEffect
 │   ├── components/      # 공통 UI (Section/PageShell/PageScroll/PageFooter 등)
-│   ├── tabs/            # 탭별 진입점 (IssueTab/IssueListTab/SettingsTab/AppSettingsTab) + 편집 패널들
+│   ├── tabs/            # 탭별 진입점 + 편집 패널 (StyleEditorPanel/StylePropEditors/ValueCombobox 등)
 │   └── lib/             # buildIssueMarkdown, buildIssueAdf 등 순수 유틸
 ├── store/               # Zustand 스토어 (editor/issues/settings/app-settings), settings는 v2 마이그레이션(flat → discriminated auth)
 ├── components/ui/       # shadcn 컴포넌트
