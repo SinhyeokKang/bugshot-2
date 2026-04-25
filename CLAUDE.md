@@ -59,7 +59,8 @@ src/
 oauth-proxy/             # Cloudflare Worker — Atlassian /token 교환 (client_secret 서버 보관)
 docs/
 ├── PRD.md           # v1 스펙
-└── design.md        # 톤앤매너
+├── design.md        # 톤앤매너
+└── STORE_DEPLOY.md  # 웹스토어 배포 가이드
 ```
 
 ## 아키텍처 원칙
@@ -207,7 +208,7 @@ pnpm version major   # 1.0.0 → 2.0.0 (Breaking change)
 - 매니페스트 `minimum_chrome_version: "116"` — sidePanel API 요구사항
 - 지원 URL 스킴: `http:`, `https:`, `file:`만. 그 외에서는 side panel을 enable하지 않는다.
 - 단축키: `Alt+Shift+B` (`_execute_action`)
-- permissions: `sidePanel`, `activeTab`, `scripting`, `storage`, `commands`, `contextMenus`, `identity`
+- permissions: `sidePanel`, `activeTab`, `scripting`, `storage`, `commands`, `contextMenus`, `identity`, `tabCapture`
 - host_permissions: `*.atlassian.net` (Jira REST), `api.atlassian.com` (OAuth gateway), `auth.atlassian.com` (authorize), + `VITE_OAUTH_PROXY_URL` origin (빌드 타임 주입)
 - OAuth 관련 env: `VITE_ATLASSIAN_CLIENT_ID`, `VITE_OAUTH_PROXY_URL` — 누락 시 OAuth UI 자동 비활성화
 - `BUGSHOT_STORE_BUILD=1`: 스토어 업로드용 빌드 (manifest `key` 제거)
@@ -216,4 +217,5 @@ pnpm version major   # 1.0.0 → 2.0.0 (Breaking change)
 
 - `docs/PRD.md` — v1 스펙 (Phase A/B, 필드 정의, 단계별 UI 요구사항)
 - `docs/design.md` — UI 톤앤매너
+- `docs/STORE_DEPLOY.md` — 웹스토어 배포 체크리스트 (등록 정보, 개인정보처리방침, 권한 정당화, OAuth 콜백)
 - 사용자 개인 메모리: `~/.claude/projects/-Users-sinhyeokkang-code-bugshot-2/memory/`에 있음 (머신 로컬, git에 안 올라감)
