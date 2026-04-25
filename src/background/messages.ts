@@ -128,12 +128,13 @@ async function submitIssue(
           (n) => (n as { type: string }).type === "table",
         );
         if (tableIdx >= 0) {
-          const tbl = content[tableIdx] as { content: unknown[] };
+          const tbl = JSON.parse(JSON.stringify(content[tableIdx])) as { content: unknown[] };
           tbl.content.splice(
             1,
             0,
             snapshotRow(uploadMap.get("before.png"), uploadMap.get("after.png")),
           );
+          content[tableIdx] = tbl;
         }
       }
       await updateIssueDescription(auth, issue.key, {

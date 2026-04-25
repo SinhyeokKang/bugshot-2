@@ -21,6 +21,7 @@ export interface AreaSelectHandle {
   _onMouseMove: (e: MouseEvent) => void;
   _onMouseUp: (e: MouseEvent) => void;
   _onKeyDown: (e: KeyboardEvent) => void;
+  _blockerEl: HTMLDivElement | null;
 }
 
 export function startAreaSelect(deps: AreaSelectDeps): AreaSelectHandle {
@@ -61,6 +62,7 @@ export function startAreaSelect(deps: AreaSelectDeps): AreaSelectHandle {
     _onMouseMove: (e) => onMouseMove(handle, e),
     _onMouseUp: (e) => onMouseUp(handle, e),
     _onKeyDown: (e) => onKeyDown(handle, e),
+    _blockerEl: null,
   };
 
   showDimming(handle, null);
@@ -72,6 +74,7 @@ export function startAreaSelect(deps: AreaSelectDeps): AreaSelectHandle {
 }
 
 export function attachAreaBlockerListener(handle: AreaSelectHandle, blockerEl: HTMLDivElement): void {
+  handle._blockerEl = blockerEl;
   blockerEl.addEventListener("mousedown", handle._onMouseDown);
 }
 
@@ -87,6 +90,10 @@ function removeListeners(h: AreaSelectHandle): void {
   window.removeEventListener("mousemove", h._onMouseMove, true);
   window.removeEventListener("mouseup", h._onMouseUp, true);
   window.removeEventListener("keydown", h._onKeyDown, true);
+  if (h._blockerEl) {
+    h._blockerEl.removeEventListener("mousedown", h._onMouseDown);
+    h._blockerEl = null;
+  }
 }
 
 function cleanupElements(h: AreaSelectHandle): void {

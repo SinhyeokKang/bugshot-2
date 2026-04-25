@@ -11,6 +11,7 @@ import type {
   JiraUser,
 } from "@/types/jira";
 import type { JiraAdfDoc } from "@/types/jira";
+import type { JiraOAuthAuth } from "@/types/jira";
 import { refreshOAuthToken, persistOAuthTokens } from "./oauth";
 
 export class JiraError extends Error {
@@ -59,12 +60,25 @@ function resolveUrl(auth: JiraAuth, path: string): string {
 
 const TOKEN_REFRESH_THRESHOLD_MS = 60_000;
 
+let refreshInFlight: Promise<JiraOAuthAuth> | null = null;
+
+function refreshOnce(auth: JiraOAuthAuth): Promise<JiraOAuthAuth> {
+  if (refreshInFlight) return refreshInFlight;
+  refreshInFlight = refreshOAuthToken(auth)
+    .then(async (refreshed) => {
+      await persistOAuthTokens(refreshed);
+      return refreshed;
+    })
+    .finally(() => {
+      refreshInFlight = null;
+    });
+  return refreshInFlight;
+}
+
 async function ensureFreshAuth(auth: JiraAuth): Promise<JiraAuth> {
   if (auth.kind !== "oauth") return auth;
   if (auth.expiresAt - Date.now() > TOKEN_REFRESH_THRESHOLD_MS) return auth;
-  const refreshed = await refreshOAuthToken(auth);
-  await persistOAuthTokens(refreshed);
-  return refreshed;
+  return refreshOnce(auth);
 }
 
 async function authedFetch(
@@ -76,9 +90,7 @@ async function authedFetch(
   let current = await ensureFreshAuth(auth);
   let res = await doFetch(current, path, init, multipart);
   if (res.status === 401 && current.kind === "oauth") {
-    const refreshed = await refreshOAuthToken(current);
-    await persistOAuthTokens(refreshed);
-    current = refreshed;
+    current = await refreshOnce(current);
     res = await doFetch(current, path, init, multipart);
   }
   return res;
@@ -86,13 +98,14 @@ async function authedFetch(
 
 async function readErrorBody(res: Response): Promise<unknown> {
   try {
-    return await res.json();
-  } catch {
+    const text = await res.text();
     try {
-      return await res.text();
+      return JSON.parse(text);
     } catch {
-      return undefined;
+      return text;
     }
+  } catch {
+    return undefined;
   }
 }
 

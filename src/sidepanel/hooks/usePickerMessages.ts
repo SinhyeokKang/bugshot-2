@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useEditorStore } from "@/store/editor-store";
 import type { PickerMessage, ViewportRect } from "@/types/picker";
-import { captureElementSnapshot } from "../capture";
+import { captureElementSnapshot, loadImage } from "../capture";
 import { collectTokens, showAnnotation, hideAnnotation } from "../picker-control";
 
 const ANNOTATE_KEY = "annotate:image";
@@ -123,32 +123,26 @@ async function captureAndCrop(rect: ViewportRect, viewport: { width: number; hei
   }
 }
 
-function cropImage(
+async function cropImage(
   dataUrl: string,
   rect: { x: number; y: number; width: number; height: number },
 ): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => {
-      const canvas = document.createElement("canvas");
-      canvas.width = rect.width;
-      canvas.height = rect.height;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return reject(new Error("canvas context failed"));
-      ctx.drawImage(
-        img,
-        rect.x,
-        rect.y,
-        rect.width,
-        rect.height,
-        0,
-        0,
-        rect.width,
-        rect.height,
-      );
-      resolve(canvas.toDataURL("image/png"));
-    };
-    img.onerror = () => reject(new Error("image load failed"));
-    img.src = dataUrl;
-  });
+  const img = await loadImage(dataUrl);
+  const canvas = document.createElement("canvas");
+  canvas.width = rect.width;
+  canvas.height = rect.height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("canvas context failed");
+  ctx.drawImage(
+    img,
+    rect.x,
+    rect.y,
+    rect.width,
+    rect.height,
+    0,
+    0,
+    rect.width,
+    rect.height,
+  );
+  return canvas.toDataURL("image/png");
 }

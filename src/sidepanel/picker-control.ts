@@ -8,6 +8,17 @@ import type {
   Token,
 } from "@/types/picker";
 
+async function send<R = void>(
+  tabId: number,
+  msg: PickerMessage,
+): Promise<R | undefined> {
+  try {
+    return await chrome.tabs.sendMessage<PickerMessage, R>(tabId, msg);
+  } catch {
+    return undefined;
+  }
+}
+
 export async function startPicker(tabId: number): Promise<void> {
   try {
     const tab = await chrome.tabs.get(tabId);
@@ -26,190 +37,99 @@ export async function startPicker(tabId: number): Promise<void> {
 }
 
 export async function stopPicker(tabId: number): Promise<void> {
-  try {
-    await chrome.tabs.sendMessage<PickerMessage>(tabId, {
-      type: "picker.stop",
-    });
-  } catch {
-    /* content script may be absent; ignore */
-  }
+  await send(tabId, { type: "picker.stop" });
   useEditorStore.getState().cancelPicking();
 }
 
 export async function clearPicker(tabId: number): Promise<void> {
-  try {
-    await chrome.tabs.sendMessage<PickerMessage>(tabId, {
-      type: "picker.clear",
-    });
-  } catch {
-    /* ignore */
-  }
+  await send(tabId, { type: "picker.clear" });
 }
 
 export async function navigatePicker(
   tabId: number,
   direction: "parent" | "child",
 ): Promise<void> {
-  try {
-    await chrome.tabs.sendMessage<PickerMessage>(tabId, {
-      type: "picker.navigate",
-      direction,
-    });
-  } catch (err) {
-    console.error("[bugshot] picker navigate failed", err);
-  }
+  await send(tabId, { type: "picker.navigate", direction });
 }
 
 export async function applyClasses(
   tabId: number,
   classList: string[],
 ): Promise<void> {
-  try {
-    await chrome.tabs.sendMessage<PickerMessage>(tabId, {
-      type: "picker.applyClasses",
-      classList,
-    });
-  } catch {
-    /* ignore */
-  }
+  await send(tabId, { type: "picker.applyClasses", classList });
 }
 
 export async function applyStyles(
   tabId: number,
   inlineStyle: Record<string, string>,
 ): Promise<void> {
-  try {
-    await chrome.tabs.sendMessage<PickerMessage>(tabId, {
-      type: "picker.applyStyles",
-      inlineStyle,
-    });
-  } catch {
-    /* ignore */
-  }
+  await send(tabId, { type: "picker.applyStyles", inlineStyle });
 }
 
 export async function applyText(tabId: number, text: string): Promise<void> {
-  try {
-    await chrome.tabs.sendMessage<PickerMessage>(tabId, {
-      type: "picker.applyText",
-      text,
-    });
-  } catch {
-    /* ignore */
-  }
+  await send(tabId, { type: "picker.applyText", text });
 }
 
 export async function resetEdits(tabId: number): Promise<void> {
-  try {
-    await chrome.tabs.sendMessage<PickerMessage>(tabId, {
-      type: "picker.resetEdits",
-    });
-  } catch {
-    /* ignore */
-  }
+  await send(tabId, { type: "picker.resetEdits" });
 }
 
 export async function collectTokens(tabId: number): Promise<Token[]> {
-  try {
-    const res = await chrome.tabs.sendMessage<
-      PickerMessage,
-      PickerTokensResponse
-    >(tabId, { type: "picker.collectTokens" });
-    return res?.tokens ?? [];
-  } catch {
-    return [];
-  }
+  const res = await send<PickerTokensResponse>(tabId, {
+    type: "picker.collectTokens",
+  });
+  return res?.tokens ?? [];
 }
 
 export async function describeInitialTree(
   tabId: number,
 ): Promise<DescribeInitialResponse | null> {
-  try {
-    const res = await chrome.tabs.sendMessage<
-      PickerMessage,
-      DescribeInitialResponse
-    >(tabId, { type: "picker.describeInitial" });
-    return res ?? null;
-  } catch {
-    return null;
-  }
+  const res = await send<DescribeInitialResponse>(tabId, {
+    type: "picker.describeInitial",
+  });
+  return res ?? null;
 }
 
 export async function describeChildren(
   tabId: number,
   selector: string,
 ): Promise<DescribeChildrenResponse> {
-  try {
-    const res = await chrome.tabs.sendMessage<
-      PickerMessage,
-      DescribeChildrenResponse
-    >(tabId, { type: "picker.describeChildren", selector });
-    return res ?? { children: [] };
-  } catch {
-    return { children: [] };
-  }
+  const res = await send<DescribeChildrenResponse>(tabId, {
+    type: "picker.describeChildren",
+    selector,
+  });
+  return res ?? { children: [] };
 }
 
 export async function previewHover(
   tabId: number,
   selector: string,
 ): Promise<void> {
-  try {
-    await chrome.tabs.sendMessage<PickerMessage>(tabId, {
-      type: "picker.previewHover",
-      selector,
-    });
-  } catch {
-    /* ignore */
-  }
+  await send(tabId, { type: "picker.previewHover", selector });
 }
 
 export async function previewClear(tabId: number): Promise<void> {
-  try {
-    await chrome.tabs.sendMessage<PickerMessage>(tabId, {
-      type: "picker.previewClear",
-    });
-  } catch {
-    /* ignore */
-  }
+  await send(tabId, { type: "picker.previewClear" });
 }
 
 export async function selectByPath(
   tabId: number,
   selector: string,
 ): Promise<void> {
-  try {
-    await chrome.tabs.sendMessage<PickerMessage>(tabId, {
-      type: "picker.selectByPath",
-      selector,
-    });
-  } catch {
-    /* ignore */
-  }
+  await send(tabId, { type: "picker.selectByPath", selector });
 }
 
 export async function prepareCapture(
   tabId: number,
 ): Promise<PrepareCaptureResponse | null> {
-  try {
-    const res = await chrome.tabs.sendMessage<
-      PickerMessage,
-      PrepareCaptureResponse
-    >(tabId, { type: "picker.prepareCapture" });
-    return res ?? null;
-  } catch {
-    return null;
-  }
+  const res = await send<PrepareCaptureResponse>(tabId, {
+    type: "picker.prepareCapture",
+  });
+  return res ?? null;
 }
 
 export async function endCapture(tabId: number): Promise<void> {
-  try {
-    await chrome.tabs.sendMessage<PickerMessage>(tabId, {
-      type: "picker.endCapture",
-    });
-  } catch {
-    /* ignore */
-  }
+  await send(tabId, { type: "picker.endCapture" });
 }
 
 export async function startAreaCapture(tabId: number): Promise<void> {
@@ -230,32 +150,14 @@ export async function startAreaCapture(tabId: number): Promise<void> {
 }
 
 export async function cancelAreaCapture(tabId: number): Promise<void> {
-  try {
-    await chrome.tabs.sendMessage<PickerMessage>(tabId, {
-      type: "picker.cancelAreaSelect",
-    });
-  } catch {
-    /* ignore */
-  }
+  await send(tabId, { type: "picker.cancelAreaSelect" });
   useEditorStore.getState().reset();
 }
 
 export async function showAnnotation(tabId: number): Promise<void> {
-  try {
-    await chrome.tabs.sendMessage<PickerMessage>(tabId, {
-      type: "picker.showAnnotation",
-    });
-  } catch {
-    /* ignore */
-  }
+  await send(tabId, { type: "picker.showAnnotation" });
 }
 
 export async function hideAnnotation(tabId: number): Promise<void> {
-  try {
-    await chrome.tabs.sendMessage<PickerMessage>(tabId, {
-      type: "picker.hideAnnotation",
-    });
-  } catch {
-    /* ignore */
-  }
+  await send(tabId, { type: "picker.hideAnnotation" });
 }

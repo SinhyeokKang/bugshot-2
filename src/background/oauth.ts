@@ -182,8 +182,8 @@ export async function persistOAuthTokens(auth: JiraOAuthAuth): Promise<void> {
     const next =
       typeof envelope === "string" ? JSON.stringify(parsed) : parsed;
     await chrome.storage.local.set({ [SETTINGS_KEY]: next });
-  } catch {
-    /* storage shape changed; skip silently */
+  } catch (err) {
+    console.warn("[bugshot] persistOAuthTokens failed", err);
   }
 }
 

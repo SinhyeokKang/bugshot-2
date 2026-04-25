@@ -22,6 +22,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { useEditorStore } from "@/store/editor-store";
 import { useIssuesStore, type IssueRecord } from "@/store/issues-store";
 import {
   useSettingsStore,
@@ -171,6 +172,9 @@ export function DraftDetailDialog({
       url: result.url,
       jiraSiteId: jiraConfig?.auth ? jiraSiteId(jiraConfig.auth) : undefined,
     });
+    if (useEditorStore.getState().currentIssueId === issue.id) {
+      useEditorStore.getState().reset();
+    }
     useSettingsStore.getState().setLastSubmitFields({
       projectKey: jiraConfig.projectKey,
       assigneeId: fields.assigneeId,

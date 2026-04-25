@@ -117,8 +117,7 @@ export function setupTabBindings(): void {
       );
     } else if (info.status === "loading") {
       void clearEditorSession(tabId);
-    }
-    if (info.status === "complete") {
+    } else if (info.status === "complete") {
       void apply(tabId, tab.url);
     }
   });
