@@ -35,9 +35,6 @@ src/
 │   ├── jira-api.ts      # Jira REST 래퍼 (Basic + Bearer, 401 시 refresh 재시도)
 │   ├── oauth.ts         # Atlassian 3LO (launchWebAuthFlow + proxy 교환)
 │   └── messages.ts      # 메시지 핸들러 디스패치
-├── annotation/
-│   ├── index.html       # markerjs2 주석 에디터 페이지 (content script iframe으로 로드)
-│   └── main.ts          # markerjs2 초기화 + chrome.storage.session 통신
 ├── content/
 │   ├── picker.ts        # DOM picker 메인 (메시지 라우터 + 모드 FSM + hover/select 이벤트)
 │   ├── css-resolve.ts   # CSS 스타일 수집·토큰 resolve (resolveVarChain, collectSelection, collectTokens)
@@ -50,7 +47,7 @@ src/
 │   ├── capture.ts       # 요소 크롭 스냅샷
 │   ├── picker-control.ts
 │   ├── hooks/           # useBoundTabId, useEditorSessionSync, usePickerMessages, useThemeEffect
-│   ├── components/      # 공통 UI (Section/PageShell/PageScroll/PageFooter 등)
+│   ├── components/      # 공통 UI (Section/PageShell/PageScroll/PageFooter/AnnotationOverlay 등)
 │   ├── tabs/            # 탭별 진입점 + 편집 패널 (StyleEditorPanel/StylePropEditors/ValueCombobox 등)
 │   └── lib/             # buildIssueMarkdown, buildIssueAdf 등 순수 유틸
 ├── store/               # Zustand 스토어 (editor/issues/settings/app-settings), settings는 v2 마이그레이션(flat → discriminated auth)

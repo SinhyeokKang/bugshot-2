@@ -76,6 +76,12 @@ PRD(`docs/PRD.md`) 기준 작업 목록. 다른 환경에서 이어서 작업할
   - thumbnail 생성 실패 시 drafting 진입 차단 해제 (videoBlob fallback)
   - picking 중 세션 삭제 시 자동 idle 복귀
   - hydration 시 picking phase → idle 정규화
+- [x] annotation을 content script iframe에서 side panel 내부로 이동
+  - content script extension iframe이 navigation 시 side panel 죽이는 race condition 해결
+  - AnnotationOverlay 컴포넌트 (side panel 내 markerjs2)
+  - annotation/ 디렉터리 삭제, 관련 메시지·storage 통신 제거
+  - 스크린샷 이미지 16:9 컨테이너 + 주석 제거(원복) 버튼
+  - content script 미로드 시 자동 주입 (ensureContentScript)
 
 ## 진행 중
 
