@@ -51,6 +51,8 @@ src/
 │   ├── tabs/            # 탭별 진입점 + 편집 패널 (StyleEditorPanel/StylePropEditors/ValueCombobox 등)
 │   └── lib/             # buildIssueMarkdown, buildIssueAdf 등 순수 유틸
 ├── store/               # Zustand 스토어 (editor/issues/settings/app-settings), settings는 v2 마이그레이션(flat → discriminated auth)
+├── i18n/                # 다국어 (ko/en 로케일, t()/useT() 훅)
+├── lib/                 # 공용 유틸 (session-keys, adf-sentinels)
 ├── components/ui/       # shadcn 컴포넌트
 ├── styles/
 └── types/
@@ -170,6 +172,26 @@ Jira는 마크다운 원본을 파싱하지 않고, 붙여넣기는 **ProseMirro
 - base64 이미지는 Jira가 sanitize하므로 클립보드 출력에서 **제외**
 
 구현: `src/sidepanel/lib/buildIssueMarkdown.ts` — `buildIssueMarkdown()` + `buildIssueHtml()` 페어.
+
+## 릴리스 & 버전
+
+### 버전 체계
+
+semver(`MAJOR.MINOR.PATCH`). `package.json`의 `version`이 manifest에 자동 반영된다. Chrome 웹스토어는 업로드마다 버전이 올라가야 하므로 **배포 전 반드시 범프**.
+
+```bash
+pnpm version patch   # 1.0.0 → 1.0.1 (버그 수정)
+pnpm version minor   # 1.0.0 → 1.1.0 (기능 추가)
+pnpm version major   # 1.0.0 → 2.0.0 (Breaking change)
+```
+
+`pnpm version`은 package.json 수정 + git tag + commit을 한 번에 처리한다.
+
+### push 전 체크리스트
+
+1. **버전 범프** — 웹스토어에 올릴 변경이 포함됐으면 `pnpm version` 실행 여부 확인. 아직 안 했으면 사용자에게 물어본다.
+2. **README 신선도** — 기능 추가/삭제/변경이 있으면 `README.md`의 기능 설명·사용법이 현행과 맞는지 확인. 안 맞으면 업데이트 후 push.
+3. **CLAUDE.md 동기화** — 아키텍처·디렉터리 구조·컨벤션 변경 시 CLAUDE.md도 반영.
 
 ## 코드 컨벤션
 
