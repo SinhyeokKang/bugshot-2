@@ -53,7 +53,7 @@ export function useEditorSessionSync(tabId: number | null): boolean {
       if (cancelled) return;
       const snap = data[key] as EditorSnapshot | undefined;
       if (snap) {
-        if (snap.phase === "recording" || snap.phase === "capturing" || snap.phase === "annotating") {
+        if (snap.phase === "picking" || snap.phase === "recording" || snap.phase === "capturing" || snap.phase === "annotating") {
           snap.phase = "idle";
         }
         useEditorStore.getState().hydrate(snap);
@@ -89,6 +89,9 @@ export function useEditorSessionSync(tabId: number | null): boolean {
             saveTimer.current = null;
           }
           useEditorStore.setState({ sessionExpired: true });
+        }
+        if (phase === "picking") {
+          useEditorStore.getState().reset();
         }
       }
     };

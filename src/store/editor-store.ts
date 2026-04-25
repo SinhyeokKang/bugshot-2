@@ -240,7 +240,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         viewport: state.videoViewport ?? undefined,
         draft: { ...state.draft },
         snapshot: {
-          before: state.videoThumbnail,
+          before: state.videoThumbnail || null,
           after: null,
         },
         videoDuration: state.videoDuration ?? undefined,

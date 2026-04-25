@@ -51,7 +51,7 @@ export function DraftingPanel() {
     if (draft) return;
     if (captureMode === "element" && !selection) return;
     if (captureMode === "screenshot" && !screenshotImage) return;
-    if (captureMode === "video" && !videoThumbnail) return;
+    if (captureMode === "video" && !videoThumbnail && !videoBlob) return;
     setDraft({
       title: defaultTitle(titlePrefix),
       body: "",
@@ -62,7 +62,7 @@ export function DraftingPanel() {
   if (!draft) return null;
   if (captureMode === "element" && !selection) return null;
   if (captureMode === "screenshot" && !screenshotImage) return null;
-  if (captureMode === "video" && !videoThumbnail) return null;
+  if (captureMode === "video" && !videoThumbnail && !videoBlob) return null;
 
   const titleMissing = !draft.title.trim();
 
