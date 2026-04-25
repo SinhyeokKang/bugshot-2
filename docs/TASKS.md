@@ -65,6 +65,17 @@ PRD(`docs/PRD.md`) 기준 작업 목록. 다른 환경에서 이어서 작업할
 - [x] OAuth refresh 실패 시 재인증 AlertDialog + Jira 연동 탭 이동
 - [x] 이슈 상태 뱃지 fetch 실패 시 "알 수 없음" fallback 뱃지
 - [x] 스크린샷 모드 viewport/capturedAt 메타 전체 표면 반영 (프리뷰/드래프트/마크다운/ADF)
+- [x] 영상 녹화 모드 (tabCapture + MediaRecorder, 최대 60초, IndexedDB blob 영속화)
+  - video-recorder.ts: VP9/VP8 코덱, 1.5Mbps, 1초 청크, 썸네일 자동 생성
+  - editor-store: recording phase + videoBlob/videoThumbnail/videoDuration 상태
+  - video-db.ts: IndexedDB "bugshot-video" 저장소 (드래프트 재제출용)
+  - DraftingPanel/PreviewPanel/DraftDetailDialog: 비디오 모드 UI 분기
+  - IssueCreateModal: recording.webm 첨부 + ADF mediaSingle 교체
+  - buildIssueAdf/buildIssueMarkdown: 비디오 모드 문서 생성
+- [x] 녹화 모드 + 세션 만료 버그 수정
+  - thumbnail 생성 실패 시 drafting 진입 차단 해제 (videoBlob fallback)
+  - picking 중 세션 삭제 시 자동 idle 복귀
+  - hydration 시 picking phase → idle 정규화
 
 ## 진행 중
 
@@ -79,6 +90,6 @@ PRD(`docs/PRD.md`) 기준 작업 목록. 다른 환경에서 이어서 작업할
 ## 배포 로드맵 (순서대로)
 1. ~~스크린샷 영역 캡처 + 주석(markerjs2) 모드 추가~~ ✅
 2. ~~`picker.ts` 리팩터 (영역 선택 오버레이 분리)~~ ✅
-3. 비디오 탭 녹화(tabCapture + offscreen) 모드 추가
+3. ~~비디오 탭 녹화(tabCapture + offscreen) 모드 추가~~ ✅
 4. en locale 지원
 5. 웹스토어 배포 (`pnpm build:store`)
