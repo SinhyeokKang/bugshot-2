@@ -58,9 +58,8 @@ src/
 └── types/
 oauth-proxy/             # Cloudflare Worker — Atlassian /token 교환 (client_secret 서버 보관)
 docs/
-├── PRD.md           # v1 스펙
-├── design.md        # 톤앤매너
-└── STORE_DEPLOY.md  # 웹스토어 배포 가이드
+├── STORE_DEPLOY.md  # 웹스토어 배포 가이드
+└── privacy.md       # 개인정보처리방침 (GitHub Pages)
 ```
 
 ## 아키텍처 원칙
@@ -215,7 +214,6 @@ pnpm version major   # 1.0.0 → 2.0.0 (Breaking change)
 
 ## 메모리 & 참고 문서
 
-- `docs/PRD.md` — v1 스펙 (Phase A/B, 필드 정의, 단계별 UI 요구사항)
-- `docs/design.md` — UI 톤앤매너
 - `docs/STORE_DEPLOY.md` — 웹스토어 배포 체크리스트 (등록 정보, 개인정보처리방침, 권한 정당화, OAuth 콜백)
+- `docs/privacy.md` — 개인정보처리방침 (GitHub Pages로 공개)
 - 사용자 개인 메모리: `~/.claude/projects/-Users-sinhyeokkang-code-bugshot-2/memory/`에 있음 (머신 로컬, git에 안 올라감)
