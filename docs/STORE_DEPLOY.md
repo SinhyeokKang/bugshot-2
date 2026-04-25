@@ -116,7 +116,20 @@ cd dist && zip -r ../bugshot-v$(node -p "require('../package.json').version").zi
 4. **스토어 등록 정보** 탭: 설명·스크린샷·카테고리 입력
 5. **개인정보 보호관행** 탭: 개인정보처리방침 URL 입력 + 권한 정당화
 6. **배포** 탭: 공개 범위 설정 (공개 / 비공개 / 그룹)
-7. **제출하여 심사 받기**
+7. **Atlassian OAuth Callback URL 추가** (아래 참고)
+8. **제출하여 심사 받기**
+
+### OAuth Callback URL 등록
+
+웹스토어 업로드 ��� 부여되는 **스토어 확장 ID**를 확인한 뒤, Atlassian OAuth 앱에 콜백 URL을 추가해야 한다. 스토어 ID는 개발용 ID(`key`로 고정)와 다르다.
+
+1. 대시보드에서 업로드된 항목의 확장 ID 확인 (예: `abcdefghijklmnopqrstuvwxyz123456`)
+2. [Atlassian Developer Console](https://developer.atlassian.com/console/myapps/) → OAuth 앱 → **Authorization** → Callback URL에 추가:
+   ```
+   https://<STORE_ID>.chromiumapp.org/
+   ```
+3. 개발용 콜백(`https://<DEV_ID>.chromiumapp.org/`)은 그대로 두면 양쪽 다 동작
+4. `VITE_ATLASSIAN_CLIENT_ID`는 동일한 앱이므로 변경 불필요
 
 ---
 
