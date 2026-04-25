@@ -5,6 +5,8 @@
 - [x] 개발자 계정 등록 ($5 일회성)
 - [x] 앱 아이콘 128x128 (`src/assets/icons/icon-128.png`)
 - [x] v1.0.0 태깅
+- [x] GitHub repo public 전환
+- [x] 개인정보처리방침 작성 + GitHub Pages 호스팅 (`docs/privacy.md`)
 
 ---
 
@@ -44,24 +46,10 @@
 
 ---
 
-## 2. 개인정보처리방침
+## 2. 개인정보처리방침 — 완료
 
-웹스토어 필수 항목. 아래 내용을 포함하는 페이지를 호스팅해야 한다.
-
-### 포함할 내용
-
-- **수집 데이터**: Jira 자격 증명 (API Token 또는 OAuth 토큰), 사용자 이메일 (Jira `/myself`에서 수신)
-- **저장 위치**: `chrome.storage.local` (로컬 기기), IndexedDB (영상 녹화 blob)
-- **외부 전송**: Jira REST API (`*.atlassian.net`, `api.atlassian.com`)에만 전송. OAuth token 교환 시 자체 proxy 서버 경유.
-- **서버 보관**: 자체 서버에 사용자 데이터를 저장하지 않음. OAuth proxy는 토큰 교환만 중계하고 데이터를 보관하지 않음.
-- **제3자 공유**: 없음
-- **삭제 방법**: 확장 프로그램 제거 시 `chrome.storage` 데이터 자동 삭제. IndexedDB는 브라우저 데이터 초기화로 삭제.
-
-### 호스팅 옵션
-
-- GitHub Pages (`docs/privacy.md` → GitHub Pages로 공개)
-- Notion 공개 페이지
-- 별도 랜딩 페이지
+- 문서: `docs/privacy.md`
+- URL: `https://sinhyeokkang.github.io/bugshot-2/privacy`
 
 ---
 
