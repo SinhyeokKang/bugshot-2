@@ -423,6 +423,7 @@ function resolveVarChain(
     VAR_REF_RE,
     (match, name: string, fallback: string | undefined) => {
       if (seen.has(name)) return match;
+      seen.add(name);
       let resolvedName = name;
       let replacement = customProps[name];
       if (replacement === undefined && fallback) {
@@ -430,12 +431,12 @@ function resolveVarChain(
         if (fb && !seen.has(fb[1]) && customProps[fb[1]] !== undefined) {
           resolvedName = fb[1];
           replacement = customProps[fb[1]];
+          seen.add(fb[1]);
         }
       }
       if (replacement === undefined) return match;
       const isPrivate = resolvedName.startsWith("--_");
       if (!isPrivate) return match;
-      seen.add(resolvedName);
       changed = true;
       return replacement;
     },

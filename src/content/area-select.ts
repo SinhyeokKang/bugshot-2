@@ -168,7 +168,6 @@ function onMouseUp(h: AreaSelectHandle, e: MouseEvent): void {
     h._areaSelectEl.style.display = "none";
     h._areaSizeEl.style.display = "none";
     showDimming(h, null);
-    removeListeners(h);
     return;
   }
   removeListeners(h);

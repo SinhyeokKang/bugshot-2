@@ -29,12 +29,16 @@ export function usePickerMessages(): void {
         });
         const tabId = useEditorStore.getState().target?.tabId;
         if (tabId) {
-          void collectTokens(tabId).then((tokens) => {
-            useEditorStore.getState().setTokens(tokens);
-          });
-          void captureElementSnapshot(tabId).then((img) => {
-            if (img) useEditorStore.getState().setBeforeImage(img);
-          });
+          void collectTokens(tabId)
+            .then((tokens) => {
+              useEditorStore.getState().setTokens(tokens);
+            })
+            .catch((err) => console.warn("[bugshot] collectTokens failed", err));
+          void captureElementSnapshot(tabId)
+            .then((img) => {
+              if (img) useEditorStore.getState().setBeforeImage(img);
+            })
+            .catch((err) => console.warn("[bugshot] before-image capture failed", err));
         }
       } else if (message.type === "picker.areaSelected") {
         const msg = message as Extract<PickerMessage, { type: "picker.areaSelected" }>;

@@ -163,6 +163,10 @@ function handleStop(): void {
 }
 
 function handleClear(): void {
+  if (areaHandle) {
+    cancelAreaSelect(areaHandle);
+    areaHandle = null;
+  }
   removeHoverListeners();
   detachViewportListeners();
   restoreOriginal();

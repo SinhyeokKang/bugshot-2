@@ -147,12 +147,20 @@ function DomTree({ onPicked }: { onPicked: () => void }) {
       node.childCount > 0 &&
       tabId
     ) {
-      void describeChildren(tabId, node.selector).then((resp) => {
-        setTree((prev) => {
-          if (!prev) return prev;
-          return injectChildren(prev, node.selector, resp.children);
+      void describeChildren(tabId, node.selector)
+        .then((resp) => {
+          setTree((prev) => {
+            if (!prev) return prev;
+            return injectChildren(prev, node.selector, resp.children);
+          });
+        })
+        .catch(() => {
+          setExpanded((prev) => {
+            const next = new Set(prev);
+            next.delete(node.selector);
+            return next;
+          });
         });
-      });
     }
   };
 

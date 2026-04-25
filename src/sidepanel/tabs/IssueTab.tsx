@@ -38,19 +38,19 @@ export function IssueTab() {
   const tabId = useBoundTabId();
   useEffect(() => {
     if (!tabId) return;
+    const safeCaptureBeforeImage = (tid: number) => {
+      void captureElementSnapshot(tid)
+        .then((img) => {
+          if (img) useEditorStore.getState().setBeforeImage(img);
+        })
+        .catch((err) => console.warn("[bugshot] before-image capture failed", err));
+    };
     if (useEditorStore.getState().phase === "idle") {
-      void captureElementSnapshot(tabId).then((img) => {
-        if (img) useEditorStore.getState().setBeforeImage(img);
-      });
+      safeCaptureBeforeImage(tabId);
     }
     const unsub = useEditorStore.subscribe((state, prev) => {
-      const p = state.phase;
-      if (p === "styling" && prev.phase === "picking") {
-        void captureElementSnapshot(tabId).then((img) => {
-          if (img) useEditorStore.getState().setBeforeImage(img);
-        });
-      } else if (p !== "idle") {
-        // noop
+      if (state.phase === "styling" && prev.phase === "picking") {
+        safeCaptureBeforeImage(tabId);
       }
     });
     return unsub;
