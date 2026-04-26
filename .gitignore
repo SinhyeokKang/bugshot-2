@@ -10,3 +10,4 @@ dist-*
 *.tsbuildinfo
 .claude/settings.local.json
 .wrangler
+*.zip
