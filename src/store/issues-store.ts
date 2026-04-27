@@ -1,8 +1,15 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { chromeLocalStorage } from "./chrome-storage";
-import type { CaptureMode } from "./editor-store";
+import { useEditorStore, type CaptureMode } from "./editor-store";
 import { deleteVideoBlob, clearVideoBlobs } from "./video-db";
+
+function resetEditorIfEditing(removedId: string | null): void {
+  const state = useEditorStore.getState();
+  if (removedId === null || state.currentIssueId === removedId) {
+    state.reset();
+  }
+}
 
 export type IssueStatus = "draft" | "submitted";
 
@@ -102,10 +109,12 @@ export const useIssuesStore = create<IssuesState>()(
       removeIssue: (id) => {
         set((s) => ({ issues: s.issues.filter((x) => x.id !== id) }));
         deleteVideoBlob(id).catch(() => {});
+        resetEditorIfEditing(id);
       },
       clearIssues: () => {
         set({ issues: [] });
         clearVideoBlobs().catch(() => {});
+        resetEditorIfEditing(null);
       },
     }),
     {
