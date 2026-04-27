@@ -77,6 +77,8 @@ const ko = {
   "prop.corner.topRight": "우상단",
   "prop.corner.bottomRight": "우하단",
   "prop.corner.bottomLeft": "좌하단",
+  "prop.gap.row": "row gap",
+  "prop.gap.column": "column gap",
 
   // Value combobox
   "value.placeholder": "값 직접 입력 또는 토큰 검색",
@@ -90,6 +92,7 @@ const ko = {
   // DOM tree
   "dom.parent": "부모 요소",
   "dom.child": "첫 자식 요소",
+  "dom.repick": "다시 선택",
   "dom.dialogTitle": "DOM 선택",
   "dom.loading": "DOM 트리를 불러오는 중...",
   "dom.error": "DOM 트리를 불러오지 못했습니다.",

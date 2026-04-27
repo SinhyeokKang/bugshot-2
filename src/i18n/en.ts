@@ -79,6 +79,8 @@ const en = {
   "prop.corner.topRight": "Top right",
   "prop.corner.bottomRight": "Bottom right",
   "prop.corner.bottomLeft": "Bottom left",
+  "prop.gap.row": "Row gap",
+  "prop.gap.column": "Column gap",
 
   // Value combobox
   "value.placeholder": "Enter value or search tokens",
@@ -92,6 +94,7 @@ const en = {
   // DOM tree
   "dom.parent": "Parent element",
   "dom.child": "First child element",
+  "dom.repick": "Pick another element",
   "dom.dialogTitle": "DOM Selection",
   "dom.loading": "Loading DOM tree...",
   "dom.error": "Failed to load DOM tree.",

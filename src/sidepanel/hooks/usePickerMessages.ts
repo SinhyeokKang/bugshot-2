@@ -19,6 +19,7 @@ export function usePickerMessages(): void {
           classList: msg.payload.classList,
           computedStyles: msg.payload.computedStyles,
           specifiedStyles: msg.payload.specifiedStyles,
+          propSources: msg.payload.propSources ?? {},
           hasParent: msg.payload.hasParent,
           hasChild: msg.payload.hasChild,
           text: msg.payload.text,
@@ -38,6 +39,13 @@ export function usePickerMessages(): void {
             })
             .catch((err) => console.warn("[bugshot] before-image capture failed", err));
         }
+      } else if (message.type === "picker.selectionUpdated") {
+        const msg = message as Extract<PickerMessage, { type: "picker.selectionUpdated" }>;
+        useEditorStore.getState().updateSelectionStyles({
+          specifiedStyles: msg.payload.specifiedStyles,
+          propSources: msg.payload.propSources,
+          computedStyles: msg.payload.computedStyles,
+        });
       } else if (message.type === "picker.areaSelected") {
         const msg = message as Extract<PickerMessage, { type: "picker.areaSelected" }>;
         void captureAndCrop(msg.rect, msg.viewport);

@@ -29,6 +29,7 @@ export interface EditorSelection {
   classList: string[];
   computedStyles: Record<string, string>;
   specifiedStyles: Record<string, string>;
+  propSources: Record<string, string>;
   hasParent: boolean;
   hasChild: boolean;
   text: string | null;
@@ -92,6 +93,11 @@ interface EditorState {
   onAnnotated: (dataUrl: string) => void;
   cancelPicking: () => void;
   onElementSelected: (selection: EditorSelection) => void;
+  updateSelectionStyles: (patch: {
+    specifiedStyles: Record<string, string>;
+    propSources: Record<string, string>;
+    computedStyles: Record<string, string>;
+  }) => void;
   setStyleEdits: (patch: Partial<EditorStyleEdits>) => void;
   setTokens: (tokens: Token[]) => void;
   setBeforeImage: (img: string | null) => void;
@@ -189,6 +195,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       },
       beforeImage: null,
       afterImage: null,
+    }),
+
+  updateSelectionStyles: (patch) =>
+    set((s) => {
+      if (!s.selection) return {};
+      return { selection: { ...s.selection, ...patch } };
     }),
 
   setStyleEdits: (patch) =>

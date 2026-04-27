@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef, useState } from "react";
-import { Check, ChevronDown, PenLine, RotateCcw, X } from "lucide-react";
+import { ChevronDown, PenLine, RotateCcw, X } from "lucide-react";
 import {
   Command,
   CommandEmpty,
@@ -17,114 +17,16 @@ import { useT } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { useEditorStore } from "@/store/editor-store";
 import type { Token, TokenCategory } from "@/types/picker";
-import { useBoundTabId } from "../hooks/useBoundTabId";
-import { applyStyles } from "../picker-control";
-
-const PROP_CATEGORY: Record<string, TokenCategory> = {
-  color: "color",
-  "background-color": "color",
-  "border-color": "color",
-  "font-size": "length",
-  "line-height": "length",
-  "letter-spacing": "length",
-  margin: "length",
-  "margin-top": "length",
-  "margin-right": "length",
-  "margin-bottom": "length",
-  "margin-left": "length",
-  padding: "length",
-  "padding-top": "length",
-  "padding-right": "length",
-  "padding-bottom": "length",
-  "padding-left": "length",
-  gap: "length",
-  "row-gap": "length",
-  "column-gap": "length",
-  width: "length",
-  height: "length",
-  "min-width": "length",
-  "max-width": "length",
-  "min-height": "length",
-  "max-height": "length",
-  "border-radius": "length",
-  "border-top-left-radius": "length",
-  "border-top-right-radius": "length",
-  "border-bottom-right-radius": "length",
-  "border-bottom-left-radius": "length",
-  "font-weight": "number",
-  opacity: "number",
-};
-
-const KNOWN_DEFAULTS: Record<string, string[]> = {
-  "margin-top": ["0px"],
-  "margin-right": ["0px"],
-  "margin-bottom": ["0px"],
-  "margin-left": ["0px"],
-  "padding-top": ["0px"],
-  "padding-right": ["0px"],
-  "padding-bottom": ["0px"],
-  "padding-left": ["0px"],
-  gap: ["normal", "0px", "0px 0px"],
-  "row-gap": ["normal", "0px"],
-  "column-gap": ["normal", "0px"],
-  "letter-spacing": ["normal"],
-  "line-height": ["normal"],
-  "text-align": ["start", "left"],
-  position: ["static"],
-  "flex-direction": ["row"],
-  "flex-wrap": ["nowrap"],
-  "justify-content": ["normal", "flex-start", "start"],
-  "align-items": ["normal", "stretch", "start"],
-  opacity: ["1"],
-  "background-color": ["rgba(0, 0, 0, 0)", "transparent"],
-  "border-color": ["rgb(0, 0, 0)", "currentcolor"],
-  "border-radius": ["0px"],
-  "border-top-left-radius": ["0px"],
-  "border-top-right-radius": ["0px"],
-  "border-bottom-right-radius": ["0px"],
-  "border-bottom-left-radius": ["0px"],
-  border: ["", "0px none rgb(0, 0, 0)", "none"],
-  "min-width": ["auto", "0px"],
-  "max-width": ["none"],
-  "min-height": ["auto", "0px"],
-  "max-height": ["none"],
-  width: ["auto"],
-  height: ["auto"],
-  overflow: ["visible"],
-  "overflow-x": ["visible"],
-  "overflow-y": ["visible"],
-  "text-overflow": ["clip"],
-  "white-space": ["normal"],
-  "box-shadow": ["none"],
-  filter: ["none"],
-  "backdrop-filter": ["none"],
-  "mix-blend-mode": ["normal"],
-};
-
-export function useStyleProp(prop: string) {
-  const value = useEditorStore(
-    (s) => s.styleEdits.inlineStyle[prop] ?? "",
-  );
-  const specified = useEditorStore(
-    (s) => s.selection?.specifiedStyles[prop] ?? "",
-  );
-  const computed = useEditorStore(
-    (s) => s.selection?.computedStyles[prop] ?? "",
-  );
-  const placeholder = specified || computed;
-  const tabId = useBoundTabId();
-
-  const set = (next: string) => {
-    const current = useEditorStore.getState().styleEdits.inlineStyle;
-    const nextInline = { ...current };
-    if (next === "") delete nextInline[prop];
-    else nextInline[prop] = next;
-    useEditorStore.getState().setStyleEdits({ inlineStyle: nextInline });
-    if (tabId) void applyStyles(tabId, nextInline);
-  };
-
-  return { value, placeholder, set };
-}
+import { isKnownDefault, PROP_CATEGORY } from "./propMetadata";
+import { useStyleProp } from "./styleHooks";
+import { TokenChip, TokenItem } from "./TokenChip";
+import {
+  extractTokenRefs,
+  findTokenValue,
+  isInternalToken,
+  isTokenValue,
+  tokenFamilyPrefix,
+} from "./tokenUtils";
 
 export function ValueCombobox({
   prop,
@@ -146,6 +48,9 @@ export function ValueCombobox({
   const value = controlled?.value ?? styleProp.value;
   const placeholder = controlled?.placeholder ?? styleProp.placeholder;
   const set = controlled?.set ?? styleProp.set;
+  const computed = useEditorStore(
+    (s) => s.selection?.computedStyles[prop] ?? "",
+  );
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(value);
   const [showAll, setShowAll] = useState(false);
@@ -154,11 +59,17 @@ export function ValueCombobox({
     prevValue.current = value;
     setDraft(value);
   }
-  const tokens = useEditorStore((s) => s.tokens);
+  const allTokens = useEditorStore((s) => s.tokens);
+  const tokens = useMemo(
+    () => allTokens.filter((t) => !isInternalToken(t.name)),
+    [allTokens],
+  );
   const category = PROP_CATEGORY[prop];
 
-  const tokenNames = extractAllTokenNames(value);
-  const placeholderTokenNames = !value ? extractAllTokenNames(placeholder) : [];
+  const tokenRefs = extractTokenRefs(value);
+  const placeholderTokenRefs = !value ? extractTokenRefs(placeholder) : [];
+  const tokenNames = tokenRefs.map((r) => r.name);
+  const placeholderTokenNames = placeholderTokenRefs.map((r) => r.name);
   const isDefault = !value && isKnownDefault(prop, placeholder);
   const activeTokenNames = tokenNames.length > 0 ? tokenNames : placeholderTokenNames;
   const liveFamilyPrefixes = useMemo(() => {
@@ -254,42 +165,61 @@ export function ValueCombobox({
             "flex h-9 w-full items-center rounded-md border px-2 text-sm outline-none transition-colors hover:bg-muted/50 focus-visible:ring-1 focus-visible:ring-ring",
             compact && "px-1.5 gap-1",
           )}
-          title={iconTitle ? `${iconTitle} · ${value || placeholder}` : value || placeholder}
+          title={buildTriggerTitle({
+            iconTitle,
+            value,
+            placeholder,
+            computed: showComputedHint(category, computed) ? computed : "",
+          })}
         >
           {icon ? (
             <span className="shrink-0 text-muted-foreground">{icon}</span>
           ) : null}
-          {tokenNames.length > 0 ? (
+          {tokenRefs.length > 0 ? (
             <span className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
-              {tokenNames.map((tn) => (
+              {tokenRefs.map((ref) => (
                 <TokenChip
-                  key={tn}
-                  name={tn}
+                  key={`${ref.name}:${ref.multiplier ?? ""}`}
+                  name={ref.name}
+                  multiplier={ref.multiplier}
                   swatch={
-                    category === "color"
-                      ? findTokenValue(tokens, tn)
+                    category === "color" || category === "image"
+                      ? findTokenValue(tokens, ref.name)
                       : undefined
                   }
+                  swatchKind={category === "image" ? "image" : "color"}
                   compact={compact}
                 />
               ))}
+              {!compact && showComputedHint(category, computed) ? (
+                <span className="ml-auto shrink-0 text-[10px] text-muted-foreground/70">
+                  {computed}
+                </span>
+              ) : null}
             </span>
           ) : value ? (
             <span className="min-w-0 flex-1 truncate text-left">{value}</span>
-          ) : placeholderTokenNames.length > 0 ? (
+          ) : placeholderTokenRefs.length > 0 ? (
             <span className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
-              {placeholderTokenNames.map((tn) => (
+              {placeholderTokenRefs.map((ref) => (
                 <TokenChip
-                  key={tn}
-                  name={tn}
+                  key={`${ref.name}:${ref.multiplier ?? ""}`}
+                  name={ref.name}
+                  multiplier={ref.multiplier}
                   swatch={
-                    category === "color"
-                      ? findTokenValue(tokens, tn)
+                    category === "color" || category === "image"
+                      ? findTokenValue(tokens, ref.name)
                       : undefined
                   }
+                  swatchKind={category === "image" ? "image" : "color"}
                   compact={compact}
                 />
               ))}
+              {!compact && showComputedHint(category, computed) ? (
+                <span className="ml-auto shrink-0 text-[10px] text-muted-foreground/70">
+                  {computed}
+                </span>
+              ) : null}
             </span>
           ) : (
             <span
@@ -416,73 +346,33 @@ export function ValueCombobox({
   );
 }
 
-function TokenItem({
-  token,
-  active,
-  onCommit,
-}: {
-  token: Token;
-  active?: boolean;
-  onCommit: (next: string) => void;
-}) {
-  return (
-    <CommandItem
-      value={`${token.name} ${token.value}`}
-      onSelect={() => onCommit(`var(${token.name})`)}
-      className={cn(active && "bg-accent/60 data-[selected=true]:bg-accent")}
-    >
-      <Check
-        className={cn(
-          "h-3.5 w-3.5 shrink-0",
-          active ? "opacity-100" : "opacity-0",
-        )}
-      />
-      {token.category === "color" ? (
-        <span
-          className="h-3 w-3 shrink-0 rounded border"
-          style={{ backgroundColor: token.value }}
-        />
-      ) : null}
-      <span
-        className={cn(
-          "min-w-0 flex-1 truncate text-sm",
-          active && "font-medium",
-        )}
-      >
-        {token.name}
-      </span>
-      <span className="ml-auto min-w-0 max-w-[120px] shrink-0 truncate text-[11px] text-muted-foreground">
-        {token.value}
-      </span>
-    </CommandItem>
-  );
+function showComputedHint(
+  category: TokenCategory | undefined,
+  computed: string,
+): boolean {
+  if (!computed) return false;
+  if (isTokenValue(computed)) return false;
+  return category === "length" || category === "number";
 }
 
-function TokenChip({
-  name,
-  swatch,
-  compact,
+function buildTriggerTitle({
+  iconTitle,
+  value,
+  placeholder,
+  computed,
 }: {
-  name: string;
-  swatch?: string;
-  compact?: boolean;
-}) {
-  return (
-    <span
-      className={cn(
-        "inline-flex min-w-0 items-center gap-1 rounded bg-muted px-1.5 py-[1px] text-xs text-foreground",
-        compact && "px-1",
-      )}
-    >
-      {swatch ? (
-        <span
-          className="h-2.5 w-2.5 shrink-0 rounded-sm border border-border/60"
-          style={{ backgroundColor: swatch }}
-        />
-      ) : null}
-      <span className="min-w-0 truncate">{name}</span>
-    </span>
-  );
+  iconTitle?: string;
+  value: string;
+  placeholder: string;
+  computed: string;
+}): string {
+  const main = value || placeholder;
+  const tail =
+    computed && computed !== main && !isTokenValue(computed)
+      ? ` (${computed})`
+      : "";
+  const body = `${main}${tail}`;
+  return iconTitle ? `${iconTitle} · ${body}` : body;
 }
 
 function shortValue(v: string): string {
@@ -491,38 +381,4 @@ function shortValue(v: string): string {
     if (!Number.isNaN(n)) return `${n}`;
   }
   return v;
-}
-
-function extractAllTokenNames(value: string): string[] {
-  const re = /var\(\s*(--[^\s,)]+)/g;
-  const names: string[] = [];
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(value)) !== null) names.push(m[1]);
-  return names;
-}
-
-function tokenFamilyPrefix(
-  name: string,
-  allTokens: Token[],
-): string | null {
-  let end = name.lastIndexOf("-");
-  while (end > 2) {
-    const prefix = name.slice(0, end + 1);
-    const count = allTokens.filter((t) => t.name.startsWith(prefix)).length;
-    if (count >= 2) return prefix;
-    end = name.lastIndexOf("-", end - 1);
-  }
-  return null;
-}
-
-function findTokenValue(tokens: Token[], name: string): string | undefined {
-  return tokens.find((t) => t.name === name)?.value;
-}
-
-export function isKnownDefault(prop: string, computed: string): boolean {
-  const value = computed.trim();
-  if (prop === "border" && /^0px\s+none\b/.test(value)) return true;
-  const defaults = KNOWN_DEFAULTS[prop];
-  if (!defaults) return false;
-  return defaults.includes(value);
 }

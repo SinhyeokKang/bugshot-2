@@ -38,6 +38,7 @@ export const INTERESTING_PROPS = [
   "min-height",
   "max-height",
   "background-color",
+  "background-image",
   "opacity",
   "border",
   "border-radius",
@@ -54,6 +55,10 @@ export const INTERESTING_PROPS = [
   "filter",
   "backdrop-filter",
   "mix-blend-mode",
+  "transition-property",
+  "transition-duration",
+  "transition-timing-function",
+  "transition-delay",
 ] as const;
 
 const INHERITED_PROPS = new Set([
@@ -76,7 +81,11 @@ const SHORTHAND_MAP: Record<string, string[]> = {
   ],
   background: ["background-color"],
   padding: ["padding-top", "padding-right", "padding-bottom", "padding-left"],
+  "padding-inline": ["padding-left", "padding-right"],
+  "padding-block": ["padding-top", "padding-bottom"],
   margin: ["margin-top", "margin-right", "margin-bottom", "margin-left"],
+  "margin-inline": ["margin-left", "margin-right"],
+  "margin-block": ["margin-top", "margin-bottom"],
   gap: ["row-gap", "column-gap"],
   "border-radius": [
     "border-top-left-radius",
@@ -128,7 +137,8 @@ export function collectSelection(
   for (const p of INTERESTING_PROPS) {
     computedStyles[p] = cs.getPropertyValue(p);
   }
-  const specifiedStyles = collectSpecifiedStyles(el);
+  const { styles: specifiedStyles, sources: propSources } =
+    collectSpecifiedStylesWithSources(el);
   const editableText = findEditableTextNode(el);
   return {
     selector,
@@ -136,6 +146,7 @@ export function collectSelection(
     classList,
     computedStyles,
     specifiedStyles,
+    propSources,
     hasParent,
     hasChild,
     text: editableText ? (editableText.textContent ?? "") : null,
@@ -144,21 +155,32 @@ export function collectSelection(
 }
 
 export function collectSpecifiedStyles(el: Element): Record<string, string> {
+  return collectSpecifiedStylesWithSources(el).styles;
+}
+
+export function collectSpecifiedStylesWithSources(el: Element): {
+  styles: Record<string, string>;
+  sources: Record<string, string>;
+} {
   const all: Record<string, string> = {};
+  const sources: Record<string, string> = {};
   const customProps: Record<string, string> = {};
-  collectRulesForElement(el, all, customProps);
-  expandShorthands(all);
+  collectRulesForElement(el, all, sources, customProps);
+  expandShorthands(all, sources);
 
   const missing = [...INHERITED_PROPS].filter((p) => !(p in all));
   if (missing.length > 0) {
     let cur = el.parentElement;
     while (cur && missing.length > 0) {
       const parentAll: Record<string, string> = {};
-      collectRulesForElement(cur, parentAll, customProps);
-      expandShorthands(parentAll);
+      const parentSources: Record<string, string> = {};
+      collectRulesForElement(cur, parentAll, parentSources, customProps);
+      expandShorthands(parentAll, parentSources);
       for (let i = missing.length - 1; i >= 0; i--) {
-        if (missing[i] in parentAll) {
-          all[missing[i]] = parentAll[missing[i]];
+        const p = missing[i];
+        if (p in parentAll) {
+          all[p] = parentAll[p];
+          if (parentSources[p]) sources[p] = `${parentSources[p]} ↑`;
           missing.splice(i, 1);
         }
       }
@@ -171,10 +193,14 @@ export function collectSpecifiedStyles(el: Element): Record<string, string> {
   }
 
   const filtered: Record<string, string> = {};
+  const filteredSources: Record<string, string> = {};
   for (const p of INTERESTING_PROPS) {
-    if (p in all) filtered[p] = all[p];
+    if (p in all) {
+      filtered[p] = all[p];
+      if (sources[p]) filteredSources[p] = sources[p];
+    }
   }
-  return filtered;
+  return { styles: filtered, sources: filteredSources };
 }
 
 export function collectTokens(el?: Element): Token[] {
@@ -240,19 +266,20 @@ function allStyleSheets(): readonly CSSStyleSheet[] {
 function collectRulesForElement(
   el: Element,
   out: Record<string, string>,
+  sources: Record<string, string>,
   customProps: Record<string, string>,
 ): void {
   for (const sheet of allStyleSheets()) {
     try {
       const rules = sheet.cssRules;
-      if (rules) collectSpecifiedFromRules(rules, el, out, customProps);
+      if (rules) collectSpecifiedFromRules(rules, el, out, sources, customProps);
     } catch {
       /* cross-origin, skip */
     }
   }
   if (el instanceof HTMLElement) {
     const style = el.style;
-    extractVarPropsFromCssText(style.cssText, out, customProps);
+    extractVarPropsFromCssText(style.cssText, out, sources, customProps, "[inline]");
     for (let i = 0; i < style.length; i++) {
       const name = style.item(i);
       const val = style.getPropertyValue(name);
@@ -263,12 +290,14 @@ function collectRulesForElement(
       }
       if (!(out[name]?.includes("var(") && !val.includes("var("))) {
         out[name] = val;
+        sources[name] = "[inline]";
       }
     }
     for (const shorthand of Object.keys(SHORTHAND_MAP)) {
       const val = style.getPropertyValue(shorthand);
       if (val && !(out[shorthand]?.includes("var(") && !val.includes("var("))) {
         out[shorthand] = val;
+        sources[shorthand] = "[inline]";
       }
     }
   }
@@ -278,6 +307,7 @@ function collectSpecifiedFromRules(
   rules: CSSRuleList,
   el: Element,
   out: Record<string, string>,
+  sources: Record<string, string>,
   customProps: Record<string, string>,
 ): void {
   for (const rule of Array.from(rules)) {
@@ -290,7 +320,8 @@ function collectSpecifiedFromRules(
       }
       if (!matched) continue;
       const decl = rule.style;
-      extractVarPropsFromCssText(decl.cssText, out, customProps);
+      const ruleSelector = rule.selectorText;
+      extractVarPropsFromCssText(decl.cssText, out, sources, customProps, ruleSelector);
       for (let i = 0; i < decl.length; i++) {
         const name = decl.item(i);
         const val = decl.getPropertyValue(name);
@@ -301,12 +332,14 @@ function collectSpecifiedFromRules(
         }
         if (!(out[name]?.includes("var(") && !val.includes("var("))) {
           out[name] = val;
+          sources[name] = ruleSelector;
         }
       }
       for (const shorthand of Object.keys(SHORTHAND_MAP)) {
         const val = decl.getPropertyValue(shorthand);
         if (val && !(out[shorthand]?.includes("var(") && !val.includes("var("))) {
           out[shorthand] = val;
+          sources[shorthand] = ruleSelector;
         }
       }
       continue;
@@ -319,16 +352,16 @@ function collectSpecifiedFromRules(
       } catch {
         /* fall through */
       }
-      collectSpecifiedFromRules(nested, el, out, customProps);
+      collectSpecifiedFromRules(nested, el, out, sources, customProps);
     } else if (rule instanceof CSSSupportsRule) {
       try {
         if (!CSS.supports(rule.conditionText)) continue;
       } catch {
         /* fall through */
       }
-      collectSpecifiedFromRules(nested, el, out, customProps);
+      collectSpecifiedFromRules(nested, el, out, sources, customProps);
     } else {
-      collectSpecifiedFromRules(nested, el, out, customProps);
+      collectSpecifiedFromRules(nested, el, out, sources, customProps);
     }
   }
 }
@@ -336,7 +369,9 @@ function collectSpecifiedFromRules(
 function extractVarPropsFromCssText(
   cssText: string,
   out: Record<string, string>,
+  sources: Record<string, string>,
   customProps: Record<string, string>,
+  origin: string,
 ): void {
   const declared: Record<string, string> = {};
   CSS_DECL_RE.lastIndex = 0;
@@ -350,7 +385,10 @@ function extractVarPropsFromCssText(
       continue;
     }
     if (!val.includes("var(")) continue;
-    if (!out[prop] || !out[prop].includes("var(")) out[prop] = val;
+    if (!out[prop] || !out[prop].includes("var(")) {
+      out[prop] = val;
+      sources[prop] = origin;
+    }
     const longhands = SHORTHAND_MAP[prop];
     if (!longhands) continue;
     const trbl = TRBL_SHORTHANDS[prop];
@@ -359,26 +397,39 @@ function extractVarPropsFromCssText(
       const lh = longhands[j];
       if (lh in declared) continue;
       const lhVal = split ? split[j] : val;
-      if (!out[lh] || !out[lh].includes("var(")) out[lh] = lhVal;
+      if (!out[lh] || !out[lh].includes("var(")) {
+        out[lh] = lhVal;
+        sources[lh] = origin;
+      }
     }
   }
 }
 
-function expandShorthands(all: Record<string, string>): void {
+function expandShorthands(
+  all: Record<string, string>,
+  sources: Record<string, string>,
+): void {
   for (const [shorthand, longhands] of Object.entries(SHORTHAND_MAP)) {
     if (!(shorthand in all)) continue;
     const value = all[shorthand];
+    const origin = sources[shorthand];
     const trbl = TRBL_SHORTHANDS[shorthand];
     const split = trbl ? splitTrblValue(value) : null;
     if (split) {
       for (let i = 0; i < trbl.length; i++) {
         const lh = trbl[i];
-        if (!(lh in all)) all[lh] = split[i];
+        if (!(lh in all)) {
+          all[lh] = split[i];
+          if (origin) sources[lh] = origin;
+        }
       }
       continue;
     }
     for (const lh of longhands) {
-      if (!(lh in all)) all[lh] = value;
+      if (!(lh in all)) {
+        all[lh] = value;
+        if (origin) sources[lh] = origin;
+      }
     }
   }
 }
@@ -484,6 +535,8 @@ function categorizeToken(value: string): TokenCategory {
   if (/^(rgb|rgba|hsl|hsla|hwb|oklch|oklab|lab|lch|color)\(/i.test(v))
     return "color";
   if (/^(transparent|currentColor)$/i.test(v)) return "color";
+  if (/^(linear-gradient|radial-gradient|conic-gradient|repeating-linear-gradient|repeating-radial-gradient|repeating-conic-gradient|url|image-set)\(/i.test(v))
+    return "image";
   if (
     /^-?\d*\.?\d+(px|rem|em|%|vw|vh|ch|ex|vmin|vmax|pt|pc|cm|mm|in)$/.test(v)
   )

@@ -4,8 +4,10 @@ import {
   AlignJustify,
   AlignLeft,
   AlignRight,
+  Columns2,
   Link,
   RotateCcw,
+  Rows2,
   Unlink,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -20,9 +22,11 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { useEditorStore } from "@/store/editor-store";
-import { useBoundTabId } from "../hooks/useBoundTabId";
-import { applyStyles } from "../picker-control";
-import { ValueCombobox, useStyleProp, isKnownDefault } from "./ValueCombobox";
+import { useBoundTabId } from "../../hooks/useBoundTabId";
+import { applyStyles } from "../../picker-control";
+import { ValueCombobox } from "./ValueCombobox";
+import { isKnownDefault } from "./propMetadata";
+import { useStyleProp, usePropSource, useCommonPropSource } from "./styleHooks";
 
 export function SectionRevertButton({ props }: { props: readonly string[] }) {
   const t = useT();
@@ -117,22 +121,30 @@ function LinkToggle({
 
 function PropRow({
   label,
+  source,
   children,
 }: {
   label: string;
+  source?: string;
   children: React.ReactNode;
 }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <label className="text-xs text-muted-foreground">{label}</label>
+      <label
+        className="text-xs text-muted-foreground"
+        title={source ? `source: ${source}` : undefined}
+      >
+        {label}
+      </label>
       {children}
     </div>
   );
 }
 
 export function TextProp({ label, prop }: { label: string; prop: string }) {
+  const source = usePropSource(prop);
   return (
-    <PropRow label={label}>
+    <PropRow label={label} source={source}>
       <ValueCombobox prop={prop} />
     </PropRow>
   );
@@ -154,11 +166,20 @@ function splitShadowLayers(raw: string): string[] {
     }
   }
   if (cur.trim()) parts.push(cur.trim());
-  return parts;
+  return parts.filter((layer) => !isInternalOnlyLayer(layer));
+}
+
+function isInternalOnlyLayer(layer: string): boolean {
+  const refs = layer.match(/var\(\s*(--[^\s,)]+)/g);
+  if (!refs || refs.length === 0) return false;
+  return refs.every((r) =>
+    r.replace(/var\(\s*/, "").startsWith("--tw-"),
+  );
 }
 
 export function BoxShadowProp() {
   const { value, placeholder, set } = useStyleProp("box-shadow");
+  const source = usePropSource("box-shadow");
 
   const valueParts = useMemo(() => splitShadowLayers(value), [value]);
   const placeholderParts = useMemo(() => splitShadowLayers(placeholder), [placeholder]);
@@ -176,7 +197,7 @@ export function BoxShadowProp() {
   };
 
   return (
-    <PropRow label="box-shadow">
+    <PropRow label="box-shadow" source={source}>
       <div className="flex flex-col gap-1">
         {Array.from({ length: count }, (_, i) => (
           <ValueCombobox
@@ -204,9 +225,10 @@ export function SelectProp({
   options: string[];
 }) {
   const { value, placeholder, set } = useStyleProp(prop);
+  const source = usePropSource(prop);
   const isDefault = !value && isKnownDefault(prop, placeholder);
   return (
-    <PropRow label={label}>
+    <PropRow label={label} source={source}>
       <Select value={value} onValueChange={set}>
         <SelectTrigger
           className={cn(
@@ -232,6 +254,7 @@ export function SelectProp({
 export function AlignmentProp({ label, prop }: { label: string; prop: string }) {
   const t = useT();
   const { value, placeholder, set } = useStyleProp(prop);
+  const source = usePropSource(prop);
   const current = (value || placeholder || "").trim();
   const options: { v: string; icon: React.ReactNode; title: string }[] = [
     { v: "left", icon: <AlignLeft className="h-4 w-4" />, title: t("prop.align.left") },
@@ -243,7 +266,7 @@ export function AlignmentProp({ label, prop }: { label: string; prop: string }) 
     current === "start" || current === "" ? "left" : current;
 
   return (
-    <PropRow label={label}>
+    <PropRow label={label} source={source}>
       <Tabs
         value={resolvedValue}
         onValueChange={(v) => set(v === resolvedValue && value ? "" : v)}
@@ -303,9 +326,10 @@ export function QuadProp({ label, prefix }: { label: string; prefix: string }) {
     [prefix],
   );
   const { linked, toggle, setAllProps } = useLinkedProps(props);
+  const source = useCommonPropSource(props);
 
   return (
-    <PropRow label={label}>
+    <PropRow label={label} source={source}>
       <div className="flex gap-1">
         <div className="grid flex-1 grid-cols-4 gap-1">
           <ValueCombobox
@@ -373,6 +397,38 @@ function CornerRadiusIcon({
   );
 }
 
+const GAP_PROPS = ["row-gap", "column-gap"];
+
+export function GapPairProp() {
+  const t = useT();
+  const { linked, toggle, setAllProps } = useLinkedProps(GAP_PROPS);
+  const source = useCommonPropSource(GAP_PROPS);
+
+  return (
+    <PropRow label="gap" source={source}>
+      <div className="flex gap-1">
+        <div className="grid flex-1 grid-cols-2 gap-1">
+          <ValueCombobox
+            prop="row-gap"
+            compact
+            icon={<Rows2 className="h-3.5 w-3.5" />}
+            iconTitle={t("prop.gap.row")}
+            onLinkedCommit={linked ? setAllProps : undefined}
+          />
+          <ValueCombobox
+            prop="column-gap"
+            compact
+            icon={<Columns2 className="h-3.5 w-3.5" />}
+            iconTitle={t("prop.gap.column")}
+            onLinkedCommit={linked ? setAllProps : undefined}
+          />
+        </div>
+        <LinkToggle linked={linked} onToggle={toggle} />
+      </div>
+    </PropRow>
+  );
+}
+
 const RADIUS_PROPS = [
   "border-top-left-radius",
   "border-top-right-radius",
@@ -383,9 +439,10 @@ const RADIUS_PROPS = [
 export function RadiusProp() {
   const t = useT();
   const { linked, toggle, setAllProps } = useLinkedProps(RADIUS_PROPS);
+  const source = useCommonPropSource(RADIUS_PROPS);
 
   return (
-    <PropRow label="radius">
+    <PropRow label="radius" source={source}>
       <div className="flex gap-1">
         <div className="grid flex-1 grid-cols-4 gap-1">
           <ValueCombobox

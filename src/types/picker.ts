@@ -1,9 +1,16 @@
+export interface PickerSelectionUpdatePayload {
+  specifiedStyles: Record<string, string>;
+  propSources: Record<string, string>;
+  computedStyles: Record<string, string>;
+}
+
 export interface PickerSelectionPayload {
   selector: string;
   tagName: string;
   classList: string[];
   computedStyles: Record<string, string>;
   specifiedStyles: Record<string, string>;
+  propSources: Record<string, string>;
   hasParent: boolean;
   hasChild: boolean;
   text: string | null;
@@ -22,7 +29,12 @@ export interface PrepareCaptureResponse {
   viewport: { width: number; height: number };
 }
 
-export type TokenCategory = "color" | "length" | "number" | "unknown";
+export type TokenCategory =
+  | "color"
+  | "length"
+  | "number"
+  | "image"
+  | "unknown";
 
 export interface Token {
   name: string;
@@ -72,5 +84,6 @@ export type PickerMessage =
   | { type: "picker.startAreaSelect" }
   | { type: "picker.cancelAreaSelect" }
   | { type: "picker.selected"; payload: PickerSelectionPayload }
+  | { type: "picker.selectionUpdated"; payload: PickerSelectionUpdatePayload }
   | { type: "picker.cancelled" }
   | { type: "picker.areaSelected"; rect: ViewportRect; viewport: { width: number; height: number } };

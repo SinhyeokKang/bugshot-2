@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { RotateCcw } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Crosshair, RotateCcw } from "lucide-react";
 import { useT } from "@/i18n";
 import {
   AlertDialog,
@@ -22,6 +22,7 @@ import {
   applyText,
   clearPicker,
   resetEdits,
+  startPicker,
 } from "../picker-control";
 import { PageFooter, PageScroll, PageShell, Section } from "../components/Section";
 import { CancelConfirmDialog } from "../components/CancelConfirmDialog";
@@ -29,13 +30,14 @@ import { DomNavButton, DomTreeTitle } from "./DomTreeDialog";
 import {
   AlignmentProp,
   BoxShadowProp,
+  GapPairProp,
   QuadProp,
   RadiusProp,
   Row2,
   SectionRevertButton,
   SelectProp,
   TextProp,
-} from "./StylePropEditors";
+} from "./styleEditor/StylePropEditors";
 
 const SECTION_PROPS = {
   layout: [
@@ -71,6 +73,7 @@ const SECTION_PROPS = {
   ],
   container: [
     "background-color",
+    "background-image",
     "opacity",
     "border",
     "border-color",
@@ -81,6 +84,12 @@ const SECTION_PROPS = {
     "border-bottom-left-radius",
   ],
   effects: ["box-shadow", "filter", "backdrop-filter", "mix-blend-mode"],
+  transition: [
+    "transition-property",
+    "transition-duration",
+    "transition-timing-function",
+    "transition-delay",
+  ],
 } as const;
 
 export function SelectedPanel() {
@@ -129,6 +138,7 @@ export function SelectedPanel() {
               <DomTreeTitle tagName={selection.tagName} classList={selection.classList} />
             </div>
             <DomNavButton direction="child" />
+            <RepickButton />
           </div>
         </div>
 
@@ -198,10 +208,7 @@ export function SelectedPanel() {
         </Row2>
         <QuadProp label="margin" prefix="margin" />
         <QuadProp label="padding" prefix="padding" />
-        <Row2>
-          <TextProp label="row-gap" prop="row-gap" />
-          <TextProp label="column-gap" prop="column-gap" />
-        </Row2>
+        <GapPairProp />
       </Section>
 
       <Section
@@ -214,6 +221,7 @@ export function SelectedPanel() {
           <TextProp label="bg-color" prop="background-color" />
           <TextProp label="opacity" prop="opacity" />
         </Row2>
+        <TextProp label="bg-image" prop="background-image" />
         <Row2>
           <TextProp label="border" prop="border" />
           <TextProp label="border-color" prop="border-color" />
@@ -344,6 +352,20 @@ export function SelectedPanel() {
           ]}
         />
         </Section>
+
+      <Section
+        title="Transition"
+        action={<SectionRevertButton props={SECTION_PROPS.transition} />}
+        collapsible
+        defaultOpen={hasSpecified(SECTION_PROPS.transition)}
+      >
+        <TextProp label="transition" prop="transition-property" />
+        <Row2>
+          <TextProp label="duration" prop="transition-duration" />
+          <TextProp label="delay" prop="transition-delay" />
+        </Row2>
+        <TextProp label="easing" prop="transition-timing-function" />
+        </Section>
       </PageScroll>
       <PageFooter>
         <div className="flex items-center justify-between gap-2">
@@ -403,28 +425,59 @@ export function SelectedPanel() {
   );
 }
 
+function RepickButton() {
+  const t = useT();
+  const tabId = useBoundTabId();
+  return (
+    <Button
+      type="button"
+      size="icon"
+      variant="outline"
+      className="h-8 w-8 shrink-0"
+      title={t("dom.repick")}
+      onClick={() => {
+        if (tabId) void startPicker(tabId);
+      }}
+    >
+      <Crosshair />
+    </Button>
+  );
+}
+
 function ClassEditor() {
   const selection = useEditorStore((s) => s.selection);
   const styleEdits = useEditorStore((s) => s.styleEdits);
   const setStyleEdits = useEditorStore((s) => s.setStyleEdits);
   const tabId = useBoundTabId();
 
-  const value = useMemo(
-    () => styleEdits.classList.join(" "),
-    [styleEdits.classList],
+  const [inputValue, setInputValue] = useState(() =>
+    styleEdits.classList.join(" "),
   );
+  // 내가 직전에 store로 커밋한 classList를 기억. 외부(revert 등)에서 갈아엎힌
+  // 변경이면 input도 함께 리셋, 사용자 본인의 입력이면 trailing space 보존.
+  const lastCommittedRef = useRef<string[]>(styleEdits.classList);
+
+  useEffect(() => {
+    const next = styleEdits.classList.join(" ");
+    if (next !== lastCommittedRef.current.join(" ")) {
+      setInputValue(next);
+      lastCommittedRef.current = styleEdits.classList;
+    }
+  }, [styleEdits.classList]);
 
   if (!selection) return null;
 
   const handleChange = (next: string) => {
+    setInputValue(next);
     const classList = next.split(/\s+/).filter(Boolean);
+    lastCommittedRef.current = classList;
     setStyleEdits({ classList });
     if (tabId) void applyClasses(tabId, classList);
   };
 
   return (
     <Textarea
-      value={value}
+      value={inputValue}
       onChange={(e) => handleChange(e.target.value)}
       placeholder=""
       className="min-h-9 resize-none text-sm [field-sizing:content]"

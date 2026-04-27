@@ -193,6 +193,7 @@ function handleApplyClasses(classList: string[]): void {
   const el = selectedEl as HTMLElement;
   el.className = classList.join(" ");
   render();
+  scheduleSelectionUpdate();
 }
 
 function handleApplyStyles(inlineStyle: Record<string, string>): void {
@@ -382,6 +383,34 @@ function emitSelected(el: Element): void {
   chrome.runtime
     .sendMessage<PickerMessage>({ type: "picker.selected", payload })
     .catch(() => {});
+}
+
+let selectionUpdateTimer: number | null = null;
+
+function scheduleSelectionUpdate(): void {
+  if (selectionUpdateTimer != null) {
+    clearTimeout(selectionUpdateTimer);
+  }
+  selectionUpdateTimer = window.setTimeout(() => {
+    selectionUpdateTimer = null;
+    if (!selectedEl) return;
+    const payload = collectSelection(
+      selectedEl,
+      buildSelector,
+      parentOf(selectedEl) !== null,
+      firstChildOf(selectedEl) !== null,
+    );
+    chrome.runtime
+      .sendMessage<PickerMessage>({
+        type: "picker.selectionUpdated",
+        payload: {
+          specifiedStyles: payload.specifiedStyles,
+          propSources: payload.propSources,
+          computedStyles: payload.computedStyles,
+        },
+      })
+      .catch(() => {});
+  }, 120);
 }
 
 function handleSelectByPath(selector: string): void {
