@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { Pencil, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -8,7 +8,7 @@ import { useEditorStore } from "@/store/editor-store";
 import { useSettingsStore } from "@/store/settings-store";
 import { useBoundTabId } from "../hooks/useBoundTabId";
 import { clearPicker } from "../picker-control";
-import { AnnotationOverlay } from "../components/AnnotationOverlay";
+const AnnotationOverlay = lazy(() => import("../components/AnnotationOverlay"));
 import { CancelConfirmDialog } from "../components/CancelConfirmDialog";
 import {
   PageFooter,
@@ -191,14 +191,16 @@ export function DraftingPanel() {
         </div>
       </PageFooter>
       {annotating && screenshotRaw ? (
-        <AnnotationOverlay
-          imageUrl={screenshotAnnotated ?? screenshotRaw}
-          onComplete={(url) => {
-            useEditorStore.getState().onAnnotated(url);
-            setAnnotating(false);
-          }}
-          onCancel={() => setAnnotating(false)}
-        />
+        <Suspense fallback={null}>
+          <AnnotationOverlay
+            imageUrl={screenshotAnnotated ?? screenshotRaw}
+            onComplete={(url) => {
+              useEditorStore.getState().onAnnotated(url);
+              setAnnotating(false);
+            }}
+            onCancel={() => setAnnotating(false)}
+          />
+        </Suspense>
       ) : null}
     </PageShell>
   );

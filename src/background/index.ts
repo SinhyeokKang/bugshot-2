@@ -27,7 +27,6 @@ const BG_REQUEST_TYPES = new Set([
   "jira.getIssueStatus",
   "jira.searchEpics",
   "jira.submitIssue",
-  "tabCapture.getStreamId",
 ]);
 
 function disableGlobalSidePanel(): void {

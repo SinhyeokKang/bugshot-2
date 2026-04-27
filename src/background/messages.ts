@@ -58,20 +58,6 @@ export async function handleMessage(
     case "jira.searchEpics":
       return searchEpics(message.config, message.projectKey, message.query, message.hierarchyLevels);
 
-    case "tabCapture.getStreamId":
-      return new Promise<string>((resolve, reject) => {
-        chrome.tabCapture.getMediaStreamId(
-          { targetTabId: message.tabId },
-          (streamId) => {
-            if (chrome.runtime.lastError) {
-              reject(new Error(chrome.runtime.lastError.message));
-            } else {
-              resolve(streamId);
-            }
-          },
-        );
-      });
-
     case "jira.submitIssue":
       return submitIssue(
         message.config,

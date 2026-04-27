@@ -1,4 +1,3 @@
-import { sendBg } from "@/types/messages";
 import { useEditorStore } from "@/store/editor-store";
 
 const MAX_DURATION_SEC = 60;
@@ -28,9 +27,14 @@ function pickMimeType(): string {
 export async function startRecording(tabId: number): Promise<void> {
   if (state) cancelRecording();
 
-  const streamId = await sendBg<string>({
-    type: "tabCapture.getStreamId",
-    tabId,
+  const streamId = await new Promise<string>((resolve, reject) => {
+    chrome.tabCapture.getMediaStreamId({ targetTabId: tabId }, (id) => {
+      if (chrome.runtime.lastError || !id) {
+        reject(new Error(chrome.runtime.lastError?.message ?? "no streamId"));
+      } else {
+        resolve(id);
+      }
+    });
   });
 
   const stream = await navigator.mediaDevices.getUserMedia({

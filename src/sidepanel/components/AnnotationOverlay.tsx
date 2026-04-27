@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import * as markerjs2 from "markerjs2";
+import type * as markerjs2 from "markerjs2";
 import { Button } from "@/components/ui/button";
 import { useT } from "@/i18n";
 
@@ -9,7 +9,7 @@ interface AnnotationOverlayProps {
   onCancel: () => void;
 }
 
-export function AnnotationOverlay({
+export default function AnnotationOverlay({
   imageUrl,
   onComplete,
   onCancel,
@@ -25,33 +25,40 @@ export function AnnotationOverlay({
     const container = containerRef.current;
     if (!img || !container) return;
 
-    const ma = new markerjs2.MarkerArea(img);
-    ma.targetRoot = container;
-    ma.uiStyleSettings.zIndex = "9999";
-    ma.uiStyleSettings.resultButtonBlockVisible = false;
-    ma.renderAtNaturalSize = true;
-    ma.renderImageType = "image/jpeg";
-    ma.renderImageQuality = 0.92;
+    let ma: markerjs2.MarkerArea | null = null;
+    let cancelled = false;
 
-    ma.addEventListener("render", (event) => {
-      img.src = event.dataUrl;
-      stateRef.current = event.state;
+    void import("markerjs2").then((mod) => {
+      if (cancelled) return;
+      ma = new mod.MarkerArea(img);
+      ma.targetRoot = container;
+      ma.uiStyleSettings.zIndex = "9999";
+      ma.uiStyleSettings.resultButtonBlockVisible = false;
+      ma.renderAtNaturalSize = true;
+      ma.renderImageType = "image/jpeg";
+      ma.renderImageQuality = 0.92;
+
+      ma.addEventListener("render", (event) => {
+        img.src = event.dataUrl;
+        stateRef.current = event.state;
+      });
+
+      ma.addEventListener("close", () => {
+        if (maRef.current && stateRef.current) {
+          maRef.current.show();
+          maRef.current.restoreState(stateRef.current);
+        }
+      });
+
+      maRef.current = ma;
+      ma.show();
     });
-
-    ma.addEventListener("close", () => {
-      if (maRef.current && stateRef.current) {
-        maRef.current.show();
-        maRef.current.restoreState(stateRef.current);
-      }
-    });
-
-    maRef.current = ma;
-    ma.show();
 
     return () => {
+      cancelled = true;
       maRef.current = null;
       try {
-        ma.close();
+        ma?.close();
       } catch {}
     };
   }, []);
