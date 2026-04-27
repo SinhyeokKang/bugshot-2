@@ -26,33 +26,19 @@ export type BgRequest =
   | { type: "oauth.start" }
   | { type: "oauth.available" }
   | { type: "jira.myself"; config: JiraConfigPayload }
-  | { type: "jira.listProjects"; config: JiraConfigPayload; query?: string }
-  | {
-      type: "jira.listIssueTypes";
-      config: JiraConfigPayload;
-      projectKey: string;
-    }
-  | { type: "jira.listPriorities"; config: JiraConfigPayload }
-  | {
-      type: "jira.searchUsers";
-      config: JiraConfigPayload;
-      query?: string;
-    }
-  | {
-      type: "jira.getIssueStatus";
-      config: JiraConfigPayload;
-      issueKey: string;
-    }
+  | { type: "jira.listProjects"; query?: string }
+  | { type: "jira.listIssueTypes"; projectKey: string }
+  | { type: "jira.listPriorities" }
+  | { type: "jira.searchUsers"; query?: string }
+  | { type: "jira.getIssueStatus"; issueKey: string }
   | {
       type: "jira.searchEpics";
-      config: JiraConfigPayload;
       projectKey: string;
       query?: string;
       hierarchyLevels?: number[];
     }
   | {
       type: "jira.submitIssue";
-      config: JiraConfigPayload;
       payload: JiraCreateIssuePayload;
       attachments: JiraAttachmentInput[];
       relatesKey?: string;

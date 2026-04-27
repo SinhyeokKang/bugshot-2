@@ -38,7 +38,6 @@ import {
   jiraSiteId,
 } from "@/store/settings-store";
 import type {
-  JiraConfigPayload,
   JiraIssueSummary,
   JiraIssueType,
   JiraPriority,
@@ -153,14 +152,10 @@ export function IssueCreateModal() {
       if (afterImage) attachments.push({ filename: "after.jpg", dataUrl: afterImage });
     }
 
-    const titlePrefix = jiraConfig.titlePrefix?.trim() ?? "";
-    const summary = titlePrefix && !draft.title.startsWith(titlePrefix)
-      ? `${titlePrefix}${draft.title}`.trim()
-      : draft.title.trim();
+    const summary = draft.title.trim();
 
     const result = await sendBg<JiraSubmitResult>({
       type: "jira.submitIssue",
-      config: jiraConfig.auth,
       payload: {
         projectKey: jiraConfig.projectKey,
         summary,
@@ -365,14 +360,11 @@ export function FieldRow({
   );
 }
 
-function useJiraConfig(): { config: JiraConfigPayload; projectKey: string } | null {
+function useJiraConfig(): { projectKey: string } | null {
   const jiraConfig = useSettingsStore((s) => s.jiraConfig);
   return useMemo(() => {
     if (!jiraConfig?.projectKey || !jiraConfig.auth) return null;
-    return {
-      config: jiraConfig.auth,
-      projectKey: jiraConfig.projectKey,
-    };
+    return { projectKey: jiraConfig.projectKey };
   }, [jiraConfig?.auth, jiraConfig?.projectKey]);
 }
 
@@ -439,7 +431,6 @@ export function IssueTypeField({
     setError(null);
     sendBg<JiraIssueType[]>({
       type: "jira.listIssueTypes",
-      config: jiraConfig.auth,
       projectKey,
     })
       .then((list) => !cancelled && setItems(list))
@@ -519,10 +510,7 @@ export function PriorityField({
     let cancelled = false;
     setLoading(true);
     setError(null);
-    sendBg<JiraPriority[]>({
-      type: "jira.listPriorities",
-      config: jiraConfig.auth,
-    })
+    sendBg<JiraPriority[]>({ type: "jira.listPriorities" })
       .then((list) => !cancelled && setItems(list))
       .catch((err: unknown) =>
         !cancelled && setError(err instanceof Error ? err.message : String(err)),
@@ -593,7 +581,6 @@ export function AssigneeField({
       if (!jira) return Promise.resolve([]);
       return sendBg<JiraUser[]>({
         type: "jira.searchUsers",
-        config: jira.config,
         query,
       });
     },
@@ -673,7 +660,6 @@ export function EpicField({
       if (!jira) return Promise.resolve([]);
       return sendBg<JiraIssueSummary[]>({
         type: "jira.searchEpics",
-        config: jira.config,
         projectKey: jira.projectKey,
         query: query || undefined,
         hierarchyLevels,

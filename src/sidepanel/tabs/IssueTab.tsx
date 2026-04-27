@@ -22,7 +22,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { useEditorStore } from "@/store/editor-store";
 import { useBoundTabId } from "../hooks/useBoundTabId";
-import { captureElementSnapshot } from "../capture";
 import { startPicker, stopPicker, startAreaCapture, cancelAreaCapture } from "../picker-control";
 import * as videoRecorder from "../video-recorder";
 import { PageShell } from "../components/Section";
@@ -38,25 +37,6 @@ export function IssueTab() {
   const reset = useEditorStore((s) => s.reset);
   const sessionExpired = useEditorStore((s) => s.sessionExpired);
   const tabId = useBoundTabId();
-  useEffect(() => {
-    if (!tabId) return;
-    const safeCaptureBeforeImage = (tid: number) => {
-      void captureElementSnapshot(tid)
-        .then((img) => {
-          if (img) useEditorStore.getState().setBeforeImage(img);
-        })
-        .catch((err) => console.warn("[bugshot] before-image capture failed", err));
-    };
-    if (useEditorStore.getState().phase === "idle") {
-      safeCaptureBeforeImage(tabId);
-    }
-    const unsub = useEditorStore.subscribe((state, prev) => {
-      if (state.phase === "styling" && prev.phase === "picking") {
-        safeCaptureBeforeImage(tabId);
-      }
-    });
-    return unsub;
-  }, [tabId]);
 
   if (!tabId) {
     return <UnsupportedPage />;

@@ -385,7 +385,7 @@ function ApiKeyDialog({
           ) : null}
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="flex-row justify-end">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t("common.cancel")}
           </Button>
@@ -492,7 +492,7 @@ function SetupDialog() {
           <ProjectCombobox />
         </div>
 
-        <DialogFooter>
+        <DialogFooter className="flex-row justify-end">
           <Button variant="outline" onClick={handleCancel}>
             {t("common.cancel")}
           </Button>

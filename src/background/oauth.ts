@@ -159,26 +159,11 @@ export async function refreshOAuthToken(
   };
 }
 
-const SETTINGS_KEY = "bugshot-settings";
+import { writeStoredOAuthTokens } from "@/lib/settings-storage";
 
 export async function persistOAuthTokens(auth: JiraOAuthAuth): Promise<void> {
-  const raw = await chrome.storage.local.get(SETTINGS_KEY);
-  const envelope = raw[SETTINGS_KEY];
-  if (!envelope) return;
   try {
-    const parsed =
-      typeof envelope === "string" ? JSON.parse(envelope) : envelope;
-    if (!parsed?.state?.jiraConfig?.auth) return;
-    if (parsed.state.jiraConfig.auth.kind !== "oauth") return;
-    parsed.state.jiraConfig.auth = {
-      ...parsed.state.jiraConfig.auth,
-      accessToken: auth.accessToken,
-      refreshToken: auth.refreshToken,
-      expiresAt: auth.expiresAt,
-    };
-    const next =
-      typeof envelope === "string" ? JSON.stringify(parsed) : parsed;
-    await chrome.storage.local.set({ [SETTINGS_KEY]: next });
+    await writeStoredOAuthTokens(auth);
   } catch (err) {
     console.warn("[bugshot] persistOAuthTokens failed", err);
   }

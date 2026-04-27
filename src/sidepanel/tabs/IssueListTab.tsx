@@ -209,6 +209,12 @@ function IssueRow({
     if (isSubmitted) {
       chrome.tabs.create({ url: issue.url!, active: true });
     } else {
+      // Card는 비포커서블이라 직전 포커스(탭 trigger 등)가 그대로 남는다.
+      // Radix Dialog가 root에 aria-hidden을 씌우면 포커스된 후손이 있어
+      // 브라우저 a11y 경고가 뜨므로, 미리 blur해서 경고를 막는다.
+      if (document.activeElement instanceof HTMLElement && document.activeElement !== document.body) {
+        document.activeElement.blur();
+      }
       onOpenDraft();
     }
   };
@@ -302,7 +308,6 @@ function SubmittedBadge({ issueKey, issueSiteId, refreshKey, onLoaded }: { issue
     if (!jiraConfig?.auth || !siteMatch) { setStatus("error"); onLoaded(); return; }
     sendBg<JiraIssueStatus>({
       type: "jira.getIssueStatus",
-      config: jiraConfig.auth,
       issueKey,
     })
       .then(setStatus)

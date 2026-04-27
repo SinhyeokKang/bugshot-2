@@ -16,6 +16,13 @@ import {
   uploadAttachment,
 } from "./jira-api";
 import { isOAuthConfigured, startOAuthFlow } from "./oauth";
+import { readStoredAuth } from "@/lib/settings-storage";
+
+async function loadAuth(): Promise<JiraAuth> {
+  const auth = await readStoredAuth();
+  if (!auth) throw new Error(t("jira.notConnected.title"));
+  return auth;
+}
 
 export async function handleMessage(
   message: BgRequest,
@@ -41,26 +48,31 @@ export async function handleMessage(
       return getMyself(message.config);
 
     case "jira.listProjects":
-      return searchProjects(message.config, message.query);
+      return searchProjects(await loadAuth(), message.query);
 
     case "jira.listIssueTypes":
-      return getIssueTypes(message.config, message.projectKey);
+      return getIssueTypes(await loadAuth(), message.projectKey);
 
     case "jira.listPriorities":
-      return getPriorities(message.config);
+      return getPriorities(await loadAuth());
 
     case "jira.searchUsers":
-      return searchUsers(message.config, message.query);
+      return searchUsers(await loadAuth(), message.query);
 
     case "jira.getIssueStatus":
-      return getIssueStatus(message.config, message.issueKey);
+      return getIssueStatus(await loadAuth(), message.issueKey);
 
     case "jira.searchEpics":
-      return searchEpics(message.config, message.projectKey, message.query, message.hierarchyLevels);
+      return searchEpics(
+        await loadAuth(),
+        message.projectKey,
+        message.query,
+        message.hierarchyLevels,
+      );
 
     case "jira.submitIssue":
       return submitIssue(
-        message.config,
+        await loadAuth(),
         message.payload,
         message.attachments,
         message.relatesKey,

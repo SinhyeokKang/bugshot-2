@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import type { JiraAuth } from "@/types/jira";
+import { SETTINGS_STORAGE_KEY } from "@/lib/settings-storage";
 import { chromeLocalStorage } from "./chrome-storage";
 
 export interface JiraConfig {
@@ -74,7 +75,7 @@ export const useSettingsStore = create<SettingsState>()(
       setLastSubmitFields: (fields) => set({ lastSubmitFields: fields }),
     }),
     {
-      name: "bugshot-settings",
+      name: SETTINGS_STORAGE_KEY,
       version: 2,
       storage: createJSONStorage(() => chromeLocalStorage),
       migrate: (persistedState, version) => {

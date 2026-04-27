@@ -45,7 +45,6 @@ export function IssueTypeCombobox() {
     setError(null);
     sendBg<JiraIssueType[]>({
       type: "jira.listIssueTypes",
-      config: jiraConfig.auth,
       projectKey,
     })
       .then((list) => {

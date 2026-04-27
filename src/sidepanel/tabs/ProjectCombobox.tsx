@@ -37,10 +37,7 @@ export function ProjectCombobox() {
 
     setLoading(true);
     setError(null);
-    sendBg<JiraProject[]>({
-      type: "jira.listProjects",
-      config: jiraConfig.auth,
-    })
+    sendBg<JiraProject[]>({ type: "jira.listProjects" })
       .then((list) => {
         if (cancelled) return;
         setProjects(list);

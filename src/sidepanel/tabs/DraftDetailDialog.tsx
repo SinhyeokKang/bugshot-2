@@ -139,11 +139,7 @@ export function DraftDetailDialog({
     };
     const description = buildIssueAdf(ctx);
 
-    const titlePrefix = jiraConfig.titlePrefix?.trim() ?? "";
-    const summary =
-      titlePrefix && !issue.draft.title.startsWith(titlePrefix)
-        ? `${titlePrefix}${issue.draft.title}`.trim()
-        : issue.draft.title.trim();
+    const summary = issue.draft.title.trim();
 
     const attachments: { filename: string; dataUrl: string }[] = [];
     if (isVideo) {
@@ -164,7 +160,6 @@ export function DraftDetailDialog({
 
     const result = await sendBg<JiraSubmitResult>({
       type: "jira.submitIssue",
-      config: jiraConfig.auth,
       payload: {
         projectKey: jiraConfig.projectKey,
         summary,
