@@ -48,7 +48,8 @@ src/
 │   ├── picker-control.ts
 │   ├── hooks/           # useBoundTabId, useEditorSessionSync, usePickerMessages, useThemeEffect
 │   ├── components/      # 공통 UI (Section/PageShell/PageScroll/PageFooter/AnnotationOverlay 등)
-│   ├── tabs/            # 탭별 진입점 + 편집 패널 (StyleEditorPanel/StylePropEditors/ValueCombobox 등)
+│   ├── tabs/            # 탭별 진입점 + 편집 패널 (StyleEditorPanel/IssueTab/IssueListTab/SettingsTab 등)
+│   │   └── styleEditor/ # ValueCombobox, StylePropEditors와 헬퍼 (propMetadata, tokenUtils, styleHooks, TokenChip)
 │   └── lib/             # buildIssueMarkdown, buildIssueAdf 등 순수 유틸
 ├── store/               # Zustand 스토어 (editor/issues/settings/app-settings), settings는 v2 마이그레이션(flat → discriminated auth)
 ├── i18n/                # 다국어 (ko/en 로케일, t()/useT() 훅)
