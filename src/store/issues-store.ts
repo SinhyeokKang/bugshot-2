@@ -2,7 +2,16 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { chromeLocalStorage } from "./chrome-storage";
 import { useEditorStore, type CaptureMode } from "./editor-store";
-import { deleteVideoBlob, clearVideoBlobs, getVideoBlobKeys } from "./video-db";
+import {
+  deleteVideoBlob,
+  clearVideoBlobs,
+  getVideoBlobKeys,
+  deleteImageBlobs,
+  clearImageBlobs,
+  getImageBlobKeys,
+  saveImageBlobRaw,
+  dataUrlToBlob,
+} from "./blob-db";
 
 function stripSubmitted(
   issue: IssueRecord,
@@ -13,7 +22,7 @@ function stripSubmitted(
     ...patch,
     status: "submitted",
     updatedAt: Date.now(),
-    snapshot: { before: null, after: null },
+    snapshot: { before: false, after: false },
     draft: { title: "", body: "", expectedResult: "" },
     styleEdits: undefined,
     selectionSnapshot: undefined,
@@ -29,10 +38,19 @@ async function pruneOrphanBlobs(): Promise<void> {
   const currentIds = new Set(
     useIssuesStore.getState().issues.map((i) => i.id),
   );
-  const blobKeys = await getVideoBlobKeys();
-  for (const key of blobKeys) {
+  const videoBlobKeys = await getVideoBlobKeys();
+  for (const key of videoBlobKeys) {
     if (!currentIds.has(key)) {
       deleteVideoBlob(key).catch(() => {});
+    }
+  }
+  const imageBlobKeys = await getImageBlobKeys();
+  const prunedImageIds = new Set<string>();
+  for (const key of imageBlobKeys) {
+    const issueId = key.split(":")[0];
+    if (!currentIds.has(issueId) && !prunedImageIds.has(issueId)) {
+      prunedImageIds.add(issueId);
+      deleteImageBlobs(issueId).catch(() => {});
     }
   }
 }
@@ -47,8 +65,8 @@ function resetEditorIfEditing(removedId: string | null): void {
 export type IssueStatus = "draft" | "submitted";
 
 export interface IssueSnapshot {
-  before: string | null;
-  after: string | null;
+  before: boolean;
+  after: boolean;
 }
 
 export interface IssueStyleEdits {
@@ -138,30 +156,56 @@ export const useIssuesStore = create<IssuesState>()(
           ),
         }));
         deleteVideoBlob(id).catch(() => {});
+        deleteImageBlobs(id).catch(() => {});
       },
       removeIssue: (id) => {
         set((s) => ({ issues: s.issues.filter((x) => x.id !== id) }));
         deleteVideoBlob(id).catch(() => {});
+        deleteImageBlobs(id).catch(() => {});
         resetEditorIfEditing(id);
       },
       clearIssues: () => {
         set({ issues: [] });
         clearVideoBlobs().catch(() => {});
+        clearImageBlobs().catch(() => {});
         resetEditorIfEditing(null);
       },
     }),
     {
       name: "bugshot-issues",
-      version: 1,
+      version: 2,
       storage: createJSONStorage(() => chromeLocalStorage),
-      migrate: (persisted, version) => {
+      migrate: async (persisted, version) => {
+        const state = persisted as { issues: IssueRecord[] };
         if (version === 0) {
-          const state = persisted as { issues: IssueRecord[] };
           state.issues = state.issues.map((i) =>
             i.status === "submitted" ? stripSubmitted(i, {}) : i,
           );
         }
-        return persisted as IssuesState;
+        if (version < 2) {
+          for (const issue of state.issues) {
+            const snap = issue.snapshot as unknown as {
+              before: string | null;
+              after: string | null;
+            };
+            let hasBefore = false;
+            let hasAfter = false;
+            if (typeof snap.before === "string" && snap.before.startsWith("data:")) {
+              try {
+                await saveImageBlobRaw(issue.id, "before", dataUrlToBlob(snap.before));
+                hasBefore = true;
+              } catch { /* image lost on migration failure */ }
+            }
+            if (typeof snap.after === "string" && snap.after.startsWith("data:")) {
+              try {
+                await saveImageBlobRaw(issue.id, "after", dataUrlToBlob(snap.after));
+                hasAfter = true;
+              } catch { /* image lost on migration failure */ }
+            }
+            issue.snapshot = { before: hasBefore, after: hasAfter };
+          }
+        }
+        return state as unknown as IssuesState;
       },
       onRehydrateStorage: () => () => {
         void pruneOrphanBlobs();

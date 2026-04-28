@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
-import { getVideoBlob } from "@/store/video-db";
+import { getVideoBlob, getImageBlob } from "@/store/blob-db";
+import { useIssueImages } from "../hooks/useIssueImages";
 import { Info } from "lucide-react";
 import { useT, dateBcp47 } from "@/i18n";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -89,6 +90,7 @@ export function DraftDetailDialog({
 
   const isScreenshot = issue?.captureMode === "screenshot";
   const isVideo = issue?.captureMode === "video";
+  const { beforeUrl, afterUrl } = useIssueImages(issue?.id ?? null, issue?.snapshot);
 
   const diffs = useMemo(() => {
     if (!issue?.selectionSnapshot || !issue.styleEdits) return [];
@@ -149,13 +151,19 @@ export function DraftDetailDialog({
         attachments.push({ filename: "recording.webm", dataUrl });
       }
     } else if (isScreenshot) {
-      if (issue.snapshot.before)
-        attachments.push({ filename: "screenshot.jpg", dataUrl: issue.snapshot.before });
+      if (issue.snapshot.before) {
+        const blob = await getImageBlob(issue.id, "before");
+        if (blob) attachments.push({ filename: "screenshot.jpg", dataUrl: await blobToDataUrl(blob) });
+      }
     } else {
-      if (issue.snapshot.before)
-        attachments.push({ filename: "before.jpg", dataUrl: issue.snapshot.before });
-      if (issue.snapshot.after)
-        attachments.push({ filename: "after.jpg", dataUrl: issue.snapshot.after });
+      if (issue.snapshot.before) {
+        const blob = await getImageBlob(issue.id, "before");
+        if (blob) attachments.push({ filename: "before.jpg", dataUrl: await blobToDataUrl(blob) });
+      }
+      if (issue.snapshot.after) {
+        const blob = await getImageBlob(issue.id, "after");
+        if (blob) attachments.push({ filename: "after.jpg", dataUrl: await blobToDataUrl(blob) });
+      }
     }
 
     const result = await sendBg<JiraSubmitResult>({
@@ -234,13 +242,13 @@ export function DraftDetailDialog({
 
                 {isVideo && issue.snapshot.before ? (
                   <FieldSection label={t("section.media")}>
-                    <DraftVideoPreview issue={issue} />
+                    <DraftVideoPreview issue={issue} thumbnailUrl={beforeUrl} />
                   </FieldSection>
-                ) : hasScreenshot ? (
+                ) : hasScreenshot && beforeUrl ? (
                   <FieldSection label={t("section.media")}>
                     <div className="aspect-video w-full overflow-hidden rounded-md border bg-muted/70">
                       <img
-                        src={issue.snapshot.before!}
+                        src={beforeUrl}
                         alt="Captured image"
                         className="h-full w-full object-contain"
                       />
@@ -249,8 +257,8 @@ export function DraftDetailDialog({
                 ) : hasStyleBlock ? (
                   <FieldSection label={t("section.styleChanges")}>
                     <StyleChangesTable
-                      beforeImage={issue.snapshot.before}
-                      afterImage={issue.snapshot.after}
+                      beforeImage={beforeUrl}
+                      afterImage={afterUrl}
                       diffs={diffs}
                     />
                   </FieldSection>
@@ -378,7 +386,7 @@ function EnvBlock({ issue }: { issue: IssueRecord }) {
   );
 }
 
-function DraftVideoPreview({ issue }: { issue: IssueRecord }) {
+function DraftVideoPreview({ issue, thumbnailUrl }: { issue: IssueRecord; thumbnailUrl: string | null }) {
   const editorBlob = useEditorStore(
     (s) => s.currentIssueId === issue.id ? s.videoBlob : null,
   );
@@ -407,8 +415,8 @@ function DraftVideoPreview({ issue }: { issue: IssueRecord }) {
     <div className="space-y-1.5">
       {src ? (
         <video src={src} controls className="max-h-60 w-full rounded-md border object-contain" />
-      ) : issue.snapshot.before ? (
-        <img src={issue.snapshot.before} alt="Recording thumbnail" className="max-h-60 rounded-md border object-contain" />
+      ) : thumbnailUrl ? (
+        <img src={thumbnailUrl} alt="Recording thumbnail" className="max-h-60 rounded-md border object-contain" />
       ) : null}
     </div>
   );

@@ -2,7 +2,7 @@ import { create } from "zustand";
 import type { Token } from "@/types/picker";
 import { useIssuesStore } from "./issues-store";
 import { useSettingsStore } from "./settings-store";
-import { saveVideoBlob } from "./video-db";
+import { saveVideoBlob, saveImageBlob, dataUrlToBlob } from "./blob-db";
 
 export type CaptureMode = "element" | "screenshot" | "video";
 
@@ -248,14 +248,18 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         viewport: state.videoViewport ?? undefined,
         draft: { ...state.draft },
         snapshot: {
-          before: state.videoThumbnail || null,
-          after: null,
+          before: !!state.videoThumbnail,
+          after: false,
         },
       });
       if (state.videoBlob) {
         saveVideoBlob(id, state.videoBlob).catch(() => {});
       }
+      if (state.videoThumbnail) {
+        saveImageBlob(id, "before", dataUrlToBlob(state.videoThumbnail)).catch(() => {});
+      }
     } else if (state.captureMode === "screenshot") {
+      const screenshotImage = state.screenshotAnnotated ?? state.screenshotRaw;
       useIssuesStore.getState().saveDraft({
         id,
         status: "draft",
@@ -268,10 +272,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         viewport: state.screenshotViewport ?? undefined,
         draft: { ...state.draft },
         snapshot: {
-          before: state.screenshotAnnotated ?? state.screenshotRaw,
-          after: null,
+          before: !!screenshotImage,
+          after: false,
         },
       });
+      if (screenshotImage) {
+        saveImageBlob(id, "before", dataUrlToBlob(screenshotImage)).catch(() => {});
+      }
     } else {
       if (!state.selection) {
         set({ phase: "previewing" });
@@ -295,8 +302,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           text: state.styleEdits.text,
         },
         snapshot: {
-          before: state.beforeImage,
-          after: state.afterImage,
+          before: !!state.beforeImage,
+          after: !!state.afterImage,
         },
         selectionSnapshot: {
           classList: [...state.selection.classList],
@@ -311,6 +318,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           value: t.value,
         })),
       });
+      if (state.beforeImage) {
+        saveImageBlob(id, "before", dataUrlToBlob(state.beforeImage)).catch(() => {});
+      }
+      if (state.afterImage) {
+        saveImageBlob(id, "after", dataUrlToBlob(state.afterImage)).catch(() => {});
+      }
     }
     set({ phase: "previewing", currentIssueId: id });
   },
