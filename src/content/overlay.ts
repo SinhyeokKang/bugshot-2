@@ -321,9 +321,31 @@ export function setBlockerVisible(
   }
 }
 
-export function renderOutline(h: OverlayHandle, target: Element): void {
+export function renderOutline(
+  h: OverlayHandle,
+  target: Element,
+  opts: { hideBoxModel?: boolean } = {},
+): void {
   const o = h as OverlayInternal;
   const rect = target.getBoundingClientRect();
+  const bl = rect.left;
+  const bt = rect.top;
+  const bw = rect.width;
+  const bh = rect.height;
+
+  o.borderEl.setAttribute("x", bl.toString());
+  o.borderEl.setAttribute("y", bt.toString());
+  o.borderEl.setAttribute("width", bw.toString());
+  o.borderEl.setAttribute("height", bh.toString());
+  o.borderEl.style.display = "";
+
+  if (opts.hideBoxModel) {
+    o.marginEl.style.display = "none";
+    o.paddingEl.style.display = "none";
+    o.gapEl.style.display = "none";
+    return;
+  }
+
   const cs = window.getComputedStyle(target);
   const mt = parseFloat(cs.marginTop) || 0;
   const mr = parseFloat(cs.marginRight) || 0;
@@ -333,11 +355,6 @@ export function renderOutline(h: OverlayHandle, target: Element): void {
   const pr = parseFloat(cs.paddingRight) || 0;
   const pb = parseFloat(cs.paddingBottom) || 0;
   const pl = parseFloat(cs.paddingLeft) || 0;
-
-  const bl = rect.left;
-  const bt = rect.top;
-  const bw = rect.width;
-  const bh = rect.height;
 
   if (mt || mr || mb || ml) {
     const ox = bl - ml;
@@ -366,12 +383,6 @@ export function renderOutline(h: OverlayHandle, target: Element): void {
   } else {
     o.paddingEl.style.display = "none";
   }
-
-  o.borderEl.setAttribute("x", bl.toString());
-  o.borderEl.setAttribute("y", bt.toString());
-  o.borderEl.setAttribute("width", bw.toString());
-  o.borderEl.setAttribute("height", bh.toString());
-  o.borderEl.style.display = "";
 
   updateGap(o, target, cs, {
     contentLeft: bl + pl,

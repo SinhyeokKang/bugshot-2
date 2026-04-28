@@ -347,7 +347,7 @@ function render(): void {
     hideOutline(overlay);
     return;
   }
-  renderOutline(overlay, target);
+  renderOutline(overlay, target, { hideBoxModel: mode === "selected" });
   if (mode === "hover") {
     let info = inspectorCache.get(target);
     if (!info) {

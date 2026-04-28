@@ -56,6 +56,7 @@ export function buildInitialTree(
   return { tree: expand(document.documentElement), ancestorPath };
 }
 
+// 호출마다 querySelector — 캐싱은 호출 측(DomTree)에서 펼친 노드 보관으로 처리
 export function buildChildrenResponse(
   selector: string,
 ): DescribeChildrenResponse {
