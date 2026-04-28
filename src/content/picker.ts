@@ -20,6 +20,7 @@ import {
 import {
   createOverlay,
   destroyOverlay,
+  HOST_ID,
   renderOutline,
   renderInspector,
   renderBadge,
@@ -38,6 +39,13 @@ import {
   attachAreaBlockerListener,
   type AreaSelectHandle,
 } from "./area-select";
+import {
+  ensureLoaded as ensureCssCacheLoaded,
+  invalidate as invalidateCssCache,
+  isCacheReady as isCssCacheReady,
+  startObserver as startCssCacheObserver,
+  stopObserver as stopCssCacheObserver,
+} from "./css-source-cache";
 
 type Mode = "idle" | "hover" | "selected" | "area-select";
 
@@ -55,13 +63,21 @@ let areaHandle: AreaSelectHandle | null = null;
 let tokenLookup: TokenLookup | null = null;
 let tokenBuildHandle: number | null = null;
 
+type InspectorInfo = ReturnType<typeof collectInspectorInfo>;
+let inspectorCache = new WeakMap<Element, InspectorInfo>();
+
 function scheduleTokenBuild(): void {
   cancelTokenBuild();
   const run = (): void => {
     tokenBuildHandle = null;
     if (mode === "idle") return;
-    tokenLookup = buildTokenLookup();
-    if (mode === "hover" && lastHover) render();
+    void (async () => {
+      await ensureCssCacheLoaded();
+      if ((mode as Mode) === "idle") return;
+      tokenLookup = buildTokenLookup();
+      inspectorCache = new WeakMap();
+      if ((mode as Mode) === "hover" && lastHover) render();
+    })();
   };
   if (typeof requestIdleCallback === "function") {
     tokenBuildHandle = requestIdleCallback(run, { timeout: 1000 });
@@ -83,9 +99,14 @@ function cancelTokenBuild(): void {
 chrome.runtime.onConnect.addListener((port) => {
   if (port.name !== "bugshot-picker") return;
   port.onDisconnect.addListener(() => {
-    if (mode !== "idle") handleClear();
+    handleClear();
   });
 });
+
+function removeOrphanOverlay(): void {
+  const orphan = document.getElementById(HOST_ID);
+  if (orphan) orphan.remove();
+}
 
 chrome.runtime.onMessage.addListener(
   (msg: PickerMessage, _sender, sendResponse) => {
@@ -117,8 +138,16 @@ chrome.runtime.onMessage.addListener(
           handleResetEdits();
           break;
         case "picker.collectTokens":
-          sendResponse({ tokens: collectTokens(selectedEl ?? undefined) });
-          return;
+          void (async () => {
+            try {
+              await ensureCssCacheLoaded();
+              sendResponse({ tokens: collectTokens(selectedEl ?? undefined) });
+            } catch (err) {
+              console.error("[bugshot] collectTokens error", err);
+              sendResponse({ ok: false, error: String(err) });
+            }
+          })();
+          return true;
         case "picker.describeInitial":
           sendResponse(buildInitialTree(selectedEl));
           return;
@@ -176,10 +205,15 @@ function handleEndCapture(): void {
 }
 
 function handleStart(): void {
-  if (!overlay) overlay = createOverlay();
+  if (!overlay) {
+    removeOrphanOverlay();
+    overlay = createOverlay();
+  }
   selectedEl = null;
   lastHover = null;
   tokenLookup = null;
+  startCssCacheObserver();
+  void ensureCssCacheLoaded();
   scheduleTokenBuild();
   addHoverListeners();
   setMode("hover");
@@ -211,6 +245,9 @@ function handleClear(): void {
   }
   cancelTokenBuild();
   tokenLookup = null;
+  inspectorCache = new WeakMap();
+  stopCssCacheObserver();
+  invalidateCssCache();
 }
 
 function handleNavigate(direction: "parent" | "child"): void {
@@ -229,6 +266,7 @@ function handleApplyClasses(classList: string[]): void {
   if (!selectedEl) return;
   const el = selectedEl as HTMLElement;
   el.className = classList.join(" ");
+  inspectorCache.delete(el);
   render();
   scheduleSelectionUpdate();
 }
@@ -245,6 +283,7 @@ function handleApplyStyles(inlineStyle: Record<string, string>): void {
     if (!value) continue;
     el.style.setProperty(prop, value);
   }
+  inspectorCache.delete(el);
   render();
 }
 
@@ -310,7 +349,12 @@ function render(): void {
   }
   renderOutline(overlay, target);
   if (mode === "hover") {
-    renderInspector(overlay, target, collectInspectorInfo(target, tokenLookup ?? undefined));
+    let info = inspectorCache.get(target);
+    if (!info) {
+      info = collectInspectorInfo(target, tokenLookup ?? undefined);
+      inspectorCache.set(target, info);
+    }
+    renderInspector(overlay, target, info);
   } else if (mode === "selected") {
     renderBadge(overlay, target);
   } else {
@@ -418,31 +462,26 @@ function onKeyDown(e: KeyboardEvent): void {
 }
 
 function emitSelected(el: Element): void {
-  const payload = collectSelection(
-    el,
-    buildSelector,
-    parentOf(el) !== null,
-    firstChildOf(el) !== null,
-  );
-  chrome.runtime
-    .sendMessage<PickerMessage>({ type: "picker.selected", payload })
-    .catch(() => {});
-}
-
-let selectionUpdateTimer: number | null = null;
-
-function scheduleSelectionUpdate(): void {
-  if (selectionUpdateTimer != null) {
-    clearTimeout(selectionUpdateTimer);
-  }
-  selectionUpdateTimer = window.setTimeout(() => {
-    selectionUpdateTimer = null;
-    if (!selectedEl) return;
+  const sendInitial = (): void => {
     const payload = collectSelection(
-      selectedEl,
+      el,
       buildSelector,
-      parentOf(selectedEl) !== null,
-      firstChildOf(selectedEl) !== null,
+      parentOf(el) !== null,
+      firstChildOf(el) !== null,
+    );
+    chrome.runtime
+      .sendMessage<PickerMessage>({ type: "picker.selected", payload })
+      .catch(() => {});
+  };
+  sendInitial();
+  if (isCssCacheReady()) return;
+  void ensureCssCacheLoaded().then(() => {
+    if (selectedEl !== el) return;
+    const payload = collectSelection(
+      el,
+      buildSelector,
+      parentOf(el) !== null,
+      firstChildOf(el) !== null,
     );
     chrome.runtime
       .sendMessage<PickerMessage>({
@@ -454,6 +493,38 @@ function scheduleSelectionUpdate(): void {
         },
       })
       .catch(() => {});
+  });
+}
+
+let selectionUpdateTimer: number | null = null;
+
+function scheduleSelectionUpdate(): void {
+  if (selectionUpdateTimer != null) {
+    clearTimeout(selectionUpdateTimer);
+  }
+  selectionUpdateTimer = window.setTimeout(() => {
+    selectionUpdateTimer = null;
+    if (!selectedEl) return;
+    const target = selectedEl;
+    void (async () => {
+      await ensureCssCacheLoaded();
+      const payload = collectSelection(
+        target,
+        buildSelector,
+        parentOf(target) !== null,
+        firstChildOf(target) !== null,
+      );
+      chrome.runtime
+        .sendMessage<PickerMessage>({
+          type: "picker.selectionUpdated",
+          payload: {
+            specifiedStyles: payload.specifiedStyles,
+            propSources: payload.propSources,
+            computedStyles: payload.computedStyles,
+          },
+        })
+        .catch(() => {});
+    })();
   }, 120);
 }
 
@@ -478,7 +549,10 @@ function handleSelectByPath(selector: string): void {
 /* ── Area Select ─────────────────────────────────── */
 
 function handleStartAreaSelect(): void {
-  if (!overlay) overlay = createOverlay();
+  if (!overlay) {
+    removeOrphanOverlay();
+    overlay = createOverlay();
+  }
   hideOutline(overlay);
   hideBanner(overlay);
   mode = "area-select";
