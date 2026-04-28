@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ArrowUpRight,
   Bug,
@@ -37,15 +37,15 @@ export function IssueTab() {
   const reset = useEditorStore((s) => s.reset);
   const sessionExpired = useEditorStore((s) => s.sessionExpired);
   const tabId = useBoundTabId();
-  const prevPhaseRef = useRef(phase);
 
   useEffect(() => {
-    const prev = prevPhaseRef.current;
-    prevPhaseRef.current = phase;
-    if (phase === "idle" && prev !== "idle" && prev !== "picking" && tabId) {
-      void clearPicker(tabId).catch(() => {});
-    }
-  }, [phase, tabId]);
+    if (!tabId) return;
+    return useEditorStore.subscribe((state, prev) => {
+      if (state.phase === "idle" && prev.phase !== "idle" && prev.phase !== "picking") {
+        void clearPicker(tabId).catch(() => {});
+      }
+    });
+  }, [tabId]);
 
   if (!tabId) {
     return <UnsupportedPage />;
