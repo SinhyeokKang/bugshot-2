@@ -251,6 +251,8 @@ const en = {
   "oauth.error.tokenExchange": "Token exchange failed ({status}) {text}",
   "oauth.error.siteList": "Failed to fetch site list ({status})",
   "oauth.error.tokenRefresh": "Token refresh failed ({status}) {text}",
+  "oauth.error.tokenPersist": "Failed to persist tokens. Please sign in again. ({message})",
+  "oauth.error.refreshExhausted": "Authentication still failing after token refresh. Please sign in again.",
 };
 
 export default en satisfies TranslationMap;

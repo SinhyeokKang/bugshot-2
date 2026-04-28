@@ -2,14 +2,16 @@ name = "bugshot-oauth"
 main = "worker.ts"
 compatibility_date = "2026-04-01"
 
-# 배포 전:
+# 배포 전 필수 secret:
 #   wrangler secret put ATLASSIAN_CLIENT_ID
 #   wrangler secret put ATLASSIAN_CLIENT_SECRET
-#
-# (선택) 특정 확장 origin만 허용하려면:
 #   wrangler secret put ALLOWED_ORIGINS
-#   값 예시: chrome-extension://abcdefghij...,chrome-extension://xxx...
-#   설정하지 않으면 모든 origin 허용.
+#
+# ALLOWED_ORIGINS 값 예시:
+#   chrome-extension://abcdefghij...,chrome-extension://xxxxxxxxxx...
+#   - 프로덕션 확장 ID + 로컬 dev key의 ID를 콤마로 나열
+#   - 와일드카드 필요 시 단독 "*" (운영에서는 권장하지 않음)
+#   - 미설정 시 모든 origin이 403 거부됨
 #
 # 배포:
 #   wrangler deploy

@@ -249,6 +249,8 @@ const ko = {
   "oauth.error.tokenExchange": "토큰 교환 실패 ({status}) {text}",
   "oauth.error.siteList": "사이트 목록 조회 실패 ({status})",
   "oauth.error.tokenRefresh": "토큰 갱신 실패 ({status}) {text}",
+  "oauth.error.tokenPersist": "토큰 저장 실패. 다시 로그인이 필요합니다. ({message})",
+  "oauth.error.refreshExhausted": "토큰 갱신 후에도 인증 실패. 다시 로그인이 필요합니다.",
 } as const;
 
 export type TranslationKey = keyof typeof ko;
