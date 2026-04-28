@@ -17,9 +17,17 @@ export default {
   async fetch(req: Request, env: Env): Promise<Response> {
     const origin = req.headers.get("Origin") ?? "";
     const corsOrigin = resolveCorsOrigin(origin, env.ALLOWED_ORIGINS);
+    const allowed = corsOrigin !== "null";
 
     if (req.method === "OPTIONS") {
-      return new Response(null, { status: 204, headers: corsHeaders(corsOrigin) });
+      return new Response(null, {
+        status: allowed ? 204 : 403,
+        headers: corsHeaders(corsOrigin),
+      });
+    }
+
+    if (!allowed) {
+      return jsonError(403, "origin not allowed", corsOrigin);
     }
 
     const url = new URL(req.url);
@@ -75,7 +83,8 @@ export default {
 };
 
 function resolveCorsOrigin(origin: string, allowedEnv: string | undefined): string {
-  const list = (allowedEnv ?? "*").split(",").map((s) => s.trim()).filter(Boolean);
+  const list = (allowedEnv ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+  if (list.length === 0) return "null";
   if (list.includes("*")) return origin || "*";
   if (origin && list.includes(origin)) return origin;
   return "null";

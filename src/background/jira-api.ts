@@ -13,7 +13,7 @@ import type {
 } from "@/types/jira";
 import type { JiraAdfDoc } from "@/types/jira";
 import type { JiraOAuthAuth } from "@/types/jira";
-import { refreshOAuthToken, persistOAuthTokens } from "./oauth";
+import { OAuthError, refreshOAuthToken, persistOAuthTokens } from "./oauth";
 
 export class JiraError extends Error {
   constructor(
@@ -93,6 +93,9 @@ async function authedFetch(
   if (res.status === 401 && current.kind === "oauth") {
     current = await refreshOnce(current);
     res = await doFetch(current, path, init, multipart);
+    if (res.status === 401) {
+      throw new OAuthError(t("oauth.error.refreshExhausted"));
+    }
   }
   return res;
 }
@@ -105,7 +108,8 @@ async function readErrorBody(res: Response): Promise<unknown> {
     } catch {
       return text;
     }
-  } catch {
+  } catch (err) {
+    console.warn("[bugshot] readErrorBody failed", err);
     return undefined;
   }
 }
@@ -323,7 +327,8 @@ export async function searchEpics(
   query?: string,
   hierarchyLevels?: number[],
 ): Promise<JiraIssueSummary[]> {
-  const jqlEsc = (s: string) => s.replace(/'/g, "''");
+  const jqlEsc = (s: string) =>
+    s.replace(/'/g, "''").replace(/([\\+\-!(){}[\]^"~*?])/g, "\\$1");
   const conditions = [`project = '${jqlEsc(projectKey)}'`];
   if (hierarchyLevels && hierarchyLevels.length > 0) {
     conditions.push(`hierarchyLevel in (${hierarchyLevels.join(", ")})`);

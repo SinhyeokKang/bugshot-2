@@ -8,6 +8,7 @@ import { clearPicker } from "../picker-control";
 
 const SAVE_DEBOUNCE_MS = 300;
 
+// videoBlob 제외: Blob은 chrome.storage 직렬화 불가 → IndexedDB(saveVideoBlob)로 별도 저장
 function snapshotFromState(): EditorSnapshot {
   const s = useEditorStore.getState();
   return {

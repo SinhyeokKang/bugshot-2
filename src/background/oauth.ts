@@ -165,7 +165,8 @@ export async function persistOAuthTokens(auth: JiraOAuthAuth): Promise<void> {
   try {
     await writeStoredOAuthTokens(auth);
   } catch (err) {
-    console.warn("[bugshot] persistOAuthTokens failed", err);
+    const message = err instanceof Error ? err.message : String(err);
+    throw new OAuthError(t("oauth.error.tokenPersist", { message }));
   }
 }
 

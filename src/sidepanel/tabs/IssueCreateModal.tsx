@@ -173,6 +173,9 @@ export function IssueCreateModal() {
         key: result.key,
         url: result.url,
         jiraSiteId: jiraSiteId(jiraConfig.auth),
+        issueTypeName: jiraConfig?.issueTypeName,
+        priorityName: issueFields.priorityName,
+        assigneeName: issueFields.assigneeName,
       });
     }
     useSettingsStore.getState().setLastSubmitFields({

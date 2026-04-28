@@ -143,7 +143,7 @@ const en = {
   "issueList.empty": "No issues yet",
   "issueList.deleteAll": "Delete all",
   "issueList.deleteAll.title": "Delete all issues?",
-  "issueList.deleteAll.body": "Only Bugshot's list will be cleared. Issues in Jira won't be affected.",
+  "issueList.deleteAll.body": "Only BugShot's list will be cleared. Issues in Jira won't be affected.",
   "issueList.refresh": "Refresh",
   "issueList.draft": "Draft",
   "issueList.deleteDraft.title": "Delete this draft?",
@@ -251,6 +251,8 @@ const en = {
   "oauth.error.tokenExchange": "Token exchange failed ({status}) {text}",
   "oauth.error.siteList": "Failed to fetch site list ({status})",
   "oauth.error.tokenRefresh": "Token refresh failed ({status}) {text}",
+  "oauth.error.tokenPersist": "Failed to persist tokens. Please sign in again. ({message})",
+  "oauth.error.refreshExhausted": "Authentication still failing after token refresh. Please sign in again.",
 };
 
 export default en satisfies TranslationMap;

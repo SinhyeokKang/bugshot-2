@@ -22,7 +22,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useEditorStore } from "@/store/editor-store";
 import { useBoundTabId } from "../hooks/useBoundTabId";
-import { startPicker, stopPicker, startAreaCapture, cancelAreaCapture } from "../picker-control";
+import { startPicker, stopPicker, startAreaCapture, cancelAreaCapture, clearPicker } from "../picker-control";
 import * as videoRecorder from "../video-recorder";
 import { PageShell } from "../components/Section";
 import { useTabNav } from "../App";
@@ -37,6 +37,15 @@ export function IssueTab() {
   const reset = useEditorStore((s) => s.reset);
   const sessionExpired = useEditorStore((s) => s.sessionExpired);
   const tabId = useBoundTabId();
+
+  useEffect(() => {
+    if (!tabId) return;
+    return useEditorStore.subscribe((state, prev) => {
+      if (state.phase === "idle" && prev.phase !== "idle" && prev.phase !== "picking") {
+        void clearPicker(tabId).catch(() => {});
+      }
+    });
+  }, [tabId]);
 
   if (!tabId) {
     return <UnsupportedPage />;

@@ -72,8 +72,8 @@ export default defineManifest({
   commands: {
     _execute_action: {
       suggested_key: {
-        default: "Alt+Shift+B",
-        mac: "Alt+Shift+B",
+        default: "Ctrl+Shift+E",
+        mac: "Command+Shift+E",
       },
       description: "__MSG_CMD_TOGGLE_PANEL__",
     },

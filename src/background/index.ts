@@ -1,5 +1,6 @@
 import { t } from "@/i18n";
 import { initBgLocale } from "@/i18n/bg-init";
+import { PANEL_PORT_PREFIX } from "@/lib/session-keys";
 import { JiraError } from "./jira-api";
 import { handleMessage } from "./messages";
 import { OAuthError } from "./oauth";
@@ -35,15 +36,35 @@ function disableGlobalSidePanel(): void {
     .catch((err) => console.error("[bugshot] global disable failed", err));
 }
 
-chrome.runtime.onInstalled.addListener(() => {
-  disableGlobalSidePanel();
+async function getActionShortcut(): Promise<string> {
+  try {
+    const cmds = await chrome.commands.getAll();
+    return cmds.find((c) => c.name === "_execute_action")?.shortcut ?? "";
+  } catch {
+    return "";
+  }
+}
+
+async function setupContextMenu(): Promise<void> {
+  const shortcut = await getActionShortcut();
+  const base = chrome.i18n.getMessage("EXT_NAME_SHORT");
+  const title = shortcut ? `${base} — ${shortcut}` : base;
+  await chrome.contextMenus.removeAll();
   chrome.contextMenus.create({
     id: "bugshot-activate",
-    title: chrome.i18n.getMessage("EXT_NAME"),
+    title,
     contexts: ["page"],
   });
+}
+
+chrome.runtime.onInstalled.addListener(() => {
+  disableGlobalSidePanel();
+  void setupContextMenu();
 });
-chrome.runtime.onStartup.addListener(disableGlobalSidePanel);
+chrome.runtime.onStartup.addListener(() => {
+  disableGlobalSidePanel();
+  void setupContextMenu();
+});
 
 chrome.contextMenus.onClicked.addListener((info, tab) => {
   if (info.menuItemId === "bugshot-activate" && tab) activateTab(tab);
@@ -51,7 +72,6 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
 
 setupTabBindings();
 
-const PANEL_PORT_PREFIX = "bugshot-panel:";
 chrome.runtime.onConnect.addListener((port) => {
   if (!port.name.startsWith(PANEL_PORT_PREFIX)) return;
   const tabId = Number(port.name.slice(PANEL_PORT_PREFIX.length));

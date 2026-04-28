@@ -3,6 +3,7 @@ import type {
   Token,
   TokenCategory,
 } from "@/types/picker";
+import { getMatchingRules, getRawDeclarationsFor } from "./css-source-cache";
 
 export const INTERESTING_PROPS = [
   "color",
@@ -203,6 +204,92 @@ export function collectSpecifiedStylesWithSources(el: Element): {
   return { styles: filtered, sources: filteredSources };
 }
 
+export interface InspectorSpecRefs {
+  color?: string;
+  backgroundColor?: string;
+  paddingTop?: string;
+  paddingRight?: string;
+  paddingBottom?: string;
+  paddingLeft?: string;
+  borderTopLeftRadius?: string;
+  borderTopRightRadius?: string;
+  borderBottomRightRadius?: string;
+  borderBottomLeftRadius?: string;
+  fontSize?: string;
+  fontWeight?: string;
+}
+
+const INSPECTOR_INHERITED = ["color", "font-size", "font-weight"] as const;
+
+const INSPECTOR_WANTED = new Set([
+  "color",
+  "background",
+  "background-color",
+  "padding",
+  "padding-top",
+  "padding-right",
+  "padding-bottom",
+  "padding-left",
+  "padding-inline",
+  "padding-block",
+  "border-radius",
+  "border-top-left-radius",
+  "border-top-right-radius",
+  "border-bottom-right-radius",
+  "border-bottom-left-radius",
+  "font",
+  "font-size",
+  "font-weight",
+  "font-family",
+  "line-height",
+  "letter-spacing",
+]);
+
+export function collectInspectorSpecRefs(el: Element): InspectorSpecRefs {
+  const all: Record<string, string> = {};
+  const sources: Record<string, string> = {};
+  const customProps: Record<string, string> = {};
+  collectRulesForElement(el, all, sources, customProps, INSPECTOR_WANTED);
+  expandShorthands(all, sources);
+
+  const missing = INSPECTOR_INHERITED.filter((p) => !(p in all));
+  if (missing.length > 0) {
+    let cur = el.parentElement;
+    while (cur && missing.length > 0) {
+      const parentAll: Record<string, string> = {};
+      const parentSources: Record<string, string> = {};
+      collectRulesForElement(cur, parentAll, parentSources, customProps, INSPECTOR_WANTED);
+      expandShorthands(parentAll, parentSources);
+      for (let i = missing.length - 1; i >= 0; i--) {
+        const p = missing[i];
+        if (p in parentAll) {
+          all[p] = parentAll[p];
+          missing.splice(i, 1);
+        }
+      }
+      cur = cur.parentElement;
+    }
+  }
+
+  const get = (k: string): string | undefined =>
+    all[k] ? resolveVarChain(all[k], customProps) : undefined;
+
+  return {
+    color: get("color"),
+    backgroundColor: get("background-color"),
+    paddingTop: get("padding-top"),
+    paddingRight: get("padding-right"),
+    paddingBottom: get("padding-bottom"),
+    paddingLeft: get("padding-left"),
+    borderTopLeftRadius: get("border-top-left-radius"),
+    borderTopRightRadius: get("border-top-right-radius"),
+    borderBottomRightRadius: get("border-bottom-right-radius"),
+    borderBottomLeftRadius: get("border-bottom-left-radius"),
+    fontSize: get("font-size"),
+    fontWeight: get("font-weight"),
+  };
+}
+
 export function collectTokens(el?: Element): Token[] {
   const seen = new Map<string, string>();
   for (const sheet of allStyleSheets()) {
@@ -243,6 +330,167 @@ export function collectTokens(el?: Element): Token[] {
   return tokens;
 }
 
+export interface InspectorInfo {
+  tag: string;
+  classes: string[];
+  classOverflow: number;
+  width: number;
+  height: number;
+  color: string;
+  colorValue: string;
+  backgroundColor?: string;
+  backgroundColorValue?: string;
+  fontSize: string;
+  fontWeight: string;
+  fontFamily: string;
+  padding?: string;
+  borderRadius?: string;
+}
+
+export type TokenLookup = Map<string, string>;
+
+export function buildTokenLookup(el?: Element): TokenLookup {
+  const tokens = collectTokens(el);
+  const map: TokenLookup = new Map();
+  for (const t of tokens) {
+    const key = normalizeForLookup(t.value);
+    if (key && !map.has(key)) map.set(key, t.name);
+  }
+  return map;
+}
+
+export function collectInspectorInfo(
+  el: Element,
+  tokens?: TokenLookup,
+): InspectorInfo {
+  const cs = window.getComputedStyle(el);
+  const rect = el.getBoundingClientRect();
+
+  const tag = el.tagName.toLowerCase();
+  const allClasses = Array.from(el.classList);
+  const classes = allClasses.slice(0, 3);
+  const classOverflow = Math.max(0, allClasses.length - 3);
+
+  const refs = collectInspectorSpecRefs(el);
+
+  const colorValue = formatColor(cs.color) ?? cs.color;
+  const color =
+    firstVarName(refs.color) ?? matchToken(colorValue, tokens) ?? colorValue;
+
+  const bgValue = formatColor(cs.backgroundColor);
+  const backgroundColor = bgValue
+    ? (firstVarName(refs.backgroundColor) ??
+      matchToken(bgValue, tokens) ??
+      bgValue)
+    : undefined;
+  const backgroundColorValue = bgValue;
+
+  const family = parseFirstFontFamily(cs.fontFamily);
+  const fontSize =
+    firstVarName(refs.fontSize) ?? matchToken(cs.fontSize, tokens) ?? cs.fontSize;
+  const fontWeight =
+    firstVarName(refs.fontWeight) ??
+    matchToken(cs.fontWeight, tokens) ??
+    cs.fontWeight;
+
+  return {
+    tag,
+    classes,
+    classOverflow,
+    width: rect.width,
+    height: rect.height,
+    color,
+    colorValue,
+    backgroundColor,
+    backgroundColorValue,
+    fontSize,
+    fontWeight,
+    fontFamily: family,
+    padding: resolveBoxLabel(
+      [refs.paddingTop, refs.paddingRight, refs.paddingBottom, refs.paddingLeft],
+      [cs.paddingTop, cs.paddingRight, cs.paddingBottom, cs.paddingLeft],
+      tokens,
+    ),
+    borderRadius: resolveBoxLabel(
+      [
+        refs.borderTopLeftRadius,
+        refs.borderTopRightRadius,
+        refs.borderBottomRightRadius,
+        refs.borderBottomLeftRadius,
+      ],
+      [
+        cs.borderTopLeftRadius,
+        cs.borderTopRightRadius,
+        cs.borderBottomRightRadius,
+        cs.borderBottomLeftRadius,
+      ],
+      tokens,
+    ),
+  };
+}
+
+function resolveBoxLabel(
+  refs: [string?, string?, string?, string?],
+  computed: [string, string, string, string],
+  tokens?: TokenLookup,
+): string | undefined {
+  if (computed.every((v) => parseFloat(v) === 0)) return undefined;
+  const labels: [string, string, string, string] = [
+    firstVarName(refs[0]) ?? matchToken(computed[0], tokens) ?? computed[0],
+    firstVarName(refs[1]) ?? matchToken(computed[1], tokens) ?? computed[1],
+    firstVarName(refs[2]) ?? matchToken(computed[2], tokens) ?? computed[2],
+    firstVarName(refs[3]) ?? matchToken(computed[3], tokens) ?? computed[3],
+  ];
+  const [t, r, b, l] = labels;
+  if (t === r && r === b && b === l) return t;
+  if (t === b && r === l) return `${t} ${r}`;
+  return `${t} ${r} ${b} ${l}`;
+}
+
+function firstVarName(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  const m = value.match(/var\(\s*(--[^\s,)]+)/);
+  if (!m) return undefined;
+  const name = m[1];
+  if (name.startsWith("--_") || name.startsWith("--tw-")) return undefined;
+  return name;
+}
+
+function matchToken(value: string, tokens?: TokenLookup): string | undefined {
+  if (!tokens || !value) return undefined;
+  const key = normalizeForLookup(value);
+  return key ? tokens.get(key) : undefined;
+}
+
+function normalizeForLookup(value: string): string {
+  if (!value) return "";
+  const trimmed = value.trim();
+  const c = formatColor(trimmed);
+  if (c) return c.toUpperCase();
+  return trimmed.toLowerCase();
+}
+
+function formatColor(value: string): string | undefined {
+  if (!value) return undefined;
+  const v = value.trim();
+  if (v === "transparent" || v === "rgba(0, 0, 0, 0)") return undefined;
+  const m = v.match(/^rgba?\(\s*(\d+)\s*,?\s*(\d+)\s*,?\s*(\d+)\s*(?:[,/]\s*([\d.]+))?\s*\)$/);
+  if (!m) return v;
+  const r = parseInt(m[1], 10);
+  const g = parseInt(m[2], 10);
+  const b = parseInt(m[3], 10);
+  const a = m[4] !== undefined ? parseFloat(m[4]) : 1;
+  if (a < 1) return `rgba(${r}, ${g}, ${b}, ${a})`;
+  const hex = (n: number) => n.toString(16).padStart(2, "0");
+  return `#${hex(r)}${hex(g)}${hex(b)}`.toUpperCase();
+}
+
+function parseFirstFontFamily(value: string): string {
+  if (!value) return "";
+  const first = value.split(",")[0]?.trim() ?? "";
+  return first.replace(/^["']|["']$/g, "");
+}
+
 export function findEditableTextNode(el: Element): Text | null {
   const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
   let node: Node | null;
@@ -268,18 +516,44 @@ function collectRulesForElement(
   out: Record<string, string>,
   sources: Record<string, string>,
   customProps: Record<string, string>,
+  wantedProps?: Set<string>,
 ): void {
-  for (const sheet of allStyleSheets()) {
-    try {
-      const rules = sheet.cssRules;
-      if (rules) collectSpecifiedFromRules(rules, el, out, sources, customProps);
-    } catch {
-      /* cross-origin, skip */
+  const matched = getMatchingRules(el);
+  for (const rule of matched) {
+    const decl = rule.style;
+    const ruleSelector = rule.selectorText;
+    const raw = getRawDeclarationsFor(rule);
+    if (raw) {
+      extractVarPropsFromMap(raw, out, sources, customProps, ruleSelector, wantedProps);
+    } else {
+      extractVarPropsFromCssText(decl.cssText, out, sources, customProps, ruleSelector, wantedProps);
+    }
+    for (let i = 0; i < decl.length; i++) {
+      const name = decl.item(i);
+      const val = decl.getPropertyValue(name);
+      if (!val) continue;
+      if (name.startsWith("--")) {
+        if (!customProps[name]) customProps[name] = val.trim();
+        continue;
+      }
+      if (wantedProps && !wantedProps.has(name)) continue;
+      if (!(out[name]?.includes("var(") && !val.includes("var("))) {
+        out[name] = val;
+        sources[name] = ruleSelector;
+      }
+    }
+    for (const shorthand of Object.keys(SHORTHAND_MAP)) {
+      if (wantedProps && !wantedProps.has(shorthand)) continue;
+      const val = decl.getPropertyValue(shorthand);
+      if (val && !(out[shorthand]?.includes("var(") && !val.includes("var("))) {
+        out[shorthand] = val;
+        sources[shorthand] = ruleSelector;
+      }
     }
   }
   if (el instanceof HTMLElement) {
     const style = el.style;
-    extractVarPropsFromCssText(style.cssText, out, sources, customProps, "[inline]");
+    extractVarPropsFromCssText(style.cssText, out, sources, customProps, "[inline]", wantedProps);
     for (let i = 0; i < style.length; i++) {
       const name = style.item(i);
       const val = style.getPropertyValue(name);
@@ -288,80 +562,19 @@ function collectRulesForElement(
         if (!customProps[name]) customProps[name] = val.trim();
         continue;
       }
+      if (wantedProps && !wantedProps.has(name)) continue;
       if (!(out[name]?.includes("var(") && !val.includes("var("))) {
         out[name] = val;
         sources[name] = "[inline]";
       }
     }
     for (const shorthand of Object.keys(SHORTHAND_MAP)) {
+      if (wantedProps && !wantedProps.has(shorthand)) continue;
       const val = style.getPropertyValue(shorthand);
       if (val && !(out[shorthand]?.includes("var(") && !val.includes("var("))) {
         out[shorthand] = val;
         sources[shorthand] = "[inline]";
       }
-    }
-  }
-}
-
-function collectSpecifiedFromRules(
-  rules: CSSRuleList,
-  el: Element,
-  out: Record<string, string>,
-  sources: Record<string, string>,
-  customProps: Record<string, string>,
-): void {
-  for (const rule of Array.from(rules)) {
-    if (rule instanceof CSSStyleRule) {
-      let matched = false;
-      try {
-        matched = el.matches(rule.selectorText);
-      } catch {
-        matched = false;
-      }
-      if (!matched) continue;
-      const decl = rule.style;
-      const ruleSelector = rule.selectorText;
-      extractVarPropsFromCssText(decl.cssText, out, sources, customProps, ruleSelector);
-      for (let i = 0; i < decl.length; i++) {
-        const name = decl.item(i);
-        const val = decl.getPropertyValue(name);
-        if (!val) continue;
-        if (name.startsWith("--")) {
-          if (!customProps[name]) customProps[name] = val.trim();
-          continue;
-        }
-        if (!(out[name]?.includes("var(") && !val.includes("var("))) {
-          out[name] = val;
-          sources[name] = ruleSelector;
-        }
-      }
-      for (const shorthand of Object.keys(SHORTHAND_MAP)) {
-        const val = decl.getPropertyValue(shorthand);
-        if (val && !(out[shorthand]?.includes("var(") && !val.includes("var("))) {
-          out[shorthand] = val;
-          sources[shorthand] = ruleSelector;
-        }
-      }
-      continue;
-    }
-    const nested = (rule as { cssRules?: CSSRuleList }).cssRules;
-    if (!nested) continue;
-    if (rule instanceof CSSMediaRule) {
-      try {
-        if (!window.matchMedia(rule.conditionText).matches) continue;
-      } catch {
-        /* fall through */
-      }
-      collectSpecifiedFromRules(nested, el, out, sources, customProps);
-    } else if (rule instanceof CSSSupportsRule) {
-      try {
-        if (!CSS.supports(rule.conditionText)) continue;
-      } catch {
-        /* fall through */
-      }
-      collectSpecifiedFromRules(nested, el, out, sources, customProps);
-    } else {
-      collectSpecifiedFromRules(nested, el, out, sources, customProps);
     }
   }
 }
@@ -372,18 +585,31 @@ function extractVarPropsFromCssText(
   sources: Record<string, string>,
   customProps: Record<string, string>,
   origin: string,
+  wantedProps?: Set<string>,
 ): void {
-  const declared: Record<string, string> = {};
+  const declared = new Map<string, string>();
   CSS_DECL_RE.lastIndex = 0;
   let m: RegExpExecArray | null;
   while ((m = CSS_DECL_RE.exec(cssText)) !== null) {
-    declared[m[1]] = m[2].trim();
+    declared.set(m[1], m[2].trim());
   }
-  for (const [prop, val] of Object.entries(declared)) {
+  extractVarPropsFromMap(declared, out, sources, customProps, origin, wantedProps);
+}
+
+function extractVarPropsFromMap(
+  declared: Map<string, string>,
+  out: Record<string, string>,
+  sources: Record<string, string>,
+  customProps: Record<string, string>,
+  origin: string,
+  wantedProps?: Set<string>,
+): void {
+  for (const [prop, val] of declared) {
     if (prop.startsWith("--")) {
       if (!customProps[prop]) customProps[prop] = val;
       continue;
     }
+    if (wantedProps && !wantedProps.has(prop)) continue;
     if (!val.includes("var(")) continue;
     if (!out[prop] || !out[prop].includes("var(")) {
       out[prop] = val;
@@ -395,7 +621,7 @@ function extractVarPropsFromCssText(
     const split = trbl ? splitTrblValue(val) : null;
     for (let j = 0; j < longhands.length; j++) {
       const lh = longhands[j];
-      if (lh in declared) continue;
+      if (declared.has(lh)) continue;
       const lhVal = split ? split[j] : val;
       if (!out[lh] || !out[lh].includes("var(")) {
         out[lh] = lhVal;

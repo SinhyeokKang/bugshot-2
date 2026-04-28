@@ -1,3 +1,6 @@
+export const PICKER_PORT_NAME = "bugshot-picker";
+export const PANEL_PORT_PREFIX = "bugshot-panel:";
+
 export function sessionKey(tabId: number): string {
   return `editor:${tabId}`;
 }

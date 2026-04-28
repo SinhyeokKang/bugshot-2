@@ -141,7 +141,7 @@ const ko = {
   "issueList.empty": "등록한 이슈가 없습니다",
   "issueList.deleteAll": "모두 삭제",
   "issueList.deleteAll.title": "모든 이슈를 삭제할까요?",
-  "issueList.deleteAll.body": "Bugshot의 이슈 목록만 삭제되며, Jira에 등록된 이슈는 영향받지 않습니다.",
+  "issueList.deleteAll.body": "BugShot의 이슈 목록만 삭제되며, Jira에 등록된 이슈는 영향받지 않습니다.",
   "issueList.refresh": "목록 새로고침",
   "issueList.draft": "초안",
   "issueList.deleteDraft.title": "초안을 삭제할까요?",
@@ -249,6 +249,8 @@ const ko = {
   "oauth.error.tokenExchange": "토큰 교환 실패 ({status}) {text}",
   "oauth.error.siteList": "사이트 목록 조회 실패 ({status})",
   "oauth.error.tokenRefresh": "토큰 갱신 실패 ({status}) {text}",
+  "oauth.error.tokenPersist": "토큰 저장 실패. 다시 로그인이 필요합니다. ({message})",
+  "oauth.error.refreshExhausted": "토큰 갱신 후에도 인증 실패. 다시 로그인이 필요합니다.",
 } as const;
 
 export type TranslationKey = keyof typeof ko;

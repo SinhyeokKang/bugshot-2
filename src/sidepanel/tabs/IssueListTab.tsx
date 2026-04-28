@@ -202,8 +202,6 @@ function IssueRow({
   if (isSubmitted && issue.key) metaParts.push(`[${issue.key}]`);
   if (!isSubmitted) metaParts.push(t("issueList.draft"));
   if (issue.issueTypeName) metaParts.push(issue.issueTypeName);
-  if (issue.priorityName) metaParts.push(issue.priorityName);
-  if (issue.assigneeName) metaParts.push(issue.assigneeName);
 
   const handleCardClick = () => {
     if (isSubmitted) {
