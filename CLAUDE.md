@@ -178,7 +178,7 @@ Jira는 마크다운 원본을 파싱하지 않고, 붙여넣기는 **ProseMirro
 
 ### 버전 체계
 
-semver(`MAJOR.MINOR.PATCH`). `package.json`의 `version`이 manifest에 자동 반영된다. Chrome 웹스토어는 업로드마다 버전이 올라가야 하므로 **배포 전 반드시 범프**.
+semver(`MAJOR.MINOR.PATCH`). `package.json`의 `version`이 manifest에 자동 반영된다. Chrome 웹스토어는 업로드마다 버전이 올라가야 하므로 **`/deploy` 단계에서 반드시 범프**.
 
 ```bash
 pnpm version patch   # 1.0.0 → 1.0.1 (버그 수정)
@@ -188,11 +188,35 @@ pnpm version major   # 1.0.0 → 2.0.0 (Breaking change)
 
 `pnpm version`은 package.json 수정 + git tag + commit을 한 번에 처리한다.
 
-### push 전 체크리스트
+### 브랜치 정책
 
-1. **버전 범프** — 웹스토어에 올릴 변경이 포함됐으면 `pnpm version` 실행 여부 확인. 아직 안 했으면 사용자에게 물어본다.
-2. **README 신선도** — 기능 추가/삭제/변경이 있으면 `README.md`의 기능 설명·사용법이 현행과 맞는지 확인. 안 맞으면 업데이트 후 push.
-3. **CLAUDE.md 동기화** — 아키텍처·디렉터리 구조·컨벤션 변경 시 CLAUDE.md도 반영.
+- 작업 브랜치: **`dev`** — 자유롭게 push (force push 허용).
+- 메인 브랜치: **`main`** — 브랜치 프로텍션 적용. 직접 push 금지, PR squash 머지만 허용(linear history 강제). approval 0이라 1인 셀프 머지 OK. `enforce_admins: false`라 admin(본인)은 deploy의 버전 commit/tag push처럼 긴급 시 우회 가능.
+
+### 워크플로우 (스킬 라인업)
+
+```
+/pull   → dev 최신 받고 작업 맥락 브리핑
+/build  → pnpm build + 테스트 체크리스트 (작업 중 검증)
+/push   → dev push (main에서 호출 차단)
+/merge  → dev → main squash PR 생성 + 자동 머지
+/deploy → main 강제. 버전 범프 → tag push → 스토어 빌드 → zip → 심사 요청 안내
+/sync   → dev를 origin/main으로 hard reset + force push (배포/머지 후)
+```
+
+각 단계 게이트는 `.claude/commands/` 스킬 정의에 명시.
+
+### 문서 신선도
+
+`/push`는 항상 README / CLAUDE.md 신선도 검사를 거친다. 아래 중 하나라도 해당하면 문서 갱신을 별도 커밋(`docs(CLAUDE): ...` / `docs(README): ...`)으로 묶어 함께 푸시:
+
+- 새 디렉터리·파일 추가/삭제 (특히 `src/` 하위 구조 변화)
+- `package.json` scripts 변경
+- `manifest.config.ts` 변경 (권한·명령어·스킴)
+- 새 하위 시스템·아키텍처 핵심 파일 큰 변경
+- 새 컨벤션·게이트웨이 도입
+- 기능 추가/삭제로 README의 사용법·기능 설명이 어긋남
+- 워크플로우/스킬 라인업 변경
 
 ## 코드 컨벤션
 
