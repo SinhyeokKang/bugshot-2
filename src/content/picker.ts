@@ -53,6 +53,32 @@ let rafHandle: number | null = null;
 let overlay: OverlayHandle | null = null;
 let areaHandle: AreaSelectHandle | null = null;
 let tokenLookup: TokenLookup | null = null;
+let tokenBuildHandle: number | null = null;
+
+function scheduleTokenBuild(): void {
+  cancelTokenBuild();
+  const run = (): void => {
+    tokenBuildHandle = null;
+    if (mode === "idle") return;
+    tokenLookup = buildTokenLookup();
+    if (mode === "hover" && lastHover) render();
+  };
+  if (typeof requestIdleCallback === "function") {
+    tokenBuildHandle = requestIdleCallback(run, { timeout: 1000 });
+  } else {
+    tokenBuildHandle = window.setTimeout(run, 0);
+  }
+}
+
+function cancelTokenBuild(): void {
+  if (tokenBuildHandle == null) return;
+  if (typeof cancelIdleCallback === "function") {
+    cancelIdleCallback(tokenBuildHandle);
+  } else {
+    clearTimeout(tokenBuildHandle);
+  }
+  tokenBuildHandle = null;
+}
 
 chrome.runtime.onConnect.addListener((port) => {
   if (port.name !== "bugshot-picker") return;
@@ -153,7 +179,8 @@ function handleStart(): void {
   if (!overlay) overlay = createOverlay();
   selectedEl = null;
   lastHover = null;
-  tokenLookup = buildTokenLookup();
+  tokenLookup = null;
+  scheduleTokenBuild();
   addHoverListeners();
   setMode("hover");
 }
@@ -182,6 +209,7 @@ function handleClear(): void {
     destroyOverlay(overlay);
     overlay = null;
   }
+  cancelTokenBuild();
   tokenLookup = null;
 }
 

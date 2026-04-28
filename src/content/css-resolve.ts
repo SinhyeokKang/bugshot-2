@@ -203,6 +203,68 @@ export function collectSpecifiedStylesWithSources(el: Element): {
   return { styles: filtered, sources: filteredSources };
 }
 
+export interface InspectorSpecRefs {
+  color?: string;
+  backgroundColor?: string;
+  paddingTop?: string;
+  paddingRight?: string;
+  paddingBottom?: string;
+  paddingLeft?: string;
+  borderTopLeftRadius?: string;
+  borderTopRightRadius?: string;
+  borderBottomRightRadius?: string;
+  borderBottomLeftRadius?: string;
+  fontSize?: string;
+  fontWeight?: string;
+}
+
+const INSPECTOR_INHERITED = ["color", "font-size", "font-weight"] as const;
+
+export function collectInspectorSpecRefs(el: Element): InspectorSpecRefs {
+  const all: Record<string, string> = {};
+  const sources: Record<string, string> = {};
+  const customProps: Record<string, string> = {};
+  collectRulesForElement(el, all, sources, customProps);
+  expandShorthands(all, sources);
+
+  const missing = INSPECTOR_INHERITED.filter((p) => !(p in all));
+  if (missing.length > 0) {
+    let cur = el.parentElement;
+    while (cur && missing.length > 0) {
+      const parentAll: Record<string, string> = {};
+      const parentSources: Record<string, string> = {};
+      collectRulesForElement(cur, parentAll, parentSources, customProps);
+      expandShorthands(parentAll, parentSources);
+      for (let i = missing.length - 1; i >= 0; i--) {
+        const p = missing[i];
+        if (p in parentAll) {
+          all[p] = parentAll[p];
+          missing.splice(i, 1);
+        }
+      }
+      cur = cur.parentElement;
+    }
+  }
+
+  const get = (k: string): string | undefined =>
+    all[k] ? resolveVarChain(all[k], customProps) : undefined;
+
+  return {
+    color: get("color"),
+    backgroundColor: get("background-color"),
+    paddingTop: get("padding-top"),
+    paddingRight: get("padding-right"),
+    paddingBottom: get("padding-bottom"),
+    paddingLeft: get("padding-left"),
+    borderTopLeftRadius: get("border-top-left-radius"),
+    borderTopRightRadius: get("border-top-right-radius"),
+    borderBottomRightRadius: get("border-bottom-right-radius"),
+    borderBottomLeftRadius: get("border-bottom-left-radius"),
+    fontSize: get("font-size"),
+    fontWeight: get("font-weight"),
+  };
+}
+
 export function collectTokens(el?: Element): Token[] {
   const seen = new Map<string, string>();
   for (const sheet of allStyleSheets()) {
@@ -250,7 +312,9 @@ export interface InspectorInfo {
   width: number;
   height: number;
   color: string;
+  colorValue: string;
   backgroundColor?: string;
+  backgroundColorValue?: string;
   fontSize: string;
   fontWeight: string;
   fontFamily: string;
@@ -282,17 +346,27 @@ export function collectInspectorInfo(
   const classes = allClasses.slice(0, 3);
   const classOverflow = Math.max(0, allClasses.length - 3);
 
-  const colorRaw = formatColor(cs.color) ?? cs.color;
-  const color = matchToken(colorRaw, tokens) ?? colorRaw;
+  const refs = collectInspectorSpecRefs(el);
 
-  const bgRaw = formatColor(cs.backgroundColor);
-  const backgroundColor = bgRaw
-    ? (matchToken(bgRaw, tokens) ?? bgRaw)
+  const colorValue = formatColor(cs.color) ?? cs.color;
+  const color =
+    firstVarName(refs.color) ?? matchToken(colorValue, tokens) ?? colorValue;
+
+  const bgValue = formatColor(cs.backgroundColor);
+  const backgroundColor = bgValue
+    ? (firstVarName(refs.backgroundColor) ??
+      matchToken(bgValue, tokens) ??
+      bgValue)
     : undefined;
+  const backgroundColorValue = bgValue;
 
   const family = parseFirstFontFamily(cs.fontFamily);
-  const fontSize = matchToken(cs.fontSize, tokens) ?? cs.fontSize;
-  const fontWeight = matchToken(cs.fontWeight, tokens) ?? cs.fontWeight;
+  const fontSize =
+    firstVarName(refs.fontSize) ?? matchToken(cs.fontSize, tokens) ?? cs.fontSize;
+  const fontWeight =
+    firstVarName(refs.fontWeight) ??
+    matchToken(cs.fontWeight, tokens) ??
+    cs.fontWeight;
 
   return {
     tag,
@@ -301,39 +375,66 @@ export function collectInspectorInfo(
     width: rect.width,
     height: rect.height,
     color,
+    colorValue,
     backgroundColor,
+    backgroundColorValue,
     fontSize,
     fontWeight,
     fontFamily: family,
-    padding: matchTokenScalar(
-      shortenBox([cs.paddingTop, cs.paddingRight, cs.paddingBottom, cs.paddingLeft]),
+    padding: resolveBoxLabel(
+      [refs.paddingTop, refs.paddingRight, refs.paddingBottom, refs.paddingLeft],
+      [cs.paddingTop, cs.paddingRight, cs.paddingBottom, cs.paddingLeft],
       tokens,
     ),
-    borderRadius: matchTokenScalar(
-      shortenBox([
+    borderRadius: resolveBoxLabel(
+      [
+        refs.borderTopLeftRadius,
+        refs.borderTopRightRadius,
+        refs.borderBottomRightRadius,
+        refs.borderBottomLeftRadius,
+      ],
+      [
         cs.borderTopLeftRadius,
         cs.borderTopRightRadius,
         cs.borderBottomRightRadius,
         cs.borderBottomLeftRadius,
-      ]),
+      ],
       tokens,
     ),
   };
+}
+
+function resolveBoxLabel(
+  refs: [string?, string?, string?, string?],
+  computed: [string, string, string, string],
+  tokens?: TokenLookup,
+): string | undefined {
+  if (computed.every((v) => parseFloat(v) === 0)) return undefined;
+  const labels: [string, string, string, string] = [
+    firstVarName(refs[0]) ?? matchToken(computed[0], tokens) ?? computed[0],
+    firstVarName(refs[1]) ?? matchToken(computed[1], tokens) ?? computed[1],
+    firstVarName(refs[2]) ?? matchToken(computed[2], tokens) ?? computed[2],
+    firstVarName(refs[3]) ?? matchToken(computed[3], tokens) ?? computed[3],
+  ];
+  const [t, r, b, l] = labels;
+  if (t === r && r === b && b === l) return t;
+  if (t === b && r === l) return `${t} ${r}`;
+  return `${t} ${r} ${b} ${l}`;
+}
+
+function firstVarName(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  const m = value.match(/var\(\s*(--[^\s,)]+)/);
+  if (!m) return undefined;
+  const name = m[1];
+  if (name.startsWith("--_") || name.startsWith("--tw-")) return undefined;
+  return name;
 }
 
 function matchToken(value: string, tokens?: TokenLookup): string | undefined {
   if (!tokens || !value) return undefined;
   const key = normalizeForLookup(value);
   return key ? tokens.get(key) : undefined;
-}
-
-function matchTokenScalar(
-  value: string | undefined,
-  tokens?: TokenLookup,
-): string | undefined {
-  if (!value) return value;
-  if (value.includes(" ")) return value;
-  return matchToken(value, tokens) ?? value;
 }
 
 function normalizeForLookup(value: string): string {
@@ -363,15 +464,6 @@ function parseFirstFontFamily(value: string): string {
   if (!value) return "";
   const first = value.split(",")[0]?.trim() ?? "";
   return first.replace(/^["']|["']$/g, "");
-}
-
-function shortenBox(values: [string, string, string, string]): string | undefined {
-  const [t, r, b, l] = values;
-  const allZero = values.every((v) => parseFloat(v) === 0);
-  if (allZero) return undefined;
-  if (t === r && r === b && b === l) return t;
-  if (t === b && r === l) return `${t} ${r}`;
-  return `${t} ${r} ${b} ${l}`;
 }
 
 export function findEditableTextNode(el: Element): Text | null {

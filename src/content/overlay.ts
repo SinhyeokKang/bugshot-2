@@ -73,18 +73,33 @@ const OVERLAY_CSS = `
     border-radius: 12px;
     box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
     font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-    width: 256px;
+    min-width: 260px;
+    max-width: 300px;
     box-sizing: border-box;
     outline: none;
   }
   .picker-label[data-mode="inspector"] .pl-selector {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding-bottom: 8px;
+    margin-bottom: 8px;
+    border-bottom: 1px solid var(--border);
+  }
+  .picker-label[data-mode="inspector"] .pl-selector-text {
+    flex: 1 1 auto;
+    min-width: 0;
     font-size: 14px;
     font-weight: 600;
     word-break: break-all;
-    margin-bottom: 8px;
   }
-  .picker-label[data-mode="inspector"] .pl-tag {
-    color: #0284c7;
+  .picker-label[data-mode="inspector"] .pl-selector-size {
+    flex: 0 0 auto;
+    color: var(--muted-foreground);
+    font-size: 12px;
+    font-weight: 500;
+    white-space: nowrap;
+    padding-top: 3px;
   }
   .picker-label[data-mode="inspector"] .pl-extra {
     color: var(--muted-foreground);
@@ -368,16 +383,11 @@ export function renderOutline(h: OverlayHandle, target: Element): void {
 
 export function renderBadge(h: OverlayHandle, target: Element): void {
   const o = h as OverlayInternal;
-  const rect = target.getBoundingClientRect();
-
   const tag = target.tagName.toLowerCase();
   const cls = Array.from(target.classList).slice(0, 3).map((c) => `.${c}`).join("");
   const extra = target.classList.length > 3 ? `+${target.classList.length - 3}` : "";
-  const name = `${tag}${cls}${extra}`;
-  const lw = Math.round(rect.width);
-  const lh = Math.round(rect.height);
 
-  o.labelEl.textContent = `${name} · ${lw}×${lh}`;
+  o.labelEl.textContent = `${tag}${cls}${extra}`;
   o.labelEl.dataset.mode = "badge";
   placeLabel(o, target);
 }
@@ -468,10 +478,10 @@ function textVal(text: string): string {
   return `<span class="pl-text">${escapeHtml(text)}</span>`;
 }
 
-function colorRow(key: string, value: string): string {
+function colorRow(key: string, label: string, swatch: string): string {
   return row(
     key,
-    `<span class="pl-swatch" style="background:${escapeHtml(value)}"></span>${textVal(value)}`,
+    `<span class="pl-swatch" style="background:${escapeHtml(swatch)}"></span>${textVal(label)}`,
   );
 }
 
@@ -482,14 +492,15 @@ function buildInspectorHtml(info: InspectorInfo): string {
   const fontParts = [info.fontSize, info.fontWeight, info.fontFamily].filter(Boolean);
 
   const rows: string[] = [];
-  rows.push(row("Size", textVal(dims)));
-  rows.push(colorRow("Color", info.color));
-  if (info.backgroundColor) rows.push(colorRow("BG", info.backgroundColor));
-  rows.push(row("Font", textVal(fontParts.join(" / "))));
-  if (info.padding) rows.push(row("Padding", textVal(info.padding)));
-  if (info.borderRadius) rows.push(row("Radius", textVal(info.borderRadius)));
+  rows.push(colorRow("color", info.color, info.colorValue));
+  if (info.backgroundColor && info.backgroundColorValue) {
+    rows.push(colorRow("bg-color", info.backgroundColor, info.backgroundColorValue));
+  }
+  rows.push(row("font", textVal(fontParts.join(" / "))));
+  if (info.padding) rows.push(row("padding", textVal(info.padding)));
+  if (info.borderRadius) rows.push(row("radius", textVal(info.borderRadius)));
 
-  return `<div class="pl-selector">${selectorHtml(info)}</div>${rows.join("")}`;
+  return `<div class="pl-selector"><div class="pl-selector-text">${selectorHtml(info)}</div><div class="pl-selector-size">${escapeHtml(dims)}</div></div>${rows.join("")}`;
 }
 
 function selectorHtml(info: InspectorInfo): string {

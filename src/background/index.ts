@@ -46,8 +46,8 @@ async function getActionShortcut(): Promise<string> {
 
 async function setupContextMenu(): Promise<void> {
   const shortcut = await getActionShortcut();
-  const base = chrome.i18n.getMessage("EXT_NAME");
-  const title = shortcut ? `${base} · ${shortcut}` : base;
+  const base = chrome.i18n.getMessage("EXT_NAME_SHORT");
+  const title = shortcut ? `${base} — ${shortcut}` : base;
   await chrome.contextMenus.removeAll();
   chrome.contextMenus.create({
     id: "bugshot-activate",
