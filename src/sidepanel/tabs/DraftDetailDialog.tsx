@@ -176,6 +176,9 @@ export function DraftDetailDialog({
       key: result.key,
       url: result.url,
       jiraSiteId: jiraConfig?.auth ? jiraSiteId(jiraConfig.auth) : undefined,
+      issueTypeName: jiraConfig?.issueTypeName,
+      priorityName: fields.priorityName,
+      assigneeName: fields.assigneeName,
     });
     if (useEditorStore.getState().currentIssueId === issue.id) {
       useEditorStore.getState().reset();

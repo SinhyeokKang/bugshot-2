@@ -65,6 +65,19 @@ export async function deleteVideoBlob(issueId: string): Promise<void> {
   }
 }
 
+export async function getVideoBlobKeys(): Promise<string[]> {
+  try {
+    const db = await openDb();
+    const tx = db.transaction(STORE_NAME, "readonly");
+    const req = tx.objectStore(STORE_NAME).getAllKeys();
+    await txComplete(tx);
+    return (req.result as string[]) ?? [];
+  } catch (e) {
+    console.warn("[video-db] getVideoBlobKeys failed:", e);
+    return [];
+  }
+}
+
 export async function clearVideoBlobs(): Promise<void> {
   try {
     const db = await openDb();

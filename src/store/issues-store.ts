@@ -2,7 +2,40 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { chromeLocalStorage } from "./chrome-storage";
 import { useEditorStore, type CaptureMode } from "./editor-store";
-import { deleteVideoBlob, clearVideoBlobs } from "./video-db";
+import { deleteVideoBlob, clearVideoBlobs, getVideoBlobKeys } from "./video-db";
+
+function stripSubmitted(
+  issue: IssueRecord,
+  patch: Partial<IssueRecord>,
+): IssueRecord {
+  return {
+    ...issue,
+    ...patch,
+    status: "submitted",
+    updatedAt: Date.now(),
+    snapshot: { before: null, after: null },
+    draft: { title: "", body: "", expectedResult: "" },
+    styleEdits: undefined,
+    selectionSnapshot: undefined,
+    tokensSnapshot: undefined,
+    selector: undefined,
+    tagName: undefined,
+    viewport: undefined,
+    pageTitle: undefined,
+  };
+}
+
+async function pruneOrphanBlobs(): Promise<void> {
+  const currentIds = new Set(
+    useIssuesStore.getState().issues.map((i) => i.id),
+  );
+  const blobKeys = await getVideoBlobKeys();
+  for (const key of blobKeys) {
+    if (!currentIds.has(key)) {
+      deleteVideoBlob(key).catch(() => {});
+    }
+  }
+}
 
 function resetEditorIfEditing(removedId: string | null): void {
   const state = useEditorStore.getState();
@@ -98,14 +131,14 @@ export const useIssuesStore = create<IssuesState>()(
           };
           return { issues: [next, ...rest] };
         }),
-      markSubmitted: (id, patch) =>
+      markSubmitted: (id, patch) => {
         set((s) => ({
           issues: s.issues.map((x) =>
-            x.id === id
-              ? { ...x, ...patch, status: "submitted", updatedAt: Date.now() }
-              : x,
+            x.id === id ? stripSubmitted(x, patch) : x,
           ),
-        })),
+        }));
+        deleteVideoBlob(id).catch(() => {});
+      },
       removeIssue: (id) => {
         set((s) => ({ issues: s.issues.filter((x) => x.id !== id) }));
         deleteVideoBlob(id).catch(() => {});
@@ -119,7 +152,20 @@ export const useIssuesStore = create<IssuesState>()(
     }),
     {
       name: "bugshot-issues",
+      version: 1,
       storage: createJSONStorage(() => chromeLocalStorage),
+      migrate: (persisted, version) => {
+        if (version === 0) {
+          const state = persisted as { issues: IssueRecord[] };
+          state.issues = state.issues.map((i) =>
+            i.status === "submitted" ? stripSubmitted(i, {}) : i,
+          );
+        }
+        return persisted as IssuesState;
+      },
+      onRehydrateStorage: () => () => {
+        void pruneOrphanBlobs();
+      },
     },
   ),
 );
