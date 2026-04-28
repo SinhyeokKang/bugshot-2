@@ -207,7 +207,7 @@ pnpm version major   # 1.0.0 → 2.0.0 (Breaking change)
 
 - 매니페스트 `minimum_chrome_version: "116"` — sidePanel API 요구사항
 - 지원 URL 스킴: `http:`, `https:`, `file:`만. 그 외에서는 side panel을 enable하지 않는다.
-- 단축키: `Alt+Shift+B` (`_execute_action`)
+- 단축키: `Cmd+Shift+E` (mac) / `Ctrl+Shift+E` (default) — `_execute_action`
 - permissions: `sidePanel`, `activeTab`, `scripting`, `storage`, `commands`, `contextMenus`, `identity`, `tabCapture`
 - host_permissions: `*.atlassian.net` (Jira REST), `api.atlassian.com` (OAuth gateway), `auth.atlassian.com` (authorize), + `VITE_OAUTH_PROXY_URL` origin (빌드 타임 주입)
 - OAuth 관련 env: `VITE_ATLASSIAN_CLIENT_ID`, `VITE_OAUTH_PROXY_URL` — 누락 시 OAuth UI 자동 비활성화

@@ -35,15 +35,35 @@ function disableGlobalSidePanel(): void {
     .catch((err) => console.error("[bugshot] global disable failed", err));
 }
 
-chrome.runtime.onInstalled.addListener(() => {
-  disableGlobalSidePanel();
+async function getActionShortcut(): Promise<string> {
+  try {
+    const cmds = await chrome.commands.getAll();
+    return cmds.find((c) => c.name === "_execute_action")?.shortcut ?? "";
+  } catch {
+    return "";
+  }
+}
+
+async function setupContextMenu(): Promise<void> {
+  const shortcut = await getActionShortcut();
+  const base = chrome.i18n.getMessage("EXT_NAME");
+  const title = shortcut ? `${base} · ${shortcut}` : base;
+  await chrome.contextMenus.removeAll();
   chrome.contextMenus.create({
     id: "bugshot-activate",
-    title: chrome.i18n.getMessage("EXT_NAME"),
+    title,
     contexts: ["page"],
   });
+}
+
+chrome.runtime.onInstalled.addListener(() => {
+  disableGlobalSidePanel();
+  void setupContextMenu();
 });
-chrome.runtime.onStartup.addListener(disableGlobalSidePanel);
+chrome.runtime.onStartup.addListener(() => {
+  disableGlobalSidePanel();
+  void setupContextMenu();
+});
 
 chrome.contextMenus.onClicked.addListener((info, tab) => {
   if (info.menuItemId === "bugshot-activate" && tab) activateTab(tab);
