@@ -32,6 +32,7 @@ async function cropImage(
   margin: number,
 ): Promise<string> {
   const img = await loadImage(dataUrl);
+  if (viewport.width <= 0 || viewport.height <= 0) return dataUrl;
   const scaleX = img.naturalWidth / viewport.width;
   const scaleY = img.naturalHeight / viewport.height;
 

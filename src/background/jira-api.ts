@@ -108,7 +108,8 @@ async function readErrorBody(res: Response): Promise<unknown> {
     } catch {
       return text;
     }
-  } catch {
+  } catch (err) {
+    console.warn("[bugshot] readErrorBody failed", err);
     return undefined;
   }
 }
@@ -326,7 +327,8 @@ export async function searchEpics(
   query?: string,
   hierarchyLevels?: number[],
 ): Promise<JiraIssueSummary[]> {
-  const jqlEsc = (s: string) => s.replace(/'/g, "''");
+  const jqlEsc = (s: string) =>
+    s.replace(/'/g, "''").replace(/([\\+\-!(){}[\]^"~*?])/g, "\\$1");
   const conditions = [`project = '${jqlEsc(projectKey)}'`];
   if (hierarchyLevels && hierarchyLevels.length > 0) {
     conditions.push(`hierarchyLevel in (${hierarchyLevels.join(", ")})`);

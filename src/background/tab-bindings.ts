@@ -100,7 +100,9 @@ async function clearEditorSessionIfVolatile(tabId: number): Promise<void> {
       | undefined;
     if (shouldPreserveSession(snap)) return;
     await chrome.storage.session.remove(key);
-  } catch {}
+  } catch (err) {
+    console.error("[bugshot] clearEditorSessionIfVolatile", err);
+  }
 }
 
 export function activateTab(tab: chrome.tabs.Tab): void {

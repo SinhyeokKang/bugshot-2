@@ -39,6 +39,7 @@ import {
   attachAreaBlockerListener,
   type AreaSelectHandle,
 } from "./area-select";
+import { PICKER_PORT_NAME } from "@/lib/session-keys";
 import {
   ensureLoaded as ensureCssCacheLoaded,
   invalidate as invalidateCssCache,
@@ -97,7 +98,7 @@ function cancelTokenBuild(): void {
 }
 
 chrome.runtime.onConnect.addListener((port) => {
-  if (port.name !== "bugshot-picker") return;
+  if (port.name !== PICKER_PORT_NAME) return;
   port.onDisconnect.addListener(() => {
     handleClear();
   });

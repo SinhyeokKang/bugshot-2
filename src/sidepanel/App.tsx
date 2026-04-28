@@ -11,6 +11,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { PICKER_PORT_NAME, PANEL_PORT_PREFIX } from "@/lib/session-keys";
 import { useEditorStore } from "@/store/editor-store";
 import { jiraCredentialsFilled, useSettingsStore } from "@/store/settings-store";
 import { onOAuthExpired } from "@/types/messages";
@@ -69,7 +70,7 @@ export default function App() {
 
   useEffect(() => {
     if (tabId == null) return;
-    const pickerPort = chrome.tabs.connect(tabId, { name: "bugshot-picker" });
+    const pickerPort = chrome.tabs.connect(tabId, { name: PICKER_PORT_NAME });
     pickerPort.onDisconnect.addListener(() => {
       void chrome.runtime.lastError;
       const { phase, captureMode } = useEditorStore.getState();
@@ -77,7 +78,7 @@ export default function App() {
         useEditorStore.getState().reset();
       }
     });
-    const bgPort = chrome.runtime.connect({ name: `bugshot-panel:${tabId}` });
+    const bgPort = chrome.runtime.connect({ name: `${PANEL_PORT_PREFIX}${tabId}` });
     bgPort.onDisconnect.addListener(() => {
       void chrome.runtime.lastError;
     });

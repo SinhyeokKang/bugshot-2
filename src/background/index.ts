@@ -1,5 +1,6 @@
 import { t } from "@/i18n";
 import { initBgLocale } from "@/i18n/bg-init";
+import { PANEL_PORT_PREFIX } from "@/lib/session-keys";
 import { JiraError } from "./jira-api";
 import { handleMessage } from "./messages";
 import { OAuthError } from "./oauth";
@@ -71,7 +72,6 @@ chrome.contextMenus.onClicked.addListener((info, tab) => {
 
 setupTabBindings();
 
-const PANEL_PORT_PREFIX = "bugshot-panel:";
 chrome.runtime.onConnect.addListener((port) => {
   if (!port.name.startsWith(PANEL_PORT_PREFIX)) return;
   const tabId = Number(port.name.slice(PANEL_PORT_PREFIX.length));
