@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ArrowUpRight,
   Bug,
@@ -22,7 +22,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useEditorStore } from "@/store/editor-store";
 import { useBoundTabId } from "../hooks/useBoundTabId";
-import { startPicker, stopPicker, startAreaCapture, cancelAreaCapture } from "../picker-control";
+import { startPicker, stopPicker, startAreaCapture, cancelAreaCapture, clearPicker } from "../picker-control";
 import * as videoRecorder from "../video-recorder";
 import { PageShell } from "../components/Section";
 import { useTabNav } from "../App";
@@ -37,6 +37,15 @@ export function IssueTab() {
   const reset = useEditorStore((s) => s.reset);
   const sessionExpired = useEditorStore((s) => s.sessionExpired);
   const tabId = useBoundTabId();
+  const prevPhaseRef = useRef(phase);
+
+  useEffect(() => {
+    const prev = prevPhaseRef.current;
+    prevPhaseRef.current = phase;
+    if (phase === "idle" && prev !== "idle" && prev !== "picking" && tabId) {
+      void clearPicker(tabId).catch(() => {});
+    }
+  }, [phase, tabId]);
 
   if (!tabId) {
     return <UnsupportedPage />;

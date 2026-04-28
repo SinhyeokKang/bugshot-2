@@ -143,7 +143,7 @@ const en = {
   "issueList.empty": "No issues yet",
   "issueList.deleteAll": "Delete all",
   "issueList.deleteAll.title": "Delete all issues?",
-  "issueList.deleteAll.body": "Only Bugshot's list will be cleared. Issues in Jira won't be affected.",
+  "issueList.deleteAll.body": "Only BugShot's list will be cleared. Issues in Jira won't be affected.",
   "issueList.refresh": "Refresh",
   "issueList.draft": "Draft",
   "issueList.deleteDraft.title": "Delete this draft?",

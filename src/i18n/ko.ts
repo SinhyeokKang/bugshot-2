@@ -141,7 +141,7 @@ const ko = {
   "issueList.empty": "등록한 이슈가 없습니다",
   "issueList.deleteAll": "모두 삭제",
   "issueList.deleteAll.title": "모든 이슈를 삭제할까요?",
-  "issueList.deleteAll.body": "Bugshot의 이슈 목록만 삭제되며, Jira에 등록된 이슈는 영향받지 않습니다.",
+  "issueList.deleteAll.body": "BugShot의 이슈 목록만 삭제되며, Jira에 등록된 이슈는 영향받지 않습니다.",
   "issueList.refresh": "목록 새로고침",
   "issueList.draft": "초안",
   "issueList.deleteDraft.title": "초안을 삭제할까요?",
