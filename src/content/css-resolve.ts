@@ -243,6 +243,137 @@ export function collectTokens(el?: Element): Token[] {
   return tokens;
 }
 
+export interface InspectorInfo {
+  tag: string;
+  classes: string[];
+  classOverflow: number;
+  width: number;
+  height: number;
+  color: string;
+  backgroundColor?: string;
+  fontSize: string;
+  fontWeight: string;
+  fontFamily: string;
+  padding?: string;
+  borderRadius?: string;
+}
+
+export type TokenLookup = Map<string, string>;
+
+export function buildTokenLookup(el?: Element): TokenLookup {
+  const tokens = collectTokens(el);
+  const map: TokenLookup = new Map();
+  for (const t of tokens) {
+    const key = normalizeForLookup(t.value);
+    if (key && !map.has(key)) map.set(key, t.name);
+  }
+  return map;
+}
+
+export function collectInspectorInfo(
+  el: Element,
+  tokens?: TokenLookup,
+): InspectorInfo {
+  const cs = window.getComputedStyle(el);
+  const rect = el.getBoundingClientRect();
+
+  const tag = el.tagName.toLowerCase();
+  const allClasses = Array.from(el.classList);
+  const classes = allClasses.slice(0, 3);
+  const classOverflow = Math.max(0, allClasses.length - 3);
+
+  const colorRaw = formatColor(cs.color) ?? cs.color;
+  const color = matchToken(colorRaw, tokens) ?? colorRaw;
+
+  const bgRaw = formatColor(cs.backgroundColor);
+  const backgroundColor = bgRaw
+    ? (matchToken(bgRaw, tokens) ?? bgRaw)
+    : undefined;
+
+  const family = parseFirstFontFamily(cs.fontFamily);
+  const fontSize = matchToken(cs.fontSize, tokens) ?? cs.fontSize;
+  const fontWeight = matchToken(cs.fontWeight, tokens) ?? cs.fontWeight;
+
+  return {
+    tag,
+    classes,
+    classOverflow,
+    width: rect.width,
+    height: rect.height,
+    color,
+    backgroundColor,
+    fontSize,
+    fontWeight,
+    fontFamily: family,
+    padding: matchTokenScalar(
+      shortenBox([cs.paddingTop, cs.paddingRight, cs.paddingBottom, cs.paddingLeft]),
+      tokens,
+    ),
+    borderRadius: matchTokenScalar(
+      shortenBox([
+        cs.borderTopLeftRadius,
+        cs.borderTopRightRadius,
+        cs.borderBottomRightRadius,
+        cs.borderBottomLeftRadius,
+      ]),
+      tokens,
+    ),
+  };
+}
+
+function matchToken(value: string, tokens?: TokenLookup): string | undefined {
+  if (!tokens || !value) return undefined;
+  const key = normalizeForLookup(value);
+  return key ? tokens.get(key) : undefined;
+}
+
+function matchTokenScalar(
+  value: string | undefined,
+  tokens?: TokenLookup,
+): string | undefined {
+  if (!value) return value;
+  if (value.includes(" ")) return value;
+  return matchToken(value, tokens) ?? value;
+}
+
+function normalizeForLookup(value: string): string {
+  if (!value) return "";
+  const trimmed = value.trim();
+  const c = formatColor(trimmed);
+  if (c) return c.toUpperCase();
+  return trimmed.toLowerCase();
+}
+
+function formatColor(value: string): string | undefined {
+  if (!value) return undefined;
+  const v = value.trim();
+  if (v === "transparent" || v === "rgba(0, 0, 0, 0)") return undefined;
+  const m = v.match(/^rgba?\(\s*(\d+)\s*,?\s*(\d+)\s*,?\s*(\d+)\s*(?:[,/]\s*([\d.]+))?\s*\)$/);
+  if (!m) return v;
+  const r = parseInt(m[1], 10);
+  const g = parseInt(m[2], 10);
+  const b = parseInt(m[3], 10);
+  const a = m[4] !== undefined ? parseFloat(m[4]) : 1;
+  if (a < 1) return `rgba(${r}, ${g}, ${b}, ${a})`;
+  const hex = (n: number) => n.toString(16).padStart(2, "0");
+  return `#${hex(r)}${hex(g)}${hex(b)}`.toUpperCase();
+}
+
+function parseFirstFontFamily(value: string): string {
+  if (!value) return "";
+  const first = value.split(",")[0]?.trim() ?? "";
+  return first.replace(/^["']|["']$/g, "");
+}
+
+function shortenBox(values: [string, string, string, string]): string | undefined {
+  const [t, r, b, l] = values;
+  const allZero = values.every((v) => parseFloat(v) === 0);
+  if (allZero) return undefined;
+  if (t === r && r === b && b === l) return t;
+  if (t === b && r === l) return `${t} ${r}`;
+  return `${t} ${r} ${b} ${l}`;
+}
+
 export function findEditableTextNode(el: Element): Text | null {
   const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
   let node: Node | null;

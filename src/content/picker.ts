@@ -3,9 +3,12 @@ import type {
   PrepareCaptureResponse,
 } from "@/types/picker";
 import {
+  buildTokenLookup,
+  collectInspectorInfo,
   collectSelection,
   collectTokens,
   findEditableTextNode,
+  type TokenLookup,
 } from "./css-resolve";
 import {
   buildSelector,
@@ -18,6 +21,9 @@ import {
   createOverlay,
   destroyOverlay,
   renderOutline,
+  renderInspector,
+  renderBadge,
+  hideLabel,
   hideOutline,
   updateBanner,
   hideBanner,
@@ -46,6 +52,7 @@ let rafHandle: number | null = null;
 
 let overlay: OverlayHandle | null = null;
 let areaHandle: AreaSelectHandle | null = null;
+let tokenLookup: TokenLookup | null = null;
 
 chrome.runtime.onConnect.addListener((port) => {
   if (port.name !== "bugshot-picker") return;
@@ -146,6 +153,7 @@ function handleStart(): void {
   if (!overlay) overlay = createOverlay();
   selectedEl = null;
   lastHover = null;
+  tokenLookup = buildTokenLookup();
   addHoverListeners();
   setMode("hover");
 }
@@ -174,6 +182,7 @@ function handleClear(): void {
     destroyOverlay(overlay);
     overlay = null;
   }
+  tokenLookup = null;
 }
 
 function handleNavigate(direction: "parent" | "child"): void {
@@ -272,6 +281,13 @@ function render(): void {
     return;
   }
   renderOutline(overlay, target);
+  if (mode === "hover") {
+    renderInspector(overlay, target, collectInspectorInfo(target, tokenLookup ?? undefined));
+  } else if (mode === "selected") {
+    renderBadge(overlay, target);
+  } else {
+    hideLabel(overlay);
+  }
 }
 
 function addHoverListeners(): void {
