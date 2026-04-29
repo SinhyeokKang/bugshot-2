@@ -1,3 +1,5 @@
+import { formatElementName } from "@/lib/element-label";
+
 import type { InspectorInfo } from "./css-resolve";
 
 export interface OverlayHandle {
@@ -394,11 +396,10 @@ export function renderOutline(
 
 export function renderBadge(h: OverlayHandle, target: Element): void {
   const o = h as OverlayInternal;
-  const tag = target.tagName.toLowerCase();
-  const cls = Array.from(target.classList).slice(0, 3).map((c) => `.${c}`).join("");
-  const extra = target.classList.length > 3 ? `+${target.classList.length - 3}` : "";
-
-  o.labelEl.textContent = `${tag}${cls}${extra}`;
+  o.labelEl.textContent = formatElementName({
+    tag: target.tagName.toLowerCase(),
+    classList: Array.from(target.classList),
+  });
   o.labelEl.dataset.mode = "badge";
   placeLabel(o, target);
 }

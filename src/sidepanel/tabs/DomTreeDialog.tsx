@@ -15,6 +15,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { formatElementName, visibleClasses } from "@/lib/element-label";
 import { cn } from "@/lib/utils";
 import { useEditorStore } from "@/store/editor-store";
 import type { TreeNode } from "@/types/picker";
@@ -55,16 +56,10 @@ export function DomNavButton({ direction }: { direction: "parent" | "child" }) {
   );
 }
 
-export function formatElementName(tagName: string, classList: string[]): string {
-  const cls = classList.slice(0, 3).map((c) => `.${c}`).join("");
-  const extra = classList.length > 3 ? `+${classList.length - 3}` : "";
-  return `${tagName}${cls}${extra}`;
-}
-
 export function DomTreeTitle({ tagName, classList }: { tagName: string; classList: string[] }) {
   const t = useT();
   const [open, setOpen] = useState(false);
-  const label = formatElementName(tagName, classList);
+  const label = formatElementName({ tag: tagName, classList });
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -266,16 +261,21 @@ function DomTreeNode({
           {node.id ? (
             <span className="text-fuchsia-600">#{node.id}</span>
           ) : null}
-          {node.classes.slice(0, 3).map((c) => (
-            <span key={c} className="text-amber-600">
-              .{c}
-            </span>
-          ))}
-          {node.classes.length > 3 ? (
-            <span className="text-muted-foreground">
-              +{node.classes.length - 3}
-            </span>
-          ) : null}
+          {(() => {
+            const { shown, extra } = visibleClasses(node.classes);
+            return (
+              <>
+                {shown.map((c) => (
+                  <span key={c} className="text-amber-600">
+                    .{c}
+                  </span>
+                ))}
+                {extra > 0 ? (
+                  <span className="text-muted-foreground">+{extra}</span>
+                ) : null}
+              </>
+            );
+          })()}
           <span className="text-muted-foreground">&gt;</span>
           {node.childCount > 0 && !isOpen ? (
             <span className="ml-1 text-muted-foreground">
