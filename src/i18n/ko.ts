@@ -25,6 +25,8 @@ const ko = {
   "app.unsupported.body": "웹 페이지(http, https, file)에서 BugShot을 실행해주세요.",
   "app.oauthExpired.title": "Jira 인증이 만료되었습니다",
   "app.oauthExpired.body": "Jira 연동을 다시 설정해주세요.",
+  "app.pickerUnavailable.title": "이 페이지에서는 사용할 수 없습니다",
+  "app.pickerUnavailable.body": "Chrome 정책상 웹스토어·확장 페이지 등에서는 BugShot이 동작할 수 없습니다. 다른 페이지에서 시도해주세요.",
 
   // Issue sections (shared across drafting/preview/detail)
   "section.issueTitle": "이슈 제목",

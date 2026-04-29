@@ -1,17 +1,8 @@
 import { pageKeyOf, sessionKey } from "@/lib/session-keys";
+import { isSupportedUrl } from "@/lib/url-support";
 
-const SUPPORTED_SCHEMES = new Set(["http:", "https:", "file:"]);
 const SIDEPANEL_PATH = "src/sidepanel/index.html";
 const ACTIVATED_KEY = "sidePanel:activated";
-
-function isSupportedUrl(url: string | undefined): boolean {
-  if (!url) return false;
-  try {
-    return SUPPORTED_SCHEMES.has(new URL(url).protocol);
-  } catch {
-    return false;
-  }
-}
 
 async function getActivatedSet(): Promise<Set<number>> {
   const data = await chrome.storage.session.get(ACTIVATED_KEY);

@@ -27,6 +27,8 @@ const en = {
   "app.unsupported.body": "Please run BugShot on a web page (http, https, file).",
   "app.oauthExpired.title": "Jira auth has expired",
   "app.oauthExpired.body": "Please reconnect Jira.",
+  "app.pickerUnavailable.title": "Unavailable on this page",
+  "app.pickerUnavailable.body": "Chrome policy prevents BugShot from running on the Chrome Web Store and similar restricted pages. Try another page.",
 
   // Issue sections
   "section.issueTitle": "Issue title",
