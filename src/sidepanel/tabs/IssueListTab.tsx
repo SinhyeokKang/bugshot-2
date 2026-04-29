@@ -26,6 +26,7 @@ export function IssueListTab() {
   const t = useT();
   const issues = useIssuesStore((s) => s.issues);
   const clearIssues = useIssuesStore((s) => s.clearIssues);
+  const jiraConnected = useSettingsStore((s) => !!s.jiraConfig?.auth);
   const [draftId, setDraftId] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -151,7 +152,7 @@ export function IssueListTab() {
           </AlertDialog>
           <Button
             variant="outline"
-            disabled={isRefreshing}
+            disabled={isRefreshing || !jiraConnected}
             onClick={handleRefresh}
             className="relative"
           >
@@ -233,7 +234,7 @@ function IssueRow({
             </span>
           </div>
           {isSubmitted && issue.key ? (
-            <SubmittedBadge issueKey={issue.key} issueSiteId={issue.jiraSiteId} refreshKey={refreshKey} onLoaded={onBadgeLoaded} />
+            <SubmittedBadge issueId={issue.id} issueKey={issue.key} issueSiteId={issue.jiraSiteId} refreshKey={refreshKey} onLoaded={onBadgeLoaded} />
           ) : (
             <AlertDialog>
               <AlertDialogTrigger asChild>
@@ -295,9 +296,10 @@ const STATUS_CATEGORY_COLORS: Record<
 };
 
 
-function SubmittedBadge({ issueKey, issueSiteId, refreshKey, onLoaded }: { issueKey: string; issueSiteId?: string; refreshKey: number; onLoaded: () => void }) {
+function SubmittedBadge({ issueId, issueKey, issueSiteId, refreshKey, onLoaded }: { issueId: string; issueKey: string; issueSiteId?: string; refreshKey: number; onLoaded: () => void }) {
   const t = useT();
   const jiraConfig = useSettingsStore((s) => s.jiraConfig);
+  const patchIssue = useIssuesStore((s) => s.patchIssue);
   const currentSiteId = jiraConfig?.auth ? jiraSiteId(jiraConfig.auth) : null;
   const siteMatch = !issueSiteId || currentSiteId === issueSiteId;
   const [status, setStatus] = useState<JiraIssueStatus | "error" | null>(null);
@@ -308,10 +310,16 @@ function SubmittedBadge({ issueKey, issueSiteId, refreshKey, onLoaded }: { issue
       type: "jira.getIssueStatus",
       issueKey,
     })
-      .then(setStatus)
+      .then((res) => {
+        setStatus(res);
+        const patch: Record<string, string> = {};
+        if (res.issueTypeName) patch.issueTypeName = res.issueTypeName;
+        if (res.summary) patch.title = res.summary;
+        if (Object.keys(patch).length) patchIssue(issueId, patch);
+      })
       .catch(() => setStatus("error"))
       .finally(onLoaded);
-  }, [jiraConfig?.auth, issueKey, refreshKey, siteMatch, onLoaded]);
+  }, [jiraConfig?.auth, issueKey, refreshKey, siteMatch, onLoaded, issueId, patchIssue]);
 
   if (status === "error") {
     return (

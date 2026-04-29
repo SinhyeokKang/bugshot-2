@@ -4,6 +4,7 @@ import type {
   JiraAuth,
   JiraCreateIssuePayload,
   JiraCreateIssueResult,
+  JiraIssueStatus,
   JiraIssueSummary,
   JiraIssueType,
   JiraMyself,
@@ -311,13 +312,19 @@ export async function createIssueLink(
 export async function getIssueStatus(
   auth: JiraAuth,
   issueKey: string,
-): Promise<{ name: string; categoryKey: string }> {
+): Promise<JiraIssueStatus> {
   const res = await jiraFetch<{
-    fields: { status: { name: string; statusCategory: { key: string } } };
-  }>(auth, `/rest/api/3/issue/${encodeURIComponent(issueKey)}?fields=status`);
+    fields: {
+      status: { name: string; statusCategory: { key: string } };
+      issuetype: { name: string };
+      summary: string;
+    };
+  }>(auth, `/rest/api/3/issue/${encodeURIComponent(issueKey)}?fields=status,issuetype,summary`);
   return {
     name: res.fields.status.name,
     categoryKey: res.fields.status.statusCategory.key,
+    issueTypeName: res.fields.issuetype.name,
+    summary: res.fields.summary,
   };
 }
 

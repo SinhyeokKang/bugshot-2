@@ -132,6 +132,7 @@ interface IssuesState {
   issues: IssueRecord[];
   saveDraft: (record: IssueRecord) => void;
   markSubmitted: (id: string, patch: Partial<IssueRecord>) => void;
+  patchIssue: (id: string, patch: Partial<IssueRecord>) => void;
   removeIssue: (id: string) => void;
   clearIssues: () => void;
 }
@@ -161,6 +162,12 @@ export const useIssuesStore = create<IssuesState>()(
         deleteVideoBlob(id).catch(() => {});
         deleteImageBlobs(id).catch(() => {});
       },
+      patchIssue: (id, patch) =>
+        set((s) => ({
+          issues: s.issues.map((x) =>
+            x.id === id ? { ...x, ...patch } : x,
+          ),
+        })),
       removeIssue: (id) => {
         set((s) => ({ issues: s.issues.filter((x) => x.id !== id) }));
         deleteVideoBlob(id).catch(() => {});
