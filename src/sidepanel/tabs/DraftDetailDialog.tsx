@@ -28,6 +28,7 @@ import { Label } from "@/components/ui/label";
 import { formatElementName } from "@/lib/element-label";
 import { useEditorStore } from "@/store/editor-store";
 import { useIssuesStore, type IssueRecord } from "@/store/issues-store";
+import { clearPicker } from "../picker-control";
 import {
   useSettingsStore,
   isJiraConfigComplete,
@@ -193,6 +194,8 @@ export function DraftDetailDialog({
       assigneeName: fields.assigneeName,
     });
     if (useEditorStore.getState().currentIssueId === issue.id) {
+      const tabId = useEditorStore.getState().target?.tabId;
+      if (tabId != null) void clearPicker(tabId);
       useEditorStore.getState().reset();
     }
     useSettingsStore.getState().setLastSubmitFields({
