@@ -35,7 +35,7 @@ export default function AnnotationOverlay({
       ma.uiStyleSettings.zIndex = "9999";
       ma.uiStyleSettings.resultButtonBlockVisible = false;
       ma.renderAtNaturalSize = true;
-      ma.renderImageType = "image/jpeg";
+      ma.renderImageType = "image/webp";
       ma.renderImageQuality = 0.92;
 
       ma.addEventListener("render", (event) => {
@@ -77,7 +77,7 @@ export default function AnnotationOverlay({
       const ctx = canvas.getContext("2d");
       if (!ctx) return;
       ctx.drawImage(img, 0, 0);
-      onComplete(canvas.toDataURL("image/jpeg", 0.92));
+      onComplete(canvas.toDataURL("image/webp", 0.92));
     }, 300);
   };
 

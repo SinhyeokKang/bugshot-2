@@ -131,7 +131,7 @@ export function IssueCreateModal() {
       };
       description = buildIssueAdf(ctx);
       attachments.push(buildAiMetaAttachment(ctx));
-      if (screenshotImage) attachments.push({ filename: "screenshot.jpg", dataUrl: screenshotImage });
+      if (screenshotImage) attachments.push({ filename: "screenshot.webp", dataUrl: screenshotImage });
     } else {
       if (!selection) throw new Error("필수 값 누락");
       const diffs = buildStyleDiff(selection, styleEdits);
@@ -152,8 +152,8 @@ export function IssueCreateModal() {
       };
       description = buildIssueAdf(ctx);
       attachments.push(buildAiMetaAttachment(ctx));
-      if (beforeImage) attachments.push({ filename: "before.jpg", dataUrl: beforeImage });
-      if (afterImage) attachments.push({ filename: "after.jpg", dataUrl: afterImage });
+      if (beforeImage) attachments.push({ filename: "before.webp", dataUrl: beforeImage });
+      if (afterImage) attachments.push({ filename: "after.webp", dataUrl: afterImage });
     }
 
     const summary = draft.title.trim();

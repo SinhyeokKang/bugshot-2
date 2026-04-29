@@ -119,7 +119,7 @@ async function submitIssue(
     try {
       const desc = payload.description;
       const content: unknown[] = [...desc.content];
-      const screenshotFile = uploadMap.get("screenshot.jpg");
+      const screenshotFile = uploadMap.get("screenshot.webp");
       if (screenshotFile) {
         const mediaPlaceholderIdx = content.findIndex(
           (n) => {
@@ -147,7 +147,7 @@ async function submitIssue(
           tbl.content.splice(
             1,
             0,
-            snapshotRow(uploadMap.get("before.jpg"), uploadMap.get("after.jpg")),
+            snapshotRow(uploadMap.get("before.webp"), uploadMap.get("after.webp")),
           );
           content[tableIdx] = tbl;
         }

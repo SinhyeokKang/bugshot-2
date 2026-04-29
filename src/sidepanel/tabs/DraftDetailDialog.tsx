@@ -158,16 +158,16 @@ export function DraftDetailDialog({
     } else if (isScreenshot) {
       if (issue.snapshot.before) {
         const blob = await getImageBlob(issue.id, "before");
-        if (blob) attachments.push({ filename: "screenshot.jpg", dataUrl: await blobToDataUrl(blob) });
+        if (blob) attachments.push({ filename: "screenshot.webp", dataUrl: await blobToDataUrl(blob) });
       }
     } else {
       if (issue.snapshot.before) {
         const blob = await getImageBlob(issue.id, "before");
-        if (blob) attachments.push({ filename: "before.jpg", dataUrl: await blobToDataUrl(blob) });
+        if (blob) attachments.push({ filename: "before.webp", dataUrl: await blobToDataUrl(blob) });
       }
       if (issue.snapshot.after) {
         const blob = await getImageBlob(issue.id, "after");
-        if (blob) attachments.push({ filename: "after.jpg", dataUrl: await blobToDataUrl(blob) });
+        if (blob) attachments.push({ filename: "after.webp", dataUrl: await blobToDataUrl(blob) });
       }
     }
 
