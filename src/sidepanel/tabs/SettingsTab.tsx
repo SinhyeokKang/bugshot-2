@@ -86,8 +86,9 @@ export function SettingsTab() {
       </PageScroll>
 
       <PageFooter>
-        <div className="flex justify-end">
+        <div className="flex items-center justify-between">
           <DisconnectButton />
+          <OpenWorkspaceButton />
         </div>
       </PageFooter>
 
@@ -565,6 +566,29 @@ function JiraSummary() {
   );
 }
 
+function OpenWorkspaceButton() {
+  const t = useT();
+  const jiraConfig = useSettingsStore((s) => s.jiraConfig);
+  if (!jiraConfig) return null;
+
+  const auth = jiraConfig.auth;
+  const base = auth.kind === "apiKey" ? auth.baseUrl : auth.siteUrl;
+  if (!base) return null;
+
+  const root = base.replace(/\/$/, "");
+  const href = jiraConfig.projectKey
+    ? `${root}/browse/${jiraConfig.projectKey}`
+    : root;
+
+  return (
+    <Button asChild>
+      <a href={href} target="_blank" rel="noopener noreferrer">
+        {t("settings.openWorkspace")}
+      </a>
+    </Button>
+  );
+}
+
 function DisconnectButton() {
   const t = useT();
   const clearJiraConfig = useSettingsStore((s) => s.clearJiraConfig);
@@ -572,7 +596,7 @@ function DisconnectButton() {
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
-        <Button size="lg" variant="outline">
+        <Button variant="outline" className="text-destructive">
           {t("settings.disconnect")}
         </Button>
       </AlertDialogTrigger>

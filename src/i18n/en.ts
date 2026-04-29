@@ -184,6 +184,7 @@ const en = {
   "settings.titlePrefix": "Title prefix",
   "settings.titlePrefix.help": "Automatically prepended to issue titles. Leave empty to disable.",
   "settings.connected": "Connected to Jira successfully.",
+  "settings.openWorkspace": "Open in Jira",
   "settings.disconnect": "Disconnect Jira",
   "settings.disconnect.title": "Disconnect from Jira?",
   "settings.disconnect.body": "Credentials and project settings will be cleared. Re-authentication is required to reconnect.",
