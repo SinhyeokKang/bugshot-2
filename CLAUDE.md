@@ -211,7 +211,7 @@ pnpm version major --no-git-tag-version   # 1.0.0 → 2.0.0 (Breaking change)
 /build  → pnpm build + 테스트 체크리스트 (작업 중 검증)
 /push   → dev push (main에서 호출 차단)
 /merge  → dev에서 버전 bump 커밋 + dev → main squash PR 생성 + 자동 머지
-/deploy → main 한정. tag push → 스토어 빌드 → zip → 심사 요청 안내
+/deploy → main 한정. tag push → 스토어 빌드 → zip → GitHub Release draft → 심사 요청 안내
 /sync   → dev를 origin/main으로 hard reset + force push (배포/머지 후)
 ```
 
