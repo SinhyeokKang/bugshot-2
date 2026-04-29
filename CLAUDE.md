@@ -189,20 +189,20 @@ Jira는 마크다운 원본을 파싱하지 않고, 붙여넣기는 **ProseMirro
 
 ### 버전 체계
 
-semver(`MAJOR.MINOR.PATCH`). `package.json`의 `version`이 manifest에 자동 반영된다. Chrome 웹스토어는 업로드마다 버전이 올라가야 하므로 **`/deploy` 단계에서 반드시 범프**.
+semver(`MAJOR.MINOR.PATCH`). `package.json`의 `version`이 manifest에 자동 반영된다. Chrome 웹스토어는 업로드마다 버전이 올라가야 하므로 **`/merge` 단계에서 dev에 bump 커밋을 얹어 PR에 포함**시키고, squash로 main에 들어간 뒤 `/deploy`가 그 버전을 가리키는 tag만 별도 push한다.
 
 ```bash
-pnpm version patch   # 1.0.0 → 1.0.1 (버그 수정)
-pnpm version minor   # 1.0.0 → 1.1.0 (기능 추가)
-pnpm version major   # 1.0.0 → 2.0.0 (Breaking change)
+pnpm version patch --no-git-tag-version   # 1.0.0 → 1.0.1 (버그 수정)
+pnpm version minor --no-git-tag-version   # 1.0.0 → 1.1.0 (기능 추가)
+pnpm version major --no-git-tag-version   # 1.0.0 → 2.0.0 (Breaking change)
 ```
 
-`pnpm version`은 package.json 수정 + git tag + commit을 한 번에 처리한다.
+`--no-git-tag-version`이 핵심. 자동 commit/tag를 막고 직접 commit 메시지를 통제하며, tag는 **dev HEAD가 아닌 main의 squash 커밋을 가리켜야 의미가 있으므로** `/deploy`에서 찍는다.
 
 ### 브랜치 정책
 
 - 작업 브랜치: **`dev`** — 자유롭게 push (force push 허용).
-- 메인 브랜치: **`main`** — 브랜치 프로텍션 적용. 직접 push 금지, PR squash 머지만 허용(linear history 강제). approval 0이라 1인 셀프 머지 OK. `enforce_admins: false`라 admin(본인)은 deploy의 버전 commit/tag push처럼 긴급 시 우회 가능.
+- 메인 브랜치: **`main`** — 브랜치 프로텍션 적용. 직접 push 금지, PR squash 머지만 허용(linear history 강제). approval 0이라 1인 셀프 머지 OK. 버전 commit은 PR을 통해 들어오고 tag push는 ref 종류가 달라 보호 규칙과 무관하므로, **보호 우회가 필요한 시점이 없다**.
 
 ### 워크플로우 (스킬 라인업)
 
@@ -210,8 +210,8 @@ pnpm version major   # 1.0.0 → 2.0.0 (Breaking change)
 /pull   → dev 최신 받고 작업 맥락 브리핑
 /build  → pnpm build + 테스트 체크리스트 (작업 중 검증)
 /push   → dev push (main에서 호출 차단)
-/merge  → dev → main squash PR 생성 + 자동 머지
-/deploy → main 강제. 버전 범프 → tag push → 스토어 빌드 → zip → 심사 요청 안내
+/merge  → dev에서 버전 bump 커밋 + dev → main squash PR 생성 + 자동 머지
+/deploy → main 한정. tag push → 스토어 빌드 → zip → 심사 요청 안내
 /sync   → dev를 origin/main으로 hard reset + force push (배포/머지 후)
 ```
 
