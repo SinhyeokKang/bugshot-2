@@ -182,7 +182,6 @@ const ko = {
   "settings.titlePrefix": "제목 Prefix",
   "settings.titlePrefix.help": "이슈 제목 앞에 자동으로 붙습니다. 비워두면 사용하지 않습니다.",
   "settings.connected": "Jira에 정상적으로 연결되었습니다.",
-  "settings.openWorkspace": "Jira 열기",
   "settings.disconnect": "Jira 연결 해제",
   "settings.disconnect.title": "Jira 연결을 해제할까요?",
   "settings.disconnect.body": "인증 정보와 프로젝트 설정이 모두 초기화됩니다. 다시 연결하려면 재인증이 필요합니다.",
