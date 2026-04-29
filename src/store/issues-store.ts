@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import { chromeLocalStorage } from "./chrome-storage";
 import { useEditorStore, type CaptureMode } from "./editor-store";
+import { clearPicker } from "@/sidepanel/picker-control";
 import {
   deleteVideoBlob,
   clearVideoBlobs,
@@ -58,6 +59,8 @@ async function pruneOrphanBlobs(): Promise<void> {
 function resetEditorIfEditing(removedId: string | null): void {
   const state = useEditorStore.getState();
   if (removedId === null || state.currentIssueId === removedId) {
+    const tabId = state.target?.tabId;
+    if (tabId != null) void clearPicker(tabId);
     state.reset();
   }
 }

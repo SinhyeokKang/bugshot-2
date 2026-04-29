@@ -95,9 +95,10 @@ async function submitIssue(
 
   const uploadMap = new Map<string, UploadedFile>();
   for (const att of attachments) {
+    const filename = att.filename.replaceAll("{key}", issue.key);
     try {
       const blob = dataUrlToBlob(att.dataUrl);
-      const results = await uploadAttachment(auth, issue.key, att.filename, blob);
+      const results = await uploadAttachment(auth, issue.key, filename, blob);
       const r = results[0];
       if (r?.mediaApiFileId) {
         uploadMap.set(att.filename, { kind: "media", mediaId: r.mediaApiFileId });

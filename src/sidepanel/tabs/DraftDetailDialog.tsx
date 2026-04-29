@@ -25,8 +25,10 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { formatElementName } from "@/lib/element-label";
 import { useEditorStore } from "@/store/editor-store";
 import { useIssuesStore, type IssueRecord } from "@/store/issues-store";
+import { clearPicker } from "../picker-control";
 import {
   useSettingsStore,
   isJiraConfigComplete,
@@ -37,6 +39,7 @@ import {
   StyleChangesTable,
   buildStyleDiff,
 } from "../components/StyleChangesTable";
+import { buildAiMetaAttachment } from "../lib/buildAiMetaAttachment";
 import { buildIssueAdf } from "../lib/buildIssueAdf";
 import { SubmitFieldsDialog } from "./IssueCreateModal";
 
@@ -143,7 +146,9 @@ export function DraftDetailDialog({
 
     const summary = issue.draft.title.trim();
 
-    const attachments: { filename: string; dataUrl: string }[] = [];
+    const attachments: { filename: string; dataUrl: string }[] = [
+      buildAiMetaAttachment(ctx),
+    ];
     if (isVideo) {
       const blob = await getVideoBlob(issue.id);
       if (blob) {
@@ -189,6 +194,8 @@ export function DraftDetailDialog({
       assigneeName: fields.assigneeName,
     });
     if (useEditorStore.getState().currentIssueId === issue.id) {
+      const tabId = useEditorStore.getState().target?.tabId;
+      if (tabId != null) void clearPicker(tabId);
       useEditorStore.getState().reset();
     }
     useSettingsStore.getState().setLastSubmitFields({
@@ -355,8 +362,16 @@ function FieldSection({
 function EnvBlock({ issue }: { issue: IssueRecord }) {
   const rows: { label: string; value: string }[] = [
     { label: "Page", value: issue.pageUrl || "-" },
-    ...(issue.captureMode !== "video" && issue.selector
-      ? [{ label: "DOM", value: issue.selector }]
+    ...(issue.captureMode !== "video" && issue.tagName
+      ? [
+          {
+            label: "DOM",
+            value: formatElementName({
+              tag: issue.tagName,
+              classList: issue.selectionSnapshot?.classList ?? [],
+            }),
+          },
+        ]
       : []),
   ];
   const vp = issue.viewport ?? issue.selectionSnapshot?.viewport;

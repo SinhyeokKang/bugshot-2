@@ -45,6 +45,7 @@ import type {
 } from "@/types/jira";
 import { sendBg, type JiraSubmitResult } from "@/types/messages";
 import { buildStyleDiff } from "../components/StyleChangesTable";
+import { buildAiMetaAttachment } from "../lib/buildAiMetaAttachment";
 import { buildIssueAdf, type AdfDoc } from "../lib/buildIssueAdf";
 
 type SubmitState =
@@ -105,6 +106,7 @@ export function IssueCreateModal() {
         diffs: [],
       };
       description = buildIssueAdf(ctx);
+      attachments.push(buildAiMetaAttachment(ctx));
       if (videoBlob) {
         const dataUrl = await blobToDataUrl(videoBlob);
         attachments.push({ filename: "recording.webm", dataUrl });
@@ -128,6 +130,7 @@ export function IssueCreateModal() {
         diffs: [],
       };
       description = buildIssueAdf(ctx);
+      attachments.push(buildAiMetaAttachment(ctx));
       if (screenshotImage) attachments.push({ filename: "screenshot.jpg", dataUrl: screenshotImage });
     } else {
       if (!selection) throw new Error("필수 값 누락");
@@ -148,6 +151,7 @@ export function IssueCreateModal() {
         diffs,
       };
       description = buildIssueAdf(ctx);
+      attachments.push(buildAiMetaAttachment(ctx));
       if (beforeImage) attachments.push({ filename: "before.jpg", dataUrl: beforeImage });
       if (afterImage) attachments.push({ filename: "after.jpg", dataUrl: afterImage });
     }

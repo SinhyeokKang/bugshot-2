@@ -1,5 +1,6 @@
 import { t } from "@/i18n";
 import { IMAGE_PLACEHOLDER } from "@/lib/adf-sentinels";
+import { formatElementName } from "@/lib/element-label";
 import type { MarkdownContext } from "./buildIssueMarkdown";
 import { formatTimestamp } from "./formatTimestamp";
 
@@ -38,10 +39,13 @@ export function buildIssueAdf(ctx: MarkdownContext): AdfDoc {
     ];
     content.push(bulletList(items));
   } else {
+    const domLabel = ctx.tagName
+      ? formatElementName({ tag: ctx.tagName, classList: ctx.classListBefore })
+      : "";
     content.push(
       bulletList([
         keyValueItem("Page", ctx.url),
-        keyValueItem("DOM", ctx.selector),
+        ...(domLabel ? [keyValueItem("DOM", domLabel)] : []),
         keyValueItem("Viewport", `${ctx.viewport.width}×${ctx.viewport.height}`),
         keyValueItem("Captured", formatTimestamp(ctx.capturedAt)),
       ]),
@@ -70,7 +74,24 @@ export function buildIssueAdf(ctx: MarkdownContext): AdfDoc {
   content.push(heading(2, t("md.section.expectedResult")));
   content.push(...textBlock(ctx.expectedResult));
 
+  content.push(footerParagraph());
+
   return { version: 1, type: "doc", content };
+}
+
+function footerParagraph(): AdfNode {
+  const url = (import.meta.env.VITE_WEBSTORE_URL as string | undefined) ?? "";
+  const brandMarks: { type: string; attrs?: Record<string, unknown> }[] = [
+    { type: "em" },
+  ];
+  if (url) brandMarks.push({ type: "link", attrs: { href: url } });
+  return {
+    type: "paragraph",
+    content: [
+      { type: "text", text: "Reported via ", marks: [{ type: "em" }] },
+      { type: "text", text: "BugShot", marks: brandMarks },
+    ],
+  };
 }
 
 function heading(level: number, text: string): AdfNode {
