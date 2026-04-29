@@ -54,7 +54,7 @@ src/
 │   └── lib/             # buildIssueMarkdown, buildIssueAdf 등 순수 유틸
 ├── store/               # Zustand 스토어 (editor/issues/settings/app-settings), blob-db(IndexedDB 이미지·비디오 저장), settings는 v2 마이그레이션(flat → discriminated auth)
 ├── i18n/                # 다국어 (ko/en 로케일, t()/useT() 훅)
-├── lib/                 # 공용 유틸 (session-keys, adf-sentinels)
+├── lib/                 # 공용 유틸 (session-keys, adf-sentinels, url-support)
 ├── components/ui/       # shadcn 컴포넌트
 ├── styles/
 └── types/
@@ -241,7 +241,7 @@ pnpm version major --no-git-tag-version   # 1.0.0 → 2.0.0 (Breaking change)
 ## 게이트웨이 (알아두면 유용)
 
 - 매니페스트 `minimum_chrome_version: "116"` — sidePanel API 요구사항
-- 지원 URL 스킴: `http:`, `https:`, `file:`만. 그 외에서는 side panel을 enable하지 않는다.
+- 지원 URL: `http:`, `https:`, `file:` 스킴만. 추가로 `chromewebstore.google.com` 전체와 `chrome.google.com/webstore/*` 트리는 Chrome이 content script 주입을 차단해서 `src/lib/url-support.ts`의 `isSupportedUrl()`이 미지원으로 처리. 그 외 페이지에서는 side panel을 enable하지 않고, 사용 중 race로 unsupported로 진입하면 picker가 `onPickerUnavailable` 이벤트를 발화해 안내 다이얼로그 노출.
 - 단축키: `Cmd+Shift+E` (mac) / `Ctrl+Shift+E` (default) — `_execute_action`
 - permissions: `sidePanel`, `activeTab`, `scripting`, `storage`, `commands`, `contextMenus`, `identity`, `tabCapture`
 - host_permissions: `*.atlassian.net` (Jira REST), `api.atlassian.com` (OAuth gateway), `auth.atlassian.com` (authorize), + `VITE_OAUTH_PROXY_URL` origin (빌드 타임 주입)
