@@ -45,7 +45,7 @@ function useSettingsHydrated() {
 export default function App() {
   const t = useT();
   const tabId = useBoundTabId();
-  const editorHydrated = useEditorSessionSync(tabId);
+  const editorHydrated = useEditorSessionSync(tabId ?? null);
   const settingsHydrated = useSettingsHydrated();
   usePickerMessages();
   useThemeEffect();
@@ -116,7 +116,8 @@ export default function App() {
 
   if (!editorHydrated || !settingsHydrated) return null;
 
-  if (tabId == null) return <UnsupportedPage />;
+  if (tabId === undefined) return null;
+  if (tabId === null) return <UnsupportedPage />;
 
   return (
     <TabNavContext.Provider value={setTab}>
