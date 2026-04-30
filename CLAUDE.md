@@ -185,6 +185,23 @@ Jira는 마크다운 원본을 파싱하지 않고, 붙여넣기는 **ProseMirro
 
 구현: `src/sidepanel/lib/buildIssueMarkdown.ts` — `buildIssueMarkdown()` + `buildIssueHtml()` 페어.
 
+### 이슈 섹션 구성 (앱 설정 → 이슈 구성)
+
+사용자 입력 섹션은 **앱 설정에서 on/off 가능**한 4종 빌트인. `app-settings-store`의 `IssueSection[]` (`DEFAULT_ISSUE_SECTIONS`) 배열 순서가 곧 출력 순서.
+
+| id | 기본 enabled | renderAs |
+|---|---|---|
+| `description` (발생 현상) | ✅ | paragraph |
+| `stepsToReproduce` (재현 과정) | ✅ | orderedList |
+| `expectedResult` (기대 결과) | ✅ | paragraph |
+| `notes` (비고) | ⬜ | paragraph |
+
+draft 데이터 모델은 `{ title, sections: Record<string, string> }`. 섹션 마다 newline-joined 평문. `stepsToReproduce`는 줄별 Input + Trash2 IconButton의 `OrderedListEditor` 전용 UI; 그 외는 plain Textarea.
+
+**자동 메타 위치**: `POST_MEDIA_SECTION_IDS = {"expectedResult","notes"}` — enabled iterate 중 첫 POST_MEDIA 섹션을 만나면 그 직전에 media/styleChanges 블록 emit. 둘 다 disabled면 모든 섹션 끝에 emit. `buildIssueMarkdown` / `buildIssueHtml` / `buildIssueAdf` / `DraftingPanel` / `PreviewPanel` / `DraftDetailDialog` 5곳에서 동일 룰. 라벨 i18n 헬퍼는 `sectionLabelKey` / `sectionMdLabelKey` / `sectionPlaceholderKey` / `sectionHelpKey` (`app-settings-store`).
+
+**마이그레이션 3중 가드**: `issues-store` v3, `app-settings-store` v2, `useEditorSessionSync.migrateLegacyDraft` — 세 곳 모두 `if (legacy.sections)` 멱등 가드 + sparse 저장(빈 legacy 값은 sections에 키 추가 안 함). 빈 paragraph 섹션 출력은 마크다운/HTML/ADF 모두 `(없음)` (`md.noValue`)로 통일.
+
 ## 릴리스 & 버전
 
 ### 버전 체계
