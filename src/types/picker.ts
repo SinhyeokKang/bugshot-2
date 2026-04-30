@@ -86,4 +86,5 @@ export type PickerMessage =
   | { type: "picker.selected"; payload: PickerSelectionPayload }
   | { type: "picker.selectionUpdated"; payload: PickerSelectionUpdatePayload }
   | { type: "picker.cancelled" }
+  | { type: "picker.iframeUnsupported" }
   | { type: "picker.areaSelected"; rect: ViewportRect; viewport: { width: number; height: number } };

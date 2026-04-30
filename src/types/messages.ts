@@ -100,6 +100,12 @@ export const onPickerUnavailable = {
   fire() { this._listeners.forEach((fn) => fn()); },
 };
 
+export const onPickerIframeUnsupported = {
+  _listeners: new Set<Listener>(),
+  subscribe(fn: Listener) { this._listeners.add(fn); return () => { this._listeners.delete(fn); }; },
+  fire() { this._listeners.forEach((fn) => fn()); },
+};
+
 // Re-export common Jira types for consumers
 export type {
   JiraAttachmentInput,

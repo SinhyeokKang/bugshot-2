@@ -29,6 +29,8 @@ const en = {
   "app.oauthExpired.body": "Please reconnect Jira.",
   "app.pickerUnavailable.title": "Unavailable on this page",
   "app.pickerUnavailable.body": "Chrome policy prevents BugShot from running on the Chrome Web Store and similar restricted pages. Try another page.",
+  "app.iframeUnsupported.title": "Elements inside iframes cannot be selected",
+  "app.iframeUnsupported.body": "Chrome security policy blocks access to DOM inside iframes. Pick an element outside the iframe, or use screen capture mode.",
 
   // Issue sections
   "section.issueTitle": "Issue title",

@@ -27,6 +27,8 @@ const ko = {
   "app.oauthExpired.body": "Jira 연동을 다시 설정해주세요.",
   "app.pickerUnavailable.title": "이 페이지에서는 사용할 수 없습니다",
   "app.pickerUnavailable.body": "Chrome 정책상 웹스토어·확장 페이지 등에서는 BugShot이 동작할 수 없습니다. 다른 페이지에서 시도해주세요.",
+  "app.iframeUnsupported.title": "iframe 내부 요소는 선택할 수 없습니다",
+  "app.iframeUnsupported.body": "Chrome 보안 정책으로 iframe 안쪽 DOM에는 접근할 수 없습니다. iframe 외부 요소를 선택하거나 화면 캡처 모드를 사용해 주세요.",
 
   // Issue sections (shared across drafting/preview/detail)
   "section.issueTitle": "이슈 제목",
