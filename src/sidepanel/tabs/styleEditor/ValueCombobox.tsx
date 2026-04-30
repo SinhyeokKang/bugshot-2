@@ -85,6 +85,11 @@ export function ValueCombobox({
 
   const draftLooksLikeToken = /^var\(/.test(draft.trim());
 
+  const maybeNormalize = useCallback(
+    (v: string) => (category === "color" ? normalizeHexInput(v) : v),
+    [category],
+  );
+
 
   const { familyGroups, primary, extra } = useMemo(() => {
     const base = !category ? tokens : tokens.filter((t) => t.category === category);
@@ -134,9 +139,19 @@ export function ValueCombobox({
     [extra, filterTokens],
   );
 
+  const finalizeColor = useCallback(
+    (next: string) => {
+      if (category !== "color") return next;
+      const normalized = normalizeHexInput(next);
+      return expandShortHex(normalized) ?? normalized;
+    },
+    [category],
+  );
+
   const commit = (next: string) => {
-    if (onLinkedCommit) onLinkedCommit(next);
-    else set(next);
+    const finalized = finalizeColor(next);
+    if (onLinkedCommit) onLinkedCommit(finalized);
+    else set(finalized);
     setOpen(false);
   };
 
@@ -149,6 +164,14 @@ export function ValueCombobox({
       setPinnedPrefixes(liveFamilyPrefixes);
     } else {
       setPinnedPrefixes(null);
+      // 닫힐 때 3/4자리 hex은 6/8자리로 풀어쓴다 (디자인 툴 컨벤션).
+      if (category === "color") {
+        const finalized = finalizeColor(draft.trim());
+        if (finalized && finalized !== value) {
+          if (onLinkedCommit) onLinkedCommit(finalized);
+          else set(finalized);
+        }
+      }
     }
     setOpen(nextOpen);
   };
@@ -253,8 +276,9 @@ export function ValueCombobox({
             value={draft}
             onValueChange={(v) => {
               setDraft(v);
-              if (onLinkedCommit) onLinkedCommit(v.trim());
-              else set(v.trim());
+              const normalized = maybeNormalize(v.trim());
+              if (onLinkedCommit) onLinkedCommit(normalized);
+              else set(normalized);
             }}
             icon={<PenLine className="mr-2 h-4 w-4 shrink-0 opacity-50" />}
             className="h-9"
@@ -282,10 +306,10 @@ export function ValueCombobox({
             {showRawItem && !draftLooksLikeToken ? (
               <CommandGroup heading={t("value.manualInput")}>
                 <CommandItem
-                  value={`__raw__${draft}`}
+                  value={`__raw__${finalizeColor(draft.trim())}`}
                   onSelect={() => commit(draft.trim())}
                 >
-                  <span className="text-sm">{draft.trim()}</span>
+                  <span className="text-sm">{finalizeColor(draft.trim())}</span>
                 </CommandItem>
               </CommandGroup>
             ) : null}
@@ -381,4 +405,30 @@ function shortValue(v: string): string {
     if (!Number.isNaN(n)) return `${n}`;
   }
   return v;
+}
+
+// `abc123` 같은 6/8자리 hex에 `#`만 붙임. 3/4자리는 입력 중 깜빡임 방지를 위해
+// 라이브 적용에서 제외하고 blur 시 `expandShortHex`로 풀어쓴다.
+function normalizeHexInput(v: string): string {
+  const t = v.trim();
+  if (!t || t.startsWith("#")) return t;
+  if (/^[0-9a-fA-F]{6}$/.test(t)) return `#${t}`;
+  if (/^[0-9a-fA-F]{8}$/.test(t)) return `#${t}`;
+  return t;
+}
+
+// 디자인 툴 컨벤션: blur 시 `fff` → `#ffffff`, `f0a8` → `#ff00aa88`.
+// 입력이 3/4자리 hex (with or without `#`)일 때만 풀어쓰기.
+function expandShortHex(v: string): string | null {
+  const t = v.trim();
+  const stripped = t.startsWith("#") ? t.slice(1) : t;
+  if (/^[0-9a-fA-F]{3}$/.test(stripped)) {
+    const [r, g, b] = stripped;
+    return `#${r}${r}${g}${g}${b}${b}`;
+  }
+  if (/^[0-9a-fA-F]{4}$/.test(stripped)) {
+    const [r, g, b, a] = stripped;
+    return `#${r}${r}${g}${g}${b}${b}${a}${a}`;
+  }
+  return null;
 }
