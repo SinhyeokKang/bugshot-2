@@ -17,21 +17,37 @@ class PickerUnavailableError extends Error {
   }
 }
 
-async function ensureContentScript(tabId: number): Promise<void> {
+async function pingOk(tabId: number): Promise<boolean> {
   try {
     await chrome.tabs.sendMessage(tabId, { type: "ping" });
+    return true;
   } catch {
-    const manifest = chrome.runtime.getManifest();
-    const files = manifest.content_scripts?.[0]?.js;
-    if (!files?.length) return;
-    try {
-      await chrome.scripting.executeScript({ target: { tabId }, files });
-    } catch {
-      // URL 사전 검사는 통과했지만 정책/제한으로 주입 불가한 케이스
-      // (e.g. enterprise runtime_blocked_hosts, file:// 권한 미허용, 또는 검사 후 탭이 unsupported로 이동).
-      throw new PickerUnavailableError();
-    }
+    return false;
   }
+}
+
+async function ensureContentScript(tabId: number): Promise<void> {
+  if (await pingOk(tabId)) return;
+
+  const manifest = chrome.runtime.getManifest();
+  const files = manifest.content_scripts?.[0]?.js;
+  if (!files?.length) throw new PickerUnavailableError();
+  try {
+    await chrome.scripting.executeScript({ target: { tabId }, files });
+  } catch {
+    // URL 사전 검사는 통과했지만 정책/제한으로 주입 불가한 케이스
+    // (e.g. enterprise runtime_blocked_hosts, file:// 권한 미허용, 또는 검사 후 탭이 unsupported로 이동).
+    throw new PickerUnavailableError();
+  }
+
+  // executeScript는 inject 완료까지 await하지만 onMessage listener 등록 시점이
+  // 살짝 뒤따르는 케이스가 있어 picker.start가 "Receiving end does not exist"로
+  // 깨지는 race. ping이 통과할 때까지 짧게 폴링.
+  for (let i = 0; i < 10; i++) {
+    if (await pingOk(tabId)) return;
+    await new Promise((r) => setTimeout(r, 50));
+  }
+  throw new PickerUnavailableError();
 }
 
 async function send<R = void>(
