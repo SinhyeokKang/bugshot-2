@@ -1,9 +1,17 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { Pencil, RotateCcw } from "lucide-react";
+import { Pencil, RotateCcw, Trash2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useT } from "@/i18n";
+import {
+  POST_MEDIA_SECTION_IDS,
+  sectionLabelKey,
+  sectionPlaceholderKey,
+  useAppSettingsStore,
+  type IssueSection,
+} from "@/store/app-settings-store";
 import { useEditorStore } from "@/store/editor-store";
 import { useSettingsStore } from "@/store/settings-store";
 import { useBoundTabId } from "../hooks/useBoundTabId";
@@ -38,6 +46,7 @@ export function DraftingPanel() {
   const reset = useEditorStore((s) => s.reset);
   const backToStyling = useEditorStore((s) => s.backToStyling);
   const confirmDraft = useEditorStore((s) => s.confirmDraft);
+  const issueSections = useAppSettingsStore((s) => s.issueSections);
   const [annotating, setAnnotating] = useState(false);
   const titlePrefix = useSettingsStore(
     (s) => s.jiraConfig?.titlePrefix ?? "",
@@ -58,10 +67,9 @@ export function DraftingPanel() {
     if (captureMode === "video" && !videoThumbnail && !videoBlob) return;
     setDraft({
       title: defaultTitle(titlePrefix),
-      body: "",
-      expectedResult: "",
+      sections: {},
     });
-  }, [draft, selection, setDraft, titlePrefix, captureMode, screenshotImage, videoThumbnail]);
+  }, [draft, selection, setDraft, titlePrefix, captureMode, screenshotImage, videoThumbnail, videoBlob]);
 
   if (!draft) return null;
   if (captureMode === "element" && !selection) return null;
@@ -69,6 +77,85 @@ export function DraftingPanel() {
   if (captureMode === "video" && !videoThumbnail && !videoBlob) return null;
 
   const titleMissing = !draft.title.trim();
+
+  const enabledSections = issueSections.filter((s) => s.enabled);
+  const mediaBlock = isVideoMode ? (
+    <Section key="__media" title={t("section.media")}>
+      <VideoPreview blob={videoBlob} thumbnail={videoThumbnail} />
+    </Section>
+  ) : isElementMode ? (
+    <Section key="__media" title={t("section.styleChanges")}>
+      <StyleChangesTable
+        beforeImage={beforeImage}
+        afterImage={afterImage}
+        diffs={diffs}
+      />
+    </Section>
+  ) : (
+    <Section
+      key="__media"
+      title={t("section.media")}
+      action={
+        screenshotImage ? (
+          <>
+            {screenshotAnnotated ? (
+              <Button
+                size="icon"
+                variant="outline"
+                className="h-8 w-8 shrink-0"
+                title={t("draft.removeAnnotation")}
+                onClick={() => useEditorStore.setState({ screenshotAnnotated: null })}
+              >
+                <RotateCcw />
+              </Button>
+            ) : null}
+            <Button
+              size="icon"
+              variant="outline"
+              className="h-8 w-8 shrink-0"
+              title={screenshotAnnotated ? t("draft.editAnnotation") : t("draft.addAnnotation")}
+              onClick={() => setAnnotating(true)}
+            >
+              <Pencil />
+            </Button>
+          </>
+        ) : undefined
+      }
+    >
+      {screenshotImage ? (
+        <div className="aspect-video w-full overflow-hidden rounded-lg border bg-muted/70">
+          <img
+            src={screenshotImage}
+            alt={t("section.media")}
+            className="h-full w-full object-contain"
+          />
+        </div>
+      ) : null}
+    </Section>
+  );
+
+  const sectionNodes: React.ReactNode[] = [];
+  let mediaInserted = false;
+  for (const sec of enabledSections) {
+    if (POST_MEDIA_SECTION_IDS.has(sec.id) && !mediaInserted) {
+      mediaInserted = true;
+      sectionNodes.push(mediaBlock);
+    }
+    sectionNodes.push(
+      <SectionTextarea
+        key={sec.id}
+        section={sec}
+        value={draft.sections[sec.id] ?? ""}
+        onChange={(v) =>
+          setDraft({
+            ...draft,
+            sections: { ...draft.sections, [sec.id]: v },
+          })
+        }
+      />,
+    );
+  }
+  if (!mediaInserted) sectionNodes.push(mediaBlock);
 
   return (
     <PageShell>
@@ -82,81 +169,7 @@ export function DraftingPanel() {
           />
         </Section>
 
-        <Section title={t("section.description")}>
-          <Textarea
-            value={draft.body}
-            onChange={(e) => setDraft({ ...draft, body: e.target.value })}
-            onFocus={cursorToEnd}
-            placeholder={t("draft.bodyPlaceholder")}
-            className="min-h-32 resize-none text-sm [field-sizing:content]"
-          />
-        </Section>
-
-        {isVideoMode ? (
-          <Section title={t("section.media")}>
-            <VideoPreview blob={videoBlob} thumbnail={videoThumbnail} />
-          </Section>
-        ) : isElementMode ? (
-          <Section title={t("section.styleChanges")}>
-            <StyleChangesTable
-              beforeImage={beforeImage}
-              afterImage={afterImage}
-              diffs={diffs}
-            />
-          </Section>
-        ) : (
-          <Section
-            title={t("section.media")}
-            action={
-              screenshotImage ? (
-                <>
-                  {screenshotAnnotated ? (
-                    <Button
-                      size="icon"
-                      variant="outline"
-                      className="h-7 w-7 shrink-0"
-                      title={t("draft.removeAnnotation")}
-                      onClick={() => useEditorStore.setState({ screenshotAnnotated: null })}
-                    >
-                      <RotateCcw />
-                    </Button>
-                  ) : null}
-                  <Button
-                    size="icon"
-                    variant="outline"
-                    className="h-7 w-7 shrink-0"
-                    title={screenshotAnnotated ? t("draft.editAnnotation") : t("draft.addAnnotation")}
-                    onClick={() => setAnnotating(true)}
-                  >
-                    <Pencil />
-                  </Button>
-                </>
-              ) : undefined
-            }
-          >
-            {screenshotImage ? (
-              <div className="aspect-video w-full overflow-hidden rounded-lg border bg-muted/70">
-                <img
-                  src={screenshotImage}
-                  alt={t("section.media")}
-                  className="h-full w-full object-contain"
-                />
-              </div>
-            ) : null}
-          </Section>
-        )}
-
-        <Section title={t("section.expectedResult")}>
-          <Textarea
-            value={draft.expectedResult}
-            onChange={(e) =>
-              setDraft({ ...draft, expectedResult: e.target.value })
-            }
-            onFocus={cursorToEnd}
-            placeholder={t("draft.expectedResultPlaceholder")}
-            className="min-h-32 resize-none text-sm [field-sizing:content]"
-          />
-        </Section>
+        {sectionNodes}
       </PageScroll>
       <PageFooter>
         <div className="flex items-center justify-between gap-2">
@@ -203,6 +216,137 @@ export function DraftingPanel() {
         </Suspense>
       ) : null}
     </PageShell>
+  );
+}
+
+function SectionTextarea({
+  section,
+  value,
+  onChange,
+}: {
+  section: IssueSection;
+  value: string;
+  onChange: (next: string) => void;
+}) {
+  const t = useT();
+  const label = section.labelOverride?.trim() || t(sectionLabelKey(section.id));
+  const placeholder =
+    section.placeholderOverride?.trim() || t(sectionPlaceholderKey(section.id));
+  return (
+    <Section title={label}>
+      {section.renderAs === "orderedList" ? (
+        <OrderedListEditor value={value} onChange={onChange} placeholder={placeholder} />
+      ) : (
+        <Textarea
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onFocus={cursorToEnd}
+          placeholder={placeholder}
+          className="min-h-32 resize-none text-sm [field-sizing:content]"
+        />
+      )}
+    </Section>
+  );
+}
+
+function OrderedListEditor({
+  value,
+  onChange,
+  placeholder,
+}: {
+  value: string;
+  onChange: (next: string) => void;
+  placeholder: string;
+}) {
+  const t = useT();
+  const items = value.length === 0 ? [""] : value.split(/\r?\n/);
+  const inputsRef = useRef<(HTMLInputElement | null)[]>([]);
+  const focusIndexRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (focusIndexRef.current == null) return;
+    const idx = focusIndexRef.current;
+    focusIndexRef.current = null;
+    const el = inputsRef.current[idx];
+    if (el) {
+      el.focus();
+      const len = el.value.length;
+      el.setSelectionRange(len, len);
+    }
+  }, [value]);
+
+  const commit = (next: string[], focusIdx?: number) => {
+    if (focusIdx != null) focusIndexRef.current = focusIdx;
+    onChange(next.join("\n"));
+  };
+
+  const updateItem = (idx: number, text: string) => {
+    const next = [...items];
+    next[idx] = text;
+    commit(next);
+  };
+
+  const addAfter = (idx: number) => {
+    const next = [...items];
+    next.splice(idx + 1, 0, "");
+    commit(next, idx + 1);
+  };
+
+  const removeAt = (idx: number) => {
+    if (items.length <= 1) return;
+    const next = items.filter((_, i) => i !== idx);
+    commit(next, Math.max(0, idx - 1));
+  };
+
+  return (
+    <ol className="flex list-none flex-col gap-1.5">
+      {items.map((item, idx) => (
+        <li key={idx} className="flex items-center gap-3">
+          <Badge
+            variant="secondary"
+            className="h-5 w-5 shrink-0 justify-center rounded-full p-0 tabular-nums"
+          >
+            {idx + 1}
+          </Badge>
+          <div className="flex flex-1 items-center gap-1">
+            <Input
+              ref={(el) => {
+                inputsRef.current[idx] = el;
+              }}
+              value={item}
+              onChange={(e) => updateItem(idx, e.target.value)}
+              onKeyDown={(e) => {
+                if (e.nativeEvent.isComposing) return;
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  addAfter(idx);
+                } else if (
+                  e.key === "Backspace" &&
+                  item === "" &&
+                  items.length > 1
+                ) {
+                  e.preventDefault();
+                  removeAt(idx);
+                }
+              }}
+              placeholder={idx === 0 ? placeholder : undefined}
+              className="text-sm"
+            />
+            <Button
+              type="button"
+              size="icon"
+              variant="outline"
+              className="h-9 w-9 shrink-0 text-muted-foreground hover:text-destructive"
+              disabled={items.length <= 1}
+              onClick={() => removeAt(idx)}
+              title={t("common.delete")}
+            >
+              <Trash2 />
+            </Button>
+          </div>
+        </li>
+      ))}
+    </ol>
   );
 }
 

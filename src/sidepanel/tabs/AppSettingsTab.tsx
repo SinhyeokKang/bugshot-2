@@ -1,8 +1,15 @@
+import { Fragment } from "react";
 import { Monitor, Moon, Sun } from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useT } from "@/i18n";
 import {
+  sectionHelpKey,
+  sectionLabelKey,
   useAppSettingsStore,
+  type IssueSection,
   type LocaleMode,
   type ThemeMode,
 } from "@/store/app-settings-store";
@@ -19,6 +26,8 @@ export function AppSettingsTab() {
   const setTheme = useAppSettingsStore((s) => s.setTheme);
   const locale = useAppSettingsStore((s) => s.locale);
   const setLocale = useAppSettingsStore((s) => s.setLocale);
+  const issueSections = useAppSettingsStore((s) => s.issueSections);
+  const setIssueEnabled = useAppSettingsStore((s) => s.setIssueEnabled);
 
   const themeOptions = [
     { value: "light" as ThemeMode, label: t("appSettings.theme.light"), icon: <Sun className="h-4 w-4" /> },
@@ -29,6 +38,18 @@ export function AppSettingsTab() {
   return (
     <PageShell>
       <PageScroll>
+        <Section title={t("appSettings.language")}>
+          <Tabs value={locale} onValueChange={(v) => setLocale(v as LocaleMode)}>
+            <TabsList className="grid w-full grid-cols-2">
+              {LOCALE_OPTIONS.map((o) => (
+                <TabsTrigger key={o.value} value={o.value}>
+                  {o.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+        </Section>
+
         <Section title={t("appSettings.theme")}>
           <Tabs value={theme} onValueChange={(v) => setTheme(v as ThemeMode)}>
             <TabsList className="grid w-full grid-cols-3">
@@ -42,18 +63,50 @@ export function AppSettingsTab() {
           </Tabs>
         </Section>
 
-        <Section title={t("appSettings.language")}>
-          <Tabs value={locale} onValueChange={(v) => setLocale(v as LocaleMode)}>
-            <TabsList className="grid w-full grid-cols-2">
-              {LOCALE_OPTIONS.map((o) => (
-                <TabsTrigger key={o.value} value={o.value}>
-                  {o.label}
-                </TabsTrigger>
+        <Section title={t("appSettings.issueSections.title")}>
+          <Card>
+            <CardContent className="flex flex-col gap-3 px-3 py-3">
+              {issueSections.map((section, idx) => (
+                <Fragment key={section.id}>
+                  {idx > 0 ? <Separator /> : null}
+                  <IssueSectionRow
+                    section={section}
+                    onToggle={(enabled) => setIssueEnabled(section.id, enabled)}
+                  />
+                </Fragment>
               ))}
-            </TabsList>
-          </Tabs>
+            </CardContent>
+          </Card>
         </Section>
       </PageScroll>
     </PageShell>
+  );
+}
+
+function IssueSectionRow({
+  section,
+  onToggle,
+}: {
+  section: IssueSection;
+  onToggle: (enabled: boolean) => void;
+}) {
+  const t = useT();
+  const id = `issue-section-${section.id}`;
+  const label = section.labelOverride?.trim() || t(sectionLabelKey(section.id));
+  const help = t(sectionHelpKey(section.id));
+  return (
+    <div className="flex items-center gap-3">
+      <Switch
+        id={id}
+        checked={section.enabled}
+        onCheckedChange={(v) => onToggle(v === true)}
+      />
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <label htmlFor={id} className="cursor-pointer text-sm">
+          {label}
+        </label>
+        <p className="text-sm text-muted-foreground">{help}</p>
+      </div>
+    </div>
   );
 }

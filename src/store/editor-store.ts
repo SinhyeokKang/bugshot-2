@@ -45,8 +45,7 @@ export interface EditorStyleEdits {
 
 export interface EditorDraft {
   title: string;
-  body: string;
-  expectedResult: string;
+  sections: Record<string, string>;
 }
 
 export interface EditorIssueFields {

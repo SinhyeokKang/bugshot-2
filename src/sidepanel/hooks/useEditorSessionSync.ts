@@ -1,10 +1,27 @@
 import { useEffect, useRef, useState } from "react";
 import { pageKeyOf, sessionKey } from "@/lib/session-keys";
 import {
+  type EditorDraft,
   type EditorSnapshot,
   useEditorStore,
 } from "@/store/editor-store";
 import { clearPicker } from "../picker-control";
+
+function migrateLegacyDraft(snap: EditorSnapshot): EditorSnapshot {
+  if (!snap.draft) return snap;
+  const legacy = snap.draft as unknown as {
+    title?: string;
+    body?: string;
+    expectedResult?: string;
+    sections?: Record<string, string>;
+  };
+  if (legacy.sections) return snap;
+  const sections: Record<string, string> = {};
+  if (legacy.body) sections.description = legacy.body;
+  if (legacy.expectedResult) sections.expectedResult = legacy.expectedResult;
+  const migrated: EditorDraft = { title: legacy.title ?? "", sections };
+  return { ...snap, draft: migrated };
+}
 
 const SAVE_DEBOUNCE_MS = 300;
 
@@ -54,7 +71,7 @@ export function useEditorSessionSync(tabId: number | null): boolean {
         if (snap.phase === "picking" || snap.phase === "recording" || snap.phase === "capturing") {
           snap.phase = "idle";
         }
-        useEditorStore.getState().hydrate(snap);
+        useEditorStore.getState().hydrate(migrateLegacyDraft(snap));
       }
       setHydrated(true);
     });

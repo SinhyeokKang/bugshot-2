@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/popover";
 import { useT } from "@/i18n";
 import { cn } from "@/lib/utils";
+import { useAppSettingsStore } from "@/store/app-settings-store";
 import { useEditorStore, type EditorIssueFields } from "@/store/editor-store";
 import { useIssuesStore } from "@/store/issues-store";
 import {
@@ -77,6 +78,7 @@ export function IssueCreateModal() {
   const issueFields = useEditorStore((s) => s.issueFields);
   const setIssueFields = useEditorStore((s) => s.setIssueFields);
   const onSubmitted = useEditorStore((s) => s.onSubmitted);
+  const sectionConfig = useAppSettingsStore((s) => s.issueSections);
 
   const currentIssueId = useEditorStore((s) => s.currentIssueId);
   const markSubmitted = useIssuesStore((s) => s.markSubmitted);
@@ -92,8 +94,8 @@ export function IssueCreateModal() {
       const ctx = {
         captureMode: "video" as const,
         title: draft.title,
-        body: draft.body,
-        expectedResult: draft.expectedResult,
+        sections: draft.sections,
+        sectionConfig,
         url: target?.url ?? "",
         selector: "",
         tagName: "",
@@ -116,8 +118,8 @@ export function IssueCreateModal() {
       const ctx = {
         captureMode: "screenshot" as const,
         title: draft.title,
-        body: draft.body,
-        expectedResult: draft.expectedResult,
+        sections: draft.sections,
+        sectionConfig,
         url: target?.url ?? "",
         selector: "",
         tagName: "",
@@ -137,8 +139,8 @@ export function IssueCreateModal() {
       const diffs = buildStyleDiff(selection, styleEdits);
       const ctx = {
         title: draft.title,
-        body: draft.body,
-        expectedResult: draft.expectedResult,
+        sections: draft.sections,
+        sectionConfig,
         url: target?.url ?? "",
         selector: selection.selector,
         tagName: selection.tagName,

@@ -26,6 +26,12 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { formatElementName } from "@/lib/element-label";
+import {
+  POST_MEDIA_SECTION_IDS,
+  sectionLabelKey,
+  useAppSettingsStore,
+  type IssueSection,
+} from "@/store/app-settings-store";
 import { useEditorStore } from "@/store/editor-store";
 import { useIssuesStore, type IssueRecord } from "@/store/issues-store";
 import { clearPicker } from "../picker-control";
@@ -35,6 +41,7 @@ import {
   jiraSiteId,
 } from "@/store/settings-store";
 import { sendBg, type JiraSubmitResult } from "@/types/messages";
+import { DocSectionBody } from "../components/DocSectionBody";
 import {
   StyleChangesTable,
   buildStyleDiff,
@@ -71,6 +78,7 @@ export function DraftDetailDialog({
   const configured = isJiraConfigComplete(jiraConfig);
   const removeIssue = useIssuesStore((s) => s.removeIssue);
   const markSubmitted = useIssuesStore((s) => s.markSubmitted);
+  const sectionConfig = useAppSettingsStore((s) => s.issueSections);
 
   const [fields, setFields] = useState<SubmitFields>({});
   const [submitOpen, setSubmitOpen] = useState(false);
@@ -129,8 +137,8 @@ export function DraftDetailDialog({
     const ctx = {
       captureMode: issue.captureMode,
       title: issue.draft.title,
-      body: issue.draft.body,
-      expectedResult: issue.draft.expectedResult,
+      sections: issue.draft.sections,
+      sectionConfig,
       url: issue.pageUrl,
       selector: issue.selector ?? "",
       tagName: issue.tagName ?? "",
@@ -241,41 +249,16 @@ export function DraftDetailDialog({
                   <EnvBlock issue={issue} />
                 </FieldSection>
 
-                {issue.draft.body ? (
-                  <FieldSection label={t("section.description")}>
-                    <DocBody value={issue.draft.body} />
-                  </FieldSection>
-                ) : null}
-
-                {isVideo && issue.snapshot.before ? (
-                  <FieldSection label={t("section.media")}>
-                    <DraftVideoPreview issue={issue} thumbnailUrl={beforeUrl} />
-                  </FieldSection>
-                ) : hasScreenshot && beforeUrl ? (
-                  <FieldSection label={t("section.media")}>
-                    <div className="aspect-video w-full overflow-hidden rounded-md border bg-muted/70">
-                      <img
-                        src={beforeUrl}
-                        alt="Captured image"
-                        className="h-full w-full object-contain"
-                      />
-                    </div>
-                  </FieldSection>
-                ) : hasStyleBlock ? (
-                  <FieldSection label={t("section.styleChanges")}>
-                    <StyleChangesTable
-                      beforeImage={beforeUrl}
-                      afterImage={afterUrl}
-                      diffs={diffs}
-                    />
-                  </FieldSection>
-                ) : null}
-
-                {issue.draft.expectedResult ? (
-                  <FieldSection label={t("section.expectedResult")}>
-                    <DocBody value={issue.draft.expectedResult} />
-                  </FieldSection>
-                ) : null}
+                <DraftDetailSections
+                  issue={issue}
+                  sectionConfig={sectionConfig}
+                  beforeUrl={beforeUrl}
+                  afterUrl={afterUrl}
+                  diffs={diffs}
+                  isVideo={isVideo}
+                  hasScreenshot={hasScreenshot}
+                  hasStyleBlock={hasStyleBlock}
+                />
               </Card>
 
               {!configured ? (
@@ -357,6 +340,73 @@ function FieldSection({
       {children}
     </div>
   );
+}
+
+function DraftDetailSections({
+  issue,
+  sectionConfig,
+  beforeUrl,
+  afterUrl,
+  diffs,
+  isVideo,
+  hasScreenshot,
+  hasStyleBlock,
+}: {
+  issue: IssueRecord;
+  sectionConfig: IssueSection[];
+  beforeUrl: string | null;
+  afterUrl: string | null;
+  diffs: ReturnType<typeof buildStyleDiff>;
+  isVideo: boolean;
+  hasScreenshot: boolean;
+  hasStyleBlock: boolean;
+}) {
+  const t = useT();
+  const enabled = sectionConfig.filter((s) => s.enabled);
+  const out: React.ReactNode[] = [];
+  let mediaInserted = false;
+
+  const mediaBlock =
+    isVideo && issue.snapshot.before ? (
+      <FieldSection key="__media" label={t("section.media")}>
+        <DraftVideoPreview issue={issue} thumbnailUrl={beforeUrl} />
+      </FieldSection>
+    ) : hasScreenshot && beforeUrl ? (
+      <FieldSection key="__media" label={t("section.media")}>
+        <div className="aspect-video w-full overflow-hidden rounded-md border bg-muted/70">
+          <img
+            src={beforeUrl}
+            alt="Captured image"
+            className="h-full w-full object-contain"
+          />
+        </div>
+      </FieldSection>
+    ) : hasStyleBlock ? (
+      <FieldSection key="__media" label={t("section.styleChanges")}>
+        <StyleChangesTable
+          beforeImage={beforeUrl}
+          afterImage={afterUrl}
+          diffs={diffs}
+        />
+      </FieldSection>
+    ) : null;
+
+  for (const sec of enabled) {
+    const value = issue.draft.sections[sec.id] ?? "";
+    if (POST_MEDIA_SECTION_IDS.has(sec.id) && !mediaInserted && mediaBlock) {
+      mediaInserted = true;
+      out.push(mediaBlock);
+    }
+    if (!value.trim()) continue;
+    const label = sec.labelOverride?.trim() || t(sectionLabelKey(sec.id));
+    out.push(
+      <FieldSection key={sec.id} label={label}>
+        <DocSectionBody section={sec} value={value} />
+      </FieldSection>,
+    );
+  }
+  if (!mediaInserted && mediaBlock) out.push(mediaBlock);
+  return <>{out}</>;
 }
 
 function EnvBlock({ issue }: { issue: IssueRecord }) {
@@ -446,14 +496,3 @@ function blobToDataUrl(blob: Blob): Promise<string> {
   });
 }
 
-function DocBody({ value }: { value: string }) {
-  const t = useT();
-  if (!value.trim()) {
-    return <p className="text-sm text-muted-foreground/70">{t("common.empty")}</p>;
-  }
-  return (
-    <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">
-      {value}
-    </div>
-  );
-}

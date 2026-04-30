@@ -50,7 +50,7 @@ export function SectionRevertButton({ props }: { props: readonly string[] }) {
       onClick={handleRevert}
       disabled={!dirty}
       title={t("editor.revertSection")}
-      className="h-7 w-7 shrink-0"
+      className="h-8 w-8 shrink-0"
     >
       <RotateCcw />
     </Button>

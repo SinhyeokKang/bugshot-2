@@ -241,7 +241,7 @@ function IssueRow({
                 <Button
                   variant="outline"
                   size="icon"
-                  className="h-7 w-7 shrink-0 text-muted-foreground hover:text-destructive"
+                  className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
                   onClick={(e) => e.stopPropagation()}
                 >
                   <Trash2 />

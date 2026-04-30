@@ -4,8 +4,14 @@ import { formatTimestamp } from "../lib/formatTimestamp";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { useT } from "@/i18n";
+import {
+  POST_MEDIA_SECTION_IDS,
+  sectionLabelKey,
+  useAppSettingsStore,
+} from "@/store/app-settings-store";
 import { useEditorStore } from "@/store/editor-store";
 import { isJiraConfigComplete, useSettingsStore } from "@/store/settings-store";
+import { DocSectionBody } from "../components/DocSectionBody";
 import {
   PageFooter,
   PageScroll,
@@ -18,6 +24,7 @@ import {
 } from "../components/StyleChangesTable";
 import { buildIssueHtml, buildIssueMarkdown } from "../lib/buildIssueMarkdown";
 import { IssueCreateModal } from "./IssueCreateModal";
+
 
 export function PreviewPanel() {
   const t = useT();
@@ -39,6 +46,7 @@ export function PreviewPanel() {
   const draft = useEditorStore((s) => s.draft);
   const backToDraft = useEditorStore((s) => s.backToDraft);
   const reset = useEditorStore((s) => s.reset);
+  const issueSections = useAppSettingsStore((s) => s.issueSections);
   const jiraConfig = useSettingsStore((s) => s.jiraConfig);
   const configured = isJiraConfigComplete(jiraConfig);
   const isElementMode = captureMode === "element";
@@ -66,8 +74,8 @@ export function PreviewPanel() {
       ctx = {
         captureMode: "video",
         title: draft.title,
-        body: draft.body,
-        expectedResult: draft.expectedResult,
+        sections: draft.sections,
+        sectionConfig: issueSections,
         url: target?.url ?? "",
         selector: "",
         tagName: "",
@@ -90,8 +98,8 @@ export function PreviewPanel() {
 
       ctx = {
         title: draft.title,
-        body: draft.body,
-        expectedResult: draft.expectedResult,
+        sections: draft.sections,
+        sectionConfig: issueSections,
         url: target?.url ?? "",
         selector: selection.selector,
         tagName: selection.tagName,
@@ -181,39 +189,51 @@ export function PreviewPanel() {
           </Section>
         )}
 
-        <Section title={t("section.description")}>
-          <DocBody value={draft.body} />
-        </Section>
-
-        {isVideoMode ? (
-          <Section title={t("section.media")}>
-            <PreviewVideo blob={videoBlob} thumbnail={videoThumbnail} />
-          </Section>
-        ) : isElementMode ? (
-          <Section title={t("section.styleChanges")}>
-            <StyleChangesTable
-              beforeImage={beforeImage}
-              afterImage={afterImage}
-              diffs={diffs}
-            />
-          </Section>
-        ) : (
-          <Section title={t("section.media")}>
-            {screenshotImage ? (
-              <div className="aspect-video w-full overflow-hidden rounded-lg border bg-muted/70">
-                <img
-                  src={screenshotImage}
-                  alt="Captured image"
-                  className="h-full w-full object-contain"
-                />
-              </div>
-            ) : null}
-          </Section>
-        )}
-
-        <Section title={t("section.expectedResult")}>
-          <DocBody value={draft.expectedResult} />
-        </Section>
+        {(() => {
+          const enabled = issueSections.filter((s) => s.enabled);
+          let mediaInserted = false;
+          const mediaBlock = isVideoMode ? (
+            <Section key="__media" title={t("section.media")}>
+              <PreviewVideo blob={videoBlob} thumbnail={videoThumbnail} />
+            </Section>
+          ) : isElementMode ? (
+            <Section key="__media" title={t("section.styleChanges")}>
+              <StyleChangesTable
+                beforeImage={beforeImage}
+                afterImage={afterImage}
+                diffs={diffs}
+              />
+            </Section>
+          ) : (
+            <Section key="__media" title={t("section.media")}>
+              {screenshotImage ? (
+                <div className="aspect-video w-full overflow-hidden rounded-lg border bg-muted/70">
+                  <img
+                    src={screenshotImage}
+                    alt="Captured image"
+                    className="h-full w-full object-contain"
+                  />
+                </div>
+              ) : null}
+            </Section>
+          );
+          const out: React.ReactNode[] = [];
+          for (const sec of enabled) {
+            if (POST_MEDIA_SECTION_IDS.has(sec.id) && !mediaInserted) {
+              mediaInserted = true;
+              out.push(mediaBlock);
+            }
+            const value = draft.sections[sec.id] ?? "";
+            const label = sec.labelOverride?.trim() || t(sectionLabelKey(sec.id));
+            out.push(
+              <Section key={sec.id} title={label}>
+                <DocSectionBody section={sec} value={value} />
+              </Section>,
+            );
+          }
+          if (!mediaInserted) out.push(mediaBlock);
+          return out;
+        })()}
       </PageScroll>
       <PageFooter>
         {!configured ? (
@@ -265,18 +285,6 @@ function PreviewVideo({ blob, thumbnail }: { blob: Blob | null; thumbnail: strin
   if (src) return <video src={src} controls className="w-full rounded-lg border" />;
   if (thumbnail) return <img src={thumbnail} alt="Recording thumbnail" className="w-full rounded-lg border" />;
   return null;
-}
-
-function DocBody({ value }: { value: string }) {
-  const t = useT();
-  if (!value.trim()) {
-    return <p className="text-sm text-muted-foreground/70">{t("common.empty")}</p>;
-  }
-  return (
-    <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">
-      {value}
-    </div>
-  );
 }
 
 function EnvParagraph({

@@ -1,4 +1,9 @@
 import { t } from "@/i18n";
+import {
+  POST_MEDIA_SECTION_IDS,
+  sectionMdLabelKey,
+  type IssueSection,
+} from "@/store/app-settings-store";
 import { IMAGE_PLACEHOLDER } from "@/lib/adf-sentinels";
 import { formatElementName } from "@/lib/element-label";
 import type { MarkdownContext } from "./buildIssueMarkdown";
@@ -18,26 +23,31 @@ export interface AdfDoc {
   content: AdfNode[];
 }
 
+function sectionLabel(section: IssueSection): string {
+  return section.labelOverride?.trim() || t(sectionMdLabelKey(section.id));
+}
+
+function listItems(content: string): string[] {
+  return content
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+}
+
 export function buildIssueAdf(ctx: MarkdownContext): AdfDoc {
   const content: AdfNode[] = [];
   const isVideo = ctx.captureMode === "video";
   const isScreenshot = ctx.captureMode === "screenshot";
 
   content.push(heading(2, t("md.section.env")));
-  if (isVideo) {
-    const items = [
-      keyValueItem("Page", ctx.url),
-      keyValueItem("Viewport", `${ctx.viewport.width}×${ctx.viewport.height}`),
-      keyValueItem("Captured", formatTimestamp(ctx.capturedAt)),
-    ];
-    content.push(bulletList(items));
-  } else if (isScreenshot) {
-    const items = [
-      keyValueItem("Page", ctx.url),
-      keyValueItem("Viewport", `${ctx.viewport.width}×${ctx.viewport.height}`),
-      keyValueItem("Captured", formatTimestamp(ctx.capturedAt)),
-    ];
-    content.push(bulletList(items));
+  if (isVideo || isScreenshot) {
+    content.push(
+      bulletList([
+        keyValueItem("Page", ctx.url),
+        keyValueItem("Viewport", `${ctx.viewport.width}×${ctx.viewport.height}`),
+        keyValueItem("Captured", formatTimestamp(ctx.capturedAt)),
+      ]),
+    );
   } else {
     const domLabel = ctx.tagName
       ? formatElementName({ tag: ctx.tagName, classList: ctx.classListBefore })
@@ -52,27 +62,46 @@ export function buildIssueAdf(ctx: MarkdownContext): AdfDoc {
     );
   }
 
-  content.push(heading(2, t("md.section.description")));
-  content.push(...textBlock(ctx.body));
+  let mediaEmitted = false;
+  const emitMedia = () => {
+    if (mediaEmitted) return;
+    mediaEmitted = true;
+    if (isVideo) {
+      content.push(heading(2, t("md.section.media")));
+      content.push(paragraph([textNode(t("md.videoAttached"))]));
+    } else if (isScreenshot) {
+      content.push(heading(2, t("md.section.media")));
+      content.push(paragraph([textNode(IMAGE_PLACEHOLDER)]));
+    } else {
+      content.push(heading(2, t("md.section.styleChanges")));
+      content.push(
+        table(
+          [t("md.column.property"), "As is", "To be"],
+          ctx.diffs.map((d) => [d.prop, d.asIs, d.toBe]),
+        ),
+      );
+    }
+  };
 
-  if (isVideo) {
-    content.push(heading(2, t("md.section.media")));
-    content.push(paragraph([textNode(t("md.videoAttached"))]));
-  } else if (isScreenshot) {
-    content.push(heading(2, t("md.section.media")));
-    content.push(paragraph([textNode(IMAGE_PLACEHOLDER)]));
-  } else {
-    content.push(heading(2, t("md.section.styleChanges")));
-    content.push(
-      table(
-        [t("md.column.property"), "As is", "To be"],
-        ctx.diffs.map((d) => [d.prop, d.asIs, d.toBe]),
-      ),
-    );
+  for (const section of ctx.sectionConfig) {
+    if (!section.enabled) continue;
+    if (POST_MEDIA_SECTION_IDS.has(section.id)) emitMedia();
+    const raw = ctx.sections[section.id] ?? "";
+    content.push(heading(2, sectionLabel(section)));
+    if (section.renderAs === "orderedList") {
+      const items = listItems(raw);
+      if (items.length === 0) {
+        // textBlock과 동일한 빈 입력 fallback (paragraph + noValue)
+        content.push(paragraph([textNode(t("md.noValue"))]));
+      } else {
+        content.push(orderedList(items.map((it) => listItem([paragraph([textNode(it)])]))));
+      }
+    } else {
+      content.push(...textBlock(raw));
+    }
   }
 
-  content.push(heading(2, t("md.section.expectedResult")));
-  content.push(...textBlock(ctx.expectedResult));
+  emitMedia();
 
   content.push(footerParagraph());
 
@@ -137,6 +166,14 @@ function bulletList(items: AdfNode[]): AdfNode {
   return { type: "bulletList", content: items };
 }
 
+function orderedList(items: AdfNode[]): AdfNode {
+  return { type: "orderedList", content: items };
+}
+
+function listItem(children: AdfNode[]): AdfNode {
+  return { type: "listItem", content: children };
+}
+
 function keyValueItem(key: string, value: string): AdfNode {
   return {
     type: "listItem",
@@ -170,4 +207,3 @@ function table(headers: string[], rows: string[][]): AdfNode {
     ],
   };
 }
-
