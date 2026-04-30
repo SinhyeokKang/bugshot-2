@@ -112,4 +112,6 @@ export interface JiraSubmitResult {
 export interface JiraIssueStatus {
   name: string;
   categoryKey: string;
+  issueTypeName?: string;
+  summary?: string;
 }

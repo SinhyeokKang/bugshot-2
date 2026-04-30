@@ -438,6 +438,20 @@ function onClickCommit(e: MouseEvent): void {
   e.stopPropagation();
   const target = elementAtPoint(e.clientX, e.clientY);
   if (isOwnUi(target) || !target) return;
+  // iframe 내부 DOM은 cross-document 경계로 elementFromPoint이 도달 못 함 + content
+  // script가 all_frames=false라 inner element 선택 자체가 불가능. iframe-as-element
+  // 선택을 허용하면 collectTokens / applyStyles 등에서 빈 결과·오류 누적되므로 차단.
+  if (target.tagName === "IFRAME") {
+    removeHoverListeners();
+    restoreOriginal();
+    selectedEl = null;
+    lastHover = null;
+    setMode("idle");
+    chrome.runtime
+      .sendMessage<PickerMessage>({ type: "picker.iframeUnsupported" })
+      .catch(() => {});
+    return;
+  }
   restoreOriginal();
   selectedEl = target;
   captureOriginal(target);

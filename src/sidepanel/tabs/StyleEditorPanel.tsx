@@ -132,7 +132,7 @@ export function SelectedPanel() {
     <PageShell>
       <PageScroll>
         <div className="sticky top-0 z-10 border-b border-border bg-background py-6">
-          <div className="flex items-center gap-1 px-4">
+          <div className="flex items-center gap-2 px-4">
             <DomNavButton direction="parent" />
             <div className="min-w-0 flex-1">
               <DomTreeTitle tagName={selection.tagName} classList={selection.classList} />
@@ -537,7 +537,7 @@ function TextRevertButton() {
       onClick={handleRevert}
       disabled={!dirty}
       title={t("editor.revertText")}
-      className="h-7 w-7 shrink-0"
+      className="h-8 w-8 shrink-0"
     >
       <RotateCcw />
     </Button>
@@ -572,7 +572,7 @@ function ClassRevertButton() {
       onClick={handleRevert}
       disabled={!dirty}
       title={t("editor.revertClass")}
-      className="h-7 w-7 shrink-0"
+      className="h-8 w-8 shrink-0"
     >
       <RotateCcw />
     </Button>

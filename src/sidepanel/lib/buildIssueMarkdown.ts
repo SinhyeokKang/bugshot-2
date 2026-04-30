@@ -1,12 +1,17 @@
 import { t } from "@/i18n";
+import {
+  POST_MEDIA_SECTION_IDS,
+  sectionMdLabelKey,
+  type IssueSection,
+} from "@/store/app-settings-store";
 import type { StyleDiffRow } from "../components/StyleChangesTable";
 import { formatTimestamp } from "./formatTimestamp";
 
 export interface MarkdownContext {
   captureMode?: "element" | "screenshot" | "video";
   title: string;
-  body: string;
-  expectedResult: string;
+  sections: Record<string, string>;
+  sectionConfig: IssueSection[];
   url: string;
   selector: string;
   tagName: string;
@@ -17,6 +22,17 @@ export interface MarkdownContext {
   viewport: { width: number; height: number };
   capturedAt: number;
   diffs: StyleDiffRow[];
+}
+
+function sectionLabel(section: IssueSection): string {
+  return section.labelOverride?.trim() || t(sectionMdLabelKey(section.id));
+}
+
+function listItems(content: string): string[] {
+  return content
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
 }
 
 export function buildIssueMarkdown(ctx: MarkdownContext): string {
@@ -37,40 +53,56 @@ export function buildIssueMarkdown(ctx: MarkdownContext): string {
   lines.push(`- **Captured**: ${formatTimestamp(ctx.capturedAt)}`);
   lines.push("");
 
-  lines.push(`## ${t("md.section.description")}`);
-  lines.push("");
-  lines.push(ctx.body);
-  lines.push("");
-
-  if (ctx.captureMode === "video") {
-    lines.push(`## ${t("md.section.media")}`);
-    lines.push("");
-    lines.push(t("md.videoAttached"));
-    lines.push("");
-  } else if (ctx.captureMode === "screenshot") {
-    lines.push(`## ${t("md.section.media")}`);
-    lines.push("");
-    lines.push(t("md.imageAttached"));
-    lines.push("");
-  } else {
-    lines.push(`## ${t("md.section.styleChanges")}`);
-    lines.push("");
-    if (ctx.diffs.length > 0) {
-      lines.push(`| ${t("md.column.property")} | As is | To be |`);
-      lines.push("| --- | --- | --- |");
-      for (const d of ctx.diffs) {
-        lines.push(
-          `| ${escapeCell(d.prop)} | ${escapeCell(d.asIs)} | ${escapeCell(d.toBe)} |`,
-        );
-      }
+  let mediaEmitted = false;
+  const emitMedia = () => {
+    if (mediaEmitted) return;
+    mediaEmitted = true;
+    if (ctx.captureMode === "video") {
+      lines.push(`## ${t("md.section.media")}`);
       lines.push("");
+      lines.push(t("md.videoAttached"));
+      lines.push("");
+    } else if (ctx.captureMode === "screenshot") {
+      lines.push(`## ${t("md.section.media")}`);
+      lines.push("");
+      lines.push(t("md.imageAttached"));
+      lines.push("");
+    } else {
+      lines.push(`## ${t("md.section.styleChanges")}`);
+      lines.push("");
+      if (ctx.diffs.length > 0) {
+        lines.push(`| ${t("md.column.property")} | As is | To be |`);
+        lines.push("| --- | --- | --- |");
+        for (const d of ctx.diffs) {
+          lines.push(
+            `| ${escapeCell(d.prop)} | ${escapeCell(d.asIs)} | ${escapeCell(d.toBe)} |`,
+          );
+        }
+        lines.push("");
+      }
     }
+  };
+
+  for (const section of ctx.sectionConfig) {
+    if (!section.enabled) continue;
+    if (POST_MEDIA_SECTION_IDS.has(section.id)) emitMedia();
+    const content = ctx.sections[section.id] ?? "";
+    lines.push(`## ${sectionLabel(section)}`);
+    lines.push("");
+    if (section.renderAs === "orderedList") {
+      const items = listItems(content);
+      if (items.length === 0) {
+        lines.push(t("md.noValue"));
+      } else {
+        items.forEach((it, idx) => lines.push(`${idx + 1}. ${it}`));
+      }
+    } else {
+      lines.push(content.trim() ? content : t("md.noValue"));
+    }
+    lines.push("");
   }
 
-  lines.push(`## ${t("md.section.expectedResult")}`);
-  lines.push("");
-  lines.push(ctx.expectedResult);
-  lines.push("");
+  emitMedia();
 
   lines.push(footerMarkdown());
   lines.push("");
@@ -98,32 +130,56 @@ export function buildIssueHtml(ctx: MarkdownContext): string {
   );
   parts.push(`</ul>`);
 
-  parts.push(`<h2>${t("md.section.description")}</h2>`);
-  parts.push(paragraphize(ctx.body));
-
-  if (ctx.captureMode === "video") {
-    parts.push(`<h2>${t("md.section.media")}</h2>`);
-    parts.push(`<p>${t("md.videoAttached")}</p>`);
-  } else if (ctx.captureMode === "screenshot") {
-    parts.push(`<h2>${t("md.section.media")}</h2>`);
-    parts.push(`<p>${t("md.imageAttached")}</p>`);
-  } else {
-    parts.push(`<h2>${t("md.section.styleChanges")}</h2>`);
-    if (ctx.diffs.length > 0) {
-      parts.push(
-        `<table><thead><tr><th>${t("md.column.property")}</th><th>As is</th><th>To be</th></tr></thead><tbody>`,
-      );
-      for (const d of ctx.diffs) {
+  let mediaEmitted = false;
+  const emitMedia = () => {
+    if (mediaEmitted) return;
+    mediaEmitted = true;
+    if (ctx.captureMode === "video") {
+      parts.push(`<h2>${t("md.section.media")}</h2>`);
+      parts.push(`<p>${t("md.videoAttached")}</p>`);
+    } else if (ctx.captureMode === "screenshot") {
+      parts.push(`<h2>${t("md.section.media")}</h2>`);
+      parts.push(`<p>${t("md.imageAttached")}</p>`);
+    } else {
+      parts.push(`<h2>${t("md.section.styleChanges")}</h2>`);
+      if (ctx.diffs.length > 0) {
         parts.push(
-          `<tr><td>${escapeHtml(d.prop)}</td><td>${escapeHtml(d.asIs)}</td><td>${escapeHtml(d.toBe)}</td></tr>`,
+          `<table><thead><tr><th>${t("md.column.property")}</th><th>As is</th><th>To be</th></tr></thead><tbody>`,
+        );
+        for (const d of ctx.diffs) {
+          parts.push(
+            `<tr><td>${escapeHtml(d.prop)}</td><td>${escapeHtml(d.asIs)}</td><td>${escapeHtml(d.toBe)}</td></tr>`,
+          );
+        }
+        parts.push(`</tbody></table>`);
+      }
+    }
+  };
+
+  for (const section of ctx.sectionConfig) {
+    if (!section.enabled) continue;
+    if (POST_MEDIA_SECTION_IDS.has(section.id)) emitMedia();
+    const content = ctx.sections[section.id] ?? "";
+    parts.push(`<h2>${escapeHtml(sectionLabel(section))}</h2>`);
+    if (section.renderAs === "orderedList") {
+      const items = listItems(content);
+      if (items.length === 0) {
+        parts.push(`<p>${escapeHtml(t("md.noValue"))}</p>`);
+      } else {
+        parts.push(
+          `<ol>${items.map((it) => `<li>${escapeHtml(it)}</li>`).join("")}</ol>`,
         );
       }
-      parts.push(`</tbody></table>`);
+    } else {
+      parts.push(
+        content.trim()
+          ? paragraphize(content)
+          : `<p>${escapeHtml(t("md.noValue"))}</p>`,
+      );
     }
   }
 
-  parts.push(`<h2>${t("md.section.expectedResult")}</h2>`);
-  parts.push(paragraphize(ctx.expectedResult));
+  emitMedia();
 
   parts.push(footerHtml());
 
@@ -191,4 +247,3 @@ function paragraphize(text: string): string {
     })
     .join("\n");
 }
-

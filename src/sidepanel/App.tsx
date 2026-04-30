@@ -14,7 +14,11 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PICKER_PORT_NAME, PANEL_PORT_PREFIX } from "@/lib/session-keys";
 import { useEditorStore } from "@/store/editor-store";
 import { jiraCredentialsFilled, useSettingsStore } from "@/store/settings-store";
-import { onOAuthExpired } from "@/types/messages";
+import {
+  onOAuthExpired,
+  onPickerIframeUnsupported,
+  onPickerUnavailable,
+} from "@/types/messages";
 
 const TabNavContext = createContext<(tab: string) => void>(() => {});
 export const useTabNav = () => useContext(TabNavContext);
@@ -49,6 +53,8 @@ export default function App() {
   const jiraConfig = useSettingsStore((s) => s.jiraConfig);
   const [tab, setTab] = useState("issue");
   const [oauthExpired, setOAuthExpired] = useState(false);
+  const [pickerUnavailable, setPickerUnavailable] = useState(false);
+  const [iframeUnsupported, setIframeUnsupported] = useState(false);
 
   useEffect(() => {
     if (settingsHydrated && !jiraCredentialsFilled(jiraConfig)) {
@@ -64,6 +70,26 @@ export default function App() {
         document.activeElement.blur();
       }
       setOAuthExpired(true);
+    });
+    return unsub;
+  }, []);
+
+  useEffect(() => {
+    const unsub = onPickerUnavailable.subscribe(() => {
+      if (document.activeElement instanceof HTMLElement && document.activeElement !== document.body) {
+        document.activeElement.blur();
+      }
+      setPickerUnavailable(true);
+    });
+    return unsub;
+  }, []);
+
+  useEffect(() => {
+    const unsub = onPickerIframeUnsupported.subscribe(() => {
+      if (document.activeElement instanceof HTMLElement && document.activeElement !== document.body) {
+        document.activeElement.blur();
+      }
+      setIframeUnsupported(true);
     });
     return unsub;
   }, []);
@@ -160,6 +186,38 @@ export default function App() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogAction onClick={() => { setOAuthExpired(false); setTab("issue-settings"); }}>
+              {t("common.ok")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={pickerUnavailable} onOpenChange={setPickerUnavailable}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("app.pickerUnavailable.title")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("app.pickerUnavailable.body")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setPickerUnavailable(false)}>
+              {t("common.ok")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={iframeUnsupported} onOpenChange={setIframeUnsupported}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("app.iframeUnsupported.title")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("app.iframeUnsupported.body")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setIframeUnsupported(false)}>
               {t("common.ok")}
             </AlertDialogAction>
           </AlertDialogFooter>

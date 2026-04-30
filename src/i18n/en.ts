@@ -27,14 +27,24 @@ const en = {
   "app.unsupported.body": "Please run BugShot on a web page (http, https, file).",
   "app.oauthExpired.title": "Jira auth has expired",
   "app.oauthExpired.body": "Please reconnect Jira.",
+  "app.pickerUnavailable.title": "Unavailable on this page",
+  "app.pickerUnavailable.body": "Chrome policy prevents BugShot from running on the Chrome Web Store and similar restricted pages. Try another page.",
+  "app.iframeUnsupported.title": "Elements inside iframes cannot be selected",
+  "app.iframeUnsupported.body": "Chrome security policy blocks access to DOM inside iframes. Pick an element outside the iframe, or use screen capture mode.",
 
   // Issue sections
   "section.issueTitle": "Issue title",
   "section.env": "Environment",
   "section.description": "Description",
+  "section.stepsToReproduce": "Steps to reproduce",
   "section.media": "Media",
   "section.styleChanges": "Style changes",
   "section.expectedResult": "Expected result",
+  "section.notes": "Notes",
+  "section.description.help": "Describe how the bug manifests.",
+  "section.stepsToReproduce.help": "List one step per line to render as a numbered list.",
+  "section.expectedResult.help": "Describe how it should behave instead.",
+  "section.notes.help": "Additional context such as links or background.",
 
   // Issue tab
   "issue.unsupported": "Unsupported page",
@@ -103,8 +113,10 @@ const en = {
 
   // Drafting panel
   "draft.titlePlaceholder": "Issue title",
-  "draft.bodyPlaceholder": "Reproduction steps, expected behavior, etc.",
+  "draft.descriptionPlaceholder": "Describe how the bug shows up",
+  "draft.stepsToReproducePlaceholder": "Enter one step per line",
   "draft.expectedResultPlaceholder": "Expected behavior or design spec after fix",
+  "draft.notesPlaceholder": "Anything else worth sharing",
   "draft.removeAnnotation": "Remove annotation",
   "draft.editAnnotation": "Edit annotation",
   "draft.addAnnotation": "Add annotation",
@@ -193,6 +205,7 @@ const en = {
   "appSettings.theme.light": "Light",
   "appSettings.theme.dark": "Dark",
   "appSettings.theme.system": "System",
+  "appSettings.issueSections.title": "Issue composition",
 
   // Draft detail
   "draftDetail.title": "Review draft",
@@ -221,9 +234,11 @@ const en = {
   // Build issue markdown / ADF
   "md.section.env": "Environment",
   "md.section.description": "Description",
+  "md.section.stepsToReproduce": "Steps to reproduce",
   "md.section.media": "Media",
   "md.section.styleChanges": "Style Changes",
   "md.section.expectedResult": "Expected Result",
+  "md.section.notes": "Notes",
   "md.videoAttached": "(See attached video)",
   "md.imageAttached": "(See attached image)",
   "md.column.property": "Property",

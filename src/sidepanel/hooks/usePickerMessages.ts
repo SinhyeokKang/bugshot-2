@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useEditorStore } from "@/store/editor-store";
 import type { PickerMessage, ViewportRect } from "@/types/picker";
+import { onPickerIframeUnsupported } from "@/types/messages";
 import { captureElementSnapshot, loadImage } from "../capture";
 import { collectTokens } from "../picker-control";
 
@@ -56,6 +57,9 @@ export function usePickerMessages(): void {
         } else {
           useEditorStore.getState().cancelPicking();
         }
+      } else if (message.type === "picker.iframeUnsupported") {
+        useEditorStore.getState().cancelPicking();
+        onPickerIframeUnsupported.fire();
       }
     }
 
@@ -111,5 +115,5 @@ async function cropImage(
     rect.width,
     rect.height,
   );
-  return canvas.toDataURL("image/jpeg", 0.92);
+  return canvas.toDataURL("image/webp", 0.92);
 }

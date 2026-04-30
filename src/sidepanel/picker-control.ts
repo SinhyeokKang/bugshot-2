@@ -1,4 +1,6 @@
+import { isSupportedUrl } from "@/lib/url-support";
 import { useEditorStore } from "@/store/editor-store";
+import { onPickerUnavailable } from "@/types/messages";
 import type {
   DescribeChildrenResponse,
   DescribeInitialResponse,
@@ -8,6 +10,13 @@ import type {
   Token,
 } from "@/types/picker";
 
+class PickerUnavailableError extends Error {
+  constructor() {
+    super("Picker unavailable on this page");
+    this.name = "PickerUnavailableError";
+  }
+}
+
 async function ensureContentScript(tabId: number): Promise<void> {
   try {
     await chrome.tabs.sendMessage(tabId, { type: "ping" });
@@ -15,7 +24,13 @@ async function ensureContentScript(tabId: number): Promise<void> {
     const manifest = chrome.runtime.getManifest();
     const files = manifest.content_scripts?.[0]?.js;
     if (!files?.length) return;
-    await chrome.scripting.executeScript({ target: { tabId }, files });
+    try {
+      await chrome.scripting.executeScript({ target: { tabId }, files });
+    } catch {
+      // URL 사전 검사는 통과했지만 정책/제한으로 주입 불가한 케이스
+      // (e.g. enterprise runtime_blocked_hosts, file:// 권한 미허용, 또는 검사 후 탭이 unsupported로 이동).
+      throw new PickerUnavailableError();
+    }
   }
 }
 
@@ -31,19 +46,33 @@ async function send<R = void>(
 }
 
 export async function startPicker(tabId: number): Promise<void> {
+  let tab: chrome.tabs.Tab;
   try {
-    const tab = await chrome.tabs.get(tabId);
-    useEditorStore.getState().startPicking({
-      tabId,
-      url: tab.url ?? "",
-      title: tab.title ?? "",
-    });
+    tab = await chrome.tabs.get(tabId);
+  } catch (err) {
+    console.error("[bugshot] picker start failed", err);
+    return;
+  }
+  if (!isSupportedUrl(tab.url)) {
+    onPickerUnavailable.fire();
+    return;
+  }
+  useEditorStore.getState().startPicking({
+    tabId,
+    url: tab.url ?? "",
+    title: tab.title ?? "",
+  });
+  try {
     await ensureContentScript(tabId);
     await chrome.tabs.sendMessage<PickerMessage>(tabId, {
       type: "picker.start",
     });
   } catch (err) {
-    console.error("[bugshot] picker start failed", err);
+    if (err instanceof PickerUnavailableError) {
+      onPickerUnavailable.fire();
+    } else {
+      console.error("[bugshot] picker start failed", err);
+    }
     useEditorStore.getState().cancelPicking();
   }
 }
@@ -145,19 +174,33 @@ export async function endCapture(tabId: number): Promise<void> {
 }
 
 export async function startAreaCapture(tabId: number): Promise<void> {
+  let tab: chrome.tabs.Tab;
   try {
-    const tab = await chrome.tabs.get(tabId);
-    useEditorStore.getState().startCapturing({
-      tabId,
-      url: tab.url ?? "",
-      title: tab.title ?? "",
-    });
+    tab = await chrome.tabs.get(tabId);
+  } catch (err) {
+    console.error("[bugshot] area capture start failed", err);
+    return;
+  }
+  if (!isSupportedUrl(tab.url)) {
+    onPickerUnavailable.fire();
+    return;
+  }
+  useEditorStore.getState().startCapturing({
+    tabId,
+    url: tab.url ?? "",
+    title: tab.title ?? "",
+  });
+  try {
     await ensureContentScript(tabId);
     await chrome.tabs.sendMessage<PickerMessage>(tabId, {
       type: "picker.startAreaSelect",
     });
   } catch (err) {
-    console.error("[bugshot] area capture start failed", err);
+    if (err instanceof PickerUnavailableError) {
+      onPickerUnavailable.fire();
+    } else {
+      console.error("[bugshot] area capture start failed", err);
+    }
     useEditorStore.getState().reset();
   }
 }

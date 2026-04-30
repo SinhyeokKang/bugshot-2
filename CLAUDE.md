@@ -54,7 +54,7 @@ src/
 │   └── lib/             # buildIssueMarkdown, buildIssueAdf 등 순수 유틸
 ├── store/               # Zustand 스토어 (editor/issues/settings/app-settings), blob-db(IndexedDB 이미지·비디오 저장), settings는 v2 마이그레이션(flat → discriminated auth)
 ├── i18n/                # 다국어 (ko/en 로케일, t()/useT() 훅)
-├── lib/                 # 공용 유틸 (session-keys, adf-sentinels)
+├── lib/                 # 공용 유틸 (session-keys, adf-sentinels, url-support)
 ├── components/ui/       # shadcn 컴포넌트
 ├── styles/
 └── types/
@@ -68,7 +68,7 @@ docs/
 
 ### Side Panel은 탭 스코프
 
-ui-inspector 참고. **활성화한 탭에서만 side panel이 보이고, 탭을 이동하면 자동으로 닫힌다.** 돌아오면 다시 열린다.
+**활성화한 탭에서만 side panel이 보이고, 탭을 이동하면 자동으로 닫힌다.** 돌아오면 다시 열린다.
 
 구현:
 - `chrome.storage.session`의 `sidePanel:activated` 키에 활성화된 tabId 셋을 저장
@@ -185,6 +185,23 @@ Jira는 마크다운 원본을 파싱하지 않고, 붙여넣기는 **ProseMirro
 
 구현: `src/sidepanel/lib/buildIssueMarkdown.ts` — `buildIssueMarkdown()` + `buildIssueHtml()` 페어.
 
+### 이슈 섹션 구성 (앱 설정 → 이슈 구성)
+
+사용자 입력 섹션은 **앱 설정에서 on/off 가능**한 4종 빌트인. `app-settings-store`의 `IssueSection[]` (`DEFAULT_ISSUE_SECTIONS`) 배열 순서가 곧 출력 순서.
+
+| id | 기본 enabled | renderAs |
+|---|---|---|
+| `description` (발생 현상) | ✅ | paragraph |
+| `stepsToReproduce` (재현 과정) | ✅ | orderedList |
+| `expectedResult` (기대 결과) | ✅ | paragraph |
+| `notes` (비고) | ⬜ | paragraph |
+
+draft 데이터 모델은 `{ title, sections: Record<string, string> }`. 섹션 마다 newline-joined 평문. `stepsToReproduce`는 줄별 Input + Trash2 IconButton의 `OrderedListEditor` 전용 UI; 그 외는 plain Textarea.
+
+**자동 메타 위치**: `POST_MEDIA_SECTION_IDS = {"expectedResult","notes"}` — enabled iterate 중 첫 POST_MEDIA 섹션을 만나면 그 직전에 media/styleChanges 블록 emit. 둘 다 disabled면 모든 섹션 끝에 emit. `buildIssueMarkdown` / `buildIssueHtml` / `buildIssueAdf` / `DraftingPanel` / `PreviewPanel` / `DraftDetailDialog` 5곳에서 동일 룰. 라벨 i18n 헬퍼는 `sectionLabelKey` / `sectionMdLabelKey` / `sectionPlaceholderKey` / `sectionHelpKey` (`app-settings-store`).
+
+**마이그레이션 3중 가드**: `issues-store` v3, `app-settings-store` v2, `useEditorSessionSync.migrateLegacyDraft` — 세 곳 모두 `if (legacy.sections)` 멱등 가드 + sparse 저장(빈 legacy 값은 sections에 키 추가 안 함). 빈 paragraph 섹션 출력은 마크다운/HTML/ADF 모두 `(없음)` (`md.noValue`)로 통일.
+
 ## 릴리스 & 버전
 
 ### 버전 체계
@@ -211,7 +228,7 @@ pnpm version major --no-git-tag-version   # 1.0.0 → 2.0.0 (Breaking change)
 /build  → pnpm build + 테스트 체크리스트 (작업 중 검증)
 /push   → dev push (main에서 호출 차단)
 /merge  → dev에서 버전 bump 커밋 + dev → main squash PR 생성 + 자동 머지
-/deploy → main 한정. tag push → 스토어 빌드 → zip → 심사 요청 안내
+/deploy → main 한정. tag push → 스토어 빌드 → zip → GitHub Release draft → 심사 요청 안내
 /sync   → dev를 origin/main으로 hard reset + force push (배포/머지 후)
 ```
 
@@ -236,12 +253,14 @@ pnpm version major --no-git-tag-version   # 1.0.0 → 2.0.0 (Breaking change)
 - **UI 컴포넌트**: 직접 스타일링 금지. shadcn/ui 컴포넌트를 우선 사용하고, 없으면 `npx shadcn@latest add <component>`로 설치해서 사용. 설치 후 `src/components/ui/`에 위치 확인 필수 (shadcn이 `@/` 루트에 생성할 수 있음)
 - Tailwind: shadcn CSS 변수 사용, 커스텀 색상 남발 금지
 - 버튼 사이즈: shadcn 기본 + `xl` 추가 (`h-11 px-10 text-base`, CTA용)
+- IconButton 사이즈: 패널/섹션 헤더·액션은 `h-8 w-8` (32px), Input·Textarea 우측에 직접 붙는 경우(LinkToggle, OrderedListEditor 행 삭제 등)만 `h-9 w-9` (36px, 필드 높이와 맞춤). 일관성 위해 새로 추가 시 동일하게.
 - 탭 컨텐츠: `data-[state=inactive]:hidden` 필수 (비활성 탭 동시 렌더 버그 방지)
 
 ## 게이트웨이 (알아두면 유용)
 
 - 매니페스트 `minimum_chrome_version: "116"` — sidePanel API 요구사항
-- 지원 URL 스킴: `http:`, `https:`, `file:`만. 그 외에서는 side panel을 enable하지 않는다.
+- 지원 URL: `http:`, `https:`, `file:` 스킴만. 추가로 `chromewebstore.google.com` 전체와 `chrome.google.com/webstore/*` 트리는 Chrome이 content script 주입을 차단해서 `src/lib/url-support.ts`의 `isSupportedUrl()`이 미지원으로 처리. 그 외 페이지에서는 side panel을 enable하지 않고, 사용 중 race로 unsupported로 진입하면 picker가 `onPickerUnavailable` 이벤트를 발화해 안내 다이얼로그 노출.
+- iframe 제약: content script가 `all_frames=false`라 iframe 내부 DOM은 picker로 선택 불가. iframe 박스 자체를 클릭하면 `picker.iframeUnsupported` → `onPickerIframeUnsupported` 이벤트로 안내 다이얼로그 노출 + picker 즉시 idle 복귀 (cross-document 경계 + 빈 결과로 인한 콘솔 에러 누적 방지).
 - 단축키: `Cmd+Shift+E` (mac) / `Ctrl+Shift+E` (default) — `_execute_action`
 - permissions: `sidePanel`, `activeTab`, `scripting`, `storage`, `commands`, `contextMenus`, `identity`, `tabCapture`
 - host_permissions: `*.atlassian.net` (Jira REST), `api.atlassian.com` (OAuth gateway), `auth.atlassian.com` (authorize), + `VITE_OAUTH_PROXY_URL` origin (빌드 타임 주입)

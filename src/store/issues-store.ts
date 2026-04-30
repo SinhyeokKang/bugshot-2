@@ -24,7 +24,7 @@ function stripSubmitted(
     status: "submitted",
     updatedAt: Date.now(),
     snapshot: { before: false, after: false },
-    draft: { title: "", body: "", expectedResult: "" },
+    draft: { title: "", sections: {} },
     styleEdits: undefined,
     selectionSnapshot: undefined,
     tokensSnapshot: undefined,
@@ -80,8 +80,7 @@ export interface IssueStyleEdits {
 
 export interface IssueDraftContent {
   title: string;
-  body: string;
-  expectedResult: string;
+  sections: Record<string, string>;
 }
 
 export interface IssueSelectionSnapshot {
@@ -132,6 +131,7 @@ interface IssuesState {
   issues: IssueRecord[];
   saveDraft: (record: IssueRecord) => void;
   markSubmitted: (id: string, patch: Partial<IssueRecord>) => void;
+  patchIssue: (id: string, patch: Partial<IssueRecord>) => void;
   removeIssue: (id: string) => void;
   clearIssues: () => void;
 }
@@ -161,6 +161,12 @@ export const useIssuesStore = create<IssuesState>()(
         deleteVideoBlob(id).catch(() => {});
         deleteImageBlobs(id).catch(() => {});
       },
+      patchIssue: (id, patch) =>
+        set((s) => ({
+          issues: s.issues.map((x) =>
+            x.id === id ? { ...x, ...patch } : x,
+          ),
+        })),
       removeIssue: (id) => {
         set((s) => ({ issues: s.issues.filter((x) => x.id !== id) }));
         deleteVideoBlob(id).catch(() => {});
@@ -176,7 +182,7 @@ export const useIssuesStore = create<IssuesState>()(
     }),
     {
       name: "bugshot-issues",
-      version: 2,
+      version: 3,
       storage: createJSONStorage(() => chromeLocalStorage),
       migrate: async (persisted, version) => {
         const state = persisted as { issues: IssueRecord[] };
@@ -206,6 +212,21 @@ export const useIssuesStore = create<IssuesState>()(
               } catch { /* image lost on migration failure */ }
             }
             issue.snapshot = { before: hasBefore, after: hasAfter };
+          }
+        }
+        if (version < 3) {
+          for (const issue of state.issues) {
+            const legacy = issue.draft as unknown as {
+              title?: string;
+              body?: string;
+              expectedResult?: string;
+              sections?: Record<string, string>;
+            };
+            if (legacy.sections) continue;
+            const sections: Record<string, string> = {};
+            if (legacy.body) sections.description = legacy.body;
+            if (legacy.expectedResult) sections.expectedResult = legacy.expectedResult;
+            issue.draft = { title: legacy.title ?? "", sections };
           }
         }
         return state as unknown as IssuesState;

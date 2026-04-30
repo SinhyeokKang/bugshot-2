@@ -25,14 +25,24 @@ const ko = {
   "app.unsupported.body": "웹 페이지(http, https, file)에서 BugShot을 실행해주세요.",
   "app.oauthExpired.title": "Jira 인증이 만료되었습니다",
   "app.oauthExpired.body": "Jira 연동을 다시 설정해주세요.",
+  "app.pickerUnavailable.title": "이 페이지에서는 사용할 수 없습니다",
+  "app.pickerUnavailable.body": "Chrome 정책상 웹스토어·확장 페이지 등에서는 BugShot이 동작할 수 없습니다. 다른 페이지에서 시도해주세요.",
+  "app.iframeUnsupported.title": "iframe 내부 요소는 선택할 수 없습니다",
+  "app.iframeUnsupported.body": "Chrome 보안 정책으로 iframe 안쪽 DOM에는 접근할 수 없습니다. iframe 외부 요소를 선택하거나 화면 캡처 모드를 사용해 주세요.",
 
   // Issue sections (shared across drafting/preview/detail)
   "section.issueTitle": "이슈 제목",
   "section.env": "재현 환경",
   "section.description": "발생 현상",
+  "section.stepsToReproduce": "재현 과정",
   "section.media": "미디어",
   "section.styleChanges": "스타일 변경사항",
   "section.expectedResult": "기대 결과",
+  "section.notes": "비고",
+  "section.description.help": "버그가 어떻게 나타나는지 설명합니다.",
+  "section.stepsToReproduce.help": "한 줄에 한 단계씩 적으면 번호 매김 목록으로 출력됩니다.",
+  "section.expectedResult.help": "원래 어떻게 동작해야 하는지 적습니다.",
+  "section.notes.help": "관련 링크·배경 등 보조 컨텍스트.",
 
   // Issue tab
   "issue.unsupported": "지원하지 않는 페이지",
@@ -101,8 +111,10 @@ const ko = {
 
   // Drafting panel
   "draft.titlePlaceholder": "이슈 제목",
-  "draft.bodyPlaceholder": "재현 경로, 기대 동작 등 추가 설명",
+  "draft.descriptionPlaceholder": "어떤 문제가 어떻게 나타나는지 적어주세요",
+  "draft.stepsToReproducePlaceholder": "한 줄에 한 단계씩 입력하세요",
   "draft.expectedResultPlaceholder": "수정 후 기대되는 동작 / 디자인 기준 등",
+  "draft.notesPlaceholder": "추가로 공유할 정보가 있다면 적어주세요",
   "draft.removeAnnotation": "주석 제거",
   "draft.editAnnotation": "주석 수정",
   "draft.addAnnotation": "주석 추가",
@@ -191,6 +203,7 @@ const ko = {
   "appSettings.theme.light": "라이트",
   "appSettings.theme.dark": "다크",
   "appSettings.theme.system": "시스템",
+  "appSettings.issueSections.title": "이슈 구성",
 
   // Draft detail
   "draftDetail.title": "초안 검토",
@@ -219,9 +232,11 @@ const ko = {
   // Build issue markdown / ADF
   "md.section.env": "재현 환경",
   "md.section.description": "발생 현상",
+  "md.section.stepsToReproduce": "재현 과정",
   "md.section.media": "미디어",
   "md.section.styleChanges": "스타일 변경사항",
   "md.section.expectedResult": "기대 결과",
+  "md.section.notes": "비고",
   "md.videoAttached": "(첨부 영상 참조)",
   "md.imageAttached": "(첨부 이미지 참조)",
   "md.column.property": "속성",

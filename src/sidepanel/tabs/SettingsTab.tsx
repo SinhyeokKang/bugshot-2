@@ -86,7 +86,7 @@ export function SettingsTab() {
       </PageScroll>
 
       <PageFooter>
-        <div className="flex justify-end">
+        <div className="flex justify-between">
           <DisconnectButton />
         </div>
       </PageFooter>
@@ -572,7 +572,7 @@ function DisconnectButton() {
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
-        <Button size="lg" variant="outline">
+        <Button variant="outline" className="text-destructive">
           {t("settings.disconnect")}
         </Button>
       </AlertDialogTrigger>

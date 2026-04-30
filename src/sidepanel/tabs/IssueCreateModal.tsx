@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/popover";
 import { useT } from "@/i18n";
 import { cn } from "@/lib/utils";
+import { useAppSettingsStore } from "@/store/app-settings-store";
 import { useEditorStore, type EditorIssueFields } from "@/store/editor-store";
 import { useIssuesStore } from "@/store/issues-store";
 import {
@@ -77,6 +78,7 @@ export function IssueCreateModal() {
   const issueFields = useEditorStore((s) => s.issueFields);
   const setIssueFields = useEditorStore((s) => s.setIssueFields);
   const onSubmitted = useEditorStore((s) => s.onSubmitted);
+  const sectionConfig = useAppSettingsStore((s) => s.issueSections);
 
   const currentIssueId = useEditorStore((s) => s.currentIssueId);
   const markSubmitted = useIssuesStore((s) => s.markSubmitted);
@@ -92,8 +94,8 @@ export function IssueCreateModal() {
       const ctx = {
         captureMode: "video" as const,
         title: draft.title,
-        body: draft.body,
-        expectedResult: draft.expectedResult,
+        sections: draft.sections,
+        sectionConfig,
         url: target?.url ?? "",
         selector: "",
         tagName: "",
@@ -116,8 +118,8 @@ export function IssueCreateModal() {
       const ctx = {
         captureMode: "screenshot" as const,
         title: draft.title,
-        body: draft.body,
-        expectedResult: draft.expectedResult,
+        sections: draft.sections,
+        sectionConfig,
         url: target?.url ?? "",
         selector: "",
         tagName: "",
@@ -131,14 +133,14 @@ export function IssueCreateModal() {
       };
       description = buildIssueAdf(ctx);
       attachments.push(buildAiMetaAttachment(ctx));
-      if (screenshotImage) attachments.push({ filename: "screenshot.jpg", dataUrl: screenshotImage });
+      if (screenshotImage) attachments.push({ filename: "screenshot.webp", dataUrl: screenshotImage });
     } else {
       if (!selection) throw new Error("필수 값 누락");
       const diffs = buildStyleDiff(selection, styleEdits);
       const ctx = {
         title: draft.title,
-        body: draft.body,
-        expectedResult: draft.expectedResult,
+        sections: draft.sections,
+        sectionConfig,
         url: target?.url ?? "",
         selector: selection.selector,
         tagName: selection.tagName,
@@ -152,8 +154,8 @@ export function IssueCreateModal() {
       };
       description = buildIssueAdf(ctx);
       attachments.push(buildAiMetaAttachment(ctx));
-      if (beforeImage) attachments.push({ filename: "before.jpg", dataUrl: beforeImage });
-      if (afterImage) attachments.push({ filename: "after.jpg", dataUrl: afterImage });
+      if (beforeImage) attachments.push({ filename: "before.webp", dataUrl: beforeImage });
+      if (afterImage) attachments.push({ filename: "after.webp", dataUrl: afterImage });
     }
 
     const summary = draft.title.trim();
