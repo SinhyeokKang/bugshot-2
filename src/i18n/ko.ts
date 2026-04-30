@@ -237,7 +237,7 @@ const ko = {
   "md.section.styleChanges": "스타일 변경사항",
   "md.section.expectedResult": "기대 결과",
   "md.section.notes": "비고",
-  "md.videoAttached": "(첨부 영상 참조)",
+  "md.videoAttached": "(recording.webm 참조)",
   "md.imageAttached": "(첨부 이미지 참조)",
   "md.column.property": "속성",
   "md.noValue": "(없음)",
@@ -266,6 +266,29 @@ const ko = {
   "oauth.error.tokenRefresh": "토큰 갱신 실패 ({status}) {text}",
   "oauth.error.tokenPersist": "토큰 저장 실패. 다시 로그인이 필요합니다. ({message})",
   "oauth.error.refreshExhausted": "토큰 갱신 후에도 인증 실패. 다시 로그인이 필요합니다.",
+
+  // Network Log
+  "networkLog.toggle.label": "네트워크 로그 첨부",
+  "networkLog.toggle.tooltip.empty": "녹화 중 네트워크 요청이 감지되지 않았습니다",
+  "networkLog.counter.captured": "{n}건 캡처",
+  "networkLog.counter.selected": "{n}건 선택",
+  "networkLog.dialog.title": "네트워크 로그",
+  "networkLog.dialog.errors": "에러",
+  "networkLog.dialog.other": "기타",
+  "networkLog.dialog.footer.selected": "{n}건 선택",
+  "networkLog.dialog.selectRequest": "요청을 선택하세요",
+  "networkLog.dialog.close": "닫기",
+  "networkLog.detail.general": "일반",
+  "networkLog.detail.requestHeaders": "요청 헤더",
+  "networkLog.detail.requestBody": "요청 본문",
+  "networkLog.detail.responseHeaders": "응답 헤더",
+  "networkLog.detail.responseBody": "응답 본문",
+  "networkLog.detail.copyCurl": "curl 복사",
+  "networkLog.display.truncated": "캡처: {captured} / 전체: {total}",
+  "networkLog.display.binary": "바이너리 응답 ({type} · {size}) · 본문 미저장",
+  "networkLog.display.stream": "스트리밍 응답 ({type}) · 본문 캡처 안 됨",
+  "networkLog.privacy.warning": "response body에 포함된 개인정보는 사용자 책임입니다",
+  "networkLog.har.summary": "(network-log.har 참조)",
 } as const;
 
 export type TranslationKey = keyof typeof ko;

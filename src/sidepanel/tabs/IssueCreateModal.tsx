@@ -48,6 +48,7 @@ import { sendBg, type JiraSubmitResult } from "@/types/messages";
 import { buildStyleDiff } from "../components/StyleChangesTable";
 import { buildAiMetaAttachment } from "../lib/buildAiMetaAttachment";
 import { buildIssueAdf, type AdfDoc } from "../lib/buildIssueAdf";
+import { buildHar, serializeHar } from "../lib/buildHar";
 
 type SubmitState =
   | { status: "idle" }
@@ -78,6 +79,9 @@ export function IssueCreateModal() {
   const issueFields = useEditorStore((s) => s.issueFields);
   const setIssueFields = useEditorStore((s) => s.setIssueFields);
   const onSubmitted = useEditorStore((s) => s.onSubmitted);
+  const networkLog = useEditorStore((s) => s.networkLog);
+  const networkLogAttach = useEditorStore((s) => s.networkLogAttach);
+  const networkLogSelectedIds = useEditorStore((s) => s.networkLogSelectedIds);
   const sectionConfig = useAppSettingsStore((s) => s.issueSections);
 
   const currentIssueId = useEditorStore((s) => s.currentIssueId);
@@ -91,6 +95,7 @@ export function IssueCreateModal() {
     const attachments: { filename: string; dataUrl: string }[] = [];
 
     if (captureMode === "video") {
+      const hasNetworkLog = networkLogAttach && networkLog && networkLogSelectedIds.length > 0;
       const ctx = {
         captureMode: "video" as const,
         title: draft.title,
@@ -106,12 +111,20 @@ export function IssueCreateModal() {
         viewport: videoViewport ?? { width: 0, height: 0 },
         capturedAt: videoCapturedAt ?? Date.now(),
         diffs: [],
+        networkLog: hasNetworkLog ? { requests: networkLog.requests, selectedIds: networkLogSelectedIds } : undefined,
       };
       description = buildIssueAdf(ctx);
       attachments.push(buildAiMetaAttachment(ctx));
       if (videoBlob) {
         const dataUrl = await blobToDataUrl(videoBlob);
         attachments.push({ filename: "recording.webm", dataUrl });
+      }
+      if (hasNetworkLog) {
+        const har = buildHar(networkLog, networkLogSelectedIds);
+        const harJson = serializeHar(har);
+        const harBlob = new Blob([harJson], { type: "application/json" });
+        const harDataUrl = await blobToDataUrl(harBlob);
+        attachments.push({ filename: "network-log.har", dataUrl: harDataUrl });
       }
     } else if (captureMode === "screenshot") {
       const screenshotImage = screenshotAnnotated ?? screenshotRaw;

@@ -18,6 +18,7 @@ import {
   PageShell,
   Section,
 } from "../components/Section";
+import { NetworkLogTable } from "../components/NetworkLogTable";
 import {
   StyleChangesTable,
   buildStyleDiff,
@@ -44,6 +45,9 @@ export function PreviewPanel() {
   const videoViewport = useEditorStore((s) => s.videoViewport);
   const videoCapturedAt = useEditorStore((s) => s.videoCapturedAt);
   const draft = useEditorStore((s) => s.draft);
+  const networkLog = useEditorStore((s) => s.networkLog);
+  const networkLogAttach = useEditorStore((s) => s.networkLogAttach);
+  const networkLogSelectedIds = useEditorStore((s) => s.networkLogSelectedIds);
   const backToDraft = useEditorStore((s) => s.backToDraft);
   const reset = useEditorStore((s) => s.reset);
   const issueSections = useAppSettingsStore((s) => s.issueSections);
@@ -71,6 +75,7 @@ export function PreviewPanel() {
   const handleCopyMarkdown = async () => {
     let ctx: Parameters<typeof buildIssueMarkdown>[0];
     if (isVideoMode) {
+      const hasNetworkLog = networkLogAttach && networkLog && networkLogSelectedIds.length > 0;
       ctx = {
         captureMode: "video",
         title: draft.title,
@@ -86,6 +91,7 @@ export function PreviewPanel() {
         viewport: videoViewport ?? { width: 0, height: 0 },
         capturedAt: videoCapturedAt ?? Date.now(),
         diffs: [],
+        networkLog: hasNetworkLog ? { requests: networkLog.requests, selectedIds: networkLogSelectedIds } : undefined,
       };
     } else if (isElementMode && selection) {
       const changedProps = new Set(diffs.map((d) => d.prop));
@@ -192,6 +198,7 @@ export function PreviewPanel() {
         {(() => {
           const enabled = issueSections.filter((s) => s.enabled);
           let mediaInserted = false;
+          const hasNetworkLog = isVideoMode && networkLogAttach && networkLog && networkLogSelectedIds.length > 0;
           const mediaBlock = isVideoMode ? (
             <Section key="__media" title={t("section.media")}>
               <PreviewVideo blob={videoBlob} thumbnail={videoThumbnail} />
@@ -217,11 +224,20 @@ export function PreviewPanel() {
               ) : null}
             </Section>
           );
+          const networkLogBlock = hasNetworkLog ? (
+            <Section key="__networkLog" title={t("networkLog.dialog.title")}>
+              <NetworkLogTable
+                requests={networkLog.requests}
+                selectedIds={networkLogSelectedIds}
+              />
+            </Section>
+          ) : null;
           const out: React.ReactNode[] = [];
           for (const sec of enabled) {
             if (POST_MEDIA_SECTION_IDS.has(sec.id) && !mediaInserted) {
               mediaInserted = true;
               out.push(mediaBlock);
+              if (networkLogBlock) out.push(networkLogBlock);
             }
             const value = draft.sections[sec.id] ?? "";
             const label = sec.labelOverride?.trim() || t(sectionLabelKey(sec.id));
@@ -231,7 +247,10 @@ export function PreviewPanel() {
               </Section>,
             );
           }
-          if (!mediaInserted) out.push(mediaBlock);
+          if (!mediaInserted) {
+            out.push(mediaBlock);
+            if (networkLogBlock) out.push(networkLogBlock);
+          }
           return out;
         })()}
       </PageScroll>

@@ -1,6 +1,7 @@
 import { isSupportedUrl } from "@/lib/url-support";
 import { useEditorStore } from "@/store/editor-store";
 import { onPickerUnavailable } from "@/types/messages";
+import { networkRecorderScript } from "@/content/network-recorder";
 import type {
   DescribeChildrenResponse,
   DescribeInitialResponse,
@@ -224,5 +225,26 @@ export async function startAreaCapture(tabId: number): Promise<void> {
 export async function cancelAreaCapture(tabId: number): Promise<void> {
   await send(tabId, { type: "picker.cancelAreaSelect" });
   useEditorStore.getState().reset();
+}
+
+export async function injectNetworkRecorder(tabId: number): Promise<string> {
+  await ensureContentScript(tabId);
+  const sentinel = crypto.randomUUID();
+  await chrome.scripting.executeScript({
+    target: { tabId },
+    world: "MAIN",
+    func: networkRecorderScript,
+    args: [sentinel],
+  });
+  await send(tabId, { type: "networkRecorder.setSentinel", sentinel });
+  return sentinel;
+}
+
+export async function stopNetworkRecorder(tabId: number): Promise<void> {
+  await send(tabId, { type: "networkRecorder.stop" });
+}
+
+export async function syncNetworkRecorder(tabId: number): Promise<void> {
+  await send(tabId, { type: "networkRecorder.sync" });
 }
 

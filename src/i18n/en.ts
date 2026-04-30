@@ -239,7 +239,7 @@ const en = {
   "md.section.styleChanges": "Style Changes",
   "md.section.expectedResult": "Expected Result",
   "md.section.notes": "Notes",
-  "md.videoAttached": "(See attached video)",
+  "md.videoAttached": "(recording.webm)",
   "md.imageAttached": "(See attached image)",
   "md.column.property": "Property",
   "md.noValue": "(none)",
@@ -268,6 +268,29 @@ const en = {
   "oauth.error.tokenRefresh": "Token refresh failed ({status}) {text}",
   "oauth.error.tokenPersist": "Failed to persist tokens. Please sign in again. ({message})",
   "oauth.error.refreshExhausted": "Authentication still failing after token refresh. Please sign in again.",
+
+  // Network Log
+  "networkLog.toggle.label": "Attach network logs",
+  "networkLog.toggle.tooltip.empty": "No network requests captured during recording",
+  "networkLog.counter.captured": "{n} captured",
+  "networkLog.counter.selected": "{n} selected",
+  "networkLog.dialog.title": "Network Logs",
+  "networkLog.dialog.errors": "Errors",
+  "networkLog.dialog.other": "Other",
+  "networkLog.dialog.footer.selected": "{n} selected",
+  "networkLog.dialog.selectRequest": "Select a request",
+  "networkLog.dialog.close": "Close",
+  "networkLog.detail.general": "General",
+  "networkLog.detail.requestHeaders": "Request Headers",
+  "networkLog.detail.requestBody": "Request Body",
+  "networkLog.detail.responseHeaders": "Response Headers",
+  "networkLog.detail.responseBody": "Response Body",
+  "networkLog.detail.copyCurl": "Copy as curl",
+  "networkLog.display.truncated": "Captured: {captured} / Total: {total}",
+  "networkLog.display.binary": "Binary response ({type} · {size}) · Body not saved",
+  "networkLog.display.stream": "Streaming response ({type}) · Body not captured",
+  "networkLog.privacy.warning": "Personal information in response bodies is the user's responsibility",
+  "networkLog.har.summary": "(network-log.har)",
 };
 
 export default en satisfies TranslationMap;

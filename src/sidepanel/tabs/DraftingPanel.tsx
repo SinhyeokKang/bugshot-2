@@ -18,6 +18,8 @@ import { useBoundTabId } from "../hooks/useBoundTabId";
 import { clearPicker } from "../picker-control";
 const AnnotationOverlay = lazy(() => import("../components/AnnotationOverlay"));
 import { CancelConfirmDialog } from "../components/CancelConfirmDialog";
+import { NetworkLogToggle } from "../components/NetworkLogToggle";
+import { NetworkLogPreviewDialog } from "../components/NetworkLogPreviewDialog";
 import {
   PageFooter,
   PageScroll,
@@ -46,8 +48,14 @@ export function DraftingPanel() {
   const reset = useEditorStore((s) => s.reset);
   const backToStyling = useEditorStore((s) => s.backToStyling);
   const confirmDraft = useEditorStore((s) => s.confirmDraft);
+  const networkLog = useEditorStore((s) => s.networkLog);
+  const networkLogAttach = useEditorStore((s) => s.networkLogAttach);
+  const networkLogSelectedIds = useEditorStore((s) => s.networkLogSelectedIds);
+  const setNetworkLogAttach = useEditorStore((s) => s.setNetworkLogAttach);
+  const setNetworkLogSelectedIds = useEditorStore((s) => s.setNetworkLogSelectedIds);
   const issueSections = useAppSettingsStore((s) => s.issueSections);
   const [annotating, setAnnotating] = useState(false);
+  const [networkDialogOpen, setNetworkDialogOpen] = useState(false);
   const titlePrefix = useSettingsStore(
     (s) => s.jiraConfig?.titlePrefix ?? "",
   );
@@ -78,10 +86,43 @@ export function DraftingPanel() {
 
   const titleMissing = !draft.title.trim();
 
+  const showNetworkToggle = isVideoMode && networkLog !== null;
+  const networkDisabled = !networkLog || networkLog.captured === 0;
+
+  const handleNetworkToggle = (on: boolean) => {
+    setNetworkLogAttach(on);
+    if (on && networkLog && networkLogSelectedIds.length === 0) {
+      const errorIds = networkLog.requests
+        .filter((r) => r.status >= 400)
+        .map((r) => r.id);
+      setNetworkLogSelectedIds(errorIds.length > 0 ? errorIds : networkLog.requests.map((r) => r.id));
+      setNetworkDialogOpen(true);
+    }
+  };
+
+  const handleNetworkDialogClose = (open: boolean) => {
+    setNetworkDialogOpen(open);
+    if (!open && networkLogSelectedIds.length === 0) {
+      setNetworkLogAttach(false);
+    }
+  };
+
   const enabledSections = issueSections.filter((s) => s.enabled);
   const mediaBlock = isVideoMode ? (
     <Section key="__media" title={t("section.media")}>
       <VideoPreview blob={videoBlob} thumbnail={videoThumbnail} />
+      {showNetworkToggle && (
+        <div className="mt-3">
+          <NetworkLogToggle
+            captured={networkLog.captured}
+            selectedCount={networkLogSelectedIds.length}
+            attach={networkLogAttach}
+            disabled={networkDisabled}
+            onToggle={handleNetworkToggle}
+            onPreview={() => setNetworkDialogOpen(true)}
+          />
+        </div>
+      )}
     </Section>
   ) : isElementMode ? (
     <Section key="__media" title={t("section.styleChanges")}>
@@ -203,6 +244,15 @@ export function DraftingPanel() {
           </div>
         </div>
       </PageFooter>
+      {showNetworkToggle && networkLog && (
+        <NetworkLogPreviewDialog
+          open={networkDialogOpen}
+          onOpenChange={handleNetworkDialogClose}
+          requests={networkLog.requests}
+          selectedIds={networkLogSelectedIds}
+          onSelectedIdsChange={setNetworkLogSelectedIds}
+        />
+      )}
       {annotating && screenshotRaw ? (
         <Suspense fallback={null}>
           <AnnotationOverlay

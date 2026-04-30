@@ -1,9 +1,11 @@
 import { useEffect } from "react";
 import { useEditorStore } from "@/store/editor-store";
+import type { NetworkLog } from "@/types/network";
 import type { PickerMessage, ViewportRect } from "@/types/picker";
 import { onPickerIframeUnsupported } from "@/types/messages";
 import { captureElementSnapshot, loadImage } from "../capture";
 import { collectTokens } from "../picker-control";
+import { saveNetworkLog } from "@/store/blob-db";
 
 export function usePickerMessages(): void {
   useEffect(() => {
@@ -60,6 +62,26 @@ export function usePickerMessages(): void {
       } else if (message.type === "picker.iframeUnsupported") {
         useEditorStore.getState().cancelPicking();
         onPickerIframeUnsupported.fire();
+      } else if (message.type === "networkRecorder.data") {
+        const msg = message as Extract<PickerMessage, { type: "networkRecorder.data" }>;
+        const now = Date.now();
+        const earliest = msg.payload.requests.length > 0
+          ? Math.min(...msg.payload.requests.map((r) => r.startTime))
+          : now;
+        const log: NetworkLog = {
+          id: crypto.randomUUID(),
+          startedAt: earliest,
+          endedAt: now,
+          totalSeen: msg.payload.totalSeen,
+          captured: msg.payload.requests.length,
+          warnings: msg.payload.warnings,
+          requests: msg.payload.requests,
+        };
+        useEditorStore.getState().setNetworkLog(log);
+        const tabId = useEditorStore.getState().target?.tabId;
+        if (tabId) {
+          saveNetworkLog(`pending:${tabId}`, log).catch(() => {});
+        }
       }
     }
 

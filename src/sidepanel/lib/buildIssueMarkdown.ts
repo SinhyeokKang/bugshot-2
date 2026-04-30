@@ -4,6 +4,7 @@ import {
   sectionMdLabelKey,
   type IssueSection,
 } from "@/store/app-settings-store";
+import type { NetworkRequest } from "@/types/network";
 import type { StyleDiffRow } from "../components/StyleChangesTable";
 import { formatTimestamp } from "./formatTimestamp";
 
@@ -22,6 +23,53 @@ export interface MarkdownContext {
   viewport: { width: number; height: number };
   capturedAt: number;
   diffs: StyleDiffRow[];
+  networkLog?: {
+    requests: NetworkRequest[];
+    selectedIds: string[];
+  };
+}
+
+export function networkLogPath(url: string): string {
+  try {
+    return new URL(url).pathname;
+  } catch {
+    return url;
+  }
+}
+
+function buildNetworkLogMd(ctx: MarkdownContext): string[] {
+  if (!ctx.networkLog || ctx.networkLog.selectedIds.length === 0) return [];
+  const selected = new Set(ctx.networkLog.selectedIds);
+  const reqs = ctx.networkLog.requests.filter((r) => selected.has(r.id));
+  if (reqs.length === 0) return [];
+  const lines: string[] = [];
+  lines.push(`## ${t("networkLog.dialog.title")}`);
+  lines.push("");
+  lines.push("| Method | Path | Status | Time |");
+  lines.push("|--------|------|--------|------|");
+  for (const r of reqs) {
+    lines.push(`| ${r.method} | ${escapeCell(networkLogPath(r.url))} | ${r.status} ${escapeCell(r.statusText)} | ${r.durationMs}ms |`);
+  }
+  lines.push("");
+  lines.push(t("networkLog.har.summary"));
+  lines.push("");
+  return lines;
+}
+
+function buildNetworkLogHtml(ctx: MarkdownContext): string[] {
+  if (!ctx.networkLog || ctx.networkLog.selectedIds.length === 0) return [];
+  const selected = new Set(ctx.networkLog.selectedIds);
+  const reqs = ctx.networkLog.requests.filter((r) => selected.has(r.id));
+  if (reqs.length === 0) return [];
+  const parts: string[] = [];
+  parts.push(`<h2>${escapeHtml(t("networkLog.dialog.title"))}</h2>`);
+  parts.push("<table><thead><tr><th>Method</th><th>Path</th><th>Status</th><th>Time</th></tr></thead><tbody>");
+  for (const r of reqs) {
+    parts.push(`<tr><td>${escapeHtml(r.method)}</td><td>${escapeHtml(networkLogPath(r.url))}</td><td>${r.status} ${escapeHtml(r.statusText)}</td><td>${r.durationMs}ms</td></tr>`);
+  }
+  parts.push("</tbody></table>");
+  parts.push(`<p>${escapeHtml(t("networkLog.har.summary"))}</p>`);
+  return parts;
 }
 
 function sectionLabel(section: IssueSection): string {
@@ -83,9 +131,19 @@ export function buildIssueMarkdown(ctx: MarkdownContext): string {
     }
   };
 
+  let networkLogEmitted = false;
+  const emitNetworkLog = () => {
+    if (networkLogEmitted) return;
+    networkLogEmitted = true;
+    lines.push(...buildNetworkLogMd(ctx));
+  };
+
   for (const section of ctx.sectionConfig) {
     if (!section.enabled) continue;
-    if (POST_MEDIA_SECTION_IDS.has(section.id)) emitMedia();
+    if (POST_MEDIA_SECTION_IDS.has(section.id)) {
+      emitMedia();
+      emitNetworkLog();
+    }
     const content = ctx.sections[section.id] ?? "";
     lines.push(`## ${sectionLabel(section)}`);
     lines.push("");
@@ -103,6 +161,7 @@ export function buildIssueMarkdown(ctx: MarkdownContext): string {
   }
 
   emitMedia();
+  emitNetworkLog();
 
   lines.push(footerMarkdown());
   lines.push("");
@@ -156,9 +215,19 @@ export function buildIssueHtml(ctx: MarkdownContext): string {
     }
   };
 
+  let networkLogEmittedHtml = false;
+  const emitNetworkLogHtml = () => {
+    if (networkLogEmittedHtml) return;
+    networkLogEmittedHtml = true;
+    parts.push(...buildNetworkLogHtml(ctx));
+  };
+
   for (const section of ctx.sectionConfig) {
     if (!section.enabled) continue;
-    if (POST_MEDIA_SECTION_IDS.has(section.id)) emitMedia();
+    if (POST_MEDIA_SECTION_IDS.has(section.id)) {
+      emitMedia();
+      emitNetworkLogHtml();
+    }
     const content = ctx.sections[section.id] ?? "";
     parts.push(`<h2>${escapeHtml(sectionLabel(section))}</h2>`);
     if (section.renderAs === "orderedList") {
@@ -180,6 +249,7 @@ export function buildIssueHtml(ctx: MarkdownContext): string {
   }
 
   emitMedia();
+  emitNetworkLogHtml();
 
   parts.push(footerHtml());
 

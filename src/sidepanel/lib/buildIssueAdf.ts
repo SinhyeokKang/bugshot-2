@@ -6,7 +6,7 @@ import {
 } from "@/store/app-settings-store";
 import { IMAGE_PLACEHOLDER } from "@/lib/adf-sentinels";
 import { formatElementName } from "@/lib/element-label";
-import type { MarkdownContext } from "./buildIssueMarkdown";
+import { type MarkdownContext, networkLogPath } from "./buildIssueMarkdown";
 import { formatTimestamp } from "./formatTimestamp";
 
 interface AdfNode {
@@ -21,6 +21,28 @@ export interface AdfDoc {
   version: 1;
   type: "doc";
   content: AdfNode[];
+}
+
+function buildNetworkLogAdf(ctx: MarkdownContext): AdfNode[] {
+  if (!ctx.networkLog || ctx.networkLog.selectedIds.length === 0) return [];
+  const selected = new Set(ctx.networkLog.selectedIds);
+  const reqs = ctx.networkLog.requests.filter((r) => selected.has(r.id));
+  if (reqs.length === 0) return [];
+  const nodes: AdfNode[] = [];
+  nodes.push(heading(2, t("networkLog.dialog.title")));
+  nodes.push(
+    table(
+      ["Method", "Path", "Status", "Time"],
+      reqs.map((r) => [
+        r.method,
+        networkLogPath(r.url),
+        `${r.status} ${r.statusText}`,
+        `${r.durationMs}ms`,
+      ]),
+    ),
+  );
+  nodes.push(paragraph([textNode(t("networkLog.har.summary"))]));
+  return nodes;
 }
 
 function sectionLabel(section: IssueSection): string {
@@ -83,15 +105,24 @@ export function buildIssueAdf(ctx: MarkdownContext): AdfDoc {
     }
   };
 
+  let networkLogEmitted = false;
+  const emitNetworkLog = () => {
+    if (networkLogEmitted) return;
+    networkLogEmitted = true;
+    content.push(...buildNetworkLogAdf(ctx));
+  };
+
   for (const section of ctx.sectionConfig) {
     if (!section.enabled) continue;
-    if (POST_MEDIA_SECTION_IDS.has(section.id)) emitMedia();
+    if (POST_MEDIA_SECTION_IDS.has(section.id)) {
+      emitMedia();
+      emitNetworkLog();
+    }
     const raw = ctx.sections[section.id] ?? "";
     content.push(heading(2, sectionLabel(section)));
     if (section.renderAs === "orderedList") {
       const items = listItems(raw);
       if (items.length === 0) {
-        // textBlock과 동일한 빈 입력 fallback (paragraph + noValue)
         content.push(paragraph([textNode(t("md.noValue"))]));
       } else {
         content.push(orderedList(items.map((it) => listItem([paragraph([textNode(it)])]))));
@@ -102,6 +133,7 @@ export function buildIssueAdf(ctx: MarkdownContext): AdfDoc {
   }
 
   emitMedia();
+  emitNetworkLog();
 
   content.push(footerParagraph());
 

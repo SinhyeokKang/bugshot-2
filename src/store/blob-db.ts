@@ -1,7 +1,10 @@
+import type { NetworkLog } from "@/types/network";
+
 const DB_NAME = "bugshot-video";
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 const STORE_VIDEO = "blobs";
 const STORE_IMAGES = "images";
+const STORE_NETWORK = "networkLogs";
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -16,6 +19,9 @@ function openDb(): Promise<IDBDatabase> {
       }
       if (!db.objectStoreNames.contains(STORE_IMAGES)) {
         db.createObjectStore(STORE_IMAGES);
+      }
+      if (!db.objectStoreNames.contains(STORE_NETWORK)) {
+        db.createObjectStore(STORE_NETWORK);
       }
     };
     req.onsuccess = () => resolve(req.result);
@@ -178,6 +184,67 @@ export async function clearImageBlobs(): Promise<void> {
     await txComplete(tx);
   } catch (e) {
     console.warn("[blob-db] clearImageBlobs failed:", e);
+  }
+}
+
+// --- Network log API ---
+
+export async function saveNetworkLog(key: string, log: NetworkLog): Promise<void> {
+  try {
+    const db = await openDb();
+    const tx = db.transaction(STORE_NETWORK, "readwrite");
+    tx.objectStore(STORE_NETWORK).put(log, key);
+    await txComplete(tx);
+  } catch (e) {
+    console.warn("[blob-db] saveNetworkLog failed:", e);
+  }
+}
+
+export async function getNetworkLog(key: string): Promise<NetworkLog | null> {
+  try {
+    const db = await openDb();
+    const tx = db.transaction(STORE_NETWORK, "readonly");
+    const req = tx.objectStore(STORE_NETWORK).get(key);
+    await txComplete(tx);
+    return (req.result as NetworkLog) ?? null;
+  } catch (e) {
+    console.warn("[blob-db] getNetworkLog failed:", e);
+    return null;
+  }
+}
+
+export async function deleteNetworkLog(key: string): Promise<void> {
+  try {
+    const db = await openDb();
+    const tx = db.transaction(STORE_NETWORK, "readwrite");
+    tx.objectStore(STORE_NETWORK).delete(key);
+    await txComplete(tx);
+  } catch (e) {
+    console.warn("[blob-db] deleteNetworkLog failed:", e);
+  }
+}
+
+export async function getNetworkLogKeys(): Promise<string[]> {
+  try {
+    const db = await openDb();
+    const tx = db.transaction(STORE_NETWORK, "readonly");
+    const req = tx.objectStore(STORE_NETWORK).getAllKeys();
+    await txComplete(tx);
+    return (req.result as string[]) ?? [];
+  } catch (e) {
+    console.warn("[blob-db] getNetworkLogKeys failed:", e);
+    return [];
+  }
+}
+
+export async function clearNetworkLogs(): Promise<void> {
+  try {
+    const db = await openDb();
+    const tx = db.transaction(STORE_NETWORK, "readwrite");
+    tx.objectStore(STORE_NETWORK).clear();
+    await txComplete(tx);
+  } catch (e) {
+    console.warn("[blob-db] clearNetworkLogs failed:", e);
   }
 }
 
