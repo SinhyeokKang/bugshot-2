@@ -224,12 +224,13 @@ pnpm version major --no-git-tag-version   # 1.0.0 → 2.0.0 (Breaking change)
 ### 워크플로우 (스킬 라인업)
 
 ```
-/pull   → dev 최신 받고 작업 맥락 브리핑
-/build  → pnpm build + 테스트 체크리스트 (작업 중 검증)
-/push   → dev push (main에서 호출 차단)
-/merge  → dev에서 버전 bump 커밋 + dev → main squash PR 생성 + 자동 머지
-/deploy → main 한정. tag push → 스토어 빌드 → zip → GitHub Release draft → 심사 요청 안내
-/sync   → dev를 origin/main으로 hard reset + force push (배포/머지 후)
+/pull        → dev 최신 받고 작업 맥락 브리핑
+/build       → pnpm build + 테스트 체크리스트 (작업 중 검증)
+/code-review → origin/main 대비 변경 코드 시급도별 리포트 (리포트 전용, fix·빌드·커밋 안 함)
+/push        → dev push (main에서 호출 차단)
+/merge       → dev에서 버전 bump 커밋 + dev → main squash PR 생성 + 자동 머지
+/deploy      → main 한정. tag push → 스토어 빌드 → zip → GitHub Release draft → 심사 요청 안내
+/sync        → dev를 origin/main으로 hard reset + force push (배포/머지 후)
 ```
 
 각 단계 게이트는 `.claude/commands/` 스킬 정의에 명시.
