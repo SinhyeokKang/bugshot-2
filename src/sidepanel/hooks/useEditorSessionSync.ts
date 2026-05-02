@@ -5,8 +5,8 @@ import {
   type EditorSnapshot,
   useEditorStore,
 } from "@/store/editor-store";
-import { clearPicker, injectNetworkRecorder } from "../picker-control";
-import { getNetworkLog } from "@/store/blob-db";
+import { clearPicker, injectNetworkRecorder, injectConsoleRecorder } from "../picker-control";
+import { getNetworkLog, getConsoleLog } from "@/store/blob-db";
 
 function migrateLegacyDraft(snap: EditorSnapshot): EditorSnapshot {
   if (!snap.draft) return snap;
@@ -46,7 +46,7 @@ function snapshotFromState(): EditorSnapshot {
     videoViewport: s.videoViewport,
     videoCapturedAt: s.videoCapturedAt,
     networkLogAttach: s.networkLogAttach,
-    networkLogSelectedIds: s.networkLogSelectedIds,
+    consoleLogAttach: s.consoleLogAttach,
     draft: s.draft,
     issueFields: s.issueFields,
     currentIssueId: s.currentIssueId,
@@ -75,9 +75,14 @@ export function useEditorSessionSync(tabId: number | null): boolean {
           snap.phase = "idle";
         }
         useEditorStore.getState().hydrate(migrateLegacyDraft(snap));
-        if (snap.networkLogAttach || (snap.networkLogSelectedIds && snap.networkLogSelectedIds.length > 0)) {
+        if (snap.networkLogAttach) {
           getNetworkLog(`pending:${tabId}`).then((log) => {
             if (log) useEditorStore.getState().setNetworkLog(log);
+          }).catch(() => {});
+        }
+        if (snap.consoleLogAttach) {
+          getConsoleLog(`pending:${tabId}`).then((log) => {
+            if (log) useEditorStore.getState().setConsoleLog(log);
           }).catch(() => {});
         }
       }
@@ -144,6 +149,7 @@ export function useEditorSessionSync(tabId: number | null): boolean {
         const s = useEditorStore.getState();
         if (s.captureMode === "video" && s.phase === "recording") {
           injectNetworkRecorder(tabId).catch(() => {});
+          injectConsoleRecorder(tabId).catch(() => {});
         }
       }
 

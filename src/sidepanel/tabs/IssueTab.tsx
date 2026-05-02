@@ -22,7 +22,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { useEditorStore } from "@/store/editor-store";
 import { useBoundTabId } from "../hooks/useBoundTabId";
-import { startPicker, stopPicker, startAreaCapture, cancelAreaCapture, clearPicker, injectNetworkRecorder } from "../picker-control";
+import { startPicker, stopPicker, startAreaCapture, cancelAreaCapture, clearPicker, injectNetworkRecorder, injectConsoleRecorder } from "../picker-control";
 import * as videoRecorder from "../video-recorder";
 import { PageShell } from "../components/Section";
 import { useTabNav } from "../App";
@@ -137,6 +137,11 @@ async function handleStartVideo(tabId: number) {
     await injectNetworkRecorder(tabId);
   } catch (err) {
     console.warn("[bugshot] network recorder injection failed", err);
+  }
+  try {
+    await injectConsoleRecorder(tabId);
+  } catch (err) {
+    console.warn("[bugshot] console recorder injection failed", err);
   }
   try {
     await videoRecorder.startRecording(tabId);

@@ -1,10 +1,12 @@
 import type { NetworkLog } from "@/types/network";
+import type { ConsoleLog } from "@/types/console";
 
 const DB_NAME = "bugshot-video";
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 const STORE_VIDEO = "blobs";
 const STORE_IMAGES = "images";
 const STORE_NETWORK = "networkLogs";
+const STORE_CONSOLE = "consoleLogs";
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -22,6 +24,9 @@ function openDb(): Promise<IDBDatabase> {
       }
       if (!db.objectStoreNames.contains(STORE_NETWORK)) {
         db.createObjectStore(STORE_NETWORK);
+      }
+      if (!db.objectStoreNames.contains(STORE_CONSOLE)) {
+        db.createObjectStore(STORE_CONSOLE);
       }
     };
     req.onsuccess = () => resolve(req.result);
@@ -245,6 +250,67 @@ export async function clearNetworkLogs(): Promise<void> {
     await txComplete(tx);
   } catch (e) {
     console.warn("[blob-db] clearNetworkLogs failed:", e);
+  }
+}
+
+// --- Console log API ---
+
+export async function saveConsoleLog(key: string, log: ConsoleLog): Promise<void> {
+  try {
+    const db = await openDb();
+    const tx = db.transaction(STORE_CONSOLE, "readwrite");
+    tx.objectStore(STORE_CONSOLE).put(log, key);
+    await txComplete(tx);
+  } catch (e) {
+    console.warn("[blob-db] saveConsoleLog failed:", e);
+  }
+}
+
+export async function getConsoleLog(key: string): Promise<ConsoleLog | null> {
+  try {
+    const db = await openDb();
+    const tx = db.transaction(STORE_CONSOLE, "readonly");
+    const req = tx.objectStore(STORE_CONSOLE).get(key);
+    await txComplete(tx);
+    return (req.result as ConsoleLog) ?? null;
+  } catch (e) {
+    console.warn("[blob-db] getConsoleLog failed:", e);
+    return null;
+  }
+}
+
+export async function deleteConsoleLog(key: string): Promise<void> {
+  try {
+    const db = await openDb();
+    const tx = db.transaction(STORE_CONSOLE, "readwrite");
+    tx.objectStore(STORE_CONSOLE).delete(key);
+    await txComplete(tx);
+  } catch (e) {
+    console.warn("[blob-db] deleteConsoleLog failed:", e);
+  }
+}
+
+export async function getConsoleLogKeys(): Promise<string[]> {
+  try {
+    const db = await openDb();
+    const tx = db.transaction(STORE_CONSOLE, "readonly");
+    const req = tx.objectStore(STORE_CONSOLE).getAllKeys();
+    await txComplete(tx);
+    return (req.result as string[]) ?? [];
+  } catch (e) {
+    console.warn("[blob-db] getConsoleLogKeys failed:", e);
+    return [];
+  }
+}
+
+export async function clearConsoleLogs(): Promise<void> {
+  try {
+    const db = await openDb();
+    const tx = db.transaction(STORE_CONSOLE, "readwrite");
+    tx.objectStore(STORE_CONSOLE).clear();
+    await txComplete(tx);
+  } catch (e) {
+    console.warn("[blob-db] clearConsoleLogs failed:", e);
   }
 }
 

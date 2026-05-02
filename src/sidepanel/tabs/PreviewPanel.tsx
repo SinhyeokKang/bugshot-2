@@ -12,13 +12,15 @@ import {
 import { useEditorStore } from "@/store/editor-store";
 import { isJiraConfigComplete, useSettingsStore } from "@/store/settings-store";
 import { DocSectionBody } from "../components/DocSectionBody";
+import { LogAttachmentCards } from "../components/LogAttachmentCards";
+import { NetworkLogPreviewDialog } from "../components/NetworkLogPreviewDialog";
+import { ConsoleLogPreviewDialog } from "../components/ConsoleLogPreviewDialog";
 import {
   PageFooter,
   PageScroll,
   PageShell,
   Section,
 } from "../components/Section";
-import { NetworkLogTable } from "../components/NetworkLogTable";
 import {
   StyleChangesTable,
   buildStyleDiff,
@@ -47,7 +49,10 @@ export function PreviewPanel() {
   const draft = useEditorStore((s) => s.draft);
   const networkLog = useEditorStore((s) => s.networkLog);
   const networkLogAttach = useEditorStore((s) => s.networkLogAttach);
-  const networkLogSelectedIds = useEditorStore((s) => s.networkLogSelectedIds);
+  const setNetworkLogAttach = useEditorStore((s) => s.setNetworkLogAttach);
+  const consoleLog = useEditorStore((s) => s.consoleLog);
+  const consoleLogAttach = useEditorStore((s) => s.consoleLogAttach);
+  const setConsoleLogAttach = useEditorStore((s) => s.setConsoleLogAttach);
   const backToDraft = useEditorStore((s) => s.backToDraft);
   const reset = useEditorStore((s) => s.reset);
   const issueSections = useAppSettingsStore((s) => s.issueSections);
@@ -69,13 +74,17 @@ export function PreviewPanel() {
     return () => window.clearTimeout(t);
   }, [copied]);
 
+  const [networkDialogOpen, setNetworkDialogOpen] = useState(false);
+  const [consoleDialogOpen, setConsoleDialogOpen] = useState(false);
+
   if (!draft) return null;
   if (isElementMode && !selection) return null;
+
+  const showLogCards = isVideoMode && (networkLog !== null || consoleLog !== null);
 
   const handleCopyMarkdown = async () => {
     let ctx: Parameters<typeof buildIssueMarkdown>[0];
     if (isVideoMode) {
-      const hasNetworkLog = networkLogAttach && networkLog && networkLogSelectedIds.length > 0;
       ctx = {
         captureMode: "video",
         title: draft.title,
@@ -91,7 +100,6 @@ export function PreviewPanel() {
         viewport: videoViewport ?? { width: 0, height: 0 },
         capturedAt: videoCapturedAt ?? Date.now(),
         diffs: [],
-        networkLog: hasNetworkLog ? { requests: networkLog.requests, selectedIds: networkLogSelectedIds } : undefined,
       };
     } else if (isElementMode && selection) {
       const changedProps = new Set(diffs.map((d) => d.prop));
@@ -198,7 +206,6 @@ export function PreviewPanel() {
         {(() => {
           const enabled = issueSections.filter((s) => s.enabled);
           let mediaInserted = false;
-          const hasNetworkLog = isVideoMode && networkLogAttach && networkLog && networkLogSelectedIds.length > 0;
           const mediaBlock = isVideoMode ? (
             <Section key="__media" title={t("section.media")}>
               <PreviewVideo blob={videoBlob} thumbnail={videoThumbnail} />
@@ -224,11 +231,17 @@ export function PreviewPanel() {
               ) : null}
             </Section>
           );
-          const networkLogBlock = hasNetworkLog ? (
-            <Section key="__networkLog" title={t("networkLog.dialog.title")}>
-              <NetworkLogTable
-                requests={networkLog.requests}
-                selectedIds={networkLogSelectedIds}
+          const logCardsBlock = showLogCards ? (
+            <Section key="__logCards" title={t("section.logs")}>
+              <LogAttachmentCards
+                networkLog={networkLog}
+                networkLogAttach={networkLogAttach}
+                onNetworkLogToggle={setNetworkLogAttach}
+                onNetworkLogClick={() => setNetworkDialogOpen(true)}
+                consoleLog={consoleLog}
+                consoleLogAttach={consoleLogAttach}
+                onConsoleLogToggle={setConsoleLogAttach}
+                onConsoleLogClick={() => setConsoleDialogOpen(true)}
               />
             </Section>
           ) : null;
@@ -237,7 +250,7 @@ export function PreviewPanel() {
             if (POST_MEDIA_SECTION_IDS.has(sec.id) && !mediaInserted) {
               mediaInserted = true;
               out.push(mediaBlock);
-              if (networkLogBlock) out.push(networkLogBlock);
+              if (logCardsBlock) out.push(logCardsBlock);
             }
             const value = draft.sections[sec.id] ?? "";
             const label = sec.labelOverride?.trim() || t(sectionLabelKey(sec.id));
@@ -249,7 +262,7 @@ export function PreviewPanel() {
           }
           if (!mediaInserted) {
             out.push(mediaBlock);
-            if (networkLogBlock) out.push(networkLogBlock);
+            if (logCardsBlock) out.push(logCardsBlock);
           }
           return out;
         })()}
@@ -284,6 +297,20 @@ export function PreviewPanel() {
           </div>
         </div>
       </PageFooter>
+      {networkLog && (
+        <NetworkLogPreviewDialog
+          open={networkDialogOpen}
+          onOpenChange={setNetworkDialogOpen}
+          requests={networkLog.requests}
+        />
+      )}
+      {consoleLog && (
+        <ConsoleLogPreviewDialog
+          open={consoleDialogOpen}
+          onOpenChange={setConsoleDialogOpen}
+          entries={consoleLog.entries}
+        />
+      )}
     </PageShell>
   );
 }

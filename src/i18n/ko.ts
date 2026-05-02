@@ -39,6 +39,7 @@ const ko = {
   "section.styleChanges": "스타일 변경사항",
   "section.expectedResult": "기대 결과",
   "section.notes": "비고",
+  "section.logs": "로그",
   "section.description.help": "버그가 어떻게 나타나는지 설명합니다.",
   "section.stepsToReproduce.help": "한 줄에 한 단계씩 적으면 번호 매김 목록으로 출력됩니다.",
   "section.expectedResult.help": "원래 어떻게 동작해야 하는지 적습니다.",
@@ -277,7 +278,6 @@ const ko = {
   "networkLog.dialog.other": "기타",
   "networkLog.dialog.footer.selected": "{n}건 선택",
   "networkLog.dialog.selectRequest": "요청을 선택하세요",
-  "networkLog.dialog.close": "닫기",
   "networkLog.detail.general": "일반",
   "networkLog.detail.requestHeaders": "요청 헤더",
   "networkLog.detail.requestBody": "요청 본문",
@@ -289,6 +289,23 @@ const ko = {
   "networkLog.display.stream": "스트리밍 응답 ({type}) · 본문 캡처 안 됨",
   "networkLog.privacy.warning": "response body에 포함된 개인정보는 사용자 책임입니다",
   "networkLog.har.summary": "(network-log.har 참조)",
+
+  // Console Log
+  "consoleLog.toggle.label": "콘솔 로그 첨부",
+  "consoleLog.toggle.tooltip.empty": "녹화 중 콘솔 출력이 감지되지 않았습니다",
+  "consoleLog.counter.captured": "{n}건 캡처",
+  "consoleLog.counter.selected": "{n}건 선택",
+  "consoleLog.dialog.title": "콘솔 로그",
+  "consoleLog.dialog.errors": "에러 / 경고",
+  "consoleLog.dialog.other": "기타",
+  "consoleLog.dialog.footer.selected": "{n}건 선택",
+  "consoleLog.dialog.selectEntry": "로그를 선택하세요",
+  "consoleLog.detail.general": "일반",
+  "consoleLog.detail.level": "레벨",
+  "consoleLog.detail.time": "시각",
+  "consoleLog.detail.page": "페이지",
+  "consoleLog.detail.message": "메시지",
+  "consoleLog.detail.stackTrace": "스택 트레이스",
 } as const;
 
 export type TranslationKey = keyof typeof ko;

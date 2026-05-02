@@ -34,7 +34,6 @@ function requestToEntry(req: NetworkRequest) {
     });
   } catch { /* invalid URL */ }
 
-  const reqContent = bodyToHarContent(req.requestBody, "", req.requestBodySize);
   const resContent = bodyToHarContent(req.responseBody, req.contentType, req.responseBodySize);
 
   let postData: { mimeType: string; text: string; comment?: string } | undefined;
@@ -43,8 +42,8 @@ function requestToEntry(req: NetworkRequest) {
       mimeType: req.requestHeaders["content-type"] || "",
       text: typeof req.requestBody === "string" ? req.requestBody : "",
     };
-    if (typeof req.requestBody !== "string" && reqContent.comment) {
-      postData.comment = reqContent.comment;
+    if (typeof req.requestBody !== "string") {
+      postData.comment = bodyToHarContent(req.requestBody, "", req.requestBodySize).comment;
     }
   }
 
@@ -92,11 +91,8 @@ function requestToEntry(req: NetworkRequest) {
   };
 }
 
-export function buildHar(log: NetworkLog, selectedIds: string[]): object {
-  const selectedSet = new Set(selectedIds);
-  const entries = log.requests
-    .filter((r) => selectedSet.has(r.id))
-    .map(requestToEntry);
+export function buildHar(log: NetworkLog): object {
+  const entries = log.requests.map(requestToEntry);
 
   return {
     log: {

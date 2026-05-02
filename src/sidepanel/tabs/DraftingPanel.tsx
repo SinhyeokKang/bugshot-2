@@ -18,8 +18,9 @@ import { useBoundTabId } from "../hooks/useBoundTabId";
 import { clearPicker } from "../picker-control";
 const AnnotationOverlay = lazy(() => import("../components/AnnotationOverlay"));
 import { CancelConfirmDialog } from "../components/CancelConfirmDialog";
-import { NetworkLogToggle } from "../components/NetworkLogToggle";
+import { LogAttachmentCards } from "../components/LogAttachmentCards";
 import { NetworkLogPreviewDialog } from "../components/NetworkLogPreviewDialog";
+import { ConsoleLogPreviewDialog } from "../components/ConsoleLogPreviewDialog";
 import {
   PageFooter,
   PageScroll,
@@ -50,12 +51,14 @@ export function DraftingPanel() {
   const confirmDraft = useEditorStore((s) => s.confirmDraft);
   const networkLog = useEditorStore((s) => s.networkLog);
   const networkLogAttach = useEditorStore((s) => s.networkLogAttach);
-  const networkLogSelectedIds = useEditorStore((s) => s.networkLogSelectedIds);
   const setNetworkLogAttach = useEditorStore((s) => s.setNetworkLogAttach);
-  const setNetworkLogSelectedIds = useEditorStore((s) => s.setNetworkLogSelectedIds);
+  const consoleLog = useEditorStore((s) => s.consoleLog);
+  const consoleLogAttach = useEditorStore((s) => s.consoleLogAttach);
+  const setConsoleLogAttach = useEditorStore((s) => s.setConsoleLogAttach);
   const issueSections = useAppSettingsStore((s) => s.issueSections);
   const [annotating, setAnnotating] = useState(false);
   const [networkDialogOpen, setNetworkDialogOpen] = useState(false);
+  const [consoleDialogOpen, setConsoleDialogOpen] = useState(false);
   const titlePrefix = useSettingsStore(
     (s) => s.jiraConfig?.titlePrefix ?? "",
   );
@@ -86,43 +89,12 @@ export function DraftingPanel() {
 
   const titleMissing = !draft.title.trim();
 
-  const showNetworkToggle = isVideoMode && networkLog !== null;
-  const networkDisabled = !networkLog || networkLog.captured === 0;
-
-  const handleNetworkToggle = (on: boolean) => {
-    setNetworkLogAttach(on);
-    if (on && networkLog && networkLogSelectedIds.length === 0) {
-      const errorIds = networkLog.requests
-        .filter((r) => r.status >= 400)
-        .map((r) => r.id);
-      setNetworkLogSelectedIds(errorIds.length > 0 ? errorIds : networkLog.requests.map((r) => r.id));
-      setNetworkDialogOpen(true);
-    }
-  };
-
-  const handleNetworkDialogClose = (open: boolean) => {
-    setNetworkDialogOpen(open);
-    if (!open && networkLogSelectedIds.length === 0) {
-      setNetworkLogAttach(false);
-    }
-  };
+  const showLogCards = isVideoMode && (networkLog !== null || consoleLog !== null);
 
   const enabledSections = issueSections.filter((s) => s.enabled);
   const mediaBlock = isVideoMode ? (
     <Section key="__media" title={t("section.media")}>
       <VideoPreview blob={videoBlob} thumbnail={videoThumbnail} />
-      {showNetworkToggle && (
-        <div className="mt-3">
-          <NetworkLogToggle
-            captured={networkLog.captured}
-            selectedCount={networkLogSelectedIds.length}
-            attach={networkLogAttach}
-            disabled={networkDisabled}
-            onToggle={handleNetworkToggle}
-            onPreview={() => setNetworkDialogOpen(true)}
-          />
-        </div>
-      )}
     </Section>
   ) : isElementMode ? (
     <Section key="__media" title={t("section.styleChanges")}>
@@ -175,12 +147,28 @@ export function DraftingPanel() {
     </Section>
   );
 
+  const logCardsBlock = showLogCards ? (
+    <Section key="__logCards" title={t("section.logs")}>
+      <LogAttachmentCards
+        networkLog={networkLog}
+        networkLogAttach={networkLogAttach}
+        onNetworkLogToggle={setNetworkLogAttach}
+        onNetworkLogClick={() => setNetworkDialogOpen(true)}
+        consoleLog={consoleLog}
+        consoleLogAttach={consoleLogAttach}
+        onConsoleLogToggle={setConsoleLogAttach}
+        onConsoleLogClick={() => setConsoleDialogOpen(true)}
+      />
+    </Section>
+  ) : null;
+
   const sectionNodes: React.ReactNode[] = [];
   let mediaInserted = false;
   for (const sec of enabledSections) {
     if (POST_MEDIA_SECTION_IDS.has(sec.id) && !mediaInserted) {
       mediaInserted = true;
       sectionNodes.push(mediaBlock);
+      if (logCardsBlock) sectionNodes.push(logCardsBlock);
     }
     sectionNodes.push(
       <SectionTextarea
@@ -196,7 +184,10 @@ export function DraftingPanel() {
       />,
     );
   }
-  if (!mediaInserted) sectionNodes.push(mediaBlock);
+  if (!mediaInserted) {
+    sectionNodes.push(mediaBlock);
+    if (logCardsBlock) sectionNodes.push(logCardsBlock);
+  }
 
   return (
     <PageShell>
@@ -244,13 +235,18 @@ export function DraftingPanel() {
           </div>
         </div>
       </PageFooter>
-      {showNetworkToggle && networkLog && (
+      {networkLog && (
         <NetworkLogPreviewDialog
           open={networkDialogOpen}
-          onOpenChange={handleNetworkDialogClose}
+          onOpenChange={setNetworkDialogOpen}
           requests={networkLog.requests}
-          selectedIds={networkLogSelectedIds}
-          onSelectedIdsChange={setNetworkLogSelectedIds}
+        />
+      )}
+      {consoleLog && (
+        <ConsoleLogPreviewDialog
+          open={consoleDialogOpen}
+          onOpenChange={setConsoleDialogOpen}
+          entries={consoleLog.entries}
         />
       )}
       {annotating && screenshotRaw ? (

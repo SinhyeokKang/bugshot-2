@@ -11,7 +11,6 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -20,8 +19,6 @@ interface NetworkLogPreviewDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   requests: NetworkRequest[];
-  selectedIds: string[];
-  onSelectedIdsChange: (ids: string[]) => void;
 }
 
 function methodColor(method: string): string {
@@ -83,33 +80,22 @@ export function NetworkLogPreviewDialog({
   open,
   onOpenChange,
   requests,
-  selectedIds,
-  onSelectedIdsChange,
 }: NetworkLogPreviewDialogProps) {
   const t = useT();
   const [activeId, setActiveId] = useState<string | null>(null);
-  const selectedSet = useMemo(() => new Set(selectedIds), [selectedIds]);
 
   const errors = useMemo(() => requests.filter((r) => isError(r.status)), [requests]);
   const others = useMemo(() => requests.filter((r) => !isError(r.status)), [requests]);
   const activeReq = useMemo(() => requests.find((r) => r.id === activeId) ?? null, [requests, activeId]);
 
-  function toggleId(id: string) {
-    if (selectedSet.has(id)) {
-      onSelectedIdsChange(selectedIds.filter((x) => x !== id));
-    } else {
-      onSelectedIdsChange([...selectedIds, id]);
-    }
-  }
-
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex h-[80vh] max-w-[90vw] flex-col p-0 sm:max-w-[600px]">
-        <DialogHeader className="border-b px-4 py-3">
-          <DialogTitle>{t("networkLog.dialog.title")}</DialogTitle>
+      <DialogContent className="w-[80vw] max-w-[80vw] max-h-[80vh] gap-5 rounded-3xl p-6 sm:rounded-3xl">
+        <DialogHeader>
+          <DialogTitle className="text-xl">{t("networkLog.dialog.title")}</DialogTitle>
         </DialogHeader>
 
-        <div className="flex min-h-0 flex-1">
+        <div className="flex min-h-0 flex-1 overflow-hidden rounded-lg border">
           {/* LNB */}
           <ScrollArea className="w-[220px] shrink-0 border-r">
             <div className="p-2">
@@ -120,9 +106,7 @@ export function NetworkLogPreviewDialog({
                     <RequestRow
                       key={r.id}
                       req={r}
-                      checked={selectedSet.has(r.id)}
                       active={activeId === r.id}
-                      onCheck={() => toggleId(r.id)}
                       onClick={() => setActiveId(r.id)}
                     />
                   ))}
@@ -135,9 +119,7 @@ export function NetworkLogPreviewDialog({
                     <RequestRow
                       key={r.id}
                       req={r}
-                      checked={selectedSet.has(r.id)}
                       active={activeId === r.id}
-                      onCheck={() => toggleId(r.id)}
                       onClick={() => setActiveId(r.id)}
                     />
                   ))}
@@ -158,12 +140,9 @@ export function NetworkLogPreviewDialog({
           </ScrollArea>
         </div>
 
-        <DialogFooter className="border-t px-4 py-3">
-          <span className="mr-auto text-sm text-muted-foreground">
-            {t("networkLog.dialog.footer.selected").replace("{n}", String(selectedIds.length))}
-          </span>
+        <DialogFooter className="!flex-row items-center !justify-end">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            {t("networkLog.dialog.close")}
+            {t("common.close")}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -173,15 +152,11 @@ export function NetworkLogPreviewDialog({
 
 function RequestRow({
   req,
-  checked,
   active,
-  onCheck,
   onClick,
 }: {
   req: NetworkRequest;
-  checked: boolean;
   active: boolean;
-  onCheck: () => void;
   onClick: () => void;
 }) {
   return (
@@ -189,12 +164,6 @@ function RequestRow({
       className={`flex cursor-pointer items-center gap-1.5 rounded px-2 py-1 text-xs ${active ? "bg-accent" : "hover:bg-accent/50"}`}
       onClick={onClick}
     >
-      <Checkbox
-        checked={checked}
-        onCheckedChange={() => onCheck()}
-        onClick={(e) => e.stopPropagation()}
-        className="h-3.5 w-3.5"
-      />
       <span className={`font-mono font-medium ${methodColor(req.method)}`}>
         {req.method}
       </span>
@@ -303,7 +272,7 @@ function HeadersTable({ headers }: { headers: Record<string, string> }) {
           <dt className="font-mono text-muted-foreground">{k}</dt>
           <dd className="break-all font-mono">
             {v.startsWith("***") ? (
-              <span className="text-muted-foreground">🔒 {v}</span>
+              <span className="italic text-muted-foreground">{v}</span>
             ) : (
               v
             )}

@@ -87,6 +87,42 @@ function handleNetworkSync(): void {
   document.dispatchEvent(new CustomEvent("__bugshot_net_sync__" + networkSentinel));
 }
 
+/* ── Console recorder bridge ─────────────────────── */
+
+let consoleSentinel: string | null = null;
+
+function handleConsoleData(e: Event): void {
+  const detail = (e as CustomEvent).detail;
+  if (!detail || detail.sentinel !== consoleSentinel) return;
+  chrome.runtime
+    .sendMessage({
+      type: "consoleRecorder.data",
+      payload: {
+        entries: detail.entries,
+        totalSeen: detail.totalSeen,
+      },
+    })
+    .catch(() => {});
+}
+
+function handleSetConsoleSentinel(sentinel: string): void {
+  if (consoleSentinel) {
+    document.removeEventListener("__bugshot_console_data__" + consoleSentinel, handleConsoleData);
+  }
+  consoleSentinel = sentinel;
+  document.addEventListener("__bugshot_console_data__" + sentinel, handleConsoleData);
+}
+
+function handleConsoleStop(): void {
+  if (!consoleSentinel) return;
+  document.dispatchEvent(new CustomEvent("__bugshot_console_stop__" + consoleSentinel));
+}
+
+function handleConsoleSync(): void {
+  if (!consoleSentinel) return;
+  document.dispatchEvent(new CustomEvent("__bugshot_console_sync__" + consoleSentinel));
+}
+
 let mode: Mode = "idle";
 let selectedEl: Element | null = null;
 let lastHover: Element | null = null;
@@ -221,6 +257,15 @@ chrome.runtime.onMessage.addListener(
           break;
         case "networkRecorder.sync":
           handleNetworkSync();
+          break;
+        case "consoleRecorder.setSentinel":
+          handleSetConsoleSentinel(msg.sentinel);
+          break;
+        case "consoleRecorder.stop":
+          handleConsoleStop();
+          break;
+        case "consoleRecorder.sync":
+          handleConsoleSync();
           break;
         default:
           return;

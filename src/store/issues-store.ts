@@ -13,6 +13,9 @@ import {
   deleteNetworkLog,
   clearNetworkLogs,
   getNetworkLogKeys,
+  deleteConsoleLog,
+  clearConsoleLogs,
+  getConsoleLogKeys,
   saveImageBlobRaw,
   dataUrlToBlob,
 } from "./blob-db";
@@ -61,6 +64,12 @@ async function pruneOrphanBlobs(): Promise<void> {
   for (const key of networkLogKeys) {
     if (!currentIds.has(key)) {
       deleteNetworkLog(key).catch(() => {});
+    }
+  }
+  const consoleLogKeys = await getConsoleLogKeys();
+  for (const key of consoleLogKeys) {
+    if (!currentIds.has(key)) {
+      deleteConsoleLog(key).catch(() => {});
     }
   }
 }
@@ -129,7 +138,7 @@ export interface IssueRecord {
   tokensSnapshot?: IssueTokenSnapshot[];
 
   networkLogBlobKey?: string;
-  networkLogSelectedIds?: string[];
+  consoleLogBlobKey?: string;
 
   key?: string;
   url?: string;
@@ -184,6 +193,7 @@ export const useIssuesStore = create<IssuesState>()(
         deleteVideoBlob(id).catch(() => {});
         deleteImageBlobs(id).catch(() => {});
         deleteNetworkLog(id).catch(() => {});
+        deleteConsoleLog(id).catch(() => {});
         resetEditorIfEditing(id);
       },
       clearIssues: () => {
@@ -191,6 +201,7 @@ export const useIssuesStore = create<IssuesState>()(
         clearVideoBlobs().catch(() => {});
         clearImageBlobs().catch(() => {});
         clearNetworkLogs().catch(() => {});
+        clearConsoleLogs().catch(() => {});
         resetEditorIfEditing(null);
       },
     }),

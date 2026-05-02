@@ -1,9 +1,10 @@
 import { create } from "zustand";
 import type { Token } from "@/types/picker";
 import type { NetworkLog } from "@/types/network";
+import type { ConsoleLog } from "@/types/console";
 import { useIssuesStore } from "./issues-store";
 import { useSettingsStore } from "./settings-store";
-import { saveVideoBlob, saveImageBlob, saveNetworkLog, deleteNetworkLog, dataUrlToBlob } from "./blob-db";
+import { saveVideoBlob, saveImageBlob, saveNetworkLog, deleteNetworkLog, saveConsoleLog, deleteConsoleLog, dataUrlToBlob } from "./blob-db";
 
 export type CaptureMode = "element" | "screenshot" | "video";
 
@@ -83,7 +84,8 @@ interface EditorState {
   videoCapturedAt: number | null;
   networkLog: NetworkLog | null;
   networkLogAttach: boolean;
-  networkLogSelectedIds: string[];
+  consoleLog: ConsoleLog | null;
+  consoleLogAttach: boolean;
   submitResult: { key: string; url: string } | null;
   sessionExpired: boolean;
 
@@ -113,7 +115,8 @@ interface EditorState {
   setIssueFields: (patch: Partial<EditorIssueFields>) => void;
   setNetworkLog: (log: NetworkLog) => void;
   setNetworkLogAttach: (on: boolean) => void;
-  setNetworkLogSelectedIds: (ids: string[]) => void;
+  setConsoleLog: (log: ConsoleLog) => void;
+  setConsoleLogAttach: (on: boolean) => void;
   onSubmitted: (result: { key: string; url: string }) => void;
   reset: () => void;
   hydrate: (snapshot: EditorSnapshot) => void;
@@ -137,7 +140,7 @@ export type EditorSnapshot = Pick<
   | "videoViewport"
   | "videoCapturedAt"
   | "networkLogAttach"
-  | "networkLogSelectedIds"
+  | "consoleLogAttach"
   | "draft"
   | "issueFields"
   | "currentIssueId"
@@ -167,7 +170,8 @@ const initial = {
   videoCapturedAt: null as number | null,
   networkLog: null as NetworkLog | null,
   networkLogAttach: false,
-  networkLogSelectedIds: [] as string[],
+  consoleLog: null as ConsoleLog | null,
+  consoleLogAttach: false,
   draft: null,
   issueFields: {} as EditorIssueFields,
   currentIssueId: null as string | null,
@@ -247,7 +251,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
     const id = state.currentIssueId ?? newIssueId();
     if (state.captureMode === "video") {
-      const hasNetworkLog = state.networkLogAttach && state.networkLog && state.networkLogSelectedIds.length > 0;
+      const hasNetworkLog = state.networkLogAttach && state.networkLog && state.networkLog.captured > 0;
+      const hasConsoleLog = state.consoleLogAttach && state.consoleLog && state.consoleLog.captured > 0;
       useIssuesStore.getState().saveDraft({
         id,
         status: "draft",
@@ -264,7 +269,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           after: false,
         },
         networkLogBlobKey: hasNetworkLog ? id : undefined,
-        networkLogSelectedIds: hasNetworkLog ? [...state.networkLogSelectedIds] : undefined,
+        consoleLogBlobKey: hasConsoleLog ? id : undefined,
       });
       if (state.videoBlob) {
         saveVideoBlob(id, state.videoBlob).catch(() => {});
@@ -272,10 +277,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       if (state.videoThumbnail) {
         saveImageBlob(id, "before", dataUrlToBlob(state.videoThumbnail)).catch(() => {});
       }
-      if (hasNetworkLog && state.networkLog) {
+      if (hasNetworkLog) {
         const tabId = state.target.tabId;
-        saveNetworkLog(id, state.networkLog).catch(() => {});
+        saveNetworkLog(id, state.networkLog!).catch(() => {});
         deleteNetworkLog(`pending:${tabId}`).catch(() => {});
+      }
+      if (hasConsoleLog) {
+        const tabId = state.target.tabId;
+        saveConsoleLog(id, state.consoleLog!).catch(() => {});
+        deleteConsoleLog(`pending:${tabId}`).catch(() => {});
       }
     } else if (state.captureMode === "screenshot") {
       const screenshotImage = state.screenshotAnnotated ?? state.screenshotRaw;
@@ -354,9 +364,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   setNetworkLog: (log) => set({ networkLog: log }),
   setNetworkLogAttach: (on) => set({ networkLogAttach: on }),
-  setNetworkLogSelectedIds: (ids) => set({ networkLogSelectedIds: ids }),
+  setConsoleLog: (log) => set({ consoleLog: log }),
+  setConsoleLogAttach: (on) => set({ consoleLogAttach: on }),
 
-  onSubmitted: (result) => set({ phase: "done", submitResult: result, beforeImage: null, afterImage: null, screenshotRaw: null, screenshotAnnotated: null, videoBlob: null, videoThumbnail: null, networkLog: null }),
+  onSubmitted: (result) => set({ phase: "done", submitResult: result, beforeImage: null, afterImage: null, screenshotRaw: null, screenshotAnnotated: null, videoBlob: null, videoThumbnail: null, networkLog: null, consoleLog: null }),
 
   reset: () => set({ ...initial }),
 

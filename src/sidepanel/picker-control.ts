@@ -2,6 +2,7 @@ import { isSupportedUrl } from "@/lib/url-support";
 import { useEditorStore } from "@/store/editor-store";
 import { onPickerUnavailable } from "@/types/messages";
 import { networkRecorderScript } from "@/content/network-recorder";
+import { consoleRecorderScript } from "@/content/console-recorder";
 import type {
   DescribeChildrenResponse,
   DescribeInitialResponse,
@@ -246,5 +247,26 @@ export async function stopNetworkRecorder(tabId: number): Promise<void> {
 
 export async function syncNetworkRecorder(tabId: number): Promise<void> {
   await send(tabId, { type: "networkRecorder.sync" });
+}
+
+export async function injectConsoleRecorder(tabId: number): Promise<string> {
+  await ensureContentScript(tabId);
+  const sentinel = crypto.randomUUID();
+  await chrome.scripting.executeScript({
+    target: { tabId },
+    world: "MAIN",
+    func: consoleRecorderScript,
+    args: [sentinel],
+  });
+  await send(tabId, { type: "consoleRecorder.setSentinel", sentinel });
+  return sentinel;
+}
+
+export async function stopConsoleRecorder(tabId: number): Promise<void> {
+  await send(tabId, { type: "consoleRecorder.stop" });
+}
+
+export async function syncConsoleRecorder(tabId: number): Promise<void> {
+  await send(tabId, { type: "consoleRecorder.sync" });
 }
 

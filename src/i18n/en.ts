@@ -41,6 +41,7 @@ const en = {
   "section.styleChanges": "Style changes",
   "section.expectedResult": "Expected result",
   "section.notes": "Notes",
+  "section.logs": "Logs",
   "section.description.help": "Describe how the bug manifests.",
   "section.stepsToReproduce.help": "List one step per line to render as a numbered list.",
   "section.expectedResult.help": "Describe how it should behave instead.",
@@ -279,7 +280,6 @@ const en = {
   "networkLog.dialog.other": "Other",
   "networkLog.dialog.footer.selected": "{n} selected",
   "networkLog.dialog.selectRequest": "Select a request",
-  "networkLog.dialog.close": "Close",
   "networkLog.detail.general": "General",
   "networkLog.detail.requestHeaders": "Request Headers",
   "networkLog.detail.requestBody": "Request Body",
@@ -291,6 +291,23 @@ const en = {
   "networkLog.display.stream": "Streaming response ({type}) · Body not captured",
   "networkLog.privacy.warning": "Personal information in response bodies is the user's responsibility",
   "networkLog.har.summary": "(network-log.har)",
+
+  // Console Log
+  "consoleLog.toggle.label": "Attach console logs",
+  "consoleLog.toggle.tooltip.empty": "No console output captured during recording",
+  "consoleLog.counter.captured": "{n} captured",
+  "consoleLog.counter.selected": "{n} selected",
+  "consoleLog.dialog.title": "Console Logs",
+  "consoleLog.dialog.errors": "Errors / Warnings",
+  "consoleLog.dialog.other": "Other",
+  "consoleLog.dialog.footer.selected": "{n} selected",
+  "consoleLog.dialog.selectEntry": "Select a log entry",
+  "consoleLog.detail.general": "General",
+  "consoleLog.detail.level": "Level",
+  "consoleLog.detail.time": "Time",
+  "consoleLog.detail.page": "Page",
+  "consoleLog.detail.message": "Message",
+  "consoleLog.detail.stackTrace": "Stack Trace",
 };
 
 export default en satisfies TranslationMap;
