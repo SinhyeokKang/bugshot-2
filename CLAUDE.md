@@ -41,7 +41,9 @@ src/
 │   ├── css-source-cache.ts# raw CSS 텍스트 캐시 (CSSOM shorthand explode 우회, fetch + 경량 파서 + MutationObserver)
 │   ├── dom-describe.ts    # DOM 트리 직렬화 (buildSelector, buildInitialTree, buildChildrenResponse)
 │   ├── overlay.ts         # Shadow DOM 오버레이 (아웃라인·배너·블로커·프리뷰)
-│   └── area-select.ts     # 영역 드래그 선택 (dimming + 사이즈 라벨)
+│   ├── area-select.ts     # 영역 드래그 선택 (dimming + 사이즈 라벨)
+│   ├── network-recorder.ts# MAIN world 네트워크 캡처 (fetch/XHR 래핑, sentinel 기반 통신)
+│   └── console-recorder.ts# MAIN world 콘솔 캡처 (console.* 래핑, 500건 캡)
 ├── sidepanel/
 │   ├── App.tsx          # Radix Tabs 4개 (이슈 작성/목록/설정/앱 설정)
 │   ├── main.tsx
@@ -52,7 +54,7 @@ src/
 │   ├── tabs/            # 탭별 진입점 + 편집 패널 (StyleEditorPanel/IssueTab/IssueListTab/SettingsTab 등)
 │   │   └── styleEditor/ # ValueCombobox, StylePropEditors와 헬퍼 (propMetadata, tokenUtils, styleHooks, TokenChip)
 │   └── lib/             # buildIssueMarkdown, buildIssueAdf 등 순수 유틸
-├── store/               # Zustand 스토어 (editor/issues/settings/app-settings), blob-db(IndexedDB 이미지·비디오 저장), settings는 v2 마이그레이션(flat → discriminated auth)
+├── store/               # Zustand 스토어 (editor/issues/settings/app-settings), blob-db(IndexedDB 이미지·비디오·네트워크/콘솔 로그 저장), settings는 v2 마이그레이션(flat → discriminated auth)
 ├── i18n/                # 다국어 (ko/en 로케일, t()/useT() 훅)
 ├── lib/                 # 공용 유틸 (session-keys, adf-sentinels, url-support)
 ├── components/ui/       # shadcn 컴포넌트
