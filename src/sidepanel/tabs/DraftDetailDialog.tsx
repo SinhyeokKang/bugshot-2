@@ -382,6 +382,7 @@ export function DraftDetailDialog({
           open={consoleDialogOpen}
           onOpenChange={setConsoleDialogOpen}
           entries={consoleLogData.entries}
+          startedAt={consoleLogData.startedAt}
         />
       )}
       <SubmitFieldsDialog

@@ -1,4 +1,3 @@
-import { useT } from "@/i18n";
 import { Card } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import type { NetworkLog } from "@/types/network";
@@ -27,7 +26,6 @@ export function LogAttachmentCards({
   onConsoleLogClick,
   readOnly,
 }: LogAttachmentCardsProps) {
-  const t = useT();
   const showNetwork = networkLog !== null;
   const showConsole = consoleLog !== null;
   if (!showNetwork && !showConsole) return null;
@@ -36,8 +34,8 @@ export function LogAttachmentCards({
     <div className="grid grid-cols-2 gap-2">
       {showNetwork && (
         <LogCard
-          title="network-log.har"
-          description={networkDescription(networkLog, t)}
+          title="network-log"
+          description={networkDescription(networkLog)}
           attach={networkLogAttach}
           disabled={networkLog.captured === 0}
           onToggle={onNetworkLogToggle}
@@ -47,8 +45,8 @@ export function LogAttachmentCards({
       )}
       {showConsole && (
         <LogCard
-          title="console-log.json"
-          description={consoleDescription(consoleLog, t)}
+          title="console-log"
+          description={consoleDescription(consoleLog)}
           attach={consoleLogAttach}
           disabled={consoleLog.captured === 0}
           onToggle={onConsoleLogToggle}
@@ -79,46 +77,31 @@ function LogCard({
 }) {
   return (
     <Card
-      className={`flex cursor-pointer flex-col gap-1.5 p-3 transition-colors hover:bg-accent/50 ${disabled ? "opacity-50" : ""}`}
+      className={`flex cursor-pointer items-center gap-3 p-3 transition-colors hover:bg-accent/50 ${disabled ? "opacity-50" : ""}`}
       onClick={() => { if (!disabled) onClick(); }}
     >
-      <div className="flex items-center justify-between">
-        <span className="text-xs font-medium font-mono">{title}</span>
-        {!readOnly && (
-          <Switch
-            checked={attach}
-            onCheckedChange={onToggle}
-            disabled={disabled}
-            onClick={(e) => e.stopPropagation()}
-            className="scale-75"
-          />
-        )}
+      {!readOnly && (
+        <Switch
+          checked={attach}
+          onCheckedChange={onToggle}
+          disabled={disabled}
+          onClick={(e) => e.stopPropagation()}
+        />
+      )}
+      <div className="flex min-w-0 flex-1 flex-col">
+        <span className="text-sm font-medium">{title}</span>
+        <span className="text-sm text-muted-foreground">{description}</span>
       </div>
-      <span className="text-[11px] leading-tight text-muted-foreground">{description}</span>
     </Card>
   );
 }
 
-function networkDescription(log: NetworkLog, t: ReturnType<typeof useT>): string {
+function networkDescription(log: NetworkLog): string {
   const errorCount = log.requests.filter((r) => r.status >= 400).length;
-  const parts: string[] = [];
-  parts.push(t("networkLog.counter.captured").replace("{n}", String(log.captured)));
-  if (errorCount > 0) {
-    parts.push(`${errorCount} errors`);
-  }
-  return parts.join(" · ");
+  return `총 ${log.captured}건 (에러 ${errorCount}건)`;
 }
 
-function consoleDescription(log: ConsoleLog, t: ReturnType<typeof useT>): string {
+function consoleDescription(log: ConsoleLog): string {
   const errorCount = log.entries.filter((e) => e.level === "error").length;
-  const warnCount = log.entries.filter((e) => e.level === "warn").length;
-  const parts: string[] = [];
-  parts.push(t("consoleLog.counter.captured").replace("{n}", String(log.captured)));
-  if (errorCount > 0 || warnCount > 0) {
-    const counts: string[] = [];
-    if (errorCount > 0) counts.push(`${errorCount} errors`);
-    if (warnCount > 0) counts.push(`${warnCount} warns`);
-    parts.push(counts.join(", "));
-  }
-  return parts.join(" · ");
+  return `총 ${log.captured}건 (에러 ${errorCount}건)`;
 }

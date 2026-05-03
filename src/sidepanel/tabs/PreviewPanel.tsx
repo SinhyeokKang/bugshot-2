@@ -309,6 +309,7 @@ export function PreviewPanel() {
           open={consoleDialogOpen}
           onOpenChange={setConsoleDialogOpen}
           entries={consoleLog.entries}
+          startedAt={consoleLog.startedAt}
         />
       )}
     </PageShell>

@@ -240,6 +240,8 @@ export function DraftingPanel() {
           open={networkDialogOpen}
           onOpenChange={setNetworkDialogOpen}
           requests={networkLog.requests}
+          attach={networkLogAttach}
+          onToggleAttach={setNetworkLogAttach}
         />
       )}
       {consoleLog && (
@@ -247,6 +249,9 @@ export function DraftingPanel() {
           open={consoleDialogOpen}
           onOpenChange={setConsoleDialogOpen}
           entries={consoleLog.entries}
+          startedAt={consoleLog.startedAt}
+          attach={consoleLogAttach}
+          onToggleAttach={setConsoleLogAttach}
         />
       )}
       {annotating && screenshotRaw ? (
