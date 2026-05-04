@@ -342,6 +342,16 @@ const en = {
 
   // Log card
   "logCard.description": "{captured} captured ({errors} errors)",
+
+  // Log summary (issue body)
+  "logSummary.network.title": "Network Logs",
+  "logSummary.network.captured": "{n} captured ({errors} errors)",
+  "logSummary.network.capturedNoError": "{n} captured (no errors)",
+  "logSummary.network.detail": "(Details: see network-log.har attachment)",
+  "logSummary.console.title": "Console Logs",
+  "logSummary.console.captured": "{n} captured ({errors} errors, {warns} warnings)",
+  "logSummary.console.capturedNoError": "{n} captured (no errors)",
+  "logSummary.console.detail": "(Details: see console-log.json attachment)",
 };
 
 export default en satisfies TranslationMap;

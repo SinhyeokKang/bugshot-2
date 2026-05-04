@@ -340,6 +340,16 @@ const ko = {
 
   // Log card
   "logCard.description": "총 {captured}건 (에러 {errors}건)",
+
+  // Log summary (issue body)
+  "logSummary.network.title": "네트워크 로그",
+  "logSummary.network.captured": "{n}건 캡처 (에러 {errors}건)",
+  "logSummary.network.capturedNoError": "{n}건 캡처 (에러 없음)",
+  "logSummary.network.detail": "(상세: network-log.har 첨부)",
+  "logSummary.console.title": "콘솔 로그",
+  "logSummary.console.captured": "{n}건 캡처 (에러 {errors}건, 경고 {warns}건)",
+  "logSummary.console.capturedNoError": "{n}건 캡처 (에러 없음)",
+  "logSummary.console.detail": "(상세: console-log.json 첨부)",
 } as const;
 
 export type TranslationKey = keyof typeof ko;

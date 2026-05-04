@@ -50,6 +50,7 @@ import { buildAiMetaAttachment } from "../lib/buildAiMetaAttachment";
 import { buildIssueAdf, type AdfDoc } from "../lib/buildIssueAdf";
 import { buildHar, serializeHar } from "../lib/buildHar";
 import { buildConsoleLogJson, serializeConsoleLog } from "../lib/buildConsoleLogJson";
+import { buildNetworkLogSummary, buildConsoleLogSummary } from "../lib/buildLogSummary";
 
 type SubmitState =
   | { status: "idle" }
@@ -114,6 +115,8 @@ export function IssueCreateModal() {
         viewport: videoViewport ?? { width: 0, height: 0 },
         capturedAt: videoCapturedAt ?? Date.now(),
         diffs: [],
+        networkLogSummary: hasNetworkLog ? buildNetworkLogSummary(networkLog) : undefined,
+        consoleLogSummary: hasConsoleLog ? buildConsoleLogSummary(consoleLog) : undefined,
       };
       description = buildIssueAdf(ctx);
       attachments.push(buildAiMetaAttachment(ctx));

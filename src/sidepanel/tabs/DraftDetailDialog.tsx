@@ -55,6 +55,7 @@ import { buildAiMetaAttachment } from "../lib/buildAiMetaAttachment";
 import { buildHar, serializeHar } from "../lib/buildHar";
 import { buildConsoleLogJson, serializeConsoleLog } from "../lib/buildConsoleLogJson";
 import { buildIssueAdf } from "../lib/buildIssueAdf";
+import { buildNetworkLogSummary, buildConsoleLogSummary } from "../lib/buildLogSummary";
 import { SubmitFieldsDialog } from "./IssueCreateModal";
 
 type SubmitFields = {
@@ -190,6 +191,8 @@ export function DraftDetailDialog({
       viewport: issue.viewport ?? sel?.viewport ?? { width: 0, height: 0 },
       capturedAt: sel?.capturedAt ?? issue.createdAt,
       diffs,
+      networkLogSummary: networkLog ? buildNetworkLogSummary(networkLog) : undefined,
+      consoleLogSummary: consoleLogForSubmit ? buildConsoleLogSummary(consoleLogForSubmit) : undefined,
     };
     const description = buildIssueAdf(ctx);
 

@@ -26,6 +26,7 @@ import {
   buildStyleDiff,
 } from "../components/StyleChangesTable";
 import { buildIssueHtml, buildIssueMarkdown } from "../lib/buildIssueMarkdown";
+import { buildNetworkLogSummary, buildConsoleLogSummary } from "../lib/buildLogSummary";
 import { IssueCreateModal } from "./IssueCreateModal";
 
 
@@ -100,6 +101,8 @@ export function PreviewPanel() {
         viewport: videoViewport ?? { width: 0, height: 0 },
         capturedAt: videoCapturedAt ?? Date.now(),
         diffs: [],
+        networkLogSummary: attachedNetwork ? buildNetworkLogSummary(attachedNetwork) : undefined,
+        consoleLogSummary: attachedConsole ? buildConsoleLogSummary(attachedConsole) : undefined,
       };
     } else if (isElementMode && selection) {
       const changedProps = new Set(diffs.map((d) => d.prop));
