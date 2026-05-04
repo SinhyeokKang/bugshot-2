@@ -1,0 +1,158 @@
+import type { CaptureMode } from "@/store/editor-store";
+import type {
+  IssueSectionId,
+  IssueSectionRenderAs,
+  LocaleMode,
+} from "@/store/app-settings-store";
+import type { StyleDiffRow } from "../components/StyleChangesTable";
+import type { NetworkLogSummary, ConsoleLogSummary } from "./buildLogSummary";
+import type { EditorDraft } from "@/store/editor-store";
+
+const MAX_DIFFS = 20;
+const MAX_TOKENS = 10;
+const MAX_TITLE_LENGTH = 80;
+
+export interface AiDraftContext {
+  captureMode: CaptureMode;
+  locale: LocaleMode;
+  url: string;
+  pageTitle: string;
+  selector?: string;
+  tagName?: string;
+  diffs?: StyleDiffRow[];
+  tokens?: { name: string; value: string }[];
+  networkLogSummary?: NetworkLogSummary;
+  consoleLogSummary?: ConsoleLogSummary;
+  enabledSections: { id: IssueSectionId; renderAs: IssueSectionRenderAs }[];
+}
+
+const SECTION_DESC: Record<LocaleMode, Record<IssueSectionId, string>> = {
+  ko: {
+    description: "발생 현상을 구체적으로 설명 (As-Is 값이 현재 문제 상태)",
+    stepsToReproduce: "재현 과정을 줄바꿈으로 구분된 단계로 작성 (번호 없이)",
+    expectedResult: "수정 후 기대되는 동작 (To-Be 값 기준으로 작성)",
+    notes: "추가 참고 사항. 없으면 빈 문자열",
+  },
+  en: {
+    description: "describe the issue in detail (As-Is value is the current problem)",
+    stepsToReproduce: "write reproduction steps as newline-separated lines (no numbering)",
+    expectedResult: "expected behavior after fix (use the To-Be value)",
+    notes: "additional notes. Leave empty string if nothing to add",
+  },
+};
+
+export function buildAiDraftPrompt(ctx: AiDraftContext): string {
+  const lang = ctx.locale === "ko" ? "Korean" : "English";
+  const lines: string[] = [];
+
+  lines.push(`You are a QA assistant. Write a bug report draft in ${lang}.`);
+  lines.push("");
+  lines.push("Context:");
+  lines.push(`- Page: ${ctx.url} (${ctx.pageTitle})`);
+  lines.push(`- Capture mode: ${ctx.captureMode}`);
+
+  if (ctx.captureMode === "element") {
+    if (ctx.tagName && ctx.selector) {
+      lines.push(`- Element: <${ctx.tagName}> at ${ctx.selector}`);
+    }
+    if (ctx.diffs && ctx.diffs.length > 0) {
+      lines.push("- Style changes (left = current value, right = desired value):");
+      for (const d of ctx.diffs.slice(0, MAX_DIFFS)) {
+        lines.push(`  ${d.prop}: "${d.asIs}" → "${d.toBe}"`);
+      }
+    }
+    if (ctx.tokens && ctx.tokens.length > 0) {
+      lines.push("- Design tokens:");
+      for (const tk of ctx.tokens.slice(0, MAX_TOKENS)) {
+        lines.push(`  ${tk.name}: ${tk.value}`);
+      }
+    }
+  }
+
+  if (ctx.captureMode === "video") {
+    if (ctx.networkLogSummary && ctx.networkLogSummary.errors.length > 0) {
+      lines.push("- Network errors:");
+      for (const e of ctx.networkLogSummary.errors) {
+        lines.push(`  ${e.method} ${e.path} → ${e.status} ${e.statusText}`);
+      }
+    }
+    if (ctx.consoleLogSummary) {
+      const c = ctx.consoleLogSummary;
+      if (c.errorCount > 0 || c.warnCount > 0) {
+        lines.push(`- Console: ${c.errorCount} errors, ${c.warnCount} warnings`);
+        for (const msg of c.topErrors) {
+          lines.push(`  ${msg}`);
+        }
+      }
+    }
+  }
+
+  const desc = SECTION_DESC[ctx.locale];
+  lines.push("");
+  lines.push("Output a JSON object with these exact keys:");
+  lines.push('- "title": one short line, as brief as possible');
+  for (const sec of ctx.enabledSections) {
+    lines.push(`- "${sec.id}": ${desc[sec.id]}`);
+  }
+
+  lines.push("");
+  lines.push("Rules:");
+  lines.push("- Output only valid JSON. No markdown fences or extra text.");
+  lines.push(
+    "- Only describe facts from the context above. Never invent values, tokens, or details not provided.",
+  );
+  lines.push(
+    "- If a section has no relevant information, use an empty string.",
+  );
+
+  return lines.join("\n");
+}
+
+export function parseAiDraftResponse(
+  raw: string,
+  enabledSectionIds: IssueSectionId[],
+): EditorDraft | null {
+  const json = extractJson(raw);
+  if (!json) return null;
+
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(json);
+  } catch {
+    return null;
+  }
+
+  if (typeof parsed.title !== "string" || !parsed.title.trim()) return null;
+
+  const title = parsed.title.slice(0, MAX_TITLE_LENGTH);
+
+  const sections: Record<string, string> = {};
+  for (const id of enabledSectionIds) {
+    if (typeof parsed[id] === "string") {
+      let val = parsed[id] as string;
+      if (id === "stepsToReproduce") {
+        val = stripLineNumbering(val);
+      }
+      sections[id] = val;
+    }
+  }
+
+  return { title, sections };
+}
+
+function stripLineNumbering(text: string): string {
+  return text
+    .split("\n")
+    .map((line) => line.replace(/^\d+[\.\)]\s*/, ""))
+    .join("\n");
+}
+
+function extractJson(raw: string): string | null {
+  const stripped = raw
+    .replace(/^```(?:json)?\s*/m, "")
+    .replace(/\s*```\s*$/m, "");
+  const start = stripped.indexOf("{");
+  const end = stripped.lastIndexOf("}");
+  if (start === -1 || end === -1 || end <= start) return null;
+  return stripped.slice(start, end + 1);
+}

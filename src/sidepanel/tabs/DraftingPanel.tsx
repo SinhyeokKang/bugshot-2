@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { Pencil, RotateCcw, Trash2 } from "lucide-react";
+import { Pencil, RotateCcw, Trash2, WandSparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +15,7 @@ import {
 import { useEditorStore } from "@/store/editor-store";
 import { useSettingsStore } from "@/store/settings-store";
 import { useBoundTabId } from "../hooks/useBoundTabId";
+import { useChromeAI } from "../hooks/useChromeAI";
 import { clearPicker } from "../picker-control";
 const AnnotationOverlay = lazy(() => import("../components/AnnotationOverlay"));
 import { CancelConfirmDialog } from "../components/CancelConfirmDialog";
@@ -31,6 +32,8 @@ import {
   StyleChangesTable,
   buildStyleDiff,
 } from "../components/StyleChangesTable";
+import { buildAiDraftPrompt, parseAiDraftResponse } from "../lib/buildAiDraftPrompt";
+import { buildNetworkLogSummary, buildConsoleLogSummary } from "../lib/buildLogSummary";
 
 export function DraftingPanel() {
   const t = useT();
@@ -55,7 +58,13 @@ export function DraftingPanel() {
   const consoleLog = useEditorStore((s) => s.consoleLog);
   const consoleLogAttach = useEditorStore((s) => s.consoleLogAttach);
   const setConsoleLogAttach = useEditorStore((s) => s.setConsoleLogAttach);
+  const target = useEditorStore((s) => s.target);
+  const tokens = useEditorStore((s) => s.tokens);
   const issueSections = useAppSettingsStore((s) => s.issueSections);
+  const locale = useAppSettingsStore((s) => s.locale);
+  const { status: aiStatus, generateDraft } = useChromeAI();
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
   const [annotating, setAnnotating] = useState(false);
   const [networkDialogOpen, setNetworkDialogOpen] = useState(false);
   const [consoleDialogOpen, setConsoleDialogOpen] = useState(false);
@@ -82,6 +91,12 @@ export function DraftingPanel() {
     });
   }, [draft, selection, setDraft, titlePrefix, captureMode, screenshotImage, videoThumbnail, videoBlob]);
 
+  useEffect(() => {
+    if (!aiError) return;
+    const id = setTimeout(() => setAiError(null), 3000);
+    return () => clearTimeout(id);
+  }, [aiError]);
+
   if (!draft) return null;
   if (captureMode === "element" && !selection) return null;
   if (captureMode === "screenshot" && !screenshotImage) return null;
@@ -95,6 +110,56 @@ export function DraftingPanel() {
   );
 
   const enabledSections = issueSections.filter((s) => s.enabled);
+
+  const handleAIDraft = async () => {
+    setAiLoading(true);
+    setAiError(null);
+    try {
+      const ctx = buildAiDraftPrompt({
+        captureMode,
+        locale,
+        url: target?.url ?? "",
+        pageTitle: target?.title ?? "",
+        selector: selection?.selector,
+        tagName: selection?.tagName,
+        diffs: diffs.length > 0 ? diffs : undefined,
+        tokens: tokens.length > 0
+          ? tokens.map((tk) => ({ name: tk.name, value: tk.value }))
+          : undefined,
+        networkLogSummary:
+          networkLog && networkLog.captured > 0
+            ? buildNetworkLogSummary(networkLog)
+            : undefined,
+        consoleLogSummary:
+          consoleLog && consoleLog.captured > 0
+            ? buildConsoleLogSummary(consoleLog)
+            : undefined,
+        enabledSections: enabledSections.map((s) => ({
+          id: s.id,
+          renderAs: s.renderAs,
+        })),
+      });
+      const raw = await generateDraft(ctx);
+      const parsed = parseAiDraftResponse(
+        raw,
+        enabledSections.map((s) => s.id),
+      );
+      if (parsed) {
+        const prefix = defaultTitle(titlePrefix);
+        const aiTitle = prefix
+          ? prefix + parsed.title
+          : parsed.title;
+        setDraft({ ...parsed, title: aiTitle });
+      } else {
+        setAiError(t("draft.aiParseError"));
+      }
+    } catch {
+      setAiError(t("draft.aiError"));
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
   const mediaBlock = isVideoMode ? (
     <Section key="__media" title={t("section.media")}>
       <VideoPreview blob={videoBlob} thumbnail={videoThumbnail} />
@@ -193,7 +258,18 @@ export function DraftingPanel() {
   }
 
   return (
-    <PageShell>
+    <PageShell className="relative">
+      {aiLoading && (
+        <div className="pointer-events-none absolute inset-0 z-20 overflow-hidden">
+          <div className="absolute inset-0 bg-purple-500/5" />
+          <div className="absolute inset-0 animate-shimmer bg-gradient-to-b from-transparent via-purple-400/10 to-transparent" />
+        </div>
+      )}
+      {aiError && (
+        <div className="absolute bottom-4 left-1/2 z-30 -translate-x-1/2 rounded-md bg-destructive/10 px-3 py-1.5 text-xs text-destructive shadow-sm">
+          {aiError}
+        </div>
+      )}
       <PageScroll>
         <Section title={t("section.issueTitle")}>
           <Input
@@ -206,6 +282,19 @@ export function DraftingPanel() {
 
         {sectionNodes}
       </PageScroll>
+      {aiStatus === "available" && captureMode !== "screenshot" && (
+        <button
+          className="mx-2.5 flex items-center justify-between rounded-t-lg bg-purple-100/80 px-3.5 py-2.5 text-purple-700 transition-colors hover:bg-purple-100 disabled:opacity-50 dark:bg-purple-950/50 dark:text-purple-300 dark:hover:bg-purple-900"
+          onClick={() => void handleAIDraft()}
+          disabled={aiLoading}
+        >
+          <span className="bg-gradient-to-r from-purple-500 to-indigo-500 bg-clip-text text-sm text-transparent dark:from-purple-300 dark:to-indigo-300">{t("draft.aiBanner")}</span>
+          <span className="flex items-center gap-1 bg-gradient-to-r from-indigo-500 to-purple-500 bg-clip-text text-sm font-medium text-transparent dark:from-indigo-300 dark:to-purple-300">
+            <WandSparkles className="h-4 w-4 text-purple-500 dark:text-purple-300" />
+            {t("draft.aiGenerate")}
+          </span>
+        </button>
+      )}
       <PageFooter>
         <div className="flex items-center justify-between gap-2">
           <CancelConfirmDialog
@@ -231,7 +320,7 @@ export function DraftingPanel() {
                 setAnnotating(false);
                 confirmDraft();
               }}
-              disabled={titleMissing}
+              disabled={titleMissing || aiLoading}
             >
               {t("draft.preview")}
             </Button>
