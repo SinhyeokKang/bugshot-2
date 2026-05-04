@@ -2,6 +2,7 @@ import { create } from "zustand";
 import type { Token } from "@/types/picker";
 import type { NetworkLog } from "@/types/network";
 import type { ConsoleLog } from "@/types/console";
+import { onBlobSaveFailed } from "@/types/messages";
 import { useIssuesStore } from "./issues-store";
 import { useSettingsStore } from "./settings-store";
 import { saveVideoBlob, saveImageBlob, saveNetworkLog, deleteNetworkLog, saveConsoleLog, deleteConsoleLog, dataUrlToBlob } from "./blob-db";
@@ -271,22 +272,35 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         networkLogBlobKey: hasNetworkLog ? id : undefined,
         consoleLogBlobKey: hasConsoleLog ? id : undefined,
       });
-      if (state.videoBlob) {
-        saveVideoBlob(id, state.videoBlob).catch(() => {});
-      }
-      if (state.videoThumbnail) {
-        saveImageBlob(id, "before", dataUrlToBlob(state.videoThumbnail)).catch(() => {});
-      }
-      if (hasNetworkLog) {
-        const tabId = state.target.tabId;
-        saveNetworkLog(id, state.networkLog!).catch(() => {});
-        deleteNetworkLog(`pending:${tabId}`).catch(() => {});
-      }
-      if (hasConsoleLog) {
-        const tabId = state.target.tabId;
-        saveConsoleLog(id, state.consoleLog!).catch(() => {});
-        deleteConsoleLog(`pending:${tabId}`).catch(() => {});
-      }
+      void (async () => {
+        let failed = false;
+        if (state.videoBlob) {
+          if (!await saveVideoBlob(id, state.videoBlob)) failed = true;
+        }
+        if (state.videoThumbnail) {
+          if (!await saveImageBlob(id, "before", dataUrlToBlob(state.videoThumbnail))) {
+            useIssuesStore.getState().patchDraftSnapshot(id, { before: false });
+            failed = true;
+          }
+        }
+        if (hasNetworkLog) {
+          const tabId = state.target!.tabId;
+          if (!await saveNetworkLog(id, state.networkLog!)) {
+            useIssuesStore.getState().patchDraftBlobKeys(id, { networkLogBlobKey: undefined });
+            failed = true;
+          }
+          deleteNetworkLog(`pending:${tabId}`).catch(() => {});
+        }
+        if (hasConsoleLog) {
+          const tabId = state.target!.tabId;
+          if (!await saveConsoleLog(id, state.consoleLog!)) {
+            useIssuesStore.getState().patchDraftBlobKeys(id, { consoleLogBlobKey: undefined });
+            failed = true;
+          }
+          deleteConsoleLog(`pending:${tabId}`).catch(() => {});
+        }
+        if (failed) onBlobSaveFailed.fire();
+      })();
     } else if (state.captureMode === "screenshot") {
       const screenshotImage = state.screenshotAnnotated ?? state.screenshotRaw;
       useIssuesStore.getState().saveDraft({
@@ -306,7 +320,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         },
       });
       if (screenshotImage) {
-        saveImageBlob(id, "before", dataUrlToBlob(screenshotImage)).catch(() => {});
+        void (async () => {
+          if (!await saveImageBlob(id, "before", dataUrlToBlob(screenshotImage))) {
+            useIssuesStore.getState().patchDraftSnapshot(id, { before: false });
+            onBlobSaveFailed.fire();
+          }
+        })();
       }
     } else {
       if (!state.selection) {
@@ -347,12 +366,22 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           value: t.value,
         })),
       });
-      if (state.beforeImage) {
-        saveImageBlob(id, "before", dataUrlToBlob(state.beforeImage)).catch(() => {});
-      }
-      if (state.afterImage) {
-        saveImageBlob(id, "after", dataUrlToBlob(state.afterImage)).catch(() => {});
-      }
+      void (async () => {
+        let failed = false;
+        if (state.beforeImage) {
+          if (!await saveImageBlob(id, "before", dataUrlToBlob(state.beforeImage))) {
+            useIssuesStore.getState().patchDraftSnapshot(id, { before: false });
+            failed = true;
+          }
+        }
+        if (state.afterImage) {
+          if (!await saveImageBlob(id, "after", dataUrlToBlob(state.afterImage))) {
+            useIssuesStore.getState().patchDraftSnapshot(id, { after: false });
+            failed = true;
+          }
+        }
+        if (failed) onBlobSaveFailed.fire();
+      })();
     }
     set({ phase: "previewing", currentIssueId: id });
   },

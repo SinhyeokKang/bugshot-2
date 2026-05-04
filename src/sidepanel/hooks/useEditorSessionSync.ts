@@ -5,6 +5,7 @@ import {
   type EditorSnapshot,
   useEditorStore,
 } from "@/store/editor-store";
+import { onSessionSaveExhausted } from "@/types/messages";
 import { clearPicker, injectNetworkRecorder, injectConsoleRecorder } from "../picker-control";
 import { getNetworkLog, getConsoleLog } from "@/store/blob-db";
 
@@ -54,9 +55,13 @@ function snapshotFromState(): EditorSnapshot {
   };
 }
 
+const SESSION_SAVE_MAX_FAILURES = 3;
+
 export function useEditorSessionSync(tabId: number | null): boolean {
   const [hydrated, setHydrated] = useState(false);
   const saveTimer = useRef<number | null>(null);
+  const saveFailCount = useRef(0);
+  const saveSuspended = useRef(false);
 
   useEffect(() => {
     if (tabId == null) {
@@ -78,12 +83,18 @@ export function useEditorSessionSync(tabId: number | null): boolean {
         if (snap.networkLogAttach) {
           getNetworkLog(`pending:${tabId}`).then((log) => {
             if (log) useEditorStore.getState().setNetworkLog(log);
-          }).catch(() => {});
+            else useEditorStore.setState({ networkLogAttach: false });
+          }).catch(() => {
+            useEditorStore.setState({ networkLogAttach: false });
+          });
         }
         if (snap.consoleLogAttach) {
           getConsoleLog(`pending:${tabId}`).then((log) => {
             if (log) useEditorStore.getState().setConsoleLog(log);
-          }).catch(() => {});
+            else useEditorStore.setState({ consoleLogAttach: false });
+          }).catch(() => {
+            useEditorStore.setState({ consoleLogAttach: false });
+          });
         }
       }
       setHydrated(true);
@@ -92,17 +103,28 @@ export function useEditorSessionSync(tabId: number | null): boolean {
     const unsubStore = useEditorStore.subscribe((state, prev) => {
       if (state === prev) return;
       if (state.sessionExpired) return;
+      if (saveSuspended.current) return;
       if (saveTimer.current != null) {
         window.clearTimeout(saveTimer.current);
       }
       saveTimer.current = window.setTimeout(() => {
         if (useEditorStore.getState().sessionExpired) return;
+        if (saveSuspended.current) return;
         const snap = snapshotFromState();
         void chrome.storage.session
           .set({ [key]: snap })
+          .then(() => { saveFailCount.current = 0; })
           .catch(() => {
             const lite = { ...snap, beforeImage: null, afterImage: null, screenshotRaw: null, screenshotAnnotated: null, videoThumbnail: null };
-            void chrome.storage.session.set({ [key]: lite }).catch(() => {});
+            void chrome.storage.session.set({ [key]: lite })
+              .then(() => { saveFailCount.current = 0; })
+              .catch(() => {
+                saveFailCount.current++;
+                if (saveFailCount.current >= SESSION_SAVE_MAX_FAILURES) {
+                  saveSuspended.current = true;
+                  onSessionSaveExhausted.fire();
+                }
+              });
           });
       }, SAVE_DEBOUNCE_MS);
     });

@@ -33,6 +33,10 @@ const en = {
   "app.pickerUnavailable.body": "Chrome policy prevents BugShot from running on the Chrome Web Store and similar restricted pages. Try another page.",
   "app.iframeUnsupported.title": "Elements inside iframes cannot be selected",
   "app.iframeUnsupported.body": "Chrome security policy blocks access to DOM inside iframes. Pick an element outside the iframe, or use screen capture mode.",
+  "app.blobSaveFailed.title": "Some media could not be saved",
+  "app.blobSaveFailed.body": "Some images, videos, or logs could not be saved due to insufficient storage. Check the draft for missing items.",
+  "app.sessionSaveExhausted.title": "Session cannot be saved",
+  "app.sessionSaveExhausted.body": "Insufficient storage to preserve your session. Current work may be lost if you close this tab.",
 
   // Issue sections
   "section.issueTitle": "Issue title",

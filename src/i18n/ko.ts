@@ -31,6 +31,10 @@ const ko = {
   "app.pickerUnavailable.body": "Chrome 정책상 웹스토어·확장 페이지 등에서는 BugShot이 동작할 수 없습니다. 다른 페이지에서 시도해주세요.",
   "app.iframeUnsupported.title": "iframe 내부 요소는 선택할 수 없습니다",
   "app.iframeUnsupported.body": "Chrome 보안 정책으로 iframe 안쪽 DOM에는 접근할 수 없습니다. iframe 외부 요소를 선택하거나 화면 캡처 모드를 사용해 주세요.",
+  "app.blobSaveFailed.title": "일부 미디어를 저장하지 못했습니다",
+  "app.blobSaveFailed.body": "디스크 공간 부족 등의 원인으로 이미지·영상·로그 중 일부가 저장되지 않았습니다. 드래프트에서 누락된 항목을 확인해주세요.",
+  "app.sessionSaveExhausted.title": "세션을 저장할 수 없습니다",
+  "app.sessionSaveExhausted.body": "저장 공간이 부족하여 작업 세션을 보존할 수 없습니다. 탭을 닫으면 현재 작업이 유실될 수 있습니다.",
 
   // Issue sections (shared across drafting/preview/detail)
   "section.issueTitle": "이슈 제목",
