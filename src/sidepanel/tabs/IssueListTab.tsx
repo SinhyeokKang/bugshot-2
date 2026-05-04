@@ -151,7 +151,7 @@ export function IssueListTab() {
               <TabsTrigger value="draft">{t("issueList.filter.draft")}</TabsTrigger>
             </TabsList>
           </Tabs>
-          <div className="relative ml-auto w-full max-w-[320px]">
+          <div className="relative ml-auto w-full max-w-[280px]">
             <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder={t("issueList.search")}
