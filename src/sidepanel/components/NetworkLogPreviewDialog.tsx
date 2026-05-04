@@ -197,7 +197,7 @@ export function NetworkLogPreviewDialog({
               </TabsList>
             </div>
           </Tabs>
-          <div className="flex min-h-0 flex-1">
+          <div className="flex min-h-0 flex-1 overflow-hidden">
           <ScrollArea className="shrink-0 [&>div>div]:!block" style={{ width: listWidth }}>
             <div>
               {filteredRequests.map((req) => (
@@ -241,7 +241,7 @@ export function NetworkLogPreviewDialog({
                     {t("networkLog.detail.copyCurl")}
                   </Button>
                 </div>
-                <ScrollArea className="min-h-0 flex-1">
+                <ScrollArea className="min-h-0 flex-1 [&>div>div]:!block">
                   <TabsContent value="headers" className="mt-0">
                     <HeadersPanel req={activeReq} />
                   </TabsContent>
@@ -333,7 +333,7 @@ function HeadersPanel({ req }: { req: NetworkRequest }) {
   return (
     <div>
       <CollapsibleSection title={t("networkLog.detail.general")}>
-        <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
+        <dl className="grid grid-cols-[minmax(0,auto)_minmax(0,1fr)] gap-x-4 gap-y-1">
           <dt className="text-muted-foreground">{t("networkLog.detail.url")}</dt>
           <dd className="break-all">{req.url}</dd>
           <dt className="text-muted-foreground">{t("networkLog.detail.method")}</dt>
@@ -389,7 +389,7 @@ function HeadersTable({ headers }: { headers: Record<string, string> }) {
   const entries = Object.entries(headers);
   if (entries.length === 0) return <span className="text-muted-foreground">{"—"}</span>;
   return (
-    <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
+    <dl className="grid grid-cols-[minmax(0,auto)_minmax(0,1fr)] gap-x-4 gap-y-1">
       {entries.map(([k, v]) => (
         <Fragment key={k}>
           <dt className="text-muted-foreground">{k}</dt>

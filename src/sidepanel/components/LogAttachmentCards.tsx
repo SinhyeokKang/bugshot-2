@@ -1,3 +1,4 @@
+import { ArrowLeftRight, Terminal } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { useT, type TranslationFn } from "@/i18n";
@@ -36,6 +37,7 @@ export function LogAttachmentCards({
     <div className={`grid gap-2 ${showNetwork && showConsole ? "grid-cols-2" : "grid-cols-1"}`}>
       {showNetwork && (
         <LogCard
+          icon={<ArrowLeftRight className="h-4 w-4" />}
           title={t("networkLog.dialog.title")}
           description={networkDescription(networkLog, t)}
           attach={networkLogAttach}
@@ -47,6 +49,7 @@ export function LogAttachmentCards({
       )}
       {showConsole && (
         <LogCard
+          icon={<Terminal className="h-4 w-4" />}
           title={t("consoleLog.dialog.title")}
           description={consoleDescription(consoleLog, t)}
           attach={consoleLogAttach}
@@ -61,6 +64,7 @@ export function LogAttachmentCards({
 }
 
 function LogCard({
+  icon,
   title,
   description,
   attach,
@@ -69,6 +73,7 @@ function LogCard({
   onClick,
   readOnly,
 }: {
+  icon: React.ReactNode;
   title: string;
   description: string;
   attach: boolean;
@@ -82,6 +87,11 @@ function LogCard({
       className={`flex cursor-pointer items-center gap-3 p-3 transition-colors hover:bg-accent/50 ${disabled ? "opacity-50" : ""}`}
       onClick={() => { if (!disabled) onClick(); }}
     >
+      <div className="shrink-0">{icon}</div>
+      <div className="flex min-w-0 flex-1 flex-col">
+        <span className="text-sm font-medium">{title}</span>
+        <span className="text-sm text-muted-foreground">{description}</span>
+      </div>
       {!readOnly && (
         <Switch
           checked={attach}
@@ -90,10 +100,6 @@ function LogCard({
           onClick={(e) => e.stopPropagation()}
         />
       )}
-      <div className="flex min-w-0 flex-1 flex-col">
-        <span className="text-sm font-medium">{title}</span>
-        <span className="text-sm text-muted-foreground">{description}</span>
-      </div>
     </Card>
   );
 }

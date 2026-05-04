@@ -44,8 +44,8 @@ const ko = {
   "section.logs": "로그 첨부",
   "section.description.help": "버그가 어떻게 나타나는지 설명합니다.",
   "section.stepsToReproduce.help": "한 줄에 한 단계씩 적으면 번호 매김 목록으로 출력됩니다.",
-  "section.expectedResult.help": "원래 어떻게 동작해야 하는지 적습니다.",
-  "section.notes.help": "관련 링크·배경 등 보조 컨텍스트.",
+  "section.expectedResult.help": "원래 어떻게 동작해야 하는지 설명합니다.",
+  "section.notes.help": "관련 링크·배경 등의 추가 설명을 작성합니다.",
 
   // Issue tab
   "issue.unsupported": "지원하지 않는 페이지",
