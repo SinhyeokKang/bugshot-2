@@ -153,6 +153,7 @@ interface IssuesState {
   saveDraft: (record: IssueRecord) => void;
   markSubmitted: (id: string, patch: Partial<IssueRecord>) => void;
   patchIssue: (id: string, patch: Partial<IssueRecord>) => void;
+  patchDraftSnapshot: (id: string, patch: Partial<IssueSnapshot>) => void;
   removeIssue: (id: string) => void;
   clearIssues: () => void;
 }
@@ -186,6 +187,12 @@ export const useIssuesStore = create<IssuesState>()(
         set((s) => ({
           issues: s.issues.map((x) =>
             x.id === id ? { ...x, ...patch } : x,
+          ),
+        })),
+      patchDraftSnapshot: (id, patch) =>
+        set((s) => ({
+          issues: s.issues.map((x) =>
+            x.id === id ? { ...x, snapshot: { ...x.snapshot, ...patch } } : x,
           ),
         })),
       removeIssue: (id) => {

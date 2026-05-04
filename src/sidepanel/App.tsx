@@ -15,9 +15,11 @@ import { PICKER_PORT_NAME, PANEL_PORT_PREFIX } from "@/lib/session-keys";
 import { useEditorStore } from "@/store/editor-store";
 import { jiraCredentialsFilled, useSettingsStore } from "@/store/settings-store";
 import {
+  onBlobSaveFailed,
   onOAuthExpired,
   onPickerIframeUnsupported,
   onPickerUnavailable,
+  onSessionSaveExhausted,
 } from "@/types/messages";
 
 const TabNavContext = createContext<(tab: string) => void>(() => {});
@@ -55,6 +57,8 @@ export default function App() {
   const [oauthExpired, setOAuthExpired] = useState(false);
   const [pickerUnavailable, setPickerUnavailable] = useState(false);
   const [iframeUnsupported, setIframeUnsupported] = useState(false);
+  const [blobSaveFailed, setBlobSaveFailed] = useState(false);
+  const [sessionSaveExhausted, setSessionSaveExhausted] = useState(false);
 
   useEffect(() => {
     if (settingsHydrated && !jiraCredentialsFilled(jiraConfig)) {
@@ -90,6 +94,26 @@ export default function App() {
         document.activeElement.blur();
       }
       setIframeUnsupported(true);
+    });
+    return unsub;
+  }, []);
+
+  useEffect(() => {
+    const unsub = onBlobSaveFailed.subscribe(() => {
+      if (document.activeElement instanceof HTMLElement && document.activeElement !== document.body) {
+        document.activeElement.blur();
+      }
+      setBlobSaveFailed(true);
+    });
+    return unsub;
+  }, []);
+
+  useEffect(() => {
+    const unsub = onSessionSaveExhausted.subscribe(() => {
+      if (document.activeElement instanceof HTMLElement && document.activeElement !== document.body) {
+        document.activeElement.blur();
+      }
+      setSessionSaveExhausted(true);
     });
     return unsub;
   }, []);
@@ -219,6 +243,38 @@ export default function App() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogAction onClick={() => setIframeUnsupported(false)}>
+              {t("common.ok")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={blobSaveFailed} onOpenChange={setBlobSaveFailed}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("app.blobSaveFailed.title")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("app.blobSaveFailed.body")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setBlobSaveFailed(false)}>
+              {t("common.ok")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={sessionSaveExhausted} onOpenChange={setSessionSaveExhausted}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("app.sessionSaveExhausted.title")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("app.sessionSaveExhausted.body")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setSessionSaveExhausted(false)}>
               {t("common.ok")}
             </AlertDialogAction>
           </AlertDialogFooter>

@@ -1,5 +1,5 @@
 import { Fragment } from "react";
-import { Monitor, Moon, Sun } from "lucide-react";
+import { Bug, ListOrdered, Monitor, Moon, StickyNote, Sun, Target } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
@@ -83,6 +83,13 @@ export function AppSettingsTab() {
   );
 }
 
+const SECTION_ICONS: Record<string, React.ReactNode> = {
+  description: <Bug className="h-4 w-4" />,
+  stepsToReproduce: <ListOrdered className="h-4 w-4" />,
+  expectedResult: <Target className="h-4 w-4" />,
+  notes: <StickyNote className="h-4 w-4" />,
+};
+
 function IssueSectionRow({
   section,
   onToggle,
@@ -96,17 +103,18 @@ function IssueSectionRow({
   const help = t(sectionHelpKey(section.id));
   return (
     <div className="flex items-center gap-3">
-      <Switch
-        id={id}
-        checked={section.enabled}
-        onCheckedChange={(v) => onToggle(v === true)}
-      />
+      <div className="shrink-0">{SECTION_ICONS[section.id]}</div>
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <label htmlFor={id} className="cursor-pointer text-sm">
           {label}
         </label>
         <p className="text-sm text-muted-foreground">{help}</p>
       </div>
+      <Switch
+        id={id}
+        checked={section.enabled}
+        onCheckedChange={(v) => onToggle(v === true)}
+      />
     </div>
   );
 }

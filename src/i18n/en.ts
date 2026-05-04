@@ -33,6 +33,10 @@ const en = {
   "app.pickerUnavailable.body": "Chrome policy prevents BugShot from running on the Chrome Web Store and similar restricted pages. Try another page.",
   "app.iframeUnsupported.title": "Elements inside iframes cannot be selected",
   "app.iframeUnsupported.body": "Chrome security policy blocks access to DOM inside iframes. Pick an element outside the iframe, or use screen capture mode.",
+  "app.blobSaveFailed.title": "Some media could not be saved",
+  "app.blobSaveFailed.body": "Some images, videos, or logs could not be saved due to insufficient storage. Check the draft for missing items.",
+  "app.sessionSaveExhausted.title": "Session cannot be saved",
+  "app.sessionSaveExhausted.body": "Insufficient storage to preserve your session. Current work may be lost if you close this tab.",
 
   // Issue sections
   "section.issueTitle": "Issue title",
@@ -155,6 +159,12 @@ const en = {
   "field.epic.label": "Issues",
 
   // Issue list
+  "issueList.search": "Search…",
+  "issueList.noResults": "No results found",
+  "issueList.resetFilter": "Reset filters",
+  "issueList.filter.all": "All",
+  "issueList.filter.submitted": "Submitted",
+  "issueList.filter.draft": "Draft",
   "issueList.empty": "No issues yet",
   "issueList.deleteAll": "Delete all",
   "issueList.deleteAll.title": "Delete all issues?",
@@ -277,6 +287,7 @@ const en = {
   "networkLog.toggle.tooltip.empty": "No network requests captured during recording",
   "networkLog.counter.captured": "{n} captured",
   "networkLog.counter.selected": "{n} selected",
+  "networkLog.search": "Search URL…",
   "networkLog.dialog.title": "Network Logs",
   "networkLog.dialog.errors": "Errors",
   "networkLog.dialog.other": "Other",
@@ -308,6 +319,7 @@ const en = {
   "consoleLog.toggle.tooltip.empty": "No console output captured during recording",
   "consoleLog.counter.captured": "{n} captured",
   "consoleLog.counter.selected": "{n} selected",
+  "consoleLog.search": "Search messages…",
   "consoleLog.dialog.title": "Console Logs",
   "consoleLog.dialog.errors": "Errors / Warnings",
   "consoleLog.dialog.other": "Other",
@@ -342,6 +354,16 @@ const en = {
 
   // Log card
   "logCard.description": "{captured} captured ({errors} errors)",
+
+  // Log summary (issue body)
+  "logSummary.network.title": "Network Logs",
+  "logSummary.network.captured": "{n} captured ({errors} errors)",
+  "logSummary.network.capturedNoError": "{n} captured (no errors)",
+  "logSummary.network.detail": "(Details: see network-log.har attachment)",
+  "logSummary.console.title": "Console Logs",
+  "logSummary.console.captured": "{n} captured ({errors} errors, {warns} warnings)",
+  "logSummary.console.capturedNoError": "{n} captured (no errors)",
+  "logSummary.console.detail": "(Details: see console-log.json attachment)",
 };
 
 export default en satisfies TranslationMap;

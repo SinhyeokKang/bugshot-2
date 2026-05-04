@@ -31,6 +31,10 @@ const ko = {
   "app.pickerUnavailable.body": "Chrome 정책상 웹스토어·확장 페이지 등에서는 BugShot이 동작할 수 없습니다. 다른 페이지에서 시도해주세요.",
   "app.iframeUnsupported.title": "iframe 내부 요소는 선택할 수 없습니다",
   "app.iframeUnsupported.body": "Chrome 보안 정책으로 iframe 안쪽 DOM에는 접근할 수 없습니다. iframe 외부 요소를 선택하거나 화면 캡처 모드를 사용해 주세요.",
+  "app.blobSaveFailed.title": "일부 미디어를 저장하지 못했습니다",
+  "app.blobSaveFailed.body": "디스크 공간 부족 등의 원인으로 이미지·영상·로그 중 일부가 저장되지 않았습니다. 드래프트에서 누락된 항목을 확인해주세요.",
+  "app.sessionSaveExhausted.title": "세션을 저장할 수 없습니다",
+  "app.sessionSaveExhausted.body": "저장 공간이 부족하여 작업 세션을 보존할 수 없습니다. 탭을 닫으면 현재 작업이 유실될 수 있습니다.",
 
   // Issue sections (shared across drafting/preview/detail)
   "section.issueTitle": "이슈 제목",
@@ -44,8 +48,8 @@ const ko = {
   "section.logs": "로그 첨부",
   "section.description.help": "버그가 어떻게 나타나는지 설명합니다.",
   "section.stepsToReproduce.help": "한 줄에 한 단계씩 적으면 번호 매김 목록으로 출력됩니다.",
-  "section.expectedResult.help": "원래 어떻게 동작해야 하는지 적습니다.",
-  "section.notes.help": "관련 링크·배경 등 보조 컨텍스트.",
+  "section.expectedResult.help": "원래 어떻게 동작해야 하는지 설명합니다.",
+  "section.notes.help": "관련 링크·배경 등의 추가 설명을 작성합니다.",
 
   // Issue tab
   "issue.unsupported": "지원하지 않는 페이지",
@@ -153,6 +157,12 @@ const ko = {
   "field.epic.label": "이슈 목록",
 
   // Issue list
+  "issueList.search": "검색…",
+  "issueList.noResults": "검색 결과가 없습니다",
+  "issueList.resetFilter": "필터 초기화",
+  "issueList.filter.all": "전체",
+  "issueList.filter.submitted": "제출됨",
+  "issueList.filter.draft": "초안",
   "issueList.empty": "등록한 이슈가 없습니다",
   "issueList.deleteAll": "모두 삭제",
   "issueList.deleteAll.title": "모든 이슈를 삭제할까요?",
@@ -275,6 +285,7 @@ const ko = {
   "networkLog.toggle.tooltip.empty": "녹화 중 네트워크 요청이 감지되지 않았습니다",
   "networkLog.counter.captured": "{n}건 캡처",
   "networkLog.counter.selected": "{n}건 선택",
+  "networkLog.search": "URL 검색…",
   "networkLog.dialog.title": "네트워크 로그",
   "networkLog.dialog.errors": "에러",
   "networkLog.dialog.other": "기타",
@@ -306,6 +317,7 @@ const ko = {
   "consoleLog.toggle.tooltip.empty": "녹화 중 콘솔 출력이 감지되지 않았습니다",
   "consoleLog.counter.captured": "{n}건 캡처",
   "consoleLog.counter.selected": "{n}건 선택",
+  "consoleLog.search": "메시지 검색…",
   "consoleLog.dialog.title": "콘솔 로그",
   "consoleLog.dialog.errors": "에러 / 경고",
   "consoleLog.dialog.other": "기타",
@@ -340,6 +352,16 @@ const ko = {
 
   // Log card
   "logCard.description": "총 {captured}건 (에러 {errors}건)",
+
+  // Log summary (issue body)
+  "logSummary.network.title": "네트워크 로그",
+  "logSummary.network.captured": "{n}건 캡처 (에러 {errors}건)",
+  "logSummary.network.capturedNoError": "{n}건 캡처 (에러 없음)",
+  "logSummary.network.detail": "(상세: network-log.har 첨부)",
+  "logSummary.console.title": "콘솔 로그",
+  "logSummary.console.captured": "{n}건 캡처 (에러 {errors}건, 경고 {warns}건)",
+  "logSummary.console.capturedNoError": "{n}건 캡처 (에러 없음)",
+  "logSummary.console.detail": "(상세: console-log.json 첨부)",
 } as const;
 
 export type TranslationKey = keyof typeof ko;

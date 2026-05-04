@@ -5,6 +5,7 @@ import {
   type IssueSection,
 } from "@/store/app-settings-store";
 import type { StyleDiffRow } from "../components/StyleChangesTable";
+import type { NetworkLogSummary, ConsoleLogSummary } from "./buildLogSummary";
 import { formatTimestamp } from "./formatTimestamp";
 
 export interface MarkdownContext {
@@ -22,6 +23,8 @@ export interface MarkdownContext {
   viewport: { width: number; height: number };
   capturedAt: number;
   diffs: StyleDiffRow[];
+  networkLogSummary?: NetworkLogSummary;
+  consoleLogSummary?: ConsoleLogSummary;
 }
 
 export function networkLogPath(url: string): string {
@@ -89,6 +92,7 @@ export function buildIssueMarkdown(ctx: MarkdownContext): string {
         lines.push("");
       }
     }
+    emitLogSummaryMd(lines, ctx);
   };
 
   for (const section of ctx.sectionConfig) {
@@ -114,6 +118,8 @@ export function buildIssueMarkdown(ctx: MarkdownContext): string {
 
   emitMedia();
 
+  lines.push("---");
+  lines.push("");
   lines.push(footerMarkdown());
   lines.push("");
 
@@ -164,6 +170,7 @@ export function buildIssueHtml(ctx: MarkdownContext): string {
         parts.push(`</tbody></table>`);
       }
     }
+    emitLogSummaryHtml(parts, ctx);
   };
 
   for (const section of ctx.sectionConfig) {
@@ -193,6 +200,7 @@ export function buildIssueHtml(ctx: MarkdownContext): string {
 
   emitMedia();
 
+  parts.push("<hr>");
   parts.push(footerHtml());
 
   return parts.join("\n");
@@ -258,4 +266,70 @@ function paragraphize(text: string): string {
       return `<p>${lines}</p>`;
     })
     .join("\n");
+}
+
+function emitLogSummaryMd(lines: string[], ctx: MarkdownContext): void {
+  const { networkLogSummary: net, consoleLogSummary: con } = ctx;
+  if (net) {
+    lines.push(`## ${t("logSummary.network.title")}`);
+    lines.push("");
+    if (net.errors.length > 0) {
+      lines.push(t("logSummary.network.captured", { n: net.captured, errors: net.errors.length }));
+      for (const e of net.errors) {
+        lines.push(`- ${e.method} ${e.path} → ${e.status} ${e.statusText}`);
+      }
+    } else {
+      lines.push(t("logSummary.network.capturedNoError", { n: net.captured }));
+    }
+    lines.push("");
+    lines.push(`_${t("logSummary.network.detail")}_`);
+    lines.push("");
+  }
+  if (con) {
+    lines.push(`## ${t("logSummary.console.title")}`);
+    lines.push("");
+    if (con.errorCount > 0 || con.warnCount > 0) {
+      lines.push(t("logSummary.console.captured", { n: con.captured, errors: con.errorCount, warns: con.warnCount }));
+      for (const msg of con.topErrors) {
+        lines.push(`- ${msg}`);
+      }
+    } else {
+      lines.push(t("logSummary.console.capturedNoError", { n: con.captured }));
+    }
+    lines.push("");
+    lines.push(`_${t("logSummary.console.detail")}_`);
+    lines.push("");
+  }
+}
+
+function emitLogSummaryHtml(parts: string[], ctx: MarkdownContext): void {
+  const { networkLogSummary: net, consoleLogSummary: con } = ctx;
+  if (net) {
+    parts.push(`<h2>${escapeHtml(t("logSummary.network.title"))}</h2>`);
+    if (net.errors.length > 0) {
+      parts.push(`<p>${escapeHtml(t("logSummary.network.captured", { n: net.captured, errors: net.errors.length }))}</p>`);
+      parts.push("<ul>");
+      for (const e of net.errors) {
+        parts.push(`<li>${escapeHtml(`${e.method} ${e.path} → ${e.status} ${e.statusText}`)}</li>`);
+      }
+      parts.push("</ul>");
+    } else {
+      parts.push(`<p>${escapeHtml(t("logSummary.network.capturedNoError", { n: net.captured }))}</p>`);
+    }
+    parts.push(`<p><em>${escapeHtml(t("logSummary.network.detail"))}</em></p>`);
+  }
+  if (con) {
+    parts.push(`<h2>${escapeHtml(t("logSummary.console.title"))}</h2>`);
+    if (con.errorCount > 0 || con.warnCount > 0) {
+      parts.push(`<p>${escapeHtml(t("logSummary.console.captured", { n: con.captured, errors: con.errorCount, warns: con.warnCount }))}</p>`);
+      parts.push("<ul>");
+      for (const msg of con.topErrors) {
+        parts.push(`<li>${escapeHtml(msg)}</li>`);
+      }
+      parts.push("</ul>");
+    } else {
+      parts.push(`<p>${escapeHtml(t("logSummary.console.capturedNoError", { n: con.captured }))}</p>`);
+    }
+    parts.push(`<p><em>${escapeHtml(t("logSummary.console.detail"))}</em></p>`);
+  }
 }

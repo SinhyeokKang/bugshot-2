@@ -45,16 +45,18 @@ function txComplete(tx: IDBTransaction): Promise<void> {
   });
 }
 
-// --- Video blob API (unchanged) ---
+// --- Video blob API ---
 
-export async function saveVideoBlob(issueId: string, blob: Blob): Promise<void> {
+export async function saveVideoBlob(issueId: string, blob: Blob): Promise<boolean> {
   try {
     const db = await openDb();
     const tx = db.transaction(STORE_VIDEO, "readwrite");
     tx.objectStore(STORE_VIDEO).put(blob, issueId);
     await txComplete(tx);
+    return true;
   } catch (e) {
     console.warn("[blob-db] saveVideoBlob failed:", e);
+    return false;
   }
 }
 
@@ -129,11 +131,13 @@ export async function saveImageBlob(
   issueId: string,
   slot: ImageSlot,
   blob: Blob,
-): Promise<void> {
+): Promise<boolean> {
   try {
     await saveImageBlobRaw(issueId, slot, blob);
+    return true;
   } catch (e) {
     console.warn("[blob-db] saveImageBlob failed:", e);
+    return false;
   }
 }
 
@@ -194,14 +198,16 @@ export async function clearImageBlobs(): Promise<void> {
 
 // --- Network log API ---
 
-export async function saveNetworkLog(key: string, log: NetworkLog): Promise<void> {
+export async function saveNetworkLog(key: string, log: NetworkLog): Promise<boolean> {
   try {
     const db = await openDb();
     const tx = db.transaction(STORE_NETWORK, "readwrite");
     tx.objectStore(STORE_NETWORK).put(log, key);
     await txComplete(tx);
+    return true;
   } catch (e) {
     console.warn("[blob-db] saveNetworkLog failed:", e);
+    return false;
   }
 }
 
@@ -255,14 +261,16 @@ export async function clearNetworkLogs(): Promise<void> {
 
 // --- Console log API ---
 
-export async function saveConsoleLog(key: string, log: ConsoleLog): Promise<void> {
+export async function saveConsoleLog(key: string, log: ConsoleLog): Promise<boolean> {
   try {
     const db = await openDb();
     const tx = db.transaction(STORE_CONSOLE, "readwrite");
     tx.objectStore(STORE_CONSOLE).put(log, key);
     await txComplete(tx);
+    return true;
   } catch (e) {
     console.warn("[blob-db] saveConsoleLog failed:", e);
+    return false;
   }
 }
 

@@ -686,7 +686,7 @@ function splitCssTokens(value: string): string[] {
   return parts;
 }
 
-function resolveVarChain(
+export function resolveVarChain(
   value: string,
   customProps: Record<string, string>,
   depth = 0,

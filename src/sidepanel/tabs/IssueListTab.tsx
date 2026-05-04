@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowUpRight, CircleCheck, Inbox, Loader2, Trash2 } from "lucide-react";
+import { ArrowUpRight, CircleCheck, Inbox, Loader2, Search, SearchX, Trash2, X } from "lucide-react";
 import { useT, dateBcp47 } from "@/i18n";
 import {
   AlertDialog,
@@ -15,12 +15,30 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useIssuesStore, type IssueRecord } from "@/store/issues-store";
 import { useSettingsStore, jiraSiteId } from "@/store/settings-store";
 import type { JiraIssueStatus } from "@/types/jira";
 import { sendBg, type JiraSubmitResult } from "@/types/messages";
 import { PageFooter, PageScroll, PageShell, Section } from "../components/Section";
 import { DraftDetailDialog } from "./DraftDetailDialog";
+
+type StatusFilter = "all" | "submitted" | "draft";
+
+export function matchesQuery(issue: IssueRecord, q: string): boolean {
+  const lower = q.toLowerCase();
+  return (
+    issue.title.toLowerCase().includes(lower) ||
+    issue.pageUrl.toLowerCase().includes(lower) ||
+    (issue.key?.toLowerCase().includes(lower) ?? false)
+  );
+}
+
+export function matchesStatus(issue: IssueRecord, filter: StatusFilter): boolean {
+  if (filter === "all") return true;
+  return issue.status === filter;
+}
 
 export function IssueListTab() {
   const t = useT();
@@ -32,21 +50,35 @@ export function IssueListTab() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const pendingRef = useRef(0);
   const [successResult, setSuccessResult] = useState<JiraSubmitResult | null>(null);
+  const [query, setQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
 
-  const sorted = useMemo(
+  const displayable = useMemo(
     () =>
-      issues
-        .filter(
-          (i) => i.status === "submitted" || !!i.selectionSnapshot || i.captureMode === "screenshot" || i.captureMode === "video",
-        )
-        .sort((a, b) => b.createdAt - a.createdAt),
+      issues.filter(
+        (i) => i.status === "submitted" || !!i.selectionSnapshot || i.captureMode === "screenshot" || i.captureMode === "video",
+      ),
     [issues],
   );
 
-  const submittedCount = useMemo(
-    () => sorted.filter((i) => i.status === "submitted" && !!i.url && !!i.key).length,
-    [sorted],
+  const filtered = useMemo(
+    () =>
+      displayable
+        .filter((i) => matchesStatus(i, statusFilter))
+        .filter((i) => !query || matchesQuery(i, query))
+        .sort((a, b) => b.createdAt - a.createdAt),
+    [displayable, statusFilter, query],
   );
+
+  const submittedCount = useMemo(
+    () => displayable.filter((i) => i.status === "submitted" && !!i.url && !!i.key).length,
+    [displayable],
+  );
+
+  const resetFilters = useCallback(() => {
+    setQuery("");
+    setStatusFilter("all");
+  }, []);
 
   const handleRefresh = useCallback(() => {
     if (submittedCount === 0) {
@@ -95,7 +127,7 @@ export function IssueListTab() {
     );
   }
 
-  if (sorted.length === 0) {
+  if (displayable.length === 0) {
     return (
       <PageShell>
         <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 text-center">
@@ -110,8 +142,48 @@ export function IssueListTab() {
 
   return (
     <PageShell>
-      <PageScroll>
-        {groupByDate(sorted).map(([date, group]) => (
+      <div className="shrink-0 border-b border-border px-4 py-3">
+        <div className="flex items-center gap-3">
+          <Tabs value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
+            <TabsList className="h-9">
+              <TabsTrigger value="all">{t("issueList.filter.all")}</TabsTrigger>
+              <TabsTrigger value="submitted">{t("issueList.filter.submitted")}</TabsTrigger>
+              <TabsTrigger value="draft">{t("issueList.filter.draft")}</TabsTrigger>
+            </TabsList>
+          </Tabs>
+          <div className="relative ml-auto w-full max-w-[320px]">
+            <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder={t("issueList.search")}
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              className={`h-9 pl-8 text-sm ${query ? "pr-8" : ""}`}
+            />
+            {query && (
+              <button
+                type="button"
+                onClick={() => setQuery("")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 rounded-sm p-0.5 text-muted-foreground hover:text-foreground"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+      {filtered.length === 0 ? (
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 text-center">
+          <div className="mb-3 rounded-full bg-muted p-3">
+            <SearchX className="h-6 w-6 text-muted-foreground" />
+          </div>
+          <h3 className="text-[18px] font-semibold">{t("issueList.noResults")}</h3>
+          <Button variant="outline" className="mt-6" onClick={resetFilters}>
+            {t("issueList.resetFilter")}
+          </Button>
+        </div>
+      ) : (
+        <PageScroll>
+          {groupByDate(filtered).map(([date, group]) => (
           <Section key={date} title={date} collapsible>
             <ul className="flex flex-col gap-2">
               {group.map((issue) => (
@@ -126,7 +198,8 @@ export function IssueListTab() {
             </ul>
           </Section>
         ))}
-      </PageScroll>
+        </PageScroll>
+      )}
       <PageFooter>
         <div className="flex justify-between">
           <AlertDialog>

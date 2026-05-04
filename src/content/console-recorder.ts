@@ -8,7 +8,7 @@ export function consoleRecorderScript(sentinel: string): void {
     return;
   }
 
-  const MAX_ENTRIES = 500;
+  const MAX_ENTRIES = 2000;
   const ARG_CAP = 10 * 1024; // 10 KB per serialized args
 
   type Level = "log" | "info" | "warn" | "error" | "debug";

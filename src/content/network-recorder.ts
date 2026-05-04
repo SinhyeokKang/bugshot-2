@@ -9,8 +9,8 @@ export function networkRecorderScript(sentinel: string): void {
     return;
   }
 
-  const BODY_CAP = 1 * 1024 * 1024; // 1 MB
-  const MEMORY_CAP = 30 * 1024 * 1024; // 30 MB
+  const BODY_CAP = 3 * 1024 * 1024; // 3 MB
+  const MEMORY_CAP = 50 * 1024 * 1024; // 50 MB
 
   const MASKED_HEADERS = new Set([
     "authorization",

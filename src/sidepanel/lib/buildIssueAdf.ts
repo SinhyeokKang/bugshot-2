@@ -7,6 +7,7 @@ import {
 import { IMAGE_PLACEHOLDER } from "@/lib/adf-sentinels";
 import { formatElementName } from "@/lib/element-label";
 import type { MarkdownContext } from "./buildIssueMarkdown";
+import type { NetworkLogSummary, ConsoleLogSummary } from "./buildLogSummary";
 import { formatTimestamp } from "./formatTimestamp";
 
 interface AdfNode {
@@ -81,6 +82,7 @@ export function buildIssueAdf(ctx: MarkdownContext): AdfDoc {
         ),
       );
     }
+    emitLogSummaryAdf(content, ctx.networkLogSummary, ctx.consoleLogSummary);
   };
 
   for (const section of ctx.sectionConfig) {
@@ -104,6 +106,7 @@ export function buildIssueAdf(ctx: MarkdownContext): AdfDoc {
 
   emitMedia();
 
+  content.push({ type: "rule" });
   content.push(footerParagraph());
 
   return { version: 1, type: "doc", content };
@@ -207,4 +210,45 @@ function table(headers: string[], rows: string[][]): AdfNode {
       })),
     ],
   };
+}
+
+function emitLogSummaryAdf(
+  content: AdfNode[],
+  net: NetworkLogSummary | undefined,
+  con: ConsoleLogSummary | undefined,
+): void {
+  if (net) {
+    content.push(heading(2, t("logSummary.network.title")));
+    if (net.errors.length > 0) {
+      content.push(paragraph([textNode(t("logSummary.network.captured", { n: net.captured, errors: net.errors.length }))]));
+      content.push(
+        bulletList(
+          net.errors.map((e) =>
+            listItem([paragraph([textNode(`${e.method} ${e.path} → ${e.status} ${e.statusText}`)])]),
+          ),
+        ),
+      );
+    } else {
+      content.push(paragraph([textNode(t("logSummary.network.capturedNoError", { n: net.captured }))]));
+    }
+    content.push(paragraph([{ type: "text", text: t("logSummary.network.detail"), marks: [{ type: "em" }] }]));
+  }
+  if (con) {
+    content.push(heading(2, t("logSummary.console.title")));
+    if (con.errorCount > 0 || con.warnCount > 0) {
+      content.push(paragraph([textNode(t("logSummary.console.captured", { n: con.captured, errors: con.errorCount, warns: con.warnCount }))]));
+      if (con.topErrors.length > 0) {
+        content.push(
+          bulletList(
+            con.topErrors.map((msg) =>
+              listItem([paragraph([textNode(msg)])]),
+            ),
+          ),
+        );
+      }
+    } else {
+      content.push(paragraph([textNode(t("logSummary.console.capturedNoError", { n: con.captured }))]));
+    }
+    content.push(paragraph([{ type: "text", text: t("logSummary.console.detail"), marks: [{ type: "em" }] }]));
+  }
 }
