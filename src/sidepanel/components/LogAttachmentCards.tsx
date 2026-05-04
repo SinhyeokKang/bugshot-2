@@ -1,6 +1,6 @@
 import { Card } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
-import { useT } from "@/i18n";
+import { useT, type TranslationFn } from "@/i18n";
 import type { NetworkLog } from "@/types/network";
 import type { ConsoleLog } from "@/types/console";
 
@@ -37,7 +37,7 @@ export function LogAttachmentCards({
       {showNetwork && (
         <LogCard
           title={t("networkLog.dialog.title")}
-          description={networkDescription(networkLog)}
+          description={networkDescription(networkLog, t)}
           attach={networkLogAttach}
           disabled={networkLog.captured === 0}
           onToggle={onNetworkLogToggle}
@@ -48,7 +48,7 @@ export function LogAttachmentCards({
       {showConsole && (
         <LogCard
           title={t("consoleLog.dialog.title")}
-          description={consoleDescription(consoleLog)}
+          description={consoleDescription(consoleLog, t)}
           attach={consoleLogAttach}
           disabled={consoleLog.captured === 0}
           onToggle={onConsoleLogToggle}
@@ -98,12 +98,12 @@ function LogCard({
   );
 }
 
-function networkDescription(log: NetworkLog): string {
-  const errorCount = log.requests.filter((r) => r.status >= 400).length;
-  return `총 ${log.captured}건 (에러 ${errorCount}건)`;
+function networkDescription(log: NetworkLog, t: TranslationFn): string {
+  const errors = log.requests.filter((r) => r.status >= 400).length;
+  return t("logCard.description", { captured: log.captured, errors });
 }
 
-function consoleDescription(log: ConsoleLog): string {
-  const errorCount = log.entries.filter((e) => e.level === "error").length;
-  return `총 ${log.captured}건 (에러 ${errorCount}건)`;
+function consoleDescription(log: ConsoleLog, t: TranslationFn): string {
+  const errors = log.entries.filter((e) => e.level === "error").length;
+  return t("logCard.description", { captured: log.captured, errors });
 }

@@ -49,10 +49,8 @@ export function PreviewPanel() {
   const draft = useEditorStore((s) => s.draft);
   const networkLog = useEditorStore((s) => s.networkLog);
   const networkLogAttach = useEditorStore((s) => s.networkLogAttach);
-  const setNetworkLogAttach = useEditorStore((s) => s.setNetworkLogAttach);
   const consoleLog = useEditorStore((s) => s.consoleLog);
   const consoleLogAttach = useEditorStore((s) => s.consoleLogAttach);
-  const setConsoleLogAttach = useEditorStore((s) => s.setConsoleLogAttach);
   const backToDraft = useEditorStore((s) => s.backToDraft);
   const reset = useEditorStore((s) => s.reset);
   const issueSections = useAppSettingsStore((s) => s.issueSections);
@@ -80,10 +78,9 @@ export function PreviewPanel() {
   if (!draft) return null;
   if (isElementMode && !selection) return null;
 
-  const showLogCards = isVideoMode && (
-    (networkLog !== null && networkLog.captured > 0) ||
-    (consoleLog !== null && consoleLog.captured > 0)
-  );
+  const attachedNetwork = networkLogAttach && networkLog && networkLog.captured > 0 ? networkLog : null;
+  const attachedConsole = consoleLogAttach && consoleLog && consoleLog.captured > 0 ? consoleLog : null;
+  const showLogCards = isVideoMode && (attachedNetwork !== null || attachedConsole !== null);
 
   const handleCopyMarkdown = async () => {
     let ctx: Parameters<typeof buildIssueMarkdown>[0];
@@ -237,14 +234,15 @@ export function PreviewPanel() {
           const logCardsBlock = showLogCards ? (
             <Section key="__logCards" title={t("section.logs")}>
               <LogAttachmentCards
-                networkLog={networkLog}
+                networkLog={attachedNetwork}
                 networkLogAttach={networkLogAttach}
-                onNetworkLogToggle={setNetworkLogAttach}
+                onNetworkLogToggle={() => {}}
                 onNetworkLogClick={() => setNetworkDialogOpen(true)}
-                consoleLog={consoleLog}
+                consoleLog={attachedConsole}
                 consoleLogAttach={consoleLogAttach}
-                onConsoleLogToggle={setConsoleLogAttach}
+                onConsoleLogToggle={() => {}}
                 onConsoleLogClick={() => setConsoleDialogOpen(true)}
+                readOnly
               />
             </Section>
           ) : null;
@@ -300,19 +298,19 @@ export function PreviewPanel() {
           </div>
         </div>
       </PageFooter>
-      {networkLog && (
+      {attachedNetwork && (
         <NetworkLogPreviewDialog
           open={networkDialogOpen}
           onOpenChange={setNetworkDialogOpen}
-          requests={networkLog.requests}
+          requests={attachedNetwork.requests}
         />
       )}
-      {consoleLog && (
+      {attachedConsole && (
         <ConsoleLogPreviewDialog
           open={consoleDialogOpen}
           onOpenChange={setConsoleDialogOpen}
-          entries={consoleLog.entries}
-          startedAt={consoleLog.startedAt}
+          entries={attachedConsole.entries}
+          startedAt={attachedConsole.startedAt}
         />
       )}
     </PageShell>

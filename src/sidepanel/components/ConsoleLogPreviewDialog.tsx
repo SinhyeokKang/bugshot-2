@@ -15,14 +15,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 type ConsoleFilter = "all" | "error" | "warn" | "info" | "debug" | "log";
 
-const CONSOLE_FILTER_LABELS: Record<ConsoleFilter, string> = {
-  all: "All",
-  error: "Error",
-  warn: "Warn",
-  info: "Info",
-  debug: "Debug",
-  log: "Log",
-};
+const CONSOLE_FILTERS: ConsoleFilter[] = ["all", "error", "warn", "info", "debug", "log"];
 
 interface ConsoleLogPreviewDialogProps {
   open: boolean;
@@ -90,6 +83,11 @@ export function ConsoleLogPreviewDialog({
   const t = useT();
   const [filter, setFilter] = useState<ConsoleFilter>("all");
   const filteredEntries = filter === "all" ? entries : entries.filter((e) => e.level === filter);
+  const filterLabel: Record<ConsoleFilter, string> = {
+    all: t("consoleLog.filter.all"), error: t("consoleLog.filter.error"),
+    warn: t("consoleLog.filter.warn"), info: t("consoleLog.filter.info"),
+    debug: t("consoleLog.filter.debug"), log: t("consoleLog.filter.log"),
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -102,9 +100,9 @@ export function ConsoleLogPreviewDialog({
           <Tabs value={filter} onValueChange={(v) => setFilter(v as ConsoleFilter)}>
             <div className="flex items-center border-b p-2">
               <TabsList>
-                {(Object.keys(CONSOLE_FILTER_LABELS) as ConsoleFilter[]).map((f) => (
+                {CONSOLE_FILTERS.map((f) => (
                   <TabsTrigger key={f} value={f}>
-                    {CONSOLE_FILTER_LABELS[f]}
+                    {filterLabel[f]}
                   </TabsTrigger>
                 ))}
               </TabsList>

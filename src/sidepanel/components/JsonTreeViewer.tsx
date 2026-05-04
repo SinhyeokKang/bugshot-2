@@ -1,5 +1,6 @@
 import { useState, useCallback } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
+import { t } from "@/i18n";
 
 const ARRAY_CHUNK_SIZE = 100;
 const STRING_TRUNCATE_LENGTH = 300;
@@ -205,7 +206,7 @@ function ArrayChildren({
           onClick={() => setVisibleCount((c) => c + ARRAY_CHUNK_SIZE)}
         >
           <span className="inline-block h-4 w-4 shrink-0" />
-          … {remaining} more items
+          {t("json.moreItems", { n: remaining })}
         </div>
       )}
     </>
@@ -239,7 +240,7 @@ function StringRow({
           className="shrink-0 cursor-pointer text-xs text-blue-600 hover:underline dark:text-blue-400"
           onClick={() => setShowFull(true)}
         >
-          show all
+          {t("json.showAll")}
         </span>
       )}
     </div>

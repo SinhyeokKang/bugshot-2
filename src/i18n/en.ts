@@ -319,6 +319,29 @@ const en = {
   "consoleLog.detail.page": "Page",
   "consoleLog.detail.message": "Message",
   "consoleLog.detail.stackTrace": "Stack Trace",
+
+  // Filter labels
+  "networkLog.filter.all": "All",
+  "networkLog.filter.json": "JSON",
+  "networkLog.filter.js": "JS",
+  "networkLog.filter.css": "CSS",
+  "networkLog.filter.img": "Img",
+  "networkLog.filter.font": "Font",
+  "networkLog.filter.doc": "Doc",
+  "networkLog.filter.other": "Other",
+  "consoleLog.filter.all": "All",
+  "consoleLog.filter.error": "Error",
+  "consoleLog.filter.warn": "Warn",
+  "consoleLog.filter.info": "Info",
+  "consoleLog.filter.debug": "Debug",
+  "consoleLog.filter.log": "Log",
+
+  // JSON viewer
+  "json.showAll": "show all",
+  "json.moreItems": "… {n} more items",
+
+  // Log card
+  "logCard.description": "{captured} captured ({errors} errors)",
 };
 
 export default en satisfies TranslationMap;

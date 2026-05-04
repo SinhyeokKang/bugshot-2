@@ -340,4 +340,3 @@ function EmptyShell({
     </div>
   );
 }
-

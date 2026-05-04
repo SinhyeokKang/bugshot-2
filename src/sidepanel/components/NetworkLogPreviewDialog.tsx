@@ -50,16 +50,7 @@ function rowBg(status: number, active: boolean): string {
 
 type RequestFilter = "all" | "json" | "js" | "css" | "img" | "font" | "doc" | "other";
 
-const FILTER_LABELS: Record<RequestFilter, string> = {
-  all: "All",
-  json: "JSON",
-  js: "JS",
-  css: "CSS",
-  img: "Img",
-  font: "Font",
-  doc: "Doc",
-  other: "Other",
-};
+const REQUEST_FILTERS: RequestFilter[] = ["all", "json", "js", "css", "img", "font", "doc", "other"];
 
 function classifyRequest(req: NetworkRequest): Exclude<RequestFilter, "all"> {
   const ct = req.contentType.toLowerCase();
@@ -141,6 +132,12 @@ export function NetworkLogPreviewDialog({
   const [detailTab, setDetailTab] = useState<DetailTab>("headers");
   const [listWidth, setListWidth] = useState(260);
   const [filter, setFilter] = useState<RequestFilter>("all");
+  const filterLabel: Record<RequestFilter, string> = {
+    all: t("networkLog.filter.all"), json: t("networkLog.filter.json"),
+    js: t("networkLog.filter.js"), css: t("networkLog.filter.css"),
+    img: t("networkLog.filter.img"), font: t("networkLog.filter.font"),
+    doc: t("networkLog.filter.doc"), other: t("networkLog.filter.other"),
+  };
   const activeReq = requests.find((r) => r.id === activeId) ?? null;
   const filteredRequests = filter === "all" ? requests : requests.filter((r) => classifyRequest(r) === filter);
 
@@ -192,9 +189,9 @@ export function NetworkLogPreviewDialog({
           <Tabs value={filter} onValueChange={(v) => setFilter(v as RequestFilter)}>
             <div className="flex items-center border-b p-2">
               <TabsList>
-                {(Object.keys(FILTER_LABELS) as RequestFilter[]).map((f) => (
+                {REQUEST_FILTERS.map((f) => (
                   <TabsTrigger key={f} value={f}>
-                    {FILTER_LABELS[f]}
+                    {filterLabel[f]}
                   </TabsTrigger>
                 ))}
               </TabsList>

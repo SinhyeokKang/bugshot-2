@@ -317,6 +317,29 @@ const ko = {
   "consoleLog.detail.page": "페이지",
   "consoleLog.detail.message": "메시지",
   "consoleLog.detail.stackTrace": "스택 트레이스",
+
+  // Filter labels
+  "networkLog.filter.all": "전체",
+  "networkLog.filter.json": "JSON",
+  "networkLog.filter.js": "JS",
+  "networkLog.filter.css": "CSS",
+  "networkLog.filter.img": "Img",
+  "networkLog.filter.font": "Font",
+  "networkLog.filter.doc": "Doc",
+  "networkLog.filter.other": "기타",
+  "consoleLog.filter.all": "전체",
+  "consoleLog.filter.error": "Error",
+  "consoleLog.filter.warn": "Warn",
+  "consoleLog.filter.info": "Info",
+  "consoleLog.filter.debug": "Debug",
+  "consoleLog.filter.log": "Log",
+
+  // JSON viewer
+  "json.showAll": "전체 보기",
+  "json.moreItems": "… {n}개 더",
+
+  // Log card
+  "logCard.description": "총 {captured}건 (에러 {errors}건)",
 } as const;
 
 export type TranslationKey = keyof typeof ko;

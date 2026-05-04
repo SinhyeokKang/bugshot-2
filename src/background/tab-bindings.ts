@@ -1,6 +1,6 @@
 import { pageKeyOf, sessionKey } from "@/lib/session-keys";
 import { isSupportedUrl } from "@/lib/url-support";
-import { deleteNetworkLog } from "@/store/blob-db";
+import { deleteNetworkLog, deleteConsoleLog } from "@/store/blob-db";
 
 const SIDEPANEL_PATH = "src/sidepanel/index.html";
 const ACTIVATED_KEY = "sidePanel:activated";
@@ -151,5 +151,6 @@ export function setupTabBindings(): void {
     void chrome.storage.session.remove(sessionKey(tabId));
     void setActivated(tabId, false);
     deleteNetworkLog(`pending:${tabId}`).catch(() => {});
+    deleteConsoleLog(`pending:${tabId}`).catch(() => {});
   });
 }
