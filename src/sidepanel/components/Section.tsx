@@ -1,7 +1,18 @@
 import * as React from "react";
+import { cn } from "@/lib/utils";
 
-export function PageShell({ children }: { children: React.ReactNode }) {
-  return <div className="flex min-h-0 flex-1 flex-col">{children}</div>;
+export function PageShell({
+  children,
+  className,
+}: {
+  children: React.ReactNode;
+  className?: string;
+}) {
+  return (
+    <div className={cn("flex min-h-0 flex-1 flex-col", className)}>
+      {children}
+    </div>
+  );
 }
 
 export function PageScroll({ children }: { children: React.ReactNode }) {
