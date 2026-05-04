@@ -154,7 +154,6 @@ interface IssuesState {
   markSubmitted: (id: string, patch: Partial<IssueRecord>) => void;
   patchIssue: (id: string, patch: Partial<IssueRecord>) => void;
   patchDraftSnapshot: (id: string, patch: Partial<IssueSnapshot>) => void;
-  patchDraftBlobKeys: (id: string, patch: { networkLogBlobKey?: undefined; consoleLogBlobKey?: undefined }) => void;
   removeIssue: (id: string) => void;
   clearIssues: () => void;
 }
@@ -194,12 +193,6 @@ export const useIssuesStore = create<IssuesState>()(
         set((s) => ({
           issues: s.issues.map((x) =>
             x.id === id ? { ...x, snapshot: { ...x.snapshot, ...patch } } : x,
-          ),
-        })),
-      patchDraftBlobKeys: (id, patch) =>
-        set((s) => ({
-          issues: s.issues.map((x) =>
-            x.id === id ? { ...x, ...patch } : x,
           ),
         })),
       removeIssue: (id) => {

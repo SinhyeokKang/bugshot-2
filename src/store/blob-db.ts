@@ -45,7 +45,7 @@ function txComplete(tx: IDBTransaction): Promise<void> {
   });
 }
 
-// --- Video blob API (unchanged) ---
+// --- Video blob API ---
 
 export async function saveVideoBlob(issueId: string, blob: Blob): Promise<boolean> {
   try {

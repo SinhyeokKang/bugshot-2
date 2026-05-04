@@ -272,10 +272,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         networkLogBlobKey: hasNetworkLog ? id : undefined,
         consoleLogBlobKey: hasConsoleLog ? id : undefined,
       });
+      const targetTabId = state.target.tabId;
       void (async () => {
         let failed = false;
         if (state.videoBlob) {
-          if (!await saveVideoBlob(id, state.videoBlob)) failed = true;
+          if (!await saveVideoBlob(id, state.videoBlob)) {
+            useIssuesStore.getState().patchIssue(id, { captureMode: undefined });
+            failed = true;
+          }
         }
         if (state.videoThumbnail) {
           if (!await saveImageBlob(id, "before", dataUrlToBlob(state.videoThumbnail))) {
@@ -284,20 +288,18 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           }
         }
         if (hasNetworkLog) {
-          const tabId = state.target!.tabId;
           if (!await saveNetworkLog(id, state.networkLog!)) {
-            useIssuesStore.getState().patchDraftBlobKeys(id, { networkLogBlobKey: undefined });
+            useIssuesStore.getState().patchIssue(id, { networkLogBlobKey: undefined });
             failed = true;
           }
-          deleteNetworkLog(`pending:${tabId}`).catch(() => {});
+          deleteNetworkLog(`pending:${targetTabId}`).catch(() => {});
         }
         if (hasConsoleLog) {
-          const tabId = state.target!.tabId;
           if (!await saveConsoleLog(id, state.consoleLog!)) {
-            useIssuesStore.getState().patchDraftBlobKeys(id, { consoleLogBlobKey: undefined });
+            useIssuesStore.getState().patchIssue(id, { consoleLogBlobKey: undefined });
             failed = true;
           }
-          deleteConsoleLog(`pending:${tabId}`).catch(() => {});
+          deleteConsoleLog(`pending:${targetTabId}`).catch(() => {});
         }
         if (failed) onBlobSaveFailed.fire();
       })();

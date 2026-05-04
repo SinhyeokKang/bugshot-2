@@ -55,8 +55,6 @@ function snapshotFromState(): EditorSnapshot {
   };
 }
 
-const SESSION_SAVE_MAX_FAILURES = 3;
-
 export function useEditorSessionSync(tabId: number | null): boolean {
   const [hydrated, setHydrated] = useState(false);
   const saveTimer = useRef<number | null>(null);
@@ -120,7 +118,7 @@ export function useEditorSessionSync(tabId: number | null): boolean {
               .then(() => { saveFailCount.current = 0; })
               .catch(() => {
                 saveFailCount.current++;
-                if (saveFailCount.current >= SESSION_SAVE_MAX_FAILURES) {
+                if (saveFailCount.current >= 3) {
                   saveSuspended.current = true;
                   onSessionSaveExhausted.fire();
                 }
