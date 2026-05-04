@@ -29,10 +29,6 @@ import { useTabNav } from "../App";
 import { DraftingPanel } from "./DraftingPanel";
 import { PreviewPanel } from "./PreviewPanel";
 import { SelectedPanel } from "./StyleEditorPanel";
-import { NetworkLogPreviewDialog } from "../components/NetworkLogPreviewDialog";
-import { ConsoleLogPreviewDialog } from "../components/ConsoleLogPreviewDialog";
-import type { NetworkRequest } from "@/types/network";
-import type { ConsoleEntry } from "@/types/console";
 
 export function IssueTab() {
   const phase = useEditorStore((s) => s.phase);
@@ -157,10 +153,6 @@ async function handleStartVideo(tabId: number) {
 
 function EmptyState({ onStartElement, onStartScreenshot, onStartVideo }: { onStartElement: () => void; onStartScreenshot: () => void; onStartVideo: () => void }) {
   const t = useT();
-  // ▼▼▼ MOCK DIALOGS — 테스트 후 삭제 ▼▼▼
-  const [netOpen, setNetOpen] = useState(false);
-  const [conOpen, setConOpen] = useState(false);
-  // ▲▲▲ MOCK DIALOGS ▲▲▲
   return (
     <PageShell>
       <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 px-6">
@@ -184,14 +176,6 @@ function EmptyState({ onStartElement, onStartScreenshot, onStartVideo }: { onSta
             {t("issue.mode.video")}
           </Button>
         </div>
-        {/* ▼▼▼ MOCK BUTTONS — 테스트 후 삭제 ▼▼▼ */}
-        <div className="grid grid-cols-2 gap-2 mt-4 w-full">
-          <Button variant="secondary" size="sm" onClick={() => setNetOpen(true)}>Network Log</Button>
-          <Button variant="secondary" size="sm" onClick={() => setConOpen(true)}>Console Log</Button>
-        </div>
-        <NetworkLogPreviewDialog open={netOpen} onOpenChange={setNetOpen} requests={MOCK_NETWORK_REQUESTS} attach={false} onToggleAttach={() => {}} />
-        <ConsoleLogPreviewDialog open={conOpen} onOpenChange={setConOpen} entries={MOCK_CONSOLE_ENTRIES} startedAt={Date.now() - 60000} attach={false} onToggleAttach={() => {}} />
-        {/* ▲▲▲ MOCK BUTTONS ▲▲▲ */}
       </div>
     </PageShell>
   );
@@ -357,28 +341,3 @@ function EmptyShell({
   );
 }
 
-// ▼▼▼ MOCK DATA — 테스트 후 삭제 ▼▼▼
-const now = Date.now();
-const MOCK_NETWORK_REQUESTS: NetworkRequest[] = [
-  { id: "req-1", url: "https://api.example.com/v1/users/me", method: "GET", status: 200, statusText: "OK", startTime: now - 25000, durationMs: 142, requestHeaders: { Authorization: "***Bearer [masked]", Accept: "application/json" }, responseHeaders: { "content-type": "application/json", "x-request-id": "abc-123" }, responseBody: JSON.stringify({ id: 1, name: "John Doe" }), pageUrl: "https://example.com/dashboard", requestBodySize: 0, responseBodySize: 256, contentType: "application/json" },
-  { id: "req-2", url: "https://api.example.com/v1/projects?page=1&limit=20", method: "GET", status: 200, statusText: "OK", startTime: now - 22000, durationMs: 89, requestHeaders: { Accept: "application/json" }, responseHeaders: { "content-type": "application/json" }, responseBody: JSON.stringify({ data: [{ id: 1, name: "Project A" }], total: 42 }), pageUrl: "https://example.com/dashboard", requestBodySize: 0, responseBodySize: 1024, contentType: "application/json" },
-  { id: "req-3", url: "https://api.example.com/v1/projects", method: "POST", status: 201, statusText: "Created", startTime: now - 18000, durationMs: 312, requestHeaders: { "Content-Type": "application/json" }, responseHeaders: { "content-type": "application/json" }, requestBody: JSON.stringify({ name: "New Project" }), responseBody: JSON.stringify({ id: 3, name: "New Project" }), pageUrl: "https://example.com/dashboard", requestBodySize: 64, responseBodySize: 128, contentType: "application/json" },
-  { id: "req-4", url: "https://api.example.com/v1/projects/99", method: "PUT", status: 404, statusText: "Not Found", startTime: now - 15000, durationMs: 45, requestHeaders: { "Content-Type": "application/json" }, responseHeaders: { "content-type": "application/json" }, requestBody: JSON.stringify({ name: "Updated" }), responseBody: JSON.stringify({ error: "NOT_FOUND", message: "Project 99 does not exist" }), pageUrl: "https://example.com/dashboard", requestBodySize: 32, responseBodySize: 80, contentType: "application/json" },
-  { id: "req-5", url: "https://api.example.com/v1/upload/avatar", method: "POST", status: 413, statusText: "Payload Too Large", startTime: now - 12000, durationMs: 28, requestHeaders: { "Content-Type": "multipart/form-data" }, responseHeaders: { "content-type": "application/json" }, requestBody: { kind: "binary" }, responseBody: JSON.stringify({ error: "PAYLOAD_TOO_LARGE" }), pageUrl: "https://example.com/settings", requestBodySize: 8388608, responseBodySize: 64, contentType: "application/json" },
-  { id: "req-6", url: "https://api.example.com/v1/analytics/events", method: "POST", status: 500, statusText: "Internal Server Error", startTime: now - 8000, durationMs: 5023, requestHeaders: { "Content-Type": "application/json" }, responseHeaders: { "content-type": "application/json" }, requestBody: JSON.stringify({ events: [{ type: "click" }] }), responseBody: JSON.stringify({ error: "INTERNAL_ERROR", traceId: "xyz-789" }), pageUrl: "https://example.com/dashboard", requestBodySize: 96, responseBodySize: 128, contentType: "application/json" },
-  { id: "req-7", url: "https://cdn.example.com/assets/logo.png", method: "GET", status: 200, statusText: "OK", startTime: now - 5000, durationMs: 18, requestHeaders: { Accept: "image/*" }, responseHeaders: { "content-type": "image/png" }, responseBody: { kind: "binary" }, pageUrl: "https://example.com/dashboard", requestBodySize: 0, responseBodySize: 24576, contentType: "image/png" },
-  { id: "req-8", url: "https://api.example.com/v1/projects/1", method: "DELETE", status: 204, statusText: "No Content", startTime: now - 2000, durationMs: 198, requestHeaders: { Authorization: "***Bearer [masked]" }, responseHeaders: {}, pageUrl: "https://example.com/dashboard", requestBodySize: 0, responseBodySize: 0, contentType: "" },
-];
-const MOCK_CONSOLE_ENTRIES: ConsoleEntry[] = [
-  { id: "con-1", level: "log", timestamp: now - 28000, args: "[App] Mounted successfully, version 2.4.1", pageUrl: "https://example.com/dashboard" },
-  { id: "con-2", level: "info", timestamp: now - 25000, args: "[Router] Navigated to /dashboard", pageUrl: "https://example.com/dashboard" },
-  { id: "con-3", level: "warn", timestamp: now - 20000, args: "Deprecation warning: `componentWillMount` has been renamed.", pageUrl: "https://example.com/dashboard" },
-  { id: "con-4", level: "error", timestamp: now - 18000, args: "TypeError: Cannot read properties of undefined (reading 'map')", stack: "TypeError: Cannot read properties of undefined (reading 'map')\n    at ProjectList (index-abc123.js:1234:56)\n    at renderWithHooks (vendor-def456.js:5678:12)", pageUrl: "https://example.com/dashboard" },
-  { id: "con-5", level: "warn", timestamp: now - 15000, args: "[API] Response took 5023ms for POST /v1/analytics/events", pageUrl: "https://example.com/dashboard" },
-  { id: "con-6", level: "error", timestamp: now - 12000, args: "Unhandled Promise Rejection: NetworkError: Failed to fetch", stack: "NetworkError: Failed to fetch\n    at fetch (native)\n    at apiClient.post (index-abc123.js:456:12)", pageUrl: "https://example.com/settings" },
-  { id: "con-7", level: "debug", timestamp: now - 10000, args: "[Store] State updated: { projects: 42, loading: false }", pageUrl: "https://example.com/dashboard" },
-  { id: "con-8", level: "log", timestamp: now - 7000, args: "[WebSocket] Connection established to wss://realtime.example.com", pageUrl: "https://example.com/dashboard" },
-  { id: "con-9", level: "error", timestamp: now - 3000, args: "ResizeObserver loop completed with undelivered notifications.", pageUrl: "https://example.com/dashboard" },
-  { id: "con-10", level: "info", timestamp: now - 1000, args: "[Analytics] Batch sent: 12 events", pageUrl: "https://example.com/dashboard" },
-];
-// ▲▲▲ MOCK DATA — 테스트 후 삭제 ▲▲▲
