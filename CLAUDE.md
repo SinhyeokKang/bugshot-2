@@ -58,11 +58,11 @@ src/
 │   ├── main.tsx
 │   ├── capture.ts       # 요소 크롭 스냅샷
 │   ├── picker-control.ts
-│   ├── hooks/           # useBoundTabId, useEditorSessionSync, useIssueImages, usePickerMessages, useThemeEffect
+│   ├── hooks/           # useBoundTabId, useChromeAI, useEditorSessionSync, useIssueImages, usePickerMessages, useThemeEffect
 │   ├── components/      # 공통 UI (Section/PageShell/PageScroll/PageFooter/AnnotationOverlay 등)
 │   ├── tabs/            # 탭별 진입점 + 편집 패널 (StyleEditorPanel/IssueTab/IssueListTab/SettingsTab 등)
 │   │   └── styleEditor/ # ValueCombobox, StylePropEditors와 헬퍼 (propMetadata, tokenUtils, styleHooks, TokenChip)
-│   └── lib/             # buildIssueMarkdown, buildIssueAdf 등 순수 유틸
+│   └── lib/             # buildIssueMarkdown, buildIssueAdf, buildAiDraftPrompt 등 순수 유틸
 ├── store/               # Zustand 스토어 (editor/issues/settings/app-settings), blob-db(IndexedDB 이미지·비디오·네트워크/콘솔 로그 저장), settings는 v2 마이그레이션(flat → discriminated auth)
 ├── i18n/                # 다국어 (ko/en 로케일, t()/useT() 훅)
 ├── lib/                 # 공용 유틸 (session-keys, adf-sentinels, url-support)
