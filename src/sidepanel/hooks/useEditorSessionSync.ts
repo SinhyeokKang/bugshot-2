@@ -5,7 +5,8 @@ import {
   type EditorSnapshot,
   useEditorStore,
 } from "@/store/editor-store";
-import { clearPicker } from "../picker-control";
+import { clearPicker, injectNetworkRecorder, injectConsoleRecorder } from "../picker-control";
+import { getNetworkLog, getConsoleLog } from "@/store/blob-db";
 
 function migrateLegacyDraft(snap: EditorSnapshot): EditorSnapshot {
   if (!snap.draft) return snap;
@@ -44,6 +45,8 @@ function snapshotFromState(): EditorSnapshot {
     videoThumbnail: s.videoThumbnail,
     videoViewport: s.videoViewport,
     videoCapturedAt: s.videoCapturedAt,
+    networkLogAttach: s.networkLogAttach,
+    consoleLogAttach: s.consoleLogAttach,
     draft: s.draft,
     issueFields: s.issueFields,
     currentIssueId: s.currentIssueId,
@@ -72,6 +75,16 @@ export function useEditorSessionSync(tabId: number | null): boolean {
           snap.phase = "idle";
         }
         useEditorStore.getState().hydrate(migrateLegacyDraft(snap));
+        if (snap.networkLogAttach) {
+          getNetworkLog(`pending:${tabId}`).then((log) => {
+            if (log) useEditorStore.getState().setNetworkLog(log);
+          }).catch(() => {});
+        }
+        if (snap.consoleLogAttach) {
+          getConsoleLog(`pending:${tabId}`).then((log) => {
+            if (log) useEditorStore.getState().setConsoleLog(log);
+          }).catch(() => {});
+        }
       }
       setHydrated(true);
     });
@@ -130,7 +143,17 @@ export function useEditorSessionSync(tabId: number | null): boolean {
       updatedTabId: number,
       info: chrome.tabs.TabChangeInfo,
     ) => {
-      if (updatedTabId !== tabId || !info.url) return;
+      if (updatedTabId !== tabId) return;
+
+      if (info.status === "complete") {
+        const s = useEditorStore.getState();
+        if (s.captureMode === "video" && s.phase === "recording") {
+          injectNetworkRecorder(tabId).catch(() => {});
+          injectConsoleRecorder(tabId).catch(() => {});
+        }
+      }
+
+      if (!info.url) return;
       const state = useEditorStore.getState();
       if (state.sessionExpired) return;
       const prevKey = pageKeyOf(state.target?.url);

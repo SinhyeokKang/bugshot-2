@@ -1,6 +1,8 @@
 import { isSupportedUrl } from "@/lib/url-support";
 import { useEditorStore } from "@/store/editor-store";
 import { onPickerUnavailable } from "@/types/messages";
+import { networkRecorderScript } from "@/content/network-recorder";
+import { consoleRecorderScript } from "@/content/console-recorder";
 import type {
   DescribeChildrenResponse,
   DescribeInitialResponse,
@@ -17,21 +19,37 @@ class PickerUnavailableError extends Error {
   }
 }
 
-async function ensureContentScript(tabId: number): Promise<void> {
+async function pingOk(tabId: number): Promise<boolean> {
   try {
     await chrome.tabs.sendMessage(tabId, { type: "ping" });
+    return true;
   } catch {
-    const manifest = chrome.runtime.getManifest();
-    const files = manifest.content_scripts?.[0]?.js;
-    if (!files?.length) return;
-    try {
-      await chrome.scripting.executeScript({ target: { tabId }, files });
-    } catch {
-      // URL 사전 검사는 통과했지만 정책/제한으로 주입 불가한 케이스
-      // (e.g. enterprise runtime_blocked_hosts, file:// 권한 미허용, 또는 검사 후 탭이 unsupported로 이동).
-      throw new PickerUnavailableError();
-    }
+    return false;
   }
+}
+
+async function ensureContentScript(tabId: number): Promise<void> {
+  if (await pingOk(tabId)) return;
+
+  const manifest = chrome.runtime.getManifest();
+  const files = manifest.content_scripts?.[0]?.js;
+  if (!files?.length) throw new PickerUnavailableError();
+  try {
+    await chrome.scripting.executeScript({ target: { tabId }, files });
+  } catch {
+    // URL 사전 검사는 통과했지만 정책/제한으로 주입 불가한 케이스
+    // (e.g. enterprise runtime_blocked_hosts, file:// 권한 미허용, 또는 검사 후 탭이 unsupported로 이동).
+    throw new PickerUnavailableError();
+  }
+
+  // executeScript는 inject 완료까지 await하지만 onMessage listener 등록 시점이
+  // 살짝 뒤따르는 케이스가 있어 picker.start가 "Receiving end does not exist"로
+  // 깨지는 race. ping이 통과할 때까지 짧게 폴링.
+  for (let i = 0; i < 10; i++) {
+    if (await pingOk(tabId)) return;
+    await new Promise((r) => setTimeout(r, 50));
+  }
+  throw new PickerUnavailableError();
 }
 
 async function send<R = void>(
@@ -208,5 +226,47 @@ export async function startAreaCapture(tabId: number): Promise<void> {
 export async function cancelAreaCapture(tabId: number): Promise<void> {
   await send(tabId, { type: "picker.cancelAreaSelect" });
   useEditorStore.getState().reset();
+}
+
+export async function injectNetworkRecorder(tabId: number): Promise<string> {
+  await ensureContentScript(tabId);
+  const sentinel = crypto.randomUUID();
+  await chrome.scripting.executeScript({
+    target: { tabId },
+    world: "MAIN",
+    func: networkRecorderScript,
+    args: [sentinel],
+  });
+  await send(tabId, { type: "networkRecorder.setSentinel", sentinel });
+  return sentinel;
+}
+
+export async function stopNetworkRecorder(tabId: number): Promise<void> {
+  await send(tabId, { type: "networkRecorder.stop" });
+}
+
+export async function syncNetworkRecorder(tabId: number): Promise<void> {
+  await send(tabId, { type: "networkRecorder.sync" });
+}
+
+export async function injectConsoleRecorder(tabId: number): Promise<string> {
+  await ensureContentScript(tabId);
+  const sentinel = crypto.randomUUID();
+  await chrome.scripting.executeScript({
+    target: { tabId },
+    world: "MAIN",
+    func: consoleRecorderScript,
+    args: [sentinel],
+  });
+  await send(tabId, { type: "consoleRecorder.setSentinel", sentinel });
+  return sentinel;
+}
+
+export async function stopConsoleRecorder(tabId: number): Promise<void> {
+  await send(tabId, { type: "consoleRecorder.stop" });
+}
+
+export async function syncConsoleRecorder(tabId: number): Promise<void> {
+  await send(tabId, { type: "consoleRecorder.sync" });
 }
 

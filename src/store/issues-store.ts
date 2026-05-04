@@ -10,6 +10,12 @@ import {
   deleteImageBlobs,
   clearImageBlobs,
   getImageBlobKeys,
+  deleteNetworkLog,
+  clearNetworkLogs,
+  getNetworkLogKeys,
+  deleteConsoleLog,
+  clearConsoleLogs,
+  getConsoleLogKeys,
   saveImageBlobRaw,
   dataUrlToBlob,
 } from "./blob-db";
@@ -52,6 +58,18 @@ async function pruneOrphanBlobs(): Promise<void> {
     if (!currentIds.has(issueId) && !prunedImageIds.has(issueId)) {
       prunedImageIds.add(issueId);
       deleteImageBlobs(issueId).catch(() => {});
+    }
+  }
+  const networkLogKeys = await getNetworkLogKeys();
+  for (const key of networkLogKeys) {
+    if (!currentIds.has(key)) {
+      deleteNetworkLog(key).catch(() => {});
+    }
+  }
+  const consoleLogKeys = await getConsoleLogKeys();
+  for (const key of consoleLogKeys) {
+    if (!currentIds.has(key)) {
+      deleteConsoleLog(key).catch(() => {});
     }
   }
 }
@@ -119,6 +137,9 @@ export interface IssueRecord {
   selectionSnapshot?: IssueSelectionSnapshot;
   tokensSnapshot?: IssueTokenSnapshot[];
 
+  networkLogBlobKey?: string;
+  consoleLogBlobKey?: string;
+
   key?: string;
   url?: string;
   jiraSiteId?: string;
@@ -171,12 +192,16 @@ export const useIssuesStore = create<IssuesState>()(
         set((s) => ({ issues: s.issues.filter((x) => x.id !== id) }));
         deleteVideoBlob(id).catch(() => {});
         deleteImageBlobs(id).catch(() => {});
+        deleteNetworkLog(id).catch(() => {});
+        deleteConsoleLog(id).catch(() => {});
         resetEditorIfEditing(id);
       },
       clearIssues: () => {
         set({ issues: [] });
         clearVideoBlobs().catch(() => {});
         clearImageBlobs().catch(() => {});
+        clearNetworkLogs().catch(() => {});
+        clearConsoleLogs().catch(() => {});
         resetEditorIfEditing(null);
       },
     }),

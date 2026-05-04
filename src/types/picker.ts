@@ -87,4 +87,12 @@ export type PickerMessage =
   | { type: "picker.selectionUpdated"; payload: PickerSelectionUpdatePayload }
   | { type: "picker.cancelled" }
   | { type: "picker.iframeUnsupported" }
-  | { type: "picker.areaSelected"; rect: ViewportRect; viewport: { width: number; height: number } };
+  | { type: "picker.areaSelected"; rect: ViewportRect; viewport: { width: number; height: number } }
+  | { type: "networkRecorder.setSentinel"; sentinel: string }
+  | { type: "networkRecorder.stop" }
+  | { type: "networkRecorder.sync" }
+  | { type: "networkRecorder.data"; payload: { requests: import("@/types/network").NetworkRequest[]; totalSeen: number; warnings: import("@/types/network").NetworkLog["warnings"] } }
+  | { type: "consoleRecorder.setSentinel"; sentinel: string }
+  | { type: "consoleRecorder.stop" }
+  | { type: "consoleRecorder.sync" }
+  | { type: "consoleRecorder.data"; payload: { entries: import("@/types/console").ConsoleEntry[]; totalSeen: number } };

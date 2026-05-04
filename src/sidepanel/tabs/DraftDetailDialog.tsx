@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { getVideoBlob, getImageBlob } from "@/store/blob-db";
+import type { NetworkLog } from "@/types/network";
+import type { ConsoleLog } from "@/types/console";
+import { getVideoBlob, getImageBlob, getNetworkLog, getConsoleLog } from "@/store/blob-db";
 import { useIssueImages } from "../hooks/useIssueImages";
 import { Info } from "lucide-react";
 import { useT, dateBcp47 } from "@/i18n";
@@ -42,11 +44,16 @@ import {
 } from "@/store/settings-store";
 import { sendBg, type JiraSubmitResult } from "@/types/messages";
 import { DocSectionBody } from "../components/DocSectionBody";
+import { LogAttachmentCards } from "../components/LogAttachmentCards";
+import { NetworkLogPreviewDialog } from "../components/NetworkLogPreviewDialog";
+import { ConsoleLogPreviewDialog } from "../components/ConsoleLogPreviewDialog";
 import {
   StyleChangesTable,
   buildStyleDiff,
 } from "../components/StyleChangesTable";
 import { buildAiMetaAttachment } from "../lib/buildAiMetaAttachment";
+import { buildHar, serializeHar } from "../lib/buildHar";
+import { buildConsoleLogJson, serializeConsoleLog } from "../lib/buildConsoleLogJson";
 import { buildIssueAdf } from "../lib/buildIssueAdf";
 import { SubmitFieldsDialog } from "./IssueCreateModal";
 
@@ -103,6 +110,30 @@ export function DraftDetailDialog({
   const isVideo = issue?.captureMode === "video";
   const { beforeUrl, afterUrl } = useIssueImages(issue?.id ?? null, issue?.snapshot);
 
+  const [networkLogData, setNetworkLogData] = useState<NetworkLog | null>(null);
+  const [consoleLogData, setConsoleLogData] = useState<ConsoleLog | null>(null);
+  const [networkDialogOpen, setNetworkDialogOpen] = useState(false);
+  const [consoleDialogOpen, setConsoleDialogOpen] = useState(false);
+  useEffect(() => {
+    if (!open || !isVideo) {
+      setNetworkLogData(null);
+      setConsoleLogData(null);
+      return;
+    }
+    let cancelled = false;
+    if (issue?.networkLogBlobKey) {
+      getNetworkLog(issue.networkLogBlobKey).then((log) => {
+        if (!cancelled) setNetworkLogData(log);
+      });
+    }
+    if (issue?.consoleLogBlobKey) {
+      getConsoleLog(issue.consoleLogBlobKey).then((log) => {
+        if (!cancelled) setConsoleLogData(log);
+      });
+    }
+    return () => { cancelled = true; };
+  }, [open, isVideo, issue?.networkLogBlobKey, issue?.consoleLogBlobKey]);
+
   const diffs = useMemo(() => {
     if (!issue?.selectionSnapshot || !issue.styleEdits) return [];
     return buildStyleDiff(
@@ -134,6 +165,16 @@ export function DraftDetailDialog({
     if (!fields.issueTypeId) throw new Error("이슈 타입 선택 필요");
 
     const sel = issue.selectionSnapshot;
+
+    let networkLog: NetworkLog | null = null;
+    if (isVideo && issue.networkLogBlobKey) {
+      networkLog = await getNetworkLog(issue.networkLogBlobKey);
+    }
+    let consoleLogForSubmit: ConsoleLog | null = null;
+    if (isVideo && issue.consoleLogBlobKey) {
+      consoleLogForSubmit = await getConsoleLog(issue.consoleLogBlobKey);
+    }
+
     const ctx = {
       captureMode: issue.captureMode,
       title: issue.draft.title,
@@ -162,6 +203,20 @@ export function DraftDetailDialog({
       if (blob) {
         const dataUrl = await blobToDataUrl(blob);
         attachments.push({ filename: "recording.webm", dataUrl });
+      }
+      if (networkLog) {
+        const har = buildHar(networkLog);
+        const harJson = serializeHar(har);
+        const harBlob = new Blob([harJson], { type: "application/json" });
+        const harDataUrl = await blobToDataUrl(harBlob);
+        attachments.push({ filename: "network-log.har", dataUrl: harDataUrl });
+      }
+      if (consoleLogForSubmit) {
+        const jsonObj = buildConsoleLogJson(consoleLogForSubmit);
+        const jsonStr = serializeConsoleLog(jsonObj);
+        const jsonBlob = new Blob([jsonStr], { type: "application/json" });
+        const jsonDataUrl = await blobToDataUrl(jsonBlob);
+        attachments.push({ filename: "console-log.json", dataUrl: jsonDataUrl });
       }
     } else if (isScreenshot) {
       if (issue.snapshot.before) {
@@ -258,6 +313,10 @@ export function DraftDetailDialog({
                   isVideo={isVideo}
                   hasScreenshot={hasScreenshot}
                   hasStyleBlock={hasStyleBlock}
+                  networkLogData={networkLogData}
+                  consoleLogData={consoleLogData}
+                  onNetworkLogClick={() => setNetworkDialogOpen(true)}
+                  onConsoleLogClick={() => setConsoleDialogOpen(true)}
                 />
               </Card>
 
@@ -311,6 +370,21 @@ export function DraftDetailDialog({
         </DialogContent>
       </Dialog>
 
+      {networkLogData && (
+        <NetworkLogPreviewDialog
+          open={networkDialogOpen}
+          onOpenChange={setNetworkDialogOpen}
+          requests={networkLogData.requests}
+        />
+      )}
+      {consoleLogData && (
+        <ConsoleLogPreviewDialog
+          open={consoleDialogOpen}
+          onOpenChange={setConsoleDialogOpen}
+          entries={consoleLogData.entries}
+          startedAt={consoleLogData.startedAt}
+        />
+      )}
       <SubmitFieldsDialog
         open={submitOpen}
         onOpenChange={setSubmitOpen}
@@ -351,6 +425,10 @@ function DraftDetailSections({
   isVideo,
   hasScreenshot,
   hasStyleBlock,
+  networkLogData,
+  consoleLogData,
+  onNetworkLogClick,
+  onConsoleLogClick,
 }: {
   issue: IssueRecord;
   sectionConfig: IssueSection[];
@@ -360,6 +438,10 @@ function DraftDetailSections({
   isVideo: boolean;
   hasScreenshot: boolean;
   hasStyleBlock: boolean;
+  networkLogData: NetworkLog | null;
+  consoleLogData: ConsoleLog | null;
+  onNetworkLogClick: () => void;
+  onConsoleLogClick: () => void;
 }) {
   const t = useT();
   const enabled = sectionConfig.filter((s) => s.enabled);
@@ -391,11 +473,32 @@ function DraftDetailSections({
       </FieldSection>
     ) : null;
 
+  const showLogCards = isVideo && (
+    (networkLogData !== null && networkLogData.captured > 0) ||
+    (consoleLogData !== null && consoleLogData.captured > 0)
+  );
+  const logCardsBlock = showLogCards ? (
+    <FieldSection key="__logCards" label={t("section.logs")}>
+      <LogAttachmentCards
+        networkLog={networkLogData}
+        networkLogAttach={!!issue.networkLogBlobKey}
+        onNetworkLogToggle={() => {}}
+        onNetworkLogClick={onNetworkLogClick}
+        consoleLog={consoleLogData}
+        consoleLogAttach={!!issue.consoleLogBlobKey}
+        onConsoleLogToggle={() => {}}
+        onConsoleLogClick={onConsoleLogClick}
+        readOnly
+      />
+    </FieldSection>
+  ) : null;
+
   for (const sec of enabled) {
     const value = issue.draft.sections[sec.id] ?? "";
-    if (POST_MEDIA_SECTION_IDS.has(sec.id) && !mediaInserted && mediaBlock) {
+    if (POST_MEDIA_SECTION_IDS.has(sec.id) && !mediaInserted) {
       mediaInserted = true;
-      out.push(mediaBlock);
+      if (mediaBlock) out.push(mediaBlock);
+      if (logCardsBlock) out.push(logCardsBlock);
     }
     if (!value.trim()) continue;
     const label = sec.labelOverride?.trim() || t(sectionLabelKey(sec.id));
@@ -405,7 +508,10 @@ function DraftDetailSections({
       </FieldSection>,
     );
   }
-  if (!mediaInserted && mediaBlock) out.push(mediaBlock);
+  if (!mediaInserted) {
+    if (mediaBlock) out.push(mediaBlock);
+    if (logCardsBlock) out.push(logCardsBlock);
+  }
   return <>{out}</>;
 }
 

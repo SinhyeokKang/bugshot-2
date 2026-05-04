@@ -34,10 +34,12 @@ export function t(
   return text;
 }
 
-export function useT(): (
+export type TranslationFn = (
   key: TranslationKey,
   params?: Record<string, string | number>,
-) => string {
+) => string;
+
+export function useT(): TranslationFn {
   const locale = useAppSettingsStore((s) => s.locale);
   if (locale !== currentLocale) currentLocale = locale;
   return (key, params) => {

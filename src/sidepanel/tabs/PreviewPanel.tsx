@@ -12,6 +12,9 @@ import {
 import { useEditorStore } from "@/store/editor-store";
 import { isJiraConfigComplete, useSettingsStore } from "@/store/settings-store";
 import { DocSectionBody } from "../components/DocSectionBody";
+import { LogAttachmentCards } from "../components/LogAttachmentCards";
+import { NetworkLogPreviewDialog } from "../components/NetworkLogPreviewDialog";
+import { ConsoleLogPreviewDialog } from "../components/ConsoleLogPreviewDialog";
 import {
   PageFooter,
   PageScroll,
@@ -44,6 +47,10 @@ export function PreviewPanel() {
   const videoViewport = useEditorStore((s) => s.videoViewport);
   const videoCapturedAt = useEditorStore((s) => s.videoCapturedAt);
   const draft = useEditorStore((s) => s.draft);
+  const networkLog = useEditorStore((s) => s.networkLog);
+  const networkLogAttach = useEditorStore((s) => s.networkLogAttach);
+  const consoleLog = useEditorStore((s) => s.consoleLog);
+  const consoleLogAttach = useEditorStore((s) => s.consoleLogAttach);
   const backToDraft = useEditorStore((s) => s.backToDraft);
   const reset = useEditorStore((s) => s.reset);
   const issueSections = useAppSettingsStore((s) => s.issueSections);
@@ -65,8 +72,15 @@ export function PreviewPanel() {
     return () => window.clearTimeout(t);
   }, [copied]);
 
+  const [networkDialogOpen, setNetworkDialogOpen] = useState(false);
+  const [consoleDialogOpen, setConsoleDialogOpen] = useState(false);
+
   if (!draft) return null;
   if (isElementMode && !selection) return null;
+
+  const attachedNetwork = networkLogAttach && networkLog && networkLog.captured > 0 ? networkLog : null;
+  const attachedConsole = consoleLogAttach && consoleLog && consoleLog.captured > 0 ? consoleLog : null;
+  const showLogCards = isVideoMode && (attachedNetwork !== null || attachedConsole !== null);
 
   const handleCopyMarkdown = async () => {
     let ctx: Parameters<typeof buildIssueMarkdown>[0];
@@ -217,11 +231,27 @@ export function PreviewPanel() {
               ) : null}
             </Section>
           );
+          const logCardsBlock = showLogCards ? (
+            <Section key="__logCards" title={t("section.logs")}>
+              <LogAttachmentCards
+                networkLog={attachedNetwork}
+                networkLogAttach={networkLogAttach}
+                onNetworkLogToggle={() => {}}
+                onNetworkLogClick={() => setNetworkDialogOpen(true)}
+                consoleLog={attachedConsole}
+                consoleLogAttach={consoleLogAttach}
+                onConsoleLogToggle={() => {}}
+                onConsoleLogClick={() => setConsoleDialogOpen(true)}
+                readOnly
+              />
+            </Section>
+          ) : null;
           const out: React.ReactNode[] = [];
           for (const sec of enabled) {
             if (POST_MEDIA_SECTION_IDS.has(sec.id) && !mediaInserted) {
               mediaInserted = true;
               out.push(mediaBlock);
+              if (logCardsBlock) out.push(logCardsBlock);
             }
             const value = draft.sections[sec.id] ?? "";
             const label = sec.labelOverride?.trim() || t(sectionLabelKey(sec.id));
@@ -231,7 +261,10 @@ export function PreviewPanel() {
               </Section>,
             );
           }
-          if (!mediaInserted) out.push(mediaBlock);
+          if (!mediaInserted) {
+            out.push(mediaBlock);
+            if (logCardsBlock) out.push(logCardsBlock);
+          }
           return out;
         })()}
       </PageScroll>
@@ -265,6 +298,21 @@ export function PreviewPanel() {
           </div>
         </div>
       </PageFooter>
+      {attachedNetwork && (
+        <NetworkLogPreviewDialog
+          open={networkDialogOpen}
+          onOpenChange={setNetworkDialogOpen}
+          requests={attachedNetwork.requests}
+        />
+      )}
+      {attachedConsole && (
+        <ConsoleLogPreviewDialog
+          open={consoleDialogOpen}
+          onOpenChange={setConsoleDialogOpen}
+          entries={attachedConsole.entries}
+          startedAt={attachedConsole.startedAt}
+        />
+      )}
     </PageShell>
   );
 }

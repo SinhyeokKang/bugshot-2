@@ -1,5 +1,6 @@
 import { pageKeyOf, sessionKey } from "@/lib/session-keys";
 import { isSupportedUrl } from "@/lib/url-support";
+import { deleteNetworkLog, deleteConsoleLog } from "@/store/blob-db";
 
 const SIDEPANEL_PATH = "src/sidepanel/index.html";
 const ACTIVATED_KEY = "sidePanel:activated";
@@ -18,26 +19,35 @@ async function setActivated(tabId: number, on: boolean): Promise<void> {
 }
 
 async function apply(tabId: number, url: string | undefined): Promise<void> {
-  const key = sessionKey(tabId);
-  const data = await chrome.storage.session.get(key);
-  const snap = data[key] as { captureMode?: string; phase?: string } | undefined;
-  if (shouldPreserveSession(snap)) return;
-
   const supported = isSupportedUrl(url);
   const set = await getActivatedSet();
   const activated = set.has(tabId);
-  try {
-    if (activated && supported) {
+
+  // SW hibernation / 윈도우 이동으로 setOptions가 휘발돼 default_path(쿼리 없음)로
+  // fallback되는 경로 차단. preserve 분기와 무관하게 idempotent하게 path 재등록.
+  if (activated && supported) {
+    try {
       await chrome.sidePanel.setOptions({
         tabId,
         path: `${SIDEPANEL_PATH}?tabId=${tabId}`,
         enabled: true,
       });
-    } else {
-      await chrome.sidePanel.setOptions({ tabId, enabled: false });
+    } catch (err) {
+      console.error("[bugshot] setOptions failed", err);
     }
-  } catch (err) {
-    console.error("[bugshot] setOptions failed", err);
+  }
+
+  const key = sessionKey(tabId);
+  const data = await chrome.storage.session.get(key);
+  const snap = data[key] as { captureMode?: string; phase?: string } | undefined;
+  if (shouldPreserveSession(snap)) return;
+
+  if (!(activated && supported)) {
+    try {
+      await chrome.sidePanel.setOptions({ tabId, enabled: false });
+    } catch (err) {
+      console.error("[bugshot] setOptions failed", err);
+    }
   }
 }
 
@@ -140,5 +150,7 @@ export function setupTabBindings(): void {
   chrome.tabs.onRemoved.addListener((tabId) => {
     void chrome.storage.session.remove(sessionKey(tabId));
     void setActivated(tabId, false);
+    deleteNetworkLog(`pending:${tabId}`).catch(() => {});
+    deleteConsoleLog(`pending:${tabId}`).catch(() => {});
   });
 }

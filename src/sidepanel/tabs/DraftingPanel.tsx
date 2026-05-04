@@ -18,6 +18,9 @@ import { useBoundTabId } from "../hooks/useBoundTabId";
 import { clearPicker } from "../picker-control";
 const AnnotationOverlay = lazy(() => import("../components/AnnotationOverlay"));
 import { CancelConfirmDialog } from "../components/CancelConfirmDialog";
+import { LogAttachmentCards } from "../components/LogAttachmentCards";
+import { NetworkLogPreviewDialog } from "../components/NetworkLogPreviewDialog";
+import { ConsoleLogPreviewDialog } from "../components/ConsoleLogPreviewDialog";
 import {
   PageFooter,
   PageScroll,
@@ -46,8 +49,16 @@ export function DraftingPanel() {
   const reset = useEditorStore((s) => s.reset);
   const backToStyling = useEditorStore((s) => s.backToStyling);
   const confirmDraft = useEditorStore((s) => s.confirmDraft);
+  const networkLog = useEditorStore((s) => s.networkLog);
+  const networkLogAttach = useEditorStore((s) => s.networkLogAttach);
+  const setNetworkLogAttach = useEditorStore((s) => s.setNetworkLogAttach);
+  const consoleLog = useEditorStore((s) => s.consoleLog);
+  const consoleLogAttach = useEditorStore((s) => s.consoleLogAttach);
+  const setConsoleLogAttach = useEditorStore((s) => s.setConsoleLogAttach);
   const issueSections = useAppSettingsStore((s) => s.issueSections);
   const [annotating, setAnnotating] = useState(false);
+  const [networkDialogOpen, setNetworkDialogOpen] = useState(false);
+  const [consoleDialogOpen, setConsoleDialogOpen] = useState(false);
   const titlePrefix = useSettingsStore(
     (s) => s.jiraConfig?.titlePrefix ?? "",
   );
@@ -77,6 +88,11 @@ export function DraftingPanel() {
   if (captureMode === "video" && !videoThumbnail && !videoBlob) return null;
 
   const titleMissing = !draft.title.trim();
+
+  const showLogCards = isVideoMode && (
+    (networkLog !== null && networkLog.captured > 0) ||
+    (consoleLog !== null && consoleLog.captured > 0)
+  );
 
   const enabledSections = issueSections.filter((s) => s.enabled);
   const mediaBlock = isVideoMode ? (
@@ -134,12 +150,28 @@ export function DraftingPanel() {
     </Section>
   );
 
+  const logCardsBlock = showLogCards ? (
+    <Section key="__logCards" title={t("section.logs")}>
+      <LogAttachmentCards
+        networkLog={networkLog}
+        networkLogAttach={networkLogAttach}
+        onNetworkLogToggle={setNetworkLogAttach}
+        onNetworkLogClick={() => setNetworkDialogOpen(true)}
+        consoleLog={consoleLog}
+        consoleLogAttach={consoleLogAttach}
+        onConsoleLogToggle={setConsoleLogAttach}
+        onConsoleLogClick={() => setConsoleDialogOpen(true)}
+      />
+    </Section>
+  ) : null;
+
   const sectionNodes: React.ReactNode[] = [];
   let mediaInserted = false;
   for (const sec of enabledSections) {
     if (POST_MEDIA_SECTION_IDS.has(sec.id) && !mediaInserted) {
       mediaInserted = true;
       sectionNodes.push(mediaBlock);
+      if (logCardsBlock) sectionNodes.push(logCardsBlock);
     }
     sectionNodes.push(
       <SectionTextarea
@@ -155,7 +187,10 @@ export function DraftingPanel() {
       />,
     );
   }
-  if (!mediaInserted) sectionNodes.push(mediaBlock);
+  if (!mediaInserted) {
+    sectionNodes.push(mediaBlock);
+    if (logCardsBlock) sectionNodes.push(logCardsBlock);
+  }
 
   return (
     <PageShell>
@@ -203,6 +238,25 @@ export function DraftingPanel() {
           </div>
         </div>
       </PageFooter>
+      {networkLog && (
+        <NetworkLogPreviewDialog
+          open={networkDialogOpen}
+          onOpenChange={setNetworkDialogOpen}
+          requests={networkLog.requests}
+          attach={networkLogAttach}
+          onToggleAttach={setNetworkLogAttach}
+        />
+      )}
+      {consoleLog && (
+        <ConsoleLogPreviewDialog
+          open={consoleDialogOpen}
+          onOpenChange={setConsoleDialogOpen}
+          entries={consoleLog.entries}
+          startedAt={consoleLog.startedAt}
+          attach={consoleLogAttach}
+          onToggleAttach={setConsoleLogAttach}
+        />
+      )}
       {annotating && screenshotRaw ? (
         <Suspense fallback={null}>
           <AnnotationOverlay

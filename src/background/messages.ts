@@ -139,17 +139,17 @@ async function submitIssue(
           };
         }
       } else {
-        const tableIdx = content.findIndex(
-          (n) => (n as { type: string }).type === "table",
-        );
-        if (tableIdx >= 0) {
-          const tbl = JSON.parse(JSON.stringify(content[tableIdx])) as { content: unknown[] };
-          tbl.content.splice(
-            1,
-            0,
-            snapshotRow(uploadMap.get("before.webp"), uploadMap.get("after.webp")),
+        const beforeFile = uploadMap.get("before.webp");
+        const afterFile = uploadMap.get("after.webp");
+        if (beforeFile || afterFile) {
+          const tableIdx = content.findIndex(
+            (n) => (n as { type: string }).type === "table",
           );
-          content[tableIdx] = tbl;
+          if (tableIdx >= 0) {
+            const tbl = JSON.parse(JSON.stringify(content[tableIdx])) as { content: unknown[] };
+            tbl.content.splice(1, 0, snapshotRow(beforeFile, afterFile));
+            content[tableIdx] = tbl;
+          }
         }
       }
       await updateIssueDescription(auth, issue.key, {

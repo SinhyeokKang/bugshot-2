@@ -85,13 +85,14 @@ export function buildIssueAdf(ctx: MarkdownContext): AdfDoc {
 
   for (const section of ctx.sectionConfig) {
     if (!section.enabled) continue;
-    if (POST_MEDIA_SECTION_IDS.has(section.id)) emitMedia();
+    if (POST_MEDIA_SECTION_IDS.has(section.id)) {
+      emitMedia();
+    }
     const raw = ctx.sections[section.id] ?? "";
     content.push(heading(2, sectionLabel(section)));
     if (section.renderAs === "orderedList") {
       const items = listItems(raw);
       if (items.length === 0) {
-        // textBlock과 동일한 빈 입력 fallback (paragraph + noValue)
         content.push(paragraph([textNode(t("md.noValue"))]));
       } else {
         content.push(orderedList(items.map((it) => listItem([paragraph([textNode(it)])]))));

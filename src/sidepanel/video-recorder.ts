@@ -1,4 +1,5 @@
 import { useEditorStore } from "@/store/editor-store";
+import { stopNetworkRecorder, stopConsoleRecorder } from "./picker-control";
 
 const MAX_DURATION_SEC = 60;
 
@@ -114,6 +115,8 @@ export async function startRecording(tabId: number): Promise<void> {
 
 export function stopRecording(): void {
   if (!state) return;
+  void stopNetworkRecorder(state.tabId);
+  void stopConsoleRecorder(state.tabId);
   if (state.recorder.state === "recording") {
     state.recorder.stop();
   }

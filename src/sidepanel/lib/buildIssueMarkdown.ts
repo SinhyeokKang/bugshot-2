@@ -24,6 +24,14 @@ export interface MarkdownContext {
   diffs: StyleDiffRow[];
 }
 
+export function networkLogPath(url: string): string {
+  try {
+    return new URL(url).pathname;
+  } catch {
+    return url;
+  }
+}
+
 function sectionLabel(section: IssueSection): string {
   return section.labelOverride?.trim() || t(sectionMdLabelKey(section.id));
 }
@@ -85,7 +93,9 @@ export function buildIssueMarkdown(ctx: MarkdownContext): string {
 
   for (const section of ctx.sectionConfig) {
     if (!section.enabled) continue;
-    if (POST_MEDIA_SECTION_IDS.has(section.id)) emitMedia();
+    if (POST_MEDIA_SECTION_IDS.has(section.id)) {
+      emitMedia();
+    }
     const content = ctx.sections[section.id] ?? "";
     lines.push(`## ${sectionLabel(section)}`);
     lines.push("");
@@ -158,7 +168,9 @@ export function buildIssueHtml(ctx: MarkdownContext): string {
 
   for (const section of ctx.sectionConfig) {
     if (!section.enabled) continue;
-    if (POST_MEDIA_SECTION_IDS.has(section.id)) emitMedia();
+    if (POST_MEDIA_SECTION_IDS.has(section.id)) {
+      emitMedia();
+    }
     const content = ctx.sections[section.id] ?? "";
     parts.push(`<h2>${escapeHtml(sectionLabel(section))}</h2>`);
     if (section.renderAs === "orderedList") {
