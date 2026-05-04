@@ -3,6 +3,7 @@ import { ArrowLeftRight, ChevronDown, ChevronRight, Code, File, FileText, Image,
 import { useT, type TranslationFn } from "@/i18n";
 import type { NetworkRequest, NetworkRequestBody } from "@/types/network";
 import { networkLogPath } from "../lib/buildIssueMarkdown";
+import { JsonTreeViewer } from "./JsonTreeViewer";
 import {
   Dialog,
   DialogContent,
@@ -45,6 +46,31 @@ function rowBg(status: number, active: boolean): string {
       : "bg-red-50 hover:bg-red-100/70 dark:bg-red-950/30 dark:hover:bg-red-950/50";
   }
   return active ? "bg-accent" : "hover:bg-accent/50";
+}
+
+type RequestFilter = "all" | "json" | "js" | "css" | "img" | "font" | "doc" | "other";
+
+const FILTER_LABELS: Record<RequestFilter, string> = {
+  all: "All",
+  json: "JSON",
+  js: "JS",
+  css: "CSS",
+  img: "Img",
+  font: "Font",
+  doc: "Doc",
+  other: "Other",
+};
+
+function classifyRequest(req: NetworkRequest): Exclude<RequestFilter, "all"> {
+  const ct = req.contentType.toLowerCase();
+  const url = req.url.toLowerCase();
+  if (ct.includes("json") || ct.includes("graphql")) return "json";
+  if (ct.includes("javascript") || url.match(/\.m?[jt]sx?(\?|$)/)) return "js";
+  if (ct.includes("css") || url.match(/\.css(\?|$)/)) return "css";
+  if (ct.includes("image") || url.match(/\.(png|jpe?g|gif|svg|webp|ico|avif)(\?|$)/)) return "img";
+  if (ct.includes("font") || url.match(/\.(woff2?|ttf|otf|eot)(\?|$)/)) return "font";
+  if (ct.includes("html")) return "doc";
+  return "other";
 }
 
 function ContentTypeIcon({ req }: { req: NetworkRequest }) {
@@ -114,7 +140,9 @@ export function NetworkLogPreviewDialog({
   const [activeId, setActiveId] = useState<string | null>(null);
   const [detailTab, setDetailTab] = useState<DetailTab>("headers");
   const [listWidth, setListWidth] = useState(260);
+  const [filter, setFilter] = useState<RequestFilter>("all");
   const activeReq = requests.find((r) => r.id === activeId) ?? null;
+  const filteredRequests = filter === "all" ? requests : requests.filter((r) => classifyRequest(r) === filter);
 
   const handleSelect = (id: string) => {
     if (activeId === id) {
@@ -160,10 +188,22 @@ export function NetworkLogPreviewDialog({
           <DialogTitle className="text-xl">{t("networkLog.dialog.title")}</DialogTitle>
         </DialogHeader>
 
-        <div ref={containerRef} className="flex min-h-0 flex-1 overflow-hidden rounded-lg border">
+        <div ref={containerRef} className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border">
+          <Tabs value={filter} onValueChange={(v) => setFilter(v as RequestFilter)}>
+            <div className="flex items-center border-b p-2">
+              <TabsList>
+                {(Object.keys(FILTER_LABELS) as RequestFilter[]).map((f) => (
+                  <TabsTrigger key={f} value={f}>
+                    {FILTER_LABELS[f]}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </div>
+          </Tabs>
+          <div className="flex min-h-0 flex-1">
           <ScrollArea className="shrink-0 [&>div>div]:!block" style={{ width: listWidth }}>
             <div>
-              {requests.map((req) => (
+              {filteredRequests.map((req) => (
                 <RequestRow
                   key={req.id}
                   req={req}
@@ -182,18 +222,18 @@ export function NetworkLogPreviewDialog({
             <div className="pointer-events-none absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-border group-hover/drag:bg-blue-300 group-hover/drag:shadow-[-1px_0_0_0_theme(colors.blue.300),1px_0_0_0_theme(colors.blue.300)] dark:group-hover/drag:bg-blue-700 dark:group-hover/drag:shadow-[-1px_0_0_0_theme(colors.blue.700),1px_0_0_0_theme(colors.blue.700)]" />
           </div>
 
-          <div className="flex min-w-0 flex-1 flex-col">
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
             {activeReq ? (
               <Tabs
                 value={detailTab}
                 onValueChange={(v) => setDetailTab(v as DetailTab)}
-                className="flex min-w-0 flex-1 flex-col"
+                className="flex min-h-0 min-w-0 flex-1 flex-col"
               >
-                <div className="flex items-center gap-2 border-b px-2 py-1.5">
-                  <TabsList>
-                    <TabsTrigger value="headers">{t("networkLog.tab.headers")}</TabsTrigger>
-                    <TabsTrigger value="request">{t("networkLog.tab.request")}</TabsTrigger>
-                    <TabsTrigger value="response">{t("networkLog.tab.response")}</TabsTrigger>
+                <div className="flex items-center gap-2 border-b px-2">
+                  <TabsList className="h-auto gap-1 rounded-none bg-transparent p-0">
+                    <TabsTrigger className="rounded-none border-b-2 border-transparent px-2 pb-2.5 pt-3 shadow-none data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none" value="headers">{t("networkLog.tab.headers")}</TabsTrigger>
+                    <TabsTrigger className="rounded-none border-b-2 border-transparent px-2 pb-2.5 pt-3 shadow-none data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none" value="request">{t("networkLog.tab.request")}</TabsTrigger>
+                    <TabsTrigger className="rounded-none border-b-2 border-transparent px-2 pb-2.5 pt-3 shadow-none data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none" value="response">{t("networkLog.tab.response")}</TabsTrigger>
                   </TabsList>
                   <div className="flex-1" />
                   <Button
@@ -224,6 +264,7 @@ export function NetworkLogPreviewDialog({
                 <span className="text-sm text-muted-foreground">{t("networkLog.dialog.selectRequest")}</span>
               </div>
             )}
+          </div>
           </div>
         </div>
 
@@ -341,7 +382,7 @@ function BodyPanel({ body }: { body: NetworkRequestBody | undefined }) {
     );
   }
   return (
-    <div className="p-4 text-[12px]">
+    <div className="py-2 text-[12px]">
       <BodyBlock body={body!} />
     </div>
   );
@@ -369,6 +410,14 @@ function HeadersTable({ headers }: { headers: Record<string, string> }) {
 }
 
 function BodyBlock({ body }: { body: NetworkRequestBody }) {
+  if (typeof body === "string") {
+    try {
+      const parsed = JSON.parse(body);
+      if (typeof parsed === "object" && parsed !== null) {
+        return <JsonTreeViewer data={parsed} />;
+      }
+    } catch { /* fall through */ }
+  }
   return (
     <pre className="max-h-[400px] overflow-auto rounded bg-muted p-2 font-mono text-[11px]">
       {formatBody(body)}

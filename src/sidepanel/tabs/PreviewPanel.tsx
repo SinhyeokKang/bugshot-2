@@ -80,7 +80,10 @@ export function PreviewPanel() {
   if (!draft) return null;
   if (isElementMode && !selection) return null;
 
-  const showLogCards = isVideoMode && (networkLog !== null || consoleLog !== null);
+  const showLogCards = isVideoMode && (
+    (networkLog !== null && networkLog.captured > 0) ||
+    (consoleLog !== null && consoleLog.captured > 0)
+  );
 
   const handleCopyMarkdown = async () => {
     let ctx: Parameters<typeof buildIssueMarkdown>[0];

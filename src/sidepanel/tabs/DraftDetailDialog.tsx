@@ -473,7 +473,10 @@ function DraftDetailSections({
       </FieldSection>
     ) : null;
 
-  const showLogCards = isVideo && (networkLogData !== null || consoleLogData !== null);
+  const showLogCards = isVideo && (
+    (networkLogData !== null && networkLogData.captured > 0) ||
+    (consoleLogData !== null && consoleLogData.captured > 0)
+  );
   const logCardsBlock = showLogCards ? (
     <FieldSection key="__logCards" label={t("section.logs")}>
       <LogAttachmentCards

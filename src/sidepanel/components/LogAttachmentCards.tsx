@@ -1,5 +1,6 @@
 import { Card } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
+import { useT } from "@/i18n";
 import type { NetworkLog } from "@/types/network";
 import type { ConsoleLog } from "@/types/console";
 
@@ -26,15 +27,16 @@ export function LogAttachmentCards({
   onConsoleLogClick,
   readOnly,
 }: LogAttachmentCardsProps) {
-  const showNetwork = networkLog !== null;
-  const showConsole = consoleLog !== null;
+  const t = useT();
+  const showNetwork = networkLog !== null && networkLog.captured > 0;
+  const showConsole = consoleLog !== null && consoleLog.captured > 0;
   if (!showNetwork && !showConsole) return null;
 
   return (
-    <div className="grid grid-cols-2 gap-2">
+    <div className={`grid gap-2 ${showNetwork && showConsole ? "grid-cols-2" : "grid-cols-1"}`}>
       {showNetwork && (
         <LogCard
-          title="network-log"
+          title={t("networkLog.dialog.title")}
           description={networkDescription(networkLog)}
           attach={networkLogAttach}
           disabled={networkLog.captured === 0}
@@ -45,7 +47,7 @@ export function LogAttachmentCards({
       )}
       {showConsole && (
         <LogCard
-          title="console-log"
+          title={t("consoleLog.dialog.title")}
           description={consoleDescription(consoleLog)}
           attach={consoleLogAttach}
           disabled={consoleLog.captured === 0}

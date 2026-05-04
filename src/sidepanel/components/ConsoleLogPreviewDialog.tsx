@@ -11,6 +11,18 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+
+type ConsoleFilter = "all" | "error" | "warn" | "info" | "debug" | "log";
+
+const CONSOLE_FILTER_LABELS: Record<ConsoleFilter, string> = {
+  all: "All",
+  error: "Error",
+  warn: "Warn",
+  info: "Info",
+  debug: "Debug",
+  log: "Log",
+};
 
 interface ConsoleLogPreviewDialogProps {
   open: boolean;
@@ -76,6 +88,8 @@ export function ConsoleLogPreviewDialog({
   onToggleAttach,
 }: ConsoleLogPreviewDialogProps) {
   const t = useT();
+  const [filter, setFilter] = useState<ConsoleFilter>("all");
+  const filteredEntries = filter === "all" ? entries : entries.filter((e) => e.level === filter);
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -84,13 +98,26 @@ export function ConsoleLogPreviewDialog({
           <DialogTitle className="text-xl">{t("consoleLog.dialog.title")}</DialogTitle>
         </DialogHeader>
 
-        <ScrollArea className="min-h-0 flex-1 rounded-lg border">
-          <div className="overflow-hidden">
-            {entries.map((entry) => (
-              <EntryAccordion key={entry.id} entry={entry} startedAt={startedAt} />
-            ))}
-          </div>
-        </ScrollArea>
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border">
+          <Tabs value={filter} onValueChange={(v) => setFilter(v as ConsoleFilter)}>
+            <div className="flex items-center border-b p-2">
+              <TabsList>
+                {(Object.keys(CONSOLE_FILTER_LABELS) as ConsoleFilter[]).map((f) => (
+                  <TabsTrigger key={f} value={f}>
+                    {CONSOLE_FILTER_LABELS[f]}
+                  </TabsTrigger>
+                ))}
+              </TabsList>
+            </div>
+          </Tabs>
+          <ScrollArea className="min-h-0 flex-1">
+            <div className="overflow-hidden">
+              {filteredEntries.map((entry) => (
+                <EntryAccordion key={entry.id} entry={entry} startedAt={startedAt} />
+              ))}
+            </div>
+          </ScrollArea>
+        </div>
 
         <DialogFooter className="!flex-row items-center !justify-end gap-2">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
