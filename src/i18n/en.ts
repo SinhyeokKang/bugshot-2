@@ -159,6 +159,12 @@ const en = {
   "field.epic.label": "Issues",
 
   // Issue list
+  "issueList.search": "Search…",
+  "issueList.noResults": "No results found",
+  "issueList.resetFilter": "Reset filters",
+  "issueList.filter.all": "All",
+  "issueList.filter.submitted": "Submitted",
+  "issueList.filter.draft": "Draft",
   "issueList.empty": "No issues yet",
   "issueList.deleteAll": "Delete all",
   "issueList.deleteAll.title": "Delete all issues?",
@@ -281,6 +287,7 @@ const en = {
   "networkLog.toggle.tooltip.empty": "No network requests captured during recording",
   "networkLog.counter.captured": "{n} captured",
   "networkLog.counter.selected": "{n} selected",
+  "networkLog.search": "Search URL…",
   "networkLog.dialog.title": "Network Logs",
   "networkLog.dialog.errors": "Errors",
   "networkLog.dialog.other": "Other",
@@ -312,6 +319,7 @@ const en = {
   "consoleLog.toggle.tooltip.empty": "No console output captured during recording",
   "consoleLog.counter.captured": "{n} captured",
   "consoleLog.counter.selected": "{n} selected",
+  "consoleLog.search": "Search messages…",
   "consoleLog.dialog.title": "Console Logs",
   "consoleLog.dialog.errors": "Errors / Warnings",
   "consoleLog.dialog.other": "Other",

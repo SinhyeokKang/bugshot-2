@@ -588,9 +588,13 @@ function DraftVideoPreview({ issue, thumbnailUrl }: { issue: IssueRecord; thumbn
   return (
     <div className="space-y-1.5">
       {src ? (
-        <video src={src} controls className="max-h-60 w-full rounded-md border object-contain" />
+        <div className="aspect-video w-full overflow-hidden rounded-md border bg-muted/70">
+          <video src={src} controls className="h-full w-full object-contain" />
+        </div>
       ) : thumbnailUrl ? (
-        <img src={thumbnailUrl} alt="Recording thumbnail" className="max-h-60 rounded-md border object-contain" />
+        <div className="aspect-video w-full overflow-hidden rounded-md border bg-muted/70">
+          <img src={thumbnailUrl} alt="Recording thumbnail" className="h-full w-full object-contain" />
+        </div>
       ) : null}
     </div>
   );

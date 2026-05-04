@@ -157,6 +157,12 @@ const ko = {
   "field.epic.label": "이슈 목록",
 
   // Issue list
+  "issueList.search": "검색…",
+  "issueList.noResults": "검색 결과가 없습니다",
+  "issueList.resetFilter": "필터 초기화",
+  "issueList.filter.all": "전체",
+  "issueList.filter.submitted": "제출됨",
+  "issueList.filter.draft": "초안",
   "issueList.empty": "등록한 이슈가 없습니다",
   "issueList.deleteAll": "모두 삭제",
   "issueList.deleteAll.title": "모든 이슈를 삭제할까요?",
@@ -279,6 +285,7 @@ const ko = {
   "networkLog.toggle.tooltip.empty": "녹화 중 네트워크 요청이 감지되지 않았습니다",
   "networkLog.counter.captured": "{n}건 캡처",
   "networkLog.counter.selected": "{n}건 선택",
+  "networkLog.search": "URL 검색…",
   "networkLog.dialog.title": "네트워크 로그",
   "networkLog.dialog.errors": "에러",
   "networkLog.dialog.other": "기타",
@@ -310,6 +317,7 @@ const ko = {
   "consoleLog.toggle.tooltip.empty": "녹화 중 콘솔 출력이 감지되지 않았습니다",
   "consoleLog.counter.captured": "{n}건 캡처",
   "consoleLog.counter.selected": "{n}건 선택",
+  "consoleLog.search": "메시지 검색…",
   "consoleLog.dialog.title": "콘솔 로그",
   "consoleLog.dialog.errors": "에러 / 경고",
   "consoleLog.dialog.other": "기타",

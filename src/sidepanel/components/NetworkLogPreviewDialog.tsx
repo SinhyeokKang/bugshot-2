@@ -1,5 +1,5 @@
-import { useState, useCallback, useRef, Fragment } from "react";
-import { ArrowLeftRight, ChevronDown, ChevronRight, Code, File, FileText, Image, MousePointerClick, Paintbrush, Type } from "lucide-react";
+import { useState, useCallback, useEffect, useMemo, useRef, Fragment } from "react";
+import { ArrowLeftRight, ChevronDown, ChevronRight, Code, File, FileText, Image, MousePointerClick, Paintbrush, Search, Type, X } from "lucide-react";
 import { useT, type TranslationFn } from "@/i18n";
 import type { NetworkRequest, NetworkRequestBody } from "@/types/network";
 import { networkLogPath } from "../lib/buildIssueMarkdown";
@@ -12,6 +12,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
@@ -132,14 +133,29 @@ export function NetworkLogPreviewDialog({
   const [detailTab, setDetailTab] = useState<DetailTab>("headers");
   const [listWidth, setListWidth] = useState(260);
   const [filter, setFilter] = useState<RequestFilter>("all");
+  const [query, setQuery] = useState("");
   const filterLabel: Record<RequestFilter, string> = {
     all: t("networkLog.filter.all"), json: t("networkLog.filter.json"),
     js: t("networkLog.filter.js"), css: t("networkLog.filter.css"),
     img: t("networkLog.filter.img"), font: t("networkLog.filter.font"),
     doc: t("networkLog.filter.doc"), other: t("networkLog.filter.other"),
   };
+  const availableFilters = useMemo<RequestFilter[]>(() => {
+    const present: Set<string> = new Set(requests.map(classifyRequest));
+    return ["all" as const, ...REQUEST_FILTERS.filter((f): f is Exclude<RequestFilter, "all"> => f !== "all" && present.has(f))];
+  }, [requests]);
+  useEffect(() => {
+    if (filter !== "all" && !availableFilters.includes(filter)) setFilter("all");
+  }, [availableFilters, filter]);
   const activeReq = requests.find((r) => r.id === activeId) ?? null;
-  const filteredRequests = filter === "all" ? requests : requests.filter((r) => classifyRequest(r) === filter);
+  const filteredRequests = useMemo(() => {
+    let result = filter === "all" ? requests : requests.filter((r) => classifyRequest(r) === filter);
+    if (query) {
+      const lower = query.toLowerCase();
+      result = result.filter((r) => r.url.toLowerCase().includes(lower));
+    }
+    return result;
+  }, [requests, filter, query]);
 
   const handleSelect = (id: string) => {
     if (activeId === id) {
@@ -187,14 +203,32 @@ export function NetworkLogPreviewDialog({
 
         <div ref={containerRef} className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border">
           <Tabs value={filter} onValueChange={(v) => setFilter(v as RequestFilter)}>
-            <div className="flex items-center border-b p-2">
+            <div className="flex items-center gap-3 border-b p-2">
               <TabsList>
-                {REQUEST_FILTERS.map((f) => (
+                {availableFilters.map((f) => (
                   <TabsTrigger key={f} value={f}>
                     {filterLabel[f]}
                   </TabsTrigger>
                 ))}
               </TabsList>
+              <div className="relative ml-auto w-full max-w-[320px]">
+                <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder={t("networkLog.search")}
+                  value={query}
+                  onChange={(e) => setQuery(e.target.value)}
+                  className={`h-9 pl-8 text-sm ${query ? "pr-8" : ""}`}
+                />
+                {query && (
+                  <button
+                    type="button"
+                    onClick={() => setQuery("")}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 rounded-sm p-0.5 text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
             </div>
           </Tabs>
           <div className="flex min-h-0 flex-1 overflow-hidden">
