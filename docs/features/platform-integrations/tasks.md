@@ -1,5 +1,15 @@
 # Platform Integrations — GitHub 1차 (구현 태스크)
 
+## 진행 규칙
+
+이 문서는 **살아있는 진행 상황 트래커**다. 구현하는 동안 다음 규칙으로 갱신한다.
+
+- **태스크 시작**: 해당 태스크 헤더 끝에 `🟡 진행` 표시.
+- **검증 체크박스 통과**: 항목을 `- [ ]` → `- [x]`로 갱신.
+- **태스크 완료**: 모든 검증 항목 `[x]` 후 헤더의 `🟡 진행`을 `✅ 완료`로 교체. 같은 커밋에 함께 갱신.
+- **블록 시점**: 헤더에 `🔴 블록 — <간단한 사유>` 표시. 사유는 한 줄.
+- **갱신 단위**: 태스크 1개당 별도 커밋 권장. 메시지 예: `feat(platform): T<n> <제목 요약>`. 문서 갱신만이라면 `docs(feature): platform-integrations T<n> 진행/완료`.
+
 ## 선행 조건
 
 - GitHub OAuth App 생성(callback URL = `chrome-extension://<dev key 기반 ID>/...`와 동일한 redirect_uri 또는 `launchWebAuthFlow`가 만들어주는 `https://<extension-id>.chromiumapp.org/` 형태). "Token expiration" 옵션 ON 권장.
