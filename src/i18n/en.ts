@@ -286,7 +286,7 @@ const en = {
   "github.onboarding.title": "Connect GitHub",
   "github.onboarding.body": "Sign in with GitHub or use a Personal Access Token.",
   "github.oauthLogin": "Sign in with GitHub",
-  "github.patButton": "PAT",
+  "github.patButton": "PAT Authentication",
   "github.patDialog.title": "PAT Authentication",
   "github.patDialog.body": "Enter your GitHub Personal Access Token. 'repo' scope is required; 'user:email' is recommended.",
   "github.connecting": "Connecting...",

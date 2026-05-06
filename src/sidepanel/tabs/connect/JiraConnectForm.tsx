@@ -1,11 +1,6 @@
 import { useEffect, useState } from "react";
-import {
-  CircleCheck,
-  ExternalLink,
-  KeyRound,
-  Link,
-  Loader2,
-} from "lucide-react";
+import { CircleCheck, ExternalLink, KeyRound, Loader2 } from "lucide-react";
+import { SiJirasoftware as Jira } from "@icons-pack/react-simple-icons";
 import { useT } from "@/i18n";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
@@ -224,7 +219,7 @@ function JiraOnboarding() {
     <>
       <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 text-center">
         <div className="mb-3 rounded-full bg-muted p-3">
-          <Link className="h-6 w-6 text-muted-foreground" />
+          <Jira className="h-6 w-6" color="default" />
         </div>
         <h3 className="text-[18px] font-semibold">{t("settings.onboarding.title")}</h3>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -261,9 +256,7 @@ function JiraOnboarding() {
           </Button>
         </div>
 
-        <div className="mt-3 w-full max-w-[260px]">
-          <OAuthClassifiedBanner error={error} />
-        </div>
+        <OAuthClassifiedBanner error={error} />
       </div>
 
       <ApiKeyDialog open={apiKeyOpen} onOpenChange={setApiKeyOpen} />

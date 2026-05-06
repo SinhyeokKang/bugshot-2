@@ -284,7 +284,7 @@ const ko = {
   "github.onboarding.title": "GitHub 연결",
   "github.onboarding.body": "GitHub 계정 또는 Personal Access Token을 이용해 GitHub과 연동해 주세요.",
   "github.oauthLogin": "GitHub 로그인",
-  "github.patButton": "PAT",
+  "github.patButton": "PAT 인증",
   "github.patDialog.title": "PAT 인증",
   "github.patDialog.body": "GitHub Personal Access Token을 입력하세요. 'repo' scope가 필요하며 'user:email' scope를 권장합니다.",
   "github.connecting": "연결 중...",

@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { SiGithub, SiJirasoftware } from "@icons-pack/react-simple-icons";
 import { useT } from "@/i18n";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PageShell } from "../components/Section";
@@ -20,8 +21,14 @@ export function SettingsTab() {
       >
         <div className="px-4 pt-4">
           <TabsList className="grid h-9 w-full grid-cols-2">
-            <TabsTrigger value="jira">{t("platform.tab.jira")}</TabsTrigger>
-            <TabsTrigger value="github">{t("platform.tab.github")}</TabsTrigger>
+            <TabsTrigger value="jira" className="gap-1.5">
+              <SiJirasoftware className="h-3.5 w-3.5" color="default" />
+              {t("platform.tab.jira")}
+            </TabsTrigger>
+            <TabsTrigger value="github" className="gap-1.5">
+              <SiGithub className="h-3.5 w-3.5 dark:invert" color="default" />
+              {t("platform.tab.github")}
+            </TabsTrigger>
           </TabsList>
         </div>
 

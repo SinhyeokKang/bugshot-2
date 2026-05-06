@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { CircleCheck, ExternalLink, Github, KeyRound, Loader2 } from "lucide-react";
+import { CircleCheck, ExternalLink, KeyRound, Loader2 } from "lucide-react";
+import { SiGithub as Github } from "@icons-pack/react-simple-icons";
 import { useT } from "@/i18n";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
@@ -33,7 +34,7 @@ import type {
 } from "@/types/github";
 import { sendBg } from "@/types/messages";
 import { PageFooter, PageScroll, Section } from "../../components/Section";
-import { LabelMultiSelect } from "../githubFields/LabelMultiSelect";
+import { LabelCombobox } from "../githubFields/LabelCombobox";
 import { RepoCombobox, type RepoValue } from "../githubFields/RepoCombobox";
 
 const DISMISS_PATTERNS = /cancel|취소|not approve|not authorize/i;
@@ -100,13 +101,13 @@ function DefaultIssueSettingsFields() {
     <div className="flex flex-col gap-3">
       <div className="flex flex-col gap-1.5">
         <label className="text-xs text-muted-foreground">{t("github.field.labels")}</label>
-        <LabelMultiSelect
+        <LabelCombobox
           owner={account.defaults.owner}
           repo={account.defaults.repo}
-          value={account.defaults.labels ?? []}
+          value={account.defaults.labels?.[0] ?? null}
           onChange={(next) =>
             updateGithubAccount({
-              defaults: { ...account.defaults, labels: next },
+              defaults: { ...account.defaults, labels: next ? [next] : [] },
             })
           }
         />
@@ -186,7 +187,7 @@ function GithubOnboarding() {
     <>
       <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 text-center">
         <div className="mb-3 rounded-full bg-muted p-3">
-          <Github className="h-6 w-6 text-muted-foreground" />
+          <Github className="h-6 w-6 dark:invert" color="default" />
         </div>
         <h3 className="text-[18px] font-semibold">{t("github.onboarding.title")}</h3>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -224,17 +225,14 @@ function GithubOnboarding() {
         </div>
 
         {oauthAvailable === false ? (
-          <p className="mt-3 max-w-[260px] text-xs text-muted-foreground">
+          <p className="text-xs text-muted-foreground">
             {t("github.oauth.notConfigured")}
           </p>
         ) : null}
-
         {oauthError ? (
-          <div className="mt-3 w-full max-w-[260px]">
-            <Alert variant="destructive" className="text-xs">
-              <AlertDescription>{oauthError}</AlertDescription>
-            </Alert>
-          </div>
+          <Alert variant="destructive" className="text-xs">
+            <AlertDescription>{oauthError}</AlertDescription>
+          </Alert>
         ) : null}
       </div>
 
