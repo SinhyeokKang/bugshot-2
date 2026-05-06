@@ -65,15 +65,17 @@
   - [x] `pnpm test` (144 통과)
   - [ ] 수동: 기존 이슈 목록이 깨지지 않음
 
-### T4 — oauth-proxy GitHub 라우트 추가 (`oauth-proxy/`)
+### T4 — oauth-proxy GitHub 라우트 추가 (`oauth-proxy/`) ✅ 완료(코드)
 
 - `POST /github/token`: `{ code, redirect_uri }` → GitHub `/login/oauth/access_token` POST(JSON Accept) → `{ access_token, refresh_token?, expires_in?, scope, token_type }` 반환.
 - `POST /github/refresh`: `{ refresh_token }` → grant_type=refresh_token 교환.
-- `wrangler.toml`/secret에 `GITHUB_CLIENT_SECRET` 추가 안내.
+- `wrangler.toml` 주석에 `GITHUB_CLIENT_ID`/`GITHUB_CLIENT_SECRET` 추가 안내. 둘 다 미설정이면 503.
+- 핸들러 로직 `handleRequest(req, env, fetch)`로 추출 — 메인 vitest에서 fetch mock으로 테스트 가능.
 - 검증:
-  - [ ] 로컬 `wrangler dev` + curl로 두 엔드포인트 라운드트립
-  - [ ] `wrangler deploy` 후 prod URL에서 동일 검증
-  - [ ] 잘못된 code/refresh_token에 4xx 정상 반환
+  - [x] `oauth-proxy/__tests__/github.test.ts`: 11 케이스 (정상/누락/invalid JSON/503/upstream 릴레이/refresh/CORS/OPTIONS/404)
+  - [x] `pnpm test` 통과 (전체 155 통과)
+  - [ ] 사용자: 로컬 `wrangler dev` + curl 라운드트립
+  - [ ] 사용자: `wrangler deploy` 후 prod URL 검증
 
 ### T5 — github-api 어댑터 (`src/background/github-api.ts`)
 

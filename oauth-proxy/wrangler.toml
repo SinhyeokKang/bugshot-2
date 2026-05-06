@@ -7,6 +7,11 @@ compatibility_date = "2026-04-01"
 #   wrangler secret put ATLASSIAN_CLIENT_SECRET
 #   wrangler secret put ALLOWED_ORIGINS
 #
+# GitHub OAuth 사용 시 추가:
+#   wrangler secret put GITHUB_CLIENT_ID
+#   wrangler secret put GITHUB_CLIENT_SECRET
+#   (둘 다 비어있으면 /github/* 라우트는 503 반환)
+#
 # ALLOWED_ORIGINS 값 예시:
 #   chrome-extension://abcdefghij...,chrome-extension://xxxxxxxxxx...
 #   - 프로덕션 확장 ID + 로컬 dev key의 ID를 콤마로 나열
