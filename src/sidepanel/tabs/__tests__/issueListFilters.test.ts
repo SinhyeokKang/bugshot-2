@@ -6,6 +6,7 @@ function makeIssue(overrides: Partial<IssueRecord> = {}): IssueRecord {
   return {
     id: "test-1",
     status: "submitted",
+    platform: "jira",
     title: "버튼 패딩 수정",
     createdAt: Date.now(),
     updatedAt: Date.now(),

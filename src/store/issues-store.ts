@@ -1,5 +1,7 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
+import type { PlatformId } from "@/types/platform";
+import { migrateIssueToV4 } from "./issues-migrations";
 import { chromeLocalStorage } from "./chrome-storage";
 import { useEditorStore, type CaptureMode } from "./editor-store";
 import { clearPicker } from "@/sidepanel/picker-control";
@@ -140,12 +142,19 @@ export interface IssueRecord {
   networkLogBlobKey?: string;
   consoleLogBlobKey?: string;
 
+  platform: PlatformId;
   key?: string;
   url?: string;
   jiraSiteId?: string;
   issueTypeName?: string;
   priorityName?: string;
   assigneeName?: string;
+}
+
+export const ISSUES_STORE_VERSION = 4;
+
+interface LegacyIssueRecord extends Omit<IssueRecord, "platform"> {
+  platform?: PlatformId;
 }
 
 interface IssuesState {
@@ -214,13 +223,16 @@ export const useIssuesStore = create<IssuesState>()(
     }),
     {
       name: "bugshot-issues",
-      version: 3,
+      version: ISSUES_STORE_VERSION,
       storage: createJSONStorage(() => chromeLocalStorage),
       migrate: async (persisted, version) => {
-        const state = persisted as { issues: IssueRecord[] };
+        const state = persisted as { issues: LegacyIssueRecord[] };
+        if (version < 4) {
+          state.issues = state.issues.map(migrateIssueToV4);
+        }
         if (version === 0) {
           state.issues = state.issues.map((i) =>
-            i.status === "submitted" ? stripSubmitted(i, {}) : i,
+            i.status === "submitted" ? stripSubmitted(i as IssueRecord, {}) : i,
           );
         }
         if (version < 2) {

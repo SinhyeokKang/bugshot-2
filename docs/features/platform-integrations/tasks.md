@@ -56,12 +56,13 @@
   - [x] `pnpm test` (140/140 통과; pre-existing issueListFilters 실패는 본 태스크 무관)
   - [ ] 수동: 기존 Jira 연결 상태에서 dev 빌드 → SettingsTab에 그대로 표시
 
-### T3 — issues-store 마이그레이션 (`src/store/issues-store.ts`)
+### T3 — issues-store 마이그레이션 (`src/store/issues-store.ts`) ✅ 완료
 
 - entry에 `platform: PlatformId`, `url: string` 필드 추가. 기존 entry는 `platform: "jira"`로 채움. v 버전 증가 + 멱등 가드.
+- 마이그 헬퍼는 `issues-migrations.ts`로 분리(테스트 시 i18n→app-settings-store 트랜시티브 로드 회피).
 - 검증:
-  - [ ] `__tests__/issues-store.test.ts`(있으면 확장; 없으면 신규)
-  - [ ] `pnpm test`
+  - [x] `__tests__/issues-store.test.ts`(신규): platform 채우기 + 멱등 4 케이스
+  - [x] `pnpm test` (144 통과)
   - [ ] 수동: 기존 이슈 목록이 깨지지 않음
 
 ### T4 — oauth-proxy GitHub 라우트 추가 (`oauth-proxy/`)

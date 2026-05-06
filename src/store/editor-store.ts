@@ -259,6 +259,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       useIssuesStore.getState().saveDraft({
         id,
         status: "draft",
+        platform: "jira",
         title: state.draft.title,
         createdAt: Date.now(),
         updatedAt: Date.now(),
@@ -310,6 +311,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       useIssuesStore.getState().saveDraft({
         id,
         status: "draft",
+        platform: "jira",
         title: state.draft.title,
         createdAt: Date.now(),
         updatedAt: Date.now(),
@@ -339,6 +341,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       useIssuesStore.getState().saveDraft({
         id,
         status: "draft",
+        platform: "jira",
         title: state.draft.title,
         createdAt: Date.now(),
         updatedAt: Date.now(),
