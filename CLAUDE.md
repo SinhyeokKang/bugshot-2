@@ -43,7 +43,9 @@ src/
 │   ├── tab-bindings.ts  # 탭별 side panel on/off (활성화 셋 기반)
 │   ├── jira-api.ts      # Jira REST 래퍼 (Basic + Bearer, 401 시 refresh 재시도)
 │   ├── oauth.ts         # Atlassian 3LO (launchWebAuthFlow + proxy 교환)
-│   └── messages.ts      # 메시지 핸들러 디스패치
+│   ├── github-api.ts    # GitHub REST 래퍼 (PAT/Bearer, 401 refresh hook 주입형)
+│   ├── github-oauth.ts  # GitHub Web Flow (launchWebAuthFlow + proxy 교환) + refresh hook 자동 등록
+│   └── messages.ts      # 메시지 핸들러 디스패치 (jira.* / github.* namespace)
 ├── content/
 │   ├── picker.ts          # DOM picker 메인 (메시지 라우터 + 모드 FSM + hover/select 이벤트)
 │   ├── css-resolve.ts     # CSS 스타일 수집·토큰 resolve (resolveVarChain, collectSelection, collectTokens)
@@ -61,15 +63,18 @@ src/
 │   ├── hooks/           # useBoundTabId, useChromeAI, useEditorSessionSync, useIssueImages, usePickerMessages, useThemeEffect
 │   ├── components/      # 공통 UI (Section/PageShell/PageScroll/PageFooter/AnnotationOverlay 등)
 │   ├── tabs/            # 탭별 진입점 + 편집 패널 (StyleEditorPanel/IssueTab/IssueListTab/SettingsTab 등)
-│   │   └── styleEditor/ # ValueCombobox, StylePropEditors와 헬퍼 (propMetadata, tokenUtils, styleHooks, TokenChip, colorLiteral, hexUtils)
-│   └── lib/             # buildIssueMarkdown, buildIssueAdf, buildAiDraftPrompt 등 순수 유틸
-├── store/               # Zustand 스토어 (editor/issues/settings/app-settings), blob-db(IndexedDB 이미지·비디오·네트워크/콘솔 로그 저장), settings는 v2 마이그레이션(flat → discriminated auth)
+│   │   ├── styleEditor/ # ValueCombobox, StylePropEditors와 헬퍼 (propMetadata, tokenUtils, styleHooks, TokenChip, colorLiteral, hexUtils)
+│   │   └── connect/     # 플랫폼별 연결 폼 (JiraConnectForm, GithubConnectForm) — SettingsTab의 sub-tab content
+│   └── lib/             # buildIssueMarkdown, buildIssueAdf, buildGithubIssueBody, buildAiDraftPrompt 등 순수 유틸
+├── store/               # Zustand 스토어 (editor/issues/settings/app-settings), blob-db(IndexedDB 이미지·비디오·네트워크/콘솔 로그 저장)
+│                        # settings v3: accounts: { jira?, github? } + lastSubmitFields per platform
+│                        # issues v4: entry에 platform: PlatformId 필드 (issues-migrations.ts 분리 — 트랜시티브 i18n 회피)
 ├── i18n/                # 다국어 (ko/en 로케일, t()/useT() 훅)
-├── lib/                 # 공용 유틸 (session-keys, adf-sentinels, url-support)
+├── lib/                 # 공용 유틸 (session-keys, adf-sentinels, url-support, settings-storage)
 ├── components/ui/       # shadcn 컴포넌트
 ├── styles/
-└── types/
-oauth-proxy/             # Cloudflare Worker — Atlassian /token 교환 (client_secret 서버 보관)
+└── types/               # platform.ts (PlatformId/Accounts/LastSubmitFieldsByPlatform), github.ts, jira.ts 등
+oauth-proxy/             # Cloudflare Worker — Atlassian /token + GitHub /github/{token,refresh} 교환 (client_secret 서버 보관)
 docs/
 ├── STORE_DEPLOY.md  # 웹스토어 배포 가이드
 └── privacy.md       # 개인정보처리방침 (GitHub Pages)
@@ -133,6 +138,31 @@ chrome.action.onClicked.addListener((tab) => {
 둘 다 비어있으면 설정 탭은 OAuth 버튼을 비활성화하고 API Token 전용 UI를 노출 (`isOAuthConfigured()` 가드).
 
 **manifest 동적 host_permissions**: `manifest.config.ts`가 `VITE_OAUTH_PROXY_URL`의 origin을 자동으로 `host_permissions`에 추가한다. 빌드 시점에 결정되므로 런타임 권한 요청은 없음.
+
+### GitHub 인증 (OAuth Web Flow + PAT)
+
+Jira와 같은 모양으로 두 방식 동시 지원. 저장 형태는 discriminated union (`GithubAuth = GithubPatAuth | GithubOAuthAuth`).
+
+- **PAT**: `Authorization: token <pat>` 헤더로 `api.github.com` 직접 호출. `repo` scope 필요.
+- **OAuth Web Flow**: `chrome.identity.launchWebAuthFlow` → 인가 코드 → **oauth-proxy**(`/github/token`)에서 `client_secret`과 교환 → `Authorization: Bearer <accessToken>`로 호출. `Accept: application/vnd.github+json` + `X-GitHub-Api-Version: 2022-11-28` 헤더 고정.
+
+**토큰 갱신 — refresh hook 주입형**: `github-api.ts`는 `setGithubRefreshHook(hook)`을 export하고, `github-oauth.ts`가 모듈 로드 시 자동 등록(`refreshOnceWithLock`). 401 수신 시 hook이 있으면 1회 refresh 후 재시도. **GitHub OAuth App의 "Token expiration" 옵션이 OFF면 refresh token 자체가 발급되지 않으며**, 이 경우 `refreshGithubToken`은 즉시 `OAuthError(github.refreshUnavailable)` throw → 재인증 안내. PR 시점에 OAuth App을 만들 땐 만료 활성화 권장.
+
+**환경 변수** (빌드 타임):
+- `VITE_GITHUB_CLIENT_ID` — OAuth App client_id
+- `VITE_OAUTH_PROXY_URL` — Atlassian과 공용 (proxy는 `/token`/`/github/token`/`/github/refresh` 3개 라우트)
+
+`isGithubOAuthConfigured()` false면 SettingsTab의 [GitHub] sub-tab은 OAuth 버튼을 비활성화하고 PAT 섹션만 사용 가능.
+
+### 플랫폼 어댑터 패턴 (Jira·GitHub 공용 골격)
+
+후속 Linear/Notion이 같은 패턴을 복제할 수 있게 어댑터 단위로 분리. `PlatformId = "jira" | "github"` union을 한 곳(`src/types/platform.ts`)에서 관리.
+
+- **저장**: `useSettingsStore`의 `accounts: { jira?: JiraAccount; github?: GithubAccount }` dict + `lastSubmitFields: Record<PlatformId, ...>`. `setAccount(platform, account)` / `removeAccount(platform)` / `updateJiraAccount(patch)` / `updateGithubAccount(patch)` API.
+- **메시지**: bg는 `jira.*` / `github.*` 두 namespace로 분기. 새 플랫폼은 새 namespace 추가만. `BgRequest` discriminated union의 exhaustive switch가 누락 검증.
+- **API 어댑터**: `{platform}-api.ts`에 fetch 래퍼 + 에러 클래스 + 순수 mapper export. 401 처리는 jira는 즉시 refresh 호출, github는 hook 주입형(서비스 워커 재시작 후에도 module side-effect로 재등록).
+- **이슈 entry**: `IssueRecord.platform: PlatformId` 필수. v3→v4 migrate가 기존 entry를 `"jira"`로 채움. UI 분기는 `entry.platform`로.
+- **본문 빌더**: `buildIssueAdf`(Jira용 ADF), `buildIssueMarkdown`/`buildIssueHtml`(클립보드 복사 공용), `buildGithubIssueBody`(GitHub MD + base64 이미지 인라인 + 안내 푸터). 셋 다 `MarkdownContext`를 입력으로 받는다.
 
 ### 토큰 체인 resolve 룰
 
@@ -213,6 +243,10 @@ draft 데이터 모델은 `{ title, sections: Record<string, string> }`. 섹션 
 
 **마이그레이션 3중 가드**: `issues-store` v3, `app-settings-store` v2, `useEditorSessionSync.migrateLegacyDraft` — 세 곳 모두 `if (legacy.sections)` 멱등 가드 + sparse 저장(빈 legacy 값은 sections에 키 추가 안 함). 빈 paragraph 섹션 출력은 마크다운/HTML/ADF 모두 `(없음)` (`md.noValue`)로 통일.
 
+**플랫폼 마이그레이션** (별도 트랙):
+- `settings-store` v2→v3: `jiraConfig` → `accounts: { jira?, github? }` + `lastSubmitFields` → `Record<PlatformId, ...>`. `migrateV2ToV3` pure helper export — 단위 테스트 표적. 멱등 가드.
+- `issues-store` v3→v4: `IssueRecord`에 `platform: PlatformId` 필수 추가. 기존 entry는 `"jira"`로 채움. `migrateIssueToV4`는 `issues-migrations.ts`로 분리(테스트가 issues-store 본체를 import하면 picker-control→i18n→app-settings-store→navigator 트랜시티브 로드 발생 — pure helper 분리로 회피).
+
 ## 릴리스 & 버전
 
 ### 버전 체계
@@ -277,8 +311,8 @@ pnpm version major --no-git-tag-version   # 1.0.0 → 2.0.0 (Breaking change)
 - iframe 제약: content script가 `all_frames=false`라 iframe 내부 DOM은 picker로 선택 불가. iframe 박스 자체를 클릭하면 `picker.iframeUnsupported` → `onPickerIframeUnsupported` 이벤트로 안내 다이얼로그 노출 + picker 즉시 idle 복귀 (cross-document 경계 + 빈 결과로 인한 콘솔 에러 누적 방지).
 - 단축키: `Cmd+Shift+E` (mac) / `Ctrl+Shift+E` (default) — `_execute_action`
 - permissions: `sidePanel`, `activeTab`, `scripting`, `storage`, `commands`, `contextMenus`, `identity`, `tabCapture`
-- host_permissions: `*.atlassian.net` (Jira REST), `api.atlassian.com` (OAuth gateway), `auth.atlassian.com` (authorize), + `VITE_OAUTH_PROXY_URL` origin (빌드 타임 주입)
-- OAuth 관련 env: `VITE_ATLASSIAN_CLIENT_ID`, `VITE_OAUTH_PROXY_URL` — 누락 시 OAuth UI 자동 비활성화
+- host_permissions: `*.atlassian.net` (Jira REST), `api.atlassian.com` (OAuth gateway), `auth.atlassian.com` (authorize), `api.github.com` (GitHub REST), `github.com` (OAuth authorize), + `VITE_OAUTH_PROXY_URL` origin (빌드 타임 주입)
+- OAuth 관련 env: `VITE_ATLASSIAN_CLIENT_ID`, `VITE_GITHUB_CLIENT_ID`, `VITE_OAUTH_PROXY_URL` — 누락 시 해당 플랫폼 OAuth UI 자동 비활성화 (`isOAuthConfigured()` / `isGithubOAuthConfigured()`)
 - `BUGSHOT_STORE_BUILD=1`: 스토어 업로드용 빌드 (manifest `key` 제거)
 
 ## 메모리 & 참고 문서
