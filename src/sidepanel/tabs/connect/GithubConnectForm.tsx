@@ -25,10 +25,14 @@ import type {
 } from "@/types/github";
 import { sendBg } from "@/types/messages";
 import { PageFooter, PageScroll, Section } from "../../components/Section";
+import { AssigneeMultiSelect } from "../githubFields/AssigneeMultiSelect";
+import { LabelMultiSelect } from "../githubFields/LabelMultiSelect";
+import { RepoCombobox, type RepoValue } from "../githubFields/RepoCombobox";
 
 const DISMISS_PATTERNS = /cancel|취소|not approve|not authorize/i;
 
 export function GithubConnectForm() {
+  const t = useT();
   const githubAccount = useSettingsStore((s) => s.accounts.github);
   const connected = !!githubAccount;
 
@@ -48,6 +52,12 @@ export function GithubConnectForm() {
         <Section>
           <GithubSummary />
         </Section>
+        <Section title={t("github.section.repo")}>
+          <DefaultRepoField />
+        </Section>
+        <Section title={t("github.section.issueSettings")}>
+          <DefaultIssueSettingsFields />
+        </Section>
       </PageScroll>
       <PageFooter>
         <div className="flex justify-between">
@@ -55,6 +65,65 @@ export function GithubConnectForm() {
         </div>
       </PageFooter>
     </>
+  );
+}
+
+function DefaultRepoField() {
+  const account = useSettingsStore((s) => s.accounts.github);
+  const updateGithubAccount = useSettingsStore((s) => s.updateGithubAccount);
+  if (!account) return null;
+  const value: RepoValue | null =
+    account.defaults.owner && account.defaults.repo
+      ? { owner: account.defaults.owner, repo: account.defaults.repo }
+      : null;
+  return (
+    <RepoCombobox
+      value={value}
+      onChange={(next) =>
+        updateGithubAccount({
+          defaults: next
+            ? { ...account.defaults, owner: next.owner, repo: next.repo }
+            : { ...account.defaults, owner: undefined, repo: undefined, labels: [], assignees: [] },
+        })
+      }
+    />
+  );
+}
+
+function DefaultIssueSettingsFields() {
+  const t = useT();
+  const account = useSettingsStore((s) => s.accounts.github);
+  const updateGithubAccount = useSettingsStore((s) => s.updateGithubAccount);
+  if (!account) return null;
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex flex-col gap-1.5">
+        <label className="text-xs text-muted-foreground">{t("github.field.labels")}</label>
+        <LabelMultiSelect
+          owner={account.defaults.owner}
+          repo={account.defaults.repo}
+          value={account.defaults.labels ?? []}
+          onChange={(next) =>
+            updateGithubAccount({
+              defaults: { ...account.defaults, labels: next },
+            })
+          }
+        />
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <label className="text-xs text-muted-foreground">{t("github.field.assignees")}</label>
+        <AssigneeMultiSelect
+          owner={account.defaults.owner}
+          repo={account.defaults.repo}
+          value={account.defaults.assignees ?? []}
+          onChange={(next) =>
+            updateGithubAccount({
+              defaults: { ...account.defaults, assignees: next },
+            })
+          }
+        />
+      </div>
+    </div>
   );
 }
 
