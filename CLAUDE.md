@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-bugshot-2: Chrome MV3 Side Panel 확장. 웹 페이지의 DOM 요소를 골라 스타일을 수정·비교한 후 Jira 또는 GitHub 이슈로 등록한다.
+bugshot-2: Chrome MV3 Side Panel 확장. 웹 페이지의 DOM 요소를 골라 스타일을 수정·비교한 후 Jira·GitHub·Linear 이슈로 등록한다.
 
 사용자는 한국어로 간결한 답변을 선호한다. 불필요한 꾸밈말·서두 금지.
 
@@ -45,7 +45,9 @@ src/
 │   ├── oauth.ts         # Atlassian 3LO (launchWebAuthFlow + proxy 교환)
 │   ├── github-api.ts    # GitHub REST 래퍼 (PAT/Bearer, 401 refresh hook 주입형)
 │   ├── github-oauth.ts  # GitHub Web Flow (launchWebAuthFlow + proxy 교환) + refresh hook 자동 등록
-│   └── messages.ts      # 메시지 핸들러 디스패치 (jira.* / github.* namespace)
+│   ├── linear-api.ts    # Linear GraphQL 래퍼 (API Key/Bearer, 401 refresh hook 주입형)
+│   ├── linear-oauth.ts  # Linear OAuth (PKCE, launchWebAuthFlow, proxy 불필요) + refresh hook 자동 등록
+│   └── messages.ts      # 메시지 핸들러 디스패치 (jira.* / github.* / linear.* namespace)
 ├── content/
 │   ├── picker.ts          # DOM picker 메인 (메시지 라우터 + 모드 FSM + hover/select 이벤트)
 │   ├── css-resolve.ts     # CSS 스타일 수집·토큰 resolve (resolveVarChain, collectSelection, collectTokens)
@@ -56,26 +58,27 @@ src/
 │   ├── network-recorder.ts# MAIN world 네트워크 캡처 (fetch/XHR 래핑, sentinel 기반 통신)
 │   └── console-recorder.ts# MAIN world 콘솔 캡처 (console.* 래핑, 500건 캡)
 ├── sidepanel/
-│   ├── App.tsx          # Radix Tabs 4개 (이슈 작성/목록/설정/앱 설정)
+│   ├── App.tsx          # Radix Tabs 4개 (이슈 작성/목록/연동/설정)
 │   ├── main.tsx
 │   ├── capture.ts       # 요소 크롭 스냅샷
 │   ├── picker-control.ts
 │   ├── hooks/           # useBoundTabId, useChromeAI, useEditorSessionSync, useIssueImages, usePickerMessages, useThemeEffect
 │   ├── components/      # 공통 UI (Section/PageShell/PageScroll/PageFooter/AnnotationOverlay 등)
-│   ├── tabs/            # 탭별 진입점 + 편집 패널 (StyleEditorPanel/IssueTab/IssueListTab/SettingsTab 등)
+│   ├── tabs/            # 탭별 진입점 + 편집 패널 (StyleEditorPanel/IssueTab/IssueListTab/IntegrationsTab/SettingsTab 등)
 │   │   ├── styleEditor/   # ValueCombobox, StylePropEditors와 헬퍼 (propMetadata, tokenUtils, styleHooks, TokenChip, colorLiteral, hexUtils)
-│   │   ├── connect/       # 플랫폼별 연결 폼 (JiraConnectForm, GithubConnectForm) — SettingsTab의 sub-tab content
-│   │   └── githubFields/  # GitHub 메타 필드 컴포넌트 (RepoCombobox, LabelCombobox, AssigneeMultiSelect, GithubIssueFields 묶음, labelToggle 헬퍼) — Settings/IssueCreateModal 양쪽에서 controlled로 재사용
-│   └── lib/             # buildIssueMarkdown, buildIssueAdf, buildGithubIssueBody, submitToGithub(NormalizedSubmitResult), buildAiDraftPrompt 등 순수 유틸
+│   │   ├── connect/       # 플랫폼별 연결 폼 (JiraConnectForm, GithubConnectForm, LinearConnectForm) — IntegrationsTab의 sub-tab content
+│   │   ├── githubFields/  # GitHub 메타 필드 컴포넌트 (RepoCombobox, LabelCombobox, AssigneeMultiSelect, GithubIssueFields 묶음, labelToggle 헬퍼) — IntegrationsTab/IssueCreateModal 양쪽에서 controlled로 재사용
+│   │   └── linearFields/  # Linear 메타 필드 컴포넌트 (TeamCombobox, ProjectCombobox, LabelCombobox, PrioritySelect, AssigneeCombobox, LinearIssueFields 묶음) — IntegrationsTab/IssueCreateModal 양쪽에서 controlled로 재사용
+│   └── lib/             # buildIssueMarkdown, buildIssueAdf, buildGithubIssueBody, buildLinearIssueBody, submitToGithub, submitToLinear(NormalizedSubmitResult), buildAiDraftPrompt 등 순수 유틸
 ├── store/               # Zustand 스토어 (editor/issues/settings/app-settings), blob-db(IndexedDB 이미지·비디오·네트워크/콘솔 로그 저장)
-│                        # settings v3: accounts: { jira?, github? } + lastSubmitFields per platform
+│                        # settings v5: accounts: { jira?, github?, linear? } + lastSubmitFields per platform + global titlePrefix
 │                        # issues v4: entry에 platform: PlatformId 필드 (issues-migrations.ts 분리 — 트랜시티브 i18n 회피)
 ├── i18n/                # 다국어 (ko/en 로케일, t()/useT() 훅)
 ├── lib/                 # 공용 유틸 (session-keys, adf-sentinels, url-support, settings-storage)
 ├── components/ui/       # shadcn 컴포넌트
 ├── styles/
-└── types/               # platform.ts (PlatformId/Accounts/LastSubmitFieldsByPlatform), github.ts, jira.ts 등
-oauth-proxy/             # Cloudflare Worker — Atlassian /token + GitHub /github/{token,refresh} 교환 (client_secret 서버 보관)
+└── types/               # platform.ts (PlatformId/Accounts/LastSubmitFieldsByPlatform), github.ts, jira.ts, linear.ts 등
+oauth-proxy/             # Cloudflare Worker — Atlassian /token + GitHub /github/{token,refresh} 교환 (client_secret 서버 보관, Linear는 PKCE라 proxy 불필요)
 docs/
 ├── STORE_DEPLOY.md  # 웹스토어 배포 가이드
 └── privacy.md       # 개인정보처리방침 (GitHub Pages)
@@ -154,19 +157,36 @@ Jira와 같은 모양으로 두 방식 동시 지원. 저장 형태는 discrimin
 - `VITE_GITHUB_CLIENT_ID` — OAuth App client_id
 - `VITE_OAUTH_PROXY_URL` — Atlassian과 공용 (proxy는 `/token`/`/github/token`/`/github/refresh` 3개 라우트)
 
-`isGithubOAuthConfigured()` false면 SettingsTab의 [GitHub] sub-tab은 OAuth 버튼을 비활성화하고 PAT 섹션만 사용 가능.
+`isGithubOAuthConfigured()` false면 IntegrationsTab의 [GitHub] sub-tab은 OAuth 버튼을 비활성화하고 PAT 섹션만 사용 가능.
 
-### 플랫폼 어댑터 패턴 (Jira·GitHub 공용 골격)
+### Linear 인증 (OAuth PKCE + API Key)
 
-후속 Linear/Notion이 같은 패턴을 복제할 수 있게 어댑터 단위로 분리. `PlatformId = "jira" | "github"` union을 한 곳(`src/types/platform.ts`)에서 관리.
+Jira·GitHub과 같은 모양으로 두 방식 동시 지원. 저장 형태는 discriminated union (`LinearAuth = LinearApiKeyAuth | LinearOAuthAuth`).
 
-- **저장**: `useSettingsStore`의 `accounts: { jira?: JiraAccount; github?: GithubAccount }` dict + `lastSubmitFields: Record<PlatformId, ...>`. `setAccount(platform, account)` / `removeAccount(platform)` / `updateJiraAccount(patch)` / `updateGithubAccount(patch)` API.
-- **메시지**: bg는 `jira.*` / `github.*` 두 namespace로 분기. 새 플랫폼은 새 namespace 추가만. `BgRequest` discriminated union의 exhaustive switch가 누락 검증.
-- **API 어댑터**: `{platform}-api.ts`에 fetch 래퍼 + 에러 클래스 + 순수 mapper export. 401 처리는 jira는 즉시 refresh 호출, github는 hook 주입형(서비스 워커 재시작 후에도 module side-effect로 재등록).
-- **이슈 entry**: `IssueRecord.platform: PlatformId` 필수. v3→v4 migrate가 기존 entry를 `"jira"`로 채움. UI 분기는 `entry.platform`로. github 한정 메타(`githubOwner`/`githubRepo`/`githubLabels`)는 optional — 등록 시 채우고, refresh fetch 응답으로 갱신. 구 entry는 `resolveGithubCoords`가 `url`에서 fallback 파싱.
-- **본문 빌더**: `buildIssueAdf`(Jira용 ADF), `buildIssueMarkdown`/`buildIssueHtml`(클립보드 복사 공용), `buildGithubIssueBody`(GitHub MD + `## 첨부` 섹션에 파일명만 안내 — GitHub은 `data:` URI sanitize로 인라인 불가). 셋 다 `MarkdownContext`를 입력으로 받는다. submit 결과는 `NormalizedSubmitResult { key, url }`로 통일 (Jira `BUG-1` / GitHub `#42`) — `submitToGithub` 헬퍼.
-- **다이얼로그**: `SubmitFieldsDialog`가 IssueCreateModal과 DraftDetailDialog 양쪽에서 공유. 연결 1개=Tab 숨김 자동, 2개=shadcn Tabs로 platform 선택. 선택 시 `editor-store.setTargetPlatform` + `issuesStore.patchIssue`로 IssueRecord.platform 동기. default platform은 `pickInitialPlatform(accounts, lastSubmittedPlatform)` (직전 제출 → jira → github 순). prefill effect deps는 `[open, issue?.id]`만 — issue.platform 변경(사용자 Tab 클릭 결과)에 effect 재발화 시 SubmitFieldsDialog가 강제로 닫히는 버그 회피.
-- **OAuth 에러 분기**: `OAuthError`는 `{ platform, cancelled }` 옵션을 가지며 BG가 `body.platform` / `body.oauthCancelled` / `body.oauthRefreshFailed` 플래그로 직렬화. 정규식 메시지 매칭 금지 — UI는 `isOAuthCancelled` / `getOAuthErrorPlatform` 헬퍼로 분기. cancel 코드는 `isAtlassianCancellationCode` / `isGithubCancellationCode` 화이트리스트.
+- **API Key**: `Authorization: <apiKey>` 헤더로 `api.linear.app/graphql` 직접 호출.
+- **OAuth PKCE**: `chrome.identity.launchWebAuthFlow` → PKCE code_challenge → 인가 코드 → `api.linear.app/oauth/token`에 직접 교환 (public client — **proxy 불필요**). scope: `read write issues:create`.
+- **dev/prod OAuth App 분리**: GitHub과 동일 패턴. `VITE_LINEAR_CLIENT_ID` / `VITE_LINEAR_CLIENT_ID_PROD` 분리, `BUGSHOT_STORE_BUILD=1`이면 prod로 치환.
+
+**토큰 갱신 — refresh hook 주입형**: GitHub과 동일 패턴. `linear-api.ts`의 `setLinearRefreshHook(hook)` + `linear-oauth.ts`가 모듈 로드 시 자동 등록. 401 수신 시 1회 refresh 후 재시도.
+
+**GraphQL API**: Linear은 REST가 아닌 `api.linear.app/graphql` 단일 엔드포인트. `linear-api.ts`의 `linearGql<T>(auth, query, variables)` 제네릭 래퍼가 모든 호출을 처리.
+
+**환경 변수** (빌드 타임):
+- `VITE_LINEAR_CLIENT_ID` — OAuth App client_id
+
+`isLinearOAuthConfigured()` false면 IntegrationsTab의 [Linear] sub-tab은 OAuth 버튼을 비활성화하고 API Key 섹션만 사용 가능.
+
+### 플랫폼 어댑터 패턴 (Jira·GitHub·Linear 공용 골격)
+
+어댑터 단위로 분리. `PlatformId = "jira" | "github" | "linear"` union을 한 곳(`src/types/platform.ts`)에서 관리.
+
+- **저장**: `useSettingsStore`의 `accounts: { jira?: JiraAccount; github?: GithubAccount; linear?: LinearAccount }` dict + `lastSubmitFields: Record<PlatformId, ...>` + 전역 `titlePrefix: string`. `setAccount(platform, account)` / `removeAccount(platform)` / `updateJiraAccount(patch)` / `updateGithubAccount(patch)` / `updateLinearAccount(patch)` API.
+- **메시지**: bg는 `jira.*` / `github.*` / `linear.*` 세 namespace로 분기. 새 플랫폼은 새 namespace 추가만. `BgRequest` discriminated union의 exhaustive switch가 누락 검증.
+- **API 어댑터**: `{platform}-api.ts`에 fetch 래퍼 + 에러 클래스 + 순수 mapper export. 401 처리는 jira는 즉시 refresh 호출, github·linear는 hook 주입형(서비스 워커 재시작 후에도 module side-effect로 재등록).
+- **이슈 entry**: `IssueRecord.platform: PlatformId` 필수. v3→v4 migrate가 기존 entry를 `"jira"`로 채움. UI 분기는 `entry.platform`로. github 한정 메타(`githubOwner`/`githubRepo`/`githubLabels`), linear 한정 메타(`linearTeamKey`/`linearTeamId` 등)는 optional — 등록 시 채우고, refresh fetch 응답으로 갱신.
+- **본문 빌더**: `buildIssueAdf`(Jira용 ADF), `buildIssueMarkdown`/`buildIssueHtml`(클립보드 복사 공용), `buildGithubIssueBody`(GitHub MD), `buildLinearIssueBody`(Linear MD). 모두 `MarkdownContext`를 입력으로 받는다. submit 결과는 `NormalizedSubmitResult { key, url }`로 통일 (Jira `BUG-1` / GitHub `#42` / Linear `TEAM-123`) — `submitToGithub` / `submitToLinear` 헬퍼.
+- **다이얼로그**: `SubmitFieldsDialog`가 IssueCreateModal과 DraftDetailDialog 양쪽에서 공유. 연결 1개=Tab 숨김 자동, 2개 이상=shadcn Tabs로 platform 선택. 선택 시 `editor-store.setTargetPlatform` + `issuesStore.patchIssue`로 IssueRecord.platform 동기. default platform은 `pickInitialPlatform(accounts, lastSubmittedPlatform)` (직전 제출 → jira → github → linear 순). prefill effect deps는 `[open, issue?.id]`만 — issue.platform 변경(사용자 Tab 클릭 결과)에 effect 재발화 시 SubmitFieldsDialog가 강제로 닫히는 버그 회피.
+- **OAuth 에러 분기**: `OAuthError`는 `{ platform, cancelled }` 옵션을 가지며 BG가 `body.platform` / `body.oauthCancelled` / `body.oauthRefreshFailed` 플래그로 직렬화. 정규식 메시지 매칭 금지 — UI는 `isOAuthCancelled` / `getOAuthErrorPlatform` 헬퍼로 분기. cancel 코드는 `isAtlassianCancellationCode` / `isGithubCancellationCode` / `isLinearCancellationCode` 화이트리스트.
 
 ### 토큰 체인 resolve 룰
 
@@ -230,9 +250,9 @@ Jira는 마크다운 원본을 파싱하지 않고, 붙여넣기는 **ProseMirro
 
 구현: `src/sidepanel/lib/buildIssueMarkdown.ts` — `buildIssueMarkdown()` + `buildIssueHtml()` 페어.
 
-### 이슈 섹션 구성 (앱 설정 → 이슈 구성)
+### 이슈 섹션 구성 (설정 탭 → 이슈 설정)
 
-사용자 입력 섹션은 **앱 설정에서 on/off 가능**한 4종 빌트인. `app-settings-store`의 `IssueSection[]` (`DEFAULT_ISSUE_SECTIONS`) 배열 순서가 곧 출력 순서.
+사용자 입력 섹션은 **설정 탭에서 on/off 가능**한 4종 빌트인. `app-settings-store`의 `IssueSection[]` (`DEFAULT_ISSUE_SECTIONS`) 배열 순서가 곧 출력 순서.
 
 | id | 기본 enabled | renderAs |
 |---|---|---|
@@ -249,6 +269,7 @@ draft 데이터 모델은 `{ title, sections: Record<string, string> }`. 섹션 
 
 **플랫폼 마이그레이션** (별도 트랙):
 - `settings-store` v2→v3: `jiraConfig` → `accounts: { jira?, github? }` + `lastSubmitFields` → `Record<PlatformId, ...>`. `migrateV2ToV3` pure helper export — 단위 테스트 표적. 멱등 가드.
+- `settings-store` v3/v4→v5: 각 플랫폼 account에 있던 `titlePrefix`를 전역 `titlePrefix: string`으로 승격. `migrateToV5` pure helper export. jira → github → linear 순 우선순위로 기존 값 추출, 없으면 빈 문자열.
 - `issues-store` v3→v4: `IssueRecord`에 `platform: PlatformId` 필수 추가. 기존 entry는 `"jira"`로 채움. `migrateIssueToV4`는 `issues-migrations.ts`로 분리(테스트가 issues-store 본체를 import하면 picker-control→i18n→app-settings-store→navigator 트랜시티브 로드 발생 — pure helper 분리로 회피).
 
 ## 릴리스 & 버전
@@ -316,8 +337,8 @@ pnpm version major --no-git-tag-version   # 1.0.0 → 2.0.0 (Breaking change)
 - iframe 제약: content script가 `all_frames=false`라 iframe 내부 DOM은 picker로 선택 불가. iframe 박스 자체를 클릭하면 `picker.iframeUnsupported` → `onPickerIframeUnsupported` 이벤트로 안내 다이얼로그 노출 + picker 즉시 idle 복귀 (cross-document 경계 + 빈 결과로 인한 콘솔 에러 누적 방지).
 - 단축키: `Cmd+Shift+E` (mac) / `Ctrl+Shift+E` (default) — `_execute_action`
 - permissions: `sidePanel`, `activeTab`, `scripting`, `storage`, `commands`, `contextMenus`, `identity`, `tabCapture`
-- host_permissions: `*.atlassian.net` (Jira REST), `api.atlassian.com` (OAuth gateway), `auth.atlassian.com` (authorize), `api.github.com` (GitHub REST), + `VITE_OAUTH_PROXY_URL` origin (빌드 타임 주입)
-- OAuth 관련 env: `VITE_ATLASSIAN_CLIENT_ID`, `VITE_GITHUB_CLIENT_ID` (dev), `VITE_GITHUB_CLIENT_ID_PROD` (store build 시 치환), `VITE_OAUTH_PROXY_URL` — 누락 시 해당 플랫폼 OAuth UI 자동 비활성화 (`isOAuthConfigured()` / `isGithubOAuthConfigured()`)
+- host_permissions: `*.atlassian.net` (Jira REST), `api.atlassian.com` (OAuth gateway), `auth.atlassian.com` (authorize), `api.github.com` (GitHub REST), `api.linear.app` (Linear GraphQL + OAuth token), + `VITE_OAUTH_PROXY_URL` origin (빌드 타임 주입)
+- OAuth 관련 env: `VITE_ATLASSIAN_CLIENT_ID`, `VITE_GITHUB_CLIENT_ID` (dev), `VITE_GITHUB_CLIENT_ID_PROD` (store build 시 치환), `VITE_LINEAR_CLIENT_ID` (dev), `VITE_LINEAR_CLIENT_ID_PROD` (store build 시 치환), `VITE_OAUTH_PROXY_URL` — 누락 시 해당 플랫폼 OAuth UI 자동 비활성화 (`isOAuthConfigured()` / `isGithubOAuthConfigured()` / `isLinearOAuthConfigured()`)
 - `BUGSHOT_STORE_BUILD=1`: 스토어 업로드용 빌드 (manifest `key` 제거)
 
 ## 메모리 & 참고 문서
