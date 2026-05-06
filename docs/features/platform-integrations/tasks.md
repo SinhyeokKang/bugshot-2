@@ -89,14 +89,20 @@
   - [x] `pnpm typecheck`
   - [x] `pnpm test` (176 통과, 14/14 파일 그린)
 
-### T6 — github-oauth 시작 헬퍼 (`src/background/github-oauth.ts`)
+### T6 — github-oauth 시작 헬퍼 (`src/background/github-oauth.ts`) ✅ 완료
 
 - `startGithubOAuth()`: state(`crypto.randomUUID()`) 생성 → `launchWebAuthFlow` → code 추출 → proxy `/github/token` 호출 → `getMyself` → `GithubOAuthAuth` 반환.
-- `refreshGithubToken(auth)`: refresh_token 있을 때만 동작. 없으면 throw `OAuthError`로 즉시 재인증 안내.
-- `persistGithubOAuthTokens(refreshed)`: settings-store의 github account auth 갱신.
+- `refreshGithubToken(auth)`: refresh_token 있을 때만 동작. 없으면 throw `OAuthError`(`oauth.error.github.refreshUnavailable`).
+- `persistGithubOAuthTokens(refreshed)`: `writeStoredGithubOAuthTokens`로 storage envelope 제자리 갱신.
+- `ensureFreshGithubAuth(auth)`: expiresAt 60초 마진 프리-리프레시. `refreshOnceWithLock`으로 동시 401 race 방지.
+- 모듈 로드 시 `setGithubRefreshHook(refreshOnceWithLock)` — github-api 401 자동 회복.
+- `parseCallbackParams(redirect, expectedState)` 순수 헬퍼로 분리 — error/state mismatch/code missing 분기.
+- i18n 신규 키: `oauth.error.github.notConfiguredClient`, `oauth.error.github.refreshUnavailable` (ko/en).
 - 검증:
-  - [ ] 수동: 실 OAuth App으로 dev에서 라운드트립 1회
-  - [ ] 수동: 잘못된 state 시 거부
+  - [x] `__tests__/github-oauth.test.ts`: parseCallbackParams 5 케이스 (정상 / error param / error 코드만 / state mismatch / code missing)
+  - [x] `pnpm test` (195 통과, 16/16 파일 그린)
+  - [ ] 사용자: 실 OAuth App으로 dev에서 라운드트립 1회
+  - [ ] 사용자: 잘못된 state 시 거부 (수동)
 
 ### T7 — 백그라운드 메시지 라우터 확장 (`src/background/messages.ts`, `index.ts`)
 

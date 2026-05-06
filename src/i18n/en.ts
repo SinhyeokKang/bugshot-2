@@ -298,6 +298,8 @@ const en = {
   "oauth.error.tokenRefresh": "Token refresh failed ({status}) {text}",
   "oauth.error.tokenPersist": "Failed to persist tokens. Please sign in again. ({message})",
   "oauth.error.refreshExhausted": "Authentication still failing after token refresh. Please sign in again.",
+  "oauth.error.github.notConfiguredClient": "GitHub OAuth app is not configured. Set VITE_GITHUB_CLIENT_ID.",
+  "oauth.error.github.refreshUnavailable": "GitHub access token expired but no refresh token is available. Please sign in again.",
 
   // Network Log
   "networkLog.toggle.label": "Attach network logs",

@@ -1,9 +1,15 @@
 import type { JiraAuth, JiraOAuthAuth } from "@/types/jira";
+import type { GithubAuth, GithubOAuthAuth } from "@/types/github";
 
 export const SETTINGS_STORAGE_KEY = "bugshot-settings";
 
 interface SettingsEnvelope {
-  state?: { accounts?: { jira?: { auth?: JiraAuth } } };
+  state?: {
+    accounts?: {
+      jira?: { auth?: JiraAuth };
+      github?: { auth?: GithubAuth };
+    };
+  };
   version?: number;
 }
 
@@ -36,6 +42,24 @@ export async function writeStoredOAuthTokens(
     ...cur,
     accessToken: auth.accessToken,
     refreshToken: auth.refreshToken,
+    expiresAt: auth.expiresAt,
+  };
+  const next = typeof raw === "string" ? JSON.stringify(envelope) : envelope;
+  await chrome.storage.local.set({ [SETTINGS_STORAGE_KEY]: next });
+}
+
+export async function writeStoredGithubOAuthTokens(
+  auth: GithubOAuthAuth,
+): Promise<void> {
+  const { raw, envelope } = await readEnvelope();
+  const cur = envelope?.state?.accounts?.github?.auth;
+  if (!cur || cur.kind !== "oauth") return;
+  envelope!.state!.accounts!.github!.auth = {
+    ...cur,
+    accessToken: auth.accessToken,
+    tokenType: auth.tokenType,
+    scope: auth.scope,
+    refreshToken: auth.refreshToken ?? cur.refreshToken,
     expiresAt: auth.expiresAt,
   };
   const next = typeof raw === "string" ? JSON.stringify(envelope) : envelope;

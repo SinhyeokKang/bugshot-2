@@ -296,6 +296,8 @@ const ko = {
   "oauth.error.tokenRefresh": "토큰 갱신 실패 ({status}) {text}",
   "oauth.error.tokenPersist": "토큰 저장 실패. 다시 로그인이 필요합니다. ({message})",
   "oauth.error.refreshExhausted": "토큰 갱신 후에도 인증 실패. 다시 로그인이 필요합니다.",
+  "oauth.error.github.notConfiguredClient": "GitHub OAuth 앱이 설정되지 않았습니다. VITE_GITHUB_CLIENT_ID 환경 변수를 지정하세요.",
+  "oauth.error.github.refreshUnavailable": "GitHub access token이 만료되었지만 refresh token이 없습니다. 다시 로그인이 필요합니다.",
 
   // Network Log
   "networkLog.toggle.label": "네트워크 로그 첨부",
