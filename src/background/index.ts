@@ -28,6 +28,15 @@ const BG_REQUEST_TYPES = new Set([
   "jira.getIssueStatus",
   "jira.searchEpics",
   "jira.submitIssue",
+  "github.oauth.available",
+  "github.startOAuth",
+  "github.testPat",
+  "github.disconnect",
+  "github.getMyself",
+  "github.searchRepos",
+  "github.getLabels",
+  "github.searchAssignees",
+  "github.submitIssue",
 ]);
 
 function disableGlobalSidePanel(): void {
