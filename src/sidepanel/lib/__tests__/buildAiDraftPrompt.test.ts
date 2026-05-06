@@ -28,7 +28,7 @@ describe("buildAiDraftPrompt", () => {
     });
     expect(prompt).toContain("<button>");
     expect(prompt).toContain("div.card > button");
-    expect(prompt).toContain('border-radius: "8px" → "4px"');
+    expect(prompt).toContain('border-radius: current="8px" → desired="4px"');
     expect(prompt).toContain("--radius-xxl: 16px");
   });
 
