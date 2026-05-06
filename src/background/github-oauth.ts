@@ -10,7 +10,7 @@ const PROXY_URL = (import.meta.env.VITE_OAUTH_PROXY_URL ?? "").replace(
   "",
 );
 const AUTHORIZE_URL = "https://github.com/login/oauth/authorize";
-const SCOPES = ["repo"];
+const SCOPES = ["repo", "user:email"];
 const TOKEN_REFRESH_THRESHOLD_MS = 60_000;
 
 export function isGithubOAuthConfigured(): boolean {
@@ -101,7 +101,7 @@ export async function startGithubOAuth(): Promise<GithubOAuthAuth> {
     grantedAt: Date.now(),
   };
   const me = await getMyself(auth);
-  return { ...auth, viewerLogin: me.login };
+  return { ...auth, viewerLogin: me.login, viewerEmail: me.email };
 }
 
 async function exchangeCodeForTokens(code: string): Promise<GithubTokenResponse> {

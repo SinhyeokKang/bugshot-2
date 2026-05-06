@@ -130,11 +130,6 @@ export function RepoCombobox({ value, onChange, disabled }: Props) {
                             </span>
                           ) : null}
                         </div>
-                        {r.private ? (
-                          <span className="ml-2 shrink-0 rounded border border-input px-1.5 py-0.5 text-[10px] text-muted-foreground">
-                            private
-                          </span>
-                        ) : null}
                       </CommandItem>
                     );
                   })}

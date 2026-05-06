@@ -18,7 +18,7 @@ export function SettingsTab() {
         onValueChange={(v) => setSub(v as PlatformSubTab)}
         className="flex min-h-0 flex-1 flex-col gap-0"
       >
-        <div className="border-b px-4 pt-4">
+        <div className="px-4 pt-4">
           <TabsList className="grid h-9 w-full grid-cols-2">
             <TabsTrigger value="jira">{t("platform.tab.jira")}</TabsTrigger>
             <TabsTrigger value="github">{t("platform.tab.github")}</TabsTrigger>

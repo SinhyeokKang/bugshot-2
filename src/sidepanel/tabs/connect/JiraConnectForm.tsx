@@ -556,7 +556,7 @@ function JiraSummary() {
         </CardContent>
       </Card>
       <p className="text-xs text-muted-foreground">
-        {t("settings.connected")}
+        {t("platform.connected", { platform: t("platform.tab.jira") })}
       </p>
     </div>
   );
@@ -565,19 +565,20 @@ function JiraSummary() {
 function DisconnectButton() {
   const t = useT();
   const removeAccount = useSettingsStore((s) => s.removeAccount);
+  const platform = t("platform.tab.jira");
 
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
         <Button variant="outline" className="text-destructive">
-          {t("settings.disconnect")}
+          {t("platform.disconnect")}
         </Button>
       </AlertDialogTrigger>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>{t("settings.disconnect.title")}</AlertDialogTitle>
+          <AlertDialogTitle>{t("platform.disconnect.title", { platform })}</AlertDialogTitle>
           <AlertDialogDescription>
-            {t("settings.disconnect.body")}
+            {t("platform.disconnect.body")}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
@@ -585,7 +586,7 @@ function DisconnectButton() {
           <AlertDialogAction
             onClick={() => removeAccount("jira")}
           >
-            {t("settings.disconnect.confirm")}
+            {t("platform.disconnect.confirm")}
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

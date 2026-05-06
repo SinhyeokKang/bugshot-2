@@ -27,8 +27,8 @@ const en = {
   "app.tab.appSettings": "Settings",
   "app.unsupported.title": "Unavailable on this page",
   "app.unsupported.body": "Please run BugShot on a web page (http, https, file).",
-  "app.oauthExpired.title": "Jira auth has expired",
-  "app.oauthExpired.body": "Please reconnect Jira.",
+  "platform.oauthExpired.title": "{platform} authentication has expired",
+  "platform.oauthExpired.body": "Please reconnect {platform}.",
   "app.pickerUnavailable.title": "Unavailable on this page",
   "app.pickerUnavailable.body": "Chrome policy prevents BugShot from running on the Chrome Web Store and similar restricted pages. Try another page.",
   "app.iframeUnsupported.title": "Elements inside iframes cannot be selected",
@@ -69,10 +69,9 @@ const en = {
   // Jira (shared)
   "jira.submitted": "Issue submitted",
   "jira.submit": "Submit issue",
-  "jira.notConnected.title": "Jira is not connected",
-  "jira.notConnected.body": "To create Jira issues, connect Jira in the settings tab first.",
-  "github.notConnected": "GitHub is not connected. Connect it in the integration settings first.",
-  "jira.connectFirst": "Connect Jira in the settings tab first",
+  "platform.notConnected.title": "{platform} is not connected",
+  "platform.notConnected.body": "To create {platform} issues, connect {platform} in the integration settings tab first.",
+  "platform.connectFirst": "Connect {platform} in the integration settings tab first",
 
   // Style editor
   "editor.resetChanges": "Reset changes",
@@ -173,7 +172,7 @@ const en = {
   "issueList.empty": "No issues yet",
   "issueList.deleteAll": "Delete all",
   "issueList.deleteAll.title": "Delete all issues?",
-  "issueList.deleteAll.body": "Only BugShot's list will be cleared. Issues in Jira won't be affected.",
+  "issueList.deleteAll.body": "Only BugShot's list will be cleared. Issues in external platforms won't be affected.",
   "issueList.refresh": "Refresh",
   "issueList.draft": "Draft",
   "issueList.deleteDraft.title": "Delete this draft?",
@@ -211,11 +210,10 @@ const en = {
   "settings.projectDialog.label": "Project",
   "settings.titlePrefix": "Title prefix",
   "settings.titlePrefix.help": "Automatically prepended to issue titles. Leave empty to disable.",
-  "settings.connected": "Connected to Jira successfully.",
-  "settings.disconnect": "Disconnect Jira",
-  "settings.disconnect.title": "Disconnect from Jira?",
-  "settings.disconnect.body": "Credentials and project settings will be cleared. Re-authentication is required to reconnect.",
-  "settings.disconnect.confirm": "Disconnect",
+  "platform.connected": "Connected to {platform} successfully.",
+  "platform.disconnect.title": "Disconnect from {platform}?",
+  "platform.disconnect.body": "Credentials and settings will be cleared. Re-authentication is required to reconnect.",
+  "platform.disconnect.confirm": "Disconnect",
 
   // App settings
   "appSettings.theme": "Theme",
@@ -263,7 +261,7 @@ const en = {
   "md.noValue": "(none)",
 
   // Background errors
-  "bg.error.network": "Check your network connection. Cannot reach Jira server.",
+  "bg.error.network": "Check your network connection. Cannot reach external server.",
   "bg.error.communication": "Extension communication error. Please refresh the page.",
   "bg.error.unknown": "An unknown error occurred.",
 
@@ -285,10 +283,13 @@ const en = {
   "platform.empty.body": "Connect a platform in the Integrations tab first.",
 
   // GitHub UI
+  "github.onboarding.title": "Connect GitHub",
+  "github.onboarding.body": "Sign in with GitHub or use a Personal Access Token.",
   "github.oauthLogin": "Sign in with GitHub",
+  "github.patButton": "PAT",
+  "github.patDialog.title": "PAT Authentication",
+  "github.patDialog.body": "Enter your GitHub Personal Access Token. 'repo' scope is required; 'user:email' is recommended.",
   "github.connecting": "Connecting...",
-  "github.patSection.title": "Personal Access Token",
-  "github.patSection.help": "Generate a PAT with 'repo' scope at GitHub > Settings > Developer settings > Personal access tokens.",
   "github.patLabel": "Personal Access Token",
   "github.patPlaceholder": "ghp_...",
   "github.patSave": "Save",
@@ -306,6 +307,7 @@ const en = {
   "github.field.assignees.empty": "No assignees",
   "github.field.assignees.search": "Search assignees",
   "github.field.requireRepo": "Select a repository first",
+  "github.section.connection": "GitHub connection",
   "github.section.repo": "Repository",
   "github.section.issueSettings": "Issue settings",
   "github.oauth.notConfigured": "GitHub OAuth env vars (VITE_GITHUB_CLIENT_ID, VITE_OAUTH_PROXY_URL) are not set. Only PAT authentication is available.",

@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Check, ChevronsUpDown, Loader2, X } from "lucide-react";
 import { useT } from "@/i18n";
-import { Button } from "@/components/ui/button";
 import {
   Command,
   CommandEmpty,
@@ -78,22 +77,51 @@ export function LabelMultiSelect({ owner, repo, value, onChange }: Props) {
     <div className="flex flex-col gap-1.5">
       <Popover open={open} onOpenChange={(v) => ready && setOpen(v)}>
         <PopoverTrigger asChild>
-          <Button
-            variant="outline"
+          <div
             role="combobox"
             aria-expanded={open}
-            disabled={!ready}
-            className="w-full justify-between font-normal"
+            aria-disabled={!ready}
+            tabIndex={ready ? 0 : -1}
+            onKeyDown={(e) => {
+              if (!ready) return;
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                setOpen(true);
+              }
+            }}
+            className={cn(
+              "flex min-h-9 w-full cursor-pointer items-center justify-between gap-2 rounded-md border border-input bg-transparent px-3 py-1.5 text-sm shadow-sm hover:bg-accent hover:text-accent-foreground",
+              !ready && "cursor-not-allowed opacity-50 hover:bg-transparent",
+            )}
           >
-            <span className={cn("min-w-0 flex-1 truncate text-left", value.length === 0 && "text-muted-foreground")}>
-              {!ready
-                ? t("github.field.requireRepo")
-                : value.length === 0
-                  ? t("github.field.labels.placeholder")
-                  : `${value.length} selected`}
-            </span>
-            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-          </Button>
+            <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
+              {!ready ? (
+                <span className="text-muted-foreground">{t("github.field.requireRepo")}</span>
+              ) : value.length === 0 ? (
+                <span className="text-muted-foreground">{t("github.field.labels.placeholder")}</span>
+              ) : (
+                value.map((name) => (
+                  <span
+                    key={name}
+                    className="inline-flex items-center gap-1 rounded-md border border-input bg-muted/50 px-1.5 py-0.5 text-[11px] font-normal"
+                  >
+                    {name}
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        toggle(name);
+                      }}
+                      className="text-muted-foreground transition-colors hover:text-foreground"
+                    >
+                      <X className="h-3 w-3" />
+                    </button>
+                  </span>
+                ))
+              )}
+            </div>
+            <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
+          </div>
         </PopoverTrigger>
         <PopoverContent
           className="w-[var(--radix-popover-trigger-width)] p-0"
@@ -142,26 +170,6 @@ export function LabelMultiSelect({ owner, repo, value, onChange }: Props) {
           </Command>
         </PopoverContent>
       </Popover>
-
-      {value.length > 0 ? (
-        <div className="flex flex-wrap gap-1">
-          {value.map((name) => (
-            <span
-              key={name}
-              className="inline-flex items-center gap-1 rounded-md border border-input bg-muted/50 px-1.5 py-0.5 text-[11px]"
-            >
-              {name}
-              <button
-                type="button"
-                onClick={() => toggle(name)}
-                className="text-muted-foreground transition-colors hover:text-foreground"
-              >
-                <X className="h-3 w-3" />
-              </button>
-            </span>
-          ))}
-        </div>
-      ) : null}
     </div>
   );
 }

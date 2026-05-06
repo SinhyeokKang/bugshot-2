@@ -30,13 +30,13 @@ import { readStoredAuth, readStoredGithubAuth } from "@/lib/settings-storage";
 
 async function loadAuth(): Promise<JiraAuth> {
   const auth = await readStoredAuth();
-  if (!auth) throw new Error(t("jira.notConnected.title"));
+  if (!auth) throw new Error(t("platform.notConnected.title", { platform: t("platform.tab.jira") }));
   return auth;
 }
 
 async function loadGithubAuth(): Promise<GithubAuth> {
   const auth = await readStoredGithubAuth();
-  if (!auth) throw new Error(t("github.notConnected"));
+  if (!auth) throw new Error(t("platform.notConnected.title", { platform: t("platform.tab.github") }));
   return auth;
 }
 

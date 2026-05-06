@@ -230,7 +230,7 @@ export function IssueCreateModal() {
         size="lg"
         disabled={!configured}
         onClick={() => setOpen(true)}
-        title={configured ? undefined : t("jira.connectFirst")}
+        title={configured ? undefined : t("platform.connectFirst", { platform: t("platform.tab.jira") })}
       >
         {t("jira.submit")}
       </Button>

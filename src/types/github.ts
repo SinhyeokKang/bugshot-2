@@ -4,6 +4,7 @@ export interface GithubPatAuth {
   kind: "pat";
   pat: string;
   viewerLogin: string;
+  viewerEmail?: string;
 }
 
 export interface GithubOAuthAuth {
@@ -14,6 +15,7 @@ export interface GithubOAuthAuth {
   refreshToken?: string;
   expiresAt?: number;
   viewerLogin: string;
+  viewerEmail?: string;
   grantedAt: number;
 }
 
@@ -29,6 +31,7 @@ export interface GithubDefaults {
 export interface GithubAccount extends PlatformAccountBase<"github"> {
   auth: GithubAuth;
   defaults: GithubDefaults;
+  titlePrefix?: string;
 }
 
 export interface GithubMyself {

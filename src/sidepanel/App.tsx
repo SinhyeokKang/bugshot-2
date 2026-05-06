@@ -204,9 +204,9 @@ export default function App() {
       <AlertDialog open={oauthExpired} onOpenChange={setOAuthExpired}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t("app.oauthExpired.title")}</AlertDialogTitle>
+            <AlertDialogTitle>{t("platform.oauthExpired.title", { platform: t("platform.tab.jira") })}</AlertDialogTitle>
             <AlertDialogDescription>
-              {t("app.oauthExpired.body")}
+              {t("platform.oauthExpired.body", { platform: t("platform.tab.jira") })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>

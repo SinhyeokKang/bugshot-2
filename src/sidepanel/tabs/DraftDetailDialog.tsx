@@ -326,9 +326,9 @@ export function DraftDetailDialog({
               {!configured ? (
                 <Alert variant="ghost">
                   <Info className="h-4 w-4" />
-                  <AlertTitle>{t("jira.notConnected.title")}</AlertTitle>
+                  <AlertTitle>{t("platform.notConnected.title", { platform: t("platform.tab.jira") })}</AlertTitle>
                   <AlertDescription>
-                    {t("jira.notConnected.body")}
+                    {t("platform.notConnected.body", { platform: t("platform.tab.jira") })}
                   </AlertDescription>
                 </Alert>
               ) : null}
