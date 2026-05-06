@@ -32,6 +32,11 @@ export async function readStoredAuth(): Promise<JiraAuth | null> {
   return envelope?.state?.accounts?.jira?.auth ?? null;
 }
 
+export async function readStoredGithubAuth(): Promise<GithubAuth | null> {
+  const { envelope } = await readEnvelope();
+  return envelope?.state?.accounts?.github?.auth ?? null;
+}
+
 export async function writeStoredOAuthTokens(
   auth: JiraOAuthAuth,
 ): Promise<void> {

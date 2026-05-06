@@ -12,6 +12,15 @@ import type {
   JiraSubmitResult,
   JiraUser,
 } from "./jira";
+import type {
+  GithubCreateIssuePayload,
+  GithubCreateIssueResult,
+  GithubLabel,
+  GithubMyself,
+  GithubOAuthAuth,
+  GithubRepo,
+  GithubUser,
+} from "./github";
 
 export interface OAuthStartResultMsg {
   sites: JiraSite[];
@@ -42,6 +51,18 @@ export type BgRequest =
       payload: JiraCreateIssuePayload;
       attachments: JiraAttachmentInput[];
       relatesKey?: string;
+    }
+  | { type: "github.oauth.available" }
+  | { type: "github.startOAuth" }
+  | { type: "github.testPat"; pat: string }
+  | { type: "github.disconnect" }
+  | { type: "github.getMyself" }
+  | { type: "github.searchRepos"; query: string }
+  | { type: "github.getLabels"; owner: string; repo: string }
+  | { type: "github.searchAssignees"; owner: string; repo: string }
+  | {
+      type: "github.submitIssue";
+      payload: GithubCreateIssuePayload;
     };
 
 export type BgResponse<T = unknown> =
@@ -131,4 +152,14 @@ export type {
   JiraSite,
   JiraSubmitResult,
   JiraUser,
+};
+
+export type {
+  GithubCreateIssuePayload,
+  GithubCreateIssueResult,
+  GithubLabel,
+  GithubMyself,
+  GithubOAuthAuth,
+  GithubRepo,
+  GithubUser,
 };

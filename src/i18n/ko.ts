@@ -69,6 +69,7 @@ const ko = {
   "jira.submit": "이슈 제출",
   "jira.notConnected.title": "Jira가 연결되어 있지 않습니다",
   "jira.notConnected.body": "Jira 이슈를 생성하시려면, 연동 탭에서 Jira를 먼저 연결해주세요.",
+  "github.notConnected": "GitHub가 연결되어 있지 않습니다. 연동 설정에서 먼저 연결하세요.",
   "jira.connectFirst": "설정 탭에서 Jira를 먼저 연결하세요",
 
   // Style editor

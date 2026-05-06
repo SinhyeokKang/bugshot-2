@@ -104,13 +104,17 @@
   - [ ] 사용자: 실 OAuth App으로 dev에서 라운드트립 1회
   - [ ] 사용자: 잘못된 state 시 거부 (수동)
 
-### T7 — 백그라운드 메시지 라우터 확장 (`src/background/messages.ts`, `index.ts`)
+### T7 — 백그라운드 메시지 라우터 확장 (`src/background/messages.ts`, `index.ts`) ✅ 완료
 
-- 신규 메시지 타입 등록: `github.startOAuth`, `github.testPat`, `github.disconnect`, `github.searchRepos`, `github.getLabels`, `github.searchAssignees`, `github.submitIssue`. 모두 `return true` + async IIFE.
-- 핸들러는 settings-store의 `accounts.github`를 읽어 어댑터 호출.
+- 신규 메시지 타입 등록 (총 9개): `github.oauth.available`, `github.startOAuth`, `github.testPat`, `github.disconnect`, `github.getMyself`, `github.searchRepos`, `github.getLabels`, `github.searchAssignees`, `github.submitIssue`. exhaustive switch — `_exhaustive: never` 가드 통과.
+- 핸들러는 `loadGithubAuth()`(`readStoredGithubAuth`로 envelope에서 직접 읽음)로 인증 로드 후 어댑터 호출.
+- `github-oauth.ts` import 자체로 `setGithubRefreshHook` 등록 (모듈 사이드 이펙트).
+- types/messages.ts에 GithubCreateIssuePayload 등 7개 타입 re-export.
+- i18n `github.notConnected` 추가 (ko/en).
 - 검증:
-  - [ ] `pnpm typecheck`
-  - [ ] 수동 sendBg 라운드트립(devtools에서 7개 메시지 각각)
+  - [x] `pnpm typecheck` 그린 (exhaustive switch 통과)
+  - [x] `pnpm test` 195 통과 (라우터 자체는 테스트 안 함 — 디스패처는 안의 변환 로직 T5/T6/T8 테스트가 커버)
+  - [ ] 사용자: 실 OAuth deploy 후 9개 메시지 devtools sendBg 라운드트립
 
 ### T8 — buildGithubIssueBody (`src/sidepanel/lib/buildGithubIssueBody.ts` + 테스트) ✅ 완료
 

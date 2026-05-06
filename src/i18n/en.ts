@@ -71,6 +71,7 @@ const en = {
   "jira.submit": "Submit issue",
   "jira.notConnected.title": "Jira is not connected",
   "jira.notConnected.body": "To create Jira issues, connect Jira in the settings tab first.",
+  "github.notConnected": "GitHub is not connected. Connect it in the integration settings first.",
   "jira.connectFirst": "Connect Jira in the settings tab first",
 
   // Style editor

@@ -1,6 +1,7 @@
 import { t } from "@/i18n";
 import { IMAGE_PLACEHOLDER } from "@/lib/adf-sentinels";
 import type { JiraAttachmentInput, JiraAuth, JiraSubmitResult } from "@/types/jira";
+import type { GithubAuth, GithubCreateIssueResult } from "@/types/github";
 import type { BgRequest } from "@/types/messages";
 import {
   createIssue,
@@ -15,12 +16,27 @@ import {
   updateIssueDescription,
   uploadAttachment,
 } from "./jira-api";
+import {
+  createIssue as createGithubIssue,
+  getMyself as githubGetMyself,
+  getRepoAssignees,
+  getRepoLabels,
+  searchRepos,
+} from "./github-api";
 import { isOAuthConfigured, startOAuthFlow } from "./oauth";
-import { readStoredAuth } from "@/lib/settings-storage";
+// 모듈 import 자체로 setGithubRefreshHook 등록 (T6)
+import { isGithubOAuthConfigured, startGithubOAuth } from "./github-oauth";
+import { readStoredAuth, readStoredGithubAuth } from "@/lib/settings-storage";
 
 async function loadAuth(): Promise<JiraAuth> {
   const auth = await readStoredAuth();
   if (!auth) throw new Error(t("jira.notConnected.title"));
+  return auth;
+}
+
+async function loadGithubAuth(): Promise<GithubAuth> {
+  const auth = await readStoredGithubAuth();
+  if (!auth) throw new Error(t("github.notConnected"));
   return auth;
 }
 
@@ -78,11 +94,54 @@ export async function handleMessage(
         message.relatesKey,
       );
 
+    case "github.oauth.available":
+      return { available: isGithubOAuthConfigured() };
+
+    case "github.startOAuth":
+      return startGithubOAuth();
+
+    case "github.testPat":
+      return githubGetMyself({
+        kind: "pat",
+        pat: message.pat,
+        viewerLogin: "",
+      });
+
+    case "github.disconnect":
+      // 스토어 측 removeAccount("github")가 실제 정리. bg는 무상태 (서비스 워커는 상태 보관 안 함).
+      return { ok: true };
+
+    case "github.getMyself":
+      return githubGetMyself(await loadGithubAuth());
+
+    case "github.searchRepos":
+      return searchRepos(await loadGithubAuth(), message.query);
+
+    case "github.getLabels":
+      return getRepoLabels(await loadGithubAuth(), message.owner, message.repo);
+
+    case "github.searchAssignees":
+      return getRepoAssignees(
+        await loadGithubAuth(),
+        message.owner,
+        message.repo,
+      );
+
+    case "github.submitIssue":
+      return submitGithubIssue(await loadGithubAuth(), message.payload);
+
     default: {
       const _exhaustive: never = message;
       throw new Error(`unknown message: ${JSON.stringify(_exhaustive)}`);
     }
   }
+}
+
+async function submitGithubIssue(
+  auth: GithubAuth,
+  payload: import("@/types/github").GithubCreateIssuePayload,
+): Promise<GithubCreateIssueResult> {
+  return createGithubIssue(auth, payload);
 }
 
 async function submitIssue(
