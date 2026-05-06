@@ -35,15 +35,15 @@ GitHub 1차와 동일:
 
 ## 태스크
 
-### T1 — 타입 정의 (`src/types/linear.ts`, `platform.ts` 변경)
+### T1 — 타입 정의 (`src/types/linear.ts`, `platform.ts` 변경) ✅ 완료
 
 - 신규: `src/types/linear.ts` — `LinearAuth`, `LinearAccount`, `LinearDefaults`, `LinearMyself`, `LinearTeam`, `LinearProject`, `LinearLabel`, `LinearUser`, `LinearCreateIssuePayload`, `LinearCreateIssueResult`, `LinearIssueStatus`.
 - 변경: `src/types/platform.ts` — `PlatformId`에 `"linear"` 추가, `Accounts.linear?`, `LinearLastSubmitFields`, `LastSubmitFieldsByPlatform.linear?`.
 - 검증:
-  - [ ] `pnpm typecheck` 그린
-  - [ ] 기존 import 영향 없음
+  - [x] `pnpm typecheck` 그린
+  - [x] 기존 import 영향 없음
 
-### T2 — settings-store v4 마이그레이션 (`src/store/settings-store.ts`)
+### T2 — settings-store v4 마이그레이션 (`src/store/settings-store.ts`) ✅ 완료
 
 - `SETTINGS_STORE_VERSION` 3 → 4.
 - `updateLinearAccount(patch)` 액션 추가 (`updateGithubAccount`와 동일 패턴).
@@ -51,23 +51,23 @@ GitHub 1차와 동일:
 - v3→v4 마이그레이션: 멱등 가드. `accounts` 딕트 존재 시 그대로 통과(데이터 변환 없음).
 - `isLinearAccountComplete(acc)` 헬퍼 추가.
 - 검증:
-  - [ ] `__tests__/settings-store.test.ts`: v3 fixture → v4 passthrough(멱등), linear account set/remove round-trip
-  - [ ] `pnpm typecheck`
-  - [ ] `pnpm test`
+  - [x] `__tests__/settings-store.test.ts`: v3 fixture → v4 passthrough(멱등), linear account set/remove round-trip
+  - [x] `pnpm typecheck`
+  - [x] `pnpm test`
   - [ ] 수동: 기존 Jira/GitHub 연결 보존
 
-### T3 — issues-store + messages.ts 확장
+### T3 — issues-store + messages.ts 확장 ✅ 완료
 
-- `IssueRecord`에 `linearIdentifier?`, `linearTeamKey?`, `linearLabelNames?` optional 필드 추가. 버전 증가 불필요.
+- `IssueRecord`에 `linearIdentifier?`, `linearTeamKey?`, `linearLabelName?` optional 필드 추가. 버전 증가 불필요.
 - `src/types/messages.ts`:
   - Linear 타입 re-export 추가.
   - `BgRequest` union에 `linear.*` 11개 멤버 추가.
   - `getOAuthErrorPlatform`에 `"linear"` 인식 추가.
 - 검증:
-  - [ ] `pnpm typecheck`(exhaustive switch가 T6까지 일시 에러 — T6에서 해소)
-  - [ ] `__tests__/messages.test.ts` 갱신: `getOAuthErrorPlatform("linear")` 반환 검증
+  - [x] `pnpm typecheck`(T6에서 exhaustive switch 해소)
+  - [x] `__tests__/messages.test.ts` 갱신: `getOAuthErrorPlatform("linear")` 반환 검증
 
-### T4 — linear-api 어댑터 (`src/background/linear-api.ts`)
+### T4 — linear-api 어댑터 (`src/background/linear-api.ts`) ✅ 완료
 
 - `LinearError` 에러 클래스.
 - `buildLinearAuthHeader(auth)` — API Key: `${apiKey}`, OAuth: `Bearer ${accessToken}`.
@@ -76,11 +76,11 @@ GitHub 1차와 동일:
 - 쿼리 함수: `getMyself`, `getTeams`, `getProjects(teamId)`, `getLabels(teamId)`, `getMembers(teamId)`, `createIssue(payload)`, `getIssueStatus(issueId)`.
 - `extractLinearErrors(errors)` / `messageForLinearStatus(status)` 순수 헬퍼.
 - 검증:
-  - [ ] `__tests__/linear-api.test.ts`: auth header(API Key vs OAuth), GraphQL error parser(200+errors, HTTP errors), 쿼리 결과 매핑, `extractLinearErrors`
-  - [ ] `pnpm typecheck`
-  - [ ] `pnpm test`
+  - [x] `__tests__/linear-api.test.ts`: auth header(API Key vs OAuth), GraphQL error parser(200+errors, HTTP errors), 쿼리 결과 매핑, `extractLinearErrors`
+  - [x] `pnpm typecheck`
+  - [x] `pnpm test`
 
-### T5 — linear-oauth PKCE 헬퍼 (`src/background/linear-oauth.ts`)
+### T5 — linear-oauth PKCE 헬퍼 (`src/background/linear-oauth.ts`) ✅ 완료
 
 - `isLinearOAuthConfigured()` — `!!LINEAR_CLIENT_ID` (proxy 체크 없음).
 - `generatePkceChallenge()` — `code_verifier` + `code_challenge` 생성. 순수 함수.
@@ -90,11 +90,11 @@ GitHub 1차와 동일:
 - `refreshOnceWithLock` + `setLinearRefreshHook(refreshOnceWithLock)` 모듈 사이드 이펙트.
 - `src/lib/settings-storage.ts`에 `readStoredLinearAuth()` + `writeStoredLinearOAuthTokens()` 추가.
 - 검증:
-  - [ ] `__tests__/linear-oauth.test.ts`: `parseLinearCallbackParams` 5 케이스 (정상 / error param / state mismatch / code missing / cancel), `generatePkceChallenge` (verifier 길이, challenge 포맷)
-  - [ ] `pnpm test`
+  - [x] `__tests__/linear-oauth.test.ts`: `parseLinearCallbackParams` 5 케이스 (정상 / error param / state mismatch / code missing / cancel), `generatePkceChallenge` (verifier 길이, challenge 포맷)
+  - [x] `pnpm test`
   - [ ] 수동: 실 OAuth App으로 라운드트립 1회
 
-### T6 — 백그라운드 메시지 라우터 (`src/background/messages.ts`, `index.ts`)
+### T6 — 백그라운드 메시지 라우터 (`src/background/messages.ts`, `index.ts`) ✅ 완료
 
 - `linear-api` 함수 import + `linear-oauth` 모듈 import (사이드 이펙트 hook 등록).
 - `loadLinearAuth()` 헬퍼 (`readStoredLinearAuth`로 envelope에서 직접 읽음).
@@ -102,11 +102,11 @@ GitHub 1차와 동일:
 - `index.ts`에 `LinearError` 에러 직렬화 추가.
 - `BG_REQUEST_TYPES` 셋에 `linear.*` 타입 추가.
 - 검증:
-  - [ ] `pnpm typecheck` 그린 (exhaustive switch 통과)
-  - [ ] `pnpm test`
+  - [x] `pnpm typecheck` 그린 (exhaustive switch 통과)
+  - [x] `pnpm test`
   - [ ] 수동: devtools sendBg로 각 메시지 라운드트립
 
-### T7 — buildLinearIssueBody (`src/sidepanel/lib/buildLinearIssueBody.ts` + 테스트)
+### T7 — buildLinearIssueBody (`src/sidepanel/lib/buildLinearIssueBody.ts` + 테스트) ✅ 완료
 
 - 자기충족 빌더 — `MarkdownContext` 재사용.
 - GitHub과 동일 구조: 환경 섹션, 사용자 섹션(description/steps/expected/notes), 스타일 변경 표, 첨부 목록, 로그 요약, 푸터.
@@ -114,19 +114,19 @@ GitHub 1차와 동일:
 - base64 인라인 시도 없음 — 출력: `{ body: string }`.
 - i18n: `linear.attachmentNotInline` 키.
 - 검증:
-  - [ ] `__tests__/buildLinearIssueBody.test.ts`: body 구조(환경 섹션, 사용자 섹션, 첨부, 푸터), 로그 핸들링
-  - [ ] `pnpm test`
+  - [x] `__tests__/buildLinearIssueBody.test.ts`: body 구조(환경 섹션, 사용자 섹션, 첨부, 푸터), 로그 핸들링
+  - [x] `pnpm test`
 
-### T8 — manifest + 환경 (`manifest.config.ts`)
+### T8 — manifest + 환경 (`manifest.config.ts`) ✅ 완료
 
 - `host_permissions`에 `"https://api.linear.app/*"` 추가. `https://linear.app/*`는 불필요(`launchWebAuthFlow`가 authorize URL 처리).
-- `.env.example`에 `VITE_LINEAR_CLIENT_ID=` 추가 (PKCE 설명 주석).
+- `.env.local`에 `VITE_LINEAR_CLIENT_ID=` 추가 (PKCE 설명 주석).
 - 검증:
-  - [ ] `pnpm typecheck`
-  - [ ] 수동: `pnpm build` → dist/manifest.json에 `api.linear.app` 포함 확인
+  - [x] `pnpm typecheck`
+  - [x] 수동: `pnpm build` → dist/manifest.json에 `api.linear.app` 포함 확인
   - [ ] 수동: dev 로드 언팩 후 Linear API 호출 성공
 
-### T9 — i18n (`src/i18n/{ko,en}.ts`)
+### T9 — i18n (`src/i18n/{ko,en}.ts`) ✅ 완료
 
 - 전체 `linear.*` 키 추가(T4~T7에서 점진 추가 + T9에서 UI 키 마무리):
   - `platform.tab.linear`
@@ -138,27 +138,27 @@ GitHub 1차와 동일:
   - 기타: `linear.viewerLogin`, `linear.attachmentNotInline`, `linear.field.requireTeam`
   - 이슈 목록 상태: `issueList.linear.{backlog,unstarted,started,completed,cancelled}`
 - 검증:
-  - [ ] `i18n/__tests__/locales.test.ts` 통과 (ko/en 키 패리티)
-  - [ ] `pnpm typecheck`
+  - [x] `i18n/__tests__/locales.test.ts` 통과 (ko/en 키 패리티)
+  - [x] `pnpm typecheck`
   - [ ] 수동: ko/en 토글 시 모든 새 라벨 표시
 
-### T10 — Settings UI (`SettingsTab.tsx`, `connect/LinearConnectForm.tsx`)
+### T10 — Settings UI (`SettingsTab.tsx`, `connect/LinearConnectForm.tsx`) ✅ 완료
 
 - 신규: `src/sidepanel/tabs/connect/LinearConnectForm.tsx`. GithubConnectForm.tsx와 동일 구조.
   - 온보딩: `SiLinear` 아이콘, OAuth 버튼, API Key 버튼/다이얼로그.
   - 연결됨: 뷰어 카드, 기본 Team/Project 셀렉터, title prefix, Disconnect.
 - 변경: `SettingsTab.tsx` — `grid-cols-2` → `grid-cols-3`, Linear 탭 trigger + content 추가.
 - 검증:
-  - [ ] `pnpm typecheck`
-  - [ ] `pnpm test`
+  - [x] `pnpm typecheck`
+  - [x] `pnpm test`
   - [ ] 수동: [Linear] sub-tab 온보딩 노출
   - [ ] 수동: OAuth + API Key 각 1회 성공
   - [ ] 수동: 연결됨 상태에서 뷰어 정보 + defaults 설정
   - [ ] 수동: 연결 해제 후 재연결
 
-### T11 — IssueCreateModal/DraftDetailDialog Linear 라우팅
+### T11 — IssueCreateModal/DraftDetailDialog Linear 라우팅 ✅ 완료
 
-- 신규: `src/sidepanel/tabs/linearFields/` 6파일 — `LinearIssueFields.tsx`, `TeamCombobox.tsx`, `ProjectCombobox.tsx`, `LabelMultiSelect.tsx`, `AssigneeCombobox.tsx`, `PrioritySelect.tsx`.
+- 신규: `src/sidepanel/tabs/linearFields/` 6파일 — `LinearIssueFields.tsx`, `TeamCombobox.tsx`, `ProjectCombobox.tsx`, `LabelCombobox.tsx`, `AssigneeCombobox.tsx`, `PrioritySelect.tsx`.
 - 신규: `src/sidepanel/lib/submitToLinear.ts`.
 - 변경: `IssueCreateModal.tsx`:
   - `SubmitFieldsDialogProps`에 `linearFields`, `setLinearFields` 추가.
@@ -168,23 +168,23 @@ GitHub 1차와 동일:
 - 변경: `DraftDetailDialog.tsx`: 동일 추가.
 - 변경: `App.tsx`: `oauthExpiredPlatform` 레이블에 `"linear"` 추가.
 - 검증:
-  - [ ] `pnpm typecheck`
-  - [ ] `pnpm test`
+  - [x] `pnpm typecheck`
+  - [x] `pnpm test`
   - [ ] 수동: Jira만 연결 → Jira 등록 정상
   - [ ] 수동: GitHub만 연결 → GitHub 등록 정상
   - [ ] 수동: Linear만 연결 → Linear 등록 정상
   - [ ] 수동: 세 플랫폼 연결 → 3-tab 전환 후 각각 등록
-  - [ ] 수동: Team 변경 시 Project/Labels/Assignee 리셋
+  - [ ] 수동: Team 변경 시 Project/Label/Assignee 리셋
 
-### T12 — IssueListTab Linear 표시 + 상태
+### T12 — IssueListTab Linear 표시 + 상태 ✅ 완료
 
 - `PlatformChip`에 `"linear"` + `SiLinear` 아이콘.
 - `SubmittedBadge`에 `"linear"` case: `linear.getIssueStatus` 호출, state type별 색상(backlog/unstarted=default, started=blue, completed=green, cancelled=gray).
-- 카드 메타: `linearTeamKey` + `identifier` + label names 표시.
-- `resolveLinearCoords(issue)` 헬퍼.
+- 카드 메타: `linearIdentifier` + label name 표시.
+- `isRefreshable`에 `"linear"` 지원.
 - 검증:
-  - [ ] `pnpm typecheck`
-  - [ ] `pnpm test` (resolveLinearCoords 헬퍼)
+  - [x] `pnpm typecheck`
+  - [x] `pnpm test`
   - [ ] 수동: 세 플랫폼 entry 혼재 시 정렬·필터·열기 정상
   - [ ] 수동: 새로고침 시 Linear 이슈 상태/제목/라벨 갱신
 

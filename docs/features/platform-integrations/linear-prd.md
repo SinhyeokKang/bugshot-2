@@ -12,7 +12,7 @@ Linear 선택 근거:
 
 ## 목표
 
-1. Linear에 이슈를 등록할 수 있다(Team 필수, Project/Labels/Assignee/Priority 선택 메타 포함).
+1. Linear에 이슈를 등록할 수 있다(Team 필수, Project/Label/Assignee/Priority 선택 메타 포함).
 2. 인증 두 가지 모두 지원: OAuth 2.0 PKCE(클릭 한 번, proxy 불필요) + Personal API Key(수동 입력).
 3. 사용자는 Jira·GitHub·Linear 세 플랫폼을 동시에 연결하고 이슈 작성 시 선택할 수 있다.
 4. 기존 Jira·GitHub 워크플로우는 회귀 없이 동일하게 동작한다.
@@ -31,7 +31,7 @@ Linear 선택 근거:
 
 1. **Linear OAuth 연결 (PKCE)**: 사이드패널 → "연동 설정" 탭 → [Linear] sub-tab → "Linear로 로그인" 버튼 → 새 창에서 Linear authorize → 콜백 → extension이 직접 토큰 교환(proxy 없음) → "{displayName}으로 연결됨" 카드 표시.
 2. **Linear API Key 연결**: 동일 sub-tab → "API Key" 섹션에서 키 입력 → `viewer` 쿼리로 검증 → 연결됨.
-3. **이슈 등록(3개 플랫폼 활성)**: Jira·GitHub·Linear 모두 연결. 등록 다이얼로그 상단에 3-tab 셀렉터. Linear 선택 시 Team combobox(필수) + Project/Labels/Assignee/Priority 필드 동적 렌더. 등록 성공 → 토스트에 Linear issue URL(`https://linear.app/.../issue/ENG-123`).
+3. **이슈 등록(3개 플랫폼 활성)**: Jira·GitHub·Linear 모두 연결. 등록 다이얼로그 상단에 3-tab 셀렉터. Linear 선택 시 Team combobox(필수) + Project/Label/Assignee/Priority 필드 동적 렌더. 등록 성공 → 토스트에 Linear issue URL(`https://linear.app/.../issue/ENG-123`).
 4. **본문 내용**: 마크다운 본문. `MarkdownContext` 기반 빌더. 첨부는 `## Attachments` 섹션에 파일명만 안내(GitHub과 동일한 `attachmentNotInline` 패턴).
 5. **OAuth 토큰 갱신**: Linear access token은 24시간 만료. refresh token으로 `https://api.linear.app/oauth/token`에 직접 갱신(proxy 없음). refresh 실패 시 기존 `onOAuthExpired(platform)` AlertDialog 패턴으로 "Linear" 레이블 재인증 안내.
 6. **기존 사용자 업그레이드**: Jira/GitHub 연결 보존. [Linear] sub-tab에 빈 온보딩 UI.

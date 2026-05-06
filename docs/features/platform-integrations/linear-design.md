@@ -35,7 +35,7 @@
     teamName?: string;
     projectId?: string;
     projectName?: string;
-    labelIds?: string[];
+    labelId?: string;
     assigneeId?: string;
     priority?: number;       // 0=none, 1=urgent, 2=high, 3=medium, 4=low
   }
@@ -64,7 +64,7 @@
     description: string;     // markdown
     projectId?: string;
     assigneeId?: string;
-    labelIds?: string[];
+    labelId?: string;
     priority?: number;
   }
 
@@ -108,9 +108,9 @@
   - 연결됨: 뷰어 카드(name, email, OAuth/API Key 배지) + 기본 Team/Project 선택 + title prefix + Disconnect.
 
 - **`src/sidepanel/tabs/linearFields/LinearIssueFields.tsx`** — 등록 다이얼로그 필드 컨테이너.
-  - `LinearIssueFieldsValue`: `{ teamId?, teamName?, projectId?, projectName?, labelIds: string[], assigneeId?, assigneeName?, priority?: number }`.
+  - `LinearIssueFieldsValue`: `{ teamId?, teamName?, projectId?, projectName?, labelId?: string, assigneeId?, assigneeName?, priority?: number }`.
   - `initialLinearFields(last, defaults)`: `initialGhFields`와 동일한 merge 로직.
-  - 렌더: TeamCombobox(필수) → ProjectCombobox → LabelMultiSelect → AssigneeCombobox → PrioritySelect.
+  - 렌더: TeamCombobox(필수) → ProjectCombobox → LabelCombobox → AssigneeCombobox → PrioritySelect.
 
 - **`src/sidepanel/tabs/linearFields/TeamCombobox.tsx`** — Team 셀렉터.
   - `linear.getTeams` 메시지로 목록 조회. `team.key` + `team.name` 표시.
@@ -120,8 +120,8 @@
   - `teamId` 스코프. team 변경 시 리셋.
   - `linear.getProjects` 메시지 호출.
 
-- **`src/sidepanel/tabs/linearFields/LabelMultiSelect.tsx`** — Label 다중 선택.
-  - `teamId` 스코프. `toggleLabel` 헬퍼 공유(GitHub과 동일).
+- **`src/sidepanel/tabs/linearFields/LabelCombobox.tsx`** — Label 단일 선택.
+  - `teamId` 스코프. GitHub `LabelCombobox`와 동일 패턴.
   - `linear.getLabels` 메시지 호출.
 
 - **`src/sidepanel/tabs/linearFields/AssigneeCombobox.tsx`** — Assignee 단일 선택.
@@ -160,7 +160,7 @@
   - v3→v4 마이그레이션: 멱등 가드. `accounts` 딕트가 이미 있으면 그대로 통과(데이터 변환 없음, 타입 확장만).
 
 - **`src/store/issues-store.ts`**:
-  - `IssueRecord`에 `linearIdentifier?: string`, `linearTeamKey?: string`, `linearLabelNames?: string[]` optional 필드 추가. 버전 증가 불필요(additive optional).
+  - `IssueRecord`에 `linearIdentifier?: string`, `linearTeamKey?: string`, `linearLabelName?: string` optional 필드 추가. 버전 증가 불필요(additive optional).
 
 - **`src/lib/settings-storage.ts`**:
   - `readStoredLinearAuth()` + `writeStoredLinearOAuthTokens()` 추가.
@@ -195,7 +195,7 @@
 - **`src/sidepanel/tabs/IssueListTab.tsx`**:
   - `PlatformChip`에 `"linear"` + `SiLinear` 아이콘.
   - `SubmittedBadge`에 `"linear"` case: `linear.getIssueStatus` 호출. state type별 색상(backlog/unstarted=default, started=blue, completed=green, cancelled=gray).
-  - 카드 메타: `linearTeamKey` + `identifier` + label names 표시.
+  - 카드 메타: `linearTeamKey` + `identifier` + label name 표시.
 
 - **`src/sidepanel/App.tsx`**:
   - `oauthExpiredPlatform` 레이블 해소에 `"linear"` 추가.
@@ -264,11 +264,11 @@ IssueCreateModal:
   PlatformPicker → "linear" 선택
   → Team combobox: bg "linear.getTeams" → 목록
   → Project combobox: bg "linear.getProjects" { teamId } → 목록
-  → Labels: bg "linear.getLabels" { teamId } → 목록
+  → Label: bg "linear.getLabels" { teamId } → 목록
   → Assignee: bg "linear.getMembers" { teamId } → 목록
   → Priority: 정적 드롭다운 0-4
   → 등록: bg "linear.submitIssue" {
-       teamId, title, description: buildLinearIssueBody(ctx), projectId?, assigneeId?, labelIds?, priority?
+       teamId, title, description: buildLinearIssueBody(ctx), projectId?, assigneeId?, labelId?, priority?
      }
   → 응답: { id, identifier: "ENG-123", url: "https://linear.app/..." }
   → markSubmitted + setLastSubmitFields("linear") + setLastSubmittedPlatform("linear")
