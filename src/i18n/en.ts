@@ -68,7 +68,7 @@ const en = {
 
   // Jira (shared)
   "jira.submitted": "Issue submitted",
-  "jira.submit": "Submit issue",
+  "issue.submit": "Submit issue",
   "platform.notConnected.title": "{platform} is not connected",
   "platform.notConnected.body": "To create {platform} issues, connect {platform} in the integration settings tab first.",
   "platform.connectFirst": "Connect {platform} in the integration settings tab first",
@@ -227,6 +227,9 @@ const en = {
   "appSettings.theme.dark": "Dark",
   "appSettings.theme.system": "System",
   "appSettings.issueSections.title": "Issue composition",
+  "appSettings.privacy": "Privacy Policy",
+  "appSettings.review": "Review",
+  "appSettings.contact": "Contact",
 
   // Draft detail
   "draftDetail.title": "Review draft",
@@ -307,6 +310,7 @@ const en = {
   "github.field.labels.search": "Search labels",
   "github.field.labels.summary": "{name} +{n}",
   "github.field.assignees": "Assignees",
+  "github.field.assignees.summary": "{name} +{n}",
   "github.field.assignees.placeholder": "Select assignees...",
   "github.field.assignees.empty": "No assignees",
   "github.field.assignees.search": "Search assignees",

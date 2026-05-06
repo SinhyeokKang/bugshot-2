@@ -1,5 +1,6 @@
 import { Fragment } from "react";
 import { Bug, ListOrdered, Monitor, Moon, StickyNote, Sun, Target } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
@@ -13,7 +14,7 @@ import {
   type LocaleMode,
   type ThemeMode,
 } from "@/store/app-settings-store";
-import { PageScroll, PageShell, Section } from "../components/Section";
+import { PageFooter, PageScroll, PageShell, Section } from "../components/Section";
 
 const LOCALE_OPTIONS: { value: LocaleMode; label: string }[] = [
   { value: "ko", label: "한국어" },
@@ -79,6 +80,29 @@ export function AppSettingsTab() {
           </Card>
         </Section>
       </PageScroll>
+      <PageFooter>
+        <div className="flex items-center justify-between gap-2">
+          <Button
+            variant="outline"
+            onClick={() => chrome.tabs.create({ url: "https://sinhyeokkang.github.io/bugshot-2/privacy" })}
+          >
+            {t("appSettings.privacy")}
+          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              onClick={() => chrome.tabs.create({ url: "https://chromewebstore.google.com/detail/bugshot/ohakhekagkodklkickemonmifdcbhmig/reviews" })}
+            >
+              {t("appSettings.review")}
+            </Button>
+            <Button
+              asChild
+            >
+              <a href="mailto:ox501501@gmail.com">{t("appSettings.contact")}</a>
+            </Button>
+          </div>
+        </div>
+      </PageFooter>
     </PageShell>
   );
 }

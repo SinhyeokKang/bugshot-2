@@ -95,10 +95,10 @@ export default function AnnotationOverlay({
         />
       </div>
       <div className="absolute inset-x-0 bottom-6 z-[10000] flex items-center justify-center gap-2">
-        <Button size="lg" variant="secondary" onClick={onCancel}>
+        <Button variant="secondary" onClick={onCancel}>
           {t("annotation.cancel")}
         </Button>
-        <Button size="lg" onClick={handleComplete}>{t("annotation.done")}</Button>
+        <Button onClick={handleComplete}>{t("annotation.done")}</Button>
       </div>
     </div>
   );

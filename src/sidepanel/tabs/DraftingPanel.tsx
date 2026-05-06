@@ -68,8 +68,9 @@ export function DraftingPanel() {
   const [annotating, setAnnotating] = useState(false);
   const [networkDialogOpen, setNetworkDialogOpen] = useState(false);
   const [consoleDialogOpen, setConsoleDialogOpen] = useState(false);
+  const targetPlatform = useEditorStore((s) => s.targetPlatform);
   const titlePrefix = useSettingsStore(
-    (s) => s.accounts.jira?.titlePrefix ?? "",
+    (s) => s.accounts[targetPlatform]?.titlePrefix ?? "",
   );
   const isElementMode = captureMode === "element";
   const isVideoMode = captureMode === "video";
@@ -307,7 +308,6 @@ export function DraftingPanel() {
           <div className="flex items-center gap-2">
             {isElementMode ? (
               <Button
-                size="lg"
                 variant="outline"
                 onClick={() => backToStyling()}
               >
@@ -315,7 +315,6 @@ export function DraftingPanel() {
               </Button>
             ) : null}
             <Button
-              size="lg"
               onClick={() => {
                 setAnnotating(false);
                 confirmDraft();

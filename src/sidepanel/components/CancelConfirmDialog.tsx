@@ -17,7 +17,7 @@ export function CancelConfirmDialog({ onConfirm }: { onConfirm: () => void }) {
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
-        <Button size="lg" variant="outline" className="text-destructive">
+        <Button variant="outline" className="text-destructive">
           {t("cancelConfirm.trigger")}
         </Button>
       </AlertDialogTrigger>

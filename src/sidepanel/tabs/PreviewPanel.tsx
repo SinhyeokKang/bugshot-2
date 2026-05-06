@@ -284,7 +284,6 @@ export function PreviewPanel() {
         ) : null}
         <div className="flex items-center justify-between gap-2">
           <Button
-            size="lg"
             variant="outline"
             onClick={() => reset()}
           >
@@ -292,7 +291,6 @@ export function PreviewPanel() {
           </Button>
           <div className="flex items-center gap-2">
             <Button
-              size="lg"
               variant="outline"
               onClick={() => backToDraft()}
             >

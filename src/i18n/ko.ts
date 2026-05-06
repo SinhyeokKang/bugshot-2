@@ -66,7 +66,7 @@ const ko = {
 
   // Jira (shared)
   "jira.submitted": "이슈가 제출되었습니다",
-  "jira.submit": "이슈 제출",
+  "issue.submit": "이슈 제출",
   "platform.notConnected.title": "{platform}이(가) 연결되어 있지 않습니다",
   "platform.notConnected.body": "{platform} 이슈를 생성하시려면, 연동 설정 탭에서 {platform}을(를) 먼저 연결해주세요.",
   "platform.connectFirst": "연동 설정 탭에서 {platform}을(를) 먼저 연결하세요",
@@ -225,6 +225,9 @@ const ko = {
   "appSettings.theme.dark": "다크",
   "appSettings.theme.system": "시스템",
   "appSettings.issueSections.title": "이슈 구성",
+  "appSettings.privacy": "개인정보 처리방침",
+  "appSettings.review": "후기",
+  "appSettings.contact": "문의",
 
   // Draft detail
   "draftDetail.title": "초안 검토",
@@ -305,6 +308,7 @@ const ko = {
   "github.field.labels.search": "라벨 검색",
   "github.field.labels.summary": "{name} 외 {n}개",
   "github.field.assignees": "담당자",
+  "github.field.assignees.summary": "{name} 외 {n}명",
   "github.field.assignees.placeholder": "담당자 선택...",
   "github.field.assignees.empty": "담당자 없음",
   "github.field.assignees.search": "담당자 검색",
