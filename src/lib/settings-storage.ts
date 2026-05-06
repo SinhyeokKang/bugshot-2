@@ -1,5 +1,6 @@
 import type { JiraAuth, JiraOAuthAuth } from "@/types/jira";
 import type { GithubAuth, GithubOAuthAuth } from "@/types/github";
+import type { LinearAuth, LinearOAuthAuth } from "@/types/linear";
 
 export const SETTINGS_STORAGE_KEY = "bugshot-settings";
 
@@ -8,6 +9,7 @@ interface SettingsEnvelope {
     accounts?: {
       jira?: { auth?: JiraAuth };
       github?: { auth?: GithubAuth };
+      linear?: { auth?: LinearAuth };
     };
     jiraConfig?: { auth?: JiraAuth };
   };
@@ -69,6 +71,28 @@ export async function writeStoredGithubOAuthTokens(
     scope: auth.scope,
     refreshToken: auth.refreshToken ?? cur.refreshToken,
     expiresAt: auth.expiresAt ?? cur.expiresAt,
+  };
+  const next = typeof raw === "string" ? JSON.stringify(envelope) : envelope;
+  await chrome.storage.local.set({ [SETTINGS_STORAGE_KEY]: next });
+}
+
+export async function readStoredLinearAuth(): Promise<LinearAuth | null> {
+  const { envelope } = await readEnvelope();
+  return envelope?.state?.accounts?.linear?.auth ?? null;
+}
+
+export async function writeStoredLinearOAuthTokens(
+  auth: LinearOAuthAuth,
+): Promise<void> {
+  const { raw, envelope } = await readEnvelope();
+  const cur = envelope?.state?.accounts?.linear?.auth;
+  if (!cur || cur.kind !== "oauth") return;
+  envelope!.state!.accounts!.linear!.auth = {
+    ...cur,
+    accessToken: auth.accessToken,
+    refreshToken: auth.refreshToken,
+    expiresAt: auth.expiresAt,
+    scope: auth.scope,
   };
   const next = typeof raw === "string" ? JSON.stringify(envelope) : envelope;
   await chrome.storage.local.set({ [SETTINGS_STORAGE_KEY]: next });

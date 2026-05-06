@@ -24,10 +24,24 @@ import {
   getRepoLabels,
   searchRepos,
 } from "./github-api";
+import {
+  createIssue as createLinearIssue,
+  getIssueStatus as getLinearIssueStatus,
+  getLabels as getLinearLabels,
+  getMembers as getLinearMembers,
+  getMyself as linearGetMyself,
+  getProjects as getLinearProjects,
+  getTeams as getLinearTeams,
+} from "./linear-api";
 import { isOAuthConfigured, startOAuthFlow } from "./oauth";
-// 모듈 import 자체로 setGithubRefreshHook 등록 (T6)
 import { isGithubOAuthConfigured, startGithubOAuth } from "./github-oauth";
-import { readStoredAuth, readStoredGithubAuth } from "@/lib/settings-storage";
+import { isLinearOAuthConfigured, startLinearOAuth } from "./linear-oauth";
+import {
+  readStoredAuth,
+  readStoredGithubAuth,
+  readStoredLinearAuth,
+} from "@/lib/settings-storage";
+import type { LinearAuth } from "@/types/linear";
 
 async function loadAuth(): Promise<JiraAuth> {
   const auth = await readStoredAuth();
@@ -38,6 +52,12 @@ async function loadAuth(): Promise<JiraAuth> {
 async function loadGithubAuth(): Promise<GithubAuth> {
   const auth = await readStoredGithubAuth();
   if (!auth) throw new Error(t("platform.notConnected.title", { platform: t("platform.tab.github") }));
+  return auth;
+}
+
+async function loadLinearAuth(): Promise<LinearAuth> {
+  const auth = await readStoredLinearAuth();
+  if (!auth) throw new Error(t("platform.notConnected.title", { platform: t("platform.tab.linear") }));
   return auth;
 }
 
@@ -138,6 +158,43 @@ export async function handleMessage(
         message.repo,
         message.number,
       );
+
+    case "linear.oauth.available":
+      return { available: isLinearOAuthConfigured() };
+
+    case "linear.startOAuth":
+      return startLinearOAuth();
+
+    case "linear.testApiKey":
+      return linearGetMyself({
+        kind: "apiKey",
+        apiKey: message.apiKey,
+        viewerName: "",
+      });
+
+    case "linear.disconnect":
+      return { ok: true };
+
+    case "linear.getMyself":
+      return linearGetMyself(await loadLinearAuth());
+
+    case "linear.getTeams":
+      return getLinearTeams(await loadLinearAuth());
+
+    case "linear.getProjects":
+      return getLinearProjects(await loadLinearAuth(), message.teamId);
+
+    case "linear.getLabels":
+      return getLinearLabels(await loadLinearAuth(), message.teamId);
+
+    case "linear.getMembers":
+      return getLinearMembers(await loadLinearAuth(), message.teamId);
+
+    case "linear.submitIssue":
+      return createLinearIssue(await loadLinearAuth(), message.payload);
+
+    case "linear.getIssueStatus":
+      return getLinearIssueStatus(await loadLinearAuth(), message.issueId);
 
     default: {
       const _exhaustive: never = message;

@@ -31,7 +31,6 @@ export interface GithubDefaults {
 export interface GithubAccount extends PlatformAccountBase<"github"> {
   auth: GithubAuth;
   defaults: GithubDefaults;
-  titlePrefix?: string;
 }
 
 export interface GithubMyself {

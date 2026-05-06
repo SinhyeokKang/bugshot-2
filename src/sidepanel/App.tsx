@@ -23,13 +23,19 @@ import {
 } from "@/types/messages";
 import type { PlatformId } from "@/types/platform";
 
+const PLATFORM_TAB_KEYS = {
+  jira: "platform.tab.jira",
+  github: "platform.tab.github",
+  linear: "platform.tab.linear",
+} as const;
+
 const TabNavContext = createContext<(tab: string) => void>(() => {});
 export const useTabNav = () => useContext(TabNavContext);
 import { useBoundTabId } from "./hooks/useBoundTabId";
 import { useEditorSessionSync } from "./hooks/useEditorSessionSync";
 import { usePickerMessages } from "./hooks/usePickerMessages";
 import { useThemeEffect } from "./hooks/useThemeEffect";
-import { AppSettingsTab } from "./tabs/AppSettingsTab";
+import { IntegrationsTab } from "./tabs/IntegrationsTab";
 import { IssueListTab } from "./tabs/IssueListTab";
 import { IssueTab } from "./tabs/IssueTab";
 import { SettingsTab } from "./tabs/SettingsTab";
@@ -63,7 +69,7 @@ export default function App() {
 
   useEffect(() => {
     if (settingsHydrated && connectedPlatforms(accounts).length === 0) {
-      setTab("issue-settings");
+      setTab("integrations");
     }
   }, [settingsHydrated, accounts]);
 
@@ -162,11 +168,11 @@ export default function App() {
               <List className="h-3.5 w-3.5" />
               {t("app.tab.issueList")}
             </TabsTrigger>
-            <TabsTrigger value="issue-settings" className="gap-1.5">
+            <TabsTrigger value="integrations" className="gap-1.5">
               <SlidersHorizontal className="h-3.5 w-3.5" />
               {t("app.tab.settings")}
             </TabsTrigger>
-            <TabsTrigger value="app-settings" className="gap-1.5">
+            <TabsTrigger value="settings" className="gap-1.5">
               <Settings className="h-3.5 w-3.5" />
               {t("app.tab.appSettings")}
             </TabsTrigger>
@@ -188,17 +194,17 @@ export default function App() {
         </TabsContent>
 
         <TabsContent
-          value="issue-settings"
+          value="integrations"
           className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden data-[state=inactive]:hidden"
         >
-          <SettingsTab />
+          <IntegrationsTab />
         </TabsContent>
 
         <TabsContent
-          value="app-settings"
+          value="settings"
           className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden data-[state=inactive]:hidden"
         >
-          <AppSettingsTab />
+          <SettingsTab />
         </TabsContent>
       </Tabs>
 
@@ -210,20 +216,12 @@ export default function App() {
           <AlertDialogHeader>
             <AlertDialogTitle>
               {t("platform.oauthExpired.title", {
-                platform: t(
-                  oauthExpiredPlatform === "github"
-                    ? "platform.tab.github"
-                    : "platform.tab.jira",
-                ),
+                platform: t(PLATFORM_TAB_KEYS[oauthExpiredPlatform ?? "jira"]),
               })}
             </AlertDialogTitle>
             <AlertDialogDescription>
               {t("platform.oauthExpired.body", {
-                platform: t(
-                  oauthExpiredPlatform === "github"
-                    ? "platform.tab.github"
-                    : "platform.tab.jira",
-                ),
+                platform: t(PLATFORM_TAB_KEYS[oauthExpiredPlatform ?? "jira"]),
               })}
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -231,7 +229,7 @@ export default function App() {
             <AlertDialogAction
               onClick={() => {
                 setOauthExpiredPlatform(null);
-                setTab("issue-settings");
+                setTab("integrations");
               }}
             >
               {t("common.ok")}

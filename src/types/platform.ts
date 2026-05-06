@@ -1,7 +1,8 @@
 import type { JiraAuth } from "./jira";
 import type { GithubAccount } from "./github";
+import type { LinearAccount } from "./linear";
 
-export type PlatformId = "jira" | "github";
+export type PlatformId = "jira" | "github" | "linear";
 
 export interface PlatformAccountBase<P extends PlatformId> {
   platform: P;
@@ -13,12 +14,12 @@ export interface JiraAccount extends PlatformAccountBase<"jira"> {
   projectKey?: string;
   issueTypeId?: string;
   issueTypeName?: string;
-  titlePrefix?: string;
 }
 
 export interface Accounts {
   jira?: JiraAccount;
   github?: GithubAccount;
+  linear?: LinearAccount;
 }
 
 export interface JiraLastSubmitFields {
@@ -40,7 +41,26 @@ export interface GithubLastSubmitFields {
   assignees?: string[];
 }
 
+export interface LinearLastSubmitFields {
+  teamId?: string;
+  teamName?: string;
+  teamKey?: string;
+  projectId?: string;
+  projectName?: string;
+  labelId?: string;
+  labelName?: string;
+  assigneeId?: string;
+  assigneeName?: string;
+  priority?: number;
+}
+
+export interface NormalizedSubmitResult {
+  key: string;
+  url: string;
+}
+
 export interface LastSubmitFieldsByPlatform {
   jira?: JiraLastSubmitFields;
   github?: GithubLastSubmitFields;
+  linear?: LinearLastSubmitFields;
 }

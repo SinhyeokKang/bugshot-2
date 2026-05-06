@@ -8,17 +8,19 @@ import type {
   PlatformId,
 } from "@/types/platform";
 import type { GithubAccount } from "@/types/github";
+import type { LinearAccount } from "@/types/linear";
 import { SETTINGS_STORAGE_KEY } from "@/lib/settings-storage";
 import { chromeLocalStorage } from "./chrome-storage";
 
 export type { JiraAccount } from "@/types/platform";
 
-export const SETTINGS_STORE_VERSION = 3;
+export const SETTINGS_STORE_VERSION = 5;
 
 interface SettingsState {
   accounts: Accounts;
   lastSubmitFields: LastSubmitFieldsByPlatform;
   lastSubmittedPlatform?: PlatformId;
+  titlePrefix: string;
   setAccount: <P extends PlatformId>(platform: P, account: Accounts[P]) => void;
   removeAccount: (platform: PlatformId) => void;
   updateJiraAccount: (
@@ -27,11 +29,15 @@ interface SettingsState {
   updateGithubAccount: (
     patch: Partial<Omit<GithubAccount, "platform" | "connectedAt">>,
   ) => void;
+  updateLinearAccount: (
+    patch: Partial<Omit<LinearAccount, "platform" | "connectedAt">>,
+  ) => void;
   setLastSubmitFields: <P extends PlatformId>(
     platform: P,
     fields: NonNullable<LastSubmitFieldsByPlatform[P]>,
   ) => void;
   setLastSubmittedPlatform: (platform: PlatformId) => void;
+  setTitlePrefix: (prefix: string) => void;
 }
 
 interface LegacyV1 {
@@ -99,14 +105,24 @@ export function migrateV2ToV3(legacy: LegacyV2): V3Shape {
       projectKey: j.projectKey,
       issueTypeId: j.issueTypeId,
       issueTypeName: j.issueTypeName,
-      titlePrefix: j.titlePrefix,
-    };
+      ...(j.titlePrefix ? { titlePrefix: j.titlePrefix } : {}),
+    } as JiraAccount;
   }
   const lastSubmitFields: LastSubmitFieldsByPlatform = {};
   if (legacy.lastSubmitFields && Object.keys(legacy.lastSubmitFields).length) {
     lastSubmitFields.jira = { ...legacy.lastSubmitFields };
   }
   return { accounts, lastSubmitFields };
+}
+
+export function migrateToV5(state: V3Shape): V3Shape & { titlePrefix: string } {
+  const a = state.accounts;
+  const prefix =
+    (a.jira as Record<string, unknown> | undefined)?.titlePrefix as string | undefined ??
+    (a.github as Record<string, unknown> | undefined)?.titlePrefix as string | undefined ??
+    (a.linear as Record<string, unknown> | undefined)?.titlePrefix as string | undefined ??
+    "";
+  return { ...state, titlePrefix: prefix };
 }
 
 function isV3Shape(state: unknown): state is V3Shape {
@@ -119,6 +135,7 @@ export const useSettingsStore = create<SettingsState>()(
     (set) => ({
       accounts: {},
       lastSubmitFields: {},
+      titlePrefix: "",
       setAccount: (platform, account) =>
         set((s) => ({ accounts: { ...s.accounts, [platform]: account } })),
       removeAccount: (platform) =>
@@ -139,26 +156,41 @@ export const useSettingsStore = create<SettingsState>()(
           if (!cur) return s;
           return { accounts: { ...s.accounts, github: { ...cur, ...patch } } };
         }),
+      updateLinearAccount: (patch) =>
+        set((s) => {
+          const cur = s.accounts.linear;
+          if (!cur) return s;
+          return { accounts: { ...s.accounts, linear: { ...cur, ...patch } } };
+        }),
       setLastSubmitFields: (platform, fields) =>
         set((s) => ({
           lastSubmitFields: { ...s.lastSubmitFields, [platform]: fields },
         })),
       setLastSubmittedPlatform: (platform) =>
         set({ lastSubmittedPlatform: platform }),
+      setTitlePrefix: (prefix) => set({ titlePrefix: prefix }),
     }),
     {
       name: SETTINGS_STORAGE_KEY,
       version: SETTINGS_STORE_VERSION,
       storage: createJSONStorage(() => chromeLocalStorage),
       migrate: (persistedState, version) => {
-        if (isV3Shape(persistedState)) return persistedState as SettingsState;
-        let v2: LegacyV2;
-        if (version >= 2) {
-          v2 = (persistedState as LegacyV2) ?? {};
+        let state: Record<string, unknown>;
+        if (isV3Shape(persistedState)) {
+          state = persistedState as Record<string, unknown>;
         } else {
-          v2 = migrateV1ToV2((persistedState as LegacyV1) ?? {});
+          let v2: LegacyV2;
+          if (version >= 2) {
+            v2 = (persistedState as LegacyV2) ?? {};
+          } else {
+            v2 = migrateV1ToV2((persistedState as LegacyV1) ?? {});
+          }
+          state = migrateV2ToV3(v2) as Record<string, unknown>;
         }
-        return migrateV2ToV3(v2) as SettingsState;
+        if (version < 5) {
+          state = migrateToV5(state as V3Shape);
+        }
+        return state as unknown as SettingsState;
       },
     },
   ),
@@ -192,7 +224,7 @@ export function jiraHostLabel(auth: JiraAuth): string {
   }
 }
 
-const PLATFORM_FALLBACK_ORDER: PlatformId[] = ["jira", "github"];
+const PLATFORM_FALLBACK_ORDER: PlatformId[] = ["jira", "github", "linear"];
 
 // 다이얼로그가 열릴 때 어느 플랫폼 탭을 default로 보여줄지 결정.
 // 1) lastSubmittedPlatform이 여전히 연결돼 있으면 그것
@@ -213,4 +245,10 @@ export function pickInitialPlatform(
 
 export function connectedPlatforms(accounts: Accounts): PlatformId[] {
   return PLATFORM_FALLBACK_ORDER.filter((p) => !!accounts[p]);
+}
+
+export function isLinearAccountComplete(
+  acc: LinearAccount | undefined,
+): boolean {
+  return !!acc?.auth;
 }

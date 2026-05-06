@@ -5,7 +5,7 @@ import {
   Loader2,
   X,
 } from "lucide-react";
-import { SiGithub, SiJirasoftware } from "@icons-pack/react-simple-icons";
+import { SiGithub, SiJirasoftware, SiLinear } from "@icons-pack/react-simple-icons";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -39,6 +39,7 @@ import { useIssuesStore } from "@/store/issues-store";
 import {
   connectedPlatforms,
   isJiraAccountComplete,
+  isLinearAccountComplete,
   jiraSiteId,
   pickInitialPlatform,
   useSettingsStore,
@@ -61,16 +62,21 @@ import {
   buildConsoleLogSummary,
 } from "../lib/buildLogSummary";
 import type { MarkdownContext } from "../lib/buildIssueMarkdown";
-import {
-  submitToGithub,
-  type NormalizedSubmitResult,
-} from "../lib/submitToGithub";
+import type { NormalizedSubmitResult } from "@/types/platform";
+import { submitToGithub } from "../lib/submitToGithub";
 import type { GithubMediaInput } from "../lib/buildGithubIssueBody";
+import { submitToLinear } from "../lib/submitToLinear";
+import type { LinearMediaInput } from "../lib/buildLinearIssueBody";
 import {
   GithubIssueFields,
   initialGhFields,
   type GithubIssueFieldsValue,
 } from "./githubFields/GithubIssueFields";
+import {
+  LinearIssueFields,
+  initialLinearFields,
+  type LinearIssueFieldsValue,
+} from "./linearFields/LinearIssueFields";
 
 type SubmitState =
   | { status: "idle" }
@@ -84,6 +90,7 @@ export function IssueCreateModal() {
   const accounts = useSettingsStore((s) => s.accounts);
   const lastSubmittedPlatform = useSettingsStore((s) => s.lastSubmittedPlatform);
   const lastGhSubmit = useSettingsStore((s) => s.lastSubmitFields.github);
+  const lastLinearSubmit = useSettingsStore((s) => s.lastSubmitFields.linear);
   const setTargetPlatform = useEditorStore((s) => s.setTargetPlatform);
 
   const available = useMemo(() => connectedPlatforms(accounts), [accounts]);
@@ -109,6 +116,7 @@ export function IssueCreateModal() {
 
   const ghAccount = accounts.github;
   const jiraAccount = accounts.jira;
+  const linearAccount = accounts.linear;
 
   // GitHub 메타 필드: 직전 제출값 우선, 없으면 account.defaults, 그것도 없으면 빈 값
   const [ghFields, setGhFieldsState] = useState<GithubIssueFieldsValue>(() =>
@@ -120,6 +128,18 @@ export function IssueCreateModal() {
   const setGhFields = useCallback(
     (patch: Partial<GithubIssueFieldsValue>) =>
       setGhFieldsState((s) => ({ ...s, ...patch })),
+    [],
+  );
+
+  const [linearFields, setLinearFieldsState] = useState<LinearIssueFieldsValue>(() =>
+    initialLinearFields(lastLinearSubmit, linearAccount?.defaults),
+  );
+  useEffect(() => {
+    if (open) setLinearFieldsState(initialLinearFields(lastLinearSubmit, linearAccount?.defaults));
+  }, [open, lastLinearSubmit, linearAccount?.defaults]);
+  const setLinearFields = useCallback(
+    (patch: Partial<LinearIssueFieldsValue>) =>
+      setLinearFieldsState((s) => ({ ...s, ...patch })),
     [],
   );
 
@@ -344,9 +364,75 @@ export function IssueCreateModal() {
     return result;
   }
 
+  async function handleLinearSubmit(ctx: MarkdownContext): Promise<NormalizedSubmitResult> {
+    if (!linearAccount) {
+      throw new Error(t("platform.notConnected.title", { platform: t("platform.tab.linear") }));
+    }
+    if (!linearFields.teamId) throw new Error(t("create.requiredMissing"));
+
+    const images: LinearMediaInput[] = [];
+    let video: LinearMediaInput | undefined;
+    const logs: LinearMediaInput[] = [];
+
+    if (captureMode === "video") {
+      if (videoBlob) video = { filename: "recording.webm" };
+      if (networkLog && networkLogAttach && networkLog.captured > 0) {
+        logs.push({ filename: "network-log.har" });
+      }
+      if (consoleLog && consoleLogAttach && consoleLog.captured > 0) {
+        logs.push({ filename: "console-log.json" });
+      }
+    } else if (captureMode === "screenshot") {
+      const screenshotImage = screenshotAnnotated ?? screenshotRaw;
+      if (screenshotImage) images.push({ filename: "screenshot.webp" });
+    } else {
+      if (beforeImage) images.push({ filename: "before.webp" });
+      if (afterImage) images.push({ filename: "after.webp" });
+    }
+
+    const result = await submitToLinear({
+      ctx,
+      images,
+      video,
+      logs,
+      teamId: linearFields.teamId,
+      projectId: linearFields.projectId,
+      labelId: linearFields.labelId,
+      assigneeId: linearFields.assigneeId,
+      priority: linearFields.priority,
+    });
+    if (currentIssueId) {
+      markSubmitted(currentIssueId, {
+        platform: "linear",
+        key: result.key,
+        url: result.url,
+        linearIdentifier: result.key,
+        linearTeamKey: linearFields.teamKey,
+        linearLabelName: linearFields.labelName,
+      });
+    }
+    useSettingsStore.getState().setLastSubmitFields("linear", {
+      teamId: linearFields.teamId,
+      teamName: linearFields.teamName,
+      teamKey: linearFields.teamKey,
+      projectId: linearFields.projectId,
+      projectName: linearFields.projectName,
+      labelId: linearFields.labelId,
+      labelName: linearFields.labelName,
+      assigneeId: linearFields.assigneeId,
+      assigneeName: linearFields.assigneeName,
+      priority: linearFields.priority,
+    });
+    useSettingsStore.getState().setLastSubmittedPlatform("linear");
+    onSubmitted({ key: result.key, url: result.url });
+    return result;
+  }
+
   async function handleSubmit(submitPlatform: PlatformId): Promise<NormalizedSubmitResult> {
     const ctx = buildCtx();
-    return submitPlatform === "github" ? handleGithubSubmit(ctx) : handleJiraSubmit(ctx);
+    if (submitPlatform === "github") return handleGithubSubmit(ctx);
+    if (submitPlatform === "linear") return handleLinearSubmit(ctx);
+    return handleJiraSubmit(ctx);
   }
 
   const canOpen = available.length > 0;
@@ -373,6 +459,8 @@ export function IssueCreateModal() {
         setJiraFields={setIssueFields}
         ghFields={ghFields}
         setGhFields={setGhFields}
+        linearFields={linearFields}
+        setLinearFields={setLinearFields}
         onSubmit={handleSubmit}
       />
     </>
@@ -390,6 +478,8 @@ export interface SubmitFieldsDialogProps {
   setJiraFields: (patch: Partial<EditorIssueFields>) => void;
   ghFields: GithubIssueFieldsValue;
   setGhFields: (patch: Partial<GithubIssueFieldsValue>) => void;
+  linearFields: LinearIssueFieldsValue;
+  setLinearFields: (patch: Partial<LinearIssueFieldsValue>) => void;
   onSubmit: (platform: PlatformId) => Promise<NormalizedSubmitResult>;
   onSuccess?: (result: NormalizedSubmitResult) => void;
 }
@@ -406,12 +496,15 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
     setJiraFields,
     ghFields,
     setGhFields,
+    linearFields,
+    setLinearFields,
     onSubmit,
     onSuccess,
   } = props;
   const t = useT();
   const jiraAccount = useSettingsStore((s) => s.accounts.jira);
   const ghAccount = useSettingsStore((s) => s.accounts.github);
+  const linearAccount = useSettingsStore((s) => s.accounts.linear);
   const [submit, setSubmit] = useState<SubmitState>({ status: "idle" });
 
   useEffect(() => {
@@ -420,15 +513,22 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
 
   const jiraConfigured = isJiraAccountComplete(jiraAccount);
   const ghConfigured = !!ghAccount;
+  const linearConfigured = isLinearAccountComplete(linearAccount);
   const platformConfigured =
-    platform === "jira" ? jiraConfigured : ghConfigured;
+    platform === "jira"
+      ? jiraConfigured
+      : platform === "github"
+        ? ghConfigured
+        : linearConfigured;
 
   const canSubmit =
     submit.status !== "submitting" &&
     platformConfigured &&
     (platform === "jira"
       ? !!jiraFields.issueTypeId
-      : !!ghFields.owner && !!ghFields.repo);
+      : platform === "github"
+        ? !!ghFields.owner && !!ghFields.repo
+        : !!linearFields.teamId);
 
   async function handleSubmit() {
     if (!canSubmit) return;
@@ -461,23 +561,28 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
 
         {showTabs ? (
           <Tabs value={platform} onValueChange={(v) => setPlatform(v as PlatformId)}>
-            <TabsList className="grid h-9 w-full grid-cols-2">
-              <TabsTrigger
-                value="jira"
-                className="gap-1.5"
-                disabled={!availablePlatforms.includes("jira")}
-              >
-                <SiJirasoftware className="h-3.5 w-3.5" color="default" />
-                {t("platform.tab.jira")}
-              </TabsTrigger>
-              <TabsTrigger
-                value="github"
-                className="gap-1.5"
-                disabled={!availablePlatforms.includes("github")}
-              >
-                <SiGithub className="h-3.5 w-3.5 dark:invert" color="default" />
-                {t("platform.tab.github")}
-              </TabsTrigger>
+            <TabsList className={cn(
+              "grid h-9 w-full",
+              availablePlatforms.length === 3 ? "grid-cols-3" : "grid-cols-2",
+            )}>
+              {availablePlatforms.includes("jira") && (
+                <TabsTrigger value="jira" className="gap-1.5">
+                  <SiJirasoftware className="h-3.5 w-3.5" color="default" />
+                  {t("platform.tab.jira")}
+                </TabsTrigger>
+              )}
+              {availablePlatforms.includes("github") && (
+                <TabsTrigger value="github" className="gap-1.5">
+                  <SiGithub className="h-3.5 w-3.5 dark:invert" color="default" />
+                  {t("platform.tab.github")}
+                </TabsTrigger>
+              )}
+              {availablePlatforms.includes("linear") && (
+                <TabsTrigger value="linear" className="gap-1.5">
+                  <SiLinear className="h-3.5 w-3.5" color="default" />
+                  {t("platform.tab.linear")}
+                </TabsTrigger>
+              )}
             </TabsList>
           </Tabs>
         ) : null}
@@ -486,8 +591,12 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
           jiraConfigured ? (
             <JiraFieldsBlock fields={jiraFields} onChange={setJiraFields} />
           ) : null
-        ) : ghConfigured ? (
-          <GithubIssueFields value={ghFields} onChange={setGhFields} />
+        ) : platform === "github" ? (
+          ghConfigured ? (
+            <GithubIssueFields value={ghFields} onChange={setGhFields} />
+          ) : null
+        ) : linearConfigured ? (
+          <LinearIssueFields value={linearFields} onChange={setLinearFields} />
         ) : null}
 
         {submit.status === "error" ? (

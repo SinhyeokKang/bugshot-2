@@ -68,10 +68,7 @@ export function DraftingPanel() {
   const [annotating, setAnnotating] = useState(false);
   const [networkDialogOpen, setNetworkDialogOpen] = useState(false);
   const [consoleDialogOpen, setConsoleDialogOpen] = useState(false);
-  const targetPlatform = useEditorStore((s) => s.targetPlatform);
-  const titlePrefix = useSettingsStore(
-    (s) => s.accounts[targetPlatform]?.titlePrefix ?? "",
-  );
+  const titlePrefix = useSettingsStore((s) => s.titlePrefix);
   const isElementMode = captureMode === "element";
   const isVideoMode = captureMode === "video";
   const screenshotImage = screenshotAnnotated ?? screenshotRaw;

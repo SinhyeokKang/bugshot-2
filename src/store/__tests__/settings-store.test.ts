@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   connectedPlatforms,
+  isLinearAccountComplete,
   migrateV2ToV3,
+  migrateToV5,
   pickInitialPlatform,
 } from "../settings-store";
 import type { Accounts } from "@/types/platform";
@@ -21,6 +23,13 @@ const githubStub: Accounts["github"] = {
   platform: "github",
   connectedAt: 0,
   auth: { kind: "pat", pat: "ghp_x", viewerLogin: "u" },
+  defaults: {},
+};
+
+const linearStub: Accounts["linear"] = {
+  platform: "linear",
+  connectedAt: 0,
+  auth: { kind: "apiKey", apiKey: "lin_api_x", viewerName: "u" },
   defaults: {},
 };
 
@@ -47,7 +56,6 @@ describe("settings-store v2→v3 마이그레이션", () => {
     expect(out.accounts.jira?.auth.kind).toBe("apiKey");
     expect(out.accounts.jira?.projectKey).toBe("BUG");
     expect(out.accounts.jira?.issueTypeId).toBe("10001");
-    expect(out.accounts.jira?.titlePrefix).toBe("[QA] ");
     expect(out.lastSubmitFields.jira).toEqual({
       projectKey: "BUG",
       assigneeId: "id-1",
@@ -138,6 +146,21 @@ describe("pickInitialPlatform", () => {
     );
   });
 
+  it("linear만 연결되면 linear", () => {
+    expect(pickInitialPlatform({ linear: linearStub }, undefined)).toBe(
+      "linear",
+    );
+  });
+
+  it("lastSubmittedPlatform=linear이 연결되어 있으면 linear", () => {
+    expect(
+      pickInitialPlatform(
+        { jira: jiraStub, linear: linearStub },
+        "linear",
+      ),
+    ).toBe("linear");
+  });
+
   it("아무것도 연결 안 됐으면 null", () => {
     expect(pickInitialPlatform({}, undefined)).toBeNull();
     expect(pickInitialPlatform({}, "jira")).toBeNull();
@@ -145,12 +168,45 @@ describe("pickInitialPlatform", () => {
 });
 
 describe("connectedPlatforms", () => {
-  it("연결된 플랫폼만 jira→github 순으로 반환", () => {
-    expect(connectedPlatforms({ jira: jiraStub, github: githubStub })).toEqual([
-      "jira",
-      "github",
-    ]);
+  it("연결된 플랫폼만 jira→github→linear 순으로 반환", () => {
+    expect(
+      connectedPlatforms({ jira: jiraStub, github: githubStub, linear: linearStub }),
+    ).toEqual(["jira", "github", "linear"]);
     expect(connectedPlatforms({ github: githubStub })).toEqual(["github"]);
+    expect(connectedPlatforms({ linear: linearStub })).toEqual(["linear"]);
     expect(connectedPlatforms({})).toEqual([]);
+  });
+});
+
+describe("migrateToV5 — titlePrefix 전역 승격", () => {
+  it("jira의 titlePrefix를 전역으로 승격", () => {
+    const v3 = migrateV2ToV3({
+      jiraConfig: {
+        auth: {
+          kind: "apiKey",
+          baseUrl: "https://x.atlassian.net",
+          email: "a@b.c",
+          apiToken: "tok",
+        },
+        titlePrefix: "[QA] ",
+      },
+    });
+    const v5 = migrateToV5(v3);
+    expect(v5.titlePrefix).toBe("[QA] ");
+  });
+
+  it("titlePrefix 없으면 빈 문자열", () => {
+    const v5 = migrateToV5({ accounts: {}, lastSubmitFields: {} });
+    expect(v5.titlePrefix).toBe("");
+  });
+});
+
+describe("isLinearAccountComplete", () => {
+  it("auth가 있으면 true", () => {
+    expect(isLinearAccountComplete(linearStub)).toBe(true);
+  });
+
+  it("undefined면 false", () => {
+    expect(isLinearAccountComplete(undefined)).toBe(false);
   });
 });

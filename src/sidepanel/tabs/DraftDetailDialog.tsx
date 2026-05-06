@@ -43,17 +43,20 @@ import {
   pickInitialPlatform,
   useSettingsStore,
 } from "@/store/settings-store";
-import type { PlatformId } from "@/types/platform";
+import type { NormalizedSubmitResult, PlatformId } from "@/types/platform";
 import { sendBg, type JiraSubmitResult } from "@/types/messages";
-import {
-  submitToGithub,
-  type NormalizedSubmitResult,
-} from "../lib/submitToGithub";
+import { submitToGithub } from "../lib/submitToGithub";
 import type { GithubMediaInput } from "../lib/buildGithubIssueBody";
+import { submitToLinear } from "../lib/submitToLinear";
+import type { LinearMediaInput } from "../lib/buildLinearIssueBody";
 import {
   initialGhFields,
   type GithubIssueFieldsValue,
 } from "./githubFields/GithubIssueFields";
+import {
+  initialLinearFields,
+  type LinearIssueFieldsValue,
+} from "./linearFields/LinearIssueFields";
 import { DocSectionBody } from "../components/DocSectionBody";
 import { LogAttachmentCards } from "../components/LogAttachmentCards";
 import { NetworkLogPreviewDialog } from "../components/NetworkLogPreviewDialog";
@@ -96,6 +99,7 @@ export function DraftDetailDialog({
   const accounts = useSettingsStore((s) => s.accounts);
   const jiraAccount = accounts.jira;
   const ghAccount = accounts.github;
+  const linearAccount = accounts.linear;
   const removeIssue = useIssuesStore((s) => s.removeIssue);
   const markSubmitted = useIssuesStore((s) => s.markSubmitted);
   const patchIssue = useIssuesStore((s) => s.patchIssue);
@@ -106,16 +110,30 @@ export function DraftDetailDialog({
 
   const lastJiraSubmit = useSettingsStore((s) => s.lastSubmitFields.jira);
   const lastGhSubmit = useSettingsStore((s) => s.lastSubmitFields.github);
+  const lastLinearSubmit = useSettingsStore((s) => s.lastSubmitFields.linear);
   const lastSubmittedPlatform = useSettingsStore((s) => s.lastSubmittedPlatform);
 
   const available = useMemo(() => connectedPlatforms(accounts), [accounts]);
-  const [platform, setPlatform] = useState<PlatformId>("jira");
+  const initialPlatform = useMemo(
+    () => pickInitialPlatform(accounts, lastSubmittedPlatform),
+    [accounts, lastSubmittedPlatform],
+  );
+  const [platform, setPlatform] = useState<PlatformId>(initialPlatform ?? "jira");
   const [ghFields, setGhFieldsState] = useState<GithubIssueFieldsValue>(() =>
     initialGhFields(lastGhSubmit, ghAccount?.defaults),
   );
   const setGhFields = useCallback(
     (patch: Partial<GithubIssueFieldsValue>) =>
       setGhFieldsState((s) => ({ ...s, ...patch })),
+    [],
+  );
+
+  const [linearFields, setLinearFieldsState] = useState<LinearIssueFieldsValue>(() =>
+    initialLinearFields(lastLinearSubmit, linearAccount?.defaults),
+  );
+  const setLinearFields = useCallback(
+    (patch: Partial<LinearIssueFieldsValue>) =>
+      setLinearFieldsState((s) => ({ ...s, ...patch })),
     [],
   );
 
@@ -135,6 +153,7 @@ export function DraftDetailDialog({
     }
     setFields(base);
     setGhFieldsState(initialGhFields(lastGhSubmit, ghAccount?.defaults));
+    setLinearFieldsState(initialLinearFields(lastLinearSubmit, linearAccount?.defaults));
     const initial =
       issue && accounts[issue.platform]
         ? issue.platform
@@ -391,8 +410,78 @@ export function DraftDetailDialog({
     return result;
   }
 
+  async function handleLinearSubmit(): Promise<NormalizedSubmitResult> {
+    if (!issue) throw new Error(t("create.requiredMissing"));
+    if (!linearAccount) {
+      throw new Error(t("platform.notConnected.title", { platform: t("platform.tab.linear") }));
+    }
+    if (!linearFields.teamId) throw new Error(t("create.requiredMissing"));
+
+    const { ctx } = await buildCtxForSubmit();
+    const images: LinearMediaInput[] = [];
+    let video: LinearMediaInput | undefined;
+    const logs: LinearMediaInput[] = [];
+
+    if (isVideo) {
+      const blob = await getVideoBlob(issue.id);
+      if (blob) video = { filename: "recording.webm" };
+      if (await getNetworkLog(issue.networkLogBlobKey ?? "")) {
+        logs.push({ filename: "network-log.har" });
+      }
+      if (await getConsoleLog(issue.consoleLogBlobKey ?? "")) {
+        logs.push({ filename: "console-log.json" });
+      }
+    } else if (isScreenshot) {
+      if (issue.snapshot.before) images.push({ filename: "screenshot.webp" });
+    } else {
+      if (issue.snapshot.before) images.push({ filename: "before.webp" });
+      if (issue.snapshot.after) images.push({ filename: "after.webp" });
+    }
+
+    const result = await submitToLinear({
+      ctx,
+      images,
+      video,
+      logs,
+      teamId: linearFields.teamId,
+      projectId: linearFields.projectId,
+      labelId: linearFields.labelId,
+      assigneeId: linearFields.assigneeId,
+      priority: linearFields.priority,
+    });
+    markSubmitted(issue.id, {
+      platform: "linear",
+      key: result.key,
+      url: result.url,
+      linearIdentifier: result.key,
+      linearTeamKey: linearFields.teamKey,
+      linearLabelName: linearFields.labelName,
+    });
+    if (useEditorStore.getState().currentIssueId === issue.id) {
+      const tabId = useEditorStore.getState().target?.tabId;
+      if (tabId != null) void clearPicker(tabId);
+      useEditorStore.getState().reset();
+    }
+    useSettingsStore.getState().setLastSubmitFields("linear", {
+      teamId: linearFields.teamId,
+      teamName: linearFields.teamName,
+      teamKey: linearFields.teamKey,
+      projectId: linearFields.projectId,
+      projectName: linearFields.projectName,
+      labelId: linearFields.labelId,
+      labelName: linearFields.labelName,
+      assigneeId: linearFields.assigneeId,
+      assigneeName: linearFields.assigneeName,
+      priority: linearFields.priority,
+    });
+    useSettingsStore.getState().setLastSubmittedPlatform("linear");
+    return result;
+  }
+
   async function handleSubmit(submitPlatform: PlatformId): Promise<NormalizedSubmitResult> {
-    return submitPlatform === "github" ? handleGithubSubmit() : handleJiraSubmit();
+    if (submitPlatform === "github") return handleGithubSubmit();
+    if (submitPlatform === "linear") return handleLinearSubmit();
+    return handleJiraSubmit();
   }
 
   function handleDelete() {
@@ -514,6 +603,8 @@ export function DraftDetailDialog({
         setJiraFields={(patch) => setFields((f) => ({ ...f, ...patch }))}
         ghFields={ghFields}
         setGhFields={setGhFields}
+        linearFields={linearFields}
+        setLinearFields={setLinearFields}
         onSubmit={handleSubmit}
         onSuccess={(result) => {
           onOpenChange(false);

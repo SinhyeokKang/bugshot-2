@@ -5,6 +5,9 @@ import {
 import type { MarkdownContext } from "./buildIssueMarkdown";
 import { sendBg } from "@/types/messages";
 import type { GithubCreateIssueResult } from "@/types/github";
+import type { NormalizedSubmitResult } from "@/types/platform";
+
+export type { NormalizedSubmitResult } from "@/types/platform";
 
 export interface GithubSubmitInput {
   ctx: MarkdownContext;
@@ -15,11 +18,6 @@ export interface GithubSubmitInput {
   repo: string;
   label?: string;
   assignees?: string[];
-}
-
-export interface NormalizedSubmitResult {
-  key: string;
-  url: string;
 }
 
 export async function submitToGithub(

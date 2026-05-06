@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowUpRight, CircleCheck, Inbox, Loader2, Search, SearchX, Trash2, X } from "lucide-react";
-import { SiGithub, SiJirasoftware } from "@icons-pack/react-simple-icons";
+import { SiGithub, SiJirasoftware, SiLinear } from "@icons-pack/react-simple-icons";
 import { useT, dateBcp47 } from "@/i18n";
 import {
   AlertDialog,
@@ -22,9 +22,9 @@ import { useIssuesStore, type IssueRecord } from "@/store/issues-store";
 import { useSettingsStore, jiraSiteId } from "@/store/settings-store";
 import type { JiraIssueStatus } from "@/types/jira";
 import type { GithubIssueStatus } from "@/types/github";
-import type { PlatformId } from "@/types/platform";
+import type { LinearIssueStatus } from "@/types/linear";
+import type { NormalizedSubmitResult, PlatformId } from "@/types/platform";
 import { sendBg } from "@/types/messages";
-import type { NormalizedSubmitResult } from "../lib/submitToGithub";
 import { PageFooter, PageScroll, PageShell, Section } from "../components/Section";
 import { DraftDetailDialog } from "./DraftDetailDialog";
 
@@ -36,6 +36,7 @@ export function isRefreshable(issue: IssueRecord): boolean {
   if (issue.platform === "github") {
     return !!resolveGithubCoords(issue);
   }
+  if (issue.platform === "linear") return true;
   return false;
 }
 
@@ -328,13 +329,16 @@ function IssueRow({
       if (coords) textMetaParts.push(`${coords.owner}/${coords.repo}`);
     } else if (issue.platform === "jira" && issue.url) {
       try { textMetaParts.push(new URL(issue.url).hostname); } catch {}
+    } else if (issue.platform === "linear" && issue.linearTeamKey) {
+      textMetaParts.push(issue.linearTeamKey);
     }
     if (issue.key) textMetaParts.push(formatIssueKey(issue));
-    // 분류 태그: jira는 issueTypeName, github은 labels — 메타 끝 동일 위치.
     if (issue.platform === "jira" && issue.issueTypeName) {
       textMetaParts.push(issue.issueTypeName);
     } else if (issue.platform === "github" && issue.githubLabels?.length) {
       textMetaParts.push(issue.githubLabels.join(", "));
+    } else if (issue.platform === "linear" && issue.linearLabelName) {
+      textMetaParts.push(issue.linearLabelName);
     }
   } else {
     textMetaParts.push(t("issueList.draft"));
@@ -385,6 +389,7 @@ function IssueRow({
               platform={issue.platform}
               githubOwner={issue.githubOwner}
               githubRepo={issue.githubRepo}
+              linearIdentifier={issue.linearIdentifier}
               refreshKey={refreshKey}
               onLoaded={onBadgeLoaded}
             />
@@ -448,6 +453,22 @@ const STATUS_CATEGORY_COLORS: Record<
   },
 };
 
+const LINEAR_STATE_TYPE_COLORS: Record<string, typeof STATUS_CATEGORY_COLORS[string]> = {
+  backlog: STATUS_CATEGORY_COLORS.new,
+  unstarted: STATUS_CATEGORY_COLORS.new,
+  started: STATUS_CATEGORY_COLORS.indeterminate,
+  completed: STATUS_CATEGORY_COLORS.done,
+  cancelled: STATUS_CATEGORY_COLORS.new,
+};
+
+const LINEAR_STATE_I18N: Record<string, string> = {
+  backlog: "issueList.linear.backlog",
+  unstarted: "issueList.linear.unstarted",
+  started: "issueList.linear.started",
+  completed: "issueList.linear.completed",
+  cancelled: "issueList.linear.cancelled",
+};
+
 
 function PlatformChip({ platform }: { platform: PlatformId }) {
   const t = useT();
@@ -456,6 +477,14 @@ function PlatformChip({ platform }: { platform: PlatformId }) {
       <span className="inline-flex shrink-0 items-center gap-1">
         <SiJirasoftware className="h-3 w-3" color="default" />
         {t("platform.tab.jira")}
+      </span>
+    );
+  }
+  if (platform === "linear") {
+    return (
+      <span className="inline-flex shrink-0 items-center gap-1">
+        <SiLinear className="h-3 w-3" color="default" />
+        {t("platform.tab.linear")}
       </span>
     );
   }
@@ -479,6 +508,7 @@ function SubmittedBadge({
   platform,
   githubOwner,
   githubRepo,
+  linearIdentifier,
   refreshKey,
   onLoaded,
 }: {
@@ -489,17 +519,20 @@ function SubmittedBadge({
   platform: PlatformId;
   githubOwner?: string;
   githubRepo?: string;
+  linearIdentifier?: string;
   refreshKey: number;
   onLoaded: () => void;
 }) {
   const t = useT();
   const jiraAccount = useSettingsStore((s) => s.accounts.jira);
   const ghAccount = useSettingsStore((s) => s.accounts.github);
+  const linearAccount = useSettingsStore((s) => s.accounts.linear);
   const patchIssue = useIssuesStore((s) => s.patchIssue);
   const currentSiteId = jiraAccount?.auth ? jiraSiteId(jiraAccount.auth) : null;
   const siteMatch = !issueSiteId || currentSiteId === issueSiteId;
   const [jiraStatus, setJiraStatus] = useState<JiraIssueStatus | "error" | null>(null);
   const [ghStatus, setGhStatus] = useState<GithubBadgeStatus | "error" | null>(null);
+  const [linearStatus, setLinearStatus] = useState<LinearIssueStatus | "error" | null>(null);
 
   useEffect(() => {
     if (platform === "jira") {
@@ -538,8 +571,6 @@ function SubmittedBadge({
               ? { kind: "open" }
               : { kind: "closed", reason: res.stateReason ?? null },
           );
-          // owner/repo가 비어있던 구 entry는 이번 기회에 채워둠 (다음 isRefreshable 빠른 경로).
-          // labels는 GitHub UI에서 변경될 수 있으니 매 fetch마다 덮어쓰기.
           const patch: Partial<IssueRecord> = {};
           if (res.title) patch.title = res.title;
           if (!githubOwner) patch.githubOwner = coords.owner;
@@ -551,8 +582,26 @@ function SubmittedBadge({
         .finally(onLoaded);
       return;
     }
+    if (platform === "linear") {
+      const identifier = linearIdentifier ?? issueKey;
+      if (!linearAccount?.auth || !identifier) {
+        setLinearStatus("error"); onLoaded(); return;
+      }
+      sendBg<LinearIssueStatus>({ type: "linear.getIssueStatus", issueId: identifier })
+        .then((res) => {
+          setLinearStatus(res);
+          const patch: Partial<IssueRecord> = {};
+          if (res.title) patch.title = res.title;
+          if (res.identifier) patch.linearIdentifier = res.identifier;
+          if (res.labels.length > 0) patch.linearLabelName = res.labels[0].name;
+          if (Object.keys(patch).length) patchIssue(issueId, patch);
+        })
+        .catch(() => setLinearStatus("error"))
+        .finally(onLoaded);
+      return;
+    }
     onLoaded();
-  }, [platform, jiraAccount?.auth, ghAccount, issueKey, issueUrl, githubOwner, githubRepo, refreshKey, siteMatch, onLoaded, issueId, patchIssue]);
+  }, [platform, jiraAccount?.auth, ghAccount, linearAccount?.auth, issueKey, issueUrl, githubOwner, githubRepo, linearIdentifier, refreshKey, siteMatch, onLoaded, issueId, patchIssue]);
 
   if (platform === "jira") {
     if (jiraStatus === "error") {
@@ -577,39 +626,68 @@ function SubmittedBadge({
     );
   }
 
-  // GitHub
-  if (ghStatus === "error") {
+  if (platform === "github") {
+    if (ghStatus === "error") {
+      return (
+        <Badge variant="outline" className="w-fit shrink-0 text-[11px]">
+          {t("issueList.unknown")}
+        </Badge>
+      );
+    }
+    if (!ghStatus) {
+      return (
+        <Badge variant="outline" className="w-fit shrink-0 text-[11px]">
+          {t("issueList.submitted")}
+        </Badge>
+      );
+    }
+    const ghLabel =
+      ghStatus.kind === "open"
+        ? t("issueList.github.open")
+        : ghStatus.reason === "not_planned"
+          ? t("issueList.github.notPlanned")
+          : t("issueList.github.closed");
+    const ghColors =
+      ghStatus.kind === "open"
+        ? STATUS_CATEGORY_COLORS.indeterminate
+        : ghStatus.reason === "not_planned"
+          ? STATUS_CATEGORY_COLORS.new
+          : STATUS_CATEGORY_COLORS.done;
+    return (
+      <Badge
+        variant="outline"
+        className={`w-fit shrink-0 border-transparent text-[11px] ${ghColors.bg} ${ghColors.text} ${ghColors.darkBg} ${ghColors.darkText}`}
+      >
+        {ghLabel}
+      </Badge>
+    );
+  }
+
+  // Linear
+  if (linearStatus === "error") {
     return (
       <Badge variant="outline" className="w-fit shrink-0 text-[11px]">
         {t("issueList.unknown")}
       </Badge>
     );
   }
-  if (!ghStatus) {
+  if (!linearStatus) {
     return (
       <Badge variant="outline" className="w-fit shrink-0 text-[11px]">
         {t("issueList.submitted")}
       </Badge>
     );
   }
-  const ghLabel =
-    ghStatus.kind === "open"
-      ? t("issueList.github.open")
-      : ghStatus.reason === "not_planned"
-        ? t("issueList.github.notPlanned")
-        : t("issueList.github.closed");
-  const ghColors =
-    ghStatus.kind === "open"
-      ? STATUS_CATEGORY_COLORS.indeterminate
-      : ghStatus.reason === "not_planned"
-        ? STATUS_CATEGORY_COLORS.new
-        : STATUS_CATEGORY_COLORS.done;
+  const stateType = linearStatus.state.type;
+  const linearColors = LINEAR_STATE_TYPE_COLORS[stateType] ?? STATUS_CATEGORY_COLORS.new;
+  const i18nKey = LINEAR_STATE_I18N[stateType] as Parameters<typeof t>[0] | undefined;
+  const linearLabel = i18nKey ? t(i18nKey) : linearStatus.state.name;
   return (
     <Badge
       variant="outline"
-      className={`w-fit shrink-0 border-transparent text-[11px] ${ghColors.bg} ${ghColors.text} ${ghColors.darkBg} ${ghColors.darkText}`}
+      className={`w-fit shrink-0 border-transparent text-[11px] ${linearColors.bg} ${linearColors.text} ${linearColors.darkBg} ${linearColors.darkText}`}
     >
-      {ghLabel}
+      {linearLabel}
     </Badge>
   );
 }
@@ -618,7 +696,8 @@ function SubmittedBadge({
 // (GitHub key는 이미 `#`이 포함된 형태로 저장됨 — submitToGithub.ts)
 export function formatIssueKey(issue: Pick<IssueRecord, "platform" | "key">): string {
   if (!issue.key) return "";
-  return issue.platform === "jira" ? `[${issue.key}]` : issue.key;
+  if (issue.platform === "jira") return `[${issue.key}]`;
+  return issue.key;
 }
 
 function dateLabel(ts: number): string {

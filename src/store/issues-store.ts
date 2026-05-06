@@ -155,6 +155,10 @@ export interface IssueRecord {
   // jira의 issueTypeName 자리에 메타로 노출되는 분류 태그. 등록 시 ghFields.labels로,
   // 새로고침 후 status fetch 응답의 labels[].name으로 갱신.
   githubLabels?: string[];
+  // Linear 전용
+  linearIdentifier?: string;
+  linearTeamKey?: string;
+  linearLabelName?: string;
 }
 
 export const ISSUES_STORE_VERSION = 4;

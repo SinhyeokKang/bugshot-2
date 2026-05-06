@@ -22,6 +22,16 @@ import type {
   GithubRepo,
   GithubUser,
 } from "./github";
+import type {
+  LinearCreateIssuePayload,
+  LinearCreateIssueResult,
+  LinearIssueStatus,
+  LinearLabel,
+  LinearMyself,
+  LinearProject,
+  LinearTeam,
+  LinearUser,
+} from "./linear";
 import type { PlatformId } from "./platform";
 
 export interface OAuthStartResultMsg {
@@ -71,7 +81,18 @@ export type BgRequest =
       owner: string;
       repo: string;
       number: number;
-    };
+    }
+  | { type: "linear.oauth.available" }
+  | { type: "linear.startOAuth" }
+  | { type: "linear.testApiKey"; apiKey: string }
+  | { type: "linear.disconnect" }
+  | { type: "linear.getMyself" }
+  | { type: "linear.getTeams" }
+  | { type: "linear.getProjects"; teamId: string }
+  | { type: "linear.getLabels"; teamId: string }
+  | { type: "linear.getMembers"; teamId: string }
+  | { type: "linear.submitIssue"; payload: LinearCreateIssuePayload }
+  | { type: "linear.getIssueStatus"; issueId: string };
 
 export type BgResponse<T = unknown> =
   | { ok: true; result: T }
@@ -130,7 +151,7 @@ export function getOAuthErrorPlatform(err: unknown): PlatformId | null {
   if (!(err instanceof BgError)) return null;
   if (!err.body || typeof err.body !== "object") return null;
   const p = (err.body as Record<string, unknown>).platform;
-  return p === "jira" || p === "github" ? p : null;
+  return p === "jira" || p === "github" || p === "linear" ? p : null;
 }
 
 type Listener = () => void;
@@ -186,4 +207,12 @@ export type {
   GithubOAuthAuth,
   GithubRepo,
   GithubUser,
+  LinearCreateIssuePayload,
+  LinearCreateIssueResult,
+  LinearIssueStatus,
+  LinearLabel,
+  LinearMyself,
+  LinearProject,
+  LinearTeam,
+  LinearUser,
 };

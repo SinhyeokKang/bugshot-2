@@ -3,6 +3,7 @@ import { initBgLocale } from "@/i18n/bg-init";
 import { PANEL_PORT_PREFIX } from "@/lib/session-keys";
 import { GithubError } from "./github-api";
 import { JiraError } from "./jira-api";
+import { LinearError } from "./linear-api";
 import { handleMessage } from "./messages";
 import { OAuthError } from "./oauth";
 import { activateTab, setupTabBindings } from "./tab-bindings";
@@ -39,6 +40,17 @@ const BG_REQUEST_TYPES = new Set([
   "github.searchAssignees",
   "github.submitIssue",
   "github.getIssueStatus",
+  "linear.oauth.available",
+  "linear.startOAuth",
+  "linear.testApiKey",
+  "linear.disconnect",
+  "linear.getMyself",
+  "linear.getTeams",
+  "linear.getProjects",
+  "linear.getLabels",
+  "linear.getMembers",
+  "linear.submitIssue",
+  "linear.getIssueStatus",
 ]);
 
 function disableGlobalSidePanel(): void {
@@ -106,6 +118,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           body: error.body,
         });
       } else if (error instanceof GithubError) {
+        sendResponse({
+          ok: false,
+          error: error.message,
+          status: error.status,
+          body: error.body,
+        });
+      } else if (error instanceof LinearError) {
         sendResponse({
           ok: false,
           error: error.message,
