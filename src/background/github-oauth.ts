@@ -19,10 +19,14 @@ export function isGithubOAuthConfigured(): boolean {
 
 function assertConfigured(): void {
   if (!CLIENT_ID) {
-    throw new OAuthError(t("oauth.error.github.notConfiguredClient"));
+    throw new OAuthError(t("oauth.error.github.notConfiguredClient"), {
+      platform: "github",
+    });
   }
   if (!PROXY_URL) {
-    throw new OAuthError(t("oauth.error.notConfiguredProxy"));
+    throw new OAuthError(t("oauth.error.notConfiguredProxy"), {
+      platform: "github",
+    });
   }
 }
 
@@ -50,6 +54,15 @@ export interface ParsedCallback {
   code: string;
 }
 
+const GITHUB_CANCEL_ERROR_CODES = new Set([
+  "access_denied",
+  "application_suspended",
+]);
+
+export function isGithubCancellationCode(code: string | null): boolean {
+  return !!code && GITHUB_CANCEL_ERROR_CODES.has(code);
+}
+
 export function parseCallbackParams(
   redirectUrl: string,
   expectedState: string,
@@ -59,14 +72,17 @@ export function parseCallbackParams(
   if (errorParam) {
     throw new OAuthError(
       parsed.searchParams.get("error_description") || errorParam,
+      { platform: "github", cancelled: isGithubCancellationCode(errorParam) },
     );
   }
   const returnedState = parsed.searchParams.get("state");
   if (returnedState !== expectedState) {
-    throw new OAuthError(t("oauth.error.stateMismatch"));
+    throw new OAuthError(t("oauth.error.stateMismatch"), { platform: "github" });
   }
   const code = parsed.searchParams.get("code");
-  if (!code) throw new OAuthError(t("oauth.error.codeMissing"));
+  if (!code) {
+    throw new OAuthError(t("oauth.error.codeMissing"), { platform: "github" });
+  }
   return { code };
 }
 
@@ -83,7 +99,12 @@ export async function startGithubOAuth(): Promise<GithubOAuthAuth> {
     url: url.toString(),
     interactive: true,
   });
-  if (!redirect) throw new OAuthError(t("oauth.error.cancelled"));
+  if (!redirect) {
+    throw new OAuthError(t("oauth.error.cancelled"), {
+      platform: "github",
+      cancelled: true,
+    });
+  }
 
   const { code } = parseCallbackParams(redirect, state);
   const tokens = await exchangeCodeForTokens(code);
@@ -118,11 +139,15 @@ async function exchangeCodeForTokens(code: string): Promise<GithubTokenResponse>
     const text = await res.text().catch(() => "");
     throw new OAuthError(
       t("oauth.error.tokenExchange", { status: res.status, text }),
+      { platform: "github" },
     );
   }
   const data = (await res.json()) as GithubTokenResponse | { error?: string; error_description?: string };
   if ("error" in data && data.error) {
-    throw new OAuthError(data.error_description || data.error);
+    throw new OAuthError(data.error_description || data.error, {
+      platform: "github",
+      cancelled: isGithubCancellationCode(data.error),
+    });
   }
   return data as GithubTokenResponse;
 }
@@ -134,10 +159,14 @@ export async function refreshGithubToken(
   if (!auth.refreshToken) {
     // OAuth App에서 "Token expiration" 옵션 OFF면 refresh token이 없다.
     // 만료 없는 토큰이라 호출 자체가 비정상 — 재인증 안내.
-    throw new OAuthError(t("oauth.error.github.refreshUnavailable"));
+    throw new OAuthError(t("oauth.error.github.refreshUnavailable"), {
+      platform: "github",
+    });
   }
   if (!isGithubOAuthConfigured()) {
-    throw new OAuthError(t("oauth.error.notConfiguredProxy"));
+    throw new OAuthError(t("oauth.error.notConfiguredProxy"), {
+      platform: "github",
+    });
   }
   const res = await fetch(proxyRefreshUrl(), {
     method: "POST",
@@ -151,11 +180,14 @@ export async function refreshGithubToken(
     const text = await res.text().catch(() => "");
     throw new OAuthError(
       t("oauth.error.tokenRefresh", { status: res.status, text }),
+      { platform: "github" },
     );
   }
   const data = (await res.json()) as GithubTokenResponse | { error?: string; error_description?: string };
   if ("error" in data && data.error) {
-    throw new OAuthError(data.error_description || data.error);
+    throw new OAuthError(data.error_description || data.error, {
+      platform: "github",
+    });
   }
   const tokens = data as GithubTokenResponse;
   const refreshed: GithubOAuthAuth = {
@@ -180,7 +212,9 @@ export async function persistGithubOAuthTokens(
     await writeStoredGithubOAuthTokens(auth);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    throw new OAuthError(t("oauth.error.tokenPersist", { message }));
+    throw new OAuthError(t("oauth.error.tokenPersist", { message }), {
+      platform: "github",
+    });
   }
 }
 

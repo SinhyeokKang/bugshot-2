@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { NetworkLog } from "@/types/network";
 import type { ConsoleLog } from "@/types/console";
 import { getVideoBlob, getImageBlob, getNetworkLog, getConsoleLog } from "@/store/blob-db";
@@ -38,11 +38,21 @@ import { useEditorStore } from "@/store/editor-store";
 import { useIssuesStore, type IssueRecord } from "@/store/issues-store";
 import { clearPicker } from "../picker-control";
 import {
-  useSettingsStore,
-  isJiraAccountComplete,
+  connectedPlatforms,
   jiraSiteId,
+  pickInitialPlatform,
+  useSettingsStore,
 } from "@/store/settings-store";
+import type { PlatformId } from "@/types/platform";
 import { sendBg, type JiraSubmitResult } from "@/types/messages";
+import {
+  submitToGithub,
+  type NormalizedSubmitResult,
+} from "../lib/submitToGithub";
+import type { GithubMediaInput } from "../lib/buildGithubIssueBody";
+import {
+  type GithubIssueFieldsValue,
+} from "./githubFields/GithubIssueFields";
 import { DocSectionBody } from "../components/DocSectionBody";
 import { LogAttachmentCards } from "../components/LogAttachmentCards";
 import { NetworkLogPreviewDialog } from "../components/NetworkLogPreviewDialog";
@@ -79,20 +89,39 @@ export function DraftDetailDialog({
   issue: IssueRecord | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSubmitSuccess?: (result: JiraSubmitResult) => void;
+  onSubmitSuccess?: (result: NormalizedSubmitResult) => void;
 }) {
   const t = useT();
-  const jiraAccount = useSettingsStore((s) => s.accounts.jira);
-  const configured = isJiraAccountComplete(jiraAccount);
+  const accounts = useSettingsStore((s) => s.accounts);
+  const jiraAccount = accounts.jira;
+  const ghAccount = accounts.github;
   const removeIssue = useIssuesStore((s) => s.removeIssue);
   const markSubmitted = useIssuesStore((s) => s.markSubmitted);
+  const patchIssue = useIssuesStore((s) => s.patchIssue);
   const sectionConfig = useAppSettingsStore((s) => s.issueSections);
 
   const [fields, setFields] = useState<SubmitFields>({});
   const [submitOpen, setSubmitOpen] = useState(false);
 
   const lastJiraSubmit = useSettingsStore((s) => s.lastSubmitFields.jira);
+  const lastGhSubmit = useSettingsStore((s) => s.lastSubmitFields.github);
+  const lastSubmittedPlatform = useSettingsStore((s) => s.lastSubmittedPlatform);
 
+  const available = useMemo(() => connectedPlatforms(accounts), [accounts]);
+  const [platform, setPlatform] = useState<PlatformId>("jira");
+  const [ghFields, setGhFieldsState] = useState<GithubIssueFieldsValue>(() =>
+    initialGhFields(lastGhSubmit, ghAccount?.defaults),
+  );
+  const setGhFields = useCallback(
+    (patch: Partial<GithubIssueFieldsValue>) =>
+      setGhFieldsState((s) => ({ ...s, ...patch })),
+    [],
+  );
+
+  // 다이얼로그 진입 prefill — open / issue.id 변경 시에만 동작.
+  // 사용자가 SubmitFieldsDialog의 Tab으로 platform을 바꾸면 patchIssue로 issue.platform이
+  // 갱신되는데, 그걸 deps에 넣으면 이 effect가 재실행되어 setSubmitOpen(false)/setPlatform(initial)이
+  // 사용자 인터랙션을 덮어쓴다 (Tab 전환 시 SubmitFieldsDialog가 강제로 닫히는 버그). 그래서 의도적으로 제외.
   useEffect(() => {
     if (!open) return;
     const base: SubmitFields = { issueTypeId: jiraAccount?.issueTypeId };
@@ -104,8 +133,20 @@ export function DraftDetailDialog({
       Object.assign(base, restored);
     }
     setFields(base);
+    setGhFieldsState(initialGhFields(lastGhSubmit, ghAccount?.defaults));
+    const initial =
+      issue && accounts[issue.platform]
+        ? issue.platform
+        : pickInitialPlatform(accounts, lastSubmittedPlatform) ?? "jira";
+    setPlatform(initial);
     setSubmitOpen(false);
-  }, [open, issue?.id, jiraAccount?.issueTypeId, jiraAccount?.projectKey, lastJiraSubmit]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, issue?.id]);
+
+  function handlePlatformChange(p: PlatformId) {
+    setPlatform(p);
+    if (issue && issue.platform !== p) patchIssue(issue.id, { platform: p });
+  }
 
   const isScreenshot = issue?.captureMode === "screenshot";
   const isVideo = issue?.captureMode === "video";
@@ -159,14 +200,9 @@ export function DraftDetailDialog({
     (!!issue.snapshot.before || !!issue.snapshot.after || diffs.length > 0);
   const hasScreenshot = isScreenshot && !!issue.snapshot.before;
 
-  async function handleSubmit(): Promise<JiraSubmitResult> {
-    if (!issue) throw new Error("초안 없음");
-    if (!jiraAccount?.auth || !jiraAccount.projectKey)
-      throw new Error("Jira 미설정");
-    if (!fields.issueTypeId) throw new Error("이슈 타입 선택 필요");
-
+  async function buildCtxForSubmit() {
+    if (!issue) throw new Error(t("create.requiredMissing"));
     const sel = issue.selectionSnapshot;
-
     let networkLog: NetworkLog | null = null;
     if (isVideo && issue.networkLogBlobKey) {
       networkLog = await getNetworkLog(issue.networkLogBlobKey);
@@ -175,7 +211,6 @@ export function DraftDetailDialog({
     if (isVideo && issue.consoleLogBlobKey) {
       consoleLogForSubmit = await getConsoleLog(issue.consoleLogBlobKey);
     }
-
     const ctx = {
       captureMode: issue.captureMode,
       title: issue.draft.title,
@@ -194,32 +229,31 @@ export function DraftDetailDialog({
       networkLogSummary: networkLog ? buildNetworkLogSummary(networkLog) : undefined,
       consoleLogSummary: consoleLogForSubmit ? buildConsoleLogSummary(consoleLogForSubmit) : undefined,
     };
+    return { ctx, networkLog, consoleLog: consoleLogForSubmit };
+  }
+
+  async function handleJiraSubmit(): Promise<NormalizedSubmitResult> {
+    if (!issue) throw new Error(t("create.requiredMissing"));
+    if (!jiraAccount?.auth || !jiraAccount.projectKey) {
+      throw new Error(t("platform.notConnected.title", { platform: t("platform.tab.jira") }));
+    }
+    if (!fields.issueTypeId) throw new Error(t("create.requiredMissing"));
+
+    const { ctx, networkLog, consoleLog: consoleLogForSubmit } = await buildCtxForSubmit();
     const description = buildIssueAdf(ctx);
-
-    const summary = issue.draft.title.trim();
-
     const attachments: { filename: string; dataUrl: string }[] = [
       buildAiMetaAttachment(ctx),
     ];
     if (isVideo) {
       const blob = await getVideoBlob(issue.id);
-      if (blob) {
-        const dataUrl = await blobToDataUrl(blob);
-        attachments.push({ filename: "recording.webm", dataUrl });
-      }
+      if (blob) attachments.push({ filename: "recording.webm", dataUrl: await blobToDataUrl(blob) });
       if (networkLog) {
-        const har = buildHar(networkLog);
-        const harJson = serializeHar(har);
-        const harBlob = new Blob([harJson], { type: "application/json" });
-        const harDataUrl = await blobToDataUrl(harBlob);
-        attachments.push({ filename: "network-log.har", dataUrl: harDataUrl });
+        const harBlob = new Blob([serializeHar(buildHar(networkLog))], { type: "application/json" });
+        attachments.push({ filename: "network-log.har", dataUrl: await blobToDataUrl(harBlob) });
       }
       if (consoleLogForSubmit) {
-        const jsonObj = buildConsoleLogJson(consoleLogForSubmit);
-        const jsonStr = serializeConsoleLog(jsonObj);
-        const jsonBlob = new Blob([jsonStr], { type: "application/json" });
-        const jsonDataUrl = await blobToDataUrl(jsonBlob);
-        attachments.push({ filename: "console-log.json", dataUrl: jsonDataUrl });
+        const jsonBlob = new Blob([serializeConsoleLog(buildConsoleLogJson(consoleLogForSubmit))], { type: "application/json" });
+        attachments.push({ filename: "console-log.json", dataUrl: await blobToDataUrl(jsonBlob) });
       }
     } else if (isScreenshot) {
       if (issue.snapshot.before) {
@@ -241,7 +275,7 @@ export function DraftDetailDialog({
       type: "jira.submitIssue",
       payload: {
         projectKey: jiraAccount.projectKey,
-        summary,
+        summary: issue.draft.title.trim(),
         description,
         issueTypeId: fields.issueTypeId,
         assigneeAccountId: fields.assigneeId,
@@ -252,10 +286,11 @@ export function DraftDetailDialog({
       relatesKey: fields.relatesKey,
     });
     markSubmitted(issue.id, {
+      platform: "jira",
       key: result.key,
       url: result.url,
-      jiraSiteId: jiraAccount?.auth ? jiraSiteId(jiraAccount.auth) : undefined,
-      issueTypeName: jiraAccount?.issueTypeName,
+      jiraSiteId: jiraSiteId(jiraAccount.auth),
+      issueTypeName: jiraAccount.issueTypeName,
       priorityName: fields.priorityName,
       assigneeName: fields.assigneeName,
     });
@@ -275,7 +310,88 @@ export function DraftDetailDialog({
       relatesKey: fields.relatesKey,
       relatesLabel: fields.relatesLabel,
     });
+    useSettingsStore.getState().setLastSubmittedPlatform("jira");
+    return { key: result.key, url: result.url };
+  }
+
+  async function handleGithubSubmit(): Promise<NormalizedSubmitResult> {
+    if (!issue) throw new Error(t("create.requiredMissing"));
+    if (!ghAccount) {
+      throw new Error(t("platform.notConnected.title", { platform: t("platform.tab.github") }));
+    }
+    if (!ghFields.owner || !ghFields.repo) throw new Error(t("create.requiredMissing"));
+
+    const { ctx, networkLog, consoleLog: consoleLogForSubmit } = await buildCtxForSubmit();
+    const images: GithubMediaInput[] = [];
+    let video: GithubMediaInput | undefined;
+    const logs: GithubMediaInput[] = [];
+
+    if (isVideo) {
+      const blob = await getVideoBlob(issue.id);
+      if (blob) video = { filename: "recording.webm", blob };
+      if (networkLog) {
+        logs.push({
+          filename: "network-log.har",
+          blob: new Blob([serializeHar(buildHar(networkLog))], { type: "application/json" }),
+        });
+      }
+      if (consoleLogForSubmit) {
+        logs.push({
+          filename: "console-log.json",
+          blob: new Blob([serializeConsoleLog(buildConsoleLogJson(consoleLogForSubmit))], { type: "application/json" }),
+        });
+      }
+    } else if (isScreenshot) {
+      if (issue.snapshot.before) {
+        const blob = await getImageBlob(issue.id, "before");
+        if (blob) images.push({ filename: "screenshot.webp", blob });
+      }
+    } else {
+      if (issue.snapshot.before) {
+        const blob = await getImageBlob(issue.id, "before");
+        if (blob) images.push({ filename: "before.webp", blob });
+      }
+      if (issue.snapshot.after) {
+        const blob = await getImageBlob(issue.id, "after");
+        if (blob) images.push({ filename: "after.webp", blob });
+      }
+    }
+
+    const result = await submitToGithub({
+      ctx,
+      images,
+      video,
+      logs,
+      owner: ghFields.owner,
+      repo: ghFields.repo,
+      labels: ghFields.labels,
+      assignees: ghFields.assignees,
+    });
+    markSubmitted(issue.id, {
+      platform: "github",
+      key: result.key,
+      url: result.url,
+      githubOwner: ghFields.owner,
+      githubRepo: ghFields.repo,
+      githubLabels: ghFields.labels,
+    });
+    if (useEditorStore.getState().currentIssueId === issue.id) {
+      const tabId = useEditorStore.getState().target?.tabId;
+      if (tabId != null) void clearPicker(tabId);
+      useEditorStore.getState().reset();
+    }
+    useSettingsStore.getState().setLastSubmitFields("github", {
+      owner: ghFields.owner,
+      repo: ghFields.repo,
+      labels: ghFields.labels,
+      assignees: ghFields.assignees,
+    });
+    useSettingsStore.getState().setLastSubmittedPlatform("github");
     return result;
+  }
+
+  async function handleSubmit(submitPlatform: PlatformId): Promise<NormalizedSubmitResult> {
+    return submitPlatform === "github" ? handleGithubSubmit() : handleJiraSubmit();
   }
 
   function handleDelete() {
@@ -323,13 +439,11 @@ export function DraftDetailDialog({
                 />
               </Card>
 
-              {!configured ? (
+              {available.length === 0 ? (
                 <Alert variant="ghost">
                   <Info className="h-4 w-4" />
-                  <AlertTitle>{t("platform.notConnected.title", { platform: t("platform.tab.jira") })}</AlertTitle>
-                  <AlertDescription>
-                    {t("platform.notConnected.body", { platform: t("platform.tab.jira") })}
-                  </AlertDescription>
+                  <AlertTitle>{t("platform.empty.title")}</AlertTitle>
+                  <AlertDescription>{t("platform.empty.body")}</AlertDescription>
                 </Alert>
               ) : null}
 
@@ -363,7 +477,7 @@ export function DraftDetailDialog({
                     {t("common.close")}
                   </Button>
                   <Button
-                    disabled={!configured}
+                    disabled={available.length === 0}
                     onClick={() => setSubmitOpen(true)}
                   >
                     {t("jira.submit")}
@@ -392,8 +506,13 @@ export function DraftDetailDialog({
         open={submitOpen}
         onOpenChange={setSubmitOpen}
         title={t("jira.submit")}
-        fields={fields}
-        onFieldsChange={(patch) => setFields((f) => ({ ...f, ...patch }))}
+        platform={platform}
+        setPlatform={handlePlatformChange}
+        availablePlatforms={available}
+        jiraFields={fields}
+        setJiraFields={(patch) => setFields((f) => ({ ...f, ...patch }))}
+        ghFields={ghFields}
+        setGhFields={setGhFields}
         onSubmit={handleSubmit}
         onSuccess={(result) => {
           onOpenChange(false);
@@ -402,6 +521,19 @@ export function DraftDetailDialog({
       />
     </>
   );
+}
+
+function initialGhFields(
+  last: { owner?: string; repo?: string; labels?: string[]; assignees?: string[] } | undefined,
+  defaults: { owner?: string; repo?: string; labels?: string[]; assignees?: string[] } | undefined,
+): GithubIssueFieldsValue {
+  const src = last?.owner && last.repo ? last : defaults;
+  return {
+    owner: src?.owner,
+    repo: src?.repo,
+    labels: src?.labels ?? [],
+    assignees: src?.assignees ?? [],
+  };
 }
 
 function FieldSection({

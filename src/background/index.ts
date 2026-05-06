@@ -1,6 +1,7 @@
 import { t } from "@/i18n";
 import { initBgLocale } from "@/i18n/bg-init";
 import { PANEL_PORT_PREFIX } from "@/lib/session-keys";
+import { GithubError } from "./github-api";
 import { JiraError } from "./jira-api";
 import { handleMessage } from "./messages";
 import { OAuthError } from "./oauth";
@@ -37,6 +38,7 @@ const BG_REQUEST_TYPES = new Set([
   "github.getLabels",
   "github.searchAssignees",
   "github.submitIssue",
+  "github.getIssueStatus",
 ]);
 
 function disableGlobalSidePanel(): void {
@@ -103,13 +105,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           status: error.status,
           body: error.body,
         });
-      } else if (error instanceof OAuthError) {
-        const cancelled = /cancel|취소|not authorize|not approve/i.test(error.message);
+      } else if (error instanceof GithubError) {
         sendResponse({
           ok: false,
           error: error.message,
-          status: cancelled ? undefined : 401,
-          body: cancelled ? undefined : { oauthRefreshFailed: true },
+          status: error.status,
+          body: error.body,
+        });
+      } else if (error instanceof OAuthError) {
+        sendResponse({
+          ok: false,
+          error: error.message,
+          status: error.cancelled ? undefined : 401,
+          body: error.cancelled
+            ? { oauthCancelled: true, platform: error.platform }
+            : { oauthRefreshFailed: true, platform: error.platform },
         });
       } else {
         sendResponse({ ok: false, error: friendlyError(error) });

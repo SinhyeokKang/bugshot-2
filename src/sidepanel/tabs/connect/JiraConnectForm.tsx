@@ -38,7 +38,7 @@ import type {
   JiraOAuthAuth,
   JiraSite,
 } from "@/types/jira";
-import { sendBg, type OAuthStartResultMsg } from "@/types/messages";
+import { isOAuthCancelled, sendBg, type OAuthStartResultMsg } from "@/types/messages";
 import { PageFooter, PageScroll, Section } from "../../components/Section";
 import { IssueTypeCombobox } from "../IssueTypeCombobox";
 import { ProjectCombobox } from "../ProjectCombobox";
@@ -99,12 +99,10 @@ class NoJiraSitesError extends Error {
   constructor(message: string) { super(message); this.name = "NoJiraSitesError"; }
 }
 
-const DISMISS_PATTERNS = /cancel|취소|not approve|not authorize/i;
-
 function classifyOAuthClassified(err: unknown): OAuthClassified | null {
   if (err instanceof NoJiraSitesError) return { kind: "noJira" };
+  if (isOAuthCancelled(err)) return null;
   const msg = err instanceof Error ? err.message : String(err);
-  if (DISMISS_PATTERNS.test(msg)) return null;
   return { kind: "general", message: msg };
 }
 

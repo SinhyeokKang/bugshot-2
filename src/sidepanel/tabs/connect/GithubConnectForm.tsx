@@ -32,12 +32,10 @@ import type {
   GithubMyself,
   GithubOAuthAuth,
 } from "@/types/github";
-import { sendBg } from "@/types/messages";
+import { isOAuthCancelled, sendBg } from "@/types/messages";
 import { PageFooter, PageScroll, Section } from "../../components/Section";
-import { LabelCombobox } from "../githubFields/LabelCombobox";
+import { LabelMultiSelect } from "../githubFields/LabelMultiSelect";
 import { RepoCombobox, type RepoValue } from "../githubFields/RepoCombobox";
-
-const DISMISS_PATTERNS = /cancel|취소|not approve|not authorize/i;
 
 export function GithubConnectForm() {
   const t = useT();
@@ -101,13 +99,13 @@ function DefaultIssueSettingsFields() {
     <div className="flex flex-col gap-3">
       <div className="flex flex-col gap-1.5">
         <label className="text-xs text-muted-foreground">{t("github.field.labels")}</label>
-        <LabelCombobox
+        <LabelMultiSelect
           owner={account.defaults.owner}
           repo={account.defaults.repo}
-          value={account.defaults.labels?.[0] ?? null}
+          value={account.defaults.labels ?? []}
           onChange={(next) =>
             updateGithubAccount({
-              defaults: { ...account.defaults, labels: next ? [next] : [] },
+              defaults: { ...account.defaults, labels: next },
             })
           }
         />
@@ -176,8 +174,9 @@ function GithubOnboarding() {
       };
       setAccount("github", next);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      if (!DISMISS_PATTERNS.test(msg)) setOauthError(msg);
+      if (!isOAuthCancelled(err)) {
+        setOauthError(err instanceof Error ? err.message : String(err));
+      }
     } finally {
       setConnecting(false);
     }

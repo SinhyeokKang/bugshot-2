@@ -1,7 +1,7 @@
 import { t } from "@/i18n";
 import { IMAGE_PLACEHOLDER } from "@/lib/adf-sentinels";
 import type { JiraAttachmentInput, JiraAuth, JiraSubmitResult } from "@/types/jira";
-import type { GithubAuth, GithubCreateIssueResult } from "@/types/github";
+import type { GithubAuth } from "@/types/github";
 import type { BgRequest } from "@/types/messages";
 import {
   createIssue,
@@ -18,6 +18,7 @@ import {
 } from "./jira-api";
 import {
   createIssue as createGithubIssue,
+  getIssueStatus as getGithubIssueStatus,
   getMyself as githubGetMyself,
   getRepoAssignees,
   getRepoLabels,
@@ -128,20 +129,21 @@ export async function handleMessage(
       );
 
     case "github.submitIssue":
-      return submitGithubIssue(await loadGithubAuth(), message.payload);
+      return createGithubIssue(await loadGithubAuth(), message.payload);
+
+    case "github.getIssueStatus":
+      return getGithubIssueStatus(
+        await loadGithubAuth(),
+        message.owner,
+        message.repo,
+        message.number,
+      );
 
     default: {
       const _exhaustive: never = message;
       throw new Error(`unknown message: ${JSON.stringify(_exhaustive)}`);
     }
   }
-}
-
-async function submitGithubIssue(
-  auth: GithubAuth,
-  payload: import("@/types/github").GithubCreateIssuePayload,
-): Promise<GithubCreateIssueResult> {
-  return createGithubIssue(auth, payload);
 }
 
 async function submitIssue(

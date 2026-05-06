@@ -15,12 +15,14 @@ import type {
 import type {
   GithubCreateIssuePayload,
   GithubCreateIssueResult,
+  GithubIssueStatus,
   GithubLabel,
   GithubMyself,
   GithubOAuthAuth,
   GithubRepo,
   GithubUser,
 } from "./github";
+import type { PlatformId } from "./platform";
 
 export interface OAuthStartResultMsg {
   sites: JiraSite[];
@@ -63,6 +65,12 @@ export type BgRequest =
   | {
       type: "github.submitIssue";
       payload: GithubCreateIssuePayload;
+    }
+  | {
+      type: "github.getIssueStatus";
+      owner: string;
+      repo: string;
+      number: number;
     };
 
 export type BgResponse<T = unknown> =
@@ -93,7 +101,9 @@ export function sendBg<T = unknown>(req: BgRequest): Promise<T> {
           res?.status,
           res?.body,
         );
-        if (isOAuthRefreshFailed(err)) onOAuthExpired.fire();
+        if (isOAuthRefreshFailed(err)) {
+          onOAuthExpired.fire(getOAuthErrorPlatform(err));
+        }
         reject(err);
         return;
       }
@@ -102,17 +112,33 @@ export function sendBg<T = unknown>(req: BgRequest): Promise<T> {
   });
 }
 
+function readErrorBodyFlag(err: unknown, key: string): boolean {
+  if (!(err instanceof BgError)) return false;
+  if (!err.body || typeof err.body !== "object") return false;
+  return (err.body as Record<string, unknown>)[key] === true;
+}
+
 export function isOAuthRefreshFailed(err: unknown): boolean {
-  return err instanceof BgError &&
-    !!err.body &&
-    (err.body as Record<string, unknown>).oauthRefreshFailed === true;
+  return readErrorBodyFlag(err, "oauthRefreshFailed");
+}
+
+export function isOAuthCancelled(err: unknown): boolean {
+  return readErrorBodyFlag(err, "oauthCancelled");
+}
+
+export function getOAuthErrorPlatform(err: unknown): PlatformId | null {
+  if (!(err instanceof BgError)) return null;
+  if (!err.body || typeof err.body !== "object") return null;
+  const p = (err.body as Record<string, unknown>).platform;
+  return p === "jira" || p === "github" ? p : null;
 }
 
 type Listener = () => void;
+type OAuthExpiredListener = (platform: PlatformId | null) => void;
 export const onOAuthExpired = {
-  _listeners: new Set<Listener>(),
-  subscribe(fn: Listener) { this._listeners.add(fn); return () => { this._listeners.delete(fn); }; },
-  fire() { this._listeners.forEach((fn) => fn()); },
+  _listeners: new Set<OAuthExpiredListener>(),
+  subscribe(fn: OAuthExpiredListener) { this._listeners.add(fn); return () => { this._listeners.delete(fn); }; },
+  fire(platform: PlatformId | null) { this._listeners.forEach((fn) => fn(platform)); },
 };
 
 export const onPickerUnavailable = {
@@ -139,7 +165,7 @@ export const onSessionSaveExhausted = {
   fire() { this._listeners.forEach((fn) => fn()); },
 };
 
-// Re-export common Jira types for consumers
+// Re-export common platform types for consumers
 export type {
   JiraAttachmentInput,
   JiraConfigPayload,
@@ -152,11 +178,9 @@ export type {
   JiraSite,
   JiraSubmitResult,
   JiraUser,
-};
-
-export type {
   GithubCreateIssuePayload,
   GithubCreateIssueResult,
+  GithubIssueStatus,
   GithubLabel,
   GithubMyself,
   GithubOAuthAuth,

@@ -7,8 +7,9 @@ import {
 import type { MarkdownContext } from "./buildIssueMarkdown";
 import { formatTimestamp } from "./formatTimestamp";
 
-export const GITHUB_BODY_BUDGET = 60_000;
-export const GITHUB_INLINE_IMAGE_MAX = 64 * 1024;
+// GitHub은 본문에서 `data:` URI 이미지를 sanitize하므로 base64 인라인은 렌더되지 않는다.
+// 모든 미디어는 항상 본문에 파일명만 안내로 노출하고, 실제 첨부는 사용자가 사이드패널에서
+// 다운로드한 뒤 GitHub UI에 직접 drag&drop하는 것을 전제로 한다.
 
 export interface GithubMediaInput {
   filename: string;
@@ -24,32 +25,7 @@ export interface GithubBuildInput {
 
 export interface GithubBuildResult {
   body: string;
-  inlined: string[];
-  notInlined: string[];
-}
-
-export async function tryInlineImage(
-  blob: Blob,
-  remainingBudget: number,
-): Promise<string | null> {
-  if (blob.size > GITHUB_INLINE_IMAGE_MAX) return null;
-  const dataUri = await blobToDataUri(blob);
-  // markdown wrap `![filename](...)\n` 기본 30~50 byte 가산 추정
-  if (dataUri.length + 50 > remainingBudget) return null;
-  return dataUri;
-}
-
-async function blobToDataUri(blob: Blob): Promise<string> {
-  const buf = await blob.arrayBuffer();
-  const bytes = new Uint8Array(buf);
-  let bin = "";
-  const CHUNK = 0x8000;
-  for (let i = 0; i < bytes.length; i += CHUNK) {
-    bin += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
-  }
-  const base64 = btoa(bin);
-  const mime = blob.type || "image/webp";
-  return `data:${mime};base64,${base64}`;
+  attached: string[];
 }
 
 function sectionLabel(section: IssueSection): string {
@@ -67,13 +43,6 @@ function escapeCell(value: string): string {
   return value.replace(/\|/g, "\\|").replace(/\r?\n/g, " ");
 }
 
-function joinedSize(lines: string[]): number {
-  // joined string size approx — 1 byte per char + newlines
-  let n = 0;
-  for (const l of lines) n += l.length + 1;
-  return n;
-}
-
 function webstoreUrl(): string {
   return (import.meta.env.VITE_WEBSTORE_URL as string | undefined) ?? "";
 }
@@ -84,13 +53,12 @@ function footerMarkdown(): string {
   return `_Reported via ${brand}_`;
 }
 
-export async function buildGithubIssueBody(
+export function buildGithubIssueBody(
   input: GithubBuildInput,
-): Promise<GithubBuildResult> {
+): GithubBuildResult {
   const { ctx, images = [], video, logs = [] } = input;
   const lines: string[] = [];
-  const inlined: string[] = [];
-  const notInlined: string[] = [];
+  const attached: string[] = [];
 
   lines.push(`# ${ctx.title}`, "");
 
@@ -104,37 +72,23 @@ export async function buildGithubIssueBody(
   lines.push("");
 
   let mediaEmitted = false;
-  const emitMedia = async () => {
+  const emitMedia = () => {
     if (mediaEmitted) return;
     mediaEmitted = true;
 
-    const hasVisualMedia =
-      images.length > 0 || !!video || ctx.captureMode === "screenshot" || ctx.captureMode === "video";
-    if (hasVisualMedia) {
-      lines.push(`## ${t("md.section.media")}`, "");
-
-      for (const img of images) {
-        const remaining = GITHUB_BODY_BUDGET - joinedSize(lines);
-        const dataUri = await tryInlineImage(img.blob, remaining);
-        if (dataUri) {
-          lines.push(`![${img.filename}](${dataUri})`, "");
-          inlined.push(img.filename);
-        } else {
-          lines.push(
-            `- \`${img.filename}\` — ${t("github.attachmentTooLarge")}`,
-            "",
-          );
-          notInlined.push(img.filename);
-        }
+    const allAttachments: GithubMediaInput[] = [
+      ...images,
+      ...(video ? [video] : []),
+      ...logs,
+    ];
+    if (allAttachments.length > 0) {
+      lines.push(`## ${t("md.section.attachments")}`, "");
+      lines.push(t("github.attachmentNotInline"), "");
+      for (const a of allAttachments) {
+        lines.push(`- \`${a.filename}\``);
+        attached.push(a.filename);
       }
-
-      if (video) {
-        lines.push(
-          `- \`${video.filename}\` — ${t("github.attachmentNotInline")}`,
-          "",
-        );
-        notInlined.push(video.filename);
-      }
+      lines.push("");
     }
 
     if (
@@ -153,21 +107,13 @@ export async function buildGithubIssueBody(
       lines.push("");
     }
 
-    for (const log of logs) {
-      lines.push(
-        `- \`${log.filename}\` — ${t("github.attachmentNotInline")}`,
-        "",
-      );
-      notInlined.push(log.filename);
-    }
-
     emitLogSummary(lines, ctx);
   };
 
   for (const section of ctx.sectionConfig) {
     if (!section.enabled) continue;
     if (POST_MEDIA_SECTION_IDS.has(section.id)) {
-      await emitMedia();
+      emitMedia();
     }
     const content = ctx.sections[section.id] ?? "";
     lines.push(`## ${sectionLabel(section)}`, "");
@@ -184,12 +130,12 @@ export async function buildGithubIssueBody(
     lines.push("");
   }
 
-  await emitMedia();
+  emitMedia();
 
   lines.push("---", "");
   lines.push(footerMarkdown(), "");
 
-  return { body: lines.join("\n"), inlined, notInlined };
+  return { body: lines.join("\n"), attached };
 }
 
 function emitLogSummary(lines: string[], ctx: MarkdownContext): void {

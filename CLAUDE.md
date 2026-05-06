@@ -130,7 +130,7 @@ chrome.action.onClicked.addListener((tab) => {
 
 **왜 proxy가 필요한가**: Atlassian `/oauth/token`은 confidential client(`client_secret` 요구)라 확장에 비밀키를 번들할 수 없다. `oauth-proxy/` (Cloudflare Worker)가 `code↔token`·`refresh↔token` 교환만 중계한다.
 
-**토큰 갱신**: `jira-api.ts`가 요청 전 `expiresAt`을 확인해 프리-리프레시, 또는 401 수신 시 자동 `refreshOAuthToken` 후 원 요청 재시도. 새 토큰은 `persistOAuthTokens`가 storage envelope을 찾아 제자리 갱신. refresh token 자체가 무효화되면 `OAuthError` → `sendBg`의 `onOAuthExpired` 이벤트 → App.tsx AlertDialog로 재인증 안내 + Jira 연동 탭 이동.
+**토큰 갱신**: `jira-api.ts`가 요청 전 `expiresAt`을 확인해 프리-리프레시, 또는 401 수신 시 자동 `refreshOAuthToken` 후 원 요청 재시도. 새 토큰은 `persistOAuthTokens`가 storage envelope을 찾아 제자리 갱신. refresh token 자체가 무효화되면 `OAuthError` → `sendBg`의 `onOAuthExpired(platform)` 이벤트 → App.tsx AlertDialog로 platform별 재인증 안내 + 연동 탭 이동. `OAuthError`는 `{ platform, cancelled }` 옵션을 받아 BG가 `body.platform` / `body.oauthCancelled` / `body.oauthRefreshFailed` 플래그로 직렬화 → UI는 `isOAuthCancelled` / `getOAuthErrorPlatform` 헬퍼로 분기 (정규식 매칭 금지).
 
 **환경 변수** (빌드 타임):
 - `VITE_ATLASSIAN_CLIENT_ID` — OAuth 앱 client_id

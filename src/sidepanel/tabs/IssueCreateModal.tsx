@@ -5,6 +5,7 @@ import {
   Loader2,
   X,
 } from "lucide-react";
+import { SiGithub, SiJirasoftware } from "@icons-pack/react-simple-icons";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,15 +29,19 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useT } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { useAppSettingsStore } from "@/store/app-settings-store";
+import { dataUrlToBlob } from "@/store/blob-db";
 import { useEditorStore, type EditorIssueFields } from "@/store/editor-store";
 import { useIssuesStore } from "@/store/issues-store";
 import {
-  useSettingsStore,
+  connectedPlatforms,
   isJiraAccountComplete,
   jiraSiteId,
+  pickInitialPlatform,
+  useSettingsStore,
 } from "@/store/settings-store";
 import type {
   JiraIssueSummary,
@@ -44,13 +49,27 @@ import type {
   JiraPriority,
   JiraUser,
 } from "@/types/jira";
+import type { PlatformId } from "@/types/platform";
 import { sendBg, type JiraSubmitResult } from "@/types/messages";
 import { buildStyleDiff } from "../components/StyleChangesTable";
 import { buildAiMetaAttachment } from "../lib/buildAiMetaAttachment";
 import { buildIssueAdf, type AdfDoc } from "../lib/buildIssueAdf";
 import { buildHar, serializeHar } from "../lib/buildHar";
 import { buildConsoleLogJson, serializeConsoleLog } from "../lib/buildConsoleLogJson";
-import { buildNetworkLogSummary, buildConsoleLogSummary } from "../lib/buildLogSummary";
+import {
+  buildNetworkLogSummary,
+  buildConsoleLogSummary,
+} from "../lib/buildLogSummary";
+import type { MarkdownContext } from "../lib/buildIssueMarkdown";
+import {
+  submitToGithub,
+  type NormalizedSubmitResult,
+} from "../lib/submitToGithub";
+import type { GithubMediaInput } from "../lib/buildGithubIssueBody";
+import {
+  GithubIssueFields,
+  type GithubIssueFieldsValue,
+} from "./githubFields/GithubIssueFields";
 
 type SubmitState =
   | { status: "idle" }
@@ -60,8 +79,48 @@ type SubmitState =
 export function IssueCreateModal() {
   const t = useT();
   const [open, setOpen] = useState(false);
-  const jiraAccount = useSettingsStore((s) => s.accounts.jira);
-  const configured = isJiraAccountComplete(jiraAccount);
+
+  const accounts = useSettingsStore((s) => s.accounts);
+  const lastSubmittedPlatform = useSettingsStore((s) => s.lastSubmittedPlatform);
+  const lastGhSubmit = useSettingsStore((s) => s.lastSubmitFields.github);
+  const setTargetPlatform = useEditorStore((s) => s.setTargetPlatform);
+
+  const available = useMemo(() => connectedPlatforms(accounts), [accounts]);
+  const initialPlatform = useMemo(
+    () => pickInitialPlatform(accounts, lastSubmittedPlatform),
+    [accounts, lastSubmittedPlatform],
+  );
+  const [platform, setPlatform] = useState<PlatformId>(initialPlatform ?? "jira");
+
+  // 다이얼로그가 열릴 때마다 default platform 재계산
+  useEffect(() => {
+    if (open && initialPlatform) {
+      setPlatform(initialPlatform);
+      setTargetPlatform(initialPlatform);
+    }
+  }, [open, initialPlatform, setTargetPlatform]);
+
+  function handlePlatformChange(p: PlatformId) {
+    setPlatform(p);
+    setTargetPlatform(p);
+    if (currentIssueId) patchIssue(currentIssueId, { platform: p });
+  }
+
+  const ghAccount = accounts.github;
+  const jiraAccount = accounts.jira;
+
+  // GitHub 메타 필드: 직전 제출값 우선, 없으면 account.defaults, 그것도 없으면 빈 값
+  const [ghFields, setGhFieldsState] = useState<GithubIssueFieldsValue>(() =>
+    initialGhFields(lastGhSubmit, ghAccount?.defaults),
+  );
+  useEffect(() => {
+    if (open) setGhFieldsState(initialGhFields(lastGhSubmit, ghAccount?.defaults));
+  }, [open, lastGhSubmit, ghAccount?.defaults]);
+  const setGhFields = useCallback(
+    (patch: Partial<GithubIssueFieldsValue>) =>
+      setGhFieldsState((s) => ({ ...s, ...patch })),
+    [],
+  );
 
   const captureMode = useEditorStore((s) => s.captureMode);
   const selection = useEditorStore((s) => s.selection);
@@ -89,107 +148,102 @@ export function IssueCreateModal() {
 
   const currentIssueId = useEditorStore((s) => s.currentIssueId);
   const markSubmitted = useIssuesStore((s) => s.markSubmitted);
+  const patchIssue = useIssuesStore((s) => s.patchIssue);
 
-  async function handleSubmit(): Promise<JiraSubmitResult> {
-    if (!jiraAccount?.auth || !jiraAccount.projectKey) throw new Error("Jira 미설정");
-    if (!draft || !issueFields.issueTypeId) throw new Error("필수 값 누락");
-
-    let description: AdfDoc;
-    const attachments: { filename: string; dataUrl: string }[] = [];
-
+  function buildCtx(): MarkdownContext {
+    if (!draft || !target) throw new Error(t("create.requiredMissing"));
     if (captureMode === "video") {
       const hasNetworkLog = networkLogAttach && networkLog && networkLog.captured > 0;
       const hasConsoleLog = consoleLogAttach && consoleLog && consoleLog.captured > 0;
-      const ctx = {
-        captureMode: "video" as const,
+      return {
+        captureMode: "video",
         title: draft.title,
         sections: draft.sections,
         sectionConfig,
-        url: target?.url ?? "",
+        url: target.url,
         selector: "",
         tagName: "",
-        classListBefore: [] as string[],
-        classListAfter: [] as string[],
-        specifiedStyles: {} as Record<string, string>,
-        tokens: [] as { name: string; value: string }[],
+        classListBefore: [],
+        classListAfter: [],
+        specifiedStyles: {},
+        tokens: [],
         viewport: videoViewport ?? { width: 0, height: 0 },
         capturedAt: videoCapturedAt ?? Date.now(),
         diffs: [],
-        networkLogSummary: hasNetworkLog ? buildNetworkLogSummary(networkLog) : undefined,
-        consoleLogSummary: hasConsoleLog ? buildConsoleLogSummary(consoleLog) : undefined,
+        networkLogSummary: hasNetworkLog ? buildNetworkLogSummary(networkLog!) : undefined,
+        consoleLogSummary: hasConsoleLog ? buildConsoleLogSummary(consoleLog!) : undefined,
       };
-      description = buildIssueAdf(ctx);
-      attachments.push(buildAiMetaAttachment(ctx));
-      if (videoBlob) {
-        const dataUrl = await blobToDataUrl(videoBlob);
-        attachments.push({ filename: "recording.webm", dataUrl });
-      }
-      if (hasNetworkLog) {
-        const har = buildHar(networkLog);
-        const harJson = serializeHar(har);
-        const harBlob = new Blob([harJson], { type: "application/json" });
-        const harDataUrl = await blobToDataUrl(harBlob);
-        attachments.push({ filename: "network-log.har", dataUrl: harDataUrl });
-      }
-      if (hasConsoleLog) {
-        const jsonObj = buildConsoleLogJson(consoleLog);
-        const jsonStr = serializeConsoleLog(jsonObj);
-        const jsonBlob = new Blob([jsonStr], { type: "application/json" });
-        const jsonDataUrl = await blobToDataUrl(jsonBlob);
-        attachments.push({ filename: "console-log.json", dataUrl: jsonDataUrl });
-      }
-    } else if (captureMode === "screenshot") {
-      const screenshotImage = screenshotAnnotated ?? screenshotRaw;
-      const ctx = {
-        captureMode: "screenshot" as const,
+    }
+    if (captureMode === "screenshot") {
+      return {
+        captureMode: "screenshot",
         title: draft.title,
         sections: draft.sections,
         sectionConfig,
-        url: target?.url ?? "",
+        url: target.url,
         selector: "",
         tagName: "",
-        classListBefore: [] as string[],
-        classListAfter: [] as string[],
-        specifiedStyles: {} as Record<string, string>,
-        tokens: [] as { name: string; value: string }[],
+        classListBefore: [],
+        classListAfter: [],
+        specifiedStyles: {},
+        tokens: [],
         viewport: screenshotViewport ?? { width: 0, height: 0 },
         capturedAt: screenshotCapturedAt ?? Date.now(),
         diffs: [],
       };
-      description = buildIssueAdf(ctx);
-      attachments.push(buildAiMetaAttachment(ctx));
+    }
+    if (!selection) throw new Error(t("create.requiredMissing"));
+    return {
+      title: draft.title,
+      sections: draft.sections,
+      sectionConfig,
+      url: target.url,
+      selector: selection.selector,
+      tagName: selection.tagName,
+      classListBefore: selection.classList,
+      classListAfter: styleEdits.classList,
+      specifiedStyles: selection.specifiedStyles,
+      tokens: tokens.map((tk) => ({ name: tk.name, value: tk.value })),
+      viewport: selection.viewport,
+      capturedAt: selection.capturedAt,
+      diffs: buildStyleDiff(selection, styleEdits),
+    };
+  }
+
+  async function handleJiraSubmit(ctx: MarkdownContext): Promise<NormalizedSubmitResult> {
+    if (!jiraAccount?.auth || !jiraAccount.projectKey) {
+      throw new Error(t("platform.notConnected.title", { platform: t("platform.tab.jira") }));
+    }
+    if (!issueFields.issueTypeId) throw new Error(t("create.requiredMissing"));
+    const description: AdfDoc = buildIssueAdf(ctx);
+    const attachments: { filename: string; dataUrl: string }[] = [buildAiMetaAttachment(ctx)];
+
+    if (captureMode === "video") {
+      if (videoBlob) {
+        const dataUrl = await blobToDataUrl(videoBlob);
+        attachments.push({ filename: "recording.webm", dataUrl });
+      }
+      if (networkLog && networkLogAttach && networkLog.captured > 0) {
+        const harBlob = new Blob([serializeHar(buildHar(networkLog))], { type: "application/json" });
+        attachments.push({ filename: "network-log.har", dataUrl: await blobToDataUrl(harBlob) });
+      }
+      if (consoleLog && consoleLogAttach && consoleLog.captured > 0) {
+        const jsonBlob = new Blob([serializeConsoleLog(buildConsoleLogJson(consoleLog))], { type: "application/json" });
+        attachments.push({ filename: "console-log.json", dataUrl: await blobToDataUrl(jsonBlob) });
+      }
+    } else if (captureMode === "screenshot") {
+      const screenshotImage = screenshotAnnotated ?? screenshotRaw;
       if (screenshotImage) attachments.push({ filename: "screenshot.webp", dataUrl: screenshotImage });
     } else {
-      if (!selection) throw new Error("필수 값 누락");
-      const diffs = buildStyleDiff(selection, styleEdits);
-      const ctx = {
-        title: draft.title,
-        sections: draft.sections,
-        sectionConfig,
-        url: target?.url ?? "",
-        selector: selection.selector,
-        tagName: selection.tagName,
-        classListBefore: selection.classList,
-        classListAfter: styleEdits.classList,
-        specifiedStyles: selection.specifiedStyles,
-        tokens: tokens.map((t) => ({ name: t.name, value: t.value })),
-        viewport: selection.viewport,
-        capturedAt: selection.capturedAt,
-        diffs,
-      };
-      description = buildIssueAdf(ctx);
-      attachments.push(buildAiMetaAttachment(ctx));
       if (beforeImage) attachments.push({ filename: "before.webp", dataUrl: beforeImage });
       if (afterImage) attachments.push({ filename: "after.webp", dataUrl: afterImage });
     }
-
-    const summary = draft.title.trim();
 
     const result = await sendBg<JiraSubmitResult>({
       type: "jira.submitIssue",
       payload: {
         projectKey: jiraAccount.projectKey,
-        summary,
+        summary: draft!.title.trim(),
         description,
         issueTypeId: issueFields.issueTypeId,
         assigneeAccountId: issueFields.assigneeId,
@@ -201,10 +255,11 @@ export function IssueCreateModal() {
     });
     if (currentIssueId) {
       markSubmitted(currentIssueId, {
+        platform: "jira",
         key: result.key,
         url: result.url,
         jiraSiteId: jiraSiteId(jiraAccount.auth),
-        issueTypeName: jiraAccount?.issueTypeName,
+        issueTypeName: jiraAccount.issueTypeName,
         priorityName: issueFields.priorityName,
         assigneeName: issueFields.assigneeName,
       });
@@ -220,62 +275,179 @@ export function IssueCreateModal() {
       relatesKey: issueFields.relatesKey,
       relatesLabel: issueFields.relatesLabel,
     });
+    useSettingsStore.getState().setLastSubmittedPlatform("jira");
+    onSubmitted({ key: result.key, url: result.url });
+    return { key: result.key, url: result.url };
+  }
+
+  async function handleGithubSubmit(ctx: MarkdownContext): Promise<NormalizedSubmitResult> {
+    if (!ghAccount) {
+      throw new Error(t("platform.notConnected.title", { platform: t("platform.tab.github") }));
+    }
+    if (!ghFields.owner || !ghFields.repo) throw new Error(t("create.requiredMissing"));
+
+    const images: GithubMediaInput[] = [];
+    let video: GithubMediaInput | undefined;
+    const logs: GithubMediaInput[] = [];
+
+    if (captureMode === "video") {
+      if (videoBlob) video = { filename: "recording.webm", blob: videoBlob };
+      if (networkLog && networkLogAttach && networkLog.captured > 0) {
+        logs.push({
+          filename: "network-log.har",
+          blob: new Blob([serializeHar(buildHar(networkLog))], { type: "application/json" }),
+        });
+      }
+      if (consoleLog && consoleLogAttach && consoleLog.captured > 0) {
+        logs.push({
+          filename: "console-log.json",
+          blob: new Blob([serializeConsoleLog(buildConsoleLogJson(consoleLog))], { type: "application/json" }),
+        });
+      }
+    } else if (captureMode === "screenshot") {
+      const screenshotImage = screenshotAnnotated ?? screenshotRaw;
+      if (screenshotImage) images.push({ filename: "screenshot.webp", blob: dataUrlToBlob(screenshotImage) });
+    } else {
+      if (beforeImage) images.push({ filename: "before.webp", blob: dataUrlToBlob(beforeImage) });
+      if (afterImage) images.push({ filename: "after.webp", blob: dataUrlToBlob(afterImage) });
+    }
+
+    const result = await submitToGithub({
+      ctx,
+      images,
+      video,
+      logs,
+      owner: ghFields.owner,
+      repo: ghFields.repo,
+      labels: ghFields.labels,
+      assignees: ghFields.assignees,
+    });
+    if (currentIssueId) {
+      markSubmitted(currentIssueId, {
+        platform: "github",
+        key: result.key,
+        url: result.url,
+        githubOwner: ghFields.owner,
+        githubRepo: ghFields.repo,
+        githubLabels: ghFields.labels,
+      });
+    }
+    useSettingsStore.getState().setLastSubmitFields("github", {
+      owner: ghFields.owner,
+      repo: ghFields.repo,
+      labels: ghFields.labels,
+      assignees: ghFields.assignees,
+    });
+    useSettingsStore.getState().setLastSubmittedPlatform("github");
     onSubmitted({ key: result.key, url: result.url });
     return result;
   }
+
+  async function handleSubmit(submitPlatform: PlatformId): Promise<NormalizedSubmitResult> {
+    const ctx = buildCtx();
+    return submitPlatform === "github" ? handleGithubSubmit(ctx) : handleJiraSubmit(ctx);
+  }
+
+  const canOpen = available.length > 0;
+  const tooltip = canOpen
+    ? undefined
+    : t("platform.connectFirst", { platform: t("platform.tab.jira") });
 
   return (
     <>
       <Button
         size="lg"
-        disabled={!configured}
+        disabled={!canOpen}
         onClick={() => setOpen(true)}
-        title={configured ? undefined : t("platform.connectFirst", { platform: t("platform.tab.jira") })}
+        title={tooltip}
       >
         {t("jira.submit")}
       </Button>
       <SubmitFieldsDialog
         open={open}
         onOpenChange={setOpen}
-        fields={issueFields}
-        onFieldsChange={setIssueFields}
+        platform={platform}
+        setPlatform={handlePlatformChange}
+        availablePlatforms={available}
+        jiraFields={issueFields}
+        setJiraFields={setIssueFields}
+        ghFields={ghFields}
+        setGhFields={setGhFields}
         onSubmit={handleSubmit}
       />
     </>
   );
 }
 
-export function SubmitFieldsDialog({
-  open,
-  onOpenChange,
-  title,
-  fields,
-  onFieldsChange,
-  onSubmit,
-  onSuccess,
-}: {
+function initialGhFields(
+  last: { owner?: string; repo?: string; labels?: string[]; assignees?: string[] } | undefined,
+  defaults: { owner?: string; repo?: string; labels?: string[]; assignees?: string[] } | undefined,
+): GithubIssueFieldsValue {
+  const src = last?.owner && last.repo ? last : defaults;
+  return {
+    owner: src?.owner,
+    repo: src?.repo,
+    labels: src?.labels ?? [],
+    assignees: src?.assignees ?? [],
+  };
+}
+
+export interface SubmitFieldsDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   title?: string;
-  fields: EditorIssueFields;
-  onFieldsChange: (patch: Partial<EditorIssueFields>) => void;
-  onSubmit: () => Promise<JiraSubmitResult>;
-  onSuccess?: (result: JiraSubmitResult) => void;
-}) {
+  platform: PlatformId;
+  setPlatform: (p: PlatformId) => void;
+  availablePlatforms: PlatformId[];
+  jiraFields: EditorIssueFields;
+  setJiraFields: (patch: Partial<EditorIssueFields>) => void;
+  ghFields: GithubIssueFieldsValue;
+  setGhFields: (patch: Partial<GithubIssueFieldsValue>) => void;
+  onSubmit: (platform: PlatformId) => Promise<NormalizedSubmitResult>;
+  onSuccess?: (result: NormalizedSubmitResult) => void;
+}
+
+export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
+  const {
+    open,
+    onOpenChange,
+    title,
+    platform,
+    setPlatform,
+    availablePlatforms,
+    jiraFields,
+    setJiraFields,
+    ghFields,
+    setGhFields,
+    onSubmit,
+    onSuccess,
+  } = props;
   const t = useT();
   const jiraAccount = useSettingsStore((s) => s.accounts.jira);
-  const configured = isJiraAccountComplete(jiraAccount);
+  const ghAccount = useSettingsStore((s) => s.accounts.github);
   const [submit, setSubmit] = useState<SubmitState>({ status: "idle" });
 
   useEffect(() => {
     if (!open) setSubmit({ status: "idle" });
   }, [open]);
 
+  const jiraConfigured = isJiraAccountComplete(jiraAccount);
+  const ghConfigured = !!ghAccount;
+  const platformConfigured =
+    platform === "jira" ? jiraConfigured : ghConfigured;
+
+  const canSubmit =
+    submit.status !== "submitting" &&
+    platformConfigured &&
+    (platform === "jira"
+      ? !!jiraFields.issueTypeId
+      : !!ghFields.owner && !!ghFields.repo);
+
   async function handleSubmit() {
-    if (!configured || !fields.issueTypeId) return;
+    if (!canSubmit) return;
     setSubmit({ status: "submitting" });
     try {
-      const result = await onSubmit();
+      const result = await onSubmit(platform);
       onOpenChange(false);
       onSuccess?.(result);
     } catch (err) {
@@ -291,9 +463,7 @@ export function SubmitFieldsDialog({
     onOpenChange(next);
   }
 
-  const canSubmit = !!(
-    configured && fields.issueTypeId && submit.status !== "submitting"
-  );
+  const showTabs = availablePlatforms.length > 1;
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
@@ -301,51 +471,44 @@ export function SubmitFieldsDialog({
         <DialogHeader>
           <DialogTitle className="text-xl">{title ?? t("jira.submit")}</DialogTitle>
         </DialogHeader>
-        {configured ? (
-          <div className="flex flex-col gap-4">
-            <FieldRow label={t("create.issueType")} required>
-              <IssueTypeField
-                value={fields.issueTypeId}
-                onChange={(id) => onFieldsChange({ issueTypeId: id })}
-              />
-            </FieldRow>
-            <FieldRow label={t("create.assignee")}>
-              <AssigneeField
-                value={fields.assigneeId}
-                fallbackLabel={fields.assigneeName}
-                onChange={(id, name) => onFieldsChange({ assigneeId: id, assigneeName: name })}
-              />
-            </FieldRow>
-            <FieldRow label={t("create.priority")}>
-              <PriorityField
-                value={fields.priorityId}
-                fallbackLabel={fields.priorityName}
-                onChange={(id, name) => onFieldsChange({ priorityId: id, priorityName: name })}
-              />
-            </FieldRow>
-            <FieldRow label={t("create.parentEpic")}>
-              <EpicField
-                value={fields.parentKey}
-                fallbackLabel={fields.parentLabel}
-                onChange={(key, label) => onFieldsChange({ parentKey: key, parentLabel: label })}
-                hierarchyLevels={[1]}
-              />
-            </FieldRow>
-            <FieldRow label={t("create.linkedIssue")}>
-              <EpicField
-                value={fields.relatesKey}
-                fallbackLabel={fields.relatesLabel}
-                onChange={(key, label) => onFieldsChange({ relatesKey: key, relatesLabel: label })}
-              />
-            </FieldRow>
 
-            {submit.status === "error" ? (
-              <Alert variant="destructive" className="text-xs">
-                <AlertDescription>{submit.message}</AlertDescription>
-              </Alert>
-            ) : null}
-          </div>
+        {showTabs ? (
+          <Tabs value={platform} onValueChange={(v) => setPlatform(v as PlatformId)}>
+            <TabsList className="grid h-9 w-full grid-cols-2">
+              <TabsTrigger
+                value="jira"
+                className="gap-1.5"
+                disabled={!availablePlatforms.includes("jira")}
+              >
+                <SiJirasoftware className="h-3.5 w-3.5" color="default" />
+                {t("platform.tab.jira")}
+              </TabsTrigger>
+              <TabsTrigger
+                value="github"
+                className="gap-1.5"
+                disabled={!availablePlatforms.includes("github")}
+              >
+                <SiGithub className="h-3.5 w-3.5 dark:invert" color="default" />
+                {t("platform.tab.github")}
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
         ) : null}
+
+        {platform === "jira" ? (
+          jiraConfigured ? (
+            <JiraFieldsBlock fields={jiraFields} onChange={setJiraFields} />
+          ) : null
+        ) : ghConfigured ? (
+          <GithubIssueFields value={ghFields} onChange={setGhFields} />
+        ) : null}
+
+        {submit.status === "error" ? (
+          <Alert variant="destructive" className="text-xs">
+            <AlertDescription>{submit.message}</AlertDescription>
+          </Alert>
+        ) : null}
+
         <DialogFooter className="flex-row justify-end">
           <Button
             variant="outline"
@@ -371,6 +534,55 @@ export function SubmitFieldsDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function JiraFieldsBlock({
+  fields,
+  onChange,
+}: {
+  fields: EditorIssueFields;
+  onChange: (patch: Partial<EditorIssueFields>) => void;
+}) {
+  const t = useT();
+  return (
+    <div className="flex flex-col gap-4">
+      <FieldRow label={t("create.issueType")} required>
+        <IssueTypeField
+          value={fields.issueTypeId}
+          onChange={(id) => onChange({ issueTypeId: id })}
+        />
+      </FieldRow>
+      <FieldRow label={t("create.assignee")}>
+        <AssigneeField
+          value={fields.assigneeId}
+          fallbackLabel={fields.assigneeName}
+          onChange={(id, name) => onChange({ assigneeId: id, assigneeName: name })}
+        />
+      </FieldRow>
+      <FieldRow label={t("create.priority")}>
+        <PriorityField
+          value={fields.priorityId}
+          fallbackLabel={fields.priorityName}
+          onChange={(id, name) => onChange({ priorityId: id, priorityName: name })}
+        />
+      </FieldRow>
+      <FieldRow label={t("create.parentEpic")}>
+        <EpicField
+          value={fields.parentKey}
+          fallbackLabel={fields.parentLabel}
+          onChange={(key, label) => onChange({ parentKey: key, parentLabel: label })}
+          hierarchyLevels={[1]}
+        />
+      </FieldRow>
+      <FieldRow label={t("create.linkedIssue")}>
+        <EpicField
+          value={fields.relatesKey}
+          fallbackLabel={fields.relatesLabel}
+          onChange={(key, label) => onChange({ relatesKey: key, relatesLabel: label })}
+        />
+      </FieldRow>
+    </div>
   );
 }
 

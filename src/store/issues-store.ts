@@ -149,6 +149,12 @@ export interface IssueRecord {
   issueTypeName?: string;
   priorityName?: string;
   assigneeName?: string;
+  // GitHub 전용 — refresh 시 status 조회에 필요. 등록 시점에 ghFields에서 세팅.
+  githubOwner?: string;
+  githubRepo?: string;
+  // jira의 issueTypeName 자리에 메타로 노출되는 분류 태그. 등록 시 ghFields.labels로,
+  // 새로고침 후 status fetch 응답의 labels[].name으로 갱신.
+  githubLabels?: string[];
 }
 
 export const ISSUES_STORE_VERSION = 4;

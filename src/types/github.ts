@@ -80,3 +80,12 @@ export interface GithubCreateIssueResult {
   url: string;
   nodeId: string;
 }
+
+export interface GithubIssueStatus {
+  number: number;
+  title: string;
+  state: "open" | "closed";
+  stateReason?: "completed" | "reopened" | "not_planned" | null;
+  htmlUrl: string;
+  labels: { name: string; color: string }[];
+}

@@ -10,7 +10,7 @@ import {
   useAppSettingsStore,
 } from "@/store/app-settings-store";
 import { useEditorStore } from "@/store/editor-store";
-import { isJiraAccountComplete, useSettingsStore } from "@/store/settings-store";
+import { connectedPlatforms, useSettingsStore } from "@/store/settings-store";
 import { DocSectionBody } from "../components/DocSectionBody";
 import { LogAttachmentCards } from "../components/LogAttachmentCards";
 import { NetworkLogPreviewDialog } from "../components/NetworkLogPreviewDialog";
@@ -55,8 +55,11 @@ export function PreviewPanel() {
   const backToDraft = useEditorStore((s) => s.backToDraft);
   const reset = useEditorStore((s) => s.reset);
   const issueSections = useAppSettingsStore((s) => s.issueSections);
-  const jiraAccount = useSettingsStore((s) => s.accounts.jira);
-  const configured = isJiraAccountComplete(jiraAccount);
+  const accounts = useSettingsStore((s) => s.accounts);
+  const noPlatformConnected = useMemo(
+    () => connectedPlatforms(accounts).length === 0,
+    [accounts],
+  );
   const isElementMode = captureMode === "element";
   const isVideoMode = captureMode === "video";
   const screenshotImage = screenshotAnnotated ?? screenshotRaw;
@@ -272,13 +275,11 @@ export function PreviewPanel() {
         })()}
       </PageScroll>
       <PageFooter>
-        {!configured ? (
+        {noPlatformConnected ? (
           <Alert variant="ghost" className="mb-2">
             <Info className="h-4 w-4" />
-            <AlertTitle>{t("platform.notConnected.title", { platform: t("platform.tab.jira") })}</AlertTitle>
-            <AlertDescription>
-              {t("platform.notConnected.body", { platform: t("platform.tab.jira") })}
-            </AlertDescription>
+            <AlertTitle>{t("platform.empty.title")}</AlertTitle>
+            <AlertDescription>{t("platform.empty.body")}</AlertDescription>
           </Alert>
         ) : null}
         <div className="flex items-center justify-between gap-2">

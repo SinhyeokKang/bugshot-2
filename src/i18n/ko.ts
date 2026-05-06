@@ -177,6 +177,11 @@ const ko = {
   "issueList.deleteDraft.body": "삭제된 초안은 복구할 수 없습니다.",
   "issueList.deleteIssue": "이슈 삭제",
   "issueList.unknown": "알 수 없음",
+  "issueList.submitted": "등록됨",
+  "issueList.github.open": "Open",
+  "issueList.github.closed": "Closed",
+  "issueList.github.notPlanned": "Not planned",
+  "create.requiredMissing": "필수 값 누락",
 
   // Time
   "time.justNow": "방금",
@@ -250,6 +255,7 @@ const ko = {
   "md.section.description": "발생 현상",
   "md.section.stepsToReproduce": "재현 과정",
   "md.section.media": "미디어",
+  "md.section.attachments": "첨부",
   "md.section.styleChanges": "스타일 변경사항",
   "md.section.expectedResult": "기대 결과",
   "md.section.notes": "비고",
@@ -287,12 +293,9 @@ const ko = {
   "github.patButton": "PAT 인증",
   "github.patDialog.title": "PAT 인증",
   "github.patDialog.body": "GitHub Personal Access Token을 입력하세요. 'repo' scope가 필요하며 'user:email' scope를 권장합니다.",
-  "github.connecting": "연결 중...",
   "github.patLabel": "Personal Access Token",
   "github.patPlaceholder": "ghp_...",
-  "github.patSave": "저장",
   "github.field.repo": "리포지토리",
-  "github.field.repo.placeholder": "owner/repo 검색",
   "github.field.repo.empty": "결과 없음",
   "github.field.repo.search": "리포지토리 검색",
   "github.field.repo.select": "리포지토리 선택",
@@ -300,6 +303,7 @@ const ko = {
   "github.field.labels.placeholder": "라벨 선택...",
   "github.field.labels.empty": "라벨 없음",
   "github.field.labels.search": "라벨 검색",
+  "github.field.labels.summary": "{name} 외 {n}개",
   "github.field.assignees": "담당자",
   "github.field.assignees.placeholder": "담당자 선택...",
   "github.field.assignees.empty": "담당자 없음",
@@ -312,8 +316,7 @@ const ko = {
   "github.viewerLogin": "사용자",
 
   // GitHub 본문 첨부 안내
-  "github.attachmentTooLarge": "스크린샷이 본문 인라인 한계를 초과했습니다. 사이드패널에서 다운로드한 뒤 GitHub UI에 직접 첨부하세요.",
-  "github.attachmentNotInline": "이 첨부는 본문에 포함되지 않습니다. 사이드패널에서 다운로드한 뒤 GitHub UI에 직접 첨부하세요.",
+  "github.attachmentNotInline": "GitHub은 본문 인라인 첨부를 지원하지 않습니다. 사이드패널에서 다운로드한 뒤 GitHub UI에 직접 끌어다 붙여주세요.",
 
   // GitHub API errors
   "github.error.401": "인증 실패: 토큰이 만료되었거나 권한이 없습니다.",

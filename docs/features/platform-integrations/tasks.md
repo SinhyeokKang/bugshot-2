@@ -1,4 +1,18 @@
-# Platform Integrations — GitHub 1차 (구현 태스크)
+# Platform Integrations — GitHub 1차 (구현 태스크) ✅ 완료 (2026-05-06)
+
+T1~T13 코드 변경 모두 완료. T2~T13의 `[ ]` 수동 검증은 실 OAuth 라운드트립 시점에 사용자가 진행. Linear/Notion은 별도 트랙으로 분리 (각자 별 PRD/태스크 문서로 시작).
+
+추가로 들어간 외과적 변경(이 문서 명시 외):
+- GitHub `getIssueStatus` + `IssueRecord.{githubOwner, githubRepo, githubLabels}` — 새로고침 시 GitHub status/title/labels 갱신
+- `IssueListTab` 카드 메타 재구성: `[플랫폼 chip] · 작성일 · 위치(host/repo) · 키 · 분류태그(issueType/labels)` (draft은 chip 빼고 `초안 · 작성일`)
+- `buildGithubIssueBody` 인라인 폐기 → `## 첨부` 섹션 + `github.attachmentNotInline` 안내 (GitHub data: URI sanitize 한계 검증 결과)
+- DraftDetailDialog의 platform Tab 전환 시 SubmitFieldsDialog가 닫히는 버그 fix (prefill effect deps 정정)
+- github API fetch에 `cache: "no-cache"` (조건부 GET) — 새로고침 신선도 보장
+- PreviewPanel guard 일반화 (`!jiraConfigured` → `connectedPlatforms === 0`) + 범용 `platform.empty.*` 문구
+- IssueListTab/SettingsTab 헤더 패딩 통일 (`py-4`), DraftingPanel AI shimmer에 `backdrop-blur-[2px]` (Dialog/AlertDialog 패턴 적용)
+
+후속 보류:
+- GitHub blob 자동 첨부 — `PUT /repos/{o}/{r}/contents/{path}` + `raw.githubusercontent.com` 임베드 우회법 검토 결과 trade-off 큼. **Linear/Notion 끝낸 뒤 마지막에 결정.**
 
 ## 진행 규칙
 
@@ -166,23 +180,30 @@
   - [ ] 사용자: [GitHub] sub-tab에서 OAuth + PAT 흐름 각 1회 성공
   - [ ] 사용자: 연결 해제 후 다시 연결 가능
 
-### T12 — IssueCreateModal/DraftDetailDialog 플랫폼 분기 (`src/sidepanel/tabs/IssueCreateModal.tsx`, `DraftDetailDialog.tsx`, `PlatformPicker.tsx`, `githubFields/{RepoCombobox,LabelMultiSelect,AssigneeMultiSelect}.tsx`)
+### T12 — IssueCreateModal/DraftDetailDialog 플랫폼 분기 ✅ 완료
 
-- 다이얼로그 상단에 PlatformPicker(연결된 플랫폼이 1개면 자동 선택, 2개면 칩으로 선택, 0개면 빈 상태로 "연동 설정 탭에서 연결을 먼저" 안내).
-- 선택된 플랫폼에 따라 메타 필드 컴포넌트 동적 렌더(Jira 필드는 기존 그대로, GitHub은 신규 Repo/Labels/Assignees).
-- submit 시 `<platform>.submitIssue` 호출 분기. 결과는 issues-store에 platform 필드와 함께 저장.
+- 변경 대상: `IssueCreateModal.tsx`, `DraftDetailDialog.tsx`, `lib/submitToGithub.ts`(신규), `githubFields/{LabelMultiSelect,AssigneeMultiSelect,GithubIssueFields}.tsx`(신규/rename), `settings-store.ts`(`pickInitialPlatform`/`connectedPlatforms`/`lastSubmittedPlatform`).
+- 다이얼로그 구성: 연결 1개 → 자동, 2개 → shadcn `Tabs`로 platform 선택. 0개 → [이슈 제출] 버튼 disabled (기존 게이트 일반화).
+- 메타 필드: jira는 기존 IssueType/Assignee/Priority/Epic/Linked, github은 `GithubIssueFields`(Repo + Labels multi + Assignees multi). 라벨/담당자는 multi-select(`toggleLabel` 헬퍼 공유).
+- submit 결과 통일: `NormalizedSubmitResult { key, url }` — Jira는 `BUG-1`, GitHub은 `#42`.
+- prefill 룰: ghFields는 `lastSubmitFields.github` > `accounts.github.defaults` > 빈값. 다이얼로그 default platform은 `pickInitialPlatform(accounts, lastSubmittedPlatform)` (직전 제출 → jira → github 순).
+- IssueCreateModal/DraftDetailDialog 모두 platform 변경 시 `patchIssue`로 `IssueRecord.platform` 갱신. submit 후 `setLastSubmittedPlatform`으로 다음 다이얼로그 default 결정.
 - 검증:
+  - [x] `pnpm typecheck`
+  - [x] `pnpm test` 249 통과 (settings-store helper 7건, labelToggle 7건 등 신규 포함)
   - [ ] 수동: Jira만 연결 → Jira로 등록 정상
   - [ ] 수동: GitHub만 연결 → GitHub로 등록 정상(본문 인라인/푸터 정상)
-  - [ ] 수동: 둘 다 연결 → 같은 draft를 양쪽으로 1회씩 등록
-  - [ ] `pnpm typecheck`
+  - [ ] 수동: 둘 다 연결 → Tabs로 전환 후 각각 1회씩 등록
 
-### T13 — IssueListTab 플랫폼 표기 (`src/sidepanel/tabs/IssueListTab.tsx`)
+### T13 — IssueListTab 플랫폼 표기 ✅ 완료
 
-- entry.platform에 따라 아이콘(Jira/GitHub)·식별자 형식 분기. 기존 필터/검색 호환 유지.
+- 식별자 포맷 분기: Jira는 `[BUG-1]`(대괄호), GitHub은 `#42`(이미 # prefix가 키에 포함된 채로 저장). `formatIssueKey(issue)` 헬퍼로 추출.
+- SubmittedBadge: jira는 jira.getIssueStatus 호출 + categoryKey 색상, github은 정적 "등록됨" 뱃지 (status 조회 미구현). refresh 카운트도 `i.platform === "jira"`만.
+- 카드 아이콘 분기 등 추가 메타는 보류 — 키만으로 시각적 구분. 필요해지면 추가.
 - 검증:
+  - [x] `pnpm typecheck`
+  - [x] `pnpm test` (formatIssueKey 3 케이스 + 기존 IssueList 필터 케이스)
   - [ ] 수동: 두 플랫폼 entry 혼재 시 정렬·필터·열기 모두 정상
-  - [ ] `pnpm typecheck`
 
 ## 테스트 계획
 

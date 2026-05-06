@@ -179,6 +179,11 @@ const en = {
   "issueList.deleteDraft.body": "Deleted drafts cannot be recovered.",
   "issueList.deleteIssue": "Delete issue",
   "issueList.unknown": "Unknown",
+  "issueList.submitted": "Submitted",
+  "issueList.github.open": "Open",
+  "issueList.github.closed": "Closed",
+  "issueList.github.notPlanned": "Not planned",
+  "create.requiredMissing": "Required field missing",
 
   // Time
   "time.justNow": "Just now",
@@ -252,6 +257,7 @@ const en = {
   "md.section.description": "Description",
   "md.section.stepsToReproduce": "Steps to reproduce",
   "md.section.media": "Media",
+  "md.section.attachments": "Attachments",
   "md.section.styleChanges": "Style Changes",
   "md.section.expectedResult": "Expected Result",
   "md.section.notes": "Notes",
@@ -289,12 +295,9 @@ const en = {
   "github.patButton": "PAT Authentication",
   "github.patDialog.title": "PAT Authentication",
   "github.patDialog.body": "Enter your GitHub Personal Access Token. 'repo' scope is required; 'user:email' is recommended.",
-  "github.connecting": "Connecting...",
   "github.patLabel": "Personal Access Token",
   "github.patPlaceholder": "ghp_...",
-  "github.patSave": "Save",
   "github.field.repo": "Repository",
-  "github.field.repo.placeholder": "Search owner/repo",
   "github.field.repo.empty": "No results",
   "github.field.repo.search": "Search repository",
   "github.field.repo.select": "Select repository",
@@ -302,6 +305,7 @@ const en = {
   "github.field.labels.placeholder": "Select labels...",
   "github.field.labels.empty": "No labels",
   "github.field.labels.search": "Search labels",
+  "github.field.labels.summary": "{name} +{n}",
   "github.field.assignees": "Assignees",
   "github.field.assignees.placeholder": "Select assignees...",
   "github.field.assignees.empty": "No assignees",
@@ -314,8 +318,7 @@ const en = {
   "github.viewerLogin": "User",
 
   // GitHub body attachment hints
-  "github.attachmentTooLarge": "Screenshot exceeds body inline limit. Download from the side panel and attach directly in GitHub UI.",
-  "github.attachmentNotInline": "This attachment is not included in the body. Download from the side panel and attach directly in GitHub UI.",
+  "github.attachmentNotInline": "GitHub doesn't support inline body attachments. Download from the side panel and drag-drop them in the GitHub UI.",
 
   // GitHub API errors
   "github.error.401": "Auth failed: token expired or unauthorized.",

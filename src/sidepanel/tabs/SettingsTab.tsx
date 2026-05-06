@@ -19,7 +19,7 @@ export function SettingsTab() {
         onValueChange={(v) => setSub(v as PlatformSubTab)}
         className="flex min-h-0 flex-1 flex-col gap-0"
       >
-        <div className="px-4 pt-4">
+        <div className="shrink-0 border-b border-border px-4 py-4">
           <TabsList className="grid h-9 w-full grid-cols-2">
             <TabsTrigger value="jira" className="gap-1.5">
               <SiJirasoftware className="h-3.5 w-3.5" color="default" />

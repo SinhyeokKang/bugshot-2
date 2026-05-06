@@ -3,6 +3,7 @@ import type {
   GithubAuth,
   GithubCreateIssuePayload,
   GithubCreateIssueResult,
+  GithubIssueStatus,
   GithubLabel,
   GithubMyself,
   GithubRepo,
@@ -97,6 +98,9 @@ async function doFetch(
   }
   return fetch(url, {
     ...init,
+    // GitHub API는 짧은 max-age를 주는 응답이 있어 default 캐시 모드면 stale을 받을 수 있다.
+    // no-cache로 두면 매 요청마다 ETag revalidate — 변경 시 200, 미변경 시 304.
+    cache: "no-cache",
     headers: { ...headers, ...((init.headers as Record<string, string>) ?? {}) },
   });
 }
@@ -253,6 +257,41 @@ export async function getRepoAssignees(
     login: u.login,
     avatarUrl: u.avatar_url,
   }));
+}
+
+interface RawIssue {
+  number: number;
+  title: string;
+  state: "open" | "closed";
+  state_reason?: "completed" | "reopened" | "not_planned" | null;
+  html_url: string;
+  labels: Array<string | { name: string; color: string }>;
+}
+
+export function normalizeIssueStatus(raw: RawIssue): GithubIssueStatus {
+  return {
+    number: raw.number,
+    title: raw.title,
+    state: raw.state,
+    stateReason: raw.state_reason ?? null,
+    htmlUrl: raw.html_url,
+    labels: raw.labels
+      .map((l) => (typeof l === "string" ? { name: l, color: "" } : { name: l.name, color: l.color }))
+      .filter((l) => !!l.name),
+  };
+}
+
+export async function getIssueStatus(
+  auth: GithubAuth,
+  owner: string,
+  repo: string,
+  number: number,
+): Promise<GithubIssueStatus> {
+  const raw = await githubFetch<RawIssue>(
+    auth,
+    `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/issues/${number}`,
+  );
+  return normalizeIssueStatus(raw);
 }
 
 export async function createIssue(

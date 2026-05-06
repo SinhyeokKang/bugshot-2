@@ -1,5 +1,28 @@
 import { describe, expect, it } from "vitest";
-import { migrateV2ToV3 } from "../settings-store";
+import {
+  connectedPlatforms,
+  migrateV2ToV3,
+  pickInitialPlatform,
+} from "../settings-store";
+import type { Accounts } from "@/types/platform";
+
+const jiraStub: Accounts["jira"] = {
+  platform: "jira",
+  connectedAt: 0,
+  auth: {
+    kind: "apiKey",
+    baseUrl: "https://x.atlassian.net",
+    email: "a@b.c",
+    apiToken: "t",
+  },
+};
+
+const githubStub: Accounts["github"] = {
+  platform: "github",
+  connectedAt: 0,
+  auth: { kind: "pat", pat: "ghp_x", viewerLogin: "u" },
+  defaults: {},
+};
 
 describe("settings-store v2→v3 마이그레이션", () => {
   it("jiraConfig 있음 + lastSubmitFields 있음 → accounts.jira + lastSubmitFields.jira", () => {
@@ -64,7 +87,7 @@ describe("settings-store v2→v3 마이그레이션", () => {
     expect(out.lastSubmitFields).toEqual({});
   });
 
-  it("멱등 — v2가 비어있어도 두 번 마이그레이션 안전", () => {
+  it("멱등 — 같은 v2 두 번 마이그레이션 결과 동일", () => {
     const v2 = {
       jiraConfig: {
         auth: {
@@ -82,5 +105,52 @@ describe("settings-store v2→v3 마이그레이션", () => {
       second.accounts.jira?.projectKey,
     );
     expect(first.accounts.jira?.auth).toEqual(second.accounts.jira?.auth);
+  });
+});
+
+describe("pickInitialPlatform", () => {
+  it("lastSubmittedPlatform이 연결되어 있으면 그것 우선", () => {
+    expect(
+      pickInitialPlatform(
+        { jira: jiraStub, github: githubStub },
+        "github",
+      ),
+    ).toBe("github");
+  });
+
+  it("lastSubmittedPlatform이 더 이상 연결 안 됐으면 fallback (jira→github)", () => {
+    expect(pickInitialPlatform({ github: githubStub }, "jira")).toBe("github");
+  });
+
+  it("lastSubmittedPlatform 없으면 jira 우선", () => {
+    expect(
+      pickInitialPlatform({ jira: jiraStub, github: githubStub }, undefined),
+    ).toBe("jira");
+  });
+
+  it("jira만 연결되면 jira", () => {
+    expect(pickInitialPlatform({ jira: jiraStub }, undefined)).toBe("jira");
+  });
+
+  it("github만 연결되면 github", () => {
+    expect(pickInitialPlatform({ github: githubStub }, undefined)).toBe(
+      "github",
+    );
+  });
+
+  it("아무것도 연결 안 됐으면 null", () => {
+    expect(pickInitialPlatform({}, undefined)).toBeNull();
+    expect(pickInitialPlatform({}, "jira")).toBeNull();
+  });
+});
+
+describe("connectedPlatforms", () => {
+  it("연결된 플랫폼만 jira→github 순으로 반환", () => {
+    expect(connectedPlatforms({ jira: jiraStub, github: githubStub })).toEqual([
+      "jira",
+      "github",
+    ]);
+    expect(connectedPlatforms({ github: githubStub })).toEqual(["github"]);
+    expect(connectedPlatforms({})).toEqual([]);
   });
 });

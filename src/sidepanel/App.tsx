@@ -21,6 +21,7 @@ import {
   onPickerUnavailable,
   onSessionSaveExhausted,
 } from "@/types/messages";
+import type { PlatformId } from "@/types/platform";
 
 const TabNavContext = createContext<(tab: string) => void>(() => {});
 export const useTabNav = () => useContext(TabNavContext);
@@ -54,7 +55,7 @@ export default function App() {
 
   const jiraAccount = useSettingsStore((s) => s.accounts.jira);
   const [tab, setTab] = useState("issue");
-  const [oauthExpired, setOAuthExpired] = useState(false);
+  const [oauthExpiredPlatform, setOauthExpiredPlatform] = useState<PlatformId | null>(null);
   const [pickerUnavailable, setPickerUnavailable] = useState(false);
   const [iframeUnsupported, setIframeUnsupported] = useState(false);
   const [blobSaveFailed, setBlobSaveFailed] = useState(false);
@@ -67,13 +68,13 @@ export default function App() {
   }, [settingsHydrated]);
 
   useEffect(() => {
-    const unsub = onOAuthExpired.subscribe(() => {
+    const unsub = onOAuthExpired.subscribe((platform) => {
       // 프로그램매틱 dialog open 시 focused element가 root에 남아있으면
       // Radix의 aria-hidden과 충돌해 a11y 경고가 뜨므로 미리 blur.
       if (document.activeElement instanceof HTMLElement && document.activeElement !== document.body) {
         document.activeElement.blur();
       }
-      setOAuthExpired(true);
+      setOauthExpiredPlatform(platform ?? "jira");
     });
     return unsub;
   }, []);
@@ -201,16 +202,38 @@ export default function App() {
         </TabsContent>
       </Tabs>
 
-      <AlertDialog open={oauthExpired} onOpenChange={setOAuthExpired}>
+      <AlertDialog
+        open={oauthExpiredPlatform != null}
+        onOpenChange={(v) => !v && setOauthExpiredPlatform(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t("platform.oauthExpired.title", { platform: t("platform.tab.jira") })}</AlertDialogTitle>
+            <AlertDialogTitle>
+              {t("platform.oauthExpired.title", {
+                platform: t(
+                  oauthExpiredPlatform === "github"
+                    ? "platform.tab.github"
+                    : "platform.tab.jira",
+                ),
+              })}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              {t("platform.oauthExpired.body", { platform: t("platform.tab.jira") })}
+              {t("platform.oauthExpired.body", {
+                platform: t(
+                  oauthExpiredPlatform === "github"
+                    ? "platform.tab.github"
+                    : "platform.tab.jira",
+                ),
+              })}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogAction onClick={() => { setOAuthExpired(false); setTab("issue-settings"); }}>
+            <AlertDialogAction
+              onClick={() => {
+                setOauthExpiredPlatform(null);
+                setTab("issue-settings");
+              }}
+            >
               {t("common.ok")}
             </AlertDialogAction>
           </AlertDialogFooter>

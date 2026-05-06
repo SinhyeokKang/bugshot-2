@@ -16,20 +16,21 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import type { GithubLabel } from "@/types/github";
+import type { GithubUser } from "@/types/github";
 import { sendBg } from "@/types/messages";
+import { toggleLabel as toggleLogin } from "./labelToggle";
 
 interface Props {
   owner: string | undefined;
   repo: string | undefined;
-  value: string | null;
-  onChange: (next: string | null) => void;
+  value: string[];
+  onChange: (next: string[]) => void;
 }
 
-export function LabelCombobox({ owner, repo, value, onChange }: Props) {
+export function AssigneeMultiSelect({ owner, repo, value, onChange }: Props) {
   const t = useT();
   const [open, setOpen] = useState(false);
-  const [items, setItems] = useState<GithubLabel[]>([]);
+  const [items, setItems] = useState<GithubUser[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const reqIdRef = useRef(0);
@@ -42,8 +43,8 @@ export function LabelCombobox({ owner, repo, value, onChange }: Props) {
     const myReq = ++reqIdRef.current;
     setLoading(true);
     setError(null);
-    sendBg<GithubLabel[]>({
-      type: "github.getLabels",
+    sendBg<GithubUser[]>({
+      type: "github.searchAssignees",
       owner: owner!,
       repo: repo!,
     })
@@ -65,10 +66,12 @@ export function LabelCombobox({ owner, repo, value, onChange }: Props) {
     setItems([]);
   }, [owner, repo]);
 
-  // value가 fetched items에 있으면 색상 정보 반영, 없으면 fallback (먼저 세팅돼있고 items가 아직 없을 때).
-  const selected =
-    items.find((l) => l.name === value) ??
-    (value ? ({ id: 0, name: value, color: "888888" } as GithubLabel) : null);
+  const triggerLabel = (() => {
+    if (!ready) return t("github.field.requireRepo");
+    if (value.length === 0) return t("github.field.assignees.placeholder");
+    if (value.length === 1) return value[0];
+    return t("github.field.labels.summary", { name: value[0], n: value.length - 1 });
+  })();
 
   return (
     <Popover open={open} onOpenChange={(v) => ready && setOpen(v)}>
@@ -82,23 +85,11 @@ export function LabelCombobox({ owner, repo, value, onChange }: Props) {
         >
           <span
             className={cn(
-              "flex min-w-0 flex-1 items-center gap-2 text-left",
-              !value && "text-muted-foreground",
+              "min-w-0 flex-1 truncate text-left",
+              value.length === 0 && "text-muted-foreground",
             )}
           >
-            {!ready ? (
-              t("github.field.requireRepo")
-            ) : selected ? (
-              <>
-                <span
-                  className="inline-block h-3 w-3 shrink-0 rounded-full border border-border"
-                  style={{ backgroundColor: `#${selected.color}` }}
-                />
-                <span className="truncate">{selected.name}</span>
-              </>
-            ) : (
-              t("github.field.labels.placeholder")
-            )}
+            {triggerLabel}
           </span>
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
@@ -108,7 +99,7 @@ export function LabelCombobox({ owner, repo, value, onChange }: Props) {
         onWheel={(e) => e.stopPropagation()}
       >
         <Command>
-          <CommandInput placeholder={t("github.field.labels.search")} />
+          <CommandInput placeholder={t("github.field.assignees.search")} />
           <CommandList>
             {loading ? (
               <div className="flex items-center justify-center gap-2 py-6 text-xs text-muted-foreground">
@@ -119,18 +110,15 @@ export function LabelCombobox({ owner, repo, value, onChange }: Props) {
               <div className="px-3 py-6 text-center text-xs text-destructive">{error}</div>
             ) : (
               <>
-                <CommandEmpty>{t("github.field.labels.empty")}</CommandEmpty>
+                <CommandEmpty>{t("github.field.assignees.empty")}</CommandEmpty>
                 <CommandGroup>
-                  {items.map((l) => {
-                    const isSelected = value === l.name;
+                  {items.map((u) => {
+                    const isSelected = value.includes(u.login);
                     return (
                       <CommandItem
-                        key={l.id}
-                        value={l.name}
-                        onSelect={() => {
-                          onChange(isSelected ? null : l.name);
-                          setOpen(false);
-                        }}
+                        key={u.id}
+                        value={u.login}
+                        onSelect={() => onChange(toggleLogin(value, u.login))}
                       >
                         <Check
                           className={cn(
@@ -138,11 +126,14 @@ export function LabelCombobox({ owner, repo, value, onChange }: Props) {
                             isSelected ? "opacity-100" : "opacity-0",
                           )}
                         />
-                        <span
-                          className="mr-2 inline-block h-3 w-3 shrink-0 rounded-full border border-border"
-                          style={{ backgroundColor: `#${l.color}` }}
-                        />
-                        <span className="truncate">{l.name}</span>
+                        {u.avatarUrl ? (
+                          <img
+                            src={u.avatarUrl}
+                            alt=""
+                            className="mr-2 h-4 w-4 rounded-full"
+                          />
+                        ) : null}
+                        <span className="truncate">{u.login}</span>
                       </CommandItem>
                     );
                   })}

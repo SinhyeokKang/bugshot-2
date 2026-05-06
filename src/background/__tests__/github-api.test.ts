@@ -3,6 +3,7 @@ import {
   buildAuthHeader,
   extractGithubDetail,
   mapCreateIssueBody,
+  normalizeIssueStatus,
   normalizeRepo,
 } from "../github-api";
 
@@ -135,5 +136,73 @@ describe("normalizeRepo", () => {
       html_url: "x",
     });
     expect(out.description).toBeUndefined();
+  });
+});
+
+describe("normalizeIssueStatus", () => {
+  it("open 이슈 — state_reason은 null", () => {
+    const out = normalizeIssueStatus({
+      number: 42,
+      title: "X",
+      state: "open",
+      state_reason: null,
+      html_url: "https://github.com/o/r/issues/42",
+      labels: [{ name: "bug", color: "d73a4a" }],
+    });
+    expect(out).toEqual({
+      number: 42,
+      title: "X",
+      state: "open",
+      stateReason: null,
+      htmlUrl: "https://github.com/o/r/issues/42",
+      labels: [{ name: "bug", color: "d73a4a" }],
+    });
+  });
+
+  it("closed completed", () => {
+    const out = normalizeIssueStatus({
+      number: 1,
+      title: "T",
+      state: "closed",
+      state_reason: "completed",
+      html_url: "u",
+      labels: [],
+    });
+    expect(out.state).toBe("closed");
+    expect(out.stateReason).toBe("completed");
+  });
+
+  it("closed not_planned", () => {
+    const out = normalizeIssueStatus({
+      number: 1,
+      title: "T",
+      state: "closed",
+      state_reason: "not_planned",
+      html_url: "u",
+      labels: [],
+    });
+    expect(out.stateReason).toBe("not_planned");
+  });
+
+  it("labels — 문자열 배열도 지원 (구 API 응답)", () => {
+    const out = normalizeIssueStatus({
+      number: 1,
+      title: "T",
+      state: "open",
+      html_url: "u",
+      labels: ["bug" as unknown as { name: string; color: string }],
+    });
+    expect(out.labels).toEqual([{ name: "bug", color: "" }]);
+  });
+
+  it("state_reason 누락 시 null", () => {
+    const out = normalizeIssueStatus({
+      number: 1,
+      title: "T",
+      state: "open",
+      html_url: "u",
+      labels: [],
+    });
+    expect(out.stateReason).toBeNull();
   });
 });

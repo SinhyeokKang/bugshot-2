@@ -260,7 +260,7 @@ export function DraftingPanel() {
   return (
     <PageShell className="relative">
       {aiLoading && (
-        <div className="pointer-events-none absolute inset-0 z-20 overflow-hidden">
+        <div className="pointer-events-none absolute inset-0 z-20 overflow-hidden backdrop-blur-[2px]">
           <div className="absolute inset-0 bg-purple-500/5" />
           <div className="absolute inset-0 animate-shimmer bg-gradient-to-b from-transparent via-purple-400/10 to-transparent" />
         </div>

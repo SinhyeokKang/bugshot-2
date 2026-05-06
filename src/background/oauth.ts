@@ -1,5 +1,6 @@
 import { t } from "@/i18n";
 import type { JiraOAuthAuth, JiraSite } from "@/types/jira";
+import type { PlatformId } from "@/types/platform";
 
 const CLIENT_ID = import.meta.env.VITE_ATLASSIAN_CLIENT_ID ?? "";
 const PROXY_URL = (import.meta.env.VITE_OAUTH_PROXY_URL ?? "").replace(
@@ -16,11 +17,30 @@ const SCOPES = [
   "offline_access",
 ];
 
+export interface OAuthErrorOptions {
+  platform?: PlatformId;
+  cancelled?: boolean;
+}
+
 export class OAuthError extends Error {
-  constructor(message: string) {
+  cancelled: boolean;
+  platform?: PlatformId;
+  constructor(message: string, options: OAuthErrorOptions = {}) {
     super(message);
     this.name = "OAuthError";
+    this.cancelled = options.cancelled ?? false;
+    this.platform = options.platform;
   }
+}
+
+const ATLASSIAN_CANCEL_ERROR_CODES = new Set([
+  "access_denied",
+  "user_cancelled_login",
+  "user_cancelled_authorize",
+]);
+
+export function isAtlassianCancellationCode(code: string | null): boolean {
+  return !!code && ATLASSIAN_CANCEL_ERROR_CODES.has(code);
 }
 
 function proxyTokenUrl(): string {
@@ -29,10 +49,10 @@ function proxyTokenUrl(): string {
 
 function assertConfigured(): void {
   if (!CLIENT_ID) {
-    throw new OAuthError(t("oauth.error.notConfiguredClient"));
+    throw new OAuthError(t("oauth.error.notConfiguredClient"), { platform: "jira" });
   }
   if (!PROXY_URL) {
-    throw new OAuthError(t("oauth.error.notConfiguredProxy"));
+    throw new OAuthError(t("oauth.error.notConfiguredProxy"), { platform: "jira" });
   }
 }
 
@@ -69,7 +89,9 @@ export async function startOAuthFlow(): Promise<OAuthStartResult> {
     url: url.toString(),
     interactive: true,
   });
-  if (!redirect) throw new OAuthError(t("oauth.error.cancelled"));
+  if (!redirect) {
+    throw new OAuthError(t("oauth.error.cancelled"), { platform: "jira", cancelled: true });
+  }
 
   const parsed = new URL(redirect);
   const code = parsed.searchParams.get("code");
@@ -78,10 +100,13 @@ export async function startOAuthFlow(): Promise<OAuthStartResult> {
   if (errorParam) {
     throw new OAuthError(
       parsed.searchParams.get("error_description") || errorParam,
+      { platform: "jira", cancelled: isAtlassianCancellationCode(errorParam) },
     );
   }
-  if (returnedState !== state) throw new OAuthError(t("oauth.error.stateMismatch"));
-  if (!code) throw new OAuthError(t("oauth.error.codeMissing"));
+  if (returnedState !== state) {
+    throw new OAuthError(t("oauth.error.stateMismatch"), { platform: "jira" });
+  }
+  if (!code) throw new OAuthError(t("oauth.error.codeMissing"), { platform: "jira" });
 
   const tokens = await exchangeCodeForTokens(code);
   const sites = await fetchSites(tokens.access_token);
@@ -105,7 +130,10 @@ async function exchangeCodeForTokens(code: string): Promise<TokenResponse> {
   });
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new OAuthError(t("oauth.error.tokenExchange", { status: res.status, text }));
+    throw new OAuthError(
+      t("oauth.error.tokenExchange", { status: res.status, text }),
+      { platform: "jira" },
+    );
   }
   return res.json() as Promise<TokenResponse>;
 }
@@ -117,7 +145,11 @@ async function fetchSites(accessToken: string): Promise<JiraSite[]> {
       Authorization: `Bearer ${accessToken}`,
     },
   });
-  if (!res.ok) throw new OAuthError(t("oauth.error.siteList", { status: res.status }));
+  if (!res.ok) {
+    throw new OAuthError(t("oauth.error.siteList", { status: res.status }), {
+      platform: "jira",
+    });
+  }
   const raw = (await res.json()) as Array<{
     id: string;
     url: string;
@@ -148,7 +180,10 @@ export async function refreshOAuthToken(
   });
   if (!res.ok) {
     const text = await res.text().catch(() => "");
-    throw new OAuthError(t("oauth.error.tokenRefresh", { status: res.status, text }));
+    throw new OAuthError(
+      t("oauth.error.tokenRefresh", { status: res.status, text }),
+      { platform: "jira" },
+    );
   }
   const data = (await res.json()) as TokenResponse;
   return {
@@ -166,7 +201,9 @@ export async function persistOAuthTokens(auth: JiraOAuthAuth): Promise<void> {
     await writeStoredOAuthTokens(auth);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    throw new OAuthError(t("oauth.error.tokenPersist", { message }));
+    throw new OAuthError(t("oauth.error.tokenPersist", { message }), {
+      platform: "jira",
+    });
   }
 }
 
