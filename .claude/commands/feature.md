@@ -114,7 +114,7 @@ CLAUDE.md 컨벤션 중 이 기능에 특히 관련된 것을 명시.
 
 ### 4. 커밋
 
-생성한 문서를 dev 브랜치에 커밋한다. 메시지: `docs(feature): <slug> PRD·설계·태스크 작성`.
+생성한 문서를 dev 브랜치에 커밋한다. 메시지: `docs(feature): <slug> add PRD, design, and tasks`.
 
 이 문서는 다른 환경에서 pull 받아 이어 작업하기 위한 용도다. 구현 완료 후 사용자가 직접 삭제한다.
 
