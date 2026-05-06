@@ -3,6 +3,7 @@ import type {
   LinearAuth,
   LinearCreateIssuePayload,
   LinearCreateIssueResult,
+  LinearFileUploadResult,
   LinearIssueStatus,
   LinearLabel,
   LinearMyself,
@@ -252,4 +253,79 @@ export async function getIssueStatus(
     url: data.issue.url,
     labels: data.issue.labels.nodes,
   };
+}
+
+export async function requestFileUpload(
+  auth: LinearAuth,
+  filename: string,
+  contentType: string,
+  size: number,
+): Promise<LinearFileUploadResult> {
+  const data = await linearGraphQL<{
+    fileUpload: {
+      uploadFile: {
+        assetUrl: string;
+        uploadUrl: string;
+        headers: { key: string; value: string }[];
+      };
+    };
+  }>(
+    auth,
+    `mutation($filename: String!, $contentType: String!, $size: Int!) {
+      fileUpload(filename: $filename, contentType: $contentType, size: $size) {
+        uploadFile {
+          assetUrl
+          uploadUrl
+          headers { key value }
+        }
+      }
+    }`,
+    { filename, contentType, size },
+  );
+  return data.fileUpload.uploadFile;
+}
+
+export async function uploadFileToLinear(
+  auth: LinearAuth,
+  filename: string,
+  contentType: string,
+  blob: Blob,
+): Promise<string> {
+  const { assetUrl, uploadUrl, headers } = await requestFileUpload(
+    auth,
+    filename,
+    contentType,
+    blob.size,
+  );
+  const headerMap: Record<string, string> = {};
+  for (const h of headers) headerMap[h.key] = h.value;
+  headerMap["Content-Type"] = contentType;
+  headerMap["Cache-Control"] = "public, max-age=31536000";
+
+  const putRes = await fetch(uploadUrl, {
+    method: "PUT",
+    headers: headerMap,
+    body: blob,
+  });
+  if (!putRes.ok) {
+    throw new LinearError(putRes.status, t("linear.error.uploadFailed", { status: putRes.statusText }));
+  }
+  return assetUrl;
+}
+
+export async function createAttachment(
+  auth: LinearAuth,
+  issueId: string,
+  title: string,
+  url: string,
+): Promise<void> {
+  await linearGraphQL(
+    auth,
+    `mutation($input: AttachmentCreateInput!) {
+      attachmentCreate(input: $input) {
+        success
+      }
+    }`,
+    { input: { issueId, title, url } },
+  );
 }

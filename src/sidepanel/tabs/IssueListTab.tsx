@@ -696,7 +696,6 @@ function SubmittedBadge({
 // (GitHub key는 이미 `#`이 포함된 형태로 저장됨 — submitToGithub.ts)
 export function formatIssueKey(issue: Pick<IssueRecord, "platform" | "key">): string {
   if (!issue.key) return "";
-  if (issue.platform === "jira") return `[${issue.key}]`;
   return issue.key;
 }
 

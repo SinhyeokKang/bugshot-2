@@ -12,6 +12,7 @@ const ko = {
   "common.next": "다음",
   "common.done": "완료",
   "common.reset": "초기화",
+  "common.settings": "플랫폼 설정",
   "common.submit": "제출",
   "common.verify": "검증",
   "common.delete": "삭제",
@@ -192,12 +193,11 @@ const ko = {
   // Settings (global)
   "settings.issueSettings": "이슈 설정",
   "settings.titlePrefix": "제목 Prefix",
-  "settings.titlePrefix.help": "이슈 제목 앞에 자동으로 붙습니다. 비워두면 사용하지 않습니다.",
+  "settings.issueComposition": "이슈 구성",
 
   // Jira integration
   "jira.connection": "Jira 연결",
   "jira.project": "프로젝트",
-  "jira.settings": "Jira 설정",
   "jira.defaultIssueType": "기본 이슈 타입",
   "jira.noJiraSites": "접근 가능한 Jira 사이트가 없습니다.",
   "jira.onboarding.title": "Jira 연결",
@@ -316,7 +316,6 @@ const ko = {
   "github.field.assignees.search": "담당자 검색",
   "github.field.requireRepo": "리포지토리를 먼저 선택하세요",
   "github.section.connection": "GitHub 연결",
-  "github.section.settings": "GitHub 설정",
   "github.section.repo": "리포지토리",
   "github.oauth.notConfigured": "GitHub OAuth 환경 변수(VITE_GITHUB_CLIENT_ID, VITE_OAUTH_PROXY_URL)가 설정되지 않았습니다. PAT 인증만 가능합니다.",
   "github.viewerLogin": "사용자",
@@ -358,10 +357,8 @@ const ko = {
   "linear.field.priority.low": "낮음",
   "linear.field.requireTeam": "팀을 먼저 선택하세요",
   "linear.section.connection": "Linear 연결",
-  "linear.section.settings": "Linear 설정",
   "linear.section.team": "팀",
   "linear.viewerLogin": "사용자",
-  "linear.attachmentNotInline": "Linear는 본문 인라인 첨부를 지원하지 않습니다. 사이드패널에서 다운로드한 뒤 Linear UI에 직접 첨부해주세요.",
   "linear.oauth.notConfigured": "Linear OAuth 환경 변수(VITE_LINEAR_CLIENT_ID)가 설정되지 않았습니다. API Key 인증만 가능합니다.",
 
   // Linear API errors
@@ -372,6 +369,7 @@ const ko = {
   "linear.error.5xx": "Linear 서버 오류. 잠시 후 다시 시도하세요.",
   "linear.error.generic": "Linear 요청 실패 ({status})",
   "linear.error.graphql": "Linear GraphQL 오류: {message}",
+  "linear.error.uploadFailed": "파일 업로드 실패: {status}",
 
   // Linear issue list status
   "issueList.linear.backlog": "Backlog",

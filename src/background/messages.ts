@@ -25,6 +25,7 @@ import {
   searchRepos,
 } from "./github-api";
 import {
+  createAttachment as createLinearAttachment,
   createIssue as createLinearIssue,
   getIssueStatus as getLinearIssueStatus,
   getLabels as getLinearLabels,
@@ -32,6 +33,7 @@ import {
   getMyself as linearGetMyself,
   getProjects as getLinearProjects,
   getTeams as getLinearTeams,
+  uploadFileToLinear,
 } from "./linear-api";
 import { isOAuthConfigured, startOAuthFlow } from "./oauth";
 import { isGithubOAuthConfigured, startGithubOAuth } from "./github-oauth";
@@ -192,6 +194,19 @@ export async function handleMessage(
 
     case "linear.submitIssue":
       return createLinearIssue(await loadLinearAuth(), message.payload);
+
+    case "linear.uploadFile": {
+      const auth = await loadLinearAuth();
+      const blob = dataUrlToBlob(message.dataUrl);
+      const assetUrl = await uploadFileToLinear(auth, message.filename, message.contentType, blob);
+      return { assetUrl };
+    }
+
+    case "linear.createAttachment": {
+      const auth = await loadLinearAuth();
+      await createLinearAttachment(auth, message.issueId, message.title, message.url);
+      return { ok: true };
+    }
 
     case "linear.getIssueStatus":
       return getLinearIssueStatus(await loadLinearAuth(), message.issueId);

@@ -14,6 +14,7 @@ const en = {
   "common.next": "Next",
   "common.done": "Done",
   "common.reset": "Reset",
+  "common.settings": "Platform settings",
   "common.submit": "Submit",
   "common.verify": "Verify",
   "common.delete": "Delete",
@@ -194,12 +195,11 @@ const en = {
   // Settings (global)
   "settings.issueSettings": "Issue settings",
   "settings.titlePrefix": "Title prefix",
-  "settings.titlePrefix.help": "Automatically prepended to issue titles. Leave empty to disable.",
+  "settings.issueComposition": "Issue composition",
 
   // Jira integration
   "jira.connection": "Jira connection",
   "jira.project": "Project",
-  "jira.settings": "Jira settings",
   "jira.defaultIssueType": "Default issue type",
   "jira.noJiraSites": "No accessible Jira sites.",
   "jira.onboarding.title": "Connect Jira",
@@ -318,7 +318,6 @@ const en = {
   "github.field.assignees.search": "Search assignees",
   "github.field.requireRepo": "Select a repository first",
   "github.section.connection": "GitHub connection",
-  "github.section.settings": "GitHub settings",
   "github.section.repo": "Repository",
   "github.oauth.notConfigured": "GitHub OAuth env vars (VITE_GITHUB_CLIENT_ID, VITE_OAUTH_PROXY_URL) are not set. Only PAT authentication is available.",
   "github.viewerLogin": "User",
@@ -360,10 +359,8 @@ const en = {
   "linear.field.priority.low": "Low",
   "linear.field.requireTeam": "Select a team first",
   "linear.section.connection": "Linear connection",
-  "linear.section.settings": "Linear settings",
   "linear.section.team": "Team",
   "linear.viewerLogin": "User",
-  "linear.attachmentNotInline": "Linear doesn't support inline body attachments. Download from the side panel and attach them in the Linear UI.",
   "linear.oauth.notConfigured": "Linear OAuth env var (VITE_LINEAR_CLIENT_ID) is not set. Only API Key authentication is available.",
 
   // Linear API errors
@@ -374,6 +371,7 @@ const en = {
   "linear.error.5xx": "Linear server error. Try again later.",
   "linear.error.generic": "Linear request failed ({status})",
   "linear.error.graphql": "Linear GraphQL error: {message}",
+  "linear.error.uploadFailed": "File upload failed: {status}",
 
   // Linear issue list status
   "issueList.linear.backlog": "Backlog",

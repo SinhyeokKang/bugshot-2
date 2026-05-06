@@ -64,7 +64,7 @@ export function JiraConnectForm() {
           <JiraSummary />
         </Section>
 
-        <Section title={t("jira.settings")}>
+        <Section title={t("common.settings")}>
           <div className="flex flex-col gap-3">
             <div className="flex flex-col gap-1.5">
               <label className="text-xs text-muted-foreground">{t("jira.project")}</label>

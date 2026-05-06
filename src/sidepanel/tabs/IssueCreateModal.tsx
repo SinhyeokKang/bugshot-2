@@ -65,8 +65,7 @@ import type { MarkdownContext } from "../lib/buildIssueMarkdown";
 import type { NormalizedSubmitResult } from "@/types/platform";
 import { submitToGithub } from "../lib/submitToGithub";
 import type { GithubMediaInput } from "../lib/buildGithubIssueBody";
-import { submitToLinear } from "../lib/submitToLinear";
-import type { LinearMediaInput } from "../lib/buildLinearIssueBody";
+import { submitToLinear, type LinearFileInput } from "../lib/submitToLinear";
 import {
   GithubIssueFields,
   initialGhFields,
@@ -370,24 +369,26 @@ export function IssueCreateModal() {
     }
     if (!linearFields.teamId) throw new Error(t("create.requiredMissing"));
 
-    const images: LinearMediaInput[] = [];
-    let video: LinearMediaInput | undefined;
-    const logs: LinearMediaInput[] = [];
+    const images: LinearFileInput[] = [];
+    let video: LinearFileInput | undefined;
+    const logs: LinearFileInput[] = [];
 
     if (captureMode === "video") {
-      if (videoBlob) video = { filename: "recording.webm" };
+      if (videoBlob) video = { filename: "recording.webm", dataUrl: await blobToDataUrl(videoBlob) };
       if (networkLog && networkLogAttach && networkLog.captured > 0) {
-        logs.push({ filename: "network-log.har" });
+        const harBlob = new Blob([serializeHar(buildHar(networkLog))], { type: "application/json" });
+        logs.push({ filename: "network-log.har", dataUrl: await blobToDataUrl(harBlob) });
       }
       if (consoleLog && consoleLogAttach && consoleLog.captured > 0) {
-        logs.push({ filename: "console-log.json" });
+        const jsonBlob = new Blob([serializeConsoleLog(buildConsoleLogJson(consoleLog))], { type: "application/json" });
+        logs.push({ filename: "console-log.json", dataUrl: await blobToDataUrl(jsonBlob) });
       }
     } else if (captureMode === "screenshot") {
       const screenshotImage = screenshotAnnotated ?? screenshotRaw;
-      if (screenshotImage) images.push({ filename: "screenshot.webp" });
+      if (screenshotImage) images.push({ filename: "screenshot.webp", dataUrl: screenshotImage });
     } else {
-      if (beforeImage) images.push({ filename: "before.webp" });
-      if (afterImage) images.push({ filename: "after.webp" });
+      if (beforeImage) images.push({ filename: "before.webp", dataUrl: beforeImage });
+      if (afterImage) images.push({ filename: "after.webp", dataUrl: afterImage });
     }
 
     const result = await submitToLinear({

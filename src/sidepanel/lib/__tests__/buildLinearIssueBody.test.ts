@@ -17,6 +17,13 @@ vi.mock("@/store/settings-ui-store", () => ({
   sectionMdLabelKey: (id: string) => `md.section.${id}`,
 }));
 
+vi.mock("@/lib/element-label", () => ({
+  formatElementName: (opts: { tag: string; classList: string[] }) => {
+    const cls = opts.classList.map((c: string) => `.${c}`).join("");
+    return `${opts.tag}${cls}`;
+  },
+}));
+
 import {
   buildLinearIssueBody,
   type LinearBuildInput,
@@ -46,56 +53,73 @@ function makeCtx(overrides: Partial<MarkdownContext> = {}): MarkdownContext {
   };
 }
 
-describe("buildLinearIssueBody — 첨부 안내", () => {
-  it("이미지는 파일명만 안내로 노출", () => {
+describe("buildLinearIssueBody — 인라인 미디어", () => {
+  it("screenshot 모드에서 이미지 인라인 삽입", () => {
+    const input: LinearBuildInput = {
+      ctx: makeCtx({ captureMode: "screenshot" }),
+      images: [{ filename: "screenshot.webp", assetUrl: "https://cdn.linear.app/screenshot.webp" }],
+    };
+    const out = buildLinearIssueBody(input);
+    expect(out.body).toContain("![screenshot.webp](https://cdn.linear.app/screenshot.webp)");
+    expect(out.body).toContain("md.section.media");
+    expect(out.body).not.toContain("linear.attachmentNotInline");
+  });
+
+  it("screenshot assetUrl 없으면 이미지 미삽입", () => {
     const input: LinearBuildInput = {
       ctx: makeCtx({ captureMode: "screenshot" }),
       images: [{ filename: "screenshot.webp" }],
     };
     const out = buildLinearIssueBody(input);
-    expect(out.body).toContain("`screenshot.webp`");
-    expect(out.body).toContain("linear.attachmentNotInline");
+    expect(out.body).not.toContain("![screenshot.webp]");
   });
 
-  it("video도 파일명 안내", () => {
+  it("video 모드에서 비디오 인라인 삽입", () => {
+    const input: LinearBuildInput = {
+      ctx: makeCtx({ captureMode: "video" }),
+      video: { filename: "recording.webm", assetUrl: "https://cdn.linear.app/recording.webm" },
+    };
+    const out = buildLinearIssueBody(input);
+    expect(out.body).toContain("![recording.webm](https://cdn.linear.app/recording.webm)");
+    expect(out.body).toContain("md.section.media");
+  });
+
+  it("video assetUrl 없으면 fallback 텍스트", () => {
     const input: LinearBuildInput = {
       ctx: makeCtx({ captureMode: "video" }),
       video: { filename: "recording.webm" },
     };
     const out = buildLinearIssueBody(input);
-    expect(out.body).toContain("`recording.webm`");
+    expect(out.body).toContain("md.videoAttached");
   });
 
-  it("로그 파일도 안내", () => {
-    const input: LinearBuildInput = {
-      ctx: makeCtx({ captureMode: "video" }),
-      video: { filename: "recording.webm" },
-      logs: [
-        { filename: "network-log.har" },
-        { filename: "console-log.json" },
-      ],
-    };
-    const out = buildLinearIssueBody(input);
-    expect(out.body).toContain("`network-log.har`");
-    expect(out.body).toContain("`console-log.json`");
-  });
-
-  it("첨부 0건이면 첨부 섹션 미표시", () => {
-    const out = buildLinearIssueBody({ ctx: makeCtx() });
-    expect(out.body).not.toContain("md.section.attachments");
-    expect(out.body).not.toContain("linear.attachmentNotInline");
-  });
-
-  it("안내 문구는 1회만", () => {
-    const out = buildLinearIssueBody({
-      ctx: makeCtx({ captureMode: "screenshot" }),
-      images: [
-        { filename: "a.webp" },
-        { filename: "b.webp" },
-      ],
+  it("element 모드에서 before/after를 테이블 Snapshot 행으로 삽입", () => {
+    const ctx = makeCtx({
+      captureMode: "element",
+      diffs: [{ prop: "color", asIs: "#000", toBe: "#fff" }],
     });
-    const matches = out.body.match(/linear\.attachmentNotInline/g);
-    expect(matches).toHaveLength(1);
+    const input: LinearBuildInput = {
+      ctx,
+      images: [
+        { filename: "before.webp", assetUrl: "https://cdn.linear.app/before.webp" },
+        { filename: "after.webp", assetUrl: "https://cdn.linear.app/after.webp" },
+      ],
+    };
+    const out = buildLinearIssueBody(input);
+    expect(out.body).toContain("**styleTable.snapshot**");
+    expect(out.body).toContain("![before.webp](https://cdn.linear.app/before.webp)");
+    expect(out.body).toContain("![after.webp](https://cdn.linear.app/after.webp)");
+    expect(out.body).toContain("| color | #000 | #fff |");
+  });
+
+  it("element 모드 이미지 없으면 테이블만 (Snapshot 행 없음)", () => {
+    const ctx = makeCtx({
+      captureMode: "element",
+      diffs: [{ prop: "color", asIs: "#000", toBe: "#fff" }],
+    });
+    const out = buildLinearIssueBody({ ctx });
+    expect(out.body).not.toContain("styleTable.snapshot");
+    expect(out.body).toContain("| color | #000 | #fff |");
   });
 });
 
@@ -108,14 +132,18 @@ describe("buildLinearIssueBody — 구조", () => {
     expect(out.body).toContain("**Captured**:");
   });
 
-  it("style diff는 element 모드에서 emit", () => {
-    const ctx = makeCtx({
-      captureMode: "element",
-      diffs: [{ prop: "color", asIs: "#000", toBe: "#fff" }],
+  it("element 모드에서 DOM 라벨은 formatElementName 형식", () => {
+    const out = buildLinearIssueBody({
+      ctx: makeCtx({ tagName: "button", classListBefore: ["btn", "primary"] }),
     });
-    const out = buildLinearIssueBody({ ctx });
-    expect(out.body).toContain("md.section.styleChanges");
-    expect(out.body).toContain("| color | #000 | #fff |");
+    expect(out.body).toContain("**DOM**: button.btn.primary");
+  });
+
+  it("screenshot/video 모드에서 DOM 미표시", () => {
+    const out1 = buildLinearIssueBody({ ctx: makeCtx({ captureMode: "screenshot" }) });
+    expect(out1.body).not.toContain("**DOM**");
+    const out2 = buildLinearIssueBody({ ctx: makeCtx({ captureMode: "video" }) });
+    expect(out2.body).not.toContain("**DOM**");
   });
 
   it("section 콘텐츠 비어있으면 md.noValue", () => {

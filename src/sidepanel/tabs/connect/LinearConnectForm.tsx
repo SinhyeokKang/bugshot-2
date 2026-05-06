@@ -53,7 +53,7 @@ export function LinearConnectForm() {
         <Section title={t("linear.section.connection")}>
           <LinearSummary />
         </Section>
-        <Section title={t("linear.section.settings")}>
+        <Section title={t("common.settings")}>
           <div className="flex flex-col gap-3">
             <DefaultTeamField />
             <DefaultIssueSettingsFields />

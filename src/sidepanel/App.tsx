@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState } from "react";
-import { Globe, List, Settings, SlidersHorizontal, SquarePen } from "lucide-react";
+import { Blocks, Globe, List, Settings, SquarePen } from "lucide-react";
 import { useT } from "@/i18n";
 import {
   AlertDialog,
@@ -163,7 +163,7 @@ export default function App() {
               {t("app.tab.issueList")}
             </TabsTrigger>
             <TabsTrigger value="integrations" className="gap-1.5">
-              <SlidersHorizontal className="h-3.5 w-3.5" />
+              <Blocks className="h-3.5 w-3.5" />
               {t("app.tab.integrations")}
             </TabsTrigger>
             <TabsTrigger value="settings" className="gap-1.5">

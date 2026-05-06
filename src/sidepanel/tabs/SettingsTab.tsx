@@ -82,11 +82,12 @@ export function SettingsTab() {
                 autoComplete="off"
                 spellCheck={false}
               />
-              <p className="text-xs text-muted-foreground">
-                {t("settings.titlePrefix.help")}
-              </p>
             </div>
-            <Card>
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs text-muted-foreground">
+                {t("settings.issueComposition")}
+              </label>
+              <Card>
               <CardContent className="flex flex-col gap-3 px-3 py-3">
                 {issueSections.map((section, idx) => (
                   <Fragment key={section.id}>
@@ -99,6 +100,7 @@ export function SettingsTab() {
                 ))}
               </CardContent>
             </Card>
+            </div>
           </div>
         </Section>
       </PageScroll>

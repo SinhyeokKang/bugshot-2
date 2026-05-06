@@ -92,3 +92,14 @@ export interface LinearIssueStatus {
   url: string;
   labels: { name: string; color: string }[];
 }
+
+export interface LinearFileUploadResult {
+  assetUrl: string;
+  uploadUrl: string;
+  headers: { key: string; value: string }[];
+}
+
+export interface LinearAttachmentInput {
+  filename: string;
+  dataUrl: string;
+}

@@ -52,7 +52,7 @@ export function GithubConnectForm() {
         <Section title={t("github.section.connection")}>
           <GithubSummary />
         </Section>
-        <Section title={t("github.section.settings")}>
+        <Section title={t("common.settings")}>
           <div className="flex flex-col gap-3">
             <DefaultRepoField />
             <DefaultIssueSettingsFields />

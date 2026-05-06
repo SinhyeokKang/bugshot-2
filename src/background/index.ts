@@ -50,6 +50,8 @@ const BG_REQUEST_TYPES = new Set([
   "linear.getLabels",
   "linear.getMembers",
   "linear.submitIssue",
+  "linear.uploadFile",
+  "linear.createAttachment",
   "linear.getIssueStatus",
 ]);
 

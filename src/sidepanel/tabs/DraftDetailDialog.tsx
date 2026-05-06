@@ -47,8 +47,7 @@ import type { NormalizedSubmitResult, PlatformId } from "@/types/platform";
 import { sendBg, type JiraSubmitResult } from "@/types/messages";
 import { submitToGithub } from "../lib/submitToGithub";
 import type { GithubMediaInput } from "../lib/buildGithubIssueBody";
-import { submitToLinear } from "../lib/submitToLinear";
-import type { LinearMediaInput } from "../lib/buildLinearIssueBody";
+import { submitToLinear, type LinearFileInput } from "../lib/submitToLinear";
 import {
   initialGhFields,
   type GithubIssueFieldsValue,
@@ -417,25 +416,36 @@ export function DraftDetailDialog({
     }
     if (!linearFields.teamId) throw new Error(t("create.requiredMissing"));
 
-    const { ctx } = await buildCtxForSubmit();
-    const images: LinearMediaInput[] = [];
-    let video: LinearMediaInput | undefined;
-    const logs: LinearMediaInput[] = [];
+    const { ctx, networkLog: netLog, consoleLog: conLog } = await buildCtxForSubmit();
+    const images: LinearFileInput[] = [];
+    let video: LinearFileInput | undefined;
+    const logs: LinearFileInput[] = [];
 
     if (isVideo) {
       const blob = await getVideoBlob(issue.id);
-      if (blob) video = { filename: "recording.webm" };
-      if (await getNetworkLog(issue.networkLogBlobKey ?? "")) {
-        logs.push({ filename: "network-log.har" });
+      if (blob) video = { filename: "recording.webm", dataUrl: await blobToDataUrl(blob) };
+      if (netLog) {
+        const harBlob = new Blob([serializeHar(buildHar(netLog))], { type: "application/json" });
+        logs.push({ filename: "network-log.har", dataUrl: await blobToDataUrl(harBlob) });
       }
-      if (await getConsoleLog(issue.consoleLogBlobKey ?? "")) {
-        logs.push({ filename: "console-log.json" });
+      if (conLog) {
+        const jsonBlob = new Blob([serializeConsoleLog(buildConsoleLogJson(conLog))], { type: "application/json" });
+        logs.push({ filename: "console-log.json", dataUrl: await blobToDataUrl(jsonBlob) });
       }
     } else if (isScreenshot) {
-      if (issue.snapshot.before) images.push({ filename: "screenshot.webp" });
+      if (issue.snapshot.before) {
+        const blob = await getImageBlob(issue.id, "before");
+        if (blob) images.push({ filename: "screenshot.webp", dataUrl: await blobToDataUrl(blob) });
+      }
     } else {
-      if (issue.snapshot.before) images.push({ filename: "before.webp" });
-      if (issue.snapshot.after) images.push({ filename: "after.webp" });
+      if (issue.snapshot.before) {
+        const blob = await getImageBlob(issue.id, "before");
+        if (blob) images.push({ filename: "before.webp", dataUrl: await blobToDataUrl(blob) });
+      }
+      if (issue.snapshot.after) {
+        const blob = await getImageBlob(issue.id, "after");
+        if (blob) images.push({ filename: "after.webp", dataUrl: await blobToDataUrl(blob) });
+      }
     }
 
     const result = await submitToLinear({

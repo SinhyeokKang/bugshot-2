@@ -4,18 +4,19 @@ import {
   sectionMdLabelKey,
   type IssueSection,
 } from "@/store/settings-ui-store";
+import { formatElementName } from "@/lib/element-label";
 import type { MarkdownContext } from "./buildIssueMarkdown";
 import { formatTimestamp } from "./formatTimestamp";
 
 export interface LinearMediaInput {
   filename: string;
+  assetUrl?: string;
 }
 
 export interface LinearBuildInput {
   ctx: MarkdownContext;
   images?: LinearMediaInput[];
   video?: LinearMediaInput;
-  logs?: LinearMediaInput[];
 }
 
 export interface LinearBuildResult {
@@ -47,16 +48,26 @@ function footerMarkdown(): string {
   return `_Reported via ${brand}_`;
 }
 
+function imageCell(media: LinearMediaInput | undefined): string {
+  if (!media?.assetUrl) return "";
+  return `![${media.filename}](${media.assetUrl})`;
+}
+
 export function buildLinearIssueBody(
   input: LinearBuildInput,
 ): LinearBuildResult {
-  const { ctx, images = [], video, logs = [] } = input;
+  const { ctx, images = [], video } = input;
   const lines: string[] = [];
+  const isVideo = ctx.captureMode === "video";
+  const isScreenshot = ctx.captureMode === "screenshot";
 
   lines.push(`## ${t("md.section.env")}`, "");
   lines.push(`- **Page**: ${ctx.url}`);
-  if (ctx.captureMode !== "screenshot" && ctx.captureMode !== "video" && ctx.selector) {
-    lines.push(`- **DOM**: ${ctx.selector}`);
+  if (!isVideo && !isScreenshot) {
+    const domLabel = ctx.tagName
+      ? formatElementName({ tag: ctx.tagName, classList: ctx.classListBefore })
+      : "";
+    if (domLabel) lines.push(`- **DOM**: ${domLabel}`);
   }
   lines.push(`- **Viewport**: ${ctx.viewport.width}×${ctx.viewport.height}`);
   lines.push(`- **Captured**: ${formatTimestamp(ctx.capturedAt)}`);
@@ -67,32 +78,44 @@ export function buildLinearIssueBody(
     if (mediaEmitted) return;
     mediaEmitted = true;
 
-    const allAttachments: LinearMediaInput[] = [
-      ...images,
-      ...(video ? [video] : []),
-      ...logs,
-    ];
-    if (allAttachments.length > 0) {
-      lines.push(`## ${t("md.section.attachments")}`, "");
-      lines.push(t("linear.attachmentNotInline"), "");
-      for (const a of allAttachments) {
-        lines.push(`- \`${a.filename}\``);
+    if (isVideo) {
+      lines.push(`## ${t("md.section.media")}`, "");
+      if (video?.assetUrl) {
+        lines.push(`![${video.filename}](${video.assetUrl})`);
+      } else {
+        lines.push(t("md.videoAttached"));
       }
       lines.push("");
-    }
-
-    if (
-      ctx.captureMode !== "video" &&
-      ctx.captureMode !== "screenshot" &&
-      ctx.diffs.length > 0
-    ) {
+    } else if (isScreenshot) {
+      lines.push(`## ${t("md.section.media")}`, "");
+      const img = images[0];
+      if (img?.assetUrl) {
+        lines.push(`![${img.filename}](${img.assetUrl})`);
+      }
+      lines.push("");
+    } else {
       lines.push(`## ${t("md.section.styleChanges")}`, "");
-      lines.push(`| ${t("md.column.property")} | As is | To be |`);
-      lines.push("| --- | --- | --- |");
-      for (const d of ctx.diffs) {
+      const before = images.find((i) => i.filename.startsWith("before"));
+      const after = images.find((i) => i.filename.startsWith("after"));
+      if (before?.assetUrl || after?.assetUrl) {
+        lines.push(`| ${t("md.column.property")} | As is | To be |`);
+        lines.push("| --- | --- | --- |");
         lines.push(
-          `| ${escapeCell(d.prop)} | ${escapeCell(d.asIs)} | ${escapeCell(d.toBe)} |`,
+          `| **${t("styleTable.snapshot")}** | ${imageCell(before)} | ${imageCell(after)} |`,
         );
+        for (const d of ctx.diffs) {
+          lines.push(
+            `| ${escapeCell(d.prop)} | ${escapeCell(d.asIs)} | ${escapeCell(d.toBe)} |`,
+          );
+        }
+      } else if (ctx.diffs.length > 0) {
+        lines.push(`| ${t("md.column.property")} | As is | To be |`);
+        lines.push("| --- | --- | --- |");
+        for (const d of ctx.diffs) {
+          lines.push(
+            `| ${escapeCell(d.prop)} | ${escapeCell(d.asIs)} | ${escapeCell(d.toBe)} |`,
+          );
+        }
       }
       lines.push("");
     }

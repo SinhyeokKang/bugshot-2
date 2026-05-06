@@ -23,6 +23,7 @@ import type {
   GithubUser,
 } from "./github";
 import type {
+  LinearAttachmentInput,
   LinearCreateIssuePayload,
   LinearCreateIssueResult,
   LinearIssueStatus,
@@ -92,6 +93,8 @@ export type BgRequest =
   | { type: "linear.getLabels"; teamId: string }
   | { type: "linear.getMembers"; teamId: string }
   | { type: "linear.submitIssue"; payload: LinearCreateIssuePayload }
+  | { type: "linear.uploadFile"; filename: string; contentType: string; dataUrl: string }
+  | { type: "linear.createAttachment"; issueId: string; title: string; url: string }
   | { type: "linear.getIssueStatus"; issueId: string };
 
 export type BgResponse<T = unknown> =
@@ -207,6 +210,7 @@ export type {
   GithubOAuthAuth,
   GithubRepo,
   GithubUser,
+  LinearAttachmentInput,
   LinearCreateIssuePayload,
   LinearCreateIssueResult,
   LinearIssueStatus,
