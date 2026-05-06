@@ -17,6 +17,8 @@ import { useT } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { useEditorStore } from "@/store/editor-store";
 import type { Token, TokenCategory } from "@/types/picker";
+import { isRenderableColorLiteral } from "./colorLiteral";
+import { expandShortHex, normalizeHexInput } from "./hexUtils";
 import { isKnownDefault, PROP_CATEGORY } from "./propMetadata";
 import { useStyleProp } from "./styleHooks";
 import { TokenChip, TokenItem } from "./TokenChip";
@@ -221,7 +223,17 @@ export function ValueCombobox({
               ) : null}
             </span>
           ) : value ? (
-            <span className="min-w-0 flex-1 truncate text-left">{value}</span>
+            category === "color" && isRenderableColorLiteral(value) ? (
+              <span className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
+                <span
+                  className="h-2.5 w-2.5 shrink-0 rounded border border-border/60"
+                  style={{ backgroundColor: value }}
+                />
+                <span className="min-w-0 flex-1 truncate text-left">{value}</span>
+              </span>
+            ) : (
+              <span className="min-w-0 flex-1 truncate text-left">{value}</span>
+            )
           ) : placeholderTokenRefs.length > 0 ? (
             <span className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
               {placeholderTokenRefs.map((ref) => (
@@ -405,30 +417,4 @@ function shortValue(v: string): string {
     if (!Number.isNaN(n)) return `${n}`;
   }
   return v;
-}
-
-// `abc123` 같은 6/8자리 hex에 `#`만 붙임. 3/4자리는 입력 중 깜빡임 방지를 위해
-// 라이브 적용에서 제외하고 blur 시 `expandShortHex`로 풀어쓴다.
-function normalizeHexInput(v: string): string {
-  const t = v.trim();
-  if (!t || t.startsWith("#")) return t;
-  if (/^[0-9a-fA-F]{6}$/.test(t)) return `#${t}`;
-  if (/^[0-9a-fA-F]{8}$/.test(t)) return `#${t}`;
-  return t;
-}
-
-// 디자인 툴 컨벤션: blur 시 `fff` → `#ffffff`, `f0a8` → `#ff00aa88`.
-// 입력이 3/4자리 hex (with or without `#`)일 때만 풀어쓰기.
-function expandShortHex(v: string): string | null {
-  const t = v.trim();
-  const stripped = t.startsWith("#") ? t.slice(1) : t;
-  if (/^[0-9a-fA-F]{3}$/.test(stripped)) {
-    const [r, g, b] = stripped;
-    return `#${r}${r}${g}${g}${b}${b}`;
-  }
-  if (/^[0-9a-fA-F]{4}$/.test(stripped)) {
-    const [r, g, b, a] = stripped;
-    return `#${r}${r}${g}${g}${b}${b}${a}${a}`;
-  }
-  return null;
 }

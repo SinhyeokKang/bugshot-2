@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { Pencil, RotateCcw, Trash2, WandSparkles } from "lucide-react";
+import { Pencil, RotateCcw, Sparkles, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -284,13 +284,13 @@ export function DraftingPanel() {
       </PageScroll>
       {aiStatus === "available" && captureMode !== "screenshot" && (
         <button
-          className="mx-2.5 flex items-center justify-between rounded-t-lg bg-purple-100/80 px-3.5 py-2.5 text-purple-700 transition-colors hover:bg-purple-100 disabled:opacity-50 dark:bg-purple-950/50 dark:text-purple-300 dark:hover:bg-purple-900"
+          className="flex items-center justify-between rounded-t-lg bg-purple-100/80 px-3.5 py-2.5 text-purple-700 transition-colors hover:bg-purple-100 disabled:opacity-50 dark:bg-purple-950/50 dark:text-purple-300 dark:hover:bg-purple-900"
           onClick={() => void handleAIDraft()}
           disabled={aiLoading}
         >
           <span className="bg-gradient-to-r from-purple-500 to-indigo-500 bg-clip-text text-sm text-transparent dark:from-purple-300 dark:to-indigo-300">{t("draft.aiBanner")}</span>
           <span className="flex items-center gap-1 bg-gradient-to-r from-indigo-500 to-purple-500 bg-clip-text text-sm font-medium text-transparent dark:from-indigo-300 dark:to-purple-300">
-            <WandSparkles className="h-4 w-4 text-purple-500 dark:text-purple-300" />
+            <Sparkles className="h-4 w-4 fill-current text-purple-500 dark:text-purple-300" />
             {t("draft.aiGenerate")}
           </span>
         </button>
