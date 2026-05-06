@@ -67,6 +67,8 @@ export default defineManifest({
     "https://*.atlassian.net/*",
     "https://api.atlassian.com/*",
     "https://auth.atlassian.com/*",
+    "https://api.github.com/*",
+    "https://github.com/*",
     ...(proxyMatch ? [proxyMatch] : []),
   ],
   commands: {

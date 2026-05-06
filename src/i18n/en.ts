@@ -23,7 +23,7 @@ const en = {
   // App tabs
   "app.tab.issue": "Issue",
   "app.tab.issueList": "Issues",
-  "app.tab.settings": "Jira",
+  "app.tab.settings": "Integrations",
   "app.tab.appSettings": "Settings",
   "app.unsupported.title": "Unavailable on this page",
   "app.unsupported.body": "Please run BugShot on a web page (http, https, file).",
@@ -274,6 +274,30 @@ const en = {
   "jira.error.429": "Too many requests. Try again later.",
   "jira.error.5xx": "Jira server error. Try again later.",
   "jira.error.generic": "Jira request failed ({status})",
+
+  // Platform common
+  "platform.tab.jira": "Jira",
+  "platform.tab.github": "GitHub",
+  "platform.connect": "Connect",
+  "platform.disconnect": "Disconnect",
+  "platform.connectedAs": "Connected as {name}",
+  "platform.empty.title": "No connected platforms",
+  "platform.empty.body": "Connect a platform in the Integrations tab first.",
+
+  // GitHub UI
+  "github.oauthLogin": "Sign in with GitHub",
+  "github.connecting": "Connecting...",
+  "github.patSection.title": "Personal Access Token",
+  "github.patSection.help": "Generate a PAT with 'repo' scope at GitHub > Settings > Developer settings > Personal access tokens.",
+  "github.patLabel": "Personal Access Token",
+  "github.patPlaceholder": "ghp_...",
+  "github.patSave": "Save",
+  "github.field.repo": "Repository",
+  "github.field.repo.placeholder": "Search owner/repo",
+  "github.field.labels": "Labels",
+  "github.field.assignees": "Assignees",
+  "github.oauth.notConfigured": "GitHub OAuth env vars (VITE_GITHUB_CLIENT_ID, VITE_OAUTH_PROXY_URL) are not set. Only PAT authentication is available.",
+  "github.viewerLogin": "User",
 
   // GitHub body attachment hints
   "github.attachmentTooLarge": "Screenshot exceeds body inline limit. Download from the side panel and attach directly in GitHub UI.",

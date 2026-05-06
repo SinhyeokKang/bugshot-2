@@ -21,7 +21,7 @@ const ko = {
   // App tabs
   "app.tab.issue": "이슈 작성",
   "app.tab.issueList": "이슈 목록",
-  "app.tab.settings": "Jira 연동",
+  "app.tab.settings": "연동 설정",
   "app.tab.appSettings": "앱 설정",
   "app.unsupported.title": "이 페이지에서는 사용할 수 없습니다",
   "app.unsupported.body": "웹 페이지(http, https, file)에서 BugShot을 실행해주세요.",
@@ -272,6 +272,30 @@ const ko = {
   "jira.error.429": "요청이 너무 많습니다. 잠시 후 다시 시도하세요.",
   "jira.error.5xx": "Jira 서버 오류. 잠시 후 다시 시도하세요.",
   "jira.error.generic": "Jira 요청 실패 ({status})",
+
+  // 플랫폼 공용
+  "platform.tab.jira": "Jira",
+  "platform.tab.github": "GitHub",
+  "platform.connect": "연결",
+  "platform.disconnect": "연결 해제",
+  "platform.connectedAs": "{name}으로 연결됨",
+  "platform.empty.title": "연결된 플랫폼이 없습니다",
+  "platform.empty.body": "연동 설정 탭에서 플랫폼을 먼저 연결하세요.",
+
+  // GitHub UI
+  "github.oauthLogin": "GitHub로 로그인",
+  "github.connecting": "연결 중...",
+  "github.patSection.title": "Personal Access Token",
+  "github.patSection.help": "GitHub > Settings > Developer settings > Personal access tokens 에서 'repo' scope 토큰을 발급하세요.",
+  "github.patLabel": "Personal Access Token",
+  "github.patPlaceholder": "ghp_...",
+  "github.patSave": "저장",
+  "github.field.repo": "리포지토리",
+  "github.field.repo.placeholder": "owner/repo 검색",
+  "github.field.labels": "Labels",
+  "github.field.assignees": "Assignees",
+  "github.oauth.notConfigured": "GitHub OAuth 환경 변수(VITE_GITHUB_CLIENT_ID, VITE_OAUTH_PROXY_URL)가 설정되지 않았습니다. PAT 인증만 가능합니다.",
+  "github.viewerLogin": "사용자",
 
   // GitHub 본문 첨부 안내
   "github.attachmentTooLarge": "스크린샷이 본문 인라인 한계를 초과했습니다. 사이드패널에서 다운로드한 뒤 GitHub UI에 직접 첨부하세요.",

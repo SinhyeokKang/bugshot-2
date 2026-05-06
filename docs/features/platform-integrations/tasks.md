@@ -129,23 +129,26 @@
   - [x] `pnpm test` (190 통과, 15/15 파일 그린)
   - [ ] 수동: 실제 GitHub repo에 등록 후 본문 정상 렌더 확인(특히 webp data URI)
 
-### T9 — manifest host_permissions (`manifest.config.ts`)
+### T9 — manifest host_permissions (`manifest.config.ts`) ✅ 완료
 
-- `https://api.github.com/*`, `https://github.com/*` 추가. 기존 entries 유지.
+- `https://api.github.com/*` (REST), `https://github.com/*` (OAuth authorize 페이지) 추가. 기존 atlassian entries + proxyMatch 유지.
 - 검증:
-  - [ ] `pnpm build` → dist/manifest.json에 새 origin 포함
-  - [ ] dev 로드 언팩 후 두 origin 호출 성공
+  - [x] `pnpm typecheck` 그린
+  - [ ] 사용자: `pnpm build` 후 dist/manifest.json에 새 origin 포함 확인
+  - [ ] 사용자: dev 로드 언팩 후 두 origin 호출 성공
 
-### T10 — i18n (`src/i18n/{ko,en}.ts`)
+### T10 — i18n (`src/i18n/{ko,en}.ts`) ✅ 완료
 
-- 신규 키:
-  - `settings.tabTitle` ("연동 설정"/"Integrations") — 기존 `settings.title` 텍스트 갱신
-  - `platform.connect`, `platform.disconnect`, `platform.connectedAs`, `platform.error.{401,403,404,429,5xx}`
-  - `github.oauthLogin`, `github.patLabel`, `github.patHelp`, `github.attachmentTooLarge`, `github.attachmentNotInline` (HAR/콘솔 푸터), `github.field.repo`, `github.field.labels`, `github.field.assignees`, `github.error.unauthorized`
-- 기존 `jira.*` 키는 유지(외과적 변경 원칙).
+- 추가 키 (T5/T6/T8/T9에서 점진 추가 + T10에서 UI 키 추가):
+  - `app.tab.settings` 텍스트 변경: "Jira 연동" → "연동 설정" / "Jira" → "Integrations"
+  - `platform.{tab.jira, tab.github, connect, disconnect, connectedAs, empty.title, empty.body}`
+  - `github.{oauthLogin, connecting, patSection.title, patSection.help, patLabel, patPlaceholder, patSave, field.repo, field.repo.placeholder, field.labels, field.assignees, oauth.notConfigured, viewerLogin, attachmentTooLarge, attachmentNotInline, notConnected, error.401/403/404/422/429/5xx/generic}`
+  - `oauth.error.github.{notConfiguredClient, refreshUnavailable}`
+- 기존 `jira.*` 키 무수정.
 - 검증:
-  - [ ] ko/en 토글 시 모든 새 화면 라벨 표시
-  - [ ] `pnpm typecheck`(누락 키 정적 검증이 있다면 통과)
+  - [x] `__tests__/locales.test.ts` (신규): ko/en 키 패리티 + 빈 값 검사 + placeholder 토큰 일치 (4 케이스)
+  - [x] `pnpm typecheck` 그린 (TranslationKey union이 정적으로 누락 검증)
+  - [ ] 사용자: ko/en 토글 시 모든 새 화면 라벨 표시 확인
 
 ### T11 — Settings UI 재구성 (`src/sidepanel/tabs/SettingsTab.tsx`, `connect/{JiraConnectForm,GithubConnectForm}.tsx`)
 
