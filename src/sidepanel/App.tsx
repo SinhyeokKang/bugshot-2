@@ -52,7 +52,7 @@ export default function App() {
   usePickerMessages();
   useThemeEffect();
 
-  const jiraConfig = useSettingsStore((s) => s.jiraConfig);
+  const jiraAccount = useSettingsStore((s) => s.accounts.jira);
   const [tab, setTab] = useState("issue");
   const [oauthExpired, setOAuthExpired] = useState(false);
   const [pickerUnavailable, setPickerUnavailable] = useState(false);
@@ -61,7 +61,7 @@ export default function App() {
   const [sessionSaveExhausted, setSessionSaveExhausted] = useState(false);
 
   useEffect(() => {
-    if (settingsHydrated && !jiraCredentialsFilled(jiraConfig)) {
+    if (settingsHydrated && !jiraCredentialsFilled(jiraAccount)) {
       setTab("issue-settings");
     }
   }, [settingsHydrated]);

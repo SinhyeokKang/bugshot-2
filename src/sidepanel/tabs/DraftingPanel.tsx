@@ -69,7 +69,7 @@ export function DraftingPanel() {
   const [networkDialogOpen, setNetworkDialogOpen] = useState(false);
   const [consoleDialogOpen, setConsoleDialogOpen] = useState(false);
   const titlePrefix = useSettingsStore(
-    (s) => s.jiraConfig?.titlePrefix ?? "",
+    (s) => s.accounts.jira?.titlePrefix ?? "",
   );
   const isElementMode = captureMode === "element";
   const isVideoMode = captureMode === "video";

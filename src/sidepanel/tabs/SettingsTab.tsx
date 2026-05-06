@@ -33,7 +33,7 @@ import {
 import { Input } from "@/components/ui/input";
 import {
   useSettingsStore,
-  type JiraConfig,
+  type JiraAccount,
   jiraHostLabel,
 } from "@/store/settings-store";
 import type {
@@ -50,8 +50,8 @@ import { ProjectCombobox } from "./ProjectCombobox";
 
 export function SettingsTab() {
   const t = useT();
-  const jiraConfig = useSettingsStore((s) => s.jiraConfig);
-  const connected = !!jiraConfig;
+  const jiraAccount = useSettingsStore((s) => s.accounts.jira);
+  const connected = !!jiraAccount;
 
   if (!connected) {
     return (
@@ -115,7 +115,7 @@ function classifyOAuthClassified(err: unknown): OAuthClassified | null {
 
 function JiraOnboarding() {
   const t = useT();
-  const setJiraConfig = useSettingsStore((s) => s.setJiraConfig);
+  const setAccount = useSettingsStore((s) => s.setAccount);
 
   const [oauthAvailable, setOauthAvailable] = useState<boolean | null>(null);
   const [connecting, setConnecting] = useState(false);
@@ -170,10 +170,12 @@ function JiraOnboarding() {
         type: "jira.myself",
         config: auth,
       });
-      const next: JiraConfig = {
+      const next: JiraAccount = {
+        platform: "jira",
+        connectedAt: Date.now(),
         auth: { ...auth, email: me.emailAddress },
       };
-      setJiraConfig(next);
+      setAccount("jira", next);
       setCandidate(null);
     } catch (err) {
       setError(classifyOAuthClassified(err));
@@ -280,7 +282,7 @@ function ApiKeyDialog({
   onOpenChange: (v: boolean) => void;
 }) {
   const t = useT();
-  const setJiraConfig = useSettingsStore((s) => s.setJiraConfig);
+  const setAccount = useSettingsStore((s) => s.setAccount);
   const [baseUrl, setBaseUrl] = useState("");
   const [email, setEmail] = useState("");
   const [apiToken, setApiToken] = useState("");
@@ -304,8 +306,12 @@ function ApiKeyDialog({
         type: "jira.myself",
         config: trimmed as JiraAuth,
       });
-      const next: JiraConfig = { auth: trimmed };
-      setJiraConfig(next);
+      const next: JiraAccount = {
+        platform: "jira",
+        connectedAt: Date.now(),
+        auth: trimmed,
+      };
+      setAccount("jira", next);
       onOpenChange(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -446,23 +452,23 @@ function OAuthClassifiedBanner({ error }: { error: OAuthClassified | null }) {
 
 function SetupDialog() {
   const t = useT();
-  const jiraConfig = useSettingsStore((s) => s.jiraConfig);
-  const clearJiraConfig = useSettingsStore((s) => s.clearJiraConfig);
+  const jiraAccount = useSettingsStore((s) => s.accounts.jira);
+  const removeAccount = useSettingsStore((s) => s.removeAccount);
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
-    if (jiraConfig && !jiraConfig.projectKey) {
+    if (jiraAccount && !jiraAccount.projectKey) {
       setOpen(true);
     }
-  }, [jiraConfig]);
+  }, [jiraAccount]);
 
   function handleCancel() {
     setOpen(false);
-    clearJiraConfig();
+    removeAccount("jira");
   }
 
   function handleComplete() {
-    if (!jiraConfig?.projectKey) return;
+    if (!jiraAccount?.projectKey) return;
     setOpen(false);
   }
 
@@ -497,7 +503,7 @@ function SetupDialog() {
             {t("common.cancel")}
           </Button>
           <Button
-            disabled={!jiraConfig?.projectKey}
+            disabled={!jiraAccount?.projectKey}
             onClick={handleComplete}
           >
             {t("common.done")}
@@ -513,9 +519,9 @@ function SetupDialog() {
 function TitlePrefixField() {
   const t = useT();
   const titlePrefix = useSettingsStore(
-    (s) => s.jiraConfig?.titlePrefix ?? "",
+    (s) => s.accounts.jira?.titlePrefix ?? "",
   );
-  const updateJiraConfig = useSettingsStore((s) => s.updateJiraConfig);
+  const updateJiraAccount = useSettingsStore((s) => s.updateJiraAccount);
 
   return (
     <div className="flex flex-col gap-1.5">
@@ -524,7 +530,7 @@ function TitlePrefixField() {
         id="jira-title-prefix"
         placeholder="[QA] "
         value={titlePrefix}
-        onChange={(e) => updateJiraConfig({ titlePrefix: e.target.value })}
+        onChange={(e) => updateJiraAccount({ titlePrefix: e.target.value })}
         autoComplete="off"
         spellCheck={false}
       />
@@ -537,10 +543,10 @@ function TitlePrefixField() {
 
 function JiraSummary() {
   const t = useT();
-  const jiraConfig = useSettingsStore((s) => s.jiraConfig);
-  if (!jiraConfig) return null;
+  const jiraAccount = useSettingsStore((s) => s.accounts.jira);
+  if (!jiraAccount) return null;
 
-  const auth = jiraConfig.auth;
+  const auth = jiraAccount.auth;
   const host = jiraHostLabel(auth);
   const kindLabel = auth.kind === "oauth" ? "OAuth" : "API Token";
 
@@ -567,7 +573,7 @@ function JiraSummary() {
 
 function DisconnectButton() {
   const t = useT();
-  const clearJiraConfig = useSettingsStore((s) => s.clearJiraConfig);
+  const removeAccount = useSettingsStore((s) => s.removeAccount);
 
   return (
     <AlertDialog>
@@ -586,7 +592,7 @@ function DisconnectButton() {
         <AlertDialogFooter>
           <AlertDialogCancel>{t("common.close")}</AlertDialogCancel>
           <AlertDialogAction
-            onClick={() => clearJiraConfig()}
+            onClick={() => removeAccount("jira")}
           >
             {t("settings.disconnect.confirm")}
           </AlertDialogAction>

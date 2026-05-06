@@ -35,7 +35,7 @@ import { useEditorStore, type EditorIssueFields } from "@/store/editor-store";
 import { useIssuesStore } from "@/store/issues-store";
 import {
   useSettingsStore,
-  isJiraConfigComplete,
+  isJiraAccountComplete,
   jiraSiteId,
 } from "@/store/settings-store";
 import type {
@@ -60,8 +60,8 @@ type SubmitState =
 export function IssueCreateModal() {
   const t = useT();
   const [open, setOpen] = useState(false);
-  const jiraConfig = useSettingsStore((s) => s.jiraConfig);
-  const configured = isJiraConfigComplete(jiraConfig);
+  const jiraAccount = useSettingsStore((s) => s.accounts.jira);
+  const configured = isJiraAccountComplete(jiraAccount);
 
   const captureMode = useEditorStore((s) => s.captureMode);
   const selection = useEditorStore((s) => s.selection);
@@ -91,7 +91,7 @@ export function IssueCreateModal() {
   const markSubmitted = useIssuesStore((s) => s.markSubmitted);
 
   async function handleSubmit(): Promise<JiraSubmitResult> {
-    if (!jiraConfig?.auth || !jiraConfig.projectKey) throw new Error("Jira 미설정");
+    if (!jiraAccount?.auth || !jiraAccount.projectKey) throw new Error("Jira 미설정");
     if (!draft || !issueFields.issueTypeId) throw new Error("필수 값 누락");
 
     let description: AdfDoc;
@@ -188,7 +188,7 @@ export function IssueCreateModal() {
     const result = await sendBg<JiraSubmitResult>({
       type: "jira.submitIssue",
       payload: {
-        projectKey: jiraConfig.projectKey,
+        projectKey: jiraAccount.projectKey,
         summary,
         description,
         issueTypeId: issueFields.issueTypeId,
@@ -203,14 +203,14 @@ export function IssueCreateModal() {
       markSubmitted(currentIssueId, {
         key: result.key,
         url: result.url,
-        jiraSiteId: jiraSiteId(jiraConfig.auth),
-        issueTypeName: jiraConfig?.issueTypeName,
+        jiraSiteId: jiraSiteId(jiraAccount.auth),
+        issueTypeName: jiraAccount?.issueTypeName,
         priorityName: issueFields.priorityName,
         assigneeName: issueFields.assigneeName,
       });
     }
-    useSettingsStore.getState().setLastSubmitFields({
-      projectKey: jiraConfig.projectKey,
+    useSettingsStore.getState().setLastSubmitFields("jira", {
+      projectKey: jiraAccount.projectKey,
       assigneeId: issueFields.assigneeId,
       assigneeName: issueFields.assigneeName,
       priorityId: issueFields.priorityId,
@@ -263,8 +263,8 @@ export function SubmitFieldsDialog({
   onSuccess?: (result: JiraSubmitResult) => void;
 }) {
   const t = useT();
-  const jiraConfig = useSettingsStore((s) => s.jiraConfig);
-  const configured = isJiraConfigComplete(jiraConfig);
+  const jiraAccount = useSettingsStore((s) => s.accounts.jira);
+  const configured = isJiraAccountComplete(jiraAccount);
   const [submit, setSubmit] = useState<SubmitState>({ status: "idle" });
 
   useEffect(() => {
@@ -395,11 +395,11 @@ export function FieldRow({
 }
 
 function useJiraConfig(): { projectKey: string } | null {
-  const jiraConfig = useSettingsStore((s) => s.jiraConfig);
+  const jiraAccount = useSettingsStore((s) => s.accounts.jira);
   return useMemo(() => {
-    if (!jiraConfig?.projectKey || !jiraConfig.auth) return null;
-    return { projectKey: jiraConfig.projectKey };
-  }, [jiraConfig?.auth, jiraConfig?.projectKey]);
+    if (!jiraAccount?.projectKey || !jiraAccount.auth) return null;
+    return { projectKey: jiraAccount.projectKey };
+  }, [jiraAccount?.auth, jiraAccount?.projectKey]);
 }
 
 function useDebouncedSearch<T>(
@@ -445,12 +445,12 @@ export function IssueTypeField({
   onChange: (id: string) => void;
 }) {
   const t = useT();
-  const jiraConfig = useSettingsStore((s) => s.jiraConfig);
+  const jiraAccount = useSettingsStore((s) => s.accounts.jira);
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<JiraIssueType[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const projectKey = jiraConfig?.projectKey;
+  const projectKey = jiraAccount?.projectKey;
 
   useEffect(() => {
     setItems([]);
@@ -458,7 +458,7 @@ export function IssueTypeField({
   }, [projectKey]);
 
   useEffect(() => {
-    if (!open || !jiraConfig || !projectKey) return;
+    if (!open || !jiraAccount || !projectKey) return;
     if (items.length > 0) return;
     let cancelled = false;
     setLoading(true);
@@ -475,10 +475,10 @@ export function IssueTypeField({
     return () => {
       cancelled = true;
     };
-  }, [open, jiraConfig, projectKey, items.length]);
+  }, [open, jiraAccount, projectKey, items.length]);
 
-  const defaultId = jiraConfig?.issueTypeId;
-  const defaultName = jiraConfig?.issueTypeName;
+  const defaultId = jiraAccount?.issueTypeId;
+  const defaultName = jiraAccount?.issueTypeName;
   const effectiveValue = value ?? defaultId;
   const selected = items.find((i) => i.id === effectiveValue);
 
@@ -532,14 +532,14 @@ export function PriorityField({
   onChange: (id: string | undefined, name?: string) => void;
 }) {
   const t = useT();
-  const jiraConfig = useSettingsStore((s) => s.jiraConfig);
+  const jiraAccount = useSettingsStore((s) => s.accounts.jira);
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<JiraPriority[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!open || !jiraConfig) return;
+    if (!open || !jiraAccount) return;
     if (items.length > 0) return;
     let cancelled = false;
     setLoading(true);
@@ -553,7 +553,7 @@ export function PriorityField({
     return () => {
       cancelled = true;
     };
-  }, [open, jiraConfig, items.length]);
+  }, [open, jiraAccount, items.length]);
 
   const selected = items.find((i) => i.id === value);
 

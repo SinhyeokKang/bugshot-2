@@ -46,14 +46,14 @@
   - [x] `pnpm typecheck` 그린
   - [x] 기존 import 영향 없음
 
-### T2 — settings-store v3 마이그레이션 (`src/store/settings-store.ts`)
+### T2 — settings-store v3 마이그레이션 (`src/store/settings-store.ts`) ✅ 완료
 
 - 단일 `jiraConfig` → `accounts: Accounts` + `lastSubmitFields: LastSubmitFieldsByPlatform`. `setAccount(platform, account)`/`removeAccount(platform)`. v2→v3 migrate 함수 + 멱등 가드.
 - 기존 `isJiraConfigComplete`/`jiraCredentialsFilled`/`jiraSiteId`/`jiraHostLabel` 헬퍼는 `accounts.jira` 기준으로 갱신(시그니처는 `JiraAccount`로 변경).
 - 검증:
-  - [ ] `__tests__/settings-store.test.ts`: v2 fixture 4 케이스(jiraConfig 있음/없음 × lastSubmitFields 있음/없음) → v3 변환 단언; idempotent(두 번 마이그레이션해도 동일).
-  - [ ] `pnpm typecheck`
-  - [ ] `pnpm test`
+  - [x] `__tests__/settings-store.test.ts`: v2 fixture 4 케이스(jiraConfig 있음/없음 × lastSubmitFields 있음/없음) → v3 변환 단언; idempotent(두 번 마이그레이션해도 동일).
+  - [x] `pnpm typecheck`
+  - [x] `pnpm test` (140/140 통과; pre-existing issueListFilters 실패는 본 태스크 무관)
   - [ ] 수동: 기존 Jira 연결 상태에서 dev 빌드 → SettingsTab에 그대로 표시
 
 ### T3 — issues-store 마이그레이션 (`src/store/issues-store.ts`)

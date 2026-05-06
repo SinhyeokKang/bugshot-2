@@ -44,7 +44,7 @@ export function IssueListTab() {
   const t = useT();
   const issues = useIssuesStore((s) => s.issues);
   const clearIssues = useIssuesStore((s) => s.clearIssues);
-  const jiraConnected = useSettingsStore((s) => !!s.jiraConfig?.auth);
+  const jiraConnected = useSettingsStore((s) => !!s.accounts.jira?.auth);
   const [draftId, setDraftId] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -371,14 +371,14 @@ const STATUS_CATEGORY_COLORS: Record<
 
 function SubmittedBadge({ issueId, issueKey, issueSiteId, refreshKey, onLoaded }: { issueId: string; issueKey: string; issueSiteId?: string; refreshKey: number; onLoaded: () => void }) {
   const t = useT();
-  const jiraConfig = useSettingsStore((s) => s.jiraConfig);
+  const jiraAccount = useSettingsStore((s) => s.accounts.jira);
   const patchIssue = useIssuesStore((s) => s.patchIssue);
-  const currentSiteId = jiraConfig?.auth ? jiraSiteId(jiraConfig.auth) : null;
+  const currentSiteId = jiraAccount?.auth ? jiraSiteId(jiraAccount.auth) : null;
   const siteMatch = !issueSiteId || currentSiteId === issueSiteId;
   const [status, setStatus] = useState<JiraIssueStatus | "error" | null>(null);
 
   useEffect(() => {
-    if (!jiraConfig?.auth || !siteMatch) { setStatus("error"); onLoaded(); return; }
+    if (!jiraAccount?.auth || !siteMatch) { setStatus("error"); onLoaded(); return; }
     sendBg<JiraIssueStatus>({
       type: "jira.getIssueStatus",
       issueKey,
@@ -392,7 +392,7 @@ function SubmittedBadge({ issueId, issueKey, issueSiteId, refreshKey, onLoaded }
       })
       .catch(() => setStatus("error"))
       .finally(onLoaded);
-  }, [jiraConfig?.auth, issueKey, refreshKey, siteMatch, onLoaded, issueId, patchIssue]);
+  }, [jiraAccount?.auth, issueKey, refreshKey, siteMatch, onLoaded, issueId, patchIssue]);
 
   if (status === "error") {
     return (

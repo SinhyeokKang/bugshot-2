@@ -10,7 +10,7 @@ import {
   useAppSettingsStore,
 } from "@/store/app-settings-store";
 import { useEditorStore } from "@/store/editor-store";
-import { isJiraConfigComplete, useSettingsStore } from "@/store/settings-store";
+import { isJiraAccountComplete, useSettingsStore } from "@/store/settings-store";
 import { DocSectionBody } from "../components/DocSectionBody";
 import { LogAttachmentCards } from "../components/LogAttachmentCards";
 import { NetworkLogPreviewDialog } from "../components/NetworkLogPreviewDialog";
@@ -55,8 +55,8 @@ export function PreviewPanel() {
   const backToDraft = useEditorStore((s) => s.backToDraft);
   const reset = useEditorStore((s) => s.reset);
   const issueSections = useAppSettingsStore((s) => s.issueSections);
-  const jiraConfig = useSettingsStore((s) => s.jiraConfig);
-  const configured = isJiraConfigComplete(jiraConfig);
+  const jiraAccount = useSettingsStore((s) => s.accounts.jira);
+  const configured = isJiraAccountComplete(jiraAccount);
   const isElementMode = captureMode === "element";
   const isVideoMode = captureMode === "video";
   const screenshotImage = screenshotAnnotated ?? screenshotRaw;

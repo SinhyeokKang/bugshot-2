@@ -39,7 +39,7 @@ import { useIssuesStore, type IssueRecord } from "@/store/issues-store";
 import { clearPicker } from "../picker-control";
 import {
   useSettingsStore,
-  isJiraConfigComplete,
+  isJiraAccountComplete,
   jiraSiteId,
 } from "@/store/settings-store";
 import { sendBg, type JiraSubmitResult } from "@/types/messages";
@@ -82,8 +82,8 @@ export function DraftDetailDialog({
   onSubmitSuccess?: (result: JiraSubmitResult) => void;
 }) {
   const t = useT();
-  const jiraConfig = useSettingsStore((s) => s.jiraConfig);
-  const configured = isJiraConfigComplete(jiraConfig);
+  const jiraAccount = useSettingsStore((s) => s.accounts.jira);
+  const configured = isJiraAccountComplete(jiraAccount);
   const removeIssue = useIssuesStore((s) => s.removeIssue);
   const markSubmitted = useIssuesStore((s) => s.markSubmitted);
   const sectionConfig = useAppSettingsStore((s) => s.issueSections);
@@ -91,21 +91,21 @@ export function DraftDetailDialog({
   const [fields, setFields] = useState<SubmitFields>({});
   const [submitOpen, setSubmitOpen] = useState(false);
 
-  const lastSubmitFields = useSettingsStore((s) => s.lastSubmitFields);
+  const lastJiraSubmit = useSettingsStore((s) => s.lastSubmitFields.jira);
 
   useEffect(() => {
     if (!open) return;
-    const base: SubmitFields = { issueTypeId: jiraConfig?.issueTypeId };
+    const base: SubmitFields = { issueTypeId: jiraAccount?.issueTypeId };
     if (
-      lastSubmitFields.projectKey &&
-      lastSubmitFields.projectKey === jiraConfig?.projectKey
+      lastJiraSubmit?.projectKey &&
+      lastJiraSubmit.projectKey === jiraAccount?.projectKey
     ) {
-      const { projectKey: _, ...restored } = lastSubmitFields;
+      const { projectKey: _, ...restored } = lastJiraSubmit;
       Object.assign(base, restored);
     }
     setFields(base);
     setSubmitOpen(false);
-  }, [open, issue?.id, jiraConfig?.issueTypeId, jiraConfig?.projectKey, lastSubmitFields]);
+  }, [open, issue?.id, jiraAccount?.issueTypeId, jiraAccount?.projectKey, lastJiraSubmit]);
 
   const isScreenshot = issue?.captureMode === "screenshot";
   const isVideo = issue?.captureMode === "video";
@@ -161,7 +161,7 @@ export function DraftDetailDialog({
 
   async function handleSubmit(): Promise<JiraSubmitResult> {
     if (!issue) throw new Error("초안 없음");
-    if (!jiraConfig?.auth || !jiraConfig.projectKey)
+    if (!jiraAccount?.auth || !jiraAccount.projectKey)
       throw new Error("Jira 미설정");
     if (!fields.issueTypeId) throw new Error("이슈 타입 선택 필요");
 
@@ -240,7 +240,7 @@ export function DraftDetailDialog({
     const result = await sendBg<JiraSubmitResult>({
       type: "jira.submitIssue",
       payload: {
-        projectKey: jiraConfig.projectKey,
+        projectKey: jiraAccount.projectKey,
         summary,
         description,
         issueTypeId: fields.issueTypeId,
@@ -254,8 +254,8 @@ export function DraftDetailDialog({
     markSubmitted(issue.id, {
       key: result.key,
       url: result.url,
-      jiraSiteId: jiraConfig?.auth ? jiraSiteId(jiraConfig.auth) : undefined,
-      issueTypeName: jiraConfig?.issueTypeName,
+      jiraSiteId: jiraAccount?.auth ? jiraSiteId(jiraAccount.auth) : undefined,
+      issueTypeName: jiraAccount?.issueTypeName,
       priorityName: fields.priorityName,
       assigneeName: fields.assigneeName,
     });
@@ -264,8 +264,8 @@ export function DraftDetailDialog({
       if (tabId != null) void clearPicker(tabId);
       useEditorStore.getState().reset();
     }
-    useSettingsStore.getState().setLastSubmitFields({
-      projectKey: jiraConfig.projectKey,
+    useSettingsStore.getState().setLastSubmitFields("jira", {
+      projectKey: jiraAccount.projectKey,
       assigneeId: fields.assigneeId,
       assigneeName: fields.assigneeName,
       priorityId: fields.priorityId,

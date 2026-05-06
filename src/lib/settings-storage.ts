@@ -3,7 +3,7 @@ import type { JiraAuth, JiraOAuthAuth } from "@/types/jira";
 export const SETTINGS_STORAGE_KEY = "bugshot-settings";
 
 interface SettingsEnvelope {
-  state?: { jiraConfig?: { auth?: JiraAuth } };
+  state?: { accounts?: { jira?: { auth?: JiraAuth } } };
   version?: number;
 }
 
@@ -23,17 +23,17 @@ async function readEnvelope(): Promise<
 
 export async function readStoredAuth(): Promise<JiraAuth | null> {
   const { envelope } = await readEnvelope();
-  return envelope?.state?.jiraConfig?.auth ?? null;
+  return envelope?.state?.accounts?.jira?.auth ?? null;
 }
 
 export async function writeStoredOAuthTokens(
   auth: JiraOAuthAuth,
 ): Promise<void> {
   const { raw, envelope } = await readEnvelope();
-  if (!envelope?.state?.jiraConfig?.auth) return;
-  if (envelope.state.jiraConfig.auth.kind !== "oauth") return;
-  envelope.state.jiraConfig.auth = {
-    ...envelope.state.jiraConfig.auth,
+  const cur = envelope?.state?.accounts?.jira?.auth;
+  if (!cur || cur.kind !== "oauth") return;
+  envelope!.state!.accounts!.jira!.auth = {
+    ...cur,
     accessToken: auth.accessToken,
     refreshToken: auth.refreshToken,
     expiresAt: auth.expiresAt,
