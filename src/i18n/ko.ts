@@ -272,6 +272,15 @@ const ko = {
   "jira.error.5xx": "Jira 서버 오류. 잠시 후 다시 시도하세요.",
   "jira.error.generic": "Jira 요청 실패 ({status})",
 
+  // GitHub API errors
+  "github.error.401": "인증 실패: 토큰이 만료되었거나 권한이 없습니다.",
+  "github.error.403": "권한 없음: 토큰 scope를 확인하세요.",
+  "github.error.404": "리포지토리/리소스를 찾을 수 없습니다.",
+  "github.error.422": "잘못된 입력: 필드 값을 확인하세요.",
+  "github.error.429": "요청이 너무 많습니다. 잠시 후 다시 시도하세요.",
+  "github.error.5xx": "GitHub 서버 오류. 잠시 후 다시 시도하세요.",
+  "github.error.generic": "GitHub 요청 실패 ({status})",
+
   // OAuth errors
   "oauth.error.notConfiguredClient": "Atlassian OAuth 앱이 설정되지 않았습니다. VITE_ATLASSIAN_CLIENT_ID 환경 변수를 지정하세요.",
   "oauth.error.notConfiguredProxy": "OAuth proxy가 설정되지 않았습니다. VITE_OAUTH_PROXY_URL 환경 변수를 지정하세요.",

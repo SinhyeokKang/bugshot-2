@@ -77,16 +77,17 @@
   - [ ] 사용자: 로컬 `wrangler dev` + curl 라운드트립
   - [ ] 사용자: `wrangler deploy` 후 prod URL 검증
 
-### T5 — github-api 어댑터 (`src/background/github-api.ts`)
+### T5 — github-api 어댑터 (`src/background/github-api.ts`) ✅ 완료
 
-- `githubFetch<T>(auth, path, init)` 헬퍼. `User-Agent: bugshot-2/<version>` + `Accept: application/vnd.github+json`. PAT/OAuth 분기 헤더.
-- `getMyself`/`searchRepos`/`getRepoLabels`/`getRepoAssignees`/`createIssue`. 페이지네이션은 첫 페이지(per_page=100)만.
-- 401 처리: PAT은 즉시 에러 throw; OAuth는 (refreshToken 존재 시) refresh 1회 후 재시도, 실패 시 OAuthError throw.
-- 에러 클래스 `GithubError(status, message, body)`.
+- `githubFetch<T>(auth, path, init)` 헬퍼. `User-Agent: bugshot-2` + `Accept: application/vnd.github+json` + `X-GitHub-Api-Version: 2022-11-28`. PAT/OAuth 분기 헤더.
+- `getMyself`/`searchRepos`/`getRepoLabels`/`getRepoAssignees`/`createIssue`. 페이지네이션은 첫 페이지(per_page=30~100)만.
+- 401 처리: PAT은 즉시 에러 throw. OAuth는 `refreshHook`(T6에서 setGithubRefreshHook으로 주입) 있으면 1회 refresh 후 재시도, 없으면 즉시 throw.
+- `GithubError(status, message, body)` + `extractGithubDetail`로 message/errors[] 평면화.
+- 추가 효과: app-settings-store의 `detectLocale`에 navigator 가드 추가 — 기존 issueListFilters.test.ts가 정상 로드됨.
 - 검증:
-  - [ ] `__tests__/github-api.test.ts`: auth header 빌더, error body 파서, payload→REST body 매퍼.
-  - [ ] `pnpm typecheck`
-  - [ ] `pnpm test`
+  - [x] `__tests__/github-api.test.ts`: 14 케이스 (auth header PAT/OAuth, error parser 4 케이스, payload mapper 3 케이스, repo 정규화 2 케이스 등)
+  - [x] `pnpm typecheck`
+  - [x] `pnpm test` (176 통과, 14/14 파일 그린)
 
 ### T6 — github-oauth 시작 헬퍼 (`src/background/github-oauth.ts`)
 

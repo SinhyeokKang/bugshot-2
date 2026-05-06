@@ -274,6 +274,15 @@ const en = {
   "jira.error.5xx": "Jira server error. Try again later.",
   "jira.error.generic": "Jira request failed ({status})",
 
+  // GitHub API errors
+  "github.error.401": "Auth failed: token expired or unauthorized.",
+  "github.error.403": "Forbidden: check token scopes.",
+  "github.error.404": "Repository or resource not found.",
+  "github.error.422": "Invalid input: check field values.",
+  "github.error.429": "Too many requests. Try again later.",
+  "github.error.5xx": "GitHub server error. Try again later.",
+  "github.error.generic": "GitHub request failed ({status})",
+
   // OAuth errors
   "oauth.error.notConfiguredClient": "Atlassian OAuth app is not configured. Set VITE_ATLASSIAN_CLIENT_ID.",
   "oauth.error.notConfiguredProxy": "OAuth proxy is not configured. Set VITE_OAUTH_PROXY_URL.",

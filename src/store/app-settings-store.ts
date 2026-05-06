@@ -51,7 +51,10 @@ export function sectionHelpKey(id: IssueSectionId): TranslationKey {
 }
 
 function detectLocale(): LocaleMode {
-  const lang = navigator.language.toLowerCase();
+  const lang =
+    typeof navigator !== "undefined" && navigator.language
+      ? navigator.language.toLowerCase()
+      : "en";
   if (lang.startsWith("ko")) return "ko";
   return "en";
 }
