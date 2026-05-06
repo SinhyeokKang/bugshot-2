@@ -6,8 +6,8 @@ vi.mock("@/i18n", () => ({
   t: (key: string) => key,
   dateBcp47: () => "en-US",
 }));
-vi.mock("@/store/app-settings-store", () => ({
-  useAppSettingsStore: () => "ko",
+vi.mock("@/store/settings-ui-store", () => ({
+  useSettingsUiStore: () => "ko",
 }));
 
 import {

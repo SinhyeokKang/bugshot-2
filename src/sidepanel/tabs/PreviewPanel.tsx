@@ -7,8 +7,8 @@ import { useT } from "@/i18n";
 import {
   POST_MEDIA_SECTION_IDS,
   sectionLabelKey,
-  useAppSettingsStore,
-} from "@/store/app-settings-store";
+  useSettingsUiStore,
+} from "@/store/settings-ui-store";
 import { useEditorStore } from "@/store/editor-store";
 import { connectedPlatforms, useSettingsStore } from "@/store/settings-store";
 import { DocSectionBody } from "../components/DocSectionBody";
@@ -54,7 +54,7 @@ export function PreviewPanel() {
   const consoleLogAttach = useEditorStore((s) => s.consoleLogAttach);
   const backToDraft = useEditorStore((s) => s.backToDraft);
   const reset = useEditorStore((s) => s.reset);
-  const issueSections = useAppSettingsStore((s) => s.issueSections);
+  const issueSections = useSettingsUiStore((s) => s.issueSections);
   const accounts = useSettingsStore((s) => s.accounts);
   const noPlatformConnected = useMemo(
     () => connectedPlatforms(accounts).length === 0,

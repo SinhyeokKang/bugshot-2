@@ -32,7 +32,7 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useT } from "@/i18n";
 import { cn } from "@/lib/utils";
-import { useAppSettingsStore } from "@/store/app-settings-store";
+import { useSettingsUiStore } from "@/store/settings-ui-store";
 import { dataUrlToBlob } from "@/store/blob-db";
 import { useEditorStore, type EditorIssueFields } from "@/store/editor-store";
 import { useIssuesStore } from "@/store/issues-store";
@@ -165,7 +165,7 @@ export function IssueCreateModal() {
   const networkLogAttach = useEditorStore((s) => s.networkLogAttach);
   const consoleLog = useEditorStore((s) => s.consoleLog);
   const consoleLogAttach = useEditorStore((s) => s.consoleLogAttach);
-  const sectionConfig = useAppSettingsStore((s) => s.issueSections);
+  const sectionConfig = useSettingsUiStore((s) => s.issueSections);
 
   const currentIssueId = useEditorStore((s) => s.currentIssueId);
   const markSubmitted = useIssuesStore((s) => s.markSubmitted);

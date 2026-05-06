@@ -21,13 +21,7 @@ import {
   onPickerUnavailable,
   onSessionSaveExhausted,
 } from "@/types/messages";
-import type { PlatformId } from "@/types/platform";
-
-const PLATFORM_TAB_KEYS = {
-  jira: "platform.tab.jira",
-  github: "platform.tab.github",
-  linear: "platform.tab.linear",
-} as const;
+import { PLATFORM_TAB_KEYS, type PlatformId } from "@/types/platform";
 
 const TabNavContext = createContext<(tab: string) => void>(() => {});
 export const useTabNav = () => useContext(TabNavContext);
@@ -170,11 +164,11 @@ export default function App() {
             </TabsTrigger>
             <TabsTrigger value="integrations" className="gap-1.5">
               <SlidersHorizontal className="h-3.5 w-3.5" />
-              {t("app.tab.settings")}
+              {t("app.tab.integrations")}
             </TabsTrigger>
             <TabsTrigger value="settings" className="gap-1.5">
               <Settings className="h-3.5 w-3.5" />
-              {t("app.tab.appSettings")}
+              {t("app.tab.settings")}
             </TabsTrigger>
           </TabsList>
         </div>

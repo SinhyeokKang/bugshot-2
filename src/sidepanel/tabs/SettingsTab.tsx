@@ -10,11 +10,11 @@ import { useT } from "@/i18n";
 import {
   sectionHelpKey,
   sectionLabelKey,
-  useAppSettingsStore,
+  useSettingsUiStore,
   type IssueSection,
   type LocaleMode,
   type ThemeMode,
-} from "@/store/app-settings-store";
+} from "@/store/settings-ui-store";
 import { useSettingsStore } from "@/store/settings-store";
 import { PageFooter, PageScroll, PageShell, Section } from "../components/Section";
 
@@ -25,25 +25,25 @@ const LOCALE_OPTIONS: { value: LocaleMode; label: string }[] = [
 
 export function SettingsTab() {
   const t = useT();
-  const theme = useAppSettingsStore((s) => s.theme);
-  const setTheme = useAppSettingsStore((s) => s.setTheme);
-  const locale = useAppSettingsStore((s) => s.locale);
-  const setLocale = useAppSettingsStore((s) => s.setLocale);
-  const issueSections = useAppSettingsStore((s) => s.issueSections);
-  const setIssueEnabled = useAppSettingsStore((s) => s.setIssueEnabled);
+  const theme = useSettingsUiStore((s) => s.theme);
+  const setTheme = useSettingsUiStore((s) => s.setTheme);
+  const locale = useSettingsUiStore((s) => s.locale);
+  const setLocale = useSettingsUiStore((s) => s.setLocale);
+  const issueSections = useSettingsUiStore((s) => s.issueSections);
+  const setIssueEnabled = useSettingsUiStore((s) => s.setIssueEnabled);
   const titlePrefix = useSettingsStore((s) => s.titlePrefix);
   const setTitlePrefix = useSettingsStore((s) => s.setTitlePrefix);
 
   const themeOptions = [
-    { value: "light" as ThemeMode, label: t("appSettings.theme.light"), icon: <Sun className="h-4 w-4" /> },
-    { value: "dark" as ThemeMode, label: t("appSettings.theme.dark"), icon: <Moon className="h-4 w-4" /> },
-    { value: "system" as ThemeMode, label: t("appSettings.theme.system"), icon: <Monitor className="h-4 w-4" /> },
+    { value: "light" as ThemeMode, label: t("settings.theme.light"), icon: <Sun className="h-4 w-4" /> },
+    { value: "dark" as ThemeMode, label: t("settings.theme.dark"), icon: <Moon className="h-4 w-4" /> },
+    { value: "system" as ThemeMode, label: t("settings.theme.system"), icon: <Monitor className="h-4 w-4" /> },
   ];
 
   return (
     <PageShell>
       <PageScroll>
-        <Section title={t("appSettings.language")}>
+        <Section title={t("settings.language")}>
           <Tabs value={locale} onValueChange={(v) => setLocale(v as LocaleMode)}>
             <TabsList className="grid w-full grid-cols-2">
               {LOCALE_OPTIONS.map((o) => (
@@ -55,7 +55,7 @@ export function SettingsTab() {
           </Tabs>
         </Section>
 
-        <Section title={t("appSettings.theme")}>
+        <Section title={t("settings.theme")}>
           <Tabs value={theme} onValueChange={(v) => setTheme(v as ThemeMode)}>
             <TabsList className="grid w-full grid-cols-3">
               {themeOptions.map((o) => (
@@ -108,19 +108,19 @@ export function SettingsTab() {
             variant="outline"
             onClick={() => chrome.tabs.create({ url: "https://sinhyeokkang.github.io/bugshot-2/privacy" })}
           >
-            {t("appSettings.privacy")}
+            {t("settings.privacy")}
           </Button>
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
               onClick={() => chrome.tabs.create({ url: "https://chromewebstore.google.com/detail/bugshot/ohakhekagkodklkickemonmifdcbhmig/reviews" })}
             >
-              {t("appSettings.review")}
+              {t("settings.review")}
             </Button>
             <Button
               asChild
             >
-              <a href="mailto:ox501501@gmail.com">{t("appSettings.contact")}</a>
+              <a href="mailto:ox501501@gmail.com">{t("settings.contact")}</a>
             </Button>
           </div>
         </div>

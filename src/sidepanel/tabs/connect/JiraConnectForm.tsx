@@ -60,18 +60,18 @@ export function JiraConnectForm() {
   return (
     <>
       <PageScroll>
-        <Section title={t("settings.jiraConnection")}>
+        <Section title={t("jira.connection")}>
           <JiraSummary />
         </Section>
 
-        <Section title={t("settings.jiraSettings")}>
+        <Section title={t("jira.settings")}>
           <div className="flex flex-col gap-3">
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs text-muted-foreground">{t("settings.project")}</label>
+              <label className="text-xs text-muted-foreground">{t("jira.project")}</label>
               <ProjectCombobox />
             </div>
             <div className="flex flex-col gap-1.5">
-              <label className="text-xs text-muted-foreground">{t("settings.defaultIssueType")}</label>
+              <label className="text-xs text-muted-foreground">{t("jira.defaultIssueType")}</label>
               <IssueTypeCombobox />
             </div>
           </div>
@@ -130,7 +130,7 @@ function JiraOnboarding() {
     try {
       const result = await sendBg<OAuthStartResultMsg>({ type: "oauth.start" });
       if (result.sites.length === 0) {
-        throw new NoJiraSitesError(t("settings.noJiraSites"));
+        throw new NoJiraSitesError(t("jira.noJiraSites"));
       }
       if (result.sites.length === 1) {
         await finalize(result, result.sites[0]);
@@ -180,7 +180,7 @@ function JiraOnboarding() {
       <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-6">
         <div className="flex w-full max-w-[260px] flex-col gap-2">
           <p className="mb-1 text-center text-sm font-medium">
-            {t("settings.selectSite")}
+            {t("jira.selectSite")}
           </p>
           {candidate.sites.map((site) => (
             <Button
@@ -217,9 +217,9 @@ function JiraOnboarding() {
         <div className="mb-3 rounded-full bg-muted p-3">
           <Jira className="h-6 w-6" color="default" />
         </div>
-        <h3 className="text-[18px] font-semibold">{t("settings.onboarding.title")}</h3>
+        <h3 className="text-[18px] font-semibold">{t("jira.onboarding.title")}</h3>
         <p className="mt-1 text-sm text-muted-foreground">
-          {t("settings.onboarding.body")}
+          {t("jira.onboarding.body")}
         </p>
 
         <div className="mt-5 flex gap-2">
@@ -236,7 +236,7 @@ function JiraOnboarding() {
               )}
               <span className={`inline-flex items-center gap-2 ${connecting ? "opacity-0" : ""}`}>
                 <ExternalLink className="h-3.5 w-3.5" />
-                {t("settings.atlassianLogin")}
+                {t("jira.atlassianLogin")}
               </span>
             </Button>
           ) : null}
@@ -310,16 +310,16 @@ function ApiKeyDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-[80vw] max-w-[80vw] gap-5 rounded-3xl p-6 sm:rounded-3xl">
         <DialogHeader>
-          <DialogTitle className="text-xl">{t("settings.apiKeyDialog.title")}</DialogTitle>
+          <DialogTitle className="text-xl">{t("jira.apiKeyDialog.title")}</DialogTitle>
           <DialogDescription>
-            {t("settings.apiKeyDialog.body")}
+            {t("jira.apiKeyDialog.body")}
           </DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-col gap-3">
           <div className="flex flex-col gap-1.5">
             <label htmlFor="jira-baseUrl" className="text-xs text-muted-foreground">
-              {t("settings.workspaceUrl")}
+              {t("jira.workspaceUrl")}
             </label>
             <Input
               id="jira-baseUrl"
@@ -333,7 +333,7 @@ function ApiKeyDialog({
 
           <div className="flex flex-col gap-1.5">
             <label htmlFor="jira-email" className="text-xs text-muted-foreground">
-              {t("settings.email")}
+              {t("jira.email")}
             </label>
             <Input
               id="jira-email"
@@ -348,7 +348,7 @@ function ApiKeyDialog({
           <div className="flex flex-col gap-1.5">
             <div className="flex items-center justify-between">
               <label htmlFor="jira-token" className="text-xs text-muted-foreground">
-                {t("settings.apiToken")}
+                {t("jira.apiToken")}
               </label>
               <a
                 href="https://id.atlassian.com/manage-profile/security/api-tokens"
@@ -356,7 +356,7 @@ function ApiKeyDialog({
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground"
               >
-                {t("settings.getToken")}
+                {t("platform.getToken")}
                 <ExternalLink className="h-3 w-3" />
               </a>
             </div>
@@ -406,10 +406,10 @@ function OAuthClassifiedBanner({ error }: { error: OAuthClassified | null }) {
         <div className="flex items-start justify-between gap-2">
           <div>
             <AlertTitle className="text-xs">
-              {t("settings.oauthError.noJira.title")}
+              {t("jira.oauthError.noJira.title")}
             </AlertTitle>
             <AlertDescription className="text-xs text-destructive/80">
-              {t("settings.oauthError.noJira.body")}
+              {t("jira.oauthError.noJira.body")}
             </AlertDescription>
           </div>
           <a
@@ -418,7 +418,7 @@ function OAuthClassifiedBanner({ error }: { error: OAuthClassified | null }) {
             rel="noopener noreferrer"
             className="mt-0.5 inline-flex shrink-0 items-center gap-1 text-[11px] text-destructive/70 underline underline-offset-2 transition-colors hover:text-destructive"
           >
-            {t("settings.switchAccount")}
+            {t("jira.switchAccount")}
             <ExternalLink className="h-3 w-3" />
           </a>
         </div>
@@ -467,15 +467,15 @@ function SetupDialog() {
         onEscapeKeyDown={(e) => e.preventDefault()}
       >
         <DialogHeader>
-          <DialogTitle className="text-xl">{t("settings.projectDialog.title")}</DialogTitle>
+          <DialogTitle className="text-xl">{t("jira.projectDialog.title")}</DialogTitle>
           <DialogDescription>
-            {t("settings.projectDialog.body")}
+            {t("jira.projectDialog.body")}
           </DialogDescription>
         </DialogHeader>
 
         <div className="flex flex-col gap-1.5">
           <label className="text-xs text-muted-foreground">
-            {t("settings.projectDialog.label")}
+            {t("jira.projectDialog.label")}
           </label>
           <ProjectCombobox />
         </div>

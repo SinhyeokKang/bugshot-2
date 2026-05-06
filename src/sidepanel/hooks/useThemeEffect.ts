@@ -1,8 +1,8 @@
 import { useEffect } from "react";
-import { useAppSettingsStore } from "@/store/app-settings-store";
+import { useSettingsUiStore } from "@/store/settings-ui-store";
 
 export function useThemeEffect(): void {
-  const theme = useAppSettingsStore((s) => s.theme);
+  const theme = useSettingsUiStore((s) => s.theme);
   useEffect(() => {
     const root = document.documentElement;
     const apply = () => {

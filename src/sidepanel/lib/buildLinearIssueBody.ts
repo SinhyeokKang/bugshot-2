@@ -3,7 +3,7 @@ import {
   POST_MEDIA_SECTION_IDS,
   sectionMdLabelKey,
   type IssueSection,
-} from "@/store/app-settings-store";
+} from "@/store/settings-ui-store";
 import type { MarkdownContext } from "./buildIssueMarkdown";
 import { formatTimestamp } from "./formatTimestamp";
 

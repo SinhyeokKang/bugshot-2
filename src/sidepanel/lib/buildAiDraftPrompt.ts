@@ -3,7 +3,7 @@ import type {
   IssueSectionId,
   IssueSectionRenderAs,
   LocaleMode,
-} from "@/store/app-settings-store";
+} from "@/store/settings-ui-store";
 import type { StyleDiffRow } from "../components/StyleChangesTable";
 import type { NetworkLogSummary, ConsoleLogSummary } from "./buildLogSummary";
 import type { EditorDraft } from "@/store/editor-store";

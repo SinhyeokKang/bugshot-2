@@ -1,5 +1,5 @@
 import { useT } from "@/i18n";
-import type { IssueSection } from "@/store/app-settings-store";
+import type { IssueSection } from "@/store/settings-ui-store";
 
 // 섹션 본문(저장된 markdown 평문)을 미리보기/검토 다이얼로그에 렌더링.
 // renderAs="orderedList" → 줄별 trim·빈 줄 skip 후 ol/li.

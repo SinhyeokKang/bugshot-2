@@ -9,9 +9,9 @@ import {
   POST_MEDIA_SECTION_IDS,
   sectionLabelKey,
   sectionPlaceholderKey,
-  useAppSettingsStore,
+  useSettingsUiStore,
   type IssueSection,
-} from "@/store/app-settings-store";
+} from "@/store/settings-ui-store";
 import { useEditorStore } from "@/store/editor-store";
 import { useSettingsStore } from "@/store/settings-store";
 import { useBoundTabId } from "../hooks/useBoundTabId";
@@ -60,8 +60,8 @@ export function DraftingPanel() {
   const setConsoleLogAttach = useEditorStore((s) => s.setConsoleLogAttach);
   const target = useEditorStore((s) => s.target);
   const tokens = useEditorStore((s) => s.tokens);
-  const issueSections = useAppSettingsStore((s) => s.issueSections);
-  const locale = useAppSettingsStore((s) => s.locale);
+  const issueSections = useSettingsUiStore((s) => s.issueSections);
+  const locale = useSettingsUiStore((s) => s.locale);
   const { status: aiStatus, generateDraft } = useChromeAI();
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);

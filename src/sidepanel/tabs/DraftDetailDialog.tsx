@@ -31,9 +31,9 @@ import { formatElementName } from "@/lib/element-label";
 import {
   POST_MEDIA_SECTION_IDS,
   sectionLabelKey,
-  useAppSettingsStore,
+  useSettingsUiStore,
   type IssueSection,
-} from "@/store/app-settings-store";
+} from "@/store/settings-ui-store";
 import { useEditorStore } from "@/store/editor-store";
 import { useIssuesStore, type IssueRecord } from "@/store/issues-store";
 import { clearPicker } from "../picker-control";
@@ -103,7 +103,7 @@ export function DraftDetailDialog({
   const removeIssue = useIssuesStore((s) => s.removeIssue);
   const markSubmitted = useIssuesStore((s) => s.markSubmitted);
   const patchIssue = useIssuesStore((s) => s.patchIssue);
-  const sectionConfig = useAppSettingsStore((s) => s.issueSections);
+  const sectionConfig = useSettingsUiStore((s) => s.issueSections);
 
   const [fields, setFields] = useState<SubmitFields>({});
   const [submitOpen, setSubmitOpen] = useState(false);

@@ -3,7 +3,7 @@ import {
   POST_MEDIA_SECTION_IDS,
   sectionMdLabelKey,
   type IssueSection,
-} from "@/store/app-settings-store";
+} from "@/store/settings-ui-store";
 import { IMAGE_PLACEHOLDER } from "@/lib/adf-sentinels";
 import { formatElementName } from "@/lib/element-label";
 import type { MarkdownContext } from "./buildIssueMarkdown";

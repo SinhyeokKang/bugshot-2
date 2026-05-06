@@ -59,7 +59,7 @@ function detectLocale(): LocaleMode {
   return "en";
 }
 
-interface AppSettingsState {
+interface SettingsUiState {
   theme: ThemeMode;
   locale: LocaleMode;
   issueSections: IssueSection[];
@@ -69,7 +69,7 @@ interface AppSettingsState {
   resetIssueSections: () => void;
 }
 
-export const useAppSettingsStore = create<AppSettingsState>()(
+export const useSettingsUiStore = create<SettingsUiState>()(
   persist(
     (set) => ({
       theme: "light",
@@ -86,15 +86,16 @@ export const useAppSettingsStore = create<AppSettingsState>()(
       resetIssueSections: () => set({ issueSections: DEFAULT_ISSUE_SECTIONS }),
     }),
     {
+      // 기존 사용자 데이터 호환을 위해 리네이밍 전 키 유지
       name: "bugshot-app-settings",
       version: 2,
       storage: createJSONStorage(() => chromeLocalStorage),
       migrate: (persisted, version) => {
-        const state = (persisted ?? {}) as Partial<AppSettingsState>;
+        const state = (persisted ?? {}) as Partial<SettingsUiState>;
         if (version < 2 || !state.issueSections) {
           state.issueSections = DEFAULT_ISSUE_SECTIONS;
         }
-        return state as AppSettingsState;
+        return state as SettingsUiState;
       },
     },
   ),

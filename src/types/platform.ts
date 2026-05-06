@@ -4,6 +4,12 @@ import type { LinearAccount } from "./linear";
 
 export type PlatformId = "jira" | "github" | "linear";
 
+export const PLATFORM_TAB_KEYS = {
+  jira: "platform.tab.jira",
+  github: "platform.tab.github",
+  linear: "platform.tab.linear",
+} as const satisfies Record<PlatformId, string>;
+
 export interface PlatformAccountBase<P extends PlatformId> {
   platform: P;
   connectedAt: number;
