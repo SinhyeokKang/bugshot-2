@@ -70,7 +70,7 @@ src/
 │   │   ├── githubFields/  # GitHub 메타 필드 컴포넌트 (RepoCombobox, LabelCombobox, AssigneeMultiSelect, GithubIssueFields 묶음, labelToggle 헬퍼) — IntegrationsTab/IssueCreateModal 양쪽에서 controlled로 재사용
 │   │   └── linearFields/  # Linear 메타 필드 컴포넌트 (TeamCombobox, ProjectCombobox, LabelCombobox, PrioritySelect, AssigneeCombobox, LinearIssueFields 묶음) — IntegrationsTab/IssueCreateModal 양쪽에서 controlled로 재사용
 │   └── lib/             # buildIssueMarkdown, buildIssueAdf, buildGithubIssueBody, buildLinearIssueBody, submitToGithub, submitToLinear(NormalizedSubmitResult), buildAiDraftPrompt 등 순수 유틸
-├── store/               # Zustand 스토어 (editor/issues/settings/app-settings), blob-db(IndexedDB 이미지·비디오·네트워크/콘솔 로그 저장)
+├── store/               # Zustand 스토어 (editor/issues/settings/settings-ui), blob-db(IndexedDB 이미지·비디오·네트워크/콘솔 로그 저장)
 │                        # settings v5: accounts: { jira?, github?, linear? } + lastSubmitFields per platform + global titlePrefix
 │                        # issues v4: entry에 platform: PlatformId 필드 (issues-migrations.ts 분리 — 트랜시티브 i18n 회피)
 ├── i18n/                # 다국어 (ko/en 로케일, t()/useT() 훅)
@@ -252,7 +252,7 @@ Jira는 마크다운 원본을 파싱하지 않고, 붙여넣기는 **ProseMirro
 
 ### 이슈 섹션 구성 (설정 탭 → 이슈 설정)
 
-사용자 입력 섹션은 **설정 탭에서 on/off 가능**한 4종 빌트인. `app-settings-store`의 `IssueSection[]` (`DEFAULT_ISSUE_SECTIONS`) 배열 순서가 곧 출력 순서.
+사용자 입력 섹션은 **설정 탭에서 on/off 가능**한 4종 빌트인. `settings-ui-store`의 `IssueSection[]` (`DEFAULT_ISSUE_SECTIONS`) 배열 순서가 곧 출력 순서.
 
 | id | 기본 enabled | renderAs |
 |---|---|---|
@@ -263,14 +263,14 @@ Jira는 마크다운 원본을 파싱하지 않고, 붙여넣기는 **ProseMirro
 
 draft 데이터 모델은 `{ title, sections: Record<string, string> }`. 섹션 마다 newline-joined 평문. `stepsToReproduce`는 줄별 Input + Trash2 IconButton의 `OrderedListEditor` 전용 UI; 그 외는 plain Textarea.
 
-**자동 메타 위치**: `POST_MEDIA_SECTION_IDS = {"expectedResult","notes"}` — enabled iterate 중 첫 POST_MEDIA 섹션을 만나면 그 직전에 media/styleChanges 블록 emit. 둘 다 disabled면 모든 섹션 끝에 emit. `buildIssueMarkdown` / `buildIssueHtml` / `buildIssueAdf` / `DraftingPanel` / `PreviewPanel` / `DraftDetailDialog` 5곳에서 동일 룰. 라벨 i18n 헬퍼는 `sectionLabelKey` / `sectionMdLabelKey` / `sectionPlaceholderKey` / `sectionHelpKey` (`app-settings-store`).
+**자동 메타 위치**: `POST_MEDIA_SECTION_IDS = {"expectedResult","notes"}` — enabled iterate 중 첫 POST_MEDIA 섹션을 만나면 그 직전에 media/styleChanges 블록 emit. 둘 다 disabled면 모든 섹션 끝에 emit. `buildIssueMarkdown` / `buildIssueHtml` / `buildIssueAdf` / `DraftingPanel` / `PreviewPanel` / `DraftDetailDialog` 5곳에서 동일 룰. 라벨 i18n 헬퍼는 `sectionLabelKey` / `sectionMdLabelKey` / `sectionPlaceholderKey` / `sectionHelpKey` (`settings-ui-store`).
 
-**마이그레이션 3중 가드**: `issues-store` v3, `app-settings-store` v2, `useEditorSessionSync.migrateLegacyDraft` — 세 곳 모두 `if (legacy.sections)` 멱등 가드 + sparse 저장(빈 legacy 값은 sections에 키 추가 안 함). 빈 paragraph 섹션 출력은 마크다운/HTML/ADF 모두 `(없음)` (`md.noValue`)로 통일.
+**마이그레이션 3중 가드**: `issues-store` v3, `settings-ui-store` v2, `useEditorSessionSync.migrateLegacyDraft` — 세 곳 모두 `if (legacy.sections)` 멱등 가드 + sparse 저장(빈 legacy 값은 sections에 키 추가 안 함). 빈 paragraph 섹션 출력은 마크다운/HTML/ADF 모두 `(없음)` (`md.noValue`)로 통일.
 
 **플랫폼 마이그레이션** (별도 트랙):
 - `settings-store` v2→v3: `jiraConfig` → `accounts: { jira?, github? }` + `lastSubmitFields` → `Record<PlatformId, ...>`. `migrateV2ToV3` pure helper export — 단위 테스트 표적. 멱등 가드.
 - `settings-store` v3/v4→v5: 각 플랫폼 account에 있던 `titlePrefix`를 전역 `titlePrefix: string`으로 승격. `migrateToV5` pure helper export. jira → github → linear 순 우선순위로 기존 값 추출, 없으면 빈 문자열.
-- `issues-store` v3→v4: `IssueRecord`에 `platform: PlatformId` 필수 추가. 기존 entry는 `"jira"`로 채움. `migrateIssueToV4`는 `issues-migrations.ts`로 분리(테스트가 issues-store 본체를 import하면 picker-control→i18n→app-settings-store→navigator 트랜시티브 로드 발생 — pure helper 분리로 회피).
+- `issues-store` v3→v4: `IssueRecord`에 `platform: PlatformId` 필수 추가. 기존 entry는 `"jira"`로 채움. `migrateIssueToV4`는 `issues-migrations.ts`로 분리(테스트가 issues-store 본체를 import하면 picker-control→i18n→settings-ui-store→navigator 트랜시티브 로드 발생 — pure helper 분리로 회피).
 
 ## 릴리스 & 버전
 
