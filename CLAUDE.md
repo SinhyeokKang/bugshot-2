@@ -65,7 +65,7 @@ src/
 │   ├── tabs/            # 탭별 진입점 + 편집 패널 (StyleEditorPanel/IssueTab/IssueListTab/SettingsTab 등)
 │   │   ├── styleEditor/   # ValueCombobox, StylePropEditors와 헬퍼 (propMetadata, tokenUtils, styleHooks, TokenChip, colorLiteral, hexUtils)
 │   │   ├── connect/       # 플랫폼별 연결 폼 (JiraConnectForm, GithubConnectForm) — SettingsTab의 sub-tab content
-│   │   └── githubFields/  # GitHub 메타 필드 컴포넌트 (RepoCombobox, LabelMultiSelect, AssigneeMultiSelect, GithubIssueFields 묶음, labelToggle 헬퍼) — Settings/IssueCreateModal 양쪽에서 controlled로 재사용
+│   │   └── githubFields/  # GitHub 메타 필드 컴포넌트 (RepoCombobox, LabelCombobox, AssigneeMultiSelect, GithubIssueFields 묶음, labelToggle 헬퍼) — Settings/IssueCreateModal 양쪽에서 controlled로 재사용
 │   └── lib/             # buildIssueMarkdown, buildIssueAdf, buildGithubIssueBody, submitToGithub(NormalizedSubmitResult), buildAiDraftPrompt 등 순수 유틸
 ├── store/               # Zustand 스토어 (editor/issues/settings/app-settings), blob-db(IndexedDB 이미지·비디오·네트워크/콘솔 로그 저장)
 │                        # settings v3: accounts: { jira?, github? } + lastSubmitFields per platform
