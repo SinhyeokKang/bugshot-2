@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-bugshot-2: Chrome MV3 Side Panel 확장. 웹 페이지의 DOM 요소를 골라 스타일을 수정·비교한 후 Jira 이슈로 등록한다.
+bugshot-2: Chrome MV3 Side Panel 확장. 웹 페이지의 DOM 요소를 골라 스타일을 수정·비교한 후 Jira 또는 GitHub 이슈로 등록한다.
 
 사용자는 한국어로 간결한 답변을 선호한다. 불필요한 꾸밈말·서두 금지.
 
@@ -303,7 +303,8 @@ pnpm version major --no-git-tag-version   # 1.0.0 → 2.0.0 (Breaking change)
 - 경로: `@/` → `src/`
 - **UI 컴포넌트**: 직접 스타일링 금지. shadcn/ui 컴포넌트를 우선 사용하고, 없으면 `npx shadcn@latest add <component>`로 설치해서 사용. 설치 후 `src/components/ui/`에 위치 확인 필수 (shadcn이 `@/` 루트에 생성할 수 있음)
 - Tailwind: shadcn CSS 변수 사용, 커스텀 색상 남발 금지
-- 버튼 사이즈: shadcn 기본 + `xl` 추가 (`h-11 px-10 text-base`, CTA용)
+- 버튼 사이즈: CTA는 `default`(h-9) 통일. `xl`(`h-11 px-10 text-base`)은 랜딩/온보딩 등 특수 CTA 전용
+- 커밋 메시지·PR title/body·GitHub Release notes는 **영문**으로 작성
 - IconButton 사이즈: 패널/섹션 헤더·액션은 `h-8 w-8` (32px), Input·Textarea 우측에 직접 붙는 경우(LinkToggle, OrderedListEditor 행 삭제 등)만 `h-9 w-9` (36px, 필드 높이와 맞춤). 일관성 위해 새로 추가 시 동일하게.
 - 탭 컨텐츠: `data-[state=inactive]:hidden` 필수 (비활성 탭 동시 렌더 버그 방지)
 - **테스트**: 코드 변경 시 관련 순수 함수의 단위 테스트 작성 + `pnpm test` 통과 확인 필수. 테스트 파일은 대상과 같은 디렉터리의 `__tests__/*.test.ts`에 위치. Vitest 사용.
