@@ -65,8 +65,8 @@ src/
 │   ├── tabs/            # 탭별 진입점 + 편집 패널 (StyleEditorPanel/IssueTab/IssueListTab/SettingsTab 등)
 │   │   ├── styleEditor/   # ValueCombobox, StylePropEditors와 헬퍼 (propMetadata, tokenUtils, styleHooks, TokenChip, colorLiteral, hexUtils)
 │   │   ├── connect/       # 플랫폼별 연결 폼 (JiraConnectForm, GithubConnectForm) — SettingsTab의 sub-tab content
-│   │   └── githubFields/  # GitHub 메타 필드 컴포넌트 (RepoCombobox, LabelCombobox) — Settings/IssueCreateModal 양쪽에서 controlled로 재사용
-│   └── lib/             # buildIssueMarkdown, buildIssueAdf, buildGithubIssueBody, buildAiDraftPrompt 등 순수 유틸
+│   │   └── githubFields/  # GitHub 메타 필드 컴포넌트 (RepoCombobox, LabelMultiSelect, AssigneeMultiSelect, GithubIssueFields 묶음, labelToggle 헬퍼) — Settings/IssueCreateModal 양쪽에서 controlled로 재사용
+│   └── lib/             # buildIssueMarkdown, buildIssueAdf, buildGithubIssueBody, submitToGithub(NormalizedSubmitResult), buildAiDraftPrompt 등 순수 유틸
 ├── store/               # Zustand 스토어 (editor/issues/settings/app-settings), blob-db(IndexedDB 이미지·비디오·네트워크/콘솔 로그 저장)
 │                        # settings v3: accounts: { jira?, github? } + lastSubmitFields per platform
 │                        # issues v4: entry에 platform: PlatformId 필드 (issues-migrations.ts 분리 — 트랜시티브 i18n 회피)
@@ -163,8 +163,10 @@ Jira와 같은 모양으로 두 방식 동시 지원. 저장 형태는 discrimin
 - **저장**: `useSettingsStore`의 `accounts: { jira?: JiraAccount; github?: GithubAccount }` dict + `lastSubmitFields: Record<PlatformId, ...>`. `setAccount(platform, account)` / `removeAccount(platform)` / `updateJiraAccount(patch)` / `updateGithubAccount(patch)` API.
 - **메시지**: bg는 `jira.*` / `github.*` 두 namespace로 분기. 새 플랫폼은 새 namespace 추가만. `BgRequest` discriminated union의 exhaustive switch가 누락 검증.
 - **API 어댑터**: `{platform}-api.ts`에 fetch 래퍼 + 에러 클래스 + 순수 mapper export. 401 처리는 jira는 즉시 refresh 호출, github는 hook 주입형(서비스 워커 재시작 후에도 module side-effect로 재등록).
-- **이슈 entry**: `IssueRecord.platform: PlatformId` 필수. v3→v4 migrate가 기존 entry를 `"jira"`로 채움. UI 분기는 `entry.platform`로.
-- **본문 빌더**: `buildIssueAdf`(Jira용 ADF), `buildIssueMarkdown`/`buildIssueHtml`(클립보드 복사 공용), `buildGithubIssueBody`(GitHub MD + base64 이미지 인라인 + 안내 푸터). 셋 다 `MarkdownContext`를 입력으로 받는다.
+- **이슈 entry**: `IssueRecord.platform: PlatformId` 필수. v3→v4 migrate가 기존 entry를 `"jira"`로 채움. UI 분기는 `entry.platform`로. github 한정 메타(`githubOwner`/`githubRepo`/`githubLabels`)는 optional — 등록 시 채우고, refresh fetch 응답으로 갱신. 구 entry는 `resolveGithubCoords`가 `url`에서 fallback 파싱.
+- **본문 빌더**: `buildIssueAdf`(Jira용 ADF), `buildIssueMarkdown`/`buildIssueHtml`(클립보드 복사 공용), `buildGithubIssueBody`(GitHub MD + `## 첨부` 섹션에 파일명만 안내 — GitHub은 `data:` URI sanitize로 인라인 불가). 셋 다 `MarkdownContext`를 입력으로 받는다. submit 결과는 `NormalizedSubmitResult { key, url }`로 통일 (Jira `BUG-1` / GitHub `#42`) — `submitToGithub` 헬퍼.
+- **다이얼로그**: `SubmitFieldsDialog`가 IssueCreateModal과 DraftDetailDialog 양쪽에서 공유. 연결 1개=Tab 숨김 자동, 2개=shadcn Tabs로 platform 선택. 선택 시 `editor-store.setTargetPlatform` + `issuesStore.patchIssue`로 IssueRecord.platform 동기. default platform은 `pickInitialPlatform(accounts, lastSubmittedPlatform)` (직전 제출 → jira → github 순). prefill effect deps는 `[open, issue?.id]`만 — issue.platform 변경(사용자 Tab 클릭 결과)에 effect 재발화 시 SubmitFieldsDialog가 강제로 닫히는 버그 회피.
+- **OAuth 에러 분기**: `OAuthError`는 `{ platform, cancelled }` 옵션을 가지며 BG가 `body.platform` / `body.oauthCancelled` / `body.oauthRefreshFailed` 플래그로 직렬화. 정규식 메시지 매칭 금지 — UI는 `isOAuthCancelled` / `getOAuthErrorPlatform` 헬퍼로 분기. cancel 코드는 `isAtlassianCancellationCode` / `isGithubCancellationCode` 화이트리스트.
 
 ### 토큰 체인 resolve 룰
 
