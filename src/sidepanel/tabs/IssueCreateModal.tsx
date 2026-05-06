@@ -320,7 +320,7 @@ export function IssueCreateModal() {
       logs,
       owner: ghFields.owner,
       repo: ghFields.repo,
-      labels: ghFields.labels,
+      label: ghFields.label,
       assignees: ghFields.assignees,
     });
     if (currentIssueId) {
@@ -330,13 +330,13 @@ export function IssueCreateModal() {
         url: result.url,
         githubOwner: ghFields.owner,
         githubRepo: ghFields.repo,
-        githubLabels: ghFields.labels,
+        githubLabels: ghFields.label ? [ghFields.label] : undefined,
       });
     }
     useSettingsStore.getState().setLastSubmitFields("github", {
       owner: ghFields.owner,
       repo: ghFields.repo,
-      labels: ghFields.labels,
+      label: ghFields.label,
       assignees: ghFields.assignees,
     });
     useSettingsStore.getState().setLastSubmittedPlatform("github");

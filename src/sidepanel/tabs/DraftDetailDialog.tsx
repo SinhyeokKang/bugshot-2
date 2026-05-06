@@ -365,7 +365,7 @@ export function DraftDetailDialog({
       logs,
       owner: ghFields.owner,
       repo: ghFields.repo,
-      labels: ghFields.labels,
+      label: ghFields.label,
       assignees: ghFields.assignees,
     });
     markSubmitted(issue.id, {
@@ -374,7 +374,7 @@ export function DraftDetailDialog({
       url: result.url,
       githubOwner: ghFields.owner,
       githubRepo: ghFields.repo,
-      githubLabels: ghFields.labels,
+      githubLabels: ghFields.label ? [ghFields.label] : undefined,
     });
     if (useEditorStore.getState().currentIssueId === issue.id) {
       const tabId = useEditorStore.getState().target?.tabId;
@@ -384,7 +384,7 @@ export function DraftDetailDialog({
     useSettingsStore.getState().setLastSubmitFields("github", {
       owner: ghFields.owner,
       repo: ghFields.repo,
-      labels: ghFields.labels,
+      label: ghFields.label,
       assignees: ghFields.assignees,
     });
     useSettingsStore.getState().setLastSubmittedPlatform("github");

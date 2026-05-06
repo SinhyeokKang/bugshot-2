@@ -24,7 +24,7 @@ export type GithubAuth = GithubPatAuth | GithubOAuthAuth;
 export interface GithubDefaults {
   owner?: string;
   repo?: string;
-  labels?: string[];
+  label?: string;
   assignees?: string[];
 }
 

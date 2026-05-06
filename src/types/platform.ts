@@ -36,7 +36,7 @@ export interface JiraLastSubmitFields {
 export interface GithubLastSubmitFields {
   owner?: string;
   repo?: string;
-  labels?: string[];
+  label?: string;
   assignees?: string[];
 }
 

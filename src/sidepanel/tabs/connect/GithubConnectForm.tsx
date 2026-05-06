@@ -34,7 +34,7 @@ import type {
 } from "@/types/github";
 import { isOAuthCancelled, sendBg } from "@/types/messages";
 import { PageFooter, PageScroll, Section } from "../../components/Section";
-import { LabelMultiSelect } from "../githubFields/LabelMultiSelect";
+import { LabelCombobox } from "../githubFields/LabelCombobox";
 import { RepoCombobox, type RepoValue } from "../githubFields/RepoCombobox";
 
 export function GithubConnectForm() {
@@ -83,7 +83,7 @@ function DefaultRepoField() {
         updateGithubAccount({
           defaults: next
             ? { ...account.defaults, owner: next.owner, repo: next.repo }
-            : { ...account.defaults, owner: undefined, repo: undefined, labels: [], assignees: [] },
+            : { ...account.defaults, owner: undefined, repo: undefined, label: undefined, assignees: [] },
         })
       }
     />
@@ -99,13 +99,13 @@ function DefaultIssueSettingsFields() {
     <div className="flex flex-col gap-3">
       <div className="flex flex-col gap-1.5">
         <label className="text-xs text-muted-foreground">{t("github.field.labels")}</label>
-        <LabelMultiSelect
+        <LabelCombobox
           owner={account.defaults.owner}
           repo={account.defaults.repo}
-          value={account.defaults.labels ?? []}
+          value={account.defaults.label}
           onChange={(next) =>
             updateGithubAccount({
-              defaults: { ...account.defaults, labels: next },
+              defaults: { ...account.defaults, label: next },
             })
           }
         />

@@ -1,25 +1,25 @@
 import { useT } from "@/i18n";
 import { AssigneeMultiSelect } from "./AssigneeMultiSelect";
-import { LabelMultiSelect } from "./LabelMultiSelect";
+import { LabelCombobox } from "./LabelCombobox";
 import { RepoCombobox, type RepoValue } from "./RepoCombobox";
 import { FieldRow } from "../IssueCreateModal";
 
 export interface GithubIssueFieldsValue {
   owner?: string;
   repo?: string;
-  labels: string[];
+  label?: string;
   assignees: string[];
 }
 
 export function initialGhFields(
-  last: { owner?: string; repo?: string; labels?: string[]; assignees?: string[] } | undefined,
-  defaults: { owner?: string; repo?: string; labels?: string[]; assignees?: string[] } | undefined,
+  last: { owner?: string; repo?: string; label?: string; assignees?: string[] } | undefined,
+  defaults: { owner?: string; repo?: string; label?: string; assignees?: string[] } | undefined,
 ): GithubIssueFieldsValue {
   const src = last?.owner && last.repo ? last : defaults;
   return {
     owner: src?.owner,
     repo: src?.repo,
-    labels: src?.labels ?? [],
+    label: src?.label,
     assignees: src?.assignees ?? [],
   };
 }
@@ -42,18 +42,18 @@ export function GithubIssueFields({ value, onChange }: Props) {
           onChange={(next) =>
             onChange(
               next
-                ? { owner: next.owner, repo: next.repo, labels: [], assignees: [] }
-                : { owner: undefined, repo: undefined, labels: [], assignees: [] },
+                ? { owner: next.owner, repo: next.repo, label: undefined, assignees: [] }
+                : { owner: undefined, repo: undefined, label: undefined, assignees: [] },
             )
           }
         />
       </FieldRow>
       <FieldRow label={t("github.field.labels")}>
-        <LabelMultiSelect
+        <LabelCombobox
           owner={value.owner}
           repo={value.repo}
-          value={value.labels}
-          onChange={(labels) => onChange({ labels })}
+          value={value.label}
+          onChange={(label) => onChange({ label })}
         />
       </FieldRow>
       <FieldRow label={t("github.field.assignees")}>

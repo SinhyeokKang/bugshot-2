@@ -306,7 +306,6 @@ const ko = {
   "github.field.labels.placeholder": "라벨 선택...",
   "github.field.labels.empty": "라벨 없음",
   "github.field.labels.search": "라벨 검색",
-  "github.field.labels.summary": "{name} 외 {n}개",
   "github.field.assignees": "담당자",
   "github.field.assignees.summary": "{name} 외 {n}명",
   "github.field.assignees.placeholder": "담당자 선택...",

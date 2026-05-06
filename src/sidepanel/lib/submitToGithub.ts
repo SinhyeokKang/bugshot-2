@@ -13,7 +13,7 @@ export interface GithubSubmitInput {
   logs?: GithubMediaInput[];
   owner: string;
   repo: string;
-  labels?: string[];
+  label?: string;
   assignees?: string[];
 }
 
@@ -38,7 +38,7 @@ export async function submitToGithub(
       repo: input.repo,
       title: input.ctx.title.trim(),
       body,
-      labels: input.labels?.length ? input.labels : undefined,
+      labels: input.label ? [input.label] : undefined,
       assignees: input.assignees?.length ? input.assignees : undefined,
     },
   });

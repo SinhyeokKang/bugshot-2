@@ -18,16 +18,15 @@ import {
 import { cn } from "@/lib/utils";
 import type { GithubLabel } from "@/types/github";
 import { sendBg } from "@/types/messages";
-import { toggleLabel } from "./labelToggle";
 
 interface Props {
   owner: string | undefined;
   repo: string | undefined;
-  value: string[];
-  onChange: (next: string[]) => void;
+  value: string | undefined;
+  onChange: (next: string | undefined) => void;
 }
 
-export function LabelMultiSelect({ owner, repo, value, onChange }: Props) {
+export function LabelCombobox({ owner, repo, value, onChange }: Props) {
   const t = useT();
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<GithubLabel[]>([]);
@@ -66,13 +65,6 @@ export function LabelMultiSelect({ owner, repo, value, onChange }: Props) {
     setItems([]);
   }, [owner, repo]);
 
-  const triggerLabel = (() => {
-    if (!ready) return t("github.field.requireRepo");
-    if (value.length === 0) return t("github.field.labels.placeholder");
-    if (value.length === 1) return value[0];
-    return t("github.field.labels.summary", { name: value[0], n: value.length - 1 });
-  })();
-
   return (
     <Popover open={open} onOpenChange={(v) => ready && setOpen(v)}>
       <PopoverTrigger asChild>
@@ -86,10 +78,12 @@ export function LabelMultiSelect({ owner, repo, value, onChange }: Props) {
           <span
             className={cn(
               "min-w-0 flex-1 truncate text-left",
-              value.length === 0 && "text-muted-foreground",
+              !value && "text-muted-foreground",
             )}
           >
-            {triggerLabel}
+            {!ready
+              ? t("github.field.requireRepo")
+              : value ?? t("github.field.labels.placeholder")}
           </span>
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
@@ -113,12 +107,15 @@ export function LabelMultiSelect({ owner, repo, value, onChange }: Props) {
                 <CommandEmpty>{t("github.field.labels.empty")}</CommandEmpty>
                 <CommandGroup>
                   {items.map((l) => {
-                    const isSelected = value.includes(l.name);
+                    const isSelected = value === l.name;
                     return (
                       <CommandItem
                         key={l.id}
                         value={l.name}
-                        onSelect={() => onChange(toggleLabel(value, l.name))}
+                        onSelect={() => {
+                          onChange(isSelected ? undefined : l.name);
+                          setOpen(false);
+                        }}
                       >
                         <Check
                           className={cn(
