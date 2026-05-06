@@ -9,6 +9,7 @@ interface SettingsEnvelope {
       jira?: { auth?: JiraAuth };
       github?: { auth?: GithubAuth };
     };
+    jiraConfig?: { auth?: JiraAuth };
   };
   version?: number;
 }
@@ -29,7 +30,9 @@ async function readEnvelope(): Promise<
 
 export async function readStoredAuth(): Promise<JiraAuth | null> {
   const { envelope } = await readEnvelope();
-  return envelope?.state?.accounts?.jira?.auth ?? null;
+  return envelope?.state?.accounts?.jira?.auth
+    ?? envelope?.state?.jiraConfig?.auth
+    ?? null;
 }
 
 export async function readStoredGithubAuth(): Promise<GithubAuth | null> {
@@ -65,7 +68,7 @@ export async function writeStoredGithubOAuthTokens(
     tokenType: auth.tokenType,
     scope: auth.scope,
     refreshToken: auth.refreshToken ?? cur.refreshToken,
-    expiresAt: auth.expiresAt,
+    expiresAt: auth.expiresAt ?? cur.expiresAt,
   };
   const next = typeof raw === "string" ? JSON.stringify(envelope) : envelope;
   await chrome.storage.local.set({ [SETTINGS_STORAGE_KEY]: next });

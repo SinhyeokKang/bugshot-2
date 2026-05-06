@@ -68,6 +68,7 @@ import {
 import type { GithubMediaInput } from "../lib/buildGithubIssueBody";
 import {
   GithubIssueFields,
+  initialGhFields,
   type GithubIssueFieldsValue,
 } from "./githubFields/GithubIssueFields";
 
@@ -351,17 +352,16 @@ export function IssueCreateModal() {
   const canOpen = available.length > 0;
   const tooltip = canOpen
     ? undefined
-    : t("platform.connectFirst", { platform: t("platform.tab.jira") });
+    : t("platform.empty.title");
 
   return (
     <>
       <Button
-        size="lg"
         disabled={!canOpen}
         onClick={() => setOpen(true)}
         title={tooltip}
       >
-        {t("jira.submit")}
+        {t("issue.submit")}
       </Button>
       <SubmitFieldsDialog
         open={open}
@@ -377,19 +377,6 @@ export function IssueCreateModal() {
       />
     </>
   );
-}
-
-function initialGhFields(
-  last: { owner?: string; repo?: string; labels?: string[]; assignees?: string[] } | undefined,
-  defaults: { owner?: string; repo?: string; labels?: string[]; assignees?: string[] } | undefined,
-): GithubIssueFieldsValue {
-  const src = last?.owner && last.repo ? last : defaults;
-  return {
-    owner: src?.owner,
-    repo: src?.repo,
-    labels: src?.labels ?? [],
-    assignees: src?.assignees ?? [],
-  };
 }
 
 export interface SubmitFieldsDialogProps {
@@ -469,7 +456,7 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
     <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="w-[80vw] max-w-[80vw] gap-5 rounded-3xl p-6 sm:rounded-3xl">
         <DialogHeader>
-          <DialogTitle className="text-xl">{title ?? t("jira.submit")}</DialogTitle>
+          <DialogTitle className="text-xl">{title ?? t("issue.submit")}</DialogTitle>
         </DialogHeader>
 
         {showTabs ? (

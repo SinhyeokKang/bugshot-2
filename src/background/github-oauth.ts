@@ -11,8 +11,6 @@ const PROXY_URL = (import.meta.env.VITE_OAUTH_PROXY_URL ?? "").replace(
 );
 const AUTHORIZE_URL = "https://github.com/login/oauth/authorize";
 const SCOPES = ["repo", "user:email"];
-const TOKEN_REFRESH_THRESHOLD_MS = 60_000;
-
 export function isGithubOAuthConfigured(): boolean {
   return !!CLIENT_ID && !!PROXY_URL;
 }
@@ -56,7 +54,6 @@ export interface ParsedCallback {
 
 const GITHUB_CANCEL_ERROR_CODES = new Set([
   "access_denied",
-  "application_suspended",
 ]);
 
 export function isGithubCancellationCode(code: string | null): boolean {
@@ -227,13 +224,6 @@ async function refreshOnceWithLock(auth: GithubAuth): Promise<GithubAuth> {
     refreshInFlight = null;
   });
   return refreshInFlight;
-}
-
-export async function ensureFreshGithubAuth(auth: GithubAuth): Promise<GithubAuth> {
-  if (auth.kind !== "oauth") return auth;
-  if (auth.expiresAt == null) return auth;
-  if (auth.expiresAt - Date.now() > TOKEN_REFRESH_THRESHOLD_MS) return auth;
-  return refreshOnceWithLock(auth);
 }
 
 // 모듈 로드 시점에 github-api의 401 refresh hook을 주입.

@@ -60,8 +60,6 @@ export function buildGithubIssueBody(
   const lines: string[] = [];
   const attached: string[] = [];
 
-  lines.push(`# ${ctx.title}`, "");
-
   lines.push(`## ${t("md.section.env")}`, "");
   lines.push(`- **Page**: ${ctx.url}`);
   if (ctx.captureMode !== "screenshot" && ctx.captureMode !== "video" && ctx.selector) {

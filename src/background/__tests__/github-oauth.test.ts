@@ -112,8 +112,8 @@ describe("isGithubCancellationCode", () => {
     expect(isGithubCancellationCode("access_denied")).toBe(true);
   });
 
-  it("application_suspended → true", () => {
-    expect(isGithubCancellationCode("application_suspended")).toBe(true);
+  it("application_suspended → false (관리자 앱 일시중지는 사용자 취소가 아님)", () => {
+    expect(isGithubCancellationCode("application_suspended")).toBe(false);
   });
 
   it("server_error / null → false", () => {

@@ -245,17 +245,19 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       set({ phase: "previewing" });
       return;
     }
-    const { lastSubmitFields, accounts } = useSettingsStore.getState();
-    const lastJira = lastSubmitFields.jira;
-    const jiraAccount = accounts.jira;
-    if (
-      lastJira?.projectKey &&
-      lastJira.projectKey === jiraAccount?.projectKey &&
-      !state.issueFields.assigneeId &&
-      !state.issueFields.priorityId
-    ) {
-      const { projectKey: _, ...restored } = lastJira;
-      set((s) => ({ issueFields: { ...restored, ...s.issueFields } }));
+    if (state.targetPlatform === "jira") {
+      const { lastSubmitFields, accounts } = useSettingsStore.getState();
+      const lastJira = lastSubmitFields.jira;
+      const jiraAccount = accounts.jira;
+      if (
+        lastJira?.projectKey &&
+        lastJira.projectKey === jiraAccount?.projectKey &&
+        !state.issueFields.assigneeId &&
+        !state.issueFields.priorityId
+      ) {
+        const { projectKey: _, ...restored } = lastJira;
+        set((s) => ({ issueFields: { ...restored, ...s.issueFields } }));
+      }
     }
     const id = state.currentIssueId ?? newIssueId();
     if (state.captureMode === "video") {

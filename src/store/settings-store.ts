@@ -116,7 +116,7 @@ function isV3Shape(state: unknown): state is V3Shape {
 
 export const useSettingsStore = create<SettingsState>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       accounts: {},
       lastSubmitFields: {},
       setAccount: (platform, account) =>
@@ -127,20 +127,18 @@ export const useSettingsStore = create<SettingsState>()(
           delete next[platform];
           return { accounts: next };
         }),
-      updateJiraAccount: (patch) => {
-        const cur = get().accounts.jira;
-        if (!cur) return;
-        set((s) => ({
-          accounts: { ...s.accounts, jira: { ...cur, ...patch } },
-        }));
-      },
-      updateGithubAccount: (patch) => {
-        const cur = get().accounts.github;
-        if (!cur) return;
-        set((s) => ({
-          accounts: { ...s.accounts, github: { ...cur, ...patch } },
-        }));
-      },
+      updateJiraAccount: (patch) =>
+        set((s) => {
+          const cur = s.accounts.jira;
+          if (!cur) return s;
+          return { accounts: { ...s.accounts, jira: { ...cur, ...patch } } };
+        }),
+      updateGithubAccount: (patch) =>
+        set((s) => {
+          const cur = s.accounts.github;
+          if (!cur) return s;
+          return { accounts: { ...s.accounts, github: { ...cur, ...patch } } };
+        }),
       setLastSubmitFields: (platform, fields) =>
         set((s) => ({
           lastSubmitFields: { ...s.lastSubmitFields, [platform]: fields },

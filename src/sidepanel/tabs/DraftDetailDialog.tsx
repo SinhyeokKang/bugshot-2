@@ -51,6 +51,7 @@ import {
 } from "../lib/submitToGithub";
 import type { GithubMediaInput } from "../lib/buildGithubIssueBody";
 import {
+  initialGhFields,
   type GithubIssueFieldsValue,
 } from "./githubFields/GithubIssueFields";
 import { DocSectionBody } from "../components/DocSectionBody";
@@ -480,7 +481,7 @@ export function DraftDetailDialog({
                     disabled={available.length === 0}
                     onClick={() => setSubmitOpen(true)}
                   >
-                    {t("jira.submit")}
+                    {t("issue.submit")}
                   </Button>
                 </div>
               </DialogFooter>
@@ -505,7 +506,7 @@ export function DraftDetailDialog({
       <SubmitFieldsDialog
         open={submitOpen}
         onOpenChange={setSubmitOpen}
-        title={t("jira.submit")}
+        title={t("issue.submit")}
         platform={platform}
         setPlatform={handlePlatformChange}
         availablePlatforms={available}
@@ -521,19 +522,6 @@ export function DraftDetailDialog({
       />
     </>
   );
-}
-
-function initialGhFields(
-  last: { owner?: string; repo?: string; labels?: string[]; assignees?: string[] } | undefined,
-  defaults: { owner?: string; repo?: string; labels?: string[]; assignees?: string[] } | undefined,
-): GithubIssueFieldsValue {
-  const src = last?.owner && last.repo ? last : defaults;
-  return {
-    owner: src?.owner,
-    repo: src?.repo,
-    labels: src?.labels ?? [],
-    assignees: src?.assignees ?? [],
-  };
 }
 
 function FieldSection({

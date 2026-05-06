@@ -70,7 +70,7 @@ export function AssigneeMultiSelect({ owner, repo, value, onChange }: Props) {
     if (!ready) return t("github.field.requireRepo");
     if (value.length === 0) return t("github.field.assignees.placeholder");
     if (value.length === 1) return value[0];
-    return t("github.field.labels.summary", { name: value[0], n: value.length - 1 });
+    return t("github.field.assignees.summary", { name: value[0], n: value.length - 1 });
   })();
 
   return (

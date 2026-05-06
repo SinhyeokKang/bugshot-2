@@ -9,6 +9,7 @@ import type {
   GithubRepo,
   GithubUser,
 } from "@/types/github";
+import { OAuthError } from "./oauth";
 
 export class GithubError extends Error {
   constructor(
@@ -105,8 +106,8 @@ async function doFetch(
   });
 }
 
-// Refresh hook — T6에서 github-oauth.ts가 setRefreshHook으로 주입.
-// 분리 이유: github-api.ts는 fetch 어댑터만, github-oauth.ts는 외부 OAuth 플로우 + chrome.identity 의존.
+const TOKEN_REFRESH_THRESHOLD_MS = 60_000;
+
 let refreshHook: ((auth: GithubAuth) => Promise<GithubAuth>) | null = null;
 
 export function setGithubRefreshHook(
@@ -115,16 +116,28 @@ export function setGithubRefreshHook(
   refreshHook = hook;
 }
 
+async function ensureFresh(auth: GithubAuth): Promise<GithubAuth> {
+  if (auth.kind !== "oauth" || !refreshHook) return auth;
+  if (auth.expiresAt == null) return auth;
+  if (auth.expiresAt - Date.now() > TOKEN_REFRESH_THRESHOLD_MS) return auth;
+  return refreshHook(auth);
+}
+
 async function authedFetch(
   auth: GithubAuth,
   url: string,
   init: RequestInit,
 ): Promise<Response> {
-  let cur = auth;
+  let cur = await ensureFresh(auth);
   let res = await doFetch(cur, url, init);
   if (res.status === 401 && cur.kind === "oauth" && refreshHook) {
     cur = await refreshHook(cur);
     res = await doFetch(cur, url, init);
+    if (res.status === 401) {
+      throw new OAuthError(t("oauth.error.refreshExhausted"), {
+        platform: "github",
+      });
+    }
   }
   return res;
 }

@@ -13,7 +13,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PICKER_PORT_NAME, PANEL_PORT_PREFIX } from "@/lib/session-keys";
 import { useEditorStore } from "@/store/editor-store";
-import { jiraCredentialsFilled, useSettingsStore } from "@/store/settings-store";
+import { connectedPlatforms, useSettingsStore } from "@/store/settings-store";
 import {
   onBlobSaveFailed,
   onOAuthExpired,
@@ -53,7 +53,7 @@ export default function App() {
   usePickerMessages();
   useThemeEffect();
 
-  const jiraAccount = useSettingsStore((s) => s.accounts.jira);
+  const accounts = useSettingsStore((s) => s.accounts);
   const [tab, setTab] = useState("issue");
   const [oauthExpiredPlatform, setOauthExpiredPlatform] = useState<PlatformId | null>(null);
   const [pickerUnavailable, setPickerUnavailable] = useState(false);
@@ -62,10 +62,10 @@ export default function App() {
   const [sessionSaveExhausted, setSessionSaveExhausted] = useState(false);
 
   useEffect(() => {
-    if (settingsHydrated && !jiraCredentialsFilled(jiraAccount)) {
+    if (settingsHydrated && connectedPlatforms(accounts).length === 0) {
       setTab("issue-settings");
     }
-  }, [settingsHydrated]);
+  }, [settingsHydrated, accounts]);
 
   useEffect(() => {
     const unsub = onOAuthExpired.subscribe((platform) => {

@@ -118,9 +118,9 @@ describe("buildGithubIssueBody — 첨부 안내", () => {
 });
 
 describe("buildGithubIssueBody — 구조", () => {
-  it("기본 헤더 (title, env, page, viewport, captured) 포함", () => {
+  it("기본 헤더 (env, page, viewport, captured) 포함 — title은 본문에 미포함", () => {
     const out = buildGithubIssueBody({ ctx: makeCtx() });
-    expect(out.body).toContain("# Test");
+    expect(out.body).not.toContain("# Test");
     expect(out.body).toContain("**Page**: https://example.com");
     expect(out.body).toContain("**Viewport**: 1024×768");
     expect(out.body).toContain("**Captured**:");
@@ -138,7 +138,7 @@ describe("buildGithubIssueBody — 구조", () => {
 
   it("미디어/이미지 없이도 빈 ctx 처리 안전", () => {
     const out = buildGithubIssueBody({ ctx: makeCtx({ diffs: [] }) });
-    expect(out.body).toContain("# Test");
+    expect(out.body).toBeTruthy();
     expect(out.attached).toEqual([]);
   });
 

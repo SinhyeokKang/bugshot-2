@@ -1,14 +1,27 @@
 import { useT } from "@/i18n";
-import { Label } from "@/components/ui/label";
 import { AssigneeMultiSelect } from "./AssigneeMultiSelect";
 import { LabelMultiSelect } from "./LabelMultiSelect";
 import { RepoCombobox, type RepoValue } from "./RepoCombobox";
+import { FieldRow } from "../IssueCreateModal";
 
 export interface GithubIssueFieldsValue {
   owner?: string;
   repo?: string;
   labels: string[];
   assignees: string[];
+}
+
+export function initialGhFields(
+  last: { owner?: string; repo?: string; labels?: string[]; assignees?: string[] } | undefined,
+  defaults: { owner?: string; repo?: string; labels?: string[]; assignees?: string[] } | undefined,
+): GithubIssueFieldsValue {
+  const src = last?.owner && last.repo ? last : defaults;
+  return {
+    owner: src?.owner,
+    repo: src?.repo,
+    labels: src?.labels ?? [],
+    assignees: src?.assignees ?? [],
+  };
 }
 
 interface Props {
@@ -55,22 +68,3 @@ export function GithubIssueFields({ value, onChange }: Props) {
   );
 }
 
-function FieldRow({
-  label,
-  required,
-  children,
-}: {
-  label: string;
-  required?: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="grid gap-1.5">
-      <Label>
-        {label}
-        {required ? <span className="ml-0.5 text-destructive">*</span> : null}
-      </Label>
-      {children}
-    </div>
-  );
-}

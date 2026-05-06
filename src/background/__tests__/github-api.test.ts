@@ -3,6 +3,7 @@ import {
   buildAuthHeader,
   extractGithubDetail,
   mapCreateIssueBody,
+  messageForGithubStatus,
   normalizeIssueStatus,
   normalizeRepo,
 } from "../github-api";
@@ -204,5 +205,21 @@ describe("normalizeIssueStatus", () => {
       labels: [],
     });
     expect(out.stateReason).toBeNull();
+  });
+});
+
+describe("messageForGithubStatus", () => {
+  it("주요 상태 코드별 비어있지 않은 메시지 반환", () => {
+    expect(messageForGithubStatus(401)).toBeTruthy();
+    expect(messageForGithubStatus(403)).toBeTruthy();
+    expect(messageForGithubStatus(404)).toBeTruthy();
+    expect(messageForGithubStatus(422)).toBeTruthy();
+    expect(messageForGithubStatus(429)).toBeTruthy();
+    expect(messageForGithubStatus(500)).toBeTruthy();
+    expect(messageForGithubStatus(502)).toBeTruthy();
+  });
+
+  it("알려지지 않은 상태 코드는 generic 메시지에 코드 포함", () => {
+    expect(messageForGithubStatus(418)).toContain("418");
   });
 });
