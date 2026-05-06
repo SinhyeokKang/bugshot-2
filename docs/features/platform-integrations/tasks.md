@@ -9,6 +9,25 @@
 - **태스크 완료**: 모든 검증 항목 `[x]` 후 헤더의 `🟡 진행`을 `✅ 완료`로 교체. 같은 커밋에 함께 갱신.
 - **블록 시점**: 헤더에 `🔴 블록 — <간단한 사유>` 표시. 사유는 한 줄.
 - **갱신 단위**: 태스크 1개당 별도 커밋 권장. 메시지 예: `feat(platform): T<n> <제목 요약>`. 문서 갱신만이라면 `docs(feature): platform-integrations T<n> 진행/완료`.
+- **태스크 단위 테스트 우선**: 변경된 순수 로직(스토어 마이그레이션, 어댑터 빌더, body 빌더, 인코딩/파싱 헬퍼 등)은 같은 커밋(또는 직전 커밋)에 vitest 단위 테스트를 포함하고 그 테스트가 실제 변경을 커버하는지 확인. `pnpm test` 통과해야 `✅ 완료` 마킹 가능. 테스트 가능 영역이 없는 태스크(타입 정의만, 매니페스트 빌드 산출, UI 시각 회귀 등)는 그 사유를 검증 항목에 한 줄로 명시하고 수동 검증으로 갈음.
+
+## 태스크별 테스트 영역
+
+| 태스크 | 테스트 영역 | 비고 |
+|---|---|---|
+| T1 | 없음 | 타입 정의만 — `pnpm typecheck`로 갈음 |
+| T2 | `__tests__/settings-store.test.ts` | v2→v3 마이그레이션 4 케이스 + idempotent |
+| T3 | `__tests__/issues-store.test.ts` | entry platform 필드 마이그레이션 |
+| T4 | `oauth-proxy/__tests__/github.test.ts` | token/refresh 핸들러 입력 검증·에러 분기 (fetch mock) |
+| T5 | `__tests__/github-api.test.ts` | auth 헤더, 에러 파서, payload 매퍼 |
+| T6 | `__tests__/github-oauth.test.ts` | state 생성기·callback URL 파서 (pure helpers만) |
+| T7 | 없음 | 디스패처는 구조적 — 안의 변환 로직은 T5/T6 테스트가 커버 |
+| T8 | `__tests__/buildGithubIssueBody.test.ts` | 인라인/푸터/budget/HAR 분기 |
+| T9 | 없음 | 빌드 산출 — dist/manifest.json 수동 검증 |
+| T10 | `i18n/__tests__/locales.test.ts` | ko/en 키 패리티 |
+| T11 | 추출 헬퍼만 | UI는 RTL 미설정 — `isGithubOAuthConfigured()` 등 추출된 순수 함수만 단위 테스트 |
+| T12 | 없음 | UI — 플랫폼 라우팅 분기는 T7/T8/T5의 테스트가 커버 |
+| T13 | 추출 헬퍼만 | UI — entry → 표시 데이터 변환 헬퍼를 추출했다면 그 부분만 |
 
 ## 선행 조건
 
