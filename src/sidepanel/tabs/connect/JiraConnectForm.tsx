@@ -64,18 +64,16 @@ export function JiraConnectForm() {
           <JiraSummary />
         </Section>
 
-        <Section title={t("settings.project")}>
-          <ProjectCombobox />
-        </Section>
-
-        <Section title={t("settings.issueSettings")}>
+        <Section title={t("settings.jiraSettings")}>
           <div className="flex flex-col gap-3">
+            <div className="flex flex-col gap-1.5">
+              <label className="text-xs text-muted-foreground">{t("settings.project")}</label>
+              <ProjectCombobox />
+            </div>
             <div className="flex flex-col gap-1.5">
               <label className="text-xs text-muted-foreground">{t("settings.defaultIssueType")}</label>
               <IssueTypeCombobox />
             </div>
-
-            <TitlePrefixField />
           </div>
         </Section>
       </PageScroll>
@@ -495,31 +493,6 @@ function SetupDialog() {
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  );
-}
-
-function TitlePrefixField() {
-  const t = useT();
-  const titlePrefix = useSettingsStore(
-    (s) => s.accounts.jira?.titlePrefix ?? "",
-  );
-  const updateJiraAccount = useSettingsStore((s) => s.updateJiraAccount);
-
-  return (
-    <div className="flex flex-col gap-1.5">
-      <label htmlFor="jira-title-prefix" className="text-xs text-muted-foreground">{t("settings.titlePrefix")}</label>
-      <Input
-        id="jira-title-prefix"
-        placeholder="[QA] "
-        value={titlePrefix}
-        onChange={(e) => updateJiraAccount({ titlePrefix: e.target.value })}
-        autoComplete="off"
-        spellCheck={false}
-      />
-      <p className="text-xs text-muted-foreground">
-        {t("settings.titlePrefix.help")}
-      </p>
-    </div>
   );
 }
 

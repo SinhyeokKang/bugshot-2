@@ -52,11 +52,11 @@ export function GithubConnectForm() {
         <Section title={t("github.section.connection")}>
           <GithubSummary />
         </Section>
-        <Section title={t("github.section.repo")}>
-          <DefaultRepoField />
-        </Section>
-        <Section title={t("github.section.issueSettings")}>
-          <DefaultIssueSettingsFields />
+        <Section title={t("github.section.settings")}>
+          <div className="flex flex-col gap-3">
+            <DefaultRepoField />
+            <DefaultIssueSettingsFields />
+          </div>
         </Section>
       </PageScroll>
       <PageFooter>
@@ -69,6 +69,7 @@ export function GithubConnectForm() {
 }
 
 function DefaultRepoField() {
+  const t = useT();
   const account = useSettingsStore((s) => s.accounts.github);
   const updateGithubAccount = useSettingsStore((s) => s.updateGithubAccount);
   if (!account) return null;
@@ -77,16 +78,19 @@ function DefaultRepoField() {
       ? { owner: account.defaults.owner, repo: account.defaults.repo }
       : null;
   return (
-    <RepoCombobox
-      value={value}
-      onChange={(next) =>
-        updateGithubAccount({
-          defaults: next
-            ? { ...account.defaults, owner: next.owner, repo: next.repo }
-            : { ...account.defaults, owner: undefined, repo: undefined, label: undefined, assignees: [] },
-        })
-      }
-    />
+    <div className="flex flex-col gap-1.5">
+      <label className="text-xs text-muted-foreground">{t("github.section.repo")}</label>
+      <RepoCombobox
+        value={value}
+        onChange={(next) =>
+          updateGithubAccount({
+            defaults: next
+              ? { ...account.defaults, owner: next.owner, repo: next.repo }
+              : { ...account.defaults, owner: undefined, repo: undefined, label: undefined, assignees: [] },
+          })
+        }
+      />
+    </div>
   );
 }
 
@@ -96,48 +100,18 @@ function DefaultIssueSettingsFields() {
   const updateGithubAccount = useSettingsStore((s) => s.updateGithubAccount);
   if (!account) return null;
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex flex-col gap-1.5">
-        <label className="text-xs text-muted-foreground">{t("github.field.labels")}</label>
-        <LabelCombobox
-          owner={account.defaults.owner}
-          repo={account.defaults.repo}
-          value={account.defaults.label}
-          onChange={(next) =>
-            updateGithubAccount({
-              defaults: { ...account.defaults, label: next },
-            })
-          }
-        />
-      </div>
-      <GithubTitlePrefixField />
-    </div>
-  );
-}
-
-function GithubTitlePrefixField() {
-  const t = useT();
-  const titlePrefix = useSettingsStore(
-    (s) => s.accounts.github?.titlePrefix ?? "",
-  );
-  const updateGithubAccount = useSettingsStore((s) => s.updateGithubAccount);
-
-  return (
     <div className="flex flex-col gap-1.5">
-      <label htmlFor="github-title-prefix" className="text-xs text-muted-foreground">
-        {t("settings.titlePrefix")}
-      </label>
-      <Input
-        id="github-title-prefix"
-        placeholder="[QA] "
-        value={titlePrefix}
-        onChange={(e) => updateGithubAccount({ titlePrefix: e.target.value })}
-        autoComplete="off"
-        spellCheck={false}
+      <label className="text-xs text-muted-foreground">{t("github.field.labels")}</label>
+      <LabelCombobox
+        owner={account.defaults.owner}
+        repo={account.defaults.repo}
+        value={account.defaults.label}
+        onChange={(next) =>
+          updateGithubAccount({
+            defaults: { ...account.defaults, label: next },
+          })
+        }
       />
-      <p className="text-xs text-muted-foreground">
-        {t("settings.titlePrefix.help")}
-      </p>
     </div>
   );
 }
