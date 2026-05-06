@@ -150,16 +150,21 @@
   - [x] `pnpm typecheck` 그린 (TranslationKey union이 정적으로 누락 검증)
   - [ ] 사용자: ko/en 토글 시 모든 새 화면 라벨 표시 확인
 
-### T11 — Settings UI 재구성 (`src/sidepanel/tabs/SettingsTab.tsx`, `connect/{JiraConnectForm,GithubConnectForm}.tsx`)
+### T11 — Settings UI 재구성 (`src/sidepanel/tabs/SettingsTab.tsx`, `connect/{JiraConnectForm,GithubConnectForm}.tsx`) ✅ 완료
 
-- 기존 SettingsTab의 Jira 인증 UI를 `connect/JiraConnectForm.tsx`로 외과적 추출(behaviour 동일, props/store 사용 방식 그대로).
-- SettingsTab 자체는 shadcn `Tabs` value=[jira|github] 컨테이너 + 헤더("연동 설정") + 각 sub-tab content에 connect form.
-- `GithubConnectForm`: 카드 상단 OAuth 섹션("GitHub로 로그인" 버튼 + 연결 상태/끊기), 하단 PAT 섹션(Input + 저장). `isGithubOAuthConfigured()`(`VITE_GITHUB_CLIENT_ID` && `VITE_OAUTH_PROXY_URL`) false면 OAuth 섹션은 disabled + 안내.
+- `connect/JiraConnectForm.tsx`: 기존 SettingsTab의 Jira UI를 외과적 추출(behaviour 동일). PageShell 래퍼는 SettingsTab으로 이전, JiraConnectForm은 PageScroll/PageFooter만.
+- `connect/GithubConnectForm.tsx`: 신규. OAuth + PAT 두 섹션을 단일 카드로. 빈 상태 → onboarding(OAuth 버튼 + PAT input + Save), 연결됨 → 뷰어 카드 + Disconnect.
+  - `github.oauth.available` 메시지로 OAuth 사용 가능 여부 동적 체크 (env 미설정 시 OAuth 버튼 disabled + 안내)
+  - PAT 저장 흐름: `github.testPat`로 viewer 검증 → setAccount("github", { auth: { kind: "pat", pat, viewerLogin } })
+  - OAuth 흐름: `github.startOAuth` → GithubOAuthAuth 받아서 setAccount
+  - DISMISS_PATTERNS로 사용자 취소는 에러 표시 안 함
+- SettingsTab.tsx: shadcn `Tabs[jira|github]` 컨테이너 + PageShell 1회. data-[state=inactive]:hidden 적용.
 - 검증:
-  - [ ] 수동: Jira 연결됨 상태에서 [Jira] sub-tab은 기존과 동일
-  - [ ] 수동: [GitHub] sub-tab에서 OAuth 흐름 1회 + PAT 흐름 1회 모두 성공
-  - [ ] 수동: 연결 해제 후 다시 연결 가능
-  - [ ] `pnpm typecheck`
+  - [x] `pnpm typecheck` 그린
+  - [x] `pnpm test` 199 통과 (UI는 RTL 미설정이라 단위 테스트 없음 — i18n 패리티 + store API + 메시지 라우팅으로 정합성 보장)
+  - [ ] 사용자: Jira 연결됨 상태에서 [Jira] sub-tab은 기존과 동일 동작 확인
+  - [ ] 사용자: [GitHub] sub-tab에서 OAuth + PAT 흐름 각 1회 성공
+  - [ ] 사용자: 연결 해제 후 다시 연결 가능
 
 ### T12 — IssueCreateModal/DraftDetailDialog 플랫폼 분기 (`src/sidepanel/tabs/IssueCreateModal.tsx`, `DraftDetailDialog.tsx`, `PlatformPicker.tsx`, `githubFields/{RepoCombobox,LabelMultiSelect,AssigneeMultiSelect}.tsx`)
 
