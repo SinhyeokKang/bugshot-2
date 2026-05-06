@@ -38,13 +38,13 @@
 
 ## 태스크
 
-### T1 — 타입 정의 (`src/types/platform.ts`, `github.ts`)
+### T1 — 타입 정의 (`src/types/platform.ts`, `github.ts`) ✅ 완료
 
 - 변경 대상: 신규 2파일 + 기존 `src/types/jira.ts`는 손대지 않음.
 - 내용: `PlatformId`, `Accounts`, `LastSubmitFieldsByPlatform`, `GithubAuth`/Account/Payload/Result 등.
 - 검증:
-  - [ ] `pnpm typecheck` 그린
-  - [ ] 기존 import 영향 없음
+  - [x] `pnpm typecheck` 그린
+  - [x] 기존 import 영향 없음
 
 ### T2 — settings-store v3 마이그레이션 (`src/store/settings-store.ts`)
 
