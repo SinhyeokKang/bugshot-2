@@ -7,10 +7,14 @@ compatibility_date = "2026-04-01"
 #   wrangler secret put ATLASSIAN_CLIENT_SECRET
 #   wrangler secret put ALLOWED_ORIGINS
 #
-# GitHub OAuth 사용 시 추가:
-#   wrangler secret put GITHUB_CLIENT_ID
-#   wrangler secret put GITHUB_CLIENT_SECRET
-#   (둘 다 비어있으면 /github/* 라우트는 503 반환)
+# GitHub OAuth 사용 시 추가 (DEV/PROD 두 OAuth App 동시 운영):
+#   wrangler secret put GITHUB_CLIENT_ID_DEV
+#   wrangler secret put GITHUB_CLIENT_SECRET_DEV
+#   wrangler secret put GITHUB_CLIENT_ID_PROD       # 웹스토어 출시 시
+#   wrangler secret put GITHUB_CLIENT_SECRET_PROD   # 웹스토어 출시 시
+#   - 클라이언트가 보낸 client_id로 매칭해서 secret 선택 (화이트리스트 효과)
+#   - DEV만 등록돼 있으면 PROD client_id 요청은 400 반환
+#   - 둘 다 비어있으면 503
 #
 # ALLOWED_ORIGINS 값 예시:
 #   chrome-extension://abcdefghij...,chrome-extension://xxxxxxxxxx...

@@ -1,8 +1,12 @@
 interface Env {
   ATLASSIAN_CLIENT_ID: string;
   ATLASSIAN_CLIENT_SECRET: string;
-  GITHUB_CLIENT_ID?: string;
-  GITHUB_CLIENT_SECRET?: string;
+  // GitHub OAuth — DEV/PROD 두 OAuth App을 동시 운영. 클라이언트가 보낸 client_id로 매칭.
+  // 한 쪽만 등록돼 있으면(예: DEV만) 그것만 매칭 가능. 둘 다 빈값이면 503.
+  GITHUB_CLIENT_ID_DEV?: string;
+  GITHUB_CLIENT_SECRET_DEV?: string;
+  GITHUB_CLIENT_ID_PROD?: string;
+  GITHUB_CLIENT_SECRET_PROD?: string;
   ALLOWED_ORIGINS?: string;
 }
 
@@ -11,6 +15,7 @@ interface TokenRequestBody {
   code?: string;
   redirect_uri?: string;
   refresh_token?: string;
+  client_id?: string;
 }
 
 const ATLASSIAN_TOKEN_URL = "https://auth.atlassian.com/oauth/token";
@@ -98,15 +103,47 @@ async function handleAtlassianToken(
   return relayUpstream(upstream, corsOrigin);
 }
 
+interface GithubAppCreds {
+  clientId: string;
+  clientSecret: string;
+}
+
+export function resolveGithubApp(
+  env: Env,
+  requestClientId: string | undefined,
+): GithubAppCreds | { error: string; status: number } {
+  const apps: GithubAppCreds[] = [];
+  if (env.GITHUB_CLIENT_ID_DEV && env.GITHUB_CLIENT_SECRET_DEV) {
+    apps.push({
+      clientId: env.GITHUB_CLIENT_ID_DEV,
+      clientSecret: env.GITHUB_CLIENT_SECRET_DEV,
+    });
+  }
+  if (env.GITHUB_CLIENT_ID_PROD && env.GITHUB_CLIENT_SECRET_PROD) {
+    apps.push({
+      clientId: env.GITHUB_CLIENT_ID_PROD,
+      clientSecret: env.GITHUB_CLIENT_SECRET_PROD,
+    });
+  }
+  if (apps.length === 0) {
+    return { error: "github oauth not configured", status: 503 };
+  }
+  if (!requestClientId) {
+    return { error: "missing client_id", status: 400 };
+  }
+  const matched = apps.find((a) => a.clientId === requestClientId);
+  if (!matched) {
+    return { error: "client_id not registered", status: 400 };
+  }
+  return matched;
+}
+
 async function handleGithubToken(
   req: Request,
   env: Env,
   corsOrigin: string,
   fetchImpl: typeof fetch,
 ): Promise<Response> {
-  if (!env.GITHUB_CLIENT_ID || !env.GITHUB_CLIENT_SECRET) {
-    return jsonError(503, "github oauth not configured", corsOrigin);
-  }
   let body: TokenRequestBody;
   try {
     body = (await req.json()) as TokenRequestBody;
@@ -116,12 +153,15 @@ async function handleGithubToken(
   if (!body.code || !body.redirect_uri) {
     return jsonError(400, "missing code or redirect_uri", corsOrigin);
   }
+  const app = resolveGithubApp(env, body.client_id);
+  if ("error" in app) return jsonError(app.status, app.error, corsOrigin);
+
   const upstream = await fetchImpl(GITHUB_TOKEN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify({
-      client_id: env.GITHUB_CLIENT_ID,
-      client_secret: env.GITHUB_CLIENT_SECRET,
+      client_id: app.clientId,
+      client_secret: app.clientSecret,
       code: body.code,
       redirect_uri: body.redirect_uri,
     }),
@@ -135,9 +175,6 @@ async function handleGithubRefresh(
   corsOrigin: string,
   fetchImpl: typeof fetch,
 ): Promise<Response> {
-  if (!env.GITHUB_CLIENT_ID || !env.GITHUB_CLIENT_SECRET) {
-    return jsonError(503, "github oauth not configured", corsOrigin);
-  }
   let body: TokenRequestBody;
   try {
     body = (await req.json()) as TokenRequestBody;
@@ -147,12 +184,15 @@ async function handleGithubRefresh(
   if (!body.refresh_token) {
     return jsonError(400, "missing refresh_token", corsOrigin);
   }
+  const app = resolveGithubApp(env, body.client_id);
+  if ("error" in app) return jsonError(app.status, app.error, corsOrigin);
+
   const upstream = await fetchImpl(GITHUB_TOKEN_URL, {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
     body: JSON.stringify({
-      client_id: env.GITHUB_CLIENT_ID,
-      client_secret: env.GITHUB_CLIENT_SECRET,
+      client_id: app.clientId,
+      client_secret: app.clientSecret,
       grant_type: "refresh_token",
       refresh_token: body.refresh_token,
     }),

@@ -108,7 +108,11 @@ async function exchangeCodeForTokens(code: string): Promise<GithubTokenResponse>
   const res = await fetch(proxyTokenUrl(), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ code, redirect_uri: redirectUri() }),
+    body: JSON.stringify({
+      code,
+      redirect_uri: redirectUri(),
+      client_id: CLIENT_ID,
+    }),
   });
   if (!res.ok) {
     const text = await res.text().catch(() => "");
@@ -138,7 +142,10 @@ export async function refreshGithubToken(
   const res = await fetch(proxyRefreshUrl(), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ refresh_token: auth.refreshToken }),
+    body: JSON.stringify({
+      refresh_token: auth.refreshToken,
+      client_id: CLIENT_ID,
+    }),
   });
   if (!res.ok) {
     const text = await res.text().catch(() => "");
