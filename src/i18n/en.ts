@@ -274,6 +274,10 @@ const en = {
   "jira.error.5xx": "Jira server error. Try again later.",
   "jira.error.generic": "Jira request failed ({status})",
 
+  // GitHub body attachment hints
+  "github.attachmentTooLarge": "Screenshot exceeds body inline limit. Download from the side panel and attach directly in GitHub UI.",
+  "github.attachmentNotInline": "This attachment is not included in the body. Download from the side panel and attach directly in GitHub UI.",
+
   // GitHub API errors
   "github.error.401": "Auth failed: token expired or unauthorized.",
   "github.error.403": "Forbidden: check token scopes.",

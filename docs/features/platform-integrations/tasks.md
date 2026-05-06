@@ -106,14 +106,17 @@
   - [ ] `pnpm typecheck`
   - [ ] 수동 sendBg 라운드트립(devtools에서 7개 메시지 각각)
 
-### T8 — buildGithubIssueBody (`src/sidepanel/lib/buildGithubIssueBody.ts` + 테스트)
+### T8 — buildGithubIssueBody (`src/sidepanel/lib/buildGithubIssueBody.ts` + 테스트) ✅ 완료
 
-- `buildIssueMarkdown(ctx)` 베이스. media placeholder 토큰을 base64 인라인 이미지(webp) 또는 안내 푸터로 치환. 본문 누적 사이즈 budget(60,000 byte) 추적.
-- 캡 헬퍼 `tryInlineImage(blob, remainingBudget)`: `blob.size <= 64*1024 && remainingBudget >= base64Size` 시 dataURI 반환, 아니면 null.
-- HAR/console JSON은 무조건 본문 미포함, 안내 푸터에 한 줄.
+- 자기충족 빌더 — `MarkdownContext` 재사용 + GitHub 전용 미디어 처리. buildIssueMarkdown 무수정.
+- 입력: `{ ctx, images?, video?, logs? }`. images는 인라인 시도, video/logs는 항상 안내 푸터.
+- `tryInlineImage(blob, remainingBudget)`: `blob.size <= 64KB && dataURI.length+50 <= remaining` 시 dataURI 반환, 아니면 null.
+- `GITHUB_BODY_BUDGET=60_000`, `GITHUB_INLINE_IMAGE_MAX=64*1024`.
+- 결과: `{ body, inlined[], notInlined[] }` — UI는 notInlined로 다운로드 버튼/배지 분기 가능.
+- i18n 신규 키 추가: `github.attachmentTooLarge`, `github.attachmentNotInline` (ko/en).
 - 검증:
-  - [ ] `__tests__/buildGithubIssueBody.test.ts`: 작은 이미지 1장(인라인됨), 큰 이미지 1장(푸터로 강등됨), 누적 budget 초과(중간부터 푸터), HAR 첨부(항상 푸터), 빈 ctx.
-  - [ ] `pnpm test`
+  - [x] `__tests__/buildGithubIssueBody.test.ts`: 14 케이스 (tryInlineImage 4 / 이미지 인라인·강등·budget 3 / video·log 푸터 2 / 구조 5)
+  - [x] `pnpm test` (190 통과, 15/15 파일 그린)
   - [ ] 수동: 실제 GitHub repo에 등록 후 본문 정상 렌더 확인(특히 webp data URI)
 
 ### T9 — manifest host_permissions (`manifest.config.ts`)

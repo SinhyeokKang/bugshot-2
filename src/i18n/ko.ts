@@ -272,6 +272,10 @@ const ko = {
   "jira.error.5xx": "Jira 서버 오류. 잠시 후 다시 시도하세요.",
   "jira.error.generic": "Jira 요청 실패 ({status})",
 
+  // GitHub 본문 첨부 안내
+  "github.attachmentTooLarge": "스크린샷이 본문 인라인 한계를 초과했습니다. 사이드패널에서 다운로드한 뒤 GitHub UI에 직접 첨부하세요.",
+  "github.attachmentNotInline": "이 첨부는 본문에 포함되지 않습니다. 사이드패널에서 다운로드한 뒤 GitHub UI에 직접 첨부하세요.",
+
   // GitHub API errors
   "github.error.401": "인증 실패: 토큰이 만료되었거나 권한이 없습니다.",
   "github.error.403": "권한 없음: 토큰 scope를 확인하세요.",
