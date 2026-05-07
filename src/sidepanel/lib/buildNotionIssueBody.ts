@@ -135,30 +135,35 @@ export function buildNotionIssueBody(
       blocks.push({ type: "heading_2", text: t("md.section.styleChanges") });
       const before = images.find((i) => i.filename.startsWith("before"));
       const after = images.find((i) => i.filename.startsWith("after"));
-      const headerRow = [t("md.column.property"), "As is", "To be"];
-      const rows: string[][] = [headerRow];
-      if (before || after) {
-        const cellBefore = before ? `[${before.filename}]` : "";
-        const cellAfter = after ? `[${after.filename}]` : "";
-        rows.push([t("styleTable.snapshot"), cellBefore, cellAfter]);
+      // Notion 표 셀은 rich_text만 받아 image 블록을 셀 안에 못 넣는다.
+      // → Before/After 섹션으로 분리하고 각 섹션에 이미지 + 해당 시점의 prop 값 bullet list.
+      if (before || ctx.diffs.length > 0) {
+        blocks.push({ type: "heading_3", text: t("md.section.before") });
+        if (before) {
+          const ph = nextPlaceholder("before");
+          blocks.push({ type: "image", placeholderId: ph });
+          queueAttachment(before, categorize(before, "image"), ph);
+        }
+        for (const d of ctx.diffs) {
+          blocks.push({
+            type: "bulleted_list_item",
+            text: `${d.prop}: ${d.asIs}`,
+          });
+        }
       }
-      for (const d of ctx.diffs) {
-        rows.push([d.prop, d.asIs, d.toBe]);
-      }
-      if (rows.length > 1) {
-        blocks.push({ type: "table", rows });
-      }
-      // before/after는 표 직후 inline image 블록으로 emit + attachments 큐 매핑.
-      // (Notion 표 셀은 rich_text만 받아 mediaSingle 같은 인라인이 불가능하므로 표 외부에 배치)
-      if (before) {
-        const ph = nextPlaceholder("before");
-        blocks.push({ type: "image", placeholderId: ph });
-        queueAttachment(before, categorize(before, "image"), ph);
-      }
-      if (after) {
-        const ph = nextPlaceholder("after");
-        blocks.push({ type: "image", placeholderId: ph });
-        queueAttachment(after, categorize(after, "image"), ph);
+      if (after || ctx.diffs.length > 0) {
+        blocks.push({ type: "heading_3", text: t("md.section.after") });
+        if (after) {
+          const ph = nextPlaceholder("after");
+          blocks.push({ type: "image", placeholderId: ph });
+          queueAttachment(after, categorize(after, "image"), ph);
+        }
+        for (const d of ctx.diffs) {
+          blocks.push({
+            type: "bulleted_list_item",
+            text: `${d.prop}: ${d.toBe}`,
+          });
+        }
       }
     }
 

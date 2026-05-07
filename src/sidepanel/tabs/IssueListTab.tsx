@@ -645,6 +645,7 @@ function SubmittedBadge({
         .then((res) => {
           setNotionStatus(res);
           const patch: Partial<IssueRecord> = {};
+          if (res.title) patch.title = res.title;
           if (!notionPageId) patch.notionPageId = res.pageId;
           if (res.statusOption) patch.notionStatusOption = res.statusOption.name;
           if (Object.keys(patch).length) patchIssue(issueId, patch);

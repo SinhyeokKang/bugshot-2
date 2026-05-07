@@ -343,6 +343,12 @@ function expandBlock(
         type: "heading_2",
         heading_2: { rich_text: richText(block.text) },
       };
+    case "heading_3":
+      return {
+        object: "block",
+        type: "heading_3",
+        heading_3: { rich_text: richText(block.text) },
+      };
     case "paragraph":
       return {
         object: "block",
@@ -496,7 +502,7 @@ export async function createPage(
   return { pageId: data.id, url: data.url };
 }
 
-interface NotionPageRaw {
+export interface NotionPageRaw {
   id: string;
   url: string;
   last_edited_time: string;
@@ -507,6 +513,29 @@ interface NotionPropertyValueRaw {
   id: string;
   type: string;
   status?: { name: string; color: string } | null;
+  title?: Array<{ plain_text?: string }>;
+}
+
+export function parsePageStatus(data: NotionPageRaw): NotionPageStatus {
+  let statusOption: NotionPageStatus["statusOption"] | undefined;
+  let title: string | undefined;
+  for (const key of Object.keys(data.properties)) {
+    const p = data.properties[key];
+    if (!statusOption && p.type === "status" && p.status) {
+      statusOption = { name: p.status.name, color: p.status.color };
+    }
+    if (!title && p.type === "title" && Array.isArray(p.title)) {
+      const joined = p.title.map((t) => t.plain_text ?? "").join("").trim();
+      if (joined) title = joined;
+    }
+  }
+  return {
+    pageId: data.id,
+    url: data.url,
+    title,
+    statusOption,
+    lastEditedTime: Date.parse(data.last_edited_time),
+  };
 }
 
 export async function getPageStatus(
@@ -514,18 +543,5 @@ export async function getPageStatus(
   pageId: string,
 ): Promise<NotionPageStatus> {
   const data = await notionFetch<NotionPageRaw>(auth, `/pages/${pageId}`);
-  let statusOption: NotionPageStatus["statusOption"] | undefined;
-  for (const key of Object.keys(data.properties)) {
-    const p = data.properties[key];
-    if (p.type === "status" && p.status) {
-      statusOption = { name: p.status.name, color: p.status.color };
-      break;
-    }
-  }
-  return {
-    pageId: data.id,
-    url: data.url,
-    statusOption,
-    lastEditedTime: Date.parse(data.last_edited_time),
-  };
+  return parsePageStatus(data);
 }

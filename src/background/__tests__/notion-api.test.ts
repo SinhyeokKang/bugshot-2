@@ -3,6 +3,7 @@ import {
   buildNotionAuthHeader,
   messageForNotionStatus,
   parseDatabaseSchema,
+  parsePageStatus,
 } from "../notion-api";
 
 describe("buildNotionAuthHeader", () => {
@@ -132,5 +133,76 @@ describe("parseDatabaseSchema", () => {
       },
     });
     expect(schema.titlePropertyName).toBe("이름");
+  });
+});
+
+describe("parsePageStatus", () => {
+  it("title rich_text 배열을 plain_text join으로 추출", () => {
+    const out = parsePageStatus({
+      id: "p1",
+      url: "https://www.notion.so/x-abc",
+      last_edited_time: "2026-01-01T00:00:00.000Z",
+      properties: {
+        Name: {
+          id: "title",
+          type: "title",
+          title: [{ plain_text: "Hello " }, { plain_text: "World" }],
+        },
+      },
+    });
+    expect(out.title).toBe("Hello World");
+    expect(out.pageId).toBe("p1");
+    expect(out.statusOption).toBeUndefined();
+  });
+
+  it("status property 동시 추출", () => {
+    const out = parsePageStatus({
+      id: "p2",
+      url: "https://www.notion.so/x",
+      last_edited_time: "2026-01-01T00:00:00.000Z",
+      properties: {
+        Title: {
+          id: "t",
+          type: "title",
+          title: [{ plain_text: "버그" }],
+        },
+        State: {
+          id: "s",
+          type: "status",
+          status: { name: "In Progress", color: "blue" },
+        },
+      },
+    });
+    expect(out.title).toBe("버그");
+    expect(out.statusOption).toEqual({ name: "In Progress", color: "blue" });
+  });
+
+  it("title이 모두 빈 plain_text면 undefined (trim 후)", () => {
+    const out = parsePageStatus({
+      id: "p3",
+      url: "https://www.notion.so/x",
+      last_edited_time: "2026-01-01T00:00:00.000Z",
+      properties: {
+        Name: { id: "t", type: "title", title: [{ plain_text: "  " }] },
+      },
+    });
+    expect(out.title).toBeUndefined();
+  });
+
+  it("title property 없으면 title undefined, status만 추출", () => {
+    const out = parsePageStatus({
+      id: "p4",
+      url: "https://www.notion.so/x",
+      last_edited_time: "2026-01-01T00:00:00.000Z",
+      properties: {
+        State: {
+          id: "s",
+          type: "status",
+          status: { name: "Done", color: "green" },
+        },
+      },
+    });
+    expect(out.title).toBeUndefined();
+    expect(out.statusOption).toEqual({ name: "Done", color: "green" });
   });
 });

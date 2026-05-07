@@ -261,6 +261,8 @@ const ko = {
   "md.section.media": "미디어",
   "md.section.attachments": "첨부",
   "md.section.styleChanges": "스타일 변경사항",
+  "md.section.before": "Before",
+  "md.section.after": "After",
   "md.section.expectedResult": "기대 결과",
   "md.section.notes": "비고",
   "md.videoAttached": "(recording.webm 참조)",

@@ -166,7 +166,7 @@ describe("buildNotionIssueBody — 미디어 분기", () => {
     expect(videoBlock).toBeUndefined();
   });
 
-  it("element 모드: style 변경 표는 table block, before/after는 attachments 큐", () => {
+  it("element 모드: Before/After heading_3 + 이미지 + diff bullet list", () => {
     const ctx = makeCtx({
       captureMode: "element",
       diffs: [{ prop: "color", asIs: "#000", toBe: "#fff" }],
@@ -186,23 +186,42 @@ describe("buildNotionIssueBody — 미디어 분기", () => {
         },
       ],
     });
-    const tableBlock = out.blocks.find((b) => b.type === "table");
-    expect(tableBlock).toBeDefined();
-    if (tableBlock && tableBlock.type === "table") {
-      expect(tableBlock.rows[0]).toEqual([
-        "md.column.property",
-        "As is",
-        "To be",
-      ]);
-      expect(tableBlock.rows.some((r) => r[0] === "color")).toBe(true);
-    }
+    // 표는 안 만들어진다
+    expect(out.blocks.find((b) => b.type === "table")).toBeUndefined();
+
+    const headings3 = out.blocks.filter((b) => b.type === "heading_3");
+    expect(headings3.map((b) => "text" in b && b.text)).toEqual([
+      "md.section.before",
+      "md.section.after",
+    ]);
+
+    // Before 섹션: heading_3 → image → bullet (asIs)
+    const beforeIdx = out.blocks.findIndex(
+      (b) => b.type === "heading_3" && "text" in b && b.text === "md.section.before",
+    );
+    expect(out.blocks[beforeIdx + 1].type).toBe("image");
+    expect(out.blocks[beforeIdx + 2]).toMatchObject({
+      type: "bulleted_list_item",
+      text: "color: #000",
+    });
+
+    // After 섹션: heading_3 → image → bullet (toBe)
+    const afterIdx = out.blocks.findIndex(
+      (b) => b.type === "heading_3" && "text" in b && b.text === "md.section.after",
+    );
+    expect(out.blocks[afterIdx + 1].type).toBe("image");
+    expect(out.blocks[afterIdx + 2]).toMatchObject({
+      type: "bulleted_list_item",
+      text: "color: #fff",
+    });
+
     expect(out.attachments.map((a) => a.filename).sort()).toEqual([
       "after.webp",
       "before.webp",
     ]);
   });
 
-  it("element 모드: 표 직후 inline image 블록 (before, after), placeholderId가 attachments와 매칭", () => {
+  it("element 모드: image 블록 placeholderId가 attachments와 매칭", () => {
     const ctx = makeCtx({
       captureMode: "element",
       diffs: [{ prop: "color", asIs: "#000", toBe: "#fff" }],
@@ -222,26 +241,18 @@ describe("buildNotionIssueBody — 미디어 분기", () => {
         },
       ],
     });
-    const types = out.blocks.map((b) => b.type);
-    const tableIdx = types.indexOf("table");
-    expect(tableIdx).toBeGreaterThan(-1);
-    // 표 다음 두 블록은 inline image (before, after 순)
-    expect(types[tableIdx + 1]).toBe("image");
-    expect(types[tableIdx + 2]).toBe("image");
-    const beforeBlock = out.blocks[tableIdx + 1];
-    const afterBlock = out.blocks[tableIdx + 2];
-    if (beforeBlock.type !== "image" || afterBlock.type !== "image") {
-      throw new Error("expected image blocks");
-    }
-    // image 블록의 placeholderId가 attachments에 모두 등록돼 있어야 createPage에서 file_upload 인라인 가능
+    const imageBlocks = out.blocks.filter((b) => b.type === "image");
+    expect(imageBlocks.length).toBe(2);
     const phToFilename = new Map(
       out.attachments.map((a) => [a.placeholderId, a.filename]),
     );
-    expect(phToFilename.get(beforeBlock.placeholderId)).toBe("before.webp");
-    expect(phToFilename.get(afterBlock.placeholderId)).toBe("after.webp");
+    for (const b of imageBlocks) {
+      if (b.type !== "image") throw new Error("expected image block");
+      expect(phToFilename.has(b.placeholderId)).toBe(true);
+    }
   });
 
-  it("element 모드: before만 있으면 image 블록 1개", () => {
+  it("element 모드: before만 있으면 Before 섹션만 image, After 섹션은 heading만 (diffs 없음)", () => {
     const ctx = makeCtx({ captureMode: "element", diffs: [] });
     const out = buildNotionIssueBody({
       ctx,
@@ -256,9 +267,14 @@ describe("buildNotionIssueBody — 미디어 분기", () => {
     const imageBlocks = out.blocks.filter((b) => b.type === "image");
     expect(imageBlocks.length).toBe(1);
     expect(out.attachments.map((a) => a.filename)).toEqual(["before.webp"]);
+    // diffs 없고 after 이미지도 없으면 After 섹션 자체 미emit
+    const headings3Texts = out.blocks
+      .filter((b) => b.type === "heading_3")
+      .map((b) => ("text" in b ? b.text : ""));
+    expect(headings3Texts).toEqual(["md.section.before"]);
   });
 
-  it("element 모드: after만 있으면 image 블록 1개", () => {
+  it("element 모드: after만 있으면 After 섹션만 emit", () => {
     const ctx = makeCtx({ captureMode: "element", diffs: [] });
     const out = buildNotionIssueBody({
       ctx,
@@ -273,19 +289,28 @@ describe("buildNotionIssueBody — 미디어 분기", () => {
     const imageBlocks = out.blocks.filter((b) => b.type === "image");
     expect(imageBlocks.length).toBe(1);
     expect(out.attachments.map((a) => a.filename)).toEqual(["after.webp"]);
+    const headings3Texts = out.blocks
+      .filter((b) => b.type === "heading_3")
+      .map((b) => ("text" in b ? b.text : ""));
+    expect(headings3Texts).toEqual(["md.section.after"]);
   });
 
-  it("element 모드: diffs만 있고 이미지 없으면 image 블록 0개 (표만)", () => {
+  it("element 모드: diffs만 있고 이미지 없으면 image 블록 0개, Before/After 섹션은 bullet list만", () => {
     const ctx = makeCtx({
       captureMode: "element",
       diffs: [{ prop: "color", asIs: "a", toBe: "b" }],
     });
     const out = buildNotionIssueBody({ ctx, images: [] });
-    const tableBlock = out.blocks.find((b) => b.type === "table");
     const imageBlocks = out.blocks.filter((b) => b.type === "image");
-    expect(tableBlock).toBeDefined();
     expect(imageBlocks.length).toBe(0);
     expect(out.attachments).toEqual([]);
+    // 표는 안 만들어진다
+    expect(out.blocks.find((b) => b.type === "table")).toBeUndefined();
+    const bullets = out.blocks
+      .filter((b) => b.type === "bulleted_list_item")
+      .map((b) => ("text" in b ? b.text : ""));
+    expect(bullets).toContain("color: a");
+    expect(bullets).toContain("color: b");
   });
 
   it("로그 첨부는 attachments 큐에 log 카테고리로", () => {

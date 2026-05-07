@@ -200,7 +200,7 @@ Jira·GitHub·Linear와 같은 모양으로 두 방식 동시 지원. 저장 형
 
 **상태 색**: `NotionPageStatus.statusOption.color`(green/blue/purple/gray/...)를 `notionStatusCategory(color)`로 시각 카테고리(new/indeterminate/done)로 매핑 → `STATUS_CATEGORY_COLORS` 테이블 공용 사용. green=done, blue·purple=indeterminate, 그 외=new.
 
-**미디어 처리**: image와 video 카테고리는 본문 inline 블록으로 emit (`expandBlock`이 placeholderId → file_upload 변환). log/other 카테고리는 첨부 섹션(heading_2 "첨부") 아래 `file` 블록 — `createPage`의 `nonInline` 필터(`category !== "image" && category !== "video"`)가 분기. element 모드 before/after는 표 직후, video 모드는 미디어 섹션 안에 inline. 새 미디어 타입 추가 시: NotionBlock union + expandBlock case + 필요 시 nonInline 필터 갱신.
+**미디어 처리**: image와 video 카테고리는 본문 inline 블록으로 emit (`expandBlock`이 placeholderId → file_upload 변환). log/other 카테고리는 첨부 섹션(heading_2 "첨부") 아래 `file` 블록 — `createPage`의 `nonInline` 필터(`category !== "image" && category !== "video"`)가 분기. element 모드는 표가 아니라 **Before/After heading_3 섹션 분리** — 각 섹션 안에 image 블록 + 해당 시점의 prop 값 bullet list (`prop: asIs` / `prop: toBe`). 이유: Notion 표 셀이 rich_text만 받아 image 블록 인라인 불가능 + 표 외부 둥둥 떠있는 이미지가 어색했음. video 모드는 미디어 섹션 안에 inline. 새 미디어 타입 추가 시: NotionBlock union + expandBlock case + 필요 시 nonInline 필터 갱신.
 
 ### 플랫폼 어댑터 패턴 (Jira·GitHub·Linear·Notion 공용 골격)
 

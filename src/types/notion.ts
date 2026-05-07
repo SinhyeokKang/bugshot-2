@@ -85,6 +85,7 @@ export interface NotionDatabaseSchema {
 
 export type NotionBlock =
   | { type: "heading_2"; text: string }
+  | { type: "heading_3"; text: string }
   | { type: "paragraph"; text: string }
   | { type: "code"; language: string; text: string }
   | { type: "bulleted_list_item"; text: string }
@@ -126,6 +127,7 @@ export interface NotionCreatePageResult {
 export interface NotionPageStatus {
   pageId: string;
   url: string;
+  title?: string;
   statusOption?: { name: string; color: string };
   lastEditedTime: number;
 }

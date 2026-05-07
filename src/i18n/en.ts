@@ -263,6 +263,8 @@ const en = {
   "md.section.media": "Media",
   "md.section.attachments": "Attachments",
   "md.section.styleChanges": "Style Changes",
+  "md.section.before": "Before",
+  "md.section.after": "After",
   "md.section.expectedResult": "Expected Result",
   "md.section.notes": "Notes",
   "md.videoAttached": "(recording.webm)",
