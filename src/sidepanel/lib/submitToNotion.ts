@@ -1,3 +1,4 @@
+import { buildAiMetaAttachment } from "./buildAiMetaAttachment";
 import { buildNotionIssueBody } from "./buildNotionIssueBody";
 import type { MarkdownContext } from "./buildIssueMarkdown";
 import { sendBg } from "@/types/messages";
@@ -76,6 +77,21 @@ export async function submitToNotion(
       category: a.category,
     });
   }
+
+  // AI/디버그 메타 마크다운 — 본문 인라인이 아니라 첨부 섹션의 file 블록으로 (Linear 패턴 차용).
+  const aiMeta = buildAiMetaAttachment(input.ctx);
+  const aiMetaUploaded = await sendBg<NotionFileUploadResult>({
+    type: "notion.uploadFile",
+    filename: aiMeta.filename,
+    contentType: "text/markdown",
+    dataUrl: aiMeta.dataUrl,
+  });
+  uploaded.push({
+    placeholderId: "ai-meta",
+    fileUploadId: aiMetaUploaded.fileUploadId,
+    filename: aiMeta.filename,
+    category: "log",
+  });
 
   const result = await sendBg<NotionCreatePageResult>({
     type: "notion.submitPage",

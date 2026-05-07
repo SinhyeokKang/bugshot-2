@@ -111,6 +111,8 @@ export function buildNotionIssueBody(
         const placeholder = nextPlaceholder("video");
         if (cat === "image") {
           blocks.push({ type: "image", placeholderId: placeholder });
+        } else if (cat === "video") {
+          blocks.push({ type: "video", placeholderId: placeholder });
         } else {
           blocks.push({ type: "paragraph", text: t("md.videoAttached") });
         }
@@ -146,13 +148,16 @@ export function buildNotionIssueBody(
       if (rows.length > 1) {
         blocks.push({ type: "table", rows });
       }
-      // before/after image는 첨부 섹션으로 별도 큐
+      // before/after는 표 직후 inline image 블록으로 emit + attachments 큐 매핑.
+      // (Notion 표 셀은 rich_text만 받아 mediaSingle 같은 인라인이 불가능하므로 표 외부에 배치)
       if (before) {
         const ph = nextPlaceholder("before");
+        blocks.push({ type: "image", placeholderId: ph });
         queueAttachment(before, categorize(before, "image"), ph);
       }
       if (after) {
         const ph = nextPlaceholder("after");
+        blocks.push({ type: "image", placeholderId: ph });
         queueAttachment(after, categorize(after, "image"), ph);
       }
     }

@@ -373,6 +373,15 @@ function expandBlock(
         image: { type: "file_upload", file_upload: { id: att.fileUploadId } },
       };
     }
+    case "video": {
+      const att = attachmentMap.get(block.placeholderId);
+      if (!att) return null;
+      return {
+        object: "block",
+        type: "video",
+        video: { type: "file_upload", file_upload: { id: att.fileUploadId } },
+      };
+    }
     case "table": {
       const tableWidth = block.rows[0]?.length ?? 0;
       if (tableWidth === 0) return null;
@@ -424,14 +433,18 @@ export async function createPage(
     if (out) expanded.push(out);
   }
 
-  const nonImage = payload.attachments.filter((a) => a.category !== "image");
-  if (nonImage.length) {
+  // image와 video는 본문에 inline 블록으로 이미 emit됨 — 첨부 섹션 file 블록 중복 방지.
+  // log/other 카테고리만 첨부 섹션으로 보냄.
+  const nonInline = payload.attachments.filter(
+    (a) => a.category !== "image" && a.category !== "video",
+  );
+  if (nonInline.length) {
     expanded.push({
       object: "block",
       type: "heading_2",
       heading_2: { rich_text: richText(t("notion.attachmentSection")) },
     });
-    for (const a of nonImage) {
+    for (const a of nonInline) {
       expanded.push({
         object: "block",
         type: "file",

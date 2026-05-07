@@ -115,7 +115,7 @@ describe("buildNotionIssueBody — 미디어 분기", () => {
     );
   });
 
-  it("video 모드: video는 첨부 큐만 (이미지 인라인 아님)", () => {
+  it("video 모드: type:'video' inline 블록 emit + attachments placeholderId 매칭", () => {
     const out = buildNotionIssueBody({
       ctx: makeCtx({ captureMode: "video" }),
       video: {
@@ -124,13 +124,49 @@ describe("buildNotionIssueBody — 미디어 분기", () => {
         dataUrl: "data:video/webm;base64,YQ==",
       },
     });
+    const videoBlock = out.blocks.find((b) => b.type === "video");
+    expect(videoBlock).toBeDefined();
+    // image 블록은 안 만들어짐
     const imageBlock = out.blocks.find((b) => b.type === "image");
     expect(imageBlock).toBeUndefined();
     expect(out.attachments.length).toBe(1);
     expect(out.attachments[0].category).toBe("video");
+    if (videoBlock && videoBlock.type === "video") {
+      expect(out.attachments[0].placeholderId).toBe(videoBlock.placeholderId);
+    }
   });
 
-  it("element 모드: style 변경 표는 table block, before/after는 첨부 섹션 큐", () => {
+  it("video 모드: video 있으면 '(recording.webm 참조)' 안내 paragraph 안 emit", () => {
+    const out = buildNotionIssueBody({
+      ctx: makeCtx({ captureMode: "video" }),
+      video: {
+        filename: "recording.webm",
+        contentType: "video/webm",
+        dataUrl: "data:video/webm;base64,YQ==",
+      },
+    });
+    const refParagraph = out.blocks.find(
+      (b) =>
+        b.type === "paragraph" && "text" in b && b.text === "md.videoAttached",
+    );
+    expect(refParagraph).toBeUndefined();
+  });
+
+  it("video 모드: video 없으면 안내 paragraph로 fallback", () => {
+    const out = buildNotionIssueBody({
+      ctx: makeCtx({ captureMode: "video" }),
+    });
+    const refParagraph = out.blocks.find(
+      (b) =>
+        b.type === "paragraph" && "text" in b && b.text === "md.videoAttached",
+    );
+    expect(refParagraph).toBeDefined();
+    // video 블록은 안 만들어짐
+    const videoBlock = out.blocks.find((b) => b.type === "video");
+    expect(videoBlock).toBeUndefined();
+  });
+
+  it("element 모드: style 변경 표는 table block, before/after는 attachments 큐", () => {
     const ctx = makeCtx({
       captureMode: "element",
       diffs: [{ prop: "color", asIs: "#000", toBe: "#fff" }],
@@ -164,6 +200,92 @@ describe("buildNotionIssueBody — 미디어 분기", () => {
       "after.webp",
       "before.webp",
     ]);
+  });
+
+  it("element 모드: 표 직후 inline image 블록 (before, after), placeholderId가 attachments와 매칭", () => {
+    const ctx = makeCtx({
+      captureMode: "element",
+      diffs: [{ prop: "color", asIs: "#000", toBe: "#fff" }],
+    });
+    const out = buildNotionIssueBody({
+      ctx,
+      images: [
+        {
+          filename: "before.webp",
+          contentType: "image/webp",
+          dataUrl: "data:image/webp;base64,YQ==",
+        },
+        {
+          filename: "after.webp",
+          contentType: "image/webp",
+          dataUrl: "data:image/webp;base64,YQ==",
+        },
+      ],
+    });
+    const types = out.blocks.map((b) => b.type);
+    const tableIdx = types.indexOf("table");
+    expect(tableIdx).toBeGreaterThan(-1);
+    // 표 다음 두 블록은 inline image (before, after 순)
+    expect(types[tableIdx + 1]).toBe("image");
+    expect(types[tableIdx + 2]).toBe("image");
+    const beforeBlock = out.blocks[tableIdx + 1];
+    const afterBlock = out.blocks[tableIdx + 2];
+    if (beforeBlock.type !== "image" || afterBlock.type !== "image") {
+      throw new Error("expected image blocks");
+    }
+    // image 블록의 placeholderId가 attachments에 모두 등록돼 있어야 createPage에서 file_upload 인라인 가능
+    const phToFilename = new Map(
+      out.attachments.map((a) => [a.placeholderId, a.filename]),
+    );
+    expect(phToFilename.get(beforeBlock.placeholderId)).toBe("before.webp");
+    expect(phToFilename.get(afterBlock.placeholderId)).toBe("after.webp");
+  });
+
+  it("element 모드: before만 있으면 image 블록 1개", () => {
+    const ctx = makeCtx({ captureMode: "element", diffs: [] });
+    const out = buildNotionIssueBody({
+      ctx,
+      images: [
+        {
+          filename: "before.webp",
+          contentType: "image/webp",
+          dataUrl: "data:image/webp;base64,YQ==",
+        },
+      ],
+    });
+    const imageBlocks = out.blocks.filter((b) => b.type === "image");
+    expect(imageBlocks.length).toBe(1);
+    expect(out.attachments.map((a) => a.filename)).toEqual(["before.webp"]);
+  });
+
+  it("element 모드: after만 있으면 image 블록 1개", () => {
+    const ctx = makeCtx({ captureMode: "element", diffs: [] });
+    const out = buildNotionIssueBody({
+      ctx,
+      images: [
+        {
+          filename: "after.webp",
+          contentType: "image/webp",
+          dataUrl: "data:image/webp;base64,YQ==",
+        },
+      ],
+    });
+    const imageBlocks = out.blocks.filter((b) => b.type === "image");
+    expect(imageBlocks.length).toBe(1);
+    expect(out.attachments.map((a) => a.filename)).toEqual(["after.webp"]);
+  });
+
+  it("element 모드: diffs만 있고 이미지 없으면 image 블록 0개 (표만)", () => {
+    const ctx = makeCtx({
+      captureMode: "element",
+      diffs: [{ prop: "color", asIs: "a", toBe: "b" }],
+    });
+    const out = buildNotionIssueBody({ ctx, images: [] });
+    const tableBlock = out.blocks.find((b) => b.type === "table");
+    const imageBlocks = out.blocks.filter((b) => b.type === "image");
+    expect(tableBlock).toBeDefined();
+    expect(imageBlocks.length).toBe(0);
+    expect(out.attachments).toEqual([]);
   });
 
   it("로그 첨부는 attachments 큐에 log 카테고리로", () => {

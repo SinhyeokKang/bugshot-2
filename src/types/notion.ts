@@ -89,6 +89,7 @@ export type NotionBlock =
   | { type: "code"; language: string; text: string }
   | { type: "bulleted_list_item"; text: string }
   | { type: "image"; placeholderId: string }
+  | { type: "video"; placeholderId: string }
   | { type: "table"; rows: string[][] };
 
 export type NotionAttachmentCategory = "image" | "video" | "log" | "other";
