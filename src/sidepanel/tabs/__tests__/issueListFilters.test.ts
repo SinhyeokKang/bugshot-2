@@ -61,11 +61,12 @@ describe("matchesQuery", () => {
 });
 
 describe("formatIssueKey", () => {
-  it("Jira는 대괄호로 감싼다", () => {
-    expect(formatIssueKey({ platform: "jira", key: "BUG-1" })).toBe("[BUG-1]");
+  // 시각 구분은 PlatformChip 아이콘이 담당 — 키 자체에 추가 prefix 안 붙임.
+  it("Jira key 그대로 반환", () => {
+    expect(formatIssueKey({ platform: "jira", key: "BUG-1" })).toBe("BUG-1");
   });
 
-  it("GitHub은 그대로 (이미 # prefix가 포함되어 저장됨)", () => {
+  it("GitHub key 그대로 (이미 # prefix가 포함되어 저장됨)", () => {
     expect(formatIssueKey({ platform: "github", key: "#42" })).toBe("#42");
   });
 
