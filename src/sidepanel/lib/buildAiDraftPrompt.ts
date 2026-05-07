@@ -3,7 +3,7 @@ import type {
   IssueSectionId,
   IssueSectionRenderAs,
   LocaleMode,
-} from "@/store/app-settings-store";
+} from "@/store/settings-ui-store";
 import type { StyleDiffRow } from "../components/StyleChangesTable";
 import type { NetworkLogSummary, ConsoleLogSummary } from "./buildLogSummary";
 import type { EditorDraft } from "@/store/editor-store";
@@ -28,15 +28,15 @@ export interface AiDraftContext {
 
 const SECTION_DESC: Record<LocaleMode, Record<IssueSectionId, string>> = {
   ko: {
-    description: "발생 현상을 구체적으로 설명 (As-Is 값이 현재 문제 상태)",
+    description: "발생 현상을 구체적으로 설명 (current 값이 현재 문제 상태)",
     stepsToReproduce: "재현 과정을 줄바꿈으로 구분된 단계로 작성 (번호 없이)",
-    expectedResult: "수정 후 기대되는 동작 (To-Be 값 기준으로 작성)",
+    expectedResult: "수정 후 기대되는 동작 (desired 값 기준으로 작성)",
     notes: "추가 참고 사항. 없으면 빈 문자열",
   },
   en: {
-    description: "describe the issue in detail (As-Is value is the current problem)",
+    description: "describe the issue in detail (current value is the problem)",
     stepsToReproduce: "write reproduction steps as newline-separated lines (no numbering)",
-    expectedResult: "expected behavior after fix (use the To-Be value)",
+    expectedResult: "expected behavior after fix (use the desired value)",
     notes: "additional notes. Leave empty string if nothing to add",
   },
 };
@@ -56,9 +56,9 @@ export function buildAiDraftPrompt(ctx: AiDraftContext): string {
       lines.push(`- Element: <${ctx.tagName}> at ${ctx.selector}`);
     }
     if (ctx.diffs && ctx.diffs.length > 0) {
-      lines.push("- Style changes (left = current value, right = desired value):");
+      lines.push("- Style changes (current → desired):");
       for (const d of ctx.diffs.slice(0, MAX_DIFFS)) {
-        lines.push(`  ${d.prop}: "${d.asIs}" → "${d.toBe}"`);
+        lines.push(`  ${d.prop}: current="${d.asIs}" → desired="${d.toBe}"`);
       }
     }
     if (ctx.tokens && ctx.tokens.length > 0) {
@@ -106,6 +106,20 @@ export function buildAiDraftPrompt(ctx: AiDraftContext): string {
   );
 
   return lines.join("\n");
+}
+
+export function buildAiDraftSchema(sectionIds: IssueSectionId[]) {
+  const properties: Record<string, { type: "string" }> = {
+    title: { type: "string" },
+  };
+  for (const id of sectionIds) {
+    properties[id] = { type: "string" };
+  }
+  return {
+    type: "object",
+    required: ["title", ...sectionIds],
+    properties,
+  };
 }
 
 export function parseAiDraftResponse(

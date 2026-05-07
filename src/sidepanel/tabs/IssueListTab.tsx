@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowUpRight, CircleCheck, Inbox, Loader2, Search, SearchX, Trash2, X } from "lucide-react";
+import {
+  SiGithub,
+  SiJirasoftware,
+  SiLinear,
+  SiNotion,
+} from "@icons-pack/react-simple-icons";
 import { useT, dateBcp47 } from "@/i18n";
 import {
   AlertDialog,
@@ -20,11 +26,71 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useIssuesStore, type IssueRecord } from "@/store/issues-store";
 import { useSettingsStore, jiraSiteId } from "@/store/settings-store";
 import type { JiraIssueStatus } from "@/types/jira";
-import { sendBg, type JiraSubmitResult } from "@/types/messages";
+import type { GithubIssueStatus } from "@/types/github";
+import type { LinearIssueStatus } from "@/types/linear";
+import type { NotionPageStatus } from "@/types/notion";
+import type { NormalizedSubmitResult, PlatformId } from "@/types/platform";
+import { sendBg } from "@/types/messages";
+import { extractNotionPageId } from "@/lib/notion-page-id";
 import { PageFooter, PageScroll, PageShell, Section } from "../components/Section";
 import { DraftDetailDialog } from "./DraftDetailDialog";
+import { notionStatusCategory } from "./notionStatusColors";
 
 type StatusFilter = "all" | "submitted" | "draft";
+
+export function isRefreshable(issue: IssueRecord): boolean {
+  if (issue.status !== "submitted" || !issue.url || !issue.key) return false;
+  if (issue.platform === "jira") return true;
+  if (issue.platform === "github") {
+    return !!resolveGithubCoords(issue);
+  }
+  if (issue.platform === "linear") return true;
+  if (issue.platform === "notion") {
+    return !!resolveNotionPageId(issue);
+  }
+  return false;
+}
+
+export function resolveNotionPageId(
+  issue: Pick<IssueRecord, "notionPageId" | "url">,
+): string | null {
+  if (issue.notionPageId) return issue.notionPageId;
+  return extractNotionPageId(issue.url);
+}
+
+export function parseGithubIssueNumber(key: string | undefined): number | null {
+  if (!key) return null;
+  const m = key.match(/^#?(\d+)$/);
+  return m ? Number(m[1]) : null;
+}
+
+// `https://github.com/{owner}/{repo}/issues/{number}` 형태에서 좌표 추출. 다른 패턴이면 null.
+export function parseGithubIssueUrl(
+  url: string | undefined,
+): { owner: string; repo: string; number: number } | null {
+  if (!url) return null;
+  try {
+    const u = new URL(url);
+    if (u.hostname !== "github.com") return null;
+    const m = u.pathname.match(/^\/([^/]+)\/([^/]+)\/issues\/(\d+)\/?$/);
+    if (!m) return null;
+    return { owner: m[1], repo: m[2], number: Number(m[3]) };
+  } catch {
+    return null;
+  }
+}
+
+// IssueRecord에 githubOwner/githubRepo가 없는 구 entry는 url에서 fallback 파싱.
+export function resolveGithubCoords(
+  issue: Pick<IssueRecord, "githubOwner" | "githubRepo" | "key" | "url">,
+): { owner: string; repo: string; number: number } | null {
+  const fromUrl = parseGithubIssueUrl(issue.url);
+  const number = parseGithubIssueNumber(issue.key) ?? fromUrl?.number ?? null;
+  const owner = issue.githubOwner ?? fromUrl?.owner ?? null;
+  const repo = issue.githubRepo ?? fromUrl?.repo ?? null;
+  if (!owner || !repo || number == null) return null;
+  return { owner, repo, number };
+}
 
 export function matchesQuery(issue: IssueRecord, q: string): boolean {
   const lower = q.toLowerCase();
@@ -44,12 +110,11 @@ export function IssueListTab() {
   const t = useT();
   const issues = useIssuesStore((s) => s.issues);
   const clearIssues = useIssuesStore((s) => s.clearIssues);
-  const jiraConnected = useSettingsStore((s) => !!s.jiraConfig?.auth);
   const [draftId, setDraftId] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const pendingRef = useRef(0);
-  const [successResult, setSuccessResult] = useState<JiraSubmitResult | null>(null);
+  const [successResult, setSuccessResult] = useState<NormalizedSubmitResult | null>(null);
   const [query, setQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
 
@@ -70,8 +135,12 @@ export function IssueListTab() {
     [displayable, statusFilter, query],
   );
 
-  const submittedCount = useMemo(
-    () => displayable.filter((i) => i.status === "submitted" && !!i.url && !!i.key).length,
+  // refresh가 의미있는 entry: 플랫폼 인증이 필요한 status 조회를 호출할 수 있는 것만.
+  // jira: jira 연결 + key + url
+  // github: github 연결 + owner/repo + key + url
+  const refreshableCount = useMemo(
+    () =>
+      displayable.filter((i) => isRefreshable(i)).length,
     [displayable],
   );
 
@@ -81,14 +150,14 @@ export function IssueListTab() {
   }, []);
 
   const handleRefresh = useCallback(() => {
-    if (submittedCount === 0) {
+    if (refreshableCount === 0) {
       setRefreshKey((k) => k + 1);
       return;
     }
-    pendingRef.current = submittedCount;
+    pendingRef.current = refreshableCount;
     setIsRefreshing(true);
     setRefreshKey((k) => k + 1);
-  }, [submittedCount]);
+  }, [refreshableCount]);
 
   const handleBadgeLoaded = useCallback(() => {
     pendingRef.current -= 1;
@@ -142,7 +211,7 @@ export function IssueListTab() {
 
   return (
     <PageShell>
-      <div className="shrink-0 border-b border-border px-4 py-3">
+      <div className="shrink-0 border-b border-border px-4 py-4">
         <div className="flex items-center gap-3">
           <Tabs value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
             <TabsList className="h-9">
@@ -225,7 +294,7 @@ export function IssueListTab() {
           </AlertDialog>
           <Button
             variant="outline"
-            disabled={isRefreshing || !jiraConnected}
+            disabled={isRefreshing || refreshableCount === 0}
             onClick={handleRefresh}
             className="relative"
           >
@@ -268,14 +337,35 @@ function IssueRow({
   const isSubmitted = issue.status === "submitted" && !!issue.url;
   const removeIssue = useIssuesStore((s) => s.removeIssue);
 
-  const metaParts: string[] = [];
-  metaParts.push(formatDate(issue.createdAt, t));
-  if (isSubmitted && issue.url) {
-    try { metaParts.push(new URL(issue.url).hostname); } catch {}
+  // submitted: [플랫폼 chip] + 작성일 + 위치(jira host / github owner-repo) + key + (jira 한정) issueTypeName
+  // draft: 초안 + 작성일 (플랫폼 미정)
+  const textMetaParts: string[] = [];
+  if (isSubmitted) {
+    textMetaParts.push(formatDate(issue.createdAt, t));
+    if (issue.platform === "github") {
+      const coords = resolveGithubCoords(issue);
+      if (coords) textMetaParts.push(`${coords.owner}/${coords.repo}`);
+    } else if (issue.platform === "jira" && issue.url) {
+      try { textMetaParts.push(new URL(issue.url).hostname); } catch {}
+    } else if (issue.platform === "linear" && issue.linearTeamKey) {
+      textMetaParts.push(issue.linearTeamKey);
+    } else if (issue.platform === "notion" && issue.notionDatabaseTitle) {
+      textMetaParts.push(issue.notionDatabaseTitle);
+    }
+    if (issue.key) textMetaParts.push(formatIssueKey(issue));
+    if (issue.platform === "jira" && issue.issueTypeName) {
+      textMetaParts.push(issue.issueTypeName);
+    } else if (issue.platform === "github" && issue.githubLabels?.length) {
+      textMetaParts.push(issue.githubLabels.join(", "));
+    } else if (issue.platform === "linear" && issue.linearLabelName) {
+      textMetaParts.push(issue.linearLabelName);
+    } else if (issue.platform === "notion" && issue.notionStatusOption) {
+      textMetaParts.push(issue.notionStatusOption);
+    }
+  } else {
+    textMetaParts.push(t("issueList.draft"));
+    textMetaParts.push(formatDate(issue.createdAt, t));
   }
-  if (isSubmitted && issue.key) metaParts.push(`[${issue.key}]`);
-  if (!isSubmitted) metaParts.push(t("issueList.draft"));
-  if (issue.issueTypeName) metaParts.push(issue.issueTypeName);
 
   const handleCardClick = () => {
     if (isSubmitted) {
@@ -302,12 +392,30 @@ function IssueRow({
             <span className="truncate text-base font-medium text-foreground">
               {issue.title || t("common.untitled")}
             </span>
-            <span className="truncate text-sm text-muted-foreground">
-              {metaParts.join(" · ")}
+            <span className="flex min-w-0 items-center gap-1.5 text-sm text-muted-foreground">
+              {isSubmitted ? (
+                <>
+                  <PlatformChip platform={issue.platform} />
+                  {textMetaParts.length > 0 ? <span aria-hidden>·</span> : null}
+                </>
+              ) : null}
+              <span className="min-w-0 truncate">{textMetaParts.join(" · ")}</span>
             </span>
           </div>
           {isSubmitted && issue.key ? (
-            <SubmittedBadge issueId={issue.id} issueKey={issue.key} issueSiteId={issue.jiraSiteId} refreshKey={refreshKey} onLoaded={onBadgeLoaded} />
+            <SubmittedBadge
+              issueId={issue.id}
+              issueKey={issue.key}
+              issueSiteId={issue.jiraSiteId}
+              issueUrl={issue.url}
+              platform={issue.platform}
+              githubOwner={issue.githubOwner}
+              githubRepo={issue.githubRepo}
+              linearIdentifier={issue.linearIdentifier}
+              notionPageId={issue.notionPageId}
+              refreshKey={refreshKey}
+              onLoaded={onBadgeLoaded}
+            />
           ) : (
             <AlertDialog>
               <AlertDialogTrigger asChild>
@@ -368,55 +476,315 @@ const STATUS_CATEGORY_COLORS: Record<
   },
 };
 
+const LINEAR_STATE_TYPE_COLORS: Record<string, typeof STATUS_CATEGORY_COLORS[string]> = {
+  backlog: STATUS_CATEGORY_COLORS.new,
+  unstarted: STATUS_CATEGORY_COLORS.new,
+  started: STATUS_CATEGORY_COLORS.indeterminate,
+  completed: STATUS_CATEGORY_COLORS.done,
+  cancelled: STATUS_CATEGORY_COLORS.new,
+};
 
-function SubmittedBadge({ issueId, issueKey, issueSiteId, refreshKey, onLoaded }: { issueId: string; issueKey: string; issueSiteId?: string; refreshKey: number; onLoaded: () => void }) {
+const LINEAR_STATE_I18N: Record<string, string> = {
+  backlog: "issueList.linear.backlog",
+  unstarted: "issueList.linear.unstarted",
+  started: "issueList.linear.started",
+  completed: "issueList.linear.completed",
+  cancelled: "issueList.linear.cancelled",
+};
+
+
+function PlatformChip({ platform }: { platform: PlatformId }) {
   const t = useT();
-  const jiraConfig = useSettingsStore((s) => s.jiraConfig);
+  if (platform === "jira") {
+    return (
+      <span className="inline-flex shrink-0 items-center gap-1">
+        <SiJirasoftware className="h-3 w-3" color="default" />
+        {t("platform.tab.jira")}
+      </span>
+    );
+  }
+  if (platform === "linear") {
+    return (
+      <span className="inline-flex shrink-0 items-center gap-1">
+        <SiLinear className="h-3 w-3" color="default" />
+        {t("platform.tab.linear")}
+      </span>
+    );
+  }
+  if (platform === "notion") {
+    return (
+      <span className="inline-flex shrink-0 items-center gap-1">
+        <SiNotion className="h-3 w-3 dark:invert" color="default" />
+        {t("platform.tab.notion")}
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex shrink-0 items-center gap-1">
+      <SiGithub className="h-3 w-3 dark:invert" color="default" />
+      {t("platform.tab.github")}
+    </span>
+  );
+}
+
+type GithubBadgeStatus =
+  | { kind: "open" }
+  | { kind: "closed"; reason: "completed" | "not_planned" | "reopened" | null };
+
+function SubmittedBadge({
+  issueId,
+  issueKey,
+  issueSiteId,
+  issueUrl,
+  platform,
+  githubOwner,
+  githubRepo,
+  linearIdentifier,
+  notionPageId,
+  refreshKey,
+  onLoaded,
+}: {
+  issueId: string;
+  issueKey: string;
+  issueSiteId?: string;
+  issueUrl?: string;
+  platform: PlatformId;
+  githubOwner?: string;
+  githubRepo?: string;
+  linearIdentifier?: string;
+  notionPageId?: string;
+  refreshKey: number;
+  onLoaded: () => void;
+}) {
+  const t = useT();
+  const jiraAccount = useSettingsStore((s) => s.accounts.jira);
+  const ghAccount = useSettingsStore((s) => s.accounts.github);
+  const linearAccount = useSettingsStore((s) => s.accounts.linear);
+  const notionAccount = useSettingsStore((s) => s.accounts.notion);
   const patchIssue = useIssuesStore((s) => s.patchIssue);
-  const currentSiteId = jiraConfig?.auth ? jiraSiteId(jiraConfig.auth) : null;
+  const currentSiteId = jiraAccount?.auth ? jiraSiteId(jiraAccount.auth) : null;
   const siteMatch = !issueSiteId || currentSiteId === issueSiteId;
-  const [status, setStatus] = useState<JiraIssueStatus | "error" | null>(null);
+  const [jiraStatus, setJiraStatus] = useState<JiraIssueStatus | "error" | null>(null);
+  const [ghStatus, setGhStatus] = useState<GithubBadgeStatus | "error" | null>(null);
+  const [linearStatus, setLinearStatus] = useState<LinearIssueStatus | "error" | null>(null);
+  const [notionStatus, setNotionStatus] = useState<NotionPageStatus | "error" | null>(null);
 
   useEffect(() => {
-    if (!jiraConfig?.auth || !siteMatch) { setStatus("error"); onLoaded(); return; }
-    sendBg<JiraIssueStatus>({
-      type: "jira.getIssueStatus",
-      issueKey,
-    })
-      .then((res) => {
-        setStatus(res);
-        const patch: Record<string, string> = {};
-        if (res.issueTypeName) patch.issueTypeName = res.issueTypeName;
-        if (res.summary) patch.title = res.summary;
-        if (Object.keys(patch).length) patchIssue(issueId, patch);
+    if (platform === "jira") {
+      if (!jiraAccount?.auth || !siteMatch) { setJiraStatus("error"); onLoaded(); return; }
+      sendBg<JiraIssueStatus>({ type: "jira.getIssueStatus", issueKey })
+        .then((res) => {
+          setJiraStatus(res);
+          const patch: Record<string, string> = {};
+          if (res.issueTypeName) patch.issueTypeName = res.issueTypeName;
+          if (res.summary) patch.title = res.summary;
+          if (Object.keys(patch).length) patchIssue(issueId, patch);
+        })
+        .catch(() => setJiraStatus("error"))
+        .finally(onLoaded);
+      return;
+    }
+    if (platform === "github") {
+      const coords = resolveGithubCoords({
+        githubOwner,
+        githubRepo,
+        key: issueKey,
+        url: issueUrl,
+      });
+      if (!ghAccount || !coords) {
+        setGhStatus("error"); onLoaded(); return;
+      }
+      sendBg<GithubIssueStatus>({
+        type: "github.getIssueStatus",
+        owner: coords.owner,
+        repo: coords.repo,
+        number: coords.number,
       })
-      .catch(() => setStatus("error"))
-      .finally(onLoaded);
-  }, [jiraConfig?.auth, issueKey, refreshKey, siteMatch, onLoaded, issueId, patchIssue]);
+        .then((res) => {
+          setGhStatus(
+            res.state === "open"
+              ? { kind: "open" }
+              : { kind: "closed", reason: res.stateReason ?? null },
+          );
+          const patch: Partial<IssueRecord> = {};
+          if (res.title) patch.title = res.title;
+          if (!githubOwner) patch.githubOwner = coords.owner;
+          if (!githubRepo) patch.githubRepo = coords.repo;
+          patch.githubLabels = res.labels.map((l) => l.name).filter(Boolean);
+          if (Object.keys(patch).length) patchIssue(issueId, patch);
+        })
+        .catch(() => setGhStatus("error"))
+        .finally(onLoaded);
+      return;
+    }
+    if (platform === "linear") {
+      const identifier = linearIdentifier ?? issueKey;
+      if (!linearAccount?.auth || !identifier) {
+        setLinearStatus("error"); onLoaded(); return;
+      }
+      sendBg<LinearIssueStatus>({ type: "linear.getIssueStatus", issueId: identifier })
+        .then((res) => {
+          setLinearStatus(res);
+          const patch: Partial<IssueRecord> = {};
+          if (res.title) patch.title = res.title;
+          if (res.identifier) patch.linearIdentifier = res.identifier;
+          if (res.labels.length > 0) patch.linearLabelName = res.labels[0].name;
+          if (Object.keys(patch).length) patchIssue(issueId, patch);
+        })
+        .catch(() => setLinearStatus("error"))
+        .finally(onLoaded);
+      return;
+    }
+    if (platform === "notion") {
+      const pageId =
+        resolveNotionPageId({ notionPageId, url: issueUrl }) ?? null;
+      if (!notionAccount?.auth || !pageId) {
+        setNotionStatus("error"); onLoaded(); return;
+      }
+      sendBg<NotionPageStatus>({ type: "notion.getPageStatus", pageId })
+        .then((res) => {
+          setNotionStatus(res);
+          const patch: Partial<IssueRecord> = {};
+          if (res.title) patch.title = res.title;
+          if (!notionPageId) patch.notionPageId = res.pageId;
+          if (res.statusOption) patch.notionStatusOption = res.statusOption.name;
+          if (Object.keys(patch).length) patchIssue(issueId, patch);
+        })
+        .catch(() => setNotionStatus("error"))
+        .finally(onLoaded);
+      return;
+    }
+    onLoaded();
+  }, [platform, jiraAccount?.auth, ghAccount, linearAccount?.auth, notionAccount?.auth, issueKey, issueUrl, githubOwner, githubRepo, linearIdentifier, notionPageId, refreshKey, siteMatch, onLoaded, issueId, patchIssue]);
 
-  if (status === "error") {
+  if (platform === "jira") {
+    if (jiraStatus === "error") {
+      return (
+        <Badge variant="outline" className="w-fit shrink-0 text-[11px]">
+          {t("issueList.unknown")}
+        </Badge>
+      );
+    }
+    const colors = jiraStatus
+      ? STATUS_CATEGORY_COLORS[jiraStatus.categoryKey] ??
+        STATUS_CATEGORY_COLORS.new
+      : null;
+    if (!jiraStatus || !colors) return null;
+    return (
+      <Badge
+        variant="outline"
+        className={`w-fit shrink-0 border-transparent text-[11px] ${colors.bg} ${colors.text} ${colors.darkBg} ${colors.darkText}`}
+      >
+        {jiraStatus.name}
+      </Badge>
+    );
+  }
+
+  if (platform === "github") {
+    if (ghStatus === "error") {
+      return (
+        <Badge variant="outline" className="w-fit shrink-0 text-[11px]">
+          {t("issueList.unknown")}
+        </Badge>
+      );
+    }
+    if (!ghStatus) {
+      return (
+        <Badge variant="outline" className="w-fit shrink-0 text-[11px]">
+          {t("issueList.submitted")}
+        </Badge>
+      );
+    }
+    const ghLabel =
+      ghStatus.kind === "open"
+        ? t("issueList.github.open")
+        : ghStatus.reason === "not_planned"
+          ? t("issueList.github.notPlanned")
+          : t("issueList.github.closed");
+    const ghColors =
+      ghStatus.kind === "open"
+        ? STATUS_CATEGORY_COLORS.indeterminate
+        : ghStatus.reason === "not_planned"
+          ? STATUS_CATEGORY_COLORS.new
+          : STATUS_CATEGORY_COLORS.done;
+    return (
+      <Badge
+        variant="outline"
+        className={`w-fit shrink-0 border-transparent text-[11px] ${ghColors.bg} ${ghColors.text} ${ghColors.darkBg} ${ghColors.darkText}`}
+      >
+        {ghLabel}
+      </Badge>
+    );
+  }
+
+  if (platform === "linear") {
+    if (linearStatus === "error") {
+      return (
+        <Badge variant="outline" className="w-fit shrink-0 text-[11px]">
+          {t("issueList.unknown")}
+        </Badge>
+      );
+    }
+    if (!linearStatus) {
+      return (
+        <Badge variant="outline" className="w-fit shrink-0 text-[11px]">
+          {t("issueList.submitted")}
+        </Badge>
+      );
+    }
+    const stateType = linearStatus.state.type;
+    const linearColors = LINEAR_STATE_TYPE_COLORS[stateType] ?? STATUS_CATEGORY_COLORS.new;
+    const i18nKey = LINEAR_STATE_I18N[stateType] as Parameters<typeof t>[0] | undefined;
+    const linearLabel = i18nKey ? t(i18nKey) : linearStatus.state.name;
+    return (
+      <Badge
+        variant="outline"
+        className={`w-fit shrink-0 border-transparent text-[11px] ${linearColors.bg} ${linearColors.text} ${linearColors.darkBg} ${linearColors.darkText}`}
+      >
+        {linearLabel}
+      </Badge>
+    );
+  }
+
+  // Notion
+  if (notionStatus === "error") {
     return (
       <Badge variant="outline" className="w-fit shrink-0 text-[11px]">
         {t("issueList.unknown")}
       </Badge>
     );
   }
-
-  const colors = status
-    ? STATUS_CATEGORY_COLORS[status.categoryKey] ??
-      STATUS_CATEGORY_COLORS.new
-    : null;
-
-  if (!status || !colors) return null;
-
+  if (!notionStatus) {
+    return (
+      <Badge variant="outline" className="w-fit shrink-0 text-[11px]">
+        {t("issueList.submitted")}
+      </Badge>
+    );
+  }
+  if (notionStatus.statusOption) {
+    const category = notionStatusCategory(notionStatus.statusOption.color);
+    const notionColors = STATUS_CATEGORY_COLORS[category];
+    return (
+      <Badge
+        variant="outline"
+        className={`w-fit shrink-0 border-transparent text-[11px] ${notionColors.bg} ${notionColors.text} ${notionColors.darkBg} ${notionColors.darkText}`}
+      >
+        {notionStatus.statusOption.name}
+      </Badge>
+    );
+  }
   return (
-    <Badge
-      variant="outline"
-      className={`w-fit shrink-0 border-transparent text-[11px] ${colors.bg} ${colors.text} ${colors.darkBg} ${colors.darkText}`}
-    >
-      {status.name}
+    <Badge variant="outline" className="w-fit shrink-0 text-[11px]">
+      {t("issueList.notion.noStatus")}
     </Badge>
   );
+}
+
+// Jira는 `[BUG-1]`, GitHub은 `#42`로 시각적 구분.
+// (GitHub key는 이미 `#`이 포함된 형태로 저장됨 — submitToGithub.ts)
+export function formatIssueKey(issue: Pick<IssueRecord, "platform" | "key">): string {
+  if (!issue.key) return "";
+  return issue.key;
 }
 
 function dateLabel(ts: number): string {

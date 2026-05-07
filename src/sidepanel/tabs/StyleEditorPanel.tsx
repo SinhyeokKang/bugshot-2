@@ -379,7 +379,6 @@ export function SelectedPanel() {
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button
-                  size="lg"
                   variant="outline"
                   disabled={!hasChange}
                 >
@@ -412,7 +411,6 @@ export function SelectedPanel() {
               </AlertDialogContent>
             </AlertDialog>
             <Button
-              size="lg"
               onClick={() => void handleNext()}
               disabled={proceeding || !hasChange}
             >

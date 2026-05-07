@@ -22,14 +22,14 @@ import { sendBg } from "@/types/messages";
 
 export function IssueTypeCombobox() {
   const t = useT();
-  const jiraConfig = useSettingsStore((s) => s.jiraConfig);
-  const updateJiraConfig = useSettingsStore((s) => s.updateJiraConfig);
+  const jiraAccount = useSettingsStore((s) => s.accounts.jira);
+  const updateJiraAccount = useSettingsStore((s) => s.updateJiraAccount);
 
   const [open, setOpen] = useState(false);
   const [issueTypes, setIssueTypes] = useState<JiraIssueType[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const projectKey = jiraConfig?.projectKey;
+  const projectKey = jiraAccount?.projectKey;
 
   useEffect(() => {
     setIssueTypes([]);
@@ -37,7 +37,7 @@ export function IssueTypeCombobox() {
   }, [projectKey]);
 
   useEffect(() => {
-    if (!open || !jiraConfig || !projectKey) return;
+    if (!open || !jiraAccount || !projectKey) return;
     if (issueTypes.length > 0) return;
     let cancelled = false;
 
@@ -63,13 +63,13 @@ export function IssueTypeCombobox() {
     return () => {
       cancelled = true;
     };
-  }, [open, jiraConfig, projectKey, issueTypes.length]);
+  }, [open, jiraAccount, projectKey, issueTypes.length]);
 
-  if (!jiraConfig) return null;
+  if (!jiraAccount) return null;
 
   const disabled = !projectKey;
-  const label = jiraConfig.issueTypeName
-    ? jiraConfig.issueTypeName
+  const label = jiraAccount.issueTypeName
+    ? jiraAccount.issueTypeName
     : disabled
       ? t("issueType.selectProjectFirst")
       : t("field.issueType.select");
@@ -87,7 +87,7 @@ export function IssueTypeCombobox() {
           <span
             className={cn(
               "min-w-0 flex-1 truncate text-left",
-              !jiraConfig.issueTypeName && "text-muted-foreground",
+              !jiraAccount.issueTypeName && "text-muted-foreground",
             )}
           >
             {label}
@@ -120,7 +120,7 @@ export function IssueTypeCombobox() {
                       key={it.id}
                       value={it.name}
                       onSelect={() => {
-                        updateJiraConfig({
+                        updateJiraAccount({
                           issueTypeId: it.id,
                           issueTypeName: it.name,
                         });
@@ -130,7 +130,7 @@ export function IssueTypeCombobox() {
                       <Check
                         className={cn(
                           "mr-2 h-4 w-4",
-                          jiraConfig.issueTypeId === it.id
+                          jiraAccount.issueTypeId === it.id
                             ? "opacity-100"
                             : "opacity-0",
                         )}

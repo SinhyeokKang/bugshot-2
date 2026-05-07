@@ -1,7 +1,7 @@
 import ko, { type TranslationKey } from "./ko";
 import en from "./en";
-import type { LocaleMode } from "@/store/app-settings-store";
-import { useAppSettingsStore } from "@/store/app-settings-store";
+import type { LocaleMode } from "@/store/settings-ui-store";
+import { useSettingsUiStore } from "@/store/settings-ui-store";
 
 const locales: Record<LocaleMode, Record<TranslationKey, string>> = { ko, en };
 
@@ -40,7 +40,7 @@ export type TranslationFn = (
 ) => string;
 
 export function useT(): TranslationFn {
-  const locale = useAppSettingsStore((s) => s.locale);
+  const locale = useSettingsUiStore((s) => s.locale);
   if (locale !== currentLocale) currentLocale = locale;
   return (key, params) => {
     let text = locales[locale][key];

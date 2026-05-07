@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { Pencil, RotateCcw, Trash2, WandSparkles } from "lucide-react";
+import { Pencil, RotateCcw, Sparkles, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,9 +9,9 @@ import {
   POST_MEDIA_SECTION_IDS,
   sectionLabelKey,
   sectionPlaceholderKey,
-  useAppSettingsStore,
+  useSettingsUiStore,
   type IssueSection,
-} from "@/store/app-settings-store";
+} from "@/store/settings-ui-store";
 import { useEditorStore } from "@/store/editor-store";
 import { useSettingsStore } from "@/store/settings-store";
 import { useBoundTabId } from "../hooks/useBoundTabId";
@@ -32,7 +32,11 @@ import {
   StyleChangesTable,
   buildStyleDiff,
 } from "../components/StyleChangesTable";
-import { buildAiDraftPrompt, parseAiDraftResponse } from "../lib/buildAiDraftPrompt";
+import {
+  buildAiDraftPrompt,
+  buildAiDraftSchema,
+  parseAiDraftResponse,
+} from "../lib/buildAiDraftPrompt";
 import { buildNetworkLogSummary, buildConsoleLogSummary } from "../lib/buildLogSummary";
 
 export function DraftingPanel() {
@@ -60,17 +64,15 @@ export function DraftingPanel() {
   const setConsoleLogAttach = useEditorStore((s) => s.setConsoleLogAttach);
   const target = useEditorStore((s) => s.target);
   const tokens = useEditorStore((s) => s.tokens);
-  const issueSections = useAppSettingsStore((s) => s.issueSections);
-  const locale = useAppSettingsStore((s) => s.locale);
+  const issueSections = useSettingsUiStore((s) => s.issueSections);
+  const locale = useSettingsUiStore((s) => s.locale);
   const { status: aiStatus, generateDraft } = useChromeAI();
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
   const [annotating, setAnnotating] = useState(false);
   const [networkDialogOpen, setNetworkDialogOpen] = useState(false);
   const [consoleDialogOpen, setConsoleDialogOpen] = useState(false);
-  const titlePrefix = useSettingsStore(
-    (s) => s.jiraConfig?.titlePrefix ?? "",
-  );
+  const titlePrefix = useSettingsStore((s) => s.titlePrefix);
   const isElementMode = captureMode === "element";
   const isVideoMode = captureMode === "video";
   const screenshotImage = screenshotAnnotated ?? screenshotRaw;
@@ -139,11 +141,10 @@ export function DraftingPanel() {
           renderAs: s.renderAs,
         })),
       });
-      const raw = await generateDraft(ctx);
-      const parsed = parseAiDraftResponse(
-        raw,
-        enabledSections.map((s) => s.id),
-      );
+      const sectionIds = enabledSections.map((s) => s.id);
+      const responseSchema = buildAiDraftSchema(sectionIds);
+      const raw = await generateDraft(ctx, { responseSchema });
+      const parsed = parseAiDraftResponse(raw, sectionIds);
       if (parsed) {
         const prefix = defaultTitle(titlePrefix);
         const aiTitle = prefix
@@ -151,6 +152,7 @@ export function DraftingPanel() {
           : parsed.title;
         setDraft({ ...parsed, title: aiTitle });
       } else {
+        console.warn("[bugshot] AI draft parse failed. Raw response:", raw);
         setAiError(t("draft.aiParseError"));
       }
     } catch {
@@ -260,7 +262,7 @@ export function DraftingPanel() {
   return (
     <PageShell className="relative">
       {aiLoading && (
-        <div className="pointer-events-none absolute inset-0 z-20 overflow-hidden">
+        <div className="pointer-events-none absolute inset-0 z-20 overflow-hidden backdrop-blur-[2px]">
           <div className="absolute inset-0 bg-purple-500/5" />
           <div className="absolute inset-0 animate-shimmer bg-gradient-to-b from-transparent via-purple-400/10 to-transparent" />
         </div>
@@ -284,13 +286,13 @@ export function DraftingPanel() {
       </PageScroll>
       {aiStatus === "available" && captureMode !== "screenshot" && (
         <button
-          className="mx-2.5 flex items-center justify-between rounded-t-lg bg-purple-100/80 px-3.5 py-2.5 text-purple-700 transition-colors hover:bg-purple-100 disabled:opacity-50 dark:bg-purple-950/50 dark:text-purple-300 dark:hover:bg-purple-900"
+          className="flex items-center justify-between rounded-t-lg bg-purple-100/80 px-3.5 py-2.5 text-purple-700 transition-colors hover:bg-purple-100 disabled:opacity-50 dark:bg-purple-950/50 dark:text-purple-300 dark:hover:bg-purple-900"
           onClick={() => void handleAIDraft()}
           disabled={aiLoading}
         >
           <span className="bg-gradient-to-r from-purple-500 to-indigo-500 bg-clip-text text-sm text-transparent dark:from-purple-300 dark:to-indigo-300">{t("draft.aiBanner")}</span>
           <span className="flex items-center gap-1 bg-gradient-to-r from-indigo-500 to-purple-500 bg-clip-text text-sm font-medium text-transparent dark:from-indigo-300 dark:to-purple-300">
-            <WandSparkles className="h-4 w-4 text-purple-500 dark:text-purple-300" />
+            <Sparkles className="h-4 w-4 fill-current text-purple-500 dark:text-purple-300" />
             {t("draft.aiGenerate")}
           </span>
         </button>
@@ -307,7 +309,6 @@ export function DraftingPanel() {
           <div className="flex items-center gap-2">
             {isElementMode ? (
               <Button
-                size="lg"
                 variant="outline"
                 onClick={() => backToStyling()}
               >
@@ -315,7 +316,6 @@ export function DraftingPanel() {
               </Button>
             ) : null}
             <Button
-              size="lg"
               onClick={() => {
                 setAnnotating(false);
                 confirmDraft();

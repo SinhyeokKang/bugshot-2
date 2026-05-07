@@ -7,10 +7,10 @@ import { useT } from "@/i18n";
 import {
   POST_MEDIA_SECTION_IDS,
   sectionLabelKey,
-  useAppSettingsStore,
-} from "@/store/app-settings-store";
+  useSettingsUiStore,
+} from "@/store/settings-ui-store";
 import { useEditorStore } from "@/store/editor-store";
-import { isJiraConfigComplete, useSettingsStore } from "@/store/settings-store";
+import { connectedPlatforms, useSettingsStore } from "@/store/settings-store";
 import { DocSectionBody } from "../components/DocSectionBody";
 import { LogAttachmentCards } from "../components/LogAttachmentCards";
 import { NetworkLogPreviewDialog } from "../components/NetworkLogPreviewDialog";
@@ -54,9 +54,12 @@ export function PreviewPanel() {
   const consoleLogAttach = useEditorStore((s) => s.consoleLogAttach);
   const backToDraft = useEditorStore((s) => s.backToDraft);
   const reset = useEditorStore((s) => s.reset);
-  const issueSections = useAppSettingsStore((s) => s.issueSections);
-  const jiraConfig = useSettingsStore((s) => s.jiraConfig);
-  const configured = isJiraConfigComplete(jiraConfig);
+  const issueSections = useSettingsUiStore((s) => s.issueSections);
+  const accounts = useSettingsStore((s) => s.accounts);
+  const noPlatformConnected = useMemo(
+    () => connectedPlatforms(accounts).length === 0,
+    [accounts],
+  );
   const isElementMode = captureMode === "element";
   const isVideoMode = captureMode === "video";
   const screenshotImage = screenshotAnnotated ?? screenshotRaw;
@@ -272,18 +275,15 @@ export function PreviewPanel() {
         })()}
       </PageScroll>
       <PageFooter>
-        {!configured ? (
+        {noPlatformConnected ? (
           <Alert variant="ghost" className="mb-2">
             <Info className="h-4 w-4" />
-            <AlertTitle>{t("jira.notConnected.title")}</AlertTitle>
-            <AlertDescription>
-              {t("jira.notConnected.body")}
-            </AlertDescription>
+            <AlertTitle>{t("platform.empty.title")}</AlertTitle>
+            <AlertDescription>{t("platform.empty.body")}</AlertDescription>
           </Alert>
         ) : null}
         <div className="flex items-center justify-between gap-2">
           <Button
-            size="lg"
             variant="outline"
             onClick={() => reset()}
           >
@@ -291,7 +291,6 @@ export function PreviewPanel() {
           </Button>
           <div className="flex items-center gap-2">
             <Button
-              size="lg"
               variant="outline"
               onClick={() => backToDraft()}
             >

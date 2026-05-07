@@ -95,7 +95,9 @@ async function authedFetch(
     current = await refreshOnce(current);
     res = await doFetch(current, path, init, multipart);
     if (res.status === 401) {
-      throw new OAuthError(t("oauth.error.refreshExhausted"));
+      throw new OAuthError(t("oauth.error.refreshExhausted"), {
+        platform: "jira",
+      });
     }
   }
   return res;

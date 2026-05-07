@@ -14,6 +14,7 @@ interface OverlayInternal extends OverlayHandle {
   marginEl: SVGPathElement;
   paddingEl: SVGPathElement;
   gapEl: SVGPathElement;
+  boxLabelsEl: SVGGElement;
   borderEl: SVGRectElement;
   previewEl: SVGRectElement;
   _onResize: () => void;
@@ -151,6 +152,13 @@ const OVERLAY_CSS = `
       --border: hsl(215 27.9% 16.9%);
     }
   }
+  .box-label {
+    font: 10px/1 Pretendard, -apple-system, BlinkMacSystemFont, sans-serif;
+    pointer-events: none;
+  }
+  .box-label-margin { fill: #b45309; }
+  .box-label-padding { fill: #15803d; }
+  .box-label-gap { fill: #7c3aed; }
   .area-dim {
     position: fixed;
     background: rgba(0, 0, 0, 0.4);
@@ -246,6 +254,9 @@ export function createOverlay(): OverlayHandle {
   gapEl.style.display = "none";
   svg.appendChild(gapEl);
 
+  const boxLabelsEl = document.createElementNS(SVG_NS, "g");
+  svg.appendChild(boxLabelsEl);
+
   const borderEl = document.createElementNS(SVG_NS, "rect");
   borderEl.setAttribute("fill", "none");
   borderEl.setAttribute("stroke", "#2563eb");
@@ -282,6 +293,7 @@ export function createOverlay(): OverlayHandle {
     marginEl,
     paddingEl,
     gapEl,
+    boxLabelsEl,
     borderEl,
     previewEl,
     _onResize: () => updateBanner(handle),
@@ -341,6 +353,8 @@ export function renderOutline(
   o.borderEl.setAttribute("height", bh.toString());
   o.borderEl.style.display = "";
 
+  clearBoxLabels(o);
+
   if (opts.hideBoxModel) {
     o.marginEl.style.display = "none";
     o.paddingEl.style.display = "none";
@@ -369,6 +383,10 @@ export function renderOutline(
         `M${bl},${bt} h${bw} v${bh} h${-bw} Z`,
     );
     o.marginEl.style.display = "";
+    addBoxLabel(o.boxLabelsEl, "margin", mt, bl + bw / 2, bt - mt / 2);
+    addBoxLabel(o.boxLabelsEl, "margin", mr, bl + bw + mr / 2, bt + bh / 2);
+    addBoxLabel(o.boxLabelsEl, "margin", mb, bl + bw / 2, bt + bh + mb / 2);
+    addBoxLabel(o.boxLabelsEl, "margin", ml, bl - ml / 2, bt + bh / 2);
   } else {
     o.marginEl.style.display = "none";
   }
@@ -382,6 +400,10 @@ export function renderOutline(
         `M${bl + pl},${bt + pt} h${iw} v${ih} h${-iw} Z`,
     );
     o.paddingEl.style.display = "";
+    addBoxLabel(o.boxLabelsEl, "padding", pt, bl + bw / 2, bt + pt / 2);
+    addBoxLabel(o.boxLabelsEl, "padding", pr, bl + bw - pr / 2, bt + bh / 2);
+    addBoxLabel(o.boxLabelsEl, "padding", pb, bl + bw / 2, bt + bh - pb / 2);
+    addBoxLabel(o.boxLabelsEl, "padding", pl, bl + pl / 2, bt + bh / 2);
   } else {
     o.paddingEl.style.display = "none";
   }
@@ -469,6 +491,7 @@ export function hideOutline(h: OverlayHandle): void {
   o.marginEl.style.display = "none";
   o.paddingEl.style.display = "none";
   o.gapEl.style.display = "none";
+  clearBoxLabels(o);
   o.borderEl.style.display = "none";
   o.labelEl.style.display = "none";
 }
@@ -549,6 +572,28 @@ export function renderPreview(h: OverlayHandle, selector: string): void {
 
 export function clearPreview(h: OverlayHandle): void {
   (h as OverlayInternal).previewEl.style.display = "none";
+}
+
+/* ── box labels ──────────────────────────────────── */
+
+function clearBoxLabels(o: OverlayInternal): void {
+  const g = o.boxLabelsEl;
+  while (g.firstChild) g.removeChild(g.firstChild);
+}
+
+type BoxLabelType = "margin" | "padding" | "gap";
+
+function addBoxLabel(g: SVGGElement, type: BoxLabelType, px: number, x: number, y: number): void {
+  const rounded = Math.round(px);
+  if (rounded === 0) return;
+  const text = document.createElementNS(SVG_NS, "text");
+  text.setAttribute("x", x.toString());
+  text.setAttribute("y", y.toString());
+  text.setAttribute("text-anchor", "middle");
+  text.setAttribute("dominant-baseline", "central");
+  text.setAttribute("class", `box-label box-label-${type}`);
+  text.textContent = `${rounded}px`;
+  g.appendChild(text);
 }
 
 /* ── internal ────────────────────────────────────── */
@@ -632,6 +677,7 @@ function updateGap(
       const w = contentRight - contentLeft;
       if (w <= 0) continue;
       parts.push(`M${contentLeft},${y} h${w} v${h} h${-w} Z`);
+      addBoxLabel(o.boxLabelsEl, "gap", h, (contentLeft + contentRight) / 2, y + h / 2);
     }
   }
 
@@ -644,6 +690,7 @@ function updateGap(
       const h = contentBottom - contentTop;
       if (h <= 0) continue;
       parts.push(`M${x},${contentTop} h${w} v${h} h${-w} Z`);
+      addBoxLabel(o.boxLabelsEl, "gap", w, x + w / 2, (contentTop + contentBottom) / 2);
     }
   }
 

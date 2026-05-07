@@ -35,9 +35,17 @@ base 결정:
 
 ### 2. 리뷰 실행
 
-변경 파일들의 diff를 CLAUDE.md 컨벤션·아키텍처 원칙에 비추어 검토. 카테고리:
+변경 파일들의 diff를 CLAUDE.md 컨벤션·아키텍처 원칙에 비추어 검토.
 
-- **UI / 디자인**: shadcn/ui 우선 (커스텀 스타일링 금지), IconButton 32 vs 36 구분 (패널/섹션 헤더 = 32, Input·Textarea 우측 = 36), Tailwind shadcn CSS 변수만, 커스텀 색상 남발 금지, 탭 컨텐츠 `data-[state=inactive]:hidden`, 버튼 사이즈 컨벤션 (`xl` = h-11 px-10).
+#### 작업 원칙 (모든 카테고리에 적용)
+
+- **더 단순한 방법이 있으면 제안**: 200줄을 50줄로 줄일 수 있으면 줄여라. 요청하지 않은 유연성·설정 가능성·추상화 추가 금지.
+- **외과적 변경**: 요청과 직접 관련 없는 인접 코드 개선·리팩터가 섞여 있으면 지적. 기존 스타일을 깨는 변경도 지적.
+- **기존 패턴 일관성**: 같은 레이아웃/컴포넌트를 쓰는 기존 코드와 size·variant·className·구조가 일치하는지 확인. 불일치하면 지적.
+
+#### 카테고리
+
+- **UI / 디자인**: shadcn/ui 우선 (커스텀 스타일링 금지), IconButton 32 vs 36 구분 (패널/섹션 헤더 = 32, Input·Textarea 우측 = 36), Tailwind shadcn CSS 변수만, 커스텀 색상 남발 금지, 탭 컨텐츠 `data-[state=inactive]:hidden`, 버튼 사이즈 컨벤션 (`xl` = h-11 px-10). **새 UI 추가 시 같은 역할의 기존 코드와 패턴이 일치하는지 반드시 확인.**
 - **i18n**: ko/en 동시 갱신 여부, 사용자 노출 텍스트 누락, 키 이름 일관성.
 - **세션 보존**: tabId scope, `editor:${tabId}` 키, origin 변경 시 폐기, phase별 보존 룰 (styling 폐기 / drafting·previewing·done 보존), `chrome.storage.session` 사용 패턴.
 - **picker / CSS**: 토큰 resolve 룰 (`--_*` private alias 끝까지 펼침, public 토큰은 첫 이름에서 멈춤), CSSOM shorthand cache (`getRawDeclarationsFor` 우선), DOM 트리 lazy load, 메시지 비동기 응답 (`return true` + IIFE 패턴), `await ensureCssCacheLoaded()` 호출 위치.

@@ -33,6 +33,7 @@ function snapshotFromState(): EditorSnapshot {
   return {
     captureMode: s.captureMode,
     phase: s.phase,
+    targetPlatform: s.targetPlatform,
     target: s.target,
     selection: s.selection,
     styleEdits: s.styleEdits,

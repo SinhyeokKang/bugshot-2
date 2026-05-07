@@ -1,11 +1,20 @@
 import { describe, expect, it } from "vitest";
-import { matchesQuery, matchesStatus } from "../IssueListTab";
+import {
+  formatIssueKey,
+  isRefreshable,
+  matchesQuery,
+  matchesStatus,
+  parseGithubIssueNumber,
+  parseGithubIssueUrl,
+  resolveGithubCoords,
+} from "../IssueListTab";
 import type { IssueRecord } from "@/store/issues-store";
 
 function makeIssue(overrides: Partial<IssueRecord> = {}): IssueRecord {
   return {
     id: "test-1",
     status: "submitted",
+    platform: "jira",
     title: "버튼 패딩 수정",
     createdAt: Date.now(),
     updatedAt: Date.now(),
@@ -13,6 +22,7 @@ function makeIssue(overrides: Partial<IssueRecord> = {}): IssueRecord {
     draft: { title: "버튼 패딩 수정", sections: {} },
     snapshot: { before: false, after: false },
     key: "BUG-123",
+    url: "https://x.atlassian.net/browse/BUG-123",
     ...overrides,
   };
 }
@@ -47,6 +57,173 @@ describe("matchesQuery", () => {
 
   it("매칭 안 되는 쿼리", () => {
     expect(matchesQuery(makeIssue(), "존재하지않는텍스트")).toBe(false);
+  });
+});
+
+describe("formatIssueKey", () => {
+  // 시각 구분은 PlatformChip 아이콘이 담당 — 키 자체에 추가 prefix 안 붙임.
+  it("Jira key 그대로 반환", () => {
+    expect(formatIssueKey({ platform: "jira", key: "BUG-1" })).toBe("BUG-1");
+  });
+
+  it("GitHub key 그대로 (이미 # prefix가 포함되어 저장됨)", () => {
+    expect(formatIssueKey({ platform: "github", key: "#42" })).toBe("#42");
+  });
+
+  it("key가 undefined면 빈 문자열", () => {
+    expect(formatIssueKey({ platform: "jira", key: undefined })).toBe("");
+    expect(formatIssueKey({ platform: "github", key: undefined })).toBe("");
+  });
+});
+
+describe("parseGithubIssueNumber", () => {
+  it("'#42' → 42", () => {
+    expect(parseGithubIssueNumber("#42")).toBe(42);
+  });
+
+  it("'42' → 42 (# 없어도 OK)", () => {
+    expect(parseGithubIssueNumber("42")).toBe(42);
+  });
+
+  it("undefined / 빈 문자열 → null", () => {
+    expect(parseGithubIssueNumber(undefined)).toBeNull();
+    expect(parseGithubIssueNumber("")).toBeNull();
+  });
+
+  it("숫자가 아니면 null", () => {
+    expect(parseGithubIssueNumber("BUG-1")).toBeNull();
+    expect(parseGithubIssueNumber("#abc")).toBeNull();
+  });
+});
+
+describe("parseGithubIssueUrl", () => {
+  it("표준 issues URL 추출", () => {
+    expect(parseGithubIssueUrl("https://github.com/SinhyeokKang/bugshot-2/issues/8"))
+      .toEqual({ owner: "SinhyeokKang", repo: "bugshot-2", number: 8 });
+  });
+
+  it("trailing slash 허용", () => {
+    expect(parseGithubIssueUrl("https://github.com/o/r/issues/42/"))
+      .toEqual({ owner: "o", repo: "r", number: 42 });
+  });
+
+  it("PR URL은 거부 (issues 경로만)", () => {
+    expect(parseGithubIssueUrl("https://github.com/o/r/pull/42")).toBeNull();
+  });
+
+  it("github.com이 아니면 null", () => {
+    expect(parseGithubIssueUrl("https://gitlab.com/o/r/issues/1")).toBeNull();
+    expect(parseGithubIssueUrl("https://x.atlassian.net/browse/BUG-1")).toBeNull();
+  });
+
+  it("undefined / 빈 / 잘못된 URL", () => {
+    expect(parseGithubIssueUrl(undefined)).toBeNull();
+    expect(parseGithubIssueUrl("")).toBeNull();
+    expect(parseGithubIssueUrl("not-a-url")).toBeNull();
+  });
+});
+
+describe("resolveGithubCoords", () => {
+  it("저장된 owner/repo + key 우선", () => {
+    expect(
+      resolveGithubCoords({
+        githubOwner: "stored-o",
+        githubRepo: "stored-r",
+        key: "#42",
+        url: "https://github.com/url-o/url-r/issues/99",
+      }),
+    ).toEqual({ owner: "stored-o", repo: "stored-r", number: 42 });
+  });
+
+  it("owner/repo 비어있으면 url에서 fallback (구 entry)", () => {
+    expect(
+      resolveGithubCoords({
+        githubOwner: undefined,
+        githubRepo: undefined,
+        key: "#8",
+        url: "https://github.com/SinhyeokKang/bugshot-2/issues/8",
+      }),
+    ).toEqual({ owner: "SinhyeokKang", repo: "bugshot-2", number: 8 });
+  });
+
+  it("key 없어도 url에서 number fallback", () => {
+    expect(
+      resolveGithubCoords({
+        githubOwner: "o",
+        githubRepo: "r",
+        key: undefined,
+        url: "https://github.com/o/r/issues/123",
+      }),
+    ).toEqual({ owner: "o", repo: "r", number: 123 });
+  });
+
+  it("owner/repo도 없고 url도 못 파싱 → null", () => {
+    expect(
+      resolveGithubCoords({
+        githubOwner: undefined,
+        githubRepo: undefined,
+        key: "#1",
+        url: undefined,
+      }),
+    ).toBeNull();
+  });
+});
+
+describe("isRefreshable", () => {
+  it("submitted + jira + key + url → true", () => {
+    expect(isRefreshable(makeIssue())).toBe(true);
+  });
+
+  it("draft 상태는 false", () => {
+    expect(isRefreshable(makeIssue({ status: "draft" }))).toBe(false);
+  });
+
+  it("submitted but key 없음 → false", () => {
+    expect(isRefreshable(makeIssue({ key: undefined }))).toBe(false);
+  });
+
+  it("github + owner/repo/key/url 모두 있음 → true", () => {
+    const issue = makeIssue({
+      platform: "github",
+      key: "#42",
+      url: "https://github.com/o/r/issues/42",
+      githubOwner: "o",
+      githubRepo: "r",
+    });
+    expect(isRefreshable(issue)).toBe(true);
+  });
+
+  it("github but owner 없음 → false (status 호출 불가)", () => {
+    const issue = makeIssue({
+      platform: "github",
+      key: "#42",
+      url: "x",
+      githubOwner: undefined,
+      githubRepo: "r",
+    });
+    expect(isRefreshable(issue)).toBe(false);
+  });
+
+  it("github but repo 없음 → false", () => {
+    const issue = makeIssue({
+      platform: "github",
+      key: "#42",
+      url: "x",
+      githubOwner: "o",
+      githubRepo: undefined,
+    });
+    expect(isRefreshable(issue)).toBe(false);
+  });
+
+  it("github + 구 entry — owner/repo 비었지만 url이 GitHub issues 형식이면 true (fallback)", () => {
+    const issue = makeIssue({
+      platform: "github",
+      key: "#8",
+      url: "https://github.com/SinhyeokKang/bugshot-2/issues/8",
+      githubOwner: undefined,
+      githubRepo: undefined,
+    });
+    expect(isRefreshable(issue)).toBe(true);
   });
 });
 

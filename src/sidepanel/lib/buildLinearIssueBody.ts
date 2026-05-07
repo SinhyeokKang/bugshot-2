@@ -1,0 +1,191 @@
+import { t } from "@/i18n";
+import {
+  POST_MEDIA_SECTION_IDS,
+  sectionMdLabelKey,
+  type IssueSection,
+} from "@/store/settings-ui-store";
+import { formatElementName } from "@/lib/element-label";
+import type { MarkdownContext } from "./buildIssueMarkdown";
+import { formatTimestamp } from "./formatTimestamp";
+
+export interface LinearMediaInput {
+  filename: string;
+  assetUrl?: string;
+}
+
+export interface LinearBuildInput {
+  ctx: MarkdownContext;
+  images?: LinearMediaInput[];
+  video?: LinearMediaInput;
+}
+
+export interface LinearBuildResult {
+  body: string;
+}
+
+function sectionLabel(section: IssueSection): string {
+  return section.labelOverride?.trim() || t(sectionMdLabelKey(section.id));
+}
+
+function listItems(content: string): string[] {
+  return content
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+}
+
+function escapeCell(value: string): string {
+  return value.replace(/\|/g, "\\|").replace(/\r?\n/g, " ");
+}
+
+function webstoreUrl(): string {
+  return (import.meta.env.VITE_WEBSTORE_URL as string | undefined) ?? "";
+}
+
+function footerMarkdown(): string {
+  const url = webstoreUrl();
+  const brand = url ? `[BugShot](${url})` : "BugShot";
+  return `_Reported via ${brand}_`;
+}
+
+function imageCell(media: LinearMediaInput | undefined): string {
+  if (!media?.assetUrl) return "";
+  return `![${media.filename}](${media.assetUrl})`;
+}
+
+export function buildLinearIssueBody(
+  input: LinearBuildInput,
+): LinearBuildResult {
+  const { ctx, images = [], video } = input;
+  const lines: string[] = [];
+  const isVideo = ctx.captureMode === "video";
+  const isScreenshot = ctx.captureMode === "screenshot";
+
+  lines.push(`## ${t("md.section.env")}`, "");
+  lines.push(`- **Page**: ${ctx.url}`);
+  if (!isVideo && !isScreenshot) {
+    const domLabel = ctx.tagName
+      ? formatElementName({ tag: ctx.tagName, classList: ctx.classListBefore })
+      : "";
+    if (domLabel) lines.push(`- **DOM**: ${domLabel}`);
+  }
+  lines.push(`- **Viewport**: ${ctx.viewport.width}×${ctx.viewport.height}`);
+  lines.push(`- **Captured**: ${formatTimestamp(ctx.capturedAt)}`);
+  lines.push("");
+
+  let mediaEmitted = false;
+  const emitMedia = () => {
+    if (mediaEmitted) return;
+    mediaEmitted = true;
+
+    if (isVideo) {
+      lines.push(`## ${t("md.section.media")}`, "");
+      if (video?.assetUrl) {
+        lines.push(`![${video.filename}](${video.assetUrl})`);
+      } else {
+        lines.push(t("md.videoAttached"));
+      }
+      lines.push("");
+    } else if (isScreenshot) {
+      lines.push(`## ${t("md.section.media")}`, "");
+      const img = images[0];
+      if (img?.assetUrl) {
+        lines.push(`![${img.filename}](${img.assetUrl})`);
+      }
+      lines.push("");
+    } else {
+      lines.push(`## ${t("md.section.styleChanges")}`, "");
+      const before = images.find((i) => i.filename.startsWith("before"));
+      const after = images.find((i) => i.filename.startsWith("after"));
+      if (before?.assetUrl || after?.assetUrl) {
+        lines.push(`| ${t("md.column.property")} | As is | To be |`);
+        lines.push("| --- | --- | --- |");
+        lines.push(
+          `| **${t("styleTable.snapshot")}** | ${imageCell(before)} | ${imageCell(after)} |`,
+        );
+        for (const d of ctx.diffs) {
+          lines.push(
+            `| ${escapeCell(d.prop)} | ${escapeCell(d.asIs)} | ${escapeCell(d.toBe)} |`,
+          );
+        }
+      } else if (ctx.diffs.length > 0) {
+        lines.push(`| ${t("md.column.property")} | As is | To be |`);
+        lines.push("| --- | --- | --- |");
+        for (const d of ctx.diffs) {
+          lines.push(
+            `| ${escapeCell(d.prop)} | ${escapeCell(d.asIs)} | ${escapeCell(d.toBe)} |`,
+          );
+        }
+      }
+      lines.push("");
+    }
+
+    emitLogSummary(lines, ctx);
+  };
+
+  for (const section of ctx.sectionConfig) {
+    if (!section.enabled) continue;
+    if (POST_MEDIA_SECTION_IDS.has(section.id)) {
+      emitMedia();
+    }
+    const content = ctx.sections[section.id] ?? "";
+    lines.push(`## ${sectionLabel(section)}`, "");
+    if (section.renderAs === "orderedList") {
+      const items = listItems(content);
+      if (items.length === 0) {
+        lines.push(t("md.noValue"));
+      } else {
+        items.forEach((it, idx) => lines.push(`${idx + 1}. ${it}`));
+      }
+    } else {
+      lines.push(content.trim() ? content : t("md.noValue"));
+    }
+    lines.push("");
+  }
+
+  emitMedia();
+
+  lines.push("---", "");
+  lines.push(footerMarkdown(), "");
+
+  return { body: lines.join("\n") };
+}
+
+function emitLogSummary(lines: string[], ctx: MarkdownContext): void {
+  const { networkLogSummary: net, consoleLogSummary: con } = ctx;
+  if (net) {
+    lines.push(`## ${t("logSummary.network.title")}`, "");
+    if (net.errors.length > 0) {
+      lines.push(
+        t("logSummary.network.captured", {
+          n: net.captured,
+          errors: net.errors.length,
+        }),
+      );
+      for (const e of net.errors) {
+        lines.push(`- ${e.method} ${e.path} → ${e.status} ${e.statusText}`);
+      }
+    } else {
+      lines.push(t("logSummary.network.capturedNoError", { n: net.captured }));
+    }
+    lines.push("", `_${t("logSummary.network.detail")}_`, "");
+  }
+  if (con) {
+    lines.push(`## ${t("logSummary.console.title")}`, "");
+    if (con.errorCount > 0 || con.warnCount > 0) {
+      lines.push(
+        t("logSummary.console.captured", {
+          n: con.captured,
+          errors: con.errorCount,
+          warns: con.warnCount,
+        }),
+      );
+      for (const msg of con.topErrors) {
+        lines.push(`- ${msg}`);
+      }
+    } else {
+      lines.push(t("logSummary.console.capturedNoError", { n: con.captured }));
+    }
+    lines.push("", `_${t("logSummary.console.detail")}_`, "");
+  }
+}

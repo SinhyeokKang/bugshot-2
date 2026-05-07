@@ -1,7 +1,10 @@
 import { t } from "@/i18n";
 import { initBgLocale } from "@/i18n/bg-init";
 import { PANEL_PORT_PREFIX } from "@/lib/session-keys";
+import { GithubError } from "./github-api";
 import { JiraError } from "./jira-api";
+import { LinearError } from "./linear-api";
+import { NotionError } from "./notion-api";
 import { handleMessage } from "./messages";
 import { OAuthError } from "./oauth";
 import { activateTab, setupTabBindings } from "./tab-bindings";
@@ -28,6 +31,39 @@ const BG_REQUEST_TYPES = new Set([
   "jira.getIssueStatus",
   "jira.searchEpics",
   "jira.submitIssue",
+  "github.oauth.available",
+  "github.startOAuth",
+  "github.testPat",
+  "github.disconnect",
+  "github.getMyself",
+  "github.searchRepos",
+  "github.getLabels",
+  "github.searchAssignees",
+  "github.submitIssue",
+  "github.getIssueStatus",
+  "linear.oauth.available",
+  "linear.startOAuth",
+  "linear.testApiKey",
+  "linear.disconnect",
+  "linear.getMyself",
+  "linear.getTeams",
+  "linear.getProjects",
+  "linear.getLabels",
+  "linear.getMembers",
+  "linear.submitIssue",
+  "linear.uploadFile",
+  "linear.createAttachment",
+  "linear.getIssueStatus",
+  "notion.oauth.available",
+  "notion.startOAuth",
+  "notion.testToken",
+  "notion.disconnect",
+  "notion.getMyself",
+  "notion.searchDatabases",
+  "notion.getDatabaseSchema",
+  "notion.uploadFile",
+  "notion.submitPage",
+  "notion.getPageStatus",
 ]);
 
 function disableGlobalSidePanel(): void {
@@ -94,13 +130,35 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           status: error.status,
           body: error.body,
         });
-      } else if (error instanceof OAuthError) {
-        const cancelled = /cancel|취소|not authorize|not approve/i.test(error.message);
+      } else if (error instanceof GithubError) {
         sendResponse({
           ok: false,
           error: error.message,
-          status: cancelled ? undefined : 401,
-          body: cancelled ? undefined : { oauthRefreshFailed: true },
+          status: error.status,
+          body: error.body,
+        });
+      } else if (error instanceof LinearError) {
+        sendResponse({
+          ok: false,
+          error: error.message,
+          status: error.status,
+          body: error.body,
+        });
+      } else if (error instanceof NotionError) {
+        sendResponse({
+          ok: false,
+          error: error.message,
+          status: error.status,
+          body: error.body,
+        });
+      } else if (error instanceof OAuthError) {
+        sendResponse({
+          ok: false,
+          error: error.message,
+          status: error.cancelled ? undefined : 401,
+          body: error.cancelled
+            ? { oauthCancelled: true, platform: error.platform }
+            : { oauthRefreshFailed: true, platform: error.platform },
         });
       } else {
         sendResponse({ ok: false, error: friendlyError(error) });

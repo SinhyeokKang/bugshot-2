@@ -1,5 +1,7 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
+import type { PlatformId } from "@/types/platform";
+import { migrateIssueToV4 } from "./issues-migrations";
 import { chromeLocalStorage } from "./chrome-storage";
 import { useEditorStore, type CaptureMode } from "./editor-store";
 import { clearPicker } from "@/sidepanel/picker-control";
@@ -140,12 +142,36 @@ export interface IssueRecord {
   networkLogBlobKey?: string;
   consoleLogBlobKey?: string;
 
+  platform: PlatformId;
   key?: string;
   url?: string;
   jiraSiteId?: string;
   issueTypeName?: string;
   priorityName?: string;
   assigneeName?: string;
+  // GitHub 전용 — refresh 시 status 조회에 필요. 등록 시점에 ghFields에서 세팅.
+  githubOwner?: string;
+  githubRepo?: string;
+  // jira의 issueTypeName 자리에 메타로 노출되는 분류 태그. 등록 시 ghFields.labels로,
+  // 새로고침 후 status fetch 응답의 labels[].name으로 갱신.
+  githubLabels?: string[];
+  // Linear 전용
+  linearIdentifier?: string;
+  linearTeamKey?: string;
+  linearLabelName?: string;
+  // Notion 전용
+  notionPageId?: string;
+  notionDatabaseId?: string;
+  notionDatabaseTitle?: string;
+  notionStatusOption?: string;
+}
+
+// v5: notion 플랫폼 추가 — IssueRecord에 notionPageId/notionDatabaseId/notionDatabaseTitle/notionStatusOption optional 필드.
+// PlatformId union에 "notion" 추가. 모두 optional이라 v4→v5 데이터 마이그레이션은 불필요 — 버전 마커만 bump.
+export const ISSUES_STORE_VERSION = 5;
+
+interface LegacyIssueRecord extends Omit<IssueRecord, "platform"> {
+  platform?: PlatformId;
 }
 
 interface IssuesState {
@@ -214,13 +240,16 @@ export const useIssuesStore = create<IssuesState>()(
     }),
     {
       name: "bugshot-issues",
-      version: 3,
+      version: ISSUES_STORE_VERSION,
       storage: createJSONStorage(() => chromeLocalStorage),
       migrate: async (persisted, version) => {
-        const state = persisted as { issues: IssueRecord[] };
+        const state = persisted as { issues: LegacyIssueRecord[] };
+        if (version < 4) {
+          state.issues = state.issues.map(migrateIssueToV4);
+        }
         if (version === 0) {
           state.issues = state.issues.map((i) =>
-            i.status === "submitted" ? stripSubmitted(i, {}) : i,
+            i.status === "submitted" ? stripSubmitted(i as IssueRecord, {}) : i,
           );
         }
         if (version < 2) {

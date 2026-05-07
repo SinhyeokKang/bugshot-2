@@ -1,6 +1,7 @@
 import { t } from "@/i18n";
 import { IMAGE_PLACEHOLDER } from "@/lib/adf-sentinels";
 import type { JiraAttachmentInput, JiraAuth, JiraSubmitResult } from "@/types/jira";
+import type { GithubAuth } from "@/types/github";
 import type { BgRequest } from "@/types/messages";
 import {
   createIssue,
@@ -15,12 +16,67 @@ import {
   updateIssueDescription,
   uploadAttachment,
 } from "./jira-api";
+import {
+  createIssue as createGithubIssue,
+  getIssueStatus as getGithubIssueStatus,
+  getMyself as githubGetMyself,
+  getRepoAssignees,
+  getRepoLabels,
+  searchRepos,
+} from "./github-api";
+import {
+  createAttachment as createLinearAttachment,
+  createIssue as createLinearIssue,
+  getIssueStatus as getLinearIssueStatus,
+  getLabels as getLinearLabels,
+  getMembers as getLinearMembers,
+  getMyself as linearGetMyself,
+  getProjects as getLinearProjects,
+  getTeams as getLinearTeams,
+  uploadFileToLinear,
+} from "./linear-api";
 import { isOAuthConfigured, startOAuthFlow } from "./oauth";
-import { readStoredAuth } from "@/lib/settings-storage";
+import { isGithubOAuthConfigured, startGithubOAuth } from "./github-oauth";
+import { isLinearOAuthConfigured, startLinearOAuth } from "./linear-oauth";
+import { isNotionOAuthConfigured, startNotionOAuth } from "./notion-oauth";
+import {
+  createPage as createNotionPage,
+  getDatabaseSchema as getNotionDatabaseSchema,
+  getMyself as notionGetMyself,
+  getPageStatus as getNotionPageStatus,
+  searchDatabases as searchNotionDatabases,
+  uploadFile as uploadNotionFile,
+} from "./notion-api";
+import {
+  readStoredAuth,
+  readStoredGithubAuth,
+  readStoredLinearAuth,
+  readStoredNotionAuth,
+} from "@/lib/settings-storage";
+import type { LinearAuth } from "@/types/linear";
+import type { NotionAuth } from "@/types/notion";
 
 async function loadAuth(): Promise<JiraAuth> {
   const auth = await readStoredAuth();
-  if (!auth) throw new Error(t("jira.notConnected.title"));
+  if (!auth) throw new Error(t("platform.notConnected.title", { platform: t("platform.tab.jira") }));
+  return auth;
+}
+
+async function loadGithubAuth(): Promise<GithubAuth> {
+  const auth = await readStoredGithubAuth();
+  if (!auth) throw new Error(t("platform.notConnected.title", { platform: t("platform.tab.github") }));
+  return auth;
+}
+
+async function loadLinearAuth(): Promise<LinearAuth> {
+  const auth = await readStoredLinearAuth();
+  if (!auth) throw new Error(t("platform.notConnected.title", { platform: t("platform.tab.linear") }));
+  return auth;
+}
+
+async function loadNotionAuth(): Promise<NotionAuth> {
+  const auth = await readStoredNotionAuth();
+  if (!auth) throw new Error(t("platform.notConnected.title", { platform: t("platform.tab.notion") }));
   return auth;
 }
 
@@ -78,6 +134,139 @@ export async function handleMessage(
         message.relatesKey,
       );
 
+    case "github.oauth.available":
+      return { available: isGithubOAuthConfigured() };
+
+    case "github.startOAuth":
+      return startGithubOAuth();
+
+    case "github.testPat":
+      return githubGetMyself({
+        kind: "pat",
+        pat: message.pat,
+        viewerLogin: "",
+      });
+
+    case "github.disconnect":
+      // 스토어 측 removeAccount("github")가 실제 정리. bg는 무상태 (서비스 워커는 상태 보관 안 함).
+      return { ok: true };
+
+    case "github.getMyself":
+      return githubGetMyself(await loadGithubAuth());
+
+    case "github.searchRepos":
+      return searchRepos(await loadGithubAuth(), message.query);
+
+    case "github.getLabels":
+      return getRepoLabels(await loadGithubAuth(), message.owner, message.repo);
+
+    case "github.searchAssignees":
+      return getRepoAssignees(
+        await loadGithubAuth(),
+        message.owner,
+        message.repo,
+      );
+
+    case "github.submitIssue":
+      return createGithubIssue(await loadGithubAuth(), message.payload);
+
+    case "github.getIssueStatus":
+      return getGithubIssueStatus(
+        await loadGithubAuth(),
+        message.owner,
+        message.repo,
+        message.number,
+      );
+
+    case "linear.oauth.available":
+      return { available: isLinearOAuthConfigured() };
+
+    case "linear.startOAuth":
+      return startLinearOAuth();
+
+    case "linear.testApiKey":
+      return linearGetMyself({
+        kind: "apiKey",
+        apiKey: message.apiKey,
+        viewerName: "",
+      });
+
+    case "linear.disconnect":
+      return { ok: true };
+
+    case "linear.getMyself":
+      return linearGetMyself(await loadLinearAuth());
+
+    case "linear.getTeams":
+      return getLinearTeams(await loadLinearAuth());
+
+    case "linear.getProjects":
+      return getLinearProjects(await loadLinearAuth(), message.teamId);
+
+    case "linear.getLabels":
+      return getLinearLabels(await loadLinearAuth(), message.teamId);
+
+    case "linear.getMembers":
+      return getLinearMembers(await loadLinearAuth(), message.teamId);
+
+    case "linear.submitIssue":
+      return createLinearIssue(await loadLinearAuth(), message.payload);
+
+    case "linear.uploadFile": {
+      const auth = await loadLinearAuth();
+      const blob = dataUrlToBlob(message.dataUrl);
+      const assetUrl = await uploadFileToLinear(auth, message.filename, message.contentType, blob);
+      return { assetUrl };
+    }
+
+    case "linear.createAttachment": {
+      const auth = await loadLinearAuth();
+      await createLinearAttachment(auth, message.issueId, message.title, message.url);
+      return { ok: true };
+    }
+
+    case "linear.getIssueStatus":
+      return getLinearIssueStatus(await loadLinearAuth(), message.issueId);
+
+    case "notion.oauth.available":
+      return { available: isNotionOAuthConfigured() };
+
+    case "notion.startOAuth":
+      return startNotionOAuth();
+
+    case "notion.testToken":
+      return notionGetMyself({
+        kind: "apiKey",
+        token: message.token,
+        botName: "",
+      });
+
+    case "notion.disconnect":
+      return { ok: true };
+
+    case "notion.getMyself":
+      return notionGetMyself(await loadNotionAuth());
+
+    case "notion.searchDatabases":
+      return searchNotionDatabases(await loadNotionAuth(), message.query);
+
+    case "notion.getDatabaseSchema":
+      return getNotionDatabaseSchema(await loadNotionAuth(), message.databaseId);
+
+    case "notion.uploadFile":
+      return uploadNotionFile(
+        await loadNotionAuth(),
+        message.filename,
+        message.contentType,
+        message.dataUrl,
+      );
+
+    case "notion.submitPage":
+      return createNotionPage(await loadNotionAuth(), message.payload);
+
+    case "notion.getPageStatus":
+      return getNotionPageStatus(await loadNotionAuth(), message.pageId);
+
     default: {
       const _exhaustive: never = message;
       throw new Error(`unknown message: ${JSON.stringify(_exhaustive)}`);
@@ -95,10 +284,9 @@ async function submitIssue(
 
   const uploadMap = new Map<string, UploadedFile>();
   for (const att of attachments) {
-    const filename = att.filename.replaceAll("{key}", issue.key);
     try {
       const blob = dataUrlToBlob(att.dataUrl);
-      const results = await uploadAttachment(auth, issue.key, filename, blob);
+      const results = await uploadAttachment(auth, issue.key, att.filename, blob);
       const r = results[0];
       if (r?.mediaApiFileId) {
         uploadMap.set(att.filename, { kind: "media", mediaId: r.mediaApiFileId });

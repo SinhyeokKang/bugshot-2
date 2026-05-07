@@ -2,6 +2,7 @@ import { create } from "zustand";
 import type { Token } from "@/types/picker";
 import type { NetworkLog } from "@/types/network";
 import type { ConsoleLog } from "@/types/console";
+import type { PlatformId } from "@/types/platform";
 import { onBlobSaveFailed } from "@/types/messages";
 import { useIssuesStore } from "./issues-store";
 import { useSettingsStore } from "./settings-store";
@@ -66,6 +67,7 @@ export interface EditorIssueFields {
 interface EditorState {
   captureMode: CaptureMode;
   phase: EditorPhase;
+  targetPlatform: PlatformId;
   target: EditorTarget | null;
   selection: EditorSelection | null;
   styleEdits: EditorStyleEdits;
@@ -118,6 +120,7 @@ interface EditorState {
   setNetworkLogAttach: (on: boolean) => void;
   setConsoleLog: (log: ConsoleLog) => void;
   setConsoleLogAttach: (on: boolean) => void;
+  setTargetPlatform: (platform: PlatformId) => void;
   onSubmitted: (result: { key: string; url: string }) => void;
   reset: () => void;
   hydrate: (snapshot: EditorSnapshot) => void;
@@ -127,6 +130,7 @@ export type EditorSnapshot = Pick<
   EditorState,
   | "captureMode"
   | "phase"
+  | "targetPlatform"
   | "target"
   | "selection"
   | "styleEdits"
@@ -151,6 +155,7 @@ export type EditorSnapshot = Pick<
 const initial = {
   captureMode: "element" as CaptureMode,
   phase: "idle" as EditorPhase,
+  targetPlatform: "jira" as PlatformId,
   target: null,
   selection: null,
   styleEdits: {
@@ -240,15 +245,19 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       set({ phase: "previewing" });
       return;
     }
-    const { lastSubmitFields, jiraConfig } = useSettingsStore.getState();
-    if (
-      lastSubmitFields.projectKey &&
-      lastSubmitFields.projectKey === jiraConfig?.projectKey &&
-      !state.issueFields.assigneeId &&
-      !state.issueFields.priorityId
-    ) {
-      const { projectKey: _, ...restored } = lastSubmitFields;
-      set((s) => ({ issueFields: { ...restored, ...s.issueFields } }));
+    if (state.targetPlatform === "jira") {
+      const { lastSubmitFields, accounts } = useSettingsStore.getState();
+      const lastJira = lastSubmitFields.jira;
+      const jiraAccount = accounts.jira;
+      if (
+        lastJira?.projectKey &&
+        lastJira.projectKey === jiraAccount?.projectKey &&
+        !state.issueFields.assigneeId &&
+        !state.issueFields.priorityId
+      ) {
+        const { projectKey: _, ...restored } = lastJira;
+        set((s) => ({ issueFields: { ...restored, ...s.issueFields } }));
+      }
     }
     const id = state.currentIssueId ?? newIssueId();
     if (state.captureMode === "video") {
@@ -257,6 +266,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       useIssuesStore.getState().saveDraft({
         id,
         status: "draft",
+        platform: state.targetPlatform,
         title: state.draft.title,
         createdAt: Date.now(),
         updatedAt: Date.now(),
@@ -308,6 +318,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       useIssuesStore.getState().saveDraft({
         id,
         status: "draft",
+        platform: state.targetPlatform,
         title: state.draft.title,
         createdAt: Date.now(),
         updatedAt: Date.now(),
@@ -337,6 +348,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       useIssuesStore.getState().saveDraft({
         id,
         status: "draft",
+        platform: state.targetPlatform,
         title: state.draft.title,
         createdAt: Date.now(),
         updatedAt: Date.now(),
@@ -397,6 +409,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setNetworkLogAttach: (on) => set({ networkLogAttach: on }),
   setConsoleLog: (log) => set({ consoleLog: log }),
   setConsoleLogAttach: (on) => set({ consoleLogAttach: on }),
+  setTargetPlatform: (platform) => set({ targetPlatform: platform }),
 
   onSubmitted: (result) => set({ phase: "done", submitResult: result, beforeImage: null, afterImage: null, screenshotRaw: null, screenshotAnnotated: null, videoBlob: null, videoThumbnail: null, networkLog: null, consoleLog: null }),
 

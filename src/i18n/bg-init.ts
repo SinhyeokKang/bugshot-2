@@ -1,5 +1,5 @@
 import { setLocale } from "./index";
-import type { LocaleMode } from "@/store/app-settings-store";
+import type { LocaleMode } from "@/store/settings-ui-store";
 
 function extractLocale(raw: unknown): LocaleMode | undefined {
   try {

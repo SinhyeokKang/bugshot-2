@@ -22,8 +22,8 @@ import { sendBg } from "@/types/messages";
 
 export function ProjectCombobox() {
   const t = useT();
-  const jiraConfig = useSettingsStore((s) => s.jiraConfig);
-  const updateJiraConfig = useSettingsStore((s) => s.updateJiraConfig);
+  const jiraAccount = useSettingsStore((s) => s.accounts.jira);
+  const updateJiraAccount = useSettingsStore((s) => s.updateJiraAccount);
 
   const [open, setOpen] = useState(false);
   const [projects, setProjects] = useState<JiraProject[]>([]);
@@ -31,7 +31,7 @@ export function ProjectCombobox() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!open || !jiraConfig) return;
+    if (!open || !jiraAccount) return;
     if (projects.length > 0) return;
     let cancelled = false;
 
@@ -54,15 +54,15 @@ export function ProjectCombobox() {
     return () => {
       cancelled = true;
     };
-  }, [open, jiraConfig, projects.length]);
+  }, [open, jiraAccount, projects.length]);
 
-  if (!jiraConfig) return null;
+  if (!jiraAccount) return null;
 
-  const selected = projects.find((p) => p.key === jiraConfig.projectKey);
+  const selected = projects.find((p) => p.key === jiraAccount.projectKey);
   const label = selected
     ? `${selected.name} (${selected.key})`
-    : jiraConfig.projectKey
-      ? jiraConfig.projectKey
+    : jiraAccount.projectKey
+      ? jiraAccount.projectKey
       : t("project.select");
 
   return (
@@ -77,7 +77,7 @@ export function ProjectCombobox() {
           <span
             className={cn(
               "min-w-0 flex-1 truncate text-left",
-              !jiraConfig.projectKey && "text-muted-foreground",
+              !jiraAccount.projectKey && "text-muted-foreground",
             )}
           >
             {label}
@@ -110,8 +110,8 @@ export function ProjectCombobox() {
                       key={project.id}
                       value={`${project.name} ${project.key}`}
                       onSelect={() => {
-                        if (jiraConfig.projectKey !== project.key) {
-                          updateJiraConfig({
+                        if (jiraAccount.projectKey !== project.key) {
+                          updateJiraAccount({
                             projectKey: project.key,
                             issueTypeId: undefined,
                             issueTypeName: undefined,
@@ -123,7 +123,7 @@ export function ProjectCombobox() {
                       <Check
                         className={cn(
                           "mr-2 h-4 w-4",
-                          jiraConfig.projectKey === project.key
+                          jiraAccount.projectKey === project.key
                             ? "opacity-100"
                             : "opacity-0",
                         )}

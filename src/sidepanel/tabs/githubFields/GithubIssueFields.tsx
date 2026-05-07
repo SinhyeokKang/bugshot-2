@@ -1,0 +1,70 @@
+import { useT } from "@/i18n";
+import { AssigneeMultiSelect } from "./AssigneeMultiSelect";
+import { LabelCombobox } from "./LabelCombobox";
+import { RepoCombobox, type RepoValue } from "./RepoCombobox";
+import { FieldRow } from "../IssueCreateModal";
+
+export interface GithubIssueFieldsValue {
+  owner?: string;
+  repo?: string;
+  label?: string;
+  assignees: string[];
+}
+
+export function initialGhFields(
+  last: { owner?: string; repo?: string; label?: string; assignees?: string[] } | undefined,
+  defaults: { owner?: string; repo?: string; label?: string; assignees?: string[] } | undefined,
+): GithubIssueFieldsValue {
+  const src = last?.owner && last.repo ? last : defaults;
+  return {
+    owner: src?.owner,
+    repo: src?.repo,
+    label: src?.label,
+    assignees: src?.assignees ?? [],
+  };
+}
+
+interface Props {
+  value: GithubIssueFieldsValue;
+  onChange: (patch: Partial<GithubIssueFieldsValue>) => void;
+}
+
+export function GithubIssueFields({ value, onChange }: Props) {
+  const t = useT();
+  const repoValue: RepoValue | null =
+    value.owner && value.repo ? { owner: value.owner, repo: value.repo } : null;
+
+  return (
+    <div className="flex flex-col gap-4">
+      <FieldRow label={t("github.field.repo")} required>
+        <RepoCombobox
+          value={repoValue}
+          onChange={(next) =>
+            onChange(
+              next
+                ? { owner: next.owner, repo: next.repo, label: undefined, assignees: [] }
+                : { owner: undefined, repo: undefined, label: undefined, assignees: [] },
+            )
+          }
+        />
+      </FieldRow>
+      <FieldRow label={t("github.field.labels")}>
+        <LabelCombobox
+          owner={value.owner}
+          repo={value.repo}
+          value={value.label}
+          onChange={(label) => onChange({ label })}
+        />
+      </FieldRow>
+      <FieldRow label={t("github.field.assignees")}>
+        <AssigneeMultiSelect
+          owner={value.owner}
+          repo={value.repo}
+          value={value.assignees}
+          onChange={(assignees) => onChange({ assignees })}
+        />
+      </FieldRow>
+    </div>
+  );
+}
+
