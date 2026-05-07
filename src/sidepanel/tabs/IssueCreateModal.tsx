@@ -28,7 +28,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
 import {
   Popover,
   PopoverContent,
@@ -825,10 +824,10 @@ export function FieldRow({
 }) {
   return (
     <div className="grid gap-1.5">
-      <Label>
+      <label className="text-xs text-muted-foreground">
         {label}
         {required ? <span className="ml-0.5 text-destructive">*</span> : null}
-      </Label>
+      </label>
       {children}
     </div>
   );

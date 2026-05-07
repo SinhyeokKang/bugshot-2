@@ -151,7 +151,14 @@ async function exchangeCode(
       { platform: "linear" },
     );
   }
-  return (await res.json()) as LinearTokenResponse;
+  const data = (await res.json()) as LinearTokenResponse | { error?: string; error_description?: string };
+  if ("error" in data && data.error) {
+    throw new OAuthError(data.error_description || data.error, {
+      platform: "linear",
+      cancelled: isLinearCancellationCode(data.error),
+    });
+  }
+  return data as LinearTokenResponse;
 }
 
 export async function refreshLinearToken(
@@ -175,7 +182,13 @@ export async function refreshLinearToken(
       { platform: "linear" },
     );
   }
-  const tokens = (await res.json()) as LinearTokenResponse;
+  const rData = (await res.json()) as LinearTokenResponse | { error?: string; error_description?: string };
+  if ("error" in rData && rData.error) {
+    throw new OAuthError(rData.error_description || rData.error, {
+      platform: "linear",
+    });
+  }
+  const tokens = rData as LinearTokenResponse;
   const refreshed: LinearOAuthAuth = {
     ...auth,
     accessToken: tokens.access_token,

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   ArrowUpRight,
-  Bug,
+  SquareMousePointer,
   Camera,
   CircleCheck,
   Crosshair,
@@ -158,7 +158,7 @@ function EmptyState({ onStartElement, onStartScreenshot, onStartVideo }: { onSta
       <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 px-6">
         <div className="flex flex-col items-center gap-1">
           <div className="mb-1 rounded-full bg-muted p-3">
-            <Bug className="h-6 w-6 text-muted-foreground" />
+            <SquareMousePointer className="h-6 w-6 text-muted-foreground" />
           </div>
           <h3 className="whitespace-pre-line text-center text-[18px] font-semibold">{t("issue.empty.title")}</h3>
         </div>

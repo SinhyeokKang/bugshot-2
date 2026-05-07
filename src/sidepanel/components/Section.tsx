@@ -38,7 +38,7 @@ export function Section({
   collapsible,
   defaultOpen = true,
 }: {
-  title?: string;
+  title?: React.ReactNode;
   action?: React.ReactNode;
   children: React.ReactNode;
   collapsible?: boolean;

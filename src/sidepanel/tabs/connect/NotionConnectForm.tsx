@@ -3,17 +3,6 @@ import { CircleCheck, ExternalLink, KeyRound, Loader2 } from "lucide-react";
 import { SiNotion } from "@icons-pack/react-simple-icons";
 import { useT } from "@/i18n";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -35,7 +24,7 @@ import type {
   NotionSelectFieldValue,
 } from "@/types/notion";
 import { isOAuthCancelled, sendBg } from "@/types/messages";
-import { PageFooter, PageScroll, Section } from "../../components/Section";
+import { PageScroll, Section } from "../../components/Section";
 import { DatabaseCombobox } from "../notionFields/DatabaseCombobox";
 import { PropertiesFieldset } from "../notionFields/PropertiesFieldset";
 import { StatusSelect } from "../notionFields/StatusSelect";
@@ -60,11 +49,6 @@ export function NotionConnectForm() {
           <NotionDefaultsBlock />
         </Section>
       </PageScroll>
-      <PageFooter>
-        <div className="flex justify-between">
-          <DisconnectButton />
-        </div>
-      </PageFooter>
     </>
   );
 }
@@ -449,41 +433,7 @@ function NotionSummary() {
           </Badge>
         </CardContent>
       </Card>
-      <p className="text-xs text-muted-foreground">
-        {t("platform.connected", { platform: t("platform.tab.notion") })}
-      </p>
     </div>
   );
 }
 
-function DisconnectButton() {
-  const t = useT();
-  const removeAccount = useSettingsStore((s) => s.removeAccount);
-  const platform = t("platform.tab.notion");
-
-  return (
-    <AlertDialog>
-      <AlertDialogTrigger asChild>
-        <Button variant="outline" className="text-destructive">
-          {t("platform.disconnect")}
-        </Button>
-      </AlertDialogTrigger>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>
-            {t("platform.disconnect.title", { platform })}
-          </AlertDialogTitle>
-          <AlertDialogDescription>
-            {t("platform.disconnect.body")}
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>{t("common.close")}</AlertDialogCancel>
-          <AlertDialogAction onClick={() => removeAccount("notion")}>
-            {t("platform.disconnect.confirm")}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
-  );
-}
