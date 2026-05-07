@@ -6,8 +6,22 @@ import {
   SiNotion,
 } from "@icons-pack/react-simple-icons";
 import { useT } from "@/i18n";
+import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { useSettingsStore } from "@/store/settings-store";
+import { PageFooter } from "../components/Section";
+import type { PlatformId } from "@/types/platform";
 import { GithubConnectForm } from "./connect/GithubConnectForm";
 import { JiraConnectForm } from "./connect/JiraConnectForm";
 import { LinearConnectForm } from "./connect/LinearConnectForm";
@@ -17,12 +31,24 @@ type PlatformSubTab = "jira" | "github" | "linear" | "notion";
 
 const PLATFORM_ORDER: PlatformSubTab[] = ["jira", "github", "linear", "notion"];
 
+const PLATFORM_LABEL_KEYS: Record<PlatformSubTab, string> = {
+  jira: "platform.tab.jira",
+  github: "platform.tab.github",
+  linear: "platform.tab.linear",
+  notion: "platform.tab.notion",
+};
+
 export function IntegrationsTab() {
   const t = useT();
   const accounts = useSettingsStore((s) => s.accounts);
+  const removeAccount = useSettingsStore((s) => s.removeAccount);
+  const removeAllAccounts = useSettingsStore((s) => s.removeAllAccounts);
   const [sub, setSub] = useState<PlatformSubTab>(
     () => PLATFORM_ORDER.find((p) => !!accounts[p]) ?? "jira",
   );
+
+  const connectedCount = PLATFORM_ORDER.filter((p) => !!accounts[p]).length;
+  const currentConnected = !!accounts[sub];
 
   return (
     <Tabs
@@ -78,6 +104,53 @@ export function IntegrationsTab() {
       >
         <NotionConnectForm />
       </TabsContent>
+
+      {currentConnected && (
+        <PageFooter>
+          <div className="flex items-center justify-between">
+            {connectedCount >= 2 ? (
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="outline" className="text-destructive">
+                    {t("platform.disconnectAll")}
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>{t("platform.disconnectAll.title")}</AlertDialogTitle>
+                    <AlertDialogDescription>{t("platform.disconnectAll.body")}</AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>{t("common.close")}</AlertDialogCancel>
+                    <AlertDialogAction onClick={() => { removeAllAccounts(); setSub("jira"); }}>
+                      {t("platform.disconnect.confirm")}
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            ) : <span />}
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="outline">
+                  {t("platform.disconnectPlatform", { platform: t(PLATFORM_LABEL_KEYS[sub] as any) })}
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>{t("platform.disconnect.title", { platform: t(PLATFORM_LABEL_KEYS[sub] as any) })}</AlertDialogTitle>
+                  <AlertDialogDescription>{t("platform.disconnect.body")}</AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>{t("common.close")}</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => removeAccount(sub as PlatformId)}>
+                    {t("platform.disconnect.confirm")}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </div>
+        </PageFooter>
+      )}
     </Tabs>
   );
 }

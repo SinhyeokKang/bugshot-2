@@ -192,12 +192,24 @@ export async function getMyself(auth: GithubAuth): Promise<GithubMyself> {
     name?: string | null;
     email?: string | null;
   }>(auth, "/user");
+  let email = raw.email ?? undefined;
+  if (!email) {
+    try {
+      const emails = await githubFetch<{ email: string; primary: boolean }[]>(
+        auth,
+        "/user/emails",
+      );
+      email = emails.find((e) => e.primary)?.email;
+    } catch {
+      // user:email scope 없거나 실패 시 무시
+    }
+  }
   return {
     login: raw.login,
     id: raw.id,
     avatarUrl: raw.avatar_url,
     name: raw.name ?? undefined,
-    email: raw.email ?? undefined,
+    email,
   };
 }
 

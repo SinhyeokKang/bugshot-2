@@ -30,6 +30,7 @@ function stripSubmitted(
     ...issue,
     ...patch,
     status: "submitted",
+    submittedAt: Date.now(),
     updatedAt: Date.now(),
     snapshot: { before: false, after: false },
     draft: { title: "", sections: {} },
@@ -142,6 +143,7 @@ export interface IssueRecord {
   networkLogBlobKey?: string;
   consoleLogBlobKey?: string;
 
+  submittedAt?: number;
   platform: PlatformId;
   key?: string;
   url?: string;

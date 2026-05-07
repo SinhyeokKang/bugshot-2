@@ -1,12 +1,19 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi, afterEach } from "vitest";
 import {
   buildAuthHeader,
   extractGithubDetail,
+  getMyself,
   mapCreateIssueBody,
   messageForGithubStatus,
   normalizeIssueStatus,
   normalizeRepo,
 } from "../github-api";
+import type { GithubAuth } from "@/types/github";
+
+vi.mock("@/i18n", () => ({
+  t: (k: string, p?: Record<string, unknown>) =>
+    p ? k.replace(/\{(\w+)\}/g, (_, key) => String(p[key] ?? `{${key}}`)) : k,
+}));
 
 describe("buildAuthHeader", () => {
   it("PAT은 'token <pat>'", () => {
@@ -219,7 +226,73 @@ describe("messageForGithubStatus", () => {
     expect(messageForGithubStatus(502)).toBeTruthy();
   });
 
-  it("알려지지 않은 상태 코드는 generic 메시지에 코드 포함", () => {
-    expect(messageForGithubStatus(418)).toContain("418");
+  it("알려지지 않은 상태 코드는 generic 메시지 반환", () => {
+    const msg = messageForGithubStatus(418);
+    expect(msg).toContain("github.error.generic");
+  });
+});
+
+describe("getMyself — email fallback", () => {
+  const auth: GithubAuth = { kind: "pat", pat: "ghp_x", viewerLogin: "u" };
+  const originalFetch = globalThis.fetch;
+
+  function mockFetchResponses(...responses: Array<{ body: unknown; ok?: boolean }>) {
+    const queue = [...responses];
+    globalThis.fetch = vi.fn(async () => {
+      const next = queue.shift()!;
+      return {
+        ok: next.ok ?? true,
+        status: next.ok === false ? 403 : 200,
+        json: async () => next.body,
+        text: async () => JSON.stringify(next.body),
+      } as Response;
+    });
+  }
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+  });
+
+  it("/user에 email이 있으면 그대로 사용", async () => {
+    mockFetchResponses({ body: { login: "u", id: 1, email: "pub@e.com" } });
+
+    const me = await getMyself(auth);
+    expect(me.email).toBe("pub@e.com");
+    expect(globalThis.fetch).toHaveBeenCalledTimes(1);
+  });
+
+  it("/user email이 null이면 /user/emails에서 primary를 가져옴", async () => {
+    mockFetchResponses(
+      { body: { login: "u", id: 1, email: null } },
+      { body: [
+        { email: "secondary@e.com", primary: false },
+        { email: "primary@e.com", primary: true },
+      ]},
+    );
+
+    const me = await getMyself(auth);
+    expect(me.email).toBe("primary@e.com");
+    expect(globalThis.fetch).toHaveBeenCalledTimes(2);
+    expect((globalThis.fetch as ReturnType<typeof vi.fn>).mock.calls[1][0]).toContain("/user/emails");
+  });
+
+  it("/user/emails 실패 시 email은 undefined", async () => {
+    mockFetchResponses(
+      { body: { login: "u", id: 1, email: null } },
+      { body: { message: "Forbidden" }, ok: false },
+    );
+
+    const me = await getMyself(auth);
+    expect(me.email).toBeUndefined();
+  });
+
+  it("/user/emails에 primary가 없으면 email은 undefined", async () => {
+    mockFetchResponses(
+      { body: { login: "u", id: 1, email: null } },
+      { body: [{ email: "nope@e.com", primary: false }] },
+    );
+
+    const me = await getMyself(auth);
+    expect(me.email).toBeUndefined();
   });
 });

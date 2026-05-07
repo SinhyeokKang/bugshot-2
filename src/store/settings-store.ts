@@ -26,6 +26,7 @@ interface SettingsState {
   titlePrefix: string;
   setAccount: <P extends PlatformId>(platform: P, account: Accounts[P]) => void;
   removeAccount: (platform: PlatformId) => void;
+  removeAllAccounts: () => void;
   updateJiraAccount: (
     patch: Partial<Omit<JiraAccount, "platform" | "connectedAt">>,
   ) => void;
@@ -150,6 +151,7 @@ export const useSettingsStore = create<SettingsState>()(
           delete next[platform];
           return { accounts: next };
         }),
+      removeAllAccounts: () => set({ accounts: {} }),
       updateJiraAccount: (patch) =>
         set((s) => {
           const cur = s.accounts.jira;

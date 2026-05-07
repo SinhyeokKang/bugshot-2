@@ -131,7 +131,7 @@ export function IssueListTab() {
       displayable
         .filter((i) => matchesStatus(i, statusFilter))
         .filter((i) => !query || matchesQuery(i, query))
-        .sort((a, b) => b.createdAt - a.createdAt),
+        .sort((a, b) => issueTimestamp(b) - issueTimestamp(a)),
     [displayable, statusFilter, query],
   );
 
@@ -253,7 +253,7 @@ export function IssueListTab() {
       ) : (
         <PageScroll>
           {groupByDate(filtered).map(([date, group]) => (
-          <Section key={date} title={date} collapsible>
+          <Section key={date} title={<>{date}<Badge variant="outline" className="ml-2 align-middle text-xs tabular-nums">{group.length}</Badge></>} collapsible>
             <ul className="flex flex-col gap-2">
               {group.map((issue) => (
                 <IssueRow
@@ -337,34 +337,13 @@ function IssueRow({
   const isSubmitted = issue.status === "submitted" && !!issue.url;
   const removeIssue = useIssuesStore((s) => s.removeIssue);
 
-  // submitted: [플랫폼 chip] + 작성일 + 위치(jira host / github owner-repo) + key + (jira 한정) issueTypeName
-  // draft: 초안 + 작성일 (플랫폼 미정)
   const textMetaParts: string[] = [];
   if (isSubmitted) {
-    textMetaParts.push(formatDate(issue.createdAt, t));
-    if (issue.platform === "github") {
-      const coords = resolveGithubCoords(issue);
-      if (coords) textMetaParts.push(`${coords.owner}/${coords.repo}`);
-    } else if (issue.platform === "jira" && issue.url) {
-      try { textMetaParts.push(new URL(issue.url).hostname); } catch {}
-    } else if (issue.platform === "linear" && issue.linearTeamKey) {
-      textMetaParts.push(issue.linearTeamKey);
-    } else if (issue.platform === "notion" && issue.notionDatabaseTitle) {
-      textMetaParts.push(issue.notionDatabaseTitle);
-    }
+    textMetaParts.push(formatDate(issueTimestamp(issue), t));
     if (issue.key) textMetaParts.push(formatIssueKey(issue));
-    if (issue.platform === "jira" && issue.issueTypeName) {
-      textMetaParts.push(issue.issueTypeName);
-    } else if (issue.platform === "github" && issue.githubLabels?.length) {
-      textMetaParts.push(issue.githubLabels.join(", "));
-    } else if (issue.platform === "linear" && issue.linearLabelName) {
-      textMetaParts.push(issue.linearLabelName);
-    } else if (issue.platform === "notion" && issue.notionStatusOption) {
-      textMetaParts.push(issue.notionStatusOption);
-    }
   } else {
     textMetaParts.push(t("issueList.draft"));
-    textMetaParts.push(formatDate(issue.createdAt, t));
+    textMetaParts.push(formatDate(issueTimestamp(issue), t));
   }
 
   const handleCardClick = () => {
@@ -747,37 +726,41 @@ function SubmittedBadge({
   }
 
   // Notion
-  if (notionStatus === "error") {
+  if (platform === "notion") {
+    if (notionStatus === "error") {
+      return (
+        <Badge variant="outline" className="w-fit shrink-0 text-[11px]">
+          {t("issueList.unknown")}
+        </Badge>
+      );
+    }
+    if (!notionStatus) {
+      return (
+        <Badge variant="outline" className="w-fit shrink-0 text-[11px]">
+          {t("issueList.submitted")}
+        </Badge>
+      );
+    }
+    if (notionStatus.statusOption) {
+      const category = notionStatusCategory(notionStatus.statusOption.color);
+      const notionColors = STATUS_CATEGORY_COLORS[category];
+      return (
+        <Badge
+          variant="outline"
+          className={`w-fit shrink-0 border-transparent text-[11px] ${notionColors.bg} ${notionColors.text} ${notionColors.darkBg} ${notionColors.darkText}`}
+        >
+          {notionStatus.statusOption.name}
+        </Badge>
+      );
+    }
     return (
       <Badge variant="outline" className="w-fit shrink-0 text-[11px]">
-        {t("issueList.unknown")}
+        {t("issueList.notion.noStatus")}
       </Badge>
     );
   }
-  if (!notionStatus) {
-    return (
-      <Badge variant="outline" className="w-fit shrink-0 text-[11px]">
-        {t("issueList.submitted")}
-      </Badge>
-    );
-  }
-  if (notionStatus.statusOption) {
-    const category = notionStatusCategory(notionStatus.statusOption.color);
-    const notionColors = STATUS_CATEGORY_COLORS[category];
-    return (
-      <Badge
-        variant="outline"
-        className={`w-fit shrink-0 border-transparent text-[11px] ${notionColors.bg} ${notionColors.text} ${notionColors.darkBg} ${notionColors.darkText}`}
-      >
-        {notionStatus.statusOption.name}
-      </Badge>
-    );
-  }
-  return (
-    <Badge variant="outline" className="w-fit shrink-0 text-[11px]">
-      {t("issueList.notion.noStatus")}
-    </Badge>
-  );
+
+  return null;
 }
 
 // Jira는 `[BUG-1]`, GitHub은 `#42`로 시각적 구분.
@@ -787,11 +770,16 @@ export function formatIssueKey(issue: Pick<IssueRecord, "platform" | "key">): st
   return issue.key;
 }
 
+function issueTimestamp(issue: IssueRecord): number {
+  return issue.submittedAt ?? issue.createdAt;
+}
+
 function dateLabel(ts: number): string {
-  return new Date(ts).toLocaleDateString(dateBcp47(), {
+  const locale = dateBcp47();
+  return new Date(ts).toLocaleDateString(locale, {
     year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
+    month: locale === "ko-KR" ? "long" : "short",
+    day: "numeric",
   });
 }
 
@@ -808,7 +796,7 @@ function formatDate(ts: number, t: (key: any, params?: any) => string): string {
 function groupByDate(issues: IssueRecord[]): [string, IssueRecord[]][] {
   const groups = new Map<string, IssueRecord[]>();
   for (const issue of issues) {
-    const key = dateLabel(issue.createdAt);
+    const key = dateLabel(issueTimestamp(issue));
     const list = groups.get(key);
     if (list) list.push(issue);
     else groups.set(key, [issue]);

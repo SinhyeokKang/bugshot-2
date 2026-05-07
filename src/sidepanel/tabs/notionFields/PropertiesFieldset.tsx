@@ -1,5 +1,4 @@
 import type { NotionDatabaseSchema } from "@/types/notion";
-import { Label } from "@/components/ui/label";
 import { PropertySelectCombobox } from "./PropertySelectCombobox";
 
 interface SelectFieldValue {
@@ -34,7 +33,7 @@ export function PropertiesFieldset({ schema, values, onChange }: Props) {
           p.type === "multi_select" ? "multi_select" : "select";
         return (
           <div key={p.id} className="grid gap-1.5">
-            <Label>{p.name}</Label>
+            <label className="text-xs text-muted-foreground">{p.name}</label>
             <PropertySelectCombobox
               schema={p}
               value={cur?.options ?? []}

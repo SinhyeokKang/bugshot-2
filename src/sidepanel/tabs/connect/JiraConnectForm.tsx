@@ -3,17 +3,6 @@ import { CircleCheck, ExternalLink, KeyRound, Loader2 } from "lucide-react";
 import { SiJirasoftware as Jira } from "@icons-pack/react-simple-icons";
 import { useT } from "@/i18n";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -39,7 +28,7 @@ import type {
   JiraSite,
 } from "@/types/jira";
 import { isOAuthCancelled, sendBg, type OAuthStartResultMsg } from "@/types/messages";
-import { PageFooter, PageScroll, Section } from "../../components/Section";
+import { PageScroll, Section } from "../../components/Section";
 import { IssueTypeCombobox } from "../IssueTypeCombobox";
 import { ProjectCombobox } from "../ProjectCombobox";
 
@@ -77,12 +66,6 @@ export function JiraConnectForm() {
           </div>
         </Section>
       </PageScroll>
-
-      <PageFooter>
-        <div className="flex justify-between">
-          <DisconnectButton />
-        </div>
-      </PageFooter>
 
       <SetupDialog />
     </>
@@ -248,7 +231,7 @@ function JiraOnboarding() {
             className="gap-1.5"
           >
             <KeyRound className="h-3.5 w-3.5" />
-            API Token
+            {t("jira.apiTokenButton")}
           </Button>
         </div>
 
@@ -503,7 +486,7 @@ function JiraSummary() {
 
   const auth = jiraAccount.auth;
   const host = jiraHostLabel(auth);
-  const kindLabel = auth.kind === "oauth" ? "OAuth" : "API Token";
+  const kindLabel = auth.kind === "oauth" ? t("jira.auth.kind.oauth") : t("jira.auth.kind.apiToken");
 
   return (
     <div className="flex flex-col gap-1.5">
@@ -519,41 +502,7 @@ function JiraSummary() {
           </Badge>
         </CardContent>
       </Card>
-      <p className="text-xs text-muted-foreground">
-        {t("platform.connected", { platform: t("platform.tab.jira") })}
-      </p>
     </div>
   );
 }
 
-function DisconnectButton() {
-  const t = useT();
-  const removeAccount = useSettingsStore((s) => s.removeAccount);
-  const platform = t("platform.tab.jira");
-
-  return (
-    <AlertDialog>
-      <AlertDialogTrigger asChild>
-        <Button variant="outline" className="text-destructive">
-          {t("platform.disconnect")}
-        </Button>
-      </AlertDialogTrigger>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>{t("platform.disconnect.title", { platform })}</AlertDialogTitle>
-          <AlertDialogDescription>
-            {t("platform.disconnect.body")}
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>{t("common.close")}</AlertDialogCancel>
-          <AlertDialogAction
-            onClick={() => removeAccount("jira")}
-          >
-            {t("platform.disconnect.confirm")}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
-  );
-}

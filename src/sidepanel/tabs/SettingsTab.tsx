@@ -43,31 +43,6 @@ export function SettingsTab() {
   return (
     <PageShell>
       <PageScroll>
-        <Section title={t("settings.language")}>
-          <Tabs value={locale} onValueChange={(v) => setLocale(v as LocaleMode)}>
-            <TabsList className="grid w-full grid-cols-2">
-              {LOCALE_OPTIONS.map((o) => (
-                <TabsTrigger key={o.value} value={o.value}>
-                  {o.label}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </Tabs>
-        </Section>
-
-        <Section title={t("settings.theme")}>
-          <Tabs value={theme} onValueChange={(v) => setTheme(v as ThemeMode)}>
-            <TabsList className="grid w-full grid-cols-3">
-              {themeOptions.map((o) => (
-                <TabsTrigger key={o.value} value={o.value} className="gap-1.5">
-                  {o.icon}
-                  {o.label}
-                </TabsTrigger>
-              ))}
-            </TabsList>
-          </Tabs>
-        </Section>
-
         <Section title={t("settings.issueSettings")}>
           <div className="flex flex-col gap-3">
             <div className="flex flex-col gap-1.5">
@@ -102,6 +77,31 @@ export function SettingsTab() {
             </Card>
             </div>
           </div>
+        </Section>
+
+        <Section title={t("settings.language")}>
+          <Tabs value={locale} onValueChange={(v) => setLocale(v as LocaleMode)}>
+            <TabsList className="grid w-full grid-cols-2">
+              {LOCALE_OPTIONS.map((o) => (
+                <TabsTrigger key={o.value} value={o.value}>
+                  {o.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
+        </Section>
+
+        <Section title={t("settings.theme")}>
+          <Tabs value={theme} onValueChange={(v) => setTheme(v as ThemeMode)}>
+            <TabsList className="grid w-full grid-cols-3">
+              {themeOptions.map((o) => (
+                <TabsTrigger key={o.value} value={o.value} className="gap-1.5">
+                  {o.icon}
+                  {o.label}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </Tabs>
         </Section>
       </PageScroll>
       <PageFooter>

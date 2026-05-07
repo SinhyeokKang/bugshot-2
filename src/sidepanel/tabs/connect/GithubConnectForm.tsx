@@ -3,17 +3,6 @@ import { CircleCheck, ExternalLink, KeyRound, Loader2 } from "lucide-react";
 import { SiGithub as Github } from "@icons-pack/react-simple-icons";
 import { useT } from "@/i18n";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -33,7 +22,7 @@ import type {
   GithubOAuthAuth,
 } from "@/types/github";
 import { isOAuthCancelled, sendBg } from "@/types/messages";
-import { PageFooter, PageScroll, Section } from "../../components/Section";
+import { PageScroll, Section } from "../../components/Section";
 import { LabelCombobox } from "../githubFields/LabelCombobox";
 import { RepoCombobox, type RepoValue } from "../githubFields/RepoCombobox";
 
@@ -59,11 +48,6 @@ export function GithubConnectForm() {
           </div>
         </Section>
       </PageScroll>
-      <PageFooter>
-        <div className="flex justify-between">
-          <DisconnectButton />
-        </div>
-      </PageFooter>
     </>
   );
 }
@@ -326,7 +310,7 @@ function GithubSummary() {
   const t = useT();
   const account = useSettingsStore((s) => s.accounts.github);
   if (!account) return null;
-  const kindLabel = account.auth.kind === "oauth" ? "OAuth" : "PAT";
+  const kindLabel = account.auth.kind === "oauth" ? t("github.auth.kind.oauth") : t("github.auth.kind.pat");
   const login = account.auth.viewerLogin || t("github.viewerLogin");
 
   return (
@@ -343,39 +327,7 @@ function GithubSummary() {
           </Badge>
         </CardContent>
       </Card>
-      <p className="text-xs text-muted-foreground">
-        {t("platform.connected", { platform: t("platform.tab.github") })}
-      </p>
     </div>
   );
 }
 
-function DisconnectButton() {
-  const t = useT();
-  const removeAccount = useSettingsStore((s) => s.removeAccount);
-  const platform = t("platform.tab.github");
-
-  return (
-    <AlertDialog>
-      <AlertDialogTrigger asChild>
-        <Button variant="outline" className="text-destructive">
-          {t("platform.disconnect")}
-        </Button>
-      </AlertDialogTrigger>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>{t("platform.disconnect.title", { platform })}</AlertDialogTitle>
-          <AlertDialogDescription>
-            {t("platform.disconnect.body")}
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>{t("common.close")}</AlertDialogCancel>
-          <AlertDialogAction onClick={() => removeAccount("github")}>
-            {t("platform.disconnect.confirm")}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
-  );
-}
