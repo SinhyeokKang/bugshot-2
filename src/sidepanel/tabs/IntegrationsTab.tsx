@@ -1,15 +1,21 @@
 import { useState } from "react";
-import { SiGithub, SiJirasoftware, SiLinear } from "@icons-pack/react-simple-icons";
+import {
+  SiGithub,
+  SiJirasoftware,
+  SiLinear,
+  SiNotion,
+} from "@icons-pack/react-simple-icons";
 import { useT } from "@/i18n";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useSettingsStore } from "@/store/settings-store";
 import { GithubConnectForm } from "./connect/GithubConnectForm";
 import { JiraConnectForm } from "./connect/JiraConnectForm";
 import { LinearConnectForm } from "./connect/LinearConnectForm";
+import { NotionConnectForm } from "./connect/NotionConnectForm";
 
-type PlatformSubTab = "jira" | "github" | "linear";
+type PlatformSubTab = "jira" | "github" | "linear" | "notion";
 
-const PLATFORM_ORDER: PlatformSubTab[] = ["jira", "github", "linear"];
+const PLATFORM_ORDER: PlatformSubTab[] = ["jira", "github", "linear", "notion"];
 
 export function IntegrationsTab() {
   const t = useT();
@@ -25,7 +31,7 @@ export function IntegrationsTab() {
       className="flex min-h-0 flex-1 flex-col gap-0"
     >
       <div className="shrink-0 border-b border-border px-4 py-4">
-        <TabsList className="grid h-9 w-full grid-cols-3">
+        <TabsList className="grid h-9 w-full grid-cols-4">
           <TabsTrigger value="jira" className="gap-1.5">
             <SiJirasoftware className="h-3.5 w-3.5" color="default" />
             {t("platform.tab.jira")}
@@ -37,6 +43,10 @@ export function IntegrationsTab() {
           <TabsTrigger value="linear" className="gap-1.5">
             <SiLinear className="h-3.5 w-3.5" color="default" />
             {t("platform.tab.linear")}
+          </TabsTrigger>
+          <TabsTrigger value="notion" className="gap-1.5">
+            <SiNotion className="h-3.5 w-3.5 dark:invert" color="default" />
+            {t("platform.tab.notion")}
           </TabsTrigger>
         </TabsList>
       </div>
@@ -60,6 +70,13 @@ export function IntegrationsTab() {
         className="mt-0 flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden"
       >
         <LinearConnectForm />
+      </TabsContent>
+
+      <TabsContent
+        value="notion"
+        className="mt-0 flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden"
+      >
+        <NotionConnectForm />
       </TabsContent>
     </Tabs>
   );

@@ -4,6 +4,7 @@ import { PANEL_PORT_PREFIX } from "@/lib/session-keys";
 import { GithubError } from "./github-api";
 import { JiraError } from "./jira-api";
 import { LinearError } from "./linear-api";
+import { NotionError } from "./notion-api";
 import { handleMessage } from "./messages";
 import { OAuthError } from "./oauth";
 import { activateTab, setupTabBindings } from "./tab-bindings";
@@ -53,6 +54,16 @@ const BG_REQUEST_TYPES = new Set([
   "linear.uploadFile",
   "linear.createAttachment",
   "linear.getIssueStatus",
+  "notion.oauth.available",
+  "notion.startOAuth",
+  "notion.testToken",
+  "notion.disconnect",
+  "notion.getMyself",
+  "notion.searchDatabases",
+  "notion.getDatabaseSchema",
+  "notion.uploadFile",
+  "notion.submitPage",
+  "notion.getPageStatus",
 ]);
 
 function disableGlobalSidePanel(): void {
@@ -127,6 +138,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           body: error.body,
         });
       } else if (error instanceof LinearError) {
+        sendResponse({
+          ok: false,
+          error: error.message,
+          status: error.status,
+          body: error.body,
+        });
+      } else if (error instanceof NotionError) {
         sendResponse({
           ok: false,
           error: error.message,

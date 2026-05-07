@@ -78,12 +78,18 @@ describe("getOAuthErrorPlatform", () => {
     ).toBe("linear");
   });
 
+  it("body.platform이 'notion'이면 'notion'", () => {
+    expect(
+      getOAuthErrorPlatform(new BgError("x", 401, { oauthRefreshFailed: true, platform: "notion" })),
+    ).toBe("notion");
+  });
+
   it("platform이 없거나 알 수 없는 값이면 null", () => {
     expect(
       getOAuthErrorPlatform(new BgError("x", 401, { oauthRefreshFailed: true })),
     ).toBeNull();
     expect(
-      getOAuthErrorPlatform(new BgError("x", 401, { platform: "notion" })),
+      getOAuthErrorPlatform(new BgError("x", 401, { platform: "slack" })),
     ).toBeNull();
   });
 

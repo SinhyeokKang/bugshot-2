@@ -33,6 +33,15 @@ import type {
   LinearTeam,
   LinearUser,
 } from "./linear";
+import type {
+  NotionCreatePagePayload,
+  NotionCreatePageResult,
+  NotionDatabase,
+  NotionDatabaseSchema,
+  NotionFileUploadResult,
+  NotionMyself,
+  NotionPageStatus,
+} from "./notion";
 import type { PlatformId } from "./platform";
 
 export interface OAuthStartResultMsg {
@@ -95,7 +104,17 @@ export type BgRequest =
   | { type: "linear.submitIssue"; payload: LinearCreateIssuePayload }
   | { type: "linear.uploadFile"; filename: string; contentType: string; dataUrl: string }
   | { type: "linear.createAttachment"; issueId: string; title: string; url: string }
-  | { type: "linear.getIssueStatus"; issueId: string };
+  | { type: "linear.getIssueStatus"; issueId: string }
+  | { type: "notion.oauth.available" }
+  | { type: "notion.startOAuth" }
+  | { type: "notion.testToken"; token: string }
+  | { type: "notion.disconnect" }
+  | { type: "notion.getMyself" }
+  | { type: "notion.searchDatabases"; query: string }
+  | { type: "notion.getDatabaseSchema"; databaseId: string }
+  | { type: "notion.uploadFile"; filename: string; contentType: string; dataUrl: string }
+  | { type: "notion.submitPage"; payload: NotionCreatePagePayload }
+  | { type: "notion.getPageStatus"; pageId: string };
 
 export type BgResponse<T = unknown> =
   | { ok: true; result: T }
@@ -154,7 +173,9 @@ export function getOAuthErrorPlatform(err: unknown): PlatformId | null {
   if (!(err instanceof BgError)) return null;
   if (!err.body || typeof err.body !== "object") return null;
   const p = (err.body as Record<string, unknown>).platform;
-  return p === "jira" || p === "github" || p === "linear" ? p : null;
+  return p === "jira" || p === "github" || p === "linear" || p === "notion"
+    ? p
+    : null;
 }
 
 type Listener = () => void;
@@ -219,4 +240,11 @@ export type {
   LinearProject,
   LinearTeam,
   LinearUser,
+  NotionCreatePagePayload,
+  NotionCreatePageResult,
+  NotionDatabase,
+  NotionDatabaseSchema,
+  NotionFileUploadResult,
+  NotionMyself,
+  NotionPageStatus,
 };

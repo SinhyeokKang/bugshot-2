@@ -7,6 +7,9 @@ interface Env {
   GITHUB_CLIENT_SECRET_DEV?: string;
   GITHUB_CLIENT_ID_PROD?: string;
   GITHUB_CLIENT_SECRET_PROD?: string;
+  // Notion OAuth — public integration. App 1개에 dev/prod redirect URI 둘 다 등록.
+  NOTION_CLIENT_ID?: string;
+  NOTION_CLIENT_SECRET?: string;
   ALLOWED_ORIGINS?: string;
 }
 
@@ -20,6 +23,7 @@ interface TokenRequestBody {
 
 const ATLASSIAN_TOKEN_URL = "https://auth.atlassian.com/oauth/token";
 const GITHUB_TOKEN_URL = "https://github.com/login/oauth/access_token";
+const NOTION_TOKEN_URL = "https://api.notion.com/v1/oauth/token";
 
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {
@@ -57,7 +61,49 @@ export async function handleRequest(
   if (url.pathname === "/github/refresh") {
     return handleGithubRefresh(req, env, corsOrigin, fetchImpl);
   }
+  if (url.pathname === "/notion/token") {
+    return handleNotionToken(req, env, corsOrigin, fetchImpl);
+  }
   return jsonError(404, "not found", corsOrigin);
+}
+
+async function handleNotionToken(
+  req: Request,
+  env: Env,
+  corsOrigin: string,
+  fetchImpl: typeof fetch,
+): Promise<Response> {
+  let body: TokenRequestBody;
+  try {
+    body = (await req.json()) as TokenRequestBody;
+  } catch {
+    return jsonError(400, "invalid JSON body", corsOrigin);
+  }
+  if (!body.code || !body.redirect_uri) {
+    return jsonError(400, "missing code or redirect_uri", corsOrigin);
+  }
+  if (!env.NOTION_CLIENT_ID || !env.NOTION_CLIENT_SECRET) {
+    return jsonError(503, "notion oauth not configured", corsOrigin);
+  }
+  if (body.client_id && body.client_id !== env.NOTION_CLIENT_ID) {
+    return jsonError(400, "client_id not registered", corsOrigin);
+  }
+  const basic = btoa(`${env.NOTION_CLIENT_ID}:${env.NOTION_CLIENT_SECRET}`);
+  const upstream = await fetchImpl(NOTION_TOKEN_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+      Authorization: `Basic ${basic}`,
+      "Notion-Version": "2022-06-28",
+    },
+    body: JSON.stringify({
+      grant_type: "authorization_code",
+      code: body.code,
+      redirect_uri: body.redirect_uri,
+    }),
+  });
+  return relayUpstream(upstream, corsOrigin);
 }
 
 async function handleAtlassianToken(

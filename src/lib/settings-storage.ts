@@ -1,6 +1,7 @@
 import type { JiraAuth, JiraOAuthAuth } from "@/types/jira";
 import type { GithubAuth, GithubOAuthAuth } from "@/types/github";
 import type { LinearAuth, LinearOAuthAuth } from "@/types/linear";
+import type { NotionAuth } from "@/types/notion";
 
 export const SETTINGS_STORAGE_KEY = "bugshot-settings";
 
@@ -10,6 +11,7 @@ interface SettingsEnvelope {
       jira?: { auth?: JiraAuth };
       github?: { auth?: GithubAuth };
       linear?: { auth?: LinearAuth };
+      notion?: { auth?: NotionAuth };
     };
     jiraConfig?: { auth?: JiraAuth };
   };
@@ -96,4 +98,9 @@ export async function writeStoredLinearOAuthTokens(
   };
   const next = typeof raw === "string" ? JSON.stringify(envelope) : envelope;
   await chrome.storage.local.set({ [SETTINGS_STORAGE_KEY]: next });
+}
+
+export async function readStoredNotionAuth(): Promise<NotionAuth | null> {
+  const { envelope } = await readEnvelope();
+  return envelope?.state?.accounts?.notion?.auth ?? null;
 }

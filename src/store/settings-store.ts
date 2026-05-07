@@ -9,12 +9,15 @@ import type {
 } from "@/types/platform";
 import type { GithubAccount } from "@/types/github";
 import type { LinearAccount } from "@/types/linear";
+import type { NotionAccount } from "@/types/notion";
 import { SETTINGS_STORAGE_KEY } from "@/lib/settings-storage";
 import { chromeLocalStorage } from "./chrome-storage";
 
 export type { JiraAccount } from "@/types/platform";
 
-export const SETTINGS_STORE_VERSION = 5;
+// v6: notion 플랫폼 추가 (accounts.notion / lastSubmitFields.notion / lastSubmittedPlatform="notion").
+// 새 필드는 모두 optional이라 v5→v6 데이터 마이그레이션은 불필요 — 버전 마커만 bump.
+export const SETTINGS_STORE_VERSION = 6;
 
 interface SettingsState {
   accounts: Accounts;
@@ -31,6 +34,9 @@ interface SettingsState {
   ) => void;
   updateLinearAccount: (
     patch: Partial<Omit<LinearAccount, "platform" | "connectedAt">>,
+  ) => void;
+  updateNotionAccount: (
+    patch: Partial<Omit<NotionAccount, "platform" | "connectedAt">>,
   ) => void;
   setLastSubmitFields: <P extends PlatformId>(
     platform: P,
@@ -162,6 +168,12 @@ export const useSettingsStore = create<SettingsState>()(
           if (!cur) return s;
           return { accounts: { ...s.accounts, linear: { ...cur, ...patch } } };
         }),
+      updateNotionAccount: (patch) =>
+        set((s) => {
+          const cur = s.accounts.notion;
+          if (!cur) return s;
+          return { accounts: { ...s.accounts, notion: { ...cur, ...patch } } };
+        }),
       setLastSubmitFields: (platform, fields) =>
         set((s) => ({
           lastSubmitFields: { ...s.lastSubmitFields, [platform]: fields },
@@ -224,7 +236,12 @@ export function jiraHostLabel(auth: JiraAuth): string {
   }
 }
 
-const PLATFORM_FALLBACK_ORDER: PlatformId[] = ["jira", "github", "linear"];
+const PLATFORM_FALLBACK_ORDER: PlatformId[] = [
+  "jira",
+  "github",
+  "linear",
+  "notion",
+];
 
 // 다이얼로그가 열릴 때 어느 플랫폼 탭을 default로 보여줄지 결정.
 // 1) lastSubmittedPlatform이 여전히 연결돼 있으면 그것
@@ -249,6 +266,12 @@ export function connectedPlatforms(accounts: Accounts): PlatformId[] {
 
 export function isLinearAccountComplete(
   acc: LinearAccount | undefined,
+): boolean {
+  return !!acc?.auth;
+}
+
+export function isNotionAccountComplete(
+  acc: NotionAccount | undefined,
 ): boolean {
   return !!acc?.auth;
 }

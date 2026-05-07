@@ -5,7 +5,12 @@ import {
   Loader2,
   X,
 } from "lucide-react";
-import { SiGithub, SiJirasoftware, SiLinear } from "@icons-pack/react-simple-icons";
+import {
+  SiGithub,
+  SiJirasoftware,
+  SiLinear,
+  SiNotion,
+} from "@icons-pack/react-simple-icons";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -40,6 +45,7 @@ import {
   connectedPlatforms,
   isJiraAccountComplete,
   isLinearAccountComplete,
+  isNotionAccountComplete,
   jiraSiteId,
   pickInitialPlatform,
   useSettingsStore,
@@ -66,6 +72,7 @@ import type { NormalizedSubmitResult } from "@/types/platform";
 import { submitToGithub } from "../lib/submitToGithub";
 import type { GithubMediaInput } from "../lib/buildGithubIssueBody";
 import { submitToLinear, type LinearFileInput } from "../lib/submitToLinear";
+import { submitToNotion, type NotionFileInput } from "../lib/submitToNotion";
 import {
   GithubIssueFields,
   initialGhFields,
@@ -76,6 +83,13 @@ import {
   initialLinearFields,
   type LinearIssueFieldsValue,
 } from "./linearFields/LinearIssueFields";
+import {
+  NotionIssueFields,
+  initialNotionFields,
+  type NotionIssueFieldsValue,
+} from "./notionFields/NotionIssueFields";
+import type { NotionDatabaseSchema } from "@/types/notion";
+import { extractNotionPageId } from "@/lib/notion-page-id";
 
 type SubmitState =
   | { status: "idle" }
@@ -90,6 +104,7 @@ export function IssueCreateModal() {
   const lastSubmittedPlatform = useSettingsStore((s) => s.lastSubmittedPlatform);
   const lastGhSubmit = useSettingsStore((s) => s.lastSubmitFields.github);
   const lastLinearSubmit = useSettingsStore((s) => s.lastSubmitFields.linear);
+  const lastNotionSubmit = useSettingsStore((s) => s.lastSubmitFields.notion);
   const setTargetPlatform = useEditorStore((s) => s.setTargetPlatform);
 
   const available = useMemo(() => connectedPlatforms(accounts), [accounts]);
@@ -116,6 +131,7 @@ export function IssueCreateModal() {
   const ghAccount = accounts.github;
   const jiraAccount = accounts.jira;
   const linearAccount = accounts.linear;
+  const notionAccount = accounts.notion;
 
   // GitHub 메타 필드: 직전 제출값 우선, 없으면 account.defaults, 그것도 없으면 빈 값
   const [ghFields, setGhFieldsState] = useState<GithubIssueFieldsValue>(() =>
@@ -141,6 +157,19 @@ export function IssueCreateModal() {
       setLinearFieldsState((s) => ({ ...s, ...patch })),
     [],
   );
+
+  const [notionFields, setNotionFieldsState] = useState<NotionIssueFieldsValue>(() =>
+    initialNotionFields(lastNotionSubmit, notionAccount?.defaults),
+  );
+  useEffect(() => {
+    if (open) setNotionFieldsState(initialNotionFields(lastNotionSubmit, notionAccount?.defaults));
+  }, [open, lastNotionSubmit, notionAccount?.defaults]);
+  const setNotionFields = useCallback(
+    (patch: Partial<NotionIssueFieldsValue>) =>
+      setNotionFieldsState((s) => ({ ...s, ...patch })),
+    [],
+  );
+  const [notionSchema, setNotionSchema] = useState<NotionDatabaseSchema | null>(null);
 
   const captureMode = useEditorStore((s) => s.captureMode);
   const selection = useEditorStore((s) => s.selection);
@@ -429,10 +458,79 @@ export function IssueCreateModal() {
     return result;
   }
 
+  async function handleNotionSubmit(ctx: MarkdownContext): Promise<NormalizedSubmitResult> {
+    if (!notionAccount) {
+      throw new Error(t("platform.notConnected.title", { platform: t("platform.tab.notion") }));
+    }
+    if (!notionFields.databaseId || !notionSchema) {
+      throw new Error(t("create.requiredMissing"));
+    }
+
+    const images: NotionFileInput[] = [];
+    let video: NotionFileInput | undefined;
+    const logs: NotionFileInput[] = [];
+
+    if (captureMode === "video") {
+      if (videoBlob) video = { filename: "recording.webm", dataUrl: await blobToDataUrl(videoBlob) };
+      if (networkLog && networkLogAttach && networkLog.captured > 0) {
+        const harBlob = new Blob([serializeHar(buildHar(networkLog))], { type: "application/json" });
+        logs.push({ filename: "network-log.har", dataUrl: await blobToDataUrl(harBlob) });
+      }
+      if (consoleLog && consoleLogAttach && consoleLog.captured > 0) {
+        const jsonBlob = new Blob([serializeConsoleLog(buildConsoleLogJson(consoleLog))], { type: "application/json" });
+        logs.push({ filename: "console-log.json", dataUrl: await blobToDataUrl(jsonBlob) });
+      }
+    } else if (captureMode === "screenshot") {
+      const screenshotImage = screenshotAnnotated ?? screenshotRaw;
+      if (screenshotImage) images.push({ filename: "screenshot.webp", dataUrl: screenshotImage });
+    } else {
+      if (beforeImage) images.push({ filename: "before.webp", dataUrl: beforeImage });
+      if (afterImage) images.push({ filename: "after.webp", dataUrl: afterImage });
+    }
+
+    const result = await submitToNotion({
+      ctx,
+      images,
+      video,
+      logs,
+      databaseId: notionFields.databaseId,
+      titlePropertyName: notionSchema.titlePropertyName,
+      statusOption: notionFields.statusOption && notionSchema.statusProperty
+        ? {
+            propertyName: notionSchema.statusProperty.name,
+            optionName: notionFields.statusOption,
+          }
+        : undefined,
+      selectValues: notionFields.selectValues,
+    });
+    if (currentIssueId) {
+      const pageId = extractNotionPageId(result.url);
+      markSubmitted(currentIssueId, {
+        platform: "notion",
+        key: result.key,
+        url: result.url,
+        notionPageId: pageId ?? undefined,
+        notionDatabaseId: notionFields.databaseId,
+        notionDatabaseTitle: notionFields.databaseTitle,
+        notionStatusOption: notionFields.statusOption,
+      });
+    }
+    useSettingsStore.getState().setLastSubmitFields("notion", {
+      databaseId: notionFields.databaseId,
+      databaseTitle: notionFields.databaseTitle,
+      statusOption: notionFields.statusOption,
+      selectValues: notionFields.selectValues,
+    });
+    useSettingsStore.getState().setLastSubmittedPlatform("notion");
+    onSubmitted({ key: result.key, url: result.url });
+    return result;
+  }
+
   async function handleSubmit(submitPlatform: PlatformId): Promise<NormalizedSubmitResult> {
     const ctx = buildCtx();
     if (submitPlatform === "github") return handleGithubSubmit(ctx);
     if (submitPlatform === "linear") return handleLinearSubmit(ctx);
+    if (submitPlatform === "notion") return handleNotionSubmit(ctx);
     return handleJiraSubmit(ctx);
   }
 
@@ -462,6 +560,9 @@ export function IssueCreateModal() {
         setGhFields={setGhFields}
         linearFields={linearFields}
         setLinearFields={setLinearFields}
+        notionFields={notionFields}
+        setNotionFields={setNotionFields}
+        onNotionSchemaResolved={setNotionSchema}
         onSubmit={handleSubmit}
       />
     </>
@@ -481,6 +582,9 @@ export interface SubmitFieldsDialogProps {
   setGhFields: (patch: Partial<GithubIssueFieldsValue>) => void;
   linearFields: LinearIssueFieldsValue;
   setLinearFields: (patch: Partial<LinearIssueFieldsValue>) => void;
+  notionFields: NotionIssueFieldsValue;
+  setNotionFields: (patch: Partial<NotionIssueFieldsValue>) => void;
+  onNotionSchemaResolved: (schema: NotionDatabaseSchema | null) => void;
   onSubmit: (platform: PlatformId) => Promise<NormalizedSubmitResult>;
   onSuccess?: (result: NormalizedSubmitResult) => void;
 }
@@ -499,6 +603,9 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
     setGhFields,
     linearFields,
     setLinearFields,
+    notionFields,
+    setNotionFields,
+    onNotionSchemaResolved,
     onSubmit,
     onSuccess,
   } = props;
@@ -506,6 +613,7 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
   const jiraAccount = useSettingsStore((s) => s.accounts.jira);
   const ghAccount = useSettingsStore((s) => s.accounts.github);
   const linearAccount = useSettingsStore((s) => s.accounts.linear);
+  const notionAccount = useSettingsStore((s) => s.accounts.notion);
   const [submit, setSubmit] = useState<SubmitState>({ status: "idle" });
 
   useEffect(() => {
@@ -515,12 +623,15 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
   const jiraConfigured = isJiraAccountComplete(jiraAccount);
   const ghConfigured = !!ghAccount;
   const linearConfigured = isLinearAccountComplete(linearAccount);
+  const notionConfigured = isNotionAccountComplete(notionAccount);
   const platformConfigured =
     platform === "jira"
       ? jiraConfigured
       : platform === "github"
         ? ghConfigured
-        : linearConfigured;
+        : platform === "linear"
+          ? linearConfigured
+          : notionConfigured;
 
   const canSubmit =
     submit.status !== "submitting" &&
@@ -529,7 +640,9 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
       ? !!jiraFields.issueTypeId
       : platform === "github"
         ? !!ghFields.owner && !!ghFields.repo
-        : !!linearFields.teamId);
+        : platform === "linear"
+          ? !!linearFields.teamId
+          : !!notionFields.databaseId);
 
   async function handleSubmit() {
     if (!canSubmit) return;
@@ -564,7 +677,11 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
           <Tabs value={platform} onValueChange={(v) => setPlatform(v as PlatformId)}>
             <TabsList className={cn(
               "grid h-9 w-full",
-              availablePlatforms.length === 3 ? "grid-cols-3" : "grid-cols-2",
+              availablePlatforms.length === 4
+                ? "grid-cols-4"
+                : availablePlatforms.length === 3
+                  ? "grid-cols-3"
+                  : "grid-cols-2",
             )}>
               {availablePlatforms.includes("jira") && (
                 <TabsTrigger value="jira" className="gap-1.5">
@@ -584,6 +701,12 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
                   {t("platform.tab.linear")}
                 </TabsTrigger>
               )}
+              {availablePlatforms.includes("notion") && (
+                <TabsTrigger value="notion" className="gap-1.5">
+                  <SiNotion className="h-3.5 w-3.5 dark:invert" color="default" />
+                  {t("platform.tab.notion")}
+                </TabsTrigger>
+              )}
             </TabsList>
           </Tabs>
         ) : null}
@@ -596,8 +719,16 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
           ghConfigured ? (
             <GithubIssueFields value={ghFields} onChange={setGhFields} />
           ) : null
-        ) : linearConfigured ? (
-          <LinearIssueFields value={linearFields} onChange={setLinearFields} />
+        ) : platform === "linear" ? (
+          linearConfigured ? (
+            <LinearIssueFields value={linearFields} onChange={setLinearFields} />
+          ) : null
+        ) : notionConfigured ? (
+          <NotionIssueFields
+            value={notionFields}
+            onChange={setNotionFields}
+            onSchemaResolved={onNotionSchemaResolved}
+          />
         ) : null}
 
         {submit.status === "error" ? (

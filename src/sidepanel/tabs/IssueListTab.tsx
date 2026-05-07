@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowUpRight, CircleCheck, Inbox, Loader2, Search, SearchX, Trash2, X } from "lucide-react";
-import { SiGithub, SiJirasoftware, SiLinear } from "@icons-pack/react-simple-icons";
+import {
+  SiGithub,
+  SiJirasoftware,
+  SiLinear,
+  SiNotion,
+} from "@icons-pack/react-simple-icons";
 import { useT, dateBcp47 } from "@/i18n";
 import {
   AlertDialog,
@@ -23,10 +28,13 @@ import { useSettingsStore, jiraSiteId } from "@/store/settings-store";
 import type { JiraIssueStatus } from "@/types/jira";
 import type { GithubIssueStatus } from "@/types/github";
 import type { LinearIssueStatus } from "@/types/linear";
+import type { NotionPageStatus } from "@/types/notion";
 import type { NormalizedSubmitResult, PlatformId } from "@/types/platform";
 import { sendBg } from "@/types/messages";
+import { extractNotionPageId } from "@/lib/notion-page-id";
 import { PageFooter, PageScroll, PageShell, Section } from "../components/Section";
 import { DraftDetailDialog } from "./DraftDetailDialog";
+import { notionStatusCategory } from "./notionStatusColors";
 
 type StatusFilter = "all" | "submitted" | "draft";
 
@@ -37,7 +45,17 @@ export function isRefreshable(issue: IssueRecord): boolean {
     return !!resolveGithubCoords(issue);
   }
   if (issue.platform === "linear") return true;
+  if (issue.platform === "notion") {
+    return !!resolveNotionPageId(issue);
+  }
   return false;
+}
+
+export function resolveNotionPageId(
+  issue: Pick<IssueRecord, "notionPageId" | "url">,
+): string | null {
+  if (issue.notionPageId) return issue.notionPageId;
+  return extractNotionPageId(issue.url);
 }
 
 export function parseGithubIssueNumber(key: string | undefined): number | null {
@@ -331,6 +349,8 @@ function IssueRow({
       try { textMetaParts.push(new URL(issue.url).hostname); } catch {}
     } else if (issue.platform === "linear" && issue.linearTeamKey) {
       textMetaParts.push(issue.linearTeamKey);
+    } else if (issue.platform === "notion" && issue.notionDatabaseTitle) {
+      textMetaParts.push(issue.notionDatabaseTitle);
     }
     if (issue.key) textMetaParts.push(formatIssueKey(issue));
     if (issue.platform === "jira" && issue.issueTypeName) {
@@ -339,6 +359,8 @@ function IssueRow({
       textMetaParts.push(issue.githubLabels.join(", "));
     } else if (issue.platform === "linear" && issue.linearLabelName) {
       textMetaParts.push(issue.linearLabelName);
+    } else if (issue.platform === "notion" && issue.notionStatusOption) {
+      textMetaParts.push(issue.notionStatusOption);
     }
   } else {
     textMetaParts.push(t("issueList.draft"));
@@ -390,6 +412,7 @@ function IssueRow({
               githubOwner={issue.githubOwner}
               githubRepo={issue.githubRepo}
               linearIdentifier={issue.linearIdentifier}
+              notionPageId={issue.notionPageId}
               refreshKey={refreshKey}
               onLoaded={onBadgeLoaded}
             />
@@ -488,6 +511,14 @@ function PlatformChip({ platform }: { platform: PlatformId }) {
       </span>
     );
   }
+  if (platform === "notion") {
+    return (
+      <span className="inline-flex shrink-0 items-center gap-1">
+        <SiNotion className="h-3 w-3 dark:invert" color="default" />
+        {t("platform.tab.notion")}
+      </span>
+    );
+  }
   return (
     <span className="inline-flex shrink-0 items-center gap-1">
       <SiGithub className="h-3 w-3 dark:invert" color="default" />
@@ -509,6 +540,7 @@ function SubmittedBadge({
   githubOwner,
   githubRepo,
   linearIdentifier,
+  notionPageId,
   refreshKey,
   onLoaded,
 }: {
@@ -520,6 +552,7 @@ function SubmittedBadge({
   githubOwner?: string;
   githubRepo?: string;
   linearIdentifier?: string;
+  notionPageId?: string;
   refreshKey: number;
   onLoaded: () => void;
 }) {
@@ -527,12 +560,14 @@ function SubmittedBadge({
   const jiraAccount = useSettingsStore((s) => s.accounts.jira);
   const ghAccount = useSettingsStore((s) => s.accounts.github);
   const linearAccount = useSettingsStore((s) => s.accounts.linear);
+  const notionAccount = useSettingsStore((s) => s.accounts.notion);
   const patchIssue = useIssuesStore((s) => s.patchIssue);
   const currentSiteId = jiraAccount?.auth ? jiraSiteId(jiraAccount.auth) : null;
   const siteMatch = !issueSiteId || currentSiteId === issueSiteId;
   const [jiraStatus, setJiraStatus] = useState<JiraIssueStatus | "error" | null>(null);
   const [ghStatus, setGhStatus] = useState<GithubBadgeStatus | "error" | null>(null);
   const [linearStatus, setLinearStatus] = useState<LinearIssueStatus | "error" | null>(null);
+  const [notionStatus, setNotionStatus] = useState<NotionPageStatus | "error" | null>(null);
 
   useEffect(() => {
     if (platform === "jira") {
@@ -600,8 +635,26 @@ function SubmittedBadge({
         .finally(onLoaded);
       return;
     }
+    if (platform === "notion") {
+      const pageId =
+        resolveNotionPageId({ notionPageId, url: issueUrl }) ?? null;
+      if (!notionAccount?.auth || !pageId) {
+        setNotionStatus("error"); onLoaded(); return;
+      }
+      sendBg<NotionPageStatus>({ type: "notion.getPageStatus", pageId })
+        .then((res) => {
+          setNotionStatus(res);
+          const patch: Partial<IssueRecord> = {};
+          if (!notionPageId) patch.notionPageId = res.pageId;
+          if (res.statusOption) patch.notionStatusOption = res.statusOption.name;
+          if (Object.keys(patch).length) patchIssue(issueId, patch);
+        })
+        .catch(() => setNotionStatus("error"))
+        .finally(onLoaded);
+      return;
+    }
     onLoaded();
-  }, [platform, jiraAccount?.auth, ghAccount, linearAccount?.auth, issueKey, issueUrl, githubOwner, githubRepo, linearIdentifier, refreshKey, siteMatch, onLoaded, issueId, patchIssue]);
+  }, [platform, jiraAccount?.auth, ghAccount, linearAccount?.auth, notionAccount?.auth, issueKey, issueUrl, githubOwner, githubRepo, linearIdentifier, notionPageId, refreshKey, siteMatch, onLoaded, issueId, patchIssue]);
 
   if (platform === "jira") {
     if (jiraStatus === "error") {
@@ -663,31 +716,65 @@ function SubmittedBadge({
     );
   }
 
-  // Linear
-  if (linearStatus === "error") {
+  if (platform === "linear") {
+    if (linearStatus === "error") {
+      return (
+        <Badge variant="outline" className="w-fit shrink-0 text-[11px]">
+          {t("issueList.unknown")}
+        </Badge>
+      );
+    }
+    if (!linearStatus) {
+      return (
+        <Badge variant="outline" className="w-fit shrink-0 text-[11px]">
+          {t("issueList.submitted")}
+        </Badge>
+      );
+    }
+    const stateType = linearStatus.state.type;
+    const linearColors = LINEAR_STATE_TYPE_COLORS[stateType] ?? STATUS_CATEGORY_COLORS.new;
+    const i18nKey = LINEAR_STATE_I18N[stateType] as Parameters<typeof t>[0] | undefined;
+    const linearLabel = i18nKey ? t(i18nKey) : linearStatus.state.name;
+    return (
+      <Badge
+        variant="outline"
+        className={`w-fit shrink-0 border-transparent text-[11px] ${linearColors.bg} ${linearColors.text} ${linearColors.darkBg} ${linearColors.darkText}`}
+      >
+        {linearLabel}
+      </Badge>
+    );
+  }
+
+  // Notion
+  if (notionStatus === "error") {
     return (
       <Badge variant="outline" className="w-fit shrink-0 text-[11px]">
         {t("issueList.unknown")}
       </Badge>
     );
   }
-  if (!linearStatus) {
+  if (!notionStatus) {
     return (
       <Badge variant="outline" className="w-fit shrink-0 text-[11px]">
         {t("issueList.submitted")}
       </Badge>
     );
   }
-  const stateType = linearStatus.state.type;
-  const linearColors = LINEAR_STATE_TYPE_COLORS[stateType] ?? STATUS_CATEGORY_COLORS.new;
-  const i18nKey = LINEAR_STATE_I18N[stateType] as Parameters<typeof t>[0] | undefined;
-  const linearLabel = i18nKey ? t(i18nKey) : linearStatus.state.name;
+  if (notionStatus.statusOption) {
+    const category = notionStatusCategory(notionStatus.statusOption.color);
+    const notionColors = STATUS_CATEGORY_COLORS[category];
+    return (
+      <Badge
+        variant="outline"
+        className={`w-fit shrink-0 border-transparent text-[11px] ${notionColors.bg} ${notionColors.text} ${notionColors.darkBg} ${notionColors.darkText}`}
+      >
+        {notionStatus.statusOption.name}
+      </Badge>
+    );
+  }
   return (
-    <Badge
-      variant="outline"
-      className={`w-fit shrink-0 border-transparent text-[11px] ${linearColors.bg} ${linearColors.text} ${linearColors.darkBg} ${linearColors.darkText}`}
-    >
-      {linearLabel}
+    <Badge variant="outline" className="w-fit shrink-0 text-[11px]">
+      {t("issueList.notion.noStatus")}
     </Badge>
   );
 }

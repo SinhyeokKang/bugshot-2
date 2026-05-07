@@ -32,7 +32,11 @@ import {
   StyleChangesTable,
   buildStyleDiff,
 } from "../components/StyleChangesTable";
-import { buildAiDraftPrompt, parseAiDraftResponse } from "../lib/buildAiDraftPrompt";
+import {
+  buildAiDraftPrompt,
+  buildAiDraftSchema,
+  parseAiDraftResponse,
+} from "../lib/buildAiDraftPrompt";
 import { buildNetworkLogSummary, buildConsoleLogSummary } from "../lib/buildLogSummary";
 
 export function DraftingPanel() {
@@ -137,11 +141,10 @@ export function DraftingPanel() {
           renderAs: s.renderAs,
         })),
       });
-      const raw = await generateDraft(ctx);
-      const parsed = parseAiDraftResponse(
-        raw,
-        enabledSections.map((s) => s.id),
-      );
+      const sectionIds = enabledSections.map((s) => s.id);
+      const responseSchema = buildAiDraftSchema(sectionIds);
+      const raw = await generateDraft(ctx, { responseSchema });
+      const parsed = parseAiDraftResponse(raw, sectionIds);
       if (parsed) {
         const prefix = defaultTitle(titlePrefix);
         const aiTitle = prefix
@@ -149,6 +152,7 @@ export function DraftingPanel() {
           : parsed.title;
         setDraft({ ...parsed, title: aiTitle });
       } else {
+        console.warn("[bugshot] AI draft parse failed. Raw response:", raw);
         setAiError(t("draft.aiParseError"));
       }
     } catch {

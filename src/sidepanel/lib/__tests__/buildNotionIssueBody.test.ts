@@ -1,0 +1,224 @@
+import { describe, it, expect, vi } from "vitest";
+
+vi.mock("@/i18n", () => ({
+  t: (key: string, params?: Record<string, string | number>) => {
+    if (params) {
+      let s = key;
+      for (const [k, v] of Object.entries(params)) s += ` ${k}=${v}`;
+      return s;
+    }
+    return key;
+  },
+  dateBcp47: () => "en-US",
+}));
+
+vi.mock("@/store/settings-ui-store", () => ({
+  POST_MEDIA_SECTION_IDS: new Set(["expectedResult", "notes"]),
+  sectionMdLabelKey: (id: string) => `md.section.${id}`,
+}));
+
+vi.mock("@/lib/element-label", () => ({
+  formatElementName: (opts: { tag: string; classList: string[] }) => {
+    const cls = opts.classList.map((c: string) => `.${c}`).join("");
+    return `${opts.tag}${cls}`;
+  },
+}));
+
+import { buildNotionIssueBody } from "../buildNotionIssueBody";
+import type { MarkdownContext } from "../buildIssueMarkdown";
+
+function makeCtx(overrides: Partial<MarkdownContext> = {}): MarkdownContext {
+  return {
+    captureMode: "element",
+    title: "Test",
+    sections: { description: "본문" },
+    sectionConfig: [
+      { id: "description", enabled: true, renderAs: "paragraph", builtIn: true },
+      { id: "expectedResult", enabled: true, renderAs: "paragraph", builtIn: true },
+    ],
+    url: "https://example.com",
+    selector: "div",
+    tagName: "div",
+    classListBefore: [],
+    classListAfter: [],
+    specifiedStyles: {},
+    tokens: [],
+    viewport: { width: 1024, height: 768 },
+    capturedAt: 1700000000000,
+    diffs: [],
+    ...overrides,
+  };
+}
+
+describe("buildNotionIssueBody — block 변환", () => {
+  it("환경 섹션은 heading_2 + bulleted_list_item로", () => {
+    const out = buildNotionIssueBody({ ctx: makeCtx() });
+    const headings = out.blocks.filter((b) => b.type === "heading_2");
+    expect(headings.length).toBeGreaterThan(0);
+    expect(headings[0]).toMatchObject({ type: "heading_2", text: "md.section.env" });
+    const bullets = out.blocks.filter((b) => b.type === "bulleted_list_item");
+    expect(bullets.some((b) => "text" in b && b.text.startsWith("Page:"))).toBe(true);
+    expect(
+      bullets.some((b) => "text" in b && b.text.startsWith("Viewport:")),
+    ).toBe(true);
+  });
+
+  it("section 콘텐츠 비어있으면 paragraph(md.noValue)", () => {
+    const out = buildNotionIssueBody({ ctx: makeCtx({ sections: {} }) });
+    const paragraphs = out.blocks.filter((b) => b.type === "paragraph");
+    expect(paragraphs.some((b) => "text" in b && b.text === "md.noValue")).toBe(
+      true,
+    );
+  });
+
+  it("orderedList 섹션은 bulleted_list_item 다중", () => {
+    const ctx = makeCtx({
+      sections: { stepsToReproduce: "1\n2\n3" },
+      sectionConfig: [
+        {
+          id: "stepsToReproduce",
+          enabled: true,
+          renderAs: "orderedList",
+          builtIn: true,
+        },
+      ],
+    });
+    const out = buildNotionIssueBody({ ctx });
+    const bullets = out.blocks.filter((b) => b.type === "bulleted_list_item");
+    const stepBullets = bullets.filter(
+      (b) => "text" in b && ["1", "2", "3"].includes(b.text),
+    );
+    expect(stepBullets.length).toBe(3);
+  });
+});
+
+describe("buildNotionIssueBody — 미디어 분기", () => {
+  it("screenshot 모드: image block 인라인 + attachments에 큐", () => {
+    const out = buildNotionIssueBody({
+      ctx: makeCtx({ captureMode: "screenshot" }),
+      images: [
+        {
+          filename: "screenshot.png",
+          contentType: "image/png",
+          dataUrl: "data:image/png;base64,YQ==",
+        },
+      ],
+    });
+    const imageBlock = out.blocks.find((b) => b.type === "image");
+    expect(imageBlock).toBeDefined();
+    expect(out.attachments.length).toBe(1);
+    expect(out.attachments[0].category).toBe("image");
+    expect(out.attachments[0].placeholderId).toBe(
+      imageBlock && "placeholderId" in imageBlock
+        ? imageBlock.placeholderId
+        : "",
+    );
+  });
+
+  it("video 모드: video는 첨부 큐만 (이미지 인라인 아님)", () => {
+    const out = buildNotionIssueBody({
+      ctx: makeCtx({ captureMode: "video" }),
+      video: {
+        filename: "recording.webm",
+        contentType: "video/webm",
+        dataUrl: "data:video/webm;base64,YQ==",
+      },
+    });
+    const imageBlock = out.blocks.find((b) => b.type === "image");
+    expect(imageBlock).toBeUndefined();
+    expect(out.attachments.length).toBe(1);
+    expect(out.attachments[0].category).toBe("video");
+  });
+
+  it("element 모드: style 변경 표는 table block, before/after는 첨부 섹션 큐", () => {
+    const ctx = makeCtx({
+      captureMode: "element",
+      diffs: [{ prop: "color", asIs: "#000", toBe: "#fff" }],
+    });
+    const out = buildNotionIssueBody({
+      ctx,
+      images: [
+        {
+          filename: "before.webp",
+          contentType: "image/webp",
+          dataUrl: "data:image/webp;base64,YQ==",
+        },
+        {
+          filename: "after.webp",
+          contentType: "image/webp",
+          dataUrl: "data:image/webp;base64,YQ==",
+        },
+      ],
+    });
+    const tableBlock = out.blocks.find((b) => b.type === "table");
+    expect(tableBlock).toBeDefined();
+    if (tableBlock && tableBlock.type === "table") {
+      expect(tableBlock.rows[0]).toEqual([
+        "md.column.property",
+        "As is",
+        "To be",
+      ]);
+      expect(tableBlock.rows.some((r) => r[0] === "color")).toBe(true);
+    }
+    expect(out.attachments.map((a) => a.filename).sort()).toEqual([
+      "after.webp",
+      "before.webp",
+    ]);
+  });
+
+  it("로그 첨부는 attachments 큐에 log 카테고리로", () => {
+    const out = buildNotionIssueBody({
+      ctx: makeCtx({ captureMode: "screenshot" }),
+      images: [
+        {
+          filename: "screenshot.png",
+          contentType: "image/png",
+          dataUrl: "data:image/png;base64,YQ==",
+        },
+      ],
+      logs: [
+        {
+          filename: "console.json",
+          contentType: "application/json",
+          dataUrl: "data:application/json;base64,YQ==",
+          category: "log",
+        },
+      ],
+    });
+    expect(out.attachments.find((a) => a.category === "log")).toBeDefined();
+    expect(out.attachments.find((a) => a.category === "image")).toBeDefined();
+  });
+});
+
+describe("buildNotionIssueBody — 로그 요약", () => {
+  it("네트워크/콘솔 로그 요약은 code block", () => {
+    const out = buildNotionIssueBody({
+      ctx: makeCtx({
+        networkLogSummary: {
+          captured: 10,
+          errors: [
+            {
+              method: "GET",
+              path: "/api/x",
+              status: 500,
+              statusText: "Internal Server Error",
+            },
+          ],
+        },
+        consoleLogSummary: {
+          captured: 20,
+          errorCount: 3,
+          warnCount: 1,
+          topErrors: ["TypeError"],
+        },
+      }),
+    });
+    const codeBlocks = out.blocks.filter((b) => b.type === "code");
+    expect(codeBlocks.length).toBeGreaterThanOrEqual(2);
+    const allCodeText = codeBlocks
+      .map((b) => ("text" in b ? b.text : ""))
+      .join("\n");
+    expect(allCodeText).toContain("GET /api/x → 500");
+    expect(allCodeText).toContain("TypeError");
+  });
+});

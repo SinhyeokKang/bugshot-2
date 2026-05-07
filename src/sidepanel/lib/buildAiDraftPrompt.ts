@@ -108,6 +108,20 @@ export function buildAiDraftPrompt(ctx: AiDraftContext): string {
   return lines.join("\n");
 }
 
+export function buildAiDraftSchema(sectionIds: IssueSectionId[]) {
+  const properties: Record<string, { type: "string" }> = {
+    title: { type: "string" },
+  };
+  for (const id of sectionIds) {
+    properties[id] = { type: "string" };
+  }
+  return {
+    type: "object",
+    required: ["title", ...sectionIds],
+    properties,
+  };
+}
+
 export function parseAiDraftResponse(
   raw: string,
   enabledSectionIds: IssueSectionId[],

@@ -38,12 +38,23 @@ import {
 import { isOAuthConfigured, startOAuthFlow } from "./oauth";
 import { isGithubOAuthConfigured, startGithubOAuth } from "./github-oauth";
 import { isLinearOAuthConfigured, startLinearOAuth } from "./linear-oauth";
+import { isNotionOAuthConfigured, startNotionOAuth } from "./notion-oauth";
+import {
+  createPage as createNotionPage,
+  getDatabaseSchema as getNotionDatabaseSchema,
+  getMyself as notionGetMyself,
+  getPageStatus as getNotionPageStatus,
+  searchDatabases as searchNotionDatabases,
+  uploadFile as uploadNotionFile,
+} from "./notion-api";
 import {
   readStoredAuth,
   readStoredGithubAuth,
   readStoredLinearAuth,
+  readStoredNotionAuth,
 } from "@/lib/settings-storage";
 import type { LinearAuth } from "@/types/linear";
+import type { NotionAuth } from "@/types/notion";
 
 async function loadAuth(): Promise<JiraAuth> {
   const auth = await readStoredAuth();
@@ -60,6 +71,12 @@ async function loadGithubAuth(): Promise<GithubAuth> {
 async function loadLinearAuth(): Promise<LinearAuth> {
   const auth = await readStoredLinearAuth();
   if (!auth) throw new Error(t("platform.notConnected.title", { platform: t("platform.tab.linear") }));
+  return auth;
+}
+
+async function loadNotionAuth(): Promise<NotionAuth> {
+  const auth = await readStoredNotionAuth();
+  if (!auth) throw new Error(t("platform.notConnected.title", { platform: t("platform.tab.notion") }));
   return auth;
 }
 
@@ -210,6 +227,45 @@ export async function handleMessage(
 
     case "linear.getIssueStatus":
       return getLinearIssueStatus(await loadLinearAuth(), message.issueId);
+
+    case "notion.oauth.available":
+      return { available: isNotionOAuthConfigured() };
+
+    case "notion.startOAuth":
+      return startNotionOAuth();
+
+    case "notion.testToken":
+      return notionGetMyself({
+        kind: "apiKey",
+        token: message.token,
+        botName: "",
+      });
+
+    case "notion.disconnect":
+      return { ok: true };
+
+    case "notion.getMyself":
+      return notionGetMyself(await loadNotionAuth());
+
+    case "notion.searchDatabases":
+      return searchNotionDatabases(await loadNotionAuth(), message.query);
+
+    case "notion.getDatabaseSchema":
+      return getNotionDatabaseSchema(await loadNotionAuth(), message.databaseId);
+
+    case "notion.uploadFile":
+      return uploadNotionFile(
+        await loadNotionAuth(),
+        message.filename,
+        message.contentType,
+        message.dataUrl,
+      );
+
+    case "notion.submitPage":
+      return createNotionPage(await loadNotionAuth(), message.payload);
+
+    case "notion.getPageStatus":
+      return getNotionPageStatus(await loadNotionAuth(), message.pageId);
 
     default: {
       const _exhaustive: never = message;

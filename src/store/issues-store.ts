@@ -159,9 +159,16 @@ export interface IssueRecord {
   linearIdentifier?: string;
   linearTeamKey?: string;
   linearLabelName?: string;
+  // Notion 전용
+  notionPageId?: string;
+  notionDatabaseId?: string;
+  notionDatabaseTitle?: string;
+  notionStatusOption?: string;
 }
 
-export const ISSUES_STORE_VERSION = 4;
+// v5: notion 플랫폼 추가 — IssueRecord에 notionPageId/notionDatabaseId/notionDatabaseTitle/notionStatusOption optional 필드.
+// PlatformId union에 "notion" 추가. 모두 optional이라 v4→v5 데이터 마이그레이션은 불필요 — 버전 마커만 bump.
+export const ISSUES_STORE_VERSION = 5;
 
 interface LegacyIssueRecord extends Omit<IssueRecord, "platform"> {
   platform?: PlatformId;

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   connectedPlatforms,
   isLinearAccountComplete,
+  isNotionAccountComplete,
   migrateV2ToV3,
   migrateToV5,
   pickInitialPlatform,
@@ -30,6 +31,13 @@ const linearStub: Accounts["linear"] = {
   platform: "linear",
   connectedAt: 0,
   auth: { kind: "apiKey", apiKey: "lin_api_x", viewerName: "u" },
+  defaults: {},
+};
+
+const notionStub: Accounts["notion"] = {
+  platform: "notion",
+  connectedAt: 0,
+  auth: { kind: "apiKey", token: "secret_x", botName: "Bug Bot" },
   defaults: {},
 };
 
@@ -161,6 +169,21 @@ describe("pickInitialPlatform", () => {
     ).toBe("linear");
   });
 
+  it("notion만 연결되면 notion", () => {
+    expect(pickInitialPlatform({ notion: notionStub }, undefined)).toBe(
+      "notion",
+    );
+  });
+
+  it("lastSubmittedPlatform=notion이 연결되어 있으면 notion", () => {
+    expect(
+      pickInitialPlatform(
+        { jira: jiraStub, notion: notionStub },
+        "notion",
+      ),
+    ).toBe("notion");
+  });
+
   it("아무것도 연결 안 됐으면 null", () => {
     expect(pickInitialPlatform({}, undefined)).toBeNull();
     expect(pickInitialPlatform({}, "jira")).toBeNull();
@@ -168,12 +191,18 @@ describe("pickInitialPlatform", () => {
 });
 
 describe("connectedPlatforms", () => {
-  it("연결된 플랫폼만 jira→github→linear 순으로 반환", () => {
+  it("연결된 플랫폼만 jira→github→linear→notion 순으로 반환", () => {
     expect(
-      connectedPlatforms({ jira: jiraStub, github: githubStub, linear: linearStub }),
-    ).toEqual(["jira", "github", "linear"]);
+      connectedPlatforms({
+        jira: jiraStub,
+        github: githubStub,
+        linear: linearStub,
+        notion: notionStub,
+      }),
+    ).toEqual(["jira", "github", "linear", "notion"]);
     expect(connectedPlatforms({ github: githubStub })).toEqual(["github"]);
     expect(connectedPlatforms({ linear: linearStub })).toEqual(["linear"]);
+    expect(connectedPlatforms({ notion: notionStub })).toEqual(["notion"]);
     expect(connectedPlatforms({})).toEqual([]);
   });
 });
@@ -208,5 +237,15 @@ describe("isLinearAccountComplete", () => {
 
   it("undefined면 false", () => {
     expect(isLinearAccountComplete(undefined)).toBe(false);
+  });
+});
+
+describe("isNotionAccountComplete", () => {
+  it("auth가 있으면 true", () => {
+    expect(isNotionAccountComplete(notionStub)).toBe(true);
+  });
+
+  it("undefined면 false", () => {
+    expect(isNotionAccountComplete(undefined)).toBe(false);
   });
 });

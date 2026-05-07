@@ -3,7 +3,10 @@ import { useCallback, useEffect, useRef, useState } from "react";
 type ChromeAIStatus = "checking" | "available" | "unavailable";
 
 interface LanguageModelInstance {
-  prompt(input: string): Promise<string>;
+  prompt(
+    input: string,
+    options?: { responseConstraint?: unknown },
+  ): Promise<string>;
   destroy(): void;
 }
 
@@ -59,7 +62,10 @@ export function useChromeAI() {
     };
   }, []);
 
-  const generateDraft = useCallback(async (prompt: string): Promise<string> => {
+  const generateDraft = useCallback(async (
+    prompt: string,
+    options?: { responseSchema?: unknown },
+  ): Promise<string> => {
     if (!globalThis.LanguageModel) {
       throw new Error("Chrome AI unavailable");
     }
@@ -70,7 +76,10 @@ export function useChromeAI() {
       });
     }
     try {
-      return await sessionRef.current.prompt(prompt);
+      const promptOpts = options?.responseSchema
+        ? { responseConstraint: options.responseSchema }
+        : undefined;
+      return await sessionRef.current.prompt(prompt, promptOpts);
     } catch (e) {
       sessionRef.current?.destroy?.();
       sessionRef.current = null;

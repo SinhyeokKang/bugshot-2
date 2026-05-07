@@ -48,6 +48,7 @@ import { sendBg, type JiraSubmitResult } from "@/types/messages";
 import { submitToGithub } from "../lib/submitToGithub";
 import type { GithubMediaInput } from "../lib/buildGithubIssueBody";
 import { submitToLinear, type LinearFileInput } from "../lib/submitToLinear";
+import { submitToNotion, type NotionFileInput } from "../lib/submitToNotion";
 import {
   initialGhFields,
   type GithubIssueFieldsValue,
@@ -56,6 +57,12 @@ import {
   initialLinearFields,
   type LinearIssueFieldsValue,
 } from "./linearFields/LinearIssueFields";
+import {
+  initialNotionFields,
+  type NotionIssueFieldsValue,
+} from "./notionFields/NotionIssueFields";
+import type { NotionDatabaseSchema } from "@/types/notion";
+import { extractNotionPageId } from "@/lib/notion-page-id";
 import { DocSectionBody } from "../components/DocSectionBody";
 import { LogAttachmentCards } from "../components/LogAttachmentCards";
 import { NetworkLogPreviewDialog } from "../components/NetworkLogPreviewDialog";
@@ -99,6 +106,7 @@ export function DraftDetailDialog({
   const jiraAccount = accounts.jira;
   const ghAccount = accounts.github;
   const linearAccount = accounts.linear;
+  const notionAccount = accounts.notion;
   const removeIssue = useIssuesStore((s) => s.removeIssue);
   const markSubmitted = useIssuesStore((s) => s.markSubmitted);
   const patchIssue = useIssuesStore((s) => s.patchIssue);
@@ -110,6 +118,7 @@ export function DraftDetailDialog({
   const lastJiraSubmit = useSettingsStore((s) => s.lastSubmitFields.jira);
   const lastGhSubmit = useSettingsStore((s) => s.lastSubmitFields.github);
   const lastLinearSubmit = useSettingsStore((s) => s.lastSubmitFields.linear);
+  const lastNotionSubmit = useSettingsStore((s) => s.lastSubmitFields.notion);
   const lastSubmittedPlatform = useSettingsStore((s) => s.lastSubmittedPlatform);
 
   const available = useMemo(() => connectedPlatforms(accounts), [accounts]);
@@ -136,6 +145,16 @@ export function DraftDetailDialog({
     [],
   );
 
+  const [notionFields, setNotionFieldsState] = useState<NotionIssueFieldsValue>(() =>
+    initialNotionFields(lastNotionSubmit, notionAccount?.defaults),
+  );
+  const setNotionFields = useCallback(
+    (patch: Partial<NotionIssueFieldsValue>) =>
+      setNotionFieldsState((s) => ({ ...s, ...patch })),
+    [],
+  );
+  const [notionSchema, setNotionSchema] = useState<NotionDatabaseSchema | null>(null);
+
   // 다이얼로그 진입 prefill — open / issue.id 변경 시에만 동작.
   // 사용자가 SubmitFieldsDialog의 Tab으로 platform을 바꾸면 patchIssue로 issue.platform이
   // 갱신되는데, 그걸 deps에 넣으면 이 effect가 재실행되어 setSubmitOpen(false)/setPlatform(initial)이
@@ -153,6 +172,7 @@ export function DraftDetailDialog({
     setFields(base);
     setGhFieldsState(initialGhFields(lastGhSubmit, ghAccount?.defaults));
     setLinearFieldsState(initialLinearFields(lastLinearSubmit, linearAccount?.defaults));
+    setNotionFieldsState(initialNotionFields(lastNotionSubmit, notionAccount?.defaults));
     const initial =
       issue && accounts[issue.platform]
         ? issue.platform
@@ -488,9 +508,94 @@ export function DraftDetailDialog({
     return result;
   }
 
+  async function handleNotionSubmit(): Promise<NormalizedSubmitResult> {
+    if (!issue) throw new Error(t("create.requiredMissing"));
+    if (!notionAccount) {
+      throw new Error(
+        t("platform.notConnected.title", { platform: t("platform.tab.notion") }),
+      );
+    }
+    if (!notionFields.databaseId || !notionSchema) {
+      throw new Error(t("create.requiredMissing"));
+    }
+
+    const { ctx, networkLog, consoleLog: consoleLogForSubmit } = await buildCtxForSubmit();
+    const images: NotionFileInput[] = [];
+    let video: NotionFileInput | undefined;
+    const logs: NotionFileInput[] = [];
+
+    if (isVideo) {
+      const blob = await getVideoBlob(issue.id);
+      if (blob) video = { filename: "recording.webm", dataUrl: await blobToDataUrl(blob) };
+      if (networkLog) {
+        const harBlob = new Blob([serializeHar(buildHar(networkLog))], { type: "application/json" });
+        logs.push({ filename: "network-log.har", dataUrl: await blobToDataUrl(harBlob) });
+      }
+      if (consoleLogForSubmit) {
+        const jsonBlob = new Blob([serializeConsoleLog(buildConsoleLogJson(consoleLogForSubmit))], { type: "application/json" });
+        logs.push({ filename: "console-log.json", dataUrl: await blobToDataUrl(jsonBlob) });
+      }
+    } else if (isScreenshot) {
+      if (issue.snapshot.before) {
+        const blob = await getImageBlob(issue.id, "before");
+        if (blob) images.push({ filename: "screenshot.webp", dataUrl: await blobToDataUrl(blob) });
+      }
+    } else {
+      if (issue.snapshot.before) {
+        const blob = await getImageBlob(issue.id, "before");
+        if (blob) images.push({ filename: "before.webp", dataUrl: await blobToDataUrl(blob) });
+      }
+      if (issue.snapshot.after) {
+        const blob = await getImageBlob(issue.id, "after");
+        if (blob) images.push({ filename: "after.webp", dataUrl: await blobToDataUrl(blob) });
+      }
+    }
+
+    const result = await submitToNotion({
+      ctx,
+      images,
+      video,
+      logs,
+      databaseId: notionFields.databaseId,
+      titlePropertyName: notionSchema.titlePropertyName,
+      statusOption:
+        notionFields.statusOption && notionSchema.statusProperty
+          ? {
+              propertyName: notionSchema.statusProperty.name,
+              optionName: notionFields.statusOption,
+            }
+          : undefined,
+      selectValues: notionFields.selectValues,
+    });
+    const pageId = extractNotionPageId(result.url);
+    markSubmitted(issue.id, {
+      platform: "notion",
+      key: result.key,
+      url: result.url,
+      notionPageId: pageId ?? undefined,
+      notionDatabaseId: notionFields.databaseId,
+      notionDatabaseTitle: notionFields.databaseTitle,
+      notionStatusOption: notionFields.statusOption,
+    });
+    if (useEditorStore.getState().currentIssueId === issue.id) {
+      const tabId = useEditorStore.getState().target?.tabId;
+      if (tabId != null) void clearPicker(tabId);
+      useEditorStore.getState().reset();
+    }
+    useSettingsStore.getState().setLastSubmitFields("notion", {
+      databaseId: notionFields.databaseId,
+      databaseTitle: notionFields.databaseTitle,
+      statusOption: notionFields.statusOption,
+      selectValues: notionFields.selectValues,
+    });
+    useSettingsStore.getState().setLastSubmittedPlatform("notion");
+    return result;
+  }
+
   async function handleSubmit(submitPlatform: PlatformId): Promise<NormalizedSubmitResult> {
     if (submitPlatform === "github") return handleGithubSubmit();
     if (submitPlatform === "linear") return handleLinearSubmit();
+    if (submitPlatform === "notion") return handleNotionSubmit();
     return handleJiraSubmit();
   }
 
@@ -615,6 +720,9 @@ export function DraftDetailDialog({
         setGhFields={setGhFields}
         linearFields={linearFields}
         setLinearFields={setLinearFields}
+        notionFields={notionFields}
+        setNotionFields={setNotionFields}
+        onNotionSchemaResolved={setNotionSchema}
         onSubmit={handleSubmit}
         onSuccess={(result) => {
           onOpenChange(false);

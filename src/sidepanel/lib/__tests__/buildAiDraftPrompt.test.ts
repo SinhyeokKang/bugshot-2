@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   buildAiDraftPrompt,
+  buildAiDraftSchema,
   parseAiDraftResponse,
   type AiDraftContext,
 } from "../buildAiDraftPrompt";
@@ -116,6 +117,27 @@ describe("buildAiDraftPrompt", () => {
     });
     expect(prompt).toContain("--token-9");
     expect(prompt).not.toContain("--token-10");
+  });
+});
+
+describe("buildAiDraftSchema", () => {
+  it("title + enabled section ids를 required string properties로 구성", () => {
+    const schema = buildAiDraftSchema(["description", "stepsToReproduce"]);
+    expect(schema).toEqual({
+      type: "object",
+      required: ["title", "description", "stepsToReproduce"],
+      properties: {
+        title: { type: "string" },
+        description: { type: "string" },
+        stepsToReproduce: { type: "string" },
+      },
+    });
+  });
+
+  it("enabled 섹션 비어있어도 title은 required", () => {
+    const schema = buildAiDraftSchema([]);
+    expect(schema.required).toEqual(["title"]);
+    expect(schema.properties).toEqual({ title: { type: "string" } });
   });
 });
 
