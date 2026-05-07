@@ -1,6 +1,6 @@
 import { buildIssueMarkdown, type MarkdownContext } from "./buildIssueMarkdown";
 
-export const AI_META_FILENAME = "{key}-bugshot.md";
+export const AI_META_FILENAME = "bugshot.md";
 
 export function buildAiMetaAttachment(
   ctx: MarkdownContext,
