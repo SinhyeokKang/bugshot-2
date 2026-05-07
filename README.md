@@ -1,6 +1,6 @@
 # BugShot
 
-A Chrome extension for design QA. Pick elements, tweak CSS, and file issues to Jira, GitHub, or Linear — all from a side panel.
+A Chrome extension for design QA. Pick elements, tweak CSS, and file issues to Jira, GitHub, Linear, or Notion — all from a side panel.
 
 [![Chrome Web Store](https://img.shields.io/chrome-web-store/v/ohakhekagkodklkickemonmifdcbhmig)](https://chromewebstore.google.com/detail/bugshot/ohakhekagkodklkickemonmifdcbhmig)
 
@@ -16,7 +16,8 @@ A Chrome extension for design QA. Pick elements, tweak CSS, and file issues to J
 - **Jira integration** — OAuth 3LO / API Token, project metadata, auto-upload attachments
 - **GitHub integration** — OAuth Web Flow / PAT, repo/labels/assignees, attachment guidance
 - **Linear integration** — OAuth PKCE / API Key, team/project/labels/priority, GraphQL API
-- **Markdown copy** — paste into Notion, Slack, Confluence with tables intact
+- **Notion integration** — OAuth / Internal Token, database picker, status & select properties, file uploads
+- **Markdown copy** — paste into Slack, Confluence, or other tools with tables intact
 - **i18n** — Korean / English
 
 ## Development
