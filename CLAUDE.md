@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-bugshot-2: Chrome MV3 Side Panel 확장. 웹 페이지의 DOM 요소를 골라 스타일을 수정·비교한 후 Jira·GitHub·Linear 이슈로 등록한다.
+bugshot-2: Chrome MV3 Side Panel 확장. 웹 페이지의 DOM 요소를 골라 스타일을 수정·비교한 후 Jira·GitHub·Linear·Notion 이슈로 등록한다.
 
 사용자는 한국어로 간결한 답변을 선호한다. 불필요한 꾸밈말·서두 금지.
 
@@ -47,7 +47,9 @@ src/
 │   ├── github-oauth.ts  # GitHub Web Flow (launchWebAuthFlow + proxy 교환) + refresh hook 자동 등록
 │   ├── linear-api.ts    # Linear GraphQL 래퍼 (API Key/Bearer, 401 refresh hook 주입형)
 │   ├── linear-oauth.ts  # Linear OAuth (PKCE, launchWebAuthFlow, proxy 불필요) + refresh hook 자동 등록
-│   └── messages.ts      # 메시지 핸들러 디스패치 (jira.* / github.* / linear.* namespace)
+│   ├── notion-api.ts    # Notion REST 래퍼 (apiKey/Bearer, 401 → notion.oauthExpired, refresh 없음)
+│   ├── notion-oauth.ts  # Notion Web Flow (launchWebAuthFlow + proxy 교환, public integration — refresh 토큰 없음)
+│   └── messages.ts      # 메시지 핸들러 디스패치 (jira.* / github.* / linear.* / notion.* namespace)
 ├── content/
 │   ├── picker.ts          # DOM picker 메인 (메시지 라우터 + 모드 FSM + hover/select 이벤트)
 │   ├── css-resolve.ts     # CSS 스타일 수집·토큰 resolve (resolveVarChain, collectSelection, collectTokens)
@@ -66,19 +68,21 @@ src/
 │   ├── components/      # 공통 UI (Section/PageShell/PageScroll/PageFooter/AnnotationOverlay 등)
 │   ├── tabs/            # 탭별 진입점 + 편집 패널 (StyleEditorPanel/IssueTab/IssueListTab/IntegrationsTab/SettingsTab 등)
 │   │   ├── styleEditor/   # ValueCombobox, StylePropEditors와 헬퍼 (propMetadata, tokenUtils, styleHooks, TokenChip, colorLiteral, hexUtils)
-│   │   ├── connect/       # 플랫폼별 연결 폼 (JiraConnectForm, GithubConnectForm, LinearConnectForm) — IntegrationsTab의 sub-tab content
+│   │   ├── connect/       # 플랫폼별 연결 폼 (JiraConnectForm, GithubConnectForm, LinearConnectForm, NotionConnectForm) — IntegrationsTab의 sub-tab content
 │   │   ├── githubFields/  # GitHub 메타 필드 컴포넌트 (RepoCombobox, LabelCombobox, AssigneeMultiSelect, GithubIssueFields 묶음, labelToggle 헬퍼) — IntegrationsTab/IssueCreateModal 양쪽에서 controlled로 재사용
-│   │   └── linearFields/  # Linear 메타 필드 컴포넌트 (TeamCombobox, ProjectCombobox, LabelCombobox, PrioritySelect, AssigneeCombobox, LinearIssueFields 묶음) — IntegrationsTab/IssueCreateModal 양쪽에서 controlled로 재사용
-│   └── lib/             # buildIssueMarkdown, buildIssueAdf, buildGithubIssueBody, buildLinearIssueBody, submitToGithub, submitToLinear(NormalizedSubmitResult), buildAiDraftPrompt 등 순수 유틸
+│   │   ├── linearFields/  # Linear 메타 필드 컴포넌트 (TeamCombobox, ProjectCombobox, LabelCombobox, PrioritySelect, AssigneeCombobox, LinearIssueFields 묶음) — IntegrationsTab/IssueCreateModal 양쪽에서 controlled로 재사용
+│   │   ├── notionFields/  # Notion 메타 필드 컴포넌트 (DatabaseCombobox, StatusSelect, PropertiesFieldset, PropertySelectCombobox, NotionIssueFields 묶음, reconcileNotionFields 헬퍼) — IntegrationsTab/IssueCreateModal 양쪽에서 controlled로 재사용
+│   │   └── notionStatusColors.ts  # Notion status option color → STATUS_CATEGORY (new/indeterminate/done) 매핑
+│   └── lib/             # buildIssueMarkdown, buildIssueAdf, buildGithubIssueBody, buildLinearIssueBody, buildNotionIssueBody, submitToGithub, submitToLinear, submitToNotion(NormalizedSubmitResult), buildAiDraftPrompt 등 순수 유틸
 ├── store/               # Zustand 스토어 (editor/issues/settings/settings-ui), blob-db(IndexedDB 이미지·비디오·네트워크/콘솔 로그 저장)
-│                        # settings v5: accounts: { jira?, github?, linear? } + lastSubmitFields per platform + global titlePrefix
-│                        # issues v4: entry에 platform: PlatformId 필드 (issues-migrations.ts 분리 — 트랜시티브 i18n 회피)
+│                        # settings v6: accounts: { jira?, github?, linear?, notion? } + lastSubmitFields per platform + global titlePrefix
+│                        # issues v5: entry에 platform: PlatformId 필드 + notion 한정 메타 (notionPageId/notionDatabaseId 등)
 ├── i18n/                # 다국어 (ko/en 로케일, t()/useT() 훅)
-├── lib/                 # 공용 유틸 (session-keys, adf-sentinels, url-support, settings-storage)
+├── lib/                 # 공용 유틸 (session-keys, adf-sentinels, url-support, settings-storage, notion-page-id)
 ├── components/ui/       # shadcn 컴포넌트
 ├── styles/
-└── types/               # platform.ts (PlatformId/Accounts/LastSubmitFieldsByPlatform), github.ts, jira.ts, linear.ts 등
-oauth-proxy/             # Cloudflare Worker — Atlassian /token + GitHub /github/{token,refresh} 교환 (client_secret 서버 보관, Linear는 PKCE라 proxy 불필요)
+└── types/               # platform.ts (PlatformId/Accounts/LastSubmitFieldsByPlatform), github.ts, jira.ts, linear.ts, notion.ts 등
+oauth-proxy/             # Cloudflare Worker — Atlassian /token + GitHub /github/{token,refresh} + Notion /notion/token 교환 (client_secret 서버 보관, Linear는 PKCE라 proxy 불필요)
 docs/
 ├── STORE_DEPLOY.md  # 웹스토어 배포 가이드
 └── privacy.md       # 개인정보처리방침 (GitHub Pages)
@@ -176,17 +180,37 @@ Jira·GitHub과 같은 모양으로 두 방식 동시 지원. 저장 형태는 d
 
 `isLinearOAuthConfigured()` false면 IntegrationsTab의 [Linear] sub-tab은 OAuth 버튼을 비활성화하고 API Key 섹션만 사용 가능.
 
-### 플랫폼 어댑터 패턴 (Jira·GitHub·Linear 공용 골격)
+### Notion 인증 (OAuth + Internal Integration Token)
 
-어댑터 단위로 분리. `PlatformId = "jira" | "github" | "linear"` union을 한 곳(`src/types/platform.ts`)에서 관리.
+Jira·GitHub·Linear와 같은 모양으로 두 방식 동시 지원. 저장 형태는 discriminated union (`NotionAuth = NotionApiKeyAuth | NotionOAuthAuth`).
 
-- **저장**: `useSettingsStore`의 `accounts: { jira?: JiraAccount; github?: GithubAccount; linear?: LinearAccount }` dict + `lastSubmitFields: Record<PlatformId, ...>` + 전역 `titlePrefix: string`. `setAccount(platform, account)` / `removeAccount(platform)` / `updateJiraAccount(patch)` / `updateGithubAccount(patch)` / `updateLinearAccount(patch)` API.
-- **메시지**: bg는 `jira.*` / `github.*` / `linear.*` 세 namespace로 분기. 새 플랫폼은 새 namespace 추가만. `BgRequest` discriminated union의 exhaustive switch가 누락 검증.
-- **API 어댑터**: `{platform}-api.ts`에 fetch 래퍼 + 에러 클래스 + 순수 mapper export. 401 처리는 jira는 즉시 refresh 호출, github·linear는 hook 주입형(서비스 워커 재시작 후에도 module side-effect로 재등록).
-- **이슈 entry**: `IssueRecord.platform: PlatformId` 필수. v3→v4 migrate가 기존 entry를 `"jira"`로 채움. UI 분기는 `entry.platform`로. github 한정 메타(`githubOwner`/`githubRepo`/`githubLabels`), linear 한정 메타(`linearTeamKey`/`linearTeamId` 등)는 optional — 등록 시 채우고, refresh fetch 응답으로 갱신.
-- **본문 빌더**: `buildIssueAdf`(Jira용 ADF), `buildIssueMarkdown`/`buildIssueHtml`(클립보드 복사 공용), `buildGithubIssueBody`(GitHub MD), `buildLinearIssueBody`(Linear MD). 모두 `MarkdownContext`를 입력으로 받는다. submit 결과는 `NormalizedSubmitResult { key, url }`로 통일 (Jira `BUG-1` / GitHub `#42` / Linear `TEAM-123`) — `submitToGithub` / `submitToLinear` 헬퍼.
-- **다이얼로그**: `SubmitFieldsDialog`가 IssueCreateModal과 DraftDetailDialog 양쪽에서 공유. 연결 1개=Tab 숨김 자동, 2개 이상=shadcn Tabs로 platform 선택. 선택 시 `editor-store.setTargetPlatform` + `issuesStore.patchIssue`로 IssueRecord.platform 동기. default platform은 `pickInitialPlatform(accounts, lastSubmittedPlatform)` (직전 제출 → jira → github → linear 순). prefill effect deps는 `[open, issue?.id]`만 — issue.platform 변경(사용자 Tab 클릭 결과)에 effect 재발화 시 SubmitFieldsDialog가 강제로 닫히는 버그 회피.
-- **OAuth 에러 분기**: `OAuthError`는 `{ platform, cancelled }` 옵션을 가지며 BG가 `body.platform` / `body.oauthCancelled` / `body.oauthRefreshFailed` 플래그로 직렬화. 정규식 메시지 매칭 금지 — UI는 `isOAuthCancelled` / `getOAuthErrorPlatform` 헬퍼로 분기. cancel 코드는 `isAtlassianCancellationCode` / `isGithubCancellationCode` / `isLinearCancellationCode` 화이트리스트.
+- **Internal Integration Token**: `Authorization: Bearer <token>` 헤더로 `api.notion.com/v1` 직접 호출. workspace owner가 Notion Settings > Integrations에서 발급. 등록할 페이지/DB에 integration이 connect 되어 있어야 함.
+- **OAuth (public integration)**: `chrome.identity.launchWebAuthFlow` → 인가 코드 → **oauth-proxy**(`/notion/token`)에서 `client_id:client_secret` Basic 헤더로 교환 (Notion은 confidential client) → `Authorization: Bearer <accessToken>`로 호출. `Notion-Version: 2022-06-28` 헤더 고정.
+- **dev/prod redirect URI**: Notion OAuth App은 redirect URI 다중 등록 가능 → App 1개에 dev/prod URL 둘 다 등록, 단일 `VITE_NOTION_CLIENT_ID` 사용.
+
+**Refresh 없음**: Notion 공개 통합 토큰은 만료되지 않는다(설계상). 따라서 refresh hook 보일러플레이트 없음. 권한 박탈/revoke 시 401 → `OAuthError(t("notion.oauthExpired"))` → 재인증 안내.
+
+**환경 변수** (빌드 타임):
+- `VITE_NOTION_CLIENT_ID` — OAuth App client_id
+- `VITE_OAUTH_PROXY_URL` — Atlassian·GitHub과 공용 (proxy에 `/notion/token` 라우트 추가)
+
+`isNotionOAuthConfigured()` false면 IntegrationsTab의 [Notion] sub-tab은 OAuth 버튼을 비활성화하고 Internal Token 섹션만 사용 가능.
+
+**페이지 ID 추출**: Notion API의 `createPage` 응답 `url`은 `https://www.notion.so/<workspace>/<title-slug>-<pageIdHex>` 형태. status fetch에 필요한 pageId는 끝의 32자 hex 또는 8-4-4-4-12 UUID. `src/lib/notion-page-id.ts`의 `extractNotionPageId(url)`이 단일 헬퍼 — IssueCreateModal·DraftDetailDialog·IssueListTab.resolveNotionPageId 모두 공유. URL split-pop만 쓰면 slug까지 포함된 garbage가 저장돼 후속 status fetch가 깨지므로 반드시 이 헬퍼 사용.
+
+**상태 색**: `NotionPageStatus.statusOption.color`(green/blue/purple/gray/...)를 `notionStatusCategory(color)`로 시각 카테고리(new/indeterminate/done)로 매핑 → `STATUS_CATEGORY_COLORS` 테이블 공용 사용. green=done, blue·purple=indeterminate, 그 외=new.
+
+### 플랫폼 어댑터 패턴 (Jira·GitHub·Linear·Notion 공용 골격)
+
+어댑터 단위로 분리. `PlatformId = "jira" | "github" | "linear" | "notion"` union을 한 곳(`src/types/platform.ts`)에서 관리.
+
+- **저장**: `useSettingsStore`의 `accounts: { jira?: JiraAccount; github?: GithubAccount; linear?: LinearAccount; notion?: NotionAccount }` dict + `lastSubmitFields: Record<PlatformId, ...>` + 전역 `titlePrefix: string`. `setAccount(platform, account)` / `removeAccount(platform)` / `updateJiraAccount(patch)` / `updateGithubAccount(patch)` / `updateLinearAccount(patch)` / `updateNotionAccount(patch)` API.
+- **메시지**: bg는 `jira.*` / `github.*` / `linear.*` / `notion.*` 네 namespace로 분기. 새 플랫폼은 새 namespace 추가만. `BgRequest` discriminated union의 exhaustive switch가 누락 검증.
+- **API 어댑터**: `{platform}-api.ts`에 fetch 래퍼 + 에러 클래스 + 순수 mapper export. 401 처리는 jira는 즉시 refresh 호출, github·linear는 hook 주입형(서비스 워커 재시작 후에도 module side-effect로 재등록), notion은 refresh가 없어 즉시 `notion.oauthExpired` throw.
+- **이슈 entry**: `IssueRecord.platform: PlatformId` 필수. v3→v4 migrate가 기존 entry를 `"jira"`로 채움. UI 분기는 `entry.platform`로. github 한정 메타(`githubOwner`/`githubRepo`/`githubLabels`), linear 한정 메타(`linearTeamKey`/`linearTeamId` 등), notion 한정 메타(`notionPageId`/`notionDatabaseId`/`notionDatabaseTitle`/`notionStatusOption`)는 optional — 등록 시 채우고, refresh fetch 응답으로 갱신.
+- **본문 빌더**: `buildIssueAdf`(Jira용 ADF), `buildIssueMarkdown`/`buildIssueHtml`(클립보드 복사 공용), `buildGithubIssueBody`(GitHub MD), `buildLinearIssueBody`(Linear MD), `buildNotionIssueBody`(Notion blocks: heading_2/paragraph/bulleted_list_item/code/image/table). 모두 `MarkdownContext`를 입력으로 받는다. submit 결과는 `NormalizedSubmitResult { key, url }`로 통일 (Jira `BUG-1` / GitHub `#42` / Linear `TEAM-123` / Notion 페이지 ID hex 첫 8자) — `submitToGithub` / `submitToLinear` / `submitToNotion` 헬퍼.
+- **다이얼로그**: `SubmitFieldsDialog`가 IssueCreateModal과 DraftDetailDialog 양쪽에서 공유. 연결 1개=Tab 숨김 자동, 2개 이상=shadcn Tabs로 platform 선택. 선택 시 `editor-store.setTargetPlatform` + `issuesStore.patchIssue`로 IssueRecord.platform 동기. default platform은 `pickInitialPlatform(accounts, lastSubmittedPlatform)` (직전 제출 → jira → github → linear → notion 순). prefill effect deps는 `[open, issue?.id]`만 — issue.platform 변경(사용자 Tab 클릭 결과)에 effect 재발화 시 SubmitFieldsDialog가 강제로 닫히는 버그 회피.
+- **OAuth 에러 분기**: `OAuthError`는 `{ platform, cancelled }` 옵션을 가지며 BG가 `body.platform` / `body.oauthCancelled` / `body.oauthRefreshFailed` 플래그로 직렬화. 정규식 메시지 매칭 금지 — UI는 `isOAuthCancelled` / `getOAuthErrorPlatform` 헬퍼로 분기. cancel 코드는 `isAtlassianCancellationCode` / `isGithubCancellationCode` / `isLinearCancellationCode` / `isNotionCancellationCode` 화이트리스트.
 
 ### 토큰 체인 resolve 룰
 
@@ -270,7 +294,9 @@ draft 데이터 모델은 `{ title, sections: Record<string, string> }`. 섹션 
 **플랫폼 마이그레이션** (별도 트랙):
 - `settings-store` v2→v3: `jiraConfig` → `accounts: { jira?, github? }` + `lastSubmitFields` → `Record<PlatformId, ...>`. `migrateV2ToV3` pure helper export — 단위 테스트 표적. 멱등 가드.
 - `settings-store` v3/v4→v5: 각 플랫폼 account에 있던 `titlePrefix`를 전역 `titlePrefix: string`으로 승격. `migrateToV5` pure helper export. jira → github → linear 순 우선순위로 기존 값 추출, 없으면 빈 문자열.
+- `settings-store` v5→v6: notion 플랫폼 추가 마커. `accounts.notion` / `lastSubmitFields.notion`은 모두 optional이라 데이터 마이그레이션 불필요 — 버전만 bump.
 - `issues-store` v3→v4: `IssueRecord`에 `platform: PlatformId` 필수 추가. 기존 entry는 `"jira"`로 채움. `migrateIssueToV4`는 `issues-migrations.ts`로 분리(테스트가 issues-store 본체를 import하면 picker-control→i18n→settings-ui-store→navigator 트랜시티브 로드 발생 — pure helper 분리로 회피).
+- `issues-store` v4→v5: notion 한정 optional 메타(`notionPageId`/`notionDatabaseId`/`notionDatabaseTitle`/`notionStatusOption`) 추가 마커. 데이터 마이그레이션 불필요.
 
 ## 릴리스 & 버전
 
@@ -295,6 +321,7 @@ pnpm version major --no-git-tag-version   # 1.0.0 → 2.0.0 (Breaking change)
 
 ```
 /feature     → 기능 아이디어 → PRD·기술 설계·태스크 문서 산출 (코딩 안 함)
+/tdd         → 테스트만 작성 (구현·픽스·커밋 안 함). interface 모드(신규 헬퍼 시그니처) / regression 모드(리뷰 발견 회귀 테스트)
 /pull        → dev 최신 받고 작업 맥락 브리핑
 /build       → pnpm build + 테스트 체크리스트 (작업 중 검증)
 /code-review → origin/main 대비 변경 코드 시급도별 리포트 (리포트 전용, fix·빌드·커밋 안 함)
@@ -303,6 +330,8 @@ pnpm version major --no-git-tag-version   # 1.0.0 → 2.0.0 (Breaking change)
 /deploy      → main 한정. tag push → 스토어 빌드 → zip → GitHub Release draft → 심사 요청 안내
 /sync        → dev를 origin/main으로 hard reset + force push (배포/머지 후)
 ```
+
+권장 흐름: `/feature` → `/tdd interface` → 구현 → `/code-review` → `/tdd regression` → 픽스/리팩터 → `/push`. `/tdd` 분류표(스킬 정의 안)에 따라 컴포넌트·OAuth·DOM 측정 같은 영역은 스킵 OK.
 
 각 단계 게이트는 `.claude/commands/` 스킬 정의에 명시.
 
@@ -337,8 +366,8 @@ pnpm version major --no-git-tag-version   # 1.0.0 → 2.0.0 (Breaking change)
 - iframe 제약: content script가 `all_frames=false`라 iframe 내부 DOM은 picker로 선택 불가. iframe 박스 자체를 클릭하면 `picker.iframeUnsupported` → `onPickerIframeUnsupported` 이벤트로 안내 다이얼로그 노출 + picker 즉시 idle 복귀 (cross-document 경계 + 빈 결과로 인한 콘솔 에러 누적 방지).
 - 단축키: `Cmd+Shift+E` (mac) / `Ctrl+Shift+E` (default) — `_execute_action`
 - permissions: `sidePanel`, `activeTab`, `scripting`, `storage`, `commands`, `contextMenus`, `identity`, `tabCapture`
-- host_permissions: `*.atlassian.net` (Jira REST), `api.atlassian.com` (OAuth gateway), `auth.atlassian.com` (authorize), `api.github.com` (GitHub REST), `api.linear.app` (Linear GraphQL + OAuth token), + `VITE_OAUTH_PROXY_URL` origin (빌드 타임 주입)
-- OAuth 관련 env: `VITE_ATLASSIAN_CLIENT_ID`, `VITE_GITHUB_CLIENT_ID` (dev), `VITE_GITHUB_CLIENT_ID_PROD` (store build 시 치환), `VITE_LINEAR_CLIENT_ID` (dev), `VITE_LINEAR_CLIENT_ID_PROD` (store build 시 치환), `VITE_OAUTH_PROXY_URL` — 누락 시 해당 플랫폼 OAuth UI 자동 비활성화 (`isOAuthConfigured()` / `isGithubOAuthConfigured()` / `isLinearOAuthConfigured()`)
+- host_permissions: `*.atlassian.net` (Jira REST), `api.atlassian.com` (OAuth gateway), `auth.atlassian.com` (authorize), `api.github.com` (GitHub REST), `api.linear.app` (Linear GraphQL + OAuth token), `api.notion.com` (Notion REST + OAuth token), + `VITE_OAUTH_PROXY_URL` origin (빌드 타임 주입)
+- OAuth 관련 env: `VITE_ATLASSIAN_CLIENT_ID`, `VITE_GITHUB_CLIENT_ID` (dev), `VITE_GITHUB_CLIENT_ID_PROD` (store build 시 치환), `VITE_LINEAR_CLIENT_ID` (dev), `VITE_LINEAR_CLIENT_ID_PROD` (store build 시 치환), `VITE_NOTION_CLIENT_ID`, `VITE_OAUTH_PROXY_URL` — 누락 시 해당 플랫폼 OAuth UI 자동 비활성화 (`isOAuthConfigured()` / `isGithubOAuthConfigured()` / `isLinearOAuthConfigured()` / `isNotionOAuthConfigured()`)
 - `BUGSHOT_STORE_BUILD=1`: 스토어 업로드용 빌드 (manifest `key` 제거)
 
 ## 메모리 & 참고 문서
