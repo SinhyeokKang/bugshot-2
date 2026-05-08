@@ -14,7 +14,7 @@ A Chrome extension for design QA. Pick elements, tweak CSS, and file issues to J
 - **Network & console logs** — auto-capture and attach to issues
 - **AI draft** — Chrome Built-in AI (Gemini Nano) generates issue drafts locally
 - **Jira integration** — OAuth 3LO / API Token, project metadata, auto-upload attachments
-- **GitHub integration** — OAuth Web Flow / PAT, repo/labels/assignees, attachment guidance
+- **GitHub integration** — OAuth Web Flow / PAT, repo/labels/assignees, file upload
 - **Linear integration** — OAuth PKCE / API Key, team/project/labels/priority, GraphQL API
 - **Notion integration** — OAuth / Internal Token, database picker, status & select properties, file uploads
 - **Markdown copy** — paste into Slack, Confluence, or other tools with tables intact
