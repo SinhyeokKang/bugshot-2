@@ -46,6 +46,7 @@ src/
 │   ├── oauth.ts         # Atlassian 3LO (launchWebAuthFlow + proxy 교환)
 │   ├── github-api.ts    # GitHub REST 래퍼 (PAT/Bearer, 401 refresh hook 주입형)
 │   ├── github-oauth.ts  # GitHub Web Flow (launchWebAuthFlow + proxy 교환) + refresh hook 자동 등록
+│   ├── github-upload.ts # GitHub 파일 업로드 (MAIN world page injection, CSRF 토큰 파싱, batch uploadGithubFiles)
 │   ├── linear-api.ts    # Linear GraphQL 래퍼 (API Key/Bearer, 401 refresh hook 주입형)
 │   ├── linear-oauth.ts  # Linear OAuth (PKCE, launchWebAuthFlow, proxy 불필요) + refresh hook 자동 등록
 │   ├── notion-api.ts    # Notion REST 래퍼 (apiKey/Bearer, 401 → notion.oauthExpired, refresh 없음)
@@ -75,7 +76,7 @@ src/
 │   │   ├── notionFields/  # Notion 메타 필드 컴포넌트 (DatabaseCombobox, StatusSelect, PropertiesFieldset, PropertySelectCombobox, NotionIssueFields 묶음, reconcileNotionFields 헬퍼) — IntegrationsTab/IssueCreateModal 양쪽에서 controlled로 재사용
 │   │   └── notionStatusColors.ts  # Notion status option color → STATUS_CATEGORY (new/indeterminate/done) 매핑
 │   └── lib/             # buildIssueMarkdown, buildIssueAdf, buildGithubIssueBody, buildLinearIssueBody, buildNotionIssueBody, submitToGithub, submitToLinear, submitToNotion(NormalizedSubmitResult), buildAiDraftPrompt 등 순수 유틸
-├── store/               # Zustand 스토어 (editor/issues/settings/settings-ui), blob-db(IndexedDB 이미지·비디오·네트워크/콘솔 로그 저장)
+├── store/               # Zustand 스토어 (editor/issues/settings/settings-ui), blob-db(IndexedDB 이미지·비디오·네트워크/콘솔 로그 저장, blobToDataUrl/dataUrlToBlob 유틸)
 │                        # settings v6: accounts: { jira?, github?, linear?, notion? } + lastSubmitFields per platform + global titlePrefix
 │                        # issues v5: entry에 platform: PlatformId 필드 + notion 한정 메타 (notionPageId/notionDatabaseId 등)
 ├── i18n/                # 다국어 (ko/en 로케일, t()/useT() 훅)
@@ -212,7 +213,7 @@ Jira·GitHub·Linear와 같은 모양으로 두 방식 동시 지원. 저장 형
 - **API 어댑터**: `{platform}-api.ts`에 fetch 래퍼 + 에러 클래스 + 순수 mapper export. 401 처리는 jira는 즉시 refresh 호출, github·linear는 hook 주입형(서비스 워커 재시작 후에도 module side-effect로 재등록), notion은 refresh가 없어 즉시 `notion.oauthExpired` throw.
 - **이슈 entry**: `IssueRecord.platform: PlatformId` 필수. v3→v4 migrate가 기존 entry를 `"jira"`로 채움. UI 분기는 `entry.platform`로. github 한정 메타(`githubOwner`/`githubRepo`/`githubLabels`), linear 한정 메타(`linearTeamKey`/`linearTeamId` 등), notion 한정 메타(`notionPageId`/`notionDatabaseId`/`notionDatabaseTitle`/`notionStatusOption`)는 optional — 등록 시 채우고, refresh fetch 응답으로 갱신.
 - **본문 빌더**: `buildIssueAdf`(Jira용 ADF), `buildIssueMarkdown`/`buildIssueHtml`(클립보드 복사 공용), `buildGithubIssueBody`(GitHub MD), `buildLinearIssueBody`(Linear MD), `buildNotionIssueBody`(Notion blocks: heading_2/paragraph/bulleted_list_item/code/image/video/table). 모두 `MarkdownContext`를 입력으로 받는다. submit 결과는 `NormalizedSubmitResult { key, url }`로 통일 (Jira `BUG-1` / GitHub `#42` / Linear `TEAM-123` / Notion 페이지 ID hex 첫 8자) — `submitToGithub` / `submitToLinear` / `submitToNotion` 헬퍼.
-- **AI/디버그 메타 첨부**: `buildAiMetaAttachment(ctx)` 단일 헬퍼가 마크다운을 만들어 `data:text/markdown;base64,...`로 반환. filename은 `bugshot.md` 고정(`AI_META_FILENAME` 상수, placeholder 없음 — Jira/Linear/Notion 공통). Jira는 `submitIssue` 핸들러가 `attachments[0]`로 받고, Linear/Notion은 본문에 인라인하지 않고 createIssue/createPage 후(또는 페이로드의 attachments 큐) **별도 첨부**로 보낸다 (Linear: `createAttachment`, Notion: 첨부 섹션 file 블록 = log 카테고리). GitHub은 Issues API에 attachments 필드가 없어 의도적으로 제외.
+- **AI/디버그 메타 첨부**: `buildAiMetaAttachment(ctx)` 단일 헬퍼가 마크다운을 만들어 `data:text/markdown;base64,...`로 반환. filename은 `bugshot.md` 고정(`AI_META_FILENAME` 상수, placeholder 없음 — Jira/GitHub/Linear/Notion 공통). Jira는 `submitIssue` 핸들러가 `attachments[0]`로 받고, GitHub은 `uploadGithubFiles`로 업로드 후 본문 첨부 섹션에 파일 링크로 포함, Linear/Notion은 본문에 인라인하지 않고 createIssue/createPage 후(또는 페이로드의 attachments 큐) **별도 첨부**로 보낸다 (Linear: `createAttachment`, Notion: 첨부 섹션 file 블록 = log 카테고리).
 - **다이얼로그**: `SubmitFieldsDialog`가 IssueCreateModal과 DraftDetailDialog 양쪽에서 공유. 연결 1개=Tab 숨김 자동, 2개 이상=shadcn Tabs로 platform 선택. 선택 시 `editor-store.setTargetPlatform` + `issuesStore.patchIssue`로 IssueRecord.platform 동기. default platform은 `pickInitialPlatform(accounts, lastSubmittedPlatform)` (직전 제출 → jira → github → linear → notion 순). prefill effect deps는 `[open, issue?.id]`만 — issue.platform 변경(사용자 Tab 클릭 결과)에 effect 재발화 시 SubmitFieldsDialog가 강제로 닫히는 버그 회피.
 - **OAuth 에러 분기**: `OAuthError`는 `{ platform, cancelled }` 옵션을 가지며 BG가 `body.platform` / `body.oauthCancelled` / `body.oauthRefreshFailed` 플래그로 직렬화. 정규식 메시지 매칭 금지 — UI는 `isOAuthCancelled` / `getOAuthErrorPlatform` 헬퍼로 분기. cancel 코드는 `isAtlassianCancellationCode` / `isGithubCancellationCode` / `isLinearCancellationCode` / `isNotionCancellationCode` 화이트리스트.
 
@@ -370,7 +371,7 @@ pnpm version major --no-git-tag-version   # 1.0.0 → 2.0.0 (Breaking change)
 - iframe 제약: content script가 `all_frames=false`라 iframe 내부 DOM은 picker로 선택 불가. iframe 박스 자체를 클릭하면 `picker.iframeUnsupported` → `onPickerIframeUnsupported` 이벤트로 안내 다이얼로그 노출 + picker 즉시 idle 복귀 (cross-document 경계 + 빈 결과로 인한 콘솔 에러 누적 방지).
 - 단축키: `Cmd+Shift+E` (mac) / `Ctrl+Shift+E` (default) — `_execute_action`
 - permissions: `sidePanel`, `activeTab`, `scripting`, `storage`, `commands`, `contextMenus`, `identity`, `tabCapture`
-- host_permissions: `*.atlassian.net` (Jira REST), `api.atlassian.com` (OAuth gateway), `auth.atlassian.com` (authorize), `api.github.com` (GitHub REST), `api.linear.app` (Linear GraphQL + OAuth token), `api.notion.com` (Notion REST + OAuth token), + `VITE_OAUTH_PROXY_URL` origin (빌드 타임 주입)
+- host_permissions: `*.atlassian.net` (Jira REST), `api.atlassian.com` (OAuth gateway), `auth.atlassian.com` (authorize), `api.github.com` (GitHub REST), `github.com` (파일 업로드 page injection), `uploads.github.com` (파일 업로드 S3), `api.linear.app` (Linear GraphQL + OAuth token), `api.notion.com` (Notion REST + OAuth token), + `VITE_OAUTH_PROXY_URL` origin (빌드 타임 주입)
 - OAuth 관련 env: `VITE_ATLASSIAN_CLIENT_ID`, `VITE_GITHUB_CLIENT_ID` (dev), `VITE_GITHUB_CLIENT_ID_PROD` (store build 시 치환), `VITE_LINEAR_CLIENT_ID` (dev), `VITE_LINEAR_CLIENT_ID_PROD` (store build 시 치환), `VITE_NOTION_CLIENT_ID`, `VITE_OAUTH_PROXY_URL` — 누락 시 해당 플랫폼 OAuth UI 자동 비활성화 (`isOAuthConfigured()` / `isGithubOAuthConfigured()` / `isLinearOAuthConfigured()` / `isNotionOAuthConfigured()`)
 - `BUGSHOT_STORE_BUILD=1`: 스토어 업로드용 빌드 (manifest `key` 제거)
 
