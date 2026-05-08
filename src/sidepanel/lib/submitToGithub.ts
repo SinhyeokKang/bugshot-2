@@ -25,17 +25,21 @@ export interface GithubSubmitInput {
   assignees?: string[];
 }
 
+function githubFilename(name: string): string {
+  return name.endsWith(".har") ? name.replace(/\.har$/, ".json") : name;
+}
+
 function guessMime(filename: string): string {
   if (filename.endsWith(".webp")) return "image/webp";
   if (filename.endsWith(".webm")) return "video/webm";
   if (filename.endsWith(".md")) return "text/markdown";
-  if (filename.endsWith(".har")) return "application/json";
-  if (filename.endsWith(".json")) return "application/json";
+  if (filename.endsWith(".json") || filename.endsWith(".har")) return "application/json";
   return "application/octet-stream";
 }
 
 function toUploadEntry(f: GithubFileInput) {
-  return { filename: f.filename, contentType: guessMime(f.filename), dataUrl: f.dataUrl };
+  const name = githubFilename(f.filename);
+  return { filename: name, contentType: guessMime(name), dataUrl: f.dataUrl };
 }
 
 export async function submitToGithub(
@@ -62,10 +66,11 @@ export async function submitToGithub(
   const hrefMap = new Map(uploadResults.map((r) => [r.filename, r.href]));
 
   function toMedia(f: GithubFileInput): GithubMediaInput {
+    const name = githubFilename(f.filename);
     return {
-      filename: f.filename,
-      contentType: guessMime(f.filename),
-      url: hrefMap.get(f.filename) ?? undefined,
+      filename: name,
+      contentType: guessMime(name),
+      url: hrefMap.get(name) ?? undefined,
     };
   }
 

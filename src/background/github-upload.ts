@@ -1,17 +1,3 @@
-export function extractCsrfToken(html: string): string | null {
-  const dataCsrf = /data-csrf[^>]*?value="([^"]+)"/i.exec(html)
-    ?? /value="([^"]+)"[^>]*?data-csrf/i.exec(html);
-  if (dataCsrf?.[1]) return dataCsrf[1];
-
-  const meta = /<meta\s+name="csrf-token"\s+content="([^"]+)"/i.exec(html)
-    ?? /<meta\s+content="([^"]+)"\s+name="csrf-token"/i.exec(html);
-  if (meta?.[1]) return meta[1];
-
-  const input = /name="authenticity_token"[^>]*?value="([^"]+)"/i.exec(html)
-    ?? /value="([^"]+)"[^>]*?name="authenticity_token"/i.exec(html);
-  return input?.[1] || null;
-}
-
 export interface GithubUploadFileEntry {
   filename: string;
   contentType: string;
@@ -45,60 +31,49 @@ async function ensureGithubTab(owner: string, repo: string): Promise<{ tabId: nu
   return { tabId, created: true };
 }
 
+interface PageUploadResult {
+  files: Array<{ filename: string; href: string | null }>;
+  debug: string[];
+}
+
 async function pageBatchUploadFn(
-  owner: string,
-  repo: string,
   repoId: number,
   files: Array<{ filename: string; contentType: string; dataUrl: string }>,
-): Promise<Array<{ filename: string; href: string | null }>> {
-  // extractCsrfToken 인라인 (executeScript 직렬화 제약)
-  function extractCsrf(html: string): string | null {
-    const dataCsrf = /data-csrf[^>]*?value="([^"]+)"/i.exec(html)
-      ?? /value="([^"]+)"[^>]*?data-csrf/i.exec(html);
-    if (dataCsrf?.[1]) return dataCsrf[1];
-    const meta = /<meta\s+name="csrf-token"\s+content="([^"]+)"/i.exec(html)
-      ?? /<meta\s+content="([^"]+)"\s+name="csrf-token"/i.exec(html);
-    if (meta?.[1]) return meta[1];
-    const input = /name="authenticity_token"[^>]*?value="([^"]+)"/i.exec(html)
-      ?? /value="([^"]+)"[^>]*?name="authenticity_token"/i.exec(html);
-    return input?.[1] || null;
-  }
-
-  let csrfToken: string | null = null;
-  try {
-    const html = await fetch(`/${owner}/${repo}/releases/new`).then((r) => r.text());
-    csrfToken = extractCsrf(html);
-  } catch { /* csrfToken stays null */ }
-
-  if (!csrfToken) {
-    return files.map((f) => ({ filename: f.filename, href: null }));
-  }
-
+): Promise<PageUploadResult> {
+  const debug: string[] = [];
   const results: Array<{ filename: string; href: string | null }> = [];
 
   for (const file of files) {
     try {
       const match = /^data:[^;]*;base64,(.+)$/.exec(file.dataUrl);
-      if (!match) { results.push({ filename: file.filename, href: null }); continue; }
+      if (!match) { debug.push(`${file.filename}: invalid dataUrl`); results.push({ filename: file.filename, href: null }); continue; }
       const binary = atob(match[1]);
       const bytes = new Uint8Array(binary.length);
       for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
       const blob = new Blob([bytes], { type: file.contentType });
+      debug.push(`${file.filename}: blob ${blob.size}b, type=${file.contentType}`);
 
       const policyForm = new FormData();
+      policyForm.append("repository_id", String(repoId));
       policyForm.append("name", file.filename);
       policyForm.append("size", String(blob.size));
       policyForm.append("content_type", file.contentType);
-      policyForm.append("authenticity_token", csrfToken);
-      policyForm.append("repository_id", String(repoId));
 
       const policyRes = await fetch("https://github.com/upload/policies/assets", {
         method: "POST",
         body: policyForm,
-        headers: { Accept: "application/json" },
+        headers: {
+          "GitHub-Verified-Fetch": "true",
+          "X-Requested-With": "XMLHttpRequest",
+        },
       });
-      if (!policyRes.ok) { results.push({ filename: file.filename, href: null }); continue; }
+      if (!policyRes.ok) {
+        const body = await policyRes.text().catch(() => "");
+        debug.push(`${file.filename}: policy ${policyRes.status} ${body.substring(0, 200)}`);
+        results.push({ filename: file.filename, href: null }); continue;
+      }
       const policy = await policyRes.json();
+      debug.push(`${file.filename}: policy ok, upload_url=${policy.upload_url?.substring(0, 80)}`);
 
       const s3Form = new FormData();
       for (const [key, value] of Object.entries(policy.form as Record<string, string>)) {
@@ -111,7 +86,11 @@ async function pageBatchUploadFn(
         body: s3Form,
         mode: "cors",
       });
-      if (!s3Res.ok && s3Res.status !== 204) { results.push({ filename: file.filename, href: null }); continue; }
+      if (!s3Res.ok && s3Res.status !== 204) {
+        debug.push(`${file.filename}: s3 ${s3Res.status}`);
+        results.push({ filename: file.filename, href: null }); continue;
+      }
+      debug.push(`${file.filename}: s3 ok (${s3Res.status})`);
 
       const finalForm = new FormData();
       finalForm.append("authenticity_token", policy.asset_upload_authenticity_token);
@@ -122,15 +101,19 @@ async function pageBatchUploadFn(
         body: finalForm,
         headers: { Accept: "application/json" },
       });
-      if (!finalRes.ok) { results.push({ filename: file.filename, href: null }); continue; }
-
+      if (!finalRes.ok) {
+        debug.push(`${file.filename}: finalize ${finalRes.status}`);
+        results.push({ filename: file.filename, href: null }); continue;
+      }
+      debug.push(`${file.filename}: success href=${policy.asset.href}`);
       results.push({ filename: file.filename, href: policy.asset.href as string });
-    } catch {
+    } catch (e) {
+      debug.push(`${file.filename}: exception ${e}`);
       results.push({ filename: file.filename, href: null });
     }
   }
 
-  return results;
+  return { files: results, debug };
 }
 
 export async function uploadGithubFiles(
@@ -154,13 +137,17 @@ export async function uploadGithubFiles(
   }
 
   try {
+    console.warn("[bugshot] uploading", files.length, "files via tab", tabId, created ? "(created)" : "(reused)");
     const [result] = await chrome.scripting.executeScript({
       target: { tabId },
       world: "MAIN",
       func: pageBatchUploadFn,
-      args: [owner, repo, repoId, files],
+      args: [repoId, files],
     });
-    return result?.result ?? files.map((f) => ({ filename: f.filename, href: null }));
+    const pageResult = result?.result as PageUploadResult | null;
+    if (pageResult?.debug) console.warn("[bugshot] page debug:", pageResult.debug.join(" | "));
+    console.warn("[bugshot] upload result", JSON.stringify(pageResult?.files));
+    return pageResult?.files ?? files.map((f) => ({ filename: f.filename, href: null }));
   } catch (err) {
     console.warn("[bugshot] github upload script injection failed", err);
     return files.map((f) => ({ filename: f.filename, href: null }));

@@ -530,7 +530,7 @@ const ko = {
   "logSummary.network.title": "네트워크 로그",
   "logSummary.network.captured": "{n}건 캡처 (에러 {errors}건)",
   "logSummary.network.capturedNoError": "{n}건 캡처 (에러 없음)",
-  "logSummary.network.detail": "(상세: network-log.har 첨부)",
+  "logSummary.network.detail": "(상세: {filename} 첨부)",
   "logSummary.console.title": "콘솔 로그",
   "logSummary.console.captured": "{n}건 캡처 (에러 {errors}건, 경고 {warns}건)",
   "logSummary.console.capturedNoError": "{n}건 캡처 (에러 없음)",

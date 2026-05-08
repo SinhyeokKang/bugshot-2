@@ -208,7 +208,7 @@ function emitLogSummary(lines: string[], ctx: MarkdownContext): void {
     } else {
       lines.push(t("logSummary.network.capturedNoError", { n: net.captured }));
     }
-    lines.push("", `_${t("logSummary.network.detail")}_`, "");
+    lines.push("", `_${t("logSummary.network.detail", { filename: "network-log.json" })}_`, "");
   }
   if (con) {
     lines.push(`## ${t("logSummary.console.title")}`, "");

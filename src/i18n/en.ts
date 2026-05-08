@@ -532,7 +532,7 @@ const en = {
   "logSummary.network.title": "Network Logs",
   "logSummary.network.captured": "{n} captured ({errors} errors)",
   "logSummary.network.capturedNoError": "{n} captured (no errors)",
-  "logSummary.network.detail": "(Details: see network-log.har attachment)",
+  "logSummary.network.detail": "(Details: see {filename} attachment)",
   "logSummary.console.title": "Console Logs",
   "logSummary.console.captured": "{n} captured ({errors} errors, {warns} warnings)",
   "logSummary.console.capturedNoError": "{n} captured (no errors)",
