@@ -36,84 +36,89 @@ interface PageUploadResult {
   debug: string[];
 }
 
+async function uploadSingleFile(
+  repoId: number,
+  file: { filename: string; contentType: string; dataUrl: string },
+): Promise<{ filename: string; href: string | null; debug: string[] }> {
+  const debug: string[] = [];
+  try {
+    const match = /^data:[^;]*;base64,(.+)$/.exec(file.dataUrl);
+    if (!match) { debug.push(`${file.filename}: invalid dataUrl`); return { filename: file.filename, href: null, debug }; }
+    const binary = atob(match[1]);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    const blob = new Blob([bytes], { type: file.contentType });
+    debug.push(`${file.filename}: blob ${blob.size}b, type=${file.contentType}`);
+
+    const policyForm = new FormData();
+    policyForm.append("repository_id", String(repoId));
+    policyForm.append("name", file.filename);
+    policyForm.append("size", String(blob.size));
+    policyForm.append("content_type", file.contentType);
+
+    const policyRes = await fetch("https://github.com/upload/policies/assets", {
+      method: "POST",
+      body: policyForm,
+      headers: {
+        "GitHub-Verified-Fetch": "true",
+        "X-Requested-With": "XMLHttpRequest",
+      },
+    });
+    if (!policyRes.ok) {
+      const body = await policyRes.text().catch(() => "");
+      debug.push(`${file.filename}: policy ${policyRes.status} ${body.substring(0, 200)}`);
+      return { filename: file.filename, href: null, debug };
+    }
+    const policy = await policyRes.json();
+    debug.push(`${file.filename}: policy ok, upload_url=${policy.upload_url?.substring(0, 80)}`);
+
+    const s3Form = new FormData();
+    for (const [key, value] of Object.entries(policy.form as Record<string, string>)) {
+      s3Form.append(key, value);
+    }
+    s3Form.append("file", blob);
+
+    const s3Res = await fetch(policy.upload_url, {
+      method: "POST",
+      body: s3Form,
+      mode: "cors",
+    });
+    if (!s3Res.ok) {
+      debug.push(`${file.filename}: s3 ${s3Res.status}`);
+      return { filename: file.filename, href: null, debug };
+    }
+    debug.push(`${file.filename}: s3 ok (${s3Res.status})`);
+
+    const finalForm = new FormData();
+    finalForm.append("authenticity_token", policy.asset_upload_authenticity_token);
+    const finalUrl = new URL(policy.asset_upload_url, location.origin).href;
+
+    const finalRes = await fetch(finalUrl, {
+      method: "PUT",
+      body: finalForm,
+      headers: { Accept: "application/json" },
+    });
+    if (!finalRes.ok) {
+      debug.push(`${file.filename}: finalize ${finalRes.status}`);
+      return { filename: file.filename, href: null, debug };
+    }
+    debug.push(`${file.filename}: success href=${policy.asset.href}`);
+    return { filename: file.filename, href: policy.asset.href as string, debug };
+  } catch (e) {
+    debug.push(`${file.filename}: exception ${e}`);
+    return { filename: file.filename, href: null, debug };
+  }
+}
+
 async function pageBatchUploadFn(
   repoId: number,
   files: Array<{ filename: string; contentType: string; dataUrl: string }>,
 ): Promise<PageUploadResult> {
-  const debug: string[] = [];
-  const results: Array<{ filename: string; href: string | null }> = [];
-
-  for (const file of files) {
-    try {
-      const match = /^data:[^;]*;base64,(.+)$/.exec(file.dataUrl);
-      if (!match) { debug.push(`${file.filename}: invalid dataUrl`); results.push({ filename: file.filename, href: null }); continue; }
-      const binary = atob(match[1]);
-      const bytes = new Uint8Array(binary.length);
-      for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-      const blob = new Blob([bytes], { type: file.contentType });
-      debug.push(`${file.filename}: blob ${blob.size}b, type=${file.contentType}`);
-
-      const policyForm = new FormData();
-      policyForm.append("repository_id", String(repoId));
-      policyForm.append("name", file.filename);
-      policyForm.append("size", String(blob.size));
-      policyForm.append("content_type", file.contentType);
-
-      const policyRes = await fetch("https://github.com/upload/policies/assets", {
-        method: "POST",
-        body: policyForm,
-        headers: {
-          "GitHub-Verified-Fetch": "true",
-          "X-Requested-With": "XMLHttpRequest",
-        },
-      });
-      if (!policyRes.ok) {
-        const body = await policyRes.text().catch(() => "");
-        debug.push(`${file.filename}: policy ${policyRes.status} ${body.substring(0, 200)}`);
-        results.push({ filename: file.filename, href: null }); continue;
-      }
-      const policy = await policyRes.json();
-      debug.push(`${file.filename}: policy ok, upload_url=${policy.upload_url?.substring(0, 80)}`);
-
-      const s3Form = new FormData();
-      for (const [key, value] of Object.entries(policy.form as Record<string, string>)) {
-        s3Form.append(key, value);
-      }
-      s3Form.append("file", blob);
-
-      const s3Res = await fetch(policy.upload_url, {
-        method: "POST",
-        body: s3Form,
-        mode: "cors",
-      });
-      if (!s3Res.ok && s3Res.status !== 204) {
-        debug.push(`${file.filename}: s3 ${s3Res.status}`);
-        results.push({ filename: file.filename, href: null }); continue;
-      }
-      debug.push(`${file.filename}: s3 ok (${s3Res.status})`);
-
-      const finalForm = new FormData();
-      finalForm.append("authenticity_token", policy.asset_upload_authenticity_token);
-      const finalUrl = new URL(policy.asset_upload_url, location.origin).href;
-
-      const finalRes = await fetch(finalUrl, {
-        method: "PUT",
-        body: finalForm,
-        headers: { Accept: "application/json" },
-      });
-      if (!finalRes.ok) {
-        debug.push(`${file.filename}: finalize ${finalRes.status}`);
-        results.push({ filename: file.filename, href: null }); continue;
-      }
-      debug.push(`${file.filename}: success href=${policy.asset.href}`);
-      results.push({ filename: file.filename, href: policy.asset.href as string });
-    } catch (e) {
-      debug.push(`${file.filename}: exception ${e}`);
-      results.push({ filename: file.filename, href: null });
-    }
-  }
-
-  return { files: results, debug };
+  const settled = await Promise.all(files.map((f) => uploadSingleFile(repoId, f)));
+  return {
+    files: settled.map((r) => ({ filename: r.filename, href: r.href })),
+    debug: settled.flatMap((r) => r.debug),
+  };
 }
 
 export async function uploadGithubFiles(

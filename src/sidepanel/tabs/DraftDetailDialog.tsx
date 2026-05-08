@@ -923,5 +923,3 @@ function DraftVideoPreview({ issue, thumbnailUrl }: { issue: IssueRecord; thumbn
     </div>
   );
 }
-
-
