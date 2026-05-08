@@ -36,8 +36,8 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useT } from "@/i18n";
 import { cn } from "@/lib/utils";
+import { blobToDataUrl } from "@/store/blob-db";
 import { useSettingsUiStore } from "@/store/settings-ui-store";
-import { dataUrlToBlob } from "@/store/blob-db";
 import { useEditorStore, type EditorIssueFields } from "@/store/editor-store";
 import { useIssuesStore } from "@/store/issues-store";
 import {
@@ -68,8 +68,7 @@ import {
 } from "../lib/buildLogSummary";
 import type { MarkdownContext } from "../lib/buildIssueMarkdown";
 import type { NormalizedSubmitResult } from "@/types/platform";
-import { submitToGithub } from "../lib/submitToGithub";
-import type { GithubMediaInput } from "../lib/buildGithubIssueBody";
+import { submitToGithub, type GithubFileInput } from "../lib/submitToGithub";
 import { submitToLinear, type LinearFileInput } from "../lib/submitToLinear";
 import { submitToNotion, type NotionFileInput } from "../lib/submitToNotion";
 import {
@@ -334,30 +333,26 @@ export function IssueCreateModal() {
     }
     if (!ghFields.owner || !ghFields.repo) throw new Error(t("create.requiredMissing"));
 
-    const images: GithubMediaInput[] = [];
-    let video: GithubMediaInput | undefined;
-    const logs: GithubMediaInput[] = [];
+    const images: GithubFileInput[] = [];
+    let video: GithubFileInput | undefined;
+    const logs: GithubFileInput[] = [];
 
     if (captureMode === "video") {
-      if (videoBlob) video = { filename: "recording.webm", blob: videoBlob };
+      if (videoBlob) video = { filename: "recording.webm", dataUrl: await blobToDataUrl(videoBlob) };
       if (networkLog && networkLogAttach && networkLog.captured > 0) {
-        logs.push({
-          filename: "network-log.har",
-          blob: new Blob([serializeHar(buildHar(networkLog))], { type: "application/json" }),
-        });
+        const harBlob = new Blob([serializeHar(buildHar(networkLog))], { type: "application/json" });
+        logs.push({ filename: "network-log.har", dataUrl: await blobToDataUrl(harBlob) });
       }
       if (consoleLog && consoleLogAttach && consoleLog.captured > 0) {
-        logs.push({
-          filename: "console-log.json",
-          blob: new Blob([serializeConsoleLog(buildConsoleLogJson(consoleLog))], { type: "application/json" }),
-        });
+        const jsonBlob = new Blob([serializeConsoleLog(buildConsoleLogJson(consoleLog))], { type: "application/json" });
+        logs.push({ filename: "console-log.json", dataUrl: await blobToDataUrl(jsonBlob) });
       }
     } else if (captureMode === "screenshot") {
       const screenshotImage = screenshotAnnotated ?? screenshotRaw;
-      if (screenshotImage) images.push({ filename: "screenshot.webp", blob: dataUrlToBlob(screenshotImage) });
+      if (screenshotImage) images.push({ filename: "screenshot.webp", dataUrl: screenshotImage });
     } else {
-      if (beforeImage) images.push({ filename: "before.webp", blob: dataUrlToBlob(beforeImage) });
-      if (afterImage) images.push({ filename: "after.webp", blob: dataUrlToBlob(afterImage) });
+      if (beforeImage) images.push({ filename: "before.webp", dataUrl: beforeImage });
+      if (afterImage) images.push({ filename: "after.webp", dataUrl: afterImage });
     }
 
     const result = await submitToGithub({
@@ -1284,13 +1279,4 @@ function FieldCombobox({
       </PopoverContent>
     </Popover>
   );
-}
-
-function blobToDataUrl(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = () => reject(new Error("Failed to read blob"));
-    reader.readAsDataURL(blob);
-  });
 }

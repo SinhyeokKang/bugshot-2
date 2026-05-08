@@ -19,11 +19,13 @@ import {
 import {
   createIssue as createGithubIssue,
   getIssueStatus as getGithubIssueStatus,
+  githubFetch,
   getMyself as githubGetMyself,
   getRepoAssignees,
   getRepoLabels,
   searchRepos,
 } from "./github-api";
+import { uploadGithubFiles } from "./github-upload";
 import {
   createAttachment as createLinearAttachment,
   createIssue as createLinearIssue,
@@ -166,6 +168,12 @@ export async function handleMessage(
         message.owner,
         message.repo,
       );
+
+    case "github.uploadFiles": {
+      const auth = await loadGithubAuth();
+      const repo = await githubFetch<{ id: number }>(auth, `/repos/${message.owner}/${message.repo}`);
+      return uploadGithubFiles(message.owner, message.repo, repo.id, message.files);
+    }
 
     case "github.submitIssue":
       return createGithubIssue(await loadGithubAuth(), message.payload);

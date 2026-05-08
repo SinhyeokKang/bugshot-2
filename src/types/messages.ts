@@ -83,6 +83,12 @@ export type BgRequest =
   | { type: "github.getLabels"; owner: string; repo: string }
   | { type: "github.searchAssignees"; owner: string; repo: string }
   | {
+      type: "github.uploadFiles";
+      owner: string;
+      repo: string;
+      files: Array<{ filename: string; contentType: string; dataUrl: string }>;
+    }
+  | {
       type: "github.submitIssue";
       payload: GithubCreateIssuePayload;
     }

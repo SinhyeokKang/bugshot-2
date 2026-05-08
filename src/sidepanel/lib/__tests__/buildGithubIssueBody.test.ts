@@ -46,15 +46,11 @@ function makeCtx(overrides: Partial<MarkdownContext> = {}): MarkdownContext {
   };
 }
 
-function makeBlob(size: number, mime = "image/webp"): Blob {
-  return new Blob([new Uint8Array(size)], { type: mime });
-}
-
 describe("buildGithubIssueBody — 첨부 안내", () => {
   it("이미지는 본문에 인라인되지 않고 파일명만 안내로 노출", () => {
     const input: GithubBuildInput = {
       ctx: makeCtx({ captureMode: "screenshot" }),
-      images: [{ filename: "screenshot.webp", blob: makeBlob(2048) }],
+      images: [{ filename: "screenshot.webp", contentType: "image/webp" }],
     };
     const out = buildGithubIssueBody(input);
     expect(out.attached).toEqual(["screenshot.webp"]);
@@ -66,7 +62,7 @@ describe("buildGithubIssueBody — 첨부 안내", () => {
   it("video도 푸터 안내", () => {
     const input: GithubBuildInput = {
       ctx: makeCtx({ captureMode: "video" }),
-      video: { filename: "recording.webm", blob: makeBlob(1024) },
+      video: { filename: "recording.webm", contentType: "video/webm" },
     };
     const out = buildGithubIssueBody(input);
     expect(out.attached).toEqual(["recording.webm"]);
@@ -76,10 +72,10 @@ describe("buildGithubIssueBody — 첨부 안내", () => {
   it("HAR/console 로그도 푸터 안내", () => {
     const input: GithubBuildInput = {
       ctx: makeCtx({ captureMode: "video" }),
-      video: { filename: "recording.webm", blob: makeBlob(512) },
+      video: { filename: "recording.webm", contentType: "video/webm" },
       logs: [
-        { filename: "network-log.har", blob: makeBlob(2048) },
-        { filename: "console-log.json", blob: makeBlob(2048) },
+        { filename: "network-log.har", contentType: "application/json" },
+        { filename: "console-log.json", contentType: "application/json" },
       ],
     };
     const out = buildGithubIssueBody(input);
@@ -90,7 +86,6 @@ describe("buildGithubIssueBody — 첨부 안내", () => {
     ]);
     expect(out.body).toContain("`network-log.har`");
     expect(out.body).toContain("`console-log.json`");
-    // 어떤 형식이든 base64 인라인 금지
     expect(out.body).not.toContain("data:application");
     expect(out.body).not.toContain("data:image");
     expect(out.body).not.toContain("data:video");
@@ -107,9 +102,9 @@ describe("buildGithubIssueBody — 첨부 안내", () => {
     const out = buildGithubIssueBody({
       ctx: makeCtx({ captureMode: "screenshot" }),
       images: [
-        { filename: "a.webp", blob: makeBlob(1) },
-        { filename: "b.webp", blob: makeBlob(1) },
-        { filename: "c.webp", blob: makeBlob(1) },
+        { filename: "a.webp", contentType: "image/webp" },
+        { filename: "b.webp", contentType: "image/webp" },
+        { filename: "c.webp", contentType: "image/webp" },
       ],
     });
     const matches = out.body.match(/github\.attachmentNotInline/g);
@@ -152,5 +147,143 @@ describe("buildGithubIssueBody — 구조", () => {
   it("footer 마크다운 포함 (Reported via BugShot)", () => {
     const out = buildGithubIssueBody({ ctx: makeCtx() });
     expect(out.body).toMatch(/_Reported via .*BugShot.*_/);
+  });
+});
+
+describe("buildGithubIssueBody — URL 인라인", () => {
+  it("screenshot 모드 — url이 있으면 미디어 섹션에 인라인", () => {
+    const input: GithubBuildInput = {
+      ctx: makeCtx({ captureMode: "screenshot" }),
+      images: [
+        {
+          filename: "screenshot.webp",
+          contentType: "image/webp",
+          url: "https://github.com/user-attachments/assets/abc",
+        },
+      ],
+    };
+    const out = buildGithubIssueBody(input);
+    expect(out.body).toContain("md.section.media");
+    expect(out.body).toContain(
+      "![screenshot.webp](https://github.com/user-attachments/assets/abc)",
+    );
+  });
+
+  it("video 모드 — url이 있으면 미디어 섹션에 인라인", () => {
+    const input: GithubBuildInput = {
+      ctx: makeCtx({ captureMode: "video" }),
+      video: {
+        filename: "recording.webm",
+        contentType: "video/webm",
+        url: "https://github.com/user-attachments/assets/vid123",
+      },
+    };
+    const out = buildGithubIssueBody(input);
+    expect(out.body).toContain("md.section.media");
+    expect(out.body).toContain(
+      "https://github.com/user-attachments/assets/vid123",
+    );
+    expect(out.body).not.toContain("`recording.webm`");
+  });
+
+  it("로그/기타 파일은 첨부 섹션에 위치 (기대 결과 하단)", () => {
+    const input: GithubBuildInput = {
+      ctx: makeCtx({
+        captureMode: "video",
+        sections: { description: "본문", expectedResult: "기대" },
+      }),
+      video: {
+        filename: "recording.webm",
+        contentType: "video/webm",
+        url: "https://github.com/user-attachments/assets/vid",
+      },
+      logs: [
+        {
+          filename: "network-log.har",
+          contentType: "application/json",
+          url: "https://github.com/user-attachments/assets/log1",
+        },
+      ],
+    };
+    const out = buildGithubIssueBody(input);
+    const mediaIdx = out.body.indexOf("md.section.media");
+    const expectedIdx = out.body.indexOf("md.section.expectedResult");
+    const attachIdx = out.body.indexOf("md.section.attachments");
+    expect(mediaIdx).toBeLessThan(expectedIdx);
+    expect(attachIdx).toBeGreaterThan(expectedIdx);
+    expect(out.body).toContain(
+      "[network-log.har](https://github.com/user-attachments/assets/log1)",
+    );
+  });
+
+  it("모든 파일에 url이 있으면 drag-drop 안내 없음", () => {
+    const input: GithubBuildInput = {
+      ctx: makeCtx({ captureMode: "screenshot" }),
+      images: [
+        {
+          filename: "screenshot.webp",
+          contentType: "image/webp",
+          url: "https://github.com/user-attachments/assets/img1",
+        },
+      ],
+      logs: [
+        {
+          filename: "bugshot.md",
+          contentType: "text/markdown",
+          url: "https://github.com/user-attachments/assets/meta1",
+        },
+      ],
+    };
+    const out = buildGithubIssueBody(input);
+    expect(out.body).not.toContain("github.attachmentNotInline");
+  });
+
+  it("혼합 — url 있는 before는 테이블 스냅샷 행, 없는 after는 첨부 섹션", () => {
+    const input: GithubBuildInput = {
+      ctx: makeCtx({ captureMode: "element" }),
+      images: [
+        {
+          filename: "before.webp",
+          contentType: "image/webp",
+          url: "https://github.com/user-attachments/assets/b1",
+        },
+        { filename: "after.webp", contentType: "image/webp" },
+      ],
+    };
+    const out = buildGithubIssueBody(input);
+    expect(out.body).toContain("styleTable.snapshot");
+    expect(out.body).toContain(
+      "![before.webp](https://github.com/user-attachments/assets/b1)",
+    );
+    expect(out.body).toContain("`after.webp`");
+    expect(out.body).toContain("github.attachmentNotInline");
+  });
+
+  it("element 모드 before/after 둘 다 url → 스타일 변경 테이블 스냅샷 행에 인라인", () => {
+    const input: GithubBuildInput = {
+      ctx: makeCtx({
+        captureMode: "element",
+        diffs: [{ prop: "color", asIs: "#000", toBe: "#fff" }],
+      }),
+      images: [
+        {
+          filename: "before.webp",
+          contentType: "image/webp",
+          url: "https://github.com/user-attachments/assets/b",
+        },
+        {
+          filename: "after.webp",
+          contentType: "image/webp",
+          url: "https://github.com/user-attachments/assets/a",
+        },
+      ],
+    };
+    const out = buildGithubIssueBody(input);
+    expect(out.body).toContain("styleTable.snapshot");
+    expect(out.body).toContain("![before.webp]");
+    expect(out.body).toContain("![after.webp]");
+    expect(out.body).toContain("| color | #000 | #fff |");
+    expect(out.body).not.toContain("github.attachmentNotInline");
+    expect(out.body).not.toContain("md.section.attachments");
   });
 });

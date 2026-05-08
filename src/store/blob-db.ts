@@ -324,6 +324,15 @@ export async function clearConsoleLogs(): Promise<void> {
 
 // --- Utilities ---
 
+export function blobToDataUrl(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = () => reject(new Error("Failed to read blob"));
+    reader.readAsDataURL(blob);
+  });
+}
+
 export function dataUrlToBlob(dataUrl: string): Blob {
   const match = /^data:(.*?);base64,(.+)$/.exec(dataUrl);
   if (!match) throw new Error("Invalid data URL");
