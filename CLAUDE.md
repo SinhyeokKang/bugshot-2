@@ -46,7 +46,7 @@ src/
 │   ├── oauth.ts         # Atlassian 3LO (launchWebAuthFlow + proxy 교환)
 │   ├── github-api.ts    # GitHub REST 래퍼 (PAT/Bearer, 401 refresh hook 주입형)
 │   ├── github-oauth.ts  # GitHub Web Flow (launchWebAuthFlow + proxy 교환) + refresh hook 자동 등록
-│   ├── github-upload.ts # GitHub 파일 업로드 (MAIN world page injection, CSRF 토큰 파싱, batch uploadGithubFiles)
+│   ├── github-upload.ts # GitHub 파일 업로드 (MAIN world page injection, GitHub-Verified-Fetch 인증, batch uploadGithubFiles)
 │   ├── linear-api.ts    # Linear GraphQL 래퍼 (API Key/Bearer, 401 refresh hook 주입형)
 │   ├── linear-oauth.ts  # Linear OAuth (PKCE, launchWebAuthFlow, proxy 불필요) + refresh hook 자동 등록
 │   ├── notion-api.ts    # Notion REST 래퍼 (apiKey/Bearer, 401 → notion.oauthExpired, refresh 없음)
