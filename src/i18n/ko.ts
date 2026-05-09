@@ -132,6 +132,9 @@ const ko = {
   "draft.aiParseError": "AI 응답을 해석할 수 없습니다. 다시 시도해주세요.",
   "draft.preview": "이슈 프리뷰",
 
+  // AI common
+  "ai.badge.beta": "Beta",
+
   // AI Styling
   "aiStyling.banner": "AI에게 스타일 수정을 맡겨보세요",
   "aiStyling.generate": "AI 스타일링",
@@ -140,6 +143,12 @@ const ko = {
   "aiStyling.error": "AI 응답 처리에 실패했습니다",
   "aiStyling.noChanges": "변경할 스타일을 찾지 못했습니다",
   "aiStyling.disclaimer": "AI는 실수할 수 있습니다. 변경사항을 다시 한번 확인해 주세요.",
+
+  // AI Draft
+  "aiDraft.title": "AI 초안 작성",
+  "aiDraft.placeholder": "버그를 간단히 설명해주세요...",
+  "aiDraft.generate": "초안 작성",
+  "aiDraft.disclaimer": "AI는 실수할 수 있습니다. 생성된 초안을 확인해주세요.",
 
   // Preview panel
   "preview.copied": "복사됨",

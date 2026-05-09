@@ -28,7 +28,10 @@ export type ProviderKind = "openai" | "anthropic";
 export interface AISession {
   prompt(
     input: string,
-    options?: { responseSchema?: Record<string, unknown> },
+    options?: {
+      responseSchema?: Record<string, unknown>;
+      images?: string[];
+    },
   ): Promise<string>;
   destroy(): void;
 }
@@ -37,6 +40,7 @@ export interface AIProvider {
   generate(params: {
     systemPrompt?: string;
     prompt: string;
+    images?: string[];
     responseSchema?: Record<string, unknown>;
   }): Promise<string>;
 
@@ -137,9 +141,24 @@ export function createChromeAIProvider(): AIProvider {
   };
 }
 
+type OpenAIContent =
+  | string
+  | Array<
+      | { type: "text"; text: string }
+      | { type: "image_url"; image_url: { url: string } }
+    >;
+
+function buildOpenAIContent(text: string, images?: string[]): OpenAIContent {
+  if (!images?.length) return text;
+  return [
+    ...images.map((url) => ({ type: "image_url" as const, image_url: { url } })),
+    { type: "text" as const, text },
+  ];
+}
+
 export function createOpenAICompatibleProvider(config: LlmConfig): AIProvider {
   async function callChatCompletions(
-    messages: Array<{ role: string; content: string }>,
+    messages: Array<{ role: string; content: OpenAIContent }>,
     jsonMode: boolean,
   ): Promise<string> {
     const headers: Record<string, string> = {
@@ -165,19 +184,19 @@ export function createOpenAICompatibleProvider(config: LlmConfig): AIProvider {
   }
 
   return {
-    async generate({ systemPrompt, prompt, responseSchema }) {
-      const messages: Array<{ role: string; content: string }> = [];
+    async generate({ systemPrompt, prompt, images, responseSchema }) {
+      const messages: Array<{ role: string; content: OpenAIContent }> = [];
       if (systemPrompt) messages.push({ role: "system", content: systemPrompt });
-      messages.push({ role: "user", content: prompt });
+      messages.push({ role: "user", content: buildOpenAIContent(prompt, images) });
       return callChatCompletions(messages, !!responseSchema);
     },
     async createSession(systemPrompt) {
-      const messages: Array<{ role: string; content: string }> = [
+      const messages: Array<{ role: string; content: OpenAIContent }> = [
         { role: "system", content: systemPrompt },
       ];
       return {
         async prompt(input, options) {
-          messages.push({ role: "user", content: input });
+          messages.push({ role: "user", content: buildOpenAIContent(input, options?.images) });
           const result = await callChatCompletions(messages, !!options?.responseSchema);
           messages.push({ role: "assistant", content: result });
           return result;
@@ -193,10 +212,32 @@ export function createOpenAICompatibleProvider(config: LlmConfig): AIProvider {
 const ANTHROPIC_VERSION = "2023-06-01";
 const ANTHROPIC_MAX_TOKENS = 4096;
 
+type AnthropicContent =
+  | string
+  | Array<
+      | { type: "text"; text: string }
+      | { type: "image"; source: { type: "base64"; media_type: string; data: string } }
+    >;
+
+function buildAnthropicContent(text: string, images?: string[]): AnthropicContent {
+  if (!images?.length) return text;
+  return [
+    ...images.map((dataUrl) => {
+      const [meta, data] = dataUrl.split(",");
+      const mediaType = meta.match(/data:(.*?);/)?.[1] ?? "image/png";
+      return {
+        type: "image" as const,
+        source: { type: "base64" as const, media_type: mediaType, data },
+      };
+    }),
+    { type: "text" as const, text },
+  ];
+}
+
 export function createAnthropicProvider(config: LlmConfig): AIProvider {
   async function callMessages(
     system: string,
-    messages: Array<{ role: string; content: string }>,
+    messages: Array<{ role: string; content: AnthropicContent }>,
   ): Promise<string> {
     const res = await fetch(`${config.baseUrl}/messages`, {
       method: "POST",
@@ -223,20 +264,20 @@ export function createAnthropicProvider(config: LlmConfig): AIProvider {
   }
 
   return {
-    async generate({ systemPrompt, prompt, responseSchema }) {
+    async generate({ systemPrompt, prompt, images, responseSchema }) {
       const sys = responseSchema
         ? `${systemPrompt ?? ""}\n\nRespond with valid JSON only.`
         : (systemPrompt ?? "");
-      return callMessages(sys, [{ role: "user", content: prompt }]);
+      return callMessages(sys, [{ role: "user", content: buildAnthropicContent(prompt, images) }]);
     },
     async createSession(systemPrompt) {
-      const messages: Array<{ role: string; content: string }> = [];
+      const messages: Array<{ role: string; content: AnthropicContent }> = [];
       return {
         async prompt(input, options) {
           const sys = options?.responseSchema
             ? `${systemPrompt}\n\nRespond with valid JSON only.`
             : systemPrompt;
-          messages.push({ role: "user", content: input });
+          messages.push({ role: "user", content: buildAnthropicContent(input, options?.images) });
           const result = await callMessages(sys, messages);
           messages.push({ role: "assistant", content: result });
           return result;

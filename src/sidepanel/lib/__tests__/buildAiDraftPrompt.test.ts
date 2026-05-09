@@ -2,8 +2,10 @@ import { describe, it, expect } from "vitest";
 import {
   buildAiDraftPrompt,
   buildAiDraftSchema,
+  buildAiDraftSessionPrompt,
   parseAiDraftResponse,
   type AiDraftContext,
+  type AiDraftSessionContext,
 } from "../buildAiDraftPrompt";
 
 const BASE_CTX: AiDraftContext = {
@@ -223,5 +225,97 @@ describe("parseAiDraftResponse", () => {
     expect(result?.sections.stepsToReproduce).toBe(
       "페이지 접속\n버튼 확인\n에러 확인",
     );
+  });
+});
+
+const SESSION_BASE: AiDraftSessionContext = {
+  captureMode: "screenshot",
+  locale: "ko",
+  url: "https://example.com/page",
+  pageTitle: "Example Page",
+  enabledSections: [
+    { id: "description" },
+    { id: "stepsToReproduce" },
+    { id: "expectedResult" },
+  ],
+};
+
+describe("buildAiDraftSessionPrompt", () => {
+  it("screenshot 모드: URL, 페이지 제목, 이미지 참조 지시 포함", () => {
+    const prompt = buildAiDraftSessionPrompt(SESSION_BASE);
+    expect(prompt).toContain("https://example.com/page");
+    expect(prompt).toContain("Example Page");
+    expect(prompt).toContain("screenshot");
+    expect(prompt).toMatch(/image|screenshot|스크린샷/i);
+  });
+
+  it("video 모드: URL, 페이지 제목, 에러 로그 포함", () => {
+    const prompt = buildAiDraftSessionPrompt({
+      ...SESSION_BASE,
+      captureMode: "video",
+      networkLogSummary: {
+        captured: 10,
+        errors: [
+          {
+            method: "POST",
+            path: "/api/pay",
+            status: 500,
+            statusText: "Internal Server Error",
+          },
+        ],
+      },
+      consoleLogSummary: {
+        captured: 5,
+        errorCount: 3,
+        warnCount: 1,
+        topErrors: ["Uncaught Error: payment failed"],
+      },
+    });
+    expect(prompt).toContain("https://example.com/page");
+    expect(prompt).toContain("Example Page");
+    expect(prompt).toContain("POST /api/pay");
+    expect(prompt).toContain("500");
+    expect(prompt).toContain("3 errors");
+    expect(prompt).toContain("Uncaught Error: payment failed");
+  });
+
+  it("video 모드 에러 로그 없으면 에러 관련 텍스트 미포함", () => {
+    const prompt = buildAiDraftSessionPrompt({
+      ...SESSION_BASE,
+      captureMode: "video",
+    });
+    expect(prompt).toContain("https://example.com/page");
+    expect(prompt).not.toContain("Network errors");
+    expect(prompt).not.toContain("Console:");
+  });
+
+  it("locale ko → Korean, en → English", () => {
+    const ko = buildAiDraftSessionPrompt({ ...SESSION_BASE, locale: "ko" });
+    expect(ko).toContain("Korean");
+
+    const en = buildAiDraftSessionPrompt({ ...SESSION_BASE, locale: "en" });
+    expect(en).toContain("English");
+  });
+
+  it("enabledSections에 따라 출력 포맷 섹션 설명 변경", () => {
+    const prompt = buildAiDraftSessionPrompt({
+      ...SESSION_BASE,
+      enabledSections: [
+        { id: "description" },
+        { id: "notes" },
+      ],
+    });
+    expect(prompt).toContain('"description"');
+    expect(prompt).toContain('"notes"');
+    expect(prompt).not.toContain('"stepsToReproduce"');
+    expect(prompt).not.toContain('"expectedResult"');
+  });
+
+  it("video 모드에서 이미지 참조 지시 미포함", () => {
+    const prompt = buildAiDraftSessionPrompt({
+      ...SESSION_BASE,
+      captureMode: "video",
+    });
+    expect(prompt).not.toMatch(/image|이미지/i);
   });
 });

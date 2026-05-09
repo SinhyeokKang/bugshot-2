@@ -92,11 +92,13 @@ interface EditorState {
   consoleLogAttach: boolean;
   aiStylingLoading: boolean;
   aiStylingSnapshot: EditorStyleEdits | null;
+  aiDraftLoading: boolean;
   submitResult: { key: string; url: string } | null;
   sessionExpired: boolean;
 
   setAiStylingLoading: (loading: boolean) => void;
   setAiStylingSnapshot: (snapshot: EditorStyleEdits) => void;
+  setAiDraftLoading: (loading: boolean) => void;
   startPicking: (target: EditorTarget, mode?: CaptureMode) => void;
   startCapturing: (target: EditorTarget) => void;
   startRecording: (target: EditorTarget) => void;
@@ -188,6 +190,7 @@ const initial = {
   currentIssueId: null as string | null,
   aiStylingLoading: false,
   aiStylingSnapshot: null as EditorStyleEdits | null,
+  aiDraftLoading: false,
   submitResult: null as { key: string; url: string } | null,
   sessionExpired: false,
 };
@@ -204,6 +207,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   setAiStylingLoading: (loading) => set({ aiStylingLoading: loading }),
   setAiStylingSnapshot: (snapshot) => set({ aiStylingSnapshot: snapshot }),
+  setAiDraftLoading: (loading) => set({ aiDraftLoading: loading }),
 
   startPicking: (target, mode) => set({ ...initial, captureMode: mode ?? "element", phase: "picking", target }),
   cancelPicking: () => set({ ...initial }),

@@ -134,6 +134,9 @@ const en = {
   "draft.aiParseError": "Could not parse AI response. Please try again.",
   "draft.preview": "Issue preview",
 
+  // AI common
+  "ai.badge.beta": "Beta",
+
   // AI Styling
   "aiStyling.banner": "Let AI handle the styling",
   "aiStyling.generate": "AI Styling",
@@ -142,6 +145,12 @@ const en = {
   "aiStyling.error": "Failed to process AI response",
   "aiStyling.noChanges": "No style changes found",
   "aiStyling.disclaimer": "AI can make mistakes. Please double-check the changes.",
+
+  // AI Draft
+  "aiDraft.title": "AI Draft",
+  "aiDraft.placeholder": "Briefly describe the bug...",
+  "aiDraft.generate": "Generate",
+  "aiDraft.disclaimer": "AI can make mistakes. Please review the generated draft.",
 
   // Preview panel
   "preview.copied": "Copied",
