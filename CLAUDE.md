@@ -79,7 +79,7 @@ src/
 │   └── lib/             # buildIssueMarkdown, buildIssueAdf, buildGithubIssueBody, buildLinearIssueBody, buildNotionIssueBody, submitToGithub, submitToLinear, submitToNotion(NormalizedSubmitResult), buildAiDraftPrompt, buildAiStylingPrompt, aiStylingPostProcess, ai-provider(BYOK 프로바이더 팩토리·프리셋) 등 순수 유틸
 ├── store/               # Zustand 스토어 (editor/issues/settings/settings-ui), blob-db(IndexedDB 이미지·비디오·네트워크/콘솔 로그 저장, blobToDataUrl/dataUrlToBlob 유틸)
 │                        # settings v6: accounts: { jira?, github?, linear?, notion? } + lastSubmitFields per platform + global titlePrefix
-│                        # settings-ui v4: LlmConfig { baseUrl, modelId } 영속(local) + apiKey는 chrome.storage.session(메모리 전용)
+│                        # settings-ui v5: LlmConfig { baseUrl, apiKey, modelId } 전부 chrome.storage.local 영속
 │                        # issues v5: entry에 platform: PlatformId 필드 + notion 한정 메타 (notionPageId/notionDatabaseId 등)
 ├── i18n/                # 다국어 (ko/en 로케일, t()/useT() 훅)
 ├── lib/                 # 공용 유틸 (session-keys, adf-sentinels, url-support, settings-storage, notion-page-id)
