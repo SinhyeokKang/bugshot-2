@@ -201,6 +201,37 @@ const en = {
   "time.hoursAgo": "{n}h ago",
   "time.daysAgo": "{n}d ago",
 
+  // Settings tabs
+  "settings.tab.issue": "Issue settings",
+  "settings.tab.ai": "AI settings",
+  "settings.tab.general": "General",
+
+  // LLM BYOK
+  "llm.onboarding.title": "Connect an AI model",
+  "llm.onboarding.body": "Register an API key to unlock better AI features",
+  "llm.onboarding.fallback": "If Chrome AI is available, it works without any setup",
+  "llm.connect": "Connect API key",
+  "llm.dialog.title": "Connect AI model",
+  "llm.dialog.body": "Select a provider and enter your API key",
+  "llm.provider": "Provider",
+  "llm.providerCustom": "Custom",
+  "llm.baseUrl": "Endpoint URL",
+  "llm.baseUrlPlaceholder": "https://...",
+  "llm.apiKey": "API Key",
+  "llm.apiKeyPlaceholder": "sk-...",
+  "llm.section.connection": "Connection",
+  "llm.section.model": "Model",
+  "llm.model.placeholder": "Select a model",
+  "llm.model.search": "Search models...",
+  "llm.model.empty": "No models",
+  "llm.model.refresh": "Refresh",
+  "llm.connected": "Connected",
+  "llm.disconnect": "Disconnect",
+  "llm.disconnectConfirm.title": "Disconnect AI model?",
+  "llm.disconnectConfirm.body": "If Chrome AI is available, it will be used automatically.",
+  "llm.error.permission": "Host permission required. Please try again.",
+  "llm.error.fetch": "Connection failed. Check URL and API key.",
+
   // Settings (global)
   "settings.issueSettings": "Issue settings",
   "settings.titlePrefix": "Title prefix",

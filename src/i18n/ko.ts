@@ -199,6 +199,37 @@ const ko = {
   "time.hoursAgo": "{n}시간 전",
   "time.daysAgo": "{n}일 전",
 
+  // Settings tabs
+  "settings.tab.issue": "이슈 설정",
+  "settings.tab.ai": "AI 설정",
+  "settings.tab.general": "기타",
+
+  // LLM BYOK
+  "llm.onboarding.title": "AI 모델을 연결하세요",
+  "llm.onboarding.body": "API 키를 등록하면 더 나은 AI 기능을 사용할 수 있습니다",
+  "llm.onboarding.fallback": "Chrome AI가 사용 가능하면 별도 설정 없이 동작합니다",
+  "llm.connect": "API 키 연결",
+  "llm.dialog.title": "AI 모델 연결",
+  "llm.dialog.body": "프로바이더를 선택하고 API 키를 입력하세요",
+  "llm.provider": "프로바이더",
+  "llm.providerCustom": "직접 입력",
+  "llm.baseUrl": "엔드포인트 URL",
+  "llm.baseUrlPlaceholder": "https://...",
+  "llm.apiKey": "API Key",
+  "llm.apiKeyPlaceholder": "sk-...",
+  "llm.section.connection": "연결 정보",
+  "llm.section.model": "모델",
+  "llm.model.placeholder": "모델을 선택하세요",
+  "llm.model.search": "모델 검색...",
+  "llm.model.empty": "모델 없음",
+  "llm.model.refresh": "새로고침",
+  "llm.connected": "연결됨",
+  "llm.disconnect": "연결 해제",
+  "llm.disconnectConfirm.title": "AI 모델 연결을 해제할까요?",
+  "llm.disconnectConfirm.body": "Chrome AI가 사용 가능하면 자동으로 전환됩니다.",
+  "llm.error.permission": "호스트 권한이 필요합니다. 다시 시도하세요.",
+  "llm.error.fetch": "연결에 실패했습니다. URL과 API 키를 확인하세요.",
+
   // Settings (global)
   "settings.issueSettings": "이슈 설정",
   "settings.titlePrefix": "제목 Prefix",

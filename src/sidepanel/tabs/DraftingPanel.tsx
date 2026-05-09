@@ -15,7 +15,7 @@ import {
 import { useEditorStore } from "@/store/editor-store";
 import { useSettingsStore } from "@/store/settings-store";
 import { useBoundTabId } from "../hooks/useBoundTabId";
-import { useChromeAI } from "../hooks/useChromeAI";
+import { useAI } from "../hooks/useAI";
 import { clearPicker } from "../picker-control";
 const AnnotationOverlay = lazy(() => import("../components/AnnotationOverlay"));
 import { CancelConfirmDialog } from "../components/CancelConfirmDialog";
@@ -66,7 +66,7 @@ export function DraftingPanel() {
   const tokens = useEditorStore((s) => s.tokens);
   const issueSections = useSettingsUiStore((s) => s.issueSections);
   const locale = useSettingsUiStore((s) => s.locale);
-  const { status: aiStatus, generateDraft } = useChromeAI();
+  const { status: aiStatus, providerLabel, generate } = useAI();
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
   const [annotating, setAnnotating] = useState(false);
@@ -143,7 +143,7 @@ export function DraftingPanel() {
       });
       const sectionIds = enabledSections.map((s) => s.id);
       const responseSchema = buildAiDraftSchema(sectionIds);
-      const raw = await generateDraft(ctx, { responseSchema });
+      const raw = await generate({ prompt: ctx, responseSchema });
       const parsed = parseAiDraftResponse(raw, sectionIds);
       if (parsed) {
         const prefix = defaultTitle(titlePrefix);
@@ -291,7 +291,7 @@ export function DraftingPanel() {
           disabled={aiLoading}
         >
           <span className="flex items-center gap-1.5">
-            <Badge variant="outline" className="font-normal border-purple-500 text-purple-600 dark:border-purple-400 dark:text-purple-300">Beta</Badge>
+            <Badge variant="outline" className="font-normal border-purple-500 text-purple-600 dark:border-purple-400 dark:text-purple-300">{providerLabel ?? "Beta"}</Badge>
             <span className="bg-gradient-to-r from-purple-500 to-indigo-500 bg-clip-text text-sm text-transparent dark:from-purple-300 dark:to-indigo-300">{t("draft.aiBanner")}</span>
           </span>
           <span className="flex items-center gap-1 bg-gradient-to-r from-indigo-500 to-purple-500 bg-clip-text text-sm font-medium text-transparent dark:from-indigo-300 dark:to-purple-300">

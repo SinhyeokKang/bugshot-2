@@ -50,6 +50,12 @@ export function sectionHelpKey(id: IssueSectionId): TranslationKey {
   return `section.${id}.help` as TranslationKey;
 }
 
+export interface LlmConfig {
+  baseUrl: string;
+  apiKey: string;
+  modelId: string;
+}
+
 function detectLocale(): LocaleMode {
   const lang =
     typeof navigator !== "undefined" && navigator.language
@@ -63,10 +69,12 @@ interface SettingsUiState {
   theme: ThemeMode;
   locale: LocaleMode;
   issueSections: IssueSection[];
+  llm: LlmConfig | null;
   setTheme: (theme: ThemeMode) => void;
   setLocale: (locale: LocaleMode) => void;
   setIssueEnabled: (id: IssueSectionId, enabled: boolean) => void;
   resetIssueSections: () => void;
+  setLlm: (config: LlmConfig | null) => void;
 }
 
 export const useSettingsUiStore = create<SettingsUiState>()(
@@ -75,6 +83,7 @@ export const useSettingsUiStore = create<SettingsUiState>()(
       theme: "light",
       locale: detectLocale(),
       issueSections: DEFAULT_ISSUE_SECTIONS,
+      llm: null,
       setTheme: (theme) => set({ theme }),
       setLocale: (locale) => set({ locale }),
       setIssueEnabled: (id, enabled) =>
@@ -84,16 +93,20 @@ export const useSettingsUiStore = create<SettingsUiState>()(
           ),
         })),
       resetIssueSections: () => set({ issueSections: DEFAULT_ISSUE_SECTIONS }),
+      setLlm: (config) => set({ llm: config }),
     }),
     {
       // 기존 사용자 데이터 호환을 위해 리네이밍 전 키 유지
       name: "bugshot-app-settings",
-      version: 2,
+      version: 3,
       storage: createJSONStorage(() => chromeLocalStorage),
       migrate: (persisted, version) => {
         const state = (persisted ?? {}) as Partial<SettingsUiState>;
         if (version < 2 || !state.issueSections) {
           state.issueSections = DEFAULT_ISSUE_SECTIONS;
+        }
+        if (version < 3) {
+          state.llm = state.llm ?? null;
         }
         return state as SettingsUiState;
       },

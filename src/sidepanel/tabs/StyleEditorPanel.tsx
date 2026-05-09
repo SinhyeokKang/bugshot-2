@@ -17,7 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useEditorStore, type EditorStyleEdits } from "@/store/editor-store";
 import { useBoundTabId } from "../hooks/useBoundTabId";
-import { useChromeAI } from "../hooks/useChromeAI";
+import { useAI } from "../hooks/useAI";
 import { captureElementSnapshot } from "../capture";
 import {
   applyClasses,
@@ -103,7 +103,7 @@ export function SelectedPanel() {
   const confirmStyles = useEditorStore((s) => s.confirmStyles);
   const reset = useEditorStore((s) => s.reset);
   const tabId = useBoundTabId();
-  const { status: aiStatus } = useChromeAI();
+  const { status: aiStatus, providerLabel, createSession } = useAI();
   const aiLoading = useEditorStore((s) => s.aiStylingLoading);
   const [proceeding, setProceeding] = useState(false);
   const [aiDialogOpen, setAiDialogOpen] = useState(false);
@@ -385,7 +385,7 @@ export function SelectedPanel() {
           onClick={() => setAiDialogOpen(true)}
         >
           <span className="flex items-center gap-1.5">
-            <Badge variant="outline" className="font-normal border-teal-500 text-teal-600 dark:border-teal-400 dark:text-teal-300">Beta</Badge>
+            <Badge variant="outline" className="font-normal border-teal-500 text-teal-600 dark:border-teal-400 dark:text-teal-300">{providerLabel ?? "Beta"}</Badge>
             <span className="bg-gradient-to-r from-teal-600 to-cyan-500 bg-clip-text text-sm text-transparent dark:from-teal-300 dark:to-cyan-300">
               {t("aiStyling.banner")}
             </span>
@@ -396,7 +396,7 @@ export function SelectedPanel() {
           </span>
         </button>
       )}
-      <AiStylingDialog open={aiDialogOpen} onOpenChange={setAiDialogOpen} />
+      <AiStylingDialog open={aiDialogOpen} onOpenChange={setAiDialogOpen} createSession={createSession} />
       <PageFooter>
         <div className="flex items-center justify-between gap-2">
           <CancelConfirmDialog

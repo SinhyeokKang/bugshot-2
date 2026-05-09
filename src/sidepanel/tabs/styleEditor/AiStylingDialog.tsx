@@ -23,19 +23,21 @@ import {
   type AiStylingContext,
 } from "../../lib/buildAiStylingPrompt";
 import { mergeAiEdits, replaceRawWithTokens } from "../../lib/aiStylingPostProcess";
-import type { LanguageModelInstance } from "../../hooks/useChromeAI";
+import type { AISession, AIProvider } from "../../lib/ai-provider";
 
 export function AiStylingDialog({
   open,
   onOpenChange,
+  createSession,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
+  createSession: AIProvider["createSession"];
 }) {
   const t = useT();
   const tabId = useBoundTabId();
   const [input, setInput] = useState("");
-  const sessionRef = useRef<LanguageModelInstance | null>(null);
+  const sessionRef = useRef<AISession | null>(null);
 
   useEffect(() => {
     return () => {
@@ -74,19 +76,16 @@ export function AiStylingDialog({
     store.setAiStylingLoading(true);
 
     try {
-      if (!globalThis.LanguageModel) throw new Error("Chrome AI unavailable");
-
       if (!sessionRef.current) {
         const ctx = buildContext();
         if (!ctx) throw new Error("No element selected");
-        sessionRef.current = await globalThis.LanguageModel.create({
-          systemPrompt: buildAiStylingSystemPrompt(ctx),
-          expectedOutputLanguages: ["en"],
-        });
+        sessionRef.current = await createSession(
+          buildAiStylingSystemPrompt(ctx),
+        );
       }
 
       const raw = await sessionRef.current.prompt(msg, {
-        responseConstraint: buildAiStylingResponseSchema(),
+        responseSchema: buildAiStylingResponseSchema(),
       });
 
       const parsed = parseAiStylingResponse(raw);
@@ -129,7 +128,7 @@ export function AiStylingDialog({
     } finally {
       useEditorStore.getState().setAiStylingLoading(false);
     }
-  }, [input, tabId, buildContext, onOpenChange]);
+  }, [input, tabId, buildContext, onOpenChange, createSession, t]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {

@@ -1,11 +1,11 @@
-import { Fragment } from "react";
+import { Fragment, useState } from "react";
 import { Bug, ListOrdered, Monitor, Moon, StickyNote, Sun, Target } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useT } from "@/i18n";
 import {
   sectionHelpKey,
@@ -17,6 +17,9 @@ import {
 } from "@/store/settings-ui-store";
 import { useSettingsStore } from "@/store/settings-store";
 import { PageFooter, PageScroll, PageShell, Section } from "../components/Section";
+import { LlmConnectForm } from "./settings/LlmConnectForm";
+
+type SettingsSubTab = "issue" | "ai" | "general";
 
 const LOCALE_OPTIONS: { value: LocaleMode; label: string }[] = [
   { value: "ko", label: "한국어" },
@@ -25,20 +28,52 @@ const LOCALE_OPTIONS: { value: LocaleMode; label: string }[] = [
 
 export function SettingsTab() {
   const t = useT();
-  const theme = useSettingsUiStore((s) => s.theme);
-  const setTheme = useSettingsUiStore((s) => s.setTheme);
-  const locale = useSettingsUiStore((s) => s.locale);
-  const setLocale = useSettingsUiStore((s) => s.setLocale);
+  const [sub, setSub] = useState<SettingsSubTab>("issue");
+
+  return (
+    <Tabs
+      value={sub}
+      onValueChange={(v) => setSub(v as SettingsSubTab)}
+      className="flex min-h-0 flex-1 flex-col gap-0"
+    >
+      <div className="shrink-0 border-b border-border px-4 py-4">
+        <TabsList className="grid h-9 w-full grid-cols-3">
+          <TabsTrigger value="issue">{t("settings.tab.issue")}</TabsTrigger>
+          <TabsTrigger value="ai">{t("settings.tab.ai")}</TabsTrigger>
+          <TabsTrigger value="general">{t("settings.tab.general")}</TabsTrigger>
+        </TabsList>
+      </div>
+
+      <TabsContent
+        value="issue"
+        className="mt-0 flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden"
+      >
+        <IssueSettingsContent />
+      </TabsContent>
+
+      <TabsContent
+        value="ai"
+        className="mt-0 flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden"
+      >
+        <LlmConnectForm />
+      </TabsContent>
+
+      <TabsContent
+        value="general"
+        className="mt-0 flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden"
+      >
+        <GeneralSettingsContent />
+      </TabsContent>
+    </Tabs>
+  );
+}
+
+function IssueSettingsContent() {
+  const t = useT();
   const issueSections = useSettingsUiStore((s) => s.issueSections);
   const setIssueEnabled = useSettingsUiStore((s) => s.setIssueEnabled);
   const titlePrefix = useSettingsStore((s) => s.titlePrefix);
   const setTitlePrefix = useSettingsStore((s) => s.setTitlePrefix);
-
-  const themeOptions = [
-    { value: "light" as ThemeMode, label: t("settings.theme.light"), icon: <Sun className="h-4 w-4" /> },
-    { value: "dark" as ThemeMode, label: t("settings.theme.dark"), icon: <Moon className="h-4 w-4" /> },
-    { value: "system" as ThemeMode, label: t("settings.theme.system"), icon: <Monitor className="h-4 w-4" /> },
-  ];
 
   return (
     <PageShell>
@@ -63,22 +98,42 @@ export function SettingsTab() {
                 {t("settings.issueComposition")}
               </label>
               <Card>
-              <CardContent className="flex flex-col gap-3 px-3 py-3">
-                {issueSections.map((section, idx) => (
-                  <Fragment key={section.id}>
-                    {idx > 0 ? <Separator /> : null}
-                    <IssueSectionRow
-                      section={section}
-                      onToggle={(enabled) => setIssueEnabled(section.id, enabled)}
-                    />
-                  </Fragment>
-                ))}
-              </CardContent>
-            </Card>
+                <CardContent className="flex flex-col gap-3 px-3 py-3">
+                  {issueSections.map((section, idx) => (
+                    <Fragment key={section.id}>
+                      {idx > 0 ? <Separator /> : null}
+                      <IssueSectionRow
+                        section={section}
+                        onToggle={(enabled) => setIssueEnabled(section.id, enabled)}
+                      />
+                    </Fragment>
+                  ))}
+                </CardContent>
+              </Card>
             </div>
           </div>
         </Section>
+      </PageScroll>
+    </PageShell>
+  );
+}
 
+function GeneralSettingsContent() {
+  const t = useT();
+  const theme = useSettingsUiStore((s) => s.theme);
+  const setTheme = useSettingsUiStore((s) => s.setTheme);
+  const locale = useSettingsUiStore((s) => s.locale);
+  const setLocale = useSettingsUiStore((s) => s.setLocale);
+
+  const themeOptions = [
+    { value: "light" as ThemeMode, label: t("settings.theme.light"), icon: <Sun className="h-4 w-4" /> },
+    { value: "dark" as ThemeMode, label: t("settings.theme.dark"), icon: <Moon className="h-4 w-4" /> },
+    { value: "system" as ThemeMode, label: t("settings.theme.system"), icon: <Monitor className="h-4 w-4" /> },
+  ];
+
+  return (
+    <PageShell>
+      <PageScroll>
         <Section title={t("settings.language")}>
           <Tabs value={locale} onValueChange={(v) => setLocale(v as LocaleMode)}>
             <TabsList className="grid w-full grid-cols-2">
@@ -119,9 +174,7 @@ export function SettingsTab() {
             >
               {t("settings.review")}
             </Button>
-            <Button
-              asChild
-            >
+            <Button asChild>
               <a href="mailto:ox501501@gmail.com">{t("settings.contact")}</a>
             </Button>
           </div>

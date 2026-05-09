@@ -63,6 +63,7 @@ export default defineManifest({
     "identity",
     "tabCapture",
   ],
+  optional_host_permissions: ["https://*/*", "http://*/*"],
   host_permissions: [
     "https://*.atlassian.net/*",
     "https://api.atlassian.com/*",
