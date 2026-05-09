@@ -25,18 +25,21 @@
 
 - **변경 대상**: 새 파일 `src/sidepanel/lib/ai-provider.ts`
 - **작업 내용**:
-  1. `AISession`, `AIProvider`, `ProviderKind` 타입 정의 및 export
-  2. `detectProviderKind(baseUrl: string): ProviderKind` — 호스트네임 기반 감지
-  3. `createChromeAIProvider(): AIProvider` — 기존 `useChromeAI.ts`의 세션 생성/프롬프트 로직 이동
-  4. `createOpenAICompatibleProvider(config: LlmConfig): AIProvider` — Chat Completions 호출 + 멀티턴 메시지 관리
-  5. `createAnthropicProvider(config: LlmConfig): AIProvider` — Messages API 호출 + 시스템 프롬프트 분리 + 멀티턴
-  6. `fetchModels(baseUrl, apiKey): Promise<ModelEntry[]>` — `/models` 엔드포인트 호출
-  7. `ANTHROPIC_MODELS: ModelEntry[]` — 하드코딩 모델 목록
-  8. `requestHostPermission(baseUrl): Promise<boolean>` — 동적 호스트 권한 요청
+  1. `AISession`, `AIProvider`, `ProviderKind`, `ProviderPreset`, `ModelEntry` 타입 정의 및 export
+  2. `PROVIDER_PRESETS: ProviderPreset[]` — 7개 프리셋 (OpenAI, Anthropic, Gemini, Groq, Together, OpenRouter, Ollama). 각 항목에 `id`, `label`, `baseUrl`, `kind`
+  3. `detectProviderKind(baseUrl: string): ProviderKind` — 프리셋 매칭 우선, 커스텀은 호스트네임 `api.anthropic.com` 체크 후 fallback `"openai"`
+  4. `getProviderLabel(baseUrl: string): string` — 프리셋 매칭 → `label`, 없으면 `"Custom"`
+  5. `createChromeAIProvider(): AIProvider` — 기존 `useChromeAI.ts`의 세션 생성/프롬프트 로직 이동
+  6. `createOpenAICompatibleProvider(config: LlmConfig): AIProvider` — Chat Completions 호출 + 멀티턴 메시지 관리
+  7. `createAnthropicProvider(config: LlmConfig): AIProvider` — Messages API 호출 + 시스템 프롬프트 분리 + 멀티턴
+  8. `fetchModels(baseUrl, apiKey): Promise<ModelEntry[]>` — `/models` 엔드포인트 호출
+  9. `ANTHROPIC_MODELS: ModelEntry[]` — 하드코딩 모델 목록
+  10. `requestHostPermission(baseUrl): Promise<boolean>` — 동적 호스트 권한 요청
 - **검증**:
   - [ ] `pnpm typecheck` 통과
   - [ ] 단위 테스트 `src/sidepanel/lib/__tests__/ai-provider.test.ts`:
-    - `detectProviderKind` — `api.anthropic.com` → `"anthropic"`, `api.openai.com` → `"openai"`, `api.groq.com` → `"openai"`, `localhost:11434` → `"openai"`
+    - `detectProviderKind` — 프리셋 URL 매칭 + 커스텀 anthropic URL + 커스텀 기타 URL
+    - `getProviderLabel` — 프리셋 → 라벨, 커스텀 → `"Custom"`
     - OpenAI provider `callChatCompletions` — 메시지 구성, JSON mode 플래그, 응답 추출 (fetch를 vi.fn으로 모킹)
     - Anthropic provider `callMessages` — 헤더(`x-api-key`, `anthropic-version`), system 필드 분리, 응답 추출 (fetch 모킹)
     - 멀티턴 세션: 메시지 배열 누적 확인
@@ -50,7 +53,7 @@
   3. `llm` 없거나 `modelId` 없음 → Chrome AI availability 체크 (기존 `useChromeAI.ts` 로직)
   4. `useMemo`로 provider 인스턴스 관리 (`llm` 변경 시 재생성)
   5. Chrome AI 세션 cleanup (`useEffect` return)
-  6. `{ status, generate, createSession }` 반환
+  6. `{ status, providerLabel, generate, createSession }` 반환. `providerLabel`은 BYOK 설정 시 `getProviderLabel(llm.baseUrl)`, 미설정 시 `null`
 - **삭제 대상**: `src/sidepanel/hooks/useChromeAI.ts` (기능이 Task 2 + 3으로 이동)
 - **검증**:
   - [ ] `pnpm typecheck` 통과
@@ -106,43 +109,51 @@
 
   **LlmConnectDialog** (`PatDialog` 패턴):
   1. `Dialog` > `DialogContent` (w-[80vw] max-w-[80vw] gap-5 rounded-3xl p-6)
-  2. Base URL `Input` (placeholder: `https://api.openai.com/v1`)
-  3. API Key `Input` (autoComplete="off", spellCheck=false)
-  4. "연결" 클릭:
+  2. **프로바이더 Combobox** (`Popover + Command`): `PROVIDER_PRESETS` 항목 + 마지막 "직접 입력" 옵션. 기본 선택 OpenAI. 프리셋 선택 시 `baseUrl` 자동 채움.
+  3. **엔드포인트 URL Input**: "직접 입력" 선택 시에만 표시 (placeholder: `https://...`)
+  4. **API Key Input** (autoComplete="off", spellCheck=false)
+  5. "연결" 클릭:
      - `requestHostPermission(baseUrl)` → 실패 시 에러 Alert
-     - `detectProviderKind(baseUrl)`
-     - OpenAI: `fetchModels(baseUrl, apiKey)` → 실패 시 에러 Alert
-     - Anthropic: 검증 스킵
+     - `detectProviderKind(baseUrl)`:
+       - `"openai"` → `fetchModels(baseUrl, apiKey)` → 실패 시 에러 Alert
+       - `"anthropic"` → 검증 스킵
      - 성공: `setLlm({ baseUrl, apiKey, modelId: "" })` → 다이얼로그 닫기
-  5. 로딩 상태: "연결" 버튼에 Loader2 스피너 (absolute overlay 패턴)
-  6. 에러 표시: `Alert variant="destructive"` (기존 패턴)
+  6. 로딩 상태: "연결" 버튼에 Loader2 스피너 (absolute overlay 패턴)
+  7. 에러 표시: `Alert variant="destructive"` (기존 패턴)
 - **검증**:
   - [ ] `pnpm typecheck` 통과
   - [ ] 미연결 상태에서 EmptyState 정상 렌더 (수동)
-  - [ ] 다이얼로그에서 base URL + API key 입력 후 연결 동작 (수동, 실제 API 키 필요)
+  - [ ] 프로바이더 Combobox에서 프리셋 선택 시 base URL 자동 채움 (수동)
+  - [ ] "직접 입력" 선택 시 URL Input 노출, 커스텀 URL 입력 가능 (수동)
+  - [ ] 프로바이더 선택 + API key 입력 후 연결 동작 (수동, 실제 API 키 필요)
   - [ ] 연결 후 모델 콤보박스에서 모델 선택 동작 (수동)
   - [ ] 연결 해제 후 EmptyState 복귀 (수동)
-  - [ ] Anthropic base URL 입력 시 즉시 연결 (모델 fetch 없이) (수동)
+  - [ ] Anthropic 프리셋 선택 시 즉시 연결 (모델 fetch 없이) (수동)
 
-### Task 8: DraftingPanel 연동
+### Task 8: DraftingPanel 연동 + 배너 뱃지
 
 - **변경 대상**: `src/sidepanel/tabs/DraftingPanel.tsx`
 - **작업 내용**:
   1. `import { useChromeAI }` → `import { useAI }` 교체
-  2. `const { status: aiStatus, generateDraft } = useChromeAI()` → `const { status: aiStatus, generate } = useAI()`
+  2. `const { status: aiStatus, generateDraft } = useChromeAI()` → `const { status: aiStatus, providerLabel, generate } = useAI()`
   3. `handleAIDraft` 내부:
      - `const raw = await generateDraft(ctx, { responseSchema })` → `const raw = await generate({ prompt: ctx, responseSchema })`
-  4. 나머지 로직(파싱, 에러 핸들링) 변경 없음
+  4. AI 배너 뱃지: `<Badge ...>Beta</Badge>` → `<Badge ...>{providerLabel ?? "Beta"}</Badge>`
+  5. 나머지 로직(파싱, 에러 핸들링) 변경 없음
 - **검증**:
   - [ ] `pnpm typecheck` 통과
+  - [ ] BYOK 설정 상태에서 배너 뱃지에 프로바이더명 표시 (수동)
+  - [ ] BYOK 미설정 시 "Beta" 표시 (수동)
   - [ ] BYOK 설정 상태에서 AI Draft 동작 확인 (수동)
   - [ ] BYOK 미설정 + Chrome AI 가용 시 기존 동작 확인 (수동)
   - [ ] API 에러 시 에러 토스트 표시 확인 (수동)
 
-### Task 9: AiStylingDialog 연동
+### Task 9: AiStylingDialog 연동 + StyleEditorPanel 배너 뱃지
 
-- **변경 대상**: `src/sidepanel/tabs/styleEditor/AiStylingDialog.tsx`
+- **변경 대상**: `src/sidepanel/tabs/styleEditor/AiStylingDialog.tsx`, `src/sidepanel/tabs/StyleEditorPanel.tsx`
 - **작업 내용**:
+
+  **AiStylingDialog**:
   1. `useAI()` import
   2. props 또는 훅에서 `{ createSession }` 가져오기
   3. `sessionRef` 타입을 `LanguageModelInstance | null` → `AISession | null`로 변경
@@ -150,8 +161,14 @@
   5. 프롬프트 호출: `session.prompt(msg, { responseConstraint: schema })` → `session.prompt(msg, { responseSchema: schema })`
   6. cleanup: 기존 `session.destroy()` 호출 유지 (인터페이스 동일)
   7. `globalThis.LanguageModel` 직접 참조 모두 제거
+
+  **StyleEditorPanel** (배너 뱃지):
+  1. `useAI()` 훅에서 `providerLabel` 구독 (이미 `aiStatus`를 쓰고 있으므로 훅 호출은 DraftingPanel이 할 것 — StyleEditorPanel에서도 `useAI()` 호출 필요)
+  2. AI Styling 배너: `<Badge ...>Beta</Badge>` → `<Badge ...>{providerLabel ?? "Beta"}</Badge>`
 - **검증**:
   - [ ] `pnpm typecheck` 통과
+  - [ ] BYOK 설정 상태에서 Styling 배너에 프로바이더명 표시 (수동)
+  - [ ] BYOK 미설정 시 "Beta" 표시 (수동)
   - [ ] BYOK 설정 상태에서 AI Styling 동작 확인 (수동, 요소 선택 후 스타일 변경 요청)
   - [ ] 멀티턴 동작 확인 (연속 스타일 요청) (수동)
   - [ ] BYOK 미설정 + Chrome AI 시 기존 동작 확인 (수동)
@@ -174,7 +191,8 @@
 
 | 파일 | 대상 | 케이스 |
 |---|---|---|
-| `src/sidepanel/lib/__tests__/ai-provider.test.ts` | `detectProviderKind` | `api.anthropic.com` → `"anthropic"`, 기타 → `"openai"` |
+| `src/sidepanel/lib/__tests__/ai-provider.test.ts` | `detectProviderKind` | 프리셋 URL → 해당 kind, 커스텀 anthropic → `"anthropic"`, 기타 → `"openai"` |
+| 〃 | `getProviderLabel` | 프리셋 URL → 라벨 ("OpenAI", "Anthropic", "Gemini" 등), 커스텀 → `"Custom"` |
 | 〃 | OpenAI provider | 메시지 구성, headers(Authorization), JSON mode, 응답 추출, 멀티턴 메시지 누적, HTTP 에러 throw |
 | 〃 | Anthropic provider | 메시지 구성, headers(x-api-key, anthropic-version), system 분리, max_tokens, 응답 추출, 멀티턴, HTTP 에러 |
 | 〃 | `fetchModels` | 정상 응답 파싱, 정렬, 에러 throw |
@@ -184,10 +202,14 @@
 
 - [ ] 설정 탭 하위 3탭 전환 + 기존 기능 동작 (title prefix, issue composition, theme, locale)
 - [ ] 미연결 상태 EmptyState 렌더
+- [ ] 프로바이더 Combobox에서 프리셋 선택 / 직접 입력 전환
 - [ ] 다이얼로그 연결 흐름 (OpenAI 키)
 - [ ] 다이얼로그 연결 흐름 (Anthropic 키)
+- [ ] 다이얼로그 연결 흐름 (Gemini 키)
 - [ ] 잘못된 키로 연결 시 에러 표시
 - [ ] 연결 후 모델 콤보박스 동작 + 모델 선택
+- [ ] AI Draft 배너 뱃지: BYOK 시 프로바이더명, 미설정 시 "Beta"
+- [ ] AI Styling 배너 뱃지: 동일
 - [ ] AI Draft 동작 (BYOK 설정 상태)
 - [ ] AI Styling 동작 + 멀티턴 (BYOK 설정 상태)
 - [ ] 연결 해제 후 Chrome AI 폴백 확인

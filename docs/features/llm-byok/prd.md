@@ -25,26 +25,33 @@ BugShot의 AI 기능(AI Draft, AI Styling)은 현재 Chrome 내장 LanguageModel
 ### 시나리오 1: OpenAI 키로 설정
 
 1. 설정 탭 → [AI 설정] 하위 탭 → "API 키 연결" 클릭
-2. 다이얼로그에서 API Key 입력 (base URL은 기본값 `https://api.openai.com/v1` 유지) → "연결"
+2. 다이얼로그에서 프로바이더 Combobox → "OpenAI" 선택 (기본값), API Key 입력 → "연결"
 3. Chrome 호스트 권한 허용 프롬프트 승인 → 모델 목록 fetch 성공 → 다이얼로그 종료
 4. 연결됨 패널에서 모델 콤보박스로 `gpt-4o-mini` 선택
-5. 이후 AI Draft · AI Styling 모두 GPT-4o-mini로 동작
+5. AI Draft · AI Styling 배너 뱃지가 "Beta" → "OpenAI"로 변경
+6. 이후 AI Draft · AI Styling 모두 GPT-4o-mini로 동작
 
 ### 시나리오 2: Groq/Together 등 대체 프로바이더
 
-1. Base URL을 `https://api.groq.com/openai/v1`로 변경
+1. 다이얼로그에서 프로바이더 Combobox → "Groq" 선택
 2. Groq API Key 입력 → "연결"
 3. 모델 목록에서 `llama-3.3-70b-versatile` 선택
 
 ### 시나리오 3: Anthropic (Claude)
 
-1. 다이얼로그에서 Base URL을 `https://api.anthropic.com/v1`로 입력, API Key 입력 → "연결"
-2. 호스트네임으로 Anthropic 자동 감지 → 모델 목록 fetch 없이 즉시 연결
+1. 다이얼로그에서 프로바이더 Combobox → "Anthropic" 선택, API Key 입력 → "연결"
+2. 프리셋으로 Anthropic 감지 → 모델 목록 fetch 없이 즉시 연결
 3. 연결됨 패널에서 하드코딩 모델 목록(claude-sonnet-4-6, claude-haiku-4-5-20251001 등)에서 선택
+
+### 시나리오 3-1: Gemini
+
+1. 다이얼로그에서 프로바이더 Combobox → "Gemini" 선택, API Key 입력 → "연결"
+2. OpenAI-호환 엔드포인트로 모델 목록 fetch → 연결
+3. 연결됨 패널에서 모델 선택 (gemini-2.5-flash 등)
 
 ### 시나리오 4: 로컬 Ollama
 
-1. Base URL을 `http://localhost:11434/v1`로 변경
+1. 다이얼로그에서 프로바이더 Combobox → "Ollama" 선택
 2. API Key는 비워둠 (Ollama는 키 불필요)
 3. "연결" → 모델 목록에서 로컬 모델 선택
 

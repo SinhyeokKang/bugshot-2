@@ -23,7 +23,8 @@ OpenAI-호환 Chat Completions API와 Anthropic Messages API를 지원하는 AI 
 |---|---|---|
 | `src/store/settings-ui-store.ts` | UI 설정 (theme, locale, issueSections) | `LlmConfig` 타입 export + `llm: LlmConfig \| null` 필드 + `setLlm` 액션 추가. 스토어 버전 v2 → v3 |
 | `src/sidepanel/tabs/SettingsTab.tsx` | 설정 탭 UI (단일 페이지) | 3개 하위 탭으로 분리. IntegrationsTab과 동일한 `Tabs` > `TabsList` > `TabsContent` 구조. 기존 이슈 설정 → [이슈 설정] 탭, 테마+언어+푸터 → [기타] 탭, [AI 설정] 탭 → `LlmConnectForm` 렌더 |
-| `src/sidepanel/tabs/DraftingPanel.tsx` | AI Draft 호출부 | `useChromeAI()` → `useAI()` 교체. `generateDraft(prompt, { responseSchema })` → `generate({ prompt, responseSchema })` |
+| `src/sidepanel/tabs/DraftingPanel.tsx` | AI Draft 호출부 + 배너 | `useChromeAI()` → `useAI()` 교체. `generateDraft` → `generate`. Badge "Beta" → `providerLabel \|\| "Beta"` |
+| `src/sidepanel/tabs/StyleEditorPanel.tsx` | AI Styling 배너 | Badge "Beta" → `providerLabel \|\| "Beta"` (`useAI()` 훅에서 `providerLabel` 구독) |
 | `src/sidepanel/tabs/styleEditor/AiStylingDialog.tsx` | AI Styling 호출부 | 직접 `globalThis.LanguageModel` → `useAI().createSession()`. `sessionRef` 타입 `AISession`으로 변경, `responseConstraint` → `responseSchema` |
 | `src/sidepanel/hooks/useChromeAI.ts` | Chrome AI 훅 | 삭제 (기능이 `ai-provider.ts` ChromeAIProvider로 이동) |
 | `manifest.config.ts` | 매니페스트 생성 | `optional_host_permissions: ["https://*/*", "http://*/*"]` 추가 |
@@ -141,7 +142,9 @@ export interface AIProvider {
   createSession(systemPrompt: string): Promise<AISession>;
 }
 
+/** 프리셋 매칭 → kind 반환. 커스텀 URL은 호스트네임 "api.anthropic.com" 체크 후 fallback "openai" */
 export function detectProviderKind(baseUrl: string): ProviderKind;
+export function getProviderLabel(baseUrl: string): string;
 export function createChromeAIProvider(): AIProvider;
 export function createOpenAICompatibleProvider(config: LlmConfig): AIProvider;
 export function createAnthropicProvider(config: LlmConfig): AIProvider;
@@ -305,15 +308,47 @@ type AIStatus = "checking" | "available" | "unavailable";
 
 export function useAI(): {
   status: AIStatus;
+  providerLabel: string | null;  // BYOK 설정 시 프로바이더 표시명 ("OpenAI", "Anthropic", "Custom" 등), 미설정 시 null
   generate: AIProvider["generate"];
   createSession: AIProvider["createSession"];
 } {
   const llm = useSettingsUiStore((s) => s.llm);
 
   // llm?.modelId 있으면 → detectProviderKind → 해당 프로바이더 생성, status = "available"
+  //   providerLabel = getProviderLabel(llm.baseUrl)
   // llm 없거나 modelId 없으면 → Chrome AI availability 체크 (기존 useChromeAI 로직)
+  //   providerLabel = null
   // provider를 useMemo로 llm 변경 시 재생성
   // Chrome AI 세션 cleanup은 useEffect return에서 처리
+}
+```
+
+### 프로바이더 프리셋
+
+```typescript
+// src/sidepanel/lib/ai-provider.ts
+
+export interface ProviderPreset {
+  id: string;       // "openai" | "anthropic" | "gemini" | "groq" | "together" | "openrouter" | "ollama"
+  label: string;    // 표시명 (배너 뱃지에도 사용)
+  baseUrl: string;
+  kind: ProviderKind; // "openai" | "anthropic"
+}
+
+export const PROVIDER_PRESETS: ProviderPreset[] = [
+  { id: "openai",     label: "OpenAI",     baseUrl: "https://api.openai.com/v1",                                kind: "openai" },
+  { id: "anthropic",  label: "Anthropic",  baseUrl: "https://api.anthropic.com/v1",                             kind: "anthropic" },
+  { id: "gemini",     label: "Gemini",     baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",   kind: "openai" },
+  { id: "groq",       label: "Groq",       baseUrl: "https://api.groq.com/openai/v1",                           kind: "openai" },
+  { id: "together",   label: "Together",   baseUrl: "https://api.together.xyz/v1",                               kind: "openai" },
+  { id: "openrouter", label: "OpenRouter",  baseUrl: "https://openrouter.ai/api/v1",                             kind: "openai" },
+  { id: "ollama",     label: "Ollama",     baseUrl: "http://localhost:11434/v1",                                  kind: "openai" },
+];
+
+/** baseUrl로 프로바이더 표시명 도출. 프리셋 매칭 → 없으면 "Custom" */
+export function getProviderLabel(baseUrl: string): string {
+  const match = PROVIDER_PRESETS.find((p) => p.baseUrl === baseUrl);
+  return match?.label ?? "Custom";
 }
 ```
 
@@ -421,12 +456,18 @@ PatDialog와 동일한 Dialog 구조:
 ```
 ┌──────────────────────────────────┐
 │ AI 모델 연결                     │
-│ OpenAI 호환 또는 Anthropic       │
-│ 엔드포인트를 입력하세요          │
+│ 프로바이더를 선택하고 API 키를    │
+│ 입력하세요                       │
 │                                  │
+│ 프로바이더                       │
+│ ┌──────────────────────────────┐ │
+│ │ OpenAI                   ▾  │ │
+│ └──────────────────────────────┘ │
+│                                  │
+│ (직접 입력 선택 시)              │
 │ 엔드포인트 URL                   │
 │ ┌──────────────────────────────┐ │
-│ │ https://api.openai.com/v1    │ │
+│ │ https://...                  │ │
 │ └──────────────────────────────┘ │
 │                                  │
 │ API Key                          │
@@ -441,14 +482,40 @@ PatDialog와 동일한 Dialog 구조:
 ```
 
 - `Dialog` > `DialogContent` (w-[80vw] max-w-[80vw] gap-5 rounded-3xl p-6)
-- Base URL: `Input` (placeholder: `https://api.openai.com/v1`)
-- API Key: `Input` (placeholder: `sk-...`, autoComplete="off")
+- **프로바이더 Combobox** (`Popover + Command` 패턴):
+  - `PROVIDER_PRESETS` 항목 + 마지막에 "직접 입력" 옵션
+  - 프리셋 선택 시 `baseUrl` 자동 채움, "직접 입력" 선택 시 하단에 URL Input 노출
+  - 기본 선택: OpenAI
+- **엔드포인트 URL Input**: "직접 입력" 선택 시에만 표시
+- **API Key Input**: placeholder `sk-...`, autoComplete="off"
 - "연결" 클릭 시:
   1. `requestHostPermission(baseUrl)` → 실패 시 에러 Alert
-  2. OpenAI: `fetchModels(baseUrl, apiKey)` → 실패 시 에러 Alert
-  3. Anthropic: 검증 스킵
-  4. 성공: `setLlm({ baseUrl, apiKey, modelId: "" })` → 다이얼로그 종료
+  2. `detectProviderKind(baseUrl)`:
+     - `"openai"` → `fetchModels(baseUrl, apiKey)` → 실패 시 에러 Alert
+     - `"anthropic"` → 검증 스킵
+  3. 성공: `setLlm({ baseUrl, apiKey, modelId: "" })` → 다이얼로그 종료
 - 로딩 중: "연결" 버튼에 Loader2 스피너 (기존 패턴)
+
+### AI 배너 프로바이더 뱃지
+
+DraftingPanel · StyleEditorPanel의 AI 배너 버튼에 있는 `<Badge>Beta</Badge>`를 BYOK 설정 시 프로바이더명으로 교체한다.
+
+**현재** (Chrome AI):
+```tsx
+<Badge variant="outline" className="... border-purple-500 text-purple-600 ...">Beta</Badge>
+```
+
+**BYOK 설정 시**:
+```tsx
+<Badge variant="outline" className="... border-purple-500 text-purple-600 ...">
+  {providerLabel}  {/* "OpenAI" | "Anthropic" | "Gemini" | "Custom" 등 */}
+</Badge>
+```
+
+- `useAI()`의 `providerLabel`이 `null`이면 `"Beta"` (Chrome AI fallback)
+- `providerLabel`이 있으면 해당 문자열 표시
+- 뱃지 색상(purple/teal)은 그대로 유지, 텍스트만 교체
+- DraftingPanel과 StyleEditorPanel 양쪽 모두 동일 적용
 
 ### i18n 키
 
@@ -471,10 +538,12 @@ llm: {
   connect: "API 키 연결",
   dialog: {
     title: "AI 모델 연결",
-    body: "OpenAI 호환 또는 Anthropic 엔드포인트를 입력하세요",
+    body: "프로바이더를 선택하고 API 키를 입력하세요",
   },
+  provider: "프로바이더",
+  providerCustom: "직접 입력",
   baseUrl: "엔드포인트 URL",
-  baseUrlPlaceholder: "https://api.openai.com/v1",
+  baseUrlPlaceholder: "https://...",
   apiKey: "API Key",
   apiKeyPlaceholder: "sk-...",
   section: {
