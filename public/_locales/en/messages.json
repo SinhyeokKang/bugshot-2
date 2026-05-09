@@ -1,6 +1,6 @@
 {
   "EXT_NAME": {
-    "message": "BugShot — Design Issue Tracker",
+    "message": "BugShot — Design QA, directly in your browser",
     "description": "Full extension name"
   },
   "EXT_NAME_SHORT": {
@@ -8,7 +8,7 @@
     "description": "Short name for action button"
   },
   "EXT_DESCRIPTION": {
-    "message": "Stop describing design issues. Just fix it and show the change.",
+    "message": "Discover, fix, capture, and report UI bugs in one workflow.",
     "description": "Chrome Web Store description"
   },
   "CMD_TOGGLE_PANEL": {
