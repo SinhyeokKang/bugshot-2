@@ -270,52 +270,18 @@ describe("parseAiStylingResponse", () => {
       color: "red",
       "font-size": "14px",
       "background-color": "blue",
-      "border-top-left-radius": "4px",
-      "border-top-right-radius": "4px",
-      "border-bottom-right-radius": "4px",
-      "border-bottom-left-radius": "4px",
+      "border-radius": "4px",
     });
   });
 
-  it("shorthand border-radius를 longhand로 확장", () => {
+  it("shorthand 속성도 그대로 통과", () => {
     const raw = JSON.stringify({
       explanation: "Rounded corners",
       inlineStyle: { "border-radius": "12px" },
     });
     const result = parseAiStylingResponse(raw);
     expect(result?.edits.inlineStyle).toEqual({
-      "border-top-left-radius": "12px",
-      "border-top-right-radius": "12px",
-      "border-bottom-right-radius": "12px",
-      "border-bottom-left-radius": "12px",
-    });
-  });
-
-  it("shorthand margin 2값 확장", () => {
-    const raw = JSON.stringify({
-      explanation: "Margin",
-      inlineStyle: { margin: "8px 16px" },
-    });
-    const result = parseAiStylingResponse(raw);
-    expect(result?.edits.inlineStyle).toEqual({
-      "margin-top": "8px",
-      "margin-right": "16px",
-      "margin-bottom": "8px",
-      "margin-left": "16px",
-    });
-  });
-
-  it("shorthand padding 단일값 확장", () => {
-    const raw = JSON.stringify({
-      explanation: "Padding",
-      inlineStyle: { padding: "10px" },
-    });
-    const result = parseAiStylingResponse(raw);
-    expect(result?.edits.inlineStyle).toEqual({
-      "padding-top": "10px",
-      "padding-right": "10px",
-      "padding-bottom": "10px",
-      "padding-left": "10px",
+      "border-radius": "12px",
     });
   });
 });

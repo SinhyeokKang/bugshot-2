@@ -115,7 +115,7 @@ export function buildAiStylingSystemPrompt(ctx: AiStylingContext): string {
     "",
     "Rules:",
     "- explanation: one sentence describing what CSS you changed (Korean if user writes Korean)",
-    "- inlineStyle: CSS property-value pairs in kebab-case. Use longhand properties (e.g. border-bottom-right-radius, not border-radius). Only change the specific sides/corners the user asked for",
+    "- inlineStyle: CSS property-value pairs in kebab-case",
     "- Prefer design tokens over raw values. When a matching token exists, use var(--token-name). Prioritize tokens from the same family already used on this element",
     "- classList: optional, the COMPLETE class list. Keep all existing classes, only add/remove what the user asked for",
     "- Do NOT include any other fields",
@@ -163,12 +163,7 @@ export function parseAiStylingResponse(raw: string): {
     )) {
       if (typeof val !== "string" || !val) continue;
       const prop = toKebab(rawProp);
-      const expanded = expandShorthand(prop, val);
-      if (expanded) {
-        for (const [ep, ev] of Object.entries(expanded)) {
-          if (ALLOWED_STYLE_PROPS.has(ep)) filtered[ep] = ev;
-        }
-      } else if (ALLOWED_STYLE_PROPS.has(prop)) {
+      if (ALLOWED_STYLE_PROPS.has(prop)) {
         filtered[prop] = val;
       }
     }
@@ -183,41 +178,6 @@ export function parseAiStylingResponse(raw: string): {
   }
 
   return { explanation: parsed.explanation, edits };
-}
-
-const SHORTHAND_MAP: Record<string, string[]> = {
-  margin: ["margin-top", "margin-right", "margin-bottom", "margin-left"],
-  padding: ["padding-top", "padding-right", "padding-bottom", "padding-left"],
-  "border-radius": [
-    "border-top-left-radius",
-    "border-top-right-radius",
-    "border-bottom-right-radius",
-    "border-bottom-left-radius",
-  ],
-  gap: ["row-gap", "column-gap"],
-  overflow: ["overflow-x", "overflow-y"],
-};
-
-function expandShorthand(
-  prop: string,
-  value: string,
-): Record<string, string> | null {
-  const longhands = SHORTHAND_MAP[prop];
-  if (!longhands) return null;
-  const parts = value.trim().split(/\s+/);
-  if (parts.length === 1) {
-    const out: Record<string, string> = {};
-    for (const lh of longhands) out[lh] = parts[0];
-    return out;
-  }
-  if (longhands.length === 4) {
-    const [t, r = t, b = t, l = r] = parts;
-    return Object.fromEntries(longhands.map((lh, i) => [lh, [t, r, b, l][i]]));
-  }
-  if (longhands.length === 2) {
-    return { [longhands[0]]: parts[0], [longhands[1]]: parts[1] ?? parts[0] };
-  }
-  return null;
 }
 
 function toKebab(s: string): string {
