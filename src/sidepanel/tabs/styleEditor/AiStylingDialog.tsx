@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useT } from "@/i18n";
 import {
@@ -37,6 +37,13 @@ export function AiStylingDialog({
   const [input, setInput] = useState("");
   const sessionRef = useRef<LanguageModelInstance | null>(null);
 
+  useEffect(() => {
+    return () => {
+      sessionRef.current?.destroy?.();
+      sessionRef.current = null;
+    };
+  }, []);
+
   const buildContext = useCallback((): AiStylingContext | null => {
     const s = useEditorStore.getState();
     if (!s.selection) return null;
@@ -66,8 +73,6 @@ export function AiStylingDialog({
     onOpenChange(false);
     store.setAiStylingLoading(true);
 
-    console.log("[AI Styling] prompt:", msg);
-
     try {
       if (!globalThis.LanguageModel) throw new Error("Chrome AI unavailable");
 
@@ -84,8 +89,6 @@ export function AiStylingDialog({
         responseConstraint: buildAiStylingResponseSchema(),
       });
 
-      console.log("[AI Styling] raw response:", raw);
-
       const parsed = parseAiStylingResponse(raw);
       if (!parsed) {
         console.warn("[AI Styling] parse failed");
@@ -95,7 +98,6 @@ export function AiStylingDialog({
 
       const hasEdits = parsed.edits.inlineStyle || parsed.edits.classList;
       if (!hasEdits) {
-        console.log("[AI Styling] empty edits");
         toast(t("aiStyling.noChanges"));
         return;
       }
@@ -112,8 +114,6 @@ export function AiStylingDialog({
       const currentEdits = useEditorStore.getState().styleEdits;
       const merged = mergeAiEdits(currentEdits, parsed.edits);
       useEditorStore.getState().setStyleEdits(merged);
-
-      console.log("[AI Styling] applied edits:", parsed.edits);
 
       if (tabId) {
         if (parsed.edits.inlineStyle)

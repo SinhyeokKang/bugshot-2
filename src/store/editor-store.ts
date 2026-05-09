@@ -96,7 +96,6 @@ interface EditorState {
   sessionExpired: boolean;
 
   setAiStylingLoading: (loading: boolean) => void;
-  clearAiStyling: () => void;
   setAiStylingSnapshot: (snapshot: EditorStyleEdits) => void;
   startPicking: (target: EditorTarget, mode?: CaptureMode) => void;
   startCapturing: (target: EditorTarget) => void;
@@ -204,7 +203,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   ...initial,
 
   setAiStylingLoading: (loading) => set({ aiStylingLoading: loading }),
-  clearAiStyling: () => set({ aiStylingLoading: false, aiStylingSnapshot: null }),
   setAiStylingSnapshot: (snapshot) => set({ aiStylingSnapshot: snapshot }),
 
   startPicking: (target, mode) => set({ ...initial, captureMode: mode ?? "element", phase: "picking", target }),

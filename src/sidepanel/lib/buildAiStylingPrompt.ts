@@ -1,9 +1,9 @@
+import type { Token } from "@/types/picker";
+
 export interface AiStylingEdits {
   inlineStyle?: Record<string, string>;
   classList?: string[];
 }
-
-import type { Token } from "@/types/picker";
 
 export interface AiStylingContext {
   tagName: string;
