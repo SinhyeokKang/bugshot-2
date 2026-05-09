@@ -47,6 +47,13 @@ export interface ModelEntry {
   id: string;
 }
 
+export class LlmQuotaError extends Error {
+  constructor() {
+    super("quota_exceeded");
+    this.name = "LlmQuotaError";
+  }
+}
+
 export interface ProviderPreset {
   id: string;
   label: string;
@@ -148,6 +155,7 @@ export function createOpenAICompatibleProvider(config: LlmConfig): AIProvider {
       body: JSON.stringify(body),
     });
     if (!res.ok) {
+      if (res.status === 429) throw new LlmQuotaError();
       const text = await res.text().catch(() => "");
       throw new Error(`LLM API error ${res.status}: ${text}`);
     }
@@ -205,6 +213,7 @@ export function createAnthropicProvider(config: LlmConfig): AIProvider {
       }),
     });
     if (!res.ok) {
+      if (res.status === 429) throw new LlmQuotaError();
       const text = await res.text().catch(() => "");
       throw new Error(`Anthropic API error ${res.status}: ${text}`);
     }

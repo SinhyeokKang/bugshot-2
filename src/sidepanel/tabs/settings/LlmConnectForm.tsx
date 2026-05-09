@@ -5,7 +5,6 @@ import {
   ChevronsUpDown,
   CircleCheck,
   RefreshCw,
-  TriangleAlert,
 } from "lucide-react";
 import { useT } from "@/i18n";
 import {
@@ -30,7 +29,6 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
-import { Input } from "@/components/ui/input";
 import {
   Popover,
   PopoverContent,
@@ -88,9 +86,6 @@ function LlmConnected() {
   const setLlm = useSettingsUiStore((s) => s.setLlm);
   const providerLabel = getProviderLabel(llm.baseUrl);
   const kind = detectProviderKind(llm.baseUrl);
-
-  const [reenterKey, setReenterKey] = useState("");
-  const needsApiKey = !llm.apiKey;
 
   let hostname: string;
   try {
@@ -153,53 +148,12 @@ function LlmConnected() {
                   {providerLabel}
                 </span>
               </div>
-              {needsApiKey ? (
-                <Badge className="shrink-0 gap-1 border-transparent bg-amber-50 text-[11px] tracking-wider text-amber-700 shadow-none dark:bg-amber-900/40 dark:text-amber-400">
-                  <TriangleAlert className="h-3 w-3" />
-                  {t("llm.apiKey")}
-                </Badge>
-              ) : (
-                <Badge className="shrink-0 gap-1 border-transparent bg-green-50 text-[11px] tracking-wider text-green-700 shadow-none dark:bg-green-900/40 dark:text-green-400">
-                  <CircleCheck className="h-3 w-3" />
-                  {t("llm.connected")}
-                </Badge>
-              )}
+              <Badge className="shrink-0 gap-1 border-transparent bg-green-50 text-[11px] tracking-wider text-green-700 shadow-none dark:bg-green-900/40 dark:text-green-400">
+                <CircleCheck className="h-3 w-3" />
+                {t("llm.connected")}
+              </Badge>
             </CardContent>
           </Card>
-          {needsApiKey && (
-            <div className="flex flex-col gap-2">
-              <p className="text-xs text-amber-600 dark:text-amber-400">
-                {t("llm.apiKey.expired")}
-              </p>
-              <div className="flex items-center gap-1">
-                <Input
-                  type="password"
-                  placeholder={t("llm.apiKeyPlaceholder")}
-                  value={reenterKey}
-                  onChange={(e) => setReenterKey(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" && reenterKey.trim()) {
-                      setLlm({ ...llm, apiKey: reenterKey.trim() });
-                      setReenterKey("");
-                    }
-                  }}
-                  autoComplete="off"
-                  spellCheck={false}
-                />
-                <Button
-                  size="sm"
-                  className="h-9 shrink-0"
-                  disabled={!reenterKey.trim()}
-                  onClick={() => {
-                    setLlm({ ...llm, apiKey: reenterKey.trim() });
-                    setReenterKey("");
-                  }}
-                >
-                  {t("llm.apiKey.save")}
-                </Button>
-              </div>
-            </div>
-          )}
         </Section>
 
         <Section

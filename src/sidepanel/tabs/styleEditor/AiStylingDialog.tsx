@@ -23,7 +23,7 @@ import {
   type AiStylingContext,
 } from "../../lib/buildAiStylingPrompt";
 import { mergeAiEdits, replaceRawWithTokens } from "../../lib/aiStylingPostProcess";
-import type { AISession, AIProvider } from "../../lib/ai-provider";
+import { LlmQuotaError, type AISession, type AIProvider } from "../../lib/ai-provider";
 
 export function AiStylingDialog({
   open,
@@ -122,7 +122,11 @@ export function AiStylingDialog({
       }
     } catch (err) {
       console.error("[AI Styling] error:", err);
-      toast.error(t("aiStyling.error"));
+      if (err instanceof LlmQuotaError) {
+        toast.error(t("llm.error.quota"));
+      } else {
+        toast.error(t("aiStyling.error"));
+      }
       sessionRef.current?.destroy?.();
       sessionRef.current = null;
     } finally {

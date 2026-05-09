@@ -79,17 +79,19 @@ function IssueSettingsContent() {
     <PageShell>
       <PageScroll>
         <Section title={t("settings.titleSettings")}>
-          <Input
-            id="title-prefix"
-            placeholder="[QA] "
-            value={titlePrefix}
-            onChange={(e) => setTitlePrefix(e.target.value)}
-            autoComplete="off"
-            spellCheck={false}
-          />
-          <p className="mt-1.5 text-xs text-muted-foreground">
-            {t("settings.titlePrefix.help")}
-          </p>
+          <div className="space-y-2">
+            <Input
+              id="title-prefix"
+              placeholder="[QA] "
+              value={titlePrefix}
+              onChange={(e) => setTitlePrefix(e.target.value)}
+              autoComplete="off"
+              spellCheck={false}
+            />
+            <p className="text-[0.8rem] text-muted-foreground">
+              {t("settings.titlePrefix.help")}
+            </p>
+          </div>
         </Section>
 
         <Section title={t("settings.bodyComposition")}>

@@ -1,4 +1,4 @@
-import { useState, type ComponentType, type SVGProps } from "react";
+import { useEffect, useState, type ComponentType, type SVGProps } from "react";
 import { Check, ChevronsUpDown, Loader2 } from "lucide-react";
 import {
   SiAnthropic,
@@ -34,11 +34,14 @@ import {
 import { useSettingsUiStore } from "@/store/settings-ui-store";
 import { cn } from "@/lib/utils";
 import {
+  ANTHROPIC_MODELS,
   detectProviderKind,
   fetchModels,
+  GEMINI_MODELS,
   pingAnthropic,
   PROVIDER_PRESETS,
   requestHostPermission,
+  type ModelEntry,
 } from "../../lib/ai-provider";
 
 function OpenAIIcon(props: SVGProps<SVGSVGElement>) {
@@ -57,13 +60,33 @@ function GroqIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
-const PROVIDER_ICONS: Record<string, ComponentType<{ className?: string }>> = {
-  openai: OpenAIIcon,
-  anthropic: (props) => <SiAnthropic color="default" {...props} />,
-  gemini: (props) => <SiGooglegemini color="default" {...props} />,
-  groq: GroqIcon,
-  openrouter: (props) => <SiOpenrouter color="default" {...props} />,
-  ollama: (props) => <SiOllama color="default" {...props} />,
+function TogetherIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" {...props}>
+      <path d="M23.197 4.503A6 6 0 0015 2.307a5.973 5.973 0 00-2.995 4.933l5.996.008v.515h-5.996c.039.937.298 1.87.8 2.74a6 6 0 1010.39-6z" fill="#EF2CC1" />
+      <path d="M.805 4.5A6 6 0 003 12.697a5.972 5.972 0 005.77.127L5.779 7.627l.446-.257 2.997 5.192A6 6 0 10.804 4.5z" fill="#CAAEF5" />
+      <path d="M12 23.894a6 6 0 005.999-6c0-2.13-1.1-3.996-2.775-5.06l-3.005 5.189-.444-.258 2.997-5.192A6 6 0 1012 23.894z" fill="#FC4C02" />
+    </svg>
+  );
+}
+
+const PROVIDER_ICONS: Record<
+  string,
+  { icon: ComponentType<{ className?: string }>; darkInvert?: boolean }
+> = {
+  openai: { icon: OpenAIIcon, darkInvert: true },
+  anthropic: {
+    icon: (props) => <SiAnthropic color="default" {...props} />,
+  },
+  gemini: {
+    icon: (props) => <SiGooglegemini color="default" {...props} />,
+  },
+  groq: { icon: GroqIcon, darkInvert: true },
+  together: { icon: TogetherIcon },
+  openrouter: {
+    icon: (props) => <SiOpenrouter color="default" {...props} />,
+  },
+  ollama: { icon: (props) => <SiOllama color="default" {...props} /> },
 };
 
 export function LlmConnectDialog({
@@ -81,6 +104,11 @@ export function LlmConnectDialog({
   const [error, setError] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [popoverOpen, setPopoverOpen] = useState(false);
+  const [pendingModels, setPendingModels] = useState<{
+    models: ModelEntry[];
+    baseUrl: string;
+    apiKey: string;
+  } | null>(null);
 
   const selectedPreset = PROVIDER_PRESETS.find((p) => p.baseUrl === baseUrl);
   const displayLabel = selectedPreset?.label
@@ -114,16 +142,22 @@ export function LlmConnectDialog({
       }
 
       const kind = detectProviderKind(baseUrl);
+      let models: ModelEntry[];
       if (kind === "anthropic") {
         await pingAnthropic(baseUrl, apiKey);
+        models = ANTHROPIC_MODELS;
       } else {
-        await fetchModels(baseUrl, apiKey);
+        const geminiPreset = PROVIDER_PRESETS.find((p) => p.id === "gemini");
+        const isGemini = geminiPreset && baseUrl === geminiPreset.baseUrl;
+        if (isGemini) {
+          await fetchModels(baseUrl, apiKey);
+          models = GEMINI_MODELS;
+        } else {
+          models = await fetchModels(baseUrl, apiKey);
+        }
       }
 
-      setLlm({ baseUrl, apiKey, modelId: "" });
-      setApiKey("");
-      setBaseUrl("");
-      onOpenChange(false);
+      setPendingModels({ models, baseUrl, apiKey });
     } catch {
       setError(t("llm.error.fetch"));
     } finally {
@@ -131,7 +165,26 @@ export function LlmConnectDialog({
     }
   }
 
+  function handleModelSelect(modelId: string) {
+    if (!pendingModels) return;
+    setLlm({
+      baseUrl: pendingModels.baseUrl,
+      apiKey: pendingModels.apiKey,
+      modelId,
+    });
+    setPendingModels(null);
+    setApiKey("");
+    setBaseUrl("");
+    onOpenChange(false);
+  }
+
   return (
+    <>
+    <LlmModelDialog
+      pending={pendingModels}
+      onSelect={handleModelSelect}
+      onClose={() => setPendingModels(null)}
+    />
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="w-[80vw] max-w-[80vw] gap-5 rounded-3xl p-6 sm:rounded-3xl">
         <DialogHeader>
@@ -167,7 +220,7 @@ export function LlmConnectDialog({
                     <CommandEmpty />
                     <CommandGroup>
                       {PROVIDER_PRESETS.map((p) => {
-                        const Icon = PROVIDER_ICONS[p.id];
+                        const entry = PROVIDER_ICONS[p.id];
                         return (
                           <CommandItem
                             key={p.id}
@@ -180,7 +233,14 @@ export function LlmConnectDialog({
                                 baseUrl === p.baseUrl ? "opacity-100" : "opacity-0",
                               )}
                             />
-                            {Icon && <Icon className="mr-2 h-4 w-4 dark:invert" />}
+                            {entry && (
+                              <entry.icon
+                                className={cn(
+                                  "mr-2 h-4 w-4",
+                                  entry.darkInvert && "dark:invert",
+                                )}
+                              />
+                            )}
                             {p.label}
                           </CommandItem>
                         );
@@ -213,10 +273,6 @@ export function LlmConnectDialog({
             />
           </div>
 
-          <p className="text-xs text-muted-foreground/60">
-            {t("llm.security.note")}
-          </p>
-
           {error ? (
             <Alert variant="destructive" className="text-xs">
               <AlertDescription>{error}</AlertDescription>
@@ -226,7 +282,7 @@ export function LlmConnectDialog({
 
         <DialogFooter className="flex-row justify-end">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
-            {t("common.cancel")}
+            {t("common.close")}
           </Button>
           <Button onClick={handleConnect} disabled={!canConnect} className="relative">
             {connecting && (
@@ -237,6 +293,103 @@ export function LlmConnectDialog({
             <span className={connecting ? "opacity-0" : undefined}>
               {t("platform.connect")}
             </span>
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+    </>
+  );
+}
+
+function LlmModelDialog({
+  pending,
+  onSelect,
+  onClose,
+}: {
+  pending: { models: ModelEntry[]; baseUrl: string; apiKey: string } | null;
+  onSelect: (modelId: string) => void;
+  onClose: () => void;
+}) {
+  const t = useT();
+  const [models, setModels] = useState<ModelEntry[]>([]);
+  const [selectedModelId, setSelectedModelId] = useState("");
+  const [popoverOpen, setPopoverOpen] = useState(false);
+
+  useEffect(() => {
+    if (pending) {
+      setModels(pending.models);
+      setSelectedModelId("");
+    }
+  }, [pending]);
+
+  return (
+    <Dialog open={!!pending} onOpenChange={(v) => { if (!v) onClose(); }}>
+      <DialogContent className="w-[80vw] max-w-[80vw] gap-5 rounded-3xl p-6 sm:rounded-3xl">
+        <DialogHeader>
+          <DialogTitle className="text-xl">{t("llm.model.select")}</DialogTitle>
+        </DialogHeader>
+
+        <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              role="combobox"
+              aria-expanded={popoverOpen}
+              className="w-full justify-between font-normal"
+            >
+              <span
+                className={cn(
+                  "min-w-0 flex-1 truncate text-left",
+                  !selectedModelId && "text-muted-foreground",
+                )}
+              >
+                {selectedModelId || t("llm.model.placeholder")}
+              </span>
+              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent
+            className="w-[var(--radix-popover-trigger-width)] p-0"
+            onWheel={(e) => e.stopPropagation()}
+          >
+            <Command>
+              <CommandInput placeholder={t("llm.model.search")} />
+              <CommandList>
+                <CommandEmpty>{t("llm.model.empty")}</CommandEmpty>
+                <CommandGroup>
+                  {models.map((m) => (
+                    <CommandItem
+                      key={m.id}
+                      value={m.id}
+                      onSelect={() => {
+                        setSelectedModelId(m.id);
+                        setPopoverOpen(false);
+                      }}
+                    >
+                      <Check
+                        className={cn(
+                          "mr-2 h-4 w-4",
+                          selectedModelId === m.id ? "opacity-100" : "opacity-0",
+                        )}
+                      />
+                      {m.id}
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </CommandList>
+            </Command>
+          </PopoverContent>
+        </Popover>
+
+        <DialogFooter className="flex-row justify-end">
+          <Button variant="outline" onClick={onClose}>
+            {t("common.close")}
+          </Button>
+          <Button
+            disabled={!selectedModelId}
+            onClick={() => onSelect(selectedModelId)}
+          >
+            {t("common.ok")}
           </Button>
         </DialogFooter>
       </DialogContent>

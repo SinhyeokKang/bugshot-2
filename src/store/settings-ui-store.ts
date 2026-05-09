@@ -56,19 +56,6 @@ export interface LlmConfig {
   modelId: string;
 }
 
-const LLM_API_KEY = "bugshot-llm-api-key";
-
-function saveLlmApiKey(apiKey: string | null): void {
-  try {
-    if (apiKey) chrome.storage.session.set({ [LLM_API_KEY]: apiKey });
-    else chrome.storage.session.remove(LLM_API_KEY);
-  } catch { /* test env */ }
-}
-
-function loadLlmApiKey(): Promise<string> {
-  return chrome.storage.session.get(LLM_API_KEY).then((r) => r[LLM_API_KEY] ?? "");
-}
-
 function detectLocale(): LocaleMode {
   const lang =
     typeof navigator !== "undefined" && navigator.language
@@ -106,32 +93,13 @@ export const useSettingsUiStore = create<SettingsUiState>()(
           ),
         })),
       resetIssueSections: () => set({ issueSections: DEFAULT_ISSUE_SECTIONS }),
-      setLlm: (config) => {
-        saveLlmApiKey(config?.apiKey ?? null);
-        set({ llm: config });
-      },
+      setLlm: (config) => set({ llm: config }),
     }),
     {
       // 기존 사용자 데이터 호환을 위해 리네이밍 전 키 유지
       name: "bugshot-app-settings",
-      version: 4,
+      version: 5,
       storage: createJSONStorage(() => chromeLocalStorage),
-      partialize: (state) => ({
-        theme: state.theme,
-        locale: state.locale,
-        issueSections: state.issueSections,
-        llm: state.llm ? { baseUrl: state.llm.baseUrl, modelId: state.llm.modelId, apiKey: "" } : null,
-      }),
-      onRehydrateStorage: () => (state) => {
-        if (!state?.llm) return;
-        try {
-          loadLlmApiKey().then((apiKey) => {
-            if (!apiKey) return;
-            const current = useSettingsUiStore.getState().llm;
-            if (current) useSettingsUiStore.setState({ llm: { ...current, apiKey } });
-          });
-        } catch { /* test env */ }
-      },
       migrate: (persisted, version) => {
         const state = (persisted ?? {}) as Partial<SettingsUiState>;
         if (version < 2 || !state.issueSections) {
@@ -140,10 +108,8 @@ export const useSettingsUiStore = create<SettingsUiState>()(
         if (version < 3) {
           state.llm = state.llm ?? null;
         }
-        if (version < 4 && state.llm) {
-          // v3→v4: apiKey가 local에 있었으면 session으로 이관 후 local에서 제거
-          saveLlmApiKey(state.llm.apiKey || null);
-          state.llm = { ...state.llm, apiKey: "" };
+        if (version < 5 && state.llm && !state.llm.apiKey) {
+          state.llm = null;
         }
         return state as SettingsUiState;
       },

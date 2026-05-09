@@ -206,7 +206,7 @@ const ko = {
 
   // LLM BYOK
   "llm.onboarding.title": "AI 모델을 연결하세요",
-  "llm.onboarding.body": "API 키를 등록하면 더 나은 AI 기능을 사용할 수 있습니다",
+  "llm.onboarding.body": "내 AI 모델을 연결해 활용할 수 있습니다",
   "llm.onboarding.fallback": "Chrome AI가 사용 가능하면 별도 설정 없이 동작합니다",
   "llm.connect": "API 키 연결",
   "llm.dialog.title": "AI 모델 연결",
@@ -219,6 +219,7 @@ const ko = {
   "llm.apiKeyPlaceholder": "sk-...",
   "llm.section.connection": "연결 정보",
   "llm.section.model": "모델",
+  "llm.model.select": "모델 선택",
   "llm.model.placeholder": "모델을 선택하세요",
   "llm.model.search": "모델 검색...",
   "llm.model.empty": "모델 없음",
@@ -229,10 +230,7 @@ const ko = {
   "llm.disconnectConfirm.body": "API 키 없이도 Chrome 내장 AI로 기본 기능을 사용할 수 있습니다.",
   "llm.error.permission": "호스트 권한이 필요합니다. 다시 시도하세요.",
   "llm.error.fetch": "연결에 실패했습니다. URL과 API 키를 확인하세요.",
-  "llm.security.note": "API 키는 브라우저 세션 동안만 메모리에 보관되며, 브라우저 종료 시 삭제됩니다. 키는 선택한 프로바이더로만 직접 전송됩니다.",
-  "llm.apiKey.expired": "브라우저 재시작으로 API 키가 초기화되었습니다",
-  "llm.apiKey.reenter": "API 키 재입력",
-  "llm.apiKey.save": "저장",
+  "llm.error.quota": "API 허용량을 초과했습니다. 잠시 후 다시 시도하세요.",
 
   // Settings (global)
   "settings.issueSettings": "이슈 설정",

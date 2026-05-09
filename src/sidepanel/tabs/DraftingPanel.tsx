@@ -13,6 +13,7 @@ import {
   type IssueSection,
 } from "@/store/settings-ui-store";
 import { useEditorStore } from "@/store/editor-store";
+import { LlmQuotaError } from "../lib/ai-provider";
 import { useSettingsStore } from "@/store/settings-store";
 import { useBoundTabId } from "../hooks/useBoundTabId";
 import { useAI } from "../hooks/useAI";
@@ -155,8 +156,8 @@ export function DraftingPanel() {
         console.warn("[bugshot] AI draft parse failed. Raw response:", raw);
         setAiError(t("draft.aiParseError"));
       }
-    } catch {
-      setAiError(t("draft.aiError"));
+    } catch (err) {
+      setAiError(err instanceof LlmQuotaError ? t("llm.error.quota") : t("draft.aiError"));
     } finally {
       setAiLoading(false);
     }
