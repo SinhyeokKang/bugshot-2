@@ -98,6 +98,7 @@ export const useSettingsUiStore = create<SettingsUiState>()(
     {
       // 기존 사용자 데이터 호환을 위해 리네이밍 전 키 유지
       name: "bugshot-app-settings",
+      // v3: llm 필드 추가, v4: apiKey를 session→local 이전, v5: apiKey 없는 stale 설정 제거
       version: 5,
       storage: createJSONStorage(() => chromeLocalStorage),
       migrate: (persisted, version) => {

@@ -1,4 +1,4 @@
-import { useEffect, useState, type ComponentType, type SVGProps } from "react";
+import { useEffect, useRef, useState, type ComponentType, type SVGProps } from "react";
 import { Check, ChevronsUpDown, Loader2 } from "lucide-react";
 import {
   SiAnthropic,
@@ -109,9 +109,14 @@ export function LlmConnectDialog({
     baseUrl: string;
     apiKey: string;
   } | null>(null);
+  const cancelledRef = useRef(false);
 
   useEffect(() => {
-    if (open) setError(null);
+    if (open) {
+      setError(null);
+      cancelledRef.current = false;
+    }
+    return () => { cancelledRef.current = true; };
   }, [open]);
 
   const selectedPreset = PROVIDER_PRESETS.find((p) => p.baseUrl === baseUrl);
@@ -146,6 +151,7 @@ export function LlmConnectDialog({
     setConnecting(true);
     try {
       const granted = await requestHostPermission(baseUrl);
+      if (cancelledRef.current) return;
       if (!granted) {
         setError(t("llm.error.permission"));
         return;
@@ -167,11 +173,13 @@ export function LlmConnectDialog({
         }
       }
 
+      if (cancelledRef.current) return;
       setPendingModels({ models, baseUrl, apiKey });
     } catch {
+      if (cancelledRef.current) return;
       setError(t("llm.error.fetch"));
     } finally {
-      setConnecting(false);
+      if (!cancelledRef.current) setConnecting(false);
     }
   }
 

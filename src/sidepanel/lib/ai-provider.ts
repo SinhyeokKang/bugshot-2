@@ -262,7 +262,7 @@ export async function pingAnthropic(
       "anthropic-dangerous-direct-browser-access": "true",
     },
     body: JSON.stringify({
-      model: "claude-haiku-4-5-20251001",
+      model: ANTHROPIC_MODELS[0].id,
       max_tokens: 1,
       messages: [{ role: "user", content: "hi" }],
     }),
