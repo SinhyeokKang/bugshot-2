@@ -1,7 +1,7 @@
 {
   "EXT_NAME": {
     "message": "BugShot",
-    "description": "Full extension name"
+    "description": "Extension name"
   },
   "EXT_NAME_SHORT": {
     "message": "BugShot",
