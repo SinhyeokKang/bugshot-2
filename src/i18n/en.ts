@@ -134,6 +134,15 @@ const en = {
   "draft.aiParseError": "Could not parse AI response. Please try again.",
   "draft.preview": "Issue preview",
 
+  // AI Styling
+  "aiStyling.banner": "Let AI handle the styling",
+  "aiStyling.generate": "AI Styling",
+  "aiStyling.title": "AI Styling",
+  "aiStyling.placeholder": "Describe the changes you want...",
+  "aiStyling.error": "Failed to process AI response",
+  "aiStyling.noChanges": "No style changes found",
+  "aiStyling.disclaimer": "AI can make mistakes. Please double-check the changes.",
+
   // Preview panel
   "preview.copied": "Copied",
   "preview.copyMarkdown": "Copy markdown",

@@ -126,11 +126,20 @@ const ko = {
   "draft.removeAnnotation": "주석 제거",
   "draft.editAnnotation": "주석 수정",
   "draft.addAnnotation": "주석 추가",
-  "draft.aiGenerate": "AI 초안 생성",
+  "draft.aiGenerate": "AI 초안 작성",
   "draft.aiBanner": "AI로 초안을 작성해보세요",
   "draft.aiError": "AI 초안 생성에 실패했습니다. 다시 시도해주세요.",
   "draft.aiParseError": "AI 응답을 해석할 수 없습니다. 다시 시도해주세요.",
   "draft.preview": "이슈 프리뷰",
+
+  // AI Styling
+  "aiStyling.banner": "AI에게 스타일 수정을 맡겨보세요",
+  "aiStyling.generate": "AI 스타일링",
+  "aiStyling.title": "AI 스타일링",
+  "aiStyling.placeholder": "원하는 변경을 설명하세요...",
+  "aiStyling.error": "AI 응답 처리에 실패했습니다",
+  "aiStyling.noChanges": "변경할 스타일을 찾지 못했습니다",
+  "aiStyling.disclaimer": "AI는 실수할 수 있습니다. 변경사항을 다시 한번 확인해 주세요.",
 
   // Preview panel
   "preview.copied": "복사됨",

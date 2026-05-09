@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { Crosshair, RotateCcw } from "lucide-react";
+import { Crosshair, RotateCcw, Sparkles } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { useT } from "@/i18n";
 import {
   AlertDialog,
@@ -16,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useEditorStore, type EditorStyleEdits } from "@/store/editor-store";
 import { useBoundTabId } from "../hooks/useBoundTabId";
+import { useChromeAI } from "../hooks/useChromeAI";
 import { captureElementSnapshot } from "../capture";
 import {
   applyClasses,
@@ -38,6 +40,7 @@ import {
   SelectProp,
   TextProp,
 } from "./styleEditor/StylePropEditors";
+import { AiStylingDialog } from "./styleEditor/AiStylingDialog";
 
 const SECTION_PROPS = {
   layout: [
@@ -100,7 +103,10 @@ export function SelectedPanel() {
   const confirmStyles = useEditorStore((s) => s.confirmStyles);
   const reset = useEditorStore((s) => s.reset);
   const tabId = useBoundTabId();
+  const { status: aiStatus } = useChromeAI();
+  const aiLoading = useEditorStore((s) => s.aiStylingLoading);
   const [proceeding, setProceeding] = useState(false);
+  const [aiDialogOpen, setAiDialogOpen] = useState(false);
   if (!selection) return null;
 
   const hasSpecified = (props: readonly string[]) =>
@@ -129,7 +135,13 @@ export function SelectedPanel() {
   };
 
   return (
-    <PageShell>
+    <PageShell className="relative">
+      {aiLoading && (
+        <div className="pointer-events-none absolute inset-0 z-20 overflow-hidden backdrop-blur-[2px]">
+          <div className="absolute inset-0 bg-teal-500/5" />
+          <div className="absolute inset-0 animate-shimmer bg-gradient-to-b from-transparent via-teal-400/10 to-transparent" />
+        </div>
+      )}
       <PageScroll>
         <div className="sticky top-0 z-10 border-b border-border bg-background py-6">
           <div className="flex items-center gap-2 px-4">
@@ -367,6 +379,24 @@ export function SelectedPanel() {
         <TextProp label="easing" prop="transition-timing-function" />
         </Section>
       </PageScroll>
+      {aiStatus === "available" && (
+        <button
+          className="flex items-center justify-between rounded-t-lg bg-teal-100/80 px-3.5 py-2.5 text-teal-700 transition-colors hover:bg-teal-100 dark:bg-teal-950/50 dark:text-teal-300 dark:hover:bg-teal-900"
+          onClick={() => setAiDialogOpen(true)}
+        >
+          <span className="flex items-center gap-1.5">
+            <Badge variant="outline" className="font-normal border-teal-500 text-teal-600 dark:border-teal-400 dark:text-teal-300">Beta</Badge>
+            <span className="bg-gradient-to-r from-teal-600 to-cyan-500 bg-clip-text text-sm text-transparent dark:from-teal-300 dark:to-cyan-300">
+              {t("aiStyling.banner")}
+            </span>
+          </span>
+          <span className="flex items-center gap-1 bg-gradient-to-r from-cyan-500 to-teal-600 bg-clip-text text-sm font-medium text-transparent dark:from-cyan-300 dark:to-teal-300">
+            <Sparkles className="h-4 w-4 fill-current text-teal-500 dark:text-teal-300" />
+            {t("aiStyling.generate")}
+          </span>
+        </button>
+      )}
+      <AiStylingDialog open={aiDialogOpen} onOpenChange={setAiDialogOpen} />
       <PageFooter>
         <div className="flex items-center justify-between gap-2">
           <CancelConfirmDialog

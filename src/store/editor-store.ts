@@ -2,6 +2,7 @@ import { create } from "zustand";
 import type { Token } from "@/types/picker";
 import type { NetworkLog } from "@/types/network";
 import type { ConsoleLog } from "@/types/console";
+
 import type { PlatformId } from "@/types/platform";
 import { onBlobSaveFailed } from "@/types/messages";
 import { useIssuesStore } from "./issues-store";
@@ -89,9 +90,14 @@ interface EditorState {
   networkLogAttach: boolean;
   consoleLog: ConsoleLog | null;
   consoleLogAttach: boolean;
+  aiStylingLoading: boolean;
+  aiStylingSnapshot: EditorStyleEdits | null;
   submitResult: { key: string; url: string } | null;
   sessionExpired: boolean;
 
+  setAiStylingLoading: (loading: boolean) => void;
+  clearAiStyling: () => void;
+  setAiStylingSnapshot: (snapshot: EditorStyleEdits) => void;
   startPicking: (target: EditorTarget, mode?: CaptureMode) => void;
   startCapturing: (target: EditorTarget) => void;
   startRecording: (target: EditorTarget) => void;
@@ -181,6 +187,8 @@ const initial = {
   draft: null,
   issueFields: {} as EditorIssueFields,
   currentIssueId: null as string | null,
+  aiStylingLoading: false,
+  aiStylingSnapshot: null as EditorStyleEdits | null,
   submitResult: null as { key: string; url: string } | null,
   sessionExpired: false,
 };
@@ -194,6 +202,10 @@ function newIssueId(): string {
 
 export const useEditorStore = create<EditorState>((set, get) => ({
   ...initial,
+
+  setAiStylingLoading: (loading) => set({ aiStylingLoading: loading }),
+  clearAiStyling: () => set({ aiStylingLoading: false, aiStylingSnapshot: null }),
+  setAiStylingSnapshot: (snapshot) => set({ aiStylingSnapshot: snapshot }),
 
   startPicking: (target, mode) => set({ ...initial, captureMode: mode ?? "element", phase: "picking", target }),
   cancelPicking: () => set({ ...initial }),
@@ -216,6 +228,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       },
       beforeImage: null,
       afterImage: null,
+      aiStylingLoading: false,
+      aiStylingSnapshot: null,
     }),
 
   updateSelectionStyles: (patch) =>
@@ -233,9 +247,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   setAfterImage: (afterImage) => set({ afterImage }),
 
-  confirmStyles: () => set({ phase: "drafting" }),
+  confirmStyles: () => set({ phase: "drafting", aiStylingLoading: false, aiStylingSnapshot: null }),
 
-  backToStyling: () => set({ phase: "styling", afterImage: null }),
+  backToStyling: () => set({ phase: "styling", afterImage: null, aiStylingLoading: false, aiStylingSnapshot: null }),
 
   setDraft: (draft) => set({ draft }),
 

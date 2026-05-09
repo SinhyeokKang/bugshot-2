@@ -141,17 +141,22 @@ export function ValueCombobox({
     [extra, filterTokens],
   );
 
-  const finalizeColor = useCallback(
+  const finalize = useCallback(
     (next: string) => {
-      if (category !== "color") return next;
-      const normalized = normalizeHexInput(next);
-      return expandShortHex(normalized) ?? normalized;
+      if (category === "color") {
+        const normalized = normalizeHexInput(next);
+        return expandShortHex(normalized) ?? normalized;
+      }
+      if (category === "length" && next && /^-?\d+(\.\d+)?$/.test(next)) {
+        return `${next}px`;
+      }
+      return next;
     },
     [category],
   );
 
   const commit = (next: string) => {
-    const finalized = finalizeColor(next);
+    const finalized = finalize(next);
     if (onLinkedCommit) onLinkedCommit(finalized);
     else set(finalized);
     setOpen(false);
@@ -166,13 +171,10 @@ export function ValueCombobox({
       setPinnedPrefixes(liveFamilyPrefixes);
     } else {
       setPinnedPrefixes(null);
-      // 닫힐 때 3/4자리 hex은 6/8자리로 풀어쓴다 (디자인 툴 컨벤션).
-      if (category === "color") {
-        const finalized = finalizeColor(draft.trim());
-        if (finalized && finalized !== value) {
-          if (onLinkedCommit) onLinkedCommit(finalized);
-          else set(finalized);
-        }
+      const finalized = finalize(draft.trim());
+      if (finalized && finalized !== value) {
+        if (onLinkedCommit) onLinkedCommit(finalized);
+        else set(finalized);
       }
     }
     setOpen(nextOpen);
@@ -318,10 +320,10 @@ export function ValueCombobox({
             {showRawItem && !draftLooksLikeToken ? (
               <CommandGroup heading={t("value.manualInput")}>
                 <CommandItem
-                  value={`__raw__${finalizeColor(draft.trim())}`}
+                  value={`__raw__${finalize(draft.trim())}`}
                   onSelect={() => commit(draft.trim())}
                 >
-                  <span className="text-sm">{finalizeColor(draft.trim())}</span>
+                  <span className="text-sm">{finalize(draft.trim())}</span>
                 </CommandItem>
               </CommandGroup>
             ) : null}

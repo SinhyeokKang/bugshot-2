@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 type ChromeAIStatus = "checking" | "available" | "unavailable";
 
-interface LanguageModelInstance {
+export interface LanguageModelInstance {
   prompt(
     input: string,
     options?: { responseConstraint?: unknown },
@@ -16,6 +16,7 @@ declare global {
       expectedOutputLanguages?: string[];
     }): Promise<string>;
     create(options?: {
+      systemPrompt?: string;
       expectedOutputLanguages?: string[];
       outputLanguages?: string[];
     }): Promise<LanguageModelInstance>;
