@@ -5,6 +5,7 @@ import {
   ChevronsUpDown,
   CircleCheck,
   RefreshCw,
+  TriangleAlert,
 } from "lucide-react";
 import { useT } from "@/i18n";
 import {
@@ -75,9 +76,6 @@ function LlmOnboarding() {
             {t("llm.connect")}
           </Button>
         </div>
-        <p className="mt-4 text-xs text-muted-foreground/60">
-          {t("llm.onboarding.fallback")}
-        </p>
       </div>
       <LlmConnectDialog open={dialogOpen} onOpenChange={setDialogOpen} />
     </>
@@ -91,9 +89,8 @@ function LlmConnected() {
   const providerLabel = getProviderLabel(llm.baseUrl);
   const kind = detectProviderKind(llm.baseUrl);
 
-  const maskedKey = llm.apiKey
-    ? `${llm.apiKey.slice(0, 3)}...${llm.apiKey.slice(-4)}`
-    : "";
+  const [reenterKey, setReenterKey] = useState("");
+  const needsApiKey = !llm.apiKey;
 
   let hostname: string;
   try {
@@ -115,7 +112,6 @@ function LlmConnected() {
   const [fetchedModels, setFetchedModels] = useState<ModelEntry[]>([]);
   const [modelsLoading, setModelsLoading] = useState(false);
   const [modelPopoverOpen, setModelPopoverOpen] = useState(false);
-  const [customModelInput, setCustomModelInput] = useState("");
 
   const models = hardcodedModels ?? fetchedModels;
 
@@ -141,12 +137,6 @@ function LlmConnected() {
   const selectModel = (modelId: string) => {
     setLlm({ ...llm, modelId });
     setModelPopoverOpen(false);
-    setCustomModelInput("");
-  };
-
-  const handleCustomModelSubmit = () => {
-    const trimmed = customModelInput.trim();
-    if (trimmed) selectModel(trimmed);
   };
 
   return (
@@ -159,18 +149,57 @@ function LlmConnected() {
                 <span className="truncate text-base font-medium text-foreground">
                   {hostname}
                 </span>
-                {maskedKey && (
-                  <span className="truncate text-sm text-muted-foreground">
-                    {maskedKey}
-                  </span>
-                )}
+                <span className="truncate text-sm text-muted-foreground">
+                  {providerLabel}
+                </span>
               </div>
-              <Badge className="shrink-0 gap-1 border-transparent bg-green-50 text-[11px] tracking-wider text-green-700 shadow-none dark:bg-green-900/40 dark:text-green-400">
-                <CircleCheck className="h-3 w-3" />
-                {t("llm.connected")}
-              </Badge>
+              {needsApiKey ? (
+                <Badge className="shrink-0 gap-1 border-transparent bg-amber-50 text-[11px] tracking-wider text-amber-700 shadow-none dark:bg-amber-900/40 dark:text-amber-400">
+                  <TriangleAlert className="h-3 w-3" />
+                  {t("llm.apiKey")}
+                </Badge>
+              ) : (
+                <Badge className="shrink-0 gap-1 border-transparent bg-green-50 text-[11px] tracking-wider text-green-700 shadow-none dark:bg-green-900/40 dark:text-green-400">
+                  <CircleCheck className="h-3 w-3" />
+                  {t("llm.connected")}
+                </Badge>
+              )}
             </CardContent>
           </Card>
+          {needsApiKey && (
+            <div className="flex flex-col gap-2">
+              <p className="text-xs text-amber-600 dark:text-amber-400">
+                {t("llm.apiKey.expired")}
+              </p>
+              <div className="flex items-center gap-1">
+                <Input
+                  type="password"
+                  placeholder={t("llm.apiKeyPlaceholder")}
+                  value={reenterKey}
+                  onChange={(e) => setReenterKey(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && reenterKey.trim()) {
+                      setLlm({ ...llm, apiKey: reenterKey.trim() });
+                      setReenterKey("");
+                    }
+                  }}
+                  autoComplete="off"
+                  spellCheck={false}
+                />
+                <Button
+                  size="sm"
+                  className="h-9 shrink-0"
+                  disabled={!reenterKey.trim()}
+                  onClick={() => {
+                    setLlm({ ...llm, apiKey: reenterKey.trim() });
+                    setReenterKey("");
+                  }}
+                >
+                  {t("llm.apiKey.save")}
+                </Button>
+              </div>
+            </div>
+          )}
         </Section>
 
         <Section
@@ -226,40 +255,8 @@ function LlmConnected() {
                   </CommandGroup>
                 </CommandList>
               </Command>
-              <div className="border-t px-2 py-2">
-                <div className="flex items-center gap-1">
-                  <Input
-                    value={customModelInput}
-                    onChange={(e) => setCustomModelInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter" && !e.nativeEvent.isComposing) {
-                        e.preventDefault();
-                        handleCustomModelSubmit();
-                      }
-                    }}
-                    placeholder={t("llm.model.placeholder")}
-                    className="h-8 text-sm"
-                    autoComplete="off"
-                    spellCheck={false}
-                  />
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-8 shrink-0"
-                    disabled={!customModelInput.trim()}
-                    onClick={handleCustomModelSubmit}
-                  >
-                    {t("common.ok")}
-                  </Button>
-                </div>
-              </div>
             </PopoverContent>
           </Popover>
-          {llm.modelId && (
-            <p className="mt-1.5 text-xs text-muted-foreground">
-              {providerLabel} · {llm.modelId}
-            </p>
-          )}
         </Section>
       </PageScroll>
 

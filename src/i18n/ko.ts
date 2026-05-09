@@ -201,7 +201,7 @@ const ko = {
 
   // Settings tabs
   "settings.tab.issue": "이슈 설정",
-  "settings.tab.ai": "AI 설정",
+  "settings.tab.ai": "AI 모델",
   "settings.tab.general": "기타",
 
   // LLM BYOK
@@ -226,13 +226,20 @@ const ko = {
   "llm.connected": "연결됨",
   "llm.disconnect": "연결 해제",
   "llm.disconnectConfirm.title": "AI 모델 연결을 해제할까요?",
-  "llm.disconnectConfirm.body": "Chrome AI가 사용 가능하면 자동으로 전환됩니다.",
+  "llm.disconnectConfirm.body": "API 키 없이도 Chrome 내장 AI로 기본 기능을 사용할 수 있습니다.",
   "llm.error.permission": "호스트 권한이 필요합니다. 다시 시도하세요.",
   "llm.error.fetch": "연결에 실패했습니다. URL과 API 키를 확인하세요.",
+  "llm.security.note": "API 키는 브라우저 세션 동안만 메모리에 보관되며, 브라우저 종료 시 삭제됩니다. 키는 선택한 프로바이더로만 직접 전송됩니다.",
+  "llm.apiKey.expired": "브라우저 재시작으로 API 키가 초기화되었습니다",
+  "llm.apiKey.reenter": "API 키 재입력",
+  "llm.apiKey.save": "저장",
 
   // Settings (global)
   "settings.issueSettings": "이슈 설정",
+  "settings.titleSettings": "제목 설정",
   "settings.titlePrefix": "제목 Prefix",
+  "settings.titlePrefix.help": "이슈 제목 앞에 붙는 접두어입니다.",
+  "settings.bodyComposition": "본문 구성",
   "settings.issueComposition": "이슈 구성",
 
   // Jira integration

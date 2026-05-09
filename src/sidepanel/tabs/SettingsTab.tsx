@@ -78,40 +78,34 @@ function IssueSettingsContent() {
   return (
     <PageShell>
       <PageScroll>
-        <Section title={t("settings.issueSettings")}>
-          <div className="flex flex-col gap-3">
-            <div className="flex flex-col gap-1.5">
-              <label htmlFor="title-prefix" className="text-xs text-muted-foreground">
-                {t("settings.titlePrefix")}
-              </label>
-              <Input
-                id="title-prefix"
-                placeholder="[QA] "
-                value={titlePrefix}
-                onChange={(e) => setTitlePrefix(e.target.value)}
-                autoComplete="off"
-                spellCheck={false}
-              />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs text-muted-foreground">
-                {t("settings.issueComposition")}
-              </label>
-              <Card>
-                <CardContent className="flex flex-col gap-3 px-3 py-3">
-                  {issueSections.map((section, idx) => (
-                    <Fragment key={section.id}>
-                      {idx > 0 ? <Separator /> : null}
-                      <IssueSectionRow
-                        section={section}
-                        onToggle={(enabled) => setIssueEnabled(section.id, enabled)}
-                      />
-                    </Fragment>
-                  ))}
-                </CardContent>
-              </Card>
-            </div>
-          </div>
+        <Section title={t("settings.titleSettings")}>
+          <Input
+            id="title-prefix"
+            placeholder="[QA] "
+            value={titlePrefix}
+            onChange={(e) => setTitlePrefix(e.target.value)}
+            autoComplete="off"
+            spellCheck={false}
+          />
+          <p className="mt-1.5 text-xs text-muted-foreground">
+            {t("settings.titlePrefix.help")}
+          </p>
+        </Section>
+
+        <Section title={t("settings.bodyComposition")}>
+          <Card>
+            <CardContent className="flex flex-col gap-3 px-3 py-3">
+              {issueSections.map((section, idx) => (
+                <Fragment key={section.id}>
+                  {idx > 0 ? <Separator /> : null}
+                  <IssueSectionRow
+                    section={section}
+                    onToggle={(enabled) => setIssueEnabled(section.id, enabled)}
+                  />
+                </Fragment>
+              ))}
+            </CardContent>
+          </Card>
         </Section>
       </PageScroll>
     </PageShell>

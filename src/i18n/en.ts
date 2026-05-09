@@ -203,7 +203,7 @@ const en = {
 
   // Settings tabs
   "settings.tab.issue": "Issue settings",
-  "settings.tab.ai": "AI settings",
+  "settings.tab.ai": "AI Model",
   "settings.tab.general": "General",
 
   // LLM BYOK
@@ -228,13 +228,20 @@ const en = {
   "llm.connected": "Connected",
   "llm.disconnect": "Disconnect",
   "llm.disconnectConfirm.title": "Disconnect AI model?",
-  "llm.disconnectConfirm.body": "If Chrome AI is available, it will be used automatically.",
+  "llm.disconnectConfirm.body": "Basic AI features will still work with Chrome's built-in AI without an API key.",
   "llm.error.permission": "Host permission required. Please try again.",
   "llm.error.fetch": "Connection failed. Check URL and API key.",
+  "llm.security.note": "Your API key is kept in memory only during the browser session and cleared on exit. It is sent directly to the selected provider only.",
+  "llm.apiKey.expired": "API key was cleared after browser restart",
+  "llm.apiKey.reenter": "Re-enter API key",
+  "llm.apiKey.save": "Save",
 
   // Settings (global)
   "settings.issueSettings": "Issue settings",
+  "settings.titleSettings": "Title settings",
   "settings.titlePrefix": "Title prefix",
+  "settings.titlePrefix.help": "Automatically prepended to issue titles.",
+  "settings.bodyComposition": "Body composition",
   "settings.issueComposition": "Issue composition",
 
   // Jira integration
