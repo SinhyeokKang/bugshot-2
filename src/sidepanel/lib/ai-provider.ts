@@ -121,6 +121,7 @@ export function createChromeAIProvider(): AIProvider {
       const session = await globalThis.LanguageModel.create({
         systemPrompt,
         expectedOutputLanguages: ["en"],
+        outputLanguages: ["en"],
       });
       return {
         prompt: (input, options) =>

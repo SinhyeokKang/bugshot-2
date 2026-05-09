@@ -231,6 +231,7 @@ const en = {
   "llm.disconnectConfirm.title": "Disconnect AI model?",
   "llm.disconnectConfirm.body": "Basic AI features will still work with Chrome's built-in AI without an API key.",
   "llm.error.permission": "Host permission required. Please try again.",
+  "llm.error.invalidUrl": "Please enter a valid URL.",
   "llm.error.fetch": "Connection failed. Check URL and API key.",
   "llm.error.quota": "API quota exceeded. Please try again later.",
 

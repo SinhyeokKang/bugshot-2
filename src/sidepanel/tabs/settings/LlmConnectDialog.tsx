@@ -110,6 +110,10 @@ export function LlmConnectDialog({
     apiKey: string;
   } | null>(null);
 
+  useEffect(() => {
+    if (open) setError(null);
+  }, [open]);
+
   const selectedPreset = PROVIDER_PRESETS.find((p) => p.baseUrl === baseUrl);
   const displayLabel = selectedPreset?.label
     ?? (baseUrl || t("llm.provider"));
@@ -133,6 +137,12 @@ export function LlmConnectDialog({
 
   async function handleConnect() {
     setError(null);
+    try {
+      new URL(baseUrl);
+    } catch {
+      setError(t("llm.error.invalidUrl"));
+      return;
+    }
     setConnecting(true);
     try {
       const granted = await requestHostPermission(baseUrl);

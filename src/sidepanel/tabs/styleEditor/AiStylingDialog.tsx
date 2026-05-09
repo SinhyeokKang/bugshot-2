@@ -38,13 +38,15 @@ export function AiStylingDialog({
   const tabId = useBoundTabId();
   const [input, setInput] = useState("");
   const sessionRef = useRef<AISession | null>(null);
+  const createSessionRef = useRef(createSession);
+  createSessionRef.current = createSession;
 
   useEffect(() => {
     return () => {
       sessionRef.current?.destroy?.();
       sessionRef.current = null;
     };
-  }, []);
+  }, [createSession]);
 
   const buildContext = useCallback((): AiStylingContext | null => {
     const s = useEditorStore.getState();
@@ -79,7 +81,7 @@ export function AiStylingDialog({
       if (!sessionRef.current) {
         const ctx = buildContext();
         if (!ctx) throw new Error("No element selected");
-        sessionRef.current = await createSession(
+        sessionRef.current = await createSessionRef.current(
           buildAiStylingSystemPrompt(ctx),
         );
       }
@@ -132,7 +134,7 @@ export function AiStylingDialog({
     } finally {
       useEditorStore.getState().setAiStylingLoading(false);
     }
-  }, [input, tabId, buildContext, onOpenChange, createSession, t]);
+  }, [input, tabId, buildContext, onOpenChange, t]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {

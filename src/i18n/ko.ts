@@ -229,6 +229,7 @@ const ko = {
   "llm.disconnectConfirm.title": "AI 모델 연결을 해제할까요?",
   "llm.disconnectConfirm.body": "API 키 없이도 Chrome 내장 AI로 기본 기능을 사용할 수 있습니다.",
   "llm.error.permission": "호스트 권한이 필요합니다. 다시 시도하세요.",
+  "llm.error.invalidUrl": "올바른 URL을 입력하세요.",
   "llm.error.fetch": "연결에 실패했습니다. URL과 API 키를 확인하세요.",
   "llm.error.quota": "API 허용량을 초과했습니다. 잠시 후 다시 시도하세요.",
 
