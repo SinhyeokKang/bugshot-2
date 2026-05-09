@@ -12,7 +12,7 @@ A Chrome extension for design QA. Pick elements, tweak CSS, and file issues to J
 - **Screenshot & annotation** — area crop with arrows, text, shapes, and highlights
 - **Screen recording** — record the current tab for up to 60 seconds
 - **Network & console logs** — auto-capture and attach to issues
-- **AI draft** — Chrome Built-in AI (Gemini Nano) generates issue drafts locally
+- **AI draft & styling** — BYOK (Bring Your Own Key) with OpenAI, Anthropic, Gemini, and more; falls back to Chrome Built-in AI
 - **Jira integration** — OAuth 3LO / API Token, project metadata, auto-upload attachments
 - **GitHub integration** — OAuth Web Flow / PAT, repo/labels/assignees, file upload
 - **Linear integration** — OAuth PKCE / API Key, team/project/labels/priority, GraphQL API
