@@ -226,6 +226,7 @@ const ko = {
   "llm.baseUrlPlaceholder": "https://...",
   "llm.apiKey": "API Key",
   "llm.apiKeyPlaceholder": "sk-...",
+  "llm.apiKey.help": "API key는 이 기기에만 저장되며, 선택한 엔드포인트로 직접 전송됩니다.",
   "llm.section.connection": "연결 정보",
   "llm.section.model": "모델",
   "llm.model.select": "모델 선택",

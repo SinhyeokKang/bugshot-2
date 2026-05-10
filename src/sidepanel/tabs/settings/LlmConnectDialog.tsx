@@ -107,7 +107,6 @@ export function LlmConnectDialog({
   const [pendingModels, setPendingModels] = useState<{
     models: ModelEntry[];
     baseUrl: string;
-    apiKey: string;
   } | null>(null);
   const cancelledRef = useRef(false);
 
@@ -174,7 +173,7 @@ export function LlmConnectDialog({
       }
 
       if (cancelledRef.current) return;
-      setPendingModels({ models, baseUrl, apiKey });
+      setPendingModels({ models, baseUrl });
     } catch {
       if (cancelledRef.current) return;
       setError(t("llm.error.fetch"));
@@ -187,7 +186,7 @@ export function LlmConnectDialog({
     if (!pendingModels) return;
     setLlm({
       baseUrl: pendingModels.baseUrl,
-      apiKey: pendingModels.apiKey,
+      apiKey,
       modelId,
     });
     setPendingModels(null);
@@ -281,14 +280,19 @@ export function LlmConnectDialog({
             <label className="text-xs text-muted-foreground">
               {t("llm.apiKey")}
             </label>
-            <Input
-              type="password"
-              placeholder={t("llm.apiKeyPlaceholder")}
-              value={apiKey}
-              onChange={(e) => setApiKey(e.target.value)}
-              autoComplete="off"
-              spellCheck={false}
-            />
+            <div className="space-y-2">
+              <Input
+                type="password"
+                placeholder={t("llm.apiKeyPlaceholder")}
+                value={apiKey}
+                onChange={(e) => setApiKey(e.target.value)}
+                autoComplete="off"
+                spellCheck={false}
+              />
+              <p className="text-[0.8rem] text-muted-foreground">
+                {t("llm.apiKey.help")}
+              </p>
+            </div>
           </div>
 
           {error ? (
@@ -324,7 +328,7 @@ function LlmModelDialog({
   onSelect,
   onClose,
 }: {
-  pending: { models: ModelEntry[]; baseUrl: string; apiKey: string } | null;
+  pending: { models: ModelEntry[]; baseUrl: string } | null;
   onSelect: (modelId: string) => void;
   onClose: () => void;
 }) {

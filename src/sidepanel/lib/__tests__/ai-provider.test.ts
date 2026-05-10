@@ -1,5 +1,6 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import {
+  createAnthropicProvider,
   detectProviderKind,
   getProviderLabel,
   PROVIDER_PRESETS,
@@ -125,5 +126,48 @@ describe("getProviderLabel", () => {
 
   it("커스텀 URL → Custom", () => {
     expect(getProviderLabel("https://my-llm.example.com/v1")).toBe("Custom");
+  });
+});
+
+describe("createAnthropicProvider 헤더", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  function mockFetchOk() {
+    const fn = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ content: [{ text: "ok" }] }),
+    });
+    vi.stubGlobal("fetch", fn);
+    return fn;
+  }
+
+  it("apiKey가 빈 문자열이면 x-api-key 헤더를 포함하지 않음", async () => {
+    const mockFetch = mockFetchOk();
+
+    const provider = createAnthropicProvider({
+      baseUrl: "https://api.anthropic.com/v1",
+      apiKey: "",
+      modelId: "claude-sonnet-4-6",
+    });
+    await provider.generate({ prompt: "hello" });
+
+    const headers = mockFetch.mock.calls[0][1].headers;
+    expect(headers).not.toHaveProperty("x-api-key");
+  });
+
+  it("apiKey가 있으면 x-api-key 헤더를 전송함", async () => {
+    const mockFetch = mockFetchOk();
+
+    const provider = createAnthropicProvider({
+      baseUrl: "https://api.anthropic.com/v1",
+      apiKey: "sk-ant-test",
+      modelId: "claude-sonnet-4-6",
+    });
+    await provider.generate({ prompt: "hello" });
+
+    const headers = mockFetch.mock.calls[0][1].headers;
+    expect(headers["x-api-key"]).toBe("sk-ant-test");
   });
 });

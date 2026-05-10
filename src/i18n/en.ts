@@ -228,6 +228,7 @@ const en = {
   "llm.baseUrlPlaceholder": "https://...",
   "llm.apiKey": "API Key",
   "llm.apiKeyPlaceholder": "sk-...",
+  "llm.apiKey.help": "Your API key is stored only on this device and sent directly to the selected endpoint.",
   "llm.section.connection": "Connection",
   "llm.section.model": "Model",
   "llm.model.select": "Select model",

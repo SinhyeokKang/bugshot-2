@@ -1,6 +1,8 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
+import type { StateStorage } from "zustand/middleware";
 import type { TranslationKey } from "@/i18n/ko";
+import { obfuscateApiKey, deobfuscateApiKey } from "@/lib/key-obfuscation";
 import { chromeLocalStorage } from "./chrome-storage";
 
 export type ThemeMode = "light" | "dark" | "system";
@@ -77,6 +79,36 @@ interface SettingsUiState {
   setLlm: (config: LlmConfig | null) => void;
 }
 
+const apiKeyObfuscatingStorage: StateStorage = {
+  async getItem(name) {
+    const raw = await chromeLocalStorage.getItem(name);
+    if (!raw) return null;
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed.state?.llm?.apiKey) {
+        parsed.state.llm.apiKey = deobfuscateApiKey(parsed.state.llm.apiKey);
+      }
+      return JSON.stringify(parsed);
+    } catch {
+      return raw;
+    }
+  },
+  async setItem(name, value) {
+    try {
+      const parsed = JSON.parse(value);
+      if (parsed.state?.llm?.apiKey) {
+        parsed.state.llm.apiKey = obfuscateApiKey(parsed.state.llm.apiKey);
+      }
+      return chromeLocalStorage.setItem(name, JSON.stringify(parsed));
+    } catch {
+      return chromeLocalStorage.setItem(name, value);
+    }
+  },
+  async removeItem(name) {
+    return chromeLocalStorage.removeItem(name);
+  },
+};
+
 export const useSettingsUiStore = create<SettingsUiState>()(
   persist(
     (set) => ({
@@ -100,7 +132,7 @@ export const useSettingsUiStore = create<SettingsUiState>()(
       name: "bugshot-app-settings",
       // v3: llm 필드 추가, v4: apiKey를 session→local 이전, v5: apiKey 없는 stale 설정 제거
       version: 5,
-      storage: createJSONStorage(() => chromeLocalStorage),
+      storage: createJSONStorage(() => apiKeyObfuscatingStorage),
       migrate: (persisted, version) => {
         const state = (persisted ?? {}) as Partial<SettingsUiState>;
         if (version < 2 || !state.issueSections) {

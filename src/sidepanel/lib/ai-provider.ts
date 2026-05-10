@@ -239,14 +239,16 @@ export function createAnthropicProvider(config: LlmConfig): AIProvider {
     system: string,
     messages: Array<{ role: string; content: AnthropicContent }>,
   ): Promise<string> {
+    const headers: Record<string, string> = {
+      "Content-Type": "application/json",
+      "anthropic-version": ANTHROPIC_VERSION,
+      "anthropic-dangerous-direct-browser-access": "true",
+    };
+    if (config.apiKey) headers["x-api-key"] = config.apiKey;
+
     const res = await fetch(`${config.baseUrl}/messages`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": config.apiKey,
-        "anthropic-version": ANTHROPIC_VERSION,
-        "anthropic-dangerous-direct-browser-access": "true",
-      },
+      headers,
       body: JSON.stringify({
         model: config.modelId,
         max_tokens: ANTHROPIC_MAX_TOKENS,
