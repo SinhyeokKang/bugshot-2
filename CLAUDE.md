@@ -82,7 +82,7 @@ src/
 │                        # settings-ui v5: LlmConfig { baseUrl, apiKey, modelId } 전부 chrome.storage.local 영속
 │                        # issues v5: entry에 platform: PlatformId 필드 + notion 한정 메타 (notionPageId/notionDatabaseId 등)
 ├── i18n/                # 다국어 (ko/en 로케일, t()/useT() 훅)
-├── lib/                 # 공용 유틸 (session-keys, adf-sentinels, url-support, settings-storage, notion-page-id)
+├── lib/                 # 공용 유틸 (session-keys, adf-sentinels, url-support, settings-storage, notion-page-id, key-obfuscation)
 ├── components/ui/       # shadcn 컴포넌트
 ├── styles/
 └── types/               # platform.ts (PlatformId/Accounts/LastSubmitFieldsByPlatform), github.ts, jira.ts, linear.ts, notion.ts 등
