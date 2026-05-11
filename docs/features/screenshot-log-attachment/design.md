@@ -305,10 +305,45 @@ interface ConsoleCtrl {
 
 ## 위험 요소
 
-1. **세션 스냅샷 크기**: `networkLog`/`consoleLog`가 에디터 스토어에 있으므로 `useEditorSessionSync`의 debounced save에 포함될 수 있음. 50MB 네트워크 버퍼가 `chrome.storage.session`에 직렬화되면 용량 초과. 세션 스냅샷에서 로그 필드를 제외하는 처리가 필요함 — 현재 비디오 모드에서 어떻게 처리하는지 확인 후 동일 패턴 적용.
+### 🔴 블로커: 세션 스냅샷 크기
 
-2. **스크린샷 sync 타이밍**: `syncNetworkRecorder` 호출 후 데이터가 에디터 스토어에 도착하기까지 비동기 경로(MAIN → content → sidepanel)를 거침. 사용자가 극히 빠르게 영역을 선택하면 DraftingPanel 초기 렌더 시 로그가 null일 수 있음. 이후 데이터 도착 시 재렌더로 해결되므로 기능적 문제는 없으나, 로그 카드가 나중에 나타나는 시각적 깜빡임 가능.
+`networkLog`/`consoleLog`가 에디터 스토어에 있으므로 `useEditorSessionSync`의 debounced save(300ms)에 포함될 수 있음. 백그라운드 레코딩으로 축적된 네트워크 버퍼(최대 50MB)가 `chrome.storage.session`에 매번 직렬화되면:
+- `chrome.storage.session` 용량 한도(~10MB) 초과 → 저장 실패 → 세션 복구 불가
+- 300ms마다 수십 MB 직렬화 → 메인 스레드 블로킹 → 사이드패널 UI 프리징
 
-3. **녹화 후 페이지 리로드**: 녹화 완료 후 drafting 상태에서 페이지가 리로드되면 `recordersStopped=true`이므로 레코더를 재주입하지 않음. 이는 의도된 동작이나, 사용자가 drafting 취소 후 새 작업을 시작할 때 레코더가 비활성 상태일 수 있음. `reset()` (idle 복귀) 시 `recordersStopped`를 false로 리셋하고 레코더를 재주입하는 처리 필요.
+**반드시 구현 초반에 확인·해결해야 한다.** 현재 비디오 모드에서 이미 로그 필드를 스냅샷에서 제외하는 패턴이 있는지 확인하고, 없다면 스냅샷 직렬화에서 `networkLog`/`consoleLog`를 제거하는 로직을 `useBackgroundRecorder` 훅보다 먼저 구현한다. 복구(hydration) 시에는 IndexedDB `pending:{tabId}`에서 로드하는 기존 패턴 유지.
 
-4. **레코더 주입 실패**: `ensureContentScript(tabId)` 또는 `executeScript`가 실패할 수 있음 (restricted page, tab closed 등). 현재 비디오 모드에서도 `try/catch + console.warn`으로 처리하므로 동일 패턴 유지. 주입 실패 시 로그 없이 스크린샷만 캡처되는 graceful degradation.
+### 성능 — 상시 fetch/XHR/console 래핑
+
+현재 레코더는 비디오 녹화 모드(최대 60초)에서만 동작한다. 백그라운드 레코딩이면 사이드패널이 열려 있는 수십 분~수시간 동안 모든 네트워크 요청을 인터셉트하고 response body를 클론한다.
+
+**영향 범위:**
+- fetch/XHR 래퍼: 모든 요청에 `response.clone()` + body 읽기 + 헤더 순회 + 민감정보 마스킹 오버헤드
+- console 래퍼: 모든 console.* 호출에 `safeStringify` + 스택 캡처(error/warn) 오버헤드
+- 대시보드·실시간 앱 등 요청 빈도 높은 페이지에서 체감 가능
+
+**완화 요소:** 레코더 자체에 이미 50MB 메모리 캡 + content-type 필터(이미지/폰트/바이너리 스킵) + body 3MB 캡이 있어 극단적 리소스 소모는 방지됨.
+
+**대응:** 구현 후 네트워크 요청 빈도 높은 페이지(예: 실시간 대시보드)에서 DevTools Performance 탭으로 프로파일링. 문제 발견 시 body 캡처 없이 메타데이터만 수집하는 lightweight 모드를 후속으로 검토.
+
+### recordersStopped ref 상태 복귀 누락 위험
+
+`recordersStopped` ref는 녹화 종료 후 `true`로 세팅되어 레코더 재주입을 억제한다. 이 ref가 `false`로 리셋되는 경로가 두 가지 있어야 한다:
+
+1. **URL 변경** → ref 리셋 + 레코더 재주입 (설계에 이미 포함)
+2. **idle 복귀** → ref 리셋 + 레코더 재주입 (설계에 이미 포함)
+
+idle 복귀 경로가 다양하므로 누락 위험이 있다:
+- `녹화 → drafting 취소 → idle` (cancelRecording / reset)
+- `녹화 → drafting → previewing → 이슈 제출 → done → idle` (새 작업 시작 시 reset)
+- `녹화 → drafting → 이슈 제출 실패 → drafting → 취소 → idle`
+
+**대응:** `useBackgroundRecorder`의 스토어 구독에서 `phase === "idle"` && `recordersStopped === true` 조건으로 처리하면 복귀 경로에 무관하게 idle 진입 시 항상 레코더가 재시작된다. 개별 경로마다 처리하지 않고 결과 상태(idle)만 감지하는 방식으로 엣지케이스를 일괄 커버한다.
+
+### 스크린샷 sync 타이밍
+
+`syncNetworkRecorder` 호출 후 데이터가 에디터 스토어에 도착하기까지 비동기 경로(MAIN → content → sidepanel)를 거침. 사용자가 극히 빠르게 영역을 선택하면 DraftingPanel 초기 렌더 시 로그가 null일 수 있음. 이후 데이터 도착 시 재렌더로 해결되므로 기능적 문제는 없으나, 로그 카드가 나중에 나타나는 시각적 깜빡임 가능.
+
+### 레코더 주입 실패
+
+`ensureContentScript(tabId)` 또는 `executeScript`가 실패할 수 있음 (restricted page, tab closed 등). 현재 비디오 모드에서도 `try/catch + console.warn`으로 처리하므로 동일 패턴 유지. 주입 실패 시 로그 없이 스크린샷만 캡처되는 graceful degradation.

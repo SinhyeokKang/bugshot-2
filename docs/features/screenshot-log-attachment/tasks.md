@@ -7,6 +7,20 @@
 
 ## 태스크
 
+### Task 0: 세션 스냅샷 로그 필드 제외 (블로커)
+
+백그라운드 레코딩 도입 전 반드시 해결해야 하는 블로커. `useEditorSessionSync`의 debounced save(300ms)가 에디터 스토어 전체를 `chrome.storage.session`에 직렬화하므로, `networkLog`/`consoleLog`가 포함되면 백그라운드 축적 데이터(최대 50MB)로 인해 quota 초과 + UI 프리징이 발생한다.
+
+- **변경 대상**: `src/sidepanel/hooks/useEditorSessionSync.ts`
+- **작업 내용**:
+  1. 현재 세션 스냅샷 직렬화 로직을 확인하여 `networkLog`, `consoleLog` 필드가 포함되는지 판단
+  2. 포함된다면: 스냅샷 생성 시 해당 필드를 제외하는 로직 추가 (destructuring omit 또는 직렬화 전 필터)
+  3. 복구(hydration) 시: IndexedDB `pending:{tabId}`에서 로그를 로드하는 기존 패턴이 동작하는지 확인. 현재 비디오 모드에서 이미 이 경로를 사용 중이라면 변경 불필요. 사용하지 않는다면 hydration에서 `getNetworkLog(pending:{tabId})` + `getConsoleLog(pending:{tabId})` 로드 추가
+- **검증**:
+  - [ ] 스냅샷 직렬화에 `networkLog`/`consoleLog`가 포함되지 않음을 확인 (DevTools > Application > Session Storage 또는 console.log)
+  - [ ] 비디오 녹화 → 로그 생성 → 사이드패널 닫기 → 재열기 → 로그가 IndexedDB에서 복구되는지 확인
+  - [ ] `pnpm typecheck` 통과
+
 ### Task 1: 레코더 clear 이벤트 추가
 
 MAIN world 레코더에 버퍼 클리어 기능을 추가한다.
@@ -37,7 +51,10 @@ MAIN world 레코더에 버퍼 클리어 기능을 추가한다.
   4. **에디터 스토어 구독** (`useEditorStore.subscribe`):
      - `phase`가 `"capturing"`이고 `captureMode`가 `"screenshot"`이면: `syncNetworkRecorder(tabId)` + `syncConsoleRecorder(tabId)` (try/catch)
      - `phase`가 `"recording"`이면: `recordersStopped = true` 설정 (실제 클리어는 `handleStartVideo`에서 수행)
-     - `phase`가 `"idle"`이고 `recordersStopped`가 true이면: `recordersStopped = false` + 레코더 재주입 (drafting 취소 후 idle 복귀 대응)
+     - `phase`가 `"idle"`이고 `recordersStopped`가 true이면: `recordersStopped = false` + 레코더 재주입. 이 조건은 idle 진입 경로에 무관하게 동작하므로, 아래 모든 경로를 일괄 커버:
+       - `녹화 → drafting 취소 → idle`
+       - `녹화 → drafting → previewing → done → 새 작업 시작 → idle`
+       - `녹화 → drafting → 제출 실패 → 취소 → idle`
   5. **언마운트 cleanup**: `stopNetworkRecorder(tabId)` + `stopConsoleRecorder(tabId)` (try/catch), `deleteNetworkLog(pending:{tabId})` + `deleteConsoleLog(pending:{tabId})`
   6. `src/sidepanel/App.tsx`에서 `useBackgroundRecorder(tabId)` 호출 추가 (`useEditorSessionSync` 이후)
 - **검증**:
@@ -115,17 +132,20 @@ MAIN world 레코더에 버퍼 클리어 기능을 추가한다.
   - [ ] 수동 테스트: 백그라운드 로그 축적 후 녹화 시작 → 녹화 종료 후 로그에 녹화 구간 데이터만 있는지 확인
   - [ ] 수동 테스트: 녹화 시작 전 IndexedDB에 pending 로그 있던 것이 삭제되었는지 확인 (DevTools Application 탭)
 
-### Task 7: 세션 스냅샷 로그 필드 제외 확인
+### Task 7: 성능 프로파일링
 
-백그라운드 레코딩으로 인해 대용량 로그가 세션 스냅샷에 포함되지 않도록 한다.
+상시 fetch/XHR/console 래핑의 성능 영향을 측정한다.
 
-- **변경 대상**: `src/sidepanel/hooks/useEditorSessionSync.ts`
+- **변경 대상**: 코드 변경 없음 (측정 전용)
 - **작업 내용**:
-  세션 스냅샷 생성 시 `networkLog`, `consoleLog` 필드가 제외되는지 확인. 제외되지 않는다면 스냅샷 직렬화에서 해당 필드를 제거하는 로직 추가. 복구(hydration) 시에는 IndexedDB `pending:{tabId}`에서 로드하는 기존 패턴 유지.
+  1. 네트워크 요청 빈도가 높은 페이지 (예: 실시간 대시보드, SPA with polling)에서 사이드패널을 열고 3분간 탐색
+  2. DevTools Performance 탭에서 프로파일 수집
+  3. 레코더 래핑 함수(`fetch` wrapper, `XHR` wrapper, `console` wrapper)의 CPU 점유율 확인
+  4. 체감 성능 저하 여부 판단
 - **검증**:
-  - [ ] 스냅샷에 로그 필드가 포함되지 않음을 확인 (console.log 또는 breakpoint)
-  - [ ] 사이드패널 닫기 → 재열기 → 로그가 IndexedDB에서 복구되는지 확인 (해당 경우에만)
-  - [ ] `pnpm typecheck` 통과
+  - [ ] 레코더 관련 함수의 총 CPU 점유가 5% 미만
+  - [ ] 체감 가능한 네트워크 요청 지연 없음
+  - [ ] 문제 발견 시: body 캡처 없는 lightweight 모드 이슈로 등록 (이번 스코프 밖)
 
 ## 테스트 계획
 
@@ -150,12 +170,16 @@ MAIN world 레코더에 버퍼 클리어 기능을 추가한다.
 - [ ] **사이드패널 종료**: 로그 축적 중 → 사이드패널 닫기 → DevTools Application > IndexedDB > bugshot-video > networkLogs에서 pending:{tabId} 삭제 확인
 - [ ] **Element 모드 무영향**: element 모드 → DraftingPanel에 로그 카드 미표시
 - [ ] **비디오 모드 회귀**: 녹화 → 종료 → 로그 카드 정상 표시 (기존과 동일)
-- [ ] **녹화 후 idle 복귀**: 녹화 → 완료/취소 → idle 복귀 → 레코더 재주입 → 백그라운드 캡처 재시작
+- [ ] **녹화 후 idle 복귀 (취소)**: 녹화 → drafting 취소 → idle 복귀 → 레코더 재주입 → 백그라운드 캡처 재시작
+- [ ] **녹화 후 idle 복귀 (완료)**: 녹화 → drafting → 이슈 제출 → done → 새 작업 시작 → idle → 레코더 재주입 → 백그라운드 캡처 재시작
+- [ ] **성능**: 네트워크 요청 빈도 높은 페이지에서 사이드패널 열고 3분 탐색 → DevTools Performance 프로파일에서 레코더 오버헤드 확인
 
 ## 구현 순서 권장
 
 ```
-Task 1 (레코더 clear)  ← 독립, 선행 필수
+Task 0 (세션 스냅샷 블로커)  ← 최우선, 이걸 안 하면 백그라운드 레코딩 자체가 불가
+    ↓
+Task 1 (레코더 clear)  ← 독립 인프라
     ↓
 Task 2 (useBackgroundRecorder) + Task 3 (useEditorSessionSync 정리)  ← 동시 가능
     ↓
@@ -163,7 +187,7 @@ Task 4 (editor-store 변경)  ← Task 2 이후
     ↓
 Task 5 (DraftingPanel UI) + Task 6 (handleStartVideo 변경)  ← Task 4 이후, 병렬 가능
     ↓
-Task 7 (세션 스냅샷 확인)  ← 마지막 (전체 통합 후 확인)
+Task 7 (성능 프로파일링)  ← 마지막, 전체 통합 후 측정
 ```
 
-Task 1은 레코더·콘텐츠 스크립트·picker-control에 걸친 기초 인프라. 이후 Task 2+3은 훅 교체, Task 4는 스토어 로직, Task 5+6은 UI·이벤트 핸들러, Task 7은 안전 확인.
+Task 0은 블로커 — 세션 스냅샷에 로그가 포함되면 백그라운드 레코딩 도입 시 사이드패널이 프리징된다. Task 1은 레코더·콘텐츠 스크립트·picker-control에 걸친 기초 인프라. Task 2+3은 훅 교체, Task 4는 스토어 로직, Task 5+6은 UI·이벤트 핸들러, Task 7은 성능 검증.
