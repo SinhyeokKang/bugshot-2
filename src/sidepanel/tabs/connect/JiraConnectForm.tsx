@@ -160,7 +160,7 @@ function JiraOnboarding() {
 
   if (candidate) {
     return (
-      <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-6">
+      <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-6 pb-5">
         <div className="flex w-full max-w-[260px] flex-col gap-2">
           <p className="mb-1 text-center text-sm font-medium">
             {t("jira.selectSite")}
@@ -196,7 +196,7 @@ function JiraOnboarding() {
 
   return (
     <>
-      <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 text-center">
+      <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 pb-5 text-center">
         <div className="mb-3 rounded-full bg-muted p-3">
           <Jira className="h-6 w-6" color="default" />
         </div>

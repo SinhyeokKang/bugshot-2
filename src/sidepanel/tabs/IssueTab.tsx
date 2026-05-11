@@ -155,7 +155,7 @@ function EmptyState({ onStartElement, onStartScreenshot, onStartVideo }: { onSta
   const t = useT();
   return (
     <PageShell>
-      <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 px-6">
+      <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 px-6 pb-5">
         <div className="flex flex-col items-center gap-1">
           <div className="mb-1 rounded-full bg-muted p-3">
             <SquareMousePointer className="h-6 w-6 text-muted-foreground" />
@@ -234,7 +234,7 @@ function RecordingState({ onStop, onCancel }: { onStop: () => void; onCancel: ()
 
   return (
     <PageShell>
-      <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 text-center">
+      <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 pb-5 text-center">
         <div className="mb-3 rounded-full bg-red-100 p-3">
           <Video className="h-6 w-6 text-red-600" />
         </div>
@@ -264,7 +264,7 @@ function SubmitSuccessView() {
 
   return (
     <PageShell>
-      <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 text-center">
+      <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 pb-5 text-center">
         <div className="mb-3 rounded-full bg-muted p-3">
           <CircleCheck className="h-6 w-6 text-green-600" />
         </div>
@@ -333,7 +333,7 @@ function EmptyShell({
   action?: React.ReactNode;
 }) {
   return (
-    <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 text-center">
+    <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 pb-5 text-center">
       <div className="mb-3 rounded-full bg-muted p-3">{icon}</div>
       <h3 className="whitespace-pre-line text-[18px] font-semibold">{title}</h3>
       {action ? <div className="mt-4">{action}</div> : null}

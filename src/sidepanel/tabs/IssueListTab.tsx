@@ -172,7 +172,7 @@ export function IssueListTab() {
   if (successResult) {
     return (
       <PageShell>
-        <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 text-center">
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 pb-5 text-center">
           <div className="mb-3 rounded-full bg-muted p-3">
             <CircleCheck className="h-6 w-6 text-green-600" />
           </div>
@@ -199,7 +199,7 @@ export function IssueListTab() {
   if (displayable.length === 0) {
     return (
       <PageShell>
-        <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 text-center">
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 pb-5 text-center">
           <div className="mb-3 rounded-full bg-muted p-3">
             <Inbox className="h-6 w-6 text-muted-foreground" />
           </div>
@@ -241,7 +241,7 @@ export function IssueListTab() {
         </div>
       </div>
       {filtered.length === 0 ? (
-        <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 text-center">
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 pb-5 text-center">
           <div className="mb-3 rounded-full bg-muted p-3">
             <SearchX className="h-6 w-6 text-muted-foreground" />
           </div>
