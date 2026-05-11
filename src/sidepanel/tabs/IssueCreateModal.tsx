@@ -267,8 +267,7 @@ export function IssueCreateModal() {
 
     if (captureMode === "video") {
       if (videoBlob) {
-        const dataUrl = await blobToDataUrl(videoBlob);
-        attachments.push({ filename: "recording.webm", dataUrl });
+        attachments.push({ filename: "recording.webm", dataUrl: await blobToDataUrl(videoBlob) });
       }
       if (networkLog && networkLogAttach && networkLog.captured > 0) {
         const harBlob = new Blob([serializeHar(buildHar(networkLog))], { type: "application/json" });

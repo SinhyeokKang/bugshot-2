@@ -265,6 +265,30 @@ export async function createIssue(
   });
 }
 
+export function extractMediaId(redirectUrl: string): string | undefined {
+  const match =
+    /\/file\/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\//.exec(
+      redirectUrl,
+    );
+  return match?.[1];
+}
+
+export async function getMediaFileId(
+  auth: JiraAuth,
+  attachmentId: string,
+): Promise<string | undefined> {
+  const path = `/rest/api/3/attachment/content/${encodeURIComponent(attachmentId)}`;
+  const url = resolveUrl(auth, path);
+  try {
+    const res = await fetch(url, {
+      headers: { Authorization: authHeader(auth) },
+    });
+    return extractMediaId(res.url);
+  } catch {
+    return undefined;
+  }
+}
+
 export async function uploadAttachment(
   auth: JiraAuth,
   issueKey: string,

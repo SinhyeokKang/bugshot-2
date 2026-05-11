@@ -4,7 +4,7 @@ import {
   sectionMdLabelKey,
   type IssueSection,
 } from "@/store/settings-ui-store";
-import { IMAGE_PLACEHOLDER } from "@/lib/adf-sentinels";
+import { IMAGE_PLACEHOLDER, VIDEO_PLACEHOLDER } from "@/lib/adf-sentinels";
 import { formatElementName } from "@/lib/element-label";
 import type { MarkdownContext } from "./buildIssueMarkdown";
 import type { NetworkLogSummary, ConsoleLogSummary } from "./buildLogSummary";
@@ -69,7 +69,7 @@ export function buildIssueAdf(ctx: MarkdownContext): AdfDoc {
     mediaEmitted = true;
     if (isVideo) {
       content.push(heading(2, t("md.section.media")));
-      content.push(paragraph([textNode(t("md.videoAttached"))]));
+      content.push(paragraph([textNode(VIDEO_PLACEHOLDER)]));
     } else if (isScreenshot) {
       content.push(heading(2, t("md.section.media")));
       content.push(paragraph([textNode(IMAGE_PLACEHOLDER)]));

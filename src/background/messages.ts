@@ -1,5 +1,5 @@
 import { t } from "@/i18n";
-import { IMAGE_PLACEHOLDER } from "@/lib/adf-sentinels";
+import { IMAGE_PLACEHOLDER, VIDEO_PLACEHOLDER } from "@/lib/adf-sentinels";
 import type { JiraAttachmentInput, JiraAuth, JiraSubmitResult } from "@/types/jira";
 import type { GithubAuth } from "@/types/github";
 import type { BgRequest } from "@/types/messages";
@@ -13,6 +13,7 @@ import {
   searchEpics,
   searchProjects,
   searchUsers,
+  getMediaFileId,
   updateIssueDescription,
   uploadAttachment,
 } from "./jira-api";
@@ -296,8 +297,9 @@ async function submitIssue(
       const blob = dataUrlToBlob(att.dataUrl);
       const results = await uploadAttachment(auth, issue.key, att.filename, blob);
       const r = results[0];
-      if (r?.mediaApiFileId) {
-        uploadMap.set(att.filename, { kind: "media", mediaId: r.mediaApiFileId });
+      const mediaId = r?.mediaApiFileId || (r?.id ? await getMediaFileId(auth, String(r.id)) : undefined);
+      if (mediaId) {
+        uploadMap.set(att.filename, { kind: "media", mediaId });
       } else if (r?.id) {
         const base =
           auth.kind === "apiKey"
@@ -334,7 +336,30 @@ async function submitIssue(
             content: [mediaNode],
           };
         }
-      } else {
+      }
+
+      const videoFile = uploadMap.get("recording.webm");
+      if (videoFile) {
+        const videoPlaceholderIdx = content.findIndex(
+          (n) => {
+            const node = n as { type: string; content?: { text?: string }[] };
+            return node.type === "paragraph" && node.content?.[0]?.text === VIDEO_PLACEHOLDER;
+          },
+        );
+        if (videoPlaceholderIdx >= 0) {
+          const mediaNode =
+            videoFile.kind === "media"
+              ? { type: "media", attrs: { type: "file", id: videoFile.mediaId, collection: "" } }
+              : { type: "media", attrs: { type: "external", url: videoFile.url } };
+          content[videoPlaceholderIdx] = {
+            type: "mediaSingle",
+            attrs: { layout: "center" },
+            content: [mediaNode],
+          };
+        }
+      }
+
+      if (!screenshotFile) {
         const beforeFile = uploadMap.get("before.webp");
         const afterFile = uploadMap.get("after.webp");
         if (beforeFile || afterFile) {

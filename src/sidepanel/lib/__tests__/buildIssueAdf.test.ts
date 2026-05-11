@@ -19,6 +19,7 @@ vi.mock("@/store/settings-ui-store", () => ({
 
 vi.mock("@/lib/adf-sentinels", () => ({
   IMAGE_PLACEHOLDER: "__BUGSHOT_IMAGE__",
+  VIDEO_PLACEHOLDER: "__BUGSHOT_VIDEO__",
 }));
 
 vi.mock("@/lib/element-label", () => ({
@@ -78,12 +79,12 @@ describe("buildIssueAdf", () => {
     expect(tables.length).toBeGreaterThanOrEqual(1);
   });
 
-  it("video 모드 → table 없음, videoAttached 텍스트", () => {
+  it("video 모드 → table 없음, VIDEO_PLACEHOLDER 텍스트", () => {
     const doc = buildIssueAdf(makeCtx({ captureMode: "video" }));
     const tables = findNodes(doc, "table");
     expect(tables).toHaveLength(0);
     const texts = findNodes(doc, "text");
-    expect(texts.some((t) => t.text === "md.videoAttached")).toBe(true);
+    expect(texts.some((t) => t.text === "__BUGSHOT_VIDEO__")).toBe(true);
   });
 
   it("screenshot 모드 → IMAGE_PLACEHOLDER", () => {
@@ -135,6 +136,30 @@ describe("buildIssueAdf", () => {
     const doc = buildIssueAdf(makeCtx({ sections: { description: "line1\nline2" } }));
     const breaks = findNodes(doc, "hardBreak");
     expect(breaks.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("video 모드 → VIDEO_PLACEHOLDER paragraph (인라인 임베드용)", () => {
+    const doc = buildIssueAdf(makeCtx({ captureMode: "video" }));
+    const placeholderParagraph = doc.content.find(
+      (n) => n.type === "paragraph" && n.content?.[0]?.text === "__BUGSHOT_VIDEO__",
+    );
+    expect(placeholderParagraph).toBeDefined();
+  });
+
+  it("screenshot 모드 → VIDEO_PLACEHOLDER 미포함", () => {
+    const doc = buildIssueAdf(makeCtx({ captureMode: "screenshot" }));
+    const hasVideoPlaceholder = doc.content.some(
+      (n) => n.type === "paragraph" && n.content?.[0]?.text === "__BUGSHOT_VIDEO__",
+    );
+    expect(hasVideoPlaceholder).toBe(false);
+  });
+
+  it("element 모드 → VIDEO_PLACEHOLDER 미포함", () => {
+    const doc = buildIssueAdf(makeCtx());
+    const hasVideoPlaceholder = doc.content.some(
+      (n) => n.type === "paragraph" && n.content?.[0]?.text === "__BUGSHOT_VIDEO__",
+    );
+    expect(hasVideoPlaceholder).toBe(false);
   });
 
   it("POST_MEDIA 위치: table이 expectedResult heading 전에 위치", () => {
