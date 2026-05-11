@@ -1,6 +1,8 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
+import type { StateStorage } from "zustand/middleware";
 import type { TranslationKey } from "@/i18n/ko";
+import { obfuscateApiKey, deobfuscateApiKey } from "@/lib/key-obfuscation";
 import { chromeLocalStorage } from "./chrome-storage";
 
 export type ThemeMode = "light" | "dark" | "system";
@@ -50,6 +52,12 @@ export function sectionHelpKey(id: IssueSectionId): TranslationKey {
   return `section.${id}.help` as TranslationKey;
 }
 
+export interface LlmConfig {
+  baseUrl: string;
+  apiKey: string;
+  modelId: string;
+}
+
 function detectLocale(): LocaleMode {
   const lang =
     typeof navigator !== "undefined" && navigator.language
@@ -63,11 +71,43 @@ interface SettingsUiState {
   theme: ThemeMode;
   locale: LocaleMode;
   issueSections: IssueSection[];
+  llm: LlmConfig | null;
   setTheme: (theme: ThemeMode) => void;
   setLocale: (locale: LocaleMode) => void;
   setIssueEnabled: (id: IssueSectionId, enabled: boolean) => void;
   resetIssueSections: () => void;
+  setLlm: (config: LlmConfig | null) => void;
 }
+
+const apiKeyObfuscatingStorage: StateStorage = {
+  async getItem(name) {
+    const raw = await chromeLocalStorage.getItem(name);
+    if (!raw) return null;
+    try {
+      const parsed = JSON.parse(raw);
+      if (parsed.state?.llm?.apiKey) {
+        parsed.state.llm.apiKey = deobfuscateApiKey(parsed.state.llm.apiKey);
+      }
+      return JSON.stringify(parsed);
+    } catch {
+      return raw;
+    }
+  },
+  async setItem(name, value) {
+    try {
+      const parsed = JSON.parse(value);
+      if (parsed.state?.llm?.apiKey) {
+        parsed.state.llm.apiKey = obfuscateApiKey(parsed.state.llm.apiKey);
+      }
+      return chromeLocalStorage.setItem(name, JSON.stringify(parsed));
+    } catch {
+      return chromeLocalStorage.setItem(name, value);
+    }
+  },
+  async removeItem(name) {
+    return chromeLocalStorage.removeItem(name);
+  },
+};
 
 export const useSettingsUiStore = create<SettingsUiState>()(
   persist(
@@ -75,6 +115,7 @@ export const useSettingsUiStore = create<SettingsUiState>()(
       theme: "light",
       locale: detectLocale(),
       issueSections: DEFAULT_ISSUE_SECTIONS,
+      llm: null,
       setTheme: (theme) => set({ theme }),
       setLocale: (locale) => set({ locale }),
       setIssueEnabled: (id, enabled) =>
@@ -84,16 +125,24 @@ export const useSettingsUiStore = create<SettingsUiState>()(
           ),
         })),
       resetIssueSections: () => set({ issueSections: DEFAULT_ISSUE_SECTIONS }),
+      setLlm: (config) => set({ llm: config }),
     }),
     {
       // 기존 사용자 데이터 호환을 위해 리네이밍 전 키 유지
       name: "bugshot-app-settings",
-      version: 2,
-      storage: createJSONStorage(() => chromeLocalStorage),
+      // v3: llm 필드 추가, v4: apiKey를 session→local 이전, v5: apiKey 없는 stale 설정 제거
+      version: 5,
+      storage: createJSONStorage(() => apiKeyObfuscatingStorage),
       migrate: (persisted, version) => {
         const state = (persisted ?? {}) as Partial<SettingsUiState>;
         if (version < 2 || !state.issueSections) {
           state.issueSections = DEFAULT_ISSUE_SECTIONS;
+        }
+        if (version < 3) {
+          state.llm = state.llm ?? null;
+        }
+        if (version < 5 && state.llm && !state.llm.apiKey) {
+          state.llm = null;
         }
         return state as SettingsUiState;
       },

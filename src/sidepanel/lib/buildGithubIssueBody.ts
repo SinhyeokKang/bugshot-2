@@ -7,13 +7,10 @@ import {
 import type { MarkdownContext } from "./buildIssueMarkdown";
 import { formatTimestamp } from "./formatTimestamp";
 
-// GitHub은 본문에서 `data:` URI 이미지를 sanitize하므로 base64 인라인은 렌더되지 않는다.
-// 모든 미디어는 항상 본문에 파일명만 안내로 노출하고, 실제 첨부는 사용자가 사이드패널에서
-// 다운로드한 뒤 GitHub UI에 직접 drag&drop하는 것을 전제로 한다.
-
 export interface GithubMediaInput {
   filename: string;
-  blob: Blob;
+  contentType: string;
+  url?: string;
 }
 
 export interface GithubBuildInput {
@@ -43,6 +40,11 @@ function escapeCell(value: string): string {
   return value.replace(/\|/g, "\\|").replace(/\r?\n/g, " ");
 }
 
+function imageCell(media: GithubMediaInput | undefined): string {
+  if (!media?.url) return "";
+  return `![${media.filename}](${media.url})`;
+}
+
 function webstoreUrl(): string {
   return (import.meta.env.VITE_WEBSTORE_URL as string | undefined) ?? "";
 }
@@ -69,39 +71,50 @@ export function buildGithubIssueBody(
   lines.push(`- **Captured**: ${formatTimestamp(ctx.capturedAt)}`);
   lines.push("");
 
+  const isElement = ctx.captureMode !== "video" && ctx.captureMode !== "screenshot";
+  const isVideo = ctx.captureMode === "video";
+  const mediaHandled = new Set<string>();
+
   let mediaEmitted = false;
   const emitMedia = () => {
     if (mediaEmitted) return;
     mediaEmitted = true;
 
-    const allAttachments: GithubMediaInput[] = [
-      ...images,
-      ...(video ? [video] : []),
-      ...logs,
-    ];
-    if (allAttachments.length > 0) {
-      lines.push(`## ${t("md.section.attachments")}`, "");
-      lines.push(t("github.attachmentNotInline"), "");
-      for (const a of allAttachments) {
-        lines.push(`- \`${a.filename}\``);
-        attached.push(a.filename);
-      }
-      lines.push("");
-    }
+    if (isElement) {
+      const before = images.find((i) => i.filename.startsWith("before"));
+      const after = images.find((i) => i.filename.startsWith("after"));
+      const hasSnapshots = !!(before?.url || after?.url);
 
-    if (
-      ctx.captureMode !== "video" &&
-      ctx.captureMode !== "screenshot" &&
-      ctx.diffs.length > 0
-    ) {
-      lines.push(`## ${t("md.section.styleChanges")}`, "");
-      lines.push(`| ${t("md.column.property")} | As is | To be |`);
-      lines.push("| --- | --- | --- |");
-      for (const d of ctx.diffs) {
-        lines.push(
-          `| ${escapeCell(d.prop)} | ${escapeCell(d.asIs)} | ${escapeCell(d.toBe)} |`,
-        );
+      if (hasSnapshots || ctx.diffs.length > 0) {
+        lines.push(`## ${t("md.section.styleChanges")}`, "");
+        lines.push(`| ${t("md.column.property")} | As is | To be |`);
+        lines.push("| --- | --- | --- |");
+        if (hasSnapshots) {
+          lines.push(
+            `| **${t("styleTable.snapshot")}** | ${imageCell(before)} | ${imageCell(after)} |`,
+          );
+        }
+        for (const d of ctx.diffs) {
+          lines.push(
+            `| ${escapeCell(d.prop)} | ${escapeCell(d.asIs)} | ${escapeCell(d.toBe)} |`,
+          );
+        }
+        lines.push("");
       }
+
+      if (before?.url) { attached.push(before.filename); mediaHandled.add(before.filename); }
+      if (after?.url) { attached.push(after.filename); mediaHandled.add(after.filename); }
+    } else if (isVideo && video?.url) {
+      lines.push(`## ${t("md.section.media")}`, "");
+      lines.push(video.url);
+      attached.push(video.filename);
+      mediaHandled.add(video.filename);
+      lines.push("");
+    } else if (!isVideo && images[0]?.url) {
+      lines.push(`## ${t("md.section.media")}`, "");
+      lines.push(`![${images[0].filename}](${images[0].url})`);
+      attached.push(images[0].filename);
+      mediaHandled.add(images[0].filename);
       lines.push("");
     }
 
@@ -130,10 +143,52 @@ export function buildGithubIssueBody(
 
   emitMedia();
 
+  const extras: GithubMediaInput[] = [
+    ...images.filter((i) => !mediaHandled.has(i.filename)),
+    ...(video && !mediaHandled.has(video.filename) ? [video] : []),
+    ...logs,
+  ];
+  emitAttachments(lines, attached, extras);
+
   lines.push("---", "");
   lines.push(footerMarkdown(), "");
 
   return { body: lines.join("\n"), attached };
+}
+
+function emitAttachments(
+  lines: string[],
+  attached: string[],
+  items: GithubMediaInput[],
+): void {
+  if (items.length === 0) return;
+  const inlined = items.filter((a) => a.url);
+  const notInlined = items.filter((a) => !a.url);
+
+  if (inlined.length > 0) {
+    lines.push(`## ${t("md.section.attachments")}`, "");
+    for (const a of inlined) {
+      if (a.contentType.startsWith("image/")) {
+        lines.push(`![${a.filename}](${a.url})`);
+      } else if (a.contentType.startsWith("video/")) {
+        lines.push(a.url!);
+      } else {
+        lines.push(`[${a.filename}](${a.url})`);
+      }
+      attached.push(a.filename);
+    }
+    lines.push("");
+  }
+
+  if (notInlined.length > 0) {
+    if (inlined.length === 0) lines.push(`## ${t("md.section.attachments")}`, "");
+    lines.push(t("github.attachmentNotInline"), "");
+    for (const a of notInlined) {
+      lines.push(`- \`${a.filename}\``);
+      attached.push(a.filename);
+    }
+    lines.push("");
+  }
 }
 
 function emitLogSummary(lines: string[], ctx: MarkdownContext): void {
@@ -153,7 +208,7 @@ function emitLogSummary(lines: string[], ctx: MarkdownContext): void {
     } else {
       lines.push(t("logSummary.network.capturedNoError", { n: net.captured }));
     }
-    lines.push("", `_${t("logSummary.network.detail")}_`, "");
+    lines.push("", `_${t("logSummary.network.detail", { filename: "network-log.json" })}_`, "");
   }
   if (con) {
     lines.push(`## ${t("logSummary.console.title")}`, "");

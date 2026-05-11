@@ -39,6 +39,7 @@ const BG_REQUEST_TYPES = new Set([
   "github.searchRepos",
   "github.getLabels",
   "github.searchAssignees",
+  "github.uploadFiles",
   "github.submitIssue",
   "github.getIssueStatus",
   "linear.oauth.available",

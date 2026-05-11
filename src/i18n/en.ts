@@ -134,6 +134,24 @@ const en = {
   "draft.aiParseError": "Could not parse AI response. Please try again.",
   "draft.preview": "Issue preview",
 
+  // AI common
+  "ai.badge.beta": "Beta",
+
+  // AI Styling
+  "aiStyling.banner": "Let AI handle the styling",
+  "aiStyling.generate": "AI Styling",
+  "aiStyling.title": "AI Styling",
+  "aiStyling.placeholder": "Describe the changes you want...",
+  "aiStyling.error": "Failed to process AI response",
+  "aiStyling.noChanges": "No style changes found",
+  "aiStyling.disclaimer": "AI can make mistakes. Please double-check the changes.",
+
+  // AI Draft
+  "aiDraft.title": "AI Draft",
+  "aiDraft.placeholder": "Briefly describe the bug...",
+  "aiDraft.generate": "Generate",
+  "aiDraft.disclaimer": "AI can make mistakes. Please review the generated draft.",
+
   // Preview panel
   "preview.copied": "Copied",
   "preview.copyMarkdown": "Copy markdown",
@@ -192,9 +210,47 @@ const en = {
   "time.hoursAgo": "{n}h ago",
   "time.daysAgo": "{n}d ago",
 
+  // Settings tabs
+  "settings.tab.issue": "Issue settings",
+  "settings.tab.ai": "AI Model",
+  "settings.tab.general": "General",
+
+  // LLM BYOK
+  "llm.onboarding.title": "Connect an AI model",
+  "llm.onboarding.body": "Connect your own AI model to use with Bugshot",
+  "llm.onboarding.fallback": "If Chrome AI is available, it works without any setup",
+  "llm.connect": "Connect API key",
+  "llm.dialog.title": "Connect AI model",
+  "llm.dialog.body": "Select a provider and enter your API key",
+  "llm.provider": "Provider",
+  "llm.providerCustom": "Custom",
+  "llm.baseUrl": "Endpoint URL",
+  "llm.baseUrlPlaceholder": "https://...",
+  "llm.apiKey": "API Key",
+  "llm.apiKeyPlaceholder": "sk-...",
+  "llm.apiKey.help": "Your API key is stored only on this device and sent directly to the selected endpoint.",
+  "llm.section.connection": "Connection",
+  "llm.section.model": "Model",
+  "llm.model.select": "Select model",
+  "llm.model.placeholder": "Select a model",
+  "llm.model.search": "Search models...",
+  "llm.model.empty": "No models",
+  "llm.model.refresh": "Refresh",
+  "llm.connected": "Connected",
+  "llm.disconnect": "Disconnect",
+  "llm.disconnectConfirm.title": "Disconnect AI model?",
+  "llm.disconnectConfirm.body": "Basic AI features will still work with Chrome's built-in AI without an API key.",
+  "llm.error.permission": "Host permission required. Please try again.",
+  "llm.error.invalidUrl": "Please enter a valid URL.",
+  "llm.error.fetch": "Connection failed. Check URL and API key.",
+  "llm.error.quota": "API quota exceeded. Please try again later.",
+
   // Settings (global)
   "settings.issueSettings": "Issue settings",
+  "settings.titleSettings": "Title settings",
   "settings.titlePrefix": "Title prefix",
+  "settings.titlePrefix.help": "Automatically prepended to issue titles.",
+  "settings.bodyComposition": "Body composition",
   "settings.issueComposition": "Issue composition",
 
   // Jira integration
@@ -532,7 +588,7 @@ const en = {
   "logSummary.network.title": "Network Logs",
   "logSummary.network.captured": "{n} captured ({errors} errors)",
   "logSummary.network.capturedNoError": "{n} captured (no errors)",
-  "logSummary.network.detail": "(Details: see network-log.har attachment)",
+  "logSummary.network.detail": "(Details: see {filename} attachment)",
   "logSummary.console.title": "Console Logs",
   "logSummary.console.captured": "{n} captured ({errors} errors, {warns} warnings)",
   "logSummary.console.capturedNoError": "{n} captured (no errors)",

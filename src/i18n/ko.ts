@@ -126,11 +126,29 @@ const ko = {
   "draft.removeAnnotation": "주석 제거",
   "draft.editAnnotation": "주석 수정",
   "draft.addAnnotation": "주석 추가",
-  "draft.aiGenerate": "AI 초안 생성",
+  "draft.aiGenerate": "AI 초안 작성",
   "draft.aiBanner": "AI로 초안을 작성해보세요",
   "draft.aiError": "AI 초안 생성에 실패했습니다. 다시 시도해주세요.",
   "draft.aiParseError": "AI 응답을 해석할 수 없습니다. 다시 시도해주세요.",
   "draft.preview": "이슈 프리뷰",
+
+  // AI common
+  "ai.badge.beta": "Beta",
+
+  // AI Styling
+  "aiStyling.banner": "AI에게 스타일 수정을 맡겨보세요",
+  "aiStyling.generate": "AI 스타일링",
+  "aiStyling.title": "AI 스타일링",
+  "aiStyling.placeholder": "원하는 변경을 설명하세요...",
+  "aiStyling.error": "AI 응답 처리에 실패했습니다",
+  "aiStyling.noChanges": "변경할 스타일을 찾지 못했습니다",
+  "aiStyling.disclaimer": "AI는 실수할 수 있습니다. 변경사항을 다시 한번 확인해 주세요.",
+
+  // AI Draft
+  "aiDraft.title": "AI 초안 작성",
+  "aiDraft.placeholder": "버그를 간단히 설명해주세요...",
+  "aiDraft.generate": "초안 작성",
+  "aiDraft.disclaimer": "AI는 실수할 수 있습니다. 생성된 초안을 확인해주세요.",
 
   // Preview panel
   "preview.copied": "복사됨",
@@ -190,9 +208,47 @@ const ko = {
   "time.hoursAgo": "{n}시간 전",
   "time.daysAgo": "{n}일 전",
 
+  // Settings tabs
+  "settings.tab.issue": "이슈 설정",
+  "settings.tab.ai": "AI 모델",
+  "settings.tab.general": "기타",
+
+  // LLM BYOK
+  "llm.onboarding.title": "AI 모델을 연결하세요",
+  "llm.onboarding.body": "내 AI 모델을 연결해 활용할 수 있습니다",
+  "llm.onboarding.fallback": "Chrome AI가 사용 가능하면 별도 설정 없이 동작합니다",
+  "llm.connect": "API 키 연결",
+  "llm.dialog.title": "AI 모델 연결",
+  "llm.dialog.body": "프로바이더를 선택하고 API 키를 입력하세요",
+  "llm.provider": "프로바이더",
+  "llm.providerCustom": "직접 입력",
+  "llm.baseUrl": "엔드포인트 URL",
+  "llm.baseUrlPlaceholder": "https://...",
+  "llm.apiKey": "API Key",
+  "llm.apiKeyPlaceholder": "sk-...",
+  "llm.apiKey.help": "API key는 이 기기에만 저장되며, 선택한 엔드포인트로 직접 전송됩니다.",
+  "llm.section.connection": "연결 정보",
+  "llm.section.model": "모델",
+  "llm.model.select": "모델 선택",
+  "llm.model.placeholder": "모델을 선택하세요",
+  "llm.model.search": "모델 검색...",
+  "llm.model.empty": "모델 없음",
+  "llm.model.refresh": "새로고침",
+  "llm.connected": "연결됨",
+  "llm.disconnect": "연결 해제",
+  "llm.disconnectConfirm.title": "AI 모델 연결을 해제할까요?",
+  "llm.disconnectConfirm.body": "API 키 없이도 Chrome 내장 AI로 기본 기능을 사용할 수 있습니다.",
+  "llm.error.permission": "호스트 권한이 필요합니다. 다시 시도하세요.",
+  "llm.error.invalidUrl": "올바른 URL을 입력하세요.",
+  "llm.error.fetch": "연결에 실패했습니다. URL과 API 키를 확인하세요.",
+  "llm.error.quota": "API 허용량을 초과했습니다. 잠시 후 다시 시도하세요.",
+
   // Settings (global)
   "settings.issueSettings": "이슈 설정",
+  "settings.titleSettings": "제목 설정",
   "settings.titlePrefix": "제목 Prefix",
+  "settings.titlePrefix.help": "이슈 제목 앞에 붙는 접두어입니다.",
+  "settings.bodyComposition": "본문 구성",
   "settings.issueComposition": "이슈 구성",
 
   // Jira integration
@@ -530,7 +586,7 @@ const ko = {
   "logSummary.network.title": "네트워크 로그",
   "logSummary.network.captured": "{n}건 캡처 (에러 {errors}건)",
   "logSummary.network.capturedNoError": "{n}건 캡처 (에러 없음)",
-  "logSummary.network.detail": "(상세: network-log.har 첨부)",
+  "logSummary.network.detail": "(상세: {filename} 첨부)",
   "logSummary.console.title": "콘솔 로그",
   "logSummary.console.captured": "{n}건 캡처 (에러 {errors}건, 경고 {warns}건)",
   "logSummary.console.capturedNoError": "{n}건 캡처 (에러 없음)",

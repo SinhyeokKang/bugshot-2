@@ -8,6 +8,7 @@ import {
   sectionPlaceholderKey,
   useSettingsUiStore,
   type IssueSectionId,
+  type LlmConfig,
 } from "../settings-ui-store";
 
 describe("settings-ui-store", () => {
@@ -98,6 +99,37 @@ describe("settings-ui-store", () => {
       useSettingsUiStore.getState().setIssueEnabled("description", false);
       useSettingsUiStore.getState().resetIssueSections();
       expect(useSettingsUiStore.getState().issueSections).toEqual(DEFAULT_ISSUE_SECTIONS);
+    });
+
+    it("setLlm으로 LLM 설정 저장", () => {
+      const config: LlmConfig = {
+        baseUrl: "https://api.openai.com/v1",
+        apiKey: "sk-test123",
+        modelId: "gpt-4o-mini",
+      };
+      useSettingsUiStore.getState().setLlm(config);
+      expect(useSettingsUiStore.getState().llm).toEqual(config);
+    });
+
+    it("setLlm(null)로 LLM 설정 초기화", () => {
+      useSettingsUiStore.getState().setLlm({
+        baseUrl: "https://api.openai.com/v1",
+        apiKey: "sk-test",
+        modelId: "gpt-4o",
+      });
+      useSettingsUiStore.getState().setLlm(null);
+      expect(useSettingsUiStore.getState().llm).toBeNull();
+    });
+
+    it("setLlm으로 modelId만 갱신", () => {
+      const base: LlmConfig = {
+        baseUrl: "https://api.openai.com/v1",
+        apiKey: "sk-test",
+        modelId: "",
+      };
+      useSettingsUiStore.getState().setLlm(base);
+      useSettingsUiStore.getState().setLlm({ ...base, modelId: "gpt-4o-mini" });
+      expect(useSettingsUiStore.getState().llm?.modelId).toBe("gpt-4o-mini");
     });
   });
 });

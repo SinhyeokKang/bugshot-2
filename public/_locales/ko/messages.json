@@ -1,14 +1,14 @@
 {
   "EXT_NAME": {
-    "message": "BugShot — 디자인 이슈 트래커",
-    "description": "확장 프로그램 전체 이름"
+    "message": "BugShot",
+    "description": "확장 프로그램 이름"
   },
   "EXT_NAME_SHORT": {
     "message": "BugShot",
     "description": "액션 버튼/짧은 표시용 이름"
   },
   "EXT_DESCRIPTION": {
-    "message": "디자인 이슈, 말로 설명하지 마세요. 직접 고치고 변경사항을 보내세요.",
+    "message": "버그 발견부터 수정, 캡처, 이슈 생성까지 한 번에.",
     "description": "Chrome 웹스토어용 설명"
   },
   "CMD_TOGGLE_PANEL": {

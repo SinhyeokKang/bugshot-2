@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { Pencil, RotateCcw, Sparkles, Trash2 } from "lucide-react";
+import { Pencil, RotateCcw, Trash2, WandSparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,9 +13,10 @@ import {
   type IssueSection,
 } from "@/store/settings-ui-store";
 import { useEditorStore } from "@/store/editor-store";
+import { LlmQuotaError } from "../lib/ai-provider";
 import { useSettingsStore } from "@/store/settings-store";
 import { useBoundTabId } from "../hooks/useBoundTabId";
-import { useChromeAI } from "../hooks/useChromeAI";
+import { useAI } from "../hooks/useAI";
 import { clearPicker } from "../picker-control";
 const AnnotationOverlay = lazy(() => import("../components/AnnotationOverlay"));
 import { CancelConfirmDialog } from "../components/CancelConfirmDialog";
@@ -38,6 +39,7 @@ import {
   parseAiDraftResponse,
 } from "../lib/buildAiDraftPrompt";
 import { buildNetworkLogSummary, buildConsoleLogSummary } from "../lib/buildLogSummary";
+import { AiDraftDialog } from "./AiDraftDialog";
 
 export function DraftingPanel() {
   const t = useT();
@@ -66,10 +68,12 @@ export function DraftingPanel() {
   const tokens = useEditorStore((s) => s.tokens);
   const issueSections = useSettingsUiStore((s) => s.issueSections);
   const locale = useSettingsUiStore((s) => s.locale);
-  const { status: aiStatus, generateDraft } = useChromeAI();
+  const { status: aiStatus, providerLabel, generate, createSession } = useAI();
   const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
   const [annotating, setAnnotating] = useState(false);
+  const [aiDialogOpen, setAiDialogOpen] = useState(false);
+  const aiDraftLoading = useEditorStore((s) => s.aiDraftLoading);
   const [networkDialogOpen, setNetworkDialogOpen] = useState(false);
   const [consoleDialogOpen, setConsoleDialogOpen] = useState(false);
   const titlePrefix = useSettingsStore((s) => s.titlePrefix);
@@ -143,7 +147,7 @@ export function DraftingPanel() {
       });
       const sectionIds = enabledSections.map((s) => s.id);
       const responseSchema = buildAiDraftSchema(sectionIds);
-      const raw = await generateDraft(ctx, { responseSchema });
+      const raw = await generate({ prompt: ctx, responseSchema });
       const parsed = parseAiDraftResponse(raw, sectionIds);
       if (parsed) {
         const prefix = defaultTitle(titlePrefix);
@@ -155,8 +159,8 @@ export function DraftingPanel() {
         console.warn("[bugshot] AI draft parse failed. Raw response:", raw);
         setAiError(t("draft.aiParseError"));
       }
-    } catch {
-      setAiError(t("draft.aiError"));
+    } catch (err) {
+      setAiError(err instanceof LlmQuotaError ? t("llm.error.quota") : t("draft.aiError"));
     } finally {
       setAiLoading(false);
     }
@@ -261,7 +265,7 @@ export function DraftingPanel() {
 
   return (
     <PageShell className="relative">
-      {aiLoading && (
+      {(aiLoading || aiDraftLoading) && (
         <div className="pointer-events-none absolute inset-0 z-20 overflow-hidden backdrop-blur-[2px]">
           <div className="absolute inset-0 bg-purple-500/5" />
           <div className="absolute inset-0 animate-shimmer bg-gradient-to-b from-transparent via-purple-400/10 to-transparent" />
@@ -284,15 +288,24 @@ export function DraftingPanel() {
 
         {sectionNodes}
       </PageScroll>
-      {aiStatus === "available" && captureMode !== "screenshot" && (
+      {aiStatus === "available" && (
         <button
           className="flex items-center justify-between rounded-t-lg bg-purple-100/80 px-3.5 py-2.5 text-purple-700 transition-colors hover:bg-purple-100 disabled:opacity-50 dark:bg-purple-950/50 dark:text-purple-300 dark:hover:bg-purple-900"
-          onClick={() => void handleAIDraft()}
-          disabled={aiLoading}
+          onClick={() => {
+            if (captureMode === "element") {
+              void handleAIDraft();
+            } else {
+              setAiDialogOpen(true);
+            }
+          }}
+          disabled={aiLoading || aiDraftLoading}
         >
-          <span className="bg-gradient-to-r from-purple-500 to-indigo-500 bg-clip-text text-sm text-transparent dark:from-purple-300 dark:to-indigo-300">{t("draft.aiBanner")}</span>
+          <span className="flex items-center gap-1.5">
+            <Badge variant="outline" className="font-normal border-purple-500 text-purple-600 dark:border-purple-400 dark:text-purple-300">{providerLabel ?? t("ai.badge.beta")}</Badge>
+            <span className="bg-gradient-to-r from-purple-500 to-indigo-500 bg-clip-text text-sm text-transparent dark:from-purple-300 dark:to-indigo-300">{t("draft.aiBanner")}</span>
+          </span>
           <span className="flex items-center gap-1 bg-gradient-to-r from-indigo-500 to-purple-500 bg-clip-text text-sm font-medium text-transparent dark:from-indigo-300 dark:to-purple-300">
-            <Sparkles className="h-4 w-4 fill-current text-purple-500 dark:text-purple-300" />
+            <WandSparkles className="h-4 w-4 text-purple-500 dark:text-purple-300" />
             {t("draft.aiGenerate")}
           </span>
         </button>
@@ -320,7 +333,7 @@ export function DraftingPanel() {
                 setAnnotating(false);
                 confirmDraft();
               }}
-              disabled={titleMissing || aiLoading}
+              disabled={titleMissing || aiLoading || aiDraftLoading}
             >
               {t("draft.preview")}
             </Button>
@@ -346,6 +359,11 @@ export function DraftingPanel() {
           onToggleAttach={setConsoleLogAttach}
         />
       )}
+      <AiDraftDialog
+        open={aiDialogOpen}
+        onOpenChange={setAiDialogOpen}
+        createSession={createSession}
+      />
       {annotating && screenshotRaw ? (
         <Suspense fallback={null}>
           <AnnotationOverlay
@@ -525,7 +543,7 @@ function cursorToEnd(e: React.FocusEvent<HTMLInputElement | HTMLTextAreaElement>
   });
 }
 
-function defaultTitle(prefix: string): string {
+export function defaultTitle(prefix: string): string {
   if (!prefix) return "";
   return prefix.endsWith(" ") ? prefix : `${prefix} `;
 }

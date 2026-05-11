@@ -161,6 +161,65 @@ function stripLineNumbering(text: string): string {
     .join("\n");
 }
 
+export interface AiDraftSessionContext {
+  captureMode: "screenshot" | "video";
+  locale: LocaleMode;
+  url: string;
+  pageTitle: string;
+  networkLogSummary?: NetworkLogSummary;
+  consoleLogSummary?: ConsoleLogSummary;
+  enabledSections: { id: IssueSectionId }[];
+}
+
+export function buildAiDraftSessionPrompt(ctx: AiDraftSessionContext): string {
+  const lang = ctx.locale === "ko" ? "Korean" : "English";
+  const lines: string[] = [];
+
+  lines.push(`You are a QA assistant. Write a bug report draft in ${lang}.`);
+  lines.push("");
+  lines.push("Context:");
+  lines.push(`- Page: ${ctx.url} (${ctx.pageTitle})`);
+  lines.push(`- Capture mode: ${ctx.captureMode}`);
+
+  if (ctx.captureMode === "screenshot") {
+    lines.push("- The user will provide a screenshot image and a description of the bug. Analyze the screenshot to understand the visual context.");
+  }
+
+  if (ctx.captureMode === "video") {
+    if (ctx.networkLogSummary && ctx.networkLogSummary.errors.length > 0) {
+      lines.push("- Network errors:");
+      for (const e of ctx.networkLogSummary.errors) {
+        lines.push(`  ${e.method} ${e.path} → ${e.status} ${e.statusText}`);
+      }
+    }
+    if (ctx.consoleLogSummary) {
+      const c = ctx.consoleLogSummary;
+      if (c.errorCount > 0 || c.warnCount > 0) {
+        lines.push(`- Console: ${c.errorCount} errors, ${c.warnCount} warnings`);
+        for (const msg of c.topErrors) {
+          lines.push(`  ${msg}`);
+        }
+      }
+    }
+  }
+
+  const desc = SECTION_DESC[ctx.locale];
+  lines.push("");
+  lines.push("Output a JSON object with these exact keys:");
+  lines.push('- "title": one short line, as brief as possible');
+  for (const sec of ctx.enabledSections) {
+    lines.push(`- "${sec.id}": ${desc[sec.id]}`);
+  }
+
+  lines.push("");
+  lines.push("Rules:");
+  lines.push("- Output only valid JSON. No markdown fences or extra text.");
+  lines.push("- Base the report on the user's description and provided context. Never invent details not given.");
+  lines.push("- If a section has no relevant information, use an empty string.");
+
+  return lines.join("\n");
+}
+
 function extractJson(raw: string): string | null {
   const stripped = raw
     .replace(/^```(?:json)?\s*/m, "")

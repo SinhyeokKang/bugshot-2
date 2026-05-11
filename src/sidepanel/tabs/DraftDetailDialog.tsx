@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { NetworkLog } from "@/types/network";
 import type { ConsoleLog } from "@/types/console";
-import { getVideoBlob, getImageBlob, getNetworkLog, getConsoleLog } from "@/store/blob-db";
+import { getVideoBlob, getImageBlob, getNetworkLog, getConsoleLog, blobToDataUrl } from "@/store/blob-db";
 import { useIssueImages } from "../hooks/useIssueImages";
 import { Info } from "lucide-react";
 import { useT, dateBcp47 } from "@/i18n";
@@ -45,8 +45,7 @@ import {
 } from "@/store/settings-store";
 import type { NormalizedSubmitResult, PlatformId } from "@/types/platform";
 import { sendBg, type JiraSubmitResult } from "@/types/messages";
-import { submitToGithub } from "../lib/submitToGithub";
-import type { GithubMediaInput } from "../lib/buildGithubIssueBody";
+import { submitToGithub, type GithubFileInput } from "../lib/submitToGithub";
 import { submitToLinear, type LinearFileInput } from "../lib/submitToLinear";
 import { submitToNotion, type NotionFileInput } from "../lib/submitToNotion";
 import {
@@ -361,38 +360,34 @@ export function DraftDetailDialog({
     if (!ghFields.owner || !ghFields.repo) throw new Error(t("create.requiredMissing"));
 
     const { ctx, networkLog, consoleLog: consoleLogForSubmit } = await buildCtxForSubmit();
-    const images: GithubMediaInput[] = [];
-    let video: GithubMediaInput | undefined;
-    const logs: GithubMediaInput[] = [];
+    const images: GithubFileInput[] = [];
+    let video: GithubFileInput | undefined;
+    const logs: GithubFileInput[] = [];
 
     if (isVideo) {
       const blob = await getVideoBlob(issue.id);
-      if (blob) video = { filename: "recording.webm", blob };
+      if (blob) video = { filename: "recording.webm", dataUrl: await blobToDataUrl(blob) };
       if (networkLog) {
-        logs.push({
-          filename: "network-log.har",
-          blob: new Blob([serializeHar(buildHar(networkLog))], { type: "application/json" }),
-        });
+        const harBlob = new Blob([serializeHar(buildHar(networkLog))], { type: "application/json" });
+        logs.push({ filename: "network-log.har", dataUrl: await blobToDataUrl(harBlob) });
       }
       if (consoleLogForSubmit) {
-        logs.push({
-          filename: "console-log.json",
-          blob: new Blob([serializeConsoleLog(buildConsoleLogJson(consoleLogForSubmit))], { type: "application/json" }),
-        });
+        const jsonBlob = new Blob([serializeConsoleLog(buildConsoleLogJson(consoleLogForSubmit))], { type: "application/json" });
+        logs.push({ filename: "console-log.json", dataUrl: await blobToDataUrl(jsonBlob) });
       }
     } else if (isScreenshot) {
       if (issue.snapshot.before) {
         const blob = await getImageBlob(issue.id, "before");
-        if (blob) images.push({ filename: "screenshot.webp", blob });
+        if (blob) images.push({ filename: "screenshot.webp", dataUrl: await blobToDataUrl(blob) });
       }
     } else {
       if (issue.snapshot.before) {
         const blob = await getImageBlob(issue.id, "before");
-        if (blob) images.push({ filename: "before.webp", blob });
+        if (blob) images.push({ filename: "before.webp", dataUrl: await blobToDataUrl(blob) });
       }
       if (issue.snapshot.after) {
         const blob = await getImageBlob(issue.id, "after");
-        if (blob) images.push({ filename: "after.webp", blob });
+        if (blob) images.push({ filename: "after.webp", dataUrl: await blobToDataUrl(blob) });
       }
     }
 
@@ -928,13 +923,3 @@ function DraftVideoPreview({ issue, thumbnailUrl }: { issue: IssueRecord; thumbn
     </div>
   );
 }
-
-function blobToDataUrl(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result as string);
-    reader.onerror = () => reject(new Error("Failed to read blob"));
-    reader.readAsDataURL(blob);
-  });
-}
-

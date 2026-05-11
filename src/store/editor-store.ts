@@ -89,9 +89,13 @@ interface EditorState {
   networkLogAttach: boolean;
   consoleLog: ConsoleLog | null;
   consoleLogAttach: boolean;
+  aiStylingLoading: boolean;
+  aiDraftLoading: boolean;
   submitResult: { key: string; url: string } | null;
   sessionExpired: boolean;
 
+  setAiStylingLoading: (loading: boolean) => void;
+  setAiDraftLoading: (loading: boolean) => void;
   startPicking: (target: EditorTarget, mode?: CaptureMode) => void;
   startCapturing: (target: EditorTarget) => void;
   startRecording: (target: EditorTarget) => void;
@@ -181,6 +185,8 @@ const initial = {
   draft: null,
   issueFields: {} as EditorIssueFields,
   currentIssueId: null as string | null,
+  aiStylingLoading: false,
+  aiDraftLoading: false,
   submitResult: null as { key: string; url: string } | null,
   sessionExpired: false,
 };
@@ -194,6 +200,9 @@ function newIssueId(): string {
 
 export const useEditorStore = create<EditorState>((set, get) => ({
   ...initial,
+
+  setAiStylingLoading: (loading) => set({ aiStylingLoading: loading }),
+  setAiDraftLoading: (loading) => set({ aiDraftLoading: loading }),
 
   startPicking: (target, mode) => set({ ...initial, captureMode: mode ?? "element", phase: "picking", target }),
   cancelPicking: () => set({ ...initial }),
@@ -216,6 +225,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       },
       beforeImage: null,
       afterImage: null,
+      aiStylingLoading: false,
     }),
 
   updateSelectionStyles: (patch) =>
@@ -233,9 +243,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   setAfterImage: (afterImage) => set({ afterImage }),
 
-  confirmStyles: () => set({ phase: "drafting" }),
+  confirmStyles: () => set({ phase: "drafting", aiStylingLoading: false }),
 
-  backToStyling: () => set({ phase: "styling", afterImage: null }),
+  backToStyling: () => set({ phase: "styling", afterImage: null, aiStylingLoading: false }),
 
   setDraft: (draft) => set({ draft }),
 

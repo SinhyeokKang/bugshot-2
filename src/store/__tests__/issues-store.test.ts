@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { migrateIssueToV4 } from "../issues-migrations";
+import { stripSubmitted, type IssueRecord } from "../issues-store";
 import type { PlatformId } from "@/types/platform";
 
 interface LegacyShape {
@@ -56,5 +57,42 @@ describe("issues-store v3→v4 마이그레이션 (platform 필드 채우기)", 
     const first = migrateIssueToV4({ ...baseLegacy });
     const second = migrateIssueToV4(first);
     expect(second).toEqual(first);
+  });
+});
+
+describe("stripSubmitted (제출 시 record 정리)", () => {
+  const draft: IssueRecord = {
+    id: "abc",
+    status: "draft",
+    platform: "github",
+    title: "x",
+    createdAt: 0,
+    updatedAt: 0,
+    pageUrl: "https://example.com",
+    pageTitle: "page",
+    selector: "div.x",
+    tagName: "div",
+    viewport: { width: 100, height: 100 },
+    draft: { title: "t", sections: { description: "d" } },
+    snapshot: { before: true, after: true },
+    styleEdits: { classList: [], inlineStyle: {}, text: "" },
+    networkLogBlobKey: "abc",
+    consoleLogBlobKey: "abc",
+  };
+
+  it("video/image 메타와 함께 network/console log 키도 비운다", () => {
+    const out = stripSubmitted(draft, { key: "BUG-1" });
+    expect(out.status).toBe("submitted");
+    expect(out.snapshot).toEqual({ before: false, after: false });
+    expect(out.styleEdits).toBeUndefined();
+    expect(out.networkLogBlobKey).toBeUndefined();
+    expect(out.consoleLogBlobKey).toBeUndefined();
+    expect(out.key).toBe("BUG-1");
+  });
+
+  it("패치가 원본 필드를 덮어쓴다", () => {
+    const out = stripSubmitted(draft, { platform: "linear", url: "https://linear.app/x" });
+    expect(out.platform).toBe("linear");
+    expect(out.url).toBe("https://linear.app/x");
   });
 });
