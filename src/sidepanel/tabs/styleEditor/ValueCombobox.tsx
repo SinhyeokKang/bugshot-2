@@ -218,9 +218,9 @@ export function ValueCombobox({
                   compact={compact}
                 />
               ))}
-              {!compact && showComputedHint(category, computed) ? (
+              {showComputedHint(category, computed) ? (
                 <span className="ml-auto shrink-0 text-[10px] text-muted-foreground/70">
-                  {computed}
+                  {compact ? shortValue(computed) : computed}
                 </span>
               ) : null}
             </span>
@@ -252,9 +252,9 @@ export function ValueCombobox({
                   compact={compact}
                 />
               ))}
-              {!compact && showComputedHint(category, computed) ? (
+              {showComputedHint(category, computed) ? (
                 <span className="ml-auto shrink-0 text-[10px] text-muted-foreground/70">
-                  {computed}
+                  {compact ? shortValue(computed) : computed}
                 </span>
               ) : null}
             </span>
