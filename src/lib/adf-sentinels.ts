@@ -1,1 +1,2 @@
 export const IMAGE_PLACEHOLDER = "__BUGSHOT_IMAGE__";
+export const VIDEO_PLACEHOLDER = "__BUGSHOT_VIDEO__";

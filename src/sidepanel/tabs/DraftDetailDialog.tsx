@@ -284,7 +284,9 @@ export function DraftDetailDialog({
     ];
     if (isVideo) {
       const blob = await getVideoBlob(issue.id);
-      if (blob) attachments.push({ filename: "recording.webm", dataUrl: await blobToDataUrl(blob) });
+      if (blob) {
+        attachments.push({ filename: "recording.webm", dataUrl: await blobToDataUrl(blob) });
+      }
       if (networkLog) {
         const harBlob = new Blob([serializeHar(buildHar(networkLog))], { type: "application/json" });
         attachments.push({ filename: "network-log.har", dataUrl: await blobToDataUrl(harBlob) });
