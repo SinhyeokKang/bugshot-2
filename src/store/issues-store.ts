@@ -22,7 +22,7 @@ import {
   dataUrlToBlob,
 } from "./blob-db";
 
-function stripSubmitted(
+export function stripSubmitted(
   issue: IssueRecord,
   patch: Partial<IssueRecord>,
 ): IssueRecord {
@@ -41,6 +41,8 @@ function stripSubmitted(
     tagName: undefined,
     viewport: undefined,
     pageTitle: undefined,
+    networkLogBlobKey: undefined,
+    consoleLogBlobKey: undefined,
   };
 }
 
@@ -65,12 +67,14 @@ async function pruneOrphanBlobs(): Promise<void> {
   }
   const networkLogKeys = await getNetworkLogKeys();
   for (const key of networkLogKeys) {
+    if (key.startsWith("pending:")) continue;
     if (!currentIds.has(key)) {
       deleteNetworkLog(key).catch(() => {});
     }
   }
   const consoleLogKeys = await getConsoleLogKeys();
   for (const key of consoleLogKeys) {
+    if (key.startsWith("pending:")) continue;
     if (!currentIds.has(key)) {
       deleteConsoleLog(key).catch(() => {});
     }
@@ -210,6 +214,8 @@ export const useIssuesStore = create<IssuesState>()(
         }));
         deleteVideoBlob(id).catch(() => {});
         deleteImageBlobs(id).catch(() => {});
+        deleteNetworkLog(id).catch(() => {});
+        deleteConsoleLog(id).catch(() => {});
       },
       patchIssue: (id, patch) =>
         set((s) => ({

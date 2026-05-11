@@ -64,18 +64,9 @@ export function AiStylingDialog({
     const msg = input.trim();
     if (!msg) return;
 
-    const store = useEditorStore.getState();
-    if (!store.aiStylingSnapshot) {
-      store.setAiStylingSnapshot({
-        classList: [...store.styleEdits.classList],
-        inlineStyle: { ...store.styleEdits.inlineStyle },
-        text: store.styleEdits.text,
-      });
-    }
-
     setInput("");
     onOpenChange(false);
-    store.setAiStylingLoading(true);
+    useEditorStore.getState().setAiStylingLoading(true);
 
     try {
       if (!sessionRef.current) {

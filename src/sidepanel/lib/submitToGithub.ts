@@ -45,15 +45,12 @@ function toUploadEntry(f: GithubFileInput) {
 export async function submitToGithub(
   input: GithubSubmitInput,
 ): Promise<NormalizedSubmitResult> {
-  const aiMeta = buildAiMetaAttachment(input.ctx);
-
   const imageInputs = input.images ?? [];
-  const logInputs = input.logs ?? [];
+  const logs = [...(input.logs ?? []), buildAiMetaAttachment(input.ctx)];
   const allFiles = [
     ...imageInputs,
     ...(input.video ? [input.video] : []),
-    ...logInputs,
-    aiMeta,
+    ...logs,
   ];
 
   const uploadResults = await sendBg<Array<{ filename: string; href: string | null }>>({
@@ -78,7 +75,7 @@ export async function submitToGithub(
     ctx: input.ctx,
     images: imageInputs.length > 0 ? imageInputs.map(toMedia) : undefined,
     video: input.video ? toMedia(input.video) : undefined,
-    logs: [...logInputs, aiMeta].map(toMedia),
+    logs: logs.map(toMedia),
   });
 
   const result = await sendBg<GithubCreateIssueResult>({

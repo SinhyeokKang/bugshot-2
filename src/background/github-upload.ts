@@ -14,20 +14,27 @@ async function ensureGithubTab(owner: string, repo: string): Promise<{ tabId: nu
   });
   if (tab.id == null) throw new Error("tab created without id");
   const tabId = tab.id;
-  await new Promise<void>((resolve, reject) => {
-    const timeout = setTimeout(() => {
-      chrome.tabs.onUpdated.removeListener(listener);
-      reject(new Error("tab load timeout"));
-    }, 15000);
-    function listener(tid: number, info: chrome.tabs.TabChangeInfo) {
-      if (tid === tabId && info.status === "complete") {
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(() => {
         chrome.tabs.onUpdated.removeListener(listener);
-        clearTimeout(timeout);
-        resolve();
+        reject(new Error("tab load timeout"));
+      }, 15000);
+      function listener(tid: number, info: chrome.tabs.TabChangeInfo) {
+        if (tid === tabId && info.status === "complete") {
+          chrome.tabs.onUpdated.removeListener(listener);
+          clearTimeout(timeout);
+          resolve();
+        }
       }
-    }
-    chrome.tabs.onUpdated.addListener(listener);
-  });
+      chrome.tabs.onUpdated.addListener(listener);
+    });
+  } catch (err) {
+    // Created the tab but load failed — remove it before propagating so the
+    // caller's finally (which keys off `created=true`) isn't bypassed.
+    await chrome.tabs.remove(tabId).catch(() => {});
+    throw err;
+  }
   return { tabId, created: true };
 }
 
@@ -142,7 +149,6 @@ export async function uploadGithubFiles(
   }
 
   try {
-    console.warn("[bugshot] uploading", files.length, "files via tab", tabId, created ? "(created)" : "(reused)");
     const [result] = await chrome.scripting.executeScript({
       target: { tabId },
       world: "MAIN",
@@ -150,8 +156,9 @@ export async function uploadGithubFiles(
       args: [repoId, files],
     });
     const pageResult = result?.result as PageUploadResult | null;
-    if (pageResult?.debug) console.warn("[bugshot] page debug:", pageResult.debug.join(" | "));
-    console.warn("[bugshot] upload result", JSON.stringify(pageResult?.files));
+    if (pageResult?.files.some((f) => f.href === null) && pageResult.debug.length > 0) {
+      console.warn("[bugshot] github upload partial failure:", pageResult.debug.join(" | "));
+    }
     return pageResult?.files ?? files.map((f) => ({ filename: f.filename, href: null }));
   } catch (err) {
     console.warn("[bugshot] github upload script injection failed", err);
