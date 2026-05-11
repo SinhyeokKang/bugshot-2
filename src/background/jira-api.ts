@@ -281,6 +281,7 @@ export async function getMediaFileId(
   const url = resolveUrl(auth, path);
   try {
     const res = await fetch(url, {
+      method: "HEAD",
       headers: { Authorization: authHeader(auth) },
     });
     return extractMediaId(res.url);

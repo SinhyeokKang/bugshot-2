@@ -339,24 +339,27 @@ async function submitIssue(
       }
 
       const videoFile = uploadMap.get("recording.webm");
-      if (videoFile) {
-        const videoPlaceholderIdx = content.findIndex(
-          (n) => {
-            const node = n as { type: string; content?: { text?: string }[] };
-            return node.type === "paragraph" && node.content?.[0]?.text === VIDEO_PLACEHOLDER;
-          },
-        );
-        if (videoPlaceholderIdx >= 0) {
-          const mediaNode =
-            videoFile.kind === "media"
-              ? { type: "media", attrs: { type: "file", id: videoFile.mediaId, collection: "" } }
-              : { type: "media", attrs: { type: "external", url: videoFile.url } };
-          content[videoPlaceholderIdx] = {
-            type: "mediaSingle",
-            attrs: { layout: "center" },
-            content: [mediaNode],
-          };
-        }
+      const videoPlaceholderIdx = content.findIndex(
+        (n) => {
+          const node = n as { type: string; content?: { text?: string }[] };
+          return node.type === "paragraph" && node.content?.[0]?.text === VIDEO_PLACEHOLDER;
+        },
+      );
+      if (videoFile && videoPlaceholderIdx >= 0) {
+        const mediaNode =
+          videoFile.kind === "media"
+            ? { type: "media", attrs: { type: "file", id: videoFile.mediaId, collection: "" } }
+            : { type: "media", attrs: { type: "external", url: videoFile.url } };
+        content[videoPlaceholderIdx] = {
+          type: "mediaSingle",
+          attrs: { layout: "center" },
+          content: [mediaNode],
+        };
+      } else if (videoPlaceholderIdx >= 0) {
+        content[videoPlaceholderIdx] = {
+          type: "paragraph",
+          content: [{ type: "text", text: t("md.videoAttached") }],
+        };
       }
 
       if (!screenshotFile) {
