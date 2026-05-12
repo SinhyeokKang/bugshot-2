@@ -58,13 +58,14 @@ src/
 │   ├── css-source-cache.ts# raw CSS 텍스트 캐시 (CSSOM shorthand explode 우회, fetch + 경량 파서 + MutationObserver)
 │   ├── dom-describe.ts    # DOM 트리 직렬화 (buildSelector, buildInitialTree, buildChildrenResponse)
 │   ├── overlay.ts         # Shadow DOM 오버레이 (아웃라인·배너·블로커·프리뷰)
+│   ├── cursor-halo.ts     # 비디오 녹화 중 커서 강조 (Shadow DOM ring + 클릭 리플, RAF throttle, tabCapture가 OS cursor 못 잡는 macOS 보완)
 │   ├── area-select.ts     # 영역 드래그 선택 (dimming + 사이즈 라벨)
 │   ├── recorders-entry.ts # MAIN world content_scripts entry (document_start) — network/console 레코더 자기 호출
 │   ├── network-recorder.ts# MAIN world 네트워크 캡처 (fetch/XHR/sendBeacon 래핑, send 시점 phase="pending" entry push → 완료/에러 시 in-place 갱신, body omission에 size/limit/contentType context, 50MB cap)
 │   ├── network-recorder-helpers.ts# classifyResponseBody / classifyBeaconBody 순수 헬퍼 + BODY_CAP (3MB)
-│   ├── console-recorder.ts# MAIN world 콘솔 캡처 (console.* 19종 래핑, 2000건 캡, document_start부터 무조건 buffer)
+│   ├── console-recorder.ts# MAIN world 콘솔 캡처 (log/info/debug + trace/assert/dir/table/group*/count*/time* wrap, error/warn은 chrome://extensions attribution noise 회피로 의도적 제외 — throw 에러는 window.error/unhandledrejection으로 별도 캡처, 2000건 캡, document_start부터 무조건 buffer)
 │   ├── console-recorder-helpers.ts# formatErrorEvent / formatRejectionReason / shouldCaptureAssertion 순수 헬퍼
-│   └── __tests__/         # network-recorder-helpers.test.ts / console-recorder-helpers.test.ts
+│   └── __tests__/         # network-recorder-helpers.test.ts / console-recorder-helpers.test.ts / cursor-halo.test.ts
 ├── sidepanel/
 │   ├── App.tsx          # Radix Tabs 4개 (이슈 작성/목록/연동/설정)
 │   ├── main.tsx
