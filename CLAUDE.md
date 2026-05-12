@@ -60,8 +60,11 @@ src/
 │   ├── overlay.ts         # Shadow DOM 오버레이 (아웃라인·배너·블로커·프리뷰)
 │   ├── area-select.ts     # 영역 드래그 선택 (dimming + 사이즈 라벨)
 │   ├── recorders-entry.ts # MAIN world content_scripts entry (document_start) — network/console 레코더 자기 호출
-│   ├── network-recorder.ts# MAIN world 네트워크 캡처 (fetch/XHR/sendBeacon 래핑, sentinel 기반 통신, 50MB cap)
-│   └── console-recorder.ts# MAIN world 콘솔 캡처 (console.* 래핑, 2000건 캡)
+│   ├── network-recorder.ts# MAIN world 네트워크 캡처 (fetch/XHR/sendBeacon 래핑, send 시점 phase="pending" entry push → 완료/에러 시 in-place 갱신, body omission에 size/limit/contentType context, 50MB cap)
+│   ├── network-recorder-helpers.ts# classifyResponseBody / classifyBeaconBody 순수 헬퍼 + BODY_CAP (3MB)
+│   ├── console-recorder.ts# MAIN world 콘솔 캡처 (console.* 19종 래핑, 2000건 캡, document_start부터 무조건 buffer)
+│   ├── console-recorder-helpers.ts# formatErrorEvent / formatRejectionReason / shouldCaptureAssertion 순수 헬퍼
+│   └── __tests__/         # network-recorder-helpers.test.ts / console-recorder-helpers.test.ts
 ├── sidepanel/
 │   ├── App.tsx          # Radix Tabs 4개 (이슈 작성/목록/연동/설정)
 │   ├── main.tsx

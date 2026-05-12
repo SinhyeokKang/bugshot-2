@@ -175,15 +175,23 @@ CSSOM이 보여주는 것: `border-top-left-radius: ""` / `border-top-right-radi
 
 content_scripts에 MAIN world entry(`run_at: "document_start"`)로 `src/content/recorders-entry.ts`를 등록해 모든 페이지의 fetch/XHR/sendBeacon/console.*을 자동 wrap. 페이지 자체 스크립트보다 먼저 실행되므로 Sentry 등 SDK가 `originalFetch`를 캐싱하기 전에 wrap이 끼어든다.
 
-**활성화 단계 분리**:
-- **wrap**: 페이지 로드 시 자동. `bufferingEnabled = false`로 시작해 매 fetch에서 fast-return → 사이드패널 안 켜져 있어도 비용 거의 zero.
-- **buffering**: 사이드패널이 `setSentinel` custom event를 보내야 활성. `useBackgroundRecorder(tabId)` 훅이 mount / URL 변경 / `status === "complete"` 시 `injectNetworkRecorder` / `injectConsoleRecorder` 호출 (함수 이름은 legacy, 실제 동작은 setSentinel 메시지 전송).
+**document_start부터 무조건 buffer (옵션 A)** — wrap 설치 즉시 buffer에 적재한다. sentinel은 dispatch 채널 식별용일 뿐이며, sentinel 도착 전에 발생한 첫 fetch도 누락되지 않는다. 메모리는 50MB cap + LRU trim으로 보호. 사이드패널이 켜져 있지 않아도 buffer가 차오를 수 있는 비용이 있지만, recording 시작 시점에 이미 시나리오 재현이 진행 중인 케이스를 커버하기 위해 채택.
+
+**요청 phase 추적** — fetch/XHR send 시점에 `phase: "pending"` entry를 push하고, 응답 완료 시 `phase: "complete"`, reject/abort/error/timeout 시 `phase: "error"`로 in-place 갱신. 따라서 sync 시점에 in-flight 요청도 가시화되고, navigation으로 끊긴 요청은 pending으로 남아 디버깅 단서가 된다. summary는 `phase=error`를 status=0이어도 에러로 집계하므로 CORS·네트워크 실패가 이슈 본문에서 누락되지 않는다.
+
+**Body omission context** — `responseBody`/`requestBody`가 `string | NetworkBodyOmission` union. omission shape은 단순 kind 태그가 아니라 사유와 크기를 같이 들고 다닌다:
+- `{ kind: "truncated", limit, size }` — `size`가 `BODY_CAP`(3MB) 초과
+- `{ kind: "binary", contentType, size }` — image/audio/video/font/pdf/wasm/octet-stream
+- `{ kind: "stream", contentType }` — body 미존재 또는 reader 실패 (SSE / multipart)
+- `{ kind: "omitted", reason: "memory-cap" }` — LRU trim으로 본문 회수
+
+UI(`NetworkLogPreviewDialog`)와 HAR export 모두 이 context를 살려 "본문 잘림 (5.0 MB · 한도 3.0 MB)" / "Binary response (image/png · 500 B)" 등 정확한 사유를 표시.
 
 **클리어 트리거** — `useBackgroundRecorder`의 store 구독이 `preserve phase → idle` 전환을 감지하면 pending IndexedDB + MAIN buffer를 정리한 뒤 새 sentinel 발급. `shouldPreserveBackgroundLogs(phase)` = `recording / drafting / previewing / done`. 작성 취소, 정상 제출 후 reset, 녹화 중 취소 모두 이 분기에서 일괄 처리.
 
 **race 회피** — clear → setSentinel을 sequential `await`로 강제. fire-and-forget이면 Chrome 메시지 큐 처리 순서 미보장으로 setSentinel이 먼저 처리되어 이전 sentinel의 clearHandler가 detach → 후속 clear가 무시되는 경로가 가능. sequential로 picker.ts 처리 round-trip을 기다린 뒤 setSentinel.
 
-**추가 캡처** — `window.fetch`와 XHR 외에 `navigator.sendBeacon` (GA/Sentry/Datadog 등), fetch reject (네트워크 실패·CORS 차단), XHR error/abort/timeout 이벤트까지 entry화. 실패/비콘은 `status=0` 또는 `200` + `statusText="Network Error"/"Aborted"/"Timeout"/"beacon"`으로 표기.
+**추가 캡처** — `window.fetch`와 XHR 외에 `navigator.sendBeacon` (GA/Sentry/Datadog 등), fetch reject (네트워크 실패·CORS 차단), XHR error/abort/timeout 이벤트까지 entry화. 실패 entry는 `status=0` + `statusText="Network Error"/"Aborted"/"Timeout"`, beacon은 queued 결과에 따라 `200 OK` 또는 `0 Queue Full`. 모두 `phase`로 분류된다.
 
 **SPA path 변경** — `chrome.tabs.onUpdated`가 발화하는 케이스(full reload, 주소창 navigation)에 한해 URL key(`origin + pathname`) 비교 → 변경 시 preserve가 아니면 MAIN buffer + pending IndexedDB clear. `history.pushState` 기반 SPA navigation은 onUpdated가 발화하지 않아 자동 클리어 안 됨 — recording phase는 누적 의도라 이 동작이 부합.
 
