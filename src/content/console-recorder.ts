@@ -119,17 +119,18 @@ export function consoleRecorderScript(): void {
     buffer.push(entry);
   }
 
-  // --- 표준 5레벨 wrap (log/info/warn/error/debug) ---
-  const LEVELS: Level[] = ["log", "info", "warn", "error", "debug"];
-  const originals: Record<Level, (...args: unknown[]) => void> = {} as any;
+  // error/warn은 wrap하지 않는다. 페이지가 console.error/warn을 호출하면 native 호출 시점의
+  // 콜스택에 우리 wrap 함수가 끼는데, Chrome이 이걸 "이 확장이 console.error를 호출했다"로
+  // 잘못 attribution → chrome://extensions 오류 로그에 페이지의 모든 console.error/warn이
+  // 누적된다. uncaught 에러는 window.error로, unhandled rejection은 unhandledrejection으로,
+  // assertion 실패는 wrapped console.assert에서 직접 error로 push하므로 가치 있는 신호는 보존.
+  const LEVELS_TO_WRAP = ["log", "info", "debug"] as const;
 
-  for (const level of LEVELS) {
-    originals[level] = console[level].bind(console);
-
+  for (const level of LEVELS_TO_WRAP) {
+    const original = console[level].bind(console);
     console[level] = function (...args: unknown[]) {
-      originals[level](...args);
-      const stack = level === "error" || level === "warn" ? captureStack() : undefined;
-      pushEntry(level, serializeArgs(args), stack);
+      original(...args);
+      pushEntry(level, serializeArgs(args));
     };
   }
 
