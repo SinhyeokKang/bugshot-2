@@ -1,16 +1,12 @@
-export function networkRecorderScript(sentinel: string): void {
-  // SPA re-injection guard: fetch/XHR는 이미 래핑된 경우 event listener만 재바인딩
+// MAIN world 네트워크 레코더. content_scripts(document_start, world: MAIN)로 모든 페이지에 자동 주입되어
+// fetch/XHR을 즉시 wrap한다. 사이드패널이 setSentinel을 보내기 전까지는 wrap만 통과시키고 buffering은 하지 않는다.
+export function networkRecorderScript(): void {
   const CTRL_KEY = "__bugshot_net_ctrl__";
-  const existingCtrl = (window as any)[CTRL_KEY] as
-    | { rebind(newSentinel: string): void }
-    | undefined;
-  if (existingCtrl) {
-    existingCtrl.rebind(sentinel);
-    return;
-  }
+  if ((window as any)[CTRL_KEY]) return; // 이미 초기화됨
 
   const BODY_CAP = 3 * 1024 * 1024; // 3 MB
   const MEMORY_CAP = 50 * 1024 * 1024; // 50 MB
+  const SET_SENTINEL_EVENT = "__bugshot_net_setSentinel__";
 
   const MASKED_HEADERS = new Set([
     "authorization",
@@ -81,10 +77,9 @@ export function networkRecorderScript(sentinel: string): void {
   const buffer: CapturedRequest[] = [];
   let totalSeen = 0;
   let memoryUsed = 0;
+  let bufferingEnabled = false;
   let recording = true;
   const warnings = new Set<string>();
-
-  // --- Helpers ---
 
   function genId(): string {
     if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -188,7 +183,7 @@ export function networkRecorderScript(sentinel: string): void {
 
   function estimateBodySize(body: ReqBody | undefined): number {
     if (!body || typeof body !== "string") return 0;
-    return body.length * 2; // rough estimate (UTF-16)
+    return body.length * 2;
   }
 
   function enforceMemoryCap(): void {
@@ -244,14 +239,13 @@ export function networkRecorderScript(sentinel: string): void {
   }
 
   // --- Fetch wrap ---
-
   const originalFetch = window.fetch;
 
   window.fetch = async function patchedFetch(
     input: RequestInfo | URL,
     init?: RequestInit,
   ): Promise<Response> {
-    if (!recording) {
+    if (!recording || !bufferingEnabled) {
       return originalFetch.call(this, input, init);
     }
 
@@ -286,6 +280,26 @@ export function networkRecorderScript(sentinel: string): void {
     try {
       response = await originalFetch.call(this, input, init);
     } catch (err) {
+      // 네트워크 실패·CORS 차단 등도 기록한다 (DevTools와 동일).
+      const failEntry: CapturedRequest = {
+        id: genId(),
+        url,
+        method,
+        status: 0,
+        statusText: err instanceof Error ? err.message : "Network Error",
+        startTime,
+        durationMs: Date.now() - startTime,
+        requestHeaders: maskHeaders(headersToRecord(req.headers)),
+        responseHeaders: {},
+        requestBody,
+        pageUrl: location.href,
+        requestBodySize,
+        responseBodySize: 0,
+        contentType: "",
+      };
+      memoryUsed += estimateBodySize(failEntry.requestBody);
+      buffer.push(failEntry);
+      enforceMemoryCap();
       throw err;
     }
 
@@ -349,7 +363,6 @@ export function networkRecorderScript(sentinel: string): void {
   };
 
   // --- XHR wrap ---
-
   const XHR = XMLHttpRequest.prototype;
   const originalOpen = XHR.open;
   const originalSend = XHR.send;
@@ -379,7 +392,7 @@ export function networkRecorderScript(sentinel: string): void {
   };
 
   XHR.send = function (this: XMLHttpRequest, body?: Document | XMLHttpRequestBodyInit | null) {
-    if (!recording) {
+    if (!recording || !bufferingEnabled) {
       return originalSend.call(this, body);
     }
 
@@ -399,11 +412,17 @@ export function networkRecorderScript(sentinel: string): void {
       }
     }
 
-    this.addEventListener("load", function () {
-      if (!meta) return;
+    // load / error / abort / timeout이 한 요청에 동시에 발화되는 일은 없지만,
+    // race로 두 번 entry화되는 일을 막기 위해 captured 가드를 둔다.
+    let captured = false;
+
+    const xhr = this;
+    function captureXhr(kind: "load" | "error" | "abort" | "timeout"): void {
+      if (captured || !meta || !bufferingEnabled) return;
+      captured = true;
       const durationMs = Date.now() - meta.startTime;
-      const contentType = this.getResponseHeader("content-type") || "";
-      const allHeaders = this.getAllResponseHeaders() || "";
+      const contentType = xhr.getResponseHeader("content-type") || "";
+      const allHeaders = xhr.getAllResponseHeaders() || "";
       const respHeaders: Record<string, string> = {};
       allHeaders.split("\r\n").forEach((line) => {
         const idx = line.indexOf(":");
@@ -414,30 +433,40 @@ export function networkRecorderScript(sentinel: string): void {
 
       let responseBody: ReqBody | undefined;
       let responseBodySize = 0;
+      let status = xhr.status;
+      let statusText = xhr.statusText;
 
-      if (isDeniedContentType(contentType)) {
-        responseBody = { kind: "binary" };
-      } else if (this.responseType === "" || this.responseType === "text") {
-        const text = this.responseText;
-        responseBodySize = text.length;
-        if (responseBodySize > BODY_CAP) {
-          responseBody = { kind: "truncated" };
-          warnings.add("BODY_TRUNCATED");
-        } else if (isAllowedContentType(contentType)) {
-          responseBody = text;
+      if (kind === "load") {
+        if (isDeniedContentType(contentType)) {
+          responseBody = { kind: "binary" };
+        } else if (xhr.responseType === "" || xhr.responseType === "text") {
+          const text = xhr.responseText;
+          responseBodySize = text.length;
+          if (responseBodySize > BODY_CAP) {
+            responseBody = { kind: "truncated" };
+            warnings.add("BODY_TRUNCATED");
+          } else if (isAllowedContentType(contentType)) {
+            responseBody = text;
+          } else {
+            responseBody = { kind: "binary" };
+          }
         } else {
           responseBody = { kind: "binary" };
         }
       } else {
-        responseBody = { kind: "binary" };
+        status = 0;
+        statusText =
+          kind === "error" ? "Network Error" :
+          kind === "abort" ? "Aborted" :
+          "Timeout";
       }
 
       const entry: CapturedRequest = {
         id: genId(),
         url: meta.url,
         method: meta.method,
-        status: this.status,
-        statusText: this.statusText,
+        status,
+        statusText,
         startTime: meta.startTime,
         durationMs,
         requestHeaders: maskHeaders(meta.reqHeaders ?? {}),
@@ -453,21 +482,91 @@ export function networkRecorderScript(sentinel: string): void {
       memoryUsed += estimateBodySize(entry.requestBody) + estimateBodySize(entry.responseBody);
       buffer.push(entry);
       enforceMemoryCap();
-    });
+    }
+
+    this.addEventListener("load", () => captureXhr("load"));
+    this.addEventListener("error", () => captureXhr("error"));
+    this.addEventListener("abort", () => captureXhr("abort"));
+    this.addEventListener("timeout", () => captureXhr("timeout"));
 
     return originalSend.call(this, body);
   };
 
-  // --- Event listeners ---
+  // --- sendBeacon wrap ---
+  // GA/Sentry/Datadog 등 분석 도구가 fire-and-forget POST로 사용. 응답은 없으므로 queue 성공 여부만 기록.
+  if (typeof navigator !== "undefined" && typeof navigator.sendBeacon === "function") {
+    const originalSendBeacon = navigator.sendBeacon.bind(navigator);
+    navigator.sendBeacon = function patchedSendBeacon(url: string | URL, data?: BodyInit | null): boolean {
+      const queued = originalSendBeacon(url, data);
+      if (recording && bufferingEnabled) {
+        totalSeen++;
+        const startTime = Date.now();
+        const urlStr = maskUrl(typeof url === "string" ? url : url.toString());
 
-  let currentSentinel = sentinel;
-  let dataEvent = "__bugshot_net_data__" + currentSentinel;
-  let stopEvent = "__bugshot_net_stop__" + currentSentinel;
-  let syncEvent = "__bugshot_net_sync__" + currentSentinel;
+        let requestBody: ReqBody | undefined;
+        let requestBodySize = 0;
+        let contentType = "";
+
+        if (typeof data === "string") {
+          requestBodySize = data.length;
+          requestBody = requestBodySize <= BODY_CAP
+            ? maskRequestBody(data, "")
+            : { kind: "truncated" };
+        } else if (data instanceof Blob) {
+          requestBodySize = data.size;
+          contentType = data.type;
+          requestBody = { kind: "binary" };
+        } else if (data instanceof URLSearchParams) {
+          const str = data.toString();
+          requestBodySize = str.length;
+          contentType = "application/x-www-form-urlencoded";
+          requestBody = requestBodySize <= BODY_CAP
+            ? maskRequestBody(str, contentType)
+            : { kind: "truncated" };
+        } else if (data instanceof FormData) {
+          requestBody = { kind: "binary" };
+        } else if (data instanceof ArrayBuffer) {
+          requestBodySize = data.byteLength;
+          requestBody = { kind: "binary" };
+        } else if (data && ArrayBuffer.isView(data)) {
+          requestBodySize = data.byteLength;
+          requestBody = { kind: "binary" };
+        }
+
+        const entry: CapturedRequest = {
+          id: genId(),
+          url: urlStr,
+          method: "POST",
+          status: queued ? 200 : 0,
+          statusText: queued ? "beacon" : "beacon queue full",
+          startTime,
+          durationMs: 0,
+          requestHeaders: {},
+          responseHeaders: {},
+          requestBody,
+          pageUrl: location.href,
+          requestBodySize,
+          responseBodySize: 0,
+          contentType,
+        };
+        memoryUsed += estimateBodySize(entry.requestBody);
+        buffer.push(entry);
+        enforceMemoryCap();
+      }
+      return queued;
+    };
+  }
+
+  // --- Sentinel-bound dispatch ---
+  let currentSentinel: string | null = null;
+  let stopHandler: (() => void) | null = null;
+  let syncHandler: (() => void) | null = null;
+  let clearHandler: (() => void) | null = null;
 
   function dispatch(): void {
+    if (!currentSentinel) return;
     document.dispatchEvent(
-      new CustomEvent(dataEvent, {
+      new CustomEvent("__bugshot_net_data__" + currentSentinel, {
         detail: {
           sentinel: currentSentinel,
           requests: buffer.slice(),
@@ -478,23 +577,39 @@ export function networkRecorderScript(sentinel: string): void {
     );
   }
 
-  const stopHandler = () => { recording = false; dispatch(); };
-  const syncHandler = () => { dispatch(); };
+  function clearBuffer(): void {
+    buffer.length = 0;
+    totalSeen = 0;
+    memoryUsed = 0;
+    warnings.clear();
+  }
 
-  document.addEventListener(stopEvent, stopHandler);
-  document.addEventListener(syncEvent, syncHandler);
+  function detachSentinelListeners(): void {
+    if (!currentSentinel) return;
+    if (stopHandler) document.removeEventListener("__bugshot_net_stop__" + currentSentinel, stopHandler);
+    if (syncHandler) document.removeEventListener("__bugshot_net_sync__" + currentSentinel, syncHandler);
+    if (clearHandler) document.removeEventListener("__bugshot_net_clear__" + currentSentinel, clearHandler);
+  }
 
-  (window as any)[CTRL_KEY] = {
-    rebind(newSentinel: string) {
-      document.removeEventListener(stopEvent, stopHandler);
-      document.removeEventListener(syncEvent, syncHandler);
-      currentSentinel = newSentinel;
-      dataEvent = "__bugshot_net_data__" + newSentinel;
-      stopEvent = "__bugshot_net_stop__" + newSentinel;
-      syncEvent = "__bugshot_net_sync__" + newSentinel;
-      document.addEventListener(stopEvent, stopHandler);
-      document.addEventListener(syncEvent, syncHandler);
-      recording = true;
-    },
-  };
+  function setSentinel(sentinel: string): void {
+    detachSentinelListeners();
+    currentSentinel = sentinel;
+    bufferingEnabled = true;
+    recording = true;
+    stopHandler = () => { recording = false; dispatch(); };
+    syncHandler = () => { dispatch(); };
+    clearHandler = () => { clearBuffer(); };
+    document.addEventListener("__bugshot_net_stop__" + sentinel, stopHandler);
+    document.addEventListener("__bugshot_net_sync__" + sentinel, syncHandler);
+    document.addEventListener("__bugshot_net_clear__" + sentinel, clearHandler);
+  }
+
+  document.addEventListener(SET_SENTINEL_EVENT, (e: Event) => {
+    const detail = (e as CustomEvent).detail as { sentinel?: string } | undefined;
+    if (detail?.sentinel) setSentinel(detail.sentinel);
+  });
+
+  (window as any)[CTRL_KEY] = { setSentinel, clearBuffer };
 }
+
+networkRecorderScript();

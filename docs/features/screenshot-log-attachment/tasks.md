@@ -17,9 +17,9 @@
   2. 포함된다면: 스냅샷 생성 시 해당 필드를 제외하는 로직 추가 (destructuring omit 또는 직렬화 전 필터)
   3. 복구(hydration) 시: IndexedDB `pending:{tabId}`에서 로그를 로드하는 기존 패턴이 동작하는지 확인. 현재 비디오 모드에서 이미 이 경로를 사용 중이라면 변경 불필요. 사용하지 않는다면 hydration에서 `getNetworkLog(pending:{tabId})` + `getConsoleLog(pending:{tabId})` 로드 추가
 - **검증**:
-  - [ ] 스냅샷 직렬화에 `networkLog`/`consoleLog`가 포함되지 않음을 확인 (DevTools > Application > Session Storage 또는 console.log)
+  - [x] 스냅샷 직렬화에 `networkLog`/`consoleLog`가 포함되지 않음을 확인 (DevTools > Application > Session Storage 또는 console.log) — `useEditorSessionSync.ts:31-57` `snapshotFromState`가 `networkLogAttach`/`consoleLogAttach`만 직렬화하고 `networkLog`/`consoleLog` 자체는 제외
   - [ ] 비디오 녹화 → 로그 생성 → 사이드패널 닫기 → 재열기 → 로그가 IndexedDB에서 복구되는지 확인
-  - [ ] `pnpm typecheck` 통과
+  - [x] `pnpm typecheck` 통과
 
 ### Task 1: 레코더 clear 이벤트 추가
 
@@ -33,9 +33,9 @@ MAIN world 레코더에 버퍼 클리어 기능을 추가한다.
   4. `src/content/picker.ts` — `networkRecorder.clear` 메시지 핸들러 추가: `document.dispatchEvent(new CustomEvent("__bugshot_net_clear__" + networkSentinel))`. `consoleRecorder.clear`도 동일
   5. `src/sidepanel/picker-control.ts` — `clearNetworkRecorder(tabId)` 및 `clearConsoleRecorder(tabId)` 함수 추가. 기존 `stopNetworkRecorder`/`stopConsoleRecorder`와 동일 패턴
 - **검증**:
-  - [ ] `pnpm typecheck` 통과
-  - [ ] `pnpm test` 통과
-  - [ ] 단위 테스트: `network-recorder.ts`의 clear 동작 테스트 (버퍼 비움, totalSeen 리셋) — 순수 함수 영역이 제한적이므로 레코더 스크립트의 clear 이벤트 핸들러 로직을 분리 가능한지 확인 후 판단
+  - [x] `pnpm typecheck` 통과
+  - [x] `pnpm test` 통과
+  - [ ] 단위 테스트: `network-recorder.ts`의 clear 동작 테스트 (버퍼 비움, totalSeen 리셋) — 순수 함수 영역이 제한적이므로 레코더 스크립트의 clear 이벤트 핸들러 로직을 분리 가능한지 확인 후 판단 (MAIN world 실행 + 클로저 의존이라 분리 어려움, 수동 테스트로 커버)
 
 ### Task 2: useBackgroundRecorder 훅 구현
 
@@ -55,10 +55,10 @@ MAIN world 레코더에 버퍼 클리어 기능을 추가한다.
        - `녹화 → drafting 취소 → idle`
        - `녹화 → drafting → previewing → done → 새 작업 시작 → idle`
        - `녹화 → drafting → 제출 실패 → 취소 → idle`
-  5. **언마운트 cleanup**: `stopNetworkRecorder(tabId)` + `stopConsoleRecorder(tabId)` (try/catch), `deleteNetworkLog(pending:{tabId})` + `deleteConsoleLog(pending:{tabId})`
+  5. **언마운트 cleanup**: `stopNetworkRecorder(tabId)` + `stopConsoleRecorder(tabId)` (try/catch). `pending:{tabId}` IndexedDB는 `tab-bindings.ts`의 `chrome.tabs.onRemoved`가 정리하므로 여기서 지우지 않음 (지우면 같은 탭에서 패널 재오픈 시 `networkLogAttach` 복원이 깨짐).
   6. `src/sidepanel/App.tsx`에서 `useBackgroundRecorder(tabId)` 호출 추가 (`useEditorSessionSync` 이후)
 - **검증**:
-  - [ ] `pnpm typecheck` 통과
+  - [x] `pnpm typecheck` 통과
   - [ ] 수동 테스트: 사이드패널 열기 → DevTools에서 네트워크 활동 발생 → 콘솔에 `[bugshot]` 레코더 주입 로그 확인
   - [ ] 수동 테스트: URL 이동 → 레코더 재주입 확인 (DevTools console)
 
@@ -77,8 +77,8 @@ MAIN world 레코더에 버퍼 클리어 기능을 추가한다.
   ```
   `injectNetworkRecorder`, `injectConsoleRecorder` import도 사용처가 없으면 제거.
 - **검증**:
-  - [ ] `pnpm typecheck` 통과
-  - [ ] `pnpm test` 통과
+  - [x] `pnpm typecheck` 통과
+  - [x] `pnpm test` 통과
   - [ ] 수동 테스트: 비디오 녹화 중 페이지 리로드 → 네트워크/콘솔 로그 정상 캡처 확인 (useBackgroundRecorder가 재주입 담당)
 
 ### Task 4: editor-store 스크린샷 로그 보존 + confirmDraft 로그 저장
@@ -90,10 +90,10 @@ MAIN world 레코더에 버퍼 클리어 기능을 추가한다.
   1. `startCapturing` 변경: `set({ ...initial, ... })` → `set((prev) => ({ ...initial, captureMode: "screenshot", phase: "capturing", target, networkLog: prev.networkLog, consoleLog: prev.consoleLog }))`
   2. `confirmDraft` 변경: screenshot 분기 내에 네트워크/콘솔 로그 저장 로직 추가. 비디오 분기의 기존 패턴 (`hasNetworkLog` / `hasConsoleLog` 체크 → `saveDraft`에 blobKey 추가 → IndexedDB 저장 → pending 삭제)을 동일하게 적용. 로그 저장 부분을 비디오/스크린샷에서 공유하는 헬퍼로 추출 가능 (중복 최소화).
 - **검증**:
-  - [ ] `pnpm typecheck` 통과
-  - [ ] 단위 테스트: `startCapturing` 호출 시 `networkLog`/`consoleLog`가 보존되는지 확인
-  - [ ] 단위 테스트: `confirmDraft` screenshot 분기에서 `networkLogBlobKey`/`consoleLogBlobKey`가 정상 설정되는지 확인
-  - [ ] `pnpm test` 통과
+  - [x] `pnpm typecheck` 통과
+  - [x] 단위 테스트: `startCapturing` 호출 시 `networkLog`/`consoleLog`가 보존되는지 확인 — `editor-store.test.ts` "startCapturing — 백그라운드 로그 보존" 5건
+  - [x] 단위 테스트: `confirmDraft` screenshot 분기에서 `networkLogBlobKey`/`consoleLogBlobKey`가 정상 설정되는지 확인 — `editor-store.test.ts` "confirmDraft screenshot — 로그 blobKey 연결" 5건
+  - [x] `pnpm test` 통과
 
 ### Task 5: DraftingPanel 스크린샷 로그 UI 활성화
 
@@ -110,7 +110,7 @@ MAIN world 레코더에 버퍼 클리어 기능을 추가한다.
   ```
   LogAttachmentCards, NetworkLogPreviewDialog, ConsoleLogPreviewDialog는 이미 props 기반이므로 변경 불필요.
 - **검증**:
-  - [ ] `pnpm typecheck` 통과
+  - [x] `pnpm typecheck` 통과
   - [ ] 수동 테스트: 스크린샷 → DraftingPanel에 로그 카드 표시 확인
   - [ ] 수동 테스트: 로그 카드 클릭 → 프리뷰 다이얼로그 정상 표시
   - [ ] 수동 테스트: 첨부 토글 on/off 작동 확인
@@ -128,7 +128,7 @@ MAIN world 레코더에 버퍼 클리어 기능을 추가한다.
   4. 레코더 버퍼 클리어 (`clearNetworkRecorder` + `clearConsoleRecorder`)
   5. 이후 기존 `startRecording` + `videoRecorder.startRecording` 호출
 - **검증**:
-  - [ ] `pnpm typecheck` 통과
+  - [x] `pnpm typecheck` 통과
   - [ ] 수동 테스트: 백그라운드 로그 축적 후 녹화 시작 → 녹화 종료 후 로그에 녹화 구간 데이터만 있는지 확인
   - [ ] 수동 테스트: 녹화 시작 전 IndexedDB에 pending 로그 있던 것이 삭제되었는지 확인 (DevTools Application 탭)
 

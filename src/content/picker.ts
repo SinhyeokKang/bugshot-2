@@ -75,6 +75,10 @@ function handleSetSentinel(sentinel: string): void {
   }
   networkSentinel = sentinel;
   document.addEventListener("__bugshot_net_data__" + sentinel, handleNetData);
+  // MAIN world 레코더에 sentinel 전달 — content_scripts(document_start)로 미리 inject된 레코더를 활성화한다.
+  document.dispatchEvent(
+    new CustomEvent("__bugshot_net_setSentinel__", { detail: { sentinel } }),
+  );
 }
 
 function handleNetworkStop(): void {
@@ -85,6 +89,11 @@ function handleNetworkStop(): void {
 function handleNetworkSync(): void {
   if (!networkSentinel) return;
   document.dispatchEvent(new CustomEvent("__bugshot_net_sync__" + networkSentinel));
+}
+
+function handleNetworkClear(): void {
+  if (!networkSentinel) return;
+  document.dispatchEvent(new CustomEvent("__bugshot_net_clear__" + networkSentinel));
 }
 
 /* ── Console recorder bridge ─────────────────────── */
@@ -111,6 +120,9 @@ function handleSetConsoleSentinel(sentinel: string): void {
   }
   consoleSentinel = sentinel;
   document.addEventListener("__bugshot_console_data__" + sentinel, handleConsoleData);
+  document.dispatchEvent(
+    new CustomEvent("__bugshot_console_setSentinel__", { detail: { sentinel } }),
+  );
 }
 
 function handleConsoleStop(): void {
@@ -121,6 +133,11 @@ function handleConsoleStop(): void {
 function handleConsoleSync(): void {
   if (!consoleSentinel) return;
   document.dispatchEvent(new CustomEvent("__bugshot_console_sync__" + consoleSentinel));
+}
+
+function handleConsoleClear(): void {
+  if (!consoleSentinel) return;
+  document.dispatchEvent(new CustomEvent("__bugshot_console_clear__" + consoleSentinel));
 }
 
 let mode: Mode = "idle";
@@ -258,6 +275,9 @@ chrome.runtime.onMessage.addListener(
         case "networkRecorder.sync":
           handleNetworkSync();
           break;
+        case "networkRecorder.clear":
+          handleNetworkClear();
+          break;
         case "consoleRecorder.setSentinel":
           handleSetConsoleSentinel(msg.sentinel);
           break;
@@ -266,6 +286,9 @@ chrome.runtime.onMessage.addListener(
           break;
         case "consoleRecorder.sync":
           handleConsoleSync();
+          break;
+        case "consoleRecorder.clear":
+          handleConsoleClear();
           break;
         default:
           return;

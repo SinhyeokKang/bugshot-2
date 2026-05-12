@@ -110,7 +110,7 @@ export function DraftingPanel() {
 
   const titleMissing = !draft.title.trim();
 
-  const showLogCards = isVideoMode && (
+  const showLogCards = captureMode !== "element" && (
     (networkLog !== null && networkLog.captured > 0) ||
     (consoleLog !== null && consoleLog.captured > 0)
   );

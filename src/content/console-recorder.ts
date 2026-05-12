@@ -1,15 +1,12 @@
-export function consoleRecorderScript(sentinel: string): void {
+// MAIN world 콘솔 레코더. content_scripts(document_start, world: MAIN)로 모든 페이지에 자동 주입되어
+// console.* 호출을 즉시 wrap한다. 사이드패널이 setSentinel을 보내기 전까지는 wrap만 통과시키고 buffering은 하지 않는다.
+export function consoleRecorderScript(): void {
   const CTRL_KEY = "__bugshot_console_ctrl__";
-  const existingCtrl = (window as any)[CTRL_KEY] as
-    | { rebind(newSentinel: string): void }
-    | undefined;
-  if (existingCtrl) {
-    existingCtrl.rebind(sentinel);
-    return;
-  }
+  if ((window as any)[CTRL_KEY]) return;
 
   const MAX_ENTRIES = 2000;
-  const ARG_CAP = 10 * 1024; // 10 KB per serialized args
+  const ARG_CAP = 10 * 1024;
+  const SET_SENTINEL_EVENT = "__bugshot_console_setSentinel__";
 
   type Level = "log" | "info" | "warn" | "error" | "debug";
 
@@ -24,6 +21,7 @@ export function consoleRecorderScript(sentinel: string): void {
 
   const buffer: CapturedEntry[] = [];
   let totalSeen = 0;
+  let bufferingEnabled = false;
   let recording = true;
 
   function genId(): string {
@@ -96,7 +94,6 @@ export function consoleRecorderScript(sentinel: string): void {
     const stack = err.stack;
     if (!stack) return undefined;
     const lines = stack.split("\n");
-    // skip Error, captureStack, wrapper, patched console method
     const filtered = lines.slice(4).join("\n");
     return filtered || undefined;
   }
@@ -109,7 +106,7 @@ export function consoleRecorderScript(sentinel: string): void {
 
     console[level] = function (...args: unknown[]) {
       originals[level](...args);
-      if (!recording) return;
+      if (!recording || !bufferingEnabled) return;
 
       totalSeen++;
       if (buffer.length >= MAX_ENTRIES) return;
@@ -130,16 +127,16 @@ export function consoleRecorderScript(sentinel: string): void {
     };
   }
 
-  // --- Event listeners ---
-
-  let currentSentinel = sentinel;
-  let dataEvent = "__bugshot_console_data__" + currentSentinel;
-  let stopEvent = "__bugshot_console_stop__" + currentSentinel;
-  let syncEvent = "__bugshot_console_sync__" + currentSentinel;
+  // --- Sentinel-bound dispatch ---
+  let currentSentinel: string | null = null;
+  let stopHandler: (() => void) | null = null;
+  let syncHandler: (() => void) | null = null;
+  let clearHandler: (() => void) | null = null;
 
   function dispatch(): void {
+    if (!currentSentinel) return;
     document.dispatchEvent(
-      new CustomEvent(dataEvent, {
+      new CustomEvent("__bugshot_console_data__" + currentSentinel, {
         detail: {
           sentinel: currentSentinel,
           entries: buffer.slice(),
@@ -149,23 +146,37 @@ export function consoleRecorderScript(sentinel: string): void {
     );
   }
 
-  const stopHandler = () => { recording = false; dispatch(); };
-  const syncHandler = () => { dispatch(); };
+  function clearBuffer(): void {
+    buffer.length = 0;
+    totalSeen = 0;
+  }
 
-  document.addEventListener(stopEvent, stopHandler);
-  document.addEventListener(syncEvent, syncHandler);
+  function detachSentinelListeners(): void {
+    if (!currentSentinel) return;
+    if (stopHandler) document.removeEventListener("__bugshot_console_stop__" + currentSentinel, stopHandler);
+    if (syncHandler) document.removeEventListener("__bugshot_console_sync__" + currentSentinel, syncHandler);
+    if (clearHandler) document.removeEventListener("__bugshot_console_clear__" + currentSentinel, clearHandler);
+  }
 
-  (window as any)[CTRL_KEY] = {
-    rebind(newSentinel: string) {
-      document.removeEventListener(stopEvent, stopHandler);
-      document.removeEventListener(syncEvent, syncHandler);
-      currentSentinel = newSentinel;
-      dataEvent = "__bugshot_console_data__" + newSentinel;
-      stopEvent = "__bugshot_console_stop__" + newSentinel;
-      syncEvent = "__bugshot_console_sync__" + newSentinel;
-      document.addEventListener(stopEvent, stopHandler);
-      document.addEventListener(syncEvent, syncHandler);
-      recording = true;
-    },
-  };
+  function setSentinel(sentinel: string): void {
+    detachSentinelListeners();
+    currentSentinel = sentinel;
+    bufferingEnabled = true;
+    recording = true;
+    stopHandler = () => { recording = false; dispatch(); };
+    syncHandler = () => { dispatch(); };
+    clearHandler = () => { clearBuffer(); };
+    document.addEventListener("__bugshot_console_stop__" + sentinel, stopHandler);
+    document.addEventListener("__bugshot_console_sync__" + sentinel, syncHandler);
+    document.addEventListener("__bugshot_console_clear__" + sentinel, clearHandler);
+  }
+
+  document.addEventListener(SET_SENTINEL_EVENT, (e: Event) => {
+    const detail = (e as CustomEvent).detail as { sentinel?: string } | undefined;
+    if (detail?.sentinel) setSentinel(detail.sentinel);
+  });
+
+  (window as any)[CTRL_KEY] = { setSentinel, clearBuffer };
 }
+
+consoleRecorderScript();

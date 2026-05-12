@@ -6,9 +6,25 @@ import type { ConsoleLog } from "@/types/console";
 /*  Mocks                                                              */
 /* ------------------------------------------------------------------ */
 
-const mockSaveDraft = vi.fn();
-const mockPatchDraftSnapshot = vi.fn();
-const mockPatchIssue = vi.fn();
+const {
+  mockSaveDraft,
+  mockPatchDraftSnapshot,
+  mockPatchIssue,
+  mockSaveImageBlob,
+  mockSaveNetworkLog,
+  mockSaveConsoleLog,
+  mockDeleteNetworkLog,
+  mockDeleteConsoleLog,
+} = vi.hoisted(() => ({
+  mockSaveDraft: vi.fn(),
+  mockPatchDraftSnapshot: vi.fn(),
+  mockPatchIssue: vi.fn(),
+  mockSaveImageBlob: vi.fn().mockResolvedValue(true),
+  mockSaveNetworkLog: vi.fn().mockResolvedValue(true),
+  mockSaveConsoleLog: vi.fn().mockResolvedValue(true),
+  mockDeleteNetworkLog: vi.fn().mockResolvedValue(undefined),
+  mockDeleteConsoleLog: vi.fn().mockResolvedValue(undefined),
+}));
 
 vi.mock("@/store/issues-store", () => ({
   useIssuesStore: {
@@ -31,11 +47,11 @@ vi.mock("@/store/settings-store", () => ({
 
 vi.mock("@/store/blob-db", () => ({
   saveVideoBlob: vi.fn().mockResolvedValue(true),
-  saveImageBlob: vi.fn().mockResolvedValue(true),
-  saveNetworkLog: vi.fn().mockResolvedValue(true),
-  saveConsoleLog: vi.fn().mockResolvedValue(true),
-  deleteNetworkLog: vi.fn().mockResolvedValue(undefined),
-  deleteConsoleLog: vi.fn().mockResolvedValue(undefined),
+  saveImageBlob: mockSaveImageBlob,
+  saveNetworkLog: mockSaveNetworkLog,
+  saveConsoleLog: mockSaveConsoleLog,
+  deleteNetworkLog: mockDeleteNetworkLog,
+  deleteConsoleLog: mockDeleteConsoleLog,
   dataUrlToBlob: vi.fn((url: string) => new Blob([url])),
   getNetworkLog: vi.fn().mockResolvedValue(null),
   getConsoleLog: vi.fn().mockResolvedValue(null),
@@ -78,7 +94,7 @@ const fakeConsoleLog: ConsoleLog = {
 
 describe("startCapturing — 백그라운드 로그 보존", () => {
   beforeEach(() => {
-    useEditorStore.setState({ ...useEditorStore.getInitialState() });
+    useEditorStore.setState(useEditorStore.getInitialState(), true);
   });
 
   it("기존 networkLog를 보존한다", () => {
@@ -128,7 +144,7 @@ describe("startCapturing — 백그라운드 로그 보존", () => {
 
 describe("confirmDraft screenshot — 로그 blobKey 연결", () => {
   beforeEach(() => {
-    useEditorStore.setState({ ...useEditorStore.getInitialState() });
+    useEditorStore.setState(useEditorStore.getInitialState(), true);
     mockSaveDraft.mockClear();
   });
 
@@ -207,5 +223,81 @@ describe("confirmDraft screenshot — 로그 blobKey 연결", () => {
 
     const record = mockSaveDraft.mock.calls[0][0];
     expect(record.networkLogBlobKey).toBeUndefined();
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  confirmDraft screenshot — IIFE 사이드 이펙트 (실제 영속 호출)         */
+/* ------------------------------------------------------------------ */
+
+describe("confirmDraft screenshot — IIFE 사이드 이펙트", () => {
+  beforeEach(() => {
+    useEditorStore.setState(useEditorStore.getInitialState(), true);
+    mockSaveDraft.mockClear();
+    mockSaveImageBlob.mockClear();
+    mockSaveNetworkLog.mockClear();
+    mockSaveConsoleLog.mockClear();
+    mockDeleteNetworkLog.mockClear();
+    mockDeleteConsoleLog.mockClear();
+  });
+
+  function setupScreenshotDrafting(overrides: Record<string, unknown> = {}) {
+    useEditorStore.setState({
+      captureMode: "screenshot" as const,
+      phase: "drafting" as const,
+      targetPlatform: "github" as const,
+      target,
+      screenshotRaw: "data:image/png;base64,abc",
+      screenshotViewport: { width: 800, height: 600 },
+      draft: { title: "Bug title", sections: {} },
+      ...overrides,
+    });
+  }
+
+  it("networkLogAttach=true → saveNetworkLog(issueId, log) + deleteNetworkLog(pending:tabId) 호출", async () => {
+    setupScreenshotDrafting({
+      networkLog: fakeNetworkLog,
+      networkLogAttach: true,
+    });
+
+    useEditorStore.getState().confirmDraft();
+    await vi.waitFor(() => {
+      expect(mockSaveNetworkLog).toHaveBeenCalled();
+    });
+
+    const issueId = mockSaveDraft.mock.calls[0][0].id;
+    expect(mockSaveNetworkLog).toHaveBeenCalledWith(issueId, fakeNetworkLog);
+    expect(mockDeleteNetworkLog).toHaveBeenCalledWith(`pending:${target.tabId}`);
+  });
+
+  it("consoleLogAttach=true → saveConsoleLog(issueId, log) + deleteConsoleLog(pending:tabId) 호출", async () => {
+    setupScreenshotDrafting({
+      consoleLog: fakeConsoleLog,
+      consoleLogAttach: true,
+    });
+
+    useEditorStore.getState().confirmDraft();
+    await vi.waitFor(() => {
+      expect(mockSaveConsoleLog).toHaveBeenCalled();
+    });
+
+    const issueId = mockSaveDraft.mock.calls[0][0].id;
+    expect(mockSaveConsoleLog).toHaveBeenCalledWith(issueId, fakeConsoleLog);
+    expect(mockDeleteConsoleLog).toHaveBeenCalledWith(`pending:${target.tabId}`);
+  });
+
+  it("networkLogAttach=false → saveNetworkLog 미호출", async () => {
+    setupScreenshotDrafting({
+      networkLog: fakeNetworkLog,
+      networkLogAttach: false,
+    });
+
+    useEditorStore.getState().confirmDraft();
+    await vi.waitFor(() => {
+      expect(mockSaveImageBlob).toHaveBeenCalled();
+    });
+
+    expect(mockSaveNetworkLog).not.toHaveBeenCalled();
+    expect(mockDeleteNetworkLog).not.toHaveBeenCalled();
   });
 });

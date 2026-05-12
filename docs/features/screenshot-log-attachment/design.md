@@ -18,7 +18,7 @@
 - **스크린샷 모드 진입**: `phase === "capturing" && captureMode === "screenshot"` 감지 → `syncNetworkRecorder` + `syncConsoleRecorder` 호출하여 최신 데이터 전송 유도
 - **녹화 모드 진입**: `phase === "recording"` 감지 → 로그 클리어 (스토어 + IndexedDB + 레코더 버퍼 `clearNetworkRecorder`/`clearConsoleRecorder`)
 - **녹화 종료 후**: 레코더는 `stopNetworkRecorder`/`stopConsoleRecorder`에 의해 이미 중지됨 (`video-recorder.ts`). 훅은 재주입하지 않음. `recordersStopped` ref를 `true`로 세팅하여 `onUpdated(complete)` 이벤트에서도 재주입 방지. URL 변경 시에만 ref 리셋 + 재주입.
-- **언마운트**: 레코더 stop + IndexedDB `pending:{tabId}` 삭제
+- **언마운트**: 레코더 stop만 호출. `pending:{tabId}` IndexedDB 삭제는 `tab-bindings.ts`의 `chrome.tabs.onRemoved` 핸들러가 담당하므로 여기서 지우지 않는다 — 패널 재오픈(같은 탭) 시 `useEditorSessionSync`의 `networkLogAttach` 복원이 IndexedDB pending에 의존하기 때문.
 
 ### 변경 파일
 
@@ -235,8 +235,7 @@ if (s.captureMode === "video" && s.phase === "recording") {
   useBackgroundRecorder cleanup:
     → stopNetworkRecorder(tabId)       // recording=false
     → stopConsoleRecorder(tabId)
-    → deleteNetworkLog(pending:{tabId})
-    → deleteConsoleLog(pending:{tabId})
+    // pending:{tabId} IndexedDB는 tab-bindings.ts의 onRemoved가 정리.
 ```
 
 ## 인터페이스 설계

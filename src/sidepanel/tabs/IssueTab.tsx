@@ -22,7 +22,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { useEditorStore } from "@/store/editor-store";
 import { useBoundTabId } from "../hooks/useBoundTabId";
-import { startPicker, stopPicker, startAreaCapture, cancelAreaCapture, clearPicker, injectNetworkRecorder, injectConsoleRecorder } from "../picker-control";
+import { startPicker, stopPicker, startAreaCapture, cancelAreaCapture, clearPicker, injectNetworkRecorder, injectConsoleRecorder, clearNetworkRecorder, clearConsoleRecorder } from "../picker-control";
+import { deleteNetworkLog, deleteConsoleLog } from "@/store/blob-db";
 import * as videoRecorder from "../video-recorder";
 import { PageShell } from "../components/Section";
 import { useTabNav } from "../App";
@@ -128,11 +129,13 @@ function UnsupportedPage() {
 
 async function handleStartVideo(tabId: number) {
   const tab = await chrome.tabs.get(tabId);
-  useEditorStore.getState().startRecording({
-    tabId,
-    url: tab.url ?? "",
-    title: tab.title ?? "",
-  });
+
+  // pending IndexedDB는 startRecording의 ...initial 리셋과 무관하게 정리 필요.
+  deleteNetworkLog(`pending:${tabId}`).catch(() => {});
+  deleteConsoleLog(`pending:${tabId}`).catch(() => {});
+
+  // useBackgroundRecorder가 마운트 시 inject하지만 마운트 직후 즉시 Video 클릭하는 race가 있어
+  // 여기서도 inject (이미 있으면 rebind no-op) 후 clear로 녹화 구간 버퍼만 남긴다.
   try {
     await injectNetworkRecorder(tabId);
   } catch (err) {
@@ -143,6 +146,22 @@ async function handleStartVideo(tabId: number) {
   } catch (err) {
     console.warn("[bugshot] console recorder injection failed", err);
   }
+  try {
+    await clearNetworkRecorder(tabId);
+  } catch (err) {
+    console.warn("[bugshot] network recorder clear failed", err);
+  }
+  try {
+    await clearConsoleRecorder(tabId);
+  } catch (err) {
+    console.warn("[bugshot] console recorder clear failed", err);
+  }
+
+  useEditorStore.getState().startRecording({
+    tabId,
+    url: tab.url ?? "",
+    title: tab.title ?? "",
+  });
   try {
     await videoRecorder.startRecording(tabId);
   } catch (err) {

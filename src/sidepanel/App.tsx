@@ -28,6 +28,7 @@ const TabNavContext = createContext<(tab: string) => void>(() => {});
 export const useTabNav = () => useContext(TabNavContext);
 import { useBoundTabId } from "./hooks/useBoundTabId";
 import { useEditorSessionSync } from "./hooks/useEditorSessionSync";
+import { useBackgroundRecorder } from "./hooks/useBackgroundRecorder";
 import { usePickerMessages } from "./hooks/usePickerMessages";
 import { useThemeEffect } from "./hooks/useThemeEffect";
 import { IntegrationsTab } from "./tabs/IntegrationsTab";
@@ -50,6 +51,7 @@ export default function App() {
   const t = useT();
   const tabId = useBoundTabId();
   const editorHydrated = useEditorSessionSync(tabId ?? null);
+  useBackgroundRecorder(tabId ?? null);
   const settingsHydrated = useSettingsHydrated();
   usePickerMessages();
   useThemeEffect();

@@ -6,7 +6,7 @@ import {
   useEditorStore,
 } from "@/store/editor-store";
 import { onSessionSaveExhausted } from "@/types/messages";
-import { clearPicker, injectNetworkRecorder, injectConsoleRecorder } from "../picker-control";
+import { clearPicker } from "../picker-control";
 import { getNetworkLog, getConsoleLog } from "@/store/blob-db";
 
 function migrateLegacyDraft(snap: EditorSnapshot): EditorSnapshot {
@@ -165,14 +165,6 @@ export function useEditorSessionSync(tabId: number | null): boolean {
       info: chrome.tabs.TabChangeInfo,
     ) => {
       if (updatedTabId !== tabId) return;
-
-      if (info.status === "complete") {
-        const s = useEditorStore.getState();
-        if (s.captureMode === "video" && s.phase === "recording") {
-          injectNetworkRecorder(tabId).catch(() => {});
-          injectConsoleRecorder(tabId).catch(() => {});
-        }
-      }
 
       if (!info.url) return;
       const state = useEditorStore.getState();

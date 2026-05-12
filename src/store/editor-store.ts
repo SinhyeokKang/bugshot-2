@@ -198,6 +198,45 @@ function newIssueId(): string {
   return `issue-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
+function selectAttachedLogs(state: EditorState): {
+  networkLog: NetworkLog | null;
+  consoleLog: ConsoleLog | null;
+} {
+  return {
+    networkLog:
+      state.networkLogAttach && state.networkLog && state.networkLog.captured > 0
+        ? state.networkLog
+        : null,
+    consoleLog:
+      state.consoleLogAttach && state.consoleLog && state.consoleLog.captured > 0
+        ? state.consoleLog
+        : null,
+  };
+}
+
+async function persistAttachedLogs(
+  issueId: string,
+  targetTabId: number,
+  logs: { networkLog: NetworkLog | null; consoleLog: ConsoleLog | null },
+): Promise<boolean> {
+  let failed = false;
+  if (logs.networkLog) {
+    if (!await saveNetworkLog(issueId, logs.networkLog)) {
+      useIssuesStore.getState().patchIssue(issueId, { networkLogBlobKey: undefined });
+      failed = true;
+    }
+    deleteNetworkLog(`pending:${targetTabId}`).catch(() => {});
+  }
+  if (logs.consoleLog) {
+    if (!await saveConsoleLog(issueId, logs.consoleLog)) {
+      useIssuesStore.getState().patchIssue(issueId, { consoleLogBlobKey: undefined });
+      failed = true;
+    }
+    deleteConsoleLog(`pending:${targetTabId}`).catch(() => {});
+  }
+  return failed;
+}
+
 export const useEditorStore = create<EditorState>((set, get) => ({
   ...initial,
 
@@ -207,7 +246,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   startPicking: (target, mode) => set({ ...initial, captureMode: mode ?? "element", phase: "picking", target }),
   cancelPicking: () => set({ ...initial }),
 
-  startCapturing: (target) => set({ ...initial, captureMode: "screenshot", phase: "capturing", target }),
+  startCapturing: (target) =>
+    set((prev) => ({
+      ...initial,
+      captureMode: "screenshot",
+      phase: "capturing",
+      target,
+      networkLog: prev.networkLog,
+      consoleLog: prev.consoleLog,
+    })),
   startRecording: (target) => set({ ...initial, captureMode: "video", phase: "recording", target }),
   onRecordingComplete: (blob, thumbnail, viewport) => set({ phase: "drafting", videoBlob: blob, videoThumbnail: thumbnail, videoViewport: viewport, videoCapturedAt: Date.now() }),
   cancelRecording: () => set({ ...initial }),
@@ -271,8 +318,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
     const id = state.currentIssueId ?? newIssueId();
     if (state.captureMode === "video") {
-      const hasNetworkLog = state.networkLogAttach && state.networkLog && state.networkLog.captured > 0;
-      const hasConsoleLog = state.consoleLogAttach && state.consoleLog && state.consoleLog.captured > 0;
+      const logs = selectAttachedLogs(state);
       useIssuesStore.getState().saveDraft({
         id,
         status: "draft",
@@ -289,8 +335,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           before: !!state.videoThumbnail,
           after: false,
         },
-        networkLogBlobKey: hasNetworkLog ? id : undefined,
-        consoleLogBlobKey: hasConsoleLog ? id : undefined,
+        networkLogBlobKey: logs.networkLog ? id : undefined,
+        consoleLogBlobKey: logs.consoleLog ? id : undefined,
       });
       const targetTabId = state.target.tabId;
       void (async () => {
@@ -307,24 +353,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
             failed = true;
           }
         }
-        if (hasNetworkLog) {
-          if (!await saveNetworkLog(id, state.networkLog!)) {
-            useIssuesStore.getState().patchIssue(id, { networkLogBlobKey: undefined });
-            failed = true;
-          }
-          deleteNetworkLog(`pending:${targetTabId}`).catch(() => {});
-        }
-        if (hasConsoleLog) {
-          if (!await saveConsoleLog(id, state.consoleLog!)) {
-            useIssuesStore.getState().patchIssue(id, { consoleLogBlobKey: undefined });
-            failed = true;
-          }
-          deleteConsoleLog(`pending:${targetTabId}`).catch(() => {});
-        }
+        if (await persistAttachedLogs(id, targetTabId, logs)) failed = true;
         if (failed) onBlobSaveFailed.fire();
       })();
     } else if (state.captureMode === "screenshot") {
       const screenshotImage = state.screenshotAnnotated ?? state.screenshotRaw;
+      const logs = selectAttachedLogs(state);
       useIssuesStore.getState().saveDraft({
         id,
         status: "draft",
@@ -341,15 +375,21 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           before: !!screenshotImage,
           after: false,
         },
+        networkLogBlobKey: logs.networkLog ? id : undefined,
+        consoleLogBlobKey: logs.consoleLog ? id : undefined,
       });
-      if (screenshotImage) {
-        void (async () => {
+      const targetTabId = state.target.tabId;
+      void (async () => {
+        let failed = false;
+        if (screenshotImage) {
           if (!await saveImageBlob(id, "before", dataUrlToBlob(screenshotImage))) {
             useIssuesStore.getState().patchDraftSnapshot(id, { before: false });
-            onBlobSaveFailed.fire();
+            failed = true;
           }
-        })();
-      }
+        }
+        if (await persistAttachedLogs(id, targetTabId, logs)) failed = true;
+        if (failed) onBlobSaveFailed.fire();
+      })();
     } else {
       if (!state.selection) {
         set({ phase: "previewing" });

@@ -1,8 +1,6 @@
 import { isSupportedUrl } from "@/lib/url-support";
 import { useEditorStore } from "@/store/editor-store";
 import { onPickerUnavailable } from "@/types/messages";
-import { networkRecorderScript } from "@/content/network-recorder";
-import { consoleRecorderScript } from "@/content/console-recorder";
 import type {
   DescribeChildrenResponse,
   DescribeInitialResponse,
@@ -229,14 +227,10 @@ export async function cancelAreaCapture(tabId: number): Promise<void> {
 }
 
 export async function injectNetworkRecorder(tabId: number): Promise<string> {
+  // MAIN world 레코더는 content_scripts(document_start)로 이미 페이지에 주입되어 있다.
+  // picker.ts(isolated)를 보장한 뒤 sentinel만 보내면 wrap → buffering 활성.
   await ensureContentScript(tabId);
   const sentinel = crypto.randomUUID();
-  await chrome.scripting.executeScript({
-    target: { tabId },
-    world: "MAIN",
-    func: networkRecorderScript,
-    args: [sentinel],
-  });
   await send(tabId, { type: "networkRecorder.setSentinel", sentinel });
   return sentinel;
 }
@@ -249,15 +243,13 @@ export async function syncNetworkRecorder(tabId: number): Promise<void> {
   await send(tabId, { type: "networkRecorder.sync" });
 }
 
+export async function clearNetworkRecorder(tabId: number): Promise<void> {
+  await send(tabId, { type: "networkRecorder.clear" });
+}
+
 export async function injectConsoleRecorder(tabId: number): Promise<string> {
   await ensureContentScript(tabId);
   const sentinel = crypto.randomUUID();
-  await chrome.scripting.executeScript({
-    target: { tabId },
-    world: "MAIN",
-    func: consoleRecorderScript,
-    args: [sentinel],
-  });
   await send(tabId, { type: "consoleRecorder.setSentinel", sentinel });
   return sentinel;
 }
@@ -270,3 +262,6 @@ export async function syncConsoleRecorder(tabId: number): Promise<void> {
   await send(tabId, { type: "consoleRecorder.sync" });
 }
 
+export async function clearConsoleRecorder(tabId: number): Promise<void> {
+  await send(tabId, { type: "consoleRecorder.clear" });
+}
