@@ -265,3 +265,16 @@ export async function syncConsoleRecorder(tabId: number): Promise<void> {
 export async function clearConsoleRecorder(tabId: number): Promise<void> {
   await send(tabId, { type: "consoleRecorder.clear" });
 }
+
+export async function startCursorHalo(tabId: number): Promise<void> {
+  try {
+    await ensureContentScript(tabId);
+  } catch {
+    return;
+  }
+  await send(tabId, { type: "cursorHalo.start" });
+}
+
+export async function stopCursorHalo(tabId: number): Promise<void> {
+  await send(tabId, { type: "cursorHalo.stop" });
+}

@@ -97,4 +97,6 @@ export type PickerMessage =
   | { type: "consoleRecorder.stop" }
   | { type: "consoleRecorder.sync" }
   | { type: "consoleRecorder.clear" }
-  | { type: "consoleRecorder.data"; payload: { entries: import("@/types/console").ConsoleEntry[]; totalSeen: number } };
+  | { type: "consoleRecorder.data"; payload: { entries: import("@/types/console").ConsoleEntry[]; totalSeen: number } }
+  | { type: "cursorHalo.start" }
+  | { type: "cursorHalo.stop" };
