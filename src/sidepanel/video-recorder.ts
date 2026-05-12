@@ -44,6 +44,8 @@ export async function startRecording(tabId: number): Promise<void> {
       mandatory: {
         chromeMediaSource: "tab",
         chromeMediaSourceId: streamId,
+        maxWidth: 1920,
+        maxHeight: 1080,
       },
     },
   } as MediaStreamConstraints);
