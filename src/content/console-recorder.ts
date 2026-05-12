@@ -1,5 +1,12 @@
 // MAIN world 콘솔 레코더. content_scripts(document_start, world: MAIN)로 모든 페이지에 자동 주입되어
-// console.* 호출을 즉시 wrap한다. 사이드패널이 setSentinel을 보내기 전까지는 wrap만 통과시키고 buffering은 하지 않는다.
+// console.* / window.error / unhandledrejection을 즉시 wrap한다. document_start부터 무조건 buffer에 적재
+// (옵션 A) — sentinel은 dispatch 채널 식별용. recording=false 시점부터만 신규 적재 중단.
+import {
+  formatErrorEvent,
+  formatRejectionReason,
+  shouldCaptureAssertion,
+} from "./console-recorder-helpers";
+
 export function consoleRecorderScript(): void {
   const CTRL_KEY = "__bugshot_console_ctrl__";
   if ((window as any)[CTRL_KEY]) return;
@@ -21,7 +28,6 @@ export function consoleRecorderScript(): void {
 
   const buffer: CapturedEntry[] = [];
   let totalSeen = 0;
-  let bufferingEnabled = false;
   let recording = true;
 
   function genId(): string {
@@ -98,6 +104,22 @@ export function consoleRecorderScript(): void {
     return filtered || undefined;
   }
 
+  function pushEntry(level: Level, args: string, stack?: string): void {
+    if (!recording) return;
+    totalSeen++;
+    if (buffer.length >= MAX_ENTRIES) return;
+    const entry: CapturedEntry = {
+      id: genId(),
+      level,
+      timestamp: Date.now(),
+      args,
+      pageUrl: location.href,
+    };
+    if (stack) entry.stack = stack;
+    buffer.push(entry);
+  }
+
+  // --- 표준 5레벨 wrap (log/info/warn/error/debug) ---
   const LEVELS: Level[] = ["log", "info", "warn", "error", "debug"];
   const originals: Record<Level, (...args: unknown[]) => void> = {} as any;
 
@@ -106,26 +128,145 @@ export function consoleRecorderScript(): void {
 
     console[level] = function (...args: unknown[]) {
       originals[level](...args);
-      if (!recording || !bufferingEnabled) return;
-
-      totalSeen++;
-      if (buffer.length >= MAX_ENTRIES) return;
-
-      const entry: CapturedEntry = {
-        id: genId(),
-        level,
-        timestamp: Date.now(),
-        args: serializeArgs(args),
-        pageUrl: location.href,
-      };
-
-      if (level === "error" || level === "warn") {
-        entry.stack = captureStack();
-      }
-
-      buffer.push(entry);
+      const stack = level === "error" || level === "warn" ? captureStack() : undefined;
+      pushEntry(level, serializeArgs(args), stack);
     };
   }
+
+  // --- 추가 console.* wrap (trace/assert/dir/table/group*/count*/time*) ---
+  // DevTools에서 보이는 신호를 누락 없이 잡는다. 별도 level 신설 대신 기존 5레벨에 매핑해 UI 영향 0.
+  const originalTrace = console.trace?.bind(console);
+  if (originalTrace) {
+    console.trace = function (...args: unknown[]) {
+      originalTrace(...args);
+      pushEntry("log", `console.trace: ${serializeArgs(args)}`, captureStack());
+    };
+  }
+
+  const originalAssert = console.assert?.bind(console);
+  if (originalAssert) {
+    console.assert = function (condition?: unknown, ...args: unknown[]) {
+      (originalAssert as (c?: boolean, ...a: unknown[]) => void)(condition as boolean | undefined, ...args);
+      if (shouldCaptureAssertion(condition)) {
+        const head = args.length > 0 ? `Assertion failed: ${serializeArgs(args)}` : "Assertion failed";
+        pushEntry("error", head, captureStack());
+      }
+    };
+  }
+
+  const originalDir = console.dir?.bind(console);
+  if (originalDir) {
+    console.dir = function (item?: unknown, options?: unknown) {
+      originalDir(item, options);
+      pushEntry("log", `console.dir: ${safeStringify(item, 0)}`);
+    };
+  }
+
+  const originalTable = console.table?.bind(console);
+  if (originalTable) {
+    console.table = function (data?: unknown, columns?: unknown) {
+      (originalTable as (d?: unknown, c?: string[]) => void)(data, columns as string[] | undefined);
+      pushEntry("log", `console.table: ${safeStringify(data, 0)}`);
+    };
+  }
+
+  const originalGroup = console.group?.bind(console);
+  if (originalGroup) {
+    console.group = function (...args: unknown[]) {
+      originalGroup(...args);
+      pushEntry("log", `▶ ${serializeArgs(args) || "group"}`);
+    };
+  }
+  const originalGroupCollapsed = console.groupCollapsed?.bind(console);
+  if (originalGroupCollapsed) {
+    console.groupCollapsed = function (...args: unknown[]) {
+      originalGroupCollapsed(...args);
+      pushEntry("log", `▶ ${serializeArgs(args) || "group"}`);
+    };
+  }
+  const originalGroupEnd = console.groupEnd?.bind(console);
+  if (originalGroupEnd) {
+    console.groupEnd = function () {
+      originalGroupEnd();
+      pushEntry("log", "◀ groupEnd");
+    };
+  }
+
+  const counters = new Map<string, number>();
+  const originalCount = console.count?.bind(console);
+  if (originalCount) {
+    console.count = function (label?: string) {
+      originalCount(label);
+      const key = label ?? "default";
+      const next = (counters.get(key) ?? 0) + 1;
+      counters.set(key, next);
+      pushEntry("log", `${key}: ${next}`);
+    };
+  }
+  const originalCountReset = console.countReset?.bind(console);
+  if (originalCountReset) {
+    console.countReset = function (label?: string) {
+      originalCountReset(label);
+      counters.set(label ?? "default", 0);
+    };
+  }
+
+  const timers = new Map<string, number>();
+  const originalTime = console.time?.bind(console);
+  if (originalTime) {
+    console.time = function (label?: string) {
+      originalTime(label);
+      timers.set(label ?? "default", Date.now());
+    };
+  }
+  const originalTimeEnd = console.timeEnd?.bind(console);
+  if (originalTimeEnd) {
+    console.timeEnd = function (label?: string) {
+      originalTimeEnd(label);
+      const key = label ?? "default";
+      const start = timers.get(key);
+      timers.delete(key);
+      const elapsed = start != null ? Date.now() - start : NaN;
+      pushEntry("log", `${key}: ${isNaN(elapsed) ? "?" : `${elapsed}ms`}`);
+    };
+  }
+  const originalTimeLog = console.timeLog?.bind(console);
+  if (originalTimeLog) {
+    console.timeLog = function (label?: string, ...args: unknown[]) {
+      originalTimeLog(label, ...args);
+      const key = label ?? "default";
+      const start = timers.get(key);
+      const elapsed = start != null ? Date.now() - start : NaN;
+      const tail = args.length > 0 ? ` ${serializeArgs(args)}` : "";
+      pushEntry("log", `${key}: ${isNaN(elapsed) ? "?" : `${elapsed}ms`}${tail}`);
+    };
+  }
+
+  // --- Uncaught error / Unhandled rejection ---
+  // capture phase — 페이지 핸들러가 stopPropagation해도 우리 listener는 통과.
+  window.addEventListener(
+    "error",
+    (e: ErrorEvent) => {
+      const { args, stack } = formatErrorEvent({
+        message: e.message,
+        filename: e.filename,
+        lineno: e.lineno,
+        colno: e.colno,
+        error: e.error,
+      });
+      pushEntry("error", args, stack);
+    },
+    true,
+  );
+
+  window.addEventListener(
+    "unhandledrejection",
+    (e: PromiseRejectionEvent) => {
+      const { args, stack } = formatRejectionReason(e.reason);
+      pushEntry("error", args, stack);
+    },
+    true,
+  );
 
   // --- Sentinel-bound dispatch ---
   let currentSentinel: string | null = null;
@@ -161,7 +302,6 @@ export function consoleRecorderScript(): void {
   function setSentinel(sentinel: string): void {
     detachSentinelListeners();
     currentSentinel = sentinel;
-    bufferingEnabled = true;
     recording = true;
     stopHandler = () => { recording = false; dispatch(); };
     syncHandler = () => { dispatch(); };

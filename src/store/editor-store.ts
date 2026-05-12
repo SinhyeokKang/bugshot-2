@@ -246,6 +246,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   startPicking: (target, mode) => set({ ...initial, captureMode: mode ?? "element", phase: "picking", target }),
   cancelPicking: () => set({ ...initial }),
 
+  // useBackgroundRecorder가 capturing 진입 시 sync를 트리거하지만 round-trip 동안 사용자가
+  // 영역을 빠르게 잡고 drafting으로 넘어가면 빈 로그가 노출되므로, 직전 sync 결과를 폴백으로 보존한다.
   startCapturing: (target) =>
     set((prev) => ({
       ...initial,

@@ -22,7 +22,17 @@ import {
 import { Button } from "@/components/ui/button";
 import { useEditorStore } from "@/store/editor-store";
 import { useBoundTabId } from "../hooks/useBoundTabId";
-import { startPicker, stopPicker, startAreaCapture, cancelAreaCapture, clearPicker, injectNetworkRecorder, injectConsoleRecorder, clearNetworkRecorder, clearConsoleRecorder } from "../picker-control";
+import {
+  startPicker,
+  stopPicker,
+  startAreaCapture,
+  cancelAreaCapture,
+  clearPicker,
+  injectNetworkRecorder,
+  injectConsoleRecorder,
+  clearNetworkRecorder,
+  clearConsoleRecorder,
+} from "../picker-control";
 import { deleteNetworkLog, deleteConsoleLog } from "@/store/blob-db";
 import * as videoRecorder from "../video-recorder";
 import { PageShell } from "../components/Section";
