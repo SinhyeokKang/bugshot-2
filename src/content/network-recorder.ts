@@ -1,11 +1,7 @@
 import { BODY_CAP, classifyBeaconBody, classifyResponseBody } from "./network-recorder-helpers";
+import type { NetworkRequestBody, NetworkRequestPhase } from "@/types/network";
 
-// MAIN world 네트워크 레코더. content_scripts(document_start, world: MAIN)로 모든 페이지에 자동 주입되어
-// fetch/XHR을 즉시 wrap한다. document_start부터 무조건 buffer에 적재(옵션 A) — sentinel 도착 전 발생한
-// 첫 fetch도 누락되지 않는다. 메모리 보호는 50MB cap + LRU trim으로 처리.
-// 요청별로 send 시점 phase="pending" entry를 push하고 응답/에러 시 in-place로 phase/응답 필드 채운다.
-// 따라서 sync 시점에 in-flight 요청도 가시화되고, navigation으로 끊긴 요청도 pending 상태로 남는다.
-export function networkRecorderScript(): void {
+function networkRecorderScript(): void {
   const CTRL_KEY = "__bugshot_net_ctrl__";
   if ((window as any)[CTRL_KEY]) return; // 이미 초기화됨
 
@@ -42,14 +38,8 @@ export function networkRecorderScript(): void {
   ]);
   const MASKED_BODY_KEYS = new Set(MASKED_QUERY_KEYS);
 
-  type ReqBody =
-    | string
-    | { kind: "truncated"; limit: number; size: number }
-    | { kind: "binary"; contentType: string; size: number }
-    | { kind: "stream"; contentType: string }
-    | { kind: "omitted"; reason: "memory-cap" };
-
-  type ReqPhase = "pending" | "complete" | "error";
+  type ReqBody = NetworkRequestBody;
+  type ReqPhase = NetworkRequestPhase;
 
   interface CapturedRequest {
     id: string;
@@ -73,7 +63,7 @@ export function networkRecorderScript(): void {
   const buffer: CapturedRequest[] = [];
   let totalSeen = 0;
   let memoryUsed = 0;
-  let recording = true;
+  let recording = false;
   const warnings = new Set<string>();
 
   function genId(): string {
@@ -507,8 +497,8 @@ export function networkRecorderScript(): void {
           id: genId(),
           url: urlStr,
           method: "POST",
-          status: queued ? 200 : 0,
-          statusText: queued ? "OK" : "Queue Full",
+          status: 0,
+          statusText: queued ? "Queued" : "Queue Full",
           startTime,
           durationMs: 0,
           requestHeaders: {},

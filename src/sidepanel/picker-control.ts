@@ -226,9 +226,7 @@ export async function cancelAreaCapture(tabId: number): Promise<void> {
   useEditorStore.getState().reset();
 }
 
-export async function injectNetworkRecorder(tabId: number): Promise<string> {
-  // MAIN world 레코더는 content_scripts(document_start)로 이미 페이지에 주입되어 있다.
-  // picker.ts(isolated)를 보장한 뒤 sentinel만 보내면 wrap → buffering 활성.
+export async function activateNetworkRecorder(tabId: number): Promise<string> {
   await ensureContentScript(tabId);
   const sentinel = crypto.randomUUID();
   await send(tabId, { type: "networkRecorder.setSentinel", sentinel });
@@ -247,7 +245,7 @@ export async function clearNetworkRecorder(tabId: number): Promise<void> {
   await send(tabId, { type: "networkRecorder.clear" });
 }
 
-export async function injectConsoleRecorder(tabId: number): Promise<string> {
+export async function activateConsoleRecorder(tabId: number): Promise<string> {
   await ensureContentScript(tabId);
   const sentinel = crypto.randomUUID();
   await send(tabId, { type: "consoleRecorder.setSentinel", sentinel });

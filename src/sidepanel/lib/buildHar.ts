@@ -1,14 +1,8 @@
 import type { NetworkLog, NetworkRequest, NetworkRequestBody } from "@/types/network";
+import { formatBytes } from "./formatBytes";
 
 function headersToHar(headers: Record<string, string>): { name: string; value: string }[] {
   return Object.entries(headers).map(([name, value]) => ({ name, value }));
-}
-
-function formatBytesHar(n: number): string {
-  if (!Number.isFinite(n) || n <= 0) return "0 B";
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
-  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function bodyToHarContent(
@@ -25,10 +19,10 @@ function bodyToHarContent(
   let comment: string | undefined;
   switch (body.kind) {
     case "truncated":
-      comment = `Body truncated (${formatBytesHar(body.size)} exceeded ${formatBytesHar(body.limit)} cap)`;
+      comment = `Body truncated (${formatBytes(body.size)} exceeded ${formatBytes(body.limit)} cap)`;
       break;
     case "binary":
-      comment = `Binary content — body not captured (${body.contentType || "unknown"}, ${formatBytesHar(body.size)})`;
+      comment = `Binary content — body not captured (${body.contentType || "unknown"}, ${formatBytes(body.size)})`;
       break;
     case "stream":
       comment = `Streaming response — body not captured (${body.contentType || "unknown"})`;

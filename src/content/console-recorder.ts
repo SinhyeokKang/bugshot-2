@@ -1,13 +1,10 @@
-// MAIN world 콘솔 레코더. content_scripts(document_start, world: MAIN)로 모든 페이지에 자동 주입되어
-// console.* / window.error / unhandledrejection을 즉시 wrap한다. document_start부터 무조건 buffer에 적재
-// (옵션 A) — sentinel은 dispatch 채널 식별용. recording=false 시점부터만 신규 적재 중단.
 import {
   formatErrorEvent,
   formatRejectionReason,
   shouldCaptureAssertion,
 } from "./console-recorder-helpers";
 
-export function consoleRecorderScript(): void {
+function consoleRecorderScript(): void {
   const CTRL_KEY = "__bugshot_console_ctrl__";
   if ((window as any)[CTRL_KEY]) return;
 
@@ -28,7 +25,7 @@ export function consoleRecorderScript(): void {
 
   const buffer: CapturedEntry[] = [];
   let totalSeen = 0;
-  let recording = true;
+  let recording = false;
 
   function genId(): string {
     if (typeof crypto !== "undefined" && "randomUUID" in crypto) {

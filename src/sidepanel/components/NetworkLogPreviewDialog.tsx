@@ -2,6 +2,7 @@ import { useState, useCallback, useEffect, useMemo, useRef, Fragment } from "rea
 import { ArrowLeftRight, ChevronDown, ChevronRight, Code, File, FileText, Image, MousePointerClick, Paintbrush, Search, Type, X } from "lucide-react";
 import { useT, type TranslationFn } from "@/i18n";
 import type { NetworkRequest, NetworkRequestBody } from "@/types/network";
+import { formatBytes } from "../lib/formatBytes";
 import { networkLogPath } from "../lib/buildIssueMarkdown";
 import { JsonTreeViewer } from "./JsonTreeViewer";
 import {
@@ -88,13 +89,6 @@ function ContentTypeIcon({ req }: { req: NetworkRequest }) {
   if (ct.includes("image") || url.match(/\.(png|jpe?g|gif|svg|webp|ico|avif)(\?|$)/)) return <Image className={`${base} text-teal-600 dark:text-teal-400`} />;
   if (ct.includes("html")) return <FileText className={`${base} text-blue-600 dark:text-blue-400`} />;
   return <File className={`${base} text-muted-foreground`} />;
-}
-
-function formatBytes(n: number): string {
-  if (!Number.isFinite(n) || n <= 0) return "0 B";
-  if (n < 1024) return `${n} B`;
-  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
-  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
 }
 
 function formatBody(body: NetworkRequestBody | undefined): string {

@@ -28,8 +28,8 @@ import {
   startAreaCapture,
   cancelAreaCapture,
   clearPicker,
-  injectNetworkRecorder,
-  injectConsoleRecorder,
+  activateNetworkRecorder,
+  activateConsoleRecorder,
   clearNetworkRecorder,
   clearConsoleRecorder,
 } from "../picker-control";
@@ -144,28 +144,14 @@ async function handleStartVideo(tabId: number) {
   deleteNetworkLog(`pending:${tabId}`).catch(() => {});
   deleteConsoleLog(`pending:${tabId}`).catch(() => {});
 
-  // useBackgroundRecorder가 마운트 시 inject하지만 마운트 직후 즉시 Video 클릭하는 race가 있어
-  // 여기서도 inject (이미 있으면 rebind no-op) 후 clear로 녹화 구간 버퍼만 남긴다.
-  try {
-    await injectNetworkRecorder(tabId);
-  } catch (err) {
-    console.warn("[bugshot] network recorder injection failed", err);
-  }
-  try {
-    await injectConsoleRecorder(tabId);
-  } catch (err) {
-    console.warn("[bugshot] console recorder injection failed", err);
-  }
-  try {
-    await clearNetworkRecorder(tabId);
-  } catch (err) {
-    console.warn("[bugshot] network recorder clear failed", err);
-  }
-  try {
-    await clearConsoleRecorder(tabId);
-  } catch (err) {
-    console.warn("[bugshot] console recorder clear failed", err);
-  }
+  await Promise.all([
+    activateNetworkRecorder(tabId).catch((err) => console.warn("[bugshot] network recorder activate failed", err)),
+    activateConsoleRecorder(tabId).catch((err) => console.warn("[bugshot] console recorder activate failed", err)),
+  ]);
+  await Promise.all([
+    clearNetworkRecorder(tabId).catch((err) => console.warn("[bugshot] network recorder clear failed", err)),
+    clearConsoleRecorder(tabId).catch((err) => console.warn("[bugshot] console recorder clear failed", err)),
+  ]);
 
   useEditorStore.getState().startRecording({
     tabId,

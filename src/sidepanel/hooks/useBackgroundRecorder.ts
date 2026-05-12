@@ -1,8 +1,8 @@
 import { useEffect, useRef } from "react";
 import { useEditorStore, type EditorPhase } from "@/store/editor-store";
 import {
-  injectNetworkRecorder,
-  injectConsoleRecorder,
+  activateNetworkRecorder,
+  activateConsoleRecorder,
   stopNetworkRecorder,
   stopConsoleRecorder,
   syncNetworkRecorder,
@@ -47,8 +47,8 @@ export function useBackgroundRecorder(tabId: number | null): void {
       }
       try {
         await Promise.all([
-          injectNetworkRecorder(localTabId),
-          injectConsoleRecorder(localTabId),
+          activateNetworkRecorder(localTabId),
+          activateConsoleRecorder(localTabId),
         ]);
       } catch (err) {
         if (!cancelled) {
