@@ -198,7 +198,7 @@ UI(`NetworkLogPreviewDialog`)와 HAR export 모두 이 context를 살려 "본문
 
 **SPA path 변경** — `chrome.tabs.onUpdated`가 발화하는 케이스(full reload, 주소창 navigation)에 한해 URL key(`origin + pathname`) 비교 → 변경 시 preserve가 아니면 MAIN buffer + pending IndexedDB clear. `history.pushState` 기반 SPA navigation은 onUpdated가 발화하지 않아 자동 클리어 안 됨 — recording phase는 누적 의도라 이 동작이 부합.
 
-**handleStartVideo 흐름** — 녹화 시작 전에 명시 clear가 필요(이미 누적된 백그라운드 버퍼를 녹화 구간 이전 데이터로 두지 않기 위해). `injectNetworkRecorder` (rebind, no-op일 수도) → `clearNetworkRecorder` → `startRecording` 순서. 녹화 정상 종료(`recording → drafting`)에 `recordersStopped = true`로 세팅해 drafting 동안 페이지 reload에도 재주입 차단(자산 보존). `startRecording` 내부에선 `chrome.tabCapture.getMediaStreamId` 직후 `startCursorHalo`를 await해서 헤일로 DOM을 페이지에 박은 뒤 `recorder.start(1000)` — tabCapture가 macOS에서 OS 커서를 못 잡으니 첫 프레임부터 커서 강조가 영상에 들어가야 한다.
+**handleStartVideo 흐름** — 녹화 시작 전에 명시 clear가 필요(이미 누적된 백그라운드 버퍼를 녹화 구간 이전 데이터로 두지 않기 위해). `injectNetworkRecorder` (rebind, no-op일 수도) → `clearNetworkRecorder` → `startRecording` 순서. 녹화 정상 종료(`recording → drafting`)에 `recordersStopped = true`로 세팅해 drafting 동안 페이지 reload에도 재주입 차단(자산 보존). `startRecording` 내부에선 `chrome.tabCapture.getMediaStreamId` 직후 `recorder.start(1000)` 호출. tabCapture 해상도는 1920×1080 상한으로 제한.
 
 **Cross-tab 메시지 격리** — `chrome.runtime.sendMessage`는 모든 extension contexts에 broadcast되므로 다른 탭의 content script가 보낸 `networkRecorder.data`/`consoleRecorder.data`/`picker.*`도 내 사이드패널 핸들러에 도달한다. `usePickerMessages`가 핸들러 진입부에서 `sender.tab?.id !== myTabId`인 메시지를 drop — 그러지 않으면 같은 origin/다른 path의 두 탭에서 동시에 녹화 중일 때 한 사이드패널이 다른 탭의 로그로 자기 store/IDB를 덮어쓰는 버그가 발생한다. `sender.tab` 부재(사이드패널/서비스워커 내부 통신)는 통과.
 

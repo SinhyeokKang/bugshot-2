@@ -47,7 +47,6 @@ import {
   startObserver as startCssCacheObserver,
   stopObserver as stopCssCacheObserver,
 } from "./css-source-cache";
-import { startCursorHalo, stopCursorHalo } from "./cursor-halo";
 
 type Mode = "idle" | "hover" | "selected" | "area-select";
 
@@ -290,12 +289,6 @@ chrome.runtime.onMessage.addListener(
           break;
         case "consoleRecorder.clear":
           handleConsoleClear();
-          break;
-        case "cursorHalo.start":
-          startCursorHalo();
-          break;
-        case "cursorHalo.stop":
-          stopCursorHalo();
           break;
         default:
           return;

@@ -1,8 +1,6 @@
 import { useEditorStore } from "@/store/editor-store";
 import {
-  startCursorHalo,
   stopConsoleRecorder,
-  stopCursorHalo,
   stopNetworkRecorder,
 } from "./picker-control";
 
@@ -71,7 +69,6 @@ export async function startRecording(tabId: number): Promise<void> {
     if (!s) return;
     window.clearTimeout(s.maxTimer);
     s.stream.getTracks().forEach((t) => t.stop());
-    void stopCursorHalo(s.tabId);
 
     const blob = new Blob(chunks, { type: "video/webm" });
     const localTabId = s.tabId;
@@ -104,10 +101,6 @@ export async function startRecording(tabId: number): Promise<void> {
       .getState()
       .onRecordingComplete(blob, thumbnail, viewport);
   };
-
-  // tabCapture는 페이지 렌더링을 그대로 잡으니 헤일로 DOM이 먼저 들어가 있어야
-  // 첫 프레임부터 캡처된다. start 직전에 await로 round-trip 완료.
-  await startCursorHalo(tabId);
 
   recorder.start(1000);
 
@@ -143,7 +136,6 @@ export function cancelRecording(): void {
     state.recorder.stop();
   }
   state.stream.getTracks().forEach((t) => t.stop());
-  void stopCursorHalo(state.tabId);
   state = null;
   useEditorStore.getState().cancelRecording();
 }
