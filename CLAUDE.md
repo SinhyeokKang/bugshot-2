@@ -59,14 +59,15 @@ src/
 │   ├── dom-describe.ts    # DOM 트리 직렬화 (buildSelector, buildInitialTree, buildChildrenResponse)
 │   ├── overlay.ts         # Shadow DOM 오버레이 (아웃라인·배너·블로커·프리뷰)
 │   ├── area-select.ts     # 영역 드래그 선택 (dimming + 사이즈 라벨)
-│   ├── network-recorder.ts# MAIN world 네트워크 캡처 (fetch/XHR 래핑, sentinel 기반 통신)
-│   └── console-recorder.ts# MAIN world 콘솔 캡처 (console.* 래핑, 500건 캡)
+│   ├── recorders-entry.ts # MAIN world content_scripts entry (document_start) — network/console 레코더 자기 호출
+│   ├── network-recorder.ts# MAIN world 네트워크 캡처 (fetch/XHR/sendBeacon 래핑, sentinel 기반 통신, 50MB cap)
+│   └── console-recorder.ts# MAIN world 콘솔 캡처 (console.* 래핑, 2000건 캡)
 ├── sidepanel/
 │   ├── App.tsx          # Radix Tabs 4개 (이슈 작성/목록/연동/설정)
 │   ├── main.tsx
 │   ├── capture.ts       # 요소 크롭 스냅샷
 │   ├── picker-control.ts
-│   ├── hooks/           # useBoundTabId, useAI, useEditorSessionSync, useIssueImages, usePickerMessages, useThemeEffect
+│   ├── hooks/           # useBoundTabId, useAI, useBackgroundRecorder, useEditorSessionSync, useIssueImages, usePickerMessages, useThemeEffect
 │   ├── components/      # 공통 UI (Section/PageShell/PageScroll/PageFooter/AnnotationOverlay 등)
 │   ├── tabs/            # 탭별 진입점 + 편집 패널 (StyleEditorPanel/DraftingPanel/AiDraftDialog/IssueTab/IssueListTab/IntegrationsTab/SettingsTab 등)
 │   │   ├── styleEditor/   # AiStylingDialog, ValueCombobox, StylePropEditors와 헬퍼 (propMetadata, tokenUtils, styleHooks, TokenChip, colorLiteral, hexUtils)

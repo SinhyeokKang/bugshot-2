@@ -171,6 +171,24 @@ CSSOM이 보여주는 것: `border-top-left-radius: ""` / `border-top-right-radi
 
 여전히 못 잡는 케이스: cross-origin stylesheet 중 CORS 헤더 없는 것 (대부분의 CDN). 이 경우 기존 한계 그대로 — computed literal 폴백.
 
+## 백그라운드 로그 캡처 (Network / Console)
+
+content_scripts에 MAIN world entry(`run_at: "document_start"`)로 `src/content/recorders-entry.ts`를 등록해 모든 페이지의 fetch/XHR/sendBeacon/console.*을 자동 wrap. 페이지 자체 스크립트보다 먼저 실행되므로 Sentry 등 SDK가 `originalFetch`를 캐싱하기 전에 wrap이 끼어든다.
+
+**활성화 단계 분리**:
+- **wrap**: 페이지 로드 시 자동. `bufferingEnabled = false`로 시작해 매 fetch에서 fast-return → 사이드패널 안 켜져 있어도 비용 거의 zero.
+- **buffering**: 사이드패널이 `setSentinel` custom event를 보내야 활성. `useBackgroundRecorder(tabId)` 훅이 mount / URL 변경 / `status === "complete"` 시 `injectNetworkRecorder` / `injectConsoleRecorder` 호출 (함수 이름은 legacy, 실제 동작은 setSentinel 메시지 전송).
+
+**클리어 트리거** — `useBackgroundRecorder`의 store 구독이 `preserve phase → idle` 전환을 감지하면 pending IndexedDB + MAIN buffer를 정리한 뒤 새 sentinel 발급. `shouldPreserveBackgroundLogs(phase)` = `recording / drafting / previewing / done`. 작성 취소, 정상 제출 후 reset, 녹화 중 취소 모두 이 분기에서 일괄 처리.
+
+**race 회피** — clear → setSentinel을 sequential `await`로 강제. fire-and-forget이면 Chrome 메시지 큐 처리 순서 미보장으로 setSentinel이 먼저 처리되어 이전 sentinel의 clearHandler가 detach → 후속 clear가 무시되는 경로가 가능. sequential로 picker.ts 처리 round-trip을 기다린 뒤 setSentinel.
+
+**추가 캡처** — `window.fetch`와 XHR 외에 `navigator.sendBeacon` (GA/Sentry/Datadog 등), fetch reject (네트워크 실패·CORS 차단), XHR error/abort/timeout 이벤트까지 entry화. 실패/비콘은 `status=0` 또는 `200` + `statusText="Network Error"/"Aborted"/"Timeout"/"beacon"`으로 표기.
+
+**SPA path 변경** — `chrome.tabs.onUpdated`가 발화하는 케이스(full reload, 주소창 navigation)에 한해 URL key(`origin + pathname`) 비교 → 변경 시 preserve가 아니면 MAIN buffer + pending IndexedDB clear. `history.pushState` 기반 SPA navigation은 onUpdated가 발화하지 않아 자동 클리어 안 됨 — recording phase는 누적 의도라 이 동작이 부합.
+
+**handleStartVideo 흐름** — 녹화 시작 전에 명시 clear가 필요(이미 누적된 백그라운드 버퍼를 녹화 구간 이전 데이터로 두지 않기 위해). `injectNetworkRecorder` (rebind, no-op일 수도) → `clearNetworkRecorder` → `startRecording` 순서. 녹화 정상 종료(`recording → drafting`)에 `recordersStopped = true`로 세팅해 drafting 동안 페이지 reload에도 재주입 차단(자산 보존).
+
 ## DOM 트리 Lazy Load
 
 DOM 트리 Dialog(`IssueTab.tsx`의 `DomTree`)는 큰 페이지에서 전체 DOM을 한 번에 직렬화하면 프리즈된다. 그래서 두 단계로 동작:
