@@ -6,7 +6,6 @@ import {
   CircleCheck,
   Crosshair,
   ImageIcon,
-
   Video,
 } from "lucide-react";
 import { useT } from "@/i18n";
@@ -36,7 +35,6 @@ import {
 import { deleteNetworkLog, deleteConsoleLog } from "@/store/blob-db";
 import * as videoRecorder from "../video-recorder";
 import { PageShell } from "../components/Section";
-
 import { DraftingPanel } from "./DraftingPanel";
 import { PreviewPanel } from "./PreviewPanel";
 import { SelectedPanel } from "./StyleEditorPanel";

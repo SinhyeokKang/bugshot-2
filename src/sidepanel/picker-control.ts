@@ -50,6 +50,24 @@ async function ensureContentScript(tabId: number): Promise<void> {
   throw new PickerUnavailableError();
 }
 
+async function ensureMainWorldRecorders(tabId: number): Promise<void> {
+  const manifest = chrome.runtime.getManifest();
+  const entry = manifest.content_scripts?.find(
+    (cs) => (cs as { world?: string }).world === "MAIN",
+  );
+  const files = entry?.js;
+  if (!files?.length) return;
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      world: "MAIN",
+      files,
+    });
+  } catch {
+    // host permission이 없거나 정책 차단 페이지
+  }
+}
+
 async function send<R = void>(
   tabId: number,
   msg: PickerMessage,
@@ -228,6 +246,7 @@ export async function cancelAreaCapture(tabId: number): Promise<void> {
 
 export async function activateNetworkRecorder(tabId: number): Promise<string> {
   await ensureContentScript(tabId);
+  await ensureMainWorldRecorders(tabId);
   const sentinel = crypto.randomUUID();
   await send(tabId, { type: "networkRecorder.setSentinel", sentinel });
   return sentinel;
@@ -247,6 +266,7 @@ export async function clearNetworkRecorder(tabId: number): Promise<void> {
 
 export async function activateConsoleRecorder(tabId: number): Promise<string> {
   await ensureContentScript(tabId);
+  await ensureMainWorldRecorders(tabId);
   const sentinel = crypto.randomUUID();
   await send(tabId, { type: "consoleRecorder.setSentinel", sentinel });
   return sentinel;

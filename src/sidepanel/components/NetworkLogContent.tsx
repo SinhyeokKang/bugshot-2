@@ -2,8 +2,8 @@ import { useState, useCallback, useEffect, useMemo, useRef, Fragment } from "rea
 import { ArrowLeftRight, ChevronDown, ChevronRight, Code, File, FileText, Image, MousePointerClick, Paintbrush, Search, Type, X } from "lucide-react";
 import { useT, type TranslationFn } from "@/i18n";
 import type { NetworkRequest, NetworkRequestBody } from "@/types/network";
-import { formatBytes } from "../lib/formatBytes";
-import { networkLogPath } from "../lib/buildIssueMarkdown";
+import { formatBytes } from "@/sidepanel/lib/formatBytes";
+import { networkLogPath } from "@/sidepanel/lib/buildIssueMarkdown";
 import { JsonTreeViewer } from "./JsonTreeViewer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -274,13 +274,13 @@ export function NetworkLogContent({ requests }: NetworkLogContentProps) {
               </Button>
             </div>
             <ScrollArea className="min-h-0 flex-1 [&>div>div]:!block">
-              <TabsContent value="headers" className="mt-0">
+              <TabsContent value="headers" className="mt-0 data-[state=inactive]:hidden">
                 <HeadersPanel req={activeReq} />
               </TabsContent>
-              <TabsContent value="request" className="mt-0">
+              <TabsContent value="request" className="mt-0 data-[state=inactive]:hidden">
                 <BodyPanel body={activeReq.requestBody} />
               </TabsContent>
-              <TabsContent value="response" className="mt-0">
+              <TabsContent value="response" className="mt-0 data-[state=inactive]:hidden">
                 <BodyPanel body={activeReq.responseBody} />
               </TabsContent>
             </ScrollArea>
@@ -335,7 +335,7 @@ function CollapsibleSection({
       <div className="flex items-center justify-between pl-4 pr-2 py-3">
         <span className="text-[14px] font-medium">{title}</span>
         <CollapsibleTrigger asChild>
-          <Button variant="outline" size="icon" className="h-7 w-7 shrink-0">
+          <Button variant="outline" size="icon" className="h-8 w-8 shrink-0">
             {open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
           </Button>
         </CollapsibleTrigger>
