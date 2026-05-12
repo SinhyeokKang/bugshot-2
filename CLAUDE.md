@@ -66,13 +66,13 @@ src/
 │   ├── console-recorder-helpers.ts# formatErrorEvent / formatRejectionReason / shouldCaptureAssertion 순수 헬퍼
 │   └── __tests__/         # network-recorder-helpers.test.ts / console-recorder-helpers.test.ts
 ├── sidepanel/
-│   ├── App.tsx          # Radix Tabs 4개 (이슈 작성/목록/연동/설정)
+│   ├── App.tsx          # Radix Tabs 4개 (디버그/이슈 목록/연동/설정)
 │   ├── main.tsx
 │   ├── capture.ts       # 요소 크롭 스냅샷
 │   ├── picker-control.ts
 │   ├── hooks/           # useBoundTabId, useAI, useBackgroundRecorder, useEditorSessionSync, useIssueImages, usePickerMessages, useThemeEffect
-│   ├── components/      # 공통 UI (Section/PageShell/PageScroll/PageFooter/AnnotationOverlay 등)
-│   ├── tabs/            # 탭별 진입점 + 편집 패널 (StyleEditorPanel/DraftingPanel/AiDraftDialog/IssueTab/IssueListTab/IntegrationsTab/SettingsTab 등)
+│   ├── components/      # 공통 UI (Section/PageShell/PageScroll/PageFooter/AnnotationOverlay/ConsoleLogContent/NetworkLogContent 등)
+│   ├── tabs/            # 탭별 진입점 + 편집 패널 (DebugTab(→IssueTab/ConsoleSubTab/NetworkSubTab)/IssueListTab/IntegrationsTab/SettingsTab/StyleEditorPanel/DraftingPanel/AiDraftDialog 등)
 │   │   ├── styleEditor/   # AiStylingDialog, ValueCombobox, StylePropEditors와 헬퍼 (propMetadata, tokenUtils, styleHooks, TokenChip, colorLiteral, hexUtils)
 │   │   ├── settings/      # AI 모델 설정 (LlmConnectDialog, LlmConnectForm) — SettingsTab의 AI 모델 sub-tab content
 │   │   ├── connect/       # 플랫폼별 연결 폼 (JiraConnectForm, GithubConnectForm, LinearConnectForm, NotionConnectForm) — IntegrationsTab의 sub-tab content
