@@ -53,7 +53,7 @@ export default function App() {
   const editorHydrated = useEditorSessionSync(tabId ?? null);
   useBackgroundRecorder(tabId ?? null);
   const settingsHydrated = useSettingsHydrated();
-  usePickerMessages();
+  usePickerMessages(tabId ?? null);
   useThemeEffect();
 
   const accounts = useSettingsStore((s) => s.accounts);
