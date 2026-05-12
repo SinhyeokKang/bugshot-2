@@ -20,7 +20,7 @@ const ko = {
   "common.detach": "첨부 해제",
 
   // App tabs
-  "app.tab.issue": "이슈 작성",
+  "app.tab.debug": "디버그",
   "app.tab.issueList": "이슈 목록",
   "app.tab.integrations": "연동",
   "app.tab.settings": "설정",
@@ -36,6 +36,13 @@ const ko = {
   "app.blobSaveFailed.body": "디스크 공간 부족 등의 원인으로 이미지·영상·로그 중 일부가 저장되지 않았습니다. 드래프트에서 누락된 항목을 확인해주세요.",
   "app.sessionSaveExhausted.title": "세션을 저장할 수 없습니다",
   "app.sessionSaveExhausted.body": "저장 공간이 부족하여 작업 세션을 보존할 수 없습니다. 탭을 닫으면 현재 작업이 유실될 수 있습니다.",
+
+  // Debug sub-tabs
+  "debug.tab.issue": "이슈 작성",
+  "debug.tab.console": "콘솔",
+  "debug.tab.network": "네트워크",
+  "debug.console.empty": "콘솔 로그가 없습니다",
+  "debug.network.empty": "네트워크 요청이 없습니다",
 
   // Issue sections (shared across drafting/preview/detail)
   "section.issueTitle": "이슈 제목",

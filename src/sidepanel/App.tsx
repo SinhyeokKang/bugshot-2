@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState } from "react";
-import { Blocks, Globe, List, Settings, SquarePen } from "lucide-react";
+import { Blocks, Globe, List, Settings, TerminalSquare } from "lucide-react";
 import { useT } from "@/i18n";
 import {
   AlertDialog,
@@ -31,9 +31,9 @@ import { useEditorSessionSync } from "./hooks/useEditorSessionSync";
 import { useBackgroundRecorder } from "./hooks/useBackgroundRecorder";
 import { usePickerMessages } from "./hooks/usePickerMessages";
 import { useThemeEffect } from "./hooks/useThemeEffect";
+import { DebugTab } from "./tabs/DebugTab";
 import { IntegrationsTab } from "./tabs/IntegrationsTab";
 import { IssueListTab } from "./tabs/IssueListTab";
-import { IssueTab } from "./tabs/IssueTab";
 import { SettingsTab } from "./tabs/SettingsTab";
 
 function useSettingsHydrated() {
@@ -57,7 +57,7 @@ export default function App() {
   useThemeEffect();
 
   const accounts = useSettingsStore((s) => s.accounts);
-  const [tab, setTab] = useState("issue");
+  const [tab, setTab] = useState("debug");
   const [oauthExpiredPlatform, setOauthExpiredPlatform] = useState<PlatformId | null>(null);
   const [pickerUnavailable, setPickerUnavailable] = useState(false);
   const [iframeUnsupported, setIframeUnsupported] = useState(false);
@@ -157,9 +157,9 @@ export default function App() {
       >
         <div className="border-b">
           <TabsList className="mx-4 my-5 grid h-9 w-auto grid-cols-4">
-            <TabsTrigger value="issue" className="gap-1.5">
-              <SquarePen className="h-3.5 w-3.5" />
-              {t("app.tab.issue")}
+            <TabsTrigger value="debug" className="gap-1.5">
+              <TerminalSquare className="h-3.5 w-3.5" />
+              {t("app.tab.debug")}
             </TabsTrigger>
             <TabsTrigger value="issue-list" className="gap-1.5">
               <List className="h-3.5 w-3.5" />
@@ -177,10 +177,10 @@ export default function App() {
         </div>
 
         <TabsContent
-          value="issue"
+          value="debug"
           className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden data-[state=inactive]:hidden"
         >
-          <IssueTab />
+          <DebugTab />
         </TabsContent>
 
         <TabsContent

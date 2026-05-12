@@ -22,7 +22,7 @@ const en = {
   "common.detach": "Detach",
 
   // App tabs
-  "app.tab.issue": "Issue",
+  "app.tab.debug": "Debug",
   "app.tab.issueList": "Issues",
   "app.tab.integrations": "Integrations",
   "app.tab.settings": "Settings",
@@ -38,6 +38,13 @@ const en = {
   "app.blobSaveFailed.body": "Some images, videos, or logs could not be saved due to insufficient storage. Check the draft for missing items.",
   "app.sessionSaveExhausted.title": "Session cannot be saved",
   "app.sessionSaveExhausted.body": "Insufficient storage to preserve your session. Current work may be lost if you close this tab.",
+
+  // Debug sub-tabs
+  "debug.tab.issue": "Issue",
+  "debug.tab.console": "Console",
+  "debug.tab.network": "Network",
+  "debug.console.empty": "No console logs captured",
+  "debug.network.empty": "No network requests captured",
 
   // Issue sections
   "section.issueTitle": "Issue title",

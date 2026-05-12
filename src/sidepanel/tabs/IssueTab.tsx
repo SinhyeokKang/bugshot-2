@@ -6,7 +6,7 @@ import {
   CircleCheck,
   Crosshair,
   ImageIcon,
-  List,
+
   Video,
 } from "lucide-react";
 import { useT } from "@/i18n";
@@ -36,7 +36,7 @@ import {
 import { deleteNetworkLog, deleteConsoleLog } from "@/store/blob-db";
 import * as videoRecorder from "../video-recorder";
 import { PageShell } from "../components/Section";
-import { useTabNav } from "../App";
+
 import { DraftingPanel } from "./DraftingPanel";
 import { PreviewPanel } from "./PreviewPanel";
 import { SelectedPanel } from "./StyleEditorPanel";
@@ -273,7 +273,6 @@ function SubmitSuccessView() {
   const t = useT();
   const submitResult = useEditorStore((s) => s.submitResult);
   const reset = useEditorStore((s) => s.reset);
-  const setTab = useTabNav();
 
   if (!submitResult) return null;
 
@@ -293,17 +292,7 @@ function SubmitSuccessView() {
           {submitResult.key}
           <ArrowUpRight className="h-3.5 w-3.5" />
         </a>
-        <div className="mt-6 flex gap-2">
-          <Button
-            variant="outline"
-            onClick={() => {
-              reset();
-              setTab("issue-list");
-            }}
-          >
-            <List className="h-4 w-4" />
-            {t("app.tab.issueList")}
-          </Button>
+        <div className="mt-6">
           <Button onClick={() => reset()}>
             {t("common.ok")}
           </Button>
