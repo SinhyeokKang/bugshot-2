@@ -540,6 +540,9 @@ const en = {
   "networkLog.display.truncated": "Captured: {captured} / Total: {total}",
   "networkLog.display.binary": "Binary response ({type} · {size}) · Body not saved",
   "networkLog.display.stream": "Streaming response ({type}) · Body not captured",
+  "networkLog.display.bodyTruncated": "Body truncated ({size} · cap {limit})",
+  "networkLog.display.bodyOmitted": "Body omitted (memory cap)",
+  "networkLog.display.pending": "Waiting for response",
   "networkLog.privacy.warning": "Personal information in response bodies is the user's responsibility",
   "networkLog.har.summary": "(network-log.har)",
 

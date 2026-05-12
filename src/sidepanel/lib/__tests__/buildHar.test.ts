@@ -28,6 +28,7 @@ function makeRequest(overrides: Partial<NetworkRequest> = {}): NetworkRequest {
     requestBodySize: 0,
     responseBodySize: 42,
     contentType: "application/json",
+    phase: "complete",
     ...overrides,
   };
 }
@@ -72,17 +73,19 @@ describe("buildHar", () => {
     expect(postData.mimeType).toBe("application/json");
   });
 
-  it("truncated requestBody", () => {
+  it("truncated requestBody — comment에 실제 size/limit 표기", () => {
     const req = makeRequest({
       method: "POST",
-      requestBody: { kind: "truncated" },
-      requestBodySize: 2000000,
+      requestBody: { kind: "truncated", limit: 3 * 1024 * 1024, size: 5 * 1024 * 1024 },
+      requestBodySize: 5 * 1024 * 1024,
       requestHeaders: { "content-type": "application/json" },
     });
     const har = buildHar(makeLog([req])) as any;
     const postData = har.log.entries[0].request.postData;
     expect(postData.text).toBe("");
     expect(postData.comment).toContain("truncated");
+    expect(postData.comment).toMatch(/5\.0 MB/);
+    expect(postData.comment).toMatch(/3\.0 MB/);
   });
 
   it("string responseBody", () => {
@@ -93,11 +96,16 @@ describe("buildHar", () => {
     expect(content.size).toBe(11);
   });
 
-  it("binary responseBody", () => {
-    const req = makeRequest({ responseBody: { kind: "binary" }, responseBodySize: 500 });
+  it("binary responseBody — comment에 contentType/size 표기", () => {
+    const req = makeRequest({
+      responseBody: { kind: "binary", contentType: "image/png", size: 500 },
+      responseBodySize: 500,
+    });
     const har = buildHar(makeLog([req])) as any;
     const content = har.log.entries[0].response.content;
     expect(content.comment).toContain("Binary");
+    expect(content.comment).toContain("image/png");
+    expect(content.comment).toContain("500 B");
   });
 
   it("undefined body → no text field", () => {
@@ -113,12 +121,20 @@ describe("buildHar", () => {
     expect(har.log.entries[0].request.queryString).toEqual([]);
   });
 
-  it("_bugshot 메타 필드", () => {
-    const req = makeRequest({ responseBody: { kind: "stream" } });
+  it("_bugshot 메타 필드 — phase·responseBodyKind 포함", () => {
+    const req = makeRequest({ responseBody: { kind: "stream", contentType: "text/event-stream" } });
     const har = buildHar(makeLog([req])) as any;
     const meta = har.log.entries[0]._bugshot;
     expect(meta.id).toBe("req-1");
     expect(meta.responseBodyKind).toBe("stream");
+    expect(meta.phase).toBe("complete");
+  });
+
+  it("phase=pending entry도 HAR에 포함", () => {
+    const req = makeRequest({ phase: "pending", status: 0, statusText: "", durationMs: 0 });
+    const har = buildHar(makeLog([req])) as any;
+    expect(har.log.entries[0]._bugshot.phase).toBe("pending");
+    expect(har.log.entries[0].response.status).toBe(0);
   });
 });
 

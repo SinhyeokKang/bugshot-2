@@ -1,10 +1,14 @@
+import { BODY_CAP, classifyBeaconBody, classifyResponseBody } from "./network-recorder-helpers";
+
 // MAIN world 네트워크 레코더. content_scripts(document_start, world: MAIN)로 모든 페이지에 자동 주입되어
-// fetch/XHR을 즉시 wrap한다. 사이드패널이 setSentinel을 보내기 전까지는 wrap만 통과시키고 buffering은 하지 않는다.
+// fetch/XHR을 즉시 wrap한다. document_start부터 무조건 buffer에 적재(옵션 A) — sentinel 도착 전 발생한
+// 첫 fetch도 누락되지 않는다. 메모리 보호는 50MB cap + LRU trim으로 처리.
+// 요청별로 send 시점 phase="pending" entry를 push하고 응답/에러 시 in-place로 phase/응답 필드 채운다.
+// 따라서 sync 시점에 in-flight 요청도 가시화되고, navigation으로 끊긴 요청도 pending 상태로 남는다.
 export function networkRecorderScript(): void {
   const CTRL_KEY = "__bugshot_net_ctrl__";
   if ((window as any)[CTRL_KEY]) return; // 이미 초기화됨
 
-  const BODY_CAP = 3 * 1024 * 1024; // 3 MB
   const MEMORY_CAP = 50 * 1024 * 1024; // 50 MB
   const SET_SENTINEL_EVENT = "__bugshot_net_setSentinel__";
 
@@ -38,23 +42,14 @@ export function networkRecorderScript(): void {
   ]);
   const MASKED_BODY_KEYS = new Set(MASKED_QUERY_KEYS);
 
-  const CONTENT_TYPE_DENYLIST = [
-    /^image\//i,
-    /^audio\//i,
-    /^video\//i,
-    /^font\//i,
-    /^application\/pdf$/i,
-    /^application\/wasm$/i,
-    /^application\/octet-stream$/i,
-  ];
-  const CONTENT_TYPE_ALLOWLIST = [
-    /^application\/json/i,
-    /^text\//i,
-    /^application\/xml/i,
-    /^application\/x-www-form-urlencoded/i,
-  ];
+  type ReqBody =
+    | string
+    | { kind: "truncated"; limit: number; size: number }
+    | { kind: "binary"; contentType: string; size: number }
+    | { kind: "stream"; contentType: string }
+    | { kind: "omitted"; reason: "memory-cap" };
 
-  type ReqBody = string | { kind: "truncated" | "stream" | "binary" | "omitted" };
+  type ReqPhase = "pending" | "complete" | "error";
 
   interface CapturedRequest {
     id: string;
@@ -72,12 +67,12 @@ export function networkRecorderScript(): void {
     requestBodySize: number;
     responseBodySize: number;
     contentType: string;
+    phase: ReqPhase;
   }
 
   const buffer: CapturedRequest[] = [];
   let totalSeen = 0;
   let memoryUsed = 0;
-  let bufferingEnabled = false;
   let recording = true;
   const warnings = new Set<string>();
 
@@ -167,14 +162,6 @@ export function networkRecorderScript(): void {
     return body;
   }
 
-  function isDeniedContentType(ct: string): boolean {
-    return CONTENT_TYPE_DENYLIST.some((p) => p.test(ct));
-  }
-
-  function isAllowedContentType(ct: string): boolean {
-    return CONTENT_TYPE_ALLOWLIST.some((p) => p.test(ct));
-  }
-
   function headersToRecord(headers: Headers): Record<string, string> {
     const result: Record<string, string> = {};
     headers.forEach((v, k) => { result[k] = v; });
@@ -199,18 +186,18 @@ export function networkRecorderScript(): void {
       const entry = buffer[oldestWithBody];
       if (typeof entry.responseBody === "string") {
         memoryUsed -= estimateBodySize(entry.responseBody);
-        entry.responseBody = { kind: "omitted" };
+        entry.responseBody = { kind: "omitted", reason: "memory-cap" };
       }
       if (typeof entry.requestBody === "string") {
         memoryUsed -= estimateBodySize(entry.requestBody);
-        entry.requestBody = { kind: "omitted" };
+        entry.requestBody = { kind: "omitted", reason: "memory-cap" };
       }
       warnings.add("MEMORY_CAPPED");
     }
   }
 
-  async function readBodyStreaming(response: Response): Promise<ReqBody> {
-    if (!response.body) return { kind: "stream" };
+  async function readBodyStreaming(response: Response, contentType: string): Promise<ReqBody> {
+    if (!response.body) return { kind: "stream", contentType };
     const reader = response.body.getReader();
     const chunks: Uint8Array[] = [];
     let total = 0;
@@ -222,7 +209,7 @@ export function networkRecorderScript(): void {
         if (total > BODY_CAP) {
           reader.cancel().catch(() => {});
           warnings.add("BODY_TRUNCATED");
-          return { kind: "truncated" };
+          return { kind: "truncated", limit: BODY_CAP, size: total };
         }
         chunks.push(value);
       }
@@ -234,7 +221,7 @@ export function networkRecorderScript(): void {
       }
       return new TextDecoder().decode(merged);
     } catch {
-      return { kind: "stream" };
+      return { kind: "stream", contentType };
     }
   }
 
@@ -245,7 +232,7 @@ export function networkRecorderScript(): void {
     input: RequestInfo | URL,
     init?: RequestInit,
   ): Promise<Response> {
-    if (!recording || !bufferingEnabled) {
+    if (!recording) {
       return originalFetch.call(this, input, init);
     }
 
@@ -264,7 +251,7 @@ export function networkRecorderScript(): void {
       if (requestBodySize <= BODY_CAP) {
         requestBody = maskRequestBody(init.body, reqContentType);
       } else {
-        requestBody = { kind: "truncated" };
+        requestBody = { kind: "truncated", limit: BODY_CAP, size: requestBodySize };
       }
     } else if (init?.body instanceof URLSearchParams) {
       const bodyStr = init.body.toString();
@@ -272,91 +259,85 @@ export function networkRecorderScript(): void {
       if (requestBodySize <= BODY_CAP) {
         requestBody = maskRequestBody(bodyStr, "application/x-www-form-urlencoded");
       } else {
-        requestBody = { kind: "truncated" };
+        requestBody = { kind: "truncated", limit: BODY_CAP, size: requestBodySize };
       }
     }
+
+    // send 시점에 phase="pending" entry push — in-flight·중단된 요청도 가시화.
+    const entry: CapturedRequest = {
+      id: genId(),
+      url,
+      method,
+      status: 0,
+      statusText: "",
+      startTime,
+      durationMs: 0,
+      requestHeaders: maskHeaders(headersToRecord(req.headers)),
+      responseHeaders: {},
+      requestBody,
+      pageUrl: location.href,
+      requestBodySize,
+      responseBodySize: 0,
+      contentType: "",
+      phase: "pending",
+    };
+    memoryUsed += estimateBodySize(entry.requestBody);
+    buffer.push(entry);
+    enforceMemoryCap();
 
     let response: Response;
     try {
       response = await originalFetch.call(this, input, init);
     } catch (err) {
       // 네트워크 실패·CORS 차단 등도 기록한다 (DevTools와 동일).
-      const failEntry: CapturedRequest = {
-        id: genId(),
-        url,
-        method,
-        status: 0,
-        statusText: err instanceof Error ? err.message : "Network Error",
-        startTime,
-        durationMs: Date.now() - startTime,
-        requestHeaders: maskHeaders(headersToRecord(req.headers)),
-        responseHeaders: {},
-        requestBody,
-        pageUrl: location.href,
-        requestBodySize,
-        responseBodySize: 0,
-        contentType: "",
-      };
-      memoryUsed += estimateBodySize(failEntry.requestBody);
-      buffer.push(failEntry);
-      enforceMemoryCap();
+      entry.status = 0;
+      entry.statusText = err instanceof Error ? err.message : "Network Error";
+      entry.durationMs = Date.now() - startTime;
+      entry.phase = "error";
       throw err;
     }
 
-    const durationMs = Date.now() - startTime;
+    entry.durationMs = Date.now() - startTime;
+    entry.status = response.status;
+    entry.statusText = response.statusText;
     const respHeaders = headersToRecord(response.headers);
     const contentType = response.headers.get("content-type") || "";
     const contentLength = parseInt(response.headers.get("content-length") || "", 10);
+    entry.contentType = contentType;
+    entry.responseHeaders = maskHeaders(respHeaders);
 
     let responseBody: ReqBody | undefined;
     let responseBodySize = 0;
 
-    if (isDeniedContentType(contentType)) {
-      responseBody = { kind: "binary" };
-      responseBodySize = isNaN(contentLength) ? 0 : contentLength;
-    } else if (!isNaN(contentLength) && contentLength > BODY_CAP) {
-      responseBody = { kind: "truncated" };
-      responseBodySize = contentLength;
-      warnings.add("BODY_TRUNCATED");
-    } else if (isAllowedContentType(contentType)) {
+    const classified = classifyResponseBody({ contentType, contentLength });
+    if (classified !== null) {
+      responseBody = classified;
+      responseBodySize = classified.kind === "binary" || classified.kind === "truncated" ? classified.size : 0;
+      if (classified.kind === "truncated") warnings.add("BODY_TRUNCATED");
+    } else {
       try {
         const cloned = response.clone();
-        const body = await readBodyStreaming(cloned);
+        const body = await readBodyStreaming(cloned, contentType);
         if (typeof body === "string") {
           responseBodySize = body.length;
           responseBody = body;
+        } else if (body.kind === "truncated") {
+          responseBody = body;
+          responseBodySize = body.size;
         } else {
           responseBody = body;
           responseBodySize = isNaN(contentLength) ? 0 : contentLength;
         }
       } catch {
-        responseBody = { kind: "stream" };
+        responseBody = { kind: "stream", contentType };
       }
-    } else {
-      responseBody = { kind: "binary" };
-      responseBodySize = isNaN(contentLength) ? 0 : contentLength;
     }
 
-    const entry: CapturedRequest = {
-      id: genId(),
-      url,
-      method,
-      status: response.status,
-      statusText: response.statusText,
-      startTime,
-      durationMs,
-      requestHeaders: maskHeaders(headersToRecord(req.headers)),
-      responseHeaders: maskHeaders(respHeaders),
-      requestBody,
-      responseBody,
-      pageUrl: location.href,
-      requestBodySize,
-      responseBodySize,
-      contentType,
-    };
+    entry.responseBody = responseBody;
+    entry.responseBodySize = responseBodySize;
+    entry.phase = "complete";
 
-    memoryUsed += estimateBodySize(entry.requestBody) + estimateBodySize(entry.responseBody);
-    buffer.push(entry);
+    memoryUsed += estimateBodySize(entry.responseBody);
     enforceMemoryCap();
 
     return response;
@@ -392,7 +373,7 @@ export function networkRecorderScript(): void {
   };
 
   XHR.send = function (this: XMLHttpRequest, body?: Document | XMLHttpRequestBodyInit | null) {
-    if (!recording || !bufferingEnabled) {
+    if (!recording) {
       return originalSend.call(this, body);
     }
 
@@ -408,19 +389,41 @@ export function networkRecorderScript(): void {
       if (requestBodySize <= BODY_CAP) {
         requestBody = maskRequestBody(body, ct);
       } else {
-        requestBody = { kind: "truncated" };
+        requestBody = { kind: "truncated", limit: BODY_CAP, size: requestBodySize };
       }
     }
 
+    // send 시점에 phase="pending" entry를 push하고, 완료/에러 시 같은 entry를 갱신.
+    const entry: CapturedRequest = {
+      id: genId(),
+      url: meta?.url ?? "",
+      method: meta?.method ?? "",
+      status: 0,
+      statusText: "",
+      startTime: meta?.startTime ?? Date.now(),
+      durationMs: 0,
+      requestHeaders: maskHeaders(meta?.reqHeaders ?? {}),
+      responseHeaders: {},
+      requestBody,
+      pageUrl: location.href,
+      requestBodySize,
+      responseBodySize: 0,
+      contentType: "",
+      phase: "pending",
+    };
+    memoryUsed += estimateBodySize(entry.requestBody);
+    buffer.push(entry);
+    enforceMemoryCap();
+
     // load / error / abort / timeout이 한 요청에 동시에 발화되는 일은 없지만,
-    // race로 두 번 entry화되는 일을 막기 위해 captured 가드를 둔다.
+    // race로 두 번 갱신되는 일을 막기 위해 captured 가드를 둔다.
     let captured = false;
 
     const xhr = this;
     function captureXhr(kind: "load" | "error" | "abort" | "timeout"): void {
-      if (captured || !meta || !bufferingEnabled) return;
+      if (captured || !meta) return;
       captured = true;
-      const durationMs = Date.now() - meta.startTime;
+      entry.durationMs = Date.now() - meta.startTime;
       const contentType = xhr.getResponseHeader("content-type") || "";
       const allHeaders = xhr.getAllResponseHeaders() || "";
       const respHeaders: Record<string, string> = {};
@@ -430,57 +433,45 @@ export function networkRecorderScript(): void {
           respHeaders[line.slice(0, idx).trim()] = line.slice(idx + 1).trim();
         }
       });
-
-      let responseBody: ReqBody | undefined;
-      let responseBodySize = 0;
-      let status = xhr.status;
-      let statusText = xhr.statusText;
+      entry.responseHeaders = maskHeaders(respHeaders);
+      entry.contentType = contentType;
 
       if (kind === "load") {
-        if (isDeniedContentType(contentType)) {
-          responseBody = { kind: "binary" };
-        } else if (xhr.responseType === "" || xhr.responseType === "text") {
+        entry.status = xhr.status;
+        entry.statusText = xhr.statusText;
+        entry.phase = "complete";
+
+        if (xhr.responseType === "" || xhr.responseType === "text") {
           const text = xhr.responseText;
-          responseBodySize = text.length;
-          if (responseBodySize > BODY_CAP) {
-            responseBody = { kind: "truncated" };
-            warnings.add("BODY_TRUNCATED");
-          } else if (isAllowedContentType(contentType)) {
-            responseBody = text;
+          const classified = classifyResponseBody({
+            contentType,
+            contentLength: text.length,
+          });
+          if (classified !== null) {
+            entry.responseBody = classified;
+            if (classified.kind === "truncated") {
+              entry.responseBodySize = classified.size;
+              warnings.add("BODY_TRUNCATED");
+            } else if (classified.kind === "binary") {
+              entry.responseBodySize = classified.size;
+            }
           } else {
-            responseBody = { kind: "binary" };
+            entry.responseBody = text;
+            entry.responseBodySize = text.length;
           }
         } else {
-          responseBody = { kind: "binary" };
+          entry.responseBody = { kind: "binary", contentType, size: 0 };
         }
       } else {
-        status = 0;
-        statusText =
+        entry.status = 0;
+        entry.statusText =
           kind === "error" ? "Network Error" :
           kind === "abort" ? "Aborted" :
           "Timeout";
+        entry.phase = "error";
       }
 
-      const entry: CapturedRequest = {
-        id: genId(),
-        url: meta.url,
-        method: meta.method,
-        status,
-        statusText,
-        startTime: meta.startTime,
-        durationMs,
-        requestHeaders: maskHeaders(meta.reqHeaders ?? {}),
-        responseHeaders: maskHeaders(respHeaders),
-        requestBody,
-        responseBody,
-        pageUrl: location.href,
-        requestBodySize,
-        responseBodySize,
-        contentType,
-      };
-
-      memoryUsed += estimateBodySize(entry.requestBody) + estimateBodySize(entry.responseBody);
-      buffer.push(entry);
+      memoryUsed += estimateBodySize(entry.responseBody);
       enforceMemoryCap();
     }
 
@@ -498,39 +489,18 @@ export function networkRecorderScript(): void {
     const originalSendBeacon = navigator.sendBeacon.bind(navigator);
     navigator.sendBeacon = function patchedSendBeacon(url: string | URL, data?: BodyInit | null): boolean {
       const queued = originalSendBeacon(url, data);
-      if (recording && bufferingEnabled) {
+      if (recording) {
         totalSeen++;
         const startTime = Date.now();
         const urlStr = maskUrl(typeof url === "string" ? url : url.toString());
 
-        let requestBody: ReqBody | undefined;
-        let requestBodySize = 0;
-        let contentType = "";
+        const classified = classifyBeaconBody(data);
+        let requestBody = classified.body;
+        const requestBodySize = classified.size;
+        const contentType = classified.contentType;
 
-        if (typeof data === "string") {
-          requestBodySize = data.length;
-          requestBody = requestBodySize <= BODY_CAP
-            ? maskRequestBody(data, "")
-            : { kind: "truncated" };
-        } else if (data instanceof Blob) {
-          requestBodySize = data.size;
-          contentType = data.type;
-          requestBody = { kind: "binary" };
-        } else if (data instanceof URLSearchParams) {
-          const str = data.toString();
-          requestBodySize = str.length;
-          contentType = "application/x-www-form-urlencoded";
-          requestBody = requestBodySize <= BODY_CAP
-            ? maskRequestBody(str, contentType)
-            : { kind: "truncated" };
-        } else if (data instanceof FormData) {
-          requestBody = { kind: "binary" };
-        } else if (data instanceof ArrayBuffer) {
-          requestBodySize = data.byteLength;
-          requestBody = { kind: "binary" };
-        } else if (data && ArrayBuffer.isView(data)) {
-          requestBodySize = data.byteLength;
-          requestBody = { kind: "binary" };
+        if (typeof requestBody === "string") {
+          requestBody = maskRequestBody(requestBody, contentType);
         }
 
         const entry: CapturedRequest = {
@@ -538,7 +508,7 @@ export function networkRecorderScript(): void {
           url: urlStr,
           method: "POST",
           status: queued ? 200 : 0,
-          statusText: queued ? "beacon" : "beacon queue full",
+          statusText: queued ? "OK" : "Queue Full",
           startTime,
           durationMs: 0,
           requestHeaders: {},
@@ -548,6 +518,7 @@ export function networkRecorderScript(): void {
           requestBodySize,
           responseBodySize: 0,
           contentType,
+          phase: queued ? "complete" : "error",
         };
         memoryUsed += estimateBodySize(entry.requestBody);
         buffer.push(entry);
@@ -594,7 +565,6 @@ export function networkRecorderScript(): void {
   function setSentinel(sentinel: string): void {
     detachSentinelListeners();
     currentSentinel = sentinel;
-    bufferingEnabled = true;
     recording = true;
     stopHandler = () => { recording = false; dispatch(); };
     syncHandler = () => { dispatch(); };

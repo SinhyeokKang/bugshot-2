@@ -36,15 +36,26 @@ function methodColor(method: string): string {
   }
 }
 
-function isError(status: number): boolean {
-  return status >= 400;
+function isError(req: NetworkRequest): boolean {
+  if (req.phase === "error") return true;
+  if (req.phase === "pending") return false;
+  return req.status >= 400;
 }
 
-function rowBg(status: number, active: boolean): string {
-  if (isError(status)) {
+function isPending(req: NetworkRequest): boolean {
+  return req.phase === "pending";
+}
+
+function rowBg(req: NetworkRequest, active: boolean): string {
+  if (isError(req)) {
     return active
       ? "bg-red-100 dark:bg-red-950/50"
       : "bg-red-50 hover:bg-red-100/70 dark:bg-red-950/30 dark:hover:bg-red-950/50";
+  }
+  if (isPending(req)) {
+    return active
+      ? "bg-amber-100 dark:bg-amber-950/50"
+      : "bg-amber-50 hover:bg-amber-100/70 dark:bg-amber-950/30 dark:hover:bg-amber-950/50";
   }
   return active ? "bg-accent" : "hover:bg-accent/50";
 }
@@ -79,6 +90,13 @@ function ContentTypeIcon({ req }: { req: NetworkRequest }) {
   return <File className={`${base} text-muted-foreground`} />;
 }
 
+function formatBytes(n: number): string {
+  if (!Number.isFinite(n) || n <= 0) return "0 B";
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 function formatBody(body: NetworkRequestBody | undefined): string {
   if (body === undefined) return "";
   if (typeof body !== "string") {
@@ -95,11 +113,20 @@ function bodyLabel(body: NetworkRequestBody | undefined, t: TranslationFn): stri
   if (body === undefined) return null;
   if (typeof body === "string") return null;
   switch (body.kind) {
-    case "truncated": return "Truncated (>1MB)";
-    case "binary": return t("networkLog.display.binary").replace("{type}", "").replace("{size}", "");
-    case "stream": return t("networkLog.display.stream").replace("{type}", "");
-    case "omitted": return "Omitted (memory cap)";
-    default: return null;
+    case "truncated":
+      return t("networkLog.display.bodyTruncated")
+        .replace("{size}", formatBytes(body.size))
+        .replace("{limit}", formatBytes(body.limit));
+    case "binary":
+      return t("networkLog.display.binary")
+        .replace("{type}", body.contentType || "—")
+        .replace("{size}", formatBytes(body.size));
+    case "stream":
+      return t("networkLog.display.stream").replace("{type}", body.contentType || "—");
+    case "omitted":
+      return t("networkLog.display.bodyOmitted");
+    default:
+      return null;
   }
 }
 
@@ -325,7 +352,7 @@ function RequestRow({
 }) {
   return (
     <div
-      className={`flex cursor-pointer items-center gap-3 overflow-hidden px-3 py-2 text-[13px] ${rowBg(req.status, active)}`}
+      className={`flex cursor-pointer items-center gap-3 overflow-hidden px-3 py-2 text-[13px] ${rowBg(req, active)}`}
       onClick={onClick}
     >
       <ContentTypeIcon req={req} />
@@ -374,11 +401,13 @@ function HeadersPanel({ req }: { req: NetworkRequest }) {
           <dd>{req.method}</dd>
           <dt className="text-muted-foreground">{t("networkLog.detail.status")}</dt>
           <dd className="flex items-center gap-1">
-            <span className={`inline-block h-2.5 w-2.5 rounded-full ${isError(req.status) ? "bg-red-500" : "bg-green-500"}`} />
-            {req.status} {req.statusText}
+            <span className={`inline-block h-2.5 w-2.5 rounded-full ${
+              isPending(req) ? "bg-amber-500" : isError(req) ? "bg-red-500" : "bg-green-500"
+            }`} />
+            {isPending(req) ? t("networkLog.display.pending") : `${req.status} ${req.statusText}`}
           </dd>
           <dt className="text-muted-foreground">{t("networkLog.detail.time")}</dt>
-          <dd>{req.durationMs}ms</dd>
+          <dd>{isPending(req) ? "—" : `${req.durationMs}ms`}</dd>
           <dt className="text-muted-foreground">{t("networkLog.detail.contentType")}</dt>
           <dd>{req.contentType || "—"}</dd>
         </dl>

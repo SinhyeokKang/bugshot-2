@@ -4,6 +4,13 @@ function headersToHar(headers: Record<string, string>): { name: string; value: s
   return Object.entries(headers).map(([name, value]) => ({ name, value }));
 }
 
+function formatBytesHar(n: number): string {
+  if (!Number.isFinite(n) || n <= 0) return "0 B";
+  if (n < 1024) return `${n} B`;
+  if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 function bodyToHarContent(
   body: NetworkRequestBody | undefined,
   contentType: string,
@@ -15,12 +22,21 @@ function bodyToHarContent(
   if (typeof body === "string") {
     return { size: body.length, mimeType: contentType || "text/plain", text: body };
   }
-  const comment =
-    body.kind === "truncated" ? "Body truncated (exceeded 1MB cap)" :
-    body.kind === "binary" ? "Binary content — body not captured" :
-    body.kind === "stream" ? "Streaming response — body not captured" :
-    body.kind === "omitted" ? "Body omitted (memory cap)" :
-    undefined;
+  let comment: string | undefined;
+  switch (body.kind) {
+    case "truncated":
+      comment = `Body truncated (${formatBytesHar(body.size)} exceeded ${formatBytesHar(body.limit)} cap)`;
+      break;
+    case "binary":
+      comment = `Binary content — body not captured (${body.contentType || "unknown"}, ${formatBytesHar(body.size)})`;
+      break;
+    case "stream":
+      comment = `Streaming response — body not captured (${body.contentType || "unknown"})`;
+      break;
+    case "omitted":
+      comment = "Body omitted (memory cap)";
+      break;
+  }
   return { size, mimeType: contentType || "application/octet-stream", comment };
 }
 
@@ -85,6 +101,7 @@ function requestToEntry(req: NetworkRequest) {
     _bugshot: {
       id: req.id,
       pageUrl: req.pageUrl,
+      phase: req.phase,
       ...(typeof req.responseBody !== "string" && req.responseBody ? { responseBodyKind: req.responseBody.kind } : {}),
       ...(typeof req.requestBody !== "string" && req.requestBody ? { requestBodyKind: req.requestBody.kind } : {}),
     },

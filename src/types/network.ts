@@ -1,6 +1,11 @@
 export type NetworkRequestBody =
   | string
-  | { kind: "truncated" | "stream" | "binary" | "omitted" };
+  | { kind: "truncated"; limit: number; size: number }
+  | { kind: "binary"; contentType: string; size: number }
+  | { kind: "stream"; contentType: string }
+  | { kind: "omitted"; reason: "memory-cap" };
+
+export type NetworkRequestPhase = "pending" | "complete" | "error";
 
 export interface NetworkRequest {
   id: string;
@@ -18,6 +23,7 @@ export interface NetworkRequest {
   requestBodySize: number;
   responseBodySize: number;
   contentType: string;
+  phase: NetworkRequestPhase;
 }
 
 export interface NetworkLog {

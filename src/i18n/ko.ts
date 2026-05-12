@@ -538,6 +538,9 @@ const ko = {
   "networkLog.display.truncated": "캡처: {captured} / 전체: {total}",
   "networkLog.display.binary": "바이너리 응답 ({type} · {size}) · 본문 미저장",
   "networkLog.display.stream": "스트리밍 응답 ({type}) · 본문 캡처 안 됨",
+  "networkLog.display.bodyTruncated": "본문 잘림 ({size} · 한도 {limit})",
+  "networkLog.display.bodyOmitted": "본문 생략 (메모리 한도)",
+  "networkLog.display.pending": "응답 대기 중",
   "networkLog.privacy.warning": "response body에 포함된 개인정보는 사용자 책임입니다",
   "networkLog.har.summary": "(network-log.har 참조)",
 
