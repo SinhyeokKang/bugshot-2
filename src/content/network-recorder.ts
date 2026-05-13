@@ -6,6 +6,7 @@ function networkRecorderScript(): void {
   if ((window as any)[CTRL_KEY]) return; // 이미 초기화됨
 
   const MEMORY_CAP = 50 * 1024 * 1024; // 50 MB
+  const MAX_REQUEST_ENTRIES = 5000;
   const SET_SENTINEL_EVENT = "__bugshot_net_setSentinel__";
 
   const MASKED_HEADERS = new Set([
@@ -186,6 +187,23 @@ function networkRecorderScript(): void {
     }
   }
 
+  // FIFO eviction — body 없는 요청(HEAD/204/binary)이 폭증해도 buffer 자체 길이가 무한해지지 않도록.
+  // 버그 재현 시나리오에서 가치 있는 신호는 후반부이므로 oldest를 버린다.
+  function enforceEntryCap(): void {
+    while (buffer.length > MAX_REQUEST_ENTRIES) {
+      const evicted = buffer.shift();
+      if (!evicted) break;
+      memoryUsed -= estimateBodySize(evicted.requestBody);
+      memoryUsed -= estimateBodySize(evicted.responseBody);
+      warnings.add("ENTRY_CAPPED");
+    }
+  }
+
+  function pushEntry(entry: CapturedRequest): void {
+    buffer.push(entry);
+    enforceEntryCap();
+  }
+
   async function readBodyStreaming(response: Response, contentType: string): Promise<ReqBody> {
     if (!response.body) return { kind: "stream", contentType };
     const reader = response.body.getReader();
@@ -272,7 +290,7 @@ function networkRecorderScript(): void {
       phase: "pending",
     };
     memoryUsed += estimateBodySize(entry.requestBody);
-    buffer.push(entry);
+    pushEntry(entry);
     enforceMemoryCap();
 
     let response: Response;
@@ -402,7 +420,7 @@ function networkRecorderScript(): void {
       phase: "pending",
     };
     memoryUsed += estimateBodySize(entry.requestBody);
-    buffer.push(entry);
+    pushEntry(entry);
     enforceMemoryCap();
 
     // load / error / abort / timeout이 한 요청에 동시에 발화되는 일은 없지만,
@@ -511,7 +529,7 @@ function networkRecorderScript(): void {
           phase: queued ? "complete" : "error",
         };
         memoryUsed += estimateBodySize(entry.requestBody);
-        buffer.push(entry);
+        pushEntry(entry);
         enforceMemoryCap();
       }
       return queued;

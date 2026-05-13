@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Check, Copy, Info } from "lucide-react";
 import { formatTimestamp } from "../lib/formatTimestamp";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -320,17 +320,17 @@ export function PreviewPanel() {
 }
 
 function PreviewVideo({ blob, thumbnail }: { blob: Blob | null; thumbnail: string | null }) {
-  const urlRef = useRef<string | null>(null);
-  const src = blob ? (urlRef.current ??= URL.createObjectURL(blob)) : null;
+  const [src, setSrc] = useState<string | null>(null);
 
   useEffect(() => {
-    return () => {
-      if (urlRef.current) {
-        URL.revokeObjectURL(urlRef.current);
-        urlRef.current = null;
-      }
-    };
-  }, []);
+    if (!blob) {
+      setSrc(null);
+      return;
+    }
+    const url = URL.createObjectURL(blob);
+    setSrc(url);
+    return () => URL.revokeObjectURL(url);
+  }, [blob]);
 
   if (src) return <video src={src} controls className="w-full rounded-lg border" />;
   if (thumbnail) return <img src={thumbnail} alt="Recording thumbnail" className="w-full rounded-lg border" />;

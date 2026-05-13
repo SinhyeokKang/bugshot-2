@@ -7,9 +7,11 @@ import { LinearError } from "./linear-api";
 import { NotionError } from "./notion-api";
 import { handleMessage } from "./messages";
 import { OAuthError } from "./oauth";
+import { pruneOrphanPendingLogsOncePerSession } from "@/lib/pending-log-prune";
 import { activateTab, setupTabBindings } from "./tab-bindings";
 
 initBgLocale();
+void pruneOrphanPendingLogsOncePerSession();
 
 function friendlyError(error: unknown): string {
   if (error instanceof TypeError && error.message === "Failed to fetch") {
