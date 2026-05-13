@@ -3,6 +3,7 @@ import {
   stopConsoleRecorder,
   stopNetworkRecorder,
 } from "./picker-control";
+import { pickVideoRecorderMime } from "./lib/video-mime";
 
 const MAX_DURATION_SEC = 60;
 
@@ -16,17 +17,6 @@ interface RecorderState {
 }
 
 let state: RecorderState | null = null;
-
-function pickMimeType(): string {
-  for (const mime of [
-    "video/webm;codecs=vp9",
-    "video/webm;codecs=vp8",
-    "video/webm",
-  ]) {
-    if (MediaRecorder.isTypeSupported(mime)) return mime;
-  }
-  return "";
-}
 
 export async function startRecording(tabId: number): Promise<void> {
   if (state) cancelRecording();
@@ -53,7 +43,7 @@ export async function startRecording(tabId: number): Promise<void> {
     },
   } as MediaStreamConstraints);
 
-  const mimeType = pickMimeType();
+  const mimeType = pickVideoRecorderMime();
   const recorder = new MediaRecorder(stream, {
     ...(mimeType ? { mimeType } : {}),
     videoBitsPerSecond: 1_500_000,
@@ -70,7 +60,12 @@ export async function startRecording(tabId: number): Promise<void> {
     window.clearTimeout(s.maxTimer);
     s.stream.getTracks().forEach((t) => t.stop());
 
-    const blob = new Blob(chunks, { type: "video/webm" });
+    // Strip codec parameter — mp4 recorder mime contains
+    // `codecs="avc1.42E01E,mp4a.40.2"` whose comma breaks downstream data URL
+    // parsers (GitHub asset upload uses a strict regex).
+    const recorderMime = s.recorder.mimeType || mimeType || "video/webm";
+    const blobType = recorderMime.split(";")[0] || "video/webm";
+    const blob = new Blob(chunks, { type: blobType });
     const localTabId = s.tabId;
     state = null;
 

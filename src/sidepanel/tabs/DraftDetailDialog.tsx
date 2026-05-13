@@ -48,6 +48,7 @@ import { sendBg, type JiraSubmitResult } from "@/types/messages";
 import { submitToGithub, type GithubFileInput } from "../lib/submitToGithub";
 import { submitToLinear, type LinearFileInput } from "../lib/submitToLinear";
 import { submitToNotion, type NotionFileInput } from "../lib/submitToNotion";
+import { recordingFilename } from "../lib/video-mime";
 import {
   initialGhFields,
   type GithubIssueFieldsValue,
@@ -285,7 +286,7 @@ export function DraftDetailDialog({
     if (isVideo) {
       const blob = await getVideoBlob(issue.id);
       if (blob) {
-        attachments.push({ filename: "recording.webm", dataUrl: await blobToDataUrl(blob) });
+        attachments.push({ filename: recordingFilename(blob.type), dataUrl: await blobToDataUrl(blob) });
       }
       if (networkLog) {
         const harBlob = new Blob([serializeHar(buildHar(networkLog))], { type: "application/json" });
@@ -368,7 +369,7 @@ export function DraftDetailDialog({
 
     if (isVideo) {
       const blob = await getVideoBlob(issue.id);
-      if (blob) video = { filename: "recording.webm", dataUrl: await blobToDataUrl(blob) };
+      if (blob) video = { filename: recordingFilename(blob.type), dataUrl: await blobToDataUrl(blob) };
       if (networkLog) {
         const harBlob = new Blob([serializeHar(buildHar(networkLog))], { type: "application/json" });
         logs.push({ filename: "network-log.har", dataUrl: await blobToDataUrl(harBlob) });
@@ -440,7 +441,7 @@ export function DraftDetailDialog({
 
     if (isVideo) {
       const blob = await getVideoBlob(issue.id);
-      if (blob) video = { filename: "recording.webm", dataUrl: await blobToDataUrl(blob) };
+      if (blob) video = { filename: recordingFilename(blob.type), dataUrl: await blobToDataUrl(blob) };
       if (netLog) {
         const harBlob = new Blob([serializeHar(buildHar(netLog))], { type: "application/json" });
         logs.push({ filename: "network-log.har", dataUrl: await blobToDataUrl(harBlob) });
@@ -523,7 +524,7 @@ export function DraftDetailDialog({
 
     if (isVideo) {
       const blob = await getVideoBlob(issue.id);
-      if (blob) video = { filename: "recording.webm", dataUrl: await blobToDataUrl(blob) };
+      if (blob) video = { filename: recordingFilename(blob.type), dataUrl: await blobToDataUrl(blob) };
       if (networkLog) {
         const harBlob = new Blob([serializeHar(buildHar(networkLog))], { type: "application/json" });
         logs.push({ filename: "network-log.har", dataUrl: await blobToDataUrl(harBlob) });

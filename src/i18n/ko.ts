@@ -337,7 +337,7 @@ const ko = {
   "md.section.after": "After",
   "md.section.expectedResult": "기대 결과",
   "md.section.notes": "비고",
-  "md.videoAttached": "(recording.webm 참조)",
+  "md.videoAttached": "(첨부 녹화 파일 참조)",
   "md.imageAttached": "(첨부 이미지 참조)",
   "md.column.property": "속성",
   "md.noValue": "(없음)",

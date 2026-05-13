@@ -338,7 +338,11 @@ async function submitIssue(
         }
       }
 
-      const videoFile = uploadMap.get("recording.webm");
+      // recording.{webm,mp4} — extension follows whatever the MediaRecorder produced.
+      let videoFile: UploadedFile | undefined;
+      for (const [name, file] of uploadMap) {
+        if (/^recording\.(webm|mp4)$/i.test(name)) { videoFile = file; break; }
+      }
       const videoPlaceholderIdx = content.findIndex(
         (n) => {
           const node = n as { type: string; content?: { text?: string }[] };

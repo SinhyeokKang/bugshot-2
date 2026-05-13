@@ -32,6 +32,7 @@ function githubFilename(name: string): string {
 function guessMime(filename: string): string {
   if (filename.endsWith(".webp")) return "image/webp";
   if (filename.endsWith(".webm")) return "video/webm";
+  if (filename.endsWith(".mp4")) return "video/mp4";
   if (filename.endsWith(".md")) return "text/markdown";
   if (filename.endsWith(".json")) return "application/json";
   return "application/octet-stream";
