@@ -204,6 +204,16 @@ UI(`NetworkLogPreviewDialog`)와 HAR export 모두 이 context를 살려 "본문
 
 **Cross-tab 메시지 격리** — `chrome.runtime.sendMessage`는 모든 extension contexts에 broadcast되므로 다른 탭의 content script가 보낸 `networkRecorder.data`/`consoleRecorder.data`/`picker.*`도 내 사이드패널 핸들러에 도달한다. `usePickerMessages`가 핸들러 진입부에서 `sender.tab?.id !== myTabId`인 메시지를 drop — 그러지 않으면 같은 origin/다른 path의 두 탭에서 동시에 녹화 중일 때 한 사이드패널이 다른 탭의 로그로 자기 store/IDB를 덮어쓰는 버그가 발생한다. `sender.tab` 부재(사이드패널/서비스워커 내부 통신)는 통과.
 
+## chrome.scripting.executeScript MAIN world 주입 규칙
+
+`chrome.scripting.executeScript({ world: "MAIN", func })`의 `func` 인자는 `Function.prototype.toString()`으로 직렬화 후 대상 탭의 페이지 컨텍스트에서 **재평가**된다. SW의 모듈 스코프 클로저는 살아남지 않는다 — 모듈 스코프의 헬퍼 함수·상수를 참조하면 페이지에서 `ReferenceError`로 즉시 throw, 반환 Promise가 reject되어 `result.result === null`로 떨어진다.
+
+규칙: 주입 함수는 **self-contained**여야 한다. 헬퍼는 nested function으로 inline하거나 함수 인자로 전달. 글로벌(`fetch`/`FormData`/`Blob`/`URL`/`atob` 등)과 인자만 사용 가능.
+
+현재 사용처: `src/background/github-upload.ts:pageBatchUploadFn` (issue attachment 업로드). `network/console-recorder`는 content_scripts MAIN world entry라서 모듈 번들 통째로 실행되므로 별개 — 이 규칙은 **런타임 SW→탭 주입**에만 해당.
+
+방어선: TypeScript는 같은 모듈 참조라 잡지 못하고, 단위 테스트도 MAIN world 직렬화 경계를 재현하기 어렵다. **GitHub 인라인 업로드 같은 inject 경로는 수동 회귀가 유일한 방어선**. v1.1.2에서 단일 파일 업로드 → `Promise.all` 병렬화 리팩터로 `uploadOne`을 모듈 스코프로 추출하면서 이 규칙을 위반, v1.1.4까지 latent로 남아 있었다. inject 함수 본체를 리팩터·헬퍼 추출할 땐 항상 실제 탭에서 한 번 더 확인.
+
 ## DOM 트리 Lazy Load
 
 DOM 트리 Dialog(`IssueTab.tsx`의 `DomTree`)는 큰 페이지에서 전체 DOM을 한 번에 직렬화하면 프리즈된다. 그래서 두 단계로 동작:
