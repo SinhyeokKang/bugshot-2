@@ -28,6 +28,7 @@ export interface NotionSubmitInput {
 function guessMime(filename: string): string {
   if (filename.endsWith(".webp")) return "image/webp";
   if (filename.endsWith(".webm")) return "video/webm";
+  if (filename.endsWith(".mp4")) return "video/mp4";
   if (filename.endsWith(".png")) return "image/png";
   if (filename.endsWith(".jpg") || filename.endsWith(".jpeg")) return "image/jpeg";
   if (filename.endsWith(".md")) return "text/markdown";

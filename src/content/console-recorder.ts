@@ -104,7 +104,6 @@ function consoleRecorderScript(): void {
   function pushEntry(level: Level, args: string, stack?: string): void {
     if (!recording) return;
     totalSeen++;
-    if (buffer.length >= MAX_ENTRIES) return;
     const entry: CapturedEntry = {
       id: genId(),
       level,
@@ -113,7 +112,9 @@ function consoleRecorderScript(): void {
       pageUrl: location.href,
     };
     if (stack) entry.stack = stack;
+    // 버그 재현 시 가치 있는 신호는 후반부이므로 cap 도달 시 oldest를 버리는 FIFO.
     buffer.push(entry);
+    if (buffer.length > MAX_ENTRIES) buffer.shift();
   }
 
   // error/warn은 wrap하지 않는다. 페이지가 console.error/warn을 호출하면 native 호출 시점의
@@ -288,6 +289,8 @@ function consoleRecorderScript(): void {
   function clearBuffer(): void {
     buffer.length = 0;
     totalSeen = 0;
+    counters.clear();
+    timers.clear();
   }
 
   function detachSentinelListeners(): void {

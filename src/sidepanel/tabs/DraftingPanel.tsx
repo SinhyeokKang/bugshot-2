@@ -512,17 +512,17 @@ function OrderedListEditor({
 }
 
 function VideoPreview({ blob, thumbnail }: { blob: Blob | null; thumbnail: string | null }) {
-  const urlRef = useRef<string | null>(null);
-  const src = blob ? (urlRef.current ??= URL.createObjectURL(blob)) : null;
+  const [src, setSrc] = useState<string | null>(null);
 
   useEffect(() => {
-    return () => {
-      if (urlRef.current) {
-        URL.revokeObjectURL(urlRef.current);
-        urlRef.current = null;
-      }
-    };
-  }, []);
+    if (!blob) {
+      setSrc(null);
+      return;
+    }
+    const url = URL.createObjectURL(blob);
+    setSrc(url);
+    return () => URL.revokeObjectURL(url);
+  }, [blob]);
 
   return (
     <div className="space-y-1.5">

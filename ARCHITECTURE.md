@@ -176,7 +176,7 @@ CSSOM이 보여주는 것: `border-top-left-radius: ""` / `border-top-right-radi
 
 content_scripts에 MAIN world entry(`run_at: "document_start"`)로 `src/content/recorders-entry.ts`를 등록해 모든 페이지의 fetch/XHR/sendBeacon/console.*을 자동 wrap. 페이지 자체 스크립트보다 먼저 실행되므로 Sentry 등 SDK가 `originalFetch`를 캐싱하기 전에 wrap이 끼어든다.
 
-**document_start부터 무조건 buffer (옵션 A)** — wrap 설치 즉시 buffer에 적재한다. sentinel은 dispatch 채널 식별용일 뿐이며, sentinel 도착 전에 발생한 첫 fetch도 누락되지 않는다. 메모리는 50MB cap + LRU trim으로 보호. 사이드패널이 켜져 있지 않아도 buffer가 차오를 수 있는 비용이 있지만, recording 시작 시점에 이미 시나리오 재현이 진행 중인 케이스를 커버하기 위해 채택.
+**document_start부터 무조건 buffer (옵션 A)** — wrap 설치 즉시 buffer에 적재한다. sentinel은 dispatch 채널 식별용일 뿐이며, sentinel 도착 전에 발생한 첫 fetch도 누락되지 않는다. 메모리는 두 단계로 보호: (1) 50MB body cap + LRU trim(`enforceMemoryCap`)이 본문을 omitted로 회수, (2) 5000 entry FIFO cap(`enforceEntryCap`)이 본문 없는 요청(HEAD/204/binary beacon) 폭증으로부터 buffer 길이 자체를 막는다. cap 도달 시 oldest를 버리는 FIFO — 버그 재현 시나리오에서 가치 있는 신호는 후반부라는 가정. 사이드패널이 켜져 있지 않아도 buffer가 차오를 수 있는 비용이 있지만, recording 시작 시점에 이미 시나리오 재현이 진행 중인 케이스를 커버하기 위해 채택. console-recorder도 동일하게 2000 entry FIFO + `clearBuffer`가 counters/timers Map까지 리셋.
 
 **요청 phase 추적** — fetch/XHR send 시점에 `phase: "pending"` entry를 push하고, 응답 완료 시 `phase: "complete"`, reject/abort/error/timeout 시 `phase: "error"`로 in-place 갱신. 따라서 sync 시점에 in-flight 요청도 가시화되고, navigation으로 끊긴 요청은 pending으로 남아 디버깅 단서가 된다. summary는 `phase=error`를 status=0이어도 에러로 집계하므로 CORS·네트워크 실패가 이슈 본문에서 누락되지 않는다.
 
@@ -190,6 +190,8 @@ UI(`NetworkLogPreviewDialog`)와 HAR export 모두 이 context를 살려 "본문
 
 **클리어 트리거** — `useBackgroundRecorder`의 store 구독이 `preserve phase → idle` 전환을 감지하면 pending IndexedDB + MAIN buffer를 정리한 뒤 새 sentinel 발급. `shouldPreserveBackgroundLogs(phase)` = `recording / drafting / previewing / done`. 작성 취소, 정상 제출 후 reset, 녹화 중 취소 모두 이 분기에서 일괄 처리.
 
+**고아 pending 정리 (SW 부트)** — `pending:${tabId}` IndexedDB 엔트리는 평소 `chrome.tabs.onRemoved`·URL 변경·이슈 저장 3경로로 정리되지만, 브라우저 강제 종료·확장 reload·SW 휴면 중 탭 종료 등으로 onRemoved가 누락되면 영구 잔류한다. `src/lib/pending-log-prune.ts`의 `pruneOrphanPendingLogsOncePerSession()`이 SW 부트 시 `chrome.storage.session.pendingPrunedAt` 플래그로 세션당 1회만 도는 가드를 두고, 현재 `chrome.tabs.query({})` 결과에 없는 tabId의 `pending:` 엔트리를 회수. `findOrphanPendingKeys`는 순수 함수로 분리해 테스트.
+
 **race 회피** — clear → setSentinel을 sequential `await`로 강제. fire-and-forget이면 Chrome 메시지 큐 처리 순서 미보장으로 setSentinel이 먼저 처리되어 이전 sentinel의 clearHandler가 detach → 후속 clear가 무시되는 경로가 가능. sequential로 picker.ts 처리 round-trip을 기다린 뒤 setSentinel.
 
 **추가 캡처** — `window.fetch`와 XHR 외에 `navigator.sendBeacon` (GA/Sentry/Datadog 등), fetch reject (네트워크 실패·CORS 차단), XHR error/abort/timeout 이벤트까지 entry화. 실패 entry는 `status=0` + `statusText="Network Error"/"Aborted"/"Timeout"`, beacon은 queued 결과에 따라 `200 OK` 또는 `0 Queue Full`. 모두 `phase`로 분류된다.
@@ -201,6 +203,16 @@ UI(`NetworkLogPreviewDialog`)와 HAR export 모두 이 context를 살려 "본문
 **handleStartVideo 흐름** — 녹화 시작 전에 명시 clear가 필요(이미 누적된 백그라운드 버퍼를 녹화 구간 이전 데이터로 두지 않기 위해). `injectNetworkRecorder` (rebind, no-op일 수도) → `clearNetworkRecorder` → `startRecording` 순서. 녹화 정상 종료(`recording → drafting`)에 `recordersStopped = true`로 세팅해 drafting 동안 페이지 reload에도 재주입 차단(자산 보존). `startRecording` 내부에선 `chrome.tabCapture.getMediaStreamId` 직후 `recorder.start(1000)` 호출. tabCapture 해상도는 1920×1080 상한으로 제한.
 
 **Cross-tab 메시지 격리** — `chrome.runtime.sendMessage`는 모든 extension contexts에 broadcast되므로 다른 탭의 content script가 보낸 `networkRecorder.data`/`consoleRecorder.data`/`picker.*`도 내 사이드패널 핸들러에 도달한다. `usePickerMessages`가 핸들러 진입부에서 `sender.tab?.id !== myTabId`인 메시지를 drop — 그러지 않으면 같은 origin/다른 path의 두 탭에서 동시에 녹화 중일 때 한 사이드패널이 다른 탭의 로그로 자기 store/IDB를 덮어쓰는 버그가 발생한다. `sender.tab` 부재(사이드패널/서비스워커 내부 통신)는 통과.
+
+## chrome.scripting.executeScript MAIN world 주입 규칙
+
+`chrome.scripting.executeScript({ world: "MAIN", func })`의 `func` 인자는 `Function.prototype.toString()`으로 직렬화 후 대상 탭의 페이지 컨텍스트에서 **재평가**된다. SW의 모듈 스코프 클로저는 살아남지 않는다 — 모듈 스코프의 헬퍼 함수·상수를 참조하면 페이지에서 `ReferenceError`로 즉시 throw, 반환 Promise가 reject되어 `result.result === null`로 떨어진다.
+
+규칙: 주입 함수는 **self-contained**여야 한다. 헬퍼는 nested function으로 inline하거나 함수 인자로 전달. 글로벌(`fetch`/`FormData`/`Blob`/`URL`/`atob` 등)과 인자만 사용 가능.
+
+현재 사용처: `src/background/github-upload.ts:pageBatchUploadFn` (issue attachment 업로드). `network/console-recorder`는 content_scripts MAIN world entry라서 모듈 번들 통째로 실행되므로 별개 — 이 규칙은 **런타임 SW→탭 주입**에만 해당.
+
+방어선: TypeScript는 같은 모듈 참조라 잡지 못하고, 단위 테스트도 MAIN world 직렬화 경계를 재현하기 어렵다. **GitHub 인라인 업로드 같은 inject 경로는 수동 회귀가 유일한 방어선**. v1.1.2에서 단일 파일 업로드 → `Promise.all` 병렬화 리팩터로 `uploadOne`을 모듈 스코프로 추출하면서 이 규칙을 위반, v1.1.4까지 latent로 남아 있었다. inject 함수 본체를 리팩터·헬퍼 추출할 땐 항상 실제 탭에서 한 번 더 확인.
 
 ## DOM 트리 Lazy Load
 

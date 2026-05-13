@@ -71,6 +71,7 @@ import type { NormalizedSubmitResult } from "@/types/platform";
 import { submitToGithub, type GithubFileInput } from "../lib/submitToGithub";
 import { submitToLinear, type LinearFileInput } from "../lib/submitToLinear";
 import { submitToNotion, type NotionFileInput } from "../lib/submitToNotion";
+import { recordingFilename } from "../lib/video-mime";
 import {
   GithubIssueFields,
   initialGhFields,
@@ -267,7 +268,7 @@ export function IssueCreateModal() {
 
     if (captureMode === "video") {
       if (videoBlob) {
-        attachments.push({ filename: "recording.webm", dataUrl: await blobToDataUrl(videoBlob) });
+        attachments.push({ filename: recordingFilename(videoBlob.type), dataUrl: await blobToDataUrl(videoBlob) });
       }
       if (networkLog && networkLogAttach && networkLog.captured > 0) {
         const harBlob = new Blob([serializeHar(buildHar(networkLog))], { type: "application/json" });
@@ -337,7 +338,7 @@ export function IssueCreateModal() {
     const logs: GithubFileInput[] = [];
 
     if (captureMode === "video") {
-      if (videoBlob) video = { filename: "recording.webm", dataUrl: await blobToDataUrl(videoBlob) };
+      if (videoBlob) video = { filename: recordingFilename(videoBlob.type), dataUrl: await blobToDataUrl(videoBlob) };
       if (networkLog && networkLogAttach && networkLog.captured > 0) {
         const harBlob = new Blob([serializeHar(buildHar(networkLog))], { type: "application/json" });
         logs.push({ filename: "network-log.har", dataUrl: await blobToDataUrl(harBlob) });
@@ -396,7 +397,7 @@ export function IssueCreateModal() {
     const logs: LinearFileInput[] = [];
 
     if (captureMode === "video") {
-      if (videoBlob) video = { filename: "recording.webm", dataUrl: await blobToDataUrl(videoBlob) };
+      if (videoBlob) video = { filename: recordingFilename(videoBlob.type), dataUrl: await blobToDataUrl(videoBlob) };
       if (networkLog && networkLogAttach && networkLog.captured > 0) {
         const harBlob = new Blob([serializeHar(buildHar(networkLog))], { type: "application/json" });
         logs.push({ filename: "network-log.har", dataUrl: await blobToDataUrl(harBlob) });
@@ -464,7 +465,7 @@ export function IssueCreateModal() {
     const logs: NotionFileInput[] = [];
 
     if (captureMode === "video") {
-      if (videoBlob) video = { filename: "recording.webm", dataUrl: await blobToDataUrl(videoBlob) };
+      if (videoBlob) video = { filename: recordingFilename(videoBlob.type), dataUrl: await blobToDataUrl(videoBlob) };
       if (networkLog && networkLogAttach && networkLog.captured > 0) {
         const harBlob = new Blob([serializeHar(buildHar(networkLog))], { type: "application/json" });
         logs.push({ filename: "network-log.har", dataUrl: await blobToDataUrl(harBlob) });

@@ -339,7 +339,7 @@ const en = {
   "md.section.after": "After",
   "md.section.expectedResult": "Expected Result",
   "md.section.notes": "Notes",
-  "md.videoAttached": "(recording.webm)",
+  "md.videoAttached": "(See attached recording)",
   "md.imageAttached": "(See attached image)",
   "md.column.property": "Property",
   "md.noValue": "(none)",
