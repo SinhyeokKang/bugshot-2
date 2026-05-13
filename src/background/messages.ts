@@ -345,15 +345,13 @@ async function submitIssue(
           return node.type === "paragraph" && node.content?.[0]?.text === VIDEO_PLACEHOLDER;
         },
       );
-      if (videoFile && videoPlaceholderIdx >= 0) {
-        const mediaNode =
-          videoFile.kind === "media"
-            ? { type: "media", attrs: { type: "file", id: videoFile.mediaId, collection: "" } }
-            : { type: "media", attrs: { type: "external", url: videoFile.url } };
+      if (videoFile?.kind === "media" && videoPlaceholderIdx >= 0) {
         content[videoPlaceholderIdx] = {
           type: "mediaSingle",
           attrs: { layout: "center" },
-          content: [mediaNode],
+          content: [
+            { type: "media", attrs: { type: "file", id: videoFile.mediaId, collection: "" } },
+          ],
         };
       } else if (videoPlaceholderIdx >= 0) {
         content[videoPlaceholderIdx] = {

@@ -20,7 +20,7 @@ const ko = {
   "common.detach": "첨부 해제",
 
   // App tabs
-  "app.tab.issue": "이슈 작성",
+  "app.tab.debug": "디버그",
   "app.tab.issueList": "이슈 목록",
   "app.tab.integrations": "연동",
   "app.tab.settings": "설정",
@@ -36,6 +36,15 @@ const ko = {
   "app.blobSaveFailed.body": "디스크 공간 부족 등의 원인으로 이미지·영상·로그 중 일부가 저장되지 않았습니다. 드래프트에서 누락된 항목을 확인해주세요.",
   "app.sessionSaveExhausted.title": "세션을 저장할 수 없습니다",
   "app.sessionSaveExhausted.body": "저장 공간이 부족하여 작업 세션을 보존할 수 없습니다. 탭을 닫으면 현재 작업이 유실될 수 있습니다.",
+  "app.videoRecordingUnavailable.title": "녹화를 시작할 수 없습니다",
+  "app.videoRecordingUnavailable.body": "현재 탭의 화면 캡처 권한이 만료됐습니다. [확인]을 누르면 이 사이트에 대한 권한을 다시 요청합니다. 권한을 허용한 뒤 다시 녹화 버튼을 눌러 주세요.",
+
+  // Debug sub-tabs
+  "debug.tab.issue": "이슈 작성",
+  "debug.tab.console": "콘솔 로그",
+  "debug.tab.network": "네트워크 로그",
+  "debug.console.empty": "콘솔 로그가 없습니다",
+  "debug.network.empty": "네트워크 요청이 없습니다",
 
   // Issue sections (shared across drafting/preview/detail)
   "section.issueTitle": "이슈 제목",
@@ -538,6 +547,9 @@ const ko = {
   "networkLog.display.truncated": "캡처: {captured} / 전체: {total}",
   "networkLog.display.binary": "바이너리 응답 ({type} · {size}) · 본문 미저장",
   "networkLog.display.stream": "스트리밍 응답 ({type}) · 본문 캡처 안 됨",
+  "networkLog.display.bodyTruncated": "본문 잘림 ({size} · 한도 {limit})",
+  "networkLog.display.bodyOmitted": "본문 생략 (메모리 한도)",
+  "networkLog.display.pending": "응답 대기 중",
   "networkLog.privacy.warning": "response body에 포함된 개인정보는 사용자 책임입니다",
   "networkLog.har.summary": "(network-log.har 참조)",
 

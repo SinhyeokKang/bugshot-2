@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState } from "react";
-import { Blocks, Globe, List, Settings, SquarePen } from "lucide-react";
+import { Blocks, Globe, List, Settings, TerminalSquare } from "lucide-react";
 import { useT } from "@/i18n";
 import {
   AlertDialog,
@@ -21,6 +21,7 @@ import {
   onPickerIframeUnsupported,
   onPickerUnavailable,
   onSessionSaveExhausted,
+  onVideoRecordingUnavailable,
 } from "@/types/messages";
 import { PLATFORM_TAB_KEYS, type PlatformId } from "@/types/platform";
 
@@ -28,11 +29,12 @@ const TabNavContext = createContext<(tab: string) => void>(() => {});
 export const useTabNav = () => useContext(TabNavContext);
 import { useBoundTabId } from "./hooks/useBoundTabId";
 import { useEditorSessionSync } from "./hooks/useEditorSessionSync";
+import { useBackgroundRecorder } from "./hooks/useBackgroundRecorder";
 import { usePickerMessages } from "./hooks/usePickerMessages";
 import { useThemeEffect } from "./hooks/useThemeEffect";
+import { DebugTab } from "./tabs/DebugTab";
 import { IntegrationsTab } from "./tabs/IntegrationsTab";
 import { IssueListTab } from "./tabs/IssueListTab";
-import { IssueTab } from "./tabs/IssueTab";
 import { SettingsTab } from "./tabs/SettingsTab";
 
 function useSettingsHydrated() {
@@ -50,17 +52,19 @@ export default function App() {
   const t = useT();
   const tabId = useBoundTabId();
   const editorHydrated = useEditorSessionSync(tabId ?? null);
+  useBackgroundRecorder(tabId ?? null);
   const settingsHydrated = useSettingsHydrated();
-  usePickerMessages();
+  usePickerMessages(tabId ?? null);
   useThemeEffect();
 
   const accounts = useSettingsStore((s) => s.accounts);
-  const [tab, setTab] = useState("issue");
+  const [tab, setTab] = useState("debug");
   const [oauthExpiredPlatform, setOauthExpiredPlatform] = useState<PlatformId | null>(null);
   const [pickerUnavailable, setPickerUnavailable] = useState(false);
   const [iframeUnsupported, setIframeUnsupported] = useState(false);
   const [blobSaveFailed, setBlobSaveFailed] = useState(false);
   const [sessionSaveExhausted, setSessionSaveExhausted] = useState(false);
+  const [videoUnavailableTabId, setVideoUnavailableTabId] = useState<number | null>(null);
 
   useEffect(() => {
     if (settingsHydrated && connectedPlatforms(accounts).length === 0) {
@@ -121,6 +125,16 @@ export default function App() {
   }, []);
 
   useEffect(() => {
+    const unsub = onVideoRecordingUnavailable.subscribe(({ tabId }) => {
+      if (document.activeElement instanceof HTMLElement && document.activeElement !== document.body) {
+        document.activeElement.blur();
+      }
+      setVideoUnavailableTabId(tabId);
+    });
+    return unsub;
+  }, []);
+
+  useEffect(() => {
     if (tabId == null) return;
     const pickerPort = chrome.tabs.connect(tabId, { name: PICKER_PORT_NAME });
     pickerPort.onDisconnect.addListener(() => {
@@ -155,9 +169,9 @@ export default function App() {
       >
         <div className="border-b">
           <TabsList className="mx-4 my-5 grid h-9 w-auto grid-cols-4">
-            <TabsTrigger value="issue" className="gap-1.5">
-              <SquarePen className="h-3.5 w-3.5" />
-              {t("app.tab.issue")}
+            <TabsTrigger value="debug" className="gap-1.5">
+              <TerminalSquare className="h-3.5 w-3.5" />
+              {t("app.tab.debug")}
             </TabsTrigger>
             <TabsTrigger value="issue-list" className="gap-1.5">
               <List className="h-3.5 w-3.5" />
@@ -175,10 +189,10 @@ export default function App() {
         </div>
 
         <TabsContent
-          value="issue"
+          value="debug"
           className="mt-0 flex min-h-0 flex-1 flex-col overflow-hidden data-[state=inactive]:hidden"
         >
-          <IssueTab />
+          <DebugTab />
         </TabsContent>
 
         <TabsContent
@@ -296,10 +310,47 @@ export default function App() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AlertDialog
+        open={videoUnavailableTabId != null}
+        onOpenChange={(v) => !v && setVideoUnavailableTabId(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("app.videoRecordingUnavailable.title")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("app.videoRecordingUnavailable.body")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction
+              onClick={() => {
+                const id = videoUnavailableTabId;
+                setVideoUnavailableTabId(null);
+                if (id != null) void requestTabHostPermission(id);
+              }}
+            >
+              {t("common.ok")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
     <Toaster position="top-center" offset={24} />
     </TabNavContext.Provider>
   );
+}
+
+async function requestTabHostPermission(tabId: number): Promise<void> {
+  try {
+    const tab = await chrome.tabs.get(tabId);
+    if (!tab.url) return;
+    const u = new URL(tab.url);
+    if (u.protocol !== "http:" && u.protocol !== "https:") return;
+    await chrome.permissions.request({ origins: [`${u.origin}/*`] });
+  } catch {
+    // user denied or chrome refused — fallback to manual re-invocation
+  }
 }
 
 function UnsupportedPage() {

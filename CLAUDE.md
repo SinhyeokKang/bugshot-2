@@ -59,16 +59,20 @@ src/
 │   ├── dom-describe.ts    # DOM 트리 직렬화 (buildSelector, buildInitialTree, buildChildrenResponse)
 │   ├── overlay.ts         # Shadow DOM 오버레이 (아웃라인·배너·블로커·프리뷰)
 │   ├── area-select.ts     # 영역 드래그 선택 (dimming + 사이즈 라벨)
-│   ├── network-recorder.ts# MAIN world 네트워크 캡처 (fetch/XHR 래핑, sentinel 기반 통신)
-│   └── console-recorder.ts# MAIN world 콘솔 캡처 (console.* 래핑, 500건 캡)
+│   ├── recorders-entry.ts # MAIN world content_scripts entry (document_start) — network/console 레코더 자기 호출
+│   ├── network-recorder.ts# MAIN world 네트워크 캡처 (fetch/XHR/sendBeacon 래핑, send 시점 phase="pending" entry push → 완료/에러 시 in-place 갱신, body omission에 size/limit/contentType context, 50MB cap)
+│   ├── network-recorder-helpers.ts# classifyResponseBody / classifyBeaconBody 순수 헬퍼 + BODY_CAP (3MB)
+│   ├── console-recorder.ts# MAIN world 콘솔 캡처 (log/info/debug + trace/assert/dir/table/group*/count*/time* wrap, error/warn은 chrome://extensions attribution noise 회피로 의도적 제외 — throw 에러는 window.error/unhandledrejection으로 별도 캡처, 2000건 캡, document_start부터 무조건 buffer)
+│   ├── console-recorder-helpers.ts# formatErrorEvent / formatRejectionReason / shouldCaptureAssertion 순수 헬퍼
+│   └── __tests__/         # network-recorder-helpers.test.ts / console-recorder-helpers.test.ts
 ├── sidepanel/
-│   ├── App.tsx          # Radix Tabs 4개 (이슈 작성/목록/연동/설정)
+│   ├── App.tsx          # Radix Tabs 4개 (디버그/이슈 목록/연동/설정)
 │   ├── main.tsx
 │   ├── capture.ts       # 요소 크롭 스냅샷
 │   ├── picker-control.ts
-│   ├── hooks/           # useBoundTabId, useAI, useEditorSessionSync, useIssueImages, usePickerMessages, useThemeEffect
-│   ├── components/      # 공통 UI (Section/PageShell/PageScroll/PageFooter/AnnotationOverlay 등)
-│   ├── tabs/            # 탭별 진입점 + 편집 패널 (StyleEditorPanel/DraftingPanel/AiDraftDialog/IssueTab/IssueListTab/IntegrationsTab/SettingsTab 등)
+│   ├── hooks/           # useBoundTabId, useAI, useBackgroundRecorder, useEditorSessionSync, useIssueImages, usePickerMessages, useThemeEffect
+│   ├── components/      # 공통 UI (Section/PageShell/PageScroll/PageFooter/AnnotationOverlay/ConsoleLogContent/NetworkLogContent 등)
+│   ├── tabs/            # 탭별 진입점 + 편집 패널 (DebugTab(→IssueTab/ConsoleSubTab/NetworkSubTab)/IssueListTab/IntegrationsTab/SettingsTab/StyleEditorPanel/DraftingPanel/AiDraftDialog 등)
 │   │   ├── styleEditor/   # AiStylingDialog, ValueCombobox, StylePropEditors와 헬퍼 (propMetadata, tokenUtils, styleHooks, TokenChip, colorLiteral, hexUtils)
 │   │   ├── settings/      # AI 모델 설정 (LlmConnectDialog, LlmConnectForm) — SettingsTab의 AI 모델 sub-tab content
 │   │   ├── connect/       # 플랫폼별 연결 폼 (JiraConnectForm, GithubConnectForm, LinearConnectForm, NotionConnectForm) — IntegrationsTab의 sub-tab content
@@ -118,18 +122,19 @@ pnpm version major --no-git-tag-version   # 1.0.0 → 2.0.0 (Breaking change)
 ### 워크플로우 (스킬 라인업)
 
 ```
-/feature     → 기능 아이디어 → PRD·기술 설계·태스크 문서 산출 (코딩 안 함)
-/tdd         → 테스트만 작성 (구현·픽스·커밋 안 함). interface 모드(신규 헬퍼 시그니처) / regression 모드(리뷰 발견 회귀 테스트)
-/pull        → dev 최신 받고 작업 맥락 브리핑
-/build       → pnpm build + 테스트 체크리스트 (작업 중 검증)
-/code-review → origin/main 대비 변경 코드 시급도별 리포트 (리포트 전용, fix·빌드·커밋 안 함)
-/push        → dev push (main에서 호출 차단)
-/merge       → dev에서 버전 bump 커밋 + dev → main squash PR 생성 + 자동 머지
-/deploy      → main 한정. tag push → 스토어 빌드 → zip → GitHub Release draft → 심사 요청 안내
-/sync        → dev를 origin/main으로 hard reset + force push (배포/머지 후)
+/feature        → 기능 아이디어 → PRD·기술 설계·태스크 문서 산출 (코딩 안 함)
+/feature-review → feature 산출물을 CPO·CDO·CTO·QA Lead 4명이 병렬 검수 → 피드백 수렴 → 문서 수정
+/tdd            → 테스트만 작성 (구현·픽스·커밋 안 함). interface 모드(신규 헬퍼 시그니처) / regression 모드(리뷰 발견 회귀 테스트)
+/pull           → dev 최신 받고 작업 맥락 브리핑
+/build          → pnpm build + 테스트 체크리스트 (작업 중 검증)
+/code-review    → origin/main 대비 변경 코드 시급도별 리포트 (리포트 전용, fix·빌드·커밋 안 함)
+/push           → dev push (main에서 호출 차단)
+/merge          → dev에서 버전 bump 커밋 + dev → main squash PR 생성 + 자동 머지
+/deploy         → main 한정. tag push → 스토어 빌드 → zip → GitHub Release draft → 심사 요청 안내
+/sync           → dev를 origin/main으로 hard reset + force push (배포/머지 후)
 ```
 
-권장 흐름: `/feature` → `/tdd interface` → 구현 → `/code-review` → `/tdd regression` → 픽스/리팩터 → `/push`. `/tdd` 분류표(스킬 정의 안)에 따라 컴포넌트·OAuth·DOM 측정 같은 영역은 스킵 OK.
+권장 흐름: `/feature` → `/feature-review` → `/tdd interface` → 구현 → `/code-review` → `/tdd regression` → 픽스/리팩터 → `/push`. `/tdd` 분류표(스킬 정의 안)에 따라 컴포넌트·OAuth·DOM 측정 같은 영역은 스킵 OK.
 
 각 단계 게이트는 `.claude/commands/` 스킬 정의에 명시.
 

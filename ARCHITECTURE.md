@@ -123,7 +123,8 @@ Jira·GitHub·Linear와 같은 모양으로 두 방식 동시 지원. 저장 형
 - **API 어댑터**: `{platform}-api.ts`에 fetch 래퍼 + 에러 클래스 + 순수 mapper export. 401 처리는 jira는 즉시 refresh 호출, github·linear는 hook 주입형(서비스 워커 재시작 후에도 module side-effect로 재등록), notion은 refresh가 없어 즉시 `notion.oauthExpired` throw.
 - **이슈 entry**: `IssueRecord.platform: PlatformId` 필수. v3→v4 migrate가 기존 entry를 `"jira"`로 채움. UI 분기는 `entry.platform`로. github 한정 메타(`githubOwner`/`githubRepo`/`githubLabels`), linear 한정 메타(`linearTeamKey`/`linearTeamId` 등), notion 한정 메타(`notionPageId`/`notionDatabaseId`/`notionDatabaseTitle`/`notionStatusOption`)는 optional — 등록 시 채우고, refresh fetch 응답으로 갱신.
 - **본문 빌더**: `buildIssueAdf`(Jira용 ADF), `buildIssueMarkdown`/`buildIssueHtml`(클립보드 복사 공용), `buildGithubIssueBody`(GitHub MD), `buildLinearIssueBody`(Linear MD), `buildNotionIssueBody`(Notion blocks: heading_2/paragraph/bulleted_list_item/code/image/video/table). 모두 `MarkdownContext`를 입력으로 받는다. submit 결과는 `NormalizedSubmitResult { key, url }`로 통일 (Jira `BUG-1` / GitHub `#42` / Linear `TEAM-123` / Notion 페이지 ID hex 첫 8자) — `submitToGithub` / `submitToLinear` / `submitToNotion` 헬퍼.
-- **Jira 인라인 미디어**: ADF `mediaSingle > media` 노드에서 `type: "file"` + media UUID를 써야 이미지·비디오 인라인 프리뷰가 동작한다 (`type: "external"` + URL은 비디오 프리뷰 불가). 문제는 첨부파일 REST API(`POST /rest/api/3/issue/{key}/attachments`) 응답에 `mediaApiFileId`가 포함되지 않는 인스턴스가 많다는 것. 워크어라운드: `GET /rest/api/3/attachment/content/{id}`를 fetch하면 `api.media.atlassian.com/file/{UUID}/binary?token=…`로 리다이렉트되므로, `res.url`에서 UUID를 정규식으로 추출한다 (`getMediaFileId` → `extractMediaId`). 비공식 동작이지만 Atlassian 커뮤니티에서 널리 사용되는 패턴.
+- **Jira 인라인 미디어**: ADF `mediaSingle > media` 노드에 `type: "file"` + media UUID + `collection: ""` 패턴을 써야 이미지·비디오 인라인 프리뷰가 동작 (드래그앤드롭으로 본문에 박힌 미디어와 동일한 attrs). `type: "external"` + secure URL 경로는 미디어 플레이어가 인증 없이 못 받아서 "미디어를 확인할 수 없다" verify 에러로 표시되므로 **절대 fallback으로 만들지 말 것**. 문제는 첨부 REST API(`POST /rest/api/3/issue/{key}/attachments`) 응답에 `mediaApiFileId`가 거의 없다는 점. 워크어라운드: `GET /rest/api/3/attachment/content/{id}`가 `api.media.atlassian.com/file/{UUID}/binary?token=…`로 리다이렉트되니 `res.url`에서 UUID를 정규식으로 추출(`getMediaFileId` → `extractMediaId`). HEAD가 redirect를 안 트리거하는 환경이 존재하므로 **`getMediaFileId`는 GET+`Range: bytes=0-0` → HEAD 순으로 두 전략 시도**(`probeMediaRedirect` 헬퍼). 둘 다 실패하면 비디오는 텍스트 fallback(`t("md.videoAttached")`) — 인라인 임베드 포기하고 첨부 링크에 맡김.
+- **Jira 미디어 디버깅 trap**: 인라인 재생 안 되거나 "미디어를 확인할 수 없다" 에러 보일 때 **코덱(VP9/VP8)·해상도·파일 크기·duration 의심부터 하지 말 것 — 거의 99% ADF/UUID 추출 경로 문제다.** 좁히는 순서: (1) `GET /rest/api/3/issue/{KEY}?fields=description` REST로 떠서 mediaSingle 노드의 `media.attrs.type` 확인 — `"external"`이면 `getMediaFileId`가 undefined 리턴해서 fallback 발동한 것. (2) 동일 파일을 Jira 본문에 드래그앤드롭해서 정답 attrs와 비교 — `type:"file"` + `collection:""` + UUID. (3) UUID 추출이 환경별로 깨지면 `probeMediaRedirect`에 다른 HTTP 메서드/헤더 조합 추가하거나, fallback을 텍스트 안내문으로 유지. 진짜로 코덱이 문제인 케이스는 동일 파일이 드래그앤드롭으로도 안 재생될 때뿐이다.
 - **AI/디버그 메타 첨부**: `buildAiMetaAttachment(ctx)` 단일 헬퍼가 마크다운을 만들어 `data:text/markdown;base64,...`로 반환. filename은 `bugshot.md` 고정(`AI_META_FILENAME` 상수, placeholder 없음 — Jira/GitHub/Linear/Notion 공통). Jira는 `submitIssue` 핸들러가 `attachments[0]`로 받고, GitHub은 `uploadGithubFiles`로 업로드 후 본문 첨부 섹션에 파일 링크로 포함, Linear/Notion은 본문에 인라인하지 않고 createIssue/createPage 후(또는 페이로드의 attachments 큐) **별도 첨부**로 보낸다 (Linear: `createAttachment`, Notion: 첨부 섹션 file 블록 = log 카테고리).
 - **다이얼로그**: `SubmitFieldsDialog`가 IssueCreateModal과 DraftDetailDialog 양쪽에서 공유. 연결 1개=Tab 숨김 자동, 2개 이상=shadcn Tabs로 platform 선택. 선택 시 `editor-store.setTargetPlatform` + `issuesStore.patchIssue`로 IssueRecord.platform 동기. default platform은 `pickInitialPlatform(accounts, lastSubmittedPlatform)` (직전 제출 → jira → github → linear → notion 순). prefill effect deps는 `[open, issue?.id]`만 — issue.platform 변경(사용자 Tab 클릭 결과)에 effect 재발화 시 SubmitFieldsDialog가 강제로 닫히는 버그 회피.
 - **OAuth 에러 분기**: `OAuthError`는 `{ platform, cancelled }` 옵션을 가지며 BG가 `body.platform` / `body.oauthCancelled` / `body.oauthRefreshFailed` 플래그로 직렬화. 정규식 메시지 매칭 금지 — UI는 `isOAuthCancelled` / `getOAuthErrorPlatform` 헬퍼로 분기. cancel 코드는 `isAtlassianCancellationCode` / `isGithubCancellationCode` / `isLinearCancellationCode` / `isNotionCancellationCode` 화이트리스트.
@@ -170,6 +171,36 @@ CSSOM이 보여주는 것: `border-top-left-radius: ""` / `border-top-right-radi
 비동기 영향: `picker.collectTokens` 메시지 핸들러 + `emitSelected` / `scheduleSelectionUpdate` / `scheduleTokenBuild`가 응답 전 `await ensureCssCacheLoaded()`. content script 메시지 핸들러는 `return true` + IIFE 패턴으로 비동기 응답.
 
 여전히 못 잡는 케이스: cross-origin stylesheet 중 CORS 헤더 없는 것 (대부분의 CDN). 이 경우 기존 한계 그대로 — computed literal 폴백.
+
+## 백그라운드 로그 캡처 (Network / Console)
+
+content_scripts에 MAIN world entry(`run_at: "document_start"`)로 `src/content/recorders-entry.ts`를 등록해 모든 페이지의 fetch/XHR/sendBeacon/console.*을 자동 wrap. 페이지 자체 스크립트보다 먼저 실행되므로 Sentry 등 SDK가 `originalFetch`를 캐싱하기 전에 wrap이 끼어든다.
+
+**document_start부터 무조건 buffer (옵션 A)** — wrap 설치 즉시 buffer에 적재한다. sentinel은 dispatch 채널 식별용일 뿐이며, sentinel 도착 전에 발생한 첫 fetch도 누락되지 않는다. 메모리는 50MB cap + LRU trim으로 보호. 사이드패널이 켜져 있지 않아도 buffer가 차오를 수 있는 비용이 있지만, recording 시작 시점에 이미 시나리오 재현이 진행 중인 케이스를 커버하기 위해 채택.
+
+**요청 phase 추적** — fetch/XHR send 시점에 `phase: "pending"` entry를 push하고, 응답 완료 시 `phase: "complete"`, reject/abort/error/timeout 시 `phase: "error"`로 in-place 갱신. 따라서 sync 시점에 in-flight 요청도 가시화되고, navigation으로 끊긴 요청은 pending으로 남아 디버깅 단서가 된다. summary는 `phase=error`를 status=0이어도 에러로 집계하므로 CORS·네트워크 실패가 이슈 본문에서 누락되지 않는다.
+
+**Body omission context** — `responseBody`/`requestBody`가 `string | NetworkBodyOmission` union. omission shape은 단순 kind 태그가 아니라 사유와 크기를 같이 들고 다닌다:
+- `{ kind: "truncated", limit, size }` — `size`가 `BODY_CAP`(3MB) 초과
+- `{ kind: "binary", contentType, size }` — image/audio/video/font/pdf/wasm/octet-stream
+- `{ kind: "stream", contentType }` — body 미존재 또는 reader 실패 (SSE / multipart)
+- `{ kind: "omitted", reason: "memory-cap" }` — LRU trim으로 본문 회수
+
+UI(`NetworkLogPreviewDialog`)와 HAR export 모두 이 context를 살려 "본문 잘림 (5.0 MB · 한도 3.0 MB)" / "Binary response (image/png · 500 B)" 등 정확한 사유를 표시.
+
+**클리어 트리거** — `useBackgroundRecorder`의 store 구독이 `preserve phase → idle` 전환을 감지하면 pending IndexedDB + MAIN buffer를 정리한 뒤 새 sentinel 발급. `shouldPreserveBackgroundLogs(phase)` = `recording / drafting / previewing / done`. 작성 취소, 정상 제출 후 reset, 녹화 중 취소 모두 이 분기에서 일괄 처리.
+
+**race 회피** — clear → setSentinel을 sequential `await`로 강제. fire-and-forget이면 Chrome 메시지 큐 처리 순서 미보장으로 setSentinel이 먼저 처리되어 이전 sentinel의 clearHandler가 detach → 후속 clear가 무시되는 경로가 가능. sequential로 picker.ts 처리 round-trip을 기다린 뒤 setSentinel.
+
+**추가 캡처** — `window.fetch`와 XHR 외에 `navigator.sendBeacon` (GA/Sentry/Datadog 등), fetch reject (네트워크 실패·CORS 차단), XHR error/abort/timeout 이벤트까지 entry화. 실패 entry는 `status=0` + `statusText="Network Error"/"Aborted"/"Timeout"`, beacon은 queued 결과에 따라 `200 OK` 또는 `0 Queue Full`. 모두 `phase`로 분류된다.
+
+**Console wrap 범위** — `console.log/info/debug` + `trace/assert/dir/table/group*/count*/time*` 시리즈만 wrap한다. `console.error/warn`은 의도적으로 풀어둔다 — 페이지가 native `console.error`를 호출하면 우리 wrap 함수가 콜스택에 끼는데, Chrome이 그걸 "이 확장이 console.error를 호출했다"로 attribution → `chrome://extensions` 오류 페이지에 페이지 라이브러리의 모든 deprecation/info 경고가 누적된다(Atlassian/Jira는 매 페이지마다 수십~수백 건). 진짜 가치 있는 신호는 다른 경로로 잡힌다: `window.addEventListener("error")`가 uncaught 에러를, `unhandledrejection`이 reject된 promise를, wrapped `console.assert`가 condition false 시점을 직접 `pushEntry("error")`로 buffer에 push. catch 후 `console.error(err)`로만 로깅한 케이스만 손해.
+
+**SPA path 변경** — `chrome.tabs.onUpdated`가 발화하는 케이스(full reload, 주소창 navigation)에 한해 URL key(`origin + pathname`) 비교 → 변경 시 preserve가 아니면 MAIN buffer + pending IndexedDB clear. `history.pushState` 기반 SPA navigation은 onUpdated가 발화하지 않아 자동 클리어 안 됨 — recording phase는 누적 의도라 이 동작이 부합.
+
+**handleStartVideo 흐름** — 녹화 시작 전에 명시 clear가 필요(이미 누적된 백그라운드 버퍼를 녹화 구간 이전 데이터로 두지 않기 위해). `injectNetworkRecorder` (rebind, no-op일 수도) → `clearNetworkRecorder` → `startRecording` 순서. 녹화 정상 종료(`recording → drafting`)에 `recordersStopped = true`로 세팅해 drafting 동안 페이지 reload에도 재주입 차단(자산 보존). `startRecording` 내부에선 `chrome.tabCapture.getMediaStreamId` 직후 `recorder.start(1000)` 호출. tabCapture 해상도는 1920×1080 상한으로 제한.
+
+**Cross-tab 메시지 격리** — `chrome.runtime.sendMessage`는 모든 extension contexts에 broadcast되므로 다른 탭의 content script가 보낸 `networkRecorder.data`/`consoleRecorder.data`/`picker.*`도 내 사이드패널 핸들러에 도달한다. `usePickerMessages`가 핸들러 진입부에서 `sender.tab?.id !== myTabId`인 메시지를 drop — 그러지 않으면 같은 origin/다른 path의 두 탭에서 동시에 녹화 중일 때 한 사이드패널이 다른 탭의 로그로 자기 store/IDB를 덮어쓰는 버그가 발생한다. `sender.tab` 부재(사이드패널/서비스워커 내부 통신)는 통과.
 
 ## DOM 트리 Lazy Load
 

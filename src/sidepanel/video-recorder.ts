@@ -1,5 +1,8 @@
 import { useEditorStore } from "@/store/editor-store";
-import { stopNetworkRecorder, stopConsoleRecorder } from "./picker-control";
+import {
+  stopConsoleRecorder,
+  stopNetworkRecorder,
+} from "./picker-control";
 
 const MAX_DURATION_SEC = 60;
 
@@ -44,6 +47,8 @@ export async function startRecording(tabId: number): Promise<void> {
       mandatory: {
         chromeMediaSource: "tab",
         chromeMediaSourceId: streamId,
+        maxWidth: 1920,
+        maxHeight: 1080,
       },
     },
   } as MediaStreamConstraints);

@@ -1,8 +1,6 @@
 import { isSupportedUrl } from "@/lib/url-support";
 import { useEditorStore } from "@/store/editor-store";
 import { onPickerUnavailable } from "@/types/messages";
-import { networkRecorderScript } from "@/content/network-recorder";
-import { consoleRecorderScript } from "@/content/console-recorder";
 import type {
   DescribeChildrenResponse,
   DescribeInitialResponse,
@@ -50,6 +48,24 @@ async function ensureContentScript(tabId: number): Promise<void> {
     await new Promise((r) => setTimeout(r, 50));
   }
   throw new PickerUnavailableError();
+}
+
+async function ensureMainWorldRecorders(tabId: number): Promise<void> {
+  const manifest = chrome.runtime.getManifest();
+  const entry = manifest.content_scripts?.find(
+    (cs) => (cs as { world?: string }).world === "MAIN",
+  );
+  const files = entry?.js;
+  if (!files?.length) return;
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      world: "MAIN",
+      files,
+    });
+  } catch {
+    // host permission이 없거나 정책 차단 페이지
+  }
 }
 
 async function send<R = void>(
@@ -228,15 +244,10 @@ export async function cancelAreaCapture(tabId: number): Promise<void> {
   useEditorStore.getState().reset();
 }
 
-export async function injectNetworkRecorder(tabId: number): Promise<string> {
+export async function activateNetworkRecorder(tabId: number): Promise<string> {
   await ensureContentScript(tabId);
+  await ensureMainWorldRecorders(tabId);
   const sentinel = crypto.randomUUID();
-  await chrome.scripting.executeScript({
-    target: { tabId },
-    world: "MAIN",
-    func: networkRecorderScript,
-    args: [sentinel],
-  });
   await send(tabId, { type: "networkRecorder.setSentinel", sentinel });
   return sentinel;
 }
@@ -249,15 +260,14 @@ export async function syncNetworkRecorder(tabId: number): Promise<void> {
   await send(tabId, { type: "networkRecorder.sync" });
 }
 
-export async function injectConsoleRecorder(tabId: number): Promise<string> {
+export async function clearNetworkRecorder(tabId: number): Promise<void> {
+  await send(tabId, { type: "networkRecorder.clear" });
+}
+
+export async function activateConsoleRecorder(tabId: number): Promise<string> {
   await ensureContentScript(tabId);
+  await ensureMainWorldRecorders(tabId);
   const sentinel = crypto.randomUUID();
-  await chrome.scripting.executeScript({
-    target: { tabId },
-    world: "MAIN",
-    func: consoleRecorderScript,
-    args: [sentinel],
-  });
   await send(tabId, { type: "consoleRecorder.setSentinel", sentinel });
   return sentinel;
 }
@@ -270,3 +280,6 @@ export async function syncConsoleRecorder(tabId: number): Promise<void> {
   await send(tabId, { type: "consoleRecorder.sync" });
 }
 
+export async function clearConsoleRecorder(tabId: number): Promise<void> {
+  await send(tabId, { type: "consoleRecorder.clear" });
+}

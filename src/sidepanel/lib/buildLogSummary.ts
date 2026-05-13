@@ -17,7 +17,7 @@ export interface ConsoleLogSummary {
 
 export function buildNetworkLogSummary(log: NetworkLog): NetworkLogSummary {
   const errors = log.requests
-    .filter((r) => r.status >= 400)
+    .filter((r) => r.phase === "error" || r.status >= 400)
     .slice(0, MAX_ERRORS)
     .map((r) => ({
       method: r.method,

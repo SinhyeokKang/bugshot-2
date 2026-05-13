@@ -8,10 +8,25 @@ import { captureElementSnapshot, loadImage } from "../capture";
 import { collectTokens } from "../picker-control";
 import { saveNetworkLog, saveConsoleLog } from "@/store/blob-db";
 
-export function usePickerMessages(): void {
+export function usePickerMessages(myTabId: number | null): void {
   useEffect(() => {
-    function handler(message: PickerMessage | { type: string }) {
+    function handler(
+      message: PickerMessage | { type: string },
+      sender: chrome.runtime.MessageSender,
+    ) {
       if (!message || typeof message !== "object" || !("type" in message)) {
+        return;
+      }
+
+      // content script가 보낸 메시지는 chrome.runtime.sendMessage로 모든 extension contexts에
+      // broadcast된다. 다른 탭의 side panel 인스턴스가 같이 받아서 내 store/IDB를 덮는 걸 차단.
+      // sender.tab은 content script에서 온 경우만 존재 — 미존재 시(side panel/background 내부
+      // 통신) 통과시킨다.
+      if (
+        myTabId != null &&
+        sender.tab?.id != null &&
+        sender.tab.id !== myTabId
+      ) {
         return;
       }
 
@@ -110,7 +125,7 @@ export function usePickerMessages(): void {
     return () => {
       chrome.runtime.onMessage.removeListener(handler);
     };
-  }, []);
+  }, [myTabId]);
 }
 
 async function captureAndCrop(rect: ViewportRect, viewport: { width: number; height: number }): Promise<void> {

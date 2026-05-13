@@ -52,6 +52,12 @@ export default defineManifest({
       js: ["src/content/picker.ts"],
       run_at: "document_idle",
     },
+    {
+      matches: ["<all_urls>"],
+      js: ["src/content/recorders-entry.ts"],
+      run_at: "document_start",
+      world: "MAIN",
+    },
   ],
   permissions: [
     "sidePanel",

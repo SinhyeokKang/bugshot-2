@@ -6,7 +6,6 @@ import {
   CircleCheck,
   Crosshair,
   ImageIcon,
-  List,
   Video,
 } from "lucide-react";
 import { useT } from "@/i18n";
@@ -22,10 +21,21 @@ import {
 import { Button } from "@/components/ui/button";
 import { useEditorStore } from "@/store/editor-store";
 import { useBoundTabId } from "../hooks/useBoundTabId";
-import { startPicker, stopPicker, startAreaCapture, cancelAreaCapture, clearPicker, injectNetworkRecorder, injectConsoleRecorder } from "../picker-control";
+import {
+  startPicker,
+  stopPicker,
+  startAreaCapture,
+  cancelAreaCapture,
+  clearPicker,
+  activateNetworkRecorder,
+  activateConsoleRecorder,
+  clearNetworkRecorder,
+  clearConsoleRecorder,
+} from "../picker-control";
+import { deleteNetworkLog, deleteConsoleLog } from "@/store/blob-db";
+import { onVideoRecordingUnavailable } from "@/types/messages";
 import * as videoRecorder from "../video-recorder";
 import { PageShell } from "../components/Section";
-import { useTabNav } from "../App";
 import { DraftingPanel } from "./DraftingPanel";
 import { PreviewPanel } from "./PreviewPanel";
 import { SelectedPanel } from "./StyleEditorPanel";
@@ -128,27 +138,45 @@ function UnsupportedPage() {
 
 async function handleStartVideo(tabId: number) {
   const tab = await chrome.tabs.get(tabId);
+
+  // pending IndexedDB는 startRecording의 ...initial 리셋과 무관하게 정리 필요.
+  deleteNetworkLog(`pending:${tabId}`).catch(() => {});
+  deleteConsoleLog(`pending:${tabId}`).catch(() => {});
+
+  await Promise.all([
+    activateNetworkRecorder(tabId).catch((err) => console.warn("[bugshot] network recorder activate failed", err)),
+    activateConsoleRecorder(tabId).catch((err) => console.warn("[bugshot] console recorder activate failed", err)),
+  ]);
+  await Promise.all([
+    clearNetworkRecorder(tabId).catch((err) => console.warn("[bugshot] network recorder clear failed", err)),
+    clearConsoleRecorder(tabId).catch((err) => console.warn("[bugshot] console recorder clear failed", err)),
+  ]);
+
   useEditorStore.getState().startRecording({
     tabId,
     url: tab.url ?? "",
     title: tab.title ?? "",
   });
   try {
-    await injectNetworkRecorder(tabId);
-  } catch (err) {
-    console.warn("[bugshot] network recorder injection failed", err);
-  }
-  try {
-    await injectConsoleRecorder(tabId);
-  } catch (err) {
-    console.warn("[bugshot] console recorder injection failed", err);
-  }
-  try {
     await videoRecorder.startRecording(tabId);
   } catch (err) {
-    console.warn("[bugshot] video recording failed to start", err);
     useEditorStore.getState().cancelRecording();
+    if (isTabCaptureUnavailable(err)) {
+      onVideoRecordingUnavailable.fire({ tabId });
+    } else {
+      console.warn("[bugshot] video recording failed to start", err);
+    }
   }
+}
+
+function isTabCaptureUnavailable(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  const msg = err.message.toLowerCase();
+  return (
+    msg.includes("extension has not been invoked") ||
+    msg.includes("chrome pages cannot be captured") ||
+    msg.includes("activetab")
+  );
 }
 
 function EmptyState({ onStartElement, onStartScreenshot, onStartVideo }: { onStartElement: () => void; onStartScreenshot: () => void; onStartVideo: () => void }) {
@@ -258,7 +286,6 @@ function SubmitSuccessView() {
   const t = useT();
   const submitResult = useEditorStore((s) => s.submitResult);
   const reset = useEditorStore((s) => s.reset);
-  const setTab = useTabNav();
 
   if (!submitResult) return null;
 
@@ -278,17 +305,7 @@ function SubmitSuccessView() {
           {submitResult.key}
           <ArrowUpRight className="h-3.5 w-3.5" />
         </a>
-        <div className="mt-6 flex gap-2">
-          <Button
-            variant="outline"
-            onClick={() => {
-              reset();
-              setTab("issue-list");
-            }}
-          >
-            <List className="h-4 w-4" />
-            {t("app.tab.issueList")}
-          </Button>
+        <div className="mt-6">
           <Button onClick={() => reset()}>
             {t("common.ok")}
           </Button>

@@ -91,8 +91,10 @@ export type PickerMessage =
   | { type: "networkRecorder.setSentinel"; sentinel: string }
   | { type: "networkRecorder.stop" }
   | { type: "networkRecorder.sync" }
+  | { type: "networkRecorder.clear" }
   | { type: "networkRecorder.data"; payload: { requests: import("@/types/network").NetworkRequest[]; totalSeen: number; warnings: import("@/types/network").NetworkLog["warnings"] } }
   | { type: "consoleRecorder.setSentinel"; sentinel: string }
   | { type: "consoleRecorder.stop" }
   | { type: "consoleRecorder.sync" }
+  | { type: "consoleRecorder.clear" }
   | { type: "consoleRecorder.data"; payload: { entries: import("@/types/console").ConsoleEntry[]; totalSeen: number } };

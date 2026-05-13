@@ -22,7 +22,7 @@ const en = {
   "common.detach": "Detach",
 
   // App tabs
-  "app.tab.issue": "Issue",
+  "app.tab.debug": "Debug",
   "app.tab.issueList": "Issues",
   "app.tab.integrations": "Integrations",
   "app.tab.settings": "Settings",
@@ -38,6 +38,15 @@ const en = {
   "app.blobSaveFailed.body": "Some images, videos, or logs could not be saved due to insufficient storage. Check the draft for missing items.",
   "app.sessionSaveExhausted.title": "Session cannot be saved",
   "app.sessionSaveExhausted.body": "Insufficient storage to preserve your session. Current work may be lost if you close this tab.",
+  "app.videoRecordingUnavailable.title": "Cannot start recording",
+  "app.videoRecordingUnavailable.body": "Screen capture permission for this tab has expired. Click [OK] to re-request permission for this site, then press the record button again.",
+
+  // Debug sub-tabs
+  "debug.tab.issue": "Issue",
+  "debug.tab.console": "Console logs",
+  "debug.tab.network": "Network logs",
+  "debug.console.empty": "No console logs captured",
+  "debug.network.empty": "No network requests captured",
 
   // Issue sections
   "section.issueTitle": "Issue title",
@@ -540,6 +549,9 @@ const en = {
   "networkLog.display.truncated": "Captured: {captured} / Total: {total}",
   "networkLog.display.binary": "Binary response ({type} · {size}) · Body not saved",
   "networkLog.display.stream": "Streaming response ({type}) · Body not captured",
+  "networkLog.display.bodyTruncated": "Body truncated ({size} · cap {limit})",
+  "networkLog.display.bodyOmitted": "Body omitted (memory cap)",
+  "networkLog.display.pending": "Waiting for response",
   "networkLog.privacy.warning": "Personal information in response bodies is the user's responsibility",
   "networkLog.har.summary": "(network-log.har)",
 

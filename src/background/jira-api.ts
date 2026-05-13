@@ -273,21 +273,38 @@ export function extractMediaId(redirectUrl: string): string | undefined {
   return match?.[1];
 }
 
+async function probeMediaRedirect(
+  url: string,
+  headers: Record<string, string>,
+  method: "GET" | "HEAD",
+): Promise<string | undefined> {
+  try {
+    const res = await fetch(url, { method, headers });
+    return extractMediaId(res.url);
+  } catch {
+    return undefined;
+  }
+}
+
 export async function getMediaFileId(
   auth: JiraAuth,
   attachmentId: string,
 ): Promise<string | undefined> {
   const path = `/rest/api/3/attachment/content/${encodeURIComponent(attachmentId)}`;
   const url = resolveUrl(auth, path);
-  try {
-    const res = await fetch(url, {
-      method: "HEAD",
-      headers: { Authorization: authHeader(auth) },
-    });
-    return extractMediaId(res.url);
-  } catch {
-    return undefined;
-  }
+  const authHdr = { Authorization: authHeader(auth) };
+
+  const viaRangeGet = await probeMediaRedirect(
+    url,
+    { ...authHdr, Range: "bytes=0-0" },
+    "GET",
+  );
+  if (viaRangeGet) return viaRangeGet;
+
+  const viaHead = await probeMediaRedirect(url, authHdr, "HEAD");
+  if (viaHead) return viaHead;
+
+  return undefined;
 }
 
 export async function uploadAttachment(

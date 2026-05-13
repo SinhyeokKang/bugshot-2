@@ -21,6 +21,7 @@ function makeRequest(overrides: Partial<NetworkRequest> = {}): NetworkRequest {
     requestBodySize: 0,
     responseBodySize: 0,
     contentType: "",
+    phase: "complete",
     ...overrides,
   };
 }
@@ -102,6 +103,31 @@ describe("buildNetworkLogSummary", () => {
       requests: [makeRequest({ url: "not-a-url", status: 400, statusText: "Bad" })],
     });
     expect(buildNetworkLogSummary(log).errors[0].path).toBe("not-a-url");
+  });
+
+  it("phase=error는 status 0이어도 에러로 수집", () => {
+    const log = makeNetworkLog({
+      captured: 2,
+      requests: [
+        makeRequest({ id: "1", status: 200, phase: "complete" }),
+        makeRequest({ id: "2", url: "https://example.com/dead", status: 0, statusText: "Network Error", phase: "error" }),
+      ],
+    });
+    const summary = buildNetworkLogSummary(log);
+    expect(summary.errors).toHaveLength(1);
+    expect(summary.errors[0].path).toBe("/dead");
+    expect(summary.errors[0].statusText).toBe("Network Error");
+  });
+
+  it("phase=pending은 에러로 수집하지 않음", () => {
+    const log = makeNetworkLog({
+      captured: 2,
+      requests: [
+        makeRequest({ id: "1", status: 200, phase: "complete" }),
+        makeRequest({ id: "2", status: 0, statusText: "", phase: "pending" }),
+      ],
+    });
+    expect(buildNetworkLogSummary(log).errors).toHaveLength(0);
   });
 });
 
