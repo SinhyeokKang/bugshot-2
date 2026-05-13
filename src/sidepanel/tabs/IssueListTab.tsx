@@ -196,19 +196,6 @@ export function IssueListTab() {
     );
   }
 
-  if (displayable.length === 0) {
-    return (
-      <PageShell>
-        <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 pb-5 text-center">
-          <div className="mb-3 rounded-full bg-muted p-3">
-            <Inbox className="h-6 w-6 text-muted-foreground" />
-          </div>
-          <h3 className="text-[18px] font-semibold">{t("issueList.empty")}</h3>
-        </div>
-      </PageShell>
-    );
-  }
-
   return (
     <PageShell>
       <div className="shrink-0 border-b border-border px-4 py-4">
@@ -240,7 +227,14 @@ export function IssueListTab() {
           </div>
         </div>
       </div>
-      {filtered.length === 0 ? (
+      {displayable.length === 0 ? (
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 pb-5 text-center">
+          <div className="mb-3 rounded-full bg-muted p-3">
+            <Inbox className="h-6 w-6 text-muted-foreground" />
+          </div>
+          <h3 className="text-[18px] font-semibold">{t("issueList.empty")}</h3>
+        </div>
+      ) : filtered.length === 0 ? (
         <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 pb-5 text-center">
           <div className="mb-3 rounded-full bg-muted p-3">
             <SearchX className="h-6 w-6 text-muted-foreground" />
@@ -269,46 +263,48 @@ export function IssueListTab() {
         ))}
         </PageScroll>
       )}
-      <PageFooter>
-        <div className="flex justify-between">
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant="outline" className="text-destructive">
-                {t("issueList.deleteAll")}
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>{t("issueList.deleteAll.title")}</AlertDialogTitle>
-                <AlertDialogDescription>
-                  {t("issueList.deleteAll.body")}
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>{t("common.close")}</AlertDialogCancel>
-                <AlertDialogAction onClick={clearIssues}>
+      {displayable.length > 0 && (
+        <PageFooter>
+          <div className="flex justify-between">
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button variant="outline" className="text-destructive">
                   {t("issueList.deleteAll")}
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-          <Button
-            variant="outline"
-            disabled={isRefreshing || refreshableCount === 0}
-            onClick={handleRefresh}
-            className="relative"
-          >
-            {isRefreshing && (
-              <span className="absolute inset-0 flex items-center justify-center">
-                <Loader2 className="h-4 w-4 animate-spin" />
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>{t("issueList.deleteAll.title")}</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    {t("issueList.deleteAll.body")}
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>{t("common.close")}</AlertDialogCancel>
+                  <AlertDialogAction onClick={clearIssues}>
+                    {t("issueList.deleteAll")}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+            <Button
+              variant="outline"
+              disabled={isRefreshing || refreshableCount === 0}
+              onClick={handleRefresh}
+              className="relative"
+            >
+              {isRefreshing && (
+                <span className="absolute inset-0 flex items-center justify-center">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                </span>
+              )}
+              <span className={isRefreshing ? "opacity-0" : undefined}>
+                {t("issueList.refresh")}
               </span>
-            )}
-            <span className={isRefreshing ? "opacity-0" : undefined}>
-              {t("issueList.refresh")}
-            </span>
-          </Button>
-        </div>
-      </PageFooter>
+            </Button>
+          </div>
+        </PageFooter>
+      )}
       <DraftDetailDialog
         issue={activeDraft}
         open={!!activeDraft}
