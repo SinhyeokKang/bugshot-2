@@ -176,7 +176,7 @@ CSSOM이 보여주는 것: `border-top-left-radius: ""` / `border-top-right-radi
 
 content_scripts에 MAIN world entry(`run_at: "document_start"`)로 `src/content/recorders-entry.ts`를 등록해 모든 페이지의 fetch/XHR/sendBeacon/console.*을 자동 wrap. 페이지 자체 스크립트보다 먼저 실행되므로 Sentry 등 SDK가 `originalFetch`를 캐싱하기 전에 wrap이 끼어든다.
 
-**document_start부터 무조건 buffer (옵션 A)** — wrap 설치 즉시 buffer에 적재한다. sentinel은 dispatch 채널 식별용일 뿐이며, sentinel 도착 전에 발생한 첫 fetch도 누락되지 않는다. 메모리는 50MB cap + LRU trim으로 보호. 사이드패널이 켜져 있지 않아도 buffer가 차오를 수 있는 비용이 있지만, recording 시작 시점에 이미 시나리오 재현이 진행 중인 케이스를 커버하기 위해 채택.
+**document_start부터 무조건 buffer (옵션 A)** — wrap 설치 즉시 buffer에 적재한다. sentinel은 dispatch 채널 식별용일 뿐이며, sentinel 도착 전에 발생한 첫 fetch도 누락되지 않는다. 메모리는 두 단계로 보호: (1) 50MB body cap + LRU trim(`enforceMemoryCap`)이 본문을 omitted로 회수, (2) 5000 entry FIFO cap(`enforceEntryCap`)이 본문 없는 요청(HEAD/204/binary beacon) 폭증으로부터 buffer 길이 자체를 막는다. cap 도달 시 oldest를 버리는 FIFO — 버그 재현 시나리오에서 가치 있는 신호는 후반부라는 가정. 사이드패널이 켜져 있지 않아도 buffer가 차오를 수 있는 비용이 있지만, recording 시작 시점에 이미 시나리오 재현이 진행 중인 케이스를 커버하기 위해 채택. console-recorder도 동일하게 2000 entry FIFO + `clearBuffer`가 counters/timers Map까지 리셋.
 
 **요청 phase 추적** — fetch/XHR send 시점에 `phase: "pending"` entry를 push하고, 응답 완료 시 `phase: "complete"`, reject/abort/error/timeout 시 `phase: "error"`로 in-place 갱신. 따라서 sync 시점에 in-flight 요청도 가시화되고, navigation으로 끊긴 요청은 pending으로 남아 디버깅 단서가 된다. summary는 `phase=error`를 status=0이어도 에러로 집계하므로 CORS·네트워크 실패가 이슈 본문에서 누락되지 않는다.
 
@@ -189,6 +189,8 @@ content_scripts에 MAIN world entry(`run_at: "document_start"`)로 `src/content/
 UI(`NetworkLogPreviewDialog`)와 HAR export 모두 이 context를 살려 "본문 잘림 (5.0 MB · 한도 3.0 MB)" / "Binary response (image/png · 500 B)" 등 정확한 사유를 표시.
 
 **클리어 트리거** — `useBackgroundRecorder`의 store 구독이 `preserve phase → idle` 전환을 감지하면 pending IndexedDB + MAIN buffer를 정리한 뒤 새 sentinel 발급. `shouldPreserveBackgroundLogs(phase)` = `recording / drafting / previewing / done`. 작성 취소, 정상 제출 후 reset, 녹화 중 취소 모두 이 분기에서 일괄 처리.
+
+**고아 pending 정리 (SW 부트)** — `pending:${tabId}` IndexedDB 엔트리는 평소 `chrome.tabs.onRemoved`·URL 변경·이슈 저장 3경로로 정리되지만, 브라우저 강제 종료·확장 reload·SW 휴면 중 탭 종료 등으로 onRemoved가 누락되면 영구 잔류한다. `src/lib/pending-log-prune.ts`의 `pruneOrphanPendingLogsOncePerSession()`이 SW 부트 시 `chrome.storage.session.pendingPrunedAt` 플래그로 세션당 1회만 도는 가드를 두고, 현재 `chrome.tabs.query({})` 결과에 없는 tabId의 `pending:` 엔트리를 회수. `findOrphanPendingKeys`는 순수 함수로 분리해 테스트.
 
 **race 회피** — clear → setSentinel을 sequential `await`로 강제. fire-and-forget이면 Chrome 메시지 큐 처리 순서 미보장으로 setSentinel이 먼저 처리되어 이전 sentinel의 clearHandler가 detach → 후속 clear가 무시되는 경로가 가능. sequential로 picker.ts 처리 round-trip을 기다린 뒤 setSentinel.
 
