@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { ArrowLeftRight, SquarePen, Terminal } from "lucide-react";
 import { useT } from "@/i18n";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { IssueTab } from "./IssueTab";
@@ -19,9 +20,18 @@ export function DebugTab() {
     >
       <div className="shrink-0 border-b border-border px-4 py-4">
         <TabsList className="grid h-9 w-full grid-cols-3">
-          <TabsTrigger value="issue">{t("debug.tab.issue")}</TabsTrigger>
-          <TabsTrigger value="console">{t("debug.tab.console")}</TabsTrigger>
-          <TabsTrigger value="network">{t("debug.tab.network")}</TabsTrigger>
+          <TabsTrigger value="issue" className="gap-1.5">
+            <SquarePen className="h-3.5 w-3.5" />
+            {t("debug.tab.issue")}
+          </TabsTrigger>
+          <TabsTrigger value="console" className="gap-1.5">
+            <Terminal className="h-3.5 w-3.5" />
+            {t("debug.tab.console")}
+          </TabsTrigger>
+          <TabsTrigger value="network" className="gap-1.5">
+            <ArrowLeftRight className="h-3.5 w-3.5" />
+            {t("debug.tab.network")}
+          </TabsTrigger>
         </TabsList>
       </div>
 

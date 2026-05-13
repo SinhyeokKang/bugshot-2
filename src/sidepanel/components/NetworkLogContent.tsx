@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useMemo, useRef, Fragment } from "react";
-import { ArrowLeftRight, ChevronDown, ChevronRight, Code, File, FileText, Image, MousePointerClick, Paintbrush, Search, Type, X } from "lucide-react";
+import { ArrowLeftRight, ChevronDown, ChevronRight, Code, File, FileText, Globe, Image, MousePointerClick, Paintbrush, Search, Type, X } from "lucide-react";
 import { useT, type TranslationFn } from "@/i18n";
 import type { NetworkRequest, NetworkRequestBody } from "@/types/network";
 import { formatBytes } from "@/sidepanel/lib/formatBytes";
@@ -252,7 +252,14 @@ export function NetworkLogContent({ requests }: NetworkLogContentProps) {
       </div>
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-        {activeReq ? (
+        {requests.length === 0 ? (
+          <div className="flex flex-1 flex-col items-center justify-center gap-3">
+            <div className="rounded-full bg-muted p-3">
+              <Globe className="h-6 w-6 text-muted-foreground" />
+            </div>
+            <span className="text-sm text-muted-foreground">{t("debug.network.empty")}</span>
+          </div>
+        ) : activeReq ? (
           <Tabs
             value={detailTab}
             onValueChange={(v) => setDetailTab(v as DetailTab)}

@@ -39,8 +39,8 @@ const ko = {
 
   // Debug sub-tabs
   "debug.tab.issue": "이슈 작성",
-  "debug.tab.console": "콘솔",
-  "debug.tab.network": "네트워크",
+  "debug.tab.console": "콘솔 로그",
+  "debug.tab.network": "네트워크 로그",
   "debug.console.empty": "콘솔 로그가 없습니다",
   "debug.network.empty": "네트워크 요청이 없습니다",
 

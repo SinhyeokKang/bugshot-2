@@ -41,8 +41,8 @@ const en = {
 
   // Debug sub-tabs
   "debug.tab.issue": "Issue",
-  "debug.tab.console": "Console",
-  "debug.tab.network": "Network",
+  "debug.tab.console": "Console logs",
+  "debug.tab.network": "Network logs",
   "debug.console.empty": "No console logs captured",
   "debug.network.empty": "No network requests captured",
 

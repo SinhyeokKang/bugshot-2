@@ -117,13 +117,22 @@ export function ConsoleLogContent({ entries, startedAt }: ConsoleLogContentProps
           </div>
         </div>
       </Tabs>
-      <ScrollArea className="min-h-0 flex-1">
-        <div className="overflow-hidden">
-          {filteredEntries.map((entry) => (
-            <EntryAccordion key={entry.id} entry={entry} startedAt={startedAt} />
-          ))}
+      {entries.length === 0 ? (
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3">
+          <div className="rounded-full bg-muted p-3">
+            <Terminal className="h-6 w-6 text-muted-foreground" />
+          </div>
+          <span className="text-sm text-muted-foreground">{t("debug.console.empty")}</span>
         </div>
-      </ScrollArea>
+      ) : (
+        <ScrollArea className="min-h-0 flex-1">
+          <div className="overflow-hidden">
+            {filteredEntries.map((entry) => (
+              <EntryAccordion key={entry.id} entry={entry} startedAt={startedAt} />
+            ))}
+          </div>
+        </ScrollArea>
+      )}
     </div>
   );
 }
