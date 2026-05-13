@@ -6,8 +6,8 @@ import {
   SiOllama,
   SiOpenrouter,
 } from "@icons-pack/react-simple-icons";
+import { toast } from "sonner";
 import { useT } from "@/i18n";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
   Command,
@@ -101,7 +101,6 @@ export function LlmConnectDialog({
   const [baseUrl, setBaseUrl] = useState("");
   const [search, setSearch] = useState("");
   const [apiKey, setApiKey] = useState("");
-  const [error, setError] = useState<string | null>(null);
   const [connecting, setConnecting] = useState(false);
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [pendingModels, setPendingModels] = useState<{
@@ -112,7 +111,6 @@ export function LlmConnectDialog({
 
   useEffect(() => {
     if (open) {
-      setError(null);
       cancelledRef.current = false;
     }
     return () => { cancelledRef.current = true; };
@@ -140,11 +138,10 @@ export function LlmConnectDialog({
   }
 
   async function handleConnect() {
-    setError(null);
     try {
       new URL(baseUrl);
     } catch {
-      setError(t("llm.error.invalidUrl"));
+      toast.error(t("llm.error.invalidUrl"));
       return;
     }
     setConnecting(true);
@@ -152,7 +149,7 @@ export function LlmConnectDialog({
       const granted = await requestHostPermission(baseUrl);
       if (cancelledRef.current) return;
       if (!granted) {
-        setError(t("llm.error.permission"));
+        toast.error(t("llm.error.permission"));
         return;
       }
 
@@ -176,7 +173,7 @@ export function LlmConnectDialog({
       setPendingModels({ models, baseUrl });
     } catch {
       if (cancelledRef.current) return;
-      setError(t("llm.error.fetch"));
+      toast.error(t("llm.error.fetch"));
     } finally {
       if (!cancelledRef.current) setConnecting(false);
     }
@@ -295,11 +292,6 @@ export function LlmConnectDialog({
             </div>
           </div>
 
-          {error ? (
-            <Alert variant="destructive" className="text-xs">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          ) : null}
         </div>
 
         <DialogFooter className="flex-row justify-end">

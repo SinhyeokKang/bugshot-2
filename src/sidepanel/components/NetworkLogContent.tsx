@@ -17,6 +17,7 @@ const REQUEST_FILTERS: RequestFilter[] = ["all", "json", "js", "css", "img", "fo
 
 interface NetworkLogContentProps {
   requests: NetworkRequest[];
+  flush?: boolean;
 }
 
 function methodColor(method: string): string {
@@ -131,7 +132,7 @@ function buildCurl(req: NetworkRequest): string {
 
 type DetailTab = "headers" | "request" | "response";
 
-export function NetworkLogContent({ requests }: NetworkLogContentProps) {
+export function NetworkLogContent({ requests, flush }: NetworkLogContentProps) {
   const t = useT();
   const [activeId, setActiveId] = useState<string | null>(null);
   const [detailTab, setDetailTab] = useState<DetailTab>("headers");
@@ -199,9 +200,9 @@ export function NetworkLogContent({ requests }: NetworkLogContentProps) {
   }, [listWidth]);
 
   return (
-    <div ref={containerRef} className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border">
+    <div ref={containerRef} className={`flex min-h-0 flex-1 flex-col overflow-hidden${flush ? "" : " rounded-lg border"}`}>
       <Tabs value={filter} onValueChange={(v) => setFilter(v as RequestFilter)}>
-        <div className="flex items-center gap-3 border-b p-2">
+        <div className={`flex items-center gap-3 border-b${flush ? " px-4 py-4" : " p-2"}`}>
           <TabsList>
             {availableFilters.map((f) => (
               <TabsTrigger key={f} value={f}>

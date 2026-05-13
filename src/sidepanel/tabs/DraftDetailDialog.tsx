@@ -643,7 +643,7 @@ export function DraftDetailDialog({
               </Card>
 
               {available.length === 0 ? (
-                <Alert variant="ghost">
+                <Alert variant="default">
                   <Info className="h-4 w-4" />
                   <AlertTitle>{t("platform.empty.title")}</AlertTitle>
                   <AlertDescription>{t("platform.empty.body")}</AlertDescription>

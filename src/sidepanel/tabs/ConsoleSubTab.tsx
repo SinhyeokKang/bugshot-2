@@ -25,11 +25,10 @@ export function ConsoleSubTab({ active }: { active: boolean }) {
   }, [active]);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col p-4">
-      <ConsoleLogContent
-        entries={consoleLog?.entries ?? []}
-        startedAt={consoleLog?.startedAt ?? Date.now()}
-      />
-    </div>
+    <ConsoleLogContent
+      flush
+      entries={consoleLog?.entries ?? []}
+      startedAt={consoleLog?.startedAt ?? Date.now()}
+    />
   );
 }

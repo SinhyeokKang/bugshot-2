@@ -220,7 +220,7 @@ const ko = {
   // Settings tabs
   "settings.tab.issue": "이슈 설정",
   "settings.tab.ai": "AI 모델",
-  "settings.tab.general": "기타",
+  "settings.tab.general": "일반",
 
   // LLM BYOK
   "llm.onboarding.title": "AI 모델을 연결하세요",

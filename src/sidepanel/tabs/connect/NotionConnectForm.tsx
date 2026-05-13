@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 import { CircleCheck, ExternalLink, KeyRound, Loader2 } from "lucide-react";
 import { SiNotion } from "@icons-pack/react-simple-icons";
+import { toast } from "sonner";
 import { useT } from "@/i18n";
-import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -182,7 +182,6 @@ function NotionOnboarding() {
   const t = useT();
   const [oauthAvailable, setOauthAvailable] = useState<boolean | null>(null);
   const [connecting, setConnecting] = useState(false);
-  const [oauthError, setOauthError] = useState<string | null>(null);
   const [tokenOpen, setTokenOpen] = useState(false);
 
   const setAccount = useSettingsStore((s) => s.setAccount);
@@ -198,7 +197,6 @@ function NotionOnboarding() {
   }, []);
 
   async function startOAuth() {
-    setOauthError(null);
     setConnecting(true);
     try {
       const auth = await sendBg<NotionOAuthAuth>({ type: "notion.startOAuth" });
@@ -211,7 +209,7 @@ function NotionOnboarding() {
       setAccount("notion", next);
     } catch (err) {
       if (!isOAuthCancelled(err)) {
-        setOauthError(err instanceof Error ? err.message : String(err));
+        toast.error(err instanceof Error ? err.message : String(err));
       }
     } finally {
       setConnecting(false);
@@ -264,11 +262,6 @@ function NotionOnboarding() {
             {t("notion.oauth.notConfigured")}
           </p>
         ) : null}
-        {oauthError ? (
-          <Alert variant="destructive" className="mt-3 text-xs">
-            <AlertDescription>{oauthError}</AlertDescription>
-          </Alert>
-        ) : null}
       </div>
 
       <InternalTokenDialog open={tokenOpen} onOpenChange={setTokenOpen} />
@@ -286,14 +279,12 @@ function InternalTokenDialog({
   const t = useT();
   const setAccount = useSettingsStore((s) => s.setAccount);
   const [token, setToken] = useState("");
-  const [error, setError] = useState<string | null>(null);
   const [validating, setValidating] = useState(false);
 
   const trimmed = token.trim();
   const canValidate = !!trimmed && !validating;
 
   async function handleValidate() {
-    setError(null);
     setValidating(true);
     try {
       const me = await sendBg<NotionMyself>({
@@ -315,7 +306,7 @@ function InternalTokenDialog({
       setToken("");
       onOpenChange(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      toast.error(err instanceof Error ? err.message : String(err));
     } finally {
       setValidating(false);
     }
@@ -365,11 +356,6 @@ function InternalTokenDialog({
             </p>
           </div>
 
-          {error ? (
-            <Alert variant="destructive" className="text-xs">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          ) : null}
         </div>
 
         <DialogFooter className="flex-row justify-end">
