@@ -36,6 +36,8 @@ const ko = {
   "app.blobSaveFailed.body": "디스크 공간 부족 등의 원인으로 이미지·영상·로그 중 일부가 저장되지 않았습니다. 드래프트에서 누락된 항목을 확인해주세요.",
   "app.sessionSaveExhausted.title": "세션을 저장할 수 없습니다",
   "app.sessionSaveExhausted.body": "저장 공간이 부족하여 작업 세션을 보존할 수 없습니다. 탭을 닫으면 현재 작업이 유실될 수 있습니다.",
+  "app.videoRecordingUnavailable.title": "녹화를 시작할 수 없습니다",
+  "app.videoRecordingUnavailable.body": "현재 탭의 화면 캡처 권한이 만료됐습니다. [확인]을 누르면 이 사이트에 대한 권한을 다시 요청합니다. 권한을 허용한 뒤 다시 녹화 버튼을 눌러 주세요.",
 
   // Debug sub-tabs
   "debug.tab.issue": "이슈 작성",

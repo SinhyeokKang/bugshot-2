@@ -216,6 +216,13 @@ export const onSessionSaveExhausted = {
   fire() { this._listeners.forEach((fn) => fn()); },
 };
 
+type VideoRecordingListener = (payload: { tabId: number }) => void;
+export const onVideoRecordingUnavailable = {
+  _listeners: new Set<VideoRecordingListener>(),
+  subscribe(fn: VideoRecordingListener) { this._listeners.add(fn); return () => { this._listeners.delete(fn); }; },
+  fire(payload: { tabId: number }) { this._listeners.forEach((fn) => fn(payload)); },
+};
+
 // Re-export common platform types for consumers
 export type {
   JiraAttachmentInput,

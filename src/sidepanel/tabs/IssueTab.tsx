@@ -33,6 +33,7 @@ import {
   clearConsoleRecorder,
 } from "../picker-control";
 import { deleteNetworkLog, deleteConsoleLog } from "@/store/blob-db";
+import { onVideoRecordingUnavailable } from "@/types/messages";
 import * as videoRecorder from "../video-recorder";
 import { PageShell } from "../components/Section";
 import { DraftingPanel } from "./DraftingPanel";
@@ -159,9 +160,23 @@ async function handleStartVideo(tabId: number) {
   try {
     await videoRecorder.startRecording(tabId);
   } catch (err) {
-    console.warn("[bugshot] video recording failed to start", err);
     useEditorStore.getState().cancelRecording();
+    if (isTabCaptureUnavailable(err)) {
+      onVideoRecordingUnavailable.fire({ tabId });
+    } else {
+      console.warn("[bugshot] video recording failed to start", err);
+    }
   }
+}
+
+function isTabCaptureUnavailable(err: unknown): boolean {
+  if (!(err instanceof Error)) return false;
+  const msg = err.message.toLowerCase();
+  return (
+    msg.includes("extension has not been invoked") ||
+    msg.includes("chrome pages cannot be captured") ||
+    msg.includes("activetab")
+  );
 }
 
 function EmptyState({ onStartElement, onStartScreenshot, onStartVideo }: { onStartElement: () => void; onStartScreenshot: () => void; onStartVideo: () => void }) {

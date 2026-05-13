@@ -21,6 +21,7 @@ import {
   onPickerIframeUnsupported,
   onPickerUnavailable,
   onSessionSaveExhausted,
+  onVideoRecordingUnavailable,
 } from "@/types/messages";
 import { PLATFORM_TAB_KEYS, type PlatformId } from "@/types/platform";
 
@@ -63,6 +64,7 @@ export default function App() {
   const [iframeUnsupported, setIframeUnsupported] = useState(false);
   const [blobSaveFailed, setBlobSaveFailed] = useState(false);
   const [sessionSaveExhausted, setSessionSaveExhausted] = useState(false);
+  const [videoUnavailableTabId, setVideoUnavailableTabId] = useState<number | null>(null);
 
   useEffect(() => {
     if (settingsHydrated && connectedPlatforms(accounts).length === 0) {
@@ -118,6 +120,16 @@ export default function App() {
         document.activeElement.blur();
       }
       setSessionSaveExhausted(true);
+    });
+    return unsub;
+  }, []);
+
+  useEffect(() => {
+    const unsub = onVideoRecordingUnavailable.subscribe(({ tabId }) => {
+      if (document.activeElement instanceof HTMLElement && document.activeElement !== document.body) {
+        document.activeElement.blur();
+      }
+      setVideoUnavailableTabId(tabId);
     });
     return unsub;
   }, []);
@@ -298,10 +310,47 @@ export default function App() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <AlertDialog
+        open={videoUnavailableTabId != null}
+        onOpenChange={(v) => !v && setVideoUnavailableTabId(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("app.videoRecordingUnavailable.title")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("app.videoRecordingUnavailable.body")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction
+              onClick={() => {
+                const id = videoUnavailableTabId;
+                setVideoUnavailableTabId(null);
+                if (id != null) void requestTabHostPermission(id);
+              }}
+            >
+              {t("common.ok")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
     <Toaster position="top-center" offset={24} />
     </TabNavContext.Provider>
   );
+}
+
+async function requestTabHostPermission(tabId: number): Promise<void> {
+  try {
+    const tab = await chrome.tabs.get(tabId);
+    if (!tab.url) return;
+    const u = new URL(tab.url);
+    if (u.protocol !== "http:" && u.protocol !== "https:") return;
+    await chrome.permissions.request({ origins: [`${u.origin}/*`] });
+  } catch {
+    // user denied or chrome refused — fallback to manual re-invocation
+  }
 }
 
 function UnsupportedPage() {
