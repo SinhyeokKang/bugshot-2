@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { CircleCheck, ExternalLink, KeyRound, Loader2 } from "lucide-react";
 import { SiJirasoftware as Jira } from "@icons-pack/react-simple-icons";
+import { toast } from "sonner";
 import { useT } from "@/i18n";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -93,7 +93,6 @@ function JiraOnboarding() {
 
   const [oauthAvailable, setOauthAvailable] = useState<boolean | null>(null);
   const [connecting, setConnecting] = useState(false);
-  const [error, setError] = useState<OAuthClassified | null>(null);
   const [candidate, setCandidate] = useState<OAuthStartResultMsg | null>(null);
   const [apiKeyOpen, setApiKeyOpen] = useState(false);
 
@@ -107,8 +106,23 @@ function JiraOnboarding() {
     };
   }, []);
 
+  function showOAuthError(err: unknown) {
+    const classified = classifyOAuthClassified(err);
+    if (!classified) return;
+    if (classified.kind === "noJira") {
+      toast.error(t("jira.oauthError.noJira.title"), {
+        description: t("jira.oauthError.noJira.body"),
+        action: {
+          label: t("jira.switchAccount"),
+          onClick: () => window.open("https://id.atlassian.com/logout", "_blank"),
+        },
+      });
+    } else {
+      toast.error(classified.message);
+    }
+  }
+
   async function startOAuth() {
-    setError(null);
     setConnecting(true);
     try {
       const result = await sendBg<OAuthStartResultMsg>({ type: "oauth.start" });
@@ -121,14 +135,13 @@ function JiraOnboarding() {
         setCandidate(result);
       }
     } catch (err) {
-      setError(classifyOAuthClassified(err));
+      showOAuthError(err);
     } finally {
       setConnecting(false);
     }
   }
 
   async function finalize(result: OAuthStartResultMsg, site: JiraSite) {
-    setError(null);
     setConnecting(true);
     try {
       const auth: JiraOAuthAuth = {
@@ -152,7 +165,7 @@ function JiraOnboarding() {
       setAccount("jira", next);
       setCandidate(null);
     } catch (err) {
-      setError(classifyOAuthClassified(err));
+      showOAuthError(err);
     } finally {
       setConnecting(false);
     }
@@ -188,7 +201,6 @@ function JiraOnboarding() {
               </div>
             </Button>
           ))}
-          <OAuthClassifiedBanner error={error} />
         </div>
       </div>
     );
@@ -235,7 +247,6 @@ function JiraOnboarding() {
           </Button>
         </div>
 
-        <OAuthClassifiedBanner error={error} />
       </div>
 
       <ApiKeyDialog open={apiKeyOpen} onOpenChange={setApiKeyOpen} />
@@ -255,7 +266,6 @@ function ApiKeyDialog({
   const [baseUrl, setBaseUrl] = useState("");
   const [email, setEmail] = useState("");
   const [apiToken, setApiToken] = useState("");
-  const [error, setError] = useState<string | null>(null);
   const [validating, setValidating] = useState(false);
 
   const trimmed: JiraApiKeyAuth = {
@@ -268,7 +278,6 @@ function ApiKeyDialog({
     !!trimmed.baseUrl && !!trimmed.email && !!trimmed.apiToken && !validating;
 
   async function handleValidate() {
-    setError(null);
     setValidating(true);
     try {
       await sendBg<JiraMyself>({
@@ -283,7 +292,7 @@ function ApiKeyDialog({
       setAccount("jira", next);
       onOpenChange(false);
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      toast.error(err instanceof Error ? err.message : String(err));
     } finally {
       setValidating(false);
     }
@@ -353,11 +362,6 @@ function ApiKeyDialog({
             />
           </div>
 
-          {error ? (
-            <Alert variant="destructive" className="text-xs">
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          ) : null}
         </div>
 
         <DialogFooter className="flex-row justify-end">
@@ -377,41 +381,6 @@ function ApiKeyDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  );
-}
-
-function OAuthClassifiedBanner({ error }: { error: OAuthClassified | null }) {
-  const t = useT();
-  if (!error) return null;
-  if (error.kind === "noJira") {
-    return (
-      <Alert variant="destructive" className="text-xs">
-        <div className="flex items-start justify-between gap-2">
-          <div>
-            <AlertTitle className="text-xs">
-              {t("jira.oauthError.noJira.title")}
-            </AlertTitle>
-            <AlertDescription className="text-xs text-destructive/80">
-              {t("jira.oauthError.noJira.body")}
-            </AlertDescription>
-          </div>
-          <a
-            href="https://id.atlassian.com/logout"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-0.5 inline-flex shrink-0 items-center gap-1 text-[11px] text-destructive/70 underline underline-offset-2 transition-colors hover:text-destructive"
-          >
-            {t("jira.switchAccount")}
-            <ExternalLink className="h-3 w-3" />
-          </a>
-        </div>
-      </Alert>
-    );
-  }
-  return (
-    <Alert variant="destructive" className="text-xs">
-      <AlertDescription>{error.message}</AlertDescription>
-    </Alert>
   );
 }
 

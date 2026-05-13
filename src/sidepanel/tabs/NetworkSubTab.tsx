@@ -25,8 +25,6 @@ export function NetworkSubTab({ active }: { active: boolean }) {
   }, [active]);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col p-4">
-      <NetworkLogContent requests={networkLog?.requests ?? []} />
-    </div>
+    <NetworkLogContent flush requests={networkLog?.requests ?? []} />
   );
 }

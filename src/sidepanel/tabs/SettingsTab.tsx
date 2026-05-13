@@ -1,10 +1,11 @@
 import { Fragment, useState } from "react";
-import { Bug, ListOrdered, Monitor, Moon, StickyNote, Sun, Target } from "lucide-react";
+import { Bug, ListOrdered, Monitor, Moon, SlidersHorizontal, Sparkles, StickyNote, Sun, Target } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useT } from "@/i18n";
 import {
@@ -38,9 +39,18 @@ export function SettingsTab() {
     >
       <div className="shrink-0 border-b border-border px-4 py-4">
         <TabsList className="grid h-9 w-full grid-cols-3">
-          <TabsTrigger value="issue">{t("settings.tab.issue")}</TabsTrigger>
-          <TabsTrigger value="ai">{t("settings.tab.ai")}</TabsTrigger>
-          <TabsTrigger value="general">{t("settings.tab.general")}</TabsTrigger>
+          <TabsTrigger value="issue" className="gap-1.5">
+            <StickyNote className="h-3.5 w-3.5" />
+            {t("settings.tab.issue")}
+          </TabsTrigger>
+          <TabsTrigger value="ai" className="gap-1.5">
+            <Sparkles className="h-3.5 w-3.5" />
+            {t("settings.tab.ai")}
+          </TabsTrigger>
+          <TabsTrigger value="general" className="gap-1.5">
+            <SlidersHorizontal className="h-3.5 w-3.5" />
+            {t("settings.tab.general")}
+          </TabsTrigger>
         </TabsList>
       </div>
 
@@ -131,28 +141,36 @@ function GeneralSettingsContent() {
     <PageShell>
       <PageScroll>
         <Section title={t("settings.language")}>
-          <Tabs value={locale} onValueChange={(v) => setLocale(v as LocaleMode)}>
-            <TabsList className="grid w-full grid-cols-2">
+          <Select value={locale} onValueChange={(v) => setLocale(v as LocaleMode)}>
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
               {LOCALE_OPTIONS.map((o) => (
-                <TabsTrigger key={o.value} value={o.value}>
+                <SelectItem key={o.value} value={o.value}>
                   {o.label}
-                </TabsTrigger>
+                </SelectItem>
               ))}
-            </TabsList>
-          </Tabs>
+            </SelectContent>
+          </Select>
         </Section>
 
         <Section title={t("settings.theme")}>
-          <Tabs value={theme} onValueChange={(v) => setTheme(v as ThemeMode)}>
-            <TabsList className="grid w-full grid-cols-3">
+          <Select value={theme} onValueChange={(v) => setTheme(v as ThemeMode)}>
+            <SelectTrigger className="w-full">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
               {themeOptions.map((o) => (
-                <TabsTrigger key={o.value} value={o.value} className="gap-1.5">
-                  {o.icon}
-                  {o.label}
-                </TabsTrigger>
+                <SelectItem key={o.value} value={o.value}>
+                  <span className="inline-flex items-center gap-1.5">
+                    {o.icon}
+                    {o.label}
+                  </span>
+                </SelectItem>
               ))}
-            </TabsList>
-          </Tabs>
+            </SelectContent>
+          </Select>
         </Section>
       </PageScroll>
       <PageFooter>

@@ -276,7 +276,7 @@ export function PreviewPanel() {
       </PageScroll>
       <PageFooter>
         {noPlatformConnected ? (
-          <Alert variant="ghost" className="mb-2">
+          <Alert variant="default" className="mb-2">
             <Info className="h-4 w-4" />
             <AlertTitle>{t("platform.empty.title")}</AlertTitle>
             <AlertDescription>{t("platform.empty.body")}</AlertDescription>

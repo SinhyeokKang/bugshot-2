@@ -11,7 +11,7 @@ import {
   SiLinear,
   SiNotion,
 } from "@icons-pack/react-simple-icons";
-import { Alert, AlertDescription } from "@/components/ui/alert";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
   Command,
@@ -92,8 +92,7 @@ import { extractNotionPageId } from "@/lib/notion-page-id";
 
 type SubmitState =
   | { status: "idle" }
-  | { status: "submitting" }
-  | { status: "error"; message: string };
+  | { status: "submitting" };
 
 export function IssueCreateModal() {
   const t = useT();
@@ -646,10 +645,8 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
       onOpenChange(false);
       onSuccess?.(result);
     } catch (err) {
-      setSubmit({
-        status: "error",
-        message: err instanceof Error ? err.message : String(err),
-      });
+      toast.error(err instanceof Error ? err.message : String(err));
+      setSubmit({ status: "idle" });
     }
   }
 
@@ -723,12 +720,6 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
             onChange={setNotionFields}
             onSchemaResolved={onNotionSchemaResolved}
           />
-        ) : null}
-
-        {submit.status === "error" ? (
-          <Alert variant="destructive" className="text-xs">
-            <AlertDescription>{submit.message}</AlertDescription>
-          </Alert>
         ) : null}
 
         <DialogFooter className="flex-row justify-end">

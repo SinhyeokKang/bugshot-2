@@ -13,6 +13,7 @@ const CONSOLE_FILTERS: ConsoleFilter[] = ["all", "error", "warn", "info", "debug
 interface ConsoleLogContentProps {
   entries: ConsoleEntry[];
   startedAt: number;
+  flush?: boolean;
 }
 
 function levelColor(level: ConsoleLevel): string {
@@ -61,7 +62,7 @@ function formatRelativeTime(ts: number, baseTs: number): string {
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
-export function ConsoleLogContent({ entries, startedAt }: ConsoleLogContentProps) {
+export function ConsoleLogContent({ entries, startedAt, flush }: ConsoleLogContentProps) {
   const t = useT();
   const [filter, setFilter] = useState<ConsoleFilter>("all");
   const [query, setQuery] = useState("");
@@ -87,9 +88,9 @@ export function ConsoleLogContent({ entries, startedAt }: ConsoleLogContentProps
   }, [entries, filter, query]);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border">
+    <div className={`flex min-h-0 flex-1 flex-col overflow-hidden${flush ? "" : " rounded-lg border"}`}>
       <Tabs value={filter} onValueChange={(v) => setFilter(v as ConsoleFilter)}>
-        <div className="flex items-center gap-3 border-b p-2">
+        <div className={`flex items-center gap-3 border-b${flush ? " px-4 py-4" : " p-2"}`}>
           <TabsList>
             {availableFilters.map((f) => (
               <TabsTrigger key={f} value={f}>
