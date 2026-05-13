@@ -10,7 +10,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { Toaster } from "@/components/ui/sonner";
 import { PICKER_PORT_NAME, PANEL_PORT_PREFIX } from "@/lib/session-keys";
@@ -164,27 +164,27 @@ export default function App() {
     <TabNavContext.Provider value={setTab}>
     <div className="flex h-screen flex-col">
       <div className="flex min-h-0 flex-1 flex-col gap-0">
-        <div className="border-b">
-          <ToggleGroup type="single" variant="segment" value={tab}
-            className="mx-4 my-5 grid w-auto grid-cols-4"
-            onValueChange={(v) => { if (v) setTab(v); }}>
-            <ToggleGroupItem value="debug" className="gap-1.5">
-              <TerminalSquare className="h-3.5 w-3.5" />
-              {t("app.tab.debug")}
-            </ToggleGroupItem>
-            <ToggleGroupItem value="issue-list" className="gap-1.5">
-              <List className="h-3.5 w-3.5" />
-              {t("app.tab.issueList")}
-            </ToggleGroupItem>
-            <ToggleGroupItem value="integrations" className="gap-1.5">
-              <Blocks className="h-3.5 w-3.5" />
-              {t("app.tab.integrations")}
-            </ToggleGroupItem>
-            <ToggleGroupItem value="settings" className="gap-1.5">
-              <Settings className="h-3.5 w-3.5" />
-              {t("app.tab.settings")}
-            </ToggleGroupItem>
-          </ToggleGroup>
+        <div className="border-b px-4 py-4">
+          <Tabs value={tab} onValueChange={(v) => setTab(v)}>
+            <TabsList className="grid h-9 w-full grid-cols-4">
+              <TabsTrigger value="debug" className="gap-1.5">
+                <TerminalSquare className="h-3.5 w-3.5" />
+                {t("app.tab.debug")}
+              </TabsTrigger>
+              <TabsTrigger value="issue-list" className="gap-1.5">
+                <List className="h-3.5 w-3.5" />
+                {t("app.tab.issueList")}
+              </TabsTrigger>
+              <TabsTrigger value="integrations" className="gap-1.5">
+                <Blocks className="h-3.5 w-3.5" />
+                {t("app.tab.integrations")}
+              </TabsTrigger>
+              <TabsTrigger value="settings" className="gap-1.5">
+                <Settings className="h-3.5 w-3.5" />
+                {t("app.tab.settings")}
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
         </div>
 
         <div className={cn("flex min-h-0 flex-1 flex-col overflow-hidden", tab !== "debug" && "hidden")}>
