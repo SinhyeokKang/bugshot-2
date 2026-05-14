@@ -10,6 +10,7 @@ import type {
   JiraMyself,
   JiraPriority,
   JiraProject,
+  JiraTransition,
   JiraUser,
 } from "@/types/jira";
 import type { JiraAdfDoc } from "@/types/jira";
@@ -370,6 +371,51 @@ export async function getIssueStatus(
     issueTypeName: res.fields.issuetype.name,
     summary: res.fields.summary,
   };
+}
+
+interface RawTransition {
+  id: string;
+  name: string;
+  to: {
+    name: string;
+    statusCategory: { key: string };
+  };
+}
+
+export function parseTransitions(
+  raw: RawTransition[],
+): JiraTransition[] {
+  return raw.map((t) => ({
+    id: t.id,
+    name: t.name,
+    to: { name: t.to.name, categoryKey: t.to.statusCategory.key },
+  }));
+}
+
+export async function getTransitions(
+  auth: JiraAuth,
+  issueKey: string,
+): Promise<JiraTransition[]> {
+  const res = await jiraFetch<{ transitions: RawTransition[] }>(
+    auth,
+    `/rest/api/3/issue/${encodeURIComponent(issueKey)}/transitions`,
+  );
+  return parseTransitions(res.transitions);
+}
+
+export async function transitionIssue(
+  auth: JiraAuth,
+  issueKey: string,
+  transitionId: string,
+): Promise<void> {
+  await jiraFetch(
+    auth,
+    `/rest/api/3/issue/${encodeURIComponent(issueKey)}/transitions`,
+    {
+      method: "POST",
+      body: JSON.stringify({ transition: { id: transitionId } }),
+    },
+  );
 }
 
 export async function searchEpics(

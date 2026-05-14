@@ -86,11 +86,19 @@ export interface LinearCreateIssueResult {
 }
 
 export interface LinearIssueStatus {
+  id: string;
   identifier: string;
   title: string;
   state: { name: string; type: string };
   url: string;
   labels: { name: string; color: string }[];
+}
+
+export interface LinearWorkflowState {
+  id: string;
+  name: string;
+  type: string;
+  color: string;
 }
 
 export interface LinearFileUploadResult {

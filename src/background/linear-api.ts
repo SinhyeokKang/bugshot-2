@@ -10,6 +10,7 @@ import type {
   LinearProject,
   LinearTeam,
   LinearUser,
+  LinearWorkflowState,
 } from "@/types/linear";
 import { OAuthError } from "./oauth";
 
@@ -229,6 +230,7 @@ export async function getIssueStatus(
 ): Promise<LinearIssueStatus> {
   const data = await linearGraphQL<{
     issue: {
+      id: string;
       identifier: string;
       title: string;
       state: { name: string; type: string };
@@ -239,7 +241,7 @@ export async function getIssueStatus(
     auth,
     `query($issueId: String!) {
       issue(id: $issueId) {
-        identifier title url
+        id identifier title url
         state { name type }
         labels { nodes { name color } }
       }
@@ -247,11 +249,100 @@ export async function getIssueStatus(
     { issueId },
   );
   return {
+    id: data.issue.id,
     identifier: data.issue.identifier,
     title: data.issue.title,
     state: data.issue.state,
     url: data.issue.url,
     labels: data.issue.labels.nodes,
+  };
+}
+
+const WORKFLOW_STATE_ORDER: Record<string, number> = {
+  triage: 0,
+  backlog: 1,
+  unstarted: 2,
+  started: 3,
+  completed: 4,
+  cancelled: 5,
+};
+
+export function sortWorkflowStates(
+  states: LinearWorkflowState[],
+): LinearWorkflowState[] {
+  const fallback = Object.keys(WORKFLOW_STATE_ORDER).length;
+  return [...states].sort(
+    (a, b) =>
+      (WORKFLOW_STATE_ORDER[a.type] ?? fallback) -
+      (WORKFLOW_STATE_ORDER[b.type] ?? fallback),
+  );
+}
+
+export async function getWorkflowStates(
+  auth: LinearAuth,
+  issueIdentifier: string,
+): Promise<LinearWorkflowState[]> {
+  const data = await linearGraphQL<{
+    issue: {
+      team: {
+        states: {
+          nodes: Array<{ id: string; name: string; type: string; color: string }>;
+        };
+      };
+    };
+  }>(
+    auth,
+    `query($id: String!) {
+      issue(id: $id) {
+        team {
+          states { nodes { id name type color } }
+        }
+      }
+    }`,
+    { id: issueIdentifier },
+  );
+  return sortWorkflowStates(data.issue.team.states.nodes);
+}
+
+export async function updateIssueState(
+  auth: LinearAuth,
+  issueId: string,
+  stateId: string,
+): Promise<LinearIssueStatus> {
+  const data = await linearGraphQL<{
+    issueUpdate: {
+      success: boolean;
+      issue: {
+        id: string;
+        identifier: string;
+        title: string;
+        state: { name: string; type: string };
+        url: string;
+        labels: { nodes: Array<{ name: string; color: string }> };
+      };
+    };
+  }>(
+    auth,
+    `mutation($id: String!, $stateId: String!) {
+      issueUpdate(id: $id, input: { stateId: $stateId }) {
+        success
+        issue {
+          id identifier title url
+          state { name type }
+          labels { nodes { name color } }
+        }
+      }
+    }`,
+    { id: issueId, stateId },
+  );
+  const issue = data.issueUpdate.issue;
+  return {
+    id: issue.id,
+    identifier: issue.identifier,
+    title: issue.title,
+    state: issue.state,
+    url: issue.url,
+    labels: issue.labels.nodes,
   };
 }
 

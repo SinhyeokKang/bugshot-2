@@ -115,3 +115,12 @@ export interface JiraIssueStatus {
   issueTypeName?: string;
   summary?: string;
 }
+
+export interface JiraTransition {
+  id: string;
+  name: string;
+  to: {
+    name: string;
+    categoryKey: string;
+  };
+}

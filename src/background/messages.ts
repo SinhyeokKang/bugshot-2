@@ -10,9 +10,11 @@ import {
   getIssueTypes,
   getMyself,
   getPriorities,
+  getTransitions as getJiraTransitions,
   searchEpics,
   searchProjects,
   searchUsers,
+  transitionIssue as jiraTransitionIssue,
   getMediaFileId,
   updateIssueDescription,
   uploadAttachment,
@@ -37,6 +39,8 @@ import {
   getMyself as linearGetMyself,
   getProjects as getLinearProjects,
   getTeams as getLinearTeams,
+  getWorkflowStates as getLinearWorkflowStates,
+  updateIssueState as updateLinearIssueState,
   uploadFileToLinear,
 } from "./linear-api";
 import { isOAuthConfigured, startOAuthFlow } from "./oauth";
@@ -49,6 +53,7 @@ import {
   getMyself as notionGetMyself,
   getPageStatus as getNotionPageStatus,
   searchDatabases as searchNotionDatabases,
+  updatePageStatus as updateNotionPageStatus,
   uploadFile as uploadNotionFile,
 } from "./notion-api";
 import {
@@ -121,6 +126,15 @@ export async function handleMessage(
 
     case "jira.getIssueStatus":
       return getIssueStatus(await loadAuth(), message.issueKey);
+
+    case "jira.getTransitions":
+      return getJiraTransitions(await loadAuth(), message.issueKey);
+
+    case "jira.transitionIssue": {
+      const auth = await loadAuth();
+      await jiraTransitionIssue(auth, message.issueKey, message.transitionId);
+      return getIssueStatus(auth, message.issueKey);
+    }
 
     case "jira.searchEpics":
       return searchEpics(
@@ -248,6 +262,12 @@ export async function handleMessage(
     case "linear.getIssueStatus":
       return getLinearIssueStatus(await loadLinearAuth(), message.issueId);
 
+    case "linear.getWorkflowStates":
+      return getLinearWorkflowStates(await loadLinearAuth(), message.issueIdentifier);
+
+    case "linear.updateIssueState":
+      return updateLinearIssueState(await loadLinearAuth(), message.issueId, message.stateId);
+
     case "notion.oauth.available":
       return { available: isNotionOAuthConfigured() };
 
@@ -286,6 +306,9 @@ export async function handleMessage(
 
     case "notion.getPageStatus":
       return getNotionPageStatus(await loadNotionAuth(), message.pageId);
+
+    case "notion.updatePageStatus":
+      return updateNotionPageStatus(await loadNotionAuth(), message.pageId, message.propertyName, message.optionName);
 
     default: {
       const _exhaustive: never = message;

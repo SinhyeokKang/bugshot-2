@@ -215,6 +215,12 @@ const en = {
   "issueList.github.status.closedCompleted": "Closed as completed",
   "issueList.github.status.closedNotPlanned": "Closed as not planned",
   "issueList.github.statusUpdateFailed": "Failed to update status",
+  "issueList.jira.statusUpdateFailed": "Failed to update status",
+  "issueList.jira.requiredFieldsError": "Required fields prevent this transition. Please change it directly in Jira.",
+  "issueList.jira.noTransitions": "No transitions available",
+  "issueList.linear.statusUpdateFailed": "Failed to update status",
+  "issueList.notion.statusUpdateFailed": "Failed to update status",
+  "issueList.notion.noStatusOptions": "No status options",
   "create.requiredMissing": "Required field missing",
 
   // Time

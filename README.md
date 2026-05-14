@@ -1,6 +1,6 @@
 # BugShot
 
-A Chrome extension for design QA. Pick elements, tweak CSS, and file issues to Jira, GitHub, Linear, or Notion — all from a side panel.
+A Chrome extension for bug reporting. Pick elements, tweak CSS, and file issues to Jira, GitHub, Linear, or Notion — all from a side panel.
 
 [![Chrome Web Store](https://img.shields.io/chrome-web-store/v/ohakhekagkodklkickemonmifdcbhmig)](https://chromewebstore.google.com/detail/bugshot/ohakhekagkodklkickemonmifdcbhmig)
 

@@ -10,6 +10,6 @@ export function extractNotionPageId(url: string | undefined): string | null {
   } catch {
     return null;
   }
-  const m = last.match(/([0-9a-fA-F]{32}|[0-9a-fA-F-]{36})$/);
+  const m = last.match(/([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}|[0-9a-fA-F]{32})$/);
   return m ? m[1] : null;
 }

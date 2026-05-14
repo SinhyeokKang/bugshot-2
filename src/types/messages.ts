@@ -10,6 +10,7 @@ import type {
   JiraProject,
   JiraSite,
   JiraSubmitResult,
+  JiraTransition,
   JiraUser,
 } from "./jira";
 import type {
@@ -32,6 +33,7 @@ import type {
   LinearProject,
   LinearTeam,
   LinearUser,
+  LinearWorkflowState,
 } from "./linear";
 import type {
   NotionCreatePagePayload,
@@ -62,6 +64,8 @@ export type BgRequest =
   | { type: "jira.listPriorities" }
   | { type: "jira.searchUsers"; query?: string }
   | { type: "jira.getIssueStatus"; issueKey: string }
+  | { type: "jira.getTransitions"; issueKey: string }
+  | { type: "jira.transitionIssue"; issueKey: string; transitionId: string }
   | {
       type: "jira.searchEpics";
       projectKey: string;
@@ -119,6 +123,8 @@ export type BgRequest =
   | { type: "linear.uploadFile"; filename: string; contentType: string; dataUrl: string }
   | { type: "linear.createAttachment"; issueId: string; title: string; url: string }
   | { type: "linear.getIssueStatus"; issueId: string }
+  | { type: "linear.getWorkflowStates"; issueIdentifier: string }
+  | { type: "linear.updateIssueState"; issueId: string; stateId: string }
   | { type: "notion.oauth.available" }
   | { type: "notion.startOAuth" }
   | { type: "notion.testToken"; token: string }
@@ -128,7 +134,8 @@ export type BgRequest =
   | { type: "notion.getDatabaseSchema"; databaseId: string }
   | { type: "notion.uploadFile"; filename: string; contentType: string; dataUrl: string }
   | { type: "notion.submitPage"; payload: NotionCreatePagePayload }
-  | { type: "notion.getPageStatus"; pageId: string };
+  | { type: "notion.getPageStatus"; pageId: string }
+  | { type: "notion.updatePageStatus"; pageId: string; propertyName: string; optionName: string };
 
 export type BgResponse<T = unknown> =
   | { ok: true; result: T }
@@ -243,6 +250,7 @@ export type {
   JiraProject,
   JiraSite,
   JiraSubmitResult,
+  JiraTransition,
   JiraUser,
   GithubCreateIssuePayload,
   GithubCreateIssueResult,
@@ -261,6 +269,7 @@ export type {
   LinearProject,
   LinearTeam,
   LinearUser,
+  LinearWorkflowState,
   NotionCreatePagePayload,
   NotionCreatePageResult,
   NotionDatabase,

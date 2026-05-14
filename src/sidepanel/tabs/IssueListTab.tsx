@@ -27,12 +27,12 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useIssuesStore, type IssueRecord } from "@/store/issues-store";
 import { useSettingsStore, jiraSiteId } from "@/store/settings-store";
-import type { JiraIssueStatus } from "@/types/jira";
+import type { JiraIssueStatus, JiraTransition } from "@/types/jira";
 import type { GithubIssueStatus } from "@/types/github";
-import type { LinearIssueStatus } from "@/types/linear";
-import type { NotionPageStatus } from "@/types/notion";
+import type { LinearIssueStatus, LinearWorkflowState } from "@/types/linear";
+import type { NotionDatabaseSchema, NotionPageStatus } from "@/types/notion";
 import type { NormalizedSubmitResult, PlatformId } from "@/types/platform";
-import { sendBg } from "@/types/messages";
+import { BgError, sendBg } from "@/types/messages";
 import { extractNotionPageId } from "@/lib/notion-page-id";
 import { PageFooter, PageScroll, PageShell, Section } from "../components/Section";
 import { DraftDetailDialog } from "./DraftDetailDialog";
@@ -382,6 +382,7 @@ function IssueRow({
           </div>
           {isSubmitted && issue.key ? (
             <span
+              onClick={(e) => e.stopPropagation()}
               onMouseEnter={() => setBadgeHover(true)}
               onMouseLeave={() => setBadgeHover(false)}
             >
@@ -395,6 +396,7 @@ function IssueRow({
                 githubRepo={issue.githubRepo}
                 linearIdentifier={issue.linearIdentifier}
                 notionPageId={issue.notionPageId}
+                notionDatabaseId={issue.notionDatabaseId}
                 refreshKey={refreshKey}
                 onLoaded={onBadgeLoaded}
               />
@@ -621,6 +623,347 @@ function GithubStatusBadge({
   );
 }
 
+function JiraStatusBadge({
+  issueKey,
+  issueId,
+  currentStatus,
+  onStatusChanged,
+}: {
+  issueKey: string;
+  issueId: string;
+  currentStatus: JiraIssueStatus;
+  onStatusChanged: (s: JiraIssueStatus) => void;
+}) {
+  const t = useT();
+  const patchIssue = useIssuesStore((s) => s.patchIssue);
+  const [open, setOpen] = useState(false);
+  const [transitions, setTransitions] = useState<JiraTransition[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [updating, setUpdating] = useState(false);
+
+  const colors = STATUS_CATEGORY_COLORS[currentStatus.categoryKey] ?? STATUS_CATEGORY_COLORS.new;
+
+  const handleOpenChange = (v: boolean) => {
+    setOpen(v);
+    if (v && !transitions) {
+      setLoading(true);
+      sendBg<JiraTransition[]>({ type: "jira.getTransitions", issueKey })
+        .then(setTransitions)
+        .catch(() => setTransitions([]))
+        .finally(() => setLoading(false));
+    }
+    if (!v) setTransitions(null);
+  };
+
+  const handleSelect = (tr: JiraTransition) => {
+    if (updating) return;
+    setOpen(false);
+    setUpdating(true);
+    sendBg<JiraIssueStatus>({
+      type: "jira.transitionIssue",
+      issueKey,
+      transitionId: tr.id,
+    })
+      .then((res) => {
+        onStatusChanged(res);
+        const patch: Partial<IssueRecord> = {};
+        if (res.issueTypeName) patch.issueTypeName = res.issueTypeName;
+        if (res.summary) patch.title = res.summary;
+        if (Object.keys(patch).length) patchIssue(issueId, patch);
+      })
+      .catch((err) => {
+        if (err instanceof BgError && err.status === 400) {
+          toast.error(t("issueList.jira.requiredFieldsError"));
+        } else {
+          toast.error(t("issueList.jira.statusUpdateFailed"));
+        }
+      })
+      .finally(() => setUpdating(false));
+  };
+
+  return (
+    <Popover open={open} onOpenChange={handleOpenChange}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="shrink-0 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          onClick={(e) => e.stopPropagation()}
+          disabled={updating}
+        >
+          <Badge
+            variant="outline"
+            className={`relative w-fit border-transparent text-[11px] ${colors.bg} ${colors.text} ${colors.darkBg} ${colors.darkText} ${updating ? "opacity-50" : ""}`}
+          >
+            {updating && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
+            {currentStatus.name}
+          </Badge>
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        className="w-auto max-h-[300px] overflow-y-auto p-1"
+        align="end"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {loading ? (
+          <div className="flex items-center justify-center px-4 py-2">
+            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          </div>
+        ) : transitions && transitions.length === 0 ? (
+          <div className="px-3 py-2 text-sm text-muted-foreground">
+            {t("issueList.jira.noTransitions")}
+          </div>
+        ) : (
+          transitions?.map((tr) => {
+            const trColors = STATUS_CATEGORY_COLORS[tr.to.categoryKey] ?? STATUS_CATEGORY_COLORS.new;
+            return (
+              <button
+                key={tr.id}
+                type="button"
+                className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 hover:bg-accent hover:text-accent-foreground"
+                onClick={() => handleSelect(tr)}
+              >
+                <Check className={`h-3.5 w-3.5 shrink-0 ${tr.to.name === currentStatus.name ? "opacity-100" : "opacity-0"}`} />
+                <Badge
+                  variant="outline"
+                  className={`border-transparent text-[11px] ${trColors.bg} ${trColors.text} ${trColors.darkBg} ${trColors.darkText}`}
+                >
+                  {tr.to.name}
+                </Badge>
+              </button>
+            );
+          })
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function LinearStatusBadge({
+  issueId,
+  issueIdentifier,
+  currentState,
+  onStatusChanged,
+}: {
+  issueId: string;
+  issueIdentifier: string;
+  currentState: { name: string; type: string };
+  onStatusChanged: (s: LinearIssueStatus) => void;
+}) {
+  const t = useT();
+  const patchIssue = useIssuesStore((s) => s.patchIssue);
+  const [open, setOpen] = useState(false);
+  const [states, setStates] = useState<LinearWorkflowState[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [updating, setUpdating] = useState(false);
+
+  const stateColors = LINEAR_STATE_TYPE_COLORS[currentState.type] ?? STATUS_CATEGORY_COLORS.new;
+  const i18nKey = LINEAR_STATE_I18N[currentState.type] as Parameters<typeof t>[0] | undefined;
+  const currentLabel = i18nKey ? t(i18nKey) : currentState.name;
+
+  const handleOpenChange = (v: boolean) => {
+    setOpen(v);
+    if (v && !states) {
+      setLoading(true);
+      sendBg<LinearWorkflowState[]>({ type: "linear.getWorkflowStates", issueIdentifier })
+        .then(setStates)
+        .catch(() => setStates([]))
+        .finally(() => setLoading(false));
+    }
+    if (!v) setStates(null);
+  };
+
+  const handleSelect = (state: LinearWorkflowState) => {
+    if (updating || state.name === currentState.name) return;
+    setOpen(false);
+    setUpdating(true);
+    sendBg<LinearIssueStatus>({
+      type: "linear.updateIssueState",
+      issueId,
+      stateId: state.id,
+    })
+      .then((res) => {
+        onStatusChanged(res);
+        const patch: Partial<IssueRecord> = {};
+        if (res.title) patch.title = res.title;
+        if (res.identifier) patch.linearIdentifier = res.identifier;
+        if (res.labels.length > 0) patch.linearLabelName = res.labels[0].name;
+        if (Object.keys(patch).length) patchIssue(issueId, patch);
+      })
+      .catch(() => toast.error(t("issueList.linear.statusUpdateFailed")))
+      .finally(() => setUpdating(false));
+  };
+
+  return (
+    <Popover open={open} onOpenChange={handleOpenChange}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="shrink-0 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          onClick={(e) => e.stopPropagation()}
+          disabled={updating}
+        >
+          <Badge
+            variant="outline"
+            className={`relative w-fit border-transparent text-[11px] ${stateColors.bg} ${stateColors.text} ${stateColors.darkBg} ${stateColors.darkText} ${updating ? "opacity-50" : ""}`}
+          >
+            {updating && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
+            {currentLabel}
+          </Badge>
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        className="w-auto max-h-[300px] overflow-y-auto p-1"
+        align="end"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {loading ? (
+          <div className="flex items-center justify-center px-4 py-2">
+            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          </div>
+        ) : (
+          states?.map((st) => {
+            const stColors = LINEAR_STATE_TYPE_COLORS[st.type] ?? STATUS_CATEGORY_COLORS.new;
+            return (
+              <button
+                key={st.id}
+                type="button"
+                className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 hover:bg-accent hover:text-accent-foreground"
+                onClick={() => handleSelect(st)}
+              >
+                <Check className={`h-3.5 w-3.5 shrink-0 ${st.name === currentState.name ? "opacity-100" : "opacity-0"}`} />
+                <Badge
+                  variant="outline"
+                  className={`border-transparent text-[11px] ${stColors.bg} ${stColors.text} ${stColors.darkBg} ${stColors.darkText}`}
+                >
+                  {st.name}
+                </Badge>
+              </button>
+            );
+          })
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+function NotionStatusBadge({
+  pageId,
+  databaseId,
+  issueId,
+  currentOption,
+  onStatusChanged,
+}: {
+  pageId: string;
+  databaseId: string;
+  issueId: string;
+  currentOption: { name: string; color: string };
+  onStatusChanged: (s: NotionPageStatus) => void;
+}) {
+  const t = useT();
+  const patchIssue = useIssuesStore((s) => s.patchIssue);
+  const [open, setOpen] = useState(false);
+  const [options, setOptions] = useState<Array<{ id: string; name: string; color: string }> | null>(null);
+  const [statusPropertyName, setStatusPropertyName] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [updating, setUpdating] = useState(false);
+
+  const category = notionStatusCategory(currentOption.color);
+  const colors = STATUS_CATEGORY_COLORS[category];
+
+  const handleOpenChange = (v: boolean) => {
+    setOpen(v);
+    if (v && !options) {
+      setLoading(true);
+      sendBg<NotionDatabaseSchema>({ type: "notion.getDatabaseSchema", databaseId })
+        .then((schema) => {
+          setOptions(schema.statusProperty?.options ?? []);
+          setStatusPropertyName(schema.statusProperty?.name ?? null);
+        })
+        .catch(() => setOptions([]))
+        .finally(() => setLoading(false));
+    }
+    if (!v) { setOptions(null); setStatusPropertyName(null); }
+  };
+
+  const handleSelect = (optionName: string) => {
+    if (updating || optionName === currentOption.name || !statusPropertyName) return;
+    setOpen(false);
+    setUpdating(true);
+    sendBg<NotionPageStatus>({
+      type: "notion.updatePageStatus",
+      pageId,
+      propertyName: statusPropertyName,
+      optionName,
+    })
+      .then((res) => {
+        onStatusChanged(res);
+        const patch: Partial<IssueRecord> = {};
+        if (res.title) patch.title = res.title;
+        if (res.statusOption) patch.notionStatusOption = res.statusOption.name;
+        if (Object.keys(patch).length) patchIssue(issueId, patch);
+      })
+      .catch(() => toast.error(t("issueList.notion.statusUpdateFailed")))
+      .finally(() => setUpdating(false));
+  };
+
+  return (
+    <Popover open={open} onOpenChange={handleOpenChange}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="shrink-0 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          onClick={(e) => e.stopPropagation()}
+          disabled={updating}
+        >
+          <Badge
+            variant="outline"
+            className={`relative w-fit border-transparent text-[11px] ${colors.bg} ${colors.text} ${colors.darkBg} ${colors.darkText} ${updating ? "opacity-50" : ""}`}
+          >
+            {updating && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
+            {currentOption.name}
+          </Badge>
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        className="w-auto max-h-[300px] overflow-y-auto p-1"
+        align="end"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {loading ? (
+          <div className="flex items-center justify-center px-4 py-2">
+            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          </div>
+        ) : options && options.length === 0 ? (
+          <div className="px-3 py-2 text-sm text-muted-foreground">
+            {t("issueList.notion.noStatusOptions")}
+          </div>
+        ) : (
+          options?.map((opt) => {
+            const optCategory = notionStatusCategory(opt.color);
+            const optColors = STATUS_CATEGORY_COLORS[optCategory];
+            return (
+              <button
+                key={opt.id}
+                type="button"
+                className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 hover:bg-accent hover:text-accent-foreground"
+                onClick={() => handleSelect(opt.name)}
+              >
+                <Check className={`h-3.5 w-3.5 shrink-0 ${opt.name === currentOption.name ? "opacity-100" : "opacity-0"}`} />
+                <Badge
+                  variant="outline"
+                  className={`border-transparent text-[11px] ${optColors.bg} ${optColors.text} ${optColors.darkBg} ${optColors.darkText}`}
+                >
+                  {opt.name}
+                </Badge>
+              </button>
+            );
+          })
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 function SubmittedBadge({
   issueId,
   issueKey,
@@ -631,6 +974,7 @@ function SubmittedBadge({
   githubRepo,
   linearIdentifier,
   notionPageId,
+  notionDatabaseId,
   refreshKey,
   onLoaded,
 }: {
@@ -643,6 +987,7 @@ function SubmittedBadge({
   githubRepo?: string;
   linearIdentifier?: string;
   notionPageId?: string;
+  notionDatabaseId?: string;
   refreshKey: number;
   onLoaded: () => void;
 }) {
@@ -754,11 +1099,18 @@ function SubmittedBadge({
         </Badge>
       );
     }
-    const colors = jiraStatus
-      ? STATUS_CATEGORY_COLORS[jiraStatus.categoryKey] ??
-        STATUS_CATEGORY_COLORS.new
-      : null;
-    if (!jiraStatus || !colors) return null;
+    if (!jiraStatus) return null;
+    if (jiraAccount?.auth && siteMatch) {
+      return (
+        <JiraStatusBadge
+          issueKey={issueKey}
+          issueId={issueId}
+          currentStatus={jiraStatus}
+          onStatusChanged={setJiraStatus}
+        />
+      );
+    }
+    const colors = STATUS_CATEGORY_COLORS[jiraStatus.categoryKey] ?? STATUS_CATEGORY_COLORS.new;
     return (
       <Badge
         variant="outline"
@@ -833,6 +1185,16 @@ function SubmittedBadge({
         </Badge>
       );
     }
+    if (linearAccount?.auth && linearStatus.id) {
+      return (
+        <LinearStatusBadge
+          issueId={linearStatus.id}
+          issueIdentifier={linearStatus.identifier}
+          currentState={linearStatus.state}
+          onStatusChanged={setLinearStatus}
+        />
+      );
+    }
     const stateType = linearStatus.state.type;
     const linearColors = LINEAR_STATE_TYPE_COLORS[stateType] ?? STATUS_CATEGORY_COLORS.new;
     const i18nKey = LINEAR_STATE_I18N[stateType] as Parameters<typeof t>[0] | undefined;
@@ -864,6 +1226,18 @@ function SubmittedBadge({
       );
     }
     if (notionStatus.statusOption) {
+      const resolvedPageId = resolveNotionPageId({ notionPageId, url: issueUrl }) ?? null;
+      if (notionAccount?.auth && notionDatabaseId && resolvedPageId) {
+        return (
+          <NotionStatusBadge
+            pageId={resolvedPageId}
+            databaseId={notionDatabaseId}
+            issueId={issueId}
+            currentOption={notionStatus.statusOption}
+            onStatusChanged={setNotionStatus}
+          />
+        );
+      }
       const category = notionStatusCategory(notionStatus.statusOption.color);
       const notionColors = STATUS_CATEGORY_COLORS[category];
       return (
