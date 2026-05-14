@@ -20,11 +20,14 @@
   4. `src/background/jira-api.ts`에 `transitionIssue(auth, issueKey, transitionId)` 함수 추가.
      - `jiraFetch(auth, /rest/api/3/issue/{issueKey}/transitions, { method: "POST", body: { transition: { id: transitionId } } })`.
      - 반환: `void`.
-  5. `src/background/messages.ts`에 `jira.getTransitions`, `jira.transitionIssue` case 추가.
+  5. `getTransitions` 응답 매핑 로직(`transitions[] → JiraTransition[]`)을 순수 함수(`parseTransitions`)로 분리.
+  6. `src/background/messages.ts`에 `jira.getTransitions`, `jira.transitionIssue` case 추가.
      - `jira.transitionIssue`는 트랜지션 실행 후 `getIssueStatus()`를 호출해 최신 `JiraIssueStatus` 반환.
+     - 400 응답(필수 필드)은 별도 에러 메시지로 전달.
+  7. `parseTransitions` 순수 함수의 단위 테스트 작성 (`src/background/__tests__/jira-api.test.ts`).
 - **검증**:
   - [ ] `pnpm typecheck` 통과
-  - [ ] `pnpm test` 통과
+  - [ ] `pnpm test` 통과 (parseTransitions 테스트 포함)
 
 ### Task 2: Linear — 타입 + API + 메시지 핸들러
 
@@ -34,16 +37,18 @@
   2. `src/types/linear.ts`의 `LinearIssueStatus`에 `id: string` 필드 추가 (첫 번째 필드로).
   3. `src/types/messages.ts`의 `BgRequest` 유니온에 `linear.getWorkflowStates`, `linear.updateIssueState` 추가. `LinearWorkflowState` import 추가.
   4. `src/background/linear-api.ts`의 `getIssueStatus()` GraphQL 쿼리에 `id` 필드 추가, 반환 객체에 `id` 포함.
-  5. `src/background/linear-api.ts`에 `getWorkflowStates(auth, issueId)` 함수 추가.
-     - GraphQL: `query($issueId: String!) { issue(id: $issueId) { team { states { nodes { id name type color } } } } }`.
-     - `nodes`를 type 순서(`triage` → `backlog` → `unstarted` → `started` → `completed` → `cancelled`)로 정렬 후 반환.
-  6. `src/background/linear-api.ts`에 `updateIssueState(auth, issueId, stateId)` 함수 추가.
+  5. `src/background/linear-api.ts`에 `getWorkflowStates(auth, issueIdentifier)` 함수 추가.
+     - GraphQL: `query($id: String!) { issues(filter: { identifier: { eq: $id } }) { nodes { team { states { nodes { id name type color } } } } } }`.
+     - `nodes`를 type 순서(`triage` → `backlog` → `unstarted` → `started` → `completed` → `cancelled`)로 정렬. 알 수 없는 type은 목록 끝에 배치.
+  6. 정렬 로직을 순수 함수(`sortWorkflowStates`)로 분리.
+  7. `src/background/linear-api.ts`에 `updateIssueState(auth, issueId, stateId)` 함수 추가.
      - GraphQL mutation: `issueUpdate(id: $id, input: { stateId: $stateId })`.
      - 응답에서 `{ id, identifier, title, state: { name, type }, url, labels }` 추출해 `LinearIssueStatus` 반환.
-  7. `src/background/messages.ts`에 `linear.getWorkflowStates`, `linear.updateIssueState` case 추가.
+  8. `src/background/messages.ts`에 `linear.getWorkflowStates`, `linear.updateIssueState` case 추가.
+  9. `sortWorkflowStates` 순수 함수의 단위 테스트 작성 (`src/background/__tests__/linear-api.test.ts`). 알 수 없는 type fallback 포함.
 - **검증**:
   - [ ] `pnpm typecheck` 통과
-  - [ ] `pnpm test` 통과
+  - [ ] `pnpm test` 통과 (sortWorkflowStates 테스트 포함)
 
 ### Task 3: Notion — API + 메시지 핸들러
 
@@ -63,7 +68,8 @@
 - **변경 대상**: `src/i18n/ko.ts`, `src/i18n/en.ts`
 - **작업 내용**:
   1. ko.ts에 추가:
-     - `"issueList.jira.statusUpdateFailed"`: `"상태 변경에 실패했습니다. Jira에서 직접 변경해 주세요."`
+     - `"issueList.jira.statusUpdateFailed"`: `"상태 변경에 실패했습니다"`
+     - `"issueList.jira.requiredFieldsError"`: `"필수 필드가 있어 변경할 수 없습니다. Jira에서 직접 변경해 주세요."`
      - `"issueList.jira.noTransitions"`: `"사용 가능한 전환이 없습니다"`
      - `"issueList.linear.statusUpdateFailed"`: `"상태 변경에 실패했습니다"`
      - `"issueList.notion.statusUpdateFailed"`: `"상태 변경에 실패했습니다"`
@@ -153,14 +159,22 @@
   1. Chrome에서 기존 GitHub 이슈 상태 변경이 정상 동작하는지 확인.
   2. 각 플랫폼 인증 만료 시 팝오버 동작 확인 (에러 처리 경로).
   3. 이슈 목록 새로고침 후 변경된 상태가 유지되는지 확인.
+  4. Jira 필수 필드 트랜지션 실패 시 분화된 토스트 메시지 확인.
+  5. 네트워크 오프라인/timeout 시 에러 토스트 확인.
+  6. 상태 변경 중(updating) 중복 클릭 시 추가 요청 발생하지 않는지 확인.
+  7. Jira 트랜지션 후 다시 팝오버 열면 새 상태 기준 트랜지션 목록이 갱신되는지 확인.
 - **검증**:
   - [ ] GitHub 상태 변경 정상 동작
   - [ ] 인증 만료 시 적절한 에러 처리
   - [ ] 새로고침 후 상태 유지
+  - [ ] Jira 필수 필드 에러 분화 토스트
+  - [ ] 네트워크 에러 시 토스트
+  - [ ] 중복 클릭 방지 동작
+  - [ ] Jira 트랜지션 후 팝오버 목록 갱신
 
 ## 테스트 계획
 
-- **단위 테스트**: 이번 작업에서 추가되는 순수 함수가 없음 (API 호출 + UI 컴포넌트). 기존 `pnpm test` 통과 확인.
+- **단위 테스트**: `parseTransitions` (Jira 응답 매핑), `sortWorkflowStates` (Linear 정렬) 순수 함수 테스트. 기존 `pnpm test` 통과 확인.
 - **수동 테스트**: 각 Task의 검증 항목 참조. 특히:
   - Jira: 트랜지션 목록이 워크플로에 따라 달라지는지 (예: To Do → In Progress 전환 후 다시 열면 다른 트랜지션 목록)
   - Linear: 커스텀 워크플로 상태가 팝오버에 표시되는지

@@ -58,7 +58,7 @@ export interface LinearWorkflowState {
 | { type: "jira.transitionIssue"; issueKey: string; transitionId: string }
 
 // Linear
-| { type: "linear.getWorkflowStates"; issueId: string }
+| { type: "linear.getWorkflowStates"; issueIdentifier: string }
 | { type: "linear.updateIssueState"; issueId: string; stateId: string }
 
 // Notion
@@ -107,11 +107,14 @@ export async function transitionIssue(
 
 export async function getWorkflowStates(
   auth: LinearAuth,
-  issueId: string,
+  issueIdentifier: string,
 ): Promise<LinearWorkflowState[]> {
-  // query: issue(id: $issueId) { team { states { nodes { id name type color } } } }
-  // issueId로부터 team의 workflow states를 한번에 조회
+  // query: issues(filter: { identifier: { eq: $issueIdentifier } }) {
+  //   nodes { team { states { nodes { id name type color } } } }
+  // }
+  // identifier("PRE-123")로 이슈를 조회해 team의 workflow states를 반환
   // type 순서: triage → backlog → unstarted → started → completed → cancelled 순 정렬
+  // 알 수 없는 type은 목록 끝에 배치
 }
 
 export async function updateIssueState(
@@ -165,7 +168,7 @@ case "jira.transitionIssue":
 
 // linear.getIssueStatus case 뒤에:
 case "linear.getWorkflowStates":
-  return getLinearWorkflowStates(await loadLinearAuth(), message.issueId);
+  return getLinearWorkflowStates(await loadLinearAuth(), message.issueIdentifier);
 
 case "linear.updateIssueState":
   return updateLinearIssueState(await loadLinearAuth(), message.issueId, message.stateId);
@@ -191,26 +194,28 @@ Props: { issueKey, issueId, currentStatus: JiraIssueStatus, onStatusChanged: (s:
 동작:
   - 팝오버 open → sendBg("jira.getTransitions", { issueKey }) → transitions 세팅
   - 트랜지션 선택 → setUpdating(true) → sendBg("jira.transitionIssue", { issueKey, transitionId })
-  - 성공 → 응답(JiraIssueStatus)을 onStatusChanged에 전달 + patchIssue
-  - 실패 → toast.error(t("issueList.jira.statusUpdateFailed"))
+  - 성공 → 서버 응답(JiraIssueStatus) 대기 후 onStatusChanged + patchIssue (낙관적 업데이트 아님)
+  - 실패 → 400(필수 필드) 시 toast.error(t("issueList.jira.requiredFieldsError")), 기타 에러 시 toast.error(t("issueList.jira.statusUpdateFailed"))
+  - updating 중 항목 클릭 비활성화 (중복 클릭 방지)
 ```
 
-팝오버 내 레이아웃: GitHub과 동일한 체크마크 + 배지 목록. 현재 상태의 `name`과 일치하는 트랜지션의 `to.name`에 체크. 각 항목은 `to.categoryKey` 기반 색상.
+팝오버 내 레이아웃: `PopoverContent`에 `max-h-[300px] overflow-y-auto`. GitHub과 동일한 체크마크 + 배지 목록. 현재 상태의 `name`과 일치하는 트랜지션의 `to.name`에 체크. 각 항목은 `to.categoryKey` 기반 색상.
 
 #### 8-b. `LinearStatusBadge` 컴포넌트
 
 ```
-Props: { issueId (UUID), linearIdentifier, currentState: { name, type }, onStatusChanged: (s: LinearIssueStatus) => void }
+Props: { issueId (UUID), issueIdentifier, currentState: { name, type }, onStatusChanged: (s: LinearIssueStatus) => void }
 
 상태: open, states (LinearWorkflowState[] | null), loading, updating
 동작:
-  - 팝오버 open → sendBg("linear.getWorkflowStates", { issueId: linearIdentifier ?? issueKey })
-  - 상태 선택 → setUpdating(true) → sendBg("linear.updateIssueState", { issueId (UUID), stateId })
-  - 성공 → onStatusChanged(LinearIssueStatus) + patchIssue
+  - 팝오버 open → sendBg("linear.getWorkflowStates", { issueIdentifier })
+  - 상태 선택 → setUpdating(true) → sendBg("linear.updateIssueState", { issueId: UUID, stateId })
+  - 성공 → 서버 응답(LinearIssueStatus) 대기 후 onStatusChanged + patchIssue (낙관적 업데이트 아님)
   - 실패 → toast.error(t("issueList.linear.statusUpdateFailed"))
+  - updating 중 항목 클릭 비활성화 (중복 클릭 방지)
 ```
 
-팝오버 내 레이아웃: 각 항목은 상태명 + `LINEAR_STATE_TYPE_COLORS[type]` 색상. 현재 상태 `name`과 일치하는 항목에 체크.
+팝오버 내 레이아웃: `PopoverContent`에 `max-h-[300px] overflow-y-auto`. 각 항목은 상태명 + `LINEAR_STATE_TYPE_COLORS[type]` 색상. 현재 상태 `name`과 일치하는 항목에 체크.
 
 #### 8-c. `NotionStatusBadge` 컴포넌트
 
@@ -222,11 +227,12 @@ Props: { pageId, databaseId, currentOption: { name, color }, onStatusChanged: (s
   - 팝오버 open → sendBg("notion.getDatabaseSchema", { databaseId })
     → statusProperty.options를 세팅 + statusProperty.name을 statusPropertyName에 저장
   - 옵션 선택 → setUpdating(true) → sendBg("notion.updatePageStatus", { pageId, propertyName: statusPropertyName, optionName })
-  - 성공 → onStatusChanged(NotionPageStatus) + patchIssue
+  - 성공 → 서버 응답(NotionPageStatus) 대기 후 onStatusChanged + patchIssue (낙관적 업데이트 아님)
   - 실패 → toast.error(t("issueList.notion.statusUpdateFailed"))
+  - updating 중 항목 클릭 비활성화 (중복 클릭 방지)
 ```
 
-팝오버 내 레이아웃: 각 항목은 옵션명 + `notionStatusCategory(color)` 색상. 현재 옵션 `name`과 일치하는 항목에 체크.
+팝오버 내 레이아웃: `PopoverContent`에 `max-h-[300px] overflow-y-auto`. 각 항목은 옵션명 + `notionStatusCategory(color)` 색상. 현재 옵션 `name`과 일치하는 항목에 체크.
 
 #### 8-d. `SubmittedBadge` 변경
 
@@ -245,7 +251,8 @@ Props: { pageId, databaseId, currentOption: { name, color }, onStatusChanged: (s
 
 ```typescript
 // ko.ts
-"issueList.jira.statusUpdateFailed": "상태 변경에 실패했습니다. Jira에서 직접 변경해 주세요.",
+"issueList.jira.statusUpdateFailed": "상태 변경에 실패했습니다",
+"issueList.jira.requiredFieldsError": "필수 필드가 있어 변경할 수 없습니다. Jira에서 직접 변경해 주세요.",
 "issueList.jira.noTransitions": "사용 가능한 전환이 없습니다",
 "issueList.linear.statusUpdateFailed": "상태 변경에 실패했습니다",
 "issueList.notion.statusUpdateFailed": "상태 변경에 실패했습니다",
@@ -253,7 +260,8 @@ Props: { pageId, databaseId, currentOption: { name, color }, onStatusChanged: (s
 "issueList.statusLoading": "불러오는 중…",
 
 // en.ts
-"issueList.jira.statusUpdateFailed": "Failed to update status. Please change it directly in Jira.",
+"issueList.jira.statusUpdateFailed": "Failed to update status",
+"issueList.jira.requiredFieldsError": "Required fields prevent this transition. Please change it directly in Jira.",
 "issueList.jira.noTransitions": "No transitions available",
 "issueList.linear.statusUpdateFailed": "Failed to update status",
 "issueList.notion.statusUpdateFailed": "Failed to update status",
@@ -284,9 +292,9 @@ Props: { pageId, databaseId, currentOption: { name, color }, onStatusChanged: (s
 ```
 [LinearStatusBadge]
   ├─ 팝오버 open
-  │   └─ sendBg("linear.getWorkflowStates", { issueId: identifier })
+  │   └─ sendBg("linear.getWorkflowStates", { issueIdentifier: identifier })
   │       └─ linear-api.ts:getWorkflowStates()
-  │           → query issue(id) { team { states { nodes { id name type color } } } }
+  │           → query issues(filter: { identifier: { eq } }) { nodes { team { states { nodes { id name type color } } } } }
   │           └─ LinearWorkflowState[] → 팝오버 렌더
   └─ 상태 선택
       └─ sendBg("linear.updateIssueState", { issueId: UUID, stateId })
