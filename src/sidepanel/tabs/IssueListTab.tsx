@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowUpRight, Check, CircleCheck, Inbox, Loader2, Search, SearchX, Trash2, X } from "lucide-react";
+import { ArrowUpRight, Check, ChevronDown, CircleCheck, Inbox, Loader2, Search, SearchX, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import {
   SiGithub,
@@ -249,7 +249,7 @@ export function IssueListTab() {
       ) : (
         <PageScroll>
           {groupByDate(filtered).map(([date, group]) => (
-          <Section key={date} title={<>{date}<Badge variant="outline" className="ml-2 align-middle text-xs tabular-nums">{group.length}</Badge></>} collapsible>
+          <Section key={date} title={<>{date}<Badge variant="secondary" className="ml-2 align-middle text-xs tabular-nums">{group.length}</Badge></>} collapsible>
             <ul className="flex flex-col gap-2">
               {group.map((issue) => (
                 <IssueRow
@@ -594,6 +594,7 @@ function GithubStatusBadge({
           >
             {updating && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
             {currentOption.label}
+            {!updating && <ChevronDown className="ml-0.5 !size-3.5" />}
           </Badge>
         </button>
       </PopoverTrigger>
@@ -696,6 +697,7 @@ function JiraStatusBadge({
           >
             {updating && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
             {currentStatus.name}
+            {!updating && <ChevronDown className="ml-0.5 !size-3.5" />}
           </Badge>
         </button>
       </PopoverTrigger>
@@ -808,6 +810,7 @@ function LinearStatusBadge({
           >
             {updating && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
             {currentLabel}
+            {!updating && <ChevronDown className="ml-0.5 !size-3.5" />}
           </Badge>
         </button>
       </PopoverTrigger>
@@ -921,6 +924,7 @@ function NotionStatusBadge({
           >
             {updating && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
             {currentOption.name}
+            {!updating && <ChevronDown className="ml-0.5 !size-3.5" />}
           </Badge>
         </button>
       </PopoverTrigger>

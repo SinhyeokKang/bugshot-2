@@ -61,6 +61,7 @@ export function setLinearRefreshHook(
 
 async function ensureFresh(auth: LinearAuth): Promise<LinearAuth> {
   if (auth.kind !== "oauth" || !refreshHook) return auth;
+  if (auth.expiresAt == null) return auth;
   if (auth.expiresAt - Date.now() > TOKEN_REFRESH_THRESHOLD_MS) return auth;
   return refreshHook(auth);
 }
