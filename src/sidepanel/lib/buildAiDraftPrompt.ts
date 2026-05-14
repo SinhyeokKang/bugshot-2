@@ -26,20 +26,47 @@ export interface AiDraftContext {
   enabledSections: { id: IssueSectionId; renderAs: IssueSectionRenderAs }[];
 }
 
-const SECTION_DESC: Record<LocaleMode, Record<IssueSectionId, string>> = {
+const SECTION_DESC_BASE: Record<LocaleMode, Record<IssueSectionId, string>> = {
   ko: {
-    description: "발생 현상을 구체적으로 설명 (current 값이 현재 문제 상태)",
+    description: "발생 현상을 구체적으로 설명",
     stepsToReproduce: "재현 과정을 줄바꿈으로 구분된 단계로 작성 (번호 없이)",
-    expectedResult: "수정 후 기대되는 동작 (desired 값 기준으로 작성)",
+    expectedResult: "수정 후 기대되는 동작",
     notes: "추가 참고 사항. 없으면 빈 문자열",
   },
   en: {
-    description: "describe the issue in detail (current value is the problem)",
+    description: "describe the issue in detail",
     stepsToReproduce: "write reproduction steps as newline-separated lines (no numbering)",
-    expectedResult: "expected behavior after fix (use the desired value)",
+    expectedResult: "expected behavior after fix",
     notes: "additional notes. Leave empty string if nothing to add",
   },
 };
+
+const MODE_HINTS: Record<CaptureMode, Record<LocaleMode, Partial<Record<IssueSectionId, string>>>> = {
+  element: {
+    ko: { description: " (current 값이 현재 문제 상태)", expectedResult: " (desired 값 기준으로 작성)" },
+    en: { description: " (current value is the problem)", expectedResult: " (use the desired value)" },
+  },
+  screenshot: {
+    ko: { description: " (스크린샷과 사용자 설명 기반)" },
+    en: { description: " (based on the screenshot and user description)" },
+  },
+  video: {
+    ko: { description: " (사용자 설명과 에러 로그 기반)" },
+    en: { description: " (based on user description and error logs)" },
+  },
+};
+
+function getSectionDesc(
+  locale: LocaleMode,
+  mode: CaptureMode,
+): Record<IssueSectionId, string> {
+  const base = { ...SECTION_DESC_BASE[locale] };
+  const hints = MODE_HINTS[mode]?.[locale] ?? {};
+  for (const [key, suffix] of Object.entries(hints)) {
+    base[key as IssueSectionId] += suffix;
+  }
+  return base;
+}
 
 export function buildAiDraftPrompt(ctx: AiDraftContext): string {
   const lang = ctx.locale === "ko" ? "Korean" : "English";
@@ -87,7 +114,7 @@ export function buildAiDraftPrompt(ctx: AiDraftContext): string {
     }
   }
 
-  const desc = SECTION_DESC[ctx.locale];
+  const desc = getSectionDesc(ctx.locale, ctx.captureMode);
   lines.push("");
   lines.push("Output a JSON object with these exact keys:");
   lines.push('- "title": one short line, as brief as possible');
@@ -186,6 +213,7 @@ export function buildAiDraftSessionPrompt(ctx: AiDraftSessionContext): string {
   }
 
   if (ctx.captureMode === "video") {
+    lines.push("- The user recorded a screen video of the bug. They will describe what happened.");
     if (ctx.networkLogSummary && ctx.networkLogSummary.errors.length > 0) {
       lines.push("- Network errors:");
       for (const e of ctx.networkLogSummary.errors) {
@@ -203,7 +231,7 @@ export function buildAiDraftSessionPrompt(ctx: AiDraftSessionContext): string {
     }
   }
 
-  const desc = SECTION_DESC[ctx.locale];
+  const desc = getSectionDesc(ctx.locale, ctx.captureMode);
   lines.push("");
   lines.push("Output a JSON object with these exact keys:");
   lines.push('- "title": one short line, as brief as possible');

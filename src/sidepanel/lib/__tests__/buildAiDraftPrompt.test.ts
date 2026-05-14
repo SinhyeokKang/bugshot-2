@@ -69,6 +69,32 @@ describe("buildAiDraftPrompt", () => {
     expect(prompt).not.toContain('color: "red"');
   });
 
+  it("element 모드: 섹션 설명에 current/desired 힌트 포함", () => {
+    const prompt = buildAiDraftPrompt({ ...BASE_CTX, captureMode: "element" });
+    expect(prompt).toContain("current");
+    expect(prompt).toContain("desired");
+  });
+
+  it("screenshot 모드: 섹션 설명에 current/desired 힌트 없음, 스크린샷 힌트 포함", () => {
+    const prompt = buildAiDraftPrompt({
+      ...BASE_CTX,
+      captureMode: "screenshot",
+    });
+    expect(prompt).not.toMatch(/current value|current 값/);
+    expect(prompt).not.toMatch(/desired value|desired 값/);
+    expect(prompt).toMatch(/screenshot|스크린샷/i);
+  });
+
+  it("video 모드: 섹션 설명에 current/desired 힌트 없음, 에러 로그 힌트 포함", () => {
+    const prompt = buildAiDraftPrompt({
+      ...BASE_CTX,
+      captureMode: "video",
+    });
+    expect(prompt).not.toMatch(/current value|current 값/);
+    expect(prompt).not.toMatch(/desired value|desired 값/);
+    expect(prompt).toMatch(/error log|에러 로그/i);
+  });
+
   it("locale ko → Korean, en → English", () => {
     const koPrompt = buildAiDraftPrompt({ ...BASE_CTX, locale: "ko" });
     expect(koPrompt).toContain("Korean");
@@ -317,5 +343,22 @@ describe("buildAiDraftSessionPrompt", () => {
       captureMode: "video",
     });
     expect(prompt).not.toMatch(/image|이미지/i);
+  });
+
+  it("screenshot 모드: 섹션 설명에 current/desired 힌트 없음", () => {
+    const prompt = buildAiDraftSessionPrompt(SESSION_BASE);
+    expect(prompt).not.toMatch(/current value|current 값/);
+    expect(prompt).not.toMatch(/desired value|desired 값/);
+    expect(prompt).toMatch(/screenshot|스크린샷/i);
+  });
+
+  it("video 모드: 섹션 설명에 current/desired 힌트 없음, 녹화 맥락 포함", () => {
+    const prompt = buildAiDraftSessionPrompt({
+      ...SESSION_BASE,
+      captureMode: "video",
+    });
+    expect(prompt).not.toMatch(/current value|current 값/);
+    expect(prompt).not.toMatch(/desired value|desired 값/);
+    expect(prompt).toMatch(/record|녹화/i);
   });
 });

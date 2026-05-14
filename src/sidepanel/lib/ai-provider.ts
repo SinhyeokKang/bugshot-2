@@ -268,7 +268,7 @@ export function createAnthropicProvider(config: LlmConfig): AIProvider {
   return {
     async generate({ systemPrompt, prompt, images, responseSchema }) {
       const sys = responseSchema
-        ? `${systemPrompt ?? ""}\n\nRespond with valid JSON only.`
+        ? `${systemPrompt ?? ""}\n\nRespond with valid JSON only. Schema: ${JSON.stringify(responseSchema)}`
         : (systemPrompt ?? "");
       return callMessages(sys, [{ role: "user", content: buildAnthropicContent(prompt, images) }]);
     },
@@ -277,7 +277,7 @@ export function createAnthropicProvider(config: LlmConfig): AIProvider {
       return {
         async prompt(input, options) {
           const sys = options?.responseSchema
-            ? `${systemPrompt}\n\nRespond with valid JSON only.`
+            ? `${systemPrompt}\n\nRespond with valid JSON only. Schema: ${JSON.stringify(options.responseSchema)}`
             : systemPrompt;
           messages.push({ role: "user", content: buildAnthropicContent(input, options?.images) });
           const result = await callMessages(sys, messages);
