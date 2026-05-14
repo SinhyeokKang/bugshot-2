@@ -47,6 +47,23 @@ describe("extractNotionPageId", () => {
     expect(extractNotionPageId("")).toBeNull();
   });
 
+  it("제목이 hex 문자로만 구성되어 slug 전체가 36자일 때 32-hex pageId만 추출", () => {
+    // "543" (hex) + "-" + 32hex = 36자 → 기존 [0-9a-fA-F-]{36} 에 잘못 매칭되던 회귀
+    expect(
+      extractNotionPageId(
+        "https://www.notion.so/543-3609990116fd81279e48cb32afd2cddb",
+      ),
+    ).toBe("3609990116fd81279e48cb32afd2cddb");
+  });
+
+  it("제목이 hex 문자 + workspace prefix 있을 때도 32-hex만 추출", () => {
+    expect(
+      extractNotionPageId(
+        "https://www.notion.so/workspace/abc-1234567890abcdef1234567890abcdef",
+      ),
+    ).toBe("1234567890abcdef1234567890abcdef");
+  });
+
   it("CLAUDE.md 시나리오: split('/').pop() 결과를 그대로 넣어도 추출 가능", () => {
     // IssueCreateModal/DraftDetailDialog의 기존 버그 재현 — slug+id 문자열에서 pageId 회수
     const fromSplitPop = "My-Bug-Title-1234567890abcdef1234567890abcdef";

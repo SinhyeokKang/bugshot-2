@@ -545,3 +545,24 @@ export async function getPageStatus(
   const data = await notionFetch<NotionPageRaw>(auth, `/pages/${pageId}`);
   return parsePageStatus(data);
 }
+
+export async function updatePageStatus(
+  auth: NotionAuth,
+  pageId: string,
+  propertyName: string,
+  optionName: string,
+): Promise<NotionPageStatus> {
+  const data = await notionFetch<NotionPageRaw>(
+    auth,
+    `/pages/${pageId}`,
+    {
+      method: "PATCH",
+      body: {
+        properties: {
+          [propertyName]: { status: { name: optionName } },
+        },
+      },
+    },
+  );
+  return parsePageStatus(data);
+}

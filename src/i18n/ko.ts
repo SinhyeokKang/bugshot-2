@@ -209,6 +209,16 @@ const ko = {
   "issueList.github.open": "Open",
   "issueList.github.closed": "Closed",
   "issueList.github.notPlanned": "Not planned",
+  "issueList.github.status.open": "Open",
+  "issueList.github.status.closedCompleted": "Closed (완료)",
+  "issueList.github.status.closedNotPlanned": "Closed (계획 없음)",
+  "issueList.github.statusUpdateFailed": "상태 변경에 실패했습니다",
+  "issueList.jira.statusUpdateFailed": "상태 변경에 실패했습니다",
+  "issueList.jira.requiredFieldsError": "필수 필드가 있어 변경할 수 없습니다. Jira에서 직접 변경해 주세요.",
+  "issueList.jira.noTransitions": "사용 가능한 전환이 없습니다",
+  "issueList.linear.statusUpdateFailed": "상태 변경에 실패했습니다",
+  "issueList.notion.statusUpdateFailed": "상태 변경에 실패했습니다",
+  "issueList.notion.noStatusOptions": "상태 옵션이 없습니다",
   "create.requiredMissing": "필수 값 누락",
 
   // Time

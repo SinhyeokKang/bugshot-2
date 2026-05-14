@@ -31,6 +31,8 @@ const BG_REQUEST_TYPES = new Set([
   "jira.listPriorities",
   "jira.searchUsers",
   "jira.getIssueStatus",
+  "jira.getTransitions",
+  "jira.transitionIssue",
   "jira.searchEpics",
   "jira.submitIssue",
   "github.oauth.available",
@@ -44,6 +46,7 @@ const BG_REQUEST_TYPES = new Set([
   "github.uploadFiles",
   "github.submitIssue",
   "github.getIssueStatus",
+  "github.updateIssueState",
   "linear.oauth.available",
   "linear.startOAuth",
   "linear.testApiKey",
@@ -57,6 +60,8 @@ const BG_REQUEST_TYPES = new Set([
   "linear.uploadFile",
   "linear.createAttachment",
   "linear.getIssueStatus",
+  "linear.getWorkflowStates",
+  "linear.updateIssueState",
   "notion.oauth.available",
   "notion.startOAuth",
   "notion.testToken",
@@ -67,6 +72,7 @@ const BG_REQUEST_TYPES = new Set([
   "notion.uploadFile",
   "notion.submitPage",
   "notion.getPageStatus",
+  "notion.updatePageStatus",
 ]);
 
 function disableGlobalSidePanel(): void {
