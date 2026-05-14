@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowUpRight, CircleCheck, Inbox, Loader2, Search, SearchX, Trash2, X } from "lucide-react";
+import { ArrowUpRight, Check, CircleCheck, Inbox, Loader2, Search, SearchX, Trash2, X } from "lucide-react";
+import { toast } from "sonner";
 import {
   SiGithub,
   SiJirasoftware,
@@ -22,6 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useIssuesStore, type IssueRecord } from "@/store/issues-store";
 import { useSettingsStore, jiraSiteId } from "@/store/settings-store";
@@ -332,6 +334,7 @@ function IssueRow({
   const t = useT();
   const isSubmitted = issue.status === "submitted" && !!issue.url;
   const removeIssue = useIssuesStore((s) => s.removeIssue);
+  const [badgeHover, setBadgeHover] = useState(false);
 
   const textMetaParts: string[] = [];
   if (isSubmitted) {
@@ -359,7 +362,7 @@ function IssueRow({
   return (
     <li>
       <Card
-        className="group cursor-pointer transition-colors hover:bg-muted/50"
+        className={`group cursor-pointer transition-colors ${badgeHover ? "" : "hover:bg-muted/50"}`}
         onClick={handleCardClick}
       >
         <CardContent className="flex items-center justify-between gap-3 px-4 py-3">
@@ -378,19 +381,24 @@ function IssueRow({
             </span>
           </div>
           {isSubmitted && issue.key ? (
-            <SubmittedBadge
-              issueId={issue.id}
-              issueKey={issue.key}
-              issueSiteId={issue.jiraSiteId}
-              issueUrl={issue.url}
-              platform={issue.platform}
-              githubOwner={issue.githubOwner}
-              githubRepo={issue.githubRepo}
-              linearIdentifier={issue.linearIdentifier}
-              notionPageId={issue.notionPageId}
-              refreshKey={refreshKey}
-              onLoaded={onBadgeLoaded}
-            />
+            <span
+              onMouseEnter={() => setBadgeHover(true)}
+              onMouseLeave={() => setBadgeHover(false)}
+            >
+              <SubmittedBadge
+                issueId={issue.id}
+                issueKey={issue.key}
+                issueSiteId={issue.jiraSiteId}
+                issueUrl={issue.url}
+                platform={issue.platform}
+                githubOwner={issue.githubOwner}
+                githubRepo={issue.githubRepo}
+                linearIdentifier={issue.linearIdentifier}
+                notionPageId={issue.notionPageId}
+                refreshKey={refreshKey}
+                onLoaded={onBadgeLoaded}
+              />
+            </span>
           ) : (
             <AlertDialog>
               <AlertDialogTrigger asChild>
@@ -506,6 +514,113 @@ type GithubBadgeStatus =
   | { kind: "open" }
   | { kind: "closed"; reason: "completed" | "not_planned" | "reopened" | null };
 
+type GithubTargetState = "open" | "closed_completed" | "closed_not_planned";
+
+function toGithubTargetState(s: GithubBadgeStatus): GithubTargetState {
+  if (s.kind === "open") return "open";
+  return s.reason === "not_planned" ? "closed_not_planned" : "closed_completed";
+}
+
+function GithubStatusBadge({
+  ghStatus,
+  issueId,
+  owner,
+  repo,
+  number,
+  onStatusChanged,
+}: {
+  ghStatus: GithubBadgeStatus;
+  issueId: string;
+  owner: string;
+  repo: string;
+  number: number;
+  onStatusChanged: (s: GithubBadgeStatus) => void;
+}) {
+  const t = useT();
+  const patchIssue = useIssuesStore((s) => s.patchIssue);
+  const [open, setOpen] = useState(false);
+  const [updating, setUpdating] = useState(false);
+
+  const current = toGithubTargetState(ghStatus);
+
+  const options: { key: GithubTargetState; label: string; colors: typeof STATUS_CATEGORY_COLORS[string] }[] = [
+    { key: "open", label: t("issueList.github.status.open"), colors: STATUS_CATEGORY_COLORS.indeterminate },
+    { key: "closed_completed", label: t("issueList.github.status.closedCompleted"), colors: STATUS_CATEGORY_COLORS.done },
+    { key: "closed_not_planned", label: t("issueList.github.status.closedNotPlanned"), colors: STATUS_CATEGORY_COLORS.new },
+  ];
+
+  const currentOption = options.find((o) => o.key === current)!;
+
+  const handleSelect = (target: GithubTargetState) => {
+    if (target === current) { setOpen(false); return; }
+    setOpen(false);
+    setUpdating(true);
+    const state = target === "open" ? "open" as const : "closed" as const;
+    const stateReason = target === "closed_not_planned" ? "not_planned" as const : target === "closed_completed" ? "completed" as const : null;
+    sendBg<GithubIssueStatus>({
+      type: "github.updateIssueState",
+      owner, repo, number, state,
+      ...(stateReason ? { stateReason } : {}),
+    })
+      .then((res) => {
+        const newStatus: GithubBadgeStatus =
+          res.state === "open"
+            ? { kind: "open" }
+            : { kind: "closed", reason: res.stateReason ?? null };
+        onStatusChanged(newStatus);
+        const patch: Partial<IssueRecord> = {};
+        if (res.title) patch.title = res.title;
+        patch.githubLabels = res.labels.map((l) => l.name).filter(Boolean);
+        if (Object.keys(patch).length) patchIssue(issueId, patch);
+      })
+      .catch(() => toast.error(t("issueList.github.statusUpdateFailed")))
+      .finally(() => setUpdating(false));
+  };
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="shrink-0 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          onClick={(e) => e.stopPropagation()}
+          disabled={updating}
+        >
+          <Badge
+            variant="outline"
+            className={`relative w-fit border-transparent text-[11px] ${currentOption.colors.bg} ${currentOption.colors.text} ${currentOption.colors.darkBg} ${currentOption.colors.darkText} ${updating ? "opacity-50" : ""}`}
+          >
+            {updating && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
+            {currentOption.label}
+          </Badge>
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        className="w-auto p-1"
+        align="end"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {options.map((opt) => (
+          <button
+            key={opt.key}
+            type="button"
+            className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 hover:bg-accent hover:text-accent-foreground"
+            onClick={() => handleSelect(opt.key)}
+          >
+            <Check className={`h-3.5 w-3.5 shrink-0 ${opt.key === current ? "opacity-100" : "opacity-0"}`} />
+            <Badge
+              variant="outline"
+              className={`border-transparent text-[11px] ${opt.colors.bg} ${opt.colors.text} ${opt.colors.darkBg} ${opt.colors.darkText}`}
+            >
+              {opt.label}
+            </Badge>
+          </button>
+        ))}
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 function SubmittedBadge({
   issueId,
   issueKey,
@@ -544,6 +659,11 @@ function SubmittedBadge({
   const [linearStatus, setLinearStatus] = useState<LinearIssueStatus | "error" | null>(null);
   const [notionStatus, setNotionStatus] = useState<NotionPageStatus | "error" | null>(null);
 
+  const ghCoords = useMemo(
+    () => resolveGithubCoords({ githubOwner, githubRepo, key: issueKey, url: issueUrl }),
+    [githubOwner, githubRepo, issueKey, issueUrl],
+  );
+
   useEffect(() => {
     if (platform === "jira") {
       if (!jiraAccount?.auth || !siteMatch) { setJiraStatus("error"); onLoaded(); return; }
@@ -560,20 +680,14 @@ function SubmittedBadge({
       return;
     }
     if (platform === "github") {
-      const coords = resolveGithubCoords({
-        githubOwner,
-        githubRepo,
-        key: issueKey,
-        url: issueUrl,
-      });
-      if (!ghAccount || !coords) {
+      if (!ghAccount || !ghCoords) {
         setGhStatus("error"); onLoaded(); return;
       }
       sendBg<GithubIssueStatus>({
         type: "github.getIssueStatus",
-        owner: coords.owner,
-        repo: coords.repo,
-        number: coords.number,
+        owner: ghCoords.owner,
+        repo: ghCoords.repo,
+        number: ghCoords.number,
       })
         .then((res) => {
           setGhStatus(
@@ -583,8 +697,8 @@ function SubmittedBadge({
           );
           const patch: Partial<IssueRecord> = {};
           if (res.title) patch.title = res.title;
-          if (!githubOwner) patch.githubOwner = coords.owner;
-          if (!githubRepo) patch.githubRepo = coords.repo;
+          if (!githubOwner) patch.githubOwner = ghCoords.owner;
+          if (!githubRepo) patch.githubRepo = ghCoords.repo;
           patch.githubLabels = res.labels.map((l) => l.name).filter(Boolean);
           if (Object.keys(patch).length) patchIssue(issueId, patch);
         })
@@ -630,7 +744,7 @@ function SubmittedBadge({
       return;
     }
     onLoaded();
-  }, [platform, jiraAccount?.auth, ghAccount, linearAccount?.auth, notionAccount?.auth, issueKey, issueUrl, githubOwner, githubRepo, linearIdentifier, notionPageId, refreshKey, siteMatch, onLoaded, issueId, patchIssue]);
+  }, [platform, jiraAccount?.auth, ghAccount, linearAccount?.auth, notionAccount?.auth, issueKey, issueUrl, ghCoords, linearIdentifier, notionPageId, refreshKey, siteMatch, onLoaded, issueId, patchIssue]);
 
   if (platform === "jira") {
     if (jiraStatus === "error") {
@@ -668,6 +782,18 @@ function SubmittedBadge({
         <Badge variant="outline" className="w-fit shrink-0 text-[11px]">
           {t("issueList.submitted")}
         </Badge>
+      );
+    }
+    if (ghCoords) {
+      return (
+        <GithubStatusBadge
+          ghStatus={ghStatus}
+          issueId={issueId}
+          owner={ghCoords.owner}
+          repo={ghCoords.repo}
+          number={ghCoords.number}
+          onStatusChanged={setGhStatus}
+        />
       );
     }
     const ghLabel =

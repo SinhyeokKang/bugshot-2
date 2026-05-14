@@ -211,6 +211,10 @@ const en = {
   "issueList.github.open": "Open",
   "issueList.github.closed": "Closed",
   "issueList.github.notPlanned": "Not planned",
+  "issueList.github.status.open": "Open",
+  "issueList.github.status.closedCompleted": "Closed as completed",
+  "issueList.github.status.closedNotPlanned": "Closed as not planned",
+  "issueList.github.statusUpdateFailed": "Failed to update status",
   "create.requiredMissing": "Required field missing",
 
   // Time

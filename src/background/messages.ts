@@ -20,6 +20,7 @@ import {
 import {
   createIssue as createGithubIssue,
   getIssueStatus as getGithubIssueStatus,
+  updateIssueState as updateGithubIssueState,
   githubFetch,
   getMyself as githubGetMyself,
   getRepoAssignees,
@@ -185,6 +186,16 @@ export async function handleMessage(
         message.owner,
         message.repo,
         message.number,
+      );
+
+    case "github.updateIssueState":
+      return updateGithubIssueState(
+        await loadGithubAuth(),
+        message.owner,
+        message.repo,
+        message.number,
+        message.state,
+        message.stateReason,
       );
 
     case "linear.oauth.available":

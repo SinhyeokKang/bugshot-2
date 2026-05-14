@@ -98,6 +98,14 @@ export type BgRequest =
       repo: string;
       number: number;
     }
+  | {
+      type: "github.updateIssueState";
+      owner: string;
+      repo: string;
+      number: number;
+      state: "open" | "closed";
+      stateReason?: "completed" | "not_planned" | null;
+    }
   | { type: "linear.oauth.available" }
   | { type: "linear.startOAuth" }
   | { type: "linear.testApiKey"; apiKey: string }

@@ -319,6 +319,28 @@ export async function getIssueStatus(
   return normalizeIssueStatus(raw);
 }
 
+export async function updateIssueState(
+  auth: GithubAuth,
+  owner: string,
+  repo: string,
+  number: number,
+  state: "open" | "closed",
+  stateReason?: "completed" | "not_planned" | null,
+): Promise<GithubIssueStatus> {
+  const body: Record<string, unknown> = { state };
+  if (state === "closed" && stateReason) {
+    body.state_reason = stateReason;
+  } else if (state === "open") {
+    body.state_reason = "reopened";
+  }
+  const raw = await githubFetch<RawIssue>(
+    auth,
+    `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/issues/${number}`,
+    { method: "PATCH", body: JSON.stringify(body) },
+  );
+  return normalizeIssueStatus(raw);
+}
+
 export async function createIssue(
   auth: GithubAuth,
   payload: GithubCreateIssuePayload,

@@ -209,6 +209,10 @@ const ko = {
   "issueList.github.open": "Open",
   "issueList.github.closed": "Closed",
   "issueList.github.notPlanned": "Not planned",
+  "issueList.github.status.open": "Open",
+  "issueList.github.status.closedCompleted": "Closed (완료)",
+  "issueList.github.status.closedNotPlanned": "Closed (계획 없음)",
+  "issueList.github.statusUpdateFailed": "상태 변경에 실패했습니다",
   "create.requiredMissing": "필수 값 누락",
 
   // Time

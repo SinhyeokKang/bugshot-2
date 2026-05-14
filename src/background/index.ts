@@ -44,6 +44,7 @@ const BG_REQUEST_TYPES = new Set([
   "github.uploadFiles",
   "github.submitIssue",
   "github.getIssueStatus",
+  "github.updateIssueState",
   "linear.oauth.available",
   "linear.startOAuth",
   "linear.testApiKey",
