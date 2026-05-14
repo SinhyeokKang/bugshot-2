@@ -1,6 +1,7 @@
 import { t } from "@/i18n";
 import type { JiraOAuthAuth, JiraSite } from "@/types/jira";
 import type { PlatformId } from "@/types/platform";
+import { writeStoredOAuthTokens } from "@/lib/settings-storage";
 
 const CLIENT_ID = import.meta.env.VITE_ATLASSIAN_CLIENT_ID ?? "";
 const PROXY_URL = (import.meta.env.VITE_OAUTH_PROXY_URL ?? "").replace(
@@ -193,8 +194,6 @@ export async function refreshOAuthToken(
     expiresAt: Date.now() + data.expires_in * 1000,
   };
 }
-
-import { writeStoredOAuthTokens } from "@/lib/settings-storage";
 
 export async function persistOAuthTokens(auth: JiraOAuthAuth): Promise<void> {
   try {
