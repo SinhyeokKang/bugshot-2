@@ -42,14 +42,14 @@ src/
 ├── background/      # service worker
 │   ├── index.ts         # 메시지 라우터 + 전역 sidePanel 비활성화
 │   ├── tab-bindings.ts  # 탭별 side panel on/off (활성화 셋 기반)
-│   ├── jira-api.ts      # Jira REST 래퍼 (Basic + Bearer, 401 시 refresh 재시도)
+│   ├── jira-api.ts      # Jira REST 래퍼 (Basic + Bearer, 401 시 refresh 재시도, getTransitions/transitionIssue로 상태 변경)
 │   ├── oauth.ts         # Atlassian 3LO (launchWebAuthFlow + proxy 교환)
-│   ├── github-api.ts    # GitHub REST 래퍼 (PAT/Bearer, 401 refresh hook 주입형)
+│   ├── github-api.ts    # GitHub REST 래퍼 (PAT/Bearer, 401 refresh hook 주입형, updateIssueState로 상태 변경)
 │   ├── github-oauth.ts  # GitHub Web Flow (launchWebAuthFlow + proxy 교환) + refresh hook 자동 등록
 │   ├── github-upload.ts # GitHub 파일 업로드 (MAIN world page injection, GitHub-Verified-Fetch 인증, batch uploadGithubFiles)
-│   ├── linear-api.ts    # Linear GraphQL 래퍼 (API Key/Bearer, 401 refresh hook 주입형)
+│   ├── linear-api.ts    # Linear GraphQL 래퍼 (API Key/Bearer, 401 refresh hook 주입형, getWorkflowStates/updateIssueState로 상태 변경)
 │   ├── linear-oauth.ts  # Linear OAuth (PKCE, launchWebAuthFlow, proxy 불필요) + refresh hook 자동 등록
-│   ├── notion-api.ts    # Notion REST 래퍼 (apiKey/Bearer, 401 → notion.oauthExpired, refresh 없음)
+│   ├── notion-api.ts    # Notion REST 래퍼 (apiKey/Bearer, 401 → notion.oauthExpired, refresh 없음, updatePageStatus로 상태 변경)
 │   ├── notion-oauth.ts  # Notion Web Flow (launchWebAuthFlow + proxy 교환, public integration — refresh 토큰 없음)
 │   └── messages.ts      # 메시지 핸들러 디스패치 (jira.* / github.* / linear.* / notion.* namespace)
 ├── content/
