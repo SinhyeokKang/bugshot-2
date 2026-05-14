@@ -91,6 +91,17 @@ const en = {
   "editor.revertClass": "Revert to original classes",
   "editor.revertSection": "Revert inline for this section",
 
+  // Style editor sections
+  "editor.section.class": "Class",
+  "editor.section.layout": "Layout",
+  "editor.section.container": "Container",
+  "editor.section.size": "Size",
+  "editor.section.overflow": "Overflow",
+  "editor.section.text": "Text",
+  "editor.section.typography": "Typography",
+  "editor.section.effects": "Effects",
+  "editor.section.transition": "Transition",
+
   // Style prop editors
   "prop.editIndividual": "Edit individually",
   "prop.editTogether": "Edit together",

@@ -3,6 +3,7 @@ import {
   buildAiStylingSystemPrompt,
   buildAiStylingResponseSchema,
   parseAiStylingResponse,
+  buildStyleContextBlock,
   type AiStylingContext,
 } from "../buildAiStylingPrompt";
 import { mergeAiEdits, replaceRawWithTokens } from "../aiStylingPostProcess";
@@ -79,6 +80,46 @@ describe("buildAiStylingSystemPrompt", () => {
     expect(prompt).not.toContain("Design tokens");
   });
 
+  it("금지 속성 목록 포함", () => {
+    const prompt = buildAiStylingSystemPrompt(BASE_CTX);
+    expect(prompt).toContain("content");
+    expect(prompt).toContain("animation");
+    expect(prompt).toContain("will-change");
+  });
+});
+
+describe("buildStyleContextBlock", () => {
+  it("현재 스타일과 클래스를 블록으로 직렬화", () => {
+    const block = buildStyleContextBlock({
+      ...BASE_CTX,
+      specifiedStyles: { "font-size": "14px", color: "#333" },
+      classList: ["btn", "primary"],
+    });
+    expect(block).toContain("[Current state]");
+    expect(block).toContain("font-size: 14px");
+    expect(block).toContain("color: #333");
+    expect(block).toContain("Classes: btn primary");
+  });
+
+  it("스타일 비어있으면 스타일 라인 생략", () => {
+    const block = buildStyleContextBlock({
+      ...BASE_CTX,
+      specifiedStyles: {},
+      classList: ["btn"],
+    });
+    expect(block).toContain("[Current state]");
+    expect(block).not.toContain("font-size");
+    expect(block).toContain("Classes: btn");
+  });
+
+  it("클래스 비어있으면 (none)", () => {
+    const block = buildStyleContextBlock({
+      ...BASE_CTX,
+      specifiedStyles: { color: "red" },
+      classList: [],
+    });
+    expect(block).toContain("Classes: (none)");
+  });
 });
 
 describe("buildAiStylingResponseSchema", () => {
@@ -112,12 +153,15 @@ describe("parseAiStylingResponse", () => {
     expect(result?.edits.inlineStyle).toEqual({ color: "red" });
   });
 
-  it("허용되지 않는 CSS 속성 필터링", () => {
+  it("deny-list 속성 필터링 (animation-name, content 등)", () => {
     const raw = JSON.stringify({
       explanation: "Styled",
       inlineStyle: {
         color: "red",
         "animation-name": "spin",
+        content: '"hello"',
+        "will-change": "transform",
+        "counter-increment": "section",
         "font-size": "16px",
       },
     });
@@ -126,10 +170,71 @@ describe("parseAiStylingResponse", () => {
       color: "red",
       "font-size": "16px",
     });
-    expect(result?.edits.inlineStyle).not.toHaveProperty("animation-name");
   });
 
-  it("새로 추가된 속성 허용 (z-index, transform 등)", () => {
+  it("기존 allowlist에 없던 속성도 통과 (font-family, text-decoration 등)", () => {
+    const raw = JSON.stringify({
+      explanation: "Styled",
+      inlineStyle: {
+        "font-family": "Arial, sans-serif",
+        "text-decoration": "underline",
+        "grid-template-columns": "1fr 1fr",
+        "flex-grow": "1",
+        "border-width": "2px",
+        "border-style": "solid",
+        outline: "none",
+        "word-break": "break-all",
+        "box-sizing": "border-box",
+        "list-style": "none",
+        "align-self": "center",
+        "text-transform": "uppercase",
+      },
+    });
+    const result = parseAiStylingResponse(raw);
+    expect(result?.edits.inlineStyle).toEqual({
+      "font-family": "Arial, sans-serif",
+      "text-decoration": "underline",
+      "grid-template-columns": "1fr 1fr",
+      "flex-grow": "1",
+      "border-width": "2px",
+      "border-style": "solid",
+      outline: "none",
+      "word-break": "break-all",
+      "box-sizing": "border-box",
+      "list-style": "none",
+      "align-self": "center",
+      "text-transform": "uppercase",
+    });
+  });
+
+  it("커스텀 속성(--*) 필터링", () => {
+    const raw = JSON.stringify({
+      explanation: "Token set",
+      inlineStyle: {
+        color: "red",
+        "--my-custom-color": "blue",
+        "--spacing": "8px",
+      },
+    });
+    const result = parseAiStylingResponse(raw);
+    expect(result?.edits.inlineStyle).toEqual({ color: "red" });
+  });
+
+  it("animation shorthand도 필터링", () => {
+    const raw = JSON.stringify({
+      explanation: "Animated",
+      inlineStyle: {
+        animation: "spin 1s infinite",
+        "animation-duration": "2s",
+        "animation-delay": "0.5s",
+        opacity: "0.5",
+      },
+    });
+    const result = parseAiStylingResponse(raw);
+    expect(result?.edits.inlineStyle).toEqual({ opacity: "0.5" });
+  });
+
+  it("z-index, transform 등 통과", () => {
     const raw = JSON.stringify({
       explanation: "Positioned",
       inlineStyle: {
@@ -233,7 +338,7 @@ describe("parseAiStylingResponse", () => {
     });
   });
 
-  it("camelCase 허용 안 되는 속성은 변환 후에도 필터링", () => {
+  it("camelCase deny-list 속성은 변환 후에도 필터링", () => {
     const raw = JSON.stringify({
       explanation: "ok",
       inlineStyle: { animationName: "spin", color: "blue" },

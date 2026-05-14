@@ -6,6 +6,7 @@ import {
   SiNotion,
 } from "@icons-pack/react-simple-icons";
 import { useT } from "@/i18n";
+import type { TranslationKey } from "@/i18n/ko";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -31,7 +32,7 @@ type PlatformSubTab = "jira" | "github" | "linear" | "notion";
 
 const PLATFORM_ORDER: PlatformSubTab[] = ["jira", "github", "linear", "notion"];
 
-const PLATFORM_LABEL_KEYS: Record<PlatformSubTab, string> = {
+const PLATFORM_LABEL_KEYS: Record<PlatformSubTab, TranslationKey> = {
   jira: "platform.tab.jira",
   github: "platform.tab.github",
   linear: "platform.tab.linear",
@@ -132,12 +133,12 @@ export function IntegrationsTab() {
             <AlertDialog>
               <AlertDialogTrigger asChild>
                 <Button variant="outline">
-                  {t("platform.disconnectPlatform", { platform: t(PLATFORM_LABEL_KEYS[sub] as any) })}
+                  {t("platform.disconnectPlatform", { platform: t(PLATFORM_LABEL_KEYS[sub]) })}
                 </Button>
               </AlertDialogTrigger>
               <AlertDialogContent>
                 <AlertDialogHeader>
-                  <AlertDialogTitle>{t("platform.disconnect.title", { platform: t(PLATFORM_LABEL_KEYS[sub] as any) })}</AlertDialogTitle>
+                  <AlertDialogTitle>{t("platform.disconnect.title", { platform: t(PLATFORM_LABEL_KEYS[sub]) })}</AlertDialogTitle>
                   <AlertDialogDescription>{t("platform.disconnect.body")}</AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>

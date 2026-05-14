@@ -20,6 +20,7 @@ import {
   buildAiStylingSystemPrompt,
   buildAiStylingResponseSchema,
   parseAiStylingResponse,
+  buildStyleContextBlock,
   type AiStylingContext,
 } from "../../lib/buildAiStylingPrompt";
 import { mergeAiEdits, replaceRawWithTokens } from "../../lib/aiStylingPostProcess";
@@ -77,9 +78,12 @@ export function AiStylingDialog({
         );
       }
 
-      const raw = await sessionRef.current.prompt(msg, {
-        responseSchema: buildAiStylingResponseSchema(),
-      });
+      const ctx = buildContext();
+      const prefix = ctx ? buildStyleContextBlock(ctx) : "";
+      const raw = await sessionRef.current.prompt(
+        prefix ? `${prefix}\n\n${msg}` : msg,
+        { responseSchema: buildAiStylingResponseSchema() },
+      );
 
       const parsed = parseAiStylingResponse(raw);
       if (!parsed) {

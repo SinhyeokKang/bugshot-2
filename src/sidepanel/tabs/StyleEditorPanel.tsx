@@ -154,12 +154,12 @@ export function SelectedPanel() {
           </div>
         </div>
 
-        <Section title="Class" action={<ClassRevertButton />}>
+        <Section title={t("editor.section.class")} action={<ClassRevertButton />}>
           <ClassEditor />
         </Section>
 
         <Section
-          title="Layout"
+          title={t("editor.section.layout")}
           action={<SectionRevertButton props={SECTION_PROPS.layout} />}
           collapsible
           defaultOpen={hasSpecified(SECTION_PROPS.layout)}
@@ -224,7 +224,7 @@ export function SelectedPanel() {
       </Section>
 
       <Section
-        title="Container"
+        title={t("editor.section.container")}
         action={<SectionRevertButton props={SECTION_PROPS.container} />}
         collapsible
         defaultOpen={hasSpecified(SECTION_PROPS.container)}
@@ -242,7 +242,7 @@ export function SelectedPanel() {
       </Section>
 
       <Section
-        title="Size"
+        title={t("editor.section.size")}
         action={<SectionRevertButton props={SECTION_PROPS.size} />}
         collapsible
         defaultOpen={hasSpecified(SECTION_PROPS.size)}
@@ -262,7 +262,7 @@ export function SelectedPanel() {
       </Section>
 
       <Section
-        title="Overflow"
+        title={t("editor.section.overflow")}
         action={<SectionRevertButton props={SECTION_PROPS.overflow} />}
         collapsible
         defaultOpen={hasSpecified(SECTION_PROPS.overflow)}
@@ -307,13 +307,13 @@ export function SelectedPanel() {
       </Section>
 
       {selection.text !== null ? (
-        <Section title="Text" action={<TextRevertButton />}>
+        <Section title={t("editor.section.text")} action={<TextRevertButton />}>
           <TextEditor />
         </Section>
       ) : null}
 
       <Section
-        title="Typography"
+        title={t("editor.section.typography")}
         action={<SectionRevertButton props={SECTION_PROPS.typography} />}
         collapsible
         defaultOpen={hasSpecified(SECTION_PROPS.typography)}
@@ -334,7 +334,7 @@ export function SelectedPanel() {
 
 
       <Section
-        title="Effects"
+        title={t("editor.section.effects")}
         action={<SectionRevertButton props={SECTION_PROPS.effects} />}
         collapsible
         defaultOpen={hasSpecified(SECTION_PROPS.effects)}
@@ -366,7 +366,7 @@ export function SelectedPanel() {
         </Section>
 
       <Section
-        title="Transition"
+        title={t("editor.section.transition")}
         action={<SectionRevertButton props={SECTION_PROPS.transition} />}
         collapsible
         defaultOpen={hasSpecified(SECTION_PROPS.transition)}

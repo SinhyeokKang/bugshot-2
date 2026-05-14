@@ -89,6 +89,17 @@ const ko = {
   "editor.revertClass": "원본 class로 되돌리기",
   "editor.revertSection": "이 섹션 인라인 원복",
 
+  // Style editor sections
+  "editor.section.class": "Class",
+  "editor.section.layout": "Layout",
+  "editor.section.container": "Container",
+  "editor.section.size": "Size",
+  "editor.section.overflow": "Overflow",
+  "editor.section.text": "Text",
+  "editor.section.typography": "Typography",
+  "editor.section.effects": "Effects",
+  "editor.section.transition": "Transition",
+
   // Style prop editors
   "prop.editIndividual": "개별 편집",
   "prop.editTogether": "일괄 편집",

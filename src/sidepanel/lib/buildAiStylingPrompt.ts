@@ -16,70 +16,21 @@ export interface AiStylingContext {
 const MAX_STYLES = 30;
 const MAX_TOKENS = 20;
 
-const ALLOWED_STYLE_PROPS = new Set([
-  "display",
-  "position",
-  "flex-direction",
-  "flex-wrap",
-  "justify-content",
-  "align-items",
-  "margin",
-  "margin-top",
-  "margin-right",
-  "margin-bottom",
-  "margin-left",
-  "padding",
-  "padding-top",
-  "padding-right",
-  "padding-bottom",
-  "padding-left",
-  "gap",
-  "row-gap",
-  "column-gap",
-  "width",
-  "height",
-  "min-width",
-  "max-width",
-  "min-height",
-  "max-height",
-  "overflow",
-  "overflow-x",
-  "overflow-y",
-  "white-space",
-  "text-overflow",
-  "font-size",
-  "font-weight",
-  "line-height",
-  "letter-spacing",
-  "text-align",
-  "color",
-  "background-color",
-  "background-image",
-  "opacity",
-  "border",
-  "border-color",
-  "border-radius",
-  "border-top-left-radius",
-  "border-top-right-radius",
-  "border-bottom-right-radius",
-  "border-bottom-left-radius",
-  "box-shadow",
-  "filter",
-  "backdrop-filter",
-  "mix-blend-mode",
-  "transform",
-  "top",
-  "right",
-  "bottom",
-  "left",
-  "z-index",
-  "cursor",
-  "pointer-events",
-  "visibility",
-  "transition-property",
-  "transition-duration",
-  "transition-timing-function",
-  "transition-delay",
+const DENIED_STYLE_PROPS = new Set([
+  "content",
+  "animation",
+  "animation-name",
+  "animation-duration",
+  "animation-delay",
+  "animation-direction",
+  "animation-fill-mode",
+  "animation-iteration-count",
+  "animation-play-state",
+  "animation-timing-function",
+  "will-change",
+  "counter-increment",
+  "counter-reset",
+  "counter-set",
 ]);
 
 export function buildAiStylingSystemPrompt(ctx: AiStylingContext): string {
@@ -118,6 +69,7 @@ export function buildAiStylingSystemPrompt(ctx: AiStylingContext): string {
     "- inlineStyle: CSS property-value pairs in kebab-case",
     "- Prefer design tokens over raw values. When a matching token exists, use var(--token-name). Prioritize tokens from the same family already used on this element",
     "- classList: optional, the COMPLETE class list. Keep all existing classes, only add/remove what the user asked for",
+    "- Do NOT use these properties (they will be ignored): content, animation, animation-*, will-change, counter-*, custom properties (--*)",
     "- Do NOT include any other fields",
     "- Output only valid JSON, no markdown fences",
   );
@@ -163,7 +115,7 @@ export function parseAiStylingResponse(raw: string): {
     )) {
       if (typeof val !== "string" || !val) continue;
       const prop = toKebab(rawProp);
-      if (ALLOWED_STYLE_PROPS.has(prop)) {
+      if (!DENIED_STYLE_PROPS.has(prop) && !prop.startsWith("--")) {
         filtered[prop] = val;
       }
     }
@@ -178,6 +130,16 @@ export function parseAiStylingResponse(raw: string): {
   }
 
   return { explanation: parsed.explanation, edits };
+}
+
+export function buildStyleContextBlock(ctx: AiStylingContext): string {
+  const lines: string[] = ["[Current state]"];
+  const entries = Object.entries(ctx.specifiedStyles).slice(0, MAX_STYLES);
+  for (const [prop, val] of entries) {
+    lines.push(`  ${prop}: ${val}`);
+  }
+  lines.push(`Classes: ${ctx.classList.join(" ") || "(none)"}`);
+  return lines.join("\n");
 }
 
 function toKebab(s: string): string {

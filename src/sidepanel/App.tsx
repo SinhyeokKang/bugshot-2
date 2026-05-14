@@ -25,9 +25,6 @@ import {
   onVideoRecordingUnavailable,
 } from "@/types/messages";
 import { PLATFORM_TAB_KEYS, type PlatformId } from "@/types/platform";
-
-const TabNavContext = createContext<(tab: string) => void>(() => {});
-export const useTabNav = () => useContext(TabNavContext);
 import { useBoundTabId } from "./hooks/useBoundTabId";
 import { useEditorSessionSync } from "./hooks/useEditorSessionSync";
 import { useBackgroundRecorder } from "./hooks/useBackgroundRecorder";
@@ -37,6 +34,9 @@ import { DebugTab } from "./tabs/DebugTab";
 import { IntegrationsTab } from "./tabs/IntegrationsTab";
 import { IssueListTab } from "./tabs/IssueListTab";
 import { SettingsTab } from "./tabs/SettingsTab";
+
+const TabNavContext = createContext<(tab: string) => void>(() => {});
+export const useTabNav = () => useContext(TabNavContext);
 
 function useSettingsHydrated() {
   const [ready, setReady] = useState(
