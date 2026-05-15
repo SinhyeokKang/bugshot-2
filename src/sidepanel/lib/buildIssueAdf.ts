@@ -4,12 +4,13 @@ import {
   sectionMdLabelKey,
   type IssueSection,
 } from "@/store/settings-ui-store";
-import { IMAGE_PLACEHOLDER, VIDEO_PLACEHOLDER } from "@/lib/adf-sentinels";
+import { IMAGE_PLACEHOLDER, VIDEO_PLACEHOLDER, inlineImagePlaceholder } from "@/lib/adf-sentinels";
 import { formatElementName } from "@/lib/element-label";
 import type { MarkdownContext } from "./buildIssueMarkdown";
 import type { NetworkLogSummary, ConsoleLogSummary } from "./buildLogSummary";
 import { formatTimestamp } from "./formatTimestamp";
 import { markdownToAdf } from "./markdownToAdf";
+import { extractInlineRefs, stripInlineImageRefs } from "./resolveInlineImages";
 
 interface AdfNode {
   type: string;
@@ -36,8 +37,9 @@ function listItems(content: string): string[] {
     .filter(Boolean);
 }
 
-export function buildIssueAdf(ctx: MarkdownContext): AdfDoc {
+export function buildIssueAdf(ctx: MarkdownContext, inlineImageRefIds?: string[]): AdfDoc {
   const content: AdfNode[] = [];
+  const uploadedRefSet = new Set(inlineImageRefIds ?? []);
   const isVideo = ctx.captureMode === "video";
   const isScreenshot = ctx.captureMode === "screenshot";
 
@@ -101,7 +103,12 @@ export function buildIssueAdf(ctx: MarkdownContext): AdfDoc {
         content.push(orderedList(items.map((it) => listItem([paragraph([textNode(it)])]))));
       }
     } else {
-      content.push(...markdownToAdf(raw));
+      const sectionRefs = extractInlineRefs(raw).filter((r) => uploadedRefSet.has(r));
+      const processed = sectionRefs.length > 0 ? stripInlineImageRefs(raw) : raw;
+      content.push(...markdownToAdf(processed));
+      for (const refId of sectionRefs) {
+        content.push(paragraph([textNode(inlineImagePlaceholder(refId))]));
+      }
     }
   }
 

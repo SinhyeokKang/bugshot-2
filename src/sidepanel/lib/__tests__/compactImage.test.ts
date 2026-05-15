@@ -40,7 +40,7 @@ describe("calcCompactDimensions", () => {
 });
 
 describe("shouldCompact", () => {
-  it("webp + maxWidth 이하 → false", () => {
+  it("webp + maxWidth 이하 → false (이미 최적 포맷+크기)", () => {
     expect(shouldCompact(800, "image/webp")).toBe(false);
   });
 
@@ -48,32 +48,23 @@ describe("shouldCompact", () => {
     expect(shouldCompact(2560, "image/webp")).toBe(true);
   });
 
-  it("png + maxWidth 이하 → true (형식 변환 필요)", () => {
+  it("jpeg + maxWidth 이하 → false (이미 lossy, 리사이즈 불필요)", () => {
+    expect(shouldCompact(800, "image/jpeg")).toBe(false);
+    expect(shouldCompact(100, "image/jpeg")).toBe(false);
+    expect(shouldCompact(1280, "image/jpeg")).toBe(false);
+  });
+
+  it("jpeg + maxWidth 초과 → true (리사이즈 필요)", () => {
+    expect(shouldCompact(1281, "image/jpeg")).toBe(true);
+    expect(shouldCompact(2560, "image/jpeg")).toBe(true);
+  });
+
+  it("png + maxWidth 이하 → true (lossless→lossy 포맷 변환 이득)", () => {
+    expect(shouldCompact(100, "image/png")).toBe(true);
     expect(shouldCompact(800, "image/png")).toBe(true);
   });
 
-  it("jpeg + 큰 이미지 → true (형식 변환 필요)", () => {
-    expect(shouldCompact(800, "image/jpeg")).toBe(true);
-  });
-
-  it("jpeg + 작은 이미지 (<=200) → false (이미 compact)", () => {
-    expect(shouldCompact(100, "image/jpeg")).toBe(false);
-    expect(shouldCompact(200, "image/jpeg")).toBe(false);
-  });
-
-  it("jpeg + 201px → true", () => {
-    expect(shouldCompact(201, "image/jpeg")).toBe(true);
-  });
-
-  it("webp + 작은 이미지 (<=200) → false", () => {
-    expect(shouldCompact(100, "image/webp")).toBe(false);
-  });
-
-  it("png + 작은 이미지 → true (lossless→lossy 이득)", () => {
-    expect(shouldCompact(100, "image/png")).toBe(true);
-  });
-
-  it("png + maxWidth 초과 → true", () => {
+  it("png + maxWidth 초과 → true (포맷 변환 + 리사이즈)", () => {
     expect(shouldCompact(2560, "image/png")).toBe(true);
   });
 });

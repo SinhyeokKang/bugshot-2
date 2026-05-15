@@ -398,11 +398,44 @@ export async function clearInlineImages(): Promise<void> {
   }
 }
 
+const INLINE_REF_SCAN_RE = /!\[[^\]]*\]\(inline:([a-zA-Z0-9]+)\)/g;
+
+function scanInlineRefs(text: string, out: Set<string>): void {
+  for (const m of text.matchAll(INLINE_REF_SCAN_RE)) out.add(m[1]);
+}
+
+async function collectAllActiveInlineRefs(): Promise<Set<string>> {
+  const refs = new Set<string>();
+  try {
+    const sessionData = await chrome.storage.session.get(null);
+    for (const [key, value] of Object.entries(sessionData)) {
+      if (!key.startsWith("editor:")) continue;
+      const snap = value as { draft?: { sections?: Record<string, string> } };
+      if (!snap?.draft?.sections) continue;
+      for (const text of Object.values(snap.draft.sections)) scanInlineRefs(text, refs);
+    }
+  } catch { /* session storage unavailable */ }
+  try {
+    const localData = await chrome.storage.local.get("bugshot-issues");
+    const store = localData["bugshot-issues"] as
+      | { state?: { issues?: Array<{ draft?: { sections?: Record<string, string> } }> } }
+      | undefined;
+    if (store?.state?.issues) {
+      for (const issue of store.state.issues) {
+        if (!issue.draft?.sections) continue;
+        for (const text of Object.values(issue.draft.sections)) scanInlineRefs(text, refs);
+      }
+    }
+  } catch { /* local storage unavailable */ }
+  return refs;
+}
+
 export async function pruneOrphanInlineImages(activeRefIds: string[]): Promise<void> {
   try {
+    const globalRefs = await collectAllActiveInlineRefs();
+    for (const id of activeRefIds) globalRefs.add(id);
     const allKeys = await getInlineImageKeys();
-    const activeSet = new Set(activeRefIds);
-    const orphans = allKeys.filter((k) => !activeSet.has(k));
+    const orphans = allKeys.filter((k) => !globalRefs.has(k));
     if (orphans.length > 0) await deleteInlineImages(orphans);
   } catch (e) {
     console.warn("[blob-db] pruneOrphanInlineImages failed:", e);

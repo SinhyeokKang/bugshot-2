@@ -263,7 +263,7 @@ export function IssueCreateModal() {
       throw new Error(t("platform.notConnected.title", { platform: t("platform.tab.jira") }));
     }
     if (!issueFields.issueTypeId) throw new Error(t("create.requiredMissing"));
-    const description: AdfDoc = buildIssueAdf(ctx);
+    const description: AdfDoc = buildIssueAdf(ctx, inlineImages.map((i) => i.refId));
     const attachments: { filename: string; dataUrl: string }[] = [buildAiMetaAttachment(ctx)];
 
     if (captureMode === "video") {
@@ -486,15 +486,12 @@ export function IssueCreateModal() {
       if (beforeImage) images.push({ filename: "before.webp", dataUrl: beforeImage });
       if (afterImage) images.push({ filename: "after.webp", dataUrl: afterImage });
     }
-    for (const img of inlineImages) {
-      images.push({ filename: `inline-${img.refId}.webp`, dataUrl: img.dataUrl });
-    }
-
     const result = await submitToNotion({
       ctx,
       images,
       video,
       logs,
+      inlineImages,
       databaseId: notionFields.databaseId,
       titlePropertyName: notionSchema.titlePropertyName,
       statusOption: notionFields.statusOption && notionSchema.statusProperty

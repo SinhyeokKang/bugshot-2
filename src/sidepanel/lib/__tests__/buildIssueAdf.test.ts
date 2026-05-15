@@ -20,6 +20,12 @@ vi.mock("@/store/settings-ui-store", () => ({
 vi.mock("@/lib/adf-sentinels", () => ({
   IMAGE_PLACEHOLDER: "__BUGSHOT_IMAGE__",
   VIDEO_PLACEHOLDER: "__BUGSHOT_VIDEO__",
+  INLINE_IMAGE_PREFIX: "__BUGSHOT_INLINE:",
+  inlineImagePlaceholder: (refId: string) => `__BUGSHOT_INLINE:${refId}__`,
+  parseInlinePlaceholder: (text: string) => {
+    if (!text.startsWith("__BUGSHOT_INLINE:") || !text.endsWith("__")) return null;
+    return text.slice("__BUGSHOT_INLINE:".length, -2);
+  },
 }));
 
 vi.mock("@/lib/element-label", () => ({
@@ -188,5 +194,45 @@ describe("buildIssueAdf", () => {
     );
     expect(bold).toBeDefined();
     expect(italic).toBeDefined();
+  });
+});
+
+describe("buildIssueAdf — inline images", () => {
+  it("인라인 이미지가 해당 섹션 직후에 placeholder로 배치된다", () => {
+    const doc = buildIssueAdf(
+      makeCtx({ sections: { description: "text ![](inline:abc123) more" } }),
+      ["abc123"],
+    );
+    const descHeading = doc.content.findIndex(
+      (n: any) => n.type === "heading" && n.content?.[0]?.text === "md.section.description",
+    );
+    expect(descHeading).toBeGreaterThanOrEqual(0);
+    const nextHeading = doc.content.findIndex(
+      (n: any, i: number) => i > descHeading && n.type === "heading",
+    );
+    const sectionNodes = nextHeading === -1
+      ? doc.content.slice(descHeading + 1)
+      : doc.content.slice(descHeading + 1, nextHeading);
+    const placeholder = sectionNodes.find(
+      (n: any) => n.type === "paragraph" && n.content?.[0]?.text === "__BUGSHOT_INLINE:abc123__",
+    );
+    expect(placeholder).toBeDefined();
+  });
+
+  it("업로드되지 않은 refId는 placeholder를 만들지 않는다", () => {
+    const doc = buildIssueAdf(
+      makeCtx({ sections: { description: "![](inline:notUploaded)" } }),
+      [],
+    );
+    const texts = findNodes(doc, "text");
+    expect(texts.some((t) => t.text?.includes("BUGSHOT_INLINE"))).toBe(false);
+  });
+
+  it("inlineImageRefIds 없으면 기존 동작 유지", () => {
+    const doc = buildIssueAdf(
+      makeCtx({ sections: { description: "![](inline:abc)" } }),
+    );
+    const texts = findNodes(doc, "text");
+    expect(texts.some((t) => t.text?.includes("BUGSHOT_INLINE"))).toBe(false);
   });
 });

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useT } from "@/i18n";
 import type { IssueSection } from "@/store/settings-ui-store";
 import { getInlineImage } from "@/store/blob-db";
@@ -47,16 +47,19 @@ export function DocSectionBody({
 
 function MarkdownBody({ value }: { value: string }) {
   const [resolvedValue, setResolvedValue] = useState(value);
+  const prevBlobUrls = useRef<string[]>([]);
 
   useEffect(() => {
     const refs = extractInlineRefs(value);
     if (refs.length === 0) {
+      for (const url of prevBlobUrls.current) URL.revokeObjectURL(url);
+      prevBlobUrls.current = [];
       setResolvedValue(value);
       return;
     }
 
     let cancelled = false;
-    const blobUrls: string[] = [];
+    const newBlobUrls: string[] = [];
 
     (async () => {
       const refToUrl = new Map<string, string>();
@@ -65,19 +68,26 @@ function MarkdownBody({ value }: { value: string }) {
           const blob = await getInlineImage(refId);
           if (!blob || cancelled) return;
           const url = URL.createObjectURL(blob);
-          blobUrls.push(url);
+          newBlobUrls.push(url);
           refToUrl.set(refId, url);
         }),
       );
       if (cancelled) return;
+      for (const url of prevBlobUrls.current) URL.revokeObjectURL(url);
+      prevBlobUrls.current = newBlobUrls;
       setResolvedValue(replaceInlineRefs(value, refToUrl));
     })();
 
     return () => {
       cancelled = true;
-      for (const url of blobUrls) URL.revokeObjectURL(url);
     };
   }, [value]);
+
+  useEffect(() => {
+    return () => {
+      for (const url of prevBlobUrls.current) URL.revokeObjectURL(url);
+    };
+  }, []);
 
   const html = useMemo(() => renderMarkdown(resolvedValue), [resolvedValue]);
 

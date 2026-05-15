@@ -133,6 +133,12 @@ function convertInline(children: Token[]): NotionRichText[] {
 
     if (child.type === "softbreak") continue;
 
+    if (child.type === "image") {
+      const alt = child.content || child.attrGet("alt") || "";
+      if (alt) nodes.push(richTextNode(alt));
+      continue;
+    }
+
     if (child.type === "strong_open") { annotationStack.push({ bold: true }); continue; }
     if (child.type === "strong_close") { popAnnotation(annotationStack, "bold"); continue; }
     if (child.type === "em_open") { annotationStack.push({ italic: true }); continue; }

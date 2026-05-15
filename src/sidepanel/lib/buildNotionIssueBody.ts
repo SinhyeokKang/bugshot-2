@@ -13,6 +13,10 @@ import type {
 import type { MarkdownContext } from "./buildIssueMarkdown";
 import { formatTimestamp } from "./formatTimestamp";
 import { markdownToNotionBlocks } from "./markdownToNotionBlocks";
+import {
+  extractInlineRefs,
+  stripInlineImageRefs,
+} from "./resolveInlineImages";
 
 export interface NotionMediaInput {
   filename: string;
@@ -26,6 +30,7 @@ export interface NotionBuildInput {
   images?: NotionMediaInput[];
   video?: NotionMediaInput;
   logs?: NotionMediaInput[];
+  inlineImageRefIds?: string[];
 }
 
 export interface NotionBuildResult {
@@ -177,6 +182,8 @@ export function buildNotionIssueBody(
     }
   };
 
+  const uploadedRefSet = new Set(input.inlineImageRefIds ?? []);
+
   for (const section of ctx.sectionConfig) {
     if (!section.enabled) continue;
     if (POST_MEDIA_SECTION_IDS.has(section.id)) {
@@ -194,10 +201,15 @@ export function buildNotionIssueBody(
         }
       }
     } else {
-      if (content.trim()) {
-        blocks.push(...markdownToNotionBlocks(content));
-      } else {
+      const sectionRefs = extractInlineRefs(content).filter((r) => uploadedRefSet.has(r));
+      const processed = sectionRefs.length > 0 ? stripInlineImageRefs(content) : content;
+      if (processed.trim()) {
+        blocks.push(...markdownToNotionBlocks(processed));
+      } else if (sectionRefs.length === 0) {
         blocks.push({ type: "paragraph", text: t("md.noValue") });
+      }
+      for (const refId of sectionRefs) {
+        blocks.push({ type: "image", placeholderId: `inline-${refId}` });
       }
     }
   }

@@ -1,5 +1,4 @@
 const COMPACT_MAX_WIDTH = 1280;
-const COMPACT_MIN_WIDTH = 200;
 
 export function calcCompactDimensions(
   w: number,
@@ -13,7 +12,7 @@ export function calcCompactDimensions(
 
 export function shouldCompact(w: number, mimeType: string): boolean {
   if (mimeType === "image/webp" && w <= COMPACT_MAX_WIDTH) return false;
-  if (w <= COMPACT_MIN_WIDTH && (mimeType === "image/webp" || mimeType === "image/jpeg")) return false;
+  if (mimeType === "image/jpeg" && w <= COMPACT_MAX_WIDTH) return false;
   return true;
 }
 

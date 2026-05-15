@@ -119,6 +119,21 @@ describe("markdownToNotionBlocks", () => {
     expect(linkItem!.text.link!.url).toBe("https://example.com");
   });
 
+  it("![alt](url) → alt text 출력", () => {
+    const result = markdownToNotionBlocks("![screenshot](https://img.png)");
+    expect(result[0].type).toBe("rich_paragraph");
+    if (result[0].type !== "rich_paragraph") return;
+    const textItem = result[0].richText.find((rt) => rt.text.content === "screenshot");
+    expect(textItem).toBeDefined();
+  });
+
+  it("![](url) alt 없음 → 빈 paragraph", () => {
+    const result = markdownToNotionBlocks("![](https://img.png)");
+    expect(result[0].type).toBe("rich_paragraph");
+    if (result[0].type !== "rich_paragraph") return;
+    expect(result[0].richText[0].text.content).toBe("");
+  });
+
   it("빈 문자열 → noValue paragraph", () => {
     const result = markdownToNotionBlocks("");
     expect(result).toHaveLength(1);

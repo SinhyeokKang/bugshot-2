@@ -379,3 +379,57 @@ describe("buildNotionIssueBody — 로그 요약", () => {
     expect(allCodeText).toContain("TypeError");
   });
 });
+
+describe("buildNotionIssueBody — inline images", () => {
+  it("인라인 이미지가 해당 섹션 직후에 배치된다", () => {
+    const ctx = makeCtx({
+      sections: { description: "text ![](inline:abc123) more" },
+    });
+    const out = buildNotionIssueBody({
+      ctx,
+      inlineImageRefIds: ["abc123"],
+    });
+    const descHeadingIdx = out.blocks.findIndex(
+      (b) => b.type === "heading_2" && "text" in b && b.text === "md.section.description",
+    );
+    expect(descHeadingIdx).toBeGreaterThanOrEqual(0);
+    const nextHeadingIdx = out.blocks.findIndex(
+      (b, i) => i > descHeadingIdx && b.type === "heading_2",
+    );
+    const sectionBlocks = nextHeadingIdx === -1
+      ? out.blocks.slice(descHeadingIdx + 1)
+      : out.blocks.slice(descHeadingIdx + 1, nextHeadingIdx);
+    const imageBlock = sectionBlocks.find((b) => b.type === "image");
+    expect(imageBlock).toBeDefined();
+    expect(imageBlock!.type === "image" && imageBlock!.placeholderId).toBe("inline-abc123");
+  });
+
+  it("업로드되지 않은 refId는 image block을 만들지 않는다", () => {
+    const ctx = makeCtx({
+      sections: { description: "![](inline:notUploaded)" },
+    });
+    const out = buildNotionIssueBody({
+      ctx,
+      inlineImageRefIds: [],
+    });
+    const imageBlocks = out.blocks.filter((b) => b.type === "image");
+    expect(imageBlocks.length).toBe(0);
+  });
+
+  it("이미지만 있고 텍스트 없으면 noValue paragraph 생략", () => {
+    const ctx = makeCtx({
+      sections: { description: "![](inline:only)" },
+    });
+    const out = buildNotionIssueBody({
+      ctx,
+      inlineImageRefIds: ["only"],
+    });
+    const descHeadingIdx = out.blocks.findIndex(
+      (b) => b.type === "heading_2" && "text" in b && b.text === "md.section.description",
+    );
+    expect(out.blocks[descHeadingIdx + 1]).toMatchObject({
+      type: "image",
+      placeholderId: "inline-only",
+    });
+  });
+});

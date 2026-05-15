@@ -7,7 +7,8 @@ import {
 } from "@/store/editor-store";
 import { onSessionSaveExhausted } from "@/types/messages";
 import { clearPicker } from "../picker-control";
-import { getNetworkLog, getConsoleLog } from "@/store/blob-db";
+import { getNetworkLog, getConsoleLog, pruneOrphanInlineImages } from "@/store/blob-db";
+import { extractInlineRefs } from "@/sidepanel/lib/resolveInlineImages";
 
 function migrateLegacyDraft(snap: EditorSnapshot): EditorSnapshot {
   if (!snap.draft) return snap;
@@ -99,8 +100,20 @@ export function useEditorSessionSync(tabId: number | null): boolean {
       setHydrated(true);
     });
 
+    const DRAFT_PHASES = new Set(["drafting", "previewing", "done"]);
     const unsubStore = useEditorStore.subscribe((state, prev) => {
       if (state === prev) return;
+
+      if (DRAFT_PHASES.has(prev.phase) && !DRAFT_PHASES.has(state.phase)) {
+        const sections = prev.draft?.sections;
+        if (sections) {
+          const activeRefs = extractInlineRefs(Object.values(sections).join("\n"));
+          void pruneOrphanInlineImages(activeRefs);
+        } else {
+          void pruneOrphanInlineImages([]);
+        }
+      }
+
       if (state.sessionExpired) return;
       if (saveSuspended.current) return;
       if (saveTimer.current != null) {

@@ -280,7 +280,6 @@ export function DraftDetailDialog({
     if (!fields.issueTypeId) throw new Error(t("create.requiredMissing"));
 
     const { ctx, networkLog, consoleLog: consoleLogForSubmit } = await buildCtxForSubmit();
-    const description = buildIssueAdf(ctx);
     const attachments: { filename: string; dataUrl: string }[] = [
       buildAiMetaAttachment(ctx),
     ];
@@ -322,7 +321,7 @@ export function DraftDetailDialog({
       payload: {
         projectKey: jiraAccount.projectKey,
         summary: issue.draft.title.trim(),
-        description,
+        description: buildIssueAdf(ctx, jiraInline.map((i) => i.refId)),
         issueTypeId: fields.issueTypeId,
         assigneeAccountId: fields.assigneeId,
         priorityId: fields.priorityId,
@@ -558,15 +557,13 @@ export function DraftDetailDialog({
       }
     }
     const notionInline = await resolveInlineImagesForSections(ctx.sections, sectionConfig);
-    for (const img of notionInline) {
-      images.push({ filename: `inline-${img.refId}.webp`, dataUrl: img.dataUrl });
-    }
 
     const result = await submitToNotion({
       ctx,
       images,
       video,
       logs,
+      inlineImages: notionInline,
       databaseId: notionFields.databaseId,
       titlePropertyName: notionSchema.titlePropertyName,
       statusOption:
