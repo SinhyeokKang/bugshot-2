@@ -81,7 +81,7 @@ src/
 │   │   ├── linearFields/  # Linear 메타 필드 컴포넌트 (TeamCombobox, ProjectCombobox, LabelCombobox, PrioritySelect, AssigneeCombobox, LinearIssueFields 묶음) — IntegrationsTab/IssueCreateModal 양쪽에서 controlled로 재사용
 │   │   ├── notionFields/  # Notion 메타 필드 컴포넌트 (DatabaseCombobox, StatusSelect, PropertiesFieldset, PropertySelectCombobox, NotionIssueFields 묶음, reconcileNotionFields 헬퍼) — IntegrationsTab/IssueCreateModal 양쪽에서 controlled로 재사용
 │   │   └── notionStatusColors.ts  # Notion status option color → STATUS_CATEGORY (new/indeterminate/done) 매핑
-│   └── lib/             # buildIssueMarkdown, buildIssueAdf, buildGithubIssueBody, buildLinearIssueBody, buildNotionIssueBody, submitToGithub, submitToLinear, submitToNotion(NormalizedSubmitResult), markdownToAdf(markdown-it→ADF 변환), markdownToNotionBlocks(markdown-it→Notion 변환), renderMarkdown(markdown→HTML 프리뷰), resolveInlineImages(inline:refId 해결·공유 헬퍼), compactImage(이미지 리사이즈·webp 변환), findClosingToken(markdown-it 토큰 탐색), buildAiDraftPrompt, buildAiStylingPrompt, aiStylingPostProcess, ai-provider(BYOK 프로바이더 팩토리·프리셋·멀티턴 세션), video-mime(MediaRecorder mime 우선순위·확장자 매핑) 등 순수 유틸
+│   └── lib/             # buildIssueMarkdown, buildIssueAdf, buildGithubIssueBody, buildLinearIssueBody, buildNotionIssueBody, submitToGithub, submitToLinear, submitToNotion(NormalizedSubmitResult), markdownToAdf(markdown-it→ADF 변환), markdownToNotionBlocks(markdown-it→Notion 변환), renderMarkdown(markdown→HTML 프리뷰), compactImage(이미지 리사이즈·webp 변환), findClosingToken(markdown-it 토큰 탐색), buildAiDraftPrompt, buildAiStylingPrompt, aiStylingPostProcess, ai-provider(BYOK 프로바이더 팩토리·프리셋·멀티턴 세션), video-mime(MediaRecorder mime 우선순위·확장자 매핑) 등 순수 유틸
 ├── store/               # Zustand 스토어 (editor/issues/settings/settings-ui), blob-db(IndexedDB 이미지·비디오·네트워크/콘솔 로그 저장, blobToDataUrl/dataUrlToBlob 유틸)
 │                        # settings v6: accounts: { jira?, github?, linear?, notion? } + lastSubmitFields per platform + global titlePrefix
 │                        # settings-ui v5: LlmConfig { baseUrl, apiKey, modelId } 전부 chrome.storage.local 영속
@@ -93,6 +93,7 @@ src/
 └── types/               # platform.ts (PlatformId/Accounts/LastSubmitFieldsByPlatform), github.ts, jira.ts, linear.ts, notion.ts 등
 oauth-proxy/             # Cloudflare Worker — Atlassian /token + GitHub /github/{token,refresh} + Notion /notion/token 교환 (client_secret 서버 보관, Linear는 PKCE라 proxy 불필요)
 docs/
+├── features/        # 기능 기획 문서 (PRD·설계·태스크) — dev에서 작업, 구현 완료 시 삭제
 ├── STORE_DEPLOY.md  # 웹스토어 배포 가이드
 └── privacy.md       # 개인정보처리방침 (GitHub Pages)
 ```
