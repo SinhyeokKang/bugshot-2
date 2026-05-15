@@ -71,13 +71,25 @@
   - [ ] `pnpm test` 통과 (기존 테스트 영향 없음)
   - [ ] Chrome DevTools Application → IndexedDB → `bugshot-video` DB에 `inlineImages` 스토어 생성 확인
 
-### Task 5: 이미지 드래그앤드롭/붙여넣기
+### Task 5a: 이미지 compact 유틸
+
+- **변경 대상**: `src/sidepanel/lib/compactImage.ts` (신규), `src/sidepanel/lib/__tests__/compactImage.test.ts` (신규)
+- **작업 내용**:
+  - `calcCompactDimensions(w, h, maxWidth=1280)`: 비율 유지 리사이즈 목표 치수 계산 (순수 함수)
+  - `shouldCompact(w, h, mimeType)`: webp이면서 maxWidth 이하 → false, 그 외 → true (순수 함수)
+  - `compactImage(blob)`: `createImageBitmap` → `OffscreenCanvas` 리사이즈 → `canvas.convertToBlob({ type: "image/webp", quality: 0.85 })` (브라우저 API)
+- **검증**:
+  - [ ] `compactImage.test.ts` 단위 테스트 통과 (`calcCompactDimensions`, `shouldCompact` 순수 함수)
+  - [ ] `pnpm test` 통과
+
+### Task 5b: 이미지 드래그앤드롭/붙여넣기
 
 - **변경 대상**: `src/sidepanel/components/TiptapEditor.tsx`
 - **작업 내용**:
   - Tiptap 커스텀 플러그인으로 `handleDrop`/`handlePaste` 인터셉트
-  - 이미지 파일 감지 → `crypto.randomUUID().slice(0,8)` 기반 refId 생성
-  - `saveInlineImage(refId, blob)` → blob-db 저장
+  - 이미지 파일 감지 → `shouldCompact()` 판단 → `compactImage(blob)` 호출 → webp 변환 + 리사이즈
+  - `crypto.randomUUID().slice(0,8)` 기반 refId 생성
+  - `saveInlineImage(refId, compactedBlob)` → blob-db 저장
   - `URL.createObjectURL(blob)` → 에디터에 Image 노드 삽입 (src=blob URL, data-ref-id=refId)
   - 마크다운 직렬화 후처리: blob: URL → `inline:refId` 치환
   - 마크다운 파싱 전처리: `inline:refId` → blob-db 로드 → blob: URL 치환
@@ -85,6 +97,8 @@
 - **검증**:
   - [ ] 이미지 파일을 에디터로 드래그앤드롭 → 에디터 내 인라인 표시
   - [ ] Cmd+V로 클립보드 이미지 붙여넣기 → 에디터 내 인라인 표시
+  - [ ] 큰 PNG(2560px) 드롭 → IndexedDB에 webp로 저장, 폭 1280px 이하 확인
+  - [ ] 이미 작은 webp → compact 스킵 확인
   - [ ] DevTools IndexedDB → inlineImages에 blob 저장 확인
   - [ ] 에디터의 `onChange`로 전달되는 마크다운에 `![](inline:refId)` 형태 확인
   - [ ] 이슈 저장 후 DraftingPanel 재진입 시 이미지 정상 로드
@@ -124,6 +138,7 @@
     - bullet_list → `{ type: "bulletList" }`
     - ordered_list → `{ type: "orderedList" }`
     - list_item → `{ type: "listItem" }`
+    - hr → `{ type: "rule" }`
     - image → ADF mediaGroup 또는 paragraph 내 텍스트 대체 (Jira 이미지는 첨부 파일 기반이므로 placeholder)
     - softbreak → `{ type: "hardBreak" }`
   - 빈 입력 → `[paragraph([textNode(t("md.noValue"))])]`
@@ -137,6 +152,7 @@
     - `- item1\n- item2` → bulletList
     - `1. first\n2. second` → orderedList
     - `[link](url)` → link mark
+    - `---` → rule 노드
     - 빈 문자열 → noValue paragraph
   - [ ] `pnpm test` 통과
   - [ ] Chrome에서 Jira 이슈 제출 → 서식이 정확히 반영된 이슈 확인
@@ -145,7 +161,7 @@
 
 - **변경 대상**: `src/sidepanel/lib/markdownToNotionBlocks.ts` (신규), `src/sidepanel/lib/buildNotionIssueBody.ts`, `src/types/notion.ts`, `src/background/notion-api.ts`
 - **작업 내용**:
-  - `NotionBlock` union에 리치텍스트 variant 추가 (rich_paragraph, rich_bulleted_list_item, rich_numbered_list_item 등)
+  - `NotionBlock` union에 리치텍스트 variant 추가 (rich_paragraph, rich_bulleted_list_item, rich_numbered_list_item, divider 등)
   - `NotionRichText` 인터페이스 정의 (text + annotations + link)
   - `markdownToNotionBlocks(markdown: string): NotionBlock[]` 구현
   - `markdown-it` 토큰 → Notion blocks + richText 매핑
@@ -157,6 +173,7 @@
     - `**bold**` → richText with bold annotation
     - 리스트 → bulleted_list_item / numbered_list_item
     - 링크 → richText with link
+    - `---` → divider 블록
     - 빈 문자열 → noValue paragraph
   - [ ] `pnpm test` 통과
   - [ ] Chrome에서 Notion 이슈 제출 → 서식이 정확히 반영된 페이지 확인
@@ -226,16 +243,17 @@
 
 | 테스트 파일 | 대상 함수 | 주요 케이스 |
 |---|---|---|
-| `markdownToAdf.test.ts` | `markdownToAdf` | plain text, bold, italic, strike, code, link, bullet list, ordered list, mixed marks, empty input, nested list (1단계) |
-| `markdownToNotionBlocks.test.ts` | `markdownToNotionBlocks` | plain text, rich text annotations, lists, links, empty input |
+| `markdownToAdf.test.ts` | `markdownToAdf` | plain text, bold, italic, strike, code, link, bullet list, ordered list, horizontal rule, mixed marks, empty input, softbreak |
+| `markdownToNotionBlocks.test.ts` | `markdownToNotionBlocks` | plain text, rich text annotations, lists, links, horizontal rule (divider), empty input |
 | `resolveInlineImages.test.ts` | `extractInlineRefs`, `replaceInlineRefs` (순수 함수) | no references, single ref, multiple refs, 치환 정확성 |
+| `compactImage.test.ts` | `calcCompactDimensions`, `shouldCompact` (순수 함수) | maxWidth 이하/초과, 비율 유지, 소수점 반올림, webp 스킵 판단 |
 
 ### 수동 테스트 체크리스트
 
 - [ ] DraftingPanel에서 3개 paragraph 섹션 모두 WYSIWYG 에디터 렌더링
 - [ ] 마크다운 자동 변환: `**bold**`, `*italic*`, `` `code` ``, `~~strike~~`, `[text](url)`, `- `, `1. `
-- [ ] 이미지 드래그앤드롭 → 에디터 내 인라인 표시
-- [ ] 이미지 Cmd+V 붙여넣기 → 에디터 내 인라인 표시
+- [ ] 이미지 드래그앤드롭 → 에디터 내 인라인 표시 (webp 변환 + 리사이즈 확인)
+- [ ] 이미지 Cmd+V 붙여넣기 → 에디터 내 인라인 표시 (webp 변환 + 리사이즈 확인)
 - [ ] 이슈 저장 → 재진입 시 서식 + 이미지 유지
 - [ ] PreviewPanel에서 마크다운 렌더링 정상
 - [ ] IssueDetailDialog에서 마크다운 렌더링 정상
@@ -256,8 +274,8 @@ Task 1 (패키지 설치)
   ↓
 Task 2 (TiptapEditor 컴포넌트) → Task 3 (DraftingPanel 교체)
   ↓
-Task 4 (blob-db 확장) → Task 5 (이미지 드래그앤드롭)
-  ↓                        ↓
+Task 4 (blob-db 확장) → Task 5a (compactImage 유틸) → Task 5b (이미지 드래그앤드롭)
+  ↓                                                      ↓
 Task 6 (DocSectionBody)   Task 7 (markdownToAdf)   Task 8 (markdownToNotionBlocks)
   ↓                        ↓                        ↓
 Task 9 (buildIssueHtml)   ← Task 6과 병렬 가능 (markdown-it만 필요)
@@ -268,8 +286,9 @@ Task 11 (번들 최적화)
 ```
 
 - Task 2, 3은 순차 (에디터 먼저 만들고 교체)
-- Task 4, 5는 순차 (스토어 먼저, 이미지 기능 후)
+- Task 4, 5a, 5b는 순차 (스토어 → compact 유틸 → 이미지 기능)
+- Task 5a는 Task 4와 독립이지만 Task 5b 선행 필수
 - Task 6, 7, 8, 9는 병렬 가능 (독립적인 변환기/빌더, markdown-it만 필요)
-- Task 10a는 Task 5 완료 후 (blob-db 의존)
+- Task 10a는 Task 5b 완료 후 (blob-db 의존)
 - Task 10b는 Task 7, 8, 9, 10a 완료 후
 - Task 11은 마지막

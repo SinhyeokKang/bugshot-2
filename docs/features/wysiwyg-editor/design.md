@@ -15,9 +15,11 @@
 | `src/sidepanel/lib/markdownToAdf.ts` | 마크다운 → Jira ADF 노드 변환기 |
 | `src/sidepanel/lib/markdownToNotionBlocks.ts` | 마크다운 → Notion Block API 변환기 |
 | `src/sidepanel/lib/resolveInlineImages.ts` | `inline:refId` 참조 → data URL 해소 유틸 |
+| `src/sidepanel/lib/compactImage.ts` | 이미지 webp 변환 + 리사이즈 (max-width 1280px) |
 | `src/sidepanel/lib/__tests__/markdownToAdf.test.ts` | ADF 변환기 단위 테스트 |
 | `src/sidepanel/lib/__tests__/markdownToNotionBlocks.test.ts` | Notion 변환기 단위 테스트 |
 | `src/sidepanel/lib/__tests__/resolveInlineImages.test.ts` | 이미지 해소 유틸 테스트 |
+| `src/sidepanel/lib/__tests__/compactImage.test.ts` | 이미지 compact 순수 함수 테스트 |
 
 ### 수정 파일
 
@@ -97,6 +99,7 @@ const extensions = [
   StarterKit.configure({
     heading: false,        // 섹션 내 헤딩 비활성화
     codeBlock: false,      // 코드 블록 비활성화
+    blockquote: false,     // 버그 리포트 섹션에서 불필요
   }),
   Link.configure({
     openOnClick: false,    // side panel에서 링크 클릭 시 이동 방지
@@ -115,16 +118,28 @@ const extensions = [
 ];
 ```
 
-StarterKit이 기본 제공하는 InputRules:
+### 마크다운 지원 범위
+
+**인라인 마크** (문자 단위 서식):
 - `**text**` → Bold
 - `*text*` → Italic
 - `` `text` `` → Code
-- `~~text~~` → Strike (strike 확장 포함 시)
+- `~~text~~` → Strike
+- `[text](url)` → Link (커스텀 InputRule)
+- 텍스트 선택 후 URL 붙여넣기 → 선택 텍스트에 링크 적용 (Link 확장 built-in)
+
+**블록 레벨** (줄/단락 단위):
 - `- ` / `* ` → Bullet list
 - `1. ` → Ordered list
+- `---` → Horizontal rule
+- `![alt](src)` → Image (인라인 이미지)
 
-추가 InputRule 필요:
-- `[text](url)` → Link: 커스텀 InputRule로 구현
+**명시적 제외** (StarterKit에서 비활성화):
+- Heading (`#`): 섹션 헤딩은 시스템이 관리
+- Code block (`` ``` ``): 버그 리포트 섹션에서 불필요
+- Blockquote (`>`): 버그 리포트 섹션에서 불필요
+
+모든 변환기(`markdownToAdf`, `markdownToNotionBlocks`)와 렌더러(`DocSectionBody`)는 위 범위만 매핑한다.
 
 ### blob-db 확장
 
@@ -156,6 +171,28 @@ export async function pruneOrphanInlineImages(activeRefIds: string[]): Promise<v
 - 에디터 내: `src`를 `URL.createObjectURL(blob)`로 표시, `title` 또는 커스텀 attribute에 `refId` 저장
 - 마크다운 직렬화: `tiptap-markdown`이 `![alt](src)` 형태로 출력 → 후처리로 blob: URL을 `inline:refId`로 치환
 - 마크다운 파싱(로드): 전처리로 `inline:refId`를 blob-db에서 로드한 blob: URL로 치환
+
+### compactImage
+
+```typescript
+// src/sidepanel/lib/compactImage.ts
+const COMPACT_MAX_WIDTH = 1280;
+
+export function calcCompactDimensions(
+  w: number, h: number, maxWidth?: number,
+): { width: number; height: number };
+
+export function shouldCompact(
+  w: number, h: number, mimeType: string,
+): boolean;
+
+export async function compactImage(blob: Blob): Promise<Blob>;
+```
+
+- `calcCompactDimensions`: maxWidth(기본 1280px) 초과 시 비율 유지 축소 치수 계산. 이하면 원본 치수 반환. 소수점은 `Math.round()`.
+- `shouldCompact`: webp이면서 maxWidth 이하 → `false` (불필요), 그 외 → `true` (형식 변환 또는 리사이즈 필요).
+- `compactImage`: `createImageBitmap` → `OffscreenCanvas` 리사이즈 → `canvas.convertToBlob({ type: "image/webp", quality: 0.85 })`. 브라우저 API 의존이므로 단위 테스트 대상이 아님 — 위 두 순수 함수만 TDD.
+- 호출 위치: TiptapEditor의 이미지 드래그앤드롭/붙여넣기 플러그인에서 blob-db 저장 직전
 
 ### resolveInlineImages
 
@@ -194,6 +231,7 @@ export function markdownToAdf(markdown: string): AdfNode[];
   - `bullet_list_open/close` → `{ type: "bulletList" }`
   - `ordered_list_open/close` → `{ type: "orderedList" }`
   - `list_item_open/close` → `{ type: "listItem" }`
+  - `hr` → `{ type: "rule" }`
   - `image` → 이미지는 ADF에서 별도 처리 (첨부 파일 참조 또는 mediaGroup)
 - 빈 입력 → `[paragraph([textNode(t("md.noValue"))])]` (기존 textBlock 동작 유지)
 
@@ -213,6 +251,7 @@ export function markdownToNotionBlocks(markdown: string): NotionBlock[];
   - ordered list → `{ type: "numbered_list_item", richText: [...] }`
   - 인라인 서식 → `richText` 배열의 `annotations` (bold, italic, strikethrough, code) 
   - 링크 → `richText[].text.link`
+  - horizontal rule → `{ type: "divider" }` (Notion divider block)
   - 이미지 → `{ type: "image", ... }` (외부 URL 형태)
 - 빈 입력 → `[{ type: "paragraph", text: t("md.noValue") }]`
 
@@ -236,6 +275,7 @@ export interface NotionRichText {
 | { type: "rich_bulleted_list_item"; richText: NotionRichText[] }
 | { type: "numbered_list_item"; text: string }
 | { type: "rich_numbered_list_item"; richText: NotionRichText[] }
+| { type: "divider" }
 ```
 
 기존 `{ type: "paragraph"; text: string }` 등은 유지하여 하위 호환. `notion-api.ts`에서 `rich_*` variant를 Notion API 포맷으로 변환하는 분기 추가.
