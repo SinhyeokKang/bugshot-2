@@ -105,7 +105,9 @@ export function buildIssueAdf(ctx: MarkdownContext, inlineImageRefIds?: string[]
     } else {
       const sectionRefs = extractInlineRefs(raw).filter((r) => uploadedRefSet.has(r));
       const processed = sectionRefs.length > 0 ? stripInlineImageRefs(raw) : raw;
-      content.push(...markdownToAdf(processed));
+      if (processed.trim() || sectionRefs.length === 0) {
+        content.push(...markdownToAdf(processed));
+      }
       for (const refId of sectionRefs) {
         content.push(paragraph([textNode(inlineImagePlaceholder(refId))]));
       }

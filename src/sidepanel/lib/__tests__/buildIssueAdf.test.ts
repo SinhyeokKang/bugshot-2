@@ -235,4 +235,29 @@ describe("buildIssueAdf — inline images", () => {
     const texts = findNodes(doc, "text");
     expect(texts.some((t) => t.text?.includes("BUGSHOT_INLINE"))).toBe(false);
   });
+
+  it("이미지만 있는 섹션은 (없음) 출력하지 않는다", () => {
+    const doc = buildIssueAdf(
+      makeCtx({
+        sections: { description: "![](inline:img1)" },
+        sectionConfig: [
+          { id: "description", enabled: true, renderAs: "paragraph", builtIn: true },
+        ],
+      }),
+      ["img1"],
+    );
+    const descHeading = doc.content.findIndex(
+      (n: any) => n.type === "heading" && n.content?.[0]?.text === "md.section.description",
+    );
+    const nextHeading = doc.content.findIndex(
+      (n: any, i: number) => i > descHeading && n.type === "heading",
+    );
+    const sectionNodes = nextHeading === -1
+      ? doc.content.slice(descHeading + 1)
+      : doc.content.slice(descHeading + 1, nextHeading);
+    const noValue = sectionNodes.find(
+      (n: any) => n.type === "paragraph" && n.content?.some((c: any) => c.text === "md.noValue"),
+    );
+    expect(noValue).toBeUndefined();
+  });
 });
