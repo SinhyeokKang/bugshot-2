@@ -190,6 +190,7 @@ export function DraftDetailDialog({
 
   const isScreenshot = issue?.captureMode === "screenshot";
   const isVideo = issue?.captureMode === "video";
+  const isFreeform = issue?.captureMode === "freeform";
   const { beforeUrl, afterUrl } = useIssueImages(issue?.id ?? null, issue?.snapshot);
 
   const [networkLogData, setNetworkLogData] = useState<NetworkLog | null>(null);
@@ -197,7 +198,7 @@ export function DraftDetailDialog({
   const [networkDialogOpen, setNetworkDialogOpen] = useState(false);
   const [consoleDialogOpen, setConsoleDialogOpen] = useState(false);
   useEffect(() => {
-    if (!open || !isVideo) {
+    if (!open || (!isVideo && !isFreeform)) {
       setNetworkLogData(null);
       setConsoleLogData(null);
       return;
@@ -214,7 +215,7 @@ export function DraftDetailDialog({
       });
     }
     return () => { cancelled = true; };
-  }, [open, isVideo, issue?.networkLogBlobKey, issue?.consoleLogBlobKey]);
+  }, [open, isVideo, isFreeform, issue?.networkLogBlobKey, issue?.consoleLogBlobKey]);
 
   const diffs = useMemo(() => {
     if (!issue?.selectionSnapshot || !issue.styleEdits) return [];
@@ -244,11 +245,11 @@ export function DraftDetailDialog({
     if (!issue) throw new Error(t("create.requiredMissing"));
     const sel = issue.selectionSnapshot;
     let networkLog: NetworkLog | null = null;
-    if (isVideo && issue.networkLogBlobKey) {
+    if ((isVideo || isFreeform) && issue.networkLogBlobKey) {
       networkLog = await getNetworkLog(issue.networkLogBlobKey);
     }
     let consoleLogForSubmit: ConsoleLog | null = null;
-    if (isVideo && issue.consoleLogBlobKey) {
+    if ((isVideo || isFreeform) && issue.consoleLogBlobKey) {
       consoleLogForSubmit = await getConsoleLog(issue.consoleLogBlobKey);
     }
     const ctx = {
@@ -263,7 +264,7 @@ export function DraftDetailDialog({
       classListAfter: issue.styleEdits?.classList ?? [],
       specifiedStyles: sel?.specifiedStyles ?? {},
       tokens: issue.tokensSnapshot ?? [],
-      viewport: issue.viewport ?? sel?.viewport ?? { width: 0, height: 0 },
+      viewport: isFreeform ? (issue.viewport ?? null) : (issue.viewport ?? sel?.viewport ?? { width: 0, height: 0 }),
       capturedAt: sel?.capturedAt ?? issue.createdAt,
       diffs,
       networkLogSummary: networkLog ? buildNetworkLogSummary(networkLog) : undefined,
@@ -283,7 +284,16 @@ export function DraftDetailDialog({
     const attachments: { filename: string; dataUrl: string }[] = [
       buildAiMetaAttachment(ctx),
     ];
-    if (isVideo) {
+    if (isFreeform) {
+      if (networkLog) {
+        const harBlob = new Blob([serializeHar(buildHar(networkLog))], { type: "application/json" });
+        attachments.push({ filename: "network-log.har", dataUrl: await blobToDataUrl(harBlob) });
+      }
+      if (consoleLogForSubmit) {
+        const jsonBlob = new Blob([serializeConsoleLog(buildConsoleLogJson(consoleLogForSubmit))], { type: "application/json" });
+        attachments.push({ filename: "console-log.json", dataUrl: await blobToDataUrl(jsonBlob) });
+      }
+    } else if (isVideo) {
       const blob = await getVideoBlob(issue.id);
       if (blob) {
         attachments.push({ filename: recordingFilename(blob.type), dataUrl: await blobToDataUrl(blob) });
@@ -371,7 +381,16 @@ export function DraftDetailDialog({
     let video: GithubFileInput | undefined;
     const logs: GithubFileInput[] = [];
 
-    if (isVideo) {
+    if (isFreeform) {
+      if (networkLog) {
+        const harBlob = new Blob([serializeHar(buildHar(networkLog))], { type: "application/json" });
+        logs.push({ filename: "network-log.har", dataUrl: await blobToDataUrl(harBlob) });
+      }
+      if (consoleLogForSubmit) {
+        const jsonBlob = new Blob([serializeConsoleLog(buildConsoleLogJson(consoleLogForSubmit))], { type: "application/json" });
+        logs.push({ filename: "console-log.json", dataUrl: await blobToDataUrl(jsonBlob) });
+      }
+    } else if (isVideo) {
       const blob = await getVideoBlob(issue.id);
       if (blob) video = { filename: recordingFilename(blob.type), dataUrl: await blobToDataUrl(blob) };
       if (networkLog) {
@@ -445,7 +464,16 @@ export function DraftDetailDialog({
     let video: LinearFileInput | undefined;
     const logs: LinearFileInput[] = [];
 
-    if (isVideo) {
+    if (isFreeform) {
+      if (netLog) {
+        const harBlob = new Blob([serializeHar(buildHar(netLog))], { type: "application/json" });
+        logs.push({ filename: "network-log.har", dataUrl: await blobToDataUrl(harBlob) });
+      }
+      if (conLog) {
+        const jsonBlob = new Blob([serializeConsoleLog(buildConsoleLogJson(conLog))], { type: "application/json" });
+        logs.push({ filename: "console-log.json", dataUrl: await blobToDataUrl(jsonBlob) });
+      }
+    } else if (isVideo) {
       const blob = await getVideoBlob(issue.id);
       if (blob) video = { filename: recordingFilename(blob.type), dataUrl: await blobToDataUrl(blob) };
       if (netLog) {
@@ -530,7 +558,16 @@ export function DraftDetailDialog({
     let video: NotionFileInput | undefined;
     const logs: NotionFileInput[] = [];
 
-    if (isVideo) {
+    if (isFreeform) {
+      if (networkLog) {
+        const harBlob = new Blob([serializeHar(buildHar(networkLog))], { type: "application/json" });
+        logs.push({ filename: "network-log.har", dataUrl: await blobToDataUrl(harBlob) });
+      }
+      if (consoleLogForSubmit) {
+        const jsonBlob = new Blob([serializeConsoleLog(buildConsoleLogJson(consoleLogForSubmit))], { type: "application/json" });
+        logs.push({ filename: "console-log.json", dataUrl: await blobToDataUrl(jsonBlob) });
+      }
+    } else if (isVideo) {
       const blob = await getVideoBlob(issue.id);
       if (blob) video = { filename: recordingFilename(blob.type), dataUrl: await blobToDataUrl(blob) };
       if (networkLog) {
@@ -792,6 +829,7 @@ function DraftDetailSections({
   onConsoleLogClick: () => void;
 }) {
   const t = useT();
+  const isFreeform = issue.captureMode === "freeform";
   const enabled = sectionConfig.filter((s) => s.enabled);
   const out: React.ReactNode[] = [];
   let mediaInserted = false;
@@ -821,7 +859,7 @@ function DraftDetailSections({
       </FieldSection>
     ) : null;
 
-  const showLogCards = isVideo && (
+  const showLogCards = (isVideo || isFreeform) && (
     (networkLogData !== null && networkLogData.captured > 0) ||
     (consoleLogData !== null && consoleLogData.captured > 0)
   );
@@ -866,7 +904,7 @@ function DraftDetailSections({
 function EnvBlock({ issue }: { issue: IssueRecord }) {
   const rows: { label: string; value: string }[] = [
     { label: "Page", value: issue.pageUrl || "-" },
-    ...(issue.captureMode !== "video" && issue.tagName
+    ...(issue.captureMode !== "video" && issue.captureMode !== "freeform" && issue.tagName
       ? [
           {
             label: "DOM",

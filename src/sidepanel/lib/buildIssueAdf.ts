@@ -42,35 +42,36 @@ export function buildIssueAdf(ctx: MarkdownContext, inlineImageRefIds?: string[]
   const uploadedRefSet = new Set(inlineImageRefIds ?? []);
   const isVideo = ctx.captureMode === "video";
   const isScreenshot = ctx.captureMode === "screenshot";
+  const isFreeform = ctx.captureMode === "freeform";
 
   content.push(heading(2, t("md.section.env")));
-  if (isVideo || isScreenshot) {
-    content.push(
-      bulletList([
-        keyValueItem("Page", ctx.url),
-        keyValueItem("Viewport", `${ctx.viewport.width}×${ctx.viewport.height}`),
-        keyValueItem("Captured", formatTimestamp(ctx.capturedAt)),
-      ]),
-    );
+  if (isVideo || isScreenshot || isFreeform) {
+    const envItems = [keyValueItem("Page", ctx.url)];
+    if (ctx.viewport) {
+      envItems.push(keyValueItem("Viewport", `${ctx.viewport.width}×${ctx.viewport.height}`));
+    }
+    envItems.push(keyValueItem("Captured", formatTimestamp(ctx.capturedAt)));
+    content.push(bulletList(envItems));
   } else {
     const domLabel = ctx.tagName
       ? formatElementName({ tag: ctx.tagName, classList: ctx.classListBefore })
       : "";
-    content.push(
-      bulletList([
-        keyValueItem("Page", ctx.url),
-        ...(domLabel ? [keyValueItem("DOM", domLabel)] : []),
-        keyValueItem("Viewport", `${ctx.viewport.width}×${ctx.viewport.height}`),
-        keyValueItem("Captured", formatTimestamp(ctx.capturedAt)),
-      ]),
-    );
+    const elemItems = [
+      keyValueItem("Page", ctx.url),
+      ...(domLabel ? [keyValueItem("DOM", domLabel)] : []),
+      ...(ctx.viewport ? [keyValueItem("Viewport", `${ctx.viewport.width}×${ctx.viewport.height}`)] : []),
+      keyValueItem("Captured", formatTimestamp(ctx.capturedAt)),
+    ];
+    content.push(bulletList(elemItems));
   }
 
   let mediaEmitted = false;
   const emitMedia = () => {
     if (mediaEmitted) return;
     mediaEmitted = true;
-    if (isVideo) {
+    if (isFreeform) {
+      // no media section
+    } else if (isVideo) {
       content.push(heading(2, t("md.section.media")));
       content.push(paragraph([textNode(VIDEO_PLACEHOLDER)]));
     } else if (isScreenshot) {

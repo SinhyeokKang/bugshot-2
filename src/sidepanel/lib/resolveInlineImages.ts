@@ -54,24 +54,6 @@ export async function resolveInlineImagesForSections(
   return results;
 }
 
-export interface MarkdownSections {
-  [key: string]: string;
-}
-
-export function resolveCtxInlineImages<T extends { sections: MarkdownSections }>(
-  ctx: T,
-  inlineImages: InlineImageInput[],
-): T {
-  if (inlineImages.length === 0) return ctx;
-  const refToUrl = new Map(inlineImages.map((img) => [img.refId, img.dataUrl]));
-  return {
-    ...ctx,
-    sections: Object.fromEntries(
-      Object.entries(ctx.sections).map(([k, v]) => [k, replaceInlineRefs(v, refToUrl)]),
-    ),
-  };
-}
-
 export function stripInlineImageRefs(markdown: string): string {
   return markdown.replace(INLINE_REF_RE, "").replace(/\n{3,}/g, "\n\n").trim();
 }

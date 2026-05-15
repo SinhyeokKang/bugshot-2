@@ -197,6 +197,45 @@ describe("buildIssueAdf", () => {
   });
 });
 
+describe("buildIssueAdf — freeform", () => {
+  const freeformCtx = (overrides: Partial<MarkdownContext> = {}) =>
+    makeCtx({
+      captureMode: "freeform" as MarkdownContext["captureMode"],
+      selector: "",
+      diffs: [],
+      ...overrides,
+    });
+
+  it("freeform 모드 → table 없음", () => {
+    const doc = buildIssueAdf(freeformCtx());
+    const tables = findNodes(doc, "table");
+    expect(tables).toHaveLength(0);
+  });
+
+  it("freeform 모드 → IMAGE/VIDEO placeholder 없음", () => {
+    const doc = buildIssueAdf(freeformCtx());
+    const texts = findNodes(doc, "text");
+    expect(texts.some((t) => t.text === "__BUGSHOT_IMAGE__")).toBe(false);
+    expect(texts.some((t) => t.text === "__BUGSHOT_VIDEO__")).toBe(false);
+  });
+
+  it("freeform 모드 → 미디어 heading 없음", () => {
+    const doc = buildIssueAdf(freeformCtx());
+    const headings = findNodes(doc, "heading");
+    const headingTexts = headings.flatMap((h: any) =>
+      (h.content || []).filter((c: any) => c.type === "text").map((c: any) => c.text),
+    );
+    expect(headingTexts).not.toContain("md.section.styleChanges");
+    expect(headingTexts).not.toContain("md.section.media");
+  });
+
+  it("freeform 모드 → 환경 정보에서 DOM 생략", () => {
+    const doc = buildIssueAdf(freeformCtx({ selector: "div.test" }));
+    const texts = findNodes(doc, "text");
+    expect(texts.some((t) => t.text?.includes("DOM"))).toBe(false);
+  });
+});
+
 describe("buildIssueAdf — inline images", () => {
   it("인라인 이미지가 해당 섹션 직후에 placeholder로 배치된다", () => {
     const doc = buildIssueAdf(

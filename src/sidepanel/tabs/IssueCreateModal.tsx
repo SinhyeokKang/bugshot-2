@@ -200,6 +200,29 @@ export function IssueCreateModal() {
 
   function buildCtx(): MarkdownContext {
     if (!draft || !target) throw new Error(t("create.requiredMissing"));
+    if (captureMode === "freeform") {
+      const hasNetworkLog = networkLogAttach && networkLog && networkLog.captured > 0;
+      const hasConsoleLog = consoleLogAttach && consoleLog && consoleLog.captured > 0;
+      const { freeformViewport, freeformCapturedAt } = useEditorStore.getState();
+      return {
+        captureMode: "freeform",
+        title: draft.title,
+        sections: draft.sections,
+        sectionConfig,
+        url: target.url,
+        selector: "",
+        tagName: "",
+        classListBefore: [],
+        classListAfter: [],
+        specifiedStyles: {},
+        tokens: [],
+        viewport: freeformViewport,
+        capturedAt: freeformCapturedAt ?? Date.now(),
+        diffs: [],
+        networkLogSummary: hasNetworkLog ? buildNetworkLogSummary(networkLog!) : undefined,
+        consoleLogSummary: hasConsoleLog ? buildConsoleLogSummary(consoleLog!) : undefined,
+      };
+    }
     if (captureMode === "video") {
       const hasNetworkLog = networkLogAttach && networkLog && networkLog.captured > 0;
       const hasConsoleLog = consoleLogAttach && consoleLog && consoleLog.captured > 0;
@@ -266,7 +289,16 @@ export function IssueCreateModal() {
     const description: AdfDoc = buildIssueAdf(ctx, inlineImages.map((i) => i.refId));
     const attachments: { filename: string; dataUrl: string }[] = [buildAiMetaAttachment(ctx)];
 
-    if (captureMode === "video") {
+    if (captureMode === "freeform") {
+      if (networkLog && networkLogAttach && networkLog.captured > 0) {
+        const harBlob = new Blob([serializeHar(buildHar(networkLog))], { type: "application/json" });
+        attachments.push({ filename: "network-log.har", dataUrl: await blobToDataUrl(harBlob) });
+      }
+      if (consoleLog && consoleLogAttach && consoleLog.captured > 0) {
+        const jsonBlob = new Blob([serializeConsoleLog(buildConsoleLogJson(consoleLog))], { type: "application/json" });
+        attachments.push({ filename: "console-log.json", dataUrl: await blobToDataUrl(jsonBlob) });
+      }
+    } else if (captureMode === "video") {
       if (videoBlob) {
         attachments.push({ filename: recordingFilename(videoBlob.type), dataUrl: await blobToDataUrl(videoBlob) });
       }
@@ -340,7 +372,16 @@ export function IssueCreateModal() {
     let video: GithubFileInput | undefined;
     const logs: GithubFileInput[] = [];
 
-    if (captureMode === "video") {
+    if (captureMode === "freeform") {
+      if (networkLog && networkLogAttach && networkLog.captured > 0) {
+        const harBlob = new Blob([serializeHar(buildHar(networkLog))], { type: "application/json" });
+        logs.push({ filename: "network-log.har", dataUrl: await blobToDataUrl(harBlob) });
+      }
+      if (consoleLog && consoleLogAttach && consoleLog.captured > 0) {
+        const jsonBlob = new Blob([serializeConsoleLog(buildConsoleLogJson(consoleLog))], { type: "application/json" });
+        logs.push({ filename: "console-log.json", dataUrl: await blobToDataUrl(jsonBlob) });
+      }
+    } else if (captureMode === "video") {
       if (videoBlob) video = { filename: recordingFilename(videoBlob.type), dataUrl: await blobToDataUrl(videoBlob) };
       if (networkLog && networkLogAttach && networkLog.captured > 0) {
         const harBlob = new Blob([serializeHar(buildHar(networkLog))], { type: "application/json" });
@@ -400,7 +441,16 @@ export function IssueCreateModal() {
     let video: LinearFileInput | undefined;
     const logs: LinearFileInput[] = [];
 
-    if (captureMode === "video") {
+    if (captureMode === "freeform") {
+      if (networkLog && networkLogAttach && networkLog.captured > 0) {
+        const harBlob = new Blob([serializeHar(buildHar(networkLog))], { type: "application/json" });
+        logs.push({ filename: "network-log.har", dataUrl: await blobToDataUrl(harBlob) });
+      }
+      if (consoleLog && consoleLogAttach && consoleLog.captured > 0) {
+        const jsonBlob = new Blob([serializeConsoleLog(buildConsoleLogJson(consoleLog))], { type: "application/json" });
+        logs.push({ filename: "console-log.json", dataUrl: await blobToDataUrl(jsonBlob) });
+      }
+    } else if (captureMode === "video") {
       if (videoBlob) video = { filename: recordingFilename(videoBlob.type), dataUrl: await blobToDataUrl(videoBlob) };
       if (networkLog && networkLogAttach && networkLog.captured > 0) {
         const harBlob = new Blob([serializeHar(buildHar(networkLog))], { type: "application/json" });
@@ -469,7 +519,16 @@ export function IssueCreateModal() {
     let video: NotionFileInput | undefined;
     const logs: NotionFileInput[] = [];
 
-    if (captureMode === "video") {
+    if (captureMode === "freeform") {
+      if (networkLog && networkLogAttach && networkLog.captured > 0) {
+        const harBlob = new Blob([serializeHar(buildHar(networkLog))], { type: "application/json" });
+        logs.push({ filename: "network-log.har", dataUrl: await blobToDataUrl(harBlob) });
+      }
+      if (consoleLog && consoleLogAttach && consoleLog.captured > 0) {
+        const jsonBlob = new Blob([serializeConsoleLog(buildConsoleLogJson(consoleLog))], { type: "application/json" });
+        logs.push({ filename: "console-log.json", dataUrl: await blobToDataUrl(jsonBlob) });
+      }
+    } else if (captureMode === "video") {
       if (videoBlob) video = { filename: recordingFilename(videoBlob.type), dataUrl: await blobToDataUrl(videoBlob) };
       if (networkLog && networkLogAttach && networkLog.captured > 0) {
         const harBlob = new Blob([serializeHar(buildHar(networkLog))], { type: "application/json" });

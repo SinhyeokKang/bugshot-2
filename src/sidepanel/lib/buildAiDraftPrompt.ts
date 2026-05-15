@@ -54,6 +54,10 @@ const MODE_HINTS: Record<CaptureMode, Record<LocaleMode, Partial<Record<IssueSec
     ko: { description: " (사용자 설명과 에러 로그 기반)" },
     en: { description: " (based on user description and error logs)" },
   },
+  freeform: {
+    ko: { description: " (URL, 로그 등 재현 환경 정보 기반)" },
+    en: { description: " (based on URL, logs, and environment)" },
+  },
 };
 
 function getSectionDesc(
@@ -96,7 +100,7 @@ export function buildAiDraftPrompt(ctx: AiDraftContext): string {
     }
   }
 
-  if (ctx.captureMode === "video") {
+  if (ctx.captureMode === "video" || ctx.captureMode === "freeform") {
     if (ctx.networkLogSummary && ctx.networkLogSummary.errors.length > 0) {
       lines.push("- Network errors:");
       for (const e of ctx.networkLogSummary.errors) {
@@ -189,7 +193,7 @@ function stripLineNumbering(text: string): string {
 }
 
 export interface AiDraftSessionContext {
-  captureMode: "screenshot" | "video";
+  captureMode: "screenshot" | "video" | "freeform";
   locale: LocaleMode;
   url: string;
   pageTitle: string;
@@ -212,8 +216,12 @@ export function buildAiDraftSessionPrompt(ctx: AiDraftSessionContext): string {
     lines.push("- The user will provide a screenshot image and a description of the bug. Analyze the screenshot to understand the visual context.");
   }
 
-  if (ctx.captureMode === "video") {
-    lines.push("- The user recorded a screen video of the bug. They will describe what happened.");
+  if (ctx.captureMode === "video" || ctx.captureMode === "freeform") {
+    if (ctx.captureMode === "video") {
+      lines.push("- The user recorded a screen video of the bug. They will describe what happened.");
+    } else {
+      lines.push("- The user is writing an issue without a capture. They will describe the bug based on environment info and logs.");
+    }
     if (ctx.networkLogSummary && ctx.networkLogSummary.errors.length > 0) {
       lines.push("- Network errors:");
       for (const e of ctx.networkLogSummary.errors) {

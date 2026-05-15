@@ -3,7 +3,6 @@ import { describe, it, expect } from "vitest";
 import {
   extractInlineRefs,
   replaceInlineRefs,
-  resolveCtxInlineImages,
   stripInlineImageRefs,
 } from "../resolveInlineImages";
 
@@ -69,33 +68,6 @@ describe("replaceInlineRefs", () => {
     const result = replaceInlineRefs(md, map);
     expect(result).toContain("https://resolved.url");
     expect(result).toContain("inline:unknown");
-  });
-});
-
-describe("resolveCtxInlineImages", () => {
-  it("inlineImages가 없으면 ctx 그대로 반환", () => {
-    const ctx = { sections: { desc: "hello" }, title: "t" };
-    expect(resolveCtxInlineImages(ctx, [])).toBe(ctx);
-  });
-
-  it("sections 내 inline:refId를 dataUrl로 치환", () => {
-    const ctx = { sections: { desc: "![](inline:abc)" }, title: "t" };
-    const result = resolveCtxInlineImages(ctx, [{ refId: "abc", dataUrl: "data:img" }]);
-    expect(result.sections.desc).toBe("![](data:img)");
-    expect(result.title).toBe("t");
-  });
-
-  it("여러 섹션의 참조를 모두 치환", () => {
-    const ctx = {
-      sections: { a: "![](inline:x)", b: "![](inline:y)" },
-      title: "t",
-    };
-    const result = resolveCtxInlineImages(ctx, [
-      { refId: "x", dataUrl: "url-x" },
-      { refId: "y", dataUrl: "url-y" },
-    ]);
-    expect(result.sections.a).toBe("![](url-x)");
-    expect(result.sections.b).toBe("![](url-y)");
   });
 });
 

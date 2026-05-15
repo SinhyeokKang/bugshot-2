@@ -168,7 +168,9 @@ export function DraftingPanel() {
     }
   };
 
-  const mediaBlock = isVideoMode ? (
+  const isFreeformMode = captureMode === "freeform";
+
+  const mediaBlock = isFreeformMode ? null : isVideoMode ? (
     <Section key="__media" title={t("section.media")}>
       <VideoPreview blob={videoBlob} thumbnail={videoThumbnail} />
     </Section>

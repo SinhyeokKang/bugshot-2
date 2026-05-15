@@ -42,8 +42,6 @@ export function PreviewPanel() {
   const afterImage = useEditorStore((s) => s.afterImage);
   const screenshotAnnotated = useEditorStore((s) => s.screenshotAnnotated);
   const screenshotRaw = useEditorStore((s) => s.screenshotRaw);
-  const screenshotViewport = useEditorStore((s) => s.screenshotViewport);
-  const screenshotCapturedAt = useEditorStore((s) => s.screenshotCapturedAt);
   const videoBlob = useEditorStore((s) => s.videoBlob);
   const videoThumbnail = useEditorStore((s) => s.videoThumbnail);
   const videoViewport = useEditorStore((s) => s.videoViewport);
@@ -63,6 +61,7 @@ export function PreviewPanel() {
   );
   const isElementMode = captureMode === "element";
   const isVideoMode = captureMode === "video";
+  const isFreeformMode = captureMode === "freeform";
   const screenshotImage = screenshotAnnotated ?? screenshotRaw;
 
   const diffs = useMemo(
@@ -85,7 +84,7 @@ export function PreviewPanel() {
 
   const attachedNetwork = networkLogAttach && networkLog && networkLog.captured > 0 ? networkLog : null;
   const attachedConsole = consoleLogAttach && consoleLog && consoleLog.captured > 0 ? consoleLog : null;
-  const showLogCards = isVideoMode && (attachedNetwork !== null || attachedConsole !== null);
+  const showLogCards = (isVideoMode || isFreeformMode) && (attachedNetwork !== null || attachedConsole !== null);
 
   const handleCopyMarkdown = async () => {
     const resolvedSections = { ...draft.sections };
@@ -101,7 +100,26 @@ export function PreviewPanel() {
     );
 
     let ctx: Parameters<typeof buildIssueMarkdown>[0];
-    if (isVideoMode) {
+    if (isFreeformMode) {
+      ctx = {
+        captureMode: "freeform",
+        title: draft.title,
+        sections: resolvedSections,
+        sectionConfig: issueSections,
+        url: target?.url ?? "",
+        selector: "",
+        tagName: "",
+        classListBefore: [],
+        classListAfter: [],
+        specifiedStyles: {},
+        tokens: [],
+        viewport: useEditorStore.getState().freeformViewport,
+        capturedAt: useEditorStore.getState().freeformCapturedAt ?? Date.now(),
+        diffs: [],
+        networkLogSummary: attachedNetwork ? buildNetworkLogSummary(attachedNetwork) : undefined,
+        consoleLogSummary: attachedConsole ? buildConsoleLogSummary(attachedConsole) : undefined,
+      };
+    } else if (isVideoMode) {
       ctx = {
         captureMode: "video",
         title: draft.title,
@@ -172,7 +190,7 @@ export function PreviewPanel() {
                 <span className="text-muted-foreground/70">{t("common.untitled")}</span>
               )}
             </h1>
-            {isElementMode || isVideoMode ? (
+            {isElementMode || isVideoMode || isFreeformMode ? (
               <Button
                 variant="outline"
                 size="sm"
@@ -196,36 +214,13 @@ export function PreviewPanel() {
             />
           </Section>
         ) : (
-          <Section title={t("section.env")}>
-            <div className="space-y-1 text-sm leading-relaxed">
-              <div className="flex gap-3">
-                <span className="w-20 shrink-0 text-muted-foreground">Page</span>
-                <span className="break-all">{target?.url || "-"}</span>
-              </div>
-              {(isVideoMode ? videoViewport : screenshotViewport) ? (
-                <div className="flex gap-3">
-                  <span className="w-20 shrink-0 text-muted-foreground">Viewport</span>
-                  <span>
-                    {isVideoMode
-                      ? `${videoViewport!.width}×${videoViewport!.height}`
-                      : `${screenshotViewport!.width}×${screenshotViewport!.height}`}
-                  </span>
-                </div>
-              ) : null}
-              {(isVideoMode ? videoCapturedAt : screenshotCapturedAt) ? (
-                <div className="flex gap-3">
-                  <span className="w-20 shrink-0 text-muted-foreground">Captured</span>
-                  <span>{formatTimestamp((isVideoMode ? videoCapturedAt : screenshotCapturedAt)!)}</span>
-                </div>
-              ) : null}
-            </div>
-          </Section>
+          <NonElementEnvSection />
         )}
 
         {(() => {
           const enabled = issueSections.filter((s) => s.enabled);
           let mediaInserted = false;
-          const mediaBlock = isVideoMode ? (
+          const mediaBlock = isFreeformMode ? null : isVideoMode ? (
             <Section key="__media" title={t("section.media")}>
               <PreviewVideo blob={videoBlob} thumbnail={videoThumbnail} />
             </Section>
@@ -348,6 +343,50 @@ function PreviewVideo({ blob, thumbnail }: { blob: Blob | null; thumbnail: strin
   if (src) return <video src={src} controls className="w-full rounded-lg border" />;
   if (thumbnail) return <img src={thumbnail} alt="Recording thumbnail" className="w-full rounded-lg border" />;
   return null;
+}
+
+function NonElementEnvSection() {
+  const t = useT();
+  const target = useEditorStore((s) => s.target);
+  const captureMode = useEditorStore((s) => s.captureMode);
+  const videoViewport = useEditorStore((s) => s.videoViewport);
+  const videoCapturedAt = useEditorStore((s) => s.videoCapturedAt);
+  const screenshotViewport = useEditorStore((s) => s.screenshotViewport);
+  const screenshotCapturedAt = useEditorStore((s) => s.screenshotCapturedAt);
+  const freeformViewport = useEditorStore((s) => s.freeformViewport);
+  const freeformCapturedAt = useEditorStore((s) => s.freeformCapturedAt);
+
+  const viewport =
+    captureMode === "video" ? videoViewport
+    : captureMode === "freeform" ? freeformViewport
+    : screenshotViewport;
+  const capturedAt =
+    captureMode === "video" ? videoCapturedAt
+    : captureMode === "freeform" ? freeformCapturedAt
+    : screenshotCapturedAt;
+
+  return (
+    <Section title={t("section.env")}>
+      <div className="space-y-1 text-sm leading-relaxed">
+        <div className="flex gap-3">
+          <span className="w-20 shrink-0 text-muted-foreground">Page</span>
+          <span className="break-all">{target?.url || "-"}</span>
+        </div>
+        {viewport ? (
+          <div className="flex gap-3">
+            <span className="w-20 shrink-0 text-muted-foreground">Viewport</span>
+            <span>{`${viewport.width}×${viewport.height}`}</span>
+          </div>
+        ) : null}
+        {capturedAt ? (
+          <div className="flex gap-3">
+            <span className="w-20 shrink-0 text-muted-foreground">Captured</span>
+            <span>{formatTimestamp(capturedAt)}</span>
+          </div>
+        ) : null}
+      </div>
+    </Section>
+  );
 }
 
 function EnvParagraph({

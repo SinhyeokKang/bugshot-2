@@ -347,6 +347,62 @@ describe("buildNotionIssueBody — 미디어 분기", () => {
   });
 });
 
+describe("buildNotionIssueBody — freeform", () => {
+  it("freeform 모드 → image/video block 없음", () => {
+    const out = buildNotionIssueBody({
+      ctx: makeCtx({ captureMode: "freeform" as MarkdownContext["captureMode"], selector: "", diffs: [] }),
+    });
+    const imageBlocks = out.blocks.filter((b) => b.type === "image");
+    const videoBlocks = out.blocks.filter((b) => b.type === "video");
+    expect(imageBlocks).toHaveLength(0);
+    expect(videoBlocks).toHaveLength(0);
+    expect(out.attachments).toEqual([]);
+  });
+
+  it("freeform 모드 → 미디어 heading 없음", () => {
+    const out = buildNotionIssueBody({
+      ctx: makeCtx({ captureMode: "freeform" as MarkdownContext["captureMode"], selector: "", diffs: [] }),
+    });
+    const headings = out.blocks
+      .filter((b) => b.type === "heading_2")
+      .map((b) => ("text" in b ? b.text : ""));
+    expect(headings).not.toContain("md.section.styleChanges");
+    expect(headings).not.toContain("md.section.media");
+  });
+
+  it("freeform 모드 → DOM 미표시", () => {
+    const out = buildNotionIssueBody({
+      ctx: makeCtx({ captureMode: "freeform" as MarkdownContext["captureMode"], selector: "div.test" }),
+    });
+    const bullets = out.blocks.filter((b) => b.type === "bulleted_list_item");
+    expect(bullets.some((b) => "text" in b && b.text.startsWith("DOM:"))).toBe(false);
+  });
+
+  it("freeform 모드 → 환경 정보(Page, Viewport, Captured) 포함", () => {
+    const out = buildNotionIssueBody({
+      ctx: makeCtx({ captureMode: "freeform" as MarkdownContext["captureMode"], selector: "", diffs: [] }),
+    });
+    const bullets = out.blocks.filter((b) => b.type === "bulleted_list_item");
+    expect(bullets.some((b) => "text" in b && b.text.startsWith("Page:"))).toBe(true);
+    expect(bullets.some((b) => "text" in b && b.text.startsWith("Viewport:"))).toBe(true);
+  });
+
+  it("freeform 모드 + 로그 첨부 → attachments 큐에 log 카테고리", () => {
+    const out = buildNotionIssueBody({
+      ctx: makeCtx({ captureMode: "freeform" as MarkdownContext["captureMode"], selector: "", diffs: [] }),
+      logs: [
+        {
+          filename: "network-log.har",
+          contentType: "application/json",
+          dataUrl: "data:application/json;base64,YQ==",
+          category: "log",
+        },
+      ],
+    });
+    expect(out.attachments.find((a) => a.category === "log")).toBeDefined();
+  });
+});
+
 describe("buildNotionIssueBody — 로그 요약", () => {
   it("네트워크/콘솔 로그 요약은 code block", () => {
     const out = buildNotionIssueBody({

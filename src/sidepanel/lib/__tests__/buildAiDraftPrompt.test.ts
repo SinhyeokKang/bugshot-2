@@ -254,6 +254,51 @@ describe("parseAiDraftResponse", () => {
   });
 });
 
+describe("buildAiDraftPrompt — freeform", () => {
+  it("freeform 모드: URL, 로그 컨텍스트 포함 (video와 유사)", () => {
+    const prompt = buildAiDraftPrompt({
+      ...BASE_CTX,
+      captureMode: "freeform" as AiDraftContext["captureMode"],
+      networkLogSummary: {
+        captured: 5,
+        errors: [{ method: "DELETE", path: "/api/item", status: 500, statusText: "Internal Server Error" }],
+      },
+      consoleLogSummary: {
+        captured: 3,
+        errorCount: 1,
+        warnCount: 0,
+        topErrors: ["ReferenceError: x is not defined"],
+      },
+    });
+    expect(prompt).toContain("https://example.com/page");
+    expect(prompt).toContain("DELETE /api/item → 500");
+    expect(prompt).toContain("ReferenceError: x is not defined");
+  });
+
+  it("freeform 모드: current/desired 힌트 없음, 환경 정보 기반 힌트 포함", () => {
+    const prompt = buildAiDraftPrompt({
+      ...BASE_CTX,
+      captureMode: "freeform" as AiDraftContext["captureMode"],
+    });
+    expect(prompt).not.toMatch(/current value|current 값/);
+    expect(prompt).not.toMatch(/desired value|desired 값/);
+    expect(prompt).toMatch(/environment|환경|URL|log|로그/i);
+  });
+
+  it("freeform 모드: selector/tagName/diffs 미포함", () => {
+    const prompt = buildAiDraftPrompt({
+      ...BASE_CTX,
+      captureMode: "freeform" as AiDraftContext["captureMode"],
+      selector: "div.card > button",
+      tagName: "button",
+      diffs: [{ prop: "color", asIs: "#000", toBe: "#fff" }],
+    });
+    expect(prompt).not.toContain("div.card > button");
+    expect(prompt).not.toContain("<button>");
+    expect(prompt).not.toContain('color: current="#000"');
+  });
+});
+
 const SESSION_BASE: AiDraftSessionContext = {
   captureMode: "screenshot",
   locale: "ko",
@@ -360,5 +405,45 @@ describe("buildAiDraftSessionPrompt", () => {
     expect(prompt).not.toMatch(/current value|current 값/);
     expect(prompt).not.toMatch(/desired value|desired 값/);
     expect(prompt).toMatch(/record|녹화/i);
+  });
+
+  it("freeform 모드: URL, 페이지 제목, 로그 컨텍스트 포함", () => {
+    const prompt = buildAiDraftSessionPrompt({
+      ...SESSION_BASE,
+      captureMode: "freeform" as AiDraftSessionContext["captureMode"],
+      networkLogSummary: {
+        captured: 3,
+        errors: [{ method: "GET", path: "/api/data", status: 404, statusText: "Not Found" }],
+      },
+      consoleLogSummary: {
+        captured: 2,
+        errorCount: 1,
+        warnCount: 0,
+        topErrors: ["TypeError: fetch failed"],
+      },
+    });
+    expect(prompt).toContain("https://example.com/page");
+    expect(prompt).toContain("Example Page");
+    expect(prompt).toContain("GET /api/data");
+    expect(prompt).toContain("404");
+    expect(prompt).toContain("TypeError: fetch failed");
+  });
+
+  it("freeform 모드: 이미지/스크린샷/녹화 참조 지시 미포함", () => {
+    const prompt = buildAiDraftSessionPrompt({
+      ...SESSION_BASE,
+      captureMode: "freeform" as AiDraftSessionContext["captureMode"],
+    });
+    expect(prompt).not.toMatch(/image|screenshot|스크린샷/i);
+    expect(prompt).not.toMatch(/record|녹화/i);
+  });
+
+  it("freeform 모드: current/desired 힌트 없음", () => {
+    const prompt = buildAiDraftSessionPrompt({
+      ...SESSION_BASE,
+      captureMode: "freeform" as AiDraftSessionContext["captureMode"],
+    });
+    expect(prompt).not.toMatch(/current value|current 값/);
+    expect(prompt).not.toMatch(/desired value|desired 값/);
   });
 });

@@ -67,6 +67,7 @@ export function buildNotionIssueBody(
   const attachments: NotionAttachmentInput[] = [];
   const isVideo = ctx.captureMode === "video";
   const isScreenshot = ctx.captureMode === "screenshot";
+  const isFreeform = ctx.captureMode === "freeform";
   let placeholderCounter = 0;
   const nextPlaceholder = (prefix: string) =>
     `${prefix}-${placeholderCounter++}`;
@@ -88,7 +89,7 @@ export function buildNotionIssueBody(
   // 환경 섹션
   blocks.push({ type: "heading_2", text: t("md.section.env") });
   blocks.push({ type: "bulleted_list_item", text: `Page: ${ctx.url}` });
-  if (!isVideo && !isScreenshot) {
+  if (!isVideo && !isScreenshot && !isFreeform) {
     const domLabel = ctx.tagName
       ? formatElementName({ tag: ctx.tagName, classList: ctx.classListBefore })
       : "";
@@ -96,10 +97,12 @@ export function buildNotionIssueBody(
       blocks.push({ type: "bulleted_list_item", text: `DOM: ${domLabel}` });
     }
   }
-  blocks.push({
-    type: "bulleted_list_item",
-    text: `Viewport: ${ctx.viewport.width}×${ctx.viewport.height}`,
-  });
+  if (ctx.viewport) {
+    blocks.push({
+      type: "bulleted_list_item",
+      text: `Viewport: ${ctx.viewport.width}×${ctx.viewport.height}`,
+    });
+  }
   blocks.push({
     type: "bulleted_list_item",
     text: `Captured: ${formatTimestamp(ctx.capturedAt)}`,
@@ -110,7 +113,9 @@ export function buildNotionIssueBody(
     if (mediaEmitted) return;
     mediaEmitted = true;
 
-    if (isVideo) {
+    if (isFreeform) {
+      // no media section
+    } else if (isVideo) {
       blocks.push({ type: "heading_2", text: t("md.section.media") });
       if (video) {
         const cat = categorize(video, "video");

@@ -123,7 +123,7 @@ export function IssueListTab() {
   const displayable = useMemo(
     () =>
       issues.filter(
-        (i) => i.status === "submitted" || !!i.selectionSnapshot || i.captureMode === "screenshot" || i.captureMode === "video",
+        (i) => i.status === "submitted" || !!i.selectionSnapshot || i.captureMode === "screenshot" || i.captureMode === "video" || i.captureMode === "freeform",
       ),
     [issues],
   );

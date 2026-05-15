@@ -44,7 +44,7 @@ export async function submitToNotion(
 ): Promise<NormalizedSubmitResult> {
   const inlineImages = input.inlineImages ?? [];
 
-  // 1. inline images를 먼저 업로드 (Notion file upload)
+  // 1. inline image 업로드
   const inlineUploaded: { refId: string; fileUploadId: string }[] = [];
   for (const img of inlineImages) {
     const res = await sendBg<NotionFileUploadResult>({
@@ -56,7 +56,7 @@ export async function submitToNotion(
     inlineUploaded.push({ refId: img.refId, fileUploadId: res.fileUploadId });
   }
 
-  // 2. blocks 빌드 (inline image 위치는 buildNotionIssueBody가 섹션별 처리)
+  // 2. blocks 빌드
   const { blocks, attachments } = buildNotionIssueBody({
     ctx: input.ctx,
     images: input.images?.map((f) => ({
@@ -80,7 +80,7 @@ export async function submitToNotion(
     inlineImageRefIds: inlineUploaded.map((iu) => iu.refId),
   });
 
-  // 5. 일반 첨부 업로드 — 직렬 (Notion rate limit 보호)
+  // 3. 일반 첨부 업로드 — 직렬 (Notion rate limit 보호)
   const uploaded: { placeholderId: string; fileUploadId: string; filename: string; category: typeof attachments[number]["category"] }[] = [];
   for (const a of attachments) {
     const res = await sendBg<NotionFileUploadResult>({
@@ -97,7 +97,7 @@ export async function submitToNotion(
     });
   }
 
-  // 6. inline uploads를 uploaded 배열에 추가 (expandBlock이 placeholderId로 조회)
+  // 4. inline uploads를 uploaded 배열에 추가
   for (const iu of inlineUploaded) {
     uploaded.push({
       placeholderId: `inline-${iu.refId}`,
@@ -107,7 +107,7 @@ export async function submitToNotion(
     });
   }
 
-  // AI/디버그 메타 마크다운
+  // 5. AI/디버그 메타 마크다운 — 본문 인라인이 아니라 첨부 file 블록으로
   const aiMeta = buildAiMetaAttachment(input.ctx);
   const aiMetaUploaded = await sendBg<NotionFileUploadResult>({
     type: "notion.uploadFile",

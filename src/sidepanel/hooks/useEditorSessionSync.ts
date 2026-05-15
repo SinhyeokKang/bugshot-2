@@ -27,6 +27,7 @@ function migrateLegacyDraft(snap: EditorSnapshot): EditorSnapshot {
 }
 
 const SAVE_DEBOUNCE_MS = 300;
+const DRAFT_PHASES = new Set(["drafting", "previewing", "done"]);
 
 // videoBlob 제외: Blob은 chrome.storage 직렬화 불가 → IndexedDB(saveVideoBlob)로 별도 저장
 function snapshotFromState(): EditorSnapshot {
@@ -48,6 +49,8 @@ function snapshotFromState(): EditorSnapshot {
     videoThumbnail: s.videoThumbnail,
     videoViewport: s.videoViewport,
     videoCapturedAt: s.videoCapturedAt,
+    freeformViewport: s.freeformViewport,
+    freeformCapturedAt: s.freeformCapturedAt,
     networkLogAttach: s.networkLogAttach,
     consoleLogAttach: s.consoleLogAttach,
     draft: s.draft,
@@ -100,7 +103,6 @@ export function useEditorSessionSync(tabId: number | null): boolean {
       setHydrated(true);
     });
 
-    const DRAFT_PHASES = new Set(["drafting", "previewing", "done"]);
     const unsubStore = useEditorStore.subscribe((state, prev) => {
       if (state === prev) return;
 

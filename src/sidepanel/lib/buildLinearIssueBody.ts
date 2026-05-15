@@ -60,16 +60,19 @@ export function buildLinearIssueBody(
   const lines: string[] = [];
   const isVideo = ctx.captureMode === "video";
   const isScreenshot = ctx.captureMode === "screenshot";
+  const isFreeform = ctx.captureMode === "freeform";
 
   lines.push(`## ${t("md.section.env")}`, "");
   lines.push(`- **Page**: ${ctx.url}`);
-  if (!isVideo && !isScreenshot) {
+  if (!isVideo && !isScreenshot && !isFreeform) {
     const domLabel = ctx.tagName
       ? formatElementName({ tag: ctx.tagName, classList: ctx.classListBefore })
       : "";
     if (domLabel) lines.push(`- **DOM**: ${domLabel}`);
   }
-  lines.push(`- **Viewport**: ${ctx.viewport.width}×${ctx.viewport.height}`);
+  if (ctx.viewport) {
+    lines.push(`- **Viewport**: ${ctx.viewport.width}×${ctx.viewport.height}`);
+  }
   lines.push(`- **Captured**: ${formatTimestamp(ctx.capturedAt)}`);
   lines.push("");
 
@@ -78,7 +81,9 @@ export function buildLinearIssueBody(
     if (mediaEmitted) return;
     mediaEmitted = true;
 
-    if (isVideo) {
+    if (isFreeform) {
+      // no media section
+    } else if (isVideo) {
       lines.push(`## ${t("md.section.media")}`, "");
       if (video?.assetUrl) {
         lines.push(`![${video.filename}](${video.assetUrl})`);

@@ -9,7 +9,6 @@ import type { GithubCreateIssueResult } from "@/types/github";
 import type { NormalizedSubmitResult } from "@/types/platform";
 
 export type { NormalizedSubmitResult } from "@/types/platform";
-export type { InlineImageInput } from "./resolveInlineImages";
 
 export interface GithubFileInput {
   filename: string;
