@@ -1,0 +1,78 @@
+.tiptap-editor .ProseMirror {
+  outline: none;
+  min-height: inherit;
+  padding: 0.5rem 0.75rem;
+}
+
+.tiptap-editor .ProseMirror p {
+  margin: 0;
+}
+
+.tiptap-editor .ProseMirror p + p {
+  margin-top: 0.5em;
+}
+
+.tiptap-editor .ProseMirror ul,
+.tiptap-editor .ProseMirror ol {
+  padding-left: 1.25em;
+  margin: 0.25em 0;
+}
+
+.tiptap-editor .ProseMirror ul ul,
+.tiptap-editor .ProseMirror ol ol,
+.tiptap-editor .ProseMirror ul ol,
+.tiptap-editor .ProseMirror ol ul {
+  padding-left: 1em;
+}
+
+/* 2단 초과 중첩 indent 제한 */
+.tiptap-editor .ProseMirror ul ul ul,
+.tiptap-editor .ProseMirror ol ol ol {
+  padding-left: 0;
+}
+
+.tiptap-editor .ProseMirror ul {
+  list-style-type: disc;
+}
+
+.tiptap-editor .ProseMirror ol {
+  list-style-type: decimal;
+}
+
+.tiptap-editor .ProseMirror li {
+  margin: 0.125em 0;
+}
+
+.tiptap-editor .ProseMirror hr {
+  border: none;
+  border-top: 1px solid hsl(var(--border));
+  margin: 0.75em 0;
+}
+
+.tiptap-editor .ProseMirror img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.375rem;
+  margin: 0.25em 0;
+}
+
+.tiptap-editor .ProseMirror a {
+  color: hsl(var(--primary));
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.tiptap-editor .ProseMirror code {
+  background: hsl(var(--muted));
+  border-radius: 0.25rem;
+  padding: 0.125em 0.25em;
+  font-size: 0.875em;
+}
+
+.tiptap-editor .ProseMirror p.is-editor-empty:first-child::before {
+  content: attr(data-placeholder);
+  color: hsl(var(--muted-foreground));
+  pointer-events: none;
+  float: left;
+  height: 0;
+}

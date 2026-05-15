@@ -83,6 +83,17 @@ export interface NotionDatabaseSchema {
   selectProperties: NotionPropertySchema[];
 }
 
+export interface NotionRichText {
+  type: "text";
+  text: { content: string; link?: { url: string } | null };
+  annotations?: {
+    bold?: boolean;
+    italic?: boolean;
+    strikethrough?: boolean;
+    code?: boolean;
+  };
+}
+
 export type NotionBlock =
   | { type: "heading_2"; text: string }
   | { type: "heading_3"; text: string }
@@ -91,7 +102,11 @@ export type NotionBlock =
   | { type: "bulleted_list_item"; text: string }
   | { type: "image"; placeholderId: string }
   | { type: "video"; placeholderId: string }
-  | { type: "table"; rows: string[][] };
+  | { type: "table"; rows: string[][] }
+  | { type: "rich_paragraph"; richText: NotionRichText[] }
+  | { type: "rich_bulleted_list_item"; richText: NotionRichText[] }
+  | { type: "rich_numbered_list_item"; richText: NotionRichText[] }
+  | { type: "divider" };
 
 export type NotionAttachmentCategory = "image" | "video" | "log" | "other";
 

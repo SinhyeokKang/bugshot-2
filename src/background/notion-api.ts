@@ -326,6 +326,19 @@ function richText(content: string): NotionRichTextInput[] {
   return [{ type: "text", text: { content } }];
 }
 
+function expandRichText(
+  items: import("@/types/notion").NotionRichText[],
+): object[] {
+  return items.map((rt) => {
+    const entry: Record<string, unknown> = {
+      type: "text",
+      text: { content: rt.text.content, link: rt.text.link ?? null },
+    };
+    if (rt.annotations) entry.annotations = rt.annotations;
+    return entry;
+  });
+}
+
 interface NotionBlockObject {
   object: "block";
   type: string;
@@ -409,6 +422,32 @@ function expandBlock(
         },
       };
     }
+    case "rich_paragraph":
+      return {
+        object: "block",
+        type: "paragraph",
+        paragraph: { rich_text: expandRichText(block.richText) },
+      };
+    case "rich_bulleted_list_item":
+      return {
+        object: "block",
+        type: "bulleted_list_item",
+        bulleted_list_item: { rich_text: expandRichText(block.richText) },
+      };
+    case "rich_numbered_list_item":
+      return {
+        object: "block",
+        type: "numbered_list_item",
+        numbered_list_item: { rich_text: expandRichText(block.richText) },
+      };
+    case "divider":
+      return {
+        object: "block",
+        type: "divider",
+        divider: {},
+      };
+    default:
+      return null;
   }
 }
 

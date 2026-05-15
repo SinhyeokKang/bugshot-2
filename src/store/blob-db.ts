@@ -2,11 +2,12 @@ import type { NetworkLog } from "@/types/network";
 import type { ConsoleLog } from "@/types/console";
 
 const DB_NAME = "bugshot-video";
-const DB_VERSION = 4;
+const DB_VERSION = 5;
 const STORE_VIDEO = "blobs";
 const STORE_IMAGES = "images";
 const STORE_NETWORK = "networkLogs";
 const STORE_CONSOLE = "consoleLogs";
+const STORE_INLINE_IMAGES = "inlineImages";
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -28,8 +29,19 @@ function openDb(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains(STORE_CONSOLE)) {
         db.createObjectStore(STORE_CONSOLE);
       }
+      if (!db.objectStoreNames.contains(STORE_INLINE_IMAGES)) {
+        db.createObjectStore(STORE_INLINE_IMAGES);
+      }
     };
-    req.onsuccess = () => resolve(req.result);
+    req.onblocked = () => {
+      dbPromise = null;
+      reject(new Error("DB upgrade blocked by open connection"));
+    };
+    req.onsuccess = () => {
+      const db = req.result;
+      db.onversionchange = () => { db.close(); dbPromise = null; };
+      resolve(db);
+    };
     req.onerror = () => {
       dbPromise = null;
       reject(req.error);
@@ -319,6 +331,81 @@ export async function clearConsoleLogs(): Promise<void> {
     await txComplete(tx);
   } catch (e) {
     console.warn("[blob-db] clearConsoleLogs failed:", e);
+  }
+}
+
+// --- Inline image API ---
+
+export async function saveInlineImage(refId: string, blob: Blob): Promise<boolean> {
+  try {
+    const db = await openDb();
+    const tx = db.transaction(STORE_INLINE_IMAGES, "readwrite");
+    tx.objectStore(STORE_INLINE_IMAGES).put(blob, refId);
+    await txComplete(tx);
+    return true;
+  } catch (e) {
+    console.warn("[blob-db] saveInlineImage failed:", e);
+    return false;
+  }
+}
+
+export async function getInlineImage(refId: string): Promise<Blob | null> {
+  try {
+    const db = await openDb();
+    const tx = db.transaction(STORE_INLINE_IMAGES, "readonly");
+    const req = tx.objectStore(STORE_INLINE_IMAGES).get(refId);
+    await txComplete(tx);
+    return (req.result as Blob) ?? null;
+  } catch (e) {
+    console.warn("[blob-db] getInlineImage failed:", e);
+    return null;
+  }
+}
+
+export async function deleteInlineImages(refIds: string[]): Promise<void> {
+  try {
+    const db = await openDb();
+    const tx = db.transaction(STORE_INLINE_IMAGES, "readwrite");
+    const store = tx.objectStore(STORE_INLINE_IMAGES);
+    for (const id of refIds) store.delete(id);
+    await txComplete(tx);
+  } catch (e) {
+    console.warn("[blob-db] deleteInlineImages failed:", e);
+  }
+}
+
+export async function getInlineImageKeys(): Promise<string[]> {
+  try {
+    const db = await openDb();
+    const tx = db.transaction(STORE_INLINE_IMAGES, "readonly");
+    const req = tx.objectStore(STORE_INLINE_IMAGES).getAllKeys();
+    await txComplete(tx);
+    return (req.result as string[]) ?? [];
+  } catch (e) {
+    console.warn("[blob-db] getInlineImageKeys failed:", e);
+    return [];
+  }
+}
+
+export async function clearInlineImages(): Promise<void> {
+  try {
+    const db = await openDb();
+    const tx = db.transaction(STORE_INLINE_IMAGES, "readwrite");
+    tx.objectStore(STORE_INLINE_IMAGES).clear();
+    await txComplete(tx);
+  } catch (e) {
+    console.warn("[blob-db] clearInlineImages failed:", e);
+  }
+}
+
+export async function pruneOrphanInlineImages(activeRefIds: string[]): Promise<void> {
+  try {
+    const allKeys = await getInlineImageKeys();
+    const activeSet = new Set(activeRefIds);
+    const orphans = allKeys.filter((k) => !activeSet.has(k));
+    if (orphans.length > 0) await deleteInlineImages(orphans);
+  } catch (e) {
+    console.warn("[blob-db] pruneOrphanInlineImages failed:", e);
   }
 }
 

@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+const LazyTiptapEditor = lazy(() => import("../components/TiptapEditor"));
 import { useT } from "@/i18n";
 import {
   POST_MEDIA_SECTION_IDS,
@@ -398,13 +399,14 @@ function SectionTextarea({
       {section.renderAs === "orderedList" ? (
         <OrderedListEditor value={value} onChange={onChange} placeholder={placeholder} />
       ) : (
-        <Textarea
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
-          onFocus={cursorToEnd}
-          placeholder={placeholder}
-          className="min-h-32 resize-none text-sm [field-sizing:content]"
-        />
+        <Suspense fallback={<Textarea disabled placeholder={placeholder} className="min-h-32 resize-none text-sm" />}>
+          <LazyTiptapEditor
+            value={value}
+            onChange={onChange}
+            placeholder={placeholder}
+            ariaLabel={label}
+          />
+        </Suspense>
       )}
     </Section>
   );

@@ -8,43 +8,44 @@
 
 ## 태스크
 
-### Task 1: 패키지 설치
+### ~~Task 1: 패키지 설치~~ ✅
 
 - **변경 대상**: `package.json`
 - **작업 내용**: Tiptap 관련 패키지 설치
   ```
-  pnpm add @tiptap/react @tiptap/starter-kit @tiptap/extension-link @tiptap/extension-image @tiptap/extension-placeholder tiptap-markdown markdown-it
+  pnpm add @tiptap/react @tiptap/starter-kit @tiptap/extension-link @tiptap/extension-image @tiptap/extension-placeholder @tiptap/pm tiptap-markdown markdown-it
   pnpm add -D @types/markdown-it
   ```
 - **검증**:
-  - [ ] `pnpm install` 정상 완료
-  - [ ] `pnpm typecheck` 통과
+  - [x] `pnpm install` 정상 완료
+  - [x] `pnpm typecheck` 통과
 
-### Task 2: TiptapEditor 컴포넌트 생성
+### ~~Task 2: TiptapEditor 컴포넌트 생성~~ ✅
 
 - **변경 대상**: `src/sidepanel/components/TiptapEditor.tsx` (신규), `src/sidepanel/components/tiptap-editor.css` (신규)
 - **작업 내용**:
-  - `TiptapEditorProps` 인터페이스: `{ value: string; onChange: (md: string) => void; placeholder?: string; className?: string }`
-  - StarterKit (heading/codeBlock 비활성) + Link + Image + Placeholder + Markdown 확장 구성
-  - `editor.on('update')` → `editor.storage.markdown.getMarkdown()` → `onChange` 호출
+  - `TiptapEditorProps` 인터페이스: `{ value: string; onChange: (md: string) => void; placeholder?: string; className?: string; ariaLabel?: string }`
+  - StarterKit (heading/codeBlock/blockquote 비활성) + Link + Image + Placeholder + Markdown 확장 구성
+  - `onUpdate` → `editor.storage.markdown.getMarkdown()` → blob URL→`inline:refId` 후처리 → `onChange` 호출
   - 외부 `value` 변경 시 에디터 콘텐츠 동기화 (ref로 내부/외부 구분)
-  - CSS: ProseMirror 콘텐츠 영역 스타일 (outline 제거, 리스트 패딩, 이미지 max-width, placeholder). 리스트 중첩은 2단까지만 허용 (CSS indent 제한 or 확장 설정)
-  - 외관: shadcn/ui Textarea와 동일한 border/focus ring/text-sm 적용. `min-h-32`(128px) 최소 높이 적용 (`[field-sizing:content]`는 contentEditable에서 미작동)
-  - 접근성: `EditorContent` wrapper에 `aria-label={sectionLabel}` 추가
+  - CSS: ProseMirror 콘텐츠 영역 스타일 (outline 제거, 리스트 패딩, 이미지 max-width, placeholder). 리스트 중첩은 2단까지 CSS indent 제한
+  - 외관: shadcn/ui Textarea와 동일한 border/focus ring/text-sm 적용. `min-h-32`(128px) 최소 높이
+  - 접근성: `EditorContent` wrapper에 `aria-label` 추가
+  - ProseMirror 플러그인으로 이미지 drop/paste 처리 (Task 5b 통합)
 - **검증**:
-  - [ ] `pnpm typecheck` 통과
-  - [ ] 독립적으로 렌더링 가능 (DraftingPanel 교체 전 스토리북이 없으므로 Task 3에서 확인)
+  - [x] `pnpm typecheck` 통과
+  - [x] Task 3에서 DraftingPanel 교체 후 확인
 
-### Task 3: DraftingPanel에서 Textarea 교체
+### ~~Task 3: DraftingPanel에서 Textarea 교체~~ ✅
 
 - **변경 대상**: `src/sidepanel/tabs/DraftingPanel.tsx`
 - **작업 내용**:
-  - `SectionTextarea` 컴포넌트(라인 383-411)에서 `renderAs === "paragraph"` 분기의 `<Textarea>`를 `<TiptapEditor>`로 교체
-  - `onChange` 콜백: `(e) => onChange(e.target.value)` → `(md) => onChange(md)` (TiptapEditor는 문자열 직접 반환)
-  - `cursorToEnd` 등 기존 Textarea 전용 핸들러 제거/조정
-  - TiptapEditor import는 `React.lazy`로 lazy loading
+  - `SectionTextarea`에서 `renderAs === "paragraph"` 분기의 `<Textarea>` → `<LazyTiptapEditor>` 교체
+  - `React.lazy`로 lazy loading, `Suspense` fallback은 disabled Textarea
+  - `onChange` 콜백 단순화: TiptapEditor가 마크다운 문자열 직접 반환
+  - `cursorToEnd`는 다른 곳(Input)에서 사용 중이라 유지
 - **검증**:
-  - [ ] `pnpm typecheck` 통과
+  - [x] `pnpm typecheck` 통과
   - [ ] Chrome에서 Side panel 열고 DraftingPanel 진입 → 에디터 정상 렌더링
   - [ ] 텍스트 입력 → `**bold**` 자동 변환 확인
   - [ ] `*italic*`, `` `code` ``, `~~strike~~` 자동 변환 확인
@@ -55,23 +56,22 @@
   - [ ] 기존 plain text 데이터가 에디터에서 깨지지 않고 표시
   - [ ] 다크모드에서 에디터 배경/텍스트/placeholder 색상 정상
 
-### Task 4: blob-db inlineImages 스토어
+### ~~Task 4: blob-db inlineImages 스토어~~ ✅
 
 - **변경 대상**: `src/store/blob-db.ts`
 - **작업 내용**:
   - `DB_VERSION` 4 → 5
   - `STORE_INLINE_IMAGES = "inlineImages"` 상수 추가
   - `onupgradeneeded`에 `!db.objectStoreNames.contains(STORE_INLINE_IMAGES)` 가드 추가
-  - CRUD 함수: `saveInlineImage(refId, blob)`, `getInlineImage(refId)`, `deleteInlineImages(refIds)`, `getInlineImageKeys()`, `clearInlineImages()`, `pruneOrphanInlineImages(activeRefIds)` (미참조 blob 정리)
-  - 기존 `dbPromise` 캐시 무효화: DB_VERSION 변경으로 기존 커넥션이 있으면 재연결 필요 — 기존 코드가 `req.onerror`에서 `dbPromise = null` 처리하므로 자연스럽게 동작
-  - `db.onversionchange = () => { db.close(); dbPromise = null; }` 핸들러 추가 (동시 연결 충돌 방지)
-  - `req.onblocked` 핸들러 추가 (기존 연결이 닫히지 않아 업그레이드가 블로킹되는 케이스 처리)
+  - CRUD 함수: `saveInlineImage`, `getInlineImage`, `deleteInlineImages`, `getInlineImageKeys`, `clearInlineImages`, `pruneOrphanInlineImages`
+  - `db.onversionchange` 핸들러 추가 (동시 연결 충돌 방지)
+  - `req.onblocked` 핸들러 추가
 - **검증**:
-  - [ ] `pnpm typecheck` 통과
-  - [ ] `pnpm test` 통과 (기존 테스트 영향 없음)
+  - [x] `pnpm typecheck` 통과
+  - [x] `pnpm test` 통과 (기존 테스트 영향 없음)
   - [ ] Chrome DevTools Application → IndexedDB → `bugshot-video` DB에 `inlineImages` 스토어 생성 확인
 
-### Task 5a: 이미지 compact 유틸
+### ~~Task 5a: 이미지 compact 유틸~~ ✅
 
 - **변경 대상**: `src/sidepanel/lib/compactImage.ts` (신규), `src/sidepanel/lib/__tests__/compactImage.test.ts` (신규)
 - **작업 내용**:
@@ -79,20 +79,18 @@
   - `shouldCompact(w, h, mimeType)`: webp이면서 maxWidth 이하 → false, 그 외 → true (순수 함수)
   - `compactImage(blob)`: `createImageBitmap` → `OffscreenCanvas` 리사이즈 → `canvas.convertToBlob({ type: "image/webp", quality: 0.85 })` (브라우저 API)
 - **검증**:
-  - [ ] `compactImage.test.ts` 단위 테스트 통과 (`calcCompactDimensions`, `shouldCompact` 순수 함수)
-  - [ ] `pnpm test` 통과
+  - [x] `compactImage.test.ts` 단위 테스트 통과 (`calcCompactDimensions`, `shouldCompact` 순수 함수)
+  - [x] `pnpm test` 통과
 
-### Task 5b: 이미지 드래그앤드롭/붙여넣기
+### ~~Task 5b: 이미지 드래그앤드롭/붙여넣기~~ ✅ (Task 2에 통합)
 
 - **변경 대상**: `src/sidepanel/components/TiptapEditor.tsx`
-- **작업 내용**:
-  - Tiptap 커스텀 플러그인으로 `handleDrop`/`handlePaste` 인터셉트
-  - 이미지 파일 감지 → `shouldCompact()` 판단 → `compactImage(blob)` 호출 → webp 변환 + 리사이즈
-  - `crypto.randomUUID().slice(0,8)` 기반 refId 생성
-  - `saveInlineImage(refId, compactedBlob)` → blob-db 저장
-  - `URL.createObjectURL(blob)` → 에디터에 Image 노드 삽입 (src=blob URL, data-ref-id=refId)
-  - 마크다운 직렬화 후처리: blob: URL → `inline:refId` 치환
-  - 마크다운 파싱 전처리: `inline:refId` → blob-db 로드 → blob: URL 치환
+- **작업 내용**: Task 2 TiptapEditor 컴포넌트에 ProseMirror 플러그인으로 통합 구현
+  - `createImageDropPlugin`: `handleDrop`/`handlePaste` 인터셉트
+  - 이미지 파일 감지 → `shouldCompact()` → `compactImage()` → webp 변환 + 리사이즈
+  - `crypto.randomUUID().slice(0,8)` 기반 refId → `saveInlineImage()` → blob-db 저장
+  - `URL.createObjectURL()` → Image 노드 삽입, `blobUrlToRefId` Map으로 blob URL↔refId 매핑
+  - 마크다운 직렬화 후처리: blob URL → `inline:refId` 치환
   - 에디터 언마운트 시 `URL.revokeObjectURL()` 정리 (useEffect cleanup)
 - **검증**:
   - [ ] 이미지 파일을 에디터로 드래그앤드롭 → 에디터 내 인라인 표시
@@ -122,60 +120,31 @@
   - [ ] 기존 plain text 데이터가 자연스럽게 표시 (마크다운 구문 없으면 plain text 그대로)
   - [ ] XSS 벡터 테스트: `<script>alert(1)</script>`, `<img onerror=alert(1)>`, `[link](javascript:alert(1))` 입력 시 스크립트 실행 없음
 
-### Task 7: markdownToAdf 변환기
+### ~~Task 7: markdownToAdf 변환기~~ ✅
 
-- **변경 대상**: `src/sidepanel/lib/markdownToAdf.ts` (신규), `src/sidepanel/lib/buildIssueAdf.ts`
+- **변경 대상**: `src/sidepanel/lib/markdownToAdf.ts` (신규)
 - **작업 내용**:
-  - `markdownToAdf(markdown: string): AdfNode[]` 함수 구현
-  - `markdown-it`로 파싱 → 토큰 순회 → ADF 노드 생성
-  - 지원 매핑:
-    - paragraph → `{ type: "paragraph" }`
-    - strong → `marks: [{ type: "strong" }]`
-    - em → `marks: [{ type: "em" }]`
-    - code_inline → `marks: [{ type: "code" }]`
-    - s (strikethrough) → `marks: [{ type: "strike" }]`
-    - link → `marks: [{ type: "link", attrs: { href } }]`
-    - bullet_list → `{ type: "bulletList" }`
-    - ordered_list → `{ type: "orderedList" }`
-    - list_item → `{ type: "listItem" }`
-    - hr → `{ type: "rule" }`
-    - image → ADF mediaGroup 또는 paragraph 내 텍스트 대체 (Jira 이미지는 첨부 파일 기반이므로 placeholder)
-    - softbreak → `{ type: "hardBreak" }`
-  - 빈 입력 → `[paragraph([textNode(t("md.noValue"))])]`
-  - `buildIssueAdf.ts`의 paragraph 분기(라인 102-104)에서 `textBlock(raw)` → `markdownToAdf(raw)` 교체
+  - `markdownToAdf(markdown: string): AdfNode[]` 구현 완료
+  - markdown-it 파싱 → 토큰 순회 → ADF 노드 생성
+  - 지원: paragraph, strong, em, code, strike, link, bulletList, orderedList, listItem, rule, hardBreak, image(텍스트 대체)
+  - 빈 입력 → noValue paragraph
+  - **`buildIssueAdf.ts` 교체는 아직 미적용** (Task 9에서 통합)
 - **검증**:
-  - [ ] `markdownToAdf.test.ts` 단위 테스트 작성 및 통과:
-    - plain text → paragraph + textNode
-    - `**bold**` → strong mark
-    - `*italic*` → em mark
-    - mixed `**bold** and *italic*` → 올바른 마크 조합
-    - `- item1\n- item2` → bulletList
-    - `1. first\n2. second` → orderedList
-    - `[link](url)` → link mark
-    - `---` → rule 노드
-    - 빈 문자열 → noValue paragraph
-  - [ ] `pnpm test` 통과
+  - [x] `markdownToAdf.test.ts` 단위 테스트 전체 통과 (12 케이스)
+  - [x] `pnpm test` 통과
   - [ ] Chrome에서 Jira 이슈 제출 → 서식이 정확히 반영된 이슈 확인
 
-### Task 8: markdownToNotionBlocks 변환기
+### ~~Task 8: markdownToNotionBlocks 변환기~~ ✅
 
-- **변경 대상**: `src/sidepanel/lib/markdownToNotionBlocks.ts` (신규), `src/sidepanel/lib/buildNotionIssueBody.ts`, `src/types/notion.ts`, `src/background/notion-api.ts`
+- **변경 대상**: `src/sidepanel/lib/markdownToNotionBlocks.ts` (신규), `src/types/notion.ts`, `src/background/notion-api.ts`
 - **작업 내용**:
-  - `NotionBlock` union에 리치텍스트 variant 추가 (rich_paragraph, rich_bulleted_list_item, rich_numbered_list_item, divider 등)
-  - `NotionRichText` 인터페이스 정의 (text + annotations + link)
-  - `markdownToNotionBlocks(markdown: string): NotionBlock[]` 구현
-  - `markdown-it` 토큰 → Notion blocks + richText 매핑
-  - `notion-api.ts`에서 `rich_*` variant → Notion API 포맷 변환 분기 추가
-  - `buildNotionIssueBody.ts`의 paragraph 분기(라인 196-199)에서 plain text → `markdownToNotionBlocks(content)` 교체
+  - `NotionRichText` 인터페이스 + `NotionBlock` union에 `rich_paragraph`, `rich_bulleted_list_item`, `rich_numbered_list_item`, `divider` variant 추가
+  - `markdownToNotionBlocks(markdown: string): NotionBlock[]` 구현 완료
+  - `notion-api.ts`에 `expandRichText()` 헬퍼 + `rich_*` / `divider` 분기 추가 + `default: return null` 반환 타입 수정
+  - **`buildNotionIssueBody.ts` 교체는 아직 미적용** (Task 9에서 통합)
 - **검증**:
-  - [ ] `markdownToNotionBlocks.test.ts` 단위 테스트 작성 및 통과:
-    - plain text → paragraph
-    - `**bold**` → richText with bold annotation
-    - 리스트 → bulleted_list_item / numbered_list_item
-    - 링크 → richText with link
-    - `---` → divider 블록
-    - 빈 문자열 → noValue paragraph
-  - [ ] `pnpm test` 통과
+  - [x] `markdownToNotionBlocks.test.ts` 단위 테스트 전체 통과 (12 케이스)
+  - [x] `pnpm test` 통과
   - [ ] Chrome에서 Notion 이슈 제출 → 서식이 정확히 반영된 페이지 확인
 
 ### Task 9: buildIssueHtml + GitHub/Linear 인라인 이미지
@@ -192,20 +161,16 @@
   - [ ] `pnpm typecheck` 통과
   - [ ] 마크다운 복사(클립보드) 시 서식 정상 반영
 
-### Task 10a: resolveInlineImages 유틸 구현 + 테스트
+### ~~Task 10a: resolveInlineImages 유틸 구현 + 테스트~~ ✅
 
 - **변경 대상**: `src/sidepanel/lib/resolveInlineImages.ts` (신규), `src/sidepanel/lib/__tests__/resolveInlineImages.test.ts` (신규)
 - **작업 내용**:
-  - `resolveInlineImages(markdown)` 구현: `inline:refId` 패턴 추출 → blob-db 로드 → data URL 변환
-  - 정규식 파싱 로직(`extractInlineRefs`, `replaceInlineRefs`)은 순수 함수로 분리하여 단위 테스트 대상으로 구성
-  - blob-db I/O 부분은 orchestrator 함수에서 호출
+  - `extractInlineRefs(markdown)`: 정규식으로 `inline:refId` 추출 (중복 제거)
+  - `replaceInlineRefs(markdown, refToUrl)`: 순수 치환 함수
+  - `resolveInlineImages(markdown)`: orchestrator — blob-db에서 로드 → data URL 변환 → 치환된 마크다운 + 이미지 목록 반환
 - **검증**:
-  - [ ] `resolveInlineImages.test.ts` 단위 테스트 작성 및 통과 (순수 함수 대상):
-    - `inline:refId` 참조 없는 마크다운 → 빈 배열 반환
-    - `inline:refId` 참조 1개 → refId 추출
-    - 여러 참조 → 전부 추출
-    - `replaceInlineRefs`: refId→URL 맵으로 마크다운 내 참조 치환
-  - [ ] `pnpm test` 통과
+  - [x] `resolveInlineImages.test.ts` 단위 테스트 전체 통과 (9 케이스)
+  - [x] `pnpm test` 통과
 
 ### Task 10b: IssueCreateModal/DraftDetailDialog 제출 흐름 통합
 
