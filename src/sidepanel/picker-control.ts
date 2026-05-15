@@ -239,6 +239,36 @@ export async function startAreaCapture(tabId: number): Promise<void> {
   }
 }
 
+export async function startInlineAreaCapture(tabId: number): Promise<void> {
+  let tab: chrome.tabs.Tab;
+  try {
+    tab = await chrome.tabs.get(tabId);
+  } catch {
+    useEditorStore.getState().cancelInlineCapture();
+    return;
+  }
+  if (!isSupportedUrl(tab.url)) {
+    onPickerUnavailable.fire();
+    useEditorStore.getState().cancelInlineCapture();
+    return;
+  }
+  const { captureMode } = useEditorStore.getState();
+  try {
+    await ensureContentScript(tabId);
+    await chrome.tabs.sendMessage<PickerMessage>(tabId, {
+      type: "picker.startAreaSelect",
+      restoreAfter: captureMode === "element",
+    });
+  } catch (err) {
+    if (err instanceof PickerUnavailableError) {
+      onPickerUnavailable.fire();
+    } else {
+      console.error("[bugshot] inline area capture start failed", err);
+    }
+    useEditorStore.getState().cancelInlineCapture();
+  }
+}
+
 export async function cancelAreaCapture(tabId: number): Promise<void> {
   await send(tabId, { type: "picker.cancelAreaSelect" });
   useEditorStore.getState().reset();
@@ -282,4 +312,40 @@ export async function syncConsoleRecorder(tabId: number): Promise<void> {
 
 export async function clearConsoleRecorder(tabId: number): Promise<void> {
   await send(tabId, { type: "consoleRecorder.clear" });
+}
+
+export async function startFreeformDraft(tabId: number): Promise<void> {
+  let tab: chrome.tabs.Tab;
+  try {
+    tab = await chrome.tabs.get(tabId);
+  } catch (err) {
+    console.error("[bugshot] freeform start failed", err);
+    return;
+  }
+  if (!isSupportedUrl(tab.url)) {
+    onPickerUnavailable.fire();
+    return;
+  }
+  const target = { tabId, url: tab.url ?? "", title: tab.title ?? "" };
+  useEditorStore.getState().startFreeform(target);
+
+  let viewport: { width: number; height: number } | null = null;
+  try {
+    const [result] = await chrome.scripting.executeScript({
+      target: { tabId },
+      func: () => ({ width: window.innerWidth, height: window.innerHeight }),
+    });
+    viewport = result?.result ?? null;
+  } catch {
+    // host permission이 없거나 정책 차단 페이지
+  }
+  useEditorStore.setState({
+    freeformViewport: viewport,
+    freeformCapturedAt: Date.now(),
+  });
+
+  await Promise.all([
+    syncNetworkRecorder(tabId).catch(() => {}),
+    syncConsoleRecorder(tabId).catch(() => {}),
+  ]);
 }

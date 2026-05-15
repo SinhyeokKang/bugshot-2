@@ -1,6 +1,7 @@
 import { buildAiMetaAttachment } from "./buildAiMetaAttachment";
 import { buildNotionIssueBody } from "./buildNotionIssueBody";
 import type { MarkdownContext } from "./buildIssueMarkdown";
+import { type InlineImageInput } from "./resolveInlineImages";
 import { sendBg } from "@/types/messages";
 import type {
   NotionCreatePageResult,
@@ -19,6 +20,7 @@ export interface NotionSubmitInput {
   images?: NotionFileInput[];
   video?: NotionFileInput;
   logs?: NotionFileInput[];
+  inlineImages?: InlineImageInput[];
   databaseId: string;
   titlePropertyName: string;
   statusOption?: { propertyName: string; optionName: string };
@@ -40,6 +42,21 @@ function guessMime(filename: string): string {
 export async function submitToNotion(
   input: NotionSubmitInput,
 ): Promise<NormalizedSubmitResult> {
+  const inlineImages = input.inlineImages ?? [];
+
+  // 1. inline image 업로드
+  const inlineUploaded: { refId: string; fileUploadId: string }[] = [];
+  for (const img of inlineImages) {
+    const res = await sendBg<NotionFileUploadResult>({
+      type: "notion.uploadFile",
+      filename: `inline-${img.refId}.webp`,
+      contentType: "image/webp",
+      dataUrl: img.dataUrl,
+    });
+    inlineUploaded.push({ refId: img.refId, fileUploadId: res.fileUploadId });
+  }
+
+  // 2. blocks 빌드
   const { blocks, attachments } = buildNotionIssueBody({
     ctx: input.ctx,
     images: input.images?.map((f) => ({
@@ -60,9 +77,10 @@ export async function submitToNotion(
       dataUrl: f.dataUrl,
       category: "log" as const,
     })),
+    inlineImageRefIds: inlineUploaded.map((iu) => iu.refId),
   });
 
-  // 직렬 업로드 — Notion rate limit (3 req/sec) 보호
+  // 3. 일반 첨부 업로드 — 직렬 (Notion rate limit 보호)
   const uploaded: { placeholderId: string; fileUploadId: string; filename: string; category: typeof attachments[number]["category"] }[] = [];
   for (const a of attachments) {
     const res = await sendBg<NotionFileUploadResult>({
@@ -79,7 +97,17 @@ export async function submitToNotion(
     });
   }
 
-  // AI/디버그 메타 마크다운 — 본문 인라인이 아니라 첨부 섹션의 file 블록으로 (Linear 패턴 차용).
+  // 4. inline uploads를 uploaded 배열에 추가
+  for (const iu of inlineUploaded) {
+    uploaded.push({
+      placeholderId: `inline-${iu.refId}`,
+      fileUploadId: iu.fileUploadId,
+      filename: `inline-${iu.refId}.webp`,
+      category: "image",
+    });
+  }
+
+  // 5. AI/디버그 메타 마크다운 — 본문 인라인이 아니라 첨부 file 블록으로
   const aiMeta = buildAiMetaAttachment(input.ctx);
   const aiMetaUploaded = await sendBg<NotionFileUploadResult>({
     type: "notion.uploadFile",

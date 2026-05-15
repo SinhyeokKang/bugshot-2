@@ -3,6 +3,7 @@ import {
   type LinearMediaInput,
 } from "./buildLinearIssueBody";
 import { buildAiMetaAttachment } from "./buildAiMetaAttachment";
+import { replaceInlineRefs, type InlineImageInput } from "./resolveInlineImages";
 import type { MarkdownContext } from "./buildIssueMarkdown";
 import { sendBg } from "@/types/messages";
 import type { LinearCreateIssueResult } from "@/types/linear";
@@ -18,6 +19,7 @@ export interface LinearSubmitInput {
   images?: LinearFileInput[];
   video?: LinearFileInput;
   logs?: LinearFileInput[];
+  inlineImages?: InlineImageInput[];
   teamId: string;
   projectId?: string;
   labelId?: string;
@@ -55,14 +57,42 @@ export async function submitToLinear(
   const logFiles = input.logs ?? [];
   const logPromises = logFiles.map((l) => uploadFile(l));
 
-  const [imageResults, videoResult, ...logResults] = await Promise.all([
+  const [imageResults, videoResult, logResults, inlineResults] = await Promise.all([
     Promise.all(uploadPromises),
     videoPromise,
-    ...logPromises,
+    Promise.all(logPromises),
+    Promise.all(
+      (input.inlineImages ?? []).map(async (img) => {
+        const result = await uploadFile({
+          filename: `inline-${img.refId}.webp`,
+          dataUrl: img.dataUrl,
+        });
+        return { refId: img.refId, assetUrl: result.assetUrl };
+      }),
+    ),
   ]);
 
+  let resolvedCtx = input.ctx;
+  if (inlineResults.length > 0) {
+    const refToUrl = new Map<string, string>();
+    for (const r of inlineResults) {
+      if (r.assetUrl) refToUrl.set(r.refId, r.assetUrl);
+    }
+    if (refToUrl.size > 0) {
+      resolvedCtx = {
+        ...input.ctx,
+        sections: Object.fromEntries(
+          Object.entries(input.ctx.sections).map(([k, v]) => [
+            k,
+            replaceInlineRefs(v, refToUrl),
+          ]),
+        ),
+      };
+    }
+  }
+
   const { body } = buildLinearIssueBody({
-    ctx: input.ctx,
+    ctx: resolvedCtx,
     images: imageResults,
     video: videoResult ?? undefined,
   });

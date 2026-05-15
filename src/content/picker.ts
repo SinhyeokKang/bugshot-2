@@ -261,7 +261,7 @@ chrome.runtime.onMessage.addListener(
           handleEndCapture();
           break;
         case "picker.startAreaSelect":
-          handleStartAreaSelect();
+          handleStartAreaSelect(msg.restoreAfter);
           break;
         case "picker.cancelAreaSelect":
           handleCancelAreaSelect();
@@ -677,7 +677,15 @@ function handleSelectByPath(selector: string): void {
 
 /* ── Area Select ─────────────────────────────────── */
 
-function handleStartAreaSelect(): void {
+function restoreSelected(): void {
+  if (areaHandle) {
+    cancelAreaSelect(areaHandle);
+    areaHandle = null;
+  }
+  setMode("selected");
+}
+
+function handleStartAreaSelect(restoreAfter?: boolean): void {
   if (!overlay) {
     removeOrphanOverlay();
     overlay = createOverlay();
@@ -685,6 +693,7 @@ function handleStartAreaSelect(): void {
   hideOutline(overlay);
   hideBanner(overlay);
   mode = "area-select";
+  const shouldRestore = restoreAfter === true && selectedEl !== null;
   areaHandle = startAreaSelect({
     shadow: overlay.shadow,
     onBlockerRequest(action) {
@@ -700,16 +709,24 @@ function handleStartAreaSelect(): void {
       chrome.runtime
         .sendMessage<PickerMessage>({ type: "picker.areaSelected", rect, viewport })
         .catch(() => {});
-      mode = "idle";
-      handleClear();
+      if (shouldRestore) {
+        restoreSelected();
+      } else {
+        mode = "idle";
+        handleClear();
+      }
     },
     onCancelled() {
       areaHandle = null;
       chrome.runtime
         .sendMessage<PickerMessage>({ type: "picker.cancelled" })
         .catch(() => {});
-      mode = "idle";
-      handleClear();
+      if (shouldRestore) {
+        restoreSelected();
+      } else {
+        mode = "idle";
+        handleClear();
+      }
     },
   });
   attachAreaBlockerListener(areaHandle, overlay.blockerEl);

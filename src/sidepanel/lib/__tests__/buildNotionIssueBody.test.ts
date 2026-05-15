@@ -71,6 +71,16 @@ describe("buildNotionIssueBody — block 변환", () => {
     );
   });
 
+  it("paragraph 섹션 마크다운 → rich_paragraph 변환", () => {
+    const out = buildNotionIssueBody({
+      ctx: makeCtx({ sections: { description: "**bold** text" } }),
+    });
+    const richParagraphs = out.blocks.filter((b) => b.type === "rich_paragraph");
+    expect(richParagraphs.length).toBeGreaterThanOrEqual(1);
+    const rt = (richParagraphs[0] as any).richText;
+    expect(rt.some((r: any) => r.annotations?.bold === true)).toBe(true);
+  });
+
   it("orderedList 섹션은 bulleted_list_item 다중", () => {
     const ctx = makeCtx({
       sections: { stepsToReproduce: "1\n2\n3" },
@@ -337,6 +347,62 @@ describe("buildNotionIssueBody — 미디어 분기", () => {
   });
 });
 
+describe("buildNotionIssueBody — freeform", () => {
+  it("freeform 모드 → image/video block 없음", () => {
+    const out = buildNotionIssueBody({
+      ctx: makeCtx({ captureMode: "freeform" as MarkdownContext["captureMode"], selector: "", diffs: [] }),
+    });
+    const imageBlocks = out.blocks.filter((b) => b.type === "image");
+    const videoBlocks = out.blocks.filter((b) => b.type === "video");
+    expect(imageBlocks).toHaveLength(0);
+    expect(videoBlocks).toHaveLength(0);
+    expect(out.attachments).toEqual([]);
+  });
+
+  it("freeform 모드 → 미디어 heading 없음", () => {
+    const out = buildNotionIssueBody({
+      ctx: makeCtx({ captureMode: "freeform" as MarkdownContext["captureMode"], selector: "", diffs: [] }),
+    });
+    const headings = out.blocks
+      .filter((b) => b.type === "heading_2")
+      .map((b) => ("text" in b ? b.text : ""));
+    expect(headings).not.toContain("md.section.styleChanges");
+    expect(headings).not.toContain("md.section.media");
+  });
+
+  it("freeform 모드 → DOM 미표시", () => {
+    const out = buildNotionIssueBody({
+      ctx: makeCtx({ captureMode: "freeform" as MarkdownContext["captureMode"], selector: "div.test" }),
+    });
+    const bullets = out.blocks.filter((b) => b.type === "bulleted_list_item");
+    expect(bullets.some((b) => "text" in b && b.text.startsWith("DOM:"))).toBe(false);
+  });
+
+  it("freeform 모드 → 환경 정보(Page, Viewport, Captured) 포함", () => {
+    const out = buildNotionIssueBody({
+      ctx: makeCtx({ captureMode: "freeform" as MarkdownContext["captureMode"], selector: "", diffs: [] }),
+    });
+    const bullets = out.blocks.filter((b) => b.type === "bulleted_list_item");
+    expect(bullets.some((b) => "text" in b && b.text.startsWith("Page:"))).toBe(true);
+    expect(bullets.some((b) => "text" in b && b.text.startsWith("Viewport:"))).toBe(true);
+  });
+
+  it("freeform 모드 + 로그 첨부 → attachments 큐에 log 카테고리", () => {
+    const out = buildNotionIssueBody({
+      ctx: makeCtx({ captureMode: "freeform" as MarkdownContext["captureMode"], selector: "", diffs: [] }),
+      logs: [
+        {
+          filename: "network-log.har",
+          contentType: "application/json",
+          dataUrl: "data:application/json;base64,YQ==",
+          category: "log",
+        },
+      ],
+    });
+    expect(out.attachments.find((a) => a.category === "log")).toBeDefined();
+  });
+});
+
 describe("buildNotionIssueBody — 로그 요약", () => {
   it("네트워크/콘솔 로그 요약은 code block", () => {
     const out = buildNotionIssueBody({
@@ -367,5 +433,59 @@ describe("buildNotionIssueBody — 로그 요약", () => {
       .join("\n");
     expect(allCodeText).toContain("GET /api/x → 500");
     expect(allCodeText).toContain("TypeError");
+  });
+});
+
+describe("buildNotionIssueBody — inline images", () => {
+  it("인라인 이미지가 해당 섹션 직후에 배치된다", () => {
+    const ctx = makeCtx({
+      sections: { description: "text ![](inline:abc123) more" },
+    });
+    const out = buildNotionIssueBody({
+      ctx,
+      inlineImageRefIds: ["abc123"],
+    });
+    const descHeadingIdx = out.blocks.findIndex(
+      (b) => b.type === "heading_2" && "text" in b && b.text === "md.section.description",
+    );
+    expect(descHeadingIdx).toBeGreaterThanOrEqual(0);
+    const nextHeadingIdx = out.blocks.findIndex(
+      (b, i) => i > descHeadingIdx && b.type === "heading_2",
+    );
+    const sectionBlocks = nextHeadingIdx === -1
+      ? out.blocks.slice(descHeadingIdx + 1)
+      : out.blocks.slice(descHeadingIdx + 1, nextHeadingIdx);
+    const imageBlock = sectionBlocks.find((b) => b.type === "image");
+    expect(imageBlock).toBeDefined();
+    expect(imageBlock!.type === "image" && imageBlock!.placeholderId).toBe("inline-abc123");
+  });
+
+  it("업로드되지 않은 refId는 image block을 만들지 않는다", () => {
+    const ctx = makeCtx({
+      sections: { description: "![](inline:notUploaded)" },
+    });
+    const out = buildNotionIssueBody({
+      ctx,
+      inlineImageRefIds: [],
+    });
+    const imageBlocks = out.blocks.filter((b) => b.type === "image");
+    expect(imageBlocks.length).toBe(0);
+  });
+
+  it("이미지만 있고 텍스트 없으면 noValue paragraph 생략", () => {
+    const ctx = makeCtx({
+      sections: { description: "![](inline:only)" },
+    });
+    const out = buildNotionIssueBody({
+      ctx,
+      inlineImageRefIds: ["only"],
+    });
+    const descHeadingIdx = out.blocks.findIndex(
+      (b) => b.type === "heading_2" && "text" in b && b.text === "md.section.description",
+    );
+    expect(out.blocks[descHeadingIdx + 1]).toMatchObject({
+      type: "image",
+      placeholderId: "inline-only",
+    });
   });
 });

@@ -81,7 +81,7 @@ export type PickerMessage =
   | { type: "picker.selectByPath"; selector: string }
   | { type: "picker.prepareCapture" }
   | { type: "picker.endCapture" }
-  | { type: "picker.startAreaSelect" }
+  | { type: "picker.startAreaSelect"; restoreAfter?: boolean }
   | { type: "picker.cancelAreaSelect" }
   | { type: "picker.selected"; payload: PickerSelectionPayload }
   | { type: "picker.selectionUpdated"; payload: PickerSelectionUpdatePayload }

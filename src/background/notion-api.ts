@@ -9,6 +9,7 @@ import type {
   NotionMyself,
   NotionPageStatus,
   NotionPropertySchema,
+  NotionRichText as NotionRichTextBlock,
 } from "@/types/notion";
 import { OAuthError } from "./oauth";
 
@@ -318,12 +319,30 @@ export async function uploadFile(
 
 interface NotionRichTextInput {
   type: "text";
-  text: { content: string };
+  text: { content: string; link?: { url: string } | null };
+  annotations?: {
+    bold?: boolean;
+    italic?: boolean;
+    strikethrough?: boolean;
+    code?: boolean;
+  };
 }
 
 function richText(content: string): NotionRichTextInput[] {
   if (!content) return [];
   return [{ type: "text", text: { content } }];
+}
+
+function expandRichText(items: NotionRichTextBlock[]): NotionRichTextInput[] {
+  return items.map((rt) => {
+    const entry: NotionRichTextInput = {
+      type: "text",
+      text: { content: rt.text.content },
+    };
+    if (rt.text.link) entry.text.link = rt.text.link;
+    if (rt.annotations) entry.annotations = rt.annotations;
+    return entry;
+  });
 }
 
 interface NotionBlockObject {
@@ -409,6 +428,32 @@ function expandBlock(
         },
       };
     }
+    case "rich_paragraph":
+      return {
+        object: "block",
+        type: "paragraph",
+        paragraph: { rich_text: expandRichText(block.richText) },
+      };
+    case "rich_bulleted_list_item":
+      return {
+        object: "block",
+        type: "bulleted_list_item",
+        bulleted_list_item: { rich_text: expandRichText(block.richText) },
+      };
+    case "rich_numbered_list_item":
+      return {
+        object: "block",
+        type: "numbered_list_item",
+        numbered_list_item: { rich_text: expandRichText(block.richText) },
+      };
+    case "divider":
+      return {
+        object: "block",
+        type: "divider",
+        divider: {},
+      };
+    default:
+      return null;
   }
 }
 

@@ -8,7 +8,7 @@ import { useIssuesStore } from "./issues-store";
 import { useSettingsStore } from "./settings-store";
 import { saveVideoBlob, saveImageBlob, saveNetworkLog, deleteNetworkLog, saveConsoleLog, deleteConsoleLog, dataUrlToBlob } from "./blob-db";
 
-export type CaptureMode = "element" | "screenshot" | "video";
+export type CaptureMode = "element" | "screenshot" | "video" | "freeform";
 
 export type EditorPhase =
   | "idle"
@@ -85,6 +85,8 @@ interface EditorState {
   videoThumbnail: string | null;
   videoViewport: { width: number; height: number } | null;
   videoCapturedAt: number | null;
+  freeformViewport: { width: number; height: number } | null;
+  freeformCapturedAt: number | null;
   networkLog: NetworkLog | null;
   networkLogAttach: boolean;
   consoleLog: ConsoleLog | null;
@@ -92,13 +94,18 @@ interface EditorState {
   aiStylingLoading: boolean;
   aiDraftLoading: boolean;
   submitResult: { key: string; url: string } | null;
+  inlineCaptureTarget: string | null;
   sessionExpired: boolean;
 
+  startInlineCapture: (sectionId: string) => void;
+  cancelInlineCapture: () => void;
+  appendInlineImage: (sectionId: string, refId: string) => void;
   setAiStylingLoading: (loading: boolean) => void;
   setAiDraftLoading: (loading: boolean) => void;
   startPicking: (target: EditorTarget, mode?: CaptureMode) => void;
   startCapturing: (target: EditorTarget) => void;
   startRecording: (target: EditorTarget) => void;
+  startFreeform: (target: EditorTarget) => void;
   onRecordingComplete: (blob: Blob, thumbnail: string, viewport: { width: number; height: number }) => void;
   cancelRecording: () => void;
   onAreaCaptured: (dataUrl: string, viewport: { width: number; height: number }) => void;
@@ -148,6 +155,8 @@ export type EditorSnapshot = Pick<
   | "videoThumbnail"
   | "videoViewport"
   | "videoCapturedAt"
+  | "freeformViewport"
+  | "freeformCapturedAt"
   | "networkLogAttach"
   | "consoleLogAttach"
   | "draft"
@@ -178,11 +187,14 @@ const initial = {
   videoThumbnail: null as string | null,
   videoViewport: null as { width: number; height: number } | null,
   videoCapturedAt: null as number | null,
+  freeformViewport: null as { width: number; height: number } | null,
+  freeformCapturedAt: null as number | null,
   networkLog: null as NetworkLog | null,
   networkLogAttach: false,
   consoleLog: null as ConsoleLog | null,
   consoleLogAttach: false,
   draft: null,
+  inlineCaptureTarget: null as string | null,
   issueFields: {} as EditorIssueFields,
   currentIssueId: null as string | null,
   aiStylingLoading: false,
@@ -240,6 +252,24 @@ async function persistAttachedLogs(
 export const useEditorStore = create<EditorState>((set, get) => ({
   ...initial,
 
+  startInlineCapture: (sectionId) => set({ inlineCaptureTarget: sectionId }),
+  cancelInlineCapture: () => set({ inlineCaptureTarget: null }),
+  appendInlineImage: (sectionId, refId) =>
+    set((s) => {
+      if (!s.draft) return {};
+      const prev = s.draft.sections[sectionId] ?? "";
+      const separator = prev === "" ? "" : "\n\n";
+      return {
+        draft: {
+          ...s.draft,
+          sections: {
+            ...s.draft.sections,
+            [sectionId]: `${prev}${separator}![](inline:${refId})`,
+          },
+        },
+      };
+    }),
+
   setAiStylingLoading: (loading) => set({ aiStylingLoading: loading }),
   setAiDraftLoading: (loading) => set({ aiDraftLoading: loading }),
 
@@ -257,6 +287,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       networkLog: prev.networkLog,
       consoleLog: prev.consoleLog,
     })),
+  startFreeform: (target) => set({ ...initial, captureMode: "freeform", phase: "drafting", target }),
   startRecording: (target) => set({ ...initial, captureMode: "video", phase: "recording", target }),
   onRecordingComplete: (blob, thumbnail, viewport) => set({ phase: "drafting", videoBlob: blob, videoThumbnail: thumbnail, videoViewport: viewport, videoCapturedAt: Date.now() }),
   cancelRecording: () => set({ ...initial }),
@@ -319,7 +350,30 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       }
     }
     const id = state.currentIssueId ?? newIssueId();
-    if (state.captureMode === "video") {
+    if (state.captureMode === "freeform") {
+      const logs = selectAttachedLogs(state);
+      useIssuesStore.getState().saveDraft({
+        id,
+        status: "draft",
+        platform: state.targetPlatform,
+        title: state.draft.title,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+        pageUrl: state.target.url,
+        pageTitle: state.target.title,
+        captureMode: "freeform",
+        viewport: state.freeformViewport ?? undefined,
+        draft: { ...state.draft },
+        snapshot: { before: false, after: false },
+        networkLogBlobKey: logs.networkLog ? id : undefined,
+        consoleLogBlobKey: logs.consoleLog ? id : undefined,
+      });
+      const targetTabId = state.target.tabId;
+      void (async () => {
+        const failed = await persistAttachedLogs(id, targetTabId, logs);
+        if (failed) onBlobSaveFailed.fire();
+      })();
+    } else if (state.captureMode === "video") {
       const logs = selectAttachedLogs(state);
       useIssuesStore.getState().saveDraft({
         id,

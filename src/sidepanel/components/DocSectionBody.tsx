@@ -1,9 +1,14 @@
+import { useState, useEffect, useRef, useMemo } from "react";
 import { useT } from "@/i18n";
 import type { IssueSection } from "@/store/settings-ui-store";
+import { getInlineImage } from "@/store/blob-db";
+import {
+  extractInlineRefs,
+  replaceInlineRefs,
+} from "@/sidepanel/lib/resolveInlineImages";
+import { renderMarkdown } from "@/sidepanel/lib/renderMarkdown";
+import "./doc-section-body.css";
 
-// 섹션 본문(저장된 markdown 평문)을 미리보기/검토 다이얼로그에 렌더링.
-// renderAs="orderedList" → 줄별 trim·빈 줄 skip 후 ol/li.
-// 그 외 → 원문 whitespace 보존 paragraph.
 export function DocSectionBody({
   section,
   value,
@@ -37,9 +42,62 @@ export function DocSectionBody({
     if (emptyVariant === "hide") return null;
     return <p className="text-sm text-muted-foreground/70">{t("common.empty")}</p>;
   }
+  return <MarkdownBody value={value} />;
+}
+
+function MarkdownBody({ value }: { value: string }) {
+  const [resolvedValue, setResolvedValue] = useState(value);
+  const prevBlobUrls = useRef<string[]>([]);
+
+  useEffect(() => {
+    const refs = extractInlineRefs(value);
+    if (refs.length === 0) {
+      for (const url of prevBlobUrls.current) URL.revokeObjectURL(url);
+      prevBlobUrls.current = [];
+      setResolvedValue(value);
+      return;
+    }
+
+    let cancelled = false;
+    const newBlobUrls: string[] = [];
+
+    (async () => {
+      const refToUrl = new Map<string, string>();
+      await Promise.all(
+        refs.map(async (refId) => {
+          const blob = await getInlineImage(refId);
+          if (!blob || cancelled) return;
+          const url = URL.createObjectURL(blob);
+          newBlobUrls.push(url);
+          refToUrl.set(refId, url);
+        }),
+      );
+      if (cancelled) {
+        for (const url of newBlobUrls) URL.revokeObjectURL(url);
+        return;
+      }
+      for (const url of prevBlobUrls.current) URL.revokeObjectURL(url);
+      prevBlobUrls.current = newBlobUrls;
+      setResolvedValue(replaceInlineRefs(value, refToUrl));
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [value]);
+
+  useEffect(() => {
+    return () => {
+      for (const url of prevBlobUrls.current) URL.revokeObjectURL(url);
+    };
+  }, []);
+
+  const html = useMemo(() => renderMarkdown(resolvedValue), [resolvedValue]);
+
   return (
-    <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">
-      {value}
-    </div>
+    <div
+      className="doc-section-body break-words text-sm leading-relaxed"
+      dangerouslySetInnerHTML={{ __html: html }}
+    />
   );
 }

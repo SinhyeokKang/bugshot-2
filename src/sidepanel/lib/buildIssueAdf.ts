@@ -4,11 +4,13 @@ import {
   sectionMdLabelKey,
   type IssueSection,
 } from "@/store/settings-ui-store";
-import { IMAGE_PLACEHOLDER, VIDEO_PLACEHOLDER } from "@/lib/adf-sentinels";
+import { IMAGE_PLACEHOLDER, VIDEO_PLACEHOLDER, inlineImagePlaceholder } from "@/lib/adf-sentinels";
 import { formatElementName } from "@/lib/element-label";
 import type { MarkdownContext } from "./buildIssueMarkdown";
 import type { NetworkLogSummary, ConsoleLogSummary } from "./buildLogSummary";
 import { formatTimestamp } from "./formatTimestamp";
+import { markdownToAdf } from "./markdownToAdf";
+import { extractInlineRefs, stripInlineImageRefs } from "./resolveInlineImages";
 
 interface AdfNode {
   type: string;
@@ -35,39 +37,41 @@ function listItems(content: string): string[] {
     .filter(Boolean);
 }
 
-export function buildIssueAdf(ctx: MarkdownContext): AdfDoc {
+export function buildIssueAdf(ctx: MarkdownContext, inlineImageRefIds?: string[]): AdfDoc {
   const content: AdfNode[] = [];
+  const uploadedRefSet = new Set(inlineImageRefIds ?? []);
   const isVideo = ctx.captureMode === "video";
   const isScreenshot = ctx.captureMode === "screenshot";
+  const isFreeform = ctx.captureMode === "freeform";
 
   content.push(heading(2, t("md.section.env")));
-  if (isVideo || isScreenshot) {
-    content.push(
-      bulletList([
-        keyValueItem("Page", ctx.url),
-        keyValueItem("Viewport", `${ctx.viewport.width}×${ctx.viewport.height}`),
-        keyValueItem("Captured", formatTimestamp(ctx.capturedAt)),
-      ]),
-    );
+  if (isVideo || isScreenshot || isFreeform) {
+    const envItems = [keyValueItem("Page", ctx.url)];
+    if (ctx.viewport) {
+      envItems.push(keyValueItem("Viewport", `${ctx.viewport.width}×${ctx.viewport.height}`));
+    }
+    envItems.push(keyValueItem("Captured", formatTimestamp(ctx.capturedAt)));
+    content.push(bulletList(envItems));
   } else {
     const domLabel = ctx.tagName
       ? formatElementName({ tag: ctx.tagName, classList: ctx.classListBefore })
       : "";
-    content.push(
-      bulletList([
-        keyValueItem("Page", ctx.url),
-        ...(domLabel ? [keyValueItem("DOM", domLabel)] : []),
-        keyValueItem("Viewport", `${ctx.viewport.width}×${ctx.viewport.height}`),
-        keyValueItem("Captured", formatTimestamp(ctx.capturedAt)),
-      ]),
-    );
+    const elemItems = [
+      keyValueItem("Page", ctx.url),
+      ...(domLabel ? [keyValueItem("DOM", domLabel)] : []),
+      ...(ctx.viewport ? [keyValueItem("Viewport", `${ctx.viewport.width}×${ctx.viewport.height}`)] : []),
+      keyValueItem("Captured", formatTimestamp(ctx.capturedAt)),
+    ];
+    content.push(bulletList(elemItems));
   }
 
   let mediaEmitted = false;
   const emitMedia = () => {
     if (mediaEmitted) return;
     mediaEmitted = true;
-    if (isVideo) {
+    if (isFreeform) {
+      // no media section
+    } else if (isVideo) {
       content.push(heading(2, t("md.section.media")));
       content.push(paragraph([textNode(VIDEO_PLACEHOLDER)]));
     } else if (isScreenshot) {
@@ -100,7 +104,14 @@ export function buildIssueAdf(ctx: MarkdownContext): AdfDoc {
         content.push(orderedList(items.map((it) => listItem([paragraph([textNode(it)])]))));
       }
     } else {
-      content.push(...textBlock(raw));
+      const sectionRefs = extractInlineRefs(raw).filter((r) => uploadedRefSet.has(r));
+      const processed = sectionRefs.length > 0 ? stripInlineImageRefs(raw) : raw;
+      if (processed.trim() || sectionRefs.length === 0) {
+        content.push(...markdownToAdf(processed));
+      }
+      for (const refId of sectionRefs) {
+        content.push(paragraph([textNode(inlineImagePlaceholder(refId))]));
+      }
     }
   }
 
@@ -145,25 +156,6 @@ function textNode(value: string): AdfNode {
 
 function strongTextNode(value: string): AdfNode {
   return { type: "text", text: value, marks: [{ type: "strong" }] };
-}
-
-function hardBreak(): AdfNode {
-  return { type: "hardBreak" };
-}
-
-function textBlock(raw: string): AdfNode[] {
-  const trimmed = raw.trim();
-  if (!trimmed) return [paragraph([textNode(t("md.noValue"))])];
-  const paragraphs = trimmed.split(/\n\s*\n/);
-  return paragraphs.map((p) => {
-    const lines = p.split(/\n/);
-    const inline: AdfNode[] = [];
-    lines.forEach((line, idx) => {
-      if (line) inline.push(textNode(line));
-      if (idx < lines.length - 1) inline.push(hardBreak());
-    });
-    return paragraph(inline.length > 0 ? inline : [textNode("")]);
-  });
 }
 
 function bulletList(items: AdfNode[]): AdfNode {

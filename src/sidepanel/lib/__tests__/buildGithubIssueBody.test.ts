@@ -150,6 +150,46 @@ describe("buildGithubIssueBody — 구조", () => {
   });
 });
 
+describe("buildGithubIssueBody — freeform", () => {
+  it("freeform 모드 → 미디어 섹션 없음, 첨부 없음", () => {
+    const out = buildGithubIssueBody({
+      ctx: makeCtx({ captureMode: "freeform" as MarkdownContext["captureMode"], selector: "", diffs: [] }),
+    });
+    expect(out.body).not.toContain("md.section.media");
+    expect(out.body).not.toContain("md.section.styleChanges");
+    expect(out.body).not.toContain("md.imageAttached");
+    expect(out.body).not.toContain("md.videoAttached");
+    expect(out.attached).toEqual([]);
+  });
+
+  it("freeform 모드 → DOM 미표시", () => {
+    const out = buildGithubIssueBody({
+      ctx: makeCtx({ captureMode: "freeform" as MarkdownContext["captureMode"], selector: "div.test" }),
+    });
+    expect(out.body).not.toContain("**DOM**");
+  });
+
+  it("freeform 모드 → 환경 정보(Page, Viewport, Captured) 포함", () => {
+    const out = buildGithubIssueBody({
+      ctx: makeCtx({ captureMode: "freeform" as MarkdownContext["captureMode"], selector: "", diffs: [] }),
+    });
+    expect(out.body).toContain("**Page**: https://example.com");
+    expect(out.body).toContain("**Viewport**:");
+    expect(out.body).toContain("**Captured**:");
+  });
+
+  it("freeform 모드 + 로그 첨부 → 첨부 섹션에 표시", () => {
+    const out = buildGithubIssueBody({
+      ctx: makeCtx({ captureMode: "freeform" as MarkdownContext["captureMode"], selector: "", diffs: [] }),
+      logs: [
+        { filename: "console-log.json", contentType: "application/json" },
+      ],
+    });
+    expect(out.attached).toEqual(["console-log.json"]);
+    expect(out.body).toContain("`console-log.json`");
+  });
+});
+
 describe("buildGithubIssueBody — URL 인라인", () => {
   it("screenshot 모드 — url이 있으면 미디어 섹션에 인라인", () => {
     const input: GithubBuildInput = {

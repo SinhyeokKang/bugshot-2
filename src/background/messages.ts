@@ -1,5 +1,5 @@
 import { t } from "@/i18n";
-import { IMAGE_PLACEHOLDER, VIDEO_PLACEHOLDER } from "@/lib/adf-sentinels";
+import { IMAGE_PLACEHOLDER, VIDEO_PLACEHOLDER, parseInlinePlaceholder } from "@/lib/adf-sentinels";
 import type { JiraAttachmentInput, JiraAuth, JiraSubmitResult } from "@/types/jira";
 import type { GithubAuth } from "@/types/github";
 import type { BgRequest } from "@/types/messages";
@@ -412,6 +412,25 @@ async function submitIssue(
           }
         }
       }
+
+      for (let i = 0; i < content.length; i++) {
+        const node = content[i] as { type: string; content?: { text?: string }[] };
+        if (node.type !== "paragraph" || !node.content?.[0]?.text) continue;
+        const refId = parseInlinePlaceholder(node.content[0].text);
+        if (!refId) continue;
+        const file = uploadMap.get(`inline-${refId}.webp`);
+        if (!file) continue;
+        const mediaNode =
+          file.kind === "media"
+            ? { type: "media", attrs: { type: "file", id: file.mediaId, collection: "" } }
+            : { type: "media", attrs: { type: "external", url: file.url } };
+        content[i] = {
+          type: "mediaSingle",
+          attrs: { layout: "center" },
+          content: [mediaNode],
+        };
+      }
+
       await updateIssueDescription(auth, issue.key, {
         version: 1,
         type: "doc",

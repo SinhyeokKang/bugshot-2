@@ -57,7 +57,7 @@ export function AiDraftDialog({
       const store = useEditorStore.getState();
       const settingsUi = useSettingsUiStore.getState();
       const { titlePrefix } = useSettingsStore.getState();
-      const captureMode = store.captureMode as "screenshot" | "video";
+      const captureMode = store.captureMode as "screenshot" | "video" | "freeform";
       const enabledSections = settingsUi.issueSections
         .filter((s) => s.enabled)
         .map((s) => ({ id: s.id }));
@@ -66,17 +66,18 @@ export function AiDraftDialog({
       if (!sessionRef.current) {
         const networkLog = store.networkLog;
         const consoleLog = store.consoleLog;
+        const includeLogCtx = captureMode === "video" || captureMode === "freeform";
         const systemPrompt = buildAiDraftSessionPrompt({
           captureMode,
           locale: settingsUi.locale,
           url: store.target?.url ?? "",
           pageTitle: store.target?.title ?? "",
           networkLogSummary:
-            captureMode === "video" && networkLog && networkLog.captured > 0
+            includeLogCtx && networkLog && networkLog.captured > 0
               ? buildNetworkLogSummary(networkLog)
               : undefined,
           consoleLogSummary:
-            captureMode === "video" && consoleLog && consoleLog.captured > 0
+            includeLogCtx && consoleLog && consoleLog.captured > 0
               ? buildConsoleLogSummary(consoleLog)
               : undefined,
           enabledSections,

@@ -123,6 +123,50 @@ describe("buildLinearIssueBody — 인라인 미디어", () => {
   });
 });
 
+describe("buildLinearIssueBody — freeform", () => {
+  it("freeform 모드 → 미디어 섹션 없음", () => {
+    const out = buildLinearIssueBody({
+      ctx: makeCtx({ captureMode: "freeform" as MarkdownContext["captureMode"], selector: "", diffs: [] }),
+    });
+    expect(out.body).not.toContain("md.section.media");
+    expect(out.body).not.toContain("md.section.styleChanges");
+    expect(out.body).not.toContain("md.imageAttached");
+    expect(out.body).not.toContain("md.videoAttached");
+  });
+
+  it("freeform 모드 → DOM 미표시", () => {
+    const out = buildLinearIssueBody({
+      ctx: makeCtx({ captureMode: "freeform" as MarkdownContext["captureMode"], selector: "div.test" }),
+    });
+    expect(out.body).not.toContain("**DOM**");
+  });
+
+  it("freeform 모드 → 환경 정보(Page, Viewport, Captured) 포함", () => {
+    const out = buildLinearIssueBody({
+      ctx: makeCtx({ captureMode: "freeform" as MarkdownContext["captureMode"], selector: "", diffs: [] }),
+    });
+    expect(out.body).toContain("**Page**: https://example.com");
+    expect(out.body).toContain("**Viewport**:");
+    expect(out.body).toContain("**Captured**:");
+  });
+
+  it("freeform 모드 → 네트워크 로그 요약 포함", () => {
+    const out = buildLinearIssueBody({
+      ctx: makeCtx({
+        captureMode: "freeform" as MarkdownContext["captureMode"],
+        selector: "",
+        diffs: [],
+        networkLogSummary: {
+          captured: 8,
+          errors: [{ method: "PUT", path: "/api/update", status: 403, statusText: "Forbidden" }],
+        },
+      }),
+    });
+    expect(out.body).toContain("logSummary.network.title");
+    expect(out.body).toContain("PUT /api/update → 403 Forbidden");
+  });
+});
+
 describe("buildLinearIssueBody — 구조", () => {
   it("env 헤더 포함, title은 본문에 미포함", () => {
     const out = buildLinearIssueBody({ ctx: makeCtx() });

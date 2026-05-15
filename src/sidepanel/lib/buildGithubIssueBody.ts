@@ -64,14 +64,17 @@ export function buildGithubIssueBody(
 
   lines.push(`## ${t("md.section.env")}`, "");
   lines.push(`- **Page**: ${ctx.url}`);
-  if (ctx.captureMode !== "screenshot" && ctx.captureMode !== "video" && ctx.selector) {
+  if (ctx.captureMode !== "screenshot" && ctx.captureMode !== "video" && ctx.captureMode !== "freeform" && ctx.selector) {
     lines.push(`- **DOM**: ${ctx.selector}`);
   }
-  lines.push(`- **Viewport**: ${ctx.viewport.width}×${ctx.viewport.height}`);
+  if (ctx.viewport) {
+    lines.push(`- **Viewport**: ${ctx.viewport.width}×${ctx.viewport.height}`);
+  }
   lines.push(`- **Captured**: ${formatTimestamp(ctx.capturedAt)}`);
   lines.push("");
 
-  const isElement = ctx.captureMode !== "video" && ctx.captureMode !== "screenshot";
+  const isFreeform = ctx.captureMode === "freeform";
+  const isElement = ctx.captureMode !== "video" && ctx.captureMode !== "screenshot" && !isFreeform;
   const isVideo = ctx.captureMode === "video";
   const mediaHandled = new Set<string>();
 
@@ -80,7 +83,9 @@ export function buildGithubIssueBody(
     if (mediaEmitted) return;
     mediaEmitted = true;
 
-    if (isElement) {
+    if (isFreeform) {
+      // no media section
+    } else if (isElement) {
       const before = images.find((i) => i.filename.startsWith("before"));
       const after = images.find((i) => i.filename.startsWith("after"));
       const hasSnapshots = !!(before?.url || after?.url);

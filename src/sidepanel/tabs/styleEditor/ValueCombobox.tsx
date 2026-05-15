@@ -189,7 +189,7 @@ export function ValueCombobox({
         <button
           type="button"
           className={cn(
-            "flex h-9 w-full items-center rounded-md border px-2 text-sm outline-none transition-colors hover:bg-muted/50 focus-visible:ring-1 focus-visible:ring-ring",
+            "flex h-9 w-full items-center rounded-md border px-2 text-sm outline-none transition-colors hover:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring",
             compact && "px-1.5 gap-1",
           )}
           title={buildTriggerTitle({

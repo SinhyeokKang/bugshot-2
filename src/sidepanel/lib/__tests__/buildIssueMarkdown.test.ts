@@ -149,6 +149,99 @@ describe("buildIssueMarkdown", () => {
   });
 });
 
+describe("buildIssueMarkdown — freeform", () => {
+  const freeformCtx = (overrides: Partial<MarkdownContext> = {}) =>
+    makeCtx({
+      captureMode: "freeform" as MarkdownContext["captureMode"],
+      selector: "",
+      diffs: [],
+      ...overrides,
+    });
+
+  it("freeform 모드 → 미디어 섹션 없음 (스타일 테이블·이미지·비디오 모두 미출력)", () => {
+    const md = buildIssueMarkdown(freeformCtx());
+    expect(md).not.toContain("md.section.styleChanges");
+    expect(md).not.toContain("md.section.media");
+    expect(md).not.toContain("md.imageAttached");
+    expect(md).not.toContain("md.videoAttached");
+  });
+
+  it("freeform 모드 → DOM 생략", () => {
+    const md = buildIssueMarkdown(freeformCtx());
+    expect(md).not.toContain("**DOM**");
+  });
+
+  it("freeform 모드 → viewport null이면 Viewport 줄 생략", () => {
+    const md = buildIssueMarkdown(
+      freeformCtx({ viewport: null as any }),
+    );
+    expect(md).not.toContain("**Viewport**");
+  });
+
+  it("freeform 모드 → viewport 있으면 Viewport 줄 포함", () => {
+    const md = buildIssueMarkdown(freeformCtx());
+    expect(md).toContain("1920×1080");
+  });
+
+  it("freeform 모드 → 환경 정보(Page, Captured) 정상 포함", () => {
+    const md = buildIssueMarkdown(freeformCtx());
+    expect(md).toContain("https://example.com/page");
+    expect(md).toContain("**Captured**");
+  });
+
+  it("freeform 모드 → 네트워크 로그 요약 포함", () => {
+    const md = buildIssueMarkdown(
+      freeformCtx({
+        networkLogSummary: {
+          captured: 5,
+          errors: [{ method: "POST", path: "/api/submit", status: 502, statusText: "Bad Gateway" }],
+        },
+      }),
+    );
+    expect(md).toContain("logSummary.network.title");
+    expect(md).toContain("POST /api/submit → 502 Bad Gateway");
+  });
+
+  it("freeform 모드 → meta comment에 selector/tagName 미포함", () => {
+    const md = buildIssueMarkdown(freeformCtx());
+    expect(md).toContain("<!-- bugshot-meta-for-ai");
+    const metaStart = md.indexOf("<!-- bugshot-meta-for-ai");
+    const metaEnd = md.indexOf("-->", metaStart);
+    const metaBlock = md.slice(metaStart, metaEnd);
+    expect(metaBlock).not.toContain('"selector"');
+  });
+});
+
+describe("buildIssueHtml — freeform", () => {
+  const freeformCtx = (overrides: Partial<MarkdownContext> = {}) =>
+    makeCtx({
+      captureMode: "freeform" as MarkdownContext["captureMode"],
+      selector: "",
+      diffs: [],
+      ...overrides,
+    });
+
+  it("freeform 모드 → 미디어 섹션 없음", () => {
+    const html = buildIssueHtml(freeformCtx());
+    expect(html).not.toContain("md.section.styleChanges");
+    expect(html).not.toContain("md.section.media");
+    expect(html).not.toContain("md.imageAttached");
+    expect(html).not.toContain("md.videoAttached");
+  });
+
+  it("freeform 모드 → DOM 생략", () => {
+    const html = buildIssueHtml(freeformCtx());
+    expect(html).not.toContain("<strong>DOM</strong>");
+  });
+
+  it("freeform 모드 → viewport null이면 Viewport 줄 생략", () => {
+    const html = buildIssueHtml(
+      freeformCtx({ viewport: null as any }),
+    );
+    expect(html).not.toContain("Viewport");
+  });
+});
+
 describe("buildIssueHtml", () => {
   it("HTML 태그 포함", () => {
     const html = buildIssueHtml(makeCtx());
@@ -167,5 +260,18 @@ describe("buildIssueHtml", () => {
     const html = buildIssueHtml(makeCtx());
     expect(html).toContain("<ol>");
     expect(html).toContain("<li>");
+  });
+
+  it("paragraph 섹션 마크다운 → HTML 렌더링", () => {
+    const html = buildIssueHtml(
+      makeCtx({ sections: { description: "**bold** and *italic*" } }),
+    );
+    expect(html).toContain("<strong>bold</strong>");
+    expect(html).toContain("<em>italic</em>");
+  });
+
+  it("paragraph 섹션 빈 값 → noValue", () => {
+    const html = buildIssueHtml(makeCtx({ sections: {} }));
+    expect(html).toContain("md.noValue");
   });
 });

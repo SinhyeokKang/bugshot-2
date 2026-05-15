@@ -7,9 +7,10 @@ import {
 import type { StyleDiffRow } from "../components/StyleChangesTable";
 import type { NetworkLogSummary, ConsoleLogSummary } from "./buildLogSummary";
 import { formatTimestamp } from "./formatTimestamp";
+import { renderMarkdown } from "./renderMarkdown";
 
 export interface MarkdownContext {
-  captureMode?: "element" | "screenshot" | "video";
+  captureMode?: "element" | "screenshot" | "video" | "freeform";
   title: string;
   sections: Record<string, string>;
   sectionConfig: IssueSection[];
@@ -20,7 +21,7 @@ export interface MarkdownContext {
   classListAfter: string[];
   specifiedStyles: Record<string, string>;
   tokens: { name: string; value: string }[];
-  viewport: { width: number; height: number };
+  viewport: { width: number; height: number } | null;
   capturedAt: number;
   diffs: StyleDiffRow[];
   networkLogSummary?: NetworkLogSummary;
@@ -57,10 +58,12 @@ export function buildIssueMarkdown(ctx: MarkdownContext): string {
   lines.push(`## ${t("md.section.env")}`);
   lines.push("");
   lines.push(`- **Page**: ${ctx.url}`);
-  if (ctx.captureMode !== "screenshot" && ctx.captureMode !== "video" && ctx.selector) {
+  if (ctx.captureMode !== "screenshot" && ctx.captureMode !== "video" && ctx.captureMode !== "freeform" && ctx.selector) {
     lines.push(`- **DOM**: ${ctx.selector}`);
   }
-  lines.push(`- **Viewport**: ${ctx.viewport.width}×${ctx.viewport.height}`);
+  if (ctx.viewport) {
+    lines.push(`- **Viewport**: ${ctx.viewport.width}×${ctx.viewport.height}`);
+  }
   lines.push(`- **Captured**: ${formatTimestamp(ctx.capturedAt)}`);
   lines.push("");
 
@@ -68,7 +71,9 @@ export function buildIssueMarkdown(ctx: MarkdownContext): string {
   const emitMedia = () => {
     if (mediaEmitted) return;
     mediaEmitted = true;
-    if (ctx.captureMode === "video") {
+    if (ctx.captureMode === "freeform") {
+      // no media section
+    } else if (ctx.captureMode === "video") {
       lines.push(`## ${t("md.section.media")}`);
       lines.push("");
       lines.push(t("md.videoAttached"));
@@ -135,12 +140,14 @@ export function buildIssueHtml(ctx: MarkdownContext): string {
   parts.push(`<h2>${t("md.section.env")}</h2>`);
   parts.push(`<ul>`);
   parts.push(`<li><strong>Page</strong>: ${escapeHtml(ctx.url)}</li>`);
-  if (ctx.captureMode !== "screenshot" && ctx.captureMode !== "video" && ctx.selector) {
+  if (ctx.captureMode !== "screenshot" && ctx.captureMode !== "video" && ctx.captureMode !== "freeform" && ctx.selector) {
     parts.push(`<li><strong>DOM</strong>: ${escapeHtml(ctx.selector)}</li>`);
   }
-  parts.push(
-    `<li><strong>Viewport</strong>: ${ctx.viewport.width}×${ctx.viewport.height}</li>`,
-  );
+  if (ctx.viewport) {
+    parts.push(
+      `<li><strong>Viewport</strong>: ${ctx.viewport.width}×${ctx.viewport.height}</li>`,
+    );
+  }
   parts.push(
     `<li><strong>Captured</strong>: ${escapeHtml(formatTimestamp(ctx.capturedAt))}</li>`,
   );
@@ -150,7 +157,9 @@ export function buildIssueHtml(ctx: MarkdownContext): string {
   const emitMedia = () => {
     if (mediaEmitted) return;
     mediaEmitted = true;
-    if (ctx.captureMode === "video") {
+    if (ctx.captureMode === "freeform") {
+      // no media section
+    } else if (ctx.captureMode === "video") {
       parts.push(`<h2>${t("md.section.media")}</h2>`);
       parts.push(`<p>${t("md.videoAttached")}</p>`);
     } else if (ctx.captureMode === "screenshot") {
@@ -192,7 +201,7 @@ export function buildIssueHtml(ctx: MarkdownContext): string {
     } else {
       parts.push(
         content.trim()
-          ? paragraphize(content)
+          ? renderMarkdown(content)
           : `<p>${escapeHtml(t("md.noValue"))}</p>`,
       );
     }
@@ -225,23 +234,25 @@ function footerHtml(): string {
 }
 
 function buildMetaComment(ctx: MarkdownContext): string {
-  const meta = {
+  const meta: Record<string, unknown> = {
     version: 1,
     url: ctx.url,
-    selector: ctx.selector,
-    tagName: ctx.tagName,
-    viewport: ctx.viewport,
     capturedAt: ctx.capturedAt,
-    classListBefore: ctx.classListBefore,
-    classListAfter: ctx.classListAfter,
-    specifiedStyles: ctx.specifiedStyles,
-    cssChanges: ctx.diffs.map((d) => ({
+  };
+  if (ctx.viewport) meta.viewport = ctx.viewport;
+  if (ctx.captureMode !== "freeform") {
+    meta.selector = ctx.selector;
+    meta.tagName = ctx.tagName;
+    meta.classListBefore = ctx.classListBefore;
+    meta.classListAfter = ctx.classListAfter;
+    meta.specifiedStyles = ctx.specifiedStyles;
+    meta.cssChanges = ctx.diffs.map((d) => ({
       property: d.prop,
       from: d.asIs,
       to: d.toBe,
-    })),
-    tokens: ctx.tokens,
-  };
+    }));
+    meta.tokens = ctx.tokens;
+  }
   return `<!-- bugshot-meta-for-ai\n${JSON.stringify(meta, null, 2)}\n-->`;
 }
 
@@ -255,17 +266,6 @@ function escapeHtml(value: string): string {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
-}
-
-function paragraphize(text: string): string {
-  if (!text.trim()) return "<p></p>";
-  return text
-    .split(/\n\s*\n/)
-    .map((p) => {
-      const lines = p.split(/\n/).map(escapeHtml).join("<br>");
-      return `<p>${lines}</p>`;
-    })
-    .join("\n");
 }
 
 function emitLogSummaryMd(lines: string[], ctx: MarkdownContext): void {

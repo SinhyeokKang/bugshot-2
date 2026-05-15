@@ -6,6 +6,7 @@ import {
   CircleCheck,
   Crosshair,
   ImageIcon,
+  PenLine,
   Video,
 } from "lucide-react";
 import { useT } from "@/i18n";
@@ -27,6 +28,7 @@ import {
   startAreaCapture,
   cancelAreaCapture,
   clearPicker,
+  startFreeformDraft,
   activateNetworkRecorder,
   activateConsoleRecorder,
   clearNetworkRecorder,
@@ -109,6 +111,7 @@ export function IssueTab() {
         onStartElement={() => void startPicker(tabId)}
         onStartScreenshot={() => void startAreaCapture(tabId)}
         onStartVideo={() => void handleStartVideo(tabId)}
+        onStartFreeform={() => void startFreeformDraft(tabId)}
       />
     );
   }
@@ -179,7 +182,7 @@ function isTabCaptureUnavailable(err: unknown): boolean {
   );
 }
 
-function EmptyState({ onStartElement, onStartScreenshot, onStartVideo }: { onStartElement: () => void; onStartScreenshot: () => void; onStartVideo: () => void }) {
+function EmptyState({ onStartElement, onStartScreenshot, onStartVideo, onStartFreeform }: { onStartElement: () => void; onStartScreenshot: () => void; onStartVideo: () => void; onStartFreeform: () => void }) {
   const t = useT();
   return (
     <PageShell>
@@ -202,6 +205,10 @@ function EmptyState({ onStartElement, onStartScreenshot, onStartVideo }: { onSta
           <Button variant="outline" onClick={onStartVideo}>
             <Video />
             {t("issue.mode.video")}
+          </Button>
+          <Button className="col-span-2" variant="outline" onClick={onStartFreeform}>
+            <PenLine />
+            {t("issue.mode.freeform")}
           </Button>
         </div>
       </div>

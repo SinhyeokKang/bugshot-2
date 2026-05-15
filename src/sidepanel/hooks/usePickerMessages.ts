@@ -6,7 +6,8 @@ import type { PickerMessage, ViewportRect } from "@/types/picker";
 import { onPickerIframeUnsupported } from "@/types/messages";
 import { captureElementSnapshot, loadImage } from "../capture";
 import { collectTokens } from "../picker-control";
-import { saveNetworkLog, saveConsoleLog } from "@/store/blob-db";
+import { saveNetworkLog, saveConsoleLog, saveInlineImage, dataUrlToBlob } from "@/store/blob-db";
+import { shouldCompact, compactImage } from "../lib/compactImage";
 
 export function usePickerMessages(myTabId: number | null): void {
   useEffect(() => {
@@ -67,13 +68,23 @@ export function usePickerMessages(myTabId: number | null): void {
         });
       } else if (message.type === "picker.areaSelected") {
         const msg = message as Extract<PickerMessage, { type: "picker.areaSelected" }>;
-        void captureAndCrop(msg.rect, msg.viewport);
-      } else if (message.type === "picker.cancelled") {
-        const { phase } = useEditorStore.getState();
-        if (phase === "capturing") {
-          useEditorStore.getState().reset();
+        const { inlineCaptureTarget } = useEditorStore.getState();
+        if (inlineCaptureTarget) {
+          void captureAndInsertInline(inlineCaptureTarget, msg.rect, msg.viewport);
         } else {
-          useEditorStore.getState().cancelPicking();
+          void captureAndCrop(msg.rect, msg.viewport);
+        }
+      } else if (message.type === "picker.cancelled") {
+        const { inlineCaptureTarget } = useEditorStore.getState();
+        if (inlineCaptureTarget) {
+          useEditorStore.getState().cancelInlineCapture();
+        } else {
+          const { phase } = useEditorStore.getState();
+          if (phase === "capturing") {
+            useEditorStore.getState().reset();
+          } else {
+            useEditorStore.getState().cancelPicking();
+          }
         }
       } else if (message.type === "picker.iframeUnsupported") {
         useEditorStore.getState().cancelPicking();
@@ -173,4 +184,41 @@ async function cropImage(
     rect.height,
   );
   return canvas.toDataURL("image/webp", 0.92);
+}
+
+async function captureAndInsertInline(
+  sectionId: string,
+  rect: ViewportRect,
+  _viewport: { width: number; height: number },
+): Promise<void> {
+  try {
+    const tabId = useEditorStore.getState().target?.tabId;
+    if (!tabId) return;
+    const tab = await chrome.tabs.get(tabId);
+    if (!tab.windowId) return;
+    const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, {
+      format: "png",
+    });
+    const dpr = window.devicePixelRatio || 1;
+    const cropped = await cropImage(dataUrl, {
+      x: rect.x * dpr,
+      y: rect.y * dpr,
+      width: rect.width * dpr,
+      height: rect.height * dpr,
+    });
+    let blob = dataUrlToBlob(cropped);
+    const bitmap = await createImageBitmap(blob);
+    if (shouldCompact(bitmap.width, blob.type)) {
+      blob = await compactImage(bitmap);
+    } else {
+      bitmap.close();
+    }
+    const refId = crypto.randomUUID().slice(0, 8);
+    await saveInlineImage(refId, blob);
+    useEditorStore.getState().appendInlineImage(sectionId, refId);
+  } catch (err) {
+    console.error("[bugshot] inline capture failed", err);
+  } finally {
+    useEditorStore.getState().cancelInlineCapture();
+  }
 }

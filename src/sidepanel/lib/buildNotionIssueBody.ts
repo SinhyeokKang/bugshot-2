@@ -12,6 +12,11 @@ import type {
 } from "@/types/notion";
 import type { MarkdownContext } from "./buildIssueMarkdown";
 import { formatTimestamp } from "./formatTimestamp";
+import { markdownToNotionBlocks } from "./markdownToNotionBlocks";
+import {
+  extractInlineRefs,
+  stripInlineImageRefs,
+} from "./resolveInlineImages";
 
 export interface NotionMediaInput {
   filename: string;
@@ -25,6 +30,7 @@ export interface NotionBuildInput {
   images?: NotionMediaInput[];
   video?: NotionMediaInput;
   logs?: NotionMediaInput[];
+  inlineImageRefIds?: string[];
 }
 
 export interface NotionBuildResult {
@@ -61,6 +67,7 @@ export function buildNotionIssueBody(
   const attachments: NotionAttachmentInput[] = [];
   const isVideo = ctx.captureMode === "video";
   const isScreenshot = ctx.captureMode === "screenshot";
+  const isFreeform = ctx.captureMode === "freeform";
   let placeholderCounter = 0;
   const nextPlaceholder = (prefix: string) =>
     `${prefix}-${placeholderCounter++}`;
@@ -82,7 +89,7 @@ export function buildNotionIssueBody(
   // 환경 섹션
   blocks.push({ type: "heading_2", text: t("md.section.env") });
   blocks.push({ type: "bulleted_list_item", text: `Page: ${ctx.url}` });
-  if (!isVideo && !isScreenshot) {
+  if (!isVideo && !isScreenshot && !isFreeform) {
     const domLabel = ctx.tagName
       ? formatElementName({ tag: ctx.tagName, classList: ctx.classListBefore })
       : "";
@@ -90,10 +97,12 @@ export function buildNotionIssueBody(
       blocks.push({ type: "bulleted_list_item", text: `DOM: ${domLabel}` });
     }
   }
-  blocks.push({
-    type: "bulleted_list_item",
-    text: `Viewport: ${ctx.viewport.width}×${ctx.viewport.height}`,
-  });
+  if (ctx.viewport) {
+    blocks.push({
+      type: "bulleted_list_item",
+      text: `Viewport: ${ctx.viewport.width}×${ctx.viewport.height}`,
+    });
+  }
   blocks.push({
     type: "bulleted_list_item",
     text: `Captured: ${formatTimestamp(ctx.capturedAt)}`,
@@ -104,7 +113,9 @@ export function buildNotionIssueBody(
     if (mediaEmitted) return;
     mediaEmitted = true;
 
-    if (isVideo) {
+    if (isFreeform) {
+      // no media section
+    } else if (isVideo) {
       blocks.push({ type: "heading_2", text: t("md.section.media") });
       if (video) {
         const cat = categorize(video, "video");
@@ -176,6 +187,8 @@ export function buildNotionIssueBody(
     }
   };
 
+  const uploadedRefSet = new Set(input.inlineImageRefIds ?? []);
+
   for (const section of ctx.sectionConfig) {
     if (!section.enabled) continue;
     if (POST_MEDIA_SECTION_IDS.has(section.id)) {
@@ -193,10 +206,16 @@ export function buildNotionIssueBody(
         }
       }
     } else {
-      blocks.push({
-        type: "paragraph",
-        text: content.trim() ? content : t("md.noValue"),
-      });
+      const sectionRefs = extractInlineRefs(content).filter((r) => uploadedRefSet.has(r));
+      const processed = sectionRefs.length > 0 ? stripInlineImageRefs(content) : content;
+      if (processed.trim()) {
+        blocks.push(...markdownToNotionBlocks(processed));
+      } else if (sectionRefs.length === 0) {
+        blocks.push({ type: "paragraph", text: t("md.noValue") });
+      }
+      for (const refId of sectionRefs) {
+        blocks.push({ type: "image", placeholderId: `inline-${refId}` });
+      }
     }
   }
 
