@@ -68,6 +68,7 @@ const ko = {
   "issue.mode.screenshot": "화면 캡처",
   "issue.mode.video": "영상 녹화",
   "issue.mode.freeform": "자유 작성",
+  "issue.startDraft": "이슈 작성",
   "issue.picking.title": "요소를 선택하세요",
   "issue.capturing.title": "캡처 영역을 선택하세요",
   "issue.recording.title": "녹화 중 {time}",

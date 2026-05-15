@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { PenLine } from "lucide-react";
+import { SquarePen } from "lucide-react";
 import { useT } from "@/i18n";
 import { Button } from "@/components/ui/button";
 import { useEditorStore } from "@/store/editor-store";
@@ -35,8 +35,8 @@ export function NetworkSubTab({ active, onStartFreeform }: { active: boolean; on
       <PageFooter>
         <div className="flex justify-end">
           <Button variant="outline" onClick={onStartFreeform}>
-            <PenLine />
-            {t("issue.mode.freeform")}
+            <SquarePen />
+            {t("issue.startDraft")}
           </Button>
         </div>
       </PageFooter>
