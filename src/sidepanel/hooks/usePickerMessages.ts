@@ -213,7 +213,7 @@ async function captureAndInsertInline(
     } else {
       bitmap.close();
     }
-    const refId = crypto.randomUUID();
+    const refId = crypto.randomUUID().slice(0, 8);
     await saveInlineImage(refId, blob);
     useEditorStore.getState().appendInlineImage(sectionId, refId);
   } catch (err) {

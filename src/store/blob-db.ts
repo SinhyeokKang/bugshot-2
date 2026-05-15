@@ -398,7 +398,7 @@ export async function clearInlineImages(): Promise<void> {
   }
 }
 
-const INLINE_REF_SCAN_RE = /!\[[^\]]*\]\(inline:([a-zA-Z0-9]+)\)/g;
+const INLINE_REF_SCAN_RE = /!\[[^\]]*\]\(inline:([a-zA-Z0-9-]+)\)/g;
 
 function scanInlineRefs(text: string, out: Set<string>): void {
   for (const m of text.matchAll(INLINE_REF_SCAN_RE)) out.add(m[1]);

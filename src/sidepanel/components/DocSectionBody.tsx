@@ -72,7 +72,10 @@ function MarkdownBody({ value }: { value: string }) {
           refToUrl.set(refId, url);
         }),
       );
-      if (cancelled) return;
+      if (cancelled) {
+        for (const url of newBlobUrls) URL.revokeObjectURL(url);
+        return;
+      }
       for (const url of prevBlobUrls.current) URL.revokeObjectURL(url);
       prevBlobUrls.current = newBlobUrls;
       setResolvedValue(replaceInlineRefs(value, refToUrl));
