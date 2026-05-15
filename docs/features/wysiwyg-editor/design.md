@@ -25,10 +25,10 @@
 |------|----------|
 | `package.json` | Tiptap 패키지 추가 |
 | `src/sidepanel/tabs/DraftingPanel.tsx` | `SectionTextarea`의 `<Textarea>` → `<TiptapEditor>` 교체 (renderAs="paragraph" 분기) |
-| `src/sidepanel/components/DocSectionBody.tsx` | paragraph 섹션의 `whitespace-pre-wrap` → markdown-it 렌더링 |
+| `src/sidepanel/components/DocSectionBody.tsx` | paragraph 섹션의 `whitespace-pre-wrap` → markdown-it 렌더링 (`html: false` 필수, `javascript:` 스킴 차단) |
 | `src/sidepanel/lib/buildIssueAdf.ts` | paragraph 섹션에서 `textBlock(raw)` → `markdownToAdf(raw)` 호출 |
 | `src/sidepanel/lib/buildNotionIssueBody.ts` | paragraph 섹션에서 plain text → `markdownToNotionBlocks(raw)` 호출 |
-| `src/sidepanel/lib/buildIssueMarkdown.ts` | `buildIssueHtml`의 `paragraphize()` → `markdownIt.render()` 교체 |
+| `src/sidepanel/lib/buildIssueMarkdown.ts` | `buildIssueHtml`(같은 파일 내)의 `paragraphize()` → `markdownIt.render()` 교체. `buildIssueMarkdown` 자체는 paragraph를 이미 pass-through하므로 변경 불필요. 클립보드 복사 시 `inline:refId`를 data URL로 치환하는 전처리 추가 |
 | `src/sidepanel/lib/buildGithubIssueBody.ts` | paragraph 섹션 emit 전 인라인 이미지 참조 해소 |
 | `src/sidepanel/lib/buildLinearIssueBody.ts` | paragraph 섹션 emit 전 인라인 이미지 참조 해소 |
 | `src/sidepanel/tabs/IssueCreateModal.tsx` | 제출 흐름에 `resolveInlineImages()` 단계 추가 |
@@ -86,6 +86,9 @@ interface TiptapEditorProps {
 - 변경: `editor.on('update')` → `editor.storage.markdown.getMarkdown()` → `onChange` 호출
 - 외부 값 변경 (AI 드래프트 등): `value` prop 변경 감지 → 에디터 콘텐츠 갱신. 내부/외부 변경 구분을 위해 ref 사용
 - 이미지: 커스텀 플러그인으로 `handleDrop`/`handlePaste` 인터셉트
+- 외관: shadcn/ui Textarea와 동일한 border/focus ring/text-sm. `min-h-32`(128px) 최소 높이 적용 (`[field-sizing:content]`는 contentEditable div에서 미작동 — ProseMirror 자체 높이 확장에 의존)
+- 접근성: `EditorContent` wrapper에 `aria-label={sectionLabel}` 추가하여 스크린리더 지원
+- 리스트 중첩: 2단까지 허용 (side panel ~400px 폭 제약). StarterKit의 `listItem` 확장에 중첩 깊이를 제한하거나 CSS로 indent 상한 적용
 
 ### Tiptap 확장 구성
 
@@ -131,11 +134,15 @@ const STORE_INLINE_IMAGES = "inlineImages";
 
 // DB_VERSION 4 → 5
 // onupgradeneeded에 inlineImages store 생성 추가
+// db.onversionchange = () => { db.close(); dbPromise = null; } 핸들러 추가
+// req.onblocked 핸들러 추가 (동시 연결 충돌 방지)
 
 export async function saveInlineImage(refId: string, blob: Blob): Promise<boolean>;
 export async function getInlineImage(refId: string): Promise<Blob | null>;
 export async function deleteInlineImages(refIds: string[]): Promise<void>;
 export async function getInlineImageKeys(): Promise<string[]>;
+export async function pruneOrphanInlineImages(activeRefIds: string[]): Promise<void>;
+// pruneOrphanInlineImages: 현재 sections의 inline:refId 목록과 비교하여 미참조 blob 정리
 ```
 
 키 형식: `inline-{crypto.randomUUID().slice(0,8)}` (예: `inline-a1b2c3d4`)
@@ -168,6 +175,8 @@ export async function resolveInlineImages(
 - `![...](inline:XYZ)` 패턴을 정규식으로 찾아 blob-db에서 로드
 - `blobToDataUrl()`로 변환
 - 반환: 인라인 참조가 data URL로 치환된 마크다운 + 이미지 목록
+- 정규식 파싱 로직(`extractInlineRefs`, `replaceInlineRefs`)은 순수 함수로 분리하여 단위 테스트 가능하게 구성. blob-db I/O는 통합 흐름(수동 테스트)으로 커버
+- 호출 위치: `IssueCreateModal`/`DraftDetailDialog`의 submit 핸들러에서 호출. `buildCtx()` 단계에 통합하는 것이 더 깔끔할 수 있으므로 구현 시 재검토
 
 ### markdownToAdf
 
@@ -279,3 +288,5 @@ export interface NotionRichText {
 7. **Side panel 폭 제약**: ~400px 폭에서 이미지가 과도하게 크지 않도록 `max-width: 100%` + 적절한 패딩 적용. 리스트 들여쓰기도 좁은 폭에서 자연스러운지 확인 필요.
 
 8. **Notion 리치텍스트 확장**: 기존 `NotionBlock`이 `{ type: "paragraph"; text: string }` 형태라 `notion-api.ts`의 블록→API 변환 코드에 리치텍스트 분기를 추가해야 한다. 기존 plain text 블록과의 하위 호환 유지 필수.
+
+9. **XSS 보안 (DocSectionBody)**: `markdown-it.render()` 결과를 `dangerouslySetInnerHTML`로 주입한다. `markdown-it` 인스턴스 생성 시 반드시 `{ html: false }` 설정하고, `linkify` 옵션 사용 시 `javascript:` 스킴을 차단해야 한다. 수동 테스트에 XSS 벡터(`<script>`, `<img onerror>`, `[link](javascript:alert(1))`) 검증 포함.
