@@ -39,6 +39,10 @@
   list-style-type: decimal;
 }
 
+.tiptap-editor .ProseMirror ol ol {
+  list-style-type: lower-alpha;
+}
+
 .tiptap-editor .ProseMirror li {
   margin: 0.125em 0;
 }
@@ -57,9 +61,13 @@
 }
 
 .tiptap-editor .ProseMirror a {
-  color: hsl(var(--primary));
+  color: hsl(217 91% 60%);
   text-decoration: underline;
   text-underline-offset: 2px;
+}
+
+:is(.dark) .tiptap-editor .ProseMirror a {
+  color: hsl(213 94% 68%);
 }
 
 .tiptap-editor .ProseMirror code {

@@ -20,6 +20,10 @@
   list-style-type: decimal;
 }
 
+.doc-section-body ol ol {
+  list-style-type: lower-alpha;
+}
+
 .doc-section-body li {
   margin: 0.125em 0;
 }
@@ -38,9 +42,13 @@
 }
 
 .doc-section-body a {
-  color: hsl(var(--primary));
+  color: hsl(217 91% 60%);
   text-decoration: underline;
   text-underline-offset: 2px;
+}
+
+:is(.dark) .doc-section-body a {
+  color: hsl(213 94% 68%);
 }
 
 .doc-section-body code {

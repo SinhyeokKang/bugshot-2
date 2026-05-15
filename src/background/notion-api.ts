@@ -337,8 +337,9 @@ function expandRichText(items: NotionRichTextBlock[]): NotionRichTextInput[] {
   return items.map((rt) => {
     const entry: NotionRichTextInput = {
       type: "text",
-      text: { content: rt.text.content, link: rt.text.link ?? null },
+      text: { content: rt.text.content },
     };
+    if (rt.text.link) entry.text.link = rt.text.link;
     if (rt.annotations) entry.annotations = rt.annotations;
     return entry;
   });
