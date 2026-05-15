@@ -417,7 +417,8 @@ async function collectAllActiveInlineRefs(): Promise<Set<string>> {
   } catch { /* session storage unavailable */ }
   try {
     const localData = await chrome.storage.local.get("bugshot-issues");
-    const store = localData["bugshot-issues"] as
+    const raw = localData["bugshot-issues"];
+    const store = (typeof raw === "string" ? JSON.parse(raw) : raw) as
       | { state?: { issues?: Array<{ draft?: { sections?: Record<string, string> } }> } }
       | undefined;
     if (store?.state?.issues) {
@@ -426,7 +427,7 @@ async function collectAllActiveInlineRefs(): Promise<Set<string>> {
         for (const text of Object.values(issue.draft.sections)) scanInlineRefs(text, refs);
       }
     }
-  } catch { /* local storage unavailable */ }
+  } catch { /* local storage unavailable or parse error */ }
   return refs;
 }
 
