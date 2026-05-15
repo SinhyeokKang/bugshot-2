@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { ImagePlus, Pencil, RotateCcw, Trash2, WandSparkles } from "lucide-react";
+import { Camera, ImageIcon, ImagePlus, Pencil, RotateCcw, Trash2, WandSparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -17,7 +17,7 @@ import { LlmQuotaError } from "../lib/ai-provider";
 import { useSettingsStore } from "@/store/settings-store";
 import { useBoundTabId } from "../hooks/useBoundTabId";
 import { useAI } from "../hooks/useAI";
-import { clearPicker } from "../picker-control";
+import { clearPicker, startInlineAreaCapture } from "../picker-control";
 import { CancelConfirmDialog } from "../components/CancelConfirmDialog";
 import { LogAttachmentCards } from "../components/LogAttachmentCards";
 import { NetworkLogPreviewDialog } from "../components/NetworkLogPreviewDialog";
@@ -79,6 +79,7 @@ export function DraftingPanel() {
   const [networkDialogOpen, setNetworkDialogOpen] = useState(false);
   const [consoleDialogOpen, setConsoleDialogOpen] = useState(false);
   const titlePrefix = useSettingsStore((s) => s.titlePrefix);
+  const inlineCaptureTarget = useEditorStore((s) => s.inlineCaptureTarget);
   const isElementMode = captureMode === "element";
   const isVideoMode = captureMode === "video";
   const screenshotImage = screenshotAnnotated ?? screenshotRaw;
@@ -275,75 +276,99 @@ export function DraftingPanel() {
           <div className="absolute inset-0 animate-shimmer bg-gradient-to-b from-transparent via-purple-400/10 to-transparent" />
         </div>
       )}
-      {aiError && (
-        <div className="absolute bottom-4 left-1/2 z-30 -translate-x-1/2 rounded-md bg-destructive/10 px-3 py-1.5 text-xs text-destructive shadow-sm">
-          {aiError}
-        </div>
-      )}
-      <PageScroll>
-        <Section title={t("section.issueTitle")}>
-          <Input
-            value={draft.title}
-            onChange={(e) => setDraft({ ...draft, title: e.target.value })}
-            onFocus={cursorToEnd}
-            placeholder={t("draft.titlePlaceholder")}
-          />
-        </Section>
-
-        {sectionNodes}
-      </PageScroll>
-      {aiStatus === "available" && (
-        <button
-          className="flex items-center justify-between rounded-t-lg bg-purple-100/80 px-3.5 py-2.5 text-purple-700 transition-colors hover:bg-purple-100 disabled:opacity-50 dark:bg-purple-950/50 dark:text-purple-300 dark:hover:bg-purple-900"
-          onClick={() => {
-            if (captureMode === "element") {
-              void handleAIDraft();
-            } else {
-              setAiDialogOpen(true);
-            }
-          }}
-          disabled={aiLoading || aiDraftLoading}
-        >
-          <span className="flex items-center gap-1.5">
-            <Badge variant="outline" className="font-normal border-purple-500 text-purple-600 dark:border-purple-400 dark:text-purple-300">{providerLabel ?? t("ai.badge.beta")}</Badge>
-            <span className="bg-gradient-to-r from-purple-500 to-indigo-500 bg-clip-text text-sm text-transparent dark:from-purple-300 dark:to-indigo-300">{t("draft.aiBanner")}</span>
-          </span>
-          <span className="flex items-center gap-1 bg-gradient-to-r from-indigo-500 to-purple-500 bg-clip-text text-sm font-medium text-transparent dark:from-indigo-300 dark:to-purple-300">
-            <WandSparkles className="h-4 w-4 text-purple-500 dark:text-purple-300" />
-            {t("draft.aiGenerate")}
-          </span>
-        </button>
-      )}
-      <PageFooter>
-        <div className="flex items-center justify-between gap-2">
-          <CancelConfirmDialog
-            onConfirm={() => {
-              setAnnotating(false);
-              reset();
-              if (tabId) void clearPicker(tabId);
-            }}
-          />
-          <div className="flex items-center gap-2">
-            {isElementMode ? (
-              <Button
-                variant="outline"
-                onClick={() => backToStyling()}
-              >
-                {t("common.back")}
-              </Button>
-            ) : null}
+      {inlineCaptureTarget ? (
+        <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 pb-5 text-center">
+          <div className="mb-3 rounded-full bg-muted p-3">
+            <ImageIcon className="h-6 w-6 text-muted-foreground" />
+          </div>
+          <h3 className="text-[18px] font-semibold">{t("issue.capturing.title")}</h3>
+          <div className="mt-4">
             <Button
+              variant="outline"
               onClick={() => {
-                setAnnotating(false);
-                confirmDraft();
+                useEditorStore.getState().cancelInlineCapture();
+                if (tabId) {
+                  chrome.tabs.sendMessage(tabId, { type: "picker.cancelAreaSelect" }).catch(() => {});
+                }
               }}
-              disabled={titleMissing || aiLoading || aiDraftLoading}
             >
-              {t("draft.preview")}
+              {t("common.cancel")}
             </Button>
           </div>
         </div>
-      </PageFooter>
+      ) : (
+        <>
+          {aiError && (
+            <div className="absolute bottom-4 left-1/2 z-30 -translate-x-1/2 rounded-md bg-destructive/10 px-3 py-1.5 text-xs text-destructive shadow-sm">
+              {aiError}
+            </div>
+          )}
+          <PageScroll>
+            <Section title={t("section.issueTitle")}>
+              <Input
+                value={draft.title}
+                onChange={(e) => setDraft({ ...draft, title: e.target.value })}
+                onFocus={cursorToEnd}
+                placeholder={t("draft.titlePlaceholder")}
+              />
+            </Section>
+
+            {sectionNodes}
+          </PageScroll>
+          {aiStatus === "available" && (
+            <button
+              className="flex items-center justify-between rounded-t-lg bg-purple-100/80 px-3.5 py-2.5 text-purple-700 transition-colors hover:bg-purple-100 disabled:opacity-50 dark:bg-purple-950/50 dark:text-purple-300 dark:hover:bg-purple-900"
+              onClick={() => {
+                if (captureMode === "element") {
+                  void handleAIDraft();
+                } else {
+                  setAiDialogOpen(true);
+                }
+              }}
+              disabled={aiLoading || aiDraftLoading}
+            >
+              <span className="flex items-center gap-1.5">
+                <Badge variant="outline" className="font-normal border-purple-500 text-purple-600 dark:border-purple-400 dark:text-purple-300">{providerLabel ?? t("ai.badge.beta")}</Badge>
+                <span className="bg-gradient-to-r from-purple-500 to-indigo-500 bg-clip-text text-sm text-transparent dark:from-purple-300 dark:to-indigo-300">{t("draft.aiBanner")}</span>
+              </span>
+              <span className="flex items-center gap-1 bg-gradient-to-r from-indigo-500 to-purple-500 bg-clip-text text-sm font-medium text-transparent dark:from-indigo-300 dark:to-purple-300">
+                <WandSparkles className="h-4 w-4 text-purple-500 dark:text-purple-300" />
+                {t("draft.aiGenerate")}
+              </span>
+            </button>
+          )}
+          <PageFooter>
+            <div className="flex items-center justify-between gap-2">
+              <CancelConfirmDialog
+                onConfirm={() => {
+                  setAnnotating(false);
+                  reset();
+                  if (tabId) void clearPicker(tabId);
+                }}
+              />
+              <div className="flex items-center gap-2">
+                {isElementMode ? (
+                  <Button
+                    variant="outline"
+                    onClick={() => backToStyling()}
+                  >
+                    {t("common.back")}
+                  </Button>
+                ) : null}
+                <Button
+                  onClick={() => {
+                    setAnnotating(false);
+                    confirmDraft();
+                  }}
+                  disabled={titleMissing || aiLoading || aiDraftLoading}
+                >
+                  {t("draft.preview")}
+                </Button>
+              </div>
+            </div>
+          </PageFooter>
+        </>
+      )}
       {networkLog && (
         <NetworkLogPreviewDialog
           open={networkDialogOpen}
@@ -402,6 +427,7 @@ function SectionTextarea({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const isParagraph = section.renderAs !== "orderedList";
+  const aiLoading = useEditorStore((s) => s.aiDraftLoading);
 
   return (
     <Section
@@ -422,6 +448,20 @@ function SectionTextarea({
                 e.target.value = "";
               }}
             />
+            <Button
+              size="icon"
+              variant="outline"
+              className="h-8 w-8 shrink-0"
+              title={t("draft.captureArea")}
+              disabled={aiLoading}
+              onClick={() => {
+                useEditorStore.getState().startInlineCapture(section.id);
+                const tabId = useEditorStore.getState().target?.tabId;
+                if (tabId) void startInlineAreaCapture(tabId);
+              }}
+            >
+              <Camera />
+            </Button>
             <Button
               size="icon"
               variant="outline"

@@ -147,6 +147,7 @@ const ko = {
   "draft.removeAnnotation": "주석 제거",
   "draft.editAnnotation": "주석 수정",
   "draft.addAnnotation": "주석 추가",
+  "draft.captureArea": "영역 캡처",
   "draft.addImage": "이미지 추가",
   "draft.aiGenerate": "AI 초안 작성",
   "draft.aiBanner": "AI로 초안을 작성해보세요",

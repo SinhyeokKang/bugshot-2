@@ -301,3 +301,114 @@ describe("confirmDraft screenshot — IIFE 사이드 이펙트", () => {
     expect(mockDeleteNetworkLog).not.toHaveBeenCalled();
   });
 });
+
+/* ------------------------------------------------------------------ */
+/*  인라인 캡처 상태 관리                                                  */
+/* ------------------------------------------------------------------ */
+
+describe("startInlineCapture", () => {
+  beforeEach(() => {
+    useEditorStore.setState(useEditorStore.getInitialState(), true);
+  });
+
+  it("sectionId를 설정한다", () => {
+    useEditorStore.getState().startInlineCapture("description");
+
+    expect(useEditorStore.getState().inlineCaptureTarget).toBe("description");
+  });
+
+  it("phase는 변경하지 않는다", () => {
+    useEditorStore.setState({ phase: "drafting" });
+
+    useEditorStore.getState().startInlineCapture("description");
+
+    expect(useEditorStore.getState().phase).toBe("drafting");
+  });
+});
+
+describe("cancelInlineCapture", () => {
+  beforeEach(() => {
+    useEditorStore.setState(useEditorStore.getInitialState(), true);
+  });
+
+  it("inlineCaptureTarget을 null로 초기화한다", () => {
+    useEditorStore.setState({ inlineCaptureTarget: "description" } as never);
+
+    useEditorStore.getState().cancelInlineCapture();
+
+    expect(useEditorStore.getState().inlineCaptureTarget).toBeNull();
+  });
+});
+
+describe("appendInlineImage", () => {
+  beforeEach(() => {
+    useEditorStore.setState(useEditorStore.getInitialState(), true);
+  });
+
+  it("빈 섹션에 이미지 ref를 추가한다", () => {
+    useEditorStore.setState({
+      draft: { title: "Bug", sections: { description: "" } },
+    });
+
+    useEditorStore.getState().appendInlineImage("description", "ref-1");
+
+    expect(useEditorStore.getState().draft!.sections.description).toBe(
+      "![](inline:ref-1)",
+    );
+  });
+
+  it("기존 텍스트 있는 섹션에 \\n\\n으로 구분하여 추가한다", () => {
+    useEditorStore.setState({
+      draft: { title: "Bug", sections: { description: "Some text here" } },
+    });
+
+    useEditorStore.getState().appendInlineImage("description", "ref-1");
+
+    expect(useEditorStore.getState().draft!.sections.description).toBe(
+      "Some text here\n\n![](inline:ref-1)",
+    );
+  });
+
+  it("줄바꿈으로 끝나는 섹션에서도 \\n\\n으로 구분한다", () => {
+    useEditorStore.setState({
+      draft: { title: "Bug", sections: { description: "Line one\n" } },
+    });
+
+    useEditorStore.getState().appendInlineImage("description", "ref-1");
+
+    expect(useEditorStore.getState().draft!.sections.description).toBe(
+      "Line one\n\n\n![](inline:ref-1)",
+    );
+  });
+
+  it("draft === null이면 상태 변경 없음", () => {
+    useEditorStore.setState({ draft: null });
+
+    useEditorStore.getState().appendInlineImage("description", "ref-1");
+
+    expect(useEditorStore.getState().draft).toBeNull();
+  });
+
+  it("연속 호출 시 각 이미지가 \\n\\n으로 구분된다", () => {
+    useEditorStore.setState({
+      draft: { title: "Bug", sections: { description: "" } },
+    });
+
+    useEditorStore.getState().appendInlineImage("description", "ref-1");
+    useEditorStore.getState().appendInlineImage("description", "ref-2");
+
+    expect(useEditorStore.getState().draft!.sections.description).toBe(
+      "![](inline:ref-1)\n\n![](inline:ref-2)",
+    );
+  });
+});
+
+describe("reset — inlineCaptureTarget 초기화", () => {
+  it("reset() 후 inlineCaptureTarget === null", () => {
+    useEditorStore.setState({ inlineCaptureTarget: "description" } as never);
+
+    useEditorStore.getState().reset();
+
+    expect(useEditorStore.getState().inlineCaptureTarget).toBeNull();
+  });
+});

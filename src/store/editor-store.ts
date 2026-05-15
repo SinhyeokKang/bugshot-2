@@ -94,8 +94,12 @@ interface EditorState {
   aiStylingLoading: boolean;
   aiDraftLoading: boolean;
   submitResult: { key: string; url: string } | null;
+  inlineCaptureTarget: string | null;
   sessionExpired: boolean;
 
+  startInlineCapture: (sectionId: string) => void;
+  cancelInlineCapture: () => void;
+  appendInlineImage: (sectionId: string, refId: string) => void;
   setAiStylingLoading: (loading: boolean) => void;
   setAiDraftLoading: (loading: boolean) => void;
   startPicking: (target: EditorTarget, mode?: CaptureMode) => void;
@@ -190,6 +194,7 @@ const initial = {
   consoleLog: null as ConsoleLog | null,
   consoleLogAttach: false,
   draft: null,
+  inlineCaptureTarget: null as string | null,
   issueFields: {} as EditorIssueFields,
   currentIssueId: null as string | null,
   aiStylingLoading: false,
@@ -246,6 +251,24 @@ async function persistAttachedLogs(
 
 export const useEditorStore = create<EditorState>((set, get) => ({
   ...initial,
+
+  startInlineCapture: (sectionId) => set({ inlineCaptureTarget: sectionId }),
+  cancelInlineCapture: () => set({ inlineCaptureTarget: null }),
+  appendInlineImage: (sectionId, refId) =>
+    set((s) => {
+      if (!s.draft) return {};
+      const prev = s.draft.sections[sectionId] ?? "";
+      const separator = prev === "" ? "" : "\n\n";
+      return {
+        draft: {
+          ...s.draft,
+          sections: {
+            ...s.draft.sections,
+            [sectionId]: `${prev}${separator}![](inline:${refId})`,
+          },
+        },
+      };
+    }),
 
   setAiStylingLoading: (loading) => set({ aiStylingLoading: loading }),
   setAiDraftLoading: (loading) => set({ aiDraftLoading: loading }),

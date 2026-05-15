@@ -239,6 +239,36 @@ export async function startAreaCapture(tabId: number): Promise<void> {
   }
 }
 
+export async function startInlineAreaCapture(tabId: number): Promise<void> {
+  let tab: chrome.tabs.Tab;
+  try {
+    tab = await chrome.tabs.get(tabId);
+  } catch {
+    useEditorStore.getState().cancelInlineCapture();
+    return;
+  }
+  if (!isSupportedUrl(tab.url)) {
+    onPickerUnavailable.fire();
+    useEditorStore.getState().cancelInlineCapture();
+    return;
+  }
+  const { captureMode } = useEditorStore.getState();
+  try {
+    await ensureContentScript(tabId);
+    await chrome.tabs.sendMessage<PickerMessage>(tabId, {
+      type: "picker.startAreaSelect",
+      restoreAfter: captureMode === "element",
+    });
+  } catch (err) {
+    if (err instanceof PickerUnavailableError) {
+      onPickerUnavailable.fire();
+    } else {
+      console.error("[bugshot] inline area capture start failed", err);
+    }
+    useEditorStore.getState().cancelInlineCapture();
+  }
+}
+
 export async function cancelAreaCapture(tabId: number): Promise<void> {
   await send(tabId, { type: "picker.cancelAreaSelect" });
   useEditorStore.getState().reset();
