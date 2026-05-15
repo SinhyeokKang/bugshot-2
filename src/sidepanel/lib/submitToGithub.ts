@@ -3,11 +3,13 @@ import {
   type GithubMediaInput,
 } from "./buildGithubIssueBody";
 import { buildAiMetaAttachment } from "./buildAiMetaAttachment";
+import { replaceInlineRefs, type InlineImageInput } from "./resolveInlineImages";
 import { sendBg } from "@/types/messages";
 import type { GithubCreateIssueResult } from "@/types/github";
 import type { NormalizedSubmitResult } from "@/types/platform";
 
 export type { NormalizedSubmitResult } from "@/types/platform";
+export type { InlineImageInput } from "./resolveInlineImages";
 
 export interface GithubFileInput {
   filename: string;
@@ -19,6 +21,7 @@ export interface GithubSubmitInput {
   images?: GithubFileInput[];
   video?: GithubFileInput;
   logs?: GithubFileInput[];
+  inlineImages?: InlineImageInput[];
   owner: string;
   repo: string;
   label?: string;
@@ -48,10 +51,15 @@ export async function submitToGithub(
 ): Promise<NormalizedSubmitResult> {
   const imageInputs = input.images ?? [];
   const logs = [...(input.logs ?? []), buildAiMetaAttachment(input.ctx)];
+  const inlineFiles = (input.inlineImages ?? []).map((img) => ({
+    filename: `inline-${img.refId}.webp`,
+    dataUrl: img.dataUrl,
+  }));
   const allFiles = [
     ...imageInputs,
     ...(input.video ? [input.video] : []),
     ...logs,
+    ...inlineFiles,
   ];
 
   const uploadResults = await sendBg<Array<{ filename: string; href: string | null }>>({
@@ -63,6 +71,26 @@ export async function submitToGithub(
 
   const hrefMap = new Map(uploadResults.map((r) => [r.filename, r.href]));
 
+  let resolvedCtx = input.ctx;
+  if (inlineFiles.length > 0) {
+    const refToUrl = new Map<string, string>();
+    for (const img of input.inlineImages ?? []) {
+      const href = hrefMap.get(`inline-${img.refId}.webp`);
+      if (href) refToUrl.set(img.refId, href);
+    }
+    if (refToUrl.size > 0) {
+      resolvedCtx = {
+        ...input.ctx,
+        sections: Object.fromEntries(
+          Object.entries(input.ctx.sections).map(([k, v]) => [
+            k,
+            replaceInlineRefs(v, refToUrl),
+          ]),
+        ),
+      };
+    }
+  }
+
   function toMedia(f: GithubFileInput): GithubMediaInput {
     const name = githubFilename(f.filename);
     return {
@@ -73,7 +101,7 @@ export async function submitToGithub(
   }
 
   const { body } = buildGithubIssueBody({
-    ctx: input.ctx,
+    ctx: resolvedCtx,
     images: imageInputs.length > 0 ? imageInputs.map(toMedia) : undefined,
     video: input.video ? toMedia(input.video) : undefined,
     logs: logs.map(toMedia),

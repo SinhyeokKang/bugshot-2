@@ -12,6 +12,7 @@ import type {
 } from "@/types/notion";
 import type { MarkdownContext } from "./buildIssueMarkdown";
 import { formatTimestamp } from "./formatTimestamp";
+import { markdownToNotionBlocks } from "./markdownToNotionBlocks";
 
 export interface NotionMediaInput {
   filename: string;
@@ -193,10 +194,11 @@ export function buildNotionIssueBody(
         }
       }
     } else {
-      blocks.push({
-        type: "paragraph",
-        text: content.trim() ? content : t("md.noValue"),
-      });
+      if (content.trim()) {
+        blocks.push(...markdownToNotionBlocks(content));
+      } else {
+        blocks.push({ type: "paragraph", text: t("md.noValue") });
+      }
     }
   }
 

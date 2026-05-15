@@ -21,6 +21,39 @@ export function replaceInlineRefs(
   });
 }
 
+export interface InlineImageInput {
+  refId: string;
+  dataUrl: string;
+}
+
+export interface SectionFilter {
+  id: string;
+  enabled: boolean;
+  renderAs: string;
+}
+
+export async function resolveInlineImagesForSections(
+  sections: Record<string, string>,
+  sectionConfig: SectionFilter[],
+): Promise<InlineImageInput[]> {
+  const allContent = sectionConfig
+    .filter((s) => s.enabled && s.renderAs === "paragraph")
+    .map((s) => sections[s.id] ?? "")
+    .join("\n");
+  const refIds = extractInlineRefs(allContent);
+  if (refIds.length === 0) return [];
+  const results: InlineImageInput[] = [];
+  await Promise.all(
+    refIds.map(async (refId) => {
+      const blob = await getInlineImage(refId);
+      if (!blob) return;
+      const dataUrl = await blobToDataUrl(blob);
+      results.push({ refId, dataUrl });
+    }),
+  );
+  return results;
+}
+
 export interface ResolvedImage {
   refId: string;
   dataUrl: string;

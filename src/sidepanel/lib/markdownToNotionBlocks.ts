@@ -2,8 +2,9 @@ import { t } from "@/i18n";
 import MarkdownIt from "markdown-it";
 import type Token from "markdown-it/lib/token.mjs";
 import type { NotionBlock, NotionRichText } from "@/types/notion";
+import { findClosingToken } from "./findClosingToken";
 
-const md = MarkdownIt({ html: false, breaks: true, linkify: false });
+const md = MarkdownIt({ html: false, breaks: true, linkify: true });
 md.enable("strikethrough");
 
 export function markdownToNotionBlocks(markdown: string): NotionBlock[] {
@@ -161,19 +162,3 @@ function popAnnotation(
   }
 }
 
-function findClosingToken(
-  tokens: Token[],
-  start: number,
-  openType: string,
-  closeType: string,
-): number {
-  let depth = 0;
-  for (let i = start; i < tokens.length; i++) {
-    if (tokens[i].type === openType) depth++;
-    if (tokens[i].type === closeType) {
-      depth--;
-      if (depth === 0) return i;
-    }
-  }
-  return tokens.length - 1;
-}

@@ -101,7 +101,7 @@
   - [ ] 에디터의 `onChange`로 전달되는 마크다운에 `![](inline:refId)` 형태 확인
   - [ ] 이슈 저장 후 DraftingPanel 재진입 시 이미지 정상 로드
 
-### Task 6: DocSectionBody 마크다운 렌더링
+### ~~Task 6: DocSectionBody 마크다운 렌더링~~ ✅
 
 - **변경 대상**: `src/sidepanel/components/DocSectionBody.tsx`
 - **작업 내용**:
@@ -147,7 +147,7 @@
   - [x] `pnpm test` 통과
   - [ ] Chrome에서 Notion 이슈 제출 → 서식이 정확히 반영된 페이지 확인
 
-### Task 9: buildIssueHtml + GitHub/Linear 인라인 이미지
+### ~~Task 9: buildIssueHtml + GitHub/Linear 인라인 이미지~~ ✅
 
 - **변경 대상**: `src/sidepanel/lib/buildIssueMarkdown.ts`, `src/sidepanel/lib/buildGithubIssueBody.ts`, `src/sidepanel/lib/buildLinearIssueBody.ts`
 - **작업 내용**:
@@ -172,7 +172,7 @@
   - [x] `resolveInlineImages.test.ts` 단위 테스트 전체 통과 (9 케이스)
   - [x] `pnpm test` 통과
 
-### Task 10b: IssueCreateModal/DraftDetailDialog 제출 흐름 통합
+### ~~Task 10b: IssueCreateModal/DraftDetailDialog 제출 흐름 통합~~ ✅
 
 - **변경 대상**: `src/sidepanel/tabs/IssueCreateModal.tsx`, `src/sidepanel/tabs/DraftDetailDialog.tsx`
 - **작업 내용**:
@@ -188,7 +188,7 @@
   - [ ] Chrome에서 인라인 이미지가 포함된 이슈를 각 플랫폼에 제출 → 이미지 정상 표시
   - [ ] 이미지 삽입 → 삭제 → 다른 이미지 삽입 → 이슈 저장 시 orphan blob 정리 확인
 
-### Task 11: 번들 최적화 + 정리
+### ~~Task 11: 번들 최적화 + 정리~~ ✅
 
 - **변경 대상**: `vite.config.ts` (필요 시), `src/sidepanel/tabs/DraftingPanel.tsx`
 - **작업 내용**:

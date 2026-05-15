@@ -36,7 +36,7 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useT } from "@/i18n";
 import { cn } from "@/lib/utils";
-import { blobToDataUrl } from "@/store/blob-db";
+import { blobToDataUrl, pruneOrphanInlineImages } from "@/store/blob-db";
 import { useSettingsUiStore } from "@/store/settings-ui-store";
 import { useEditorStore, type EditorIssueFields } from "@/store/editor-store";
 import { useIssuesStore } from "@/store/issues-store";
@@ -72,6 +72,7 @@ import { submitToGithub, type GithubFileInput } from "../lib/submitToGithub";
 import { submitToLinear, type LinearFileInput } from "../lib/submitToLinear";
 import { submitToNotion, type NotionFileInput } from "../lib/submitToNotion";
 import { recordingFilename } from "../lib/video-mime";
+import { extractInlineRefs, resolveInlineImagesForSections, type InlineImageInput } from "../lib/resolveInlineImages";
 import {
   GithubIssueFields,
   initialGhFields,
@@ -257,7 +258,7 @@ export function IssueCreateModal() {
     };
   }
 
-  async function handleJiraSubmit(ctx: MarkdownContext): Promise<NormalizedSubmitResult> {
+  async function handleJiraSubmit(ctx: MarkdownContext, inlineImages: InlineImageInput[]): Promise<NormalizedSubmitResult> {
     if (!jiraAccount?.auth || !jiraAccount.projectKey) {
       throw new Error(t("platform.notConnected.title", { platform: t("platform.tab.jira") }));
     }
@@ -283,6 +284,9 @@ export function IssueCreateModal() {
     } else {
       if (beforeImage) attachments.push({ filename: "before.webp", dataUrl: beforeImage });
       if (afterImage) attachments.push({ filename: "after.webp", dataUrl: afterImage });
+    }
+    for (const img of inlineImages) {
+      attachments.push({ filename: `inline-${img.refId}.webp`, dataUrl: img.dataUrl });
     }
 
     const result = await sendBg<JiraSubmitResult>({
@@ -326,7 +330,7 @@ export function IssueCreateModal() {
     return { key: result.key, url: result.url };
   }
 
-  async function handleGithubSubmit(ctx: MarkdownContext): Promise<NormalizedSubmitResult> {
+  async function handleGithubSubmit(ctx: MarkdownContext, inlineImages: InlineImageInput[]): Promise<NormalizedSubmitResult> {
     if (!ghAccount) {
       throw new Error(t("platform.notConnected.title", { platform: t("platform.tab.github") }));
     }
@@ -359,6 +363,7 @@ export function IssueCreateModal() {
       images,
       video,
       logs,
+      inlineImages,
       owner: ghFields.owner,
       repo: ghFields.repo,
       label: ghFields.label,
@@ -385,7 +390,7 @@ export function IssueCreateModal() {
     return result;
   }
 
-  async function handleLinearSubmit(ctx: MarkdownContext): Promise<NormalizedSubmitResult> {
+  async function handleLinearSubmit(ctx: MarkdownContext, inlineImages: InlineImageInput[]): Promise<NormalizedSubmitResult> {
     if (!linearAccount) {
       throw new Error(t("platform.notConnected.title", { platform: t("platform.tab.linear") }));
     }
@@ -418,6 +423,7 @@ export function IssueCreateModal() {
       images,
       video,
       logs,
+      inlineImages,
       teamId: linearFields.teamId,
       projectId: linearFields.projectId,
       labelId: linearFields.labelId,
@@ -451,7 +457,7 @@ export function IssueCreateModal() {
     return result;
   }
 
-  async function handleNotionSubmit(ctx: MarkdownContext): Promise<NormalizedSubmitResult> {
+  async function handleNotionSubmit(ctx: MarkdownContext, inlineImages: InlineImageInput[]): Promise<NormalizedSubmitResult> {
     if (!notionAccount) {
       throw new Error(t("platform.notConnected.title", { platform: t("platform.tab.notion") }));
     }
@@ -479,6 +485,9 @@ export function IssueCreateModal() {
     } else {
       if (beforeImage) images.push({ filename: "before.webp", dataUrl: beforeImage });
       if (afterImage) images.push({ filename: "after.webp", dataUrl: afterImage });
+    }
+    for (const img of inlineImages) {
+      images.push({ filename: `inline-${img.refId}.webp`, dataUrl: img.dataUrl });
     }
 
     const result = await submitToNotion({
@@ -521,10 +530,17 @@ export function IssueCreateModal() {
 
   async function handleSubmit(submitPlatform: PlatformId): Promise<NormalizedSubmitResult> {
     const ctx = buildCtx();
-    if (submitPlatform === "github") return handleGithubSubmit(ctx);
-    if (submitPlatform === "linear") return handleLinearSubmit(ctx);
-    if (submitPlatform === "notion") return handleNotionSubmit(ctx);
-    return handleJiraSubmit(ctx);
+    const inlineImages = await resolveInlineImagesForSections(ctx.sections, sectionConfig);
+    let result: NormalizedSubmitResult;
+    if (submitPlatform === "github") result = await handleGithubSubmit(ctx, inlineImages);
+    else if (submitPlatform === "linear") result = await handleLinearSubmit(ctx, inlineImages);
+    else if (submitPlatform === "notion") result = await handleNotionSubmit(ctx, inlineImages);
+    else result = await handleJiraSubmit(ctx, inlineImages);
+    const activeRefs = extractInlineRefs(
+      Object.values(draft?.sections ?? {}).join("\n"),
+    );
+    void pruneOrphanInlineImages(activeRefs);
+    return result;
   }
 
   const canOpen = available.length > 0;

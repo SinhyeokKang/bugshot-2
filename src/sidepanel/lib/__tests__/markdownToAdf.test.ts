@@ -116,6 +116,16 @@ describe("markdownToAdf", () => {
     expect(breaks.length).toBeGreaterThanOrEqual(1);
   });
 
+  it("bare URL → link mark (linkify)", () => {
+    const result = markdownToAdf("visit https://example.com today");
+    const links = findMarks(result, "link");
+    expect(links.length).toBeGreaterThanOrEqual(1);
+    expect(links[0].text).toBe("https://example.com");
+    expect(links[0].marks.find((m: any) => m.type === "link").attrs.href).toBe(
+      "https://example.com",
+    );
+  });
+
   it("빈 문자열 → noValue paragraph", () => {
     const result = markdownToAdf("");
     expect(result).toHaveLength(1);

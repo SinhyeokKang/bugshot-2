@@ -168,4 +168,17 @@ describe("buildIssueHtml", () => {
     expect(html).toContain("<ol>");
     expect(html).toContain("<li>");
   });
+
+  it("paragraph 섹션 마크다운 → HTML 렌더링", () => {
+    const html = buildIssueHtml(
+      makeCtx({ sections: { description: "**bold** and *italic*" } }),
+    );
+    expect(html).toContain("<strong>bold</strong>");
+    expect(html).toContain("<em>italic</em>");
+  });
+
+  it("paragraph 섹션 빈 값 → noValue", () => {
+    const html = buildIssueHtml(makeCtx({ sections: {} }));
+    expect(html).toContain("md.noValue");
+  });
 });

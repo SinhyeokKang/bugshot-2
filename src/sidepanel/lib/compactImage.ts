@@ -1,4 +1,5 @@
 const COMPACT_MAX_WIDTH = 1280;
+const COMPACT_MIN_WIDTH = 200;
 
 export function calcCompactDimensions(
   w: number,
@@ -10,17 +11,13 @@ export function calcCompactDimensions(
   return { width: maxWidth, height: Math.round(h * ratio) };
 }
 
-export function shouldCompact(
-  w: number,
-  _h: number,
-  mimeType: string,
-): boolean {
+export function shouldCompact(w: number, mimeType: string): boolean {
   if (mimeType === "image/webp" && w <= COMPACT_MAX_WIDTH) return false;
+  if (w <= COMPACT_MIN_WIDTH && (mimeType === "image/webp" || mimeType === "image/jpeg")) return false;
   return true;
 }
 
-export async function compactImage(blob: Blob): Promise<Blob> {
-  const bitmap = await createImageBitmap(blob);
+export async function compactImage(bitmap: ImageBitmap): Promise<Blob> {
   const { width, height } = calcCompactDimensions(bitmap.width, bitmap.height);
   const canvas = new OffscreenCanvas(width, height);
   const ctx = canvas.getContext("2d")!;

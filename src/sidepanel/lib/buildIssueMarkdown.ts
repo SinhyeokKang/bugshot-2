@@ -7,6 +7,7 @@ import {
 import type { StyleDiffRow } from "../components/StyleChangesTable";
 import type { NetworkLogSummary, ConsoleLogSummary } from "./buildLogSummary";
 import { formatTimestamp } from "./formatTimestamp";
+import { renderMarkdown } from "./renderMarkdown";
 
 export interface MarkdownContext {
   captureMode?: "element" | "screenshot" | "video";
@@ -192,7 +193,7 @@ export function buildIssueHtml(ctx: MarkdownContext): string {
     } else {
       parts.push(
         content.trim()
-          ? paragraphize(content)
+          ? renderMarkdown(content)
           : `<p>${escapeHtml(t("md.noValue"))}</p>`,
       );
     }
@@ -255,17 +256,6 @@ function escapeHtml(value: string): string {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
-}
-
-function paragraphize(text: string): string {
-  if (!text.trim()) return "<p></p>";
-  return text
-    .split(/\n\s*\n/)
-    .map((p) => {
-      const lines = p.split(/\n/).map(escapeHtml).join("<br>");
-      return `<p>${lines}</p>`;
-    })
-    .join("\n");
 }
 
 function emitLogSummaryMd(lines: string[], ctx: MarkdownContext): void {

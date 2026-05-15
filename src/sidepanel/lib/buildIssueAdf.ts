@@ -9,6 +9,7 @@ import { formatElementName } from "@/lib/element-label";
 import type { MarkdownContext } from "./buildIssueMarkdown";
 import type { NetworkLogSummary, ConsoleLogSummary } from "./buildLogSummary";
 import { formatTimestamp } from "./formatTimestamp";
+import { markdownToAdf } from "./markdownToAdf";
 
 interface AdfNode {
   type: string;
@@ -100,7 +101,7 @@ export function buildIssueAdf(ctx: MarkdownContext): AdfDoc {
         content.push(orderedList(items.map((it) => listItem([paragraph([textNode(it)])]))));
       }
     } else {
-      content.push(...textBlock(raw));
+      content.push(...markdownToAdf(raw));
     }
   }
 
@@ -145,25 +146,6 @@ function textNode(value: string): AdfNode {
 
 function strongTextNode(value: string): AdfNode {
   return { type: "text", text: value, marks: [{ type: "strong" }] };
-}
-
-function hardBreak(): AdfNode {
-  return { type: "hardBreak" };
-}
-
-function textBlock(raw: string): AdfNode[] {
-  const trimmed = raw.trim();
-  if (!trimmed) return [paragraph([textNode(t("md.noValue"))])];
-  const paragraphs = trimmed.split(/\n\s*\n/);
-  return paragraphs.map((p) => {
-    const lines = p.split(/\n/);
-    const inline: AdfNode[] = [];
-    lines.forEach((line, idx) => {
-      if (line) inline.push(textNode(line));
-      if (idx < lines.length - 1) inline.push(hardBreak());
-    });
-    return paragraph(inline.length > 0 ? inline : [textNode("")]);
-  });
 }
 
 function bulletList(items: AdfNode[]): AdfNode {

@@ -27,6 +27,7 @@ import {
 } from "../components/StyleChangesTable";
 import { buildIssueHtml, buildIssueMarkdown } from "../lib/buildIssueMarkdown";
 import { buildNetworkLogSummary, buildConsoleLogSummary } from "../lib/buildLogSummary";
+import { resolveInlineImages } from "../lib/resolveInlineImages";
 import { IssueCreateModal } from "./IssueCreateModal";
 
 
@@ -87,12 +88,24 @@ export function PreviewPanel() {
   const showLogCards = isVideoMode && (attachedNetwork !== null || attachedConsole !== null);
 
   const handleCopyMarkdown = async () => {
+    const resolvedSections = { ...draft.sections };
+    await Promise.all(
+      issueSections
+        .filter((s) => s.enabled && s.renderAs === "paragraph")
+        .map(async (s) => {
+          const content = resolvedSections[s.id];
+          if (!content?.includes("inline:")) return;
+          const { resolved } = await resolveInlineImages(content);
+          resolvedSections[s.id] = resolved;
+        }),
+    );
+
     let ctx: Parameters<typeof buildIssueMarkdown>[0];
     if (isVideoMode) {
       ctx = {
         captureMode: "video",
         title: draft.title,
-        sections: draft.sections,
+        sections: resolvedSections,
         sectionConfig: issueSections,
         url: target?.url ?? "",
         selector: "",
@@ -118,7 +131,7 @@ export function PreviewPanel() {
 
       ctx = {
         title: draft.title,
-        sections: draft.sections,
+        sections: resolvedSections,
         sectionConfig: issueSections,
         url: target?.url ?? "",
         selector: selection.selector,

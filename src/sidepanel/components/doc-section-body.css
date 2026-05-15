@@ -1,0 +1,51 @@
+.doc-section-body p {
+  margin: 0;
+}
+
+.doc-section-body p + p {
+  margin-top: 0.5em;
+}
+
+.doc-section-body ul,
+.doc-section-body ol {
+  padding-left: 1.25em;
+  margin: 0.25em 0;
+}
+
+.doc-section-body ul {
+  list-style-type: disc;
+}
+
+.doc-section-body ol {
+  list-style-type: decimal;
+}
+
+.doc-section-body li {
+  margin: 0.125em 0;
+}
+
+.doc-section-body hr {
+  border: none;
+  border-top: 1px solid hsl(var(--border));
+  margin: 0.75em 0;
+}
+
+.doc-section-body img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 0.375rem;
+  margin: 0.25em 0;
+}
+
+.doc-section-body a {
+  color: hsl(var(--primary));
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.doc-section-body code {
+  background: hsl(var(--muted));
+  border-radius: 0.25rem;
+  padding: 0.125em 0.25em;
+  font-size: 0.875em;
+}

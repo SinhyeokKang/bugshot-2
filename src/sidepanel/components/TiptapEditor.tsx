@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useRef } from "react";
 import { useEditor, EditorContent, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
@@ -8,8 +8,12 @@ import { Markdown } from "tiptap-markdown";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import type { EditorView } from "@tiptap/pm/view";
 import { cn } from "@/lib/utils";
-import { saveInlineImage } from "@/store/blob-db";
+import { saveInlineImage, getInlineImage } from "@/store/blob-db";
 import { shouldCompact, compactImage } from "@/sidepanel/lib/compactImage";
+import {
+  extractInlineRefs,
+  replaceInlineRefs,
+} from "@/sidepanel/lib/resolveInlineImages";
 import "./tiptap-editor.css";
 
 export interface TiptapEditorProps {
@@ -20,7 +24,6 @@ export interface TiptapEditorProps {
   ariaLabel?: string;
 }
 
-const blobUrlToRefId = new Map<string, string>();
 const imagePluginKey = new PluginKey("imageDropPaste");
 
 function createImageDropPlugin(onImageFile: (file: File) => void) {
@@ -53,10 +56,10 @@ function createImageDropPlugin(onImageFile: (file: File) => void) {
   });
 }
 
-function getEditorMarkdown(editor: Editor): string {
+function editorMarkdown(editor: Editor, urlToRef: Map<string, string>): string {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let md = (editor.storage as any).markdown.getMarkdown() as string;
-  for (const [blobUrl, refId] of blobUrlToRefId) {
+  for (const [blobUrl, refId] of urlToRef) {
     md = md.replaceAll(blobUrl, `inline:${refId}`);
   }
   return md;
@@ -71,14 +74,8 @@ export default function TiptapEditor({
 }: TiptapEditorProps) {
   const isInternalChange = useRef(false);
   const blobUrls = useRef<string[]>([]);
-
-  const getMarkdown = useCallback(
-    (editor: Editor | null) => {
-      if (!editor) return "";
-      return getEditorMarkdown(editor);
-    },
-    [],
-  );
+  const urlToRefMap = useRef(new Map<string, string>());
+  const refToUrlMap = useRef(new Map<string, string>());
 
   const editor = useEditor({
     extensions: [
@@ -105,7 +102,7 @@ export default function TiptapEditor({
     content: value,
     onUpdate: ({ editor: ed }) => {
       isInternalChange.current = true;
-      onChange(getEditorMarkdown(ed));
+      onChange(editorMarkdown(ed, urlToRefMap.current));
     },
     editorProps: {
       attributes: {
@@ -120,19 +117,22 @@ export default function TiptapEditor({
 
     const handleImageFile = async (file: File) => {
       const bitmap = await createImageBitmap(file);
-      const { width: w, height: h } = bitmap;
-      bitmap.close();
+      const { width: w } = bitmap;
 
-      let blob: Blob = file;
-      if (shouldCompact(w, h, file.type)) {
-        blob = await compactImage(file);
+      let blob: Blob;
+      if (shouldCompact(w, file.type)) {
+        blob = await compactImage(bitmap);
+      } else {
+        bitmap.close();
+        blob = file;
       }
 
       const refId = crypto.randomUUID().slice(0, 8);
       await saveInlineImage(refId, blob);
       const blobUrl = URL.createObjectURL(blob);
       blobUrls.current.push(blobUrl);
-      blobUrlToRefId.set(blobUrl, refId);
+      urlToRefMap.current.set(blobUrl, refId);
+      refToUrlMap.current.set(refId, blobUrl);
 
       editor.chain().focus().setImage({ src: blobUrl }).run();
     };
@@ -145,21 +145,79 @@ export default function TiptapEditor({
     };
   }, [editor]);
 
+  // Resolve inline:refId → blob URL on editor mount
+  useEffect(() => {
+    if (!editor) return;
+    let cancelled = false;
+
+    const refs = extractInlineRefs(value);
+    if (refs.length === 0) return;
+
+    (async () => {
+      const resolved = new Map<string, string>();
+      await Promise.all(
+        refs.map(async (refId) => {
+          const blob = await getInlineImage(refId);
+          if (!blob || cancelled) return;
+          const url = URL.createObjectURL(blob);
+          blobUrls.current.push(url);
+          urlToRefMap.current.set(url, refId);
+          refToUrlMap.current.set(refId, url);
+          resolved.set(refId, url);
+        }),
+      );
+      if (cancelled || resolved.size === 0) return;
+      isInternalChange.current = true;
+      editor.commands.setContent(replaceInlineRefs(value, resolved));
+    })();
+
+    return () => { cancelled = true; };
+  }, [editor]); // eslint-disable-line react-hooks/exhaustive-deps
+
   useEffect(() => {
     if (!editor || isInternalChange.current) {
       isInternalChange.current = false;
       return;
     }
-    const currentMd = getMarkdown(editor);
-    if (value !== currentMd) {
-      editor.commands.setContent(value);
+    const currentMd = editorMarkdown(editor, urlToRefMap.current);
+    if (value === currentMd) return;
+
+    const refs = extractInlineRefs(value);
+    const unresolvedRefs = refs.filter((r) => !refToUrlMap.current.has(r));
+
+    if (unresolvedRefs.length === 0) {
+      const displayMd = refs.length > 0
+        ? replaceInlineRefs(value, refToUrlMap.current)
+        : value;
+      editor.commands.setContent(displayMd);
+      return;
     }
-  }, [value, editor, getMarkdown]);
+
+    let cancelled = false;
+    (async () => {
+      await Promise.all(
+        unresolvedRefs.map(async (refId) => {
+          const blob = await getInlineImage(refId);
+          if (!blob || cancelled) return;
+          const url = URL.createObjectURL(blob);
+          blobUrls.current.push(url);
+          urlToRefMap.current.set(url, refId);
+          refToUrlMap.current.set(refId, url);
+        }),
+      );
+      if (cancelled) return;
+      isInternalChange.current = true;
+      editor.commands.setContent(replaceInlineRefs(value, refToUrlMap.current));
+    })();
+    return () => { cancelled = true; };
+  }, [value, editor]);
 
   useEffect(() => {
     return () => {
       for (const url of blobUrls.current) URL.revokeObjectURL(url);
       blobUrls.current = [];
+      urlToRefMap.current.clear();
+      refToUrlMap.current.clear();
     };
   }, []);
 

@@ -71,6 +71,16 @@ describe("buildNotionIssueBody — block 변환", () => {
     );
   });
 
+  it("paragraph 섹션 마크다운 → rich_paragraph 변환", () => {
+    const out = buildNotionIssueBody({
+      ctx: makeCtx({ sections: { description: "**bold** text" } }),
+    });
+    const richParagraphs = out.blocks.filter((b) => b.type === "rich_paragraph");
+    expect(richParagraphs.length).toBeGreaterThanOrEqual(1);
+    const rt = (richParagraphs[0] as any).richText;
+    expect(rt.some((r: any) => r.annotations?.bold === true)).toBe(true);
+  });
+
   it("orderedList 섹션은 bulleted_list_item 다중", () => {
     const ctx = makeCtx({
       sections: { stepsToReproduce: "1\n2\n3" },

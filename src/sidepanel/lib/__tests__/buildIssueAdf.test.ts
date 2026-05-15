@@ -174,4 +174,19 @@ describe("buildIssueAdf", () => {
     expect(expectedHeadingIdx).toBeGreaterThan(-1);
     expect(tableIdx).toBeLessThan(expectedHeadingIdx);
   });
+
+  it("paragraph 섹션 마크다운 → ADF 인라인 마크", () => {
+    const doc = buildIssueAdf(
+      makeCtx({ sections: { description: "**bold** and *italic*" } }),
+    );
+    const texts = findNodes(doc, "text");
+    const bold = texts.find(
+      (t) => t.text === "bold" && t.marks?.some((m: any) => m.type === "strong"),
+    );
+    const italic = texts.find(
+      (t) => t.text === "italic" && t.marks?.some((m: any) => m.type === "em"),
+    );
+    expect(bold).toBeDefined();
+    expect(italic).toBeDefined();
+  });
 });

@@ -1,6 +1,7 @@
 import { t } from "@/i18n";
 import MarkdownIt from "markdown-it";
 import type Token from "markdown-it/lib/token.mjs";
+import { findClosingToken } from "./findClosingToken";
 
 interface AdfMark {
   type: string;
@@ -15,7 +16,7 @@ interface AdfNode {
   marks?: AdfMark[];
 }
 
-const md = MarkdownIt({ html: false, breaks: true, linkify: false });
+const md = MarkdownIt({ html: false, breaks: true, linkify: true });
 md.enable("strikethrough");
 
 export function markdownToAdf(markdown: string): AdfNode[] {
@@ -121,7 +122,8 @@ function convertInline(children: Token[]): AdfNode[] {
     }
 
     if (child.type === "image") {
-      nodes.push({ type: "text", text: child.content || child.attrGet("alt") || "" });
+      const alt = child.content || child.attrGet("alt") || "";
+      if (alt) nodes.push({ type: "text", text: alt });
       continue;
     }
 
@@ -175,19 +177,3 @@ function popMark(stack: AdfMark[], type: string): void {
   }
 }
 
-function findClosingToken(
-  tokens: Token[],
-  start: number,
-  openType: string,
-  closeType: string,
-): number {
-  let depth = 0;
-  for (let i = start; i < tokens.length; i++) {
-    if (tokens[i].type === openType) depth++;
-    if (tokens[i].type === closeType) {
-      depth--;
-      if (depth === 0) return i;
-    }
-  }
-  return tokens.length - 1;
-}

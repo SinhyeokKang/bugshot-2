@@ -4,7 +4,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-const LazyTiptapEditor = lazy(() => import("../components/TiptapEditor"));
 import { useT } from "@/i18n";
 import {
   POST_MEDIA_SECTION_IDS,
@@ -19,7 +18,6 @@ import { useSettingsStore } from "@/store/settings-store";
 import { useBoundTabId } from "../hooks/useBoundTabId";
 import { useAI } from "../hooks/useAI";
 import { clearPicker } from "../picker-control";
-const AnnotationOverlay = lazy(() => import("../components/AnnotationOverlay"));
 import { CancelConfirmDialog } from "../components/CancelConfirmDialog";
 import { LogAttachmentCards } from "../components/LogAttachmentCards";
 import { NetworkLogPreviewDialog } from "../components/NetworkLogPreviewDialog";
@@ -41,6 +39,9 @@ import {
 } from "../lib/buildAiDraftPrompt";
 import { buildNetworkLogSummary, buildConsoleLogSummary } from "../lib/buildLogSummary";
 import { AiDraftDialog } from "./AiDraftDialog";
+
+const LazyTiptapEditor = lazy(() => import("../components/TiptapEditor"));
+const AnnotationOverlay = lazy(() => import("../components/AnnotationOverlay"));
 
 export function DraftingPanel() {
   const t = useT();

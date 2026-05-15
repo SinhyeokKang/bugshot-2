@@ -109,6 +109,16 @@ describe("markdownToNotionBlocks", () => {
     expect(italicItem!.text.content).toBe("italic");
   });
 
+  it("bare URL → richText with link (linkify)", () => {
+    const result = markdownToNotionBlocks("visit https://example.com today");
+    expect(result[0].type).toBe("rich_paragraph");
+    if (result[0].type !== "rich_paragraph") return;
+    const linkItem = result[0].richText.find((rt) => rt.text.link);
+    expect(linkItem).toBeDefined();
+    expect(linkItem!.text.content).toBe("https://example.com");
+    expect(linkItem!.text.link!.url).toBe("https://example.com");
+  });
+
   it("빈 문자열 → noValue paragraph", () => {
     const result = markdownToNotionBlocks("");
     expect(result).toHaveLength(1);

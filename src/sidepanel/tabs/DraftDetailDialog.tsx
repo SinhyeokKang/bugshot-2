@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { NetworkLog } from "@/types/network";
 import type { ConsoleLog } from "@/types/console";
-import { getVideoBlob, getImageBlob, getNetworkLog, getConsoleLog, blobToDataUrl } from "@/store/blob-db";
+import { getVideoBlob, getImageBlob, getNetworkLog, getConsoleLog, blobToDataUrl, pruneOrphanInlineImages } from "@/store/blob-db";
 import { useIssueImages } from "../hooks/useIssueImages";
 import { Info } from "lucide-react";
 import { useT, dateBcp47 } from "@/i18n";
@@ -76,6 +76,7 @@ import { buildHar, serializeHar } from "../lib/buildHar";
 import { buildConsoleLogJson, serializeConsoleLog } from "../lib/buildConsoleLogJson";
 import { buildIssueAdf } from "../lib/buildIssueAdf";
 import { buildNetworkLogSummary, buildConsoleLogSummary } from "../lib/buildLogSummary";
+import { extractInlineRefs, resolveInlineImagesForSections } from "../lib/resolveInlineImages";
 import { SubmitFieldsDialog } from "./IssueCreateModal";
 
 type SubmitFields = {
@@ -311,6 +312,10 @@ export function DraftDetailDialog({
         if (blob) attachments.push({ filename: "after.webp", dataUrl: await blobToDataUrl(blob) });
       }
     }
+    const jiraInline = await resolveInlineImagesForSections(ctx.sections, sectionConfig);
+    for (const img of jiraInline) {
+      attachments.push({ filename: `inline-${img.refId}.webp`, dataUrl: img.dataUrl });
+    }
 
     const result = await sendBg<JiraSubmitResult>({
       type: "jira.submitIssue",
@@ -394,11 +399,13 @@ export function DraftDetailDialog({
       }
     }
 
+    const ghInline = await resolveInlineImagesForSections(ctx.sections, sectionConfig);
     const result = await submitToGithub({
       ctx,
       images,
       video,
       logs,
+      inlineImages: ghInline,
       owner: ghFields.owner,
       repo: ghFields.repo,
       label: ghFields.label,
@@ -466,11 +473,13 @@ export function DraftDetailDialog({
       }
     }
 
+    const linearInline = await resolveInlineImagesForSections(ctx.sections, sectionConfig);
     const result = await submitToLinear({
       ctx,
       images,
       video,
       logs,
+      inlineImages: linearInline,
       teamId: linearFields.teamId,
       projectId: linearFields.projectId,
       labelId: linearFields.labelId,
@@ -548,6 +557,10 @@ export function DraftDetailDialog({
         if (blob) images.push({ filename: "after.webp", dataUrl: await blobToDataUrl(blob) });
       }
     }
+    const notionInline = await resolveInlineImagesForSections(ctx.sections, sectionConfig);
+    for (const img of notionInline) {
+      images.push({ filename: `inline-${img.refId}.webp`, dataUrl: img.dataUrl });
+    }
 
     const result = await submitToNotion({
       ctx,
@@ -591,10 +604,18 @@ export function DraftDetailDialog({
   }
 
   async function handleSubmit(submitPlatform: PlatformId): Promise<NormalizedSubmitResult> {
-    if (submitPlatform === "github") return handleGithubSubmit();
-    if (submitPlatform === "linear") return handleLinearSubmit();
-    if (submitPlatform === "notion") return handleNotionSubmit();
-    return handleJiraSubmit();
+    let result: NormalizedSubmitResult;
+    if (submitPlatform === "github") result = await handleGithubSubmit();
+    else if (submitPlatform === "linear") result = await handleLinearSubmit();
+    else if (submitPlatform === "notion") result = await handleNotionSubmit();
+    else result = await handleJiraSubmit();
+    if (issue) {
+      const activeRefs = extractInlineRefs(
+        Object.values(issue.draft.sections).join("\n"),
+      );
+      void pruneOrphanInlineImages(activeRefs);
+    }
+    return result;
   }
 
   function handleDelete() {

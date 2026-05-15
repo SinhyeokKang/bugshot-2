@@ -9,6 +9,7 @@ import type {
   NotionMyself,
   NotionPageStatus,
   NotionPropertySchema,
+  NotionRichText as NotionRichTextBlock,
 } from "@/types/notion";
 import { OAuthError } from "./oauth";
 
@@ -318,7 +319,13 @@ export async function uploadFile(
 
 interface NotionRichTextInput {
   type: "text";
-  text: { content: string };
+  text: { content: string; link?: { url: string } | null };
+  annotations?: {
+    bold?: boolean;
+    italic?: boolean;
+    strikethrough?: boolean;
+    code?: boolean;
+  };
 }
 
 function richText(content: string): NotionRichTextInput[] {
@@ -326,11 +333,9 @@ function richText(content: string): NotionRichTextInput[] {
   return [{ type: "text", text: { content } }];
 }
 
-function expandRichText(
-  items: import("@/types/notion").NotionRichText[],
-): object[] {
+function expandRichText(items: NotionRichTextBlock[]): NotionRichTextInput[] {
   return items.map((rt) => {
-    const entry: Record<string, unknown> = {
+    const entry: NotionRichTextInput = {
       type: "text",
       text: { content: rt.text.content, link: rt.text.link ?? null },
     };
