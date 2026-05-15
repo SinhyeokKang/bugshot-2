@@ -16,6 +16,10 @@
   list-style-type: disc;
 }
 
+.doc-section-body ul ul {
+  list-style-type: circle;
+}
+
 .doc-section-body ol {
   list-style-type: decimal;
 }

@@ -65,7 +65,7 @@ export function DomTreeTitle({ tagName, classList }: { tagName: string; classLis
       <DialogTrigger asChild>
         <button
           type="button"
-          className="block w-full truncate text-center text-2xl font-semibold outline-none hover:opacity-70 focus-visible:ring-1 focus-visible:ring-ring"
+          className="block w-full truncate text-center text-2xl font-semibold outline-none hover:opacity-70 focus-visible:ring-2 focus-visible:ring-ring"
           title={label}
         >
           {label}

@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { Pencil, RotateCcw, Trash2, WandSparkles } from "lucide-react";
+import { ImagePlus, Pencil, RotateCcw, Trash2, WandSparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -395,13 +395,50 @@ function SectionTextarea({
   const label = section.labelOverride?.trim() || t(sectionLabelKey(section.id));
   const placeholder =
     section.placeholderOverride?.trim() || t(sectionPlaceholderKey(section.id));
+
+  const editorRef = useRef<import("../components/TiptapEditor").TiptapEditorHandle>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const isParagraph = section.renderAs !== "orderedList";
+
   return (
-    <Section title={label}>
+    <Section
+      title={label}
+      action={
+        isParagraph ? (
+          <>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={(e) => {
+                const files = e.target.files;
+                if (!files) return;
+                for (const f of Array.from(files)) editorRef.current?.insertImageFile(f);
+                e.target.value = "";
+              }}
+            />
+            <Button
+              size="icon"
+              variant="outline"
+              className="h-8 w-8 shrink-0"
+              title={t("draft.addImage")}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <ImagePlus />
+            </Button>
+          </>
+        ) : undefined
+      }
+    >
       {section.renderAs === "orderedList" ? (
         <OrderedListEditor value={value} onChange={onChange} placeholder={placeholder} />
       ) : (
         <Suspense fallback={<Textarea disabled placeholder={placeholder} className="min-h-32 resize-none text-sm" />}>
           <LazyTiptapEditor
+            ref={editorRef}
             value={value}
             onChange={onChange}
             placeholder={placeholder}

@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { useEditor, EditorContent, type Editor } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
@@ -24,12 +24,34 @@ export interface TiptapEditorProps {
   ariaLabel?: string;
 }
 
+export interface TiptapEditorHandle {
+  insertImageFile: (file: File) => void;
+}
+
 const imagePluginKey = new PluginKey("imageDropPaste");
 
-function createImageDropPlugin(onImageFile: (file: File) => void) {
+function createImageDropPlugin(
+  onImageFile: (file: File) => void,
+  onDragOver: (active: boolean) => void,
+) {
   return new Plugin({
     key: imagePluginKey,
     props: {
+      handleDOMEvents: {
+        dragenter(_view: EditorView, event: DragEvent) {
+          if (event.dataTransfer?.types.includes("Files")) onDragOver(true);
+          return false;
+        },
+        dragleave(view: EditorView, event: DragEvent) {
+          const related = event.relatedTarget as Node | null;
+          if (!related || !view.dom.contains(related)) onDragOver(false);
+          return false;
+        },
+        drop() {
+          onDragOver(false);
+          return false;
+        },
+      },
       handleDrop(_view: EditorView, event: DragEvent) {
         const files = event.dataTransfer?.files;
         if (!files?.length) return false;
@@ -65,13 +87,14 @@ function editorMarkdown(editor: Editor, urlToRef: Map<string, string>): string {
   return md;
 }
 
-export default function TiptapEditor({
+const TiptapEditor = forwardRef<TiptapEditorHandle, TiptapEditorProps>(function TiptapEditor({
   value,
   onChange,
   placeholder: placeholderText,
   className,
   ariaLabel,
-}: TiptapEditorProps) {
+}, ref) {
+  const [isDragOver, setIsDragOver] = useState(false);
   const isInternalChange = useRef(false);
   const blobUrls = useRef<string[]>([]);
   const urlToRefMap = useRef(new Map<string, string>());
@@ -83,6 +106,10 @@ export default function TiptapEditor({
         heading: false,
         codeBlock: false,
         blockquote: false,
+        dropcursor: {
+          color: "hsl(199 89% 70%)",
+          width: 2,
+        },
       }),
       Link.configure({
         openOnClick: false,
@@ -112,6 +139,8 @@ export default function TiptapEditor({
     },
   });
 
+  const handleImageFileRef = useRef<(file: File) => void>(() => {});
+
   useEffect(() => {
     if (!editor) return;
 
@@ -134,16 +163,26 @@ export default function TiptapEditor({
       urlToRefMap.current.set(blobUrl, refId);
       refToUrlMap.current.set(refId, blobUrl);
 
-      editor.chain().focus().setImage({ src: blobUrl }).run();
+      editor
+        .chain()
+        .focus("end")
+        .setImage({ src: blobUrl })
+        .run();
     };
 
-    const plugin = createImageDropPlugin(handleImageFile);
+    handleImageFileRef.current = handleImageFile;
+
+    const plugin = createImageDropPlugin(handleImageFile, setIsDragOver);
     editor.registerPlugin(plugin);
 
     return () => {
       editor.unregisterPlugin(imagePluginKey);
     };
   }, [editor]);
+
+  useImperativeHandle(ref, () => ({
+    insertImageFile: (file: File) => handleImageFileRef.current(file),
+  }), []);
 
   // Resolve inline:refId → blob URL on editor mount
   useEffect(() => {
@@ -224,11 +263,17 @@ export default function TiptapEditor({
   return (
     <div
       className={cn(
-        "tiptap-editor w-full rounded-md border border-input bg-transparent text-sm shadow-sm focus-within:ring-1 focus-within:ring-ring min-h-32",
+        "tiptap-editor relative w-full rounded-md border border-input bg-transparent text-sm shadow-sm focus-within:ring-2 focus-within:ring-ring min-h-32",
         className,
       )}
+      onClick={() => editor?.commands.focus()}
     >
       <EditorContent editor={editor} />
+      {isDragOver && (
+        <div className="absolute inset-0 rounded-md bg-sky-200/30 pointer-events-none" />
+      )}
     </div>
   );
-}
+});
+
+export default TiptapEditor;

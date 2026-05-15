@@ -1,7 +1,15 @@
+.tiptap-editor,
+.tiptap-editor > div {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
 .tiptap-editor .ProseMirror {
   outline: none;
-  min-height: inherit;
+  flex: 1;
   padding: 0.5rem 0.75rem;
+  cursor: text;
 }
 
 .tiptap-editor .ProseMirror p {
@@ -33,6 +41,10 @@
 
 .tiptap-editor .ProseMirror ul {
   list-style-type: disc;
+}
+
+.tiptap-editor .ProseMirror ul ul {
+  list-style-type: circle;
 }
 
 .tiptap-editor .ProseMirror ol {
@@ -75,6 +87,17 @@
   border-radius: 0.25rem;
   padding: 0.125em 0.25em;
   font-size: 0.875em;
+}
+
+.tiptap-editor .ProseMirror img.ProseMirror-selectednode {
+  outline: 3px solid hsl(199 89% 86%);
+  outline-offset: 2px;
+  border-radius: 0.375rem;
+}
+
+.tiptap-editor .ProseMirror {
+  caret-width: 3px;
+  caret-color: auto;
 }
 
 .tiptap-editor .ProseMirror p.is-editor-empty:first-child::before {

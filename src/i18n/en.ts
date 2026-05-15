@@ -148,6 +148,7 @@ const en = {
   "draft.removeAnnotation": "Remove annotation",
   "draft.editAnnotation": "Edit annotation",
   "draft.addAnnotation": "Add annotation",
+  "draft.addImage": "Add image",
   "draft.aiGenerate": "AI Draft",
   "draft.aiBanner": "Let AI write your draft",
   "draft.aiError": "Failed to generate AI draft. Please try again.",
