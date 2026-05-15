@@ -70,6 +70,7 @@ const en = {
   "issue.mode.screenshot": "Screenshot",
   "issue.mode.video": "Record video",
   "issue.mode.freeform": "Freeform",
+  "issue.startDraft": "Write issue",
   "issue.picking.title": "Select an element",
   "issue.capturing.title": "Select capture area",
   "issue.recording.title": "Recording {time}",
