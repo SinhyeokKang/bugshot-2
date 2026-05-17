@@ -106,6 +106,7 @@ const TiptapEditor = forwardRef<TiptapEditorHandle, TiptapEditorProps>(function 
         heading: false,
         codeBlock: false,
         blockquote: false,
+        link: false,
         dropcursor: {
           color: "hsl(199 89% 70%)",
           width: 2,
