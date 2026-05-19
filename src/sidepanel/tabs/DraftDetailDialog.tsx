@@ -76,6 +76,7 @@ import { buildHar, serializeHar } from "../lib/buildHar";
 import { buildConsoleLogJson, serializeConsoleLog } from "../lib/buildConsoleLogJson";
 import { buildIssueAdf } from "../lib/buildIssueAdf";
 import { buildNetworkLogSummary, buildConsoleLogSummary } from "../lib/buildLogSummary";
+import { filterEnvironmentRows } from "../lib/environmentRows";
 import { extractInlineRefs, resolveInlineImagesForSections } from "../lib/resolveInlineImages";
 import { SubmitFieldsDialog } from "./IssueCreateModal";
 
@@ -931,11 +932,12 @@ function EnvBlock({ issue }: { issue: IssueRecord }) {
       minute: "2-digit",
     }),
   });
+  rows.push(...filterEnvironmentRows(issue.draft.environment ?? []));
 
   return (
     <div className="space-y-1 text-sm leading-relaxed">
-      {rows.map((r) => (
-        <div key={r.label} className="flex gap-3">
+      {rows.map((r, i) => (
+        <div key={`${r.label}-${i}`} className="flex gap-3">
           <span className="w-20 shrink-0 text-muted-foreground">{r.label}</span>
           <span className="break-all">{r.value}</span>
         </div>

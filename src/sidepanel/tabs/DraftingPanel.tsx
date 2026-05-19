@@ -459,22 +459,53 @@ function ReproEnvironmentSection() {
   const updateRows = (next: EnvironmentRow[]) => {
     setDraft({ ...draft, environment: next });
   };
+  const addRowButton = (
+    <Button
+      type="button"
+      size="icon"
+      variant="outline"
+      className="h-9 w-9 shrink-0"
+      title={t("draft.envAddRow")}
+      onClick={() => updateRows([...customRows, { label: "", value: "" }])}
+    >
+      <Plus />
+    </Button>
+  );
 
   return (
     <Section title={t("section.env")} collapsible defaultOpen={false}>
-      <div className="space-y-1 text-sm leading-relaxed">
+      <div className="flex flex-col gap-2">
         {readonlyRows.map((r, i) => (
-          <div key={`ro-${i}`} className="flex gap-3">
-            <span className="w-28 shrink-0 text-muted-foreground">{r.label}</span>
-            <span className="break-all">{r.value}</span>
+          <div key={`ro-${i}`} className="flex items-center gap-1">
+            <Input
+              className="w-20 shrink-0 text-sm text-muted-foreground bg-muted"
+              value={r.label}
+              readOnly
+            />
+            <Input
+              className="flex-1 text-sm text-muted-foreground bg-muted"
+              value={r.value}
+              readOnly
+            />
+            <Button
+              type="button"
+              size="icon"
+              variant="outline"
+              className="h-9 w-9 shrink-0 text-muted-foreground"
+              title={t("common.delete")}
+              disabled
+            >
+              <Trash2 />
+            </Button>
+            {customRows.length === 0 &&
+              i === readonlyRows.length - 1 &&
+              addRowButton}
           </div>
         ))}
-      </div>
-      <div className="flex flex-col gap-1">
         {customRows.map((row, idx) => (
           <div key={idx} className="flex items-center gap-1">
             <Input
-              className="w-28 shrink-0 text-sm"
+              className="w-20 shrink-0 text-sm"
               placeholder={t("draft.envLabelPlaceholder")}
               value={row.label}
               onChange={(e) => {
@@ -503,18 +534,9 @@ function ReproEnvironmentSection() {
             >
               <Trash2 />
             </Button>
+            {idx === customRows.length - 1 && addRowButton}
           </div>
         ))}
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="self-start"
-          onClick={() => updateRows([...customRows, { label: "", value: "" }])}
-        >
-          <Plus />
-          {t("draft.envAddRow")}
-        </Button>
       </div>
     </Section>
   );
