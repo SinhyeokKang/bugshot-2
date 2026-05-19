@@ -1,5 +1,5 @@
 ---
-description: 원격 푸시 전 상태 점검 + CLAUDE.md/ARCHITECTURE.md/README.md 신선도 확인 + 푸시
+description: 원격 푸시 전 상태 점검 + CLAUDE.md/DIRECTORY.md/ARCHITECTURE.md/README.md 신선도 확인 + 푸시
 ---
 
 원격(`origin`)에 현재 브랜치를 안전하게 푸시한다. 푸시 전에 저장소 문서의 신선도를 점검하고 필요시 업데이트까지 커밋한다.
@@ -31,8 +31,9 @@ description: 원격 푸시 전 상태 점검 + CLAUDE.md/ARCHITECTURE.md/README.
    - 기능 추가/삭제로 README의 사용법·기능 설명이 어긋남
    - 워크플로우/스킬 라인업 변경
 
-   검사 대상 3개:
-   - **CLAUDE.md** — 디렉터리 구조, 코드 컨벤션, 게이트웨이, 워크플로우 등 해당 섹션이 최신인지 확인
+   검사 대상 4개:
+   - **CLAUDE.md** — 코드 컨벤션, 게이트웨이, 워크플로우 등 해당 섹션이 최신인지 확인
+   - **DIRECTORY.md** — 디렉터리 구조·파일별 역할이 현재 코드베이스와 일치하는지 확인
    - **ARCHITECTURE.md** — Side Panel 탭 스코프, 세션 영속화, 인증 플로우, 어댑터 패턴, 토큰 체인, CSSOM 캐시, DOM lazy load, 이슈 섹션 구성, 마이그레이션 등 설계 상세가 최신인지 확인
    - **README.md** — 기능 목록, 설치/사용법, 스크린샷 설명 등이 현재 코드와 맞는지 확인
 
