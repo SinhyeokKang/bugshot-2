@@ -1,4 +1,4 @@
-# bugshot-website
+# bugshot-web
 
 ## 배경
 
@@ -9,7 +9,7 @@ Bugshot은 Chrome 웹스토어에 게시된 확장 프로그램이지만 전용 
 1. Bugshot의 핵심 기능을 시각적으로 전달하는 싱글 페이지 랜딩 사이트를 만든다.
 2. Chrome 웹스토어 설치 CTA를 명확히 노출해 전환율을 높인다.
 3. SEO를 확보해 "chrome bug reporting extension" 등 키워드로 유입을 만든다.
-4. 별도 레포지토리(`bugshot-website`)로 운영하되, bugshot-2와 스택 친화성을 유지한다.
+4. 별도 레포지토리(`bugshot-web`)로 운영하되, bugshot-2와 스택 친화성을 유지한다.
 
 ## 비목표 (Non-goals)
 

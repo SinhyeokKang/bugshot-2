@@ -1,8 +1,8 @@
-# bugshot-website — 구현 태스크
+# bugshot-web — 구현 태스크
 
 ## 선행 조건
 
-- [ ] GitHub에 `bugshot-website` 레포지토리 생성
+- [ ] GitHub에 `bugshot-web` 레포지토리 생성
 - [ ] Node.js 18+ / pnpm 설치 확인
 - [ ] Vercel 계정 + 프로젝트 연결 (배포 단계에서)
 - [ ] 플레이스홀더 목업 이미지 방향 결정 (단색 배경 + 아이콘 / 실제 스크린샷 / AI 생성)
@@ -12,7 +12,7 @@
 ### Task 1: 프로젝트 초기화
 
 - **작업 내용**:
-  - `/Users/sinhyeok/code/bugshot-website/` 디렉터리 생성
+  - `/Users/sinhyeok/code/bugshot-web/` 디렉터리에서 진행
   - `npx create-next-app@latest` 실행 (TypeScript, Tailwind, App Router, src/ 디렉터리, ESLint)
   - `output: 'export'` 설정 (`next.config.ts`)
   - shadcn/ui 초기화 (`npx shadcn@latest init`, style: `new-york`, base color: `slate`)

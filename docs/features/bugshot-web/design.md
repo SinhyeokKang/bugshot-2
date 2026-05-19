@@ -1,13 +1,13 @@
-# bugshot-website — 기술 설계
+# bugshot-web — 기술 설계
 
 ## 개요
 
-Next.js 14 App Router + SSG(`output: 'export'`)로 정적 싱글 페이지를 생성하고, Vercel에 배포한다. Tailwind CSS v4 + shadcn/ui로 스타일링하며, 제품 소개 콘텐츠는 컴포넌트에 직접 작성한다(CMS 없음). 별도 GitHub 레포지토리 `bugshot-website`로 운영.
+Next.js 14 App Router + SSG(`output: 'export'`)로 정적 싱글 페이지를 생성하고, Vercel에 배포한다. Tailwind CSS v4 + shadcn/ui로 스타일링하며, 제품 소개 콘텐츠는 컴포넌트에 직접 작성한다(CMS 없음). 별도 GitHub 레포지토리 `bugshot-web`으로 운영.
 
 ## 프로젝트 구조
 
 ```
-bugshot-website/
+bugshot-web/
 ├── public/
 │   ├── images/           # 목업 이미지·로고·OG 이미지
 │   │   ├── hero-mockup.png
