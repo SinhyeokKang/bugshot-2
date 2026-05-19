@@ -6,6 +6,7 @@ import {
 } from "@/store/settings-ui-store";
 import { formatElementName } from "@/lib/element-label";
 import type { MarkdownContext } from "./buildIssueMarkdown";
+import { filterEnvironmentRows } from "./environmentRows";
 import { formatTimestamp } from "./formatTimestamp";
 
 export interface LinearMediaInput {
@@ -74,6 +75,9 @@ export function buildLinearIssueBody(
     lines.push(`- **Viewport**: ${ctx.viewport.width}×${ctx.viewport.height}`);
   }
   lines.push(`- **Captured**: ${formatTimestamp(ctx.capturedAt)}`);
+  for (const row of filterEnvironmentRows(ctx.environment)) {
+    lines.push(`- **${row.label}**: ${row.value}`);
+  }
   lines.push("");
 
   let mediaEmitted = false;

@@ -5,6 +5,7 @@ import {
   type IssueSection,
 } from "@/store/settings-ui-store";
 import type { MarkdownContext } from "./buildIssueMarkdown";
+import { filterEnvironmentRows } from "./environmentRows";
 import { formatTimestamp } from "./formatTimestamp";
 
 export interface GithubMediaInput {
@@ -71,6 +72,9 @@ export function buildGithubIssueBody(
     lines.push(`- **Viewport**: ${ctx.viewport.width}×${ctx.viewport.height}`);
   }
   lines.push(`- **Captured**: ${formatTimestamp(ctx.capturedAt)}`);
+  for (const row of filterEnvironmentRows(ctx.environment)) {
+    lines.push(`- **${row.label}**: ${row.value}`);
+  }
   lines.push("");
 
   const isFreeform = ctx.captureMode === "freeform";

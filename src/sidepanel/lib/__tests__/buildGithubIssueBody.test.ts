@@ -42,6 +42,7 @@ function makeCtx(overrides: Partial<MarkdownContext> = {}): MarkdownContext {
     viewport: { width: 1024, height: 768 },
     capturedAt: 1700000000000,
     diffs: [],
+    environment: [],
     ...overrides,
   };
 }
@@ -325,5 +326,27 @@ describe("buildGithubIssueBody — URL 인라인", () => {
     expect(out.body).toContain("| color | #000 | #fff |");
     expect(out.body).not.toContain("github.attachmentNotInline");
     expect(out.body).not.toContain("md.section.attachments");
+  });
+});
+
+describe("buildGithubIssueBody — custom environment rows", () => {
+  it("custom row가 Environment 섹션 불릿으로 포함", () => {
+    const out = buildGithubIssueBody({
+      ctx: makeCtx({ environment: [{ label: "Browser", value: "Chrome 140" }] }),
+    });
+    expect(out.body).toContain("- **Browser**: Chrome 140");
+  });
+
+  it("빈 row 제외, value 개행 공백 치환", () => {
+    const out = buildGithubIssueBody({
+      ctx: makeCtx({
+        environment: [
+          { label: "", value: "ignored" },
+          { label: "OS", value: "macOS\n15" },
+        ],
+      }),
+    });
+    expect(out.body).not.toContain("ignored");
+    expect(out.body).toContain("- **OS**: macOS 15");
   });
 });

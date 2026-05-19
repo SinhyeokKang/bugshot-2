@@ -219,6 +219,7 @@ export function IssueCreateModal() {
         viewport: freeformViewport,
         capturedAt: freeformCapturedAt ?? Date.now(),
         diffs: [],
+        environment: draft.environment ?? [],
         networkLogSummary: hasNetworkLog ? buildNetworkLogSummary(networkLog!) : undefined,
         consoleLogSummary: hasConsoleLog ? buildConsoleLogSummary(consoleLog!) : undefined,
       };
@@ -241,6 +242,7 @@ export function IssueCreateModal() {
         viewport: videoViewport ?? { width: 0, height: 0 },
         capturedAt: videoCapturedAt ?? Date.now(),
         diffs: [],
+        environment: draft.environment ?? [],
         networkLogSummary: hasNetworkLog ? buildNetworkLogSummary(networkLog!) : undefined,
         consoleLogSummary: hasConsoleLog ? buildConsoleLogSummary(consoleLog!) : undefined,
       };
@@ -261,6 +263,7 @@ export function IssueCreateModal() {
         viewport: screenshotViewport ?? { width: 0, height: 0 },
         capturedAt: screenshotCapturedAt ?? Date.now(),
         diffs: [],
+        environment: draft.environment ?? [],
       };
     }
     if (!selection) throw new Error(t("create.requiredMissing"));
@@ -278,6 +281,7 @@ export function IssueCreateModal() {
       viewport: selection.viewport,
       capturedAt: selection.capturedAt,
       diffs: buildStyleDiff(selection, styleEdits),
+      environment: draft.environment ?? [],
     };
   }
 

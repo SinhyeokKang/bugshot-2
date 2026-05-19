@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { Camera, ImageIcon, ImagePlus, Pencil, RotateCcw, Trash2, WandSparkles } from "lucide-react";
+import { Camera, ImageIcon, ImagePlus, Pencil, Plus, RotateCcw, Trash2, WandSparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,6 +38,10 @@ import {
   parseAiDraftResponse,
 } from "../lib/buildAiDraftPrompt";
 import { buildNetworkLogSummary, buildConsoleLogSummary } from "../lib/buildLogSummary";
+import {
+  deriveReadonlyEnvRows,
+  type EnvironmentRow,
+} from "../lib/environmentRows";
 import { AiDraftDialog } from "./AiDraftDialog";
 
 const LazyTiptapEditor = lazy(() => import("../components/TiptapEditor"));
@@ -97,6 +101,7 @@ export function DraftingPanel() {
     setDraft({
       title: defaultTitle(titlePrefix),
       sections: {},
+      environment: [],
     });
   }, [draft, selection, setDraft, titlePrefix, captureMode, screenshotImage, videoThumbnail, videoBlob]);
 
@@ -157,7 +162,11 @@ export function DraftingPanel() {
         const aiTitle = prefix
           ? prefix + parsed.title
           : parsed.title;
-        setDraft({ ...parsed, title: aiTitle });
+        setDraft({
+          ...parsed,
+          title: aiTitle,
+          environment: draft.environment ?? [],
+        });
       } else {
         console.warn("[bugshot] AI draft parse failed. Raw response:", raw);
         setAiError(t("draft.aiParseError"));
@@ -172,11 +181,11 @@ export function DraftingPanel() {
   const isFreeformMode = captureMode === "freeform";
 
   const mediaBlock = isFreeformMode ? null : isVideoMode ? (
-    <Section key="__media" title={t("section.media")}>
+    <Section key="__media" title={t("section.media")} collapsible>
       <VideoPreview blob={videoBlob} thumbnail={videoThumbnail} />
     </Section>
   ) : isElementMode ? (
-    <Section key="__media" title={t("section.styleChanges")}>
+    <Section key="__media" title={t("section.styleChanges")} collapsible>
       <StyleChangesTable
         beforeImage={beforeImage}
         afterImage={afterImage}
@@ -187,6 +196,7 @@ export function DraftingPanel() {
     <Section
       key="__media"
       title={t("section.media")}
+      collapsible
       action={
         screenshotImage ? (
           <>
@@ -227,7 +237,7 @@ export function DraftingPanel() {
   );
 
   const logCardsBlock = showLogCards ? (
-    <Section key="__logCards" title={t("section.logs")}>
+    <Section key="__logCards" title={t("section.logs")} collapsible>
       <LogAttachmentCards
         networkLog={networkLog}
         networkLogAttach={networkLogAttach}
@@ -312,6 +322,8 @@ export function DraftingPanel() {
                 placeholder={t("draft.titlePlaceholder")}
               />
             </Section>
+
+            <ReproEnvironmentSection />
 
             {sectionNodes}
           </PageScroll>
@@ -409,6 +421,105 @@ export function DraftingPanel() {
   );
 }
 
+function ReproEnvironmentSection() {
+  const t = useT();
+  const target = useEditorStore((s) => s.target);
+  const captureMode = useEditorStore((s) => s.captureMode);
+  const selection = useEditorStore((s) => s.selection);
+  const videoViewport = useEditorStore((s) => s.videoViewport);
+  const videoCapturedAt = useEditorStore((s) => s.videoCapturedAt);
+  const screenshotViewport = useEditorStore((s) => s.screenshotViewport);
+  const screenshotCapturedAt = useEditorStore((s) => s.screenshotCapturedAt);
+  const freeformViewport = useEditorStore((s) => s.freeformViewport);
+  const freeformCapturedAt = useEditorStore((s) => s.freeformCapturedAt);
+  const draft = useEditorStore((s) => s.draft);
+  const setDraft = useEditorStore((s) => s.setDraft);
+
+  if (!draft) return null;
+
+  const vp =
+    captureMode === "element" ? selection?.viewport ?? null
+    : captureMode === "video" ? videoViewport
+    : captureMode === "screenshot" ? screenshotViewport
+    : freeformViewport;
+  const capturedAt =
+    captureMode === "element" ? selection?.capturedAt ?? null
+    : captureMode === "video" ? videoCapturedAt
+    : captureMode === "screenshot" ? screenshotCapturedAt
+    : freeformCapturedAt;
+
+  const readonlyRows = deriveReadonlyEnvRows({
+    url: target?.url ?? "",
+    selector: captureMode === "element" ? selection?.selector : null,
+    viewport: vp ? { w: vp.width, h: vp.height } : null,
+    capturedAt,
+  });
+
+  const customRows = draft.environment ?? [];
+  const updateRows = (next: EnvironmentRow[]) => {
+    setDraft({ ...draft, environment: next });
+  };
+
+  return (
+    <Section title={t("section.env")} collapsible defaultOpen={false}>
+      <div className="space-y-1 text-sm leading-relaxed">
+        {readonlyRows.map((r, i) => (
+          <div key={`ro-${i}`} className="flex gap-3">
+            <span className="w-28 shrink-0 text-muted-foreground">{r.label}</span>
+            <span className="break-all">{r.value}</span>
+          </div>
+        ))}
+      </div>
+      <div className="flex flex-col gap-1">
+        {customRows.map((row, idx) => (
+          <div key={idx} className="flex items-center gap-1">
+            <Input
+              className="w-28 shrink-0 text-sm"
+              placeholder={t("draft.envLabelPlaceholder")}
+              value={row.label}
+              onChange={(e) => {
+                const next = [...customRows];
+                next[idx] = { ...next[idx], label: e.target.value };
+                updateRows(next);
+              }}
+            />
+            <Input
+              className="flex-1 text-sm"
+              placeholder={t("draft.envValuePlaceholder")}
+              value={row.value}
+              onChange={(e) => {
+                const next = [...customRows];
+                next[idx] = { ...next[idx], value: e.target.value };
+                updateRows(next);
+              }}
+            />
+            <Button
+              type="button"
+              size="icon"
+              variant="outline"
+              className="h-9 w-9 shrink-0 text-muted-foreground hover:text-destructive"
+              title={t("common.delete")}
+              onClick={() => updateRows(customRows.filter((_, i) => i !== idx))}
+            >
+              <Trash2 />
+            </Button>
+          </div>
+        ))}
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="self-start"
+          onClick={() => updateRows([...customRows, { label: "", value: "" }])}
+        >
+          <Plus />
+          {t("draft.envAddRow")}
+        </Button>
+      </div>
+    </Section>
+  );
+}
+
 function SectionTextarea({
   section,
   value,
@@ -432,6 +543,7 @@ function SectionTextarea({
   return (
     <Section
       title={label}
+      collapsible
       action={
         isParagraph ? (
           <>

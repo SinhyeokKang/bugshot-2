@@ -57,6 +57,7 @@ function makeCtx(overrides: Partial<MarkdownContext> = {}): MarkdownContext {
     viewport: { width: 1920, height: 1080 },
     capturedAt: 1700000000000,
     diffs: [{ prop: "color", asIs: "#000", toBe: "#fff" }],
+    environment: [],
     ...overrides,
   };
 }
@@ -298,5 +299,40 @@ describe("buildIssueAdf — inline images", () => {
       (n: any) => n.type === "paragraph" && n.content?.some((c: any) => c.text === "md.noValue"),
     );
     expect(noValue).toBeUndefined();
+  });
+});
+
+describe("buildIssueAdf — custom environment rows", () => {
+  it("element 모드 — custom row가 환경 bulletList에 포함", () => {
+    const doc = buildIssueAdf(
+      makeCtx({ environment: [{ label: "Browser", value: "Chrome 140" }] }),
+    );
+    const json = JSON.stringify(doc);
+    expect(json).toContain("Browser: ");
+    expect(json).toContain("Chrome 140");
+  });
+
+  it("비element 모드 — custom row가 환경 bulletList에 포함", () => {
+    const doc = buildIssueAdf(
+      makeCtx({
+        captureMode: "video",
+        environment: [{ label: "Browser", value: "Chrome 140" }],
+      }),
+    );
+    expect(JSON.stringify(doc)).toContain("Chrome 140");
+  });
+
+  it("빈 row 제외, value 개행 공백 치환", () => {
+    const doc = buildIssueAdf(
+      makeCtx({
+        environment: [
+          { label: "", value: "ignored" },
+          { label: "OS", value: "macOS\n15" },
+        ],
+      }),
+    );
+    const json = JSON.stringify(doc);
+    expect(json).not.toContain("ignored");
+    expect(json).toContain("macOS 15");
   });
 });

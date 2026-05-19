@@ -3,6 +3,7 @@ import type { Token } from "@/types/picker";
 import type { NetworkLog } from "@/types/network";
 import type { ConsoleLog } from "@/types/console";
 import type { PlatformId } from "@/types/platform";
+import type { EnvironmentRow } from "@/types/environment";
 import { onBlobSaveFailed } from "@/types/messages";
 import { useIssuesStore } from "./issues-store";
 import { useSettingsStore } from "./settings-store";
@@ -50,6 +51,7 @@ export interface EditorStyleEdits {
 export interface EditorDraft {
   title: string;
   sections: Record<string, string>;
+  environment?: EnvironmentRow[];
 }
 
 export interface EditorIssueFields {

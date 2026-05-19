@@ -49,6 +49,7 @@ function makeCtx(overrides: Partial<MarkdownContext> = {}): MarkdownContext {
     viewport: { width: 1024, height: 768 },
     capturedAt: 1700000000000,
     diffs: [],
+    environment: [],
     ...overrides,
   };
 }
@@ -230,5 +231,26 @@ describe("buildLinearIssueBody — 구조", () => {
     });
     expect(out.body).toContain("logSummary.console.title");
     expect(out.body).toContain("TypeError: Cannot read property 'x' of null");
+  });
+});
+
+describe("buildLinearIssueBody — custom environment rows", () => {
+  it("custom row가 Environment 섹션 불릿으로 포함", () => {
+    const out = buildLinearIssueBody({
+      ctx: makeCtx({ environment: [{ label: "Browser", value: "Chrome 140" }] }),
+    });
+    expect(out.body).toContain("- **Browser**: Chrome 140");
+  });
+
+  it("빈 row 제외, value 개행 공백 치환", () => {
+    const out = buildLinearIssueBody({
+      ctx: makeCtx({
+        environment: [
+          { label: "  ", value: "  " },
+          { label: "OS", value: "macOS\n15" },
+        ],
+      }),
+    });
+    expect(out.body).toContain("- **OS**: macOS 15");
   });
 });

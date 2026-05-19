@@ -267,6 +267,7 @@ export function DraftDetailDialog({
       viewport: isFreeform ? (issue.viewport ?? null) : (issue.viewport ?? sel?.viewport ?? { width: 0, height: 0 }),
       capturedAt: sel?.capturedAt ?? issue.createdAt,
       diffs,
+      environment: issue.draft.environment ?? [],
       networkLogSummary: networkLog ? buildNetworkLogSummary(networkLog) : undefined,
       consoleLogSummary: consoleLogForSubmit ? buildConsoleLogSummary(consoleLogForSubmit) : undefined,
     };
