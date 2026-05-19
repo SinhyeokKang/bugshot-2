@@ -59,6 +59,16 @@
 - **검증**:
   - [ ] `pnpm typecheck` 클린
 
+### Task 7: 캡처 버튼 단축키 툴팁
+- **변경 대상**: `src/sidepanel/hooks/useCommandShortcuts.ts` (신규), `src/sidepanel/tabs/IssueTab.tsx`
+- **작업 내용**:
+  - `useCommandShortcuts()` 훅: `chrome.commands.getAll()` 1회 조회 → `{ [name]: shortcut }` 맵 반환, `shortcut` 빈 문자열 커맨드는 제외.
+  - `IssueTab.tsx`의 `EmptyState`에서 `useCommandShortcuts()` 호출. 로컬 `ShortcutTooltip` 컴포넌트(`shortcut` 있으면 `Tooltip`+`TooltipContent`로 감싸고, 없으면 children 그대로) 추가. 요소/스샷/영상 버튼 3개를 감싸고, 자유 작성 버튼은 그대로.
+  - 버튼 그리드를 `TooltipProvider`로 감싼다. `Tooltip`/`TooltipTrigger`/`TooltipContent`/`TooltipProvider`는 `@/components/ui/tooltip`에서 import (기설치, 신규 설치 불필요). `TooltipTrigger`는 `asChild`로 `Button`을 감싼다.
+- **검증**:
+  - [ ] `pnpm typecheck` 클린
+  - [ ] 수동: 요소/스샷/영상 버튼 호버 시 현재 단축키 툴팁 표시, 자유 작성은 툴팁 없음
+
 ## 테스트 계획
 
 ### 단위 테스트
@@ -77,6 +87,8 @@
 - [ ] 다른 메인탭(연동/설정)에서 단축키 → 무시
 - [ ] 패널 닫힌 상태에서 단축키 → 무시, 콘솔 에러 없음
 - [ ] 캡처 버튼 클릭(특히 영상 녹화)이 이관 후에도 정상 동작
+- [ ] 요소/스샷/영상 버튼 호버 시 현재 단축키 툴팁 표시 (`chrome://extensions/shortcuts`에서 키 변경 후 패널 재오픈 시 변경 키 반영)
+- [ ] 자유 작성 버튼 호버 시 툴팁 없음
 
 ## 구현 순서 권장
 
@@ -85,5 +97,6 @@
 3. **Task 3** (훅) — Task 1·2 완료 후.
 4. **Task 4** (패널 배선) — Task 3 완료 후.
 5. **Task 5·6** (매니페스트/i18n, background) — Task 1 완료 후면 가능, **Task 5와 6은 서로 병렬 가능**. 6은 1의 `CAPTURE_COMMANDS`·`CAPTURE_SHORTCUT_MSG`에만 의존.
+6. **Task 7** (툴팁) — 독립적. Task 2와 `IssueTab.tsx`를 함께 건드리므로 Task 2 직후 이어서 하는 게 충돌이 적다. 키 표시는 Task 5(매니페스트 커맨드 등록) 후 실제 단축키가 잡혀야 수동 확인 가능.
 
 > 문서 신선도: 신규 파일(`src/lib/capture-commands.ts`, `src/sidepanel/hooks/useCaptureShortcuts.ts`)과 `manifest.config.ts` 커맨드 변경이 있어, 구현 후 `/push` 단계에서 CLAUDE.md 디렉터리 구조·게이트웨이(단축키) 섹션 갱신이 필요하다.
