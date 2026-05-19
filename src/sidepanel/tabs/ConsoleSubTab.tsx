@@ -34,7 +34,6 @@ export function ConsoleSubTab({ active, onStartFreeform }: { active: boolean; on
       <ConsoleLogContent
         flush
         entries={consoleLog?.entries ?? []}
-        startedAt={consoleLog?.startedAt ?? Date.now()}
       />
       <PageFooter>
         <div className="flex justify-end">
