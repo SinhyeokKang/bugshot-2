@@ -1,6 +1,6 @@
 import { useT } from "@/i18n";
 import type { LinearDefaults } from "@/types/linear";
-import { FieldRow } from "../IssueCreateModal";
+import { FieldRow } from "@/sidepanel/tabs/IssueCreateModal";
 import { AssigneeCombobox } from "./AssigneeCombobox";
 import { LabelCombobox } from "./LabelCombobox";
 import { PrioritySelect } from "./PrioritySelect";

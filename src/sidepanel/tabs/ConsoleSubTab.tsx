@@ -3,10 +3,10 @@ import { SquarePen } from "lucide-react";
 import { useT } from "@/i18n";
 import { Button } from "@/components/ui/button";
 import { useEditorStore } from "@/store/editor-store";
-import { useBoundTabId } from "../hooks/useBoundTabId";
-import { syncConsoleRecorder } from "../picker-control";
-import { PageShell, PageFooter } from "../components/Section";
-import { ConsoleLogContent } from "../components/ConsoleLogContent";
+import { useBoundTabId } from "@/sidepanel/hooks/useBoundTabId";
+import { syncConsoleRecorder } from "@/sidepanel/picker-control";
+import { PageShell, PageFooter } from "@/sidepanel/components/Section";
+import { ConsoleLogContent } from "@/sidepanel/components/ConsoleLogContent";
 
 const SYNC_INTERVAL = 1500;
 

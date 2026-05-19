@@ -42,7 +42,7 @@ import {
   PROVIDER_PRESETS,
   requestHostPermission,
   type ModelEntry,
-} from "../../lib/ai-provider";
+} from "@/sidepanel/lib/ai-provider";
 
 function OpenAIIcon(props: SVGProps<SVGSVGElement>) {
   return (

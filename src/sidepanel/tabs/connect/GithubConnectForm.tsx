@@ -22,9 +22,9 @@ import type {
   GithubOAuthAuth,
 } from "@/types/github";
 import { isOAuthCancelled, sendBg } from "@/types/messages";
-import { PageScroll, Section } from "../../components/Section";
-import { LabelCombobox } from "../githubFields/LabelCombobox";
-import { RepoCombobox, type RepoValue } from "../githubFields/RepoCombobox";
+import { PageScroll, Section } from "@/sidepanel/components/Section";
+import { LabelCombobox } from "@/sidepanel/tabs/githubFields/LabelCombobox";
+import { RepoCombobox, type RepoValue } from "@/sidepanel/tabs/githubFields/RepoCombobox";
 
 export function GithubConnectForm() {
   const t = useT();

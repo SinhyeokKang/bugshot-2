@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Check, Copy, Info } from "lucide-react";
-import { formatTimestamp } from "../lib/formatTimestamp";
+import { formatTimestamp } from "@/sidepanel/lib/formatTimestamp";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { useT } from "@/i18n";
@@ -11,24 +11,24 @@ import {
 } from "@/store/settings-ui-store";
 import { useEditorStore } from "@/store/editor-store";
 import { connectedPlatforms, useSettingsStore } from "@/store/settings-store";
-import { DocSectionBody } from "../components/DocSectionBody";
-import { LogAttachmentCards } from "../components/LogAttachmentCards";
-import { NetworkLogPreviewDialog } from "../components/NetworkLogPreviewDialog";
-import { ConsoleLogPreviewDialog } from "../components/ConsoleLogPreviewDialog";
+import { DocSectionBody } from "@/sidepanel/components/DocSectionBody";
+import { LogAttachmentCards } from "@/sidepanel/components/LogAttachmentCards";
+import { NetworkLogPreviewDialog } from "@/sidepanel/components/NetworkLogPreviewDialog";
+import { ConsoleLogPreviewDialog } from "@/sidepanel/components/ConsoleLogPreviewDialog";
 import {
   PageFooter,
   PageScroll,
   PageShell,
   Section,
-} from "../components/Section";
+} from "@/sidepanel/components/Section";
 import {
   StyleChangesTable,
   buildStyleDiff,
-} from "../components/StyleChangesTable";
-import { buildIssueHtml, buildIssueMarkdown } from "../lib/buildIssueMarkdown";
-import { filterEnvironmentRows } from "../lib/environmentRows";
-import { buildNetworkLogSummary, buildConsoleLogSummary } from "../lib/buildLogSummary";
-import { resolveInlineImages } from "../lib/resolveInlineImages";
+} from "@/sidepanel/components/StyleChangesTable";
+import { buildIssueHtml, buildIssueMarkdown } from "@/sidepanel/lib/buildIssueMarkdown";
+import { filterEnvironmentRows } from "@/sidepanel/lib/environmentRows";
+import { buildNetworkLogSummary, buildConsoleLogSummary } from "@/sidepanel/lib/buildLogSummary";
+import { resolveInlineImages } from "@/sidepanel/lib/resolveInlineImages";
 import { IssueCreateModal } from "./IssueCreateModal";
 
 

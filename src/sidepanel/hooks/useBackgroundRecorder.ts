@@ -9,7 +9,7 @@ import {
   syncConsoleRecorder,
   clearNetworkRecorder,
   clearConsoleRecorder,
-} from "../picker-control";
+} from "@/sidepanel/picker-control";
 import { deleteNetworkLog, deleteConsoleLog } from "@/store/blob-db";
 import { pageKeyOf } from "@/lib/session-keys";
 import { isSupportedUrl } from "@/lib/url-support";

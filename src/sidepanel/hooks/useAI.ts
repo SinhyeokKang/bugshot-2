@@ -8,7 +8,7 @@ import {
   detectProviderKind,
   getProviderLabel,
   type AIProvider,
-} from "../lib/ai-provider";
+} from "@/sidepanel/lib/ai-provider";
 
 type AIStatus = "checking" | "available" | "unavailable";
 

@@ -24,11 +24,11 @@ import type {
   NotionSelectFieldValue,
 } from "@/types/notion";
 import { isOAuthCancelled, sendBg } from "@/types/messages";
-import { PageScroll, Section } from "../../components/Section";
-import { DatabaseCombobox } from "../notionFields/DatabaseCombobox";
-import { PropertiesFieldset } from "../notionFields/PropertiesFieldset";
-import { StatusSelect } from "../notionFields/StatusSelect";
-import { reconcileNotionFields } from "../notionFields/reconcileNotionFields";
+import { PageScroll, Section } from "@/sidepanel/components/Section";
+import { DatabaseCombobox } from "@/sidepanel/tabs/notionFields/DatabaseCombobox";
+import { PropertiesFieldset } from "@/sidepanel/tabs/notionFields/PropertiesFieldset";
+import { StatusSelect } from "@/sidepanel/tabs/notionFields/StatusSelect";
+import { reconcileNotionFields } from "@/sidepanel/tabs/notionFields/reconcileNotionFields";
 
 export function NotionConnectForm() {
   const t = useT();

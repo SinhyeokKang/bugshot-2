@@ -3,7 +3,7 @@ import type { JiraOAuthAuth, JiraSite } from "@/types/jira";
 import type { PlatformId } from "@/types/platform";
 import { writeStoredOAuthTokens } from "@/lib/settings-storage";
 
-const CLIENT_ID = import.meta.env.VITE_ATLASSIAN_CLIENT_ID ?? "";
+const CLIENT_ID = (import.meta.env.VITE_ATLASSIAN_CLIENT_ID ?? "").trim();
 const PROXY_URL = (import.meta.env.VITE_OAUTH_PROXY_URL ?? "").replace(
   /\/+$/,
   "",

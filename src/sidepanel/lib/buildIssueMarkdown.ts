@@ -4,7 +4,7 @@ import {
   sectionMdLabelKey,
   type IssueSection,
 } from "@/store/settings-ui-store";
-import type { StyleDiffRow } from "../components/StyleChangesTable";
+import type { StyleDiffRow } from "@/sidepanel/components/StyleChangesTable";
 import type { NetworkLogSummary, ConsoleLogSummary } from "./buildLogSummary";
 import { filterEnvironmentRows, type EnvironmentRow } from "./environmentRows";
 import { formatTimestamp } from "./formatTimestamp";

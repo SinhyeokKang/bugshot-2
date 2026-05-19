@@ -28,8 +28,8 @@ import {
 } from "@/components/ui/tooltip";
 import { isCaptureEntryScreen } from "@/lib/capture-commands";
 import { useEditorStore } from "@/store/editor-store";
-import { useBoundTabId } from "../hooks/useBoundTabId";
-import { useCommandShortcuts } from "../hooks/useCommandShortcuts";
+import { useBoundTabId } from "@/sidepanel/hooks/useBoundTabId";
+import { useCommandShortcuts } from "@/sidepanel/hooks/useCommandShortcuts";
 import {
   startPicker,
   stopPicker,
@@ -37,10 +37,10 @@ import {
   cancelAreaCapture,
   clearPicker,
   startFreeformDraft,
-} from "../picker-control";
-import { startVideoCapture } from "../video-capture";
-import * as videoRecorder from "../video-recorder";
-import { PageShell } from "../components/Section";
+} from "@/sidepanel/picker-control";
+import { startVideoCapture } from "@/sidepanel/video-capture";
+import * as videoRecorder from "@/sidepanel/video-recorder";
+import { PageShell } from "@/sidepanel/components/Section";
 import { DraftingPanel } from "./DraftingPanel";
 import { PreviewPanel } from "./PreviewPanel";
 import { SelectedPanel } from "./StyleEditorPanel";

@@ -22,10 +22,10 @@ import type {
   LinearOAuthAuth,
 } from "@/types/linear";
 import { isOAuthCancelled, sendBg } from "@/types/messages";
-import { PageScroll, Section } from "../../components/Section";
-import { TeamCombobox, type TeamValue } from "../linearFields/TeamCombobox";
-import { ProjectCombobox } from "../linearFields/ProjectCombobox";
-import { LabelCombobox } from "../linearFields/LabelCombobox";
+import { PageScroll, Section } from "@/sidepanel/components/Section";
+import { TeamCombobox, type TeamValue } from "@/sidepanel/tabs/linearFields/TeamCombobox";
+import { ProjectCombobox } from "@/sidepanel/tabs/linearFields/ProjectCombobox";
+import { LabelCombobox } from "@/sidepanel/tabs/linearFields/LabelCombobox";
 
 export function LinearConnectForm() {
   const t = useT();

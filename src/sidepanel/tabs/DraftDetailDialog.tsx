@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { NetworkLog } from "@/types/network";
 import type { ConsoleLog } from "@/types/console";
 import { getVideoBlob, getImageBlob, getNetworkLog, getConsoleLog, blobToDataUrl, pruneOrphanInlineImages } from "@/store/blob-db";
-import { useIssueImages } from "../hooks/useIssueImages";
+import { useIssueImages } from "@/sidepanel/hooks/useIssueImages";
 import { Info } from "lucide-react";
 import { useT, dateBcp47 } from "@/i18n";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -36,7 +36,7 @@ import {
 } from "@/store/settings-ui-store";
 import { useEditorStore } from "@/store/editor-store";
 import { useIssuesStore, type IssueRecord } from "@/store/issues-store";
-import { clearPicker } from "../picker-control";
+import { clearPicker } from "@/sidepanel/picker-control";
 import {
   connectedPlatforms,
   jiraSiteId,
@@ -45,10 +45,10 @@ import {
 } from "@/store/settings-store";
 import type { NormalizedSubmitResult, PlatformId } from "@/types/platform";
 import { sendBg, type JiraSubmitResult } from "@/types/messages";
-import { submitToGithub, type GithubFileInput } from "../lib/submitToGithub";
-import { submitToLinear, type LinearFileInput } from "../lib/submitToLinear";
-import { submitToNotion, type NotionFileInput } from "../lib/submitToNotion";
-import { recordingFilename } from "../lib/video-mime";
+import { submitToGithub, type GithubFileInput } from "@/sidepanel/lib/submitToGithub";
+import { submitToLinear, type LinearFileInput } from "@/sidepanel/lib/submitToLinear";
+import { submitToNotion, type NotionFileInput } from "@/sidepanel/lib/submitToNotion";
+import { recordingFilename } from "@/sidepanel/lib/video-mime";
 import {
   initialGhFields,
   type GithubIssueFieldsValue,
@@ -63,21 +63,21 @@ import {
 } from "./notionFields/NotionIssueFields";
 import type { NotionDatabaseSchema } from "@/types/notion";
 import { extractNotionPageId } from "@/lib/notion-page-id";
-import { DocSectionBody } from "../components/DocSectionBody";
-import { LogAttachmentCards } from "../components/LogAttachmentCards";
-import { NetworkLogPreviewDialog } from "../components/NetworkLogPreviewDialog";
-import { ConsoleLogPreviewDialog } from "../components/ConsoleLogPreviewDialog";
+import { DocSectionBody } from "@/sidepanel/components/DocSectionBody";
+import { LogAttachmentCards } from "@/sidepanel/components/LogAttachmentCards";
+import { NetworkLogPreviewDialog } from "@/sidepanel/components/NetworkLogPreviewDialog";
+import { ConsoleLogPreviewDialog } from "@/sidepanel/components/ConsoleLogPreviewDialog";
 import {
   StyleChangesTable,
   buildStyleDiff,
-} from "../components/StyleChangesTable";
-import { buildAiMetaAttachment } from "../lib/buildAiMetaAttachment";
-import { buildHar, serializeHar } from "../lib/buildHar";
-import { buildConsoleLogJson, serializeConsoleLog } from "../lib/buildConsoleLogJson";
-import { buildIssueAdf } from "../lib/buildIssueAdf";
-import { buildNetworkLogSummary, buildConsoleLogSummary } from "../lib/buildLogSummary";
-import { filterEnvironmentRows } from "../lib/environmentRows";
-import { extractInlineRefs, resolveInlineImagesForSections } from "../lib/resolveInlineImages";
+} from "@/sidepanel/components/StyleChangesTable";
+import { buildAiMetaAttachment } from "@/sidepanel/lib/buildAiMetaAttachment";
+import { buildHar, serializeHar } from "@/sidepanel/lib/buildHar";
+import { buildConsoleLogJson, serializeConsoleLog } from "@/sidepanel/lib/buildConsoleLogJson";
+import { buildIssueAdf } from "@/sidepanel/lib/buildIssueAdf";
+import { buildNetworkLogSummary, buildConsoleLogSummary } from "@/sidepanel/lib/buildLogSummary";
+import { filterEnvironmentRows } from "@/sidepanel/lib/environmentRows";
+import { extractInlineRefs, resolveInlineImagesForSections } from "@/sidepanel/lib/resolveInlineImages";
 import { SubmitFieldsDialog } from "./IssueCreateModal";
 
 type SubmitFields = {
