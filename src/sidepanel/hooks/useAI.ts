@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useSettingsUiStore } from "@/store/settings-ui-store";
 import {
+  CHROME_AI_LANG_OPTIONS,
   createAnthropicProvider,
   createChromeAIProvider,
   createOpenAICompatibleProvider,
@@ -29,9 +30,9 @@ export function useAI(): {
           setChromeAIStatus("unavailable");
           return;
         }
-        const availability = await globalThis.LanguageModel.availability({
-          expectedOutputLanguages: ["en"],
-        });
+        const availability = await globalThis.LanguageModel.availability(
+          CHROME_AI_LANG_OPTIONS,
+        );
         if (!cancelled) {
           setChromeAIStatus(
             availability === "available" || availability === "readily"
