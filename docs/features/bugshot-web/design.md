@@ -2,7 +2,7 @@
 
 ## 개요
 
-Next.js 14 App Router + SSG(`output: 'export'`)로 정적 싱글 페이지를 생성하고, Vercel에 배포한다. Tailwind CSS v4 + shadcn/ui로 스타일링하며, 제품 소개 콘텐츠는 컴포넌트에 직접 작성한다(CMS 없음). 별도 GitHub 레포지토리 `bugshot-web`으로 운영.
+Next.js 14 App Router + SSG(`output: 'export'`)로 정적 싱글 페이지를 생성하고, Vercel에 배포한다. Tailwind CSS v3 + shadcn/ui로 스타일링하며, 제품 소개 콘텐츠는 컴포넌트에 직접 작성한다(CMS 없음). 별도 GitHub 레포지토리 `bugshot-web`으로 운영.
 
 ## 프로젝트 구조
 
@@ -44,9 +44,9 @@ bugshot-web/
 | 영역 | 선택 | 이유 |
 |------|------|------|
 | Framework | Next.js 14 App Router | SSG + Image Optimization + 메타데이터 API |
-| Rendering | `output: 'export'` (정적 내보내기) | Vercel에서 정적 호스팅, CDN 캐시 최대화 |
-| Styling | Tailwind CSS v4 + shadcn/ui (`new-york` style) | bugshot-2와 동일 컨벤션, Button·Badge 등 재사용 |
-| Font | Pretendard (ko) + Inter (en) | bugshot-2와 시각 일관성 |
+| Rendering | `output: 'export'` (정적 내보내기) | Vercel에서 정적 호스팅, CDN 캐시 최대화. `images: { unoptimized: true }` 필수 |
+| Styling | Tailwind CSS v3 + shadcn/ui (`new-york` style) | bugshot-2와 동일 컨벤션, Button·Badge 등 재사용 |
+| Font | Pretendard | bugshot-2와 동일 |
 | Animation | CSS transitions + `@keyframes` | JS 런타임 불필요, Lighthouse 점수 유지 |
 | Analytics | Vercel Analytics (opt-in) | 별도 설정 최소화 |
 | SEO | Next.js Metadata API + JSON-LD | 정적 생성 시 메타 태그 자동 삽입 |
@@ -58,16 +58,16 @@ bugshot-web/
 ```tsx
 // sticky top-0, 스크롤 시 backdrop-blur
 // 좌: 로고 (SVG)
-// 우: "Add to Chrome" Button (variant="default", 웹스토어 링크)
+// 우: "Add to Chrome" Button (size="xl", 웹스토어 링크)
 ```
 
-모바일: 로고 + CTA만 유지 (네비 항목 없으므로 햄버거 불필요).
+모바일: 로고 + CTA만 유지 (네비 항목 없으므로 햄버거 불필요). 모바일 CTA 텍스트는 "View in Web Store"로 조건부 변경.
 
 ### Hero
 
 ```tsx
 // 2-column (lg:) / 1-column (mobile)
-// 좌: 헤드라인 (h1) + 서브카피 (p) + CTA Button + 부가 텍스트 ("Free · No account required")
+// 좌: 헤드라인 (h1) + 서브카피 (p) + CTA Button (size="xl") + 부가 텍스트 ("Free · No account required")
 // 우: 제품 목업 이미지 (next/image, priority)
 ```
 
@@ -76,16 +76,18 @@ bugshot-web/
 ### FeatureCards
 
 ```tsx
-// 2×2 그리드 (lg:) / 1-column (mobile)
+// 그리드 (lg:grid-cols-2) / 1-column (mobile)
+// 5번째 카드는 full-width 또는 센터 정렬
 // 각 카드: 목업 이미지 (aspect-video) + 제목 + 설명 (2-3문장)
 // shadcn Card 컴포넌트 사용
 ```
 
-4개 카드:
+5개 카드:
 1. **Pick & Edit CSS** — 요소 선택 + 실시간 편집 + 디자인 토큰 + before/after diff
 2. **Capture Everything** — 스크린샷 어노테이션 + 화면 녹화 + 키보드 단축키
 3. **Auto-Collect Logs** — 네트워크·콘솔 로그 자동 캡처 + 이슈 첨부
 4. **AI-Powered Drafts** — BYOK AI 이슈 초안 + 스타일 제안
+5. **One-Click Issue Filing** — Jira/GitHub/Linear/Notion 원클릭 등록 + 메타 동기화
 
 ### HowItWorks
 
@@ -95,7 +97,11 @@ bugshot-web/
 // 스텝 사이 연결선 (border-dashed 또는 SVG)
 ```
 
-스텝: Pick → Edit → Capture → File
+스텝: Detect → Resolve → Capture → Deliver (제품 자동화 관점)
+- Detect: DOM 요소를 선택하면 CSS 토큰과 스타일 체인을 실시간 추출
+- Resolve: 디자인 토큰을 인식하고 스타일 수정·비교를 자동 생성
+- Capture: 스크린샷·녹화·네트워크/콘솔 로그를 자동 수집해 맥락 완성
+- Deliver: 플랫폼에 맞는 이슈 포맷을 자동 생성·등록
 
 ### Integrations
 
@@ -105,20 +111,20 @@ bugshot-web/
 // 플랫폼: Jira, GitHub, Linear, Notion
 ```
 
-로고: `@icons-pack/react-simple-icons` 또는 public/images/ SVG 직접 배치.
+로고: `@icons-pack/react-simple-icons` (`SiJirasoftware`, `SiGithub`, `SiLinear`, `SiNotion`). bugshot-2와 동일 패턴 (GitHub만 `dark:invert`).
 
 ### BottomCta
 
 ```tsx
 // 배경색 대비 섹션
-// 헤드라인 + "Add to Chrome" Button (히어로와 동일 CTA)
+// 헤드라인 + "Add to Chrome" Button (size="xl", 히어로와 동일 CTA)
 ```
 
 ### Footer
 
 ```tsx
 // 3-column: Product (Chrome Web Store) | Legal (Privacy Policy) | Source (GitHub)
-// 하단: © 2025 Bugshot
+// 하단: © 2026 Bugshot
 ```
 
 ## 인터페이스 설계
@@ -168,9 +174,9 @@ JSON-LD `SoftwareApplication` 스키마로 검색 리치 결과 노출:
 
 ### Astro 대신 Next.js를 선택한 이유
 
-Astro가 정적 콘텐츠 사이트에 더 가볍지만, 사용자가 Next.js를 선택했다. 실질적 트레이드오프:
+Astro가 정적 콘텐츠 사이트에 더 가볍지만, Next.js를 선택했다. 실질적 트레이드오프:
 - Astro: 제로 JS 번들 가능, 하지만 shadcn/ui 사용 시 결국 React island 필요
-- Next.js: Image Optimization, Metadata API, Vercel 네이티브 지원이 즉시 사용 가능
+- Next.js: Metadata API, Vercel 네이티브 지원이 즉시 사용 가능. 단, `output: 'export'`에서는 On-Demand Image Optimization이 불가하므로 `unoptimized: true` 설정 필수
 - 추후 블로그·멀티 페이지 확장 시 Next.js App Router의 파일 기반 라우팅이 자연스러움
 
 번들 크기 차이는 싱글 페이지 + 정적 내보내기에서 무시할 수준.
@@ -179,4 +185,4 @@ Astro가 정적 콘텐츠 사이트에 더 가볍지만, 사용자가 Next.js를
 
 1. **목업 이미지 부재**: 모든 이미지가 플레이스홀더로 시작. 실제 소재 없이 배포하면 전환율이 낮을 수 있으므로, 플레이스홀더가 자연스럽게 보이도록 배경색 + 아이콘 조합의 일러스트 스타일 목업을 고려.
 2. **`output: 'export'` 제약**: API Routes, 서버 컴포넌트의 동적 기능 사용 불가. 현재 스코프에서는 문제 없으나, 추후 폼(뉴스레터 등) 추가 시 외부 서비스 필요.
-3. **Tailwind v4**: Next.js 14와의 조합이 안정화된 시점이지만, shadcn/ui CLI 초기화 시 Tailwind 버전 호환성 확인 필요. 문제 발생 시 v3로 fallback.
+3. **`next/image` 정적 export 제약**: `output: 'export'`에서는 On-Demand Image Optimization이 불가. `next.config.ts`에 `images: { unoptimized: true }` 설정 필수. `next/image`의 lazy loading·레이아웃 안정성(width/height) 이점은 유지.

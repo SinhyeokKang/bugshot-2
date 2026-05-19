@@ -64,12 +64,12 @@
 
 - **변경 대상**: `src/components/FeatureCards.tsx`
 - **작업 내용**:
-  - 2×2 그리드 (lg:grid-cols-2, 모바일은 1-column)
+  - 그리드 레이아웃 (lg:grid-cols-2, 모바일은 1-column, 5번째 카드는 full-width 또는 센터 정렬)
   - shadcn Card 컴포넌트 사용
-  - 4개 카드: Pick & Edit CSS / Capture Everything / Auto-Collect Logs / AI-Powered Drafts
+  - 5개 카드: Pick & Edit CSS / Capture Everything / Auto-Collect Logs / AI-Powered Drafts / One-Click Issue Filing
   - 각 카드: 목업 이미지 (aspect-video placeholder) + 제목 + 2-3문장 설명
 - **검증**:
-  - [ ] 4개 카드 정상 렌더링
+  - [ ] 5개 카드 정상 렌더링
   - [ ] 이미지 플레이스홀더 자연스러움 (배경색 + 텍스트)
   - [ ] 모바일 1-column 스택
 
@@ -78,11 +78,11 @@
 - **변경 대상**: `src/components/HowItWorks.tsx`
 - **작업 내용**:
   - 4-step 가로 플로우 (lg:) / 세로 (모바일)
-  - 각 스텝: 번호 Badge + lucide 아이콘 + 제목 + 한 줄 설명
+  - 각 스텝: 번호 Badge + lucide 아이콘 + 제목 + 한 줄 설명 (제품 자동화 관점)
   - 스텝 간 연결선 (border-dashed)
-  - Pick → Edit → Capture → File
+  - Detect → Resolve → Capture → Deliver
 - **검증**:
-  - [ ] 데스크톱: 4개 스텝 가로 배치 + 연결선
+  - [ ] 데스크톱: 4개 스텝(Detect/Resolve/Capture/Deliver) 가로 배치 + 연결선
   - [ ] 모바일: 세로 배치
   - [ ] 아이콘·뱃지 정상 렌더링
 

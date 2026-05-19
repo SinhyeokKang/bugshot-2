@@ -35,7 +35,7 @@ Bugshot은 Chrome 웹스토어에 게시된 확장 프로그램이지만 전용 
 ### 시나리오 3: 모바일 접속
 1. 모바일에서 링크 도달
 2. 반응형 레이아웃으로 콘텐츠 정상 확인
-3. 데스크톱 Chrome 확장이므로 CTA는 "웹스토어에서 보기" 텍스트로 안내
+3. CTA 버튼 텍스트를 조건부 변경: 모바일은 "View in Web Store", 데스크톱은 "Add to Chrome". 버튼은 동일하게 웹스토어 링크로 이동
 
 ## 페이지 섹션 구성
 
@@ -49,20 +49,20 @@ Bugshot은 Chrome 웹스토어에 게시된 확장 프로그램이지만 전용 
 | 6 | **Bottom CTA** | 최종 설치 유도 (히어로 CTA 반복) | 양쪽 레퍼런스 공통 |
 | 7 | **Footer** | 링크 (Privacy Policy, GitHub, Chrome Web Store) | — |
 
-### Feature Cards 후보 (4-5개 선정)
+### Feature Cards (5개 확정)
 
-1. **Element Picker & Live CSS** — DOM 요소 선택 + 실시간 스타일 편집 + 디자인 토큰 인식
-2. **Screenshot & Recording** — 영역 크롭 + 어노테이션 + 60초 화면 녹화
-3. **Network & Console Logs** — 자동 캡처 + 이슈에 첨부
-4. **AI Draft & Styling** — BYOK AI로 이슈 초안 + 스타일 제안
-5. **One-Click Issue Filing** — Jira/GitHub/Linear/Notion 한 번에 등록 (통합 섹션과 겹치면 4개로 축소)
+1. **Element Picker & Live CSS** — DOM 요소 선택 + 실시간 스타일 편집 + 디자인 토큰 인식. Bugshot의 핵심 차별 기능.
+2. **Screenshot & Recording** — 영역 크롭 + 어노테이션 + 60초 화면 녹화. 시각적 맥락 전달의 핵심.
+3. **Network & Console Logs** — 자동 캡처 + 이슈에 첨부. 개발자에게 재현 부담을 줄이는 킬러 피처.
+4. **AI Draft & Styling** — BYOK AI로 이슈 초안 + 스타일 제안. 작성 시간 단축.
+5. **One-Click Issue Filing** — Jira/GitHub/Linear/Notion 한 번에 등록. Integrations 섹션과 일부 겹치지만, 워크플로우 완결성을 보여주는 독립 카드로 유지.
 
-### How It Works 스텝 (안)
+### How It Works 스텝 (확정)
 
-1. **Pick** — 페이지에서 요소 선택
-2. **Edit** — CSS 수정·비교
-3. **Capture** — 스크린샷·녹화·로그 자동 수집
-4. **File** — 원클릭 이슈 등록
+1. **Detect** — DOM 요소를 선택하면 CSS 토큰과 스타일 체인을 실시간 추출
+2. **Resolve** — 디자인 토큰을 인식하고 스타일 수정·비교를 자동 생성
+3. **Capture** — 스크린샷·녹화·네트워크/콘솔 로그를 자동 수집해 맥락 완성
+4. **Deliver** — 플랫폼(Jira/GitHub/Linear/Notion)에 맞는 이슈 포맷을 자동 생성·등록
 
 ## 성공 기준
 
