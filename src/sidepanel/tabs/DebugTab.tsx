@@ -3,6 +3,7 @@ import { ArrowLeftRight, SquarePen, Terminal } from "lucide-react";
 import { useT } from "@/i18n";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useBoundTabId } from "../hooks/useBoundTabId";
+import { useCaptureShortcuts } from "../hooks/useCaptureShortcuts";
 import { startFreeformDraft } from "../picker-control";
 import { IssueTab } from "./IssueTab";
 import { ConsoleSubTab } from "./ConsoleSubTab";
@@ -10,10 +11,12 @@ import { NetworkSubTab } from "./NetworkSubTab";
 
 type DebugSubTab = "issue" | "console" | "network";
 
-export function DebugTab() {
+export function DebugTab({ activeMainTab }: { activeMainTab: string }) {
   const t = useT();
   const [sub, setSub] = useState<DebugSubTab>("issue");
   const tabId = useBoundTabId();
+
+  useCaptureShortcuts({ active: activeMainTab === "debug" && sub === "issue", tabId: tabId ?? null });
 
   const handleStartFreeform = useCallback(() => {
     if (tabId == null) return;

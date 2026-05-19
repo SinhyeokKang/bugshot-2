@@ -89,5 +89,17 @@ export default defineManifest({
       },
       description: "__MSG_CMD_TOGGLE_PANEL__",
     },
+    "capture-element": {
+      suggested_key: { default: "Ctrl+Shift+S", mac: "Command+Shift+S" },
+      description: "__MSG_CMD_CAPTURE_ELEMENT__",
+    },
+    "capture-screenshot": {
+      suggested_key: { default: "Ctrl+Shift+F", mac: "Command+Shift+F" },
+      description: "__MSG_CMD_CAPTURE_SCREENSHOT__",
+    },
+    "capture-video": {
+      suggested_key: { default: "Ctrl+Shift+X", mac: "Command+Shift+X" },
+      description: "__MSG_CMD_CAPTURE_VIDEO__",
+    },
   },
 });

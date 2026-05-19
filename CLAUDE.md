@@ -71,7 +71,8 @@ src/
 │   ├── main.tsx
 │   ├── capture.ts       # 요소 크롭 스냅샷
 │   ├── picker-control.ts
-│   ├── hooks/           # useBoundTabId, useAI, useBackgroundRecorder, useEditorSessionSync, useIssueImages, usePickerMessages, useThemeEffect
+│   ├── video-capture.ts # 영상 녹화 시작 (startVideoCapture) — 버튼·단축키 공용, video-recorder 순환 회피로 별도 모듈
+│   ├── hooks/           # useBoundTabId, useAI, useBackgroundRecorder, useCaptureShortcuts, useCommandShortcuts, useEditorSessionSync, useIssueImages, usePickerMessages, useThemeEffect
 │   ├── components/      # 공통 UI (Section/PageShell/PageScroll/PageFooter/AnnotationOverlay/TiptapEditor/DocSectionBody/ConsoleLogContent/NetworkLogContent 등)
 │   ├── tabs/            # 탭별 진입점 + 편집 패널 (DebugTab(→IssueTab/ConsoleSubTab/NetworkSubTab)/IssueListTab/IntegrationsTab/SettingsTab/StyleEditorPanel/DraftingPanel/AiDraftDialog 등)
 │   │   ├── styleEditor/   # AiStylingDialog, ValueCombobox, StylePropEditors와 헬퍼 (propMetadata, tokenUtils, styleHooks, TokenChip, colorLiteral, hexUtils)
@@ -87,7 +88,7 @@ src/
 │                        # settings-ui v5: LlmConfig { baseUrl, apiKey, modelId } 전부 chrome.storage.local 영속
 │                        # issues v5: entry에 platform: PlatformId 필드 + notion 한정 메타 (notionPageId/notionDatabaseId 등)
 ├── i18n/                # 다국어 (ko/en 로케일, t()/useT() 훅)
-├── lib/                 # 공용 유틸 (session-keys, adf-sentinels, url-support, settings-storage, notion-page-id, key-obfuscation, pending-log-prune)
+├── lib/                 # 공용 유틸 (session-keys, adf-sentinels, url-support, settings-storage, notion-page-id, key-obfuscation, pending-log-prune, capture-commands)
 ├── components/ui/       # shadcn 컴포넌트
 ├── styles/
 └── types/               # platform.ts (PlatformId/Accounts/LastSubmitFieldsByPlatform), github.ts, jira.ts, linear.ts, notion.ts 등
@@ -170,7 +171,7 @@ pnpm version major --no-git-tag-version   # 1.0.0 → 2.0.0 (Breaking change)
 - 매니페스트 `minimum_chrome_version: "116"` — sidePanel API 요구사항
 - 지원 URL: `http:`, `https:`, `file:` 스킴만. 추가로 `chromewebstore.google.com` 전체와 `chrome.google.com/webstore/*` 트리는 Chrome이 content script 주입을 차단해서 `src/lib/url-support.ts`의 `isSupportedUrl()`이 미지원으로 처리. 그 외 페이지에서는 side panel을 enable하지 않고, 사용 중 race로 unsupported로 진입하면 picker가 `onPickerUnavailable` 이벤트를 발화해 안내 다이얼로그 노출.
 - iframe 제약: content script가 `all_frames=false`라 iframe 내부 DOM은 picker로 선택 불가. iframe 박스 자체를 클릭하면 `picker.iframeUnsupported` → `onPickerIframeUnsupported` 이벤트로 안내 다이얼로그 노출 + picker 즉시 idle 복귀 (cross-document 경계 + 빈 결과로 인한 콘솔 에러 누적 방지).
-- 단축키: `Cmd+Shift+E` (mac) / `Ctrl+Shift+E` (default) — `_execute_action`
+- 단축키: `_execute_action`(`Cmd/Ctrl+Shift+E`, 사이드패널 토글) + 캡처 커맨드 3개(`capture-element`=`Shift+S` / `capture-screenshot`=`Shift+F` / `capture-video`=`Shift+X`). 총 4개 = Chrome `suggested_key` 상한. 캡처 단축키는 디버그>이슈작성 진입 화면에서만 발화. `suggested_key`는 best-effort라 OS·타 확장과 충돌 시 미배정될 수 있음 (그 경우 자연 no-op + 호버 툴팁 미표시)
 - permissions: `sidePanel`, `activeTab`, `scripting`, `storage`, `commands`, `contextMenus`, `identity`, `tabCapture`
 - host_permissions: `*.atlassian.net` (Jira REST), `api.atlassian.com` (OAuth gateway), `auth.atlassian.com` (authorize), `api.github.com` (GitHub REST), `github.com` (파일 업로드 page injection), `uploads.github.com` (파일 업로드 S3), `api.linear.app` (Linear GraphQL + OAuth token), `api.notion.com` (Notion REST + OAuth token), + `VITE_OAUTH_PROXY_URL` origin (빌드 타임 주입)
 - optional_host_permissions: `https://*/*`, `http://*/*` — BYOK LLM 프로바이더 연결 시 `chrome.permissions.request()`로 런타임 획득

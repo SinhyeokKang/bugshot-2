@@ -20,8 +20,16 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { isCaptureEntryScreen } from "@/lib/capture-commands";
 import { useEditorStore } from "@/store/editor-store";
 import { useBoundTabId } from "../hooks/useBoundTabId";
+import { useCommandShortcuts } from "../hooks/useCommandShortcuts";
 import {
   startPicker,
   stopPicker,
@@ -29,13 +37,8 @@ import {
   cancelAreaCapture,
   clearPicker,
   startFreeformDraft,
-  activateNetworkRecorder,
-  activateConsoleRecorder,
-  clearNetworkRecorder,
-  clearConsoleRecorder,
 } from "../picker-control";
-import { deleteNetworkLog, deleteConsoleLog } from "@/store/blob-db";
-import { onVideoRecordingUnavailable } from "@/types/messages";
+import { startVideoCapture } from "../video-capture";
 import * as videoRecorder from "../video-recorder";
 import { PageShell } from "../components/Section";
 import { DraftingPanel } from "./DraftingPanel";
@@ -105,12 +108,12 @@ export function IssueTab() {
     return <PreviewPanel />;
   }
 
-  if (phase === "idle" || (captureMode === "element" && !selection)) {
+  if (isCaptureEntryScreen({ phase, captureMode, selection })) {
     return (
       <EmptyState
         onStartElement={() => void startPicker(tabId)}
         onStartScreenshot={() => void startAreaCapture(tabId)}
-        onStartVideo={() => void handleStartVideo(tabId)}
+        onStartVideo={() => void startVideoCapture(tabId)}
         onStartFreeform={() => void startFreeformDraft(tabId)}
       />
     );
@@ -139,51 +142,25 @@ function UnsupportedPage() {
   );
 }
 
-async function handleStartVideo(tabId: number) {
-  const tab = await chrome.tabs.get(tabId);
-
-  // pending IndexedDB는 startRecording의 ...initial 리셋과 무관하게 정리 필요.
-  deleteNetworkLog(`pending:${tabId}`).catch(() => {});
-  deleteConsoleLog(`pending:${tabId}`).catch(() => {});
-
-  await Promise.all([
-    activateNetworkRecorder(tabId).catch((err) => console.warn("[bugshot] network recorder activate failed", err)),
-    activateConsoleRecorder(tabId).catch((err) => console.warn("[bugshot] console recorder activate failed", err)),
-  ]);
-  await Promise.all([
-    clearNetworkRecorder(tabId).catch((err) => console.warn("[bugshot] network recorder clear failed", err)),
-    clearConsoleRecorder(tabId).catch((err) => console.warn("[bugshot] console recorder clear failed", err)),
-  ]);
-
-  useEditorStore.getState().startRecording({
-    tabId,
-    url: tab.url ?? "",
-    title: tab.title ?? "",
-  });
-  try {
-    await videoRecorder.startRecording(tabId);
-  } catch (err) {
-    useEditorStore.getState().cancelRecording();
-    if (isTabCaptureUnavailable(err)) {
-      onVideoRecordingUnavailable.fire({ tabId });
-    } else {
-      console.warn("[bugshot] video recording failed to start", err);
-    }
-  }
-}
-
-function isTabCaptureUnavailable(err: unknown): boolean {
-  if (!(err instanceof Error)) return false;
-  const msg = err.message.toLowerCase();
+function ShortcutTooltip({
+  shortcut,
+  children,
+}: {
+  shortcut: string | undefined;
+  children: React.ReactNode;
+}) {
+  if (!shortcut) return <>{children}</>;
   return (
-    msg.includes("extension has not been invoked") ||
-    msg.includes("chrome pages cannot be captured") ||
-    msg.includes("activetab")
+    <Tooltip>
+      <TooltipTrigger asChild>{children}</TooltipTrigger>
+      <TooltipContent>{shortcut}</TooltipContent>
+    </Tooltip>
   );
 }
 
 function EmptyState({ onStartElement, onStartScreenshot, onStartVideo, onStartFreeform }: { onStartElement: () => void; onStartScreenshot: () => void; onStartVideo: () => void; onStartFreeform: () => void }) {
   const t = useT();
+  const shortcuts = useCommandShortcuts();
   return (
     <PageShell>
       <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 px-6 pb-5">
@@ -193,24 +170,32 @@ function EmptyState({ onStartElement, onStartScreenshot, onStartVideo, onStartFr
           </div>
           <h3 className="whitespace-pre-line text-center text-[18px] font-semibold">{t("issue.empty.title")}</h3>
         </div>
-        <div className="grid grid-cols-2 gap-2">
-          <Button className="col-span-2" onClick={onStartElement}>
-            <Crosshair />
-            {t("issue.mode.element")}
-          </Button>
-          <Button variant="outline" onClick={onStartScreenshot}>
-            <Camera />
-            {t("issue.mode.screenshot")}
-          </Button>
-          <Button variant="outline" onClick={onStartVideo}>
-            <Video />
-            {t("issue.mode.video")}
-          </Button>
-          <Button className="col-span-2" variant="outline" onClick={onStartFreeform}>
-            <PenLine />
-            {t("issue.mode.freeform")}
-          </Button>
-        </div>
+        <TooltipProvider delayDuration={0}>
+          <div className="grid grid-cols-2 gap-2">
+            <ShortcutTooltip shortcut={shortcuts["capture-element"]}>
+              <Button className="col-span-2" onClick={onStartElement}>
+                <Crosshair />
+                {t("issue.mode.element")}
+              </Button>
+            </ShortcutTooltip>
+            <ShortcutTooltip shortcut={shortcuts["capture-screenshot"]}>
+              <Button variant="outline" onClick={onStartScreenshot}>
+                <Camera />
+                {t("issue.mode.screenshot")}
+              </Button>
+            </ShortcutTooltip>
+            <ShortcutTooltip shortcut={shortcuts["capture-video"]}>
+              <Button variant="outline" onClick={onStartVideo}>
+                <Video />
+                {t("issue.mode.video")}
+              </Button>
+            </ShortcutTooltip>
+            <Button className="col-span-2" variant="outline" onClick={onStartFreeform}>
+              <PenLine />
+              {t("issue.mode.freeform")}
+            </Button>
+          </div>
+        </TooltipProvider>
       </div>
     </PageShell>
   );

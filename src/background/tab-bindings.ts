@@ -127,8 +127,13 @@ export function setupTabBindings(): void {
   chrome.action.onClicked.addListener(activateTab);
 
   chrome.tabs.onActivated.addListener(async ({ tabId }) => {
+    let tab: chrome.tabs.Tab;
     try {
-      const tab = await chrome.tabs.get(tabId);
+      tab = await chrome.tabs.get(tabId);
+    } catch {
+      return; // 활성화 직후 탭이 닫힘 — 적용할 게 없음
+    }
+    try {
       await apply(tabId, tab.url);
     } catch (err) {
       console.error("[bugshot] onActivated", err);

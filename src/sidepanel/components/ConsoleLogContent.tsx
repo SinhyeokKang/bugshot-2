@@ -12,7 +12,7 @@ const CONSOLE_FILTERS: ConsoleFilter[] = ["all", "error", "warn", "info", "debug
 
 interface ConsoleLogContentProps {
   entries: ConsoleEntry[];
-  startedAt: number;
+  startedAt?: number;
   flush?: boolean;
 }
 
@@ -138,7 +138,7 @@ export function ConsoleLogContent({ entries, startedAt, flush }: ConsoleLogConte
   );
 }
 
-function EntryAccordion({ entry, startedAt }: { entry: ConsoleEntry; startedAt: number }) {
+function EntryAccordion({ entry, startedAt }: { entry: ConsoleEntry; startedAt?: number }) {
   const [expanded, setExpanded] = useState(false);
   const t = useT();
 
@@ -148,7 +148,9 @@ function EntryAccordion({ entry, startedAt }: { entry: ConsoleEntry; startedAt: 
         className="flex cursor-pointer items-center gap-3 px-3 py-2 text-[13px] hover:bg-accent/50"
         onClick={() => setExpanded(!expanded)}
       >
-        <span className="w-10 shrink-0 font-mono text-[12px]">{formatRelativeTime(entry.timestamp, startedAt)}</span>
+        {startedAt != null && (
+          <span className="w-10 shrink-0 font-mono text-[12px]">{formatRelativeTime(entry.timestamp, startedAt)}</span>
+        )}
         <LevelIcon level={entry.level} />
         <span className={`min-w-0 flex-1 break-all ${levelColor(entry.level)}`}>
           {entry.args}
@@ -160,7 +162,7 @@ function EntryAccordion({ entry, startedAt }: { entry: ConsoleEntry; startedAt: 
       </div>
 
       {expanded && (
-        <div className="space-y-2 pb-3 pl-[64px] pr-3 pt-1 text-[12px]">
+        <div className={`space-y-2 pb-3 pr-3 pt-1 text-[12px] ${startedAt != null ? "pl-[64px]" : "pl-10"}`}>
           <pre className={`max-h-[300px] overflow-auto rounded p-2 font-sans text-[12px] whitespace-pre-wrap break-all ${levelCodeBg(entry.level)}`}>
             {entry.args}
           </pre>
