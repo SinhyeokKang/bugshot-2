@@ -40,6 +40,7 @@ import {
 import { buildNetworkLogSummary, buildConsoleLogSummary } from "../lib/buildLogSummary";
 import {
   deriveReadonlyEnvRows,
+  filterEnvironmentRows,
   type EnvironmentRow,
 } from "../lib/environmentRows";
 import { AiDraftDialog } from "./AiDraftDialog";
@@ -456,6 +457,7 @@ function ReproEnvironmentSection() {
   });
 
   const customRows = draft.environment ?? [];
+  const metaCount = readonlyRows.length + filterEnvironmentRows(customRows).length;
   const updateRows = (next: EnvironmentRow[]) => {
     setDraft({ ...draft, environment: next });
   };
@@ -473,12 +475,26 @@ function ReproEnvironmentSection() {
   );
 
   return (
-    <Section title={t("section.env")} collapsible defaultOpen={false}>
+    <Section
+      title={
+        <>
+          {t("section.env")}
+          <Badge
+            variant="secondary"
+            className="ml-2 align-middle text-xs tabular-nums"
+          >
+            {metaCount}
+          </Badge>
+        </>
+      }
+      collapsible
+      defaultOpen={false}
+    >
       <div className="flex flex-col gap-2">
         {readonlyRows.map((r, i) => (
           <div key={`ro-${i}`} className="flex items-center gap-1">
             <Input
-              className="w-20 shrink-0 text-sm text-muted-foreground bg-muted"
+              className="w-24 shrink-0 text-sm text-muted-foreground bg-muted"
               value={r.label}
               readOnly
             />
@@ -505,7 +521,7 @@ function ReproEnvironmentSection() {
         {customRows.map((row, idx) => (
           <div key={idx} className="flex items-center gap-1">
             <Input
-              className="w-20 shrink-0 text-sm"
+              className="w-24 shrink-0 text-sm"
               placeholder={t("draft.envLabelPlaceholder")}
               value={row.label}
               onChange={(e) => {
