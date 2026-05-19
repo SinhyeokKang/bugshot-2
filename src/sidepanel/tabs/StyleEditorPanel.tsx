@@ -104,7 +104,6 @@ export function SelectedPanel() {
   const reset = useEditorStore((s) => s.reset);
   const tabId = useBoundTabId();
   const { status: aiStatus, providerLabel, createSession } = useAI();
-  const aiLoading = useEditorStore((s) => s.aiStylingLoading);
   const [proceeding, setProceeding] = useState(false);
   const [aiDialogOpen, setAiDialogOpen] = useState(false);
   if (!selection) return null;
@@ -135,13 +134,7 @@ export function SelectedPanel() {
   };
 
   return (
-    <PageShell className="relative">
-      {aiLoading && (
-        <div className="pointer-events-none absolute inset-0 z-20 overflow-hidden backdrop-blur-[2px]">
-          <div className="absolute inset-0 bg-teal-500/5" />
-          <div className="absolute inset-0 animate-shimmer bg-gradient-to-b from-transparent via-teal-400/10 to-transparent" />
-        </div>
-      )}
+    <PageShell>
       <PageScroll>
         <div className="sticky top-0 z-10 border-b border-border bg-background py-6">
           <div className="flex items-center gap-2 px-4">

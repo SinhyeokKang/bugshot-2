@@ -13,7 +13,7 @@ import {
   type IssueSection,
 } from "@/store/settings-ui-store";
 import { useEditorStore } from "@/store/editor-store";
-import { LlmQuotaError } from "@/sidepanel/lib/ai-provider";
+import { LlmQuotaError, LlmOverloadedError } from "@/sidepanel/lib/ai-provider";
 import { useSettingsStore } from "@/store/settings-store";
 import { useBoundTabId } from "@/sidepanel/hooks/useBoundTabId";
 import { useAI } from "@/sidepanel/hooks/useAI";
@@ -76,7 +76,6 @@ export function DraftingPanel() {
   const issueSections = useSettingsUiStore((s) => s.issueSections);
   const locale = useSettingsUiStore((s) => s.locale);
   const { status: aiStatus, providerLabel, generate, createSession } = useAI();
-  const [aiLoading, setAiLoading] = useState(false);
   const [aiError, setAiError] = useState<string | null>(null);
   const [annotating, setAnnotating] = useState(false);
   const [aiDialogOpen, setAiDialogOpen] = useState(false);
@@ -127,7 +126,7 @@ export function DraftingPanel() {
   const enabledSections = issueSections.filter((s) => s.enabled);
 
   const handleAIDraft = async () => {
-    setAiLoading(true);
+    useEditorStore.getState().setAiDraftLoading(true);
     setAiError(null);
     try {
       const ctx = buildAiDraftPrompt({
@@ -173,9 +172,14 @@ export function DraftingPanel() {
         setAiError(t("draft.aiParseError"));
       }
     } catch (err) {
-      setAiError(err instanceof LlmQuotaError ? t("llm.error.quota") : t("draft.aiError"));
+      console.error("[AI Draft] error:", err);
+      setAiError(
+        err instanceof LlmQuotaError ? t("llm.error.quota")
+        : err instanceof LlmOverloadedError ? t("llm.error.overloaded")
+        : t("draft.aiError"),
+      );
     } finally {
-      setAiLoading(false);
+      useEditorStore.getState().setAiDraftLoading(false);
     }
   };
 
@@ -281,12 +285,6 @@ export function DraftingPanel() {
 
   return (
     <PageShell className="relative">
-      {(aiLoading || aiDraftLoading) && (
-        <div className="pointer-events-none absolute inset-0 z-20 overflow-hidden backdrop-blur-[2px]">
-          <div className="absolute inset-0 bg-purple-500/5" />
-          <div className="absolute inset-0 animate-shimmer bg-gradient-to-b from-transparent via-purple-400/10 to-transparent" />
-        </div>
-      )}
       {inlineCaptureTarget ? (
         <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 pb-5 text-center">
           <div className="mb-3 rounded-full bg-muted p-3">
@@ -338,7 +336,7 @@ export function DraftingPanel() {
                   setAiDialogOpen(true);
                 }
               }}
-              disabled={aiLoading || aiDraftLoading}
+              disabled={aiDraftLoading}
             >
               <span className="flex items-center gap-1.5">
                 <Badge variant="outline" className="font-normal border-purple-500 text-purple-600 dark:border-purple-400 dark:text-purple-300">{providerLabel ?? t("ai.badge.beta")}</Badge>
@@ -373,7 +371,7 @@ export function DraftingPanel() {
                     setAnnotating(false);
                     confirmDraft();
                   }}
-                  disabled={titleMissing || aiLoading || aiDraftLoading}
+                  disabled={titleMissing || aiDraftLoading}
                 >
                   {t("draft.preview")}
                 </Button>

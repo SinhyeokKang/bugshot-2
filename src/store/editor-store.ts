@@ -525,3 +525,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   hydrate: (snapshot) => set(snapshot),
 }));
+
+export function useAiLoading(): boolean {
+  const draft = useEditorStore((s) => s.aiDraftLoading);
+  const styling = useEditorStore((s) => s.aiStylingLoading);
+  return draft || styling;
+}

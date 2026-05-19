@@ -14,7 +14,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { Toaster } from "@/components/ui/sonner";
 import { PICKER_PORT_NAME, PANEL_PORT_PREFIX } from "@/lib/session-keys";
-import { useEditorStore } from "@/store/editor-store";
+import { useEditorStore, useAiLoading } from "@/store/editor-store";
 import { connectedPlatforms, useSettingsStore } from "@/store/settings-store";
 import {
   onBlobSaveFailed,
@@ -59,6 +59,8 @@ export default function App() {
   useThemeEffect();
 
   const accounts = useSettingsStore((s) => s.accounts);
+  const aiLoading = useAiLoading();
+  const aiStylingLoading = useEditorStore((s) => s.aiStylingLoading);
   const [tab, setTab] = useState("debug");
   const [oauthExpiredPlatform, setOauthExpiredPlatform] = useState<PlatformId | null>(null);
   const [pickerUnavailable, setPickerUnavailable] = useState(false);
@@ -162,7 +164,13 @@ export default function App() {
 
   return (
     <TabNavContext.Provider value={setTab}>
-    <div className="flex h-screen flex-col">
+    <div className="relative flex h-screen flex-col">
+      {aiLoading && (
+        <div className="absolute inset-0 z-50 overflow-hidden backdrop-blur-[2px]">
+          <div className={cn("absolute inset-0", aiStylingLoading ? "bg-teal-500/5" : "bg-purple-500/5")} />
+          <div className={cn("absolute inset-0 animate-shimmer bg-gradient-to-b from-transparent to-transparent", aiStylingLoading ? "via-teal-400/10" : "via-purple-400/10")} />
+        </div>
+      )}
       <div className="flex min-h-0 flex-1 flex-col gap-0">
         <div className="border-b px-4 py-4">
           <Tabs value={tab} onValueChange={(v) => setTab(v)}>

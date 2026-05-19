@@ -24,7 +24,7 @@ import {
   type AiStylingContext,
 } from "@/sidepanel/lib/buildAiStylingPrompt";
 import { mergeAiEdits, replaceRawWithTokens } from "@/sidepanel/lib/aiStylingPostProcess";
-import { LlmQuotaError, type AISession, type AIProvider } from "@/sidepanel/lib/ai-provider";
+import { LlmQuotaError, LlmOverloadedError, type AISession, type AIProvider } from "@/sidepanel/lib/ai-provider";
 
 export function AiStylingDialog({
   open,
@@ -121,6 +121,8 @@ export function AiStylingDialog({
       console.error("[AI Styling] error:", err);
       if (err instanceof LlmQuotaError) {
         toast.error(t("llm.error.quota"));
+      } else if (err instanceof LlmOverloadedError) {
+        toast.error(t("llm.error.overloaded"));
       } else {
         toast.error(t("aiStyling.error"));
       }

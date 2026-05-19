@@ -282,6 +282,7 @@ const ko = {
   "llm.error.invalidUrl": "올바른 URL을 입력하세요.",
   "llm.error.fetch": "연결에 실패했습니다. URL과 API 키를 확인하세요.",
   "llm.error.quota": "API 허용량을 초과했습니다. 잠시 후 다시 시도하세요.",
+  "llm.error.overloaded": "AI 서버가 일시적으로 과부하 상태입니다. 잠시 후 다시 시도하세요.",
 
   // Settings (global)
   "settings.issueSettings": "이슈 설정",

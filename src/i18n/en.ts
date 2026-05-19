@@ -284,6 +284,7 @@ const en = {
   "llm.error.invalidUrl": "Please enter a valid URL.",
   "llm.error.fetch": "Connection failed. Check URL and API key.",
   "llm.error.quota": "API quota exceeded. Please try again later.",
+  "llm.error.overloaded": "AI server is temporarily overloaded. Please try again shortly.",
 
   // Settings (global)
   "settings.issueSettings": "Issue settings",

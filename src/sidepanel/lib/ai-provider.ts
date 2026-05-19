@@ -66,6 +66,13 @@ export class LlmQuotaError extends Error {
   }
 }
 
+export class LlmOverloadedError extends Error {
+  constructor() {
+    super("overloaded");
+    this.name = "LlmOverloadedError";
+  }
+}
+
 export interface ProviderPreset {
   id: string;
   label: string;
@@ -182,6 +189,7 @@ export function createOpenAICompatibleProvider(config: LlmConfig): AIProvider {
     });
     if (!res.ok) {
       if (res.status === 429) throw new LlmQuotaError();
+      if (res.status === 503) throw new LlmOverloadedError();
       const text = await res.text().catch(() => "");
       throw new Error(`LLM API error ${res.status}: ${text}`);
     }
@@ -264,6 +272,7 @@ export function createAnthropicProvider(config: LlmConfig): AIProvider {
     });
     if (!res.ok) {
       if (res.status === 429) throw new LlmQuotaError();
+      if (res.status === 529) throw new LlmOverloadedError();
       const text = await res.text().catch(() => "");
       throw new Error(`Anthropic API error ${res.status}: ${text}`);
     }
