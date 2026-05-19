@@ -26,6 +26,7 @@ import {
   buildStyleDiff,
 } from "../components/StyleChangesTable";
 import { buildIssueHtml, buildIssueMarkdown } from "../lib/buildIssueMarkdown";
+import { filterEnvironmentRows } from "../lib/environmentRows";
 import { buildNetworkLogSummary, buildConsoleLogSummary } from "../lib/buildLogSummary";
 import { resolveInlineImages } from "../lib/resolveInlineImages";
 import { IssueCreateModal } from "./IssueCreateModal";
@@ -42,6 +43,8 @@ export function PreviewPanel() {
   const afterImage = useEditorStore((s) => s.afterImage);
   const screenshotAnnotated = useEditorStore((s) => s.screenshotAnnotated);
   const screenshotRaw = useEditorStore((s) => s.screenshotRaw);
+  const screenshotViewport = useEditorStore((s) => s.screenshotViewport);
+  const screenshotCapturedAt = useEditorStore((s) => s.screenshotCapturedAt);
   const videoBlob = useEditorStore((s) => s.videoBlob);
   const videoThumbnail = useEditorStore((s) => s.videoThumbnail);
   const videoViewport = useEditorStore((s) => s.videoViewport);
@@ -116,6 +119,7 @@ export function PreviewPanel() {
         viewport: useEditorStore.getState().freeformViewport,
         capturedAt: useEditorStore.getState().freeformCapturedAt ?? Date.now(),
         diffs: [],
+        environment: draft.environment ?? [],
         networkLogSummary: attachedNetwork ? buildNetworkLogSummary(attachedNetwork) : undefined,
         consoleLogSummary: attachedConsole ? buildConsoleLogSummary(attachedConsole) : undefined,
       };
@@ -135,6 +139,7 @@ export function PreviewPanel() {
         viewport: videoViewport ?? { width: 0, height: 0 },
         capturedAt: videoCapturedAt ?? Date.now(),
         diffs: [],
+        environment: draft.environment ?? [],
         networkLogSummary: attachedNetwork ? buildNetworkLogSummary(attachedNetwork) : undefined,
         consoleLogSummary: attachedConsole ? buildConsoleLogSummary(attachedConsole) : undefined,
       };
@@ -161,6 +166,25 @@ export function PreviewPanel() {
         viewport: selection.viewport,
         capturedAt: selection.capturedAt,
         diffs,
+        environment: draft.environment ?? [],
+      };
+    } else if (captureMode === "screenshot") {
+      ctx = {
+        captureMode: "screenshot",
+        title: draft.title,
+        sections: resolvedSections,
+        sectionConfig: issueSections,
+        url: target?.url ?? "",
+        selector: "",
+        tagName: "",
+        classListBefore: [],
+        classListAfter: [],
+        specifiedStyles: {},
+        tokens: [],
+        viewport: screenshotViewport ?? { width: 0, height: 0 },
+        capturedAt: screenshotCapturedAt ?? Date.now(),
+        diffs: [],
+        environment: draft.environment ?? [],
       };
     } else {
       return;
@@ -190,17 +214,15 @@ export function PreviewPanel() {
                 <span className="text-muted-foreground/70">{t("common.untitled")}</span>
               )}
             </h1>
-            {isElementMode || isVideoMode || isFreeformMode ? (
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => void handleCopyMarkdown()}
-                className="shrink-0"
-              >
-                {copied ? <Check /> : <Copy />}
-                {copied ? t("preview.copied") : t("preview.copyMarkdown")}
-              </Button>
-            ) : null}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void handleCopyMarkdown()}
+              className="shrink-0"
+            >
+              {copied ? <Check /> : <Copy />}
+              {copied ? t("preview.copied") : t("preview.copyMarkdown")}
+            </Button>
           </div>
         </Section>
 
@@ -211,6 +233,7 @@ export function PreviewPanel() {
               selector={selection.selector}
               viewport={selection.viewport}
               capturedAt={selection.capturedAt}
+              customRows={filterEnvironmentRows(draft.environment ?? [])}
             />
           </Section>
         ) : (
@@ -348,6 +371,7 @@ function PreviewVideo({ blob, thumbnail }: { blob: Blob | null; thumbnail: strin
 function NonElementEnvSection() {
   const t = useT();
   const target = useEditorStore((s) => s.target);
+  const draft = useEditorStore((s) => s.draft);
   const captureMode = useEditorStore((s) => s.captureMode);
   const videoViewport = useEditorStore((s) => s.videoViewport);
   const videoCapturedAt = useEditorStore((s) => s.videoCapturedAt);
@@ -384,6 +408,14 @@ function NonElementEnvSection() {
             <span>{formatTimestamp(capturedAt)}</span>
           </div>
         ) : null}
+        {filterEnvironmentRows(draft?.environment ?? []).map((r, i) => (
+          <div key={`custom-${i}`} className="flex gap-3">
+            <span className="w-20 shrink-0 text-muted-foreground break-all">
+              {r.label}
+            </span>
+            <span className="break-all">{r.value}</span>
+          </div>
+        ))}
       </div>
     </Section>
   );
@@ -394,22 +426,25 @@ function EnvParagraph({
   selector,
   viewport,
   capturedAt,
+  customRows,
 }: {
   url: string;
   selector: string;
   viewport: { width: number; height: number };
   capturedAt: number;
+  customRows: { label: string; value: string }[];
 }) {
   const rows: { label: string; value: string }[] = [
     { label: "Page", value: url || "-" },
     { label: "DOM", value: selector },
     { label: "Viewport", value: `${viewport.width}×${viewport.height}` },
     { label: "Captured", value: formatTimestamp(capturedAt) },
+    ...customRows,
   ];
   return (
     <div className="space-y-1 text-sm leading-relaxed">
-      {rows.map((r) => (
-        <div key={r.label} className="flex gap-3">
+      {rows.map((r, i) => (
+        <div key={`${r.label}-${i}`} className="flex gap-3">
           <span className="w-20 shrink-0 text-muted-foreground">{r.label}</span>
           <span className="break-all">{r.value}</span>
         </div>

@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import type { PlatformId } from "@/types/platform";
+import type { EnvironmentRow } from "@/types/environment";
 import { migrateIssueToV4 } from "./issues-migrations";
 import { chromeLocalStorage } from "./chrome-storage";
 import { useEditorStore, type CaptureMode } from "./editor-store";
@@ -33,7 +34,7 @@ export function stripSubmitted(
     submittedAt: Date.now(),
     updatedAt: Date.now(),
     snapshot: { before: false, after: false },
-    draft: { title: "", sections: {} },
+    draft: { title: "", sections: {}, environment: [] },
     styleEdits: undefined,
     selectionSnapshot: undefined,
     tokensSnapshot: undefined,
@@ -106,6 +107,7 @@ export interface IssueStyleEdits {
 export interface IssueDraftContent {
   title: string;
   sections: Record<string, string>;
+  environment?: EnvironmentRow[];
 }
 
 export interface IssueSelectionSnapshot {

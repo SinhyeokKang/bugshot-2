@@ -46,6 +46,7 @@ function makeCtx(overrides: Partial<MarkdownContext> = {}): MarkdownContext {
     viewport: { width: 1024, height: 768 },
     capturedAt: 1700000000000,
     diffs: [],
+    environment: [],
     ...overrides,
   };
 }
@@ -487,5 +488,33 @@ describe("buildNotionIssueBody — inline images", () => {
       type: "image",
       placeholderId: "inline-only",
     });
+  });
+});
+
+describe("buildNotionIssueBody — custom environment rows", () => {
+  it("custom row가 Environment bulleted_list_item으로 포함", () => {
+    const out = buildNotionIssueBody({
+      ctx: makeCtx({ environment: [{ label: "Browser", value: "Chrome 140" }] }),
+    });
+    expect(out.blocks).toContainEqual({
+      type: "bulleted_list_item",
+      text: "Browser: Chrome 140",
+    });
+  });
+
+  it("빈 row 제외, value 개행 공백 치환", () => {
+    const out = buildNotionIssueBody({
+      ctx: makeCtx({
+        environment: [
+          { label: "", value: "ignored" },
+          { label: "OS", value: "macOS\n15" },
+        ],
+      }),
+    });
+    const texts = out.blocks
+      .filter((b) => b.type === "bulleted_list_item" && "text" in b)
+      .map((b) => ("text" in b ? b.text : ""));
+    expect(texts).not.toContain("ignored");
+    expect(texts).toContain("OS: macOS 15");
   });
 });

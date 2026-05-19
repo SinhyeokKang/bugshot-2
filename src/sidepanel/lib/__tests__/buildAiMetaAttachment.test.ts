@@ -41,6 +41,7 @@ describe("buildAiMetaAttachment", () => {
       viewport: { width: 1, height: 1 },
       capturedAt: 0,
       diffs: [],
+      environment: [],
     };
     const att = buildAiMetaAttachment(ctx);
     expect(att.filename).toBe("bugshot.md");

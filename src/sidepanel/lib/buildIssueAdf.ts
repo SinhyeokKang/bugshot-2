@@ -8,6 +8,7 @@ import { IMAGE_PLACEHOLDER, VIDEO_PLACEHOLDER, inlineImagePlaceholder } from "@/
 import { formatElementName } from "@/lib/element-label";
 import type { MarkdownContext } from "./buildIssueMarkdown";
 import type { NetworkLogSummary, ConsoleLogSummary } from "./buildLogSummary";
+import { filterEnvironmentRows } from "./environmentRows";
 import { formatTimestamp } from "./formatTimestamp";
 import { markdownToAdf } from "./markdownToAdf";
 import { extractInlineRefs, stripInlineImageRefs } from "./resolveInlineImages";
@@ -51,6 +52,9 @@ export function buildIssueAdf(ctx: MarkdownContext, inlineImageRefIds?: string[]
       envItems.push(keyValueItem("Viewport", `${ctx.viewport.width}×${ctx.viewport.height}`));
     }
     envItems.push(keyValueItem("Captured", formatTimestamp(ctx.capturedAt)));
+    for (const row of filterEnvironmentRows(ctx.environment)) {
+      envItems.push(keyValueItem(row.label, row.value));
+    }
     content.push(bulletList(envItems));
   } else {
     const domLabel = ctx.tagName
@@ -62,6 +66,9 @@ export function buildIssueAdf(ctx: MarkdownContext, inlineImageRefIds?: string[]
       ...(ctx.viewport ? [keyValueItem("Viewport", `${ctx.viewport.width}×${ctx.viewport.height}`)] : []),
       keyValueItem("Captured", formatTimestamp(ctx.capturedAt)),
     ];
+    for (const row of filterEnvironmentRows(ctx.environment)) {
+      elemItems.push(keyValueItem(row.label, row.value));
+    }
     content.push(bulletList(elemItems));
   }
 

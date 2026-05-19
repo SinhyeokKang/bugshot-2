@@ -103,7 +103,12 @@ export function AiDraftDialog({
       if (parsed) {
         const prefix = defaultTitle(titlePrefix);
         const aiTitle = prefix ? prefix + parsed.title : parsed.title;
-        useEditorStore.getState().setDraft({ ...parsed, title: aiTitle });
+        const prevDraft = useEditorStore.getState().draft;
+        useEditorStore.getState().setDraft({
+          ...parsed,
+          title: aiTitle,
+          environment: prevDraft?.environment ?? [],
+        });
       } else {
         console.warn("[bugshot] AI draft parse failed. Raw response:", raw);
         toast.error(t("draft.aiParseError"));

@@ -245,7 +245,9 @@ Jira는 마크다운 원본을 파싱하지 않고, 붙여넣기는 **ProseMirro
 | `expectedResult` (기대 결과) | ✅ | paragraph |
 | `notes` (비고) | ⬜ | paragraph |
 
-draft 데이터 모델은 `{ title, sections: Record<string, string> }`. 섹션 마다 newline-joined 평문. `stepsToReproduce`는 줄별 Input + Trash2 IconButton의 `OrderedListEditor` 전용 UI; 그 외는 plain Textarea.
+draft 데이터 모델은 `{ title, sections: Record<string, string>, environment?: EnvironmentRow[] }`. 섹션 마다 newline-joined 평문. `stepsToReproduce`는 줄별 Input + Trash2 IconButton의 `OrderedListEditor` 전용 UI; 그 외는 plain Textarea.
+
+**재현 환경 섹션**: drafting 패널 제목 아래 `ReproEnvironmentSection`이 모드별 메타(Page/DOM/Viewport/Captured)를 readonly로 파생 표시하고, `draft.environment`의 사용자 정의 label/value row를 편집한다. custom row는 `MarkdownContext.environment`를 거쳐 5종 빌드 함수의 Environment 섹션에 추가된다. 순수 헬퍼 `filterEnvironmentRows`(빈/공백 row 제거 + 개행 치환) / `deriveReadonlyEnvRows`(모드별 readonly row 파생)는 `sidepanel/lib/environmentRows.ts`, 타입은 `types/environment.ts`. `environment`는 optional이라 버전 bump 없이 구 레코드는 `?? []`로 호환.
 
 **자동 메타 위치**: `POST_MEDIA_SECTION_IDS = {"expectedResult","notes"}` — enabled iterate 중 첫 POST_MEDIA 섹션을 만나면 그 직전에 media/styleChanges 블록 emit. 둘 다 disabled면 모든 섹션 끝에 emit. `buildIssueMarkdown` / `buildIssueHtml` / `buildIssueAdf` / `DraftingPanel` / `PreviewPanel` / `DraftDetailDialog` 5곳에서 동일 룰. 라벨 i18n 헬퍼는 `sectionLabelKey` / `sectionMdLabelKey` / `sectionPlaceholderKey` / `sectionHelpKey` (`settings-ui-store`).
 

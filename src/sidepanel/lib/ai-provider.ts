@@ -8,20 +8,28 @@ interface LanguageModelInstance {
   destroy(): void;
 }
 
+interface LanguageModelLangOptions {
+  outputLanguage?: string;
+  expectedOutputs?: { type: string; languages: string[] }[];
+}
+
 declare global {
   interface LanguageModel {
-    availability(options?: {
-      expectedOutputLanguages?: string[];
-    }): Promise<string>;
-    create(options?: {
-      systemPrompt?: string;
-      expectedOutputLanguages?: string[];
-      outputLanguages?: string[];
-    }): Promise<LanguageModelInstance>;
+    availability(options?: LanguageModelLangOptions): Promise<string>;
+    create(
+      options?: LanguageModelLangOptions & { systemPrompt?: string },
+    ): Promise<LanguageModelInstance>;
   }
   // eslint-disable-next-line no-var
   var LanguageModel: LanguageModel | undefined;
 }
+
+// Chrome Built-in AI 출력 언어 옵션 단일 출처. 잘못 명시하면 "No output language
+// was specified" 경고가 뜬다. availability와 create에 동일 옵션을 넘겨야 한다.
+export const CHROME_AI_LANG_OPTIONS: LanguageModelLangOptions = {
+  outputLanguage: "en",
+  expectedOutputs: [{ type: "text", languages: ["en"] }],
+};
 
 export type ProviderKind = "openai" | "anthropic";
 
@@ -108,8 +116,7 @@ export function createChromeAIProvider(): AIProvider {
       if (!globalThis.LanguageModel) throw new Error("Chrome AI unavailable");
       const session = await globalThis.LanguageModel.create({
         systemPrompt,
-        expectedOutputLanguages: ["en"],
-        outputLanguages: ["en"],
+        ...CHROME_AI_LANG_OPTIONS,
       });
       try {
         return await session.prompt(
@@ -124,8 +131,7 @@ export function createChromeAIProvider(): AIProvider {
       if (!globalThis.LanguageModel) throw new Error("Chrome AI unavailable");
       const session = await globalThis.LanguageModel.create({
         systemPrompt,
-        expectedOutputLanguages: ["en"],
-        outputLanguages: ["en"],
+        ...CHROME_AI_LANG_OPTIONS,
       });
       return {
         prompt: (input, options) =>

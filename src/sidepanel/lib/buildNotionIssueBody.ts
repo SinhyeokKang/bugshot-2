@@ -11,6 +11,7 @@ import type {
   NotionBlock,
 } from "@/types/notion";
 import type { MarkdownContext } from "./buildIssueMarkdown";
+import { filterEnvironmentRows } from "./environmentRows";
 import { formatTimestamp } from "./formatTimestamp";
 import { markdownToNotionBlocks } from "./markdownToNotionBlocks";
 import {
@@ -107,6 +108,12 @@ export function buildNotionIssueBody(
     type: "bulleted_list_item",
     text: `Captured: ${formatTimestamp(ctx.capturedAt)}`,
   });
+  for (const row of filterEnvironmentRows(ctx.environment)) {
+    blocks.push({
+      type: "bulleted_list_item",
+      text: `${row.label}: ${row.value}`,
+    });
+  }
 
   let mediaEmitted = false;
   const emitMedia = (): void => {

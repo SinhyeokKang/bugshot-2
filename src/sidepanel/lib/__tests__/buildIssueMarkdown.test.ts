@@ -47,6 +47,7 @@ function makeCtx(overrides: Partial<MarkdownContext> = {}): MarkdownContext {
     diffs: [
       { prop: "color", asIs: "#000", toBe: "#fff" },
     ],
+    environment: [],
     ...overrides,
   };
 }
@@ -273,5 +274,59 @@ describe("buildIssueHtml", () => {
   it("paragraph 섹션 빈 값 → noValue", () => {
     const html = buildIssueHtml(makeCtx({ sections: {} }));
     expect(html).toContain("md.noValue");
+  });
+});
+
+describe("buildIssueMarkdown — custom environment rows", () => {
+  it("custom row가 Environment 섹션 불릿으로 포함", () => {
+    const md = buildIssueMarkdown(
+      makeCtx({
+        environment: [{ label: "Browser", value: "Chrome 140" }],
+      }),
+    );
+    expect(md).toContain("- **Browser**: Chrome 140");
+  });
+
+  it("label·value 빈 row는 제외", () => {
+    const md = buildIssueMarkdown(
+      makeCtx({
+        environment: [
+          { label: "", value: "ignored" },
+          { label: "OS", value: "  " },
+        ],
+      }),
+    );
+    expect(md).not.toContain("ignored");
+    expect(md).not.toContain("**OS**");
+  });
+
+  it("value 개행은 공백으로 치환", () => {
+    const md = buildIssueMarkdown(
+      makeCtx({ environment: [{ label: "OS", value: "macOS\n15" }] }),
+    );
+    expect(md).toContain("- **OS**: macOS 15");
+  });
+});
+
+describe("buildIssueHtml — custom environment rows", () => {
+  it("custom row가 Environment <li>로 포함", () => {
+    const html = buildIssueHtml(
+      makeCtx({ environment: [{ label: "Browser", value: "Chrome 140" }] }),
+    );
+    expect(html).toContain("<li><strong>Browser</strong>: Chrome 140</li>");
+  });
+
+  it("custom row label·value HTML 이스케이프", () => {
+    const html = buildIssueHtml(
+      makeCtx({ environment: [{ label: "Env", value: "<b>x</b>" }] }),
+    );
+    expect(html).toContain("&lt;b&gt;x&lt;/b&gt;");
+  });
+
+  it("빈 row 제외", () => {
+    const html = buildIssueHtml(
+      makeCtx({ environment: [{ label: "  ", value: "  " }] }),
+    );
+    expect(html).not.toContain("<strong></strong>");
   });
 });

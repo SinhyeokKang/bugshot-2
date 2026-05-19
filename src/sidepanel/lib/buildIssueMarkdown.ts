@@ -6,6 +6,7 @@ import {
 } from "@/store/settings-ui-store";
 import type { StyleDiffRow } from "../components/StyleChangesTable";
 import type { NetworkLogSummary, ConsoleLogSummary } from "./buildLogSummary";
+import { filterEnvironmentRows, type EnvironmentRow } from "./environmentRows";
 import { formatTimestamp } from "./formatTimestamp";
 import { renderMarkdown } from "./renderMarkdown";
 
@@ -24,6 +25,7 @@ export interface MarkdownContext {
   viewport: { width: number; height: number } | null;
   capturedAt: number;
   diffs: StyleDiffRow[];
+  environment: EnvironmentRow[];
   networkLogSummary?: NetworkLogSummary;
   consoleLogSummary?: ConsoleLogSummary;
 }
@@ -65,6 +67,9 @@ export function buildIssueMarkdown(ctx: MarkdownContext): string {
     lines.push(`- **Viewport**: ${ctx.viewport.width}×${ctx.viewport.height}`);
   }
   lines.push(`- **Captured**: ${formatTimestamp(ctx.capturedAt)}`);
+  for (const row of filterEnvironmentRows(ctx.environment)) {
+    lines.push(`- **${row.label}**: ${row.value}`);
+  }
   lines.push("");
 
   let mediaEmitted = false;
@@ -151,6 +156,11 @@ export function buildIssueHtml(ctx: MarkdownContext): string {
   parts.push(
     `<li><strong>Captured</strong>: ${escapeHtml(formatTimestamp(ctx.capturedAt))}</li>`,
   );
+  for (const row of filterEnvironmentRows(ctx.environment)) {
+    parts.push(
+      `<li><strong>${escapeHtml(row.label)}</strong>: ${escapeHtml(row.value)}</li>`,
+    );
+  }
   parts.push(`</ul>`);
 
   let mediaEmitted = false;
