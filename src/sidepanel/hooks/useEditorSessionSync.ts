@@ -6,7 +6,7 @@ import {
   useEditorStore,
 } from "@/store/editor-store";
 import { onSessionSaveExhausted } from "@/types/messages";
-import { clearPicker } from "../picker-control";
+import { clearPicker } from "@/sidepanel/picker-control";
 import { getNetworkLog, getConsoleLog, pruneOrphanInlineImages } from "@/store/blob-db";
 import { extractInlineRefs } from "@/sidepanel/lib/resolveInlineImages";
 

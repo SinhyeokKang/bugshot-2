@@ -2,7 +2,7 @@ import { useT } from "@/i18n";
 import { AssigneeMultiSelect } from "./AssigneeMultiSelect";
 import { LabelCombobox } from "./LabelCombobox";
 import { RepoCombobox, type RepoValue } from "./RepoCombobox";
-import { FieldRow } from "../IssueCreateModal";
+import { FieldRow } from "@/sidepanel/tabs/IssueCreateModal";
 
 export interface GithubIssueFieldsValue {
   owner?: string;

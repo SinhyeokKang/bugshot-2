@@ -17,7 +17,7 @@ import {
   type ThemeMode,
 } from "@/store/settings-ui-store";
 import { useSettingsStore } from "@/store/settings-store";
-import { PageFooter, PageScroll, PageShell, Section } from "../components/Section";
+import { PageFooter, PageScroll, PageShell, Section } from "@/sidepanel/components/Section";
 import { LlmConnectForm } from "./settings/LlmConnectForm";
 
 type SettingsSubTab = "issue" | "ai" | "general";

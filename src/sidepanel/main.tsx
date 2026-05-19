@@ -6,7 +6,10 @@ import { SETTINGS_STORAGE_KEY } from "@/lib/settings-storage";
 import "@/styles/globals.css";
 
 window.addEventListener("error", (e) => {
-  if (e.message?.includes("ResizeObserver")) e.stopImmediatePropagation();
+  if (e.message?.includes("ResizeObserver")) {
+    e.stopImmediatePropagation();
+    e.preventDefault();
+  }
 });
 
 // markerjs2가 willReadFrequently 힌트 없이 2d 컨텍스트를 만들어 Canvas2D readback 경고가 뜸.

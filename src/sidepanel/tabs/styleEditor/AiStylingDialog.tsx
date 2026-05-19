@@ -11,20 +11,20 @@ import {
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useEditorStore } from "@/store/editor-store";
-import { useBoundTabId } from "../../hooks/useBoundTabId";
+import { useBoundTabId } from "@/sidepanel/hooks/useBoundTabId";
 import {
   applyStyles,
   applyClasses,
-} from "../../picker-control";
+} from "@/sidepanel/picker-control";
 import {
   buildAiStylingSystemPrompt,
   buildAiStylingResponseSchema,
   parseAiStylingResponse,
   buildStyleContextBlock,
   type AiStylingContext,
-} from "../../lib/buildAiStylingPrompt";
-import { mergeAiEdits, replaceRawWithTokens } from "../../lib/aiStylingPostProcess";
-import { LlmQuotaError, type AISession, type AIProvider } from "../../lib/ai-provider";
+} from "@/sidepanel/lib/buildAiStylingPrompt";
+import { mergeAiEdits, replaceRawWithTokens } from "@/sidepanel/lib/aiStylingPostProcess";
+import { LlmQuotaError, type AISession, type AIProvider } from "@/sidepanel/lib/ai-provider";
 
 export function AiStylingDialog({
   open,

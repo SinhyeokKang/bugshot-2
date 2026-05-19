@@ -13,36 +13,36 @@ import {
   type IssueSection,
 } from "@/store/settings-ui-store";
 import { useEditorStore } from "@/store/editor-store";
-import { LlmQuotaError } from "../lib/ai-provider";
+import { LlmQuotaError } from "@/sidepanel/lib/ai-provider";
 import { useSettingsStore } from "@/store/settings-store";
-import { useBoundTabId } from "../hooks/useBoundTabId";
-import { useAI } from "../hooks/useAI";
-import { clearPicker, startInlineAreaCapture } from "../picker-control";
-import { CancelConfirmDialog } from "../components/CancelConfirmDialog";
-import { LogAttachmentCards } from "../components/LogAttachmentCards";
-import { NetworkLogPreviewDialog } from "../components/NetworkLogPreviewDialog";
-import { ConsoleLogPreviewDialog } from "../components/ConsoleLogPreviewDialog";
+import { useBoundTabId } from "@/sidepanel/hooks/useBoundTabId";
+import { useAI } from "@/sidepanel/hooks/useAI";
+import { clearPicker, startInlineAreaCapture } from "@/sidepanel/picker-control";
+import { CancelConfirmDialog } from "@/sidepanel/components/CancelConfirmDialog";
+import { LogAttachmentCards } from "@/sidepanel/components/LogAttachmentCards";
+import { NetworkLogPreviewDialog } from "@/sidepanel/components/NetworkLogPreviewDialog";
+import { ConsoleLogPreviewDialog } from "@/sidepanel/components/ConsoleLogPreviewDialog";
 import {
   PageFooter,
   PageScroll,
   PageShell,
   Section,
-} from "../components/Section";
+} from "@/sidepanel/components/Section";
 import {
   StyleChangesTable,
   buildStyleDiff,
-} from "../components/StyleChangesTable";
+} from "@/sidepanel/components/StyleChangesTable";
 import {
   buildAiDraftPrompt,
   buildAiDraftSchema,
   parseAiDraftResponse,
-} from "../lib/buildAiDraftPrompt";
-import { buildNetworkLogSummary, buildConsoleLogSummary } from "../lib/buildLogSummary";
+} from "@/sidepanel/lib/buildAiDraftPrompt";
+import { buildNetworkLogSummary, buildConsoleLogSummary } from "@/sidepanel/lib/buildLogSummary";
 import {
   deriveReadonlyEnvRows,
   filterEnvironmentRows,
   type EnvironmentRow,
-} from "../lib/environmentRows";
+} from "@/sidepanel/lib/environmentRows";
 import { AiDraftDialog } from "./AiDraftDialog";
 
 const LazyTiptapEditor = lazy(() => import("../components/TiptapEditor"));

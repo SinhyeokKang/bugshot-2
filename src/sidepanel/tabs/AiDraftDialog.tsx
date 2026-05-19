@@ -17,9 +17,9 @@ import {
   buildAiDraftSessionPrompt,
   buildAiDraftSchema,
   parseAiDraftResponse,
-} from "../lib/buildAiDraftPrompt";
-import { buildNetworkLogSummary, buildConsoleLogSummary } from "../lib/buildLogSummary";
-import { LlmQuotaError, type AISession, type AIProvider } from "../lib/ai-provider";
+} from "@/sidepanel/lib/buildAiDraftPrompt";
+import { buildNetworkLogSummary, buildConsoleLogSummary } from "@/sidepanel/lib/buildLogSummary";
+import { LlmQuotaError, type AISession, type AIProvider } from "@/sidepanel/lib/ai-provider";
 import { defaultTitle } from "./DraftingPanel";
 
 export function AiDraftDialog({

@@ -57,22 +57,22 @@ import type {
 } from "@/types/jira";
 import type { PlatformId } from "@/types/platform";
 import { sendBg, type JiraSubmitResult } from "@/types/messages";
-import { buildStyleDiff } from "../components/StyleChangesTable";
-import { buildAiMetaAttachment } from "../lib/buildAiMetaAttachment";
-import { buildIssueAdf, type AdfDoc } from "../lib/buildIssueAdf";
-import { buildHar, serializeHar } from "../lib/buildHar";
-import { buildConsoleLogJson, serializeConsoleLog } from "../lib/buildConsoleLogJson";
+import { buildStyleDiff } from "@/sidepanel/components/StyleChangesTable";
+import { buildAiMetaAttachment } from "@/sidepanel/lib/buildAiMetaAttachment";
+import { buildIssueAdf, type AdfDoc } from "@/sidepanel/lib/buildIssueAdf";
+import { buildHar, serializeHar } from "@/sidepanel/lib/buildHar";
+import { buildConsoleLogJson, serializeConsoleLog } from "@/sidepanel/lib/buildConsoleLogJson";
 import {
   buildNetworkLogSummary,
   buildConsoleLogSummary,
-} from "../lib/buildLogSummary";
-import type { MarkdownContext } from "../lib/buildIssueMarkdown";
+} from "@/sidepanel/lib/buildLogSummary";
+import type { MarkdownContext } from "@/sidepanel/lib/buildIssueMarkdown";
 import type { NormalizedSubmitResult } from "@/types/platform";
-import { submitToGithub, type GithubFileInput } from "../lib/submitToGithub";
-import { submitToLinear, type LinearFileInput } from "../lib/submitToLinear";
-import { submitToNotion, type NotionFileInput } from "../lib/submitToNotion";
-import { recordingFilename } from "../lib/video-mime";
-import { extractInlineRefs, resolveInlineImagesForSections, type InlineImageInput } from "../lib/resolveInlineImages";
+import { submitToGithub, type GithubFileInput } from "@/sidepanel/lib/submitToGithub";
+import { submitToLinear, type LinearFileInput } from "@/sidepanel/lib/submitToLinear";
+import { submitToNotion, type NotionFileInput } from "@/sidepanel/lib/submitToNotion";
+import { recordingFilename } from "@/sidepanel/lib/video-mime";
+import { extractInlineRefs, resolveInlineImagesForSections, type InlineImageInput } from "@/sidepanel/lib/resolveInlineImages";
 import {
   GithubIssueFields,
   initialGhFields,

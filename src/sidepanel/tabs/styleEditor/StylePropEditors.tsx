@@ -22,8 +22,8 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { useEditorStore } from "@/store/editor-store";
-import { useBoundTabId } from "../../hooks/useBoundTabId";
-import { applyStyles } from "../../picker-control";
+import { useBoundTabId } from "@/sidepanel/hooks/useBoundTabId";
+import { applyStyles } from "@/sidepanel/picker-control";
 import { ValueCombobox } from "./ValueCombobox";
 import { isKnownDefault } from "./propMetadata";
 import { useStyleProp, usePropSource, useCommonPropSource } from "./styleHooks";

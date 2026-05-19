@@ -44,8 +44,8 @@ import {
   getProviderLabel,
   PROVIDER_PRESETS,
   type ModelEntry,
-} from "../../lib/ai-provider";
-import { PageFooter, PageScroll, PageShell, Section } from "../../components/Section";
+} from "@/sidepanel/lib/ai-provider";
+import { PageFooter, PageScroll, PageShell, Section } from "@/sidepanel/components/Section";
 import { LlmConnectDialog } from "./LlmConnectDialog";
 
 export function LlmConnectForm() {

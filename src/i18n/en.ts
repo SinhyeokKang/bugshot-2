@@ -47,6 +47,9 @@ const en = {
   "debug.tab.network": "Network logs",
   "debug.console.empty": "No console logs captured",
   "debug.network.empty": "No network requests captured",
+  "debug.logUnavailable.title": "Logs unavailable",
+  "debug.logUnavailable.body": "Logs cannot be viewed while creating an issue.",
+  "debug.logUnavailable.action": "Back to issue",
 
   // Issue sections
   "section.issueTitle": "Issue title",

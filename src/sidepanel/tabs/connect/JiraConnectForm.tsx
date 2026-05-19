@@ -28,9 +28,9 @@ import type {
   JiraSite,
 } from "@/types/jira";
 import { isOAuthCancelled, sendBg, type OAuthStartResultMsg } from "@/types/messages";
-import { PageScroll, Section } from "../../components/Section";
-import { IssueTypeCombobox } from "../IssueTypeCombobox";
-import { ProjectCombobox } from "../ProjectCombobox";
+import { PageScroll, Section } from "@/sidepanel/components/Section";
+import { IssueTypeCombobox } from "@/sidepanel/tabs/IssueTypeCombobox";
+import { ProjectCombobox } from "@/sidepanel/tabs/ProjectCombobox";
 
 export function JiraConnectForm() {
   const t = useT();

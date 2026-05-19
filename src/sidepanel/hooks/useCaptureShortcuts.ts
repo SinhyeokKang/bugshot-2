@@ -5,8 +5,8 @@ import {
   type CaptureShortcutMessage,
 } from "@/lib/capture-commands";
 import { useEditorStore } from "@/store/editor-store";
-import { startPicker, startAreaCapture } from "../picker-control";
-import { startVideoCapture } from "../video-capture";
+import { startPicker, startAreaCapture } from "@/sidepanel/picker-control";
+import { startVideoCapture } from "@/sidepanel/video-capture";
 
 /**
  * background가 브로드캐스트한 캡처 단축키 메시지를 수신·게이트·디스패치한다.

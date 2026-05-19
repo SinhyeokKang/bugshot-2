@@ -7,7 +7,7 @@ import {
   SiLinear,
   SiNotion,
 } from "@icons-pack/react-simple-icons";
-import { useT, dateBcp47 } from "@/i18n";
+import { useT, dateBcp47, type TranslationFn } from "@/i18n";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -34,7 +34,7 @@ import type { NotionDatabaseSchema, NotionPageStatus } from "@/types/notion";
 import type { NormalizedSubmitResult, PlatformId } from "@/types/platform";
 import { BgError, sendBg } from "@/types/messages";
 import { extractNotionPageId } from "@/lib/notion-page-id";
-import { PageFooter, PageScroll, PageShell, Section } from "../components/Section";
+import { PageFooter, PageScroll, PageShell, Section } from "@/sidepanel/components/Section";
 import { DraftDetailDialog } from "./DraftDetailDialog";
 import { notionStatusCategory } from "./notionStatusColors";
 
@@ -1283,7 +1283,7 @@ function dateLabel(ts: number): string {
   });
 }
 
-function formatDate(ts: number, t: (key: any, params?: any) => string): string {
+function formatDate(ts: number, t: TranslationFn): string {
   const now = Date.now();
   const diff = now - ts;
   if (diff < 60_000) return t("time.justNow");

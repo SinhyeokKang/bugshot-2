@@ -1,4 +1,5 @@
 import { t } from "@/i18n";
+import { dataUrlToBlob } from "@/store/blob-db";
 import { IMAGE_PLACEHOLDER, VIDEO_PLACEHOLDER, parseInlinePlaceholder } from "@/lib/adf-sentinels";
 import type { JiraAttachmentInput, JiraAuth, JiraSubmitResult } from "@/types/jira";
 import type { GithubAuth } from "@/types/github";
@@ -500,17 +501,6 @@ function snapshotCell(file?: UploadedFile) {
       },
     ],
   };
-}
-
-function dataUrlToBlob(dataUrl: string): Blob {
-  const match = /^data:(.*?);base64,(.+)$/.exec(dataUrl);
-  if (!match) throw new Error("invalid data URL");
-  const mime = match[1];
-  const binary = atob(match[2]);
-  const len = binary.length;
-  const bytes = new Uint8Array(len);
-  for (let i = 0; i < len; i++) bytes[i] = binary.charCodeAt(i);
-  return new Blob([bytes], { type: mime });
 }
 
 function buildIssueUrl(auth: JiraAuth, key: string): string {

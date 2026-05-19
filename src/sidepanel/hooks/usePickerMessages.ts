@@ -4,10 +4,10 @@ import type { NetworkLog } from "@/types/network";
 import type { ConsoleLog } from "@/types/console";
 import type { PickerMessage, ViewportRect } from "@/types/picker";
 import { onPickerIframeUnsupported } from "@/types/messages";
-import { captureElementSnapshot, loadImage } from "../capture";
-import { collectTokens } from "../picker-control";
+import { captureElementSnapshot, loadImage } from "@/sidepanel/capture";
+import { collectTokens } from "@/sidepanel/picker-control";
 import { saveNetworkLog, saveConsoleLog, saveInlineImage, dataUrlToBlob } from "@/store/blob-db";
-import { shouldCompact, compactImage } from "../lib/compactImage";
+import { shouldCompact, compactImage } from "@/sidepanel/lib/compactImage";
 
 export function usePickerMessages(myTabId: number | null): void {
   useEffect(() => {

@@ -19,7 +19,7 @@ import { formatElementName, visibleClasses } from "@/lib/element-label";
 import { cn } from "@/lib/utils";
 import { useEditorStore } from "@/store/editor-store";
 import type { TreeNode } from "@/types/picker";
-import { useBoundTabId } from "../hooks/useBoundTabId";
+import { useBoundTabId } from "@/sidepanel/hooks/useBoundTabId";
 import {
   describeChildren,
   describeInitialTree,
@@ -27,7 +27,7 @@ import {
   previewClear,
   previewHover,
   selectByPath,
-} from "../picker-control";
+} from "@/sidepanel/picker-control";
 
 export function DomNavButton({ direction }: { direction: "parent" | "child" }) {
   const t = useT();

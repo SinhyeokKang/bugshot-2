@@ -21,7 +21,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { useSettingsStore } from "@/store/settings-store";
-import { PageFooter } from "../components/Section";
+import { PageFooter } from "@/sidepanel/components/Section";
 import type { PlatformId } from "@/types/platform";
 import { GithubConnectForm } from "./connect/GithubConnectForm";
 import { JiraConnectForm } from "./connect/JiraConnectForm";

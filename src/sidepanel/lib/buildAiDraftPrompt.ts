@@ -4,7 +4,7 @@ import type {
   IssueSectionRenderAs,
   LocaleMode,
 } from "@/store/settings-ui-store";
-import type { StyleDiffRow } from "../components/StyleChangesTable";
+import type { StyleDiffRow } from "@/sidepanel/components/StyleChangesTable";
 import type { NetworkLogSummary, ConsoleLogSummary } from "./buildLogSummary";
 import type { EditorDraft } from "@/store/editor-store";
 

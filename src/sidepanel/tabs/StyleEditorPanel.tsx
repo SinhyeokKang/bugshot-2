@@ -16,18 +16,18 @@ import {
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useEditorStore, type EditorStyleEdits } from "@/store/editor-store";
-import { useBoundTabId } from "../hooks/useBoundTabId";
-import { useAI } from "../hooks/useAI";
-import { captureElementSnapshot } from "../capture";
+import { useBoundTabId } from "@/sidepanel/hooks/useBoundTabId";
+import { useAI } from "@/sidepanel/hooks/useAI";
+import { captureElementSnapshot } from "@/sidepanel/capture";
 import {
   applyClasses,
   applyText,
   clearPicker,
   resetEdits,
   startPicker,
-} from "../picker-control";
-import { PageFooter, PageScroll, PageShell, Section } from "../components/Section";
-import { CancelConfirmDialog } from "../components/CancelConfirmDialog";
+} from "@/sidepanel/picker-control";
+import { PageFooter, PageScroll, PageShell, Section } from "@/sidepanel/components/Section";
+import { CancelConfirmDialog } from "@/sidepanel/components/CancelConfirmDialog";
 import { DomNavButton, DomTreeTitle } from "./DomTreeDialog";
 import {
   AlignmentProp,

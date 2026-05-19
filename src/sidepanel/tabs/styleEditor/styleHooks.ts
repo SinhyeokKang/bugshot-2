@@ -1,6 +1,6 @@
 import { useEditorStore } from "@/store/editor-store";
-import { useBoundTabId } from "../../hooks/useBoundTabId";
-import { applyStyles } from "../../picker-control";
+import { useBoundTabId } from "@/sidepanel/hooks/useBoundTabId";
+import { applyStyles } from "@/sidepanel/picker-control";
 
 export function useStyleProp(prop: string) {
   const value = useEditorStore(

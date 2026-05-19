@@ -1,10 +1,20 @@
 import { useCallback, useState } from "react";
 import { ArrowLeftRight, SquarePen, Terminal } from "lucide-react";
 import { useT } from "@/i18n";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { useBoundTabId } from "../hooks/useBoundTabId";
-import { useCaptureShortcuts } from "../hooks/useCaptureShortcuts";
-import { startFreeformDraft } from "../picker-control";
+import { useEditorStore } from "@/store/editor-store";
+import { useBoundTabId } from "@/sidepanel/hooks/useBoundTabId";
+import { useCaptureShortcuts } from "@/sidepanel/hooks/useCaptureShortcuts";
+import { startFreeformDraft } from "@/sidepanel/picker-control";
 import { IssueTab } from "./IssueTab";
 import { ConsoleSubTab } from "./ConsoleSubTab";
 import { NetworkSubTab } from "./NetworkSubTab";
@@ -15,6 +25,8 @@ export function DebugTab({ activeMainTab }: { activeMainTab: string }) {
   const t = useT();
   const [sub, setSub] = useState<DebugSubTab>("issue");
   const tabId = useBoundTabId();
+  const phase = useEditorStore((s) => s.phase);
+  const [logUnavailableOpen, setLogUnavailableOpen] = useState(false);
 
   useCaptureShortcuts({ active: activeMainTab === "debug" && sub === "issue", tabId: tabId ?? null });
 
@@ -27,7 +39,17 @@ export function DebugTab({ activeMainTab }: { activeMainTab: string }) {
   return (
     <Tabs
       value={sub}
-      onValueChange={(v) => setSub(v as DebugSubTab)}
+      onValueChange={(v) => {
+        const next = v as DebugSubTab;
+        if (
+          (next === "console" || next === "network") &&
+          (phase === "drafting" || phase === "previewing")
+        ) {
+          setLogUnavailableOpen(true);
+          return;
+        }
+        setSub(next);
+      }}
       className="flex min-h-0 flex-1 flex-col gap-0"
     >
       <div className="shrink-0 border-b border-border px-4 py-4">
@@ -67,6 +89,22 @@ export function DebugTab({ activeMainTab }: { activeMainTab: string }) {
       >
         <NetworkSubTab active={sub === "network"} onStartFreeform={handleStartFreeform} />
       </TabsContent>
+
+      <AlertDialog open={logUnavailableOpen} onOpenChange={setLogUnavailableOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("debug.logUnavailable.title")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("debug.logUnavailable.body")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setLogUnavailableOpen(false)}>
+              {t("debug.logUnavailable.action")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </Tabs>
   );
 }
