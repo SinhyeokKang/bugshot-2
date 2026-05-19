@@ -45,6 +45,9 @@ export function DebugTab({ activeMainTab }: { activeMainTab: string }) {
           (next === "console" || next === "network") &&
           (phase === "drafting" || phase === "previewing")
         ) {
+          if (document.activeElement instanceof HTMLElement && document.activeElement !== document.body) {
+            document.activeElement.blur();
+          }
           setLogUnavailableOpen(true);
           return;
         }

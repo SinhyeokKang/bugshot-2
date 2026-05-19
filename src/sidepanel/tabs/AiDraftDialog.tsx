@@ -19,7 +19,7 @@ import {
   parseAiDraftResponse,
 } from "@/sidepanel/lib/buildAiDraftPrompt";
 import { buildNetworkLogSummary, buildConsoleLogSummary } from "@/sidepanel/lib/buildLogSummary";
-import { LlmQuotaError, type AISession, type AIProvider } from "@/sidepanel/lib/ai-provider";
+import { LlmQuotaError, LlmOverloadedError, type AISession, type AIProvider } from "@/sidepanel/lib/ai-provider";
 import { defaultTitle } from "./DraftingPanel";
 
 export function AiDraftDialog({
@@ -117,6 +117,8 @@ export function AiDraftDialog({
       console.error("[AI Draft] error:", err);
       if (err instanceof LlmQuotaError) {
         toast.error(t("llm.error.quota"));
+      } else if (err instanceof LlmOverloadedError) {
+        toast.error(t("llm.error.overloaded"));
       } else {
         toast.error(t("draft.aiError"));
       }
