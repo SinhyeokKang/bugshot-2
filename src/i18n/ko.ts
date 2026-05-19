@@ -45,6 +45,9 @@ const ko = {
   "debug.tab.network": "네트워크 로그",
   "debug.console.empty": "콘솔 로그가 없습니다",
   "debug.network.empty": "네트워크 요청이 없습니다",
+  "debug.logUnavailable.title": "로그를 확인할 수 없습니다",
+  "debug.logUnavailable.body": "이슈 작성 중에는 로그 탭을 볼 수 없습니다.",
+  "debug.logUnavailable.action": "돌아가기",
 
   // Issue sections (shared across drafting/preview/detail)
   "section.issueTitle": "이슈 제목",
