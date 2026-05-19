@@ -2,7 +2,7 @@
 
 ## 개요
 
-`manifest.commands`에 캡처 커맨드 3개를 등록하고, background service worker의 `chrome.commands.onCommand` 리스너가 이를 수신한다. 리스너는 활성 탭 정보를 실어 `chrome.runtime.sendMessage`로 브로드캐스트하고, 각 사이드패널의 `useCaptureShortcuts` 훅이 자기 `boundTabId`와 일치하는 메시지만 받아 게이트 통과 시 기존 `picker-control` 함수(`startPicker`/`startAreaCapture`/`startVideoCapture`)를 호출한다. 단축키 = 캡처 진입 버튼 클릭과 동치.
+`manifest.commands`에 캡처 커맨드 3개를 등록하고, background service worker의 `chrome.commands.onCommand` 리스너가 이를 수신한다. 리스너는 활성 탭 정보를 실어 `chrome.runtime.sendMessage`로 브로드캐스트하고, 각 사이드패널의 `useCaptureShortcuts` 훅이 자기 `boundTabId`와 일치하는 메시지만 받아 게이트 통과 시 캡처 시작 함수(`startPicker`/`startAreaCapture`는 `picker-control.ts`, `startVideoCapture`는 신규 `video-capture.ts`)를 호출한다. 단축키 = 캡처 진입 버튼 클릭과 동치.
 
 추가로, 캡처 진입 화면(`EmptyState`)의 버튼 3개는 `chrome.commands.getAll()`로 실시간 조회한 현재 단축키를 shadcn `Tooltip`으로 호버 시 노출한다.
 
@@ -21,6 +21,8 @@
 ```
 
 `chrome.commands.onCommand`는 service worker가 보장된 수신 컨텍스트라 background를 경유한다. 리스너 2번째 인자 `tab`은 단축키를 누른 시점의 활성 탭(Chrome 105+ 제공, `minimum_chrome_version: 116`이라 안전). 패널이 닫혀 있으면 `sendMessage` 수신자가 없어 자연히 no-op.
+
+브로드캐스트한 `CAPTURE_SHORTCUT_MSG`는 background 자신의 `onMessage` 리스너에도 도달하지만, `BG_REQUEST_TYPES` Set에 없어 `return false`로 즉시 무시된다 — 별도 가드 불필요.
 
 ## 변경 범위
 
@@ -44,14 +46,16 @@
 ### 4. `src/lib/__tests__/capture-commands.test.ts` (신규)
 - 역할: `resolveCaptureShortcut` 단위 테스트 (Vitest).
 
-### 5. `src/sidepanel/picker-control.ts`
-- 현재 역할: picker/캡처 제어 함수 모음 (`startPicker`, `startAreaCapture`, `startFreeformDraft` 등).
-- 변경: `startVideoCapture(tabId)` 추가. `IssueTab.tsx`의 모듈 레벨 `handleStartVideo`(142–173행) + `isTabCaptureUnavailable`(175–183행)를 그대로 이관 — 영상 녹화 시작 로직이 버튼·단축키 양쪽에서 호출 가능해진다. `video-recorder.ts`는 `picker-control.ts`를 import하지 않아 순환 없음(확인 완료).
+### 5. `src/sidepanel/video-capture.ts` (신규)
+- 역할: 영상 녹화 시작 로직 단일 출처. `export async function startVideoCapture(tabId)`.
+- `IssueTab.tsx`의 모듈 레벨 `handleStartVideo`(142–173행) + `isTabCaptureUnavailable`(175–183행)를 그대로 이관 — 영상 녹화 시작 로직이 버튼·단축키 양쪽에서 호출 가능해진다.
+- **신규 모듈로 분리한 이유**: `startVideoCapture`는 `video-recorder.ts`(`startRecording` 등)에 의존하는데, `video-recorder.ts`가 이미 `picker-control.ts`를 import하고 있어 `startVideoCapture`를 `picker-control.ts`에 두면 `picker-control → video-recorder → picker-control` 순환이 생긴다. 별도 모듈로 분리해 순환을 원천 차단한다. `picker-control.ts`는 이 기능에서 **수정하지 않는다**.
 
 ### 6. `src/sidepanel/tabs/IssueTab.tsx`
 - 현재 역할: 이슈 작성 서브탭. `EmptyState`에 캡처 버튼 4개, 모듈 레벨 `handleStartVideo` 보유.
 - 변경:
-  - 인라인 `handleStartVideo`·`isTabCaptureUnavailable` 제거, `picker-control`에서 `startVideoCapture` import. `onStartVideo={() => void startVideoCapture(tabId)}`. 이관 후 안 쓰이는 import(`activateNetworkRecorder`/`activateConsoleRecorder`/`clearNetworkRecorder`/`clearConsoleRecorder`/`deleteNetworkLog`/`deleteConsoleLog`/`onVideoRecordingUnavailable`/`videoRecorder` 중 잔여분) 정리.
+  - 인라인 `handleStartVideo`·`isTabCaptureUnavailable` 제거, `video-capture.ts`에서 `startVideoCapture` import. `onStartVideo={() => void startVideoCapture(tabId)}`. 이관 후 안 쓰이는 import(`activateNetworkRecorder`/`activateConsoleRecorder`/`clearNetworkRecorder`/`clearConsoleRecorder`/`deleteNetworkLog`/`deleteConsoleLog`/`onVideoRecordingUnavailable`/`videoRecorder` 중 잔여분) 정리.
+  - 진입 화면 게이트 조건(108행)을 `capture-commands.ts`의 `isCaptureEntryScreen` 헬퍼 호출로 교체 — `resolveCaptureShortcut`과 같은 함수를 공유해 게이트 단일 출처화.
   - `EmptyState`에서 `useCommandShortcuts()`로 커맨드→단축키 맵을 받고, 요소/스샷/영상 버튼 3개를 로컬 `ShortcutTooltip` 컴포넌트로 감싼다. 버튼 그리드를 `TooltipProvider`로 감싼다. 자유 작성 버튼은 단축키가 없어 툴팁 없이 그대로 둔다.
 
 ### 6b. `src/components/ui/tooltip.tsx`
@@ -62,7 +66,8 @@
 - 역할: 사이드패널에서 캡처 단축키 메시지를 수신·게이트·디스패치하는 훅. `active && tabId != null`일 때만 `chrome.runtime.onMessage` 리스너 등록, cleanup에서 제거.
 
 ### 7b. `src/sidepanel/hooks/useCommandShortcuts.ts` (신규)
-- 역할: `chrome.commands.getAll()`을 1회 조회해 `{ [commandName]: shortcut }` 맵을 반환하는 훅. `shortcut`이 빈 문자열인 커맨드(키 미배정)는 맵에서 제외. `EmptyState`가 이 맵으로 툴팁에 표시할 키를 얻는다. 사이드패널 컨텍스트에서 `chrome.commands.getAll()` 호출 가능.
+- 역할: `chrome.commands.getAll()`을 1회 조회해 `{ [captureCommand]: shortcut }` 맵을 반환하는 훅. `CAPTURE_COMMANDS`에 속한 커맨드만 남기고(캡처 외 `_execute_action` 등 제외), `shortcut`이 빈 문자열인 커맨드(키 미배정)도 제외. `EmptyState`가 이 맵으로 툴팁에 표시할 키를 얻는다. 사이드패널 컨텍스트에서 `chrome.commands.getAll()` 호출 가능.
+- `getAll()`이 반환하는 `shortcut`은 이미 OS별 표기(mac `⌘⇧1`, Windows/Linux `Ctrl+Shift+1`)가 적용된 문자열이라 **가공 없이 그대로** 툴팁에 노출한다 — 별도 심볼 변환·라벨 불필요.
 
 ### 8. `src/sidepanel/tabs/DebugTab.tsx`
 - 현재 역할: 디버그 메인탭. 서브탭 state `sub`(`issue`/`console`/`network`) 보유.
@@ -104,8 +109,15 @@ interface CaptureGateState {
 }
 
 /**
+ * 캡처 진입 화면이 보이는 상태인지 판정하는 게이트 단일 출처.
+ * 진입 화면 = phase==="idle" || (captureMode==="element" && !selection).
+ * IssueTab.tsx(EmptyState 렌더 분기)와 resolveCaptureShortcut 양쪽이 공유한다.
+ */
+export function isCaptureEntryScreen(state: CaptureGateState): boolean;
+
+/**
  * 커맨드 + 에디터 상태 → 실행할 캡처 액션, 또는 게이트 미통과/미지 커맨드면 null.
- * 게이트: 캡처 진입 화면이 보일 때만 (phase==="idle" || (captureMode==="element" && !selection)).
+ * 게이트는 isCaptureEntryScreen(state)로 판정.
  */
 export function resolveCaptureShortcut(
   command: string,
@@ -123,8 +135,8 @@ export function useCaptureShortcuts(opts: {
 
 ```ts
 // src/sidepanel/hooks/useCommandShortcuts.ts
-// 반환: { [commandName]: shortcutDisplayString }, 키 미배정 커맨드는 키 없음
-export function useCommandShortcuts(): Record<string, string>;
+// 반환: 캡처 커맨드별 단축키 표기 문자열. 키 미배정 커맨드는 키 없음.
+export function useCommandShortcuts(): Partial<Record<CaptureCommand, string>>;
 ```
 
 ```tsx
@@ -137,17 +149,19 @@ function ShortcutTooltip(props: {
 ```
 
 ```ts
-// src/sidepanel/picker-control.ts
+// src/sidepanel/video-capture.ts
 export async function startVideoCapture(tabId: number): Promise<void>;
 ```
 
 ## 기존 패턴 준수
 
-- **탭별 메시지 필터링**: `useCaptureShortcuts`는 수신 메시지의 `tabId`를 패널 `boundTabId`와 비교해 다른 창의 패널을 걸러낸다 — `usePickerMessages`(`sender.tab?.id !== myTabId` 무시)와 동일한 패턴.
-- **picker-control 레이어**: 캡처 시작 함수는 모두 `picker-control.ts`에 모은다 (`startPicker`/`startAreaCapture`/`startFreeformDraft`). `startVideoCapture` 추가로 일관성 유지.
-- **순수 함수 + 단위 테스트**: 게이트 판정은 `resolveCaptureShortcut` 순수 함수로 분리, `__tests__/`에 Vitest 테스트.
+- **탭별 메시지 필터링**: `useCaptureShortcuts`는 수신 메시지 **body의 `tabId`**를 패널 `boundTabId`와 비교해 다른 창의 패널을 걸러낸다. `usePickerMessages`는 content script가 보낸 메시지라 `sender.tab?.id`로 필터하지만, 이 기능의 메시지는 background가 `chrome.runtime.sendMessage`로 보낸 브로드캐스트라 `sender.tab`이 **없다** — 따라서 sender가 아닌 message body의 `tabId`를 비교하는 것이 올바른 접근이다.
+- **순수 함수 + 단위 테스트**: 게이트 판정은 `isCaptureEntryScreen`/`resolveCaptureShortcut` 순수 함수로 분리, `__tests__/`에 Vitest 테스트.
 - **Chrome i18n 분리**: 매니페스트 커맨드 설명은 `public/_locales/`(Chrome i18n), React UI 문자열은 `src/i18n/`. 이 기능은 UI 문자열이 없어 `public/_locales/`만 갱신. 툴팁 내용은 Chrome이 반환하는 단축키 문자열뿐이라 신규 i18n 키 불필요.
-- **shadcn 컴포넌트 사용**: 툴팁은 직접 스타일링하지 않고 기존 `src/components/ui/tooltip.tsx`를 그대로 사용.
+
+`startVideoCapture`는 기존 `picker-control.ts` 레이어 대신 신규 `video-capture.ts`에 둔다 (위 변경 범위 5번 참조 — `video-recorder` 의존성으로 인한 순환 회피). `picker-control.ts`는 picker/area 시작만 담당하고 이 기능에서 손대지 않는다.
+
+**신규 도입 패턴 — shadcn Tooltip**: 툴팁은 `src/components/ui/tooltip.tsx`를 그대로 사용한다(직접 스타일링 없음). 단 이 컴포넌트는 설치돼 있으나 **코드베이스 어디에서도 아직 쓰이지 않아** 이 기능이 최초 사용처다 — "기존 패턴 준수"가 아니라 신규 패턴 도입임을 명확히 한다. Radix 기본 `delayDuration`·포털 렌더로 인한 패널 경계 잘림 여부를 구현·검증 단계에서 확인해야 한다.
 
 ## 대안 검토
 
@@ -158,6 +172,9 @@ export async function startVideoCapture(tabId: number): Promise<void>;
 ## 위험 요소
 
 - **Chrome `suggested_key` 상한 4개 도달**: `_execute_action` + 캡처 3개. 이후 단축키 추가 시 `suggested_key` 없는 커맨드로만 가능(사용자 수동 배정).
-- **`handleStartVideo` 이관**: `IssueTab.tsx`에서 안 쓰이게 된 import를 정리하지 않으면 lint/타입 경고. `pnpm typecheck`로 검출.
-- **게이트 중복**: 진입 화면 조건(`phase==="idle" || (captureMode==="element" && !selection)`)이 `IssueTab.tsx:108`과 `resolveCaptureShortcut`에 각각 존재. 불리언 한 줄 수준이라 공유 헬퍼로 묶지 않고 의도적으로 중복 둔다(외과적 범위 유지).
+- **단축키 배정 실패**: `suggested_key`는 best-effort라 `⌘⇧1~3`이 OS·다른 확장과 충돌하면 Chrome이 해당 커맨드를 **미배정 상태로 등록**한다. 미배정 시 `onCommand`가 안 와 단축키는 no-op이고, `useCommandShortcuts`가 빈 `shortcut`을 제외해 툴팁도 안 뜬다 — graceful하게 닫히지만 PRD 성공 기준의 "3개 자동 배정"이 환경에 따라 깨질 수 있다.
+- **`tabCapture` user gesture**: 영상 캡처(`⌘⇧3`)는 단축키 → background `onCommand` → `runtime.sendMessage` 브로드캐스트 → 패널 핸들러라는 비동기 체인을 거친다. 이 과정에서 user gesture 컨텍스트가 소실되면 `chrome.tabCapture.getMediaStreamId`가 실패할 수 있다. 실패 시 기존 `isTabCaptureUnavailable` 가드가 `onVideoRecordingUnavailable` 다이얼로그로 잡아주지만, 그 경우 "버튼 클릭과 완전히 동일"하진 않게 된다 — 구현 시 실제 탭에서 PoC 확인 필요.
+- **`handleStartVideo` 이관**: `handleStartVideo`는 `useEditorStore`/`blob-db`/`video-recorder`/`@/types/messages` 등 다수 모듈에 의존 → 신규 `video-capture.ts`에 import가 추가된다. `IssueTab.tsx`에서 안 쓰이게 된 import를 정리하지 않으면 lint/타입 경고 — `pnpm typecheck`로 검출. `video-recorder.ts`가 `video-capture.ts`를 import하는 경로는 없어 순환은 생기지 않는다.
+- **게이트 단일 출처**: 진입 화면 조건은 `capture-commands.ts`의 `isCaptureEntryScreen` 헬퍼로 단일화하고 `IssueTab.tsx`(EmptyState 렌더 분기)와 `resolveCaptureShortcut`이 같은 함수를 호출한다 — 한쪽만 phase 조건을 바꿔 어긋나는 위험을 차단.
+- **초기 발견성**: 단축키 존재를 알리는 트리거가 호버 툴팁뿐이라, 사용자가 버튼에 호버하기 전엔 단축키를 모른다(닭-달걀). 인앱 배지·온보딩을 비목표로 닫은 의도된 트레이드오프지만 위험으로 기록한다. Radix Tooltip은 키보드 포커스 시에도 떠 호버 불가 사용자를 부분적으로 커버한다.
 - **툴팁 키 신선도**: `useCommandShortcuts`는 마운트 시 1회만 `chrome.commands.getAll()`을 조회한다. 패널을 연 채로 `chrome://extensions/shortcuts`에서 키를 바꾸면 패널을 다시 열기 전까지 툴팁이 옛 키를 보여줄 수 있다 — 드문 케이스라 재조회 로직은 두지 않는다.
