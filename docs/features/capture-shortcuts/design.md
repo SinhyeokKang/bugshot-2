@@ -30,9 +30,9 @@
 - 현재 역할: MV3 매니페스트 정의. `commands`에 `_execute_action` 하나만 존재.
 - 변경: `commands`에 3개 추가. `_execute_action` 포함 총 4개 = Chrome `suggested_key` 상한.
 ```ts
-"capture-element":    { suggested_key: { default: "Ctrl+Shift+1", mac: "Command+Shift+1" }, description: "__MSG_CMD_CAPTURE_ELEMENT__" },
-"capture-screenshot": { suggested_key: { default: "Ctrl+Shift+2", mac: "Command+Shift+2" }, description: "__MSG_CMD_CAPTURE_SCREENSHOT__" },
-"capture-video":      { suggested_key: { default: "Ctrl+Shift+3", mac: "Command+Shift+3" }, description: "__MSG_CMD_CAPTURE_VIDEO__" },
+"capture-element":    { suggested_key: { default: "Ctrl+Shift+S", mac: "Command+Shift+S" }, description: "__MSG_CMD_CAPTURE_ELEMENT__" },
+"capture-screenshot": { suggested_key: { default: "Ctrl+Shift+F", mac: "Command+Shift+F" }, description: "__MSG_CMD_CAPTURE_SCREENSHOT__" },
+"capture-video":      { suggested_key: { default: "Ctrl+Shift+X", mac: "Command+Shift+X" }, description: "__MSG_CMD_CAPTURE_VIDEO__" },
 ```
 
 ### 2. `public/_locales/{ko,en}/messages.json`
@@ -67,7 +67,7 @@
 
 ### 7b. `src/sidepanel/hooks/useCommandShortcuts.ts` (신규)
 - 역할: `chrome.commands.getAll()`을 1회 조회해 `{ [captureCommand]: shortcut }` 맵을 반환하는 훅. `CAPTURE_COMMANDS`에 속한 커맨드만 남기고(캡처 외 `_execute_action` 등 제외), `shortcut`이 빈 문자열인 커맨드(키 미배정)도 제외. `EmptyState`가 이 맵으로 툴팁에 표시할 키를 얻는다. 사이드패널 컨텍스트에서 `chrome.commands.getAll()` 호출 가능.
-- `getAll()`이 반환하는 `shortcut`은 이미 OS별 표기(mac `⌘⇧1`, Windows/Linux `Ctrl+Shift+1`)가 적용된 문자열이라 **가공 없이 그대로** 툴팁에 노출한다 — 별도 심볼 변환·라벨 불필요.
+- `getAll()`이 반환하는 `shortcut`은 이미 OS별 표기(mac `⌘⇧S`, Windows/Linux `Ctrl+Shift+S`)가 적용된 문자열이라 **가공 없이 그대로** 툴팁에 노출한다 — 별도 심볼 변환·라벨 불필요.
 
 ### 8. `src/sidepanel/tabs/DebugTab.tsx`
 - 현재 역할: 디버그 메인탭. 서브탭 state `sub`(`issue`/`console`/`network`) 보유.
@@ -172,8 +172,8 @@ export async function startVideoCapture(tabId: number): Promise<void>;
 ## 위험 요소
 
 - **Chrome `suggested_key` 상한 4개 도달**: `_execute_action` + 캡처 3개. 이후 단축키 추가 시 `suggested_key` 없는 커맨드로만 가능(사용자 수동 배정).
-- **단축키 배정 실패**: `suggested_key`는 best-effort라 `⌘⇧1~3`이 OS·다른 확장과 충돌하면 Chrome이 해당 커맨드를 **미배정 상태로 등록**한다. 미배정 시 `onCommand`가 안 와 단축키는 no-op이고, `useCommandShortcuts`가 빈 `shortcut`을 제외해 툴팁도 안 뜬다 — graceful하게 닫히지만 PRD 성공 기준의 "3개 자동 배정"이 환경에 따라 깨질 수 있다.
-- **`tabCapture` user gesture**: 영상 캡처(`⌘⇧3`)는 단축키 → background `onCommand` → `runtime.sendMessage` 브로드캐스트 → 패널 핸들러라는 비동기 체인을 거친다. 이 과정에서 user gesture 컨텍스트가 소실되면 `chrome.tabCapture.getMediaStreamId`가 실패할 수 있다. 실패 시 기존 `isTabCaptureUnavailable` 가드가 `onVideoRecordingUnavailable` 다이얼로그로 잡아주지만, 그 경우 "버튼 클릭과 완전히 동일"하진 않게 된다 — 구현 시 실제 탭에서 PoC 확인 필요.
+- **단축키 배정 실패**: `suggested_key`는 best-effort라 `⌘⇧S/F/X`가 OS·다른 확장과 충돌하면 Chrome이 해당 커맨드를 **미배정 상태로 등록**한다. 미배정 시 `onCommand`가 안 와 단축키는 no-op이고, `useCommandShortcuts`가 빈 `shortcut`을 제외해 툴팁도 안 뜬다 — graceful하게 닫히지만 PRD 성공 기준의 "3개 자동 배정"이 환경에 따라 깨질 수 있다.
+- **`tabCapture` user gesture**: 영상 캡처(`⌘⇧X`)는 단축키 → background `onCommand` → `runtime.sendMessage` 브로드캐스트 → 패널 핸들러라는 비동기 체인을 거친다. 이 과정에서 user gesture 컨텍스트가 소실되면 `chrome.tabCapture.getMediaStreamId`가 실패할 수 있다. 실패 시 기존 `isTabCaptureUnavailable` 가드가 `onVideoRecordingUnavailable` 다이얼로그로 잡아주지만, 그 경우 "버튼 클릭과 완전히 동일"하진 않게 된다 — 구현 시 실제 탭에서 PoC 확인 필요.
 - **`handleStartVideo` 이관**: `handleStartVideo`는 `useEditorStore`/`blob-db`/`video-recorder`/`@/types/messages` 등 다수 모듈에 의존 → 신규 `video-capture.ts`에 import가 추가된다. `IssueTab.tsx`에서 안 쓰이게 된 import를 정리하지 않으면 lint/타입 경고 — `pnpm typecheck`로 검출. `video-recorder.ts`가 `video-capture.ts`를 import하는 경로는 없어 순환은 생기지 않는다.
 - **게이트 단일 출처**: 진입 화면 조건은 `capture-commands.ts`의 `isCaptureEntryScreen` 헬퍼로 단일화하고 `IssueTab.tsx`(EmptyState 렌더 분기)와 `resolveCaptureShortcut`이 같은 함수를 호출한다 — 한쪽만 phase 조건을 바꿔 어긋나는 위험을 차단.
 - **초기 발견성**: 단축키 존재를 알리는 트리거가 호버 툴팁뿐이라, 사용자가 버튼에 호버하기 전엔 단축키를 모른다(닭-달걀). 인앱 배지·온보딩을 비목표로 닫은 의도된 트레이드오프지만 위험으로 기록한다. Radix Tooltip은 키보드 포커스 시에도 떠 호버 불가 사용자를 부분적으로 커버한다.

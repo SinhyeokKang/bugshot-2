@@ -62,10 +62,10 @@
 ### Task 5: 매니페스트 커맨드 + i18n
 - **변경 대상**: `manifest.config.ts`, `public/_locales/ko/messages.json`, `public/_locales/en/messages.json`
 - **작업 내용**:
-  - `manifest.config.ts` `commands`에 `capture-element`/`capture-screenshot`/`capture-video` 추가 (`suggested_key` `Ctrl/Command+Shift+1/2/3`).
+  - `manifest.config.ts` `commands`에 `capture-element`/`capture-screenshot`/`capture-video` 추가 (`suggested_key` `Ctrl/Command+Shift+S/F/X`).
   - `CMD_CAPTURE_ELEMENT`/`CMD_CAPTURE_SCREENSHOT`/`CMD_CAPTURE_VIDEO` 메시지를 ko·en 양쪽에 추가.
 - **검증**:
-  - [ ] 확장 재로드 후 `chrome://extensions/shortcuts`에 3개 커맨드가 `⌘⇧1/2/3`으로 배정·노출
+  - [ ] 확장 재로드 후 `chrome://extensions/shortcuts`에 3개 커맨드가 `⌘⇧S/F/X`로 배정·노출
 
 ### Task 6: background 리스너
 - **변경 대상**: `src/background/index.ts`
@@ -101,14 +101,14 @@
 
 ### 수동 테스트 (`pnpm dev` 로드 후)
 - [ ] `chrome://extensions/shortcuts`에 캡처 커맨드 3개 자동 배정 확인
-- [ ] 디버그>이슈 작성 진입 화면에서 `⌘⇧1` → 요소 picker, `⌘⇧2` → 화면 캡처, `⌘⇧3` → 영상 녹화
+- [ ] 디버그>이슈 작성 진입 화면에서 `⌘⇧S` → 요소 picker, `⌘⇧F` → 화면 캡처, `⌘⇧X` → 영상 녹화
 - [ ] 요소 선택 후(진입 화면 아님) 단축키 → 무시
 - [ ] 콘솔/네트워크 서브탭에서 단축키 → 무시
 - [ ] 다른 메인탭(연동/설정)에서 단축키 → 무시
 - [ ] 패널 닫힌 상태에서 단축키 → 무시, 콘솔 에러 없음
-- [ ] 영상 녹화 중(`phase==="recording"`)에 `⌘⇧3` 재입력 → 무시 (녹화 중복 시작 방지)
+- [ ] 영상 녹화 중(`phase==="recording"`)에 `⌘⇧X` 재입력 → 무시 (녹화 중복 시작 방지)
 - [ ] `chrome://extensions/shortcuts`에서 키를 충돌/해제로 미배정한 커맨드 → 단축키 no-op + 해당 버튼 툴팁 미표시
-- [ ] `tabCapture` 권한 거부 상태에서 `⌘⇧3` → 버튼 클릭과 동일하게 `onVideoRecordingUnavailable` 다이얼로그 표시
+- [ ] `tabCapture` 권한 거부 상태에서 `⌘⇧X` → 버튼 클릭과 동일하게 `onVideoRecordingUnavailable` 다이얼로그 표시
 - [ ] 캡처 버튼 클릭(특히 영상 녹화)이 이관 후에도 정상 동작
 - [ ] 요소/스샷/영상 버튼 호버 시 현재 단축키 툴팁 표시 (`chrome://extensions/shortcuts`에서 키 변경 후 패널 재오픈 시 변경 키 반영)
 - [ ] Tab 키로 캡처 버튼 포커스 시에도 툴팁 노출

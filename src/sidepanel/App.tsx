@@ -188,7 +188,7 @@ export default function App() {
         </div>
 
         <div className={cn("flex min-h-0 flex-1 flex-col overflow-hidden", tab !== "debug" && "hidden")}>
-          <DebugTab />
+          <DebugTab activeMainTab={tab} />
         </div>
 
         <div className={cn("flex min-h-0 flex-1 flex-col overflow-hidden", tab !== "issue-list" && "hidden")}>
