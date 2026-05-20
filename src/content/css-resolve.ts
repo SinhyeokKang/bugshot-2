@@ -140,7 +140,7 @@ export function collectSelection(
   }
   const { styles: specifiedStyles, sources: propSources } =
     collectSpecifiedStylesWithSources(el);
-  const editableText = findEditableTextNode(el);
+  const editableHandle = captureEditable(el);
   return {
     selector,
     tagName,
@@ -150,7 +150,7 @@ export function collectSelection(
     propSources,
     hasParent,
     hasChild,
-    text: editableText ? (editableText.textContent ?? "") : null,
+    text: editableHandle ? readEditableText(editableHandle) : null,
     viewport: { width: window.innerWidth, height: window.innerHeight },
   };
 }
@@ -499,6 +499,86 @@ export function findEditableTextNode(el: Element): Text | null {
     if (t.textContent && t.textContent.trim().length > 0) return t;
   }
   return null;
+}
+
+export type EditableToken = { kind: "text"; value: string } | { kind: "br" };
+
+export function tokenizeEditableText(text: string): EditableToken[] {
+  const parts = text.split("\n");
+  const out: EditableToken[] = [];
+  for (let i = 0; i < parts.length; i++) {
+    if (i > 0) out.push({ kind: "br" });
+    out.push({ kind: "text", value: parts[i] });
+  }
+  return out;
+}
+
+export function serializeEditableTokens(tokens: readonly EditableToken[]): string {
+  return tokens.map((t) => (t.kind === "br" ? "\n" : t.value)).join("");
+}
+
+export type EditableHandle =
+  | { kind: "single"; node: Text }
+  | {
+      kind: "multi";
+      parent: Element;
+      nodes: Array<Text | HTMLBRElement>;
+      originalChildren: Node[];
+    };
+
+export function captureEditable(el: Element): EditableHandle | null {
+  const children = Array.from(el.childNodes);
+  if (children.length > 0) {
+    const allTextOrBr = children.every(
+      (n) =>
+        n.nodeType === Node.TEXT_NODE ||
+        (n.nodeType === Node.ELEMENT_NODE && (n as Element).tagName === "BR"),
+    );
+    const hasBr = children.some(
+      (n) =>
+        n.nodeType === Node.ELEMENT_NODE && (n as Element).tagName === "BR",
+    );
+    if (allTextOrBr && hasBr) {
+      const nodes = children as Array<Text | HTMLBRElement>;
+      const originalChildren = children.map((n) => n.cloneNode(true));
+      return { kind: "multi", parent: el, nodes, originalChildren };
+    }
+  }
+  const node = findEditableTextNode(el);
+  return node ? { kind: "single", node } : null;
+}
+
+export function readEditableText(handle: EditableHandle): string {
+  if (handle.kind === "single") return handle.node.textContent ?? "";
+  return handle.nodes
+    .map((n) =>
+      n.nodeType === Node.TEXT_NODE ? ((n as Text).textContent ?? "") : "\n",
+    )
+    .join("");
+}
+
+export function writeEditableText(handle: EditableHandle, text: string): void {
+  if (handle.kind === "single") {
+    handle.node.textContent = text;
+    return;
+  }
+  const doc = handle.parent.ownerDocument ?? document;
+  const tokens = tokenizeEditableText(text);
+  const newNodes: Array<Text | HTMLBRElement> = tokens.map((tok) =>
+    tok.kind === "br" ? doc.createElement("br") : doc.createTextNode(tok.value),
+  );
+  handle.parent.replaceChildren(...newNodes);
+  handle.nodes = newNodes;
+}
+
+export function restoreEditable(handle: EditableHandle, originalText: string): void {
+  if (handle.kind === "single") {
+    handle.node.textContent = originalText;
+    return;
+  }
+  const clones = handle.originalChildren.map((n) => n.cloneNode(true));
+  handle.parent.replaceChildren(...clones);
+  handle.nodes = clones as Array<Text | HTMLBRElement>;
 }
 
 /* ── internal ────────────────────────────────────── */

@@ -5,7 +5,12 @@ vi.mock("../css-source-cache", () => ({
   getRawDeclarationsFor: () => null,
 }));
 
-import { resolveVarChain, INTERESTING_PROPS } from "../css-resolve";
+import {
+  resolveVarChain,
+  INTERESTING_PROPS,
+  tokenizeEditableText,
+  serializeEditableTokens,
+} from "../css-resolve";
 
 describe("INTERESTING_PROPS", () => {
   it("주요 CSS 속성 포함", () => {
@@ -96,5 +101,85 @@ describe("resolveVarChain", () => {
       "--_y": "20px",
     };
     expect(resolveVarChain("var(--_x) var(--_y)", props)).toBe("10px 20px");
+  });
+});
+
+describe("tokenizeEditableText", () => {
+  it("줄바꿈 없으면 단일 text 토큰", () => {
+    expect(tokenizeEditableText("hello")).toEqual([
+      { kind: "text", value: "hello" },
+    ]);
+  });
+
+  it("빈 문자열도 단일 빈 text 토큰", () => {
+    expect(tokenizeEditableText("")).toEqual([{ kind: "text", value: "" }]);
+  });
+
+  it("\\n 사이에 br 토큰 삽입", () => {
+    expect(tokenizeEditableText("a\nb")).toEqual([
+      { kind: "text", value: "a" },
+      { kind: "br" },
+      { kind: "text", value: "b" },
+    ]);
+  });
+
+  it("연속된 \\n은 빈 text와 br 교차", () => {
+    expect(tokenizeEditableText("a\n\nb")).toEqual([
+      { kind: "text", value: "a" },
+      { kind: "br" },
+      { kind: "text", value: "" },
+      { kind: "br" },
+      { kind: "text", value: "b" },
+    ]);
+  });
+
+  it("선행/후행 \\n도 빈 text로 표현", () => {
+    expect(tokenizeEditableText("\nx\n")).toEqual([
+      { kind: "text", value: "" },
+      { kind: "br" },
+      { kind: "text", value: "x" },
+      { kind: "br" },
+      { kind: "text", value: "" },
+    ]);
+  });
+});
+
+describe("serializeEditableTokens", () => {
+  it("단일 text 토큰", () => {
+    expect(serializeEditableTokens([{ kind: "text", value: "hi" }])).toBe("hi");
+  });
+
+  it("text-br-text → \\n로 join", () => {
+    expect(
+      serializeEditableTokens([
+        { kind: "text", value: "a" },
+        { kind: "br" },
+        { kind: "text", value: "b" },
+      ]),
+    ).toBe("a\nb");
+  });
+
+  it("tokenize ↔ serialize 라운드트립", () => {
+    const samples = [
+      "hello",
+      "",
+      "a\nb",
+      "a\n\nb",
+      "\nleading",
+      "trailing\n",
+      "Discover, fix, capture,\nand report UI bugs in one workflow.",
+    ];
+    for (const s of samples) {
+      expect(serializeEditableTokens(tokenizeEditableText(s))).toBe(s);
+    }
+  });
+
+  it("선행 br 토큰은 빈 text가 없어도 \\n 1개로 직렬화", () => {
+    expect(
+      serializeEditableTokens([
+        { kind: "br" },
+        { kind: "text", value: "x" },
+      ]),
+    ).toBe("\nx");
   });
 });
