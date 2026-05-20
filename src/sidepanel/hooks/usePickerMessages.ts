@@ -3,7 +3,7 @@ import { useEditorStore } from "@/store/editor-store";
 import type { NetworkLog } from "@/types/network";
 import type { ConsoleLog } from "@/types/console";
 import type { PickerMessage, ViewportRect } from "@/types/picker";
-import { onPickerIframeUnsupported } from "@/types/messages";
+import { onPickerIframeUnsupported, sendBg } from "@/types/messages";
 import { captureElementSnapshot, loadImage } from "@/sidepanel/capture";
 import { collectTokens } from "@/sidepanel/picker-control";
 import { saveNetworkLog, saveConsoleLog, saveInlineImage, dataUrlToBlob } from "@/store/blob-db";
@@ -143,11 +143,7 @@ async function captureAndCrop(rect: ViewportRect, viewport: { width: number; hei
   try {
     const tabId = useEditorStore.getState().target?.tabId;
     if (!tabId) return;
-    const tab = await chrome.tabs.get(tabId);
-    if (!tab.windowId) return;
-    const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, {
-      format: "png",
-    });
+    const dataUrl = await sendBg<string>({ type: "captureVisibleTab", tabId });
     const dpr = window.devicePixelRatio || 1;
     const cropped = await cropImage(dataUrl, {
       x: rect.x * dpr,
@@ -194,11 +190,7 @@ async function captureAndInsertInline(
   try {
     const tabId = useEditorStore.getState().target?.tabId;
     if (!tabId) return;
-    const tab = await chrome.tabs.get(tabId);
-    if (!tab.windowId) return;
-    const dataUrl = await chrome.tabs.captureVisibleTab(tab.windowId, {
-      format: "png",
-    });
+    const dataUrl = await sendBg<string>({ type: "captureVisibleTab", tabId });
     const dpr = window.devicePixelRatio || 1;
     const cropped = await cropImage(dataUrl, {
       x: rect.x * dpr,
