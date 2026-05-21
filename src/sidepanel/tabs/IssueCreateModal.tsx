@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useT } from "@/i18n";
 import { blobToDataUrl, pruneOrphanInlineImages } from "@/store/blob-db";
@@ -29,21 +29,10 @@ import { submitToLinear, type LinearFileInput } from "@/sidepanel/lib/submitToLi
 import { submitToNotion, type NotionFileInput } from "@/sidepanel/lib/submitToNotion";
 import { recordingFilename } from "@/sidepanel/lib/video-mime";
 import { extractInlineRefs, resolveInlineImagesForSections, type InlineImageInput } from "@/sidepanel/lib/resolveInlineImages";
-import {
-  initialGhFields,
-  type GithubIssueFieldsValue,
-} from "./githubFields/GithubIssueFields";
-import {
-  initialLinearFields,
-  type LinearIssueFieldsValue,
-} from "./linearFields/LinearIssueFields";
-import {
-  initialNotionFields,
-  type NotionIssueFieldsValue,
-} from "./notionFields/NotionIssueFields";
 import type { NotionDatabaseSchema } from "@/types/notion";
 import { extractNotionPageId } from "@/lib/notion-page-id";
 import { SubmitFieldsDialog } from "./SubmitFieldsDialog";
+import { usePlatformFields } from "@/sidepanel/hooks/usePlatformFields";
 
 export function IssueCreateModal() {
   const t = useT();
@@ -82,42 +71,22 @@ export function IssueCreateModal() {
   const linearAccount = accounts.linear;
   const notionAccount = accounts.notion;
 
-  // GitHub 메타 필드: 직전 제출값 우선, 없으면 account.defaults, 그것도 없으면 빈 값
-  const [ghFields, setGhFieldsState] = useState<GithubIssueFieldsValue>(() =>
-    initialGhFields(lastGhSubmit, ghAccount?.defaults),
-  );
-  useEffect(() => {
-    if (open) setGhFieldsState(initialGhFields(lastGhSubmit, ghAccount?.defaults));
-  }, [open, lastGhSubmit, ghAccount?.defaults]);
-  const setGhFields = useCallback(
-    (patch: Partial<GithubIssueFieldsValue>) =>
-      setGhFieldsState((s) => ({ ...s, ...patch })),
-    [],
-  );
-
-  const [linearFields, setLinearFieldsState] = useState<LinearIssueFieldsValue>(() =>
-    initialLinearFields(lastLinearSubmit, linearAccount?.defaults),
-  );
-  useEffect(() => {
-    if (open) setLinearFieldsState(initialLinearFields(lastLinearSubmit, linearAccount?.defaults));
-  }, [open, lastLinearSubmit, linearAccount?.defaults]);
-  const setLinearFields = useCallback(
-    (patch: Partial<LinearIssueFieldsValue>) =>
-      setLinearFieldsState((s) => ({ ...s, ...patch })),
-    [],
-  );
-
-  const [notionFields, setNotionFieldsState] = useState<NotionIssueFieldsValue>(() =>
-    initialNotionFields(lastNotionSubmit, notionAccount?.defaults),
-  );
-  useEffect(() => {
-    if (open) setNotionFieldsState(initialNotionFields(lastNotionSubmit, notionAccount?.defaults));
-  }, [open, lastNotionSubmit, notionAccount?.defaults]);
-  const setNotionFields = useCallback(
-    (patch: Partial<NotionIssueFieldsValue>) =>
-      setNotionFieldsState((s) => ({ ...s, ...patch })),
-    [],
-  );
+  const {
+    ghFields,
+    setGhFields,
+    linearFields,
+    setLinearFields,
+    notionFields,
+    setNotionFields,
+  } = usePlatformFields({
+    open,
+    lastGhSubmit,
+    ghDefaults: ghAccount?.defaults,
+    lastLinearSubmit,
+    linearDefaults: linearAccount?.defaults,
+    lastNotionSubmit,
+    notionDefaults: notionAccount?.defaults,
+  });
   const [notionSchema, setNotionSchema] = useState<NotionDatabaseSchema | null>(null);
 
   const captureMode = useEditorStore((s) => s.captureMode);

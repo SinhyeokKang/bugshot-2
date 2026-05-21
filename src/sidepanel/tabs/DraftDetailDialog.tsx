@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { NetworkLog } from "@/types/network";
 import type { ConsoleLog } from "@/types/console";
 import { getVideoBlob, getImageBlob, getNetworkLog, getConsoleLog, blobToDataUrl, pruneOrphanInlineImages } from "@/store/blob-db";
@@ -49,19 +49,8 @@ import { submitToGithub, type GithubFileInput } from "@/sidepanel/lib/submitToGi
 import { submitToLinear, type LinearFileInput } from "@/sidepanel/lib/submitToLinear";
 import { submitToNotion, type NotionFileInput } from "@/sidepanel/lib/submitToNotion";
 import { recordingFilename } from "@/sidepanel/lib/video-mime";
-import {
-  initialGhFields,
-  type GithubIssueFieldsValue,
-} from "./githubFields/GithubIssueFields";
-import {
-  initialLinearFields,
-  type LinearIssueFieldsValue,
-} from "./linearFields/LinearIssueFields";
-import {
-  initialNotionFields,
-  type NotionIssueFieldsValue,
-} from "./notionFields/NotionIssueFields";
 import type { NotionDatabaseSchema } from "@/types/notion";
+import { usePlatformFields } from "@/sidepanel/hooks/usePlatformFields";
 import { extractNotionPageId } from "@/lib/notion-page-id";
 import { DocSectionBody } from "@/sidepanel/components/DocSectionBody";
 import { LogAttachmentCards } from "@/sidepanel/components/LogAttachmentCards";
@@ -129,32 +118,23 @@ export function DraftDetailDialog({
     [accounts, lastSubmittedPlatform],
   );
   const [platform, setPlatform] = useState<PlatformId>(initialPlatform ?? "jira");
-  const [ghFields, setGhFieldsState] = useState<GithubIssueFieldsValue>(() =>
-    initialGhFields(lastGhSubmit, ghAccount?.defaults),
-  );
-  const setGhFields = useCallback(
-    (patch: Partial<GithubIssueFieldsValue>) =>
-      setGhFieldsState((s) => ({ ...s, ...patch })),
-    [],
-  );
-
-  const [linearFields, setLinearFieldsState] = useState<LinearIssueFieldsValue>(() =>
-    initialLinearFields(lastLinearSubmit, linearAccount?.defaults),
-  );
-  const setLinearFields = useCallback(
-    (patch: Partial<LinearIssueFieldsValue>) =>
-      setLinearFieldsState((s) => ({ ...s, ...patch })),
-    [],
-  );
-
-  const [notionFields, setNotionFieldsState] = useState<NotionIssueFieldsValue>(() =>
-    initialNotionFields(lastNotionSubmit, notionAccount?.defaults),
-  );
-  const setNotionFields = useCallback(
-    (patch: Partial<NotionIssueFieldsValue>) =>
-      setNotionFieldsState((s) => ({ ...s, ...patch })),
-    [],
-  );
+  const {
+    ghFields,
+    setGhFields,
+    linearFields,
+    setLinearFields,
+    notionFields,
+    setNotionFields,
+  } = usePlatformFields({
+    open,
+    lastGhSubmit,
+    ghDefaults: ghAccount?.defaults,
+    lastLinearSubmit,
+    linearDefaults: linearAccount?.defaults,
+    lastNotionSubmit,
+    notionDefaults: notionAccount?.defaults,
+    resetKey: issue?.id,
+  });
   const [notionSchema, setNotionSchema] = useState<NotionDatabaseSchema | null>(null);
 
   // 다이얼로그 진입 prefill — open / issue.id 변경 시에만 동작.
@@ -172,9 +152,6 @@ export function DraftDetailDialog({
       Object.assign(base, restored);
     }
     setFields(base);
-    setGhFieldsState(initialGhFields(lastGhSubmit, ghAccount?.defaults));
-    setLinearFieldsState(initialLinearFields(lastLinearSubmit, linearAccount?.defaults));
-    setNotionFieldsState(initialNotionFields(lastNotionSubmit, notionAccount?.defaults));
     const initial =
       issue && accounts[issue.platform]
         ? issue.platform
