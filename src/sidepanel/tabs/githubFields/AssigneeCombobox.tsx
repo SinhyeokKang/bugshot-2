@@ -18,16 +18,15 @@ import {
 import { cn } from "@/lib/utils";
 import type { GithubUser } from "@/types/github";
 import { sendBg } from "@/types/messages";
-import { toggleLabel as toggleLogin } from "./labelToggle";
 
 interface Props {
   owner: string | undefined;
   repo: string | undefined;
-  value: string[];
-  onChange: (next: string[]) => void;
+  value: string | undefined;
+  onChange: (next: string | undefined) => void;
 }
 
-export function AssigneeMultiSelect({ owner, repo, value, onChange }: Props) {
+export function AssigneeCombobox({ owner, repo, value, onChange }: Props) {
   const t = useT();
   const [open, setOpen] = useState(false);
   const [items, setItems] = useState<GithubUser[]>([]);
@@ -68,9 +67,8 @@ export function AssigneeMultiSelect({ owner, repo, value, onChange }: Props) {
 
   const triggerLabel = (() => {
     if (!ready) return t("github.field.requireRepo");
-    if (value.length === 0) return t("github.field.assignees.placeholder");
-    if (value.length === 1) return value[0];
-    return t("github.field.assignees.summary", { name: value[0], n: value.length - 1 });
+    if (!value) return t("github.field.assignee.placeholder");
+    return value;
   })();
 
   return (
@@ -86,7 +84,7 @@ export function AssigneeMultiSelect({ owner, repo, value, onChange }: Props) {
           <span
             className={cn(
               "min-w-0 flex-1 truncate text-left",
-              value.length === 0 && "text-muted-foreground",
+              !value && "text-muted-foreground",
             )}
           >
             {triggerLabel}
@@ -99,7 +97,7 @@ export function AssigneeMultiSelect({ owner, repo, value, onChange }: Props) {
         onWheel={(e) => e.stopPropagation()}
       >
         <Command>
-          <CommandInput placeholder={t("github.field.assignees.search")} />
+          <CommandInput placeholder={t("github.field.assignee.search")} />
           <CommandList>
             {loading ? (
               <div className="flex items-center justify-center gap-2 py-6 text-xs text-muted-foreground">
@@ -110,15 +108,18 @@ export function AssigneeMultiSelect({ owner, repo, value, onChange }: Props) {
               <div className="px-3 py-6 text-center text-xs text-destructive">{error}</div>
             ) : (
               <>
-                <CommandEmpty>{t("github.field.assignees.empty")}</CommandEmpty>
+                <CommandEmpty>{t("github.field.assignee.empty")}</CommandEmpty>
                 <CommandGroup>
                   {items.map((u) => {
-                    const isSelected = value.includes(u.login);
+                    const isSelected = value === u.login;
                     return (
                       <CommandItem
                         key={u.id}
                         value={u.login}
-                        onSelect={() => onChange(toggleLogin(value, u.login))}
+                        onSelect={() => {
+                          onChange(isSelected ? undefined : u.login);
+                          setOpen(false);
+                        }}
                       >
                         <Check
                           className={cn(

@@ -1,5 +1,5 @@
 import { useT } from "@/i18n";
-import { AssigneeMultiSelect } from "./AssigneeMultiSelect";
+import { AssigneeCombobox } from "./AssigneeCombobox";
 import { LabelCombobox } from "./LabelCombobox";
 import { RepoCombobox, type RepoValue } from "./RepoCombobox";
 import { FieldRow } from "@/sidepanel/components/FieldRow";
@@ -8,19 +8,19 @@ export interface GithubIssueFieldsValue {
   owner?: string;
   repo?: string;
   label?: string;
-  assignees: string[];
+  assignee?: string;
 }
 
 export function initialGhFields(
-  last: { owner?: string; repo?: string; label?: string; assignees?: string[] } | undefined,
-  defaults: { owner?: string; repo?: string; label?: string; assignees?: string[] } | undefined,
+  last: { owner?: string; repo?: string; label?: string; assignee?: string } | undefined,
+  defaults: { owner?: string; repo?: string; label?: string; assignee?: string } | undefined,
 ): GithubIssueFieldsValue {
   const src = last?.owner && last.repo ? last : defaults;
   return {
     owner: src?.owner,
     repo: src?.repo,
     label: src?.label,
-    assignees: src?.assignees ?? [],
+    assignee: src?.assignee,
   };
 }
 
@@ -42,8 +42,8 @@ export function GithubIssueFields({ value, onChange }: Props) {
           onChange={(next) =>
             onChange(
               next
-                ? { owner: next.owner, repo: next.repo, label: undefined, assignees: [] }
-                : { owner: undefined, repo: undefined, label: undefined, assignees: [] },
+                ? { owner: next.owner, repo: next.repo, label: undefined, assignee: undefined }
+                : { owner: undefined, repo: undefined, label: undefined, assignee: undefined },
             )
           }
         />
@@ -56,12 +56,12 @@ export function GithubIssueFields({ value, onChange }: Props) {
           onChange={(label) => onChange({ label })}
         />
       </FieldRow>
-      <FieldRow label={t("github.field.assignees")}>
-        <AssigneeMultiSelect
+      <FieldRow label={t("github.field.assignee")}>
+        <AssigneeCombobox
           owner={value.owner}
           repo={value.repo}
-          value={value.assignees}
-          onChange={(assignees) => onChange({ assignees })}
+          value={value.assignee}
+          onChange={(assignee) => onChange({ assignee })}
         />
       </FieldRow>
     </div>

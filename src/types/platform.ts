@@ -47,7 +47,7 @@ export interface GithubLastSubmitFields {
   owner?: string;
   repo?: string;
   label?: string;
-  assignees?: string[];
+  assignee?: string;
 }
 
 export interface LinearLastSubmitFields {

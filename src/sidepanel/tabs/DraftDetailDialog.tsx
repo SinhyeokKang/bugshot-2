@@ -351,7 +351,7 @@ export function DraftDetailDialog({
       owner: ghFields.owner,
       repo: ghFields.repo,
       label: ghFields.label,
-      assignees: ghFields.assignees,
+      assignee: ghFields.assignee,
     });
     markSubmitted(issue.id, {
       platform: "github",
@@ -370,7 +370,7 @@ export function DraftDetailDialog({
       owner: ghFields.owner,
       repo: ghFields.repo,
       label: ghFields.label,
-      assignees: ghFields.assignees,
+      assignee: ghFields.assignee,
     });
     useSettingsStore.getState().setLastSubmittedPlatform("github");
     return result;

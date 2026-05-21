@@ -296,7 +296,7 @@ export function IssueCreateModal() {
       owner: ghFields.owner,
       repo: ghFields.repo,
       label: ghFields.label,
-      assignees: ghFields.assignees,
+      assignee: ghFields.assignee,
     });
     if (currentIssueId) {
       markSubmitted(currentIssueId, {
@@ -312,7 +312,7 @@ export function IssueCreateModal() {
       owner: ghFields.owner,
       repo: ghFields.repo,
       label: ghFields.label,
-      assignees: ghFields.assignees,
+      assignee: ghFields.assignee,
     });
     useSettingsStore.getState().setLastSubmittedPlatform("github");
     onSubmitted({ key: result.key, url: result.url });

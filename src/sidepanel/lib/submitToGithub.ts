@@ -24,7 +24,7 @@ export interface GithubSubmitInput {
   owner: string;
   repo: string;
   label?: string;
-  assignees?: string[];
+  assignee?: string;
 }
 
 function githubFilename(name: string): string {
@@ -114,7 +114,7 @@ export async function submitToGithub(
       title: input.ctx.title.trim(),
       body,
       labels: input.label ? [input.label] : undefined,
-      assignees: input.assignees?.length ? input.assignees : undefined,
+      assignees: input.assignee ? [input.assignee] : undefined,
     },
   });
   return { key: `#${result.number}`, url: result.url };
