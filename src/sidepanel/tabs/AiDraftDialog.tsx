@@ -18,7 +18,7 @@ import {
   buildAiDraftSchema,
   parseAiDraftResponse,
 } from "@/sidepanel/lib/buildAiDraftPrompt";
-import { buildStyleDiff } from "@/sidepanel/components/StyleChangesTable";
+import type { StyleDiffRow } from "@/sidepanel/components/StyleChangesTable";
 import { buildNetworkLogSummary, buildConsoleLogSummary } from "@/sidepanel/lib/buildLogSummary";
 import { LlmQuotaError, LlmOverloadedError, type AISession, type AIProvider } from "@/sidepanel/lib/ai-provider";
 import { defaultTitle } from "./DraftingPanel";
@@ -27,10 +27,12 @@ export function AiDraftDialog({
   open,
   onOpenChange,
   createSession,
+  elementDiffs,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   createSession: AIProvider["createSession"];
+  elementDiffs?: StyleDiffRow[];
 }) {
   const t = useT();
   const [input, setInput] = useState("");
@@ -70,9 +72,6 @@ export function AiDraftDialog({
         const networkLog = store.networkLog;
         const consoleLog = store.consoleLog;
         const includeLogCtx = captureMode === "video" || captureMode === "freeform";
-        const diffs = isElement && store.selection
-          ? buildStyleDiff(store.selection, store.styleEdits)
-          : undefined;
         const systemPrompt = buildAiDraftSessionPrompt({
           captureMode,
           locale: settingsUi.locale,
@@ -80,12 +79,12 @@ export function AiDraftDialog({
           pageTitle: store.target?.title ?? "",
           selector: isElement ? store.selection?.selector : undefined,
           tagName: isElement ? store.selection?.tagName : undefined,
-          diffs: diffs && diffs.length > 0 ? diffs : undefined,
+          diffs: isElement && elementDiffs?.length ? elementDiffs : undefined,
           tokens:
             isElement && store.tokens.length > 0
               ? store.tokens.map((tk) => ({ name: tk.name, value: tk.value }))
               : undefined,
-          userPrompt: msg || undefined,
+          userPrompt: msg,
           networkLogSummary:
             includeLogCtx && networkLog && networkLog.captured > 0
               ? buildNetworkLogSummary(networkLog)
@@ -141,7 +140,7 @@ export function AiDraftDialog({
     } finally {
       useEditorStore.getState().setAiDraftLoading(false);
     }
-  }, [input, captureMode, onOpenChange, t]);
+  }, [input, captureMode, elementDiffs, onOpenChange, t]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {

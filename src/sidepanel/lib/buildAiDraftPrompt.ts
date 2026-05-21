@@ -181,8 +181,12 @@ export function buildAiDraftSessionPrompt(ctx: AiDraftSessionContext): string {
   }
 
   const userPrompt = ctx.userPrompt?.trim();
-  if (userPrompt) {
-    lines.push(`- User context: ${userPrompt}`);
+  if (userPrompt && ctx.captureMode === "element") {
+    const [first, ...rest] = userPrompt.split(/\r?\n/);
+    lines.push(`- User context: ${first}`);
+    for (const cont of rest) {
+      lines.push(`  ${cont}`);
+    }
   }
 
   const desc = getSectionDesc(ctx.locale, ctx.captureMode);

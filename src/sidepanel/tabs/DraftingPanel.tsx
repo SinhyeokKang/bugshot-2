@@ -317,6 +317,7 @@ export function DraftingPanel() {
         open={aiDialogOpen}
         onOpenChange={setAiDialogOpen}
         createSession={createSession}
+        elementDiffs={isElementMode ? diffs : undefined}
       />
       {annotating && screenshotRaw ? (
         <Suspense fallback={null}>

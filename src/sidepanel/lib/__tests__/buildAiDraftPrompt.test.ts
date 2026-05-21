@@ -299,6 +299,40 @@ describe("buildAiDraftSessionPrompt", () => {
     expect(prompt).toContain("- User context: 다크 모드에서 텍스트가 안 보임");
   });
 
+  it("element 모드: multiline userPrompt는 둘째 줄부터 들여쓰기로 이어짐", () => {
+    const prompt = buildAiDraftSessionPrompt({
+      ...SESSION_ELEMENT_BASE,
+      userPrompt: "다크 모드에서만 발생\n폼 검증 실패 시 재현",
+    });
+    expect(prompt).toContain("- User context: 다크 모드에서만 발생\n  폼 검증 실패 시 재현");
+  });
+
+  it("screenshot 모드: userPrompt 있어도 User context 줄 미포함", () => {
+    const prompt = buildAiDraftSessionPrompt({
+      ...SESSION_BASE,
+      userPrompt: "이 화면에서 버튼이 잘림",
+    });
+    expect(prompt).not.toContain("- User context:");
+  });
+
+  it("video 모드: userPrompt 있어도 User context 줄 미포함", () => {
+    const prompt = buildAiDraftSessionPrompt({
+      ...SESSION_BASE,
+      captureMode: "video",
+      userPrompt: "녹화 중간에 에러 발생",
+    });
+    expect(prompt).not.toContain("- User context:");
+  });
+
+  it("freeform 모드: userPrompt 있어도 User context 줄 미포함", () => {
+    const prompt = buildAiDraftSessionPrompt({
+      ...SESSION_BASE,
+      captureMode: "freeform",
+      userPrompt: "환경 정보로 작성",
+    });
+    expect(prompt).not.toContain("- User context:");
+  });
+
   it("element 모드: 로그 요약이 있어도 로그 줄 미포함", () => {
     const prompt = buildAiDraftSessionPrompt({
       ...SESSION_ELEMENT_BASE,
