@@ -78,22 +78,34 @@ export function groupByDate(issues: IssueRecord[]): [string, IssueRecord[]][]
 
 #### `src/sidepanel/hooks/usePlatformFields.ts` (시급 #4)
 
-3개 플랫폼(GitHub/Linear/Notion) fields state·setter·초기화를 합친 hook. Jira(`EditorIssueFields`)는 `useEditorStore` 자체 state라 hook 대상에서 제외 — Jira만 분리되어 있는 게 의도된 구조.
+3개 플랫폼(GitHub/Linear/Notion) fields state·setter·초기화를 합친 hook. Jira(`EditorIssueFields`)는 `useEditorStore` 자체 state라 hook 대상에서 제외 — Jira만 분리되어 있는 게 의도된 구조. **`initialJiraFields` 헬퍼는 만들지 않는다** (jira는 store 직접 사용).
+
+타입 가독성 위해 3개 fields 파일 각각에 `Initial*Input`/`*Defaults` 명시적 타입 export를 추가 — `Parameters<typeof initialGhFields>[0]` 같은 inline 추론보다 시그니처 변경 추적이 쉬움.
 
 ```ts
-import type { GithubIssueFieldsValue } from "@/sidepanel/tabs/githubFields/GithubIssueFields";
-import type { LinearIssueFieldsValue } from "@/sidepanel/tabs/linearFields/LinearIssueFields";
-import type { NotionIssueFieldsValue } from "@/sidepanel/tabs/notionFields/NotionIssueFields";
+// 3 fields 파일 각각에 추가하는 타입 export 예시 (githubFields/GithubIssueFields.tsx):
+export type GithubFieldsInitInput = Parameters<typeof initialGhFields>[0];
+export type GithubFieldsDefaults = Parameters<typeof initialGhFields>[1];
+
+// hooks/usePlatformFields.ts:
+import type {
+  GithubIssueFieldsValue, GithubFieldsInitInput, GithubFieldsDefaults,
+} from "@/sidepanel/tabs/githubFields/GithubIssueFields";
+import type {
+  LinearIssueFieldsValue, LinearFieldsInitInput, LinearFieldsDefaults,
+} from "@/sidepanel/tabs/linearFields/LinearIssueFields";
+import type {
+  NotionIssueFieldsValue, NotionFieldsInitInput, NotionFieldsDefaults,
+} from "@/sidepanel/tabs/notionFields/NotionIssueFields";
 
 export interface UsePlatformFieldsInput {
   open: boolean;
-  // 각 플랫폼의 마지막 제출값 + account.defaults — initialXxxFields에 그대로 전달
-  lastGhSubmit: Parameters<typeof initialGhFields>[0];
-  ghDefaults: Parameters<typeof initialGhFields>[1];
-  lastLinearSubmit: Parameters<typeof initialLinearFields>[0];
-  linearDefaults: Parameters<typeof initialLinearFields>[1];
-  lastNotionSubmit: Parameters<typeof initialNotionFields>[0];
-  notionDefaults: Parameters<typeof initialNotionFields>[1];
+  lastGhSubmit: GithubFieldsInitInput;
+  ghDefaults: GithubFieldsDefaults;
+  lastLinearSubmit: LinearFieldsInitInput;
+  linearDefaults: LinearFieldsDefaults;
+  lastNotionSubmit: NotionFieldsInitInput;
+  notionDefaults: NotionFieldsDefaults;
   // 추가 reset 트리거 (DraftDetailDialog의 issue?.id 같은 것; IssueCreateModal은 미사용)
   resetKey?: unknown;
 }
@@ -110,7 +122,31 @@ export interface PlatformFieldsState {
 export function usePlatformFields(input: UsePlatformFieldsInput): PlatformFieldsState;
 ```
 
-내부 구현은 기존 IssueCreateModal·DraftDetailDialog의 3쌍 패턴(`useState` initialXxxFields + `useEffect`로 reset + `setXxxFields` patch helper)을 그대로 한 hook으로 묶은 것. effect deps는 `[open, lastGhSubmit, ghDefaults, lastLinearSubmit, linearDefaults, lastNotionSubmit, notionDefaults, resetKey]`.
+### 내부 구현 상세
+
+각 플랫폼 3쌍(GitHub/Linear/Notion)에 대해 동일 패턴:
+
+```ts
+// hook 내부 (GitHub 예시 — 다른 2개도 동일 패턴)
+const [ghFields, setGhFieldsState] = useState<GithubIssueFieldsValue>(() =>
+  initialGhFields(input.lastGhSubmit, input.ghDefaults),
+);
+const setGhFields = useCallback(
+  (patch: Partial<GithubIssueFieldsValue>) =>
+    setGhFieldsState((s) => ({ ...s, ...patch })),
+  [],
+);
+useEffect(() => {
+  if (input.open) {
+    setGhFieldsState(initialGhFields(input.lastGhSubmit, input.ghDefaults));
+  }
+}, [input.open, input.lastGhSubmit, input.ghDefaults, input.resetKey]);
+```
+
+- `useState` initializer는 hook **첫 마운트 시만** 호출. 이후 reset은 effect가 담당.
+- effect deps에 `input.open`만 의미적 트리거 (false→true 전환), 나머지는 변경 감지용. `if (input.open)` 가드로 false 상태에서의 reset 회피.
+- `resetKey`는 4번째 deps. DraftDetailDialog의 `issue?.id` 변경 시 같은 issue를 다시 열어도 idempotent하게 리셋.
+- 각 setter는 `useCallback(..., [])`로 안정 참조 유지 — `SubmitFieldsDialog`/`GithubIssueFields` 같은 자식이 메모이즈된 콜백을 받음.
 
 ### 수정 파일
 
@@ -197,6 +233,10 @@ DraftDetailDialog.tsx
 
 기존 IssueCreateModal.tsx:641-660의 `SubmitFieldsDialogProps` interface와 661-827의 컴포넌트를 **그대로** SubmitFieldsDialog.tsx로 옮긴다. 시그니처·동작 변경 없음.
 
+> **공유 vs 호스트별 로컬 다이얼로그** — 두 호스트(IssueCreateModal·DraftDetailDialog)가 각자 자기 SubmitFieldsDialog 로컬 정의를 가져도 무방하지만, 내부 submit 상태 관리(submitting 플래그, 에러 처리, onSuccess 콜백)·Tab 토글·플랫폼별 분기 렌더가 양쪽에서 동일하기 때문에 공유 컴포넌트로 둔다. 분리 시 코드 중복이 ~100줄 추가되고, 한쪽 수정 시 다른 쪽 누락 회귀 위험.
+
+> **SubmitFieldsDialog는 FieldRow를 직접 import하지 않는다.** Jira/GitHub/Linear/Notion 4종 fields 컴포넌트가 각자 FieldRow를 사용하고, SubmitFieldsDialog는 그 4종을 platform 분기로 호출만 함.
+
 ### `FieldRow`
 
 기존 IssueCreateModal.tsx:878-896의 props (label/required/children) 그대로.
@@ -249,6 +289,8 @@ const fields = useFieldsByPlatform<{ github: GithubIssueFieldsValue; ... }>({ ..
 ## 위험 요소
 
 - **순환 의존성**: SubmitFieldsDialog가 jiraFields/를 import하고, jiraFields/가 FieldRow를 import하는 그래프는 트리. 다만 IssueCreateModal과 SubmitFieldsDialog가 서로 import하지 않도록 주의 — SubmitFieldsDialog는 props만 받고 IssueCreateModal에서 SubmitFieldsDialog를 호출. 양방향 import는 금지.
+- **Strict Mode double-effect와 hook 초기화**: React 18 strict mode가 개발 중 mount/unmount/remount 사이클을 강제하면 `usePlatformFields` 내부 effect가 2회 발화. 첫 `useState` initializer는 첫 마운트에서만 호출되지만, 이어지는 strict unmount→remount에서 effect의 `setGhFieldsState(initialGhFields(...))`가 다시 호출되어 결국 상태가 깨끗하게 reset. 동작상 idempotent — `initialGhFields`는 같은 입력에 같은 결과 반환 (순수 함수)이므로 회귀 없음. 단 dev 환경에서만 발생하고 production에서는 단일 effect.
+- **`ghAccount.defaults` 변경 시 다이얼로그 열린 채로 user input override 위험**: hook effect deps에 `input.ghDefaults`가 포함되므로, 사용자가 IssueCreateModal/DraftDetailDialog 열어둔 채로 다른 탭에서 GitHub 계정 default를 변경하면 effect 재발화 → 사용자가 입력 중이던 값이 `initialGhFields`로 덮어쓰임. **현실적으로 발생 빈도 매우 낮음** (한 sidepanel 탭에서 통합 작업이라 다이얼로그 열어두고 별도 계정 설정 동시 수정하는 시나리오는 거의 없음). 회귀 발견 시 effect 가드(`if (input.open && !userHasEdited)`)를 추가하는 식으로 후속 처리. 이번 스코프에서는 명시적 회피 안 함 — 분리 전 IssueCreateModal 코드도 동일 동작이었음.
 - **`SubmitFieldsDialog` 이동 시 export 의존성**: 현재 IssueCreateModal에서 `export interface SubmitFieldsDialogProps`·`export function SubmitFieldsDialog`로 노출 중. DraftDetailDialog가 그걸 import. 이동 후 IssueCreateModal에서 re-export 잔존시키지 말고 깨끗하게 분리.
 - **DraftDetailDialog의 의도적 deps 제외 동작 보존**: `// eslint-disable-next-line react-hooks/exhaustive-deps` + `[open, issue?.id]` deps로 묶인 reset effect는 fields hook 추출 후에도 setFields(base)·setPlatform(initial)·setSubmitOpen(false)를 그대로 들고 있어야 한다 (Tab 전환 시 다이얼로그 강제 닫힘 버그 방지). 주석도 유지.
 - **`usePlatformFields`의 effect deps에 `lastXxxSubmit`/`xxxDefaults` 포함**: 기존 DraftDetailDialog는 deps에서 의도적으로 제외했지만, 동작상 그 변경이 다이얼로그 닫힘에 영향을 주는 게 아니라 단순 fields 값 갱신이라 hook으로 가도 무해. (실제 last 변경 트리거는 submit 후이고, 그땐 open=false). 회귀 가능성 낮지만 수동 테스트에서 확인.

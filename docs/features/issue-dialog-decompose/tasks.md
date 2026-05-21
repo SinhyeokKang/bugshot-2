@@ -21,7 +21,7 @@
   - 발견된 모든 import를 `from "@/sidepanel/components/FieldRow"`로 갱신.
 - **검증**:
   - [ ] `grep -rn 'FieldRow' src/sidepanel/tabs/IssueCreateModal.tsx`에 export·정의 없음.
-  - [ ] `grep -rn 'from "@/sidepanel/tabs/IssueCreateModal"' src/`에 FieldRow가 안 들어 있음.
+  - [ ] `grep -rn 'from "@/sidepanel/tabs/IssueCreateModal"' src/sidepanel/tabs/githubFields/ src/sidepanel/tabs/linearFields/ src/sidepanel/tabs/notionFields/`에서 FieldRow 관련 매칭 0개. (사전 검증: 작업 직전 동일 명령 결과는 `GithubIssueFields.tsx`·`LinearIssueFields.tsx`·`NotionIssueFields.tsx` 3개 파일에서 FieldRow import 1개씩 — Task 4에서 `SubmitFieldsDialog` import가 따로 옮겨지므로 이 grep은 FieldRow 한 가지 import만 노리는 것.)
   - [ ] `pnpm typecheck` 통과.
 
 ### Task 2: IssueListTab을 statusBadges/ + IssueRow + issueListUtils로 분해
@@ -41,11 +41,15 @@
   - `IssueRow.tsx`로 IssueRow 이동 (IssueListTab.tsx:323-438). 내부에서 `./statusBadges/SubmittedBadge`·`./statusBadges/PlatformChip`·`./issueListUtils` import.
   - `issueListUtils.ts`에 순수 헬퍼 이동 (design.md "신설 파일" 표 참조).
   - IssueListTab.tsx 본체에 남는 것: imports, `IssueListTab` 컴포넌트 함수 본문만.
+  - **IssueRow.tsx에 `Trash2` import 명시**: draft 카드는 SubmittedBadge 대신 Trash2 IconButton + 삭제 확인 AlertDialog를 렌더하므로(`IssueListTab.tsx` 405-432), IssueRow가 `lucide-react`에서 Trash2를 직접 import해야 한다. statusBadges/에 묶지 말 것 — 휴지통은 status가 아니라 row 액션.
 - **검증**:
-  - [ ] `wc -l src/sidepanel/tabs/IssueListTab.tsx` < 320줄.
+  - [ ] `wc -l src/sidepanel/tabs/IssueListTab.tsx` < 400줄.
   - [ ] `wc -l src/sidepanel/tabs/statusBadges/SubmittedBadge.tsx` < 350줄 (가장 큰 단일 파일).
   - [ ] `pnpm typecheck` 통과.
-  - [ ] 수동: IssueListTab 열어 모든 4 플랫폼 카드의 status badge가 동일하게 렌더되는지. 클릭 시 popover 동작.
+  - [ ] 수동: IssueListTab 열어 4 플랫폼 submitted 카드 각각의 status badge 렌더 + popover 옵션 클릭 → 상태 갱신.
+  - [ ] 수동: draft 카드의 Trash2 버튼 → 확인 AlertDialog → 삭제 동작.
+  - [ ] 수동: 빈 검색 결과 → "필터 리셋" 버튼 동작.
+  - [ ] 수동: 1 플랫폼만 connected / 0 플랫폼 connected 상태에서 status badge 분기가 깨지지 않음.
 
 ### Task 3: jiraFields/ 디렉터리 신설 + Jira 필드 이동
 
@@ -55,8 +59,8 @@
   - 신설: `src/sidepanel/tabs/jiraFields/{JiraIssueFields,IssueTypeField,PriorityField,AssigneeField,EpicField,FieldCombobox}.tsx`, `src/sidepanel/tabs/jiraFields/{useDebouncedSearch,useJiraConfig}.ts`
   - 수정: `src/sidepanel/tabs/IssueCreateModal.tsx`
 - **작업 내용**:
-  - design.md "신설 파일" 표대로 7개 파일 신설. 시그니처·동작 변경 없음.
-  - `JiraIssueFields.tsx`는 기존 `JiraFieldsBlock` 함수를 동일한 props (`{ fields: EditorIssueFields; onChange: (patch: Partial<EditorIssueFields>) => void }`)로 export. 이름 `JiraIssueFields`로 통일 (다른 3종과 일관).
+  - design.md "신설 파일" 표대로 8개 파일 신설. 시그니처·동작 변경 없음.
+  - `JiraIssueFields.tsx`는 기존 `JiraFieldsBlock` 함수를 동일한 props (`{ fields: EditorIssueFields; onChange: (patch: Partial<EditorIssueFields>) => void }`)로 export. 이름 `JiraIssueFields`로 통일 (다른 3종과 일관). **`initialJiraFields` 헬퍼는 만들지 않는다** — jira fields는 `useEditorStore`의 `issueFields` state를 직접 호스트가 들고 hook 없이 props로 SubmitFieldsDialog에 전달 (기존 동작 동일).
   - 각 콤보 컴포넌트에서 FieldRow import는 `@/sidepanel/components/FieldRow`로 (Task 1 결과).
   - IssueCreateModal.tsx에서 829-1349 (JiraFieldsBlock + 5개 콤보 + FieldCombobox + 2 hook) 제거.
   - IssueCreateModal.tsx에 `import { JiraIssueFields } from "./jiraFields/JiraIssueFields"` 추가 (이 시점에는 IssueCreateModal에서 jira 분기에 JiraIssueFields를 직접 호출하지 않음 — 호출처는 Task 4의 SubmitFieldsDialog. 다만 import는 일단 남아 있어도 무해. Task 4에서 사용처 갱신).
@@ -112,16 +116,17 @@
 - **변경 대상**:
   - 신설: `src/sidepanel/tabs/__tests__/issueListUtils.test.ts`
 - **작업 내용**: 다음 순수 함수에 대해 케이스별 테스트.
-  - `parseGithubIssueUrl`: 정상 URL, hostname 비정상, pathname 형식 비정상, undefined → 적절한 null/객체 반환.
-  - `parseGithubIssueNumber`: `"#42"`/`"42"`/`"BUG-1"`/undefined → 42/42/null/null.
-  - `resolveGithubCoords`: (a) issue.githubOwner/githubRepo 모두 있을 때, (b) URL fallback, (c) key fallback, (d) 셋 다 부족 → null.
-  - `resolveNotionPageId`: notionPageId 우선, 없으면 URL에서 extractNotionPageId.
-  - `matchesQuery`: title/pageUrl/key 매칭, 대소문자 무관.
-  - `matchesStatus`: "all"/"submitted"/"draft" 분기.
-  - `isRefreshable`: 4 플랫폼별 분기 (jira는 status/key/url만으로 OK, github은 coords 추가, linear는 status/key/url만, notion은 pageId 추가, status가 draft면 false).
+  - `parseGithubIssueUrl` (4 케이스): 정상 URL, hostname 비정상, pathname 형식 비정상, undefined.
+  - `parseGithubIssueNumber` (4 케이스): `"#42"` / `"42"` / `"BUG-1"` / undefined.
+  - `resolveGithubCoords` (5 케이스): (a) githubOwner/githubRepo 모두 있고 key/url도 정상, (b) record는 owner/repo 없지만 URL fallback 성공, (c) record key는 비어있지만 URL에 number 있어 fallback, (d) owner는 있지만 number 부족, (e) 셋 다 부족 → null.
+  - `resolveNotionPageId` (3 케이스): notionPageId 직접 있을 때 / URL fallback / 둘 다 없을 때 null.
+  - `matchesQuery` (5 케이스): title 매칭, pageUrl 매칭, key 매칭, 대소문자 무관, 빈 쿼리.
+  - `matchesStatus` (3 케이스): "all" / "submitted" / "draft" 분기.
+  - `isRefreshable` (12+ 케이스): 4 플랫폼 × (정상 / status≠submitted / url-or-key 누락 / platform별 메타 누락) = 16 케이스 권장. 특히 github의 coords URL fallback 성공 케이스, notion의 URL fallback 성공 케이스 포함.
 - **검증**:
   - [ ] `pnpm test src/sidepanel/tabs/__tests__/issueListUtils.test.ts` 통과.
-  - [ ] 각 함수당 최소 3 케이스 (정상·경계·실패) 포함.
+  - [ ] 총 케이스 수 ≥ 50개.
+  - [ ] 각 함수의 분기 커버리지 100% (분기 없는 함수 제외).
 
 ### Task 7: 최종 회귀 검증
 
@@ -136,11 +141,20 @@
     - Linear: 새 이슈 작성 → 제출 → workflow state 전환.
     - Notion: 새 이슈 작성 → 제출 → status option 전환.
   - DraftDetailDialog 진입 → SubmitFieldsDialog 열기 → 4 플랫폼 Tab 전환 시 다이얼로그 강제 닫힘 없음 확인.
+  - IssueListTab refresh 버튼 race 시나리오:
+    - 한 issue의 fetch가 의도적으로 실패하게(network throttle 또는 잘못된 URL) 만들고 refresh — 다른 issue들 fetch가 모두 완료되어도 spinner가 적절히 해제되는지.
+    - refresh 진행 중 새 이슈를 제출했을 때(`refreshableCount` 변경) spinner가 stuck하지 않는지.
+  - `usePlatformFields` hook 회귀 시나리오:
+    - DraftDetailDialog에서 draft A 열기 → ghFields 일부 입력 → draft B로 전환 (issue?.id 변경) → ghFields가 B의 initial로 리셋되는지.
+    - IssueCreateModal에서 다이얼로그 열기 → ghFields 입력 → 닫고 다시 열기 → 다이얼로그 reopen 시 initial로 리셋되는지.
+    - DraftDetailDialog에서 SubmitFieldsDialog Tab을 GitHub → Linear → Notion → Jira 순으로 4번 전환 — 다이얼로그 강제 닫힘 없고, 각 platform fields가 보존되는지.
 - **검증**:
   - [ ] `pnpm typecheck` 0 에러.
   - [ ] `pnpm test` 0 실패.
   - [ ] 4 플랫폼 수동 회귀 모두 통과.
   - [ ] DraftDetailDialog Tab 전환 강제 닫힘 없음 확인.
+  - [ ] refresh race 시나리오 통과.
+  - [ ] `usePlatformFields` hook 회귀 시나리오 통과.
 
 ## 테스트 계획
 

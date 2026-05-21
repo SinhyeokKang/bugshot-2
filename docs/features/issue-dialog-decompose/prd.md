@@ -46,7 +46,7 @@
 
 - `pnpm test` 통과 (기존 테스트 그대로 + 새 순수 함수 테스트 추가 시 함께 통과).
 - `pnpm typecheck` 통과.
-- IssueListTab.tsx 600줄 이내, IssueCreateModal.tsx 500줄 이내, DraftDetailDialog.tsx 900줄 이내로 축소.
+- IssueListTab.tsx 400줄 이내(필터·리스트 본체만), IssueCreateModal.tsx 700줄 이내(imports + 본체 + buildCtx + 4 submit 핸들러 + handleSubmit — submit 핸들러는 PRD 비목표로 분해 안 함), DraftDetailDialog.tsx 800줄 이내로 축소. 단순 줄 수보다 **본체에서 inline 컴포넌트·상수·헬퍼가 모두 빠졌는지** 가 핵심 기준.
 - `tabs/jiraFields/` 디렉터리 신설, 다른 3종(`githubFields/`·`linearFields/`·`notionFields/`)과 동일 구조 (XxxIssueFields.tsx + 콤보박스 sub-컴포넌트 + 초기값 헬퍼).
 - `SubmitFieldsDialog`·`FieldRow`가 IssueCreateModal 외부 위치에서 export되고, IssueCreateModal·DraftDetailDialog·GithubIssueFields가 모두 동등하게 import.
 - IssueCreateModal·DraftDetailDialog의 플랫폼 필드 state·setter가 `usePlatformFields` 단일 hook 호출로 일원화.
