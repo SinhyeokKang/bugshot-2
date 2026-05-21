@@ -7,6 +7,7 @@ import {
   parseGithubIssueNumber,
   parseGithubIssueUrl,
   resolveGithubCoords,
+  resolveNotionPageId,
 } from "../IssueListTab";
 import type { IssueRecord } from "@/store/issues-store";
 
@@ -167,6 +168,17 @@ describe("resolveGithubCoords", () => {
       }),
     ).toBeNull();
   });
+
+  it("owner/repo는 있지만 key가 invalid + url에서도 number 못 뽑으면 null", () => {
+    expect(
+      resolveGithubCoords({
+        githubOwner: "o",
+        githubRepo: "r",
+        key: "BUG-1",
+        url: "https://github.com/o/r",
+      }),
+    ).toBeNull();
+  });
 });
 
 describe("isRefreshable", () => {
@@ -225,6 +237,49 @@ describe("isRefreshable", () => {
     });
     expect(isRefreshable(issue)).toBe(true);
   });
+
+  it("submitted but url 없음 → false (url 가드)", () => {
+    expect(isRefreshable(makeIssue({ url: undefined }))).toBe(false);
+  });
+
+  it("linear + url + key 정상 → true", () => {
+    const issue = makeIssue({
+      platform: "linear",
+      key: "TEAM-42",
+      url: "https://linear.app/team/issue/TEAM-42",
+    });
+    expect(isRefreshable(issue)).toBe(true);
+  });
+
+  it("notion + notionPageId 있음 → true", () => {
+    const issue = makeIssue({
+      platform: "notion",
+      key: "page-1",
+      url: "https://www.notion.so/work/Some-Page",
+      notionPageId: "12345678123456781234567812345678",
+    });
+    expect(isRefreshable(issue)).toBe(true);
+  });
+
+  it("notion + notionPageId 없지만 url에서 fallback 추출 가능 → true", () => {
+    const issue = makeIssue({
+      platform: "notion",
+      key: "page-1",
+      url: "https://www.notion.so/work/Some-Page-12345678123456781234567812345678",
+      notionPageId: undefined,
+    });
+    expect(isRefreshable(issue)).toBe(true);
+  });
+
+  it("notion + pageId 없고 url에서도 추출 불가 → false", () => {
+    const issue = makeIssue({
+      platform: "notion",
+      key: "page-1",
+      url: "https://www.notion.so/work/Some-Page-no-id-here",
+      notionPageId: undefined,
+    });
+    expect(isRefreshable(issue)).toBe(false);
+  });
 });
 
 describe("matchesStatus", () => {
@@ -241,5 +296,34 @@ describe("matchesStatus", () => {
   it("'submitted'는 submitted만 true", () => {
     expect(matchesStatus(makeIssue({ status: "submitted" }), "submitted")).toBe(true);
     expect(matchesStatus(makeIssue({ status: "draft" }), "submitted")).toBe(false);
+  });
+});
+
+describe("resolveNotionPageId", () => {
+  it("notionPageId가 직접 있으면 그 값 반환 (URL fallback 안 함)", () => {
+    expect(
+      resolveNotionPageId({
+        notionPageId: "stored-page-id-32chars-abcdef1234",
+        url: "https://www.notion.so/other-workspace/Different-Page-99999999999999999999999999999999",
+      }),
+    ).toBe("stored-page-id-32chars-abcdef1234");
+  });
+
+  it("notionPageId 없으면 url에서 32-hex pageId 추출 (fallback)", () => {
+    expect(
+      resolveNotionPageId({
+        notionPageId: undefined,
+        url: "https://www.notion.so/work/My-Page-12345678123456781234567812345678",
+      }),
+    ).toBe("12345678123456781234567812345678");
+  });
+
+  it("notionPageId 없고 url에서도 추출 불가 → null", () => {
+    expect(
+      resolveNotionPageId({
+        notionPageId: undefined,
+        url: "https://www.notion.so/work/Plain-Slug-without-id",
+      }),
+    ).toBeNull();
   });
 });
