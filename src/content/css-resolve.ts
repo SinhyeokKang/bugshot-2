@@ -519,6 +519,7 @@ export function serializeEditableTokens(tokens: readonly EditableToken[]): strin
 
 export type EditableHandle =
   | { kind: "single"; node: Text }
+  | { kind: "flat"; el: Element; originalChildren: Node[] }
   | {
       kind: "multi";
       parent: Element;
@@ -576,12 +577,22 @@ export function captureEditable(el: Element): EditableHandle | null {
     };
   }
   if (mode === "none") return null;
+  const hasElementChild = children.some((c) => c.nodeType === NODE_TYPE_ELEMENT);
+  if (hasElementChild) {
+    const fullText = el.textContent?.trim() ?? "";
+    if (fullText) {
+      const originalChildren = children.map((n) => n.cloneNode(true));
+      return { kind: "flat", el, originalChildren };
+    }
+    return null;
+  }
   const node = findEditableTextNode(el);
   return node ? { kind: "single", node } : null;
 }
 
 export function readEditableText(handle: EditableHandle): string {
   if (handle.kind === "single") return handle.node.textContent ?? "";
+  if (handle.kind === "flat") return handle.el.textContent ?? "";
   return handle.nodes
     .map((n) =>
       n.nodeType === Node.TEXT_NODE ? ((n as Text).textContent ?? "") : "\n",
@@ -592,6 +603,10 @@ export function readEditableText(handle: EditableHandle): string {
 export function writeEditableText(handle: EditableHandle, text: string): void {
   if (handle.kind === "single") {
     handle.node.textContent = text;
+    return;
+  }
+  if (handle.kind === "flat") {
+    handle.el.textContent = text;
     return;
   }
   const doc = handle.parent.ownerDocument ?? document;
@@ -606,6 +621,11 @@ export function writeEditableText(handle: EditableHandle, text: string): void {
 export function restoreEditable(handle: EditableHandle, originalText: string): void {
   if (handle.kind === "single") {
     handle.node.textContent = originalText;
+    return;
+  }
+  if (handle.kind === "flat") {
+    const clones = handle.originalChildren.map((n) => n.cloneNode(true));
+    handle.el.replaceChildren(...clones);
     return;
   }
   const clones = handle.originalChildren.map((n) => n.cloneNode(true));

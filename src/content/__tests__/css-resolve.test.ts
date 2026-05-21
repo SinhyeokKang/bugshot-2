@@ -11,6 +11,9 @@ import {
   tokenizeEditableText,
   serializeEditableTokens,
   classifyEditableChildren,
+  readEditableText,
+  writeEditableText,
+  type EditableHandle,
 } from "../css-resolve";
 
 describe("INTERESTING_PROPS", () => {
@@ -274,5 +277,34 @@ describe("classifyEditableChildren", () => {
         { nodeType: ELEMENT_NODE, tagName: "BR" },
       ]),
     ).toBe("single");
+  });
+});
+
+describe("readEditableText — flat handle", () => {
+  it("인라인 자식이 포함된 요소의 전체 textContent를 반환", () => {
+    const handle: EditableHandle = {
+      kind: "flat",
+      el: { textContent: "Web bugs, captured in seconds." } as unknown as Element,
+      originalChildren: [],
+    };
+    expect(readEditableText(handle)).toBe("Web bugs, captured in seconds.");
+  });
+
+  it("textContent가 null이면 빈 문자열 반환", () => {
+    const handle: EditableHandle = {
+      kind: "flat",
+      el: { textContent: null } as unknown as Element,
+      originalChildren: [],
+    };
+    expect(readEditableText(handle)).toBe("");
+  });
+});
+
+describe("writeEditableText — flat handle", () => {
+  it("el.textContent에 새 텍스트를 설정", () => {
+    const el = { textContent: "old" } as unknown as Element;
+    const handle: EditableHandle = { kind: "flat", el, originalChildren: [] };
+    writeEditableText(handle, "new text");
+    expect(el.textContent).toBe("new text");
   });
 });
