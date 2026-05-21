@@ -73,6 +73,37 @@ export class LlmOverloadedError extends Error {
   }
 }
 
+// 일시적 오버로드/게이트웨이 오류에 한해 1s → 2s 백오프로 2회 재시도.
+const RETRY_DELAYS_MS = [1000, 2000];
+
+export function parseRetryAfterMs(value: string | null): number | null {
+  if (!value) return null;
+  const seconds = Number(value);
+  if (Number.isFinite(seconds)) return Math.max(0, seconds) * 1000;
+  const date = Date.parse(value);
+  if (Number.isFinite(date)) return Math.max(0, date - Date.now());
+  return null;
+}
+
+export async function fetchWithRetry(
+  url: string,
+  init: RequestInit,
+  retryStatuses: number[],
+): Promise<Response> {
+  for (let attempt = 0; ; attempt++) {
+    const res = await fetch(url, init);
+    if (!retryStatuses.includes(res.status) || attempt >= RETRY_DELAYS_MS.length) {
+      return res;
+    }
+    const retryAfterMs = parseRetryAfterMs(res.headers.get("retry-after"));
+    const wait = retryAfterMs ?? RETRY_DELAYS_MS[attempt];
+    console.warn(
+      `[ai-provider] ${res.status} from ${url} → retry in ${wait}ms (${attempt + 1}/${RETRY_DELAYS_MS.length})`,
+    );
+    await new Promise((r) => setTimeout(r, wait));
+  }
+}
+
 export interface ProviderPreset {
   id: string;
   label: string;
@@ -182,11 +213,11 @@ export function createOpenAICompatibleProvider(config: LlmConfig): AIProvider {
     const body: Record<string, unknown> = { model: config.modelId, messages };
     if (jsonMode) body.response_format = { type: "json_object" };
 
-    const res = await fetch(`${config.baseUrl}/chat/completions`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(body),
-    });
+    const res = await fetchWithRetry(
+      `${config.baseUrl}/chat/completions`,
+      { method: "POST", headers, body: JSON.stringify(body) },
+      [502, 503, 504],
+    );
     if (!res.ok) {
       if (res.status === 429) throw new LlmQuotaError();
       if (res.status === 503) throw new LlmOverloadedError();
@@ -260,16 +291,20 @@ export function createAnthropicProvider(config: LlmConfig): AIProvider {
     };
     if (config.apiKey) headers["x-api-key"] = config.apiKey;
 
-    const res = await fetch(`${config.baseUrl}/messages`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify({
-        model: config.modelId,
-        max_tokens: ANTHROPIC_MAX_TOKENS,
-        system,
-        messages,
-      }),
-    });
+    const res = await fetchWithRetry(
+      `${config.baseUrl}/messages`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          model: config.modelId,
+          max_tokens: ANTHROPIC_MAX_TOKENS,
+          system,
+          messages,
+        }),
+      },
+      [502, 504, 529],
+    );
     if (!res.ok) {
       if (res.status === 429) throw new LlmQuotaError();
       if (res.status === 529) throw new LlmOverloadedError();

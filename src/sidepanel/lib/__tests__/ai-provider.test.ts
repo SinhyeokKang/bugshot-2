@@ -1,8 +1,12 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import {
   createAnthropicProvider,
+  createOpenAICompatibleProvider,
   detectProviderKind,
+  fetchWithRetry,
   getProviderLabel,
+  LlmOverloadedError,
+  parseRetryAfterMs,
   PROVIDER_PRESETS,
   ANTHROPIC_MODELS,
   GEMINI_MODELS,
@@ -126,6 +130,210 @@ describe("getProviderLabel", () => {
 
   it("커스텀 URL → Custom", () => {
     expect(getProviderLabel("https://my-llm.example.com/v1")).toBe("Custom");
+  });
+});
+
+describe("parseRetryAfterMs", () => {
+  it("null/empty → null", () => {
+    expect(parseRetryAfterMs(null)).toBe(null);
+    expect(parseRetryAfterMs("")).toBe(null);
+  });
+
+  it("초 단위 숫자 → ms", () => {
+    expect(parseRetryAfterMs("3")).toBe(3000);
+    expect(parseRetryAfterMs("0")).toBe(0);
+  });
+
+  it("HTTP-date → 현재로부터 남은 ms", () => {
+    const future = new Date(Date.now() + 5000).toUTCString();
+    const ms = parseRetryAfterMs(future);
+    expect(ms).not.toBeNull();
+    expect(ms!).toBeGreaterThan(3000);
+    expect(ms!).toBeLessThanOrEqual(5000);
+  });
+
+  it("과거 시각 → 0", () => {
+    const past = new Date(Date.now() - 10_000).toUTCString();
+    expect(parseRetryAfterMs(past)).toBe(0);
+  });
+
+  it("파싱 불가 문자열 → null", () => {
+    expect(parseRetryAfterMs("not-a-date")).toBe(null);
+  });
+});
+
+describe("fetchWithRetry", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  function mockFetchSequence(responses: Array<Partial<Response>>) {
+    const fn = vi.fn();
+    for (const res of responses) {
+      fn.mockResolvedValueOnce({
+        status: 200,
+        headers: { get: () => null },
+        ...res,
+      });
+    }
+    vi.stubGlobal("fetch", fn);
+    return fn;
+  }
+
+  it("재시도 status가 아니면 즉시 반환 (재시도 없음)", async () => {
+    const fetchFn = mockFetchSequence([{ status: 200 }]);
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const res = await fetchWithRetry("http://x", {}, [503]);
+
+    expect(res.status).toBe(200);
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+  });
+
+  it("503 → 503 → 200: 2회 재시도 후 성공", async () => {
+    const fetchFn = mockFetchSequence([
+      { status: 503 },
+      { status: 503 },
+      { status: 200 },
+    ]);
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const promise = fetchWithRetry("http://x", {}, [503]);
+    await vi.advanceTimersByTimeAsync(1000);
+    await vi.advanceTimersByTimeAsync(2000);
+    const res = await promise;
+
+    expect(res.status).toBe(200);
+    expect(fetchFn).toHaveBeenCalledTimes(3);
+  });
+
+  it("재시도 한도 초과: 마지막 실패 응답 반환", async () => {
+    const fetchFn = mockFetchSequence([
+      { status: 503 },
+      { status: 503 },
+      { status: 503 },
+    ]);
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const promise = fetchWithRetry("http://x", {}, [503]);
+    await vi.advanceTimersByTimeAsync(1000);
+    await vi.advanceTimersByTimeAsync(2000);
+    const res = await promise;
+
+    expect(res.status).toBe(503);
+    expect(fetchFn).toHaveBeenCalledTimes(3);
+  });
+
+  it("재시도 대상 외 status는 그대로 반환 (429는 즉시)", async () => {
+    const fetchFn = mockFetchSequence([{ status: 429 }]);
+
+    const res = await fetchWithRetry("http://x", {}, [503]);
+
+    expect(res.status).toBe(429);
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+  });
+
+  it("Retry-After 헤더가 있으면 그 값을 사용", async () => {
+    const headerStub = { get: (k: string) => (k === "retry-after" ? "5" : null) };
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValueOnce({ status: 503, headers: headerStub })
+      .mockResolvedValueOnce({ status: 200, headers: { get: () => null } });
+    vi.stubGlobal("fetch", fetchFn);
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const promise = fetchWithRetry("http://x", {}, [503]);
+    // 기본 1000ms로는 부족, 5000ms 진행해야 다음 fetch가 호출됨
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(4000);
+    const res = await promise;
+
+    expect(res.status).toBe(200);
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("createOpenAICompatibleProvider 재시도 통합", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("503 응답을 재시도 끝까지 받으면 LlmOverloadedError throw", async () => {
+    const fail = {
+      status: 503,
+      headers: { get: () => null },
+      text: () => Promise.resolve(""),
+    };
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValueOnce(fail)
+      .mockResolvedValueOnce(fail)
+      .mockResolvedValueOnce(fail);
+    vi.stubGlobal("fetch", fetchFn);
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const provider = createOpenAICompatibleProvider({
+      baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
+      apiKey: "k",
+      modelId: "gemini-2.5-flash",
+    });
+
+    const promise = provider.generate({ prompt: "hi" });
+    // Vitest는 unhandled rejection을 catch하므로 에러 핸들러 부착
+    promise.catch(() => {});
+    await vi.advanceTimersByTimeAsync(1000);
+    await vi.advanceTimersByTimeAsync(2000);
+
+    await expect(promise).rejects.toBeInstanceOf(LlmOverloadedError);
+    expect(fetchFn).toHaveBeenCalledTimes(3);
+  });
+
+  it("503 두 번 후 200이면 정상 응답", async () => {
+    const ok = {
+      status: 200,
+      ok: true,
+      headers: { get: () => null },
+      json: () =>
+        Promise.resolve({ choices: [{ message: { content: "yay" } }] }),
+    };
+    const fail = {
+      status: 503,
+      headers: { get: () => null },
+      text: () => Promise.resolve(""),
+    };
+    const fetchFn = vi
+      .fn()
+      .mockResolvedValueOnce(fail)
+      .mockResolvedValueOnce(fail)
+      .mockResolvedValueOnce(ok);
+    vi.stubGlobal("fetch", fetchFn);
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+
+    const provider = createOpenAICompatibleProvider({
+      baseUrl: "https://generativelanguage.googleapis.com/v1beta/openai",
+      apiKey: "k",
+      modelId: "gemini-2.5-flash",
+    });
+
+    const promise = provider.generate({ prompt: "hi" });
+    await vi.advanceTimersByTimeAsync(1000);
+    await vi.advanceTimersByTimeAsync(2000);
+
+    await expect(promise).resolves.toBe("yay");
+    expect(fetchFn).toHaveBeenCalledTimes(3);
   });
 });
 
