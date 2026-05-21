@@ -44,7 +44,7 @@ src/
 │   │   ├── settings/      # AI 모델 설정 (LlmConnectDialog, LlmConnectForm) — SettingsTab의 AI 모델 sub-tab content
 │   │   ├── connect/       # 플랫폼별 연결 폼 (JiraConnectForm, GithubConnectForm, LinearConnectForm, NotionConnectForm) — IntegrationsTab의 sub-tab content
 │   │   ├── jiraFields/    # Jira 메타 필드 컴포넌트 (IssueTypeField, AssigneeField, PriorityField, EpicField, JiraIssueFields 묶음 + FieldCombobox 공용 셸 + useDebouncedSearch/useJiraConfig 훅) — SubmitFieldsDialog의 Jira 탭에서 사용
-│   │   ├── githubFields/  # GitHub 메타 필드 컴포넌트 (RepoCombobox, LabelCombobox, AssigneeMultiSelect, GithubIssueFields 묶음, labelToggle 헬퍼) — IntegrationsTab/IssueCreateModal 양쪽에서 controlled로 재사용
+│   │   ├── githubFields/  # GitHub 메타 필드 컴포넌트 (RepoCombobox, LabelCombobox, AssigneeCombobox, GithubIssueFields 묶음) — IntegrationsTab/IssueCreateModal 양쪽에서 controlled로 재사용
 │   │   ├── linearFields/  # Linear 메타 필드 컴포넌트 (TeamCombobox, ProjectCombobox, LabelCombobox, PrioritySelect, AssigneeCombobox, LinearIssueFields 묶음) — IntegrationsTab/IssueCreateModal 양쪽에서 controlled로 재사용
 │   │   ├── notionFields/  # Notion 메타 필드 컴포넌트 (DatabaseCombobox, StatusSelect, PropertiesFieldset, PropertySelectCombobox, NotionIssueFields 묶음, reconcileNotionFields 헬퍼) — IntegrationsTab/IssueCreateModal 양쪽에서 controlled로 재사용
 │   │   ├── statusBadges/  # 이슈 목록 상태 badge — SubmittedBadge 디스패처 + 플랫폼별 SubmittedBadge(fetch + read-only fallback) + 동명 StatusBadge(편집 가능 popover) 4종(Jira/Github/Linear/Notion) + PlatformChip(브랜드 아이콘 + 라벨) + constants(STATUS_CATEGORY_COLORS, LINEAR_STATE_TYPE_COLORS, LINEAR_STATE_I18N)
