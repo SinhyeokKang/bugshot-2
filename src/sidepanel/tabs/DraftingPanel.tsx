@@ -13,7 +13,6 @@ import {
   type IssueSection,
 } from "@/store/settings-ui-store";
 import { useEditorStore } from "@/store/editor-store";
-import { LlmQuotaError, LlmOverloadedError } from "@/sidepanel/lib/ai-provider";
 import { useSettingsStore } from "@/store/settings-store";
 import { useBoundTabId } from "@/sidepanel/hooks/useBoundTabId";
 import { useAI } from "@/sidepanel/hooks/useAI";
@@ -32,12 +31,6 @@ import {
   StyleChangesTable,
   buildStyleDiff,
 } from "@/sidepanel/components/StyleChangesTable";
-import {
-  buildAiDraftPrompt,
-  buildAiDraftSchema,
-  parseAiDraftResponse,
-} from "@/sidepanel/lib/buildAiDraftPrompt";
-import { buildNetworkLogSummary, buildConsoleLogSummary } from "@/sidepanel/lib/buildLogSummary";
 import {
   deriveReadonlyEnvRows,
   filterEnvironmentRows,
@@ -71,12 +64,8 @@ export function DraftingPanel() {
   const consoleLog = useEditorStore((s) => s.consoleLog);
   const consoleLogAttach = useEditorStore((s) => s.consoleLogAttach);
   const setConsoleLogAttach = useEditorStore((s) => s.setConsoleLogAttach);
-  const target = useEditorStore((s) => s.target);
-  const tokens = useEditorStore((s) => s.tokens);
   const issueSections = useSettingsUiStore((s) => s.issueSections);
-  const locale = useSettingsUiStore((s) => s.locale);
-  const { status: aiStatus, providerLabel, generate, createSession } = useAI();
-  const [aiError, setAiError] = useState<string | null>(null);
+  const { status: aiStatus, providerLabel, createSession } = useAI();
   const [annotating, setAnnotating] = useState(false);
   const [aiDialogOpen, setAiDialogOpen] = useState(false);
   const aiDraftLoading = useEditorStore((s) => s.aiDraftLoading);
@@ -105,12 +94,6 @@ export function DraftingPanel() {
     });
   }, [draft, selection, setDraft, titlePrefix, captureMode, screenshotImage, videoThumbnail, videoBlob]);
 
-  useEffect(() => {
-    if (!aiError) return;
-    const id = setTimeout(() => setAiError(null), 3000);
-    return () => clearTimeout(id);
-  }, [aiError]);
-
   if (!draft) return null;
   if (captureMode === "element" && !selection) return null;
   if (captureMode === "screenshot" && !screenshotImage) return null;
@@ -124,64 +107,6 @@ export function DraftingPanel() {
   );
 
   const enabledSections = issueSections.filter((s) => s.enabled);
-
-  const handleAIDraft = async () => {
-    useEditorStore.getState().setAiDraftLoading(true);
-    setAiError(null);
-    try {
-      const ctx = buildAiDraftPrompt({
-        captureMode,
-        locale,
-        url: target?.url ?? "",
-        pageTitle: target?.title ?? "",
-        selector: selection?.selector,
-        tagName: selection?.tagName,
-        diffs: diffs.length > 0 ? diffs : undefined,
-        tokens: tokens.length > 0
-          ? tokens.map((tk) => ({ name: tk.name, value: tk.value }))
-          : undefined,
-        networkLogSummary:
-          networkLog && networkLog.captured > 0
-            ? buildNetworkLogSummary(networkLog)
-            : undefined,
-        consoleLogSummary:
-          consoleLog && consoleLog.captured > 0
-            ? buildConsoleLogSummary(consoleLog)
-            : undefined,
-        enabledSections: enabledSections.map((s) => ({
-          id: s.id,
-          renderAs: s.renderAs,
-        })),
-      });
-      const sectionIds = enabledSections.map((s) => s.id);
-      const responseSchema = buildAiDraftSchema(sectionIds);
-      const raw = await generate({ prompt: ctx, responseSchema });
-      const parsed = parseAiDraftResponse(raw, sectionIds);
-      if (parsed) {
-        const prefix = defaultTitle(titlePrefix);
-        const aiTitle = prefix
-          ? prefix + parsed.title
-          : parsed.title;
-        setDraft({
-          ...parsed,
-          title: aiTitle,
-          environment: draft.environment ?? [],
-        });
-      } else {
-        console.warn("[bugshot] AI draft parse failed. Raw response:", raw);
-        setAiError(t("draft.aiParseError"));
-      }
-    } catch (err) {
-      console.error("[AI Draft] error:", err);
-      setAiError(
-        err instanceof LlmQuotaError ? t("llm.error.quota")
-        : err instanceof LlmOverloadedError ? t("llm.error.overloaded")
-        : t("draft.aiError"),
-      );
-    } finally {
-      useEditorStore.getState().setAiDraftLoading(false);
-    }
-  };
 
   const isFreeformMode = captureMode === "freeform";
 
@@ -307,11 +232,6 @@ export function DraftingPanel() {
         </div>
       ) : (
         <>
-          {aiError && (
-            <div className="absolute bottom-4 left-1/2 z-30 -translate-x-1/2 rounded-md bg-destructive/10 px-3 py-1.5 text-xs text-destructive shadow-sm">
-              {aiError}
-            </div>
-          )}
           <PageScroll>
             <Section title={t("section.issueTitle")}>
               <Input
@@ -329,13 +249,7 @@ export function DraftingPanel() {
           {aiStatus === "available" && (
             <button
               className="flex items-center justify-between rounded-t-lg bg-purple-100/80 px-3.5 py-2.5 text-purple-700 transition-colors hover:bg-purple-100 disabled:opacity-50 dark:bg-purple-950/50 dark:text-purple-300 dark:hover:bg-purple-900"
-              onClick={() => {
-                if (captureMode === "element") {
-                  void handleAIDraft();
-                } else {
-                  setAiDialogOpen(true);
-                }
-              }}
+              onClick={() => setAiDialogOpen(true)}
               disabled={aiDraftLoading}
             >
               <span className="flex items-center gap-1.5">

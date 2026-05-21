@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { useEditorStore } from "@/store/editor-store";
+import { useEditorStore, type CaptureMode } from "@/store/editor-store";
 import { useSettingsUiStore } from "@/store/settings-ui-store";
 import { useSettingsStore } from "@/store/settings-store";
 import {
@@ -18,6 +18,7 @@ import {
   buildAiDraftSchema,
   parseAiDraftResponse,
 } from "@/sidepanel/lib/buildAiDraftPrompt";
+import { buildStyleDiff } from "@/sidepanel/components/StyleChangesTable";
 import { buildNetworkLogSummary, buildConsoleLogSummary } from "@/sidepanel/lib/buildLogSummary";
 import { LlmQuotaError, LlmOverloadedError, type AISession, type AIProvider } from "@/sidepanel/lib/ai-provider";
 import { defaultTitle } from "./DraftingPanel";
@@ -33,6 +34,7 @@ export function AiDraftDialog({
 }) {
   const t = useT();
   const [input, setInput] = useState("");
+  const captureMode = useEditorStore((s) => s.captureMode);
   const sessionRef = useRef<AISession | null>(null);
   const isFirstMessageRef = useRef(true);
   const createSessionRef = useRef(createSession);
@@ -47,7 +49,7 @@ export function AiDraftDialog({
 
   const handleSubmit = useCallback(async () => {
     const msg = input.trim();
-    if (!msg) return;
+    if (!msg && captureMode !== "element") return;
 
     setInput("");
     onOpenChange(false);
@@ -57,21 +59,33 @@ export function AiDraftDialog({
       const store = useEditorStore.getState();
       const settingsUi = useSettingsUiStore.getState();
       const { titlePrefix } = useSettingsStore.getState();
-      const captureMode = store.captureMode as "screenshot" | "video" | "freeform";
       const enabledSections = settingsUi.issueSections
         .filter((s) => s.enabled)
         .map((s) => ({ id: s.id }));
       const sectionIds = enabledSections.map((s) => s.id);
 
-      if (!sessionRef.current) {
+      const isElement = captureMode === "element";
+
+      if (isElement || !sessionRef.current) {
         const networkLog = store.networkLog;
         const consoleLog = store.consoleLog;
         const includeLogCtx = captureMode === "video" || captureMode === "freeform";
+        const diffs = isElement && store.selection
+          ? buildStyleDiff(store.selection, store.styleEdits)
+          : undefined;
         const systemPrompt = buildAiDraftSessionPrompt({
           captureMode,
           locale: settingsUi.locale,
           url: store.target?.url ?? "",
           pageTitle: store.target?.title ?? "",
+          selector: isElement ? store.selection?.selector : undefined,
+          tagName: isElement ? store.selection?.tagName : undefined,
+          diffs: diffs && diffs.length > 0 ? diffs : undefined,
+          tokens:
+            isElement && store.tokens.length > 0
+              ? store.tokens.map((tk) => ({ name: tk.name, value: tk.value }))
+              : undefined,
+          userPrompt: msg || undefined,
           networkLogSummary:
             includeLogCtx && networkLog && networkLog.captured > 0
               ? buildNetworkLogSummary(networkLog)
@@ -82,15 +96,15 @@ export function AiDraftDialog({
               : undefined,
           enabledSections,
         });
+        sessionRef.current?.destroy?.();
         sessionRef.current = await createSessionRef.current(systemPrompt);
         isFirstMessageRef.current = true;
       }
 
       const responseSchema = buildAiDraftSchema(sectionIds);
-      const images: string[] | undefined =
-        captureMode === "screenshot" && isFirstMessageRef.current
-          ? getScreenshotImages(store)
-          : undefined;
+      const images: string[] | undefined = isFirstMessageRef.current
+        ? getModeImages(store, captureMode)
+        : undefined;
 
       isFirstMessageRef.current = false;
 
@@ -127,7 +141,7 @@ export function AiDraftDialog({
     } finally {
       useEditorStore.getState().setAiDraftLoading(false);
     }
-  }, [input, onOpenChange, t]);
+  }, [input, captureMode, onOpenChange, t]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
@@ -135,6 +149,8 @@ export function AiDraftDialog({
       void handleSubmit();
     }
   };
+
+  const submitDisabled = captureMode !== "element" && !input.trim();
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -162,7 +178,7 @@ export function AiDraftDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t("common.cancel")}
           </Button>
-          <Button onClick={() => void handleSubmit()} disabled={!input.trim()}>
+          <Button onClick={() => void handleSubmit()} disabled={submitDisabled}>
             {t("aiDraft.generate")}
           </Button>
         </DialogFooter>
@@ -171,9 +187,22 @@ export function AiDraftDialog({
   );
 }
 
-function getScreenshotImages(
-  store: ReturnType<typeof useEditorStore.getState>,
+export function getModeImages(
+  store: Pick<
+    ReturnType<typeof useEditorStore.getState>,
+    "screenshotAnnotated" | "screenshotRaw" | "beforeImage" | "afterImage"
+  >,
+  captureMode: CaptureMode,
 ): string[] | undefined {
-  const img = store.screenshotAnnotated ?? store.screenshotRaw;
-  return img ? [img] : undefined;
+  if (captureMode === "screenshot") {
+    const img = store.screenshotAnnotated ?? store.screenshotRaw;
+    return img ? [img] : undefined;
+  }
+  if (captureMode === "element") {
+    const imgs = [store.beforeImage, store.afterImage].filter(
+      (s): s is string => !!s,
+    );
+    return imgs.length > 0 ? imgs : undefined;
+  }
+  return undefined;
 }
