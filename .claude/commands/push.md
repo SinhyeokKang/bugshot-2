@@ -1,5 +1,5 @@
 ---
-description: 원격 푸시 전 상태 점검 + CLAUDE.md/DIRECTORY.md/ARCHITECTURE.md/README.md 신선도 확인 + 푸시
+description: 원격 푸시 전 상태 점검 + CLAUDE.md/DIRECTORY.md/ARCHITECTURE.md/README.md/docs/privacy.md 신선도 확인 + 푸시
 ---
 
 원격(`origin`)에 현재 브랜치를 안전하게 푸시한다. 푸시 전에 저장소 문서의 신선도를 점검하고 필요시 업데이트까지 커밋한다.
@@ -30,17 +30,19 @@ description: 원격 푸시 전 상태 점검 + CLAUDE.md/DIRECTORY.md/ARCHITECTU
    - 새로운 컨벤션·게이트웨이·주의사항이 커밋 메시지에서 드러남
    - 기능 추가/삭제로 README의 사용법·기능 설명이 어긋남
    - 워크플로우/스킬 라인업 변경
+   - `manifest.config.ts`의 permissions·host_permissions·optional_host_permissions 변경, 새 플랫폼/연동 추가, 새 데이터 수집·외부 전송 메커니즘 도입 → **docs/privacy.md 업데이트 후보**
 
-   검사 대상 4개:
+   검사 대상 5개:
    - **CLAUDE.md** — 코드 컨벤션, 게이트웨이, 워크플로우 등 해당 섹션이 최신인지 확인
    - **DIRECTORY.md** — 디렉터리 구조·파일별 역할이 현재 코드베이스와 일치하는지 확인
    - **ARCHITECTURE.md** — Side Panel 탭 스코프, 세션 영속화, 인증 플로우, 어댑터 패턴, 토큰 체인, CSSOM 캐시, DOM lazy load, 이슈 섹션 구성, 마이그레이션 등 설계 상세가 최신인지 확인
    - **README.md** — 기능 목록, 설치/사용법, 스크린샷 설명 등이 현재 코드와 맞는지 확인
+   - **docs/privacy.md** — 권한·호스트 권한·수집 정보·외부 전송 대상·저장 방식이 현재 매니페스트·코드와 일치하는지 확인
 
    해당되는 변경을 발견하면:
    - 각 문서를 실제로 읽고 대응 섹션이 최신 상태인지 비교
    - 업데이트가 필요하면 **사용자에게 확인 후** Edit으로 반영
-   - 문서별로 별도 커밋 (예: `docs(CLAUDE): update tab scope session description`, `docs(README): add new feature description`)
+   - 문서별로 별도 커밋 (예: `docs(CLAUDE): update tab scope session description`, `docs(README): add new feature description`, `docs(privacy): add new platform data disclosure`)
    - 변경 불필요하거나 사용자가 스킵을 원하면 건너뜀
 
 5. **푸시 전 최종 확인.** 사용자에게 "푸시해도 되냐" 묻고 OK면:

@@ -85,7 +85,7 @@ pnpm version major --no-git-tag-version   # 1.0.0 → 2.0.0 (Breaking change)
 
 ### 문서 신선도
 
-`/push`는 항상 CLAUDE.md / DIRECTORY.md / ARCHITECTURE.md / README.md 신선도 검사를 거친다. 아래 중 하나라도 해당하면 문서 갱신을 별도 커밋(`docs(CLAUDE): ...` / `docs(DIRECTORY): ...` / `docs(ARCHITECTURE): ...` / `docs(README): ...`)으로 묶어 함께 푸시:
+`/push`는 항상 CLAUDE.md / DIRECTORY.md / ARCHITECTURE.md / README.md / docs/privacy.md 신선도 검사를 거친다. 아래 중 하나라도 해당하면 문서 갱신을 별도 커밋(`docs(CLAUDE): ...` / `docs(DIRECTORY): ...` / `docs(ARCHITECTURE): ...` / `docs(README): ...` / `docs(privacy): ...`)으로 묶어 함께 푸시:
 
 - 새 디렉터리·파일 추가/삭제 (특히 `src/` 하위 구조 변화)
 - `package.json` scripts 변경
@@ -94,6 +94,7 @@ pnpm version major --no-git-tag-version   # 1.0.0 → 2.0.0 (Breaking change)
 - 새 컨벤션·게이트웨이 도입
 - 기능 추가/삭제로 README의 사용법·기능 설명이 어긋남
 - 워크플로우/스킬 라인업 변경
+- `manifest.config.ts`의 permissions·host_permissions·optional_host_permissions 변경, 또는 새 플랫폼/연동·데이터 수집·외부 API 엔드포인트 추가
 
 ## 코드 컨벤션
 
