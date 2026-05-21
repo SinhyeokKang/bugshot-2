@@ -1,0 +1,126 @@
+import { useState } from "react";
+import { Check, ChevronDown, Loader2 } from "lucide-react";
+import { toast } from "sonner";
+import { useT } from "@/i18n";
+import { Badge } from "@/components/ui/badge";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { useIssuesStore, type IssueRecord } from "@/store/issues-store";
+import type { JiraIssueStatus, JiraTransition } from "@/types/jira";
+import { BgError, sendBg } from "@/types/messages";
+import { STATUS_CATEGORY_COLORS } from "./constants";
+
+export function JiraStatusBadge({
+  issueKey,
+  issueId,
+  currentStatus,
+  onStatusChanged,
+}: {
+  issueKey: string;
+  issueId: string;
+  currentStatus: JiraIssueStatus;
+  onStatusChanged: (s: JiraIssueStatus) => void;
+}) {
+  const t = useT();
+  const patchIssue = useIssuesStore((s) => s.patchIssue);
+  const [open, setOpen] = useState(false);
+  const [transitions, setTransitions] = useState<JiraTransition[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [updating, setUpdating] = useState(false);
+
+  const colors = STATUS_CATEGORY_COLORS[currentStatus.categoryKey] ?? STATUS_CATEGORY_COLORS.new;
+
+  const handleOpenChange = (v: boolean) => {
+    setOpen(v);
+    if (v && !transitions) {
+      setLoading(true);
+      sendBg<JiraTransition[]>({ type: "jira.getTransitions", issueKey })
+        .then(setTransitions)
+        .catch(() => setTransitions([]))
+        .finally(() => setLoading(false));
+    }
+    if (!v) setTransitions(null);
+  };
+
+  const handleSelect = (tr: JiraTransition) => {
+    if (updating) return;
+    setOpen(false);
+    setUpdating(true);
+    sendBg<JiraIssueStatus>({
+      type: "jira.transitionIssue",
+      issueKey,
+      transitionId: tr.id,
+    })
+      .then((res) => {
+        onStatusChanged(res);
+        const patch: Partial<IssueRecord> = {};
+        if (res.issueTypeName) patch.issueTypeName = res.issueTypeName;
+        if (res.summary) patch.title = res.summary;
+        if (Object.keys(patch).length) patchIssue(issueId, patch);
+      })
+      .catch((err) => {
+        if (err instanceof BgError && err.status === 400) {
+          toast.error(t("issueList.jira.requiredFieldsError"));
+        } else {
+          toast.error(t("issueList.jira.statusUpdateFailed"));
+        }
+      })
+      .finally(() => setUpdating(false));
+  };
+
+  return (
+    <Popover open={open} onOpenChange={handleOpenChange}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className="shrink-0 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          onClick={(e) => e.stopPropagation()}
+          disabled={updating}
+        >
+          <Badge
+            variant="outline"
+            className={`relative w-fit border-transparent text-[11px] ${colors.bg} ${colors.text} ${colors.darkBg} ${colors.darkText} ${updating ? "opacity-50" : ""}`}
+          >
+            {updating && <Loader2 className="mr-1 h-3 w-3 animate-spin" />}
+            {currentStatus.name}
+            {!updating && <ChevronDown className="ml-0.5 !size-3.5" />}
+          </Badge>
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        className="w-auto max-h-[300px] overflow-y-auto p-1"
+        align="end"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {loading ? (
+          <div className="flex items-center justify-center px-4 py-2">
+            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          </div>
+        ) : transitions && transitions.length === 0 ? (
+          <div className="px-3 py-2 text-sm text-muted-foreground">
+            {t("issueList.jira.noTransitions")}
+          </div>
+        ) : (
+          transitions?.map((tr) => {
+            const trColors = STATUS_CATEGORY_COLORS[tr.to.categoryKey] ?? STATUS_CATEGORY_COLORS.new;
+            return (
+              <button
+                key={tr.id}
+                type="button"
+                className="flex w-full items-center gap-2 rounded-sm px-2 py-1.5 hover:bg-accent hover:text-accent-foreground"
+                onClick={() => handleSelect(tr)}
+              >
+                <Check className={`h-3.5 w-3.5 shrink-0 ${tr.to.name === currentStatus.name ? "opacity-100" : "opacity-0"}`} />
+                <Badge
+                  variant="outline"
+                  className={`border-transparent text-[11px] ${trColors.bg} ${trColors.text} ${trColors.darkBg} ${trColors.darkText}`}
+                >
+                  {tr.to.name}
+                </Badge>
+              </button>
+            );
+          })
+        )}
+      </PopoverContent>
+    </Popover>
+  );
+}

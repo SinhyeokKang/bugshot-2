@@ -1,0 +1,42 @@
+import {
+  SiGithub,
+  SiJirasoftware,
+  SiLinear,
+  SiNotion,
+} from "@icons-pack/react-simple-icons";
+import { useT } from "@/i18n";
+import type { PlatformId } from "@/types/platform";
+
+export function PlatformChip({ platform }: { platform: PlatformId }) {
+  const t = useT();
+  if (platform === "jira") {
+    return (
+      <span className="inline-flex shrink-0 items-center gap-1">
+        <SiJirasoftware className="h-3 w-3" color="default" />
+        {t("platform.tab.jira")}
+      </span>
+    );
+  }
+  if (platform === "linear") {
+    return (
+      <span className="inline-flex shrink-0 items-center gap-1">
+        <SiLinear className="h-3 w-3" color="default" />
+        {t("platform.tab.linear")}
+      </span>
+    );
+  }
+  if (platform === "notion") {
+    return (
+      <span className="inline-flex shrink-0 items-center gap-1">
+        <SiNotion className="h-3 w-3 dark:invert" color="default" />
+        {t("platform.tab.notion")}
+      </span>
+    );
+  }
+  return (
+    <span className="inline-flex shrink-0 items-center gap-1">
+      <SiGithub className="h-3 w-3 dark:invert" color="default" />
+      {t("platform.tab.github")}
+    </span>
+  );
+}

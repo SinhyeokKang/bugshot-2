@@ -8,7 +8,7 @@ import {
   parseGithubIssueUrl,
   resolveGithubCoords,
   resolveNotionPageId,
-} from "../IssueListTab";
+} from "../issueListUtils";
 import type { IssueRecord } from "@/store/issues-store";
 
 function makeIssue(overrides: Partial<IssueRecord> = {}): IssueRecord {

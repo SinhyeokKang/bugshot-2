@@ -78,7 +78,7 @@ import { buildIssueAdf } from "@/sidepanel/lib/buildIssueAdf";
 import { buildNetworkLogSummary, buildConsoleLogSummary } from "@/sidepanel/lib/buildLogSummary";
 import { filterEnvironmentRows } from "@/sidepanel/lib/environmentRows";
 import { extractInlineRefs, resolveInlineImagesForSections } from "@/sidepanel/lib/resolveInlineImages";
-import { SubmitFieldsDialog } from "./IssueCreateModal";
+import { SubmitFieldsDialog } from "./SubmitFieldsDialog";
 
 type SubmitFields = {
   issueTypeId?: string;
