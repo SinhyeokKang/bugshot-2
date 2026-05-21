@@ -29,7 +29,7 @@ export interface UsePlatformFieldsInput {
   notionDefaults: NotionFieldsDefaults;
   // DraftDetailDialog가 draft 전환 시 idempotent reset 트리거하는 추가 deps.
   // IssueCreateModal은 미사용 (undefined로 두면 effect 동작은 동일).
-  resetKey?: unknown;
+  resetKey?: string;
 }
 
 export interface PlatformFieldsState {

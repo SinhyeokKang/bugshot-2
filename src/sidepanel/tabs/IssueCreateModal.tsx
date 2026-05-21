@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useT } from "@/i18n";
-import { blobToDataUrl, pruneOrphanInlineImages } from "@/store/blob-db";
+import { pruneOrphanInlineImages } from "@/store/blob-db";
 import { useSettingsUiStore } from "@/store/settings-ui-store";
 import { useEditorStore } from "@/store/editor-store";
 import { useIssuesStore } from "@/store/issues-store";
@@ -16,22 +16,20 @@ import { sendBg, type JiraSubmitResult } from "@/types/messages";
 import { buildStyleDiff } from "@/sidepanel/components/StyleChangesTable";
 import { buildAiMetaAttachment } from "@/sidepanel/lib/buildAiMetaAttachment";
 import { buildIssueAdf, type AdfDoc } from "@/sidepanel/lib/buildIssueAdf";
-import { buildHar, serializeHar } from "@/sidepanel/lib/buildHar";
-import { buildConsoleLogJson, serializeConsoleLog } from "@/sidepanel/lib/buildConsoleLogJson";
+import { buildCaptureFiles, type CaptureFiles } from "@/sidepanel/lib/buildCaptureFiles";
 import {
   buildNetworkLogSummary,
   buildConsoleLogSummary,
 } from "@/sidepanel/lib/buildLogSummary";
 import type { MarkdownContext } from "@/sidepanel/lib/buildIssueMarkdown";
 import type { NormalizedSubmitResult } from "@/types/platform";
-import { submitToGithub, type GithubFileInput } from "@/sidepanel/lib/submitToGithub";
-import { submitToLinear, type LinearFileInput } from "@/sidepanel/lib/submitToLinear";
-import { submitToNotion, type NotionFileInput } from "@/sidepanel/lib/submitToNotion";
-import { recordingFilename } from "@/sidepanel/lib/video-mime";
+import { submitToGithub } from "@/sidepanel/lib/submitToGithub";
+import { submitToLinear } from "@/sidepanel/lib/submitToLinear";
+import { submitToNotion } from "@/sidepanel/lib/submitToNotion";
 import { extractInlineRefs, resolveInlineImagesForSections, type InlineImageInput } from "@/sidepanel/lib/resolveInlineImages";
 import type { NotionDatabaseSchema } from "@/types/notion";
 import { extractNotionPageId } from "@/lib/notion-page-id";
-import { SubmitFieldsDialog } from "./SubmitFieldsDialog";
+import { SubmitFieldsDialog } from "@/sidepanel/tabs/SubmitFieldsDialog";
 import { usePlatformFields } from "@/sidepanel/hooks/usePlatformFields";
 
 export function IssueCreateModal() {
@@ -204,42 +202,36 @@ export function IssueCreateModal() {
     };
   }
 
-  async function handleJiraSubmit(ctx: MarkdownContext, inlineImages: InlineImageInput[]): Promise<NormalizedSubmitResult> {
+  async function buildEditorCaptureFiles(): Promise<CaptureFiles> {
+    const hasNet = networkLogAttach && !!networkLog && networkLog.captured > 0;
+    const hasCon = consoleLogAttach && !!consoleLog && consoleLog.captured > 0;
+    return buildCaptureFiles({
+      captureMode,
+      videoBlob,
+      screenshotImage: captureMode === "screenshot" ? (screenshotAnnotated ?? screenshotRaw) : null,
+      beforeImage: captureMode === "element" ? beforeImage : null,
+      afterImage: captureMode === "element" ? afterImage : null,
+      networkLog: hasNet ? networkLog : null,
+      consoleLog: hasCon ? consoleLog : null,
+    });
+  }
+
+  async function handleJiraSubmit(
+    ctx: MarkdownContext,
+    inlineImages: InlineImageInput[],
+    captureFiles: CaptureFiles,
+  ): Promise<NormalizedSubmitResult> {
     if (!jiraAccount?.auth || !jiraAccount.projectKey) {
       throw new Error(t("platform.notConnected.title", { platform: t("platform.tab.jira") }));
     }
     if (!issueFields.issueTypeId) throw new Error(t("create.requiredMissing"));
     const description: AdfDoc = buildIssueAdf(ctx, inlineImages.map((i) => i.refId));
-    const attachments: { filename: string; dataUrl: string }[] = [buildAiMetaAttachment(ctx)];
-
-    if (captureMode === "freeform") {
-      if (networkLog && networkLogAttach && networkLog.captured > 0) {
-        const harBlob = new Blob([serializeHar(buildHar(networkLog))], { type: "application/json" });
-        attachments.push({ filename: "network-log.har", dataUrl: await blobToDataUrl(harBlob) });
-      }
-      if (consoleLog && consoleLogAttach && consoleLog.captured > 0) {
-        const jsonBlob = new Blob([serializeConsoleLog(buildConsoleLogJson(consoleLog))], { type: "application/json" });
-        attachments.push({ filename: "console-log.json", dataUrl: await blobToDataUrl(jsonBlob) });
-      }
-    } else if (captureMode === "video") {
-      if (videoBlob) {
-        attachments.push({ filename: recordingFilename(videoBlob.type), dataUrl: await blobToDataUrl(videoBlob) });
-      }
-      if (networkLog && networkLogAttach && networkLog.captured > 0) {
-        const harBlob = new Blob([serializeHar(buildHar(networkLog))], { type: "application/json" });
-        attachments.push({ filename: "network-log.har", dataUrl: await blobToDataUrl(harBlob) });
-      }
-      if (consoleLog && consoleLogAttach && consoleLog.captured > 0) {
-        const jsonBlob = new Blob([serializeConsoleLog(buildConsoleLogJson(consoleLog))], { type: "application/json" });
-        attachments.push({ filename: "console-log.json", dataUrl: await blobToDataUrl(jsonBlob) });
-      }
-    } else if (captureMode === "screenshot") {
-      const screenshotImage = screenshotAnnotated ?? screenshotRaw;
-      if (screenshotImage) attachments.push({ filename: "screenshot.webp", dataUrl: screenshotImage });
-    } else {
-      if (beforeImage) attachments.push({ filename: "before.webp", dataUrl: beforeImage });
-      if (afterImage) attachments.push({ filename: "after.webp", dataUrl: afterImage });
-    }
+    const attachments: { filename: string; dataUrl: string }[] = [
+      buildAiMetaAttachment(ctx),
+      ...captureFiles.images,
+      ...(captureFiles.video ? [captureFiles.video] : []),
+      ...captureFiles.logs,
+    ];
     for (const img of inlineImages) {
       attachments.push({ filename: `inline-${img.refId}.webp`, dataUrl: img.dataUrl });
     }
@@ -285,48 +277,21 @@ export function IssueCreateModal() {
     return { key: result.key, url: result.url };
   }
 
-  async function handleGithubSubmit(ctx: MarkdownContext, inlineImages: InlineImageInput[]): Promise<NormalizedSubmitResult> {
+  async function handleGithubSubmit(
+    ctx: MarkdownContext,
+    inlineImages: InlineImageInput[],
+    captureFiles: CaptureFiles,
+  ): Promise<NormalizedSubmitResult> {
     if (!ghAccount) {
       throw new Error(t("platform.notConnected.title", { platform: t("platform.tab.github") }));
     }
     if (!ghFields.owner || !ghFields.repo) throw new Error(t("create.requiredMissing"));
 
-    const images: GithubFileInput[] = [];
-    let video: GithubFileInput | undefined;
-    const logs: GithubFileInput[] = [];
-
-    if (captureMode === "freeform") {
-      if (networkLog && networkLogAttach && networkLog.captured > 0) {
-        const harBlob = new Blob([serializeHar(buildHar(networkLog))], { type: "application/json" });
-        logs.push({ filename: "network-log.har", dataUrl: await blobToDataUrl(harBlob) });
-      }
-      if (consoleLog && consoleLogAttach && consoleLog.captured > 0) {
-        const jsonBlob = new Blob([serializeConsoleLog(buildConsoleLogJson(consoleLog))], { type: "application/json" });
-        logs.push({ filename: "console-log.json", dataUrl: await blobToDataUrl(jsonBlob) });
-      }
-    } else if (captureMode === "video") {
-      if (videoBlob) video = { filename: recordingFilename(videoBlob.type), dataUrl: await blobToDataUrl(videoBlob) };
-      if (networkLog && networkLogAttach && networkLog.captured > 0) {
-        const harBlob = new Blob([serializeHar(buildHar(networkLog))], { type: "application/json" });
-        logs.push({ filename: "network-log.har", dataUrl: await blobToDataUrl(harBlob) });
-      }
-      if (consoleLog && consoleLogAttach && consoleLog.captured > 0) {
-        const jsonBlob = new Blob([serializeConsoleLog(buildConsoleLogJson(consoleLog))], { type: "application/json" });
-        logs.push({ filename: "console-log.json", dataUrl: await blobToDataUrl(jsonBlob) });
-      }
-    } else if (captureMode === "screenshot") {
-      const screenshotImage = screenshotAnnotated ?? screenshotRaw;
-      if (screenshotImage) images.push({ filename: "screenshot.webp", dataUrl: screenshotImage });
-    } else {
-      if (beforeImage) images.push({ filename: "before.webp", dataUrl: beforeImage });
-      if (afterImage) images.push({ filename: "after.webp", dataUrl: afterImage });
-    }
-
     const result = await submitToGithub({
       ctx,
-      images,
-      video,
-      logs,
+      images: captureFiles.images,
+      video: captureFiles.video,
+      logs: captureFiles.logs,
       inlineImages,
       owner: ghFields.owner,
       repo: ghFields.repo,
@@ -354,48 +319,21 @@ export function IssueCreateModal() {
     return result;
   }
 
-  async function handleLinearSubmit(ctx: MarkdownContext, inlineImages: InlineImageInput[]): Promise<NormalizedSubmitResult> {
+  async function handleLinearSubmit(
+    ctx: MarkdownContext,
+    inlineImages: InlineImageInput[],
+    captureFiles: CaptureFiles,
+  ): Promise<NormalizedSubmitResult> {
     if (!linearAccount) {
       throw new Error(t("platform.notConnected.title", { platform: t("platform.tab.linear") }));
     }
     if (!linearFields.teamId) throw new Error(t("create.requiredMissing"));
 
-    const images: LinearFileInput[] = [];
-    let video: LinearFileInput | undefined;
-    const logs: LinearFileInput[] = [];
-
-    if (captureMode === "freeform") {
-      if (networkLog && networkLogAttach && networkLog.captured > 0) {
-        const harBlob = new Blob([serializeHar(buildHar(networkLog))], { type: "application/json" });
-        logs.push({ filename: "network-log.har", dataUrl: await blobToDataUrl(harBlob) });
-      }
-      if (consoleLog && consoleLogAttach && consoleLog.captured > 0) {
-        const jsonBlob = new Blob([serializeConsoleLog(buildConsoleLogJson(consoleLog))], { type: "application/json" });
-        logs.push({ filename: "console-log.json", dataUrl: await blobToDataUrl(jsonBlob) });
-      }
-    } else if (captureMode === "video") {
-      if (videoBlob) video = { filename: recordingFilename(videoBlob.type), dataUrl: await blobToDataUrl(videoBlob) };
-      if (networkLog && networkLogAttach && networkLog.captured > 0) {
-        const harBlob = new Blob([serializeHar(buildHar(networkLog))], { type: "application/json" });
-        logs.push({ filename: "network-log.har", dataUrl: await blobToDataUrl(harBlob) });
-      }
-      if (consoleLog && consoleLogAttach && consoleLog.captured > 0) {
-        const jsonBlob = new Blob([serializeConsoleLog(buildConsoleLogJson(consoleLog))], { type: "application/json" });
-        logs.push({ filename: "console-log.json", dataUrl: await blobToDataUrl(jsonBlob) });
-      }
-    } else if (captureMode === "screenshot") {
-      const screenshotImage = screenshotAnnotated ?? screenshotRaw;
-      if (screenshotImage) images.push({ filename: "screenshot.webp", dataUrl: screenshotImage });
-    } else {
-      if (beforeImage) images.push({ filename: "before.webp", dataUrl: beforeImage });
-      if (afterImage) images.push({ filename: "after.webp", dataUrl: afterImage });
-    }
-
     const result = await submitToLinear({
       ctx,
-      images,
-      video,
-      logs,
+      images: captureFiles.images,
+      video: captureFiles.video,
+      logs: captureFiles.logs,
       inlineImages,
       teamId: linearFields.teamId,
       projectId: linearFields.projectId,
@@ -430,49 +368,22 @@ export function IssueCreateModal() {
     return result;
   }
 
-  async function handleNotionSubmit(ctx: MarkdownContext, inlineImages: InlineImageInput[]): Promise<NormalizedSubmitResult> {
+  async function handleNotionSubmit(
+    ctx: MarkdownContext,
+    inlineImages: InlineImageInput[],
+    captureFiles: CaptureFiles,
+  ): Promise<NormalizedSubmitResult> {
     if (!notionAccount) {
       throw new Error(t("platform.notConnected.title", { platform: t("platform.tab.notion") }));
     }
     if (!notionFields.databaseId || !notionSchema) {
       throw new Error(t("create.requiredMissing"));
     }
-
-    const images: NotionFileInput[] = [];
-    let video: NotionFileInput | undefined;
-    const logs: NotionFileInput[] = [];
-
-    if (captureMode === "freeform") {
-      if (networkLog && networkLogAttach && networkLog.captured > 0) {
-        const harBlob = new Blob([serializeHar(buildHar(networkLog))], { type: "application/json" });
-        logs.push({ filename: "network-log.har", dataUrl: await blobToDataUrl(harBlob) });
-      }
-      if (consoleLog && consoleLogAttach && consoleLog.captured > 0) {
-        const jsonBlob = new Blob([serializeConsoleLog(buildConsoleLogJson(consoleLog))], { type: "application/json" });
-        logs.push({ filename: "console-log.json", dataUrl: await blobToDataUrl(jsonBlob) });
-      }
-    } else if (captureMode === "video") {
-      if (videoBlob) video = { filename: recordingFilename(videoBlob.type), dataUrl: await blobToDataUrl(videoBlob) };
-      if (networkLog && networkLogAttach && networkLog.captured > 0) {
-        const harBlob = new Blob([serializeHar(buildHar(networkLog))], { type: "application/json" });
-        logs.push({ filename: "network-log.har", dataUrl: await blobToDataUrl(harBlob) });
-      }
-      if (consoleLog && consoleLogAttach && consoleLog.captured > 0) {
-        const jsonBlob = new Blob([serializeConsoleLog(buildConsoleLogJson(consoleLog))], { type: "application/json" });
-        logs.push({ filename: "console-log.json", dataUrl: await blobToDataUrl(jsonBlob) });
-      }
-    } else if (captureMode === "screenshot") {
-      const screenshotImage = screenshotAnnotated ?? screenshotRaw;
-      if (screenshotImage) images.push({ filename: "screenshot.webp", dataUrl: screenshotImage });
-    } else {
-      if (beforeImage) images.push({ filename: "before.webp", dataUrl: beforeImage });
-      if (afterImage) images.push({ filename: "after.webp", dataUrl: afterImage });
-    }
     const result = await submitToNotion({
       ctx,
-      images,
-      video,
-      logs,
+      images: captureFiles.images,
+      video: captureFiles.video,
+      logs: captureFiles.logs,
       inlineImages,
       databaseId: notionFields.databaseId,
       titlePropertyName: notionSchema.titlePropertyName,
@@ -510,11 +421,12 @@ export function IssueCreateModal() {
   async function handleSubmit(submitPlatform: PlatformId): Promise<NormalizedSubmitResult> {
     const ctx = buildCtx();
     const inlineImages = await resolveInlineImagesForSections(ctx.sections, sectionConfig);
+    const captureFiles = await buildEditorCaptureFiles();
     let result: NormalizedSubmitResult;
-    if (submitPlatform === "github") result = await handleGithubSubmit(ctx, inlineImages);
-    else if (submitPlatform === "linear") result = await handleLinearSubmit(ctx, inlineImages);
-    else if (submitPlatform === "notion") result = await handleNotionSubmit(ctx, inlineImages);
-    else result = await handleJiraSubmit(ctx, inlineImages);
+    if (submitPlatform === "github") result = await handleGithubSubmit(ctx, inlineImages, captureFiles);
+    else if (submitPlatform === "linear") result = await handleLinearSubmit(ctx, inlineImages, captureFiles);
+    else if (submitPlatform === "notion") result = await handleNotionSubmit(ctx, inlineImages, captureFiles);
+    else result = await handleJiraSubmit(ctx, inlineImages, captureFiles);
     const activeRefs = extractInlineRefs(
       Object.values(draft?.sections ?? {}).join("\n"),
     );
