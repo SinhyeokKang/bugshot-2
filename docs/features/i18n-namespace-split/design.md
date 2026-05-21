@@ -8,26 +8,43 @@
 
 ### 신설 디렉터리: `src/i18n/namespaces/`
 
-8개 ns 파일. 한 파일이 `{ ko, en }` 두 객체를 export. 각 ns에 묶을 prefix와 키 수:
+8개 ns 파일. 한 파일이 `{ ko, en }` 두 객체를 export. 각 ns에 묶을 prefix(괄호 안은 ko.ts awk 카운트로 확인한 키 수):
 
 | 파일 | 키 수 | 묶는 prefix |
 |---|---|---|
-| `common.ts` | 25 | `common.*`, `time.*`, `bg.*` |
-| `app.ts` | 47 | `app.*`, `platform.*`, `debug.*` |
-| `issue.ts` | 64 | `issue.*`, `section.*`, `issueList.*`, `issueType.*` |
-| `editor.ts` | 81 | `editor.*`, `draft.*`, `draftDetail.*`, `prop.*`, `value.*`, `dom.*`, `styleTable.*`, `annotation.*`, `create.*`, `cancelConfirm.*`, `preview.*` |
-| `integrations.ts` | 156 | `jira.*`, `github.*`, `linear.*`, `notion.*`, `oauth.*` |
-| `settings.ts` | 64 | `settings.*`, `field.*`, `llm.*`, `project.*` |
-| `logs.ts` | 88 | `networkLog.*`, `consoleLog.*`, `md.*`, `logSummary.*`, `logCard.*`, `json.*` |
-| `ai.ts` | 12 | `ai.*`, `aiDraft.*`, `aiStyling.*` |
+| `common.ts` | 25 | `common.*`(18), `time.*`(4), `bg.*`(3) |
+| `app.ts` | 47 | `app.*`(16), `platform.*`(23), `debug.*`(8) |
+| `issue.ts` | 64 | `issue.*`(14), `section.*`(13), `issueList.*`(36), `issueType.*`(1) |
+| `editor.ts` | 81 | `editor.*`(15), `draft.*`(18), `draftDetail.*`(1), `prop.*`(16), `value.*`(7), `dom.*`(8), `styleTable.*`(2), `annotation.*`(2), `create.*`(6), `cancelConfirm.*`(3), `preview.*`(3) |
+| `integrations.ts` | 156 | `jira.*`(29), `github.*`(36), `linear.*`(46), `notion.*`(33), `oauth.*`(12) |
+| `settings.ts` | 64 | `settings.*`(17), `field.*`(15), `llm.*`(29), `project.*`(3) |
+| `logs.ts` | 88 | `networkLog.*`(41), `consoleLog.*`(22), `md.*`(14), `logSummary.*`(8), `logCard.*`(1), `json.*`(2) |
+| `ai.ts` | 12 | `ai.*`(1), `aiDraft.*`(4), `aiStyling.*`(7) |
 | **합계** | **537** | (현 ko.ts 키 수와 일치) |
+
+> **`platform.*`가 app.ts에 묶이는 이유**: OAuth 만료 다이얼로그·"플랫폼 연결 안 됨" 안내 같은 앱 최상위 레이어에서 처리되는 메시지라 integrations.ts보다 app 응집도가 높음. integrations.ts는 각 플랫폼 sub-tab의 form/필드 라벨이 모인 공간.
 
 ### 신설 파일 내부 형식
 
-각 ns 파일은 다음 구조:
+현재 코드(`src/i18n/ko.ts` line 641-642, `src/i18n/en.ts` line 1·642)는 **`as const` + `satisfies TranslationMap` 패턴**을 사용한다:
 
 ```ts
-// src/i18n/namespaces/common.ts
+// 현재 ko.ts (분할 전)
+const ko = { ... } as const;
+export type TranslationKey = keyof typeof ko;
+export type TranslationMap = Record<TranslationKey, string>;
+export default ko satisfies TranslationMap;
+
+// 현재 en.ts (분할 전)
+import type { TranslationMap } from "./ko";
+const en = { ... };
+export default en satisfies TranslationMap;
+```
+
+분할 후에도 이 스타일을 유지한다. 각 namespace 파일은 자체 `Bundle` 타입(ko의 key 집합)을 정의하고 en에 `satisfies` 적용:
+
+```ts
+// src/i18n/namespaces/common.ts (분할 후)
 
 const ko = {
   "common.ok": "확인",
@@ -35,22 +52,22 @@ const ko = {
   // ... time.*, bg.* 포함
 } as const;
 
-const en: Record<keyof typeof ko, string> = {
+type Bundle = Record<keyof typeof ko, string>;
+
+const en = {
   "common.ok": "Confirm",
   "common.close": "Close",
   // ...
-};
+} satisfies Bundle;
 
 export const common = { ko, en };
 ```
 
-**핵심 타입 강제**: `en`에 `Record<keyof typeof ko, string>` 타입을 명시한다. ko가 ground truth → en이 ko 키를 모두 갖지 않으면 typecheck fail. 또한 en 객체 리터럴이 ko에 없는 키를 가지면 `Object literal may only specify known properties`로 fail.
-
-ko에 있는 키와 en에 있는 키가 정확히 일치하도록 컴파일러가 양방향 검사.
+**핵심 타입 강제**: `satisfies Bundle`은 (1) en이 ko의 키를 모두 가져야 통과, (2) en에 ko에 없는 키가 있으면 fail. ko가 ground truth → 양방향 비대칭 모두 typecheck가 잡는다. `satisfies`는 객체 리터럴의 좁은 타입 추론을 보존하므로 `as const` 효과도 일부 유지.
 
 ### 수정 파일: `src/i18n/ko.ts`
 
-분할 후 ~30줄:
+분할 후 ~30줄. 현재 `as const` + `TranslationKey`·`TranslationMap` export + `satisfies` 패턴 그대로:
 
 ```ts
 import { common } from "./namespaces/common";
@@ -73,13 +90,14 @@ const ko = {
   ...ai.ko,
 } as const;
 
-export default ko;
 export type TranslationKey = keyof typeof ko;
+export type TranslationMap = Record<TranslationKey, string>;
+export default ko satisfies TranslationMap;
 ```
 
 ### 수정 파일: `src/i18n/en.ts`
 
-분할 후 ~30줄:
+분할 후 ~25줄. 현재 import 형태 유지:
 
 ```ts
 import { common } from "./namespaces/common";
@@ -90,9 +108,9 @@ import { integrations } from "./namespaces/integrations";
 import { settings } from "./namespaces/settings";
 import { logs } from "./namespaces/logs";
 import { ai } from "./namespaces/ai";
-import type { TranslationKey } from "./ko";
+import type { TranslationMap } from "./ko";
 
-const en: Record<TranslationKey, string> = {
+const en = {
   ...common.en,
   ...app.en,
   ...issue.en,
@@ -103,10 +121,10 @@ const en: Record<TranslationKey, string> = {
   ...ai.en,
 };
 
-export default en;
+export default en satisfies TranslationMap;
 ```
 
-`en`이 `Record<TranslationKey, string>`로 선언됨으로써 8개 ns의 ko/en 키 합집합이 정확히 일치하지 않으면 typecheck fail. 이중 안전장치 (ns 파일 내부 + ko/en 진입점 모두).
+`en satisfies TranslationMap`이 8개 ns의 ko/en 키 합집합이 정확히 일치하지 않으면 typecheck fail. ns 파일 내부의 `satisfies Bundle`과 함께 **이중 안전장치** (개별 ns + 진입점).
 
 ### 비변경 파일
 
@@ -188,7 +206,8 @@ src/i18n/index.ts
 - **ko/en 비대칭 잠재**: 분할 작업 중 한쪽에서 키를 빠뜨릴 위험. `Record<keyof typeof ko, string>` 타입이 1차 방어선, ko.ts/en.ts 진입점의 `Record<TranslationKey, string>`이 2차 방어선. 두 곳 모두에서 typecheck fail이 일어나면 작업이 중단되도록 강제.
 - **키 누락 detection**: 분할 전후 키 개수가 정확히 537개로 일치하는지 검증 필요. design.md "성공 기준"의 awk 카운트 비교가 보호 장치. 분할 전 `awk -F'"' '/^  "[a-z]/ { print $2 }' src/i18n/ko.ts | sort > /tmp/i18n-keys-before.txt`로 베이스라인 기록 → 분할 후 namespace 파일 합집합과 diff 0.
 - **prefix 분류 모호한 키**: 일부 키는 어느 ns에 묶을지 애매할 수 있다 (예: `bg.*`는 background 메시지인데 common에 둘지 app에 둘지). 현재 매핑은 키 수 균형과 의미 응집도 양쪽 고려 — bg는 service worker 동작 안내 메시지라 common 묶음에 포함. 작업자가 더 자연스럽다고 판단하는 다른 매핑이 있다면 design 갱신 후 진행.
-- **TranslationKey 타입 union 폭발**: 537개 string literal union → TypeScript 컴파일 시간 영향. 현재 ko.ts에서 이미 동작 중이므로 분할로 악화되지 않음. spread merge가 union 추론을 망가뜨릴 가능성은 낮지만, `as const` 단언이 보존되는지 확인 필수 (없으면 `Record<string, string>`로 broaden되어 타입 안전성 손실).
+- **TranslationKey 타입 union 폭발**: 537개 string literal union → TypeScript 컴파일 시간 영향. 현재 ko.ts에서 이미 동작 중이므로 분할로 악화되지 않음. spread merge가 union 추론을 망가뜨릴 가능성은 낮지만, `as const` 단언이 보존되는지 확인 필수 (없으면 `Record<string, string>`로 broaden되어 타입 안전성 손실). TypeScript `instantiation depth` 제한(기본 50)은 재귀 타입·조건부 타입에서만 영향이며, 단순 spread + `keyof` 추론은 depth 누적 없음.
+- **IDE 자동완성 응답 지연**: 537개 literal union의 자동완성은 최신 VSCode·신형 머신에서 안정적이지만 구형 환경에서 체감 지연 가능. 분할 전과 동일한 union 크기라 회귀는 없으나, 새 개발자가 처음 import할 때 한 번 무겁게 느낄 수 있다.
 - **import 순환 의존**: 없음. ns 파일은 다른 ns·ko/en을 import하지 않는 leaf. ko.ts는 namespaces를 import, en.ts는 namespaces + ko(type only) import. 사이클 없음.
 - **번들 사이즈**: tree-shaking 관점에서 ko.ts·en.ts가 모든 namespace를 spread해 합치므로 사용 안 하는 키도 번들에 들어감. 이건 분할 전과 동일 (어차피 동적 t() 호출이라 정적 tree shake 불가능). 회귀 없음.
 - **i18n/index.ts의 BCP47/setLocale 동작**: 분할과 무관. ko·en 객체 구조가 동일(Record<string, string>)하므로 그대로 동작.
