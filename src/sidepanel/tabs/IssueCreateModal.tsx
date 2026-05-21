@@ -443,7 +443,7 @@ export function IssueCreateModal() {
     <>
       <Button
         disabled={!canOpen}
-        onClick={() => setOpen(true)}
+        onClick={() => { (document.activeElement as HTMLElement)?.blur?.(); setOpen(true); }}
         title={tooltip}
       >
         {t("issue.submit")}

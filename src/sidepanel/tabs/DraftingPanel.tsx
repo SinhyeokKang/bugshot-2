@@ -172,11 +172,11 @@ export function DraftingPanel() {
         networkLog={networkLog}
         networkLogAttach={networkLogAttach}
         onNetworkLogToggle={setNetworkLogAttach}
-        onNetworkLogClick={() => setNetworkDialogOpen(true)}
+        onNetworkLogClick={() => { (document.activeElement as HTMLElement)?.blur?.(); setNetworkDialogOpen(true); }}
         consoleLog={consoleLog}
         consoleLogAttach={consoleLogAttach}
         onConsoleLogToggle={setConsoleLogAttach}
-        onConsoleLogClick={() => setConsoleDialogOpen(true)}
+        onConsoleLogClick={() => { (document.activeElement as HTMLElement)?.blur?.(); setConsoleDialogOpen(true); }}
       />
     </Section>
   ) : null;
@@ -249,7 +249,7 @@ export function DraftingPanel() {
           {aiStatus === "available" && (
             <button
               className="flex items-center justify-between rounded-t-lg bg-purple-100/80 px-3.5 py-2.5 text-purple-700 transition-colors hover:bg-purple-100 disabled:opacity-50 dark:bg-purple-950/50 dark:text-purple-300 dark:hover:bg-purple-900"
-              onClick={() => setAiDialogOpen(true)}
+              onClick={() => { (document.activeElement as HTMLElement)?.blur?.(); setAiDialogOpen(true); }}
               disabled={aiDraftLoading}
             >
               <span className="flex items-center gap-1.5">

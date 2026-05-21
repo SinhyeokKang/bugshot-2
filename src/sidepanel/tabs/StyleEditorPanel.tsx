@@ -375,7 +375,7 @@ export function SelectedPanel() {
       {aiStatus === "available" && (
         <button
           className="flex items-center justify-between rounded-t-lg bg-teal-100/80 px-3.5 py-2.5 text-teal-700 transition-colors hover:bg-teal-100 dark:bg-teal-950/50 dark:text-teal-300 dark:hover:bg-teal-900"
-          onClick={() => setAiDialogOpen(true)}
+          onClick={() => { (document.activeElement as HTMLElement)?.blur?.(); setAiDialogOpen(true); }}
         >
           <span className="flex items-center gap-1.5">
             <Badge variant="outline" className="font-normal border-teal-500 text-teal-600 dark:border-teal-400 dark:text-teal-300">{providerLabel ?? t("ai.badge.beta")}</Badge>

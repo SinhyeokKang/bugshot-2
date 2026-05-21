@@ -274,11 +274,11 @@ export function PreviewPanel() {
                 networkLog={attachedNetwork}
                 networkLogAttach={networkLogAttach}
                 onNetworkLogToggle={() => {}}
-                onNetworkLogClick={() => setNetworkDialogOpen(true)}
+                onNetworkLogClick={() => { (document.activeElement as HTMLElement)?.blur?.(); setNetworkDialogOpen(true); }}
                 consoleLog={attachedConsole}
                 consoleLogAttach={consoleLogAttach}
                 onConsoleLogToggle={() => {}}
-                onConsoleLogClick={() => setConsoleDialogOpen(true)}
+                onConsoleLogClick={() => { (document.activeElement as HTMLElement)?.blur?.(); setConsoleDialogOpen(true); }}
                 readOnly
               />
             </Section>
