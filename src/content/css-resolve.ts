@@ -526,24 +526,56 @@ export type EditableHandle =
       originalChildren: Node[];
     };
 
+export type EditableChildLike = {
+  readonly nodeType: number;
+  readonly tagName?: string;
+  readonly textContent?: string | null;
+};
+export type EditableModeClassification =
+  | "none"
+  | "single"
+  | "multi-existing-br"
+  | "multi-promote-text";
+
+const NODE_TYPE_ELEMENT = 1;
+const NODE_TYPE_TEXT = 3;
+
+export function classifyEditableChildren(
+  children: readonly EditableChildLike[],
+): EditableModeClassification {
+  if (children.length === 0) return "none";
+  const isBr = (c: EditableChildLike) =>
+    c.nodeType === NODE_TYPE_ELEMENT && c.tagName === "BR";
+  const isText = (c: EditableChildLike) => c.nodeType === NODE_TYPE_TEXT;
+  const allTextOrBr = children.every((c) => isText(c) || isBr(c));
+  const hasBr = children.some(isBr);
+  if (allTextOrBr && hasBr) return "multi-existing-br";
+  if (children.length === 1 && isText(children[0]!)) {
+    const text = children[0]!.textContent ?? "";
+    if (text.trim().length === 0) return "single";
+    return "multi-promote-text";
+  }
+  return "single";
+}
+
 export function captureEditable(el: Element): EditableHandle | null {
   const children = Array.from(el.childNodes);
-  if (children.length > 0) {
-    const allTextOrBr = children.every(
-      (n) =>
-        n.nodeType === Node.TEXT_NODE ||
-        (n.nodeType === Node.ELEMENT_NODE && (n as Element).tagName === "BR"),
-    );
-    const hasBr = children.some(
-      (n) =>
-        n.nodeType === Node.ELEMENT_NODE && (n as Element).tagName === "BR",
-    );
-    if (allTextOrBr && hasBr) {
-      const nodes = children as Array<Text | HTMLBRElement>;
-      const originalChildren = children.map((n) => n.cloneNode(true));
-      return { kind: "multi", parent: el, nodes, originalChildren };
-    }
+  const mode = classifyEditableChildren(children);
+  if (mode === "multi-existing-br") {
+    const nodes = children as Array<Text | HTMLBRElement>;
+    const originalChildren = children.map((n) => n.cloneNode(true));
+    return { kind: "multi", parent: el, nodes, originalChildren };
   }
+  if (mode === "multi-promote-text") {
+    const node = children[0] as Text;
+    return {
+      kind: "multi",
+      parent: el,
+      nodes: [node],
+      originalChildren: [node.cloneNode(true)],
+    };
+  }
+  if (mode === "none") return null;
   const node = findEditableTextNode(el);
   return node ? { kind: "single", node } : null;
 }

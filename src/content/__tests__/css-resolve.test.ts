@@ -10,6 +10,7 @@ import {
   INTERESTING_PROPS,
   tokenizeEditableText,
   serializeEditableTokens,
+  classifyEditableChildren,
 } from "../css-resolve";
 
 describe("INTERESTING_PROPS", () => {
@@ -181,5 +182,97 @@ describe("serializeEditableTokens", () => {
         { kind: "text", value: "x" },
       ]),
     ).toBe("\nx");
+  });
+});
+
+describe("classifyEditableChildren", () => {
+  const TEXT_NODE = 3;
+  const ELEMENT_NODE = 1;
+
+  it("자식 없으면 none", () => {
+    expect(classifyEditableChildren([])).toBe("none");
+  });
+
+  it("단일 텍스트 자식(비어있지 않음)은 multi-promote-text — \\n 입력을 <br>로 변환할 수 있는 안전 케이스", () => {
+    expect(
+      classifyEditableChildren([
+        { nodeType: TEXT_NODE, textContent: "foo" },
+      ]),
+    ).toBe("multi-promote-text");
+  });
+
+  it("단일 텍스트가 공백/빈 문자열뿐이면 single — caller findEditableTextNode가 null 반환해서 결과적으로 편집 불가", () => {
+    expect(
+      classifyEditableChildren([
+        { nodeType: TEXT_NODE, textContent: "   " },
+      ]),
+    ).toBe("single");
+    expect(
+      classifyEditableChildren([{ nodeType: TEXT_NODE, textContent: "" }]),
+    ).toBe("single");
+    expect(
+      classifyEditableChildren([{ nodeType: TEXT_NODE, textContent: null }]),
+    ).toBe("single");
+  });
+
+  it("텍스트 + br 혼합 (br 1개 이상)은 multi-existing-br — 기존 동작 보존", () => {
+    expect(
+      classifyEditableChildren([
+        { nodeType: TEXT_NODE, textContent: "a" },
+        { nodeType: ELEMENT_NODE, tagName: "BR" },
+        { nodeType: TEXT_NODE, textContent: "b" },
+      ]),
+    ).toBe("multi-existing-br");
+  });
+
+  it("자식이 br 1개뿐이어도 multi-existing-br", () => {
+    expect(
+      classifyEditableChildren([
+        { nodeType: ELEMENT_NODE, tagName: "BR" },
+      ]),
+    ).toBe("multi-existing-br");
+  });
+
+  it("단일 <strong> 인라인 마크업은 single — multi 승격하지 않음 (인라인 보호)", () => {
+    expect(
+      classifyEditableChildren([
+        { nodeType: ELEMENT_NODE, tagName: "STRONG" },
+      ]),
+    ).toBe("single");
+  });
+
+  it("단일 <a>도 single — multi 승격하지 않음", () => {
+    expect(
+      classifyEditableChildren([
+        { nodeType: ELEMENT_NODE, tagName: "A" },
+      ]),
+    ).toBe("single");
+  });
+
+  it("<strong> + 텍스트 혼합도 single (인라인 마크업 섞이면 보호)", () => {
+    expect(
+      classifyEditableChildren([
+        { nodeType: ELEMENT_NODE, tagName: "STRONG" },
+        { nodeType: TEXT_NODE, textContent: "tail" },
+      ]),
+    ).toBe("single");
+  });
+
+  it("텍스트 노드 2개 (br 없음)는 single — 기존 동작 유지 (multi 승격은 단일 텍스트일 때만)", () => {
+    expect(
+      classifyEditableChildren([
+        { nodeType: TEXT_NODE, textContent: "a" },
+        { nodeType: TEXT_NODE, textContent: "b" },
+      ]),
+    ).toBe("single");
+  });
+
+  it("<a> + br 혼합은 single — non-BR 엘리먼트가 섞이면 multi-existing-br 자격 박탈", () => {
+    expect(
+      classifyEditableChildren([
+        { nodeType: ELEMENT_NODE, tagName: "A" },
+        { nodeType: ELEMENT_NODE, tagName: "BR" },
+      ]),
+    ).toBe("single");
   });
 });
