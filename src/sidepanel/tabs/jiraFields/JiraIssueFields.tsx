@@ -1,3 +1,4 @@
+import { useCallback, useState } from "react";
 import { useT } from "@/i18n";
 import { FieldRow } from "@/sidepanel/components/FieldRow";
 import type { EditorIssueFields } from "@/store/editor-store";
@@ -5,6 +6,7 @@ import { AssigneeField } from "./AssigneeField";
 import { EpicField } from "./EpicField";
 import { IssueTypeField } from "./IssueTypeField";
 import { PriorityField } from "./PriorityField";
+import { resolveEpicParentConflict } from "./resolve-epic-parent";
 
 export function JiraIssueFields({
   fields,
@@ -14,12 +16,28 @@ export function JiraIssueFields({
   onChange: (patch: Partial<EditorIssueFields>) => void;
 }) {
   const t = useT();
+  const [isEpicType, setIsEpicType] = useState(false);
+
+  const handleIssueTypeChange = useCallback(
+    (id: string, hierarchyLevel?: number) => {
+      const epic = hierarchyLevel != null && hierarchyLevel >= 1;
+      setIsEpicType(epic);
+      const patch: Partial<EditorIssueFields> = { issueTypeId: id };
+      if (epic) {
+        const conflict = resolveEpicParentConflict(fields, hierarchyLevel);
+        if (conflict) Object.assign(patch, conflict);
+      }
+      onChange(patch);
+    },
+    [fields, onChange],
+  );
+
   return (
     <div className="flex flex-col gap-4">
       <FieldRow label={t("create.issueType")} required>
         <IssueTypeField
           value={fields.issueTypeId}
-          onChange={(id) => onChange({ issueTypeId: id })}
+          onChange={handleIssueTypeChange}
         />
       </FieldRow>
       <FieldRow label={t("create.assignee")}>
@@ -36,14 +54,16 @@ export function JiraIssueFields({
           onChange={(id, name) => onChange({ priorityId: id, priorityName: name })}
         />
       </FieldRow>
-      <FieldRow label={t("create.parentEpic")}>
-        <EpicField
-          value={fields.parentKey}
-          fallbackLabel={fields.parentLabel}
-          onChange={(key, label) => onChange({ parentKey: key, parentLabel: label })}
-          hierarchyLevels={[1]}
-        />
-      </FieldRow>
+      {!isEpicType && (
+        <FieldRow label={t("create.parentEpic")}>
+          <EpicField
+            value={fields.parentKey}
+            fallbackLabel={fields.parentLabel}
+            onChange={(key, label) => onChange({ parentKey: key, parentLabel: label })}
+            hierarchyLevels={[1]}
+          />
+        </FieldRow>
+      )}
       <FieldRow label={t("create.linkedIssue")}>
         <EpicField
           value={fields.relatesKey}

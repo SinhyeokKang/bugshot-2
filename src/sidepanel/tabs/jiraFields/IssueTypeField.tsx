@@ -13,7 +13,7 @@ export function IssueTypeField({
   onChange,
 }: {
   value?: string;
-  onChange: (id: string) => void;
+  onChange: (id: string, hierarchyLevel?: number) => void;
 }) {
   const t = useT();
   const jiraAccount = useSettingsStore((s) => s.accounts.jira);
@@ -73,7 +73,7 @@ export function IssueTypeField({
           key={it.id}
           value={it.name}
           onSelect={() => {
-            onChange(it.id);
+            onChange(it.id, it.hierarchyLevel);
             setOpen(false);
           }}
         >
