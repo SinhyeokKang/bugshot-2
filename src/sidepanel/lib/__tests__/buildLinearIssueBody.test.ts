@@ -124,6 +124,59 @@ describe("buildLinearIssueBody — 인라인 미디어", () => {
   });
 });
 
+describe("buildLinearIssueBody — element + diffs 없음", () => {
+  it("element + diffs=[] + screenshot.webp assetUrl → Media 섹션 + 이미지 인라인", () => {
+    const input: LinearBuildInput = {
+      ctx: makeCtx({ captureMode: "element", diffs: [] }),
+      images: [
+        {
+          filename: "screenshot.webp",
+          assetUrl: "https://cdn.linear.app/screenshot.webp",
+        },
+      ],
+    };
+    const out = buildLinearIssueBody(input);
+    expect(out.body).toContain("md.section.media");
+    expect(out.body).toContain(
+      "![screenshot.webp](https://cdn.linear.app/screenshot.webp)",
+    );
+    expect(out.body).not.toContain("md.section.styleChanges");
+  });
+
+  it("element + diffs=[] + screenshot.webp assetUrl 없음 → Media 섹션 (이미지 없이)", () => {
+    const input: LinearBuildInput = {
+      ctx: makeCtx({ captureMode: "element", diffs: [] }),
+      images: [{ filename: "screenshot.webp" }],
+    };
+    const out = buildLinearIssueBody(input);
+    expect(out.body).toContain("md.section.media");
+    expect(out.body).not.toContain("md.section.styleChanges");
+  });
+
+  it("element + diffs=[] + 이미지 없음 → styleChanges 미출력", () => {
+    const out = buildLinearIssueBody({
+      ctx: makeCtx({ captureMode: "element", diffs: [] }),
+    });
+    expect(out.body).not.toContain("md.section.styleChanges");
+  });
+
+  it("element + diffs 존재 → 기존 Style Changes 테이블 유지", () => {
+    const input: LinearBuildInput = {
+      ctx: makeCtx({
+        captureMode: "element",
+        diffs: [{ prop: "color", asIs: "#000", toBe: "#fff" }],
+      }),
+      images: [
+        { filename: "before.webp", assetUrl: "https://cdn.linear.app/before.webp" },
+        { filename: "after.webp", assetUrl: "https://cdn.linear.app/after.webp" },
+      ],
+    };
+    const out = buildLinearIssueBody(input);
+    expect(out.body).toContain("md.section.styleChanges");
+    expect(out.body).toContain("| color | #000 | #fff |");
+  });
+});
+
 describe("buildLinearIssueBody — freeform", () => {
   it("freeform 모드 → 미디어 섹션 없음", () => {
     const out = buildLinearIssueBody({

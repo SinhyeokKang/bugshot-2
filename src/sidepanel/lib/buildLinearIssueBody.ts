@@ -109,27 +109,37 @@ export function buildLinearIssueBody(
       }
       lines.push("");
     } else {
-      lines.push(`## ${t("md.section.styleChanges")}`, "");
       const before = images.find((i) => i.filename.startsWith("before"));
       const after = images.find((i) => i.filename.startsWith("after"));
-      if (before?.assetUrl || after?.assetUrl) {
-        lines.push(`| ${t("md.column.property")} | As is | To be |`);
-        lines.push("| --- | --- | --- |");
-        lines.push(
-          `| **${t("styleTable.snapshot")}** | ${imageCell(before)} | ${imageCell(after)} |`,
-        );
-        for (const d of ctx.diffs) {
+      const hasSnapshots = !!(before?.assetUrl || after?.assetUrl);
+
+      if (hasSnapshots || ctx.diffs.length > 0) {
+        lines.push(`## ${t("md.section.styleChanges")}`, "");
+        if (hasSnapshots) {
+          lines.push(`| ${t("md.column.property")} | As is | To be |`);
+          lines.push("| --- | --- | --- |");
           lines.push(
-            `| ${escapeCell(d.prop)} | ${escapeCell(d.asIs)} | ${escapeCell(d.toBe)} |`,
+            `| **${t("styleTable.snapshot")}** | ${imageCell(before)} | ${imageCell(after)} |`,
           );
+          for (const d of ctx.diffs) {
+            lines.push(
+              `| ${escapeCell(d.prop)} | ${escapeCell(d.asIs)} | ${escapeCell(d.toBe)} |`,
+            );
+          }
+        } else {
+          lines.push(`| ${t("md.column.property")} | As is | To be |`);
+          lines.push("| --- | --- | --- |");
+          for (const d of ctx.diffs) {
+            lines.push(
+              `| ${escapeCell(d.prop)} | ${escapeCell(d.asIs)} | ${escapeCell(d.toBe)} |`,
+            );
+          }
         }
-      } else if (ctx.diffs.length > 0) {
-        lines.push(`| ${t("md.column.property")} | As is | To be |`);
-        lines.push("| --- | --- | --- |");
-        for (const d of ctx.diffs) {
-          lines.push(
-            `| ${escapeCell(d.prop)} | ${escapeCell(d.asIs)} | ${escapeCell(d.toBe)} |`,
-          );
+      } else {
+        const screenshot = images.find((i) => i.filename.startsWith("screenshot"));
+        lines.push(`## ${t("md.section.media")}`, "");
+        if (screenshot?.assetUrl) {
+          lines.push(`![${screenshot.filename}](${screenshot.assetUrl})`);
         }
       }
       lines.push("");

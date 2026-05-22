@@ -117,13 +117,27 @@ export function DraftingPanel() {
       <VideoPreview blob={videoBlob} thumbnail={videoThumbnail} />
     </Section>
   ) : isElementMode ? (
-    <Section key="__media" title={t("section.styleChanges")} collapsible>
-      <StyleChangesTable
-        beforeImage={beforeImage}
-        afterImage={afterImage}
-        diffs={diffs}
-      />
-    </Section>
+    diffs.length > 0 ? (
+      <Section key="__media" title={t("section.styleChanges")} collapsible>
+        <StyleChangesTable
+          beforeImage={beforeImage}
+          afterImage={afterImage}
+          diffs={diffs}
+        />
+      </Section>
+    ) : (
+      <Section key="__media" title={t("section.media")} collapsible>
+        {beforeImage ? (
+          <div className="aspect-video w-full overflow-hidden rounded-lg border bg-muted/70">
+            <img
+              src={beforeImage}
+              alt={t("section.media")}
+              className="h-full w-full object-contain"
+            />
+          </div>
+        ) : null}
+      </Section>
+    )
   ) : (
     <Section
       key="__media"

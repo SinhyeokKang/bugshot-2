@@ -99,13 +99,18 @@ export function buildIssueAdf(ctx: MarkdownContext, inlineImageRefIds?: string[]
       content.push(heading(2, t("md.section.media")));
       content.push(paragraph([textNode(IMAGE_PLACEHOLDER)]));
     } else {
-      content.push(heading(2, t("md.section.styleChanges")));
-      content.push(
-        table(
-          [t("md.column.property"), "As is", "To be"],
-          ctx.diffs.map((d) => [d.prop, d.asIs, d.toBe]),
-        ),
-      );
+      if (ctx.diffs.length > 0) {
+        content.push(heading(2, t("md.section.styleChanges")));
+        content.push(
+          table(
+            [t("md.column.property"), "As is", "To be"],
+            ctx.diffs.map((d) => [d.prop, d.asIs, d.toBe]),
+          ),
+        );
+      } else {
+        content.push(heading(2, t("md.section.media")));
+        content.push(paragraph([textNode(IMAGE_PLACEHOLDER)]));
+      }
     }
     emitLogSummaryAdf(content, ctx.networkLogSummary, ctx.consoleLogSummary);
   };

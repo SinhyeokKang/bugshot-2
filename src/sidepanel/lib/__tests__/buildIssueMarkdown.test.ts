@@ -318,6 +318,75 @@ describe("buildIssueHtml", () => {
   });
 });
 
+describe("buildIssueMarkdown — element + diffs 없음", () => {
+  const noDiffCtx = (overrides: Partial<MarkdownContext> = {}) =>
+    makeCtx({ diffs: [], ...overrides });
+
+  it("element 모드 + diffs=[] → Media 섹션 + imageAttached", () => {
+    const md = buildIssueMarkdown(noDiffCtx());
+    expect(md).toContain("md.section.media");
+    expect(md).toContain("md.imageAttached");
+  });
+
+  it("element 모드 + diffs=[] → Style Changes 미출력", () => {
+    const md = buildIssueMarkdown(noDiffCtx());
+    expect(md).not.toContain("md.section.styleChanges");
+  });
+
+  it("element 모드 + diffs 존재 → 기존 Style Changes 테이블 유지", () => {
+    const md = buildIssueMarkdown(
+      noDiffCtx({ diffs: [{ prop: "color", asIs: "#000", toBe: "#fff" }] }),
+    );
+    expect(md).toContain("md.section.styleChanges");
+    expect(md).toContain("| color | #000 | #fff |");
+    expect(md).not.toContain("md.imageAttached");
+  });
+
+  it("element 모드 + diffs=[] → DOM 환경 정보는 유지", () => {
+    const md = buildIssueMarkdown(noDiffCtx());
+    expect(md).toContain("div.container");
+  });
+
+  it("POST_MEDIA 위치: Media 섹션이 expectedResult 전에 위치", () => {
+    const md = buildIssueMarkdown(noDiffCtx());
+    const mediaIdx = md.indexOf("md.section.media");
+    const expectedIdx = md.indexOf("md.section.expectedResult");
+    expect(mediaIdx).toBeGreaterThan(-1);
+    expect(expectedIdx).toBeGreaterThan(-1);
+    expect(mediaIdx).toBeLessThan(expectedIdx);
+  });
+});
+
+describe("buildIssueHtml — element + diffs 없음", () => {
+  const noDiffCtx = (overrides: Partial<MarkdownContext> = {}) =>
+    makeCtx({ diffs: [], ...overrides });
+
+  it("element 모드 + diffs=[] → Media 섹션 + imageAttached", () => {
+    const html = buildIssueHtml(noDiffCtx());
+    expect(html).toContain("md.section.media");
+    expect(html).toContain("md.imageAttached");
+  });
+
+  it("element 모드 + diffs=[] → Style Changes 미출력", () => {
+    const html = buildIssueHtml(noDiffCtx());
+    expect(html).not.toContain("md.section.styleChanges");
+  });
+
+  it("element 모드 + diffs=[] → table 미출력", () => {
+    const html = buildIssueHtml(noDiffCtx());
+    expect(html).not.toContain("<table>");
+  });
+
+  it("element 모드 + diffs 존재 → 기존 Style Changes 테이블 유지", () => {
+    const html = buildIssueHtml(
+      noDiffCtx({ diffs: [{ prop: "color", asIs: "#000", toBe: "#fff" }] }),
+    );
+    expect(html).toContain("md.section.styleChanges");
+    expect(html).toContain("<table>");
+    expect(html).not.toContain("md.imageAttached");
+  });
+});
+
 describe("buildIssueMarkdown — browser 환경 정보", () => {
   it("browser 있으면 Page 행 위에 Browser 행 출력", () => {
     const md = buildIssueMarkdown(makeCtx({ browser: "Chrome 128.0.6613.85" }));

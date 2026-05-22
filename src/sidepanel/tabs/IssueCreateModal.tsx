@@ -217,12 +217,16 @@ export function IssueCreateModal() {
   async function buildEditorCaptureFiles(): Promise<CaptureFiles> {
     const hasNet = networkLogAttach && !!networkLog && networkLog.captured > 0;
     const hasCon = consoleLogAttach && !!consoleLog && consoleLog.captured > 0;
+    const isElementNoDiff =
+      captureMode === "element" &&
+      selection != null &&
+      buildStyleDiff(selection, styleEdits).length === 0;
     return buildCaptureFiles({
-      captureMode,
+      captureMode: isElementNoDiff ? "screenshot" : captureMode,
       videoBlob,
-      screenshotImage: captureMode === "screenshot" ? (screenshotAnnotated ?? screenshotRaw) : null,
-      beforeImage: captureMode === "element" ? beforeImage : null,
-      afterImage: captureMode === "element" ? afterImage : null,
+      screenshotImage: isElementNoDiff ? beforeImage : captureMode === "screenshot" ? (screenshotAnnotated ?? screenshotRaw) : null,
+      beforeImage: captureMode === "element" && !isElementNoDiff ? beforeImage : null,
+      afterImage: captureMode === "element" && !isElementNoDiff ? afterImage : null,
       networkLog: hasNet ? networkLog : null,
       consoleLog: hasCon ? consoleLog : null,
     });

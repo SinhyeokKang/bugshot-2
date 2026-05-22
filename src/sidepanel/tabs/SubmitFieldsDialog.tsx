@@ -135,6 +135,7 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
 
   function handleOpenChange(next: boolean) {
     if (submit.status === "submitting") return;
+    if (!next) (document.activeElement as HTMLElement)?.blur?.();
     onOpenChange(next);
   }
 

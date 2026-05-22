@@ -435,7 +435,7 @@ export function SelectedPanel() {
             </AlertDialog>
             <Button
               onClick={() => void handleNext()}
-              disabled={proceeding || !hasChange}
+              disabled={proceeding}
             >
               {t("common.next")}
             </Button>

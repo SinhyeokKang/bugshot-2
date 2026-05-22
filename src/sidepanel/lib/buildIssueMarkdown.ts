@@ -97,9 +97,9 @@ export function buildIssueMarkdown(ctx: MarkdownContext): string {
       lines.push(t("md.imageAttached"));
       lines.push("");
     } else {
-      lines.push(`## ${t("md.section.styleChanges")}`);
-      lines.push("");
       if (ctx.diffs.length > 0) {
+        lines.push(`## ${t("md.section.styleChanges")}`);
+        lines.push("");
         lines.push(`| ${t("md.column.property")} | As is | To be |`);
         lines.push("| --- | --- | --- |");
         for (const d of ctx.diffs) {
@@ -107,6 +107,11 @@ export function buildIssueMarkdown(ctx: MarkdownContext): string {
             `| ${escapeCell(d.prop)} | ${escapeCell(d.asIs)} | ${escapeCell(d.toBe)} |`,
           );
         }
+        lines.push("");
+      } else {
+        lines.push(`## ${t("md.section.media")}`);
+        lines.push("");
+        lines.push(t("md.imageAttached"));
         lines.push("");
       }
     }
@@ -190,8 +195,8 @@ export function buildIssueHtml(ctx: MarkdownContext): string {
       parts.push(`<h2>${t("md.section.media")}</h2>`);
       parts.push(`<p>${t("md.imageAttached")}</p>`);
     } else {
-      parts.push(`<h2>${t("md.section.styleChanges")}</h2>`);
       if (ctx.diffs.length > 0) {
+        parts.push(`<h2>${t("md.section.styleChanges")}</h2>`);
         parts.push(
           `<table><thead><tr><th>${t("md.column.property")}</th><th>As is</th><th>To be</th></tr></thead><tbody>`,
         );
@@ -201,6 +206,9 @@ export function buildIssueHtml(ctx: MarkdownContext): string {
           );
         }
         parts.push(`</tbody></table>`);
+      } else {
+        parts.push(`<h2>${t("md.section.media")}</h2>`);
+        parts.push(`<p>${t("md.imageAttached")}</p>`);
       }
     }
     emitLogSummaryHtml(parts, ctx);

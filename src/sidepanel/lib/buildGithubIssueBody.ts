@@ -115,6 +115,15 @@ export function buildGithubIssueBody(
           );
         }
         lines.push("");
+      } else {
+        const screenshot = images.find((i) => i.filename.startsWith("screenshot"));
+        lines.push(`## ${t("md.section.media")}`, "");
+        if (screenshot?.url) {
+          lines.push(`![${screenshot.filename}](${screenshot.url})`);
+          attached.push(screenshot.filename);
+          mediaHandled.add(screenshot.filename);
+        }
+        lines.push("");
       }
 
       if (before?.url) { attached.push(before.filename); mediaHandled.add(before.filename); }

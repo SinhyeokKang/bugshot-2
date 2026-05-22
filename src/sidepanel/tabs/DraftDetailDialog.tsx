@@ -258,12 +258,14 @@ export function DraftDetailDialog({
       : null;
     const beforeDataUrl = beforeBlob ? await blobToDataUrl(beforeBlob) : null;
     const afterDataUrl = afterBlob ? await blobToDataUrl(afterBlob) : null;
+    const noDiffs = diffs.length === 0;
+    const isElementNoDiff = !isScreenshot && !isVideo && !isFreeform && noDiffs;
     const captureFiles = await buildCaptureFiles({
-      captureMode: issue.captureMode ?? "element",
+      captureMode: isElementNoDiff ? "screenshot" : (issue.captureMode ?? "element"),
       videoBlob,
-      screenshotImage: isScreenshot ? beforeDataUrl : null,
-      beforeImage: isScreenshot ? null : beforeDataUrl,
-      afterImage: afterDataUrl,
+      screenshotImage: isScreenshot || isElementNoDiff ? beforeDataUrl : null,
+      beforeImage: isScreenshot || isElementNoDiff ? null : beforeDataUrl,
+      afterImage: isElementNoDiff ? null : afterDataUrl,
       networkLog,
       consoleLog: consoleLogForSubmit,
     });
@@ -701,13 +703,21 @@ function DraftDetailSections({
           />
         </div>
       </FieldSection>
-    ) : hasStyleBlock ? (
+    ) : hasStyleBlock && diffs.length > 0 ? (
       <FieldSection key="__media" label={t("section.styleChanges")}>
         <StyleChangesTable
           beforeImage={beforeUrl}
           afterImage={afterUrl}
           diffs={diffs}
         />
+      </FieldSection>
+    ) : hasStyleBlock ? (
+      <FieldSection key="__media" label={t("section.media")}>
+        {beforeUrl ? (
+          <div className="aspect-video w-full overflow-hidden rounded-md border bg-muted/70">
+            <img src={beforeUrl} alt={t("section.media")} className="h-full w-full object-contain" />
+          </div>
+        ) : null}
       </FieldSection>
     ) : null;
 

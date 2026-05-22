@@ -198,6 +198,50 @@ describe("buildIssueAdf", () => {
   });
 });
 
+describe("buildIssueAdf — element + diffs 없음", () => {
+  const noDiffCtx = (overrides: Partial<MarkdownContext> = {}) =>
+    makeCtx({ diffs: [], ...overrides });
+
+  it("element 모드 + diffs=[] → Media heading + IMAGE_PLACEHOLDER", () => {
+    const doc = buildIssueAdf(noDiffCtx());
+    const headings = findNodes(doc, "heading");
+    const headingTexts = headings.flatMap((h: any) =>
+      (h.content || []).filter((c: any) => c.type === "text").map((c: any) => c.text),
+    );
+    expect(headingTexts).toContain("md.section.media");
+    const texts = findNodes(doc, "text");
+    expect(texts.some((t) => t.text === "__BUGSHOT_IMAGE__")).toBe(true);
+  });
+
+  it("element 모드 + diffs=[] → Style Changes heading 미출력", () => {
+    const doc = buildIssueAdf(noDiffCtx());
+    const headings = findNodes(doc, "heading");
+    const headingTexts = headings.flatMap((h: any) =>
+      (h.content || []).filter((c: any) => c.type === "text").map((c: any) => c.text),
+    );
+    expect(headingTexts).not.toContain("md.section.styleChanges");
+  });
+
+  it("element 모드 + diffs=[] → table 노드 없음", () => {
+    const doc = buildIssueAdf(noDiffCtx());
+    const tables = findNodes(doc, "table");
+    expect(tables).toHaveLength(0);
+  });
+
+  it("element 모드 + diffs 존재 → 기존 Style Changes 테이블 유지", () => {
+    const doc = buildIssueAdf(
+      noDiffCtx({ diffs: [{ prop: "color", asIs: "#000", toBe: "#fff" }] }),
+    );
+    const headings = findNodes(doc, "heading");
+    const headingTexts = headings.flatMap((h: any) =>
+      (h.content || []).filter((c: any) => c.type === "text").map((c: any) => c.text),
+    );
+    expect(headingTexts).toContain("md.section.styleChanges");
+    const tables = findNodes(doc, "table");
+    expect(tables.length).toBeGreaterThanOrEqual(1);
+  });
+});
+
 describe("buildIssueAdf — freeform", () => {
   const freeformCtx = (overrides: Partial<MarkdownContext> = {}) =>
     makeCtx({

@@ -329,6 +329,70 @@ describe("buildGithubIssueBody — URL 인라인", () => {
   });
 });
 
+describe("buildGithubIssueBody — element + diffs 없음", () => {
+  it("element + diffs=[] + screenshot.webp url → Media 섹션 + 이미지 인라인", () => {
+    const input: GithubBuildInput = {
+      ctx: makeCtx({ captureMode: "element", diffs: [] }),
+      images: [
+        {
+          filename: "screenshot.webp",
+          contentType: "image/webp",
+          url: "https://github.com/user-attachments/assets/abc",
+        },
+      ],
+    };
+    const out = buildGithubIssueBody(input);
+    expect(out.body).toContain("md.section.media");
+    expect(out.body).toContain(
+      "![screenshot.webp](https://github.com/user-attachments/assets/abc)",
+    );
+    expect(out.body).not.toContain("md.section.styleChanges");
+  });
+
+  it("element + diffs=[] + screenshot.webp url 없음 → 첨부 안내", () => {
+    const input: GithubBuildInput = {
+      ctx: makeCtx({ captureMode: "element", diffs: [] }),
+      images: [
+        { filename: "screenshot.webp", contentType: "image/webp" },
+      ],
+    };
+    const out = buildGithubIssueBody(input);
+    expect(out.body).toContain("md.section.media");
+    expect(out.body).not.toContain("md.section.styleChanges");
+  });
+
+  it("element + diffs=[] + 이미지 없음 → styleChanges 미출력", () => {
+    const out = buildGithubIssueBody({
+      ctx: makeCtx({ captureMode: "element", diffs: [] }),
+    });
+    expect(out.body).not.toContain("md.section.styleChanges");
+  });
+
+  it("element + diffs 존재 → 기존 Style Changes 테이블 유지", () => {
+    const input: GithubBuildInput = {
+      ctx: makeCtx({
+        captureMode: "element",
+        diffs: [{ prop: "color", asIs: "#000", toBe: "#fff" }],
+      }),
+      images: [
+        {
+          filename: "before.webp",
+          contentType: "image/webp",
+          url: "https://github.com/user-attachments/assets/b",
+        },
+        {
+          filename: "after.webp",
+          contentType: "image/webp",
+          url: "https://github.com/user-attachments/assets/a",
+        },
+      ],
+    };
+    const out = buildGithubIssueBody(input);
+    expect(out.body).toContain("md.section.styleChanges");
+    expect(out.body).toContain("| color | #000 | #fff |");
+  });
+});
+
 describe("buildGithubIssueBody — browser 환경 정보", () => {
   it("browser 있으면 Page 행 위에 Browser 행 출력", () => {
     const out = buildGithubIssueBody({ ctx: makeCtx({ browser: "Chrome 128.0.6613.85" }) });
