@@ -20,6 +20,12 @@ export const STATUS_CATEGORY_COLORS: Record<
     darkBg: "dark:bg-green-500/15",
     darkText: "dark:text-green-300",
   },
+  deleted: {
+    bg: "bg-red-100",
+    text: "text-red-700",
+    darkBg: "dark:bg-red-500/15",
+    darkText: "dark:text-red-300",
+  },
 };
 
 export const LINEAR_STATE_TYPE_COLORS: Record<string, typeof STATUS_CATEGORY_COLORS[string]> = {

@@ -5,6 +5,7 @@ import { useIssuesStore, type IssueRecord } from "@/store/issues-store";
 import { useSettingsStore } from "@/store/settings-store";
 import type { LinearIssueStatus } from "@/types/linear";
 import { sendBg } from "@/types/messages";
+import { classifyBadgeError, type BadgeErrorKind } from "./utils";
 import {
   LINEAR_STATE_I18N,
   LINEAR_STATE_TYPE_COLORS,
@@ -28,7 +29,7 @@ export function LinearSubmittedBadge({
   const t = useT();
   const linearAccount = useSettingsStore((s) => s.accounts.linear);
   const patchIssue = useIssuesStore((s) => s.patchIssue);
-  const [status, setStatus] = useState<LinearIssueStatus | "error" | null>(null);
+  const [status, setStatus] = useState<LinearIssueStatus | BadgeErrorKind | null>(null);
 
   useEffect(() => {
     const identifier = linearIdentifier ?? issueKey;
@@ -46,14 +47,19 @@ export function LinearSubmittedBadge({
         if (res.labels.length > 0) patch.linearLabelName = res.labels[0].name;
         if (Object.keys(patch).length) patchIssue(issueId, patch);
       })
-      .catch(() => setStatus("error"))
+      .catch((err) => setStatus(classifyBadgeError(err)))
       .finally(onLoaded);
   }, [linearAccount?.auth, linearIdentifier, issueKey, refreshKey, onLoaded, issueId, patchIssue]);
 
-  if (status === "error") {
+  if (status === "error" || status === "deleted") {
+    const deleted = status === "deleted";
+    const colors = deleted ? STATUS_CATEGORY_COLORS.deleted : undefined;
     return (
-      <Badge variant="outline" className="w-fit shrink-0 text-[11px]">
-        {t("issueList.unknown")}
+      <Badge
+        variant="outline"
+        className={`w-fit shrink-0 text-[11px] ${colors ? `border-transparent ${colors.bg} ${colors.text} ${colors.darkBg} ${colors.darkText}` : ""}`}
+      >
+        {t(deleted ? "issueList.deleted" : "issueList.unknown")}
       </Badge>
     );
   }

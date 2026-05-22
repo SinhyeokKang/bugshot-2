@@ -5,6 +5,7 @@ import { useIssuesStore } from "@/store/issues-store";
 import { useSettingsStore, jiraSiteId } from "@/store/settings-store";
 import type { JiraIssueStatus } from "@/types/jira";
 import { sendBg } from "@/types/messages";
+import { classifyBadgeError, type BadgeErrorKind } from "./utils";
 import { STATUS_CATEGORY_COLORS } from "./constants";
 import { JiraStatusBadge } from "./JiraStatusBadge";
 
@@ -26,7 +27,7 @@ export function JiraSubmittedBadge({
   const patchIssue = useIssuesStore((s) => s.patchIssue);
   const currentSiteId = jiraAccount?.auth ? jiraSiteId(jiraAccount.auth) : null;
   const siteMatch = !issueSiteId || currentSiteId === issueSiteId;
-  const [status, setStatus] = useState<JiraIssueStatus | "error" | null>(null);
+  const [status, setStatus] = useState<JiraIssueStatus | BadgeErrorKind | null>(null);
 
   useEffect(() => {
     if (!jiraAccount?.auth || !siteMatch) {
@@ -42,14 +43,19 @@ export function JiraSubmittedBadge({
         if (res.summary) patch.title = res.summary;
         if (Object.keys(patch).length) patchIssue(issueId, patch);
       })
-      .catch(() => setStatus("error"))
+      .catch((err) => setStatus(classifyBadgeError(err)))
       .finally(onLoaded);
   }, [jiraAccount?.auth, issueKey, refreshKey, siteMatch, onLoaded, issueId, patchIssue]);
 
-  if (status === "error") {
+  if (status === "error" || status === "deleted") {
+    const deleted = status === "deleted";
+    const colors = deleted ? STATUS_CATEGORY_COLORS.deleted : undefined;
     return (
-      <Badge variant="outline" className="w-fit shrink-0 text-[11px]">
-        {t("issueList.unknown")}
+      <Badge
+        variant="outline"
+        className={`w-fit shrink-0 text-[11px] ${colors ? `border-transparent ${colors.bg} ${colors.text} ${colors.darkBg} ${colors.darkText}` : ""}`}
+      >
+        {t(deleted ? "issueList.deleted" : "issueList.unknown")}
       </Badge>
     );
   }

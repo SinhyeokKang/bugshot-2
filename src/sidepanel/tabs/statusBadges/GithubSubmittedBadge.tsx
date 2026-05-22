@@ -5,6 +5,7 @@ import { useIssuesStore, type IssueRecord } from "@/store/issues-store";
 import { useSettingsStore } from "@/store/settings-store";
 import type { GithubIssueStatus } from "@/types/github";
 import { sendBg } from "@/types/messages";
+import { classifyBadgeError, type BadgeErrorKind } from "./utils";
 import { resolveGithubCoords } from "../issueListUtils";
 import { STATUS_CATEGORY_COLORS } from "./constants";
 import { GithubStatusBadge, type GithubBadgeStatus } from "./GithubStatusBadge";
@@ -29,7 +30,7 @@ export function GithubSubmittedBadge({
   const t = useT();
   const ghAccount = useSettingsStore((s) => s.accounts.github);
   const patchIssue = useIssuesStore((s) => s.patchIssue);
-  const [status, setStatus] = useState<GithubBadgeStatus | "error" | null>(null);
+  const [status, setStatus] = useState<GithubBadgeStatus | BadgeErrorKind | null>(null);
 
   const ghCoords = useMemo(
     () => resolveGithubCoords({ githubOwner, githubRepo, key: issueKey, url: issueUrl }),
@@ -61,14 +62,19 @@ export function GithubSubmittedBadge({
         patch.githubLabels = res.labels.map((l) => l.name).filter(Boolean);
         if (Object.keys(patch).length) patchIssue(issueId, patch);
       })
-      .catch(() => setStatus("error"))
+      .catch((err) => setStatus(classifyBadgeError(err)))
       .finally(onLoaded);
   }, [ghAccount, ghCoords, refreshKey, onLoaded, issueId, patchIssue, githubOwner, githubRepo]);
 
-  if (status === "error") {
+  if (status === "error" || status === "deleted") {
+    const deleted = status === "deleted";
+    const colors = deleted ? STATUS_CATEGORY_COLORS.deleted : undefined;
     return (
-      <Badge variant="outline" className="w-fit shrink-0 text-[11px]">
-        {t("issueList.unknown")}
+      <Badge
+        variant="outline"
+        className={`w-fit shrink-0 text-[11px] ${colors ? `border-transparent ${colors.bg} ${colors.text} ${colors.darkBg} ${colors.darkText}` : ""}`}
+      >
+        {t(deleted ? "issueList.deleted" : "issueList.unknown")}
       </Badge>
     );
   }

@@ -5,6 +5,7 @@ import { useIssuesStore, type IssueRecord } from "@/store/issues-store";
 import { useSettingsStore } from "@/store/settings-store";
 import type { NotionPageStatus } from "@/types/notion";
 import { sendBg } from "@/types/messages";
+import { classifyBadgeError, type BadgeErrorKind } from "./utils";
 import { resolveNotionPageId } from "../issueListUtils";
 import { notionStatusCategory } from "../notionStatusColors";
 import { STATUS_CATEGORY_COLORS } from "./constants";
@@ -28,7 +29,7 @@ export function NotionSubmittedBadge({
   const t = useT();
   const notionAccount = useSettingsStore((s) => s.accounts.notion);
   const patchIssue = useIssuesStore((s) => s.patchIssue);
-  const [status, setStatus] = useState<NotionPageStatus | "error" | null>(null);
+  const [status, setStatus] = useState<NotionPageStatus | BadgeErrorKind | null>(null);
 
   useEffect(() => {
     const pageId = resolveNotionPageId({ notionPageId, url: issueUrl }) ?? null;
@@ -46,14 +47,19 @@ export function NotionSubmittedBadge({
         if (res.statusOption) patch.notionStatusOption = res.statusOption.name;
         if (Object.keys(patch).length) patchIssue(issueId, patch);
       })
-      .catch(() => setStatus("error"))
+      .catch((err) => setStatus(classifyBadgeError(err)))
       .finally(onLoaded);
   }, [notionAccount?.auth, notionPageId, issueUrl, refreshKey, onLoaded, issueId, patchIssue]);
 
-  if (status === "error") {
+  if (status === "error" || status === "deleted") {
+    const deleted = status === "deleted";
+    const colors = deleted ? STATUS_CATEGORY_COLORS.deleted : undefined;
     return (
-      <Badge variant="outline" className="w-fit shrink-0 text-[11px]">
-        {t("issueList.unknown")}
+      <Badge
+        variant="outline"
+        className={`w-fit shrink-0 text-[11px] ${colors ? `border-transparent ${colors.bg} ${colors.text} ${colors.darkBg} ${colors.darkText}` : ""}`}
+      >
+        {t(deleted ? "issueList.deleted" : "issueList.unknown")}
       </Badge>
     );
   }
