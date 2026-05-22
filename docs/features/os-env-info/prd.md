@@ -28,6 +28,7 @@ browser-env-info(Chrome 버전)가 이슈 환경 섹션에 추가됐다. 버그 
 - Windows 10: `Windows 10`
 - Linux: `Linux`
 - Chrome OS: `Chrome OS 120.0`
+- Windows (버전 미감지): `Windows`
 
 ### 엣지 케이스
 - `getHighEntropyValues()` 실패 시: OS 행 생략 (null fallback, Browser 행이 환경 섹션 첫 행이 됨)

@@ -28,7 +28,7 @@
 - **작업 내용**:
   1. `ReadonlyEnvInput`에 `os?: string | null` 추가
   2. `deriveReadonlyEnvRows()` 본문 시작부에 `os`가 truthy면 `{ label: "OS", value: input.os }` 를 rows 맨 앞에 삽입 (기존 Browser 삽입 로직 앞)
-  3. 테스트 추가: os 있을 때 첫 행이 OS, os+browser 순서(OS → Browser), os null이면 OS 행 없음, os 미전달 시 기존 동작 유지
+  3. 테스트 추가: os 있을 때 첫 행이 OS, os+browser 순서(OS → Browser), os만 있고 browser 없을 때 OS가 첫 행이고 Browser 행 없음, os null이면 OS 행 없음, os 미전달 시 기존 동작 유지
 - **검증**:
   - [ ] `pnpm test` — environmentRows.test.ts 전체 통과
   - [ ] 기존 browser 관련 테스트가 깨지지 않음
@@ -36,14 +36,14 @@
 ### Task 3: MarkdownContext + 5개 빌더 업데이트
 
 - **변경 대상**:
-  - `src/sidepanel/lib/buildIssueMarkdown.ts`
+  - `src/sidepanel/lib/buildIssueMarkdown.ts` (`buildIssueMarkdown()` + `buildIssueHtml()`)
   - `src/sidepanel/lib/buildGithubIssueBody.ts`
   - `src/sidepanel/lib/buildLinearIssueBody.ts`
   - `src/sidepanel/lib/buildIssueAdf.ts`
   - `src/sidepanel/lib/buildNotionIssueBody.ts`
 - **작업 내용**:
   1. `MarkdownContext`에 `os?: string | null` 필드 추가
-  2. 5개 빌더 모두의 환경 섹션에서 `ctx.os`가 truthy면 Browser 행 위에 OS 행 출력
+  2. 6개 빌더 함수 모두의 환경 섹션에서 `ctx.os`가 truthy면 Browser 행 위에 OS 행 출력
      - Markdown/GitHub/Linear: `- **OS**: ${ctx.os}`
      - ADF (Jira): `keyValueItem("OS", ctx.os)` (element/non-element 양쪽 분기)
      - Notion: `{ type: "bulleted_list_item", text: \`OS: ${ctx.os}\` }`
