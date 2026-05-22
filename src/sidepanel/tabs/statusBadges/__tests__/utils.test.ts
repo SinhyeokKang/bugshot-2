@@ -7,7 +7,11 @@ describe("classifyBadgeError", () => {
     expect(classifyBadgeError(new BgError("Not found", 404))).toBe("deleted");
   });
 
-  it("returns 'error' for BgError with non-404 status", () => {
+  it("returns 'deleted' for BgError with status 410 (Gone)", () => {
+    expect(classifyBadgeError(new BgError("This issue was deleted", 410))).toBe("deleted");
+  });
+
+  it("returns 'error' for BgError with non-404/410 status", () => {
     expect(classifyBadgeError(new BgError("Forbidden", 403))).toBe("error");
     expect(classifyBadgeError(new BgError("Server error", 500))).toBe("error");
     expect(classifyBadgeError(new BgError("Unauthorized", 401))).toBe("error");
