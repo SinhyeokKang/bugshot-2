@@ -19,6 +19,9 @@
 4. screenshot, video, freeform 모드에서도 동일하게 표시된다.
 
 ## 성공 기준
-- 모든 모드에서 이슈 작성 화면의 환경 정보 첫 행이 Browser이다.
+- 모든 모드에서 이슈 작성 화면(DraftingPanel)·미리보기(PreviewPanel)·이슈 상세(DraftDetailDialog)의 환경 정보 첫 행이 Browser이다.
 - 등록된 이슈(Jira, GitHub, Linear, Notion) 본문에 Browser 정보가 포함된다.
+- 마크다운 복사 시에도 Browser 정보가 포함된다.
+- 파싱 실패 시 Browser 행은 노출하지 않는다 (Chrome 확장이라 실제 발생하지 않지만, 방어적 처리).
+- 단위 테스트로 Browser 첫 행 순서가 보장된다.
 - 기존 환경 정보(Page, DOM, Viewport, Captured)의 순서·내용에 영향 없다.
