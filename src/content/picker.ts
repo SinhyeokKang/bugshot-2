@@ -328,6 +328,7 @@ function handleStart(): void {
     removeOrphanOverlay();
     overlay = createOverlay();
   }
+  restoreOriginal();
   selectedEl = null;
   lastHover = null;
   tokenLookup = null;
