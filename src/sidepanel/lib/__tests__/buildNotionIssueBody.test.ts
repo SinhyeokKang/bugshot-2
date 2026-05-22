@@ -514,6 +514,31 @@ describe("buildNotionIssueBody — browser 환경 정보", () => {
   });
 });
 
+describe("buildNotionIssueBody — os 환경 정보", () => {
+  it("os 있으면 환경 섹션에서 Browser 앞에 OS 행 출력", () => {
+    const out = buildNotionIssueBody({
+      ctx: makeCtx({ os: "macOS 15.2", browser: "Chrome 128.0.6613.85" }),
+    });
+    const bullets = out.blocks.filter((b) => b.type === "bulleted_list_item");
+    const osIdx = bullets.findIndex((b) => "text" in b && b.text === "OS: macOS 15.2");
+    const browserIdx = bullets.findIndex((b) => "text" in b && b.text === "Browser: Chrome 128.0.6613.85");
+    expect(osIdx).toBeGreaterThanOrEqual(0);
+    expect(osIdx).toBeLessThan(browserIdx);
+  });
+
+  it("os null이면 OS 행 미출력", () => {
+    const out = buildNotionIssueBody({ ctx: makeCtx({ os: null }) });
+    const bullets = out.blocks.filter((b) => b.type === "bulleted_list_item");
+    expect(bullets.some((b) => "text" in b && b.text.startsWith("OS:"))).toBe(false);
+  });
+
+  it("os 미전달이면 OS 행 미출력 (하위호환)", () => {
+    const out = buildNotionIssueBody({ ctx: makeCtx() });
+    const bullets = out.blocks.filter((b) => b.type === "bulleted_list_item");
+    expect(bullets.some((b) => "text" in b && b.text.startsWith("OS:"))).toBe(false);
+  });
+});
+
 describe("buildNotionIssueBody — custom environment rows", () => {
   it("custom row가 Environment bulleted_list_item으로 포함", () => {
     const out = buildNotionIssueBody({

@@ -48,6 +48,9 @@ export function buildIssueAdf(ctx: MarkdownContext, inlineImageRefIds?: string[]
   content.push(heading(2, t("md.section.env")));
   if (isVideo || isScreenshot || isFreeform) {
     const envItems: AdfNode[] = [];
+    if (ctx.os) {
+      envItems.push(keyValueItem("OS", ctx.os));
+    }
     if (ctx.browser) {
       envItems.push(keyValueItem("Browser", ctx.browser));
     }
@@ -65,6 +68,9 @@ export function buildIssueAdf(ctx: MarkdownContext, inlineImageRefIds?: string[]
       ? formatElementName({ tag: ctx.tagName, classList: ctx.classListBefore })
       : "";
     const elemItems: AdfNode[] = [];
+    if (ctx.os) {
+      elemItems.push(keyValueItem("OS", ctx.os));
+    }
     if (ctx.browser) {
       elemItems.push(keyValueItem("Browser", ctx.browser));
     }

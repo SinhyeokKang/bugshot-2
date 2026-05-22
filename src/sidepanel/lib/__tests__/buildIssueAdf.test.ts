@@ -326,6 +326,32 @@ describe("buildIssueAdf — browser 환경 정보", () => {
   });
 });
 
+describe("buildIssueAdf — os 환경 정보", () => {
+  it("os 있으면 환경 bulletList에서 Browser 앞에 OS 출력", () => {
+    const doc = buildIssueAdf(makeCtx({ os: "macOS 15.2", browser: "Chrome 128.0.6613.85" }));
+    const json = JSON.stringify(doc);
+    const osIdx = json.indexOf("OS: ");
+    const browserIdx = json.indexOf("Browser: ");
+    const pageIdx = json.indexOf("Page: ");
+    expect(osIdx).toBeGreaterThan(-1);
+    expect(json).toContain("macOS 15.2");
+    expect(osIdx).toBeLessThan(browserIdx);
+    expect(browserIdx).toBeLessThan(pageIdx);
+  });
+
+  it("os null이면 OS 행 미출력", () => {
+    const doc = buildIssueAdf(makeCtx({ os: null }));
+    const json = JSON.stringify(doc);
+    expect(json).not.toContain("OS: ");
+  });
+
+  it("os 미전달이면 OS 행 미출력 (하위호환)", () => {
+    const doc = buildIssueAdf(makeCtx());
+    const json = JSON.stringify(doc);
+    expect(json).not.toContain("OS: ");
+  });
+});
+
 describe("buildIssueAdf — custom environment rows", () => {
   it("element 모드 — custom row가 환경 bulletList에 포함", () => {
     const doc = buildIssueAdf(

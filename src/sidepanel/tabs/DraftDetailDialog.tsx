@@ -64,6 +64,7 @@ import { buildCaptureFiles, type CaptureFiles } from "@/sidepanel/lib/buildCaptu
 import { buildIssueAdf } from "@/sidepanel/lib/buildIssueAdf";
 import { buildNetworkLogSummary, buildConsoleLogSummary } from "@/sidepanel/lib/buildLogSummary";
 import { filterEnvironmentRows, parseChromeVersion } from "@/sidepanel/lib/environmentRows";
+import { getOsInfo } from "@/sidepanel/lib/osInfo";
 import { extractInlineRefs, resolveInlineImagesForSections } from "@/sidepanel/lib/resolveInlineImages";
 import { SubmitFieldsDialog } from "@/sidepanel/tabs/SubmitFieldsDialog";
 
@@ -229,6 +230,7 @@ export function DraftDetailDialog({
       consoleLogForSubmit = await getConsoleLog(issue.consoleLogBlobKey);
     }
     const ctx = {
+      os: getOsInfo(),
       browser: parseChromeVersion(navigator.userAgent),
       captureMode: issue.captureMode,
       title: issue.draft.title,
@@ -752,8 +754,10 @@ function DraftDetailSections({
 }
 
 function EnvBlock({ issue }: { issue: IssueRecord }) {
+  const os = getOsInfo();
   const browser = parseChromeVersion(navigator.userAgent);
   const rows: { label: string; value: string }[] = [
+    ...(os ? [{ label: "OS", value: os }] : []),
     ...(browser ? [{ label: "Browser", value: browser }] : []),
     { label: "Page", value: issue.pageUrl || "-" },
     ...(issue.captureMode !== "video" && issue.captureMode !== "freeform" && issue.tagName

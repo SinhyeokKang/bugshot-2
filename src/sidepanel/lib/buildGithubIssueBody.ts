@@ -64,6 +64,9 @@ export function buildGithubIssueBody(
   const attached: string[] = [];
 
   lines.push(`## ${t("md.section.env")}`, "");
+  if (ctx.os) {
+    lines.push(`- **OS**: ${ctx.os}`);
+  }
   if (ctx.browser) {
     lines.push(`- **Browser**: ${ctx.browser}`);
   }

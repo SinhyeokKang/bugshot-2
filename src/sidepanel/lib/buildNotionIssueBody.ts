@@ -89,6 +89,9 @@ export function buildNotionIssueBody(
 
   // 환경 섹션
   blocks.push({ type: "heading_2", text: t("md.section.env") });
+  if (ctx.os) {
+    blocks.push({ type: "bulleted_list_item", text: `OS: ${ctx.os}` });
+  }
   if (ctx.browser) {
     blocks.push({ type: "bulleted_list_item", text: `Browser: ${ctx.browser}` });
   }

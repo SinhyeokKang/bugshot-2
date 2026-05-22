@@ -11,6 +11,7 @@ import { formatTimestamp } from "./formatTimestamp";
 import { renderMarkdown } from "./renderMarkdown";
 
 export interface MarkdownContext {
+  os?: string | null;
   browser?: string | null;
   captureMode?: "element" | "screenshot" | "video" | "freeform";
   title: string;
@@ -60,6 +61,9 @@ export function buildIssueMarkdown(ctx: MarkdownContext): string {
 
   lines.push(`## ${t("md.section.env")}`);
   lines.push("");
+  if (ctx.os) {
+    lines.push(`- **OS**: ${ctx.os}`);
+  }
   if (ctx.browser) {
     lines.push(`- **Browser**: ${ctx.browser}`);
   }
@@ -148,6 +152,9 @@ export function buildIssueHtml(ctx: MarkdownContext): string {
 
   parts.push(`<h2>${t("md.section.env")}</h2>`);
   parts.push(`<ul>`);
+  if (ctx.os) {
+    parts.push(`<li><strong>OS</strong>: ${escapeHtml(ctx.os)}</li>`);
+  }
   if (ctx.browser) {
     parts.push(`<li><strong>Browser</strong>: ${escapeHtml(ctx.browser)}</li>`);
   }

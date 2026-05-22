@@ -183,4 +183,48 @@ describe("deriveReadonlyEnvRows", () => {
     });
     expect(rows.map((r) => r.label)).toEqual(["Page", "Viewport"]);
   });
+
+  it("os가 있으면 첫 행이 OS", () => {
+    const rows = deriveReadonlyEnvRows({
+      os: "macOS 15.2",
+      url: "https://example.com/page",
+    });
+    expect(rows[0]).toEqual({ label: "OS", value: "macOS 15.2" });
+  });
+
+  it("os + browser → OS가 Browser 앞", () => {
+    const rows = deriveReadonlyEnvRows({
+      os: "macOS 15.2",
+      browser: "Chrome 128.0.6613.85",
+      url: "https://example.com/page",
+      selector: "div.card",
+      viewport: { w: 1280, h: 800 },
+    });
+    expect(rows.map((r) => r.label)).toEqual(["OS", "Browser", "Page", "DOM", "Viewport"]);
+  });
+
+  it("os만 있고 browser 없으면 OS만 첫 행, Browser 행 없음", () => {
+    const rows = deriveReadonlyEnvRows({
+      os: "Windows 11",
+      url: "https://example.com/page",
+    });
+    expect(rows[0]).toEqual({ label: "OS", value: "Windows 11" });
+    expect(rows.map((r) => r.label)).not.toContain("Browser");
+  });
+
+  it("os null이면 OS 행 없음", () => {
+    const rows = deriveReadonlyEnvRows({
+      os: null,
+      url: "https://example.com/page",
+    });
+    expect(rows.map((r) => r.label)).not.toContain("OS");
+  });
+
+  it("os 미전달 시 기존 동작 유지", () => {
+    const rows = deriveReadonlyEnvRows({
+      url: "https://example.com/page",
+      selector: "div.card",
+    });
+    expect(rows.map((r) => r.label)).toEqual(["Page", "DOM"]);
+  });
 });

@@ -22,6 +22,7 @@ export function filterEnvironmentRows(rows: EnvironmentRow[]): EnvironmentRow[] 
 }
 
 export interface ReadonlyEnvInput {
+  os?: string | null;
   browser?: string | null;
   url: string;
   selector?: string | null;
@@ -34,6 +35,9 @@ export function deriveReadonlyEnvRows(
   input: ReadonlyEnvInput,
 ): EnvironmentRow[] {
   const rows: EnvironmentRow[] = [];
+  if (input.os) {
+    rows.push({ label: "OS", value: input.os });
+  }
   if (input.browser) {
     rows.push({ label: "Browser", value: input.browser });
   }

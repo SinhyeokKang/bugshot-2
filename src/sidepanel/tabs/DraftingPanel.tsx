@@ -37,6 +37,7 @@ import {
   parseChromeVersion,
   type EnvironmentRow,
 } from "@/sidepanel/lib/environmentRows";
+import { getOsInfo } from "@/sidepanel/lib/osInfo";
 import { AiDraftDialog } from "./AiDraftDialog";
 
 const LazyTiptapEditor = lazy(() => import("../components/TiptapEditor"));
@@ -364,6 +365,7 @@ function ReproEnvironmentSection() {
     : freeformCapturedAt;
 
   const readonlyRows = deriveReadonlyEnvRows({
+    os: getOsInfo(),
     browser: parseChromeVersion(navigator.userAgent),
     url: target?.url ?? "",
     selector: captureMode === "element" ? selection?.selector : null,

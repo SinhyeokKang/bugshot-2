@@ -27,6 +27,7 @@ import {
 } from "@/sidepanel/components/StyleChangesTable";
 import { buildIssueHtml, buildIssueMarkdown } from "@/sidepanel/lib/buildIssueMarkdown";
 import { filterEnvironmentRows, parseChromeVersion } from "@/sidepanel/lib/environmentRows";
+import { getOsInfo } from "@/sidepanel/lib/osInfo";
 import { buildNetworkLogSummary, buildConsoleLogSummary } from "@/sidepanel/lib/buildLogSummary";
 import { resolveInlineImages } from "@/sidepanel/lib/resolveInlineImages";
 import { IssueCreateModal } from "./IssueCreateModal";
@@ -82,6 +83,9 @@ export function PreviewPanel() {
   const [networkDialogOpen, setNetworkDialogOpen] = useState(false);
   const [consoleDialogOpen, setConsoleDialogOpen] = useState(false);
 
+  const os = getOsInfo();
+  const browser = parseChromeVersion(navigator.userAgent);
+
   if (!draft) return null;
   if (isElementMode && !selection) return null;
 
@@ -103,9 +107,9 @@ export function PreviewPanel() {
     );
 
     let ctx: Parameters<typeof buildIssueMarkdown>[0];
-    const browser = parseChromeVersion(navigator.userAgent);
     if (isFreeformMode) {
       ctx = {
+        os,
         browser,
         captureMode: "freeform",
         title: draft.title,
@@ -127,6 +131,7 @@ export function PreviewPanel() {
       };
     } else if (isVideoMode) {
       ctx = {
+        os,
         browser,
         captureMode: "video",
         title: draft.title,
@@ -156,6 +161,7 @@ export function PreviewPanel() {
         .map((t) => ({ name: t.name, value: t.value }));
 
       ctx = {
+        os,
         browser,
         title: draft.title,
         sections: resolvedSections,
@@ -174,6 +180,7 @@ export function PreviewPanel() {
       };
     } else if (captureMode === "screenshot") {
       ctx = {
+        os,
         browser,
         captureMode: "screenshot",
         title: draft.title,
@@ -234,6 +241,7 @@ export function PreviewPanel() {
         {isElementMode && selection ? (
           <Section title={t("section.env")}>
             <EnvParagraph
+              os={os}
               browser={browser}
               url={target?.url ?? ""}
               selector={selection.selector}
@@ -395,11 +403,18 @@ function NonElementEnvSection() {
     : captureMode === "freeform" ? freeformCapturedAt
     : screenshotCapturedAt;
 
+  const os = getOsInfo();
   const browser = parseChromeVersion(navigator.userAgent);
 
   return (
     <Section title={t("section.env")}>
       <div className="space-y-1 text-sm leading-relaxed">
+        {os ? (
+          <div className="flex gap-3">
+            <span className="w-20 shrink-0 text-muted-foreground">OS</span>
+            <span className="break-all">{os}</span>
+          </div>
+        ) : null}
         {browser ? (
           <div className="flex gap-3">
             <span className="w-20 shrink-0 text-muted-foreground">Browser</span>
@@ -436,6 +451,7 @@ function NonElementEnvSection() {
 }
 
 function EnvParagraph({
+  os,
   browser,
   url,
   selector,
@@ -443,6 +459,7 @@ function EnvParagraph({
   capturedAt,
   customRows,
 }: {
+  os?: string | null;
   browser?: string | null;
   url: string;
   selector: string;
@@ -451,6 +468,7 @@ function EnvParagraph({
   customRows: { label: string; value: string }[];
 }) {
   const rows: { label: string; value: string }[] = [
+    ...(os ? [{ label: "OS", value: os }] : []),
     ...(browser ? [{ label: "Browser", value: browser }] : []),
     { label: "Page", value: url || "-" },
     { label: "DOM", value: selector },

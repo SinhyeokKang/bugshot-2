@@ -23,6 +23,7 @@ import {
 } from "@/sidepanel/lib/buildLogSummary";
 import type { MarkdownContext } from "@/sidepanel/lib/buildIssueMarkdown";
 import { parseChromeVersion } from "@/sidepanel/lib/environmentRows";
+import { getOsInfo } from "@/sidepanel/lib/osInfo";
 import type { NormalizedSubmitResult } from "@/types/platform";
 import { submitToGithub } from "@/sidepanel/lib/submitToGithub";
 import { submitToLinear } from "@/sidepanel/lib/submitToLinear";
@@ -118,12 +119,14 @@ export function IssueCreateModal() {
 
   function buildCtx(): MarkdownContext {
     if (!draft || !target) throw new Error(t("create.requiredMissing"));
+    const os = getOsInfo();
     const browser = parseChromeVersion(navigator.userAgent);
     if (captureMode === "freeform") {
       const hasNetworkLog = networkLogAttach && networkLog && networkLog.captured > 0;
       const hasConsoleLog = consoleLogAttach && consoleLog && consoleLog.captured > 0;
       const { freeformViewport, freeformCapturedAt } = useEditorStore.getState();
       return {
+        os,
         browser,
         captureMode: "freeform",
         title: draft.title,
@@ -148,6 +151,7 @@ export function IssueCreateModal() {
       const hasNetworkLog = networkLogAttach && networkLog && networkLog.captured > 0;
       const hasConsoleLog = consoleLogAttach && consoleLog && consoleLog.captured > 0;
       return {
+        os,
         browser,
         captureMode: "video",
         title: draft.title,
@@ -170,6 +174,7 @@ export function IssueCreateModal() {
     }
     if (captureMode === "screenshot") {
       return {
+        os,
         browser,
         captureMode: "screenshot",
         title: draft.title,
@@ -190,6 +195,7 @@ export function IssueCreateModal() {
     }
     if (!selection) throw new Error(t("create.requiredMissing"));
     return {
+      os,
       browser,
       title: draft.title,
       sections: draft.sections,
