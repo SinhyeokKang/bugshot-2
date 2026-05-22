@@ -129,6 +129,47 @@ describe("buildIssueMarkdown", () => {
     expect(md).toContain('"version": 1');
   });
 
+  it("meta comment에 os·browser·captureMode 포함", () => {
+    const md = buildIssueMarkdown(makeCtx({ os: "macOS 15.2", browser: "Chrome 128.0.6613.85" }));
+    const metaStart = md.indexOf("<!-- bugshot-meta-for-ai");
+    const metaEnd = md.indexOf("-->", metaStart);
+    const meta = JSON.parse(md.slice(metaStart + "<!-- bugshot-meta-for-ai\n".length, metaEnd));
+    expect(meta.os).toBe("macOS 15.2");
+    expect(meta.browser).toBe("Chrome 128.0.6613.85");
+    expect(meta.captureMode).toBe("element");
+  });
+
+  it("meta comment — os·browser 없으면 필드 생략", () => {
+    const md = buildIssueMarkdown(makeCtx({ os: null, browser: null }));
+    const metaStart = md.indexOf("<!-- bugshot-meta-for-ai");
+    const metaEnd = md.indexOf("-->", metaStart);
+    const meta = JSON.parse(md.slice(metaStart + "<!-- bugshot-meta-for-ai\n".length, metaEnd));
+    expect(meta.os).toBeUndefined();
+    expect(meta.browser).toBeUndefined();
+    expect(meta.captureMode).toBe("element");
+  });
+
+  it("meta comment에 사용자 커스텀 환경 필드 포함", () => {
+    const md = buildIssueMarkdown(makeCtx({
+      environment: [
+        { label: "Device", value: "iPhone 14" },
+        { label: "Network", value: "Wi-Fi" },
+      ],
+    }));
+    const metaStart = md.indexOf("<!-- bugshot-meta-for-ai");
+    const metaEnd = md.indexOf("-->", metaStart);
+    const meta = JSON.parse(md.slice(metaStart + "<!-- bugshot-meta-for-ai\n".length, metaEnd));
+    expect(meta.environment).toEqual({ Device: "iPhone 14", Network: "Wi-Fi" });
+  });
+
+  it("meta comment — 커스텀 환경 필드 비어있으면 environment 생략", () => {
+    const md = buildIssueMarkdown(makeCtx({ environment: [] }));
+    const metaStart = md.indexOf("<!-- bugshot-meta-for-ai");
+    const metaEnd = md.indexOf("-->", metaStart);
+    const meta = JSON.parse(md.slice(metaStart + "<!-- bugshot-meta-for-ai\n".length, metaEnd));
+    expect(meta.environment).toBeUndefined();
+  });
+
   it("네트워크 로그 요약 포함", () => {
     const md = buildIssueMarkdown(
       makeCtx({

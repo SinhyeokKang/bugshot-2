@@ -260,10 +260,17 @@ function footerHtml(): string {
 function buildMetaComment(ctx: MarkdownContext): string {
   const meta: Record<string, unknown> = {
     version: 1,
+    captureMode: ctx.captureMode ?? "element",
     url: ctx.url,
     capturedAt: ctx.capturedAt,
   };
+  if (ctx.os) meta.os = ctx.os;
+  if (ctx.browser) meta.browser = ctx.browser;
   if (ctx.viewport) meta.viewport = ctx.viewport;
+  const envRows = filterEnvironmentRows(ctx.environment);
+  if (envRows.length > 0) {
+    meta.environment = Object.fromEntries(envRows.map((r) => [r.label, r.value]));
+  }
   if (ctx.captureMode !== "freeform") {
     meta.selector = ctx.selector;
     meta.tagName = ctx.tagName;
