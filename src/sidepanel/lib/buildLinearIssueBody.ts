@@ -64,6 +64,9 @@ export function buildLinearIssueBody(
   const isFreeform = ctx.captureMode === "freeform";
 
   lines.push(`## ${t("md.section.env")}`, "");
+  if (ctx.browser) {
+    lines.push(`- **Browser**: ${ctx.browser}`);
+  }
   lines.push(`- **Page**: ${ctx.url}`);
   if (!isVideo && !isScreenshot && !isFreeform) {
     const domLabel = ctx.tagName

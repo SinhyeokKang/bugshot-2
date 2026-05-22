@@ -329,6 +329,26 @@ describe("buildGithubIssueBody — URL 인라인", () => {
   });
 });
 
+describe("buildGithubIssueBody — browser 환경 정보", () => {
+  it("browser 있으면 Page 행 위에 Browser 행 출력", () => {
+    const out = buildGithubIssueBody({ ctx: makeCtx({ browser: "Chrome 128.0.6613.85" }) });
+    const browserIdx = out.body.indexOf("**Browser**: Chrome 128.0.6613.85");
+    const pageIdx = out.body.indexOf("**Page**:");
+    expect(browserIdx).toBeGreaterThan(-1);
+    expect(browserIdx).toBeLessThan(pageIdx);
+  });
+
+  it("browser null이면 Browser 행 미출력", () => {
+    const out = buildGithubIssueBody({ ctx: makeCtx({ browser: null }) });
+    expect(out.body).not.toContain("**Browser**");
+  });
+
+  it("browser 미전달이면 Browser 행 미출력 (하위호환)", () => {
+    const out = buildGithubIssueBody({ ctx: makeCtx() });
+    expect(out.body).not.toContain("**Browser**");
+  });
+});
+
 describe("buildGithubIssueBody — custom environment rows", () => {
   it("custom row가 Environment 섹션 불릿으로 포함", () => {
     const out = buildGithubIssueBody({

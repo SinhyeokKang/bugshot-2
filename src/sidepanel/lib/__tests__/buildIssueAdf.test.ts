@@ -302,6 +302,30 @@ describe("buildIssueAdf — inline images", () => {
   });
 });
 
+describe("buildIssueAdf — browser 환경 정보", () => {
+  it("browser 있으면 환경 bulletList에서 Page 앞에 Browser 출력 (bold key)", () => {
+    const doc = buildIssueAdf(makeCtx({ browser: "Chrome 128.0.6613.85" }));
+    const json = JSON.stringify(doc);
+    const browserIdx = json.indexOf("Browser: ");
+    const pageIdx = json.indexOf("Page: ");
+    expect(browserIdx).toBeGreaterThan(-1);
+    expect(json).toContain("Chrome 128.0.6613.85");
+    expect(browserIdx).toBeLessThan(pageIdx);
+  });
+
+  it("browser null이면 Browser 행 미출력", () => {
+    const doc = buildIssueAdf(makeCtx({ browser: null }));
+    const json = JSON.stringify(doc);
+    expect(json).not.toContain("Browser: ");
+  });
+
+  it("browser 미전달이면 Browser 행 미출력 (하위호환)", () => {
+    const doc = buildIssueAdf(makeCtx());
+    const json = JSON.stringify(doc);
+    expect(json).not.toContain("Browser: ");
+  });
+});
+
 describe("buildIssueAdf — custom environment rows", () => {
   it("element 모드 — custom row가 환경 bulletList에 포함", () => {
     const doc = buildIssueAdf(

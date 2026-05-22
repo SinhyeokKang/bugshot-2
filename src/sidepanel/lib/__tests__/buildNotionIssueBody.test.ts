@@ -491,6 +491,29 @@ describe("buildNotionIssueBody — inline images", () => {
   });
 });
 
+describe("buildNotionIssueBody — browser 환경 정보", () => {
+  it("browser 있으면 환경 섹션에서 Page 앞에 Browser 행 출력", () => {
+    const out = buildNotionIssueBody({ ctx: makeCtx({ browser: "Chrome 128.0.6613.85" }) });
+    const bullets = out.blocks.filter((b) => b.type === "bulleted_list_item");
+    const browserIdx = bullets.findIndex((b) => "text" in b && b.text === "Browser: Chrome 128.0.6613.85");
+    const pageIdx = bullets.findIndex((b) => "text" in b && b.text.startsWith("Page:"));
+    expect(browserIdx).toBeGreaterThanOrEqual(0);
+    expect(browserIdx).toBeLessThan(pageIdx);
+  });
+
+  it("browser null이면 Browser 행 미출력", () => {
+    const out = buildNotionIssueBody({ ctx: makeCtx({ browser: null }) });
+    const bullets = out.blocks.filter((b) => b.type === "bulleted_list_item");
+    expect(bullets.some((b) => "text" in b && b.text.startsWith("Browser:"))).toBe(false);
+  });
+
+  it("browser 미전달이면 Browser 행 미출력 (하위호환)", () => {
+    const out = buildNotionIssueBody({ ctx: makeCtx() });
+    const bullets = out.blocks.filter((b) => b.type === "bulleted_list_item");
+    expect(bullets.some((b) => "text" in b && b.text.startsWith("Browser:"))).toBe(false);
+  });
+});
+
 describe("buildNotionIssueBody — custom environment rows", () => {
   it("custom row가 Environment bulleted_list_item으로 포함", () => {
     const out = buildNotionIssueBody({

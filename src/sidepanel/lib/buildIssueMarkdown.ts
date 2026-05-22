@@ -11,6 +11,7 @@ import { formatTimestamp } from "./formatTimestamp";
 import { renderMarkdown } from "./renderMarkdown";
 
 export interface MarkdownContext {
+  browser?: string | null;
   captureMode?: "element" | "screenshot" | "video" | "freeform";
   title: string;
   sections: Record<string, string>;
@@ -59,6 +60,9 @@ export function buildIssueMarkdown(ctx: MarkdownContext): string {
 
   lines.push(`## ${t("md.section.env")}`);
   lines.push("");
+  if (ctx.browser) {
+    lines.push(`- **Browser**: ${ctx.browser}`);
+  }
   lines.push(`- **Page**: ${ctx.url}`);
   if (ctx.captureMode !== "screenshot" && ctx.captureMode !== "video" && ctx.captureMode !== "freeform" && ctx.selector) {
     lines.push(`- **DOM**: ${ctx.selector}`);
@@ -144,6 +148,9 @@ export function buildIssueHtml(ctx: MarkdownContext): string {
 
   parts.push(`<h2>${t("md.section.env")}</h2>`);
   parts.push(`<ul>`);
+  if (ctx.browser) {
+    parts.push(`<li><strong>Browser</strong>: ${escapeHtml(ctx.browser)}</li>`);
+  }
   parts.push(`<li><strong>Page</strong>: ${escapeHtml(ctx.url)}</li>`);
   if (ctx.captureMode !== "screenshot" && ctx.captureMode !== "video" && ctx.captureMode !== "freeform" && ctx.selector) {
     parts.push(`<li><strong>DOM</strong>: ${escapeHtml(ctx.selector)}</li>`);

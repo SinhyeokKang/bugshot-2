@@ -63,7 +63,7 @@ import { buildAiMetaAttachment } from "@/sidepanel/lib/buildAiMetaAttachment";
 import { buildCaptureFiles, type CaptureFiles } from "@/sidepanel/lib/buildCaptureFiles";
 import { buildIssueAdf } from "@/sidepanel/lib/buildIssueAdf";
 import { buildNetworkLogSummary, buildConsoleLogSummary } from "@/sidepanel/lib/buildLogSummary";
-import { filterEnvironmentRows } from "@/sidepanel/lib/environmentRows";
+import { filterEnvironmentRows, parseChromeVersion } from "@/sidepanel/lib/environmentRows";
 import { extractInlineRefs, resolveInlineImagesForSections } from "@/sidepanel/lib/resolveInlineImages";
 import { SubmitFieldsDialog } from "@/sidepanel/tabs/SubmitFieldsDialog";
 
@@ -229,6 +229,7 @@ export function DraftDetailDialog({
       consoleLogForSubmit = await getConsoleLog(issue.consoleLogBlobKey);
     }
     const ctx = {
+      browser: parseChromeVersion(navigator.userAgent),
       captureMode: issue.captureMode,
       title: issue.draft.title,
       sections: issue.draft.sections,
@@ -751,7 +752,9 @@ function DraftDetailSections({
 }
 
 function EnvBlock({ issue }: { issue: IssueRecord }) {
+  const browser = parseChromeVersion(navigator.userAgent);
   const rows: { label: string; value: string }[] = [
+    ...(browser ? [{ label: "Browser", value: browser }] : []),
     { label: "Page", value: issue.pageUrl || "-" },
     ...(issue.captureMode !== "video" && issue.captureMode !== "freeform" && issue.tagName
       ? [

@@ -277,6 +277,41 @@ describe("buildIssueHtml", () => {
   });
 });
 
+describe("buildIssueMarkdown — browser 환경 정보", () => {
+  it("browser 있으면 Page 행 위에 Browser 행 출력", () => {
+    const md = buildIssueMarkdown(makeCtx({ browser: "Chrome 128.0.6613.85" }));
+    const browserIdx = md.indexOf("**Browser**: Chrome 128.0.6613.85");
+    const pageIdx = md.indexOf("**Page**:");
+    expect(browserIdx).toBeGreaterThan(-1);
+    expect(browserIdx).toBeLessThan(pageIdx);
+  });
+
+  it("browser null이면 Browser 행 미출력", () => {
+    const md = buildIssueMarkdown(makeCtx({ browser: null }));
+    expect(md).not.toContain("**Browser**");
+  });
+
+  it("browser 미전달이면 Browser 행 미출력 (하위호환)", () => {
+    const md = buildIssueMarkdown(makeCtx());
+    expect(md).not.toContain("**Browser**");
+  });
+});
+
+describe("buildIssueHtml — browser 환경 정보", () => {
+  it("browser 있으면 Page 행 위에 Browser 행 출력", () => {
+    const html = buildIssueHtml(makeCtx({ browser: "Chrome 128.0.6613.85" }));
+    const browserIdx = html.indexOf("<strong>Browser</strong>: Chrome 128.0.6613.85");
+    const pageIdx = html.indexOf("<strong>Page</strong>:");
+    expect(browserIdx).toBeGreaterThan(-1);
+    expect(browserIdx).toBeLessThan(pageIdx);
+  });
+
+  it("browser null이면 Browser 행 미출력", () => {
+    const html = buildIssueHtml(makeCtx({ browser: null }));
+    expect(html).not.toContain("<strong>Browser</strong>");
+  });
+});
+
 describe("buildIssueMarkdown — custom environment rows", () => {
   it("custom row가 Environment 섹션 불릿으로 포함", () => {
     const md = buildIssueMarkdown(

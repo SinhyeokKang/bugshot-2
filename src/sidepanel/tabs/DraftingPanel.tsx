@@ -34,6 +34,7 @@ import {
 import {
   deriveReadonlyEnvRows,
   filterEnvironmentRows,
+  parseChromeVersion,
   type EnvironmentRow,
 } from "@/sidepanel/lib/environmentRows";
 import { AiDraftDialog } from "./AiDraftDialog";
@@ -363,6 +364,7 @@ function ReproEnvironmentSection() {
     : freeformCapturedAt;
 
   const readonlyRows = deriveReadonlyEnvRows({
+    browser: parseChromeVersion(navigator.userAgent),
     url: target?.url ?? "",
     selector: captureMode === "element" ? selection?.selector : null,
     viewport: vp ? { w: vp.width, h: vp.height } : null,

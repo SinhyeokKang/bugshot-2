@@ -5,7 +5,7 @@ vi.mock("@/i18n", () => ({
   dateBcp47: () => "en-US",
 }));
 
-import { filterEnvironmentRows, deriveReadonlyEnvRows } from "../environmentRows";
+import { filterEnvironmentRows, deriveReadonlyEnvRows, parseChromeVersion } from "../environmentRows";
 import { formatTimestamp } from "../formatTimestamp";
 
 describe("filterEnvironmentRows", () => {
@@ -58,6 +58,36 @@ describe("filterEnvironmentRows", () => {
     expect(
       filterEnvironmentRows([{ label: "OS", value: "macOS\n15" }]),
     ).toEqual([{ label: "OS", value: "macOS 15" }]);
+  });
+});
+
+describe("parseChromeVersion", () => {
+  it("일반 Chrome UA → 'Chrome <version>' 형식 반환", () => {
+    const ua =
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.6613.85 Safari/537.36";
+    expect(parseChromeVersion(ua)).toBe("Chrome 128.0.6613.85");
+  });
+
+  it("빈 문자열 → null", () => {
+    expect(parseChromeVersion("")).toBeNull();
+  });
+
+  it("Chrome 토큰 없는 UA → null", () => {
+    const ua =
+      "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Safari/605.1.15";
+    expect(parseChromeVersion(ua)).toBeNull();
+  });
+
+  it("Edge UA (Chrome 토큰 포함) → Chrome 버전 정상 추출", () => {
+    const ua =
+      "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.6613.85 Safari/537.36 Edg/128.0.2739.42";
+    expect(parseChromeVersion(ua)).toBe("Chrome 128.0.6613.85");
+  });
+
+  it("HeadlessChrome UA → null", () => {
+    const ua =
+      "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) HeadlessChrome/128.0.6613.85 Safari/537.36";
+    expect(parseChromeVersion(ua)).toBeNull();
   });
 });
 
@@ -120,6 +150,33 @@ describe("deriveReadonlyEnvRows", () => {
   });
 
   it("capturedAt이 없으면 Captured 행을 생략", () => {
+    const rows = deriveReadonlyEnvRows({
+      url: "https://example.com/page",
+      viewport: { w: 1280, h: 800 },
+    });
+    expect(rows.map((r) => r.label)).toEqual(["Page", "Viewport"]);
+  });
+
+  it("browser가 있으면 첫 행이 Browser", () => {
+    const rows = deriveReadonlyEnvRows({
+      browser: "Chrome 128.0.6613.85",
+      url: "https://example.com/page",
+      selector: "div.card",
+      viewport: { w: 1280, h: 800 },
+    });
+    expect(rows[0]).toEqual({ label: "Browser", value: "Chrome 128.0.6613.85" });
+    expect(rows.map((r) => r.label)).toEqual(["Browser", "Page", "DOM", "Viewport"]);
+  });
+
+  it("browser가 null이면 Browser 행 없음", () => {
+    const rows = deriveReadonlyEnvRows({
+      browser: null,
+      url: "https://example.com/page",
+    });
+    expect(rows.map((r) => r.label)).toEqual(["Page"]);
+  });
+
+  it("browser 미전달 시 기존 동작 유지", () => {
     const rows = deriveReadonlyEnvRows({
       url: "https://example.com/page",
       viewport: { w: 1280, h: 800 },

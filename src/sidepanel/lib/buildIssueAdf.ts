@@ -47,7 +47,11 @@ export function buildIssueAdf(ctx: MarkdownContext, inlineImageRefIds?: string[]
 
   content.push(heading(2, t("md.section.env")));
   if (isVideo || isScreenshot || isFreeform) {
-    const envItems = [keyValueItem("Page", ctx.url)];
+    const envItems: AdfNode[] = [];
+    if (ctx.browser) {
+      envItems.push(keyValueItem("Browser", ctx.browser));
+    }
+    envItems.push(keyValueItem("Page", ctx.url));
     if (ctx.viewport) {
       envItems.push(keyValueItem("Viewport", `${ctx.viewport.width}×${ctx.viewport.height}`));
     }
@@ -60,12 +64,16 @@ export function buildIssueAdf(ctx: MarkdownContext, inlineImageRefIds?: string[]
     const domLabel = ctx.tagName
       ? formatElementName({ tag: ctx.tagName, classList: ctx.classListBefore })
       : "";
-    const elemItems = [
+    const elemItems: AdfNode[] = [];
+    if (ctx.browser) {
+      elemItems.push(keyValueItem("Browser", ctx.browser));
+    }
+    elemItems.push(
       keyValueItem("Page", ctx.url),
       ...(domLabel ? [keyValueItem("DOM", domLabel)] : []),
       ...(ctx.viewport ? [keyValueItem("Viewport", `${ctx.viewport.width}×${ctx.viewport.height}`)] : []),
       keyValueItem("Captured", formatTimestamp(ctx.capturedAt)),
-    ];
+    );
     for (const row of filterEnvironmentRows(ctx.environment)) {
       elemItems.push(keyValueItem(row.label, row.value));
     }

@@ -64,6 +64,9 @@ export function buildGithubIssueBody(
   const attached: string[] = [];
 
   lines.push(`## ${t("md.section.env")}`, "");
+  if (ctx.browser) {
+    lines.push(`- **Browser**: ${ctx.browser}`);
+  }
   lines.push(`- **Page**: ${ctx.url}`);
   if (ctx.captureMode !== "screenshot" && ctx.captureMode !== "video" && ctx.captureMode !== "freeform" && ctx.selector) {
     lines.push(`- **DOM**: ${ctx.selector}`);
