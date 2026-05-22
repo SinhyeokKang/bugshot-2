@@ -269,7 +269,7 @@ export function DraftingPanel() {
               disabled={aiDraftLoading}
             >
               <span className="flex items-center gap-1.5">
-                <Badge variant="outline" className="font-normal border-purple-500 text-purple-600 dark:border-purple-400 dark:text-purple-300">{providerLabel ?? t("ai.badge.beta")}</Badge>
+                <Badge variant="outline" className="font-normal border-purple-500 text-purple-600 dark:border-purple-400 dark:text-purple-300">{providerLabel ?? t("ai.badge.chromeAI")}</Badge>
                 <span className="bg-gradient-to-r from-purple-500 to-indigo-500 bg-clip-text text-sm text-transparent dark:from-purple-300 dark:to-indigo-300">{t("draft.aiBanner")}</span>
               </span>
               <span className="flex items-center gap-1 bg-gradient-to-r from-indigo-500 to-purple-500 bg-clip-text text-sm font-medium text-transparent dark:from-indigo-300 dark:to-purple-300">
