@@ -70,7 +70,7 @@ function DefaultRepoField() {
           updateGithubAccount({
             defaults: next
               ? { ...account.defaults, owner: next.owner, repo: next.repo }
-              : { ...account.defaults, owner: undefined, repo: undefined, label: undefined, assignees: [] },
+              : { ...account.defaults, owner: undefined, repo: undefined, label: undefined, assignee: undefined },
           })
         }
       />

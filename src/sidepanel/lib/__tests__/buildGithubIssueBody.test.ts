@@ -329,6 +329,114 @@ describe("buildGithubIssueBody — URL 인라인", () => {
   });
 });
 
+describe("buildGithubIssueBody — element + diffs 없음", () => {
+  it("element + diffs=[] + screenshot.webp url → Media 섹션 + 이미지 인라인", () => {
+    const input: GithubBuildInput = {
+      ctx: makeCtx({ captureMode: "element", diffs: [] }),
+      images: [
+        {
+          filename: "screenshot.webp",
+          contentType: "image/webp",
+          url: "https://github.com/user-attachments/assets/abc",
+        },
+      ],
+    };
+    const out = buildGithubIssueBody(input);
+    expect(out.body).toContain("md.section.media");
+    expect(out.body).toContain(
+      "![screenshot.webp](https://github.com/user-attachments/assets/abc)",
+    );
+    expect(out.body).not.toContain("md.section.styleChanges");
+  });
+
+  it("element + diffs=[] + screenshot.webp url 없음 → 첨부 안내", () => {
+    const input: GithubBuildInput = {
+      ctx: makeCtx({ captureMode: "element", diffs: [] }),
+      images: [
+        { filename: "screenshot.webp", contentType: "image/webp" },
+      ],
+    };
+    const out = buildGithubIssueBody(input);
+    expect(out.body).toContain("md.section.media");
+    expect(out.body).not.toContain("md.section.styleChanges");
+  });
+
+  it("element + diffs=[] + 이미지 없음 → styleChanges 미출력", () => {
+    const out = buildGithubIssueBody({
+      ctx: makeCtx({ captureMode: "element", diffs: [] }),
+    });
+    expect(out.body).not.toContain("md.section.styleChanges");
+  });
+
+  it("element + diffs 존재 → 기존 Style Changes 테이블 유지", () => {
+    const input: GithubBuildInput = {
+      ctx: makeCtx({
+        captureMode: "element",
+        diffs: [{ prop: "color", asIs: "#000", toBe: "#fff" }],
+      }),
+      images: [
+        {
+          filename: "before.webp",
+          contentType: "image/webp",
+          url: "https://github.com/user-attachments/assets/b",
+        },
+        {
+          filename: "after.webp",
+          contentType: "image/webp",
+          url: "https://github.com/user-attachments/assets/a",
+        },
+      ],
+    };
+    const out = buildGithubIssueBody(input);
+    expect(out.body).toContain("md.section.styleChanges");
+    expect(out.body).toContain("| color | #000 | #fff |");
+  });
+});
+
+describe("buildGithubIssueBody — browser 환경 정보", () => {
+  it("browser 있으면 Page 행 위에 Browser 행 출력", () => {
+    const out = buildGithubIssueBody({ ctx: makeCtx({ browser: "Chrome 128.0.6613.85" }) });
+    const browserIdx = out.body.indexOf("**Browser**: Chrome 128.0.6613.85");
+    const pageIdx = out.body.indexOf("**Page**:");
+    expect(browserIdx).toBeGreaterThan(-1);
+    expect(browserIdx).toBeLessThan(pageIdx);
+  });
+
+  it("browser null이면 Browser 행 미출력", () => {
+    const out = buildGithubIssueBody({ ctx: makeCtx({ browser: null }) });
+    expect(out.body).not.toContain("**Browser**");
+  });
+
+  it("browser 미전달이면 Browser 행 미출력 (하위호환)", () => {
+    const out = buildGithubIssueBody({ ctx: makeCtx() });
+    expect(out.body).not.toContain("**Browser**");
+  });
+});
+
+describe("buildGithubIssueBody — os 환경 정보", () => {
+  it("os 있으면 Browser 행 위에 OS 행 출력", () => {
+    const out = buildGithubIssueBody({
+      ctx: makeCtx({ os: "macOS 15.2", browser: "Chrome 128.0.6613.85" }),
+    });
+    const osIdx = out.body.indexOf("**OS**: macOS 15.2");
+    const browserIdx = out.body.indexOf("**Browser**: Chrome 128.0.6613.85");
+    const pageIdx = out.body.indexOf("**Page**:");
+    expect(osIdx).toBeGreaterThan(-1);
+    expect(osIdx).toBeLessThan(browserIdx);
+    expect(browserIdx).toBeLessThan(pageIdx);
+  });
+
+  it("os null이면 OS 행 미출력", () => {
+    const out = buildGithubIssueBody({ ctx: makeCtx({ os: null }) });
+    expect(out.body).not.toContain("**OS**");
+  });
+
+  it("os 미전달이면 OS 행 미출력 (하위호환)", () => {
+    const out = buildGithubIssueBody({ ctx: makeCtx() });
+    expect(out.body).not.toContain("**OS**");
+  });
+});
+
 describe("buildGithubIssueBody — custom environment rows", () => {
   it("custom row가 Environment 섹션 불릿으로 포함", () => {
     const out = buildGithubIssueBody({

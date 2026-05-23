@@ -26,7 +26,8 @@ import {
   buildStyleDiff,
 } from "@/sidepanel/components/StyleChangesTable";
 import { buildIssueHtml, buildIssueMarkdown } from "@/sidepanel/lib/buildIssueMarkdown";
-import { filterEnvironmentRows } from "@/sidepanel/lib/environmentRows";
+import { filterEnvironmentRows, parseChromeVersion } from "@/sidepanel/lib/environmentRows";
+import { getOsInfo } from "@/sidepanel/lib/osInfo";
 import { buildNetworkLogSummary, buildConsoleLogSummary } from "@/sidepanel/lib/buildLogSummary";
 import { resolveInlineImages } from "@/sidepanel/lib/resolveInlineImages";
 import { IssueCreateModal } from "./IssueCreateModal";
@@ -82,6 +83,9 @@ export function PreviewPanel() {
   const [networkDialogOpen, setNetworkDialogOpen] = useState(false);
   const [consoleDialogOpen, setConsoleDialogOpen] = useState(false);
 
+  const os = getOsInfo();
+  const browser = parseChromeVersion(navigator.userAgent);
+
   if (!draft) return null;
   if (isElementMode && !selection) return null;
 
@@ -105,6 +109,8 @@ export function PreviewPanel() {
     let ctx: Parameters<typeof buildIssueMarkdown>[0];
     if (isFreeformMode) {
       ctx = {
+        os,
+        browser,
         captureMode: "freeform",
         title: draft.title,
         sections: resolvedSections,
@@ -125,6 +131,8 @@ export function PreviewPanel() {
       };
     } else if (isVideoMode) {
       ctx = {
+        os,
+        browser,
         captureMode: "video",
         title: draft.title,
         sections: resolvedSections,
@@ -153,6 +161,8 @@ export function PreviewPanel() {
         .map((t) => ({ name: t.name, value: t.value }));
 
       ctx = {
+        os,
+        browser,
         title: draft.title,
         sections: resolvedSections,
         sectionConfig: issueSections,
@@ -170,6 +180,8 @@ export function PreviewPanel() {
       };
     } else if (captureMode === "screenshot") {
       ctx = {
+        os,
+        browser,
         captureMode: "screenshot",
         title: draft.title,
         sections: resolvedSections,
@@ -229,6 +241,8 @@ export function PreviewPanel() {
         {isElementMode && selection ? (
           <Section title={t("section.env")}>
             <EnvParagraph
+              os={os}
+              browser={browser}
               url={target?.url ?? ""}
               selector={selection.selector}
               viewport={selection.viewport}
@@ -274,11 +288,11 @@ export function PreviewPanel() {
                 networkLog={attachedNetwork}
                 networkLogAttach={networkLogAttach}
                 onNetworkLogToggle={() => {}}
-                onNetworkLogClick={() => setNetworkDialogOpen(true)}
+                onNetworkLogClick={() => { (document.activeElement as HTMLElement)?.blur?.(); setNetworkDialogOpen(true); }}
                 consoleLog={attachedConsole}
                 consoleLogAttach={consoleLogAttach}
                 onConsoleLogToggle={() => {}}
-                onConsoleLogClick={() => setConsoleDialogOpen(true)}
+                onConsoleLogClick={() => { (document.activeElement as HTMLElement)?.blur?.(); setConsoleDialogOpen(true); }}
                 readOnly
               />
             </Section>
@@ -389,9 +403,24 @@ function NonElementEnvSection() {
     : captureMode === "freeform" ? freeformCapturedAt
     : screenshotCapturedAt;
 
+  const os = getOsInfo();
+  const browser = parseChromeVersion(navigator.userAgent);
+
   return (
     <Section title={t("section.env")}>
       <div className="space-y-1 text-sm leading-relaxed">
+        {os ? (
+          <div className="flex gap-3">
+            <span className="w-20 shrink-0 text-muted-foreground">OS</span>
+            <span className="break-all">{os}</span>
+          </div>
+        ) : null}
+        {browser ? (
+          <div className="flex gap-3">
+            <span className="w-20 shrink-0 text-muted-foreground">Browser</span>
+            <span className="break-all">{browser}</span>
+          </div>
+        ) : null}
         <div className="flex gap-3">
           <span className="w-20 shrink-0 text-muted-foreground">Page</span>
           <span className="break-all">{target?.url || "-"}</span>
@@ -422,12 +451,16 @@ function NonElementEnvSection() {
 }
 
 function EnvParagraph({
+  os,
+  browser,
   url,
   selector,
   viewport,
   capturedAt,
   customRows,
 }: {
+  os?: string | null;
+  browser?: string | null;
   url: string;
   selector: string;
   viewport: { width: number; height: number };
@@ -435,6 +468,8 @@ function EnvParagraph({
   customRows: { label: string; value: string }[];
 }) {
   const rows: { label: string; value: string }[] = [
+    ...(os ? [{ label: "OS", value: os }] : []),
+    ...(browser ? [{ label: "Browser", value: browser }] : []),
     { label: "Page", value: url || "-" },
     { label: "DOM", value: selector },
     { label: "Viewport", value: `${viewport.width}×${viewport.height}` },

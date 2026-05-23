@@ -124,6 +124,59 @@ describe("buildLinearIssueBody — 인라인 미디어", () => {
   });
 });
 
+describe("buildLinearIssueBody — element + diffs 없음", () => {
+  it("element + diffs=[] + screenshot.webp assetUrl → Media 섹션 + 이미지 인라인", () => {
+    const input: LinearBuildInput = {
+      ctx: makeCtx({ captureMode: "element", diffs: [] }),
+      images: [
+        {
+          filename: "screenshot.webp",
+          assetUrl: "https://cdn.linear.app/screenshot.webp",
+        },
+      ],
+    };
+    const out = buildLinearIssueBody(input);
+    expect(out.body).toContain("md.section.media");
+    expect(out.body).toContain(
+      "![screenshot.webp](https://cdn.linear.app/screenshot.webp)",
+    );
+    expect(out.body).not.toContain("md.section.styleChanges");
+  });
+
+  it("element + diffs=[] + screenshot.webp assetUrl 없음 → Media 섹션 (이미지 없이)", () => {
+    const input: LinearBuildInput = {
+      ctx: makeCtx({ captureMode: "element", diffs: [] }),
+      images: [{ filename: "screenshot.webp" }],
+    };
+    const out = buildLinearIssueBody(input);
+    expect(out.body).toContain("md.section.media");
+    expect(out.body).not.toContain("md.section.styleChanges");
+  });
+
+  it("element + diffs=[] + 이미지 없음 → styleChanges 미출력", () => {
+    const out = buildLinearIssueBody({
+      ctx: makeCtx({ captureMode: "element", diffs: [] }),
+    });
+    expect(out.body).not.toContain("md.section.styleChanges");
+  });
+
+  it("element + diffs 존재 → 기존 Style Changes 테이블 유지", () => {
+    const input: LinearBuildInput = {
+      ctx: makeCtx({
+        captureMode: "element",
+        diffs: [{ prop: "color", asIs: "#000", toBe: "#fff" }],
+      }),
+      images: [
+        { filename: "before.webp", assetUrl: "https://cdn.linear.app/before.webp" },
+        { filename: "after.webp", assetUrl: "https://cdn.linear.app/after.webp" },
+      ],
+    };
+    const out = buildLinearIssueBody(input);
+    expect(out.body).toContain("md.section.styleChanges");
+    expect(out.body).toContain("| color | #000 | #fff |");
+  });
+});
+
 describe("buildLinearIssueBody — freeform", () => {
   it("freeform 모드 → 미디어 섹션 없음", () => {
     const out = buildLinearIssueBody({
@@ -231,6 +284,48 @@ describe("buildLinearIssueBody — 구조", () => {
     });
     expect(out.body).toContain("logSummary.console.title");
     expect(out.body).toContain("TypeError: Cannot read property 'x' of null");
+  });
+});
+
+describe("buildLinearIssueBody — browser 환경 정보", () => {
+  it("browser 있으면 Page 행 위에 Browser 행 출력", () => {
+    const out = buildLinearIssueBody({ ctx: makeCtx({ browser: "Chrome 128.0.6613.85" }) });
+    const browserIdx = out.body.indexOf("**Browser**: Chrome 128.0.6613.85");
+    const pageIdx = out.body.indexOf("**Page**:");
+    expect(browserIdx).toBeGreaterThan(-1);
+    expect(browserIdx).toBeLessThan(pageIdx);
+  });
+
+  it("browser null이면 Browser 행 미출력", () => {
+    const out = buildLinearIssueBody({ ctx: makeCtx({ browser: null }) });
+    expect(out.body).not.toContain("**Browser**");
+  });
+
+  it("browser 미전달이면 Browser 행 미출력 (하위호환)", () => {
+    const out = buildLinearIssueBody({ ctx: makeCtx() });
+    expect(out.body).not.toContain("**Browser**");
+  });
+});
+
+describe("buildLinearIssueBody — os 환경 정보", () => {
+  it("os 있으면 Browser 행 위에 OS 행 출력", () => {
+    const out = buildLinearIssueBody({
+      ctx: makeCtx({ os: "macOS 15.2", browser: "Chrome 128.0.6613.85" }),
+    });
+    const osIdx = out.body.indexOf("**OS**: macOS 15.2");
+    const browserIdx = out.body.indexOf("**Browser**: Chrome 128.0.6613.85");
+    expect(osIdx).toBeGreaterThan(-1);
+    expect(osIdx).toBeLessThan(browserIdx);
+  });
+
+  it("os null이면 OS 행 미출력", () => {
+    const out = buildLinearIssueBody({ ctx: makeCtx({ os: null }) });
+    expect(out.body).not.toContain("**OS**");
+  });
+
+  it("os 미전달이면 OS 행 미출력 (하위호환)", () => {
+    const out = buildLinearIssueBody({ ctx: makeCtx() });
+    expect(out.body).not.toContain("**OS**");
   });
 });
 

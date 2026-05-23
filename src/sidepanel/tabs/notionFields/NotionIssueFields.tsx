@@ -6,7 +6,7 @@ import type {
   NotionDefaults,
 } from "@/types/notion";
 import { sendBg } from "@/types/messages";
-import { FieldRow } from "@/sidepanel/tabs/IssueCreateModal";
+import { FieldRow } from "@/sidepanel/components/FieldRow";
 import { DatabaseCombobox } from "./DatabaseCombobox";
 import { PropertiesFieldset } from "./PropertiesFieldset";
 import { StatusSelect } from "./StatusSelect";

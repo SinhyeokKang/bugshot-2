@@ -198,6 +198,50 @@ describe("buildIssueAdf", () => {
   });
 });
 
+describe("buildIssueAdf — element + diffs 없음", () => {
+  const noDiffCtx = (overrides: Partial<MarkdownContext> = {}) =>
+    makeCtx({ diffs: [], ...overrides });
+
+  it("element 모드 + diffs=[] → Media heading + IMAGE_PLACEHOLDER", () => {
+    const doc = buildIssueAdf(noDiffCtx());
+    const headings = findNodes(doc, "heading");
+    const headingTexts = headings.flatMap((h: any) =>
+      (h.content || []).filter((c: any) => c.type === "text").map((c: any) => c.text),
+    );
+    expect(headingTexts).toContain("md.section.media");
+    const texts = findNodes(doc, "text");
+    expect(texts.some((t) => t.text === "__BUGSHOT_IMAGE__")).toBe(true);
+  });
+
+  it("element 모드 + diffs=[] → Style Changes heading 미출력", () => {
+    const doc = buildIssueAdf(noDiffCtx());
+    const headings = findNodes(doc, "heading");
+    const headingTexts = headings.flatMap((h: any) =>
+      (h.content || []).filter((c: any) => c.type === "text").map((c: any) => c.text),
+    );
+    expect(headingTexts).not.toContain("md.section.styleChanges");
+  });
+
+  it("element 모드 + diffs=[] → table 노드 없음", () => {
+    const doc = buildIssueAdf(noDiffCtx());
+    const tables = findNodes(doc, "table");
+    expect(tables).toHaveLength(0);
+  });
+
+  it("element 모드 + diffs 존재 → 기존 Style Changes 테이블 유지", () => {
+    const doc = buildIssueAdf(
+      noDiffCtx({ diffs: [{ prop: "color", asIs: "#000", toBe: "#fff" }] }),
+    );
+    const headings = findNodes(doc, "heading");
+    const headingTexts = headings.flatMap((h: any) =>
+      (h.content || []).filter((c: any) => c.type === "text").map((c: any) => c.text),
+    );
+    expect(headingTexts).toContain("md.section.styleChanges");
+    const tables = findNodes(doc, "table");
+    expect(tables.length).toBeGreaterThanOrEqual(1);
+  });
+});
+
 describe("buildIssueAdf — freeform", () => {
   const freeformCtx = (overrides: Partial<MarkdownContext> = {}) =>
     makeCtx({
@@ -299,6 +343,56 @@ describe("buildIssueAdf — inline images", () => {
       (n: any) => n.type === "paragraph" && n.content?.some((c: any) => c.text === "md.noValue"),
     );
     expect(noValue).toBeUndefined();
+  });
+});
+
+describe("buildIssueAdf — browser 환경 정보", () => {
+  it("browser 있으면 환경 bulletList에서 Page 앞에 Browser 출력 (bold key)", () => {
+    const doc = buildIssueAdf(makeCtx({ browser: "Chrome 128.0.6613.85" }));
+    const json = JSON.stringify(doc);
+    const browserIdx = json.indexOf("Browser: ");
+    const pageIdx = json.indexOf("Page: ");
+    expect(browserIdx).toBeGreaterThan(-1);
+    expect(json).toContain("Chrome 128.0.6613.85");
+    expect(browserIdx).toBeLessThan(pageIdx);
+  });
+
+  it("browser null이면 Browser 행 미출력", () => {
+    const doc = buildIssueAdf(makeCtx({ browser: null }));
+    const json = JSON.stringify(doc);
+    expect(json).not.toContain("Browser: ");
+  });
+
+  it("browser 미전달이면 Browser 행 미출력 (하위호환)", () => {
+    const doc = buildIssueAdf(makeCtx());
+    const json = JSON.stringify(doc);
+    expect(json).not.toContain("Browser: ");
+  });
+});
+
+describe("buildIssueAdf — os 환경 정보", () => {
+  it("os 있으면 환경 bulletList에서 Browser 앞에 OS 출력", () => {
+    const doc = buildIssueAdf(makeCtx({ os: "macOS 15.2", browser: "Chrome 128.0.6613.85" }));
+    const json = JSON.stringify(doc);
+    const osIdx = json.indexOf("OS: ");
+    const browserIdx = json.indexOf("Browser: ");
+    const pageIdx = json.indexOf("Page: ");
+    expect(osIdx).toBeGreaterThan(-1);
+    expect(json).toContain("macOS 15.2");
+    expect(osIdx).toBeLessThan(browserIdx);
+    expect(browserIdx).toBeLessThan(pageIdx);
+  });
+
+  it("os null이면 OS 행 미출력", () => {
+    const doc = buildIssueAdf(makeCtx({ os: null }));
+    const json = JSON.stringify(doc);
+    expect(json).not.toContain("OS: ");
+  });
+
+  it("os 미전달이면 OS 행 미출력 (하위호환)", () => {
+    const doc = buildIssueAdf(makeCtx());
+    const json = JSON.stringify(doc);
+    expect(json).not.toContain("OS: ");
   });
 });
 

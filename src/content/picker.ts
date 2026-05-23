@@ -4,10 +4,14 @@ import type {
 } from "@/types/picker";
 import {
   buildTokenLookup,
+  captureEditable,
   collectInspectorInfo,
   collectSelection,
   collectTokens,
-  findEditableTextNode,
+  readEditableText,
+  restoreEditable,
+  writeEditableText,
+  type EditableHandle,
   type TokenLookup,
 } from "./css-resolve";
 import {
@@ -145,7 +149,7 @@ let selectedEl: Element | null = null;
 let lastHover: Element | null = null;
 let originalClassName: string | null = null;
 let originalStyle: string | null = null;
-let textNode: Text | null = null;
+let editableHandle: EditableHandle | null = null;
 let originalTextContent: string | null = null;
 let rafHandle: number | null = null;
 
@@ -324,6 +328,7 @@ function handleStart(): void {
     removeOrphanOverlay();
     overlay = createOverlay();
   }
+  restoreOriginal();
   selectedEl = null;
   lastHover = null;
   tokenLookup = null;
@@ -412,8 +417,8 @@ function captureOriginal(el: Element): void {
   const h = el as HTMLElement;
   originalClassName = h.getAttribute("class");
   originalStyle = h.getAttribute("style");
-  textNode = findEditableTextNode(el);
-  originalTextContent = textNode ? (textNode.textContent ?? "") : null;
+  editableHandle = captureEditable(el);
+  originalTextContent = editableHandle ? readEditableText(editableHandle) : null;
 }
 
 function restoreOriginal(): void {
@@ -429,14 +434,14 @@ function restoreOriginal(): void {
   } else {
     el.setAttribute("style", originalStyle);
   }
-  if (textNode && originalTextContent !== null) {
-    textNode.textContent = originalTextContent;
+  if (editableHandle && originalTextContent !== null) {
+    restoreEditable(editableHandle, originalTextContent);
   }
 }
 
 function handleApplyText(text: string): void {
-  if (!textNode) return;
-  textNode.textContent = text;
+  if (!editableHandle) return;
+  writeEditableText(editableHandle, text);
   render();
 }
 

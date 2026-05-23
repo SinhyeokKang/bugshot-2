@@ -11,6 +11,8 @@ import { formatTimestamp } from "./formatTimestamp";
 import { renderMarkdown } from "./renderMarkdown";
 
 export interface MarkdownContext {
+  os?: string | null;
+  browser?: string | null;
   captureMode?: "element" | "screenshot" | "video" | "freeform";
   title: string;
   sections: Record<string, string>;
@@ -59,6 +61,12 @@ export function buildIssueMarkdown(ctx: MarkdownContext): string {
 
   lines.push(`## ${t("md.section.env")}`);
   lines.push("");
+  if (ctx.os) {
+    lines.push(`- **OS**: ${ctx.os}`);
+  }
+  if (ctx.browser) {
+    lines.push(`- **Browser**: ${ctx.browser}`);
+  }
   lines.push(`- **Page**: ${ctx.url}`);
   if (ctx.captureMode !== "screenshot" && ctx.captureMode !== "video" && ctx.captureMode !== "freeform" && ctx.selector) {
     lines.push(`- **DOM**: ${ctx.selector}`);
@@ -89,9 +97,9 @@ export function buildIssueMarkdown(ctx: MarkdownContext): string {
       lines.push(t("md.imageAttached"));
       lines.push("");
     } else {
-      lines.push(`## ${t("md.section.styleChanges")}`);
-      lines.push("");
       if (ctx.diffs.length > 0) {
+        lines.push(`## ${t("md.section.styleChanges")}`);
+        lines.push("");
         lines.push(`| ${t("md.column.property")} | As is | To be |`);
         lines.push("| --- | --- | --- |");
         for (const d of ctx.diffs) {
@@ -99,6 +107,11 @@ export function buildIssueMarkdown(ctx: MarkdownContext): string {
             `| ${escapeCell(d.prop)} | ${escapeCell(d.asIs)} | ${escapeCell(d.toBe)} |`,
           );
         }
+        lines.push("");
+      } else {
+        lines.push(`## ${t("md.section.media")}`);
+        lines.push("");
+        lines.push(t("md.imageAttached"));
         lines.push("");
       }
     }
@@ -144,6 +157,12 @@ export function buildIssueHtml(ctx: MarkdownContext): string {
 
   parts.push(`<h2>${t("md.section.env")}</h2>`);
   parts.push(`<ul>`);
+  if (ctx.os) {
+    parts.push(`<li><strong>OS</strong>: ${escapeHtml(ctx.os)}</li>`);
+  }
+  if (ctx.browser) {
+    parts.push(`<li><strong>Browser</strong>: ${escapeHtml(ctx.browser)}</li>`);
+  }
   parts.push(`<li><strong>Page</strong>: ${escapeHtml(ctx.url)}</li>`);
   if (ctx.captureMode !== "screenshot" && ctx.captureMode !== "video" && ctx.captureMode !== "freeform" && ctx.selector) {
     parts.push(`<li><strong>DOM</strong>: ${escapeHtml(ctx.selector)}</li>`);
@@ -176,8 +195,8 @@ export function buildIssueHtml(ctx: MarkdownContext): string {
       parts.push(`<h2>${t("md.section.media")}</h2>`);
       parts.push(`<p>${t("md.imageAttached")}</p>`);
     } else {
-      parts.push(`<h2>${t("md.section.styleChanges")}</h2>`);
       if (ctx.diffs.length > 0) {
+        parts.push(`<h2>${t("md.section.styleChanges")}</h2>`);
         parts.push(
           `<table><thead><tr><th>${t("md.column.property")}</th><th>As is</th><th>To be</th></tr></thead><tbody>`,
         );
@@ -187,6 +206,9 @@ export function buildIssueHtml(ctx: MarkdownContext): string {
           );
         }
         parts.push(`</tbody></table>`);
+      } else {
+        parts.push(`<h2>${t("md.section.media")}</h2>`);
+        parts.push(`<p>${t("md.imageAttached")}</p>`);
       }
     }
     emitLogSummaryHtml(parts, ctx);
@@ -246,10 +268,17 @@ function footerHtml(): string {
 function buildMetaComment(ctx: MarkdownContext): string {
   const meta: Record<string, unknown> = {
     version: 1,
+    captureMode: ctx.captureMode ?? "element",
     url: ctx.url,
     capturedAt: ctx.capturedAt,
   };
+  if (ctx.os) meta.os = ctx.os;
+  if (ctx.browser) meta.browser = ctx.browser;
   if (ctx.viewport) meta.viewport = ctx.viewport;
+  const envRows = filterEnvironmentRows(ctx.environment);
+  if (envRows.length > 0) {
+    meta.environment = Object.fromEntries(envRows.map((r) => [r.label, r.value]));
+  }
   if (ctx.captureMode !== "freeform") {
     meta.selector = ctx.selector;
     meta.tagName = ctx.tagName;

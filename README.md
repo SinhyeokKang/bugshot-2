@@ -45,10 +45,6 @@ Load the unpacked extension from `dist/` at `chrome://extensions` (developer mod
 | Build | Vite + @crxjs/vite-plugin |
 | Test | Vitest |
 
-## Architecture
-
-See [CLAUDE.md](./CLAUDE.md) for detailed architecture, conventions, and directory structure.
-
 ## Privacy Policy
 
 [Privacy Policy](https://sinhyeokkang.github.io/bugshot-2/privacy)

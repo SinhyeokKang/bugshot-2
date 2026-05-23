@@ -129,6 +129,47 @@ describe("buildIssueMarkdown", () => {
     expect(md).toContain('"version": 1');
   });
 
+  it("meta comment에 os·browser·captureMode 포함", () => {
+    const md = buildIssueMarkdown(makeCtx({ os: "macOS 15.2", browser: "Chrome 128.0.6613.85" }));
+    const metaStart = md.indexOf("<!-- bugshot-meta-for-ai");
+    const metaEnd = md.indexOf("-->", metaStart);
+    const meta = JSON.parse(md.slice(metaStart + "<!-- bugshot-meta-for-ai\n".length, metaEnd));
+    expect(meta.os).toBe("macOS 15.2");
+    expect(meta.browser).toBe("Chrome 128.0.6613.85");
+    expect(meta.captureMode).toBe("element");
+  });
+
+  it("meta comment — os·browser 없으면 필드 생략", () => {
+    const md = buildIssueMarkdown(makeCtx({ os: null, browser: null }));
+    const metaStart = md.indexOf("<!-- bugshot-meta-for-ai");
+    const metaEnd = md.indexOf("-->", metaStart);
+    const meta = JSON.parse(md.slice(metaStart + "<!-- bugshot-meta-for-ai\n".length, metaEnd));
+    expect(meta.os).toBeUndefined();
+    expect(meta.browser).toBeUndefined();
+    expect(meta.captureMode).toBe("element");
+  });
+
+  it("meta comment에 사용자 커스텀 환경 필드 포함", () => {
+    const md = buildIssueMarkdown(makeCtx({
+      environment: [
+        { label: "Device", value: "iPhone 14" },
+        { label: "Network", value: "Wi-Fi" },
+      ],
+    }));
+    const metaStart = md.indexOf("<!-- bugshot-meta-for-ai");
+    const metaEnd = md.indexOf("-->", metaStart);
+    const meta = JSON.parse(md.slice(metaStart + "<!-- bugshot-meta-for-ai\n".length, metaEnd));
+    expect(meta.environment).toEqual({ Device: "iPhone 14", Network: "Wi-Fi" });
+  });
+
+  it("meta comment — 커스텀 환경 필드 비어있으면 environment 생략", () => {
+    const md = buildIssueMarkdown(makeCtx({ environment: [] }));
+    const metaStart = md.indexOf("<!-- bugshot-meta-for-ai");
+    const metaEnd = md.indexOf("-->", metaStart);
+    const meta = JSON.parse(md.slice(metaStart + "<!-- bugshot-meta-for-ai\n".length, metaEnd));
+    expect(meta.environment).toBeUndefined();
+  });
+
   it("네트워크 로그 요약 포함", () => {
     const md = buildIssueMarkdown(
       makeCtx({
@@ -274,6 +315,145 @@ describe("buildIssueHtml", () => {
   it("paragraph 섹션 빈 값 → noValue", () => {
     const html = buildIssueHtml(makeCtx({ sections: {} }));
     expect(html).toContain("md.noValue");
+  });
+});
+
+describe("buildIssueMarkdown — element + diffs 없음", () => {
+  const noDiffCtx = (overrides: Partial<MarkdownContext> = {}) =>
+    makeCtx({ diffs: [], ...overrides });
+
+  it("element 모드 + diffs=[] → Media 섹션 + imageAttached", () => {
+    const md = buildIssueMarkdown(noDiffCtx());
+    expect(md).toContain("md.section.media");
+    expect(md).toContain("md.imageAttached");
+  });
+
+  it("element 모드 + diffs=[] → Style Changes 미출력", () => {
+    const md = buildIssueMarkdown(noDiffCtx());
+    expect(md).not.toContain("md.section.styleChanges");
+  });
+
+  it("element 모드 + diffs 존재 → 기존 Style Changes 테이블 유지", () => {
+    const md = buildIssueMarkdown(
+      noDiffCtx({ diffs: [{ prop: "color", asIs: "#000", toBe: "#fff" }] }),
+    );
+    expect(md).toContain("md.section.styleChanges");
+    expect(md).toContain("| color | #000 | #fff |");
+    expect(md).not.toContain("md.imageAttached");
+  });
+
+  it("element 모드 + diffs=[] → DOM 환경 정보는 유지", () => {
+    const md = buildIssueMarkdown(noDiffCtx());
+    expect(md).toContain("div.container");
+  });
+
+  it("POST_MEDIA 위치: Media 섹션이 expectedResult 전에 위치", () => {
+    const md = buildIssueMarkdown(noDiffCtx());
+    const mediaIdx = md.indexOf("md.section.media");
+    const expectedIdx = md.indexOf("md.section.expectedResult");
+    expect(mediaIdx).toBeGreaterThan(-1);
+    expect(expectedIdx).toBeGreaterThan(-1);
+    expect(mediaIdx).toBeLessThan(expectedIdx);
+  });
+});
+
+describe("buildIssueHtml — element + diffs 없음", () => {
+  const noDiffCtx = (overrides: Partial<MarkdownContext> = {}) =>
+    makeCtx({ diffs: [], ...overrides });
+
+  it("element 모드 + diffs=[] → Media 섹션 + imageAttached", () => {
+    const html = buildIssueHtml(noDiffCtx());
+    expect(html).toContain("md.section.media");
+    expect(html).toContain("md.imageAttached");
+  });
+
+  it("element 모드 + diffs=[] → Style Changes 미출력", () => {
+    const html = buildIssueHtml(noDiffCtx());
+    expect(html).not.toContain("md.section.styleChanges");
+  });
+
+  it("element 모드 + diffs=[] → table 미출력", () => {
+    const html = buildIssueHtml(noDiffCtx());
+    expect(html).not.toContain("<table>");
+  });
+
+  it("element 모드 + diffs 존재 → 기존 Style Changes 테이블 유지", () => {
+    const html = buildIssueHtml(
+      noDiffCtx({ diffs: [{ prop: "color", asIs: "#000", toBe: "#fff" }] }),
+    );
+    expect(html).toContain("md.section.styleChanges");
+    expect(html).toContain("<table>");
+    expect(html).not.toContain("md.imageAttached");
+  });
+});
+
+describe("buildIssueMarkdown — browser 환경 정보", () => {
+  it("browser 있으면 Page 행 위에 Browser 행 출력", () => {
+    const md = buildIssueMarkdown(makeCtx({ browser: "Chrome 128.0.6613.85" }));
+    const browserIdx = md.indexOf("**Browser**: Chrome 128.0.6613.85");
+    const pageIdx = md.indexOf("**Page**:");
+    expect(browserIdx).toBeGreaterThan(-1);
+    expect(browserIdx).toBeLessThan(pageIdx);
+  });
+
+  it("browser null이면 Browser 행 미출력", () => {
+    const md = buildIssueMarkdown(makeCtx({ browser: null }));
+    expect(md).not.toContain("**Browser**");
+  });
+
+  it("browser 미전달이면 Browser 행 미출력 (하위호환)", () => {
+    const md = buildIssueMarkdown(makeCtx());
+    expect(md).not.toContain("**Browser**");
+  });
+});
+
+describe("buildIssueHtml — browser 환경 정보", () => {
+  it("browser 있으면 Page 행 위에 Browser 행 출력", () => {
+    const html = buildIssueHtml(makeCtx({ browser: "Chrome 128.0.6613.85" }));
+    const browserIdx = html.indexOf("<strong>Browser</strong>: Chrome 128.0.6613.85");
+    const pageIdx = html.indexOf("<strong>Page</strong>:");
+    expect(browserIdx).toBeGreaterThan(-1);
+    expect(browserIdx).toBeLessThan(pageIdx);
+  });
+
+  it("browser null이면 Browser 행 미출력", () => {
+    const html = buildIssueHtml(makeCtx({ browser: null }));
+    expect(html).not.toContain("<strong>Browser</strong>");
+  });
+});
+
+describe("buildIssueMarkdown — os 환경 정보", () => {
+  it("os 있으면 Browser 행 위에 OS 행 출력", () => {
+    const md = buildIssueMarkdown(makeCtx({ os: "macOS 15.2", browser: "Chrome 128.0.6613.85" }));
+    const osIdx = md.indexOf("**OS**: macOS 15.2");
+    const browserIdx = md.indexOf("**Browser**: Chrome 128.0.6613.85");
+    expect(osIdx).toBeGreaterThan(-1);
+    expect(osIdx).toBeLessThan(browserIdx);
+  });
+
+  it("os null이면 OS 행 미출력", () => {
+    const md = buildIssueMarkdown(makeCtx({ os: null }));
+    expect(md).not.toContain("**OS**");
+  });
+
+  it("os 미전달이면 OS 행 미출력 (하위호환)", () => {
+    const md = buildIssueMarkdown(makeCtx());
+    expect(md).not.toContain("**OS**");
+  });
+});
+
+describe("buildIssueHtml — os 환경 정보", () => {
+  it("os 있으면 Browser 행 위에 OS 행 출력", () => {
+    const html = buildIssueHtml(makeCtx({ os: "macOS 15.2", browser: "Chrome 128.0.6613.85" }));
+    const osIdx = html.indexOf("<strong>OS</strong>: macOS 15.2");
+    const browserIdx = html.indexOf("<strong>Browser</strong>: Chrome 128.0.6613.85");
+    expect(osIdx).toBeGreaterThan(-1);
+    expect(osIdx).toBeLessThan(browserIdx);
+  });
+
+  it("os null이면 OS 행 미출력", () => {
+    const html = buildIssueHtml(makeCtx({ os: null }));
+    expect(html).not.toContain("<strong>OS</strong>");
   });
 });
 

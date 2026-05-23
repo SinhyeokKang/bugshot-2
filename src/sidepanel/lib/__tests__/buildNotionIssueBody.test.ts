@@ -348,6 +348,89 @@ describe("buildNotionIssueBody — 미디어 분기", () => {
   });
 });
 
+describe("buildNotionIssueBody — element + diffs 없음", () => {
+  it("element + diffs=[] + screenshot.webp → Media heading + image block", () => {
+    const out = buildNotionIssueBody({
+      ctx: makeCtx({ captureMode: "element", diffs: [] }),
+      images: [
+        {
+          filename: "screenshot.webp",
+          contentType: "image/webp",
+          dataUrl: "data:image/webp;base64,YQ==",
+        },
+      ],
+    });
+    const headings2 = out.blocks
+      .filter((b) => b.type === "heading_2")
+      .map((b) => ("text" in b ? b.text : ""));
+    expect(headings2).toContain("md.section.media");
+    expect(headings2).not.toContain("md.section.styleChanges");
+
+    const imageBlocks = out.blocks.filter((b) => b.type === "image");
+    expect(imageBlocks.length).toBe(1);
+    expect(out.attachments.length).toBe(1);
+    expect(out.attachments[0].filename).toBe("screenshot.webp");
+  });
+
+  it("element + diffs=[] + 이미지 없음 → styleChanges heading 미출력", () => {
+    const out = buildNotionIssueBody({
+      ctx: makeCtx({ captureMode: "element", diffs: [] }),
+    });
+    const headings2 = out.blocks
+      .filter((b) => b.type === "heading_2")
+      .map((b) => ("text" in b ? b.text : ""));
+    expect(headings2).not.toContain("md.section.styleChanges");
+  });
+
+  it("element + diffs=[] → Before/After heading_3 미출력", () => {
+    const out = buildNotionIssueBody({
+      ctx: makeCtx({ captureMode: "element", diffs: [] }),
+      images: [
+        {
+          filename: "screenshot.webp",
+          contentType: "image/webp",
+          dataUrl: "data:image/webp;base64,YQ==",
+        },
+      ],
+    });
+    const headings3 = out.blocks
+      .filter((b) => b.type === "heading_3")
+      .map((b) => ("text" in b ? b.text : ""));
+    expect(headings3).not.toContain("md.section.before");
+    expect(headings3).not.toContain("md.section.after");
+  });
+
+  it("element + diffs 존재 → 기존 Before/After 섹션 유지", () => {
+    const out = buildNotionIssueBody({
+      ctx: makeCtx({
+        captureMode: "element",
+        diffs: [{ prop: "color", asIs: "#000", toBe: "#fff" }],
+      }),
+      images: [
+        {
+          filename: "before.webp",
+          contentType: "image/webp",
+          dataUrl: "data:image/webp;base64,YQ==",
+        },
+        {
+          filename: "after.webp",
+          contentType: "image/webp",
+          dataUrl: "data:image/webp;base64,YQ==",
+        },
+      ],
+    });
+    const headings2 = out.blocks
+      .filter((b) => b.type === "heading_2")
+      .map((b) => ("text" in b ? b.text : ""));
+    expect(headings2).toContain("md.section.styleChanges");
+    const headings3 = out.blocks
+      .filter((b) => b.type === "heading_3")
+      .map((b) => ("text" in b ? b.text : ""));
+    expect(headings3).toContain("md.section.before");
+    expect(headings3).toContain("md.section.after");
+  });
+});
+
 describe("buildNotionIssueBody — freeform", () => {
   it("freeform 모드 → image/video block 없음", () => {
     const out = buildNotionIssueBody({
@@ -488,6 +571,54 @@ describe("buildNotionIssueBody — inline images", () => {
       type: "image",
       placeholderId: "inline-only",
     });
+  });
+});
+
+describe("buildNotionIssueBody — browser 환경 정보", () => {
+  it("browser 있으면 환경 섹션에서 Page 앞에 Browser 행 출력", () => {
+    const out = buildNotionIssueBody({ ctx: makeCtx({ browser: "Chrome 128.0.6613.85" }) });
+    const bullets = out.blocks.filter((b) => b.type === "bulleted_list_item");
+    const browserIdx = bullets.findIndex((b) => "text" in b && b.text === "Browser: Chrome 128.0.6613.85");
+    const pageIdx = bullets.findIndex((b) => "text" in b && b.text.startsWith("Page:"));
+    expect(browserIdx).toBeGreaterThanOrEqual(0);
+    expect(browserIdx).toBeLessThan(pageIdx);
+  });
+
+  it("browser null이면 Browser 행 미출력", () => {
+    const out = buildNotionIssueBody({ ctx: makeCtx({ browser: null }) });
+    const bullets = out.blocks.filter((b) => b.type === "bulleted_list_item");
+    expect(bullets.some((b) => "text" in b && b.text.startsWith("Browser:"))).toBe(false);
+  });
+
+  it("browser 미전달이면 Browser 행 미출력 (하위호환)", () => {
+    const out = buildNotionIssueBody({ ctx: makeCtx() });
+    const bullets = out.blocks.filter((b) => b.type === "bulleted_list_item");
+    expect(bullets.some((b) => "text" in b && b.text.startsWith("Browser:"))).toBe(false);
+  });
+});
+
+describe("buildNotionIssueBody — os 환경 정보", () => {
+  it("os 있으면 환경 섹션에서 Browser 앞에 OS 행 출력", () => {
+    const out = buildNotionIssueBody({
+      ctx: makeCtx({ os: "macOS 15.2", browser: "Chrome 128.0.6613.85" }),
+    });
+    const bullets = out.blocks.filter((b) => b.type === "bulleted_list_item");
+    const osIdx = bullets.findIndex((b) => "text" in b && b.text === "OS: macOS 15.2");
+    const browserIdx = bullets.findIndex((b) => "text" in b && b.text === "Browser: Chrome 128.0.6613.85");
+    expect(osIdx).toBeGreaterThanOrEqual(0);
+    expect(osIdx).toBeLessThan(browserIdx);
+  });
+
+  it("os null이면 OS 행 미출력", () => {
+    const out = buildNotionIssueBody({ ctx: makeCtx({ os: null }) });
+    const bullets = out.blocks.filter((b) => b.type === "bulleted_list_item");
+    expect(bullets.some((b) => "text" in b && b.text.startsWith("OS:"))).toBe(false);
+  });
+
+  it("os 미전달이면 OS 행 미출력 (하위호환)", () => {
+    const out = buildNotionIssueBody({ ctx: makeCtx() });
+    const bullets = out.blocks.filter((b) => b.type === "bulleted_list_item");
+    expect(bullets.some((b) => "text" in b && b.text.startsWith("OS:"))).toBe(false);
   });
 });
 

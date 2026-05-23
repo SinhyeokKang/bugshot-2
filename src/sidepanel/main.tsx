@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import App from "./App";
 import { useSettingsStore } from "@/store/settings-store";
 import { SETTINGS_STORAGE_KEY } from "@/lib/settings-storage";
+import { resolveOsInfo } from "./lib/osInfo";
 import "@/styles/globals.css";
 
 window.addEventListener("error", (e) => {
@@ -35,6 +36,8 @@ chrome.storage.onChanged.addListener((changes, area) => {
   if (!change || change.oldValue === change.newValue) return;
   void useSettingsStore.persist.rehydrate();
 });
+
+void resolveOsInfo();
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

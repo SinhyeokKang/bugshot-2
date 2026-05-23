@@ -64,6 +64,12 @@ export function buildGithubIssueBody(
   const attached: string[] = [];
 
   lines.push(`## ${t("md.section.env")}`, "");
+  if (ctx.os) {
+    lines.push(`- **OS**: ${ctx.os}`);
+  }
+  if (ctx.browser) {
+    lines.push(`- **Browser**: ${ctx.browser}`);
+  }
   lines.push(`- **Page**: ${ctx.url}`);
   if (ctx.captureMode !== "screenshot" && ctx.captureMode !== "video" && ctx.captureMode !== "freeform" && ctx.selector) {
     lines.push(`- **DOM**: ${ctx.selector}`);
@@ -107,6 +113,15 @@ export function buildGithubIssueBody(
           lines.push(
             `| ${escapeCell(d.prop)} | ${escapeCell(d.asIs)} | ${escapeCell(d.toBe)} |`,
           );
+        }
+        lines.push("");
+      } else {
+        const screenshot = images.find((i) => i.filename.startsWith("screenshot"));
+        lines.push(`## ${t("md.section.media")}`, "");
+        if (screenshot?.url) {
+          lines.push(`![${screenshot.filename}](${screenshot.url})`);
+          attached.push(screenshot.filename);
+          mediaHandled.add(screenshot.filename);
         }
         lines.push("");
       }

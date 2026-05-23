@@ -25,7 +25,7 @@ export interface GithubDefaults {
   owner?: string;
   repo?: string;
   label?: string;
-  assignees?: string[];
+  assignee?: string;
 }
 
 export interface GithubAccount extends PlatformAccountBase<"github"> {

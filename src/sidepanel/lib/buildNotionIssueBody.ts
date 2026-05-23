@@ -89,6 +89,12 @@ export function buildNotionIssueBody(
 
   // 환경 섹션
   blocks.push({ type: "heading_2", text: t("md.section.env") });
+  if (ctx.os) {
+    blocks.push({ type: "bulleted_list_item", text: `OS: ${ctx.os}` });
+  }
+  if (ctx.browser) {
+    blocks.push({ type: "bulleted_list_item", text: `Browser: ${ctx.browser}` });
+  }
   blocks.push({ type: "bulleted_list_item", text: `Page: ${ctx.url}` });
   if (!isVideo && !isScreenshot && !isFreeform) {
     const domLabel = ctx.tagName
@@ -150,37 +156,47 @@ export function buildNotionIssueBody(
         queueAttachment(img, cat, placeholder);
       }
     } else {
-      blocks.push({ type: "heading_2", text: t("md.section.styleChanges") });
       const before = images.find((i) => i.filename.startsWith("before"));
       const after = images.find((i) => i.filename.startsWith("after"));
-      // Notion 표 셀은 rich_text만 받아 image 블록을 셀 안에 못 넣는다.
-      // → Before/After 섹션으로 분리하고 각 섹션에 이미지 + 해당 시점의 prop 값 bullet list.
-      if (before || ctx.diffs.length > 0) {
-        blocks.push({ type: "heading_3", text: t("md.section.before") });
-        if (before) {
-          const ph = nextPlaceholder("before");
+      const hasSnapshots = !!(before || after);
+
+      if (hasSnapshots || ctx.diffs.length > 0) {
+        blocks.push({ type: "heading_2", text: t("md.section.styleChanges") });
+        if (before || ctx.diffs.length > 0) {
+          blocks.push({ type: "heading_3", text: t("md.section.before") });
+          if (before) {
+            const ph = nextPlaceholder("before");
+            blocks.push({ type: "image", placeholderId: ph });
+            queueAttachment(before, categorize(before, "image"), ph);
+          }
+          for (const d of ctx.diffs) {
+            blocks.push({
+              type: "bulleted_list_item",
+              text: `${d.prop}: ${d.asIs}`,
+            });
+          }
+        }
+        if (after || ctx.diffs.length > 0) {
+          blocks.push({ type: "heading_3", text: t("md.section.after") });
+          if (after) {
+            const ph = nextPlaceholder("after");
+            blocks.push({ type: "image", placeholderId: ph });
+            queueAttachment(after, categorize(after, "image"), ph);
+          }
+          for (const d of ctx.diffs) {
+            blocks.push({
+              type: "bulleted_list_item",
+              text: `${d.prop}: ${d.toBe}`,
+            });
+          }
+        }
+      } else {
+        blocks.push({ type: "heading_2", text: t("md.section.media") });
+        const screenshot = images.find((i) => i.filename.startsWith("screenshot"));
+        if (screenshot) {
+          const ph = nextPlaceholder("screenshot");
           blocks.push({ type: "image", placeholderId: ph });
-          queueAttachment(before, categorize(before, "image"), ph);
-        }
-        for (const d of ctx.diffs) {
-          blocks.push({
-            type: "bulleted_list_item",
-            text: `${d.prop}: ${d.asIs}`,
-          });
-        }
-      }
-      if (after || ctx.diffs.length > 0) {
-        blocks.push({ type: "heading_3", text: t("md.section.after") });
-        if (after) {
-          const ph = nextPlaceholder("after");
-          blocks.push({ type: "image", placeholderId: ph });
-          queueAttachment(after, categorize(after, "image"), ph);
-        }
-        for (const d of ctx.diffs) {
-          blocks.push({
-            type: "bulleted_list_item",
-            text: `${d.prop}: ${d.toBe}`,
-          });
+          queueAttachment(screenshot, categorize(screenshot, "image"), ph);
         }
       }
     }

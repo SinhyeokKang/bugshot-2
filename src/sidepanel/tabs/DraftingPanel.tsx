@@ -13,7 +13,6 @@ import {
   type IssueSection,
 } from "@/store/settings-ui-store";
 import { useEditorStore } from "@/store/editor-store";
-import { LlmQuotaError, LlmOverloadedError } from "@/sidepanel/lib/ai-provider";
 import { useSettingsStore } from "@/store/settings-store";
 import { useBoundTabId } from "@/sidepanel/hooks/useBoundTabId";
 import { useAI } from "@/sidepanel/hooks/useAI";
@@ -33,16 +32,12 @@ import {
   buildStyleDiff,
 } from "@/sidepanel/components/StyleChangesTable";
 import {
-  buildAiDraftPrompt,
-  buildAiDraftSchema,
-  parseAiDraftResponse,
-} from "@/sidepanel/lib/buildAiDraftPrompt";
-import { buildNetworkLogSummary, buildConsoleLogSummary } from "@/sidepanel/lib/buildLogSummary";
-import {
   deriveReadonlyEnvRows,
   filterEnvironmentRows,
+  parseChromeVersion,
   type EnvironmentRow,
 } from "@/sidepanel/lib/environmentRows";
+import { getOsInfo } from "@/sidepanel/lib/osInfo";
 import { AiDraftDialog } from "./AiDraftDialog";
 
 const LazyTiptapEditor = lazy(() => import("../components/TiptapEditor"));
@@ -71,12 +66,8 @@ export function DraftingPanel() {
   const consoleLog = useEditorStore((s) => s.consoleLog);
   const consoleLogAttach = useEditorStore((s) => s.consoleLogAttach);
   const setConsoleLogAttach = useEditorStore((s) => s.setConsoleLogAttach);
-  const target = useEditorStore((s) => s.target);
-  const tokens = useEditorStore((s) => s.tokens);
   const issueSections = useSettingsUiStore((s) => s.issueSections);
-  const locale = useSettingsUiStore((s) => s.locale);
-  const { status: aiStatus, providerLabel, generate, createSession } = useAI();
-  const [aiError, setAiError] = useState<string | null>(null);
+  const { status: aiStatus, providerLabel, createSession } = useAI();
   const [annotating, setAnnotating] = useState(false);
   const [aiDialogOpen, setAiDialogOpen] = useState(false);
   const aiDraftLoading = useEditorStore((s) => s.aiDraftLoading);
@@ -105,12 +96,6 @@ export function DraftingPanel() {
     });
   }, [draft, selection, setDraft, titlePrefix, captureMode, screenshotImage, videoThumbnail, videoBlob]);
 
-  useEffect(() => {
-    if (!aiError) return;
-    const id = setTimeout(() => setAiError(null), 3000);
-    return () => clearTimeout(id);
-  }, [aiError]);
-
   if (!draft) return null;
   if (captureMode === "element" && !selection) return null;
   if (captureMode === "screenshot" && !screenshotImage) return null;
@@ -125,64 +110,6 @@ export function DraftingPanel() {
 
   const enabledSections = issueSections.filter((s) => s.enabled);
 
-  const handleAIDraft = async () => {
-    useEditorStore.getState().setAiDraftLoading(true);
-    setAiError(null);
-    try {
-      const ctx = buildAiDraftPrompt({
-        captureMode,
-        locale,
-        url: target?.url ?? "",
-        pageTitle: target?.title ?? "",
-        selector: selection?.selector,
-        tagName: selection?.tagName,
-        diffs: diffs.length > 0 ? diffs : undefined,
-        tokens: tokens.length > 0
-          ? tokens.map((tk) => ({ name: tk.name, value: tk.value }))
-          : undefined,
-        networkLogSummary:
-          networkLog && networkLog.captured > 0
-            ? buildNetworkLogSummary(networkLog)
-            : undefined,
-        consoleLogSummary:
-          consoleLog && consoleLog.captured > 0
-            ? buildConsoleLogSummary(consoleLog)
-            : undefined,
-        enabledSections: enabledSections.map((s) => ({
-          id: s.id,
-          renderAs: s.renderAs,
-        })),
-      });
-      const sectionIds = enabledSections.map((s) => s.id);
-      const responseSchema = buildAiDraftSchema(sectionIds);
-      const raw = await generate({ prompt: ctx, responseSchema });
-      const parsed = parseAiDraftResponse(raw, sectionIds);
-      if (parsed) {
-        const prefix = defaultTitle(titlePrefix);
-        const aiTitle = prefix
-          ? prefix + parsed.title
-          : parsed.title;
-        setDraft({
-          ...parsed,
-          title: aiTitle,
-          environment: draft.environment ?? [],
-        });
-      } else {
-        console.warn("[bugshot] AI draft parse failed. Raw response:", raw);
-        setAiError(t("draft.aiParseError"));
-      }
-    } catch (err) {
-      console.error("[AI Draft] error:", err);
-      setAiError(
-        err instanceof LlmQuotaError ? t("llm.error.quota")
-        : err instanceof LlmOverloadedError ? t("llm.error.overloaded")
-        : t("draft.aiError"),
-      );
-    } finally {
-      useEditorStore.getState().setAiDraftLoading(false);
-    }
-  };
-
   const isFreeformMode = captureMode === "freeform";
 
   const mediaBlock = isFreeformMode ? null : isVideoMode ? (
@@ -190,13 +117,27 @@ export function DraftingPanel() {
       <VideoPreview blob={videoBlob} thumbnail={videoThumbnail} />
     </Section>
   ) : isElementMode ? (
-    <Section key="__media" title={t("section.styleChanges")} collapsible>
-      <StyleChangesTable
-        beforeImage={beforeImage}
-        afterImage={afterImage}
-        diffs={diffs}
-      />
-    </Section>
+    diffs.length > 0 ? (
+      <Section key="__media" title={t("section.styleChanges")} collapsible>
+        <StyleChangesTable
+          beforeImage={beforeImage}
+          afterImage={afterImage}
+          diffs={diffs}
+        />
+      </Section>
+    ) : (
+      <Section key="__media" title={t("section.media")} collapsible>
+        {beforeImage ? (
+          <div className="aspect-video w-full overflow-hidden rounded-lg border bg-muted/70">
+            <img
+              src={beforeImage}
+              alt={t("section.media")}
+              className="h-full w-full object-contain"
+            />
+          </div>
+        ) : null}
+      </Section>
+    )
   ) : (
     <Section
       key="__media"
@@ -247,11 +188,11 @@ export function DraftingPanel() {
         networkLog={networkLog}
         networkLogAttach={networkLogAttach}
         onNetworkLogToggle={setNetworkLogAttach}
-        onNetworkLogClick={() => setNetworkDialogOpen(true)}
+        onNetworkLogClick={() => { (document.activeElement as HTMLElement)?.blur?.(); setNetworkDialogOpen(true); }}
         consoleLog={consoleLog}
         consoleLogAttach={consoleLogAttach}
         onConsoleLogToggle={setConsoleLogAttach}
-        onConsoleLogClick={() => setConsoleDialogOpen(true)}
+        onConsoleLogClick={() => { (document.activeElement as HTMLElement)?.blur?.(); setConsoleDialogOpen(true); }}
       />
     </Section>
   ) : null;
@@ -307,11 +248,6 @@ export function DraftingPanel() {
         </div>
       ) : (
         <>
-          {aiError && (
-            <div className="absolute bottom-4 left-1/2 z-30 -translate-x-1/2 rounded-md bg-destructive/10 px-3 py-1.5 text-xs text-destructive shadow-sm">
-              {aiError}
-            </div>
-          )}
           <PageScroll>
             <Section title={t("section.issueTitle")}>
               <Input
@@ -329,17 +265,11 @@ export function DraftingPanel() {
           {aiStatus === "available" && (
             <button
               className="flex items-center justify-between rounded-t-lg bg-purple-100/80 px-3.5 py-2.5 text-purple-700 transition-colors hover:bg-purple-100 disabled:opacity-50 dark:bg-purple-950/50 dark:text-purple-300 dark:hover:bg-purple-900"
-              onClick={() => {
-                if (captureMode === "element") {
-                  void handleAIDraft();
-                } else {
-                  setAiDialogOpen(true);
-                }
-              }}
+              onClick={() => { (document.activeElement as HTMLElement)?.blur?.(); setAiDialogOpen(true); }}
               disabled={aiDraftLoading}
             >
               <span className="flex items-center gap-1.5">
-                <Badge variant="outline" className="font-normal border-purple-500 text-purple-600 dark:border-purple-400 dark:text-purple-300">{providerLabel ?? t("ai.badge.beta")}</Badge>
+                <Badge variant="outline" className="font-normal border-purple-500 text-purple-600 dark:border-purple-400 dark:text-purple-300">{providerLabel ?? t("ai.badge.chromeAI")}</Badge>
                 <span className="bg-gradient-to-r from-purple-500 to-indigo-500 bg-clip-text text-sm text-transparent dark:from-purple-300 dark:to-indigo-300">{t("draft.aiBanner")}</span>
               </span>
               <span className="flex items-center gap-1 bg-gradient-to-r from-indigo-500 to-purple-500 bg-clip-text text-sm font-medium text-transparent dark:from-indigo-300 dark:to-purple-300">
@@ -403,6 +333,7 @@ export function DraftingPanel() {
         open={aiDialogOpen}
         onOpenChange={setAiDialogOpen}
         createSession={createSession}
+        elementDiffs={isElementMode ? diffs : undefined}
       />
       {annotating && screenshotRaw ? (
         <Suspense fallback={null}>
@@ -448,6 +379,8 @@ function ReproEnvironmentSection() {
     : freeformCapturedAt;
 
   const readonlyRows = deriveReadonlyEnvRows({
+    os: getOsInfo(),
+    browser: parseChromeVersion(navigator.userAgent),
     url: target?.url ?? "",
     selector: captureMode === "element" ? selection?.selector : null,
     viewport: vp ? { w: vp.width, h: vp.height } : null,

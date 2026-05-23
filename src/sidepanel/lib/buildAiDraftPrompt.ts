@@ -1,7 +1,6 @@
 import type { CaptureMode } from "@/store/editor-store";
 import type {
   IssueSectionId,
-  IssueSectionRenderAs,
   LocaleMode,
 } from "@/store/settings-ui-store";
 import type { StyleDiffRow } from "@/sidepanel/components/StyleChangesTable";
@@ -11,20 +10,6 @@ import type { EditorDraft } from "@/store/editor-store";
 const MAX_DIFFS = 20;
 const MAX_TOKENS = 10;
 const MAX_TITLE_LENGTH = 80;
-
-export interface AiDraftContext {
-  captureMode: CaptureMode;
-  locale: LocaleMode;
-  url: string;
-  pageTitle: string;
-  selector?: string;
-  tagName?: string;
-  diffs?: StyleDiffRow[];
-  tokens?: { name: string; value: string }[];
-  networkLogSummary?: NetworkLogSummary;
-  consoleLogSummary?: ConsoleLogSummary;
-  enabledSections: { id: IssueSectionId; renderAs: IssueSectionRenderAs }[];
-}
 
 const SECTION_DESC_BASE: Record<LocaleMode, Record<IssueSectionId, string>> = {
   ko: {
@@ -70,73 +55,6 @@ function getSectionDesc(
     base[key as IssueSectionId] += suffix;
   }
   return base;
-}
-
-export function buildAiDraftPrompt(ctx: AiDraftContext): string {
-  const lang = ctx.locale === "ko" ? "Korean" : "English";
-  const lines: string[] = [];
-
-  lines.push(`You are a QA assistant. Write a bug report draft in ${lang}.`);
-  lines.push("");
-  lines.push("Context:");
-  lines.push(`- Page: ${ctx.url} (${ctx.pageTitle})`);
-  lines.push(`- Capture mode: ${ctx.captureMode}`);
-
-  if (ctx.captureMode === "element") {
-    if (ctx.tagName && ctx.selector) {
-      lines.push(`- Element: <${ctx.tagName}> at ${ctx.selector}`);
-    }
-    if (ctx.diffs && ctx.diffs.length > 0) {
-      lines.push("- Style changes (current → desired):");
-      for (const d of ctx.diffs.slice(0, MAX_DIFFS)) {
-        lines.push(`  ${d.prop}: current="${d.asIs}" → desired="${d.toBe}"`);
-      }
-    }
-    if (ctx.tokens && ctx.tokens.length > 0) {
-      lines.push("- Design tokens:");
-      for (const tk of ctx.tokens.slice(0, MAX_TOKENS)) {
-        lines.push(`  ${tk.name}: ${tk.value}`);
-      }
-    }
-  }
-
-  if (ctx.captureMode === "video" || ctx.captureMode === "freeform") {
-    if (ctx.networkLogSummary && ctx.networkLogSummary.errors.length > 0) {
-      lines.push("- Network errors:");
-      for (const e of ctx.networkLogSummary.errors) {
-        lines.push(`  ${e.method} ${e.path} → ${e.status} ${e.statusText}`);
-      }
-    }
-    if (ctx.consoleLogSummary) {
-      const c = ctx.consoleLogSummary;
-      if (c.errorCount > 0 || c.warnCount > 0) {
-        lines.push(`- Console: ${c.errorCount} errors, ${c.warnCount} warnings`);
-        for (const msg of c.topErrors) {
-          lines.push(`  ${msg}`);
-        }
-      }
-    }
-  }
-
-  const desc = getSectionDesc(ctx.locale, ctx.captureMode);
-  lines.push("");
-  lines.push("Output a JSON object with these exact keys:");
-  lines.push('- "title": one short line, as brief as possible');
-  for (const sec of ctx.enabledSections) {
-    lines.push(`- "${sec.id}": ${desc[sec.id]}`);
-  }
-
-  lines.push("");
-  lines.push("Rules:");
-  lines.push("- Output only valid JSON. No markdown fences or extra text.");
-  lines.push(
-    "- Only describe facts from the context above. Never invent values, tokens, or details not provided.",
-  );
-  lines.push(
-    "- If a section has no relevant information, use an empty string.",
-  );
-
-  return lines.join("\n");
 }
 
 export function buildAiDraftSchema(sectionIds: IssueSectionId[]) {
@@ -193,10 +111,15 @@ function stripLineNumbering(text: string): string {
 }
 
 export interface AiDraftSessionContext {
-  captureMode: "screenshot" | "video" | "freeform";
+  captureMode: CaptureMode;
   locale: LocaleMode;
   url: string;
   pageTitle: string;
+  selector?: string;
+  tagName?: string;
+  diffs?: StyleDiffRow[];
+  tokens?: { name: string; value: string }[];
+  userPrompt?: string;
   networkLogSummary?: NetworkLogSummary;
   consoleLogSummary?: ConsoleLogSummary;
   enabledSections: { id: IssueSectionId }[];
@@ -214,6 +137,24 @@ export function buildAiDraftSessionPrompt(ctx: AiDraftSessionContext): string {
 
   if (ctx.captureMode === "screenshot") {
     lines.push("- The user will provide a screenshot image and a description of the bug. Analyze the screenshot to understand the visual context.");
+  }
+
+  if (ctx.captureMode === "element") {
+    if (ctx.tagName && ctx.selector) {
+      lines.push(`- Element: <${ctx.tagName}> at ${ctx.selector}`);
+    }
+    if (ctx.diffs && ctx.diffs.length > 0) {
+      lines.push("- Style changes (current → desired):");
+      for (const d of ctx.diffs.slice(0, MAX_DIFFS)) {
+        lines.push(`  ${d.prop}: current="${d.asIs}" → desired="${d.toBe}"`);
+      }
+    }
+    if (ctx.tokens && ctx.tokens.length > 0) {
+      lines.push("- Design tokens:");
+      for (const tk of ctx.tokens.slice(0, MAX_TOKENS)) {
+        lines.push(`  ${tk.name}: ${tk.value}`);
+      }
+    }
   }
 
   if (ctx.captureMode === "video" || ctx.captureMode === "freeform") {
@@ -236,6 +177,15 @@ export function buildAiDraftSessionPrompt(ctx: AiDraftSessionContext): string {
           lines.push(`  ${msg}`);
         }
       }
+    }
+  }
+
+  const userPrompt = ctx.userPrompt?.trim();
+  if (userPrompt && ctx.captureMode === "element") {
+    const [first, ...rest] = userPrompt.split(/\r?\n/);
+    lines.push(`- User context: ${first}`);
+    for (const cont of rest) {
+      lines.push(`  ${cont}`);
     }
   }
 

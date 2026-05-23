@@ -67,12 +67,12 @@ pnpm version major --no-git-tag-version   # 1.0.0 → 2.0.0 (Breaking change)
 
 ```
 /feature        → 기능 아이디어 → PRD·기술 설계·태스크 문서 산출 (코딩 안 함)
-/feature-review → feature 산출물을 CPO·CDO·CTO·QA Lead 4명이 병렬 검수 → 피드백 수렴 → 문서 수정
+/feature-review → feature 산출물을 CPO·CDO·CTO·QA 4명이 병렬 검수 (선택 호출 가능) → 피드백 수렴 → 문서 수정
 /tdd            → 테스트만 작성 (구현·픽스·커밋 안 함). interface 모드(신규 헬퍼 시그니처) / regression 모드(리뷰 발견 회귀 테스트)
 /pull           → dev 최신 받고 작업 맥락 브리핑
 /build          → pnpm build + 테스트 체크리스트 (작업 중 검증)
-/code-review    → origin/main 대비 변경 코드 시급도별 리포트 (리포트 전용, fix·빌드·커밋 안 함)
-/audit          → 코드베이스 전체 컨벤션·패턴 감사 (리포트 전용, fix·빌드·커밋 안 함)
+/code-review    → 변경 코드를 ui·security·dataflow·codehealth 4개 에이전트가 병렬 리뷰 (선택 호출 가능). 리포트 전용
+/audit          → 코드베이스 전체를 ui·security·dataflow·codehealth 4개 에이전트가 병렬 감사 (선택 호출 가능). 리포트 전용
 /push           → dev push (main에서 호출 차단)
 /merge          → dev에서 버전 bump 커밋 + dev → main squash PR 생성 + 자동 머지
 /deploy         → main 한정. tag push → 스토어 빌드 → zip → GitHub Release draft → 심사 요청 안내
@@ -85,7 +85,7 @@ pnpm version major --no-git-tag-version   # 1.0.0 → 2.0.0 (Breaking change)
 
 ### 문서 신선도
 
-`/push`는 항상 CLAUDE.md / DIRECTORY.md / ARCHITECTURE.md / README.md 신선도 검사를 거친다. 아래 중 하나라도 해당하면 문서 갱신을 별도 커밋(`docs(CLAUDE): ...` / `docs(DIRECTORY): ...` / `docs(ARCHITECTURE): ...` / `docs(README): ...`)으로 묶어 함께 푸시:
+`/push`는 항상 CLAUDE.md / DIRECTORY.md / ARCHITECTURE.md / README.md / docs/privacy.md 신선도 검사를 거친다. 아래 중 하나라도 해당하면 문서 갱신을 별도 커밋(`docs(CLAUDE): ...` / `docs(DIRECTORY): ...` / `docs(ARCHITECTURE): ...` / `docs(README): ...` / `docs(privacy): ...`)으로 묶어 함께 푸시:
 
 - 새 디렉터리·파일 추가/삭제 (특히 `src/` 하위 구조 변화)
 - `package.json` scripts 변경
@@ -94,6 +94,7 @@ pnpm version major --no-git-tag-version   # 1.0.0 → 2.0.0 (Breaking change)
 - 새 컨벤션·게이트웨이 도입
 - 기능 추가/삭제로 README의 사용법·기능 설명이 어긋남
 - 워크플로우/스킬 라인업 변경
+- `manifest.config.ts`의 permissions·host_permissions·optional_host_permissions 변경, 또는 새 플랫폼/연동·데이터 수집·외부 API 엔드포인트 추가
 
 ## 코드 컨벤션
 
