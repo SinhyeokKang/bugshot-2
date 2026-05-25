@@ -16,9 +16,12 @@
   - push 시 maxFrames 초과하면 shift로 oldest 제거
   - push 시 maxDurationMs 초과 프레임도 시간 기반으로 제거 (현재 timestamp - maxDurationMs보다 오래된 프레임 제거)
   - drain은 현재 배열을 반환하고 내부 배열을 새 빈 배열로 교체
+  - snapshot은 현재 배열을 복사하여 반환 (버퍼 유지, copy-then-clear 전략용)
 - **검증**:
   - [ ] 단위 테스트: push 60장 → size=60, push 61장 → size=60 (oldest 제거)
   - [ ] 단위 테스트: drain 후 size=0, 반환 배열에 모든 프레임 포함
+  - [ ] 단위 테스트: snapshot 후 size 유지, 반환 배열에 모든 프레임 포함
+  - [ ] 단위 테스트: clear 후 size=0
   - [ ] 단위 테스트: durationMs = 마지막 timestamp - 첫 timestamp
   - [ ] 단위 테스트: maxDurationMs 초과 프레임이 시간 기반으로 제거됨
   - [ ] 테스트 파일: `src/sidepanel/30s-replay/__tests__/frame-buffer.test.ts`
@@ -40,7 +43,11 @@
 - **검증**:
   - [ ] 수동 테스트: 10장의 더미 JPEG → encodeToMp4 → Blob 반환, type="video/mp4"
   - [ ] 수동 테스트: 생성된 MP4를 Chrome에서 재생 가능
-  - [ ] `pnpm test` 통과 (순수 함수에 대한 테스트: 짝수 올림, duration 계산 등)
+  - [ ] `pnpm test` 통과 (순수 함수에 대한 테스트)
+  - [ ] 단위 테스트: 짝수 올림 (홀수 → 짝수 올림: 1281→1282, 720→720)
+  - [ ] 단위 테스트: duration 계산 (타임스탬프 차이 → μs 변환)
+  - [ ] 단위 테스트: 코덱 후보 배열 + 선택 로직 (isConfigSupported mock)
+  - [ ] 단위 테스트: colorSpace null 시 bt709 기본값 주입 로직
   - [ ] 테스트 파일: `src/sidepanel/30s-replay/__tests__/mp4-encoder.test.ts`
 
 ### Task 3: use30sReplay hook
@@ -50,12 +57,12 @@
   - 내부에서 `FrameBuffer` 인스턴스를 `useRef`로 관리
   - `enabled` 인자가 `true`일 때만 캡처 루프 시작
   - 루프 시작 시 `chrome.permissions.contains({ origins: ["https://*/*", "http://*/*"] })` 확인. 권한 없으면 `setReplayEnabled(false)` + toast 안내 후 미시작
-  - 캡처 루프: `setInterval(500)` — **이전 호출 미완료 시 해당 틱 스킵** (rate limit 방어) → `sendBg({ type: "captureVisibleTab", windowId })` → data URL → Blob 변환 → `frameBuffer.push(blob, timestamp)`. `windowId`는 `chrome.tabs.get(tabId)`로 조회하여 명시적으로 전달.
+  - 캡처 루프: `setInterval(500)` — **이전 호출 미완료 시 해당 틱 스킵** (rate limit 방어) → `sendBg({ type: "captureVisibleTab", tabId })` → data URL → Blob 변환 → `frameBuffer.push(blob, timestamp)`. background handler가 `tabId`로 `windowId` 내부 resolve (기존 패턴 유지).
   - 캡처 전 바운드 탭 활성 여부 확인: `chrome.tabs.get(tabId)` → `tab.active` 체크. 비활성이면 스킵
   - `captureVisibleTab` 에러 시 (탭 닫힘, 네비게이션 중 등) 조용히 스킵
+  - **phase gating**: `phase !== "idle"`이면 캡처 루프 일시 중지 (수동 녹화, 드래프팅, 프리뷰, picker/screenshot 등). idle 복귀 시 재개. `captureVisibleTab` rate limit 경합 방지.
   - `isReady`: `frameBuffer.size >= 10` (최소 5초 분량 확보)
-  - `capture()`: 인터벌 pause → drain → `encodeToMp4()` → `editorStore.on30sReplayComplete()` → 인터벌 resume. 실패 시 toast 에러 알림 + `isEncoding: false` 복귀 + 인터벌 재개
-  - 수동 비디오 녹화 중(`phase === "recording"`)이면 캡처 일시 중지
+  - `capture()`: 인터벌 pause → `frameBuffer.snapshot()` (복사) → `encodeToMp4()` → 성공 시 `frameBuffer.clear()` + `syncConsoleRecorder(tabId)` + `syncNetworkRecorder(tabId)` + `editorStore.on30sReplayComplete()`. 실패 시 toast 에러 알림 + `isEncoding: false` 복귀 + 인터벌 재개 (버퍼 보존)
   - `enabled`가 false로 전환되면 인터벌 정지 + 버퍼 clear
   - cleanup: 언마운트 시 clearInterval + buffer.clear()
   - 반환: `{ isCapturing, isReady, isEncoding, encodeProgress, capture }`
@@ -65,6 +72,8 @@
   - [ ] 수동 테스트: 설정에서 OFF → 캡처 루프 즉시 중지 + 버퍼 클리어
   - [ ] 수동 테스트: 사이드패널 닫기 → 리소스 정리 (인터벌 중지)
   - [ ] 수동 테스트: 수동 비디오 녹화 중 캡처 일시 중지 확인
+  - [ ] 수동 테스트: 드래프팅/프리뷰 중 캡처 일시 중지 확인 (phase gating)
+  - [ ] 수동 테스트: 인코딩 실패 시 버퍼 보존 + 즉시 재시도 가능 확인
   - [ ] 수동 테스트: 권한 외부 철회 후 패널 재열기 → 자동 OFF + toast
 
 ### Task 4: EditorStore 확장
@@ -73,16 +82,19 @@
 - **작업 내용**:
   - `CaptureSource` 타입 추가: `"manual" | "30s-replay"`
   - `EditorState`에 `captureSource: CaptureSource | null` 필드 추가 (초기값 null)
+  - `EditorSnapshot` 타입에 `captureSource` 필드 추가 (세션 영속화/복원 시 보존)
   - `on30sReplayComplete(blob, thumbnail, viewport)` 액션 추가:
     - `captureMode: "video"` (기존 video 경로 호환)
     - `captureSource: "30s-replay"` (구분용)
     - `phase: "drafting"` (recording 단계 스킵)
     - `videoBlob: blob`, `videoThumbnail: thumbnail`, `videoViewport: viewport`
     - `videoCapturedAt: Date.now()`
-    - 콘솔/네트워크 레코더 동기화: `syncConsoleRecorder(tabId)`, `syncNetworkRecorder(tabId)` 호출
+    - 콘솔/네트워크 레코더 동기화는 hook의 `capture()`에서 처리 (스토어 액션은 side-effect free 유지)
   - 기존 수동 비디오 시작 시 `captureSource: "manual"` 설정
   - `reset()` 시 `captureSource: null` 초기화
 - **검증**:
+  - [ ] 단위 테스트: `on30sReplayComplete` 호출 시 `captureMode: "video"`, `captureSource: "30s-replay"`, `phase: "drafting"` 상태 전이 확인
+  - [ ] 단위 테스트: `reset()` 시 `captureSource: null` 초기화 확인
   - [ ] `pnpm typecheck` 통과
   - [ ] `pnpm test` 통과
 
@@ -92,7 +104,7 @@
 - **작업 내용 (Store)**:
   - `SettingsUiState`에 `replayEnabled: boolean` 필드 추가 (기본 `false`)
   - `setReplayEnabled(enabled: boolean)` 액션 추가
-  - 스토어 버전 bump v5→v6, migrate에서 `replayEnabled` 기본값 설정
+  - 스토어 버전 bump v5→v6, migrate 함수에 `version < 6` 분기 추가: `replayEnabled: false` 기본값 설정 (기존 `version < 3` → `llm` 초기화 패턴과 동일)
 - **작업 내용 (UI)**:
   - `IssueSettingsContent`에 "캡처" Section 추가 (기존 "제목 설정" 아래, "본문 구성" 위)
   - Section 내 Card > Row: Timer 아이콘 + "30s Replay" 라벨 + 도움말 텍스트 + Switch
@@ -105,20 +117,35 @@
   - [ ] 수동 테스트: Switch ON → 권한 프롬프트 표시 → 거부 → OFF 복귀 + toast
   - [ ] 수동 테스트: 이미 승인된 상태에서 ON → 프롬프트 없이 즉시 ON
   - [ ] 수동 테스트: Switch OFF → ON → 재요청 없이 즉시 ON (권한 영구 유지)
+  - [ ] 단위 테스트: v5→v6 마이그레이션 시 `replayEnabled`가 `false`로 초기화됨
+  - [ ] `pnpm typecheck` 통과
+  - [ ] `pnpm test` 통과
+
+### Task 6: background/messages.ts — captureVisibleTab JPEG 포맷 분기
+
+- **변경 대상**: `src/background/messages.ts`, `src/types/messages.ts`
+- **작업 내용**:
+  - `BgRequest`의 `captureVisibleTab` 타입에 optional `format?: "jpeg" | "png"`, `quality?: number` 파라미터 추가
+  - background handler에서 `format`/`quality` 파라미터가 있으면 해당 옵션으로 `captureVisibleTab` 호출, 없으면 기존 PNG 동작 유지 (하위 호환)
+  - 30s Replay에서는 `{ type: "captureVisibleTab", tabId, format: "jpeg", quality: 65 }`로 호출
+- **검증**:
+  - [ ] 수동 테스트: 기존 element capture / screenshot capture가 PNG로 정상 동작 (회귀 없음)
+  - [ ] 수동 테스트: 30s Replay 캡처 루프에서 JPEG format으로 호출 확인
   - [ ] `pnpm typecheck` 통과
 
-### Task 6: UI — EmptyState 리팩터 + 30s Replay 버튼
+### Task 7: UI — EmptyState 리팩터 + 30s Replay 버튼
 
 - **변경 대상**: `src/sidepanel/tabs/IssueTab.tsx` (EmptyState 영역)
+- **의존**: Task 8 (App.tsx 통합)에서 전달되는 `use30sReplay` 반환값을 소비
 - **작업 내용**:
   - 기존 Freeform 버튼 제거 → PageFooter에 "이슈 작성" 버튼으로 이동 (로그 탭과 동일 패턴). 클릭 시 Freeform 모드 drafting 진입
   - 기존 Freeform 위치(col-span-2)에 30s Replay 버튼 추가 → 그리드 유지: 1×2×1 배열
   - 30s Replay 버튼 상태 분기:
     - `replayEnabled=false`: disabled + Tooltip("이슈 설정에서 30s Replay를 활성화할 수 있습니다")
-    - `replayEnabled=true`, `isReady=false`: disabled (프레임 축적 중)
+    - `replayEnabled=true`, `isReady=false`: disabled + Tooltip("화면을 기록하고 있습니다…")
     - `replayEnabled=true`, `isReady=true`: 활성
-    - `isEncoding=true`: disabled + progress 표시
-    - `phase="recording"` (수동 녹화 중): disabled
+    - `isEncoding=true`: disabled + `Loader2` 스피너 (`animate-spin` 패턴)
+    - `phase!="idle"` (수동 녹화/드래프팅/프리뷰 등): disabled
   - `use30sReplay` hook에서 반환되는 상태 + `replayEnabled` 사용
 - **검증**:
   - [ ] 수동 테스트: replayEnabled=false → 버튼 disabled + 안내 tooltip 호버 확인
@@ -129,20 +156,21 @@
   - [ ] 수동 테스트: PageFooter "이슈 작성" 클릭 → Freeform drafting 진입
   - [ ] 기존 Element/Screenshot/Video 버튼 정상 동작 (회귀 없음)
 
-### Task 7: App.tsx 통합
+### Task 8: App.tsx 통합
 
 - **변경 대상**: `src/sidepanel/App.tsx`
 - **작업 내용**:
   - `replayEnabled`를 `useSettingsUiStore`에서 구독
   - `use30sReplay(boundTabId, replayEnabled)` hook 전역 마운트 (어떤 탭에서든 캡처 지속)
-  - 반환값을 IssueTab에 전달 (props 또는 context)
+  - 반환값을 IssueTab에 전달 (props 또는 context) — Task 7이 이 값을 소비
 - **검증**:
   - [ ] 수동 테스트: 설정 ON + 패널 열림 → 콘솔 에러 없음 → 캡처 루프 시작
   - [ ] 수동 테스트: 설정 OFF → 캡처 루프 미시작
   - [ ] 수동 테스트: Settings/Integrations 탭에서도 캡처 지속 확인
   - [ ] 수동 테스트: 패널 닫힘 → 리소스 정리
+  - [ ] 수동 테스트: 30s Replay drafting 진입 후 `useBackgroundRecorder`와 충돌 없이 콘솔/네트워크 로그 정상 표시
 
-### Task 8: 드래프팅 흐름 호환 확인
+### Task 9: 드래프팅 흐름 호환 확인
 
 - **변경 대상**: 변경 없음 예상 (`captureMode: "video"` 사용으로 자동 호환)
 - **작업 내용**:
@@ -197,12 +225,15 @@ Task 4 (EditorStore)  ────────────┤
                                   │
 Task 5 (Settings 토글) ───────────┤
                                   │
-                        Task 6 (EmptyState UI) + Task 7 (App 통합)
+Task 6 (messages.ts JPEG) ────────┤
                                   │
-                        Task 8 (드래프팅 흐름 호환 확인)
+                        Task 8 (App 통합) → Task 7 (EmptyState UI)
+                                              │
+                                    Task 9 (드래프팅 흐름 호환 확인)
 ```
 
-- Task 1, 2, 4, 5는 독립적이므로 **병렬 가능**.
+- Task 1, 2, 4, 5, 6은 독립적이므로 **병렬 가능**.
 - Task 3은 1, 2에 의존.
-- Task 6, 7은 3, 4, 5에 의존.
-- Task 8은 6, 7 이후 통합 검증.
+- Task 8은 3, 4, 5, 6에 의존.
+- Task 7은 8에 의존 (hook 반환값을 소비).
+- Task 9는 7, 8 이후 통합 검증.
