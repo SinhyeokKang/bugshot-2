@@ -1,0 +1,170 @@
+# 30s Replay — 구현 태스크
+
+## 선행 조건
+
+- `mp4-muxer` 패키지 설치: `pnpm add mp4-muxer`
+- Chrome 94+ (WebCodecs VideoEncoder 지원). 기존 `minimum_chrome_version: "116"`으로 충족.
+
+## 태스크
+
+### Task 1: FrameBuffer 클래스
+
+- **변경 대상**: `src/sidepanel/30s-replay/frame-buffer.ts` (신규)
+- **작업 내용**:
+  - `CapturedFrame` 인터페이스: `{ blob: Blob; timestamp: number }`
+  - `FrameBuffer` 클래스: 생성자(maxFrames=60, maxDurationMs=30000), push, drain, clear, size, durationMs
+  - push 시 maxFrames 초과하면 shift로 oldest 제거
+  - push 시 maxDurationMs 초과 프레임도 시간 기반으로 제거 (현재 timestamp - maxDurationMs보다 오래된 프레임 제거)
+  - drain은 현재 배열을 반환하고 내부 배열을 새 빈 배열로 교체
+- **검증**:
+  - [ ] 단위 테스트: push 60장 → size=60, push 61장 → size=60 (oldest 제거)
+  - [ ] 단위 테스트: drain 후 size=0, 반환 배열에 모든 프레임 포함
+  - [ ] 단위 테스트: durationMs = 마지막 timestamp - 첫 timestamp
+  - [ ] 단위 테스트: maxDurationMs 초과 프레임이 시간 기반으로 제거됨
+  - [ ] 테스트 파일: `src/sidepanel/30s-replay/__tests__/frame-buffer.test.ts`
+
+### Task 2: Mp4Encoder 모듈
+
+- **변경 대상**: `src/sidepanel/30s-replay/mp4-encoder.ts` (신규)
+- **작업 내용**:
+  - `encodeToMp4(options)` 함수 구현
+  - 코덱 자동 선택: `VideoEncoder.isConfigSupported()`로 순차 탐색 (`avc1.42003D` → `avc1.64003D` → `avc1.420033` → `avc1.640033` → `avc1.42E01F`). 전체 실패 시 에러 throw
+  - 첫 프레임에서 원본 크기 파악 → maxWidth 초과 시 비율 유지 축소 → 짝수 올림
+  - JPEG Blob → `createImageBitmap(blob, { resizeWidth, resizeHeight })` → VideoFrame
+  - 프레임간 duration 계산 (timestamp 차이, μs 단위)
+  - mp4-muxer: `ArrayBufferTarget`, `fastStart: 'in-memory'`, `video.codec: 'avc'`
+  - output callback에서 `decoderConfig.colorSpace` null 시 bt709 기본값 주입
+  - 첫 프레임의 Blob으로 `createImageBitmap` → canvas → toDataURL thumbnail 생성
+  - 진행률 콜백 호출
+  - 매 N프레임마다 `await new Promise(r => setTimeout(r, 0))`으로 메인 스레드 양보
+- **검증**:
+  - [ ] 수동 테스트: 10장의 더미 JPEG → encodeToMp4 → Blob 반환, type="video/mp4"
+  - [ ] 수동 테스트: 생성된 MP4를 Chrome에서 재생 가능
+  - [ ] `pnpm test` 통과 (순수 함수에 대한 테스트: 짝수 올림, duration 계산 등)
+  - [ ] 테스트 파일: `src/sidepanel/30s-replay/__tests__/mp4-encoder.test.ts`
+
+### Task 3: use30sReplay hook
+
+- **변경 대상**: `src/sidepanel/30s-replay/use-30s-replay.ts` (신규)
+- **작업 내용**:
+  - 내부에서 `FrameBuffer` 인스턴스를 `useRef`로 관리
+  - 캡처 루프: `setInterval(500)` → `sendBg({ type: "captureVisibleTab", windowId })` → data URL → Blob 변환 → `frameBuffer.push(blob, timestamp)`. `windowId`는 `chrome.tabs.get(tabId)`로 조회하여 명시적으로 전달.
+  - 캡처 전 바운드 탭 활성 여부 확인: `chrome.tabs.get(tabId)` → `tab.active` 체크. 비활성이면 스킵
+  - `captureVisibleTab` 에러 시 (탭 닫힘, 네비게이션 중 등) 조용히 스킵
+  - `isReady`: `frameBuffer.size >= 10` (최소 5초 분량 확보)
+  - `capture()`: 인터벌 pause → drain → `encodeToMp4()` → `editorStore.on30sReplayComplete()` → 인터벌 resume. 실패 시 toast 에러 알림 + `isEncoding: false` 복귀 + 인터벌 재개
+  - 수동 비디오 녹화 중(`phase === "recording"`)이면 캡처 일시 중지
+  - cleanup: 언마운트 시 clearInterval + buffer.clear()
+  - 반환: `{ isCapturing, isReady, isEncoding, encodeProgress, capture }`
+- **검증**:
+  - [ ] 수동 테스트: 사이드패널 열기 → 5초 후 isReady=true 확인
+  - [ ] 수동 테스트: 다른 탭 전환 시 캡처 일시정지
+  - [ ] 수동 테스트: 사이드패널 닫기 → 리소스 정리 (인터벌 중지)
+  - [ ] 수동 테스트: 수동 비디오 녹화 중 캡처 일시 중지 확인
+
+### Task 4: EditorStore 확장
+
+- **변경 대상**: `src/store/editor-store.ts`
+- **작업 내용**:
+  - `CaptureSource` 타입 추가: `"manual" | "30s-replay"`
+  - `EditorState`에 `captureSource: CaptureSource | null` 필드 추가 (초기값 null)
+  - `on30sReplayComplete(blob, thumbnail, viewport)` 액션 추가:
+    - `captureMode: "video"` (기존 video 경로 호환)
+    - `captureSource: "30s-replay"` (구분용)
+    - `phase: "drafting"` (recording 단계 스킵)
+    - `videoBlob: blob`, `videoThumbnail: thumbnail`, `videoViewport: viewport`
+    - `videoCapturedAt: Date.now()`
+    - 콘솔/네트워크 레코더 동기화: `syncConsoleRecorder(tabId)`, `syncNetworkRecorder(tabId)` 호출
+  - 기존 수동 비디오 시작 시 `captureSource: "manual"` 설정
+  - `reset()` 시 `captureSource: null` 초기화
+- **검증**:
+  - [ ] `pnpm typecheck` 통과
+  - [ ] `pnpm test` 통과
+
+### Task 5: UI — 30s Replay 버튼
+
+- **변경 대상**: `src/sidepanel/tabs/IssueTab.tsx` (EmptyState 영역)
+- **작업 내용**:
+  - EmptyState 그리드에 30s Replay 버튼 추가:
+    - `isReady === false`: 버튼 비활성 (disabled)
+    - `isReady === true`: 버튼 활성
+    - 인코딩 중 (`isEncoding`): 프로그레스 표시 + 버튼 비활성
+    - 수동 비디오 녹화 중 (`phase === "recording"`): 버튼 비활성
+  - `use30sReplay` hook에서 반환되는 상태 사용
+  - 버튼 스타일: 기존 캡처 버튼과 동일한 패턴. shadcn/ui Button 사용
+- **검증**:
+  - [ ] 수동 테스트: 5초 미만 → 버튼 비활성
+  - [ ] 수동 테스트: 5초 경과 → 버튼 활성
+  - [ ] 수동 테스트: 인코딩 중 프로그레스 표시 + 버튼 비활성
+  - [ ] 수동 테스트: 수동 비디오 녹화 중 버튼 비활성
+  - [ ] 기존 캡처 모드 버튼들 정상 동작 (회귀 없음)
+
+### Task 6: App.tsx 통합
+
+- **변경 대상**: `src/sidepanel/App.tsx`
+- **작업 내용**:
+  - `use30sReplay(boundTabId)` hook 전역 마운트 (어떤 탭에서든 캡처 지속)
+  - 반환값을 IssueTab에 전달 (props 또는 context)
+- **검증**:
+  - [ ] 수동 테스트: 패널 열림 → 콘솔 에러 없음 → 캡처 루프 시작
+  - [ ] 수동 테스트: Settings/Integrations 탭에서도 캡처 지속 확인
+  - [ ] 수동 테스트: 패널 닫힘 → 리소스 정리
+
+### Task 7: 드래프팅 흐름 호환 확인
+
+- **변경 대상**: 변경 없음 예상 (`captureMode: "video"` 사용으로 자동 호환)
+- **작업 내용**:
+  - `captureMode === "video"`이므로 기존 video 경로를 자동으로 타는지 확인
+  - DraftingPanel: videoBlob 표시, 타이틀/마크다운 에디터 — 변경 없음 예상
+  - PreviewPanel: 비디오 미리보기 — 변경 없음 예상
+  - confirmDraft: `captureMode === "video"` 분기로 videoBlob/logs 저장 — 변경 없음 예상
+  - 필요 시 `captureSource` 구분이 필요한 곳만 추가 (예: 이슈 목록에서 구분 표시)
+- **검증**:
+  - [ ] 수동 테스트: 30s Replay → 드래프팅 → 타이틀·에디터 정상
+  - [ ] 수동 테스트: 콘솔/네트워크 로그 탭 표시 정상
+  - [ ] 수동 테스트: 프리뷰 → 제출 → Jira/GitHub에 MP4 첨부 확인
+  - [ ] 수동 테스트: 30s Replay로 생성된 이슈가 IndexedDB에 정상 영속화됨
+  - [ ] 수동 테스트: 기존 수동 비디오 모드 정상 동작
+  - [ ] `pnpm typecheck` 통과
+
+## 테스트 계획
+
+### 단위 테스트
+
+| 대상 | 파일 | 케이스 |
+|---|---|---|
+| FrameBuffer | `src/sidepanel/30s-replay/__tests__/frame-buffer.test.ts` | push 순환, drain, clear, durationMs 계산, maxDurationMs 시간 기반 제거 |
+| duration 계산 | `src/sidepanel/30s-replay/__tests__/mp4-encoder.test.ts` | 타임스탬프 차이 → μs 변환, 마지막 프레임 duration 처리 |
+| 짝수 올림 | `src/sidepanel/30s-replay/__tests__/mp4-encoder.test.ts` | 홀수 → 짝수 올림 (1281→1282, 720→720) |
+
+### 수동 테스트 체크리스트
+
+- [ ] 패널 열기 → 5초 후 30s Replay 버튼 활성화
+- [ ] 30초 대기 → 30s Replay 클릭 → 3초 이내 드래프팅 진입
+- [ ] 생성된 MP4를 로컬에서 재생 — 화면 변화가 있는 영상인지 확인
+- [ ] 다른 탭 전환 후 돌아와서 30s Replay → 공백 없이 정상
+- [ ] 기존 Video 모드 (수동 녹화) 정상 동작
+- [ ] 기존 Screenshot, Element, Freeform 모드 정상 동작
+- [ ] Jira에 MP4 첨부 → inline preview 재생
+- [ ] 수동 비디오 녹화 중 30s Replay 버튼 비활성
+- [ ] 인코딩 실패 시 toast 알림 + 캡처 루프 재개
+
+## 구현 순서 권장
+
+```
+Task 1 (FrameBuffer)  ─┐
+                        ├─ Task 3 (use30sReplay hook)
+Task 2 (Mp4Encoder)   ─┘         │
+                                  │
+Task 4 (EditorStore)  ────────────┤
+                                  │
+                        Task 5 (UI) + Task 6 (App 통합)
+                                  │
+                        Task 7 (드래프팅 흐름 호환 확인)
+```
+
+- Task 1, 2는 독립적이므로 **병렬 가능**.
+- Task 3은 1, 2에 의존.
+- Task 4는 독립적이므로 1, 2와 **병렬 가능**.
+- Task 5, 6은 3, 4에 의존.
+- Task 7은 5, 6 이후 통합 검증.
