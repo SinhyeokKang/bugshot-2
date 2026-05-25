@@ -48,19 +48,24 @@
 - **변경 대상**: `src/sidepanel/30s-replay/use-30s-replay.ts` (신규)
 - **작업 내용**:
   - 내부에서 `FrameBuffer` 인스턴스를 `useRef`로 관리
-  - 캡처 루프: `setInterval(500)` → `sendBg({ type: "captureVisibleTab", windowId })` → data URL → Blob 변환 → `frameBuffer.push(blob, timestamp)`. `windowId`는 `chrome.tabs.get(tabId)`로 조회하여 명시적으로 전달.
+  - `enabled` 인자가 `true`일 때만 캡처 루프 시작
+  - 루프 시작 시 `chrome.permissions.contains({ origins: ["https://*/*", "http://*/*"] })` 확인. 권한 없으면 `setReplayEnabled(false)` + toast 안내 후 미시작
+  - 캡처 루프: `setInterval(500)` — **이전 호출 미완료 시 해당 틱 스킵** (rate limit 방어) → `sendBg({ type: "captureVisibleTab", windowId })` → data URL → Blob 변환 → `frameBuffer.push(blob, timestamp)`. `windowId`는 `chrome.tabs.get(tabId)`로 조회하여 명시적으로 전달.
   - 캡처 전 바운드 탭 활성 여부 확인: `chrome.tabs.get(tabId)` → `tab.active` 체크. 비활성이면 스킵
   - `captureVisibleTab` 에러 시 (탭 닫힘, 네비게이션 중 등) 조용히 스킵
   - `isReady`: `frameBuffer.size >= 10` (최소 5초 분량 확보)
   - `capture()`: 인터벌 pause → drain → `encodeToMp4()` → `editorStore.on30sReplayComplete()` → 인터벌 resume. 실패 시 toast 에러 알림 + `isEncoding: false` 복귀 + 인터벌 재개
   - 수동 비디오 녹화 중(`phase === "recording"`)이면 캡처 일시 중지
+  - `enabled`가 false로 전환되면 인터벌 정지 + 버퍼 clear
   - cleanup: 언마운트 시 clearInterval + buffer.clear()
   - 반환: `{ isCapturing, isReady, isEncoding, encodeProgress, capture }`
 - **검증**:
-  - [ ] 수동 테스트: 사이드패널 열기 → 5초 후 isReady=true 확인
+  - [ ] 수동 테스트: 설정에서 ON → 사이드패널에서 5초 후 isReady=true 확인
   - [ ] 수동 테스트: 다른 탭 전환 시 캡처 일시정지
+  - [ ] 수동 테스트: 설정에서 OFF → 캡처 루프 즉시 중지 + 버퍼 클리어
   - [ ] 수동 테스트: 사이드패널 닫기 → 리소스 정리 (인터벌 중지)
   - [ ] 수동 테스트: 수동 비디오 녹화 중 캡처 일시 중지 확인
+  - [ ] 수동 테스트: 권한 외부 철회 후 패널 재열기 → 자동 OFF + toast
 
 ### Task 4: EditorStore 확장
 
@@ -81,36 +86,63 @@
   - [ ] `pnpm typecheck` 통과
   - [ ] `pnpm test` 통과
 
-### Task 5: UI — 30s Replay 버튼
+### Task 5: SettingsUiStore + SettingsTab — 30s Replay 토글
+
+- **변경 대상**: `src/store/settings-ui-store.ts`, `src/sidepanel/tabs/SettingsTab.tsx`
+- **작업 내용 (Store)**:
+  - `SettingsUiState`에 `replayEnabled: boolean` 필드 추가 (기본 `false`)
+  - `setReplayEnabled(enabled: boolean)` 액션 추가
+  - 스토어 버전 bump v5→v6, migrate에서 `replayEnabled` 기본값 설정
+- **작업 내용 (UI)**:
+  - `IssueSettingsContent`에 "캡처" Section 추가 (기존 "제목 설정" 아래, "본문 구성" 위)
+  - Section 내 Card > Row: Timer 아이콘 + "30s Replay" 라벨 + 도움말 텍스트 + Switch
+  - Switch `onCheckedChange` 핸들러:
+    - ON: `chrome.permissions.contains()` → 미승인이면 `chrome.permissions.request()` → 승인 시 `setReplayEnabled(true)`, 거부 시 OFF 복귀 + toast
+    - OFF: `setReplayEnabled(false)` (권한은 유지)
+  - 기존 `IssueSectionRow`와 동일한 레이아웃 패턴 사용
+- **검증**:
+  - [ ] 수동 테스트: Switch ON → 권한 프롬프트 표시 → 승인 → ON 유지
+  - [ ] 수동 테스트: Switch ON → 권한 프롬프트 표시 → 거부 → OFF 복귀 + toast
+  - [ ] 수동 테스트: 이미 승인된 상태에서 ON → 프롬프트 없이 즉시 ON
+  - [ ] 수동 테스트: Switch OFF → ON → 재요청 없이 즉시 ON (권한 영구 유지)
+  - [ ] `pnpm typecheck` 통과
+
+### Task 6: UI — EmptyState 리팩터 + 30s Replay 버튼
 
 - **변경 대상**: `src/sidepanel/tabs/IssueTab.tsx` (EmptyState 영역)
 - **작업 내용**:
-  - EmptyState 그리드에 30s Replay 버튼 추가:
-    - `isReady === false`: 버튼 비활성 (disabled)
-    - `isReady === true`: 버튼 활성
-    - 인코딩 중 (`isEncoding`): 프로그레스 표시 + 버튼 비활성
-    - 수동 비디오 녹화 중 (`phase === "recording"`): 버튼 비활성
-  - `use30sReplay` hook에서 반환되는 상태 사용
-  - 버튼 스타일: 기존 캡처 버튼과 동일한 패턴. shadcn/ui Button 사용
+  - 기존 Freeform 버튼 제거 → PageFooter에 "이슈 작성" 버튼으로 이동 (로그 탭과 동일 패턴). 클릭 시 Freeform 모드 drafting 진입
+  - 기존 Freeform 위치(col-span-2)에 30s Replay 버튼 추가 → 그리드 유지: 1×2×1 배열
+  - 30s Replay 버튼 상태 분기:
+    - `replayEnabled=false`: disabled + Tooltip("이슈 설정에서 30s Replay를 활성화할 수 있습니다")
+    - `replayEnabled=true`, `isReady=false`: disabled (프레임 축적 중)
+    - `replayEnabled=true`, `isReady=true`: 활성
+    - `isEncoding=true`: disabled + progress 표시
+    - `phase="recording"` (수동 녹화 중): disabled
+  - `use30sReplay` hook에서 반환되는 상태 + `replayEnabled` 사용
 - **검증**:
-  - [ ] 수동 테스트: 5초 미만 → 버튼 비활성
-  - [ ] 수동 테스트: 5초 경과 → 버튼 활성
-  - [ ] 수동 테스트: 인코딩 중 프로그레스 표시 + 버튼 비활성
-  - [ ] 수동 테스트: 수동 비디오 녹화 중 버튼 비활성
-  - [ ] 기존 캡처 모드 버튼들 정상 동작 (회귀 없음)
+  - [ ] 수동 테스트: replayEnabled=false → 버튼 disabled + 안내 tooltip 호버 확인
+  - [ ] 수동 테스트: replayEnabled=true, 5초 미만 → 버튼 disabled (tooltip 없음)
+  - [ ] 수동 테스트: replayEnabled=true, 5초 경과 → 버튼 활성
+  - [ ] 수동 테스트: 인코딩 중 progress 표시 + 버튼 disabled
+  - [ ] 수동 테스트: 수동 비디오 녹화 중 버튼 disabled
+  - [ ] 수동 테스트: PageFooter "이슈 작성" 클릭 → Freeform drafting 진입
+  - [ ] 기존 Element/Screenshot/Video 버튼 정상 동작 (회귀 없음)
 
-### Task 6: App.tsx 통합
+### Task 7: App.tsx 통합
 
 - **변경 대상**: `src/sidepanel/App.tsx`
 - **작업 내용**:
-  - `use30sReplay(boundTabId)` hook 전역 마운트 (어떤 탭에서든 캡처 지속)
+  - `replayEnabled`를 `useSettingsUiStore`에서 구독
+  - `use30sReplay(boundTabId, replayEnabled)` hook 전역 마운트 (어떤 탭에서든 캡처 지속)
   - 반환값을 IssueTab에 전달 (props 또는 context)
 - **검증**:
-  - [ ] 수동 테스트: 패널 열림 → 콘솔 에러 없음 → 캡처 루프 시작
+  - [ ] 수동 테스트: 설정 ON + 패널 열림 → 콘솔 에러 없음 → 캡처 루프 시작
+  - [ ] 수동 테스트: 설정 OFF → 캡처 루프 미시작
   - [ ] 수동 테스트: Settings/Integrations 탭에서도 캡처 지속 확인
   - [ ] 수동 테스트: 패널 닫힘 → 리소스 정리
 
-### Task 7: 드래프팅 흐름 호환 확인
+### Task 8: 드래프팅 흐름 호환 확인
 
 - **변경 대상**: 변경 없음 예상 (`captureMode: "video"` 사용으로 자동 호환)
 - **작업 내용**:
@@ -139,15 +171,20 @@
 
 ### 수동 테스트 체크리스트
 
-- [ ] 패널 열기 → 5초 후 30s Replay 버튼 활성화
+- [ ] 설정 > 이슈 설정 > 30s Replay Switch ON → 권한 프롬프트 → 승인
+- [ ] 설정 > 이슈 설정 > 30s Replay Switch ON → 권한 프롬프트 → 거부 → OFF 복귀
+- [ ] 패널 열기 (설정 ON) → 5초 후 30s Replay 버튼 활성화
 - [ ] 30초 대기 → 30s Replay 클릭 → 3초 이내 드래프팅 진입
 - [ ] 생성된 MP4를 로컬에서 재생 — 화면 변화가 있는 영상인지 확인
 - [ ] 다른 탭 전환 후 돌아와서 30s Replay → 공백 없이 정상
+- [ ] 설정 OFF 상태 → 30s Replay 버튼 disabled + 호버 tooltip 확인
+- [ ] PageFooter "이슈 작성" 클릭 → Freeform 모드 drafting 진입
 - [ ] 기존 Video 모드 (수동 녹화) 정상 동작
-- [ ] 기존 Screenshot, Element, Freeform 모드 정상 동작
+- [ ] 기존 Screenshot, Element 모드 정상 동작
 - [ ] Jira에 MP4 첨부 → inline preview 재생
 - [ ] 수동 비디오 녹화 중 30s Replay 버튼 비활성
 - [ ] 인코딩 실패 시 toast 알림 + 캡처 루프 재개
+- [ ] chrome://extensions에서 권한 철회 → 패널 재열기 → 자동 OFF + toast
 
 ## 구현 순서 권장
 
@@ -158,13 +195,14 @@ Task 2 (Mp4Encoder)   ─┘         │
                                   │
 Task 4 (EditorStore)  ────────────┤
                                   │
-                        Task 5 (UI) + Task 6 (App 통합)
+Task 5 (Settings 토글) ───────────┤
                                   │
-                        Task 7 (드래프팅 흐름 호환 확인)
+                        Task 6 (EmptyState UI) + Task 7 (App 통합)
+                                  │
+                        Task 8 (드래프팅 흐름 호환 확인)
 ```
 
-- Task 1, 2는 독립적이므로 **병렬 가능**.
+- Task 1, 2, 4, 5는 독립적이므로 **병렬 가능**.
 - Task 3은 1, 2에 의존.
-- Task 4는 독립적이므로 1, 2와 **병렬 가능**.
-- Task 5, 6은 3, 4에 의존.
-- Task 7은 5, 6 이후 통합 검증.
+- Task 6, 7은 3, 4, 5에 의존.
+- Task 8은 6, 7 이후 통합 검증.
