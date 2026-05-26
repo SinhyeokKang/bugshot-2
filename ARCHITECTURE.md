@@ -205,6 +205,18 @@ UI(`NetworkLogPreviewDialog`)와 HAR export 모두 이 context를 살려 "본문
 
 **Cross-tab 메시지 격리** — `chrome.runtime.sendMessage`는 모든 extension contexts에 broadcast되므로 다른 탭의 content script가 보낸 `networkRecorder.data`/`consoleRecorder.data`/`picker.*`도 내 사이드패널 핸들러에 도달한다. `usePickerMessages`가 핸들러 진입부에서 `sender.tab?.id !== myTabId`인 메시지를 drop — 그러지 않으면 같은 origin/다른 path의 두 탭에서 동시에 녹화 중일 때 한 사이드패널이 다른 탭의 로그로 자기 store/IDB를 덮어쓰는 버그가 발생한다. `sender.tab` 부재(사이드패널/서비스워커 내부 통신)는 통과.
 
+## 30s Replay (직전 30초 캡처)
+
+`src/sidepanel/30s-replay/`. 수동 녹화(MediaRecorder + tabCapture)와 별개 경로 — "녹화 버튼을 누르기 전 30초"를 사후에 건지기 위한 look-back 캡처.
+
+**권한** — Side Panel은 Chrome 정책상 `activeTab` grant를 못 받는다(Chromium Issue #40916430, 의도된 설계). `captureVisibleTab`은 `activeTab` 또는 `<all_urls>` host permission을 요구하므로, `optional_host_permissions`에 선언된 `https://*/*` + `http://*/*`를 **런타임 요청**해 획득한다. 설정 > 이슈 설정의 "30s Replay" Switch ON 시 `chrome.permissions.request()`로 1회 동의(Chrome이 영구 저장). 권한 회수가 감지되면 toast + 토글 자동 off.
+
+**버퍼링** — `use-30s-replay` 훅이 `enabled && phase==="idle" && tab.active`일 때 `CAPTURE_INTERVAL_MS`(600ms) 간격으로 `captureVisibleTab`(jpeg q65) → Blob → `FrameBuffer`에 push. `FrameBuffer`는 **개수 cap(60) + 시간 cap(30s) 이중 제한**으로 oldest를 축출. `MIN_READY_FRAMES`(10) 이상이면 `isReady`. 버퍼는 **페이지 네비게이션과 무관하게 유지**(이전·새 페이지 프레임이 섞이는 건 의도된 동작 — 버그 재현 과정 전체를 담기 위함). phase gating·탭 비활성·미지원 스킴으로 캡처가 끊긴 구간은 mp4-encoder의 per-frame duration cap(`MAX_FRAME_DURATION_MS`)으로 clamp해 재생 시 "툭 건너뜀"을 흡수.
+
+**인코딩 + 진입** — `capture()`는 `pausedRef`로 인터벌을 멈추고 `frameBuffer.snapshot()` → `encodeToMp4()`(WebCodecs `VideoEncoder` H.264, codec 후보 순차 탐색 + `mp4-muxer`로 컨테이너 muxing, VideoEncoder의 비동기 error는 변수로 받아 flush 후 throw) → 성공 시 버퍼 clear + 기존 비디오 모드 진입점 `onRecordingComplete(blob, thumbnail, viewport)` 재사용(`captureMode: "video"`). idle 직접 진입이라 startRecording이 채우던 `target`을 `capture()`에서 직접 setState해 `confirmDraft`의 target 가드를 통과시킨다.
+
+**상태 공유** — `replay-context.ts`의 `ReplayProvider`가 `isReady`/`isEncoding`/`capture`를 IssueTab EmptyState에 공급. 30s Replay 구분용 별도 캡처 모드 필드는 두지 않고 `video`로 통합.
+
 ## chrome.scripting.executeScript MAIN world 주입 규칙
 
 `chrome.scripting.executeScript({ world: "MAIN", func })`의 `func` 인자는 `Function.prototype.toString()`으로 직렬화 후 대상 탭의 페이지 컨텍스트에서 **재평가**된다. SW의 모듈 스코프 클로저는 살아남지 않는다 — 모듈 스코프의 헬퍼 함수·상수를 참조하면 페이지에서 `ReferenceError`로 즉시 throw, 반환 Promise가 reject되어 `result.result === null`로 떨어진다.
