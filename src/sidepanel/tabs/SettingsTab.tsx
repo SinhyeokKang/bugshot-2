@@ -105,22 +105,6 @@ function IssueSettingsContent() {
   return (
     <PageShell>
       <PageScroll>
-        <Section title={t("settings.titleSettings")}>
-          <div className="space-y-2">
-            <Input
-              id="title-prefix"
-              placeholder="[QA] "
-              value={titlePrefix}
-              onChange={(e) => setTitlePrefix(e.target.value)}
-              autoComplete="off"
-              spellCheck={false}
-            />
-            <p className="text-[0.8rem] text-muted-foreground">
-              {t("settings.titlePrefix.help")}
-            </p>
-          </div>
-        </Section>
-
         <Section title={t("settings.capture")}>
           <Card>
             <CardContent className="flex flex-col gap-3 px-3 py-3">
@@ -144,6 +128,22 @@ function IssueSettingsContent() {
               </div>
             </CardContent>
           </Card>
+        </Section>
+
+        <Section title={t("settings.titleSettings")}>
+          <div className="space-y-2">
+            <Input
+              id="title-prefix"
+              placeholder="[QA] "
+              value={titlePrefix}
+              onChange={(e) => setTitlePrefix(e.target.value)}
+              autoComplete="off"
+              spellCheck={false}
+            />
+            <p className="text-[0.8rem] text-muted-foreground">
+              {t("settings.titlePrefix.help")}
+            </p>
+          </div>
         </Section>
 
         <Section title={t("settings.bodyComposition")}>
