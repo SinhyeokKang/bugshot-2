@@ -14,6 +14,7 @@ import { handleMessage } from "./messages";
 import { OAuthError } from "./oauth";
 import { pruneOrphanPendingLogsOncePerSession } from "@/lib/pending-log-prune";
 import { shouldClearLogs } from "@/lib/navigation-clear";
+import type { BgInternalMessage } from "@/types/messages";
 import { activateTab, setupTabBindings } from "./tab-bindings";
 
 initBgLocale();
@@ -184,7 +185,7 @@ chrome.webNavigation.onCommitted.addListener((details) => {
   void chrome.storage.session.get(key).then((stored) => {
     if (stored[key] == null) return;
     chrome.runtime
-      .sendMessage({ type: "logClear", tabId: details.tabId })
+      .sendMessage({ type: "logClear", tabId: details.tabId } satisfies BgInternalMessage)
       .catch(() => {});
   });
 });

@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useEditorStore } from "@/store/editor-store";
 import type { PickerMessage, ViewportRect } from "@/types/picker";
-import { onPickerIframeUnsupported, onPickerPermissionExpired, sendBg } from "@/types/messages";
+import { type BgInternalMessage, onPickerIframeUnsupported, onPickerPermissionExpired, sendBg } from "@/types/messages";
 import { captureElementSnapshot, loadImage } from "@/sidepanel/capture";
 import { collectTokens, maybeSurfacePermissionExpired } from "@/sidepanel/picker-control";
 import { saveNetworkLog, saveConsoleLog, saveInlineImage, dataUrlToBlob } from "@/store/blob-db";
@@ -30,7 +30,7 @@ export function usePickerMessages(myTabId: number | null): void {
 
   useEffect(() => {
     function handler(
-      message: PickerMessage | { type: string },
+      message: PickerMessage | BgInternalMessage | { type: string },
       sender: chrome.runtime.MessageSender,
     ) {
       if (!message || typeof message !== "object" || !("type" in message)) {
@@ -108,12 +108,12 @@ export function usePickerMessages(myTabId: number | null): void {
         useEditorStore.getState().cancelPicking();
         onPickerIframeUnsupported.fire();
       } else if (message.type === "activeTabExpiredDeferred") {
-        const msg = message as { type: "activeTabExpiredDeferred"; tabId: number };
+        const msg = message as Extract<BgInternalMessage, { type: "activeTabExpiredDeferred" }>;
         if (myTabId != null && msg.tabId !== myTabId) return;
         deferredActiveTabExpiry = true;
       } else if (message.type === "logClear") {
         if (isLogFrozen(useEditorStore.getState().phase)) return;
-        const msg = message as { type: "logClear"; tabId: number };
+        const msg = message as Extract<BgInternalMessage, { type: "logClear" }>;
         if (myTabId != null && msg.tabId !== myTabId) return;
         const store = useEditorStore.getState();
         store.clearNetworkLog(myTabId);

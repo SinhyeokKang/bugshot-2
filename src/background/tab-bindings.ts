@@ -1,6 +1,13 @@
-import { originOf, pageKeyOf, sessionKey } from "@/lib/session-keys";
+import { FROZEN_PHASES, originOf, pageKeyOf, sessionKey } from "@/lib/session-keys";
 import { isSupportedUrl } from "@/lib/url-support";
 import { deleteNetworkLog, deleteConsoleLog } from "@/store/blob-db";
+import type { BgInternalMessage } from "@/types/messages";
+
+type SessionSnap = {
+  target?: { url?: string };
+  captureMode?: string;
+  phase?: string;
+};
 
 const SIDEPANEL_PATH = "src/sidepanel/index.html";
 const ACTIVATED_KEY = "sidePanel:activated";
@@ -40,7 +47,7 @@ async function apply(tabId: number, url: string | undefined): Promise<void> {
 
   const key = sessionKey(tabId);
   const data = await chrome.storage.session.get(key);
-  const snap = data[key] as { captureMode?: string; phase?: string } | undefined;
+  const snap = data[key] as SessionSnap | undefined;
   if (shouldPreserveSession(snap)) return;
 
   if (!(activated && supported)) {
@@ -52,17 +59,15 @@ async function apply(tabId: number, url: string | undefined): Promise<void> {
   }
 }
 
-function shouldPreserveSession(
+export function shouldPreserveSession(
   snap: { captureMode?: string; phase?: string } | undefined,
 ): boolean {
   if (!snap) return false;
   const mode = snap.captureMode;
   const phase = snap.phase ?? "";
   if (mode === "video") return true;
-  if (mode === "screenshot")
-    return phase === "drafting" || phase === "previewing" || phase === "done";
-  if (mode === "element")
-    return phase === "drafting" || phase === "previewing" || phase === "done";
+  if (mode === "screenshot" || mode === "element" || mode === "freeform")
+    return FROZEN_PHASES.has(phase);
   return false;
 }
 
@@ -73,9 +78,7 @@ async function clearIfPageChanged(
   const key = sessionKey(tabId);
   try {
     const data = await chrome.storage.session.get(key);
-    const snap = data[key] as
-      | { target?: { url?: string }; captureMode?: string; phase?: string }
-      | undefined;
+    const snap = data[key] as SessionSnap | undefined;
     if (!snap) return;
     if (shouldPreserveSession(snap)) {
       if (snap.captureMode === "element" && pageKeyOf(snap.target?.url) !== pageKeyOf(newUrl)) {
@@ -105,9 +108,7 @@ async function deactivatePanelIfCrossOrigin(
     const set = await getActivatedSet();
     if (!set.has(tabId)) return;
     const data = await chrome.storage.session.get(key);
-    const snap = data[key] as
-      | { target?: { url?: string }; captureMode?: string; phase?: string }
-      | undefined;
+    const snap = data[key] as SessionSnap | undefined;
     const preserved = shouldPreserveSession(snap);
 
     let refUrl = snap?.target?.url;
@@ -133,7 +134,7 @@ async function deactivatePanelIfCrossOrigin(
     // cross-origin 또는 URL 판별 불가
     if (preserved) {
       chrome.runtime
-        .sendMessage({ type: "activeTabExpiredDeferred", tabId })
+        .sendMessage({ type: "activeTabExpiredDeferred", tabId } satisfies BgInternalMessage)
         .catch(() => {});
       return;
     }

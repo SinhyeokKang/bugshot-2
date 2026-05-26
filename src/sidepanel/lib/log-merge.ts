@@ -1,6 +1,7 @@
 import type { NetworkLog, NetworkRequest } from "@/types/network";
 import type { ConsoleLog, ConsoleEntry } from "@/types/console";
 import type { EditorPhase } from "@/store/editor-store";
+import { FROZEN_PHASES } from "@/lib/session-keys";
 
 export const NETWORK_MAX_ENTRIES = 5000;
 export const CONSOLE_MAX_ENTRIES = 2000;
@@ -77,5 +78,5 @@ export function rebuildConsoleLog(
 
 // drafting 이후 단계는 캡처된 자산을 편집·확인·제출 중 — 지연 sync가 첨부 로그를 흔들지 않도록 머지 동결.
 export function isLogFrozen(phase: EditorPhase): boolean {
-  return phase === "drafting" || phase === "previewing" || phase === "done";
+  return FROZEN_PHASES.has(phase);
 }

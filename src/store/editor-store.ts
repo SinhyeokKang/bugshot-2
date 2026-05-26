@@ -300,7 +300,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       target,
       ...preserveLogs(state),
     })),
-  cancelPicking: () => set({ ...initial }),
+  cancelPicking: () => set((state) => ({ ...initial, ...preserveLogs(state) })),
 
   startCapturing: (target) =>
     set((prev) => ({
@@ -322,7 +322,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     })),
   startRecording: (target) => set({ ...initial, captureMode: "video", phase: "recording", target }),
   onRecordingComplete: (blob, thumbnail, viewport) => set({ captureMode: "video", phase: "drafting", videoBlob: blob, videoThumbnail: thumbnail, videoViewport: viewport, videoCapturedAt: Date.now(), networkLogAttach: true, consoleLogAttach: true }),
-  cancelRecording: () => set({ ...initial }),
+  cancelRecording: () => set((state) => ({ ...initial, ...preserveLogs(state) })),
   onAreaCaptured: (dataUrl, viewport) => set({ phase: "drafting", screenshotRaw: dataUrl, screenshotViewport: viewport, screenshotCapturedAt: Date.now(), networkLogAttach: true, consoleLogAttach: true }),
   onAnnotated: (dataUrl) => set({ screenshotAnnotated: dataUrl }),
 

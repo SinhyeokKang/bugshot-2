@@ -17,6 +17,12 @@ export function pageKeyOf(url: string | undefined): string | null {
   }
 }
 
+export const FROZEN_PHASES: ReadonlySet<string> = new Set([
+  "drafting",
+  "previewing",
+  "done",
+]);
+
 export function originOf(url: string | undefined): string | null {
   if (!url) return null;
   try {

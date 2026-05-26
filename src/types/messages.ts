@@ -142,6 +142,11 @@ export type BgRequest =
   | { type: "notion.getPageStatus"; pageId: string }
   | { type: "notion.updatePageStatus"; pageId: string; propertyName: string; optionName: string };
 
+// handleMessage를 거치지 않는 bg→sidepanel 내부 통신 메시지.
+export type BgInternalMessage =
+  | { type: "logClear"; tabId: number }
+  | { type: "activeTabExpiredDeferred"; tabId: number };
+
 export type BgResponse<T = unknown> =
   | { ok: true; result: T }
   | { ok: false; error: string; status?: number; body?: unknown };
