@@ -137,14 +137,17 @@ video-capture.ts:isTabCaptureUnavailable()
 
 ### 만료 시 동작
 
-1. `onPickerPermissionExpired.fire()` 이벤트 발화 (`types/messages.ts:221-226`)
-2. `App.tsx:138-146` — 이벤트 수신, `permissionExpired` 상태 세팅
-3. `App.tsx:326-343` — AlertDialog 표시:
-   - 제목: "권한이 만료되었습니다" / "Permission expired"
-   - 본문: "페이지가 변경되어 권한이 만료되었습니다. BugShot을 다시 실행해 주세요."
-   - 확인 버튼 → `window.close()` (사이드 패널 닫기)
+**즉시 경로 (비보존 상태)**:
 
-별도 경로: `tab-bindings.ts:128-131` — cross-origin 네비게이션 시 bg에서 직접 패널 비활성화 + 세션 제거.
+- cross-origin 네비게이션 → bg `deactivatePanelIfCrossOrigin`이 패널 비활성화 + 세션 제거. 사용자가 아이콘 재클릭으로 복구.
+- 캡처 시도 시 실패 → `onPickerPermissionExpired.fire()` → AlertDialog ("권한이 만료되었습니다") → `window.close()`
+
+**지연 경로 (보존 상태 — drafting/previewing/done/video)**:
+
+1. cross-origin 네비게이션 감지 → bg가 `activeTabExpiredDeferred` 메시지 전송 (패널은 유지)
+2. `usePickerMessages`가 플래그 세팅, phase가 idle로 전환될 때 `onPickerPermissionExpired.fire()`
+3. AlertDialog → `window.close()`
+4. idle 복귀 전 캡처 시도 시에는 기존 3중 방어가 즉시 다이얼로그를 띄움
 
 ### 재취득 흐름
 
@@ -236,19 +239,34 @@ background/index.ts:83 — disableGlobalSidePanel()
 
 | 함수 | 위치 | 동작 |
 |---|---|---|
-| `activateTab()` | `tab-bindings.ts:137` | user gesture → `setOptions({enabled:true})` + `sidePanel.open()` |
+| `activateTab()` | `tab-bindings.ts:149` | user gesture → `setOptions({enabled:true})` + `sidePanel.open()` + 활성화 URL 저장(`sidePanel:url:{tabId}`) |
 | `apply()` | `tab-bindings.ts:21` | 탭 전환·URL 변경 시 — activated + supported면 path 재등록, 아니면 비활성화 |
-| `deactivatePanelIfCrossOrigin()` | `tab-bindings.ts:98` | cross-origin 네비게이션 → 비활성화 + 세션 제거 |
+| `deactivatePanelIfCrossOrigin()` | `tab-bindings.ts:99` | origin 비교 → same-origin 유지, cross-origin 닫기/deferred |
 
 ### sidePanel.open() 호출 조건
 
 `sidePanel.open()`은 user gesture 컨텍스트에서만 호출 가능. 코드베이스에서 **단 한 곳**에서만 호출:
 
 ```
-tab-bindings.ts:147 — activateTab() 내부
+tab-bindings.ts:151 — activateTab() 내부
 ```
 
 트리거: `action.onClicked` (아이콘 클릭 / `_execute_action` 단축키) 또는 `contextMenus.onClicked`. 둘 다 동기 이벤트 핸들러에서 즉시 호출 → user gesture 유지.
+
+### 패널 종료/유지 정책
+
+`deactivatePanelIfCrossOrigin()`이 `tabs.onUpdated` `status:loading` 시점에 호출되어 패널을 닫을지 유지할지 결정한다.
+
+**기준 URL 결정**: 에디터 세션의 `target.url` → 없으면 `activateTab()` 시점에 저장한 활성화 URL(`sidePanel:url:{tabId}`) → 둘 다 없으면 비교 불가로 패널 유지.
+
+**분기표**:
+
+| 네비게이션 | 세션 상태 | 동작 |
+|---|---|---|
+| same-origin | 보존/비보존 무관 | 패널 유지. 비보존이고 page key 변경 시 stale 세션만 제거 |
+| cross-origin | 비보존 (idle 포함) | 패널 닫기 + `setActivated(false)` + 세션 제거 |
+| cross-origin | 보존 (drafting/previewing/done/video) | 패널 유지, `activeTabExpiredDeferred` 메시지 전송 → idle 복귀 시 만료 다이얼로그 |
+| URL 판별 불가 | — | cross-origin으로 간주 → 위 분기 적용 |
 
 ### 세션 보존 규칙
 
@@ -259,7 +277,24 @@ tab-bindings.ts:147 — activateTab() 내부
 | `video` | 모든 phase | O — 녹화 중단 방지 |
 | `screenshot` | `drafting` / `previewing` / `done` | O |
 | `element` | `drafting` / `previewing` / `done` | O |
-| 그 외 | | X — 패널 비활성화 |
+| 그 외 | | X — 비보존 |
+
+### Deferred 권한 만료 (보존 상태 전용)
+
+보존 상태에서 cross-origin 네비게이션이 감지되면:
+
+```
+tab-bindings.ts → cross-origin + preserved
+  → chrome.runtime.sendMessage({ type: "activeTabExpiredDeferred", tabId })
+
+usePickerMessages.ts
+  → 메시지 수신 → deferredActiveTabExpiry 플래그 세팅
+  → useEditorStore.subscribe로 phase 감시
+  → phase === "idle" 전환 시 → onPickerPermissionExpired.fire()
+  → 만료 다이얼로그 → window.close()
+```
+
+idle 복귀 전 캡처를 시도하면 기존 3중 방어(진입 가드 / 런타임 가드 / tabCapture 가드)가 즉시 만료 다이얼로그를 띄운다.
 
 ---
 
@@ -270,6 +305,7 @@ tab-bindings.ts:147 — activateTab() 내부
 | 키 | 데이터 | 사용처 |
 |---|---|---|
 | `sidePanel:activated` | `number[]` (tab ID 목록) | `tab-bindings.ts:6` — 패널 활성화 탭 추적 |
+| `sidePanel:url:{tabId}` | `string` (활성화 시점 URL) | `tab-bindings.ts:157` — idle 상태 origin 비교 fallback |
 | `editor:{tabId}` | `EditorSnapshot` 전체 에디터 상태 | `useEditorSessionSync.ts` — 300ms 디바운스 저장·수화 |
 | `pendingPrunedAt` | `number` (timestamp) | `pending-log-prune.ts:57` — 브라우저 세션당 1회 정리 가드 |
 
@@ -497,29 +533,36 @@ ai-provider.ts:383 — requestHostPermission(baseUrl)
 [설치]
   │
   ▼
-[대기] ◄──────────────────────────────┐
-  │                                    │
-  │ 사용자 제스처 (아이콘/단축키/메뉴)      │
-  ▼                                    │
-[activeTab 부여]                        │
-  │                                    │
-  │ activateTab() → sidePanel.open()   │
-  ▼                                    │
-[패널 활성] ── captureVisibleTab ──►    │
-  │            tabCapture              │
-  │            tabs.get(url)           │
-  │            scripting.executeScript │
-  │                                    │
-  │ 네비게이션 발생                      │
-  ▼                                    │
-[grant 만료]                            │
-  │                                    │
-  ├─ 진입 가드: tab.url 없음 → "permission-expired"
-  ├─ 런타임: captureVisibleTab 에러     │
-  └─ bg: cross-origin → 패널 닫기      │
-  │                                    │
-  ▼                                    │
-[만료 다이얼로그] ─ OK ─► window.close() ─┘
+[대기] ◄──────────────────────────────────────┐
+  │                                            │
+  │ 사용자 제스처 (아이콘/단축키/메뉴)              │
+  ▼                                            │
+[activeTab 부여]                                │
+  │                                            │
+  │ activateTab() → sidePanel.open()           │
+  │                  + 활성화 URL 저장            │
+  ▼                                            │
+[패널 활성] ── captureVisibleTab ──►            │
+  │            tabCapture                      │
+  │            tabs.get(url)                   │
+  │            scripting.executeScript         │
+  │                                            │
+  │ 네비게이션 발생                              │
+  ▼                                            │
+[origin 비교] (target.url → 없으면 활성화 URL)    │
+  │                                            │
+  ├─ same-origin → [패널 유지]                   │
+  │                                            │
+  ├─ cross-origin + 비보존(idle 포함)             │
+  │   → 패널 닫기 ─────────────────────────────┘
+  │                                            │
+  └─ cross-origin + 보존(drafting/video 등)      │
+      → [패널 유지 + deferred 플래그]              │
+         │                                      │
+         ├─ 캡처 시도 → 3중 방어 → 즉시 다이얼로그  │
+         │                                      │
+         └─ phase → idle 전환                    │
+            → [만료 다이얼로그] ─ OK ─► close() ──┘
 ```
 
 ### optional_host_permissions 라이프사이클

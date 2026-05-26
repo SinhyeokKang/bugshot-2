@@ -211,7 +211,18 @@ UI(`NetworkLogPreviewDialog`)와 HAR export 모두 이 context를 살려 "본문
 
 **권한** — `captureVisibleTab`/`tabCapture`는 `activeTab` 또는 `<all_urls>`급 host permission을 요구한다. activeTab은 아이콘 클릭(`action.onClicked`)·캡처 단축키(`commands.onCommand`)로 그 탭에 부여되며 수동 캡처(element/screenshot/video)는 이걸로 동작하지만, **cross-document 네비게이션에서 회수**되고 프로그램적 재취득은 불가하다(Chromium Issue #40916430). 30s Replay는 **제스처 없이 연속 캡처**해 activeTab으로 못 덮으므로, `optional_host_permissions`에 선언된 `https://*/*` + `http://*/*`를 **런타임 요청**해 획득한다 — 설정 > 이슈 설정의 "30s Replay" Switch ON 시 `chrome.permissions.request()`로 1회 동의(Chrome이 영구 저장). 권한 회수가 감지되면 toast + 토글 자동 off.
 
-**activeTab 만료 복구** — 패널 바인딩 탭이 cross-document 네비게이션하면 activeTab이 회수돼 캡처가 거부된다. 세 갈래로 처리: (1) **비보존 + cross-origin** 네비게이션 시 `tab-bindings.deactivatePanelIfCrossOrigin`가 `status:loading`에 세션 target URL과 새 URL의 origin을 비교(`originOf`), cross-origin이면 패널을 닫고 `setActivated(false)` — 아이콘 재클릭으로 activeTab 재부여·복구. URL을 읽을 수 없는 경우(activeTab 만료 + 광역 권한 미부여)도 cross-origin으로 간주. (2) **비보존 + same-origin** 네비게이션은 패널을 유지하고 page key가 바뀌었으면 stale 세션만 제거 — 같은 사이트 내 이동에서 패널이 닫히지 않아 UX 연속성 확보. (3) **보존 상태**(drafting 등)는 패널 유지, 캡처 시 권한 만료를 `classifyTabSupport`(진입 가드 — content script의 `location.href`로 "미지원 페이지" vs "권한 만료" 구분, `picker.pageUrl` 메시지)·`isActiveTabPermissionError`(캡처 단계)로 감지해 `onPickerPermissionExpired` → "권한이 만료되었습니다 / BugShot을 다시 실행해 주세요" 다이얼로그([확인]→`window.close()`)로 안내.
+**사이드 패널 종료/유지 정책** — `tab-bindings.deactivatePanelIfCrossOrigin`가 `tabs.onUpdated` `status:loading` 시점에 origin을 비교해 패널을 닫을지 유지할지 결정한다. 기준 URL은 에디터 세션의 `target.url`을 우선 사용하고, 세션이 없는 idle 상태에서는 `activateTab()` 시점에 `sidePanel:url:{tabId}`로 저장해 둔 활성화 URL을 fallback으로 쓴다. 둘 다 없으면 비교 불가 → 패널 유지.
+
+네비게이션 종류 × 세션 상태에 따른 4가지 분기:
+
+| 조건 | 동작 |
+|---|---|
+| **same-origin** (보존/비보존 무관) | 패널 유지. 비보존이고 page key가 바뀌었으면 stale 세션만 제거 |
+| **cross-origin + 비보존** (idle 포함) | 패널 닫기 (`setActivated(false)` + `sidePanel.setOptions({enabled:false})` + 세션 제거). 아이콘 재클릭으로 activeTab 재부여·복구 |
+| **cross-origin + 보존** (drafting/previewing/done/video) | 패널 유지, bg가 `activeTabExpiredDeferred` 메시지를 사이드패널에 전송. 사이드패널 `usePickerMessages`가 플래그를 세우고 phase가 idle로 돌아오면 `onPickerPermissionExpired` → 만료 다이얼로그(`window.close()`) |
+| **URL 판별 불가** (activeTab 만료 + 광역 권한 미부여) | cross-origin으로 간주 → 위 cross-origin 분기와 동일 |
+
+보존 상태에서 cross-origin 이동 후 idle 복귀 전까지는 "좀비 구간"이 존재하지만, 이 동안 캡처를 시도하면 기존 3중 방어(진입 가드 `classifyTabSupport` / 런타임 가드 `isActiveTabPermissionError` / tabCapture 가드 `isTabCaptureUnavailable`)가 즉시 만료 다이얼로그를 띄운다.
 
 **버퍼링** — `use-30s-replay` 훅이 `enabled && phase==="idle" && tab.active`일 때 `CAPTURE_INTERVAL_MS`(600ms) 간격으로 `captureVisibleTab`(jpeg q80) → Blob → `FrameBuffer`에 push. `CAPTURE_INTERVAL_MS`는 Chrome `captureVisibleTab` 쿼터(초당 2회)를 넘지 않게 600ms로 둔다 — 더 짧게 하면 초과 호출이 throw로 버려져 프레임 이득 없이 비용만 는다. `FrameBuffer`는 **개수 cap(60) + 시간 cap(30s) 이중 제한**으로 oldest를 축출. `MIN_READY_FRAMES`(10) 이상이면 `isReady`. 버튼의 `n/30` 진행 표시는 푸시 성공이 아니라 1초 벽시계 타이머로 `now − oldestTimestamp`를 계산해 갱신(`bufferedSeconds`) — 캡처 스킵으로 멈췄다 튀는 현상 방지. 버퍼는 **페이지 네비게이션과 무관하게 유지**(이전·새 페이지 프레임이 섞이는 건 의도된 동작 — 버그 재현 과정 전체를 담기 위함). phase gating·탭 비활성·미지원 스킴으로 캡처가 끊긴 구간은 mp4-encoder의 per-frame duration cap(`MAX_FRAME_DURATION_MS`)으로 clamp해 재생 시 "툭 건너뜀"을 흡수.
 
