@@ -377,8 +377,18 @@ function PreviewVideo({ blob, thumbnail }: { blob: Blob | null; thumbnail: strin
     return () => URL.revokeObjectURL(url);
   }, [blob]);
 
-  if (src) return <video src={src} controls className="w-full rounded-lg border" />;
-  if (thumbnail) return <img src={thumbnail} alt="Recording thumbnail" className="w-full rounded-lg border" />;
+  if (src)
+    return (
+      <div className="aspect-video w-full overflow-hidden rounded-lg border bg-black">
+        <video src={src} controls className="h-full w-full object-contain" />
+      </div>
+    );
+  if (thumbnail)
+    return (
+      <div className="aspect-video w-full overflow-hidden rounded-lg border bg-black">
+        <img src={thumbnail} alt="Recording thumbnail" className="h-full w-full object-contain" />
+      </div>
+    );
   return null;
 }
 
