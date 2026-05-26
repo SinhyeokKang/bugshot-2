@@ -109,17 +109,14 @@ async function deactivatePanelIfCrossOrigin(
       | undefined;
     if (shouldPreserveSession(snap)) return;
 
-    // 세션 없거나 target URL 없음 → 비교 대상 없으므로 패널 유지
-    if (!snap?.target?.url) return;
-
-    const oldOrigin = originOf(snap.target.url);
+    const oldOrigin = snap?.target?.url ? originOf(snap.target.url) : undefined;
     const newOrigin = originOf(newUrl);
     const sameOrigin =
       oldOrigin != null && newOrigin != null && oldOrigin === newOrigin;
 
     if (sameOrigin) {
       // same-origin: 패널 유지, 경로가 바뀌었으면 stale 세션만 제거
-      if (pageKeyOf(snap.target.url) !== pageKeyOf(newUrl)) {
+      if (pageKeyOf(snap!.target!.url) !== pageKeyOf(newUrl)) {
         await chrome.storage.session.remove(key);
       }
       return;
