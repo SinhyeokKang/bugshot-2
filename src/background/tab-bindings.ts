@@ -4,6 +4,7 @@ import { deleteNetworkLog, deleteConsoleLog } from "@/store/blob-db";
 
 const SIDEPANEL_PATH = "src/sidepanel/index.html";
 const ACTIVATED_KEY = "sidePanel:activated";
+const ACTIVATION_URL_PREFIX = "sidePanel:url:";
 
 async function getActivatedSet(): Promise<Set<number>> {
   const data = await chrome.storage.session.get(ACTIVATED_KEY);
@@ -107,22 +108,36 @@ async function deactivatePanelIfCrossOrigin(
     const snap = data[key] as
       | { target?: { url?: string }; captureMode?: string; phase?: string }
       | undefined;
-    if (shouldPreserveSession(snap)) return;
+    const preserved = shouldPreserveSession(snap);
 
-    const oldOrigin = snap?.target?.url ? originOf(snap.target.url) : undefined;
+    let refUrl = snap?.target?.url;
+    if (!refUrl) {
+      const urlKey = `${ACTIVATION_URL_PREFIX}${tabId}`;
+      const urlData = await chrome.storage.session.get(urlKey);
+      refUrl = urlData[urlKey] as string | undefined;
+    }
+    if (!refUrl) return;
+
+    const oldOrigin = originOf(refUrl);
     const newOrigin = originOf(newUrl);
     const sameOrigin =
       oldOrigin != null && newOrigin != null && oldOrigin === newOrigin;
 
     if (sameOrigin) {
-      // same-origin: 패널 유지, 경로가 바뀌었으면 stale 세션만 제거
-      if (pageKeyOf(snap!.target!.url) !== pageKeyOf(newUrl)) {
+      if (!preserved && pageKeyOf(refUrl) !== pageKeyOf(newUrl)) {
         await chrome.storage.session.remove(key);
       }
       return;
     }
 
-    // cross-origin 또는 URL 판별 불가 → 패널 닫기
+    // cross-origin 또는 URL 판별 불가
+    if (preserved) {
+      chrome.runtime
+        .sendMessage({ type: "activeTabExpiredDeferred", tabId })
+        .catch(() => {});
+      return;
+    }
+
     await setActivated(tabId, false);
     await chrome.sidePanel.setOptions({ tabId, enabled: false });
     await chrome.storage.session.remove(key);
@@ -146,6 +161,9 @@ export function activateTab(tab: chrome.tabs.Tab): void {
     .catch((err) => console.error("[bugshot] sidePanel.open", err));
 
   void setActivated(tabId, true);
+  if (tab.url) {
+    void chrome.storage.session.set({ [`${ACTIVATION_URL_PREFIX}${tabId}`]: tab.url });
+  }
 }
 
 export function setupTabBindings(): void {
@@ -182,7 +200,7 @@ export function setupTabBindings(): void {
   });
 
   chrome.tabs.onRemoved.addListener((tabId) => {
-    void chrome.storage.session.remove(sessionKey(tabId));
+    void chrome.storage.session.remove([sessionKey(tabId), `${ACTIVATION_URL_PREFIX}${tabId}`]);
     void setActivated(tabId, false);
     deleteNetworkLog(`pending:${tabId}`).catch(() => {});
     deleteConsoleLog(`pending:${tabId}`).catch(() => {});
