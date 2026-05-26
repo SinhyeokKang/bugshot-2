@@ -2,8 +2,8 @@
 
 ## 선행 조건
 
-- [ ] `vite-plugin-singlefile` 설치: `pnpm add -D vite-plugin-singlefile`
-- [ ] `.gitignore`에 `dist-log-viewer/` 추가
+- [x] `vite-plugin-singlefile` 설치: `pnpm add -D vite-plugin-singlefile`
+- [x] `.gitignore`에 `dist-log-viewer/` 추가 (기존 `dist-*` 패턴으로 커버)
 
 ## 태스크
 
@@ -17,8 +17,8 @@
   - `build:store`도 동일하게 선행 단계 추가
   - `.gitignore`에 `dist-log-viewer/` 추가
 - **검증**:
-  - [ ] `pnpm build:log-viewer` 실행 → `dist-log-viewer/index.html` 생성
-  - [ ] index.html이 단일 파일 (외부 CSS/JS 참조 없음)
+  - [x] `pnpm build:log-viewer` 실행 → `dist-log-viewer/index.html` 생성
+  - [x] index.html이 단일 파일 (외부 CSS/JS 참조 없음)
 
 ### Task 2: Log Viewer i18n 대체
 
@@ -29,8 +29,8 @@
   - `useT()` hook 구현 — 기존 `@/i18n`의 `TranslationFn` 시그니처와 동일
   - `TranslationKey` 타입도 로그 관련 키만 포함하는 로컬 타입으로 정의
 - **검증**:
-  - [ ] `useT()` 반환 함수가 `t("networkLog.search")` 등 호출 시 올바른 문자열 반환
-  - [ ] ko/en 키가 동일 (기존 locales.test.ts와 같은 검증 로직 적용)
+  - [x] `useT()` 반환 함수가 `t("networkLog.search")` 등 호출 시 올바른 문자열 반환
+  - [x] ko/en 키가 동일 (기존 locales.test.ts와 같은 검증 로직 적용)
 
 ### Task 3: Log Viewer React 앱
 
@@ -50,7 +50,7 @@
     - 데이터가 null인 탭은 비활성화 (disabled + 빈 상태 메시지)
     - 다운로드: `data.har`/`data.consoleLogJson` → `JSON.stringify` → `Blob` → `URL.createObjectURL` → `<a download>` 트리거
 - **검증**:
-  - [ ] `pnpm build:log-viewer` 성공
+  - [x] `pnpm build:log-viewer` 성공
   - [ ] 생성된 index.html을 브라우저에서 열면 빈 상태(데이터 없음) 렌더링
   - [ ] placeholder 데이터를 수동 주입 후 필터/검색/탭/다크모드 동작 확인
 
@@ -63,8 +63,8 @@
   - log viewer 빌드에서 `@/sidepanel/lib/buildIssueMarkdown` stub 불필요해짐
   - 기타 log viewer 빌드에서 해결 불가능한 import가 있으면 alias/stub 처리 (빌드 시 에러로 발견)
 - **검증**:
-  - [ ] `pnpm test` 통과 (기존 buildIssueMarkdown 테스트 깨지지 않음)
-  - [ ] `pnpm build:log-viewer` 성공
+  - [x] `pnpm test` 통과 (기존 buildIssueMarkdown 테스트 깨지지 않음)
+  - [x] `pnpm build:log-viewer` 성공
 
 ### Task 5: buildLogsHtml 함수
 
@@ -84,7 +84,7 @@
   - `</script>` 포함 데이터 → `<` 이스케이프 검증
   - networkLog null / consoleLog null 케이스
 - **검증**:
-  - [ ] 선행 테스트 작성 → 구현 → `pnpm test` 통과
+  - [x] 선행 테스트 작성 → 구현 → `pnpm test` 통과
 
 ### Task 6: buildCaptureFiles 변경
 
@@ -106,8 +106,8 @@
   - 기대 파일명 `["network-log.har", "console-log.json"]` → `["logs.html"]`
   - 네트워크만/콘솔만/둘 다 있는 경우 각각 검증
 - **검증**:
-  - [ ] 선행 테스트 갱신 → 구현 → `pnpm test` 통과
-  - [ ] 출력 `logs`에 `{ filename: "logs.html", dataUrl: "data:text/html;base64,..." }` 포함
+  - [x] 선행 테스트 갱신 → 구현 → `pnpm test` 통과
+  - [x] 출력 `logs`에 `{ filename: "logs.html", dataUrl: "data:text/html;base64,..." }` 포함
 
 ### Task 7: 이슈 본문 파일명 참조 갱신
 
@@ -125,8 +125,8 @@
   - `buildGithubIssueBody.test.ts`: `"network-log.har"` / `"network-log.json"` / `"console-log.json"` 참조 → `"logs.html"` 통합 형태로 변경
   - `buildNotionIssueBody.test.ts`: `"network-log.har"` 참조 확인 후 필요 시 갱신
 - **검증**:
-  - [ ] `pnpm test` 통과 (i18n key 대칭 검증 포함)
-  - [ ] 이슈 본문에 `logs.html` 참조 문구 1회 출력
+  - [x] `pnpm test` 통과 (i18n key 대칭 검증 포함)
+  - [x] 이슈 본문에 `logs.html` 참조 문구 1회 출력
 
 ### Task 8: 플랫폼 MIME 타입 처리
 
@@ -135,7 +135,7 @@
   - `guessMime()` 함수에 `.html` → `"text/html"` 분기 추가 (3개 파일)
   - Jira는 `FormData.append(name, blob, filename)` 경유라 별도 MIME 처리 불필요 — `buildCaptureFiles`에서 `Blob([html], { type: "text/html" })`로 이미 타입 설정됨
 - **검증**:
-  - [ ] 각 플랫폼에서 logs.html이 `text/html` MIME으로 업로드됨
+  - [ ] 각 플랫폼에서 logs.html이 `text/html` MIME으로 업로드됨 (수동 테스트)
   - [ ] 수동 테스트로 4개 플랫폼 첨부 확인
 
 ### Task 9: log viewer i18n 테스트
@@ -146,7 +146,7 @@
   - 파라미터 치환 동작 검증
   - 미등록 키 호출 시 키 문자열 그대로 반환 검증
 - **검증**:
-  - [ ] `pnpm test` 전체 통과
+  - [x] `pnpm test` 전체 통과
 
 > **참고**: `buildLogsHtml.test.ts`는 Task 5에, `buildCaptureFiles.test.ts` 갱신은 Task 6에, 이슈 본문 빌더 테스트 갱신은 Task 7에 각각 선행 테스트로 통합됨.
 

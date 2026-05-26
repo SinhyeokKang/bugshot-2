@@ -229,6 +229,7 @@ export function IssueCreateModal() {
       afterImage: captureMode === "element" && !isElementNoDiff ? afterImage : null,
       networkLog: hasNet ? networkLog : null,
       consoleLog: hasCon ? consoleLog : null,
+      pageUrl: target?.url ?? "",
     });
   }
 

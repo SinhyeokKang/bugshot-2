@@ -3,7 +3,7 @@ import { ArrowLeftRight, ChevronDown, ChevronRight, Code, File, FileText, Globe,
 import { useT, type TranslationFn } from "@/i18n";
 import type { NetworkRequest, NetworkRequestBody } from "@/types/network";
 import { formatBytes } from "@/sidepanel/lib/formatBytes";
-import { networkLogPath } from "@/sidepanel/lib/buildIssueMarkdown";
+import { networkLogPath } from "@/lib/network-log-path";
 import { JsonTreeViewer } from "./JsonTreeViewer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

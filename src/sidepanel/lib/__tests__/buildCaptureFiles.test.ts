@@ -11,6 +11,11 @@ vi.mock("@/store/blob-db", () => ({
     Promise.resolve(`data:${blob.type || "application/octet-stream"};base64,FAKE`),
 }));
 
+vi.mock("../../../../dist-log-viewer/index.html?raw", () => ({
+  default:
+    '<!DOCTYPE html><html><head></head><body><script id="__BUGSHOT_DATA__" type="application/json"></script></body></html>',
+}));
+
 import { buildCaptureFiles } from "../buildCaptureFiles";
 
 const networkLog: NetworkLog = {
@@ -84,17 +89,15 @@ describe("buildCaptureFiles — screenshot mode", () => {
     expect(out.images).toEqual([]);
   });
 
-  it("screenshot + networkLog + consoleLog → logs 둘 다", async () => {
+  it("screenshot + networkLog + consoleLog → logs.html", async () => {
     const out = await buildCaptureFiles({
       captureMode: "screenshot",
       screenshotImage: "data:x",
       networkLog,
       consoleLog,
+      pageUrl: "https://example.com",
     });
-    expect(out.logs.map((l) => l.filename)).toEqual([
-      "network-log.har",
-      "console-log.json",
-    ]);
+    expect(out.logs.map((l) => l.filename)).toEqual(["logs.html"]);
   });
 
   it("screenshot + null log → logs 빈", async () => {
@@ -118,16 +121,14 @@ describe("buildCaptureFiles — video mode", () => {
     });
   });
 
-  it("video + networkLog + consoleLog → logs 둘 다", async () => {
+  it("video + networkLog + consoleLog → logs.html", async () => {
     const out = await buildCaptureFiles({
       captureMode: "video",
       networkLog,
       consoleLog,
+      pageUrl: "https://example.com",
     });
-    expect(out.logs.map((l) => l.filename)).toEqual([
-      "network-log.har",
-      "console-log.json",
-    ]);
+    expect(out.logs.map((l) => l.filename)).toEqual(["logs.html"]);
   });
 
   it("video + null log → logs 빈", async () => {
@@ -147,17 +148,19 @@ describe("buildCaptureFiles — freeform mode", () => {
       captureMode: "freeform",
       videoBlob: blob,
       networkLog,
+      pageUrl: "https://example.com",
     });
     expect(out.video).toBeUndefined();
-    expect(out.logs.map((l) => l.filename)).toEqual(["network-log.har"]);
+    expect(out.logs.map((l) => l.filename)).toEqual(["logs.html"]);
   });
 
   it("freeform + consoleLog만", async () => {
     const out = await buildCaptureFiles({
       captureMode: "freeform",
       consoleLog,
+      pageUrl: "https://example.com",
     });
-    expect(out.logs.map((l) => l.filename)).toEqual(["console-log.json"]);
+    expect(out.logs.map((l) => l.filename)).toEqual(["logs.html"]);
   });
 
   it("freeform + 이미지 무시", async () => {

@@ -33,6 +33,7 @@ function guessMime(filename: string): string {
   if (filename.endsWith(".mp4")) return "video/mp4";
   if (filename.endsWith(".png")) return "image/png";
   if (filename.endsWith(".jpg") || filename.endsWith(".jpeg")) return "image/jpeg";
+  if (filename.endsWith(".html")) return "text/html";
   if (filename.endsWith(".md")) return "text/markdown";
   if (filename.endsWith(".har")) return "application/json";
   if (filename.endsWith(".json")) return "application/json";

@@ -248,7 +248,6 @@ function emitLogSummaryAdf(
     } else {
       content.push(paragraph([textNode(t("logSummary.network.capturedNoError", { n: net.captured }))]));
     }
-    content.push(paragraph([{ type: "text", text: t("logSummary.network.detail", { filename: "network-log.har" }), marks: [{ type: "em" }] }]));
   }
   if (con) {
     content.push(heading(2, t("logSummary.console.title")));
@@ -266,6 +265,8 @@ function emitLogSummaryAdf(
     } else {
       content.push(paragraph([textNode(t("logSummary.console.capturedNoError", { n: con.captured }))]));
     }
-    content.push(paragraph([{ type: "text", text: t("logSummary.console.detail"), marks: [{ type: "em" }] }]));
+  }
+  if (net || con) {
+    content.push(paragraph([{ type: "text", text: t("logSummary.logs.detail"), marks: [{ type: "em" }] }]));
   }
 }

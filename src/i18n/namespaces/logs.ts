@@ -66,11 +66,10 @@ const ko = {
   "logSummary.network.title": "네트워크 로그",
   "logSummary.network.captured": "{n}건 캡처 (에러 {errors}건)",
   "logSummary.network.capturedNoError": "{n}건 캡처 (에러 없음)",
-  "logSummary.network.detail": "(상세: {filename} 첨부)",
+  "logSummary.logs.detail": "(상세: logs.html 첨부)",
   "logSummary.console.title": "콘솔 로그",
   "logSummary.console.captured": "{n}건 캡처 (에러 {errors}건, 경고 {warns}건)",
   "logSummary.console.capturedNoError": "{n}건 캡처 (에러 없음)",
-  "logSummary.console.detail": "(상세: console-log.json 첨부)",
 
   "logCard.description": "총 {captured}건 (에러 {errors}건)",
 
@@ -148,11 +147,10 @@ const en = {
   "logSummary.network.title": "Network Logs",
   "logSummary.network.captured": "{n} captured ({errors} errors)",
   "logSummary.network.capturedNoError": "{n} captured (no errors)",
-  "logSummary.network.detail": "(Details: see {filename} attachment)",
+  "logSummary.logs.detail": "(Details: see logs.html attachment)",
   "logSummary.console.title": "Console Logs",
   "logSummary.console.captured": "{n} captured ({errors} errors, {warns} warnings)",
   "logSummary.console.capturedNoError": "{n} captured (no errors)",
-  "logSummary.console.detail": "(Details: see console-log.json attachment)",
 
   "logCard.description": "{captured} captured ({errors} errors)",
 

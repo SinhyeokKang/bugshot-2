@@ -311,8 +311,6 @@ function emitLogSummaryMd(lines: string[], ctx: MarkdownContext): void {
       lines.push(t("logSummary.network.capturedNoError", { n: net.captured }));
     }
     lines.push("");
-    lines.push(`_${t("logSummary.network.detail", { filename: "network-log.har" })}_`);
-    lines.push("");
   }
   if (con) {
     lines.push(`## ${t("logSummary.console.title")}`);
@@ -326,7 +324,9 @@ function emitLogSummaryMd(lines: string[], ctx: MarkdownContext): void {
       lines.push(t("logSummary.console.capturedNoError", { n: con.captured }));
     }
     lines.push("");
-    lines.push(`_${t("logSummary.console.detail")}_`);
+  }
+  if (net || con) {
+    lines.push(`_${t("logSummary.logs.detail")}_`);
     lines.push("");
   }
 }
@@ -345,7 +345,6 @@ function emitLogSummaryHtml(parts: string[], ctx: MarkdownContext): void {
     } else {
       parts.push(`<p>${escapeHtml(t("logSummary.network.capturedNoError", { n: net.captured }))}</p>`);
     }
-    parts.push(`<p><em>${escapeHtml(t("logSummary.network.detail", { filename: "network-log.har" }))}</em></p>`);
   }
   if (con) {
     parts.push(`<h2>${escapeHtml(t("logSummary.console.title"))}</h2>`);
@@ -359,6 +358,8 @@ function emitLogSummaryHtml(parts: string[], ctx: MarkdownContext): void {
     } else {
       parts.push(`<p>${escapeHtml(t("logSummary.console.capturedNoError", { n: con.captured }))}</p>`);
     }
-    parts.push(`<p><em>${escapeHtml(t("logSummary.console.detail"))}</em></p>`);
+  }
+  if (net || con) {
+    parts.push(`<p><em>${escapeHtml(t("logSummary.logs.detail"))}</em></p>`);
   }
 }

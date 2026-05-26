@@ -268,6 +268,7 @@ export function DraftDetailDialog({
       afterImage: isElementNoDiff ? null : afterDataUrl,
       networkLog,
       consoleLog: consoleLogForSubmit,
+      pageUrl: issue.pageUrl,
     });
     return { ctx, captureFiles };
   }

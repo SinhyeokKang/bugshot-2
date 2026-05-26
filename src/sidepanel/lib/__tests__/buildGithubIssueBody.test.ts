@@ -70,23 +70,20 @@ describe("buildGithubIssueBody — 첨부 안내", () => {
     expect(out.body).toContain("`recording.webm`");
   });
 
-  it("HAR/console 로그도 푸터 안내", () => {
+  it("logs.html 로그도 푸터 안내", () => {
     const input: GithubBuildInput = {
       ctx: makeCtx({ captureMode: "video" }),
       video: { filename: "recording.webm", contentType: "video/webm" },
       logs: [
-        { filename: "network-log.har", contentType: "application/json" },
-        { filename: "console-log.json", contentType: "application/json" },
+        { filename: "logs.html", contentType: "text/html" },
       ],
     };
     const out = buildGithubIssueBody(input);
     expect(out.attached).toEqual([
       "recording.webm",
-      "network-log.har",
-      "console-log.json",
+      "logs.html",
     ]);
-    expect(out.body).toContain("`network-log.har`");
-    expect(out.body).toContain("`console-log.json`");
+    expect(out.body).toContain("`logs.html`");
     expect(out.body).not.toContain("data:application");
     expect(out.body).not.toContain("data:image");
     expect(out.body).not.toContain("data:video");
@@ -183,11 +180,11 @@ describe("buildGithubIssueBody — freeform", () => {
     const out = buildGithubIssueBody({
       ctx: makeCtx({ captureMode: "freeform" as MarkdownContext["captureMode"], selector: "", diffs: [] }),
       logs: [
-        { filename: "console-log.json", contentType: "application/json" },
+        { filename: "logs.html", contentType: "text/html" },
       ],
     });
-    expect(out.attached).toEqual(["console-log.json"]);
-    expect(out.body).toContain("`console-log.json`");
+    expect(out.attached).toEqual(["logs.html"]);
+    expect(out.body).toContain("`logs.html`");
   });
 });
 
@@ -240,8 +237,8 @@ describe("buildGithubIssueBody — URL 인라인", () => {
       },
       logs: [
         {
-          filename: "network-log.har",
-          contentType: "application/json",
+          filename: "logs.html",
+          contentType: "text/html",
           url: "https://github.com/user-attachments/assets/log1",
         },
       ],
@@ -253,7 +250,7 @@ describe("buildGithubIssueBody — URL 인라인", () => {
     expect(mediaIdx).toBeLessThan(expectedIdx);
     expect(attachIdx).toBeGreaterThan(expectedIdx);
     expect(out.body).toContain(
-      "[network-log.har](https://github.com/user-attachments/assets/log1)",
+      "[logs.html](https://github.com/user-attachments/assets/log1)",
     );
   });
 
