@@ -150,11 +150,10 @@ export function buildIssueAdf(ctx: MarkdownContext, inlineImageRefIds?: string[]
 }
 
 function footerParagraph(): AdfNode {
-  const url = (import.meta.env.VITE_WEBSTORE_URL as string | undefined) ?? "";
   const brandMarks: { type: string; attrs?: Record<string, unknown> }[] = [
     { type: "em" },
+    { type: "link", attrs: { href: "https://bug-shot.com" } },
   ];
-  if (url) brandMarks.push({ type: "link", attrs: { href: url } });
   return {
     type: "paragraph",
     content: [

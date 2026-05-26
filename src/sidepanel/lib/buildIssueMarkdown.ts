@@ -247,22 +247,12 @@ export function buildIssueHtml(ctx: MarkdownContext): string {
   return parts.join("\n");
 }
 
-function webstoreUrl(): string {
-  return (import.meta.env.VITE_WEBSTORE_URL as string | undefined) ?? "";
-}
-
 function footerMarkdown(): string {
-  const url = webstoreUrl();
-  const brand = url ? `[BugShot](${url})` : "BugShot";
-  return `_Reported via ${brand}_`;
+  return `_Reported via [BugShot](https://bug-shot.com)_`;
 }
 
 function footerHtml(): string {
-  const url = webstoreUrl();
-  const brand = url
-    ? `<a href="${escapeHtml(url)}">BugShot</a>`
-    : "BugShot";
-  return `<p><em>Reported via ${brand}</em></p>`;
+  return `<p><em>Reported via <a href="https://bug-shot.com">BugShot</a></em></p>`;
 }
 
 function buildMetaComment(ctx: MarkdownContext): string {

@@ -39,14 +39,8 @@ function escapeCell(value: string): string {
   return value.replace(/\|/g, "\\|").replace(/\r?\n/g, " ");
 }
 
-function webstoreUrl(): string {
-  return (import.meta.env.VITE_WEBSTORE_URL as string | undefined) ?? "";
-}
-
 function footerMarkdown(): string {
-  const url = webstoreUrl();
-  const brand = url ? `[BugShot](${url})` : "BugShot";
-  return `_Reported via ${brand}_`;
+  return `_Reported via [BugShot](https://bug-shot.com)_`;
 }
 
 function imageCell(media: LinearMediaInput | undefined): string {
