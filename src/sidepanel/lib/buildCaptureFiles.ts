@@ -40,7 +40,7 @@ export async function buildCaptureFiles(
     };
   }
 
-  if (input.captureMode === "video" || input.captureMode === "freeform") {
+  if (input.captureMode === "video" || input.captureMode === "freeform" || input.captureMode === "screenshot") {
     if (input.networkLog) {
       const harBlob = new Blob([serializeHar(buildHar(input.networkLog))], {
         type: "application/json",

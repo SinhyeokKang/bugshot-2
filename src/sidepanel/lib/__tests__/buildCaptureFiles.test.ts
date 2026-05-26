@@ -84,12 +84,25 @@ describe("buildCaptureFiles — screenshot mode", () => {
     expect(out.images).toEqual([]);
   });
 
-  it("screenshot은 log 무시", async () => {
+  it("screenshot + networkLog + consoleLog → logs 둘 다", async () => {
     const out = await buildCaptureFiles({
       captureMode: "screenshot",
       screenshotImage: "data:x",
       networkLog,
       consoleLog,
+    });
+    expect(out.logs.map((l) => l.filename)).toEqual([
+      "network-log.har",
+      "console-log.json",
+    ]);
+  });
+
+  it("screenshot + null log → logs 빈", async () => {
+    const out = await buildCaptureFiles({
+      captureMode: "screenshot",
+      screenshotImage: "data:x",
+      networkLog: null,
+      consoleLog: null,
     });
     expect(out.logs).toEqual([]);
   });

@@ -317,11 +317,13 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       phase: "drafting",
       target,
       ...preserveLogs(state),
+      networkLogAttach: true,
+      consoleLogAttach: true,
     })),
   startRecording: (target) => set({ ...initial, captureMode: "video", phase: "recording", target }),
-  onRecordingComplete: (blob, thumbnail, viewport) => set({ captureMode: "video", phase: "drafting", videoBlob: blob, videoThumbnail: thumbnail, videoViewport: viewport, videoCapturedAt: Date.now() }),
+  onRecordingComplete: (blob, thumbnail, viewport) => set({ captureMode: "video", phase: "drafting", videoBlob: blob, videoThumbnail: thumbnail, videoViewport: viewport, videoCapturedAt: Date.now(), networkLogAttach: true, consoleLogAttach: true }),
   cancelRecording: () => set({ ...initial }),
-  onAreaCaptured: (dataUrl, viewport) => set({ phase: "drafting", screenshotRaw: dataUrl, screenshotViewport: viewport, screenshotCapturedAt: Date.now() }),
+  onAreaCaptured: (dataUrl, viewport) => set({ phase: "drafting", screenshotRaw: dataUrl, screenshotViewport: viewport, screenshotCapturedAt: Date.now(), networkLogAttach: true, consoleLogAttach: true }),
   onAnnotated: (dataUrl) => set({ screenshotAnnotated: dataUrl }),
 
   onElementSelected: (selection) =>
