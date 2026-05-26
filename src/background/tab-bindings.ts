@@ -1,4 +1,4 @@
-import { pageKeyOf, sessionKey } from "@/lib/session-keys";
+import { originOf, pageKeyOf, sessionKey } from "@/lib/session-keys";
 import { isSupportedUrl } from "@/lib/url-support";
 import { deleteNetworkLog, deleteConsoleLog } from "@/store/blob-db";
 
@@ -92,25 +92,45 @@ async function clearIfPageChanged(
   }
 }
 
-// 메인 프레임 cross-document 네비게이션 시작 시 호출. 보존 상태가 아니면 패널을 닫고 비활성화해
-// 1.2.0과 동일하게 "재오픈(아이콘 클릭) 시 activeTab 재취득"을 강제한다. 광역 권한이 있으면
-// info.url이 읽혀 apply가 supported=true로 패널을 유지해 버리므로, url 가독성에 의존하지 않도록
-// status 기반으로 트리거하고 setActivated(false)로 직후 apply의 재활성화를 막는다.
-async function deactivatePanelIfVolatile(tabId: number): Promise<void> {
+// 메인 프레임 cross-document 네비게이션 시작 시 호출.
+// same-origin이면 패널을 유지하고 stale 세션만 정리, cross-origin이면 패널을 닫는다.
+// URL을 못 읽는 경우(activeTab 만료 + 광역 권한 미부여)는 cross-origin으로 간주한다.
+async function deactivatePanelIfCrossOrigin(
+  tabId: number,
+  newUrl: string | undefined,
+): Promise<void> {
   const key = sessionKey(tabId);
   try {
     const set = await getActivatedSet();
-    if (!set.has(tabId)) return; // 패널이 붙은 탭만 대상
+    if (!set.has(tabId)) return;
     const data = await chrome.storage.session.get(key);
     const snap = data[key] as
-      | { captureMode?: string; phase?: string }
+      | { target?: { url?: string }; captureMode?: string; phase?: string }
       | undefined;
-    if (shouldPreserveSession(snap)) return; // 보존 상태 → 패널 유지
+    if (shouldPreserveSession(snap)) return;
+
+    // 세션 없거나 target URL 없음 → 비교 대상 없으므로 패널 유지
+    if (!snap?.target?.url) return;
+
+    const oldOrigin = originOf(snap.target.url);
+    const newOrigin = originOf(newUrl);
+    const sameOrigin =
+      oldOrigin != null && newOrigin != null && oldOrigin === newOrigin;
+
+    if (sameOrigin) {
+      // same-origin: 패널 유지, 경로가 바뀌었으면 stale 세션만 제거
+      if (pageKeyOf(snap.target.url) !== pageKeyOf(newUrl)) {
+        await chrome.storage.session.remove(key);
+      }
+      return;
+    }
+
+    // cross-origin 또는 URL 판별 불가 → 패널 닫기
     await setActivated(tabId, false);
     await chrome.sidePanel.setOptions({ tabId, enabled: false });
     await chrome.storage.session.remove(key);
   } catch (err) {
-    console.error("[bugshot] deactivatePanelIfVolatile", err);
+    console.error("[bugshot] deactivatePanelIfCrossOrigin", err);
   }
 }
 
@@ -149,11 +169,10 @@ export function setupTabBindings(): void {
   });
 
   chrome.tabs.onUpdated.addListener((tabId, info, tab) => {
-    // cross-document 네비게이션 시작(status loading)은 광역 권한 유무와 무관하게 활성 탭에서
-    // activeTab을 만료시킨다. 비보존 상태면 패널을 닫아 1.2.0 동작을 복원한다. info.url이 함께
-    // 와도 status를 먼저 보고 분기해 apply의 재활성화를 피한다. (SPA same-document는 loading 없음)
+    // cross-document 네비게이션 시작 시 origin 비교: same-origin이면 패널 유지(stale
+    // 세션만 정리), cross-origin이면 패널 닫기. SPA same-document는 loading 없음.
     if (info.status === "loading") {
-      void deactivatePanelIfVolatile(tabId);
+      void deactivatePanelIfCrossOrigin(tabId, info.url ?? tab.url);
       return;
     }
     if (info.url) {

@@ -16,3 +16,12 @@ export function pageKeyOf(url: string | undefined): string | null {
     return null;
   }
 }
+
+export function originOf(url: string | undefined): string | null {
+  if (!url) return null;
+  try {
+    return new URL(url).origin;
+  } catch {
+    return null;
+  }
+}
