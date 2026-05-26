@@ -138,39 +138,37 @@
   - [ ] 각 플랫폼에서 logs.html이 `text/html` MIME으로 업로드됨
   - [ ] 수동 테스트로 4개 플랫폼 첨부 확인
 
-### Task 9: 테스트 갱신 및 추가
+### Task 9: log viewer i18n 테스트
 
-- **변경 대상**: 테스트 파일들
+- **변경 대상**: `src/log-viewer/__tests__/i18n.test.ts` (신규)
 - **작업 내용**:
-  - `src/sidepanel/lib/__tests__/buildCaptureFiles.test.ts`:
-    - 기대 파일명 `["network-log.har", "console-log.json"]` → `["logs.html"]`
-    - 네트워크만/콘솔만/둘 다 있는 경우 각각 검증
-  - `src/log-viewer/__tests__/buildLogsHtml.test.ts` (신규):
-    - mock 데이터로 HTML 생성 검증
-    - placeholder 치환 정상
-    - `</script>` 이스케이프 검증
-    - networkLog null / consoleLog null 케이스
-  - `src/log-viewer/__tests__/i18n.test.ts` (신규):
-    - ko/en 키 대칭 검증
+  - log viewer 경량 i18n의 ko/en 키 대칭 검증
+  - 파라미터 치환 동작 검증
+  - 미등록 키 호출 시 키 문자열 그대로 반환 검증
 - **검증**:
   - [ ] `pnpm test` 전체 통과
 
+> **참고**: `buildLogsHtml.test.ts`는 Task 5에, `buildCaptureFiles.test.ts` 갱신은 Task 6에, 이슈 본문 빌더 테스트 갱신은 Task 7에 각각 선행 테스트로 통합됨.
+
 ## 테스트 계획
 
-### 단위 테스트
-- `buildLogsHtml`: 데이터 주입 → 유효한 HTML, 이스케이프, null 케이스
-- `buildCaptureFiles`: 파일명 `logs.html`, 네트워크만/콘솔만/둘 다 케이스
-- log viewer i18n: ko/en 키 대칭, 파라미터 치환
+### 단위 테스트 (각 Task에 선행 통합)
+- `buildLogsHtml` (Task 5): 데이터 주입 → 유효한 HTML, `</script>` 이스케이프, null 케이스
+- `buildCaptureFiles` (Task 6): 파일명 `logs.html`, 네트워크만/콘솔만/둘 다 케이스
+- 이슈 본문 빌더 (Task 7): `buildGithubIssueBody.test.ts`, `buildNotionIssueBody.test.ts` 갱신
+- log viewer i18n (Task 9): ko/en 키 대칭, 파라미터 치환, 미등록 키 fallback
 
 ### 수동 테스트 (Chrome에서)
 - [ ] 이슈 작성 → 첨부 파일에 logs.html 1개만 표시
+- [ ] Network/Console 개별 토글 동작 — 한쪽 OFF 시 logs.html에 해당 데이터 null
 - [ ] logs.html 다운로드 → 브라우저에서 열기
+- [ ] 풀스크린 레이아웃 — max-width 컨테이너 내 적절한 비율
 - [ ] Network 탭: 리스트 표시, 필터 전환, URL 검색, 상세 패널(Headers/Request/Response), cURL 복사
 - [ ] Console 탭: 항목 표시, 레벨 필터, 메시지 검색, 어코디언 펼침, 스택트레이스
 - [ ] 탭 전환 정상
-- [ ] 다크/라이트 토글 + 시스템 감지
-- [ ] "Download HAR" → `network-log.har` 다운로드
-- [ ] "Download JSON" → `console-log.json` 다운로드
+- [ ] 다크/라이트 토글 + 시스템 감지 (2-state)
+- [ ] "Download HAR" → `network-log.har` 다운로드 (Console만 있으면 disabled)
+- [ ] "Download JSON" → `console-log.json` 다운로드 (Network만 있으면 disabled)
 - [ ] 네트워크만 있는 경우: Console 탭 비활성화
 - [ ] 콘솔만 있는 경우: Network 탭 비활성화
 - [ ] Jira/GitHub/Linear/Notion 각각 이슈 생성 시 logs.html 첨부 정상
@@ -180,18 +178,18 @@
 ```
 Task 1 (빌드 파이프라인)
    ↓
-Task 2 (i18n 대체)  ─┐
-Task 4 (alias stub) ─┤── 병렬 가능
-                      ↓
+Task 2 (i18n 대체)          ─┐
+Task 4 (networkLogPath 분리) ─┤── 병렬 가능
+                              ↓
 Task 3 (React 앱)
    ↓
-Task 5 (buildLogsHtml)
+Task 5 (테스트 → buildLogsHtml)
    ↓
-Task 6 (buildCaptureFiles) ─┐
-Task 7 (파일명 참조 갱신)   ─┤── 병렬 가능
-Task 8 (MIME 타입)          ─┘
+Task 6 (테스트 갱신 → buildCaptureFiles) ─┐
+Task 7 (테스트 갱신 → 파일명 참조 갱신)   ─┤── 병렬 가능
+Task 8 (MIME 타입)                        ─┘
    ↓
-Task 9 (테스트)
+Task 9 (log viewer i18n 테스트)
 ```
 
-Task 1이 선행 필수. Task 2/4는 병렬. Task 3은 2/4 완료 후. Task 5는 3 완료 후. Task 6/7/8은 5 완료 후 병렬. Task 9는 전체 완료 후.
+Task 1 선행 필수. Task 2/4 병렬. Task 3은 2/4 완료 후. Task 5~7은 각각 선행 테스트 작성 → 구현 순서 (테스트 우선 원칙). Task 6/7/8은 5 완료 후 병렬. Task 9는 전체 완료 후.
