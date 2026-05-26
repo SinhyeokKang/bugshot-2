@@ -69,6 +69,7 @@ pnpm version major --no-git-tag-version   # 1.0.0 → 2.0.0 (Breaking change)
 /feature        → 기능 아이디어 → PRD·기술 설계·태스크 문서 산출 (코딩 안 함)
 /feature-review → feature 산출물을 CPO·CDO·CTO·QA 4명이 병렬 검수 (선택 호출 가능) → 피드백 수렴 → 문서 수정
 /tdd            → 테스트만 작성 (구현·픽스·커밋 안 함). interface 모드(신규 헬퍼 시그니처) / regression 모드(리뷰 발견 회귀 테스트)
+/implement      → tasks/테스트 기반 구현 (메인 단일) → 영역별 4관점 자체 검증 → CTO 최종 게이트 → 🔴🟡 자체 수정. 빌드·커밋 안 함
 /pull           → dev 최신 받고 작업 맥락 브리핑
 /build          → pnpm build + 테스트 체크리스트 (작업 중 검증)
 /code-review    → 변경 코드를 ui·security·dataflow·codehealth 4개 에이전트가 병렬 리뷰 (선택 호출 가능). 리포트 전용
@@ -79,7 +80,7 @@ pnpm version major --no-git-tag-version   # 1.0.0 → 2.0.0 (Breaking change)
 /sync           → dev를 origin/main으로 hard reset + force push (배포/머지 후)
 ```
 
-권장 흐름: `/feature` → `/feature-review` → `/tdd interface` → 구현 → `/code-review` → `/tdd regression` → 픽스/리팩터 → `/push`. `/tdd` 분류표(스킬 정의 안)에 따라 컴포넌트·OAuth·DOM 측정 같은 영역은 스킵 OK.
+권장 흐름: `/feature` → `/feature-review` → `/tdd interface` → `/implement` → `/code-review` → `/tdd regression` → 픽스/리팩터 → `/push`. `/tdd` 분류표(스킬 정의 안)에 따라 컴포넌트·OAuth·DOM 측정 같은 영역은 스킵 OK.
 
 각 단계 게이트는 `.claude/commands/` 스킬 정의에 명시.
 
