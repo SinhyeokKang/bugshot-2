@@ -291,7 +291,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     })),
   startFreeform: (target) => set({ ...initial, captureMode: "freeform", phase: "drafting", target }),
   startRecording: (target) => set({ ...initial, captureMode: "video", phase: "recording", target }),
-  onRecordingComplete: (blob, thumbnail, viewport) => set({ phase: "drafting", videoBlob: blob, videoThumbnail: thumbnail, videoViewport: viewport, videoCapturedAt: Date.now() }),
+  onRecordingComplete: (blob, thumbnail, viewport) => set({ captureMode: "video", phase: "drafting", videoBlob: blob, videoThumbnail: thumbnail, videoViewport: viewport, videoCapturedAt: Date.now() }),
   cancelRecording: () => set({ ...initial }),
   onAreaCaptured: (dataUrl, viewport) => set({ phase: "drafting", screenshotRaw: dataUrl, screenshotViewport: viewport, screenshotCapturedAt: Date.now() }),
   onAnnotated: (dataUrl) => set({ screenshotAnnotated: dataUrl }),

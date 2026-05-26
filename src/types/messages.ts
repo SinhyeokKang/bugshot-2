@@ -55,7 +55,12 @@ export interface OAuthStartResultMsg {
 
 export type BgRequest =
   | { type: "ping" }
-  | { type: "captureVisibleTab"; tabId: number }
+  | {
+      type: "captureVisibleTab";
+      tabId: number;
+      format?: "jpeg" | "png";
+      quality?: number;
+    }
   | { type: "oauth.start" }
   | { type: "oauth.available" }
   | { type: "jira.myself"; config: JiraConfigPayload }

@@ -16,6 +16,9 @@ import { Toaster } from "@/components/ui/sonner";
 import { PICKER_PORT_NAME, PANEL_PORT_PREFIX } from "@/lib/session-keys";
 import { useEditorStore, useAiLoading } from "@/store/editor-store";
 import { connectedPlatforms, useSettingsStore } from "@/store/settings-store";
+import { useSettingsUiStore } from "@/store/settings-ui-store";
+import { use30sReplay } from "./30s-replay/use-30s-replay";
+import { ReplayProvider } from "./30s-replay/replay-context";
 import {
   onBlobSaveFailed,
   onOAuthExpired,
@@ -54,6 +57,8 @@ export default function App() {
   const tabId = useBoundTabId();
   const editorHydrated = useEditorSessionSync(tabId ?? null);
   useBackgroundRecorder(tabId ?? null);
+  const replayEnabled = useSettingsUiStore((s) => s.replayEnabled);
+  const replay = use30sReplay(tabId ?? null, replayEnabled);
   const settingsHydrated = useSettingsHydrated();
   usePickerMessages(tabId ?? null);
   useThemeEffect();
@@ -164,6 +169,14 @@ export default function App() {
 
   return (
     <TabNavContext.Provider value={setTab}>
+    <ReplayProvider
+      value={{
+        replayEnabled,
+        isReady: replay.isReady,
+        isEncoding: replay.isEncoding,
+        capture: replay.capture,
+      }}
+    >
     <div className="relative flex h-screen flex-col">
       {aiLoading && (
         <div className="absolute inset-0 z-50 overflow-hidden backdrop-blur-[2px]">
@@ -332,6 +345,7 @@ export default function App() {
       </AlertDialog>
     </div>
     <Toaster position="top-center" offset={24} />
+    </ReplayProvider>
     </TabNavContext.Provider>
   );
 }

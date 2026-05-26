@@ -6,7 +6,9 @@ import {
   CircleCheck,
   Crosshair,
   ImageIcon,
-  PenLine,
+  Loader2,
+  SquarePen,
+  Timer,
   Video,
 } from "lucide-react";
 import { useT } from "@/i18n";
@@ -40,7 +42,8 @@ import {
 } from "@/sidepanel/picker-control";
 import { startVideoCapture } from "@/sidepanel/video-capture";
 import * as videoRecorder from "@/sidepanel/video-recorder";
-import { PageShell } from "@/sidepanel/components/Section";
+import { PageFooter, PageShell } from "@/sidepanel/components/Section";
+import { useReplay } from "@/sidepanel/30s-replay/replay-context";
 import { DraftingPanel } from "./DraftingPanel";
 import { PreviewPanel } from "./PreviewPanel";
 import { SelectedPanel } from "./StyleEditorPanel";
@@ -190,14 +193,52 @@ function EmptyState({ onStartElement, onStartScreenshot, onStartVideo, onStartFr
                 {t("issue.mode.video")}
               </Button>
             </ShortcutTooltip>
-            <Button className="col-span-2" variant="outline" onClick={onStartFreeform}>
-              <PenLine />
-              {t("issue.mode.freeform")}
-            </Button>
+            <ReplayButton />
           </div>
         </TooltipProvider>
       </div>
+      <PageFooter>
+        <div className="flex justify-end">
+          <Button variant="outline" onClick={onStartFreeform}>
+            <SquarePen />
+            {t("issue.startDraft")}
+          </Button>
+        </div>
+      </PageFooter>
     </PageShell>
+  );
+}
+
+function ReplayButton() {
+  const t = useT();
+  const { replayEnabled, isReady, isEncoding, capture } = useReplay();
+  const tooltip = !replayEnabled
+    ? t("issue.replay.tooltip.disabled")
+    : !isReady && !isEncoding
+      ? t("issue.replay.tooltip.recording")
+      : null;
+
+  const button = (
+    <Button
+      className="w-full"
+      variant="outline"
+      disabled={!replayEnabled || !isReady || isEncoding}
+      onClick={() => void capture()}
+    >
+      {isEncoding ? <Loader2 className="animate-spin" /> : <Timer />}
+      {isEncoding ? t("issue.replay.encoding") : t("issue.mode.replay")}
+    </Button>
+  );
+
+  if (!tooltip) return <div className="col-span-2">{button}</div>;
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="col-span-2 inline-flex">{button}</span>
+      </TooltipTrigger>
+      <TooltipContent>{tooltip}</TooltipContent>
+    </Tooltip>
   );
 }
 

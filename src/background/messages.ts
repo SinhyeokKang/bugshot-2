@@ -101,7 +101,12 @@ export async function handleMessage(
     case "captureVisibleTab": {
       const tab = await chrome.tabs.get(message.tabId);
       if (!tab.windowId) throw new Error("tab has no window");
-      return chrome.tabs.captureVisibleTab(tab.windowId, { format: "png" });
+      const format = message.format ?? "png";
+      const opts: chrome.tabs.CaptureVisibleTabOptions = { format };
+      if (format === "jpeg" && message.quality != null) {
+        opts.quality = message.quality;
+      }
+      return chrome.tabs.captureVisibleTab(tab.windowId, opts);
     }
 
     case "oauth.available":

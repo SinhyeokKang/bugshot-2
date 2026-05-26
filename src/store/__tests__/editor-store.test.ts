@@ -138,6 +138,68 @@ describe("startCapturing — 백그라운드 로그 보존", () => {
   });
 });
 
+describe("onRecordingComplete — idle 직접 호출 (30s Replay)", () => {
+  beforeEach(() => {
+    useEditorStore.setState(useEditorStore.getInitialState(), true);
+  });
+
+  it("idle에서 호출해도 captureMode=video, phase=drafting, video 필드를 설정한다", () => {
+    const blob = new Blob(["x"], { type: "video/mp4" });
+    const viewport = { width: 1280, height: 720 };
+
+    useEditorStore.getState().onRecordingComplete(blob, "thumb", viewport);
+
+    const s = useEditorStore.getState();
+    expect(s.captureMode).toBe("video");
+    expect(s.phase).toBe("drafting");
+    expect(s.videoBlob).toBe(blob);
+    expect(s.videoThumbnail).toBe("thumb");
+    expect(s.videoViewport).toEqual(viewport);
+    expect(s.videoCapturedAt).toBeGreaterThan(0);
+  });
+});
+
+describe("confirmDraft video — 30s Replay target 가드", () => {
+  beforeEach(() => {
+    useEditorStore.setState(useEditorStore.getInitialState(), true);
+    mockSaveDraft.mockClear();
+  });
+
+  // use30sReplay.capture()가 하는 것: target 설정 + onRecordingComplete + draft
+  it("target 설정 시 video 브랜치로 saveDraft를 호출한다", () => {
+    useEditorStore.setState({ target });
+    useEditorStore
+      .getState()
+      .onRecordingComplete(new Blob(["v"], { type: "video/mp4" }), "thumb", {
+        width: 1280,
+        height: 720,
+      });
+    useEditorStore.setState({ draft: { title: "Replay bug", sections: {} } });
+
+    useEditorStore.getState().confirmDraft();
+
+    expect(mockSaveDraft).toHaveBeenCalledTimes(1);
+    const record = mockSaveDraft.mock.calls[0][0];
+    expect(record.captureMode).toBe("video");
+    expect(record.pageUrl).toBe(target.url);
+  });
+
+  it("target 미설정이면 저장 없이 previewing으로 빠진다 (회귀 가드)", () => {
+    useEditorStore
+      .getState()
+      .onRecordingComplete(new Blob(["v"], { type: "video/mp4" }), "thumb", {
+        width: 1280,
+        height: 720,
+      });
+    useEditorStore.setState({ draft: { title: "Replay bug", sections: {} } });
+
+    useEditorStore.getState().confirmDraft();
+
+    expect(mockSaveDraft).not.toHaveBeenCalled();
+    expect(useEditorStore.getState().phase).toBe("previewing");
+  });
+});
+
 /* ------------------------------------------------------------------ */
 /*  confirmDraft screenshot — 로그 blobKey 연결                          */
 /* ------------------------------------------------------------------ */
