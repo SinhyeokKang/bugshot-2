@@ -231,7 +231,7 @@ export function DraftingPanel() {
           <div className="mb-3 rounded-full bg-muted p-3">
             <ImageIcon className="h-6 w-6 text-muted-foreground" />
           </div>
-          <h3 className="text-[18px] font-semibold">{t("issue.capturing.title")}</h3>
+          <h3 className="text-lg font-semibold">{t("issue.capturing.title")}</h3>
           <div className="mt-4">
             <Button
               variant="outline"

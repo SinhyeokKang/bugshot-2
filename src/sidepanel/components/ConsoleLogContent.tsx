@@ -172,7 +172,7 @@ function EntryAccordion({ entry, startedAt }: { entry: ConsoleEntry; startedAt?:
         onClick={() => setExpanded(!expanded)}
       >
         {startedAt != null && (
-          <span className="w-10 shrink-0 font-mono text-[12px]">{formatRelativeTime(entry.timestamp, startedAt)}</span>
+          <span className="w-10 shrink-0 font-mono text-xs">{formatRelativeTime(entry.timestamp, startedAt)}</span>
         )}
         <LevelIcon level={entry.level} />
         <span className={`min-w-0 flex-1 break-all ${levelColor(entry.level)}`}>
@@ -185,21 +185,21 @@ function EntryAccordion({ entry, startedAt }: { entry: ConsoleEntry; startedAt?:
       </div>
 
       {expanded && (
-        <div className={`space-y-2 pb-3 pr-3 pt-1 text-[12px] ${startedAt != null ? "pl-[64px]" : "pl-10"}`}>
-          <pre className={`max-h-[300px] overflow-auto rounded p-2 font-sans text-[12px] whitespace-pre-wrap break-all ${levelCodeBg(entry.level)}`}>
+        <div className={`space-y-2 pb-3 pr-3 pt-1 text-xs ${startedAt != null ? "pl-[64px]" : "pl-10"}`}>
+          <pre className={`max-h-[300px] overflow-auto rounded p-2 font-sans text-xs whitespace-pre-wrap break-all ${levelCodeBg(entry.level)}`}>
             {entry.args}
           </pre>
           {entry.stack && (
             <div>
-              <div className="mb-1 text-[12px] font-medium">
+              <div className="mb-1 text-xs font-medium">
                 {t("consoleLog.detail.stackTrace")}
               </div>
-              <pre className={`max-h-[200px] overflow-auto rounded p-2 font-sans text-[12px] whitespace-pre-wrap break-all ${levelCodeBg(entry.level)}`}>
+              <pre className={`max-h-[200px] overflow-auto rounded p-2 font-sans text-xs whitespace-pre-wrap break-all ${levelCodeBg(entry.level)}`}>
                 {entry.stack}
               </pre>
             </div>
           )}
-          <a href={entry.pageUrl} target="_blank" rel="noopener noreferrer" className="block text-[12px] text-blue-600 underline dark:text-blue-400">{entry.pageUrl}</a>
+          <a href={entry.pageUrl} target="_blank" rel="noopener noreferrer" className="block text-xs text-blue-600 underline dark:text-blue-400">{entry.pageUrl}</a>
         </div>
       )}
     </div>

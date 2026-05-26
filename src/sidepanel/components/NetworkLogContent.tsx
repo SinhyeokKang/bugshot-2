@@ -364,7 +364,7 @@ function CollapsibleSection({
   return (
     <Collapsible open={open} onOpenChange={setOpen} className="border-b last:border-b-0">
       <div className="flex items-center justify-between pl-4 pr-2 py-3">
-        <span className="text-[14px] font-medium">{title}</span>
+        <span className="text-sm font-medium">{title}</span>
         <CollapsibleTrigger asChild>
           <Button variant="outline" size="icon" className="h-8 w-8 shrink-0">
             {open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
@@ -431,7 +431,7 @@ function BodyPanel({ body }: { body: NetworkRequestBody | undefined }) {
     );
   }
   return (
-    <div className="py-2 text-[12px]">
+    <div className="py-2 text-xs">
       <BodyBlock body={body!} />
     </div>
   );

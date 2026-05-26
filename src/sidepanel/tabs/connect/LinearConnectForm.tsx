@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
-import { CircleCheck, ExternalLink, KeyRound, Loader2 } from "lucide-react";
+import { ExternalLink, KeyRound, Loader2 } from "lucide-react";
 import { SiLinear } from "@icons-pack/react-simple-icons";
 import { toast } from "sonner";
 import { useT } from "@/i18n";
-import { Badge } from "@/components/ui/badge";
+import { ConnectedBadge } from "@/sidepanel/components/ConnectedBadge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -167,7 +167,7 @@ function LinearOnboarding() {
         <div className="mb-3 rounded-full bg-muted p-3">
           <SiLinear className="h-6 w-6" color="default" />
         </div>
-        <h3 className="text-[18px] font-semibold">{t("linear.onboarding.title")}</h3>
+        <h3 className="text-lg font-semibold">{t("linear.onboarding.title")}</h3>
         <p className="mt-1 text-sm text-muted-foreground">
           {t("linear.onboarding.body")}
         </p>
@@ -330,10 +330,7 @@ function LinearSummary() {
             <span className="truncate text-base font-medium text-foreground">{name}</span>
             <span className="truncate text-sm text-muted-foreground">{account.auth.viewerEmail || "linear.app"}</span>
           </div>
-          <Badge className="shrink-0 gap-1 border-transparent bg-green-50 text-[11px] tracking-wider text-green-700 shadow-none dark:bg-green-900/40 dark:text-green-400">
-            <CircleCheck className="h-3 w-3" />
-            {kindLabel}
-          </Badge>
+          <ConnectedBadge>{kindLabel}</ConnectedBadge>
         </CardContent>
       </Card>
     </div>

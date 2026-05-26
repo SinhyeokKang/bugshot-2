@@ -373,7 +373,7 @@ function UnsupportedPage() {
       <div className="rounded-full bg-muted p-3">
         <Globe className="h-6 w-6 text-muted-foreground" />
       </div>
-      <h3 className="text-[18px] font-semibold">{t("app.unsupported.title")}</h3>
+      <h3 className="text-lg font-semibold">{t("app.unsupported.title")}</h3>
       <p className="text-sm text-muted-foreground">
         {t("app.unsupported.body")}
       </p>

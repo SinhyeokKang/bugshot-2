@@ -134,7 +134,7 @@ chrome.runtime.onConnect.addListener((port) => {
   const tabId = Number(port.name.slice(PANEL_PORT_PREFIX.length));
   if (Number.isNaN(tabId)) return;
   port.onDisconnect.addListener(() => {
-    chrome.storage.session.remove(`editor:${tabId}`).catch(() => {});
+    chrome.storage.session.remove(sessionKey(tabId)).catch(() => {});
     chrome.tabs.sendMessage(tabId, { type: "picker.clear" }).catch(() => {});
   });
 });

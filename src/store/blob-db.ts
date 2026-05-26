@@ -1,5 +1,6 @@
 import type { NetworkLog } from "@/types/network";
 import type { ConsoleLog } from "@/types/console";
+import { EDITOR_SESSION_PREFIX } from "@/lib/session-keys";
 
 const DB_NAME = "bugshot-video";
 const DB_VERSION = 5;
@@ -409,7 +410,7 @@ async function collectAllActiveInlineRefs(): Promise<Set<string>> {
   try {
     const sessionData = await chrome.storage.session.get(null);
     for (const [key, value] of Object.entries(sessionData)) {
-      if (!key.startsWith("editor:")) continue;
+      if (!key.startsWith(EDITOR_SESSION_PREFIX)) continue;
       const snap = value as { draft?: { sections?: Record<string, string> } };
       if (!snap?.draft?.sections) continue;
       for (const text of Object.values(snap.draft.sections)) scanInlineRefs(text, refs);

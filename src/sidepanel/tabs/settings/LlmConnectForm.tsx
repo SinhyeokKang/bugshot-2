@@ -3,7 +3,6 @@ import {
   Bot,
   Check,
   ChevronsUpDown,
-  CircleCheck,
   RefreshCw,
 } from "lucide-react";
 import { useT } from "@/i18n";
@@ -18,7 +17,7 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { Badge } from "@/components/ui/badge";
+import { ConnectedBadge } from "@/sidepanel/components/ConnectedBadge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -65,7 +64,7 @@ function LlmOnboarding() {
         <div className="mb-3 rounded-full bg-muted p-3">
           <Bot className="h-6 w-6" />
         </div>
-        <h3 className="text-[18px] font-semibold">{t("llm.onboarding.title")}</h3>
+        <h3 className="text-lg font-semibold">{t("llm.onboarding.title")}</h3>
         <p className="mt-1 text-sm text-muted-foreground">
           {t("llm.onboarding.body")}
         </p>
@@ -148,10 +147,7 @@ function LlmConnected() {
                   {providerLabel}
                 </span>
               </div>
-              <Badge className="shrink-0 gap-1 border-transparent bg-green-50 text-[11px] tracking-wider text-green-700 shadow-none dark:bg-green-900/40 dark:text-green-400">
-                <CircleCheck className="h-3 w-3" />
-                {t("llm.connected")}
-              </Badge>
+              <ConnectedBadge>{t("llm.connected")}</ConnectedBadge>
             </CardContent>
           </Card>
         </Section>

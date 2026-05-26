@@ -340,7 +340,7 @@ export function ValueCombobox({
               </CommandGroup>
             ))}
             <CommandGroup
-              heading={`토큰${category ? ` · ${category}` : ""}`}
+              heading={`${t("value.tokens")}${category ? ` · ${category}` : ""}`}
             >
               {familyGroupsFiltered.length === 0 && primaryFiltered.length === 0 && extraFiltered.length === 0 ? (
                 <CommandEmpty>{t("value.noMatch")}</CommandEmpty>

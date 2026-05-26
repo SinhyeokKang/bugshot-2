@@ -155,10 +155,6 @@ export function collectSelection(
   };
 }
 
-export function collectSpecifiedStyles(el: Element): Record<string, string> {
-  return collectSpecifiedStylesWithSources(el).styles;
-}
-
 export function collectSpecifiedStylesWithSources(el: Element): {
   styles: Record<string, string>;
   sources: Record<string, string>;

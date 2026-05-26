@@ -60,6 +60,7 @@ const ko = {
   "value.noMatch": "매칭 없음",
   "value.showMore": "다른 토큰 {count}개 더 보기",
   "value.otherTokens": "기타 토큰",
+  "value.tokens": "토큰",
 
   "dom.parent": "부모 요소",
   "dom.child": "첫 자식 요소",
@@ -156,6 +157,7 @@ const en = {
   "value.noMatch": "No match",
   "value.showMore": "Show {count} more tokens",
   "value.otherTokens": "Other tokens",
+  "value.tokens": "Tokens",
 
   "dom.parent": "Parent element",
   "dom.child": "First child element",

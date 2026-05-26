@@ -109,7 +109,6 @@ const ko = {
   "linear.error.429": "요청이 너무 많습니다. 잠시 후 다시 시도하세요.",
   "linear.error.5xx": "Linear 서버 오류. 잠시 후 다시 시도하세요.",
   "linear.error.generic": "Linear 요청 실패 ({status})",
-  "linear.error.graphql": "Linear GraphQL 오류: {message}",
   "linear.error.uploadFailed": "파일 업로드 실패: {status}",
 
   "notion.onboarding.title": "Notion 연결",
@@ -142,7 +141,6 @@ const ko = {
   "notion.error.429": "요청이 너무 많습니다. 잠시 후 다시 시도하세요.",
   "notion.error.5xx": "Notion 서버 오류. 잠시 후 다시 시도하세요.",
   "notion.error.generic": "Notion 요청 실패 ({status})",
-  "notion.error.uploadFailed": "파일 업로드 실패: {status}",
   "notion.oauth.notConfigured": "Notion OAuth 환경 변수(VITE_NOTION_CLIENT_ID, VITE_OAUTH_PROXY_URL)가 설정되지 않았습니다. Internal Token만 사용 가능합니다.",
   "notion.oauthExpired": "Notion 연결이 만료되었습니다. 다시 연결해 주세요.",
 
@@ -273,7 +271,6 @@ const en = {
   "linear.error.429": "Too many requests. Try again later.",
   "linear.error.5xx": "Linear server error. Try again later.",
   "linear.error.generic": "Linear request failed ({status})",
-  "linear.error.graphql": "Linear GraphQL error: {message}",
   "linear.error.uploadFailed": "File upload failed: {status}",
 
   "notion.onboarding.title": "Connect Notion",
@@ -306,7 +303,6 @@ const en = {
   "notion.error.429": "Too many requests. Please retry in a moment.",
   "notion.error.5xx": "Notion server error. Please retry in a moment.",
   "notion.error.generic": "Notion request failed ({status})",
-  "notion.error.uploadFailed": "File upload failed: {status}",
   "notion.oauth.notConfigured": "Notion OAuth env vars (VITE_NOTION_CLIENT_ID, VITE_OAUTH_PROXY_URL) are not set. Internal Token only.",
   "notion.oauthExpired": "Your Notion connection has expired. Please reconnect.",
 

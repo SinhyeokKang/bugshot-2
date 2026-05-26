@@ -172,7 +172,7 @@ function EmptyState({ onStartElement, onStartScreenshot, onStartVideo, onStartFr
           <div className="mb-1 rounded-full bg-muted p-3">
             <SquareMousePointer className="h-6 w-6 text-muted-foreground" />
           </div>
-          <h3 className="whitespace-pre-line text-center text-[18px] font-semibold">{t("issue.empty.title")}</h3>
+          <h3 className="whitespace-pre-line text-center text-lg font-semibold">{t("issue.empty.title")}</h3>
         </div>
         <TooltipProvider delayDuration={0}>
           <div className="grid grid-cols-2 gap-2">
@@ -316,7 +316,7 @@ function RecordingState({ onStop, onCancel }: { onStop: () => void; onCancel: ()
         <div className="mb-3 rounded-full bg-red-100 p-3">
           <Video className="h-6 w-6 text-red-600" />
         </div>
-        <h3 className="text-[18px] font-semibold">{t("issue.recording.title", { time: timeStr })}</h3>
+        <h3 className="text-lg font-semibold">{t("issue.recording.title", { time: timeStr })}</h3>
         <div className="mt-3 h-1.5 w-40 overflow-hidden rounded-full bg-muted">
           <div
             className="h-full rounded-full bg-foreground transition-all duration-500"
@@ -345,7 +345,7 @@ function SubmitSuccessView() {
         <div className="mb-3 rounded-full bg-muted p-3">
           <CircleCheck className="h-6 w-6 text-green-600" />
         </div>
-        <h3 className="text-[18px] font-semibold">{t("jira.submitted")}</h3>
+        <h3 className="text-lg font-semibold">{t("jira.submitted")}</h3>
         <a
           href={submitResult.url}
           target="_blank"
@@ -402,7 +402,7 @@ function EmptyShell({
   return (
     <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 pb-5 text-center">
       <div className="mb-3 rounded-full bg-muted p-3">{icon}</div>
-      <h3 className="whitespace-pre-line text-[18px] font-semibold">{title}</h3>
+      <h3 className="whitespace-pre-line text-lg font-semibold">{title}</h3>
       {action ? <div className="mt-4">{action}</div> : null}
     </div>
   );
