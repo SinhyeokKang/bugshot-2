@@ -38,4 +38,8 @@ export class FrameBuffer {
       this.frames[this.frames.length - 1].timestamp - this.frames[0].timestamp
     );
   }
+
+  get oldestTimestamp(): number | null {
+    return this.frames.length === 0 ? null : this.frames[0].timestamp;
+  }
 }

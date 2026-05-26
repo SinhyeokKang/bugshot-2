@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { ChevronDown, ChevronUp, CircleX, Info, Search, Terminal, TriangleAlert, X } from "lucide-react";
 import { useT } from "@/i18n";
 import type { ConsoleEntry, ConsoleLevel } from "@/types/console";
@@ -87,6 +87,29 @@ export function ConsoleLogContent({ entries, startedAt, flush }: ConsoleLogConte
     return result;
   }, [entries, filter, query]);
 
+  // 신규 로그 tail: 사용자가 바닥 근처(<24px)에 있을 때만 새 항목에 맞춰 자동 스크롤. 위로 올려
+  // 살펴보는 중이면 끌어내리지 않는다.
+  const listScrollRef = useRef<HTMLDivElement>(null);
+  const pinnedRef = useRef(true);
+  const getListViewport = useCallback(
+    () => listScrollRef.current?.querySelector<HTMLElement>("[data-radix-scroll-area-viewport]") ?? null,
+    [],
+  );
+  useEffect(() => {
+    const vp = getListViewport();
+    if (!vp) return;
+    const onScroll = () => {
+      pinnedRef.current = vp.scrollHeight - vp.scrollTop - vp.clientHeight < 24;
+    };
+    vp.addEventListener("scroll", onScroll, { passive: true });
+    return () => vp.removeEventListener("scroll", onScroll);
+  }, [getListViewport, entries.length === 0]);
+  useEffect(() => {
+    if (!pinnedRef.current) return;
+    const vp = getListViewport();
+    if (vp) vp.scrollTop = vp.scrollHeight;
+  }, [filteredEntries.length, getListViewport]);
+
   return (
     <div className={`flex min-h-0 flex-1 flex-col overflow-hidden${flush ? "" : " rounded-lg border"}`}>
       <Tabs value={filter} onValueChange={(v) => setFilter(v as ConsoleFilter)}>
@@ -126,7 +149,7 @@ export function ConsoleLogContent({ entries, startedAt, flush }: ConsoleLogConte
           <span className="text-sm text-muted-foreground">{t("debug.console.empty")}</span>
         </div>
       ) : (
-        <ScrollArea className="min-h-0 flex-1">
+        <ScrollArea ref={listScrollRef} className="min-h-0 flex-1">
           <div className="overflow-hidden">
             {filteredEntries.map((entry) => (
               <EntryAccordion key={entry.id} entry={entry} startedAt={startedAt} />

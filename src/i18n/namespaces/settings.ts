@@ -8,12 +8,12 @@ const ko = {
   "settings.titlePrefix.help": "이슈 제목 앞에 붙는 접두어입니다.",
   "settings.bodyComposition": "본문 구성",
   "settings.issueComposition": "이슈 구성",
-  "settings.capture": "캡처",
-  "settings.replay.label": "30s Replay",
+  "settings.capture": "캡처 설정",
+  "settings.replay.label": "30초 리플레이",
   "settings.replay.help":
-    "최근 30초 화면을 항상 기록해 버튼 한 번으로 영상 이슈를 만듭니다. 모든 사이트 캡처 권한이 필요하며, 기록은 이 기기에만 임시 저장됩니다.",
+    "화면의 최근 30초를 항상 기록해 둡니다. 버그를 발견하면 버튼 한 번으로 직전 상황을 영상으로 첨부할 수 있습니다.",
   "settings.replay.permissionDenied":
-    "권한이 거부되어 30s Replay를 켤 수 없습니다.",
+    "권한이 거부되어 30초 리플레이를 켤 수 없습니다.",
   "settings.theme": "테마",
   "settings.language": "언어",
   "settings.theme.light": "라이트",
@@ -86,12 +86,12 @@ const en = {
   "settings.titlePrefix.help": "Automatically prepended to issue titles.",
   "settings.bodyComposition": "Body composition",
   "settings.issueComposition": "Issue composition",
-  "settings.capture": "Capture",
-  "settings.replay.label": "30s Replay",
+  "settings.capture": "Capture settings",
+  "settings.replay.label": "30s replay",
   "settings.replay.help":
-    "Always records the last 30 seconds so you can file a video issue in one click. Requires capture permission for all sites; recordings are kept only temporarily on this device.",
+    "Always keeps the last 30 seconds of your screen. Spot a bug? Attach what just happened as a video in one click.",
   "settings.replay.permissionDenied":
-    "Permission denied, so 30s Replay could not be enabled.",
+    "Permission denied, so 30s replay could not be enabled.",
   "settings.theme": "Theme",
   "settings.language": "Language",
   "settings.theme.light": "Light",

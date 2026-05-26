@@ -1,4 +1,4 @@
-import { Fragment, useState } from "react";
+import { Fragment } from "react";
 import { Bug, ListOrdered, Monitor, Moon, SlidersHorizontal, Sparkles, StickyNote, Sun, Target, Timer } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -22,21 +22,18 @@ import { PageFooter, PageScroll, PageShell, Section } from "@/sidepanel/componen
 import { REPLAY_ORIGINS } from "@/sidepanel/30s-replay/use-30s-replay";
 import { LlmConnectForm } from "./settings/LlmConnectForm";
 
-type SettingsSubTab = "issue" | "ai" | "general";
-
 const LOCALE_OPTIONS: { value: LocaleMode; label: string }[] = [
   { value: "ko", label: "한국어" },
   { value: "en", label: "English" },
 ];
 
-export function SettingsTab() {
+export function SettingsTab({ sub, onSubChange }: { sub: string; onSubChange: (v: string) => void }) {
   const t = useT();
-  const [sub, setSub] = useState<SettingsSubTab>("issue");
 
   return (
     <Tabs
       value={sub}
-      onValueChange={(v) => setSub(v as SettingsSubTab)}
+      onValueChange={onSubChange}
       className="flex min-h-0 flex-1 flex-col gap-0"
     >
       <div className="shrink-0 border-b border-border px-4 py-4">

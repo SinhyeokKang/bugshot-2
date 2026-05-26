@@ -44,6 +44,7 @@ import { startVideoCapture } from "@/sidepanel/video-capture";
 import * as videoRecorder from "@/sidepanel/video-recorder";
 import { PageFooter, PageShell } from "@/sidepanel/components/Section";
 import { useReplay } from "@/sidepanel/30s-replay/replay-context";
+import { useTabNav } from "@/sidepanel/tab-nav";
 import { DraftingPanel } from "./DraftingPanel";
 import { PreviewPanel } from "./PreviewPanel";
 import { SelectedPanel } from "./StyleEditorPanel";
@@ -211,22 +212,36 @@ function EmptyState({ onStartElement, onStartScreenshot, onStartVideo, onStartFr
 
 function ReplayButton() {
   const t = useT();
-  const { replayEnabled, isReady, isEncoding, capture } = useReplay();
+  const navTo = useTabNav();
+  const { replayEnabled, isReady, isEncoding, bufferedSeconds, capture } = useReplay();
   const tooltip = !replayEnabled
     ? t("issue.replay.tooltip.disabled")
     : !isReady && !isEncoding
       ? t("issue.replay.tooltip.recording")
       : null;
 
-  const button = (
+  // 설정 off — 비활성처럼 보이되 클릭은 가능하게 해 설정의 캡처 sub-tab으로 보낸다.
+  const button = !replayEnabled ? (
+    <Button
+      className="w-full opacity-50"
+      variant="outline"
+      aria-disabled
+      onClick={() => navTo("settings", "issue")}
+    >
+      <Timer />
+      {t("issue.mode.replay")}
+    </Button>
+  ) : (
     <Button
       className="w-full"
       variant="outline"
-      disabled={!replayEnabled || !isReady || isEncoding}
+      disabled={!isReady || isEncoding}
       onClick={() => void capture()}
     >
       {isEncoding ? <Loader2 className="animate-spin" /> : <Timer />}
-      {isEncoding ? t("issue.replay.encoding") : t("issue.mode.replay")}
+      {isEncoding
+        ? t("issue.replay.encoding")
+        : t("issue.mode.replayProgress").replace("{n}", String(bufferedSeconds))}
     </Button>
   );
 

@@ -690,9 +690,13 @@ function VideoPreview({ blob, thumbnail }: { blob: Blob | null; thumbnail: strin
   return (
     <div className="space-y-1.5">
       {src ? (
-        <video src={src} controls className="w-full rounded-lg border" />
+        <div className="aspect-video w-full overflow-hidden rounded-lg border bg-black">
+          <video src={src} controls className="h-full w-full object-contain" />
+        </div>
       ) : thumbnail ? (
-        <img src={thumbnail} alt="Recording thumbnail" className="w-full rounded-lg border" />
+        <div className="aspect-video w-full overflow-hidden rounded-lg border bg-black">
+          <img src={thumbnail} alt="Recording thumbnail" className="h-full w-full object-contain" />
+        </div>
       ) : null}
     </div>
   );

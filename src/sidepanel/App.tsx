@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Blocks, Globe, List, Settings, TerminalSquare } from "lucide-react";
 import { useT } from "@/i18n";
 import {
@@ -37,9 +37,7 @@ import { DebugTab } from "./tabs/DebugTab";
 import { IntegrationsTab } from "./tabs/IntegrationsTab";
 import { IssueListTab } from "./tabs/IssueListTab";
 import { SettingsTab } from "./tabs/SettingsTab";
-
-const TabNavContext = createContext<(tab: string) => void>(() => {});
-export const useTabNav = () => useContext(TabNavContext);
+import { TabNavContext } from "./tab-nav";
 
 function useSettingsHydrated() {
   const [ready, setReady] = useState(
@@ -67,6 +65,11 @@ export default function App() {
   const aiLoading = useAiLoading();
   const aiStylingLoading = useEditorStore((s) => s.aiStylingLoading);
   const [tab, setTab] = useState("debug");
+  const [settingsSub, setSettingsSub] = useState("issue");
+  const navTo = useCallback((next: string, sub?: string) => {
+    setTab(next);
+    if (sub) setSettingsSub(sub);
+  }, []);
   const [oauthExpiredPlatform, setOauthExpiredPlatform] = useState<PlatformId | null>(null);
   const [pickerUnavailable, setPickerUnavailable] = useState(false);
   const [iframeUnsupported, setIframeUnsupported] = useState(false);
@@ -168,12 +171,13 @@ export default function App() {
   if (tabId === null) return <UnsupportedPage />;
 
   return (
-    <TabNavContext.Provider value={setTab}>
+    <TabNavContext.Provider value={navTo}>
     <ReplayProvider
       value={{
         replayEnabled,
         isReady: replay.isReady,
         isEncoding: replay.isEncoding,
+        bufferedSeconds: replay.bufferedSeconds,
         capture: replay.capture,
       }}
     >
@@ -221,7 +225,7 @@ export default function App() {
         </div>
 
         <div className={cn("flex min-h-0 flex-1 flex-col overflow-hidden", tab !== "settings" && "hidden")}>
-          <SettingsTab />
+          <SettingsTab sub={settingsSub} onSubChange={setSettingsSub} />
         </div>
       </div>
 

@@ -174,6 +174,29 @@ export function NetworkLogContent({ requests, flush }: NetworkLogContentProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const dragging = useRef(false);
 
+  // 신규 로그 tail: 사용자가 바닥 근처(<24px)에 있을 때만 새 항목에 맞춰 자동 스크롤. 위로 올려
+  // 살펴보는 중이면 끌어내리지 않는다.
+  const listScrollRef = useRef<HTMLDivElement>(null);
+  const pinnedRef = useRef(true);
+  const getListViewport = useCallback(
+    () => listScrollRef.current?.querySelector<HTMLElement>("[data-radix-scroll-area-viewport]") ?? null,
+    [],
+  );
+  useEffect(() => {
+    const vp = getListViewport();
+    if (!vp) return;
+    const onScroll = () => {
+      pinnedRef.current = vp.scrollHeight - vp.scrollTop - vp.clientHeight < 24;
+    };
+    vp.addEventListener("scroll", onScroll, { passive: true });
+    return () => vp.removeEventListener("scroll", onScroll);
+  }, [getListViewport]);
+  useEffect(() => {
+    if (!pinnedRef.current) return;
+    const vp = getListViewport();
+    if (vp) vp.scrollTop = vp.scrollHeight;
+  }, [filteredRequests.length, getListViewport]);
+
   const onDragStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
     dragging.current = true;
@@ -231,7 +254,7 @@ export function NetworkLogContent({ requests, flush }: NetworkLogContentProps) {
         </div>
       </Tabs>
       <div className="flex min-h-0 flex-1 overflow-hidden">
-      <ScrollArea className="shrink-0 [&>div>div]:!block" style={{ width: listWidth }}>
+      <ScrollArea ref={listScrollRef} className="shrink-0 [&>div>div]:!block" style={{ width: listWidth }}>
         <div>
           {filteredRequests.map((req) => (
             <RequestRow

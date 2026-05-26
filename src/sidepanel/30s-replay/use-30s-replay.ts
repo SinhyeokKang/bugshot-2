@@ -17,6 +17,7 @@ export const REPLAY_ORIGINS = ["https://*/*", "http://*/*"];
 export interface Use30sReplayReturn {
   isReady: boolean;
   isEncoding: boolean;
+  bufferedSeconds: number;
   capture: () => Promise<void>;
 }
 
@@ -30,6 +31,7 @@ export function use30sReplay(
 
   const [isReady, setIsReady] = useState(false);
   const [isEncoding, setIsEncoding] = useState(false);
+  const [bufferedSeconds, setBufferedSeconds] = useState(0);
 
   const bufferRef = useRef<FrameBuffer>(new FrameBuffer());
   const inFlightRef = useRef(false);
@@ -45,11 +47,13 @@ export function use30sReplay(
     if (!enabled || tabId == null) {
       buffer.clear();
       setIsReady(false);
+      setBufferedSeconds(0);
       return;
     }
 
     let cancelled = false;
     let intervalId: ReturnType<typeof setInterval> | null = null;
+    let displayId: ReturnType<typeof setInterval> | null = null;
 
     async function tick(): Promise<void> {
       if (cancelled || inFlightRef.current || pausedRef.current) return;
@@ -64,7 +68,7 @@ export function use30sReplay(
           type: "captureVisibleTab",
           tabId: id,
           format: "jpeg",
-          quality: 65,
+          quality: 80,
         });
         const blob = await (await fetch(dataUrl)).blob();
         if (cancelled) return;
@@ -89,6 +93,15 @@ export function use30sReplay(
           return;
         }
         intervalId = setInterval(() => void tick(), CAPTURE_INTERVAL_MS);
+        // 표시값은 푸시 성공이 아니라 벽시계 1초 타이머로 갱신 — 캡처 스킵(rate limit·in-flight)으로
+        // 숫자가 멈췄다 확 뛰는 현상을 없앤다. oldest 프레임 시각에 앵커돼 30초 캡에서 자연히 멈춘다.
+        displayId = setInterval(() => {
+          if (cancelled || useEditorStore.getState().phase !== "idle") return;
+          const oldest = buffer.oldestTimestamp;
+          setBufferedSeconds(
+            oldest == null ? 0 : Math.min(30, Math.ceil((Date.now() - oldest) / 1000)),
+          );
+        }, 1000);
       } catch {
         // permissions API 실패 시 미시작
       }
@@ -97,8 +110,10 @@ export function use30sReplay(
     return () => {
       cancelled = true;
       if (intervalId != null) clearInterval(intervalId);
+      if (displayId != null) clearInterval(displayId);
       buffer.clear();
       setIsReady(false);
+      setBufferedSeconds(0);
     };
   }, [tabId, enabled]);
 
@@ -120,6 +135,7 @@ export function use30sReplay(
       if (!enabledRef.current || !phaseIdle) return;
       bufferRef.current.clear();
       setIsReady(false);
+      setBufferedSeconds(0);
 
       let viewport = { width: 0, height: 0 };
       let target = { tabId: id, url: "", title: "" };
@@ -162,5 +178,5 @@ export function use30sReplay(
     }
   }, []);
 
-  return { isReady, isEncoding, capture };
+  return { isReady, isEncoding, bufferedSeconds, capture };
 }
