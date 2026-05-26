@@ -61,8 +61,10 @@
 
 ### Task 7: Clear Log 버튼 (Console/Network 서브탭)
 - **변경 대상**: `src/sidepanel/tabs/ConsoleSubTab.tsx`, `src/sidepanel/tabs/NetworkSubTab.tsx`, i18n(`src/i18n/namespaces/issue.ts` 또는 적절 namespace)
-- **작업 내용**: `PageFooter`를 `flex justify-between`으로, 좌측에 `Button variant="outline"` + lucide `Trash2` + i18n 라벨. Console 핸들러=`clearConsoleLog()`+`clearConsoleRecorder(tabId)`, Network 핸들러=`clearNetworkLog()`+`clearNetworkRecorder(tabId)`. i18n 키 ko/en 동시.
+- **작업 내용**: `PageFooter`를 `flex items-center justify-between gap-2`로, 좌측에 [Clear Log] 버튼. 디자인은 **Settings > General [Privacy Policy] 버튼과 일치** = `Button variant="outline"` + 텍스트 라벨만(아이콘 없음, `SettingsTab.tsx:223-228` 참조). **클릭 시 컨펌 없이 즉시 초기화.** Console 핸들러=`clearConsoleLog()`+`clearConsoleRecorder(tabId)`, Network 핸들러=`clearNetworkLog()`+`clearNetworkRecorder(tabId)`. i18n 키 ko/en 동시.
 - **검증**:
+  - [ ] 버튼 모양이 Privacy Policy와 동일(outline·텍스트 only·아이콘 없음)
+  - [ ] 클릭 즉시 초기화(다이얼로그 안 뜸)
   - [ ] Console footer Clear → 콘솔 로그만 비고 네트워크 유지(반대도)
   - [ ] Clear 후 새 요청만 다시 쌓임(MAIN까지 비워짐)
   - [ ] mp4 프레임 버퍼는 영향 없음

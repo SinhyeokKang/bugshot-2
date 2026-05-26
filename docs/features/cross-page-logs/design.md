@@ -42,11 +42,12 @@
   - 트림은 onRecordingComplete(→ drafting 전) 전에 수행 → 이후 지연 sync는 프리즈 가드로 무시되어 트림이 고정된다.
 
 ### `src/sidepanel/tabs/ConsoleSubTab.tsx`, `src/sidepanel/tabs/NetworkSubTab.tsx`
-- `PageFooter` 내부를 `flex justify-end` → `flex justify-between`으로 바꾸고 **좌측에 [Clear Log] 버튼** 추가(우측 startDraft 버튼 유지).
-- Clear 핸들러(각 서브탭 해당 로그만):
+- `PageFooter` 내부를 `flex justify-end` → **`flex items-center justify-between gap-2`** 로 바꾸고 **좌측에 [Clear Log] 버튼** 추가(우측 startDraft 버튼 유지). Settings > General footer의 [Privacy Policy] 배치/패턴과 동일.
+- 버튼 디자인은 **Settings > General의 [Privacy Policy] 버튼과 일치**: `Button variant="outline"` + **텍스트 라벨만**(lucide 아이콘 없음). (`SettingsTab.tsx:223-228` 참조)
+- **클릭 즉시 초기화 — 별도 컨펌 다이얼로그 없음.** 핸들러(각 서브탭 해당 로그만):
   - Console: `clearConsoleLog()` + `clearConsoleRecorder(tabId)`.
   - Network: `clearNetworkLog()` + `clearNetworkRecorder(tabId)`.
-- shadcn `Button variant="outline"`, lucide `Trash2` 아이콘. i18n 키 신규(`log.clear` 등) ko/en 동시.
+- i18n 키 신규(`log.clear` 등) ko/en 동시.
 
 ## 데이터 흐름
 
