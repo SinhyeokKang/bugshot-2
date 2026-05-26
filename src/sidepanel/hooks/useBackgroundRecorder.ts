@@ -7,10 +7,7 @@ import {
   stopConsoleRecorder,
   syncNetworkRecorder,
   syncConsoleRecorder,
-  clearNetworkRecorder,
-  clearConsoleRecorder,
 } from "@/sidepanel/picker-control";
-import { deleteNetworkLog, deleteConsoleLog } from "@/store/blob-db";
 import { pageKeyOf } from "@/lib/session-keys";
 import { isSupportedUrl } from "@/lib/url-support";
 
@@ -112,17 +109,10 @@ export function useBackgroundRecorder(tabId: number | null): void {
         return;
       }
 
-      // idle 복귀(취소/제출 후 reset) 시 pending IDB + MAIN buffer 정리.
-      // clear → inject 순서: setSentinel이 먼저 처리되면 이전 sentinel listener가 detach돼 clear가 무시되는 race 가능.
+      // idle 복귀 시 cross-page 로그를 유지하고 레코더만 재주입.
       if (state.phase === "idle" && shouldPreserveBackgroundLogs(prev.phase)) {
         recordersStopped.current = false;
-        void (async () => {
-          await clearNetworkRecorder(localTabId).catch(() => {});
-          await clearConsoleRecorder(localTabId).catch(() => {});
-          deleteNetworkLog(`pending:${localTabId}`).catch(() => {});
-          deleteConsoleLog(`pending:${localTabId}`).catch(() => {});
-          await inject();
-        })();
+        void inject();
       }
     });
 
