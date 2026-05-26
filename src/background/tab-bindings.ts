@@ -92,17 +92,25 @@ async function clearIfPageChanged(
   }
 }
 
-async function clearEditorSessionIfVolatile(tabId: number): Promise<void> {
+// 메인 프레임 cross-document 네비게이션 시작 시 호출. 보존 상태가 아니면 패널을 닫고 비활성화해
+// 1.2.0과 동일하게 "재오픈(아이콘 클릭) 시 activeTab 재취득"을 강제한다. 광역 권한이 있으면
+// info.url이 읽혀 apply가 supported=true로 패널을 유지해 버리므로, url 가독성에 의존하지 않도록
+// status 기반으로 트리거하고 setActivated(false)로 직후 apply의 재활성화를 막는다.
+async function deactivatePanelIfVolatile(tabId: number): Promise<void> {
   const key = sessionKey(tabId);
   try {
+    const set = await getActivatedSet();
+    if (!set.has(tabId)) return; // 패널이 붙은 탭만 대상
     const data = await chrome.storage.session.get(key);
     const snap = data[key] as
       | { captureMode?: string; phase?: string }
       | undefined;
-    if (shouldPreserveSession(snap)) return;
+    if (shouldPreserveSession(snap)) return; // 보존 상태 → 패널 유지
+    await setActivated(tabId, false);
+    await chrome.sidePanel.setOptions({ tabId, enabled: false });
     await chrome.storage.session.remove(key);
   } catch (err) {
-    console.error("[bugshot] clearEditorSessionIfVolatile", err);
+    console.error("[bugshot] deactivatePanelIfVolatile", err);
   }
 }
 
@@ -141,12 +149,17 @@ export function setupTabBindings(): void {
   });
 
   chrome.tabs.onUpdated.addListener((tabId, info, tab) => {
+    // cross-document 네비게이션 시작(status loading)은 광역 권한 유무와 무관하게 활성 탭에서
+    // activeTab을 만료시킨다. 비보존 상태면 패널을 닫아 1.2.0 동작을 복원한다. info.url이 함께
+    // 와도 status를 먼저 보고 분기해 apply의 재활성화를 피한다. (SPA same-document는 loading 없음)
+    if (info.status === "loading") {
+      void deactivatePanelIfVolatile(tabId);
+      return;
+    }
     if (info.url) {
       void clearIfPageChanged(tabId, info.url).then(() =>
         apply(tabId, info.url),
       );
-    } else if (info.status === "loading") {
-      void clearEditorSessionIfVolatile(tabId);
     } else if (info.status === "complete") {
       void apply(tabId, tab.url);
     }
