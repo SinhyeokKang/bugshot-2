@@ -64,8 +64,9 @@ function networkRecorderScript(): void {
   const buffer: CapturedRequest[] = [];
   let totalSeen = 0;
   let memoryUsed = 0;
-  let recording = false;
-  const warnings = new Set<string>();
+  let recording = true;
+  type NetworkWarning = "MEMORY_CAPPED" | "ENTRY_CAPPED" | "BODY_TRUNCATED";
+  const warnings = new Set<NetworkWarning>();
 
   function genId(): string {
     if (typeof crypto !== "undefined" && "randomUUID" in crypto) {

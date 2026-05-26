@@ -186,7 +186,7 @@ function EntryAccordion({ entry, startedAt }: { entry: ConsoleEntry; startedAt?:
 
       {expanded && (
         <div className={`space-y-2 pb-3 pr-3 pt-1 text-xs ${startedAt != null ? "pl-[64px]" : "pl-10"}`}>
-          <pre className={`max-h-[300px] overflow-auto rounded p-2 font-sans text-xs whitespace-pre-wrap break-all ${levelCodeBg(entry.level)}`}>
+          <pre className={`max-h-[300px] overflow-auto rounded p-2 font-mono text-xs whitespace-pre-wrap break-all ${levelCodeBg(entry.level)}`}>
             {entry.args}
           </pre>
           {entry.stack && (
@@ -194,7 +194,7 @@ function EntryAccordion({ entry, startedAt }: { entry: ConsoleEntry; startedAt?:
               <div className="mb-1 text-xs font-medium">
                 {t("consoleLog.detail.stackTrace")}
               </div>
-              <pre className={`max-h-[200px] overflow-auto rounded p-2 font-sans text-xs whitespace-pre-wrap break-all ${levelCodeBg(entry.level)}`}>
+              <pre className={`max-h-[200px] overflow-auto rounded p-2 font-mono text-xs whitespace-pre-wrap break-all ${levelCodeBg(entry.level)}`}>
                 {entry.stack}
               </pre>
             </div>

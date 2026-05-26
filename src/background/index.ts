@@ -157,16 +157,17 @@ chrome.commands.onCommand.addListener((command, tab) => {
 // onBeforeNavigate: 떠나는 페이지의 MAIN 버퍼를 sync해 사이드패널에 넘긴다.
 // onCommitted: cross-origin 또는 reload이면 사이드패널 로그를 초기화(DevTools UX).
 //              same-origin 내부 이동은 로그를 보존해 멀티페이지 디버깅에 활용.
-const navPreviousUrl = new Map<number, string>();
+const navUrlPromise = new Map<number, Promise<string>>();
 
 chrome.webNavigation.onBeforeNavigate.addListener((details) => {
   if (details.frameId !== 0) return;
+  navUrlPromise.set(
+    details.tabId,
+    chrome.tabs.get(details.tabId).then((tab) => tab.url ?? "").catch(() => ""),
+  );
   const key = sessionKey(details.tabId);
   void chrome.storage.session.get(key).then((stored) => {
     if (stored[key] == null) return;
-    chrome.tabs.get(details.tabId).then((tab) => {
-      if (tab.url) navPreviousUrl.set(details.tabId, tab.url);
-    }).catch(() => {});
     chrome.tabs
       .sendMessage(details.tabId, { type: "networkRecorder.sync" })
       .catch(() => {});
@@ -178,12 +179,15 @@ chrome.webNavigation.onBeforeNavigate.addListener((details) => {
 
 chrome.webNavigation.onCommitted.addListener((details) => {
   if (details.frameId !== 0) return;
-  const prev = navPreviousUrl.get(details.tabId) ?? "";
-  navPreviousUrl.delete(details.tabId);
-  if (!shouldClearLogs(prev, details.url, details.transitionType)) return;
+  const urlPromise = navUrlPromise.get(details.tabId);
+  navUrlPromise.delete(details.tabId);
   const key = sessionKey(details.tabId);
-  void chrome.storage.session.get(key).then((stored) => {
+  void Promise.all([
+    urlPromise ?? Promise.resolve(""),
+    chrome.storage.session.get(key),
+  ]).then(([prev, stored]) => {
     if (stored[key] == null) return;
+    if (!shouldClearLogs(prev, details.url, details.transitionType)) return;
     chrome.runtime
       .sendMessage({ type: "logClear", tabId: details.tabId } satisfies BgInternalMessage)
       .catch(() => {});

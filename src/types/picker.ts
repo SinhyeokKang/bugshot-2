@@ -65,6 +65,7 @@ export interface DescribeChildrenResponse {
 }
 
 export type PickerMessage =
+  | { type: "ping" }
   | { type: "picker.start" }
   | { type: "picker.stop" }
   | { type: "picker.clear" }

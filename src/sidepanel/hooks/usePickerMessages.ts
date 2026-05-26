@@ -16,6 +16,7 @@ import {
 } from "@/sidepanel/lib/log-merge";
 
 let deferredActiveTabExpiry = false;
+let lastLogClearAt = 0;
 
 export function usePickerMessages(myTabId: number | null): void {
   useEffect(() => {
@@ -115,16 +116,21 @@ export function usePickerMessages(myTabId: number | null): void {
         if (isLogFrozen(useEditorStore.getState().phase)) return;
         const msg = message as Extract<BgInternalMessage, { type: "logClear" }>;
         if (myTabId != null && msg.tabId !== myTabId) return;
+        lastLogClearAt = Date.now();
         const store = useEditorStore.getState();
         store.clearNetworkLog(myTabId);
         store.clearConsoleLog(myTabId);
       } else if (message.type === "networkRecorder.data") {
         if (isLogFrozen(useEditorStore.getState().phase)) return;
         const msg = message as Extract<PickerMessage, { type: "networkRecorder.data" }>;
+        const requests = lastLogClearAt > 0
+          ? msg.payload.requests.filter((r) => r.startTime >= lastLogClearAt)
+          : msg.payload.requests;
+        if (requests.length === 0) return;
         const existing = useEditorStore.getState().networkLog;
         const merged = mergeLogItems(
           existing?.requests ?? [],
-          msg.payload.requests,
+          requests,
           (r) => r.startTime,
           NETWORK_MAX_ENTRIES,
         );
@@ -140,10 +146,14 @@ export function usePickerMessages(myTabId: number | null): void {
       } else if (message.type === "consoleRecorder.data") {
         if (isLogFrozen(useEditorStore.getState().phase)) return;
         const msg = message as Extract<PickerMessage, { type: "consoleRecorder.data" }>;
+        const entries = lastLogClearAt > 0
+          ? msg.payload.entries.filter((e) => e.timestamp >= lastLogClearAt)
+          : msg.payload.entries;
+        if (entries.length === 0) return;
         const existing = useEditorStore.getState().consoleLog;
         const merged = mergeLogItems(
           existing?.entries ?? [],
-          msg.payload.entries,
+          entries,
           (e) => e.timestamp,
           CONSOLE_MAX_ENTRIES,
         );

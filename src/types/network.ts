@@ -32,7 +32,7 @@ export interface NetworkLog {
   endedAt: number;
   totalSeen: number;
   captured: number;
-  warnings: ("MEMORY_CAPPED" | "WS_UNSUPPORTED" | "BODY_TRUNCATED")[];
+  warnings: ("MEMORY_CAPPED" | "WS_UNSUPPORTED" | "BODY_TRUNCATED" | "ENTRY_CAPPED")[];
   requests: NetworkRequest[];
 }
 

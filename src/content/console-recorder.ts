@@ -25,7 +25,7 @@ function consoleRecorderScript(): void {
 
   const buffer: CapturedEntry[] = [];
   let totalSeen = 0;
-  let recording = false;
+  let recording = true;
 
   function genId(): string {
     if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
