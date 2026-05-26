@@ -106,6 +106,7 @@ export type NotionBlock =
   | { type: "rich_paragraph"; richText: NotionRichText[] }
   | { type: "rich_bulleted_list_item"; richText: NotionRichText[] }
   | { type: "rich_numbered_list_item"; richText: NotionRichText[] }
+  | { type: "rich_quote"; richText: NotionRichText[] }
   | { type: "divider" };
 
 export type NotionAttachmentCategory = "image" | "video" | "log" | "other";

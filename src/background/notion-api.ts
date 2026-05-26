@@ -446,6 +446,12 @@ function expandBlock(
         type: "numbered_list_item",
         numbered_list_item: { rich_text: expandRichText(block.richText) },
       };
+    case "rich_quote":
+      return {
+        object: "block",
+        type: "quote",
+        quote: { rich_text: expandRichText(block.richText) },
+      };
     case "divider":
       return {
         object: "block",
