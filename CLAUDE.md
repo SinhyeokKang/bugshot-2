@@ -76,7 +76,7 @@ pnpm version major --no-git-tag-version   # 1.0.0 → 2.0.0 (Breaking change)
 /code-review    → 변경 코드를 ui·security·dataflow·codehealth 4개 에이전트가 병렬 리뷰 (선택 호출 가능). 리포트 전용
 /audit          → 코드베이스 전체를 ui·security·dataflow·codehealth 4개 에이전트가 병렬 감사 (선택 호출 가능). 리포트 전용
 /refactor       → audit·code-review 리포트의 지정 항목 수정 (메인 단일) → 4관점 자체 검증 → CTO 게이트. 회귀 위험 항목은 강행 전 확인. 빌드·커밋 안 함
-/push           → dev push (main에서 호출 차단)
+/push           → dev push (main에서 호출 차단) + CLAUDE.md/DIRECTORY.md/ARCHITECTURE.md/README.md/PERMISSION.md/docs/privacy.md 신선도 검사
 /merge          → dev에서 버전 bump 커밋 + dev → main squash PR 생성 + 자동 머지
 /deploy         → main 한정. tag push → 스토어 빌드 → zip → GitHub Release draft → 심사 요청 안내
 /sync           → dev를 origin/main으로 hard reset + force push (배포/머지 후)
@@ -88,7 +88,7 @@ pnpm version major --no-git-tag-version   # 1.0.0 → 2.0.0 (Breaking change)
 
 ### 문서 신선도
 
-`/push`는 항상 CLAUDE.md / DIRECTORY.md / ARCHITECTURE.md / README.md / docs/privacy.md 신선도 검사를 거친다. 아래 중 하나라도 해당하면 문서 갱신을 별도 커밋(`docs(CLAUDE): ...` / `docs(DIRECTORY): ...` / `docs(ARCHITECTURE): ...` / `docs(README): ...` / `docs(privacy): ...`)으로 묶어 함께 푸시:
+`/push`는 항상 CLAUDE.md / DIRECTORY.md / ARCHITECTURE.md / README.md / PERMISSION.md / docs/privacy.md 신선도 검사를 거친다. 아래 중 하나라도 해당하면 문서 갱신을 별도 커밋(`docs(CLAUDE): ...` / `docs(DIRECTORY): ...` / `docs(ARCHITECTURE): ...` / `docs(README): ...` / `docs(PERMISSION): ...` / `docs(privacy): ...`)으로 묶어 함께 푸시:
 
 - 새 디렉터리·파일 추가/삭제 (특히 `src/` 하위 구조 변화)
 - `package.json` scripts 변경
@@ -128,5 +128,6 @@ pnpm version major --no-git-tag-version   # 1.0.0 → 2.0.0 (Breaking change)
 
 ## 메모리 & 참고 문서
 
+- `PERMISSION.md` — Chrome 권한 전체 레퍼런스 (activeTab 라이프사이클, OAuth 토큰 흐름, optional permission 등)
 - `docs/privacy.md` — 개인정보처리방침 (GitHub Pages로 공개)
 - 사용자 개인 메모리: `~/.claude/projects/-Users-sinhyeokkang-code-bugshot-2/memory/`에 있음 (머신 로컬, git에 안 올라감)
