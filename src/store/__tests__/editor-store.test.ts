@@ -15,6 +15,8 @@ const {
   mockSaveConsoleLog,
   mockDeleteNetworkLog,
   mockDeleteConsoleLog,
+  mockClearNetworkRecorder,
+  mockClearConsoleRecorder,
 } = vi.hoisted(() => ({
   mockSaveDraft: vi.fn(),
   mockPatchDraftSnapshot: vi.fn(),
@@ -24,6 +26,13 @@ const {
   mockSaveConsoleLog: vi.fn().mockResolvedValue(true),
   mockDeleteNetworkLog: vi.fn().mockResolvedValue(undefined),
   mockDeleteConsoleLog: vi.fn().mockResolvedValue(undefined),
+  mockClearNetworkRecorder: vi.fn().mockResolvedValue(undefined),
+  mockClearConsoleRecorder: vi.fn().mockResolvedValue(undefined),
+}));
+
+vi.mock("@/sidepanel/recorder-control", () => ({
+  clearNetworkRecorder: mockClearNetworkRecorder,
+  clearConsoleRecorder: mockClearConsoleRecorder,
 }));
 
 vi.mock("@/store/issues-store", () => ({
@@ -113,20 +122,20 @@ describe("startCapturing — 백그라운드 로그 보존", () => {
     expect(useEditorStore.getState().consoleLog).toEqual(fakeConsoleLog);
   });
 
-  it("networkLogAttach는 false로 리셋한다", () => {
+  it("networkLogAttach 토글을 보존한다", () => {
     useEditorStore.setState({ networkLogAttach: true });
 
     useEditorStore.getState().startCapturing(target);
 
-    expect(useEditorStore.getState().networkLogAttach).toBe(false);
+    expect(useEditorStore.getState().networkLogAttach).toBe(true);
   });
 
-  it("consoleLogAttach는 false로 리셋한다", () => {
+  it("consoleLogAttach 토글을 보존한다", () => {
     useEditorStore.setState({ consoleLogAttach: true });
 
     useEditorStore.getState().startCapturing(target);
 
-    expect(useEditorStore.getState().consoleLogAttach).toBe(false);
+    expect(useEditorStore.getState().consoleLogAttach).toBe(true);
   });
 
   it("phase=capturing, captureMode=screenshot으로 전환한다", () => {
@@ -472,5 +481,128 @@ describe("reset — inlineCaptureTarget 초기화", () => {
     useEditorStore.getState().reset();
 
     expect(useEditorStore.getState().inlineCaptureTarget).toBeNull();
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  startPicking / startFreeform — cross-page 로그 보존                  */
+/* ------------------------------------------------------------------ */
+
+describe("startPicking — 로그·토글 보존", () => {
+  beforeEach(() => {
+    useEditorStore.setState(useEditorStore.getInitialState(), true);
+  });
+
+  it("networkLog/consoleLog와 attach 토글을 보존한다", () => {
+    useEditorStore.setState({
+      networkLog: fakeNetworkLog,
+      consoleLog: fakeConsoleLog,
+      networkLogAttach: true,
+      consoleLogAttach: true,
+    });
+
+    useEditorStore.getState().startPicking(target);
+
+    const s = useEditorStore.getState();
+    expect(s.networkLog).toEqual(fakeNetworkLog);
+    expect(s.consoleLog).toEqual(fakeConsoleLog);
+    expect(s.networkLogAttach).toBe(true);
+    expect(s.consoleLogAttach).toBe(true);
+  });
+
+  it("phase=picking, captureMode=element로 전환하고 selection은 리셋한다", () => {
+    useEditorStore.setState({ selection: { selector: ".x" } as never });
+
+    useEditorStore.getState().startPicking(target);
+
+    const s = useEditorStore.getState();
+    expect(s.phase).toBe("picking");
+    expect(s.captureMode).toBe("element");
+    expect(s.selection).toBeNull();
+  });
+});
+
+describe("startFreeform — 로그·토글 보존", () => {
+  beforeEach(() => {
+    useEditorStore.setState(useEditorStore.getInitialState(), true);
+  });
+
+  it("networkLog/consoleLog와 attach 토글을 보존한다", () => {
+    useEditorStore.setState({
+      networkLog: fakeNetworkLog,
+      consoleLog: fakeConsoleLog,
+      networkLogAttach: true,
+      consoleLogAttach: true,
+    });
+
+    useEditorStore.getState().startFreeform(target);
+
+    const s = useEditorStore.getState();
+    expect(s.networkLog).toEqual(fakeNetworkLog);
+    expect(s.consoleLog).toEqual(fakeConsoleLog);
+    expect(s.networkLogAttach).toBe(true);
+    expect(s.consoleLogAttach).toBe(true);
+  });
+
+  it("phase=drafting, captureMode=freeform으로 전환한다", () => {
+    useEditorStore.getState().startFreeform(target);
+
+    const s = useEditorStore.getState();
+    expect(s.phase).toBe("drafting");
+    expect(s.captureMode).toBe("freeform");
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  clearNetworkLog / clearConsoleLog                                  */
+/* ------------------------------------------------------------------ */
+
+describe("clearNetworkLog / clearConsoleLog", () => {
+  beforeEach(() => {
+    useEditorStore.setState(useEditorStore.getInitialState(), true);
+    mockDeleteNetworkLog.mockClear();
+    mockDeleteConsoleLog.mockClear();
+    mockClearNetworkRecorder.mockClear();
+    mockClearConsoleRecorder.mockClear();
+  });
+
+  it("clearNetworkLog(tabId): store null + pending 삭제 + MAIN buffer clear", () => {
+    useEditorStore.setState({ networkLog: fakeNetworkLog });
+
+    useEditorStore.getState().clearNetworkLog(1);
+
+    expect(useEditorStore.getState().networkLog).toBeNull();
+    expect(mockDeleteNetworkLog).toHaveBeenCalledWith("pending:1");
+    expect(mockClearNetworkRecorder).toHaveBeenCalledWith(1);
+  });
+
+  it("clearNetworkLog(null): store만 null, pending/MAIN clear는 스킵", () => {
+    useEditorStore.setState({ networkLog: fakeNetworkLog });
+
+    useEditorStore.getState().clearNetworkLog(null);
+
+    expect(useEditorStore.getState().networkLog).toBeNull();
+    expect(mockDeleteNetworkLog).not.toHaveBeenCalled();
+    expect(mockClearNetworkRecorder).not.toHaveBeenCalled();
+  });
+
+  it("clearConsoleLog(tabId): store null + pending 삭제 + MAIN buffer clear", () => {
+    useEditorStore.setState({ consoleLog: fakeConsoleLog });
+
+    useEditorStore.getState().clearConsoleLog(2);
+
+    expect(useEditorStore.getState().consoleLog).toBeNull();
+    expect(mockDeleteConsoleLog).toHaveBeenCalledWith("pending:2");
+    expect(mockClearConsoleRecorder).toHaveBeenCalledWith(2);
+  });
+
+  it("clearConsoleLog(null): store만 null, pending/MAIN clear는 스킵", () => {
+    useEditorStore.setState({ consoleLog: fakeConsoleLog });
+
+    useEditorStore.getState().clearConsoleLog(null);
+
+    expect(useEditorStore.getState().consoleLog).toBeNull();
+    expect(mockDeleteConsoleLog).not.toHaveBeenCalled();
+    expect(mockClearConsoleRecorder).not.toHaveBeenCalled();
   });
 });

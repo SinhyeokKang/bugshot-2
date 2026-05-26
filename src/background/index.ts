@@ -5,7 +5,7 @@ import {
   CAPTURE_COMMANDS,
   type CaptureCommand,
 } from "@/lib/capture-commands";
-import { PANEL_PORT_PREFIX } from "@/lib/session-keys";
+import { PANEL_PORT_PREFIX, sessionKey } from "@/lib/session-keys";
 import { GithubError } from "./github-api";
 import { JiraError } from "./jira-api";
 import { LinearError } from "./linear-api";
@@ -142,6 +142,23 @@ chrome.commands.onCommand.addListener((command, tab) => {
       tabId: tab.id,
     })
     .catch(() => {});
+});
+
+// 떠나는 페이지의 로그 꼬리 보존(주 경로). 메인 프레임 네비게이션 커밋 직전에 해당 탭의 MAIN
+// 버퍼를 sync해 사이드패널 누적기로 넘긴다. 패널이 바인딩된 탭(editor:${tabId} 세션 키 존재)에만
+// 보내 무관 탭으로의 낭비 메시지를 막는다 — 세션 스토리지는 SW 재시작에도 유지돼 가드가 안전.
+chrome.webNavigation.onBeforeNavigate.addListener((details) => {
+  if (details.frameId !== 0) return;
+  const key = sessionKey(details.tabId);
+  void chrome.storage.session.get(key).then((stored) => {
+    if (stored[key] == null) return;
+    chrome.tabs
+      .sendMessage(details.tabId, { type: "networkRecorder.sync" })
+      .catch(() => {});
+    chrome.tabs
+      .sendMessage(details.tabId, { type: "consoleRecorder.sync" })
+      .catch(() => {});
+  });
 });
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {

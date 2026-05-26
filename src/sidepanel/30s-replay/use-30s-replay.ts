@@ -3,10 +3,9 @@ import { toast } from "sonner";
 import { sendBg } from "@/types/messages";
 import { useEditorStore } from "@/store/editor-store";
 import { useSettingsUiStore } from "@/store/settings-ui-store";
-import {
-  syncConsoleRecorder,
-  syncNetworkRecorder,
-} from "@/sidepanel/picker-control";
+import { syncAndSettleLogs } from "@/sidepanel/picker-control";
+import { trimByTime } from "@/sidepanel/lib/log-merge";
+import { saveNetworkLog, saveConsoleLog } from "@/store/blob-db";
 import { useT } from "@/i18n";
 import { FrameBuffer } from "./frame-buffer";
 import { encodeToMp4 } from "./mp4-encoder";
@@ -121,8 +120,7 @@ export function use30sReplay(
       if (!enabledRef.current || !phaseIdle) return;
       bufferRef.current.clear();
       setIsReady(false);
-      syncConsoleRecorder(id).catch(() => {});
-      syncNetworkRecorder(id).catch(() => {});
+
       let viewport = { width: 0, height: 0 };
       let target = { tabId: id, url: "", title: "" };
       try {
@@ -132,6 +130,26 @@ export function use30sReplay(
       } catch {
         // 탭 닫힘 — 0 viewport·빈 target으로 진행
       }
+
+      // 최신 sync를 누적기에 반영한 뒤 mp4 프레임 버퍼 구간으로 트림. settle 후엔 await을 두지 않아
+      // 지연 sync가 끼어들 갭을 없애고, 직후 onRecordingComplete로 drafting 전환(프리즈)해 첨부 로그를 고정한다.
+      const captureTime = Date.now();
+      const lower = frames[0].timestamp;
+      await syncAndSettleLogs(id);
+      const { networkLog, consoleLog } = useEditorStore.getState();
+      if (networkLog) {
+        const requests = trimByTime(networkLog.requests, (r) => r.startTime, lower, captureTime);
+        const trimmed = { ...networkLog, requests, captured: requests.length };
+        useEditorStore.getState().setNetworkLog(trimmed);
+        saveNetworkLog(`pending:${id}`, trimmed).catch(() => {});
+      }
+      if (consoleLog) {
+        const entries = trimByTime(consoleLog.entries, (e) => e.timestamp, lower, captureTime);
+        const trimmed = { ...consoleLog, entries, captured: entries.length };
+        useEditorStore.getState().setConsoleLog(trimmed);
+        saveConsoleLog(`pending:${id}`, trimmed).catch(() => {});
+      }
+
       // idle 직접 진입이라 startRecording이 하던 target 설정을 여기서 대신 — confirmDraft 가드 통과용.
       useEditorStore.setState({ target });
       useEditorStore.getState().onRecordingComplete(blob, thumbnail, viewport);

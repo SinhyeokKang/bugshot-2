@@ -1,13 +1,19 @@
 import { useEffect } from "react";
 import { useEditorStore } from "@/store/editor-store";
-import type { NetworkLog } from "@/types/network";
-import type { ConsoleLog } from "@/types/console";
 import type { PickerMessage, ViewportRect } from "@/types/picker";
 import { onPickerIframeUnsupported, sendBg } from "@/types/messages";
 import { captureElementSnapshot, loadImage } from "@/sidepanel/capture";
 import { collectTokens } from "@/sidepanel/picker-control";
 import { saveNetworkLog, saveConsoleLog, saveInlineImage, dataUrlToBlob } from "@/store/blob-db";
 import { shouldCompact, compactImage } from "@/sidepanel/lib/compactImage";
+import {
+  mergeLogItems,
+  rebuildNetworkLog,
+  rebuildConsoleLog,
+  isLogFrozen,
+  NETWORK_MAX_ENTRIES,
+  CONSOLE_MAX_ENTRIES,
+} from "@/sidepanel/lib/log-merge";
 
 export function usePickerMessages(myTabId: number | null): void {
   useEffect(() => {
@@ -90,39 +96,37 @@ export function usePickerMessages(myTabId: number | null): void {
         useEditorStore.getState().cancelPicking();
         onPickerIframeUnsupported.fire();
       } else if (message.type === "networkRecorder.data") {
+        if (isLogFrozen(useEditorStore.getState().phase)) return;
         const msg = message as Extract<PickerMessage, { type: "networkRecorder.data" }>;
-        const now = Date.now();
-        const earliest = msg.payload.requests.length > 0
-          ? Math.min(...msg.payload.requests.map((r) => r.startTime))
-          : now;
-        const log: NetworkLog = {
-          id: crypto.randomUUID(),
-          startedAt: earliest,
-          endedAt: now,
+        const existing = useEditorStore.getState().networkLog;
+        const merged = mergeLogItems(
+          existing?.requests ?? [],
+          msg.payload.requests,
+          (r) => r.startTime,
+          NETWORK_MAX_ENTRIES,
+        );
+        const log = rebuildNetworkLog(existing, merged, {
           totalSeen: msg.payload.totalSeen,
-          captured: msg.payload.requests.length,
           warnings: msg.payload.warnings,
-          requests: msg.payload.requests,
-        };
+        });
         useEditorStore.getState().setNetworkLog(log);
         const tabId = useEditorStore.getState().target?.tabId;
         if (tabId) {
           saveNetworkLog(`pending:${tabId}`, log).catch(() => {});
         }
       } else if (message.type === "consoleRecorder.data") {
+        if (isLogFrozen(useEditorStore.getState().phase)) return;
         const msg = message as Extract<PickerMessage, { type: "consoleRecorder.data" }>;
-        const now = Date.now();
-        const earliest = msg.payload.entries.length > 0
-          ? Math.min(...msg.payload.entries.map((e) => e.timestamp))
-          : now;
-        const log: ConsoleLog = {
-          id: crypto.randomUUID(),
-          startedAt: earliest,
-          endedAt: now,
+        const existing = useEditorStore.getState().consoleLog;
+        const merged = mergeLogItems(
+          existing?.entries ?? [],
+          msg.payload.entries,
+          (e) => e.timestamp,
+          CONSOLE_MAX_ENTRIES,
+        );
+        const log = rebuildConsoleLog(existing, merged, {
           totalSeen: msg.payload.totalSeen,
-          captured: msg.payload.entries.length,
-          entries: msg.payload.entries,
-        };
+        });
         useEditorStore.getState().setConsoleLog(log);
         const tabId = useEditorStore.getState().target?.tabId;
         if (tabId) {

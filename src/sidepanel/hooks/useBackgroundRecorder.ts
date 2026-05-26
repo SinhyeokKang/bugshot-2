@@ -80,14 +80,8 @@ export function useBackgroundRecorder(tabId: number | null): void {
           const newKey = pageKeyOf(info.url);
           lastUrlRef.current = info.url;
           if (prevKey !== newKey) {
-            if (!shouldPreserveBackgroundLogs(useEditorStore.getState().phase)) {
-              useEditorStore.setState({ networkLog: null, consoleLog: null });
-              deleteNetworkLog(`pending:${localTabId}`).catch(() => {});
-              deleteConsoleLog(`pending:${localTabId}`).catch(() => {});
-              // SPA navigation은 status==="complete"가 발화하지 않아 MAIN world가 유지되므로 명시 클리어.
-              clearNetworkRecorder(localTabId).catch(() => {});
-              clearConsoleRecorder(localTabId).catch(() => {});
-            }
+            // idle 표준대기 중 네비게이션엔 누적기를 리셋하지 않는다(cross-page 누적). 세션 경계
+            // 리셋은 이슈 완료→idle 복귀 블록이 담당. 재주입만 허용한다.
             recordersStopped.current = false;
           }
         }

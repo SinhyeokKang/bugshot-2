@@ -36,7 +36,14 @@ export function ConsoleSubTab({ active, onStartFreeform }: { active: boolean; on
         entries={consoleLog?.entries ?? []}
       />
       <PageFooter>
-        <div className="flex justify-end">
+        <div className="flex items-center justify-between gap-2">
+          <Button
+            variant="outline"
+            disabled={tabId == null || (consoleLog?.entries.length ?? 0) === 0}
+            onClick={() => useEditorStore.getState().clearConsoleLog(tabId ?? null)}
+          >
+            {t("consoleLog.clear")}
+          </Button>
           <Button variant="outline" onClick={onStartFreeform}>
             <SquarePen />
             {t("issue.startDraft")}

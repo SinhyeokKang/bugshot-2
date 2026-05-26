@@ -8,6 +8,7 @@ import { onBlobSaveFailed } from "@/types/messages";
 import { useIssuesStore } from "./issues-store";
 import { useSettingsStore } from "./settings-store";
 import { saveVideoBlob, saveImageBlob, saveNetworkLog, deleteNetworkLog, saveConsoleLog, deleteConsoleLog, dataUrlToBlob } from "./blob-db";
+import { clearNetworkRecorder, clearConsoleRecorder } from "@/sidepanel/recorder-control";
 
 export type CaptureMode = "element" | "screenshot" | "video" | "freeform";
 
@@ -133,6 +134,8 @@ interface EditorState {
   setNetworkLogAttach: (on: boolean) => void;
   setConsoleLog: (log: ConsoleLog) => void;
   setConsoleLogAttach: (on: boolean) => void;
+  clearNetworkLog: (tabId: number | null) => void;
+  clearConsoleLog: (tabId: number | null) => void;
   setTargetPlatform: (platform: PlatformId) => void;
   onSubmitted: (result: { key: string; url: string }) => void;
   reset: () => void;
@@ -205,6 +208,19 @@ const initial = {
   sessionExpired: false,
 };
 
+// cross-page 누적 로그·첨부 토글 4필드를 모드 진입 시 보존. element/screenshot/freeform이 공유.
+function preserveLogs(state: EditorState): Pick<
+  EditorState,
+  "networkLog" | "consoleLog" | "networkLogAttach" | "consoleLogAttach"
+> {
+  return {
+    networkLog: state.networkLog,
+    consoleLog: state.consoleLog,
+    networkLogAttach: state.networkLogAttach,
+    consoleLogAttach: state.consoleLogAttach,
+  };
+}
+
 function newIssueId(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
     return crypto.randomUUID();
@@ -275,21 +291,33 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setAiStylingLoading: (loading) => set({ aiStylingLoading: loading }),
   setAiDraftLoading: (loading) => set({ aiDraftLoading: loading }),
 
-  startPicking: (target, mode) => set({ ...initial, captureMode: mode ?? "element", phase: "picking", target }),
+  // cross-page 누적 로그와 첨부 토글을 모드 진입 시 보존. 다른 자산 필드는 리셋.
+  startPicking: (target, mode) =>
+    set((state) => ({
+      ...initial,
+      captureMode: mode ?? "element",
+      phase: "picking",
+      target,
+      ...preserveLogs(state),
+    })),
   cancelPicking: () => set({ ...initial }),
 
-  // useBackgroundRecorder가 capturing 진입 시 sync를 트리거하지만 round-trip 동안 사용자가
-  // 영역을 빠르게 잡고 drafting으로 넘어가면 빈 로그가 노출되므로, 직전 sync 결과를 폴백으로 보존한다.
   startCapturing: (target) =>
     set((prev) => ({
       ...initial,
       captureMode: "screenshot",
       phase: "capturing",
       target,
-      networkLog: prev.networkLog,
-      consoleLog: prev.consoleLog,
+      ...preserveLogs(prev),
     })),
-  startFreeform: (target) => set({ ...initial, captureMode: "freeform", phase: "drafting", target }),
+  startFreeform: (target) =>
+    set((state) => ({
+      ...initial,
+      captureMode: "freeform",
+      phase: "drafting",
+      target,
+      ...preserveLogs(state),
+    })),
   startRecording: (target) => set({ ...initial, captureMode: "video", phase: "recording", target }),
   onRecordingComplete: (blob, thumbnail, viewport) => set({ captureMode: "video", phase: "drafting", videoBlob: blob, videoThumbnail: thumbnail, videoViewport: viewport, videoCapturedAt: Date.now() }),
   cancelRecording: () => set({ ...initial }),
@@ -517,6 +545,20 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setNetworkLogAttach: (on) => set({ networkLogAttach: on }),
   setConsoleLog: (log) => set({ consoleLog: log }),
   setConsoleLogAttach: (on) => set({ consoleLogAttach: on }),
+  clearNetworkLog: (tabId) => {
+    set({ networkLog: null });
+    if (tabId != null) {
+      deleteNetworkLog(`pending:${tabId}`).catch(() => {});
+      clearNetworkRecorder(tabId).catch(() => {});
+    }
+  },
+  clearConsoleLog: (tabId) => {
+    set({ consoleLog: null });
+    if (tabId != null) {
+      deleteConsoleLog(`pending:${tabId}`).catch(() => {});
+      clearConsoleRecorder(tabId).catch(() => {});
+    }
+  },
   setTargetPlatform: (platform) => set({ targetPlatform: platform }),
 
   onSubmitted: (result) => set({ phase: "done", submitResult: result, beforeImage: null, afterImage: null, screenshotRaw: null, screenshotAnnotated: null, videoBlob: null, videoThumbnail: null, networkLog: null, consoleLog: null }),

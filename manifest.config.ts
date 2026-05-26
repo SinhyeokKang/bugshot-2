@@ -68,6 +68,7 @@ export default defineManifest({
     "contextMenus",
     "identity",
     "tabCapture",
+    "webNavigation",
   ],
   optional_host_permissions: ["https://*/*", "http://*/*"],
   host_permissions: [

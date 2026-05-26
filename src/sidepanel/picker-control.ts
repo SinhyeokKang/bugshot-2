@@ -1,6 +1,7 @@
 import { isSupportedUrl } from "@/lib/url-support";
 import { useEditorStore } from "@/store/editor-store";
 import { onPickerUnavailable } from "@/types/messages";
+import { clearNetworkRecorder, clearConsoleRecorder } from "@/sidepanel/recorder-control";
 import type {
   DescribeChildrenResponse,
   DescribeInitialResponse,
@@ -290,10 +291,6 @@ export async function syncNetworkRecorder(tabId: number): Promise<void> {
   await send(tabId, { type: "networkRecorder.sync" });
 }
 
-export async function clearNetworkRecorder(tabId: number): Promise<void> {
-  await send(tabId, { type: "networkRecorder.clear" });
-}
-
 export async function activateConsoleRecorder(tabId: number): Promise<string> {
   await ensureContentScript(tabId);
   await ensureMainWorldRecorders(tabId);
@@ -310,8 +307,36 @@ export async function syncConsoleRecorder(tabId: number): Promise<void> {
   await send(tabId, { type: "consoleRecorder.sync" });
 }
 
-export async function clearConsoleRecorder(tabId: number): Promise<void> {
-  await send(tabId, { type: "consoleRecorder.clear" });
+export { clearNetworkRecorder, clearConsoleRecorder };
+
+// capture 시 sync broadcast가 누적기에 머지될 때까지 대기하는 상한. 머지 도착 즉시 조기 탈출.
+const LOG_SYNC_SETTLE_MS = 300;
+
+// 양 레코더 sync를 보낸 뒤, data round-trip(usePickerMessages 머지)이 누적기에 반영될 때까지 대기한다.
+// sync는 메시지 전달까지만 await하고 실제 데이터는 별도 비동기 경로로 도착하므로, store의 endedAt 증가로
+// 머지 도착을 감지해 조기 탈출하고 상한(LOG_SYNC_SETTLE_MS)에서 멈춘다. 호출부는 이후 누적기를 읽어
+// 트림/프리즈한다. 활성 레코더는 빈 버퍼라도 dispatch하므로 endedAt이 항상 증가 → 정상 경로 즉시 탈출.
+export async function syncAndSettleLogs(
+  tabId: number,
+  settleMs: number = LOG_SYNC_SETTLE_MS,
+): Promise<void> {
+  const prevNetEnded = useEditorStore.getState().networkLog?.endedAt ?? 0;
+  const prevConEnded = useEditorStore.getState().consoleLog?.endedAt ?? 0;
+  await Promise.all([
+    syncNetworkRecorder(tabId).catch(() => {}),
+    syncConsoleRecorder(tabId).catch(() => {}),
+  ]);
+  const deadline = Date.now() + settleMs;
+  while (Date.now() < deadline) {
+    const s = useEditorStore.getState();
+    if (
+      (s.networkLog?.endedAt ?? 0) > prevNetEnded &&
+      (s.consoleLog?.endedAt ?? 0) > prevConEnded
+    ) {
+      break;
+    }
+    await new Promise((r) => setTimeout(r, 20));
+  }
 }
 
 export async function startFreeformDraft(tabId: number): Promise<void> {
@@ -327,6 +352,11 @@ export async function startFreeformDraft(tabId: number): Promise<void> {
     return;
   }
   const target = { tabId, url: tab.url ?? "", title: tab.title ?? "" };
+
+  // freeform은 진입 즉시 drafting(=머지 프리즈)이라, 진입 직전 누적이 첨부에 반영되도록
+  // sync 데이터가 누적기에 머지될 때까지(settle) idle 상태에서 기다린 뒤 drafting으로 전환한다.
+  await syncAndSettleLogs(tabId);
+
   useEditorStore.getState().startFreeform(target);
 
   let viewport: { width: number; height: number } | null = null;
@@ -343,9 +373,4 @@ export async function startFreeformDraft(tabId: number): Promise<void> {
     freeformViewport: viewport,
     freeformCapturedAt: Date.now(),
   });
-
-  await Promise.all([
-    syncNetworkRecorder(tabId).catch(() => {}),
-    syncConsoleRecorder(tabId).catch(() => {}),
-  ]);
 }

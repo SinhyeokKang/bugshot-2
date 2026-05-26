@@ -587,6 +587,9 @@ function networkRecorderScript(): void {
     if (detail?.sentinel) setSentinel(detail.sentinel);
   });
 
+  // 풀 네비게이션으로 MAIN world가 파괴되기 직전 버퍼 flush(보조). sentinel 없으면 dispatch no-op.
+  window.addEventListener("pagehide", () => dispatch());
+
   (window as any)[CTRL_KEY] = { setSentinel, clearBuffer };
 }
 
