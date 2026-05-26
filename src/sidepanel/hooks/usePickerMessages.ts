@@ -95,6 +95,13 @@ export function usePickerMessages(myTabId: number | null): void {
       } else if (message.type === "picker.iframeUnsupported") {
         useEditorStore.getState().cancelPicking();
         onPickerIframeUnsupported.fire();
+      } else if (message.type === "logClear") {
+        if (isLogFrozen(useEditorStore.getState().phase)) return;
+        const msg = message as { type: "logClear"; tabId: number };
+        if (myTabId != null && msg.tabId !== myTabId) return;
+        const store = useEditorStore.getState();
+        store.clearNetworkLog(myTabId);
+        store.clearConsoleLog(myTabId);
       } else if (message.type === "networkRecorder.data") {
         if (isLogFrozen(useEditorStore.getState().phase)) return;
         const msg = message as Extract<PickerMessage, { type: "networkRecorder.data" }>;

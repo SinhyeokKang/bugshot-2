@@ -13,6 +13,7 @@ import { NotionError } from "./notion-api";
 import { handleMessage } from "./messages";
 import { OAuthError } from "./oauth";
 import { pruneOrphanPendingLogsOncePerSession } from "@/lib/pending-log-prune";
+import { shouldClearLogs } from "@/lib/navigation-clear";
 import { activateTab, setupTabBindings } from "./tab-bindings";
 
 initBgLocale();
@@ -151,19 +152,39 @@ chrome.commands.onCommand.addListener((command, tab) => {
     .catch(() => {});
 });
 
-// 떠나는 페이지의 로그 꼬리 보존(주 경로). 메인 프레임 네비게이션 커밋 직전에 해당 탭의 MAIN
-// 버퍼를 sync해 사이드패널 누적기로 넘긴다. 패널이 바인딩된 탭(editor:${tabId} 세션 키 존재)에만
-// 보내 무관 탭으로의 낭비 메시지를 막는다 — 세션 스토리지는 SW 재시작에도 유지돼 가드가 안전.
+// --- 네비게이션 로그 관리 ---
+// onBeforeNavigate: 떠나는 페이지의 MAIN 버퍼를 sync해 사이드패널에 넘긴다.
+// onCommitted: cross-origin 또는 reload이면 사이드패널 로그를 초기화(DevTools UX).
+//              same-origin 내부 이동은 로그를 보존해 멀티페이지 디버깅에 활용.
+const navPreviousUrl = new Map<number, string>();
+
 chrome.webNavigation.onBeforeNavigate.addListener((details) => {
   if (details.frameId !== 0) return;
   const key = sessionKey(details.tabId);
   void chrome.storage.session.get(key).then((stored) => {
     if (stored[key] == null) return;
+    chrome.tabs.get(details.tabId).then((tab) => {
+      if (tab.url) navPreviousUrl.set(details.tabId, tab.url);
+    }).catch(() => {});
     chrome.tabs
       .sendMessage(details.tabId, { type: "networkRecorder.sync" })
       .catch(() => {});
     chrome.tabs
       .sendMessage(details.tabId, { type: "consoleRecorder.sync" })
+      .catch(() => {});
+  });
+});
+
+chrome.webNavigation.onCommitted.addListener((details) => {
+  if (details.frameId !== 0) return;
+  const prev = navPreviousUrl.get(details.tabId) ?? "";
+  navPreviousUrl.delete(details.tabId);
+  if (!shouldClearLogs(prev, details.url, details.transitionType)) return;
+  const key = sessionKey(details.tabId);
+  void chrome.storage.session.get(key).then((stored) => {
+    if (stored[key] == null) return;
+    chrome.runtime
+      .sendMessage({ type: "logClear", tabId: details.tabId })
       .catch(() => {});
   });
 });
