@@ -95,16 +95,23 @@ async function getActionShortcut(): Promise<string> {
   }
 }
 
-async function setupContextMenu(): Promise<void> {
-  const shortcut = await getActionShortcut();
-  const base = chrome.i18n.getMessage("EXT_NAME_SHORT");
-  const title = shortcut ? `${base} — ${shortcut}` : base;
-  await chrome.contextMenus.removeAll();
-  chrome.contextMenus.create({
-    id: "bugshot-activate",
-    title,
-    contexts: ["page"],
-  });
+let contextMenuSetup: Promise<void> = Promise.resolve();
+
+function setupContextMenu(): Promise<void> {
+  // 직렬화: onInstalled/onStartup 동시 발화 시 removeAll/create 인터리브로
+  // "duplicate id" 에러가 나는 것을 막는다.
+  contextMenuSetup = contextMenuSetup.then(async () => {
+    const shortcut = await getActionShortcut();
+    const base = chrome.i18n.getMessage("EXT_NAME_SHORT");
+    const title = shortcut ? `${base} — ${shortcut}` : base;
+    await chrome.contextMenus.removeAll();
+    chrome.contextMenus.create({
+      id: "bugshot-activate",
+      title,
+      contexts: ["page"],
+    });
+  }).catch((err) => console.error("[bugshot] context menu setup failed", err));
+  return contextMenuSetup;
 }
 
 chrome.runtime.onInstalled.addListener(() => {
