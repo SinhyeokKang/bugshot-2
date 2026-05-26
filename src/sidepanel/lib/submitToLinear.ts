@@ -8,6 +8,7 @@ import type { MarkdownContext } from "./buildIssueMarkdown";
 import { sendBg } from "@/types/messages";
 import type { LinearCreateIssueResult } from "@/types/linear";
 import type { NormalizedSubmitResult } from "@/types/platform";
+import { injectIssueUrl } from "@/lib/inject-issue-url";
 
 export interface LinearFileInput {
   filename: string;
@@ -55,13 +56,10 @@ export async function submitToLinear(
   const imageIndexes = input.images ?? [];
   for (const img of imageIndexes) uploadPromises.push(uploadFile(img));
   const videoPromise = input.video ? uploadFile(input.video) : null;
-  const logFiles = input.logs ?? [];
-  const logPromises = logFiles.map((l) => uploadFile(l));
 
-  const [imageResults, videoResult, logResults, inlineResults] = await Promise.all([
+  const [imageResults, videoResult, inlineResults] = await Promise.all([
     Promise.all(uploadPromises),
     videoPromise,
-    Promise.all(logPromises),
     Promise.all(
       (input.inlineImages ?? []).map(async (img) => {
         const result = await uploadFile({
@@ -110,6 +108,13 @@ export async function submitToLinear(
       priority: input.priority,
     },
   });
+
+  const logFiles = (input.logs ?? []).map((l) =>
+    l.filename === "logs.html"
+      ? { ...l, dataUrl: injectIssueUrl(l.dataUrl, result.url) }
+      : l,
+  );
+  const logResults = await Promise.all(logFiles.map((l) => uploadFile(l)));
 
   const aiMeta = buildAiMetaAttachment(input.ctx);
   const aiMetaUploaded = await uploadFile(aiMeta);

@@ -46,6 +46,8 @@ export const koDict: Record<string, string> = {
   "debug.network.empty": "네트워크 요청이 없습니다",
   "debug.console.empty": "콘솔 로그가 없습니다",
 
+  "logViewer.footer.issueLink": "이슈 바로가기",
+
   "json.showAll": "전체 보기",
   "json.moreItems": "… {n}개 더",
 };
@@ -92,6 +94,8 @@ export const enDict: Record<string, string> = {
 
   "debug.network.empty": "No network requests",
   "debug.console.empty": "No console logs",
+
+  "logViewer.footer.issueLink": "Go to Issue",
 
   "json.showAll": "show all",
   "json.moreItems": "… {n} more items",

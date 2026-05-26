@@ -453,7 +453,7 @@ export function DraftDetailDialog({
       ctx,
       images: captureFiles.images,
       video: captureFiles.video,
-      logs: captureFiles.logs,
+      logs: captureFiles.jsonLogs,
       inlineImages: notionInline,
       databaseId: notionFields.databaseId,
       titlePropertyName: notionSchema.titlePropertyName,

@@ -400,7 +400,7 @@ export function IssueCreateModal() {
       ctx,
       images: captureFiles.images,
       video: captureFiles.video,
-      logs: captureFiles.logs,
+      logs: captureFiles.jsonLogs,
       inlineImages,
       databaseId: notionFields.databaseId,
       titlePropertyName: notionSchema.titlePropertyName,

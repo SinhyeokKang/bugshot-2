@@ -9,6 +9,7 @@ export function buildLogsHtml(
   networkLog: NetworkLog | null,
   consoleLog: ConsoleLog | null,
   pageUrl: string,
+  issueUrl?: string,
 ): string {
   const data: LogViewerData = {
     networkLog,
@@ -19,6 +20,7 @@ export function buildLogsHtml(
       version: chrome.runtime.getManifest().version,
       createdAt: new Date().toISOString(),
       pageUrl,
+      ...(issueUrl ? { issueUrl } : {}),
     },
   };
 

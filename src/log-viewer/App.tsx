@@ -1,10 +1,12 @@
-import { useState, useCallback } from "react";
-import { Download, Moon, Sun } from "lucide-react";
+import { useState } from "react";
+import { Download, Terminal, ArrowLeftRight, ExternalLink } from "lucide-react";
 import type { LogViewerData } from "@/types/log-viewer";
 import { NetworkLogContent } from "@/sidepanel/components/NetworkLogContent";
 import { ConsoleLogContent } from "@/sidepanel/components/ConsoleLogContent";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { t } from "./i18n";
 
 interface AppProps {
   data: LogViewerData | null;
@@ -20,20 +22,13 @@ function downloadJson(obj: object, filename: string) {
   URL.revokeObjectURL(url);
 }
 
+type LogTab = "console" | "network";
+
 export function App({ data }: AppProps) {
-  const [dark, setDark] = useState(() =>
-    document.documentElement.classList.contains("dark"),
-  );
-
-  const toggleTheme = useCallback(() => {
-    const next = !dark;
-    document.documentElement.classList.toggle("dark", next);
-    setDark(next);
-  }, [dark]);
-
   const hasNetwork = !!data?.networkLog;
   const hasConsole = !!data?.consoleLog;
-  const defaultTab = hasNetwork ? "network" : "console";
+  const defaultTab: LogTab = hasConsole ? "console" : "network";
+  const [activeTab, setActiveTab] = useState<LogTab>(defaultTab);
 
   if (!data) {
     return (
@@ -45,77 +40,87 @@ export function App({ data }: AppProps) {
 
   return (
     <div className="flex h-screen flex-col">
-      <div className="flex items-center gap-3 border-b px-4 py-3">
-        <span className="shrink-0 text-sm font-semibold">BugShot Logs</span>
-        {data.meta.pageUrl && (
-          <span className="min-w-0 truncate text-xs text-muted-foreground" title={data.meta.pageUrl}>
-            {data.meta.pageUrl}
-          </span>
-        )}
-        <div className="ml-auto flex items-center gap-1">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8"
-            onClick={toggleTheme}
-          >
-            {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 gap-1 text-xs"
-            disabled={!data.har}
-            onClick={() => data.har && downloadJson(data.har, "network-log.har")}
-          >
-            <Download className="h-3.5 w-3.5" />
-            HAR
-          </Button>
-          <Button
-            variant="ghost"
-            size="sm"
-            className="h-8 gap-1 text-xs"
-            disabled={!data.consoleLogJson}
-            onClick={() => data.consoleLogJson && downloadJson(data.consoleLogJson, "console-log.json")}
-          >
-            <Download className="h-3.5 w-3.5" />
-            JSON
-          </Button>
-        </div>
-      </div>
-
-      <div className="mx-auto flex min-h-0 w-full max-w-screen-xl flex-1 flex-col">
-        <Tabs defaultValue={defaultTab} className="flex min-h-0 flex-1 flex-col">
-          <TabsList className="mx-4 mt-2 w-fit">
-            <TabsTrigger value="network" disabled={!hasNetwork}>Network</TabsTrigger>
-            <TabsTrigger value="console" disabled={!hasConsole}>Console</TabsTrigger>
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as LogTab)} className="flex min-h-0 flex-1 flex-col">
+        <div className="shrink-0 border-b border-border px-4 py-4">
+          <TabsList className="grid h-9 w-full grid-cols-2">
+            <TabsTrigger value="console" disabled={!hasConsole} className="gap-1.5">
+              <Terminal className="h-3.5 w-3.5" />
+              Console Log
+              {hasConsole && (
+                <Badge variant="secondary" className="ml-1 h-5 min-w-5 px-1.5 text-[10px]">
+                  {data.consoleLog!.entries.length}
+                </Badge>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="network" disabled={!hasNetwork} className="gap-1.5">
+              <ArrowLeftRight className="h-3.5 w-3.5" />
+              Network Log
+              {hasNetwork && (
+                <Badge variant="secondary" className="ml-1 h-5 min-w-5 px-1.5 text-[10px]">
+                  {data.networkLog!.requests.length}
+                </Badge>
+              )}
+            </TabsTrigger>
           </TabsList>
+        </div>
 
-          <TabsContent value="network" className="flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden">
-            {hasNetwork ? (
-              <NetworkLogContent requests={data.networkLog!.requests} flush />
-            ) : (
-              <div className="flex flex-1 items-center justify-center text-muted-foreground text-sm">
-                No network data
-              </div>
-            )}
-          </TabsContent>
+        <TabsContent value="console" className="mt-0 flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden">
+          {hasConsole ? (
+            <ConsoleLogContent
+              entries={data.consoleLog!.entries}
+              startedAt={data.consoleLog!.startedAt}
+              flush
+            />
+          ) : (
+            <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
+              No console data
+            </div>
+          )}
+        </TabsContent>
 
-          <TabsContent value="console" className="flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden">
-            {hasConsole ? (
-              <ConsoleLogContent
-                entries={data.consoleLog!.entries}
-                startedAt={data.consoleLog!.startedAt}
-                flush
-              />
-            ) : (
-              <div className="flex flex-1 items-center justify-center text-muted-foreground text-sm">
-                No console data
-              </div>
+        <TabsContent value="network" className="mt-0 flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden">
+          {hasNetwork ? (
+            <NetworkLogContent requests={data.networkLog!.requests} flush />
+          ) : (
+            <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
+              No network data
+            </div>
+          )}
+        </TabsContent>
+
+        <div className="flex shrink-0 items-center gap-2 border-t border-border bg-muted/50 p-4">
+          {data.meta.issueUrl ? (
+            <Button variant="outline" asChild>
+              <a href={data.meta.issueUrl} target="_blank" rel="noopener noreferrer">
+                <ExternalLink className="h-3.5 w-3.5" />
+                {t("logViewer.footer.issueLink")}
+              </a>
+            </Button>
+          ) : (
+            <div />
+          )}
+          <div className="ml-auto">
+            {activeTab === "console" && data.consoleLogJson && (
+              <Button
+                className="gap-1"
+                onClick={() => downloadJson(data.consoleLogJson!, "Console-log.json")}
+              >
+                <Download className="h-4 w-4" />
+                Console-log.json
+              </Button>
             )}
-          </TabsContent>
-        </Tabs>
-      </div>
+            {activeTab === "network" && data.har && (
+              <Button
+                className="gap-1"
+                onClick={() => downloadJson(data.har!, "Network-log.har")}
+              >
+                <Download className="h-4 w-4" />
+                Network-log.har
+              </Button>
+            )}
+          </div>
+        </div>
+      </Tabs>
     </div>
   );
 }

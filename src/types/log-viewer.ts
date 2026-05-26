@@ -10,5 +10,6 @@ export interface LogViewerData {
     version: string;
     createdAt: string;
     pageUrl: string;
+    issueUrl?: string;
   };
 }

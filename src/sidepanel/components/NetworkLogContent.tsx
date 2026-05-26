@@ -136,7 +136,9 @@ export function NetworkLogContent({ requests, flush }: NetworkLogContentProps) {
   const t = useT();
   const [activeId, setActiveId] = useState<string | null>(null);
   const [detailTab, setDetailTab] = useState<DetailTab>("headers");
-  const [listWidth, setListWidth] = useState(260);
+  const [listWidth, setListWidth] = useState(() =>
+    flush ? Math.round(window.innerWidth * 0.3) : 260,
+  );
   const [filter, setFilter] = useState<RequestFilter>("all");
   const [query, setQuery] = useState("");
   const filterLabel: Record<RequestFilter, string> = {

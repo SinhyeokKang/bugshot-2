@@ -2,6 +2,8 @@ import type { ConsoleLog } from "@/types/console";
 import type { NetworkLog } from "@/types/network";
 import { blobToDataUrl } from "@/store/blob-db";
 import { buildLogsHtml } from "./buildLogsHtml";
+import { buildHar } from "./buildHar";
+import { buildConsoleLogJson } from "./buildConsoleLogJson";
 import { recordingFilename } from "./video-mime";
 
 export type CaptureMode = "element" | "screenshot" | "video" | "freeform";
@@ -15,6 +17,7 @@ export interface CaptureFiles {
   video?: CaptureFile;
   images: CaptureFile[];
   logs: CaptureFile[];
+  jsonLogs: CaptureFile[];
 }
 
 export interface BuildCaptureFilesInput {
@@ -31,7 +34,7 @@ export interface BuildCaptureFilesInput {
 export async function buildCaptureFiles(
   input: BuildCaptureFilesInput,
 ): Promise<CaptureFiles> {
-  const result: CaptureFiles = { images: [], logs: [] };
+  const result: CaptureFiles = { images: [], logs: [], jsonLogs: [] };
 
   if (input.captureMode === "video" && input.videoBlob) {
     result.video = {
@@ -48,6 +51,15 @@ export async function buildCaptureFiles(
         filename: "logs.html",
         dataUrl: await blobToDataUrl(htmlBlob),
       });
+
+      if (input.networkLog) {
+        const harBlob = new Blob([JSON.stringify(buildHar(input.networkLog), null, 2)], { type: "application/json" });
+        result.jsonLogs.push({ filename: "network-log.json", dataUrl: await blobToDataUrl(harBlob) });
+      }
+      if (input.consoleLog) {
+        const jsonBlob = new Blob([JSON.stringify(buildConsoleLogJson(input.consoleLog), null, 2)], { type: "application/json" });
+        result.jsonLogs.push({ filename: "console-log.json", dataUrl: await blobToDataUrl(jsonBlob) });
+      }
     }
   }
 

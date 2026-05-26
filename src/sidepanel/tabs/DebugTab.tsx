@@ -11,6 +11,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
 import { useEditorStore } from "@/store/editor-store";
 import { useBoundTabId } from "@/sidepanel/hooks/useBoundTabId";
 import { useCaptureShortcuts } from "@/sidepanel/hooks/useCaptureShortcuts";
@@ -26,6 +27,8 @@ export function DebugTab({ activeMainTab }: { activeMainTab: string }) {
   const [sub, setSub] = useState<DebugSubTab>("issue");
   const tabId = useBoundTabId();
   const phase = useEditorStore((s) => s.phase);
+  const consoleCount = useEditorStore((s) => s.consoleLog?.entries.length ?? 0);
+  const networkCount = useEditorStore((s) => s.networkLog?.requests.length ?? 0);
   const [logUnavailableOpen, setLogUnavailableOpen] = useState(false);
 
   useCaptureShortcuts({ active: activeMainTab === "debug" && sub === "issue", tabId: tabId ?? null });
@@ -64,10 +67,16 @@ export function DebugTab({ activeMainTab }: { activeMainTab: string }) {
           <TabsTrigger value="console" className="gap-1.5">
             <Terminal className="h-3.5 w-3.5" />
             {t("debug.tab.console")}
+            <Badge variant="secondary" className="ml-0.5 h-5 min-w-5 px-1.5 text-[10px]">
+              {consoleCount}
+            </Badge>
           </TabsTrigger>
           <TabsTrigger value="network" className="gap-1.5">
             <ArrowLeftRight className="h-3.5 w-3.5" />
             {t("debug.tab.network")}
+            <Badge variant="secondary" className="ml-0.5 h-5 min-w-5 px-1.5 text-[10px]">
+              {networkCount}
+            </Badge>
           </TabsTrigger>
         </TabsList>
       </div>

@@ -83,6 +83,7 @@ async function notionFetch<T>(
     } catch {
       body = undefined;
     }
+    console.warn("[bugshot] Notion API error", res.status, path, body);
     throw new NotionError(res.status, messageForNotionStatus(res.status), body);
   }
   return (await res.json()) as T;
@@ -279,10 +280,12 @@ export async function sendFileUpload(
   uploadUrl: string,
   filename: string,
   dataUrl: string,
+  declaredContentType?: string,
 ): Promise<void> {
-  const { blob, contentType } = dataUrlToBlob(dataUrl);
+  const { blob } = dataUrlToBlob(dataUrl);
+  const ct = declaredContentType ?? blob.type;
   const form = new FormData();
-  form.append("file", new File([blob], filename, { type: contentType }));
+  form.append("file", new File([blob], filename, { type: ct }));
   const res = await fetch(uploadUrl, {
     method: "POST",
     headers: {
@@ -292,12 +295,10 @@ export async function sendFileUpload(
     body: form,
   });
   if (!res.ok) {
+    const raw = await res.text().catch(() => "");
     let body: unknown;
-    try {
-      body = await res.json();
-    } catch {
-      body = undefined;
-    }
+    try { body = JSON.parse(raw); } catch { body = undefined; }
+    console.warn("[bugshot] Notion sendFileUpload error", res.status, uploadUrl, body ?? raw);
     throw new NotionError(
       res.status,
       messageForNotionStatus(res.status),
@@ -313,7 +314,7 @@ export async function uploadFile(
   dataUrl: string,
 ): Promise<NotionFileUploadResult> {
   const created = await createFileUpload(auth, filename, contentType);
-  await sendFileUpload(auth, created.uploadUrl, filename, dataUrl);
+  await sendFileUpload(auth, created.uploadUrl, filename, dataUrl, contentType);
   return { fileUploadId: created.id, expiresAt: created.expiresAt };
 }
 

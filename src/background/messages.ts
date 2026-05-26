@@ -1,6 +1,7 @@
 import { t } from "@/i18n";
 import { dataUrlToBlob } from "@/store/blob-db";
 import { IMAGE_PLACEHOLDER, VIDEO_PLACEHOLDER, parseInlinePlaceholder } from "@/lib/adf-sentinels";
+import { injectIssueUrl } from "@/lib/inject-issue-url";
 import type { JiraAttachmentInput, JiraAuth, JiraSubmitResult } from "@/types/jira";
 import type { GithubAuth } from "@/types/github";
 import type { BgRequest } from "@/types/messages";
@@ -330,6 +331,13 @@ async function submitIssue(
   relatesKey: string | undefined,
 ): Promise<JiraSubmitResult> {
   const issue = await createIssue(auth, payload);
+  const issueUrl = buildIssueUrl(auth, issue.key);
+
+  for (const att of attachments) {
+    if (att.filename === "logs.html") {
+      att.dataUrl = injectIssueUrl(att.dataUrl, issueUrl);
+    }
+  }
 
   const uploadMap = new Map<string, UploadedFile>();
   for (const att of attachments) {
@@ -455,8 +463,7 @@ async function submitIssue(
     }
   }
 
-  const url = buildIssueUrl(auth, issue.key);
-  return { key: issue.key, url };
+  return { key: issue.key, url: issueUrl };
 }
 
 function snapshotRow(
