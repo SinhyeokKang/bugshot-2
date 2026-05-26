@@ -241,7 +241,9 @@ function ReplayButton() {
       {isEncoding ? <Loader2 className="animate-spin" /> : <Timer />}
       {isEncoding
         ? t("issue.replay.encoding")
-        : t("issue.mode.replayProgress").replace("{n}", String(bufferedSeconds))}
+        : bufferedSeconds >= 30
+          ? t("issue.mode.replay")
+          : t("issue.mode.replayProgress").replace("{n}", String(bufferedSeconds))}
     </Button>
   );
 
