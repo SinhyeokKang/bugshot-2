@@ -21,6 +21,8 @@ HTML로 래핑하면 더블클릭만으로 브라우저에서 bugshot의 로그 
 - 로그 편집/삭제 기능 — 읽기 전용
 - side panel 내 로그 UI 변경 — 기존 UI 그대로 유지
 - logs.html 단독 열기 시 로그 녹화 기능 — 확장 없이는 불가
+- `file://` 프로토콜 한계 대응 — logs.html을 `file://`로 열 때 `navigator.clipboard` 등 보안 정책 차단은 별도 대응하지 않음 (cURL 복사 실패 시 silent fail 허용)
+- 다국어 UI 커스터마이징 — logs.html은 `navigator.language` 기반 ko/en 자동 감지. 사용자 locale 설정 반영 불가 (확장 store 접근 없음)
 
 ## 사용자 시나리오
 
@@ -37,7 +39,8 @@ HTML로 래핑하면 더블클릭만으로 브라우저에서 bugshot의 로그 
 - **콘솔 로그만 있는 경우**: Network 탭 비활성화 또는 빈 상태 표시, Console 탭 자동 선택
 - **둘 다 없는 경우**: 발생 불가 — `buildCaptureFiles`에서 둘 다 null이면 logs.html 미생성
 - **대용량 로그**: 5000 네트워크 요청 + 2000 콘솔 항목 = 최대 수 MB. HTML 성능은 가상 스크롤 없이도 허용 범위 (기존 extension UI와 동일)
-- **응답 body에 `</script>` 포함**: JSON 직렬화 시 `<` → `<` 이스케이프로 HTML 파싱 충돌 방지
+- **응답 body에 `</script>` 포함**: `JSON.stringify()` 후 `<` → `<` 치환으로 HTML 파싱 충돌 방지
+- **`element` 캡처 모드**: `buildCaptureFiles`는 `video | freeform | screenshot` 모드에서만 로그를 첨부. `element` 모드(diff 비교)에서는 로그 미생성 — 기존 동작 유지, 변경 없음
 
 ## 성공 기준
 
@@ -49,3 +52,4 @@ HTML로 래핑하면 더블클릭만으로 브라우저에서 bugshot의 로그 
 6. HAR 다운로드 버튼 → 표준 HAR 1.2 파일, JSON 다운로드 버튼 → 기존 console-log.json 포맷
 7. 다크/라이트 모드 토글 동작
 8. 4개 플랫폼(Jira/GitHub/Linear/Notion) 첨부 정상
+9. 기존 Network/Console 개별 첨부 토글 UX 정상 동작 — 어느 쪽이든 ON이면 logs.html 생성, OFF된 쪽은 null 데이터

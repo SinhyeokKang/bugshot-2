@@ -54,45 +54,46 @@
   - [ ] 생성된 index.html을 브라우저에서 열면 빈 상태(데이터 없음) 렌더링
   - [ ] placeholder 데이터를 수동 주입 후 필터/검색/탭/다크모드 동작 확인
 
-### Task 4: Log Viewer alias stub 처리
+### Task 4: networkLogPath 공용 모듈 분리 + alias stub 처리
 
-- **변경 대상**: `vite.log-viewer.config.ts`, `src/log-viewer/stubs/` (신규)
+- **변경 대상**: `src/lib/network-log-path.ts` (신규), `src/sidepanel/lib/buildIssueMarkdown.ts`, `src/sidepanel/components/NetworkLogContent.tsx`, `vite.log-viewer.config.ts`
 - **작업 내용**:
-  - `NetworkLogContent.tsx`가 `import { networkLogPath } from "@/sidepanel/lib/buildIssueMarkdown"` 하고 있음
-  - log viewer에서 이 import는 불필요하므로 stub 모듈 작성:
-    ```typescript
-    // src/log-viewer/stubs/buildIssueMarkdown.ts
-    export const networkLogPath = "";
-    ```
-  - `vite.log-viewer.config.ts`의 alias에 해당 경로 redirect 추가
-  - 기타 불필요 import가 있으면 동일하게 stub 처리 (빌드 시 에러로 발견)
+  - `networkLogPath()` 함수를 `src/sidepanel/lib/buildIssueMarkdown.ts`에서 `src/lib/network-log-path.ts`로 추출
+  - `buildIssueMarkdown.ts`와 `NetworkLogContent.tsx`의 import를 `@/lib/network-log-path`로 변경
+  - log viewer 빌드에서 `@/sidepanel/lib/buildIssueMarkdown` stub 불필요해짐
+  - 기타 log viewer 빌드에서 해결 불가능한 import가 있으면 alias/stub 처리 (빌드 시 에러로 발견)
 - **검증**:
-  - [ ] `pnpm build:log-viewer` 성공 (미사용 import로 인한 빌드 에러 없음)
+  - [ ] `pnpm test` 통과 (기존 buildIssueMarkdown 테스트 깨지지 않음)
+  - [ ] `pnpm build:log-viewer` 성공
 
 ### Task 5: buildLogsHtml 함수
 
-- **변경 대상**: `src/log-viewer/buildLogsHtml.ts` (신규)
+- **변경 대상**: `src/sidepanel/lib/buildLogsHtml.ts` (신규, 메인 빌드 영역)
 - **작업 내용**:
-  - `import template from "../../dist-log-viewer/index.html?raw"` 로 빌드된 템플릿 임포트
-  - `buildLogsHtml(networkLog, consoleLog)` 함수:
+  - `import template from "../../../dist-log-viewer/index.html?raw"` 로 빌드된 템플릿 임포트
+  - `buildLogsHtml(networkLog, consoleLog, pageUrl)` 함수:
     - `buildHar(networkLog)` / `buildConsoleLogJson(consoleLog)`로 HAR/JSON pre-compute
     - `chrome.runtime.getManifest().version`으로 버전 추출
     - `LogViewerData` 객체 구성
     - `JSON.stringify(data).replace(/</g, "\\u003c")` 로 안전한 JSON 문자열 생성
     - template 내 placeholder를 데이터로 치환하여 최종 HTML 반환
   - placeholder 방식: template의 `<script id="__BUGSHOT_DATA__" type="application/json">` 태그 내용을 치환
+- **선행 테스트**: `src/sidepanel/lib/__tests__/buildLogsHtml.test.ts` (신규)
+  - mock NetworkLog/ConsoleLog 입력 → 출력 HTML이 유효한 HTML5
+  - 출력 HTML 내에 주입된 JSON 데이터가 `JSON.parse`로 정상 파싱
+  - `</script>` 포함 데이터 → `<` 이스케이프 검증
+  - networkLog null / consoleLog null 케이스
 - **검증**:
-  - [ ] 단위 테스트: mock NetworkLog/ConsoleLog 입력 → 출력 HTML이 유효한 HTML5
-  - [ ] 출력 HTML 내에 주입된 JSON 데이터가 `JSON.parse`로 정상 파싱
+  - [ ] 선행 테스트 작성 → 구현 → `pnpm test` 통과
 
 ### Task 6: buildCaptureFiles 변경
 
 - **변경 대상**: `src/sidepanel/lib/buildCaptureFiles.ts`
 - **작업 내용**:
-  - 기존 HAR/JSON 2파일 생성 블록 (라인 44-62) → `buildLogsHtml()` 호출로 교체:
+  - 기존 HAR/JSON 2파일 생성 블록 → `buildLogsHtml()` 호출로 교체:
     ```typescript
     if (input.networkLog || input.consoleLog) {
-      const html = buildLogsHtml(input.networkLog ?? null, input.consoleLog ?? null);
+      const html = buildLogsHtml(input.networkLog ?? null, input.consoleLog ?? null, input.pageUrl);
       const htmlBlob = new Blob([html], { type: "text/html" });
       result.logs.push({
         filename: "logs.html",
@@ -101,8 +102,11 @@
     }
     ```
   - `buildHar`, `serializeHar`, `buildConsoleLogJson`, `serializeConsoleLog` import 제거 (buildLogsHtml 내부로 이동)
+- **선행 테스트**: `src/sidepanel/lib/__tests__/buildCaptureFiles.test.ts` 갱신
+  - 기대 파일명 `["network-log.har", "console-log.json"]` → `["logs.html"]`
+  - 네트워크만/콘솔만/둘 다 있는 경우 각각 검증
 - **검증**:
-  - [ ] 기존 테스트 `buildCaptureFiles.test.ts` 갱신 후 통과
+  - [ ] 선행 테스트 갱신 → 구현 → `pnpm test` 통과
   - [ ] 출력 `logs`에 `{ filename: "logs.html", dataUrl: "data:text/html;base64,..." }` 포함
 
 ### Task 7: 이슈 본문 파일명 참조 갱신
@@ -110,22 +114,26 @@
 - **변경 대상**: 이슈 본문 빌더 + i18n
 - **작업 내용**:
   - `src/i18n/namespaces/logs.ts`:
-    - `logSummary.network.detail`의 `{filename}` 파라미터는 호출부에서 전달 → 호출부 변경으로 처리
-    - `logSummary.console.detail`의 하드코딩 `console-log.json` → `logs.html`로 변경 (ko/en 동시)
-  - `src/sidepanel/lib/buildIssueMarkdown.ts`: `filename: "network-log.har"` → `"logs.html"` (2곳)
+    - `logSummary.network.detail` + `logSummary.console.detail` → 통합 키 `logSummary.logs.detail`로 병합 (ko/en 동시: `"(상세: logs.html 첨부)"`)
+    - 기존 `network.detail` / `console.detail` 키 제거
+  - `src/sidepanel/lib/buildIssueMarkdown.ts`: 네트워크/콘솔 개별 `logSummary.*.detail` 호출 → `logSummary.logs.detail` 한 줄로 통합
   - `src/sidepanel/lib/buildIssueAdf.ts`: 동일 변경
+  - `src/sidepanel/lib/buildGithubIssueBody.ts`: `filename: "network-log.json"` → 통합 키 사용으로 변경
   - `src/sidepanel/lib/buildLinearIssueBody.ts`: 동일 변경
-  - 두 로그가 하나의 파일이 되었으므로, 본문에서 "network-log.har 참조"와 "console-log.json 참조"가 중복. 둘을 합쳐 "logs.html 참조" 한 줄로 통합하는 것이 자연스러움
+  - `src/sidepanel/lib/buildNotionIssueBody.ts`: 변경 불필요 — `logSummary.*.detail` 미사용 (code block으로 직접 출력)
+- **선행 테스트**: 관련 테스트 파일 갱신
+  - `buildGithubIssueBody.test.ts`: `"network-log.har"` / `"network-log.json"` / `"console-log.json"` 참조 → `"logs.html"` 통합 형태로 변경
+  - `buildNotionIssueBody.test.ts`: `"network-log.har"` 참조 확인 후 필요 시 갱신
 - **검증**:
   - [ ] `pnpm test` 통과 (i18n key 대칭 검증 포함)
-  - [ ] 이슈 본문에 `logs.html` 참조 문구 포함
+  - [ ] 이슈 본문에 `logs.html` 참조 문구 1회 출력
 
 ### Task 8: 플랫폼 MIME 타입 처리
 
-- **변경 대상**: 각 플랫폼 submit 파일의 `guessMime()` 함수
+- **변경 대상**: `submitToGithub.ts`, `submitToLinear.ts`, `submitToNotion.ts`의 `guessMime()` 함수
 - **작업 내용**:
-  - `guessMime()` 또는 MIME 판단 로직에 `.html` → `"text/html"` 분기 추가
-  - 대상 파일 식별: `submitToGithub.ts`, `submitToLinear.ts`, `submitToNotion.ts`, `messages.ts`(Jira) 내 MIME 관련 코드 확인
+  - `guessMime()` 함수에 `.html` → `"text/html"` 분기 추가 (3개 파일)
+  - Jira는 `FormData.append(name, blob, filename)` 경유라 별도 MIME 처리 불필요 — `buildCaptureFiles`에서 `Blob([html], { type: "text/html" })`로 이미 타입 설정됨
 - **검증**:
   - [ ] 각 플랫폼에서 logs.html이 `text/html` MIME으로 업로드됨
   - [ ] 수동 테스트로 4개 플랫폼 첨부 확인
