@@ -187,7 +187,9 @@ content_scripts에 MAIN world entry(`run_at: "document_start"`)로 `src/content/
 - `{ kind: "stream", contentType }` — body 미존재 또는 reader 실패 (SSE / multipart)
 - `{ kind: "omitted", reason: "memory-cap" }` — LRU trim으로 본문 회수
 
-UI(`NetworkLogPreviewDialog`)와 HAR export 모두 이 context를 살려 "본문 잘림 (5.0 MB · 한도 3.0 MB)" / "Binary response (image/png · 500 B)" 등 정확한 사유를 표시.
+UI(`NetworkLogPreviewDialog`)와 logs.html 첨부(HAR 내장 다운로드) 모두 이 context를 살려 "본문 잘림 (5.0 MB · 한도 3.0 MB)" / "Binary response (image/png · 500 B)" 등 정확한 사유를 표시.
+
+**로그 첨부 형식** — 이슈 첨부 시 네트워크/콘솔 로그는 단일 `logs.html` 파일로 묶인다. `buildLogsHtml()`이 `dist-log-viewer/index.html` 템플릿(`?raw` import)에 `LogViewerData` JSON을 `<script id="__BUGSHOT_DATA__">` 태그에 주입해 self-contained HTML을 생성. 별도 HAR/JSON 파일 대신 logs.html 내 다운로드 버튼으로 HAR·JSON 추출 가능. `buildCaptureFiles`는 네트워크 또는 콘솔 데이터가 있으면 `logs.html` 하나만 `logs` 배열에 push.
 
 **클리어 트리거** — `useBackgroundRecorder`의 store 구독이 `preserve phase → idle` 전환을 감지하면 pending IndexedDB + MAIN buffer를 정리한 뒤 새 sentinel 발급. `shouldPreserveBackgroundLogs(phase)` = `recording / drafting / previewing / done`. 작성 취소, 정상 제출 후 reset, 녹화 중 취소 모두 이 분기(=세션 경계)에서 일괄 처리. 세션 경계 외 수동 클리어는 Network/Console SubTab의 "로그 지우기" 버튼 → `editor-store.clearNetworkLog`/`clearConsoleLog`가 store 누적기 + `pending:` IDB + MAIN 버퍼를 즉시 비운다.
 
