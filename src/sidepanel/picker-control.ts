@@ -1,6 +1,7 @@
-import { isSupportedUrl } from "@/lib/url-support";
+import { classifyTabSupport } from "@/lib/url-support";
 import { useEditorStore } from "@/store/editor-store";
-import { onPickerUnavailable } from "@/types/messages";
+import { onPickerPermissionExpired, onPickerUnavailable } from "@/types/messages";
+import { isActiveTabPermissionError } from "./lib/capture-error";
 import { clearNetworkRecorder, clearConsoleRecorder } from "@/sidepanel/recorder-control";
 import type {
   DescribeChildrenResponse,
@@ -80,6 +81,32 @@ async function send<R = void>(
   }
 }
 
+async function getPageUrl(tabId: number): Promise<string | undefined> {
+  const res = await send<{ url: string }>(tabId, { type: "picker.pageUrl" });
+  return res?.url;
+}
+
+// 지원 페이지면 true. 아니면 적절한 다이얼로그 이벤트를 발화하고 false.
+// tab.url을 못 읽으면(activeTab 만료) content script가 보고한 실제 URL로 판별해,
+// 지원 페이지인데 권한만 풀린 경우 permission-expired로 분기한다.
+async function ensureSupportedTab(tab: chrome.tabs.Tab): Promise<boolean> {
+  const contentUrl =
+    tab.url || tab.id == null ? undefined : await getPageUrl(tab.id);
+  const state = classifyTabSupport({ url: tab.url, contentUrl });
+  if (state === "supported") return true;
+  if (state === "permission-expired") onPickerPermissionExpired.fire();
+  else onPickerUnavailable.fire();
+  return false;
+}
+
+// 캡처(captureVisibleTab)가 activeTab 만료로 실패하면 권한만료 다이얼로그를 띄운다. 처리 시 true.
+// (진입 가드는 통과했지만 캡처 시점에 activeTab이 풀린 케이스)
+export function maybeSurfacePermissionExpired(err: unknown): boolean {
+  if (!isActiveTabPermissionError(err)) return false;
+  onPickerPermissionExpired.fire();
+  return true;
+}
+
 export async function startPicker(tabId: number): Promise<void> {
   let tab: chrome.tabs.Tab;
   try {
@@ -88,10 +115,7 @@ export async function startPicker(tabId: number): Promise<void> {
     console.error("[bugshot] picker start failed", err);
     return;
   }
-  if (!isSupportedUrl(tab.url)) {
-    onPickerUnavailable.fire();
-    return;
-  }
+  if (!(await ensureSupportedTab(tab))) return;
   useEditorStore.getState().startPicking({
     tabId,
     url: tab.url ?? "",
@@ -216,10 +240,7 @@ export async function startAreaCapture(tabId: number): Promise<void> {
     console.error("[bugshot] area capture start failed", err);
     return;
   }
-  if (!isSupportedUrl(tab.url)) {
-    onPickerUnavailable.fire();
-    return;
-  }
+  if (!(await ensureSupportedTab(tab))) return;
   useEditorStore.getState().startCapturing({
     tabId,
     url: tab.url ?? "",
@@ -248,8 +269,7 @@ export async function startInlineAreaCapture(tabId: number): Promise<void> {
     useEditorStore.getState().cancelInlineCapture();
     return;
   }
-  if (!isSupportedUrl(tab.url)) {
-    onPickerUnavailable.fire();
+  if (!(await ensureSupportedTab(tab))) {
     useEditorStore.getState().cancelInlineCapture();
     return;
   }
@@ -347,10 +367,7 @@ export async function startFreeformDraft(tabId: number): Promise<void> {
     console.error("[bugshot] freeform start failed", err);
     return;
   }
-  if (!isSupportedUrl(tab.url)) {
-    onPickerUnavailable.fire();
-    return;
-  }
+  if (!(await ensureSupportedTab(tab))) return;
   const target = { tabId, url: tab.url ?? "", title: tab.title ?? "" };
 
   // freeform은 진입 즉시 drafting(=머지 프리즈)이라, 진입 직전 누적이 첨부에 반영되도록

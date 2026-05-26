@@ -3,7 +3,7 @@ import { useEditorStore } from "@/store/editor-store";
 import type { PickerMessage, ViewportRect } from "@/types/picker";
 import { onPickerIframeUnsupported, sendBg } from "@/types/messages";
 import { captureElementSnapshot, loadImage } from "@/sidepanel/capture";
-import { collectTokens } from "@/sidepanel/picker-control";
+import { collectTokens, maybeSurfacePermissionExpired } from "@/sidepanel/picker-control";
 import { saveNetworkLog, saveConsoleLog, saveInlineImage, dataUrlToBlob } from "@/store/blob-db";
 import { shouldCompact, compactImage } from "@/sidepanel/lib/compactImage";
 import {
@@ -157,7 +157,9 @@ async function captureAndCrop(rect: ViewportRect, viewport: { width: number; hei
     });
     useEditorStore.getState().onAreaCaptured(cropped, viewport);
   } catch (err) {
-    console.error("[bugshot] capture and crop failed", err);
+    if (!maybeSurfacePermissionExpired(err)) {
+      console.error("[bugshot] capture and crop failed", err);
+    }
     useEditorStore.getState().reset();
   }
 }
@@ -213,7 +215,9 @@ async function captureAndInsertInline(
     await saveInlineImage(refId, blob);
     useEditorStore.getState().appendInlineImage(sectionId, refId);
   } catch (err) {
-    console.error("[bugshot] inline capture failed", err);
+    if (!maybeSurfacePermissionExpired(err)) {
+      console.error("[bugshot] inline capture failed", err);
+    }
   } finally {
     useEditorStore.getState().cancelInlineCapture();
   }

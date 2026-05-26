@@ -218,6 +218,13 @@ export const onPickerUnavailable = {
   fire() { this._listeners.forEach((fn) => fn()); },
 };
 
+// 페이지 이동으로 activeTab grant가 만료돼 캡처가 불가한 상태. 다이얼로그가 패널 재실행을 안내한다.
+export const onPickerPermissionExpired = {
+  _listeners: new Set<Listener>(),
+  subscribe(fn: Listener) { this._listeners.add(fn); return () => { this._listeners.delete(fn); }; },
+  fire() { this._listeners.forEach((fn) => fn()); },
+};
+
 export const onPickerIframeUnsupported = {
   _listeners: new Set<Listener>(),
   subscribe(fn: Listener) { this._listeners.add(fn); return () => { this._listeners.delete(fn); }; },
@@ -234,13 +241,6 @@ export const onSessionSaveExhausted = {
   _listeners: new Set<Listener>(),
   subscribe(fn: Listener) { this._listeners.add(fn); return () => { this._listeners.delete(fn); }; },
   fire() { this._listeners.forEach((fn) => fn()); },
-};
-
-type VideoRecordingListener = (payload: { tabId: number }) => void;
-export const onVideoRecordingUnavailable = {
-  _listeners: new Set<VideoRecordingListener>(),
-  subscribe(fn: VideoRecordingListener) { this._listeners.add(fn); return () => { this._listeners.delete(fn); }; },
-  fire(payload: { tabId: number }) { this._listeners.forEach((fn) => fn(payload)); },
 };
 
 // Re-export common platform types for consumers

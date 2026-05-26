@@ -1,6 +1,6 @@
 import { useEditorStore } from "@/store/editor-store";
 import { deleteNetworkLog, deleteConsoleLog } from "@/store/blob-db";
-import { onVideoRecordingUnavailable } from "@/types/messages";
+import { onPickerPermissionExpired } from "@/types/messages";
 import {
   activateNetworkRecorder,
   activateConsoleRecorder,
@@ -35,7 +35,7 @@ export async function startVideoCapture(tabId: number): Promise<void> {
   } catch (err) {
     useEditorStore.getState().cancelRecording();
     if (isTabCaptureUnavailable(err)) {
-      onVideoRecordingUnavailable.fire({ tabId });
+      onPickerPermissionExpired.fire();
     } else {
       console.warn("[bugshot] video recording failed to start", err);
     }

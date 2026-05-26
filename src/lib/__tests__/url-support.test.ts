@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { isSupportedUrl } from "../url-support";
+import { classifyTabSupport, isSupportedUrl } from "../url-support";
 
 describe("isSupportedUrl", () => {
   it("http URL → true", () => {
@@ -46,5 +46,43 @@ describe("isSupportedUrl", () => {
 
   it("잘못된 URL → false", () => {
     expect(isSupportedUrl("not a url")).toBe(false);
+  });
+});
+
+describe("classifyTabSupport", () => {
+  it("읽히는 지원 URL → supported", () => {
+    expect(
+      classifyTabSupport({ url: "https://example.com", contentUrl: undefined }),
+    ).toBe("supported");
+  });
+
+  it("읽히는 미지원 URL → unsupported", () => {
+    expect(
+      classifyTabSupport({ url: "chrome://extensions", contentUrl: undefined }),
+    ).toBe("unsupported");
+  });
+
+  it("tab.url 미확인 + content script가 지원 URL 보고 → permission-expired", () => {
+    expect(
+      classifyTabSupport({ url: undefined, contentUrl: "https://mobbin.com/x" }),
+    ).toBe("permission-expired");
+  });
+
+  it("tab.url 빈 문자열도 미확인 취급 → permission-expired", () => {
+    expect(
+      classifyTabSupport({ url: "", contentUrl: "https://mobbin.com/x" }),
+    ).toBe("permission-expired");
+  });
+
+  it("tab.url 미확인 + content script가 미지원 URL 보고 → unsupported", () => {
+    expect(
+      classifyTabSupport({ url: undefined, contentUrl: "chrome://extensions" }),
+    ).toBe("unsupported");
+  });
+
+  it("tab.url 미확인 + content script 응답 없음 → unsupported", () => {
+    expect(
+      classifyTabSupport({ url: undefined, contentUrl: undefined }),
+    ).toBe("unsupported");
   });
 });

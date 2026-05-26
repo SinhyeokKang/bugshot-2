@@ -23,9 +23,9 @@ import {
   onBlobSaveFailed,
   onOAuthExpired,
   onPickerIframeUnsupported,
+  onPickerPermissionExpired,
   onPickerUnavailable,
   onSessionSaveExhausted,
-  onVideoRecordingUnavailable,
 } from "@/types/messages";
 import { PLATFORM_TAB_KEYS, type PlatformId } from "@/types/platform";
 import { useBoundTabId } from "./hooks/useBoundTabId";
@@ -75,7 +75,7 @@ export default function App() {
   const [iframeUnsupported, setIframeUnsupported] = useState(false);
   const [blobSaveFailed, setBlobSaveFailed] = useState(false);
   const [sessionSaveExhausted, setSessionSaveExhausted] = useState(false);
-  const [videoUnavailableTabId, setVideoUnavailableTabId] = useState<number | null>(null);
+  const [permissionExpired, setPermissionExpired] = useState(false);
 
   useEffect(() => {
     if (settingsHydrated && connectedPlatforms(accounts).length === 0) {
@@ -136,11 +136,11 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const unsub = onVideoRecordingUnavailable.subscribe(({ tabId }) => {
+    const unsub = onPickerPermissionExpired.subscribe(() => {
       if (document.activeElement instanceof HTMLElement && document.activeElement !== document.body) {
         document.activeElement.blur();
       }
-      setVideoUnavailableTabId(tabId);
+      setPermissionExpired(true);
     });
     return unsub;
   }, []);
@@ -324,24 +324,18 @@ export default function App() {
       </AlertDialog>
 
       <AlertDialog
-        open={videoUnavailableTabId != null}
-        onOpenChange={(v) => !v && setVideoUnavailableTabId(null)}
+        open={permissionExpired}
+        onOpenChange={setPermissionExpired}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t("app.videoRecordingUnavailable.title")}</AlertDialogTitle>
+            <AlertDialogTitle>{t("app.permissionExpired.title")}</AlertDialogTitle>
             <AlertDialogDescription>
-              {t("app.videoRecordingUnavailable.body")}
+              {t("app.permissionExpired.body")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogAction
-              onClick={() => {
-                const id = videoUnavailableTabId;
-                setVideoUnavailableTabId(null);
-                if (id != null) void requestTabHostPermission(id);
-              }}
-            >
+            <AlertDialogAction onClick={() => window.close()}>
               {t("common.ok")}
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -352,18 +346,6 @@ export default function App() {
     </ReplayProvider>
     </TabNavContext.Provider>
   );
-}
-
-async function requestTabHostPermission(tabId: number): Promise<void> {
-  try {
-    const tab = await chrome.tabs.get(tabId);
-    if (!tab.url) return;
-    const u = new URL(tab.url);
-    if (u.protocol !== "http:" && u.protocol !== "https:") return;
-    await chrome.permissions.request({ origins: [`${u.origin}/*`] });
-  } catch {
-    // user denied or chrome refused — fallback to manual re-invocation
-  }
 }
 
 function UnsupportedPage() {

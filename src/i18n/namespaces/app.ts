@@ -13,8 +13,8 @@ const ko = {
   "app.blobSaveFailed.body": "디스크 공간 부족 등의 원인으로 이미지·영상·로그 중 일부가 저장되지 않았습니다. 드래프트에서 누락된 항목을 확인해주세요.",
   "app.sessionSaveExhausted.title": "세션을 저장할 수 없습니다",
   "app.sessionSaveExhausted.body": "저장 공간이 부족하여 작업 세션을 보존할 수 없습니다. 탭을 닫으면 현재 작업이 유실될 수 있습니다.",
-  "app.videoRecordingUnavailable.title": "녹화를 시작할 수 없습니다",
-  "app.videoRecordingUnavailable.body": "현재 탭의 화면 캡처 권한이 만료됐습니다. [확인]을 누르면 이 사이트에 대한 권한을 다시 요청합니다. 권한을 허용한 뒤 다시 녹화 버튼을 눌러 주세요.",
+  "app.permissionExpired.title": "권한이 만료되었습니다",
+  "app.permissionExpired.body": "페이지가 변경되어 권한이 만료되었습니다. BugShot을 다시 실행해 주세요.",
 
   "platform.oauthExpired.title": "{platform} 인증이 만료되었습니다",
   "platform.oauthExpired.body": "{platform} 연동을 다시 설정해주세요.",
@@ -62,8 +62,8 @@ const en = {
   "app.blobSaveFailed.body": "Some images, videos, or logs could not be saved due to insufficient storage. Check the draft for missing items.",
   "app.sessionSaveExhausted.title": "Session cannot be saved",
   "app.sessionSaveExhausted.body": "Insufficient storage to preserve your session. Current work may be lost if you close this tab.",
-  "app.videoRecordingUnavailable.title": "Cannot start recording",
-  "app.videoRecordingUnavailable.body": "Screen capture permission for this tab has expired. Click [OK] to re-request permission for this site, then press the record button again.",
+  "app.permissionExpired.title": "Permission expired",
+  "app.permissionExpired.body": "The page changed and the permission expired. Please relaunch BugShot.",
 
   "platform.oauthExpired.title": "{platform} authentication has expired",
   "platform.oauthExpired.body": "Please reconnect {platform}.",

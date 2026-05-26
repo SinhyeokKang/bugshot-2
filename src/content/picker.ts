@@ -268,6 +268,9 @@ chrome.runtime.onMessage.addListener(
         case "picker.prepareCapture":
           sendResponse(handlePrepareCapture());
           return;
+        case "picker.pageUrl":
+          sendResponse({ url: location.href });
+          return;
         case "picker.endCapture":
           handleEndCapture();
           break;
