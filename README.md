@@ -11,6 +11,7 @@ A Chrome extension for bug reporting. Pick elements, tweak CSS, and file issues 
 - **Before/after diff** — auto-generated comparison table of style changes
 - **Screenshot & annotation** — area crop with arrows, text, shapes, and highlights
 - **Screen recording** — record the current tab for up to 60 seconds
+- **30s Replay** — opt-in mode that captures the last 30 seconds of the tab as MP4, looking back across page navigations (no need to hit record beforehand)
 - **Keyboard shortcuts** — start any capture mode from the keyboard (⌘⇧S / ⌘⇧F / ⌘⇧X)
 - **Network & console logs** — auto-capture and attach to issues
 - **AI draft & styling** — BYOK (Bring Your Own Key) with OpenAI, Anthropic, Gemini, and more; falls back to Chrome Built-in AI
