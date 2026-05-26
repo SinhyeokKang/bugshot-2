@@ -7,7 +7,7 @@ import { syncAndSettleLogs } from "@/sidepanel/picker-control";
 import { trimByTime } from "@/sidepanel/lib/log-merge";
 import { saveNetworkLog, saveConsoleLog } from "@/store/blob-db";
 import { useT } from "@/i18n";
-import { FrameBuffer } from "./frame-buffer";
+import { FrameBuffer, REPLAY_MAX_DURATION_MS } from "./frame-buffer";
 import { encodeToMp4 } from "./mp4-encoder";
 
 const CAPTURE_INTERVAL_MS = 600;
@@ -99,7 +99,9 @@ export function use30sReplay(
           if (cancelled || useEditorStore.getState().phase !== "idle") return;
           const oldest = buffer.oldestTimestamp;
           setBufferedSeconds(
-            oldest == null ? 0 : Math.min(30, Math.ceil((Date.now() - oldest) / 1000)),
+            oldest == null
+              ? 0
+              : Math.min(REPLAY_MAX_DURATION_MS / 1000, Math.ceil((Date.now() - oldest) / 1000)),
           );
         }, 1000);
       } catch {

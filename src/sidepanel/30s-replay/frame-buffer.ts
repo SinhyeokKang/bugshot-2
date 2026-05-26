@@ -3,12 +3,15 @@ export interface CapturedFrame {
   timestamp: number;
 }
 
+export const REPLAY_MAX_FRAMES = 60;
+export const REPLAY_MAX_DURATION_MS = 30000;
+
 export class FrameBuffer {
   private frames: CapturedFrame[] = [];
 
   constructor(
-    private readonly maxFrames = 60,
-    private readonly maxDurationMs = 30000,
+    private readonly maxFrames = REPLAY_MAX_FRAMES,
+    private readonly maxDurationMs = REPLAY_MAX_DURATION_MS,
   ) {}
 
   push(blob: Blob, timestamp: number): void {

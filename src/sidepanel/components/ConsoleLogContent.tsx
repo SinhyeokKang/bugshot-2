@@ -103,7 +103,7 @@ export function ConsoleLogContent({ entries, startedAt, flush }: ConsoleLogConte
     };
     vp.addEventListener("scroll", onScroll, { passive: true });
     return () => vp.removeEventListener("scroll", onScroll);
-  }, [getListViewport, entries.length === 0]);
+  }, [getListViewport]);
   useEffect(() => {
     if (!pinnedRef.current) return;
     const vp = getListViewport();
