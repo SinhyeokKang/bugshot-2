@@ -83,7 +83,6 @@ async function notionFetch<T>(
     } catch {
       body = undefined;
     }
-    console.warn("[bugshot] Notion API error", res.status, path, body);
     throw new NotionError(res.status, messageForNotionStatus(res.status), body);
   }
   return (await res.json()) as T;
@@ -295,10 +294,12 @@ export async function sendFileUpload(
     body: form,
   });
   if (!res.ok) {
-    const raw = await res.text().catch(() => "");
     let body: unknown;
-    try { body = JSON.parse(raw); } catch { body = undefined; }
-    console.warn("[bugshot] Notion sendFileUpload error", res.status, uploadUrl, body ?? raw);
+    try {
+      body = await res.json();
+    } catch {
+      body = undefined;
+    }
     throw new NotionError(
       res.status,
       messageForNotionStatus(res.status),

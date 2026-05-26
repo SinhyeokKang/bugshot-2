@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowLeftRight, SquarePen, Terminal } from "lucide-react";
 import { useT } from "@/i18n";
 import {
@@ -15,7 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { useEditorStore } from "@/store/editor-store";
 import { useBoundTabId } from "@/sidepanel/hooks/useBoundTabId";
 import { useCaptureShortcuts } from "@/sidepanel/hooks/useCaptureShortcuts";
-import { startFreeformDraft } from "@/sidepanel/picker-control";
+import { startFreeformDraft, syncNetworkRecorder, syncConsoleRecorder } from "@/sidepanel/picker-control";
 import { IssueTab } from "./IssueTab";
 import { ConsoleSubTab } from "./ConsoleSubTab";
 import { NetworkSubTab } from "./NetworkSubTab";
@@ -32,6 +32,22 @@ export function DebugTab({ activeMainTab }: { activeMainTab: string }) {
   const [logUnavailableOpen, setLogUnavailableOpen] = useState(false);
 
   useCaptureShortcuts({ active: activeMainTab === "debug" && sub === "issue", tabId: tabId ?? null });
+
+  const tabIdRef = useRef(tabId);
+  tabIdRef.current = tabId;
+
+  useEffect(() => {
+    if (activeMainTab !== "debug" || sub === "console" || sub === "network") return;
+    if (tabIdRef.current == null) return;
+    const sync = () => {
+      if (tabIdRef.current == null) return;
+      syncNetworkRecorder(tabIdRef.current).catch(() => {});
+      syncConsoleRecorder(tabIdRef.current).catch(() => {});
+    };
+    sync();
+    const id = setInterval(sync, 1500);
+    return () => clearInterval(id);
+  }, [activeMainTab, sub]);
 
   const handleStartFreeform = useCallback(() => {
     if (tabId == null) return;

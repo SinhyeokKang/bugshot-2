@@ -218,7 +218,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           body: error.body,
         });
       } else if (error instanceof NotionError) {
-        console.error("[bugshot] NotionError caught", error.status, error.message, error.body);
         sendResponse({
           ok: false,
           error: error.message,

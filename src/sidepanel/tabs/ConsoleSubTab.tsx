@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { SquarePen } from "lucide-react";
+import { ListRestart, SquarePen } from "lucide-react";
 import { useT } from "@/i18n";
 import { Button } from "@/components/ui/button";
 import { useEditorStore } from "@/store/editor-store";
@@ -42,6 +42,7 @@ export function ConsoleSubTab({ active, onStartFreeform }: { active: boolean; on
             disabled={tabId == null || (consoleLog?.entries.length ?? 0) === 0}
             onClick={() => useEditorStore.getState().clearConsoleLog(tabId ?? null)}
           >
+            <ListRestart />
             {t("consoleLog.clear")}
           </Button>
           <Button variant="outline" onClick={onStartFreeform}>
