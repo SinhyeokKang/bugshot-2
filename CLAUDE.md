@@ -98,6 +98,7 @@ pnpm version major --no-git-tag-version   # 1.0.0 → 2.0.0 (Breaking change)
 - 기능 추가/삭제로 README의 사용법·기능 설명이 어긋남
 - 워크플로우/스킬 라인업 변경
 - `manifest.config.ts`의 permissions·host_permissions·optional_host_permissions 변경, 또는 새 플랫폼/연동·데이터 수집·외부 API 엔드포인트 추가
+- **docs/privacy.md는 권한 문자열이 아니라 실제 동작에 묶인다**: 새 기능이 *기존* 권한(광역 `https://*/*`·`activeTab`·`tabCapture`·`scripting` 등)을 새 목적으로 쓰거나 새 캡처·수집·저장·전송 동작을 추가하면 **manifest diff가 0이어도** privacy.md를 대조·갱신(시행일 포함)한다. diff에 `chrome.permissions.request`/`captureVisibleTab`/`tabCapture`/`chrome.scripting`/신규 외부 `fetch`/`chrome.storage`·IndexedDB write가 보이면 트리거. (30s Replay가 기존 optional 권한 재사용으로 이 검사를 빠져나가 심사 탈락한 전례 있음)
 
 ## 코드 컨벤션
 
