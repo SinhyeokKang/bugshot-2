@@ -441,16 +441,36 @@ background/index.ts:126 — contextMenus.onClicked
 
 ## 10. webNavigation
 
-### 단일 리스너
+### 리스너 2개
+
+#### onBeforeNavigate — 로그 꼬리 보존
 
 ```
-background/index.ts:157 — webNavigation.onBeforeNavigate
+background/index.ts:161 — webNavigation.onBeforeNavigate
 ├── frameId !== 0 → 무시 (메인 프레임만)
 ├── editor:{tabId} 세션 없음 → 무시 (패널 미바인딩 탭)
+├── 현재 tab.url을 navPreviousUrl Map에 저장 (onCommitted에서 사용)
 └── networkRecorder.sync + consoleRecorder.sync 메시지 전송
 ```
 
 **목적**: 페이지 떠나기 직전에 MAIN world의 네트워크/콘솔 로그 버퍼를 사이드패널 누적기로 flush. 이 타이밍에 기존 페이지의 content script는 아직 살아있어 메시지 수신 가능.
+
+#### onCommitted — 로그 초기화 판정
+
+```
+background/index.ts:178 — webNavigation.onCommitted
+├── frameId !== 0 → 무시 (메인 프레임만)
+├── navPreviousUrl에서 이전 URL 꺼냄
+├── shouldClearLogs(prevUrl, newUrl, transitionType)
+│   ├── cross-origin → true (다른 사이트 로그 무관)
+│   ├── reload → true (DevTools UX — 새로고침 시 리셋)
+│   └── same-origin 내부 이동 → false (멀티페이지 디버깅용 보존)
+├── editor:{tabId} 세션 없음 → 무시
+└── logClear 메시지 전송 → 사이드패널 clearNetworkLog/clearConsoleLog
+    (frozen phase에서는 무시)
+```
+
+`shouldClearLogs()` 위치: `src/lib/navigation-clear.ts`.
 
 ---
 
