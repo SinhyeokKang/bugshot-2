@@ -13,6 +13,7 @@ import {
   classifyEditableChildren,
   readEditableText,
   writeEditableText,
+  shouldRestoreEditable,
   type EditableHandle,
 } from "../css-resolve";
 
@@ -306,5 +307,43 @@ describe("writeEditableText — flat handle", () => {
     const handle: EditableHandle = { kind: "flat", el, originalChildren: [] };
     writeEditableText(handle, "new text");
     expect(el.textContent).toBe("new text");
+  });
+});
+
+describe("shouldRestoreEditable", () => {
+  it("텍스트 미변경(flat) — false: replaceChildren 스킵해 리스너 보존", () => {
+    const handle: EditableHandle = {
+      kind: "flat",
+      el: { textContent: "Submit" } as unknown as Element,
+      originalChildren: [],
+    };
+    expect(shouldRestoreEditable(handle, "Submit")).toBe(false);
+  });
+
+  it("텍스트 변경(flat) — true: 복원 실행", () => {
+    const handle: EditableHandle = {
+      kind: "flat",
+      el: { textContent: "Submit edited" } as unknown as Element,
+      originalChildren: [],
+    };
+    expect(shouldRestoreEditable(handle, "Submit")).toBe(true);
+  });
+
+  it("originalText가 null이면 false", () => {
+    const handle: EditableHandle = {
+      kind: "flat",
+      el: { textContent: "Submit" } as unknown as Element,
+      originalChildren: [],
+    };
+    expect(shouldRestoreEditable(handle, null)).toBe(false);
+  });
+
+  it("single 핸들 — 텍스트 동일하면 false", () => {
+    const handle: EditableHandle = {
+      kind: "single",
+      node: { textContent: "hello" } as unknown as Text,
+    };
+    expect(shouldRestoreEditable(handle, "hello")).toBe(false);
+    expect(shouldRestoreEditable(handle, "world")).toBe(true);
   });
 });

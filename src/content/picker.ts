@@ -10,6 +10,7 @@ import {
   collectTokens,
   readEditableText,
   restoreEditable,
+  shouldRestoreEditable,
   writeEditableText,
   type EditableHandle,
   type TokenLookup,
@@ -444,7 +445,11 @@ function restoreOriginal(): void {
   } else {
     el.setAttribute("style", originalStyle);
   }
-  if (editableHandle && originalTextContent !== null) {
+  if (
+    editableHandle &&
+    originalTextContent !== null &&
+    shouldRestoreEditable(editableHandle, originalTextContent)
+  ) {
     restoreEditable(editableHandle, originalTextContent);
   }
 }
