@@ -43,11 +43,11 @@ description: 원격 푸시 전 상태 점검 + CLAUDE.md/DIRECTORY.md/ARCHITECTU
 
    해당되는 변경을 발견하면:
    - 각 문서를 실제로 읽고 대응 섹션이 최신 상태인지 비교
-   - 업데이트가 필요하면 **사용자에게 확인 후** Edit으로 반영
+   - 업데이트가 필요하면 확인 없이 바로 Edit으로 반영
    - 문서별로 별도 커밋 (예: `docs(CLAUDE): update tab scope session description`, `docs(README): add new feature description`, `docs(privacy): add new platform data disclosure`)
-   - 변경 불필요하거나 사용자가 스킵을 원하면 건너뜀
+   - 변경 불필요하면 건너뜀
 
-5. **푸시 전 최종 확인.** 사용자에게 "푸시해도 되냐" 묻고 OK면:
+5. **푸시 실행.** 확인 없이 바로 푸시한다:
    - `git push` (upstream 없으면 `git push -u origin <branch>`)
    - 출력에서 결과 줄만 발췌해 보고
 
@@ -55,5 +55,5 @@ description: 원격 푸시 전 상태 점검 + CLAUDE.md/DIRECTORY.md/ARCHITECTU
 
 - `git push --force` / `--force-with-lease`는 **사용자가 명시 요청**한 경우에만. main/master에는 force push 금지 (요청받으면 경고 후 재확인).
 - `--no-verify`로 hook 스킵 금지. hook 실패하면 원인 수정이 우선.
-- 사용자가 확인해 주기 전까지 새 커밋을 만들지 않는다 (문서 업데이트 커밋 포함).
+- `.env`, 크레덴셜 파일 등은 staged여도 경고하고 멈춤.
 - `.env`, 크레덴셜 파일 등은 staged여도 경고하고 멈춤.
