@@ -173,6 +173,26 @@ describe("buildAiDraftSessionPrompt", () => {
     expect(prompt).not.toContain("Console:");
   });
 
+  it("video 모드: action log 요약 포함", () => {
+    const prompt = buildAiDraftSessionPrompt({
+      ...SESSION_BASE,
+      captureMode: "video",
+      actionLogSummary: ["click Submit 버튼", "input email"],
+    });
+    expect(prompt).toContain("User actions");
+    expect(prompt).toContain("click Submit 버튼");
+  });
+
+  it("freeform 모드: action log는 제외 (video 전용)", () => {
+    const prompt = buildAiDraftSessionPrompt({
+      ...SESSION_BASE,
+      captureMode: "freeform",
+      actionLogSummary: ["click Submit 버튼", "input email"],
+    });
+    expect(prompt).not.toContain("User actions");
+    expect(prompt).not.toContain("click Submit 버튼");
+  });
+
   it("locale ko → Korean, en → English", () => {
     const ko = buildAiDraftSessionPrompt({ ...SESSION_BASE, locale: "ko" });
     expect(ko).toContain("Korean");

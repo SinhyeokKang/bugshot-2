@@ -4,6 +4,7 @@ import {
   trimByTime,
   rebuildNetworkLog,
   rebuildConsoleLog,
+  rebuildActionLog,
   isLogFrozen,
   NETWORK_MAX_ENTRIES,
   CONSOLE_MAX_ENTRIES,
@@ -11,6 +12,7 @@ import {
 import type { EditorPhase } from "@/store/editor-store";
 import type { NetworkLog, NetworkRequest } from "@/types/network";
 import type { ConsoleLog, ConsoleEntry } from "@/types/console";
+import type { ActionLog, ActionEntry } from "@/types/action";
 
 // rebuild*는 incoming 메타(totalSeen/warnings)를 받는 3-arg 시그니처 — design.md의 2-arg 표기와 다름.
 
@@ -61,6 +63,28 @@ function makeEntry(overrides: Partial<ConsoleEntry> = {}): ConsoleEntry {
 function makeConsoleLog(overrides: Partial<ConsoleLog> = {}): ConsoleLog {
   return {
     id: "con-1",
+    startedAt: 0,
+    endedAt: 1000,
+    totalSeen: 0,
+    captured: 0,
+    entries: [],
+    ...overrides,
+  };
+}
+
+function makeActionEntry(overrides: Partial<ActionEntry> = {}): ActionEntry {
+  return {
+    id: "1",
+    kind: "click",
+    timestamp: 0,
+    pageUrl: "",
+    ...overrides,
+  };
+}
+
+function makeActionLog(overrides: Partial<ActionLog> = {}): ActionLog {
+  return {
+    id: "act-1",
     startedAt: 0,
     endedAt: 1000,
     totalSeen: 0,
@@ -264,6 +288,49 @@ describe("rebuildConsoleLog", () => {
     const log = rebuildConsoleLog(null, [], { totalSeen: 0 });
     expect(log.captured).toBe(0);
     expect(log.totalSeen).toBeGreaterThanOrEqual(log.captured);
+  });
+});
+
+describe("rebuildActionLog", () => {
+  const NOW = 30_000;
+  beforeEach(() => {
+    vi.spyOn(Date, "now").mockReturnValue(NOW);
+  });
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it("머지 배열로 메타 재계산 (startedAt=첫 엔트리, endedAt=now, captured=길이)", () => {
+    const existing = makeActionLog({ totalSeen: 1 });
+    const merged = [
+      makeActionEntry({ id: "a", timestamp: 300 }),
+      makeActionEntry({ id: "b", timestamp: 700 }),
+    ];
+
+    const log = rebuildActionLog(existing, merged, { totalSeen: 2 });
+
+    expect(log.startedAt).toBe(300);
+    expect(log.endedAt).toBe(NOW);
+    expect(log.captured).toBe(2);
+    expect(log.entries).toBe(merged);
+  });
+
+  it("totalSeen은 기존·incoming·머지 길이 중 최댓값", () => {
+    const log = rebuildActionLog(null, [makeActionEntry({ id: "a", timestamp: 1 })], { totalSeen: 9 });
+    expect(log.totalSeen).toBe(9);
+  });
+
+  it("빈 incoming이면 captured 0, startedAt=now, captured ≤ totalSeen", () => {
+    const log = rebuildActionLog(null, [], { totalSeen: 0 });
+    expect(log.captured).toBe(0);
+    expect(log.startedAt).toBe(NOW);
+    expect(log.totalSeen).toBeGreaterThanOrEqual(log.captured);
+  });
+
+  it("기존 id 유지 (재빌드해도 새 id 안 만듦)", () => {
+    const existing = makeActionLog({ id: "keep-me" });
+    const log = rebuildActionLog(existing, [], { totalSeen: 0 });
+    expect(log.id).toBe("keep-me");
   });
 });
 

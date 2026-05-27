@@ -180,7 +180,8 @@ export function buildAiDraftSessionPrompt(ctx: AiDraftSessionContext): string {
         }
       }
     }
-    if (ctx.actionLogSummary && ctx.actionLogSummary.length > 0) {
+    // action log는 video(녹화 타임라인과 묶일 때)에서만 의미가 강하므로 freeform에서는 제외.
+    if (ctx.captureMode === "video" && ctx.actionLogSummary && ctx.actionLogSummary.length > 0) {
       lines.push("- User actions (reference only — context for understanding, do not copy verbatim into stepsToReproduce):");
       for (const a of ctx.actionLogSummary) {
         lines.push(`  ${a}`);

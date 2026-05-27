@@ -8,13 +8,15 @@ export interface MaskFieldInput {
   name?: string;
   id?: string;
   autocomplete?: string;
+  ariaLabel?: string;
 }
 
 export function shouldMaskField(input: MaskFieldInput): boolean {
   if (input.type?.toLowerCase() === "password") return true;
   const ac = input.autocomplete?.toLowerCase() ?? "";
   if (ac.includes("password") || ac.includes("cc-")) return true;
-  const name = `${input.name ?? ""} ${input.id ?? ""}`.toLowerCase();
+  // contentEditable은 type=password 신호가 없어 aria-label까지 키워드 검사에 포함.
+  const name = `${input.name ?? ""} ${input.id ?? ""} ${input.ariaLabel ?? ""}`.toLowerCase();
   return SENSITIVE_NAME_RE.test(name);
 }
 
@@ -60,8 +62,4 @@ export function buildLightSelector(el: Element): string {
   if (!parent) return tag;
   const idx = Array.prototype.indexOf.call(parent.children, el) + 1;
   return `${tag}:nth-child(${idx})`;
-}
-
-export function inputDedupKey(selector: string): string {
-  return selector;
 }

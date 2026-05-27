@@ -3,7 +3,6 @@ import {
   shouldMaskField,
   maskValue,
   describeActionTarget,
-  inputDedupKey,
 } from "../action-recorder-helpers";
 
 describe("shouldMaskField", () => {
@@ -24,6 +23,12 @@ describe("shouldMaskField", () => {
   it("autocomplete 힌트로 마스킹 (current-password·cc-number)", () => {
     expect(shouldMaskField({ autocomplete: "current-password" })).toBe(true);
     expect(shouldMaskField({ autocomplete: "cc-number" })).toBe(true);
+  });
+
+  it("aria-label의 민감 키워드로 마스킹 (contentEditable 사각지대 보강)", () => {
+    expect(shouldMaskField({ ariaLabel: "Card number" })).toBe(true);
+    expect(shouldMaskField({ ariaLabel: "CVV" })).toBe(true);
+    expect(shouldMaskField({ ariaLabel: "Full name" })).toBe(false);
   });
 
   it("힌트 전무하면 마스킹 안 함", () => {
@@ -69,15 +74,5 @@ describe("describeActionTarget", () => {
     });
     expect(out.length).toBeLessThan(long.length);
     expect(out).toContain("…");
-  });
-});
-
-describe("inputDedupKey", () => {
-  it("같은 selector면 같은 키 (결정적)", () => {
-    expect(inputDedupKey("input#email")).toBe(inputDedupKey("input#email"));
-  });
-
-  it("다른 selector면 다른 키", () => {
-    expect(inputDedupKey("input#email")).not.toBe(inputDedupKey("input#name"));
   });
 });

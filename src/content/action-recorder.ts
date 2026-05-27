@@ -1,7 +1,6 @@
 import {
   buildLightSelector,
   describeActionTarget,
-  inputDedupKey,
   maskValue,
   shouldMaskField,
 } from "./action-recorder-helpers";
@@ -140,16 +139,16 @@ function actionRecorderScript(): void {
       name: el.getAttribute("name") ?? undefined,
       id: el.id || undefined,
       autocomplete: el.getAttribute("autocomplete") ?? undefined,
+      ariaLabel: el.getAttribute("aria-label") ?? undefined,
     });
     const raw = isContentEditable
       ? (el.textContent || "").trim()
       : input.value ?? "";
     const value = masked ? maskValue(raw) : raw.slice(0, VALUE_CAP);
     const selector = buildLightSelector(el);
-    const key = inputDedupKey(selector);
 
     const last = buffer[buffer.length - 1];
-    if (last && last.kind === "input" && last.selector && inputDedupKey(last.selector) === key) {
+    if (last && last.kind === "input" && last.selector === selector) {
       last.value = value;
       last.masked = masked;
       last.timestamp = Date.now();
