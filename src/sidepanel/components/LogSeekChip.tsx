@@ -8,7 +8,7 @@ export function LogSeekChip({ ts, label, onSeek }: {
 }) {
   const t = useT();
   if (!onSeek) {
-    return <span className="w-7 shrink-0 text-xs">{label}</span>;
+    return <span className="w-8 shrink-0 font-mono text-xs">{label}</span>;
   }
   return (
     <button
@@ -18,7 +18,7 @@ export function LogSeekChip({ ts, label, onSeek }: {
         onSeek(ts);
       }}
       aria-label={t("logViewer.seekTo", { time: label })}
-      className="w-7 shrink-0 rounded text-left text-xs hover:text-primary hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+      className="w-8 shrink-0 rounded font-mono text-left text-xs hover:text-primary hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
     >
       {label}
     </button>
