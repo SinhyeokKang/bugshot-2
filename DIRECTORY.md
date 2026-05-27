@@ -31,7 +31,7 @@ src/
 │   ├── console-recorder.ts# MAIN world 콘솔 캡처 (log/info/debug + trace/assert/dir/table/group*/count*/time* wrap, error/warn은 chrome://extensions attribution noise 회피로 의도적 제외 — throw 에러는 window.error/unhandledrejection으로 별도 캡처, 2000건 FIFO, document_start부터 무조건 buffer, clearBuffer는 counters/timers Map도 함께 리셋)
 │   ├── console-recorder-helpers.ts# formatErrorEvent / formatRejectionReason / shouldCaptureAssertion 순수 헬퍼
 │   ├── action-recorder.ts # MAIN world 액션 캡처 (click/input/navigation을 재현 단계로 기록, document_start부터 buffer, 1000건 FIFO, history.pushState/replaceState 래핑 + popstate/hashchange, 민감 입력 마스킹, 같은 selector 연속 input은 in-place dedup, sentinel-bound dispatch)
-│   └── action-recorder-helpers.ts# shouldMaskField(type=password·autocomplete·name/id/aria-label 민감 키워드) / maskValue / describeActionTarget / buildLightSelector 순수 헬퍼
+│   └── action-recorder-helpers.ts# shouldMaskField(type=password·autocomplete·name/id/aria-label 민감 키워드) / maskValue / truncateName(접근가능 이름 trim·cap, 역할은 ActionEntry.role로 분리) / buildLightSelector 순수 헬퍼
 ├── sidepanel/
 │   ├── App.tsx          # Radix Tabs 4개 (디버그/이슈 목록/연동/설정) + TabNavContext Provider, 설정 sub-tab을 controlled로 보유
 │   ├── main.tsx
@@ -43,7 +43,7 @@ src/
 │   ├── video-recorder.ts# MediaRecorder 녹화 세션 관리
 │   ├── 30s-replay/      # 30s Replay 캡처 — frame-buffer(직전 30초 순환 버퍼), mp4-encoder(WebCodecs VideoEncoder→mp4-muxer H.264 인코딩), use-30s-replay(captureVisibleTab 폴링 훅 + capture()), replay-context(ReplayProvider로 isReady/isEncoding/bufferedSeconds/capture 공유)
 │   ├── hooks/           # useBoundTabId, useAI, useBackgroundRecorder, useCaptureShortcuts, useCommandShortcuts, useEditorSessionSync, useIssueImages, usePickerMessages, usePlatformFields(SubmitFieldsDialog 공용 platform fields state + open/draft 전환 시 idempotent reset), useThemeEffect
-│   ├── components/      # 공통 UI (Section/AnnotationOverlay/TiptapEditor/DocSectionBody/DocTable/ConsoleLogContent/ConsoleLogPreviewDialog/NetworkLogContent/NetworkLogPreviewDialog/ActionLogContent(액션 로그 뷰어 — log-viewer 전용)/JsonTreeViewer/LogAttachmentCards/StyleChangesTable/CancelConfirmDialog/FieldRow(label+required 표기 공통)/ConnectedBadge(플랫폼 연결 완료 녹색 배지 공용))
+│   ├── components/      # 공통 UI (Section/AnnotationOverlay/TiptapEditor/DocSectionBody/DocTable/ConsoleLogContent/ConsoleLogPreviewDialog/NetworkLogContent/NetworkLogPreviewDialog/ActionLogContent(액션 로그 뷰어 — 동사형 문장 렌더)/ActionLogPreviewDialog/JsonTreeViewer/LogAttachmentCards(network/console/action 첨부 토글 카드, 컨테이너 쿼리 리플로우)/StyleChangesTable/CancelConfirmDialog/FieldRow(label+required 표기 공통)/ConnectedBadge(플랫폼 연결 완료 녹색 배지 공용))
 │   ├── tabs/            # 탭별 진입점 + 편집 패널 (DebugTab(→IssueTab/ConsoleSubTab/NetworkSubTab)/IssueListTab(+IssueRow + issueListUtils 순수 헬퍼)/IntegrationsTab/SettingsTab/StyleEditorPanel/DraftingPanel/DraftDetailDialog/AiDraftDialog/IssueCreateModal/SubmitFieldsDialog(IssueCreateModal·DraftDetailDialog 공용 platform 선택 + 필드 입력 다이얼로그)/PreviewPanel/DomTreeDialog/IssueTypeCombobox/ProjectCombobox)
 │   │   ├── styleEditor/   # AiStylingDialog, ValueCombobox, StylePropEditors와 헬퍼 (propMetadata, tokenUtils, styleHooks, TokenChip, colorLiteral, hexUtils)
 │   │   ├── settings/      # AI 모델 설정 (LlmConnectDialog, LlmConnectForm) — SettingsTab의 AI 모델 sub-tab content
