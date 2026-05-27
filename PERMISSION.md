@@ -174,7 +174,7 @@ content script를 프로그래매틱으로 주입하는 데 사용. SW 하이버
 | 모드 | world | 코드 위치 | 설명 |
 |---|---|---|---|
 | Picker 재주입 | ISOLATED | `picker-control.ts:38` | `ping` 실패 시 `manifest.content_scripts[0].js` 재주입 |
-| Recorder 재주입 | MAIN | `picker-control.ts:63` | Network/Console recorder 재주입 |
+| Recorder 재주입 | MAIN | `picker-control.ts:63` | Network/Console/Action recorder 재주입 |
 | 뷰포트 측정 | ISOLATED | `picker-control.ts:381` | Freeform 캡처 시 `innerWidth/Height` 읽기 |
 | GitHub 업로드 | MAIN | `background/github-upload.ts:154` | GitHub 페이지 세션으로 에셋 업로드 (self-contained 함수) |
 

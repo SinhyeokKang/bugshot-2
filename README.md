@@ -14,6 +14,7 @@ A Chrome extension for bug reporting. Pick elements, tweak CSS, and file issues 
 - **30s Replay** — opt-in mode that captures the last 30 seconds of the tab as MP4, looking back across page navigations (no need to hit record beforehand)
 - **Keyboard shortcuts** — start any capture mode from the keyboard (⌘⇧S / ⌘⇧F / ⌘⇧X)
 - **Network & console logs** — auto-capture and attach to issues
+- **Action log** — auto-captures clicks, inputs, and navigations as reproduction steps (sensitive field values masked); attached with video captures
 - **AI draft & styling** — BYOK (Bring Your Own Key) with OpenAI, Anthropic, Gemini, and more; falls back to Chrome Built-in AI
 - **Jira integration** — OAuth 3LO / API Token, project metadata, auto-upload attachments
 - **GitHub integration** — OAuth Web Flow / PAT, repo/labels/assignees, file upload
