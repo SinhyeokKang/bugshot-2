@@ -180,7 +180,7 @@ function GithubOnboarding() {
         </div>
 
         {oauthAvailable === false ? (
-          <p className="text-xs text-muted-foreground">
+          <p className="mt-3 text-xs text-muted-foreground">
             {t("github.oauth.notConfigured")}
           </p>
         ) : null}

@@ -187,6 +187,7 @@ function emitLogSummary(lines: string[], ctx: MarkdownContext): void {
     } else {
       lines.push(t("logSummary.network.capturedNoError", { n: net.captured }));
     }
+    lines.push("");
   }
   if (con) {
     lines.push(`## ${t("logSummary.console.title")}`, "");

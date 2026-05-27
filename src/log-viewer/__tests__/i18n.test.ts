@@ -4,7 +4,11 @@ import { describe, expect, it, vi } from "vitest";
 // 일반 문장보다 먼저 실행되므로, import보다 앞서 도는 vi.hoisted에서 navigator를
 // 정의해야 node 환경(navigator 미정의)에서 import-time ReferenceError를 막는다.
 vi.hoisted(() => {
-  (globalThis as { navigator?: unknown }).navigator = { language: "ko-KR" };
+  Object.defineProperty(globalThis, "navigator", {
+    value: { language: "ko-KR" },
+    writable: true,
+    configurable: true,
+  });
 });
 
 import { koDict, enDict, t } from "../i18n";

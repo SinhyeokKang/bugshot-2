@@ -53,7 +53,7 @@ export function App({ data }: AppProps) {
   if (!data) {
     return (
       <div className="flex h-screen items-center justify-center text-muted-foreground">
-        No log data found.
+        {t("logViewer.noData")}
       </div>
     );
   }
@@ -102,7 +102,7 @@ export function App({ data }: AppProps) {
           />
         ) : (
           <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
-            No console data
+            {t("logViewer.noConsole")}
           </div>
         )}
       </TabsContent>
@@ -112,7 +112,7 @@ export function App({ data }: AppProps) {
           <NetworkLogContent requests={data.networkLog!.requests} flush {...sync} />
         ) : (
           <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
-            No network data
+            {t("logViewer.noNetwork")}
           </div>
         )}
       </TabsContent>
@@ -127,7 +127,7 @@ export function App({ data }: AppProps) {
           />
         ) : (
           <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
-            No action data
+            {t("logViewer.noAction")}
           </div>
         )}
       </TabsContent>

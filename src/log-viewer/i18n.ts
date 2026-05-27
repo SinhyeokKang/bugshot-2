@@ -68,6 +68,11 @@ export const koDict: Record<string, string> = {
   "logViewer.tab.action": "Action Log",
   "logViewer.footer.issueLink": "이슈 바로가기",
   "logViewer.video.error": "영상을 재생할 수 없습니다",
+  "logViewer.seekTo": "{time} 지점으로 이동",
+  "logViewer.noData": "로그 데이터를 찾을 수 없습니다.",
+  "logViewer.noConsole": "콘솔 데이터 없음",
+  "logViewer.noNetwork": "네트워크 데이터 없음",
+  "logViewer.noAction": "액션 데이터 없음",
 
   "json.showAll": "전체 보기",
   "json.moreItems": "… {n}개 더",
@@ -138,6 +143,11 @@ export const enDict: Record<string, string> = {
   "logViewer.tab.action": "Action Log",
   "logViewer.footer.issueLink": "Go to Issue",
   "logViewer.video.error": "Unable to play video",
+  "logViewer.seekTo": "Jump to {time}",
+  "logViewer.noData": "No log data found.",
+  "logViewer.noConsole": "No console data",
+  "logViewer.noNetwork": "No network data",
+  "logViewer.noAction": "No action data",
 
   "json.showAll": "show all",
   "json.moreItems": "… {n} more items",

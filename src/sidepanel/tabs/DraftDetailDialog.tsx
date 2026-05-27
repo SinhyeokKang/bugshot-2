@@ -733,7 +733,7 @@ function DraftDetailSections({
         <div className="aspect-video w-full overflow-hidden rounded-md border bg-muted/70">
           <img
             src={beforeUrl}
-            alt="Captured image"
+            alt={t("alt.capturedImage")}
             className="h-full w-full object-contain"
           />
         </div>

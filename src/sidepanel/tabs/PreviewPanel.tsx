@@ -281,7 +281,7 @@ export function PreviewPanel() {
                 <div className="aspect-video w-full overflow-hidden rounded-lg border bg-muted/70">
                   <img
                     src={screenshotImage}
-                    alt="Captured image"
+                    alt={t("alt.capturedImage")}
                     className="h-full w-full object-contain"
                   />
                 </div>
