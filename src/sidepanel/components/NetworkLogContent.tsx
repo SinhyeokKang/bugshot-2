@@ -10,6 +10,9 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
+import { findActiveIndex } from "@/log-viewer/timeline";
+import { formatRelativeTime, syncRowClass } from "@/sidepanel/lib/logRow";
+import { LogSeekChip } from "./LogSeekChip";
 
 type RequestFilter = "all" | "json" | "js" | "css" | "img" | "font" | "doc" | "other";
 
@@ -18,6 +21,10 @@ const REQUEST_FILTERS: RequestFilter[] = ["all", "json", "js", "css", "img", "fo
 interface NetworkLogContentProps {
   requests: NetworkRequest[];
   flush?: boolean;
+  // 영상 동기화(log-viewer 전용, optional). 미공급 시 라이브 서브탭과 동일 동작.
+  syncBaseMs?: number;
+  onSeek?: (absTs: number) => void;
+  activeTs?: number;
 }
 
 function methodColor(method: string): string {
@@ -132,7 +139,7 @@ function buildCurl(req: NetworkRequest): string {
 
 type DetailTab = "headers" | "request" | "response";
 
-export function NetworkLogContent({ requests, flush }: NetworkLogContentProps) {
+export function NetworkLogContent({ requests, flush, syncBaseMs, onSeek, activeTs }: NetworkLogContentProps) {
   const t = useT();
   const [activeId, setActiveId] = useState<string | null>(null);
   const [detailTab, setDetailTab] = useState<DetailTab>("headers");
@@ -163,6 +170,12 @@ export function NetworkLogContent({ requests, flush }: NetworkLogContentProps) {
     }
     return result;
   }, [requests, filter, query]);
+
+  const syncActiveId = useMemo(() => {
+    if (activeTs == null) return null;
+    const idx = findActiveIndex(filteredRequests.map((r) => r.startTime), activeTs);
+    return idx >= 0 ? filteredRequests[idx].id : null;
+  }, [filteredRequests, activeTs]);
 
   const handleSelect = (id: string) => {
     if (activeId === id) {
@@ -263,6 +276,9 @@ export function NetworkLogContent({ requests, flush }: NetworkLogContentProps) {
               key={req.id}
               req={req}
               active={activeId === req.id}
+              syncActive={req.id === syncActiveId}
+              syncBaseMs={syncBaseMs}
+              onSeek={onSeek}
               onClick={() => handleSelect(req.id)}
             />
           ))}
@@ -335,17 +351,33 @@ export function NetworkLogContent({ requests, flush }: NetworkLogContentProps) {
 function RequestRow({
   req,
   active,
+  syncActive,
+  syncBaseMs,
+  onSeek,
   onClick,
 }: {
   req: NetworkRequest;
   active: boolean;
+  syncActive?: boolean;
+  syncBaseMs?: number;
+  onSeek?: (absTs: number) => void;
   onClick: () => void;
 }) {
+  // 동기화 재생 중 active 행이 뷰포트 밖이면 따라가도록 추종. syncActive는 동기화 모드에서만 true.
+  const rowRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (syncActive) rowRef.current?.scrollIntoView({ block: "nearest" });
+  }, [syncActive]);
   return (
     <div
-      className={`flex cursor-pointer items-center gap-3 overflow-hidden px-3 py-2 text-[13px] ${rowBg(req, active)}`}
+      ref={rowRef}
+      className={`flex cursor-pointer items-center gap-3 overflow-hidden px-3 py-2 text-[13px] ${syncRowClass(syncBaseMs != null, !!syncActive, rowBg(req, active))}`}
+      aria-current={syncActive ? "true" : undefined}
       onClick={onClick}
     >
+      {syncBaseMs != null && (
+        <LogSeekChip ts={req.startTime} label={formatRelativeTime(req.startTime, syncBaseMs)} onSeek={onSeek} />
+      )}
       <ContentTypeIcon req={req} />
       <span className={`shrink-0 ${methodColor(req.method)}`}>{req.method}</span>
       <span className="min-w-0 flex-1 truncate">{networkLogPath(req.url)}</span>

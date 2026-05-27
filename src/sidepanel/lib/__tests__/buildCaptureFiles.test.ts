@@ -12,12 +12,19 @@ vi.mock("@/store/blob-db", () => ({
     Promise.resolve(`data:${blob.type || "application/octet-stream"};base64,FAKE`),
 }));
 
-vi.mock("../../../../dist-log-viewer/index.html?raw", () => ({
-  default:
-    '<!DOCTYPE html><html><head></head><body><script id="__BUGSHOT_DATA__" type="application/json"></script></body></html>',
-}));
+// buildLogsHtml은 자체 테스트(buildLogsHtml.test.ts)로 video 임베드를 검증. 여기선 video 인자가
+// 올바르게 전달되는지(임베드/null)만 spy로 확인한다. 실제 escaping·주입은 그쪽 책임.
+const buildLogsHtmlSpy = vi.hoisted(() =>
+  vi.fn((..._args: unknown[]) => "<html>logs</html>"),
+);
+vi.mock("../buildLogsHtml", () => ({ buildLogsHtml: buildLogsHtmlSpy }));
 
 import { buildCaptureFiles } from "../buildCaptureFiles";
+
+function lastVideoArg(): unknown {
+  const call = buildLogsHtmlSpy.mock.calls.at(-1);
+  return call ? call[3] : undefined;
+}
 
 const networkLog: NetworkLog = {
   id: "net-1",
@@ -150,6 +157,70 @@ describe("buildCaptureFiles — video mode", () => {
       consoleLog: null,
     });
     expect(out.logs).toEqual([]);
+  });
+});
+
+describe("buildCaptureFiles — video 임베드 (logs.html)", () => {
+  const blob = new Blob([new Uint8Array([0])], { type: "video/mp4" });
+
+  it("video + blob + 앵커 → logs.html에 video 임베드 AND recording.mp4 인라인 유지", async () => {
+    buildLogsHtmlSpy.mockClear();
+    const out = await buildCaptureFiles({
+      captureMode: "video",
+      videoBlob: blob,
+      networkLog,
+      videoStartedAt: 1000,
+      videoEndedAt: 5000,
+      videoThumbnail: "data:image/webp;base64,THUMB",
+      pageUrl: "https://example.com",
+    });
+    // 인라인 recording.mp4 유지(폐지 아님)
+    expect(out.video).toEqual({ filename: "recording.mp4", dataUrl: "data:video/mp4;base64,FAKE" });
+    expect(out.logs.map((l) => l.filename)).toEqual(["logs.html"]);
+    // logs.html에 동기화 video 추가 임베드 (뷰어 미소비 필드 mime/endedAt/viewport 제거됨)
+    expect(lastVideoArg()).toEqual({
+      dataUrl: "data:video/mp4;base64,FAKE",
+      startedAt: 1000,
+      thumbnail: "data:image/webp;base64,THUMB",
+    });
+  });
+
+  it("video + 앵커 없음 → logs.html video=null, recording.mp4는 존재 (graceful)", async () => {
+    buildLogsHtmlSpy.mockClear();
+    const out = await buildCaptureFiles({
+      captureMode: "video",
+      videoBlob: blob,
+      networkLog,
+      pageUrl: "https://example.com",
+    });
+    expect(out.video).toEqual({ filename: "recording.mp4", dataUrl: "data:video/mp4;base64,FAKE" });
+    expect(lastVideoArg()).toBeNull();
+  });
+
+  it("freeform → video=null, recording.mp4 없음 (회귀)", async () => {
+    buildLogsHtmlSpy.mockClear();
+    const out = await buildCaptureFiles({
+      captureMode: "freeform",
+      videoBlob: blob,
+      videoStartedAt: 1000,
+      videoEndedAt: 5000,
+      networkLog,
+      pageUrl: "https://example.com",
+    });
+    expect(out.video).toBeUndefined();
+    expect(lastVideoArg()).toBeNull();
+  });
+
+  it("screenshot → video=null, recording.mp4 없음 (회귀)", async () => {
+    buildLogsHtmlSpy.mockClear();
+    const out = await buildCaptureFiles({
+      captureMode: "screenshot",
+      screenshotImage: "data:x",
+      networkLog,
+      pageUrl: "https://example.com",
+    });
+    expect(out.video).toBeUndefined();
+    expect(lastVideoArg()).toBeNull();
   });
 });
 

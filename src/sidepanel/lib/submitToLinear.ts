@@ -109,12 +109,17 @@ export async function submitToLinear(
     },
   });
 
-  const logFiles = (input.logs ?? []).map((l) =>
-    l.filename === "logs.html"
-      ? { ...l, dataUrl: injectIssueUrl(l.dataUrl, result.url) }
-      : l,
+  const logFiles = await Promise.all(
+    (input.logs ?? []).map(async (l) =>
+      l.filename === "logs.html"
+        ? { ...l, dataUrl: await injectIssueUrl(l.dataUrl, result.url) }
+        : l,
+    ),
   );
-  const logResults = await Promise.all(logFiles.map((l) => uploadFile(l)));
+  // 이슈는 이미 생성됨 — 로그 첨부 실패(대용량 logs.html 등)가 전체 제출을 실패로 만들지 않게 격리.
+  const logResults = (
+    await Promise.all(logFiles.map((l) => uploadFile(l).catch(() => null)))
+  ).filter((r): r is LinearMediaInput => r !== null);
 
   const aiMeta = buildAiMetaAttachment(input.ctx);
   const aiMetaUploaded = await uploadFile(aiMeta);

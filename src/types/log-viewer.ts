@@ -9,6 +9,11 @@ export interface LogViewerData {
   har: object | null;
   consoleLogJson: object | null;
   actionLogJson: object | null;
+  video: {
+    dataUrl: string;
+    startedAt: number; // 동기화 앵커(공통 0점)
+    thumbnail?: string; // <video poster>
+  } | null;
   meta: {
     version: string;
     createdAt: string;

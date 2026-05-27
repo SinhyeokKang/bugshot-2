@@ -285,6 +285,9 @@ export function DraftDetailDialog({
       networkLog,
       consoleLog: consoleLogForSubmit,
       actionLog: actionLogForSubmit,
+      // 영상 동기화 앵커. videoThumbnail은 IssueRecord 미영속 → 저장 draft logs.html은 poster 생략.
+      videoStartedAt: issue.videoStartedAt,
+      videoEndedAt: issue.videoEndedAt,
       pageUrl: issue.pageUrl,
     });
     return { ctx, captureFiles };

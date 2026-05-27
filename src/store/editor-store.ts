@@ -89,6 +89,8 @@ interface EditorState {
   videoThumbnail: string | null;
   videoViewport: { width: number; height: number } | null;
   videoCapturedAt: number | null;
+  videoStartedAt: number | null;
+  videoEndedAt: number | null;
   freeformViewport: { width: number; height: number } | null;
   freeformCapturedAt: number | null;
   networkLog: NetworkLog | null;
@@ -112,7 +114,7 @@ interface EditorState {
   startCapturing: (target: EditorTarget) => void;
   startRecording: (target: EditorTarget) => void;
   startFreeform: (target: EditorTarget) => void;
-  onRecordingComplete: (blob: Blob, thumbnail: string, viewport: { width: number; height: number }) => void;
+  onRecordingComplete: (blob: Blob, thumbnail: string, viewport: { width: number; height: number }, startedAt: number, endedAt: number) => void;
   cancelRecording: () => void;
   onAreaCaptured: (dataUrl: string, viewport: { width: number; height: number }) => void;
   onAnnotated: (dataUrl: string) => void;
@@ -166,6 +168,8 @@ export type EditorSnapshot = Pick<
   | "videoThumbnail"
   | "videoViewport"
   | "videoCapturedAt"
+  | "videoStartedAt"
+  | "videoEndedAt"
   | "freeformViewport"
   | "freeformCapturedAt"
   | "networkLogAttach"
@@ -199,6 +203,8 @@ const initial = {
   videoThumbnail: null as string | null,
   videoViewport: null as { width: number; height: number } | null,
   videoCapturedAt: null as number | null,
+  videoStartedAt: null as number | null,
+  videoEndedAt: null as number | null,
   freeformViewport: null as { width: number; height: number } | null,
   freeformCapturedAt: null as number | null,
   networkLog: null as NetworkLog | null,
@@ -345,7 +351,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       actionLogAttach: true,
     })),
   startRecording: (target) => set({ ...initial, captureMode: "video", phase: "recording", target }),
-  onRecordingComplete: (blob, thumbnail, viewport) => set({ captureMode: "video", phase: "drafting", videoBlob: blob, videoThumbnail: thumbnail, videoViewport: viewport, videoCapturedAt: Date.now(), networkLogAttach: true, consoleLogAttach: true, actionLogAttach: true }),
+  onRecordingComplete: (blob, thumbnail, viewport, startedAt, endedAt) => set({ captureMode: "video", phase: "drafting", videoBlob: blob, videoThumbnail: thumbnail, videoViewport: viewport, videoCapturedAt: Date.now(), videoStartedAt: startedAt, videoEndedAt: endedAt, networkLogAttach: true, consoleLogAttach: true, actionLogAttach: true }),
   cancelRecording: () => set((state) => ({ ...initial, ...preserveLogs(state) })),
   onAreaCaptured: (dataUrl, viewport) => set({ phase: "drafting", screenshotRaw: dataUrl, screenshotViewport: viewport, screenshotCapturedAt: Date.now(), networkLogAttach: true, consoleLogAttach: true, actionLogAttach: true }),
   onAnnotated: (dataUrl) => set({ screenshotAnnotated: dataUrl }),
@@ -443,6 +449,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         pageTitle: state.target.title,
         captureMode: "video",
         viewport: state.videoViewport ?? undefined,
+        videoStartedAt: state.videoStartedAt ?? undefined,
+        videoEndedAt: state.videoEndedAt ?? undefined,
         draft: { ...state.draft },
         snapshot: {
           before: !!state.videoThumbnail,

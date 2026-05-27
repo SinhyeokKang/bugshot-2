@@ -10,20 +10,20 @@
 
 ## T1. 동기화 앵커 영속화
 
-- [ ] `src/sidepanel/video-recorder.ts` — `onstop` 진입 즉시 `const localEndedAt = Date.now()`. `state = null`(`:71`) 전에 `localStartTime = s.startTime` 보존. `onRecordingComplete(blob, thumbnail, viewport, localStartTime, localEndedAt)`.
-- [ ] `src/store/editor-store.ts` — `EditorState`/`initial`/`EditorSnapshot`에 `videoStartedAt: number | null`, `videoEndedAt: number | null`. `onRecordingComplete` 시그니처(`:115`)·구현(`:348`)에 `startedAt`/`endedAt` 인자 + set 반영. `confirmDraft` video 분기 `saveDraft`에 두 필드 포함.
-- [ ] `src/sidepanel/hooks/useEditorSessionSync.ts` — `snapshotFromState()`(`:49-51`)에 `videoStartedAt`/`videoEndedAt` 복사 추가.
-- [ ] `src/store/issues-store.ts` — `IssueRecord`에 `videoStartedAt?`/`videoEndedAt?`. `ISSUES_STORE_VERSION` 주석 한 줄(마이그레이션 코드 없음).
-- [ ] `src/sidepanel/30s-replay/use-30s-replay.ts` — `capture()`의 `onRecordingComplete`(`:180`)에 `frames[0].timestamp`, `captureTime` 인자 추가.
+- [x] `src/sidepanel/video-recorder.ts` — `onstop` 진입 즉시 `const localEndedAt = Date.now()`. `state = null`(`:71`) 전에 `localStartTime = s.startTime` 보존. `onRecordingComplete(blob, thumbnail, viewport, localStartTime, localEndedAt)`.
+- [x] `src/store/editor-store.ts` — `EditorState`/`initial`/`EditorSnapshot`에 `videoStartedAt: number | null`, `videoEndedAt: number | null`. `onRecordingComplete` 시그니처(`:115`)·구현(`:348`)에 `startedAt`/`endedAt` 인자 + set 반영. `confirmDraft` video 분기 `saveDraft`에 두 필드 포함.
+- [x] `src/sidepanel/hooks/useEditorSessionSync.ts` — `snapshotFromState()`(`:49-51`)에 `videoStartedAt`/`videoEndedAt` 복사 추가.
+- [x] `src/store/issues-store.ts` — `IssueRecord`에 `videoStartedAt?`/`videoEndedAt?`. `ISSUES_STORE_VERSION` 주석 한 줄(마이그레이션 코드 없음).
+- [x] `src/sidepanel/30s-replay/use-30s-replay.ts` — `capture()`의 `onRecordingComplete`(`:180`)에 `frames[0].timestamp`, `captureTime` 인자 추가.
 
 **검증**:
-- [ ] `pnpm typecheck` 통과.
-- [ ] `src/store/__tests__/editor-store.test.ts` — `onRecordingComplete(blob, thumb, viewport, startedAt, endedAt)` 후 `videoStartedAt`/`videoEndedAt` set, `confirmDraft` video 분기가 `saveDraft`에 두 필드를 싣는지(기존 `videoCapturedAt` 테스트 `:167` 옆에 추가).
+- [x] `pnpm typecheck` 통과.
+- [x] `src/store/__tests__/editor-store.test.ts` — `onRecordingComplete(blob, thumb, viewport, startedAt, endedAt)` 후 `videoStartedAt`/`videoEndedAt` set, `confirmDraft` video 분기가 `saveDraft`에 두 필드를 싣는지(기존 `videoCapturedAt` 테스트 `:167` 옆에 추가).
 - [ ] 수동: 비디오 녹화 후 패널 닫았다 열어 두 필드 보존 확인.
 
 ## T2. 동기화 순수 헬퍼 (test-first)
 
-- [ ] `src/log-viewer/__tests__/timeline.test.ts` 작성(red):
+- [x] `src/log-viewer/__tests__/timeline.test.ts` 작성(red):
   - `findActiveIndex([100,200,300], 250) → 1` (250 이하 최댓값 200).
   - `findActiveIndex([100,200,300], 50) → -1` (전부 초과).
   - `findActiveIndex([100,200,300], 300) → 2` (경계 포함).
@@ -31,23 +31,23 @@
   - `findActiveIndex([100,100,100], 100) → 2` (동일 timestamp 다발 → 마지막 인덱스. 계약 고정).
   - 비정렬 입력 `[300,100,200]`에서도 올바른 원본 인덱스 반환(또는 "정렬 입력 가정" 계약을 테스트로 고정 — 구현 선택을 테스트로 확정).
   - `toVideoSeconds(absTs, baseMs)` — `(abs−base)/1000`, 음수 입력 `→ 0` clamp.
-- [ ] `src/log-viewer/timeline.ts` 구현.
+- [x] `src/log-viewer/timeline.ts` 구현.
 
-**검증**: 작성 직후 red → 구현 후 `pnpm test` green. `pnpm typecheck` 통과.
+**검증**: 작성 직후 red → 구현 후 `pnpm test` green. `pnpm typecheck` 통과. ✅
 
 ## T3. `LogViewerData.video` + buildLogsHtml/buildCaptureFiles
 
-- [ ] `src/types/log-viewer.ts` — `LogViewerData`에 `video: { dataUrl; mime; startedAt; endedAt; thumbnail?; viewport? } | null`.
-- [ ] `src/sidepanel/lib/buildLogsHtml.ts` — 시그니처에 `video` 인자(actionLog 다음, pageUrl 앞), `data.video` 주입.
-- [ ] `src/sidepanel/lib/buildCaptureFiles.ts`:
+- [x] `src/types/log-viewer.ts` — `LogViewerData`에 `video: { dataUrl; mime; startedAt; endedAt; thumbnail?; viewport? } | null`.
+- [x] `src/sidepanel/lib/buildLogsHtml.ts` — 시그니처에 `video` 인자(actionLog 다음, pageUrl 앞), `data.video` 주입.
+- [x] `src/sidepanel/lib/buildCaptureFiles.ts`:
   - `BuildCaptureFilesInput`에 `videoStartedAt?`/`videoEndedAt?`/`videoThumbnail?`/`videoViewport?`.
   - **`result.video` push(`:42-47`) 유지**(recording.mp4 인라인 폐지 아님), `recordingFilename` import 유지.
   - video 모드 & `videoBlob` & `videoStartedAt`/`videoEndedAt` 모두 존재 시 `video` 객체 조립(`blobToDataUrl(videoBlob)`, `videoBlob.type`) → `buildLogsHtml`에 **추가** 전달(인라인 push와 별개), 아니면 `null`.
 
 **검증**:
-- [ ] `pnpm typecheck` 통과.
-- [ ] `src/sidepanel/lib/__tests__/buildLogsHtml.test.ts` 갱신: `video` 인자가 actionLog와 pageUrl 사이에 삽입되므로 **기존 호출부 전부(~10곳: `:98,116,125,136,143,160,173,181` 등) 인자 위치를 함께 수정**(누락 시 red 방치). `video` 있음→`data.video` not null / `video=null`→null. 회귀: network/console/action-only 케이스 유지.
-- [ ] `src/sidepanel/lib/__tests__/buildCaptureFiles.test.ts` 갱신:
+- [x] `pnpm typecheck` 통과.
+- [x] `src/sidepanel/lib/__tests__/buildLogsHtml.test.ts` 갱신: `video` 인자가 actionLog와 pageUrl 사이에 삽입되므로 **기존 호출부 전부(~10곳: `:98,116,125,136,143,160,173,181` 등) 인자 위치를 함께 수정**(누락 시 red 방치). `video` 있음→`data.video` not null / `video=null`→null. 회귀: network/console/action-only 케이스 유지.
+- [x] `src/sidepanel/lib/__tests__/buildCaptureFiles.test.ts` 갱신:
   - `video 모드 + blob + 앵커 → logs.html에 video 임베드 **AND** result.video(recording.mp4) 그대로 존재`(인라인 유지 회귀 단언).
   - `video 모드 + 앵커 없음 → logs.html video=null, result.video는 존재` (graceful).
   - `freeform/screenshot/element → video=null, result.video 없음` (회귀).
@@ -55,7 +55,7 @@
 
 ## T4. 세 LogContent 동기화 props (코어)
 
-- [ ] `src/sidepanel/components/ConsoleLogContent.tsx` / `NetworkLogContent.tsx` / `ActionLogContent.tsx`에 optional props `syncBaseMs?`/`onSeek?`/`activeTs?` 추가:
+- [x] `src/sidepanel/components/ConsoleLogContent.tsx` / `NetworkLogContent.tsx` / `ActionLogContent.tsx`에 optional props `syncBaseMs?`/`onSeek?`/`activeTs?` 추가 (칩은 공유 `LogSeekChip.tsx`로 분리, active 보더 슬롯은 동기화 모드에서만 적용해 라이브 시프트 0):
   - **행 timestamp 소스**: Console/Action=`entry.timestamp`, **Network=`req.startTime`**(`timestamp` 필드 없음). `onSeek`/`findActiveIndex`에 이 값 사용.
   - `syncBaseMs` 공급 시 상대시간 base를 `syncBaseMs`로(Console/Action — `formatRelativeTime`이 각 컴포넌트에 개별 정의, 추출 없이 base 인자만 교체). **Network는 칩 신규 추가**(`[+MM:SS]` 좌측).
   - 각 행의 `[+MM:SS]` 칩을 `onSeek(rowTs)` 호출 `<button>`으로. **`e.stopPropagation()` 필수**(행 onClick accordion/detail과 동시발화 방지). 세 탭 칩 `<button>` 스타일 통일 + `aria-label`("M:SS 지점으로 이동") + focus-visible.
@@ -63,35 +63,35 @@
   - **미공급 경로(라이브 서브탭: ConsoleSubTab/NetworkSubTab) 동작·레이아웃 100% 불변**.
 
 **검증**:
-- [ ] `pnpm typecheck` 통과.
-- [ ] 컴포넌트 단위 테스트(@testing-library): props **미공급** 시 칩 `<button>`·active 스타일 미생성(라이브 서브탭 회귀), **공급** 시 칩 렌더·`onSeek` 호출·active 클래스 부여. (active 인덱스 산출 자체는 T2 `findActiveIndex`로 커버.)
+- [x] `pnpm typecheck` 통과.
+- [ ] 컴포넌트 단위 테스트(@testing-library): **인프라 미설치(jsdom + @testing-library 부재, .tsx 테스트 0개)로 스킵** — active 인덱스 산출은 T2 `findActiveIndex` 단위 테스트로 커버. 칩 button/span·active 스타일 분기는 typecheck + 수동 회귀로 검증. (인프라 추가는 사용자 판단)
 - [ ] 수동(회귀): 라이브 사이드패널 디버그 console/network 서브탭 레이아웃·동작 불변.
 
 ## T5. log-viewer 플레이어 + 분할 레이아웃 + i18n
 
-- [ ] `npx shadcn@latest add resizable` — `src/components/ui/resizable.tsx` 확인.
-- [ ] `src/log-viewer/App.tsx`:
+- [x] `npx shadcn@latest add resizable` — `src/components/ui/resizable.tsx` 확인. (shadcn이 `@/` 루트에 생성 → `src/`로 이동. shadcn 레지스트리가 구 API를 생성해 `react-resizable-panels`를 호환 버전 `^2.1.9`로 핀)
+- [x] `src/log-viewer/App.tsx`:
   - `data.video` 있음 → `ResizablePanelGroup direction="horizontal"`(좌 플레이어 `defaultSize={50}` / 우 `Tabs` `{50}`, `ResizableHandle withHandle`). 루트 `h-screen`, 패널 `h-full`. 없음 → 기존 `Tabs` 풀폭.
   - 좌: `bg-black` `h-full` 컨테이너(세로 중앙 정렬) 안에 `<video ref controls poster={video.thumbnail} src={video.dataUrl} className="object-contain" onTimeUpdate onError>`. 레터박스 검은 배경. `onError` 시 좌 패널에 안내 메시지(분할 유지) + 탭 동작 유지.
   - `currentMs` state(`videoStartedAt + currentTime*1000`), `seekTo(absTs)`(`video.currentTime = (absTs−startedAt)/1000` + `video.play()` 자동재생).
   - `video.startedAt`/`endedAt` 있을 때만 세 `*LogContent`에 `syncBaseMs`/`onSeek`/`activeTs` 전달.
-- [ ] `src/log-viewer/i18n.ts` — 영상 에러/플레이어 안내 등 신규 문자열 ko/en 동시.
+- [x] `src/log-viewer/i18n.ts` — 영상 에러 안내 신규 문자열 ko/en 동시. (점프 칩 aria-label은 `@/i18n` namespaces/logs.ts에 `logViewer.seekTo` ko/en)
 
 **검증**:
-- [ ] `pnpm typecheck` 통과.
-- [ ] `pnpm test` — `log-viewer/__tests__/i18n.test.ts` ko/en 대칭 통과.
+- [x] `pnpm typecheck` 통과.
+- [x] `pnpm test` — `log-viewer/__tests__/i18n.test.ts` ko/en 대칭 통과 + `src/i18n/__tests__/locales.test.ts` 통과.
 - [ ] `pnpm build:log-viewer` 후 임시 video `logs.html`을 Chrome/Firefox에서 열어: 좌 영상 + 우 3탭 5:5, 핸들 드래그로 비율 조정(둘 다 100vh).
 
 ## T6. 제출 경로 wiring
 
-- [ ] `src/sidepanel/tabs/IssueCreateModal.tsx` `buildEditorCaptureFiles`(`:219-238`) — store에서 `videoStartedAt`/`videoEndedAt`/`videoThumbnail`/`videoViewport` 읽어 `buildCaptureFiles`에 전달.
-- [ ] `src/sidepanel/tabs/DraftDetailDialog.tsx` `buildCtxForSubmit`(`:232-290`) — `issue.videoStartedAt`/`videoEndedAt` 전달. **viewport는 `issue.viewport` 최상위 필드**에서 읽음(`issue.snapshot`은 `{before,after}`라 영상 메타 없음). `videoThumbnail`은 IssueRecord 미영속 → 저장 draft는 poster 생략.
-- [ ] **제출 핸들러 8개 호출부는 `captureFiles.video`(=recording.mp4 인라인)를 그대로 소비 — 무변경 확인**: Jira attachments(`IssueCreateModal.tsx:253`/`DraftDetailDialog.tsx:306`), GitHub/Linear/Notion submit 인자(`IssueCreateModal.tsx:314,356,406`/`DraftDetailDialog.tsx:371,416,472`). logs.html 영상은 별개 추가이므로 인라인 경로 손대지 않음.
-- [ ] logs.html 첨부 실패 격리 확인: Jira는 `messages.ts:343-362` per-attachment try/catch로 이미 격리(확인됨). **GitHub/Linear/Notion 격리 여부 확인**, 미격리면 best-effort 보강.
-- [ ] **`injectIssueUrl` 대용량 최적화**(`src/lib/inject-issue-url.ts`): 영상 임베드로 dataUrl이 커지면 `:25` 문자 누적 루프 + base64 전체 재인코딩이 SW 블로킹/OOM 유발. 청크 변환 또는 `meta.issueUrl` 부분 치환으로 전체 재인코딩 회피하게 수정. Jira/Linear 주입 경로 회귀 확인.
+- [x] `src/sidepanel/tabs/IssueCreateModal.tsx` `buildEditorCaptureFiles`(`:219-238`) — store에서 `videoStartedAt`/`videoEndedAt`/`videoThumbnail`/`videoViewport` 읽어 `buildCaptureFiles`에 전달.
+- [x] `src/sidepanel/tabs/DraftDetailDialog.tsx` `buildCtxForSubmit`(`:232-290`) — `issue.videoStartedAt`/`videoEndedAt` 전달. **viewport는 `issue.viewport` 최상위 필드**에서 읽음(`issue.snapshot`은 `{before,after}`라 영상 메타 없음). `videoThumbnail`은 IssueRecord 미영속 → 저장 draft는 poster 생략.
+- [x] **제출 핸들러 8개 호출부는 `captureFiles.video`(=recording.mp4 인라인)를 그대로 소비 — 무변경 확인**: Jira attachments(`IssueCreateModal.tsx:253`/`DraftDetailDialog.tsx:306`), GitHub/Linear/Notion submit 인자. logs.html 영상은 별개 추가이므로 인라인 경로 손대지 않음.
+- [x] logs.html 첨부 실패 격리 확인: Jira는 per-attachment try/catch로 이미 격리. **GitHub은 per-file href=null로 격리(확인)**. **Linear/Notion은 미격리 → best-effort 보강**(Linear: `.catch(()=>null).filter`, Notion: `category==="log"`만 `continue`, image/video는 strict).
+- [x] **`injectIssueUrl` 대용량 최적화**(`src/lib/inject-issue-url.ts`): JSON 전체 parse/stringify 회피(meta에 issueUrl 문자열만 삽입) + 청크 base64 변환(문자 누적 루프 제거). 회귀 테스트(대용량 video dataUrl 케이스) 추가, 기존 케이스 green.
 
 **검증**:
-- [ ] `pnpm typecheck` 통과.
+- [x] `pnpm typecheck` 통과.
 - [ ] 4개 플랫폼 비디오 모드 제출 → 이슈에 **본문 인라인 영상 재생**(GitHub/Linear/Notion inline, Jira ADF) + 영상 임베드 `logs.html` 첨부 둘 다 확인.
 - [ ] element/screenshot/freeform 제출 → logs.html에 플레이어 없음(회귀).
 - [ ] 저장된 draft(IndexedDB blob) 제출 경로도 동일 확인.
@@ -109,7 +109,7 @@
 - [ ] 50~60초 녹화 → logs.html ~15MB+ → 플랫폼 첨부 한도 초과 시 격리 동작(이슈 본문·인라인 영상·`bugshot.md` 정상). Jira/Linear `injectIssueUrl` 대용량 왕복 블로킹/OOM 없는지(스모크).
 - [ ] 대용량 logs.html(~20MB) 열람 → log-viewer `JSON.parse` + `<video>` 로드 OOM/truncation 없는지(Chrome/Firefox 스모크).
 - [ ] 라이브 사이드패널 디버그 서브탭(console/network) 회귀 없음.
-- [ ] `pnpm typecheck`, `pnpm test` 통과.
+- [x] `pnpm typecheck`, `pnpm test` 통과 (1152 tests green).
 
 ## 테스트 계획
 

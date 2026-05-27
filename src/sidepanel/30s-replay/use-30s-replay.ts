@@ -177,7 +177,7 @@ export function use30sReplay(
 
       // idle 직접 진입이라 startRecording이 하던 target 설정을 여기서 대신 — confirmDraft 가드 통과용.
       useEditorStore.setState({ target });
-      useEditorStore.getState().onRecordingComplete(blob, thumbnail, viewport);
+      useEditorStore.getState().onRecordingComplete(blob, thumbnail, viewport, lower, captureTime);
     } catch {
       toast.error(tRef.current("issue.replay.encodeFailed"));
     } finally {

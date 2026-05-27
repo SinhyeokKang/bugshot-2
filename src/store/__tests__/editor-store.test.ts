@@ -156,7 +156,7 @@ describe("onRecordingComplete — idle 직접 호출 (30s Replay)", () => {
     const blob = new Blob(["x"], { type: "video/mp4" });
     const viewport = { width: 1280, height: 720 };
 
-    useEditorStore.getState().onRecordingComplete(blob, "thumb", viewport);
+    useEditorStore.getState().onRecordingComplete(blob, "thumb", viewport, 1000, 5000);
 
     const s = useEditorStore.getState();
     expect(s.captureMode).toBe("video");
@@ -165,6 +165,8 @@ describe("onRecordingComplete — idle 직접 호출 (30s Replay)", () => {
     expect(s.videoThumbnail).toBe("thumb");
     expect(s.videoViewport).toEqual(viewport);
     expect(s.videoCapturedAt).toBeGreaterThan(0);
+    expect(s.videoStartedAt).toBe(1000);
+    expect(s.videoEndedAt).toBe(5000);
   });
 });
 
@@ -182,7 +184,7 @@ describe("confirmDraft video — 30s Replay target 가드", () => {
       .onRecordingComplete(new Blob(["v"], { type: "video/mp4" }), "thumb", {
         width: 1280,
         height: 720,
-      });
+      }, 1000, 5000);
     useEditorStore.setState({ draft: { title: "Replay bug", sections: {} } });
 
     useEditorStore.getState().confirmDraft();
@@ -191,6 +193,8 @@ describe("confirmDraft video — 30s Replay target 가드", () => {
     const record = mockSaveDraft.mock.calls[0][0];
     expect(record.captureMode).toBe("video");
     expect(record.pageUrl).toBe(target.url);
+    expect(record.videoStartedAt).toBe(1000);
+    expect(record.videoEndedAt).toBe(5000);
   });
 
   it("target 미설정이면 저장 없이 previewing으로 빠진다 (회귀 가드)", () => {
@@ -199,7 +203,7 @@ describe("confirmDraft video — 30s Replay target 가드", () => {
       .onRecordingComplete(new Blob(["v"], { type: "video/mp4" }), "thumb", {
         width: 1280,
         height: 720,
-      });
+      }, 1000, 5000);
     useEditorStore.setState({ draft: { title: "Replay bug", sections: {} } });
 
     useEditorStore.getState().confirmDraft();

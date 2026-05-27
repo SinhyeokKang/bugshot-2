@@ -6,6 +6,9 @@ import type { TranslationFn } from "@/i18n";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { findActiveIndex } from "@/log-viewer/timeline";
+import { formatRelativeTime, syncRowClass } from "@/sidepanel/lib/logRow";
+import { LogSeekChip } from "./LogSeekChip";
 
 type ActionFilter = "all" | ActionEntryKind;
 
@@ -15,6 +18,10 @@ interface ActionLogContentProps {
   entries: ActionEntry[];
   startedAt?: number;
   flush?: boolean;
+  // 영상 동기화(log-viewer 전용, optional). 미공급 시 라이브 서브탭과 동일 동작.
+  syncBaseMs?: number;
+  onSeek?: (absTs: number) => void;
+  activeTs?: number;
 }
 
 // navigation만 콘솔 info-틴트 슬롯 재사용, click/input은 중립.
@@ -33,13 +40,6 @@ function KindIcon({ kind }: { kind: ActionEntryKind }) {
     case "input": return <Keyboard className={base} />;
     case "navigation": return <MapPin className={`${base} text-blue-600 dark:text-blue-400`} />;
   }
-}
-
-function formatRelativeTime(ts: number, baseTs: number): string {
-  const diff = Math.max(0, Math.round((ts - baseTs) / 1000));
-  const m = Math.floor(diff / 60);
-  const s = diff % 60;
-  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
 const MASKED_DISPLAY = "[********]";
@@ -89,7 +89,7 @@ function searchText(e: ActionEntry): string {
   return [e.target, e.fieldLabel, e.value, e.toUrl].filter(Boolean).join(" ").toLowerCase();
 }
 
-export function ActionLogContent({ entries, startedAt, flush }: ActionLogContentProps) {
+export function ActionLogContent({ entries, startedAt, flush, syncBaseMs, onSeek, activeTs }: ActionLogContentProps) {
   const t = useT();
   const [filter, setFilter] = useState<ActionFilter>("all");
   const [query, setQuery] = useState("");
@@ -114,6 +114,12 @@ export function ActionLogContent({ entries, startedAt, flush }: ActionLogContent
     }
     return result;
   }, [entries, filter, query]);
+
+  const activeId = useMemo(() => {
+    if (activeTs == null) return null;
+    const idx = findActiveIndex(filteredEntries.map((e) => e.timestamp), activeTs);
+    return idx >= 0 ? filteredEntries[idx].id : null;
+  }, [filteredEntries, activeTs]);
 
   // tail 자동스크롤 — 바닥 근처(<24px)에 있을 때만 새 항목에 맞춰 내린다.
   const listScrollRef = useRef<HTMLDivElement>(null);
@@ -179,7 +185,14 @@ export function ActionLogContent({ entries, startedAt, flush }: ActionLogContent
         <ScrollArea ref={listScrollRef} className="min-h-0 flex-1">
           <div className="overflow-hidden">
             {filteredEntries.map((entry) => (
-              <ActionRow key={entry.id} entry={entry} startedAt={startedAt} />
+              <ActionRow
+                key={entry.id}
+                entry={entry}
+                startedAt={startedAt}
+                syncBaseMs={syncBaseMs}
+                onSeek={onSeek}
+                isActive={entry.id === activeId}
+              />
             ))}
           </div>
         </ScrollArea>
@@ -188,13 +201,30 @@ export function ActionLogContent({ entries, startedAt, flush }: ActionLogContent
   );
 }
 
-function ActionRow({ entry, startedAt }: { entry: ActionEntry; startedAt?: number }) {
+function ActionRow({ entry, startedAt, syncBaseMs, onSeek, isActive }: {
+  entry: ActionEntry;
+  startedAt?: number;
+  syncBaseMs?: number;
+  onSeek?: (absTs: number) => void;
+  isActive?: boolean;
+}) {
   const t = useT();
+  const base = syncBaseMs ?? startedAt;
+  // 동기화 재생 중 active 행이 뷰포트 밖이면 따라가도록 추종. isActive는 동기화 모드에서만 true라
+  // 라이브 서브탭은 영향 없음. block:"nearest" → 이미 보이면 스크롤하지 않음.
+  const rowRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (isActive) rowRef.current?.scrollIntoView({ block: "nearest" });
+  }, [isActive]);
   return (
-    <div className={kindBgColor(entry.kind)}>
+    <div
+      ref={rowRef}
+      className={syncRowClass(!!onSeek, !!isActive, kindBgColor(entry.kind))}
+      aria-current={isActive ? "true" : undefined}
+    >
       <div className="flex items-center gap-3 px-3 py-2 text-[13px]">
-        {startedAt != null && (
-          <span className="w-10 shrink-0 font-mono text-xs">{formatRelativeTime(entry.timestamp, startedAt)}</span>
+        {base != null && (
+          <LogSeekChip ts={entry.timestamp} label={formatRelativeTime(entry.timestamp, base)} onSeek={onSeek} />
         )}
         <KindIcon kind={entry.kind} />
         <span className={`min-w-0 flex-1 truncate ${kindColor(entry.kind)}`}>

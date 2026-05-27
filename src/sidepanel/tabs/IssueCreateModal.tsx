@@ -101,8 +101,11 @@ export function IssueCreateModal() {
   const screenshotViewport = useEditorStore((s) => s.screenshotViewport);
   const screenshotCapturedAt = useEditorStore((s) => s.screenshotCapturedAt);
   const videoBlob = useEditorStore((s) => s.videoBlob);
+  const videoThumbnail = useEditorStore((s) => s.videoThumbnail);
   const videoViewport = useEditorStore((s) => s.videoViewport);
   const videoCapturedAt = useEditorStore((s) => s.videoCapturedAt);
+  const videoStartedAt = useEditorStore((s) => s.videoStartedAt);
+  const videoEndedAt = useEditorStore((s) => s.videoEndedAt);
   const draft = useEditorStore((s) => s.draft);
   const issueFields = useEditorStore((s) => s.issueFields);
   const setIssueFields = useEditorStore((s) => s.setIssueFields);
@@ -233,6 +236,9 @@ export function IssueCreateModal() {
       networkLog: hasNet ? networkLog : null,
       consoleLog: hasCon ? consoleLog : null,
       actionLog: hasAct ? actionLog : null,
+      videoStartedAt: videoStartedAt ?? undefined,
+      videoEndedAt: videoEndedAt ?? undefined,
+      videoThumbnail,
       pageUrl: target?.url ?? "",
     });
   }

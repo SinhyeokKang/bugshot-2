@@ -64,6 +64,7 @@ export const koDict: Record<string, string> = {
   "debug.console.empty": "콘솔 로그가 없습니다",
 
   "logViewer.footer.issueLink": "이슈 바로가기",
+  "logViewer.video.error": "영상을 재생할 수 없습니다",
 
   "json.showAll": "전체 보기",
   "json.moreItems": "… {n}개 더",
@@ -130,6 +131,7 @@ export const enDict: Record<string, string> = {
   "debug.console.empty": "No console logs",
 
   "logViewer.footer.issueLink": "Go to Issue",
+  "logViewer.video.error": "Unable to play video",
 
   "json.showAll": "show all",
   "json.moreItems": "… {n} more items",

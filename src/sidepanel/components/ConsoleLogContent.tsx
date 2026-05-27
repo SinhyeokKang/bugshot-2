@@ -5,6 +5,9 @@ import type { ConsoleEntry, ConsoleLevel } from "@/types/console";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { findActiveIndex } from "@/log-viewer/timeline";
+import { formatRelativeTime, syncRowClass } from "@/sidepanel/lib/logRow";
+import { LogSeekChip } from "./LogSeekChip";
 
 type ConsoleFilter = "all" | "error" | "warn" | "info" | "debug" | "log";
 
@@ -14,6 +17,10 @@ interface ConsoleLogContentProps {
   entries: ConsoleEntry[];
   startedAt?: number;
   flush?: boolean;
+  // 영상 동기화(log-viewer 전용, optional). 미공급 시 라이브 서브탭과 동일 동작.
+  syncBaseMs?: number;
+  onSeek?: (absTs: number) => void;
+  activeTs?: number;
 }
 
 function levelColor(level: ConsoleLevel): string {
@@ -55,14 +62,7 @@ function LevelIcon({ level }: { level: ConsoleLevel }) {
   }
 }
 
-function formatRelativeTime(ts: number, baseTs: number): string {
-  const diff = Math.max(0, Math.round((ts - baseTs) / 1000));
-  const m = Math.floor(diff / 60);
-  const s = diff % 60;
-  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
-}
-
-export function ConsoleLogContent({ entries, startedAt, flush }: ConsoleLogContentProps) {
+export function ConsoleLogContent({ entries, startedAt, flush, syncBaseMs, onSeek, activeTs }: ConsoleLogContentProps) {
   const t = useT();
   const [filter, setFilter] = useState<ConsoleFilter>("all");
   const [query, setQuery] = useState("");
@@ -86,6 +86,12 @@ export function ConsoleLogContent({ entries, startedAt, flush }: ConsoleLogConte
     }
     return result;
   }, [entries, filter, query]);
+
+  const activeId = useMemo(() => {
+    if (activeTs == null) return null;
+    const idx = findActiveIndex(filteredEntries.map((e) => e.timestamp), activeTs);
+    return idx >= 0 ? filteredEntries[idx].id : null;
+  }, [filteredEntries, activeTs]);
 
   // 신규 로그 tail: 사용자가 바닥 근처(<24px)에 있을 때만 새 항목에 맞춰 자동 스크롤. 위로 올려
   // 살펴보는 중이면 끌어내리지 않는다.
@@ -152,7 +158,14 @@ export function ConsoleLogContent({ entries, startedAt, flush }: ConsoleLogConte
         <ScrollArea ref={listScrollRef} className="min-h-0 flex-1">
           <div className="overflow-hidden">
             {filteredEntries.map((entry) => (
-              <EntryAccordion key={entry.id} entry={entry} startedAt={startedAt} />
+              <EntryAccordion
+                key={entry.id}
+                entry={entry}
+                startedAt={startedAt}
+                syncBaseMs={syncBaseMs}
+                onSeek={onSeek}
+                isActive={entry.id === activeId}
+              />
             ))}
           </div>
         </ScrollArea>
@@ -161,18 +174,34 @@ export function ConsoleLogContent({ entries, startedAt, flush }: ConsoleLogConte
   );
 }
 
-function EntryAccordion({ entry, startedAt }: { entry: ConsoleEntry; startedAt?: number }) {
+function EntryAccordion({ entry, startedAt, syncBaseMs, onSeek, isActive }: {
+  entry: ConsoleEntry;
+  startedAt?: number;
+  syncBaseMs?: number;
+  onSeek?: (absTs: number) => void;
+  isActive?: boolean;
+}) {
   const [expanded, setExpanded] = useState(false);
   const t = useT();
+  const base = syncBaseMs ?? startedAt;
 
+  // 동기화 재생 중 active 행이 뷰포트 밖이면 따라가도록 추종. isActive는 동기화 모드에서만 true.
+  const rowRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (isActive) rowRef.current?.scrollIntoView({ block: "nearest" });
+  }, [isActive]);
   return (
-    <div className={levelBgColor(entry.level)}>
+    <div
+      ref={rowRef}
+      className={syncRowClass(!!onSeek, !!isActive, levelBgColor(entry.level))}
+      aria-current={isActive ? "true" : undefined}
+    >
       <div
         className="flex cursor-pointer items-center gap-3 px-3 py-2 text-[13px] hover:bg-accent/50"
         onClick={() => setExpanded(!expanded)}
       >
-        {startedAt != null && (
-          <span className="w-10 shrink-0 font-mono text-xs">{formatRelativeTime(entry.timestamp, startedAt)}</span>
+        {base != null && (
+          <LogSeekChip ts={entry.timestamp} label={formatRelativeTime(entry.timestamp, base)} onSeek={onSeek} />
         )}
         <LevelIcon level={entry.level} />
         <span className={`min-w-0 flex-1 break-all ${levelColor(entry.level)}`}>
@@ -185,7 +214,7 @@ function EntryAccordion({ entry, startedAt }: { entry: ConsoleEntry; startedAt?:
       </div>
 
       {expanded && (
-        <div className={`space-y-2 pb-3 pr-3 pt-1 text-xs ${startedAt != null ? "pl-[64px]" : "pl-10"}`}>
+        <div className={`space-y-2 pb-3 pr-3 pt-1 text-xs ${base != null ? "pl-[64px]" : "pl-10"}`}>
           <pre className={`max-h-[300px] overflow-auto rounded p-2 font-mono text-xs whitespace-pre-wrap break-all ${levelCodeBg(entry.level)}`}>
             {entry.args}
           </pre>

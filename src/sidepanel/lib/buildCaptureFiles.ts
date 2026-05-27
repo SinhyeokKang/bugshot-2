@@ -1,6 +1,7 @@
 import type { ConsoleLog } from "@/types/console";
 import type { NetworkLog } from "@/types/network";
 import type { ActionLog } from "@/types/action";
+import type { LogViewerData } from "@/types/log-viewer";
 import { blobToDataUrl } from "@/store/blob-db";
 import { buildLogsHtml } from "./buildLogsHtml";
 import { buildHar } from "./buildHar";
@@ -31,6 +32,9 @@ export interface BuildCaptureFilesInput {
   networkLog?: NetworkLog | null;
   consoleLog?: ConsoleLog | null;
   actionLog?: ActionLog | null;
+  videoStartedAt?: number;
+  videoEndedAt?: number;
+  videoThumbnail?: string | null;
   pageUrl?: string;
 }
 
@@ -39,10 +43,13 @@ export async function buildCaptureFiles(
 ): Promise<CaptureFiles> {
   const result: CaptureFiles = { images: [], logs: [], jsonLogs: [] };
 
+  // 영상 dataUrl은 인라인 recording.mp4(본문 첨부)와 logs.html 임베드 양쪽에서 쓰므로 한 번만 변환해 재사용.
+  let videoDataUrl: string | null = null;
   if (input.captureMode === "video" && input.videoBlob) {
+    videoDataUrl = await blobToDataUrl(input.videoBlob);
     result.video = {
       filename: recordingFilename(input.videoBlob.type),
-      dataUrl: await blobToDataUrl(input.videoBlob),
+      dataUrl: videoDataUrl,
     };
   }
 
@@ -50,7 +57,20 @@ export async function buildCaptureFiles(
     // actionLog는 video(수동 녹화 + 30s-replay)에서만 log-viewer에 주입. freeform/screenshot은 null.
     const actionLog = input.captureMode === "video" ? input.actionLog ?? null : null;
     if (input.networkLog || input.consoleLog || actionLog) {
-      const html = buildLogsHtml(input.networkLog ?? null, input.consoleLog ?? null, actionLog, input.pageUrl ?? "");
+      // video 모드 & blob & 앵커 모두 존재 시에만 logs.html에 영상을 추가 임베드(동기화용). 아니면 null(graceful).
+      const videoEmbed: LogViewerData["video"] =
+        input.captureMode === "video" &&
+        input.videoBlob &&
+        videoDataUrl &&
+        input.videoStartedAt != null &&
+        input.videoEndedAt != null
+          ? {
+              dataUrl: videoDataUrl,
+              startedAt: input.videoStartedAt,
+              ...(input.videoThumbnail ? { thumbnail: input.videoThumbnail } : {}),
+            }
+          : null;
+      const html = buildLogsHtml(input.networkLog ?? null, input.consoleLog ?? null, actionLog, videoEmbed, input.pageUrl ?? "");
       const htmlBlob = new Blob([html], { type: "text/html" });
       result.logs.push({
         filename: "logs.html",
