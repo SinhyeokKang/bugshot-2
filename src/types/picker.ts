@@ -65,6 +65,7 @@ export interface DescribeChildrenResponse {
 }
 
 export type PickerMessage =
+  | { type: "ping" }
   | { type: "picker.start" }
   | { type: "picker.stop" }
   | { type: "picker.clear" }
@@ -80,6 +81,7 @@ export type PickerMessage =
   | { type: "picker.previewClear" }
   | { type: "picker.selectByPath"; selector: string }
   | { type: "picker.prepareCapture" }
+  | { type: "picker.pageUrl" }
   | { type: "picker.endCapture" }
   | { type: "picker.startAreaSelect"; restoreAfter?: boolean }
   | { type: "picker.cancelAreaSelect" }
@@ -97,4 +99,9 @@ export type PickerMessage =
   | { type: "consoleRecorder.stop" }
   | { type: "consoleRecorder.sync" }
   | { type: "consoleRecorder.clear" }
-  | { type: "consoleRecorder.data"; payload: { entries: import("@/types/console").ConsoleEntry[]; totalSeen: number } };
+  | { type: "consoleRecorder.data"; payload: { entries: import("@/types/console").ConsoleEntry[]; totalSeen: number } }
+  | { type: "actionRecorder.setSentinel"; sentinel: string }
+  | { type: "actionRecorder.stop" }
+  | { type: "actionRecorder.sync" }
+  | { type: "actionRecorder.clear" }
+  | { type: "actionRecorder.data"; payload: { entries: import("@/types/action").ActionEntry[]; totalSeen: number } };

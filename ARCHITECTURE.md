@@ -173,11 +173,15 @@ CSSOM이 보여주는 것: `border-top-left-radius: ""` / `border-top-right-radi
 
 여전히 못 잡는 케이스: cross-origin stylesheet 중 CORS 헤더 없는 것 (대부분의 CDN). 이 경우 기존 한계 그대로 — computed literal 폴백.
 
-## 백그라운드 로그 캡처 (Network / Console)
+## 백그라운드 로그 캡처 (Network / Console / Action)
 
-content_scripts에 MAIN world entry(`run_at: "document_start"`)로 `src/content/recorders-entry.ts`를 등록해 모든 페이지의 fetch/XHR/sendBeacon/console.*을 자동 wrap. 페이지 자체 스크립트보다 먼저 실행되므로 Sentry 등 SDK가 `originalFetch`를 캐싱하기 전에 wrap이 끼어든다.
+content_scripts에 MAIN world entry(`run_at: "document_start"`)로 `src/content/recorders-entry.ts`를 등록해 모든 페이지의 fetch/XHR/sendBeacon/console.*과 사용자 액션(click/input/navigation)을 자동 wrap. 페이지 자체 스크립트보다 먼저 실행되므로 Sentry 등 SDK가 `originalFetch`를 캐싱하기 전에 wrap이 끼어든다.
 
-**document_start부터 무조건 buffer (옵션 A)** — wrap 설치 즉시 buffer에 적재한다. sentinel은 dispatch 채널 식별용일 뿐이며, sentinel 도착 전에 발생한 첫 fetch도 누락되지 않는다. 메모리는 두 단계로 보호: (1) 50MB body cap + LRU trim(`enforceMemoryCap`)이 본문을 omitted로 회수, (2) 5000 entry FIFO cap(`enforceEntryCap`)이 본문 없는 요청(HEAD/204/binary beacon) 폭증으로부터 buffer 길이 자체를 막는다. cap 도달 시 oldest를 버리는 FIFO — 버그 재현 시나리오에서 가치 있는 신호는 후반부라는 가정. 사이드패널이 켜져 있지 않아도 buffer가 차오를 수 있는 비용이 있지만, recording 시작 시점에 이미 시나리오 재현이 진행 중인 케이스를 커버하기 위해 채택. console-recorder도 동일하게 2000 entry FIFO + `clearBuffer`가 counters/timers Map까지 리셋.
+**document_start부터 무조건 buffer (옵션 A)** — wrap 설치 즉시 buffer에 적재한다. sentinel은 dispatch 채널 식별용일 뿐이며, sentinel 도착 전에 발생한 첫 fetch도 누락되지 않는다. 메모리는 두 단계로 보호: (1) 50MB body cap + LRU trim(`enforceMemoryCap`)이 본문을 omitted로 회수, (2) 5000 entry FIFO cap(`enforceEntryCap`)이 본문 없는 요청(HEAD/204/binary beacon) 폭증으로부터 buffer 길이 자체를 막는다. cap 도달 시 oldest를 버리는 FIFO — 버그 재현 시나리오에서 가치 있는 신호는 후반부라는 가정. 사이드패널이 켜져 있지 않아도 buffer가 차오를 수 있는 비용이 있지만, recording 시작 시점에 이미 시나리오 재현이 진행 중인 케이스를 커버하기 위해 채택. console-recorder도 동일하게 2000 entry FIFO + `clearBuffer`가 counters/timers Map까지 리셋. action-recorder는 1000 entry FIFO.
+
+**액션 레코더 (재현 단계)** — `src/content/action-recorder.ts`가 document capture-phase에서 click/input/change를 듣고 `history.pushState`/`replaceState`를 래핑(+ `popstate`/`hashchange`)해 네비게이션을 기록한다. 클릭은 가까운 interactive 요소(button/a/[role=button]/submit)로 정규화하고, accessible name(aria-label→textContent→title→alt, `truncateName`으로 trim·cap)과 implicit role(button/link/…)을 **각각 분리해** ActionEntry의 `target`·`role`에 담는다 — 자연어 문장 조립은 캡처가 아니라 뷰어(`ActionLogContent`)의 i18n 레이어가 동사형(Clicked/Entered/Navigated)으로 하므로 로케일에 맞는 역할 단어가 붙는다. 입력은 같은 selector 연속 변경을 마지막 엔트리에 in-place dedup하며, **민감 입력 필드는 값을 마스킹**한다 — `shouldMaskField`가 `type=password`, autocomplete 힌트(`password`/`cc-`), 필드 name·id·aria-label의 민감 키워드(`password|secret|card|cvv|ssn|token|pwd|auth|pin`)로 판별해 `***`로 치환하므로 원문은 페이지 컨텍스트를 벗어나지 않는다. 비마스킹 값은 500자 cap. 오버레이 자기 UI(`HOST_ID`)는 무시한다. network/console과 동일한 sentinel-bound dispatch.
+
+**액션 로그 첨부 토글** — video 모드 drafting에서 `LogAttachmentCards`에 network/console과 나란히 액션 로그 카드를 노출한다. Switch로 첨부 여부를 토글하고(`actionLogAttach`), 카드 클릭 시 `ActionLogPreviewDialog`로 동사형 로그를 미리 본다. 카드 영역은 `@tailwindcss/container-queries`로 리플로우 — 3개일 때 컨테이너 35rem 미만은 1열, 이상은 3열(중간 2+1 없음). screenshot/freeform/element은 액션 첨부 대상이 아니라 카드 미노출. Preview·저장된 이슈 상세(`DraftDetailDialog`)는 동일 카드를 readOnly로 표시.
 
 **요청 phase 추적** — fetch/XHR send 시점에 `phase: "pending"` entry를 push하고, 응답 완료 시 `phase: "complete"`, reject/abort/error/timeout 시 `phase: "error"`로 in-place 갱신. 따라서 sync 시점에 in-flight 요청도 가시화되고, navigation으로 끊긴 요청은 pending으로 남아 디버깅 단서가 된다. summary는 `phase=error`를 status=0이어도 에러로 집계하므로 CORS·네트워크 실패가 이슈 본문에서 누락되지 않는다.
 
@@ -187,9 +191,15 @@ content_scripts에 MAIN world entry(`run_at: "document_start"`)로 `src/content/
 - `{ kind: "stream", contentType }` — body 미존재 또는 reader 실패 (SSE / multipart)
 - `{ kind: "omitted", reason: "memory-cap" }` — LRU trim으로 본문 회수
 
-UI(`NetworkLogPreviewDialog`)와 HAR export 모두 이 context를 살려 "본문 잘림 (5.0 MB · 한도 3.0 MB)" / "Binary response (image/png · 500 B)" 등 정확한 사유를 표시.
+UI(`NetworkLogPreviewDialog`)와 logs.html 첨부(HAR 내장 다운로드) 모두 이 context를 살려 "본문 잘림 (5.0 MB · 한도 3.0 MB)" / "Binary response (image/png · 500 B)" 등 정확한 사유를 표시.
 
-**클리어 트리거** — `useBackgroundRecorder`의 store 구독이 `preserve phase → idle` 전환을 감지하면 pending IndexedDB + MAIN buffer를 정리한 뒤 새 sentinel 발급. `shouldPreserveBackgroundLogs(phase)` = `recording / drafting / previewing / done`. 작성 취소, 정상 제출 후 reset, 녹화 중 취소 모두 이 분기에서 일괄 처리.
+**로그 첨부 형식** — 이슈 첨부 시 네트워크/콘솔/액션 로그는 단일 `logs.html` 파일로 묶인다. `buildLogsHtml()`이 `dist-log-viewer/index.html` 템플릿(`?raw` import)에 `LogViewerData` JSON을 `<script id="__BUGSHOT_DATA__">` 태그에 주입해 self-contained HTML을 생성. logs.html 내 다운로드 버튼으로 HAR·JSON 추출 가능. `buildCaptureFiles`는 네트워크/콘솔/액션 데이터가 있으면 `logs` 배열에 `logs.html`, `jsonLogs` 배열에 `network-log.json`·`console-log.json`·`action-log.json`을 push. **액션 로그는 영상(수동 녹화 + 30s Replay) 모드에서만 첨부**한다 — 녹화 타임라인과 묶일 때 재현 단계의 가치가 강하므로 screenshot/freeform에선 제외. 같은 이유로 AI 초안 프롬프트의 액션 요약(`buildActionLogSummary`)도 video 모드에서만 주입(`buildAiDraftPrompt`). Jira·GitHub·Linear는 `logs`(HTML)를, Notion은 `jsonLogs`(JSON)를 사용한다 — Cloudflare WAF가 HTML 파일 업로드의 `<script>` 태그를 차단하기 때문.
+
+**영상-로그 동기화** — video 모드에서 녹화 영상을 logs.html에 추가 임베드해(`LogViewerData.video` = `{dataUrl, startedAt, thumbnail?}`, recording.mp4 인라인 첨부와 별개) 뷰어가 영상↔로그 타임라인을 동기화한다. 동기화 0점은 **공통 epoch 앵커** `video.startedAt`(녹화 시작 `Date.now()` — 수동 녹화는 MediaRecorder start 시점, 30s Replay는 `frames[0].timestamp`). 영상이 있으면 log-viewer가 `ResizablePanelGroup`으로 좌(영상 플레이어)/우(3탭) 분할되고, 세 `*LogContent`에 `syncBaseMs`/`onSeek`/`activeTs` props를 공급: 각 행은 `LogSeekChip`(`[+MM:SS]` 점프 버튼)으로 `onSeek(rowTs)` → 영상 seek, `onTimeUpdate`로 갱신되는 `currentMs`가 `findActiveIndex`(timeline.ts)로 active 행을 산출해 하이라이트 + `scrollIntoView`. props 미공급(라이브 사이드패널 서브탭)이면 칩·active 슬롯이 안 생겨 기존 레이아웃 100% 불변. 행 timestamp 소스는 Console/Action=`entry.timestamp`, Network=`req.startTime`. video 앵커(`videoStartedAt`/`videoEndedAt`)는 editor-store·IssueRecord에 영속돼 패널 재오픈·저장 draft 재제출에도 보존(단 `videoThumbnail`은 IssueRecord 미영속 → 저장 draft는 poster 생략).
+
+**issueUrl 주입** — logs.html의 "이슈 바로가기" 링크를 동작시키려면 이슈 생성 후 URL을 주입해야 한다. `buildLogsHtml`은 meta의 **마지막 키**로 빈 `issueUrl: ""` 자리를 항상 박아둔다. `src/lib/inject-issue-url.ts`의 `injectIssueUrl(dataUrl, issueUrl)`(async)이 `fetch(dataUrl)`로 디코딩 → JSON 전체 재파싱 없이 마지막 `"issueUrl":""` 자리만 escape된 URL로 치환 → 청크 단위 btoa로 재인코딩(영상 임베드 ~20MB의 SW/UI 동기 블로킹 회피, 주기적 매크로태스크 yield). issueUrl이 JSON에서 항상 최후방이라 pageUrl·응답 본문의 동일 리터럴과 marker 충돌이 없다. Jira는 이슈 생성 후 첨부 업로드 전에 BG(`messages.ts`)에서 `await` 주입, Linear는 이슈 생성 후 로그 업로드를 후순위로 미뤄(`submitToLinear.ts`) `await` 주입. GitHub·Notion은 구조상 주입 불가(GitHub은 파일 업로드가 이슈 생성보다 선행, Notion은 HTML 미사용) — 빈 `issueUrl:""`가 남아 뷰어가 footer 링크를 숨긴다.
+
+**클리어 트리거** — `useBackgroundRecorder`의 store 구독이 `preserve phase → idle` 전환을 감지하면 레코더를 재주입해 새 sentinel을 발급한다(cross-page 누적 로그는 유지). pending IDB는 탭 종료(`tabs.onRemoved`)·이슈 저장(`persistAttachedLogs`)·고아 정리(`pruneOrphan`)에서 회수. `shouldPreserveBackgroundLogs(phase)` = `recording / drafting / previewing / done`. 작성 취소, 정상 제출 후 reset, 녹화 중 취소 모두 이 분기(=세션 경계)에서 일괄 처리. 세션 경계 외 수동 클리어는 Network/Console SubTab의 "로그 지우기" 버튼 → `editor-store.clearNetworkLog`/`clearConsoleLog`가 store 누적기 + `pending:` IDB + MAIN 버퍼를 즉시 비운다.
 
 **고아 pending 정리 (SW 부트)** — `pending:${tabId}` IndexedDB 엔트리는 평소 `chrome.tabs.onRemoved`·URL 변경·이슈 저장 3경로로 정리되지만, 브라우저 강제 종료·확장 reload·SW 휴면 중 탭 종료 등으로 onRemoved가 누락되면 영구 잔류한다. `src/lib/pending-log-prune.ts`의 `pruneOrphanPendingLogsOncePerSession()`이 SW 부트 시 `chrome.storage.session.pendingPrunedAt` 플래그로 세션당 1회만 도는 가드를 두고, 현재 `chrome.tabs.query({})` 결과에 없는 tabId의 `pending:` 엔트리를 회수. `findOrphanPendingKeys`는 순수 함수로 분리해 테스트.
 
@@ -199,11 +209,38 @@ UI(`NetworkLogPreviewDialog`)와 HAR export 모두 이 context를 살려 "본문
 
 **Console wrap 범위** — `console.log/info/debug` + `trace/assert/dir/table/group*/count*/time*` 시리즈만 wrap한다. `console.error/warn`은 의도적으로 풀어둔다 — 페이지가 native `console.error`를 호출하면 우리 wrap 함수가 콜스택에 끼는데, Chrome이 그걸 "이 확장이 console.error를 호출했다"로 attribution → `chrome://extensions` 오류 페이지에 페이지 라이브러리의 모든 deprecation/info 경고가 누적된다(Atlassian/Jira는 매 페이지마다 수십~수백 건). 진짜 가치 있는 신호는 다른 경로로 잡힌다: `window.addEventListener("error")`가 uncaught 에러를, `unhandledrejection`이 reject된 promise를, wrapped `console.assert`가 condition false 시점을 직접 `pushEntry("error")`로 buffer에 push. catch 후 `console.error(err)`로만 로깅한 케이스만 손해.
 
-**SPA path 변경** — `chrome.tabs.onUpdated`가 발화하는 케이스(full reload, 주소창 navigation)에 한해 URL key(`origin + pathname`) 비교 → 변경 시 preserve가 아니면 MAIN buffer + pending IndexedDB clear. `history.pushState` 기반 SPA navigation은 onUpdated가 발화하지 않아 자동 클리어 안 됨 — recording phase는 누적 의도라 이 동작이 부합.
+**Cross-page 누적과 초기화** — 이슈 세션 동안 로그는 페이지 네비게이션을 넘어 누적된다(이전 동작: navigation key 변경마다 clear → 폐기). `useBackgroundRecorder`는 idle 표준대기 중 URL key 변경에 누적기를 리셋하지 않고 레코더 재주입만 허용. 떠나는 페이지의 로그 꼬리는 두 경로로 보존: (주) `chrome.webNavigation.onBeforeNavigate`(메인 프레임)가 커밋 직전 패널 바인딩 탭(`editor:${tabId}` 세션 키 존재 가드)에 `*.sync`를 보내 MAIN 버퍼를 사이드패널로 넘긴다 — 세션 스토리지는 SW 재시작에도 유지돼 가드가 안전; (보조) content script의 `pagehide`가 full navigation으로 MAIN world 파괴 직전 dispatch(sentinel 없으면 no-op). 사이드패널 `usePickerMessages`가 incoming을 `mergeLogItems`(`src/sidepanel/lib/log-merge.ts`)로 id 기준 dedup·`getTime` 오름차순 정렬·maxEntries(network 5000 / console 2000 / action 1000) FIFO 트림해 누적. 머지는 `isLogFrozen(phase)`(drafting / previewing / done)일 때 동결 — 첨부 확정 후 지연 sync가 로그를 흔들지 않도록. freeze 전환(freeform 진입, 30s replay capture) 직전엔 `picker-control.syncAndSettleLogs`가 양 레코더 sync를 보낸 뒤 그 데이터가 누적기에 반영될 때까지(store `endedAt` 증가 감지, 상한 300ms) idle에서 기다린 뒤 전환해 진입 직전 로그를 첨부에 고정. 30s replay는 settle 후 프레임 버퍼 구간(`trimByTime` lower=첫 프레임·upper=capture 시각)으로 추가 트림.
+
+**네비게이션 로그 초기화** — `onBeforeNavigate`로 sync한 뒤, `onCommitted` 시점에 `shouldClearLogs(prevUrl, newUrl, transitionType)`(`src/lib/navigation-clear.ts`)로 초기화 여부를 판정한다. 초기화 트리거: (1) **cross-origin** 네비게이션 — 이전 사이트 로그가 새 사이트 디버깅에 무관, (2) **reload** (`transitionType === "reload"`) — DevTools와 동일하게 새로고침 시 로그를 리셋. same-origin 내부 이동(link, typed, form_submit 등)은 멀티페이지 디버깅용으로 로그를 보존한다. 초기화 시 bg가 `logClear` 메시지를 사이드패널에 보내고, `usePickerMessages`가 `clearNetworkLog`/`clearConsoleLog`를 호출. frozen phase에서는 초기화를 무시한다.
 
 **handleStartVideo 흐름** — 녹화 시작 전에 명시 clear가 필요(이미 누적된 백그라운드 버퍼를 녹화 구간 이전 데이터로 두지 않기 위해). `injectNetworkRecorder` (rebind, no-op일 수도) → `clearNetworkRecorder` → `startRecording` 순서. 녹화 정상 종료(`recording → drafting`)에 `recordersStopped = true`로 세팅해 drafting 동안 페이지 reload에도 재주입 차단(자산 보존). `startRecording` 내부에선 `chrome.tabCapture.getMediaStreamId` 직후 `recorder.start(1000)` 호출. tabCapture 해상도는 1920×1080 상한으로 제한.
 
 **Cross-tab 메시지 격리** — `chrome.runtime.sendMessage`는 모든 extension contexts에 broadcast되므로 다른 탭의 content script가 보낸 `networkRecorder.data`/`consoleRecorder.data`/`picker.*`도 내 사이드패널 핸들러에 도달한다. `usePickerMessages`가 핸들러 진입부에서 `sender.tab?.id !== myTabId`인 메시지를 drop — 그러지 않으면 같은 origin/다른 path의 두 탭에서 동시에 녹화 중일 때 한 사이드패널이 다른 탭의 로그로 자기 store/IDB를 덮어쓰는 버그가 발생한다. `sender.tab` 부재(사이드패널/서비스워커 내부 통신)는 통과.
+
+## 30s Replay (직전 30초 캡처)
+
+`src/sidepanel/30s-replay/`. 수동 녹화(MediaRecorder + tabCapture)와 별개 경로 — "녹화 버튼을 누르기 전 30초"를 사후에 건지기 위한 look-back 캡처.
+
+**권한** — `captureVisibleTab`/`tabCapture`는 `activeTab` 또는 `<all_urls>`급 host permission을 요구한다. activeTab은 아이콘 클릭(`action.onClicked`)·캡처 단축키(`commands.onCommand`)로 그 탭에 부여되며 수동 캡처(element/screenshot/video)는 이걸로 동작하지만, **cross-document 네비게이션에서 회수**되고 프로그램적 재취득은 불가하다(Chromium Issue #40916430). 30s Replay는 **제스처 없이 연속 캡처**해 activeTab으로 못 덮으므로, `optional_host_permissions`에 선언된 `https://*/*` + `http://*/*`를 **런타임 요청**해 획득한다 — 설정 > 이슈 설정의 "30s Replay" Switch ON 시 `chrome.permissions.request()`로 1회 동의(Chrome이 영구 저장). 권한 회수가 감지되면 toast + 토글 자동 off.
+
+**사이드 패널 종료/유지 정책** — `tab-bindings.deactivatePanelIfCrossOrigin`가 `tabs.onUpdated` `status:loading` 시점에 origin을 비교해 패널을 닫을지 유지할지 결정한다. 기준 URL은 에디터 세션의 `target.url`을 우선 사용하고, 세션이 없는 idle 상태에서는 `activateTab()` 시점에 `sidePanel:url:{tabId}`로 저장해 둔 활성화 URL을 fallback으로 쓴다. 둘 다 없으면 비교 불가 → 패널 유지.
+
+네비게이션 종류 × 세션 상태에 따른 4가지 분기:
+
+| 조건 | 동작 |
+|---|---|
+| **same-origin** (보존/비보존 무관) | 패널 유지. 비보존이고 page key가 바뀌었으면 stale 세션만 제거 |
+| **cross-origin + 비보존** (idle 포함) | 패널 닫기 (`setActivated(false)` + `sidePanel.setOptions({enabled:false})` + 세션 제거). 아이콘 재클릭으로 activeTab 재부여·복구 |
+| **cross-origin + 보존** (drafting/previewing/done/video) | 패널 유지, bg가 `activeTabExpiredDeferred` 메시지를 사이드패널에 전송. 사이드패널 `usePickerMessages`가 플래그를 세우고 phase가 idle로 돌아오면 `onPickerPermissionExpired` → 만료 다이얼로그(`window.close()`) |
+| **URL 판별 불가** (activeTab 만료 + 광역 권한 미부여) | cross-origin으로 간주 → 위 cross-origin 분기와 동일 |
+
+보존 상태에서 cross-origin 이동 후 idle 복귀 전까지는 "좀비 구간"이 존재하지만, 이 동안 캡처를 시도하면 기존 3중 방어(진입 가드 `classifyTabSupport` / 런타임 가드 `isActiveTabPermissionError` / tabCapture 가드 `isTabCaptureUnavailable`)가 즉시 만료 다이얼로그를 띄운다.
+
+**버퍼링** — `use-30s-replay` 훅이 `enabled && phase==="idle" && tab.active`일 때 `CAPTURE_INTERVAL_MS`(600ms) 간격으로 `captureVisibleTab`(jpeg q80) → Blob → `FrameBuffer`에 push. `CAPTURE_INTERVAL_MS`는 Chrome `captureVisibleTab` 쿼터(초당 2회)를 넘지 않게 600ms로 둔다 — 더 짧게 하면 초과 호출이 throw로 버려져 프레임 이득 없이 비용만 는다. `FrameBuffer`는 **개수 cap(60) + 시간 cap(30s) 이중 제한**으로 oldest를 축출. `MIN_READY_FRAMES`(10) 이상이면 `isReady`. 버튼의 `n/30` 진행 표시는 푸시 성공이 아니라 1초 벽시계 타이머로 `now − oldestTimestamp`를 계산해 갱신(`bufferedSeconds`) — 캡처 스킵으로 멈췄다 튀는 현상 방지. 버퍼는 **페이지 네비게이션과 무관하게 유지**(이전·새 페이지 프레임이 섞이는 건 의도된 동작 — 버그 재현 과정 전체를 담기 위함). phase gating·탭 비활성·미지원 스킴으로 캡처가 끊긴 구간은 mp4-encoder의 per-frame duration cap(`MAX_FRAME_DURATION_MS`)으로 clamp해 재생 시 "툭 건너뜀"을 흡수.
+
+**인코딩 + 진입** — `capture()`는 `pausedRef`로 인터벌을 멈추고 `frameBuffer.snapshot()` → `encodeToMp4()`(WebCodecs `VideoEncoder` H.264, codec 후보 순차 탐색 + `mp4-muxer`로 컨테이너 muxing, VideoEncoder의 비동기 error는 변수로 받아 flush 후 throw) → 성공 시 버퍼 clear + 기존 비디오 모드 진입점 `onRecordingComplete(blob, thumbnail, viewport)` 재사용(`captureMode: "video"`). idle 직접 진입이라 startRecording이 채우던 `target`을 `capture()`에서 직접 setState해 `confirmDraft`의 target 가드를 통과시킨다.
+
+**상태 공유** — `replay-context.ts`의 `ReplayProvider`가 `isReady`/`isEncoding`/`capture`를 IssueTab EmptyState에 공급. 30s Replay 구분용 별도 캡처 모드 필드는 두지 않고 `video`로 통합.
 
 ## chrome.scripting.executeScript MAIN world 주입 규칙
 

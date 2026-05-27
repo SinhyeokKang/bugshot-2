@@ -10,6 +10,7 @@ import {
   collectTokens,
   readEditableText,
   restoreEditable,
+  shouldRestoreEditable,
   writeEditableText,
   type EditableHandle,
   type TokenLookup,
@@ -54,6 +55,17 @@ import {
 
 type Mode = "idle" | "hover" | "selected" | "area-select";
 
+// chrome.runtime.sendMessage는 확장 reload/무효화 시 호출 시점에 동기 throw한다(.catch로 못 막음).
+// stale content script가 죽은 컨텍스트로 보내는 경우를 id 가드 + try로 흡수해 Uncaught를 막는다.
+function postToRuntime(msg: object): void {
+  if (!chrome.runtime?.id) return;
+  try {
+    void chrome.runtime.sendMessage(msg).catch(() => {});
+  } catch {
+    /* Extension context invalidated */
+  }
+}
+
 /* ── Network recorder bridge ──────────────────────── */
 
 let networkSentinel: string | null = null;
@@ -61,16 +73,14 @@ let networkSentinel: string | null = null;
 function handleNetData(e: Event): void {
   const detail = (e as CustomEvent).detail;
   if (!detail || detail.sentinel !== networkSentinel) return;
-  chrome.runtime
-    .sendMessage({
-      type: "networkRecorder.data",
-      payload: {
-        requests: detail.requests,
-        totalSeen: detail.totalSeen,
-        warnings: detail.warnings,
-      },
-    })
-    .catch(() => {});
+  postToRuntime({
+    type: "networkRecorder.data",
+    payload: {
+      requests: detail.requests,
+      totalSeen: detail.totalSeen,
+      warnings: detail.warnings,
+    },
+  });
 }
 
 function handleSetSentinel(sentinel: string): void {
@@ -107,15 +117,13 @@ let consoleSentinel: string | null = null;
 function handleConsoleData(e: Event): void {
   const detail = (e as CustomEvent).detail;
   if (!detail || detail.sentinel !== consoleSentinel) return;
-  chrome.runtime
-    .sendMessage({
-      type: "consoleRecorder.data",
-      payload: {
-        entries: detail.entries,
-        totalSeen: detail.totalSeen,
-      },
-    })
-    .catch(() => {});
+  postToRuntime({
+    type: "consoleRecorder.data",
+    payload: {
+      entries: detail.entries,
+      totalSeen: detail.totalSeen,
+    },
+  });
 }
 
 function handleSetConsoleSentinel(sentinel: string): void {
@@ -142,6 +150,48 @@ function handleConsoleSync(): void {
 function handleConsoleClear(): void {
   if (!consoleSentinel) return;
   document.dispatchEvent(new CustomEvent("__bugshot_console_clear__" + consoleSentinel));
+}
+
+/* ── Action recorder bridge ──────────────────────── */
+
+let actionSentinel: string | null = null;
+
+function handleActionData(e: Event): void {
+  const detail = (e as CustomEvent).detail;
+  if (!detail || detail.sentinel !== actionSentinel) return;
+  postToRuntime({
+    type: "actionRecorder.data",
+    payload: {
+      entries: detail.entries,
+      totalSeen: detail.totalSeen,
+    },
+  });
+}
+
+function handleSetActionSentinel(sentinel: string): void {
+  if (actionSentinel) {
+    document.removeEventListener("__bugshot_action_data__" + actionSentinel, handleActionData);
+  }
+  actionSentinel = sentinel;
+  document.addEventListener("__bugshot_action_data__" + sentinel, handleActionData);
+  document.dispatchEvent(
+    new CustomEvent("__bugshot_action_setSentinel__", { detail: { sentinel } }),
+  );
+}
+
+function handleActionStop(): void {
+  if (!actionSentinel) return;
+  document.dispatchEvent(new CustomEvent("__bugshot_action_stop__" + actionSentinel));
+}
+
+function handleActionSync(): void {
+  if (!actionSentinel) return;
+  document.dispatchEvent(new CustomEvent("__bugshot_action_sync__" + actionSentinel));
+}
+
+function handleActionClear(): void {
+  if (!actionSentinel) return;
+  document.dispatchEvent(new CustomEvent("__bugshot_action_clear__" + actionSentinel));
 }
 
 let mode: Mode = "idle";
@@ -261,6 +311,9 @@ chrome.runtime.onMessage.addListener(
         case "picker.prepareCapture":
           sendResponse(handlePrepareCapture());
           return;
+        case "picker.pageUrl":
+          sendResponse({ url: location.href });
+          return;
         case "picker.endCapture":
           handleEndCapture();
           break;
@@ -293,6 +346,18 @@ chrome.runtime.onMessage.addListener(
           break;
         case "consoleRecorder.clear":
           handleConsoleClear();
+          break;
+        case "actionRecorder.setSentinel":
+          handleSetActionSentinel(msg.sentinel);
+          break;
+        case "actionRecorder.stop":
+          handleActionStop();
+          break;
+        case "actionRecorder.sync":
+          handleActionSync();
+          break;
+        case "actionRecorder.clear":
+          handleActionClear();
           break;
         default:
           return;
@@ -434,7 +499,11 @@ function restoreOriginal(): void {
   } else {
     el.setAttribute("style", originalStyle);
   }
-  if (editableHandle && originalTextContent !== null) {
+  if (
+    editableHandle &&
+    originalTextContent !== null &&
+    shouldRestoreEditable(editableHandle, originalTextContent)
+  ) {
     restoreEditable(editableHandle, originalTextContent);
   }
 }
@@ -566,9 +635,7 @@ function onClickCommit(e: MouseEvent): void {
     selectedEl = null;
     lastHover = null;
     setMode("idle");
-    chrome.runtime
-      .sendMessage<PickerMessage>({ type: "picker.iframeUnsupported" })
-      .catch(() => {});
+    postToRuntime({ type: "picker.iframeUnsupported" });
     return;
   }
   restoreOriginal();
@@ -590,9 +657,7 @@ function onKeyDown(e: KeyboardEvent): void {
   selectedEl = null;
   lastHover = null;
   setMode("idle");
-  chrome.runtime
-    .sendMessage<PickerMessage>({ type: "picker.cancelled" })
-    .catch(() => {});
+  postToRuntime({ type: "picker.cancelled" });
 }
 
 function emitSelected(el: Element): void {
@@ -603,9 +668,7 @@ function emitSelected(el: Element): void {
       parentOf(el) !== null,
       firstChildOf(el) !== null,
     );
-    chrome.runtime
-      .sendMessage<PickerMessage>({ type: "picker.selected", payload })
-      .catch(() => {});
+    postToRuntime({ type: "picker.selected", payload });
   };
   sendInitial();
   if (isCssCacheReady()) return;
@@ -617,16 +680,14 @@ function emitSelected(el: Element): void {
       parentOf(el) !== null,
       firstChildOf(el) !== null,
     );
-    chrome.runtime
-      .sendMessage<PickerMessage>({
-        type: "picker.selectionUpdated",
-        payload: {
-          specifiedStyles: payload.specifiedStyles,
-          propSources: payload.propSources,
-          computedStyles: payload.computedStyles,
-        },
-      })
-      .catch(() => {});
+    postToRuntime({
+      type: "picker.selectionUpdated",
+      payload: {
+        specifiedStyles: payload.specifiedStyles,
+        propSources: payload.propSources,
+        computedStyles: payload.computedStyles,
+      },
+    });
   });
 }
 
@@ -648,16 +709,14 @@ function scheduleSelectionUpdate(): void {
         parentOf(target) !== null,
         firstChildOf(target) !== null,
       );
-      chrome.runtime
-        .sendMessage<PickerMessage>({
-          type: "picker.selectionUpdated",
-          payload: {
-            specifiedStyles: payload.specifiedStyles,
-            propSources: payload.propSources,
-            computedStyles: payload.computedStyles,
-          },
-        })
-        .catch(() => {});
+      postToRuntime({
+        type: "picker.selectionUpdated",
+        payload: {
+          specifiedStyles: payload.specifiedStyles,
+          propSources: payload.propSources,
+          computedStyles: payload.computedStyles,
+        },
+      });
     })();
   }, 120);
 }
@@ -711,9 +770,7 @@ function handleStartAreaSelect(restoreAfter?: boolean): void {
     },
     onSelected(rect, viewport) {
       areaHandle = null;
-      chrome.runtime
-        .sendMessage<PickerMessage>({ type: "picker.areaSelected", rect, viewport })
-        .catch(() => {});
+      postToRuntime({ type: "picker.areaSelected", rect, viewport });
       if (shouldRestore) {
         restoreSelected();
       } else {
@@ -723,9 +780,7 @@ function handleStartAreaSelect(restoreAfter?: boolean): void {
     },
     onCancelled() {
       areaHandle = null;
-      chrome.runtime
-        .sendMessage<PickerMessage>({ type: "picker.cancelled" })
-        .catch(() => {});
+      postToRuntime({ type: "picker.cancelled" });
       if (shouldRestore) {
         restoreSelected();
       } else {

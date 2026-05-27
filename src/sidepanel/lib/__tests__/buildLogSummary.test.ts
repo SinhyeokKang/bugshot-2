@@ -2,9 +2,11 @@ import { describe, it, expect } from "vitest";
 import {
   buildNetworkLogSummary,
   buildConsoleLogSummary,
+  buildActionLogSummary,
 } from "../buildLogSummary";
 import type { NetworkLog, NetworkRequest } from "@/types/network";
 import type { ConsoleLog, ConsoleEntry } from "@/types/console";
+import type { ActionLog, ActionEntry } from "@/types/action";
 
 function makeRequest(overrides: Partial<NetworkRequest> = {}): NetworkRequest {
   return {
@@ -199,5 +201,96 @@ describe("buildConsoleLogSummary", () => {
     );
     const log = makeConsoleLog({ captured: 8, entries });
     expect(buildConsoleLogSummary(log).topErrors).toHaveLength(5);
+  });
+});
+
+function makeAction(overrides: Partial<ActionEntry> = {}): ActionEntry {
+  return {
+    id: "1",
+    kind: "click",
+    timestamp: 0,
+    pageUrl: "https://example.com",
+    ...overrides,
+  };
+}
+
+function makeActionLog(overrides: Partial<ActionLog> = {}): ActionLog {
+  return {
+    id: "act-1",
+    startedAt: 0,
+    endedAt: 1000,
+    totalSeen: 0,
+    captured: 0,
+    entries: [],
+    ...overrides,
+  };
+}
+
+describe("buildActionLogSummary", () => {
+  it("빈 로그는 빈 배열", () => {
+    expect(buildActionLogSummary(makeActionLog())).toEqual([]);
+  });
+
+  it("click/navigation/input 혼합을 자연어 줄로 (entry당 1줄)", () => {
+    const log = makeActionLog({
+      captured: 3,
+      entries: [
+        makeAction({ id: "1", kind: "click", target: "Submit 버튼" }),
+        makeAction({
+          id: "2",
+          kind: "navigation",
+          navType: "pushState",
+          toUrl: "https://example.com/next",
+        }),
+        makeAction({
+          id: "3",
+          kind: "input",
+          fieldLabel: "이메일",
+          value: "a@b.com",
+        }),
+      ],
+    });
+    const lines = buildActionLogSummary(log);
+    expect(lines).toHaveLength(3);
+    expect(lines[0]).toContain("Submit 버튼");
+    expect(lines[1]).toContain("https://example.com/next");
+    expect(lines[2]).toContain("이메일");
+    expect(lines[2]).toContain("a@b.com");
+  });
+
+  it("click role이 있으면 괄호로 부기", () => {
+    const log = makeActionLog({
+      captured: 1,
+      entries: [makeAction({ id: "1", kind: "click", target: "로그인", role: "button" })],
+    });
+    expect(buildActionLogSummary(log)[0]).toBe("Clicked: 로그인 (button)");
+  });
+
+  it("masked input은 값을 *** 로 노출", () => {
+    const log = makeActionLog({
+      captured: 1,
+      entries: [
+        makeAction({
+          id: "1",
+          kind: "input",
+          fieldLabel: "비밀번호",
+          value: "***",
+          masked: true,
+        }),
+      ],
+    });
+    const lines = buildActionLogSummary(log);
+    expect(lines[0]).toContain("***");
+  });
+
+  it("최근 N개로 제한 (오래된 항목 제외)", () => {
+    const entries = Array.from({ length: 30 }, (_, i) =>
+      makeAction({ id: String(i), kind: "click", target: `버튼${i}` }),
+    );
+    const log = makeActionLog({ captured: 30, entries });
+    const lines = buildActionLogSummary(log);
+    expect(lines.length).toBeLessThan(30);
+    expect(lines.join("\n")).toContain("버튼29");
+    expect(lines.join("\n")).not.toContain("버튼0\n");
   });
 });

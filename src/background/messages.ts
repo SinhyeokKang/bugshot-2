@@ -1,6 +1,7 @@
 import { t } from "@/i18n";
 import { dataUrlToBlob } from "@/store/blob-db";
 import { IMAGE_PLACEHOLDER, VIDEO_PLACEHOLDER, parseInlinePlaceholder } from "@/lib/adf-sentinels";
+import { injectIssueUrl } from "@/lib/inject-issue-url";
 import type { JiraAttachmentInput, JiraAuth, JiraSubmitResult } from "@/types/jira";
 import type { GithubAuth } from "@/types/github";
 import type { BgRequest } from "@/types/messages";
@@ -101,7 +102,12 @@ export async function handleMessage(
     case "captureVisibleTab": {
       const tab = await chrome.tabs.get(message.tabId);
       if (!tab.windowId) throw new Error("tab has no window");
-      return chrome.tabs.captureVisibleTab(tab.windowId, { format: "png" });
+      const format = message.format ?? "png";
+      const opts: chrome.tabs.CaptureVisibleTabOptions = { format };
+      if (format === "jpeg" && message.quality != null) {
+        opts.quality = message.quality;
+      }
+      return chrome.tabs.captureVisibleTab(tab.windowId, opts);
     }
 
     case "oauth.available":
@@ -325,6 +331,13 @@ async function submitIssue(
   relatesKey: string | undefined,
 ): Promise<JiraSubmitResult> {
   const issue = await createIssue(auth, payload);
+  const issueUrl = buildIssueUrl(auth, issue.key);
+
+  for (const att of attachments) {
+    if (att.filename === "logs.html") {
+      att.dataUrl = await injectIssueUrl(att.dataUrl, issueUrl);
+    }
+  }
 
   const uploadMap = new Map<string, UploadedFile>();
   for (const att of attachments) {
@@ -367,7 +380,7 @@ async function submitIssue(
               : { type: "media", attrs: { type: "external", url: screenshotFile.url } };
           content[mediaPlaceholderIdx] = {
             type: "mediaSingle",
-            attrs: { layout: "center" },
+            attrs: { layout: "center", width: 100 },
             content: [mediaNode],
           };
         }
@@ -387,7 +400,7 @@ async function submitIssue(
       if (videoFile?.kind === "media" && videoPlaceholderIdx >= 0) {
         content[videoPlaceholderIdx] = {
           type: "mediaSingle",
-          attrs: { layout: "center" },
+          attrs: { layout: "center", width: 100 },
           content: [
             { type: "media", attrs: { type: "file", id: videoFile.mediaId, collection: "" } },
           ],
@@ -427,7 +440,7 @@ async function submitIssue(
             : { type: "media", attrs: { type: "external", url: file.url } };
         content[i] = {
           type: "mediaSingle",
-          attrs: { layout: "center" },
+          attrs: { layout: "center", width: 100 },
           content: [mediaNode],
         };
       }
@@ -450,8 +463,7 @@ async function submitIssue(
     }
   }
 
-  const url = buildIssueUrl(auth, issue.key);
-  return { key: issue.key, url };
+  return { key: issue.key, url: issueUrl };
 }
 
 function snapshotRow(

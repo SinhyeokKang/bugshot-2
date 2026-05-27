@@ -2,12 +2,14 @@ import { create } from "zustand";
 import type { Token } from "@/types/picker";
 import type { NetworkLog } from "@/types/network";
 import type { ConsoleLog } from "@/types/console";
+import type { ActionLog } from "@/types/action";
 import type { PlatformId } from "@/types/platform";
 import type { EnvironmentRow } from "@/types/environment";
 import { onBlobSaveFailed } from "@/types/messages";
 import { useIssuesStore } from "./issues-store";
 import { useSettingsStore } from "./settings-store";
-import { saveVideoBlob, saveImageBlob, saveNetworkLog, deleteNetworkLog, saveConsoleLog, deleteConsoleLog, dataUrlToBlob } from "./blob-db";
+import { saveVideoBlob, saveImageBlob, saveNetworkLog, deleteNetworkLog, saveConsoleLog, deleteConsoleLog, saveActionLog, deleteActionLog, dataUrlToBlob } from "./blob-db";
+import { clearNetworkRecorder, clearConsoleRecorder, clearActionRecorder } from "@/sidepanel/recorder-control";
 
 export type CaptureMode = "element" | "screenshot" | "video" | "freeform";
 
@@ -87,12 +89,16 @@ interface EditorState {
   videoThumbnail: string | null;
   videoViewport: { width: number; height: number } | null;
   videoCapturedAt: number | null;
+  videoStartedAt: number | null;
+  videoEndedAt: number | null;
   freeformViewport: { width: number; height: number } | null;
   freeformCapturedAt: number | null;
   networkLog: NetworkLog | null;
   networkLogAttach: boolean;
   consoleLog: ConsoleLog | null;
   consoleLogAttach: boolean;
+  actionLog: ActionLog | null;
+  actionLogAttach: boolean;
   aiStylingLoading: boolean;
   aiDraftLoading: boolean;
   submitResult: { key: string; url: string } | null;
@@ -108,7 +114,7 @@ interface EditorState {
   startCapturing: (target: EditorTarget) => void;
   startRecording: (target: EditorTarget) => void;
   startFreeform: (target: EditorTarget) => void;
-  onRecordingComplete: (blob: Blob, thumbnail: string, viewport: { width: number; height: number }) => void;
+  onRecordingComplete: (blob: Blob, thumbnail: string, viewport: { width: number; height: number }, startedAt: number, endedAt: number) => void;
   cancelRecording: () => void;
   onAreaCaptured: (dataUrl: string, viewport: { width: number; height: number }) => void;
   onAnnotated: (dataUrl: string) => void;
@@ -133,6 +139,11 @@ interface EditorState {
   setNetworkLogAttach: (on: boolean) => void;
   setConsoleLog: (log: ConsoleLog) => void;
   setConsoleLogAttach: (on: boolean) => void;
+  setActionLog: (log: ActionLog) => void;
+  setActionLogAttach: (on: boolean) => void;
+  clearNetworkLog: (tabId: number | null) => void;
+  clearConsoleLog: (tabId: number | null) => void;
+  clearActionLog: (tabId: number | null) => void;
   setTargetPlatform: (platform: PlatformId) => void;
   onSubmitted: (result: { key: string; url: string }) => void;
   reset: () => void;
@@ -157,10 +168,13 @@ export type EditorSnapshot = Pick<
   | "videoThumbnail"
   | "videoViewport"
   | "videoCapturedAt"
+  | "videoStartedAt"
+  | "videoEndedAt"
   | "freeformViewport"
   | "freeformCapturedAt"
   | "networkLogAttach"
   | "consoleLogAttach"
+  | "actionLogAttach"
   | "draft"
   | "issueFields"
   | "currentIssueId"
@@ -189,12 +203,16 @@ const initial = {
   videoThumbnail: null as string | null,
   videoViewport: null as { width: number; height: number } | null,
   videoCapturedAt: null as number | null,
+  videoStartedAt: null as number | null,
+  videoEndedAt: null as number | null,
   freeformViewport: null as { width: number; height: number } | null,
   freeformCapturedAt: null as number | null,
   networkLog: null as NetworkLog | null,
   networkLogAttach: false,
   consoleLog: null as ConsoleLog | null,
   consoleLogAttach: false,
+  actionLog: null as ActionLog | null,
+  actionLogAttach: false,
   draft: null,
   inlineCaptureTarget: null as string | null,
   issueFields: {} as EditorIssueFields,
@@ -204,6 +222,21 @@ const initial = {
   submitResult: null as { key: string; url: string } | null,
   sessionExpired: false,
 };
+
+// cross-page 누적 로그·첨부 토글 4필드를 모드 진입 시 보존. element/screenshot/freeform이 공유.
+function preserveLogs(state: EditorState): Pick<
+  EditorState,
+  "networkLog" | "consoleLog" | "actionLog" | "networkLogAttach" | "consoleLogAttach" | "actionLogAttach"
+> {
+  return {
+    networkLog: state.networkLog,
+    consoleLog: state.consoleLog,
+    actionLog: state.actionLog,
+    networkLogAttach: state.networkLogAttach,
+    consoleLogAttach: state.consoleLogAttach,
+    actionLogAttach: state.actionLogAttach,
+  };
+}
 
 function newIssueId(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -215,6 +248,7 @@ function newIssueId(): string {
 function selectAttachedLogs(state: EditorState): {
   networkLog: NetworkLog | null;
   consoleLog: ConsoleLog | null;
+  actionLog: ActionLog | null;
 } {
   return {
     networkLog:
@@ -225,13 +259,17 @@ function selectAttachedLogs(state: EditorState): {
       state.consoleLogAttach && state.consoleLog && state.consoleLog.captured > 0
         ? state.consoleLog
         : null,
+    actionLog:
+      state.actionLogAttach && state.actionLog && state.actionLog.captured > 0
+        ? state.actionLog
+        : null,
   };
 }
 
 async function persistAttachedLogs(
   issueId: string,
   targetTabId: number,
-  logs: { networkLog: NetworkLog | null; consoleLog: ConsoleLog | null },
+  logs: { networkLog: NetworkLog | null; consoleLog: ConsoleLog | null; actionLog: ActionLog | null },
 ): Promise<boolean> {
   let failed = false;
   if (logs.networkLog) {
@@ -247,6 +285,13 @@ async function persistAttachedLogs(
       failed = true;
     }
     deleteConsoleLog(`pending:${targetTabId}`).catch(() => {});
+  }
+  if (logs.actionLog) {
+    if (!await saveActionLog(issueId, logs.actionLog)) {
+      useIssuesStore.getState().patchIssue(issueId, { actionLogBlobKey: undefined });
+      failed = true;
+    }
+    deleteActionLog(`pending:${targetTabId}`).catch(() => {});
   }
   return failed;
 }
@@ -275,25 +320,40 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setAiStylingLoading: (loading) => set({ aiStylingLoading: loading }),
   setAiDraftLoading: (loading) => set({ aiDraftLoading: loading }),
 
-  startPicking: (target, mode) => set({ ...initial, captureMode: mode ?? "element", phase: "picking", target }),
-  cancelPicking: () => set({ ...initial }),
+  // cross-page 누적 로그와 첨부 토글을 모드 진입 시 보존. 다른 자산 필드는 리셋.
+  startPicking: (target, mode) =>
+    set((state) => ({
+      ...initial,
+      captureMode: mode ?? "element",
+      phase: "picking",
+      target,
+      ...preserveLogs(state),
+    })),
+  cancelPicking: () => set((state) => ({ ...initial, ...preserveLogs(state) })),
 
-  // useBackgroundRecorder가 capturing 진입 시 sync를 트리거하지만 round-trip 동안 사용자가
-  // 영역을 빠르게 잡고 drafting으로 넘어가면 빈 로그가 노출되므로, 직전 sync 결과를 폴백으로 보존한다.
   startCapturing: (target) =>
     set((prev) => ({
       ...initial,
       captureMode: "screenshot",
       phase: "capturing",
       target,
-      networkLog: prev.networkLog,
-      consoleLog: prev.consoleLog,
+      ...preserveLogs(prev),
     })),
-  startFreeform: (target) => set({ ...initial, captureMode: "freeform", phase: "drafting", target }),
+  startFreeform: (target) =>
+    set((state) => ({
+      ...initial,
+      captureMode: "freeform",
+      phase: "drafting",
+      target,
+      ...preserveLogs(state),
+      networkLogAttach: true,
+      consoleLogAttach: true,
+      actionLogAttach: true,
+    })),
   startRecording: (target) => set({ ...initial, captureMode: "video", phase: "recording", target }),
-  onRecordingComplete: (blob, thumbnail, viewport) => set({ phase: "drafting", videoBlob: blob, videoThumbnail: thumbnail, videoViewport: viewport, videoCapturedAt: Date.now() }),
-  cancelRecording: () => set({ ...initial }),
-  onAreaCaptured: (dataUrl, viewport) => set({ phase: "drafting", screenshotRaw: dataUrl, screenshotViewport: viewport, screenshotCapturedAt: Date.now() }),
+  onRecordingComplete: (blob, thumbnail, viewport, startedAt, endedAt) => set({ captureMode: "video", phase: "drafting", videoBlob: blob, videoThumbnail: thumbnail, videoViewport: viewport, videoCapturedAt: Date.now(), videoStartedAt: startedAt, videoEndedAt: endedAt, networkLogAttach: true, consoleLogAttach: true, actionLogAttach: true }),
+  cancelRecording: () => set((state) => ({ ...initial, ...preserveLogs(state) })),
+  onAreaCaptured: (dataUrl, viewport) => set({ phase: "drafting", screenshotRaw: dataUrl, screenshotViewport: viewport, screenshotCapturedAt: Date.now(), networkLogAttach: true, consoleLogAttach: true, actionLogAttach: true }),
   onAnnotated: (dataUrl) => set({ screenshotAnnotated: dataUrl }),
 
   onElementSelected: (selection) =>
@@ -369,6 +429,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         snapshot: { before: false, after: false },
         networkLogBlobKey: logs.networkLog ? id : undefined,
         consoleLogBlobKey: logs.consoleLog ? id : undefined,
+        actionLogBlobKey: logs.actionLog ? id : undefined,
       });
       const targetTabId = state.target.tabId;
       void (async () => {
@@ -388,6 +449,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         pageTitle: state.target.title,
         captureMode: "video",
         viewport: state.videoViewport ?? undefined,
+        videoStartedAt: state.videoStartedAt ?? undefined,
+        videoEndedAt: state.videoEndedAt ?? undefined,
         draft: { ...state.draft },
         snapshot: {
           before: !!state.videoThumbnail,
@@ -395,6 +458,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         },
         networkLogBlobKey: logs.networkLog ? id : undefined,
         consoleLogBlobKey: logs.consoleLog ? id : undefined,
+        actionLogBlobKey: logs.actionLog ? id : undefined,
       });
       const targetTabId = state.target.tabId;
       void (async () => {
@@ -435,6 +499,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         },
         networkLogBlobKey: logs.networkLog ? id : undefined,
         consoleLogBlobKey: logs.consoleLog ? id : undefined,
+        actionLogBlobKey: logs.actionLog ? id : undefined,
       });
       const targetTabId = state.target.tabId;
       void (async () => {
@@ -517,9 +582,32 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setNetworkLogAttach: (on) => set({ networkLogAttach: on }),
   setConsoleLog: (log) => set({ consoleLog: log }),
   setConsoleLogAttach: (on) => set({ consoleLogAttach: on }),
+  setActionLog: (log) => set({ actionLog: log }),
+  setActionLogAttach: (on) => set({ actionLogAttach: on }),
+  clearNetworkLog: (tabId) => {
+    set({ networkLog: null });
+    if (tabId != null) {
+      deleteNetworkLog(`pending:${tabId}`).catch(() => {});
+      clearNetworkRecorder(tabId).catch(() => {});
+    }
+  },
+  clearConsoleLog: (tabId) => {
+    set({ consoleLog: null });
+    if (tabId != null) {
+      deleteConsoleLog(`pending:${tabId}`).catch(() => {});
+      clearConsoleRecorder(tabId).catch(() => {});
+    }
+  },
+  clearActionLog: (tabId) => {
+    set({ actionLog: null });
+    if (tabId != null) {
+      deleteActionLog(`pending:${tabId}`).catch(() => {});
+      clearActionRecorder(tabId).catch(() => {});
+    }
+  },
   setTargetPlatform: (platform) => set({ targetPlatform: platform }),
 
-  onSubmitted: (result) => set({ phase: "done", submitResult: result, beforeImage: null, afterImage: null, screenshotRaw: null, screenshotAnnotated: null, videoBlob: null, videoThumbnail: null, networkLog: null, consoleLog: null }),
+  onSubmitted: (result) => set({ phase: "done", submitResult: result, beforeImage: null, afterImage: null, screenshotRaw: null, screenshotAnnotated: null, videoBlob: null, videoThumbnail: null, networkLog: null, consoleLog: null, actionLog: null }),
 
   reset: () => set({ ...initial }),
 

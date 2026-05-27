@@ -1,6 +1,6 @@
 import { sendBg } from "@/types/messages";
 import type { ViewportRect } from "@/types/picker";
-import { endCapture, prepareCapture } from "./picker-control";
+import { endCapture, maybeSurfacePermissionExpired, prepareCapture } from "./picker-control";
 
 const DEFAULT_MARGIN = 24;
 
@@ -18,7 +18,9 @@ export async function captureElementSnapshot(
     const dataUrl = await sendBg<string>({ type: "captureVisibleTab", tabId });
     return await cropImage(dataUrl, prep.rect, prep.viewport, margin);
   } catch (err) {
-    console.error("[bugshot] snapshot failed", err);
+    if (!maybeSurfacePermissionExpired(err)) {
+      console.error("[bugshot] snapshot failed", err);
+    }
     return null;
   } finally {
     await endCapture(tabId);

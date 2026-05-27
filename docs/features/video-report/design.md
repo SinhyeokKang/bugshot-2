@@ -1,203 +1,239 @@
-# 기술 설계 — 비디오 모드 HTML 리포트
+# 비디오 리포트 — 기술 설계
+
+## 개요
+
+기존 React log-viewer(`src/log-viewer/`)에 영상 플레이어 칸을 가로로 붙이고, 영상 blob을 logs.html에 dataUrl로 임베드한 뒤, 세 로그 컴포넌트(`ConsoleLogContent`/`NetworkLogContent`/`ActionLogContent`)에 **하위호환 optional 동기화 props**를 추가해 영상 재생 위치와 로그 행을 양방향으로 묶는다. 모든 로그가 이미 절대 epoch `timestamp`를 갖고 있으므로, 영상 시작 시각(`videoStartedAt`)을 공통 0점으로 영속화하는 것이 유일한 신규 데이터다.
+
+vanilla from-scratch 리포트(`docs/features/video-report-player/`의 `buildVideoReport.ts`)는 만들지 않는다 — log-viewer가 로그 렌더·필터·검색·상대시간·탭을 이미 제공하므로 그것을 재사용한다.
 
 ## 핵심 설계 결정
 
-### 1. 녹화 시작·종료 시각 영속화 (필수 선행 작업)
+### 1. 동기화 앵커 = `videoStartedAt` / `videoEndedAt` 영속화 (필수 선행)
 
-로그를 영상 타임라인에 맞추려면 `상대ms = log.timestamp − 녹화시작시각`이, 타임라인 스케일에는 녹화 길이가 필요하다. 그런데:
+로그를 영상에 맞추려면 영상 시작 절대 시각이 필요하다. 현재:
 
-- 녹화 시작 시각은 `src/sidepanel/video-recorder.ts:14`의 `state.startTime`으로만 존재 — **메모리 전용, 영속화 안 됨**.
-- 영속되는 건 `editor-store.ts`의 `videoCapturedAt`(`EditorState` 선언 `:87` / `initial` `:189`, `onRecordingComplete` 구현 `:292`에서 `Date.now()`로 set)뿐인데, 이는 녹화 **완료** 시각 — blob 조립·썸네일 생성(`video-recorder.ts:73-93`) 후라 실제 녹화 종료보다 수백 ms~1초 늦다.
-- 네트워크 `NetworkRequest.startTime`(`src/types/network.ts:16`) / 콘솔 `ConsoleEntry.timestamp`(`src/types/console.ts:6`)는 둘 다 절대 epoch ms → 녹화 시작 시각만 있으면 그대로 차감 가능.
+- 수동녹화 시작 시각은 `video-recorder.ts:111`의 `state.startTime`(`Date.now()`) — **메모리 전용**.
+- 영속되는 `videoCapturedAt`(editor-store)은 녹화 **완료**(썸네일 생성 후) 시각이라 실제 종료보다 늦다 → 앵커 부적합.
+- 30s-replay는 `use-30s-replay.ts:155`에서 `lower = frames[0].timestamp`(윈도우 시작)와 `captureTime`(`:154`)을 이미 계산한다 — 그대로 영상 구간 `[start, end]`.
 
-→ 두 시각을 모두 영속화한다:
-- `videoStartedAt` — `state.startTime`. `onRecordingComplete`로 흘려보내 editor store 신규 필드에 저장.
-- `videoEndedAt` — `onstop` 콜백 진입 즉시 `Date.now()`로 찍은 값. `videoCapturedAt`은 썸네일 생성 후라 부정확하므로 타임라인 스케일·구간 필터에는 `videoEndedAt`을 쓴다(`videoCapturedAt`은 기존 용도 그대로 둠).
+→ `videoStartedAt`/`videoEndedAt`를 editor store와 `IssueRecord`에 영속화한다.
 
-제출 시 첨부(아래)는 제출 시점의 editor store 또는 saved draft의 `IssueRecord`에서 타이밍을 읽으므로 `IssueRecord`도 `videoStartedAt`/`videoEndedAt`을 보유해야 한다.
+| 진입 | videoStartedAt | videoEndedAt |
+|---|---|---|
+| 수동녹화 (`video-recorder.ts` onstop) | `state.startTime` | onstop 콜백 진입 즉시 찍은 `Date.now()` |
+| 30s-replay (`use-30s-replay.ts` capture) | `frames[0].timestamp` (=`lower`) | `captureTime` |
 
-**realm 주의**: `videoStartedAt`/`videoEndedAt`은 side panel 컨텍스트의 `Date.now()`이고, network/console 레코더 타임스탬프는 녹화 대상 탭(MAIN world)의 시계다. 같은 머신의 두 JS realm이라 동일 시스템 시계를 공유하므로 실무상 차감이 안전하다 — 이 가정에 의존한다.
+둘 다 `onRecordingComplete(blob, thumbnail, viewport, startedAt, endedAt)`로 흘려보낸다.
 
-**세션 영속화 주의**: `EditorSnapshot`에 `videoStartedAt`/`videoEndedAt`을 추가하는 것만으로는 부족하다. `src/sidepanel/hooks/useEditorSessionSync.ts`의 `snapshotFromState()`가 스냅샷 필드를 **수동으로 일일이 복사**하므로(`videoCapturedAt: s.videoCapturedAt` 등), 두 필드도 거기 명시적으로 추가해야 한다. 누락 시 타입은 통과(`Pick`)하지만 패널 재오픈 후 런타임에서 값이 사라져 타임라인이 깨진다.
+**realm 주의**: `videoStartedAt`는 side panel `Date.now()`, 로그 timestamp는 대상 탭(MAIN world) 시계. 같은 머신·같은 시스템 시계 → 차감 안전(video-report-player 설계와 동일 가정).
 
-### 2. 리포트 필터 UI는 vanilla 재구현, 분류는 기존 콘솔 UI와 정렬
+**녹화 구간 로그 정합**: 수동 녹화는 시작 시 `startVideoCapture`(`video-capture.ts:28-30`)가 network/console/action 세 레코더 버퍼를 모두 clear하므로 `videoStartedAt` 이전 timestamp 로그가 누적되지 않는다(별도 시간 트림 불요). 30s-replay는 `capture()`에서 `[lower, captureTime]`로 트림한다. 양쪽 모두 동기화 대상은 영상 0점 이후/구간 내 로그뿐.
 
-기존 `ConsoleLogContent`/`NetworkLogContent`의 필터는 React + shadcn 컴포넌트라 의존성 0인 단일 HTML에서 그대로 못 쓴다. 리포트 내 필터는 vanilla JS 타입 칩 토글로 새로 구현한다.
+**세션 영속화 주의**: `EditorSnapshot`은 `useEditorSessionSync.ts`의 `snapshotFromState()`(`:49-51`)가 video 필드를 **수동 복사**한다. `videoStartedAt`/`videoEndedAt`도 거기 명시 추가해야 패널 재오픈 후 보존된다(누락 시 타입은 `Pick` 통과하나 런타임 소실).
 
-분류 체계는 codebase와 어긋나면 안 된다. 기존 `ConsoleLogContent`는 console 레벨 칩(`all`/`error`/`warn`/`info`/`debug`/`log` 6종)을, `NetworkLogContent`는 콘텐츠 타입 칩(`all`/`json`/`js`/`css`/`img`/`font`/`doc`/`other` 8종)을 쓴다. 리포트는 **콘솔 분류를 그대로 차용**한다 — console 레벨 칩(`error`/`warn`/`info`/`debug`/`log`)을 동일하게 쓰고, 네트워크는 콘텐츠 타입까지 쪼개지 않고 **단일 `Network` 토글**로 둔다. 콘솔 칩은 기존 화면과 완전히 일치하고, 네트워크는 외부 수신자·좁은 화면 맥락상 8칩이 과하므로 단일 토글로 단순화한다(의도된 차이).
+### 2. 영상은 logs.html에 **추가** 임베드 (`recording.mp4` 인라인은 유지)
 
-### 3. 타임라인 마커 = 호버 미리보기, 점프는 로그 행 클릭
+`buildLogsHtml`은 이미 `LogViewerData`를 `__BUGSHOT_DATA__` JSON으로 주입한다(`buildLogsHtml.ts:32` `.replace(/</g, "\\u003c")` escape). 영상 dataUrl(`data:video/mp4;base64,...`)은 `<` 미포함이라 escape 무해, JSON 문자열로 안전하게 실린다. log-viewer `App.tsx`는 `<video src={data.video.dataUrl}>`로 재생.
 
-짧은 녹화에서 마커가 겹쳐 정밀 클릭이 어렵다. 마커는 시각 표시 + 호버 툴팁만 담당하고, 영상 점프는 로그 행 클릭으로 받는다.
+**`recording.mp4` 본문 인라인 첨부는 유지한다.** `captureFiles.video`(=`recording.mp4`)는 4개 어댑터가 이슈 본문 인라인 영상으로 소비하는 실사용 경로다(아래 "제출 경로" 참조 — 8개 호출부). 따라서 `buildCaptureFiles`의 `result.video` push와 `recordingFilename` import는 **그대로 둔다**. logs.html에는 동기화용으로 영상을 **추가** 임베드할 뿐이다.
 
-### 4. 타임라인 스케일은 `videoEndedAt − videoStartedAt`
+**용량/trade-off**: 60초/1.5Mbps ≈ 11MB → base64 ≈ 15MB → logs.html 전체 ~15MB+. 플랫폼 첨부 한도(Jira 10MB 등) 초과 가능 → 제출 핸들러에서 실패 격리(위험 요소 참조). 영상이 본문 인라인(`recording.mp4`) + logs.html 임베드 **양쪽**에 실려 비디오 모드 제출 전송량이 ~2배가 된다. 인라인 프리뷰 유지(받는 사람이 이슈 열면 바로 재생) + 동기화 둘 다를 얻는 의도된 trade-off(PRD 결정). logs.html이 한도 초과로 누락돼도 인라인 영상은 본문에 남는다.
 
-MediaRecorder WebM blob은 `video.duration`이 `Infinity`로 나오는 알려진 버그가 있다. 마커 위치 계산은 영속된 두 epoch 값의 차(`nominalDurationMs = videoEndedAt − videoStartedAt`)를 쓰고, 재생 위치 추적은 `video.currentTime` 이벤트를 쓴다.
+### 3. 가로 리사이즈 레이아웃
 
-`videoEndedAt`은 `onstop` 콜백 진입 즉시 찍은 `Date.now()`라 실제 녹화 종료에 거의 일치한다(`videoCapturedAt`은 썸네일 생성 후라 수백 ms~1초 늦어 타임라인 스케일엔 부적합 — 핵심 설계 1 참조). 마커 위치는 `ts / nominalDurationMs`를 `[0, 1]`로 clamp해 타임라인 바를 벗어나지 않게 한다.
+`App.tsx`를 shadcn `resizable`(react-resizable-panels) 기반 `ResizablePanelGroup direction="horizontal"`로 감싼다. 좌 패널 = 영상 플레이어, 우 패널 = 기존 `Tabs`. 초기 `defaultSize={50}`/`{50}`, 가운데 `ResizableHandle withHandle`. 루트는 `h-screen`(100vh) 유지, 두 패널 모두 `h-full`.
 
-### 5. 파일 저장 & 제출 시 첨부
+**좌 패널 영상 배치**: 영상은 16:9 한 칸이라 100vh 패널에 세로 빈 공간이 남는다. 영상을 패널 **세로 중앙 정렬**하고 남는 영역은 검은 배경(레터박스)으로 처리한다(`bg-black` 컨테이너 + 영상 `object-contain`). 후속 재생바 타임스탬프 UI는 이 영역에 얹는다.
 
-- **Preview 다운로드**: `downloads` 권한이 없으므로 `<a download>` + `URL.createObjectURL(blob)`로 저장 (manifest 변경 불필요).
-- **제출 시 첨부**: 비디오 모드 이슈 제출 시 HTML 리포트를 `bugshot-report.html`로 만들어 4개 플랫폼 이슈에 파일 첨부(아래 "제출 시 HTML 리포트 첨부" 절). 기존 `bugshot.md`(AI 메타) 첨부와 같은 경로를 탄다.
-- **로그 가용성**: 로그는 `networkLogBlobKey`/`consoleLogBlobKey`가 있을 때만 존재(= 사용자가 로그 첨부를 켠 경우). 없으면 리포트는 영상 + meta만, 로그 패널은 빈 상태로 graceful degradation.
+영상(`data.video`)이 **없으면** ResizablePanelGroup 없이 기존처럼 `Tabs`만 풀폭 렌더(분기 한 줄). element/screenshot/freeform logs.html은 자동으로 이 경로. 영상 blob은 있으나 재생 실패(`onError`)면 분할 레이아웃은 유지하고 좌 패널만 안내 메시지로 대체(영상별 안내를 좌 패널에 두기 위함 — blob 부재의 풀폭과 의도적으로 다름).
+
+`resizable`은 미설치 → `npx shadcn@latest add resizable` → `src/components/ui/resizable.tsx` 위치 확인.
+
+### 4. 동기화 = 세 컴포넌트에 하위호환 optional props
+
+세 로그 컴포넌트는 라이브 사이드패널 디버그 서브탭에서도 쓰이므로(`ConsoleSubTab`/`NetworkSubTab`), **새 props는 전부 optional**이고 미공급 시 현재 동작이 100% 보존된다. log-viewer가 영상과 함께 렌더할 때만 공급한다.
+
+공통 신규 props(세 컴포넌트 동일):
+
+```typescript
+syncBaseMs?: number;            // = videoStartedAt. 공급 시 상대시간 0점·점프 기준
+onSeek?: (absTs: number) => void; // 행 클릭 → 영상 점프. App이 video.currentTime로 변환
+activeTs?: number;              // 현재 영상 재생 절대시각. 이 값 이하 중 가장 늦은 행을 하이라이트
+```
+
+- **행 timestamp 소스(중요)**: Console/Action 행은 `entry.timestamp`를 쓰지만 **Network 행은 `timestamp` 필드가 없다 — `req.startTime`을 쓴다**(`src/types/network.ts`). 따라서 `onSeek`/`findActiveIndex`에 넘기는 값은 Console/Action=`entry.timestamp`, Network=`req.startTime`.
+- **상대시간 통일**: 공급된 `syncBaseMs`가 있으면 `formatRelativeTime`의 base로 자기 `startedAt` 대신 `syncBaseMs`를 쓴다. `formatRelativeTime`은 `ConsoleLogContent`·`ActionLogContent`에 **각각 정의**돼 공유되지 않으므로, 헬퍼 추출 없이 각 컴포넌트 내부에서 base 인자만 교체한다(외과적). `NetworkLogContent`는 현재 상대시간 칩이 없으므로(startedAt 미수신), `syncBaseMs` 공급 시 행 좌측에 `[+MM:SS]` 칩을 **추가**(Console/Action 레이아웃과 정렬).
+- **점프**: 각 행의 `[+MM:SS]` 칩을 `<button>`으로 만들어 `onSeek(rowTs)` 호출(App이 seek + `video.play()` 자동재생 — PRD 결정). 칩 `<button>`에 **`e.stopPropagation()` 필수** — 행 전체가 `cursor-pointer`로 Console accordion 펼침·Network detail 선택 onClick을 갖고 있어, 없으면 점프와 동시 발화한다. 세 탭 칩 외형은 동일한 `<button>` 스타일로 통일하고(hover/focus-visible affordance 일관), `aria-label`(예: "0:12 지점으로 이동") 부여.
+- **하이라이트**: `activeTs`가 공급되면 각 컴포넌트가 자기 엔트리 timestamp 배열(Network는 `startTime`)에서 `findActiveIndex`(공유 헬퍼)로 `activeTs` 이하 중 최댓값 인덱스를 골라 그 행에 active 스타일(좌측 accent 보더 + `bg-accent/40`) + `aria-current` 부여. 기존 하이라이트(Network `rowBg`의 detail-active)와 별도 슬롯이라 충돌 없음. **자동 스크롤은 코어 비포함**(후속) — 하이라이트 행이 뷰포트 밖이면 사용자가 수동 스크롤(PRD 결정).
+
+각 컴포넌트 행 엘리먼트 지점: Console `EntryAccordion`(정의 `ConsoleLogContent.tsx:164`), Network `RequestRow`(정의 `NetworkLogContent.tsx:335`), Action `ActionRow`(정의 `ActionLogContent.tsx:191`).
+
+### 5. App의 동기화 오케스트레이션
+
+`App.tsx`가 단일 진실의 원천:
+
+- `videoRef`(`<video>`) + `currentMs` state. `<video onTimeUpdate>` → `setCurrentMs(videoStartedAt + video.currentTime * 1000)`.
+- `seekTo(absTs)` → `videoRef.current.currentTime = (absTs - videoStartedAt) / 1000` + `video.play()`(점프 시 자동재생 — PRD 결정).
+- 세 `*LogContent`에 `syncBaseMs={videoStartedAt}`, `onSeek={seekTo}`, `activeTs={currentMs}` 전달.
+- 영상/앵커 부재 시 이 props를 넘기지 않음 → 컴포넌트는 기존 동작.
+
+`activeTs`는 **모든 탭**에 같은 값으로 흐르므로, 비활성 탭으로 전환해도 하이라이트 상태가 일관된다(각 탭 `data-[state=inactive]:hidden`이라 동시 마운트).
+
+## 신규 순수 헬퍼: `src/log-viewer/timeline.ts`
+
+테스트 가능한 순수 로직만 분리(컴포넌트는 부수효과/DOM이라 단위 테스트 부적합 — CLAUDE.md 테스트 우선 원칙).
+
+```typescript
+// 정렬돼 있지 않을 수 있는 timestamps 중, currentMs 이하인 가장 늦은 항목의 인덱스. 없으면 -1.
+export function findActiveIndex(timestamps: number[], currentMs: number): number;
+
+// (absTs - baseMs)를 초 단위(음수 clamp 0)로. seek 타깃 계산용.
+export function toVideoSeconds(absTs: number, baseMs: number): number;
+```
+
+`findActiveIndex`는 각 `*LogContent`가 자기 엔트리에서 active 행을 고를 때 공유. 선형 스캔(엔트리 ≤ 수천)으로 충분.
 
 ## 데이터 모델 변경
 
-### editor-store.ts
+### `src/store/editor-store.ts`
 
-`EditorState` / `initial` / `EditorSnapshot`에 `videoStartedAt: number | null`, `videoEndedAt: number | null` 추가. `onRecordingComplete`(시그니처 `:109` 부근, 구현 `:292`)가 두 시각을 인자로 받아 set:
+- `EditorState` / `initial` / `EditorSnapshot`에 `videoStartedAt: number | null`, `videoEndedAt: number | null` 추가.
+- `onRecordingComplete` 시그니처(`:115`)·구현(`:348`)에 `startedAt`/`endedAt` 인자 추가, set에 반영.
+- `confirmDraft` video 분기 — `saveDraft` 객체에 `videoStartedAt`/`videoEndedAt` 포함.
 
-```
-onRecordingComplete: (blob, thumbnail, viewport, startedAt, endedAt) => set({
-  phase: "drafting", videoBlob: blob, videoThumbnail: thumbnail,
-  videoViewport: viewport, videoStartedAt: startedAt, videoEndedAt: endedAt,
-  videoCapturedAt: Date.now(),
-})
-```
+### `src/sidepanel/hooks/useEditorSessionSync.ts`
 
-### issues-store.ts
+`snapshotFromState()`(`:49-51` video 필드 옆)에 `videoStartedAt: s.videoStartedAt`, `videoEndedAt: s.videoEndedAt` 복사 추가.
 
-`IssueRecord`에 `videoStartedAt?: number`, `videoEndedAt?: number` 추가. saved draft를 나중에 `DraftDetailDialog`에서 제출할 때 editor store가 그 이슈를 들고 있지 않을 수 있으므로 `IssueRecord`가 타이밍을 보유해야 한다.
+### `src/store/issues-store.ts`
 
-- persist 버전 v5 → v6. `ISSUES_STORE_VERSION` 상수 위 v5 주석 블록(`issues-store.ts:175` 부근)에 v6 줄을 덧붙인다.
-- **마이그레이션 코드는 추가하지 않는다.** 신규 필드 전부 optional이므로 v4→v5와 동일하게 `ISSUES_STORE_VERSION`만 6으로 bump + 주석. `migrate` 함수 본체는 무변경.
-- 구 비디오 이슈/draft는 두 필드가 `undefined` → 리포트가 로그 타임라인 없이 영상만 렌더.
+`IssueRecord`에 `videoStartedAt?: number`, `videoEndedAt?: number` 추가(optional). **버전 bump 불필요** — optional 필드 추가는 action-recorder `actionLogBlobKey`(`issues-store.ts:191`) 전례대로 버전 변경 없이 호환된다(현재 `ISSUES_STORE_VERSION = 5`; "v5→v6 전례"는 존재하지 않으므로 그 표현을 쓰지 말 것). 구 draft는 두 필드 `undefined` → 동기화 비활성, 영상만 재생. `videoThumbnail`은 IssueRecord에 영속하지 않으므로(외과적) 저장 draft logs.html의 `<video poster>`는 생략된다(재생 지장 없음).
 
-### video-recorder.ts
+### `src/sidepanel/video-recorder.ts`
 
-`onstop` 콜백 진입 즉시 `const localEndedAt = Date.now()`로 실제 녹화 종료 시각을 찍는다. `state = null` 전에 `startTime`을 지역 변수로 보존(현재 `localTabId` 보존 패턴과 동일), blob 조립 후 `onRecordingComplete(blob, thumbnail, viewport, localStartTime, localEndedAt)`로 전달.
+`onstop` 콜백 진입 즉시 `const localEndedAt = Date.now()`. `state = null`(`:71`) 전에 `localStartTime = s.startTime` 보존(현재 `localTabId` 보존 패턴과 동일). `onRecordingComplete(blob, thumbnail, viewport, localStartTime, localEndedAt)`(`:96-98`).
 
-### confirmDraft (editor-store.ts:376 video 분기)
+### `src/sidepanel/30s-replay/use-30s-replay.ts`
 
-`saveDraft({ ... })` 객체에 `videoStartedAt: state.videoStartedAt ?? undefined`, `videoEndedAt: state.videoEndedAt ?? undefined` 포함.
+`capture()`에서 `onRecordingComplete(blob, thumbnail, viewport, frames[0].timestamp, captureTime)`(`:180`). `lower`(`:155`)·`captureTime`(`:154`)은 이미 존재.
 
-## 신규 모듈: `src/sidepanel/lib/buildVideoReport.ts`
+## log-viewer 통합
 
-순수 함수 위주. exports:
+### `src/types/log-viewer.ts`
 
-- `interface ReportLogEntry` — discriminated union:
-  - `kind: "network"` → `id, ts, method, url, status, durationMs, phase`
-  - `kind: "console"` → `id, ts, level, message, stack?`
-  - `id`는 마커↔로그 행 연결·점프 타깃 식별용 안정 키. console은 `ConsoleEntry.id`(`console.ts:13`)를 옮기고, network는 `NetworkRequest`의 식별자(없으면 `kind`+인덱스 합성)를 쓴다. 인덱스 기반 매칭의 취약성을 피한다.
-  - `ts`는 녹화 시작 기준 상대 ms. `console`의 `message`는 `ConsoleEntry.args`(직렬화된 문자열 — 실제 필드명은 `message`가 아니라 `args`)에서 옮긴다.
-- `buildReportTimeline(networkLog, consoleLog, videoStartedAt, videoEndedAt): ReportLogEntry[]` — **순수 함수**.
-  - `videoStartedAt`/`videoEndedAt` 타입은 `number | null | undefined`. 둘 중 하나라도 없으면 빈 배열 반환 (구 이슈 graceful degradation).
-  - 두 로그를 상대 ts(`startTime|timestamp − videoStartedAt`)로 변환·병합.
-  - `[0, videoEndedAt − videoStartedAt]` 구간으로 필터 (경계 포함).
-  - ts 오름차순 정렬. 동일 ts는 입력 순서 보존(stable) — network·console이 같은 ms일 때 결정적. `Array.prototype.sort`의 ES2019 stable 보장에 의존한다(타깃 Chrome 116+ · Node 테스트 환경 모두 안전).
-  - `null` 입력(로그 미첨부)은 빈 배열로 취급.
-  - `videoEndedAt ≤ videoStartedAt`(비정상 음수 duration)이면 빈 배열.
-- `interface VideoReportData` — `{ meta: { title, url, viewport, capturedAt, userAgent }, videoDataUrl, videoMime, nominalDurationMs, logs: ReportLogEntry[] }`. `videoDataUrl`은 영상 blob을 확보하지 못하면 빈 문자열 — 이때 리포트는 로그만 담아 export한다(아래 "영상 부재" 참조).
-- `buildVideoReportHtml(data): string` — 완성된 HTML 문자열 조립. 인라인 `<style>` + `<script>` + `<script type="application/json" id="bugshot-report">`(meta + logs) + `<video src="dataUrl">`. 플레이어 CSS/JS는 같은 파일 내 `String.raw` 상수.
-  - **XSS 방어**: `JSON.stringify(...)` 결과를 `.replace(/</g, "\\u003c")`로 escape해 사용자/페이지 제어 문자열(`title`/`url`/console `args`/network `url`)이 `</script>`로 JSON 블록을 조기 종료시키지 못하게 한다. 리포트 내장 스크립트는 DOM 렌더 시 `textContent`/`createElement`만 쓰고 `innerHTML`은 쓰지 않는다.
-- `buildVideoReportAttachment(data): { filename, dataUrl }` — `buildVideoReportHtml` 결과를 `data:text/html;base64,...`로 인코딩, filename `bugshot-report.html`(상수 `VIDEO_REPORT_FILENAME`). 제출 시 첨부용.
-- `downloadVideoReport(data): { sizeBytes: number }` — HTML → Blob → `<a download>` 트리거. 결과 크기를 반환해 호출부가 25MB 초과 시 토스트 경고를 띄울 수 있게 한다.
-- `buildVideoReportDataFromIssue(issue): Promise<VideoReportData>` — 제출 전 draft / saved draft용. `getVideoBlob(id)`, `getNetworkLog(networkLogBlobKey)`, `getConsoleLog(consoleLogBlobKey)`로 조립. PreviewPanel의 `videoBlob` 폴백(아래)과 제출 시 saved draft 경로에서 쓴다.
-
-영상 dataUrl 변환은 기존 `blobToDataUrl`(`src/store/blob-db.ts:448`) 재사용.
-
-테스트 대상은 `buildReportTimeline` 순수 함수에 한정한다 — `buildVideoReportHtml`은 거대 문자열, `downloadVideoReport`는 DOM/`URL.createObjectURL` 부수효과라 단위 테스트 부적합.
-
-## 제출 시 HTML 리포트 첨부
-
-비디오 모드 이슈를 제출할 때 `buildVideoReportAttachment`로 만든 `bugshot-report.html`을 플랫폼 이슈에 파일 첨부한다. 기존 `buildAiMetaAttachment`(`bugshot.md`)와 동일 패턴 — `{ filename, dataUrl }` 형태.
-
-- **데이터 출처**: 제출 핸들러가 비디오 모드일 때 `VideoReportData`를 조립한다. 활성 세션 제출은 `IssueCreateModal.tsx`의 4개 핸들러가 editor store(`videoBlob` 등)에서, saved draft 제출은 `DraftDetailDialog.tsx`의 4개 핸들러가 `buildVideoReportDataFromIssue`로. (`SubmitFieldsDialog`는 `IssueCreateModal.tsx`가 export하는 필드 입력 폼일 뿐 제출 로직이 없다 — 제출 핸들러는 `IssueCreateModal.tsx` + `DraftDetailDialog.tsx` 두 파일.)
-- **조립 타이밍**: `VideoReportData` 조립은 `submitToX` 호출 인자로 들어가므로 `submitToX` 호출 *전*, editor store의 `videoBlob`이 `onSubmitted`(`editor-store.ts:520`)로 비워지기 전에 끝나야 한다.
-- **플랫폼 wiring**: 4개 submit 함수가 이미 첨부 리스트를 iterate한다.
-  - `submitToGithub` — `logs` 배열에 추가.
-  - `submitToLinear` — `attachments` 배열에 추가 (`createAttachment`).
-  - `submitToNotion` — `attachments`에 `log` 카테고리로 추가 (첨부 섹션 file 블록).
-  - Jira — `submitIssue` 핸들러의 `attachments` 배열에 추가.
-- **mime 처리**: `guessMime`은 `submitToGithub.ts` / `submitToLinear.ts` / `submitToNotion.ts` **3파일에 각각 독립 정의**돼 있다. 세 곳 모두 `.html → text/html` 분기를 추가해야 리포트가 `application/octet-stream`으로 떨어지지 않는다.
-- **실패 격리**: 리포트 첨부가 플랫폼 용량 한도 등으로 실패해도 이슈 본문 생성·`bugshot.md` 첨부는 정상 진행한다. 리포트 첨부만 best-effort로 누락(위험 요소 참조).
-
-## 리포트 HTML 구조 (받는 사람 화면)
-
-```
-┌──────────────────────────────────────────────────────────┐
-│  이슈 제목 · URL · 뷰포트 · 캡처 시각 · userAgent          │
-├───────────────────────────┬──────────────────────────────┤
-│   Video Player (sticky)   │  [필터: Network·Errors·…]    │
-│                           │  ─────────────────────────── │
-│   ▶ ━━●━━━━━━━━━━━━━━━━   │  [+0.4s] network GET /api    │
-│   타임라인 + 로그 마커     │  [+1.2s] console error ...   │
-└───────────────────────────┴──────────────────────────────┘
-```
-
-- 헤더: 제목 · URL · 뷰포트 · 캡처 시각 · userAgent.
-- 좌측(sticky): `<video controls>` + 하단 타임라인 바(로그 발생 마커, 호버 툴팁). `poster`로 녹화 썸네일(`videoThumbnail`)을 깔아 대용량 dataUrl 디코딩 전 검은 화면을 피한다.
-- 우측(스크롤): 시간순 로그 행 `[+ts초] type · content`, 상단에 타입 필터 칩.
-
-### 인터랙션
-
-- 로그 행 클릭 → `video.currentTime = entry.ts / 1000`.
-- `timeupdate` → 현재 시각 로그 행 active 스타일 + `scrollIntoView({ block: "nearest" })`. 자동 스크롤 기본 ON, 사용자 수동 스크롤 시 OFF + 우측 패널 하단 중앙에 "Resume auto-scroll" 반투명 pill 버튼 노출 → 클릭 시 ON 복귀.
-- 필터 칩 → 로그 목록 + 타임라인 마커 동시 필터.
-- 타임라인 마커는 점프 불가(점프는 로그 행 클릭으로만 받음 — 핵심 설계 3). 마커에 `cursor: default`를 명시해 클릭 affordance를 죽이고, 호버 툴팁만 제공한다.
-- 키보드: `Space` 재생/정지, `←/→` 1초 점프, `J/K` 이전/다음 로그 점프.
-  - 포커스가 `<button>`/필터 칩 등 인터랙티브 요소에 있을 땐 `Space`/`J`/`K` 커스텀 핸들러를 가로채지 않는다(네이티브 동작 우선).
-- 빈 상태: 로그 0건이면 우측 패널에 "No logs captured" 안내. 필터 결과 0건이면 "No logs match the current filter" 안내(`NetworkLogContent`의 noResults 대응). 기존 `ConsoleLogContent`/`NetworkLogContent`의 빈 상태와 같은 형태를 vanilla CSS로 재현 — 아이콘 원(`rounded-full` + `bg-muted` 상당 배경 + 패딩 12px), 아이콘 24px, 세로 중앙정렬 gap 12px, muted 텍스트.
-- **영상 부재**: `videoDataUrl`이 비면(blob 만료 등으로 `videoBlob` 폴백도 실패) 좌측 player 영역에 "영상 없음" 안내를 표시하고 로그 패널은 정상 동작 — 로그만 담긴 리포트로 graceful degrade(영상 점프만 비활성). 다운로드/export 자체는 막지 않는다.
-- `video` 로드 에러 시 player 영역에 코덱 안내 메시지를 덮어 표시하되, **로그 패널·타임스탬프 목록은 계속 동작**(영상 점프만 비활성). graceful degrade.
-
-### 접근성
-
-- 로그 행은 `<button>` 또는 `tabindex="0"` + Enter 처리로 키보드 점프 가능.
-- 현재 재생 위치의 active 로그 행에 `aria-current="true"`.
-- 리포트 UI는 영문 단일이라 i18n 부담 없음 — a11y 속성은 충분히 부여.
-
-### 리포트 내 JSON 블록 스키마
-
-```html
-<script type="application/json" id="bugshot-report">
-{
-  "meta": { "title": "...", "url": "...", "viewport": [1440, 900],
-            "capturedAt": "2026-05-18T12:34:56Z", "userAgent": "..." },
-  "video": { "mimeType": "video/mp4", "nominalDurationMs": 15240 },
-  "logs": [
-    { "ts": 412, "kind": "network", "method": "GET", "url": "/api/x",
-      "status": 500, "durationMs": 234, "phase": "complete" },
-    { "ts": 1203, "kind": "console", "level": "error", "message": "...", "stack": "..." }
-  ]
+```typescript
+export interface LogViewerData {
+  networkLog: NetworkLog | null;
+  consoleLog: ConsoleLog | null;
+  actionLog: ActionLog | null;
+  har: object | null;
+  consoleLogJson: object | null;
+  actionLogJson: object | null;
+  video: {                       // 신규 (없으면 null — 영상 미임베드/부재)
+    dataUrl: string;
+    mime: string;
+    startedAt: number;           // 동기화 앵커(공통 0점)
+    endedAt: number;
+    thumbnail?: string;          // <video poster>
+    viewport?: { width: number; height: number };
+  } | null;
+  meta: { version: string; createdAt: string; pageUrl: string; issueUrl?: string };
 }
-</script>
 ```
 
-영상 dataUrl은 `<video src>`에 직접 인라인하고, JSON 블록은 meta + logs만 담는다 (다중 MB base64를 JSON 문자열에 넣지 않음). 직렬화 시 `<` → `<` escape.
+### `src/sidepanel/lib/buildLogsHtml.ts`
 
-## 진입점
+시그니처에 `video` 인자 추가(actionLog 다음, pageUrl 앞), `data.video`에 주입:
 
-- **PreviewPanel.tsx** — 기존 "Copy Markdown" 버튼(JSX 블록 `:193-203`)을 비디오 모드일 때 `Export ▾` DropdownMenu로 묶고, 메뉴에 "Copy Markdown" + "HTML Report" 두 항목을 둔다. editor store(`videoBlob`, `videoStartedAt`, `videoEndedAt`, `videoViewport`, `target`, `networkLog`, `consoleLog`)에서 `VideoReportData` 조립 → `downloadVideoReport`.
-  - **신규 컴포넌트**: `DropdownMenu`는 코드베이스에 미설치 → `npx shadcn@latest add dropdown-menu`로 설치 후 `src/components/ui/dropdown-menu.tsx` 위치 확인.
-  - 비디오 모드가 아닌 모드(element/freeform)에서는 기존처럼 "Copy Markdown" 단일 버튼을 그대로 둔다 — DropdownMenu는 비디오 모드 한정.
-  - `videoBlob`은 `EditorSnapshot`에 없다(스냅샷엔 `videoThumbnail`/`videoViewport`/`videoCapturedAt`만 있음). 패널을 닫았다 열면 `videoBlob`이 `null`이다. 이 경우 현재 이슈 id로 `buildVideoReportDataFromIssue(issue)` 폴백.
-- **제출 시 첨부** — "제출 시 HTML 리포트 첨부" 절 참조. IssueListTab에는 별도 export 진입점을 두지 않는다(제출 시 영상·로그 blob이 정리되므로 사후 재가공 불가).
-- **i18n** — `src/i18n/` ko/en 로케일에 버튼 라벨·토스트 문자열 추가. 리포트 *내부* UI는 영문 고정(빌드 언어와 무관), 확장 UI만 다국어.
+```typescript
+export function buildLogsHtml(
+  networkLog: NetworkLog | null,
+  consoleLog: ConsoleLog | null,
+  actionLog: ActionLog | null,
+  video: LogViewerData["video"],   // 신규
+  pageUrl: string,
+  issueUrl?: string,
+): string;
+```
+
+### `src/sidepanel/lib/buildCaptureFiles.ts`
+
+- `BuildCaptureFilesInput`에 `videoStartedAt?: number`, `videoEndedAt?: number`, `videoThumbnail?: string | null`, `videoViewport?: { width; height } | null` 추가(`videoBlob`은 이미 있음).
+- **`result.video` push 유지**(`:42-47`) — `recording.mp4` 본문 인라인 폐지 아님. `recordingFilename` import 유지(고아 아님).
+- video 모드에서 `videoBlob`이 있고 `videoStartedAt`/`videoEndedAt`이 모두 있으면 `video` 객체 조립(`dataUrl = await blobToDataUrl(videoBlob)`, `mime = videoBlob.type`) → `buildLogsHtml`에 **추가** 전달(인라인 push와 별개). 하나라도 없으면 `null`(graceful, logs.html 영상 미임베드).
+- `actionLog` 게이팅(video만)은 현행 유지(`:51`).
+
+### `src/log-viewer/App.tsx`
+
+- `data.video` 존재 시 `ResizablePanelGroup`(좌 플레이어 / 우 `Tabs`), 부재 시 기존 `Tabs` 풀폭.
+- 좌 패널: `bg-black` `h-full` 컨테이너(세로 중앙 정렬) 안에 `<video ref controls poster={video.thumbnail} src={video.dataUrl} className="object-contain" onTimeUpdate onError>`. 레터박스 검은 배경. (후속 재생바 타임스탬프 UI 자리 확보, 이번엔 미구현.)
+- `currentMs` state + `seekTo` 콜백(핵심 설계 5).
+- `video.startedAt`/`endedAt`이 있을 때만 세 `*LogContent`에 `syncBaseMs`/`onSeek`/`activeTs` 전달. 없으면 미전달(영상은 재생, 동기화 비활성).
+- 영상 로드 에러(`onError`) 시 플레이어 자리에 안내, 탭은 계속 동작(graceful — 좌 패널만 메시지로 대체).
+
+### `src/sidepanel/components/{Console,Network,Action}LogContent.tsx`
+
+핵심 설계 4의 optional props 추가. Network는 `syncBaseMs` 공급 시 상대시간 칩 신규. 셋 다 `findActiveIndex`로 active 행 산출. **미공급 경로의 기존 동작·레이아웃 불변**(라이브 서브탭 회귀 방지).
+
+### 제출 경로 (buildCaptureFiles 호출부 2곳)
+
+- `src/sidepanel/tabs/IssueCreateModal.tsx` `buildEditorCaptureFiles`(`:219-238`) — editor store에서 `videoStartedAt`/`videoEndedAt`/`videoThumbnail`/`videoViewport`를 읽어 `buildCaptureFiles`에 전달(`videoBlob`은 이미 `:103`).
+- `src/sidepanel/tabs/DraftDetailDialog.tsx` `buildCtxForSubmit`(`:232-290`) — `issue.videoStartedAt`/`videoEndedAt` 전달. **viewport는 `issue.viewport` 최상위 필드**에서 읽는다(`issue.snapshot`은 `{before,after}`라 영상 메타 없음). `videoThumbnail`은 IssueRecord 미영속이라 전달 불가 → 저장 draft logs.html은 poster 생략. `videoBlob`은 이미 `getVideoBlob(issue.id)`(`:270`).
+- **제출 핸들러(4 플랫폼)는 `captureFiles.video`(=`recording.mp4`)를 그대로 소비한다 — 변경 없음.** 8곳에서 참조: Jira attachments(`IssueCreateModal.tsx:253`/`DraftDetailDialog.tsx:306`), GitHub/Linear/Notion submit 인자(`IssueCreateModal.tsx:314,356,406`/`DraftDetailDialog.tsx:371,416,472`) → 본문 인라인 영상(`submitToGithub.ts toMedia`/`submitToLinear.ts`/`submitToNotion.ts video block`). logs.html 영상은 이와 **별개로 추가**되므로 인라인 경로는 손대지 않는다.
+
+### i18n
+
+영상 로드 에러·플레이어 빈 안내 등 신규 문자열을 `src/log-viewer/i18n.ts` ko/en 동시 추가. `log-viewer/__tests__/i18n.test.ts` 대칭 검증. 사이드패널 `src/i18n/`는 신규 키 없으면 무변경.
+
+## 데이터 흐름
+
+```
+[녹화] video-recorder.onstop  /  use-30s-replay.capture
+   onRecordingComplete(blob, thumb, viewport, startedAt, endedAt)
+      → editor-store: videoStartedAt/videoEndedAt set (+ EditorSnapshot 영속)
+      → confirmDraft → IssueRecord.videoStartedAt/videoEndedAt
+[제출] IssueCreateModal / DraftDetailDialog
+   buildCaptureFiles({ videoBlob, videoStartedAt, videoEndedAt, videoThumbnail, videoViewport, ... })
+      → (video 모드 & blob & 앵커 존재 시) video = { dataUrl, mime, startedAt, endedAt, ... }
+      → buildLogsHtml(..., video, ...) → __BUGSHOT_DATA__ JSON 임베드 → logs.html (영상 추가 임베드)
+      → result.video(recording.mp4) push 유지 → 본문 인라인 영상 (어댑터 8 호출부)
+      → 플랫폼 첨부 (인라인 mp4 + 임베드 logs.html 양쪽; Jira/Linear는 injectIssueUrl 왕복)
+[열람] logs.html → main.tsx JSON.parse → App
+   data.video 있음 → [플레이어 | 탭] 분할
+   timeupdate → currentMs → 세 탭 findActiveIndex → active 행
+   행 칩 클릭 → seekTo → video.currentTime
+```
+
+## 기존 패턴 준수
+
+- **세션 영속화 수동 복사**: `EditorSnapshot` 필드 추가 시 `snapshotFromState()` 동시 갱신(핵심 설계 1).
+- **store 버전 optional 필드**: optional 필드 추가는 버전 bump 없이 호환(action-recorder `actionLogBlobKey` 전례; issues-store 현재 v5, "v5→v6"은 없음).
+- **순수 헬퍼 분리 + vitest**: `timeline.ts` 테스트 우선.
+- **하위호환 optional props**: 라이브 서브탭 회귀 0 — 미공급 시 기존 동작.
+- **shadcn 우선**: `resizable`을 직접 스타일링 대신 컴포넌트 설치.
+- **탭 동시 렌더**: 탭 콘텐츠 `data-[state=inactive]:hidden` 유지(기존).
+- **i18n 동시 갱신**: log-viewer ko/en 함께.
+
+## 대안 검토
+
+### 대안 A — vanilla from-scratch 리포트(`buildVideoReport.ts`)
+`docs/features/video-report-player/`의 원안. → **불채택.** log-viewer가 로그 렌더·필터·검색·탭·상대시간을 이미 제공하는데 vanilla로 재구현하면 수백 줄 중복 + 분류 체계 이중 관리. 영상 플레이어 한 칸 + optional 동기화 props가 훨씬 작다.
+
+### 대안 B — 영상을 별도 파일 유지, logs.html이 상대경로 참조
+→ **불채택(사용자 결정).** 단일 파일 더블클릭 자기완결성이 깨짐(상대경로 미디어는 `file://`에서 불안정). 임베드가 콘셉트 일관.
+
+### 대안 C — 영상을 4번째 탭으로
+→ **불채택(사용자 결정).** 탭이면 영상과 로그를 동시에 못 봐 동기화 가치 소멸. 가로 분할이 필수.
+
+### 대안 D — 동기화를 위해 세 컴포넌트를 래핑하는 별도 동기화 컴포넌트 신설
+→ **불채택.** optional props 추가가 더 외과적이고, 컴포넌트 내부의 가상 스크롤/필터/검색 상태를 래퍼가 다시 다룰 필요가 없다.
 
 ## 위험 요소
 
-- **플랫폼 첨부 용량 한도**: 60초 / 1.5Mbps 영상은 base64 인라인 시 ~15MB, HTML 전체로는 더 커진다. Jira Cloud 기본 첨부 한도는 10MB(인스턴스별 설정 가능)라 리포트 첨부가 거부될 수 있다. GitHub·Linear·Notion도 한도가 있다. V1은 첨부 실패를 격리(이슈 본문·`bugshot.md` 첨부는 정상)하고, 한도 초과 사전 차단·압축은 후속 검토.
-- **WebM + Safari, `file://` 미디어 제약**: 녹화가 WebM로 떨어지거나 Safari의 `file://` 미디어 로딩 제약에 걸리면 Safari가 영상을 못 연다 — `video` 에러 핸들러 + graceful degrade로 처리(로그 패널은 유지). Safari 영상 재생은 best-effort이며, 성공 기준 필수 브라우저는 Chrome·Firefox.
-- **MAIN world 주입 무관**: 이 기능은 SW→탭 주입을 쓰지 않으므로 `executeScript` 직렬화 규칙과 무관.
-
-## 수정·신규 파일 요약
-
-| 파일 | 변경 |
-|---|---|
-| `src/sidepanel/video-recorder.ts` | `onstop`에서 `startTime`/`Date.now()`(endedAt) 보존 후 `onRecordingComplete`에 전달 |
-| `src/store/editor-store.ts` | `videoStartedAt`/`videoEndedAt` 필드(`EditorState`/`initial`/`EditorSnapshot`) + `onRecordingComplete` 시그니처/구현 + `confirmDraft` video 분기 |
-| `src/sidepanel/hooks/useEditorSessionSync.ts` | `snapshotFromState()`에 `videoStartedAt`/`videoEndedAt` 복사 추가 |
-| `src/store/issues-store.ts` | `IssueRecord`에 `videoStartedAt?`/`videoEndedAt?` + `ISSUES_STORE_VERSION` v6 bump(마이그레이션 코드 무변경) |
-| `src/sidepanel/lib/buildVideoReport.ts` | **신규** — 타임라인/HTML 빌더/첨부 빌더/다운로드/이슈 어댑터 |
-| `src/sidepanel/lib/__tests__/buildVideoReport.test.ts` | **신규** — `buildReportTimeline` 단위 테스트 |
-| `src/components/ui/dropdown-menu.tsx` | **신규** — `npx shadcn@latest add dropdown-menu` |
-| `src/sidepanel/tabs/PreviewPanel.tsx` | 비디오 모드 `Export ▾` DropdownMenu("Copy Markdown" + "HTML Report") + `videoBlob` 폴백 |
-| `src/sidepanel/lib/submitToGithub.ts` | 비디오 리포트 첨부 + `guessMime` `.html` 분기 |
-| `src/sidepanel/lib/submitToLinear.ts` | 비디오 리포트 첨부 + `guessMime` `.html` 분기 |
-| `src/sidepanel/lib/submitToNotion.ts` | 비디오 리포트 첨부(`log` 카테고리) + `guessMime` `.html` 분기 |
-| `src/background/` (Jira submitIssue 경로) | 비디오 리포트 첨부 |
-| `src/sidepanel/tabs/IssueCreateModal.tsx` | 활성 세션 제출 핸들러 — 비디오 모드 시 `VideoReportData` 조립 → 첨부 전달 |
-| `src/sidepanel/tabs/DraftDetailDialog.tsx` | saved draft 제출 핸들러 — 비디오 모드 시 `buildVideoReportDataFromIssue` 조립 → 첨부 전달 |
-| `src/i18n/` (ko/en) | 신규 문자열 |
+- **logs.html 용량 ↑ (플랫폼 첨부 한도)**: 영상 임베드로 ~15MB+. Jira(10MB) 등 초과 가능. 제출 시 logs.html 첨부 실패를 격리 — 이슈 본문·`bugshot.md`는 정상 진행. (단, 현재 제출 핸들러의 첨부 실패 격리 동작을 구현 시 재확인: 한 첨부 실패가 전체를 막지 않는지. 막는다면 best-effort 처리 추가.)
+- **인라인 영상 회귀(폐지 안 함)**: `recording.mp4` 인라인은 유지하므로 4개 어댑터의 본문 영상 프리뷰는 보존된다. logs.html 영상은 추가 임베드 — 인라인 `result.video` push·어댑터 `video` 인자(8개 호출부)에 손대지 않아야 회귀가 없다. trade-off는 전송량 ~2배.
+- **`buildLogsHtml` 시그니처 변경**: 호출부(`buildCaptureFiles`)·테스트(`__tests__/buildLogsHtml.test.ts`) 동시 갱신. network/console/action-only(video=null) 회귀 케이스 유지.
+- **WebM + Safari / `file://` 미디어 제약**: 녹화가 WebM로 떨어지거나 Safari `file://` 제약 시 영상 미재생 — `onError`로 플레이어 자리 안내 + 탭은 유지(graceful). 필수 브라우저는 Chrome/Firefox.
+- **realm 시계 차감 가정**: side panel vs MAIN world 시각. 같은 시스템 시계라 안전(핵심 설계 1).
+- **대용량 dataUrl JSON.parse (열람 + 제출 양쪽)**: ① 열람 시 log-viewer `main.tsx`가 ~20MB JSON 문자열 파싱 + `<video src>` 설정. ② **제출 시 Jira/Linear `injectIssueUrl`**(`src/lib/inject-issue-url.ts:8-26`)이 logs.html dataUrl 전체를 `atob`→`Uint8Array`→`TextDecoder`→`JSON.parse`→`JSON.stringify`→`String.fromCharCode` 문자 누적 루프(`:25`)→`btoa`로 왕복한다 — 영상 임베드로 dataUrl이 커지면 SW에서 수백 MB 중간 메모리 + 긴 동기 블로킹. **`injectIssueUrl`을 대용량에 견디게 최적화한다**(예: `:25`의 문자 누적 루프 제거 → 청크 단위 `btoa`/`Blob` 기반 변환, 또는 `meta.issueUrl` 패치만 수행하고 base64 전체 재인코딩을 회피). Chrome/Firefox 실측 스모크. 둘 다 truncation·OOM 없는지 확인.
+- **MAIN world 주입 무관**: SW→탭 `executeScript` 직렬화 규칙과 무관(이 기능은 안 씀).

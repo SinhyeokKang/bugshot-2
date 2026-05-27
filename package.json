@@ -1,12 +1,13 @@
 {
   "name": "bugshot-2",
   "private": true,
-  "version": "1.2.3",
+  "version": "1.3.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
-    "build:store": "BUGSHOT_STORE_BUILD=1 tsc -b && BUGSHOT_STORE_BUILD=1 vite build",
+    "build:log-viewer": "vite build --config vite.log-viewer.config.ts",
+    "build": "pnpm build:log-viewer && tsc -b && vite build",
+    "build:store": "pnpm build:log-viewer && BUGSHOT_STORE_BUILD=1 tsc -b && BUGSHOT_STORE_BUILD=1 vite build",
     "preview": "vite preview",
     "typecheck": "tsc -b --noEmit",
     "test": "vitest run",
@@ -42,9 +43,11 @@
     "lucide-react": "^0.460.0",
     "markdown-it": "^14.1.1",
     "markerjs2": "^2.32.7",
+    "mp4-muxer": "^5.2.2",
     "pretendard": "^1.3.9",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "react-resizable-panels": "^2.1.9",
     "sonner": "^2.0.7",
     "tailwind-merge": "^2.5.4",
     "tailwindcss-animate": "^1.0.7",
@@ -53,6 +56,7 @@
   },
   "devDependencies": {
     "@crxjs/vite-plugin": "^2.0.0",
+    "@tailwindcss/container-queries": "^0.1.1",
     "@types/chrome": "^0.0.280",
     "@types/markdown-it": "^14.1.2",
     "@types/node": "^22.9.0",
@@ -64,6 +68,7 @@
     "tailwindcss": "^3.4.14",
     "typescript": "^5.6.3",
     "vite": "^5.4.11",
+    "vite-plugin-singlefile": "^2.3.3",
     "vitest": "^2.1.9"
   }
 }

@@ -64,8 +64,9 @@ function networkRecorderScript(): void {
   const buffer: CapturedRequest[] = [];
   let totalSeen = 0;
   let memoryUsed = 0;
-  let recording = false;
-  const warnings = new Set<string>();
+  let recording = true;
+  type NetworkWarning = "MEMORY_CAPPED" | "ENTRY_CAPPED" | "BODY_TRUNCATED";
+  const warnings = new Set<NetworkWarning>();
 
   function genId(): string {
     if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -586,6 +587,9 @@ function networkRecorderScript(): void {
     const detail = (e as CustomEvent).detail as { sentinel?: string } | undefined;
     if (detail?.sentinel) setSentinel(detail.sentinel);
   });
+
+  // 풀 네비게이션으로 MAIN world가 파괴되기 직전 버퍼 flush(보조). sentinel 없으면 dispatch no-op.
+  window.addEventListener("pagehide", () => dispatch());
 
   (window as any)[CTRL_KEY] = { setSentinel, clearBuffer };
 }

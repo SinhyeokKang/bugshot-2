@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import type { NetworkLog } from "@/types/network";
 import type { ConsoleLog } from "@/types/console";
-import { getVideoBlob, getImageBlob, getNetworkLog, getConsoleLog, blobToDataUrl, pruneOrphanInlineImages } from "@/store/blob-db";
+import type { ActionLog } from "@/types/action";
+import { getVideoBlob, getImageBlob, getNetworkLog, getConsoleLog, getActionLog, blobToDataUrl, pruneOrphanInlineImages } from "@/store/blob-db";
 import { useIssueImages } from "@/sidepanel/hooks/useIssueImages";
 import { Info } from "lucide-react";
 import { useT, dateBcp47 } from "@/i18n";
@@ -55,6 +56,7 @@ import { DocSectionBody } from "@/sidepanel/components/DocSectionBody";
 import { LogAttachmentCards } from "@/sidepanel/components/LogAttachmentCards";
 import { NetworkLogPreviewDialog } from "@/sidepanel/components/NetworkLogPreviewDialog";
 import { ConsoleLogPreviewDialog } from "@/sidepanel/components/ConsoleLogPreviewDialog";
+import { ActionLogPreviewDialog } from "@/sidepanel/components/ActionLogPreviewDialog";
 import {
   StyleChangesTable,
   buildStyleDiff,
@@ -172,12 +174,15 @@ export function DraftDetailDialog({
 
   const [networkLogData, setNetworkLogData] = useState<NetworkLog | null>(null);
   const [consoleLogData, setConsoleLogData] = useState<ConsoleLog | null>(null);
+  const [actionLogData, setActionLogData] = useState<ActionLog | null>(null);
   const [networkDialogOpen, setNetworkDialogOpen] = useState(false);
   const [consoleDialogOpen, setConsoleDialogOpen] = useState(false);
+  const [actionDialogOpen, setActionDialogOpen] = useState(false);
   useEffect(() => {
     if (!open || (!isVideo && !isFreeform)) {
       setNetworkLogData(null);
       setConsoleLogData(null);
+      setActionLogData(null);
       return;
     }
     let cancelled = false;
@@ -191,8 +196,14 @@ export function DraftDetailDialog({
         if (!cancelled) setConsoleLogData(log);
       });
     }
+    // action log는 video 모드에서만 첨부.
+    if (isVideo && issue?.actionLogBlobKey) {
+      getActionLog(issue.actionLogBlobKey).then((log) => {
+        if (!cancelled) setActionLogData(log);
+      });
+    }
     return () => { cancelled = true; };
-  }, [open, isVideo, isFreeform, issue?.networkLogBlobKey, issue?.consoleLogBlobKey]);
+  }, [open, isVideo, isFreeform, issue?.networkLogBlobKey, issue?.consoleLogBlobKey, issue?.actionLogBlobKey]);
 
   const diffs = useMemo(() => {
     if (!issue?.selectionSnapshot || !issue.styleEdits) return [];
@@ -228,6 +239,11 @@ export function DraftDetailDialog({
     let consoleLogForSubmit: ConsoleLog | null = null;
     if ((isVideo || isFreeform) && issue.consoleLogBlobKey) {
       consoleLogForSubmit = await getConsoleLog(issue.consoleLogBlobKey);
+    }
+    // actionLog는 video에서만 logs.html에 주입되므로 freeform/screenshot은 읽지 않는다.
+    let actionLogForSubmit: ActionLog | null = null;
+    if (isVideo && issue.actionLogBlobKey) {
+      actionLogForSubmit = await getActionLog(issue.actionLogBlobKey);
     }
     const ctx = {
       os: getOsInfo(),
@@ -268,6 +284,11 @@ export function DraftDetailDialog({
       afterImage: isElementNoDiff ? null : afterDataUrl,
       networkLog,
       consoleLog: consoleLogForSubmit,
+      actionLog: actionLogForSubmit,
+      // 영상 동기화 앵커. videoThumbnail은 IssueRecord 미영속 → 저장 draft logs.html은 poster 생략.
+      videoStartedAt: issue.videoStartedAt,
+      videoEndedAt: issue.videoEndedAt,
+      pageUrl: issue.pageUrl,
     });
     return { ctx, captureFiles };
   }
@@ -452,7 +473,7 @@ export function DraftDetailDialog({
       ctx,
       images: captureFiles.images,
       video: captureFiles.video,
-      logs: captureFiles.logs,
+      logs: captureFiles.jsonLogs,
       inlineImages: notionInline,
       databaseId: notionFields.databaseId,
       titlePropertyName: notionSchema.titlePropertyName,
@@ -546,8 +567,10 @@ export function DraftDetailDialog({
                   hasStyleBlock={hasStyleBlock}
                   networkLogData={networkLogData}
                   consoleLogData={consoleLogData}
+                  actionLogData={actionLogData}
                   onNetworkLogClick={() => setNetworkDialogOpen(true)}
                   onConsoleLogClick={() => setConsoleDialogOpen(true)}
+                  onActionLogClick={() => setActionDialogOpen(true)}
                 />
               </Card>
 
@@ -614,6 +637,14 @@ export function DraftDetailDialog({
           startedAt={consoleLogData.startedAt}
         />
       )}
+      {actionLogData && (
+        <ActionLogPreviewDialog
+          open={actionDialogOpen}
+          onOpenChange={setActionDialogOpen}
+          entries={actionLogData.entries}
+          startedAt={actionLogData.startedAt}
+        />
+      )}
       <SubmitFieldsDialog
         open={submitOpen}
         onOpenChange={setSubmitOpen}
@@ -666,8 +697,10 @@ function DraftDetailSections({
   hasStyleBlock,
   networkLogData,
   consoleLogData,
+  actionLogData,
   onNetworkLogClick,
   onConsoleLogClick,
+  onActionLogClick,
 }: {
   issue: IssueRecord;
   sectionConfig: IssueSection[];
@@ -679,8 +712,10 @@ function DraftDetailSections({
   hasStyleBlock: boolean;
   networkLogData: NetworkLog | null;
   consoleLogData: ConsoleLog | null;
+  actionLogData: ActionLog | null;
   onNetworkLogClick: () => void;
   onConsoleLogClick: () => void;
+  onActionLogClick: () => void;
 }) {
   const t = useT();
   const isFreeform = issue.captureMode === "freeform";
@@ -698,7 +733,7 @@ function DraftDetailSections({
         <div className="aspect-video w-full overflow-hidden rounded-md border bg-muted/70">
           <img
             src={beforeUrl}
-            alt="Captured image"
+            alt={t("alt.capturedImage")}
             className="h-full w-full object-contain"
           />
         </div>
@@ -721,9 +756,11 @@ function DraftDetailSections({
       </FieldSection>
     ) : null;
 
+  const showActionCard = isVideo && actionLogData !== null && actionLogData.captured > 0;
   const showLogCards = (isVideo || isFreeform) && (
     (networkLogData !== null && networkLogData.captured > 0) ||
-    (consoleLogData !== null && consoleLogData.captured > 0)
+    (consoleLogData !== null && consoleLogData.captured > 0) ||
+    showActionCard
   );
   const logCardsBlock = showLogCards ? (
     <FieldSection key="__logCards" label={t("section.logs")}>
@@ -736,6 +773,8 @@ function DraftDetailSections({
         consoleLogAttach={!!issue.consoleLogBlobKey}
         onConsoleLogToggle={() => {}}
         onConsoleLogClick={onConsoleLogClick}
+        actionLog={showActionCard ? actionLogData : null}
+        onActionLogClick={onActionLogClick}
         readOnly
       />
     </FieldSection>
@@ -838,11 +877,11 @@ function DraftVideoPreview({ issue, thumbnailUrl }: { issue: IssueRecord; thumbn
   return (
     <div className="space-y-1.5">
       {src ? (
-        <div className="aspect-video w-full overflow-hidden rounded-md border bg-muted/70">
+        <div className="aspect-video w-full overflow-hidden rounded-md border bg-black">
           <video src={src} controls className="h-full w-full object-contain" />
         </div>
       ) : thumbnailUrl ? (
-        <div className="aspect-video w-full overflow-hidden rounded-md border bg-muted/70">
+        <div className="aspect-video w-full overflow-hidden rounded-md border bg-black">
           <img src={thumbnailUrl} alt="Recording thumbnail" className="h-full w-full object-contain" />
         </div>
       ) : null}

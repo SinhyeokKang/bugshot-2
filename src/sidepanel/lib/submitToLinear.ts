@@ -8,6 +8,7 @@ import type { MarkdownContext } from "./buildIssueMarkdown";
 import { sendBg } from "@/types/messages";
 import type { LinearCreateIssueResult } from "@/types/linear";
 import type { NormalizedSubmitResult } from "@/types/platform";
+import { injectIssueUrl } from "@/lib/inject-issue-url";
 
 export interface LinearFileInput {
   filename: string;
@@ -31,6 +32,7 @@ function guessMime(filename: string): string {
   if (filename.endsWith(".webp")) return "image/webp";
   if (filename.endsWith(".webm")) return "video/webm";
   if (filename.endsWith(".mp4")) return "video/mp4";
+  if (filename.endsWith(".html")) return "text/html";
   if (filename.endsWith(".md")) return "text/markdown";
   if (filename.endsWith(".har")) return "application/json";
   if (filename.endsWith(".json")) return "application/json";
@@ -54,13 +56,10 @@ export async function submitToLinear(
   const imageIndexes = input.images ?? [];
   for (const img of imageIndexes) uploadPromises.push(uploadFile(img));
   const videoPromise = input.video ? uploadFile(input.video) : null;
-  const logFiles = input.logs ?? [];
-  const logPromises = logFiles.map((l) => uploadFile(l));
 
-  const [imageResults, videoResult, logResults, inlineResults] = await Promise.all([
+  const [imageResults, videoResult, inlineResults] = await Promise.all([
     Promise.all(uploadPromises),
     videoPromise,
-    Promise.all(logPromises),
     Promise.all(
       (input.inlineImages ?? []).map(async (img) => {
         const result = await uploadFile({
@@ -109,6 +108,18 @@ export async function submitToLinear(
       priority: input.priority,
     },
   });
+
+  const logFiles = await Promise.all(
+    (input.logs ?? []).map(async (l) =>
+      l.filename === "logs.html"
+        ? { ...l, dataUrl: await injectIssueUrl(l.dataUrl, result.url) }
+        : l,
+    ),
+  );
+  // 이슈는 이미 생성됨 — 로그 첨부 실패(대용량 logs.html 등)가 전체 제출을 실패로 만들지 않게 격리.
+  const logResults = (
+    await Promise.all(logFiles.map((l) => uploadFile(l).catch(() => null)))
+  ).filter((r): r is LinearMediaInput => r !== null);
 
   const aiMeta = buildAiMetaAttachment(input.ctx);
   const aiMetaUploaded = await uploadFile(aiMeta);

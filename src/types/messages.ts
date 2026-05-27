@@ -55,7 +55,12 @@ export interface OAuthStartResultMsg {
 
 export type BgRequest =
   | { type: "ping" }
-  | { type: "captureVisibleTab"; tabId: number }
+  | {
+      type: "captureVisibleTab";
+      tabId: number;
+      format?: "jpeg" | "png";
+      quality?: number;
+    }
   | { type: "oauth.start" }
   | { type: "oauth.available" }
   | { type: "jira.myself"; config: JiraConfigPayload }
@@ -137,6 +142,11 @@ export type BgRequest =
   | { type: "notion.getPageStatus"; pageId: string }
   | { type: "notion.updatePageStatus"; pageId: string; propertyName: string; optionName: string };
 
+// handleMessage를 거치지 않는 bg→sidepanel 내부 통신 메시지.
+export type BgInternalMessage =
+  | { type: "logClear"; tabId: number }
+  | { type: "activeTabExpiredDeferred"; tabId: number };
+
 export type BgResponse<T = unknown> =
   | { ok: true; result: T }
   | { ok: false; error: string; status?: number; body?: unknown };
@@ -213,6 +223,13 @@ export const onPickerUnavailable = {
   fire() { this._listeners.forEach((fn) => fn()); },
 };
 
+// 페이지 이동으로 activeTab grant가 만료돼 캡처가 불가한 상태. 다이얼로그가 패널 재실행을 안내한다.
+export const onPickerPermissionExpired = {
+  _listeners: new Set<Listener>(),
+  subscribe(fn: Listener) { this._listeners.add(fn); return () => { this._listeners.delete(fn); }; },
+  fire() { this._listeners.forEach((fn) => fn()); },
+};
+
 export const onPickerIframeUnsupported = {
   _listeners: new Set<Listener>(),
   subscribe(fn: Listener) { this._listeners.add(fn); return () => { this._listeners.delete(fn); }; },
@@ -229,13 +246,6 @@ export const onSessionSaveExhausted = {
   _listeners: new Set<Listener>(),
   subscribe(fn: Listener) { this._listeners.add(fn); return () => { this._listeners.delete(fn); }; },
   fire() { this._listeners.forEach((fn) => fn()); },
-};
-
-type VideoRecordingListener = (payload: { tabId: number }) => void;
-export const onVideoRecordingUnavailable = {
-  _listeners: new Set<VideoRecordingListener>(),
-  subscribe(fn: VideoRecordingListener) { this._listeners.add(fn); return () => { this._listeners.delete(fn); }; },
-  fire(payload: { tabId: number }) { this._listeners.forEach((fn) => fn(payload)); },
 };
 
 // Re-export common platform types for consumers

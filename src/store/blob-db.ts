@@ -1,12 +1,15 @@
 import type { NetworkLog } from "@/types/network";
 import type { ConsoleLog } from "@/types/console";
+import type { ActionLog } from "@/types/action";
+import { EDITOR_SESSION_PREFIX } from "@/lib/session-keys";
 
 const DB_NAME = "bugshot-video";
-const DB_VERSION = 5;
+const DB_VERSION = 6;
 const STORE_VIDEO = "blobs";
 const STORE_IMAGES = "images";
 const STORE_NETWORK = "networkLogs";
 const STORE_CONSOLE = "consoleLogs";
+const STORE_ACTION = "actionLogs";
 const STORE_INLINE_IMAGES = "inlineImages";
 
 let dbPromise: Promise<IDBDatabase> | null = null;
@@ -28,6 +31,9 @@ function openDb(): Promise<IDBDatabase> {
       }
       if (!db.objectStoreNames.contains(STORE_CONSOLE)) {
         db.createObjectStore(STORE_CONSOLE);
+      }
+      if (!db.objectStoreNames.contains(STORE_ACTION)) {
+        db.createObjectStore(STORE_ACTION);
       }
       if (!db.objectStoreNames.contains(STORE_INLINE_IMAGES)) {
         db.createObjectStore(STORE_INLINE_IMAGES);
@@ -334,6 +340,69 @@ export async function clearConsoleLogs(): Promise<void> {
   }
 }
 
+// --- Action log API ---
+
+export async function saveActionLog(key: string, log: ActionLog): Promise<boolean> {
+  try {
+    const db = await openDb();
+    const tx = db.transaction(STORE_ACTION, "readwrite");
+    tx.objectStore(STORE_ACTION).put(log, key);
+    await txComplete(tx);
+    return true;
+  } catch (e) {
+    console.warn("[blob-db] saveActionLog failed:", e);
+    return false;
+  }
+}
+
+export async function getActionLog(key: string): Promise<ActionLog | null> {
+  try {
+    const db = await openDb();
+    const tx = db.transaction(STORE_ACTION, "readonly");
+    const req = tx.objectStore(STORE_ACTION).get(key);
+    await txComplete(tx);
+    return (req.result as ActionLog) ?? null;
+  } catch (e) {
+    console.warn("[blob-db] getActionLog failed:", e);
+    return null;
+  }
+}
+
+export async function deleteActionLog(key: string): Promise<void> {
+  try {
+    const db = await openDb();
+    const tx = db.transaction(STORE_ACTION, "readwrite");
+    tx.objectStore(STORE_ACTION).delete(key);
+    await txComplete(tx);
+  } catch (e) {
+    console.warn("[blob-db] deleteActionLog failed:", e);
+  }
+}
+
+export async function getActionLogKeys(): Promise<string[]> {
+  try {
+    const db = await openDb();
+    const tx = db.transaction(STORE_ACTION, "readonly");
+    const req = tx.objectStore(STORE_ACTION).getAllKeys();
+    await txComplete(tx);
+    return (req.result as string[]) ?? [];
+  } catch (e) {
+    console.warn("[blob-db] getActionLogKeys failed:", e);
+    return [];
+  }
+}
+
+export async function clearActionLogs(): Promise<void> {
+  try {
+    const db = await openDb();
+    const tx = db.transaction(STORE_ACTION, "readwrite");
+    tx.objectStore(STORE_ACTION).clear();
+    await txComplete(tx);
+  } catch (e) {
+    console.warn("[blob-db] clearActionLogs failed:", e);
+  }
+}
+
 // --- Inline image API ---
 
 export async function saveInlineImage(refId: string, blob: Blob): Promise<boolean> {
@@ -409,7 +478,7 @@ async function collectAllActiveInlineRefs(): Promise<Set<string>> {
   try {
     const sessionData = await chrome.storage.session.get(null);
     for (const [key, value] of Object.entries(sessionData)) {
-      if (!key.startsWith("editor:")) continue;
+      if (!key.startsWith(EDITOR_SESSION_PREFIX)) continue;
       const snap = value as { draft?: { sections?: Record<string, string> } };
       if (!snap?.draft?.sections) continue;
       for (const text of Object.values(snap.draft.sections)) scanInlineRefs(text, refs);

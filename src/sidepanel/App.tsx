@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Blocks, Globe, List, Settings, TerminalSquare } from "lucide-react";
 import { useT } from "@/i18n";
 import {
@@ -16,13 +16,16 @@ import { Toaster } from "@/components/ui/sonner";
 import { PICKER_PORT_NAME, PANEL_PORT_PREFIX } from "@/lib/session-keys";
 import { useEditorStore, useAiLoading } from "@/store/editor-store";
 import { connectedPlatforms, useSettingsStore } from "@/store/settings-store";
+import { useSettingsUiStore } from "@/store/settings-ui-store";
+import { use30sReplay } from "./30s-replay/use-30s-replay";
+import { ReplayProvider } from "./30s-replay/replay-context";
 import {
   onBlobSaveFailed,
   onOAuthExpired,
   onPickerIframeUnsupported,
+  onPickerPermissionExpired,
   onPickerUnavailable,
   onSessionSaveExhausted,
-  onVideoRecordingUnavailable,
 } from "@/types/messages";
 import { PLATFORM_TAB_KEYS, type PlatformId } from "@/types/platform";
 import { useBoundTabId } from "./hooks/useBoundTabId";
@@ -34,9 +37,7 @@ import { DebugTab } from "./tabs/DebugTab";
 import { IntegrationsTab } from "./tabs/IntegrationsTab";
 import { IssueListTab } from "./tabs/IssueListTab";
 import { SettingsTab } from "./tabs/SettingsTab";
-
-const TabNavContext = createContext<(tab: string) => void>(() => {});
-export const useTabNav = () => useContext(TabNavContext);
+import { TabNavContext } from "./tab-nav";
 
 function useSettingsHydrated() {
   const [ready, setReady] = useState(
@@ -54,6 +55,8 @@ export default function App() {
   const tabId = useBoundTabId();
   const editorHydrated = useEditorSessionSync(tabId ?? null);
   useBackgroundRecorder(tabId ?? null);
+  const replayEnabled = useSettingsUiStore((s) => s.replayEnabled);
+  const replay = use30sReplay(tabId ?? null, replayEnabled);
   const settingsHydrated = useSettingsHydrated();
   usePickerMessages(tabId ?? null);
   useThemeEffect();
@@ -62,12 +65,17 @@ export default function App() {
   const aiLoading = useAiLoading();
   const aiStylingLoading = useEditorStore((s) => s.aiStylingLoading);
   const [tab, setTab] = useState("debug");
+  const [settingsSub, setSettingsSub] = useState("issue");
+  const navTo = useCallback((next: string, sub?: string) => {
+    setTab(next);
+    if (sub) setSettingsSub(sub);
+  }, []);
   const [oauthExpiredPlatform, setOauthExpiredPlatform] = useState<PlatformId | null>(null);
   const [pickerUnavailable, setPickerUnavailable] = useState(false);
   const [iframeUnsupported, setIframeUnsupported] = useState(false);
   const [blobSaveFailed, setBlobSaveFailed] = useState(false);
   const [sessionSaveExhausted, setSessionSaveExhausted] = useState(false);
-  const [videoUnavailableTabId, setVideoUnavailableTabId] = useState<number | null>(null);
+  const [permissionExpired, setPermissionExpired] = useState(false);
 
   useEffect(() => {
     if (settingsHydrated && connectedPlatforms(accounts).length === 0) {
@@ -128,11 +136,11 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const unsub = onVideoRecordingUnavailable.subscribe(({ tabId }) => {
+    const unsub = onPickerPermissionExpired.subscribe(() => {
       if (document.activeElement instanceof HTMLElement && document.activeElement !== document.body) {
         document.activeElement.blur();
       }
-      setVideoUnavailableTabId(tabId);
+      setPermissionExpired(true);
     });
     return unsub;
   }, []);
@@ -163,7 +171,16 @@ export default function App() {
   if (tabId === null) return <UnsupportedPage />;
 
   return (
-    <TabNavContext.Provider value={setTab}>
+    <TabNavContext.Provider value={navTo}>
+    <ReplayProvider
+      value={{
+        replayEnabled,
+        isReady: replay.isReady,
+        isEncoding: replay.isEncoding,
+        bufferedSeconds: replay.bufferedSeconds,
+        capture: replay.capture,
+      }}
+    >
     <div className="relative flex h-screen flex-col">
       {aiLoading && (
         <div className="absolute inset-0 z-50 overflow-hidden backdrop-blur-[2px]">
@@ -208,7 +225,7 @@ export default function App() {
         </div>
 
         <div className={cn("flex min-h-0 flex-1 flex-col overflow-hidden", tab !== "settings" && "hidden")}>
-          <SettingsTab />
+          <SettingsTab sub={settingsSub} onSubChange={setSettingsSub} />
         </div>
       </div>
 
@@ -307,24 +324,18 @@ export default function App() {
       </AlertDialog>
 
       <AlertDialog
-        open={videoUnavailableTabId != null}
-        onOpenChange={(v) => !v && setVideoUnavailableTabId(null)}
+        open={permissionExpired}
+        onOpenChange={setPermissionExpired}
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>{t("app.videoRecordingUnavailable.title")}</AlertDialogTitle>
+            <AlertDialogTitle>{t("app.permissionExpired.title")}</AlertDialogTitle>
             <AlertDialogDescription>
-              {t("app.videoRecordingUnavailable.body")}
+              {t("app.permissionExpired.body")}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogAction
-              onClick={() => {
-                const id = videoUnavailableTabId;
-                setVideoUnavailableTabId(null);
-                if (id != null) void requestTabHostPermission(id);
-              }}
-            >
+            <AlertDialogAction onClick={() => window.close()}>
               {t("common.ok")}
             </AlertDialogAction>
           </AlertDialogFooter>
@@ -332,20 +343,9 @@ export default function App() {
       </AlertDialog>
     </div>
     <Toaster position="top-center" offset={24} />
+    </ReplayProvider>
     </TabNavContext.Provider>
   );
-}
-
-async function requestTabHostPermission(tabId: number): Promise<void> {
-  try {
-    const tab = await chrome.tabs.get(tabId);
-    if (!tab.url) return;
-    const u = new URL(tab.url);
-    if (u.protocol !== "http:" && u.protocol !== "https:") return;
-    await chrome.permissions.request({ origins: [`${u.origin}/*`] });
-  } catch {
-    // user denied or chrome refused — fallback to manual re-invocation
-  }
 }
 
 function UnsupportedPage() {
@@ -355,7 +355,7 @@ function UnsupportedPage() {
       <div className="rounded-full bg-muted p-3">
         <Globe className="h-6 w-6 text-muted-foreground" />
       </div>
-      <h3 className="text-[18px] font-semibold">{t("app.unsupported.title")}</h3>
+      <h3 className="text-lg font-semibold">{t("app.unsupported.title")}</h3>
       <p className="text-sm text-muted-foreground">
         {t("app.unsupported.body")}
       </p>

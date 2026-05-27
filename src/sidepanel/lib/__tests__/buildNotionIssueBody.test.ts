@@ -336,9 +336,9 @@ describe("buildNotionIssueBody — 미디어 분기", () => {
       ],
       logs: [
         {
-          filename: "console.json",
-          contentType: "application/json",
-          dataUrl: "data:application/json;base64,YQ==",
+          filename: "logs.html",
+          contentType: "text/html",
+          dataUrl: "data:text/html;base64,YQ==",
           category: "log",
         },
       ],
@@ -476,9 +476,9 @@ describe("buildNotionIssueBody — freeform", () => {
       ctx: makeCtx({ captureMode: "freeform" as MarkdownContext["captureMode"], selector: "", diffs: [] }),
       logs: [
         {
-          filename: "network-log.har",
-          contentType: "application/json",
-          dataUrl: "data:application/json;base64,YQ==",
+          filename: "logs.html",
+          contentType: "text/html",
+          dataUrl: "data:text/html;base64,YQ==",
           category: "log",
         },
       ],

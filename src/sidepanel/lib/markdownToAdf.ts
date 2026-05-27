@@ -65,6 +65,25 @@ function convertTokens(tokens: Token[]): AdfNode[] {
       continue;
     }
 
+    if (token.type === "blockquote_open") {
+      const end = findClosingToken(tokens, i, "blockquote_open", "blockquote_close");
+      const inner = convertTokens(tokens.slice(i + 1, end));
+      result.push({ type: "blockquote", content: inner });
+      i = end + 1;
+      continue;
+    }
+
+    if (token.type === "fence") {
+      const lang = token.info.trim() || undefined;
+      result.push({
+        type: "codeBlock",
+        ...(lang ? { attrs: { language: lang } } : {}),
+        content: [{ type: "text", text: token.content }],
+      });
+      i++;
+      continue;
+    }
+
     if (token.type === "hr") {
       result.push({ type: "rule" });
       i++;
@@ -116,7 +135,7 @@ function convertInline(children: Token[]): AdfNode[] {
       continue;
     }
 
-    if (child.type === "softbreak") {
+    if (child.type === "softbreak" || child.type === "hardbreak") {
       nodes.push({ type: "hardBreak" });
       continue;
     }

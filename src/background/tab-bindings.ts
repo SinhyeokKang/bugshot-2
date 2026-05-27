@@ -1,9 +1,17 @@
-import { pageKeyOf, sessionKey } from "@/lib/session-keys";
+import { FROZEN_PHASES, originOf, pageKeyOf, sessionKey } from "@/lib/session-keys";
 import { isSupportedUrl } from "@/lib/url-support";
-import { deleteNetworkLog, deleteConsoleLog } from "@/store/blob-db";
+import { deleteNetworkLog, deleteConsoleLog, deleteActionLog } from "@/store/blob-db";
+import type { BgInternalMessage } from "@/types/messages";
+
+type SessionSnap = {
+  target?: { url?: string };
+  captureMode?: string;
+  phase?: string;
+};
 
 const SIDEPANEL_PATH = "src/sidepanel/index.html";
 const ACTIVATED_KEY = "sidePanel:activated";
+const ACTIVATION_URL_PREFIX = "sidePanel:url:";
 
 async function getActivatedSet(): Promise<Set<number>> {
   const data = await chrome.storage.session.get(ACTIVATED_KEY);
@@ -39,7 +47,7 @@ async function apply(tabId: number, url: string | undefined): Promise<void> {
 
   const key = sessionKey(tabId);
   const data = await chrome.storage.session.get(key);
-  const snap = data[key] as { captureMode?: string; phase?: string } | undefined;
+  const snap = data[key] as SessionSnap | undefined;
   if (shouldPreserveSession(snap)) return;
 
   if (!(activated && supported)) {
@@ -51,17 +59,15 @@ async function apply(tabId: number, url: string | undefined): Promise<void> {
   }
 }
 
-function shouldPreserveSession(
+export function shouldPreserveSession(
   snap: { captureMode?: string; phase?: string } | undefined,
 ): boolean {
   if (!snap) return false;
   const mode = snap.captureMode;
   const phase = snap.phase ?? "";
   if (mode === "video") return true;
-  if (mode === "screenshot")
-    return phase === "drafting" || phase === "previewing" || phase === "done";
-  if (mode === "element")
-    return phase === "drafting" || phase === "previewing" || phase === "done";
+  if (mode === "screenshot" || mode === "element" || mode === "freeform")
+    return FROZEN_PHASES.has(phase);
   return false;
 }
 
@@ -72,9 +78,7 @@ async function clearIfPageChanged(
   const key = sessionKey(tabId);
   try {
     const data = await chrome.storage.session.get(key);
-    const snap = data[key] as
-      | { target?: { url?: string }; captureMode?: string; phase?: string }
-      | undefined;
+    const snap = data[key] as SessionSnap | undefined;
     if (!snap) return;
     if (shouldPreserveSession(snap)) {
       if (snap.captureMode === "element" && pageKeyOf(snap.target?.url) !== pageKeyOf(newUrl)) {
@@ -92,17 +96,54 @@ async function clearIfPageChanged(
   }
 }
 
-async function clearEditorSessionIfVolatile(tabId: number): Promise<void> {
+// 메인 프레임 cross-document 네비게이션 시작 시 호출.
+// same-origin이면 패널을 유지하고 stale 세션만 정리, cross-origin이면 패널을 닫는다.
+// URL을 못 읽는 경우(activeTab 만료 + 광역 권한 미부여)는 cross-origin으로 간주한다.
+async function deactivatePanelIfCrossOrigin(
+  tabId: number,
+  newUrl: string | undefined,
+): Promise<void> {
   const key = sessionKey(tabId);
   try {
+    const set = await getActivatedSet();
+    if (!set.has(tabId)) return;
     const data = await chrome.storage.session.get(key);
-    const snap = data[key] as
-      | { captureMode?: string; phase?: string }
-      | undefined;
-    if (shouldPreserveSession(snap)) return;
+    const snap = data[key] as SessionSnap | undefined;
+    const preserved = shouldPreserveSession(snap);
+
+    let refUrl = snap?.target?.url;
+    if (!refUrl) {
+      const urlKey = `${ACTIVATION_URL_PREFIX}${tabId}`;
+      const urlData = await chrome.storage.session.get(urlKey);
+      refUrl = urlData[urlKey] as string | undefined;
+    }
+    if (!refUrl) return;
+
+    const oldOrigin = originOf(refUrl);
+    const newOrigin = originOf(newUrl);
+    const sameOrigin =
+      oldOrigin != null && newOrigin != null && oldOrigin === newOrigin;
+
+    if (sameOrigin) {
+      if (!preserved && pageKeyOf(refUrl) !== pageKeyOf(newUrl)) {
+        await chrome.storage.session.remove(key);
+      }
+      return;
+    }
+
+    // cross-origin 또는 URL 판별 불가
+    if (preserved) {
+      chrome.runtime
+        .sendMessage({ type: "activeTabExpiredDeferred", tabId } satisfies BgInternalMessage)
+        .catch(() => {});
+      return;
+    }
+
+    await setActivated(tabId, false);
+    await chrome.sidePanel.setOptions({ tabId, enabled: false });
     await chrome.storage.session.remove(key);
   } catch (err) {
-    console.error("[bugshot] clearEditorSessionIfVolatile", err);
+    console.error("[bugshot] deactivatePanelIfCrossOrigin", err);
   }
 }
 
@@ -121,6 +162,9 @@ export function activateTab(tab: chrome.tabs.Tab): void {
     .catch((err) => console.error("[bugshot] sidePanel.open", err));
 
   void setActivated(tabId, true);
+  if (tab.url) {
+    void chrome.storage.session.set({ [`${ACTIVATION_URL_PREFIX}${tabId}`]: tab.url });
+  }
 }
 
 export function setupTabBindings(): void {
@@ -141,21 +185,26 @@ export function setupTabBindings(): void {
   });
 
   chrome.tabs.onUpdated.addListener((tabId, info, tab) => {
+    // cross-document 네비게이션 시작 시 origin 비교: same-origin이면 패널 유지(stale
+    // 세션만 정리), cross-origin이면 패널 닫기. SPA same-document는 loading 없음.
+    if (info.status === "loading") {
+      void deactivatePanelIfCrossOrigin(tabId, info.url ?? tab.url);
+      return;
+    }
     if (info.url) {
       void clearIfPageChanged(tabId, info.url).then(() =>
         apply(tabId, info.url),
       );
-    } else if (info.status === "loading") {
-      void clearEditorSessionIfVolatile(tabId);
     } else if (info.status === "complete") {
       void apply(tabId, tab.url);
     }
   });
 
   chrome.tabs.onRemoved.addListener((tabId) => {
-    void chrome.storage.session.remove(sessionKey(tabId));
+    void chrome.storage.session.remove([sessionKey(tabId), `${ACTIVATION_URL_PREFIX}${tabId}`]);
     void setActivated(tabId, false);
     deleteNetworkLog(`pending:${tabId}`).catch(() => {});
     deleteConsoleLog(`pending:${tabId}`).catch(() => {});
+    deleteActionLog(`pending:${tabId}`).catch(() => {});
   });
 }

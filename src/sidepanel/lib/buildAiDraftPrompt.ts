@@ -5,6 +5,7 @@ import type {
 } from "@/store/settings-ui-store";
 import type { StyleDiffRow } from "@/sidepanel/components/StyleChangesTable";
 import type { NetworkLogSummary, ConsoleLogSummary } from "./buildLogSummary";
+import type { ActionLogSummary } from "@/types/action";
 import type { EditorDraft } from "@/store/editor-store";
 
 const MAX_DIFFS = 20;
@@ -122,6 +123,7 @@ export interface AiDraftSessionContext {
   userPrompt?: string;
   networkLogSummary?: NetworkLogSummary;
   consoleLogSummary?: ConsoleLogSummary;
+  actionLogSummary?: ActionLogSummary;
   enabledSections: { id: IssueSectionId }[];
 }
 
@@ -176,6 +178,13 @@ export function buildAiDraftSessionPrompt(ctx: AiDraftSessionContext): string {
         for (const msg of c.topErrors) {
           lines.push(`  ${msg}`);
         }
+      }
+    }
+    // action log는 video(녹화 타임라인과 묶일 때)에서만 의미가 강하므로 freeform에서는 제외.
+    if (ctx.captureMode === "video" && ctx.actionLogSummary && ctx.actionLogSummary.length > 0) {
+      lines.push("- User actions (reference only — context for understanding, do not copy verbatim into stepsToReproduce):");
+      for (const a of ctx.actionLogSummary) {
+        lines.push(`  ${a}`);
       }
     }
   }

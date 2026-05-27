@@ -279,10 +279,12 @@ export async function sendFileUpload(
   uploadUrl: string,
   filename: string,
   dataUrl: string,
+  declaredContentType?: string,
 ): Promise<void> {
-  const { blob, contentType } = dataUrlToBlob(dataUrl);
+  const { blob } = dataUrlToBlob(dataUrl);
+  const ct = declaredContentType ?? blob.type;
   const form = new FormData();
-  form.append("file", new File([blob], filename, { type: contentType }));
+  form.append("file", new File([blob], filename, { type: ct }));
   const res = await fetch(uploadUrl, {
     method: "POST",
     headers: {
@@ -313,7 +315,7 @@ export async function uploadFile(
   dataUrl: string,
 ): Promise<NotionFileUploadResult> {
   const created = await createFileUpload(auth, filename, contentType);
-  await sendFileUpload(auth, created.uploadUrl, filename, dataUrl);
+  await sendFileUpload(auth, created.uploadUrl, filename, dataUrl, contentType);
   return { fileUploadId: created.id, expiresAt: created.expiresAt };
 }
 
@@ -445,6 +447,12 @@ function expandBlock(
         object: "block",
         type: "numbered_list_item",
         numbered_list_item: { rich_text: expandRichText(block.richText) },
+      };
+    case "rich_quote":
+      return {
+        object: "block",
+        type: "quote",
+        quote: { rich_text: expandRichText(block.richText) },
       };
     case "divider":
       return {

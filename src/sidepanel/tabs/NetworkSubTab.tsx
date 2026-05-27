@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { SquarePen } from "lucide-react";
+import { ListRestart, SquarePen } from "lucide-react";
 import { useT } from "@/i18n";
 import { Button } from "@/components/ui/button";
 import { useEditorStore } from "@/store/editor-store";
@@ -33,7 +33,15 @@ export function NetworkSubTab({ active, onStartFreeform }: { active: boolean; on
     <PageShell>
       <NetworkLogContent flush requests={networkLog?.requests ?? []} />
       <PageFooter>
-        <div className="flex justify-end">
+        <div className="flex items-center justify-between gap-2">
+          <Button
+            variant="outline"
+            disabled={tabId == null || (networkLog?.requests.length ?? 0) === 0}
+            onClick={() => useEditorStore.getState().clearNetworkLog(tabId ?? null)}
+          >
+            <ListRestart />
+            {t("networkLog.clear")}
+          </Button>
           <Button variant="outline" onClick={onStartFreeform}>
             <SquarePen />
             {t("issue.startDraft")}

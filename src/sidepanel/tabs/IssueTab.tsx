@@ -6,7 +6,9 @@ import {
   CircleCheck,
   Crosshair,
   ImageIcon,
-  PenLine,
+  Loader2,
+  SquarePen,
+  Timer,
   Video,
 } from "lucide-react";
 import { useT } from "@/i18n";
@@ -40,7 +42,9 @@ import {
 } from "@/sidepanel/picker-control";
 import { startVideoCapture } from "@/sidepanel/video-capture";
 import * as videoRecorder from "@/sidepanel/video-recorder";
-import { PageShell } from "@/sidepanel/components/Section";
+import { PageFooter, PageShell } from "@/sidepanel/components/Section";
+import { useReplay } from "@/sidepanel/30s-replay/replay-context";
+import { useTabNav } from "@/sidepanel/tab-nav";
 import { DraftingPanel } from "./DraftingPanel";
 import { PreviewPanel } from "./PreviewPanel";
 import { SelectedPanel } from "./StyleEditorPanel";
@@ -168,7 +172,7 @@ function EmptyState({ onStartElement, onStartScreenshot, onStartVideo, onStartFr
           <div className="mb-1 rounded-full bg-muted p-3">
             <SquareMousePointer className="h-6 w-6 text-muted-foreground" />
           </div>
-          <h3 className="whitespace-pre-line text-center text-[18px] font-semibold">{t("issue.empty.title")}</h3>
+          <h3 className="whitespace-pre-line text-center text-lg font-semibold">{t("issue.empty.title")}</h3>
         </div>
         <TooltipProvider delayDuration={0}>
           <div className="grid grid-cols-2 gap-2">
@@ -190,14 +194,68 @@ function EmptyState({ onStartElement, onStartScreenshot, onStartVideo, onStartFr
                 {t("issue.mode.video")}
               </Button>
             </ShortcutTooltip>
-            <Button className="col-span-2" variant="outline" onClick={onStartFreeform}>
-              <PenLine />
-              {t("issue.mode.freeform")}
-            </Button>
+            <ReplayButton />
           </div>
         </TooltipProvider>
       </div>
+      <PageFooter>
+        <div className="flex justify-end">
+          <Button variant="outline" onClick={onStartFreeform}>
+            <SquarePen />
+            {t("issue.startDraft")}
+          </Button>
+        </div>
+      </PageFooter>
     </PageShell>
+  );
+}
+
+function ReplayButton() {
+  const t = useT();
+  const navTo = useTabNav();
+  const { replayEnabled, isReady, isEncoding, bufferedSeconds, capture } = useReplay();
+  const tooltip = !replayEnabled
+    ? t("issue.replay.tooltip.disabled")
+    : !isReady && !isEncoding
+      ? t("issue.replay.tooltip.recording")
+      : null;
+
+  // 설정 off — 비활성처럼 보이되 클릭은 가능하게 해 설정의 캡처 sub-tab으로 보낸다.
+  const button = !replayEnabled ? (
+    <Button
+      className="w-full opacity-50"
+      variant="outline"
+      aria-disabled
+      onClick={() => navTo("settings", "issue")}
+    >
+      <Timer />
+      {t("issue.mode.replay")}
+    </Button>
+  ) : (
+    <Button
+      className="w-full"
+      variant="outline"
+      disabled={!isReady || isEncoding}
+      onClick={() => void capture()}
+    >
+      {isEncoding ? <Loader2 className="animate-spin" /> : <Timer />}
+      {isEncoding
+        ? t("issue.replay.encoding")
+        : bufferedSeconds >= 30
+          ? t("issue.mode.replay")
+          : t("issue.mode.replayProgress").replace("{n}", String(bufferedSeconds))}
+    </Button>
+  );
+
+  if (!tooltip) return <div className="col-span-2">{button}</div>;
+
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <span className="col-span-2 inline-flex">{button}</span>
+      </TooltipTrigger>
+      <TooltipContent>{tooltip}</TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -258,7 +316,7 @@ function RecordingState({ onStop, onCancel }: { onStop: () => void; onCancel: ()
         <div className="mb-3 rounded-full bg-red-100 p-3">
           <Video className="h-6 w-6 text-red-600" />
         </div>
-        <h3 className="text-[18px] font-semibold">{t("issue.recording.title", { time: timeStr })}</h3>
+        <h3 className="text-lg font-semibold">{t("issue.recording.title", { time: timeStr })}</h3>
         <div className="mt-3 h-1.5 w-40 overflow-hidden rounded-full bg-muted">
           <div
             className="h-full rounded-full bg-foreground transition-all duration-500"
@@ -287,7 +345,7 @@ function SubmitSuccessView() {
         <div className="mb-3 rounded-full bg-muted p-3">
           <CircleCheck className="h-6 w-6 text-green-600" />
         </div>
-        <h3 className="text-[18px] font-semibold">{t("jira.submitted")}</h3>
+        <h3 className="text-lg font-semibold">{t("jira.submitted")}</h3>
         <a
           href={submitResult.url}
           target="_blank"
@@ -344,7 +402,7 @@ function EmptyShell({
   return (
     <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 pb-5 text-center">
       <div className="mb-3 rounded-full bg-muted p-3">{icon}</div>
-      <h3 className="whitespace-pre-line text-[18px] font-semibold">{title}</h3>
+      <h3 className="whitespace-pre-line text-lg font-semibold">{title}</h3>
       {action ? <div className="mt-4">{action}</div> : null}
     </div>
   );

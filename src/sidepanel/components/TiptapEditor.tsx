@@ -104,8 +104,6 @@ const TiptapEditor = forwardRef<TiptapEditorHandle, TiptapEditorProps>(function 
     extensions: [
       StarterKit.configure({
         heading: false,
-        codeBlock: false,
-        blockquote: false,
         link: false,
         dropcursor: {
           color: "hsl(199 89% 70%)",

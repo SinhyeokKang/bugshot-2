@@ -50,12 +50,9 @@ export async function writeStoredOAuthTokens(
   const { raw, envelope } = await readEnvelope();
   const cur = envelope?.state?.accounts?.jira?.auth;
   if (!cur || cur.kind !== "oauth") return;
-  envelope!.state!.accounts!.jira!.auth = {
-    ...cur,
-    accessToken: auth.accessToken,
-    refreshToken: auth.refreshToken,
-    expiresAt: auth.expiresAt,
-  };
+  cur.accessToken = auth.accessToken;
+  cur.refreshToken = auth.refreshToken;
+  cur.expiresAt = auth.expiresAt;
   const next = typeof raw === "string" ? JSON.stringify(envelope) : envelope;
   await chrome.storage.local.set({ [SETTINGS_STORAGE_KEY]: next });
 }
@@ -66,14 +63,11 @@ export async function writeStoredGithubOAuthTokens(
   const { raw, envelope } = await readEnvelope();
   const cur = envelope?.state?.accounts?.github?.auth;
   if (!cur || cur.kind !== "oauth") return;
-  envelope!.state!.accounts!.github!.auth = {
-    ...cur,
-    accessToken: auth.accessToken,
-    tokenType: auth.tokenType,
-    scope: auth.scope,
-    refreshToken: auth.refreshToken ?? cur.refreshToken,
-    expiresAt: auth.expiresAt ?? cur.expiresAt,
-  };
+  cur.accessToken = auth.accessToken;
+  cur.tokenType = auth.tokenType;
+  cur.scope = auth.scope;
+  cur.refreshToken = auth.refreshToken ?? cur.refreshToken;
+  cur.expiresAt = auth.expiresAt ?? cur.expiresAt;
   const next = typeof raw === "string" ? JSON.stringify(envelope) : envelope;
   await chrome.storage.local.set({ [SETTINGS_STORAGE_KEY]: next });
 }
@@ -89,13 +83,10 @@ export async function writeStoredLinearOAuthTokens(
   const { raw, envelope } = await readEnvelope();
   const cur = envelope?.state?.accounts?.linear?.auth;
   if (!cur || cur.kind !== "oauth") return;
-  envelope!.state!.accounts!.linear!.auth = {
-    ...cur,
-    accessToken: auth.accessToken,
-    refreshToken: auth.refreshToken,
-    expiresAt: auth.expiresAt,
-    scope: auth.scope,
-  };
+  cur.accessToken = auth.accessToken;
+  cur.refreshToken = auth.refreshToken;
+  cur.expiresAt = auth.expiresAt;
+  cur.scope = auth.scope;
   const next = typeof raw === "string" ? JSON.stringify(envelope) : envelope;
   await chrome.storage.local.set({ [SETTINGS_STORAGE_KEY]: next });
 }

@@ -2,6 +2,7 @@ import { useEditorStore } from "@/store/editor-store";
 import {
   stopConsoleRecorder,
   stopNetworkRecorder,
+  stopActionRecorder,
 } from "./picker-control";
 import { pickVideoRecorderMime } from "./lib/video-mime";
 
@@ -55,6 +56,7 @@ export async function startRecording(tabId: number): Promise<void> {
   };
 
   recorder.onstop = async () => {
+    const localEndedAt = Date.now();
     const s = state;
     if (!s) return;
     window.clearTimeout(s.maxTimer);
@@ -67,6 +69,7 @@ export async function startRecording(tabId: number): Promise<void> {
     const blobType = recorderMime.split(";")[0] || "video/webm";
     const blob = new Blob(chunks, { type: blobType });
     const localTabId = s.tabId;
+    const localStartTime = s.startTime;
     state = null;
 
     let thumbnail: string;
@@ -94,7 +97,7 @@ export async function startRecording(tabId: number): Promise<void> {
 
     useEditorStore
       .getState()
-      .onRecordingComplete(blob, thumbnail, viewport);
+      .onRecordingComplete(blob, thumbnail, viewport, localStartTime, localEndedAt);
   };
 
   recorder.start(1000);
@@ -117,6 +120,7 @@ export function stopRecording(): void {
   if (!state) return;
   void stopNetworkRecorder(state.tabId);
   void stopConsoleRecorder(state.tabId);
+  void stopActionRecorder(state.tabId);
   if (state.recorder.state === "recording") {
     state.recorder.stop();
   }

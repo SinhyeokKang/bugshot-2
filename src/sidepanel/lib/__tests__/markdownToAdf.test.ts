@@ -116,6 +116,15 @@ describe("markdownToAdf", () => {
     expect(breaks.length).toBeGreaterThanOrEqual(1);
   });
 
+  it("hard break (backslash+newline) → hardBreak", () => {
+    const result = markdownToAdf("line1\\\nline2");
+    const breaks = findAllNodes(result, "hardBreak");
+    expect(breaks.length).toBe(1);
+    const texts = findAllText(result);
+    expect(texts.some((t) => t.text === "line1")).toBe(true);
+    expect(texts.some((t) => t.text === "line2")).toBe(true);
+  });
+
   it("bare URL → link mark (linkify)", () => {
     const result = markdownToAdf("visit https://example.com today");
     const links = findMarks(result, "link");
@@ -124,6 +133,41 @@ describe("markdownToAdf", () => {
     expect(links[0].marks.find((m: any) => m.type === "link").attrs.href).toBe(
       "https://example.com",
     );
+  });
+
+  it("```code``` → codeBlock", () => {
+    const result = markdownToAdf("```js\nconsole.log(1)\n```");
+    const codeBlocks = findAllNodes(result, "codeBlock");
+    expect(codeBlocks.length).toBe(1);
+    expect(codeBlocks[0].attrs?.language).toBe("js");
+    const texts = findAllText(codeBlocks);
+    expect(texts[0].text).toBe("console.log(1)\n");
+  });
+
+  it("```code``` without language → codeBlock without language attr", () => {
+    const result = markdownToAdf("```\nhello\n```");
+    const codeBlocks = findAllNodes(result, "codeBlock");
+    expect(codeBlocks.length).toBe(1);
+    expect(codeBlocks[0].attrs).toBeUndefined();
+  });
+
+  it("> quote → blockquote", () => {
+    const result = markdownToAdf("> quoted text");
+    const blockquotes = findAllNodes(result, "blockquote");
+    expect(blockquotes.length).toBe(1);
+    const paragraphs = findAllNodes(blockquotes, "paragraph");
+    expect(paragraphs.length).toBe(1);
+    const texts = findAllText(blockquotes);
+    expect(texts.some((t) => t.text === "quoted text")).toBe(true);
+  });
+
+  it("> **bold** inside blockquote → blockquote with strong mark", () => {
+    const result = markdownToAdf("> **bold text**");
+    const blockquotes = findAllNodes(result, "blockquote");
+    expect(blockquotes.length).toBe(1);
+    const strongs = findMarks(blockquotes[0].content!, "strong");
+    expect(strongs.length).toBe(1);
+    expect(strongs[0].text).toBe("bold text");
   });
 
   it("빈 문자열 → noValue paragraph", () => {

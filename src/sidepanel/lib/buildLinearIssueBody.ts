@@ -39,14 +39,8 @@ function escapeCell(value: string): string {
   return value.replace(/\|/g, "\\|").replace(/\r?\n/g, " ");
 }
 
-function webstoreUrl(): string {
-  return (import.meta.env.VITE_WEBSTORE_URL as string | undefined) ?? "";
-}
-
 function footerMarkdown(): string {
-  const url = webstoreUrl();
-  const brand = url ? `[BugShot](${url})` : "BugShot";
-  return `_Reported via ${brand}_`;
+  return `_Reported via [BugShot](https://bug-shot.com)_`;
 }
 
 function imageCell(media: LinearMediaInput | undefined): string {
@@ -193,7 +187,7 @@ function emitLogSummary(lines: string[], ctx: MarkdownContext): void {
     } else {
       lines.push(t("logSummary.network.capturedNoError", { n: net.captured }));
     }
-    lines.push("", `_${t("logSummary.network.detail", { filename: "network-log.har" })}_`, "");
+    lines.push("");
   }
   if (con) {
     lines.push(`## ${t("logSummary.console.title")}`, "");
@@ -211,6 +205,9 @@ function emitLogSummary(lines: string[], ctx: MarkdownContext): void {
     } else {
       lines.push(t("logSummary.console.capturedNoError", { n: con.captured }));
     }
-    lines.push("", `_${t("logSummary.console.detail")}_`, "");
+    lines.push("");
+  }
+  if (net || con) {
+    lines.push(`_${t("logSummary.logs.detail")}_`, "");
   }
 }

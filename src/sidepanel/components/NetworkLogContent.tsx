@@ -3,13 +3,16 @@ import { ArrowLeftRight, ChevronDown, ChevronRight, Code, File, FileText, Globe,
 import { useT, type TranslationFn } from "@/i18n";
 import type { NetworkRequest, NetworkRequestBody } from "@/types/network";
 import { formatBytes } from "@/sidepanel/lib/formatBytes";
-import { networkLogPath } from "@/sidepanel/lib/buildIssueMarkdown";
+import { networkLogPath } from "@/lib/network-log-path";
 import { JsonTreeViewer } from "./JsonTreeViewer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
+import { findActiveIndex } from "@/log-viewer/timeline";
+import { formatRelativeTime, syncRowClass } from "@/sidepanel/lib/logRow";
+import { LogSeekChip } from "./LogSeekChip";
 
 type RequestFilter = "all" | "json" | "js" | "css" | "img" | "font" | "doc" | "other";
 
@@ -18,6 +21,10 @@ const REQUEST_FILTERS: RequestFilter[] = ["all", "json", "js", "css", "img", "fo
 interface NetworkLogContentProps {
   requests: NetworkRequest[];
   flush?: boolean;
+  // 영상 동기화(log-viewer 전용, optional). 미공급 시 라이브 서브탭과 동일 동작.
+  syncBaseMs?: number;
+  onSeek?: (absTs: number) => void;
+  activeTs?: number;
 }
 
 function methodColor(method: string): string {
@@ -132,11 +139,11 @@ function buildCurl(req: NetworkRequest): string {
 
 type DetailTab = "headers" | "request" | "response";
 
-export function NetworkLogContent({ requests, flush }: NetworkLogContentProps) {
+export function NetworkLogContent({ requests, flush, syncBaseMs, onSeek, activeTs }: NetworkLogContentProps) {
   const t = useT();
   const [activeId, setActiveId] = useState<string | null>(null);
   const [detailTab, setDetailTab] = useState<DetailTab>("headers");
-  const [listWidth, setListWidth] = useState(260);
+  const [listWidth, setListWidth] = useState(0);
   const [filter, setFilter] = useState<RequestFilter>("all");
   const [query, setQuery] = useState("");
   const filterLabel: Record<RequestFilter, string> = {
@@ -162,6 +169,12 @@ export function NetworkLogContent({ requests, flush }: NetworkLogContentProps) {
     return result;
   }, [requests, filter, query]);
 
+  const syncActiveId = useMemo(() => {
+    if (activeTs == null) return null;
+    const idx = findActiveIndex(filteredRequests.map((r) => r.startTime), activeTs);
+    return idx >= 0 ? filteredRequests[idx].id : null;
+  }, [filteredRequests, activeTs]);
+
   const handleSelect = (id: string) => {
     if (activeId === id) {
       setActiveId(null);
@@ -173,6 +186,34 @@ export function NetworkLogContent({ requests, flush }: NetworkLogContentProps) {
 
   const containerRef = useRef<HTMLDivElement>(null);
   const dragging = useRef(false);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    setListWidth(Math.round(containerRef.current.clientWidth * 0.3));
+  }, []);
+
+  // 신규 로그 tail: 사용자가 바닥 근처(<24px)에 있을 때만 새 항목에 맞춰 자동 스크롤. 위로 올려
+  // 살펴보는 중이면 끌어내리지 않는다.
+  const listScrollRef = useRef<HTMLDivElement>(null);
+  const pinnedRef = useRef(true);
+  const getListViewport = useCallback(
+    () => listScrollRef.current?.querySelector<HTMLElement>("[data-radix-scroll-area-viewport]") ?? null,
+    [],
+  );
+  useEffect(() => {
+    const vp = getListViewport();
+    if (!vp) return;
+    const onScroll = () => {
+      pinnedRef.current = vp.scrollHeight - vp.scrollTop - vp.clientHeight < 24;
+    };
+    vp.addEventListener("scroll", onScroll, { passive: true });
+    return () => vp.removeEventListener("scroll", onScroll);
+  }, [getListViewport]);
+  useEffect(() => {
+    if (!pinnedRef.current) return;
+    const vp = getListViewport();
+    if (vp) vp.scrollTop = vp.scrollHeight;
+  }, [filteredRequests.length, getListViewport]);
 
   const onDragStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -231,13 +272,16 @@ export function NetworkLogContent({ requests, flush }: NetworkLogContentProps) {
         </div>
       </Tabs>
       <div className="flex min-h-0 flex-1 overflow-hidden">
-      <ScrollArea className="shrink-0 [&>div>div]:!block" style={{ width: listWidth }}>
+      <ScrollArea ref={listScrollRef} className="shrink-0 [&>div>div]:!block" style={{ width: listWidth }}>
         <div>
           {filteredRequests.map((req) => (
             <RequestRow
               key={req.id}
               req={req}
               active={activeId === req.id}
+              syncActive={req.id === syncActiveId}
+              syncBaseMs={syncBaseMs}
+              onSeek={onSeek}
               onClick={() => handleSelect(req.id)}
             />
           ))}
@@ -310,17 +354,27 @@ export function NetworkLogContent({ requests, flush }: NetworkLogContentProps) {
 function RequestRow({
   req,
   active,
+  syncActive,
+  syncBaseMs,
+  onSeek,
   onClick,
 }: {
   req: NetworkRequest;
   active: boolean;
+  syncActive?: boolean;
+  syncBaseMs?: number;
+  onSeek?: (absTs: number) => void;
   onClick: () => void;
 }) {
   return (
     <div
-      className={`flex cursor-pointer items-center gap-3 overflow-hidden px-3 py-2 text-[13px] ${rowBg(req, active)}`}
+      className={`flex cursor-pointer items-center gap-3 overflow-hidden px-3 py-2 text-[13px] ${syncRowClass(syncBaseMs != null, !!syncActive, rowBg(req, active))}`}
+      aria-current={syncActive ? "true" : undefined}
       onClick={onClick}
     >
+      {syncBaseMs != null && (
+        <LogSeekChip ts={req.startTime} label={formatRelativeTime(req.startTime, syncBaseMs)} onSeek={onSeek} />
+      )}
       <ContentTypeIcon req={req} />
       <span className={`shrink-0 ${methodColor(req.method)}`}>{req.method}</span>
       <span className="min-w-0 flex-1 truncate">{networkLogPath(req.url)}</span>
@@ -341,7 +395,7 @@ function CollapsibleSection({
   return (
     <Collapsible open={open} onOpenChange={setOpen} className="border-b last:border-b-0">
       <div className="flex items-center justify-between pl-4 pr-2 py-3">
-        <span className="text-[14px] font-medium">{title}</span>
+        <span className="text-sm font-medium">{title}</span>
         <CollapsibleTrigger asChild>
           <Button variant="outline" size="icon" className="h-8 w-8 shrink-0">
             {open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
@@ -408,7 +462,7 @@ function BodyPanel({ body }: { body: NetworkRequestBody | undefined }) {
     );
   }
   return (
-    <div className="py-2 text-[12px]">
+    <div className="py-2 text-xs">
       <BodyBlock body={body!} />
     </div>
   );

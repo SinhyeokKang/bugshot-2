@@ -134,6 +134,43 @@ describe("markdownToNotionBlocks", () => {
     expect(result[0].richText[0].text.content).toBe("");
   });
 
+  it("hard break (backslash+newline) → newline in richText", () => {
+    const result = markdownToNotionBlocks("line1\\\nline2");
+    expect(result).toHaveLength(1);
+    expect(result[0].type).toBe("rich_paragraph");
+    if (result[0].type !== "rich_paragraph") return;
+    const texts = result[0].richText.map((rt) => rt.text.content);
+    expect(texts).toContain("line1");
+    expect(texts).toContain("\n");
+    expect(texts).toContain("line2");
+  });
+
+  it("```code``` → code block", () => {
+    const result = markdownToNotionBlocks("```js\nconsole.log(1)\n```");
+    expect(result).toHaveLength(1);
+    expect(result[0].type).toBe("code");
+    if (result[0].type !== "code") return;
+    expect(result[0].language).toBe("js");
+    expect(result[0].text).toBe("console.log(1)");
+  });
+
+  it("> quote → rich_quote block", () => {
+    const result = markdownToNotionBlocks("> quoted text");
+    expect(result).toHaveLength(1);
+    expect(result[0].type).toBe("rich_quote");
+    if (result[0].type !== "rich_quote") return;
+    expect(result[0].richText[0].text.content).toBe("quoted text");
+  });
+
+  it("> **bold** inside quote → rich_quote with bold annotation", () => {
+    const result = markdownToNotionBlocks("> **bold text**");
+    expect(result[0].type).toBe("rich_quote");
+    if (result[0].type !== "rich_quote") return;
+    const boldItem = result[0].richText.find((rt) => rt.annotations?.bold);
+    expect(boldItem).toBeDefined();
+    expect(boldItem!.text.content).toBe("bold text");
+  });
+
   it("빈 문자열 → noValue paragraph", () => {
     const result = markdownToNotionBlocks("");
     expect(result).toHaveLength(1);

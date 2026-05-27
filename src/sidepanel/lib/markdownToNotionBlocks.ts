@@ -53,6 +53,31 @@ function convertTokens(tokens: Token[]): NotionBlock[] {
       continue;
     }
 
+    if (token.type === "blockquote_open") {
+      const end = findClosingToken(tokens, i, "blockquote_open", "blockquote_close");
+      const innerTokens = tokens.slice(i + 1, end);
+      const richText: NotionRichText[] = [];
+      for (const inner of innerTokens) {
+        if (inner.type === "inline") {
+          if (richText.length > 0) richText.push(richTextNode("\n"));
+          richText.push(...convertInline(inner.children ?? []));
+        }
+      }
+      result.push({
+        type: "rich_quote",
+        richText: richText.length > 0 ? richText : [richTextNode("")],
+      } as NotionBlock);
+      i = end + 1;
+      continue;
+    }
+
+    if (token.type === "fence") {
+      const lang = token.info.trim() || "plain text";
+      result.push({ type: "code", language: lang, text: token.content.replace(/\n$/, "") });
+      i++;
+      continue;
+    }
+
     if (token.type === "hr") {
       result.push({ type: "divider" });
       i++;
@@ -131,7 +156,10 @@ function convertInline(children: Token[]): NotionRichText[] {
       continue;
     }
 
-    if (child.type === "softbreak") continue;
+    if (child.type === "softbreak" || child.type === "hardbreak") {
+      nodes.push(richTextNode("\n"));
+      continue;
+    }
 
     if (child.type === "image") {
       const alt = child.content || child.attrGet("alt") || "";

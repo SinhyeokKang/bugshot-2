@@ -1,18 +1,39 @@
 import { useEffect } from "react";
 import { useEditorStore } from "@/store/editor-store";
-import type { NetworkLog } from "@/types/network";
-import type { ConsoleLog } from "@/types/console";
 import type { PickerMessage, ViewportRect } from "@/types/picker";
-import { onPickerIframeUnsupported, sendBg } from "@/types/messages";
+import { type BgInternalMessage, onPickerIframeUnsupported, onPickerPermissionExpired, sendBg } from "@/types/messages";
 import { captureElementSnapshot, loadImage } from "@/sidepanel/capture";
-import { collectTokens } from "@/sidepanel/picker-control";
-import { saveNetworkLog, saveConsoleLog, saveInlineImage, dataUrlToBlob } from "@/store/blob-db";
+import { collectTokens, maybeSurfacePermissionExpired } from "@/sidepanel/picker-control";
+import { saveNetworkLog, saveConsoleLog, saveActionLog, saveInlineImage, dataUrlToBlob } from "@/store/blob-db";
 import { shouldCompact, compactImage } from "@/sidepanel/lib/compactImage";
+import {
+  mergeLogItems,
+  rebuildNetworkLog,
+  rebuildConsoleLog,
+  rebuildActionLog,
+  isLogFrozen,
+  NETWORK_MAX_ENTRIES,
+  CONSOLE_MAX_ENTRIES,
+  ACTION_MAX_ENTRIES,
+} from "@/sidepanel/lib/log-merge";
+
+let deferredActiveTabExpiry = false;
+let lastLogClearAt = 0;
 
 export function usePickerMessages(myTabId: number | null): void {
   useEffect(() => {
+    const unsub = useEditorStore.subscribe((state) => {
+      if (state.phase === "idle" && deferredActiveTabExpiry) {
+        deferredActiveTabExpiry = false;
+        onPickerPermissionExpired.fire();
+      }
+    });
+    return unsub;
+  }, []);
+
+  useEffect(() => {
     function handler(
-      message: PickerMessage | { type: string },
+      message: PickerMessage | BgInternalMessage | { type: string },
       sender: chrome.runtime.MessageSender,
     ) {
       if (!message || typeof message !== "object" || !("type" in message)) {
@@ -89,44 +110,85 @@ export function usePickerMessages(myTabId: number | null): void {
       } else if (message.type === "picker.iframeUnsupported") {
         useEditorStore.getState().cancelPicking();
         onPickerIframeUnsupported.fire();
+      } else if (message.type === "activeTabExpiredDeferred") {
+        const msg = message as Extract<BgInternalMessage, { type: "activeTabExpiredDeferred" }>;
+        if (myTabId != null && msg.tabId !== myTabId) return;
+        deferredActiveTabExpiry = true;
+      } else if (message.type === "logClear") {
+        if (isLogFrozen(useEditorStore.getState().phase)) return;
+        const msg = message as Extract<BgInternalMessage, { type: "logClear" }>;
+        if (myTabId != null && msg.tabId !== myTabId) return;
+        lastLogClearAt = Date.now();
+        const store = useEditorStore.getState();
+        store.clearNetworkLog(myTabId);
+        store.clearConsoleLog(myTabId);
+        store.clearActionLog(myTabId);
       } else if (message.type === "networkRecorder.data") {
+        if (isLogFrozen(useEditorStore.getState().phase)) return;
         const msg = message as Extract<PickerMessage, { type: "networkRecorder.data" }>;
-        const now = Date.now();
-        const earliest = msg.payload.requests.length > 0
-          ? Math.min(...msg.payload.requests.map((r) => r.startTime))
-          : now;
-        const log: NetworkLog = {
-          id: crypto.randomUUID(),
-          startedAt: earliest,
-          endedAt: now,
+        const requests = lastLogClearAt > 0
+          ? msg.payload.requests.filter((r) => r.startTime >= lastLogClearAt)
+          : msg.payload.requests;
+        if (requests.length === 0) return;
+        const existing = useEditorStore.getState().networkLog;
+        const merged = mergeLogItems(
+          existing?.requests ?? [],
+          requests,
+          (r) => r.startTime,
+          NETWORK_MAX_ENTRIES,
+        );
+        const log = rebuildNetworkLog(existing, merged, {
           totalSeen: msg.payload.totalSeen,
-          captured: msg.payload.requests.length,
           warnings: msg.payload.warnings,
-          requests: msg.payload.requests,
-        };
+        });
         useEditorStore.getState().setNetworkLog(log);
         const tabId = useEditorStore.getState().target?.tabId;
         if (tabId) {
           saveNetworkLog(`pending:${tabId}`, log).catch(() => {});
         }
       } else if (message.type === "consoleRecorder.data") {
+        if (isLogFrozen(useEditorStore.getState().phase)) return;
         const msg = message as Extract<PickerMessage, { type: "consoleRecorder.data" }>;
-        const now = Date.now();
-        const earliest = msg.payload.entries.length > 0
-          ? Math.min(...msg.payload.entries.map((e) => e.timestamp))
-          : now;
-        const log: ConsoleLog = {
-          id: crypto.randomUUID(),
-          startedAt: earliest,
-          endedAt: now,
+        const entries = lastLogClearAt > 0
+          ? msg.payload.entries.filter((e) => e.timestamp >= lastLogClearAt)
+          : msg.payload.entries;
+        if (entries.length === 0) return;
+        const existing = useEditorStore.getState().consoleLog;
+        const merged = mergeLogItems(
+          existing?.entries ?? [],
+          entries,
+          (e) => e.timestamp,
+          CONSOLE_MAX_ENTRIES,
+        );
+        const log = rebuildConsoleLog(existing, merged, {
           totalSeen: msg.payload.totalSeen,
-          captured: msg.payload.entries.length,
-          entries: msg.payload.entries,
-        };
+        });
         useEditorStore.getState().setConsoleLog(log);
         const tabId = useEditorStore.getState().target?.tabId;
         if (tabId) {
           saveConsoleLog(`pending:${tabId}`, log).catch(() => {});
+        }
+      } else if (message.type === "actionRecorder.data") {
+        if (isLogFrozen(useEditorStore.getState().phase)) return;
+        const msg = message as Extract<PickerMessage, { type: "actionRecorder.data" }>;
+        const entries = lastLogClearAt > 0
+          ? msg.payload.entries.filter((e) => e.timestamp >= lastLogClearAt)
+          : msg.payload.entries;
+        if (entries.length === 0) return;
+        const existing = useEditorStore.getState().actionLog;
+        const merged = mergeLogItems(
+          existing?.entries ?? [],
+          entries,
+          (e) => e.timestamp,
+          ACTION_MAX_ENTRIES,
+        );
+        const log = rebuildActionLog(existing, merged, {
+          totalSeen: msg.payload.totalSeen,
+        });
+        useEditorStore.getState().setActionLog(log);
+        const tabId = useEditorStore.getState().target?.tabId;
+        if (tabId) {
+          saveActionLog(`pending:${tabId}`, log).catch(() => {});
         }
       }
     }
@@ -153,7 +215,9 @@ async function captureAndCrop(rect: ViewportRect, viewport: { width: number; hei
     });
     useEditorStore.getState().onAreaCaptured(cropped, viewport);
   } catch (err) {
-    console.error("[bugshot] capture and crop failed", err);
+    if (!maybeSurfacePermissionExpired(err)) {
+      console.error("[bugshot] capture and crop failed", err);
+    }
     useEditorStore.getState().reset();
   }
 }
@@ -209,7 +273,9 @@ async function captureAndInsertInline(
     await saveInlineImage(refId, blob);
     useEditorStore.getState().appendInlineImage(sectionId, refId);
   } catch (err) {
-    console.error("[bugshot] inline capture failed", err);
+    if (!maybeSurfacePermissionExpired(err)) {
+      console.error("[bugshot] inline capture failed", err);
+    }
   } finally {
     useEditorStore.getState().cancelInlineCapture();
   }

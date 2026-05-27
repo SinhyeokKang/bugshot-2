@@ -100,7 +100,7 @@ export function IssueListTab() {
           <div className="mb-3 rounded-full bg-muted p-3">
             <CircleCheck className="h-6 w-6 text-green-600" />
           </div>
-          <h3 className="text-[18px] font-semibold">{t("jira.submitted")}</h3>
+          <h3 className="text-lg font-semibold">{t("jira.submitted")}</h3>
           <a
             href={successResult.url}
             target="_blank"
@@ -156,14 +156,14 @@ export function IssueListTab() {
           <div className="mb-3 rounded-full bg-muted p-3">
             <Inbox className="h-6 w-6 text-muted-foreground" />
           </div>
-          <h3 className="text-[18px] font-semibold">{t("issueList.empty")}</h3>
+          <h3 className="text-lg font-semibold">{t("issueList.empty")}</h3>
         </div>
       ) : filtered.length === 0 ? (
         <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 pb-5 text-center">
           <div className="mb-3 rounded-full bg-muted p-3">
             <SearchX className="h-6 w-6 text-muted-foreground" />
           </div>
-          <h3 className="text-[18px] font-semibold">{t("issueList.noResults")}</h3>
+          <h3 className="text-lg font-semibold">{t("issueList.noResults")}</h3>
           <Button variant="outline" className="mt-6" onClick={resetFilters}>
             {t("issueList.resetFilter")}
           </Button>

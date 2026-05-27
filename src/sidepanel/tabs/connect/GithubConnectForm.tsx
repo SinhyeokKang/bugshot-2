@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
-import { CircleCheck, ExternalLink, KeyRound, Loader2 } from "lucide-react";
+import { ExternalLink, KeyRound, Loader2 } from "lucide-react";
 import { SiGithub as Github } from "@icons-pack/react-simple-icons";
 import { toast } from "sonner";
 import { useT } from "@/i18n";
-import { Badge } from "@/components/ui/badge";
+import { ConnectedBadge } from "@/sidepanel/components/ConnectedBadge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -144,7 +144,7 @@ function GithubOnboarding() {
         <div className="mb-3 rounded-full bg-muted p-3">
           <Github className="h-6 w-6 dark:invert" color="default" />
         </div>
-        <h3 className="text-[18px] font-semibold">{t("github.onboarding.title")}</h3>
+        <h3 className="text-lg font-semibold">{t("github.onboarding.title")}</h3>
         <p className="mt-1 text-sm text-muted-foreground">
           {t("github.onboarding.body")}
         </p>
@@ -180,7 +180,7 @@ function GithubOnboarding() {
         </div>
 
         {oauthAvailable === false ? (
-          <p className="text-xs text-muted-foreground">
+          <p className="mt-3 text-xs text-muted-foreground">
             {t("github.oauth.notConfigured")}
           </p>
         ) : null}
@@ -307,10 +307,7 @@ function GithubSummary() {
             <span className="truncate text-base font-medium text-foreground">{login}</span>
             <span className="truncate text-sm text-muted-foreground">{account.auth.viewerEmail || "github.com"}</span>
           </div>
-          <Badge className="shrink-0 gap-1 border-transparent bg-green-50 text-[11px] tracking-wider text-green-700 shadow-none dark:bg-green-900/40 dark:text-green-400">
-            <CircleCheck className="h-3 w-3" />
-            {kindLabel}
-          </Badge>
+          <ConnectedBadge>{kindLabel}</ConnectedBadge>
         </CardContent>
       </Card>
     </div>

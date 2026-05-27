@@ -155,10 +155,6 @@ export function collectSelection(
   };
 }
 
-export function collectSpecifiedStyles(el: Element): Record<string, string> {
-  return collectSpecifiedStylesWithSources(el).styles;
-}
-
 export function collectSpecifiedStylesWithSources(el: Element): {
   styles: Record<string, string>;
   sources: Record<string, string>;
@@ -631,6 +627,15 @@ export function restoreEditable(handle: EditableHandle, originalText: string): v
   const clones = handle.originalChildren.map((n) => n.cloneNode(true));
   handle.parent.replaceChildren(...clones);
   handle.nodes = clones as Array<Text | HTMLBRElement>;
+}
+
+// flat/multi 복원은 cloneNode로 자식을 통째 교체해 페이지가 건 이벤트 리스너를 잃는다.
+// 텍스트가 실제로 바뀐 경우에만 복원해 미편집 picking→취소 시 리스너를 보존한다.
+export function shouldRestoreEditable(
+  handle: EditableHandle,
+  originalText: string | null,
+): boolean {
+  return originalText !== null && readEditableText(handle) !== originalText;
 }
 
 /* ── internal ────────────────────────────────────── */
