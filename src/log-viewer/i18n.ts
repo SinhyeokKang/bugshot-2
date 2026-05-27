@@ -63,6 +63,9 @@ export const koDict: Record<string, string> = {
   "debug.network.empty": "네트워크 요청이 없습니다",
   "debug.console.empty": "콘솔 로그가 없습니다",
 
+  "logViewer.tab.console": "Console Log",
+  "logViewer.tab.network": "Network Log",
+  "logViewer.tab.action": "Action Log",
   "logViewer.footer.issueLink": "이슈 바로가기",
   "logViewer.video.error": "영상을 재생할 수 없습니다",
 
@@ -130,6 +133,9 @@ export const enDict: Record<string, string> = {
   "debug.network.empty": "No network requests",
   "debug.console.empty": "No console logs",
 
+  "logViewer.tab.console": "Console Log",
+  "logViewer.tab.network": "Network Log",
+  "logViewer.tab.action": "Action Log",
   "logViewer.footer.issueLink": "Go to Issue",
   "logViewer.video.error": "Unable to play video",
 

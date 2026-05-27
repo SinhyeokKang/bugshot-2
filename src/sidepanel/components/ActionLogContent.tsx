@@ -210,15 +210,8 @@ function ActionRow({ entry, startedAt, syncBaseMs, onSeek, isActive }: {
 }) {
   const t = useT();
   const base = syncBaseMs ?? startedAt;
-  // 동기화 재생 중 active 행이 뷰포트 밖이면 따라가도록 추종. isActive는 동기화 모드에서만 true라
-  // 라이브 서브탭은 영향 없음. block:"nearest" → 이미 보이면 스크롤하지 않음.
-  const rowRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (isActive) rowRef.current?.scrollIntoView({ block: "nearest" });
-  }, [isActive]);
   return (
     <div
-      ref={rowRef}
       className={syncRowClass(!!onSeek, !!isActive, kindBgColor(entry.kind))}
       aria-current={isActive ? "true" : undefined}
     >

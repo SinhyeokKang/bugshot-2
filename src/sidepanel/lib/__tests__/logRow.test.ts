@@ -2,17 +2,17 @@ import { describe, expect, it } from "vitest";
 import { formatRelativeTime, syncRowClass } from "../logRow";
 
 describe("formatRelativeTime", () => {
-  it("base 대비 초를 MM:SS로", () => {
-    expect(formatRelativeTime(1000, 1000)).toBe("00:00");
-    expect(formatRelativeTime(66_000, 1000)).toBe("01:05");
+  it("base 대비 초를 M:SS로", () => {
+    expect(formatRelativeTime(1000, 1000)).toBe("0:00");
+    expect(formatRelativeTime(66_000, 1000)).toBe("1:05");
     expect(formatRelativeTime(3_661_000, 1000)).toBe("61:00");
   });
   it("반올림", () => {
-    expect(formatRelativeTime(1499, 0)).toBe("00:01");
-    expect(formatRelativeTime(1500, 0)).toBe("00:02");
+    expect(formatRelativeTime(1499, 0)).toBe("0:01");
+    expect(formatRelativeTime(1500, 0)).toBe("0:02");
   });
-  it("음수는 00:00으로 clamp", () => {
-    expect(formatRelativeTime(500, 1000)).toBe("00:00");
+  it("음수는 0:00으로 clamp", () => {
+    expect(formatRelativeTime(500, 1000)).toBe("0:00");
   });
 });
 

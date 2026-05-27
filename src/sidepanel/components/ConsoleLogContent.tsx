@@ -185,14 +185,8 @@ function EntryAccordion({ entry, startedAt, syncBaseMs, onSeek, isActive }: {
   const t = useT();
   const base = syncBaseMs ?? startedAt;
 
-  // 동기화 재생 중 active 행이 뷰포트 밖이면 따라가도록 추종. isActive는 동기화 모드에서만 true.
-  const rowRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (isActive) rowRef.current?.scrollIntoView({ block: "nearest" });
-  }, [isActive]);
   return (
     <div
-      ref={rowRef}
       className={syncRowClass(!!onSeek, !!isActive, levelBgColor(entry.level))}
       aria-current={isActive ? "true" : undefined}
     >

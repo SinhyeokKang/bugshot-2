@@ -5,7 +5,7 @@ export function formatRelativeTime(ts: number, baseTs: number): string {
   const diff = Math.max(0, Math.round((ts - baseTs) / 1000));
   const m = Math.floor(diff / 60);
   const s = diff % 60;
-  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  return `${m}:${String(s).padStart(2, "0")}`;
 }
 
 // 동기화 모드(syncOn)에서만 active 보더 슬롯을 적용한다 — 라이브 서브탭은 보더 없는 기존

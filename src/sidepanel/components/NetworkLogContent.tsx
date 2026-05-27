@@ -143,9 +143,7 @@ export function NetworkLogContent({ requests, flush, syncBaseMs, onSeek, activeT
   const t = useT();
   const [activeId, setActiveId] = useState<string | null>(null);
   const [detailTab, setDetailTab] = useState<DetailTab>("headers");
-  const [listWidth, setListWidth] = useState(() =>
-    flush ? Math.round(window.innerWidth * 0.3) : 260,
-  );
+  const [listWidth, setListWidth] = useState(0);
   const [filter, setFilter] = useState<RequestFilter>("all");
   const [query, setQuery] = useState("");
   const filterLabel: Record<RequestFilter, string> = {
@@ -188,6 +186,11 @@ export function NetworkLogContent({ requests, flush, syncBaseMs, onSeek, activeT
 
   const containerRef = useRef<HTMLDivElement>(null);
   const dragging = useRef(false);
+
+  useEffect(() => {
+    if (!containerRef.current) return;
+    setListWidth(Math.round(containerRef.current.clientWidth * 0.3));
+  }, []);
 
   // 신규 로그 tail: 사용자가 바닥 근처(<24px)에 있을 때만 새 항목에 맞춰 자동 스크롤. 위로 올려
   // 살펴보는 중이면 끌어내리지 않는다.
@@ -363,14 +366,8 @@ function RequestRow({
   onSeek?: (absTs: number) => void;
   onClick: () => void;
 }) {
-  // 동기화 재생 중 active 행이 뷰포트 밖이면 따라가도록 추종. syncActive는 동기화 모드에서만 true.
-  const rowRef = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (syncActive) rowRef.current?.scrollIntoView({ block: "nearest" });
-  }, [syncActive]);
   return (
     <div
-      ref={rowRef}
       className={`flex cursor-pointer items-center gap-3 overflow-hidden px-3 py-2 text-[13px] ${syncRowClass(syncBaseMs != null, !!syncActive, rowBg(req, active))}`}
       aria-current={syncActive ? "true" : undefined}
       onClick={onClick}

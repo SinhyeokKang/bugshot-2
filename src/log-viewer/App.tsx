@@ -36,7 +36,6 @@ export function App({ data }: AppProps) {
 
   const video = data?.video ?? null;
   const videoRef = useRef<HTMLVideoElement>(null);
-  const [currentMs, setCurrentMs] = useState(0);
   const [videoError, setVideoError] = useState(false);
 
   const seekTo = (absTs: number) => {
@@ -48,7 +47,7 @@ export function App({ data }: AppProps) {
 
   // 영상·앵커가 살아있을 때만 세 로그 탭에 동기화 props 공급. 부재/에러 시 라이브 서브탭과 동일 동작.
   const sync = video && !videoError
-    ? { syncBaseMs: video.startedAt, onSeek: seekTo, activeTs: currentMs }
+    ? { syncBaseMs: video.startedAt, onSeek: seekTo }
     : {};
 
   if (!data) {
@@ -65,7 +64,7 @@ export function App({ data }: AppProps) {
         <TabsList className="grid h-9 w-full grid-cols-3">
           <TabsTrigger value="console" disabled={!hasConsole} className="gap-1.5">
             <Terminal className="h-3.5 w-3.5" />
-            Console Log
+            {t("logViewer.tab.console")}
             {hasConsole && (
               <Badge variant="secondary" className="ml-1 h-5 min-w-5 px-1.5 text-[10px]">
                 {data.consoleLog!.entries.length}
@@ -74,7 +73,7 @@ export function App({ data }: AppProps) {
           </TabsTrigger>
           <TabsTrigger value="network" disabled={!hasNetwork} className="gap-1.5">
             <ArrowLeftRight className="h-3.5 w-3.5" />
-            Network Log
+            {t("logViewer.tab.network")}
             {hasNetwork && (
               <Badge variant="secondary" className="ml-1 h-5 min-w-5 px-1.5 text-[10px]">
                 {data.networkLog!.requests.length}
@@ -83,7 +82,7 @@ export function App({ data }: AppProps) {
           </TabsTrigger>
           <TabsTrigger value="action" disabled={!hasAction} className="gap-1.5">
             <MousePointerClick className="h-3.5 w-3.5" />
-            Actions
+            {t("logViewer.tab.action")}
             {hasAction && (
               <Badge variant="secondary" className="ml-1 h-5 min-w-5 px-1.5 text-[10px]">
                 {data.actionLog!.entries.length}
@@ -184,7 +183,7 @@ export function App({ data }: AppProps) {
   return (
     <div className="h-screen">
       <ResizablePanelGroup direction="horizontal">
-        <ResizablePanel defaultSize={50} className="flex flex-col">
+        <ResizablePanel defaultSize={60} className="flex flex-col">
           <div className="flex h-full items-center justify-center bg-black">
             {videoError ? (
               <span className="text-sm text-muted-foreground">{t("logViewer.video.error")}</span>
@@ -194,18 +193,14 @@ export function App({ data }: AppProps) {
                 controls
                 poster={video.thumbnail}
                 src={video.dataUrl}
-                className="max-h-full max-w-full object-contain"
-                onTimeUpdate={() => {
-                  const el = videoRef.current;
-                  if (el) setCurrentMs(video.startedAt + el.currentTime * 1000);
-                }}
+                className="h-full w-full object-contain"
                 onError={() => setVideoError(true)}
               />
             )}
           </div>
         </ResizablePanel>
-        <ResizableHandle withHandle />
-        <ResizablePanel defaultSize={50} className="flex flex-col">
+        <ResizableHandle className="bg-border hover:bg-blue-300 hover:shadow-[-1px_0_0_0_theme(colors.blue.300),1px_0_0_0_theme(colors.blue.300)] dark:hover:bg-blue-700 dark:hover:shadow-[-1px_0_0_0_theme(colors.blue.700),1px_0_0_0_theme(colors.blue.700)]" />
+        <ResizablePanel defaultSize={40} className="flex flex-col">
           {tabsPanel}
         </ResizablePanel>
       </ResizablePanelGroup>
