@@ -1,6 +1,6 @@
 import { FROZEN_PHASES, originOf, pageKeyOf, sessionKey } from "@/lib/session-keys";
 import { isSupportedUrl } from "@/lib/url-support";
-import { deleteNetworkLog, deleteConsoleLog } from "@/store/blob-db";
+import { deleteNetworkLog, deleteConsoleLog, deleteActionLog } from "@/store/blob-db";
 import type { BgInternalMessage } from "@/types/messages";
 
 type SessionSnap = {
@@ -205,5 +205,6 @@ export function setupTabBindings(): void {
     void setActivated(tabId, false);
     deleteNetworkLog(`pending:${tabId}`).catch(() => {});
     deleteConsoleLog(`pending:${tabId}`).catch(() => {});
+    deleteActionLog(`pending:${tabId}`).catch(() => {});
   });
 }

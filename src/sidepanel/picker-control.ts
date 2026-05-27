@@ -2,7 +2,7 @@ import { classifyTabSupport } from "@/lib/url-support";
 import { useEditorStore } from "@/store/editor-store";
 import { onPickerPermissionExpired, onPickerUnavailable } from "@/types/messages";
 import { isActiveTabPermissionError } from "./lib/capture-error";
-import { clearNetworkRecorder, clearConsoleRecorder } from "@/sidepanel/recorder-control";
+import { clearNetworkRecorder, clearConsoleRecorder, clearActionRecorder } from "@/sidepanel/recorder-control";
 import type {
   DescribeChildrenResponse,
   DescribeInitialResponse,
@@ -327,7 +327,23 @@ export async function syncConsoleRecorder(tabId: number): Promise<void> {
   await send(tabId, { type: "consoleRecorder.sync" });
 }
 
-export { clearNetworkRecorder, clearConsoleRecorder };
+export async function activateActionRecorder(tabId: number): Promise<string> {
+  await ensureContentScript(tabId);
+  await ensureMainWorldRecorders(tabId);
+  const sentinel = crypto.randomUUID();
+  await send(tabId, { type: "actionRecorder.setSentinel", sentinel });
+  return sentinel;
+}
+
+export async function stopActionRecorder(tabId: number): Promise<void> {
+  await send(tabId, { type: "actionRecorder.stop" });
+}
+
+export async function syncActionRecorder(tabId: number): Promise<void> {
+  await send(tabId, { type: "actionRecorder.sync" });
+}
+
+export { clearNetworkRecorder, clearConsoleRecorder, clearActionRecorder };
 
 // capture 시 sync broadcast가 누적기에 머지될 때까지 대기하는 상한. 머지 도착 즉시 조기 탈출.
 const LOG_SYNC_SETTLE_MS = 300;
@@ -342,9 +358,12 @@ export async function syncAndSettleLogs(
 ): Promise<void> {
   const prevNetEnded = useEditorStore.getState().networkLog?.endedAt ?? 0;
   const prevConEnded = useEditorStore.getState().consoleLog?.endedAt ?? 0;
+  // action도 함께 flush(freeform 진입 freeze 전 tail 보존). 빈 버퍼면 endedAt이 안 올라
+  // settle 무한대기 위험이 있으므로 settle 조건엔 넣지 않고 net/con settle 동안 머지에 묻어가게 둔다.
   await Promise.all([
     syncNetworkRecorder(tabId).catch(() => {}),
     syncConsoleRecorder(tabId).catch(() => {}),
+    syncActionRecorder(tabId).catch(() => {}),
   ]);
   const deadline = Date.now() + settleMs;
   while (Date.now() < deadline) {

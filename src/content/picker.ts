@@ -152,6 +152,48 @@ function handleConsoleClear(): void {
   document.dispatchEvent(new CustomEvent("__bugshot_console_clear__" + consoleSentinel));
 }
 
+/* ── Action recorder bridge ──────────────────────── */
+
+let actionSentinel: string | null = null;
+
+function handleActionData(e: Event): void {
+  const detail = (e as CustomEvent).detail;
+  if (!detail || detail.sentinel !== actionSentinel) return;
+  postToRuntime({
+    type: "actionRecorder.data",
+    payload: {
+      entries: detail.entries,
+      totalSeen: detail.totalSeen,
+    },
+  });
+}
+
+function handleSetActionSentinel(sentinel: string): void {
+  if (actionSentinel) {
+    document.removeEventListener("__bugshot_action_data__" + actionSentinel, handleActionData);
+  }
+  actionSentinel = sentinel;
+  document.addEventListener("__bugshot_action_data__" + sentinel, handleActionData);
+  document.dispatchEvent(
+    new CustomEvent("__bugshot_action_setSentinel__", { detail: { sentinel } }),
+  );
+}
+
+function handleActionStop(): void {
+  if (!actionSentinel) return;
+  document.dispatchEvent(new CustomEvent("__bugshot_action_stop__" + actionSentinel));
+}
+
+function handleActionSync(): void {
+  if (!actionSentinel) return;
+  document.dispatchEvent(new CustomEvent("__bugshot_action_sync__" + actionSentinel));
+}
+
+function handleActionClear(): void {
+  if (!actionSentinel) return;
+  document.dispatchEvent(new CustomEvent("__bugshot_action_clear__" + actionSentinel));
+}
+
 let mode: Mode = "idle";
 let selectedEl: Element | null = null;
 let lastHover: Element | null = null;
@@ -304,6 +346,18 @@ chrome.runtime.onMessage.addListener(
           break;
         case "consoleRecorder.clear":
           handleConsoleClear();
+          break;
+        case "actionRecorder.setSentinel":
+          handleSetActionSentinel(msg.sentinel);
+          break;
+        case "actionRecorder.stop":
+          handleActionStop();
+          break;
+        case "actionRecorder.sync":
+          handleActionSync();
+          break;
+        case "actionRecorder.clear":
+          handleActionClear();
           break;
         default:
           return;

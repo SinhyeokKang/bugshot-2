@@ -1,21 +1,26 @@
 import type { NetworkLog } from "@/types/network";
 import type { ConsoleLog } from "@/types/console";
+import type { ActionLog } from "@/types/action";
 import type { LogViewerData } from "@/types/log-viewer";
 import { buildHar } from "./buildHar";
 import { buildConsoleLogJson } from "./buildConsoleLogJson";
+import { buildActionLogJson } from "./buildActionLogJson";
 import template from "../../../dist-log-viewer/index.html?raw";
 
 export function buildLogsHtml(
   networkLog: NetworkLog | null,
   consoleLog: ConsoleLog | null,
+  actionLog: ActionLog | null,
   pageUrl: string,
   issueUrl?: string,
 ): string {
   const data: LogViewerData = {
     networkLog,
     consoleLog,
+    actionLog,
     har: networkLog ? buildHar(networkLog) : null,
     consoleLogJson: consoleLog ? buildConsoleLogJson(consoleLog) : null,
+    actionLogJson: actionLog ? buildActionLogJson(actionLog) : null,
     meta: {
       version: chrome.runtime.getManifest().version,
       createdAt: new Date().toISOString(),

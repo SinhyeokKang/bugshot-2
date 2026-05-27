@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { ConsoleLog } from "@/types/console";
 import type { NetworkLog } from "@/types/network";
+import type { ActionLog } from "@/types/action";
 
 vi.stubGlobal("chrome", {
   runtime: { getManifest: () => ({ version: "1.0.0" }) },
@@ -35,6 +36,17 @@ const consoleLog: ConsoleLog = {
   totalSeen: 1,
   captured: 1,
   entries: [],
+};
+
+const actionLog: ActionLog = {
+  id: "act-1",
+  startedAt: 0,
+  endedAt: 1000,
+  totalSeen: 1,
+  captured: 1,
+  entries: [
+    { id: "ae-1", kind: "click", timestamp: 500, pageUrl: "https://example.com", target: "Btn" },
+  ],
 };
 
 describe("buildCaptureFiles — element mode", () => {
@@ -171,5 +183,47 @@ describe("buildCaptureFiles — freeform mode", () => {
       networkLog,
     });
     expect(out.images).toEqual([]);
+  });
+});
+
+describe("buildCaptureFiles — actionLog video-only 스코핑", () => {
+  it("video + actionLog → action-log.json 주입", async () => {
+    const out = await buildCaptureFiles({
+      captureMode: "video",
+      actionLog,
+      pageUrl: "https://example.com",
+    });
+    expect(out.logs.map((l) => l.filename)).toEqual(["logs.html"]);
+    expect(out.jsonLogs.map((l) => l.filename)).toContain("action-log.json");
+  });
+
+  it("freeform + actionLog → action-log.json 없음 (logs.html도 없음)", async () => {
+    const out = await buildCaptureFiles({
+      captureMode: "freeform",
+      actionLog,
+      pageUrl: "https://example.com",
+    });
+    expect(out.jsonLogs.map((l) => l.filename)).not.toContain("action-log.json");
+    expect(out.logs).toEqual([]);
+  });
+
+  it("screenshot + actionLog → action-log.json 없음", async () => {
+    const out = await buildCaptureFiles({
+      captureMode: "screenshot",
+      screenshotImage: "data:x",
+      actionLog,
+      pageUrl: "https://example.com",
+    });
+    expect(out.jsonLogs.map((l) => l.filename)).not.toContain("action-log.json");
+  });
+
+  it("video + actionLog=null → logs 빈 (기존 video 동작 불변)", async () => {
+    const out = await buildCaptureFiles({
+      captureMode: "video",
+      actionLog: null,
+      networkLog: null,
+      consoleLog: null,
+    });
+    expect(out.logs).toEqual([]);
   });
 });

@@ -19,6 +19,9 @@ import {
   deleteConsoleLog,
   clearConsoleLogs,
   getConsoleLogKeys,
+  deleteActionLog,
+  clearActionLogs,
+  getActionLogKeys,
   saveImageBlobRaw,
   dataUrlToBlob,
 } from "./blob-db";
@@ -44,6 +47,7 @@ export function stripSubmitted(
     pageTitle: undefined,
     networkLogBlobKey: undefined,
     consoleLogBlobKey: undefined,
+    actionLogBlobKey: undefined,
   };
 }
 
@@ -78,6 +82,13 @@ async function pruneOrphanBlobs(): Promise<void> {
     if (key.startsWith("pending:")) continue;
     if (!currentIds.has(key)) {
       deleteConsoleLog(key).catch(() => {});
+    }
+  }
+  const actionLogKeys = await getActionLogKeys();
+  for (const key of actionLogKeys) {
+    if (key.startsWith("pending:")) continue;
+    if (!currentIds.has(key)) {
+      deleteActionLog(key).catch(() => {});
     }
   }
 }
@@ -148,6 +159,7 @@ export interface IssueRecord {
 
   networkLogBlobKey?: string;
   consoleLogBlobKey?: string;
+  actionLogBlobKey?: string;
 
   submittedAt?: number;
   platform: PlatformId;
@@ -176,6 +188,7 @@ export interface IssueRecord {
 
 // v5: notion 플랫폼 추가 — IssueRecord에 notionPageId/notionDatabaseId/notionDatabaseTitle/notionStatusOption optional 필드.
 // PlatformId union에 "notion" 추가. 모두 optional이라 v4→v5 데이터 마이그레이션은 불필요 — 버전 마커만 bump.
+// action-recorder: IssueRecord에 actionLogBlobKey optional 추가. optional이라 마이그레이션·버전 bump 불필요.
 export const ISSUES_STORE_VERSION = 5;
 
 interface LegacyIssueRecord extends Omit<IssueRecord, "platform"> {
@@ -218,6 +231,7 @@ export const useIssuesStore = create<IssuesState>()(
         deleteImageBlobs(id).catch(() => {});
         deleteNetworkLog(id).catch(() => {});
         deleteConsoleLog(id).catch(() => {});
+        deleteActionLog(id).catch(() => {});
       },
       patchIssue: (id, patch) =>
         set((s) => ({
@@ -237,6 +251,7 @@ export const useIssuesStore = create<IssuesState>()(
         deleteImageBlobs(id).catch(() => {});
         deleteNetworkLog(id).catch(() => {});
         deleteConsoleLog(id).catch(() => {});
+        deleteActionLog(id).catch(() => {});
         resetEditorIfEditing(id);
       },
       clearIssues: () => {
@@ -245,6 +260,7 @@ export const useIssuesStore = create<IssuesState>()(
         clearImageBlobs().catch(() => {});
         clearNetworkLogs().catch(() => {});
         clearConsoleLogs().catch(() => {});
+        clearActionLogs().catch(() => {});
         resetEditorIfEditing(null);
       },
     }),

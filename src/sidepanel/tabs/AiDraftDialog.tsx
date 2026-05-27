@@ -19,7 +19,7 @@ import {
   parseAiDraftResponse,
 } from "@/sidepanel/lib/buildAiDraftPrompt";
 import type { StyleDiffRow } from "@/sidepanel/components/StyleChangesTable";
-import { buildNetworkLogSummary, buildConsoleLogSummary } from "@/sidepanel/lib/buildLogSummary";
+import { buildNetworkLogSummary, buildConsoleLogSummary, buildActionLogSummary } from "@/sidepanel/lib/buildLogSummary";
 import { LlmQuotaError, LlmOverloadedError, type AISession, type AIProvider } from "@/sidepanel/lib/ai-provider";
 import { defaultTitle } from "./DraftingPanel";
 
@@ -71,6 +71,7 @@ export function AiDraftDialog({
       if (isElement || !sessionRef.current) {
         const networkLog = store.networkLog;
         const consoleLog = store.consoleLog;
+        const actionLog = store.actionLog;
         const includeLogCtx = captureMode === "video" || captureMode === "freeform";
         const systemPrompt = buildAiDraftSessionPrompt({
           captureMode,
@@ -92,6 +93,10 @@ export function AiDraftDialog({
           consoleLogSummary:
             includeLogCtx && consoleLog && consoleLog.captured > 0
               ? buildConsoleLogSummary(consoleLog)
+              : undefined,
+          actionLogSummary:
+            includeLogCtx && actionLog && actionLog.captured > 0
+              ? buildActionLogSummary(actionLog)
               : undefined,
           enabledSections,
         });

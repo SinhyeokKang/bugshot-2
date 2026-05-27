@@ -3,10 +3,13 @@ import { useEditorStore, type EditorPhase } from "@/store/editor-store";
 import {
   activateNetworkRecorder,
   activateConsoleRecorder,
+  activateActionRecorder,
   stopNetworkRecorder,
   stopConsoleRecorder,
+  stopActionRecorder,
   syncNetworkRecorder,
   syncConsoleRecorder,
+  syncActionRecorder,
 } from "@/sidepanel/picker-control";
 import { pageKeyOf } from "@/lib/session-keys";
 import { isSupportedUrl } from "@/lib/url-support";
@@ -46,6 +49,7 @@ export function useBackgroundRecorder(tabId: number | null): void {
         await Promise.all([
           activateNetworkRecorder(localTabId),
           activateConsoleRecorder(localTabId),
+          activateActionRecorder(localTabId),
         ]);
       } catch (err) {
         if (!cancelled) {
@@ -98,6 +102,7 @@ export function useBackgroundRecorder(tabId: number | null): void {
       if (state.phase === "capturing" && state.captureMode === "screenshot") {
         syncNetworkRecorder(localTabId).catch(() => {});
         syncConsoleRecorder(localTabId).catch(() => {});
+        syncActionRecorder(localTabId).catch(() => {});
         return;
       }
 
@@ -122,6 +127,7 @@ export function useBackgroundRecorder(tabId: number | null): void {
       unsubStore();
       stopNetworkRecorder(localTabId).catch(() => {});
       stopConsoleRecorder(localTabId).catch(() => {});
+      stopActionRecorder(localTabId).catch(() => {});
       // pending IDB는 tab close 시 tab-bindings.ts가 정리. 여기서 지우면 패널 재오픈 시 networkLogAttach 복원이 깨진다.
     };
   }, [tabId]);

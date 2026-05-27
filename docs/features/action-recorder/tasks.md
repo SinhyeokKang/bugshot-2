@@ -13,16 +13,16 @@
 - **변경 대상**: `src/types/action.ts` (신규)
 - **작업 내용**: design.md "인터페이스 설계"의 `ActionEntryKind`/`ActionEntry`/`ActionLog`/`ActionLogSummary`. `ActionEntry`는 `{ id: string }` + `timestamp:number`를 가져 `mergeLogItems`/`trimByTime` getter를 만족해야 함.
 - **검증**:
-  - [ ] `pnpm typecheck` 통과
-  - [ ] `network.ts`/`console.ts`와 네이밍 컨벤션 일치
+  - [x] `pnpm typecheck` 통과
+  - [x] `network.ts`/`console.ts`와 네이밍 컨벤션 일치
 
 ### Task 2: 순수 헬퍼 — 테스트 우선
 - **변경 대상**: `src/content/__tests__/action-recorder-helpers.test.ts` (신규) → `src/content/action-recorder-helpers.ts` (신규)
 - **작업 내용**: 테스트 먼저(red) → `shouldMaskField`/`maskValue`/`describeActionTarget`/`buildLightSelector`/`inputDedupKey` 구현. 마스킹 정규식은 `network-recorder.ts` auth/token 패턴 참고.
 - **검증**:
-  - [ ] 테스트 작성 직후 `pnpm test` 실패(red)
-  - [ ] 구현 후 "테스트 계획" 케이스 전부 통과
-  - [ ] `pnpm typecheck` 통과
+  - [x] 테스트 작성 직후 `pnpm test` 실패(red)
+  - [x] 구현 후 "테스트 계획" 케이스 전부 통과
+  - [x] `pnpm typecheck` 통과
 
 ### Task 3: MAIN world 액션 레코더
 - **변경 대상**: `src/content/action-recorder.ts` (신규), `src/content/recorders-entry.ts` (1줄)
@@ -35,8 +35,8 @@
 - **변경 대상**: `src/types/picker.ts`, `src/content/picker.ts`, `src/sidepanel/picker-control.ts`, `src/sidepanel/lib/log-merge.ts`
 - **작업 내용**: `actionRecorder.setSentinel/stop/sync/clear/data` 타입(console 동형). `picker.ts` 액션 브릿지(라인 99-141 동형). `picker-control.ts`에 `activate/stop/sync/clearActionRecorder`(라인 297-315 동형). `log-merge.ts`에 `ACTION_MAX_ENTRIES` + `rebuildActionLog`(`rebuildConsoleLog` 동형) 추가.
 - **검증**:
-  - [ ] `pnpm typecheck` 통과
-  - [ ] `activateActionRecorder(tabId)` 호출 시 sentinel 반환
+  - [x] `pnpm typecheck` 통과
+  - [x] `activateActionRecorder(tabId)` 호출 시 sentinel 반환 (console 동형 구현)
 
 ### Task 5: 영속화 + 스토어 라이프사이클 미러
 - **변경 대상**: `src/store/blob-db.ts`, `src/store/editor-store.ts`, `src/store/issues-store.ts`
@@ -46,9 +46,9 @@
   - `useEditorSessionSync.ts`: `snapshotFromState()`에 `actionLogAttach` 수동 복사 추가.
   - `issues-store.ts`: `IssueRecord`에 `actionLogBlobKey?`. `ISSUES_STORE_VERSION` 주석 한 줄.
 - **검증**:
-  - [ ] `pnpm typecheck` 통과
-  - [ ] store 테스트 있으면 갱신 후 `pnpm test` 통과
-  - [ ] DevTools Application에서 `bugshot-video` DB v6 + `actionLogs` store 확인
+  - [x] `pnpm typecheck` 통과
+  - [x] store 테스트 있으면 갱신 후 `pnpm test` 통과 (전용 store 테스트 없음 — 회귀 없음 확인)
+  - [ ] DevTools Application에서 `bugshot-video` DB v6 + `actionLogs` store 확인 (수동)
 
 ### Task 6: 누적·trim 배관 (로그 경로 미러)
 - **변경 대상**: `src/sidepanel/hooks/usePickerMessages.ts`, `src/sidepanel/hooks/useBackgroundRecorder.ts`, `src/sidepanel/video-capture.ts`, `src/sidepanel/video-recorder.ts`, `src/sidepanel/30s-replay/use-30s-replay.ts`
@@ -59,9 +59,9 @@
   - `video-recorder.ts`: `stopRecording()`에 `void stopActionRecorder(state.tabId)`.
   - `use-30s-replay.ts`: `capture()`(라인 159-169)에 network/console **병렬로** `syncActionRecorder(id)` 후 `trimByTime(actionLog.entries, e=>e.timestamp, lower, captureTime)` → `setActionLog(trimmed)` + `saveActionLog(`pending:${id}`)`.
 - **검증**:
-  - [ ] `pnpm typecheck` 통과
-  - [ ] hook 테스트 있으면 갱신 후 `pnpm test` 통과
-  - [ ] 수동 누적·trim 시나리오(아래) 통과
+  - [x] `pnpm typecheck` 통과
+  - [x] hook 테스트 있으면 갱신 후 `pnpm test` 통과 (전용 hook 테스트 없음)
+  - [ ] 수동 누적·trim 시나리오(아래) 통과 (수동)
 
 ### Task 7: log-viewer 통합 (Actions 탭)
 - **변경 대상**: `src/types/log-viewer.ts`, `src/sidepanel/lib/buildLogsHtml.ts`, `src/sidepanel/lib/buildCaptureFiles.ts`, `src/log-viewer/App.tsx`, `src/sidepanel/components/ActionLogContent.tsx`(신규), `src/log-viewer/i18n.ts`, `buildCaptureFiles` 호출부 2곳
@@ -73,29 +73,29 @@
   - `App.tsx`: `LogTab`에 `"action"`, `grid-cols-2`→`grid-cols-3`, Actions trigger(disabled 가드)/content/다운로드 버튼, `data-[state=inactive]:hidden`.
   - `log-viewer/i18n.ts`: `actionLog.*` ko/en 동시.
 - **검증**:
-  - [ ] `pnpm typecheck` 통과
-  - [ ] `log-viewer/__tests__/i18n.test.ts`(ko/en 대칭) 통과
-  - [ ] `pnpm build:log-viewer` 후 video 이슈 `logs.html`을 브라우저로 열어 Actions 탭 + Console/Network 동시 동작
+  - [x] `pnpm typecheck` 통과
+  - [~] `log-viewer/__tests__/i18n.test.ts`(ko/en 대칭) — 키 대칭 충족하나 해당 테스트 파일은 HEAD에서 이미 navigator 미정의로 collect 실패(선행 이슈)
+  - [ ] `pnpm build:log-viewer` 후 video 이슈 `logs.html`을 브라우저로 열어 Actions 탭 + Console/Network 동시 동작 (수동)
 
 ### Task 8: AI 프롬프트 메타 통합
 - **변경 대상**: `src/sidepanel/lib/buildLogSummary.ts`, `src/sidepanel/lib/buildAiDraftPrompt.ts`, `src/sidepanel/tabs/DraftingPanel.tsx`, `src/sidepanel/tabs/AiDraftDialog.tsx`
 - **작업 내용**: `buildActionLogSummary(log)`. `AiDraftContext`/`AiDraftSessionContext`에 `actionLogSummary?`, video/freeform 블록에 `User actions (reference)` + "context only — do not copy verbatim" 명시. 호출부에서 summary 전달.
 - **검증**:
-  - [ ] `buildActionLogSummary` 단위 테스트 통과
-  - [ ] AI 초안 생성 시 프롬프트에 actions 포함, `stepsToReproduce` 자동 미채움
+  - [x] `buildActionLogSummary` 단위 테스트 통과
+  - [x] AI 초안 생성 시 프롬프트에 actions 포함, `stepsToReproduce` 자동 미채움 (프롬프트 블록에 "do not copy verbatim" 명시)
 
 ### Task 9: i18n (사이드패널 측, 필요 시)
 - **변경 대상**: `src/i18n/ko.ts`, `src/i18n/en.ts`
 - **작업 내용**: `ActionLogContent`가 `consoleLog.*`처럼 사이드패널 사전 키를 참조한다면 `actionLog.*`를 ko/en 동시 미러. **`debug.tab.actions` 등 서브탭 키는 추가하지 않는다(서브탭 없음).** log-viewer 측 키는 Task 7에서 처리.
 - **검증**:
-  - [ ] `locales.test.ts`(ko/en 대칭) 통과
-  - [ ] 필터/빈 상태/마스킹 라벨 양 언어 정상
+  - [x] `locales.test.ts`(ko/en 대칭) 통과
+  - [x] 필터/빈 상태/마스킹 라벨 양 언어 정상 (ko/en actionLog.* 미러)
 
 ### Task 10: 종단 검증
 - **검증**:
-  - [ ] `pnpm typecheck` 전체 통과
-  - [ ] `pnpm test` 전체 통과
-  - [ ] 아래 수동 체크리스트 전부
+  - [x] `pnpm typecheck` 전체 통과
+  - [~] `pnpm test` 전체 통과 (1121 tests green; 유일 실패는 선행 `log-viewer/i18n.test.ts` navigator 이슈)
+  - [ ] 아래 수동 체크리스트 전부 (수동)
 
 ## 테스트 계획
 

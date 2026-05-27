@@ -15,7 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { useEditorStore } from "@/store/editor-store";
 import { useBoundTabId } from "@/sidepanel/hooks/useBoundTabId";
 import { useCaptureShortcuts } from "@/sidepanel/hooks/useCaptureShortcuts";
-import { startFreeformDraft, syncNetworkRecorder, syncConsoleRecorder } from "@/sidepanel/picker-control";
+import { startFreeformDraft, syncNetworkRecorder, syncConsoleRecorder, syncActionRecorder } from "@/sidepanel/picker-control";
 import { IssueTab } from "./IssueTab";
 import { ConsoleSubTab } from "./ConsoleSubTab";
 import { NetworkSubTab } from "./NetworkSubTab";
@@ -43,6 +43,7 @@ export function DebugTab({ activeMainTab }: { activeMainTab: string }) {
       if (tabIdRef.current == null) return;
       syncNetworkRecorder(tabIdRef.current).catch(() => {});
       syncConsoleRecorder(tabIdRef.current).catch(() => {});
+      syncActionRecorder(tabIdRef.current).catch(() => {});
     };
     sync();
     const id = setInterval(sync, 1500);

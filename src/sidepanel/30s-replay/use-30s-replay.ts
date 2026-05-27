@@ -5,7 +5,7 @@ import { useEditorStore } from "@/store/editor-store";
 import { useSettingsUiStore } from "@/store/settings-ui-store";
 import { syncAndSettleLogs } from "@/sidepanel/picker-control";
 import { trimByTime } from "@/sidepanel/lib/log-merge";
-import { saveNetworkLog, saveConsoleLog } from "@/store/blob-db";
+import { saveNetworkLog, saveConsoleLog, saveActionLog } from "@/store/blob-db";
 import { useT } from "@/i18n";
 import { FrameBuffer, REPLAY_MAX_DURATION_MS } from "./frame-buffer";
 import { encodeToMp4 } from "./mp4-encoder";
@@ -153,8 +153,9 @@ export function use30sReplay(
       // 지연 sync가 끼어들 갭을 없애고, 직후 onRecordingComplete로 drafting 전환(프리즈)해 첨부 로그를 고정한다.
       const captureTime = Date.now();
       const lower = frames[0].timestamp;
+      // syncAndSettleLogs가 network/console/action 모두 sync한다.
       await syncAndSettleLogs(id);
-      const { networkLog, consoleLog } = useEditorStore.getState();
+      const { networkLog, consoleLog, actionLog } = useEditorStore.getState();
       if (networkLog) {
         const requests = trimByTime(networkLog.requests, (r) => r.startTime, lower, captureTime);
         const trimmed = { ...networkLog, requests, captured: requests.length };
@@ -166,6 +167,12 @@ export function use30sReplay(
         const trimmed = { ...consoleLog, entries, captured: entries.length };
         useEditorStore.getState().setConsoleLog(trimmed);
         saveConsoleLog(`pending:${id}`, trimmed).catch(() => {});
+      }
+      if (actionLog) {
+        const entries = trimByTime(actionLog.entries, (e) => e.timestamp, lower, captureTime);
+        const trimmed = { ...actionLog, entries, captured: entries.length };
+        useEditorStore.getState().setActionLog(trimmed);
+        saveActionLog(`pending:${id}`, trimmed).catch(() => {});
       }
 
       // idle 직접 진입이라 startRecording이 하던 target 설정을 여기서 대신 — confirmDraft 가드 통과용.

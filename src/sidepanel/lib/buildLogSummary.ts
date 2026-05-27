@@ -1,7 +1,9 @@
 import type { NetworkLog } from "@/types/network";
 import type { ConsoleLog } from "@/types/console";
+import type { ActionLog, ActionLogSummary } from "@/types/action";
 
 const MAX_ERRORS = 5;
+const MAX_ACTIONS = 20;
 
 export interface NetworkLogSummary {
   captured: number;
@@ -42,6 +44,19 @@ export function buildConsoleLogSummary(log: ConsoleLog): ConsoleLogSummary {
     if (topErrors.length >= MAX_ERRORS) break;
   }
   return { captured: log.captured, errorCount, warnCount, topErrors };
+}
+
+// 최근 MAX_ACTIONS개 액션을 자연어 줄로. AI 프롬프트 참고 메타용(masked input은 값 *** 그대로).
+export function buildActionLogSummary(log: ActionLog): ActionLogSummary {
+  return log.entries.slice(-MAX_ACTIONS).map((e) => {
+    if (e.kind === "navigation") {
+      return `Navigated to: ${e.toUrl ?? ""}`;
+    }
+    if (e.kind === "input") {
+      return `Typed in "${e.fieldLabel ?? ""}": "${e.value ?? ""}"`;
+    }
+    return `Clicked: ${e.target ?? e.selector ?? ""}`;
+  });
 }
 
 function extractPath(url: string): string {

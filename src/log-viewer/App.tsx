@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { Download, Terminal, ArrowLeftRight, ExternalLink } from "lucide-react";
+import { Download, Terminal, ArrowLeftRight, ExternalLink, MousePointerClick } from "lucide-react";
 import type { LogViewerData } from "@/types/log-viewer";
 import { NetworkLogContent } from "@/sidepanel/components/NetworkLogContent";
 import { ConsoleLogContent } from "@/sidepanel/components/ConsoleLogContent";
+import { ActionLogContent } from "@/sidepanel/components/ActionLogContent";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -22,12 +23,13 @@ function downloadJson(obj: object, filename: string) {
   URL.revokeObjectURL(url);
 }
 
-type LogTab = "console" | "network";
+type LogTab = "console" | "network" | "action";
 
 export function App({ data }: AppProps) {
   const hasNetwork = !!data?.networkLog;
   const hasConsole = !!data?.consoleLog;
-  const defaultTab: LogTab = hasConsole ? "console" : "network";
+  const hasAction = !!data?.actionLog;
+  const defaultTab: LogTab = hasConsole ? "console" : hasNetwork ? "network" : "action";
   const [activeTab, setActiveTab] = useState<LogTab>(defaultTab);
 
   if (!data) {
@@ -42,7 +44,7 @@ export function App({ data }: AppProps) {
     <div className="flex h-screen flex-col">
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as LogTab)} className="flex min-h-0 flex-1 flex-col">
         <div className="shrink-0 border-b border-border px-4 py-4">
-          <TabsList className="grid h-9 w-full grid-cols-2">
+          <TabsList className="grid h-9 w-full grid-cols-3">
             <TabsTrigger value="console" disabled={!hasConsole} className="gap-1.5">
               <Terminal className="h-3.5 w-3.5" />
               Console Log
@@ -58,6 +60,15 @@ export function App({ data }: AppProps) {
               {hasNetwork && (
                 <Badge variant="secondary" className="ml-1 h-5 min-w-5 px-1.5 text-[10px]">
                   {data.networkLog!.requests.length}
+                </Badge>
+              )}
+            </TabsTrigger>
+            <TabsTrigger value="action" disabled={!hasAction} className="gap-1.5">
+              <MousePointerClick className="h-3.5 w-3.5" />
+              Actions
+              {hasAction && (
+                <Badge variant="secondary" className="ml-1 h-5 min-w-5 px-1.5 text-[10px]">
+                  {data.actionLog!.entries.length}
                 </Badge>
               )}
             </TabsTrigger>
@@ -84,6 +95,20 @@ export function App({ data }: AppProps) {
           ) : (
             <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
               No network data
+            </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="action" className="mt-0 flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden">
+          {hasAction ? (
+            <ActionLogContent
+              entries={data.actionLog!.entries}
+              startedAt={data.actionLog!.startedAt}
+              flush
+            />
+          ) : (
+            <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
+              No action data
             </div>
           )}
         </TabsContent>
@@ -116,6 +141,15 @@ export function App({ data }: AppProps) {
               >
                 <Download className="h-4 w-4" />
                 Network-log.har
+              </Button>
+            )}
+            {activeTab === "action" && data.actionLogJson && (
+              <Button
+                className="gap-1"
+                onClick={() => downloadJson(data.actionLogJson!, "Action-log.json")}
+              >
+                <Download className="h-4 w-4" />
+                Action-log.json
               </Button>
             )}
           </div>

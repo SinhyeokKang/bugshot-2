@@ -43,6 +43,17 @@ export const koDict: Record<string, string> = {
   "consoleLog.filter.debug": "Debug",
   "consoleLog.filter.log": "Log",
 
+  "actionLog.search": "액션 검색…",
+  "actionLog.filter.all": "전체",
+  "actionLog.filter.click": "클릭",
+  "actionLog.filter.navigation": "이동",
+  "actionLog.filter.input": "입력",
+  "actionLog.empty": "캡처된 액션이 없습니다",
+  "actionLog.nav.load": "페이지 로드",
+  "actionLog.nav.history": "history API",
+  "actionLog.nav.popstate": "뒤로·앞으로",
+  "actionLog.nav.hashchange": "해시 변경",
+
   "debug.network.empty": "네트워크 요청이 없습니다",
   "debug.console.empty": "콘솔 로그가 없습니다",
 
@@ -91,6 +102,17 @@ export const enDict: Record<string, string> = {
   "consoleLog.filter.info": "Info",
   "consoleLog.filter.debug": "Debug",
   "consoleLog.filter.log": "Log",
+
+  "actionLog.search": "Search actions…",
+  "actionLog.filter.all": "All",
+  "actionLog.filter.click": "Click",
+  "actionLog.filter.navigation": "Navigation",
+  "actionLog.filter.input": "Input",
+  "actionLog.empty": "No actions captured",
+  "actionLog.nav.load": "Page load",
+  "actionLog.nav.history": "History API",
+  "actionLog.nav.popstate": "Back/Forward",
+  "actionLog.nav.hashchange": "Hash change",
 
   "debug.network.empty": "No network requests",
   "debug.console.empty": "No console logs",

@@ -174,6 +174,9 @@ chrome.webNavigation.onBeforeNavigate.addListener((details) => {
     chrome.tabs
       .sendMessage(details.tabId, { type: "consoleRecorder.sync" })
       .catch(() => {});
+    chrome.tabs
+      .sendMessage(details.tabId, { type: "actionRecorder.sync" })
+      .catch(() => {});
   });
 });
 

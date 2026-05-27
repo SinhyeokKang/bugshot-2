@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { NetworkLog } from "@/types/network";
 import type { ConsoleLog } from "@/types/console";
+import type { ActionLog } from "@/types/action";
 
 vi.stubGlobal("chrome", {
   runtime: { getManifest: () => ({ version: "1.0.0" }) },
@@ -58,6 +59,32 @@ const consoleLog: ConsoleLog = {
   ],
 };
 
+const actionLog: ActionLog = {
+  id: "act-1",
+  startedAt: 1000,
+  endedAt: 2000,
+  totalSeen: 2,
+  captured: 2,
+  entries: [
+    {
+      id: "ae-1",
+      kind: "click",
+      timestamp: 1100,
+      pageUrl: "https://example.com",
+      target: "Submit 버튼",
+      selector: "button#submit",
+    },
+    {
+      id: "ae-2",
+      kind: "input",
+      timestamp: 1200,
+      pageUrl: "https://example.com",
+      fieldLabel: "Email",
+      value: "a@b.com",
+    },
+  ],
+};
+
 function extractData(html: string): Record<string, unknown> {
   const match = html.match(
     /<script id="__BUGSHOT_DATA__" type="application\/json">([\s\S]*?)<\/script>/,
@@ -68,7 +95,7 @@ function extractData(html: string): Record<string, unknown> {
 
 describe("buildLogsHtml", () => {
   it("networkLog + consoleLog 모두 → 데이터 주입된 HTML 반환", () => {
-    const html = buildLogsHtml(networkLog, consoleLog, "https://example.com");
+    const html = buildLogsHtml(networkLog, consoleLog, null, "https://example.com");
 
     expect(html).toContain("<!DOCTYPE html>");
     const data = extractData(html);
@@ -86,7 +113,7 @@ describe("buildLogsHtml", () => {
 
   it("networkLog null → networkLog·har가 null", () => {
     const data = extractData(
-      buildLogsHtml(null, consoleLog, "https://example.com"),
+      buildLogsHtml(null, consoleLog, null, "https://example.com"),
     );
     expect(data.networkLog).toBeNull();
     expect(data.har).toBeNull();
@@ -96,12 +123,28 @@ describe("buildLogsHtml", () => {
 
   it("consoleLog null → consoleLog·consoleLogJson이 null", () => {
     const data = extractData(
-      buildLogsHtml(networkLog, null, "https://example.com"),
+      buildLogsHtml(networkLog, null, null, "https://example.com"),
     );
     expect(data.consoleLog).toBeNull();
     expect(data.consoleLogJson).toBeNull();
     expect(data.networkLog).not.toBeNull();
     expect(data.har).not.toBeNull();
+  });
+
+  it("actionLog 있음 → actionLog·actionLogJson not null", () => {
+    const data = extractData(
+      buildLogsHtml(null, null, actionLog, "https://example.com"),
+    );
+    expect(data.actionLog).not.toBeNull();
+    expect(data.actionLogJson).not.toBeNull();
+  });
+
+  it("actionLog null → actionLog·actionLogJson이 null (network/console 대칭)", () => {
+    const data = extractData(
+      buildLogsHtml(networkLog, consoleLog, null, "https://example.com"),
+    );
+    expect(data.actionLog).toBeNull();
+    expect(data.actionLogJson).toBeNull();
   });
 
   it("응답 body에 </script> 포함 → HTML 파싱 깨지지 않음", () => {
@@ -114,15 +157,28 @@ describe("buildLogsHtml", () => {
         },
       ],
     };
-    const html = buildLogsHtml(logWithScript, null, "https://example.com");
+    const html = buildLogsHtml(logWithScript, null, null, "https://example.com");
     const data = extractData(html);
     const req = (data.networkLog as NetworkLog).requests[0];
     expect(req.responseBody).toBe('<script>alert("xss")</script>');
   });
 
+  it("action value에 </script> 포함 → HTML 파싱 깨지지 않음", () => {
+    const logWithScript: ActionLog = {
+      ...actionLog,
+      entries: [
+        { ...actionLog.entries[1], value: '</script><script>alert(1)</script>' },
+      ],
+    };
+    const html = buildLogsHtml(null, null, logWithScript, "https://example.com");
+    const data = extractData(html);
+    const entry = (data.actionLog as ActionLog).entries[0];
+    expect(entry.value).toBe('</script><script>alert(1)</script>');
+  });
+
   it("meta.createdAt은 ISO 문자열", () => {
     const data = extractData(
-      buildLogsHtml(networkLog, consoleLog, "https://example.com"),
+      buildLogsHtml(networkLog, consoleLog, null, "https://example.com"),
     );
     const meta = data.meta as { createdAt: string };
     expect(() => new Date(meta.createdAt).toISOString()).not.toThrow();

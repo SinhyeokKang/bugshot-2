@@ -17,3 +17,7 @@ export async function clearNetworkRecorder(tabId: number): Promise<void> {
 export async function clearConsoleRecorder(tabId: number): Promise<void> {
   await send(tabId, { type: "consoleRecorder.clear" });
 }
+
+export async function clearActionRecorder(tabId: number): Promise<void> {
+  await send(tabId, { type: "actionRecorder.clear" });
+}

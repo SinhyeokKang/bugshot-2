@@ -111,6 +111,8 @@ export function IssueCreateModal() {
   const networkLogAttach = useEditorStore((s) => s.networkLogAttach);
   const consoleLog = useEditorStore((s) => s.consoleLog);
   const consoleLogAttach = useEditorStore((s) => s.consoleLogAttach);
+  const actionLog = useEditorStore((s) => s.actionLog);
+  const actionLogAttach = useEditorStore((s) => s.actionLogAttach);
   const sectionConfig = useSettingsUiStore((s) => s.issueSections);
 
   const currentIssueId = useEditorStore((s) => s.currentIssueId);
@@ -217,6 +219,7 @@ export function IssueCreateModal() {
   async function buildEditorCaptureFiles(): Promise<CaptureFiles> {
     const hasNet = networkLogAttach && !!networkLog && networkLog.captured > 0;
     const hasCon = consoleLogAttach && !!consoleLog && consoleLog.captured > 0;
+    const hasAct = actionLogAttach && !!actionLog && actionLog.captured > 0;
     const isElementNoDiff =
       captureMode === "element" &&
       selection != null &&
@@ -229,6 +232,7 @@ export function IssueCreateModal() {
       afterImage: captureMode === "element" && !isElementNoDiff ? afterImage : null,
       networkLog: hasNet ? networkLog : null,
       consoleLog: hasCon ? consoleLog : null,
+      actionLog: hasAct ? actionLog : null,
       pageUrl: target?.url ?? "",
     });
   }

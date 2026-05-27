@@ -2,6 +2,7 @@ import { useEditorStore } from "@/store/editor-store";
 import {
   stopConsoleRecorder,
   stopNetworkRecorder,
+  stopActionRecorder,
 } from "./picker-control";
 import { pickVideoRecorderMime } from "./lib/video-mime";
 
@@ -117,6 +118,7 @@ export function stopRecording(): void {
   if (!state) return;
   void stopNetworkRecorder(state.tabId);
   void stopConsoleRecorder(state.tabId);
+  void stopActionRecorder(state.tabId);
   if (state.recorder.state === "recording") {
     state.recorder.stop();
   }

@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import type { NetworkLog } from "@/types/network";
 import type { ConsoleLog } from "@/types/console";
-import { getVideoBlob, getImageBlob, getNetworkLog, getConsoleLog, blobToDataUrl, pruneOrphanInlineImages } from "@/store/blob-db";
+import type { ActionLog } from "@/types/action";
+import { getVideoBlob, getImageBlob, getNetworkLog, getConsoleLog, getActionLog, blobToDataUrl, pruneOrphanInlineImages } from "@/store/blob-db";
 import { useIssueImages } from "@/sidepanel/hooks/useIssueImages";
 import { Info } from "lucide-react";
 import { useT, dateBcp47 } from "@/i18n";
@@ -229,6 +230,11 @@ export function DraftDetailDialog({
     if ((isVideo || isFreeform) && issue.consoleLogBlobKey) {
       consoleLogForSubmit = await getConsoleLog(issue.consoleLogBlobKey);
     }
+    // actionLog는 video에서만 logs.html에 주입되므로 freeform/screenshot은 읽지 않는다.
+    let actionLogForSubmit: ActionLog | null = null;
+    if (isVideo && issue.actionLogBlobKey) {
+      actionLogForSubmit = await getActionLog(issue.actionLogBlobKey);
+    }
     const ctx = {
       os: getOsInfo(),
       browser: parseChromeVersion(navigator.userAgent),
@@ -268,6 +274,7 @@ export function DraftDetailDialog({
       afterImage: isElementNoDiff ? null : afterDataUrl,
       networkLog,
       consoleLog: consoleLogForSubmit,
+      actionLog: actionLogForSubmit,
       pageUrl: issue.pageUrl,
     });
     return { ctx, captureFiles };

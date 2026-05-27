@@ -1,11 +1,13 @@
 import { useEditorStore } from "@/store/editor-store";
-import { deleteNetworkLog, deleteConsoleLog } from "@/store/blob-db";
+import { deleteNetworkLog, deleteConsoleLog, deleteActionLog } from "@/store/blob-db";
 import { onPickerPermissionExpired } from "@/types/messages";
 import {
   activateNetworkRecorder,
   activateConsoleRecorder,
+  activateActionRecorder,
   clearNetworkRecorder,
   clearConsoleRecorder,
+  clearActionRecorder,
 } from "./picker-control";
 import * as videoRecorder from "./video-recorder";
 
@@ -15,14 +17,17 @@ export async function startVideoCapture(tabId: number): Promise<void> {
   // pending IndexedDB는 startRecording의 ...initial 리셋과 무관하게 정리 필요.
   deleteNetworkLog(`pending:${tabId}`).catch(() => {});
   deleteConsoleLog(`pending:${tabId}`).catch(() => {});
+  deleteActionLog(`pending:${tabId}`).catch(() => {});
 
   await Promise.all([
     activateNetworkRecorder(tabId).catch((err) => console.warn("[bugshot] network recorder activate failed", err)),
     activateConsoleRecorder(tabId).catch((err) => console.warn("[bugshot] console recorder activate failed", err)),
+    activateActionRecorder(tabId).catch((err) => console.warn("[bugshot] action recorder activate failed", err)),
   ]);
   await Promise.all([
     clearNetworkRecorder(tabId).catch((err) => console.warn("[bugshot] network recorder clear failed", err)),
     clearConsoleRecorder(tabId).catch((err) => console.warn("[bugshot] console recorder clear failed", err)),
+    clearActionRecorder(tabId).catch((err) => console.warn("[bugshot] action recorder clear failed", err)),
   ]);
 
   useEditorStore.getState().startRecording({

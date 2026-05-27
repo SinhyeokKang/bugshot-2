@@ -1,10 +1,12 @@
 import type { NetworkLog, NetworkRequest } from "@/types/network";
 import type { ConsoleLog, ConsoleEntry } from "@/types/console";
+import type { ActionLog, ActionEntry } from "@/types/action";
 import type { EditorPhase } from "@/store/editor-store";
 import { FROZEN_PHASES } from "@/lib/session-keys";
 
 export const NETWORK_MAX_ENTRIES = 5000;
 export const CONSOLE_MAX_ENTRIES = 2000;
+export const ACTION_MAX_ENTRIES = 1000;
 
 // id 기준 dedup(incoming이 갱신본으로 덮어씀, 위치는 기존 순서 유지) → getTime 오름차순 안정 정렬
 // → maxEntries 초과 시 oldest 제거.
@@ -65,6 +67,22 @@ export function rebuildConsoleLog(
   merged: ConsoleEntry[],
   incoming: { totalSeen: number },
 ): ConsoleLog {
+  const now = Date.now();
+  return {
+    id: existing?.id ?? crypto.randomUUID(),
+    startedAt: merged.length > 0 ? merged[0].timestamp : now,
+    endedAt: now,
+    totalSeen: Math.max(existing?.totalSeen ?? 0, incoming.totalSeen, merged.length),
+    captured: merged.length,
+    entries: merged,
+  };
+}
+
+export function rebuildActionLog(
+  existing: ActionLog | null,
+  merged: ActionEntry[],
+  incoming: { totalSeen: number },
+): ActionLog {
   const now = Date.now();
   return {
     id: existing?.id ?? crypto.randomUUID(),

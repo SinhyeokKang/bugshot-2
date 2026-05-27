@@ -4,15 +4,17 @@ import type { PickerMessage, ViewportRect } from "@/types/picker";
 import { type BgInternalMessage, onPickerIframeUnsupported, onPickerPermissionExpired, sendBg } from "@/types/messages";
 import { captureElementSnapshot, loadImage } from "@/sidepanel/capture";
 import { collectTokens, maybeSurfacePermissionExpired } from "@/sidepanel/picker-control";
-import { saveNetworkLog, saveConsoleLog, saveInlineImage, dataUrlToBlob } from "@/store/blob-db";
+import { saveNetworkLog, saveConsoleLog, saveActionLog, saveInlineImage, dataUrlToBlob } from "@/store/blob-db";
 import { shouldCompact, compactImage } from "@/sidepanel/lib/compactImage";
 import {
   mergeLogItems,
   rebuildNetworkLog,
   rebuildConsoleLog,
+  rebuildActionLog,
   isLogFrozen,
   NETWORK_MAX_ENTRIES,
   CONSOLE_MAX_ENTRIES,
+  ACTION_MAX_ENTRIES,
 } from "@/sidepanel/lib/log-merge";
 
 let deferredActiveTabExpiry = false;
@@ -120,6 +122,7 @@ export function usePickerMessages(myTabId: number | null): void {
         const store = useEditorStore.getState();
         store.clearNetworkLog(myTabId);
         store.clearConsoleLog(myTabId);
+        store.clearActionLog(myTabId);
       } else if (message.type === "networkRecorder.data") {
         if (isLogFrozen(useEditorStore.getState().phase)) return;
         const msg = message as Extract<PickerMessage, { type: "networkRecorder.data" }>;
@@ -164,6 +167,28 @@ export function usePickerMessages(myTabId: number | null): void {
         const tabId = useEditorStore.getState().target?.tabId;
         if (tabId) {
           saveConsoleLog(`pending:${tabId}`, log).catch(() => {});
+        }
+      } else if (message.type === "actionRecorder.data") {
+        if (isLogFrozen(useEditorStore.getState().phase)) return;
+        const msg = message as Extract<PickerMessage, { type: "actionRecorder.data" }>;
+        const entries = lastLogClearAt > 0
+          ? msg.payload.entries.filter((e) => e.timestamp >= lastLogClearAt)
+          : msg.payload.entries;
+        if (entries.length === 0) return;
+        const existing = useEditorStore.getState().actionLog;
+        const merged = mergeLogItems(
+          existing?.entries ?? [],
+          entries,
+          (e) => e.timestamp,
+          ACTION_MAX_ENTRIES,
+        );
+        const log = rebuildActionLog(existing, merged, {
+          totalSeen: msg.payload.totalSeen,
+        });
+        useEditorStore.getState().setActionLog(log);
+        const tabId = useEditorStore.getState().target?.tabId;
+        if (tabId) {
+          saveActionLog(`pending:${tabId}`, log).catch(() => {});
         }
       }
     }

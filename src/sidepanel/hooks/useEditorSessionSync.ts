@@ -7,7 +7,7 @@ import {
 } from "@/store/editor-store";
 import { onSessionSaveExhausted } from "@/types/messages";
 import { clearPicker } from "@/sidepanel/picker-control";
-import { getNetworkLog, getConsoleLog, pruneOrphanInlineImages } from "@/store/blob-db";
+import { getNetworkLog, getConsoleLog, getActionLog, pruneOrphanInlineImages } from "@/store/blob-db";
 import { extractInlineRefs } from "@/sidepanel/lib/resolveInlineImages";
 
 function migrateLegacyDraft(snap: EditorSnapshot): EditorSnapshot {
@@ -53,6 +53,7 @@ function snapshotFromState(): EditorSnapshot {
     freeformCapturedAt: s.freeformCapturedAt,
     networkLogAttach: s.networkLogAttach,
     consoleLogAttach: s.consoleLogAttach,
+    actionLogAttach: s.actionLogAttach,
     draft: s.draft,
     issueFields: s.issueFields,
     currentIssueId: s.currentIssueId,
@@ -97,6 +98,14 @@ export function useEditorSessionSync(tabId: number | null): boolean {
             else useEditorStore.setState({ consoleLogAttach: false });
           }).catch(() => {
             useEditorStore.setState({ consoleLogAttach: false });
+          });
+        }
+        if (snap.actionLogAttach) {
+          getActionLog(`pending:${tabId}`).then((log) => {
+            if (log) useEditorStore.getState().setActionLog(log);
+            else useEditorStore.setState({ actionLogAttach: false });
+          }).catch(() => {
+            useEditorStore.setState({ actionLogAttach: false });
           });
         }
       }
