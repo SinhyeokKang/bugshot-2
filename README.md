@@ -6,20 +6,38 @@ A Chrome extension for bug reporting. Pick elements, tweak CSS, and file issues 
 
 ## Features
 
+### Inspect & Edit
+
 - **Element picker** — select any DOM element, inspect and edit CSS in real time
 - **Design token awareness** — resolves `var()` chains and displays token names instead of computed values
 - **Before/after diff** — auto-generated comparison table of style changes
+
+### Capture
+
 - **Screenshot & annotation** — area crop with arrows, text, shapes, and highlights
 - **Screen recording** — record the current tab for up to 60 seconds
-- **30s Replay** — opt-in mode that captures the last 30 seconds of the tab as MP4, looking back across page navigations (no need to hit record beforehand)
+- **30s Replay** — opt-in mode that captures the last 30 seconds as MP4, looking back across page navigations (no need to hit record beforehand)
 - **Keyboard shortcuts** — start any capture mode from the keyboard (⌘⇧S / ⌘⇧F / ⌘⇧X)
-- **Network & console logs** — auto-capture and attach to issues
-- **Action log** — auto-captures clicks, inputs, and navigations as reproduction steps (sensitive field values masked); attached with video captures
+
+### Auto-logging
+
+- **Network & console logs** — auto-captured in the background and attached to issues
+- **Action log** — clicks, inputs, and navigations recorded as reproduction steps (sensitive field values masked)
+- **Log viewer** — standalone HTML report with video-synced timeline; click any log entry to jump to that moment in the recording
+
+### AI
+
 - **AI draft & styling** — BYOK (Bring Your Own Key) with OpenAI, Anthropic, Gemini, and more; falls back to Chrome Built-in AI
-- **Jira integration** — OAuth 3LO / API Token, project metadata, auto-upload attachments
-- **GitHub integration** — OAuth Web Flow / PAT, repo/labels/assignees, file upload
-- **Linear integration** — OAuth PKCE / API Key, team/project/labels/priority, GraphQL API
-- **Notion integration** — OAuth / Internal Token, database picker, status & select properties, file uploads
+
+### Integrations
+
+- **Jira** — OAuth 3LO / API Token, project metadata, auto-upload attachments
+- **GitHub** — OAuth / PAT, repo/labels/assignees, file upload
+- **Linear** — OAuth PKCE / API Key, team/project/labels/priority
+- **Notion** — OAuth / Internal Token, database picker, status & select properties, file uploads
+
+### Export & i18n
+
 - **Markdown copy** — paste into Slack, Confluence, or other tools with tables intact
 - **i18n** — Korean / English
 
