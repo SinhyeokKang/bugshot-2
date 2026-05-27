@@ -15,6 +15,7 @@ import { DocSectionBody } from "@/sidepanel/components/DocSectionBody";
 import { LogAttachmentCards } from "@/sidepanel/components/LogAttachmentCards";
 import { NetworkLogPreviewDialog } from "@/sidepanel/components/NetworkLogPreviewDialog";
 import { ConsoleLogPreviewDialog } from "@/sidepanel/components/ConsoleLogPreviewDialog";
+import { ActionLogPreviewDialog } from "@/sidepanel/components/ActionLogPreviewDialog";
 import {
   PageFooter,
   PageScroll,
@@ -55,6 +56,8 @@ export function PreviewPanel() {
   const networkLogAttach = useEditorStore((s) => s.networkLogAttach);
   const consoleLog = useEditorStore((s) => s.consoleLog);
   const consoleLogAttach = useEditorStore((s) => s.consoleLogAttach);
+  const actionLog = useEditorStore((s) => s.actionLog);
+  const actionLogAttach = useEditorStore((s) => s.actionLogAttach);
   const backToDraft = useEditorStore((s) => s.backToDraft);
   const reset = useEditorStore((s) => s.reset);
   const issueSections = useSettingsUiStore((s) => s.issueSections);
@@ -82,6 +85,7 @@ export function PreviewPanel() {
 
   const [networkDialogOpen, setNetworkDialogOpen] = useState(false);
   const [consoleDialogOpen, setConsoleDialogOpen] = useState(false);
+  const [actionDialogOpen, setActionDialogOpen] = useState(false);
 
   const os = getOsInfo();
   const browser = parseChromeVersion(navigator.userAgent);
@@ -91,7 +95,9 @@ export function PreviewPanel() {
 
   const attachedNetwork = networkLogAttach && networkLog && networkLog.captured > 0 ? networkLog : null;
   const attachedConsole = consoleLogAttach && consoleLog && consoleLog.captured > 0 ? consoleLog : null;
-  const showLogCards = (isVideoMode || isFreeformMode) && (attachedNetwork !== null || attachedConsole !== null);
+  // action log는 video 모드 한정 첨부.
+  const attachedAction = isVideoMode && actionLogAttach && actionLog && actionLog.captured > 0 ? actionLog : null;
+  const showLogCards = (isVideoMode || isFreeformMode) && (attachedNetwork !== null || attachedConsole !== null || attachedAction !== null);
 
   const handleCopyMarkdown = async () => {
     const resolvedSections = { ...draft.sections };
@@ -293,6 +299,8 @@ export function PreviewPanel() {
                 consoleLogAttach={consoleLogAttach}
                 onConsoleLogToggle={() => {}}
                 onConsoleLogClick={() => { (document.activeElement as HTMLElement)?.blur?.(); setConsoleDialogOpen(true); }}
+                actionLog={attachedAction}
+                onActionLogClick={() => { (document.activeElement as HTMLElement)?.blur?.(); setActionDialogOpen(true); }}
                 readOnly
               />
             </Section>
@@ -358,6 +366,14 @@ export function PreviewPanel() {
           onOpenChange={setConsoleDialogOpen}
           entries={attachedConsole.entries}
           startedAt={attachedConsole.startedAt}
+        />
+      )}
+      {attachedAction && (
+        <ActionLogPreviewDialog
+          open={actionDialogOpen}
+          onOpenChange={setActionDialogOpen}
+          entries={attachedAction.entries}
+          startedAt={attachedAction.startedAt}
         />
       )}
     </PageShell>

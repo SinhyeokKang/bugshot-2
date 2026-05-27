@@ -56,6 +56,7 @@ import { DocSectionBody } from "@/sidepanel/components/DocSectionBody";
 import { LogAttachmentCards } from "@/sidepanel/components/LogAttachmentCards";
 import { NetworkLogPreviewDialog } from "@/sidepanel/components/NetworkLogPreviewDialog";
 import { ConsoleLogPreviewDialog } from "@/sidepanel/components/ConsoleLogPreviewDialog";
+import { ActionLogPreviewDialog } from "@/sidepanel/components/ActionLogPreviewDialog";
 import {
   StyleChangesTable,
   buildStyleDiff,
@@ -173,12 +174,15 @@ export function DraftDetailDialog({
 
   const [networkLogData, setNetworkLogData] = useState<NetworkLog | null>(null);
   const [consoleLogData, setConsoleLogData] = useState<ConsoleLog | null>(null);
+  const [actionLogData, setActionLogData] = useState<ActionLog | null>(null);
   const [networkDialogOpen, setNetworkDialogOpen] = useState(false);
   const [consoleDialogOpen, setConsoleDialogOpen] = useState(false);
+  const [actionDialogOpen, setActionDialogOpen] = useState(false);
   useEffect(() => {
     if (!open || (!isVideo && !isFreeform)) {
       setNetworkLogData(null);
       setConsoleLogData(null);
+      setActionLogData(null);
       return;
     }
     let cancelled = false;
@@ -192,8 +196,14 @@ export function DraftDetailDialog({
         if (!cancelled) setConsoleLogData(log);
       });
     }
+    // action log는 video 모드에서만 첨부.
+    if (isVideo && issue?.actionLogBlobKey) {
+      getActionLog(issue.actionLogBlobKey).then((log) => {
+        if (!cancelled) setActionLogData(log);
+      });
+    }
     return () => { cancelled = true; };
-  }, [open, isVideo, isFreeform, issue?.networkLogBlobKey, issue?.consoleLogBlobKey]);
+  }, [open, isVideo, isFreeform, issue?.networkLogBlobKey, issue?.consoleLogBlobKey, issue?.actionLogBlobKey]);
 
   const diffs = useMemo(() => {
     if (!issue?.selectionSnapshot || !issue.styleEdits) return [];
@@ -554,8 +564,10 @@ export function DraftDetailDialog({
                   hasStyleBlock={hasStyleBlock}
                   networkLogData={networkLogData}
                   consoleLogData={consoleLogData}
+                  actionLogData={actionLogData}
                   onNetworkLogClick={() => setNetworkDialogOpen(true)}
                   onConsoleLogClick={() => setConsoleDialogOpen(true)}
+                  onActionLogClick={() => setActionDialogOpen(true)}
                 />
               </Card>
 
@@ -622,6 +634,14 @@ export function DraftDetailDialog({
           startedAt={consoleLogData.startedAt}
         />
       )}
+      {actionLogData && (
+        <ActionLogPreviewDialog
+          open={actionDialogOpen}
+          onOpenChange={setActionDialogOpen}
+          entries={actionLogData.entries}
+          startedAt={actionLogData.startedAt}
+        />
+      )}
       <SubmitFieldsDialog
         open={submitOpen}
         onOpenChange={setSubmitOpen}
@@ -674,8 +694,10 @@ function DraftDetailSections({
   hasStyleBlock,
   networkLogData,
   consoleLogData,
+  actionLogData,
   onNetworkLogClick,
   onConsoleLogClick,
+  onActionLogClick,
 }: {
   issue: IssueRecord;
   sectionConfig: IssueSection[];
@@ -687,8 +709,10 @@ function DraftDetailSections({
   hasStyleBlock: boolean;
   networkLogData: NetworkLog | null;
   consoleLogData: ConsoleLog | null;
+  actionLogData: ActionLog | null;
   onNetworkLogClick: () => void;
   onConsoleLogClick: () => void;
+  onActionLogClick: () => void;
 }) {
   const t = useT();
   const isFreeform = issue.captureMode === "freeform";
@@ -729,9 +753,11 @@ function DraftDetailSections({
       </FieldSection>
     ) : null;
 
+  const showActionCard = isVideo && actionLogData !== null && actionLogData.captured > 0;
   const showLogCards = (isVideo || isFreeform) && (
     (networkLogData !== null && networkLogData.captured > 0) ||
-    (consoleLogData !== null && consoleLogData.captured > 0)
+    (consoleLogData !== null && consoleLogData.captured > 0) ||
+    showActionCard
   );
   const logCardsBlock = showLogCards ? (
     <FieldSection key="__logCards" label={t("section.logs")}>
@@ -744,6 +770,8 @@ function DraftDetailSections({
         consoleLogAttach={!!issue.consoleLogBlobKey}
         onConsoleLogToggle={() => {}}
         onConsoleLogClick={onConsoleLogClick}
+        actionLog={showActionCard ? actionLogData : null}
+        onActionLogClick={onActionLogClick}
         readOnly
       />
     </FieldSection>

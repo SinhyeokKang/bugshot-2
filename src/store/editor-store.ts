@@ -138,6 +138,7 @@ interface EditorState {
   setConsoleLog: (log: ConsoleLog) => void;
   setConsoleLogAttach: (on: boolean) => void;
   setActionLog: (log: ActionLog) => void;
+  setActionLogAttach: (on: boolean) => void;
   clearNetworkLog: (tabId: number | null) => void;
   clearConsoleLog: (tabId: number | null) => void;
   clearActionLog: (tabId: number | null) => void;
@@ -574,6 +575,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setConsoleLog: (log) => set({ consoleLog: log }),
   setConsoleLogAttach: (on) => set({ consoleLogAttach: on }),
   setActionLog: (log) => set({ actionLog: log }),
+  setActionLogAttach: (on) => set({ actionLogAttach: on }),
   clearNetworkLog: (tabId) => {
     set({ networkLog: null });
     if (tabId != null) {

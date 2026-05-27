@@ -21,6 +21,7 @@ import { CancelConfirmDialog } from "@/sidepanel/components/CancelConfirmDialog"
 import { LogAttachmentCards } from "@/sidepanel/components/LogAttachmentCards";
 import { NetworkLogPreviewDialog } from "@/sidepanel/components/NetworkLogPreviewDialog";
 import { ConsoleLogPreviewDialog } from "@/sidepanel/components/ConsoleLogPreviewDialog";
+import { ActionLogPreviewDialog } from "@/sidepanel/components/ActionLogPreviewDialog";
 import {
   PageFooter,
   PageScroll,
@@ -66,6 +67,9 @@ export function DraftingPanel() {
   const consoleLog = useEditorStore((s) => s.consoleLog);
   const consoleLogAttach = useEditorStore((s) => s.consoleLogAttach);
   const setConsoleLogAttach = useEditorStore((s) => s.setConsoleLogAttach);
+  const actionLog = useEditorStore((s) => s.actionLog);
+  const actionLogAttach = useEditorStore((s) => s.actionLogAttach);
+  const setActionLogAttach = useEditorStore((s) => s.setActionLogAttach);
   const issueSections = useSettingsUiStore((s) => s.issueSections);
   const { status: aiStatus, providerLabel, createSession } = useAI();
   const [annotating, setAnnotating] = useState(false);
@@ -73,6 +77,7 @@ export function DraftingPanel() {
   const aiDraftLoading = useEditorStore((s) => s.aiDraftLoading);
   const [networkDialogOpen, setNetworkDialogOpen] = useState(false);
   const [consoleDialogOpen, setConsoleDialogOpen] = useState(false);
+  const [actionDialogOpen, setActionDialogOpen] = useState(false);
   const titlePrefix = useSettingsStore((s) => s.titlePrefix);
   const inlineCaptureTarget = useEditorStore((s) => s.inlineCaptureTarget);
   const isElementMode = captureMode === "element";
@@ -103,9 +108,12 @@ export function DraftingPanel() {
 
   const titleMissing = !draft.title.trim();
 
+  // action log는 video 모드에서만 첨부 대상이라 카드도 video 한정.
+  const showActionCard = isVideoMode && actionLog !== null && actionLog.captured > 0;
   const showLogCards = captureMode !== "element" && (
     (networkLog !== null && networkLog.captured > 0) ||
-    (consoleLog !== null && consoleLog.captured > 0)
+    (consoleLog !== null && consoleLog.captured > 0) ||
+    showActionCard
   );
 
   const enabledSections = issueSections.filter((s) => s.enabled);
@@ -193,6 +201,10 @@ export function DraftingPanel() {
         consoleLogAttach={consoleLogAttach}
         onConsoleLogToggle={setConsoleLogAttach}
         onConsoleLogClick={() => { (document.activeElement as HTMLElement)?.blur?.(); setConsoleDialogOpen(true); }}
+        actionLog={showActionCard ? actionLog : null}
+        actionLogAttach={actionLogAttach}
+        onActionLogToggle={setActionLogAttach}
+        onActionLogClick={() => { (document.activeElement as HTMLElement)?.blur?.(); setActionDialogOpen(true); }}
       />
     </Section>
   ) : null;
@@ -327,6 +339,16 @@ export function DraftingPanel() {
           startedAt={consoleLog.startedAt}
           attach={consoleLogAttach}
           onToggleAttach={setConsoleLogAttach}
+        />
+      )}
+      {showActionCard && actionLog && (
+        <ActionLogPreviewDialog
+          open={actionDialogOpen}
+          onOpenChange={setActionDialogOpen}
+          entries={actionLog.entries}
+          startedAt={actionLog.startedAt}
+          attach={actionLogAttach}
+          onToggleAttach={setActionLogAttach}
         />
       )}
       <AiDraftDialog

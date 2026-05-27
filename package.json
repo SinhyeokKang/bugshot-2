@@ -55,6 +55,7 @@
   },
   "devDependencies": {
     "@crxjs/vite-plugin": "^2.0.0",
+    "@tailwindcss/container-queries": "^0.1.1",
     "@types/chrome": "^0.0.280",
     "@types/markdown-it": "^14.1.2",
     "@types/node": "^22.9.0",

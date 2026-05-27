@@ -126,6 +126,9 @@ importers:
       '@crxjs/vite-plugin':
         specifier: ^2.0.0
         version: 2.4.0(vite@5.4.21(@types/node@22.19.17))
+      '@tailwindcss/container-queries':
+        specifier: ^0.1.1
+        version: 0.1.1(tailwindcss@3.4.19)
       '@types/chrome':
         specifier: ^0.0.280
         version: 0.0.280
@@ -1063,6 +1066,11 @@ packages:
     resolution: {integrity: sha512-Nd/SgG27WoA9e+/TdK74KnHz852TLa94ovOYySo/yMPuTmpckK/jIF2jSwS3g7ELSKXK13/cVdmg1Z/DaCWKxA==}
     cpu: [x64]
     os: [win32]
+
+  '@tailwindcss/container-queries@0.1.1':
+    resolution: {integrity: sha512-p18dswChx6WnTSaJCSGx6lTmrGzNNvm2FtXmiO6AuA1V4U5REyoqwmT6kgAsIMdjo07QdAfYXHJ4hnMtfHzWgA==}
+    peerDependencies:
+      tailwindcss: '>=3.2.0'
 
   '@tiptap/core@3.23.4':
     resolution: {integrity: sha512-ni2LWE52bVeSt3L2HVBSmbBw+elc32ATej9C68EyKzN/8vR5ILxFn6RCdDTKm4asmwZyq2jys12dKmBdWMr9QA==}
@@ -2973,6 +2981,10 @@ snapshots:
 
   '@rollup/rollup-win32-x64-msvc@4.60.2':
     optional: true
+
+  '@tailwindcss/container-queries@0.1.1(tailwindcss@3.4.19)':
+    dependencies:
+      tailwindcss: 3.4.19
 
   '@tiptap/core@3.23.4(@tiptap/pm@3.23.4)':
     dependencies:
