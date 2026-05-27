@@ -16,6 +16,7 @@ export function buildActionLogJson(log: ActionLog): object {
       timestamp: new Date(e.timestamp).toISOString(),
       pageUrl: e.pageUrl,
       ...(e.target ? { target: e.target } : {}),
+      ...(e.role ? { role: e.role } : {}),
       ...(e.selector ? { selector: e.selector } : {}),
       ...(e.navType ? { navType: e.navType } : {}),
       ...(e.fromUrl ? { fromUrl: e.fromUrl } : {}),

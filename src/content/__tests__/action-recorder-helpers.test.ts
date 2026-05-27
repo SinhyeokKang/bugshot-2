@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   shouldMaskField,
   maskValue,
-  describeActionTarget,
+  truncateName,
 } from "../action-recorder-helpers";
 
 describe("shouldMaskField", () => {
@@ -43,36 +43,21 @@ describe("maskValue", () => {
   });
 });
 
-describe("describeActionTarget", () => {
-  it("accessibleName 있으면 자연어에 이름 포함", () => {
-    const out = describeActionTarget({
-      tag: "button",
-      role: "button",
-      accessibleName: "Submit",
-      selector: "button#submit",
-    });
-    expect(out).toContain("Submit");
+describe("truncateName", () => {
+  it("이름 trim 후 그대로 반환", () => {
+    expect(truncateName("  Submit  ")).toBe("Submit");
   });
 
-  it("accessibleName 없으면 selector 폴백", () => {
-    const out = describeActionTarget({
-      tag: "div",
-      role: null,
-      accessibleName: null,
-      selector: "div.card:nth-child(2)",
-    });
-    expect(out).toBe("div.card:nth-child(2)");
+  it("빈 이름·null·undefined는 undefined", () => {
+    expect(truncateName("")).toBeUndefined();
+    expect(truncateName("   ")).toBeUndefined();
+    expect(truncateName(null)).toBeUndefined();
+    expect(truncateName(undefined)).toBeUndefined();
   });
 
-  it("긴 accessibleName은 truncate", () => {
-    const long = "A".repeat(200);
-    const out = describeActionTarget({
-      tag: "button",
-      role: "button",
-      accessibleName: long,
-      selector: "button",
-    });
-    expect(out.length).toBeLessThan(long.length);
-    expect(out).toContain("…");
+  it("긴 이름은 cap(80) + 말줄임", () => {
+    const out = truncateName("A".repeat(200))!;
+    expect(out.length).toBeLessThan(200);
+    expect(out.endsWith("…")).toBe(true);
   });
 });

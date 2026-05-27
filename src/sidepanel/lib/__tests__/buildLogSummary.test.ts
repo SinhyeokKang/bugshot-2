@@ -258,6 +258,14 @@ describe("buildActionLogSummary", () => {
     expect(lines[2]).toContain("a@b.com");
   });
 
+  it("click role이 있으면 괄호로 부기", () => {
+    const log = makeActionLog({
+      captured: 1,
+      entries: [makeAction({ id: "1", kind: "click", target: "로그인", role: "button" })],
+    });
+    expect(buildActionLogSummary(log)[0]).toBe("Clicked: 로그인 (button)");
+  });
+
   it("masked input은 값을 *** 로 노출", () => {
     const log = makeActionLog({
       captured: 1,

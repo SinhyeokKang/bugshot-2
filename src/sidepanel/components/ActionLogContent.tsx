@@ -1,8 +1,8 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import { Keyboard, MousePointerClick, Navigation, Search, X } from "lucide-react";
+import { Keyboard, MousePointerClick, MapPin, Search, X } from "lucide-react";
 import { useT } from "@/i18n";
 import type { ActionEntry, ActionEntryKind } from "@/types/action";
-import { Badge } from "@/components/ui/badge";
+import type { TranslationFn } from "@/i18n";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -31,7 +31,7 @@ function KindIcon({ kind }: { kind: ActionEntryKind }) {
   switch (kind) {
     case "click": return <MousePointerClick className={base} />;
     case "input": return <Keyboard className={base} />;
-    case "navigation": return <Navigation className={`${base} text-blue-600 dark:text-blue-400`} />;
+    case "navigation": return <MapPin className={`${base} text-blue-600 dark:text-blue-400`} />;
   }
 }
 
@@ -42,20 +42,47 @@ function formatRelativeTime(ts: number, baseTs: number): string {
   return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
-type NavReasonKey =
-  | "actionLog.nav.load"
-  | "actionLog.nav.history"
-  | "actionLog.nav.popstate"
-  | "actionLog.nav.hashchange";
+const MASKED_DISPLAY = "[********]";
 
-function navReasonKey(navType: ActionEntry["navType"]): NavReasonKey {
-  switch (navType) {
-    case "pushState":
-    case "replaceState": return "actionLog.nav.history";
-    case "popstate": return "actionLog.nav.popstate";
-    case "hashchange": return "actionLog.nav.hashchange";
-    default: return "actionLog.nav.load";
+function roleWord(t: TranslationFn, role?: string): string {
+  switch (role) {
+    case "button": return t("actionLog.role.button");
+    case "link": return t("actionLog.role.link");
+    case "checkbox": return t("actionLog.role.checkbox");
+    case "radio": return t("actionLog.role.radio");
+    case "tab": return t("actionLog.role.tab");
+    case "menuitem": return t("actionLog.role.menuitem");
+    case "textbox": return t("actionLog.role.textbox");
+    default: return "";
   }
+}
+
+function clickTarget(t: TranslationFn, entry: ActionEntry): string {
+  const name = entry.target ?? entry.selector ?? "";
+  const rw = roleWord(t, entry.role);
+  return rw ? `"${name}" ${rw}` : `"${name}"`;
+}
+
+// 동사 문장 중간에 URL 링크(JSX)를 끼우려면 {target} 슬롯으로 split해 양옆 텍스트와 링크를 조립.
+function NavigateText({ t, toUrl }: { t: TranslationFn; toUrl?: string }) {
+  const [pre, post] = t("actionLog.verb.navigate").split("{target}");
+  return (
+    <>
+      {pre}
+      {toUrl && (
+        <a
+          href={toUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-blue-600 underline dark:text-blue-400"
+          title={toUrl}
+        >
+          {toUrl}
+        </a>
+      )}
+      {post ?? ""}
+    </>
+  );
 }
 
 function searchText(e: ActionEntry): string {
@@ -170,40 +197,14 @@ function ActionRow({ entry, startedAt }: { entry: ActionEntry; startedAt?: numbe
           <span className="w-10 shrink-0 font-mono text-xs">{formatRelativeTime(entry.timestamp, startedAt)}</span>
         )}
         <KindIcon kind={entry.kind} />
-        <span className={`flex min-w-0 flex-1 items-center gap-2 ${kindColor(entry.kind)}`}>
-          {entry.kind === "click" && (
-            <span className="min-w-0 truncate" title={entry.target ?? entry.selector}>
-              {entry.target ?? entry.selector}
-            </span>
-          )}
-          {entry.kind === "input" && (
-            <>
-              {entry.fieldLabel && <span className="shrink-0 truncate max-w-[40%]">{entry.fieldLabel}</span>}
-              {entry.masked ? (
-                <Badge variant="secondary">***</Badge>
-              ) : (
-                <span className="min-w-0 truncate font-mono text-xs" title={entry.value}>
-                  {entry.value ? `"${entry.value}"` : ""}
-                </span>
-              )}
-            </>
-          )}
-          {entry.kind === "navigation" && (
-            <>
-              <Badge variant="secondary" className="shrink-0">{t(navReasonKey(entry.navType))}</Badge>
-              {entry.toUrl && (
-                <a
-                  href={entry.toUrl}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="min-w-0 truncate text-blue-600 underline dark:text-blue-400"
-                  title={entry.toUrl}
-                >
-                  {entry.toUrl}
-                </a>
-              )}
-            </>
-          )}
+        <span className={`min-w-0 flex-1 truncate ${kindColor(entry.kind)}`}>
+          {entry.kind === "click" && t("actionLog.verb.click", { target: clickTarget(t, entry) })}
+          {entry.kind === "input" &&
+            t("actionLog.verb.input", {
+              field: `"${entry.fieldLabel ?? entry.selector ?? ""}"`,
+              value: entry.masked ? MASKED_DISPLAY : `"${entry.value ?? ""}"`,
+            })}
+          {entry.kind === "navigation" && <NavigateText t={t} toUrl={entry.toUrl} />}
         </span>
       </div>
     </div>

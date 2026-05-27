@@ -24,30 +24,12 @@ export function maskValue(_value: string): string {
   return "***";
 }
 
-const ROLE_KO: Record<string, string> = {
-  button: "버튼",
-  link: "링크",
-  checkbox: "체크박스",
-  radio: "라디오 버튼",
-  tab: "탭",
-  menuitem: "메뉴 항목",
-  textbox: "입력란",
-};
-
-export interface DescribeTargetInput {
-  tag: string;
-  role?: string | null;
-  accessibleName?: string | null;
-  selector: string;
-}
-
-export function describeActionTarget(input: DescribeTargetInput): string {
-  const name = input.accessibleName?.trim();
-  if (!name) return input.selector;
-  const truncated =
-    name.length > TARGET_NAME_CAP ? `${name.slice(0, TARGET_NAME_CAP)}…` : name;
-  const roleKo = input.role ? ROLE_KO[input.role] : undefined;
-  return roleKo ? `${truncated} ${roleKo}` : truncated;
+// 접근가능한 이름을 trim·길이 cap. 역할(button/link 등)은 ActionEntry.role로 따로 들고
+// 렌더 레이어(i18n)에서 로케일에 맞춰 조립한다.
+export function truncateName(name: string | null | undefined): string | undefined {
+  const n = name?.trim();
+  if (!n) return undefined;
+  return n.length > TARGET_NAME_CAP ? `${n.slice(0, TARGET_NAME_CAP)}…` : n;
 }
 
 export function buildLightSelector(el: Element): string {

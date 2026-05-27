@@ -7,6 +7,7 @@ export interface ActionEntry {
   pageUrl: string;
   // click
   target?: string;
+  role?: string;
   selector?: string;
   // navigation
   navType?: "load" | "pushState" | "replaceState" | "popstate" | "hashchange";

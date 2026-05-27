@@ -1,6 +1,6 @@
 import {
   buildLightSelector,
-  describeActionTarget,
+  truncateName,
   maskValue,
   shouldMaskField,
 } from "./action-recorder-helpers";
@@ -24,6 +24,7 @@ function actionRecorderScript(): void {
     timestamp: number;
     pageUrl: string;
     target?: string;
+    role?: string;
     selector?: string;
     navType?: NavType;
     fromUrl?: string;
@@ -115,18 +116,13 @@ function actionRecorderScript(): void {
 
   function recordClick(el: Element): void {
     const selector = buildLightSelector(el);
-    const target = describeActionTarget({
-      tag: el.tagName.toLowerCase(),
-      role: implicitRole(el),
-      accessibleName: accessibleName(el),
-      selector,
-    });
     pushAction({
       id: genId(),
       kind: "click",
       timestamp: Date.now(),
       pageUrl: location.href,
-      target,
+      target: truncateName(accessibleName(el)),
+      role: implicitRole(el) ?? undefined,
       selector,
     });
   }
