@@ -380,7 +380,7 @@ async function submitIssue(
               : { type: "media", attrs: { type: "external", url: screenshotFile.url } };
           content[mediaPlaceholderIdx] = {
             type: "mediaSingle",
-            attrs: { layout: "center" },
+            attrs: { layout: "center", width: 100 },
             content: [mediaNode],
           };
         }
@@ -400,7 +400,7 @@ async function submitIssue(
       if (videoFile?.kind === "media" && videoPlaceholderIdx >= 0) {
         content[videoPlaceholderIdx] = {
           type: "mediaSingle",
-          attrs: { layout: "center" },
+          attrs: { layout: "center", width: 100 },
           content: [
             { type: "media", attrs: { type: "file", id: videoFile.mediaId, collection: "" } },
           ],
@@ -440,7 +440,7 @@ async function submitIssue(
             : { type: "media", attrs: { type: "external", url: file.url } };
         content[i] = {
           type: "mediaSingle",
-          attrs: { layout: "center" },
+          attrs: { layout: "center", width: 100 },
           content: [mediaNode],
         };
       }
