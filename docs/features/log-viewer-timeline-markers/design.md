@@ -21,13 +21,13 @@ log-viewer의 네이티브 `<video controls>`를 제거하고, `VideoPlayer` 컴
 |---|---|
 | `src/log-viewer/App.tsx` | 네이티브 `<video>` → `<VideoPlayer>` 교체. `activeTab` 상태를 마커 필터로 연동. `activeTs` 전달로 비디오→로그 하이라이트 완성. `scrollToEntryId` 상태 추가. |
 | `src/log-viewer/i18n.ts` | 커스텀 controls + 툴팁용 i18n 키 추가 |
-| `src/log-viewer/timeline.ts` | 변경 없음 — 기존 `toVideoSeconds`, `findActiveIndex` 재사용 |
+| `src/sidepanel/components/ConsoleLogContent.tsx` | `scrollToEntryId` + `onScrollComplete` optional prop 추가. 행에 `data-entry-id` 속성 추가. `useEffect`로 스크롤 처리. |
+| `src/sidepanel/components/NetworkLogContent.tsx` | 동일 + 스크롤 시 `setActiveId` 호출로 detail 패널도 연동. |
+| `src/sidepanel/components/ActionLogContent.tsx` | `scrollToEntryId` + `onScrollComplete` optional prop 추가. 행에 `data-entry-id` 속성 추가. `useEffect`로 스크롤 처리. |
 
 ### 변경하지 않는 파일
 
-- `src/sidepanel/components/ConsoleLogContent.tsx` — 이미 `activeTs` prop 지원. App.tsx에서 전달만 추가.
-- `src/sidepanel/components/NetworkLogContent.tsx` — 동일.
-- `src/sidepanel/components/ActionLogContent.tsx` — 동일.
+- `src/log-viewer/timeline.ts` — 기존 `toVideoSeconds`, `findActiveIndex` 재사용.
 - `src/sidepanel/components/LogSeekChip.tsx` — 변경 없음.
 - `src/sidepanel/lib/logRow.ts` — 변경 없음.
 
@@ -42,7 +42,7 @@ LogViewerData + activeTab + videoDurationMs + videoStartedAt
   markers.ts: buildMarkers(data, activeTab, videoDurationMs, videoStartedAt)
        │
        ├─ activeTab === "console"  → consoleLog.entries.filter(e => e.level === "error" || "warn")
-       ├─ activeTab === "network"  → networkLog.requests.filter(r => r.phase === "pending" || "error")
+       ├─ activeTab === "network"  → networkLog.requests.filter(r => r.phase === "error" || "pending" || (r.phase !== "pending" && r.status >= 400))
        └─ activeTab === "action"   → actionLog.entries (전체)
        │
        ▼
@@ -58,8 +58,8 @@ LogViewerData + activeTab + videoDurationMs + videoStartedAt
 마커 호버 → ProgressBar 내부 tooltip 상태 → 마커 위에 로그 요약 표시
 마커 클릭 → onMarkerClick(marker)
               │
-              ├─ video.currentTime = toVideoSeconds(absTs, startedAt)
-              └─ App: setScrollToEntryId(marker.id) → 로그 패널 스크롤
+              ├─ video.currentTime = toVideoSeconds(absTs, startedAt) (재생 상태 유지 — seek만, play 호출 안 함)
+              └─ App: setScrollToEntryId(marker.id) → 로그 패널 스크롤 (필터에 숨겨져 있으면 리셋 후 스크롤, 리셋 후에도 못 찾으면 bail out)
 ```
 
 ### 비디오 → 로그 하이라이트 (기존 미완성 → 완성)
@@ -85,39 +85,51 @@ video timeupdate → VideoPlayer onTimeUpdate(currentTimeSec)
 ```typescript
 type MarkerType = "console" | "network" | "action";
 
+type MarkerVariant = "error" | "warn" | "pending" | "default";
+
 interface TimelineMarker {
   id: string;           // 원본 로그 항목 id
   type: MarkerType;
+  variant: MarkerVariant; // 마커 색상 결정용 (ProgressBar는 이 필드만 보고 색상 적용)
   absTs: number;        // 절대 timestamp (ms)
   positionPct: number;  // 0~100, 비디오 내 상대 위치 %
-  label: string;        // 툴팁 텍스트 (로그 요약)
+  label: string;        // 툴팁 텍스트 (로그 요약, 영문 접두사 — 로그 데이터 자체가 원문이므로 i18n 미적용)
 }
 
 function buildMarkers(
   data: LogViewerData,
   activeTab: "console" | "network" | "action",
-  videoDurationMs: number,
+  videoDurationSec: number,
   videoStartedAt: number,
 ): TimelineMarker[];
 ```
 
 - `activeTab`에 따라 해당 종류만 마커 생성
 - **Console 필터**: `entry.level === "error" || entry.level === "warn"` 만 포함
+  - `variant`: error → `"error"`, warn → `"warn"`
   - `label`: `[ERROR] args 앞 80자` 또는 `[WARN] args 앞 80자`
-- **Network 필터**: `request.phase === "pending" || request.phase === "error"` 만 포함
+  - `absTs`: `entry.timestamp`
+- **Network 필터**: `request.phase === "error"` OR `request.phase === "pending"` OR (`request.phase !== "pending"` AND `request.status >= 400`)
+  - `variant`: phase=error 또는 status≥400 → `"error"`, phase=pending → `"pending"`
   - `label`: `[{status}] {method} {url 뒤 60자}` (pending이면 status 대신 "Pending")
+  - `absTs`: `request.startTime`
 - **Action 필터**: 전체 entries
+  - `variant`: `"default"`
   - `label`: click → `Click: {target}`, navigation → `Nav: {toUrl 뒤 60자}`, input → `Input: {fieldLabel}`
-- `positionPct = clamp(0, 100, toVideoSeconds(absTs, videoStartedAt) / (videoDurationMs / 1000) * 100)`
+  - `absTs`: `entry.timestamp`
+- `positionPct = clamp(0, 100, toVideoSeconds(absTs, videoStartedAt) / videoDurationSec * 100)`
 - 비디오 범위 밖 타임스탬프는 경계에 클램프
 
 ### 마커 색상
 
 탭이 곧 필터이므로 한 번에 한 종류만 표시된다. 종류별 구분은 탭 전환으로 이미 명확하므로 마커 색상은 단일 기본색으로 통일해도 되지만, 서브타입 구분이 유의미한 경우:
 
-- **Console**: error=`red-500`, warn=`amber-500`
-- **Network**: error=`red-500`, pending=`amber-500`
-- **Action**: 단일 색 `primary`
+`variant` 필드 기반으로 결정 (label 파싱 금지 — i18n 변경 시 깨짐):
+
+- `"error"` → `bg-red-500`
+- `"warn"` → `bg-amber-500`
+- `"pending"` → `bg-amber-500`
+- `"default"` → `bg-primary`
 
 ### VideoPlayer.tsx
 
@@ -136,7 +148,8 @@ interface VideoPlayerProps {
 - 내부에서 `<video ref={videoRef}>` (controls 없음)을 렌더
 - 하단 controls: play/pause 버튼 + `ProgressBar` + 시간 표시 (`MM:SS / MM:SS`)
 - play/pause는 `videoRef.current.play()` / `.pause()` 직접 호출
-- `seekTo(absTs)` 메서드를 `forwardRef` + `useImperativeHandle`로 노출 — App에서 로그 항목 클릭 시 비디오 seek에 사용
+- `seekToSec(timeSec: number)` 메서드를 `forwardRef` + `useImperativeHandle`로 노출 — App에서 `toVideoSeconds(absTs, startedAt)`로 변환 후 호출. 기존 `seekTo` 함수가 absTs를 받는 것과 구분하기 위해 `seekToSec` 명명.
+- `formatPlayerTime(sec)` 내부 헬퍼: `Math.floor(sec/60):pad2(sec%60)`. 순수 함수이므로 별도 export + 테스트 대상.
 
 ### ProgressBar.tsx
 
@@ -152,12 +165,17 @@ interface ProgressBarProps {
 - bar 클릭: `(clientX - rect.left) / rect.width * 100` → `onSeek(pct)`
 - 드래그: `pointerdown` → `setPointerCapture` → `pointermove` → `pointerup`
 - 마커: `left: {positionPct}%` absolute 위치의 작은 세로 마커 (3~4px 폭, bar 높이)
+- 마커 색상: `marker.variant` 기반 — `"error"` → `bg-red-500`, `"warn"` → `bg-amber-500`, `"pending"` → `bg-amber-500`, `"default"` → `bg-primary`
 - 마커 클릭 vs 드래그 판별: `pointerdown` 후 5px 이상 이동 → 드래그, 아니면 클릭
-- **툴팁**: 마커 `onMouseEnter` → 내부 상태에 hovered marker 세팅 → 마커 위에 절대 위치 div로 `marker.label` 표시. `onMouseLeave` → 해제. CSS: `bg-popover text-popover-foreground shadow-md rounded px-2 py-1 text-xs`, 마커 위쪽에 표시, 화면 밖으로 넘어가면 아래쪽으로 전환.
+- **툴팁**: picker overlay의 DOM 정보 툴팁(`src/content/overlay.ts` inspector 모드)과 동일한 디자인 패턴 적용. 마커 `onMouseEnter` → 내부 상태에 hovered marker 세팅 → 마커 위에 절대 위치 div로 `marker.label` 표시. `onMouseLeave` → 해제. CSS: `bg-popover text-popover-foreground shadow-md rounded-xl px-2 py-1.5 text-xs`, 마커 위쪽에 표시, 위쪽 공간 부족 시 아래쪽으로 전환 (`placeLabel` 동일 로직). Radix Tooltip 미사용 — 마커가 3~4px로 매우 작아 Radix trigger 영역이 부적절하고, 포인터 이동에 따른 위치 추적이 필요하므로 직접 구현.
 
 ### 로그 패널 스크롤 (scrollToEntryId prop)
 
-`ConsoleLogContent` / `NetworkLogContent` / `ActionLogContent`에 optional `scrollToEntryId?: string` prop 추가. 값이 변경되면 해당 id의 DOM 행을 `scrollIntoView({ block: "center", behavior: "smooth" })`. 행의 DOM에 `data-entry-id={entry.id}` 속성 추가 (아직 없는 경우). 해당 항목이 현재 레벨/타입 필터에 의해 숨겨져 있으면 필터를 "전체"로 리셋 후 스크롤.
+`ConsoleLogContent` / `NetworkLogContent` / `ActionLogContent`에 optional `scrollToEntryId?: string` + `onScrollComplete?: () => void` prop 추가. 값이 변경되면 해당 id의 DOM 행을 `scrollIntoView({ block: "center", behavior: "smooth" })`. 행의 DOM에 `data-entry-id={entry.id}` 속성 추가 (아직 없는 경우). 해당 항목이 현재 레벨/타입 필터에 의해 숨겨져 있으면 필터를 "전체"로 리셋 후 스크롤. **리셋 후에도 해당 id를 찾지 못하면 bail out** — `onScrollComplete`를 호출해 `scrollToEntryId`를 null로 초기화 (무한 루프 방지).
+
+**NetworkLogContent 특수 처리**: list-detail 2분할 구조이므로, 스크롤 시 좌측 리스트 ScrollArea 내에서 행을 찾아 스크롤하고, 동시에 `setActiveId(marker.id)` 호출로 detail 패널도 연동한다.
+
+**Radix ScrollArea 호환성**: 세 컴포넌트 모두 Radix `ScrollArea`를 사용하므로, `scrollIntoView`가 viewport를 올바르게 인식하는지 구현 시 검증 필요.
 
 optional이고 미전달 시 no-op이므로 사이드패널 동작에 영향 없음.
 

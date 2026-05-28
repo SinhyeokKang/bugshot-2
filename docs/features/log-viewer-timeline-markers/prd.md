@@ -10,7 +10,7 @@ log-viewer(독립 HTML)에서 비디오와 로그를 나란히 보지만, 비디
 2. 우측 로그 탭 선택에 따라 해당 종류의 마커만 표시한다 (Console 탭 → Console 마커만).
 3. 종류별로 의미 있는 항목만 마커로 표시한다:
    - **Console**: `error` + `warn` level만
-   - **Network**: `pending` + `error` phase만
+   - **Network**: `error` phase + `pending` phase + HTTP 에러 응답(`status >= 400`)만
    - **Action**: 전체
 4. 마커 호버 시 해당 로그의 요약 정보를 툴팁으로 표시한다.
 5. 마커 클릭 시 비디오를 해당 시점으로 seek하고, 우측 로그 패널에서 해당 항목으로 스크롤 + 하이라이트한다.
@@ -22,6 +22,7 @@ log-viewer(독립 HTML)에서 비디오와 로그를 나란히 보지만, 비디
 - 음량 조절, 배속 조절, 전체화면 버튼은 이번 스코프에 포함하지 않는다.
 - 마커 클러스터링(밀집 그룹화)은 구현하지 않는다.
 - 별도 마커 필터 토글 UI는 만들지 않는다 — 탭 선택이 곧 필터.
+- 키보드 접근성(Space=재생, 화살표=seek, Tab 탐색)은 이번 스코프에 포함하지 않는다.
 
 ## 사용자 시나리오
 
@@ -31,8 +32,8 @@ log-viewer(독립 HTML)에서 비디오와 로그를 나란히 보지만, 비디
 2. 비디오 아래에 커스텀 재생 바가 보인다. 현재 선택된 로그 탭(예: Console)에 해당하는 마커가 progress bar 위에 찍혀 있다.
 3. Console 탭에서는 error(빨강 계열)·warn(주황 계열) 항목만 마커로 표시된다.
 4. 마커에 마우스를 올리면 로그 요약이 툴팁으로 표시된다 (예: "TypeError: Cannot read property 'x' of null").
-5. 마커를 클릭하면 비디오가 해당 시점으로 이동하고, 우측 로그 패널이 해당 항목으로 스크롤되며 하이라이트된다.
-6. Network 탭으로 전환하면 마커가 Network의 pending·error 항목으로 바뀐다.
+5. 마커를 클릭하면 비디오가 해당 시점으로 이동하고(재생 상태는 유지 — 일시정지 중이면 정지 상태 유지), 우측 로그 패널이 해당 항목으로 스크롤되며 하이라이트된다. 해당 항목이 현재 필터에 의해 숨겨져 있으면 필터를 "전체"로 리셋한 뒤 스크롤한다.
+6. Network 탭으로 전환하면 마커가 Network의 error·pending·HTTP 에러(status ≥ 400) 항목으로 바뀐다.
 7. Action 탭으로 전환하면 모든 액션 항목이 마커로 표시된다.
 8. progress bar의 빈 영역을 클릭/드래그하면 일반 seek 동작을 한다.
 9. play/pause 버튼으로 재생을 제어하고, 현재 시간/전체 시간이 표시된다.
@@ -53,14 +54,19 @@ log-viewer(독립 HTML)에서 비디오와 로그를 나란히 보지만, 비디
 
 - Console 로그가 있지만 error/warn이 하나도 없으면 마커 0개. 정상 동작.
 
+### 비디오 범위 밖 로그
+
+- 녹화 시작 전에 이미 쌓인 로그(예: 페이지 로드 시 발생한 error)는 progress bar 0% 지점에 클램프되어 표시된다. 녹화 종료 후 로그는 100% 지점에 클램프.
+
 ## 성공 기준
 
 - [ ] 네이티브 `<video controls>`가 커스텀 controls로 교체되어 있다.
 - [ ] 로그 탭 전환 시 해당 종류의 마커만 progress bar에 표시된다.
-- [ ] Console 마커는 error + warn level만, Network 마커는 pending + error phase만, Action 마커는 전체.
+- [ ] Console 마커는 error + warn level만, Network 마커는 error phase + pending phase + HTTP 에러(status ≥ 400)만, Action 마커는 전체.
 - [ ] 마커 호버 시 해당 로그 요약 툴팁이 표시된다.
 - [ ] 마커 클릭 → 비디오 seek + 로그 패널 해당 항목 스크롤 + 하이라이트.
 - [ ] progress bar 클릭/드래그로 일반 seek이 된다.
 - [ ] 비디오 재생 중 progress bar가 실시간 갱신된다.
 - [ ] play/pause 토글, 현재 시간 / 전체 시간 표시가 동작한다.
+- [ ] 비디오 재생 중 현재 시점에 해당하는 로그 행이 자동 하이라이트된다.
 - [ ] 비디오가 없거나 에러인 경우 기존 동작이 유지된다.
