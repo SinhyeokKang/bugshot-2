@@ -51,13 +51,13 @@ function isPending(req: NetworkRequest): boolean {
 function rowBg(req: NetworkRequest, active: boolean): string {
   if (isError(req)) {
     return active
-      ? "bg-red-100 dark:bg-red-950/50"
-      : "bg-red-50 hover:bg-red-100/70 dark:bg-red-950/30 dark:hover:bg-red-950/50";
+      ? "bg-red-200 dark:bg-red-950/70"
+      : "bg-red-100 hover:bg-red-200/70 dark:bg-red-950/50 dark:hover:bg-red-950/70";
   }
   if (isPending(req)) {
     return active
-      ? "bg-amber-100 dark:bg-amber-950/50"
-      : "bg-amber-50 hover:bg-amber-100/70 dark:bg-amber-950/30 dark:hover:bg-amber-950/50";
+      ? "bg-amber-200 dark:bg-amber-950/70"
+      : "bg-amber-100 hover:bg-amber-200/70 dark:bg-amber-950/50 dark:hover:bg-amber-950/70";
   }
   return active ? "bg-accent" : "hover:bg-accent/50";
 }

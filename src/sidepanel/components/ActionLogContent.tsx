@@ -30,7 +30,7 @@ function kindColor(kind: ActionEntryKind): string {
 }
 
 function kindBgColor(kind: ActionEntryKind): string {
-  return kind === "navigation" ? "bg-blue-50 dark:bg-blue-950/30" : "";
+  return kind === "navigation" ? "bg-blue-100 dark:bg-blue-950/50" : "";
 }
 
 function KindIcon({ kind }: { kind: ActionEntryKind }) {
@@ -220,7 +220,7 @@ function ActionRow({ entry, startedAt, syncBaseMs, onSeek, isActive }: {
           <LogSeekChip ts={entry.timestamp} label={formatRelativeTime(entry.timestamp, base)} onSeek={onSeek} />
         )}
         <KindIcon kind={entry.kind} />
-        <span className={`min-w-0 flex-1 truncate ${kindColor(entry.kind)}`}>
+        <span className={`min-w-0 flex-1 break-all ${kindColor(entry.kind)}`}>
           {entry.kind === "click" && t("actionLog.verb.click", { target: clickTarget(t, entry) })}
           {entry.kind === "input" &&
             t("actionLog.verb.input", {

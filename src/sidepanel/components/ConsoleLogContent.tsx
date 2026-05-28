@@ -35,18 +35,18 @@ function levelColor(level: ConsoleLevel): string {
 
 function levelBgColor(level: ConsoleLevel): string {
   switch (level) {
-    case "error": return "bg-red-50 dark:bg-red-950/30";
-    case "warn": return "bg-amber-50 dark:bg-amber-950/30";
-    case "info": return "bg-blue-50 dark:bg-blue-950/30";
+    case "error": return "bg-red-100 dark:bg-red-950/50";
+    case "warn": return "bg-amber-100 dark:bg-amber-950/50";
+    case "info": return "bg-blue-100 dark:bg-blue-950/50";
     default: return "";
   }
 }
 
 function levelCodeBg(level: ConsoleLevel): string {
   switch (level) {
-    case "error": return "bg-red-100 dark:bg-red-950/50";
-    case "warn": return "bg-amber-100 dark:bg-amber-950/50";
-    case "info": return "bg-blue-100 dark:bg-blue-950/50";
+    case "error": return "bg-red-200 dark:bg-red-950/70";
+    case "warn": return "bg-amber-200 dark:bg-amber-950/70";
+    case "info": return "bg-blue-200 dark:bg-blue-950/70";
     default: return "bg-muted";
   }
 }

@@ -183,7 +183,7 @@ export function App({ data }: AppProps) {
   return (
     <div className="h-screen">
       <ResizablePanelGroup direction="horizontal">
-        <ResizablePanel defaultSize={60} className="flex flex-col">
+        <ResizablePanel defaultSize={60} className="flex min-w-0 flex-col">
           <div className="flex h-full items-center justify-center bg-black">
             {videoError ? (
               <span className="text-sm text-muted-foreground">{t("logViewer.video.error")}</span>
@@ -200,7 +200,7 @@ export function App({ data }: AppProps) {
           </div>
         </ResizablePanel>
         <ResizableHandle className="bg-border hover:bg-blue-300 hover:shadow-[-1px_0_0_0_theme(colors.blue.300),1px_0_0_0_theme(colors.blue.300)] dark:hover:bg-blue-700 dark:hover:shadow-[-1px_0_0_0_theme(colors.blue.700),1px_0_0_0_theme(colors.blue.700)]" />
-        <ResizablePanel defaultSize={40} className="flex flex-col">
+        <ResizablePanel defaultSize={40} className="flex min-w-0 flex-col">
           {tabsPanel}
         </ResizablePanel>
       </ResizablePanelGroup>
