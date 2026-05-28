@@ -1,6 +1,7 @@
 import { t } from "@/i18n";
 import { dataUrlToBlob } from "@/store/blob-db";
 import { IMAGE_PLACEHOLDER, VIDEO_PLACEHOLDER, parseInlinePlaceholder } from "@/lib/adf-sentinels";
+import { adfMediaNode, type MediaSource } from "@/background/lib/adf-media";
 import { injectIssueUrl } from "@/lib/inject-issue-url";
 import type { JiraAttachmentInput, JiraAuth, JiraSubmitResult } from "@/types/jira";
 import type { GithubAuth } from "@/types/github";
@@ -346,15 +347,16 @@ async function submitIssue(
       const results = await uploadAttachment(auth, issue.key, att.filename, blob);
       const r = results[0];
       const mediaId = r?.mediaApiFileId || (r?.id ? await getMediaFileId(auth, String(r.id)) : undefined);
+      const dims = { width: att.width, height: att.height };
       if (mediaId) {
-        uploadMap.set(att.filename, { kind: "media", mediaId });
+        uploadMap.set(att.filename, { kind: "media", mediaId, ...dims });
       } else if (r?.id) {
         const base =
           auth.kind === "apiKey"
             ? auth.baseUrl.replace(/\/+$/, "")
             : auth.siteUrl.replace(/\/+$/, "");
         const url = `${base}/secure/attachment/${r.id}/${encodeURIComponent(r.filename)}`;
-        uploadMap.set(att.filename, { kind: "external", url });
+        uploadMap.set(att.filename, { kind: "external", url, ...dims });
       }
     } catch (err) {
       console.warn("[bugshot] attachment upload failed", att.filename, err);
@@ -374,10 +376,7 @@ async function submitIssue(
           },
         );
         if (mediaPlaceholderIdx >= 0) {
-          const mediaNode =
-            screenshotFile.kind === "media"
-              ? { type: "media", attrs: { type: "file", id: screenshotFile.mediaId, collection: "" } }
-              : { type: "media", attrs: { type: "external", url: screenshotFile.url } };
+          const mediaNode = adfMediaNode(mediaSrc(screenshotFile), screenshotFile);
           content[mediaPlaceholderIdx] = {
             type: "mediaSingle",
             attrs: { layout: "center", width: 100 },
@@ -401,9 +400,7 @@ async function submitIssue(
         content[videoPlaceholderIdx] = {
           type: "mediaSingle",
           attrs: { layout: "center", width: 100 },
-          content: [
-            { type: "media", attrs: { type: "file", id: videoFile.mediaId, collection: "" } },
-          ],
+          content: [adfMediaNode(mediaSrc(videoFile), videoFile)],
         };
       } else if (videoPlaceholderIdx >= 0) {
         content[videoPlaceholderIdx] = {
@@ -434,10 +431,7 @@ async function submitIssue(
         if (!refId) continue;
         const file = uploadMap.get(`inline-${refId}.webp`);
         if (!file) continue;
-        const mediaNode =
-          file.kind === "media"
-            ? { type: "media", attrs: { type: "file", id: file.mediaId, collection: "" } }
-            : { type: "media", attrs: { type: "external", url: file.url } };
+        const mediaNode = adfMediaNode(mediaSrc(file), file);
         content[i] = {
           type: "mediaSingle",
           attrs: { layout: "center", width: 100 },
@@ -489,7 +483,16 @@ function snapshotRow(
   };
 }
 
-type UploadedFile = { kind: "media"; mediaId: string } | { kind: "external"; url: string };
+type UploadedFile = (
+  | { kind: "media"; mediaId: string }
+  | { kind: "external"; url: string }
+) & { width?: number; height?: number };
+
+function mediaSrc(file: UploadedFile): MediaSource {
+  return file.kind === "media"
+    ? { kind: "media", mediaId: file.mediaId }
+    : { kind: "external", url: file.url };
+}
 
 function snapshotCell(file?: UploadedFile) {
   const emptyCell = {
@@ -498,10 +501,7 @@ function snapshotCell(file?: UploadedFile) {
     content: [{ type: "paragraph", content: [{ type: "text", text: "" }] }],
   };
   if (!file) return emptyCell;
-  const mediaNode =
-    file.kind === "media"
-      ? { type: "media", attrs: { type: "file", id: file.mediaId, collection: "" } }
-      : { type: "media", attrs: { type: "external", url: file.url } };
+  const mediaNode = adfMediaNode(mediaSrc(file), file);
   return {
     type: "tableCell" as const,
     attrs: {},

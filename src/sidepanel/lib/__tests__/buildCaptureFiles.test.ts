@@ -258,34 +258,32 @@ describe("buildCaptureFiles — freeform mode", () => {
 });
 
 describe("buildCaptureFiles — actionLog video-only 스코핑", () => {
-  it("video + actionLog → action-log.json 주입", async () => {
+  it("video + actionLog → logs.html 생성", async () => {
     const out = await buildCaptureFiles({
       captureMode: "video",
       actionLog,
       pageUrl: "https://example.com",
     });
     expect(out.logs.map((l) => l.filename)).toEqual(["logs.html"]);
-    expect(out.jsonLogs.map((l) => l.filename)).toContain("action-log.json");
   });
 
-  it("freeform + actionLog → action-log.json 없음 (logs.html도 없음)", async () => {
+  it("freeform + actionLog → logs.html 없음 (actionLog video-only 스코핑)", async () => {
     const out = await buildCaptureFiles({
       captureMode: "freeform",
       actionLog,
       pageUrl: "https://example.com",
     });
-    expect(out.jsonLogs.map((l) => l.filename)).not.toContain("action-log.json");
     expect(out.logs).toEqual([]);
   });
 
-  it("screenshot + actionLog → action-log.json 없음", async () => {
+  it("screenshot + actionLog → logs.html 없음", async () => {
     const out = await buildCaptureFiles({
       captureMode: "screenshot",
       screenshotImage: "data:x",
       actionLog,
       pageUrl: "https://example.com",
     });
-    expect(out.jsonLogs.map((l) => l.filename)).not.toContain("action-log.json");
+    expect(out.logs).toEqual([]);
   });
 
   it("video + actionLog=null → logs 빈 (기존 video 동작 불변)", async () => {

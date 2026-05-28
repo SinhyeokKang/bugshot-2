@@ -6,6 +6,7 @@ import {
   migrateV2ToV3,
   migrateToV5,
   pickInitialPlatform,
+  useSettingsStore,
 } from "../settings-store";
 import type { Accounts } from "@/types/platform";
 
@@ -247,5 +248,38 @@ describe("isNotionAccountComplete", () => {
 
   it("undefined면 false", () => {
     expect(isNotionAccountComplete(undefined)).toBe(false);
+  });
+});
+
+describe("removeAccount — 연동 해제 시 prefill 정리", () => {
+  it("해제한 플랫폼의 account와 lastSubmitFields를 함께 지우고, 다른 플랫폼은 보존", () => {
+    useSettingsStore.setState({
+      accounts: { jira: jiraStub, github: githubStub },
+      lastSubmitFields: {
+        jira: { projectKey: "BUG", assigneeId: "id-1", priorityId: "3" },
+        github: { repo: "owner/repo" },
+      },
+    });
+
+    useSettingsStore.getState().removeAccount("jira");
+
+    const s = useSettingsStore.getState();
+    expect(s.accounts.jira).toBeUndefined();
+    expect(s.lastSubmitFields.jira).toBeUndefined();
+    expect(s.accounts.github).toBeDefined();
+    expect(s.lastSubmitFields.github).toEqual({ repo: "owner/repo" });
+  });
+
+  it("removeAllAccounts는 모든 account와 lastSubmitFields를 비운다", () => {
+    useSettingsStore.setState({
+      accounts: { jira: jiraStub, github: githubStub },
+      lastSubmitFields: { jira: { projectKey: "BUG" }, github: { repo: "r" } },
+    });
+
+    useSettingsStore.getState().removeAllAccounts();
+
+    const s = useSettingsStore.getState();
+    expect(s.accounts).toEqual({});
+    expect(s.lastSubmitFields).toEqual({});
   });
 });

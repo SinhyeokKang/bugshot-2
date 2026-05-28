@@ -17,6 +17,8 @@ import { buildStyleDiff } from "@/sidepanel/components/StyleChangesTable";
 import { buildAiMetaAttachment } from "@/sidepanel/lib/buildAiMetaAttachment";
 import { buildIssueAdf, type AdfDoc } from "@/sidepanel/lib/buildIssueAdf";
 import { buildCaptureFiles, type CaptureFiles } from "@/sidepanel/lib/buildCaptureFiles";
+import { annotateAttachmentDimensions } from "@/sidepanel/lib/attachmentDimensions";
+import type { JiraAttachmentInput } from "@/types/jira";
 import {
   buildNetworkLogSummary,
   buildConsoleLogSummary,
@@ -253,15 +255,16 @@ export function IssueCreateModal() {
     }
     if (!issueFields.issueTypeId) throw new Error(t("create.requiredMissing"));
     const description: AdfDoc = buildIssueAdf(ctx, inlineImages.map((i) => i.refId));
-    const attachments: { filename: string; dataUrl: string }[] = [
+    const rawAttachments: JiraAttachmentInput[] = [
       buildAiMetaAttachment(ctx),
       ...captureFiles.images,
       ...(captureFiles.video ? [captureFiles.video] : []),
       ...captureFiles.logs,
     ];
     for (const img of inlineImages) {
-      attachments.push({ filename: `inline-${img.refId}.webp`, dataUrl: img.dataUrl });
+      rawAttachments.push({ filename: `inline-${img.refId}.webp`, dataUrl: img.dataUrl });
     }
+    const attachments = await annotateAttachmentDimensions(rawAttachments);
 
     const result = await sendBg<JiraSubmitResult>({
       type: "jira.submitIssue",
@@ -410,7 +413,7 @@ export function IssueCreateModal() {
       ctx,
       images: captureFiles.images,
       video: captureFiles.video,
-      logs: captureFiles.jsonLogs,
+      logs: captureFiles.logs,
       inlineImages,
       databaseId: notionFields.databaseId,
       titlePropertyName: notionSchema.titlePropertyName,

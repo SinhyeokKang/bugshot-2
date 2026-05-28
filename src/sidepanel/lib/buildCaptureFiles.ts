@@ -4,9 +4,6 @@ import type { ActionLog } from "@/types/action";
 import type { LogViewerData } from "@/types/log-viewer";
 import { blobToDataUrl } from "@/store/blob-db";
 import { buildLogsHtml } from "./buildLogsHtml";
-import { buildHar } from "./buildHar";
-import { buildConsoleLogJson } from "./buildConsoleLogJson";
-import { buildActionLogJson } from "./buildActionLogJson";
 import { recordingFilename } from "./video-mime";
 
 export type CaptureMode = "element" | "screenshot" | "video" | "freeform";
@@ -20,7 +17,6 @@ export interface CaptureFiles {
   video?: CaptureFile;
   images: CaptureFile[];
   logs: CaptureFile[];
-  jsonLogs: CaptureFile[];
 }
 
 export interface BuildCaptureFilesInput {
@@ -41,7 +37,7 @@ export interface BuildCaptureFilesInput {
 export async function buildCaptureFiles(
   input: BuildCaptureFilesInput,
 ): Promise<CaptureFiles> {
-  const result: CaptureFiles = { images: [], logs: [], jsonLogs: [] };
+  const result: CaptureFiles = { images: [], logs: [] };
 
   // 영상 dataUrl은 인라인 recording.mp4(본문 첨부)와 logs.html 임베드 양쪽에서 쓰므로 한 번만 변환해 재사용.
   let videoDataUrl: string | null = null;
@@ -76,19 +72,6 @@ export async function buildCaptureFiles(
         filename: "logs.html",
         dataUrl: await blobToDataUrl(htmlBlob),
       });
-
-      if (input.networkLog) {
-        const harBlob = new Blob([JSON.stringify(buildHar(input.networkLog), null, 2)], { type: "application/json" });
-        result.jsonLogs.push({ filename: "network-log.json", dataUrl: await blobToDataUrl(harBlob) });
-      }
-      if (input.consoleLog) {
-        const jsonBlob = new Blob([JSON.stringify(buildConsoleLogJson(input.consoleLog), null, 2)], { type: "application/json" });
-        result.jsonLogs.push({ filename: "console-log.json", dataUrl: await blobToDataUrl(jsonBlob) });
-      }
-      if (actionLog) {
-        const jsonBlob = new Blob([JSON.stringify(buildActionLogJson(actionLog), null, 2)], { type: "application/json" });
-        result.jsonLogs.push({ filename: "action-log.json", dataUrl: await blobToDataUrl(jsonBlob) });
-      }
     }
   }
 

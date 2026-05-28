@@ -149,9 +149,12 @@ export const useSettingsStore = create<SettingsState>()(
         set((s) => {
           const next = { ...s.accounts };
           delete next[platform];
-          return { accounts: next };
+          // 연동 해제 시 해당 플랫폼의 prefill(issueType·assignee 등)도 함께 정리.
+          const nextFields = { ...s.lastSubmitFields };
+          delete nextFields[platform];
+          return { accounts: next, lastSubmitFields: nextFields };
         }),
-      removeAllAccounts: () => set({ accounts: {} }),
+      removeAllAccounts: () => set({ accounts: {}, lastSubmitFields: {} }),
       updateJiraAccount: (patch) =>
         set((s) => {
           const cur = s.accounts.jira;

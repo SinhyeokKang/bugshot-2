@@ -63,6 +63,8 @@ import {
 } from "@/sidepanel/components/StyleChangesTable";
 import { buildAiMetaAttachment } from "@/sidepanel/lib/buildAiMetaAttachment";
 import { buildCaptureFiles, type CaptureFiles } from "@/sidepanel/lib/buildCaptureFiles";
+import { annotateAttachmentDimensions } from "@/sidepanel/lib/attachmentDimensions";
+import type { JiraAttachmentInput } from "@/types/jira";
 import { buildIssueAdf } from "@/sidepanel/lib/buildIssueAdf";
 import { buildNetworkLogSummary, buildConsoleLogSummary } from "@/sidepanel/lib/buildLogSummary";
 import { filterEnvironmentRows, parseChromeVersion } from "@/sidepanel/lib/environmentRows";
@@ -303,7 +305,7 @@ export function DraftDetailDialog({
     }
     if (!fields.issueTypeId) throw new Error(t("create.requiredMissing"));
 
-    const attachments: { filename: string; dataUrl: string }[] = [
+    const rawAttachments: JiraAttachmentInput[] = [
       buildAiMetaAttachment(ctx),
       ...captureFiles.images,
       ...(captureFiles.video ? [captureFiles.video] : []),
@@ -311,8 +313,9 @@ export function DraftDetailDialog({
     ];
     const jiraInline = await resolveInlineImagesForSections(ctx.sections, sectionConfig);
     for (const img of jiraInline) {
-      attachments.push({ filename: `inline-${img.refId}.webp`, dataUrl: img.dataUrl });
+      rawAttachments.push({ filename: `inline-${img.refId}.webp`, dataUrl: img.dataUrl });
     }
+    const attachments = await annotateAttachmentDimensions(rawAttachments);
 
     const result = await sendBg<JiraSubmitResult>({
       type: "jira.submitIssue",
@@ -473,7 +476,7 @@ export function DraftDetailDialog({
       ctx,
       images: captureFiles.images,
       video: captureFiles.video,
-      logs: captureFiles.jsonLogs,
+      logs: captureFiles.logs,
       inlineImages: notionInline,
       databaseId: notionFields.databaseId,
       titlePropertyName: notionSchema.titlePropertyName,

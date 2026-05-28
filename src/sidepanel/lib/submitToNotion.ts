@@ -82,6 +82,13 @@ export async function submitToNotion(
   });
 
   // 3. 일반 첨부 업로드 — 직렬 (Notion rate limit 보호)
+  // [DIAGNOSTIC] 로그 첨부 목록·바이트 크기 — logs.html 누락 원인 추적용
+  console.info(
+    "[bugshot][notion] log attachments:",
+    attachments
+      .filter((a) => a.category === "log")
+      .map((a) => ({ filename: a.filename, contentType: a.contentType, bytes: a.dataUrl.length })),
+  );
   const uploaded: { placeholderId: string; fileUploadId: string; filename: string; category: typeof attachments[number]["category"] }[] = [];
   for (const a of attachments) {
     try {
@@ -100,7 +107,11 @@ export async function submitToNotion(
     } catch (err) {
       // 로그 첨부 실패(대용량 logs.html 등)는 격리 — 누락 placeholder 블록은 createPage에서 자연 스킵.
       // image/video는 본문 핵심이라 strict 유지(전체 실패).
-      if (a.category === "log") continue;
+      if (a.category === "log") {
+        // [DIAGNOSTIC] 조용히 삼키던 로그 첨부 실패를 노출
+        console.error("[bugshot][notion] log attachment upload failed:", a.filename, err);
+        continue;
+      }
       throw err;
     }
   }
