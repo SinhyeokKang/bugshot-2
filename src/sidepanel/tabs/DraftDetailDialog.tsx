@@ -63,6 +63,7 @@ import {
 } from "@/sidepanel/components/StyleChangesTable";
 import { buildAiMetaAttachment } from "@/sidepanel/lib/buildAiMetaAttachment";
 import { buildCaptureFiles, type CaptureFiles } from "@/sidepanel/lib/buildCaptureFiles";
+import { supportsConsoleNetworkLog, supportsActionLog } from "@/sidepanel/lib/captureLogSupport";
 import { annotateAttachmentDimensions } from "@/sidepanel/lib/attachmentDimensions";
 import type { JiraAttachmentInput } from "@/types/jira";
 import { buildIssueAdf } from "@/sidepanel/lib/buildIssueAdf";
@@ -181,7 +182,7 @@ export function DraftDetailDialog({
   const [consoleDialogOpen, setConsoleDialogOpen] = useState(false);
   const [actionDialogOpen, setActionDialogOpen] = useState(false);
   useEffect(() => {
-    if (!open || (!isVideo && !isFreeform)) {
+    if (!open || !supportsConsoleNetworkLog(issue?.captureMode)) {
       setNetworkLogData(null);
       setConsoleLogData(null);
       setActionLogData(null);
@@ -198,14 +199,13 @@ export function DraftDetailDialog({
         if (!cancelled) setConsoleLogData(log);
       });
     }
-    // action log는 video 모드에서만 첨부.
-    if (isVideo && issue?.actionLogBlobKey) {
+    if (supportsActionLog(issue?.captureMode) && issue?.actionLogBlobKey) {
       getActionLog(issue.actionLogBlobKey).then((log) => {
         if (!cancelled) setActionLogData(log);
       });
     }
     return () => { cancelled = true; };
-  }, [open, isVideo, isFreeform, issue?.networkLogBlobKey, issue?.consoleLogBlobKey, issue?.actionLogBlobKey]);
+  }, [open, issue?.captureMode, issue?.networkLogBlobKey, issue?.consoleLogBlobKey, issue?.actionLogBlobKey]);
 
   const diffs = useMemo(() => {
     if (!issue?.selectionSnapshot || !issue.styleEdits) return [];
@@ -235,16 +235,15 @@ export function DraftDetailDialog({
     if (!issue) throw new Error(t("create.requiredMissing"));
     const sel = issue.selectionSnapshot;
     let networkLog: NetworkLog | null = null;
-    if ((isVideo || isFreeform) && issue.networkLogBlobKey) {
+    if (supportsConsoleNetworkLog(issue.captureMode) && issue.networkLogBlobKey) {
       networkLog = await getNetworkLog(issue.networkLogBlobKey);
     }
     let consoleLogForSubmit: ConsoleLog | null = null;
-    if ((isVideo || isFreeform) && issue.consoleLogBlobKey) {
+    if (supportsConsoleNetworkLog(issue.captureMode) && issue.consoleLogBlobKey) {
       consoleLogForSubmit = await getConsoleLog(issue.consoleLogBlobKey);
     }
-    // actionLog는 video에서만 logs.html에 주입되므로 freeform/screenshot은 읽지 않는다.
     let actionLogForSubmit: ActionLog | null = null;
-    if (isVideo && issue.actionLogBlobKey) {
+    if (supportsActionLog(issue.captureMode) && issue.actionLogBlobKey) {
       actionLogForSubmit = await getActionLog(issue.actionLogBlobKey);
     }
     const ctx = {
@@ -721,7 +720,6 @@ function DraftDetailSections({
   onActionLogClick: () => void;
 }) {
   const t = useT();
-  const isFreeform = issue.captureMode === "freeform";
   const enabled = sectionConfig.filter((s) => s.enabled);
   const out: React.ReactNode[] = [];
   let mediaInserted = false;
@@ -759,8 +757,8 @@ function DraftDetailSections({
       </FieldSection>
     ) : null;
 
-  const showActionCard = isVideo && actionLogData !== null && actionLogData.captured > 0;
-  const showLogCards = (isVideo || isFreeform) && (
+  const showActionCard = supportsActionLog(issue.captureMode) && actionLogData !== null && actionLogData.captured > 0;
+  const showLogCards = supportsConsoleNetworkLog(issue.captureMode) && (
     (networkLogData !== null && networkLogData.captured > 0) ||
     (consoleLogData !== null && consoleLogData.captured > 0) ||
     showActionCard

@@ -113,7 +113,23 @@ shorthand(var 포함) + 같은 shorthand의 longhand override 조합에서 Chrom
 
 **Cross-tab 격리**: `usePickerMessages`가 `sender.tab?.id !== myTabId`인 메시지 drop — 동일 origin 다른 탭의 로그가 섞이는 것 방지.
 
-**로그 첨부**: `buildLogsHtml`이 `dist-log-viewer/index.html` 템플릿에 `LogViewerData` JSON 주입 → self-contained HTML. 액션 로그는 video 모드(수동+30s Replay)에서만 첨부(AI 초안 `buildActionLogSummary`도 동일). Jira·GitHub·Linear는 `logs.html`, Notion은 JSON — Cloudflare WAF가 HTML `<script>` 차단.
+**로그 첨부**: `buildLogsHtml`이 `dist-log-viewer/index.html` 템플릿에 `LogViewerData` JSON 주입 → self-contained HTML. AI 초안 `buildActionLogSummary`도 video 한정.
+
+**로그 정책 매트릭스** — 단일 진실: `src/sidepanel/lib/captureLogSupport.ts` (`supportsConsoleNetworkLog`, `supportsActionLog`). UI 카드 표시(PreviewPanel·DraftDetailDialog `LogAttachmentCards`) / DraftDetailDialog blob 로드 / 제출 첨부(`buildCaptureFiles` → logs.html 생성 조건) / Notion 본문 log summary 블록 모두 이 기준.
+
+| 캡처 모드 | console | network | action | 첨부 토글 기본값 |
+|---|---|---|---|---|
+| element | ❌ | ❌ | ❌ | — |
+| screenshot | ✅ | ✅ | ❌ | off (사용자가 토글) |
+| freeform | ✅ | ✅ | ❌ | on (자동) |
+| video | ✅ | ✅ | ✅ | on (자동) |
+
+기본값은 `editor-store.ts`의 모드 진입 액션(`startCapturing`/`startFreeform`/`startRecording`/`onRecordingComplete`)에서 설정. screenshot은 `preserveLogs`로 직전 상태만 승계 (`initial`은 모두 false).
+
+**플랫폼별 패키징**:
+- **Jira/Linear**: `logs.html` 그대로 첨부 → 이슈 생성 **후** `injectIssueUrl`로 뷰어 백링크 주입.
+- **GitHub**: `logs.html` 그대로 첨부 (markdown link) → issueUrl 미주입(빈 값 → 뷰어가 링크 숨김).
+- **Notion**: **`logs.zip`** (DEFLATE 압축 zip 1파일 래핑, `zipLogsHtml`). Cloudflare WAF가 `POST /v1/file_uploads/{id}/send`에서 평문 HTML/로그 콘텐츠(스택트레이스·URL·SQL스러운 토큰)를 공격 페이로드로 오탐해 403 반환. store-mode zip도 내부가 평문이라 같은 사유로 막힘 → DEFLATE 압축 바이트는 평문 패턴 매칭 회피. 부수효과로 size ~30%로 줄어 무료 워크스페이스 5 MiB 한도 여유. 단계: 페이지 생성 전 업로드 → issueUrl 주입 불가(GitHub과 동일, 빈 값 → 뷰어 자동 숨김).
 
 **영상-로그 동기화**: `LogViewerData.video`에 영상 임베드 → log-viewer가 좌(영상)/우(3탭) 분할, `LogSeekChip`으로 행↔영상 양방향 seek + active 행 하이라이트. 동기화 0점은 `video.startedAt`. props 미공급(라이브 사이드패널 서브탭)이면 칩·active 안 생겨 기존 레이아웃 불변.
 

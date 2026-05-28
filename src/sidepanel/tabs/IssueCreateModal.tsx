@@ -180,6 +180,8 @@ export function IssueCreateModal() {
       };
     }
     if (captureMode === "screenshot") {
+      const hasNetworkLog = networkLogAttach && networkLog && networkLog.captured > 0;
+      const hasConsoleLog = consoleLogAttach && consoleLog && consoleLog.captured > 0;
       return {
         os,
         browser,
@@ -198,6 +200,8 @@ export function IssueCreateModal() {
         capturedAt: screenshotCapturedAt ?? Date.now(),
         diffs: [],
         environment: draft.environment ?? [],
+        networkLogSummary: hasNetworkLog ? buildNetworkLogSummary(networkLog!) : undefined,
+        consoleLogSummary: hasConsoleLog ? buildConsoleLogSummary(consoleLog!) : undefined,
       };
     }
     if (!selection) throw new Error(t("create.requiredMissing"));
