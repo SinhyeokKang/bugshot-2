@@ -72,7 +72,7 @@ export function RepoCombobox({ value, onChange, disabled }: Props) {
           role="combobox"
           aria-expanded={open}
           disabled={disabled}
-          className="w-full justify-between font-normal"
+          className="w-full min-w-0 justify-between font-normal"
         >
           <span className={cn("min-w-0 flex-1 truncate text-left", !value && "text-muted-foreground")}>
             {label}

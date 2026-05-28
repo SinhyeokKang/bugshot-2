@@ -72,7 +72,7 @@ export function ProjectCombobox() {
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          className="w-full justify-between font-normal"
+          className="w-full min-w-0 justify-between font-normal"
         >
           <span
             className={cn(

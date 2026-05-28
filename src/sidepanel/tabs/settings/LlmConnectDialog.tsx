@@ -217,7 +217,7 @@ export function LlmConnectDialog({
                   variant="outline"
                   role="combobox"
                   aria-expanded={popoverOpen}
-                  className="w-full justify-between font-normal"
+                  className="w-full min-w-0 justify-between font-normal"
                 >
                   {displayLabel}
                   <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
@@ -349,7 +349,7 @@ function LlmModelDialog({
               variant="outline"
               role="combobox"
               aria-expanded={popoverOpen}
-              className="w-full justify-between font-normal"
+              className="w-full min-w-0 justify-between font-normal"
             >
               <span
                 className={cn(

@@ -79,7 +79,7 @@ export function AssigneeCombobox({ owner, repo, value, onChange }: Props) {
           role="combobox"
           aria-expanded={open}
           disabled={!ready}
-          className="w-full justify-between font-normal"
+          className="w-full min-w-0 justify-between font-normal"
         >
           <span
             className={cn(
