@@ -243,6 +243,7 @@ export function buildNotionIssueBody(
   }
 
   emitMedia();
+  // 'Reported via *BugShot*' 푸터는 createPage가 첨부 섹션 뒤에 직접 append (본문 가장 하단 보장).
 
   return { blocks, attachments };
 }

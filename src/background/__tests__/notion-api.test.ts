@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   buildNotionAuthHeader,
+  footerBlockObjects,
   messageForNotionStatus,
   parseDatabaseSchema,
   parsePageStatus,
@@ -204,5 +205,32 @@ describe("parsePageStatus", () => {
     });
     expect(out.title).toBeUndefined();
     expect(out.statusOption).toEqual({ name: "Done", color: "green" });
+  });
+});
+
+describe("footerBlockObjects — Reported via *BugShot* (HR + italic)", () => {
+  it("순서: divider → paragraph(italic) with BugShot 링크", () => {
+    const out = footerBlockObjects();
+    expect(out).toEqual([
+      { object: "block", type: "divider", divider: {} },
+      {
+        object: "block",
+        type: "paragraph",
+        paragraph: {
+          rich_text: [
+            {
+              type: "text",
+              text: { content: "Reported via " },
+              annotations: { italic: true },
+            },
+            {
+              type: "text",
+              text: { content: "BugShot", link: { url: "https://bug-shot.com" } },
+              annotations: { italic: true },
+            },
+          ],
+        },
+      },
+    ]);
   });
 });

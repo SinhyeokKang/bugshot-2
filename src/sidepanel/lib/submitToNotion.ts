@@ -2,6 +2,7 @@ import { buildAiMetaAttachment } from "./buildAiMetaAttachment";
 import { buildNotionIssueBody } from "./buildNotionIssueBody";
 import type { MarkdownContext } from "./buildIssueMarkdown";
 import { type InlineImageInput } from "./resolveInlineImages";
+import { zipLogsHtml } from "./zipLogsHtml";
 import { sendBg } from "@/types/messages";
 import type {
   NotionCreatePageResult,
@@ -57,7 +58,28 @@ export async function submitToNotion(
     inlineUploaded.push({ refId: img.refId, fileUploadId: res.fileUploadId });
   }
 
-  // 2. blocks 빌드
+  // 2. blocks 빌드 — logs.html은 Notion이 text/html을 403으로 거부해서 .zip으로 래핑.
+  const mappedLogs = input.logs
+    ? await Promise.all(
+        input.logs.map(async (f) => {
+          if (guessMime(f.filename) === "text/html") {
+            const z = await zipLogsHtml(f.filename, f.dataUrl);
+            return {
+              filename: z.filename,
+              contentType: z.contentType,
+              dataUrl: z.dataUrl,
+              category: "log" as const,
+            };
+          }
+          return {
+            filename: f.filename,
+            contentType: guessMime(f.filename),
+            dataUrl: f.dataUrl,
+            category: "log" as const,
+          };
+        }),
+      )
+    : undefined;
   const { blocks, attachments } = buildNotionIssueBody({
     ctx: input.ctx,
     images: input.images?.map((f) => ({
@@ -72,23 +94,11 @@ export async function submitToNotion(
           dataUrl: input.video.dataUrl,
         }
       : undefined,
-    logs: input.logs?.map((f) => ({
-      filename: f.filename,
-      contentType: guessMime(f.filename),
-      dataUrl: f.dataUrl,
-      category: "log" as const,
-    })),
+    logs: mappedLogs,
     inlineImageRefIds: inlineUploaded.map((iu) => iu.refId),
   });
 
   // 3. 일반 첨부 업로드 — 직렬 (Notion rate limit 보호)
-  // [DIAGNOSTIC] 로그 첨부 목록·바이트 크기 — logs.html 누락 원인 추적용
-  console.info(
-    "[bugshot][notion] log attachments:",
-    attachments
-      .filter((a) => a.category === "log")
-      .map((a) => ({ filename: a.filename, contentType: a.contentType, bytes: a.dataUrl.length })),
-  );
   const uploaded: { placeholderId: string; fileUploadId: string; filename: string; category: typeof attachments[number]["category"] }[] = [];
   for (const a of attachments) {
     try {
@@ -105,13 +115,9 @@ export async function submitToNotion(
         category: a.category,
       });
     } catch (err) {
-      // 로그 첨부 실패(대용량 logs.html 등)는 격리 — 누락 placeholder 블록은 createPage에서 자연 스킵.
+      // 로그 첨부 실패는 격리 — 누락 placeholder 블록은 createPage에서 자연 스킵.
       // image/video는 본문 핵심이라 strict 유지(전체 실패).
-      if (a.category === "log") {
-        // [DIAGNOSTIC] 조용히 삼키던 로그 첨부 실패를 노출
-        console.error("[bugshot][notion] log attachment upload failed:", a.filename, err);
-        continue;
-      }
+      if (a.category === "log") continue;
       throw err;
     }
   }

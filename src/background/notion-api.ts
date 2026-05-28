@@ -353,6 +353,32 @@ interface NotionBlockObject {
   [k: string]: unknown;
 }
 
+// Reported via *BugShot* 푸터: HR + italic 텍스트 (Jira/GitHub/Linear와 동일 패턴).
+// createPage가 본문 + 첨부 뒤 가장 마지막에 append.
+export function footerBlockObjects(): NotionBlockObject[] {
+  return [
+    { object: "block", type: "divider", divider: {} },
+    {
+      object: "block",
+      type: "paragraph",
+      paragraph: {
+        rich_text: [
+          {
+            type: "text",
+            text: { content: "Reported via " },
+            annotations: { italic: true },
+          },
+          {
+            type: "text",
+            text: { content: "BugShot", link: { url: "https://bug-shot.com" } },
+            annotations: { italic: true },
+          },
+        ],
+      },
+    },
+  ];
+}
+
 function expandBlock(
   block: NotionCreatePagePayload["blocks"][number],
   attachmentMap: Map<string, { fileUploadId: string; filename: string }>,
@@ -515,6 +541,9 @@ export async function createPage(
       });
     }
   }
+
+  // Reported via *BugShot* 푸터 — 본문 + 첨부 섹션 모두 emit한 뒤 가장 마지막에.
+  for (const b of footerBlockObjects()) expanded.push(b);
 
   const properties: Record<string, unknown> = {
     [payload.titlePropertyName]: {

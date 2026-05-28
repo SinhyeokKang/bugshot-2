@@ -649,3 +649,18 @@ describe("buildNotionIssueBody — custom environment rows", () => {
     expect(texts).toContain("OS: macOS 15");
   });
 });
+
+describe("buildNotionIssueBody — 푸터는 body가 아니라 createPage가 담당", () => {
+  it("body blocks에 'Reported via BugShot' 푸터가 없음 (첨부 섹션 뒤에 들어가야 하므로)", () => {
+    const out = buildNotionIssueBody({ ctx: makeCtx() });
+    const hasFooterText = out.blocks.some((b) => {
+      if (b.type !== "rich_paragraph") return false;
+      return (b as any).richText.some(
+        (r: any) => r.text?.content === "BugShot" || r.text?.content === "Reported via ",
+      );
+    });
+    expect(hasFooterText).toBe(false);
+    // 마지막에 단독 divider도 없음 (footer 짝꿍이라 createPage가 함께 emit).
+    expect(out.blocks[out.blocks.length - 1].type).not.toBe("divider");
+  });
+});
