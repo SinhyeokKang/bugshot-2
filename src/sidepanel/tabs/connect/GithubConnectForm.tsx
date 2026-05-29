@@ -93,7 +93,7 @@ export function GithubConnectFlow({ connected, onConnected }: ConnectFlowProps) 
         variant="outline"
         onClick={handleClick}
         disabled={connected || connecting || methods.length === 0}
-        className="relative w-full justify-start gap-2"
+        className="relative w-full justify-center gap-2"
       >
         {connecting && (
           <span className="absolute inset-0 flex items-center justify-center">
@@ -102,7 +102,9 @@ export function GithubConnectFlow({ connected, onConnected }: ConnectFlowProps) 
         )}
         <span className={`inline-flex items-center gap-2 ${connecting ? "opacity-0" : ""}`}>
           <Github className="h-4 w-4 dark:invert" color="default" />
-          {t("platform.connectPlatform", { platform: t("platform.tab.github") })}
+          {connected
+            ? t("platform.connected")
+            : t("platform.connectPlatform", { platform: t("platform.tab.github") })}
         </span>
       </Button>
 

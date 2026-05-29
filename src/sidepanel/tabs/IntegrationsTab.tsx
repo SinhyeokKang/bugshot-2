@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ComponentType } from "react";
-import { Blocks, Trash2 } from "lucide-react";
+import { Blocks, Boxes, Plus, Trash2 } from "lucide-react";
 import {
   SiGithub,
   SiJirasoftware,
@@ -86,8 +86,14 @@ export function IntegrationsTab({ activeMainTab }: { activeMainTab: string }) {
     >
       <div className="shrink-0 border-b border-border px-4 py-4">
         <TabsList className="grid h-9 w-full grid-cols-2">
-          <TabsTrigger value="connected">{t("platform.subtab.connected")}</TabsTrigger>
-          <TabsTrigger value="add">{t("platform.subtab.add")}</TabsTrigger>
+          <TabsTrigger value="connected" className="gap-1.5">
+            <Boxes className="h-4 w-4" />
+            {t("platform.subtab.connected")}
+          </TabsTrigger>
+          <TabsTrigger value="add" className="gap-1.5">
+            <Plus className="h-4 w-4" />
+            {t("platform.subtab.add")}
+          </TabsTrigger>
         </TabsList>
       </div>
 

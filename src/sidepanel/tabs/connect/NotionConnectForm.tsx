@@ -96,7 +96,7 @@ export function NotionConnectFlow({ connected, onConnected }: ConnectFlowProps) 
         variant="outline"
         onClick={handleClick}
         disabled={connected || connecting || methods.length === 0}
-        className="relative w-full justify-start gap-2"
+        className="relative w-full justify-center gap-2"
       >
         {connecting && (
           <span className="absolute inset-0 flex items-center justify-center">
@@ -105,7 +105,9 @@ export function NotionConnectFlow({ connected, onConnected }: ConnectFlowProps) 
         )}
         <span className={`inline-flex items-center gap-2 ${connecting ? "opacity-0" : ""}`}>
           <SiNotion className="h-4 w-4 dark:invert" color="default" />
-          {t("platform.connectPlatform", { platform: t("platform.tab.notion") })}
+          {connected
+            ? t("platform.connected")
+            : t("platform.connectPlatform", { platform: t("platform.tab.notion") })}
         </span>
       </Button>
 
