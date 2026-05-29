@@ -11,7 +11,7 @@ vi.mock("@/i18n", () => ({
   },
 }));
 
-import { parseTransitions } from "../jira-api";
+import { messageForJiraStatus, parseTransitions } from "../jira-api";
 
 describe("parseTransitions", () => {
   it("표준 트랜지션 목록을 JiraTransition[]으로 매핑", () => {
@@ -106,5 +106,19 @@ describe("parseTransitions", () => {
     expect(parseTransitions(raw)).toEqual([
       { id: "51", name: "Reopen", to: { name: "Open", categoryKey: "new" } },
     ]);
+  });
+});
+
+describe("messageForJiraStatus", () => {
+  it("주요 상태 코드별 비어있지 않은 메시지 반환", () => {
+    expect(messageForJiraStatus(401)).toBeTruthy();
+    expect(messageForJiraStatus(403)).toBeTruthy();
+    expect(messageForJiraStatus(404)).toBeTruthy();
+    expect(messageForJiraStatus(429)).toBeTruthy();
+    expect(messageForJiraStatus(500)).toBeTruthy();
+  });
+
+  it("알려지지 않은 상태 코드는 generic 메시지 반환", () => {
+    expect(messageForJiraStatus(418)).toContain("jira.error.generic");
   });
 });

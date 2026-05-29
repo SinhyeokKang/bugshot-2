@@ -1,6 +1,7 @@
 import type { EditorStyleEdits } from "@/store/editor-store";
 import type { Token } from "@/types/picker";
 import type { AiStylingEdits } from "./buildAiStylingPrompt";
+import { tokenFamilyPrefix } from "@/sidepanel/tabs/styleEditor/tokenUtils";
 
 export function mergeAiEdits(
   current: EditorStyleEdits,
@@ -133,20 +134,6 @@ function extractFamilyPrefixes(
     }
   }
   return prefixes;
-}
-
-function tokenFamilyPrefix(
-  name: string,
-  allTokens: Token[],
-): string | null {
-  let end = name.lastIndexOf("-");
-  while (end > 2) {
-    const prefix = name.slice(0, end + 1);
-    const count = allTokens.filter((t) => t.name.startsWith(prefix)).length;
-    if (count >= 2) return prefix;
-    end = name.lastIndexOf("-", end - 1);
-  }
-  return null;
 }
 
 const NAMED_COLORS: Record<string, RGB> = {

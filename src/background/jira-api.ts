@@ -125,7 +125,7 @@ export async function jiraFetch<T = unknown>(
 ): Promise<T> {
   const res = await authedFetch(auth, path, init, false);
   if (!res.ok) {
-    throw new JiraError(res.status, messageFor(res.status), await readErrorBody(res));
+    throw new JiraError(res.status, messageForJiraStatus(res.status), await readErrorBody(res));
   }
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
@@ -138,7 +138,7 @@ export async function jiraMultipart<T = unknown>(
 ): Promise<T> {
   const res = await authedFetch(auth, path, { method: "POST", body: form }, true);
   if (!res.ok) {
-    throw new JiraError(res.status, messageFor(res.status), await readErrorBody(res));
+    throw new JiraError(res.status, messageForJiraStatus(res.status), await readErrorBody(res));
   }
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
@@ -165,7 +165,7 @@ async function doFetch(
   });
 }
 
-function messageFor(status: number): string {
+export function messageForJiraStatus(status: number): string {
   if (status === 401) return t("jira.error.401");
   if (status === 403) return t("jira.error.403");
   if (status === 404) return t("jira.error.404");

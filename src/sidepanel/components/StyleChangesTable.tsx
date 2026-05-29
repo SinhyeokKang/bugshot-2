@@ -47,8 +47,8 @@ export function StyleChangesTable({
       <thead>
         <tr className={cn("bg-muted/40", docTableRow)}>
           <th className={docTableHead} />
-          <th className={docTableHead}>As is</th>
-          <th className={docTableHead}>To be</th>
+          <th className={docTableHead}>{t("styleTable.asIs")}</th>
+          <th className={docTableHead}>{t("styleTable.toBe")}</th>
         </tr>
       </thead>
       <tbody>
@@ -104,8 +104,9 @@ function SnapshotCell({ image }: { image: string | null }) {
 }
 
 function DiffValue({ value, muted }: { value: string; muted?: boolean }) {
+  const t = useT();
   if (!value.trim()) {
-    return <span className="text-muted-foreground/60">unset</span>;
+    return <span className="text-muted-foreground/60">{t("styleTable.unset")}</span>;
   }
   return (
     <span

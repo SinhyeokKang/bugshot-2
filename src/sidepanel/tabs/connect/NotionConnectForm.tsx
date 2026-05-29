@@ -394,7 +394,7 @@ function NotionSummary() {
     account.auth.kind === "oauth"
       ? account.auth.workspaceName
       : account.auth.workspaceName ?? "";
-  const botName = account.auth.botName || "Notion bot";
+  const botName = account.auth.botName || t("notion.auth.defaultBotName");
   const ownerEmail =
     account.auth.kind === "oauth" ? account.auth.ownerUserEmail : undefined;
   const ownerName =
