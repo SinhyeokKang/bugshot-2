@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ExternalLink, KeyRound, Loader2 } from "lucide-react";
+import { ExternalLink, Loader2 } from "lucide-react";
 import { SiGithub as Github } from "@icons-pack/react-simple-icons";
 import { toast } from "sonner";
 import { useT } from "@/i18n";
@@ -22,32 +22,100 @@ import type {
   GithubOAuthAuth,
 } from "@/types/github";
 import { isOAuthCancelled, sendBg } from "@/types/messages";
-import { PageScroll, Section } from "@/sidepanel/components/Section";
 import { LabelCombobox } from "@/sidepanel/tabs/githubFields/LabelCombobox";
 import { RepoCombobox, type RepoValue } from "@/sidepanel/tabs/githubFields/RepoCombobox";
+import { connectMethods, type ConnectFlowProps } from "@/sidepanel/tabs/integrationsTabUtils";
+import { ConnectMethodDialog } from "./ConnectMethodDialog";
 
-export function GithubConnectForm() {
+export function GithubConnectedBody() {
+  return (
+    <>
+      <GithubSummary />
+      <DefaultRepoField />
+      <DefaultIssueSettingsFields />
+    </>
+  );
+}
+
+export function GithubConnectFlow({ connected, onConnected }: ConnectFlowProps) {
   const t = useT();
-  const githubAccount = useSettingsStore((s) => s.accounts.github);
-  const connected = !!githubAccount;
+  const setAccount = useSettingsStore((s) => s.setAccount);
+  const [oauthAvailable, setOauthAvailable] = useState<boolean | null>(null);
+  const [connecting, setConnecting] = useState(false);
+  const [methodOpen, setMethodOpen] = useState(false);
+  const [patOpen, setPatOpen] = useState(false);
 
-  if (!connected) {
-    return <GithubOnboarding />;
+  useEffect(() => {
+    let cancelled = false;
+    sendBg<{ available: boolean }>({ type: "github.oauth.available" })
+      .then((res) => !cancelled && setOauthAvailable(res.available))
+      .catch(() => !cancelled && setOauthAvailable(false));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function startOAuth() {
+    setConnecting(true);
+    try {
+      const auth = await sendBg<GithubOAuthAuth>({ type: "github.startOAuth" });
+      const next: GithubAccount = {
+        platform: "github",
+        connectedAt: Date.now(),
+        auth,
+        defaults: {},
+      };
+      setAccount("github", next);
+      onConnected();
+    } catch (err) {
+      if (!isOAuthCancelled(err)) {
+        toast.error(err instanceof Error ? err.message : String(err));
+      }
+    } finally {
+      setConnecting(false);
+    }
+  }
+
+  const methods = connectMethods(oauthAvailable);
+
+  function handleClick() {
+    if (methods.length === 0) return;
+    if (methods.includes("oauth")) {
+      setMethodOpen(true);
+    } else {
+      setPatOpen(true);
+    }
   }
 
   return (
     <>
-      <PageScroll>
-        <Section title={t("github.section.connection")}>
-          <GithubSummary />
-        </Section>
-        <Section title={t("common.settings")}>
-          <div className="flex flex-col gap-3">
-            <DefaultRepoField />
-            <DefaultIssueSettingsFields />
-          </div>
-        </Section>
-      </PageScroll>
+      <Button
+        variant="outline"
+        onClick={handleClick}
+        disabled={connected || connecting || methods.length === 0}
+        className="relative w-full justify-start gap-2"
+      >
+        {connecting && (
+          <span className="absolute inset-0 flex items-center justify-center">
+            <Loader2 className="h-4 w-4 animate-spin" />
+          </span>
+        )}
+        <span className={`inline-flex items-center gap-2 ${connecting ? "opacity-0" : ""}`}>
+          <Github className="h-4 w-4 dark:invert" color="default" />
+          {t("platform.connectPlatform", { platform: t("platform.tab.github") })}
+        </span>
+      </Button>
+
+      <ConnectMethodDialog
+        open={methodOpen}
+        onOpenChange={setMethodOpen}
+        platformLabel={t("platform.tab.github")}
+        oauthLabel={t("platform.connectMethod.oauth")}
+        tokenLabel={t("github.patButton")}
+        onChooseOAuth={() => void startOAuth()}
+        onChooseToken={() => setPatOpen(true)}
+      />
+      <PatDialog open={patOpen} onOpenChange={setPatOpen} onConnected={onConnected} />
     </>
   );
 }
@@ -100,103 +168,14 @@ function DefaultIssueSettingsFields() {
   );
 }
 
-function GithubOnboarding() {
-  const t = useT();
-  const [oauthAvailable, setOauthAvailable] = useState<boolean | null>(null);
-  const [connecting, setConnecting] = useState(false);
-  const [patOpen, setPatOpen] = useState(false);
-
-  const setAccount = useSettingsStore((s) => s.setAccount);
-
-  useEffect(() => {
-    let cancelled = false;
-    sendBg<{ available: boolean }>({ type: "github.oauth.available" })
-      .then((res) => !cancelled && setOauthAvailable(res.available))
-      .catch(() => !cancelled && setOauthAvailable(false));
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  async function startOAuth() {
-    setConnecting(true);
-    try {
-      const auth = await sendBg<GithubOAuthAuth>({ type: "github.startOAuth" });
-      const next: GithubAccount = {
-        platform: "github",
-        connectedAt: Date.now(),
-        auth,
-        defaults: {},
-      };
-      setAccount("github", next);
-    } catch (err) {
-      if (!isOAuthCancelled(err)) {
-        toast.error(err instanceof Error ? err.message : String(err));
-      }
-    } finally {
-      setConnecting(false);
-    }
-  }
-
-  return (
-    <>
-      <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 pb-5 text-center">
-        <div className="mb-3 rounded-full bg-muted p-3">
-          <Github className="h-6 w-6 dark:invert" color="default" />
-        </div>
-        <h3 className="text-lg font-semibold">{t("github.onboarding.title")}</h3>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {t("github.onboarding.body")}
-        </p>
-
-        <div className="mt-5 flex gap-2">
-          {oauthAvailable !== false ? (
-            <Button
-              onClick={() => void startOAuth()}
-              disabled={connecting || oauthAvailable === null}
-              className="relative"
-            >
-              {connecting && (
-                <span className="absolute inset-0 flex items-center justify-center">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                </span>
-              )}
-              <span className={`inline-flex items-center gap-2 ${connecting ? "opacity-0" : ""}`}>
-                <ExternalLink className="h-3.5 w-3.5" />
-                {t("github.oauthLogin")}
-              </span>
-            </Button>
-          ) : null}
-
-          <Button
-            variant="outline"
-            onClick={() => setPatOpen(true)}
-            disabled={connecting}
-            className="gap-1.5"
-          >
-            <KeyRound className="h-3.5 w-3.5" />
-            {t("github.patButton")}
-          </Button>
-        </div>
-
-        {oauthAvailable === false ? (
-          <p className="mt-3 text-xs text-muted-foreground">
-            {t("github.oauth.notConfigured")}
-          </p>
-        ) : null}
-      </div>
-
-      <PatDialog open={patOpen} onOpenChange={setPatOpen} />
-    </>
-  );
-}
-
 function PatDialog({
   open,
   onOpenChange,
+  onConnected,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
+  onConnected: () => void;
 }) {
   const t = useT();
   const setAccount = useSettingsStore((s) => s.setAccount);
@@ -225,6 +204,7 @@ function PatDialog({
         defaults: {},
       };
       setAccount("github", next);
+      onConnected();
       setPat("");
       onOpenChange(false);
     } catch (err) {
@@ -313,4 +293,3 @@ function GithubSummary() {
     </div>
   );
 }
-

@@ -15,15 +15,15 @@
   (`platform.subtab.connected`, `platform.subtab.add`, `platform.add.title`, **`platform.add.empty.title`, `platform.add.empty.body`**, `platform.connectPlatform`, `platform.connectMethod.title/body/oauth`).
   - **빈 상태 키는 신규로 판다**: 기존 `platform.empty.*`는 PreviewPanel·DraftDetailDialog·IssueCreateModal에서 "연동 탭으로 가라"는 안내라 연동 탭 *내부* 빈 상태로 재사용 불가(자기참조). 기존 키는 수정하지 않는다.
 - **검증**:
-  - [ ] ko/en 양쪽에 동일 키 존재, `{platform}` placeholder 일치
-  - [ ] 기존 `platform.empty.*` 미수정 확인
-  - [ ] PostToolUse 훅(`locales.test.ts`) 통과
+  - [x] ko/en 양쪽에 동일 키 존재, `{platform}` placeholder 일치
+  - [x] 기존 `platform.empty.*` 미수정 확인
+  - [x] PostToolUse 훅(`locales.test.ts`) 통과
 
 ### Task 2: `ConnectMethodDialog` 공용 컴포넌트
 - **변경 대상**: `src/sidepanel/tabs/connect/ConnectMethodDialog.tsx` (신규)
 - **작업 내용**: **`Dialog` 기반**(`AlertDialog` 아님) OAuth/토큰 선택 다이얼로그. design.md 시그니처대로. 두 버튼은 기존 입력 다이얼로그의 `DialogFooter` 패턴대로 가로 배열·우측 정렬. OAuth 버튼 → `onChooseOAuth`, 토큰 버튼 → `onChooseToken`, 둘 다 선택 후 `onOpenChange(false)`. `DialogTitle`=`platform.connectMethod.title`, 설명=`platform.connectMethod.body`.
 - **검증**:
-  - [ ] `pnpm typecheck` 통과
+  - [x] `pnpm typecheck` 통과
   - [ ] 두 버튼 클릭 시 각 콜백 호출 + 닫힘 (수동)
   - [ ] ~400px 폭에서 두 버튼 가로 배치 줄바꿈/잘림 없음 (수동)
 
@@ -38,7 +38,7 @@
   - Jira: 인라인 `candidate` 사이트 목록 → `Dialog`(`JiraSiteDialog`, 같은 파일 내부 컴포넌트 허용)로 이전, `jira.selectSite` 재사용. `DialogTitle` 필수.
   - SetupDialog는 `JiraConnectedBody`가 소유(끌어올리지 않음). `sub="connected"` 마운트 후 `projectKey` 없음 effect로 자동 오픈.
 - **검증**:
-  - [ ] `pnpm typecheck` 통과
+  - [x] `pnpm typecheck` 통과
   - [ ] 각 플랫폼 OAuth/토큰 연결 → store에 account 저장 (수동, 탭 4종)
   - [ ] `oauthAvailable === null`(조회 중)에 행 버튼 disabled — 조회 전 클릭으로 잘못된 분기 안 됨 (수동)
   - [ ] Jira 다중 사이트 계정에서 사이트 선택 다이얼로그 동작 (수동)
@@ -54,7 +54,7 @@
   - 하위 탭 라우팅: `activeMainTab` prop 수신, "integrations"로 **전환되는 순간**에만 `pickInitialSubTab(connectedCount)`로 설정(prev-ref 비교 — 매 렌더 덮어쓰면 사용자가 고른 sub가 튐). 초기 `useState`도 `pickInitialSubTab` 사용.
   - **해제로 `connectedCount → 0` 전이 시 `sub="add"` 자동 전환**(빈 "내 연동" 방지). 현재 IntegrationsTab의 `setSub("jira")` 복귀 대체.
 - **검증**:
-  - [ ] `pnpm typecheck` 통과
+  - [x] `pnpm typecheck` 통과
   - [ ] 연결 0개 → 상위 탭 진입 시 "플랫폼 추가" 기본 (수동)
   - [ ] 연결 1개+ → 상위 탭 진입 시 "내 연동" 기본 (수동)
   - [ ] "플랫폼 추가"를 수동 선택 후 다른 탭 갔다 돌아와도 강제로 "내 연동"으로 안 튐 (수동)
@@ -66,7 +66,7 @@
 - **변경 대상**: `src/sidepanel/App.tsx`
 - **작업 내용**: `<IntegrationsTab />` → `<IntegrationsTab activeMainTab={tab} />`.
 - **검증**:
-  - [ ] `pnpm typecheck` 통과
+  - [x] `pnpm typecheck` 통과
   - [ ] 상위 탭 진입 라우팅 정상 (수동)
 
 ## 테스트 계획
