@@ -52,9 +52,9 @@
   - [ ] `pnpm typecheck`
   - [ ] gitlab 필드는 전부 optional이라 v6→v7 데이터 변환 함수가 없음 — "버전 7 마이그레이션" 대신 **v6 저장 상태가 v7에서 그대로 로드되는 라운드트립 테스트**로 검증(기존 4개 플랫폼 account 보존 확인)
 
-### Task 6: connect 폼 (OAuth/PAT + Instance URL 다이얼로그)
+### Task 6: connect 폼 (ConnectedBody/ConnectFlow 분리 + Instance URL 다이얼로그)
 - **변경 대상**: `src/sidepanel/tabs/connect/GitlabConnectForm.tsx`(신규)
-- **작업 내용**: 온보딩(OAuth 버튼 gitlab.com 전용 + PAT 버튼)은 `GithubConnectForm.tsx` 미러. **PAT 다이얼로그 레이아웃은 Jira connect 폼(baseUrl 포함 다필드)을 미러** — 입력 2개: Instance URL(기본 `https://gitlab.com`, 긴 URL placeholder) + Token. **base URL 정규화는 순수 함수 `normalizeInstanceUrl`로 분리**(trailing slash 제거 + 빈 값→gitlab.com + 스킴 없는 입력 처리/reject, `new URL` throw를 폼이 catch). self-managed면 `requestHostPermission`(ai-provider.ts:383)로 origin 권한 요청 후 `gitlab.testPat` 검증. "토큰 받기" 링크는 유효 origin일 때만 `${instanceUrl}/-/user_settings/personal_access_tokens` 활성, 무효/빈 값이면 gitlab.com 폴백.
+- **작업 내용**: 연동 탭 리디자인 패턴대로 **두 export로 분리**(`GithubConnectForm.tsx` 현 구조 미러): ① `GitlabConnectedBody`(연결 카드 `GitlabSummary` + 기본값 설정 필드) ② `GitlabConnectFlow({connected, onConnected})`(행 버튼 + 연결 로직). `ConnectFlowProps` 시그니처는 `integrationsTabUtils.ts`에서 import. **OAuth/PAT 선택은 공용 `ConnectMethodDialog` 재사용** — `gitlab.oauth.available` 조회 후 `connectMethods()`로 분기(OAuth 가능 시 다이얼로그, 미설정 시 PAT 직행). 연결 성공(OAuth finalize / PAT 검증) 직후 `setAccount`→`onConnected()` 동기 연속 호출. **PAT 다이얼로그 레이아웃은 Jira connect 폼(baseUrl 포함 다필드)을 미러** — 입력 2개: Instance URL(기본 `https://gitlab.com`, 긴 URL placeholder) + Token. **base URL 정규화는 순수 함수 `normalizeInstanceUrl`로 분리**(trailing slash 제거 + 빈 값→gitlab.com + 스킴 없는 입력 처리/reject, `new URL` throw를 폼이 catch). self-managed면 `requestHostPermission`(ai-provider.ts:383)로 origin 권한 요청 후 `gitlab.testPat` 검증. "토큰 받기" 링크는 유효 origin일 때만 `${instanceUrl}/-/user_settings/personal_access_tokens` 활성, 무효/빈 값이면 gitlab.com 폴백.
 - **검증**:
   - [ ] `normalizeInstanceUrl` 단위 테스트(trailing slash, 빈 값, 스킴 없음, gitlab.com 판별) — 자동
 - **검증** (수동):
@@ -62,7 +62,8 @@
   - [ ] gitlab.com PAT 연결(Instance URL 기본값)
   - [ ] self-managed PAT: Instance URL 변경 → 권한 프롬프트 → 검증 성공
   - [ ] **권한 거부**(request=false)와 **잘못된 PAT**(401)가 **서로 다른 토스트 메시지**로 구분되는지
-  - [ ] OAuth env 미설정 시 OAuth 버튼 숨김 + 안내 문구
+  - [ ] OAuth env 미설정 시 `[GitLab 연결]`이 `ConnectMethodDialog` 없이 PAT 다이얼로그로 직행
+  - [ ] 연결 성공 시 "내 연동" 하위 탭으로 자동 전환되고 GitLab 섹션 노출
 
 ### Task 7: 필드 컴포넌트
 - **변경 대상**: `src/sidepanel/tabs/gitlabFields/{ProjectCombobox,LabelCombobox,AssigneeCombobox,GitlabIssueFields}.tsx`(신규)
@@ -82,13 +83,13 @@
 ### Task 9: 제출/드래프트 UI 와이어링
 - **변경 대상**: `IntegrationsTab.tsx`, `SubmitFieldsDialog.tsx`, **`src/sidepanel/hooks/usePlatformFields.ts`**, `DraftDetailDialog.tsx`, `IssueCreateModal.tsx`
 - **작업 내용**:
-  - IntegrationsTab — `PlatformSubTab`·`PLATFORM_ORDER`·`PLATFORM_LABEL_KEYS`+gitlab, `grid-cols-4`→`grid-cols-5`(아이콘+텍스트 유지, 향후 연동 탭 UX 개편 예정이나 아이콘은 미리 작업), TabsTrigger(`SiGitlab`)+TabsContent.
+  - IntegrationsTab — **`PLATFORMS` 메타 배열에 엔트리 1줄 추가**: `{ id: "gitlab", Icon: SiGitlab, ConnectedBody: GitlabConnectedBody, ConnectFlow: GitlabConnectFlow, iconClassName: "dark:invert" }`. 리디자인으로 `PlatformSubTab`·`PLATFORM_ORDER`·`grid-cols-N`·TabsTrigger/TabsContent는 제거됐으므로 추가 작업 없음(UI는 `PLATFORMS.map()` 동적 렌더, 노출 순서는 `PLATFORM_FALLBACK_ORDER`).
   - **`usePlatformFields.ts` — gitlab 블록 추가**(gh/linear/notion 미러): `gitlabFields` state + `initialGitlabFields` + prefill 리셋 effect(deps `open/lastGitlabSubmit/gitlabDefaults/resetKey`). 누락 시 필드가 다이얼로그로 전달 안 됨.
   - SubmitFieldsDialog — configured/canSubmit 중첩 삼항(else→notion 주의) + **TabsList 동적 grid에 `length===5 → grid-cols-5` 케이스 추가**(없으면 cols-2로 깨짐) + 필드 렌더 분기.
   - Draft·IssueCreate — gitlabAccount·lastGitlabSubmit·`usePlatformFields`·`handleSubmit` dispatch(`submitToGitlab`).
 - **검증** (수동):
-  - [ ] 연동 탭에 GitLab 5번째 탭 표시(grid 5칸 정렬 정상)
-  - [ ] **5개 플랫폼 모두 연결 시 SubmitFieldsDialog TabsList가 5칸으로 정렬**(cols-2 깨짐 없음)
+  - [ ] 연동 탭 "플랫폼 추가"에 GitLab 연결 버튼 노출, "내 연동"에 연결 후 GitLab 섹션 노출
+  - [ ] **5개 플랫폼 모두 연결 시 SubmitFieldsDialog TabsList가 5칸으로 정렬**(cols-2 깨짐 없음 — 이 grid 분기는 리디자인 영향 밖이라 `length===5` 케이스 추가 필요)
   - [ ] **`platformConfigured`/`canSubmit` 삼항이 gitlab을 명시 분기 — notion fallback 오라우팅 없음**
   - [ ] 이슈 작성 화면에서 GitLab 선택 → 필드 노출 → 첨부 포함 제출 성공, 본문 이미지 인라인 렌더
   - [ ] 프로젝트 미선택 시 제출 차단

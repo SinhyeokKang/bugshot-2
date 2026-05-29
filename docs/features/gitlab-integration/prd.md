@@ -21,15 +21,16 @@ bugshot-2는 현재 Jira·GitHub·Linear·Notion 4개 이슈 트래커로 버그
 
 ## 사용자 시나리오
 
+> 연동 탭 리디자인 이후 진입 경로: 설정 > 연동 탭 > **플랫폼 추가** 하위 탭에 `[GitLab 연결]` 행 버튼이 있다. 클릭 시 OAuth/토큰 두 수단이 모두 가능하면 공용 **`ConnectMethodDialog`**로 선택, OAuth 미설정(`VITE_GITLAB_CLIENT_ID` 없음)이면 수단이 토큰 1개라 컨펌 생략하고 PAT 다이얼로그가 바로 열린다. 연결 성공 시 **"내 연동"** 하위 탭으로 자동 전환되어 GitLab 섹션이 나타난다.
+
 ### 시나리오 A: gitlab.com OAuth 연결
 
-1. 설정 > 연동 탭에서 **GitLab** 서브탭 선택.
-2. 온보딩 화면에 `[gitlab.com으로 OAuth 연결]`(primary) + `[Personal Token]`(outline) 두 버튼.
-3. OAuth 버튼 클릭 → `chrome.identity.launchWebAuthFlow`로 gitlab.com 인증 → 토큰 교환(PKCE) → 본인(`/user`) 조회 → 연결 완료. 연결 카드에 username·email 표시.
+1. **플랫폼 추가** 탭에서 `[GitLab 연결]` 클릭 → `ConnectMethodDialog`에서 **`OAuth로 연결`** 선택.
+2. `chrome.identity.launchWebAuthFlow`로 gitlab.com 인증 → 토큰 교환(PKCE) → 본인(`/user`) 조회 → 연결 완료. "내 연동" 탭의 연결 카드에 username·email 표시.
 
 ### 시나리오 B: PAT 연결 (gitlab.com 또는 self-managed)
 
-1. 온보딩 화면에서 `[Personal Token]` 클릭 → 다이얼로그 오픈.
+1. `[GitLab 연결]` 클릭 → `ConnectMethodDialog`에서 **`Personal Token`** 선택(OAuth 미설정 시 컨펌 없이 바로) → 다이얼로그 오픈.
 2. 다이얼로그에 입력 필드 2개:
    - **Instance URL** (기본값 `https://gitlab.com`, 비우면 gitlab.com으로 간주)
    - **Personal Access Token** (`glpat-…`)
@@ -52,7 +53,7 @@ bugshot-2는 현재 Jira·GitHub·Linear·Notion 4개 이슈 트래커로 버그
 ### 엣지 케이스
 
 - **self-managed 권한 거부**: PAT 연결 시 런타임 권한(`chrome.permissions.request`)을 거부하면 연결 실패 토스트.
-- **OAuth 미설정**: `VITE_GITLAB_CLIENT_ID` 누락 시 OAuth 버튼 숨김 + 안내 문구(PAT만 노출). 기존 플랫폼의 `oauth.notConfigured` 패턴과 동일.
+- **OAuth 미설정**: `VITE_GITLAB_CLIENT_ID` 누락 시 `connectMethods(false)===["token"]`라 `ConnectMethodDialog`를 거치지 않고 `[GitLab 연결]` 클릭이 곧장 PAT 다이얼로그를 연다(리디자인 단일수단 패턴). 기존 플랫폼과 동일.
 - **토큰 만료**: OAuth access token 만료 시 refresh token으로 자동 갱신(GitHub/Linear 동일 패턴). PAT는 만료 없음(혹은 사용자가 만료 설정 시 401 → 재연결 안내).
 - **프로젝트 미선택 제출 시도**: GitHub의 `requireRepo`와 동일하게 제출 차단 + 안내.
 - **대용량 첨부 업로드 제한 초과**: gitlab.com `/uploads`는 기본 10MB(self-managed는 인스턴스마다 가변), 30s Replay MP4가 자주 초과한다. Linear의 `submitToLinear` 패턴처럼 **첨부 업로드 실패는 격리**(`.catch`)해 이슈 자체는 생성하고 실패한 첨부만 토스트로 안내한다. 첨부 1건 실패가 이슈 생성 전체를 실패시키지 않는다.
