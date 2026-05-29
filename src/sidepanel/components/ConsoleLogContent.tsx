@@ -7,6 +7,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { findActiveIndex } from "@/log-viewer/timeline";
 import { formatRelativeTime, syncRowClass } from "@/sidepanel/lib/logRow";
+import { useScrollToEntry } from "@/sidepanel/lib/useScrollToEntry";
 import { LogSeekChip } from "./LogSeekChip";
 
 type ConsoleFilter = "all" | "error" | "warn" | "info" | "debug" | "log";
@@ -118,27 +119,13 @@ export function ConsoleLogContent({ entries, startedAt, flush, syncBaseMs, onSee
     if (vp) vp.scrollTop = vp.scrollHeight;
   }, [filteredEntries.length, getListViewport]);
 
-  const scrollResetRef = useRef(false);
-  useEffect(() => {
-    if (!scrollToEntryId) { scrollResetRef.current = false; return; }
-    const vp = getListViewport();
-    if (!vp) { onScrollComplete?.(); return; }
-    const el = vp.querySelector<HTMLElement>(`[data-entry-id="${scrollToEntryId}"]`);
-    if (el) {
-      el.scrollIntoView({ block: "center", behavior: "smooth" });
-      onScrollComplete?.();
-      scrollResetRef.current = false;
-      return;
-    }
-    if (!scrollResetRef.current) {
-      scrollResetRef.current = true;
-      setFilter("all");
-      setQuery("");
-      return;
-    }
-    onScrollComplete?.();
-    scrollResetRef.current = false;
-  }, [scrollToEntryId, filteredEntries, getListViewport, onScrollComplete]);
+  useScrollToEntry({
+    scrollToEntryId,
+    getListViewport,
+    filteredItems: filteredEntries,
+    resetFilters: useCallback(() => { setFilter("all"); setQuery(""); }, []),
+    onScrollComplete,
+  });
 
   return (
     <div className={`flex min-h-0 flex-1 flex-col overflow-hidden${flush ? "" : " rounded-lg border"}`}>

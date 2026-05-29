@@ -29,7 +29,7 @@ export function buildLogsHtml(
       createdAt: new Date().toISOString(),
       pageUrl,
       ...(issueTitle ? { issueTitle } : {}),
-      // issueKey·issueUrl은 meta 말미에 빈 자리를 둔다. 제출 후 injectIssueMeta가
+      // issueKey·issueUrl은 meta 말미에 빈 자리를 둔다. 제출 후 injectIssueUrl이
       // 이 빈 값을 치환하며, 말미 위치 보장 덕에 pageUrl 등 앞선 값과의 marker 충돌이 없다.
       issueKey: "",
       issueUrl: issueUrl ?? "",

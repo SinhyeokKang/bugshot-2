@@ -12,6 +12,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { findActiveIndex } from "@/log-viewer/timeline";
 import { formatRelativeTime, syncRowClass } from "@/sidepanel/lib/logRow";
+import { useScrollToEntry } from "@/sidepanel/lib/useScrollToEntry";
 import { LogSeekChip } from "./LogSeekChip";
 
 type RequestFilter = "all" | "json" | "js" | "css" | "img" | "font" | "doc" | "other";
@@ -217,28 +218,14 @@ export function NetworkLogContent({ requests, flush, syncBaseMs, onSeek, activeT
     if (vp) vp.scrollTop = vp.scrollHeight;
   }, [filteredRequests.length, getListViewport]);
 
-  const scrollResetRef = useRef(false);
-  useEffect(() => {
-    if (!scrollToEntryId) { scrollResetRef.current = false; return; }
-    const vp = getListViewport();
-    if (!vp) { onScrollComplete?.(); return; }
-    const el = vp.querySelector<HTMLElement>(`[data-entry-id="${scrollToEntryId}"]`);
-    if (el) {
-      el.scrollIntoView({ block: "center", behavior: "smooth" });
-      setActiveId(scrollToEntryId);
-      onScrollComplete?.();
-      scrollResetRef.current = false;
-      return;
-    }
-    if (!scrollResetRef.current) {
-      scrollResetRef.current = true;
-      setFilter("all");
-      setQuery("");
-      return;
-    }
-    onScrollComplete?.();
-    scrollResetRef.current = false;
-  }, [scrollToEntryId, filteredRequests, getListViewport, onScrollComplete]);
+  useScrollToEntry({
+    scrollToEntryId,
+    getListViewport,
+    filteredItems: filteredRequests,
+    resetFilters: useCallback(() => { setFilter("all"); setQuery(""); }, []),
+    onScrollComplete,
+    onFound: useCallback(() => { if (scrollToEntryId) setActiveId(scrollToEntryId); }, [scrollToEntryId]),
+  });
 
   const onDragStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault();

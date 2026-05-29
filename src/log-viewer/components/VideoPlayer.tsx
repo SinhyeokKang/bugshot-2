@@ -18,13 +18,12 @@ interface VideoPlayerProps {
   issueKey?: string;
   issueUrl?: string;
   onMarkerClick: (marker: TimelineMarker) => void;
-  onTimeUpdate?: (currentTimeSec: number) => void;
   onDurationChange: (durationSec: number) => void;
   onError: () => void;
 }
 
 export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
-  function VideoPlayer({ src, poster, markers, issueTitle, issueKey, issueUrl, onMarkerClick, onTimeUpdate, onDurationChange, onError }, ref) {
+  function VideoPlayer({ src, poster, markers, issueTitle, issueKey, issueUrl, onMarkerClick, onDurationChange, onError }, ref) {
     const videoRef = useRef<HTMLVideoElement>(null);
     const [isPlaying, setIsPlaying] = useState(false);
     const [pauseFlash, setPauseFlash] = useState(false);
@@ -53,8 +52,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
       const el = videoRef.current;
       if (!el) return;
       setCurrentTimeSec(el.currentTime);
-      onTimeUpdate?.(el.currentTime);
-    }, [onTimeUpdate]);
+    }, []);
 
     const handleDurationChange = useCallback(() => {
       const el = videoRef.current;
@@ -134,7 +132,7 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
             <h1 className="relative truncate text-[20px] font-bold leading-snug text-white opacity-0 transition-opacity duration-300 group-hover:opacity-100">{issueTitle}</h1>
             {issueKey && (
               <a
-                href={issueUrl}
+                href={issueUrl && /^https?:\/\//.test(issueUrl) ? issueUrl : undefined}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="relative mt-1 inline-block text-[14px] font-medium text-white/60 opacity-0 transition-opacity duration-300 hover:text-white/80 group-hover:opacity-100"

@@ -125,6 +125,7 @@ export function buildMarkers(
         labelParts = [{ text: label }];
         break;
       }
+      default: { e.kind satisfies never; label = ""; labelParts = []; }
     }
     return {
       id: e.id,
