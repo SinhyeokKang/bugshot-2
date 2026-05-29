@@ -133,6 +133,8 @@ shorthand(var 포함) + 같은 shorthand의 longhand override 조합에서 Chrom
 
 **영상-로그 동기화**: `LogViewerData.video`에 영상 임베드 → log-viewer가 좌(영상)/우(3탭) 분할, `LogSeekChip`으로 행↔영상 양방향 seek + active 행 하이라이트. 동기화 0점은 `video.startedAt`. props 미공급(라이브 사이드패널 서브탭)이면 칩·active 안 생겨 기존 레이아웃 불변.
 
+**타임라인 마커**: `markers.ts:buildMarkers`가 활성 로그 탭(console/network/action)에 따라 프로그레스 바 위에 핀 마커를 생성. 마커 variant(error/warn/info/pending/navigate/default)별 색 분류. `ProgressBar` 위에 `absolute` 핀으로 렌더, 호버 시 포탈 툴팁(stacking context clipping 방지). 마커 클릭 → `onMarkerClick` → 우측 로그 탭에서 해당 entry로 스크롤(`useScrollToEntry` 훅 — CSS.escape + 필터 리셋 후 재시도 + `scrollIntoView`). `VideoPlayer`는 커스텀 플레이어(재생/일시정지/다운로드 + 이슈 제목·키 오버레이).
+
 **issueUrl 주입**: `buildLogsHtml`이 meta 마지막에 빈 `issueUrl:""` 예약. 이슈 생성 후 `injectIssueUrl`이 해당 자리만 치환(청크 단위 btoa로 ~20MB 블로킹 회피). Jira·Linear는 생성 후 주입, GitHub·Notion은 구조상 불가(빈 값 → 뷰어가 링크 숨김).
 
 **handleStartVideo**: `injectNetworkRecorder` → `clearNetworkRecorder` → `startRecording` 순. 녹화 종료(`recording→drafting`) 시 `recordersStopped=true`로 drafting 중 재주입 차단.
