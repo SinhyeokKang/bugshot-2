@@ -32,6 +32,7 @@ export interface BuildCaptureFilesInput {
   videoEndedAt?: number;
   videoThumbnail?: string | null;
   pageUrl?: string;
+  issueTitle?: string;
 }
 
 export async function buildCaptureFiles(
@@ -66,7 +67,7 @@ export async function buildCaptureFiles(
               ...(input.videoThumbnail ? { thumbnail: input.videoThumbnail } : {}),
             }
           : null;
-      const html = buildLogsHtml(input.networkLog ?? null, input.consoleLog ?? null, actionLog, videoEmbed, input.pageUrl ?? "");
+      const html = buildLogsHtml(input.networkLog ?? null, input.consoleLog ?? null, actionLog, videoEmbed, input.pageUrl ?? "", undefined, input.issueTitle);
       const htmlBlob = new Blob([html], { type: "text/html" });
       result.logs.push({
         filename: "logs.html",

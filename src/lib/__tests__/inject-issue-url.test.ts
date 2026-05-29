@@ -17,7 +17,7 @@ function decodeDataUrl(dataUrl: string): string {
 }
 
 // buildLogsHtml은 issueUrl을 항상 meta의 마지막 키로 빈 자리("issueUrl":"")로 둔다.
-const baseHtml = `<!DOCTYPE html><html><body><script id="__BUGSHOT_DATA__" type="application/json">{"networkLog":null,"consoleLog":null,"har":null,"consoleLogJson":null,"meta":{"version":"1.0.0","createdAt":"2025-01-01T00:00:00.000Z","pageUrl":"https://example.com","issueUrl":""}}</script></body></html>`;
+const baseHtml = `<!DOCTYPE html><html><body><script id="__BUGSHOT_DATA__" type="application/json">{"networkLog":null,"consoleLog":null,"har":null,"consoleLogJson":null,"meta":{"version":"1.0.0","createdAt":"2025-01-01T00:00:00.000Z","pageUrl":"https://example.com","issueKey":"","issueUrl":""}}</script></body></html>`;
 
 function extract(html: string): Record<string, any> {
   return JSON.parse(
@@ -36,6 +36,18 @@ describe("injectIssueUrl", () => {
     const data = extract(decodeDataUrl(result));
     expect(data.meta.version).toBe("1.0.0");
     expect(data.meta.pageUrl).toBe("https://example.com");
+  });
+
+  it("issueKey도 함께 주입", async () => {
+    const result = await injectIssueUrl(makeDataUrl(baseHtml), "https://jira.example.com/browse/BUG-1", "BUG-1");
+    const data = extract(decodeDataUrl(result));
+    expect(data.meta.issueKey).toBe("BUG-1");
+    expect(data.meta.issueUrl).toBe("https://jira.example.com/browse/BUG-1");
+  });
+
+  it("issueKey 미전달 시 빈 문자열 유지", async () => {
+    const result = await injectIssueUrl(makeDataUrl(baseHtml), "https://example.com/issue/1");
+    expect(extract(decodeDataUrl(result)).meta.issueKey).toBe("");
   });
 
   it("유효하지 않은 dataUrl → 원본 반환", async () => {
@@ -58,7 +70,7 @@ describe("injectIssueUrl", () => {
     const evilUrl = 'https://x.com/?q="issueUrl":""';
     const data = {
       networkLog: null,
-      meta: { version: "1.0.0", createdAt: "2025-01-01T00:00:00.000Z", pageUrl: evilUrl, issueUrl: "" },
+      meta: { version: "1.0.0", createdAt: "2025-01-01T00:00:00.000Z", pageUrl: evilUrl, issueKey: "", issueUrl: "" },
     };
     const html = `<!DOCTYPE html><html><body><script id="__BUGSHOT_DATA__" type="application/json">${JSON.stringify(data)}</script></body></html>`;
     const parsed = extract(decodeDataUrl(await injectIssueUrl(makeDataUrl(html), "https://jira.example.com/browse/BUG-2")));
@@ -71,11 +83,12 @@ describe("injectIssueUrl", () => {
     const data = {
       networkLog: null,
       video: { dataUrl: fakeVideo, startedAt: 1000 },
-      meta: { version: "1.0.0", createdAt: "2025-01-01T00:00:00.000Z", pageUrl: "https://example.com", issueUrl: "" },
+      meta: { version: "1.0.0", createdAt: "2025-01-01T00:00:00.000Z", pageUrl: "https://example.com", issueKey: "", issueUrl: "" },
     };
     const html = `<!DOCTYPE html><html><body><script id="__BUGSHOT_DATA__" type="application/json">${JSON.stringify(data)}</script></body></html>`;
-    const parsed = extract(decodeDataUrl(await injectIssueUrl(makeDataUrl(html), "https://jira.example.com/browse/BUG-9")));
+    const parsed = extract(decodeDataUrl(await injectIssueUrl(makeDataUrl(html), "https://jira.example.com/browse/BUG-9", "BUG-9")));
     expect(parsed.meta.issueUrl).toBe("https://jira.example.com/browse/BUG-9");
+    expect(parsed.meta.issueKey).toBe("BUG-9");
     expect(parsed.video.dataUrl).toBe(fakeVideo);
     expect(parsed.video.startedAt).toBe(1000);
   });

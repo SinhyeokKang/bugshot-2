@@ -189,6 +189,7 @@ export function ConsoleLogContent({ entries, startedAt, flush, syncBaseMs, onSee
                 syncBaseMs={syncBaseMs}
                 onSeek={onSeek}
                 isActive={entry.id === activeId}
+                scrollToEntryId={scrollToEntryId}
               />
             ))}
           </div>
@@ -198,14 +199,20 @@ export function ConsoleLogContent({ entries, startedAt, flush, syncBaseMs, onSee
   );
 }
 
-function EntryAccordion({ entry, startedAt, syncBaseMs, onSeek, isActive }: {
+function EntryAccordion({ entry, startedAt, syncBaseMs, onSeek, isActive, scrollToEntryId }: {
   entry: ConsoleEntry;
   startedAt?: number;
   syncBaseMs?: number;
   onSeek?: (absTs: number) => void;
   isActive?: boolean;
+  scrollToEntryId?: string | null;
 }) {
   const [expanded, setExpanded] = useState(false);
+
+  useEffect(() => {
+    if (!scrollToEntryId) return;
+    setExpanded(entry.id === scrollToEntryId);
+  }, [scrollToEntryId, entry.id]);
   const t = useT();
   const base = syncBaseMs ?? startedAt;
 

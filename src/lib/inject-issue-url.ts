@@ -23,27 +23,34 @@ async function bytesToBase64(bytes: Uint8Array): Promise<string> {
 export async function injectIssueUrl(
   logsDataUrl: string,
   issueUrl: string,
+  issueKey?: string,
 ): Promise<string> {
   const mime = /^data:(.*?);base64,/.exec(logsDataUrl)?.[1];
   if (mime === undefined) return logsDataUrl;
 
-  // fetch(data:)로 디코딩 — 네이티브 비동기라 atob+TextDecoder 동기 변환을 대체한다.
   const html = await (await fetch(logsDataUrl)).text();
 
   const sm = html.match(DATA_TAG);
   if (!sm) return logsDataUrl;
 
-  // buildLogsHtml이 meta의 마지막 키로 박아둔 빈 issueUrl 자리를 치환한다. meta는 data(=JSON)의
-  // 마지막 top-level 키이고 issueUrl은 meta의 마지막 키이므로, 이 marker는 JSON 전체에서 항상
-  // 가장 뒤에 위치한다 → 응답 본문·pageUrl 값에 같은 리터럴이 박혀도 lastIndexOf가 진짜를 잡는다.
-  const json = sm[2];
-  const marker = '"issueUrl":""';
-  const idx = json.lastIndexOf(marker);
-  if (idx === -1) return logsDataUrl;
-  // buildLogsHtml과 동일하게 < 를 escape. JSON.stringify가 바깥 따옴표까지 포함한다.
-  const urlLiteral = JSON.stringify(issueUrl).replace(/</g, "\\u003c");
-  const newJson = `${json.slice(0, idx)}"issueUrl":${urlLiteral}${json.slice(idx + marker.length)}`;
+  let json = sm[2];
 
-  const newHtml = html.replace(DATA_TAG, () => `${sm[1]}${newJson}${sm[3]}`);
+  if (issueKey) {
+    const keyMarker = '"issueKey":""';
+    const keyIdx = json.lastIndexOf(keyMarker);
+    if (keyIdx !== -1) {
+      const keyLiteral = JSON.stringify(issueKey).replace(/</g, "\\u003c");
+      json = `${json.slice(0, keyIdx)}"issueKey":${keyLiteral}${json.slice(keyIdx + keyMarker.length)}`;
+    }
+  }
+
+  const urlMarker = '"issueUrl":""';
+  const urlIdx = json.lastIndexOf(urlMarker);
+  if (urlIdx !== -1) {
+    const urlLiteral = JSON.stringify(issueUrl).replace(/</g, "\\u003c");
+    json = `${json.slice(0, urlIdx)}"issueUrl":${urlLiteral}${json.slice(urlIdx + urlMarker.length)}`;
+  }
+
+  const newHtml = html.replace(DATA_TAG, () => `${sm[1]}${json}${sm[3]}`);
   return `data:${mime};base64,${await bytesToBase64(new TextEncoder().encode(newHtml))}`;
 }

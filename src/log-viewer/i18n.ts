@@ -63,9 +63,9 @@ export const koDict: Record<string, string> = {
   "debug.network.empty": "네트워크 요청이 없습니다",
   "debug.console.empty": "콘솔 로그가 없습니다",
 
-  "logViewer.tab.console": "Console Log",
-  "logViewer.tab.network": "Network Log",
-  "logViewer.tab.action": "Action Log",
+  "logViewer.tab.console": "콘솔 로그",
+  "logViewer.tab.network": "네트워크 로그",
+  "logViewer.tab.action": "액션 로그",
   "logViewer.footer.issueLink": "이슈 바로가기",
   "logViewer.video.error": "영상을 재생할 수 없습니다",
   "logViewer.seekTo": "{time} 지점으로 이동",
@@ -75,6 +75,7 @@ export const koDict: Record<string, string> = {
   "logViewer.noAction": "액션 데이터 없음",
   "logViewer.player.play": "재생",
   "logViewer.player.pause": "일시정지",
+  "logViewer.player.download": "영상 다운로드",
   "logViewer.player.progressBar": "재생 진행 바",
 
   "json.showAll": "전체 보기",
@@ -141,9 +142,9 @@ export const enDict: Record<string, string> = {
   "debug.network.empty": "No network requests",
   "debug.console.empty": "No console logs",
 
-  "logViewer.tab.console": "Console Log",
-  "logViewer.tab.network": "Network Log",
-  "logViewer.tab.action": "Action Log",
+  "logViewer.tab.console": "Console Logs",
+  "logViewer.tab.network": "Network Logs",
+  "logViewer.tab.action": "Action Logs",
   "logViewer.footer.issueLink": "Go to Issue",
   "logViewer.video.error": "Unable to play video",
   "logViewer.seekTo": "Jump to {time}",
@@ -153,6 +154,7 @@ export const enDict: Record<string, string> = {
   "logViewer.noAction": "No action data",
   "logViewer.player.play": "Play",
   "logViewer.player.pause": "Pause",
+  "logViewer.player.download": "Download video",
   "logViewer.player.progressBar": "Playback progress bar",
 
   "json.showAll": "show all",

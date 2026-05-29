@@ -218,6 +218,9 @@ export function App({ data }: AppProps) {
               src={video.dataUrl}
               poster={video.thumbnail}
               markers={markers}
+              issueTitle={data.meta.issueTitle}
+              issueKey={data.meta.issueKey}
+              issueUrl={data.meta.issueUrl}
               onMarkerClick={handleMarkerClick}
               onDurationChange={setVideoDurationSec}
               onError={() => setVideoError(true)}

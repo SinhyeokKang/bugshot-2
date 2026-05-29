@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { buildMarkers } from "../markers";
+import { t } from "../i18n";
 import type { LogViewerData } from "@/types/log-viewer";
 import type { ConsoleLog, ConsoleEntry } from "@/types/console";
 import type { NetworkLog, NetworkRequest } from "@/types/network";
@@ -137,7 +138,7 @@ describe("buildMarkers — 빈 데이터·가드", () => {
 // ---------- Console 탭 ----------
 
 describe("buildMarkers — console 탭", () => {
-  it("error와 warn만 포함, log/info/debug 제외", () => {
+  it("전체 레벨 포함", () => {
     const data = makeData({
       consoleLog: makeConsoleLog([
         makeConsoleEntry({ id: "e1", level: "error" }),
@@ -148,20 +149,24 @@ describe("buildMarkers — console 탭", () => {
       ]),
     });
     const markers = buildMarkers(data, "console", VIDEO_DURATION_SEC, VIDEO_STARTED_AT);
-    expect(markers).toHaveLength(2);
-    expect(markers.map((m) => m.id)).toEqual(["e1", "w1"]);
+    expect(markers).toHaveLength(5);
+    expect(markers.map((m) => m.id)).toEqual(["e1", "w1", "l1", "i1", "d1"]);
   });
 
-  it("error → variant 'error', warn → variant 'warn'", () => {
+  it("error → 'error', warn → 'warn', 그 외 → 'default'", () => {
     const data = makeData({
       consoleLog: makeConsoleLog([
         makeConsoleEntry({ id: "e1", level: "error" }),
         makeConsoleEntry({ id: "w1", level: "warn" }),
+        makeConsoleEntry({ id: "l1", level: "log" }),
+        makeConsoleEntry({ id: "i1", level: "info" }),
       ]),
     });
     const markers = buildMarkers(data, "console", VIDEO_DURATION_SEC, VIDEO_STARTED_AT);
     expect(markers[0].variant).toBe("error");
     expect(markers[1].variant).toBe("warn");
+    expect(markers[2].variant).toBe("default");
+    expect(markers[3].variant).toBe("info");
   });
 
   it("type은 'console'", () => {
@@ -184,7 +189,7 @@ describe("buildMarkers — console 탭", () => {
     expect(markers[1].label).toBe("[WARN] Deprecation notice");
   });
 
-  it("label: args가 80자 초과 시 잘림", () => {
+  it("label: args가 길어도 잘리지 않음", () => {
     const longArgs = "a".repeat(100);
     const data = makeData({
       consoleLog: makeConsoleLog([
@@ -192,8 +197,7 @@ describe("buildMarkers — console 탭", () => {
       ]),
     });
     const markers = buildMarkers(data, "console", VIDEO_DURATION_SEC, VIDEO_STARTED_AT);
-    const expectedTruncated = longArgs.slice(0, 80);
-    expect(markers[0].label).toBe(`[ERROR] ${expectedTruncated}`);
+    expect(markers[0].label).toBe(`[ERROR] ${longArgs}`);
   });
 
   it("absTs는 entry.timestamp", () => {
@@ -279,7 +283,7 @@ describe("buildMarkers — network 탭", () => {
     expect(markers[1].label).toBe("[404] POST https://api.example.com/users");
   });
 
-  it("label: url이 60자 초과 시 뒤 60자만", () => {
+  it("label: url이 길어도 잘리지 않음", () => {
     const longUrl = "https://api.example.com/" + "x".repeat(80);
     const data = makeData({
       networkLog: makeNetworkLog([
@@ -293,8 +297,7 @@ describe("buildMarkers — network 탭", () => {
       ]),
     });
     const markers = buildMarkers(data, "network", VIDEO_DURATION_SEC, VIDEO_STARTED_AT);
-    const urlSuffix = longUrl.slice(-60);
-    expect(markers[0].label).toBe(`[0] GET ${urlSuffix}`);
+    expect(markers[0].label).toBe(`[0] GET ${longUrl}`);
   });
 
   it("type은 'network'", () => {
@@ -348,27 +351,38 @@ describe("buildMarkers — action 탭", () => {
     expect(markers[2].variant).toBe("default");
   });
 
-  it("label: click → 'Click: {target}'", () => {
+  it("label: click → i18n verb.click 템플릿 + role", () => {
+    const data = makeData({
+      actionLog: makeActionLog([
+        makeActionEntry({ kind: "click", target: "Submit", role: "button" }),
+      ]),
+    });
+    const markers = buildMarkers(data, "action", VIDEO_DURATION_SEC, VIDEO_STARTED_AT);
+    const roleWord = t("actionLog.role.button");
+    expect(markers[0].label).toBe(t("actionLog.verb.click", { target: `"Submit" ${roleWord}` }));
+  });
+
+  it("label: click role 없으면 이름만 표시", () => {
     const data = makeData({
       actionLog: makeActionLog([
         makeActionEntry({ kind: "click", target: "Submit" }),
       ]),
     });
     const markers = buildMarkers(data, "action", VIDEO_DURATION_SEC, VIDEO_STARTED_AT);
-    expect(markers[0].label).toBe("Click: Submit");
+    expect(markers[0].label).toBe(t("actionLog.verb.click", { target: '"Submit"' }));
   });
 
-  it("label: navigation → 'Nav: {toUrl 뒤 60자}'", () => {
+  it("label: navigation → i18n verb.navigate 템플릿", () => {
     const data = makeData({
       actionLog: makeActionLog([
         makeActionEntry({ kind: "navigation", toUrl: "https://example.com/page" }),
       ]),
     });
     const markers = buildMarkers(data, "action", VIDEO_DURATION_SEC, VIDEO_STARTED_AT);
-    expect(markers[0].label).toBe("Nav: https://example.com/page");
+    expect(markers[0].label).toBe(t("actionLog.verb.navigate", { target: "https://example.com/page" }));
   });
 
-  it("label: navigation toUrl이 60자 초과 시 뒤 60자만", () => {
+  it("label: navigation URL이 길어도 잘리지 않음", () => {
     const longUrl = "https://example.com/" + "p".repeat(80);
     const data = makeData({
       actionLog: makeActionLog([
@@ -376,18 +390,17 @@ describe("buildMarkers — action 탭", () => {
       ]),
     });
     const markers = buildMarkers(data, "action", VIDEO_DURATION_SEC, VIDEO_STARTED_AT);
-    const urlSuffix = longUrl.slice(-60);
-    expect(markers[0].label).toBe(`Nav: ${urlSuffix}`);
+    expect(markers[0].label).toBe(t("actionLog.verb.navigate", { target: longUrl }));
   });
 
-  it("label: input → 'Input: {fieldLabel}'", () => {
+  it("label: input → i18n verb.input 템플릿", () => {
     const data = makeData({
       actionLog: makeActionLog([
-        makeActionEntry({ kind: "input", fieldLabel: "Password" }),
+        makeActionEntry({ kind: "input", fieldLabel: "Password", value: "secret", masked: true }),
       ]),
     });
     const markers = buildMarkers(data, "action", VIDEO_DURATION_SEC, VIDEO_STARTED_AT);
-    expect(markers[0].label).toBe("Input: Password");
+    expect(markers[0].label).toBe(t("actionLog.verb.input", { field: '"Password"', value: "[********]" }));
   });
 
   it("type은 'action'", () => {

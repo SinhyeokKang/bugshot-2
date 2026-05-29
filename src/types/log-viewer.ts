@@ -18,6 +18,8 @@ export interface LogViewerData {
     version: string;
     createdAt: string;
     pageUrl: string;
+    issueTitle?: string;
+    issueKey?: string;
     issueUrl?: string;
   };
 }

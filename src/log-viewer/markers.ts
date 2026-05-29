@@ -1,8 +1,14 @@
 import type { LogViewerData } from "@/types/log-viewer";
 import { toVideoSeconds } from "./timeline";
+import { t } from "./i18n";
 
 export type MarkerType = "console" | "network" | "action";
-export type MarkerVariant = "error" | "warn" | "pending" | "navigate" | "default";
+export type MarkerVariant = "error" | "warn" | "info" | "pending" | "navigate" | "default";
+
+export interface LabelPart {
+  text: string;
+  className?: string;
+}
 
 export interface TimelineMarker {
   id: string;
@@ -11,18 +17,11 @@ export interface TimelineMarker {
   absTs: number;
   positionPct: number;
   label: string;
+  labelParts: LabelPart[];
 }
 
 function clamp(min: number, max: number, v: number): number {
   return Math.min(max, Math.max(min, v));
-}
-
-function truncEnd(s: string, max: number): string {
-  return s.length > max ? s.slice(-max) : s;
-}
-
-function truncStart(s: string, max: number): string {
-  return s.length > max ? s.slice(0, max) : s;
 }
 
 function pct(absTs: number, videoStartedAt: number, videoDurationSec: number): number {
@@ -40,21 +39,38 @@ export function buildMarkers(
   if (activeTab === "console") {
     const log = data.consoleLog;
     if (!log) return [];
-    return log.entries
-      .filter((e) => e.level === "error" || e.level === "warn")
-      .map((e) => ({
+    const LEVEL_VARIANT: Record<string, MarkerVariant> = {
+      error: "error", warn: "warn", info: "info",
+    };
+    const LEVEL_COLOR: Record<string, string> = {
+      error: "text-red-600", warn: "text-amber-600",
+      info: "text-blue-600", debug: "text-gray-500", log: "text-gray-500",
+    };
+    return log.entries.map((e) => {
+      const tag = e.level.toUpperCase();
+      return {
         id: e.id,
         type: "console" as const,
-        variant: e.level === "error" ? ("error" as const) : ("warn" as const),
+        variant: LEVEL_VARIANT[e.level] ?? ("default" as const),
         absTs: e.timestamp,
         positionPct: pct(e.timestamp, videoStartedAt, videoDurationSec),
-        label: `[${e.level === "error" ? "ERROR" : "WARN"}] ${truncStart(e.args, 80)}`,
-      }));
+        label: `[${tag}] ${e.args}`,
+        labelParts: [
+          { text: tag, className: LEVEL_COLOR[e.level] ?? "text-gray-500" },
+          { text: "\n" },
+          { text: e.args },
+        ],
+      };
+    });
   }
 
   if (activeTab === "network") {
     const log = data.networkLog;
     if (!log) return [];
+    const METHOD_COLOR: Record<string, string> = {
+      GET: "text-blue-600", POST: "text-green-600", PUT: "text-amber-600",
+      PATCH: "text-amber-600", DELETE: "text-red-600",
+    };
     return log.requests
       .filter((r) => r.phase === "error" || r.phase === "pending" || r.status >= 400)
       .map((r) => {
@@ -67,7 +83,14 @@ export function buildMarkers(
           variant,
           absTs: r.startTime,
           positionPct: pct(r.startTime, videoStartedAt, videoDurationSec),
-          label: `${prefix} ${r.method} ${truncEnd(r.url, 60)}`,
+          label: `${prefix} ${r.method} ${r.url}`,
+          labelParts: [
+            { text: isPending ? "Pending" : String(r.status), className: isPending ? "text-amber-600" : "text-red-600" },
+            { text: "\n" },
+            { text: r.method, className: METHOD_COLOR[r.method] ?? "text-violet-600" },
+            { text: "\n" },
+            { text: r.url },
+          ],
         };
       });
   }
@@ -77,18 +100,31 @@ export function buildMarkers(
   if (!log) return [];
   return log.entries.map((e) => {
     let label: string;
+    let labelParts: LabelPart[];
     let variant: MarkerVariant = "default";
     switch (e.kind) {
-      case "click":
-        label = `Click: ${e.target ?? ""}`;
+      case "click": {
+        const name = e.target ?? e.selector ?? "";
+        const roleKey = e.role ? `actionLog.role.${e.role}` : "";
+        const rw = roleKey ? t(roleKey) : "";
+        const target = rw && rw !== roleKey ? `"${name}" ${rw}` : `"${name}"`;
+        label = t("actionLog.verb.click", { target });
+        labelParts = [{ text: label }];
         break;
-      case "navigation":
+      }
+      case "navigation": {
         variant = "navigate";
-        label = `Nav: ${truncEnd(e.toUrl ?? "", 60)}`;
+        label = t("actionLog.verb.navigate", { target: e.toUrl ?? "" });
+        labelParts = [{ text: label, className: "text-blue-600" }];
         break;
-      case "input":
-        label = `Input: ${e.fieldLabel ?? ""}`;
+      }
+      case "input": {
+        const field = `"${e.fieldLabel ?? e.selector ?? ""}"`;
+        const value = e.masked ? "[********]" : `"${e.value ?? ""}"`;
+        label = t("actionLog.verb.input", { field, value });
+        labelParts = [{ text: label }];
         break;
+      }
     }
     return {
       id: e.id,
@@ -97,6 +133,7 @@ export function buildMarkers(
       absTs: e.timestamp,
       positionPct: pct(e.timestamp, videoStartedAt, videoDurationSec),
       label,
+      labelParts,
     };
   });
 }

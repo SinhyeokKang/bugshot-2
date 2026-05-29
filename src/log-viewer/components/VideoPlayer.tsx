@@ -1,5 +1,5 @@
-import { forwardRef, useCallback, useImperativeHandle, useRef, useState } from "react";
-import { Play, Pause } from "lucide-react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { Play, Pause, Download } from "lucide-react";
 import type { TimelineMarker } from "../markers";
 import { formatPlayerTime } from "../timeline";
 import { ProgressBar } from "./ProgressBar";
@@ -14,6 +14,9 @@ interface VideoPlayerProps {
   src: string;
   poster?: string;
   markers: TimelineMarker[];
+  issueTitle?: string;
+  issueKey?: string;
+  issueUrl?: string;
   onMarkerClick: (marker: TimelineMarker) => void;
   onTimeUpdate?: (currentTimeSec: number) => void;
   onDurationChange: (durationSec: number) => void;
@@ -21,11 +24,15 @@ interface VideoPlayerProps {
 }
 
 export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
-  function VideoPlayer({ src, poster, markers, onMarkerClick, onTimeUpdate, onDurationChange, onError }, ref) {
+  function VideoPlayer({ src, poster, markers, issueTitle, issueKey, issueUrl, onMarkerClick, onTimeUpdate, onDurationChange, onError }, ref) {
     const videoRef = useRef<HTMLVideoElement>(null);
     const [isPlaying, setIsPlaying] = useState(false);
+    const [pauseFlash, setPauseFlash] = useState(false);
+    const pauseFlashTimer = useRef<ReturnType<typeof setTimeout>>();
     const [currentTimeSec, setCurrentTimeSec] = useState(0);
     const [durationSec, setDurationSec] = useState(0);
+
+    useEffect(() => () => clearTimeout(pauseFlashTimer.current), []);
 
     useImperativeHandle(ref, () => ({
       seekToSec(timeSec: number) {
@@ -56,6 +63,13 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
       onDurationChange(el.duration);
     }, [onDurationChange]);
 
+    const handleDownload = useCallback(() => {
+      const a = document.createElement("a");
+      a.href = src;
+      a.download = "recording.mp4";
+      a.click();
+    }, [src]);
+
     const handleSeek = useCallback((pct: number) => {
       const el = videoRef.current;
       if (!el || !durationSec) return;
@@ -65,10 +79,10 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
     const currentPct = durationSec > 0 ? (currentTimeSec / durationSec) * 100 : 0;
 
     return (
-      <div className="flex h-full flex-col">
+      <div className="group relative h-full">
         {/* Video area */}
         <div
-          className="flex min-h-0 flex-1 cursor-pointer items-center justify-center bg-black"
+          className="flex h-full cursor-pointer items-center justify-center bg-black"
           onClick={togglePlay}
         >
           <video
@@ -79,35 +93,96 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
             onTimeUpdate={handleTimeUpdate}
             onLoadedMetadata={handleDurationChange}
             onDurationChange={handleDurationChange}
-            onPlay={() => setIsPlaying(true)}
-            onPause={() => setIsPlaying(false)}
+            onPlay={() => {
+              setIsPlaying(true);
+              setPauseFlash(true);
+              clearTimeout(pauseFlashTimer.current);
+              pauseFlashTimer.current = setTimeout(() => setPauseFlash(false), 1500);
+            }}
+            onPause={() => {
+              setIsPlaying(false);
+              setPauseFlash(false);
+              clearTimeout(pauseFlashTimer.current);
+            }}
             onEnded={() => setIsPlaying(false)}
             onError={onError}
           />
         </div>
 
-        {/* Controls */}
-        <div className="flex items-center gap-2 border-t bg-muted px-3 py-2">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8"
-            onClick={togglePlay}
-            aria-label={isPlaying ? t("logViewer.player.pause") : t("logViewer.player.play")}
-          >
-            {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-          </Button>
+        {/* Center play button — visible on hover when paused */}
+        {!isPlaying && (
+          <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center opacity-0 transition-opacity duration-300 group-hover:opacity-100">
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-black/40 backdrop-blur-sm">
+              <Play className="h-10 w-10 fill-white text-white" />
+            </div>
+          </div>
+        )}
 
-          <ProgressBar
-            currentPct={currentPct}
-            markers={markers}
-            onSeek={handleSeek}
-            onMarkerClick={onMarkerClick}
-          />
+        {/* Center pause flash — briefly visible after play starts */}
+        {isPlaying && (
+          <div className={`pointer-events-none absolute inset-0 z-10 flex items-center justify-center transition-opacity duration-500 ${pauseFlash ? "opacity-100" : "opacity-0"}`}>
+            <div className="flex h-16 w-16 items-center justify-center rounded-full bg-black/40 backdrop-blur-sm">
+              <Pause className="h-10 w-10 fill-white text-white" />
+            </div>
+          </div>
+        )}
 
-          <span className="shrink-0 text-xs font-mono text-muted-foreground">
-            {formatPlayerTime(currentTimeSec)} / {formatPlayerTime(durationSec)}
-          </span>
+        {/* Issue title — top overlay, dim + text visible on hover */}
+        {issueTitle && (
+          <div className="absolute inset-x-0 top-0 z-10 px-6 pb-8 pt-6" style={{ pointerEvents: "none" }}>
+            <div className="absolute inset-0 bg-gradient-to-b from-black/80 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100" />
+            <h1 className="relative truncate text-[20px] font-bold leading-snug text-white opacity-0 transition-opacity duration-300 group-hover:opacity-100">{issueTitle}</h1>
+            {issueKey && (
+              <a
+                href={issueUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="relative mt-1 inline-block text-[14px] font-medium text-white/60 opacity-0 transition-opacity duration-300 hover:text-white/80 group-hover:opacity-100"
+                style={{ pointerEvents: "auto" }}
+              >
+                {issueKey}
+              </a>
+            )}
+          </div>
+        )}
+
+        {/* Controls — bottom overlay */}
+        <div className="absolute inset-x-0 bottom-0 z-10 flex flex-col bg-gradient-to-b from-transparent to-black/80 pt-8">
+          <div className="px-4">
+            <ProgressBar
+              currentPct={currentPct}
+              durationSec={durationSec}
+              markers={markers}
+              onSeek={handleSeek}
+              onMarkerClick={onMarkerClick}
+            />
+          </div>
+
+          <div className="flex items-center gap-1 px-4 py-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-12 w-12 text-white hover:text-white/70 hover:bg-transparent"
+              onClick={togglePlay}
+              aria-label={isPlaying ? t("logViewer.player.pause") : t("logViewer.player.play")}
+            >
+              {isPlaying ? <Pause className="!h-5 !w-5 fill-current" /> : <Play className="!h-5 !w-5 fill-current" />}
+            </Button>
+
+            <span className="text-sm text-white">
+              {formatPlayerTime(currentTimeSec)} / {formatPlayerTime(durationSec)}
+            </span>
+
+            <Button
+              variant="ghost"
+              size="icon"
+              className="ml-auto h-12 w-12 text-white hover:text-white/70 hover:bg-transparent"
+              onClick={handleDownload}
+              aria-label={t("logViewer.player.download")}
+            >
+              <Download className="!h-5 !w-5" />
+            </Button>
+          </div>
         </div>
       </div>
     );

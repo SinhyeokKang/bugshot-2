@@ -142,7 +142,7 @@ const en = {
   "actionLog.filter.navigation": "Navigation",
   "actionLog.filter.input": "Input",
   "actionLog.empty": "No actions captured",
-  "actionLog.dialog.title": "Action Log",
+  "actionLog.dialog.title": "Action Logs",
   "actionLog.cardDescription": "{captured} captured",
   "actionLog.verb.click": "Clicked {target}",
   "actionLog.verb.input": "Entered {value} in {field}",

@@ -246,6 +246,7 @@ export function IssueCreateModal() {
       videoEndedAt: videoEndedAt ?? undefined,
       videoThumbnail,
       pageUrl: target?.url ?? "",
+      issueTitle: draft?.title?.trim() || undefined,
     });
   }
 

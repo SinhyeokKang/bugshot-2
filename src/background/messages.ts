@@ -336,7 +336,7 @@ async function submitIssue(
 
   for (const att of attachments) {
     if (att.filename === "logs.html") {
-      att.dataUrl = await injectIssueUrl(att.dataUrl, issueUrl);
+      att.dataUrl = await injectIssueUrl(att.dataUrl, issueUrl, issue.key);
     }
   }
 

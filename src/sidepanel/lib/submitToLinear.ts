@@ -112,7 +112,7 @@ export async function submitToLinear(
   const logFiles = await Promise.all(
     (input.logs ?? []).map(async (l) =>
       l.filename === "logs.html"
-        ? { ...l, dataUrl: await injectIssueUrl(l.dataUrl, result.url) }
+        ? { ...l, dataUrl: await injectIssueUrl(l.dataUrl, result.url, result.identifier) }
         : l,
     ),
   );

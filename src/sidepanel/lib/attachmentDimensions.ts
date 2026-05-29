@@ -9,13 +9,16 @@ function videoSize(src: string): Promise<{ width: number; height: number } | nul
     const v = document.createElement("video");
     v.preload = "metadata";
     v.muted = true;
-    v.onloadedmetadata = () =>
-      resolve(
+    const cleanup = () => { v.removeAttribute("src"); v.load(); };
+    v.onloadedmetadata = () => {
+      const dims =
         v.videoWidth > 0 && v.videoHeight > 0
           ? { width: v.videoWidth, height: v.videoHeight }
-          : null,
-      );
-    v.onerror = () => resolve(null);
+          : null;
+      cleanup();
+      resolve(dims);
+    };
+    v.onerror = () => { cleanup(); resolve(null); };
     v.src = src;
   });
 }

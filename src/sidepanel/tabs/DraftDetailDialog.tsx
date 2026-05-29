@@ -290,6 +290,7 @@ export function DraftDetailDialog({
       videoStartedAt: issue.videoStartedAt,
       videoEndedAt: issue.videoEndedAt,
       pageUrl: issue.pageUrl,
+      issueTitle: issue.title?.trim() || undefined,
     });
     return { ctx, captureFiles };
   }
