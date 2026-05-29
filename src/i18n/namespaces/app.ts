@@ -36,8 +36,8 @@ const ko = {
   "platform.getToken": "발급 페이지",
 
   "debug.tab.issue": "이슈 작성",
-  "debug.tab.console": "콘솔 로그",
-  "debug.tab.network": "네트워크 로그",
+  "debug.tab.console": "콘솔",
+  "debug.tab.network": "네트워크",
   "debug.console.empty": "콘솔 로그가 없습니다",
   "debug.network.empty": "네트워크 요청이 없습니다",
   "debug.logUnavailable.title": "로그를 확인할 수 없습니다",
@@ -85,8 +85,8 @@ const en = {
   "platform.getToken": "Get token",
 
   "debug.tab.issue": "Issue",
-  "debug.tab.console": "Console logs",
-  "debug.tab.network": "Network logs",
+  "debug.tab.console": "Console",
+  "debug.tab.network": "Network",
   "debug.console.empty": "No console logs captured",
   "debug.network.empty": "No network requests captured",
   "debug.logUnavailable.title": "Logs unavailable",

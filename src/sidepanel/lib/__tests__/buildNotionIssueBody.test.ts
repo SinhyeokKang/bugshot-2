@@ -488,7 +488,7 @@ describe("buildNotionIssueBody — freeform", () => {
 });
 
 describe("buildNotionIssueBody — 로그 요약", () => {
-  it("네트워크/콘솔 로그 요약은 code block", () => {
+  it("네트워크/콘솔 로그 요약은 단일 code block (카운트만, 에러 상세 없음)", () => {
     const out = buildNotionIssueBody({
       ctx: makeCtx({
         networkLogSummary: {
@@ -511,12 +511,14 @@ describe("buildNotionIssueBody — 로그 요약", () => {
       }),
     });
     const codeBlocks = out.blocks.filter((b) => b.type === "code");
-    expect(codeBlocks.length).toBeGreaterThanOrEqual(2);
+    expect(codeBlocks.length).toBe(1);
     const allCodeText = codeBlocks
       .map((b) => ("text" in b ? b.text : ""))
       .join("\n");
-    expect(allCodeText).toContain("GET /api/x → 500");
-    expect(allCodeText).toContain("TypeError");
+    expect(allCodeText).toContain("logSummary.network.line");
+    expect(allCodeText).toContain("logSummary.console.line");
+    expect(allCodeText).not.toContain("GET /api/x → 500");
+    expect(allCodeText).not.toContain("TypeError");
   });
 });
 

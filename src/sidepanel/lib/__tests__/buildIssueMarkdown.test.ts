@@ -179,8 +179,10 @@ describe("buildIssueMarkdown", () => {
         },
       }),
     );
-    expect(md).toContain("logSummary.network.title");
-    expect(md).toContain("GET /api → 500 Error");
+    expect(md).toContain("logSummary.title");
+    expect(md).toContain("logSummary.network.line");
+    expect(md).not.toContain("logSummary.network.title");
+    expect(md).not.toContain("GET /api → 500 Error");
   });
 
   it("pipe 문자 이스케이프", () => {
@@ -240,8 +242,9 @@ describe("buildIssueMarkdown — freeform", () => {
         },
       }),
     );
-    expect(md).toContain("logSummary.network.title");
-    expect(md).toContain("POST /api/submit → 502 Bad Gateway");
+    expect(md).toContain("logSummary.title");
+    expect(md).toContain("logSummary.network.line");
+    expect(md).not.toContain("POST /api/submit → 502 Bad Gateway");
   });
 
   it("freeform 모드 → meta comment에 selector/tagName 미포함", () => {
