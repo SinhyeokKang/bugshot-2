@@ -11,7 +11,7 @@
 - **변경 대상**: `src/log-viewer/markers.ts` (신규), `src/log-viewer/__tests__/markers.test.ts` (신규), `src/log-viewer/timeline.ts` (`formatPlayerTime` 추가), `src/log-viewer/__tests__/timeline.test.ts` (`formatPlayerTime` 테스트 추가)
 - **작업 내용**:
   - `MarkerType`, `MarkerVariant`, `TimelineMarker` 타입 정의 및 export
-    - `MarkerVariant = "error" | "warn" | "pending" | "default"` — 마커 색상 결정용
+    - `MarkerVariant = "error" | "warn" | "pending" | "navigate" | "default"` — 마커 색상 결정용
   - `buildMarkers(data, activeTab, videoDurationSec, videoStartedAt)` 구현:
     - `activeTab === "console"`: `consoleLog.entries` 중 `level === "error" || "warn"` 만 마커화
       - `absTs`: `entry.timestamp`
@@ -23,7 +23,7 @@
       - `label`: pending → `[Pending] {method} {url 뒤 60자}`, error → `[{status}] {method} {url 뒤 60자}`
     - `activeTab === "action"`: `actionLog.entries` 전체 마커화
       - `absTs`: `entry.timestamp`
-      - `variant`: `"default"`
+      - `variant`: type=navigation → `"navigate"`, 그 외 → `"default"`
       - `label`: click → `Click: {target}`, navigation → `Nav: {toUrl 뒤 60자}`, input → `Input: {fieldLabel}`
     - `positionPct = clamp(0, 100, toVideoSeconds(absTs, videoStartedAt) / videoDurationSec * 100)`
     - 해당 로그가 null이면 빈 배열 반환
@@ -38,7 +38,7 @@
     - 범위 밖 timestamp 클램프 (0%, 100%)
     - duration 0 → 빈 배열
     - label 생성 (truncation 포함)
-    - variant 값 정확성 (error/warn/pending/default)
+    - variant 값 정확성 (error/warn/pending/navigate/default)
   - `formatPlayerTime(sec)` 순수 함수를 `timeline.ts`에 추가: `Math.floor(sec/60):pad2(sec%60)`
   - `formatPlayerTime` 단위 테스트 (`timeline.test.ts`에 추가): 정상 값, 0, NaN, Infinity, 음수
 - **검증**:
@@ -57,7 +57,7 @@
     - 호버 시 `scale(1.1)` 효과
     - 마커 영역: 마커 0개여도 높이 유지 (탭 전환 시 레이아웃 점프 방지)
     - 마커 색상: `marker.variant` 기반 (label 파싱 금지)
-      - `"error"` → `bg-red-500`, `"warn"` → `bg-amber-500`, `"pending"` → `bg-amber-500`, `"default"` → `bg-primary`
+      - `"error"` → `bg-red-500`, `"warn"` → `bg-amber-500`, `"pending"` → `bg-amber-500`, `"navigate"` → `bg-sky-500`, `"default"` → `bg-primary`
   - 클릭 seek: 바 영역 클릭 → `(clientX - rect.left) / rect.width * 100` → `onSeek(pct)`
   - 드래그: `onPointerDown` → `setPointerCapture` → `onPointerMove`(실시간 seek) → `onPointerUp`(해제)
   - 마커 클릭 vs 드래그 판별: `pointerdown` 위치에서 5px 이상 이동하면 드래그, 아니면 `onMarkerClick`

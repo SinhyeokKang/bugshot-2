@@ -73,7 +73,7 @@ LogViewerData + activeTab + videoDurationSec + videoStartedAt
 ```typescript
 type MarkerType = "console" | "network" | "action";
 
-type MarkerVariant = "error" | "warn" | "pending" | "default";
+type MarkerVariant = "error" | "warn" | "pending" | "navigate" | "default";
 
 interface TimelineMarker {
   id: string;           // 원본 로그 항목 id
@@ -102,7 +102,7 @@ function buildMarkers(
   - `label`: `[{status}] {method} {url 뒤 60자}` (pending이면 status 대신 "Pending")
   - `absTs`: `request.startTime`
 - **Action 필터**: 전체 entries
-  - `variant`: `"default"`
+  - `variant`: type=navigation → `"navigate"`, 그 외 → `"default"`
   - `label`: click → `Click: {target}`, navigation → `Nav: {toUrl 뒤 60자}`, input → `Input: {fieldLabel}`
   - `absTs`: `entry.timestamp`
 - `positionPct = clamp(0, 100, toVideoSeconds(absTs, videoStartedAt) / videoDurationSec * 100)`
@@ -117,6 +117,7 @@ function buildMarkers(
 - `"error"` → `bg-red-500`
 - `"warn"` → `bg-amber-500`
 - `"pending"` → `bg-amber-500`
+- `"navigate"` → `bg-sky-500`
 - `"default"` → `bg-primary`
 
 ### VideoPlayer.tsx
@@ -156,7 +157,7 @@ interface ProgressBarProps {
 - 마커: `left: {positionPct}%` absolute 위치의 **pin 형태** 마커. progress bar와 겹치지 않고 **bar 상단에 위치**한다. 레이아웃: bar 위에 2px gap + 마커 전용 영역(~12px 높이). pin 바늘 끝과 bar 상단 사이에 2px 간격을 유지한다.
 - **pin 형태**: 상단 원형 head(6~8px) + 하단 뾰족한 바늘(~4px). SVG 또는 CSS clip-path로 구현. head 부분에 variant 색상 적용, 바늘은 동일 색상 또는 약간 어둡게. 호버 시 `scale(1.1)` 효과 적용.
 - **마커 영역**: 마커 0개여도 높이 유지 (탭 전환 시 레이아웃 점프 방지).
-- 마커 색상: `marker.variant` 기반 — `"error"` → `bg-red-500`, `"warn"` → `bg-amber-500`, `"pending"` → `bg-amber-500`, `"default"` → `bg-primary`
+- 마커 색상: `marker.variant` 기반 — `"error"` → `bg-red-500`, `"warn"` → `bg-amber-500`, `"pending"` → `bg-amber-500`, `"navigate"` → `bg-sky-500`, `"default"` → `bg-primary`
 - 마커 클릭 vs 드래그 판별: `pointerdown` 후 5px 이상 이동 → 드래그, 아니면 클릭
 - **툴팁**: picker overlay의 DOM 정보 툴팁(`src/content/overlay.ts` inspector 모드)과 동일한 디자인 패턴 적용. 마커 `onMouseEnter` → 내부 상태에 hovered marker 세팅 → pin 위에 절대 위치 div로 `marker.label` 표시. `onMouseLeave` → 해제. CSS: `bg-popover text-popover-foreground shadow-md rounded-xl px-2 py-1.5 text-xs max-w-xs line-clamp-2`, pin 위쪽에 표시, 위쪽 공간 부족 시 아래쪽으로 전환 (`placeLabel` 동일 로직). Radix Tooltip 미사용 — pin이 6~8px로 작아 Radix trigger 영역이 부적절하고, 포인터 이동에 따른 위치 추적이 필요하므로 직접 구현.
 
