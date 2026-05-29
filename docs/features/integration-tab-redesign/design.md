@@ -44,12 +44,14 @@
 - `NotionConnectForm`, `NotionOnboarding` 제거.
 
 ### `src/sidepanel/tabs/connect/ConnectMethodDialog.tsx` — 신규 (공용)
-- OAuth/토큰 선택 컨펌. `AlertDialog` 기반.
+- OAuth/토큰 선택. **`Dialog` 기반**(`AlertDialog` 아님 — OAuth/토큰은 확인/취소가 아니라 동등한 두 선택지라 `AlertDialog`의 destructive 톤·2지선다 시맨틱과 안 맞고, `AlertDialogContent`의 `max-w-[360px]`도 좁음).
 - props: `{ open, onOpenChange, platformLabel, oauthLabel, tokenLabel, onChooseOAuth, onChooseToken }`.
-- 본문: 제목 `{platform} 연결 방식`, 두 액션 버튼(OAuth / 토큰). 토큰 라벨은 플랫폼별 기존 키 재사용(`jira.apiTokenButton` 등), OAuth 라벨은 신규 공용 키.
+- 본문: 제목 `{platform} 연결 방식`, 설명 `platform.connectMethod.body`. 두 액션 버튼(OAuth / 토큰)은 **기존 입력 다이얼로그의 `DialogFooter` 패턴 그대로 가로 배열·우측 정렬**(연동 해제 `AlertDialog`와 시각적으로 구분). 라벨이 짧아(`OAuth로 연결` / `API 토큰` 등) ~400px 폭에서 가로 배치 가능. 토큰 라벨은 플랫폼별 기존 키 재사용(`jira.apiTokenButton` 등), OAuth 라벨은 신규 공용 키(`platform.connectMethod.oauth`). 토큰/OAuth 라벨 문체 비대칭은 기존 키 재사용 정책상 허용.
+- 버튼 클릭 시 각 콜백(`onChooseOAuth`/`onChooseToken`) 호출 후 `onOpenChange(false)`.
 
 ### `src/sidepanel/tabs/connect/JiraSiteDialog.tsx` — 신규 (Jira 전용, 또는 JiraConnectForm 내부 컴포넌트)
 - 기존 인라인 `candidate` 사이트 목록을 `Dialog`로 이전. `jira.selectSite` + 사이트 버튼 목록 재사용. 선택 시 `finalize`.
+- **접근성**: `DialogTitle`(=`jira.selectSite`) 필수(Radix Dialog는 title 누락 시 스크린리더 경고). 사이트 1개면 다이얼로그 미표시, 즉시 `finalize`.
 - 별도 파일 대신 `JiraConnectForm.tsx` 내부 컴포넌트로 두는 것도 허용(현재 다이얼로그들이 같은 파일에 있음).
 
 ### i18n — `src/i18n/namespaces/app.ts` (ko/en 동시)
@@ -57,12 +59,16 @@
 - `platform.subtab.connected` = "내 연동" / "My connections"
 - `platform.subtab.add` = "플랫폼 추가" / "Add platform"
 - `platform.add.title` = "플랫폼 추가" / "Add a platform" (idle 레이아웃 헤딩)
+- `platform.add.empty.title` = "연결된 플랫폼이 없어요" / "No connected platforms" ("내 연동" 탭 빈 상태 — 신규)
+- `platform.add.empty.body` = "플랫폼을 추가해 이슈를 등록하세요." / "Add a platform to start filing issues." (신규)
 - `platform.connectPlatform` = "{platform} 연결" / "Connect {platform}" (행 버튼 라벨)
 - `platform.connectMethod.title` = "{platform} 연결 방식" / "Connect {platform}"
 - `platform.connectMethod.body` = "연결 방식을 선택하세요." / "Choose how to connect."
 - `platform.connectMethod.oauth` = "OAuth로 연결" / "Connect with OAuth"
 
-재사용 키: `platform.empty.title/body`, `platform.disconnect.*`, `platform.disconnectAll*`, `platform.disconnectPlatform`, `platform.connect`, 플랫폼별 토큰 버튼/온보딩 라벨(`*.apiTokenButton`, `*.patButton`, `*.apiKeyButton`, `notion.internalToken.button`), `jira.selectSite`.
+> **빈 상태 키 분리 이유**: 기존 `platform.empty.title/body`는 PreviewPanel·DraftDetailDialog·IssueCreateModal에서 "연동 탭에서 먼저 연결하라"는 *연동 탭으로 보내는* 안내라, 연동 탭 *내부* 빈 상태로 재사용하면 자기참조가 된다. 따라서 `platform.add.empty.*`를 신규로 판다(기존 키는 미수정).
+
+재사용 키: `platform.disconnect.*`, `platform.disconnectAll*`, `platform.disconnectPlatform`, `platform.connect`, 플랫폼별 토큰 버튼/온보딩 라벨(`*.apiTokenButton`, `*.patButton`, `*.apiKeyButton`, `notion.internalToken.button`), `jira.selectSite`.
 
 > i18n PostToolUse 훅이 ko/en 대칭을 검사하므로 두 블록 동시 갱신.
 
@@ -90,11 +96,20 @@ App (tab state) ──activeMainTab──▶ IntegrationsTab
 
 - 연결 상태 단일 출처: `useSettingsStore(s => s.accounts)`. 섹션 목록·버튼 disabled·footer 노출 모두 여기서 파생.
 - 연동 해제: 기존 `removeAccount(platform)` / `removeAllAccounts()` 재사용(lastSubmitFields 정리 포함).
+- **해제로 `connectedCount → 0` 전이 시 `sub="add"`로 자동 전환**(섹션별/전체 해제 공통). 빈 "내 연동" 화면에 머무르지 않도록 `accounts` 변화를 보는 effect에서 처리. (현재 IntegrationsTab은 전체 해제 후 `setSub("jira")`로 복귀 — 신 구조엔 플랫폼 sub가 없으므로 `"add"`로 대체.)
 - 세션 영속화·하이드레이션은 store가 담당하므로 추가 작업 없음.
 
 ## 인터페이스 설계
 
 ```ts
+// 순수 함수 (테스트 우선 — __tests__/*.test.ts로 단위테스트 먼저 작성)
+// 하위 탭 결정: 연결 0개면 "add", 1개+면 "connected"
+export function pickInitialSubTab(connectedCount: number): IntegrationSubTab;
+//   0 → "add", 1·n → "connected"
+// 연결 가능 수단 판정 (컨펌 생략 분기 근거). null=조회 중 → [](pending)
+export function connectMethods(oauthAvailable: boolean | null): ("oauth" | "token")[];
+//   true → ["oauth","token"], false → ["token"], null → []
+
 // IntegrationsTab.tsx
 type IntegrationSubTab = "connected" | "add";
 
@@ -134,7 +149,7 @@ export function ConnectMethodDialog(p: ConnectMethodDialogProps): JSX.Element;
 
 - **Section/collapse**: `@/sidepanel/components/Section`의 `Section`(collapsible, action 슬롯), `PageScroll`, `PageFooter` 재사용. 다른 탭과 동일 구조.
 - **idle 레이아웃 재사용**: `IssueTab`의 `EmptyState` 레이아웃(중앙 정렬 + 아이콘 버블 + 타이틀 + 버튼 그룹)을 그대로 따르되 버튼만 1열. `EmptyState` 자체는 캡처 전용이라 추출하지 않고 레이아웃만 복제(UI 패턴 일치 원칙).
-- **다이얼로그**: 컨펌은 `AlertDialog`(연동 해제와 동일), 입력은 `Dialog`(기존 토큰 다이얼로그 그대로).
+- **다이얼로그**: 파괴적 컨펌(연동 해제)은 `AlertDialog`, 입력(토큰)·**연결 방식 선택(ConnectMethodDialog)**·사이트 선택은 `Dialog`(연결 방식 선택은 동등 선택지라 `AlertDialog` 아님).
 - **IconButton 사이즈**: 섹션 헤더 액션(연동 해제)은 `h-8 w-8`.
 - **탭 컨텐츠**: 하위 탭에 `Tabs`를 쓸 경우 `data-[state=inactive]:hidden` 유지(기존 IntegrationsTab과 동일).
 - **i18n 동시 갱신**: ko/en 양쪽 갱신, PostToolUse 훅 통과.
@@ -149,8 +164,8 @@ export function ConnectMethodDialog(p: ConnectMethodDialogProps): JSX.Element;
 ## 위험 요소
 
 - **Jira 사이트 선택 인라인 → Dialog 이전**: 다중 사이트 계정에서 회귀 가능. `finalize`/`candidate` 로직을 그대로 옮기고 실제 다중 사이트 계정으로 수동 검증 필요.
-- **Jira SetupDialog 자동 오픈 타이밍**: 연결 성공 후 `sub="connected"`로 전환되어야 `JiraConnectedBody`가 마운트되고 SetupDialog가 뜬다. `onConnected` → 전환 순서 보장 필요(setAccount 후 onConnected 호출).
+- **Jira SetupDialog 소유·자동 오픈 타이밍(못박음)**: SetupDialog는 **`JiraConnectedBody`가 소유**한다(다른 컴포넌트로 끌어올리지 않음). `JiraConnectedBody`는 `sub="connected"`에서만 마운트되므로, 연결 직후 아직 "플랫폼 추가" 탭(`sub="add"`)에 머무는 동안은 SetupDialog가 마운트되지 않는다 → **`onConnected()`가 `sub="connected"`로 전환시켜야** `JiraConnectedBody`+SetupDialog가 마운트되고 `projectKey` 없음 effect가 발동해 자동 오픈된다. 따라서 호출 순서는 `setAccount`(zustand) → `onConnected()`(부모 sub 전환)를 **동일 렌더 사이클에서 동기 연속 호출**로 보장(중간 await 금지). 이미 connected이고 `projectKey`가 채워진 상태에서는 effect 재발동 안 함(기존 멱등 동작 유지).
 - **`onConnected()` 호출 위치(필수 못박음)**: 연결이 **실제로 완료된 단일 시점**에서만 호출한다. 토큰 방식은 검증 성공(`setAccount`) 직후, OAuth 단일 사이트는 `finalize`의 `setAccount` 직후. **Jira 다중 사이트는 사이트 선택 다이얼로그가 닫히고 `finalize`가 끝난 뒤(= `setAccount` 직후)에만 호출**한다. OAuth 응답 수신 시점이나 사이트 선택 다이얼로그를 띄우는 시점에 미리 호출하면 안 됨 — 중간 `sub` 전환으로 "플랫폼 추가" 탭이 사라지며 선택 다이얼로그가 끊긴다.
-- **`oauthAvailable === null`(조회 중) 상태**: 행 버튼이 조회 완료 전 클릭되면 컨펌/토큰 분기를 못 정함. 조회 완료 전 버튼 비활성 또는 클릭 시 조회 대기 처리.
+- **`oauthAvailable === null`(조회 중) 상태**: 행 버튼이 조회 완료 전 클릭되면 컨펌/토큰 분기를 못 정함. `connectMethods(null) → []`(pending)로 명시 처리하고, 빈 배열이면 행 버튼 비활성(기존 `JiraOnboarding`의 `disabled={oauthAvailable === null}` 가드를 ConnectFlow로 그대로 이전). 4개 폼이 각자 독립 조회하므로 진입 시 잠깐 동시 disabled 깜빡임은 기존 동작 유지(탭 레벨 일괄 조회는 비채택 — 4개 폼 자기완결성 보존).
 - **ConnectForm 기존 export 제거**: `IntegrationsTab`만 import하므로 안전하나, 제거 전 grep로 재확인.
 - **하위 탭 라우팅이 매 전환마다 sub를 덮어쓰면** 사용자가 "플랫폼 추가"를 보다가 다른 탭 갔다 오면 강제로 "내 연동"으로 튈 수 있음 → `activeMainTab`이 "integrations"로 **전환되는 순간**에만 라우팅(이전 값과 비교 또는 effect 의존성 관리).
