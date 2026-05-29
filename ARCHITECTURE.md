@@ -203,4 +203,4 @@ draft 모델: `{ title, sections: Record<string, string>, environment?: Environm
 
 **자동 메타 위치**: `POST_MEDIA_SECTION_IDS = {"expectedResult","notes"}` — 첫 해당 섹션 직전에 media/styleChanges emit. 둘 다 disabled면 모든 섹션 끝에 emit. 5종 빌더 + DraftingPanel + PreviewPanel + DraftDetailDialog에서 동일 룰.
 
-**마이그레이션**: `issues-store` v5, `settings-store` v6, `settings-ui-store` v2. 각각 순수 헬퍼로 분리해 테스트 (`migrateV2ToV3`, `migrateToV5`, `migrateIssueToV4` 등). 모두 멱등 가드 + sparse 저장. 빈 paragraph는 `(없음)` (`md.noValue`)로 통일.
+**마이그레이션**: `issues-store` v5, `settings-store` v6, `settings-ui-store` v5. 각각 순수 헬퍼로 분리해 테스트 (`migrateV2ToV3`, `migrateToV5`, `migrateIssueToV4` 등). 모두 멱등 가드 + sparse 저장. 빈 paragraph는 `(없음)` (`md.noValue`)로 통일.
