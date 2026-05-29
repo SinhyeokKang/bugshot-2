@@ -27,7 +27,8 @@
 - **변경 대상**: `connect/JiraConnectForm.tsx`, `GithubConnectForm.tsx`, `LinearConnectForm.tsx`, `NotionConnectForm.tsx`
 - **작업 내용**: design.md "변경 범위"대로 각 파일에서
   - `*ConnectedBody` export: 기존 connected 분기의 Summary + 설정 필드를 외곽 `PageScroll`/`Section` 없이 반환. (Jira는 `SetupDialog` 포함)
-  - `*ConnectFlow({ connected, onConnected })` export: 행 버튼 + `*.oauth.available` 조회 + 분기(둘 다 가능→`ConnectMethodDialog`, 토큰만→토큰 다이얼로그 직접 오픈) + 기존 토큰 다이얼로그/OAuth 시작 로직 이동. 연결 성공 시 `onConnected()`.
+  - `*ConnectFlow({ connected, onConnected })` export: 행 버튼 + `*.oauth.available` 조회 + 분기(둘 다 가능→`ConnectMethodDialog`, 토큰만→토큰 다이얼로그 직접 오픈) + 기존 토큰 다이얼로그/OAuth 시작 로직 이동.
+  - **`onConnected()` 호출 시점**: 연결이 실제 완료된 시점(`setAccount` 직후)에서만 1회. 토큰=검증 성공 직후, OAuth 단일 사이트=`finalize` 직후. **Jira 다중 사이트=사이트 선택 다이얼로그 닫히고 `finalize` 끝난 뒤에만**. OAuth 응답/사이트 다이얼로그 오픈 시점에 미리 호출 금지(중간 탭 전환으로 다이얼로그 끊김).
   - 기존 `*ConnectForm`, `*Onboarding` 제거.
   - Jira: 인라인 `candidate` 사이트 목록 → `Dialog`(`JiraSiteDialog`, 같은 파일 내부 컴포넌트 허용)로 이전, `jira.selectSite` 재사용.
 - **검증**:

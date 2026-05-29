@@ -150,6 +150,7 @@ export function ConnectMethodDialog(p: ConnectMethodDialogProps): JSX.Element;
 
 - **Jira 사이트 선택 인라인 → Dialog 이전**: 다중 사이트 계정에서 회귀 가능. `finalize`/`candidate` 로직을 그대로 옮기고 실제 다중 사이트 계정으로 수동 검증 필요.
 - **Jira SetupDialog 자동 오픈 타이밍**: 연결 성공 후 `sub="connected"`로 전환되어야 `JiraConnectedBody`가 마운트되고 SetupDialog가 뜬다. `onConnected` → 전환 순서 보장 필요(setAccount 후 onConnected 호출).
+- **`onConnected()` 호출 위치(필수 못박음)**: 연결이 **실제로 완료된 단일 시점**에서만 호출한다. 토큰 방식은 검증 성공(`setAccount`) 직후, OAuth 단일 사이트는 `finalize`의 `setAccount` 직후. **Jira 다중 사이트는 사이트 선택 다이얼로그가 닫히고 `finalize`가 끝난 뒤(= `setAccount` 직후)에만 호출**한다. OAuth 응답 수신 시점이나 사이트 선택 다이얼로그를 띄우는 시점에 미리 호출하면 안 됨 — 중간 `sub` 전환으로 "플랫폼 추가" 탭이 사라지며 선택 다이얼로그가 끊긴다.
 - **`oauthAvailable === null`(조회 중) 상태**: 행 버튼이 조회 완료 전 클릭되면 컨펌/토큰 분기를 못 정함. 조회 완료 전 버튼 비활성 또는 클릭 시 조회 대기 처리.
 - **ConnectForm 기존 export 제거**: `IntegrationsTab`만 import하므로 안전하나, 제거 전 grep로 재확인.
 - **하위 탭 라우팅이 매 전환마다 sub를 덮어쓰면** 사용자가 "플랫폼 추가"를 보다가 다른 탭 갔다 오면 강제로 "내 연동"으로 튈 수 있음 → `activeMainTab`이 "integrations"로 **전환되는 순간**에만 라우팅(이전 값과 비교 또는 effect 의존성 관리).
