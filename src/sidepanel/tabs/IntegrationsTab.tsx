@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type ComponentType } from "react";
-import { Blocks, Boxes, Plus, Trash2 } from "lucide-react";
+import { Blocks, Plug, Plus, Unplug } from "lucide-react";
 import {
   SiGithub,
   SiJirasoftware,
@@ -87,7 +87,7 @@ export function IntegrationsTab({ activeMainTab }: { activeMainTab: string }) {
       <div className="shrink-0 border-b border-border px-4 py-4">
         <TabsList className="grid h-9 w-full grid-cols-2">
           <TabsTrigger value="connected" className="gap-1.5">
-            <Boxes className="h-4 w-4" />
+            <Plug className="h-4 w-4" />
             {t("platform.subtab.connected")}
           </TabsTrigger>
           <TabsTrigger value="add" className="gap-1.5">
@@ -198,7 +198,7 @@ function DisconnectButton({ id }: { id: PlatformId }) {
           size="icon"
           className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
         >
-          <Trash2 />
+          <Unplug />
         </Button>
       </AlertDialogTrigger>
       <AlertDialogContent>

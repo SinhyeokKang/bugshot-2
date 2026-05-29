@@ -103,7 +103,7 @@ export function GithubConnectFlow({ connected, onConnected }: ConnectFlowProps) 
         <span className={`inline-flex items-center gap-2 ${connecting ? "opacity-0" : ""}`}>
           <Github className="h-4 w-4 dark:invert" color="default" />
           {connected
-            ? t("platform.connected")
+            ? t("platform.connected", { platform: t("platform.tab.github") })
             : t("platform.connectPlatform", { platform: t("platform.tab.github") })}
         </span>
       </Button>

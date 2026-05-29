@@ -104,7 +104,7 @@ export function LinearConnectFlow({ connected, onConnected }: ConnectFlowProps) 
         <span className={`inline-flex items-center gap-2 ${connecting ? "opacity-0" : ""}`}>
           <SiLinear className="h-4 w-4" color="default" />
           {connected
-            ? t("platform.connected")
+            ? t("platform.connected", { platform: t("platform.tab.linear") })
             : t("platform.connectPlatform", { platform: t("platform.tab.linear") })}
         </span>
       </Button>

@@ -177,7 +177,7 @@ export function JiraConnectFlow({ connected, onConnected }: ConnectFlowProps) {
         <span className={`inline-flex items-center gap-2 ${connecting ? "opacity-0" : ""}`}>
           <Jira className="h-4 w-4" color="default" />
           {connected
-            ? t("platform.connected")
+            ? t("platform.connected", { platform: t("platform.tab.jira") })
             : t("platform.connectPlatform", { platform: t("platform.tab.jira") })}
         </span>
       </Button>
