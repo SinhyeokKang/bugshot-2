@@ -42,10 +42,10 @@
   - `formatPlayerTime(sec)` 순수 함수를 `timeline.ts`에 추가: `Math.floor(sec/60):pad2(sec%60)`
   - `formatPlayerTime` 단위 테스트 (`timeline.test.ts`에 추가): 정상 값, 0, NaN, Infinity, 음수
 - **검증**:
-  - [ ] `pnpm test` 통과
-  - [ ] 서브타입 필터가 정확히 동작
-  - [ ] label truncation이 80자/60자 기준으로 동작
-  - [ ] `formatPlayerTime` 단위 테스트 통과
+  - [x] `pnpm test` 통과
+  - [x] 서브타입 필터가 정확히 동작
+  - [x] label truncation이 80자/60자 기준으로 동작
+  - [x] `formatPlayerTime` 단위 테스트 통과
 
 ### Task 2: ProgressBar.tsx — progress bar + 마커 오버레이 + 툴팁
 
@@ -68,11 +68,11 @@
     - 위쪽 공간 부족 시 아래쪽 표시 (overlay.ts `placeLabel` 동일 로직)
     - Radix Tooltip 미사용: 마커가 3~4px로 매우 작아 trigger 영역 부적절 + 포인터 추적 필요
 - **검증**:
-  - [ ] bar 클릭 시 비디오 seek 동작
-  - [ ] 마커가 시간 비례 위치에 표시
-  - [ ] 드래그 seek 동작
-  - [ ] 마커 클릭 시 `onMarkerClick` 호출 (드래그와 미충돌)
-  - [ ] 마커 호버 시 툴팁 표시, 마우스 떠나면 사라짐
+  - [ ] bar 클릭 시 비디오 seek 동작 (수동 검증)
+  - [x] 마커가 시간 비례 위치에 표시
+  - [ ] 드래그 seek 동작 (수동 검증)
+  - [x] 마커 클릭 시 `onMarkerClick` 호출 (드래그와 미충돌)
+  - [x] 마커 호버 시 툴팁 표시, 마우스 떠나면 사라짐
 
 ### Task 3: VideoPlayer.tsx — 커스텀 비디오 플레이어
 
@@ -94,11 +94,11 @@
   - 시간 포맷: `timeline.ts`의 `formatPlayerTime(sec)` import 사용 (Task 1에서 추가).
   - log-viewer 전용 i18n: `import { t } from "../i18n"` 직접 호출 (사이드패널의 `useT` 훅이 아님).
 - **검증**:
-  - [ ] play/pause 토글 동작 (버튼 + 비디오 영역 클릭)
-  - [ ] progress bar가 재생 중 실시간 갱신
-  - [ ] 시간 표시가 MM:SS / MM:SS 형식
-  - [ ] 비디오 에러 시 에러 메시지 표시
-  - [ ] `seekToSec` 메서드가 외부에서 호출 가능
+  - [ ] play/pause 토글 동작 (버튼 + 비디오 영역 클릭) (수동 검증)
+  - [ ] progress bar가 재생 중 실시간 갱신 (수동 검증)
+  - [x] 시간 표시가 MM:SS / MM:SS 형식
+  - [x] 비디오 에러 시 에러 메시지 표시
+  - [x] `seekToSec` 메서드가 외부에서 호출 가능
 
 ### Task 4: App.tsx 통합 — VideoPlayer 교체 + 양방향 동기화
 
@@ -118,11 +118,11 @@
   - 에러 시(`videoError === true`) VideoPlayer를 렌더하지 않고 기존 에러 메시지 표시 유지.
   - `scrollToEntryId={scrollToEntryId}` 전달 + 스크롤 완료 후 `onScrollComplete={() => setScrollToEntryId(null)}` 콜백
 - **검증**:
-  - [ ] 탭 전환 시 마커가 해당 종류로 변경됨
-  - [ ] 마커 클릭 → 비디오 seek + 로그 스크롤
-  - [ ] 로그 항목의 LogSeekChip 클릭 → 비디오 seek (seek만, play 안 함으로 변경됨)
-  - [ ] 비디오 없을 때 기존 동작 유지
-  - [ ] 비디오 에러 시 에러 메시지 표시 (VideoPlayer 미렌더)
+  - [x] 탭 전환 시 마커가 해당 종류로 변경됨
+  - [ ] 마커 클릭 → 비디오 seek + 로그 스크롤 (수동 검증)
+  - [x] 로그 항목의 LogSeekChip 클릭 → 비디오 seek (seek만, play 안 함으로 변경됨)
+  - [x] 비디오 없을 때 기존 동작 유지
+  - [x] 비디오 에러 시 에러 메시지 표시 (VideoPlayer 미렌더)
 
 ### Task 5: LogContent 컴포넌트에 scrollToEntryId 지원 추가
 
@@ -141,11 +141,11 @@
     - `setActiveId(marker.id)` 호출로 detail 패널도 연동
   - **Radix ScrollArea 호환성**: `scrollIntoView`가 Radix ScrollArea viewport를 올바르게 인식하는지 구현 시 검증
 - **검증**:
-  - [ ] 마커 클릭 시 로그 패널이 해당 항목으로 스크롤
-  - [ ] 필터로 숨겨진 항목도 필터 리셋 후 스크롤
-  - [ ] 리셋 후에도 못 찾으면 bail out (무한 루프 없음)
-  - [ ] NetworkLogContent: 스크롤 + detail 패널 연동 (activeId 설정)
-  - [ ] 사이드패널에서 prop 미전달 시 기존 동작 변화 없음
+  - [ ] 마커 클릭 시 로그 패널이 해당 항목으로 스크롤 (수동 검증)
+  - [x] 필터로 숨겨진 항목도 필터 리셋 후 스크롤
+  - [x] 리셋 후에도 못 찾으면 bail out (무한 루프 없음)
+  - [x] NetworkLogContent: 스크롤 + detail 패널 연동 (activeId 설정)
+  - [x] 사이드패널에서 prop 미전달 시 기존 동작 변화 없음
 
 ### Task 6: i18n 키 추가
 
@@ -156,7 +156,7 @@
     - `logViewer.player.pause`: "일시정지" / "Pause"
     - `logViewer.player.progressBar`: "재생 진행 바" / "Playback progress bar" (aria-label)
 - **검증**:
-  - [ ] `pnpm test` 통과
+  - [x] `pnpm test` 통과
 
 ## 테스트 계획
 

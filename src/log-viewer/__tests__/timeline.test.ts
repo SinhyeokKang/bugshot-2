@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { findActiveIndex, toVideoSeconds } from "../timeline";
+import { findActiveIndex, formatPlayerTime, toVideoSeconds } from "../timeline";
 
 describe("findActiveIndex — currentMs 이하 중 가장 늦은 항목의 인덱스", () => {
   it("정렬 입력에서 currentMs 이하 최댓값 인덱스", () => {
@@ -41,5 +41,39 @@ describe("toVideoSeconds — 절대 timestamp를 영상 초로", () => {
 
   it("음수는 0으로 clamp", () => {
     expect(toVideoSeconds(1000, 2000)).toBe(0);
+  });
+});
+
+describe("formatPlayerTime — 초를 M:SS 형식으로", () => {
+  it("65초 → '1:05'", () => {
+    expect(formatPlayerTime(65)).toBe("1:05");
+  });
+
+  it("0초 → '0:00'", () => {
+    expect(formatPlayerTime(0)).toBe("0:00");
+  });
+
+  it("59초 → '0:59'", () => {
+    expect(formatPlayerTime(59)).toBe("0:59");
+  });
+
+  it("600초(10분) → '10:00'", () => {
+    expect(formatPlayerTime(600)).toBe("10:00");
+  });
+
+  it("소수점 버림: 65.9 → '1:05'", () => {
+    expect(formatPlayerTime(65.9)).toBe("1:05");
+  });
+
+  it("NaN → '0:00'", () => {
+    expect(formatPlayerTime(NaN)).toBe("0:00");
+  });
+
+  it("Infinity → '0:00'", () => {
+    expect(formatPlayerTime(Infinity)).toBe("0:00");
+  });
+
+  it("음수 → '0:00'", () => {
+    expect(formatPlayerTime(-10)).toBe("0:00");
   });
 });

@@ -21,6 +21,8 @@ interface ConsoleLogContentProps {
   syncBaseMs?: number;
   onSeek?: (absTs: number) => void;
   activeTs?: number;
+  scrollToEntryId?: string | null;
+  onScrollComplete?: () => void;
 }
 
 function levelColor(level: ConsoleLevel): string {
@@ -62,7 +64,7 @@ function LevelIcon({ level }: { level: ConsoleLevel }) {
   }
 }
 
-export function ConsoleLogContent({ entries, startedAt, flush, syncBaseMs, onSeek, activeTs }: ConsoleLogContentProps) {
+export function ConsoleLogContent({ entries, startedAt, flush, syncBaseMs, onSeek, activeTs, scrollToEntryId, onScrollComplete }: ConsoleLogContentProps) {
   const t = useT();
   const [filter, setFilter] = useState<ConsoleFilter>("all");
   const [query, setQuery] = useState("");
@@ -115,6 +117,28 @@ export function ConsoleLogContent({ entries, startedAt, flush, syncBaseMs, onSee
     const vp = getListViewport();
     if (vp) vp.scrollTop = vp.scrollHeight;
   }, [filteredEntries.length, getListViewport]);
+
+  const scrollResetRef = useRef(false);
+  useEffect(() => {
+    if (!scrollToEntryId) { scrollResetRef.current = false; return; }
+    const vp = getListViewport();
+    if (!vp) { onScrollComplete?.(); return; }
+    const el = vp.querySelector<HTMLElement>(`[data-entry-id="${scrollToEntryId}"]`);
+    if (el) {
+      el.scrollIntoView({ block: "center", behavior: "smooth" });
+      onScrollComplete?.();
+      scrollResetRef.current = false;
+      return;
+    }
+    if (!scrollResetRef.current) {
+      scrollResetRef.current = true;
+      setFilter("all");
+      setQuery("");
+      return;
+    }
+    onScrollComplete?.();
+    scrollResetRef.current = false;
+  }, [scrollToEntryId, filteredEntries, getListViewport, onScrollComplete]);
 
   return (
     <div className={`flex min-h-0 flex-1 flex-col overflow-hidden${flush ? "" : " rounded-lg border"}`}>
@@ -187,6 +211,7 @@ function EntryAccordion({ entry, startedAt, syncBaseMs, onSeek, isActive }: {
 
   return (
     <div
+      data-entry-id={entry.id}
       className={syncRowClass(!!onSeek, !!isActive, levelBgColor(entry.level))}
       aria-current={isActive ? "true" : undefined}
     >

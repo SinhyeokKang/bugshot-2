@@ -73,6 +73,9 @@ export const koDict: Record<string, string> = {
   "logViewer.noConsole": "콘솔 데이터 없음",
   "logViewer.noNetwork": "네트워크 데이터 없음",
   "logViewer.noAction": "액션 데이터 없음",
+  "logViewer.player.play": "재생",
+  "logViewer.player.pause": "일시정지",
+  "logViewer.player.progressBar": "재생 진행 바",
 
   "json.showAll": "전체 보기",
   "json.moreItems": "… {n}개 더",
@@ -148,6 +151,9 @@ export const enDict: Record<string, string> = {
   "logViewer.noConsole": "No console data",
   "logViewer.noNetwork": "No network data",
   "logViewer.noAction": "No action data",
+  "logViewer.player.play": "Play",
+  "logViewer.player.pause": "Pause",
+  "logViewer.player.progressBar": "Playback progress bar",
 
   "json.showAll": "show all",
   "json.moreItems": "… {n} more items",

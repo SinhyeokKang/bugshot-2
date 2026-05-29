@@ -25,6 +25,8 @@ interface NetworkLogContentProps {
   syncBaseMs?: number;
   onSeek?: (absTs: number) => void;
   activeTs?: number;
+  scrollToEntryId?: string | null;
+  onScrollComplete?: () => void;
 }
 
 function methodColor(method: string): string {
@@ -139,7 +141,7 @@ function buildCurl(req: NetworkRequest): string {
 
 type DetailTab = "headers" | "request" | "response";
 
-export function NetworkLogContent({ requests, flush, syncBaseMs, onSeek, activeTs }: NetworkLogContentProps) {
+export function NetworkLogContent({ requests, flush, syncBaseMs, onSeek, activeTs, scrollToEntryId, onScrollComplete }: NetworkLogContentProps) {
   const t = useT();
   const [activeId, setActiveId] = useState<string | null>(null);
   const [detailTab, setDetailTab] = useState<DetailTab>("headers");
@@ -214,6 +216,29 @@ export function NetworkLogContent({ requests, flush, syncBaseMs, onSeek, activeT
     const vp = getListViewport();
     if (vp) vp.scrollTop = vp.scrollHeight;
   }, [filteredRequests.length, getListViewport]);
+
+  const scrollResetRef = useRef(false);
+  useEffect(() => {
+    if (!scrollToEntryId) { scrollResetRef.current = false; return; }
+    const vp = getListViewport();
+    if (!vp) { onScrollComplete?.(); return; }
+    const el = vp.querySelector<HTMLElement>(`[data-entry-id="${scrollToEntryId}"]`);
+    if (el) {
+      el.scrollIntoView({ block: "center", behavior: "smooth" });
+      setActiveId(scrollToEntryId);
+      onScrollComplete?.();
+      scrollResetRef.current = false;
+      return;
+    }
+    if (!scrollResetRef.current) {
+      scrollResetRef.current = true;
+      setFilter("all");
+      setQuery("");
+      return;
+    }
+    onScrollComplete?.();
+    scrollResetRef.current = false;
+  }, [scrollToEntryId, filteredRequests, getListViewport, onScrollComplete]);
 
   const onDragStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -368,6 +393,7 @@ function RequestRow({
 }) {
   return (
     <div
+      data-entry-id={req.id}
       className={`flex cursor-pointer items-center gap-3 overflow-hidden px-3 py-2 text-[13px] ${syncRowClass(syncBaseMs != null, !!syncActive, rowBg(req, active))}`}
       aria-current={syncActive ? "true" : undefined}
       onClick={onClick}

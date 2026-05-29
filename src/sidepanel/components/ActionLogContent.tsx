@@ -22,6 +22,8 @@ interface ActionLogContentProps {
   syncBaseMs?: number;
   onSeek?: (absTs: number) => void;
   activeTs?: number;
+  scrollToEntryId?: string | null;
+  onScrollComplete?: () => void;
 }
 
 // navigation만 콘솔 info-틴트 슬롯 재사용, click/input은 중립.
@@ -89,7 +91,7 @@ function searchText(e: ActionEntry): string {
   return [e.target, e.fieldLabel, e.value, e.toUrl].filter(Boolean).join(" ").toLowerCase();
 }
 
-export function ActionLogContent({ entries, startedAt, flush, syncBaseMs, onSeek, activeTs }: ActionLogContentProps) {
+export function ActionLogContent({ entries, startedAt, flush, syncBaseMs, onSeek, activeTs, scrollToEntryId, onScrollComplete }: ActionLogContentProps) {
   const t = useT();
   const [filter, setFilter] = useState<ActionFilter>("all");
   const [query, setQuery] = useState("");
@@ -142,6 +144,28 @@ export function ActionLogContent({ entries, startedAt, flush, syncBaseMs, onSeek
     const vp = getListViewport();
     if (vp) vp.scrollTop = vp.scrollHeight;
   }, [filteredEntries.length, getListViewport]);
+
+  const scrollResetRef = useRef(false);
+  useEffect(() => {
+    if (!scrollToEntryId) { scrollResetRef.current = false; return; }
+    const vp = getListViewport();
+    if (!vp) { onScrollComplete?.(); return; }
+    const el = vp.querySelector<HTMLElement>(`[data-entry-id="${scrollToEntryId}"]`);
+    if (el) {
+      el.scrollIntoView({ block: "center", behavior: "smooth" });
+      onScrollComplete?.();
+      scrollResetRef.current = false;
+      return;
+    }
+    if (!scrollResetRef.current) {
+      scrollResetRef.current = true;
+      setFilter("all");
+      setQuery("");
+      return;
+    }
+    onScrollComplete?.();
+    scrollResetRef.current = false;
+  }, [scrollToEntryId, filteredEntries, getListViewport, onScrollComplete]);
 
   return (
     <div className={`flex min-h-0 flex-1 flex-col overflow-hidden${flush ? "" : " rounded-lg border"}`}>
@@ -212,6 +236,7 @@ function ActionRow({ entry, startedAt, syncBaseMs, onSeek, isActive }: {
   const base = syncBaseMs ?? startedAt;
   return (
     <div
+      data-entry-id={entry.id}
       className={syncRowClass(!!onSeek, !!isActive, kindBgColor(entry.kind))}
       aria-current={isActive ? "true" : undefined}
     >

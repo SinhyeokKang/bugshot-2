@@ -19,3 +19,11 @@ export function findActiveIndex(timestamps: number[], currentMs: number): number
 export function toVideoSeconds(absTs: number, baseMs: number): number {
   return Math.max(0, (absTs - baseMs) / 1000);
 }
+
+export function formatPlayerTime(sec: number): string {
+  if (!Number.isFinite(sec) || sec < 0) return "0:00";
+  const total = Math.floor(sec);
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
