@@ -191,6 +191,10 @@ export interface IssueRecord {
   gitlabProjectId?: number;
   gitlabIssueIid?: number;
   gitlabLabels?: string[];
+  // Asana 전용 — task gid로 조회, project gid·permalink 보존.
+  asanaTaskGid?: string;
+  asanaProjectGid?: string;
+  asanaPermalink?: string;
 }
 
 // v5: notion 플랫폼 추가 — IssueRecord에 notionPageId/notionDatabaseId/notionDatabaseTitle/notionStatusOption optional 필드.

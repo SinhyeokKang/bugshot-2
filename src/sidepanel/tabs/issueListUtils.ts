@@ -17,7 +17,17 @@ export function isRefreshable(issue: IssueRecord): boolean {
   if (issue.platform === "gitlab") {
     return !!resolveGitlabCoords(issue);
   }
+  if (issue.platform === "asana") {
+    return !!resolveAsanaCoords(issue);
+  }
   return false;
+}
+
+// Asana refresh는 task gid가 필요. 등록 시 저장된 asanaTaskGid가 없으면 refresh 불가.
+export function resolveAsanaCoords(
+  issue: Pick<IssueRecord, "asanaTaskGid">,
+): { taskGid: string } | null {
+  return issue.asanaTaskGid ? { taskGid: issue.asanaTaskGid } : null;
 }
 
 // GitLab refresh는 project id(글로벌)와 iid가 모두 필요. URL에서 project id를 복원할 수 없으므로

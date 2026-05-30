@@ -81,6 +81,7 @@ export default defineManifest({
     "https://api.linear.app/*",
     "https://api.notion.com/*",
     "https://gitlab.com/*",
+    "https://app.asana.com/*",
     ...(proxyMatch ? [proxyMatch] : []),
   ],
   commands: {

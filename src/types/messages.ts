@@ -53,6 +53,15 @@ import type {
   GitlabMyself,
   GitlabProject,
 } from "./gitlab";
+import type {
+  AsanaCreateTaskPayload,
+  AsanaCreateTaskResult,
+  AsanaMyself,
+  AsanaProject,
+  AsanaTaskStatus,
+  AsanaUser,
+  AsanaWorkspace,
+} from "./asana";
 import type { PlatformId } from "./platform";
 
 export interface OAuthStartResultMsg {
@@ -176,7 +185,23 @@ export type BgRequest =
       projectId: number;
       iid: number;
       description: string;
-    };
+    }
+  | { type: "asana.oauth.available" }
+  | { type: "asana.startOAuth" }
+  | { type: "asana.testPat"; pat: string }
+  | { type: "asana.disconnect" }
+  | { type: "asana.getMyself" }
+  | { type: "asana.getWorkspaces" }
+  | { type: "asana.searchProjects"; workspaceGid: string; query: string }
+  | { type: "asana.searchAssignees"; workspaceGid: string; query: string }
+  | {
+      type: "asana.uploadFiles";
+      parent: string;
+      files: Array<{ filename: string; contentType: string; dataUrl: string }>;
+    }
+  | { type: "asana.submitIssue"; payload: AsanaCreateTaskPayload }
+  | { type: "asana.getTaskStatus"; taskGid: string }
+  | { type: "asana.setCompleted"; taskGid: string; completed: boolean };
 
 // handleMessage를 거치지 않는 bg→sidepanel 내부 통신 메시지.
 export type BgInternalMessage =
@@ -244,7 +269,8 @@ export function getOAuthErrorPlatform(err: unknown): PlatformId | null {
     p === "github" ||
     p === "linear" ||
     p === "notion" ||
-    p === "gitlab"
+    p === "gitlab" ||
+    p === "asana"
     ? p
     : null;
 }
@@ -334,4 +360,11 @@ export type {
   GitlabMember,
   GitlabMyself,
   GitlabProject,
+  AsanaCreateTaskPayload,
+  AsanaCreateTaskResult,
+  AsanaMyself,
+  AsanaProject,
+  AsanaTaskStatus,
+  AsanaUser,
+  AsanaWorkspace,
 };

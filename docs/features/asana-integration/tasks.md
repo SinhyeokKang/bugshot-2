@@ -19,29 +19,29 @@
 - **변경 대상**: `src/sidepanel/lib/markdownToAsanaHtml.ts` (신규), `src/sidepanel/lib/__tests__/markdownToAsanaHtml.test.ts`
 - **작업 내용**: `/tdd` interface 모드로 테스트 먼저. 헤딩·리스트·링크·코드·blockquote 변환 + 테이블→`<pre>` 폴백 + 이미지→캡션 케이스.
 - **검증**:
-  - [ ] 모든 출력이 `<body>`로 래핑되고 허용 태그만 포함.
-  - [ ] 테이블 입력이 `<pre>`로 변환.
-  - [ ] `pnpm test markdownToAsanaHtml` 통과.
+  - [x] 모든 출력이 `<body>`로 래핑되고 허용 태그만 포함.
+  - [x] 테이블 입력이 `<pre>`로 변환.
+  - [x] `pnpm test markdownToAsanaHtml` 통과.
 
 ### Task 3: API 어댑터 (테스트 우선)
 - **변경 대상**: `src/background/asana-api.ts` (신규), `src/background/__tests__/asana-api.test.ts`
 - **작업 내용**: 순수 함수(`buildAuthHeader`, `mapCreateTaskBody`, `messageForAsanaStatus`, 정규화 함수)는 테스트 먼저. fetch 래퍼는 `.data` 언랩 + 401 refresh-hook 재시도.
 - **검증**:
-  - [ ] PAT/OAuth 헤더 포맷, `mapCreateTaskBody`의 `{ data: {...} }` 래핑, status 메시지 매핑 테스트 통과.
-  - [ ] `pnpm test asana-api` 통과.
+  - [x] PAT/OAuth 헤더 포맷, `mapCreateTaskBody`의 `{ data: {...} }` 래핑, status 메시지 매핑 테스트 통과.
+  - [x] `pnpm test asana-api` 통과.
 
 ### Task 4: OAuth (PKCE)
 - **변경 대상**: `src/background/asana-oauth.ts` (신규), `src/background/__tests__/asana-oauth.test.ts`
 - **작업 내용**: GitLab `gitlab-oauth.ts` 미러. `parseAsanaCallbackParams`는 테스트로 고정(state mismatch, code missing, access_denied 취소).
 - **검증**:
-  - [ ] `parseAsanaCallbackParams` 테스트 통과.
-  - [ ] `isAsanaOAuthConfigured()`가 env 유무에 정확히 반응.
+  - [x] `parseAsanaCallbackParams` 테스트 통과.
+  - [x] `isAsanaOAuthConfigured()`가 env 유무에 정확히 반응.
 
 ### Task 5: 스토리지 + 스토어
 - **변경 대상**: `src/lib/settings-storage.ts`, `src/store/settings-store.ts`
 - **작업 내용**: `readStoredAsanaAuth`/`writeStoredAsanaOAuthTokens`, `updateAsanaAccount`, `SETTINGS_STORE_VERSION` **7 → 8**. GitLab과 동일하게 **전용 migrate 함수는 만들지 않는다**(`migrate()`는 `version < 5`까지만 처리) — 버전만 올리고 라운드트립 테스트로 보존 검증.
 - **검증**:
-  - [ ] `src/store/__tests__/settings-store.test.ts`에 "v7→v8 라운드트립"(`updateAsanaAccount` 호출 후 기존 5개 플랫폼 계정 보존) 케이스 추가, 통과. (전용 migrate 함수 신규 작성 아님.)
+  - [x] `src/store/__tests__/settings-store.test.ts`에 "v7→v8 라운드트립"(`updateAsanaAccount` 호출 후 기존 5개 플랫폼 계정 보존) 케이스 추가, 통과. (전용 migrate 함수 신규 작성 아님.)
 
 ### Task 6: 메시지 핸들러
 - **변경 대상**: `src/background/messages.ts`, `src/types/messages.ts`
@@ -53,9 +53,9 @@
 - **변경 대상**: `src/sidepanel/lib/buildAsanaIssueBody.ts`, `src/sidepanel/lib/submitToAsana.ts` (신규), `src/sidepanel/lib/__tests__/buildAsanaIssueBody.test.ts`, `src/sidepanel/lib/__tests__/submitToAsana.test.ts`
 - **작업 내용**: `buildAsanaIssueBody`(순수, 테스트 먼저)는 ctx → markdown → `markdownToAsanaHtml`. `submitToAsana`는 **createTask 먼저 → attachment 루프**(생성 후 첨부) → `NormalizedSubmitResult`.
 - **검증**:
-  - [ ] `buildAsanaIssueBody` 출력에 헤딩·섹션·첨부 누락 표기 포함.
-  - [ ] `submitToAsana` mock 단위테스트: **순서(createTask 먼저, 실패 시 attachment 미시도) + per-file 격리(개별 첨부 실패 시 task 보존 + 본문 누락 표기)** 고정.
-  - [ ] `pnpm test buildAsanaIssueBody submitToAsana` 통과.
+  - [x] `buildAsanaIssueBody` 출력에 헤딩·섹션·첨부 누락 표기 포함.
+  - [x] `submitToAsana` mock 단위테스트: **순서(createTask 먼저, 실패 시 attachment 미시도) + per-file 격리(개별 첨부 실패 시 task 보존 + 본문 누락 표기)** 고정.
+  - [x] `pnpm test buildAsanaIssueBody submitToAsana` 통과.
 
 ### Task 8: 연결 UI
 - **변경 대상**: `src/sidepanel/tabs/connect/AsanaConnectForm.tsx` (신규), `IntegrationsTab.tsx`
@@ -68,21 +68,21 @@
 - **작업 내용**: **workspace는 connect 기본값으로 고정**(작성 화면 상시 노출 X, "변경" 링크로만), 작성 화면엔 **project·assignee 콤보박스만**. 종속 리셋: 두 콤보 모두 `workspaceGid` prop으로 `ready` 게이팅 + `useEffect([workspaceGid]) → setItems([])` + 하위 선택값 undefined 처리 + `requireWorkspace` placeholder. IssueCreateModal에 asana 제출 분기 + lastSubmitFields 저장.
 - **검증**:
   - [ ] project 선택 후 등록 가능, workspace 변경 시 기존 project·assignee 선택 클리어.
-  - [ ] **회귀: asana 제출이 `handleSubmit` 디폴트로 새 Jira로 안 감** (if/else fallback 명시 분기 + 회귀 테스트). SubmitFieldsDialog 공유(IssueCreateModal·DraftDetailDialog) 양쪽 prefill 동작 유지 확인.
+  - [x] **회귀: asana 제출이 `handleSubmit` 디폴트로 새 Jira로 안 감** (if/else fallback 명시 분기 + 회귀 테스트). SubmitFieldsDialog 공유(IssueCreateModal·DraftDetailDialog) 양쪽 prefill 동작 유지 확인.
 
 ### Task 10: 상태 배지
 - **변경 대상**: `src/sidepanel/tabs/statusBadges/{AsanaStatusBadge,AsanaSubmittedBadge}.tsx`, `issueListUtils.ts`, `issues-store.ts`
 - **작업 내용**: completed/incomplete 토글 배지(GitLab `GitlabStatusBadge` **popover 미러** — complete/incomplete 2옵션 선택). 색상은 `STATUS_CATEGORY_COLORS` 재사용: **incomplete → `.indeterminate`, complete → `.done`**(새 색상 X). `resolveAsanaCoords`(taskGid 존재 검사) + `isRefreshable` asana 분기 + 이슈 레코드 필드.
 - **검증**:
   - [ ] 등록 후 목록에서 상태 표시, popover 토글이 Asana에 반영.
-  - [ ] **회귀: `isRefreshable`은 if 체인 + `return false` 디폴트라 asana 누락 시 조용히 refresh 불가 → `isRefreshable(asana)=true` 회귀 테스트로 고정.**
+  - [x] **회귀: `isRefreshable`은 if 체인 + `return false` 디폴트라 asana 누락 시 조용히 refresh 불가 → `isRefreshable(asana)=true` 회귀 테스트로 고정.**
 
 ### Task 11: i18n + manifest + 문서
 - **변경 대상**: `src/i18n/namespaces/integrations.ts`, `src/i18n/namespaces/issue.ts`, `src/i18n/namespaces/app.ts`, `manifest.config.ts`, `.env.example`, CLAUDE.md/DIRECTORY.md/ARCHITECTURE.md/README.md/PERMISSION.md/docs/privacy.md
 - **작업 내용**: `asana.*`(integrations.ts) + `issueList.asana.*`(issue.ts) + **`platform.tab.asana`(app.ts — integrations.ts 아님)** 키(ko/en). `host_permissions`에 `https://app.asana.com/*`. 문서 신선도: 6번째 플랫폼·새 host_permission·새 외부 API → privacy.md(시행일 포함)·PERMISSION.md·README·CLAUDE.md 갱신.
 - **검증**:
-  - [ ] i18n PostToolUse 훅 통과(ko/en 대칭).
-  - [ ] `pnpm typecheck` + `pnpm test` 전체 통과.
+  - [x] i18n PostToolUse 훅 통과(ko/en 대칭).
+  - [x] `pnpm typecheck` + `pnpm test` 전체 통과.
 
 ## 테스트 계획
 

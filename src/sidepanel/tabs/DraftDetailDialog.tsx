@@ -50,6 +50,7 @@ import { submitToGithub } from "@/sidepanel/lib/submitToGithub";
 import { submitToLinear } from "@/sidepanel/lib/submitToLinear";
 import { submitToNotion } from "@/sidepanel/lib/submitToNotion";
 import { submitToGitlab } from "@/sidepanel/lib/submitToGitlab";
+import { submitToAsana } from "@/sidepanel/lib/submitToAsana";
 import type { NotionDatabaseSchema } from "@/types/notion";
 import { usePlatformFields } from "@/sidepanel/hooks/usePlatformFields";
 import { extractNotionPageId } from "@/lib/notion-page-id";
@@ -104,6 +105,7 @@ export function DraftDetailDialog({
   const linearAccount = accounts.linear;
   const notionAccount = accounts.notion;
   const gitlabAccount = accounts.gitlab;
+  const asanaAccount = accounts.asana;
   const removeIssue = useIssuesStore((s) => s.removeIssue);
   const markSubmitted = useIssuesStore((s) => s.markSubmitted);
   const patchIssue = useIssuesStore((s) => s.patchIssue);
@@ -117,6 +119,7 @@ export function DraftDetailDialog({
   const lastLinearSubmit = useSettingsStore((s) => s.lastSubmitFields.linear);
   const lastNotionSubmit = useSettingsStore((s) => s.lastSubmitFields.notion);
   const lastGitlabSubmit = useSettingsStore((s) => s.lastSubmitFields.gitlab);
+  const lastAsanaSubmit = useSettingsStore((s) => s.lastSubmitFields.asana);
   const lastSubmittedPlatform = useSettingsStore((s) => s.lastSubmittedPlatform);
 
   const available = useMemo(() => connectedPlatforms(accounts), [accounts]);
@@ -134,6 +137,8 @@ export function DraftDetailDialog({
     setNotionFields,
     gitlabFields,
     setGitlabFields,
+    asanaFields,
+    setAsanaFields,
   } = usePlatformFields({
     open,
     lastGhSubmit,
@@ -144,6 +149,8 @@ export function DraftDetailDialog({
     notionDefaults: notionAccount?.defaults,
     lastGitlabSubmit,
     gitlabDefaults: gitlabAccount?.defaults,
+    lastAsanaSubmit,
+    asanaDefaults: asanaAccount?.defaults,
     resetKey: issue?.id,
   });
   const [notionSchema, setNotionSchema] = useState<NotionDatabaseSchema | null>(null);
@@ -566,6 +573,50 @@ export function DraftDetailDialog({
     return result;
   }
 
+  async function handleAsanaSubmit(
+    ctx: Awaited<ReturnType<typeof buildCtxForSubmit>>["ctx"],
+    captureFiles: CaptureFiles,
+  ): Promise<NormalizedSubmitResult> {
+    if (!issue) throw new Error(t("create.requiredMissing"));
+    if (!asanaAccount) {
+      throw new Error(t("platform.notConnected.title", { platform: t("platform.tab.asana") }));
+    }
+    if (!asanaFields.workspaceGid) throw new Error(t("create.requiredMissing"));
+
+    const result = await submitToAsana({
+      ctx,
+      images: captureFiles.images,
+      video: captureFiles.video,
+      logs: captureFiles.logs,
+      workspaceGid: asanaFields.workspaceGid,
+      projectGid: asanaFields.projectGid,
+      assigneeGid: asanaFields.assigneeGid,
+    });
+    markSubmitted(issue.id, {
+      platform: "asana",
+      key: result.key,
+      url: result.url,
+      asanaTaskGid: result.key,
+      asanaProjectGid: asanaFields.projectGid,
+      asanaPermalink: result.url,
+    });
+    if (useEditorStore.getState().currentIssueId === issue.id) {
+      const tabId = useEditorStore.getState().target?.tabId;
+      if (tabId != null) void clearPicker(tabId);
+      useEditorStore.getState().reset();
+    }
+    useSettingsStore.getState().setLastSubmitFields("asana", {
+      workspaceGid: asanaFields.workspaceGid,
+      workspaceName: asanaFields.workspaceName,
+      projectGid: asanaFields.projectGid,
+      projectName: asanaFields.projectName,
+      assigneeGid: asanaFields.assigneeGid,
+      assigneeName: asanaFields.assigneeName,
+    });
+    useSettingsStore.getState().setLastSubmittedPlatform("asana");
+    return result;
+  }
+
   async function handleSubmit(submitPlatform: PlatformId): Promise<NormalizedSubmitResult> {
     const { ctx, captureFiles } = await buildCtxForSubmit();
     let result: NormalizedSubmitResult;
@@ -573,6 +624,7 @@ export function DraftDetailDialog({
     else if (submitPlatform === "linear") result = await handleLinearSubmit(ctx, captureFiles);
     else if (submitPlatform === "notion") result = await handleNotionSubmit(ctx, captureFiles);
     else if (submitPlatform === "gitlab") result = await handleGitlabSubmit(ctx, captureFiles);
+    else if (submitPlatform === "asana") result = await handleAsanaSubmit(ctx, captureFiles);
     else result = await handleJiraSubmit(ctx, captureFiles);
     if (issue) {
       const activeRefs = extractInlineRefs(
@@ -718,6 +770,8 @@ export function DraftDetailDialog({
         setNotionFields={setNotionFields}
         gitlabFields={gitlabFields}
         setGitlabFields={setGitlabFields}
+        asanaFields={asanaFields}
+        setAsanaFields={setAsanaFields}
         onNotionSchemaResolved={setNotionSchema}
         onSubmit={handleSubmit}
         onSuccess={(result) => {

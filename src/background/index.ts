@@ -11,6 +11,7 @@ import { JiraError } from "./jira-api";
 import { LinearError } from "./linear-api";
 import { NotionError } from "./notion-api";
 import { handleMessage } from "./messages";
+import { BG_REQUEST_TYPES } from "./bgRequestTypes";
 import { OAuthError } from "./oauth";
 import { pruneOrphanPendingLogsOncePerSession } from "@/lib/pending-log-prune";
 import { shouldClearLogs } from "@/lib/navigation-clear";
@@ -26,74 +27,6 @@ function friendlyError(error: unknown): string {
   }
   return error instanceof Error ? error.message : String(error);
 }
-
-const BG_REQUEST_TYPES = new Set([
-  "ping",
-  "captureVisibleTab",
-  "oauth.start",
-  "oauth.available",
-  "jira.myself",
-  "jira.listProjects",
-  "jira.listIssueTypes",
-  "jira.listPriorities",
-  "jira.searchUsers",
-  "jira.getIssueStatus",
-  "jira.getTransitions",
-  "jira.transitionIssue",
-  "jira.searchEpics",
-  "jira.submitIssue",
-  "github.oauth.available",
-  "github.startOAuth",
-  "github.testPat",
-  "github.disconnect",
-  "github.getMyself",
-  "github.searchRepos",
-  "github.getLabels",
-  "github.searchAssignees",
-  "github.uploadFiles",
-  "github.submitIssue",
-  "github.getIssueStatus",
-  "github.updateIssueState",
-  "linear.oauth.available",
-  "linear.startOAuth",
-  "linear.testApiKey",
-  "linear.disconnect",
-  "linear.getMyself",
-  "linear.getTeams",
-  "linear.getProjects",
-  "linear.getLabels",
-  "linear.getMembers",
-  "linear.submitIssue",
-  "linear.uploadFile",
-  "linear.createAttachment",
-  "linear.getIssueStatus",
-  "linear.getWorkflowStates",
-  "linear.updateIssueState",
-  "notion.oauth.available",
-  "notion.startOAuth",
-  "notion.testToken",
-  "notion.disconnect",
-  "notion.getMyself",
-  "notion.searchDatabases",
-  "notion.getDatabaseSchema",
-  "notion.uploadFile",
-  "notion.submitPage",
-  "notion.getPageStatus",
-  "notion.updatePageStatus",
-  "gitlab.oauth.available",
-  "gitlab.startOAuth",
-  "gitlab.testPat",
-  "gitlab.disconnect",
-  "gitlab.getMyself",
-  "gitlab.searchProjects",
-  "gitlab.getLabels",
-  "gitlab.searchAssignees",
-  "gitlab.uploadFiles",
-  "gitlab.submitIssue",
-  "gitlab.getIssueStatus",
-  "gitlab.updateIssueState",
-  "gitlab.updateIssueDescription",
-]);
 
 function disableGlobalSidePanel(): void {
   chrome.sidePanel

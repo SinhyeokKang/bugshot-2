@@ -3,6 +3,7 @@ import type { GithubAuth, GithubOAuthAuth } from "@/types/github";
 import type { LinearAuth, LinearOAuthAuth } from "@/types/linear";
 import type { NotionAuth } from "@/types/notion";
 import type { GitlabAuth, GitlabOAuthAuth } from "@/types/gitlab";
+import type { AsanaAuth, AsanaOAuthAuth } from "@/types/asana";
 
 export const SETTINGS_STORAGE_KEY = "bugshot-settings";
 
@@ -14,6 +15,7 @@ interface SettingsEnvelope {
       linear?: { auth?: LinearAuth };
       notion?: { auth?: NotionAuth };
       gitlab?: { auth?: GitlabAuth };
+      asana?: { auth?: AsanaAuth };
     };
     jiraConfig?: { auth?: JiraAuth };
   };
@@ -113,6 +115,24 @@ export async function writeStoredGitlabOAuthTokens(
   cur.refreshToken = auth.refreshToken;
   cur.expiresAt = auth.expiresAt;
   cur.scope = auth.scope;
+  const next = typeof raw === "string" ? JSON.stringify(envelope) : envelope;
+  await chrome.storage.local.set({ [SETTINGS_STORAGE_KEY]: next });
+}
+
+export async function readStoredAsanaAuth(): Promise<AsanaAuth | null> {
+  const { envelope } = await readEnvelope();
+  return envelope?.state?.accounts?.asana?.auth ?? null;
+}
+
+export async function writeStoredAsanaOAuthTokens(
+  auth: AsanaOAuthAuth,
+): Promise<void> {
+  const { raw, envelope } = await readEnvelope();
+  const cur = envelope?.state?.accounts?.asana?.auth;
+  if (!cur || cur.kind !== "oauth") return;
+  cur.accessToken = auth.accessToken;
+  cur.refreshToken = auth.refreshToken;
+  cur.expiresAt = auth.expiresAt;
   const next = typeof raw === "string" ? JSON.stringify(envelope) : envelope;
   await chrome.storage.local.set({ [SETTINGS_STORAGE_KEY]: next });
 }

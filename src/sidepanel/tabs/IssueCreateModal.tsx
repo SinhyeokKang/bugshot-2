@@ -31,6 +31,7 @@ import { submitToGithub } from "@/sidepanel/lib/submitToGithub";
 import { submitToLinear } from "@/sidepanel/lib/submitToLinear";
 import { submitToNotion } from "@/sidepanel/lib/submitToNotion";
 import { submitToGitlab } from "@/sidepanel/lib/submitToGitlab";
+import { submitToAsana } from "@/sidepanel/lib/submitToAsana";
 import { extractInlineRefs, resolveInlineImagesForSections, type InlineImageInput } from "@/sidepanel/lib/resolveInlineImages";
 import type { NotionDatabaseSchema } from "@/types/notion";
 import { extractNotionPageId } from "@/lib/notion-page-id";
@@ -47,6 +48,7 @@ export function IssueCreateModal() {
   const lastLinearSubmit = useSettingsStore((s) => s.lastSubmitFields.linear);
   const lastNotionSubmit = useSettingsStore((s) => s.lastSubmitFields.notion);
   const lastGitlabSubmit = useSettingsStore((s) => s.lastSubmitFields.gitlab);
+  const lastAsanaSubmit = useSettingsStore((s) => s.lastSubmitFields.asana);
   const setTargetPlatform = useEditorStore((s) => s.setTargetPlatform);
 
   const available = useMemo(() => connectedPlatforms(accounts), [accounts]);
@@ -75,6 +77,7 @@ export function IssueCreateModal() {
   const linearAccount = accounts.linear;
   const notionAccount = accounts.notion;
   const gitlabAccount = accounts.gitlab;
+  const asanaAccount = accounts.asana;
 
   const {
     ghFields,
@@ -85,6 +88,8 @@ export function IssueCreateModal() {
     setNotionFields,
     gitlabFields,
     setGitlabFields,
+    asanaFields,
+    setAsanaFields,
   } = usePlatformFields({
     open,
     lastGhSubmit,
@@ -95,6 +100,8 @@ export function IssueCreateModal() {
     notionDefaults: notionAccount?.defaults,
     lastGitlabSubmit,
     gitlabDefaults: gitlabAccount?.defaults,
+    lastAsanaSubmit,
+    asanaDefaults: asanaAccount?.defaults,
   });
   const [notionSchema, setNotionSchema] = useState<NotionDatabaseSchema | null>(null);
 
@@ -502,6 +509,48 @@ export function IssueCreateModal() {
     return result;
   }
 
+  async function handleAsanaSubmit(
+    ctx: MarkdownContext,
+    _inlineImages: InlineImageInput[],
+    captureFiles: CaptureFiles,
+  ): Promise<NormalizedSubmitResult> {
+    if (!asanaAccount) {
+      throw new Error(t("platform.notConnected.title", { platform: t("platform.tab.asana") }));
+    }
+    if (!asanaFields.workspaceGid) throw new Error(t("create.requiredMissing"));
+
+    const result = await submitToAsana({
+      ctx,
+      images: captureFiles.images,
+      video: captureFiles.video,
+      logs: captureFiles.logs,
+      workspaceGid: asanaFields.workspaceGid,
+      projectGid: asanaFields.projectGid,
+      assigneeGid: asanaFields.assigneeGid,
+    });
+    if (currentIssueId) {
+      markSubmitted(currentIssueId, {
+        platform: "asana",
+        key: result.key,
+        url: result.url,
+        asanaTaskGid: result.key,
+        asanaProjectGid: asanaFields.projectGid,
+        asanaPermalink: result.url,
+      });
+    }
+    useSettingsStore.getState().setLastSubmitFields("asana", {
+      workspaceGid: asanaFields.workspaceGid,
+      workspaceName: asanaFields.workspaceName,
+      projectGid: asanaFields.projectGid,
+      projectName: asanaFields.projectName,
+      assigneeGid: asanaFields.assigneeGid,
+      assigneeName: asanaFields.assigneeName,
+    });
+    useSettingsStore.getState().setLastSubmittedPlatform("asana");
+    onSubmitted({ key: result.key, url: result.url });
+    return result;
+  }
+
   async function handleSubmit(submitPlatform: PlatformId): Promise<NormalizedSubmitResult> {
     const ctx = buildCtx();
     const inlineImages = await resolveInlineImagesForSections(ctx.sections, sectionConfig);
@@ -511,6 +560,7 @@ export function IssueCreateModal() {
     else if (submitPlatform === "linear") result = await handleLinearSubmit(ctx, inlineImages, captureFiles);
     else if (submitPlatform === "notion") result = await handleNotionSubmit(ctx, inlineImages, captureFiles);
     else if (submitPlatform === "gitlab") result = await handleGitlabSubmit(ctx, inlineImages, captureFiles);
+    else if (submitPlatform === "asana") result = await handleAsanaSubmit(ctx, inlineImages, captureFiles);
     else result = await handleJiraSubmit(ctx, inlineImages, captureFiles);
     const activeRefs = extractInlineRefs(
       Object.values(draft?.sections ?? {}).join("\n"),
@@ -549,6 +599,8 @@ export function IssueCreateModal() {
         setNotionFields={setNotionFields}
         gitlabFields={gitlabFields}
         setGitlabFields={setGitlabFields}
+        asanaFields={asanaFields}
+        setAsanaFields={setAsanaFields}
         onNotionSchemaResolved={setNotionSchema}
         onSubmit={handleSubmit}
       />

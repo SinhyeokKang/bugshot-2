@@ -57,11 +57,22 @@ import {
   updateIssueDescription as updateGitlabIssueDescription,
   uploadFile as uploadGitlabFile,
 } from "./gitlab-api";
+import {
+  createTask as createAsanaTask,
+  getMyself as asanaGetMyself,
+  getTaskStatus as getAsanaTaskStatus,
+  getWorkspaces as getAsanaWorkspaces,
+  searchProjects as searchAsanaProjects,
+  searchUsers as searchAsanaUsers,
+  setTaskCompleted as setAsanaTaskCompleted,
+  uploadAttachment as uploadAsanaAttachment,
+} from "./asana-api";
 import { isOAuthConfigured, startOAuthFlow } from "./oauth";
 import { isGithubOAuthConfigured, startGithubOAuth } from "./github-oauth";
 import { isLinearOAuthConfigured, startLinearOAuth } from "./linear-oauth";
 import { isNotionOAuthConfigured, startNotionOAuth } from "./notion-oauth";
 import { isGitlabOAuthConfigured, startGitlabOAuth } from "./gitlab-oauth";
+import { isAsanaOAuthConfigured, startAsanaOAuth } from "./asana-oauth";
 import {
   createPage as createNotionPage,
   getDatabaseSchema as getNotionDatabaseSchema,
@@ -77,10 +88,12 @@ import {
   readStoredLinearAuth,
   readStoredNotionAuth,
   readStoredGitlabAuth,
+  readStoredAsanaAuth,
 } from "@/lib/settings-storage";
 import type { LinearAuth } from "@/types/linear";
 import type { NotionAuth } from "@/types/notion";
 import type { GitlabAuth } from "@/types/gitlab";
+import type { AsanaAuth } from "@/types/asana";
 
 async function loadAuth(): Promise<JiraAuth> {
   const auth = await readStoredAuth();
@@ -109,6 +122,12 @@ async function loadNotionAuth(): Promise<NotionAuth> {
 async function loadGitlabAuth(): Promise<GitlabAuth> {
   const auth = await readStoredGitlabAuth();
   if (!auth) throw new Error(t("platform.notConnected.title", { platform: t("platform.tab.gitlab") }));
+  return auth;
+}
+
+async function loadAsanaAuth(): Promise<AsanaAuth> {
+  const auth = await readStoredAsanaAuth();
+  if (!auth) throw new Error(t("platform.notConnected.title", { platform: t("platform.tab.asana") }));
   return auth;
 }
 
@@ -412,6 +431,77 @@ export async function handleMessage(
         message.projectId,
         message.iid,
         message.description,
+      );
+
+    case "asana.oauth.available":
+      return { available: isAsanaOAuthConfigured() };
+
+    case "asana.startOAuth":
+      return startAsanaOAuth();
+
+    case "asana.testPat":
+      return asanaGetMyself({
+        kind: "pat",
+        pat: message.pat,
+        viewerGid: "",
+        viewerName: "",
+      });
+
+    case "asana.disconnect":
+      return { ok: true };
+
+    case "asana.getMyself":
+      return asanaGetMyself(await loadAsanaAuth());
+
+    case "asana.getWorkspaces":
+      return getAsanaWorkspaces(await loadAsanaAuth());
+
+    case "asana.searchProjects":
+      return searchAsanaProjects(
+        await loadAsanaAuth(),
+        message.workspaceGid,
+        message.query,
+      );
+
+    case "asana.searchAssignees":
+      return searchAsanaUsers(
+        await loadAsanaAuth(),
+        message.workspaceGid,
+        message.query,
+      );
+
+    case "asana.uploadFiles": {
+      const auth = await loadAsanaAuth();
+      const results: Array<{ filename: string; gid: string | null }> = [];
+      // 업로드 1건 실패가 task 생성 전체를 막지 않게 파일별로 격리.
+      for (const f of message.files) {
+        try {
+          const blob = dataUrlToBlob(f.dataUrl);
+          const { gid } = await uploadAsanaAttachment(
+            auth,
+            message.parent,
+            f.filename,
+            blob,
+          );
+          results.push({ filename: f.filename, gid });
+        } catch {
+          results.push({ filename: f.filename, gid: null });
+        }
+      }
+      return results;
+    }
+
+    case "asana.submitIssue":
+      return createAsanaTask(await loadAsanaAuth(), message.payload);
+
+    case "asana.getTaskStatus":
+      return getAsanaTaskStatus(await loadAsanaAuth(), message.taskGid);
+
+    case "asana.setCompleted":
+      return setAsanaTaskCompleted(
+        await loadAsanaAuth(),
+        message.taskGid,
+        message.completed,
       );
 
     default: {

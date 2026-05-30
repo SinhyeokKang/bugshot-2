@@ -265,11 +265,13 @@ describe("updateAsanaAccount", () => {
     });
 
     // updateAsanaAccount/accounts.asana는 구현 단계(Task 5)에서 추가 — 미구현 시 red
-    (useSettingsStore.getState() as Record<string, unknown> as {
+    (useSettingsStore.getState() as unknown as {
       updateAsanaAccount: (a: unknown) => void;
     }).updateAsanaAccount(asanaStub);
 
-    const s = useSettingsStore.getState() as { accounts: Record<string, unknown> };
+    const s = useSettingsStore.getState() as unknown as {
+      accounts: Record<string, unknown>;
+    };
     expect(s.accounts.asana).toEqual(asanaStub);
     expect(s.accounts.jira).toEqual(jiraStub);
     expect(s.accounts.gitlab).toEqual(gitlabStub);

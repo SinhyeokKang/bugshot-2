@@ -15,6 +15,10 @@ import {
   initialGitlabFields,
   type GitlabIssueFieldsValue,
 } from "@/sidepanel/tabs/gitlabFields/GitlabIssueFields";
+import {
+  initialAsanaFields,
+  type AsanaIssueFieldsValue,
+} from "@/sidepanel/tabs/asanaFields/AsanaIssueFields";
 
 type GhFieldsInitInput = Parameters<typeof initialGhFields>[0];
 type GhFieldsDefaults = Parameters<typeof initialGhFields>[1];
@@ -24,6 +28,8 @@ type NotionFieldsInitInput = Parameters<typeof initialNotionFields>[0];
 type NotionFieldsDefaults = Parameters<typeof initialNotionFields>[1];
 type GitlabFieldsInitInput = Parameters<typeof initialGitlabFields>[0];
 type GitlabFieldsDefaults = Parameters<typeof initialGitlabFields>[1];
+type AsanaFieldsInitInput = Parameters<typeof initialAsanaFields>[0];
+type AsanaFieldsDefaults = Parameters<typeof initialAsanaFields>[1];
 
 export interface UsePlatformFieldsInput {
   open: boolean;
@@ -35,6 +41,8 @@ export interface UsePlatformFieldsInput {
   notionDefaults: NotionFieldsDefaults;
   lastGitlabSubmit: GitlabFieldsInitInput;
   gitlabDefaults: GitlabFieldsDefaults;
+  lastAsanaSubmit: AsanaFieldsInitInput;
+  asanaDefaults: AsanaFieldsDefaults;
   // DraftDetailDialog가 draft 전환 시 idempotent reset 트리거하는 추가 deps.
   // IssueCreateModal은 미사용 (undefined로 두면 effect 동작은 동일).
   resetKey?: string;
@@ -49,6 +57,8 @@ export interface PlatformFieldsState {
   setNotionFields: (patch: Partial<NotionIssueFieldsValue>) => void;
   gitlabFields: GitlabIssueFieldsValue;
   setGitlabFields: (patch: Partial<GitlabIssueFieldsValue>) => void;
+  asanaFields: AsanaIssueFieldsValue;
+  setAsanaFields: (patch: Partial<AsanaIssueFieldsValue>) => void;
 }
 
 export function usePlatformFields(input: UsePlatformFieldsInput): PlatformFieldsState {
@@ -108,6 +118,20 @@ export function usePlatformFields(input: UsePlatformFieldsInput): PlatformFields
     }
   }, [input.open, input.lastGitlabSubmit, input.gitlabDefaults, input.resetKey]);
 
+  const [asanaFields, setAsanaFieldsState] = useState<AsanaIssueFieldsValue>(() =>
+    initialAsanaFields(input.lastAsanaSubmit, input.asanaDefaults),
+  );
+  const setAsanaFields = useCallback(
+    (patch: Partial<AsanaIssueFieldsValue>) =>
+      setAsanaFieldsState((s) => ({ ...s, ...patch })),
+    [],
+  );
+  useEffect(() => {
+    if (input.open) {
+      setAsanaFieldsState(initialAsanaFields(input.lastAsanaSubmit, input.asanaDefaults));
+    }
+  }, [input.open, input.lastAsanaSubmit, input.asanaDefaults, input.resetKey]);
+
   return {
     ghFields,
     setGhFields,
@@ -117,5 +141,7 @@ export function usePlatformFields(input: UsePlatformFieldsInput): PlatformFields
     setNotionFields,
     gitlabFields,
     setGitlabFields,
+    asanaFields,
+    setAsanaFields,
   };
 }

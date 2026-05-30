@@ -4,6 +4,7 @@ import { JiraSubmittedBadge } from "./JiraSubmittedBadge";
 import { LinearSubmittedBadge } from "./LinearSubmittedBadge";
 import { NotionSubmittedBadge } from "./NotionSubmittedBadge";
 import { GitlabSubmittedBadge } from "./GitlabSubmittedBadge";
+import { AsanaSubmittedBadge } from "./AsanaSubmittedBadge";
 
 export function SubmittedBadge({
   issueId,
@@ -18,6 +19,7 @@ export function SubmittedBadge({
   notionDatabaseId,
   gitlabProjectId,
   gitlabIssueIid,
+  asanaTaskGid,
   refreshKey,
   onLoaded,
 }: {
@@ -33,6 +35,7 @@ export function SubmittedBadge({
   notionDatabaseId?: string;
   gitlabProjectId?: number;
   gitlabIssueIid?: number;
+  asanaTaskGid?: string;
   refreshKey: number;
   onLoaded: () => void;
 }) {
@@ -90,6 +93,16 @@ export function SubmittedBadge({
         issueKey={issueKey}
         gitlabProjectId={gitlabProjectId}
         gitlabIssueIid={gitlabIssueIid}
+        refreshKey={refreshKey}
+        onLoaded={onLoaded}
+      />
+    );
+  }
+  if (platform === "asana") {
+    return (
+      <AsanaSubmittedBadge
+        issueId={issueId}
+        asanaTaskGid={asanaTaskGid}
         refreshKey={refreshKey}
         onLoaded={onLoaded}
       />

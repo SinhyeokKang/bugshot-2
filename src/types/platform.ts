@@ -3,8 +3,15 @@ import type { GithubAccount } from "./github";
 import type { LinearAccount } from "./linear";
 import type { NotionAccount } from "./notion";
 import type { GitlabAccount } from "./gitlab";
+import type { AsanaAccount } from "./asana";
 
-export type PlatformId = "jira" | "github" | "linear" | "notion" | "gitlab";
+export type PlatformId =
+  | "jira"
+  | "github"
+  | "linear"
+  | "notion"
+  | "gitlab"
+  | "asana";
 
 export const PLATFORM_TAB_KEYS = {
   jira: "platform.tab.jira",
@@ -12,6 +19,7 @@ export const PLATFORM_TAB_KEYS = {
   linear: "platform.tab.linear",
   notion: "platform.tab.notion",
   gitlab: "platform.tab.gitlab",
+  asana: "platform.tab.asana",
 } as const satisfies Record<PlatformId, string>;
 
 export interface PlatformAccountBase<P extends PlatformId> {
@@ -32,6 +40,7 @@ export interface Accounts {
   linear?: LinearAccount;
   notion?: NotionAccount;
   gitlab?: GitlabAccount;
+  asana?: AsanaAccount;
 }
 
 export interface JiraLastSubmitFields {
@@ -91,10 +100,20 @@ export interface GitlabLastSubmitFields {
   assigneeName?: string;
 }
 
+export interface AsanaLastSubmitFields {
+  workspaceGid?: string;
+  workspaceName?: string;
+  projectGid?: string;
+  projectName?: string;
+  assigneeGid?: string;
+  assigneeName?: string;
+}
+
 export interface LastSubmitFieldsByPlatform {
   jira?: JiraLastSubmitFields;
   github?: GithubLastSubmitFields;
   linear?: LinearLastSubmitFields;
   notion?: NotionLastSubmitFields;
   gitlab?: GitlabLastSubmitFields;
+  asana?: AsanaLastSubmitFields;
 }

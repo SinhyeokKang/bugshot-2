@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ComponentType } from "react";
 import { Blocks, Plug, Plus, Unplug } from "lucide-react";
 import {
+  SiAsana,
   SiGithub,
   SiGitlab,
   SiJirasoftware,
@@ -34,6 +35,7 @@ import { JiraConnectedBody, JiraConnectFlow } from "./connect/JiraConnectForm";
 import { LinearConnectedBody, LinearConnectFlow } from "./connect/LinearConnectForm";
 import { NotionConnectedBody, NotionConnectFlow } from "./connect/NotionConnectForm";
 import { GitlabConnectedBody, GitlabConnectFlow } from "./connect/GitlabConnectForm";
+import { AsanaConnectedBody, AsanaConnectFlow } from "./connect/AsanaConnectForm";
 
 interface PlatformEntry {
   id: PlatformId;
@@ -49,6 +51,7 @@ const PLATFORMS: PlatformEntry[] = [
   { id: "linear", Icon: SiLinear, ConnectedBody: LinearConnectedBody, ConnectFlow: LinearConnectFlow },
   { id: "gitlab", Icon: SiGitlab, ConnectedBody: GitlabConnectedBody, ConnectFlow: GitlabConnectFlow },
   { id: "notion", Icon: SiNotion, ConnectedBody: NotionConnectedBody, ConnectFlow: NotionConnectFlow, iconClassName: "dark:invert" },
+  { id: "asana", Icon: SiAsana, ConnectedBody: AsanaConnectedBody, ConnectFlow: AsanaConnectFlow },
 ];
 
 export function IntegrationsTab({ activeMainTab }: { activeMainTab: string }) {
