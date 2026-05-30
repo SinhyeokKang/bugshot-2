@@ -256,8 +256,8 @@ const PLATFORM_FALLBACK_ORDER: PlatformId[] = [
   "jira",
   "github",
   "linear",
-  "notion",
   "gitlab",
+  "notion",
 ];
 
 // 다이얼로그가 열릴 때 어느 플랫폼 탭을 default로 보여줄지 결정.

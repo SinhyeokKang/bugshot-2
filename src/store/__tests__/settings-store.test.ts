@@ -219,7 +219,7 @@ describe("connectedPlatforms", () => {
     expect(connectedPlatforms({})).toEqual([]);
   });
 
-  it("gitlab은 fallback 순서 끝에 포함된다", () => {
+  it("gitlab은 fallback 순서에서 linear 뒤·notion 앞에 온다", () => {
     expect(connectedPlatforms({ gitlab: gitlabStub })).toEqual(["gitlab"]);
     expect(
       connectedPlatforms({
@@ -229,7 +229,7 @@ describe("connectedPlatforms", () => {
         notion: notionStub,
         gitlab: gitlabStub,
       }),
-    ).toEqual(["jira", "github", "linear", "notion", "gitlab"]);
+    ).toEqual(["jira", "github", "linear", "gitlab", "notion"]);
   });
 });
 

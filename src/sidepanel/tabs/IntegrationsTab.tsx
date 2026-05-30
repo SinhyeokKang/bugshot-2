@@ -47,8 +47,8 @@ const PLATFORMS: PlatformEntry[] = [
   { id: "jira", Icon: SiJirasoftware, ConnectedBody: JiraConnectedBody, ConnectFlow: JiraConnectFlow },
   { id: "github", Icon: SiGithub, ConnectedBody: GithubConnectedBody, ConnectFlow: GithubConnectFlow, iconClassName: "dark:invert" },
   { id: "linear", Icon: SiLinear, ConnectedBody: LinearConnectedBody, ConnectFlow: LinearConnectFlow },
-  { id: "notion", Icon: SiNotion, ConnectedBody: NotionConnectedBody, ConnectFlow: NotionConnectFlow, iconClassName: "dark:invert" },
   { id: "gitlab", Icon: SiGitlab, ConnectedBody: GitlabConnectedBody, ConnectFlow: GitlabConnectFlow },
+  { id: "notion", Icon: SiNotion, ConnectedBody: NotionConnectedBody, ConnectFlow: NotionConnectFlow, iconClassName: "dark:invert" },
 ];
 
 export function IntegrationsTab({ activeMainTab }: { activeMainTab: string }) {
