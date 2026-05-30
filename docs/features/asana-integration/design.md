@@ -33,12 +33,12 @@ GitLab 통합(`src/background/gitlab-api.ts`, `src/background/gitlab-oauth.ts`, 
 - `src/types/messages.ts`: `asana.*` 메시지 유니언.
 - `src/sidepanel/tabs/IntegrationsTab.tsx`: `import { SiAsana } from "@icons-pack/react-simple-icons"`; PLATFORMS 배열에 asana 엔트리.
 - `src/lib/settings-storage.ts`: `SettingsEnvelope.state.accounts.asana?`; `readStoredAsanaAuth()`; `writeStoredAsanaOAuthTokens()`.
-- `src/store/settings-store.ts`: `updateAsanaAccount()` 액션; `SETTINGS_STORE_VERSION` +1 (현재값 확인 후 bump).
-- `src/sidepanel/tabs/IssueCreateModal.tsx`: asana 제출 분기 + `lastSubmitFields.asana` 저장 + 이슈 레코드 좌표 저장.
+- `src/store/settings-store.ts`: `updateAsanaAccount()` 액션; `SETTINGS_STORE_VERSION` **7 → 8** bump. (GitLab과 동일하게 전용 migrate 함수 없이 버전만 올리고 `updateAsanaAccount` 라운드트립 테스트로 타 플랫폼 보존 검증 — `migrate()`는 `version < 5`까지만 처리.)
+- `src/sidepanel/tabs/IssueCreateModal.tsx`: asana 제출 분기 + `lastSubmitFields.asana` 저장 + 이슈 레코드 좌표 저장. ⚠️ `handleSubmit`은 `if/else if … else = handleJiraSubmit` **디폴트 fallback** 구조라 asana 분기 누락 시 컴파일 에러 없이 조용히 Jira로 제출된다 → typecheck로 안 잡힘, 분기 추가를 명시적으로 검증(회귀 테스트).
 - `src/sidepanel/hooks/usePlatformFields.ts`: asana 필드 상태 init/effect.
-- `src/sidepanel/tabs/issueListUtils.ts`: `resolveAsanaCoords()` + `isRefreshable()` 분기.
+- `src/sidepanel/tabs/issueListUtils.ts`: `resolveAsanaCoords()` + `isRefreshable()` 분기. ⚠️ `isRefreshable`도 `if` 체인 + `return false` 디폴트라 asana 누락 시 조용히 refresh 불가 → typecheck로 안 잡힘, 명시적 검증.
 - `src/store/issues-store.ts`: `asanaTaskGid?: string`, `asanaProjectGid?: string`, `asanaPermalink?: string`.
-- `src/i18n/integrations.ts` + `src/i18n/issue.ts`: `asana.*` 키 (ko/en 동시, PostToolUse 훅 자동 검사). `platform.tab.asana`.
+- `src/i18n/namespaces/integrations.ts` + `src/i18n/namespaces/issue.ts`: `asana.*` 키 (ko/en 동시, PostToolUse 훅 자동 검사). **`platform.tab.asana`는 `src/i18n/namespaces/app.ts`에 추가** (integrations.ts 아님 — GitLab `platform.tab.gitlab`이 app.ts에 있음).
 - `.env.example`: `VITE_ASANA_CLIENT_ID=`.
 
 ## 데이터 흐름
@@ -46,17 +46,15 @@ GitLab 통합(`src/background/gitlab-api.ts`, `src/background/gitlab-oauth.ts`, 
 ```
 IssueCreateModal (asana 선택)
   → submitToAsana({ workspaceGid, projectGid, assigneeGid, ctx, images, video, logs })
-     1. sendMessage("asana.uploadFiles", ...)  ← task 생성 후 첨부 (Asana는 parent task 필요)
-        ↳ 순서: task 먼저 생성 → attachment POST (per-file 격리)
-     2. buildAsanaIssueBody → markdownToAsanaHtml → html_notes
-     3. sendMessage("asana.submitIssue", { payload }) → createTask
-     4. 첨부 업로드 (asana.uploadFiles, parent=taskGid)
-     5. logs.html 첨부 후 (인라인 URL 주입 불필요 — Asana는 첨부 분리)
+     1. buildAsanaIssueBody → markdownToAsanaHtml → html_notes
+     2. sendMessage("asana.submitIssue", { payload }) → createTask  ← parent task 먼저 생성
+     3. sendMessage("asana.uploadFiles", { parent: taskGid, files }) → attachment POST (per-file 격리)
+        ↳ logs.html 포함 모든 첨부가 task attachment로 분리 (인라인 URL 주입 불필요)
   → NormalizedSubmitResult { url: permalink, key: taskGid }
   → issues-store에 asanaTaskGid/asanaProjectGid/asanaPermalink 저장
 ```
 
-> GitLab은 업로드→본문(URL 임베드)→생성 순이지만, **Asana attachment는 parent task gid가 필수**라 생성→첨부 순으로 뒤집힌다 (Jira attachment 패턴과 동일). 따라서 `submitToAsana`는 createTask 먼저, 그다음 attachment 루프.
+> GitLab은 업로드→본문(URL 임베드)→생성 순이지만, **Asana attachment는 parent task gid가 필수**라 생성→첨부 순으로 뒤집힌다 (Jira attachment 패턴과 동일). 따라서 `submitToAsana`는 createTask 먼저, 그다음 attachment 루프. **로그 뷰어 역링크 주입(`injectIssueUrl`)·notes 갱신은 비목표** — 첨부가 생성 후 분리되므로 GitLab `updateIssueDescription` 대응 메시지를 두지 않는다(아래 "메시지 핸들러" 11종, GitLab 13종 대비 `updateIssueDescription`·`getLabels` 제외).
 
 ## 인터페이스 설계
 
@@ -160,13 +158,20 @@ export function markdownToAsanaHtml(markdown: string): string;  // 반환: "<bod
 ```
 - 지원 태그: `<body><h1><h2><ol><ul><li><strong><em><u><s><code><pre><a href><blockquote><hr>`.
 - 매핑: `# ` → `<h1>`, `## `→`<h2>`, `### ` 이상 → `<strong>`; 코드펜스 → `<pre>`; 링크 → `<a>`; 리스트 → `<ul>/<ol>`.
-- **미지원 폴백**: 이미지(`![]()`) → 텍스트 캡션만(미디어는 첨부로 별도); **테이블 → `<pre>` 코드블록**(스타일 diff 테이블이 핵심 케이스).
+- **미지원 폴백**: 이미지(`![]()`) → 텍스트 캡션만(미디어는 첨부로 별도); **테이블 → `<pre>` 코드블록**(스타일 diff 테이블이 핵심 케이스). `<pre>`는 모노스페이스 고정폭이므로 각 컬럼을 **공백 패딩으로 정렬**해 한 블록에 넣는다(셀 폭 = 컬럼별 max-width). 정렬 결과를 테스트 케이스로 고정.
 - `markdown-it`(기존 의존성) 토큰 순회로 구현, GitLab엔 없던 유일한 추가 로직.
+
+### 필드 UI 종속 상태 (`asanaFields/*`)
+
+- **workspace는 작성 화면에 상시 노출하지 않는다**: connect 폼에서 저장한 기본 workspace를 고정 사용하고, 작성 화면엔 **project·assignee 콤보박스만** 노출(~400px 필드 절약, GitLab 미러에 더 근접). workspace 변경은 "변경" 링크로 진입.
+- **종속 리셋 체인**: project·assignee 콤보박스는 `workspaceGid` prop을 받아 `ready = !!workspaceGid` 게이팅. workspace 변경 시 `useEffect([workspaceGid]) → setItems([])` + 하위 선택값(projectGid/assigneeGid) undefined 처리. 미선택 시 `disabled` + `requireWorkspace` placeholder (GitLab `AssigneeCombobox`의 `requireProject` 패턴 미러, 단 종속 키가 workspace).
+- **상태 배지 색상**: `AsanaStatusBadge`/`AsanaSubmittedBadge`는 `STATUS_CATEGORY_COLORS`를 재사용 — **incomplete → `.indeterminate`, complete → `.done`** (새 색상 만들지 말 것). 토글 UI는 GitLab `GitlabStatusBadge` popover 미러(complete/incomplete 2옵션 선택).
+- **`SiAsana` 아이콘**: `@icons-pack/react-simple-icons`에 존재(분홍 단색 `#F06A6A`). `color="default"`로 충분, **`dark:invert` 불필요**(GitHub·Notion만 invert) → IntegrationsTab PLATFORMS 엔트리에서 `iconClassName` 생략.
 
 ## 기존 패턴 준수
 
 - **세션/스토리지 영속화**: `chrome.storage.local` + `settings-store` zustand, GitLab과 동일.
-- **메시지 비동기 응답**: `messages.ts` switch + `await loadAsanaAuth()`.
+- **메시지 비동기 응답**: `messages.ts` switch + `await loadAsanaAuth()`. 라우팅은 `src/types/messages.ts` discriminated union + `messages.ts` exhaustive switch **2곳만** (별도 `BG_REQUEST_TYPES` Set은 코드에 없음 — 등록 대상 아님). switch의 `never` 분기는 컴파일로 누락을 잡는다.
 - **refresh-hook**: 모듈 로드 시 `setAsanaRefreshHook(refreshAsanaToken)` 등록 (GitLab `github-oauth.ts:231` 패턴).
 - **i18n 동시 갱신**: ko/en 양쪽 `asana.*` 키 추가, PostToolUse 훅 자동 검사 통과.
 - **IconButton/콤보박스 사이즈**: GitLab 콤보박스 그대로 (`h-9` 필드, debounce 250ms).
@@ -184,4 +189,4 @@ export function markdownToAsanaHtml(markdown: string): string;  // 반환: "<bod
 - **테이블 손실**: 스타일 diff 테이블이 `<pre>`로 폴백되면 정렬 가독성 저하. Before/After를 라벨링된 코드블록으로 렌더해 최소 가독성 확보.
 - **typeahead API**: project/user 검색은 `/workspaces/{wid}/typeahead` 사용. workspace 미선택 시 비활성(GitLab `requireProject` 패턴 미러).
 - **rate limit(429)**: Asana는 분당 제한이 있음 → `messageForAsanaStatus(429)` 안내.
-- **회귀 위험 낮음**: 신규 플랫폼 추가는 기존 5개와 격리. 단 `PlatformId` 유니언 확장이 exhaustive switch(messages.ts, IssueCreateModal, issueListUtils)에 컴파일 에러를 유발하므로 모든 분기 추가 필요 → typecheck로 누락 검출.
+- **회귀 위험 — exhaustive switch 전제는 부분적으로만 참**: `messages.ts` switch만 `never` 분기로 컴파일 에러를 낸다. **`IssueCreateModal.handleSubmit`(if/else → 디폴트 `handleJiraSubmit`)과 `issueListUtils.isRefreshable`(if 체인 → `return false`)은 디폴트 fallback이라 asana 누락 시 컴파일 에러 없이 조용히 Jira 제출/refresh 불가로 샌다.** → 이 두 지점은 typecheck 의존 불가, 분기 추가를 명시 체크 + 회귀 테스트(asana 이슈가 Jira로 안 샘 / `isRefreshable(asana)=true`)로 고정.
