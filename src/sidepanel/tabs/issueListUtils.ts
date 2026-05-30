@@ -14,7 +14,21 @@ export function isRefreshable(issue: IssueRecord): boolean {
   if (issue.platform === "notion") {
     return !!resolveNotionPageId(issue);
   }
+  if (issue.platform === "gitlab") {
+    return !!resolveGitlabCoords(issue);
+  }
   return false;
+}
+
+// GitLab refresh는 project id(글로벌)와 iid가 모두 필요. URL에서 project id를 복원할 수 없으므로
+// 등록 시 저장된 gitlabProjectId가 없으면 refresh 불가.
+export function resolveGitlabCoords(
+  issue: Pick<IssueRecord, "gitlabProjectId" | "gitlabIssueIid" | "key">,
+): { projectId: number; iid: number } | null {
+  const projectId = issue.gitlabProjectId ?? null;
+  const iid = issue.gitlabIssueIid ?? parseGithubIssueNumber(issue.key) ?? null;
+  if (projectId == null || iid == null) return null;
+  return { projectId, iid };
 }
 
 export function resolveNotionPageId(

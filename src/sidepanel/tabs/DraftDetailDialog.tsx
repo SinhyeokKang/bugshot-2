@@ -49,6 +49,7 @@ import { sendBg, type JiraSubmitResult } from "@/types/messages";
 import { submitToGithub } from "@/sidepanel/lib/submitToGithub";
 import { submitToLinear } from "@/sidepanel/lib/submitToLinear";
 import { submitToNotion } from "@/sidepanel/lib/submitToNotion";
+import { submitToGitlab } from "@/sidepanel/lib/submitToGitlab";
 import type { NotionDatabaseSchema } from "@/types/notion";
 import { usePlatformFields } from "@/sidepanel/hooks/usePlatformFields";
 import { extractNotionPageId } from "@/lib/notion-page-id";
@@ -102,6 +103,7 @@ export function DraftDetailDialog({
   const ghAccount = accounts.github;
   const linearAccount = accounts.linear;
   const notionAccount = accounts.notion;
+  const gitlabAccount = accounts.gitlab;
   const removeIssue = useIssuesStore((s) => s.removeIssue);
   const markSubmitted = useIssuesStore((s) => s.markSubmitted);
   const patchIssue = useIssuesStore((s) => s.patchIssue);
@@ -114,6 +116,7 @@ export function DraftDetailDialog({
   const lastGhSubmit = useSettingsStore((s) => s.lastSubmitFields.github);
   const lastLinearSubmit = useSettingsStore((s) => s.lastSubmitFields.linear);
   const lastNotionSubmit = useSettingsStore((s) => s.lastSubmitFields.notion);
+  const lastGitlabSubmit = useSettingsStore((s) => s.lastSubmitFields.gitlab);
   const lastSubmittedPlatform = useSettingsStore((s) => s.lastSubmittedPlatform);
 
   const available = useMemo(() => connectedPlatforms(accounts), [accounts]);
@@ -129,6 +132,8 @@ export function DraftDetailDialog({
     setLinearFields,
     notionFields,
     setNotionFields,
+    gitlabFields,
+    setGitlabFields,
   } = usePlatformFields({
     open,
     lastGhSubmit,
@@ -137,6 +142,8 @@ export function DraftDetailDialog({
     linearDefaults: linearAccount?.defaults,
     lastNotionSubmit,
     notionDefaults: notionAccount?.defaults,
+    lastGitlabSubmit,
+    gitlabDefaults: gitlabAccount?.defaults,
     resetKey: issue?.id,
   });
   const [notionSchema, setNotionSchema] = useState<NotionDatabaseSchema | null>(null);
@@ -514,12 +521,58 @@ export function DraftDetailDialog({
     return result;
   }
 
+  async function handleGitlabSubmit(
+    ctx: Awaited<ReturnType<typeof buildCtxForSubmit>>["ctx"],
+    captureFiles: CaptureFiles,
+  ): Promise<NormalizedSubmitResult> {
+    if (!issue) throw new Error(t("create.requiredMissing"));
+    if (!gitlabAccount) {
+      throw new Error(t("platform.notConnected.title", { platform: t("platform.tab.gitlab") }));
+    }
+    if (!gitlabFields.projectId) throw new Error(t("create.requiredMissing"));
+
+    const gitlabInline = await resolveInlineImagesForSections(ctx.sections, sectionConfig);
+    const result = await submitToGitlab({
+      ctx,
+      images: captureFiles.images,
+      video: captureFiles.video,
+      logs: captureFiles.logs,
+      inlineImages: gitlabInline,
+      projectId: gitlabFields.projectId,
+      label: gitlabFields.label,
+      assigneeId: gitlabFields.assigneeId,
+    });
+    markSubmitted(issue.id, {
+      platform: "gitlab",
+      key: result.key,
+      url: result.url,
+      gitlabProjectId: gitlabFields.projectId,
+      gitlabIssueIid: Number(result.key.replace(/^#/, "")),
+      gitlabLabels: gitlabFields.label ? [gitlabFields.label] : undefined,
+    });
+    if (useEditorStore.getState().currentIssueId === issue.id) {
+      const tabId = useEditorStore.getState().target?.tabId;
+      if (tabId != null) void clearPicker(tabId);
+      useEditorStore.getState().reset();
+    }
+    useSettingsStore.getState().setLastSubmitFields("gitlab", {
+      projectId: gitlabFields.projectId,
+      projectPath: gitlabFields.projectPath,
+      label: gitlabFields.label,
+      assigneeId: gitlabFields.assigneeId,
+      assigneeName: gitlabFields.assigneeName,
+    });
+    useSettingsStore.getState().setLastSubmittedPlatform("gitlab");
+    return result;
+  }
+
   async function handleSubmit(submitPlatform: PlatformId): Promise<NormalizedSubmitResult> {
     const { ctx, captureFiles } = await buildCtxForSubmit();
     let result: NormalizedSubmitResult;
     if (submitPlatform === "github") result = await handleGithubSubmit(ctx, captureFiles);
     else if (submitPlatform === "linear") result = await handleLinearSubmit(ctx, captureFiles);
     else if (submitPlatform === "notion") result = await handleNotionSubmit(ctx, captureFiles);
+    else if (submitPlatform === "gitlab") result = await handleGitlabSubmit(ctx, captureFiles);
     else result = await handleJiraSubmit(ctx, captureFiles);
     if (issue) {
       const activeRefs = extractInlineRefs(
@@ -663,6 +716,8 @@ export function DraftDetailDialog({
         setLinearFields={setLinearFields}
         notionFields={notionFields}
         setNotionFields={setNotionFields}
+        gitlabFields={gitlabFields}
+        setGitlabFields={setGitlabFields}
         onNotionSchemaResolved={setNotionSchema}
         onSubmit={handleSubmit}
         onSuccess={(result) => {

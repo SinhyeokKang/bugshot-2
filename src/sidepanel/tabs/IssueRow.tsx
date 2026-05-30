@@ -96,6 +96,8 @@ export function IssueRow({
                 linearIdentifier={issue.linearIdentifier}
                 notionPageId={issue.notionPageId}
                 notionDatabaseId={issue.notionDatabaseId}
+                gitlabProjectId={issue.gitlabProjectId}
+                gitlabIssueIid={issue.gitlabIssueIid}
                 refreshKey={refreshKey}
                 onLoaded={onBadgeLoaded}
               />

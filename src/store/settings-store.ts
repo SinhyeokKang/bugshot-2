@@ -10,14 +10,15 @@ import type {
 import type { GithubAccount } from "@/types/github";
 import type { LinearAccount } from "@/types/linear";
 import type { NotionAccount } from "@/types/notion";
+import type { GitlabAccount } from "@/types/gitlab";
 import { SETTINGS_STORAGE_KEY } from "@/lib/settings-storage";
 import { chromeLocalStorage } from "./chrome-storage";
 
 export type { JiraAccount } from "@/types/platform";
 
 // v6: notion 플랫폼 추가 (accounts.notion / lastSubmitFields.notion / lastSubmittedPlatform="notion").
-// 새 필드는 모두 optional이라 v5→v6 데이터 마이그레이션은 불필요 — 버전 마커만 bump.
-export const SETTINGS_STORE_VERSION = 6;
+// v7: gitlab 플랫폼 추가. 새 필드는 모두 optional이라 v6→v7 데이터 마이그레이션 불필요 — 버전 마커만 bump.
+export const SETTINGS_STORE_VERSION = 7;
 
 interface SettingsState {
   accounts: Accounts;
@@ -38,6 +39,9 @@ interface SettingsState {
   ) => void;
   updateNotionAccount: (
     patch: Partial<Omit<NotionAccount, "platform" | "connectedAt">>,
+  ) => void;
+  updateGitlabAccount: (
+    patch: Partial<Omit<GitlabAccount, "platform" | "connectedAt">>,
   ) => void;
   setLastSubmitFields: <P extends PlatformId>(
     platform: P,
@@ -179,6 +183,13 @@ export const useSettingsStore = create<SettingsState>()(
           if (!cur) return s;
           return { accounts: { ...s.accounts, notion: { ...cur, ...patch } } };
         }),
+      updateGitlabAccount: (patch) =>
+        set((s) => ({
+          accounts: {
+            ...s.accounts,
+            gitlab: { ...s.accounts.gitlab, ...patch } as GitlabAccount,
+          },
+        })),
       setLastSubmitFields: (platform, fields) =>
         set((s) => ({
           lastSubmitFields: { ...s.lastSubmitFields, [platform]: fields },
@@ -246,6 +257,7 @@ const PLATFORM_FALLBACK_ORDER: PlatformId[] = [
   "github",
   "linear",
   "notion",
+  "gitlab",
 ];
 
 // 다이얼로그가 열릴 때 어느 플랫폼 탭을 default로 보여줄지 결정.

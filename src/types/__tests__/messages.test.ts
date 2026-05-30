@@ -84,6 +84,12 @@ describe("getOAuthErrorPlatform", () => {
     ).toBe("notion");
   });
 
+  it("body.platform이 'gitlab'이면 'gitlab'", () => {
+    expect(
+      getOAuthErrorPlatform(new BgError("x", 401, { oauthRefreshFailed: true, platform: "gitlab" })),
+    ).toBe("gitlab");
+  });
+
   it("platform이 없거나 알 수 없는 값이면 null", () => {
     expect(
       getOAuthErrorPlatform(new BgError("x", 401, { oauthRefreshFailed: true })),

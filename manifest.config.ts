@@ -80,6 +80,7 @@ export default defineManifest({
     "https://uploads.github.com/*",
     "https://api.linear.app/*",
     "https://api.notion.com/*",
+    "https://gitlab.com/*",
     ...(proxyMatch ? [proxyMatch] : []),
   ],
   commands: {

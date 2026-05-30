@@ -2,6 +2,7 @@ import type { JiraAuth, JiraOAuthAuth } from "@/types/jira";
 import type { GithubAuth, GithubOAuthAuth } from "@/types/github";
 import type { LinearAuth, LinearOAuthAuth } from "@/types/linear";
 import type { NotionAuth } from "@/types/notion";
+import type { GitlabAuth, GitlabOAuthAuth } from "@/types/gitlab";
 
 export const SETTINGS_STORAGE_KEY = "bugshot-settings";
 
@@ -12,6 +13,7 @@ interface SettingsEnvelope {
       github?: { auth?: GithubAuth };
       linear?: { auth?: LinearAuth };
       notion?: { auth?: NotionAuth };
+      gitlab?: { auth?: GitlabAuth };
     };
     jiraConfig?: { auth?: JiraAuth };
   };
@@ -94,4 +96,23 @@ export async function writeStoredLinearOAuthTokens(
 export async function readStoredNotionAuth(): Promise<NotionAuth | null> {
   const { envelope } = await readEnvelope();
   return envelope?.state?.accounts?.notion?.auth ?? null;
+}
+
+export async function readStoredGitlabAuth(): Promise<GitlabAuth | null> {
+  const { envelope } = await readEnvelope();
+  return envelope?.state?.accounts?.gitlab?.auth ?? null;
+}
+
+export async function writeStoredGitlabOAuthTokens(
+  auth: GitlabOAuthAuth,
+): Promise<void> {
+  const { raw, envelope } = await readEnvelope();
+  const cur = envelope?.state?.accounts?.gitlab?.auth;
+  if (!cur || cur.kind !== "oauth") return;
+  cur.accessToken = auth.accessToken;
+  cur.refreshToken = auth.refreshToken;
+  cur.expiresAt = auth.expiresAt;
+  cur.scope = auth.scope;
+  const next = typeof raw === "string" ? JSON.stringify(envelope) : envelope;
+  await chrome.storage.local.set({ [SETTINGS_STORAGE_KEY]: next });
 }

@@ -11,6 +11,10 @@ import {
   initialNotionFields,
   type NotionIssueFieldsValue,
 } from "@/sidepanel/tabs/notionFields/NotionIssueFields";
+import {
+  initialGitlabFields,
+  type GitlabIssueFieldsValue,
+} from "@/sidepanel/tabs/gitlabFields/GitlabIssueFields";
 
 type GhFieldsInitInput = Parameters<typeof initialGhFields>[0];
 type GhFieldsDefaults = Parameters<typeof initialGhFields>[1];
@@ -18,6 +22,8 @@ type LinearFieldsInitInput = Parameters<typeof initialLinearFields>[0];
 type LinearFieldsDefaults = Parameters<typeof initialLinearFields>[1];
 type NotionFieldsInitInput = Parameters<typeof initialNotionFields>[0];
 type NotionFieldsDefaults = Parameters<typeof initialNotionFields>[1];
+type GitlabFieldsInitInput = Parameters<typeof initialGitlabFields>[0];
+type GitlabFieldsDefaults = Parameters<typeof initialGitlabFields>[1];
 
 export interface UsePlatformFieldsInput {
   open: boolean;
@@ -27,6 +33,8 @@ export interface UsePlatformFieldsInput {
   linearDefaults: LinearFieldsDefaults;
   lastNotionSubmit: NotionFieldsInitInput;
   notionDefaults: NotionFieldsDefaults;
+  lastGitlabSubmit: GitlabFieldsInitInput;
+  gitlabDefaults: GitlabFieldsDefaults;
   // DraftDetailDialog가 draft 전환 시 idempotent reset 트리거하는 추가 deps.
   // IssueCreateModal은 미사용 (undefined로 두면 effect 동작은 동일).
   resetKey?: string;
@@ -39,6 +47,8 @@ export interface PlatformFieldsState {
   setLinearFields: (patch: Partial<LinearIssueFieldsValue>) => void;
   notionFields: NotionIssueFieldsValue;
   setNotionFields: (patch: Partial<NotionIssueFieldsValue>) => void;
+  gitlabFields: GitlabIssueFieldsValue;
+  setGitlabFields: (patch: Partial<GitlabIssueFieldsValue>) => void;
 }
 
 export function usePlatformFields(input: UsePlatformFieldsInput): PlatformFieldsState {
@@ -84,6 +94,20 @@ export function usePlatformFields(input: UsePlatformFieldsInput): PlatformFields
     }
   }, [input.open, input.lastNotionSubmit, input.notionDefaults, input.resetKey]);
 
+  const [gitlabFields, setGitlabFieldsState] = useState<GitlabIssueFieldsValue>(() =>
+    initialGitlabFields(input.lastGitlabSubmit, input.gitlabDefaults),
+  );
+  const setGitlabFields = useCallback(
+    (patch: Partial<GitlabIssueFieldsValue>) =>
+      setGitlabFieldsState((s) => ({ ...s, ...patch })),
+    [],
+  );
+  useEffect(() => {
+    if (input.open) {
+      setGitlabFieldsState(initialGitlabFields(input.lastGitlabSubmit, input.gitlabDefaults));
+    }
+  }, [input.open, input.lastGitlabSubmit, input.gitlabDefaults, input.resetKey]);
+
   return {
     ghFields,
     setGhFields,
@@ -91,5 +115,7 @@ export function usePlatformFields(input: UsePlatformFieldsInput): PlatformFields
     setLinearFields,
     notionFields,
     setNotionFields,
+    gitlabFields,
+    setGitlabFields,
   };
 }

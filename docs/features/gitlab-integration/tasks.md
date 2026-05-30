@@ -20,43 +20,43 @@
 - **변경 대상**: `src/types/gitlab.ts`(신규), `src/types/platform.ts`
 - **작업 내용**: design의 타입 전체. `PlatformId`에 `"gitlab"`, `PLATFORM_TAB_KEYS`·`Accounts`·`LastSubmitFieldsByPlatform`에 gitlab. `GitlabLastSubmitFields { projectId?, projectPath?, label?, assignee? }`.
 - **검증**:
-  - [ ] `pnpm typecheck` — `Accounts`/`LastSubmitFieldsByPlatform`가 `Record<PlatformId,...>` 제약을 만족 (platform.test.ts는 타입 컴파일 테스트라 typecheck로 일원화 — 의미 있는 런타임 단위 테스트는 Task 2 `gitlab-api.test.ts`로 모은다)
+  - [x] `pnpm typecheck` — `Accounts`/`LastSubmitFieldsByPlatform`가 `Record<PlatformId,...>` 제약을 만족 (platform.test.ts는 타입 컴파일 테스트라 typecheck로 일원화 — 의미 있는 런타임 단위 테스트는 Task 2 `gitlab-api.test.ts`로 모은다)
 
 ### Task 2: API 어댑터 + 단위 테스트
 - **변경 대상**: `src/background/gitlab-api.ts`(신규), `src/background/__tests__/gitlab-api.test.ts`(신규)
 - **작업 내용**: design의 엔드포인트 매핑 전부. 순수 함수 분리: `buildAuthHeader`, `normalizeProject`, `mapCreateIssueBody`(labels→comma string, assignee_ids), `normalizeIssueStatus`(`opened`/`closed`), `messageForGitlabStatus`(401/403/404/422/429/5xx). `gitlabFetch`는 `auth.baseUrl` prefix. refresh hook(`setGitlabRefreshHook`/`ensureFresh`/401 재시도) GitHub 미러.
 - **검증**:
-  - [ ] 단위 테스트: `mapCreateIssueBody`(라벨 join·assignee_ids·빈 값 생략), `normalizeIssueStatus`(state 매핑), `messageForGitlabStatus`(상태코드별), `buildAuthHeader`(pat/oauth)
-  - [ ] `pnpm test` 통과
+  - [x] 단위 테스트: `mapCreateIssueBody`(라벨 join·assignee_ids·빈 값 생략), `normalizeIssueStatus`(state 매핑), `messageForGitlabStatus`(상태코드별), `buildAuthHeader`(pat/oauth)
+  - [x] `pnpm test` 통과
 
 ### Task 3: OAuth (gitlab.com PKCE) + 테스트
 - **변경 대상**: `src/background/gitlab-oauth.ts`(신규), `src/background/__tests__/gitlab-oauth.test.ts`(신규)
 - **작업 내용**: `linear-oauth.ts` 미러. PKCE(S256), authorize/token = gitlab.com 고정, refresh token 회전 저장, `baseUrl: "https://gitlab.com"` 박기, `isGitlabOAuthConfigured`, `parseGitlabCallbackParams`(state mismatch·error·code 누락), 취소 코드(`access_denied`).
 - **검증**:
-  - [ ] 단위 테스트: `parseGitlabCallbackParams`(정상/state불일치/error/code누락), `isGitlabOAuthConfigured`(client id 유무)
-  - [ ] `pnpm test` 통과
+  - [x] 단위 테스트: `parseGitlabCallbackParams`(정상/state불일치/error/code누락), `isGitlabOAuthConfigured`(client id 유무)
+  - [x] `pnpm test` 통과
 
 ### Task 4: 저장소 + 메시지 타입/핸들러
 - **변경 대상**: `src/lib/settings-storage.ts`, `src/types/messages.ts`, `src/background/messages.ts`, **`src/background/index.ts`**
 - **작업 내용**: `readStoredGitlabAuth`/`writeStoredGitlabOAuthTokens`. `BgRequest`에 gitlab.* 12종 + `getOAuthErrorPlatform`에 `"gitlab"`. `loadGitlabAuth()` + handler case 12종(`gitlab.testPat`는 `{pat, baseUrl}`로 `getMyself` 호출, `gitlab.uploadFiles`는 각 파일 `uploadFile` 후 `{filename, markdown, url}` 반환). **`src/background/index.ts:30`의 `BG_REQUEST_TYPES` Set에 gitlab.* 12종 등록(누락 시 모든 gitlab 메시지가 line 201에서 `return false`로 무시됨 — `tsc`가 못 잡는 런타임 사각지대).**
 - **검증**:
-  - [ ] `pnpm typecheck` — handler switch의 exhaustive `never` 체크 통과(gitlab case 누락 시 컴파일 에러)
-  - [ ] `BG_REQUEST_TYPES`에 gitlab.* 12종 전부 등록 확인(육안 + 메시지 1건 실제 왕복)
-  - [ ] `getOAuthErrorPlatform`이 gitlab BgError에 `"gitlab"` 반환하는 단위 테스트 1줄(`messages.test.ts`)
-  - [ ] `src/store/__tests__/settings-store.test.ts` 통과
+  - [x] `pnpm typecheck` — handler switch의 exhaustive `never` 체크 통과(gitlab case 누락 시 컴파일 에러)
+  - [x] `BG_REQUEST_TYPES`에 gitlab.* 12종 전부 등록 확인(육안 ✓ — 실제 왕복은 수동 검증)
+  - [x] `getOAuthErrorPlatform`이 gitlab BgError에 `"gitlab"` 반환하는 단위 테스트 1줄(`messages.test.ts`)
+  - [x] `src/store/__tests__/settings-store.test.ts` 통과
 
 ### Task 5: 스토어 + 이슈 레코드
 - **변경 대상**: `src/store/settings-store.ts`, `src/store/issues-store.ts`
 - **작업 내용**: `updateGitlabAccount` setter, `SETTINGS_STORE_VERSION` 6→7(주석: gitlab 추가, optional이라 데이터 마이그레이션 불요), `PLATFORM_FALLBACK_ORDER`에 `"gitlab"`. `IssueRecord`에 `gitlabProjectId?`, `gitlabIssueIid?`, `gitlabLabels?`, `gitlabWebUrl?`.
 - **검증**:
-  - [ ] `pnpm typecheck`
-  - [ ] gitlab 필드는 전부 optional이라 v6→v7 데이터 변환 함수가 없음 — "버전 7 마이그레이션" 대신 **v6 저장 상태가 v7에서 그대로 로드되는 라운드트립 테스트**로 검증(기존 4개 플랫폼 account 보존 확인)
+  - [x] `pnpm typecheck`
+  - [x] gitlab 필드는 전부 optional이라 v6→v7 데이터 변환 함수가 없음 — "버전 7 마이그레이션" 대신 **v6 저장 상태가 v7에서 그대로 로드되는 라운드트립 테스트**로 검증(기존 4개 플랫폼 account 보존 확인)
 
 ### Task 6: connect 폼 (ConnectedBody/ConnectFlow 분리 + Instance URL 다이얼로그)
 - **변경 대상**: `src/sidepanel/tabs/connect/GitlabConnectForm.tsx`(신규)
 - **작업 내용**: 연동 탭 리디자인 패턴대로 **두 export로 분리**(`GithubConnectForm.tsx` 현 구조 미러): ① `GitlabConnectedBody`(연결 카드 `GitlabSummary` + 기본값 설정 필드) ② `GitlabConnectFlow({connected, onConnected})`(행 버튼 + 연결 로직). `ConnectFlowProps` 시그니처는 `integrationsTabUtils.ts`에서 import. **OAuth/PAT 선택은 공용 `ConnectMethodDialog` 재사용** — `gitlab.oauth.available` 조회 후 `connectMethods()`로 분기(OAuth 가능 시 다이얼로그, 미설정 시 PAT 직행). 연결 성공(OAuth finalize / PAT 검증) 직후 `setAccount`→`onConnected()` 동기 연속 호출. **PAT 다이얼로그 레이아웃은 Jira connect 폼(baseUrl 포함 다필드)을 미러** — 입력 2개: Instance URL(기본 `https://gitlab.com`, 긴 URL placeholder) + Token. **base URL 정규화는 순수 함수 `normalizeInstanceUrl`로 분리**(trailing slash 제거 + 빈 값→gitlab.com + 스킴 없는 입력 처리/reject, `new URL` throw를 폼이 catch). self-managed면 `requestHostPermission`(ai-provider.ts:383)로 origin 권한 요청 후 `gitlab.testPat` 검증. "토큰 받기" 링크는 유효 origin일 때만 `${instanceUrl}/-/user_settings/personal_access_tokens` 활성, 무효/빈 값이면 gitlab.com 폴백.
 - **검증**:
-  - [ ] `normalizeInstanceUrl` 단위 테스트(trailing slash, 빈 값, 스킴 없음, gitlab.com 판별) — 자동
+  - [x] `normalizeInstanceUrl` 단위 테스트(trailing slash, 빈 값, 스킴 없음, gitlab.com 판별) — 자동
 - **검증** (수동):
   - [ ] gitlab.com OAuth 연결 성공, 카드에 username 표시
   - [ ] gitlab.com PAT 연결(Instance URL 기본값)
@@ -76,9 +76,9 @@
 - **변경 대상**: `src/sidepanel/lib/submitToGitlab.ts`(신규), `src/sidepanel/lib/buildGitlabIssueBody.ts`(신규)
 - **작업 내용**: `submitToGithub.ts`/`buildGithubIssueBody.ts` 미러. 업로드 결과의 `markdown`/`url`로 인라인 placeholder 치환 → 본문 빌드 → `gitlab.submitIssue`. 결과 `{ key: `#${iid}`, url }`. **첨부 업로드는 `submitToLinear.ts`의 격리 패턴(`.catch(() => null)`) 미러** — 업로드 1건 실패(10MB 초과 등)가 이슈 생성 전체를 막지 않고, 실패 첨부만 토스트 안내.
 - **검증**:
-  - [ ] 본문 빌더 순수 함수 단위 테스트(인라인 ref 치환, 섹션 구성) — 가능하면
+  - [x] 본문 빌더 순수 함수 단위 테스트(인라인 ref 치환, 섹션 구성) — `buildGitlabIssueBody.test.ts`
   - [ ] 첨부 업로드 실패 시 이슈는 생성되고 실패 첨부만 토스트(수동, 대용량 MP4로 확인)
-  - [ ] `pnpm test`
+  - [x] `pnpm test`
 
 ### Task 9: 제출/드래프트 UI 와이어링
 - **변경 대상**: `IntegrationsTab.tsx`, `SubmitFieldsDialog.tsx`, **`src/sidepanel/hooks/usePlatformFields.ts`**, `DraftDetailDialog.tsx`, `IssueCreateModal.tsx`
@@ -108,9 +108,9 @@
 - **변경 대상**: `manifest.config.ts`, `src/i18n/namespaces/integrations.ts`, `docs/privacy.md`
 - **작업 내용**: host_permissions에 `"https://gitlab.com/*"`. `gitlab.*` i18n 키(github 키셋 미러 + `gitlab.instanceUrl.label`/`gitlab.instanceUrl.placeholder`/`gitlab.field.project*`/`gitlab.selfManaged.permissionDenied`) ko/en 동시. privacy.md에 gitlab.com 호스트 + self-managed 임의 origin 사용·캡처 전송 동작 반영 + 시행일.
 - **검증**:
-  - [ ] i18n PostToolUse 훅(ko/en 대칭) 통과
-  - [ ] `pnpm typecheck`(TranslationKey 사용처)
-  - [ ] privacy.md에 GitLab 항목·시행일 갱신 확인
+  - [x] i18n PostToolUse 훅(ko/en 대칭) 통과
+  - [x] `pnpm typecheck`(TranslationKey 사용처)
+  - [x] privacy.md에 GitLab 항목·시행일 갱신 확인
 
 ## 테스트 계획
 

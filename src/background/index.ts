@@ -80,6 +80,18 @@ const BG_REQUEST_TYPES = new Set([
   "notion.submitPage",
   "notion.getPageStatus",
   "notion.updatePageStatus",
+  "gitlab.oauth.available",
+  "gitlab.startOAuth",
+  "gitlab.testPat",
+  "gitlab.disconnect",
+  "gitlab.getMyself",
+  "gitlab.searchProjects",
+  "gitlab.getLabels",
+  "gitlab.searchAssignees",
+  "gitlab.uploadFiles",
+  "gitlab.submitIssue",
+  "gitlab.getIssueStatus",
+  "gitlab.updateIssueState",
 ]);
 
 function disableGlobalSidePanel(): void {

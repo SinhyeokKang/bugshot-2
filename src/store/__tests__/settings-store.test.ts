@@ -42,6 +42,18 @@ const notionStub: Accounts["notion"] = {
   defaults: {},
 };
 
+const gitlabStub: Accounts["gitlab"] = {
+  platform: "gitlab",
+  connectedAt: 0,
+  auth: {
+    kind: "pat",
+    pat: "glpat_x",
+    baseUrl: "https://gitlab.com",
+    viewerUsername: "u",
+  },
+  defaults: {},
+};
+
 describe("settings-store v2→v3 마이그레이션", () => {
   it("jiraConfig 있음 + lastSubmitFields 있음 → accounts.jira + lastSubmitFields.jira", () => {
     const out = migrateV2ToV3({
@@ -205,6 +217,31 @@ describe("connectedPlatforms", () => {
     expect(connectedPlatforms({ linear: linearStub })).toEqual(["linear"]);
     expect(connectedPlatforms({ notion: notionStub })).toEqual(["notion"]);
     expect(connectedPlatforms({})).toEqual([]);
+  });
+
+  it("gitlab은 fallback 순서 끝에 포함된다", () => {
+    expect(connectedPlatforms({ gitlab: gitlabStub })).toEqual(["gitlab"]);
+    expect(
+      connectedPlatforms({
+        jira: jiraStub,
+        github: githubStub,
+        linear: linearStub,
+        notion: notionStub,
+        gitlab: gitlabStub,
+      }),
+    ).toEqual(["jira", "github", "linear", "notion", "gitlab"]);
+  });
+});
+
+describe("updateGitlabAccount", () => {
+  it("gitlab account를 저장하고 다른 플랫폼은 보존한다 (v6→v7 라운드트립)", () => {
+    useSettingsStore.setState({ accounts: { jira: jiraStub }, lastSubmitFields: {} });
+
+    useSettingsStore.getState().updateGitlabAccount(gitlabStub);
+
+    const s = useSettingsStore.getState();
+    expect(s.accounts.gitlab).toEqual(gitlabStub);
+    expect(s.accounts.jira).toEqual(jiraStub);
   });
 });
 

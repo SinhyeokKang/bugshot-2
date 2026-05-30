@@ -2,14 +2,16 @@ import type { JiraAuth } from "./jira";
 import type { GithubAccount } from "./github";
 import type { LinearAccount } from "./linear";
 import type { NotionAccount } from "./notion";
+import type { GitlabAccount } from "./gitlab";
 
-export type PlatformId = "jira" | "github" | "linear" | "notion";
+export type PlatformId = "jira" | "github" | "linear" | "notion" | "gitlab";
 
 export const PLATFORM_TAB_KEYS = {
   jira: "platform.tab.jira",
   github: "platform.tab.github",
   linear: "platform.tab.linear",
   notion: "platform.tab.notion",
+  gitlab: "platform.tab.gitlab",
 } as const satisfies Record<PlatformId, string>;
 
 export interface PlatformAccountBase<P extends PlatformId> {
@@ -29,6 +31,7 @@ export interface Accounts {
   github?: GithubAccount;
   linear?: LinearAccount;
   notion?: NotionAccount;
+  gitlab?: GitlabAccount;
 }
 
 export interface JiraLastSubmitFields {
@@ -79,9 +82,19 @@ export interface NormalizedSubmitResult {
   url: string;
 }
 
+export interface GitlabLastSubmitFields {
+  projectId?: number;
+  projectPath?: string;
+  label?: string;
+  // GitLab create API는 assignee_ids(숫자)만 받으므로 username이 아닌 id를 보존 (Linear 패턴).
+  assigneeId?: number;
+  assigneeName?: string;
+}
+
 export interface LastSubmitFieldsByPlatform {
   jira?: JiraLastSubmitFields;
   github?: GithubLastSubmitFields;
   linear?: LinearLastSubmitFields;
   notion?: NotionLastSubmitFields;
+  gitlab?: GitlabLastSubmitFields;
 }

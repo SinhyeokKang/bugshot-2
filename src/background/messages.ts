@@ -46,10 +46,21 @@ import {
   updateIssueState as updateLinearIssueState,
   uploadFileToLinear,
 } from "./linear-api";
+import {
+  createIssue as createGitlabIssue,
+  getIssueStatus as getGitlabIssueStatus,
+  getMyself as gitlabGetMyself,
+  getProjectLabels,
+  getProjectMembers,
+  searchProjects as searchGitlabProjects,
+  updateIssueState as updateGitlabIssueState,
+  uploadFile as uploadGitlabFile,
+} from "./gitlab-api";
 import { isOAuthConfigured, startOAuthFlow } from "./oauth";
 import { isGithubOAuthConfigured, startGithubOAuth } from "./github-oauth";
 import { isLinearOAuthConfigured, startLinearOAuth } from "./linear-oauth";
 import { isNotionOAuthConfigured, startNotionOAuth } from "./notion-oauth";
+import { isGitlabOAuthConfigured, startGitlabOAuth } from "./gitlab-oauth";
 import {
   createPage as createNotionPage,
   getDatabaseSchema as getNotionDatabaseSchema,
@@ -64,9 +75,11 @@ import {
   readStoredGithubAuth,
   readStoredLinearAuth,
   readStoredNotionAuth,
+  readStoredGitlabAuth,
 } from "@/lib/settings-storage";
 import type { LinearAuth } from "@/types/linear";
 import type { NotionAuth } from "@/types/notion";
+import type { GitlabAuth } from "@/types/gitlab";
 
 async function loadAuth(): Promise<JiraAuth> {
   const auth = await readStoredAuth();
@@ -89,6 +102,12 @@ async function loadLinearAuth(): Promise<LinearAuth> {
 async function loadNotionAuth(): Promise<NotionAuth> {
   const auth = await readStoredNotionAuth();
   if (!auth) throw new Error(t("platform.notConnected.title", { platform: t("platform.tab.notion") }));
+  return auth;
+}
+
+async function loadGitlabAuth(): Promise<GitlabAuth> {
+  const auth = await readStoredGitlabAuth();
+  if (!auth) throw new Error(t("platform.notConnected.title", { platform: t("platform.tab.gitlab") }));
   return auth;
 }
 
@@ -317,6 +336,78 @@ export async function handleMessage(
 
     case "notion.updatePageStatus":
       return updateNotionPageStatus(await loadNotionAuth(), message.pageId, message.propertyName, message.optionName);
+
+    case "gitlab.oauth.available":
+      return { available: isGitlabOAuthConfigured() };
+
+    case "gitlab.startOAuth":
+      return startGitlabOAuth();
+
+    case "gitlab.testPat":
+      return gitlabGetMyself({
+        kind: "pat",
+        pat: message.pat,
+        baseUrl: message.baseUrl,
+        viewerUsername: "",
+      });
+
+    case "gitlab.disconnect":
+      return { ok: true };
+
+    case "gitlab.getMyself":
+      return gitlabGetMyself(await loadGitlabAuth());
+
+    case "gitlab.searchProjects":
+      return searchGitlabProjects(await loadGitlabAuth(), message.query);
+
+    case "gitlab.getLabels":
+      return getProjectLabels(await loadGitlabAuth(), message.projectId);
+
+    case "gitlab.searchAssignees":
+      return getProjectMembers(await loadGitlabAuth(), message.projectId);
+
+    case "gitlab.uploadFiles": {
+      const auth = await loadGitlabAuth();
+      const results: Array<{
+        filename: string;
+        markdown: string | null;
+        url: string | null;
+      }> = [];
+      // 업로드 1건 실패(10MB 초과 등)가 이슈 생성 전체를 막지 않게 파일별로 격리.
+      for (const f of message.files) {
+        try {
+          const blob = dataUrlToBlob(f.dataUrl);
+          const { markdown, url } = await uploadGitlabFile(
+            auth,
+            message.projectId,
+            f.filename,
+            blob,
+          );
+          results.push({ filename: f.filename, markdown, url });
+        } catch {
+          results.push({ filename: f.filename, markdown: null, url: null });
+        }
+      }
+      return results;
+    }
+
+    case "gitlab.submitIssue":
+      return createGitlabIssue(await loadGitlabAuth(), message.payload);
+
+    case "gitlab.getIssueStatus":
+      return getGitlabIssueStatus(
+        await loadGitlabAuth(),
+        message.projectId,
+        message.iid,
+      );
+
+    case "gitlab.updateIssueState":
+      return updateGitlabIssueState(
+        await loadGitlabAuth(),
+        message.projectId,
+        message.iid,
+        message.state,
+      );
 
     default: {
       const _exhaustive: never = message;

@@ -44,6 +44,15 @@ import type {
   NotionMyself,
   NotionPageStatus,
 } from "./notion";
+import type {
+  GitlabCreateIssuePayload,
+  GitlabCreateIssueResult,
+  GitlabIssueStatus,
+  GitlabLabel,
+  GitlabMember,
+  GitlabMyself,
+  GitlabProject,
+} from "./gitlab";
 import type { PlatformId } from "./platform";
 
 export interface OAuthStartResultMsg {
@@ -140,7 +149,28 @@ export type BgRequest =
   | { type: "notion.uploadFile"; filename: string; contentType: string; dataUrl: string }
   | { type: "notion.submitPage"; payload: NotionCreatePagePayload }
   | { type: "notion.getPageStatus"; pageId: string }
-  | { type: "notion.updatePageStatus"; pageId: string; propertyName: string; optionName: string };
+  | { type: "notion.updatePageStatus"; pageId: string; propertyName: string; optionName: string }
+  | { type: "gitlab.oauth.available" }
+  | { type: "gitlab.startOAuth" }
+  | { type: "gitlab.testPat"; pat: string; baseUrl: string }
+  | { type: "gitlab.disconnect" }
+  | { type: "gitlab.getMyself" }
+  | { type: "gitlab.searchProjects"; query: string }
+  | { type: "gitlab.getLabels"; projectId: number }
+  | { type: "gitlab.searchAssignees"; projectId: number }
+  | {
+      type: "gitlab.uploadFiles";
+      projectId: number;
+      files: Array<{ filename: string; contentType: string; dataUrl: string }>;
+    }
+  | { type: "gitlab.submitIssue"; payload: GitlabCreateIssuePayload }
+  | { type: "gitlab.getIssueStatus"; projectId: number; iid: number }
+  | {
+      type: "gitlab.updateIssueState";
+      projectId: number;
+      iid: number;
+      state: "opened" | "closed";
+    };
 
 // handleMessage를 거치지 않는 bg→sidepanel 내부 통신 메시지.
 export type BgInternalMessage =
@@ -204,7 +234,11 @@ export function getOAuthErrorPlatform(err: unknown): PlatformId | null {
   if (!(err instanceof BgError)) return null;
   if (!err.body || typeof err.body !== "object") return null;
   const p = (err.body as Record<string, unknown>).platform;
-  return p === "jira" || p === "github" || p === "linear" || p === "notion"
+  return p === "jira" ||
+    p === "github" ||
+    p === "linear" ||
+    p === "notion" ||
+    p === "gitlab"
     ? p
     : null;
 }
@@ -287,4 +321,11 @@ export type {
   NotionFileUploadResult,
   NotionMyself,
   NotionPageStatus,
+  GitlabCreateIssuePayload,
+  GitlabCreateIssueResult,
+  GitlabIssueStatus,
+  GitlabLabel,
+  GitlabMember,
+  GitlabMyself,
+  GitlabProject,
 };
