@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { findActiveIndex, formatPlayerTime, toVideoSeconds } from "../timeline";
+import { clampTooltipLeft, findActiveIndex, formatPlayerTime, toVideoSeconds } from "../timeline";
 
 describe("findActiveIndex — currentMs 이하 중 가장 늦은 항목의 인덱스", () => {
   it("정렬 입력에서 currentMs 이하 최댓값 인덱스", () => {
@@ -75,5 +75,31 @@ describe("formatPlayerTime — 초를 M:SS 형식으로", () => {
 
   it("음수 → '0:00'", () => {
     expect(formatPlayerTime(-10)).toBe("0:00");
+  });
+});
+
+describe("clampTooltipLeft — 툴팁 박스를 뷰포트 안으로 clamp", () => {
+  it("중앙에 여유 있으면 centerX - width/2 그대로", () => {
+    // 중앙 500, 폭 100 → left 450, 양쪽 여유
+    expect(clampTooltipLeft(500, 100, 1000)).toBe(450);
+  });
+
+  it("좌측 엣지(재생 초반): margin으로 clamp", () => {
+    // centerX 10, 폭 100 → 원래 -40, margin 8로 clamp
+    expect(clampTooltipLeft(10, 100, 1000)).toBe(8);
+  });
+
+  it("우측 엣지: viewportWidth - margin - width로 clamp", () => {
+    // centerX 990, 폭 100, vw 1000 → 원래 940, max = 1000-8-100=892
+    expect(clampTooltipLeft(990, 100, 1000)).toBe(892);
+  });
+
+  it("뷰포트보다 넓은 툴팁은 좌측 margin 고정", () => {
+    // 폭 1200 > vw 1000 → max 음수, margin과 비교해 margin
+    expect(clampTooltipLeft(500, 1200, 1000)).toBe(8);
+  });
+
+  it("margin 커스텀", () => {
+    expect(clampTooltipLeft(10, 100, 1000, 16)).toBe(16);
   });
 });

@@ -1,7 +1,7 @@
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { TimelineMarker, MarkerVariant } from "../markers";
-import { formatPlayerTime } from "../timeline";
+import { clampTooltipLeft, formatPlayerTime } from "../timeline";
 import { t } from "../i18n";
 
 interface ProgressBarProps {
@@ -25,7 +25,9 @@ const DRAG_THRESHOLD = 5;
 
 export function ProgressBar({ currentPct, durationSec, markers, onSeek, onMarkerClick }: ProgressBarProps) {
   const barRef = useRef<HTMLDivElement>(null);
+  const tooltipRef = useRef<HTMLDivElement>(null);
   const [hovered, setHovered] = useState<{ marker: TimelineMarker; x: number; y: number } | null>(null);
+  const [tooltipLeft, setTooltipLeft] = useState<number | null>(null);
   const [tooltipAbove, setTooltipAbove] = useState(true);
   const [barHover, setBarHover] = useState<{ x: number; y: number; pct: number } | null>(null);
   const dragStartX = useRef<number | null>(null);
@@ -74,6 +76,16 @@ export function ProgressBar({ currentPct, durationSec, markers, onSeek, onMarker
   const onMarkerLeave = useCallback(() => {
     setHovered(null);
   }, []);
+
+  // 툴팁 실측 폭으로 뷰포트 안에 clamp (paint 전 실행 → 깜빡임 없음)
+  useLayoutEffect(() => {
+    if (!hovered || !tooltipRef.current) {
+      setTooltipLeft(null);
+      return;
+    }
+    const width = tooltipRef.current.offsetWidth;
+    setTooltipLeft(clampTooltipLeft(hovered.x, width, window.innerWidth));
+  }, [hovered]);
 
   return (
     <div className="relative flex-1">
@@ -132,11 +144,14 @@ export function ProgressBar({ currentPct, durationSec, markers, onSeek, onMarker
       {/* Marker tooltip — portal to body to escape stacking context */}
       {hovered && createPortal(
         <div
+          ref={tooltipRef}
           className="pointer-events-none fixed z-50 max-w-[240px] rounded-md bg-white p-2.5 text-xs text-gray-900 shadow-md break-all"
           style={{
-            left: hovered.x,
+            left: tooltipLeft ?? hovered.x,
             top: tooltipAbove ? hovered.y - 8 : hovered.y + 18,
-            transform: tooltipAbove ? "translate(-50%, -100%)" : "translate(-50%, 0)",
+            transform: tooltipLeft == null
+              ? (tooltipAbove ? "translate(-50%, -100%)" : "translate(-50%, 0)")
+              : (tooltipAbove ? "translateY(-100%)" : "none"),
           }}
         >
           {hovered.marker.labelParts.map((p, i) =>
