@@ -280,6 +280,28 @@ describe("isRefreshable", () => {
     });
     expect(isRefreshable(issue)).toBe(false);
   });
+
+  // 회귀: isRefreshable은 if 체인 + 디폴트 return false라 asana 분기 누락 시
+  // typecheck로 안 잡히고 조용히 refresh 불가로 샌다 (design.md 위험 요소).
+  it("asana + asanaTaskGid 있음 → true", () => {
+    const issue = makeIssue({
+      platform: "asana",
+      key: "TASK_GID",
+      url: "https://app.asana.com/0/0/TASK_GID",
+      asanaTaskGid: "TASK_GID",
+    } as Partial<IssueRecord>);
+    expect(isRefreshable(issue)).toBe(true);
+  });
+
+  it("asana + asanaTaskGid 없음 → false", () => {
+    const issue = makeIssue({
+      platform: "asana",
+      key: "TASK_GID",
+      url: "https://app.asana.com/0/0/TASK_GID",
+      asanaTaskGid: undefined,
+    } as Partial<IssueRecord>);
+    expect(isRefreshable(issue)).toBe(false);
+  });
 });
 
 describe("matchesStatus", () => {

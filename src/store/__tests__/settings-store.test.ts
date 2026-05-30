@@ -245,6 +245,37 @@ describe("updateGitlabAccount", () => {
   });
 });
 
+const asanaStub = {
+  platform: "asana",
+  connectedAt: 0,
+  auth: {
+    kind: "pat",
+    pat: "1/abc",
+    viewerGid: "111",
+    viewerName: "u",
+  },
+  defaults: {},
+};
+
+describe("updateAsanaAccount", () => {
+  it("asana account를 저장하고 다른 플랫폼은 보존한다 (v7→v8 라운드트립)", () => {
+    useSettingsStore.setState({
+      accounts: { jira: jiraStub, gitlab: gitlabStub },
+      lastSubmitFields: {},
+    });
+
+    // updateAsanaAccount/accounts.asana는 구현 단계(Task 5)에서 추가 — 미구현 시 red
+    (useSettingsStore.getState() as Record<string, unknown> as {
+      updateAsanaAccount: (a: unknown) => void;
+    }).updateAsanaAccount(asanaStub);
+
+    const s = useSettingsStore.getState() as { accounts: Record<string, unknown> };
+    expect(s.accounts.asana).toEqual(asanaStub);
+    expect(s.accounts.jira).toEqual(jiraStub);
+    expect(s.accounts.gitlab).toEqual(gitlabStub);
+  });
+});
+
 describe("migrateToV5 — titlePrefix 전역 승격", () => {
   it("jira의 titlePrefix를 전역으로 승격", () => {
     const v3 = migrateV2ToV3({
