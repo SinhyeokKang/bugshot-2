@@ -122,7 +122,7 @@ export function buildGitlabIssueBody(
       if (after?.url) { attached.push(after.filename); mediaHandled.add(after.filename); }
     } else if (isVideo && video?.url) {
       lines.push(`## ${t("md.section.media")}`, "");
-      lines.push(video.url);
+      lines.push(`![${video.filename}](${video.url})`);
       attached.push(video.filename);
       mediaHandled.add(video.filename);
       lines.push("");
@@ -184,10 +184,11 @@ function emitAttachments(
   if (inlined.length > 0) {
     lines.push(`## ${t("md.section.attachments")}`, "");
     for (const a of inlined) {
-      if (a.contentType.startsWith("image/")) {
+      if (
+        a.contentType.startsWith("image/") ||
+        a.contentType.startsWith("video/")
+      ) {
         lines.push(`![${a.filename}](${a.url})`);
-      } else if (a.contentType.startsWith("video/")) {
-        lines.push(a.url!);
       } else {
         lines.push(`[${a.filename}](${a.url})`);
       }

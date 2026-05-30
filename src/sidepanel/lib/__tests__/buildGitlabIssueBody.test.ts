@@ -88,6 +88,21 @@ describe("buildGitlabIssueBody", () => {
     expect(out.body).toContain("## md.section.attachments");
   });
 
+  it("video는 ![](url) 이미지 문법으로 임베드 (GitLab 영상 플레이어 인식)", () => {
+    const input: GitlabBuildInput = {
+      ctx: makeCtx({ captureMode: "video" }),
+      video: {
+        filename: "recording.mp4",
+        contentType: "video/mp4",
+        url: "/uploads/abc/recording.mp4",
+      },
+    };
+    const out = buildGitlabIssueBody(input);
+    expect(out.body).toContain("![recording.mp4](/uploads/abc/recording.mp4)");
+    // bare URL 단독 줄이면 안 됨
+    expect(out.body).not.toMatch(/^\/uploads\/abc\/recording\.mp4$/m);
+  });
+
   it("url 없는 첨부는 attached 목록에 파일명만", () => {
     const input: GitlabBuildInput = {
       ctx: makeCtx({ captureMode: "video" }),
