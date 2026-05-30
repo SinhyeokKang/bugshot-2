@@ -51,6 +51,7 @@ https://github.com/*               — GitHub 파일 업로드 (page injection)
 https://uploads.github.com/*       — GitHub 파일 업로드 S3
 https://api.linear.app/*           — Linear GraphQL API + OAuth token
 https://api.notion.com/*           — Notion REST API + OAuth token
+https://gitlab.com/*               — GitLab REST API + OAuth token (gitlab.com 한정)
 ${VITE_OAUTH_PROXY_URL origin}/*   — OAuth proxy (빌드 타임 주입)
 ```
 
@@ -60,6 +61,8 @@ ${VITE_OAUTH_PROXY_URL origin}/*   — OAuth proxy (빌드 타임 주입)
 https://*/*
 http://*/*
 ```
+
+BYOK LLM 프로바이더 연결 + GitLab **self-managed 인스턴스**(gitlab.com 외 임의 호스트) 연결 시 `chrome.permissions.request()`로 런타임 획득. GitLab PAT 검증·업로드·이슈 생성은 이 권한 획득 이후 background fetch.
 
 사용처: 30s Replay 활성화, BYOK LLM 프로바이더 연결.
 
@@ -337,6 +340,7 @@ idle 복귀 전 캡처를 시도하면 기존 3중 방어(진입 가드 / 런타
 | GitHub | `github.com/login/oauth/authorize` | `${PROXY}/github/token` | X | O | `${PROXY}/github/refresh` |
 | Linear | `linear.app/oauth/authorize` | `api.linear.app/oauth/token` | O (S256) | X | `api.linear.app/oauth/token` |
 | Notion | `api.notion.com/v1/oauth/authorize` | `${PROXY}/notion/token` | X | O | 없음 (토큰 무기한) |
+| GitLab | `gitlab.com/oauth/authorize` | `gitlab.com/oauth/token` | O (S256) | X | `gitlab.com/oauth/token` |
 
 ### 토큰 저장
 
@@ -353,6 +357,7 @@ bg service worker에서 직접 읽기/쓰기:
 | GitHub | 60초 (`github-api.ts:109`) | O (`authedFetch`) | `refreshOnceWithLock` 훅 주입 |
 | Linear | 60초 (`linear-api.ts:52`) | O (`authedGraphQL`) | `refreshOnceWithLock` 훅 주입 |
 | Notion | — | 401 시 `OAuthError` throw → 재인증 안내 | — |
+| GitLab | 60초 (`gitlab-api.ts`) | O (`authedFetch`, OAuth 한정) | `refreshInFlight` 훅 주입 |
 
 ### OAuth 에러 처리
 
@@ -369,8 +374,9 @@ bg service worker에서 직접 읽기/쓰기:
 | `isGithubOAuthConfigured()` | `github-oauth.ts:14` | `VITE_GITHUB_CLIENT_ID` + `VITE_OAUTH_PROXY_URL` |
 | `isLinearOAuthConfigured()` | `linear-oauth.ts:12` | `VITE_LINEAR_CLIENT_ID` |
 | `isNotionOAuthConfigured()` | `notion-oauth.ts:12` | `VITE_NOTION_CLIENT_ID` + `VITE_OAUTH_PROXY_URL` |
+| `isGitlabOAuthConfigured()` | `gitlab-oauth.ts:13` | `VITE_GITLAB_CLIENT_ID` |
 
-env 누락 시 해당 플랫폼의 OAuth 버튼이 UI에서 자동 비활성화.
+env 누락 시 해당 플랫폼의 OAuth 버튼이 UI에서 자동 비활성화. (GitLab은 OAuth 미구성이어도 PAT 연결은 가능.)
 
 ### 이중 인증 모드
 
@@ -382,8 +388,9 @@ env 누락 시 해당 플랫폼의 OAuth 버튼이 UI에서 자동 비활성화.
 | GitHub | `GithubOAuthAuth` | `GithubPatAuth` (PAT) |
 | Linear | `LinearOAuthAuth` | `LinearApiKeyAuth` |
 | Notion | `NotionOAuthAuth` | `NotionApiKeyAuth` (Internal Integration Token) |
+| GitLab | `GitlabOAuthAuth` (baseUrl 포함) | `GitlabPatAuth` (PAT + self-managed baseUrl) |
 
-API Key/PAT 모드는 OAuth 인프라(refresh, proxy, identity API)를 일절 거치지 않는다.
+API Key/PAT 모드는 OAuth 인프라(refresh, proxy, identity API)를 일절 거치지 않는다. (GitLab PAT는 self-managed 인스턴스 host 권한만 런타임 획득.)
 
 ---
 
