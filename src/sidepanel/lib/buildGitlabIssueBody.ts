@@ -87,9 +87,7 @@ export function buildGitlabIssueBody(
     if (mediaEmitted) return;
     mediaEmitted = true;
 
-    if (isFreeform) {
-      // no media section
-    } else if (isElement) {
+    if (isElement) {
       const before = images.find((i) => i.filename.startsWith("before"));
       const after = images.find((i) => i.filename.startsWith("after"));
       const hasSnapshots = !!(before?.url || after?.url);
@@ -128,7 +126,7 @@ export function buildGitlabIssueBody(
       attached.push(video.filename);
       mediaHandled.add(video.filename);
       lines.push("");
-    } else if (!isVideo && images[0]?.url) {
+    } else if (!isVideo && !isFreeform && images[0]?.url) {
       lines.push(`## ${t("md.section.media")}`, "");
       lines.push(`![${images[0].filename}](${images[0].url})`);
       attached.push(images[0].filename);

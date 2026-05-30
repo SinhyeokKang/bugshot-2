@@ -253,15 +253,15 @@ export async function uploadFile(
   projectId: number,
   filename: string,
   blob: Blob,
-): Promise<{ markdown: string; url: string }> {
+): Promise<{ url: string }> {
   const form = new FormData();
   form.append("file", blob, filename);
-  const raw = await gitlabFetch<{ markdown: string; url: string; alt?: string }>(
+  const raw = await gitlabFetch<{ url: string }>(
     auth,
     `/projects/${projectId}/uploads`,
     { method: "POST", body: form },
   );
-  return { markdown: raw.markdown, url: raw.url };
+  return { url: raw.url };
 }
 
 interface RawIssue {
@@ -292,6 +292,18 @@ export async function getIssueStatus(
     `/projects/${projectId}/issues/${iid}`,
   );
   return normalizeIssueStatus(raw);
+}
+
+export async function updateIssueDescription(
+  auth: GitlabAuth,
+  projectId: number,
+  iid: number,
+  description: string,
+): Promise<void> {
+  await gitlabFetch(auth, `/projects/${projectId}/issues/${iid}`, {
+    method: "PUT",
+    body: JSON.stringify({ description }),
+  });
 }
 
 export async function updateIssueState(

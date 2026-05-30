@@ -54,6 +54,7 @@ import {
   getProjectMembers,
   searchProjects as searchGitlabProjects,
   updateIssueState as updateGitlabIssueState,
+  updateIssueDescription as updateGitlabIssueDescription,
   uploadFile as uploadGitlabFile,
 } from "./gitlab-api";
 import { isOAuthConfigured, startOAuthFlow } from "./oauth";
@@ -368,24 +369,20 @@ export async function handleMessage(
 
     case "gitlab.uploadFiles": {
       const auth = await loadGitlabAuth();
-      const results: Array<{
-        filename: string;
-        markdown: string | null;
-        url: string | null;
-      }> = [];
+      const results: Array<{ filename: string; url: string | null }> = [];
       // 업로드 1건 실패(10MB 초과 등)가 이슈 생성 전체를 막지 않게 파일별로 격리.
       for (const f of message.files) {
         try {
           const blob = dataUrlToBlob(f.dataUrl);
-          const { markdown, url } = await uploadGitlabFile(
+          const { url } = await uploadGitlabFile(
             auth,
             message.projectId,
             f.filename,
             blob,
           );
-          results.push({ filename: f.filename, markdown, url });
+          results.push({ filename: f.filename, url });
         } catch {
-          results.push({ filename: f.filename, markdown: null, url: null });
+          results.push({ filename: f.filename, url: null });
         }
       }
       return results;
@@ -407,6 +404,14 @@ export async function handleMessage(
         message.projectId,
         message.iid,
         message.state,
+      );
+
+    case "gitlab.updateIssueDescription":
+      return updateGitlabIssueDescription(
+        await loadGitlabAuth(),
+        message.projectId,
+        message.iid,
+        message.description,
       );
 
     default: {

@@ -92,6 +92,7 @@ const BG_REQUEST_TYPES = new Set([
   "gitlab.submitIssue",
   "gitlab.getIssueStatus",
   "gitlab.updateIssueState",
+  "gitlab.updateIssueDescription",
 ]);
 
 function disableGlobalSidePanel(): void {

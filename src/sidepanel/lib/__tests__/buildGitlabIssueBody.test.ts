@@ -70,6 +70,24 @@ describe("buildGitlabIssueBody", () => {
     expect(out.body).toContain("![screenshot.png](/uploads/abc/screenshot.png)");
   });
 
+  it("freeform 모드는 이미지가 있어도 미디어 섹션을 만들지 않는다", () => {
+    const input: GitlabBuildInput = {
+      ctx: makeCtx({ captureMode: "freeform" }),
+      images: [
+        {
+          filename: "screenshot.png",
+          contentType: "image/png",
+          url: "/uploads/abc/screenshot.png",
+        },
+      ],
+    };
+    const out = buildGitlabIssueBody(input);
+    expect(out.body).not.toContain("## md.section.media");
+    expect(out.body).not.toContain("## md.section.styleChanges");
+    // 이미지는 첨부 섹션에서만 노출
+    expect(out.body).toContain("## md.section.attachments");
+  });
+
   it("url 없는 첨부는 attached 목록에 파일명만", () => {
     const input: GitlabBuildInput = {
       ctx: makeCtx({ captureMode: "video" }),

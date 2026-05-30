@@ -72,6 +72,14 @@ export interface SubmitFieldsDialogProps {
   onSuccess?: (result: NormalizedSubmitResult) => void;
 }
 
+// Tailwind JIT 정적 추출을 위해 full class 문자열을 매핑.
+const TABS_GRID_COLS: Record<number, string> = {
+  2: "grid-cols-2",
+  3: "grid-cols-3",
+  4: "grid-cols-4",
+  5: "grid-cols-5",
+};
+
 export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
   const {
     open,
@@ -167,13 +175,7 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
           <Tabs value={platform} onValueChange={(v) => setPlatform(v as PlatformId)}>
             <TabsList className={cn(
               "grid h-9 w-full",
-              availablePlatforms.length === 5
-                ? "grid-cols-5"
-                : availablePlatforms.length === 4
-                  ? "grid-cols-4"
-                  : availablePlatforms.length === 3
-                    ? "grid-cols-3"
-                    : "grid-cols-2",
+              TABS_GRID_COLS[availablePlatforms.length] ?? "grid-cols-2",
             )}>
               {availablePlatforms.includes("jira") && (
                 <TabsTrigger value="jira" className="gap-1.5">

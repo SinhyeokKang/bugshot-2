@@ -170,6 +170,12 @@ export type BgRequest =
       projectId: number;
       iid: number;
       state: "opened" | "closed";
+    }
+  | {
+      type: "gitlab.updateIssueDescription";
+      projectId: number;
+      iid: number;
+      description: string;
     };
 
 // handleMessage를 거치지 않는 bg→sidepanel 내부 통신 메시지.
