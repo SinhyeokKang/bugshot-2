@@ -597,8 +597,6 @@ export function DraftDetailDialog({
       key: result.key,
       url: result.url,
       asanaTaskGid: result.key,
-      asanaProjectGid: asanaFields.projectGid,
-      asanaPermalink: result.url,
     });
     if (useEditorStore.getState().currentIssueId === issue.id) {
       const tabId = useEditorStore.getState().target?.tabId;

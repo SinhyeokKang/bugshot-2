@@ -41,32 +41,31 @@ export function ProjectCombobox({ workspaceGid, value, onChange }: Props) {
 
   const ready = !!workspaceGid;
 
+  // searchProjects는 서버 검색이 없어 워크스페이스 프로젝트를 1회 받아 클라이언트 필터 (WorkspaceCombobox 패턴).
   useEffect(() => {
     if (!open || !ready) return;
+    if (items.length > 0) return;
     const myReq = ++reqIdRef.current;
-    const timer = window.setTimeout(() => {
-      setLoading(true);
-      setError(null);
-      sendBg<AsanaProject[]>({
-        type: "asana.searchProjects",
-        workspaceGid: workspaceGid!,
-        query,
+    setLoading(true);
+    setError(null);
+    sendBg<AsanaProject[]>({
+      type: "asana.searchProjects",
+      workspaceGid: workspaceGid!,
+      query: "",
+    })
+      .then((list) => {
+        if (myReq !== reqIdRef.current) return;
+        setItems(list);
       })
-        .then((list) => {
-          if (myReq !== reqIdRef.current) return;
-          setItems(list);
-        })
-        .catch((err: unknown) => {
-          if (myReq !== reqIdRef.current) return;
-          setError(err instanceof Error ? err.message : String(err));
-        })
-        .finally(() => {
-          if (myReq !== reqIdRef.current) return;
-          setLoading(false);
-        });
-    }, 250);
-    return () => window.clearTimeout(timer);
-  }, [open, ready, workspaceGid, query]);
+      .catch((err: unknown) => {
+        if (myReq !== reqIdRef.current) return;
+        setError(err instanceof Error ? err.message : String(err));
+      })
+      .finally(() => {
+        if (myReq !== reqIdRef.current) return;
+        setLoading(false);
+      });
+  }, [open, ready, workspaceGid, items.length]);
 
   // workspace 변경 시 후보 초기화 (종속 리셋).
   useEffect(() => {
@@ -78,6 +77,11 @@ export function ProjectCombobox({ workspaceGid, value, onChange }: Props) {
     if (!value) return t("asana.field.project.select");
     return value.projectName;
   })();
+
+  const q = query.trim().toLowerCase();
+  const filtered = q
+    ? items.filter((p) => p.name.toLowerCase().includes(q))
+    : items;
 
   return (
     <Popover open={open} onOpenChange={(v) => ready && setOpen(v)}>
@@ -117,7 +121,7 @@ export function ProjectCombobox({ workspaceGid, value, onChange }: Props) {
               <>
                 <CommandEmpty>{t("asana.field.project.empty")}</CommandEmpty>
                 <CommandGroup>
-                  {items.map((p) => {
+                  {filtered.map((p) => {
                     const selected = value?.projectGid === p.gid;
                     return (
                       <CommandItem

@@ -534,8 +534,6 @@ export function IssueCreateModal() {
         key: result.key,
         url: result.url,
         asanaTaskGid: result.key,
-        asanaProjectGid: asanaFields.projectGid,
-        asanaPermalink: result.url,
       });
     }
     useSettingsStore.getState().setLastSubmitFields("asana", {
