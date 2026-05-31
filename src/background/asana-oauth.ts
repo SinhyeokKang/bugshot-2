@@ -5,43 +5,26 @@ import { getMyself, setAsanaRefreshHook } from "./asana-api";
 import { OAuthError } from "./oauth";
 
 const CLIENT_ID = (import.meta.env.VITE_ASANA_CLIENT_ID ?? "").trim();
+const PROXY_URL = ((import.meta.env.VITE_OAUTH_PROXY_URL ?? "") as string)
+  .trim()
+  .replace(/\/+$/, "");
 const AUTHORIZE_URL = "https://app.asana.com/-/oauth_authorize";
-const TOKEN_URL = "https://app.asana.com/-/oauth_token";
 const SCOPES = ["default"];
 
 export function isAsanaOAuthConfigured(): boolean {
-  return !!(import.meta.env.VITE_ASANA_CLIENT_ID ?? "").trim();
+  const clientId = (import.meta.env.VITE_ASANA_CLIENT_ID ?? "").trim();
+  const proxyUrl = (import.meta.env.VITE_OAUTH_PROXY_URL ?? "").trim();
+  return !!clientId && !!proxyUrl;
 }
 
 function assertConfigured(): void {
-  if (!CLIENT_ID) {
+  if (!CLIENT_ID || !PROXY_URL) {
     throw new OAuthError(t("asana.oauth.notConfigured"), { platform: "asana" });
   }
 }
 
 function redirectUri(): string {
   return chrome.identity.getRedirectURL();
-}
-
-function base64url(buffer: ArrayBuffer): string {
-  const bytes = new Uint8Array(buffer);
-  let binary = "";
-  for (const b of bytes) binary += String.fromCharCode(b);
-  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-}
-
-export async function generatePkceChallenge(): Promise<{
-  codeVerifier: string;
-  codeChallenge: string;
-}> {
-  const bytes = crypto.getRandomValues(new Uint8Array(32));
-  const codeVerifier = base64url(bytes.buffer);
-  const hash = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(codeVerifier),
-  );
-  const codeChallenge = base64url(hash);
-  return { codeVerifier, codeChallenge };
 }
 
 const ASANA_CANCEL_ERROR_CODES = new Set(["access_denied"]);
@@ -87,7 +70,6 @@ interface AsanaTokenResponse {
 export async function startAsanaOAuth(): Promise<AsanaOAuthAuth> {
   assertConfigured();
   const state = crypto.randomUUID();
-  const { codeVerifier, codeChallenge } = await generatePkceChallenge();
 
   const url = new URL(AUTHORIZE_URL);
   url.searchParams.set("client_id", CLIENT_ID);
@@ -95,8 +77,6 @@ export async function startAsanaOAuth(): Promise<AsanaOAuthAuth> {
   url.searchParams.set("response_type", "code");
   url.searchParams.set("scope", SCOPES.join(" "));
   url.searchParams.set("state", state);
-  url.searchParams.set("code_challenge", codeChallenge);
-  url.searchParams.set("code_challenge_method", "S256");
 
   const redirect = await chrome.identity.launchWebAuthFlow({
     url: url.toString(),
@@ -110,7 +90,7 @@ export async function startAsanaOAuth(): Promise<AsanaOAuthAuth> {
   }
 
   const { code } = parseAsanaCallbackParams(redirect, state);
-  const tokens = await exchangeCode(code, codeVerifier);
+  const tokens = await exchangeCode(code);
 
   const auth: AsanaOAuthAuth = {
     kind: "oauth",
@@ -125,19 +105,14 @@ export async function startAsanaOAuth(): Promise<AsanaOAuthAuth> {
   return { ...auth, viewerGid: me.gid, viewerName: me.name, viewerEmail: me.email };
 }
 
-async function exchangeCode(
-  code: string,
-  codeVerifier: string,
-): Promise<AsanaTokenResponse> {
-  const res = await fetch(TOKEN_URL, {
+async function exchangeCode(code: string): Promise<AsanaTokenResponse> {
+  const res = await fetch(`${PROXY_URL}/asana/token`, {
     method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      grant_type: "authorization_code",
-      client_id: CLIENT_ID,
-      redirect_uri: redirectUri(),
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
       code,
-      code_verifier: codeVerifier,
+      redirect_uri: redirectUri(),
+      client_id: CLIENT_ID,
     }),
   });
   if (!res.ok) {
@@ -162,14 +137,12 @@ async function exchangeCode(
 export async function refreshAsanaToken(auth: AsanaAuth): Promise<AsanaAuth> {
   if (auth.kind !== "oauth") return auth;
   assertConfigured();
-  const res = await fetch(TOKEN_URL, {
+  const res = await fetch(`${PROXY_URL}/asana/refresh`, {
     method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      grant_type: "refresh_token",
-      client_id: CLIENT_ID,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
       refresh_token: auth.refreshToken,
-      redirect_uri: redirectUri(),
+      client_id: CLIENT_ID,
     }),
   });
   if (!res.ok) {

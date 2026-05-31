@@ -1,9 +1,11 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   buildAuthHeader,
   mapCreateTaskBody,
   messageForAsanaStatus,
+  searchUsers,
 } from "../asana-api";
+import type { AsanaAuth } from "@/types/asana";
 
 vi.mock("@/i18n", () => ({
   t: (k: string, p?: Record<string, unknown>) =>
@@ -79,6 +81,56 @@ describe("mapCreateTaskBody", () => {
     const data = out.data as Record<string, unknown>;
     expect("projects" in data).toBe(false);
     expect("assignee" in data).toBe(false);
+  });
+});
+
+describe("searchUsers", () => {
+  const pat: AsanaAuth = {
+    kind: "pat",
+    pat: "1/abc",
+    viewerGid: "1",
+    viewerName: "u",
+  };
+
+  function mockFetch(data: unknown) {
+    const f = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ data }),
+    } as Response);
+    vi.stubGlobal("fetch", f);
+    return f;
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("typeahead가 아니라 /users?workspace= 멤버 목록을 호출", async () => {
+    const f = mockFetch([{ gid: "u1", name: "Alice", email: "a@x.com" }]);
+    const out = await searchUsers(pat, "W", "");
+    const calledUrl = f.mock.calls[0][0] as string;
+    expect(calledUrl).toContain("/users?workspace=W");
+    expect(calledUrl).not.toContain("typeahead");
+    expect(out).toEqual([{ gid: "u1", name: "Alice", email: "a@x.com" }]);
+  });
+
+  it("query로 이름 부분 일치 필터 (대소문자 무시)", async () => {
+    mockFetch([
+      { gid: "u1", name: "Alice" },
+      { gid: "u2", name: "Bob" },
+    ]);
+    const out = await searchUsers(pat, "W", "ALI");
+    expect(out).toEqual([{ gid: "u1", name: "Alice", email: undefined }]);
+  });
+
+  it("빈 query는 전체 멤버 반환 (typeahead 빈 결과 문제 회피)", async () => {
+    mockFetch([
+      { gid: "u1", name: "Alice" },
+      { gid: "u2", name: "Bob" },
+    ]);
+    const out = await searchUsers(pat, "W", "");
+    expect(out).toHaveLength(2);
   });
 });
 

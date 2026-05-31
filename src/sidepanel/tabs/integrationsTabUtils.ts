@@ -1,3 +1,5 @@
+import type { PlatformId } from "@/types/platform";
+
 export type IntegrationSubTab = "connected" | "add";
 
 export interface ConnectFlowProps {
@@ -16,4 +18,14 @@ export function connectMethods(
 ): ("oauth" | "token")[] {
   if (oauthAvailable === null) return [];
   return oauthAvailable ? ["oauth", "token"] : ["token"];
+}
+
+// "플랫폼 추가" 목록 정렬: 미연결 우선, 같은 그룹 내에선 원래(bugshot) 순서 유지(안정 정렬).
+export function orderAddPlatforms(
+  ids: PlatformId[],
+  isConnected: (id: PlatformId) => boolean,
+): PlatformId[] {
+  return [...ids].sort(
+    (a, b) => Number(isConnected(a)) - Number(isConnected(b)),
+  );
 }

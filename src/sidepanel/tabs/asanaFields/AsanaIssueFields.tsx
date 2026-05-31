@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { useT } from "@/i18n";
 import { AssigneeCombobox } from "./AssigneeCombobox";
 import { ProjectCombobox, type ProjectValue } from "./ProjectCombobox";
@@ -42,59 +41,34 @@ interface Props {
 
 export function AsanaIssueFields({ value, onChange }: Props) {
   const t = useT();
-  const [changingWorkspace, setChangingWorkspace] = useState(false);
 
   const projectValue: ProjectValue | null =
     value.projectGid && value.projectName
       ? { projectGid: value.projectGid, projectName: value.projectName }
       : null;
 
-  const showWorkspacePicker = changingWorkspace || !value.workspaceGid;
-
   return (
     <div className="flex flex-col gap-4">
-      <div className="grid gap-1.5">
-        <div className="flex items-center justify-between">
-          <label className="text-xs text-muted-foreground">
-            {t("asana.field.workspace")}
-            <span className="ml-0.5 text-destructive">*</span>
-          </label>
-          {value.workspaceGid && !changingWorkspace ? (
-            <button
-              type="button"
-              className="text-[11px] text-muted-foreground transition-colors hover:text-foreground"
-              onClick={() => setChangingWorkspace(true)}
-            >
-              {t("asana.field.workspace.change")}
-            </button>
-          ) : null}
-        </div>
-        {showWorkspacePicker ? (
-          <WorkspaceCombobox
-            value={
-              value.workspaceGid && value.workspaceName
-                ? { workspaceGid: value.workspaceGid, workspaceName: value.workspaceName }
-                : null
-            }
-            onChange={(next) => {
-              setChangingWorkspace(false);
-              onChange({
-                workspaceGid: next?.workspaceGid,
-                workspaceName: next?.workspaceName,
-                // workspace 변경 시 하위 선택값 초기화.
-                projectGid: undefined,
-                projectName: undefined,
-                assigneeGid: undefined,
-                assigneeName: undefined,
-              });
-            }}
-          />
-        ) : (
-          <div className="flex h-9 items-center text-sm text-foreground">
-            {value.workspaceName}
-          </div>
-        )}
-      </div>
+      <FieldRow label={t("asana.field.workspace")} required>
+        <WorkspaceCombobox
+          value={
+            value.workspaceGid && value.workspaceName
+              ? { workspaceGid: value.workspaceGid, workspaceName: value.workspaceName }
+              : null
+          }
+          onChange={(next) =>
+            onChange({
+              workspaceGid: next?.workspaceGid,
+              workspaceName: next?.workspaceName,
+              // workspace 변경 시 하위 선택값 초기화.
+              projectGid: undefined,
+              projectName: undefined,
+              assigneeGid: undefined,
+              assigneeName: undefined,
+            })
+          }
+        />
+      </FieldRow>
 
       <FieldRow label={t("asana.field.project")}>
         <ProjectCombobox

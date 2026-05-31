@@ -67,13 +67,21 @@ describe("isAsanaOAuthConfigured", () => {
     vi.unstubAllEnvs();
   });
 
-  it("VITE_ASANA_CLIENT_ID 있으면 true", () => {
+  it("CLIENT_ID/PROXY_URL 모두 있으면 true", () => {
     vi.stubEnv("VITE_ASANA_CLIENT_ID", "client-123");
+    vi.stubEnv("VITE_OAUTH_PROXY_URL", "https://proxy.example.com");
     expect(isAsanaOAuthConfigured()).toBe(true);
   });
 
   it("VITE_ASANA_CLIENT_ID 비어있으면 false", () => {
     vi.stubEnv("VITE_ASANA_CLIENT_ID", "");
+    vi.stubEnv("VITE_OAUTH_PROXY_URL", "https://proxy.example.com");
+    expect(isAsanaOAuthConfigured()).toBe(false);
+  });
+
+  it("VITE_OAUTH_PROXY_URL 비어있으면 false", () => {
+    vi.stubEnv("VITE_ASANA_CLIENT_ID", "client-123");
+    vi.stubEnv("VITE_OAUTH_PROXY_URL", "");
     expect(isAsanaOAuthConfigured()).toBe(false);
   });
 });

@@ -26,6 +26,7 @@ import { connectedPlatforms, useSettingsStore } from "@/store/settings-store";
 import { PageFooter, PageScroll, PageShell, Section } from "@/sidepanel/components/Section";
 import { PLATFORM_TAB_KEYS, type PlatformId } from "@/types/platform";
 import {
+  orderAddPlatforms,
   pickInitialSubTab,
   type ConnectFlowProps,
   type IntegrationSubTab,
@@ -158,13 +159,19 @@ export function IntegrationsTab({ activeMainTab }: { activeMainTab: string }) {
               <h3 className="text-center text-lg font-semibold">{t("platform.add.title")}</h3>
             </div>
             <div className="flex w-full max-w-[320px] flex-col gap-2">
-              {PLATFORMS.map(({ id, ConnectFlow }) => (
-                <ConnectFlow
-                  key={id}
-                  connected={!!accounts[id]}
-                  onConnected={() => setSub("connected")}
-                />
-              ))}
+              {orderAddPlatforms(
+                PLATFORMS.map((p) => p.id),
+                (id) => !!accounts[id],
+              ).map((id) => {
+                const { ConnectFlow } = PLATFORMS.find((p) => p.id === id)!;
+                return (
+                  <ConnectFlow
+                    key={id}
+                    connected={!!accounts[id]}
+                    onConnected={() => setSub("connected")}
+                  />
+                );
+              })}
             </div>
           </div>
         </PageShell>

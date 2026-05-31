@@ -190,17 +190,15 @@ export async function searchUsers(
   workspaceGid: string,
   query: string,
 ): Promise<AsanaUser[]> {
-  const params = new URLSearchParams({
-    resource_type: "user",
-    opt_fields: "name,email",
-    count: "20",
-  });
-  params.set("query", query.trim());
+  // typeahead user는 "most contacted" 순서라 task 이력 없는 멤버(새 워크스페이스 owner 등)가 누락된다.
+  // 워크스페이스 멤버(최대 100명)를 받아 클라이언트 필터 (searchProjects 패턴).
   const list = await asanaFetch<Array<{ gid: string; name: string; email?: string | null }>>(
     auth,
-    `/workspaces/${workspaceGid}/typeahead?${params.toString()}`,
+    `/users?workspace=${workspaceGid}&opt_fields=name,email&limit=100`,
   );
-  return list.map((u) => ({ gid: u.gid, name: u.name, email: u.email ?? undefined }));
+  const q = query.trim().toLowerCase();
+  const users = list.map((u) => ({ gid: u.gid, name: u.name, email: u.email ?? undefined }));
+  return q ? users.filter((u) => u.name.toLowerCase().includes(q)) : users;
 }
 
 export async function createTask(
