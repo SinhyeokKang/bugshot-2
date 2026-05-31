@@ -2,7 +2,7 @@
 
 ## 개요
 
-사이드패널 루트(`App.tsx`)의 탭 헤더 위에 얇은 전역 배너 컴포넌트를 추가한다. 배너 본문 클릭은 기존 `chrome.tabs.create({ url })` 패턴으로 GitBook 가이드 URL을 새 탭으로 연다. dismiss는 기존 `useSettingsUiStore`(zustand + `chrome.storage.local` 영속)에 **닫은 시점의 확장 버전**을 저장하고, 이후 **minor+ 업데이트** 시 재팝업한다(순수 함수 `shouldShowGuideBanner`로 판정). 보조 진입점으로 **설정 > 앱 설정 푸터의 [개인정보 처리방침] 버튼을 [유저 가이드]로 교체**한다(항상 노출, dismiss와 무관). 가이드 URL은 상수 한 곳에 둔다. 신규 i18n 키를 ko/en에 추가한다. 가이드 콘텐츠는 **in-repo 마크다운 + GitBook 호스팅**으로 관리(아래 절).
+사이드패널 루트(`App.tsx`)의 탭 헤더 위에 얇은 전역 배너 컴포넌트를 추가한다. 배너 본문 클릭은 기존 `chrome.tabs.create({ url })` 패턴으로 GitBook 가이드 URL을 새 탭으로 연다. dismiss는 기존 `useSettingsUiStore`(zustand + `chrome.storage.local` 영속)에 **닫은 시점의 확장 버전**을 저장하고, 이후 **minor+ 업데이트** 시 재팝업한다(순수 함수 `shouldShowGuideBanner`로 판정). 배너 상태가 사는 store가 `useSettingsUiStore`이므로 **GuideBanner는 이 store의 hydrate를 자체적으로 가드**한다(App.tsx의 기존 `settingsHydrated`는 별개 store인 `useSettingsStore`/accounts를 추적하므로 재사용 불가 — 위험 요소 절 참조). 보조 진입점으로 **설정 > 앱 설정 푸터의 [개인정보 처리방침] 버튼을 [유저 가이드]로 교체**한다(항상 노출, dismiss와 무관). 가이드 URL은 상수 한 곳에 둔다. 신규 i18n 키를 ko/en에 추가한다. 가이드 콘텐츠는 **in-repo 마크다운 + GitBook 호스팅**으로 관리(아래 절).
 
 ## 문서 관리 / 유지보수 (in-repo 마크다운 + 단방향 GitBook sync)
 
@@ -54,7 +54,8 @@ bugshot-2 repo (main)
   - `SettingsUiState`에 `guideBannerDismissedVersion: string | null` 상태와 `dismissGuideBanner: (currentVersion: string) => void` 액션 추가.
   - 초기값 `guideBannerDismissedVersion: null` (한 번도 안 닫음 → 노출).
   - `dismissGuideBanner: (v) => set({ guideBannerDismissedVersion: v })` — 닫는 시점의 확장 버전을 기록.
-  - persist `version`은 그대로(5 유지). 신규 필드는 기본값(null)이 있어 zustand persist 기본 shallow merge로 기존 사용자 상태에 자동 보강(누락 키 → null → 노출). 단위 테스트로 merge 동작 보장, 실패 시에만 version 6 + migrate.
+  - persist `version`은 그대로(5 유지). 이 store는 `merge`/`partialize`가 없어 zustand 기본 shallowMerge(`{...initialState, ...persisted}`)가 적용되므로, 기존 사용자 상태에 누락된 신규 키는 `initialState`의 `null`로 자동 보강된다(검증 완료) → version bump·migrate 불필요.
+  - 테스트는 **in-memory 액션만** 검증한다(초기값 null, `dismissGuideBanner(v)` 후 v 기록). 이 store 테스트는 persist/hydration(chrome.storage) 경로를 타지 않으므로(전역 chrome mock·setup 없음) "키 누락 hydrate → null"을 직접 테스트하지 않고 zustand 기본 merge 동작에 의존한다 — 별도 순수 migrate 함수 분리는 과잉(migrate 자체가 없음).
 
 ### 1b. `src/lib/guide-banner.ts` (신규, 순수 함수)
 - 역할: 재팝업 판정 로직을 store/컴포넌트에서 분리해 테스트 가능한 순수 함수로.
@@ -74,35 +75,36 @@ bugshot-2 repo (main)
 ### 3. `src/sidepanel/components/GuideBanner.tsx` (신규)
 - 역할: 전역 진입 배너. store에서 dismissed 버전을 읽고 `shouldShowGuideBanner`로 렌더 여부를 결정하는 self-contained 컴포넌트. (상세 인터랙션은 아래 「배너 UX 상세」 절.)
 - 동작 요약:
+  - **자체 hydrate 가드**: `useSettingsUiStore.persist.hasHydrated()` + `onFinishHydration` 구독(또는 동등 패턴)으로 hydrate 완료 전에는 `null` 반환 → 플리커/오노출 방지. App.tsx의 `settingsHydrated`에 의존하지 않는다(다른 store).
   - `useSettingsUiStore`에서 `guideBannerDismissedVersion`, `dismissGuideBanner` 구독.
   - `currentVersion = chrome.runtime.getManifest().version`.
   - `shouldShowGuideBanner(guideBannerDismissedVersion, currentVersion) === false`면 `null` 반환.
   - 본문 클릭: `chrome.tabs.create({ url: USER_GUIDE_URL, active: true })`.
   - X 클릭: `dismissGuideBanner(currentVersion)` (이벤트 버블 차단해 본문 클릭과 분리).
-  - 텍스트 `app.guideBanner.cta`, 닫기 aria-label `app.guideBanner.dismiss` (`useT()`).
+  - 텍스트 `app.guideBanner.cta`("유저 가이드 바로가기"), 닫기 aria-label `app.guideBanner.dismiss` (`useT()`).
 
 ### 3b. 배너 UX 상세
 
 **위치/형태**
-- `App.tsx`의 `flex h-screen flex-col` **첫 자식**(탭 헤더 위), full-width. 모든 탭 공통 노출.
-- 높이 16–20px: 단일 행, 컴팩트 패딩(`px-3 py-1` + `text-xs`). `border-b`로 헤더와 구분.
+- `App.tsx`의 **`flex min-h-0 flex-1 flex-col` 래퍼(탭 헤더를 감싸는 컨테이너)의 첫 자식 = 탭 헤더 div 바로 위**, full-width. 모든 탭 공통 노출. (루트 `flex h-screen flex-col`의 첫 자식이 아님 — 거긴 AI shimmer 오버레이 `absolute inset-0 z-50`가 있어 배너를 덮음. App.tsx 실제 구조 절 참조.)
+- 단일 행 띠. 컴팩트 패딩(`px-3` + `text-xs`). `border-b`로 헤더와 구분. **높이는 표준 컴포넌트(아래 버튼)가 결정 — 16–20px 픽셀 타깃을 엄격히 강제하지 않는다**(아이콘·버튼 표준 사이즈 우선).
 - 배경 은은하게(`bg-muted/50`), 기본 텍스트 `text-muted-foreground`. 커스텀 색상 금지(shadcn 변수만).
 
 **레이아웃 (한 행)**
 ```
 ┌────────────────────────────────────────────────┐
-│ 사용 방법이 궁금하다면? 가이드  ›            ✕ │
+│ 유저 가이드 바로가기  ›                      ✕ │
 │ └──── CTA 버튼(좌, 클릭 시 새 탭) ────┘  └닫기┘ │
 └────────────────────────────────────────────────┘
 ```
-- 좌측 **CTA 버튼**: 텍스트(`app.guideBanner.cta`) + `ChevronRight`(h-3 w-3). 영역 전체 클릭 가능, `flex-1 min-w-0`로 폭 차지, 텍스트 길면 `truncate`.
-- 우측 **닫기 버튼**: `X`(h-3 w-3), `h-5 w-5` ghost IconButton, `shrink-0`. (배너가 얇아 표준 h-8에서 일탈 — WHY 주석.)
+- 좌측 **CTA 버튼**: 텍스트(`app.guideBanner.cta` = "유저 가이드 바로가기") + `ChevronRight`. 영역 전체 클릭 가능, `flex-1 min-w-0`로 폭 차지, 텍스트 길면 `truncate`(짧은 문구라 잘림 위험 낮음).
+- 우측 **닫기 버튼**: `X` 아이콘. 기존 인라인 닫기 선례(`ConsoleLogContent.tsx`, `IssueListTab.tsx`)와 동일한 **소형 패턴 — raw `<button>` + `rounded-sm p-0.5 text-muted-foreground hover:text-foreground` + 아이콘 `h-3.5 w-3.5`**, `shrink-0` + 좌측 여백(`ml-1`/`ml-2`)으로 CTA와 hit-area 분리. (CLAUDE.md IconButton 표준 h-8/h-9에서 일탈하지만, 이는 코드베이스의 검증된 인라인 닫기 패턴을 그대로 따른 것 — shadcn Button base의 `[&_svg]:size-4` 강제를 피하려고 선례도 raw button을 쓴다.)
 - 버튼 중첩 금지: CTA와 X는 형제 `<button>`. X 클릭이 CTA로 새지 않게 별도 버튼으로 분리(이벤트 버블 자연 분리).
 
 **인터랙션**
 - CTA 클릭/Enter/Space → `chrome.tabs.create({ url: USER_GUIDE_URL, active: true })`. 새 탭이 활성화되고 **사이드패널은 그대로 유지**(닫히지 않음). dismiss 아님 — 다음에도 배너 유지.
 - X 클릭 → `dismissGuideBanner(currentVersion)` → 컴포넌트 즉시 `null` 재렌더로 사라짐 → `chrome.storage.local` 영속.
-- hover/focus: CTA에 `hover:text-foreground` + `focus-visible` 링(shadcn Button 기본). cursor-pointer.
+- hover/focus: CTA·X 모두 raw `<button>`이므로 hover(`hover:text-foreground`)·`focus-visible:ring`을 직접 부여(shadcn Button에 의존 안 함). X는 좌측 여백으로 CTA hover 영역과 시각적 구분. cursor-pointer.
 
 **재노출 (dismiss 정책)**
 - 닫은 뒤에는 `shouldShowGuideBanner`가 false라 숨김 유지.
@@ -114,25 +116,25 @@ bugshot-2 repo (main)
 - CTA·X 모두 키보드 포커스 가능한 `<button>`. X는 `aria-label`(`app.guideBanner.dismiss`). 텍스트 CTA라 별도 aria 불요.
 
 ### 4. `src/sidepanel/App.tsx` (변경)
-- 현재 역할: 사이드패널 루트. `flex h-screen flex-col` 안에 AI 오버레이 + 탭 헤더(`border-b px-4 py-4`) + 탭 컨텐츠 + AlertDialog 6종 + Toaster.
+- 현재 역할: 사이드패널 루트. 실제 구조: `root(relative flex h-screen flex-col, L183)` → AI shimmer 오버레이(`absolute inset-0 z-50`, L184) → `div.flex min-h-0 flex-1 flex-col gap-0(L191)` → 탭 헤더(`border-b px-4 py-4`, L192) → 탭 컨텐츠 → AlertDialog 6종 + Toaster. (`useSettingsHydrated()` 훅 정의는 L42, 호출은 L60 — design 본문의 "line 60 정의"는 오기였음.)
 - 변경 내용:
   - `GuideBanner` import.
-  - 탭 헤더 `<div className="border-b px-4 py-4">` **바로 위**에 `{settingsHydrated && <GuideBanner />}` 삽입.
-  - `settingsHydrated`는 이미 존재(`useSettingsHydrated()` 훅, line 60)하므로 재사용. hydrate 전 미렌더로 플리커 방지.
-  - 배너는 `flex h-screen flex-col`의 첫 자식 흐름에 들어가 모든 탭에서 공통 노출(탭 컨텐츠는 그 아래 `flex-1`이 차지).
+  - **`flex min-h-0 flex-1 flex-col gap-0` 래퍼(L191) 안, 탭 헤더 div(L192) 바로 위**에 `<GuideBanner />` 삽입. (루트 첫 자식이 아니라 이 래퍼의 첫 자식 — AI 오버레이 아래라 z-index 충돌 없음.)
+  - **인라인 hydrate 가드 불필요**: App.tsx는 이미 `if (!editorHydrated || !settingsHydrated) return null`(L168)로 전체 트리를 hydrate 전 차단하므로 `{settingsHydrated && ...}` 인라인 가드는 항상 true라 무의미. 또한 그 가드가 추적하는 store(`useSettingsStore`)는 배너 상태가 사는 store(`useSettingsUiStore`)와 다르다. 따라서 hydrate 가드는 **GuideBanner 내부에서 `useSettingsUiStore` 기준으로 자체 처리**하고, App.tsx는 `<GuideBanner />`를 무가드로 마운트한다.
+  - 배너는 탭 헤더 위 흐름에 들어가 모든 탭에서 공통 노출(탭 컨텐츠는 그 아래 `flex-1`이 차지).
 
 ### 4b. `src/sidepanel/tabs/SettingsTab.tsx` (변경) — 보조 진입점
 - 현재 역할: `GeneralSettingsContent`의 `PageFooter`(`SettingsTab.tsx:218-239`)에 좌측 [개인정보 처리방침] / 우측 [리뷰][문의] 버튼 배치. 좌측 버튼은 `chrome.tabs.create({ url: "https://sinhyeokkang.github.io/bugshot-2/privacy" })`.
 - 변경 내용: 좌측 [개인정보 처리방침] 버튼을 **[유저 가이드] 버튼으로 완전 교체**.
   - `onClick` → `chrome.tabs.create({ url: USER_GUIDE_URL, active: true })`.
   - 라벨 → `t("settings.guide")`.
-  - `t("settings.privacy")` 사용처가 이 버튼뿐이면 키는 남겨두되(고아 i18n 키 삭제는 외과 범위 밖) UI에서만 제거.
+  - `t("settings.privacy")` 사용처가 이 버튼뿐이면 키는 남겨두되(고아 i18n 키 삭제는 외과 범위 밖) UI에서만 제거. **고아 키는 ko/en 양쪽 모두 남겨야** `locales.test.ts`의 ko/en 대칭 검사를 통과한다(미사용 키 자체는 검사 무관).
 - 결정 사항(확정): privacy 링크는 앱에서 제거하고 **스토어 등록 정보의 privacy URL에만 존재**. (privacy 문서 자체는 GitHub Pages에 그대로 유지.)
 - 배너 dismiss와 무관하게 **항상 노출**되는 보조 진입점 — 배너 닫은 사용자의 가이드 접근 경로.
 
 ### 5. `src/i18n/namespaces/app.ts` + `src/i18n/namespaces/settings.ts` (변경)
 - `app.ts` ko/en 각각:
-  - `"app.guideBanner.cta"`: ko "사용 방법이 궁금하다면? 가이드" / en "New to BugShot? Read the guide"
+  - `"app.guideBanner.cta"`: ko "유저 가이드 바로가기" / en "Open user guide"
   - `"app.guideBanner.dismiss"`: ko "배너 닫기" / en "Dismiss"
 - `settings.ts` ko/en 각각:
   - `"settings.guide"`: ko "유저 가이드" / en "User Guide"
@@ -215,5 +217,7 @@ export function GuideBanner(): JSX.Element | null;
 - **버전 파싱 엣지**: `shouldShowGuideBanner`가 `"1.2"`, `"1.2.3.4"`, 비숫자 등 비정상 버전에 안전해야. 순수 함수라 단위 테스트로 케이스 고정(파싱 실패 → false, dismissed null → true). manifest 버전은 항상 정상 형식이나 방어.
 - **privacy 접근성**: 앱 내 privacy 링크 제거는 의도된 결정. 스토어 등록 정보의 privacy URL은 유지되어야 정책 위반 아님 — 배포 체크리스트에 "스토어 privacy URL 유효" 항목 확인.
 - **레이아웃 높이 압박**: 사이드패널은 세로 공간이 빠듯하다. 배너가 16–20px라 영구적으로 컨텐츠 높이를 깎음. dismiss 후 사라지므로 영구 비용은 아니나, 닫기 전까지는 탭 컨텐츠 `flex-1`이 그만큼 줄어듦 — 의도된 trade-off.
-- **URL 확정 전 placeholder**: `USER_GUIDE_URL`은 GitBook 퍼블리시 후 실제 URL 확정 필요. 구현 시 placeholder로 두면 클릭이 깨진 링크로 감 — tasks 선행 조건에 명시.
+- **잘못된 hydrate store 추적(핵심)**: App.tsx의 `settingsHydrated`(`useSettingsHydrated()` → `useSettingsStore`/accounts)는 배너 상태가 사는 `useSettingsUiStore`와 **별개 store**라 재사용 불가. 또 App.tsx가 이미 전체를 hydrate 전 차단해 인라인 가드는 무의미. → GuideBanner가 `useSettingsUiStore` 기준 자체 hydrate 가드를 가져야 dismiss한 사용자에게 배너가 깜빡이지 않는다. — **구현 선행 확인 항목**.
+- **URL 확정 전 placeholder**: `USER_GUIDE_URL`은 GitBook 퍼블리시 후 실제 URL 확정 필요. 구현 시 placeholder로 두면 클릭이 깨진 링크로 감 — **placeholder 상태로는 코드(Task 2/3/3b/5)를 main에 머지하지 않는다**(tasks 선행 조건에 명시).
+- **GitBook 무료 plan URL 고착**: `<org>.gitbook.io/bugshot` slug가 조직명·plan에 묶여 추후 변경 가능성이 있고, 변경 시 **이미 배포된 구버전 확장 사용자는 깨진 링크**(자동 업데이트 전까지). 이번 스코프는 위험 인지 + URL 안정화 후 확정으로 처리(자체 리다이렉트 도메인은 비목표). 배포 전 URL 안정성 확인을 체크리스트에.
 - **클릭 영역 모호**: 본문 버튼과 X 버튼이 한 줄에 붙으므로, X 클릭이 본문 클릭으로 새지 않게 `stopPropagation` 또는 별도 버튼 분리.
