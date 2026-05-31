@@ -583,11 +583,13 @@ export function DraftDetailDialog({
     }
     if (!asanaFields.workspaceGid) throw new Error(t("create.requiredMissing"));
 
+    const asanaInline = await resolveInlineImagesForSections(ctx.sections, sectionConfig);
     const result = await submitToAsana({
       ctx,
       images: captureFiles.images,
       video: captureFiles.video,
       logs: captureFiles.logs,
+      inlineImages: asanaInline,
       workspaceGid: asanaFields.workspaceGid,
       projectGid: asanaFields.projectGid,
       assigneeGid: asanaFields.assigneeGid,

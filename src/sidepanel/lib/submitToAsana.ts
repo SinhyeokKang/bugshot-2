@@ -4,6 +4,8 @@ import {
   type AsanaInlineImage,
 } from "./markdownToAsanaHtml";
 import { buildAiMetaAttachment } from "./buildAiMetaAttachment";
+import type { InlineImageInput } from "./resolveInlineImages";
+import { guessUploadMime } from "./uploadMime";
 import { loadImage } from "@/sidepanel/capture";
 import { sendBg } from "@/types/messages";
 import type { AsanaCreateTaskResult } from "@/types/asana";
@@ -24,32 +26,44 @@ export interface AsanaSubmitInput {
   workspaceGid: string;
   projectGid?: string;
   assigneeGid?: string;
+  // 본문(섹션)에 직접 붙여넣은 인라인 이미지 — 캡처 이미지와 동일하게 업로드 후 GID로 인라인.
+  inlineImages?: InlineImageInput[];
 }
 
-function asanaFilename(name: string): string {
-  return name.endsWith(".har") ? name.replace(/\.har$/, ".json") : name;
+function imageExtFromDataUrl(dataUrl: string): string {
+  const subtype = (/^data:image\/([a-zA-Z0-9.+-]+)/.exec(dataUrl)?.[1] ?? "png").toLowerCase();
+  if (subtype === "jpeg") return "jpg";
+  if (subtype === "svg+xml") return "svg";
+  return subtype;
 }
 
-function guessMime(filename: string): string {
-  if (filename.endsWith(".webp")) return "image/webp";
-  if (filename.endsWith(".jpg") || filename.endsWith(".jpeg"))
-    return "image/jpeg";
-  if (filename.endsWith(".webm")) return "video/webm";
-  if (filename.endsWith(".mp4")) return "video/mp4";
-  if (filename.endsWith(".html")) return "text/html";
-  if (filename.endsWith(".md")) return "text/markdown";
-  if (filename.endsWith(".json")) return "application/json";
-  return "application/octet-stream";
+async function buildInlineRef(
+  uploaded: { gid: string; viewUrl?: string },
+  dataUrl: string,
+): Promise<AsanaInlineImage> {
+  const ref: AsanaInlineImage = { gid: uploaded.gid, viewUrl: uploaded.viewUrl };
+  try {
+    const img = await loadImage(dataUrl);
+    if (img.naturalWidth > 0 && img.naturalHeight > 0) {
+      ref.width = img.naturalWidth;
+      ref.height = img.naturalHeight;
+    }
+  } catch {
+    // 크기 측정 실패해도 gid만으로 인라인 (graceful).
+  }
+  return ref;
 }
 
 function toUploadEntry(f: AsanaFileInput) {
-  const name = asanaFilename(f.filename);
-  return { filename: name, contentType: guessMime(name), dataUrl: f.dataUrl };
+  return {
+    filename: f.filename,
+    contentType: guessUploadMime(f.filename),
+    dataUrl: f.dataUrl,
+  };
 }
 
 function toMedia(f: AsanaFileInput): AsanaMediaInput {
-  const name = asanaFilename(f.filename);
-  return { filename: name, contentType: guessMime(name) };
+  return { filename: f.filename, contentType: guessUploadMime(f.filename) };
 }
 
 // Asana는 webp를 본문 인라인 이미지로 지원하지 않으므로 jpeg로 폴백 변환한다.
@@ -79,9 +93,20 @@ export async function submitToAsana(
   input: AsanaSubmitInput,
 ): Promise<NormalizedSubmitResult> {
   const imageInputs = await Promise.all((input.images ?? []).map(webpToJpeg));
+  // 인라인 이미지는 refId 기반 파일명을 부여해 업로드하고, 본문 src(`inline:refId`)로 ref 매핑한다.
+  const inlineEntries = await Promise.all(
+    (input.inlineImages ?? []).map(async (img) => ({
+      refId: img.refId,
+      file: await webpToJpeg({
+        filename: `inline-${img.refId}.${imageExtFromDataUrl(img.dataUrl)}`,
+        dataUrl: img.dataUrl,
+      }),
+    })),
+  );
   const logs = [...(input.logs ?? []), buildAiMetaAttachment(input.ctx)];
   const allFiles = [
     ...imageInputs,
+    ...inlineEntries.map((e) => e.file),
     ...(input.video ? [input.video] : []),
     ...logs,
   ];
@@ -122,25 +147,18 @@ export async function submitToAsana(
       if (r.gid) byName.set(r.filename, { gid: r.gid, viewUrl: r.viewUrl });
     }
     const imageRefs: Record<string, AsanaInlineImage> = {};
+    // 캡처 이미지: 본문 src = 파일명.
     await Promise.all(
       imageInputs.map(async (f) => {
-        const name = asanaFilename(f.filename);
-        const uploaded = byName.get(name);
-        if (!uploaded) return;
-        const ref: AsanaInlineImage = {
-          gid: uploaded.gid,
-          viewUrl: uploaded.viewUrl,
-        };
-        try {
-          const img = await loadImage(f.dataUrl);
-          if (img.naturalWidth > 0 && img.naturalHeight > 0) {
-            ref.width = img.naturalWidth;
-            ref.height = img.naturalHeight;
-          }
-        } catch {
-          // 크기 측정 실패해도 gid만으로 인라인 (graceful).
-        }
-        imageRefs[name] = ref;
+        const uploaded = byName.get(f.filename);
+        if (uploaded) imageRefs[f.filename] = await buildInlineRef(uploaded, f.dataUrl);
+      }),
+    );
+    // 본문 붙여넣기 인라인 이미지: 본문 src = `inline:refId`.
+    await Promise.all(
+      inlineEntries.map(async ({ refId, file }) => {
+        const uploaded = byName.get(file.filename);
+        if (uploaded) imageRefs[`inline:${refId}`] = await buildInlineRef(uploaded, file.dataUrl);
       }),
     );
     if (Object.keys(imageRefs).length > 0) {

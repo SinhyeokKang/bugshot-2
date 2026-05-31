@@ -511,7 +511,7 @@ export function IssueCreateModal() {
 
   async function handleAsanaSubmit(
     ctx: MarkdownContext,
-    _inlineImages: InlineImageInput[],
+    inlineImages: InlineImageInput[],
     captureFiles: CaptureFiles,
   ): Promise<NormalizedSubmitResult> {
     if (!asanaAccount) {
@@ -524,6 +524,7 @@ export function IssueCreateModal() {
       images: captureFiles.images,
       video: captureFiles.video,
       logs: captureFiles.logs,
+      inlineImages,
       workspaceGid: asanaFields.workspaceGid,
       projectGid: asanaFields.projectGid,
       assigneeGid: asanaFields.assigneeGid,

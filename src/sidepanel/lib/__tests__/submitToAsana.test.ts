@@ -6,8 +6,12 @@ vi.mock("@/types/messages", () => ({ sendBg: (...a: unknown[]) => sendBg(...a) }
 vi.mock("../buildAsanaIssueBody", () => ({
   buildAsanaIssueBody: () => ({ body: "BODY_MD", attached: [] }),
 }));
+const markdownToAsanaHtml = vi.fn(
+  (md: string, _refs?: Record<string, unknown>) => `<body>${md}</body>`,
+);
 vi.mock("../markdownToAsanaHtml", () => ({
-  markdownToAsanaHtml: (md: string) => `<body>${md}</body>`,
+  markdownToAsanaHtml: (...a: unknown[]) =>
+    markdownToAsanaHtml(...(a as [string, Record<string, unknown>?])),
 }));
 vi.mock("../buildAiMetaAttachment", () => ({
   buildAiMetaAttachment: () => ({
@@ -49,6 +53,7 @@ const TASK = { gid: "TASK_GID", permalinkUrl: "https://app.asana.com/0/0/TASK_GI
 
 beforeEach(() => {
   sendBg.mockReset();
+  markdownToAsanaHtml.mockClear();
 });
 
 describe("submitToAsana", () => {
@@ -131,6 +136,46 @@ describe("submitToAsana", () => {
     expect(
       sendBg.mock.calls.some(([m]) => m.type === "asana.uploadFiles"),
     ).toBe(false);
+  });
+
+  it("본문 인라인 이미지(inlineImages)도 업로드 → inline:refId 키로 본문 갱신", async () => {
+    sendBg.mockImplementation(
+      async (msg: { type: string; files?: Array<{ filename: string }> }) => {
+        if (msg.type === "asana.submitIssue") return TASK;
+        if (msg.type === "asana.uploadFiles")
+          return (msg.files ?? []).map((f) => ({
+            filename: f.filename,
+            gid: `gid-${f.filename}`,
+            viewUrl: `url-${f.filename}`,
+          }));
+        return undefined;
+      },
+    );
+
+    const res = await submitToAsana({
+      ctx: makeCtx(),
+      workspaceGid: "W",
+      inlineImages: [{ refId: "REF1", dataUrl: "data:image/png;base64,AAA" }],
+    });
+
+    // 인라인 이미지가 refId 기반 파일명으로 업로드 대상에 포함된다.
+    const uploadCall = sendBg.mock.calls.find(
+      ([m]) => m.type === "asana.uploadFiles",
+    )![0];
+    expect(
+      uploadCall.files.some(
+        (f: { filename: string }) => f.filename === "inline-REF1.png",
+      ),
+    ).toBe(true);
+
+    // updateTaskNotes 호출 시 imageRefs에 본문 src 키(inline:REF1)가 매핑된다.
+    const refsArg = markdownToAsanaHtml.mock.calls.at(-1)![1] as Record<
+      string,
+      { viewUrl?: string }
+    >;
+    expect(refsArg["inline:REF1"]).toBeDefined();
+    expect(refsArg["inline:REF1"]?.viewUrl).toBe("url-inline-REF1.png");
+    expect(res.key).toBe("TASK_GID");
   });
 
   it("per-file 격리 — 개별 첨부 실패(gid null)여도 task는 보존되고 결과 반환", async () => {
