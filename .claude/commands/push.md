@@ -19,7 +19,11 @@ description: 원격 푸시 전 상태 점검 + CLAUDE.md/DIRECTORY.md/ARCHITECTU
 
 3. **푸시될 커밋이 없으면** "푸시할 커밋 없음" 알리고 종료.
 
-4. **문서 신선도 검사.** 푸시될 커밋들의 diff(`git diff @{u}..HEAD`)를 훑어 아래 트리거 중 하나라도 해당하면 **CLAUDE.md + README.md 업데이트 후보**:
+4. **문서 신선도 검사 (트라이아지 → 정밀).** 검사 대상이 6개라 무겁게 느껴지지만, 본질은 **diff를 한 번 읽고 트리거에 걸리는 문서만 골라내는 것**이다. 문서 수만큼 비용이 늘지 않는다.
+
+   **4a. 트라이아지 (1회, 가볍게).** 푸시될 커밋들의 diff(`git diff @{u}..HEAD`)를 **한 번** 훑어, 아래 트리거에 걸리는 문서를 **후보 목록**으로 매핑한다. 이 단계에서는 문서를 읽지 않는다 — diff와 트리거만 본다.
+   - **후보가 0개면 검사 종료하고 바로 5단계(푸시)로 간다.** 대부분의 push가 여기서 통과한다.
+   - 후보가 1개 이상이면 4b로 진행하되, **걸린 문서만** 다룬다.
 
    트리거:
    - 새 디렉터리/파일 추가·삭제 (특히 `src/` 하위 구조 변화)
@@ -32,6 +36,8 @@ description: 원격 푸시 전 상태 점검 + CLAUDE.md/DIRECTORY.md/ARCHITECTU
    - 워크플로우/스킬 라인업 변경
    - `manifest.config.ts`의 permissions·host_permissions·optional_host_permissions 변경, 새 플랫폼/연동 추가, 새 데이터 수집·외부 전송 메커니즘 도입 → **docs/privacy.md 업데이트 후보**
    - **⚠️ privacy 전용 트리거 (manifest diff와 무관 — 과거 심사 탈락 원인):** 새 기능이 *기존* 권한(광역 `https://*/*`·`<all_urls>`·`activeTab`·`tabCapture`·`scripting` 등)을 **새 목적으로 사용**하거나, 새 캡처·수집·저장·전송 *동작*을 추가하면 manifest 텍스트가 그대로여도 privacy 갱신 후보다. **manifest diff가 0이라는 이유로 privacy 검사를 건너뛰지 말 것.** 판단은 권한 문자열이 아니라 **실제 코드 동작**에 건다: diff에서 `chrome.permissions.request` / `captureVisibleTab` / `tabCapture` / `chrome.scripting` / 신규 `fetch`·외부 엔드포인트 / `chrome.storage`·IndexedDB 신규 write 호출이 보이면 무조건 docs/privacy.md를 대조한다. (예: 30s Replay가 기존 optional 권한으로 `captureVisibleTab` 상시 캡처를 추가했으나 manifest는 불변이라 트리거를 빠져나간 사례.)
+
+   **4b. 후보 정밀 검사.** 트라이아지에서 걸린 문서만 아래 관점으로 실제 읽고 대조한다. 안 걸린 문서는 열지 않는다.
 
    검사 대상 6개:
    - **CLAUDE.md** — 코드 컨벤션, 게이트웨이, 워크플로우 등 해당 섹션이 최신인지 확인
