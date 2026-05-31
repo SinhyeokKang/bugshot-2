@@ -19,8 +19,8 @@ src/
 │   ├── notion-oauth.ts  # Notion Web Flow (launchWebAuthFlow + proxy 교환, public integration — refresh 토큰 없음)
 │   ├── gitlab-api.ts    # GitLab REST 래퍼 (PAT/Bearer, self-managed baseUrl, 401 refresh hook 주입형, uploadFile/createIssue/updateIssueDescription/updateIssueState)
 │   ├── gitlab-oauth.ts  # GitLab OAuth (PKCE, launchWebAuthFlow, gitlab.com 고정, proxy 불필요) + refresh hook 자동 등록
-│   ├── asana-api.ts     # Asana REST 래퍼 (PAT/Bearer, {data} 언랩, multipart attachment, 401 refresh hook 주입형, createTask/uploadAttachment/getTaskStatus/setTaskCompleted)
-│   ├── asana-oauth.ts   # Asana OAuth (PKCE, launchWebAuthFlow, app.asana.com 고정, proxy 불필요) + refresh hook 자동 등록 (refresh_token 비회전)
+│   ├── asana-api.ts     # Asana REST 래퍼 (PAT/Bearer, {data} 언랩, multipart attachment, 401 refresh hook 주입형, createTask/uploadAttachment(view_url)/updateTaskNotes/getTaskStatus/setTaskCompleted)
+│   ├── asana-oauth.ts   # Asana OAuth (confidential — launchWebAuthFlow authorize + proxy token 교환) + refresh hook 자동 등록 (refresh_token 비회전)
 │   ├── bgRequestTypes.ts # BgRequest["type"] → true Record (BG_REQUEST_TYPE_MAP) — index.ts 인라인 Set에서 추출, union 누락을 typecheck로 강제
 │   └── messages.ts      # 메시지 핸들러 디스패치 (jira.* / github.* / linear.* / notion.* / gitlab.* / asana.* namespace)
 ├── content/
@@ -73,7 +73,7 @@ src/
 ├── styles/
 └── types/               # platform.ts (PlatformId/Accounts/LastSubmitFieldsByPlatform), github.ts, jira.ts, linear.ts, notion.ts, gitlab.ts (GitlabAuth/GitlabPatAuth/GitlabOAuthAuth + 이슈 페이로드·상태 타입), asana.ts (AsanaAuth/AsanaPatAuth/AsanaOAuthAuth + workspace/project/user/task 페이로드·상태 타입), environment.ts (EnvironmentRow), console.ts, network.ts, action.ts (ActionEntry/ActionLog/ActionLogSummary), messages.ts, picker.ts, log-viewer.ts (LogViewerData — 로그 뷰어 데이터 인터페이스, video 동기화 임베드 포함), user-agent-data.d.ts (NavigatorUAData 타입 보강) 등
 vite.log-viewer.config.ts# 로그 뷰어 전용 Vite 빌드 설정 (viteSingleFile → dist-log-viewer/index.html 단일 파일, @/i18n alias redirect)
-oauth-proxy/             # Cloudflare Worker — Atlassian /token + GitHub /github/{token,refresh} + Notion /notion/token 교환 (client_secret 서버 보관, Linear는 PKCE라 proxy 불필요)
+oauth-proxy/             # Cloudflare Worker — Atlassian /token + GitHub /github/{token,refresh} + Notion /notion/token + Asana /asana/{token,refresh} 교환 (client_secret 서버 보관, Linear·GitLab은 PKCE라 proxy 불필요)
 docs/
 ├── features/        # 기능 기획 문서 (PRD·설계·태스크) — dev에서 작업, 구현 완료 시 삭제
 └── privacy.md       # 개인정보처리방침 (GitHub Pages)

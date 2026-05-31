@@ -52,7 +52,7 @@ https://uploads.github.com/*       — GitHub 파일 업로드 S3
 https://api.linear.app/*           — Linear GraphQL API + OAuth token
 https://api.notion.com/*           — Notion REST API + OAuth token
 https://gitlab.com/*               — GitLab REST API + OAuth token (gitlab.com 한정)
-https://app.asana.com/*            — Asana REST API + OAuth authorize/token (PKCE, proxy 불필요)
+https://app.asana.com/*            — Asana REST API + OAuth authorize (token 교환은 confidential이라 proxy 경유)
 ${VITE_OAUTH_PROXY_URL origin}/*   — OAuth proxy (빌드 타임 주입)
 ```
 
@@ -342,7 +342,7 @@ idle 복귀 전 캡처를 시도하면 기존 3중 방어(진입 가드 / 런타
 | Linear | `linear.app/oauth/authorize` | `api.linear.app/oauth/token` | O (S256) | X | `api.linear.app/oauth/token` |
 | Notion | `api.notion.com/v1/oauth/authorize` | `${PROXY}/notion/token` | X | O | 없음 (토큰 무기한) |
 | GitLab | `gitlab.com/oauth/authorize` | `gitlab.com/oauth/token` | O (S256) | X | `gitlab.com/oauth/token` |
-| Asana | `app.asana.com/-/oauth_authorize` | `app.asana.com/-/oauth_token` | O (S256) | X | `app.asana.com/-/oauth_token` (refresh_token 비회전) |
+| Asana | `app.asana.com/-/oauth_authorize` | `${PROXY}/asana/token` | X | O | `${PROXY}/asana/refresh` (refresh_token 비회전) |
 
 ### 토큰 저장
 
@@ -378,7 +378,7 @@ bg service worker에서 직접 읽기/쓰기:
 | `isLinearOAuthConfigured()` | `linear-oauth.ts:12` | `VITE_LINEAR_CLIENT_ID` |
 | `isNotionOAuthConfigured()` | `notion-oauth.ts:12` | `VITE_NOTION_CLIENT_ID` + `VITE_OAUTH_PROXY_URL` |
 | `isGitlabOAuthConfigured()` | `gitlab-oauth.ts:13` | `VITE_GITLAB_CLIENT_ID` |
-| `isAsanaOAuthConfigured()` | `asana-oauth.ts:12` | `VITE_ASANA_CLIENT_ID` |
+| `isAsanaOAuthConfigured()` | `asana-oauth.ts:12` | `VITE_ASANA_CLIENT_ID` + `VITE_OAUTH_PROXY_URL` |
 
 env 누락 시 해당 플랫폼의 OAuth 버튼이 UI에서 자동 비활성화. (GitLab·Asana는 OAuth 미구성이어도 PAT 연결은 가능.)
 
