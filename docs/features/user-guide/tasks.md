@@ -2,22 +2,38 @@
 
 ## 선행 조건
 
-- **GitBook 사이트 + GitHub Sync 셋업** (코드 작업과 독립, 운영 축):
+- **GitBook 사이트 + GitHub Sync 셋업** (Task 6에서 수행, 운영 축):
   1. GitBook 무료 스페이스 생성.
-  2. 가이드 소스용 git 위치 확정 — 권장: 별도 repo `bugshot-guide`(또는 단일 repo 선호 시 전용 브랜치 `gitbook`). design.md "소스 위치" 표 참조.
-  3. 해당 repo/브랜치에 `.gitbook.yaml`(root·structure) + `SUMMARY.md` + 최소 1개 `*.md` 페이지 두고 GitBook GitHub Sync 연결.
-  4. 공개 URL(`https://<org>.gitbook.io/bugshot`) 확보 → 이것이 `USER_GUIDE_URL` 실제 값. (본문 콘텐츠 작성은 이번 스코프 밖이나, 최소 1페이지는 퍼블리시돼 있어야 링크가 안 깨짐.)
-- **persist merge 동작 확인**: `useSettingsUiStore`에 신규 boolean 필드 추가 시 기존 영속 상태에서 누락 키가 초기값으로 채워지는지 단위 테스트로 검증(Task 1). 안 되면 version 6 + migrate 분기 추가.
+  2. 소스는 **이 repo `main` 브랜치의 `guide/`** (확정). repo 루트 `.gitbook.yaml`이 `root: ./guide`로 가리킴.
+  3. GitBook GitHub Sync를 **repo → GitBook 단방향**으로 연결(GitBook UI 편집 미사용 → 봇 역커밋 없음).
+  4. 공개 URL(`https://<org>.gitbook.io/bugshot`) 확보 → `USER_GUIDE_URL` 실제 값. (본문 콘텐츠 작성은 비목표나, 최소 1페이지는 퍼블리시돼야 링크가 안 깨짐.)
+- **persist merge 동작 확인**: `useSettingsUiStore`에 신규 필드(`guideBannerDismissedVersion`) 추가 시 기존 영속 상태에서 누락 키가 초기값(null)으로 채워지는지 단위 테스트로 검증(Task 1). 안 되면 version 6 + migrate 분기 추가.
 
 ## 태스크
 
-### Task 1: settings-ui-store에 dismiss 상태 추가 (+ 테스트 먼저)
+### Task 1: shouldShowGuideBanner 순수 함수 (+ 테스트 먼저)
+- **변경 대상**: `src/lib/guide-banner.ts`(신규), `src/lib/__tests__/guide-banner.test.ts`(신규)
+- **작업 내용**:
+  - 테스트 먼저: `shouldShowGuideBanner(dismissed, current)` 케이스 —
+    - `(null, "1.2.0")` → true (한 번도 안 닫음)
+    - `("1.2.0", "1.3.0")` → true (minor 상승)
+    - `("1.2.0", "2.0.0")` → true (major 상승)
+    - `("1.2.0", "1.2.5")` → false (patch만)
+    - `("1.2.0", "1.2.0")` → false (동일)
+    - `("1.3.0", "1.2.0")` → false (하락)
+    - `("1.2", "1.2.3.4", "x.y", "")` 등 비정상 → false (단 dismissed null이면 true 우선)
+  - 구현: `major.minor` 비교, 파싱 실패 fail-closed(false).
+- **검증**:
+  - [ ] `pnpm test guide-banner` 통과
+  - [ ] `pnpm typecheck` 무오류
+
+### Task 1b: settings-ui-store에 dismiss 버전 상태 추가 (+ 테스트 먼저)
 - **변경 대상**: `src/store/settings-ui-store.ts`, `src/store/__tests__/settings-ui-store.test.ts`
 - **작업 내용**:
-  - 테스트 먼저: `guideBannerDismissed` 초기값 false, `dismissGuideBanner()` 호출 후 true, 기존 persist 상태(키 누락)에서 hydrate 시 false로 채워지는지 케이스 추가.
-  - `SettingsUiState`에 `guideBannerDismissed: boolean` + `dismissGuideBanner: () => void`.
-  - 초기값 false, 액션 `set({ guideBannerDismissed: true })`.
-  - 테스트가 누락 키 merge 실패를 잡으면 version 6 + `migrate`에 `state.guideBannerDismissed ??= false`.
+  - 테스트 먼저: `guideBannerDismissedVersion` 초기값 null, `dismissGuideBanner("1.4.0")` 호출 후 `"1.4.0"`, 기존 persist 상태(키 누락)에서 hydrate 시 null로 채워지는지.
+  - `SettingsUiState`에 `guideBannerDismissedVersion: string | null` + `dismissGuideBanner: (v: string) => void`.
+  - 초기값 null, 액션 `set({ guideBannerDismissedVersion: v })`.
+  - 테스트가 누락 키 merge 실패를 잡으면 version 6 + `migrate`에 `state.guideBannerDismissedVersion ??= null`.
 - **검증**:
   - [ ] `pnpm test settings-ui-store` 통과
   - [ ] `pnpm typecheck` 무오류
@@ -31,21 +47,34 @@
 
 ### Task 3: GuideBanner 컴포넌트 작성
 - **변경 대상**: `src/sidepanel/components/GuideBanner.tsx` (신규)
-- **작업 내용**:
-  - `useSettingsUiStore`에서 `guideBannerDismissed`, `dismissGuideBanner` 구독. dismissed면 `null`.
-  - 얇은 띠(16–20px): `border-b`, 은은한 배경(`bg-muted/50 text-muted-foreground`).
-  - 좌측: 본문 버튼(`useT("app.guideBanner.cta")` 텍스트 + lucide `ChevronRight` h-3 w-3) → 클릭 시 `chrome.tabs.create({ url: USER_GUIDE_URL, active: true })`.
-  - 우측: 닫기 버튼(lucide `X` h-3 w-3, aria-label `app.guideBanner.dismiss`, `h-5 w-5` — 배너 높이에 맞춘 사이즈 일탈, WHY 주석) → `dismissGuideBanner()`. 본문 클릭과 분리(별도 버튼).
-  - shadcn `Button` variant `ghost`/`link` 사용. 직접 스타일링 최소화.
+- **작업 내용** (design.md 「배너 UX 상세」 준수):
+  - `useSettingsUiStore`에서 `guideBannerDismissedVersion`, `dismissGuideBanner` 구독.
+  - `currentVersion = chrome.runtime.getManifest().version`. `shouldShowGuideBanner(dismissed, currentVersion)`가 false면 `null`.
+  - 얇은 띠(16–20px): `px-3 py-1 text-xs`, `border-b`, 은은한 배경(`bg-muted/50 text-muted-foreground`).
+  - 좌측 CTA 버튼(`flex-1 min-w-0 truncate`, `useT("app.guideBanner.cta")` + lucide `ChevronRight` h-3 w-3) → `chrome.tabs.create({ url: USER_GUIDE_URL, active: true })`. (배너 유지)
+  - 우측 닫기 버튼(lucide `X` h-3 w-3, aria-label `app.guideBanner.dismiss`, `h-5 w-5 shrink-0` — 배너 높이 맞춤 사이즈 일탈, WHY 주석) → `dismissGuideBanner(currentVersion)`. 별도 버튼으로 분리.
+  - shadcn `Button` variant `ghost`/`link`. hover/focus-visible 기본.
 - **검증**:
-  - [ ] dismissed=false일 때만 렌더, true면 null (수동/스토어 mock)
+  - [ ] `shouldShowGuideBanner` true면 렌더, false면 null (스토어 mock)
+  - [ ] CTA 클릭 → tabs.create 호출, X 클릭 → dismissGuideBanner(version) 호출 (mock 검증)
+  - [ ] `pnpm typecheck` 무오류
+
+### Task 3b: 설정 푸터 [개인정보 처리방침] → [유저 가이드] 교체
+- **변경 대상**: `src/sidepanel/tabs/SettingsTab.tsx`
+- **작업 내용**:
+  - `GeneralSettingsContent` PageFooter 좌측 버튼(현 privacy, `SettingsTab.tsx:222`)을 가이드로 교체.
+  - `onClick` → `chrome.tabs.create({ url: USER_GUIDE_URL, active: true })`, 라벨 → `t("settings.guide")`.
+  - privacy 링크는 UI에서 제거(스토어 등록 정보엔 유지). `settings.privacy` 키가 고아가 되면 남겨둠(외과 범위).
+- **검증**:
+  - [ ] 설정 > 앱 설정 푸터에 [유저 가이드] 노출, 클릭 시 가이드 새 탭
+  - [ ] privacy 버튼 사라짐
   - [ ] `pnpm typecheck` 무오류
 
 ### Task 4: i18n 키 추가 (ko/en 동시)
-- **변경 대상**: `src/i18n/namespaces/app.ts`
-- **작업 내용**: ko/en 각각 `app.guideBanner.cta`, `app.guideBanner.dismiss` 추가.
-  - ko: "사용 방법이 궁금하다면? 가이드" / "배너 닫기"
-  - en: "New to BugShot? Read the guide" / "Dismiss"
+- **변경 대상**: `src/i18n/namespaces/app.ts`, `src/i18n/namespaces/settings.ts`
+- **작업 내용**:
+  - `app.ts` ko/en: `app.guideBanner.cta` ("사용 방법이 궁금하다면? 가이드" / "New to BugShot? Read the guide"), `app.guideBanner.dismiss` ("배너 닫기" / "Dismiss").
+  - `settings.ts` ko/en: `settings.guide` ("유저 가이드" / "User Guide").
 - **검증**:
   - [ ] Edit 저장 시 PostToolUse 훅(`locales.test.ts`) 통과 — ko/en 대칭·빈 값 없음
   - [ ] `pnpm test locales` 통과
@@ -85,23 +114,24 @@
 
 ## 테스트 계획
 
-- **단위 테스트** (`src/store/__tests__/settings-ui-store.test.ts`):
-  - `guideBannerDismissed` 초기값 false.
-  - `dismissGuideBanner()` 후 true.
-  - (필요 시) 기존 영속 상태에서 키 누락 → hydrate 후 false.
+- **단위 테스트**:
+  - `src/lib/__tests__/guide-banner.test.ts`: `shouldShowGuideBanner` 버전 비교 케이스(Task 1 목록).
+  - `src/store/__tests__/settings-ui-store.test.ts`: `guideBannerDismissedVersion` 초기값 null, `dismissGuideBanner(v)` 후 v 기록, 키 누락 hydrate → null.
 - **수동 테스트** (Chrome, `pnpm dev` + 로드 언팩):
   - [ ] 사이드패널 열기 → 탭 헤더 위 배너 보임.
   - [ ] 4개 최상위 탭 전환해도 배너 유지.
-  - [ ] 본문 클릭 → 새 탭에서 GitBook 가이드 열림, 사이드패널 유지.
+  - [ ] CTA 클릭 → 새 탭에서 GitBook 가이드 열림, 사이드패널·배너 유지.
   - [ ] X 클릭 → 배너 사라짐.
   - [ ] 사이드패널 닫았다 재오픈 → 배너 안 보임(영속).
-  - [ ] 설정에서 ko↔en 전환 → 배너 문구 바뀜(dismiss 전 상태에서 확인).
+  - [ ] (버전 모사) dismiss 후 manifest minor bump → 재노출 / patch bump → 미노출. (storage의 `guideBannerDismissedVersion`을 수동 편집해 확인 가능)
+  - [ ] 설정 > 앱 설정 푸터 [유저 가이드] 노출·클릭 동작, privacy 버튼 사라짐 확인.
+  - [ ] ko↔en 전환 → 배너·설정 버튼 문구 바뀜.
 
 ## 구현 순서 권장
 
 - **운영(Task 6) 먼저**: GitBook 스캐폴딩 + sync로 공개 URL 확보 → Task 2의 `USER_GUIDE_URL` 실제 값이 나온다.
-- 코드: Task 1 / Task 4는 독립적이라 **병렬 가능**(store / i18n). Task 2는 Task 6 후, Task 3 전. Task 3은 Task 1·2 후. Task 5는 Task 3 후 마지막.
-- Task 7(거버넌스)은 다른 태스크와 독립 — 아무 때나.
-- 권장: **6 → (1·4 병렬) → 2 → 3 → 5**, 7은 병행.
+- 코드: Task 1(순수 함수) / Task 1b(store) / Task 4(i18n)는 독립 — **병렬 가능**. Task 2는 Task 6 후. Task 3은 Task 1·1b·2 후. Task 3b는 Task 2·4 후. Task 5는 Task 3 후 마지막.
+- Task 7(거버넌스)은 독립 — 아무 때나.
+- 권장: **6 → (1·1b·4 병렬) → 2 → 3 → (3b·5)**, 7은 병행.
 
 > 문서 신선도: 신규 파일(`GuideBanner.tsx`, `external-links.ts`, `.gitbook.yaml`, `guide/`) 추가이므로 `/push` 시 DIRECTORY.md 갱신 대상. 새 외부 링크(GitBook)지만 manifest 권한·host_permissions 변화 없음(`chrome.tabs.create`는 기존 패턴, 신규 권한 불요) → privacy.md는 "외부 문서 링크 추가" 수준에서 대조만. Task 7로 `guide/` 자체가 향후 신선도 검사 대상에 편입됨.
