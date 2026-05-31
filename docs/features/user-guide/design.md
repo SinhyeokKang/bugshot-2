@@ -2,7 +2,49 @@
 
 ## 개요
 
-사이드패널 루트(`App.tsx`)의 탭 헤더 위에 얇은 전역 배너 컴포넌트를 추가한다. 배너 본문 클릭은 기존 `chrome.tabs.create({ url })` 패턴으로 GitBook 가이드 URL을 새 탭으로 연다. dismiss 상태는 기존 `useSettingsUiStore`(zustand + `chrome.storage.local` 영속)에 boolean 필드 하나로 보존한다. 가이드 URL은 상수 한 곳에 둔다. 신규 i18n 키 2개(본문·닫기 aria-label)를 ko/en에 추가한다.
+사이드패널 루트(`App.tsx`)의 탭 헤더 위에 얇은 전역 배너 컴포넌트를 추가한다. 배너 본문 클릭은 기존 `chrome.tabs.create({ url })` 패턴으로 GitBook 가이드 URL을 새 탭으로 연다. dismiss 상태는 기존 `useSettingsUiStore`(zustand + `chrome.storage.local` 영속)에 boolean 필드 하나로 보존한다. 가이드 URL은 상수 한 곳에 둔다. 신규 i18n 키 2개(본문·닫기 aria-label)를 ko/en에 추가한다. 가이드 콘텐츠는 **GitBook + GitHub Sync**로 docs-as-code 관리(아래 절).
+
+## 문서 관리 / 유지보수 (in-repo 마크다운 + 단방향 GitBook sync)
+
+확장 코드 밖의 운영 축이지만, **바이브 코딩 워크플로우 안에서 코드로 관리**한다.
+
+### 동기화 구조
+```
+bugshot-2 repo (main)
+├ guide/                       ← 가이드 소스 (Claude가 작성, git 관리)
+│   ├ SUMMARY.md               ← 목차/사이드바
+│   ├ assets/                  ← 스크린샷 등 이미지 (repo에 커밋)
+│   │   └ *.png
+│   └ *.md                     ← 페이지 (![alt](assets/foo.png) 상대경로 참조)
+├ .gitbook.yaml                ← root: ./guide  (GitBook이 이 경로만 읽음)
+└ docs/                        ← 기존 Jekyll(privacy) — guide/와 분리, 충돌 없음
+        │
+        └ GitBook GitHub Sync (repo → GitBook 단방향) → https://<org>.gitbook.io/bugshot
+                                                                    ▲
+                                            확장 배너가 이 URL을 새 탭으로 오픈
+```
+- **단방향**: `guide/*.md`를 코드로만 편집 → GitBook이 렌더·퍼블리시. GitBook UI 편집은 쓰지 않음 → main에 봇 역커밋이 안 생겨 dev→main squash 흐름 유지.
+- 구조는 repo 루트 `.gitbook.yaml`(`root: ./guide`, `structure.summary: SUMMARY.md`) + `guide/SUMMARY.md`(목차)로 GitBook 규약을 따른다.
+- `docs/`(Jekyll)와 `guide/`(GitBook)는 별도 트리라 빌드 충돌 없음.
+
+### 이미지 (스크린샷)
+- 사용자가 캡처한 이미지를 `guide/assets/`에 커밋하고, 마크다운에서 **상대경로**로 참조: `![설명](assets/element-picker.png)`.
+- GitBook GitHub Sync는 synced root(`./guide`) 내부의 상대경로 이미지를 그대로 해석·호스팅한다. 별도 CDN/업로드 불필요.
+- 주의: PNG 스크린샷은 용량이 커 repo가 무거워질 수 있음 → 캡처를 적당히 압축(권장 폭 ~1280px, PNG/WebP). 소규모 가이드 수준에선 무시 가능한 비용.
+- alt 텍스트는 접근성·검색용으로 채운다(가이드는 ko 중심이라 ko 캡션 OK — 본문 자체가 단일 언어, i18n 비대상).
+
+### 워크플로우 편입 (신선도 검사 + 작성)
+가이드가 코드와 같은 repo에 있으므로 기존 문서 거버넌스에 그대로 얹는다:
+- **CLAUDE.md 「문서 신선도」**: 검사 대상 목록에 `guide/` 추가 — "사용자 노출 UX·기능 추가/변경 시 `guide/*.md` 대조·갱신, 별도 커밋 `docs(guide): ...`".
+- **`push` 스킬 정의(`.claude/commands/push.md`)**: 신선도 체크리스트에 guide 항목 추가.
+- **CLAUDE.md 작업 원칙(선택)**: 기능 구현 시 사용자 동작이 바뀌면 `guide/` 갱신을 같은 작업에 포함.
+- 효과: 기능 PR마다 "가이드도 고쳤나?"가 `/push`에서 강제됨. 가이드가 코드 옆에서 함께 진화.
+
+### 유지보수 비용
+- **일상(콘텐츠 수정)**: `guide/*.md` 편집 + 커밋 → GitBook 자동 퍼블리시. **확장 재배포 불필요.**
+- **확장 코드 변경 시점**: `USER_GUIDE_URL`이 바뀔 때만(도메인 유료 전환·slug 변경 등). `external-links.ts` 1줄 수정 + 릴리스.
+
+> 참고: 모든 게 in-repo 마크다운 + 코드 관리이므로, GitBook이 기존 Jekyll Pages 대비 더 주는 것은 **깔끔한 UI**뿐(렌더러·호스팅 역할). 외부 sync 1겹을 UI를 위해 감수하는 구조 — GitBook 확정에 따른 trade-off. (Jekyll `just-the-docs` 테마로도 유사 UI가 외부 의존 0으로 가능하나 채택 안 함.)
 
 ## 변경 범위
 
@@ -46,6 +88,17 @@
   - `"app.guideBanner.cta"`: ko "사용 방법이 궁금하다면? 가이드" / en "New to BugShot? Read the guide"
   - `"app.guideBanner.dismiss"`: ko "배너 닫기" / en "Dismiss"
 - i18n PostToolUse 훅이 ko/en 대칭을 자동 검사하므로 양쪽 동시 갱신 필수.
+
+### 6. `guide/` + `.gitbook.yaml` (신규, 콘텐츠/설정)
+- `.gitbook.yaml`(repo 루트): `root: ./guide`, `structure: { summary: SUMMARY.md }`.
+- `guide/SUMMARY.md`: 목차(최소 1개 페이지 링크).
+- `guide/README.md`(또는 `getting-started.md`): 가이드 첫 페이지 — 스코프상 최소 1페이지만 스캐폴딩(본문 전체 작성은 비목표).
+- `guide/assets/`: 스크린샷 디렉터리.
+
+### 7. `CLAUDE.md` + `.claude/commands/push.md` (변경, 워크플로우 거버넌스)
+- `CLAUDE.md` 「문서 신선도」: 검사 대상에 `guide/` 추가 — 사용자 노출 UX/기능 변경 시 `guide/*.md` 대조, 커밋 prefix `docs(guide): ...`.
+- `.claude/commands/push.md`: 신선도 체크리스트에 guide 항목 추가.
+- (선택) `CLAUDE.md` 작업 원칙에 "사용자 동작 변경 시 guide 갱신" 한 줄.
 
 ## 데이터 흐름
 

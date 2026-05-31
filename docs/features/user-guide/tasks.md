@@ -2,7 +2,11 @@
 
 ## 선행 조건
 
-- **GitBook 사이트 생성 + 퍼블리시**: 무료 플랜으로 BugShot 가이드 스페이스를 만들고 공개 URL(`https://<org>.gitbook.io/bugshot`) 확보. 이 URL이 `USER_GUIDE_URL` 상수의 실제 값. (가이드 본문 내용 작성은 이번 스코프 밖이나, 최소 1페이지라도 퍼블리시돼 있어야 링크가 안 깨짐.)
+- **GitBook 사이트 + GitHub Sync 셋업** (코드 작업과 독립, 운영 축):
+  1. GitBook 무료 스페이스 생성.
+  2. 가이드 소스용 git 위치 확정 — 권장: 별도 repo `bugshot-guide`(또는 단일 repo 선호 시 전용 브랜치 `gitbook`). design.md "소스 위치" 표 참조.
+  3. 해당 repo/브랜치에 `.gitbook.yaml`(root·structure) + `SUMMARY.md` + 최소 1개 `*.md` 페이지 두고 GitBook GitHub Sync 연결.
+  4. 공개 URL(`https://<org>.gitbook.io/bugshot`) 확보 → 이것이 `USER_GUIDE_URL` 실제 값. (본문 콘텐츠 작성은 이번 스코프 밖이나, 최소 1페이지는 퍼블리시돼 있어야 링크가 안 깨짐.)
 - **persist merge 동작 확인**: `useSettingsUiStore`에 신규 boolean 필드 추가 시 기존 영속 상태에서 누락 키가 초기값으로 채워지는지 단위 테스트로 검증(Task 1). 안 되면 version 6 + migrate 분기 추가.
 
 ## 태스크
@@ -56,6 +60,29 @@
   - [ ] hydrate 전 미렌더(플리커 없음)
   - [ ] `pnpm typecheck` 무오류
 
+### Task 6: 가이드 소스 스캐폴딩 + GitBook sync 연결
+- **변경 대상**: `.gitbook.yaml`(신규, repo 루트), `guide/SUMMARY.md`, `guide/README.md`, `guide/assets/`(신규)
+- **작업 내용**:
+  - `.gitbook.yaml`: `root: ./guide`, `structure.summary: SUMMARY.md`.
+  - `guide/SUMMARY.md`: 목차(최소 첫 페이지 링크).
+  - `guide/README.md`: 첫 페이지 최소 스캐폴딩(제목 + 빈 섹션 골격). 본문 전체 작성은 비목표.
+  - `guide/assets/`: 이미지 디렉터리(placeholder `.gitkeep` 또는 첫 스크린샷). 마크다운에서 `![alt](assets/...)` 상대경로.
+  - GitBook 대시보드에서 이 repo `main` 브랜치를 **repo→GitBook 단방향**으로 Sync 연결.
+- **검증**:
+  - [ ] GitBook에 `guide/`가 렌더되어 공개 URL 접근 가능
+  - [ ] `guide/assets/`의 이미지가 페이지에 표시됨
+  - [ ] main에 GitBook 봇 역커밋이 발생하지 않음(단방향 확인)
+
+### Task 7: 워크플로우 신선도 검사에 guide 편입
+- **변경 대상**: `CLAUDE.md`, `.claude/commands/push.md`
+- **작업 내용**:
+  - `CLAUDE.md` 「문서 신선도」 목록에 `guide/` 추가 — 사용자 노출 UX/기능 변경 시 대조, 커밋 prefix `docs(guide): ...`.
+  - `.claude/commands/push.md` 신선도 체크리스트에 guide 항목 추가.
+  - (선택) `CLAUDE.md` 작업 원칙에 "사용자 동작 변경 시 guide 갱신" 한 줄.
+- **검증**:
+  - [ ] `/push` 실행 시 guide 신선도 항목이 체크리스트에 나타남
+  - [ ] 문서 표현이 기존 신선도 섹션 톤과 일치
+
 ## 테스트 계획
 
 - **단위 테스트** (`src/store/__tests__/settings-ui-store.test.ts`):
@@ -72,9 +99,9 @@
 
 ## 구현 순서 권장
 
-- Task 1 → Task 4는 독립적이라 **병렬 가능**(store / i18n).
-- Task 2(상수)는 Task 3 전에. Task 3은 Task 1·2 완료 후.
-- Task 5는 Task 3 완료 후 마지막.
-- 권장: **1·2·4 먼저 → 3 → 5**.
+- **운영(Task 6) 먼저**: GitBook 스캐폴딩 + sync로 공개 URL 확보 → Task 2의 `USER_GUIDE_URL` 실제 값이 나온다.
+- 코드: Task 1 / Task 4는 독립적이라 **병렬 가능**(store / i18n). Task 2는 Task 6 후, Task 3 전. Task 3은 Task 1·2 후. Task 5는 Task 3 후 마지막.
+- Task 7(거버넌스)은 다른 태스크와 독립 — 아무 때나.
+- 권장: **6 → (1·4 병렬) → 2 → 3 → 5**, 7은 병행.
 
-> 문서 신선도: 신규 파일(`GuideBanner.tsx`, `external-links.ts`) 추가이므로 `/push` 시 DIRECTORY.md 갱신 대상. 새 외부 링크(GitBook)지만 manifest 권한·host_permissions 변화 없음(`chrome.tabs.create`는 기존 패턴, 신규 권한 불요) → privacy.md는 "외부 문서 링크 추가" 수준에서 대조만.
+> 문서 신선도: 신규 파일(`GuideBanner.tsx`, `external-links.ts`, `.gitbook.yaml`, `guide/`) 추가이므로 `/push` 시 DIRECTORY.md 갱신 대상. 새 외부 링크(GitBook)지만 manifest 권한·host_permissions 변화 없음(`chrome.tabs.create`는 기존 패턴, 신규 권한 불요) → privacy.md는 "외부 문서 링크 추가" 수준에서 대조만. Task 7로 `guide/` 자체가 향후 신선도 검사 대상에 편입됨.

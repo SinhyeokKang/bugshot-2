@@ -10,6 +10,7 @@ BugShot은 DOM 선택·스타일 비교·6개 플랫폼 이슈 등록 등 기능
 - 배너 클릭 시 외부 사용 가이드 문서를 **새 탭**으로 연다.
 - 배너는 **닫기(dismiss) 가능**하며, 닫으면 `chrome.storage`에 영속되어 이후 재노출하지 않는다.
 - ko/en 양쪽 문구를 제공한다.
+- 가이드 콘텐츠를 **이 repo 안의 마크다운으로 관리**하고 GitBook으로 호스팅하며, 기능 변경 시 가이드 갱신을 `/push` 신선도 검사로 강제한다(코드 워크플로우 편입).
 
 ## 비목표 (Non-goals)
 
@@ -19,12 +20,19 @@ BugShot은 DOM 선택·스타일 비교·6개 플랫폼 이슈 등록 등 기능
 - 첫 실행 온보딩 투어·툴팁·코치마크.
 - 가이드 검색·앱 내 임베드(iframe).
 
-## 문서 관리 방식 (확정)
+## 문서 관리 방식 (확정) — in-repo 마크다운 + GitBook 호스팅 + 워크플로우 신선도 검사
 
-- **호스팅**: GitBook 무료 플랜. `https://<org>.gitbook.io/bugshot` 형태 공개 URL.
-  - 무료 티어로 충분: 퍼블리시·블록 에디터·1 유저·GitHub 동기화 포함. 커스텀 도메인/브랜딩 제거/공동 편집자만 유료이며 BugShot은 불필요.
+가이드를 **바이브 코딩 워크플로우 안에서 코드로 관리**한다. 소스는 이 repo 안에 두고, Claude가 다른 문서처럼 작성·갱신하며, `/push` 신선도 검사가 같이 본다. GitBook은 그 마크다운을 동기화해 **렌더·호스팅만** 담당.
+
+- **소스 위치**: `guide/` (repo 루트). 기존 `docs/`(Jekyll privacy)와 분리해 충돌 없음.
+  - `guide/SUMMARY.md`(목차) + `guide/*.md`(페이지). repo 루트 `.gitbook.yaml`이 `root: ./guide`로 가리킴.
+- **동기화**: GitBook GitHub Sync, **repo → GitBook 단방향**. 코드(`guide/*.md`)로만 편집하고 GitBook UI 편집은 안 쓴다 → main에 봇 역커밋이 안 생겨 dev→main squash 흐름이 깨끗.
+- **호스팅**: GitBook 무료 플랜. `https://<org>.gitbook.io/bugshot` 공개 URL. UI는 GitBook 기본 테마(깔끔)를 그대로 사용.
+- **워크플로우 편입**:
+  - 작성: 사용자 노출 UX·기능이 바뀌면 `guide/*.md`도 함께 갱신(CLAUDE.md 작업 원칙에 명시).
+  - 신선도: `/push` 문서 신선도 목록에 `guide/` 추가 — CLAUDE.md 「문서 신선도」 섹션 + `push` 스킬 정의 수정.
 - **URL 상수화**: privacy policy URL(`SettingsTab.tsx`에 하드코딩된 `https://sinhyeokkang.github.io/bugshot-2/privacy`)과 동일한 결의 외부 링크. 가이드 URL은 새로 추가하는 상수 한 곳에서 관리.
-- 가이드 콘텐츠 편집은 GitBook 대시보드에서 직접. 확장 빌드와 무관(코드 변경 없이 문서 갱신 가능).
+- 일상 갱신은 확장 재배포와 무관(확장은 URL만 가리킴). 확장 코드를 고치는 건 `USER_GUIDE_URL`이 바뀔 때뿐.
 
 ## 사용자 시나리오
 
