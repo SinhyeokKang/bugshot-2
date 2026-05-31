@@ -22,6 +22,13 @@ vi.mock("../buildAiMetaAttachment", () => ({
 vi.mock("@/sidepanel/capture", () => ({
   loadImage: vi.fn().mockResolvedValue({ naturalWidth: 800, naturalHeight: 600 }),
 }));
+const injectIssueUrl = vi.fn(
+  async (dataUrl: string, url: string, key?: string) => `${dataUrl}#${url}#${key}`,
+);
+vi.mock("@/lib/inject-issue-url", () => ({
+  injectIssueUrl: (...a: unknown[]) =>
+    injectIssueUrl(...(a as [string, string, string?])),
+}));
 
 import { submitToAsana } from "../submitToAsana";
 import type { MarkdownContext } from "../buildIssueMarkdown";
@@ -54,6 +61,7 @@ const TASK = { gid: "TASK_GID", permalinkUrl: "https://app.asana.com/0/0/TASK_GI
 beforeEach(() => {
   sendBg.mockReset();
   markdownToAsanaHtml.mockClear();
+  injectIssueUrl.mockClear();
 });
 
 describe("submitToAsana", () => {
@@ -98,6 +106,30 @@ describe("submitToAsana", () => {
     )![0];
     expect(updateCall.taskGid).toBe("TASK_GID");
     expect(updateCall.htmlNotes).toContain("BODY_MD");
+  });
+
+  it("logs.html은 업로드 전 task permalinkUrl을 백링크로 주입", async () => {
+    const uploaded: Array<{ filename: string; dataUrl: string }> = [];
+    sendBg.mockImplementation(
+      async (msg: { type: string; files?: Array<{ filename: string; dataUrl: string }> }) => {
+        if (msg.type === "asana.submitIssue") return TASK;
+        if (msg.type === "asana.uploadFiles") {
+          uploaded.push(...(msg.files ?? []));
+          return (msg.files ?? []).map((f) => ({ filename: f.filename, gid: null }));
+        }
+        return undefined;
+      },
+    );
+
+    await submitToAsana({
+      ctx: makeCtx({ captureMode: "screenshot" }),
+      workspaceGid: "W",
+      logs: [{ filename: "logs.html", dataUrl: "data:LOGS" }],
+    });
+
+    expect(injectIssueUrl).toHaveBeenCalledWith("data:LOGS", TASK.permalinkUrl, TASK.gid);
+    const logsEntry = uploaded.find((f) => f.filename === "logs.html");
+    expect(logsEntry?.dataUrl).toBe(`data:LOGS#${TASK.permalinkUrl}#${TASK.gid}`);
   });
 
   it("이미지 GID가 없으면(영상/로그만) updateTaskNotes 미호출", async () => {

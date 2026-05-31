@@ -7,6 +7,7 @@ import { buildAiMetaAttachment } from "./buildAiMetaAttachment";
 import type { InlineImageInput } from "./resolveInlineImages";
 import { guessUploadMime } from "./uploadMime";
 import { loadImage } from "@/sidepanel/capture";
+import { injectIssueUrl } from "@/lib/inject-issue-url";
 import { sendBg } from "@/types/messages";
 import type { AsanaCreateTaskResult } from "@/types/asana";
 import type { NormalizedSubmitResult } from "@/types/platform";
@@ -130,13 +131,23 @@ export async function submitToAsana(
   });
 
   if (allFiles.length > 0) {
+    // create가 upload보다 먼저라 task URL을 이미 알고 있음 → logs.html에 백링크를 미리 주입해
+    // 1회 업로드로 끝낸다 (GitLab처럼 생성 후 재업로드 불필요).
+    const uploadFiles = await Promise.all(
+      allFiles.map(async (f) =>
+        f.filename === "logs.html"
+          ? { ...f, dataUrl: await injectIssueUrl(f.dataUrl, task.permalinkUrl, task.gid) }
+          : f,
+      ),
+    );
+
     // per-file 격리는 background 핸들러가 처리 (개별 실패 시 gid null) — task는 보존.
     const results = await sendBg<
       Array<{ filename: string; gid: string | null; viewUrl?: string }>
     >({
       type: "asana.uploadFiles",
       parent: task.gid,
-      files: allFiles.map(toUploadEntry),
+      files: uploadFiles.map(toUploadEntry),
     });
 
     // 업로드된 이미지 GID로 본문을 갱신해 인라인(<img data-asana-gid>) 표시.
