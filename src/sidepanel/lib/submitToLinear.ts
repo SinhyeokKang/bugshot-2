@@ -4,6 +4,7 @@ import {
 } from "./buildLinearIssueBody";
 import { buildAiMetaAttachment } from "./buildAiMetaAttachment";
 import { replaceInlineRefs, type InlineImageInput } from "./resolveInlineImages";
+import { guessUploadMime } from "./uploadMime";
 import type { MarkdownContext } from "./buildIssueMarkdown";
 import { sendBg } from "@/types/messages";
 import type { LinearCreateIssueResult } from "@/types/linear";
@@ -28,22 +29,11 @@ export interface LinearSubmitInput {
   priority?: number;
 }
 
-function guessMime(filename: string): string {
-  if (filename.endsWith(".webp")) return "image/webp";
-  if (filename.endsWith(".webm")) return "video/webm";
-  if (filename.endsWith(".mp4")) return "video/mp4";
-  if (filename.endsWith(".html")) return "text/html";
-  if (filename.endsWith(".md")) return "text/markdown";
-  if (filename.endsWith(".har")) return "application/json";
-  if (filename.endsWith(".json")) return "application/json";
-  return "application/octet-stream";
-}
-
 async function uploadFile(file: LinearFileInput): Promise<LinearMediaInput> {
   const { assetUrl } = await sendBg<{ assetUrl: string }>({
     type: "linear.uploadFile",
     filename: file.filename,
-    contentType: guessMime(file.filename),
+    contentType: guessUploadMime(file.filename),
     dataUrl: file.dataUrl,
   });
   return { filename: file.filename, assetUrl };

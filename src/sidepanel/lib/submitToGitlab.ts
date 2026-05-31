@@ -4,6 +4,7 @@ import {
 } from "./buildGitlabIssueBody";
 import { buildAiMetaAttachment } from "./buildAiMetaAttachment";
 import { replaceInlineRefs, type InlineImageInput } from "./resolveInlineImages";
+import { guessUploadMime } from "./uploadMime";
 import { sendBg } from "@/types/messages";
 import type { GitlabCreateIssueResult } from "@/types/gitlab";
 import type { NormalizedSubmitResult } from "@/types/platform";
@@ -27,23 +28,12 @@ export interface GitlabSubmitInput {
   assigneeId?: number;
 }
 
-function gitlabFilename(name: string): string {
-  return name.endsWith(".har") ? name.replace(/\.har$/, ".json") : name;
-}
-
-function guessMime(filename: string): string {
-  if (filename.endsWith(".webp")) return "image/webp";
-  if (filename.endsWith(".webm")) return "video/webm";
-  if (filename.endsWith(".mp4")) return "video/mp4";
-  if (filename.endsWith(".html")) return "text/html";
-  if (filename.endsWith(".md")) return "text/markdown";
-  if (filename.endsWith(".json")) return "application/json";
-  return "application/octet-stream";
-}
-
 function toUploadEntry(f: GitlabFileInput) {
-  const name = gitlabFilename(f.filename);
-  return { filename: name, contentType: guessMime(name), dataUrl: f.dataUrl };
+  return {
+    filename: f.filename,
+    contentType: guessUploadMime(f.filename),
+    dataUrl: f.dataUrl,
+  };
 }
 
 export async function submitToGitlab(
@@ -93,11 +83,10 @@ export async function submitToGitlab(
   }
 
   function toMedia(f: GitlabFileInput): GitlabMediaInput {
-    const name = gitlabFilename(f.filename);
     return {
-      filename: name,
-      contentType: guessMime(name),
-      url: urlMap.get(name) ?? undefined,
+      filename: f.filename,
+      contentType: guessUploadMime(f.filename),
+      url: urlMap.get(f.filename) ?? undefined,
     };
   }
 

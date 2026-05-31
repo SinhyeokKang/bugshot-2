@@ -4,6 +4,7 @@ import {
 } from "./buildGithubIssueBody";
 import { buildAiMetaAttachment } from "./buildAiMetaAttachment";
 import { replaceInlineRefs, type InlineImageInput } from "./resolveInlineImages";
+import { guessUploadMime } from "./uploadMime";
 import { sendBg } from "@/types/messages";
 import type { GithubCreateIssueResult } from "@/types/github";
 import type { NormalizedSubmitResult } from "@/types/platform";
@@ -27,23 +28,12 @@ export interface GithubSubmitInput {
   assignee?: string;
 }
 
-function githubFilename(name: string): string {
-  return name.endsWith(".har") ? name.replace(/\.har$/, ".json") : name;
-}
-
-function guessMime(filename: string): string {
-  if (filename.endsWith(".webp")) return "image/webp";
-  if (filename.endsWith(".webm")) return "video/webm";
-  if (filename.endsWith(".mp4")) return "video/mp4";
-  if (filename.endsWith(".html")) return "text/html";
-  if (filename.endsWith(".md")) return "text/markdown";
-  if (filename.endsWith(".json")) return "application/json";
-  return "application/octet-stream";
-}
-
 function toUploadEntry(f: GithubFileInput) {
-  const name = githubFilename(f.filename);
-  return { filename: name, contentType: guessMime(name), dataUrl: f.dataUrl };
+  return {
+    filename: f.filename,
+    contentType: guessUploadMime(f.filename),
+    dataUrl: f.dataUrl,
+  };
 }
 
 export async function submitToGithub(
@@ -92,11 +82,10 @@ export async function submitToGithub(
   }
 
   function toMedia(f: GithubFileInput): GithubMediaInput {
-    const name = githubFilename(f.filename);
     return {
-      filename: name,
-      contentType: guessMime(name),
-      url: hrefMap.get(name) ?? undefined,
+      filename: f.filename,
+      contentType: guessUploadMime(f.filename),
+      url: hrefMap.get(f.filename) ?? undefined,
     };
   }
 
