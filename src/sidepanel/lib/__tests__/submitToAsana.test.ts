@@ -15,6 +15,9 @@ vi.mock("../buildAiMetaAttachment", () => ({
     dataUrl: "data:application/json,{}",
   }),
 }));
+vi.mock("@/sidepanel/capture", () => ({
+  loadImage: vi.fn().mockResolvedValue({ naturalWidth: 800, naturalHeight: 600 }),
+}));
 
 import { submitToAsana } from "../submitToAsana";
 import type { MarkdownContext } from "../buildIssueMarkdown";
@@ -66,7 +69,12 @@ describe("submitToAsana", () => {
       images: [{ filename: "screenshot.png", dataUrl: "data:," }],
     });
 
-    expect(order).toEqual(["asana.submitIssue", "asana.uploadFiles"]);
+    // 이미지 업로드 후 GID로 본문 갱신 → create → upload → update 순.
+    expect(order).toEqual([
+      "asana.submitIssue",
+      "asana.uploadFiles",
+      "asana.updateTaskNotes",
+    ]);
     expect(res).toEqual({ key: "TASK_GID", url: TASK.permalinkUrl });
 
     const submitCall = sendBg.mock.calls.find(
@@ -79,6 +87,31 @@ describe("submitToAsana", () => {
       ([m]) => m.type === "asana.uploadFiles",
     )![0];
     expect(uploadCall.parent).toBe("TASK_GID");
+
+    const updateCall = sendBg.mock.calls.find(
+      ([m]) => m.type === "asana.updateTaskNotes",
+    )![0];
+    expect(updateCall.taskGid).toBe("TASK_GID");
+    expect(updateCall.htmlNotes).toContain("BODY_MD");
+  });
+
+  it("이미지 GID가 없으면(영상/로그만) updateTaskNotes 미호출", async () => {
+    sendBg.mockImplementation(async (msg: { type: string }) => {
+      if (msg.type === "asana.submitIssue") return TASK;
+      if (msg.type === "asana.uploadFiles")
+        return [{ filename: "recording.mp4", gid: "v1" }];
+      return undefined;
+    });
+
+    await submitToAsana({
+      ctx: makeCtx({ captureMode: "video" }),
+      workspaceGid: "W",
+      video: { filename: "recording.mp4", dataUrl: "data:," },
+    });
+
+    expect(
+      sendBg.mock.calls.some(([m]) => m.type === "asana.updateTaskNotes"),
+    ).toBe(false);
   });
 
   it("createTask 실패 시 attachment 미시도 + reject", async () => {

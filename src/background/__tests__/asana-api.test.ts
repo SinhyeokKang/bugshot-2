@@ -4,6 +4,7 @@ import {
   mapCreateTaskBody,
   messageForAsanaStatus,
   searchUsers,
+  updateTaskNotes,
 } from "../asana-api";
 import type { AsanaAuth } from "@/types/asana";
 
@@ -131,6 +132,37 @@ describe("searchUsers", () => {
     ]);
     const out = await searchUsers(pat, "W", "");
     expect(out).toHaveLength(2);
+  });
+});
+
+describe("updateTaskNotes", () => {
+  const pat: AsanaAuth = {
+    kind: "pat",
+    pat: "1/abc",
+    viewerGid: "1",
+    viewerName: "u",
+  };
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("PUT /tasks/{gid}에 html_notes를 data로 감싸 전송", async () => {
+    const f = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ data: {} }),
+    } as Response);
+    vi.stubGlobal("fetch", f);
+
+    await updateTaskNotes(pat, "T1", "<body>hi</body>");
+
+    const [url, init] = f.mock.calls[0] as [string, RequestInit];
+    expect(url).toContain("/tasks/T1");
+    expect(init.method).toBe("PUT");
+    expect(JSON.parse(init.body as string)).toEqual({
+      data: { html_notes: "<body>hi</body>" },
+    });
   });
 });
 

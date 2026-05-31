@@ -200,6 +200,7 @@ export type BgRequest =
       files: Array<{ filename: string; contentType: string; dataUrl: string }>;
     }
   | { type: "asana.submitIssue"; payload: AsanaCreateTaskPayload }
+  | { type: "asana.updateTaskNotes"; taskGid: string; htmlNotes: string }
   | { type: "asana.getTaskStatus"; taskGid: string }
   | { type: "asana.setCompleted"; taskGid: string; completed: boolean };
 

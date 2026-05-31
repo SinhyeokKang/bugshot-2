@@ -55,34 +55,47 @@ describe("buildAsanaIssueBody", () => {
     expect(out.body).toContain("**Viewport**: 1024×768");
   });
 
-  it("이미지는 인라인 URL 임베드 없이 첨부 목록 + 본문 파일명 표기 (Asana는 인라인 불가)", () => {
+  it("이미지는 본문에 인라인(![filename](filename)) + attached 포함, 첨부 백틱 목록엔 미포함", () => {
     const input: AsanaBuildInput = {
       ctx: makeCtx({ captureMode: "screenshot" }),
       images: [{ filename: "screenshot.png", contentType: "image/png" }],
     };
     const out = buildAsanaIssueBody(input);
+    expect(out.body).toContain("![screenshot.png](screenshot.png)");
     expect(out.attached).toContain("screenshot.png");
-    expect(out.body).toContain("`screenshot.png`");
-    expect(out.body).not.toContain("![screenshot.png]");
+    expect(out.body).not.toContain("`screenshot.png`");
   });
 
-  it("영상도 첨부 목록 + 파일명 표기, 인라인 임베드 없음", () => {
-    const input: AsanaBuildInput = {
-      ctx: makeCtx({ captureMode: "video" }),
-      video: { filename: "recording.mp4", contentType: "video/mp4" },
-    };
-    const out = buildAsanaIssueBody(input);
-    expect(out.attached).toContain("recording.mp4");
-    expect(out.body).toContain("`recording.mp4`");
-    expect(out.body).not.toContain("![recording.mp4]");
+  it("첨부 문단(헤딩/안내/파일명 리스트)은 본문에 없다 — Asana 첨부 영역에 자동 표시", () => {
+    const out = buildAsanaIssueBody({
+      ctx: makeCtx({ captureMode: "screenshot" }),
+      images: [{ filename: "screenshot.png", contentType: "image/png" }],
+    });
+    expect(out.body).not.toContain("md.section.attachments");
+    expect(out.body).not.toContain("asana.attachmentNotInline");
+    expect(out.body).not.toContain("`screenshot.png`");
   });
 
-  it("로그 첨부도 attached 목록에 포함", () => {
-    const input: AsanaBuildInput = {
-      ctx: makeCtx(),
-      logs: [{ filename: "logs.html", contentType: "text/html" }],
-    };
-    const out = buildAsanaIssueBody(input);
-    expect(out.attached).toContain("logs.html");
+  it("element 비교 모드 — As is/To be 섹션에 이미지 + 속성값 분리", () => {
+    const out = buildAsanaIssueBody({
+      ctx: makeCtx({
+        captureMode: "element",
+        diffs: [{ prop: "color", asIs: "red", toBe: "blue" }],
+      }),
+      images: [
+        { filename: "before.png", contentType: "image/png" },
+        { filename: "after.png", contentType: "image/png" },
+      ],
+    });
+    expect(out.body).toContain("## styleTable.asIs");
+    expect(out.body).toContain("## styleTable.toBe");
+    expect(out.body).toContain("![before.png](before.png)");
+    expect(out.body).toContain("![after.png](after.png)");
+    expect(out.body).toContain("- **color**: red");
+    expect(out.body).toContain("- **color**: blue");
+    expect(out.body).not.toContain("| As is | To be |");
+    expect(out.attached).toEqual(
+      expect.arrayContaining(["before.png", "after.png"]),
+    );
   });
 });

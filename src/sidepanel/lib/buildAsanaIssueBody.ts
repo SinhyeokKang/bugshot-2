@@ -16,8 +16,6 @@ export interface AsanaMediaInput {
 export interface AsanaBuildInput {
   ctx: MarkdownContext;
   images?: AsanaMediaInput[];
-  video?: AsanaMediaInput;
-  logs?: AsanaMediaInput[];
 }
 
 export interface AsanaBuildResult {
@@ -41,7 +39,7 @@ function escapeCell(value: string): string {
 }
 
 export function buildAsanaIssueBody(input: AsanaBuildInput): AsanaBuildResult {
-  const { ctx, images = [], video, logs = [] } = input;
+  const { ctx, images = [] } = input;
   const lines: string[] = [];
   const attached: string[] = [];
 
@@ -71,22 +69,45 @@ export function buildAsanaIssueBody(input: AsanaBuildInput): AsanaBuildResult {
     ctx.captureMode !== "screenshot" &&
     ctx.captureMode !== "freeform";
 
+  const inlineImage = (img: AsanaMediaInput) => {
+    // 본문 인라인(`![filename](filename)`) — 업로드 후 GID로 <img data-asana-gid> 치환된다.
+    lines.push(`![${img.filename}](${img.filename})`, "");
+    attached.push(img.filename);
+  };
+
   let mediaEmitted = false;
   const emitMedia = () => {
     if (mediaEmitted) return;
     mediaEmitted = true;
-    // Asana html_notes는 인라인 이미지 미지원 — 스타일 diff 테이블만 본문에 남기고 미디어는 첨부로 분리.
-    if (isElement && ctx.diffs.length > 0) {
-      lines.push(`## ${t("md.section.styleChanges")}`, "");
-      lines.push(`| ${t("md.column.property")} | As is | To be |`);
-      lines.push("| --- | --- | --- |");
+
+    const before = images.find((i) => i.filename.startsWith("before"));
+    const after = images.find((i) => i.filename.startsWith("after"));
+    // 비교 캡처: As is / To be 섹션으로 분리 (Asana 테이블은 셀 이미지·가로 비교 불가).
+    const comparison = isElement && (!!before || !!after || ctx.diffs.length > 0);
+
+    if (comparison) {
+      lines.push(`## ${t("styleTable.asIs")}`, "");
+      if (before) inlineImage(before);
       for (const d of ctx.diffs) {
-        lines.push(
-          `| ${escapeCell(d.prop)} | ${escapeCell(d.asIs)} | ${escapeCell(d.toBe)} |`,
-        );
+        lines.push(`- **${escapeCell(d.prop)}**: ${escapeCell(d.asIs)}`);
+      }
+      lines.push("");
+      lines.push(`## ${t("styleTable.toBe")}`, "");
+      if (after) inlineImage(after);
+      for (const d of ctx.diffs) {
+        lines.push(`- **${escapeCell(d.prop)}**: ${escapeCell(d.toBe)}`);
       }
       lines.push("");
     }
+
+    // 비교에 쓰이지 않은 이미지(단일 스크린샷 등)는 미디어 섹션에 인라인.
+    const handled = new Set([before, after].filter(Boolean));
+    const rest = images.filter((i) => !handled.has(i));
+    if (rest.length > 0) {
+      lines.push(`## ${t("md.section.media")}`, "");
+      for (const img of rest) inlineImage(img);
+    }
+
     emitLogSummary(lines, ctx);
   };
 
@@ -107,20 +128,7 @@ export function buildAsanaIssueBody(input: AsanaBuildInput): AsanaBuildResult {
 
   emitMedia();
 
-  const allMedia: AsanaMediaInput[] = [
-    ...images,
-    ...(video ? [video] : []),
-    ...logs,
-  ];
-  if (allMedia.length > 0) {
-    lines.push(`## ${t("md.section.attachments")}`, "");
-    lines.push(t("asana.attachmentNotInline"), "");
-    for (const a of allMedia) {
-      lines.push(`- \`${a.filename}\``);
-      attached.push(a.filename);
-    }
-    lines.push("");
-  }
+  // 영상·로그·메타 첨부는 Asana task 첨부 영역(본문 바로 아래)에 자동 표시되므로 본문에 나열하지 않는다.
 
   lines.push("---", "");
   lines.push(`_Reported via [BugShot](https://bug-shot.com)_`, "");

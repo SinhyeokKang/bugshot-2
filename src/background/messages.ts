@@ -65,6 +65,7 @@ import {
   searchProjects as searchAsanaProjects,
   searchUsers as searchAsanaUsers,
   setTaskCompleted as setAsanaTaskCompleted,
+  updateTaskNotes as updateAsanaTaskNotes,
   uploadAttachment as uploadAsanaAttachment,
 } from "./asana-api";
 import { isOAuthConfigured, startOAuthFlow } from "./oauth";
@@ -472,18 +473,22 @@ export async function handleMessage(
 
     case "asana.uploadFiles": {
       const auth = await loadAsanaAuth();
-      const results: Array<{ filename: string; gid: string | null }> = [];
+      const results: Array<{
+        filename: string;
+        gid: string | null;
+        viewUrl?: string;
+      }> = [];
       // 업로드 1건 실패가 task 생성 전체를 막지 않게 파일별로 격리.
       for (const f of message.files) {
         try {
           const blob = dataUrlToBlob(f.dataUrl);
-          const { gid } = await uploadAsanaAttachment(
+          const { gid, viewUrl } = await uploadAsanaAttachment(
             auth,
             message.parent,
             f.filename,
             blob,
           );
-          results.push({ filename: f.filename, gid });
+          results.push({ filename: f.filename, gid, viewUrl });
         } catch {
           results.push({ filename: f.filename, gid: null });
         }
@@ -493,6 +498,13 @@ export async function handleMessage(
 
     case "asana.submitIssue":
       return createAsanaTask(await loadAsanaAuth(), message.payload);
+
+    case "asana.updateTaskNotes":
+      return updateAsanaTaskNotes(
+        await loadAsanaAuth(),
+        message.taskGid,
+        message.htmlNotes,
+      );
 
     case "asana.getTaskStatus":
       return getAsanaTaskStatus(await loadAsanaAuth(), message.taskGid);

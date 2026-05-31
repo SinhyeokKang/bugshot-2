@@ -3,12 +3,27 @@ import type Token from "markdown-it/lib/token.mjs";
 import { findClosingToken } from "./findClosingToken";
 
 // Asana html_notes는 제한된 태그 서브셋만 허용한다:
-// <body><h1><h2><ol><ul><li><strong><em><u><s><code><pre><a href><blockquote><hr>.
-// <p>·<img>·<table>·<h3+>는 미지원이라 폴백 처리한다.
+// <body><h1><h2><ol><ul><li><strong><em><u><s><code><pre><a href><blockquote><hr><img>.
+// 인라인 <img>는 첨부 GID 참조(`<img data-asana-gid>`)만 가능 — 업로드 후 GID로 본문을 갱신한다.
+// <p>·<table>·<h3+>·영상은 미지원이라 폴백 처리한다.
 const md = MarkdownIt({ html: false, breaks: true, linkify: true });
 md.enable("strikethrough");
 
-export function markdownToAsanaHtml(markdown: string): string {
+export interface AsanaInlineImage {
+  gid: string;
+  viewUrl?: string;
+  width?: number;
+  height?: number;
+}
+
+// 이미지 src(=filename) → 첨부 참조. 동기·단일 호출이라 모듈 스코프로 두고 재진입은 없다.
+let imageRefByName: Record<string, AsanaInlineImage> = {};
+
+export function markdownToAsanaHtml(
+  markdown: string,
+  imageRefs: Record<string, AsanaInlineImage> = {},
+): string {
+  imageRefByName = imageRefs;
   const trimmed = markdown.trim();
   if (!trimmed) return "<body></body>";
   const tokens = md.parse(trimmed, {});
@@ -118,9 +133,23 @@ function convertInline(children: Token[]): string {
         out += "\n";
         break;
       case "image": {
-        // Asana는 <img> 미지원 — 캡션(alt)만 남기고 미디어는 첨부로 분리.
-        const alt = child.content || child.attrGet("alt") || "";
-        if (alt) out += escapeHtml(alt);
+        // 업로드된 첨부면 GID로 인라인, 아니면 캡션(alt)만 남긴다.
+        // data-src-width/height + style이 있어야 썸네일 크기가 아닌 원본 비율로 렌더된다.
+        const src = child.attrGet("src") ?? "";
+        const ref = imageRefByName[src];
+        if (ref) {
+          const srcAttr = ref.viewUrl
+            ? ` src="${escapeAttr(ref.viewUrl)}"`
+            : "";
+          const dims =
+            ref.width && ref.height
+              ? ` data-src-width="${ref.width}" data-src-height="${ref.height}"`
+              : "";
+          out += `<img${srcAttr} data-asana-gid="${escapeAttr(ref.gid)}"${dims} style="display:block;max-width:100%">`;
+        } else {
+          const alt = child.content || child.attrGet("alt") || "";
+          if (alt) out += escapeHtml(alt);
+        }
         break;
       }
       case "strong_open":

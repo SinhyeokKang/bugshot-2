@@ -62,11 +62,53 @@ describe("markdownToAsanaHtml", () => {
     expect(markdownToAsanaHtml("---")).toContain("<hr");
   });
 
-  it("이미지 ![alt](url) → 캡션 텍스트만, <img>·url 없음 (미디어는 첨부로 분리)", () => {
+  it("이미지 ![alt](url) → gid map 없으면 캡션 텍스트만, <img>·url 없음", () => {
     const out = markdownToAsanaHtml("![Screenshot](blob:abc-123)");
     expect(out).not.toContain("<img");
     expect(out).not.toContain("blob:abc-123");
     expect(out).toContain("Screenshot");
+  });
+
+  it("이미지 src가 ref map에 있으면 <img data-asana-gid> + 크기/스타일로 인라인", () => {
+    const out = markdownToAsanaHtml("![cap](shot.webp)", {
+      "shot.webp": { gid: "1209876", width: 800, height: 600 },
+    });
+    expect(out).toContain(
+      '<img data-asana-gid="1209876" data-src-width="800" data-src-height="600" style="display:block;max-width:100%">',
+    );
+    expect(out).not.toContain("shot.webp");
+  });
+
+  it("viewUrl이 있으면 src 속성 포함 (인라인 렌더용)", () => {
+    const out = markdownToAsanaHtml("![cap](shot.webp)", {
+      "shot.webp": {
+        gid: "1",
+        viewUrl: "https://asana.com/app/view/1",
+        width: 800,
+        height: 600,
+      },
+    });
+    expect(out).toContain('src="https://asana.com/app/view/1"');
+    expect(out).toContain('data-asana-gid="1"');
+    expect(out).toContain('data-src-width="800"');
+  });
+
+  it("크기 미상이면 data-asana-gid + style만 (data-src-* 생략)", () => {
+    const out = markdownToAsanaHtml("![cap](shot.webp)", {
+      "shot.webp": { gid: "1209876" },
+    });
+    expect(out).toContain(
+      '<img data-asana-gid="1209876" style="display:block;max-width:100%">',
+    );
+    expect(out).not.toContain("data-src-width");
+  });
+
+  it("ref map에 없는 이미지는 캡션 폴백 (업로드 실패/미매칭)", () => {
+    const out = markdownToAsanaHtml("![cap](missing.webp)", {
+      "other.webp": { gid: "111" },
+    });
+    expect(out).not.toContain("<img");
+    expect(out).toContain("cap");
   });
 
   it("테이블 → <pre> 폴백, <table> 미사용, 컬럼 공백 정렬", () => {

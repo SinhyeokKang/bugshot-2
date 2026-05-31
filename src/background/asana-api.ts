@@ -218,15 +218,17 @@ export async function uploadAttachment(
   taskGid: string,
   filename: string,
   blob: Blob,
-): Promise<{ gid: string }> {
+): Promise<{ gid: string; viewUrl?: string }> {
   const form = new FormData();
   form.append("parent", taskGid);
   form.append("file", blob, filename);
-  const raw = await asanaFetch<{ gid: string }>(auth, "/attachments", {
-    method: "POST",
-    body: form,
-  });
-  return { gid: raw.gid };
+  // view_url은 이미지 인라인(<img src>) 렌더에 필요.
+  const raw = await asanaFetch<{ gid: string; view_url?: string }>(
+    auth,
+    "/attachments?opt_fields=view_url",
+    { method: "POST", body: form },
+  );
+  return { gid: raw.gid, viewUrl: raw.view_url ?? undefined };
 }
 
 interface RawTask {
@@ -254,6 +256,17 @@ export async function getTaskStatus(
     `/tasks/${taskGid}?opt_fields=name,completed,permalink_url`,
   );
   return normalizeTaskStatus(raw);
+}
+
+export async function updateTaskNotes(
+  auth: AsanaAuth,
+  taskGid: string,
+  htmlNotes: string,
+): Promise<void> {
+  await asanaFetch(auth, `/tasks/${taskGid}`, {
+    method: "PUT",
+    body: JSON.stringify({ data: { html_notes: htmlNotes } }),
+  });
 }
 
 export async function setTaskCompleted(

@@ -80,6 +80,7 @@ const BG_REQUEST_TYPE_MAP: Record<BgRequest["type"], true> = {
   "asana.searchAssignees": true,
   "asana.uploadFiles": true,
   "asana.submitIssue": true,
+  "asana.updateTaskNotes": true,
   "asana.getTaskStatus": true,
   "asana.setCompleted": true,
 };
