@@ -10,6 +10,8 @@ import { GithubError } from "./github-api";
 import { JiraError } from "./jira-api";
 import { LinearError } from "./linear-api";
 import { NotionError } from "./notion-api";
+import { GitlabError } from "./gitlab-api";
+import { AsanaError } from "./asana-api";
 import { handleMessage } from "./messages";
 import { BG_REQUEST_TYPES } from "./bgRequestTypes";
 import { OAuthError } from "./oauth";
@@ -171,6 +173,20 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           body: error.body,
         });
       } else if (error instanceof NotionError) {
+        sendResponse({
+          ok: false,
+          error: error.message,
+          status: error.status,
+          body: error.body,
+        });
+      } else if (error instanceof GitlabError) {
+        sendResponse({
+          ok: false,
+          error: error.message,
+          status: error.status,
+          body: error.body,
+        });
+      } else if (error instanceof AsanaError) {
         sendResponse({
           ok: false,
           error: error.message,

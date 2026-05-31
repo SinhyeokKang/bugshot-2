@@ -4,10 +4,9 @@ import type { PlatformId } from "@/types/platform";
 import { writeStoredOAuthTokens } from "@/lib/settings-storage";
 
 const CLIENT_ID = (import.meta.env.VITE_ATLASSIAN_CLIENT_ID ?? "").trim();
-const PROXY_URL = (import.meta.env.VITE_OAUTH_PROXY_URL ?? "").replace(
-  /\/+$/,
-  "",
-);
+const PROXY_URL = (import.meta.env.VITE_OAUTH_PROXY_URL ?? "")
+  .trim()
+  .replace(/\/+$/, "");
 const AUTHORIZE_URL = "https://auth.atlassian.com/authorize";
 const RESOURCES_URL =
   "https://api.atlassian.com/oauth/token/accessible-resources";

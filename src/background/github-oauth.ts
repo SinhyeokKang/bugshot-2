@@ -5,10 +5,9 @@ import { getMyself, setGithubRefreshHook } from "./github-api";
 import { OAuthError } from "./oauth";
 
 const CLIENT_ID = (import.meta.env.VITE_GITHUB_CLIENT_ID ?? "").trim();
-const PROXY_URL = (import.meta.env.VITE_OAUTH_PROXY_URL ?? "").replace(
-  /\/+$/,
-  "",
-);
+const PROXY_URL = (import.meta.env.VITE_OAUTH_PROXY_URL ?? "")
+  .trim()
+  .replace(/\/+$/, "");
 const AUTHORIZE_URL = "https://github.com/login/oauth/authorize";
 const SCOPES = ["repo", "user:email"];
 export function isGithubOAuthConfigured(): boolean {

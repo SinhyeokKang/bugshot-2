@@ -1,4 +1,5 @@
 import {
+  SiAsana,
   SiGithub,
   SiGitlab,
   SiJirasoftware,
@@ -39,6 +40,14 @@ export function PlatformChip({ platform }: { platform: PlatformId }) {
       <span className="inline-flex shrink-0 items-center gap-1">
         <SiGitlab className="h-3 w-3" color="default" />
         {t("platform.tab.gitlab")}
+      </span>
+    );
+  }
+  if (platform === "asana") {
+    return (
+      <span className="inline-flex shrink-0 items-center gap-1">
+        <SiAsana className="h-3 w-3" color="default" />
+        {t("platform.tab.asana")}
       </span>
     );
   }
