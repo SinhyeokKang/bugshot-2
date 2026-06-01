@@ -73,12 +73,14 @@ interface SettingsUiState {
   issueSections: IssueSection[];
   llm: LlmConfig | null;
   replayEnabled: boolean;
+  guideBannerDismissedVersion: string | null;
   setTheme: (theme: ThemeMode) => void;
   setLocale: (locale: LocaleMode) => void;
   setIssueEnabled: (id: IssueSectionId, enabled: boolean) => void;
   resetIssueSections: () => void;
   setLlm: (config: LlmConfig | null) => void;
   setReplayEnabled: (enabled: boolean) => void;
+  dismissGuideBanner: (currentVersion: string) => void;
 }
 
 const apiKeyObfuscatingStorage: StateStorage = {
@@ -119,6 +121,7 @@ export const useSettingsUiStore = create<SettingsUiState>()(
       issueSections: DEFAULT_ISSUE_SECTIONS,
       llm: null,
       replayEnabled: false,
+      guideBannerDismissedVersion: null,
       setTheme: (theme) => set({ theme }),
       setLocale: (locale) => set({ locale }),
       setIssueEnabled: (id, enabled) =>
@@ -130,6 +133,7 @@ export const useSettingsUiStore = create<SettingsUiState>()(
       resetIssueSections: () => set({ issueSections: DEFAULT_ISSUE_SECTIONS }),
       setLlm: (config) => set({ llm: config }),
       setReplayEnabled: (enabled) => set({ replayEnabled: enabled }),
+      dismissGuideBanner: (v) => set({ guideBannerDismissedVersion: v }),
     }),
     {
       // 기존 사용자 데이터 호환을 위해 리네이밍 전 키 유지

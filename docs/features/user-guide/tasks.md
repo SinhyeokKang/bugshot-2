@@ -28,8 +28,8 @@
     - **dismissed가 비정상(null 아님)일 때**: `("garbage", "1.3.0")` → **false**(fail-closed; dismissed 파싱 실패면 "닫은 상태로 간주"해 나그 방지. null이 아니므로 true 우선 규칙 미적용). 이 계약을 명세에 한 줄 박고 테스트로 고정.
   - 구현: `major.minor` 비교, **dismissed/current 어느 쪽이든 파싱 실패 시 fail-closed(false)**, 단 `dismissed === null`이면 true 우선.
 - **검증**:
-  - [ ] `pnpm test guide-banner` 통과
-  - [ ] `pnpm typecheck` 무오류
+  - [x] `pnpm test guide-banner` 통과
+  - [x] `pnpm typecheck` 무오류
 
 ### Task 1b: settings-ui-store에 dismiss 버전 상태 추가 (+ 테스트 먼저)
 - **변경 대상**: `src/store/settings-ui-store.ts`, `src/store/__tests__/settings-ui-store.test.ts`
@@ -39,15 +39,15 @@
   - 초기값 null, 액션 `set({ guideBannerDismissedVersion: v })`.
   - version 5 유지·migrate 불필요(별도 순수 migrate 함수 분리는 과잉 — migrate 자체가 없음). 만약 향후 `partialize`/`merge`가 추가되면 그때 누락 키 보강을 재검토.
 - **검증**:
-  - [ ] `pnpm test settings-ui-store` 통과
-  - [ ] `pnpm typecheck` 무오류
+  - [x] `pnpm test settings-ui-store` 통과
+  - [x] `pnpm typecheck` 무오류
 
 ### Task 2: 가이드 URL 상수 추가
 - **변경 대상**: `src/lib/external-links.ts` (신규)
 - **작업 내용**: `export const USER_GUIDE_URL = "<퍼블리시된 GitBook URL>";` 한 줄.
 - **검증**:
-  - [ ] import 시 타입 오류 없음
-  - [ ] URL이 실제 퍼블리시 주소(placeholder 아님)
+  - [x] import 시 타입 오류 없음
+  - [ ] URL이 실제 퍼블리시 주소(placeholder 아님) — 현재 placeholder, GitBook 퍼블리시 후 확정 필요
 
 ### Task 3: GuideBanner 컴포넌트 작성
 - **변경 대상**: `src/sidepanel/components/GuideBanner.tsx` (신규)
@@ -63,7 +63,7 @@
   - [ ] (수동) `shouldShowGuideBanner` true면 렌더, false면 null
   - [ ] (수동) CTA 클릭 → 새 탭 열림(배너 유지), X 클릭 → 배너 사라짐
   - [ ] (수동) hydrate 전 미렌더(플리커 없음)
-  - [ ] `pnpm typecheck` 무오류
+  - [x] `pnpm typecheck` 무오류
 
 ### Task 3b: 설정 푸터 [개인정보 처리방침] → [유저 가이드] 교체
 - **변경 대상**: `src/sidepanel/tabs/SettingsTab.tsx`
@@ -72,9 +72,9 @@
   - `onClick` → `chrome.tabs.create({ url: USER_GUIDE_URL, active: true })`, 라벨 → `t("settings.guide")`.
   - privacy 링크는 UI에서 제거(스토어 등록 정보엔 유지). `settings.privacy` 키가 고아가 되면 **ko/en 양쪽 모두 남겨둠**(외과 범위 + `locales.test.ts` ko/en 대칭 검사 통과 위해 한쪽만 지우면 안 됨).
 - **검증**:
-  - [ ] 설정 > 앱 설정 푸터에 [유저 가이드] 노출, 클릭 시 가이드 새 탭
-  - [ ] privacy 버튼 사라짐
-  - [ ] `pnpm typecheck` 무오류
+  - [ ] 설정 > 앱 설정 푸터에 [유저 가이드] 노출, 클릭 시 가이드 새 탭 (수동)
+  - [ ] privacy 버튼 사라짐 (수동)
+  - [x] `pnpm typecheck` 무오류
 
 ### Task 4: i18n 키 추가 (ko/en 동시)
 - **변경 대상**: `src/i18n/namespaces/app.ts`, `src/i18n/namespaces/settings.ts`
@@ -82,8 +82,8 @@
   - `app.ts` ko/en: `app.guideBanner.cta` ("유저 가이드 바로가기" / "Open user guide"), `app.guideBanner.dismiss` ("배너 닫기" / "Dismiss").
   - `settings.ts` ko/en: `settings.guide` ("유저 가이드" / "User Guide").
 - **검증**:
-  - [ ] Edit 저장 시 PostToolUse 훅(`locales.test.ts`) 통과 — ko/en 대칭·빈 값 없음
-  - [ ] `pnpm test locales` 통과
+  - [x] Edit 저장 시 PostToolUse 훅(`locales.test.ts`) 통과 — ko/en 대칭·빈 값 없음
+  - [x] `pnpm test locales` 통과
 
 ### Task 5: App.tsx에 배너 마운트
 - **변경 대상**: `src/sidepanel/App.tsx`
@@ -94,8 +94,8 @@
 - **검증**:
   - [ ] 모든 최상위 탭(debug/issue-list/integrations/settings)에서 배너 노출
   - [ ] hydrate 전 미렌더(플리커 없음) — GuideBanner 자체 가드로
-  - [ ] AI shimmer 오버레이가 배너를 덮지 않음(래퍼 안 배치 확인)
-  - [ ] `pnpm typecheck` 무오류
+  - [x] AI shimmer 오버레이가 배너를 덮지 않음(래퍼 안 배치 확인 — `flex min-h-0 flex-1 flex-col` 래퍼 안, 오버레이 형제 아래)
+  - [x] `pnpm typecheck` 무오류
 
 ### Task 6: 가이드 소스 스캐폴딩 + GitBook sync 연결
 - **변경 대상**: `.gitbook.yaml`(신규, repo 루트), `guide/SUMMARY.md`, `guide/README.md`, `guide/assets/`(신규)
@@ -118,7 +118,7 @@
   - (선택) `CLAUDE.md` 작업 원칙에 "사용자 동작 변경 시 guide 갱신" 한 줄.
 - **검증**:
   - [ ] `/push` 1회 드라이런으로 guide 신선도 항목이 체크리스트에 실제 나타남 확인
-  - [ ] 문서 표현이 기존 신선도 섹션 톤과 일치
+  - [x] 문서 표현이 기존 신선도 섹션 톤과 일치
 
 ## 테스트 계획
 

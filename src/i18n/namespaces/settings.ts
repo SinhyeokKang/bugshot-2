@@ -17,6 +17,7 @@ const ko = {
   "settings.theme.dark": "다크",
   "settings.theme.system": "시스템",
   "settings.privacy": "개인정보 처리방침",
+  "settings.guide": "유저 가이드",
   "settings.review": "후기",
   "settings.contact": "문의",
 
@@ -90,6 +91,7 @@ const en = {
   "settings.theme.dark": "Dark",
   "settings.theme.system": "System",
   "settings.privacy": "Privacy Policy",
+  "settings.guide": "User Guide",
   "settings.review": "Review",
   "settings.contact": "Contact",
 

@@ -33,6 +33,7 @@ import { useEditorSessionSync } from "./hooks/useEditorSessionSync";
 import { useBackgroundRecorder } from "./hooks/useBackgroundRecorder";
 import { usePickerMessages } from "./hooks/usePickerMessages";
 import { useThemeEffect } from "./hooks/useThemeEffect";
+import { GuideBanner } from "./components/GuideBanner";
 import { DebugTab } from "./tabs/DebugTab";
 import { IntegrationsTab } from "./tabs/IntegrationsTab";
 import { IssueListTab } from "./tabs/IssueListTab";
@@ -189,6 +190,7 @@ export default function App() {
         </div>
       )}
       <div className="flex min-h-0 flex-1 flex-col gap-0">
+        <GuideBanner />
         <div className="border-b px-4 py-4">
           <Tabs value={tab} onValueChange={(v) => setTab(v)}>
             <TabsList className="grid h-9 w-full grid-cols-4">

@@ -9,6 +9,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useT } from "@/i18n";
+import { USER_GUIDE_URLS } from "@/lib/external-links";
 import {
   sectionHelpKey,
   sectionLabelKey,
@@ -219,9 +220,9 @@ function GeneralSettingsContent() {
         <div className="flex items-center justify-between gap-2">
           <Button
             variant="outline"
-            onClick={() => chrome.tabs.create({ url: "https://sinhyeokkang.github.io/bugshot-2/privacy" })}
+            onClick={() => chrome.tabs.create({ url: USER_GUIDE_URLS[locale], active: true })}
           >
-            {t("settings.privacy")}
+            {t("settings.guide")}
           </Button>
           <div className="flex items-center gap-2">
             <Button

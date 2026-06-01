@@ -132,4 +132,15 @@ describe("settings-ui-store", () => {
       expect(useSettingsUiStore.getState().llm?.modelId).toBe("gpt-4o-mini");
     });
   });
+
+  describe("guideBannerDismissedVersion", () => {
+    it("초기값은 null", () => {
+      expect(useSettingsUiStore.getState().guideBannerDismissedVersion).toBeNull();
+    });
+
+    it("dismissGuideBanner(v)로 닫은 시점의 버전을 기록", () => {
+      useSettingsUiStore.getState().dismissGuideBanner("1.4.0");
+      expect(useSettingsUiStore.getState().guideBannerDismissedVersion).toBe("1.4.0");
+    });
+  });
 });
