@@ -1,5 +1,5 @@
 import { Fragment } from "react";
-import { Bug, ListOrdered, Monitor, Moon, SlidersHorizontal, Sparkles, StickyNote, Sun, Target, Timer } from "lucide-react";
+import { BookOpen, Bug, ListOrdered, Monitor, Moon, SlidersHorizontal, Sparkles, StickyNote, Sun, Target, Timer } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -222,6 +222,7 @@ function GeneralSettingsContent() {
             variant="outline"
             onClick={() => chrome.tabs.create({ url: USER_GUIDE_URLS[locale], active: true })}
           >
+            <BookOpen className="h-4 w-4" />
             {t("settings.guide")}
           </Button>
           <div className="flex items-center gap-2">
