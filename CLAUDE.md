@@ -77,19 +77,20 @@ pnpm version major --no-git-tag-version   # 1.0.0 → 2.0.0 (Breaking change)
 /code-review    → 변경 코드를 ui·security·dataflow·codehealth 4개 에이전트가 병렬 리뷰 (선택 호출 가능). 리포트 전용
 /audit          → 코드베이스 전체를 ui·security·dataflow·codehealth 4개 에이전트가 병렬 감사 (선택 호출 가능). 리포트 전용
 /refactor       → audit·code-review 리포트의 지정 항목 수정 (메인 단일) → 4관점 자체 검증 → CTO 게이트. 회귀 위험 항목은 강행 전 확인. 빌드·커밋 안 함
-/push           → dev push (main에서 호출 차단) + CLAUDE.md/DIRECTORY.md/ARCHITECTURE.md/README.md/PERMISSION.md/docs/privacy.md 신선도 검사
+/guide          → guide/ko·en 사용자 가이드 작성·갱신. AUTHORING.md 규칙 로드 → 코드 대조 stale 탐지 → ko/en 동시 갱신 + 검증. 빌드·커밋 안 함
+/push           → dev push (main에서 호출 차단) + CLAUDE.md/DIRECTORY.md/ARCHITECTURE.md/README.md/PERMISSION.md/docs/privacy.md/guide(+AUTHORING.md) 신선도 검사
 /merge          → dev에서 버전 bump 커밋 + dev → main squash PR 생성 + 자동 머지
 /deploy         → main 한정. tag push → 스토어 빌드 → zip → GitHub Release draft → 심사 요청 안내
 /sync           → dev를 origin/main으로 hard reset + force push (배포/머지 후)
 ```
 
-권장 흐름: `/feature` → `/feature-review` → `/tdd interface` → `/implement` → `/code-review` → `/tdd regression` → `/refactor` → `/push`. `/tdd` 분류표(스킬 정의 안)에 따라 컴포넌트·OAuth·DOM 측정 같은 영역은 스킵 OK.
+권장 흐름: `/feature` → `/feature-review` → `/tdd interface` → `/implement` → `/code-review` → `/tdd regression` → `/refactor` → `/push`. 사용자 노출 UX·기능을 건드렸으면 `/push` 전에 `/guide`로 ko/en 가이드를 맞춘다(`/implement` 보고의 "가이드 영향" 플래그가 신호). `/tdd` 분류표(스킬 정의 안)에 따라 컴포넌트·OAuth·DOM 측정 같은 영역은 스킵 OK.
 
 각 단계 게이트는 `.claude/commands/` 스킬 정의에 명시.
 
 ### 문서 신선도
 
-`/push`는 항상 CLAUDE.md / DIRECTORY.md / ARCHITECTURE.md / README.md / PERMISSION.md / docs/privacy.md / guide/ 신선도 검사를 거친다. 아래 중 하나라도 해당하면 문서 갱신을 별도 커밋(`docs(CLAUDE): ...` / `docs(DIRECTORY): ...` / `docs(ARCHITECTURE): ...` / `docs(README): ...` / `docs(PERMISSION): ...` / `docs(privacy): ...` / `docs(guide): ...`)으로 묶어 함께 푸시:
+`/push`는 항상 CLAUDE.md / DIRECTORY.md / ARCHITECTURE.md / README.md / PERMISSION.md / docs/privacy.md / guide/ (`guide/AUTHORING.md` 포함) 신선도 검사를 거친다. 아래 중 하나라도 해당하면 문서 갱신을 별도 커밋(`docs(CLAUDE): ...` / `docs(DIRECTORY): ...` / `docs(ARCHITECTURE): ...` / `docs(README): ...` / `docs(PERMISSION): ...` / `docs(privacy): ...` / `docs(guide): ...`)으로 묶어 함께 푸시:
 
 - 새 디렉터리·파일 추가/삭제 (특히 `src/` 하위 구조 변화)
 - `package.json` scripts 변경
@@ -97,7 +98,8 @@ pnpm version major --no-git-tag-version   # 1.0.0 → 2.0.0 (Breaking change)
 - 새 하위 시스템·아키텍처 핵심 파일 큰 변경
 - 새 컨벤션·게이트웨이 도입
 - 기능 추가/삭제로 README의 사용법·기능 설명이 어긋남
-- 사용자 노출 UX·기능 추가/변경 → `guide/ko`·`guide/en`(GitBook 사용 가이드, ko/en 양쪽) 대조·갱신 (`docs(guide): ...`)
+- 사용자 노출 UX·기능 추가/변경 → `guide/ko`·`guide/en`(GitBook 사용 가이드, ko/en 양쪽) 대조·갱신 (`docs(guide): ...`). **가이드 작성·수정 전 `guide/AUTHORING.md`를 먼저 읽고 그 규칙(IA·톤·UI 라벨·footer·검증)대로 한다 — 가이드 작업의 단일 출처.**
+- 가이드 작성 기준 자체(IA·운영 방식·톤·UI 라벨 규칙·사실 스냅샷·플랫폼 표·지원 플랫폼)가 바뀜 → `guide/AUTHORING.md` 대조·갱신 (`docs(guide): ...`). 새 플랫폼 연동·단축키/로그 정책/본문 섹션 변경·새 페이지 추가가 트리거.
 - 워크플로우/스킬 라인업 변경
 - `manifest.config.ts`의 permissions·host_permissions·optional_host_permissions 변경, 또는 새 플랫폼/연동·데이터 수집·외부 API 엔드포인트 추가
 - **docs/privacy.md는 권한 문자열이 아니라 실제 동작에 묶인다**: 새 기능이 *기존* 권한(광역 `https://*/*`·`activeTab`·`tabCapture`·`scripting` 등)을 새 목적으로 쓰거나 새 캡처·수집·저장·전송 동작을 추가하면 **manifest diff가 0이어도** privacy.md를 대조·갱신(시행일 포함)한다. diff에 `chrome.permissions.request`/`captureVisibleTab`/`tabCapture`/`chrome.scripting`/신규 외부 `fetch`/`chrome.storage`·IndexedDB write가 보이면 트리거. (30s Replay가 기존 optional 권한 재사용으로 이 검사를 빠져나가 심사 탈락한 전례 있음)

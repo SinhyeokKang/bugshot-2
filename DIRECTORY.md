@@ -77,5 +77,6 @@ oauth-proxy/             # Cloudflare Worker — Atlassian /token + GitHub /gith
 docs/
 ├── features/        # 기능 기획 문서 (PRD·설계·태스크) — dev에서 작업, 구현 완료 시 삭제
 └── privacy.md       # 개인정보처리방침 (GitHub Pages)
-guide/                   # GitBook 사용 가이드 소스 (ko/en 별도 site, GitHub Sync 단방향). guide/{ko,en}/ 각각 .gitbook.yaml(root: ./) + SUMMARY.md + README.md + assets/. 각 space의 Project directory를 guide/ko·guide/en로 지정
+guide/                   # GitBook 사용 가이드 소스 (ko/en 별도 site, GitHub Sync 단방향). guide/{ko,en}/ 각각 .gitbook.yaml(root: ./) + SUMMARY.md + README.md + assets/ + 6개 섹션(integrations·settings·element·screenshot·video·logs) 23페이지. 각 space의 Project directory를 guide/ko·guide/en로 지정
+guide/AUTHORING.md       # 가이드 작성 매뉴얼 (GitBook sync 밖, 레포 전용 — ko/en 상위). 운영 방식·IA·톤·사실 대조 소스·UI 라벨 규칙·footer·검증 = 가이드 작업의 단일 출처. /guide·/push가 가이드 갱신 시 필독
 ```
