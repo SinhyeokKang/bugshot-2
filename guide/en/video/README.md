@@ -15,4 +15,4 @@ Some bugs are hard to capture in a still — flicker, animation, problems that o
 
 ---
 
-🌐 [한국어](https://bugshot.gitbook.io/bugshot/)
+🌐 [한국어](https://bugshot.gitbook.io/ko)

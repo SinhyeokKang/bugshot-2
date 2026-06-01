@@ -20,4 +20,4 @@ The selected region is captured as an image exactly as it currently appears (vie
 
 ---
 
-🌐 [한국어](https://bugshot.gitbook.io/bugshot/)
+🌐 [한국어](https://bugshot.gitbook.io/ko)

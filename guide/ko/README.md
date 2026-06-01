@@ -31,4 +31,4 @@ BugShot은 웹 페이지의 DOM 요소를 골라 스타일을 수정·비교한 
 
 ---
 
-🌐 [English](https://bugshot.gitbook.io/bugshot-en/)
+🌐 [English](https://bugshot.gitbook.io/en)

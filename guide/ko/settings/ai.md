@@ -25,4 +25,4 @@ LLM을 연결하면 두 가지 AI 기능이 활성화됩니다. 연결하지 않
 
 ---
 
-🌐 [English](https://bugshot.gitbook.io/bugshot-en/)
+🌐 [English](https://bugshot.gitbook.io/en)

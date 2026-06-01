@@ -14,4 +14,4 @@ The flow is simpler than you'd expect — **click an element → edit styles liv
 
 ---
 
-🌐 [한국어](https://bugshot.gitbook.io/bugshot/)
+🌐 [한국어](https://bugshot.gitbook.io/ko)

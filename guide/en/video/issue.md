@@ -52,4 +52,4 @@ Fill in the connected platform's fields (project, assignee, labels, etc.) and hi
 
 ---
 
-🌐 [한국어](https://bugshot.gitbook.io/bugshot/)
+🌐 [한국어](https://bugshot.gitbook.io/ko)

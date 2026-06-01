@@ -27,4 +27,4 @@ When you stop, the video is processed to MP4 and a thumbnail is generated. Once 
 
 ---
 
-🌐 [한국어](https://bugshot.gitbook.io/bugshot/)
+🌐 [한국어](https://bugshot.gitbook.io/ko)

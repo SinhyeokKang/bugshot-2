@@ -44,4 +44,4 @@ AI(LLM)를 연결해 두면 패널에 **AI 스타일링** 배너가 나타납니
 
 ---
 
-🌐 [English](https://bugshot.gitbook.io/bugshot-en/)
+🌐 [English](https://bugshot.gitbook.io/en)

@@ -46,4 +46,4 @@ OS·브라우저·페이지 URL·뷰포트 크기·캡처 시각이 **알아서 
 
 ---
 
-🌐 [English](https://bugshot.gitbook.io/bugshot-en/)
+🌐 [English](https://bugshot.gitbook.io/en)

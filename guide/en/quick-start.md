@@ -52,4 +52,4 @@ Want the details of each step? They continue in [Inspect & Style](element/README
 
 ---
 
-🌐 [한국어](https://bugshot.gitbook.io/bugshot/)
+🌐 [한국어](https://bugshot.gitbook.io/ko)

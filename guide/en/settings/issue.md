@@ -37,4 +37,4 @@ Turning this toggle on **requests screen capture permission**. Replay only works
 
 ---
 
-🌐 [한국어](https://bugshot.gitbook.io/bugshot/)
+🌐 [한국어](https://bugshot.gitbook.io/ko)

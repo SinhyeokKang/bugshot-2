@@ -25,4 +25,4 @@ Connecting an LLM enables two AI features. Without a connection, neither appears
 
 ---
 
-🌐 [한국어](https://bugshot.gitbook.io/bugshot/)
+🌐 [한국어](https://bugshot.gitbook.io/ko)

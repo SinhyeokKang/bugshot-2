@@ -31,4 +31,4 @@ Not sure where to start? Hop straight to whatever you need below.
 
 ---
 
-🌐 [한국어](https://bugshot.gitbook.io/bugshot/)
+🌐 [한국어](https://bugshot.gitbook.io/ko)

@@ -27,4 +27,4 @@
 
 ---
 
-🌐 [English](https://bugshot.gitbook.io/bugshot-en/)
+🌐 [English](https://bugshot.gitbook.io/en)

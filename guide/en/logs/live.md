@@ -33,4 +33,4 @@ You can also **file an issue with logs only**, no capture (element, screenshot, 
 
 ---
 
-🌐 [한국어](https://bugshot.gitbook.io/bugshot/)
+🌐 [한국어](https://bugshot.gitbook.io/ko)

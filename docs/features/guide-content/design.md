@@ -2,7 +2,7 @@
 
 ## 개요
 
-`guide/ko`·`guide/en` 두 GitBook 소스에 동일한 23페이지 트리를 만들고 마크다운 콘텐츠를 채운다. 코드 변경은 없다. 각 언어는 독립 GitBook 사이트(ko → `bugshot.gitbook.io/bugshot/`, en → `bugshot.gitbook.io/bugshot-en/`)로 동기되므로 **assets도 언어별로 따로** 둔다. 스크린샷은 전부 더미 이미지(`assets/dummy.jpg`)로 채우고 사용자가 후속 교체한다.
+`guide/ko`·`guide/en` 두 GitBook 소스에 동일한 23페이지 트리를 만들고 마크다운 콘텐츠를 채운다. 코드 변경은 없다. 각 언어는 독립 GitBook 사이트(ko → `bugshot.gitbook.io/ko`, en → `bugshot.gitbook.io/en`)로 동기되므로 **assets도 언어별로 따로** 둔다. 스크린샷은 전부 더미 이미지(`assets/dummy.jpg`)로 채우고 사용자가 후속 교체한다.
 
 ## 변경 범위
 
