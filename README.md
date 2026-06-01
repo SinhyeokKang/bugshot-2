@@ -17,7 +17,6 @@ A Chrome extension for bug reporting. Pick elements, tweak CSS, and file issues 
 - **Screenshot & annotation** — area crop with arrows, text, shapes, and highlights
 - **Screen recording** — record the current tab for up to 60 seconds
 - **30s Replay** — opt-in mode that captures the last 30 seconds as MP4, looking back across page navigations (no need to hit record beforehand)
-- **Keyboard shortcuts** — start any capture mode from the keyboard (⌘⇧S / ⌘⇧F / ⌘⇧X)
 
 ### Auto-logging
 
@@ -36,7 +35,7 @@ A Chrome extension for bug reporting. Pick elements, tweak CSS, and file issues 
 - **Linear** — OAuth PKCE / API Key, team/project/labels/priority
 - **Notion** — OAuth / Internal Token, database picker, status & select properties, file uploads
 - **GitLab** — OAuth PKCE (gitlab.com) / PAT (self-managed instances), project/labels/assignees, file uploads
-- **Asana** — OAuth PKCE / PAT, workspace/project/assignee, task attachments
+- **Asana** — OAuth / PAT, workspace/project/assignee, task attachments
 
 ### Export & i18n
 
