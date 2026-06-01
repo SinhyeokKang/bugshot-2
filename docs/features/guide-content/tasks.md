@@ -20,77 +20,77 @@
   - `~/Desktop/bugshot-guide-dummy.jpg`를 `guide/ko/assets/dummy.jpg`, `guide/en/assets/dummy.jpg`로 복사.
   - `SUMMARY.md`를 `design.md`의 트리대로 ko·en 양쪽 갱신(23개 항목, 중첩 구조).
 - **검증**:
-  - [ ] ko·en 폴더 트리 동일
-  - [ ] `assets/dummy.jpg` 양쪽 존재
-  - [ ] SUMMARY 23개 링크, ko/en 경로 대칭
+  - [x] ko·en 폴더 트리 동일
+  - [x] `assets/dummy.jpg` 양쪽 존재
+  - [x] SUMMARY 23개 링크, ko/en 경로 대칭
 
 ### Task 1: 소개 + 빠른 시작
 - **변경 대상**: `guide/{ko,en}/README.md`, `guide/{ko,en}/quick-start.md`
 - **작업 내용**: README = 제품 한 문단 + 메인 탭 4개 개념 + 섹션 바로가기. quick-start = 설치→사이드패널 열기(`Cmd/Ctrl+Shift+E`)→플랫폼 연결→캡처→작성→제출 1흐름, 단계별 더미 스크린샷.
 - **검증**:
-  - [ ] 플레이스홀더 0건
-  - [ ] 바로가기 링크가 실제 페이지로 연결
-  - [ ] ko/en 동일 구조
+  - [x] 플레이스홀더 0건
+  - [x] 바로가기 링크가 실제 페이지로 연결
+  - [x] ko/en 동일 구조
 
 ### Task 2: 연동 설정 섹션 (3페이지)
 - **변경 대상**: `guide/{ko,en}/integrations/{README,platforms,issue-tracking}.md`
 - **작업 내용**: README 개요+바로가기 / platforms = 추가 플로우 + 6개 플랫폼 표(연결 방식·입력값·발급 링크) + 기본값 + 연결 해제 / issue-tracking = 이슈 목록(필터·검색·그룹), Draft 편집 vs Submitted 읽기전용, **Refresh 상태 재조회(연결 필요)**, Delete All.
 - **검증**:
-  - [ ] 플랫폼 표 6행, design.md 플랫폼 표와 일치
-  - [ ] 더미 스크린샷 경로(`../assets/dummy.jpg`) 정상
-  - [ ] ko/en 대칭
+  - [x] 플랫폼 표 6행, design.md 플랫폼 표와 일치
+  - [x] 더미 스크린샷 경로(`../assets/dummy.jpg`) 정상
+  - [x] ko/en 대칭
 
 ### Task 3: 기본 설정 섹션 (3페이지)
 - **변경 대상**: `guide/{ko,en}/settings/{README,issue,ai}.md`
 - **작업 내용**: README 개요+바로가기 / issue = 제목 접두어, 본문 구성 토글(4섹션, Notes 기본 off, override, paragraph/orderedList), 30초 리플레이 토글+권한 / ai = LLM 연결(BYOK: baseUrl/apiKey/modelId), 연결 시 **AI 스타일링·AI 초안 작성** 활성화 강조 + 두 기능 페이지 교차링크.
 - **검증**:
-  - [ ] 본문 섹션 4종·기본값 코드와 일치
-  - [ ] 30초 리플레이 권한 설명 + video/replay.md 교차 링크
-  - [ ] ai 페이지가 AI 스타일링·AI 초안 작성 활성화를 강조하고 두 페이지로 교차링크
-  - [ ] ko/en 대칭
+  - [x] 본문 섹션 4종·기본값 코드와 일치
+  - [x] 30초 리플레이 권한 설명 + video/replay.md 교차 링크
+  - [x] ai 페이지가 AI 스타일링·AI 초안 작성 활성화를 강조하고 두 페이지로 교차링크
+  - [x] ko/en 대칭
 
 ### Task 4: 요소 모드 섹션 (4페이지)
 - **변경 대상**: `guide/{ko,en}/element/{README,picker,styling,issue}.md`
 - **작업 내용**: README 개요+바로가기 / picker = Element 버튼·`Cmd/Ctrl+Shift+S`·DOM 트리·Repick·iframe 미지원 / styling = 스타일 패널 섹션 9종·라이브 반영·Reset·**AI 스타일링 강조**(자연어 지시로 스타일 변경 — AI 연결 시 배너)·Next / issue = **자기완결** 초안 전체(공통 흐름 표 참조: 제목·재현환경·**before/after 스타일 표**·본문 섹션·로그 첨부·미리보기·제출·완료·마크다운 복사) + **AI 초안 작성 강조**(AI 연결 시 본문 자동 작성).
 - **검증**:
-  - [ ] 스타일 섹션 목록 코드와 일치(`editor.ts`/`StyleEditorPanel.tsx`)
-  - [ ] AI 스타일링 설명 포함(styling), AI 초안 작성 설명 포함(issue)
-  - [ ] issue 페이지 자기완결 필수항목 체크: 제목·재현환경·미디어(before/after)·본문섹션·로그·미리보기·제출·완료·마크다운 복사
-  - [ ] ko/en 대칭
+  - [x] 스타일 섹션 목록 코드와 일치(`editor.ts`/`StyleEditorPanel.tsx`)
+  - [x] AI 스타일링 설명 포함(styling), AI 초안 작성 설명 포함(issue)
+  - [x] issue 페이지 자기완결 필수항목 체크: 제목·재현환경·미디어(before/after)·본문섹션·로그·미리보기·제출·완료·마크다운 복사
+  - [x] ko/en 대칭
 
 ### Task 5: 스크린샷 모드 섹션 (4페이지)
 - **변경 대상**: `guide/{ko,en}/screenshot/{README,capture,annotation,issue}.md`
 - **작업 내용**: README 개요+바로가기 / capture = Screenshot 버튼·영역 드래그·산출 / annotation = 주석 추가/편집/초기화 / issue = **자기완결**(미디어만 주석 스크린샷, 나머지 흐름 동일).
 - **검증**:
-  - [ ] annotation 도구 설명이 실제 markerjs2 툴바(`AnnotationOverlay.tsx`)와 일치
-  - [ ] issue 페이지 자기완결(공통 흐름 필수항목 — Task 4 검증과 동일 체크, 미디어=주석 이미지)
-  - [ ] ko/en 대칭
+  - [x] annotation 도구 설명이 실제 markerjs2 툴바(`AnnotationOverlay.tsx`)와 일치
+  - [x] issue 페이지 자기완결(공통 흐름 필수항목 — Task 4 검증과 동일 체크, 미디어=주석 이미지)
+  - [x] ko/en 대칭
 
 ### Task 6: 녹화 모드 섹션 (4페이지)
 - **변경 대상**: `guide/{ko,en}/video/{README,record,replay,issue}.md`
 - **작업 내용**: README 개요+바로가기(실시간 vs 30초 차이) / record = Video 버튼·타이머·Stop·산출·최대 길이 / replay = 30초 버퍼·버튼 상태·**설정 권한 선행(교차 링크)** / issue = **자기완결 + 녹화 전용 로그 정책 자세히**(영상 + 액션 로그 + 콘솔/네트워크 토글).
 - **검증**:
-  - [ ] replay 권한 선행조건 명시 + settings/issue.md 링크 (plain 인용구)
-  - [ ] issue 페이지에 녹화 모드 로그 정책 상세 + 자기완결 공통 흐름 필수항목(미디어=영상)
-  - [ ] ko/en 대칭
+  - [x] replay 권한 선행조건 명시 + settings/issue.md 링크 (plain 인용구)
+  - [x] issue 페이지에 녹화 모드 로그 정책 상세 + 자기완결 공통 흐름 필수항목(미디어=영상)
+  - [x] ko/en 대칭
 
 ### Task 7: 로그 섹션 (3페이지)
 - **변경 대상**: `guide/{ko,en}/logs/{README,live,viewer}.md`
 - **작업 내용**: README 개요(실시간 로그 vs 로그 뷰어 구분)+바로가기 / live = 콘솔·네트워크 서브탭(필터·검색·상세·Copy cURL·Clear·자동수집) + **freeform 흡수**(Start Draft로 로그만 담은 이슈) / viewer = **개발자 관점** logs.html 소비(타임라인 마커·영상 플레이어·마커 점프·시간 동기).
 - **검증**:
-  - [ ] freeform 경로 live.md에 포함
-  - [ ] viewer가 개발자(버그 처리자) 관점으로 서술
-  - [ ] ko/en 대칭
+  - [x] freeform 경로 live.md에 포함
+  - [x] viewer가 개발자(버그 처리자) 관점으로 서술
+  - [x] ko/en 대칭
 
 ### Task 8: 전체 정합성 검수
 - **변경 대상**: 없음(검토) — 필요 시 수정
 - **작업 내용**: 23×2 페이지 전수 — 플레이스홀더 잔존, 깨진 내부 링크, 이미지 경로 깊이, ko/en 트리·섹션 대칭, 단축키·필드명 사실 일치 확인.
 - **검증**:
-  - [ ] `grep -rn "작성 예정\|coming soon" guide/` 0건
-  - [ ] SUMMARY + 본문 내부 링크 대상 파일 전부 존재(ko·en) — 아래 링크 검사 one-liner
-  - [ ] 더미 이미지 경로 전부 유효(루트 `assets/`, 하위 `../assets/`)
-  - [ ] ko 페이지 수 == en 페이지 수
-  - [ ] ko/en 페이지별 헤딩(`^#`) 구조 대칭 — 섹션 구성 일치 확인
+  - [x] `grep -rn "작성 예정\|coming soon" guide/` 0건
+  - [x] SUMMARY + 본문 내부 링크 대상 파일 전부 존재(ko·en) — 아래 링크 검사 one-liner
+  - [x] 더미 이미지 경로 전부 유효(루트 `assets/`, 하위 `../assets/`)
+  - [x] ko 페이지 수 == en 페이지 수
+  - [x] ko/en 페이지별 헤딩(`^#`) 구조 대칭 — 섹션 구성 일치 확인
 
 ## 테스트 계획
 

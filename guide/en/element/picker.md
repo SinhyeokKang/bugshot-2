@@ -1,0 +1,31 @@
+# Pick an Element
+
+## Start picking
+
+In the **Debug** tab, click **Select DOM element**, or press `Cmd/Ctrl+Shift+S`. A crosshair appears over the page, and the element under your cursor lights up.
+
+> If the shortcut doesn't respond, it may be clashing with your OS or another extension — feel free to start from the button instead.
+
+![Picker crosshair](../assets/dummy.jpg)
+
+## Click an element
+
+Click the element you want to select it. Its details show up in the side panel.
+
+## Move through the DOM tree
+
+Can't quite land on the exact element? No problem — you can **move to its parent or child** from the current selection. Step up (parent) or down (child) until you hit the right one.
+
+Want to start over? **Pick another element** lets you begin fresh anytime.
+
+![DOM tree navigation](../assets/dummy.jpg)
+
+## iframe limitation
+
+Elements **inside an iframe** (a frame holding another document) **can't be selected**. Click the iframe box itself and a notice appears, cancelling the pick.
+
+> If you really need an element inside an iframe, try [Screenshot](../screenshot/capture.md) or [Recording](../video/record.md) instead.
+
+---
+
+🌐 [한국어](https://bugshot.gitbook.io/bugshot/)
