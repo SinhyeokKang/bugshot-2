@@ -33,6 +33,23 @@ export class OAuthError extends Error {
   }
 }
 
+export async function launchOAuthWebFlow(
+  url: string,
+  platform: PlatformId,
+): Promise<string | undefined> {
+  try {
+    return await chrome.identity.launchWebAuthFlow({ url, interactive: true });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (/could not be loaded/i.test(message)) {
+      throw new OAuthError(t("oauth.error.authorizationPageFailed"), {
+        platform,
+      });
+    }
+    throw err;
+  }
+}
+
 const ATLASSIAN_CANCEL_ERROR_CODES = new Set([
   "access_denied",
   "user_cancelled_login",
@@ -85,10 +102,7 @@ export async function startOAuthFlow(): Promise<OAuthStartResult> {
   url.searchParams.set("response_type", "code");
   url.searchParams.set("prompt", "consent");
 
-  const redirect = await chrome.identity.launchWebAuthFlow({
-    url: url.toString(),
-    interactive: true,
-  });
+  const redirect = await launchOAuthWebFlow(url.toString(), "jira");
   if (!redirect) {
     throw new OAuthError(t("oauth.error.cancelled"), { platform: "jira", cancelled: true });
   }

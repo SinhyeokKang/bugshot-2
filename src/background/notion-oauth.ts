@@ -1,7 +1,7 @@
 import { t } from "@/i18n";
 import type { NotionOAuthAuth } from "@/types/notion";
 import { getMyself } from "./notion-api";
-import { OAuthError } from "./oauth";
+import { OAuthError, launchOAuthWebFlow } from "./oauth";
 
 const CLIENT_ID = (import.meta.env.VITE_NOTION_CLIENT_ID ?? "").trim();
 const PROXY_URL = ((import.meta.env.VITE_OAUTH_PROXY_URL ?? "") as string)
@@ -108,10 +108,7 @@ export async function startNotionOAuth(): Promise<NotionOAuthAuth> {
   url.searchParams.set("response_type", "code");
   url.searchParams.set("state", state);
 
-  const redirect = await chrome.identity.launchWebAuthFlow({
-    url: url.toString(),
-    interactive: true,
-  });
+  const redirect = await launchOAuthWebFlow(url.toString(), "notion");
   if (!redirect) {
     throw new OAuthError(t("oauth.error.cancelled"), {
       platform: "notion",

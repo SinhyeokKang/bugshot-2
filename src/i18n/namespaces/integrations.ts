@@ -196,6 +196,7 @@ const ko = {
 
   "oauth.error.notConfiguredClient": "Atlassian OAuth 앱이 설정되지 않았습니다. VITE_ATLASSIAN_CLIENT_ID 환경 변수를 지정하세요.",
   "oauth.error.notConfiguredProxy": "OAuth proxy가 설정되지 않았습니다. VITE_OAUTH_PROXY_URL 환경 변수를 지정하세요.",
+  "oauth.error.authorizationPageFailed": "인증 페이지를 불러오지 못했습니다. 로그인 상태와 네트워크를 확인하세요.",
   "oauth.error.cancelled": "OAuth 취소됨",
   "oauth.error.stateMismatch": "OAuth state 불일치",
   "oauth.error.codeMissing": "OAuth code 누락",
@@ -408,6 +409,7 @@ const en = {
 
   "oauth.error.notConfiguredClient": "Atlassian OAuth app is not configured. Set VITE_ATLASSIAN_CLIENT_ID.",
   "oauth.error.notConfiguredProxy": "OAuth proxy is not configured. Set VITE_OAUTH_PROXY_URL.",
+  "oauth.error.authorizationPageFailed": "Couldn't load the authorization page. Check your sign-in state and network.",
   "oauth.error.cancelled": "OAuth cancelled",
   "oauth.error.stateMismatch": "OAuth state mismatch",
   "oauth.error.codeMissing": "OAuth code missing",

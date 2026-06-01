@@ -2,7 +2,7 @@ import { t } from "@/i18n";
 import type { AsanaAuth, AsanaOAuthAuth } from "@/types/asana";
 import { writeStoredAsanaOAuthTokens } from "@/lib/settings-storage";
 import { getMyself, setAsanaRefreshHook } from "./asana-api";
-import { OAuthError } from "./oauth";
+import { OAuthError, launchOAuthWebFlow } from "./oauth";
 
 const CLIENT_ID = (import.meta.env.VITE_ASANA_CLIENT_ID ?? "").trim();
 const PROXY_URL = ((import.meta.env.VITE_OAUTH_PROXY_URL ?? "") as string)
@@ -78,10 +78,7 @@ export async function startAsanaOAuth(): Promise<AsanaOAuthAuth> {
   url.searchParams.set("scope", SCOPES.join(" "));
   url.searchParams.set("state", state);
 
-  const redirect = await chrome.identity.launchWebAuthFlow({
-    url: url.toString(),
-    interactive: true,
-  });
+  const redirect = await launchOAuthWebFlow(url.toString(), "asana");
   if (!redirect) {
     throw new OAuthError(t("oauth.error.cancelled"), {
       platform: "asana",

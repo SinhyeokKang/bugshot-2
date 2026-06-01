@@ -2,7 +2,7 @@ import { t } from "@/i18n";
 import type { LinearAuth, LinearOAuthAuth } from "@/types/linear";
 import { writeStoredLinearOAuthTokens } from "@/lib/settings-storage";
 import { getMyself, setLinearRefreshHook } from "./linear-api";
-import { OAuthError } from "./oauth";
+import { OAuthError, launchOAuthWebFlow } from "./oauth";
 
 const CLIENT_ID = (import.meta.env.VITE_LINEAR_CLIENT_ID ?? "").trim();
 const AUTHORIZE_URL = "https://linear.app/oauth/authorize";
@@ -102,10 +102,7 @@ export async function startLinearOAuth(): Promise<LinearOAuthAuth> {
   url.searchParams.set("code_challenge_method", "S256");
   url.searchParams.set("prompt", "consent");
 
-  const redirect = await chrome.identity.launchWebAuthFlow({
-    url: url.toString(),
-    interactive: true,
-  });
+  const redirect = await launchOAuthWebFlow(url.toString(), "linear");
   if (!redirect) {
     throw new OAuthError(t("oauth.error.cancelled"), {
       platform: "linear",

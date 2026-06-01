@@ -2,7 +2,7 @@ import { t } from "@/i18n";
 import type { GitlabAuth, GitlabOAuthAuth } from "@/types/gitlab";
 import { writeStoredGitlabOAuthTokens } from "@/lib/settings-storage";
 import { getMyself, setGitlabRefreshHook } from "./gitlab-api";
-import { OAuthError } from "./oauth";
+import { OAuthError, launchOAuthWebFlow } from "./oauth";
 
 const CLIENT_ID = (import.meta.env.VITE_GITLAB_CLIENT_ID ?? "").trim();
 const BASE_URL = "https://gitlab.com";
@@ -102,10 +102,7 @@ export async function startGitlabOAuth(): Promise<GitlabOAuthAuth> {
   url.searchParams.set("code_challenge", codeChallenge);
   url.searchParams.set("code_challenge_method", "S256");
 
-  const redirect = await chrome.identity.launchWebAuthFlow({
-    url: url.toString(),
-    interactive: true,
-  });
+  const redirect = await launchOAuthWebFlow(url.toString(), "gitlab");
   if (!redirect) {
     throw new OAuthError(t("oauth.error.cancelled"), {
       platform: "gitlab",
