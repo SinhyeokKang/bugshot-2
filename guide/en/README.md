@@ -1,4 +1,4 @@
-# BugShot User Guide
+# BugShot Guide
 
 BugShot is a Chrome side panel extension that lets you pick DOM elements on a web page, tweak and compare their styles, and file the result as an issue on Jira, GitHub, Linear, Notion, GitLab, or Asana.
 

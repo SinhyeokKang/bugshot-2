@@ -1,3 +1,3 @@
 # Summary
 
-- [BugShot User Guide](README.md)
+- [BugShot Guide](README.md)
