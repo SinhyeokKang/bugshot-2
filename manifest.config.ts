@@ -49,11 +49,14 @@ export default defineManifest({
   content_scripts: [
     {
       matches: ["<all_urls>"],
+      // 자사 가이드(GitBook)에는 picker·recorder가 불필요 — 주입 시 페이지 경고가 확장 오류로 귀속됨
+      exclude_matches: ["https://bugshot.gitbook.io/*"],
       js: ["src/content/picker.ts"],
       run_at: "document_idle",
     },
     {
       matches: ["<all_urls>"],
+      exclude_matches: ["https://bugshot.gitbook.io/*"],
       js: ["src/content/recorders-entry.ts"],
       run_at: "document_start",
       world: "MAIN",
