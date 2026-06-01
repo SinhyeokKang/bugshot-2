@@ -222,7 +222,7 @@ function GeneralSettingsContent() {
             variant="outline"
             onClick={() => chrome.tabs.create({ url: USER_GUIDE_URLS[locale], active: true })}
           >
-            <BookOpen className="h-4 w-4" />
+            <BookOpen />
             {t("settings.guide")}
           </Button>
           <div className="flex items-center gap-2">

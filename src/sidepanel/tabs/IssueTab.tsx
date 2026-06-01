@@ -208,7 +208,7 @@ function EmptyState({ onStartElement, onStartScreenshot, onStartVideo, onStartFr
             variant="outline"
             onClick={() => chrome.tabs.create({ url: USER_GUIDE_URLS[locale], active: true })}
           >
-            <BookOpen className="h-4 w-4" />
+            <BookOpen />
             {t("settings.guide")}
           </Button>
           <Button variant="outline" onClick={onStartFreeform}>
