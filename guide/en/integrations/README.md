@@ -4,7 +4,7 @@ A report you worked on only truly shines once it reaches the issue tracker your 
 
 With no platform connected yet, the side panel takes you to this **Integrations** tab automatically. No pressure — just start by connecting one.
 
-![Integrations tab](../assets/dummy.jpg)
+![Integrations tab](../assets/2.1.1.jpg)
 
 ## Jump to
 
