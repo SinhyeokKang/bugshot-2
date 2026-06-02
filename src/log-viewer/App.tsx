@@ -88,7 +88,7 @@ export function App({ data }: AppProps) {
             <Terminal className="h-3.5 w-3.5" />
             {t("logViewer.tab.console")}
             {hasConsole && (
-              <Badge variant="secondary" className="ml-1 h-5 min-w-5 px-1.5 text-[10px]">
+              <Badge className="ml-1 h-5 min-w-5 px-1.5 text-[10px]">
                 {data.consoleLog!.entries.length}
               </Badge>
             )}
@@ -97,7 +97,7 @@ export function App({ data }: AppProps) {
             <ArrowLeftRight className="h-3.5 w-3.5" />
             {t("logViewer.tab.network")}
             {hasNetwork && (
-              <Badge variant="secondary" className="ml-1 h-5 min-w-5 px-1.5 text-[10px]">
+              <Badge className="ml-1 h-5 min-w-5 px-1.5 text-[10px]">
                 {data.networkLog!.requests.length}
               </Badge>
             )}
@@ -106,7 +106,7 @@ export function App({ data }: AppProps) {
             <MousePointerClick className="h-3.5 w-3.5" />
             {t("logViewer.tab.action")}
             {hasAction && (
-              <Badge variant="secondary" className="ml-1 h-5 min-w-5 px-1.5 text-[10px]">
+              <Badge className="ml-1 h-5 min-w-5 px-1.5 text-[10px]">
                 {data.actionLog!.entries.length}
               </Badge>
             )}
