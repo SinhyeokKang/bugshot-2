@@ -8,6 +8,7 @@
 - [Settings](settings/README.md)
   - [Issue Settings](settings/issue.md)
   - [AI LLM Connection](settings/ai.md)
+  - [General](settings/general.md)
 - [Inspect & Style](element/README.md)
   - [Pick an Element](element/picker.md)
   - [Styling](element/styling.md)

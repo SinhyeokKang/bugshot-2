@@ -6,6 +6,8 @@ BugShot is a Chrome side panel extension that lets you pick DOM elements on a we
 
 No more typing out "the color of this button looks off" — one click does it.
 
+{% embed url="https://bug-shot.com" %}
+
 ## The four main tabs
 
 It looks like a lot at first, but don't worry — the side panel is just four tabs, and they click into place quickly.

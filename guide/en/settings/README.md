@@ -12,6 +12,7 @@ How issues get written, whether to connect an AI, your language and theme — se
 
 - [Issue Settings](issue.md) — Title prefix, body sections, 30s replay.
 - [AI LLM Connection](ai.md) — Connect an LLM to turn on AI Styling and AI Draft.
+- [General](general.md) — Language and theme, plus quick links for the guide, reviews, and contact.
 
 ---
 
