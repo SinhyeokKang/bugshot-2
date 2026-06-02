@@ -10,7 +10,7 @@ It's simpler than it sounds — three steps and you're done.
 2. When the connect-method dialog appears, choose **OAuth** (browser login) or **enter a token** directly.
 3. With OAuth, just approve access in the login window. With a token, paste the token you generated along with any required fields.
 
-![Connect-method dialog](../assets/dummy.jpg)
+![Connect-method dialog](../assets/2.1.1.jpg)
 
 OAuth is usually the easiest. That said, if your org policy blocks OAuth or you'd rather use a token, the token method works just as well.
 
@@ -31,7 +31,7 @@ OAuth is usually the easiest. That said, if your org policy blocks OAuth or you'
 
 Once connected, you can pick a default location for new issues — a project for Jira/GitLab, a repository for GitHub, a team for Linear, a database for Notion, a project for Asana. Set it once and you won't have to choose it every time you write an issue, which saves a lot of clicks.
 
-![Setting defaults after connecting](../assets/dummy.jpg)
+![Setting defaults after connecting](../assets/2.1.2.jpg)
 
 ## Disconnecting
 
