@@ -2,13 +2,12 @@ import { t } from "@/i18n";
 import type { GithubAuth, GithubOAuthAuth } from "@/types/github";
 import { writeStoredGithubOAuthTokens } from "@/lib/settings-storage";
 import { getMyself, setGithubRefreshHook } from "./github-api";
-import { OAuthError } from "./oauth";
+import { OAuthError, launchOAuthWebFlow } from "./oauth";
 
 const CLIENT_ID = (import.meta.env.VITE_GITHUB_CLIENT_ID ?? "").trim();
-const PROXY_URL = (import.meta.env.VITE_OAUTH_PROXY_URL ?? "").replace(
-  /\/+$/,
-  "",
-);
+const PROXY_URL = (import.meta.env.VITE_OAUTH_PROXY_URL ?? "")
+  .trim()
+  .replace(/\/+$/, "");
 const AUTHORIZE_URL = "https://github.com/login/oauth/authorize";
 const SCOPES = ["repo", "user:email"];
 export function isGithubOAuthConfigured(): boolean {
@@ -92,10 +91,7 @@ export async function startGithubOAuth(): Promise<GithubOAuthAuth> {
   url.searchParams.set("scope", SCOPES.join(" "));
   url.searchParams.set("state", state);
 
-  const redirect = await chrome.identity.launchWebAuthFlow({
-    url: url.toString(),
-    interactive: true,
-  });
+  const redirect = await launchOAuthWebFlow(url.toString(), "github");
   if (!redirect) {
     throw new OAuthError(t("oauth.error.cancelled"), {
       platform: "github",

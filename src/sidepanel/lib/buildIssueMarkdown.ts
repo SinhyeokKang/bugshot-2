@@ -299,67 +299,45 @@ function escapeHtml(value: string): string {
 
 function emitLogSummaryMd(lines: string[], ctx: MarkdownContext): void {
   const { networkLogSummary: net, consoleLogSummary: con } = ctx;
+  if (!net && !con) return;
+  lines.push(`## ${t("logSummary.title")}`);
+  lines.push("");
   if (net) {
-    lines.push(`## ${t("logSummary.network.title")}`);
-    lines.push("");
-    if (net.errors.length > 0) {
-      lines.push(t("logSummary.network.captured", { n: net.captured, errors: net.errors.length }));
-      for (const e of net.errors) {
-        lines.push(`- ${e.method} ${e.path} → ${e.status} ${e.statusText}`);
-      }
-    } else {
-      lines.push(t("logSummary.network.capturedNoError", { n: net.captured }));
-    }
-    lines.push("");
+    lines.push(
+      net.errors.length > 0
+        ? `- ${t("logSummary.network.line", { n: net.captured, errors: net.errors.length })}`
+        : `- ${t("logSummary.network.lineNoError", { n: net.captured })}`,
+    );
   }
   if (con) {
-    lines.push(`## ${t("logSummary.console.title")}`);
-    lines.push("");
-    if (con.errorCount > 0 || con.warnCount > 0) {
-      lines.push(t("logSummary.console.captured", { n: con.captured, errors: con.errorCount, warns: con.warnCount }));
-      for (const msg of con.topErrors) {
-        lines.push(`- ${msg}`);
-      }
-    } else {
-      lines.push(t("logSummary.console.capturedNoError", { n: con.captured }));
-    }
-    lines.push("");
+    lines.push(
+      con.errorCount > 0 || con.warnCount > 0
+        ? `- ${t("logSummary.console.line", { n: con.captured, errors: con.errorCount, warns: con.warnCount })}`
+        : `- ${t("logSummary.console.lineNoError", { n: con.captured })}`,
+    );
   }
-  if (net || con) {
-    lines.push(`_${t("logSummary.logs.detail")}_`);
-    lines.push("");
-  }
+  lines.push("");
+  lines.push(`_${t("logSummary.logs.detail")}_`);
+  lines.push("");
 }
 
 function emitLogSummaryHtml(parts: string[], ctx: MarkdownContext): void {
   const { networkLogSummary: net, consoleLogSummary: con } = ctx;
+  if (!net && !con) return;
+  parts.push(`<h2>${escapeHtml(t("logSummary.title"))}</h2>`);
+  parts.push("<ul>");
   if (net) {
-    parts.push(`<h2>${escapeHtml(t("logSummary.network.title"))}</h2>`);
-    if (net.errors.length > 0) {
-      parts.push(`<p>${escapeHtml(t("logSummary.network.captured", { n: net.captured, errors: net.errors.length }))}</p>`);
-      parts.push("<ul>");
-      for (const e of net.errors) {
-        parts.push(`<li>${escapeHtml(`${e.method} ${e.path} → ${e.status} ${e.statusText}`)}</li>`);
-      }
-      parts.push("</ul>");
-    } else {
-      parts.push(`<p>${escapeHtml(t("logSummary.network.capturedNoError", { n: net.captured }))}</p>`);
-    }
+    const line = net.errors.length > 0
+      ? t("logSummary.network.line", { n: net.captured, errors: net.errors.length })
+      : t("logSummary.network.lineNoError", { n: net.captured });
+    parts.push(`<li>${escapeHtml(line)}</li>`);
   }
   if (con) {
-    parts.push(`<h2>${escapeHtml(t("logSummary.console.title"))}</h2>`);
-    if (con.errorCount > 0 || con.warnCount > 0) {
-      parts.push(`<p>${escapeHtml(t("logSummary.console.captured", { n: con.captured, errors: con.errorCount, warns: con.warnCount }))}</p>`);
-      parts.push("<ul>");
-      for (const msg of con.topErrors) {
-        parts.push(`<li>${escapeHtml(msg)}</li>`);
-      }
-      parts.push("</ul>");
-    } else {
-      parts.push(`<p>${escapeHtml(t("logSummary.console.capturedNoError", { n: con.captured }))}</p>`);
-    }
+    const line = con.errorCount > 0 || con.warnCount > 0
+      ? t("logSummary.console.line", { n: con.captured, errors: con.errorCount, warns: con.warnCount })
+      : t("logSummary.console.lineNoError", { n: con.captured });
+    parts.push(`<li>${escapeHtml(line)}</li>`);
   }
-  if (net || con) {
-    parts.push(`<p><em>${escapeHtml(t("logSummary.logs.detail"))}</em></p>`);
-  }
+  parts.push("</ul>");
+  parts.push(`<p><em>${escapeHtml(t("logSummary.logs.detail"))}</em></p>`);
 }

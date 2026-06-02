@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { Download, Terminal, ArrowLeftRight, ExternalLink, MousePointerClick } from "lucide-react";
 import type { LogViewerData } from "@/types/log-viewer";
 import { NetworkLogContent } from "@/sidepanel/components/NetworkLogContent";
@@ -7,6 +7,9 @@ import { ActionLogContent } from "@/sidepanel/components/ActionLogContent";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { toVideoSeconds } from "./timeline";
+import { buildMarkers } from "./markers";
+import type { TimelineMarker } from "./markers";
+import { VideoPlayer, type VideoPlayerHandle } from "./components/VideoPlayer";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { t } from "./i18n";
@@ -35,19 +38,38 @@ export function App({ data }: AppProps) {
   const [activeTab, setActiveTab] = useState<LogTab>(defaultTab);
 
   const video = data?.video ?? null;
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const playerRef = useRef<VideoPlayerHandle>(null);
   const [videoError, setVideoError] = useState(false);
+  const [videoDurationSec, setVideoDurationSec] = useState(0);
+  const [scrollToEntryId, setScrollToEntryId] = useState<string | null>(null);
 
-  const seekTo = (absTs: number) => {
-    const el = videoRef.current;
-    if (!el || !video) return;
-    el.currentTime = toVideoSeconds(absTs, video.startedAt);
-    void el.play();
-  };
+  const seekTo = useCallback((absTs: number) => {
+    if (!video) return;
+    playerRef.current?.seekToSec(toVideoSeconds(absTs, video.startedAt));
+  }, [video]);
+
+  const markers = useMemo(() => {
+    if (!data || !video || videoError || videoDurationSec <= 0) return [];
+    return buildMarkers(data, activeTab, videoDurationSec, video.startedAt);
+  }, [data, video, videoError, videoDurationSec, activeTab]);
+
+  const handleMarkerClick = useCallback((marker: TimelineMarker) => {
+    if (!video) return;
+    playerRef.current?.seekToSec(toVideoSeconds(marker.absTs, video.startedAt));
+    setScrollToEntryId(marker.id);
+  }, [video]);
+
+  const handleScrollComplete = useCallback(() => {
+    setScrollToEntryId(null);
+  }, []);
 
   // 영상·앵커가 살아있을 때만 세 로그 탭에 동기화 props 공급. 부재/에러 시 라이브 서브탭과 동일 동작.
   const sync = video && !videoError
     ? { syncBaseMs: video.startedAt, onSeek: seekTo }
+    : {};
+
+  const scrollProps = video && !videoError
+    ? { scrollToEntryId, onScrollComplete: handleScrollComplete }
     : {};
 
   if (!data) {
@@ -99,6 +121,7 @@ export function App({ data }: AppProps) {
             startedAt={data.consoleLog!.startedAt}
             flush
             {...sync}
+            {...scrollProps}
           />
         ) : (
           <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
@@ -109,7 +132,7 @@ export function App({ data }: AppProps) {
 
       <TabsContent value="network" className="mt-0 flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden">
         {hasNetwork ? (
-          <NetworkLogContent requests={data.networkLog!.requests} flush {...sync} />
+          <NetworkLogContent requests={data.networkLog!.requests} flush {...sync} {...scrollProps} />
         ) : (
           <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
             {t("logViewer.noNetwork")}
@@ -124,6 +147,7 @@ export function App({ data }: AppProps) {
             startedAt={data.actionLog!.startedAt}
             flush
             {...sync}
+            {...scrollProps}
           />
         ) : (
           <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
@@ -183,24 +207,28 @@ export function App({ data }: AppProps) {
   return (
     <div className="h-screen">
       <ResizablePanelGroup direction="horizontal">
-        <ResizablePanel defaultSize={60} className="flex flex-col">
-          <div className="flex h-full items-center justify-center bg-black">
-            {videoError ? (
+        <ResizablePanel defaultSize={60} className="flex min-w-0 flex-col">
+          {videoError ? (
+            <div className="flex h-full items-center justify-center bg-black">
               <span className="text-sm text-muted-foreground">{t("logViewer.video.error")}</span>
-            ) : (
-              <video
-                ref={videoRef}
-                controls
-                poster={video.thumbnail}
-                src={video.dataUrl}
-                className="h-full w-full object-contain"
-                onError={() => setVideoError(true)}
-              />
-            )}
-          </div>
+            </div>
+          ) : (
+            <VideoPlayer
+              ref={playerRef}
+              src={video.dataUrl}
+              poster={video.thumbnail}
+              markers={markers}
+              issueTitle={data.meta.issueTitle}
+              issueKey={data.meta.issueKey}
+              issueUrl={data.meta.issueUrl}
+              onMarkerClick={handleMarkerClick}
+              onDurationChange={setVideoDurationSec}
+              onError={() => setVideoError(true)}
+            />
+          )}
         </ResizablePanel>
         <ResizableHandle className="bg-border hover:bg-blue-300 hover:shadow-[-1px_0_0_0_theme(colors.blue.300),1px_0_0_0_theme(colors.blue.300)] dark:hover:bg-blue-700 dark:hover:shadow-[-1px_0_0_0_theme(colors.blue.700),1px_0_0_0_theme(colors.blue.700)]" />
-        <ResizablePanel defaultSize={40} className="flex flex-col">
+        <ResizablePanel defaultSize={40} className="flex min-w-0 flex-col">
           {tabsPanel}
         </ResizablePanel>
       </ResizablePanelGroup>

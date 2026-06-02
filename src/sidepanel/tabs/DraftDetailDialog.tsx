@@ -49,6 +49,8 @@ import { sendBg, type JiraSubmitResult } from "@/types/messages";
 import { submitToGithub } from "@/sidepanel/lib/submitToGithub";
 import { submitToLinear } from "@/sidepanel/lib/submitToLinear";
 import { submitToNotion } from "@/sidepanel/lib/submitToNotion";
+import { submitToGitlab } from "@/sidepanel/lib/submitToGitlab";
+import { submitToAsana } from "@/sidepanel/lib/submitToAsana";
 import type { NotionDatabaseSchema } from "@/types/notion";
 import { usePlatformFields } from "@/sidepanel/hooks/usePlatformFields";
 import { extractNotionPageId } from "@/lib/notion-page-id";
@@ -63,6 +65,9 @@ import {
 } from "@/sidepanel/components/StyleChangesTable";
 import { buildAiMetaAttachment } from "@/sidepanel/lib/buildAiMetaAttachment";
 import { buildCaptureFiles, type CaptureFiles } from "@/sidepanel/lib/buildCaptureFiles";
+import { supportsConsoleNetworkLog, supportsActionLog } from "@/sidepanel/lib/captureLogSupport";
+import { annotateAttachmentDimensions } from "@/sidepanel/lib/attachmentDimensions";
+import type { JiraAttachmentInput } from "@/types/jira";
 import { buildIssueAdf } from "@/sidepanel/lib/buildIssueAdf";
 import { buildNetworkLogSummary, buildConsoleLogSummary } from "@/sidepanel/lib/buildLogSummary";
 import { filterEnvironmentRows, parseChromeVersion } from "@/sidepanel/lib/environmentRows";
@@ -99,6 +104,8 @@ export function DraftDetailDialog({
   const ghAccount = accounts.github;
   const linearAccount = accounts.linear;
   const notionAccount = accounts.notion;
+  const gitlabAccount = accounts.gitlab;
+  const asanaAccount = accounts.asana;
   const removeIssue = useIssuesStore((s) => s.removeIssue);
   const markSubmitted = useIssuesStore((s) => s.markSubmitted);
   const patchIssue = useIssuesStore((s) => s.patchIssue);
@@ -111,6 +118,8 @@ export function DraftDetailDialog({
   const lastGhSubmit = useSettingsStore((s) => s.lastSubmitFields.github);
   const lastLinearSubmit = useSettingsStore((s) => s.lastSubmitFields.linear);
   const lastNotionSubmit = useSettingsStore((s) => s.lastSubmitFields.notion);
+  const lastGitlabSubmit = useSettingsStore((s) => s.lastSubmitFields.gitlab);
+  const lastAsanaSubmit = useSettingsStore((s) => s.lastSubmitFields.asana);
   const lastSubmittedPlatform = useSettingsStore((s) => s.lastSubmittedPlatform);
 
   const available = useMemo(() => connectedPlatforms(accounts), [accounts]);
@@ -126,6 +135,10 @@ export function DraftDetailDialog({
     setLinearFields,
     notionFields,
     setNotionFields,
+    gitlabFields,
+    setGitlabFields,
+    asanaFields,
+    setAsanaFields,
   } = usePlatformFields({
     open,
     lastGhSubmit,
@@ -134,6 +147,10 @@ export function DraftDetailDialog({
     linearDefaults: linearAccount?.defaults,
     lastNotionSubmit,
     notionDefaults: notionAccount?.defaults,
+    lastGitlabSubmit,
+    gitlabDefaults: gitlabAccount?.defaults,
+    lastAsanaSubmit,
+    asanaDefaults: asanaAccount?.defaults,
     resetKey: issue?.id,
   });
   const [notionSchema, setNotionSchema] = useState<NotionDatabaseSchema | null>(null);
@@ -179,7 +196,7 @@ export function DraftDetailDialog({
   const [consoleDialogOpen, setConsoleDialogOpen] = useState(false);
   const [actionDialogOpen, setActionDialogOpen] = useState(false);
   useEffect(() => {
-    if (!open || (!isVideo && !isFreeform)) {
+    if (!open || !supportsConsoleNetworkLog(issue?.captureMode)) {
       setNetworkLogData(null);
       setConsoleLogData(null);
       setActionLogData(null);
@@ -196,14 +213,13 @@ export function DraftDetailDialog({
         if (!cancelled) setConsoleLogData(log);
       });
     }
-    // action log는 video 모드에서만 첨부.
-    if (isVideo && issue?.actionLogBlobKey) {
+    if (supportsActionLog(issue?.captureMode) && issue?.actionLogBlobKey) {
       getActionLog(issue.actionLogBlobKey).then((log) => {
         if (!cancelled) setActionLogData(log);
       });
     }
     return () => { cancelled = true; };
-  }, [open, isVideo, isFreeform, issue?.networkLogBlobKey, issue?.consoleLogBlobKey, issue?.actionLogBlobKey]);
+  }, [open, issue?.captureMode, issue?.networkLogBlobKey, issue?.consoleLogBlobKey, issue?.actionLogBlobKey]);
 
   const diffs = useMemo(() => {
     if (!issue?.selectionSnapshot || !issue.styleEdits) return [];
@@ -233,16 +249,15 @@ export function DraftDetailDialog({
     if (!issue) throw new Error(t("create.requiredMissing"));
     const sel = issue.selectionSnapshot;
     let networkLog: NetworkLog | null = null;
-    if ((isVideo || isFreeform) && issue.networkLogBlobKey) {
+    if (supportsConsoleNetworkLog(issue.captureMode) && issue.networkLogBlobKey) {
       networkLog = await getNetworkLog(issue.networkLogBlobKey);
     }
     let consoleLogForSubmit: ConsoleLog | null = null;
-    if ((isVideo || isFreeform) && issue.consoleLogBlobKey) {
+    if (supportsConsoleNetworkLog(issue.captureMode) && issue.consoleLogBlobKey) {
       consoleLogForSubmit = await getConsoleLog(issue.consoleLogBlobKey);
     }
-    // actionLog는 video에서만 logs.html에 주입되므로 freeform/screenshot은 읽지 않는다.
     let actionLogForSubmit: ActionLog | null = null;
-    if (isVideo && issue.actionLogBlobKey) {
+    if (supportsActionLog(issue.captureMode) && issue.actionLogBlobKey) {
       actionLogForSubmit = await getActionLog(issue.actionLogBlobKey);
     }
     const ctx = {
@@ -289,6 +304,7 @@ export function DraftDetailDialog({
       videoStartedAt: issue.videoStartedAt,
       videoEndedAt: issue.videoEndedAt,
       pageUrl: issue.pageUrl,
+      issueTitle: issue.title?.trim() || undefined,
     });
     return { ctx, captureFiles };
   }
@@ -303,7 +319,7 @@ export function DraftDetailDialog({
     }
     if (!fields.issueTypeId) throw new Error(t("create.requiredMissing"));
 
-    const attachments: { filename: string; dataUrl: string }[] = [
+    const rawAttachments: JiraAttachmentInput[] = [
       buildAiMetaAttachment(ctx),
       ...captureFiles.images,
       ...(captureFiles.video ? [captureFiles.video] : []),
@@ -311,8 +327,9 @@ export function DraftDetailDialog({
     ];
     const jiraInline = await resolveInlineImagesForSections(ctx.sections, sectionConfig);
     for (const img of jiraInline) {
-      attachments.push({ filename: `inline-${img.refId}.webp`, dataUrl: img.dataUrl });
+      rawAttachments.push({ filename: `inline-${img.refId}.webp`, dataUrl: img.dataUrl });
     }
+    const attachments = await annotateAttachmentDimensions(rawAttachments);
 
     const result = await sendBg<JiraSubmitResult>({
       type: "jira.submitIssue",
@@ -473,7 +490,7 @@ export function DraftDetailDialog({
       ctx,
       images: captureFiles.images,
       video: captureFiles.video,
-      logs: captureFiles.jsonLogs,
+      logs: captureFiles.logs,
       inlineImages: notionInline,
       databaseId: notionFields.databaseId,
       titlePropertyName: notionSchema.titlePropertyName,
@@ -511,12 +528,103 @@ export function DraftDetailDialog({
     return result;
   }
 
+  async function handleGitlabSubmit(
+    ctx: Awaited<ReturnType<typeof buildCtxForSubmit>>["ctx"],
+    captureFiles: CaptureFiles,
+  ): Promise<NormalizedSubmitResult> {
+    if (!issue) throw new Error(t("create.requiredMissing"));
+    if (!gitlabAccount) {
+      throw new Error(t("platform.notConnected.title", { platform: t("platform.tab.gitlab") }));
+    }
+    if (!gitlabFields.projectId) throw new Error(t("create.requiredMissing"));
+
+    const gitlabInline = await resolveInlineImagesForSections(ctx.sections, sectionConfig);
+    const result = await submitToGitlab({
+      ctx,
+      images: captureFiles.images,
+      video: captureFiles.video,
+      logs: captureFiles.logs,
+      inlineImages: gitlabInline,
+      projectId: gitlabFields.projectId,
+      label: gitlabFields.label,
+      assigneeId: gitlabFields.assigneeId,
+    });
+    markSubmitted(issue.id, {
+      platform: "gitlab",
+      key: result.key,
+      url: result.url,
+      gitlabProjectId: gitlabFields.projectId,
+      gitlabIssueIid: Number(result.key.replace(/^#/, "")),
+      gitlabLabels: gitlabFields.label ? [gitlabFields.label] : undefined,
+    });
+    if (useEditorStore.getState().currentIssueId === issue.id) {
+      const tabId = useEditorStore.getState().target?.tabId;
+      if (tabId != null) void clearPicker(tabId);
+      useEditorStore.getState().reset();
+    }
+    useSettingsStore.getState().setLastSubmitFields("gitlab", {
+      projectId: gitlabFields.projectId,
+      projectPath: gitlabFields.projectPath,
+      label: gitlabFields.label,
+      assigneeId: gitlabFields.assigneeId,
+      assigneeName: gitlabFields.assigneeName,
+    });
+    useSettingsStore.getState().setLastSubmittedPlatform("gitlab");
+    return result;
+  }
+
+  async function handleAsanaSubmit(
+    ctx: Awaited<ReturnType<typeof buildCtxForSubmit>>["ctx"],
+    captureFiles: CaptureFiles,
+  ): Promise<NormalizedSubmitResult> {
+    if (!issue) throw new Error(t("create.requiredMissing"));
+    if (!asanaAccount) {
+      throw new Error(t("platform.notConnected.title", { platform: t("platform.tab.asana") }));
+    }
+    if (!asanaFields.workspaceGid) throw new Error(t("create.requiredMissing"));
+
+    const asanaInline = await resolveInlineImagesForSections(ctx.sections, sectionConfig);
+    const result = await submitToAsana({
+      ctx,
+      images: captureFiles.images,
+      video: captureFiles.video,
+      logs: captureFiles.logs,
+      inlineImages: asanaInline,
+      workspaceGid: asanaFields.workspaceGid,
+      projectGid: asanaFields.projectGid,
+      assigneeGid: asanaFields.assigneeGid,
+    });
+    markSubmitted(issue.id, {
+      platform: "asana",
+      key: result.key,
+      url: result.url,
+      asanaTaskGid: result.key,
+    });
+    if (useEditorStore.getState().currentIssueId === issue.id) {
+      const tabId = useEditorStore.getState().target?.tabId;
+      if (tabId != null) void clearPicker(tabId);
+      useEditorStore.getState().reset();
+    }
+    useSettingsStore.getState().setLastSubmitFields("asana", {
+      workspaceGid: asanaFields.workspaceGid,
+      workspaceName: asanaFields.workspaceName,
+      projectGid: asanaFields.projectGid,
+      projectName: asanaFields.projectName,
+      assigneeGid: asanaFields.assigneeGid,
+      assigneeName: asanaFields.assigneeName,
+    });
+    useSettingsStore.getState().setLastSubmittedPlatform("asana");
+    return result;
+  }
+
   async function handleSubmit(submitPlatform: PlatformId): Promise<NormalizedSubmitResult> {
     const { ctx, captureFiles } = await buildCtxForSubmit();
     let result: NormalizedSubmitResult;
     if (submitPlatform === "github") result = await handleGithubSubmit(ctx, captureFiles);
     else if (submitPlatform === "linear") result = await handleLinearSubmit(ctx, captureFiles);
     else if (submitPlatform === "notion") result = await handleNotionSubmit(ctx, captureFiles);
+    else if (submitPlatform === "gitlab") result = await handleGitlabSubmit(ctx, captureFiles);
+    else if (submitPlatform === "asana") result = await handleAsanaSubmit(ctx, captureFiles);
     else result = await handleJiraSubmit(ctx, captureFiles);
     if (issue) {
       const activeRefs = extractInlineRefs(
@@ -660,6 +768,10 @@ export function DraftDetailDialog({
         setLinearFields={setLinearFields}
         notionFields={notionFields}
         setNotionFields={setNotionFields}
+        gitlabFields={gitlabFields}
+        setGitlabFields={setGitlabFields}
+        asanaFields={asanaFields}
+        setAsanaFields={setAsanaFields}
         onNotionSchemaResolved={setNotionSchema}
         onSubmit={handleSubmit}
         onSuccess={(result) => {
@@ -718,7 +830,6 @@ function DraftDetailSections({
   onActionLogClick: () => void;
 }) {
   const t = useT();
-  const isFreeform = issue.captureMode === "freeform";
   const enabled = sectionConfig.filter((s) => s.enabled);
   const out: React.ReactNode[] = [];
   let mediaInserted = false;
@@ -756,8 +867,8 @@ function DraftDetailSections({
       </FieldSection>
     ) : null;
 
-  const showActionCard = isVideo && actionLogData !== null && actionLogData.captured > 0;
-  const showLogCards = (isVideo || isFreeform) && (
+  const showActionCard = supportsActionLog(issue.captureMode) && actionLogData !== null && actionLogData.captured > 0;
+  const showLogCards = supportsConsoleNetworkLog(issue.captureMode) && (
     (networkLogData !== null && networkLogData.captured > 0) ||
     (consoleLogData !== null && consoleLogData.captured > 0) ||
     showActionCard

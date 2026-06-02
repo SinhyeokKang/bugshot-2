@@ -95,6 +95,8 @@ export interface JiraCreateIssueResult {
 export interface JiraAttachmentInput {
   filename: string;
   dataUrl: string;
+  width?: number;
+  height?: number;
 }
 
 export interface JiraAttachmentResult {

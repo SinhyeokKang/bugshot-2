@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import {
   ArrowUpRight,
+  BookOpen,
   SquareMousePointer,
   Camera,
   CircleCheck,
@@ -29,7 +30,9 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { isCaptureEntryScreen } from "@/lib/capture-commands";
+import { USER_GUIDE_URLS } from "@/lib/external-links";
 import { useEditorStore } from "@/store/editor-store";
+import { useSettingsUiStore } from "@/store/settings-ui-store";
 import { useBoundTabId } from "@/sidepanel/hooks/useBoundTabId";
 import { useCommandShortcuts } from "@/sidepanel/hooks/useCommandShortcuts";
 import {
@@ -165,6 +168,7 @@ function ShortcutTooltip({
 function EmptyState({ onStartElement, onStartScreenshot, onStartVideo, onStartFreeform }: { onStartElement: () => void; onStartScreenshot: () => void; onStartVideo: () => void; onStartFreeform: () => void }) {
   const t = useT();
   const shortcuts = useCommandShortcuts();
+  const locale = useSettingsUiStore((s) => s.locale);
   return (
     <PageShell>
       <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 px-6 pb-5">
@@ -199,7 +203,14 @@ function EmptyState({ onStartElement, onStartScreenshot, onStartVideo, onStartFr
         </TooltipProvider>
       </div>
       <PageFooter>
-        <div className="flex justify-end">
+        <div className="flex items-center justify-between">
+          <Button
+            variant="outline"
+            onClick={() => chrome.tabs.create({ url: USER_GUIDE_URLS[locale], active: true })}
+          >
+            <BookOpen />
+            {t("settings.guide")}
+          </Button>
           <Button variant="outline" onClick={onStartFreeform}>
             <SquarePen />
             {t("issue.startDraft")}

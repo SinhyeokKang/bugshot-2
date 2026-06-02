@@ -488,7 +488,7 @@ describe("buildNotionIssueBody — freeform", () => {
 });
 
 describe("buildNotionIssueBody — 로그 요약", () => {
-  it("네트워크/콘솔 로그 요약은 code block", () => {
+  it("네트워크/콘솔 로그 요약은 단일 code block (카운트만, 에러 상세 없음)", () => {
     const out = buildNotionIssueBody({
       ctx: makeCtx({
         networkLogSummary: {
@@ -511,12 +511,14 @@ describe("buildNotionIssueBody — 로그 요약", () => {
       }),
     });
     const codeBlocks = out.blocks.filter((b) => b.type === "code");
-    expect(codeBlocks.length).toBeGreaterThanOrEqual(2);
+    expect(codeBlocks.length).toBe(1);
     const allCodeText = codeBlocks
       .map((b) => ("text" in b ? b.text : ""))
       .join("\n");
-    expect(allCodeText).toContain("GET /api/x → 500");
-    expect(allCodeText).toContain("TypeError");
+    expect(allCodeText).toContain("logSummary.network.line");
+    expect(allCodeText).toContain("logSummary.console.line");
+    expect(allCodeText).not.toContain("GET /api/x → 500");
+    expect(allCodeText).not.toContain("TypeError");
   });
 });
 
@@ -647,5 +649,20 @@ describe("buildNotionIssueBody — custom environment rows", () => {
       .map((b) => ("text" in b ? b.text : ""));
     expect(texts).not.toContain("ignored");
     expect(texts).toContain("OS: macOS 15");
+  });
+});
+
+describe("buildNotionIssueBody — 푸터는 body가 아니라 createPage가 담당", () => {
+  it("body blocks에 'Reported via BugShot' 푸터가 없음 (첨부 섹션 뒤에 들어가야 하므로)", () => {
+    const out = buildNotionIssueBody({ ctx: makeCtx() });
+    const hasFooterText = out.blocks.some((b) => {
+      if (b.type !== "rich_paragraph") return false;
+      return (b as any).richText.some(
+        (r: any) => r.text?.content === "BugShot" || r.text?.content === "Reported via ",
+      );
+    });
+    expect(hasFooterText).toBe(false);
+    // 마지막에 단독 divider도 없음 (footer 짝꿍이라 createPage가 함께 emit).
+    expect(out.blocks[out.blocks.length - 1].type).not.toBe("divider");
   });
 });

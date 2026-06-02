@@ -211,42 +211,22 @@ function emitAttachments(
 
 function emitLogSummary(lines: string[], ctx: MarkdownContext): void {
   const { networkLogSummary: net, consoleLogSummary: con } = ctx;
+  if (!net && !con) return;
+  lines.push(`## ${t("logSummary.title")}`, "");
   if (net) {
-    lines.push(`## ${t("logSummary.network.title")}`, "");
-    if (net.errors.length > 0) {
-      lines.push(
-        t("logSummary.network.captured", {
-          n: net.captured,
-          errors: net.errors.length,
-        }),
-      );
-      for (const e of net.errors) {
-        lines.push(`- ${e.method} ${e.path} → ${e.status} ${e.statusText}`);
-      }
-    } else {
-      lines.push(t("logSummary.network.capturedNoError", { n: net.captured }));
-    }
-    lines.push("");
+    lines.push(
+      net.errors.length > 0
+        ? `- ${t("logSummary.network.line", { n: net.captured, errors: net.errors.length })}`
+        : `- ${t("logSummary.network.lineNoError", { n: net.captured })}`,
+    );
   }
   if (con) {
-    lines.push(`## ${t("logSummary.console.title")}`, "");
-    if (con.errorCount > 0 || con.warnCount > 0) {
-      lines.push(
-        t("logSummary.console.captured", {
-          n: con.captured,
-          errors: con.errorCount,
-          warns: con.warnCount,
-        }),
-      );
-      for (const msg of con.topErrors) {
-        lines.push(`- ${msg}`);
-      }
-    } else {
-      lines.push(t("logSummary.console.capturedNoError", { n: con.captured }));
-    }
-    lines.push("");
+    lines.push(
+      con.errorCount > 0 || con.warnCount > 0
+        ? `- ${t("logSummary.console.line", { n: con.captured, errors: con.errorCount, warns: con.warnCount })}`
+        : `- ${t("logSummary.console.lineNoError", { n: con.captured })}`,
+    );
   }
-  if (net || con) {
-    lines.push(`_${t("logSummary.logs.detail")}_`, "");
-  }
+  lines.push("");
+  lines.push(`_${t("logSummary.logs.detail")}_`, "");
 }

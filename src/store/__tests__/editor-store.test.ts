@@ -147,6 +147,33 @@ describe("startCapturing — 백그라운드 로그 보존", () => {
   });
 });
 
+describe("onAreaCaptured — screenshot 첨부 토글 기본 off", () => {
+  beforeEach(() => {
+    useEditorStore.setState(useEditorStore.getInitialState(), true);
+  });
+
+  it("attach 토글을 강제로 켜지 않는다 (신규 진입 시 모두 false)", () => {
+    useEditorStore.getState().startCapturing(target);
+    useEditorStore.getState().onAreaCaptured("data:,", { width: 800, height: 600 });
+
+    const s = useEditorStore.getState();
+    expect(s.phase).toBe("drafting");
+    expect(s.networkLogAttach).toBe(false);
+    expect(s.consoleLogAttach).toBe(false);
+    expect(s.actionLogAttach).toBe(false);
+  });
+
+  it("startCapturing이 승계한 직전 토글 상태를 유지한다", () => {
+    useEditorStore.setState({ networkLogAttach: true, consoleLogAttach: true });
+    useEditorStore.getState().startCapturing(target);
+    useEditorStore.getState().onAreaCaptured("data:,", { width: 800, height: 600 });
+
+    const s = useEditorStore.getState();
+    expect(s.networkLogAttach).toBe(true);
+    expect(s.consoleLogAttach).toBe(true);
+  });
+});
+
 describe("onRecordingComplete — idle 직접 호출 (30s Replay)", () => {
   beforeEach(() => {
     useEditorStore.setState(useEditorStore.getInitialState(), true);

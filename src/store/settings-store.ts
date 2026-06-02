@@ -10,14 +10,17 @@ import type {
 import type { GithubAccount } from "@/types/github";
 import type { LinearAccount } from "@/types/linear";
 import type { NotionAccount } from "@/types/notion";
+import type { GitlabAccount } from "@/types/gitlab";
+import type { AsanaAccount } from "@/types/asana";
 import { SETTINGS_STORAGE_KEY } from "@/lib/settings-storage";
 import { chromeLocalStorage } from "./chrome-storage";
 
 export type { JiraAccount } from "@/types/platform";
 
 // v6: notion 플랫폼 추가 (accounts.notion / lastSubmitFields.notion / lastSubmittedPlatform="notion").
-// 새 필드는 모두 optional이라 v5→v6 데이터 마이그레이션은 불필요 — 버전 마커만 bump.
-export const SETTINGS_STORE_VERSION = 6;
+// v7: gitlab 플랫폼 추가. 새 필드는 모두 optional이라 v6→v7 데이터 마이그레이션 불필요 — 버전 마커만 bump.
+// v8: asana 플랫폼 추가. 동일하게 새 필드 모두 optional이라 버전 마커만 bump.
+export const SETTINGS_STORE_VERSION = 8;
 
 interface SettingsState {
   accounts: Accounts;
@@ -38,6 +41,12 @@ interface SettingsState {
   ) => void;
   updateNotionAccount: (
     patch: Partial<Omit<NotionAccount, "platform" | "connectedAt">>,
+  ) => void;
+  updateGitlabAccount: (
+    patch: Partial<Omit<GitlabAccount, "platform" | "connectedAt">>,
+  ) => void;
+  updateAsanaAccount: (
+    patch: Partial<Omit<AsanaAccount, "platform" | "connectedAt">>,
   ) => void;
   setLastSubmitFields: <P extends PlatformId>(
     platform: P,
@@ -149,9 +158,12 @@ export const useSettingsStore = create<SettingsState>()(
         set((s) => {
           const next = { ...s.accounts };
           delete next[platform];
-          return { accounts: next };
+          // 연동 해제 시 해당 플랫폼의 prefill(issueType·assignee 등)도 함께 정리.
+          const nextFields = { ...s.lastSubmitFields };
+          delete nextFields[platform];
+          return { accounts: next, lastSubmitFields: nextFields };
         }),
-      removeAllAccounts: () => set({ accounts: {} }),
+      removeAllAccounts: () => set({ accounts: {}, lastSubmitFields: {} }),
       updateJiraAccount: (patch) =>
         set((s) => {
           const cur = s.accounts.jira;
@@ -176,6 +188,20 @@ export const useSettingsStore = create<SettingsState>()(
           if (!cur) return s;
           return { accounts: { ...s.accounts, notion: { ...cur, ...patch } } };
         }),
+      updateGitlabAccount: (patch) =>
+        set((s) => ({
+          accounts: {
+            ...s.accounts,
+            gitlab: { ...s.accounts.gitlab, ...patch } as GitlabAccount,
+          },
+        })),
+      updateAsanaAccount: (patch) =>
+        set((s) => ({
+          accounts: {
+            ...s.accounts,
+            asana: { ...s.accounts.asana, ...patch } as AsanaAccount,
+          },
+        })),
       setLastSubmitFields: (platform, fields) =>
         set((s) => ({
           lastSubmitFields: { ...s.lastSubmitFields, [platform]: fields },
@@ -242,7 +268,9 @@ const PLATFORM_FALLBACK_ORDER: PlatformId[] = [
   "jira",
   "github",
   "linear",
+  "gitlab",
   "notion",
+  "asana",
 ];
 
 // 다이얼로그가 열릴 때 어느 플랫폼 탭을 default로 보여줄지 결정.

@@ -1,5 +1,7 @@
 import {
+  SiAsana,
   SiGithub,
+  SiGitlab,
   SiJirasoftware,
   SiLinear,
   SiNotion,
@@ -30,6 +32,22 @@ export function PlatformChip({ platform }: { platform: PlatformId }) {
       <span className="inline-flex shrink-0 items-center gap-1">
         <SiNotion className="h-3 w-3 dark:invert" color="default" />
         {t("platform.tab.notion")}
+      </span>
+    );
+  }
+  if (platform === "gitlab") {
+    return (
+      <span className="inline-flex shrink-0 items-center gap-1">
+        <SiGitlab className="h-3 w-3" color="default" />
+        {t("platform.tab.gitlab")}
+      </span>
+    );
+  }
+  if (platform === "asana") {
+    return (
+      <span className="inline-flex shrink-0 items-center gap-1">
+        <SiAsana className="h-3 w-3" color="default" />
+        {t("platform.tab.asana")}
       </span>
     );
   }

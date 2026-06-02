@@ -216,8 +216,9 @@ describe("buildLinearIssueBody — freeform", () => {
         },
       }),
     });
-    expect(out.body).toContain("logSummary.network.title");
-    expect(out.body).toContain("PUT /api/update → 403 Forbidden");
+    expect(out.body).toContain("logSummary.title");
+    expect(out.body).toContain("logSummary.network.line");
+    expect(out.body).not.toContain("PUT /api/update → 403 Forbidden");
   });
 });
 
@@ -267,8 +268,9 @@ describe("buildLinearIssueBody — 구조", () => {
         },
       }),
     });
-    expect(out.body).toContain("logSummary.network.title");
-    expect(out.body).toContain("GET /api/x → 500 Internal Server Error");
+    expect(out.body).toContain("logSummary.title");
+    expect(out.body).toContain("logSummary.network.line");
+    expect(out.body).not.toContain("GET /api/x → 500 Internal Server Error");
   });
 
   it("콘솔 로그 요약 포함", () => {
@@ -282,8 +284,9 @@ describe("buildLinearIssueBody — 구조", () => {
         },
       }),
     });
-    expect(out.body).toContain("logSummary.console.title");
-    expect(out.body).toContain("TypeError: Cannot read property 'x' of null");
+    expect(out.body).toContain("logSummary.title");
+    expect(out.body).toContain("logSummary.console.line");
+    expect(out.body).not.toContain("TypeError: Cannot read property 'x' of null");
   });
 });
 

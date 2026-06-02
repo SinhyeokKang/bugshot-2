@@ -1,5 +1,5 @@
 ---
-description: 원격 푸시 전 상태 점검 + CLAUDE.md/DIRECTORY.md/ARCHITECTURE.md/README.md/PERMISSION.md/docs/privacy.md 신선도 확인 + 푸시
+description: 원격 푸시 전 상태 점검 + CLAUDE.md/DIRECTORY.md/ARCHITECTURE.md/README.md/PERMISSION.md/docs/privacy.md/guide/ 신선도 확인 + 푸시
 ---
 
 원격(`origin`)에 현재 브랜치를 안전하게 푸시한다. 푸시 전에 저장소 문서의 신선도를 점검하고 필요시 업데이트까지 커밋한다.
@@ -19,7 +19,11 @@ description: 원격 푸시 전 상태 점검 + CLAUDE.md/DIRECTORY.md/ARCHITECTU
 
 3. **푸시될 커밋이 없으면** "푸시할 커밋 없음" 알리고 종료.
 
-4. **문서 신선도 검사.** 푸시될 커밋들의 diff(`git diff @{u}..HEAD`)를 훑어 아래 트리거 중 하나라도 해당하면 **CLAUDE.md + README.md 업데이트 후보**:
+4. **문서 신선도 검사 (트라이아지 → 정밀).** 검사 대상이 6개라 무겁게 느껴지지만, 본질은 **diff를 한 번 읽고 트리거에 걸리는 문서만 골라내는 것**이다. 문서 수만큼 비용이 늘지 않는다.
+
+   **4a. 트라이아지 (1회, 가볍게).** 푸시될 커밋들의 diff(`git diff @{u}..HEAD`)를 **한 번** 훑어, 아래 트리거에 걸리는 문서를 **후보 목록**으로 매핑한다. 이 단계에서는 문서를 읽지 않는다 — diff와 트리거만 본다.
+   - **후보가 0개면 검사 종료하고 바로 5단계(푸시)로 간다.** 대부분의 push가 여기서 통과한다.
+   - 후보가 1개 이상이면 4b로 진행하되, **걸린 문서만** 다룬다.
 
    트리거:
    - 새 디렉터리/파일 추가·삭제 (특히 `src/` 하위 구조 변화)
@@ -29,25 +33,31 @@ description: 원격 푸시 전 상태 점검 + CLAUDE.md/DIRECTORY.md/ARCHITECTU
    - 새 하위 시스템 도입 (예: 새 스토어, 새 훅 카테고리)
    - 새로운 컨벤션·게이트웨이·주의사항이 커밋 메시지에서 드러남
    - 기능 추가/삭제로 README의 사용법·기능 설명이 어긋남
+   - 사용자 노출 UX·기능 추가/변경 → **guide/ 업데이트 후보** (`guide/ko`·`guide/en` 양쪽 대조, 커밋 prefix `docs(guide): ...`). **guide/ 작성·수정 전 반드시 `guide/AUTHORING.md`를 먼저 읽고 그 규칙(IA·톤·UI 라벨·footer·검증)대로 한다.**
+   - 가이드 IA·운영 방식·톤·UI 라벨 규칙·사실 스냅샷(특히 플랫폼 표)·지원 플랫폼 등 **가이드 작성 기준 자체가 바뀜** → **guide/AUTHORING.md 업데이트 후보**
    - 워크플로우/스킬 라인업 변경
    - `manifest.config.ts`의 permissions·host_permissions·optional_host_permissions 변경, 새 플랫폼/연동 추가, 새 데이터 수집·외부 전송 메커니즘 도입 → **docs/privacy.md 업데이트 후보**
    - **⚠️ privacy 전용 트리거 (manifest diff와 무관 — 과거 심사 탈락 원인):** 새 기능이 *기존* 권한(광역 `https://*/*`·`<all_urls>`·`activeTab`·`tabCapture`·`scripting` 등)을 **새 목적으로 사용**하거나, 새 캡처·수집·저장·전송 *동작*을 추가하면 manifest 텍스트가 그대로여도 privacy 갱신 후보다. **manifest diff가 0이라는 이유로 privacy 검사를 건너뛰지 말 것.** 판단은 권한 문자열이 아니라 **실제 코드 동작**에 건다: diff에서 `chrome.permissions.request` / `captureVisibleTab` / `tabCapture` / `chrome.scripting` / 신규 `fetch`·외부 엔드포인트 / `chrome.storage`·IndexedDB 신규 write 호출이 보이면 무조건 docs/privacy.md를 대조한다. (예: 30s Replay가 기존 optional 권한으로 `captureVisibleTab` 상시 캡처를 추가했으나 manifest는 불변이라 트리거를 빠져나간 사례.)
 
-   검사 대상 6개:
+   **4b. 후보 정밀 검사.** 트라이아지에서 걸린 문서만 아래 관점으로 실제 읽고 대조한다. 안 걸린 문서는 열지 않는다.
+
+   검사 대상 8개:
    - **CLAUDE.md** — 코드 컨벤션, 게이트웨이, 워크플로우 등 해당 섹션이 최신인지 확인
    - **DIRECTORY.md** — 디렉터리 구조·파일별 역할이 현재 코드베이스와 일치하는지 확인
    - **ARCHITECTURE.md** — Side Panel 탭 스코프, 세션 영속화, 인증 플로우, 어댑터 패턴, 토큰 체인, CSSOM 캐시, DOM lazy load, 이슈 섹션 구성, 마이그레이션 등 설계 상세가 최신인지 확인
    - **README.md** — 기능 목록, 설치/사용법, 스크린샷 설명 등이 현재 코드와 맞는지 확인
    - **PERMISSION.md** — Chrome 권한 전체 레퍼런스(activeTab 라이프사이클, OAuth 토큰 흐름, optional permission 등)가 현재 manifest·코드와 일치하는지 확인. 권한 추가/삭제, 사용처 변경, 새 API 호출 추가 시 갱신
    - **docs/privacy.md** — 권한·호스트 권한·수집 정보·외부 전송 대상·저장 방식이 현재 매니페스트·**코드 동작**과 일치하는지 확인. 매니페스트뿐 아니라 캡처/수집/전송 *동작*까지 본다. 내용을 갱신하면 문서 상단의 **시행일도 오늘 날짜로 함께 갱신**한다.
+   - **guide/** — 사용자 노출 UX·기능 변경 시 `guide/ko`·`guide/en`(GitBook 사용 가이드, ko/en 양쪽 site)이 현재 동작과 맞는지 대조. **작성·수정에 들어가기 전 `guide/AUTHORING.md`를 먼저 읽어 IA·톤·UI 라벨·footer·검증 규칙을 그대로 따른다** (가이드 작업의 단일 출처). **변경 규모가 크면(여러 페이지·IA 변경) 여기서 직접 쓰지 말고 `/guide` 스킬로 분리**하고, 작은 문구 수정만 인라인 처리. 커밋 prefix `docs(guide): ...`
+   - **guide/AUTHORING.md** — 가이드 작성 매뉴얼 자체의 신선도. 가이드 운영 규칙(IA/파일 트리·톤·사실 대조 소스·현재 사실 스냅샷·플랫폼 표·footer·검증 체크리스트)이 코드/구조 변경으로 어긋났는지 확인. 새 플랫폼 연동·단축키 변경·로그 정책 변경·본문 섹션 변경·새 페이지 추가 등이 diff에 보이면 AUTHORING.md의 해당 스냅샷·표를 갱신. 커밋 prefix `docs(guide): ...`
 
    해당되는 변경을 발견하면:
    - 각 문서를 실제로 읽고 대응 섹션이 최신 상태인지 비교
-   - 업데이트가 필요하면 **사용자에게 확인 후** Edit으로 반영
+   - 업데이트가 필요하면 확인 없이 바로 Edit으로 반영
    - 문서별로 별도 커밋 (예: `docs(CLAUDE): update tab scope session description`, `docs(README): add new feature description`, `docs(privacy): add new platform data disclosure`)
-   - 변경 불필요하거나 사용자가 스킵을 원하면 건너뜀
+   - 변경 불필요하면 건너뜀
 
-5. **푸시 전 최종 확인.** 사용자에게 "푸시해도 되냐" 묻고 OK면:
+5. **푸시 실행.** 확인 없이 바로 푸시한다:
    - `git push` (upstream 없으면 `git push -u origin <branch>`)
    - 출력에서 결과 줄만 발췌해 보고
 
@@ -55,5 +65,5 @@ description: 원격 푸시 전 상태 점검 + CLAUDE.md/DIRECTORY.md/ARCHITECTU
 
 - `git push --force` / `--force-with-lease`는 **사용자가 명시 요청**한 경우에만. main/master에는 force push 금지 (요청받으면 경고 후 재확인).
 - `--no-verify`로 hook 스킵 금지. hook 실패하면 원인 수정이 우선.
-- 사용자가 확인해 주기 전까지 새 커밋을 만들지 않는다 (문서 업데이트 커밋 포함).
+- `.env`, 크레덴셜 파일 등은 staged여도 경고하고 멈춤.
 - `.env`, 크레덴셜 파일 등은 staged여도 경고하고 멈춤.

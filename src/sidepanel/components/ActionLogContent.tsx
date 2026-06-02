@@ -8,6 +8,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { findActiveIndex } from "@/log-viewer/timeline";
 import { formatRelativeTime, syncRowClass } from "@/sidepanel/lib/logRow";
+import { useScrollToEntry } from "@/sidepanel/lib/useScrollToEntry";
 import { LogSeekChip } from "./LogSeekChip";
 
 type ActionFilter = "all" | ActionEntryKind;
@@ -22,6 +23,8 @@ interface ActionLogContentProps {
   syncBaseMs?: number;
   onSeek?: (absTs: number) => void;
   activeTs?: number;
+  scrollToEntryId?: string | null;
+  onScrollComplete?: () => void;
 }
 
 // navigation만 콘솔 info-틴트 슬롯 재사용, click/input은 중립.
@@ -30,7 +33,7 @@ function kindColor(kind: ActionEntryKind): string {
 }
 
 function kindBgColor(kind: ActionEntryKind): string {
-  return kind === "navigation" ? "bg-blue-50 dark:bg-blue-950/30" : "";
+  return kind === "navigation" ? "bg-blue-100 dark:bg-blue-950/50" : "";
 }
 
 function KindIcon({ kind }: { kind: ActionEntryKind }) {
@@ -89,7 +92,7 @@ function searchText(e: ActionEntry): string {
   return [e.target, e.fieldLabel, e.value, e.toUrl].filter(Boolean).join(" ").toLowerCase();
 }
 
-export function ActionLogContent({ entries, startedAt, flush, syncBaseMs, onSeek, activeTs }: ActionLogContentProps) {
+export function ActionLogContent({ entries, startedAt, flush, syncBaseMs, onSeek, activeTs, scrollToEntryId, onScrollComplete }: ActionLogContentProps) {
   const t = useT();
   const [filter, setFilter] = useState<ActionFilter>("all");
   const [query, setQuery] = useState("");
@@ -142,6 +145,14 @@ export function ActionLogContent({ entries, startedAt, flush, syncBaseMs, onSeek
     const vp = getListViewport();
     if (vp) vp.scrollTop = vp.scrollHeight;
   }, [filteredEntries.length, getListViewport]);
+
+  useScrollToEntry({
+    scrollToEntryId,
+    getListViewport,
+    filteredItems: filteredEntries,
+    resetFilters: useCallback(() => { setFilter("all"); setQuery(""); }, []),
+    onScrollComplete,
+  });
 
   return (
     <div className={`flex min-h-0 flex-1 flex-col overflow-hidden${flush ? "" : " rounded-lg border"}`}>
@@ -212,6 +223,7 @@ function ActionRow({ entry, startedAt, syncBaseMs, onSeek, isActive }: {
   const base = syncBaseMs ?? startedAt;
   return (
     <div
+      data-entry-id={entry.id}
       className={syncRowClass(!!onSeek, !!isActive, kindBgColor(entry.kind))}
       aria-current={isActive ? "true" : undefined}
     >
@@ -220,7 +232,7 @@ function ActionRow({ entry, startedAt, syncBaseMs, onSeek, isActive }: {
           <LogSeekChip ts={entry.timestamp} label={formatRelativeTime(entry.timestamp, base)} onSeek={onSeek} />
         )}
         <KindIcon kind={entry.kind} />
-        <span className={`min-w-0 flex-1 truncate ${kindColor(entry.kind)}`}>
+        <span className={`min-w-0 flex-1 break-all ${kindColor(entry.kind)}`}>
           {entry.kind === "click" && t("actionLog.verb.click", { target: clickTarget(t, entry) })}
           {entry.kind === "input" &&
             t("actionLog.verb.input", {

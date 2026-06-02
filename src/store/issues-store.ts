@@ -187,6 +187,12 @@ export interface IssueRecord {
   notionDatabaseId?: string;
   notionDatabaseTitle?: string;
   notionStatusOption?: string;
+  // GitLab 전용 — project id로 경로 구성, iid로 표시·조회.
+  gitlabProjectId?: number;
+  gitlabIssueIid?: number;
+  gitlabLabels?: string[];
+  // Asana 전용 — task gid로 조회.
+  asanaTaskGid?: string;
 }
 
 // v5: notion 플랫폼 추가 — IssueRecord에 notionPageId/notionDatabaseId/notionDatabaseTitle/notionStatusOption optional 필드.

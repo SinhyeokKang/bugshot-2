@@ -2,6 +2,8 @@ import { buildAiMetaAttachment } from "./buildAiMetaAttachment";
 import { buildNotionIssueBody } from "./buildNotionIssueBody";
 import type { MarkdownContext } from "./buildIssueMarkdown";
 import { type InlineImageInput } from "./resolveInlineImages";
+import { zipLogsHtml } from "./zipLogsHtml";
+import { guessUploadMime } from "./uploadMime";
 import { sendBg } from "@/types/messages";
 import type {
   NotionCreatePageResult,
@@ -27,19 +29,6 @@ export interface NotionSubmitInput {
   selectValues: NotionSelectFieldValue[];
 }
 
-function guessMime(filename: string): string {
-  if (filename.endsWith(".webp")) return "image/webp";
-  if (filename.endsWith(".webm")) return "video/webm";
-  if (filename.endsWith(".mp4")) return "video/mp4";
-  if (filename.endsWith(".png")) return "image/png";
-  if (filename.endsWith(".jpg") || filename.endsWith(".jpeg")) return "image/jpeg";
-  if (filename.endsWith(".html")) return "text/html";
-  if (filename.endsWith(".md")) return "text/markdown";
-  if (filename.endsWith(".har")) return "application/json";
-  if (filename.endsWith(".json")) return "application/json";
-  return "application/octet-stream";
-}
-
 export async function submitToNotion(
   input: NotionSubmitInput,
 ): Promise<NormalizedSubmitResult> {
@@ -57,27 +46,43 @@ export async function submitToNotion(
     inlineUploaded.push({ refId: img.refId, fileUploadId: res.fileUploadId });
   }
 
-  // 2. blocks 빌드
+  // 2. blocks 빌드 — logs.html은 Notion이 text/html을 403으로 거부해서 .zip으로 래핑.
+  const mappedLogs = input.logs
+    ? await Promise.all(
+        input.logs.map(async (f) => {
+          if (guessUploadMime(f.filename) === "text/html") {
+            const z = await zipLogsHtml(f.filename, f.dataUrl);
+            return {
+              filename: z.filename,
+              contentType: z.contentType,
+              dataUrl: z.dataUrl,
+              category: "log" as const,
+            };
+          }
+          return {
+            filename: f.filename,
+            contentType: guessUploadMime(f.filename),
+            dataUrl: f.dataUrl,
+            category: "log" as const,
+          };
+        }),
+      )
+    : undefined;
   const { blocks, attachments } = buildNotionIssueBody({
     ctx: input.ctx,
     images: input.images?.map((f) => ({
       filename: f.filename,
-      contentType: guessMime(f.filename),
+      contentType: guessUploadMime(f.filename),
       dataUrl: f.dataUrl,
     })),
     video: input.video
       ? {
           filename: input.video.filename,
-          contentType: guessMime(input.video.filename),
+          contentType: guessUploadMime(input.video.filename),
           dataUrl: input.video.dataUrl,
         }
       : undefined,
-    logs: input.logs?.map((f) => ({
-      filename: f.filename,
-      contentType: guessMime(f.filename),
-      dataUrl: f.dataUrl,
-      category: "log" as const,
-    })),
+    logs: mappedLogs,
     inlineImageRefIds: inlineUploaded.map((iu) => iu.refId),
   });
 
@@ -98,7 +103,7 @@ export async function submitToNotion(
         category: a.category,
       });
     } catch (err) {
-      // 로그 첨부 실패(대용량 logs.html 등)는 격리 — 누락 placeholder 블록은 createPage에서 자연 스킵.
+      // 로그 첨부 실패는 격리 — 누락 placeholder 블록은 createPage에서 자연 스킵.
       // image/video는 본문 핵심이라 strict 유지(전체 실패).
       if (a.category === "log") continue;
       throw err;

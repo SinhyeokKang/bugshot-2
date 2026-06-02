@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { Loader2 } from "lucide-react";
 import {
+  SiAsana,
   SiGithub,
+  SiGitlab,
   SiJirasoftware,
   SiLinear,
   SiNotion,
@@ -39,6 +41,14 @@ import {
   NotionIssueFields,
   type NotionIssueFieldsValue,
 } from "./notionFields/NotionIssueFields";
+import {
+  GitlabIssueFields,
+  type GitlabIssueFieldsValue,
+} from "./gitlabFields/GitlabIssueFields";
+import {
+  AsanaIssueFields,
+  type AsanaIssueFieldsValue,
+} from "./asanaFields/AsanaIssueFields";
 import { JiraIssueFields } from "./jiraFields/JiraIssueFields";
 
 type SubmitState =
@@ -60,10 +70,23 @@ export interface SubmitFieldsDialogProps {
   setLinearFields: (patch: Partial<LinearIssueFieldsValue>) => void;
   notionFields: NotionIssueFieldsValue;
   setNotionFields: (patch: Partial<NotionIssueFieldsValue>) => void;
+  gitlabFields: GitlabIssueFieldsValue;
+  setGitlabFields: (patch: Partial<GitlabIssueFieldsValue>) => void;
+  asanaFields: AsanaIssueFieldsValue;
+  setAsanaFields: (patch: Partial<AsanaIssueFieldsValue>) => void;
   onNotionSchemaResolved: (schema: NotionDatabaseSchema | null) => void;
   onSubmit: (platform: PlatformId) => Promise<NormalizedSubmitResult>;
   onSuccess?: (result: NormalizedSubmitResult) => void;
 }
+
+// Tailwind JIT 정적 추출을 위해 full class 문자열을 매핑.
+const TABS_GRID_COLS: Record<number, string> = {
+  2: "grid-cols-2",
+  3: "grid-cols-3",
+  4: "grid-cols-4",
+  5: "grid-cols-5",
+  6: "grid-cols-6",
+};
 
 export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
   const {
@@ -81,6 +104,10 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
     setLinearFields,
     notionFields,
     setNotionFields,
+    gitlabFields,
+    setGitlabFields,
+    asanaFields,
+    setAsanaFields,
     onNotionSchemaResolved,
     onSubmit,
     onSuccess,
@@ -90,6 +117,8 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
   const ghAccount = useSettingsStore((s) => s.accounts.github);
   const linearAccount = useSettingsStore((s) => s.accounts.linear);
   const notionAccount = useSettingsStore((s) => s.accounts.notion);
+  const gitlabAccount = useSettingsStore((s) => s.accounts.gitlab);
+  const asanaAccount = useSettingsStore((s) => s.accounts.asana);
   const [submit, setSubmit] = useState<SubmitState>({ status: "idle" });
 
   useEffect(() => {
@@ -100,6 +129,8 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
   const ghConfigured = !!ghAccount;
   const linearConfigured = isLinearAccountComplete(linearAccount);
   const notionConfigured = isNotionAccountComplete(notionAccount);
+  const gitlabConfigured = !!gitlabAccount;
+  const asanaConfigured = !!asanaAccount;
   const platformConfigured =
     platform === "jira"
       ? jiraConfigured
@@ -107,7 +138,11 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
         ? ghConfigured
         : platform === "linear"
           ? linearConfigured
-          : notionConfigured;
+          : platform === "gitlab"
+            ? gitlabConfigured
+            : platform === "asana"
+              ? asanaConfigured
+              : notionConfigured;
 
   const canSubmit =
     submit.status !== "submitting" &&
@@ -118,7 +153,11 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
         ? !!ghFields.owner && !!ghFields.repo
         : platform === "linear"
           ? !!linearFields.teamId
-          : !!notionFields.databaseId);
+          : platform === "gitlab"
+            ? !!gitlabFields.projectId
+            : platform === "asana"
+              ? !!asanaFields.workspaceGid
+              : !!notionFields.databaseId);
 
   async function handleSubmit() {
     if (!canSubmit) return;
@@ -152,11 +191,7 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
           <Tabs value={platform} onValueChange={(v) => setPlatform(v as PlatformId)}>
             <TabsList className={cn(
               "grid h-9 w-full",
-              availablePlatforms.length === 4
-                ? "grid-cols-4"
-                : availablePlatforms.length === 3
-                  ? "grid-cols-3"
-                  : "grid-cols-2",
+              TABS_GRID_COLS[availablePlatforms.length] ?? "grid-cols-2",
             )}>
               {availablePlatforms.includes("jira") && (
                 <TabsTrigger value="jira" className="gap-1.5">
@@ -182,6 +217,18 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
                   {t("platform.tab.notion")}
                 </TabsTrigger>
               )}
+              {availablePlatforms.includes("gitlab") && (
+                <TabsTrigger value="gitlab" className="gap-1.5">
+                  <SiGitlab className="h-3.5 w-3.5" color="default" />
+                  {t("platform.tab.gitlab")}
+                </TabsTrigger>
+              )}
+              {availablePlatforms.includes("asana") && (
+                <TabsTrigger value="asana" className="gap-1.5">
+                  <SiAsana className="h-3.5 w-3.5" color="default" />
+                  {t("platform.tab.asana")}
+                </TabsTrigger>
+              )}
             </TabsList>
           </Tabs>
         ) : null}
@@ -197,6 +244,14 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
         ) : platform === "linear" ? (
           linearConfigured ? (
             <LinearIssueFields value={linearFields} onChange={setLinearFields} />
+          ) : null
+        ) : platform === "gitlab" ? (
+          gitlabConfigured ? (
+            <GitlabIssueFields value={gitlabFields} onChange={setGitlabFields} />
+          ) : null
+        ) : platform === "asana" ? (
+          asanaConfigured ? (
+            <AsanaIssueFields value={asanaFields} onChange={setAsanaFields} />
           ) : null
         ) : notionConfigured ? (
           <NotionIssueFields

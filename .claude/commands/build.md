@@ -6,11 +6,12 @@ description: pnpm build 실행 후 결과 요약
 
 ## 실행
 
-Bash 툴로 `pnpm build` 실행. 출력이 길 수 있으니 timeout은 300000ms 정도로 넉넉히.
+Bash 툴로 `pnpm build` 실행. 출력이 길 수 있으니 timeout은 300000ms 정도로 넉넉히. **`pnpm build`는 첫 단계로 `build:log-viewer`(→ `dist-log-viewer/index.html` 갱신)를 자동 실행**하므로 항상 두 산출물을 같이 본다 — 출력 파싱 시 `tail`로 마지막 몇 줄만 보면 log-viewer 단계가 잘려 오해할 수 있으니 `grep`으로 두 단계 라인을 모두 잡기.
 
 ## 보고 원칙
 
 - 성공 시: "빌드 성공" 한 줄 + 생성된 주요 산출물 경로 몇 줄 (`dist/` 하위) 또는 번들 크기 요약만.
+- **log-viewer 산출물(`dist-log-viewer/index.html`) 크기·시각도 한 줄 보고** — logs.html 첨부 갱신 여부 확인용.
 - **폰트 subset 로그 (`Pretendard-*.subset.woff2` 같은 줄 90개 이상)는 나열하지 말 것.** 요약만.
 - 실패 시: 에러 메시지와 파일 경로·라인 번호를 그대로 옮기고, 원인 추정/수정 제안을 짧게.
 - tsc 에러와 vite 에러를 구분해서 표시.

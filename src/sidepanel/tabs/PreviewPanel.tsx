@@ -30,6 +30,7 @@ import { buildIssueHtml, buildIssueMarkdown } from "@/sidepanel/lib/buildIssueMa
 import { filterEnvironmentRows, parseChromeVersion } from "@/sidepanel/lib/environmentRows";
 import { getOsInfo } from "@/sidepanel/lib/osInfo";
 import { buildNetworkLogSummary, buildConsoleLogSummary } from "@/sidepanel/lib/buildLogSummary";
+import { supportsConsoleNetworkLog, supportsActionLog } from "@/sidepanel/lib/captureLogSupport";
 import { resolveInlineImages } from "@/sidepanel/lib/resolveInlineImages";
 import { IssueCreateModal } from "./IssueCreateModal";
 
@@ -96,8 +97,8 @@ export function PreviewPanel() {
   const attachedNetwork = networkLogAttach && networkLog && networkLog.captured > 0 ? networkLog : null;
   const attachedConsole = consoleLogAttach && consoleLog && consoleLog.captured > 0 ? consoleLog : null;
   // action log는 video 모드 한정 첨부.
-  const attachedAction = isVideoMode && actionLogAttach && actionLog && actionLog.captured > 0 ? actionLog : null;
-  const showLogCards = (isVideoMode || isFreeformMode) && (attachedNetwork !== null || attachedConsole !== null || attachedAction !== null);
+  const attachedAction = supportsActionLog(captureMode) && actionLogAttach && actionLog && actionLog.captured > 0 ? actionLog : null;
+  const showLogCards = supportsConsoleNetworkLog(captureMode) && (attachedNetwork !== null || attachedConsole !== null || attachedAction !== null);
 
   const handleCopyMarkdown = async () => {
     const resolvedSections = { ...draft.sections };

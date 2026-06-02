@@ -51,6 +51,8 @@ https://github.com/*               — GitHub 파일 업로드 (page injection)
 https://uploads.github.com/*       — GitHub 파일 업로드 S3
 https://api.linear.app/*           — Linear GraphQL API + OAuth token
 https://api.notion.com/*           — Notion REST API + OAuth token
+https://gitlab.com/*               — GitLab REST API + OAuth token (gitlab.com 한정)
+https://app.asana.com/*            — Asana REST API + OAuth authorize (token 교환은 confidential이라 proxy 경유)
 ${VITE_OAUTH_PROXY_URL origin}/*   — OAuth proxy (빌드 타임 주입)
 ```
 
@@ -60,6 +62,8 @@ ${VITE_OAUTH_PROXY_URL origin}/*   — OAuth proxy (빌드 타임 주입)
 https://*/*
 http://*/*
 ```
+
+BYOK LLM 프로바이더 연결 + GitLab **self-managed 인스턴스**(gitlab.com 외 임의 호스트) 연결 시 `chrome.permissions.request()`로 런타임 획득. GitLab PAT 검증·업로드·이슈 생성은 이 권한 획득 이후 background fetch.
 
 사용처: 30s Replay 활성화, BYOK LLM 프로바이더 연결.
 
@@ -187,6 +191,7 @@ content script를 프로그래매틱으로 주입하는 데 사용. SW 하이버
 
 - MAIN world에서 `chrome.scripting.executeScript({ func })` 사용 시 함수는 직렬화·재평가됨 — **클로저 참조 불가**, 헬퍼는 함수 내부에 inline 정의 필수 (`github-upload.ts:pageBatchUploadFn` 참고)
 - 주입 차단 호스트: `chromewebstore.google.com` 전체, `chrome.google.com/webstore/*` (`url-support.ts:8-22`)
+- 정적 자동 주입 제외(`manifest.config.ts` `content_scripts[].exclude_matches`): `https://bugshot.gitbook.io/*` — 자사 가이드(GitBook)는 새 탭으로만 열리고, 페이지 로드 시 picker/recorder가 자동 주입되면 GitBook 자체 preload 경고가 확장 오류로 귀속되므로 제외. `*.gitbook.io` 전체가 아니라 자사 도메인만 제외(타 GitBook 사이트에서의 사용은 유지). 단 이는 *정적* 주입만 막으며, 사이드패널 바인딩 시 `useBackgroundRecorder` → `executeScript` 동적 주입은 그대로 동작(가이드 페이지 내 picker/캡처 정상)
 
 ---
 
@@ -337,6 +342,8 @@ idle 복귀 전 캡처를 시도하면 기존 3중 방어(진입 가드 / 런타
 | GitHub | `github.com/login/oauth/authorize` | `${PROXY}/github/token` | X | O | `${PROXY}/github/refresh` |
 | Linear | `linear.app/oauth/authorize` | `api.linear.app/oauth/token` | O (S256) | X | `api.linear.app/oauth/token` |
 | Notion | `api.notion.com/v1/oauth/authorize` | `${PROXY}/notion/token` | X | O | 없음 (토큰 무기한) |
+| GitLab | `gitlab.com/oauth/authorize` | `gitlab.com/oauth/token` | O (S256) | X | `gitlab.com/oauth/token` |
+| Asana | `app.asana.com/-/oauth_authorize` | `${PROXY}/asana/token` | X | O | `${PROXY}/asana/refresh` (refresh_token 비회전) |
 
 ### 토큰 저장
 
@@ -353,6 +360,8 @@ bg service worker에서 직접 읽기/쓰기:
 | GitHub | 60초 (`github-api.ts:109`) | O (`authedFetch`) | `refreshOnceWithLock` 훅 주입 |
 | Linear | 60초 (`linear-api.ts:52`) | O (`authedGraphQL`) | `refreshOnceWithLock` 훅 주입 |
 | Notion | — | 401 시 `OAuthError` throw → 재인증 안내 | — |
+| GitLab | 60초 (`gitlab-api.ts`) | O (`authedFetch`, OAuth 한정) | `refreshInFlight` 훅 주입 |
+| Asana | 60초 (`asana-api.ts:102`) | O (`authedFetch`, OAuth 한정) | `refreshInFlight` 훅 주입 |
 
 ### OAuth 에러 처리
 
@@ -369,8 +378,10 @@ bg service worker에서 직접 읽기/쓰기:
 | `isGithubOAuthConfigured()` | `github-oauth.ts:14` | `VITE_GITHUB_CLIENT_ID` + `VITE_OAUTH_PROXY_URL` |
 | `isLinearOAuthConfigured()` | `linear-oauth.ts:12` | `VITE_LINEAR_CLIENT_ID` |
 | `isNotionOAuthConfigured()` | `notion-oauth.ts:12` | `VITE_NOTION_CLIENT_ID` + `VITE_OAUTH_PROXY_URL` |
+| `isGitlabOAuthConfigured()` | `gitlab-oauth.ts:13` | `VITE_GITLAB_CLIENT_ID` |
+| `isAsanaOAuthConfigured()` | `asana-oauth.ts:12` | `VITE_ASANA_CLIENT_ID` + `VITE_OAUTH_PROXY_URL` |
 
-env 누락 시 해당 플랫폼의 OAuth 버튼이 UI에서 자동 비활성화.
+env 누락 시 해당 플랫폼의 OAuth 버튼이 UI에서 자동 비활성화. (GitLab·Asana는 OAuth 미구성이어도 PAT 연결은 가능.)
 
 ### 이중 인증 모드
 
@@ -382,8 +393,10 @@ env 누락 시 해당 플랫폼의 OAuth 버튼이 UI에서 자동 비활성화.
 | GitHub | `GithubOAuthAuth` | `GithubPatAuth` (PAT) |
 | Linear | `LinearOAuthAuth` | `LinearApiKeyAuth` |
 | Notion | `NotionOAuthAuth` | `NotionApiKeyAuth` (Internal Integration Token) |
+| GitLab | `GitlabOAuthAuth` (baseUrl 포함) | `GitlabPatAuth` (PAT + self-managed baseUrl) |
+| Asana | `AsanaOAuthAuth` | `AsanaPatAuth` (PAT) |
 
-API Key/PAT 모드는 OAuth 인프라(refresh, proxy, identity API)를 일절 거치지 않는다.
+API Key/PAT 모드는 OAuth 인프라(refresh, proxy, identity API)를 일절 거치지 않는다. (GitLab PAT는 self-managed 인스턴스 host 권한만 런타임 획득.)
 
 ---
 

@@ -7,6 +7,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { findActiveIndex } from "@/log-viewer/timeline";
 import { formatRelativeTime, syncRowClass } from "@/sidepanel/lib/logRow";
+import { useScrollToEntry } from "@/sidepanel/lib/useScrollToEntry";
 import { LogSeekChip } from "./LogSeekChip";
 
 type ConsoleFilter = "all" | "error" | "warn" | "info" | "debug" | "log";
@@ -21,6 +22,8 @@ interface ConsoleLogContentProps {
   syncBaseMs?: number;
   onSeek?: (absTs: number) => void;
   activeTs?: number;
+  scrollToEntryId?: string | null;
+  onScrollComplete?: () => void;
 }
 
 function levelColor(level: ConsoleLevel): string {
@@ -35,18 +38,18 @@ function levelColor(level: ConsoleLevel): string {
 
 function levelBgColor(level: ConsoleLevel): string {
   switch (level) {
-    case "error": return "bg-red-50 dark:bg-red-950/30";
-    case "warn": return "bg-amber-50 dark:bg-amber-950/30";
-    case "info": return "bg-blue-50 dark:bg-blue-950/30";
+    case "error": return "bg-red-100 dark:bg-red-950/50";
+    case "warn": return "bg-amber-100 dark:bg-amber-950/50";
+    case "info": return "bg-blue-100 dark:bg-blue-950/50";
     default: return "";
   }
 }
 
 function levelCodeBg(level: ConsoleLevel): string {
   switch (level) {
-    case "error": return "bg-red-100 dark:bg-red-950/50";
-    case "warn": return "bg-amber-100 dark:bg-amber-950/50";
-    case "info": return "bg-blue-100 dark:bg-blue-950/50";
+    case "error": return "bg-red-200 dark:bg-red-950/70";
+    case "warn": return "bg-amber-200 dark:bg-amber-950/70";
+    case "info": return "bg-blue-200 dark:bg-blue-950/70";
     default: return "bg-muted";
   }
 }
@@ -62,7 +65,7 @@ function LevelIcon({ level }: { level: ConsoleLevel }) {
   }
 }
 
-export function ConsoleLogContent({ entries, startedAt, flush, syncBaseMs, onSeek, activeTs }: ConsoleLogContentProps) {
+export function ConsoleLogContent({ entries, startedAt, flush, syncBaseMs, onSeek, activeTs, scrollToEntryId, onScrollComplete }: ConsoleLogContentProps) {
   const t = useT();
   const [filter, setFilter] = useState<ConsoleFilter>("all");
   const [query, setQuery] = useState("");
@@ -116,6 +119,14 @@ export function ConsoleLogContent({ entries, startedAt, flush, syncBaseMs, onSee
     if (vp) vp.scrollTop = vp.scrollHeight;
   }, [filteredEntries.length, getListViewport]);
 
+  useScrollToEntry({
+    scrollToEntryId,
+    getListViewport,
+    filteredItems: filteredEntries,
+    resetFilters: useCallback(() => { setFilter("all"); setQuery(""); }, []),
+    onScrollComplete,
+  });
+
   return (
     <div className={`flex min-h-0 flex-1 flex-col overflow-hidden${flush ? "" : " rounded-lg border"}`}>
       <Tabs value={filter} onValueChange={(v) => setFilter(v as ConsoleFilter)}>
@@ -165,6 +176,7 @@ export function ConsoleLogContent({ entries, startedAt, flush, syncBaseMs, onSee
                 syncBaseMs={syncBaseMs}
                 onSeek={onSeek}
                 isActive={entry.id === activeId}
+                scrollToEntryId={scrollToEntryId}
               />
             ))}
           </div>
@@ -174,19 +186,26 @@ export function ConsoleLogContent({ entries, startedAt, flush, syncBaseMs, onSee
   );
 }
 
-function EntryAccordion({ entry, startedAt, syncBaseMs, onSeek, isActive }: {
+function EntryAccordion({ entry, startedAt, syncBaseMs, onSeek, isActive, scrollToEntryId }: {
   entry: ConsoleEntry;
   startedAt?: number;
   syncBaseMs?: number;
   onSeek?: (absTs: number) => void;
   isActive?: boolean;
+  scrollToEntryId?: string | null;
 }) {
   const [expanded, setExpanded] = useState(false);
+
+  useEffect(() => {
+    if (!scrollToEntryId) return;
+    setExpanded(entry.id === scrollToEntryId);
+  }, [scrollToEntryId, entry.id]);
   const t = useT();
   const base = syncBaseMs ?? startedAt;
 
   return (
     <div
+      data-entry-id={entry.id}
       className={syncRowClass(!!onSeek, !!isActive, levelBgColor(entry.level))}
       aria-current={isActive ? "true" : undefined}
     >

@@ -125,7 +125,7 @@ export async function jiraFetch<T = unknown>(
 ): Promise<T> {
   const res = await authedFetch(auth, path, init, false);
   if (!res.ok) {
-    throw new JiraError(res.status, messageFor(res.status), await readErrorBody(res));
+    throw new JiraError(res.status, messageForJiraStatus(res.status), await readErrorBody(res));
   }
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
@@ -138,7 +138,7 @@ export async function jiraMultipart<T = unknown>(
 ): Promise<T> {
   const res = await authedFetch(auth, path, { method: "POST", body: form }, true);
   if (!res.ok) {
-    throw new JiraError(res.status, messageFor(res.status), await readErrorBody(res));
+    throw new JiraError(res.status, messageForJiraStatus(res.status), await readErrorBody(res));
   }
   if (res.status === 204) return undefined as T;
   return (await res.json()) as T;
@@ -165,7 +165,7 @@ async function doFetch(
   });
 }
 
-function messageFor(status: number): string {
+export function messageForJiraStatus(status: number): string {
   if (status === 401) return t("jira.error.401");
   if (status === 403) return t("jira.error.403");
   if (status === 404) return t("jira.error.404");
@@ -287,6 +287,23 @@ async function probeMediaRedirect(
   }
 }
 
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms));
+
+// attempt가 undefined를 반환하면 지연 후 재시도. 총 시도 = delaysMs.length + 1.
+export async function retryResolve<T>(
+  attempt: () => Promise<T | undefined>,
+  delaysMs: number[],
+  sleepFn: (ms: number) => Promise<void> = sleep,
+): Promise<T | undefined> {
+  let result = await attempt();
+  for (const ms of delaysMs) {
+    if (result !== undefined) return result;
+    await sleepFn(ms);
+    result = await attempt();
+  }
+  return result;
+}
+
 export async function getMediaFileId(
   auth: JiraAuth,
   attachmentId: string,
@@ -295,17 +312,17 @@ export async function getMediaFileId(
   const url = resolveUrl(auth, path);
   const authHdr = { Authorization: authHeader(auth) };
 
-  const viaRangeGet = await probeMediaRedirect(
-    url,
-    { ...authHdr, Range: "bytes=0-0" },
-    "GET",
-  );
-  if (viaRangeGet) return viaRangeGet;
-
-  const viaHead = await probeMediaRedirect(url, authHdr, "HEAD");
-  if (viaHead) return viaHead;
-
-  return undefined;
+  // 대용량 첨부(영상)는 업로드 직후 media 변환 전이라 redirect probe가 빈 값을 줄 수 있다.
+  // 변환 지연을 흡수하려고 백오프 재시도(총 3회 시도).
+  return retryResolve(async () => {
+    const viaRangeGet = await probeMediaRedirect(
+      url,
+      { ...authHdr, Range: "bytes=0-0" },
+      "GET",
+    );
+    if (viaRangeGet) return viaRangeGet;
+    return probeMediaRedirect(url, authHdr, "HEAD");
+  }, [400, 900]);
 }
 
 export async function uploadAttachment(

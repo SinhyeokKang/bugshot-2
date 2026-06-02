@@ -243,57 +243,33 @@ export function buildNotionIssueBody(
   }
 
   emitMedia();
+  // 'Reported via *BugShot*' 푸터는 createPage가 첨부 섹션 뒤에 직접 append (본문 가장 하단 보장).
 
   return { blocks, attachments };
 }
 
 function emitLogSummary(blocks: NotionBlock[], ctx: MarkdownContext): void {
   const { networkLogSummary: net, consoleLogSummary: con } = ctx;
+  if (!net && !con) return;
+  blocks.push({ type: "heading_2", text: t("logSummary.title") });
+  const codeLines: string[] = [];
   if (net) {
-    blocks.push({ type: "heading_2", text: t("logSummary.network.title") });
-    const codeLines: string[] = [];
-    if (net.errors.length > 0) {
-      codeLines.push(
-        t("logSummary.network.captured", {
-          n: net.captured,
-          errors: net.errors.length,
-        }),
-      );
-      for (const e of net.errors) {
-        codeLines.push(`${e.method} ${e.path} → ${e.status} ${e.statusText}`);
-      }
-    } else {
-      codeLines.push(
-        t("logSummary.network.capturedNoError", { n: net.captured }),
-      );
-    }
-    blocks.push({
-      type: "code",
-      language: "plain text",
-      text: codeLines.join("\n"),
-    });
+    codeLines.push(
+      net.errors.length > 0
+        ? t("logSummary.network.line", { n: net.captured, errors: net.errors.length })
+        : t("logSummary.network.lineNoError", { n: net.captured }),
+    );
   }
   if (con) {
-    blocks.push({ type: "heading_2", text: t("logSummary.console.title") });
-    const codeLines: string[] = [];
-    if (con.errorCount > 0 || con.warnCount > 0) {
-      codeLines.push(
-        t("logSummary.console.captured", {
-          n: con.captured,
-          errors: con.errorCount,
-          warns: con.warnCount,
-        }),
-      );
-      for (const msg of con.topErrors) codeLines.push(msg);
-    } else {
-      codeLines.push(
-        t("logSummary.console.capturedNoError", { n: con.captured }),
-      );
-    }
-    blocks.push({
-      type: "code",
-      language: "plain text",
-      text: codeLines.join("\n"),
-    });
+    codeLines.push(
+      con.errorCount > 0 || con.warnCount > 0
+        ? t("logSummary.console.line", { n: con.captured, errors: con.errorCount, warns: con.warnCount })
+        : t("logSummary.console.lineNoError", { n: con.captured }),
+    );
   }
+  blocks.push({
+    type: "code",
+    language: "plain text",
+    text: codeLines.join("\n"),
+  });
 }

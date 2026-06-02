@@ -119,6 +119,19 @@ export function use30sReplay(
     };
   }, [tabId, enabled]);
 
+  // non-idle → idle 전환(picking/styling/recording/drafting 취소) 시 스테일 프레임을 버리고
+  // 새 30초 윈도우를 시작한다. capture()가 frames[0].timestamp 기준으로 로그를 트림하므로
+  // 영상-액션 로그 동기화는 자동으로 따라온다 — 로그를 따로 건드릴 필요 없음.
+  useEffect(() => {
+    return useEditorStore.subscribe((state, prev) => {
+      if (prev.phase !== "idle" && state.phase === "idle") {
+        bufferRef.current.clear();
+        setIsReady(false);
+        setBufferedSeconds(0);
+      }
+    });
+  }, []);
+
   const capture = useCallback(async () => {
     const id = tabIdRef.current;
     if (id == null || encodingRef.current) return;

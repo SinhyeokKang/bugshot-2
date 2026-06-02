@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { ExternalLink, KeyRound, Loader2 } from "lucide-react";
+import { ExternalLink, Loader2 } from "lucide-react";
 import { SiJirasoftware as Jira } from "@icons-pack/react-simple-icons";
 import { toast } from "sonner";
 import { useT } from "@/i18n";
@@ -28,51 +28,28 @@ import type {
   JiraSite,
 } from "@/types/jira";
 import { isOAuthCancelled, sendBg, type OAuthStartResultMsg } from "@/types/messages";
-import { PageScroll, Section } from "@/sidepanel/components/Section";
 import { IssueTypeCombobox } from "@/sidepanel/tabs/IssueTypeCombobox";
 import { ProjectCombobox } from "@/sidepanel/tabs/ProjectCombobox";
+import { connectMethods, type ConnectFlowProps } from "@/sidepanel/tabs/integrationsTabUtils";
+import { ConnectMethodDialog } from "./ConnectMethodDialog";
 
-export function JiraConnectForm() {
+export function JiraConnectedBody() {
   const t = useT();
-  const jiraAccount = useSettingsStore((s) => s.accounts.jira);
-  const connected = !!jiraAccount;
-
-  if (!connected) {
-    return (
-      <>
-        <JiraOnboarding />
-        <SetupDialog />
-      </>
-    );
-  }
-
   return (
     <>
-      <PageScroll>
-        <Section title={t("jira.connection")}>
-          <JiraSummary />
-        </Section>
-
-        <Section title={t("common.settings")}>
-          <div className="flex flex-col gap-3">
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs text-muted-foreground">{t("jira.project")}</label>
-              <ProjectCombobox />
-            </div>
-            <div className="flex flex-col gap-1.5">
-              <label className="text-xs text-muted-foreground">{t("jira.defaultIssueType")}</label>
-              <IssueTypeCombobox />
-            </div>
-          </div>
-        </Section>
-      </PageScroll>
-
+      <JiraSummary />
+      <div className="flex flex-col gap-1.5">
+        <label className="text-xs text-muted-foreground">{t("jira.project")}</label>
+        <ProjectCombobox />
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <label className="text-xs text-muted-foreground">{t("jira.defaultIssueType")}</label>
+        <IssueTypeCombobox />
+      </div>
       <SetupDialog />
     </>
   );
 }
-
-/* ── Onboarding (empty state) ────────────────────────── */
 
 type OAuthClassified = { kind: "noJira" } | { kind: "general"; message: string };
 
@@ -87,14 +64,15 @@ function classifyOAuthClassified(err: unknown): OAuthClassified | null {
   return { kind: "general", message: msg };
 }
 
-function JiraOnboarding() {
+export function JiraConnectFlow({ connected, onConnected }: ConnectFlowProps) {
   const t = useT();
   const setAccount = useSettingsStore((s) => s.setAccount);
 
   const [oauthAvailable, setOauthAvailable] = useState<boolean | null>(null);
   const [connecting, setConnecting] = useState(false);
-  const [candidate, setCandidate] = useState<OAuthStartResultMsg | null>(null);
+  const [methodOpen, setMethodOpen] = useState(false);
   const [apiKeyOpen, setApiKeyOpen] = useState(false);
+  const [candidate, setCandidate] = useState<OAuthStartResultMsg | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -163,6 +141,7 @@ function JiraOnboarding() {
         auth: { ...auth, email: me.emailAddress },
       };
       setAccount("jira", next);
+      onConnected();
       setCandidate(null);
     } catch (err) {
       showOAuthError(err);
@@ -171,95 +150,116 @@ function JiraOnboarding() {
     }
   }
 
-  if (candidate) {
-    return (
-      <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-6 pb-5">
-        <div className="flex w-full max-w-[260px] flex-col gap-2">
-          <p className="mb-1 text-center text-sm font-medium">
-            {t("jira.selectSite")}
-          </p>
-          {candidate.sites.map((site) => (
-            <Button
-              key={site.id}
-              variant="outline"
-              disabled={connecting}
-              onClick={() => void finalize(candidate, site)}
-              className="h-auto justify-start gap-2 px-3 py-2 text-xs"
-            >
-              {site.avatarUrl ? (
-                <img
-                  src={site.avatarUrl}
-                  alt=""
-                  className="h-6 w-6 rounded"
-                />
-              ) : null}
-              <div className="flex min-w-0 flex-col">
-                <span className="truncate font-medium">{site.name}</span>
-                <span className="truncate text-muted-foreground">
-                  {site.url}
-                </span>
-              </div>
-            </Button>
-          ))}
-        </div>
-      </div>
-    );
+  const methods = connectMethods(oauthAvailable);
+
+  function handleClick() {
+    if (methods.length === 0) return;
+    if (methods.includes("oauth")) {
+      setMethodOpen(true);
+    } else {
+      setApiKeyOpen(true);
+    }
   }
 
   return (
     <>
-      <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 pb-5 text-center">
-        <div className="mb-3 rounded-full bg-muted p-3">
-          <Jira className="h-6 w-6" color="default" />
-        </div>
-        <h3 className="text-lg font-semibold">{t("jira.onboarding.title")}</h3>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {t("jira.onboarding.body")}
-        </p>
+      <Button
+        variant="outline"
+        onClick={handleClick}
+        disabled={connected || connecting || methods.length === 0}
+        className="relative w-full justify-center gap-2"
+      >
+        {connecting && (
+          <span className="absolute inset-0 flex items-center justify-center">
+            <Loader2 className="h-4 w-4 animate-spin" />
+          </span>
+        )}
+        <span className={`inline-flex items-center gap-2 ${connecting ? "opacity-0" : ""}`}>
+          <Jira className="h-4 w-4" color="default" />
+          {connected
+            ? t("platform.connected", { platform: t("platform.tab.jira") })
+            : t("platform.connectPlatform", { platform: t("platform.tab.jira") })}
+        </span>
+      </Button>
 
-        <div className="mt-5 flex gap-2">
-          {oauthAvailable !== false ? (
-            <Button
-              onClick={() => void startOAuth()}
-              disabled={connecting || oauthAvailable === null}
-              className="relative"
-            >
-              {connecting && (
-                <span className="absolute inset-0 flex items-center justify-center">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                </span>
-              )}
-              <span className={`inline-flex items-center gap-2 ${connecting ? "opacity-0" : ""}`}>
-                <ExternalLink className="h-3.5 w-3.5" />
-                {t("jira.atlassianLogin")}
-              </span>
-            </Button>
-          ) : null}
-
-          <Button
-            variant="outline"
-            onClick={() => setApiKeyOpen(true)}
-            disabled={connecting}
-            className="gap-1.5"
-          >
-            <KeyRound className="h-3.5 w-3.5" />
-            {t("jira.apiTokenButton")}
-          </Button>
-        </div>
-
-      </div>
-
-      <ApiKeyDialog open={apiKeyOpen} onOpenChange={setApiKeyOpen} />
+      <ConnectMethodDialog
+        open={methodOpen}
+        onOpenChange={setMethodOpen}
+        platformLabel={t("platform.tab.jira")}
+        oauthLabel={t("platform.connectMethod.oauth")}
+        tokenLabel={t("jira.apiTokenButton")}
+        onChooseOAuth={() => void startOAuth()}
+        onChooseToken={() => setApiKeyOpen(true)}
+      />
+      <ApiKeyDialog open={apiKeyOpen} onOpenChange={setApiKeyOpen} onConnected={onConnected} />
+      <JiraSiteDialog
+        open={!!candidate}
+        onOpenChange={(v) => {
+          if (!v) setCandidate(null);
+        }}
+        sites={candidate?.sites ?? []}
+        connecting={connecting}
+        onSelect={(site) => {
+          if (candidate) void finalize(candidate, site);
+        }}
+      />
     </>
+  );
+}
+
+function JiraSiteDialog({
+  open,
+  onOpenChange,
+  sites,
+  connecting,
+  onSelect,
+}: {
+  open: boolean;
+  onOpenChange: (v: boolean) => void;
+  sites: JiraSite[];
+  connecting: boolean;
+  onSelect: (site: JiraSite) => void;
+}) {
+  const t = useT();
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="w-[80vw] max-w-[80vw] gap-5 rounded-3xl p-6 sm:rounded-3xl">
+        <DialogHeader>
+          <DialogTitle className="text-xl">{t("jira.selectSite")}</DialogTitle>
+        </DialogHeader>
+
+        <div className="flex flex-col gap-2">
+          {sites.map((site) => (
+            <Button
+              key={site.id}
+              variant="outline"
+              disabled={connecting}
+              onClick={() => onSelect(site)}
+              className="h-auto justify-start gap-2 px-3 py-2 text-xs"
+            >
+              {site.avatarUrl ? (
+                <img src={site.avatarUrl} alt="" className="h-6 w-6 rounded" />
+              ) : null}
+              <div className="flex min-w-0 flex-col">
+                <span className="truncate font-medium">{site.name}</span>
+                <span className="truncate text-muted-foreground">{site.url}</span>
+              </div>
+            </Button>
+          ))}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
 function ApiKeyDialog({
   open,
   onOpenChange,
+  onConnected,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
+  onConnected: () => void;
 }) {
   const t = useT();
   const setAccount = useSettingsStore((s) => s.setAccount);
@@ -290,6 +290,7 @@ function ApiKeyDialog({
         auth: trimmed,
       };
       setAccount("jira", next);
+      onConnected();
       onOpenChange(false);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : String(err));
@@ -471,4 +472,3 @@ function JiraSummary() {
     </div>
   );
 }
-

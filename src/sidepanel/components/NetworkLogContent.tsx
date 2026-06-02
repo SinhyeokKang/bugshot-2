@@ -4,6 +4,7 @@ import { useT, type TranslationFn } from "@/i18n";
 import type { NetworkRequest, NetworkRequestBody } from "@/types/network";
 import { formatBytes } from "@/sidepanel/lib/formatBytes";
 import { networkLogPath } from "@/lib/network-log-path";
+import { isStatusHidden } from "@/lib/network-status";
 import { JsonTreeViewer } from "./JsonTreeViewer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +13,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { findActiveIndex } from "@/log-viewer/timeline";
 import { formatRelativeTime, syncRowClass } from "@/sidepanel/lib/logRow";
+import { useScrollToEntry } from "@/sidepanel/lib/useScrollToEntry";
 import { LogSeekChip } from "./LogSeekChip";
 
 type RequestFilter = "all" | "json" | "js" | "css" | "img" | "font" | "doc" | "other";
@@ -25,6 +27,8 @@ interface NetworkLogContentProps {
   syncBaseMs?: number;
   onSeek?: (absTs: number) => void;
   activeTs?: number;
+  scrollToEntryId?: string | null;
+  onScrollComplete?: () => void;
 }
 
 function methodColor(method: string): string {
@@ -51,13 +55,13 @@ function isPending(req: NetworkRequest): boolean {
 function rowBg(req: NetworkRequest, active: boolean): string {
   if (isError(req)) {
     return active
-      ? "bg-red-100 dark:bg-red-950/50"
-      : "bg-red-50 hover:bg-red-100/70 dark:bg-red-950/30 dark:hover:bg-red-950/50";
+      ? "bg-red-200 dark:bg-red-950/70"
+      : "bg-red-100 hover:bg-red-200/70 dark:bg-red-950/50 dark:hover:bg-red-950/70";
   }
   if (isPending(req)) {
     return active
-      ? "bg-amber-100 dark:bg-amber-950/50"
-      : "bg-amber-50 hover:bg-amber-100/70 dark:bg-amber-950/30 dark:hover:bg-amber-950/50";
+      ? "bg-amber-200 dark:bg-amber-950/70"
+      : "bg-amber-100 hover:bg-amber-200/70 dark:bg-amber-950/50 dark:hover:bg-amber-950/70";
   }
   return active ? "bg-accent" : "hover:bg-accent/50";
 }
@@ -139,7 +143,7 @@ function buildCurl(req: NetworkRequest): string {
 
 type DetailTab = "headers" | "request" | "response";
 
-export function NetworkLogContent({ requests, flush, syncBaseMs, onSeek, activeTs }: NetworkLogContentProps) {
+export function NetworkLogContent({ requests, flush, syncBaseMs, onSeek, activeTs, scrollToEntryId, onScrollComplete }: NetworkLogContentProps) {
   const t = useT();
   const [activeId, setActiveId] = useState<string | null>(null);
   const [detailTab, setDetailTab] = useState<DetailTab>("headers");
@@ -214,6 +218,15 @@ export function NetworkLogContent({ requests, flush, syncBaseMs, onSeek, activeT
     const vp = getListViewport();
     if (vp) vp.scrollTop = vp.scrollHeight;
   }, [filteredRequests.length, getListViewport]);
+
+  useScrollToEntry({
+    scrollToEntryId,
+    getListViewport,
+    filteredItems: filteredRequests,
+    resetFilters: useCallback(() => { setFilter("all"); setQuery(""); }, []),
+    onScrollComplete,
+    onFound: useCallback(() => { if (scrollToEntryId) setActiveId(scrollToEntryId); }, [scrollToEntryId]),
+  });
 
   const onDragStart = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -368,6 +381,7 @@ function RequestRow({
 }) {
   return (
     <div
+      data-entry-id={req.id}
       className={`flex cursor-pointer items-center gap-3 overflow-hidden px-3 py-2 text-[13px] ${syncRowClass(syncBaseMs != null, !!syncActive, rowBg(req, active))}`}
       aria-current={syncActive ? "true" : undefined}
       onClick={onClick}
@@ -420,11 +434,20 @@ function HeadersPanel({ req }: { req: NetworkRequest }) {
           <dt className="text-muted-foreground">{t("networkLog.detail.method")}</dt>
           <dd>{req.method}</dd>
           <dt className="text-muted-foreground">{t("networkLog.detail.status")}</dt>
-          <dd className="flex items-center gap-1">
-            <span className={`inline-block h-2.5 w-2.5 rounded-full ${
-              isPending(req) ? "bg-amber-500" : isError(req) ? "bg-red-500" : "bg-green-500"
-            }`} />
-            {isPending(req) ? t("networkLog.display.pending") : `${req.status} ${req.statusText}`}
+          <dd className="flex flex-col gap-0.5">
+            <span className="flex items-center gap-1">
+              <span className={`inline-block h-2.5 w-2.5 rounded-full ${
+                isPending(req) ? "bg-amber-500" : isError(req) ? "bg-red-500" : "bg-green-500"
+              }`} />
+              {isPending(req)
+                ? t("networkLog.display.pending")
+                : isStatusHidden(req)
+                  ? t("networkLog.display.blocked")
+                  : `${req.status} ${req.statusText}`}
+            </span>
+            {isStatusHidden(req) && (
+              <span className="text-xs text-muted-foreground">{t("networkLog.display.blockedHint")}</span>
+            )}
           </dd>
           <dt className="text-muted-foreground">{t("networkLog.detail.time")}</dt>
           <dd>{isPending(req) ? "—" : `${req.durationMs}ms`}</dd>

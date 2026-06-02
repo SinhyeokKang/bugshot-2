@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { ExternalLink, KeyRound, Loader2 } from "lucide-react";
+import { ExternalLink, Loader2 } from "lucide-react";
 import { SiNotion } from "@icons-pack/react-simple-icons";
 import { toast } from "sonner";
 import { useT } from "@/i18n";
@@ -24,31 +24,103 @@ import type {
   NotionSelectFieldValue,
 } from "@/types/notion";
 import { isOAuthCancelled, sendBg } from "@/types/messages";
-import { PageScroll, Section } from "@/sidepanel/components/Section";
 import { DatabaseCombobox } from "@/sidepanel/tabs/notionFields/DatabaseCombobox";
 import { PropertiesFieldset } from "@/sidepanel/tabs/notionFields/PropertiesFieldset";
 import { StatusSelect } from "@/sidepanel/tabs/notionFields/StatusSelect";
 import { reconcileNotionFields } from "@/sidepanel/tabs/notionFields/reconcileNotionFields";
+import { connectMethods, type ConnectFlowProps } from "@/sidepanel/tabs/integrationsTabUtils";
+import { ConnectMethodDialog } from "./ConnectMethodDialog";
 
-export function NotionConnectForm() {
+export function NotionConnectedBody() {
+  return (
+    <>
+      <NotionSummary />
+      <NotionDefaultsBlock />
+    </>
+  );
+}
+
+export function NotionConnectFlow({ connected, onConnected }: ConnectFlowProps) {
   const t = useT();
-  const notionAccount = useSettingsStore((s) => s.accounts.notion);
-  const connected = !!notionAccount;
+  const setAccount = useSettingsStore((s) => s.setAccount);
+  const [oauthAvailable, setOauthAvailable] = useState<boolean | null>(null);
+  const [connecting, setConnecting] = useState(false);
+  const [methodOpen, setMethodOpen] = useState(false);
+  const [tokenOpen, setTokenOpen] = useState(false);
 
-  if (!connected) {
-    return <NotionOnboarding />;
+  useEffect(() => {
+    let cancelled = false;
+    sendBg<{ available: boolean }>({ type: "notion.oauth.available" })
+      .then((res) => !cancelled && setOauthAvailable(res.available))
+      .catch(() => !cancelled && setOauthAvailable(false));
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function startOAuth() {
+    setConnecting(true);
+    try {
+      const auth = await sendBg<NotionOAuthAuth>({ type: "notion.startOAuth" });
+      const next: NotionAccount = {
+        platform: "notion",
+        connectedAt: Date.now(),
+        auth,
+        defaults: {},
+      };
+      setAccount("notion", next);
+      onConnected();
+    } catch (err) {
+      if (!isOAuthCancelled(err)) {
+        toast.error(err instanceof Error ? err.message : String(err));
+      }
+    } finally {
+      setConnecting(false);
+    }
+  }
+
+  const methods = connectMethods(oauthAvailable);
+
+  function handleClick() {
+    if (methods.length === 0) return;
+    if (methods.includes("oauth")) {
+      setMethodOpen(true);
+    } else {
+      setTokenOpen(true);
+    }
   }
 
   return (
     <>
-      <PageScroll>
-        <Section title={t("notion.section.connection")}>
-          <NotionSummary />
-        </Section>
-        <Section title={t("common.settings")}>
-          <NotionDefaultsBlock />
-        </Section>
-      </PageScroll>
+      <Button
+        variant="outline"
+        onClick={handleClick}
+        disabled={connected || connecting || methods.length === 0}
+        className="relative w-full justify-center gap-2"
+      >
+        {connecting && (
+          <span className="absolute inset-0 flex items-center justify-center">
+            <Loader2 className="h-4 w-4 animate-spin" />
+          </span>
+        )}
+        <span className={`inline-flex items-center gap-2 ${connecting ? "opacity-0" : ""}`}>
+          <SiNotion className="h-4 w-4 dark:invert" color="default" />
+          {connected
+            ? t("platform.connected", { platform: t("platform.tab.notion") })
+            : t("platform.connectPlatform", { platform: t("platform.tab.notion") })}
+        </span>
+      </Button>
+
+      <ConnectMethodDialog
+        open={methodOpen}
+        onOpenChange={setMethodOpen}
+        platformLabel={t("platform.tab.notion")}
+        oauthLabel={t("platform.connectMethod.oauth")}
+        tokenLabel={t("notion.internalToken.button")}
+        onChooseOAuth={() => void startOAuth()}
+        onChooseToken={() => setTokenOpen(true)}
+      />
+      <InternalTokenDialog open={tokenOpen} onOpenChange={setTokenOpen} onConnected={onConnected} />
     </>
   );
 }
@@ -178,103 +250,14 @@ function NotionDefaultsBlock() {
   );
 }
 
-function NotionOnboarding() {
-  const t = useT();
-  const [oauthAvailable, setOauthAvailable] = useState<boolean | null>(null);
-  const [connecting, setConnecting] = useState(false);
-  const [tokenOpen, setTokenOpen] = useState(false);
-
-  const setAccount = useSettingsStore((s) => s.setAccount);
-
-  useEffect(() => {
-    let cancelled = false;
-    sendBg<{ available: boolean }>({ type: "notion.oauth.available" })
-      .then((res) => !cancelled && setOauthAvailable(res.available))
-      .catch(() => !cancelled && setOauthAvailable(false));
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  async function startOAuth() {
-    setConnecting(true);
-    try {
-      const auth = await sendBg<NotionOAuthAuth>({ type: "notion.startOAuth" });
-      const next: NotionAccount = {
-        platform: "notion",
-        connectedAt: Date.now(),
-        auth,
-        defaults: {},
-      };
-      setAccount("notion", next);
-    } catch (err) {
-      if (!isOAuthCancelled(err)) {
-        toast.error(err instanceof Error ? err.message : String(err));
-      }
-    } finally {
-      setConnecting(false);
-    }
-  }
-
-  return (
-    <>
-      <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 pb-5 text-center">
-        <div className="mb-3 rounded-full bg-muted p-3">
-          <SiNotion className="h-6 w-6 dark:invert" color="default" />
-        </div>
-        <h3 className="text-lg font-semibold">{t("notion.onboarding.title")}</h3>
-        <p className="mt-1 text-sm text-muted-foreground">
-          {t("notion.onboarding.body")}
-        </p>
-
-        <div className="mt-5 flex gap-2">
-          {oauthAvailable !== false ? (
-            <Button
-              onClick={() => void startOAuth()}
-              disabled={connecting || oauthAvailable === null}
-              className="relative"
-            >
-              {connecting && (
-                <span className="absolute inset-0 flex items-center justify-center">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                </span>
-              )}
-              <span className={`inline-flex items-center gap-2 ${connecting ? "opacity-0" : ""}`}>
-                <ExternalLink className="h-3.5 w-3.5" />
-                {t("notion.connect.button")}
-              </span>
-            </Button>
-          ) : null}
-
-          <Button
-            variant="outline"
-            onClick={() => setTokenOpen(true)}
-            disabled={connecting}
-            className="gap-1.5"
-          >
-            <KeyRound className="h-3.5 w-3.5" />
-            {t("notion.internalToken.button")}
-          </Button>
-        </div>
-
-        {oauthAvailable === false ? (
-          <p className="mt-3 text-xs text-muted-foreground">
-            {t("notion.oauth.notConfigured")}
-          </p>
-        ) : null}
-      </div>
-
-      <InternalTokenDialog open={tokenOpen} onOpenChange={setTokenOpen} />
-    </>
-  );
-}
-
 function InternalTokenDialog({
   open,
   onOpenChange,
+  onConnected,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
+  onConnected: () => void;
 }) {
   const t = useT();
   const setAccount = useSettingsStore((s) => s.setAccount);
@@ -303,6 +286,7 @@ function InternalTokenDialog({
         defaults: {},
       };
       setAccount("notion", next);
+      onConnected();
       setToken("");
       onOpenChange(false);
     } catch (err) {
@@ -394,7 +378,7 @@ function NotionSummary() {
     account.auth.kind === "oauth"
       ? account.auth.workspaceName
       : account.auth.workspaceName ?? "";
-  const botName = account.auth.botName || "Notion bot";
+  const botName = account.auth.botName || t("notion.auth.defaultBotName");
   const ownerEmail =
     account.auth.kind === "oauth" ? account.auth.ownerUserEmail : undefined;
   const ownerName =
@@ -419,4 +403,3 @@ function NotionSummary() {
     </div>
   );
 }
-

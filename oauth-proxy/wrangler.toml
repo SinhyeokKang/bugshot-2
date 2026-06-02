@@ -16,6 +16,14 @@ compatibility_date = "2026-04-01"
 #   - DEV만 등록돼 있으면 PROD client_id 요청은 400 반환
 #   - 둘 다 비어있으면 503
 #
+# Notion OAuth 사용 시 추가:
+#   wrangler secret put NOTION_CLIENT_ID
+#   wrangler secret put NOTION_CLIENT_SECRET
+#
+# Asana OAuth 사용 시 추가 (confidential app, app 1개에 dev/prod redirect URI 등록):
+#   wrangler secret put ASANA_CLIENT_ID
+#   wrangler secret put ASANA_CLIENT_SECRET
+#
 # ALLOWED_ORIGINS 값 예시:
 #   chrome-extension://abcdefghij...,chrome-extension://xxxxxxxxxx...
 #   - 프로덕션 확장 ID + 로컬 dev key의 ID를 콤마로 나열

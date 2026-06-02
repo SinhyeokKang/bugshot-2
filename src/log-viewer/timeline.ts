@@ -19,3 +19,27 @@ export function findActiveIndex(timestamps: number[], currentMs: number): number
 export function toVideoSeconds(absTs: number, baseMs: number): number {
   return Math.max(0, (absTs - baseMs) / 1000);
 }
+
+export function formatPlayerTime(sec: number): string {
+  if (!Number.isFinite(sec) || sec < 0) return "0:00";
+  const total = Math.floor(sec);
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+// centerX(툴팁 중앙)에서 폭 tooltipWidth 박스의 left(top-left x)를 구하되,
+// [margin, viewportWidth - margin] 안에 박스가 들어오도록 clamp. 뷰포트보다
+// 넓으면 좌측 margin 고정.
+export function clampTooltipLeft(
+  centerX: number,
+  tooltipWidth: number,
+  viewportWidth: number,
+  margin = 8,
+): number {
+  const left = centerX - tooltipWidth / 2;
+  const max = viewportWidth - margin - tooltipWidth;
+  if (left > max) return Math.max(margin, max);
+  if (left < margin) return margin;
+  return left;
+}

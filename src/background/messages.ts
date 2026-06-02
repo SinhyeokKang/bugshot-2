@@ -1,6 +1,7 @@
 import { t } from "@/i18n";
 import { dataUrlToBlob } from "@/store/blob-db";
 import { IMAGE_PLACEHOLDER, VIDEO_PLACEHOLDER, parseInlinePlaceholder } from "@/lib/adf-sentinels";
+import { adfMediaNode, type MediaSource } from "@/background/lib/adf-media";
 import { injectIssueUrl } from "@/lib/inject-issue-url";
 import type { JiraAttachmentInput, JiraAuth, JiraSubmitResult } from "@/types/jira";
 import type { GithubAuth } from "@/types/github";
@@ -45,10 +46,34 @@ import {
   updateIssueState as updateLinearIssueState,
   uploadFileToLinear,
 } from "./linear-api";
+import {
+  createIssue as createGitlabIssue,
+  getIssueStatus as getGitlabIssueStatus,
+  getMyself as gitlabGetMyself,
+  getProjectLabels,
+  getProjectMembers,
+  searchProjects as searchGitlabProjects,
+  updateIssueState as updateGitlabIssueState,
+  updateIssueDescription as updateGitlabIssueDescription,
+  uploadFile as uploadGitlabFile,
+} from "./gitlab-api";
+import {
+  createTask as createAsanaTask,
+  getMyself as asanaGetMyself,
+  getTaskStatus as getAsanaTaskStatus,
+  getWorkspaces as getAsanaWorkspaces,
+  searchProjects as searchAsanaProjects,
+  searchUsers as searchAsanaUsers,
+  setTaskCompleted as setAsanaTaskCompleted,
+  updateTaskNotes as updateAsanaTaskNotes,
+  uploadAttachment as uploadAsanaAttachment,
+} from "./asana-api";
 import { isOAuthConfigured, startOAuthFlow } from "./oauth";
 import { isGithubOAuthConfigured, startGithubOAuth } from "./github-oauth";
 import { isLinearOAuthConfigured, startLinearOAuth } from "./linear-oauth";
 import { isNotionOAuthConfigured, startNotionOAuth } from "./notion-oauth";
+import { isGitlabOAuthConfigured, startGitlabOAuth } from "./gitlab-oauth";
+import { isAsanaOAuthConfigured, startAsanaOAuth } from "./asana-oauth";
 import {
   createPage as createNotionPage,
   getDatabaseSchema as getNotionDatabaseSchema,
@@ -63,9 +88,13 @@ import {
   readStoredGithubAuth,
   readStoredLinearAuth,
   readStoredNotionAuth,
+  readStoredGitlabAuth,
+  readStoredAsanaAuth,
 } from "@/lib/settings-storage";
 import type { LinearAuth } from "@/types/linear";
 import type { NotionAuth } from "@/types/notion";
+import type { GitlabAuth } from "@/types/gitlab";
+import type { AsanaAuth } from "@/types/asana";
 
 async function loadAuth(): Promise<JiraAuth> {
   const auth = await readStoredAuth();
@@ -88,6 +117,18 @@ async function loadLinearAuth(): Promise<LinearAuth> {
 async function loadNotionAuth(): Promise<NotionAuth> {
   const auth = await readStoredNotionAuth();
   if (!auth) throw new Error(t("platform.notConnected.title", { platform: t("platform.tab.notion") }));
+  return auth;
+}
+
+async function loadGitlabAuth(): Promise<GitlabAuth> {
+  const auth = await readStoredGitlabAuth();
+  if (!auth) throw new Error(t("platform.notConnected.title", { platform: t("platform.tab.gitlab") }));
+  return auth;
+}
+
+async function loadAsanaAuth(): Promise<AsanaAuth> {
+  const auth = await readStoredAsanaAuth();
+  if (!auth) throw new Error(t("platform.notConnected.title", { platform: t("platform.tab.asana") }));
   return auth;
 }
 
@@ -317,6 +358,164 @@ export async function handleMessage(
     case "notion.updatePageStatus":
       return updateNotionPageStatus(await loadNotionAuth(), message.pageId, message.propertyName, message.optionName);
 
+    case "gitlab.oauth.available":
+      return { available: isGitlabOAuthConfigured() };
+
+    case "gitlab.startOAuth":
+      return startGitlabOAuth();
+
+    case "gitlab.testPat":
+      return gitlabGetMyself({
+        kind: "pat",
+        pat: message.pat,
+        baseUrl: message.baseUrl,
+        viewerUsername: "",
+      });
+
+    case "gitlab.disconnect":
+      return { ok: true };
+
+    case "gitlab.getMyself":
+      return gitlabGetMyself(await loadGitlabAuth());
+
+    case "gitlab.searchProjects":
+      return searchGitlabProjects(await loadGitlabAuth(), message.query);
+
+    case "gitlab.getLabels":
+      return getProjectLabels(await loadGitlabAuth(), message.projectId);
+
+    case "gitlab.searchAssignees":
+      return getProjectMembers(await loadGitlabAuth(), message.projectId);
+
+    case "gitlab.uploadFiles": {
+      const auth = await loadGitlabAuth();
+      const results: Array<{ filename: string; url: string | null }> = [];
+      // 업로드 1건 실패(10MB 초과 등)가 이슈 생성 전체를 막지 않게 파일별로 격리.
+      for (const f of message.files) {
+        try {
+          const blob = dataUrlToBlob(f.dataUrl);
+          const { url } = await uploadGitlabFile(
+            auth,
+            message.projectId,
+            f.filename,
+            blob,
+          );
+          results.push({ filename: f.filename, url });
+        } catch {
+          results.push({ filename: f.filename, url: null });
+        }
+      }
+      return results;
+    }
+
+    case "gitlab.submitIssue":
+      return createGitlabIssue(await loadGitlabAuth(), message.payload);
+
+    case "gitlab.getIssueStatus":
+      return getGitlabIssueStatus(
+        await loadGitlabAuth(),
+        message.projectId,
+        message.iid,
+      );
+
+    case "gitlab.updateIssueState":
+      return updateGitlabIssueState(
+        await loadGitlabAuth(),
+        message.projectId,
+        message.iid,
+        message.state,
+      );
+
+    case "gitlab.updateIssueDescription":
+      return updateGitlabIssueDescription(
+        await loadGitlabAuth(),
+        message.projectId,
+        message.iid,
+        message.description,
+      );
+
+    case "asana.oauth.available":
+      return { available: isAsanaOAuthConfigured() };
+
+    case "asana.startOAuth":
+      return startAsanaOAuth();
+
+    case "asana.testPat":
+      return asanaGetMyself({
+        kind: "pat",
+        pat: message.pat,
+        viewerGid: "",
+        viewerName: "",
+      });
+
+    case "asana.disconnect":
+      return { ok: true };
+
+    case "asana.getMyself":
+      return asanaGetMyself(await loadAsanaAuth());
+
+    case "asana.getWorkspaces":
+      return getAsanaWorkspaces(await loadAsanaAuth());
+
+    case "asana.searchProjects":
+      return searchAsanaProjects(
+        await loadAsanaAuth(),
+        message.workspaceGid,
+        message.query,
+      );
+
+    case "asana.searchAssignees":
+      return searchAsanaUsers(
+        await loadAsanaAuth(),
+        message.workspaceGid,
+        message.query,
+      );
+
+    case "asana.uploadFiles": {
+      const auth = await loadAsanaAuth();
+      const results: Array<{
+        filename: string;
+        gid: string | null;
+        viewUrl?: string;
+      }> = [];
+      // 업로드 1건 실패가 task 생성 전체를 막지 않게 파일별로 격리.
+      for (const f of message.files) {
+        try {
+          const blob = dataUrlToBlob(f.dataUrl);
+          const { gid, viewUrl } = await uploadAsanaAttachment(
+            auth,
+            message.parent,
+            f.filename,
+            blob,
+          );
+          results.push({ filename: f.filename, gid, viewUrl });
+        } catch {
+          results.push({ filename: f.filename, gid: null });
+        }
+      }
+      return results;
+    }
+
+    case "asana.submitIssue":
+      return createAsanaTask(await loadAsanaAuth(), message.payload);
+
+    case "asana.updateTaskNotes":
+      return updateAsanaTaskNotes(
+        await loadAsanaAuth(),
+        message.taskGid,
+        message.htmlNotes,
+      );
+
+    case "asana.getTaskStatus":
+      return getAsanaTaskStatus(await loadAsanaAuth(), message.taskGid);
+
+    case "asana.setCompleted":
+      return setAsanaTaskCompleted(
+        await loadAsanaAuth(),
+        message.taskGid,
+        message.completed,
+      );
+
     default: {
       const _exhaustive: never = message;
       throw new Error(`unknown message: ${JSON.stringify(_exhaustive)}`);
@@ -335,7 +534,7 @@ async function submitIssue(
 
   for (const att of attachments) {
     if (att.filename === "logs.html") {
-      att.dataUrl = await injectIssueUrl(att.dataUrl, issueUrl);
+      att.dataUrl = await injectIssueUrl(att.dataUrl, issueUrl, issue.key);
     }
   }
 
@@ -346,15 +545,16 @@ async function submitIssue(
       const results = await uploadAttachment(auth, issue.key, att.filename, blob);
       const r = results[0];
       const mediaId = r?.mediaApiFileId || (r?.id ? await getMediaFileId(auth, String(r.id)) : undefined);
+      const dims = { width: att.width, height: att.height };
       if (mediaId) {
-        uploadMap.set(att.filename, { kind: "media", mediaId });
+        uploadMap.set(att.filename, { kind: "media", mediaId, ...dims });
       } else if (r?.id) {
         const base =
           auth.kind === "apiKey"
             ? auth.baseUrl.replace(/\/+$/, "")
             : auth.siteUrl.replace(/\/+$/, "");
         const url = `${base}/secure/attachment/${r.id}/${encodeURIComponent(r.filename)}`;
-        uploadMap.set(att.filename, { kind: "external", url });
+        uploadMap.set(att.filename, { kind: "external", url, ...dims });
       }
     } catch (err) {
       console.warn("[bugshot] attachment upload failed", att.filename, err);
@@ -374,10 +574,7 @@ async function submitIssue(
           },
         );
         if (mediaPlaceholderIdx >= 0) {
-          const mediaNode =
-            screenshotFile.kind === "media"
-              ? { type: "media", attrs: { type: "file", id: screenshotFile.mediaId, collection: "" } }
-              : { type: "media", attrs: { type: "external", url: screenshotFile.url } };
+          const mediaNode = adfMediaNode(mediaSrc(screenshotFile), screenshotFile);
           content[mediaPlaceholderIdx] = {
             type: "mediaSingle",
             attrs: { layout: "center", width: 100 },
@@ -401,9 +598,7 @@ async function submitIssue(
         content[videoPlaceholderIdx] = {
           type: "mediaSingle",
           attrs: { layout: "center", width: 100 },
-          content: [
-            { type: "media", attrs: { type: "file", id: videoFile.mediaId, collection: "" } },
-          ],
+          content: [adfMediaNode(mediaSrc(videoFile), videoFile)],
         };
       } else if (videoPlaceholderIdx >= 0) {
         content[videoPlaceholderIdx] = {
@@ -434,10 +629,7 @@ async function submitIssue(
         if (!refId) continue;
         const file = uploadMap.get(`inline-${refId}.webp`);
         if (!file) continue;
-        const mediaNode =
-          file.kind === "media"
-            ? { type: "media", attrs: { type: "file", id: file.mediaId, collection: "" } }
-            : { type: "media", attrs: { type: "external", url: file.url } };
+        const mediaNode = adfMediaNode(mediaSrc(file), file);
         content[i] = {
           type: "mediaSingle",
           attrs: { layout: "center", width: 100 },
@@ -489,7 +681,16 @@ function snapshotRow(
   };
 }
 
-type UploadedFile = { kind: "media"; mediaId: string } | { kind: "external"; url: string };
+type UploadedFile = (
+  | { kind: "media"; mediaId: string }
+  | { kind: "external"; url: string }
+) & { width?: number; height?: number };
+
+function mediaSrc(file: UploadedFile): MediaSource {
+  return file.kind === "media"
+    ? { kind: "media", mediaId: file.mediaId }
+    : { kind: "external", url: file.url };
+}
 
 function snapshotCell(file?: UploadedFile) {
   const emptyCell = {
@@ -498,10 +699,7 @@ function snapshotCell(file?: UploadedFile) {
     content: [{ type: "paragraph", content: [{ type: "text", text: "" }] }],
   };
   if (!file) return emptyCell;
-  const mediaNode =
-    file.kind === "media"
-      ? { type: "media", attrs: { type: "file", id: file.mediaId, collection: "" } }
-      : { type: "media", attrs: { type: "external", url: file.url } };
+  const mediaNode = adfMediaNode(mediaSrc(file), file);
   return {
     type: "tableCell" as const,
     attrs: {},

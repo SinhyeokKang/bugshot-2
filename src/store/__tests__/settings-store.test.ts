@@ -6,6 +6,7 @@ import {
   migrateV2ToV3,
   migrateToV5,
   pickInitialPlatform,
+  useSettingsStore,
 } from "../settings-store";
 import type { Accounts } from "@/types/platform";
 
@@ -38,6 +39,18 @@ const notionStub: Accounts["notion"] = {
   platform: "notion",
   connectedAt: 0,
   auth: { kind: "apiKey", token: "secret_x", botName: "Bug Bot" },
+  defaults: {},
+};
+
+const gitlabStub: Accounts["gitlab"] = {
+  platform: "gitlab",
+  connectedAt: 0,
+  auth: {
+    kind: "pat",
+    pat: "glpat_x",
+    baseUrl: "https://gitlab.com",
+    viewerUsername: "u",
+  },
   defaults: {},
 };
 
@@ -205,6 +218,64 @@ describe("connectedPlatforms", () => {
     expect(connectedPlatforms({ notion: notionStub })).toEqual(["notion"]);
     expect(connectedPlatforms({})).toEqual([]);
   });
+
+  it("gitlab은 fallback 순서에서 linear 뒤·notion 앞에 온다", () => {
+    expect(connectedPlatforms({ gitlab: gitlabStub })).toEqual(["gitlab"]);
+    expect(
+      connectedPlatforms({
+        jira: jiraStub,
+        github: githubStub,
+        linear: linearStub,
+        notion: notionStub,
+        gitlab: gitlabStub,
+      }),
+    ).toEqual(["jira", "github", "linear", "gitlab", "notion"]);
+  });
+});
+
+describe("updateGitlabAccount", () => {
+  it("gitlab account를 저장하고 다른 플랫폼은 보존한다 (v6→v7 라운드트립)", () => {
+    useSettingsStore.setState({ accounts: { jira: jiraStub }, lastSubmitFields: {} });
+
+    useSettingsStore.getState().updateGitlabAccount(gitlabStub);
+
+    const s = useSettingsStore.getState();
+    expect(s.accounts.gitlab).toEqual(gitlabStub);
+    expect(s.accounts.jira).toEqual(jiraStub);
+  });
+});
+
+const asanaStub = {
+  platform: "asana",
+  connectedAt: 0,
+  auth: {
+    kind: "pat",
+    pat: "1/abc",
+    viewerGid: "111",
+    viewerName: "u",
+  },
+  defaults: {},
+};
+
+describe("updateAsanaAccount", () => {
+  it("asana account를 저장하고 다른 플랫폼은 보존한다 (v7→v8 라운드트립)", () => {
+    useSettingsStore.setState({
+      accounts: { jira: jiraStub, gitlab: gitlabStub },
+      lastSubmitFields: {},
+    });
+
+    // updateAsanaAccount/accounts.asana는 구현 단계(Task 5)에서 추가 — 미구현 시 red
+    (useSettingsStore.getState() as unknown as {
+      updateAsanaAccount: (a: unknown) => void;
+    }).updateAsanaAccount(asanaStub);
+
+    const s = useSettingsStore.getState() as unknown as {
+      accounts: Record<string, unknown>;
+    };
+    expect(s.accounts.asana).toEqual(asanaStub);
+    expect(s.accounts.jira).toEqual(jiraStub);
+    expect(s.accounts.gitlab).toEqual(gitlabStub);
+  });
 });
 
 describe("migrateToV5 — titlePrefix 전역 승격", () => {
@@ -247,5 +318,38 @@ describe("isNotionAccountComplete", () => {
 
   it("undefined면 false", () => {
     expect(isNotionAccountComplete(undefined)).toBe(false);
+  });
+});
+
+describe("removeAccount — 연동 해제 시 prefill 정리", () => {
+  it("해제한 플랫폼의 account와 lastSubmitFields를 함께 지우고, 다른 플랫폼은 보존", () => {
+    useSettingsStore.setState({
+      accounts: { jira: jiraStub, github: githubStub },
+      lastSubmitFields: {
+        jira: { projectKey: "BUG", assigneeId: "id-1", priorityId: "3" },
+        github: { repo: "owner/repo" },
+      },
+    });
+
+    useSettingsStore.getState().removeAccount("jira");
+
+    const s = useSettingsStore.getState();
+    expect(s.accounts.jira).toBeUndefined();
+    expect(s.lastSubmitFields.jira).toBeUndefined();
+    expect(s.accounts.github).toBeDefined();
+    expect(s.lastSubmitFields.github).toEqual({ repo: "owner/repo" });
+  });
+
+  it("removeAllAccounts는 모든 account와 lastSubmitFields를 비운다", () => {
+    useSettingsStore.setState({
+      accounts: { jira: jiraStub, github: githubStub },
+      lastSubmitFields: { jira: { projectKey: "BUG" }, github: { repo: "r" } },
+    });
+
+    useSettingsStore.getState().removeAllAccounts();
+
+    const s = useSettingsStore.getState();
+    expect(s.accounts).toEqual({});
+    expect(s.lastSubmitFields).toEqual({});
   });
 });

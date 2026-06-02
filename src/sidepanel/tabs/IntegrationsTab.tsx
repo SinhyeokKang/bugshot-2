@@ -1,12 +1,14 @@
-import { useState } from "react";
+import { useEffect, useRef, useState, type ComponentType } from "react";
+import { Blocks, Plug, Plus, Unplug } from "lucide-react";
 import {
+  SiAsana,
   SiGithub,
+  SiGitlab,
   SiJirasoftware,
   SiLinear,
   SiNotion,
 } from "@icons-pack/react-simple-icons";
 import { useT } from "@/i18n";
-import type { TranslationKey } from "@/i18n/ko";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
@@ -20,138 +22,237 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
-import { useSettingsStore } from "@/store/settings-store";
-import { PageFooter } from "@/sidepanel/components/Section";
-import type { PlatformId } from "@/types/platform";
-import { GithubConnectForm } from "./connect/GithubConnectForm";
-import { JiraConnectForm } from "./connect/JiraConnectForm";
-import { LinearConnectForm } from "./connect/LinearConnectForm";
-import { NotionConnectForm } from "./connect/NotionConnectForm";
+import { connectedPlatforms, useSettingsStore } from "@/store/settings-store";
+import { PageFooter, PageScroll, PageShell, Section } from "@/sidepanel/components/Section";
+import { PLATFORM_TAB_KEYS, type PlatformId } from "@/types/platform";
+import {
+  orderAddPlatforms,
+  pickInitialSubTab,
+  type ConnectFlowProps,
+  type IntegrationSubTab,
+} from "./integrationsTabUtils";
+import { GithubConnectedBody, GithubConnectFlow } from "./connect/GithubConnectForm";
+import { JiraConnectedBody, JiraConnectFlow } from "./connect/JiraConnectForm";
+import { LinearConnectedBody, LinearConnectFlow } from "./connect/LinearConnectForm";
+import { NotionConnectedBody, NotionConnectFlow } from "./connect/NotionConnectForm";
+import { GitlabConnectedBody, GitlabConnectFlow } from "./connect/GitlabConnectForm";
+import { AsanaConnectedBody, AsanaConnectFlow } from "./connect/AsanaConnectForm";
 
-type PlatformSubTab = "jira" | "github" | "linear" | "notion";
+interface PlatformEntry {
+  id: PlatformId;
+  Icon: ComponentType<{ className?: string; color?: string }>;
+  ConnectedBody: () => JSX.Element;
+  ConnectFlow: (p: ConnectFlowProps) => JSX.Element;
+  iconClassName?: string;
+}
 
-const PLATFORM_ORDER: PlatformSubTab[] = ["jira", "github", "linear", "notion"];
+const PLATFORMS: PlatformEntry[] = [
+  { id: "jira", Icon: SiJirasoftware, ConnectedBody: JiraConnectedBody, ConnectFlow: JiraConnectFlow },
+  { id: "github", Icon: SiGithub, ConnectedBody: GithubConnectedBody, ConnectFlow: GithubConnectFlow, iconClassName: "dark:invert" },
+  { id: "linear", Icon: SiLinear, ConnectedBody: LinearConnectedBody, ConnectFlow: LinearConnectFlow },
+  { id: "gitlab", Icon: SiGitlab, ConnectedBody: GitlabConnectedBody, ConnectFlow: GitlabConnectFlow },
+  { id: "notion", Icon: SiNotion, ConnectedBody: NotionConnectedBody, ConnectFlow: NotionConnectFlow, iconClassName: "dark:invert" },
+  { id: "asana", Icon: SiAsana, ConnectedBody: AsanaConnectedBody, ConnectFlow: AsanaConnectFlow },
+];
 
-const PLATFORM_LABEL_KEYS: Record<PlatformSubTab, TranslationKey> = {
-  jira: "platform.tab.jira",
-  github: "platform.tab.github",
-  linear: "platform.tab.linear",
-  notion: "platform.tab.notion",
-};
-
-export function IntegrationsTab() {
+export function IntegrationsTab({ activeMainTab }: { activeMainTab: string }) {
   const t = useT();
   const accounts = useSettingsStore((s) => s.accounts);
-  const removeAccount = useSettingsStore((s) => s.removeAccount);
   const removeAllAccounts = useSettingsStore((s) => s.removeAllAccounts);
-  const [sub, setSub] = useState<PlatformSubTab>(
-    () => PLATFORM_ORDER.find((p) => !!accounts[p]) ?? "jira",
+
+  const connected = connectedPlatforms(accounts);
+  const connectedCount = connected.length;
+
+  const [sub, setSub] = useState<IntegrationSubTab>(() =>
+    pickInitialSubTab(connectedCount),
   );
 
-  const connectedCount = PLATFORM_ORDER.filter((p) => !!accounts[p]).length;
-  const currentConnected = !!accounts[sub];
+  // 상위 탭이 "integrations"로 전환되는 순간에만 진입 라우팅 (매 렌더 덮어쓰면 사용자 선택이 튐).
+  const prevMainTab = useRef(activeMainTab);
+  useEffect(() => {
+    if (activeMainTab === "integrations" && prevMainTab.current !== "integrations") {
+      setSub(pickInitialSubTab(connectedCount));
+    }
+    prevMainTab.current = activeMainTab;
+  }, [activeMainTab, connectedCount]);
+
+  // 해제로 connectedCount → 0 전이 시 "플랫폼 추가"로 자동 전환 (빈 "내 연동" 방지).
+  const prevCount = useRef(connectedCount);
+  useEffect(() => {
+    if (prevCount.current > 0 && connectedCount === 0) {
+      setSub("add");
+    }
+    prevCount.current = connectedCount;
+  }, [connectedCount]);
 
   return (
     <Tabs
       value={sub}
-      onValueChange={(v) => setSub(v as PlatformSubTab)}
+      onValueChange={(v) => setSub(v as IntegrationSubTab)}
       className="flex min-h-0 flex-1 flex-col gap-0"
     >
       <div className="shrink-0 border-b border-border px-4 py-4">
-        <TabsList className="grid h-9 w-full grid-cols-4">
-          <TabsTrigger value="jira" className="gap-1.5">
-            <SiJirasoftware className="h-3.5 w-3.5" color="default" />
-            {t("platform.tab.jira")}
+        <TabsList className="grid h-9 w-full grid-cols-2">
+          <TabsTrigger value="connected" className="gap-1.5">
+            <Plug className="h-4 w-4" />
+            {t("platform.subtab.connected")}
           </TabsTrigger>
-          <TabsTrigger value="github" className="gap-1.5">
-            <SiGithub className="h-3.5 w-3.5 dark:invert" color="default" />
-            {t("platform.tab.github")}
-          </TabsTrigger>
-          <TabsTrigger value="linear" className="gap-1.5">
-            <SiLinear className="h-3.5 w-3.5" color="default" />
-            {t("platform.tab.linear")}
-          </TabsTrigger>
-          <TabsTrigger value="notion" className="gap-1.5">
-            <SiNotion className="h-3.5 w-3.5 dark:invert" color="default" />
-            {t("platform.tab.notion")}
+          <TabsTrigger value="add" className="gap-1.5">
+            <Plus className="h-4 w-4" />
+            {t("platform.subtab.add")}
           </TabsTrigger>
         </TabsList>
       </div>
 
       <TabsContent
-        value="jira"
+        value="connected"
         className="mt-0 flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden"
       >
-        <JiraConnectForm />
+        {connectedCount === 0 ? (
+          <ConnectedEmpty onAdd={() => setSub("add")} />
+        ) : (
+          <>
+            <PageScroll>
+              {connected.map((id) => {
+                const { Icon, ConnectedBody, iconClassName } = PLATFORMS.find(
+                  (p) => p.id === id,
+                )!;
+                return (
+                  <Section
+                    key={id}
+                    collapsible
+                    defaultOpen
+                    title={
+                      <span className="flex items-center gap-2">
+                        <Icon className={`h-4 w-4 ${iconClassName ?? ""}`} color="default" />
+                        {t(PLATFORM_TAB_KEYS[id])}
+                      </span>
+                    }
+                    action={<DisconnectButton id={id} />}
+                  >
+                    <ConnectedBody />
+                  </Section>
+                );
+              })}
+            </PageScroll>
+            {connectedCount >= 2 && (
+              <PageFooter>
+                <div className="flex justify-end">
+                  <DisconnectAllButton onConfirm={removeAllAccounts} />
+                </div>
+              </PageFooter>
+            )}
+          </>
+        )}
       </TabsContent>
 
       <TabsContent
-        value="github"
+        value="add"
         className="mt-0 flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden"
       >
-        <GithubConnectForm />
-      </TabsContent>
-
-      <TabsContent
-        value="linear"
-        className="mt-0 flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden"
-      >
-        <LinearConnectForm />
-      </TabsContent>
-
-      <TabsContent
-        value="notion"
-        className="mt-0 flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden"
-      >
-        <NotionConnectForm />
-      </TabsContent>
-
-      {currentConnected && (
-        <PageFooter>
-          <div className="flex items-center justify-between">
-            {connectedCount >= 2 ? (
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button variant="outline" className="text-destructive">
-                    {t("platform.disconnectAll")}
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>{t("platform.disconnectAll.title")}</AlertDialogTitle>
-                    <AlertDialogDescription>{t("platform.disconnectAll.body")}</AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>{t("common.close")}</AlertDialogCancel>
-                    <AlertDialogAction onClick={() => { removeAllAccounts(); setSub("jira"); }}>
-                      {t("platform.disconnect.confirm")}
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            ) : <span />}
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button variant="outline">
-                  {t("platform.disconnectPlatform", { platform: t(PLATFORM_LABEL_KEYS[sub]) })}
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>{t("platform.disconnect.title", { platform: t(PLATFORM_LABEL_KEYS[sub]) })}</AlertDialogTitle>
-                  <AlertDialogDescription>{t("platform.disconnect.body")}</AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>{t("common.close")}</AlertDialogCancel>
-                  <AlertDialogAction onClick={() => removeAccount(sub as PlatformId)}>
-                    {t("platform.disconnect.confirm")}
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+        <PageShell>
+          <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 px-6 pb-5">
+            <div className="flex flex-col items-center gap-1">
+              <div className="mb-1 rounded-full bg-muted p-3">
+                <Blocks className="h-6 w-6 text-muted-foreground" />
+              </div>
+              <h3 className="text-center text-lg font-semibold">{t("platform.add.title")}</h3>
+            </div>
+            <div className="flex w-full max-w-[320px] flex-col gap-2">
+              {orderAddPlatforms(
+                PLATFORMS.map((p) => p.id),
+                (id) => !!accounts[id],
+              ).map((id) => {
+                const { ConnectFlow } = PLATFORMS.find((p) => p.id === id)!;
+                return (
+                  <ConnectFlow
+                    key={id}
+                    connected={!!accounts[id]}
+                    onConnected={() => setSub("connected")}
+                  />
+                );
+              })}
+            </div>
           </div>
-        </PageFooter>
-      )}
+        </PageShell>
+      </TabsContent>
     </Tabs>
+  );
+}
+
+function ConnectedEmpty({ onAdd }: { onAdd: () => void }) {
+  const t = useT();
+  return (
+    <PageShell>
+      <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 px-6 pb-5">
+        <div className="flex flex-col items-center gap-1">
+          <div className="mb-1 rounded-full bg-muted p-3">
+            <Blocks className="h-6 w-6 text-muted-foreground" />
+          </div>
+          <h3 className="text-center text-lg font-semibold">{t("platform.add.empty.title")}</h3>
+          <p className="mt-1 text-center text-sm text-muted-foreground">
+            {t("platform.add.empty.body")}
+          </p>
+        </div>
+        <Button onClick={onAdd}>{t("platform.subtab.add")}</Button>
+      </div>
+    </PageShell>
+  );
+}
+
+function DisconnectButton({ id }: { id: PlatformId }) {
+  const t = useT();
+  const removeAccount = useSettingsStore((s) => s.removeAccount);
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button
+          variant="outline"
+          size="icon"
+          className="h-8 w-8 shrink-0 hover:text-destructive"
+        >
+          <Unplug />
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>
+            {t("platform.disconnect.title", { platform: t(PLATFORM_TAB_KEYS[id]) })}
+          </AlertDialogTitle>
+          <AlertDialogDescription>{t("platform.disconnect.body")}</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>{t("common.close")}</AlertDialogCancel>
+          <AlertDialogAction onClick={() => removeAccount(id)}>
+            {t("platform.disconnect.confirm")}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
+function DisconnectAllButton({ onConfirm }: { onConfirm: () => void }) {
+  const t = useT();
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button variant="outline" className="text-destructive">
+          {t("platform.disconnectAll")}
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{t("platform.disconnectAll.title")}</AlertDialogTitle>
+          <AlertDialogDescription>{t("platform.disconnectAll.body")}</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>{t("common.close")}</AlertDialogCancel>
+          <AlertDialogAction onClick={onConfirm}>
+            {t("platform.disconnect.confirm")}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }

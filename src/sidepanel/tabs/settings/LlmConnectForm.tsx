@@ -175,7 +175,7 @@ function LlmConnected() {
                 variant="outline"
                 role="combobox"
                 aria-expanded={modelPopoverOpen}
-                className="w-full justify-between font-normal"
+                className="w-full min-w-0 justify-between font-normal"
               >
                 {llm.modelId || t("llm.model.placeholder")}
                 <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
