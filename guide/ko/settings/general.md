@@ -36,4 +36,4 @@ BugShot의 화면 언어를 고릅니다. **한국어**와 **English** 중에서
 
 ---
 
-🌐 [English](https://bugshot.gitbook.io/en)
+🌐 [English](https://bugshot.gitbook.io/en/settings/general)

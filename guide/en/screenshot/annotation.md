@@ -24,4 +24,4 @@ When you're finished, click **Done** to finalize the image. The annotated screen
 
 ---
 
-🌐 [한국어](https://bugshot.gitbook.io/ko)
+🌐 [한국어](https://bugshot.gitbook.io/ko/screenshot/annotation)

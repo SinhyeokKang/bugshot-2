@@ -37,4 +37,4 @@ Once AI is ready, two features become available.
 
 ---
 
-🌐 [한국어](https://bugshot.gitbook.io/ko)
+🌐 [한국어](https://bugshot.gitbook.io/ko/settings/ai)

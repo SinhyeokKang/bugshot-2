@@ -39,4 +39,4 @@
 
 ---
 
-🌐 [English](https://bugshot.gitbook.io/en)
+🌐 [English](https://bugshot.gitbook.io/en/integrations/platforms)

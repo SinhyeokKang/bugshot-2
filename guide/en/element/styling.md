@@ -44,4 +44,4 @@ When you're done editing, click **Next** to move to the issue draft. The before 
 
 ---
 
-🌐 [한국어](https://bugshot.gitbook.io/ko)
+🌐 [한국어](https://bugshot.gitbook.io/ko/element/styling)

@@ -52,4 +52,4 @@ Chrome 웹스토어에서 BugShot을 설치합니다. 설치하면 툴바에 Bug
 
 ---
 
-🌐 [English](https://bugshot.gitbook.io/en)
+🌐 [English](https://bugshot.gitbook.io/en/readme/quick-start)

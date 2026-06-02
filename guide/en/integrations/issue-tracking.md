@@ -31,4 +31,4 @@ Clears every issue in the list at once. Only the drafts and records stored local
 
 ---
 
-🌐 [한국어](https://bugshot.gitbook.io/ko)
+🌐 [한국어](https://bugshot.gitbook.io/ko/integrations/issue-tracking)

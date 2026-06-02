@@ -25,4 +25,4 @@ Once it's ready, the **Replay** button on the debug screen pulls the last 30 sec
 
 ---
 
-🌐 [한국어](https://bugshot.gitbook.io/ko)
+🌐 [한국어](https://bugshot.gitbook.io/ko/video/replay)

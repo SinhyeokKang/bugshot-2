@@ -14,4 +14,4 @@ The flow is **capture a region → annotate → write the issue**.
 
 ---
 
-🌐 [한국어](https://bugshot.gitbook.io/ko)
+🌐 [한국어](https://bugshot.gitbook.io/ko/screenshot)

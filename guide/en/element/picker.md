@@ -28,4 +28,4 @@ Elements **inside an iframe** (a frame holding another document) **can't be sele
 
 ---
 
-🌐 [한국어](https://bugshot.gitbook.io/ko)
+🌐 [한국어](https://bugshot.gitbook.io/ko/element/picker)

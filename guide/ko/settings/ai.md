@@ -37,4 +37,4 @@ AI가 준비되면 두 가지 기능을 쓸 수 있습니다.
 
 ---
 
-🌐 [English](https://bugshot.gitbook.io/en)
+🌐 [English](https://bugshot.gitbook.io/en/settings/ai)

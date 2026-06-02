@@ -39,4 +39,4 @@ In "My integrations" you can disconnect each platform (the unplug icon), or disc
 
 ---
 
-🌐 [한국어](https://bugshot.gitbook.io/ko)
+🌐 [한국어](https://bugshot.gitbook.io/ko/integrations/platforms)

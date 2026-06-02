@@ -36,4 +36,4 @@ At the bottom of the General tab you'll find three handy buttons.
 
 ---
 
-🌐 [한국어](https://bugshot.gitbook.io/ko)
+🌐 [한국어](https://bugshot.gitbook.io/ko/settings/general)

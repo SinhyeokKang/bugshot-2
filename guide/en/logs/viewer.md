@@ -28,4 +28,4 @@ The screen has a timeline alongside the video, with logs plotted on it as marker
 
 ---
 
-🌐 [한국어](https://bugshot.gitbook.io/ko)
+🌐 [한국어](https://bugshot.gitbook.io/ko/logs/viewer)

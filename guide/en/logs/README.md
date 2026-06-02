@@ -14,4 +14,4 @@ A bug report with console and network logs gets to the root cause much faster. Y
 
 ---
 
-🌐 [한국어](https://bugshot.gitbook.io/ko)
+🌐 [한국어](https://bugshot.gitbook.io/ko/logs)
