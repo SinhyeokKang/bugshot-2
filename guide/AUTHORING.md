@@ -82,6 +82,7 @@ element/screenshot/video 세 `issue.md`는 아래 7단계를 **그대로 반복*
 | 캡처 모드·freeform 버튼 라벨 | `src/i18n/namespaces/issue.ts` (`issue.mode.*`, `issue.startDraft`) |
 | 스타일 패널 섹션·순서 | `src/sidepanel/tabs/StyleEditorPanel.tsx` (라벨은 `editor.ts`) |
 | AI 배너 라벨 | `src/i18n/namespaces/ai.ts`, `editor.ts` |
+| AI 가용성·폴백 흐름 | `src/sidepanel/hooks/useAI.ts`, `ai-provider.ts` (BYOK → Chrome 내장 AI → 미노출) |
 | 어노테이션 | `src/sidepanel/components/AnnotationOverlay.tsx` (markerjs2 — 도구 제한 없으면 라이브러리 기본 영문 툴바) |
 | 로그 정책(모드별 기본 on/off) | `src/sidepanel/lib/captureLogSupport.ts`, `src/store/editor-store.ts` |
 | 로그 뷰어 마커 | `src/log-viewer/markers.ts` (`MarkerType`: console/network/action, navigate는 action variant) |
@@ -93,6 +94,7 @@ element/screenshot/video 세 `issue.md`는 아래 7단계를 **그대로 반복*
 - **단축키**: `Cmd/Ctrl+Shift+E`(패널 토글) / `Cmd/Ctrl+Shift+S`(요소) / `Cmd/Ctrl+Shift+F`(스크린샷) / `Cmd/Ctrl+Shift+X`(영상). best-effort라 OS·타 확장 충돌 시 미배정될 수 있음을 한 줄 안내.
 - **본문 섹션**: 발생 현상(켜짐·문단) / 재현 과정(켜짐·번호 목록) / 기대 결과(켜짐·문단) / 비고(꺼짐·문단). 라벨·플레이스홀더 override 가능.
 - **로그 정책**: 요소=로그 없음 / 스크린샷=콘솔·네트워크 토글 **기본 off** / 녹화=콘솔·네트워크·액션 **기본 on**. 액션 로그는 **녹화 모드 전용**. 자동 수집 주기 ~1.5초.
+- **AI 가용성**: BYOK LLM 연결 시 그 모델(배지=프로바이더명) → 미연결 시 Chrome 내장 AI 자동 폴백(배지="Chrome AI", `globalThis.LanguageModel` 가용 시) → 그것도 불가하면 AI 스타일링·초안 배너 **미노출**. "키 없으면 미노출"이 아니다.
 - **로그 뷰어 마커**: 콘솔/네트워크/액션 3종. 페이지 이동은 액션 마커의 variant(별도 타입 아님). `logs.html`은 빌드 산출물 → 일반 사용자는 "이슈 첨부로 받은 리포트를 여는" 개발자 관점으로만 기술.
 - **플랫폼 표** (현 시점 6개 스냅샷):
 
