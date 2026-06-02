@@ -1,2 +1,4 @@
 theme: jekyll-theme-minimal
 title: BugShot
+exclude:
+  - features
