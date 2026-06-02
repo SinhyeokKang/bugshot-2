@@ -14,7 +14,7 @@ Just three things to enter.
 
 Most providers with an OpenAI-compatible endpoint connect without a hitch. BugShot may request access to that domain on connect — go ahead and approve it.
 
-![Connecting an AI model](../assets/3.2.1.jpg)
+![Connecting an AI model](../assets/3.3.1.jpg)
 
 ## Which AI runs
 
