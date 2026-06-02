@@ -18,8 +18,8 @@
 | `src/sidepanel/lib/markdownToSlackBlocks.ts` | markdown → Block Kit `blocks[]` 변환 + mrkdwn fallback 텍스트. markdown-it 토큰 순회 (markdownToAsanaHtml 패턴) |
 | `src/sidepanel/lib/buildSlackIssueBody.ts` | `MarkdownContext` → 본문 markdown 문자열 조립 (buildAsanaIssueBody 패턴, 첨부는 본문에 안 넣음) |
 | `src/sidepanel/lib/submitToSlack.ts` | 전송 오케스트레이션: postMessage → 스레드 첨부 |
-| `src/sidepanel/tabs/connect/SlackConnectForm.tsx` | `SlackConnectFlow`, `SlackConnectedBody` (OAuth only, NotionConnectForm 패턴 — PAT 입력 없음) |
-| `src/sidepanel/tabs/slackFields/ConversationField.tsx` | 채널/DM 검색 콤보박스 (단일 필드) |
+| `src/sidepanel/tabs/connect/SlackConnectForm.tsx` | `SlackConnectFlow`(OAuth only — 단일 "Connect with Slack" 버튼, `connectMethods` 우회), `SlackConnectedBody`(워크스페이스 표시 + **기본 채널 선택 블록** — Notion `NotionDefaultsBlock` 패턴) |
+| `src/sidepanel/tabs/slackFields/ConversationField.tsx` | 채널 검색 콤보박스 (단일 필드, GitHub/GitLab `*Combobox`의 250ms debounce 서버 검색 패턴) |
 | `src/sidepanel/tabs/slackFields/SlackIssueFields.tsx` | SubmitFieldsDialog용 필드 묶음 (ConversationField 하나) |
 | `src/sidepanel/tabs/statusBadges/SlackSubmittedBadge.tsx` | 정적 "전송됨" + permalink 링크 (폴링 없음). `StatusBadge`(폴링형)는 슬랙용 미생성 |
 | `src/sidepanel/lib/__tests__/markdownToSlackBlocks.test.ts` | 변환기 단위 테스트 |
@@ -32,18 +32,20 @@
 | `src/types/messages.ts` | `BgRequest` union, `getOAuthErrorPlatform` | `slack.*` 메시지 추가, OAuth 에러 플랫폼 판정에 `"slack"` 추가, Slack 타입 re-export |
 | `src/background/messages.ts` | bg 메시지 핸들러 디스패치 | `slack.*` 케이스 추가 |
 | `src/background/bgRequestTypes.ts` | 메시지 타입 보조 | slack 타입 추가 (현 패턴 따름) |
-| `src/sidepanel/tabs/IntegrationsTab.tsx` | `PLATFORMS` 배열 | `{ id: "slack", Icon: SiSlack, ... }` 추가 |
-| `src/sidepanel/tabs/SubmitFieldsDialog.tsx` | 플랫폼 탭·필드 dispatch, `canSubmit` | slack 탭 + `SlackIssueFields` + `canSubmit` 분기(conversationId 필수) |
+| `src/sidepanel/tabs/IntegrationsTab.tsx` | `PLATFORMS` 배열 | `{ id: "slack", Icon: SiSlack, ... }` 추가. **`isSlackOAuthConfigured()` false면 목록에서 제외**(Slack은 OAuth가 유일 인증 → 미구성 시 카드 자체 숨김). `connectMethods`에 slack을 OAuth-only로 분기 |
+| `src/sidepanel/tabs/SubmitFieldsDialog.tsx` | 플랫폼 탭·필드 dispatch, `canSubmit` | slack 탭 + `SlackIssueFields` + `canSubmit` 분기(conversationId 필수). **`TABS_GRID_COLS`에 `7: "grid-cols-7"` 추가** + 7탭일 때 **활성 탭만 텍스트 라벨, 비활성은 아이콘만**(400px에서 탭당 ~50px). 탭 컨텐츠는 기존 **삼항 분기**에 `platform === "slack"` 케이스 추가(TabsContent 미사용 — `data-[state=inactive]:hidden` 불필요) |
+| `src/sidepanel/hooks/usePlatformFields.ts` | 플랫폼별 필드 init/reset | slack 필드(conversationId) 등록 — `open` 시 `lastSubmitFields.slack`(없으면 `defaults.conversationId`) prefill + reset. 누락 시 다이얼로그 재오픈 시 초기화 안 됨 |
 | `src/sidepanel/tabs/IssueCreateModal.tsx` | submit dispatch | `submitToSlack` 분기 + `lastSubmitFields.slack` + `setLastSubmittedPlatform("slack")` |
-| `src/sidepanel/tabs/statusBadges/SubmittedBadge.tsx` | 플랫폼별 배지 라우팅 | `platform === "slack"` → `SlackSubmittedBadge` |
+| `src/sidepanel/tabs/statusBadges/SubmittedBadge.tsx` | 플랫폼별 배지 라우팅 | `platform === "slack"` → `SlackSubmittedBadge`. 식별자 평면 props에 permalink(`issueUrl` 활용)·`slackChannelId`·`slackMessageTs` 추가, 호출처(IssueRow)에서 `IssueRecord`로부터 꺼내 전달(`resolveAsanaCoords` 류 패턴). **주의: 이 파일은 `return null` 종결이라 컴파일러가 slack 분기 누락을 적발 못 함 → 수동 검증 필수** |
 | `src/sidepanel/tabs/statusBadges/PlatformChip.tsx` | 플랫폼 아이콘+이름 칩 | slack 분기 (`SiSlack`) |
-| `src/sidepanel/tabs/issueListUtils.ts` | 이슈 리스트 헬퍼 (submitTo 재전송 등) | slack 분기 추가 |
+| `src/sidepanel/tabs/issueListUtils.ts` | 이슈 리스트 헬퍼 (submitTo 재전송 등) | slack 분기 추가 (재전송 = 새 메시지 게시, 중복 허용) |
 | `src/sidepanel/tabs/DraftDetailDialog.tsx` | 드래프트 상세 재전송 | slack 분기 추가 |
-| `src/store/settings-store.ts` | accounts·lastSubmitFields·sync | slack 계정 setter, `connectedPlatforms`에 자연 포함. **상태 sync 대상에서 제외** |
-| `src/store/issues-store.ts` | `IssueRecord` | `slackChannelId?`, `slackMessageTs?` 필드 추가 (옵셔널, 마이그레이션 불필요 — 기존 레코드엔 부재) |
+| `src/store/settings-store.ts` | accounts·lastSubmitFields | slack 계정 setter, `connectedPlatforms`가 필터링하는 **`PLATFORM_FALLBACK_ORDER` 배열에 `"slack"` 명시 추가**(자동 포함 아님). **store 버전 마커 bump**(새 필드 optional이나 관례상 bump). 중앙 상태 sync 폴링은 없음 — 폴링 제외는 SlackSubmittedBadge를 정적으로 두면 자동 달성(별도 처리 불요) |
+| `src/store/issues-store.ts` | `IssueRecord` | `slackChannelId?`, `slackMessageTs?` 필드 추가 (옵셔널, 데이터 마이그레이션 불필요 — 기존 레코드엔 부재). **버전 마커 bump**(관례) |
 | `src/lib/settings-storage.ts` | OAuth 토큰 storage 헬퍼 | `writeStoredSlackOAuthTokens` 추가 (현 패턴 따름) |
 | `src/i18n/namespaces/integrations.ts` | 통합 i18n 키 | `platform.tab.slack` + `slack.*` 키 (ko/en 동시) |
-| `manifest.config.ts` | 권한·호스트 | `host_permissions`에 `https://slack.com/*` 추가 |
+| `manifest.config.ts` | 권한·호스트 | `host_permissions`에 `https://slack.com/*` **+ `https://files.slack.com/*`**(getUploadURLExternal PUT 대상, 사실상 확정) 추가 |
+| `docs/privacy.md` / `PERMISSION.md` | 권한·데이터 흐름 레퍼런스 | 새 외부 API(`slack.com`·`files.slack.com`) + 메시지/파일 전송 동작 → 시행일 포함 갱신 |
 | `.env` 문서/`vite-env` | env 정의 | `VITE_SLACK_CLIENT_ID` 추가 (`VITE_OAUTH_PROXY_URL` 재사용) |
 
 ## 데이터 흐름
@@ -55,10 +57,10 @@
   → proxy POST /slack/token → oauth.v2.access → authed_user.access_token (xoxp)
   → auth.test + users.info → SlackAccount{ auth, defaults } → settings-store
 
-[대상 선택] SubmitFieldsDialog → ConversationField
+[대상 선택] SubmitFieldsDialog → ConversationField (250ms debounce)
   → background slack.listConversations(query)
-  → conversations.list(types=public_channel,private_channel,im,mpim)
-     + im은 users.info로 이름 resolve
+  → conversations.list(types=public_channel,private_channel)
+     (DM/그룹DM 제외 — 1차 스코프는 채널만)
   → SlackConversation[] → 콤보박스
 
 [전송] IssueCreateModal.handleSubmit → submitToSlack
@@ -123,11 +125,12 @@ export interface SlackMyself {
   teamName: string;
 }
 
-export type SlackConversationType = "channel" | "private" | "im" | "mpim";
+// 1차 스코프: 채널만 (DM/그룹DM 제외)
+export type SlackConversationType = "channel" | "private";
 
 export interface SlackConversation {
-  id: string;            // Cxxxx / Dxxxx
-  name: string;          // 채널명 또는 DM 상대 표시 이름
+  id: string;            // Cxxxx
+  name: string;          // 채널명
   type: SlackConversationType;
 }
 
@@ -205,6 +208,7 @@ export function markdownToSlackBlocks(markdown: string): SlackBlocksResult;
 ### `src/sidepanel/lib/submitToSlack.ts`
 
 ```typescript
+// contentType은 입력에 두지 않고 submitToSlack 내부에서 dataUrl로부터 도출 (기존 uploadMime.ts 헬퍼 재사용)
 export interface SlackFileInput { filename: string; dataUrl: string; }
 
 export interface SlackSubmitInput {
@@ -241,10 +245,10 @@ export async function uploadFiles(
 - **proxy 경유 token 교환**: Slack은 client secret이 필요하므로 `VITE_OAUTH_PROXY_URL`의 `/slack/token`을 경유한다 (Asana/GitHub/Notion 패턴). client secret은 확장에 두지 않는다.
 - **per-file 격리 업로드**: 파일 개별 실패가 메시지 전송을 깨지 않게 background 핸들러에서 격리 (Asana `uploadFiles` 패턴).
 - **세션 영속화**: `SlackAccount`·`lastSubmitFields.slack`은 settings-store에, 작성 중 상태는 editor-store에.
-- **i18n 동시 갱신**: `src/i18n/`에 ko/en 키 함께 추가 (PostToolUse 훅이 대칭 검사).
-- **`data-[state=inactive]:hidden`**: SubmitFieldsDialog의 Slack 탭 컨텐츠에 적용.
-- **테스트 우선**: `markdownToSlackBlocks`는 순수 함수 → `__tests__`에 단위 테스트 먼저.
-- **shadcn 컴포넌트**: ConversationField는 기존 Combobox 패턴(예: Asana ProjectField) 재사용.
+- **i18n 동시 갱신**: `src/i18n/`에 ko/en 키 함께 추가 (PostToolUse 훅이 대칭 검사). done 화면도 Slack용 카피("메시지 전송됨" 등) `slack.*` 키로 분기.
+- **탭 컨텐츠 분기**: SubmitFieldsDialog는 `TabsContent`를 쓰지 않고 **삼항 분기로 한 번에 하나만 렌더**한다(`Tabs`는 `TabsList`만 감쌈). 기존 분기에 `platform === "slack"` 케이스만 추가 — `data-[state=inactive]:hidden` 불필요(그 디렉티브는 IntegrationsTab용).
+- **테스트 우선**: `markdownToSlackBlocks`·`parseSlackCallbackParams`는 순수 함수 → `__tests__`에 단위 테스트 먼저.
+- **shadcn 컴포넌트**: ConversationField는 기존 Combobox 패턴(GitHub/GitLab `*Combobox` — debounce 서버 검색; 파일은 `asanaFields/ProjectCombobox.tsx` 등) 재사용.
 
 ## 대안 검토
 
@@ -255,10 +259,9 @@ export async function uploadFiles(
 
 ## 위험 요소
 
-- **Slack `files` 신규 업로드 플로우**: 구 `files.upload`는 deprecated. `files.getUploadURLExternal` → 외부 URL에 PUT → `files.completeUploadExternal`(`thread_ts`·`channel_id` 지정) 3-step을 정확히 구현해야 한다. background에서 fetch 3회.
-- **CORS / 호스트 권한**: `https://slack.com/api/*` 호출은 `host_permissions`에 `https://slack.com/*` 필요. `getUploadURLExternal`이 반환하는 업로드 URL은 `files.slack.com` 등 별도 origin일 수 있어 — PUT 대상 origin을 확인하고 필요 시 권한/`fetch` 처리 (회귀 위험 포인트, 실제 워크스페이스 검증 필수).
+- **Slack `files` 신규 업로드 플로우**: 구 `files.upload`는 deprecated. `files.getUploadURLExternal` → 외부 URL에 PUT → `files.completeUploadExternal`(`thread_ts`·`channel_id` 지정) 3-step을 정확히 구현해야 한다. background에서 fetch 3회. **선례는 Linear `uploadFileToLinear`**(presigned URL에 background `fetch PUT`, Bearer 토큰) — github-upload(MAIN world 주입)는 github.com 세션쿠키 위장용 특수 케이스라 부적합.
+- **CORS / 호스트 권한**: `https://slack.com/api/*` 호출은 `host_permissions`에 `https://slack.com/*` 필요. `getUploadURLExternal`이 반환하는 PUT 대상은 **`files.slack.com`이 사실상 확정** → `https://files.slack.com/*`를 **기본 전제로 manifest에 함께 추가**(조건부 검증 아님). privacy.md/PERMISSION.md도 선반영. 실제 워크스페이스에서 PUT origin 최종 확인.
 - **mrkdwn fallback 정확성**: `text` 필드는 알림·접근성용. 비우면 Slack이 경고하므로 본문 요약을 넣되, Block Kit과 중복 표시되지 않도록 한다 (blocks가 있으면 text는 알림에만 쓰임).
-- **section 3000자 제한 / 블록 50개 제한**: 긴 로그·diff가 한계를 넘지 않게 분할·요약. 초과 시 Slack API가 거부.
-- **`PlatformId` union 확장의 누락 분기**: `"slack"` 추가 시 `satisfies Record<PlatformId, …>`·exhaustive switch가 컴파일 에러를 내는 지점을 모두 처리해야 한다. `pnpm typecheck`로 누락 적발. 특히 `PLATFORM_TAB_KEYS`(Record라 강제됨)와 SubmittedBadge/PlatformChip 분기.
-- **DM 이름 resolve 비용**: `conversations.list`가 다수 `im`을 반환하면 `users.info` 호출이 늘 수 있다 → 콤보박스 검색 쿼리 기반으로 제한하거나 batch 고려.
+- **section 3000자 제한 / 블록 50개 제한**: 긴 로그·diff가 한계를 넘지 않게 분할·요약. 초과 시 Slack API가 거부 → `markdownToSlackBlocks`가 50블록 cap·3000자 분할을 보장(테스트 대상).
+- **`PlatformId` union 확장의 누락 분기**: `"slack"` 추가 시 `satisfies Record<PlatformId, …>`·exhaustive switch가 컴파일 에러를 내는 지점을 처리. `pnpm typecheck`로 누락 적발. **단 `SubmittedBadge.tsx`는 if-체인 + `return null` 종결이라 컴파일러가 누락을 못 잡는다** → slack 분기 누락 시 런타임에 조용히 빈 배지. 수동 검증("Slack 항목이 null 아닌 배지 렌더") 필수. `PLATFORM_TAB_KEYS`·`PLATFORM_FALLBACK_ORDER`는 강제됨.
 - **토큰 만료 처리**: user token은 무기한이나 사용자가 권한 철회 시 `invalid_auth`/`token_revoked` → `oauthRefreshFailed` 동등 처리로 재연결 안내 (refresh 없음).
