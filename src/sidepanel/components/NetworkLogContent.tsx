@@ -4,6 +4,7 @@ import { useT, type TranslationFn } from "@/i18n";
 import type { NetworkRequest, NetworkRequestBody } from "@/types/network";
 import { formatBytes } from "@/sidepanel/lib/formatBytes";
 import { networkLogPath } from "@/lib/network-log-path";
+import { isStatusHidden } from "@/lib/network-status";
 import { JsonTreeViewer } from "./JsonTreeViewer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -433,11 +434,20 @@ function HeadersPanel({ req }: { req: NetworkRequest }) {
           <dt className="text-muted-foreground">{t("networkLog.detail.method")}</dt>
           <dd>{req.method}</dd>
           <dt className="text-muted-foreground">{t("networkLog.detail.status")}</dt>
-          <dd className="flex items-center gap-1">
-            <span className={`inline-block h-2.5 w-2.5 rounded-full ${
-              isPending(req) ? "bg-amber-500" : isError(req) ? "bg-red-500" : "bg-green-500"
-            }`} />
-            {isPending(req) ? t("networkLog.display.pending") : `${req.status} ${req.statusText}`}
+          <dd className="flex flex-col gap-0.5">
+            <span className="flex items-center gap-1">
+              <span className={`inline-block h-2.5 w-2.5 rounded-full ${
+                isPending(req) ? "bg-amber-500" : isError(req) ? "bg-red-500" : "bg-green-500"
+              }`} />
+              {isPending(req)
+                ? t("networkLog.display.pending")
+                : isStatusHidden(req)
+                  ? t("networkLog.display.blocked")
+                  : `${req.status} ${req.statusText}`}
+            </span>
+            {isStatusHidden(req) && (
+              <span className="text-xs text-muted-foreground">{t("networkLog.display.blockedHint")}</span>
+            )}
           </dd>
           <dt className="text-muted-foreground">{t("networkLog.detail.time")}</dt>
           <dd>{isPending(req) ? "—" : `${req.durationMs}ms`}</dd>
