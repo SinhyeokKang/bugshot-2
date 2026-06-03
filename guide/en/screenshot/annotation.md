@@ -8,7 +8,7 @@ Draw on the captured image to mark where the bug is and what it is. Point with a
 - **Edit annotation** — Reopen what you've drawn and adjust it.
 - **Remove annotation** — Clear what you've drawn.
 
-![Annotating](../assets/dummy.jpg)
+![Annotating](../assets/screenshot-annotation-1.jpg)
 
 ## Tools
 

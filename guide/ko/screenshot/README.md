@@ -4,7 +4,7 @@
 
 흐름은 **영역 캡처 → 주석 표시 → 이슈 작성** 순서입니다.
 
-![스크린샷 모드 개요](../assets/dummy.jpg)
+![스크린샷 모드 개요](../assets/screenshot-readme-1.jpg)
 
 ## 바로가기
 

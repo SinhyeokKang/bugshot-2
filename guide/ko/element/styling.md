@@ -16,7 +16,7 @@
 8. **Effects** — 그림자·필터·블렌드.
 9. **Transition** — 전환 속성·시간·이징.
 
-![스타일 패널 섹션](../assets/dummy.jpg)
+![스타일 패널 섹션](../assets/element-styling-1.jpg)
 
 ## 라이브 반영과 되돌리기
 
@@ -36,7 +36,7 @@ AI(LLM)를 연결해 두면 패널에 **AI 스타일링** 배너가 나타납니
 
 > AI 연결 방법은 [AI LLM 연동](../settings/ai.md)을 참고하세요. AI도 가끔 실수하니 적용된 결과는 한 번 확인해 주세요.
 
-![AI 스타일링 배너](../assets/dummy.jpg)
+![AI 스타일링 배너](../assets/element-styling-2.jpg)
 
 ## 다음 단계
 

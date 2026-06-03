@@ -8,7 +8,7 @@
 - **주석 수정** — 이미 그린 주석을 다시 열어 고칩니다.
 - **주석 제거** — 그린 주석을 지웁니다.
 
-![주석 편집](../assets/dummy.jpg)
+![주석 편집](../assets/screenshot-annotation-1.jpg)
 
 ## 도구
 

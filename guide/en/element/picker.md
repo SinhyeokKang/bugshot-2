@@ -6,7 +6,7 @@ In the **Debug** tab, click **Select DOM element**, or press `Cmd/Ctrl+Shift+S`.
 
 > If the shortcut doesn't respond, it may be clashing with your OS or another extension — feel free to start from the button instead.
 
-![Picker crosshair](../assets/dummy.jpg)
+![Picker crosshair](../assets/element-picker-1.jpg)
 
 ## Click an element
 
@@ -18,7 +18,7 @@ Can't quite land on the exact element? No problem — you can **move to its pare
 
 Want to start over? **Pick another element** lets you begin fresh anytime.
 
-![DOM tree navigation](../assets/dummy.jpg)
+![DOM tree navigation](../assets/element-picker-2.jpg)
 
 ## iframe limitation
 

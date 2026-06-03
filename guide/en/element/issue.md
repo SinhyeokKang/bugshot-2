@@ -10,13 +10,13 @@ Your configured title prefix (e.g. `[QA] `) is pre-filled. Type the rest of the 
 
 OS, browser, page URL, viewport size, and capture time fill in **on their own** (read-only). Want to add more context? Just drop in a variable row yourself.
 
-![Environment](../assets/dummy.jpg)
+![Environment](../assets/element-issue-1.jpg)
 
 ## 3. Media — before/after style table
 
 This is the heart of element mode. The before and after styles are captured as a **comparison table**, so which properties changed to which values is clear at a glance. The reader grasps "what to change and how" from a single table.
 
-![Before/after style comparison](../assets/dummy.jpg)
+![Before/after style comparison](../assets/element-issue-2.jpg)
 
 ## 4. Body sections
 
@@ -26,7 +26,7 @@ Sections appear per your body composition — Description, Steps to reproduce, E
 
 > AI slips up now and then, so give the generated body a quick look. See [AI LLM Connection](../settings/ai.md) for how to connect.
 
-![Writing the body](../assets/dummy.jpg)
+![Writing the body](../assets/element-issue-3.jpg)
 
 ## 5. Log attachments
 
@@ -36,13 +36,13 @@ Element mode attaches no logs. For bugs that need logs, reach for [Screenshot](.
 
 Give the body a look in the preview before submitting. **Copy markdown** copies it as-is to paste elsewhere.
 
-![Issue preview](../assets/dummy.jpg)
+![Issue preview](../assets/element-issue-4.jpg)
 
 ## 7. Submit
 
 Fill in the connected platform's fields (project, assignee, labels, etc.) and hit **Submit issue**. A link to the created issue appears when it's done.
 
-![Issue submitted](../assets/dummy.jpg)
+![Issue submitted](../assets/element-issue-5.jpg)
 
 ---
 

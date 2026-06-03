@@ -6,7 +6,7 @@
 
 > 혹시 단축키가 안 먹는다면 OS나 다른 확장과 겹친 걸 수 있으니, 버튼으로 시작하셔도 됩니다.
 
-![요소 선택 십자선](../assets/dummy.jpg)
+![요소 선택 십자선](../assets/element-picker-1.jpg)
 
 ## 요소 클릭
 
@@ -18,7 +18,7 @@
 
 처음부터 다시 고르고 싶으면 **다시 선택**으로 언제든 새로 시작할 수 있습니다.
 
-![DOM 트리 네비게이션](../assets/dummy.jpg)
+![DOM 트리 네비게이션](../assets/element-picker-2.jpg)
 
 ## iframe 제약
 

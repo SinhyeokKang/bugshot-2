@@ -5,7 +5,7 @@ Some bugs are hard to capture in a still — flicker, animation, problems that o
 - **Live recording** — Hit the button to record from now, and stop when you're done.
 - **30s replay** — The last 30 seconds of your screen are always kept, so right after you spot a bug you can attach what just happened (a bit of setup and permission needed).
 
-![Recording mode overview](../assets/dummy.jpg)
+![Recording mode overview](../assets/video-readme-1.jpg)
 
 ## Jump to
 

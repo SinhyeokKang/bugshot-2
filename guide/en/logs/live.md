@@ -10,7 +10,7 @@ Collects the page's console output and errors.
 - **Detail** — Expand an entry to see the full contents.
 - **Clear Log** — Empty the collected logs.
 
-![Console sub-tab](../assets/dummy.jpg)
+![Console sub-tab](../assets/logs-live-1.jpg)
 
 ## Network
 
@@ -21,7 +21,7 @@ See the network requests made by the page.
 - **Copy as cURL** — Copy a request as a cURL command to reproduce it in your terminal.
 - **Clear Log** — Empty the collected logs.
 
-![Network sub-tab](../assets/dummy.jpg)
+![Network sub-tab](../assets/logs-live-2.jpg)
 
 ## File an issue from logs alone (freeform)
 
@@ -29,7 +29,7 @@ You can also **file an issue with logs only**, no capture (element, screenshot, 
 
 > The issue flow (title, body, preview, submit) is the same as the other modes. See the common steps in [Write an Issue (screenshot)](../screenshot/issue.md).
 
-![Filing a logs-only issue](../assets/dummy.jpg)
+![Filing a logs-only issue](../assets/logs-live-3.jpg)
 
 ---
 

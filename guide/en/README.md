@@ -17,7 +17,7 @@ It looks like a lot at first, but don't worry — the side panel is just four ta
 - **Integrations** — Connect platforms like Jira and GitHub. With nothing connected yet, this tab opens first.
 - **Settings** — Set up the issue body sections, AI connection, language, and theme just the way you like.
 
-![BugShot side panel main view](assets/1.1.1.jpg)
+![BugShot side panel main view](assets/readme-1.jpg)
 
 ## Jump to a section
 

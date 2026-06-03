@@ -6,7 +6,7 @@
 - **AI 모델** — 직접 입력(BYOK) LLM 연결.
 - **일반** — 언어와 테마.
 
-![설정 탭](../assets/3.1.1.jpg)
+![설정 탭](../assets/settings-readme-1.jpg)
 
 ## 바로가기
 

@@ -16,7 +16,7 @@ From top to bottom, the panel is organized into these sections (labels show in E
 8. **Effects** — shadow, filter, blend.
 9. **Transition** — transition property, duration, easing.
 
-![Style panel sections](../assets/dummy.jpg)
+![Style panel sections](../assets/element-styling-1.jpg)
 
 ## Live preview and reverting
 
@@ -36,7 +36,7 @@ AI finds the right style/class changes and applies them to the page instantly. W
 
 > See [AI LLM Connection](../settings/ai.md) for how to connect. AI slips up now and then, so give the applied result a quick look.
 
-![AI Styling banner](../assets/dummy.jpg)
+![AI Styling banner](../assets/element-styling-2.jpg)
 
 ## Next step
 

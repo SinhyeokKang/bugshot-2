@@ -4,7 +4,7 @@
 
 흐름은 의외로 단순합니다 — **요소 클릭 → 스타일 라이브 수정 → before/after로 이슈 작성**.
 
-![요소 모드 개요](../assets/dummy.jpg)
+![요소 모드 개요](../assets/element-readme-1.jpg)
 
 ## 바로가기
 
