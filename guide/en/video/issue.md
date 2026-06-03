@@ -32,9 +32,9 @@ Sections appear per your body composition — Description, Steps to reproduce, E
 
 On top of the video, recording mode bundles three kinds of logs. **All three toggles are on by default**, so they're captured richly without you lifting a finger.
 
-- **Console logs** — Console output and errors during the recording.
-- **Network logs** — Network requests made during the recording.
-- **Action logs** — A record of user actions like clicks, input, and navigation. **Action logs are only captured in recording mode.**
+- **Console Logs** — Console output and errors during the recording.
+- **Network Logs** — Network requests made during the recording.
+- **Action Logs** — A record of user actions like clicks, input, and navigation. **Action logs are only captured in recording mode.**
 
 The video timeline and the logs are linked by time, so the reader can walk through "what happened at this moment" in the [Log Viewer](../logs/viewer.md).
 
