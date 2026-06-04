@@ -94,3 +94,89 @@ export function classifyBeaconBody(data: BodyInit | null | undefined): BeaconBod
   }
   return { body: undefined, size: 0, contentType: "" };
 }
+
+export interface PatchedFetchReqInfo {
+  method: string;
+  url: string; // raw (마스킹 전)
+  requestHeaders: Record<string, string>; // raw
+  contentType: string; // body 마스킹용
+  rawBody?: string; // string / URLSearchParams body만 (마스킹 전)
+  requestBodySize: number;
+}
+
+export type FetchSettle = (outcome: {
+  response?: Response;
+  error?: unknown;
+}) => void | Promise<void>;
+
+// 요청을 buffer에 기록하고, 완료/에러 시 호출할 settle을 반환하는 훅.
+export type FetchRecordHook = (info: PatchedFetchReqInfo) => FetchSettle;
+
+export function headersToRecord(headers: Headers): Record<string, string> {
+  const result: Record<string, string> = {};
+  headers.forEach((v, k) => {
+    result[k] = v;
+  });
+  return result;
+}
+
+function extractRequestInfo(req: Request, init?: RequestInit): PatchedFetchReqInfo {
+  let rawBody: string | undefined;
+  let requestBodySize = 0;
+  let contentType = req.headers.get("content-type") || "";
+  const body = init?.body;
+  if (typeof body === "string") {
+    rawBody = body;
+    requestBodySize = body.length;
+  } else if (body instanceof URLSearchParams) {
+    rawBody = body.toString();
+    requestBodySize = rawBody.length;
+    contentType = "application/x-www-form-urlencoded";
+  }
+  return {
+    method: req.method,
+    url: req.url,
+    requestHeaders: headersToRecord(req.headers),
+    contentType,
+    rawBody,
+    requestBodySize,
+  };
+}
+
+// fetch wrap. 핵심: `new Request(input, init)`로 만든 req를 그대로 전송한다.
+// 원본 input/init을 다시 originalFetch에 넘기면, input이 Request 객체이거나
+// body가 ReadableStream일 때 본문이 이미 소비돼 "body already used"로 요청이
+// 실패한다(GitHub 업로드 등 회귀). req 생성에 실패하면 원본으로 폴백.
+export function createPatchedFetch(
+  originalFetch: typeof fetch,
+  record?: FetchRecordHook,
+): typeof fetch {
+  return async function patchedFetch(
+    this: unknown,
+    input: RequestInfo | URL,
+    init?: RequestInit,
+  ): Promise<Response> {
+    let req: Request | null = null;
+    try {
+      req = new Request(input, init);
+    } catch {
+      req = null;
+    }
+    if (!record || !req) {
+      return req
+        ? originalFetch.call(this, req)
+        : originalFetch.call(this, input, init);
+    }
+
+    const settle = record(extractRequestInfo(req, init));
+    let response: Response;
+    try {
+      response = await originalFetch.call(this, req);
+    } catch (error) {
+      await settle({ error });
+      throw error;
+    }
+    await settle({ response });
+    return response;
+  } as typeof fetch;
+}

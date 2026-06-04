@@ -1,4 +1,5 @@
-import { BODY_CAP, classifyBeaconBody, classifyResponseBody } from "./network-recorder-helpers";
+import { BODY_CAP, classifyBeaconBody, classifyResponseBody, createPatchedFetch, headersToRecord } from "./network-recorder-helpers";
+import type { FetchRecordHook } from "./network-recorder-helpers";
 import type { NetworkRequestBody, NetworkRequestPhase } from "@/types/network";
 
 function networkRecorderScript(): void {
@@ -154,12 +155,6 @@ function networkRecorderScript(): void {
     return body;
   }
 
-  function headersToRecord(headers: Headers): Record<string, string> {
-    const result: Record<string, string> = {};
-    headers.forEach((v, k) => { result[k] = v; });
-    return result;
-  }
-
   function estimateBodySize(body: ReqBody | undefined): number {
     if (!body || typeof body !== "string") return 0;
     return body.length * 2;
@@ -237,36 +232,18 @@ function networkRecorderScript(): void {
   // --- Fetch wrap ---
   const originalFetch = window.fetch;
 
-  window.fetch = async function patchedFetch(
-    input: RequestInfo | URL,
-    init?: RequestInit,
-  ): Promise<Response> {
-    if (!recording) {
-      return originalFetch.call(this, input, init);
-    }
+  const recordHook: FetchRecordHook = (info) => {
+    if (!recording) return () => {};
 
     totalSeen++;
     const startTime = Date.now();
-    const req = new Request(input, init);
-    const method = req.method;
-    const url = maskUrl(req.url);
-    const reqContentType = req.headers.get("content-type") || "";
+    const url = maskUrl(info.url);
 
     let requestBody: ReqBody | undefined;
-    let requestBodySize = 0;
-
-    if (init?.body != null && typeof init.body === "string") {
-      requestBodySize = init.body.length;
+    const requestBodySize = info.requestBodySize;
+    if (info.rawBody != null) {
       if (requestBodySize <= BODY_CAP) {
-        requestBody = maskRequestBody(init.body, reqContentType);
-      } else {
-        requestBody = { kind: "truncated", limit: BODY_CAP, size: requestBodySize };
-      }
-    } else if (init?.body instanceof URLSearchParams) {
-      const bodyStr = init.body.toString();
-      requestBodySize = bodyStr.length;
-      if (requestBodySize <= BODY_CAP) {
-        requestBody = maskRequestBody(bodyStr, "application/x-www-form-urlencoded");
+        requestBody = maskRequestBody(info.rawBody, info.contentType);
       } else {
         requestBody = { kind: "truncated", limit: BODY_CAP, size: requestBodySize };
       }
@@ -276,12 +253,12 @@ function networkRecorderScript(): void {
     const entry: CapturedRequest = {
       id: genId(),
       url,
-      method,
+      method: info.method,
       status: 0,
       statusText: "",
       startTime,
       durationMs: 0,
-      requestHeaders: maskHeaders(headersToRecord(req.headers)),
+      requestHeaders: maskHeaders(info.requestHeaders),
       responseHeaders: {},
       requestBody,
       pageUrl: location.href,
@@ -294,63 +271,62 @@ function networkRecorderScript(): void {
     pushEntry(entry);
     enforceMemoryCap();
 
-    let response: Response;
-    try {
-      response = await originalFetch.call(this, input, init);
-    } catch (err) {
-      // 네트워크 실패·CORS 차단 등도 기록한다 (DevTools와 동일).
-      entry.status = 0;
-      entry.statusText = err instanceof Error ? err.message : "Network Error";
-      entry.durationMs = Date.now() - startTime;
-      entry.phase = "error";
-      throw err;
-    }
-
-    entry.durationMs = Date.now() - startTime;
-    entry.status = response.status;
-    entry.statusText = response.statusText;
-    const respHeaders = headersToRecord(response.headers);
-    const contentType = response.headers.get("content-type") || "";
-    const contentLength = parseInt(response.headers.get("content-length") || "", 10);
-    entry.contentType = contentType;
-    entry.responseHeaders = maskHeaders(respHeaders);
-
-    let responseBody: ReqBody | undefined;
-    let responseBodySize = 0;
-
-    const classified = classifyResponseBody({ contentType, contentLength });
-    if (classified !== null) {
-      responseBody = classified;
-      responseBodySize = classified.kind === "binary" || classified.kind === "truncated" ? classified.size : 0;
-      if (classified.kind === "truncated") warnings.add("BODY_TRUNCATED");
-    } else {
-      try {
-        const cloned = response.clone();
-        const body = await readBodyStreaming(cloned, contentType);
-        if (typeof body === "string") {
-          responseBodySize = body.length;
-          responseBody = body;
-        } else if (body.kind === "truncated") {
-          responseBody = body;
-          responseBodySize = body.size;
-        } else {
-          responseBody = body;
-          responseBodySize = isNaN(contentLength) ? 0 : contentLength;
-        }
-      } catch {
-        responseBody = { kind: "stream", contentType };
+    return async ({ response, error }) => {
+      if (error || !response) {
+        // 네트워크 실패·CORS 차단 등도 기록한다 (DevTools와 동일).
+        entry.status = 0;
+        entry.statusText = error instanceof Error ? error.message : "Network Error";
+        entry.durationMs = Date.now() - startTime;
+        entry.phase = "error";
+        return;
       }
-    }
 
-    entry.responseBody = responseBody;
-    entry.responseBodySize = responseBodySize;
-    entry.phase = "complete";
+      entry.durationMs = Date.now() - startTime;
+      entry.status = response.status;
+      entry.statusText = response.statusText;
+      const respHeaders = headersToRecord(response.headers);
+      const contentType = response.headers.get("content-type") || "";
+      const contentLength = parseInt(response.headers.get("content-length") || "", 10);
+      entry.contentType = contentType;
+      entry.responseHeaders = maskHeaders(respHeaders);
 
-    memoryUsed += estimateBodySize(entry.responseBody);
-    enforceMemoryCap();
+      let responseBody: ReqBody | undefined;
+      let responseBodySize = 0;
 
-    return response;
+      const classified = classifyResponseBody({ contentType, contentLength });
+      if (classified !== null) {
+        responseBody = classified;
+        responseBodySize = classified.kind === "binary" || classified.kind === "truncated" ? classified.size : 0;
+        if (classified.kind === "truncated") warnings.add("BODY_TRUNCATED");
+      } else {
+        try {
+          const cloned = response.clone();
+          const body = await readBodyStreaming(cloned, contentType);
+          if (typeof body === "string") {
+            responseBodySize = body.length;
+            responseBody = body;
+          } else if (body.kind === "truncated") {
+            responseBody = body;
+            responseBodySize = body.size;
+          } else {
+            responseBody = body;
+            responseBodySize = isNaN(contentLength) ? 0 : contentLength;
+          }
+        } catch {
+          responseBody = { kind: "stream", contentType };
+        }
+      }
+
+      entry.responseBody = responseBody;
+      entry.responseBodySize = responseBodySize;
+      entry.phase = "complete";
+
+      memoryUsed += estimateBodySize(entry.responseBody);
+      enforceMemoryCap();
+    };
   };
+
+  window.fetch = createPatchedFetch(originalFetch, recordHook);
 
   // --- XHR wrap ---
   const XHR = XMLHttpRequest.prototype;
