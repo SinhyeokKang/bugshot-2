@@ -361,9 +361,21 @@ function networkRecorderScript(): void {
     if (!recording) {
       return originalSend.call(this, body);
     }
+    // 기록 로직 실패가 페이지 XHR을 깨뜨리지 않도록 감싸고, 무슨 일이 있어도 originalSend는 호출한다.
+    try {
+      recordXhrSend(this, body);
+    } catch {
+      /* 레코더 오류는 무시 */
+    }
+    return originalSend.call(this, body);
+  };
 
+  function recordXhrSend(
+    xhrInstance: XMLHttpRequest,
+    body?: Document | XMLHttpRequestBodyInit | null,
+  ): void {
     totalSeen++;
-    const meta = (this as any).__bugshot;
+    const meta = (xhrInstance as any).__bugshot;
     if (meta) meta.startTime = Date.now();
 
     let requestBody: ReqBody | undefined;
@@ -404,7 +416,7 @@ function networkRecorderScript(): void {
     // race로 두 번 갱신되는 일을 막기 위해 captured 가드를 둔다.
     let captured = false;
 
-    const xhr = this;
+    const xhr = xhrInstance;
     function captureXhr(kind: "load" | "error" | "abort" | "timeout"): void {
       if (captured || !meta) return;
       captured = true;
@@ -460,13 +472,11 @@ function networkRecorderScript(): void {
       enforceMemoryCap();
     }
 
-    this.addEventListener("load", () => captureXhr("load"));
-    this.addEventListener("error", () => captureXhr("error"));
-    this.addEventListener("abort", () => captureXhr("abort"));
-    this.addEventListener("timeout", () => captureXhr("timeout"));
-
-    return originalSend.call(this, body);
-  };
+    xhr.addEventListener("load", () => captureXhr("load"));
+    xhr.addEventListener("error", () => captureXhr("error"));
+    xhr.addEventListener("abort", () => captureXhr("abort"));
+    xhr.addEventListener("timeout", () => captureXhr("timeout"));
+  }
 
   // --- sendBeacon wrap ---
   // GA/Sentry/Datadog 등 분석 도구가 fire-and-forget POST로 사용. 응답은 없으므로 queue 성공 여부만 기록.

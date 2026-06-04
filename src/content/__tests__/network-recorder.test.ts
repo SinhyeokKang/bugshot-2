@@ -82,3 +82,62 @@ describe("createPatchedFetch — 요청 본문 비소비 회귀", () => {
     expect(res.status).toBe(200);
   });
 });
+
+describe("createPatchedFetch — 레코더가 페이지 fetch를 방해하지 않는다", () => {
+  it("settle(본문 읽기)을 await하지 않아 fetch를 블록하지 않는다", async () => {
+    let settleDone = false;
+    let releaseSettle!: () => void;
+    const gate = new Promise<void>((r) => {
+      releaseSettle = r;
+    });
+    const record = () => async () => {
+      await gate; // settle을 의도적으로 멈춰 둔다
+      settleDone = true;
+    };
+    const fn = vi.fn(async () => new Response("ok", { status: 200 }));
+    const patched = createPatchedFetch(fn, record);
+
+    // settle이 gate에 막혀 있어도 fetch는 resolve돼야 한다(await했다면 여기서 멈춤).
+    const res = await patched("https://example.com/api");
+
+    expect(res.status).toBe(200);
+    expect(settleDone).toBe(false);
+
+    releaseSettle();
+  });
+
+  it("record 훅이 throw해도 페이지 요청은 정상 동작한다", async () => {
+    const record = (() => {
+      throw new Error("record boom");
+    }) as unknown as Parameters<typeof createPatchedFetch>[1];
+    const fn = vi.fn(async () => new Response("ok", { status: 200 }));
+    const patched = createPatchedFetch(fn, record);
+
+    const res = await patched("https://example.com/api");
+
+    expect(res.status).toBe(200);
+    expect(fn).toHaveBeenCalledTimes(1);
+  });
+
+  it("settle이 reject해도 응답을 정상 반환한다 (unhandled rejection 없음)", async () => {
+    const record = () => () => Promise.reject(new Error("settle boom"));
+    const fn = vi.fn(async () => new Response("ok", { status: 200 }));
+    const patched = createPatchedFetch(fn, record);
+
+    const res = await patched("https://example.com/api");
+
+    expect(res.status).toBe(200);
+  });
+
+  it("originalFetch가 reject하면 그 에러를 그대로 던지고 settle 예외는 삼킨다", async () => {
+    const record = () => () => {
+      throw new Error("settle boom");
+    };
+    const fn = vi.fn(async () => {
+      throw new TypeError("network down");
+    });
+    const patched = createPatchedFetch(fn, record);
+
+    await expect(patched("https://example.com/api")).rejects.toThrow("network down");
+  });
+});

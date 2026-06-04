@@ -9,6 +9,7 @@ const CONTENT_TYPE_DENYLIST = [
   /^audio\//i,
   /^video\//i,
   /^font\//i,
+  /^text\/event-stream/i, // SSE — 무한 스트림. 끝까지 read하면 메모리·지연 유발하므로 본문 캡처 제외.
   /^application\/pdf$/i,
   /^application\/wasm$/i,
   /^application\/octet-stream$/i,
@@ -143,10 +144,12 @@ function extractRequestInfo(req: Request, init?: RequestInit): PatchedFetchReqIn
   };
 }
 
-// fetch wrap. 핵심: `new Request(input, init)`로 만든 req를 그대로 전송한다.
-// 원본 input/init을 다시 originalFetch에 넘기면, input이 Request 객체이거나
-// body가 ReadableStream일 때 본문이 이미 소비돼 "body already used"로 요청이
-// 실패한다(GitHub 업로드 등 회귀). req 생성에 실패하면 원본으로 폴백.
+// fetch wrap. 두 원칙으로 페이지 요청을 절대 방해하지 않는다:
+// 1) `new Request(input, init)`로 만든 req를 그대로 보낸다 — 원본 input/init 재전송 시
+//    Request·ReadableStream body가 이미 소비돼 "body already used"로 실패(GitHub 업로드 회귀).
+//    req 생성 실패 시 원본 폴백.
+// 2) settle(응답 본문 읽기)은 await하지 않는다 — 스트리밍/대용량 응답에서 페이지 fetch가
+//    본문 끝까지 블록된다. record/settle 예외도 삼켜 페이지로 전파하지 않는다.
 export function createPatchedFetch(
   originalFetch: typeof fetch,
   record?: FetchRecordHook,
@@ -168,15 +171,31 @@ export function createPatchedFetch(
         : originalFetch.call(this, input, init);
     }
 
-    const settle = record(extractRequestInfo(req, init));
+    let settle: FetchSettle | undefined;
+    try {
+      settle = record(extractRequestInfo(req, init));
+    } catch {
+      settle = undefined;
+    }
+
     let response: Response;
     try {
       response = await originalFetch.call(this, req);
     } catch (error) {
-      await settle({ error });
+      runSettle(settle, { error });
       throw error;
     }
-    await settle({ response });
+    runSettle(settle, { response });
     return response;
   } as typeof fetch;
+}
+
+// settle을 fire-and-forget으로 호출하고 동기 throw·비동기 reject를 모두 삼킨다.
+function runSettle(settle: FetchSettle | undefined, outcome: { response?: Response; error?: unknown }): void {
+  if (!settle) return;
+  try {
+    Promise.resolve(settle(outcome)).catch(() => {});
+  } catch {
+    /* 레코더 오류는 페이지 요청에 영향 주지 않는다 */
+  }
 }
