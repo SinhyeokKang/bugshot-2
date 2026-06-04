@@ -10,7 +10,8 @@ import {
 } from "@icons-pack/react-simple-icons";
 import { useT } from "@/i18n";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsTrigger } from "@/components/ui/tabs";
+import { CollapsingTabsList, TabLabel } from "@/components/ui/collapsing-tabs";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -92,16 +93,16 @@ export function IntegrationsTab({ activeMainTab }: { activeMainTab: string }) {
       className="flex min-h-0 flex-1 flex-col gap-0"
     >
       <div className="shrink-0 border-b border-border px-4 py-4">
-        <TabsList className="grid h-9 w-full grid-cols-2">
-          <TabsTrigger value="connected" className="gap-1.5">
-            <Plug className="h-4 w-4" />
-            {t("platform.subtab.connected")}
+        <CollapsingTabsList className="grid h-9 w-full grid-cols-2">
+          <TabsTrigger value="connected" className="min-w-0 gap-1.5">
+            <Plug className="h-4 w-4 shrink-0" />
+            <TabLabel>{t("platform.subtab.connected")}</TabLabel>
           </TabsTrigger>
-          <TabsTrigger value="add" className="gap-1.5">
-            <Plus className="h-4 w-4" />
-            {t("platform.subtab.add")}
+          <TabsTrigger value="add" className="min-w-0 gap-1.5">
+            <Plus className="h-4 w-4 shrink-0" />
+            <TabLabel>{t("platform.subtab.add")}</TabLabel>
           </TabsTrigger>
-        </TabsList>
+        </CollapsingTabsList>
       </div>
 
       <TabsContent

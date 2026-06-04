@@ -10,7 +10,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsTrigger } from "@/components/ui/tabs";
+import { CollapsingTabsList, TabLabel } from "@/components/ui/collapsing-tabs";
 import { Badge } from "@/components/ui/badge";
 import { useEditorStore } from "@/store/editor-store";
 import { useBoundTabId } from "@/sidepanel/hooks/useBoundTabId";
@@ -76,26 +77,26 @@ export function DebugTab({ activeMainTab }: { activeMainTab: string }) {
       className="flex min-h-0 flex-1 flex-col gap-0"
     >
       <div className="shrink-0 border-b border-border px-4 py-4">
-        <TabsList className="grid h-9 w-full grid-cols-3">
-          <TabsTrigger value="issue" className="gap-1.5">
-            <SquarePen className="h-3.5 w-3.5" />
-            {t("debug.tab.issue")}
+        <CollapsingTabsList className="grid h-9 w-full grid-cols-3">
+          <TabsTrigger value="issue" className="min-w-0 gap-1.5">
+            <SquarePen className="h-3.5 w-3.5 shrink-0" />
+            <TabLabel>{t("debug.tab.issue")}</TabLabel>
           </TabsTrigger>
-          <TabsTrigger value="console" className="gap-1.5">
-            <Terminal className="h-3.5 w-3.5" />
-            {t("debug.tab.console")}
-            <Badge className="ml-0.5 h-5 min-w-5 px-1.5 text-[10px]">
+          <TabsTrigger value="console" className="min-w-0 gap-1.5">
+            <Terminal className="h-3.5 w-3.5 shrink-0" />
+            <TabLabel>{t("debug.tab.console")}</TabLabel>
+            <Badge className="ml-0.5 h-5 min-w-5 shrink-0 px-1.5 text-[10px]">
               {consoleCount}
             </Badge>
           </TabsTrigger>
-          <TabsTrigger value="network" className="gap-1.5">
-            <ArrowLeftRight className="h-3.5 w-3.5" />
-            {t("debug.tab.network")}
-            <Badge className="ml-0.5 h-5 min-w-5 px-1.5 text-[10px]">
+          <TabsTrigger value="network" className="min-w-0 gap-1.5">
+            <ArrowLeftRight className="h-3.5 w-3.5 shrink-0" />
+            <TabLabel>{t("debug.tab.network")}</TabLabel>
+            <Badge className="ml-0.5 h-5 min-w-5 shrink-0 px-1.5 text-[10px]">
               {networkCount}
             </Badge>
           </TabsTrigger>
-        </TabsList>
+        </CollapsingTabsList>
       </div>
 
       <TabsContent
