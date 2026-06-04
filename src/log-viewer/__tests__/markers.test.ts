@@ -24,6 +24,7 @@ function makeData(
     consoleLogJson: null,
     actionLogJson: null,
     video: { dataUrl: "", startedAt: VIDEO_STARTED_AT },
+    screenshot: null,
     meta: { version: "1.0.0", createdAt: "", pageUrl: "" },
     ...overrides,
   };

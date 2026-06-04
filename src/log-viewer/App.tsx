@@ -10,6 +10,7 @@ import { toVideoSeconds } from "./timeline";
 import { buildMarkers } from "./markers";
 import type { TimelineMarker } from "./markers";
 import { VideoPlayer, type VideoPlayerHandle } from "./components/VideoPlayer";
+import { ImageViewer } from "./components/ImageViewer";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { t } from "./i18n";
@@ -38,6 +39,7 @@ export function App({ data }: AppProps) {
   const [activeTab, setActiveTab] = useState<LogTab>(defaultTab);
 
   const video = data?.video ?? null;
+  const screenshot = data?.screenshot ?? null;
   const playerRef = useRef<VideoPlayerHandle>(null);
   const [videoError, setVideoError] = useState(false);
   const [videoDurationSec, setVideoDurationSec] = useState(0);
@@ -200,7 +202,7 @@ export function App({ data }: AppProps) {
     </Tabs>
   );
 
-  if (!video) {
+  if (!video && !screenshot) {
     return <div className="flex h-screen flex-col">{tabsPanel}</div>;
   }
 
@@ -208,22 +210,31 @@ export function App({ data }: AppProps) {
     <div className="h-screen">
       <ResizablePanelGroup direction="horizontal">
         <ResizablePanel defaultSize={60} className="flex min-w-0 flex-col">
-          {videoError ? (
-            <div className="flex h-full items-center justify-center bg-black">
-              <span className="text-sm text-muted-foreground">{t("logViewer.video.error")}</span>
-            </div>
+          {video ? (
+            videoError ? (
+              <div className="flex h-full items-center justify-center bg-black">
+                <span className="text-sm text-muted-foreground">{t("logViewer.video.error")}</span>
+              </div>
+            ) : (
+              <VideoPlayer
+                ref={playerRef}
+                src={video.dataUrl}
+                poster={video.thumbnail}
+                markers={markers}
+                issueTitle={data.meta.issueTitle}
+                issueKey={data.meta.issueKey}
+                issueUrl={data.meta.issueUrl}
+                onMarkerClick={handleMarkerClick}
+                onDurationChange={setVideoDurationSec}
+                onError={() => setVideoError(true)}
+              />
+            )
           ) : (
-            <VideoPlayer
-              ref={playerRef}
-              src={video.dataUrl}
-              poster={video.thumbnail}
-              markers={markers}
+            <ImageViewer
+              src={screenshot!.dataUrl}
               issueTitle={data.meta.issueTitle}
               issueKey={data.meta.issueKey}
               issueUrl={data.meta.issueUrl}
-              onMarkerClick={handleMarkerClick}
-              onDurationChange={setVideoDurationSec}
-              onError={() => setVideoError(true)}
             />
           )}
         </ResizablePanel>

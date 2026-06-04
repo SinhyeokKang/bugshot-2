@@ -95,7 +95,7 @@ function extractData(html: string): Record<string, unknown> {
 
 describe("buildLogsHtml", () => {
   it("networkLog + consoleLog 모두 → 데이터 주입된 HTML 반환", () => {
-    const html = buildLogsHtml(networkLog, consoleLog, null, null, "https://example.com");
+    const html = buildLogsHtml(networkLog, consoleLog, null, null, null, "https://example.com");
 
     expect(html).toContain("<!DOCTYPE html>");
     const data = extractData(html);
@@ -113,7 +113,7 @@ describe("buildLogsHtml", () => {
 
   it("networkLog null → networkLog·har가 null", () => {
     const data = extractData(
-      buildLogsHtml(null, consoleLog, null, null, "https://example.com"),
+      buildLogsHtml(null, consoleLog, null, null, null, "https://example.com"),
     );
     expect(data.networkLog).toBeNull();
     expect(data.har).toBeNull();
@@ -123,7 +123,7 @@ describe("buildLogsHtml", () => {
 
   it("consoleLog null → consoleLog·consoleLogJson이 null", () => {
     const data = extractData(
-      buildLogsHtml(networkLog, null, null, null, "https://example.com"),
+      buildLogsHtml(networkLog, null, null, null, null, "https://example.com"),
     );
     expect(data.consoleLog).toBeNull();
     expect(data.consoleLogJson).toBeNull();
@@ -133,7 +133,7 @@ describe("buildLogsHtml", () => {
 
   it("actionLog 있음 → actionLog·actionLogJson not null", () => {
     const data = extractData(
-      buildLogsHtml(null, null, actionLog, null, "https://example.com"),
+      buildLogsHtml(null, null, actionLog, null, null, "https://example.com"),
     );
     expect(data.actionLog).not.toBeNull();
     expect(data.actionLogJson).not.toBeNull();
@@ -141,7 +141,7 @@ describe("buildLogsHtml", () => {
 
   it("actionLog null → actionLog·actionLogJson이 null (network/console 대칭)", () => {
     const data = extractData(
-      buildLogsHtml(networkLog, consoleLog, null, null, "https://example.com"),
+      buildLogsHtml(networkLog, consoleLog, null, null, null, "https://example.com"),
     );
     expect(data.actionLog).toBeNull();
     expect(data.actionLogJson).toBeNull();
@@ -157,7 +157,7 @@ describe("buildLogsHtml", () => {
         },
       ],
     };
-    const html = buildLogsHtml(logWithScript, null, null, null, "https://example.com");
+    const html = buildLogsHtml(logWithScript, null, null, null, null, "https://example.com");
     const data = extractData(html);
     const req = (data.networkLog as NetworkLog).requests[0];
     expect(req.responseBody).toBe('<script>alert("xss")</script>');
@@ -170,7 +170,7 @@ describe("buildLogsHtml", () => {
         { ...actionLog.entries[1], value: '</script><script>alert(1)</script>' },
       ],
     };
-    const html = buildLogsHtml(null, null, logWithScript, null, "https://example.com");
+    const html = buildLogsHtml(null, null, logWithScript, null, null, "https://example.com");
     const data = extractData(html);
     const entry = (data.actionLog as ActionLog).entries[0];
     expect(entry.value).toBe('</script><script>alert(1)</script>');
@@ -182,28 +182,43 @@ describe("buildLogsHtml", () => {
       startedAt: 1000,
     };
     const data = extractData(
-      buildLogsHtml(networkLog, consoleLog, null, video, "https://example.com"),
+      buildLogsHtml(networkLog, consoleLog, null, video, null, "https://example.com"),
     );
     expect(data.video).toEqual(expect.objectContaining({ startedAt: 1000 }));
   });
 
+  it("screenshot 인자 있음 → data.screenshot not null", () => {
+    const data = extractData(
+      buildLogsHtml(
+        networkLog,
+        consoleLog,
+        null,
+        null,
+        { dataUrl: "data:image/webp;base64,SHOT" },
+        "https://example.com",
+      ),
+    );
+    expect(data.screenshot).toEqual({ dataUrl: "data:image/webp;base64,SHOT" });
+    expect(data.video).toBeNull();
+  });
+
   it("issueUrl 미지정 → meta.issueUrl 빈 자리(주입 marker)", () => {
     const data = extractData(
-      buildLogsHtml(networkLog, consoleLog, null, null, "https://example.com"),
+      buildLogsHtml(networkLog, consoleLog, null, null, null, "https://example.com"),
     );
     expect((data.meta as { issueUrl: string }).issueUrl).toBe("");
   });
 
   it("video=null → data.video null", () => {
     const data = extractData(
-      buildLogsHtml(networkLog, consoleLog, null, null, "https://example.com"),
+      buildLogsHtml(networkLog, consoleLog, null, null, null, "https://example.com"),
     );
     expect(data.video).toBeNull();
   });
 
   it("meta.createdAt은 ISO 문자열", () => {
     const data = extractData(
-      buildLogsHtml(networkLog, consoleLog, null, null, "https://example.com"),
+      buildLogsHtml(networkLog, consoleLog, null, null, null, "https://example.com"),
     );
     const meta = data.meta as { createdAt: string };
     expect(() => new Date(meta.createdAt).toISOString()).not.toThrow();
