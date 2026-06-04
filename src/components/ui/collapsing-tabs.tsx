@@ -29,11 +29,17 @@ export function CollapsingTabsList({
     if (!list) return;
     let raf = 0;
     const measure = () => {
+      const items = Array.from(list.children) as HTMLElement[];
       list.setAttribute("data-measuring", "true");
-      const overflow = Array.from(list.children).some(
-        (el) => el.scrollWidth > el.clientWidth + 1,
-      );
+      // 셀 너비를 먼저 잡고, 트리거를 max-content로 만들어 콘텐츠 자연 너비를 따로 잰다.
+      // (scrollWidth는 콘텐츠가 들어가면 clientWidth로 클램프돼 여유분을 못 준다.)
+      const avail = items.map((el) => el.clientWidth);
+      items.forEach((el) => (el.style.width = "max-content"));
+      const natural = items.map((el) => el.scrollWidth);
+      items.forEach((el) => (el.style.width = ""));
       list.removeAttribute("data-measuring");
+      // 콘텐츠가 셀을 8px 넘길 때 라벨을 접는다(음수 보정 = 조금 늦게 접힘).
+      const overflow = items.some((_, i) => natural[i] - 8 > avail[i]);
       setCollapsed(overflow);
     };
     measure();
