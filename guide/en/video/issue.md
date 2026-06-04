@@ -20,13 +20,21 @@ The media in recording mode is the **video**. The clip you just recorded (or pul
 
 ## 4. Body sections
 
-Sections appear per your body composition — Description, Steps to reproduce, Expected result, Notes (only the ones you've turned on). Steps to reproduce is an ordered list.
-
-**AI Draft** — With an AI connected, a "Let AI write your draft" banner appears. AI fills the body sections for you, based on a summary of the console, network, and action logs. Without an AI connected, the banner doesn't appear.
-
-> AI slips up now and then, so give the generated body a quick look. See [AI LLM Connection](../settings/ai.md) for how to connect.
+Sections appear per your body composition — Description, Steps to reproduce, Expected result, Notes (only the ones you've turned on). Steps to reproduce is an ordered list. Fill them in by hand, or let AI Draft below do it in one shot.
 
 ![Writing the body](../assets/video-issue-3.jpg)
+
+## ✨ AI Draft
+
+If filling in each line by hand feels tedious, this is where AI earns its keep. With an AI connected, a purple **"Let AI write your draft"** banner shows up right below the body sections.
+
+Click **AI Draft** on the right and a small input box opens. Describe the bug in a line or two, hit **Generate**, and AI fills in **both the title and the body sections** at once. Only the sections you've turned on get filled, and your title prefix stays put.
+
+In recording mode, AI works from a **summary of the console, network, and action logs**, weaving what actually happened during the recording into the draft. With the richest logs of any mode, this is where AI Draft is most accurate.
+
+> AI slips up now and then, so give the generated draft a quick look. The banner only shows when an AI is connected — see [AI LLM Connection](../settings/ai.md) for how.
+
+![AI Draft banner and input box](../assets/video-issue-4.jpg)
 
 ## 5. Log attachments — recording-mode policy
 
@@ -38,7 +46,7 @@ On top of the video, recording mode bundles three kinds of logs. **All three tog
 
 The video timeline and the logs are linked by time, so the reader can walk through "what happened at this moment" in the [Log Viewer](../logs/viewer.md).
 
-![Recording-mode log policy](../assets/video-issue-4.jpg)
+![Recording-mode log policy](../assets/video-issue-5.jpg)
 
 ## 6. Preview
 
@@ -48,7 +56,7 @@ Give the body a look in the preview before submitting. **Copy markdown** copies 
 
 Fill in the connected platform's fields (project, assignee, labels, etc.) and hit **Submit issue**. A link to the created issue appears when it's done.
 
-![Issue submitted](../assets/video-issue-5.jpg)
+![Issue submitted](../assets/video-issue-6.jpg)
 
 ---
 
