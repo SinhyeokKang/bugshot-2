@@ -13,7 +13,7 @@
 
 ## 비목표 (Non-goals)
 
-- element 모드(before/after 2장)·freeform 모드에 좌측 미디어 패널을 추가하지 않는다. 이번 스코프는 **screenshot 모드 전용**.
+- 스타일 diff가 있는 element 모드(before/after 2장)·freeform 모드에 좌측 미디어 패널을 추가하지 않는다. 이번 스코프는 **단일 이미지(screenshot 모드)** 전용. 단, diff가 0인 element 캡처는 상위(`IssueCreateModal.tsx:251`/`DraftDetailDialog.tsx:295`)에서 `captureMode`가 `"screenshot"`으로 재라벨되고 `screenshotImage`에 `beforeImage`가 담기므로, **이 경로도 좌측 패널에 단일 이미지가 표시된다(의도된 동작)** — diff 없는 element는 사실상 스크린샷이라 본 기능의 대상에 포함.
 - 로그가 하나도 캡처되지 않아 `logs.html`이 생성되지 않는 경우의 동작은 바꾸지 않는다(아래 시나리오 참조). 스크린샷만 보여주려고 `logs.html`을 새로 생성하지 않는다.
 - 스크린샷 줌·팬·라이트박스·다운로드 같은 인터랙션을 추가하지 않는다(정적 표시).
 - 로그 마커/타임라인 동기화(seek)는 시간축이 없는 정적 이미지엔 적용하지 않는다.
@@ -32,11 +32,14 @@
 - **로그가 비어 `logs.html`이 생성되지 않음**: 기존과 동일하게 좌측 패널 없이 아무 `logs.html`도 없음. 스크린샷은 본문 첨부 이미지로만 존재. (게이팅 유지)
 - **스크린샷 이미지 로드 실패**: 좌측 패널에 에러 문구를 표시(video의 `logViewer.video.error`와 대칭).
 - **annotated 스크린샷**: 본문 첨부와 동일하게 `screenshotAnnotated ?? screenshotRaw` 우선순위 이미지를 표시(주석이 그려진 버전).
+- **세로로 긴 스크린샷**: `object-contain`이라 패널 안에서 작게 축소돼 보인다(줌/팬 없음, 비목표대로 의도된 트레이드오프).
+- **로그는 있는데 `screenshotImage`가 없음**: 임베드가 `null`이라 `video=null && screenshot=null` → 기존 전폭 로그로 자연 폴백(좌측 패널 없음). 회귀 아님.
 
 ## 성공 기준
 
 - screenshot 모드 + 로그 존재 시 생성된 `logs.html`을 열면 좌측에 스크린샷, 우측에 로그가 60/40 리사이즈 분할로 보인다.
 - 좌측 패널에 하단 컨트롤 바가 없다.
+- 좌측 패널 이미지가 본문 첨부 이미지와 동일하다(주석이 그려진 annotated 버전이면 좌측에도 동일하게 반영).
 - video 모드 동작은 기존 그대로(회귀 없음).
 - 로그가 없는 screenshot 모드는 기존 그대로 `logs.html` 미생성.
 - `pnpm test`의 `buildCaptureFiles` 단위 테스트가 screenshot 임베드/video 비임베드를 검증하며 통과.

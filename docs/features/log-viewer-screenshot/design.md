@@ -12,18 +12,23 @@
 
 ### `src/sidepanel/lib/buildLogsHtml.ts`
 - 현재 역할: `LogViewerData`를 조립해 `dist-log-viewer/index.html` 템플릿에 JSON 임베드.
-- 변경: 시그니처에 `screenshot: LogViewerData["screenshot"]` 인자 추가(`video` 인자 바로 뒤). `data` 객체에 `screenshot` 포함. 호출처가 단일(`buildCaptureFiles`)이므로 위치 인자 추가의 파급은 1곳.
+- 변경: 시그니처에 `screenshot: LogViewerData["screenshot"]` 인자 추가(`video` 인자 바로 뒤). `data` 객체에 `screenshot` 포함. **프로덕션 호출처는 단일(`buildCaptureFiles.ts:70`)**이지만, `screenshot`을 `video` 뒤(5번째 위치 인자)에 끼우면 `pageUrl`·`issueUrl`·`issueTitle`이 한 칸씩 밀린다. 프로덕션 호출 1곳 외에 **테스트 호출 11곳(`__tests__/buildLogsHtml.test.ts`)도 함께 갱신**해야 함(typecheck/test가 잡지만 "파급 1곳"은 아님).
 
 ### `src/sidepanel/lib/buildCaptureFiles.ts`
 - 현재 역할: 캡처 모드별로 video/images/logs 첨부 파일 생성. screenshot 모드는 `screenshot.webp`(images)와, 로그 존재 시 `logs.html`을 생성.
 - 변경: `logs.html` 생성 블록(line 54-77)에서 `buildLogsHtml` 호출 시 screenshot 임베드 인자를 전달. screenshot 모드 & `input.screenshotImage` 존재 시 `{ dataUrl: input.screenshotImage }`, 아니면 `null`.
-  - `input.screenshotImage`는 이미 본문 첨부에 쓰는 값(상위에서 `screenshotAnnotated ?? screenshotRaw` 해소, `editor-store.ts:483`)이라 동일 이미지가 좌측 패널에도 들어간다.
+  - `input.screenshotImage`는 이미 본문 첨부에 쓰는 값(상위에서 `screenshotAnnotated ?? screenshotRaw` 해소, `src/store/editor-store.ts:483`)이라 동일 이미지가 좌측 패널에도 들어간다.
   - video와 screenshot은 상호 배타(같은 캡처에 둘 다 없음)지만, 방어적으로 video 임베드가 있으면 screenshot은 `null`로 둔다(App에서 video 우선).
+  - **element-no-diff 경로**: diff가 0인 element 캡처는 상위(`IssueCreateModal.tsx:251`/`DraftDetailDialog.tsx:295`)에서 `captureMode: "screenshot"` + `screenshotImage: beforeImage`로 재라벨돼 들어온다. 따라서 `input.captureMode === "screenshot"` 조건이 참이 되어 이 경로의 단일 이미지도 좌측 패널에 표시된다(PRD 비목표 참조, 의도된 동작).
 
 ### `src/log-viewer/components/ImageViewer.tsx` (신규)
 - 위치/역할: 로그 뷰어 좌측 패널의 정적 스크린샷 뷰어. `VideoPlayer.tsx`의 래퍼·이미지영역·타이틀 오버레이 마크업을 그대로 가져오되 video 전용 요소(center play/pause, 하단 컨트롤, ProgressBar, seek/재생 상태)를 제거.
 - props: `{ src: string; issueTitle?: string; issueKey?: string; issueUrl?: string }`.
-- 내부: `<img>` 로드 실패 시 에러 상태(`useState`)로 전환해 `logViewer.image.error` 문구 표시(video error box와 대칭). seek/forwardRef 불필요(handle 없음).
+- 내부: `<img>` 로드 실패 시 에러 상태(`useState`)로 전환해 `logViewer.image.error` 문구 표시. **대칭 대상 박스는 `App.tsx:211-214`의 video 에러 박스**(`flex h-full items-center justify-center bg-black` + `text-sm text-muted-foreground`) — VideoPlayer 내부가 아님. 이 클래스를 그대로 미러링. seek/forwardRef 불필요(handle 없음).
+- **`<img>` 컨테이너 정리**: VideoPlayer:82-85의 이미지영역 div는 `cursor-pointer` + `onClick={togglePlay}`를 갖는다. 정적 이미지엔 둘 다 제거(클릭 무동작인데 pointer 커서면 오해 유발).
+- **`alt`**: `issueTitle`로 채운다(비어 있으면 `logViewer.image.error`가 아닌 일반 대체 문구 없이 빈 alt 허용 — 스크린 리더 접근성). 정적 이미지이므로 alt 명세 필수.
+- **타이틀 오버레이**: VideoPlayer와 동일하게 `group-hover:opacity-100` 호버 전용. 스크린샷 자체가 컨텍스트라 비호버 시 오버레이 부재는 무방(결정 사항).
+- **로딩 상태 불필요**: `src`는 `logs.html`에 base64로 인라인 임베드된 dataUrl이라 네트워크 페치가 없어 로딩 지연이 사실상 0. 로딩 스피너를 두지 않는다(누락 아님).
 
 ### `src/log-viewer/App.tsx`
 - 현재 역할: video 유무로 좌측 패널/전폭 분기. `video && !videoError`일 때만 로그에 sync·marker props 공급.
@@ -94,6 +99,7 @@ export function ImageViewer(props: ImageViewerProps): JSX.Element
 - **단일 진실 게이팅**: `logs.html` 생성은 `supportsConsoleNetworkLog` + 로그 존재 조건 그대로(`captureLogSupport.ts`). screenshot 표시는 이 게이팅에 종속 — 별도 우회 생성 안 함.
 - **video 임베드 패턴 미러링**: `buildCaptureFiles`의 video 임베드(line 58-69)와 동일한 형태의 조건부 임베드 객체.
 - **스타일 동일성**: `ImageViewer`는 `VideoPlayer`의 Tailwind 클래스(`group relative h-full` / `flex h-full items-center justify-center bg-black` / `h-full w-full object-contain` / 타이틀 오버레이 블록)를 그대로 사용. shadcn 외 직접 스타일링 추가 최소화.
+- **하단 빈 공간 없음**: VideoPlayer의 하단 컨트롤 바는 `absolute inset-x-0 bottom-0` 오버레이라 레이아웃 높이를 점유하지 않는다. ImageViewer가 컨트롤 블록을 단순 미렌더하면 이미지영역이 `h-full`로 패널을 꽉 채워 하단 여백 문제가 생기지 않는다("하단을 무엇으로 메울지" 고민 불필요).
 - **i18n 동시 갱신**: ko/en 양쪽에 `logViewer.image.error` 추가.
 - **테스트 우선**: `buildCaptureFiles` 순수 함수 변경 → `__tests__/buildCaptureFiles.test.ts`에 screenshot 임베드 케이스 선작성.
 

@@ -16,19 +16,22 @@
 
 ### Task 2: `buildCaptureFiles` screenshot 임베드 테스트 선작성
 - **변경 대상**: `src/sidepanel/lib/__tests__/buildCaptureFiles.test.ts`
+- **검증 메커니즘 (중요)**: 이 파일은 `buildLogsHtml`을 **`vi.mock` 스파이**로 잡고 호출 인자를 검사한다(`__BUGSHOT_DATA__` 디코드는 `buildLogsHtml.test.ts`의 real-함수 패턴이라 이 파일과 다름 — 혼동 금지). 기존 `lastVideoArg() = call[3]`(video, 4번째 인자)을 미러링해 **`lastScreenshotArg() = call[4]`(screenshot, 5번째 인자) 헬퍼를 신규 추가**한다.
 - **작업 내용**: 기존 "video 임베드 (logs.html)" describe를 미러링해 케이스 추가:
-  - screenshot 모드 + consoleLog 존재 + `screenshotImage` → `logs.html`의 임베드 JSON에 `screenshot.dataUrl === screenshotImage`.
-  - screenshot 모드 + 로그 없음 → `logs` 빈 배열(게이팅 유지, 기존 동작).
-  - video 모드 → 임베드 JSON의 `screenshot === null`(혼입 방지).
-  - 임베드 JSON 파싱은 기존 video 테스트가 쓰는 방식(`logs[0].dataUrl` dataURL 디코드 후 `__BUGSHOT_DATA__` JSON 추출) 그대로.
+  - screenshot 모드 + consoleLog 존재 + `screenshotImage` → `lastScreenshotArg()`가 `{ dataUrl: screenshotImage }`.
+  - screenshot 모드 + 로그 없음 → `logs` 빈 배열(게이팅 유지, 기존 동작 — `buildLogsHtml` 미호출).
+  - screenshot 모드 + 로그 있음 + `screenshotImage` 없음 → `lastScreenshotArg()`가 `null`(전폭 폴백 데이터).
+  - video 모드 → `lastScreenshotArg()`가 `null`(혼입 방지).
 - **검증**:
-  - [ ] `pnpm test` — 신규 케이스가 (구현 전) 실패하는 것을 확인(red).
+  - [ ] `pnpm test` — Task 4(프로덕션에 5번째 인자 추가) 전이라 `call[4]`가 `undefined`인 것으로 신규 케이스가 실패함을 확인(red). green은 Task 4에서.
 
 ### Task 3: `buildLogsHtml` 시그니처에 `screenshot` 추가
 - **변경 대상**: `src/sidepanel/lib/buildLogsHtml.ts`
 - **작업 내용**: `video` 인자 바로 뒤에 `screenshot: LogViewerData["screenshot"]` 추가하고 `data` 객체에 `screenshot` 포함.
+- **함께 갱신**: `screenshot`을 `video` 뒤(5번째)에 끼우면 `pageUrl`·`issueUrl`·`issueTitle` 위치가 밀린다. **`src/sidepanel/lib/__tests__/buildLogsHtml.test.ts`의 `buildLogsHtml(...)` 호출 11곳**도 5번째 인자(`null` 또는 테스트용 screenshot)를 끼워 동시 갱신.
 - **검증**:
-  - [ ] `pnpm typecheck` — 단일 호출처(`buildCaptureFiles`)가 미갱신이면 에러.
+  - [ ] `pnpm typecheck` — 프로덕션 호출처(`buildCaptureFiles.ts:70`)·테스트 호출 11곳이 미갱신이면 에러.
+  - [ ] `pnpm test` — `buildLogsHtml.test.ts`가 인자 밀림 없이 통과.
 
 ### Task 4: `buildCaptureFiles`에서 screenshot 임베드 전달
 - **변경 대상**: `src/sidepanel/lib/buildCaptureFiles.ts`
@@ -40,7 +43,7 @@
 
 ### Task 5: `ImageViewer` 컴포넌트 신규 작성
 - **변경 대상**: `src/log-viewer/components/ImageViewer.tsx` (신규)
-- **작업 내용**: `VideoPlayer`의 래퍼(`group relative h-full`)·이미지영역(`flex h-full items-center justify-center bg-black`, `<img className="h-full w-full object-contain">`)·상단 타이틀 오버레이 블록을 그대로 가져오되, center play/pause·하단 컨트롤·ProgressBar·재생 상태/seek/forwardRef 제거. props `{ src, issueTitle?, issueKey?, issueUrl? }`. `<img onError>` → 에러 state → `t("logViewer.image.error")` 박스 표시.
+- **작업 내용**: `VideoPlayer`의 래퍼(`group relative h-full`)·이미지영역(`flex h-full items-center justify-center bg-black`, `<img className="h-full w-full object-contain">`)·상단 타이틀 오버레이 블록을 그대로 가져오되, center play/pause·하단 컨트롤·ProgressBar·재생 상태/seek/forwardRef 제거. **이미지영역 div의 `cursor-pointer`와 `onClick={togglePlay}`(VideoPlayer:82-85)도 제거**(정적 이미지는 클릭 무동작). props `{ src, issueTitle?, issueKey?, issueUrl? }`. `<img alt={issueTitle}>`로 alt 채움(접근성). `<img onError>` → 에러 state → `t("logViewer.image.error")` 박스 표시(`App.tsx:211-214` video 에러 박스 클래스 미러링). 타이틀 오버레이는 video와 동일 `group-hover` 호버 전용. dataUrl 인라인이라 로딩 스피너 없음.
 - **검증**:
   - [ ] `pnpm typecheck` 통과.
   - [ ] 코드 리뷰: VideoPlayer와 타이틀 오버레이·배경·정렬 클래스가 동일한지 대조.
@@ -66,10 +69,11 @@
 
 ## 테스트 계획
 
-- **단위 테스트** (`buildCaptureFiles.test.ts`):
-  - screenshot 모드 + 로그 → 임베드 JSON `screenshot.dataUrl` 일치.
-  - screenshot 모드 무로그 → `logs` 빈.
-  - video 모드 → `screenshot === null`.
+- **단위 테스트** (`buildCaptureFiles.test.ts`, `buildLogsHtml` 스파이 `lastScreenshotArg()=call[4]`):
+  - screenshot 모드 + 로그 + 이미지 → `lastScreenshotArg()` = `{ dataUrl }` 일치.
+  - screenshot 모드 무로그 → `logs` 빈(`buildLogsHtml` 미호출).
+  - screenshot 모드 + 로그 + 이미지 없음 → `lastScreenshotArg()` = `null`(전폭 폴백).
+  - video 모드 → `lastScreenshotArg()` = `null`(혼입 방지).
 - **수동 테스트** (Chrome, `/build` 후):
   - [ ] screenshot 모드 캡처 → 이슈 등록 → 첨부 `logs.html` 열기 → 좌측 스크린샷 표시·하단 컨트롤 없음.
   - [ ] annotated(주석 그린) 스크린샷이 좌측에 반영.
