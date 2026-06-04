@@ -174,7 +174,18 @@ export function activateTab(tab: chrome.tabs.Tab): void {
 // 탭을 끊어버린다(onActivated는 윈도우마다 발화).
 const prevActiveTabByWindow = new Map<number, number>();
 
-function stopRecorders(tabId: number): void {
+// 윈도우별 직전 활성 탭을 갱신하고, stop을 보내야 할 직전 탭 id를 돌려준다(없으면 null).
+export function resolveTabSwitch(
+  prevByWindow: Map<number, number>,
+  windowId: number,
+  tabId: number,
+): number | null {
+  const prevTabId = prevByWindow.get(windowId);
+  prevByWindow.set(windowId, tabId);
+  return prevTabId != null && prevTabId !== tabId ? prevTabId : null;
+}
+
+export function stopRecorders(tabId: number): void {
   chrome.tabs.sendMessage(tabId, { type: "networkRecorder.stop" }).catch(() => {});
   chrome.tabs.sendMessage(tabId, { type: "consoleRecorder.stop" }).catch(() => {});
   chrome.tabs.sendMessage(tabId, { type: "actionRecorder.stop" }).catch(() => {});
@@ -184,11 +195,8 @@ export function setupTabBindings(): void {
   chrome.action.onClicked.addListener(activateTab);
 
   chrome.tabs.onActivated.addListener(async ({ tabId, windowId }) => {
-    const prevTabId = prevActiveTabByWindow.get(windowId);
-    if (prevTabId != null && prevTabId !== tabId) {
-      stopRecorders(prevTabId);
-    }
-    prevActiveTabByWindow.set(windowId, tabId);
+    const prevTabId = resolveTabSwitch(prevActiveTabByWindow, windowId, tabId);
+    if (prevTabId != null) stopRecorders(prevTabId);
 
     let tab: chrome.tabs.Tab;
     try {
@@ -219,11 +227,20 @@ export function setupTabBindings(): void {
     }
   });
 
-  chrome.tabs.onRemoved.addListener((tabId) => {
+  chrome.tabs.onRemoved.addListener((tabId, { windowId }) => {
+    // 직전 활성 탭 포인터가 닫힌 탭을 가리키면 제거 — 같은 id 재사용 시 무관 탭 stop 방지.
+    if (prevActiveTabByWindow.get(windowId) === tabId) {
+      prevActiveTabByWindow.delete(windowId);
+    }
     void chrome.storage.session.remove([sessionKey(tabId), `${ACTIVATION_URL_PREFIX}${tabId}`]);
     void setActivated(tabId, false);
     deleteNetworkLog(`pending:${tabId}`).catch(() => {});
     deleteConsoleLog(`pending:${tabId}`).catch(() => {});
     deleteActionLog(`pending:${tabId}`).catch(() => {});
+  });
+
+  // 윈도우 종료 시 해당 윈도우의 직전 탭 엔트리 정리(누수 방지).
+  chrome.windows.onRemoved.addListener((windowId) => {
+    prevActiveTabByWindow.delete(windowId);
   });
 }

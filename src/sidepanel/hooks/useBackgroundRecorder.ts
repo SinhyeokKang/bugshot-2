@@ -94,6 +94,16 @@ export function useBackgroundRecorder(tabId: number | null): void {
     };
     chrome.tabs.onUpdated.addListener(onTabUpdated);
 
+    // 탭 전환으로 패널이 가려지면 background가 stopRecorders로 캡처를 끈다. 같은 탭으로
+    // (네비게이션 없이) 복귀해 패널 문서가 그대로 살아 있는 경우 재주입 트리거가 없으므로,
+    // 패널이 다시 보일 때 재주입해 stop과 대칭을 맞춘다.
+    const onVisible = () => {
+      if (document.visibilityState === "visible" && !recordersStopped.current) {
+        void inject();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+
     const unsubStore = useEditorStore.subscribe((state, prev) => {
       const phaseChanged = state.phase !== prev.phase;
       const modeChanged = state.captureMode !== prev.captureMode;
@@ -124,6 +134,7 @@ export function useBackgroundRecorder(tabId: number | null): void {
     return () => {
       cancelled = true;
       chrome.tabs.onUpdated.removeListener(onTabUpdated);
+      document.removeEventListener("visibilitychange", onVisible);
       unsubStore();
       stopNetworkRecorder(localTabId).catch(() => {});
       stopConsoleRecorder(localTabId).catch(() => {});

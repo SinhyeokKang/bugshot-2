@@ -18,7 +18,7 @@ import { OAuthError } from "./oauth";
 import { pruneOrphanPendingLogsOncePerSession } from "@/lib/pending-log-prune";
 import { shouldClearLogs } from "@/lib/navigation-clear";
 import type { BgInternalMessage } from "@/types/messages";
-import { activateTab, setupTabBindings } from "./tab-bindings";
+import { activateTab, setupTabBindings, stopRecorders } from "./tab-bindings";
 
 initBgLocale();
 void pruneOrphanPendingLogsOncePerSession();
@@ -86,9 +86,7 @@ chrome.runtime.onConnect.addListener((port) => {
   port.onDisconnect.addListener(() => {
     chrome.storage.session.remove(sessionKey(tabId)).catch(() => {});
     chrome.tabs.sendMessage(tabId, { type: "picker.clear" }).catch(() => {});
-    chrome.tabs.sendMessage(tabId, { type: "networkRecorder.stop" }).catch(() => {});
-    chrome.tabs.sendMessage(tabId, { type: "consoleRecorder.stop" }).catch(() => {});
-    chrome.tabs.sendMessage(tabId, { type: "actionRecorder.stop" }).catch(() => {});
+    stopRecorders(tabId);
   });
 });
 
