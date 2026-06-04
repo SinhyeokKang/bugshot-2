@@ -10,7 +10,7 @@ In the **Debug** tab, click **Screenshot**, or press `Cmd/Ctrl+Shift+F`.
 
 Drag to select the region you want to capture. You can crop just the part where the bug shows up instead of the whole page, so the reader knows exactly where to look.
 
-![Dragging a region](../assets/dummy.jpg)
+![Dragging a region](../assets/screenshot-capture-1.jpg)
 
 ## Output
 

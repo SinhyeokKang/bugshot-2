@@ -1,12 +1,12 @@
 # Settings
 
-How issues get written, whether to connect an AI, your language and theme — set up the things you use often once, right here in the **Settings** tab. Settings are split into easy-to-scan sub-tabs — Issue / AI model / General.
+How issues get written, whether to connect an AI, your language and theme — set up the things you use often once, right here in the **Settings** tab. Settings are split into easy-to-scan sub-tabs — Issue settings / AI Model / General.
 
-- **Issue** — Title prefix, body section composition, 30s replay.
-- **AI model** — Connect a bring-your-own-key (BYOK) LLM.
+- **Issue settings** — Title prefix, body section composition, 30s replay.
+- **AI Model** — Connect a bring-your-own-key (BYOK) LLM.
 - **General** — Language and theme.
 
-![Settings tab](../assets/3.1.1.jpg)
+![Settings tab](../assets/settings-readme-1.jpg)
 
 ## Jump to
 

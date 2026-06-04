@@ -324,8 +324,8 @@ function RecordingState({ onStop, onCancel }: { onStop: () => void; onCancel: ()
   return (
     <PageShell>
       <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 pb-5 text-center">
-        <div className="mb-3 rounded-full bg-red-100 p-3">
-          <Video className="h-6 w-6 text-red-600" />
+        <div className="mb-3 rounded-full bg-red-100 p-3 dark:bg-red-950">
+          <Video className="h-6 w-6 text-red-600 dark:text-red-400" />
         </div>
         <h3 className="text-lg font-semibold">{t("issue.recording.title", { time: timeStr })}</h3>
         <div className="mt-3 h-1.5 w-40 overflow-hidden rounded-full bg-muted">
@@ -354,7 +354,7 @@ function SubmitSuccessView() {
     <PageShell>
       <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 pb-5 text-center">
         <div className="mb-3 rounded-full bg-muted p-3">
-          <CircleCheck className="h-6 w-6 text-green-600" />
+          <CircleCheck className="h-6 w-6 text-green-600 dark:text-green-400" />
         </div>
         <h3 className="text-lg font-semibold">{t("jira.submitted")}</h3>
         <a

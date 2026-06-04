@@ -6,7 +6,7 @@ This page is from the angle of the **developer who receives and works the bug**.
 
 Download the `logs.html` attached to the issue and open it in a browser. It's a single HTML file, so it opens right away with nothing to install — easy.
 
-![Log viewer screen](../assets/dummy.jpg)
+![Log viewer screen](../assets/logs-viewer-1.jpg)
 
 ## Timeline markers
 
@@ -16,7 +16,7 @@ The screen has a timeline alongside the video, with logs plotted on it as marker
 - **Network** — Network requests.
 - **Action** — User actions like clicks, input, and navigation. (Navigation shows up as a kind of action marker.)
 
-![Timeline markers](../assets/dummy.jpg)
+![Timeline markers](../assets/logs-viewer-2.jpg)
 
 ## Video and logs in sync
 
@@ -24,7 +24,7 @@ The screen has a timeline alongside the video, with logs plotted on it as marker
 - **Click a marker and the video jumps to that moment** — see "what the screen looked like when this error fired" right away.
 - Logs and video share one time axis, making it easy to follow the repro from start to finish.
 
-![Jump to a moment by clicking a marker](../assets/dummy.jpg)
+![Jump to a moment by clicking a marker](../assets/logs-viewer-3.jpg)
 
 ---
 

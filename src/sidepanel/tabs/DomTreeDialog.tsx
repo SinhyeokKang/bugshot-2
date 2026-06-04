@@ -257,16 +257,16 @@ function DomTreeNode({
         )}
         <span className="min-w-0 flex-1 truncate text-sm">
           <span className="text-muted-foreground">&lt;</span>
-          <span className="text-sky-600">{node.tag}</span>
+          <span className="text-sky-600 dark:text-sky-400">{node.tag}</span>
           {node.id ? (
-            <span className="text-fuchsia-600">#{node.id}</span>
+            <span className="text-fuchsia-600 dark:text-fuchsia-400">#{node.id}</span>
           ) : null}
           {(() => {
             const { shown, extra } = visibleClasses(node.classes);
             return (
               <>
                 {shown.map((c) => (
-                  <span key={c} className="text-amber-600">
+                  <span key={c} className="text-amber-600 dark:text-amber-400">
                     .{c}
                   </span>
                 ))}

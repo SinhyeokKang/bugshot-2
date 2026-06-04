@@ -77,6 +77,7 @@ const PROVIDER_ICONS: Record<
   openai: { icon: OpenAIIcon, darkInvert: true },
   anthropic: {
     icon: (props) => <SiAnthropic color="default" {...props} />,
+    darkInvert: true,
   },
   gemini: {
     icon: (props) => <SiGooglegemini color="default" {...props} />,
@@ -85,8 +86,12 @@ const PROVIDER_ICONS: Record<
   together: { icon: TogetherIcon },
   openrouter: {
     icon: (props) => <SiOpenrouter color="default" {...props} />,
+    darkInvert: true,
   },
-  ollama: { icon: (props) => <SiOllama color="default" {...props} /> },
+  ollama: {
+    icon: (props) => <SiOllama color="default" {...props} />,
+    darkInvert: true,
+  },
 };
 
 export function LlmConnectDialog({

@@ -4,7 +4,7 @@ Pick an element on the page, edit its styles, and report it with before and afte
 
 The flow is simpler than you'd expect — **click an element → edit styles live → write the issue with before/after**.
 
-![Element mode overview](../assets/dummy.jpg)
+![Element mode overview](../assets/element-readme-1.jpg)
 
 ## Jump to
 

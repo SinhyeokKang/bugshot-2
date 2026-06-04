@@ -10,23 +10,31 @@ Your configured title prefix (e.g. `[QA] `) is pre-filled. Type the rest of the 
 
 OS, browser, page URL, viewport size, and capture time fill in **on their own** (read-only). Want to add more context? Just drop in a variable row yourself.
 
-![Environment](../assets/dummy.jpg)
+![Environment](../assets/screenshot-issue-1.jpg)
 
 ## 3. Media — annotated screenshot
 
 The media in screenshot mode is the **annotated screenshot**. The image you marked up with arrows and boxes is attached to the issue as-is.
 
-![Annotated screenshot attached](../assets/dummy.jpg)
+![Annotated screenshot attached](../assets/screenshot-issue-2.jpg)
 
 ## 4. Body sections
 
-Sections appear per your body composition — Description, Steps to reproduce, Expected result, Notes (only the ones you've turned on). Steps to reproduce is an ordered list.
+Sections appear per your body composition — Description, Steps to reproduce, Expected result, Notes (only the ones you've turned on). Steps to reproduce is an ordered list. Fill them in by hand, or let AI Draft below do it in one shot.
 
-**AI Draft** — With an AI connected, a "Let AI write your draft" banner appears. AI fills the body sections for you, based on the attached screenshot image. Without an AI connected, the banner doesn't appear.
+![Writing the body](../assets/screenshot-issue-3.jpg)
 
-> AI slips up now and then, so give the generated body a quick look. See [AI LLM Connection](../settings/ai.md) for how to connect.
+## ✨ AI Draft
 
-![Writing the body](../assets/dummy.jpg)
+If filling in each line by hand feels tedious, this is where AI earns its keep. With an AI connected, a purple **"Let AI write your draft"** banner shows up right below the body sections.
+
+Click **AI Draft** on the right and a small input box opens. Describe the bug in a line or two, hit **Generate**, and AI fills in **both the title and the body sections** at once. Only the sections you've turned on get filled, and your title prefix stays put.
+
+In screenshot mode, AI reads the **annotated screenshot** you attached. A one-line description helps it pin down what's wrong on screen and reflect it in the draft.
+
+> AI slips up now and then, so give the generated draft a quick look. The banner only shows when an AI is connected — see [AI LLM Connection](../settings/ai.md) for how.
+
+![AI Draft banner and input box](../assets/screenshot-issue-4.jpg)
 
 ## 5. Log attachments
 
@@ -38,13 +46,13 @@ Screenshot mode can attach console and network logs. Both toggles are **off by d
 
 Give the body a look in the preview before submitting. **Copy markdown** copies it as-is to paste elsewhere.
 
-![Issue preview](../assets/dummy.jpg)
+![Issue preview](../assets/screenshot-issue-5.jpg)
 
 ## 7. Submit
 
 Fill in the connected platform's fields (project, assignee, labels, etc.) and hit **Submit issue**. A link to the created issue appears when it's done.
 
-![Issue submitted](../assets/dummy.jpg)
+![Issue submitted](../assets/screenshot-issue-6.jpg)
 
 ---
 

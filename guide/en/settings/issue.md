@@ -6,7 +6,7 @@ Set up the parts that repeat on every issue here, and each one gets a little lig
 
 A string automatically prepended to issue titles. Set it to `[QA] `, for example, and every title starts with `[QA] `. Pretty handy if your team uses label conventions.
 
-![Title prefix setting](../assets/3.2.1.jpg)
+![Title prefix setting](../assets/settings-issue-1.jpg)
 
 ## Body composition
 
@@ -23,7 +23,7 @@ Turn the body sections on or off. Four sections come ready out of the box.
 - **Notes** is off by default, so flip it on only when you need it.
 - You can **override each section's label and placeholder text**. Rename "Description" to match your team's wording, for instance.
 
-![Body composition setting](../assets/3.2.2.jpg)
+![Body composition setting](../assets/settings-issue-2.jpg)
 
 ## 30s replay
 
@@ -33,7 +33,7 @@ Turning this toggle on **requests screen capture permission**. Replay only works
 
 > Curious how to use 30s replay? See [30s Replay](../video/replay.md).
 
-![30s replay toggle](../assets/3.2.3.jpg)
+![30s replay toggle](../assets/settings-issue-3.jpg)
 
 ---
 

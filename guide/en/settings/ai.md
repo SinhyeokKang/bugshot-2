@@ -1,20 +1,19 @@
 # AI LLM Connection
 
-In the **AI model** sub-tab of Settings, connect the LLM you already use. BugShot runs no AI server of its own — it uses your own key (BYOK — Bring Your Own Key). So it's your key, your model, and you can use it with peace of mind.
+In the **AI Model** sub-tab of Settings, connect the LLM you already use. BugShot runs no AI server of its own — it uses your own key (BYOK — Bring Your Own Key). So it's your key, your model, and you can use it with peace of mind.
 
 No key? No problem. If Chrome's built-in AI is available in your browser, the basic AI features just work with it — no setup needed.
 
 ## Connect
 
-Just three things to enter.
+Pick a provider and enter your key.
 
-- **Base URL** — Your LLM API endpoint.
+- **Provider** — Choose your LLM from the list, or type an OpenAI-compatible endpoint URL directly.
 - **API Key** — The key issued by that service.
-- **Model ID** — The name of the model to use.
 
-Most providers with an OpenAI-compatible endpoint connect without a hitch. BugShot may request access to that domain on connect — go ahead and approve it.
+Once you connect, a screen follows for picking the model — choose the one you want under **Select model**. Most providers with an OpenAI-compatible endpoint connect without a hitch. BugShot may request access to that domain on connect — go ahead and approve it.
 
-![Connecting an AI model](../assets/3.3.1.jpg)
+![Connecting an AI model](../assets/settings-ai-1.jpg)
 
 ## Which AI runs
 

@@ -76,6 +76,14 @@ export function EpicField({
               value === epic.key ? "opacity-100" : "opacity-0",
             )}
           />
+          {epic.fields.issuetype?.iconUrl ? (
+            <img
+              src={epic.fields.issuetype.iconUrl}
+              alt=""
+              title={epic.fields.issuetype.name}
+              className="mr-1.5 h-4 w-4 shrink-0"
+            />
+          ) : null}
           <span className="shrink-0 text-muted-foreground">{epic.key}</span>
           <span className="ml-1.5 min-w-0 flex-1 truncate">{epic.fields.summary}</span>
         </CommandItem>

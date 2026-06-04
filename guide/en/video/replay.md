@@ -8,18 +8,18 @@ Replay only works once it's turned on ahead of time.
 
 > First, in [Issue Settings](../settings/issue.md), **turn on the 30s replay toggle and approve screen capture permission**. The last 30 seconds are only kept once permission is granted. And if permission is ever revoked, replay turns off on its own — nothing for you to worry about.
 
-![Enabling 30s replay](../assets/dummy.jpg)
+![Enabling 30s replay](../assets/video-replay-1.jpg)
 
 ## Using it
 
-Once it's ready, the **Replay** button on the debug screen pulls the last 30 seconds into a video. A quick glance at the button tells you what's going on.
+Once it's ready, the **30s replay** button on the debug screen pulls the last 30 seconds into a video. A quick glance at the button tells you what's going on.
 
 - **Disabled** — Not turned on in settings yet. (Click it and you'll be told you can enable 30s replay in settings.)
 - **Recording** — The screen is being recorded. You can grab the last 30 seconds anytime.
 - **Encoding…** — Turning the grabbed 30 seconds into a video.
 - **Ready** — The video is made and attached to the issue.
 
-![Replay button states](../assets/dummy.jpg)
+![30s replay button states](../assets/video-replay-2.jpg)
 
 > Once the video is made, you move to the issue draft. Continue with [Write an Issue](issue.md).
 

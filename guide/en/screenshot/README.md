@@ -4,7 +4,7 @@ Capture a region of the screen, draw on it to point out the bug, and file it as 
 
 The flow is **capture a region → annotate → write the issue**.
 
-![Screenshot mode overview](../assets/dummy.jpg)
+![Screenshot mode overview](../assets/screenshot-readme-1.jpg)
 
 ## Jump to
 

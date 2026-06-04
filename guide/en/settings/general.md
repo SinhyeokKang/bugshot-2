@@ -8,7 +8,7 @@ Pick the display language for BugShot. You can choose between **한국어** (Kor
 
 > The user guide opens in your language too. Set it to Korean and you get the Korean guide; set it to English and you get the English one.
 
-![Language setting](../assets/3.4.1.jpg)
+![Language setting](../assets/settings-general-1.jpg)
 
 ## Theme
 
@@ -22,7 +22,7 @@ Choose how bright the panel looks. There are three options.
 
 With **System**, BugShot goes dark automatically whenever your OS is in dark mode. If you'd rather not think about it, System is the easy pick.
 
-![Theme setting](../assets/3.4.2.jpg)
+![Theme setting](../assets/settings-general-2.jpg)
 
 ## Guide · Review · Contact
 
@@ -32,7 +32,7 @@ At the bottom of the General tab you'll find three handy buttons.
 - **Leave a Review** — Takes you to BugShot's review page on the Chrome Web Store. If it's been helpful, a quick word means a lot to us.
 - **Contact Us** — Opens an email so you can ask a question or report a bug. Stuck on something? Don't hesitate to reach out.
 
-![Guide, Review, and Contact buttons](../assets/3.4.3.jpg)
+![Guide, Review, and Contact buttons](../assets/settings-general-3.jpg)
 
 ---
 

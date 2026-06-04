@@ -47,6 +47,18 @@ describe("classifyResponseBody", () => {
       classifyResponseBody({ contentType: "font/woff2", contentLength: 5000 }),
     ).toEqual({ kind: "binary", contentType: "font/woff2", size: 5000 });
   });
+
+  it("text/event-stream은 binary 처리 — 무한 스트림 본문을 read하지 않는다", () => {
+    expect(
+      classifyResponseBody({ contentType: "text/event-stream", contentLength: NaN }),
+    ).toEqual({ kind: "binary", contentType: "text/event-stream", size: 0 });
+  });
+
+  it("charset 붙은 text/event-stream도 binary 처리", () => {
+    expect(
+      classifyResponseBody({ contentType: "text/event-stream; charset=utf-8", contentLength: NaN }),
+    ).toEqual({ kind: "binary", contentType: "text/event-stream; charset=utf-8", size: 0 });
+  });
 });
 
 describe("classifyBeaconBody", () => {
