@@ -15,7 +15,7 @@
 - Report 탭이 담는 것: **제목 + Copy markdown 버튼 + 환경(Environment) + 텍스트 섹션(설명/재현/예상/노트, 사용자 섹션 설정 순서·라벨 반영)**.
 - 기본 활성 탭 fallback 순서는 기존 그대로 유지: **Console → Network → Action**. Report는 가장 후순위라 자동 선택되지 않는다(사용자가 직접 클릭해야 보임).
 - Copy markdown 버튼은 `PreviewPanel`과 동일하게 마크다운/HTML을 클립보드에 복사한다.
-- **logs 첨부 드랍 경고**: Report 본문(inline dataURL)이 더해져 `logs.html`/`logs.zip`이 커지면 Notion 무료 워크스페이스 5 MiB 한도 등으로 첨부가 빠질 수 있다. 현재는 logs 첨부 실패가 격리되어 **사용자에게 알림 없이 조용히 드랍**된다(`submitToNotion.ts:105-109`). 이번에 logs 첨부가 제외되면 **제출 완료 페이지에서 경고 토스트**를 노출한다 — 문구는 "Notion 무료 플랜 한도로 `logs.html`이 누락되었습니다" 류(실패 반응형 — 용량 외 모든 logs 업로드 실패 원인 포함).
+- **logs 첨부 드랍 경고 (전 플랫폼)**: Report 본문(inline dataURL)·영상 임베드로 `logs.html`/`logs.zip`이 커지면 플랫폼 첨부 한도로 빠질 수 있다(GitLab.com 10MB 하드캡, Linear ~10MB, Notion 무료 5MiB 등). 현재는 6개 플랫폼 모두 logs 첨부 실패가 격리되어 **사용자에게 알림 없이 조용히 드랍**된다(사전 크기 체크도 없음). 이번에 logs 첨부가 제외되면 **제출 완료 페이지에서 경고 토스트**를 노출한다(실패 반응형 — 용량 외 모든 logs 업로드 실패 원인 포함). 토스트 문구는 **플랫폼 무관 공통 i18n 키 1개**(플랫폼명 보간 없음).
 
 ## 비목표 (Non-goals)
 
@@ -40,7 +40,7 @@
 - **저장된 draft 열기**(`DraftDetailDialog`): 제출 전 draft에서도 `logs.html`을 만들 수 있으므로, Report 데이터도 동일하게 채워진다.
 - **inline 이미지가 본문에 포함**: 본문 섹션의 `inline:` 마커는 IndexedDB에서 resolve되는데 standalone HTML에선 접근 불가하므로, 사이드패널에서 **data URL로 미리 치환**해 주입한다(깨진 이미지 방지).
 - **로그가 하나도 없음**: 기존 게이팅상 `logs.html` 자체가 생성되지 않으므로 Report 탭도 존재하지 않는다(변화 없음).
-- **Notion 용량 초과로 logs 첨부 드랍**: 이슈는 정상 생성되되 `logs` 카테고리 첨부만 격리 catch로 빠진다(image/video 실패와 달리 전체 실패 아님). 이번 변경으로 이 경우 제출 완료 페이지에서 **"Notion 무료 플랜 한도로 logs.html 누락" 경고 토스트**가 뜬다(기존 silent drop 개선).
+- **플랫폼 용량 초과로 logs 첨부 드랍**: 이슈는 정상 생성되되 `logs` 카테고리 첨부만 격리되어 빠진다(image/video 실패와 달리 전체 실패 아님). 이번 변경으로 이 경우 제출 완료 페이지에서 **"첨부 용량 한도로 logs.html이 누락되었습니다" 류 공통 경고 토스트**가 뜬다(기존 silent drop 개선). 위험 큰 순: GitLab(10MB 하드캡) > Linear(가장 silent) > Notion(5MiB). Jira·Asana는 한도가 커 사실상 미발생.
 
 ## 성공 기준
 
@@ -48,5 +48,5 @@
 - 기본 활성 탭은 여전히 Console(없으면 Network → Action), Report는 클릭해야 보인다.
 - Report 탭 Copy markdown이 사이드패널 프리뷰의 Copy 결과와 동일한 마크다운을 생성한다.
 - inline 이미지가 본문에 있어도 Report 탭에서 정상 표시된다.
-- Notion 제출에서 logs 첨부가 용량 등으로 빠지면 경고 토스트가 노출된다(조용한 드랍 아님).
+- 어느 플랫폼이든 제출에서 logs 첨부가 용량 등으로 빠지면 제출 완료 화면에 경고 토스트가 노출된다(조용한 드랍 아님).
 - 기존 Console/Network/Action 탭, 좌측 패널, 사이드패널 `PreviewPanel` 동작에 회귀가 없다(`pnpm test` 통과).

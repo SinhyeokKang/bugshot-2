@@ -103,13 +103,15 @@
   - [ ] `src/i18n/` 편집 시 PostToolUse 훅의 locales 대칭 테스트 통과
   - [ ] `pnpm test` 통과
 
-### Task 12: logs 첨부 드랍 경고 토스트 (silent drop 개선)
-- **변경 대상**: `src/types/platform.ts`, `src/sidepanel/lib/submitToNotion.ts`, `src/store/editor-store.ts`, `src/sidepanel/tabs/IssueCreateModal.tsx`, `src/sidepanel/tabs/IssueTab.tsx`, `src/i18n/`
-- **작업 내용**: `NormalizedSubmitResult`에 `logsDropped?: boolean` 추가(`:89-92`). `submitToNotion`이 logs 카테고리 첨부 격리 catch(`:105-109`) 발생 시 `logsDropped: true`로 반환. `editor-store.submitResult` 타입 확장 + `onSubmitted` 체인 전달. `SubmitSuccessView`(`IssueTab.tsx:346-377`, 제출 완료 화면)에서 `logsDropped`면 `useEffect`로 `toast.warning`(sonner) 1회. 문구 i18n 키(ko: "Notion 무료 플랜 한도로 logs.html이 누락되었습니다" / en 대응). **실패 반응형**(사전 바이트 크기 예측 아님).
+### Task 12: logs 첨부 드랍 경고 토스트 (전 플랫폼 silent drop 개선)
+- **변경 대상**: `src/types/platform.ts`, `src/sidepanel/lib/submitToNotion.ts`·`submitToLinear.ts`, `src/background/messages.ts`(Jira·GitHub·GitLab·Asana 첨부 격리 + BG 응답), `src/store/editor-store.ts`, `src/sidepanel/tabs/IssueCreateModal.tsx`, `src/sidepanel/tabs/IssueTab.tsx`, `src/i18n/`
+- **작업 내용**: `NormalizedSubmitResult`에 `logsDropped?: boolean` 추가(`:89-92`). **6개 플랫폼 각 제출 경로**에서 logs(`category==="log"`) 첨부가 격리 처리로 빠졌는지 판정해 `logsDropped: true` 설정 — 감지 지점은 플랫폼마다 다름(Notion `:105-109` continue / Linear `:110-130` filter / GitLab·Jira·Asana·GitHub는 background `messages.ts`·`github-upload.ts`의 per-file null). background 경로는 **BG 응답 타입에 `logsDropped`를 실어** 사이드패널까지 전파. `editor-store.submitResult` 타입 확장 + `onSubmitted` 체인 전달. `SubmitSuccessView`(`IssueTab.tsx:346-377`)에서 `logsDropped`면 `useEffect`로 `toast.warning`(sonner) 1회. 문구는 **플랫폼 무관 공통 i18n 키 1개**(보간 없음; ko 예: "첨부 용량 한도로 logs.html이 누락되었습니다" / en 대응). **실패 반응형**(사전 바이트 크기 예측 아님). image/video 첨부 실패의 기존 동작(throw/전체 실패 또는 본문 "not inlined" 노트)은 보존.
 - **검증**:
-  - [ ] 테스트: `submitToNotion`이 logs 첨부 실패 시 `logsDropped: true`, image/video 실패는 기존대로 throw(전체 실패) — 분기 보존
+  - [ ] 테스트: 각 플랫폼 제출 경로가 logs 첨부 실패 시 `logsDropped: true` 반환(최소 Notion·Linear·GitLab 회귀 테스트)
   - [ ] 테스트: logs 첨부 성공 시 `logsDropped` falsy
-  - [ ] Chrome 수동: 큰 inline draft로 Notion 무료 플랜 제출 → 이슈는 생성되고 제출 완료 화면에 경고 토스트 1회
+  - [ ] 테스트: image/video 실패 분기는 기존대로(전체 실패 throw 또는 본문 노트) — 보존 확인
+  - [ ] 테스트: background 경로(GitLab 등)의 BG 응답에 `logsDropped`가 직렬화돼 사이드패널 결과까지 도달
+  - [ ] Chrome 수동: 큰/영상 임베드 draft로 GitLab(10MB)·Notion(5MiB) 제출 → 이슈는 생성되고 제출 완료 화면에 경고 토스트 1회
   - [ ] `src/i18n/` 편집 시 PostToolUse 훅 locales 대칭 테스트 통과
   - [ ] `pnpm test` 통과
 
