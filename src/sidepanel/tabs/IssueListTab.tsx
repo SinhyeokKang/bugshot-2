@@ -98,7 +98,7 @@ export function IssueListTab() {
       <PageShell>
         <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 pb-5 text-center">
           <div className="mb-3 rounded-full bg-muted p-3">
-            <CircleCheck className="h-6 w-6 text-green-600" />
+            <CircleCheck className="h-6 w-6 text-green-600 dark:text-green-400" />
           </div>
           <h3 className="text-lg font-semibold">{t("jira.submitted")}</h3>
           <a

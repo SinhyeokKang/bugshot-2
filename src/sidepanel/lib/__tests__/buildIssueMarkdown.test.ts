@@ -18,7 +18,6 @@ vi.mock("@/store/settings-ui-store", () => ({
 }));
 
 import {
-  networkLogPath,
   buildIssueMarkdown,
   buildIssueHtml,
   type MarkdownContext,
@@ -51,16 +50,6 @@ function makeCtx(overrides: Partial<MarkdownContext> = {}): MarkdownContext {
     ...overrides,
   };
 }
-
-describe("networkLogPath", () => {
-  it("정상 URL → pathname", () => {
-    expect(networkLogPath("https://example.com/api/data?q=1")).toBe("/api/data");
-  });
-
-  it("잘못된 URL → 원본", () => {
-    expect(networkLogPath("not-a-url")).toBe("not-a-url");
-  });
-});
 
 describe("buildIssueMarkdown", () => {
   it("타이틀 포함", () => {

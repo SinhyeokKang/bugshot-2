@@ -32,14 +32,6 @@ export interface MarkdownContext {
   consoleLogSummary?: ConsoleLogSummary;
 }
 
-export function networkLogPath(url: string): string {
-  try {
-    return new URL(url).pathname;
-  } catch {
-    return url;
-  }
-}
-
 function sectionLabel(section: IssueSection): string {
   return section.labelOverride?.trim() || t(sectionMdLabelKey(section.id));
 }

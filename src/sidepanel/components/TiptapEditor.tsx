@@ -269,7 +269,7 @@ const TiptapEditor = forwardRef<TiptapEditorHandle, TiptapEditorProps>(function 
     >
       <EditorContent editor={editor} />
       {isDragOver && (
-        <div className="absolute inset-0 rounded-md bg-sky-200/30 pointer-events-none" />
+        <div className="absolute inset-0 rounded-md bg-sky-200/30 pointer-events-none dark:bg-sky-400/20" />
       )}
     </div>
   );
