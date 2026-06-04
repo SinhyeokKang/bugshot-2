@@ -65,6 +65,7 @@ import {
 } from "@/sidepanel/components/StyleChangesTable";
 import { buildAiMetaAttachment } from "@/sidepanel/lib/buildAiMetaAttachment";
 import { buildCaptureFiles, type CaptureFiles } from "@/sidepanel/lib/buildCaptureFiles";
+import { deriveContextEnvRows } from "@/sidepanel/lib/buildReportData";
 import { supportsConsoleNetworkLog, supportsActionLog } from "@/sidepanel/lib/captureLogSupport";
 import { annotateAttachmentDimensions } from "@/sidepanel/lib/attachmentDimensions";
 import type { JiraAttachmentInput } from "@/types/jira";
@@ -305,6 +306,13 @@ export function DraftDetailDialog({
       videoEndedAt: issue.videoEndedAt,
       pageUrl: issue.pageUrl,
       issueTitle: issue.title?.trim() || undefined,
+      report: {
+        title: issue.draft.title,
+        sections: issue.draft.sections,
+        sectionConfig,
+        envRows: deriveContextEnvRows(ctx),
+        markdownContext: ctx,
+      },
     });
     return { ctx, captureFiles };
   }

@@ -12,31 +12,31 @@
 - **변경 대상**: `src/types/log-viewer.ts`
 - **작업 내용**: `LogViewerReportSection`, `LogViewerReport` 인터페이스 추가 + `LogViewerData`에 `report: LogViewerReport | null` 필드 추가(design.md 시그니처).
 - **검증**:
-  - [ ] `pnpm typecheck` 통과
+  - [x] `pnpm typecheck` 통과
   - [ ] 기존 `LogViewerData` 사용처 컴파일 에러 없음(report 누락은 다음 태스크에서 채움)
 
 ### Task 2: `buildMarkdownContext` 추출 (테스트 우선)
 - **변경 대상**: `src/sidepanel/lib/buildMarkdownContext.ts`(신규), `__tests__/buildMarkdownContext.test.ts`(신규)
 - **작업 내용**: `PreviewPanel.handleCopyMarkdown`의 캡처모드 4분기 ctx 빌드(`PreviewPanel.tsx:116-210`)를 순수 함수로 이전. **`PreviewPanel` copy 한정**(IssueCreateModal/DraftDetailDialog ctx는 통합 대상 아님). 입력은 captureMode·draft·resolvedSections·sectionConfig·os·browser·캡처모드별 부가값. `useEditorStore.getState()` 직접 읽기(`freeformViewport`/`freeformCapturedAt`)·`?? Date.now()` 폴백은 전부 인자로 주입. 반환은 `MarkdownContext`.
 - **검증**:
-  - [ ] 테스트: screenshot/freeform/video/element 각 모드에서 기대 `MarkdownContext` 생성
-  - [ ] `Date.now()` 등 비결정 입력은 인자로 주입(테스트 가능하게)
-  - [ ] `pnpm test` 통과
+  - [x] 테스트: screenshot/freeform/video/element 각 모드에서 기대 `MarkdownContext` 생성
+  - [x] `Date.now()` 등 비결정 입력은 인자로 주입(테스트 가능하게)
+  - [x] `pnpm test` 통과
 
 ### Task 3: `PreviewPanel`을 `buildMarkdownContext` 사용으로 정리 (순수 리팩터)
 - **변경 대상**: `src/sidepanel/tabs/PreviewPanel.tsx`
 - **작업 내용**: `handleCopyMarkdown` 내부 4분기를 `buildMarkdownContext` 호출로 치환. 외부 동작·copy 결과 동일.
 - **검증**:
   - [ ] Chrome 수동: 각 캡처모드에서 Copy markdown 결과가 변경 전과 동일
-  - [ ] `pnpm typecheck` 통과
+  - [x] `pnpm typecheck` 통과
 
 ### Task 4: `IssuePreviewView` 공유 컴포넌트 추출
 - **변경 대상**: `src/sidepanel/components/IssuePreviewView.tsx`(신규)
 - **작업 내용**: 제목 헤더(+Copy 버튼, `copied` 토글 내부 상태 + `aria-live="polite"`)·환경 rows 렌더·텍스트 섹션 매핑·media/logCards optional slot 삽입(`POST_MEDIA_SECTION_IDS` 기준)을 props 기반으로 구현. design.md `IssuePreviewViewProps`. **라벨(copyMarkdown/copied/untitled/emptyValue/env 제목)은 전부 prop 주입 — 내부에서 `t` 호출 금지. 본문은 `DocSectionBody` 미사용, dataURL value 직접 렌더 경량 렌더러**(blob-db/IndexedDB import 회피).
 - **검증**:
-  - [ ] `pnpm typecheck` 통과
-  - [ ] media/logCards 미전달 시 슬롯 없이 제목+env+섹션만 렌더(Report 탭 용)
-  - [ ] 컴포넌트 import 그래프에 `blob-db`/IndexedDB 미포함(log-viewer 번들 안전)
+  - [x] `pnpm typecheck` 통과
+  - [x] media/logCards 미전달 시 슬롯 없이 제목+env+섹션만 렌더(Report 탭 용) — composePreviewLayout.test로 순서 검증
+  - [x] 컴포넌트 import 그래프에 `blob-db`/IndexedDB 미포함(log-viewer 번들 안전) — CTO madge 정적 검증
 
 ### Task 5: `PreviewPanel`이 `IssuePreviewView`를 사용하도록 치환 (순수 리팩터)
 - **변경 대상**: `src/sidepanel/tabs/PreviewPanel.tsx`
@@ -44,36 +44,36 @@
 - **검증**:
   - [ ] Chrome 수동: 각 캡처모드 프리뷰 화면이 변경 전과 시각적으로 동일(media/log 카드 위치 포함)
   - [ ] 빈 섹션 placeholder, 미연결 플랫폼 alert 등 기존 UX 유지
-  - [ ] `pnpm typecheck` 통과
+  - [x] `pnpm typecheck` 통과
 
 ### Task 6: `buildReportData` 헬퍼 (테스트 우선)
 - **변경 대상**: `src/sidepanel/lib/buildReportData.ts`(신규), `__tests__/buildReportData.test.ts`(신규)
 - **작업 내용**: design.md `BuildReportDataInput`을 받아 `LogViewerReport` 생성. 섹션은 `sectionConfig.filter(enabled)` 순서로, **`renderAs==="paragraph"` 섹션만** `resolveInlineImages`로 dataURL 치환(현 copy 로직 `PreviewPanel.tsx:107`과 일치, orderedList는 미치환). copy는 호출처가 넘긴 `markdownContext`를 그대로 받아 `buildIssueMarkdown/Html`(재빌드 없음).
 - **검증**:
-  - [ ] 테스트: enabled 섹션만·순서 유지·label override 반영
-  - [ ] 테스트: `paragraph` 섹션의 `inline:` 마커가 dataURL로 치환됨(resolveInlineImages mock)
-  - [ ] 테스트: `orderedList` 섹션은 `inline:` 마커 미치환(paragraph 전용 게이트 고정)
-  - [ ] 테스트: copy.markdown이 `buildIssueMarkdown(context)`와 일치
-  - [ ] `pnpm test` 통과
+  - [x] 테스트: enabled 섹션만·순서 유지·label override 반영
+  - [x] 테스트: `paragraph` 섹션의 `inline:` 마커가 dataURL로 치환됨(resolveInlineImages mock)
+  - [x] 테스트: `orderedList` 섹션은 `inline:` 마커 미치환(paragraph 전용 게이트 고정)
+  - [x] 테스트: copy.markdown이 `buildIssueMarkdown(context)`와 일치
+  - [x] `pnpm test` 통과
 
 ### Task 7: `buildLogsHtml`에 report 주입
 - **변경 대상**: `src/sidepanel/lib/buildLogsHtml.ts`, `__tests__/buildLogsHtml.test.ts`
 - **작업 내용**: 시그니처 **맨 마지막 positional**에 `report: LogViewerReport | null` 추가(기존 8개 순서 유지), `data.report`에 설정. `LogViewerData`에서 **`report`를 `meta`보다 앞 필드로 직렬화**해 `injectIssueUrl`의 `lastIndexOf('"issueUrl":""')` 마커가 meta 말미만 잡도록 보장.
 - **검증**:
-  - [ ] 테스트: report 주입 시 `__BUGSHOT_DATA__` JSON에 report 포함
-  - [ ] 테스트: report=null도 정상 직렬화
-  - [ ] 테스트: report에 빈 `issueUrl`-유사 문자열 포함 시 `injectIssueUrl`이 **meta 말미만** 치환(마커 충돌 회귀)
-  - [ ] 기존 issueUrl 말미 치환 테스트(`inject-issue-url.test.ts`) 통과
-  - [ ] `pnpm test` 통과
+  - [x] 테스트: report 주입 시 `__BUGSHOT_DATA__` JSON에 report 포함
+  - [x] 테스트: report=null도 정상 직렬화
+  - [x] 테스트: report에 빈 `issueUrl`-유사 문자열 포함 시 `injectIssueUrl`이 **meta 말미만** 치환(마커 충돌 회귀) — report가 meta보다 앞 + 마지막 마커 뒤 `}}` 단언
+  - [x] 기존 issueUrl 말미 치환 테스트(`inject-issue-url.test.ts`) 통과
+  - [x] `pnpm test` 통과
 
 ### Task 8: `buildCaptureFiles`에서 report 빌드·전달
 - **변경 대상**: `src/sidepanel/lib/buildCaptureFiles.ts`, `__tests__/buildCaptureFiles.test.ts`
 - **작업 내용**: `BuildCaptureFilesInput`에 Report 입력(draft·issueSections·envRows·markdownContext 또는 빌드용 원시값) 추가. 로그 게이팅(`supportsConsoleNetworkLog` + 로그 존재) 통과 시에만 `buildReportData` 호출 후 `buildLogsHtml`에 전달.
 - **검증**:
-  - [ ] 테스트: report 입력이 `buildLogsHtml` 마지막 인자로 전달됨(spy)
-  - [ ] 테스트: 로그 없음 → `buildLogsHtml`/`buildReportData` 미호출(기존 게이팅 유지)
+  - [x] 테스트: report 입력이 `buildLogsHtml` 마지막 인자로 전달됨(spy)
+  - [x] 테스트: 로그 없음 → `buildLogsHtml`/`buildReportData` 미호출(기존 게이팅 유지)
   - [ ] 수동: 큰 inline 이미지 draft → Notion 제출 시 `logs.zip` 크기가 무료 워크스페이스 5 MiB 한도 내(report dataURL이 media 임베드 위에 추가됨 — 한도 초과 회귀 확인)
-  - [ ] `pnpm test` 통과
+  - [x] `pnpm test` 통과
 
 ### Task 9: 호출처에서 Report 입력 전달
 - **변경 대상**: `src/sidepanel/tabs/IssueCreateModal.tsx`(`:250`), `src/sidepanel/tabs/DraftDetailDialog.tsx`(`:294`)
@@ -82,7 +82,7 @@
   - [ ] Chrome 수동: 제출 시 첨부된 `logs.html`의 Report 탭 내용이 프리뷰와 일치
   - [ ] Chrome 수동: DraftDetailDialog에서 만든 `logs.html`도 동일
   - [ ] Chrome 수동: element-no-diff(diff 없는 element) 제출 시 Report 메타가 screenshot 기준으로 어긋남 없이 표시
-  - [ ] `pnpm typecheck` 통과
+  - [x] `pnpm typecheck` 통과
 
 ### Task 10: log-viewer App에 Report 탭 추가
 - **변경 대상**: `src/log-viewer/App.tsx`
@@ -99,9 +99,9 @@
 - **변경 대상**: `src/log-viewer/i18n.ts`, 필요 시 `src/i18n/`(사이드패널)
 - **작업 내용**: `IssuePreviewView`는 라벨을 prop으로 받으므로, 키는 **호출처별 i18n**에 둔다. log-viewer 측(`src/log-viewer/i18n.ts`): `logViewer.tab.report`(ko "리포트"/en "Report") + Report 탭이 채워 넘길 라벨(copyMarkdown/copied/untitled/env 섹션 제목/emptyValue) 중 없는 키 추가. 사이드패널 측(`src/i18n/`): `PreviewPanel`이 넘기는 라벨 키는 대부분 기존 존재, 신규 키만 ko/en 추가.
 - **검증**:
-  - [ ] log-viewer에서 키 문자열 노출 없음(모든 라벨 정상 번역)
+  - [x] log-viewer에서 키 문자열 노출 없음 — i18n.ts ko/en 대칭, Report 라벨 키 6개 추가(IssuePreviewView prop 주입). 사이드패널 i18n은 기존 키 재사용이라 신규 키 없음
   - [ ] `src/i18n/` 편집 시 PostToolUse 훅의 locales 대칭 테스트 통과
-  - [ ] `pnpm test` 통과
+  - [x] `pnpm test` 통과
 
 ### Task 12: logs 첨부 드랍 경고 토스트 (전 플랫폼 silent drop 개선)
 - **변경 대상**: `src/types/platform.ts`, `src/sidepanel/lib/submitToNotion.ts`·`submitToLinear.ts`, `src/background/messages.ts`(Jira·GitHub·GitLab·Asana 첨부 격리 + BG 응답), `src/store/editor-store.ts`, `src/sidepanel/tabs/IssueCreateModal.tsx`, `src/sidepanel/tabs/IssueTab.tsx`, `src/i18n/`

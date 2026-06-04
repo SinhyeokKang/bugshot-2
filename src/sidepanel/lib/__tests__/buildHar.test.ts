@@ -1,15 +1,13 @@
-import { describe, it, expect, vi, beforeAll } from "vitest";
+import { describe, it, expect, beforeAll } from "vitest";
 import type { NetworkLog, NetworkRequest } from "@/types/network";
 
 let buildHar: (log: NetworkLog) => object;
 let serializeHar: (har: object) => string;
 
 beforeAll(async () => {
-  vi.stubGlobal("chrome", {
-    runtime: { getManifest: () => ({ version: "1.0.0" }) },
-  });
   const mod = await import("../buildHar");
-  buildHar = mod.buildHar;
+  // version은 이제 인자 — 테스트 호출부 유지를 위해 래퍼로 주입.
+  buildHar = (log: NetworkLog) => mod.buildHar(log, "1.0.0");
   serializeHar = mod.serializeHar;
 });
 

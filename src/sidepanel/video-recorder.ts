@@ -38,8 +38,12 @@ export async function startRecording(tabId: number): Promise<void> {
       mandatory: {
         chromeMediaSource: "tab",
         chromeMediaSourceId: streamId,
-        maxWidth: 1920,
-        maxHeight: 1080,
+        // 720p — 용량 우선. 픽셀이 적어 정적 녹화가 작다. 텍스트 절대 디테일은 1080p보다 낮지만
+        // bitrate 헤드룸(2Mbps)으로 아티팩트를 줄여 가독성을 끌어올린다.
+        maxWidth: 1280,
+        maxHeight: 720,
+        // ~30fps→12fps. fps는 per-frame 선명도(멈춰서 읽는 화질)와 무관하고 프레임 수만 줄여 용량↓.
+        maxFrameRate: 12,
       },
     },
   } as MediaStreamConstraints);
@@ -47,7 +51,9 @@ export async function startRecording(tabId: number): Promise<void> {
   const mimeType = pickVideoRecorderMime();
   const recorder = new MediaRecorder(stream, {
     ...(mimeType ? { mimeType } : {}),
-    videoBitsPerSecond: 1_500_000,
+    // 2Mbps — 1080p 텍스트를 선명히 인코딩할 헤드룸. 일반(저모션)은 quality-bound라 안 닿고
+    // 작게 유지, 과모션 세션만 이 선까지 써서 선명+커짐(소수 업로드 실패는 수용한 트레이드오프).
+    videoBitsPerSecond: 2_000_000,
   });
 
   const chunks: Blob[] = [];

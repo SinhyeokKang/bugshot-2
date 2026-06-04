@@ -102,7 +102,7 @@ function requestToEntry(req: NetworkRequest) {
   };
 }
 
-export function buildHar(log: NetworkLog): object {
+export function buildHar(log: NetworkLog, version: string): object {
   const entries = log.requests.map(requestToEntry);
 
   return {
@@ -110,7 +110,7 @@ export function buildHar(log: NetworkLog): object {
       version: "1.2",
       creator: {
         name: "BugShot",
-        version: chrome.runtime.getManifest().version,
+        version,
       },
       entries,
     },

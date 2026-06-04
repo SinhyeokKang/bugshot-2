@@ -1,11 +1,11 @@
 import type { ActionLog } from "@/types/action";
 
-export function buildActionLogJson(log: ActionLog): object {
+export function buildActionLogJson(log: ActionLog, version: string): object {
   return {
     version: 1,
     creator: {
       name: "BugShot",
-      version: chrome.runtime.getManifest().version,
+      version,
     },
     startedAt: new Date(log.startedAt).toISOString(),
     endedAt: new Date(log.endedAt).toISOString(),

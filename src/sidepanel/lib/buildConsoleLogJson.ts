@@ -1,11 +1,11 @@
 import type { ConsoleLog } from "@/types/console";
 
-export function buildConsoleLogJson(log: ConsoleLog): object {
+export function buildConsoleLogJson(log: ConsoleLog, version: string): object {
   return {
     version: 1,
     creator: {
       name: "BugShot",
-      version: chrome.runtime.getManifest().version,
+      version,
     },
     startedAt: new Date(log.startedAt).toISOString(),
     endedAt: new Date(log.endedAt).toISOString(),

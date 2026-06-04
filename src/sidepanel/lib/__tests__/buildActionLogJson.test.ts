@@ -1,10 +1,9 @@
-import { describe, it, expect, vi } from "vitest";
-import { buildActionLogJson } from "../buildActionLogJson";
+import { describe, it, expect } from "vitest";
+import { buildActionLogJson as rawBuildActionLogJson } from "../buildActionLogJson";
 import type { ActionLog } from "@/types/action";
 
-vi.stubGlobal("chrome", {
-  runtime: { getManifest: () => ({ version: "9.9.9" }) },
-});
+// version은 이제 인자 — 테스트 호출부 유지를 위해 래퍼로 주입.
+const buildActionLogJson = (log: ActionLog) => rawBuildActionLogJson(log, "9.9.9");
 
 function makeLog(overrides: Partial<ActionLog> = {}): ActionLog {
   return {

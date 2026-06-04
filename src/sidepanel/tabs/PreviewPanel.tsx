@@ -1,17 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
-import { Check, Copy, Info } from "lucide-react";
+import { Info } from "lucide-react";
 import { formatTimestamp } from "@/sidepanel/lib/formatTimestamp";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { useT } from "@/i18n";
-import {
-  POST_MEDIA_SECTION_IDS,
-  sectionLabelKey,
-  useSettingsUiStore,
-} from "@/store/settings-ui-store";
+import { POST_MEDIA_SECTION_IDS, sectionLabelKey, useSettingsUiStore } from "@/store/settings-ui-store";
 import { useEditorStore } from "@/store/editor-store";
 import { connectedPlatforms, useSettingsStore } from "@/store/settings-store";
-import { DocSectionBody } from "@/sidepanel/components/DocSectionBody";
+import { IssuePreviewView } from "@/sidepanel/components/IssuePreviewView";
 import { LogAttachmentCards } from "@/sidepanel/components/LogAttachmentCards";
 import { NetworkLogPreviewDialog } from "@/sidepanel/components/NetworkLogPreviewDialog";
 import { ConsoleLogPreviewDialog } from "@/sidepanel/components/ConsoleLogPreviewDialog";
@@ -26,7 +22,8 @@ import {
   StyleChangesTable,
   buildStyleDiff,
 } from "@/sidepanel/components/StyleChangesTable";
-import { buildIssueHtml, buildIssueMarkdown } from "@/sidepanel/lib/buildIssueMarkdown";
+import { buildIssueHtml, buildIssueMarkdown, type MarkdownContext } from "@/sidepanel/lib/buildIssueMarkdown";
+import { buildMarkdownContext } from "@/sidepanel/lib/buildMarkdownContext";
 import { filterEnvironmentRows, parseChromeVersion } from "@/sidepanel/lib/environmentRows";
 import { getOsInfo } from "@/sidepanel/lib/osInfo";
 import { buildNetworkLogSummary, buildConsoleLogSummary } from "@/sidepanel/lib/buildLogSummary";
@@ -52,6 +49,8 @@ export function PreviewPanel() {
   const videoThumbnail = useEditorStore((s) => s.videoThumbnail);
   const videoViewport = useEditorStore((s) => s.videoViewport);
   const videoCapturedAt = useEditorStore((s) => s.videoCapturedAt);
+  const freeformViewport = useEditorStore((s) => s.freeformViewport);
+  const freeformCapturedAt = useEditorStore((s) => s.freeformCapturedAt);
   const draft = useEditorStore((s) => s.draft);
   const networkLog = useEditorStore((s) => s.networkLog);
   const networkLogAttach = useEditorStore((s) => s.networkLogAttach);
@@ -77,16 +76,34 @@ export function PreviewPanel() {
     [selection, styleEdits],
   );
 
-  const [copied, setCopied] = useState(false);
-  useEffect(() => {
-    if (!copied) return;
-    const t = window.setTimeout(() => setCopied(false), 1500);
-    return () => window.clearTimeout(t);
-  }, [copied]);
-
   const [networkDialogOpen, setNetworkDialogOpen] = useState(false);
   const [consoleDialogOpen, setConsoleDialogOpen] = useState(false);
   const [actionDialogOpen, setActionDialogOpen] = useState(false);
+
+  // 본문 inline 이미지를 dataURL로 미리 resolve(IssuePreviewView는 blob-db 미접근).
+  const [resolvedSections, setResolvedSections] = useState<Record<string, string>>(
+    draft?.sections ?? {},
+  );
+  useEffect(() => {
+    if (!draft) return;
+    let cancelled = false;
+    (async () => {
+      const out = { ...draft.sections };
+      await Promise.all(
+        issueSections
+          .filter((s) => s.enabled && s.renderAs === "paragraph")
+          .map(async (s) => {
+            const content = out[s.id];
+            if (!content?.includes("inline:")) return;
+            out[s.id] = (await resolveInlineImages(content)).resolved;
+          }),
+      );
+      if (!cancelled) setResolvedSections(out);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [draft, issueSections]);
 
   const os = getOsInfo();
   const browser = parseChromeVersion(navigator.userAgent);
@@ -100,111 +117,154 @@ export function PreviewPanel() {
   const attachedAction = supportsActionLog(captureMode) && actionLogAttach && actionLog && actionLog.captured > 0 ? actionLog : null;
   const showLogCards = supportsConsoleNetworkLog(captureMode) && (attachedNetwork !== null || attachedConsole !== null || attachedAction !== null);
 
+  const envRows: { label: string; value: string }[] = [
+    ...(os ? [{ label: "OS", value: os }] : []),
+    ...(browser ? [{ label: "Browser", value: browser }] : []),
+    { label: "Page", value: target?.url || "-" },
+  ];
+  if (isElementMode && selection) {
+    envRows.push({ label: "DOM", value: selection.selector });
+    envRows.push({ label: "Viewport", value: `${selection.viewport.width}×${selection.viewport.height}` });
+    envRows.push({ label: "Captured", value: formatTimestamp(selection.capturedAt) });
+  } else {
+    const vp = isVideoMode ? videoViewport : isFreeformMode ? freeformViewport : screenshotViewport;
+    const cap = isVideoMode ? videoCapturedAt : isFreeformMode ? freeformCapturedAt : screenshotCapturedAt;
+    if (vp) envRows.push({ label: "Viewport", value: `${vp.width}×${vp.height}` });
+    if (cap) envRows.push({ label: "Captured", value: formatTimestamp(cap) });
+  }
+  envRows.push(...filterEnvironmentRows(draft.environment ?? []));
+
+  const previewSections = issueSections
+    .filter((s) => s.enabled)
+    .map((s) => ({
+      id: s.id,
+      label: s.labelOverride?.trim() || t(sectionLabelKey(s.id)),
+      renderAs: s.renderAs,
+      value: resolvedSections[s.id] ?? "",
+    }));
+
+  const mediaBlock = isFreeformMode ? null : isVideoMode ? (
+    <Section title={t("section.media")}>
+      <PreviewVideo blob={videoBlob} thumbnail={videoThumbnail} />
+    </Section>
+  ) : isElementMode ? (
+    <Section title={t("section.styleChanges")}>
+      <StyleChangesTable
+        beforeImage={beforeImage}
+        afterImage={afterImage}
+        diffs={diffs}
+      />
+    </Section>
+  ) : (
+    <Section title={t("section.media")}>
+      {screenshotImage ? (
+        <div className="aspect-video w-full overflow-hidden rounded-lg border bg-muted/70">
+          <img
+            src={screenshotImage}
+            alt={t("alt.capturedImage")}
+            className="h-full w-full object-contain"
+          />
+        </div>
+      ) : null}
+    </Section>
+  );
+
+  const logCardsBlock = showLogCards ? (
+    <Section title={t("section.logs")}>
+      <LogAttachmentCards
+        networkLog={attachedNetwork}
+        networkLogAttach={networkLogAttach}
+        onNetworkLogToggle={() => {}}
+        onNetworkLogClick={() => { (document.activeElement as HTMLElement)?.blur?.(); setNetworkDialogOpen(true); }}
+        consoleLog={attachedConsole}
+        consoleLogAttach={consoleLogAttach}
+        onConsoleLogToggle={() => {}}
+        onConsoleLogClick={() => { (document.activeElement as HTMLElement)?.blur?.(); setConsoleDialogOpen(true); }}
+        actionLog={attachedAction}
+        onActionLogClick={() => { (document.activeElement as HTMLElement)?.blur?.(); setActionDialogOpen(true); }}
+        readOnly
+      />
+    </Section>
+  ) : null;
+
   const handleCopyMarkdown = async () => {
-    const resolvedSections = { ...draft.sections };
+    const resolved = { ...draft.sections };
     await Promise.all(
       issueSections
         .filter((s) => s.enabled && s.renderAs === "paragraph")
         .map(async (s) => {
-          const content = resolvedSections[s.id];
+          const content = resolved[s.id];
           if (!content?.includes("inline:")) return;
-          const { resolved } = await resolveInlineImages(content);
-          resolvedSections[s.id] = resolved;
+          resolved[s.id] = (await resolveInlineImages(content)).resolved;
         }),
     );
 
-    let ctx: Parameters<typeof buildIssueMarkdown>[0];
+    let ctx: MarkdownContext;
     if (isFreeformMode) {
-      ctx = {
-        os,
-        browser,
+      ctx = buildMarkdownContext({
         captureMode: "freeform",
         title: draft.title,
-        sections: resolvedSections,
+        resolvedSections: resolved,
         sectionConfig: issueSections,
+        os,
+        browser,
         url: target?.url ?? "",
-        selector: "",
-        tagName: "",
-        classListBefore: [],
-        classListAfter: [],
-        specifiedStyles: {},
-        tokens: [],
+        environment: draft.environment ?? [],
         viewport: useEditorStore.getState().freeformViewport,
         capturedAt: useEditorStore.getState().freeformCapturedAt ?? Date.now(),
-        diffs: [],
-        environment: draft.environment ?? [],
         networkLogSummary: attachedNetwork ? buildNetworkLogSummary(attachedNetwork) : undefined,
         consoleLogSummary: attachedConsole ? buildConsoleLogSummary(attachedConsole) : undefined,
-      };
+      });
     } else if (isVideoMode) {
-      ctx = {
-        os,
-        browser,
+      ctx = buildMarkdownContext({
         captureMode: "video",
         title: draft.title,
-        sections: resolvedSections,
+        resolvedSections: resolved,
         sectionConfig: issueSections,
+        os,
+        browser,
         url: target?.url ?? "",
-        selector: "",
-        tagName: "",
-        classListBefore: [],
-        classListAfter: [],
-        specifiedStyles: {},
-        tokens: [],
+        environment: draft.environment ?? [],
         viewport: videoViewport ?? { width: 0, height: 0 },
         capturedAt: videoCapturedAt ?? Date.now(),
-        diffs: [],
-        environment: draft.environment ?? [],
         networkLogSummary: attachedNetwork ? buildNetworkLogSummary(attachedNetwork) : undefined,
         consoleLogSummary: attachedConsole ? buildConsoleLogSummary(attachedConsole) : undefined,
-      };
+      });
     } else if (isElementMode && selection) {
-      const changedProps = new Set(diffs.map((d) => d.prop));
-      const relevantValues = Object.entries(selection.specifiedStyles)
-        .filter(([k]) => changedProps.has(k))
-        .map(([, v]) => v);
-      const relevantTokens = tokens
-        .filter((t) => relevantValues.some((v) => v.includes(t.name)))
-        .map((t) => ({ name: t.name, value: t.value }));
-
-      ctx = {
-        os,
-        browser,
+      ctx = buildMarkdownContext({
+        captureMode: "element",
         title: draft.title,
-        sections: resolvedSections,
+        resolvedSections: resolved,
         sectionConfig: issueSections,
-        url: target?.url ?? "",
-        selector: selection.selector,
-        tagName: selection.tagName,
-        classListBefore: selection.classList,
-        classListAfter: styleEdits.classList,
-        specifiedStyles: selection.specifiedStyles,
-        tokens: relevantTokens,
-        viewport: selection.viewport,
-        capturedAt: selection.capturedAt,
-        diffs,
-        environment: draft.environment ?? [],
-      };
-    } else if (captureMode === "screenshot") {
-      ctx = {
         os,
         browser,
+        url: target?.url ?? "",
+        environment: draft.environment ?? [],
+        selection: {
+          selector: selection.selector,
+          tagName: selection.tagName,
+          classList: selection.classList,
+          specifiedStyles: selection.specifiedStyles,
+          viewport: selection.viewport,
+          capturedAt: selection.capturedAt,
+        },
+        styleEditsClassList: styleEdits.classList,
+        tokens,
+        diffs,
+      });
+    } else if (captureMode === "screenshot") {
+      ctx = buildMarkdownContext({
         captureMode: "screenshot",
         title: draft.title,
-        sections: resolvedSections,
+        resolvedSections: resolved,
         sectionConfig: issueSections,
+        os,
+        browser,
         url: target?.url ?? "",
-        selector: "",
-        tagName: "",
-        classListBefore: [],
-        classListAfter: [],
-        specifiedStyles: {},
-        tokens: [],
+        environment: draft.environment ?? [],
         viewport: screenshotViewport ?? { width: 0, height: 0 },
         capturedAt: screenshotCapturedAt ?? Date.now(),
-        diffs: [],
-        environment: draft.environment ?? [],
-      };
+      });
     } else {
       return;
     }
@@ -220,113 +280,27 @@ export function PreviewPanel() {
     } catch {
       await navigator.clipboard.writeText(md);
     }
-    setCopied(true);
   };
 
   return (
     <PageShell>
       <PageScroll>
-        <Section>
-          <div className="flex items-start justify-between gap-3">
-            <h1 className="text-2xl font-semibold leading-tight">
-              {draft.title || (
-                <span className="text-muted-foreground/70">{t("common.untitled")}</span>
-              )}
-            </h1>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => void handleCopyMarkdown()}
-              className="shrink-0"
-            >
-              {copied ? <Check /> : <Copy />}
-              {copied ? t("preview.copied") : t("preview.copyMarkdown")}
-            </Button>
-          </div>
-        </Section>
-
-        {isElementMode && selection ? (
-          <Section title={t("section.env")}>
-            <EnvParagraph
-              os={os}
-              browser={browser}
-              url={target?.url ?? ""}
-              selector={selection.selector}
-              viewport={selection.viewport}
-              capturedAt={selection.capturedAt}
-              customRows={filterEnvironmentRows(draft.environment ?? [])}
-            />
-          </Section>
-        ) : (
-          <NonElementEnvSection />
-        )}
-
-        {(() => {
-          const enabled = issueSections.filter((s) => s.enabled);
-          let mediaInserted = false;
-          const mediaBlock = isFreeformMode ? null : isVideoMode ? (
-            <Section key="__media" title={t("section.media")}>
-              <PreviewVideo blob={videoBlob} thumbnail={videoThumbnail} />
-            </Section>
-          ) : isElementMode ? (
-            <Section key="__media" title={t("section.styleChanges")}>
-              <StyleChangesTable
-                beforeImage={beforeImage}
-                afterImage={afterImage}
-                diffs={diffs}
-              />
-            </Section>
-          ) : (
-            <Section key="__media" title={t("section.media")}>
-              {screenshotImage ? (
-                <div className="aspect-video w-full overflow-hidden rounded-lg border bg-muted/70">
-                  <img
-                    src={screenshotImage}
-                    alt={t("alt.capturedImage")}
-                    className="h-full w-full object-contain"
-                  />
-                </div>
-              ) : null}
-            </Section>
-          );
-          const logCardsBlock = showLogCards ? (
-            <Section key="__logCards" title={t("section.logs")}>
-              <LogAttachmentCards
-                networkLog={attachedNetwork}
-                networkLogAttach={networkLogAttach}
-                onNetworkLogToggle={() => {}}
-                onNetworkLogClick={() => { (document.activeElement as HTMLElement)?.blur?.(); setNetworkDialogOpen(true); }}
-                consoleLog={attachedConsole}
-                consoleLogAttach={consoleLogAttach}
-                onConsoleLogToggle={() => {}}
-                onConsoleLogClick={() => { (document.activeElement as HTMLElement)?.blur?.(); setConsoleDialogOpen(true); }}
-                actionLog={attachedAction}
-                onActionLogClick={() => { (document.activeElement as HTMLElement)?.blur?.(); setActionDialogOpen(true); }}
-                readOnly
-              />
-            </Section>
-          ) : null;
-          const out: React.ReactNode[] = [];
-          for (const sec of enabled) {
-            if (POST_MEDIA_SECTION_IDS.has(sec.id) && !mediaInserted) {
-              mediaInserted = true;
-              out.push(mediaBlock);
-              if (logCardsBlock) out.push(logCardsBlock);
-            }
-            const value = draft.sections[sec.id] ?? "";
-            const label = sec.labelOverride?.trim() || t(sectionLabelKey(sec.id));
-            out.push(
-              <Section key={sec.id} title={label}>
-                <DocSectionBody section={sec} value={value} />
-              </Section>,
-            );
-          }
-          if (!mediaInserted) {
-            out.push(mediaBlock);
-            if (logCardsBlock) out.push(logCardsBlock);
-          }
-          return out;
-        })()}
+        <IssuePreviewView
+          title={draft.title}
+          envRows={envRows}
+          sections={previewSections}
+          labels={{
+            untitled: t("common.untitled"),
+            copyMarkdown: t("preview.copyMarkdown"),
+            copied: t("preview.copied"),
+            emptyValue: t("common.empty"),
+            envTitle: t("section.env"),
+          }}
+          onCopy={handleCopyMarkdown}
+          media={mediaBlock}
+          logCards={logCardsBlock}
+          postMediaSectionIds={POST_MEDIA_SECTION_IDS}
+        />
       </PageScroll>
       <PageFooter>
         {noPlatformConnected ? (
@@ -408,110 +382,3 @@ function PreviewVideo({ blob, thumbnail }: { blob: Blob | null; thumbnail: strin
     );
   return null;
 }
-
-function NonElementEnvSection() {
-  const t = useT();
-  const target = useEditorStore((s) => s.target);
-  const draft = useEditorStore((s) => s.draft);
-  const captureMode = useEditorStore((s) => s.captureMode);
-  const videoViewport = useEditorStore((s) => s.videoViewport);
-  const videoCapturedAt = useEditorStore((s) => s.videoCapturedAt);
-  const screenshotViewport = useEditorStore((s) => s.screenshotViewport);
-  const screenshotCapturedAt = useEditorStore((s) => s.screenshotCapturedAt);
-  const freeformViewport = useEditorStore((s) => s.freeformViewport);
-  const freeformCapturedAt = useEditorStore((s) => s.freeformCapturedAt);
-
-  const viewport =
-    captureMode === "video" ? videoViewport
-    : captureMode === "freeform" ? freeformViewport
-    : screenshotViewport;
-  const capturedAt =
-    captureMode === "video" ? videoCapturedAt
-    : captureMode === "freeform" ? freeformCapturedAt
-    : screenshotCapturedAt;
-
-  const os = getOsInfo();
-  const browser = parseChromeVersion(navigator.userAgent);
-
-  return (
-    <Section title={t("section.env")}>
-      <div className="space-y-1 text-sm leading-relaxed">
-        {os ? (
-          <div className="flex gap-3">
-            <span className="w-20 shrink-0 text-muted-foreground">OS</span>
-            <span className="break-all">{os}</span>
-          </div>
-        ) : null}
-        {browser ? (
-          <div className="flex gap-3">
-            <span className="w-20 shrink-0 text-muted-foreground">Browser</span>
-            <span className="break-all">{browser}</span>
-          </div>
-        ) : null}
-        <div className="flex gap-3">
-          <span className="w-20 shrink-0 text-muted-foreground">Page</span>
-          <span className="break-all">{target?.url || "-"}</span>
-        </div>
-        {viewport ? (
-          <div className="flex gap-3">
-            <span className="w-20 shrink-0 text-muted-foreground">Viewport</span>
-            <span>{`${viewport.width}×${viewport.height}`}</span>
-          </div>
-        ) : null}
-        {capturedAt ? (
-          <div className="flex gap-3">
-            <span className="w-20 shrink-0 text-muted-foreground">Captured</span>
-            <span>{formatTimestamp(capturedAt)}</span>
-          </div>
-        ) : null}
-        {filterEnvironmentRows(draft?.environment ?? []).map((r, i) => (
-          <div key={`custom-${i}`} className="flex gap-3">
-            <span className="w-20 shrink-0 text-muted-foreground break-all">
-              {r.label}
-            </span>
-            <span className="break-all">{r.value}</span>
-          </div>
-        ))}
-      </div>
-    </Section>
-  );
-}
-
-function EnvParagraph({
-  os,
-  browser,
-  url,
-  selector,
-  viewport,
-  capturedAt,
-  customRows,
-}: {
-  os?: string | null;
-  browser?: string | null;
-  url: string;
-  selector: string;
-  viewport: { width: number; height: number };
-  capturedAt: number;
-  customRows: { label: string; value: string }[];
-}) {
-  const rows: { label: string; value: string }[] = [
-    ...(os ? [{ label: "OS", value: os }] : []),
-    ...(browser ? [{ label: "Browser", value: browser }] : []),
-    { label: "Page", value: url || "-" },
-    { label: "DOM", value: selector },
-    { label: "Viewport", value: `${viewport.width}×${viewport.height}` },
-    { label: "Captured", value: formatTimestamp(capturedAt) },
-    ...customRows,
-  ];
-  return (
-    <div className="space-y-1 text-sm leading-relaxed">
-      {rows.map((r, i) => (
-        <div key={`${r.label}-${i}`} className="flex gap-3">
-          <span className="w-20 shrink-0 text-muted-foreground">{r.label}</span>
-          <span className="break-all">{r.value}</span>
-        </div>
-      ))}
-    </div>
-  );
-}
-

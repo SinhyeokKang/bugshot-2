@@ -17,6 +17,7 @@ import { buildStyleDiff } from "@/sidepanel/components/StyleChangesTable";
 import { buildAiMetaAttachment } from "@/sidepanel/lib/buildAiMetaAttachment";
 import { buildIssueAdf, type AdfDoc } from "@/sidepanel/lib/buildIssueAdf";
 import { buildCaptureFiles, type CaptureFiles } from "@/sidepanel/lib/buildCaptureFiles";
+import { deriveContextEnvRows } from "@/sidepanel/lib/buildReportData";
 import { annotateAttachmentDimensions } from "@/sidepanel/lib/attachmentDimensions";
 import type { JiraAttachmentInput } from "@/types/jira";
 import {
@@ -239,7 +240,7 @@ export function IssueCreateModal() {
     };
   }
 
-  async function buildEditorCaptureFiles(): Promise<CaptureFiles> {
+  async function buildEditorCaptureFiles(ctx: MarkdownContext): Promise<CaptureFiles> {
     const hasNet = networkLogAttach && !!networkLog && networkLog.captured > 0;
     const hasCon = consoleLogAttach && !!consoleLog && consoleLog.captured > 0;
     const hasAct = actionLogAttach && !!actionLog && actionLog.captured > 0;
@@ -261,6 +262,15 @@ export function IssueCreateModal() {
       videoThumbnail,
       pageUrl: target?.url ?? "",
       issueTitle: draft?.title?.trim() || undefined,
+      report: draft
+        ? {
+            title: draft.title,
+            sections: draft.sections,
+            sectionConfig,
+            envRows: deriveContextEnvRows(ctx),
+            markdownContext: ctx,
+          }
+        : null,
     });
   }
 
@@ -553,7 +563,7 @@ export function IssueCreateModal() {
   async function handleSubmit(submitPlatform: PlatformId): Promise<NormalizedSubmitResult> {
     const ctx = buildCtx();
     const inlineImages = await resolveInlineImagesForSections(ctx.sections, sectionConfig);
-    const captureFiles = await buildEditorCaptureFiles();
+    const captureFiles = await buildEditorCaptureFiles(ctx);
     let result: NormalizedSubmitResult;
     if (submitPlatform === "github") result = await handleGithubSubmit(ctx, inlineImages, captureFiles);
     else if (submitPlatform === "linear") result = await handleLinearSubmit(ctx, inlineImages, captureFiles);

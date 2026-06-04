@@ -1,5 +1,6 @@
-const DATA_TAG =
-  /(<script id="__BUGSHOT_DATA__" type="application\/json">)([\s\S]*?)(<\/script>)/;
+// 제출 후 issueUrl/issueKey 마커는 평문 META 태그에만 있다(무거운 데이터는 gzip-base64라 미접근).
+const META_TAG =
+  /(<script id="__BUGSHOT_META__" type="application\/json">)([\s\S]*?)(<\/script>)/;
 
 // 49152 = 3의 배수라 청크별 btoa 결과를 그대로 이어 붙여도 유효한 base64가 된다(마지막 청크만 패딩).
 // 영상 임베드(~20MB)에서 단일 거대 btoa·문자열 누적의 메인 스레드/SW 블로킹을 피한다.
@@ -30,7 +31,7 @@ export async function injectIssueUrl(
 
   const html = await (await fetch(logsDataUrl)).text();
 
-  const sm = html.match(DATA_TAG);
+  const sm = html.match(META_TAG);
   if (!sm) return logsDataUrl;
 
   let json = sm[2];
@@ -51,6 +52,6 @@ export async function injectIssueUrl(
     json = `${json.slice(0, urlIdx)}"issueUrl":${urlLiteral}${json.slice(urlIdx + urlMarker.length)}`;
   }
 
-  const newHtml = html.replace(DATA_TAG, () => `${sm[1]}${json}${sm[3]}`);
+  const newHtml = html.replace(META_TAG, () => `${sm[1]}${json}${sm[3]}`);
   return `data:${mime};base64,${await bytesToBase64(new TextEncoder().encode(newHtml))}`;
 }

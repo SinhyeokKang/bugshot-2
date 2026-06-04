@@ -4,6 +4,7 @@ import type { ActionLog } from "@/types/action";
 import type { LogViewerData } from "@/types/log-viewer";
 import { blobToDataUrl } from "@/store/blob-db";
 import { buildLogsHtml } from "./buildLogsHtml";
+import { buildReportData, type BuildReportDataInput } from "./buildReportData";
 import { supportsConsoleNetworkLog, supportsActionLog } from "./captureLogSupport";
 import { recordingFilename } from "./video-mime";
 
@@ -34,6 +35,8 @@ export interface BuildCaptureFilesInput {
   videoThumbnail?: string | null;
   pageUrl?: string;
   issueTitle?: string;
+  // 로그 게이팅 통과 시 logs.html에 임베드할 Report 데이터 입력(없으면 report=null).
+  report?: BuildReportDataInput | null;
 }
 
 export async function buildCaptureFiles(
@@ -72,7 +75,8 @@ export async function buildCaptureFiles(
         input.captureMode === "screenshot" && input.screenshotImage
           ? { dataUrl: input.screenshotImage }
           : null;
-      const html = buildLogsHtml(input.networkLog ?? null, input.consoleLog ?? null, actionLog, videoEmbed, screenshotEmbed, input.pageUrl ?? "", undefined, input.issueTitle);
+      const report = input.report ? await buildReportData(input.report) : null;
+      const html = await buildLogsHtml(input.networkLog ?? null, input.consoleLog ?? null, actionLog, videoEmbed, screenshotEmbed, input.pageUrl ?? "", undefined, input.issueTitle, report);
       const htmlBlob = new Blob([html], { type: "text/html" });
       result.logs.push({
         filename: "logs.html",

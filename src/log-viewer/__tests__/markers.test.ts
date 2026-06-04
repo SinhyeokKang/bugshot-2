@@ -20,11 +20,9 @@ function makeData(
     consoleLog: null,
     networkLog: null,
     actionLog: null,
-    har: null,
-    consoleLogJson: null,
-    actionLogJson: null,
     video: { dataUrl: "", startedAt: VIDEO_STARTED_AT },
     screenshot: null,
+    report: null,
     meta: { version: "1.0.0", createdAt: "", pageUrl: "" },
     ...overrides,
   };
