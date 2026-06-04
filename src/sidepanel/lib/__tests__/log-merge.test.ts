@@ -2,6 +2,8 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import {
   mergeLogItems,
   trimByTime,
+  replayLogBounds,
+  REPLAY_LOG_GUARD_MS,
   rebuildNetworkLog,
   rebuildConsoleLog,
   rebuildActionLog,
@@ -187,6 +189,27 @@ describe("trimByTime", () => {
 
   it("빈 입력이면 빈 배열", () => {
     expect(trimByTime<NetworkRequest>([], reqTime, 0, 100)).toEqual([]);
+  });
+});
+
+describe("replayLogBounds", () => {
+  it("하한은 첫 프레임 시각에서 가드밴드만큼 당기고 상한은 캡처 시각", () => {
+    const { lower, upper } = replayLogBounds(10000, 15000);
+    expect(lower).toBe(10000 - REPLAY_LOG_GUARD_MS);
+    expect(upper).toBe(15000);
+  });
+
+  it("첫 프레임 직전 가드밴드 구간 로그는 보존, 그 이전은 제외", () => {
+    const firstFrame = 10000;
+    const items = [
+      makeRequest({ id: "tooEarly", startTime: firstFrame - REPLAY_LOG_GUARD_MS - 1 }),
+      makeRequest({ id: "guarded", startTime: firstFrame - REPLAY_LOG_GUARD_MS + 1 }),
+      makeRequest({ id: "inWindow", startTime: firstFrame + 500 }),
+      makeRequest({ id: "afterCapture", startTime: firstFrame + 6000 }),
+    ];
+    const { lower, upper } = replayLogBounds(firstFrame, firstFrame + 5000);
+    const trimmed = trimByTime(items, reqTime, lower, upper);
+    expect(trimmed.map((r) => r.id)).toEqual(["guarded", "inWindow"]);
   });
 });
 

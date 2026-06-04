@@ -4,7 +4,7 @@ import { sendBg } from "@/types/messages";
 import { useEditorStore } from "@/store/editor-store";
 import { useSettingsUiStore } from "@/store/settings-ui-store";
 import { syncAndSettleLogs } from "@/sidepanel/picker-control";
-import { trimByTime } from "@/sidepanel/lib/log-merge";
+import { trimByTime, replayLogBounds } from "@/sidepanel/lib/log-merge";
 import { saveNetworkLog, saveConsoleLog, saveActionLog } from "@/store/blob-db";
 import { useT } from "@/i18n";
 import { FrameBuffer, REPLAY_MAX_DURATION_MS } from "./frame-buffer";
@@ -166,23 +166,26 @@ export function use30sReplay(
       // 지연 sync가 끼어들 갭을 없애고, 직후 onRecordingComplete로 drafting 전환(프리즈)해 첨부 로그를 고정한다.
       const captureTime = Date.now();
       const lower = frames[0].timestamp;
+      // 영상 기준점(lower)은 그대로 두되, 로그 trim 하한만 가드밴드로 당겨 첫 프레임 직전
+      // 초반 로그가 캡처 폴링 지연으로 잘리는 걸 막는다.
+      const { lower: logLower, upper: logUpper } = replayLogBounds(lower, captureTime);
       // syncAndSettleLogs가 network/console/action 모두 sync한다.
       await syncAndSettleLogs(id);
       const { networkLog, consoleLog, actionLog } = useEditorStore.getState();
       if (networkLog) {
-        const requests = trimByTime(networkLog.requests, (r) => r.startTime, lower, captureTime);
+        const requests = trimByTime(networkLog.requests, (r) => r.startTime, logLower, logUpper);
         const trimmed = { ...networkLog, requests, captured: requests.length };
         useEditorStore.getState().setNetworkLog(trimmed);
         saveNetworkLog(`pending:${id}`, trimmed).catch(() => {});
       }
       if (consoleLog) {
-        const entries = trimByTime(consoleLog.entries, (e) => e.timestamp, lower, captureTime);
+        const entries = trimByTime(consoleLog.entries, (e) => e.timestamp, logLower, logUpper);
         const trimmed = { ...consoleLog, entries, captured: entries.length };
         useEditorStore.getState().setConsoleLog(trimmed);
         saveConsoleLog(`pending:${id}`, trimmed).catch(() => {});
       }
       if (actionLog) {
-        const entries = trimByTime(actionLog.entries, (e) => e.timestamp, lower, captureTime);
+        const entries = trimByTime(actionLog.entries, (e) => e.timestamp, logLower, logUpper);
         const trimmed = { ...actionLog, entries, captured: entries.length };
         useEditorStore.getState().setActionLog(trimmed);
         saveActionLog(`pending:${id}`, trimmed).catch(() => {});

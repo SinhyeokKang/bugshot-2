@@ -27,6 +27,19 @@ export function mergeLogItems<T extends { id: string }>(
   return merged;
 }
 
+// 30s Replay 캡처 시 영상 프레임 구간으로 로그를 trim할 때의 윈도우.
+// 첫 프레임은 폴링 첫 tick(600ms) + captureVisibleTab rate-limit 때문에 페이지 조회보다
+// 늘 수백 ms~1초+ 늦게 찍힌다. 하한을 첫 프레임 시각 그대로 쓰면 그 직전에 발생한 초반
+// 로그가 잘리므로, 가드밴드만큼 당겨 영상 직전 로그를 보존한다.
+export const REPLAY_LOG_GUARD_MS = 1500;
+
+export function replayLogBounds(
+  firstFrameTime: number,
+  captureTime: number,
+): { lower: number; upper: number } {
+  return { lower: firstFrameTime - REPLAY_LOG_GUARD_MS, upper: captureTime };
+}
+
 // lower <= getTime(item) <= upper 필터. upper 생략 시 하한만.
 export function trimByTime<T>(
   items: T[],
