@@ -28,7 +28,7 @@ import { filterEnvironmentRows, parseChromeVersion } from "@/sidepanel/lib/envir
 import { getOsInfo } from "@/sidepanel/lib/osInfo";
 import { buildNetworkLogSummary, buildConsoleLogSummary } from "@/sidepanel/lib/buildLogSummary";
 import { supportsConsoleNetworkLog, supportsActionLog } from "@/sidepanel/lib/captureLogSupport";
-import { resolveInlineImages } from "@/sidepanel/lib/resolveInlineImages";
+import { resolveSectionImages } from "@/sidepanel/lib/resolveInlineImages";
 import { IssueCreateModal } from "./IssueCreateModal";
 
 
@@ -88,16 +88,7 @@ export function PreviewPanel() {
     if (!draft) return;
     let cancelled = false;
     (async () => {
-      const out = { ...draft.sections };
-      await Promise.all(
-        issueSections
-          .filter((s) => s.enabled && s.renderAs === "paragraph")
-          .map(async (s) => {
-            const content = out[s.id];
-            if (!content?.includes("inline:")) return;
-            out[s.id] = (await resolveInlineImages(content)).resolved;
-          }),
-      );
+      const out = await resolveSectionImages(draft.sections, issueSections);
       if (!cancelled) setResolvedSections(out);
     })();
     return () => {
@@ -188,16 +179,7 @@ export function PreviewPanel() {
   ) : null;
 
   const handleCopyMarkdown = async () => {
-    const resolved = { ...draft.sections };
-    await Promise.all(
-      issueSections
-        .filter((s) => s.enabled && s.renderAs === "paragraph")
-        .map(async (s) => {
-          const content = resolved[s.id];
-          if (!content?.includes("inline:")) return;
-          resolved[s.id] = (await resolveInlineImages(content)).resolved;
-        }),
-    );
+    const resolved = await resolveSectionImages(draft.sections, issueSections);
 
     let ctx: MarkdownContext;
     if (isFreeformMode) {

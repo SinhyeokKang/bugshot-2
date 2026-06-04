@@ -40,13 +40,15 @@ export async function buildLogsHtml(
   const dataB64 = await gzipToBase64(JSON.stringify(heavy));
   const metaJson = JSON.stringify(meta).replace(/</g, "\\u003c");
 
+  // 함수형 replacement — metaJson의 user-controlled 값(issueTitle·pageUrl)에 `$&`·`$1` 등이 있어도
+  // String.replace의 특수 치환 패턴으로 오해석되지 않도록 한다(injectIssueUrl과 동일 패턴).
   return template
     .replace(
       /<script id="__BUGSHOT_DATA__"[^>]*><\/script>/,
-      `<script id="__BUGSHOT_DATA__" type="application/gzip-base64">${dataB64}</script>`,
+      () => `<script id="__BUGSHOT_DATA__" type="application/gzip-base64">${dataB64}</script>`,
     )
     .replace(
       /<script id="__BUGSHOT_META__"[^>]*><\/script>/,
-      `<script id="__BUGSHOT_META__" type="application/json">${metaJson}</script>`,
+      () => `<script id="__BUGSHOT_META__" type="application/json">${metaJson}</script>`,
     );
 }

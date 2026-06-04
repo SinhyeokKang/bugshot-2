@@ -54,6 +54,25 @@ export async function resolveInlineImagesForSections(
   return results;
 }
 
+// enabled paragraph 섹션의 inline 이미지를 dataURL로 resolve한 새 섹션 맵 반환.
+// IssuePreviewView(blob-db 미접근)에 넘길 표시·copy용 섹션을 만든다.
+export async function resolveSectionImages(
+  sections: Record<string, string>,
+  sectionConfig: SectionFilter[],
+): Promise<Record<string, string>> {
+  const out = { ...sections };
+  await Promise.all(
+    sectionConfig
+      .filter((s) => s.enabled && s.renderAs === "paragraph")
+      .map(async (s) => {
+        const raw = out[s.id];
+        if (!raw?.includes("inline:")) return;
+        out[s.id] = (await resolveInlineImages(raw)).resolved;
+      }),
+  );
+  return out;
+}
+
 export function stripInlineImageRefs(markdown: string): string {
   return markdown.replace(INLINE_REF_RE, "").replace(/\n{3,}/g, "\n\n").trim();
 }

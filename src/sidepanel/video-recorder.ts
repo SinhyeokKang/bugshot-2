@@ -51,7 +51,7 @@ export async function startRecording(tabId: number): Promise<void> {
   const mimeType = pickVideoRecorderMime();
   const recorder = new MediaRecorder(stream, {
     ...(mimeType ? { mimeType } : {}),
-    // 2Mbps — 1080p 텍스트를 선명히 인코딩할 헤드룸. 일반(저모션)은 quality-bound라 안 닿고
+    // 2Mbps — 720p 텍스트를 선명히 인코딩할 헤드룸. 일반(저모션)은 quality-bound라 안 닿고
     // 작게 유지, 과모션 세션만 이 선까지 써서 선명+커짐(소수 업로드 실패는 수용한 트레이드오프).
     videoBitsPerSecond: 2_000_000,
   });

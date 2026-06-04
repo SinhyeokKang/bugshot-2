@@ -20,15 +20,29 @@ vi.mock("@/store/settings-ui-store", () => ({
 
 // inline 이미지 resolve는 외부 의존(blob-db/IndexedDB) — 결정적으로 모킹.
 // "inline:xxx" 마커를 dataURL로 치환하는 것만 흉내.
-vi.mock("../resolveInlineImages", () => ({
-  resolveInlineImages: vi.fn(async (markdown: string) => ({
-    resolved: markdown.replace(/inline:(\S+)/g, "data:image/png;base64,RESOLVED_$1"),
-    images: [],
-  })),
-}));
+vi.mock("../resolveInlineImages", () => {
+  const resolve = (md: string) => md.replace(/inline:(\S+)/g, "data:image/png;base64,RESOLVED_$1");
+  return {
+    resolveInlineImages: vi.fn(async (markdown: string) => ({ resolved: resolve(markdown), images: [] })),
+    resolveSectionImages: vi.fn(
+      async (
+        sections: Record<string, string>,
+        sectionConfig: { id: string; enabled: boolean; renderAs: string }[],
+      ) => {
+        const out = { ...sections };
+        for (const s of sectionConfig) {
+          if (s.enabled && s.renderAs === "paragraph" && out[s.id]?.includes("inline:")) {
+            out[s.id] = resolve(out[s.id]);
+          }
+        }
+        return out;
+      },
+    ),
+  };
+});
 
 // 모듈은 아직 없음 — import 실패가 첫 red.
-import { buildReportData } from "../buildReportData";
+import { buildReportData, deriveContextEnvRows } from "../buildReportData";
 import { buildIssueMarkdown, buildIssueHtml, type MarkdownContext } from "../buildIssueMarkdown";
 import type { IssueSection } from "@/store/settings-ui-store";
 
@@ -165,5 +179,23 @@ describe("buildReportData", () => {
 
     expect(report.copy.markdown).not.toContain("inline:");
     expect(report.copy.markdown).toContain("data:image/png;base64,RESOLVED_abc123");
+  });
+});
+
+describe("deriveContextEnvRows", () => {
+  const labels = (ctx: MarkdownContext) => deriveContextEnvRows(ctx).map((r) => r.label);
+
+  it("정상 viewport·capturedAt이면 Viewport·Captured 행을 낸다", () => {
+    const rows = labels(makeCtx({ viewport: { width: 800, height: 600 }, capturedAt: 1_700_000_000_000 }));
+    expect(rows).toContain("Viewport");
+    expect(rows).toContain("Captured");
+  });
+
+  it("viewport {0,0}이면 Viewport 행을 생략한다 (0×0 표시 방지)", () => {
+    expect(labels(makeCtx({ viewport: { width: 0, height: 0 } }))).not.toContain("Viewport");
+  });
+
+  it("capturedAt 0이면 Captured 행을 생략한다 (1970 표시 방지)", () => {
+    expect(labels(makeCtx({ capturedAt: 0 }))).not.toContain("Captured");
   });
 });

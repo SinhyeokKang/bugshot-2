@@ -1,5 +1,6 @@
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
+import { Loader2 } from "lucide-react";
 import type { LogViewerData } from "@/types/log-viewer";
 import { base64ToGunzip } from "@/lib/gzip-base64";
 import { App } from "./App";
@@ -24,8 +25,15 @@ async function loadData(): Promise<LogViewerData | null> {
   }
 }
 
+const root = createRoot(document.getElementById("root")!);
+// gzip 해제 동안 빈 화면 대신 스피너 — 로드 완료 후 App으로 교체.
+root.render(
+  <div className="flex h-screen items-center justify-center text-muted-foreground">
+    <Loader2 className="h-6 w-6 animate-spin" />
+  </div>,
+);
 void loadData().then((data) => {
-  createRoot(document.getElementById("root")!).render(
+  root.render(
     <StrictMode>
       <App data={data} />
     </StrictMode>,

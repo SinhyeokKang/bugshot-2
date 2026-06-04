@@ -4,7 +4,7 @@ import type { LogViewerReport, LogViewerReportSection } from "@/types/log-viewer
 import { buildIssueHtml, buildIssueMarkdown, type MarkdownContext } from "./buildIssueMarkdown";
 import { filterEnvironmentRows } from "./environmentRows";
 import { formatTimestamp } from "./formatTimestamp";
-import { resolveInlineImages } from "./resolveInlineImages";
+import { resolveSectionImages } from "./resolveInlineImages";
 
 // MarkdownContext의 환경 필드를 buildIssueMarkdown의 env 섹션과 동일 규칙으로 평탄화.
 // Report 탭 표시 env == copy(markdown) env를 보장한다.
@@ -23,10 +23,13 @@ export function deriveContextEnvRows(
   ) {
     rows.push({ label: "DOM", value: ctx.selector });
   }
-  if (ctx.viewport) {
+  // 비-element 폴백으로 viewport {0,0}·capturedAt 0이 들어올 수 있다 — Preview와 동일하게 가드해 0×0·1970 표시를 막는다.
+  if (ctx.viewport && ctx.viewport.width > 0 && ctx.viewport.height > 0) {
     rows.push({ label: "Viewport", value: `${ctx.viewport.width}×${ctx.viewport.height}` });
   }
-  rows.push({ label: "Captured", value: formatTimestamp(ctx.capturedAt) });
+  if (ctx.capturedAt) {
+    rows.push({ label: "Captured", value: formatTimestamp(ctx.capturedAt) });
+  }
   rows.push(...filterEnvironmentRows(ctx.environment));
   return rows;
 }
@@ -46,17 +49,7 @@ export async function buildReportData(
   // inline 이미지를 dataURL로 resolve한 섹션 맵 — 표시(sections)와 copy 양쪽에 공용으로 쓴다.
   // 호출처가 넘긴 markdownContext.sections는 플랫폼 제출과 공유돼 raw(inline: 마커) 상태이므로,
   // copy는 여기서 resolve한 섹션으로 빌드해야 클립보드에 깨진 마커가 안 남는다(PreviewPanel copy와 동일).
-  // resolve는 paragraph 섹션만 — orderedList엔 inline 입력 경로가 없다.
-  const resolvedSections: Record<string, string> = { ...input.sections };
-  await Promise.all(
-    enabled
-      .filter((s) => s.renderAs === "paragraph")
-      .map(async (s) => {
-        const raw = resolvedSections[s.id] ?? "";
-        if (!raw.includes("inline:")) return;
-        resolvedSections[s.id] = (await resolveInlineImages(raw)).resolved;
-      }),
-  );
+  const resolvedSections = await resolveSectionImages(input.sections, input.sectionConfig);
 
   const sections: LogViewerReportSection[] = enabled.map((s) => ({
     id: s.id,

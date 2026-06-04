@@ -282,4 +282,13 @@ describe("buildLogsHtml", () => {
     const data = await extractData(html);
     expect(((data.report as { copy: { markdown: string } }).copy.markdown)).toContain('"issueUrl":""');
   });
+
+  it("issueTitle에 $&·$1 등 치환 패턴이 있어도 meta JSON이 깨지지 않는다", async () => {
+    const title = "Bug $& $1 $` $' fix";
+    const html = await buildLogsHtml(
+      null, null, null, null, null, "https://example.com", undefined, title,
+    );
+    const meta = JSON.parse(metaTag(html));
+    expect(meta.issueTitle).toBe(title);
+  });
 });

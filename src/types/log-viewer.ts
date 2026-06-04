@@ -28,8 +28,8 @@ export interface LogViewerData {
     thumbnail?: string; // <video poster>
   } | null;
   screenshot: { dataUrl: string } | null; // 시간축 없는 정적 이미지(좌측 패널)
-  // report는 meta보다 앞에 둔다 — injectIssueUrl의 lastIndexOf('"issueUrl":""')
-  // 마커가 meta 말미만 잡도록(report 본문의 빈 문자열 필드와 충돌 방지).
+  // report는 heavy(gzip) blob에 직렬화된다 — injectIssueUrl이 치환하는 평문 meta 태그와
+  // 분리돼 있어 report 본문의 빈 문자열 필드가 issueUrl 마커와 충돌하지 않는다.
   report: LogViewerReport | null;
   meta: {
     version: string;
