@@ -26,6 +26,13 @@ function lastVideoArg(): unknown {
   return call ? call[3] : undefined;
 }
 
+// screenshot 임베드는 video(call[3]) 바로 뒤 5번째 인자(call[4]). Task 4(프로덕션 인자 삽입) 전엔
+// call[4]가 아직 pageUrl이라 신규 케이스가 red.
+function lastScreenshotArg(): unknown {
+  const call = buildLogsHtmlSpy.mock.calls.at(-1);
+  return call ? call[4] : undefined;
+}
+
 const networkLog: NetworkLog = {
   id: "net-1",
   startedAt: 0,
@@ -221,6 +228,53 @@ describe("buildCaptureFiles — video 임베드 (logs.html)", () => {
     });
     expect(out.video).toBeUndefined();
     expect(lastVideoArg()).toBeNull();
+  });
+});
+
+describe("buildCaptureFiles — screenshot 임베드 (logs.html)", () => {
+  it("screenshot + consoleLog + screenshotImage → logs.html에 screenshot 임베드", async () => {
+    buildLogsHtmlSpy.mockClear();
+    const out = await buildCaptureFiles({
+      captureMode: "screenshot",
+      screenshotImage: "data:image/webp;base64,SHOT",
+      consoleLog,
+      pageUrl: "https://example.com",
+    });
+    expect(out.logs.map((l) => l.filename)).toEqual(["logs.html"]);
+    expect(lastScreenshotArg()).toEqual({ dataUrl: "data:image/webp;base64,SHOT" });
+  });
+
+  it("screenshot + 로그 없음 → logs 빈, buildLogsHtml 미호출 (게이팅 유지)", async () => {
+    buildLogsHtmlSpy.mockClear();
+    const out = await buildCaptureFiles({
+      captureMode: "screenshot",
+      screenshotImage: "data:image/webp;base64,SHOT",
+      networkLog: null,
+      consoleLog: null,
+    });
+    expect(out.logs).toEqual([]);
+    expect(buildLogsHtmlSpy).not.toHaveBeenCalled();
+  });
+
+  it("screenshot + 로그 있음 + screenshotImage 없음 → screenshot 임베드 null (전폭 폴백)", async () => {
+    buildLogsHtmlSpy.mockClear();
+    const out = await buildCaptureFiles({
+      captureMode: "screenshot",
+      consoleLog,
+      pageUrl: "https://example.com",
+    });
+    expect(out.logs.map((l) => l.filename)).toEqual(["logs.html"]);
+    expect(lastScreenshotArg()).toBeNull();
+  });
+
+  it("video 모드 → screenshot 임베드 null (혼입 방지)", async () => {
+    buildLogsHtmlSpy.mockClear();
+    await buildCaptureFiles({
+      captureMode: "video",
+      networkLog,
+      pageUrl: "https://example.com",
+    });
+    expect(lastScreenshotArg()).toBeNull();
   });
 });
 

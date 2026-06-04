@@ -67,7 +67,12 @@ export async function buildCaptureFiles(
               ...(input.videoThumbnail ? { thumbnail: input.videoThumbnail } : {}),
             }
           : null;
-      const html = buildLogsHtml(input.networkLog ?? null, input.consoleLog ?? null, actionLog, videoEmbed, input.pageUrl ?? "", undefined, input.issueTitle);
+      // screenshot 모드 & 이미지 존재 시에만 좌측 패널용 정적 이미지 임베드(모드 배타라 video와 동시 비존재).
+      const screenshotEmbed: LogViewerData["screenshot"] =
+        input.captureMode === "screenshot" && input.screenshotImage
+          ? { dataUrl: input.screenshotImage }
+          : null;
+      const html = buildLogsHtml(input.networkLog ?? null, input.consoleLog ?? null, actionLog, videoEmbed, screenshotEmbed, input.pageUrl ?? "", undefined, input.issueTitle);
       const htmlBlob = new Blob([html], { type: "text/html" });
       result.logs.push({
         filename: "logs.html",

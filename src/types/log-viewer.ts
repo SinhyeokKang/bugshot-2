@@ -14,6 +14,7 @@ export interface LogViewerData {
     startedAt: number; // 동기화 앵커(공통 0점)
     thumbnail?: string; // <video poster>
   } | null;
+  screenshot: { dataUrl: string } | null; // 시간축 없는 정적 이미지(좌측 패널)
   meta: {
     version: string;
     createdAt: string;

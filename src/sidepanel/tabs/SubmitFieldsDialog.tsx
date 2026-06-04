@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ComponentType } from "react";
 import { Loader2 } from "lucide-react";
 import {
   SiAsana,
@@ -17,7 +17,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsTrigger } from "@/components/ui/tabs";
+import { CollapsingTabsList, TabLabel } from "@/components/ui/collapsing-tabs";
 import { useT } from "@/i18n";
 import { cn } from "@/lib/utils";
 import type { EditorIssueFields } from "@/store/editor-store";
@@ -27,7 +28,7 @@ import {
   isNotionAccountComplete,
   useSettingsStore,
 } from "@/store/settings-store";
-import type { PlatformId, NormalizedSubmitResult } from "@/types/platform";
+import { PLATFORM_TAB_KEYS, type PlatformId, type NormalizedSubmitResult } from "@/types/platform";
 import type { NotionDatabaseSchema } from "@/types/notion";
 import {
   GithubIssueFields,
@@ -87,6 +88,19 @@ const TABS_GRID_COLS: Record<number, string> = {
   5: "grid-cols-5",
   6: "grid-cols-6",
 };
+
+const PLATFORM_TABS: {
+  id: PlatformId;
+  Icon: ComponentType<{ className?: string; color?: string }>;
+  invertOnDark?: boolean;
+}[] = [
+  { id: "jira", Icon: SiJirasoftware },
+  { id: "github", Icon: SiGithub, invertOnDark: true },
+  { id: "linear", Icon: SiLinear },
+  { id: "notion", Icon: SiNotion, invertOnDark: true },
+  { id: "gitlab", Icon: SiGitlab },
+  { id: "asana", Icon: SiAsana },
+];
 
 export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
   const {
@@ -189,47 +203,22 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
 
         {showTabs ? (
           <Tabs value={platform} onValueChange={(v) => setPlatform(v as PlatformId)}>
-            <TabsList className={cn(
+            <CollapsingTabsList className={cn(
               "grid h-9 w-full",
               TABS_GRID_COLS[availablePlatforms.length] ?? "grid-cols-2",
             )}>
-              {availablePlatforms.includes("jira") && (
-                <TabsTrigger value="jira" className="gap-1.5">
-                  <SiJirasoftware className="h-3.5 w-3.5" color="default" />
-                  {t("platform.tab.jira")}
-                </TabsTrigger>
+              {PLATFORM_TABS.filter((p) => availablePlatforms.includes(p.id)).map(
+                ({ id, Icon, invertOnDark }) => (
+                  <TabsTrigger key={id} value={id} className="min-w-0 gap-1.5">
+                    <Icon
+                      className={cn("h-3.5 w-3.5 shrink-0", invertOnDark && "dark:invert")}
+                      color="default"
+                    />
+                    <TabLabel>{t(PLATFORM_TAB_KEYS[id])}</TabLabel>
+                  </TabsTrigger>
+                ),
               )}
-              {availablePlatforms.includes("github") && (
-                <TabsTrigger value="github" className="gap-1.5">
-                  <SiGithub className="h-3.5 w-3.5 dark:invert" color="default" />
-                  {t("platform.tab.github")}
-                </TabsTrigger>
-              )}
-              {availablePlatforms.includes("linear") && (
-                <TabsTrigger value="linear" className="gap-1.5">
-                  <SiLinear className="h-3.5 w-3.5" color="default" />
-                  {t("platform.tab.linear")}
-                </TabsTrigger>
-              )}
-              {availablePlatforms.includes("notion") && (
-                <TabsTrigger value="notion" className="gap-1.5">
-                  <SiNotion className="h-3.5 w-3.5 dark:invert" color="default" />
-                  {t("platform.tab.notion")}
-                </TabsTrigger>
-              )}
-              {availablePlatforms.includes("gitlab") && (
-                <TabsTrigger value="gitlab" className="gap-1.5">
-                  <SiGitlab className="h-3.5 w-3.5" color="default" />
-                  {t("platform.tab.gitlab")}
-                </TabsTrigger>
-              )}
-              {availablePlatforms.includes("asana") && (
-                <TabsTrigger value="asana" className="gap-1.5">
-                  <SiAsana className="h-3.5 w-3.5" color="default" />
-                  {t("platform.tab.asana")}
-                </TabsTrigger>
-              )}
-            </TabsList>
+            </CollapsingTabsList>
           </Tabs>
         ) : null}
 

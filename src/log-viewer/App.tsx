@@ -4,12 +4,14 @@ import type { LogViewerData } from "@/types/log-viewer";
 import { NetworkLogContent } from "@/sidepanel/components/NetworkLogContent";
 import { ConsoleLogContent } from "@/sidepanel/components/ConsoleLogContent";
 import { ActionLogContent } from "@/sidepanel/components/ActionLogContent";
-import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Tabs, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { CollapsingTabsList, TabLabel } from "@/components/ui/collapsing-tabs";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { toVideoSeconds } from "./timeline";
 import { buildMarkers } from "./markers";
 import type { TimelineMarker } from "./markers";
 import { VideoPlayer, type VideoPlayerHandle } from "./components/VideoPlayer";
+import { ImageViewer } from "./components/ImageViewer";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { t } from "./i18n";
@@ -38,6 +40,7 @@ export function App({ data }: AppProps) {
   const [activeTab, setActiveTab] = useState<LogTab>(defaultTab);
 
   const video = data?.video ?? null;
+  const screenshot = data?.screenshot ?? null;
   const playerRef = useRef<VideoPlayerHandle>(null);
   const [videoError, setVideoError] = useState(false);
   const [videoDurationSec, setVideoDurationSec] = useState(0);
@@ -83,35 +86,35 @@ export function App({ data }: AppProps) {
   const tabsPanel = (
     <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as LogTab)} className="flex min-h-0 flex-1 flex-col">
       <div className="shrink-0 border-b border-border px-4 py-4">
-        <TabsList className="grid h-9 w-full grid-cols-3">
-          <TabsTrigger value="console" disabled={!hasConsole} className="gap-1.5">
-            <Terminal className="h-3.5 w-3.5" />
-            {t("logViewer.tab.console")}
+        <CollapsingTabsList className="grid h-9 w-full grid-cols-3">
+          <TabsTrigger value="console" disabled={!hasConsole} className="min-w-0 gap-1.5">
+            <Terminal className="h-3.5 w-3.5 shrink-0" />
+            <TabLabel>{t("logViewer.tab.console")}</TabLabel>
             {hasConsole && (
-              <Badge className="ml-1 h-5 min-w-5 px-1.5 text-[10px]">
+              <Badge className="ml-1 h-5 min-w-5 shrink-0 px-1.5 text-[10px]">
                 {data.consoleLog!.entries.length}
               </Badge>
             )}
           </TabsTrigger>
-          <TabsTrigger value="network" disabled={!hasNetwork} className="gap-1.5">
-            <ArrowLeftRight className="h-3.5 w-3.5" />
-            {t("logViewer.tab.network")}
+          <TabsTrigger value="network" disabled={!hasNetwork} className="min-w-0 gap-1.5">
+            <ArrowLeftRight className="h-3.5 w-3.5 shrink-0" />
+            <TabLabel>{t("logViewer.tab.network")}</TabLabel>
             {hasNetwork && (
-              <Badge className="ml-1 h-5 min-w-5 px-1.5 text-[10px]">
+              <Badge className="ml-1 h-5 min-w-5 shrink-0 px-1.5 text-[10px]">
                 {data.networkLog!.requests.length}
               </Badge>
             )}
           </TabsTrigger>
-          <TabsTrigger value="action" disabled={!hasAction} className="gap-1.5">
-            <MousePointerClick className="h-3.5 w-3.5" />
-            {t("logViewer.tab.action")}
+          <TabsTrigger value="action" disabled={!hasAction} className="min-w-0 gap-1.5">
+            <MousePointerClick className="h-3.5 w-3.5 shrink-0" />
+            <TabLabel>{t("logViewer.tab.action")}</TabLabel>
             {hasAction && (
-              <Badge className="ml-1 h-5 min-w-5 px-1.5 text-[10px]">
+              <Badge className="ml-1 h-5 min-w-5 shrink-0 px-1.5 text-[10px]">
                 {data.actionLog!.entries.length}
               </Badge>
             )}
           </TabsTrigger>
-        </TabsList>
+        </CollapsingTabsList>
       </div>
 
       <TabsContent value="console" className="mt-0 flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden">
@@ -200,7 +203,7 @@ export function App({ data }: AppProps) {
     </Tabs>
   );
 
-  if (!video) {
+  if (!video && !screenshot) {
     return <div className="flex h-screen flex-col">{tabsPanel}</div>;
   }
 
@@ -208,22 +211,31 @@ export function App({ data }: AppProps) {
     <div className="h-screen">
       <ResizablePanelGroup direction="horizontal">
         <ResizablePanel defaultSize={60} className="flex min-w-0 flex-col">
-          {videoError ? (
-            <div className="flex h-full items-center justify-center bg-black">
-              <span className="text-sm text-muted-foreground">{t("logViewer.video.error")}</span>
-            </div>
+          {video ? (
+            videoError ? (
+              <div className="flex h-full items-center justify-center bg-black">
+                <span className="text-sm text-muted-foreground">{t("logViewer.video.error")}</span>
+              </div>
+            ) : (
+              <VideoPlayer
+                ref={playerRef}
+                src={video.dataUrl}
+                poster={video.thumbnail}
+                markers={markers}
+                issueTitle={data.meta.issueTitle}
+                issueKey={data.meta.issueKey}
+                issueUrl={data.meta.issueUrl}
+                onMarkerClick={handleMarkerClick}
+                onDurationChange={setVideoDurationSec}
+                onError={() => setVideoError(true)}
+              />
+            )
           ) : (
-            <VideoPlayer
-              ref={playerRef}
-              src={video.dataUrl}
-              poster={video.thumbnail}
-              markers={markers}
+            <ImageViewer
+              src={screenshot!.dataUrl}
               issueTitle={data.meta.issueTitle}
               issueKey={data.meta.issueKey}
               issueUrl={data.meta.issueUrl}
-              onMarkerClick={handleMarkerClick}
-              onDurationChange={setVideoDurationSec}
-              onError={() => setVideoError(true)}
             />
           )}
         </ResizablePanel>

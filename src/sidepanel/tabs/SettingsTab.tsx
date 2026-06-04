@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsTrigger } from "@/components/ui/tabs";
+import { CollapsingTabsList, TabLabel } from "@/components/ui/collapsing-tabs";
 import { useT } from "@/i18n";
 import { USER_GUIDE_URLS } from "@/lib/external-links";
 import {
@@ -38,20 +39,20 @@ export function SettingsTab({ sub, onSubChange }: { sub: string; onSubChange: (v
       className="flex min-h-0 flex-1 flex-col gap-0"
     >
       <div className="shrink-0 border-b border-border px-4 py-4">
-        <TabsList className="grid h-9 w-full grid-cols-3">
-          <TabsTrigger value="issue" className="gap-1.5">
-            <StickyNote className="h-3.5 w-3.5" />
-            {t("settings.tab.issue")}
+        <CollapsingTabsList className="grid h-9 w-full grid-cols-3">
+          <TabsTrigger value="issue" className="min-w-0 gap-1.5">
+            <StickyNote className="h-3.5 w-3.5 shrink-0" />
+            <TabLabel>{t("settings.tab.issue")}</TabLabel>
           </TabsTrigger>
-          <TabsTrigger value="ai" className="gap-1.5">
-            <Sparkles className="h-3.5 w-3.5" />
-            {t("settings.tab.ai")}
+          <TabsTrigger value="ai" className="min-w-0 gap-1.5">
+            <Sparkles className="h-3.5 w-3.5 shrink-0" />
+            <TabLabel>{t("settings.tab.ai")}</TabLabel>
           </TabsTrigger>
-          <TabsTrigger value="general" className="gap-1.5">
-            <SlidersHorizontal className="h-3.5 w-3.5" />
-            {t("settings.tab.general")}
+          <TabsTrigger value="general" className="min-w-0 gap-1.5">
+            <SlidersHorizontal className="h-3.5 w-3.5 shrink-0" />
+            <TabLabel>{t("settings.tab.general")}</TabLabel>
           </TabsTrigger>
-        </TabsList>
+        </CollapsingTabsList>
       </div>
 
       <TabsContent

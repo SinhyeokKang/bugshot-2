@@ -10,7 +10,8 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsTrigger } from "@/components/ui/tabs";
+import { CollapsingTabsList, TabLabel } from "@/components/ui/collapsing-tabs";
 import { cn } from "@/lib/utils";
 import { Toaster } from "@/components/ui/sonner";
 import { PICKER_PORT_NAME, PANEL_PORT_PREFIX } from "@/lib/session-keys";
@@ -191,24 +192,24 @@ export default function App() {
       <div className="flex min-h-0 flex-1 flex-col gap-0">
         <div className="border-b px-4 py-4">
           <Tabs value={tab} onValueChange={(v) => setTab(v)}>
-            <TabsList className="grid h-9 w-full grid-cols-4">
-              <TabsTrigger value="debug" className="gap-1.5">
-                <TerminalSquare className="h-3.5 w-3.5" />
-                {t("app.tab.debug")}
+            <CollapsingTabsList className="grid h-9 w-full grid-cols-4">
+              <TabsTrigger value="debug" className="min-w-0 gap-1.5">
+                <TerminalSquare className="h-3.5 w-3.5 shrink-0" />
+                <TabLabel>{t("app.tab.debug")}</TabLabel>
               </TabsTrigger>
-              <TabsTrigger value="issue-list" className="gap-1.5">
-                <List className="h-3.5 w-3.5" />
-                {t("app.tab.issueList")}
+              <TabsTrigger value="issue-list" className="min-w-0 gap-1.5">
+                <List className="h-3.5 w-3.5 shrink-0" />
+                <TabLabel>{t("app.tab.issueList")}</TabLabel>
               </TabsTrigger>
-              <TabsTrigger value="integrations" className="gap-1.5">
-                <Blocks className="h-3.5 w-3.5" />
-                {t("app.tab.integrations")}
+              <TabsTrigger value="integrations" className="min-w-0 gap-1.5">
+                <Blocks className="h-3.5 w-3.5 shrink-0" />
+                <TabLabel>{t("app.tab.integrations")}</TabLabel>
               </TabsTrigger>
-              <TabsTrigger value="settings" className="gap-1.5">
-                <Settings className="h-3.5 w-3.5" />
-                {t("app.tab.settings")}
+              <TabsTrigger value="settings" className="min-w-0 gap-1.5">
+                <Settings className="h-3.5 w-3.5 shrink-0" />
+                <TabLabel>{t("app.tab.settings")}</TabLabel>
               </TabsTrigger>
-            </TabsList>
+            </CollapsingTabsList>
           </Tabs>
         </div>
 

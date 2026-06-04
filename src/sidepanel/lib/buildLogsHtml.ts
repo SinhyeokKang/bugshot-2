@@ -12,6 +12,7 @@ export function buildLogsHtml(
   consoleLog: ConsoleLog | null,
   actionLog: ActionLog | null,
   video: LogViewerData["video"],
+  screenshot: LogViewerData["screenshot"],
   pageUrl: string,
   issueUrl?: string,
   issueTitle?: string,
@@ -24,6 +25,7 @@ export function buildLogsHtml(
     consoleLogJson: consoleLog ? buildConsoleLogJson(consoleLog) : null,
     actionLogJson: actionLog ? buildActionLogJson(actionLog) : null,
     video,
+    screenshot,
     meta: {
       version: chrome.runtime.getManifest().version,
       createdAt: new Date().toISOString(),
