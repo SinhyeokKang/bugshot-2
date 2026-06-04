@@ -1,0 +1,48 @@
+# Log Viewer — Report 탭
+
+## 배경
+
+`logs.html`(log-viewer)은 현재 Console·Network·Action 로그만 보여준다. 이슈를 제출하거나 draft를 열 때 작성했던 **이슈 본문(제목·환경·설명/재현/예상/노트)** 은 사이드패널의 프리뷰 패널(`PreviewPanel`)에서만 볼 수 있고, 첨부된 `logs.html`을 단독으로 열면 "이 로그가 어떤 이슈에 대한 것인지"를 알 수 없다. 좌측 패널의 이슈 제목 오버레이만으로는 맥락이 부족하다.
+
+`logs.html`은 인터넷 없이 단독 실행되는 자기완결 산출물이므로, 여기에 이슈 본문을 함께 담으면 첨부 파일 하나로 "무엇이 문제였는가 + 그때의 로그"를 모두 전달할 수 있다.
+
+## 목표
+
+- log-viewer에 **Report 탭**을 추가한다. 탭 순서는 `[Report] [Console] [Network] [Action]`.
+- Report 탭의 UI·데이터는 사이드패널 `PreviewPanel`과 동일하다. 단 **Media 섹션(스크린샷/영상 임베드)과 Log attachments 섹션은 제외**한다.
+  - Media: log-viewer 좌측 패널이 이미 동일한 스크린샷·영상을 보여주므로 중복 제거.
+  - Log attachments: Console/Network/Action 탭이 같은 데이터를 이미 담당.
+- Report 탭이 담는 것: **제목 + Copy markdown 버튼 + 환경(Environment) + 텍스트 섹션(설명/재현/예상/노트, 사용자 섹션 설정 순서·라벨 반영)**.
+- 기본 활성 탭 fallback 순서는 기존 그대로 유지: **Console → Network → Action**. Report는 가장 후순위라 자동 선택되지 않는다(사용자가 직접 클릭해야 보임).
+- Copy markdown 버튼은 `PreviewPanel`과 동일하게 마크다운/HTML을 클립보드에 복사한다.
+
+## 비목표 (Non-goals)
+
+- Report 탭에 Media(스크린샷/영상/스타일 변경 표)·Log attachments 카드를 넣지 않는다.
+- Report 탭에서 이슈 본문을 **편집**하는 기능은 만들지 않는다(읽기 전용, Copy만 가능).
+- log-viewer 좌측 패널(영상/스크린샷/이슈 오버레이) 동작은 변경하지 않는다.
+- element 캡처 모드 대응: element 모드는 콘솔/네트워크 로그 첨부 자체가 비활성(`supportsConsoleNetworkLog`)이라 `logs.html`이 생성되지 않으므로, Report 탭의 element 전용 env/스타일 표는 다루지 않는다(도달 불가 경로).
+- fallback 우선순위·탭 enable 규칙을 사용자가 설정하게 만드는 옵션은 추가하지 않는다.
+
+## 사용자 시나리오
+
+1. 사용자가 screenshot/freeform/video 모드로 캡처하고 콘솔·네트워크(·액션) 로그를 첨부한 뒤 이슈를 제출한다.
+2. 제출 시 본문에 `logs.html`이 첨부된다(기존 동작).
+3. 첨부된 `logs.html`을 연다. 기본은 Console 탭(없으면 Network → Action).
+4. 사용자가 **Report 탭**을 클릭한다 → 사이드패널 프리뷰와 동일한 제목·환경·본문 섹션이 보인다. Media/Log attachments는 없다.
+5. Report 탭의 **Copy markdown** 버튼을 누르면 이슈 본문이 마크다운/HTML로 클립보드에 복사된다.
+
+### 엣지 케이스
+
+- **본문이 비어 있음**: 제목만 있고 섹션 내용이 비면, 빈 섹션은 `PreviewPanel`과 동일하게 "비어 있음" placeholder로 표시(또는 비활성 섹션은 숨김). Report 탭 자체는 항상 표시한다.
+- **저장된 draft 열기**(`DraftDetailDialog`): 제출 전 draft에서도 `logs.html`을 만들 수 있으므로, Report 데이터도 동일하게 채워진다.
+- **inline 이미지가 본문에 포함**: 본문 섹션의 `inline:` 마커는 IndexedDB에서 resolve되는데 standalone HTML에선 접근 불가하므로, 사이드패널에서 **data URL로 미리 치환**해 주입한다(깨진 이미지 방지).
+- **로그가 하나도 없음**: 기존 게이팅상 `logs.html` 자체가 생성되지 않으므로 Report 탭도 존재하지 않는다(변화 없음).
+
+## 성공 기준
+
+- screenshot/freeform/video + 로그 첨부로 제출 → `logs.html`에 Report 탭이 보이고, 내용이 사이드패널 프리뷰와 일치(Media·Log attachments만 빠짐).
+- 기본 활성 탭은 여전히 Console(없으면 Network → Action), Report는 클릭해야 보인다.
+- Report 탭 Copy markdown이 사이드패널 프리뷰의 Copy 결과와 동일한 마크다운을 생성한다.
+- inline 이미지가 본문에 있어도 Report 탭에서 정상 표시된다.
+- 기존 Console/Network/Action 탭, 좌측 패널, 사이드패널 `PreviewPanel` 동작에 회귀가 없다(`pnpm test` 통과).
