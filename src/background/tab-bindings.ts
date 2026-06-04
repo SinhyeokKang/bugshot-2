@@ -167,10 +167,29 @@ export function activateTab(tab: chrome.tabs.Tab): void {
   }
 }
 
+// 직전 활성 탭의 레코더를 멈춘다. port.onDisconnect(패널 닫기)만으로는 per-tab
+// sidePanel에서 비활성 탭 패널 문서 destroy가 보장되지 않아 탭 전환 stop을 보완.
+// sentinel 미보유 탭에는 no-op이라 무조건 보내도 안전(.catch로 미주입 탭 무시).
+// 윈도우별로 직전 탭을 추적한다 — 단일 변수면 다른 윈도우 전환 시 여전히 보이는
+// 탭을 끊어버린다(onActivated는 윈도우마다 발화).
+const prevActiveTabByWindow = new Map<number, number>();
+
+function stopRecorders(tabId: number): void {
+  chrome.tabs.sendMessage(tabId, { type: "networkRecorder.stop" }).catch(() => {});
+  chrome.tabs.sendMessage(tabId, { type: "consoleRecorder.stop" }).catch(() => {});
+  chrome.tabs.sendMessage(tabId, { type: "actionRecorder.stop" }).catch(() => {});
+}
+
 export function setupTabBindings(): void {
   chrome.action.onClicked.addListener(activateTab);
 
-  chrome.tabs.onActivated.addListener(async ({ tabId }) => {
+  chrome.tabs.onActivated.addListener(async ({ tabId, windowId }) => {
+    const prevTabId = prevActiveTabByWindow.get(windowId);
+    if (prevTabId != null && prevTabId !== tabId) {
+      stopRecorders(prevTabId);
+    }
+    prevActiveTabByWindow.set(windowId, tabId);
+
     let tab: chrome.tabs.Tab;
     try {
       tab = await chrome.tabs.get(tabId);

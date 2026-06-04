@@ -36,7 +36,7 @@ function actionRecorderScript(): void {
 
   const buffer: CapturedAction[] = [];
   let totalSeen = 0;
-  let recording = true;
+  let recording = false;
   let lastUrl = location.href;
 
   function genId(): string {

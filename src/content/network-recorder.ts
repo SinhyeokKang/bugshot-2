@@ -65,7 +65,7 @@ function networkRecorderScript(): void {
   const buffer: CapturedRequest[] = [];
   let totalSeen = 0;
   let memoryUsed = 0;
-  let recording = true;
+  let recording = false;
   type NetworkWarning = "MEMORY_CAPPED" | "ENTRY_CAPPED" | "BODY_TRUNCATED";
   const warnings = new Set<NetworkWarning>();
 
@@ -326,7 +326,7 @@ function networkRecorderScript(): void {
     };
   };
 
-  window.fetch = createPatchedFetch(originalFetch, recordHook);
+  window.fetch = createPatchedFetch(originalFetch, recordHook, () => recording);
 
   // --- XHR wrap ---
   const XHR = XMLHttpRequest.prototype;

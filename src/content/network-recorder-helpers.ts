@@ -153,12 +153,19 @@ function extractRequestInfo(req: Request, init?: RequestInit): PatchedFetchReqIn
 export function createPatchedFetch(
   originalFetch: typeof fetch,
   record?: FetchRecordHook,
+  shouldRecord?: () => boolean,
 ): typeof fetch {
   return async function patchedFetch(
     this: unknown,
     input: RequestInfo | URL,
     init?: RequestInit,
   ): Promise<Response> {
+    // recording이 꺼져 있으면 new Request 재구성·record 없이 원본 input/init 그대로 통과
+    // (XHR `if (!recording)` 가드와 대칭 — SigV4 등 본문 재구성 회귀 방지).
+    if (shouldRecord && !shouldRecord()) {
+      return originalFetch.call(this, input, init);
+    }
+
     let req: Request | null = null;
     try {
       req = new Request(input, init);

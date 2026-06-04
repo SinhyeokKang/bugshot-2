@@ -11,9 +11,9 @@
 - **변경 대상**: `src/content/network-recorder-helpers.ts`
 - **작업 내용**: `createPatchedFetch(originalFetch, record?, shouldRecord?: () => boolean)`로 시그니처 확장. 함수 본문 맨 앞에 `if (shouldRecord && !shouldRecord()) return originalFetch.call(this, input, init);` 추가 — recording이 꺼져 있으면 `new Request`/`extractRequestInfo`/`record` 없이 원본 input/init 그대로 전송.
 - **검증**:
-  - [ ] `shouldRecord=() => false`면 originalFetch가 **원본 input/init**을 받고(인자 동일성), `new Request` 재구성이 일어나지 않는다.
-  - [ ] `shouldRecord=() => true` 또는 미전달이면 기존 동작(req 전송 + record 호출) 유지.
-  - [ ] 기존 회귀 테스트(본문 비소비, 비블로킹, 예외 격리) 전부 green.
+  - [x] `shouldRecord=() => false`면 originalFetch가 **원본 input/init**을 받고(인자 동일성), `new Request` 재구성이 일어나지 않는다.
+  - [x] `shouldRecord=() => true` 또는 미전달이면 기존 동작(req 전송 + record 호출) 유지.
+  - [x] 기존 회귀 테스트(본문 비소비, 비블로킹, 예외 격리) 전부 green.
 
 ### Task 2: network-recorder 기본값 false + 가드 연결
 - **변경 대상**: `src/content/network-recorder.ts`
