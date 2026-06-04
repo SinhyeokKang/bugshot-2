@@ -4,25 +4,35 @@
 
 log-viewer는 standalone HTML이라 Zustand store·IndexedDB에 접근할 수 없다. 따라서 Report 탭이 보여줄 이슈 본문(제목·환경·텍스트 섹션·copy용 마크다운)을 **사이드패널에서 직렬화해 `LogViewerData.report`로 주입**한다. UI는 `PreviewPanel`과 동일해야 하므로, 프리뷰의 렌더 골격을 **props 기반 공유 컴포넌트 `IssuePreviewView`** 로 추출해 사이드패널과 log-viewer가 함께 쓴다. Media·Log attachments 삽입은 공유 컴포넌트의 optional slot으로 두어, `PreviewPanel`만 채우고 Report 탭은 비운다.
 
+**공유 컴포넌트의 의존성 격리**: log-viewer i18n은 사이드패널(`@/i18n` `useT()` 훅)과 log-viewer 자체(`src/log-viewer/i18n.ts` `t()` 함수)로 **이중 구조**다. 또 `DocSectionBody`는 `getInlineImage`(blob-db/IndexedDB)를 import한다. 따라서 `IssuePreviewView`는 (1) 모든 라벨(Copy 버튼 텍스트·copied·환경 섹션 제목·섹션 라벨 등)을 **prop으로 주입**받아 내부에서 `t`를 호출하지 않고, (2) 본문은 `DocSectionBody` 대신 **dataURL이 박힌 value를 그대로 렌더하는 경량 렌더러**를 쓴다(blob-db/IndexedDB import 회피). 호출처(PreviewPanel·log-viewer App)가 각자 자기 i18n으로 라벨을 채워 넘긴다.
+
 ## 변경 범위
 
 ### 신규 파일
 
-- **`src/sidepanel/components/IssuePreviewView.tsx`** — props 기반 이슈 프리뷰 렌더 골격(공유). 제목+Copy 버튼, 환경 rows, 텍스트 섹션 매핑, optional media/logCards slot 삽입 로직(`POST_MEDIA_SECTION_IDS` 기준)을 담는다. `PreviewPanel`에서 현재 인라인으로 가진 IIFE 합성 로직(`PreviewPanel.tsx:264-329`)과 제목 헤더(`231-245`)를 이 컴포넌트로 이전.
-- **`src/sidepanel/lib/buildReportData.ts`** — `LogViewerData["report"]`를 만드는 순수/async 헬퍼. 제목·환경 rows·섹션(inline 이미지 resolve 후)·copy(markdown/html) 빌드.
-- **`src/sidepanel/lib/buildMarkdownContext.ts`** — `PreviewPanel.handleCopyMarkdown`의 캡처모드 4분기 ctx 빌드 로직(`PreviewPanel.tsx:103-210`)을 순수 함수로 추출. `PreviewPanel` copy와 `buildReportData`의 copy가 공유.
+- **`src/sidepanel/components/IssuePreviewView.tsx`** — props 기반 이슈 프리뷰 렌더 골격(공유). 제목+Copy 버튼, 환경 rows, 텍스트 섹션 매핑(경량 렌더러), optional media/logCards slot 삽입 로직(`POST_MEDIA_SECTION_IDS` 기준)을 담는다. **라벨은 전부 prop 주입, 본문은 dataURL value 직접 렌더(DocSectionBody 미사용)**. `PreviewPanel`에서 현재 인라인으로 가진 IIFE 합성 로직(`PreviewPanel.tsx:264-329`)과 제목 헤더(`231-245`)를 이 컴포넌트로 이전.
+- **`src/sidepanel/lib/buildReportData.ts`** — `LogViewerData["report"]`를 만드는 순수/async 헬퍼. 제목·환경 rows·섹션(`renderAs==="paragraph"`만 inline 이미지 resolve)·copy(markdown/html) 빌드.
+- **`src/sidepanel/lib/buildMarkdownContext.ts`** — `PreviewPanel.handleCopyMarkdown`의 캡처모드 4분기 ctx 빌드 로직(`PreviewPanel.tsx:116-210`)을 순수 함수로 추출. **`PreviewPanel` copy 한정 리팩터**다. Report copy는 호출처(IssueCreateModal·DraftDetailDialog)에 이미 만들어진 `ctx`를 재사용하므로, 이 두 곳의 ctx 빌드 중복은 이번 스코프에서 통합하지 않는다.
 - 테스트: `src/sidepanel/lib/__tests__/buildReportData.test.ts`, `buildMarkdownContext.test.ts`.
 
 ### 변경 파일
 
-- **`src/types/log-viewer.ts`** — `LogViewerData`에 `report` 필드 추가.
-- **`src/sidepanel/lib/buildLogsHtml.ts`** — 시그니처에 `report` 인자 추가, `data.report`에 주입.
-- **`src/sidepanel/lib/buildCaptureFiles.ts`** — `BuildCaptureFilesInput`에 Report 빌드용 입력(draft/issueSections/env 정보) 추가, 내부에서 `buildReportData` 호출 후 `buildLogsHtml`에 전달.
-- **`src/sidepanel/tabs/IssueCreateModal.tsx`** (`:250`) / **`src/sidepanel/tabs/DraftDetailDialog.tsx`** (`:294`) — `buildCaptureFiles` 호출에 Report 입력 전달.
-- **`src/sidepanel/tabs/PreviewPanel.tsx`** — 제목 헤더+섹션 합성을 `IssuePreviewView`로 치환(media/logCards slot은 채워서 전달). copy는 `buildMarkdownContext` 사용으로 정리. **외부 동작·표시 결과는 동일**(순수 리팩터).
-- **`src/log-viewer/App.tsx`** — `LogTab`에 `"report"` 추가, `TabsList`를 4칸으로, Report `TabsTrigger`/`TabsContent` 추가. fallback 로직은 그대로(Report 제외). `data.report`를 `IssuePreviewView`에 전달.
+- **`src/types/log-viewer.ts`** — `LogViewerData`에 `report` 필드 추가. **`report`는 `meta`보다 앞에 선언**한다(아래 위험요소 참조 — `injectIssueUrl`의 `lastIndexOf('"issueUrl":""')` 마커가 meta 말미를 정확히 잡도록).
+- **`src/sidepanel/lib/buildLogsHtml.ts`** — 시그니처 **맨 마지막에 `report: LogViewerReport | null` positional 인자 추가**(기존 8개 positional 순서 유지), `data.report`에 주입.
+- **`src/sidepanel/lib/buildCaptureFiles.ts`** — `BuildCaptureFilesInput`에 Report 빌드용 입력(draft/issueSections/envRows/markdownContext) 추가, 로그 게이팅 통과 시에만 `buildReportData` 호출 후 `buildLogsHtml`에 전달.
+- **`src/sidepanel/tabs/IssueCreateModal.tsx`** (`:250`) / **`src/sidepanel/tabs/DraftDetailDialog.tsx`** (`:294`) — `buildCaptureFiles` 호출에 Report 입력 전달. **이미 만들어둔 `ctx`를 `markdownContext`로 그대로 넘긴다**(ctx 재빌드 없음). `isElementNoDiff`일 때 `buildCaptureFiles`에 `captureMode:"screenshot"`을 넘기는 기존 동작과 일관되게 — **Report도 `buildCaptureFiles` 기준(screenshot) captureMode로 빌드**한다(ctx의 `element` captureMode와 어긋나는 메타는 buildReportData가 screenshot 기준으로 정렬).
+- **`src/sidepanel/tabs/PreviewPanel.tsx`** — 제목 헤더+섹션 합성을 `IssuePreviewView`로 치환(media/logCards slot은 채워서 전달, 라벨은 `useT()`로 채워 주입). copy는 `buildMarkdownContext` 사용으로 정리. **외부 동작·표시 결과는 동일**(순수 리팩터).
+- **`src/log-viewer/App.tsx`** — `LogTab`에 `"report"` 추가. `TabsList`는 이미 `CollapsingTabsList`+`TabLabel` 패턴이므로(좁은 폭에서 라벨 접고 아이콘만 — natural width 측정), Report `TabsTrigger`도 **반드시 `<TabLabel>`로 라벨을 감싸고 아이콘(`FileText`)+동일 클래스(`min-w-0 gap-1.5`)를 따른다**(측정 로직 누락·접힘 비대칭 방지). 칸 수가 3→4로 늘어 collapse 임계가 더 자주 걸린다. `TabsContent`(`data-[state=inactive]:hidden`) 추가. fallback 로직은 그대로(Report 제외, 라벨은 log-viewer `t()`로 채워 `IssuePreviewView`에 주입). **Report 탭 활성 시 PageFooter 우하단 Export 버튼은 없다**(다른 탭은 로그 JSON export가 있으나 Report는 추출 대상이 없음 — Copy는 본문 상단 제목 옆에만).
 - **`src/log-viewer/i18n.ts`** — `logViewer.tab.report` 키(ko/en) + `IssuePreviewView`가 쓰는 키(`preview.copyMarkdown`, `preview.copied`, `section.env`, `common.empty`, `common.untitled` 등) 중 log-viewer i18n에 없는 것 추가.
-- **`src/i18n/`**(사이드패널) — `IssuePreviewView`가 새로 쓰는 키가 있으면 ko/en 추가(대부분 기존 존재).
+- **`src/i18n/`**(사이드패널) — `IssuePreviewView`가 새로 쓰는 키 + logs 드랍 경고 토스트 문구 키 ko/en 추가.
+
+#### logs 첨부 드랍 경고 경로 (신규 — silent drop 개선)
+
+- **`src/types/platform.ts`** — `NormalizedSubmitResult`(`:89-92`)에 `logsDropped?: boolean` 추가.
+- **`src/sidepanel/lib/submitToNotion.ts`** — logs 카테고리 첨부 실패 격리(`:105-109`, `category==="log"` → `continue`) 시 **드랍 플래그를 모아** 반환 결과에 `logsDropped: true` 설정. (다른 플랫폼 `submitTo*.ts`는 logs 제약이 달라 이번엔 Notion 한정 — 5 MiB 한도가 실질 트리거.)
+- **`src/store/editor-store.ts`** — `submitResult` 타입(`:104,222,611` 부근)을 `{ key; url; logsDropped? }`로 확장, `onSubmitted` 체인으로 전달.
+- **`src/sidepanel/tabs/IssueCreateModal.tsx`** — `handleNotionSubmit` 등에서 `onSubmitted`에 `logsDropped` 포함.
+- **`src/sidepanel/tabs/IssueTab.tsx`** — `SubmitSuccessView`(`:346-377`, 제출 완료 화면)에서 `submitResult.logsDropped`가 true면 `useEffect`로 `toast.warning(...)`(sonner) 1회 노출. 문구: "Notion 무료 플랜 한도로 `logs.html`이 누락되었습니다" 류(i18n 키).
 
 ## 데이터 흐름
 
@@ -63,7 +73,7 @@ export interface LogViewerReport {
   copy: { markdown: string; html: string };    // 미리 빌드된 클립보드 페이로드
 }
 
-// LogViewerData에 추가
+// LogViewerData에 추가 — meta보다 앞 필드로 선언(injectIssueUrl 마커 보호)
 report: LogViewerReport | null;
 ```
 
@@ -74,6 +84,13 @@ interface IssuePreviewViewProps {
   title: string;
   envRows: { label: string; value: string }[];
   sections: { id: string; label: string; renderAs: "paragraph" | "orderedList"; value: string }[];
+  // 라벨 prop 주입(공유 컴포넌트 내부에서 t를 호출하지 않음 — 호출처가 자기 i18n으로 채움)
+  labels: {
+    untitled: string;       // 제목 비었을 때 표시
+    copyMarkdown: string;   // Copy 버튼 기본 텍스트
+    copied: string;         // 복사 직후 토글 텍스트
+    emptyValue: string;     // 빈 섹션 placeholder("(없음)" 등)
+  };
   // Copy 버튼: 콜백 주입. PreviewPanel은 런타임 빌드, log-viewer는 미리 박힌 문자열 복사.
   onCopy?: () => void | Promise<void>;
   // media/logCards slot — PreviewPanel만 채움. Report 탭은 미전달(undefined).
@@ -83,8 +100,9 @@ interface IssuePreviewViewProps {
 }
 ```
 
-- `copied` 토글 상태는 컴포넌트 내부에서 관리(현 `PreviewPanel.tsx:80-85` 이전).
-- `DocSectionBody`는 `value`에 `inline:` 마커가 없으면 그대로 마크다운 렌더하므로, dataURL이 박힌 `value`를 주면 IndexedDB 접근 없이 동작 → 공유 컴포넌트에서 그대로 사용 가능.
+- `copied` 토글 상태는 컴포넌트 내부에서 관리(현 `PreviewPanel.tsx:80-85` 이전). 접근성을 위해 토글 영역에 `aria-live="polite"`를 추가한다.
+- 본문은 `DocSectionBody`를 쓰지 않는다(blob-db/IndexedDB import 회피). 대신 **dataURL이 박힌 `value`를 그대로 마크다운 렌더하는 경량 렌더러**를 둔다. 빈 섹션은 `emptyVariant="muted"`(placeholder, `labels.emptyValue`)로 표시 — `PreviewPanel`과 동일, 숨김 아님.
+- media/logCards 미전달 시 마지막 텍스트 섹션이 `Section`의 `last:border-b-0` 대상이 되어 하단 border가 사라진다(`PreviewPanel`은 항상 media 블록이 말미). "동일 UI"의 미세한 허용 예외다.
 
 ### `buildReportData` (`buildReportData.ts`)
 
@@ -99,8 +117,8 @@ interface BuildReportDataInput {
 async function buildReportData(input: BuildReportDataInput): Promise<LogViewerReport>;
 ```
 
-- 섹션: `sectionConfig.filter(enabled)` 순서로 `{ id, label, renderAs, value: resolveInlineImages(value).resolved }`.
-- copy: `{ markdown: buildIssueMarkdown(markdownContext), html: buildIssueHtml(markdownContext) }`.
+- 섹션: `sectionConfig.filter(enabled)` 순서로 `{ id, label, renderAs, value }`. **inline 이미지 resolve는 `renderAs==="paragraph"` 섹션만** 적용한다(`resolveInlineImages(value).resolved`). 이는 현 copy 로직(`PreviewPanel.tsx:107`)·`DocSectionBody`의 orderedList 분기(inline 마커 미resolve)와 정확히 일치한다 — orderedList엔 inline 이미지 입력 경로가 없다. paragraph 외 섹션은 `value`를 그대로 사용.
+- copy: `{ markdown: buildIssueMarkdown(markdownContext), html: buildIssueHtml(markdownContext) }`. `markdownContext`는 호출처가 넘긴 ctx 그대로(재빌드 없음) → Report Copy 결과 == 프리뷰 Copy 결과 보장.
 
 ### `buildMarkdownContext` (`buildMarkdownContext.ts`)
 
@@ -116,17 +134,19 @@ function buildMarkdownContext(args: {
 }): MarkdownContext;
 ```
 
-- 기존 `PreviewPanel.handleCopyMarkdown`의 4분기 로직(freeform/video/element/screenshot)을 그대로 옮긴다. `MarkdownContext`는 `buildIssueMarkdown.ts`의 입력 타입.
+- 기존 `PreviewPanel.handleCopyMarkdown`의 4분기 로직(freeform/video/element/screenshot)을 그대로 옮긴다. `MarkdownContext`는 `buildIssueMarkdown.ts`의 입력 타입. **`PreviewPanel` copy 한정 추출**이며, `useEditorStore.getState()`로 직접 읽던 값(`freeformViewport`/`freeformCapturedAt` 등)·`?? Date.now()` 폴백은 전부 **인자로 주입**해 순수·결정적으로 만든다(인자 표면이 10개+로 커지지만 테스트 가능성 우선).
 
 ### log-viewer 탭 (`App.tsx`)
 
 ```ts
 type LogTab = "report" | "console" | "network" | "action";
 const hasReport = !!data?.report;
-// 기본 탭 fallback: Report 제외, 기존 그대로
+// 기본 탭 fallback: Report 제외(보조 탭이라 자동 선택 안 함, 의도). report 분기 없음.
 const defaultTab: LogTab = hasConsole ? "console" : hasNetwork ? "network" : "action";
-// TabsList grid-cols-3 → grid-cols-4, Report Trigger를 맨 앞에 추가(disabled={!hasReport})
+// CollapsingTabsList에 Report TabLabel(FileText)을 맨 앞에 추가, disabled={!hasReport}
 ```
+
+- `disabled={!hasReport}`가 실제로 걸리는 경우는 **구버전 `logs.html`(report 필드 없음)을 여는 하위호환 케이스뿐**이다(신규 생성 경로는 게이팅 통과 시 report가 항상 채워짐). 이때도 다른 탭과 동일하게 grid 자리를 차지하고, `TabsContent`는 빈 상태 메시지를 따른다(탭 자체를 숨기지 않음).
 
 ## 기존 패턴 준수
 
@@ -145,7 +165,9 @@ const defaultTab: LogTab = hasConsole ? "console" : hasNetwork ? "network" : "ac
 ## 위험 요소
 
 - **`PreviewPanel` 리팩터 회귀**: 제목 헤더·섹션 합성·media/logCards 삽입 위치를 공유 컴포넌트로 옮길 때, 현재의 "POST_MEDIA 섹션 앞에 media+logCards 삽입, 없으면 말미" 로직(`:309-327`)을 정확히 보존해야 한다. 시각 결과 동일성 수동 확인 필요.
-- **log-viewer i18n 누락**: 공유 컴포넌트가 쓰는 키가 log-viewer i18n에 없으면 런타임 키 노출. 추가 키를 빠짐없이 양쪽에 반영.
-- **inline 이미지 미resolve**: `buildReportData`에서 resolve를 빠뜨리면 standalone에서 깨진 이미지. `orderedList`/`paragraph` 둘 다 resolve 대상인지(현재 copy 로직은 `renderAs==="paragraph"`만 resolve, `PreviewPanel.tsx:107`) 일치시켜야 한다.
-- **번들 크기**: Report 본문(특히 inline dataURL)이 `logs.html` 크기를 키운다. 영상/스크린샷도 이미 dataURL로 임베드되므로 상대적 증가는 작음.
-- **`buildCaptureFiles` 입력 비대화**: Report 입력 필드가 늘어 시그니처가 커진다. 호출처 2곳에서 동일하게 채워야 하므로 env 평탄화는 공유 헬퍼(`environmentRows`/`getOsInfo` 기존 사용)로 일관 처리.
+- **log-viewer i18n 누락**: 공유 컴포넌트가 쓰는 키가 log-viewer i18n에 없으면 런타임 키 노출. 단 `IssuePreviewView`는 라벨을 prop으로 받으므로 키 누락은 **호출처(log-viewer App)에서 라벨을 채울 때** 드러난다 — log-viewer i18n에 `logViewer.tab.report` 외 라벨 키(copyMarkdown/copied/untitled/env 섹션 제목/emptyValue)를 빠짐없이 추가.
+- **`injectIssueUrl` 마커 충돌**: `injectIssueUrl`은 `json.lastIndexOf('"issueUrl":""')`로 빈 마커를 치환한다. report 본문에 빈 문자열 필드가 **meta보다 뒤에** 직렬화되면 마지막 매치가 엉뚱한 곳을 가리킬 수 있다 → `LogViewerData`에서 `report`를 `meta`보다 **앞**에 선언해 회피. 회귀 테스트로 "report에 빈 `issueUrl`-유사 문자열 포함 시 meta 말미만 치환" 케이스 추가.
+- **`buildLogsHtml` positional 취약성**: 9번째 positional로 report를 추가하므로 인자 순서가 더 취약해진다(현재도 `issueUrl=undefined`를 명시 전달). 호출처·테스트에서 위치 정합 확인.
+- **inline 이미지 resolve 범위(확정: paragraph만)**: `buildReportData`는 `renderAs==="paragraph"` 섹션만 `resolveInlineImages`한다 — 현 copy 로직(`PreviewPanel.tsx:107`)·`DocSectionBody` orderedList 분기(inline 미resolve)와 일치. enabled 전체에 돌리면 안 됨(과거 본 명세의 모순을 수정함).
+- **번들 크기 / Notion 5 MiB 한도**: Report 본문(특히 inline dataURL)이 `logs.html` 크기를 키운다. 영상/스크린샷도 이미 dataURL로 임베드되므로 일반 경로의 상대적 증가는 작지만, **Notion은 `zipLogsHtml`로 deflate 후 무료 워크스페이스 5 MiB 한도**에 묶인다. report의 inline dataURL이 기존 media 임베드 위에 **추가**되므로, 대규모 inline draft에서 한도 초과로 logs 첨부가 빠질 수 있다. 현재 이 드랍은 **silent**(`submitToNotion.ts:105-109` 격리 catch — 이슈는 생성, logs만 누락, 알림 없음)라 사용자가 인지 못 한다 → Task 12에서 **제출 완료 화면 경고 토스트**로 노출(실패 반응형). 크기 영향도 수동 검증 항목으로 둔다(tasks.md).
+- **`buildCaptureFiles` 입력 비대화**: Report 입력 필드가 늘어 시그니처가 커진다. 호출처 2곳에서 동일하게 채워야 하므로 env 평탄화는 기존 헬퍼로 일관 처리한다 — 실제 export는 `deriveReadonlyEnvRows`/`filterEnvironmentRows`(`environmentRows.ts`)와 `getOsInfo`(`osInfo.ts`). 단 `deriveReadonlyEnvRows`의 viewport는 `{w,h}`라 `MarkdownContext`의 `{width,height}`로 **키 변환**이 필요하다.
