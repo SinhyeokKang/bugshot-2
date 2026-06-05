@@ -4,6 +4,7 @@ import type { ActionLog, ActionEntry } from "@/types/action";
 import type { EditorPhase } from "@/store/editor-store";
 import { FROZEN_PHASES } from "@/lib/session-keys";
 
+// network-recorder.ts MAX_REQUEST_ENTRIES와 동일 유지 (MAIN world 격리로 import 불가)
 export const NETWORK_MAX_ENTRIES = 5000;
 export const CONSOLE_MAX_ENTRIES = 2000;
 export const ACTION_MAX_ENTRIES = 1000;

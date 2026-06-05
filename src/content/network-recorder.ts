@@ -7,7 +7,7 @@ function networkRecorderScript(): void {
   if ((window as any)[CTRL_KEY]) return; // 이미 초기화됨
 
   const MEMORY_CAP = 50 * 1024 * 1024; // 50 MB
-  const MAX_REQUEST_ENTRIES = 5000;
+  const MAX_REQUEST_ENTRIES = 5000; // log-merge.ts NETWORK_MAX_ENTRIES와 동일 유지 (MAIN world 격리로 import 불가)
   const SET_SENTINEL_EVENT = "__bugshot_net_setSentinel__";
 
   const MASKED_HEADERS = new Set([

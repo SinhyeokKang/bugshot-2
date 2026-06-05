@@ -36,7 +36,7 @@ function bodyToHarContent(
 
 function requestToEntry(req: NetworkRequest) {
   const url = req.url;
-  let queryString: { name: string; value: string }[] = [];
+  const queryString: { name: string; value: string }[] = [];
   try {
     const u = new URL(url);
     u.searchParams.forEach((value, name) => {

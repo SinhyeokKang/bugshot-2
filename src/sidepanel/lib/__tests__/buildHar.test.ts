@@ -106,6 +106,49 @@ describe("buildHar", () => {
     expect(content.comment).toContain("500 B");
   });
 
+  it("stream responseBody — comment에 contentType 표기", () => {
+    const req = makeRequest({
+      responseBody: { kind: "stream", contentType: "text/event-stream" },
+    });
+    const har = buildHar(makeLog([req])) as any;
+    const content = har.log.entries[0].response.content;
+    expect(content.comment).toContain("Streaming");
+    expect(content.comment).toContain("text/event-stream");
+    expect(content.text).toBeUndefined();
+  });
+
+  it("omitted responseBody — comment에 memory cap 표기", () => {
+    const req = makeRequest({
+      responseBody: { kind: "omitted", reason: "memory-cap" },
+    });
+    const har = buildHar(makeLog([req])) as any;
+    const content = har.log.entries[0].response.content;
+    expect(content.comment).toBe("Body omitted (memory cap)");
+  });
+
+  it("binary requestBody — postData.comment에 표기", () => {
+    const req = makeRequest({
+      method: "POST",
+      requestBody: { kind: "binary", contentType: "application/octet-stream", size: 1024 },
+      requestBodySize: 1024,
+    });
+    const har = buildHar(makeLog([req])) as any;
+    const postData = har.log.entries[0].request.postData;
+    expect(postData.text).toBe("");
+    expect(postData.comment).toContain("Binary");
+  });
+
+  it("omitted requestBody — postData.comment에 표기", () => {
+    const req = makeRequest({
+      method: "POST",
+      requestBody: { kind: "omitted", reason: "memory-cap" },
+      requestBodySize: 0,
+    });
+    const har = buildHar(makeLog([req])) as any;
+    const postData = har.log.entries[0].request.postData;
+    expect(postData.comment).toBe("Body omitted (memory cap)");
+  });
+
   it("undefined body → no text field", () => {
     const req = makeRequest({ responseBody: undefined });
     const har = buildHar(makeLog([req])) as any;
