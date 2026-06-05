@@ -89,6 +89,8 @@ export interface NotionLastSubmitFields {
 export interface NormalizedSubmitResult {
   key: string;
   url: string;
+  // logs.html 첨부가 플랫폼 용량 한도로 격리 처리돼 누락됐을 때 true (이슈는 생성됨).
+  logsDropped?: boolean;
 }
 
 export interface GitlabLastSubmitFields {

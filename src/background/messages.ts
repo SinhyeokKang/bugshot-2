@@ -539,6 +539,7 @@ async function submitIssue(
   }
 
   const uploadMap = new Map<string, UploadedFile>();
+  let logsDropped = false;
   for (const att of attachments) {
     try {
       const blob = dataUrlToBlob(att.dataUrl);
@@ -557,6 +558,7 @@ async function submitIssue(
         uploadMap.set(att.filename, { kind: "external", url, ...dims });
       }
     } catch (err) {
+      if (att.filename === "logs.html") logsDropped = true;
       console.warn("[bugshot] attachment upload failed", att.filename, err);
     }
   }
@@ -655,7 +657,7 @@ async function submitIssue(
     }
   }
 
-  return { key: issue.key, url: issueUrl };
+  return { key: issue.key, url: issueUrl, logsDropped };
 }
 
 function snapshotRow(

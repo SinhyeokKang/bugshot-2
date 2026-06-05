@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import {
   ArrowUpRight,
   BookOpen,
@@ -30,6 +31,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { isCaptureEntryScreen } from "@/lib/capture-commands";
+import { PLATFORM_TAB_KEYS } from "@/types/platform";
 import { USER_GUIDE_URLS } from "@/lib/external-links";
 import { useEditorStore } from "@/store/editor-store";
 import { useSettingsUiStore } from "@/store/settings-ui-store";
@@ -347,6 +349,18 @@ function SubmitSuccessView() {
   const t = useT();
   const submitResult = useEditorStore((s) => s.submitResult);
   const reset = useEditorStore((s) => s.reset);
+
+  // 제출당 1회만 — t는 매 렌더 새 클로저라 dep만으로는 중복 발화. key 기준 ref 가드 + sonner id로 dedupe.
+  const toastedKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!submitResult?.logsDropped) return;
+    if (toastedKeyRef.current === submitResult.key) return;
+    toastedKeyRef.current = submitResult.key;
+    toast.warning(
+      t("submit.logsDropped", { platform: t(PLATFORM_TAB_KEYS[submitResult.platform]) }),
+      { id: `logs-dropped-${submitResult.key}` },
+    );
+  }, [submitResult, t]);
 
   if (!submitResult) return null;
 

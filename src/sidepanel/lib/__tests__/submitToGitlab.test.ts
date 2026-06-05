@@ -94,7 +94,7 @@ describe("submitToGitlab 역링크 보강", () => {
     expect(updateCall.description).toBe("see NEW_URL in logs");
     expect(updateCall.iid).toBe(42);
 
-    expect(res).toEqual({ key: "#42", url: ISSUE.url });
+    expect(res).toEqual({ key: "#42", url: ISSUE.url, logsDropped: false });
   });
 
   it("보강(주입/재업로드) 실패는 격리 — 이슈는 생성되고 결과 반환", async () => {
@@ -117,6 +117,50 @@ describe("submitToGitlab 역링크 보강", () => {
         ([m]) => m.type === "gitlab.updateIssueDescription",
       ),
     ).toBe(false);
-    expect(res).toEqual({ key: "#42", url: ISSUE.url });
+    expect(res).toEqual({ key: "#42", url: ISSUE.url, logsDropped: false });
+  });
+});
+
+describe("submitToGitlab logsDropped", () => {
+  it("logs.html 업로드가 null(용량 초과)이면 logsDropped: true", async () => {
+    sendBg.mockImplementation(async (msg: { type: string }) => {
+      if (msg.type === "gitlab.uploadFiles")
+        return [
+          { filename: "logs.html", url: null },
+          { filename: "bugshot.md", url: "MD_URL" },
+        ];
+      if (msg.type === "gitlab.submitIssue") return ISSUE;
+      return undefined;
+    });
+
+    const res = await submitToGitlab({
+      ctx: makeCtx(),
+      projectId: 7,
+      logs: [{ filename: "logs.html", dataUrl: "data:LOGSHTML" }],
+    });
+
+    expect(res.logsDropped).toBe(true);
+    // 업로드 실패 시 역링크 보강(재업로드)도 시도하지 않음.
+    expect(
+      sendBg.mock.calls.filter(([m]) => m.type === "gitlab.uploadFiles").length,
+    ).toBe(1);
+  });
+
+  it("logs.html 업로드 성공이면 logsDropped: false", async () => {
+    sendBg.mockImplementation(async (msg: { type: string }) => {
+      if (msg.type === "gitlab.uploadFiles")
+        return [{ filename: "logs.html", url: "OK_URL" }];
+      if (msg.type === "gitlab.submitIssue") return ISSUE;
+      return undefined;
+    });
+    injectIssueUrl.mockResolvedValue("data:aug");
+
+    const res = await submitToGitlab({
+      ctx: makeCtx(),
+      projectId: 7,
+      logs: [{ filename: "logs.html", dataUrl: "data:LOGSHTML" }],
+    });
+
+    expect(res.logsDropped).toBe(false);
   });
 });

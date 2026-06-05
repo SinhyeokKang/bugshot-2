@@ -61,6 +61,7 @@ export async function submitToGitlab(
   });
 
   const urlMap = new Map(uploadResults.map((r) => [r.filename, r.url]));
+  const logsDropped = (input.logs ?? []).some((l) => !urlMap.get(l.filename));
 
   let resolvedCtx = input.ctx;
   if (inlineFiles.length > 0) {
@@ -137,5 +138,5 @@ export async function submitToGitlab(
     }
   }
 
-  return { key: `#${result.iid}`, url: result.url };
+  return { key: `#${result.iid}`, url: result.url, logsDropped };
 }

@@ -88,6 +88,7 @@ export async function submitToNotion(
 
   // 3. 일반 첨부 업로드 — 직렬 (Notion rate limit 보호)
   const uploaded: { placeholderId: string; fileUploadId: string; filename: string; category: typeof attachments[number]["category"] }[] = [];
+  let logsDropped = false;
   for (const a of attachments) {
     try {
       const res = await sendBg<NotionFileUploadResult>({
@@ -105,7 +106,10 @@ export async function submitToNotion(
     } catch (err) {
       // 로그 첨부 실패는 격리 — 누락 placeholder 블록은 createPage에서 자연 스킵.
       // image/video는 본문 핵심이라 strict 유지(전체 실패).
-      if (a.category === "log") continue;
+      if (a.category === "log") {
+        logsDropped = true;
+        continue;
+      }
       throw err;
     }
   }
@@ -149,5 +153,5 @@ export async function submitToNotion(
   });
 
   const shortKey = result.pageId.replace(/-/g, "").slice(0, 8);
-  return { key: shortKey, url: result.url };
+  return { key: shortKey, url: result.url, logsDropped };
 }

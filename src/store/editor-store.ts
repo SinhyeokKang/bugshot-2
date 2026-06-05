@@ -13,6 +13,13 @@ import { clearNetworkRecorder, clearConsoleRecorder, clearActionRecorder } from 
 
 export type CaptureMode = "element" | "screenshot" | "video" | "freeform";
 
+export interface SubmitResult {
+  key: string;
+  url: string;
+  platform: PlatformId;
+  logsDropped?: boolean;
+}
+
 export type EditorPhase =
   | "idle"
   | "picking"
@@ -101,7 +108,7 @@ interface EditorState {
   actionLogAttach: boolean;
   aiStylingLoading: boolean;
   aiDraftLoading: boolean;
-  submitResult: { key: string; url: string } | null;
+  submitResult: SubmitResult | null;
   inlineCaptureTarget: string | null;
   sessionExpired: boolean;
 
@@ -145,7 +152,7 @@ interface EditorState {
   clearConsoleLog: (tabId: number | null) => void;
   clearActionLog: (tabId: number | null) => void;
   setTargetPlatform: (platform: PlatformId) => void;
-  onSubmitted: (result: { key: string; url: string }) => void;
+  onSubmitted: (result: SubmitResult) => void;
   reset: () => void;
   hydrate: (snapshot: EditorSnapshot) => void;
 }
@@ -219,7 +226,7 @@ const initial = {
   currentIssueId: null as string | null,
   aiStylingLoading: false,
   aiDraftLoading: false,
-  submitResult: null as { key: string; url: string } | null,
+  submitResult: null as SubmitResult | null,
   sessionExpired: false,
 };
 

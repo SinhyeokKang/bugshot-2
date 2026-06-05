@@ -109,6 +109,7 @@ export interface JiraAttachmentResult {
 export interface JiraSubmitResult {
   key: string;
   url: string;
+  logsDropped?: boolean;
 }
 
 export interface JiraIssueStatus {

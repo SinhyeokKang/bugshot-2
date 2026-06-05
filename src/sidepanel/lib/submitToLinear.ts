@@ -110,6 +110,7 @@ export async function submitToLinear(
   const logResults = (
     await Promise.all(logFiles.map((l) => uploadFile(l).catch(() => null)))
   ).filter((r): r is LinearMediaInput => r !== null);
+  const logsDropped = logResults.length < logFiles.length;
 
   const aiMeta = buildAiMetaAttachment(input.ctx);
   const aiMetaUploaded = await uploadFile(aiMeta);
@@ -129,5 +130,5 @@ export async function submitToLinear(
     ),
   );
 
-  return { key: result.identifier, url: result.url };
+  return { key: result.identifier, url: result.url, logsDropped };
 }

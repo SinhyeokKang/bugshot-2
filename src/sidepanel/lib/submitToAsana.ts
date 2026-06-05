@@ -130,6 +130,7 @@ export async function submitToAsana(
     },
   });
 
+  let logsDropped = false;
   if (allFiles.length > 0) {
     // create가 upload보다 먼저라 task URL을 이미 알고 있음 → logs.html에 백링크를 미리 주입해
     // 1회 업로드로 끝낸다 (GitLab처럼 생성 후 재업로드 불필요).
@@ -157,6 +158,7 @@ export async function submitToAsana(
     for (const r of results) {
       if (r.gid) byName.set(r.filename, { gid: r.gid, viewUrl: r.viewUrl });
     }
+    logsDropped = (input.logs ?? []).some((l) => !byName.has(l.filename));
     const imageRefs: Record<string, AsanaInlineImage> = {};
     // 캡처 이미지: 본문 src = 파일명.
     await Promise.all(
@@ -185,5 +187,5 @@ export async function submitToAsana(
     }
   }
 
-  return { key: task.gid, url: task.permalinkUrl };
+  return { key: task.gid, url: task.permalinkUrl, logsDropped };
 }

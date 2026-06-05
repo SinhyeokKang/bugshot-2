@@ -332,7 +332,7 @@ export function IssueCreateModal() {
       relatesLabel: issueFields.relatesLabel,
     });
     useSettingsStore.getState().setLastSubmittedPlatform("jira");
-    onSubmitted({ key: result.key, url: result.url });
+    onSubmitted({ key: result.key, url: result.url, platform: "jira", logsDropped: result.logsDropped });
     return { key: result.key, url: result.url };
   }
 
@@ -374,7 +374,7 @@ export function IssueCreateModal() {
       assignee: ghFields.assignee,
     });
     useSettingsStore.getState().setLastSubmittedPlatform("github");
-    onSubmitted({ key: result.key, url: result.url });
+    onSubmitted({ key: result.key, url: result.url, platform: "github", logsDropped: result.logsDropped });
     return result;
   }
 
@@ -423,7 +423,7 @@ export function IssueCreateModal() {
       priority: linearFields.priority,
     });
     useSettingsStore.getState().setLastSubmittedPlatform("linear");
-    onSubmitted({ key: result.key, url: result.url });
+    onSubmitted({ key: result.key, url: result.url, platform: "linear", logsDropped: result.logsDropped });
     return result;
   }
 
@@ -473,7 +473,7 @@ export function IssueCreateModal() {
       selectValues: notionFields.selectValues,
     });
     useSettingsStore.getState().setLastSubmittedPlatform("notion");
-    onSubmitted({ key: result.key, url: result.url });
+    onSubmitted({ key: result.key, url: result.url, platform: "notion", logsDropped: result.logsDropped });
     return result;
   }
 
@@ -515,7 +515,7 @@ export function IssueCreateModal() {
       assigneeName: gitlabFields.assigneeName,
     });
     useSettingsStore.getState().setLastSubmittedPlatform("gitlab");
-    onSubmitted({ key: result.key, url: result.url });
+    onSubmitted({ key: result.key, url: result.url, platform: "gitlab", logsDropped: result.logsDropped });
     return result;
   }
 
@@ -556,7 +556,7 @@ export function IssueCreateModal() {
       assigneeName: asanaFields.assigneeName,
     });
     useSettingsStore.getState().setLastSubmittedPlatform("asana");
-    onSubmitted({ key: result.key, url: result.url });
+    onSubmitted({ key: result.key, url: result.url, platform: "asana", logsDropped: result.logsDropped });
     return result;
   }
 
