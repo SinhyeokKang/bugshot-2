@@ -105,6 +105,8 @@ shorthand(var 포함) + 같은 shorthand의 longhand override 조합에서 Chrom
 
 **활성 게이트**: 세 레코더의 `recording` 기본값은 `false` — wrap은 document_start에 설치하되 **패널이 탭에 활성인 동안만** 적재한다. 패널 주입 시 `setSentinel`로 `true`, 패널 닫힘(`port.onDisconnect`)·탭 전환(`tab-bindings.ts` `onActivated`에서 직전 활성 탭에 stop)으로 `false`. `recording=false`면 fetch는 `createPatchedFetch`의 `shouldRecord` 게이트로 원본 경로(`new Request` 재구성 없음), XHR/sendBeacon/console/action은 push 차단 — 미활성 탭 트래픽에 일절 간섭하지 않는다. 같은 탭으로 (네비게이션 없이) 복귀해 패널 문서가 살아 있으면 패널 `visibilitychange`(visible)가 재주입을 트리거해 stop과 대칭을 맞춘다.
 
+**페이지 무간섭(예외 격리)**: 세 레코더는 MAIN world에서 페이지와 같은 전역을 공유하므로 wrap이 페이지 동작을 절대 깨뜨리면 안 된다. 불변식 — ① 원본(fetch/XHR/`console.*`/`history.pushState·replaceState`)을 **먼저** 호출해 페이지 동작 보존, ② 기록 로직의 throw는 try/catch로 격리해 페이지 호출자로 전파 금지(`createPatchedFetch` record/settle, XHR `recordXhrSend`, console wrap의 `safeStringify`, action history wrap 모두 격리), ③ 응답 본문 read는 settle을 await하지 않음. 특히 `safeStringify`는 페이지 값의 throwing getter·커스텀 `toString`/`Symbol.toPrimitive`·Proxy trap에도 `[unserializable]`로 흡수해 wrap된 `console.log`(=페이지 코드)가 throw하지 않게 한다. 리팩터 시 이 3원칙을 깨면 페이지 요청·라우팅·콘솔이 깨질 수 있다(과거 fetch `new Request` 재구성이 GitHub 업로드·SigV4를 깬 회귀 전례).
+
 **버퍼 전략**: 활성 구간 동안 적재. 메모리 보호 — Network: 50MB body cap(LRU trim) + 5000 entry FIFO, Console: 2000 entry FIFO, Action: 1000 entry FIFO. 요청 phase: send 시 `pending`, 응답 완료 `complete`, reject/abort/error/timeout 시 `error`로 in-place 갱신. 추가 캡처: `sendBeacon`, fetch reject, XHR error/abort/timeout.
 
 **Body omission**: `string | NetworkBodyOmission` union. kind: `truncated`(3MB 초과), `binary`(image/font 등), `stream`(SSE/multipart), `omitted`(LRU 회수). UI·logs.html 모두 사유 표시.
