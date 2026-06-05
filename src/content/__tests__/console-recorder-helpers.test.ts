@@ -1,7 +1,10 @@
 import { describe, it, expect } from "vitest";
 import {
+  ARG_CAP,
   formatErrorEvent,
   formatRejectionReason,
+  safeStringify,
+  serializeArgs,
   shouldCaptureAssertion,
 } from "../console-recorder-helpers";
 
@@ -67,6 +70,103 @@ describe("formatRejectionReason", () => {
     expect(formatRejectionReason(undefined).args).toBe(
       "Unhandled promise rejection: undefined",
     );
+  });
+});
+
+describe("safeStringify", () => {
+  it("원시값 — string/number/boolean/null/undefined/bigint", () => {
+    expect(safeStringify("hi", 0)).toBe("hi");
+    expect(safeStringify(42, 0)).toBe("42");
+    expect(safeStringify(true, 0)).toBe("true");
+    expect(safeStringify(null, 0)).toBe("null");
+    expect(safeStringify(undefined, 0)).toBe("undefined");
+    expect(safeStringify(10n, 0)).toBe("10n");
+  });
+
+  it("function은 이름 표기", () => {
+    expect(safeStringify(function foo() {}, 0)).toBe("[Function: foo]");
+    expect(safeStringify(() => {}, 0)).toMatch(/^\[Function:/);
+  });
+
+  it("Error는 stack/메시지", () => {
+    expect(safeStringify(new Error("oops"), 0)).toContain("oops");
+  });
+
+  it("배열은 요소 직렬화 + 20개 초과 절단", () => {
+    expect(safeStringify([1, 2, 3], 0)).toBe("[1, 2, 3]");
+    expect(safeStringify([], 0)).toBe("[]");
+    const big = Array.from({ length: 25 }, (_, i) => i);
+    expect(safeStringify(big, 0)).toContain("...+5");
+  });
+
+  it("plain object는 JSON", () => {
+    expect(safeStringify({ a: 1 }, 0)).toContain('"a": 1');
+  });
+
+  it("순환 참조는 [Circular]", () => {
+    const c: Record<string, unknown> = {};
+    c.self = c;
+    expect(safeStringify(c, 0)).toContain("[Circular]");
+  });
+
+  it("depth 초과는 [...]로 절단", () => {
+    expect(safeStringify("x", 6)).toBe("[...]");
+  });
+
+  // 회귀 가드: 페이지가 console.log에 넘긴 악성 값이 throw해도 절대 밖으로 전파하지 않는다.
+  // (전파되면 wrap된 console.* = 페이지 코드가 깨진다)
+  it("throwing getter가 있어도 throw하지 않는다", () => {
+    const evil = {};
+    Object.defineProperty(evil, "bad", {
+      enumerable: true,
+      get() { throw new Error("getter boom"); },
+    });
+    expect(() => safeStringify(evil, 0)).not.toThrow();
+  });
+
+  it("toJSON·toString 모두 throw해도 [unserializable]", () => {
+    const evil = {
+      toJSON() { throw new Error("toJSON boom"); },
+      toString() { throw new Error("toString boom"); },
+    };
+    expect(safeStringify(evil, 0)).toBe("[unserializable]");
+  });
+
+  it("Symbol.toPrimitive가 throw하는 값도 안전", () => {
+    const evil = { [Symbol.toPrimitive]() { throw new Error("toPrimitive boom"); } };
+    expect(() => safeStringify(evil, 0)).not.toThrow();
+  });
+
+  it("get/ownKeys trap이 throw하는 Proxy도 안전", () => {
+    const evil = new Proxy({}, {
+      get() { throw new Error("trap boom"); },
+      ownKeys() { throw new Error("ownKeys boom"); },
+    });
+    expect(() => safeStringify(evil, 0)).not.toThrow();
+  });
+});
+
+describe("serializeArgs", () => {
+  it("공백으로 join", () => {
+    expect(serializeArgs(["a", 1, true])).toBe("a 1 true");
+  });
+
+  it("ARG_CAP 초과 시 절단 + ...", () => {
+    const big = "x".repeat(ARG_CAP + 100);
+    const out = serializeArgs([big]);
+    expect(out.endsWith("...")).toBe(true);
+    expect(out.length).toBe(ARG_CAP + 3);
+  });
+
+  it("throw하는 인자가 섞여도 throw하지 않고 나머지를 직렬화", () => {
+    const evil = {
+      toJSON() { throw new Error("boom"); },
+      toString() { throw new Error("boom"); },
+    };
+    expect(() => serializeArgs(["ok", evil, "tail"])).not.toThrow();
+    const out = serializeArgs(["ok", evil, "tail"]);
+    expect(out).toContain("ok");
+    expect(out).toContain("tail");
   });
 });
 

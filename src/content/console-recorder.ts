@@ -1,6 +1,8 @@
 import {
   formatErrorEvent,
   formatRejectionReason,
+  safeStringify,
+  serializeArgs,
   shouldCaptureAssertion,
 } from "./console-recorder-helpers";
 
@@ -9,7 +11,6 @@ function consoleRecorderScript(): void {
   if ((window as any)[CTRL_KEY]) return;
 
   const MAX_ENTRIES = 2000;
-  const ARG_CAP = 10 * 1024;
   const SET_SENTINEL_EVENT = "__bugshot_console_setSentinel__";
 
   type Level = "log" | "info" | "warn" | "error" | "debug";
@@ -32,64 +33,6 @@ function consoleRecorderScript(): void {
       return crypto.randomUUID();
     }
     return `cl-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  }
-
-  function safeStringify(value: unknown, depth: number): string {
-    if (depth > 5) return "[...]";
-    if (value === null) return "null";
-    if (value === undefined) return "undefined";
-    if (typeof value === "string") return value;
-    if (typeof value === "number" || typeof value === "boolean") return String(value);
-    if (typeof value === "symbol") return value.toString();
-    if (typeof value === "bigint") return `${value}n`;
-    if (typeof value === "function") return `[Function: ${value.name || "anonymous"}]`;
-    if (value instanceof Error) {
-      return value.stack || `${value.name}: ${value.message}`;
-    }
-    if (value instanceof RegExp) return value.toString();
-    if (value instanceof Date) return value.toISOString();
-    if (typeof Node !== "undefined" && value instanceof Node) {
-      const el = value as Element;
-      if (el.tagName) {
-        const tag = el.tagName.toLowerCase();
-        const id = el.id ? `#${el.id}` : "";
-        const cls = el.className && typeof el.className === "string"
-          ? `.${el.className.split(/\s+/).filter(Boolean).join(".")}`
-          : "";
-        return `<${tag}${id}${cls}>`;
-      }
-      return `[${value.nodeName}]`;
-    }
-    if (Array.isArray(value)) {
-      if (value.length === 0) return "[]";
-      const items = value.slice(0, 20).map((v) => safeStringify(v, depth + 1));
-      if (value.length > 20) items.push(`...+${value.length - 20}`);
-      return `[${items.join(", ")}]`;
-    }
-    try {
-      const seen = new Set<unknown>();
-      return JSON.stringify(value, (_key, val) => {
-        if (val && typeof val === "object") {
-          if (seen.has(val)) return "[Circular]";
-          seen.add(val);
-          if (typeof Node !== "undefined" && val instanceof Node) {
-            return safeStringify(val, depth + 1);
-          }
-        }
-        return val;
-      }, 2);
-    } catch {
-      return String(value);
-    }
-  }
-
-  function serializeArgs(args: unknown[]): string {
-    const parts = args.map((a) => safeStringify(a, 0));
-    const joined = parts.join(" ");
-    if (joined.length > ARG_CAP) {
-      return joined.slice(0, ARG_CAP) + "...";
-    }
-    return joined;
   }
 
   function captureStack(): string | undefined {
