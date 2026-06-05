@@ -34,7 +34,7 @@ src/
 │   ├── network-recorder.ts# MAIN world 네트워크 캡처 (fetch/XHR/sendBeacon 래핑, send 시점 phase="pending" entry push → 완료/에러 시 in-place 갱신, body omission에 size/limit/contentType context, 50MB body cap + 5000 entry FIFO)
 │   ├── network-recorder-helpers.ts# classifyResponseBody / classifyBeaconBody 순수 헬퍼 + BODY_CAP (3MB) + createPatchedFetch (fetch wrap 팩토리 — new Request 복제본 전송으로 body 재소비 방지, 기록은 FetchRecordHook 위임)
 │   ├── console-recorder.ts# MAIN world 콘솔 캡처 (log/info/debug + trace/assert/dir/table/group*/count*/time* wrap, error/warn은 chrome://extensions attribution noise 회피로 의도적 제외 — throw 에러는 window.error/unhandledrejection으로 별도 캡처, 2000건 FIFO, document_start부터 무조건 buffer, clearBuffer는 counters/timers Map도 함께 리셋)
-│   ├── console-recorder-helpers.ts# formatErrorEvent / formatRejectionReason / shouldCaptureAssertion 순수 헬퍼
+│   ├── console-recorder-helpers.ts# formatErrorEvent / formatRejectionReason / shouldCaptureAssertion + safeStringify·serializeArgs(페이지 값 throw-safe 직렬화 — getter/toString/Proxy throw를 [unserializable]로 흡수) 순수 헬퍼
 │   ├── action-recorder.ts # MAIN world 액션 캡처 (click/input/navigation을 재현 단계로 기록, document_start부터 buffer, 1000건 FIFO, history.pushState/replaceState 래핑 + popstate/hashchange, 민감 입력 마스킹, 같은 selector 연속 input은 in-place dedup, sentinel-bound dispatch)
 │   └── action-recorder-helpers.ts# shouldMaskField(type=password·autocomplete·name/id/aria-label 민감 키워드) / maskValue / truncateName(접근가능 이름 trim·cap, 역할은 ActionEntry.role로 분리) / buildLightSelector 순수 헬퍼
 ├── sidepanel/
