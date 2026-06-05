@@ -17,6 +17,7 @@ import { buildStyleDiff } from "@/sidepanel/components/StyleChangesTable";
 import { buildAiMetaAttachment } from "@/sidepanel/lib/buildAiMetaAttachment";
 import { buildIssueAdf, type AdfDoc } from "@/sidepanel/lib/buildIssueAdf";
 import { buildCaptureFiles, type CaptureFiles } from "@/sidepanel/lib/buildCaptureFiles";
+import { deriveContextEnvRows } from "@/sidepanel/lib/buildReportData";
 import { annotateAttachmentDimensions } from "@/sidepanel/lib/attachmentDimensions";
 import type { JiraAttachmentInput } from "@/types/jira";
 import {
@@ -239,7 +240,7 @@ export function IssueCreateModal() {
     };
   }
 
-  async function buildEditorCaptureFiles(): Promise<CaptureFiles> {
+  async function buildEditorCaptureFiles(ctx: MarkdownContext): Promise<CaptureFiles> {
     const hasNet = networkLogAttach && !!networkLog && networkLog.captured > 0;
     const hasCon = consoleLogAttach && !!consoleLog && consoleLog.captured > 0;
     const hasAct = actionLogAttach && !!actionLog && actionLog.captured > 0;
@@ -261,6 +262,15 @@ export function IssueCreateModal() {
       videoThumbnail,
       pageUrl: target?.url ?? "",
       issueTitle: draft?.title?.trim() || undefined,
+      report: draft
+        ? {
+            title: draft.title,
+            sections: draft.sections,
+            sectionConfig,
+            envRows: deriveContextEnvRows(ctx),
+            markdownContext: ctx,
+          }
+        : null,
     });
   }
 
@@ -322,7 +332,7 @@ export function IssueCreateModal() {
       relatesLabel: issueFields.relatesLabel,
     });
     useSettingsStore.getState().setLastSubmittedPlatform("jira");
-    onSubmitted({ key: result.key, url: result.url });
+    onSubmitted({ key: result.key, url: result.url, platform: "jira", logsDropped: result.logsDropped });
     return { key: result.key, url: result.url };
   }
 
@@ -364,7 +374,7 @@ export function IssueCreateModal() {
       assignee: ghFields.assignee,
     });
     useSettingsStore.getState().setLastSubmittedPlatform("github");
-    onSubmitted({ key: result.key, url: result.url });
+    onSubmitted({ key: result.key, url: result.url, platform: "github", logsDropped: result.logsDropped });
     return result;
   }
 
@@ -413,7 +423,7 @@ export function IssueCreateModal() {
       priority: linearFields.priority,
     });
     useSettingsStore.getState().setLastSubmittedPlatform("linear");
-    onSubmitted({ key: result.key, url: result.url });
+    onSubmitted({ key: result.key, url: result.url, platform: "linear", logsDropped: result.logsDropped });
     return result;
   }
 
@@ -463,7 +473,7 @@ export function IssueCreateModal() {
       selectValues: notionFields.selectValues,
     });
     useSettingsStore.getState().setLastSubmittedPlatform("notion");
-    onSubmitted({ key: result.key, url: result.url });
+    onSubmitted({ key: result.key, url: result.url, platform: "notion", logsDropped: result.logsDropped });
     return result;
   }
 
@@ -505,7 +515,7 @@ export function IssueCreateModal() {
       assigneeName: gitlabFields.assigneeName,
     });
     useSettingsStore.getState().setLastSubmittedPlatform("gitlab");
-    onSubmitted({ key: result.key, url: result.url });
+    onSubmitted({ key: result.key, url: result.url, platform: "gitlab", logsDropped: result.logsDropped });
     return result;
   }
 
@@ -546,14 +556,14 @@ export function IssueCreateModal() {
       assigneeName: asanaFields.assigneeName,
     });
     useSettingsStore.getState().setLastSubmittedPlatform("asana");
-    onSubmitted({ key: result.key, url: result.url });
+    onSubmitted({ key: result.key, url: result.url, platform: "asana", logsDropped: result.logsDropped });
     return result;
   }
 
   async function handleSubmit(submitPlatform: PlatformId): Promise<NormalizedSubmitResult> {
     const ctx = buildCtx();
     const inlineImages = await resolveInlineImagesForSections(ctx.sections, sectionConfig);
-    const captureFiles = await buildEditorCaptureFiles();
+    const captureFiles = await buildEditorCaptureFiles(ctx);
     let result: NormalizedSubmitResult;
     if (submitPlatform === "github") result = await handleGithubSubmit(ctx, inlineImages, captureFiles);
     else if (submitPlatform === "linear") result = await handleLinearSubmit(ctx, inlineImages, captureFiles);

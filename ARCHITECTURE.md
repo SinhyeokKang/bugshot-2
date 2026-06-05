@@ -105,6 +105,8 @@ shorthand(var 포함) + 같은 shorthand의 longhand override 조합에서 Chrom
 
 **활성 게이트**: 세 레코더의 `recording` 기본값은 `false` — wrap은 document_start에 설치하되 **패널이 탭에 활성인 동안만** 적재한다. 패널 주입 시 `setSentinel`로 `true`, 패널 닫힘(`port.onDisconnect`)·탭 전환(`tab-bindings.ts` `onActivated`에서 직전 활성 탭에 stop)으로 `false`. `recording=false`면 fetch는 `createPatchedFetch`의 `shouldRecord` 게이트로 원본 경로(`new Request` 재구성 없음), XHR/sendBeacon/console/action은 push 차단 — 미활성 탭 트래픽에 일절 간섭하지 않는다. 같은 탭으로 (네비게이션 없이) 복귀해 패널 문서가 살아 있으면 패널 `visibilitychange`(visible)가 재주입을 트리거해 stop과 대칭을 맞춘다.
 
+**페이지 무간섭(예외 격리)**: 세 레코더는 MAIN world에서 페이지와 같은 전역을 공유하므로 wrap이 페이지 동작을 절대 깨뜨리면 안 된다. 불변식 — ① 원본(fetch/XHR/`console.*`/`history.pushState·replaceState`)을 **먼저** 호출해 페이지 동작 보존, ② 기록 로직의 throw는 try/catch로 격리해 페이지 호출자로 전파 금지(`createPatchedFetch` record/settle, XHR `recordXhrSend`, console wrap의 `safeStringify`, action history wrap 모두 격리), ③ 응답 본문 read는 settle을 await하지 않음. 특히 `safeStringify`는 페이지 값의 throwing getter·커스텀 `toString`/`Symbol.toPrimitive`·Proxy trap에도 `[unserializable]`로 흡수해 wrap된 `console.log`(=페이지 코드)가 throw하지 않게 한다. 리팩터 시 이 3원칙을 깨면 페이지 요청·라우팅·콘솔이 깨질 수 있다(과거 fetch `new Request` 재구성이 GitHub 업로드·SigV4를 깬 회귀 전례).
+
 **버퍼 전략**: 활성 구간 동안 적재. 메모리 보호 — Network: 50MB body cap(LRU trim) + 5000 entry FIFO, Console: 2000 entry FIFO, Action: 1000 entry FIFO. 요청 phase: send 시 `pending`, 응답 완료 `complete`, reject/abort/error/timeout 시 `error`로 in-place 갱신. 추가 캡처: `sendBeacon`, fetch reject, XHR error/abort/timeout.
 
 **Body omission**: `string | NetworkBodyOmission` union. kind: `truncated`(3MB 초과), `binary`(image/font 등), `stream`(SSE/multipart), `omitted`(LRU 회수). UI·logs.html 모두 사유 표시.
@@ -119,7 +121,7 @@ shorthand(var 포함) + 같은 shorthand의 longhand override 조합에서 Chrom
 
 **Cross-tab 격리**: `usePickerMessages`가 `sender.tab?.id !== myTabId`인 메시지 drop — 동일 origin 다른 탭의 로그가 섞이는 것 방지.
 
-**로그 첨부**: `buildLogsHtml`이 `dist-log-viewer/index.html` 템플릿에 `LogViewerData` JSON 주입 → self-contained HTML. AI 초안 `buildActionLogSummary`도 video 한정.
+**로그 첨부**: `buildLogsHtml`(async)이 `dist-log-viewer/index.html` 템플릿에 데이터 주입 → self-contained HTML. 용량 최적화로 무거운 데이터(networkLog/consoleLog/actionLog/video/screenshot/report)는 gzip+base64(`gzip-base64.ts`)로 압축해 `__BUGSHOT_DATA__` 태그에, 작은 meta는 평문 `__BUGSHOT_META__` 태그에 분리 주입(제출 후 `injectIssueUrl`은 평문 meta만 함수형 치환 — 압축 blob 미접근). har/console·actionLogJson 등 파생 export는 raw 로그에서 다운로드 시점에 즉석 생성(중복 직렬화 회피, `meta.version` 사용). log-viewer는 Console/Network/Action 외 **Report 탭**(이슈 제목·재현 환경·본문 섹션 프리뷰 + 마크다운/HTML 클립보드 복사)을 추가 제공 — 본문은 `buildReportData`가 inline 이미지를 dataURL로 resolve해 임베드, 표시는 `IssuePreviewView`(PreviewPanel과 공용). AI 초안 `buildActionLogSummary`도 video 한정.
 
 **로그 정책 매트릭스** — 단일 진실: `src/sidepanel/lib/captureLogSupport.ts` (`supportsConsoleNetworkLog`, `supportsActionLog`). UI 카드 표시(PreviewPanel·DraftDetailDialog `LogAttachmentCards`) / DraftDetailDialog blob 로드 / 제출 첨부(`buildCaptureFiles` → logs.html 생성 조건) / Notion 본문 log summary 블록 모두 이 기준.
 
@@ -207,6 +209,6 @@ draft 모델: `{ title, sections: Record<string, string>, environment?: Environm
 
 **재현 환경**: `ReproEnvironmentSection`이 모드별 메타를 readonly 표시 + `draft.environment` 사용자 정의 row 편집. 순수 헬퍼: `filterEnvironmentRows`(빈 row 제거) / `deriveReadonlyEnvRows`(모드별 파생).
 
-**자동 메타 위치**: `POST_MEDIA_SECTION_IDS = {"expectedResult","notes"}` — 첫 해당 섹션 직전에 media/styleChanges emit. 둘 다 disabled면 모든 섹션 끝에 emit. 5종 빌더 + DraftingPanel + PreviewPanel + DraftDetailDialog에서 동일 룰.
+**자동 메타 위치**: `POST_MEDIA_SECTION_IDS = {"expectedResult","notes"}` — 첫 해당 섹션 직전에 media/styleChanges emit. 둘 다 disabled면 모든 섹션 끝에 emit. 5종 빌더 + DraftingPanel + DraftDetailDialog에서 동일 룰. PreviewPanel·log-viewer Report 탭 프리뷰는 순수 헬퍼 `composePreviewLayout`로 이 순서를 단일화(`IssuePreviewView` 공용 컴포넌트).
 
 **마이그레이션**: `issues-store` v5, `settings-store` v6, `settings-ui-store` v5. 각각 순수 헬퍼로 분리해 테스트 (`migrateV2ToV3`, `migrateToV5`, `migrateIssueToV4` 등). 모두 멱등 가드 + sparse 저장. 빈 paragraph는 `(없음)` (`md.noValue`)로 통일.

@@ -1,10 +1,6 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 import type { ConsoleLog } from "@/types/console";
 import { buildConsoleLogJson, serializeConsoleLog } from "../buildConsoleLogJson";
-
-vi.stubGlobal("chrome", {
-  runtime: { getManifest: () => ({ version: "1.0.0" }) },
-});
 
 const log: ConsoleLog = {
   id: "log-1",
@@ -33,7 +29,7 @@ const log: ConsoleLog = {
 
 describe("buildConsoleLogJson", () => {
   it("version·creator·시간대 포함", () => {
-    const result = buildConsoleLogJson(log) as Record<string, unknown>;
+    const result = buildConsoleLogJson(log, "1.0.0") as Record<string, unknown>;
     expect(result.version).toBe(1);
     expect(result.creator).toEqual({ name: "BugShot", version: "1.0.0" });
     expect(result.startedAt).toBe(new Date(1700000000000).toISOString());
@@ -41,7 +37,7 @@ describe("buildConsoleLogJson", () => {
   });
 
   it("entries를 ISO timestamp로 변환", () => {
-    const result = buildConsoleLogJson(log) as Record<string, unknown>;
+    const result = buildConsoleLogJson(log, "1.0.0") as Record<string, unknown>;
     const entries = result.entries as Record<string, unknown>[];
     expect(entries).toHaveLength(2);
     expect(entries[0].timestamp).toBe(new Date(1700000001000).toISOString());
@@ -49,14 +45,14 @@ describe("buildConsoleLogJson", () => {
   });
 
   it("stack 있으면 포함, 없으면 미포함", () => {
-    const result = buildConsoleLogJson(log) as Record<string, unknown>;
+    const result = buildConsoleLogJson(log, "1.0.0") as Record<string, unknown>;
     const entries = result.entries as Record<string, unknown>[];
     expect(entries[0]).not.toHaveProperty("stack");
     expect(entries[1].stack).toContain("Error: oops");
   });
 
   it("totalSeen·captured 그대로 전달", () => {
-    const result = buildConsoleLogJson(log) as Record<string, unknown>;
+    const result = buildConsoleLogJson(log, "1.0.0") as Record<string, unknown>;
     expect(result.totalSeen).toBe(10);
     expect(result.captured).toBe(5);
   });

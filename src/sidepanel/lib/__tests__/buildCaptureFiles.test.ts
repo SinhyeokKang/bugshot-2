@@ -350,3 +350,79 @@ describe("buildCaptureFiles — actionLog video-only 스코핑", () => {
     expect(out.logs).toEqual([]);
   });
 });
+
+describe("buildCaptureFiles — report 임베드 (logs.html)", () => {
+  function lastReportArg(): unknown {
+    const call = buildLogsHtmlSpy.mock.calls.at(-1);
+    return call ? call[8] : undefined;
+  }
+
+  const reportCtx = {
+    captureMode: "screenshot" as const,
+    title: "T",
+    sections: {},
+    sectionConfig: [],
+    url: "https://example.com",
+    selector: "",
+    tagName: "",
+    classListBefore: [],
+    classListAfter: [],
+    specifiedStyles: {},
+    tokens: [],
+    viewport: { width: 0, height: 0 },
+    capturedAt: 1_700_000_000_000,
+    diffs: [],
+    environment: [],
+  };
+
+  it("report 입력 + 로그 → buildLogsHtml 마지막 인자로 빌드된 report 전달", async () => {
+    buildLogsHtmlSpy.mockClear();
+    await buildCaptureFiles({
+      captureMode: "screenshot",
+      screenshotImage: "data:x",
+      consoleLog,
+      pageUrl: "https://example.com",
+      report: {
+        title: "리포트제목",
+        sections: {},
+        sectionConfig: [],
+        envRows: [{ label: "OS", value: "macOS" }],
+        markdownContext: reportCtx,
+      },
+    });
+    const report = lastReportArg() as { title: string; env: unknown };
+    expect(report).not.toBeNull();
+    expect(report.title).toBe("리포트제목");
+    expect(report.env).toEqual([{ label: "OS", value: "macOS" }]);
+  });
+
+  it("report 미전달 + 로그 → buildLogsHtml 마지막 인자 null", async () => {
+    buildLogsHtmlSpy.mockClear();
+    await buildCaptureFiles({
+      captureMode: "screenshot",
+      screenshotImage: "data:x",
+      consoleLog,
+      pageUrl: "https://example.com",
+    });
+    expect(lastReportArg()).toBeNull();
+  });
+
+  it("로그 없음 → report 입력이 있어도 buildLogsHtml 미호출 (게이팅 우선)", async () => {
+    buildLogsHtmlSpy.mockClear();
+    const out = await buildCaptureFiles({
+      captureMode: "screenshot",
+      screenshotImage: "data:x",
+      networkLog: null,
+      consoleLog: null,
+      report: {
+        title: "리포트제목",
+        sections: {},
+        sectionConfig: [],
+        envRows: [],
+        markdownContext: reportCtx,
+      },
+    });
+    expect(out.logs).toEqual([]);
+    expect(buildLogsHtmlSpy).not.toHaveBeenCalled();
+  });
+});

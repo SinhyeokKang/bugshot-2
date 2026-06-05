@@ -60,6 +60,7 @@ export async function submitToGithub(
   });
 
   const hrefMap = new Map(uploadResults.map((r) => [r.filename, r.href]));
+  const logsDropped = (input.logs ?? []).some((l) => !hrefMap.get(l.filename));
 
   let resolvedCtx = input.ctx;
   if (inlineFiles.length > 0) {
@@ -107,5 +108,5 @@ export async function submitToGithub(
       assignees: input.assignee ? [input.assignee] : undefined,
     },
   });
-  return { key: `#${result.number}`, url: result.url };
+  return { key: `#${result.number}`, url: result.url, logsDropped };
 }

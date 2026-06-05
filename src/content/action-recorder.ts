@@ -209,18 +209,20 @@ function actionRecorderScript(): void {
   // --- Navigation ---
   recordNavigation("load", document.referrer || lastUrl, location.href);
 
+  // 페이지가 직접 호출하는 함수이므로 recordNavigation throw가 페이지 라우팅 호출자로
+  // 전파되지 않도록 격리한다 (원본은 이미 호출됐으니 네비게이션 동작은 보존).
   const originalPushState = history.pushState.bind(history);
   history.pushState = function (...args: Parameters<History["pushState"]>) {
     const from = location.href;
     const ret = originalPushState(...args);
-    recordNavigation("pushState", from, location.href);
+    try { recordNavigation("pushState", from, location.href); } catch { /* 레코더 오류 무시 */ }
     return ret;
   };
   const originalReplaceState = history.replaceState.bind(history);
   history.replaceState = function (...args: Parameters<History["replaceState"]>) {
     const from = location.href;
     const ret = originalReplaceState(...args);
-    recordNavigation("replaceState", from, location.href);
+    try { recordNavigation("replaceState", from, location.href); } catch { /* 레코더 오류 무시 */ }
     return ret;
   };
   window.addEventListener("popstate", () => {

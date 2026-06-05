@@ -88,7 +88,7 @@ describe("submitToAsana", () => {
       "asana.uploadFiles",
       "asana.updateTaskNotes",
     ]);
-    expect(res).toEqual({ key: "TASK_GID", url: TASK.permalinkUrl });
+    expect(res).toEqual({ key: "TASK_GID", url: TASK.permalinkUrl, logsDropped: false });
 
     const submitCall = sendBg.mock.calls.find(
       ([m]) => m.type === "asana.submitIssue",
@@ -232,5 +232,45 @@ describe("submitToAsana", () => {
 
     expect(res.key).toBe("TASK_GID");
     expect(res.url).toBe(TASK.permalinkUrl);
+  });
+
+  it("logs.html 첨부 실패(gid null)면 logsDropped: true", async () => {
+    sendBg.mockImplementation(async (msg: { type: string }) => {
+      if (msg.type === "asana.submitIssue") return TASK;
+      if (msg.type === "asana.uploadFiles")
+        return [
+          { filename: "logs.html", gid: null },
+          { filename: "ai-meta.json", gid: "ok" },
+        ];
+      return undefined;
+    });
+
+    const res = await submitToAsana({
+      ctx: makeCtx({ captureMode: "screenshot" }),
+      workspaceGid: "W",
+      logs: [{ filename: "logs.html", dataUrl: "data:LOGS" }],
+    });
+
+    expect(res.logsDropped).toBe(true);
+  });
+
+  it("logs.html 첨부 성공이면 logsDropped: false", async () => {
+    sendBg.mockImplementation(async (msg: { type: string }) => {
+      if (msg.type === "asana.submitIssue") return TASK;
+      if (msg.type === "asana.uploadFiles")
+        return [
+          { filename: "logs.html", gid: "lg" },
+          { filename: "ai-meta.json", gid: "ok" },
+        ];
+      return undefined;
+    });
+
+    const res = await submitToAsana({
+      ctx: makeCtx({ captureMode: "screenshot" }),
+      workspaceGid: "W",
+      logs: [{ filename: "logs.html", dataUrl: "data:LOGS" }],
+    });
+
+    expect(res.logsDropped).toBe(false);
   });
 });

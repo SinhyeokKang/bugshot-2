@@ -1,15 +1,13 @@
-import { describe, it, expect, vi, beforeAll } from "vitest";
+import { describe, it, expect, beforeAll } from "vitest";
 import type { NetworkLog, NetworkRequest } from "@/types/network";
 
 let buildHar: (log: NetworkLog) => object;
 let serializeHar: (har: object) => string;
 
 beforeAll(async () => {
-  vi.stubGlobal("chrome", {
-    runtime: { getManifest: () => ({ version: "1.0.0" }) },
-  });
   const mod = await import("../buildHar");
-  buildHar = mod.buildHar;
+  // version은 이제 인자 — 테스트 호출부 유지를 위해 래퍼로 주입.
+  buildHar = (log: NetworkLog) => mod.buildHar(log, "1.0.0");
   serializeHar = mod.serializeHar;
 });
 
@@ -106,6 +104,49 @@ describe("buildHar", () => {
     expect(content.comment).toContain("Binary");
     expect(content.comment).toContain("image/png");
     expect(content.comment).toContain("500 B");
+  });
+
+  it("stream responseBody — comment에 contentType 표기", () => {
+    const req = makeRequest({
+      responseBody: { kind: "stream", contentType: "text/event-stream" },
+    });
+    const har = buildHar(makeLog([req])) as any;
+    const content = har.log.entries[0].response.content;
+    expect(content.comment).toContain("Streaming");
+    expect(content.comment).toContain("text/event-stream");
+    expect(content.text).toBeUndefined();
+  });
+
+  it("omitted responseBody — comment에 memory cap 표기", () => {
+    const req = makeRequest({
+      responseBody: { kind: "omitted", reason: "memory-cap" },
+    });
+    const har = buildHar(makeLog([req])) as any;
+    const content = har.log.entries[0].response.content;
+    expect(content.comment).toBe("Body omitted (memory cap)");
+  });
+
+  it("binary requestBody — postData.comment에 표기", () => {
+    const req = makeRequest({
+      method: "POST",
+      requestBody: { kind: "binary", contentType: "application/octet-stream", size: 1024 },
+      requestBodySize: 1024,
+    });
+    const har = buildHar(makeLog([req])) as any;
+    const postData = har.log.entries[0].request.postData;
+    expect(postData.text).toBe("");
+    expect(postData.comment).toContain("Binary");
+  });
+
+  it("omitted requestBody — postData.comment에 표기", () => {
+    const req = makeRequest({
+      method: "POST",
+      requestBody: { kind: "omitted", reason: "memory-cap" },
+      requestBodySize: 0,
+    });
+    const har = buildHar(makeLog([req])) as any;
+    const postData = har.log.entries[0].request.postData;
+    expect(postData.comment).toBe("Body omitted (memory cap)");
   });
 
   it("undefined body → no text field", () => {

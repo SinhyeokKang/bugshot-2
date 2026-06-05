@@ -1,7 +1,8 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   classifyResponseBody,
   classifyBeaconBody,
+  createPatchedFetch,
   BODY_CAP,
 } from "../network-recorder-helpers";
 
@@ -87,5 +88,115 @@ describe("classifyBeaconBody", () => {
     const big = "x".repeat(BODY_CAP + 10);
     const out = classifyBeaconBody(big);
     expect(out.body).toEqual({ kind: "truncated", limit: BODY_CAP, size: BODY_CAP + 10 });
+  });
+});
+
+// 과거 회귀: 레코더 wrap이 input/init을 재구성해 페이지 요청(GitHub 업로드·SigV4 서명 등)을 깨뜨렸다.
+// 이 describe는 "wrap이 페이지 요청을 절대 방해하지 않는다"는 4중 방어를 잠근다 — 리팩터 시 깨지면 즉시 fail.
+describe("createPatchedFetch — 페이지 요청 무간섭 회귀 가드", () => {
+  function okFetch(response = new Response("ok")) {
+    return vi.fn(async function (this: unknown, _input: RequestInfo | URL, _init?: RequestInit) {
+      return response;
+    });
+  }
+
+  it("shouldRecord=false면 원본 input/init을 재구성 없이 그대로 전달", async () => {
+    const original = okFetch();
+    const record = vi.fn();
+    const patched = createPatchedFetch(original, record, () => false);
+    const input = "https://example.com/api";
+    const init = { method: "POST", body: "payload" };
+    await patched(input, init);
+    expect(original.mock.calls[0][0]).toBe(input);
+    expect(original.mock.calls[0][1]).toBe(init);
+    expect(record).not.toHaveBeenCalled();
+  });
+
+  it("new Request 생성 실패 시 원본 input/init으로 폴백 (record 미호출)", async () => {
+    const original = okFetch();
+    const record = vi.fn(() => vi.fn());
+    const patched = createPatchedFetch(original, record, () => true);
+    const input = "https://example.com";
+    const init = { method: "BAD METHOD" }; // 공백 포함 토큰 → Request 생성자 throw
+    await patched(input, init);
+    expect(original.mock.calls[0][0]).toBe(input);
+    expect(original.mock.calls[0][1]).toBe(init);
+    expect(record).not.toHaveBeenCalled();
+  });
+
+  it("shouldRecord=true면 new Request로 보내고 record 호출", async () => {
+    const original = okFetch();
+    const record = vi.fn(() => vi.fn());
+    const patched = createPatchedFetch(original, record, () => true);
+    await patched("https://example.com/api", { method: "GET" });
+    expect(record).toHaveBeenCalledTimes(1);
+    expect(original.mock.calls[0][0]).toBeInstanceOf(Request);
+  });
+
+  it("shouldRecord 미지정이면 항상 기록 경로", async () => {
+    const original = okFetch();
+    const record = vi.fn(() => vi.fn());
+    const patched = createPatchedFetch(original, record);
+    await patched("https://example.com");
+    expect(record).toHaveBeenCalled();
+  });
+
+  it("응답 객체를 변형 없이 그대로 반환", async () => {
+    const response = new Response("body");
+    const patched = createPatchedFetch(okFetch(response), () => vi.fn(), () => true);
+    expect(await patched("https://example.com")).toBe(response);
+  });
+
+  it("originalFetch reject를 그대로 throw하고 settle(error) 호출", async () => {
+    const err = new Error("network down");
+    const original = vi.fn(async () => {
+      throw err;
+    });
+    const settle = vi.fn();
+    const patched = createPatchedFetch(original, () => settle, () => true);
+    await expect(patched("https://example.com")).rejects.toBe(err);
+    expect(settle).toHaveBeenCalledWith({ error: err });
+  });
+
+  it("record가 throw해도 페이지로 전파되지 않고 응답 정상 반환", async () => {
+    const response = new Response("ok");
+    const record = vi.fn(() => {
+      throw new Error("recorder boom");
+    });
+    const patched = createPatchedFetch(okFetch(response), record, () => true);
+    expect(await patched("https://example.com")).toBe(response);
+  });
+
+  it("settle이 reject해도 응답에 영향 없음", async () => {
+    const response = new Response("ok");
+    const settle = vi.fn(() => Promise.reject(new Error("settle boom")));
+    const patched = createPatchedFetch(okFetch(response), () => settle, () => true);
+    expect(await patched("https://example.com")).toBe(response);
+  });
+
+  it("settle을 await하지 않는다 — 응답이 settle 완료 전에 반환", async () => {
+    let settleDone = false;
+    const settle = () =>
+      new Promise<void>((resolve) => {
+        setTimeout(() => {
+          settleDone = true;
+          resolve();
+        }, 30);
+      });
+    const patched = createPatchedFetch(okFetch(), () => settle, () => true);
+    await patched("https://example.com");
+    expect(settleDone).toBe(false);
+  });
+
+  it("this(호출 컨텍스트)를 원본 fetch로 전파", async () => {
+    const ctx = { tag: "ctx" };
+    let received: unknown;
+    const original = vi.fn(async function (this: unknown) {
+      received = this;
+      return new Response();
+    });
+    const patched = createPatchedFetch(original, undefined, () => false);
+    await patched.call(ctx, "https://example.com");
+    expect(received).toBe(ctx);
   });
 });

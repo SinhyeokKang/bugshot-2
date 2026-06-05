@@ -16,46 +16,51 @@ function decodeDataUrl(dataUrl: string): string {
   return new TextDecoder().decode(bytes);
 }
 
-// buildLogsHtml은 issueUrl을 항상 meta의 마지막 키로 빈 자리("issueUrl":"")로 둔다.
-const baseHtml = `<!DOCTYPE html><html><body><script id="__BUGSHOT_DATA__" type="application/json">{"networkLog":null,"consoleLog":null,"har":null,"consoleLogJson":null,"meta":{"version":"1.0.0","createdAt":"2025-01-01T00:00:00.000Z","pageUrl":"https://example.com","issueKey":"","issueUrl":""}}</script></body></html>`;
+// buildLogsHtml은 issueUrl/issueKey를 평문 META 태그의 빈 자리로 둔다(무거운 데이터는 별도 gzip DATA 태그).
+const META_JSON = `{"version":"1.0.0","createdAt":"2025-01-01T00:00:00.000Z","pageUrl":"https://example.com","issueKey":"","issueUrl":""}`;
+const baseHtml = `<!DOCTYPE html><html><body><script id="__BUGSHOT_DATA__" type="application/gzip-base64">H4sICOMPRESSED</script><script id="__BUGSHOT_META__" type="application/json">${META_JSON}</script></body></html>`;
 
-function extract(html: string): Record<string, any> {
+function extractMeta(html: string): Record<string, any> {
   return JSON.parse(
-    html.match(/<script id="__BUGSHOT_DATA__" type="application\/json">([\s\S]*?)<\/script>/)![1],
+    html.match(/<script id="__BUGSHOT_META__" type="application\/json">([\s\S]*?)<\/script>/)![1],
   );
+}
+
+function extractDataTag(html: string): string {
+  return html.match(/<script id="__BUGSHOT_DATA__" type="application\/gzip-base64">([\s\S]*?)<\/script>/)![1];
 }
 
 describe("injectIssueUrl", () => {
   it("빈 issueUrl 자리에 주입", async () => {
     const result = await injectIssueUrl(makeDataUrl(baseHtml), "https://jira.example.com/browse/BUG-1");
-    expect(extract(decodeDataUrl(result)).meta.issueUrl).toBe("https://jira.example.com/browse/BUG-1");
+    expect(extractMeta(decodeDataUrl(result)).issueUrl).toBe("https://jira.example.com/browse/BUG-1");
   });
 
   it("기존 meta 필드 보존", async () => {
     const result = await injectIssueUrl(makeDataUrl(baseHtml), "https://example.com/issue/1");
-    const data = extract(decodeDataUrl(result));
-    expect(data.meta.version).toBe("1.0.0");
-    expect(data.meta.pageUrl).toBe("https://example.com");
+    const meta = extractMeta(decodeDataUrl(result));
+    expect(meta.version).toBe("1.0.0");
+    expect(meta.pageUrl).toBe("https://example.com");
   });
 
   it("issueKey도 함께 주입", async () => {
     const result = await injectIssueUrl(makeDataUrl(baseHtml), "https://jira.example.com/browse/BUG-1", "BUG-1");
-    const data = extract(decodeDataUrl(result));
-    expect(data.meta.issueKey).toBe("BUG-1");
-    expect(data.meta.issueUrl).toBe("https://jira.example.com/browse/BUG-1");
+    const meta = extractMeta(decodeDataUrl(result));
+    expect(meta.issueKey).toBe("BUG-1");
+    expect(meta.issueUrl).toBe("https://jira.example.com/browse/BUG-1");
   });
 
   it("issueKey 미전달 시 빈 문자열 유지", async () => {
     const result = await injectIssueUrl(makeDataUrl(baseHtml), "https://example.com/issue/1");
-    expect(extract(decodeDataUrl(result)).meta.issueKey).toBe("");
+    expect(extractMeta(decodeDataUrl(result)).issueKey).toBe("");
   });
 
   it("유효하지 않은 dataUrl → 원본 반환", async () => {
     expect(await injectIssueUrl("not-a-data-url", "https://x.com")).toBe("not-a-data-url");
   });
 
-  it("__BUGSHOT_DATA__ 태그 없음 → 원본 반환", async () => {
-    const dataUrl = makeDataUrl("<html><body>no data</body></html>");
+  it("__BUGSHOT_META__ 태그 없음 → 원본 반환", async () => {
+    const dataUrl = makeDataUrl("<html><body>no meta</body></html>");
     expect(await injectIssueUrl(dataUrl, "https://x.com")).toBe(dataUrl);
   });
 
@@ -63,33 +68,26 @@ describe("injectIssueUrl", () => {
     const dataUrl = makeDataUrl(baseHtml.replace("</body>", "<p>한글 테스트</p></body>"));
     const html = decodeDataUrl(await injectIssueUrl(dataUrl, "https://linear.app/team/BUG-1"));
     expect(html).toContain("한글 테스트");
-    expect(extract(html).meta.issueUrl).toBe("https://linear.app/team/BUG-1");
+    expect(extractMeta(html).issueUrl).toBe("https://linear.app/team/BUG-1");
   });
 
   it("pageUrl 값에 marker 리터럴이 박혀도 진짜 issueUrl만 치환 (충돌 회귀)", async () => {
     const evilUrl = 'https://x.com/?q="issueUrl":""';
-    const data = {
-      networkLog: null,
-      meta: { version: "1.0.0", createdAt: "2025-01-01T00:00:00.000Z", pageUrl: evilUrl, issueKey: "", issueUrl: "" },
-    };
-    const html = `<!DOCTYPE html><html><body><script id="__BUGSHOT_DATA__" type="application/json">${JSON.stringify(data)}</script></body></html>`;
-    const parsed = extract(decodeDataUrl(await injectIssueUrl(makeDataUrl(html), "https://jira.example.com/browse/BUG-2")));
-    expect(parsed.meta.pageUrl).toBe(evilUrl); // pageUrl 내부 marker는 건드리지 않음
-    expect(parsed.meta.issueUrl).toBe("https://jira.example.com/browse/BUG-2");
+    const meta = `{"version":"1.0.0","createdAt":"2025-01-01T00:00:00.000Z","pageUrl":${JSON.stringify(evilUrl)},"issueKey":"","issueUrl":""}`;
+    const html = `<!DOCTYPE html><html><body><script id="__BUGSHOT_META__" type="application/json">${meta}</script></body></html>`;
+    const parsed = extractMeta(decodeDataUrl(await injectIssueUrl(makeDataUrl(html), "https://jira.example.com/browse/BUG-2")));
+    expect(parsed.pageUrl).toBe(evilUrl); // pageUrl 내부 marker는 건드리지 않음(lastIndexOf가 진짜 issueUrl을 잡음)
+    expect(parsed.issueUrl).toBe("https://jira.example.com/browse/BUG-2");
   });
 
-  it("영상 임베드 대용량 dataUrl도 video 보존 + issueUrl 주입 (전체 재파싱 회피 회귀)", async () => {
-    const fakeVideo = "data:video/mp4;base64," + "A".repeat(1_000_000);
-    const data = {
-      networkLog: null,
-      video: { dataUrl: fakeVideo, startedAt: 1000 },
-      meta: { version: "1.0.0", createdAt: "2025-01-01T00:00:00.000Z", pageUrl: "https://example.com", issueKey: "", issueUrl: "" },
-    };
-    const html = `<!DOCTYPE html><html><body><script id="__BUGSHOT_DATA__" type="application/json">${JSON.stringify(data)}</script></body></html>`;
-    const parsed = extract(decodeDataUrl(await injectIssueUrl(makeDataUrl(html), "https://jira.example.com/browse/BUG-9", "BUG-9")));
-    expect(parsed.meta.issueUrl).toBe("https://jira.example.com/browse/BUG-9");
-    expect(parsed.meta.issueKey).toBe("BUG-9");
-    expect(parsed.video.dataUrl).toBe(fakeVideo);
-    expect(parsed.video.startedAt).toBe(1000);
+  it("압축 DATA 태그(대용량)는 injectIssueUrl이 건드리지 않는다 — META만 치환", async () => {
+    // injectIssueUrl은 평문 META만 다룬다. 무거운 gzip DATA blob은 byte-identical로 보존.
+    const bigBlob = "H4sI" + "A".repeat(1_000_000);
+    const html = `<!DOCTYPE html><html><body><script id="__BUGSHOT_DATA__" type="application/gzip-base64">${bigBlob}</script><script id="__BUGSHOT_META__" type="application/json">${META_JSON}</script></body></html>`;
+    const out = decodeDataUrl(await injectIssueUrl(makeDataUrl(html), "https://jira.example.com/browse/BUG-9", "BUG-9"));
+    expect(extractDataTag(out)).toBe(bigBlob); // 압축 blob 불변
+    const meta = extractMeta(out);
+    expect(meta.issueUrl).toBe("https://jira.example.com/browse/BUG-9");
+    expect(meta.issueKey).toBe("BUG-9");
   });
 });

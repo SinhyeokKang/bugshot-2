@@ -1,9 +1,13 @@
 import { useCallback, useMemo, useRef, useState } from "react";
-import { Download, Terminal, ArrowLeftRight, ExternalLink, MousePointerClick } from "lucide-react";
+import { Download, Terminal, ArrowLeftRight, ExternalLink, MousePointerClick, FileText } from "lucide-react";
 import type { LogViewerData } from "@/types/log-viewer";
 import { NetworkLogContent } from "@/sidepanel/components/NetworkLogContent";
 import { ConsoleLogContent } from "@/sidepanel/components/ConsoleLogContent";
 import { ActionLogContent } from "@/sidepanel/components/ActionLogContent";
+import { IssuePreviewView } from "@/sidepanel/components/IssuePreviewView";
+import { buildHar } from "@/sidepanel/lib/buildHar";
+import { buildConsoleLogJson } from "@/sidepanel/lib/buildConsoleLogJson";
+import { buildActionLogJson } from "@/sidepanel/lib/buildActionLogJson";
 import { Tabs, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { CollapsingTabsList, TabLabel } from "@/components/ui/collapsing-tabs";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
@@ -30,14 +34,31 @@ function downloadJson(obj: object, filename: string) {
   URL.revokeObjectURL(url);
 }
 
-type LogTab = "console" | "network" | "action";
+type LogTab = "report" | "console" | "network" | "action";
 
 export function App({ data }: AppProps) {
   const hasNetwork = !!data?.networkLog;
   const hasConsole = !!data?.consoleLog;
   const hasAction = !!data?.actionLog;
+  const hasReport = !!data?.report;
+  // Report는 보조 탭이라 기본 선택에서 제외(의도) — console→network→action 순.
   const defaultTab: LogTab = hasConsole ? "console" : hasNetwork ? "network" : "action";
   const [activeTab, setActiveTab] = useState<LogTab>(defaultTab);
+
+  const copyReport = useCallback(async () => {
+    const report = data?.report;
+    if (!report) return;
+    try {
+      await navigator.clipboard.write([
+        new ClipboardItem({
+          "text/plain": new Blob([report.copy.markdown], { type: "text/plain" }),
+          "text/html": new Blob([report.copy.html], { type: "text/html" }),
+        }),
+      ]);
+    } catch {
+      await navigator.clipboard.writeText(report.copy.markdown);
+    }
+  }, [data]);
 
   const video = data?.video ?? null;
   const screenshot = data?.screenshot ?? null;
@@ -53,6 +74,8 @@ export function App({ data }: AppProps) {
 
   const markers = useMemo(() => {
     if (!data || !video || videoError || videoDurationSec <= 0) return [];
+    // Report 탭은 타임라인 마커가 없다(본문 프리뷰라 시간축 매핑 대상 아님).
+    if (activeTab === "report") return [];
     return buildMarkers(data, activeTab, videoDurationSec, video.startedAt);
   }, [data, video, videoError, videoDurationSec, activeTab]);
 
@@ -86,7 +109,11 @@ export function App({ data }: AppProps) {
   const tabsPanel = (
     <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as LogTab)} className="flex min-h-0 flex-1 flex-col">
       <div className="shrink-0 border-b border-border px-4 py-4">
-        <CollapsingTabsList className="grid h-9 w-full grid-cols-3">
+        <CollapsingTabsList className="grid h-9 w-full grid-cols-4">
+          <TabsTrigger value="report" disabled={!hasReport} className="min-w-0 gap-1.5">
+            <FileText className="h-3.5 w-3.5 shrink-0" />
+            <TabLabel>{t("logViewer.tab.report")}</TabLabel>
+          </TabsTrigger>
           <TabsTrigger value="console" disabled={!hasConsole} className="min-w-0 gap-1.5">
             <Terminal className="h-3.5 w-3.5 shrink-0" />
             <TabLabel>{t("logViewer.tab.console")}</TabLabel>
@@ -116,6 +143,32 @@ export function App({ data }: AppProps) {
           </TabsTrigger>
         </CollapsingTabsList>
       </div>
+
+      <TabsContent value="report" className="mt-0 flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden">
+        {hasReport ? (
+          <div className="min-h-0 flex-1 overflow-y-auto">
+            <div className="flex flex-col">
+              <IssuePreviewView
+                title={data.report!.title}
+                envRows={data.report!.env}
+                sections={data.report!.sections}
+                labels={{
+                  untitled: t("logViewer.report.untitled"),
+                  copyMarkdown: t("logViewer.report.copyMarkdown"),
+                  copied: t("logViewer.report.copied"),
+                  emptyValue: t("logViewer.report.empty"),
+                  envTitle: t("logViewer.report.env"),
+                }}
+                onCopy={copyReport}
+              />
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
+            {t("logViewer.noReport")}
+          </div>
+        )}
+      </TabsContent>
 
       <TabsContent value="console" className="mt-0 flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden">
         {hasConsole ? (
@@ -171,28 +224,28 @@ export function App({ data }: AppProps) {
           <div />
         )}
         <div className="ml-auto">
-          {activeTab === "console" && data.consoleLogJson && (
+          {activeTab === "console" && hasConsole && (
             <Button
               className="gap-1"
-              onClick={() => downloadJson(data.consoleLogJson!, "Console-log.json")}
+              onClick={() => downloadJson(buildConsoleLogJson(data.consoleLog!, data.meta.version), "Console-log.json")}
             >
               <Download className="h-4 w-4" />
               Console-log.json
             </Button>
           )}
-          {activeTab === "network" && data.har && (
+          {activeTab === "network" && hasNetwork && (
             <Button
               className="gap-1"
-              onClick={() => downloadJson(data.har!, "Network-log.har")}
+              onClick={() => downloadJson(buildHar(data.networkLog!, data.meta.version), "Network-log.har")}
             >
               <Download className="h-4 w-4" />
               Network-log.har
             </Button>
           )}
-          {activeTab === "action" && data.actionLogJson && (
+          {activeTab === "action" && hasAction && (
             <Button
               className="gap-1"
-              onClick={() => downloadJson(data.actionLogJson!, "Action-log.json")}
+              onClick={() => downloadJson(buildActionLogJson(data.actionLog!, data.meta.version), "Action-log.json")}
             >
               <Download className="h-4 w-4" />
               Action-log.json
