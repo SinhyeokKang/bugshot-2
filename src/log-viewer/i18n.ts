@@ -32,6 +32,8 @@ export const koDict: Record<string, string> = {
   "networkLog.display.bodyTruncated": "본문 잘림 ({size} · 한도 {limit})",
   "networkLog.display.bodyOmitted": "본문 생략 (메모리 한도)",
   "networkLog.display.pending": "응답 대기 중",
+  "networkLog.display.blocked": "실패 · 상태 가려짐",
+  "networkLog.display.blockedHint": "CORS 또는 연결 실패로 실제 서버 상태 코드를 읽을 수 없습니다.",
   "networkLog.counter.captured": "{n}건 캡처",
 
   "consoleLog.search": "메시지 검색…",
@@ -119,6 +121,8 @@ export const enDict: Record<string, string> = {
   "networkLog.display.bodyTruncated": "Body truncated ({size} · cap {limit})",
   "networkLog.display.bodyOmitted": "Body omitted (memory cap)",
   "networkLog.display.pending": "Waiting for response",
+  "networkLog.display.blocked": "Failed · status hidden",
+  "networkLog.display.blockedHint": "The real server status code can't be read due to a CORS or connection failure.",
   "networkLog.counter.captured": "{n} captured",
 
   "consoleLog.search": "Search messages…",
