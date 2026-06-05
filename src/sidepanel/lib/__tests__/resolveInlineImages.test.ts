@@ -1,9 +1,20 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
+
+vi.mock("@/store/blob-db", () => ({
+  getInlineImage: vi.fn(async (refId: string) =>
+    refId === "missing" ? null : ({ __ref: refId } as unknown as Blob),
+  ),
+  blobToDataUrl: vi.fn(
+    async (blob: unknown) => `data:image/png;${(blob as { __ref: string }).__ref}`,
+  ),
+}));
 
 import {
   extractInlineRefs,
   replaceInlineRefs,
   stripInlineImageRefs,
+  resolveSectionImages,
+  type SectionFilter,
 } from "../resolveInlineImages";
 
 describe("extractInlineRefs", () => {
@@ -88,5 +99,55 @@ describe("stripInlineImageRefs", () => {
   it("연속 줄바꿈 정리", () => {
     const result = stripInlineImageRefs("text\n\n\n\n![](inline:a)\n\n\n\nmore");
     expect(result).not.toContain("\n\n\n");
+  });
+});
+
+describe("resolveSectionImages", () => {
+  const cfg = (
+    overrides: Partial<SectionFilter> & { id: string },
+  ): SectionFilter => ({ enabled: true, renderAs: "paragraph", ...overrides });
+
+  it("enabled paragraph 섹션의 inline 참조 → dataURL로 치환", async () => {
+    const out = await resolveSectionImages(
+      { body: "see ![](inline:abc12345)" },
+      [cfg({ id: "body" })],
+    );
+    expect(out.body).toBe("see ![](data:image/png;abc12345)");
+  });
+
+  it("inline 없는 섹션 → 원본 유지", async () => {
+    const out = await resolveSectionImages(
+      { body: "no images here" },
+      [cfg({ id: "body" })],
+    );
+    expect(out.body).toBe("no images here");
+  });
+
+  it("disabled / non-paragraph 섹션 → resolve 안 함", async () => {
+    const sections = {
+      off: "![](inline:abc12345)",
+      list: "![](inline:abc12345)",
+    };
+    const out = await resolveSectionImages(sections, [
+      cfg({ id: "off", enabled: false }),
+      cfg({ id: "list", renderAs: "orderedList" }),
+    ]);
+    expect(out.off).toBe("![](inline:abc12345)");
+    expect(out.list).toBe("![](inline:abc12345)");
+  });
+
+  it("blob 없는 참조 → 치환하지 않고 원본 마크다운 유지", async () => {
+    const out = await resolveSectionImages(
+      { body: "![](inline:missing)" },
+      [cfg({ id: "body" })],
+    );
+    expect(out.body).toBe("![](inline:missing)");
+  });
+
+  it("입력 객체를 변형하지 않고 새 맵 반환", async () => {
+    const input = { body: "![](inline:abc12345)" };
+    const out = await resolveSectionImages(input, [cfg({ id: "body" })]);
+    expect(input.body).toBe("![](inline:abc12345)");
+    expect(out).not.toBe(input);
   });
 });

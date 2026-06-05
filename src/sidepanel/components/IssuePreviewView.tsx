@@ -55,15 +55,17 @@ export function IssuePreviewView({
     return () => window.clearTimeout(id);
   }, [copied]);
 
+  const hasMedia = media != null;
+  const hasLogCards = logCards != null;
   const layout = useMemo(
     () =>
       composePreviewLayout({
         sectionIds: sections.map((s) => s.id),
         postMediaSectionIds,
-        hasMedia: media != null,
-        hasLogCards: logCards != null,
+        hasMedia,
+        hasLogCards,
       }),
-    [sections, postMediaSectionIds, media, logCards],
+    [sections, postMediaSectionIds, hasMedia, hasLogCards],
   );
 
   const handleCopy = async () => {
@@ -107,13 +109,13 @@ export function IssuePreviewView({
         </div>
       </Section>
 
-      {layout.map((entry, i) => {
+      {layout.map((entry) => {
         if (entry.kind === "media") return <React.Fragment key="__media">{media}</React.Fragment>;
         if (entry.kind === "logCards") return <React.Fragment key="__logCards">{logCards}</React.Fragment>;
         const sec = sections.find((s) => s.id === entry.id);
         if (!sec) return null;
         return (
-          <Section key={`${sec.id}-${i}`} title={sec.label}>
+          <Section key={sec.id} title={sec.label}>
             <PreviewSectionBody section={sec} emptyValue={labels.emptyValue} />
           </Section>
         );
