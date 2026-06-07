@@ -184,7 +184,7 @@ function EmptyState({ onStartElement, onStartElementShot, onStartScreenshot, onS
           <h3 className="whitespace-pre-line text-center text-lg font-semibold">{t("issue.empty.title")}</h3>
         </div>
         <TooltipProvider delayDuration={0}>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid w-full max-w-[336px] grid-cols-2 gap-2">
             <ShortcutTooltip shortcut={shortcuts["capture-element"]}>
               <Button className="col-span-2" onClick={onStartElement}>
                 <Crosshair />
