@@ -12,7 +12,7 @@ No more typing out "the color of this button looks off" — one click does it.
 
 It looks like a lot at first, but don't worry — the side panel is just four tabs, and they click into place quickly.
 
-- **Debug** — Pick a capture mode (Select DOM element, Screenshot, Record video) and write your issue here. Console and network logs live here too.
+- **Debug** — Pick a capture mode (Edit element styles, Capture element, Capture area, Record screen) and write your issue here. Console and network logs live here too.
 - **Issues** — Browse your drafts and submitted issues, and reopen them anytime.
 - **Integrations** — Connect platforms like Jira and GitHub. With nothing connected yet, this tab opens first.
 - **Settings** — Set up the issue body sections, AI connection, language, and theme just the way you like.

@@ -2,9 +2,11 @@
 
 ## Start picking
 
-In the **Debug** tab, click **Select DOM element**, or press `Cmd/Ctrl+Shift+S`. A crosshair appears over the page, and the element under your cursor lights up.
+In the **Debug** tab, click **Edit element styles**, or press `Cmd/Ctrl+Shift+S`. A crosshair appears over the page, and the element under your cursor lights up.
 
 > If the shortcut doesn't respond, it may be clashing with your OS or another extension — feel free to start from the button instead.
+
+> Just want a screenshot of the element without touching its styles? [Capture element](../screenshot/capture.md) is the quicker route.
 
 ![Picker crosshair](../assets/element-picker-1.jpg)
 

@@ -2,7 +2,7 @@
 
 ## Start recording
 
-In the **Debug** tab, click **Record video**, or press `Cmd/Ctrl+Shift+X`, and recording starts.
+In the **Debug** tab, click **Record screen**, or press `Cmd/Ctrl+Shift+X`, and recording starts.
 
 > If the shortcut doesn't respond, it may be clashing with your OS or another extension — feel free to start from the button instead.
 
