@@ -38,9 +38,9 @@
 
 - **요소 캡처 세부 모드 신설**: idle "요소 캡처" 선택 → picker로 요소 선택 → **styling 없이 drafting** 진입. 캡처 결과는 `captureMode: "screenshot"`의 요소 크롭 이미지.
 - **screenshot 생태계 종속**: 로그(`supportsConsoleNetworkLog`)·마크다운/본문 빌더·captureFiles·IssueRecord·blob 키를 screenshot과 동일하게 — 별도 분기 없음.
-- **DOM selector를 본문 + 메타 양쪽에 표시**: ① 본문 Environment의 `- **DOM**: {selector}` 줄에 표시, ② `buildMetaComment`의 AI 메타(`<!-- bugshot-meta-for-ai -->`)에도. 둘 다 `ctx.selector`로 구동.
+- **DOM selector를 사용자가 보는 모든 면에 일관 노출**: ① 등록 이슈 본문 Environment의 `- **DOM**: {selector}` 줄, ② `buildMetaComment`의 AI 메타(`<!-- bugshot-meta-for-ai -->`), ③ drafting 미리보기 Environment, ④ PreviewPanel "마크다운 복사" 결과물, ⑤ 로그 뷰어 Report 탭 프리뷰, ⑥ AI 초안 생성 입력. 제출본·미리보기·복사·Report·AI가 같은 selector로 일치한다.
   - 메타: `buildMetaComment`가 `captureMode !== "freeform"`이면 `meta.selector`를 넣으므로 `ctx.selector`만 채우면 자동.
-  - 본문 env: 현재 DOM 줄 조건이 `captureMode !== "screenshot" && ... && selector`(line 63 등)라 screenshot은 미표시 → **조건을 "selector 있으면 표시"로 완화**(buildIssueMarkdown env + 6개 빌더). 요소 캡처는 selector가 채워져 표시, 범위 캡처는 `""`라 미표시 — 자연 분기.
+  - 본문 env: 빌더가 두 갈래다. Group A(buildIssueMarkdown md/html·GitHub·GitLab·Asana)는 `ctx.selector` 기반이라 조건만 완화하면 되고, Group B(Linear·Notion·Adf)는 DOM 줄을 `formatElementName(tagName)`로 만들고 screenshot을 게이트로 막으므로 **selector 기반으로 전환**해 6개 빌더 + 메타가 동일한 selector 문자열로 일관. 범위 캡처는 selector가 `""`라 미표시 — 자연 분기. (상세: design.md)
 - **annotation 지원**: 요소 크롭 이미지도 screenshot과 동일하게 주석 가능. `captureElementSnapshot`의 크롭 결과를 `screenshotRaw`에 세팅하면 `DraftingPanel`의 `AnnotationOverlay`(→ `onAnnotated` → `screenshotAnnotated`)가 그대로 동작 — 별도 작업 없음.
 - **idle 캡처 모드 위계 재구성**: 진입 버튼 정리(아래 UI).
 - element 모드(스타일 수정)는 변경 없음 — 독립.
@@ -73,12 +73,14 @@
 ### 엣지 케이스
 - **요소 선택 취소**: picker 취소 → idle 복귀(기존 picking 취소).
 - **미지원 페이지/iframe**: 기존 element picker 제약 그대로.
-- **drafting에서 뒤로**: styling 단계가 없으므로 "뒤로"는 취소 또는 요소 재선택(스타일 모드의 backToStyling 없음).
+- **drafting에서 뒤로**: styling 단계가 없으므로 스타일 모드의 backToStyling을 쓰지 않는다. **범위 캡처(area)의 drafting 뒤로 동작과 동일**하게 처리(둘 다 styling 없는 screenshot 모드).
+- **요소 크롭 캡처 실패**: `captureElementSnapshot`이 null 반환(권한 만료·캡처 실패) 시 drafting 진입하지 않고 idle 복귀/에러 안내(빈 이미지로 진입 금지).
 
 ## 성공 기준
 
 - idle "요소 캡처" → 요소 선택 → styling 없이 drafting 진입.
-- 등록 이슈가 **screenshot과 동일한 구성**(미디어 섹션·로그·IssueRecord·blob 키)으로 나오며, Environment에 DOM selector 줄 + AI 메타에 selector가 추가된다.
+- 등록 이슈가 **screenshot과 동일한 구성**(미디어 섹션·로그·IssueRecord·blob 키)으로 나오며, 6개 플랫폼 전부 Environment에 동일한 DOM selector 줄 + AI 메타에 selector가 추가된다.
+- DOM selector가 drafting 미리보기·마크다운 복사·로그 뷰어 Report 탭·AI 초안 입력에서도 동일하게 노출된다(제출본과 일치).
 - 요소 크롭 이미지를 drafting에서 annotation(주석)할 수 있다(screenshot과 동일 UI).
 - element 모드(스타일 수정)·기존 범위 캡처·녹화·리플레이 회귀 없음.
 - captureMode union에 새 값이 추가되지 않음(screenshot 재사용 확인).
