@@ -57,6 +57,12 @@ export interface EditorStyleEdits {
   text: string;
 }
 
+// 요소 캡처(screenshot 세부 모드)의 경량 selector 보관 — EditorSelection(스타일 메타)은 재사용 안 함.
+export interface ShotSelector {
+  selector: string;
+  tagName: string;
+}
+
 export interface EditorDraft {
   title: string;
   sections: Record<string, string>;
@@ -81,7 +87,7 @@ interface EditorState {
   targetPlatform: PlatformId;
   target: EditorTarget | null;
   selection: EditorSelection | null;
-  shotSelector: { selector: string; tagName: string } | null;
+  shotSelector: ShotSelector | null;
   styleEdits: EditorStyleEdits;
   tokens: Token[];
   beforeImage: string | null;
@@ -122,7 +128,7 @@ interface EditorState {
   startCapturing: (target: EditorTarget) => void;
   startElementShot: (target: EditorTarget) => void;
   onElementShot: (
-    shot: { selector: string; tagName: string },
+    shot: ShotSelector,
     image: string,
     viewport: { width: number; height: number },
   ) => void;
@@ -202,7 +208,7 @@ const initial = {
   targetPlatform: "jira" as PlatformId,
   target: null,
   selection: null,
-  shotSelector: null as { selector: string; tagName: string } | null,
+  shotSelector: null as ShotSelector | null,
   styleEdits: {
     classList: [] as string[],
     inlineStyle: {} as Record<string, string>,

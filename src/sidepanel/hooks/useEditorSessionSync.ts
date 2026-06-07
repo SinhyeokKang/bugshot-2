@@ -177,11 +177,12 @@ export function useEditorSessionSync(tabId: number | null): boolean {
         if (needsReset) {
           useEditorStore.getState().reset();
         }
-        if (captureMode === "element" && (needsExpiry || needsReset)) {
-          void clearPicker(tabId).catch(() => {});
-        }
+        // 콘텐츠 picker 정리: area-select(screenshot+capturing)만 cancelAreaSelect,
+        // 그 외 element-select picker(element 스타일 / 요소 캡처 picking)는 clear.
         if (captureMode === "screenshot" && phase === "capturing") {
           void chrome.tabs.sendMessage(tabId, { type: "picker.cancelAreaSelect" }).catch(() => {});
+        } else if (needsExpiry || needsReset) {
+          void clearPicker(tabId).catch(() => {});
         }
       }
     };
@@ -218,13 +219,13 @@ export function useEditorSessionSync(tabId: number | null): boolean {
         (captureMode === "screenshot" && phase === "capturing");
       if (needsReset) {
         useEditorStore.getState().reset();
-        if (captureMode === "element") {
-          void clearPicker(tabId).catch(() => {});
-        }
-        if (captureMode === "screenshot") {
+        // area-select(screenshot+capturing)만 cancelAreaSelect, element-select picker는 clear.
+        if (captureMode === "screenshot" && phase === "capturing") {
           void chrome.tabs
             .sendMessage(tabId, { type: "picker.cancelAreaSelect" })
             .catch(() => {});
+        } else {
+          void clearPicker(tabId).catch(() => {});
         }
         return;
       }
