@@ -21,7 +21,7 @@
 ## 비목표 (Non-goals)
 
 - **버퍼 관리 UI 없음**: 담긴 요소 목록·재편집·개별 삭제 UI는 제외. 이번엔 완전 헤드리스(상태/직렬화 로직 + 최소 진입 가드만). 목록 UI는 후속.
-- **draft 영속/재편집 미지원**: 이슈를 draft로 저장한 뒤 *이슈 목록 → DraftDetailDialog*에서 다시 열어 편집/재제출하는 경로는 **단일 element만 복원**(기존 동작 유지). 복수 element는 첫 제출 세션 안에서만 산다. `IssueRecord` 스키마·마이그레이션·blob 키 변경 없음.
+- **draft 영속/재편집 미지원**: 이슈를 draft로 저장한 뒤 *이슈 목록 → DraftDetailDialog*에서 다시 열어 편집/재제출하는 경로는 **단일(마지막) element만 복원**(기존 동작 유지). 복수 element는 첫 제출 세션 안에서만 산다. **사용자 영향**: 복수 element 이슈를 draft로 저장 후 재편집하면 마지막 요소 외 나머지는 복원되지 않는다(조용한 손실). 단, **첫 제출(플랫폼 등록) 본문에는 영향 없다** — 복수 element는 정상 등록되고, draft 백업만 단일이다. `IssueRecord` 스키마·마이그레이션·blob 키 변경 없음.
 - element 모드 외(screenshot/video/freeform)는 무관 — 변경 없음. **diff 없는 요소를 캡처하고 싶으면 요소 캡처 모드([[element-screenshot]])**가 대체한다.
 - 버퍼 개수 상한·경고 UI 없음(용량 위험은 design.md 참조).
 
@@ -51,7 +51,7 @@
 - A 수정 → 다시 선택 → B 선택 시 A의 `styleEdits`/스냅샷이 버퍼에 보존되고, 페이지에서도 A 변경이 그대로 유지된다(B 편집 중에도 A·B 동시 적용).
 - 이슈 등록 시 6개 플랫폼(Jira/GitHub/Linear/Notion/GitLab/Asana) 본문에 A·B element 섹션이 각각 selector·diff·before/after와 함께 들어간다.
 - 사이드패널을 닫았다 열어도 버퍼가 복원된다.
-- 이슈 작성 취소/제출 완료/reset 시 버퍼가 비워지고 페이지의 모든 누적 변경이 원본으로 복원된다(잔여 오염 0).
+- 이슈 작성 취소/제출 완료/reset 시 버퍼가 비워지고 페이지의 모든 누적 변경이 원본으로 복원된다(잔여 오염 0). **제출 완료(done) 후 idle 전환 전 패널/탭을 닫아도 페이지가 복원된다**(제출 완료 구독 지점에서 복원 동반).
 - 같은 selector를 두 번 다루면 본문에 한 번만(최종 상태) 나타난다.
 - `buildStyleDiff`·버퍼 머지 등 순수 함수 단위 테스트 통과(`pnpm test`).
 - draft 재편집(DraftDetailDialog)은 기존대로 단일 element로 동작하며, 레거시 no-diff draft 표시도 회귀 없다.
