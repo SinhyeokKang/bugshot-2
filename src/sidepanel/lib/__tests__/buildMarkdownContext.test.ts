@@ -135,3 +135,20 @@ describe("buildMarkdownContext", () => {
     expect(ctx.tokens).toEqual([{ name: "--brand", value: "#111" }]);
   });
 });
+
+// element-screenshot: screenshot 분기에 optional selector/tagName 주입 경로.
+// 요소 캡처는 채워지고, 범위 캡처(selector 미입력)는 빈 문자열 유지.
+describe("요소 캡처: screenshot + selector 주입", () => {
+  it("screenshot + selector/tagName → ctx.selector·tagName 채움", () => {
+    const ctx = buildMarkdownContext(
+      baseArgs({ captureMode: "screenshot", selector: "button.cta", tagName: "button" }),
+    );
+    expect(ctx.selector).toBe("button.cta");
+    expect(ctx.tagName).toBe("button");
+  });
+
+  it("screenshot + selector 미입력(범위 캡처) → ctx.selector 빈 문자열 (회귀)", () => {
+    const ctx = buildMarkdownContext(baseArgs({ captureMode: "screenshot" }));
+    expect(ctx.selector).toBe("");
+  });
+});

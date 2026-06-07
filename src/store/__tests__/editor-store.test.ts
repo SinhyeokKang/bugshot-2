@@ -637,3 +637,46 @@ describe("clearNetworkLog / clearConsoleLog", () => {
     expect(mockClearConsoleRecorder).not.toHaveBeenCalled();
   });
 });
+
+/* ------------------------------------------------------------------ */
+/*  element-screenshot — 요소 캡처 진입/선택 액션                          */
+/* ------------------------------------------------------------------ */
+
+describe("startElementShot — 요소 캡처 진입", () => {
+  beforeEach(() => {
+    useEditorStore.setState(useEditorStore.getInitialState(), true);
+  });
+
+  it("captureMode='screenshot' + phase='picking' + shotSelector=null", () => {
+    useEditorStore.getState().startElementShot(target);
+
+    const s = useEditorStore.getState();
+    expect(s.captureMode).toBe("screenshot");
+    expect(s.phase).toBe("picking");
+    expect(s.shotSelector).toBeNull();
+  });
+});
+
+describe("onElementShot — 요소 선택 → drafting", () => {
+  beforeEach(() => {
+    useEditorStore.setState(useEditorStore.getInitialState(), true);
+  });
+
+  it("screenshotRaw·viewport·shotSelector 세팅 + phase='drafting' + selection은 null 유지", () => {
+    useEditorStore.getState().startElementShot(target);
+    useEditorStore
+      .getState()
+      .onElementShot(
+        { selector: "button.cta", tagName: "button" },
+        "data:image/png;base64,X",
+        { width: 800, height: 600 },
+      );
+
+    const s = useEditorStore.getState();
+    expect(s.screenshotRaw).toBe("data:image/png;base64,X");
+    expect(s.screenshotViewport).toEqual({ width: 800, height: 600 });
+    expect(s.shotSelector).toEqual({ selector: "button.cta", tagName: "button" });
+    expect(s.phase).toBe("drafting");
+    expect(s.selection).toBeNull();
+  });
+});

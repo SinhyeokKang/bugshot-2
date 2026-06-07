@@ -502,3 +502,37 @@ describe("buildIssueHtml — custom environment rows", () => {
     expect(html).not.toContain("<strong></strong>");
   });
 });
+
+// element-screenshot: 요소 캡처(captureMode "screenshot" + selector 채움)는 env에 DOM 줄 노출.
+// 범위 캡처(screenshot + 빈 selector)는 미표시. 조건을 ctx.selector truthy로 완화.
+describe("요소 캡처 (screenshot + selector) — DOM 줄 노출", () => {
+  it("screenshot + selector → md env에 DOM 줄 표시", () => {
+    const md = buildIssueMarkdown(
+      makeCtx({ captureMode: "screenshot", selector: "button.cta", diffs: [] }),
+    );
+    expect(md).toContain("- **DOM**: button.cta");
+  });
+
+  it("screenshot + 빈 selector(범위 캡처) → DOM 미표시 (회귀)", () => {
+    const md = buildIssueMarkdown(
+      makeCtx({ captureMode: "screenshot", selector: "", diffs: [] }),
+    );
+    expect(md).not.toContain("**DOM**");
+  });
+
+  it("screenshot + selector → html env에 DOM 표시", () => {
+    const html = buildIssueHtml(
+      makeCtx({ captureMode: "screenshot", selector: "button.cta", diffs: [] }),
+    );
+    expect(html).toContain("<strong>DOM</strong>: button.cta");
+  });
+
+  it("screenshot + selector → meta comment에 selector 포함", () => {
+    const md = buildIssueMarkdown(
+      makeCtx({ captureMode: "screenshot", selector: "button.cta", diffs: [] }),
+    );
+    const start = md.indexOf("<!-- bugshot-meta-for-ai");
+    const end = md.indexOf("-->", start);
+    expect(md.slice(start, end)).toContain('"selector"');
+  });
+});

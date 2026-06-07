@@ -430,3 +430,21 @@ describe("buildIssueAdf — custom environment rows", () => {
     expect(json).toContain("macOS 15");
   });
 });
+
+// element-screenshot (Group B: domLabel→selector 전환): 요소 캡처(screenshot + selector)는
+// env에 selector 문자열을 노출. screenshot 게이트도 완화.
+// (빈 selector 회귀는 markdown/github/linear/notion이 커버 — adf env DOM 라벨 표현 의존도가 높아 표시만 검증.)
+describe("buildIssueAdf — 요소 캡처 (screenshot + selector)", () => {
+  it("screenshot + selector → env text 노드에 selector 포함", () => {
+    const doc = buildIssueAdf(
+      makeCtx({
+        captureMode: "screenshot",
+        selector: "button.cta",
+        tagName: "button",
+        diffs: [],
+      }),
+    );
+    const texts = findNodes(doc, "text");
+    expect(texts.some((t) => t.text?.includes("button.cta"))).toBe(true);
+  });
+});

@@ -352,3 +352,26 @@ describe("buildLinearIssueBody — custom environment rows", () => {
     expect(out.body).toContain("- **OS**: macOS 15");
   });
 });
+
+// element-screenshot (Group B: domLabel→selector 전환): 요소 캡처(screenshot + selector)는
+// formatElementName이 아니라 ctx.selector 문자열을 DOM 줄에 출력. screenshot 게이트도 완화.
+describe("buildLinearIssueBody — 요소 캡처 (screenshot + selector)", () => {
+  it("screenshot + selector → DOM 줄에 selector(formatElementName 아님)", () => {
+    const out = buildLinearIssueBody({
+      ctx: makeCtx({
+        captureMode: "screenshot",
+        selector: "button.cta",
+        tagName: "button",
+        diffs: [],
+      }),
+    });
+    expect(out.body).toContain("**DOM**: button.cta");
+  });
+
+  it("screenshot + 빈 selector(범위 캡처) → DOM 미표시 (회귀)", () => {
+    const out = buildLinearIssueBody({
+      ctx: makeCtx({ captureMode: "screenshot", selector: "", diffs: [] }),
+    });
+    expect(out.body).not.toContain("**DOM**");
+  });
+});

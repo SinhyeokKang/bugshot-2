@@ -666,3 +666,32 @@ describe("buildNotionIssueBody — 푸터는 body가 아니라 createPage가 담
     expect(out.blocks[out.blocks.length - 1].type).not.toBe("divider");
   });
 });
+
+// element-screenshot (Group B: domLabel→selector 전환): 요소 캡처(screenshot + selector)는
+// env bullet에 selector를 출력. screenshot 게이트도 완화.
+describe("buildNotionIssueBody — 요소 캡처 (screenshot + selector)", () => {
+  it("screenshot + selector → env bullet에 DOM: selector", () => {
+    const out = buildNotionIssueBody({
+      ctx: makeCtx({
+        captureMode: "screenshot",
+        selector: "button.cta",
+        tagName: "button",
+        diffs: [],
+      }),
+    });
+    const bullets = out.blocks.filter((b) => b.type === "bulleted_list_item");
+    expect(
+      bullets.some(
+        (b) => "text" in b && b.text.startsWith("DOM:") && b.text.includes("button.cta"),
+      ),
+    ).toBe(true);
+  });
+
+  it("screenshot + 빈 selector(범위 캡처) → DOM bullet 없음 (회귀)", () => {
+    const out = buildNotionIssueBody({
+      ctx: makeCtx({ captureMode: "screenshot", selector: "", diffs: [] }),
+    });
+    const bullets = out.blocks.filter((b) => b.type === "bulleted_list_item");
+    expect(bullets.some((b) => "text" in b && b.text.startsWith("DOM:"))).toBe(false);
+  });
+});

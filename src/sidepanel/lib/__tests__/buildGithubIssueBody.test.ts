@@ -455,3 +455,20 @@ describe("buildGithubIssueBody — custom environment rows", () => {
     expect(out.body).toContain("- **OS**: macOS 15");
   });
 });
+
+// element-screenshot (Group A: ctx.selector 직접 출력): 요소 캡처(screenshot + selector)는 DOM 줄 노출.
+describe("buildGithubIssueBody — 요소 캡처 (screenshot + selector)", () => {
+  it("screenshot + selector → 본문에 DOM 줄", () => {
+    const out = buildGithubIssueBody({
+      ctx: makeCtx({ captureMode: "screenshot", selector: "button.cta", diffs: [] }),
+    });
+    expect(out.body).toContain("**DOM**: button.cta");
+  });
+
+  it("screenshot + 빈 selector(범위 캡처) → DOM 미표시 (회귀)", () => {
+    const out = buildGithubIssueBody({
+      ctx: makeCtx({ captureMode: "screenshot", selector: "", diffs: [] }),
+    });
+    expect(out.body).not.toContain("**DOM**");
+  });
+});

@@ -198,4 +198,13 @@ describe("deriveContextEnvRows", () => {
   it("capturedAt 0이면 Captured 행을 생략한다 (1970 표시 방지)", () => {
     expect(labels(makeCtx({ capturedAt: 0 }))).not.toContain("Captured");
   });
+
+  // element-screenshot: 요소 캡처(screenshot + selector)는 Report 탭 env에도 DOM 행 노출.
+  it("screenshot + selector → DOM 행 포함", () => {
+    expect(labels(makeCtx({ captureMode: "screenshot", selector: "button.cta" }))).toContain("DOM");
+  });
+
+  it("screenshot + 빈 selector(범위 캡처) → DOM 행 생략 (회귀)", () => {
+    expect(labels(makeCtx({ captureMode: "screenshot", selector: "" }))).not.toContain("DOM");
+  });
 });
