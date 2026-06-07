@@ -456,7 +456,7 @@ describe("buildNotionIssueBody — freeform", () => {
 
   it("freeform 모드 → DOM 미표시", () => {
     const out = buildNotionIssueBody({
-      ctx: makeCtx({ captureMode: "freeform" as MarkdownContext["captureMode"], selector: "div.test" }),
+      ctx: makeCtx({ captureMode: "freeform" as MarkdownContext["captureMode"], selector: "" }),
     });
     const bullets = out.blocks.filter((b) => b.type === "bulleted_list_item");
     expect(bullets.some((b) => "text" in b && b.text.startsWith("DOM:"))).toBe(false);

@@ -261,6 +261,35 @@ export async function startAreaCapture(tabId: number): Promise<void> {
   }
 }
 
+export async function startElementShot(tabId: number): Promise<void> {
+  let tab: chrome.tabs.Tab;
+  try {
+    tab = await chrome.tabs.get(tabId);
+  } catch (err) {
+    console.error("[bugshot] element shot start failed", err);
+    return;
+  }
+  if (!(await ensureSupportedTab(tab))) return;
+  useEditorStore.getState().startElementShot({
+    tabId,
+    url: tab.url ?? "",
+    title: tab.title ?? "",
+  });
+  try {
+    await ensureContentScript(tabId);
+    await chrome.tabs.sendMessage<PickerMessage>(tabId, {
+      type: "picker.start",
+    });
+  } catch (err) {
+    if (err instanceof PickerUnavailableError) {
+      onPickerUnavailable.fire();
+    } else {
+      console.error("[bugshot] element shot start failed", err);
+    }
+    useEditorStore.getState().reset();
+  }
+}
+
 export async function startInlineAreaCapture(tabId: number): Promise<void> {
   let tab: chrome.tabs.Tab;
   try {

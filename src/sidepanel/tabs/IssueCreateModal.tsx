@@ -108,6 +108,7 @@ export function IssueCreateModal() {
 
   const captureMode = useEditorStore((s) => s.captureMode);
   const selection = useEditorStore((s) => s.selection);
+  const shotSelector = useEditorStore((s) => s.shotSelector);
   const target = useEditorStore((s) => s.target);
   const styleEdits = useEditorStore((s) => s.styleEdits);
   const tokens = useEditorStore((s) => s.tokens);
@@ -205,8 +206,8 @@ export function IssueCreateModal() {
         sections: draft.sections,
         sectionConfig,
         url: target.url,
-        selector: "",
-        tagName: "",
+        selector: shotSelector?.selector ?? "",
+        tagName: shotSelector?.tagName ?? "",
         classListBefore: [],
         classListAfter: [],
         specifiedStyles: {},

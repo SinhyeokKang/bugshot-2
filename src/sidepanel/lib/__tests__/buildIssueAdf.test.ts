@@ -275,7 +275,7 @@ describe("buildIssueAdf — freeform", () => {
   });
 
   it("freeform 모드 → 환경 정보에서 DOM 생략", () => {
-    const doc = buildIssueAdf(freeformCtx({ selector: "div.test" }));
+    const doc = buildIssueAdf(freeformCtx());
     const texts = findNodes(doc, "text");
     expect(texts.some((t) => t.text?.includes("DOM"))).toBe(false);
   });

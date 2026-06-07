@@ -378,6 +378,7 @@ function ReproEnvironmentSection() {
   const target = useEditorStore((s) => s.target);
   const captureMode = useEditorStore((s) => s.captureMode);
   const selection = useEditorStore((s) => s.selection);
+  const shotSelector = useEditorStore((s) => s.shotSelector);
   const videoViewport = useEditorStore((s) => s.videoViewport);
   const videoCapturedAt = useEditorStore((s) => s.videoCapturedAt);
   const screenshotViewport = useEditorStore((s) => s.screenshotViewport);
@@ -404,7 +405,7 @@ function ReproEnvironmentSection() {
     os: getOsInfo(),
     browser: parseChromeVersion(navigator.userAgent),
     url: target?.url ?? "",
-    selector: captureMode === "element" ? selection?.selector : null,
+    selector: captureMode === "element" ? selection?.selector : shotSelector?.selector ?? null,
     viewport: vp ? { w: vp.width, h: vp.height } : null,
     capturedAt,
   });

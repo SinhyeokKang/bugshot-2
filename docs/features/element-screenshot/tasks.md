@@ -16,14 +16,14 @@
   - `startElementShot(target)`: `...initial`, `captureMode: "screenshot"`, `phase: "picking"`, `...preserveLogs`, `shotSelector: null`.
   - `onElementShot(shot, image, viewport)`: `screenshotRaw: image`, `screenshotViewport: viewport`, `screenshotCapturedAt`, `shotSelector: shot`, `phase: "drafting"`. captureMode `"screenshot"` 유지, **`selection`은 null 유지**.
 - **검증**:
-  - [ ] `pnpm typecheck` 통과
-  - [ ] 단위/상태: startElementShot 후 captureMode="screenshot" & phase="picking" & shotSelector=null; onElementShot 후 screenshotRaw 세팅 & shotSelector 보관 & phase="drafting" & **selection은 여전히 null**.
+  - [x] `pnpm typecheck` 통과
+  - [x] 단위/상태: startElementShot 후 captureMode="screenshot" & phase="picking" & shotSelector=null; onElementShot 후 screenshotRaw 세팅 & shotSelector 보관 & phase="drafting" & **selection은 여전히 null**.
 
 ### Task 2: 진입 함수 (picker-control)
 - **변경 대상**: `src/sidepanel/picker-control.ts`
 - **작업 내용**: `startElementShot(tabId)` — `startAreaCapture` 골격이되 `startElementShot` 액션 호출 + `picker.start`(요소 picker) 메시지(area select 아님).
 - **검증**:
-  - [ ] `pnpm typecheck` 통과
+  - [x] `pnpm typecheck` 통과
   - [ ] 수동: idle 진입 → 요소 picker(hover 하이라이트) 표시.
 
 ### Task 3: 선택 분기 + 캡처 null 가드 + overlay 정리 (usePickerMessages)
@@ -37,7 +37,7 @@
     4. **`clearPicker(tabId)`**(overlay destroy).
     - **`collectTokens`·`setBeforeImage`는 호출 안 함**.
 - **검증**:
-  - [ ] `pnpm typecheck` 통과
+  - [x] `pnpm typecheck` 통과
   - [ ] 수동: 요소 캡처에서 요소 선택 → 바로 drafting + **페이지 overlay 사라짐**. 캡처 이미지에 overlay 미포함.
   - [ ] 수동: 캡처 null(권한 만료 유도) 시 idle 복귀 + 에러 안내, 빈 drafting 진입 없음.
   - [ ] 수동(회귀): element 모드는 기존대로 styling 진입 + tokens/beforeImage 수집. screenshot 분기에서 collectTokens/before-image **미호출** 확인.
@@ -46,7 +46,7 @@
 - **변경 대상**: `src/sidepanel/tabs/IssueCreateModal.tsx`
 - **작업 내용**: screenshot 분기 `buildCtx`(`:208-209` `selector:""`/`tagName:""`)에서 `shotSelector`가 있으면 `selector: shotSelector.selector`, `tagName: shotSelector.tagName` 주입(area는 shotSelector null → `""`). 나머지 screenshot 그대로(`screenshotImage = screenshotAnnotated ?? screenshotRaw`라 annotation 자동).
 - **검증**:
-  - [ ] `pnpm typecheck` 통과
+  - [x] `pnpm typecheck` 통과
   - [ ] 수동: 요소 캡처 이슈 본문에 selector 반영(Task 5).
 
 ### Task 5: env DOM 줄 — Group A 완화 / Group B 전환 (6개 빌더 + 메타)
@@ -58,37 +58,37 @@
   - Group B: ① screenshot 게이트(`!isScreenshot` / Adf if-else) 풀고 ② DOM 줄 소스를 `domLabel = formatElementName(...)` → **`ctx.selector`**로 전환(`ctx.selector` truthy 시 표시). 6개 + 메타가 동일 selector 문자열로 일관.
   - 메타(`buildMetaComment` `:264-265`)는 `meta.selector = ctx.selector`로 이미 일관 — 변경 없음.
 - **검증**:
-  - [ ] `pnpm typecheck` 통과
-  - [ ] **단위 테스트(6개 빌더 각각 + md/html)**: ① screenshot+selector → env에 `- **DOM**: selector` 표시, ② screenshot+selector 빈값(area) → 미표시(회귀), ③ Group B element 모드 → selector 표시(`formatElementName` 아님)로 변경 확인. 기존 빌더 테스트(`buildLinearIssueBody.test.ts` 등)에 screenshot+selector 케이스 추가.
-  - [ ] 본문 selector == 메타 selector 동일 문자열 검증.
-  - [ ] `pnpm test` 통과
+  - [x] `pnpm typecheck` 통과
+  - [x] **단위 테스트(6개 빌더 각각 + md/html)**: ① screenshot+selector → env에 `- **DOM**: selector` 표시, ② screenshot+selector 빈값(area) → 미표시(회귀), ③ Group B element 모드 → selector 표시(`formatElementName` 아님)로 변경 확인. 기존 빌더 테스트(`buildLinearIssueBody.test.ts` 등)에 screenshot+selector 케이스 추가.
+  - [x] 본문 selector == 메타 selector 동일 문자열 검증.
+  - [x] `pnpm test` 통과
 
 ### Task 5b: drafting 미리보기 env selector (DraftingPanel)
 - **변경 대상**: `src/sidepanel/components/DraftingPanel.tsx:407`
 - **작업 내용**: `deriveReadonlyEnvRows`의 selector 소스를 `captureMode === "element" ? selection?.selector : (shotSelector?.selector ?? null)`로 보정. 요소 캡처(shotSelector) → 미리보기 env DOM 줄 표시, area(shotSelector null) → 미표시.
 - **검증**:
-  - [ ] `pnpm typecheck` 통과
+  - [x] `pnpm typecheck` 통과
   - [ ] 수동: 요소 캡처 drafting 미리보기 Environment에 DOM 줄 표시. area는 미표시(회귀).
 
 ### Task 5c: 마크다운 복사 경로 selector (buildMarkdownContext + PreviewPanel)
 - **변경 대상**: `src/sidepanel/lib/buildMarkdownContext.ts:77-91`(screenshot 분기 `selector:""`), `src/sidepanel/tabs/PreviewPanel.tsx:237-249`
 - **작업 내용**: `buildMarkdownContext` screenshot 분기에 optional `selector`/`tagName` 주입 경로 추가 + `PreviewPanel`이 `shotSelector` 전달. "마크다운 복사" 결과물에 DOM 줄·메타 selector 포함.
 - **검증**:
-  - [ ] `pnpm typecheck` 통과
+  - [x] `pnpm typecheck` 통과
   - [ ] 단위/수동: PreviewPanel 마크다운 복사 결과에 DOM 줄 + 메타 selector. area는 미포함.
 
 ### Task 5d: 로그 뷰어 Report 탭 selector (buildReportData)
 - **변경 대상**: `src/sidepanel/lib/buildReportData.ts:19-24`
 - **작업 내용**: DOM row 조건을 Group A와 동일하게 `ctx.selector`(truthy) 기준으로 완화.
 - **검증**:
-  - [ ] `pnpm typecheck` 통과
+  - [x] `pnpm typecheck` 통과
   - [ ] 단위/수동: 요소 캡처 이슈를 로그 뷰어 Report 탭에서 볼 때 DOM 줄 표시.
 
 ### Task 5e: AI 초안 입력 selector (AiDraftDialog)
 - **변경 대상**: `src/sidepanel/components/AiDraftDialog.tsx:81-82`
 - **작업 내용**: `isElement` 가드를 요소 캡처도 포함하도록 완화(`isElement || shotSelector`) → `shotSelector`의 selector/tagName을 AI 컨텍스트에 주입. 본문·메타·AI 초안 selector 일관.
 - **검증**:
-  - [ ] `pnpm typecheck` 통과
+  - [x] `pnpm typecheck` 통과
   - [ ] 수동: 요소 캡처에서 AI 초안 생성 시 selector가 입력 컨텍스트에 포함.
 
 ### Task 6: AI 메타 selector — 확인 (buildMetaComment)
@@ -101,8 +101,8 @@
 - **작업 내용**: 요소 캡처(screenshot + `shotSelector` 존재) 시 IssueRecord에 `selector`/`tagName` 저장(기존 optional 필드 `:148-149`). area는 `shotSelector` null → 미저장.
 - **DraftDetailDialog는 변경 거의 불필요**: `buildCtxForSubmit`(`DraftDetailDialog.tsx:272`)이 이미 `issue.selector ?? ""`로 ctx 복원 → 저장만 하면 재제출 본문/메타 일관 자동(단, 본문 DOM 줄 출력은 Task 5 빌더 완화에 의존). DraftDetail 수정이 정말 불필요한지 확인만.
 - **검증**:
-  - [ ] `pnpm typecheck` 통과
-  - [ ] 단위: confirmDraft screenshot+shotSelector → IssueRecord.selector 저장; area(shotSelector null) → 미저장(회귀).
+  - [x] `pnpm typecheck` 통과
+  - [x] 단위: confirmDraft screenshot+shotSelector → IssueRecord.selector 저장; area(shotSelector null) → 미저장(회귀).
   - [ ] 수동: 요소 캡처 draft 저장 → 이슈 목록 재열람/재제출 시 DOM 줄·메타 유지.
 
 ### Task 8: idle UI 재구성 (IssueTab)
@@ -113,7 +113,7 @@
   - 신설 "요소 캡처"는 **단축키 무툴팁**(capture 단축키 상한 도달, 재배치 보류). 기존 capture-element/screenshot/video 툴팁 매핑 그대로.
   - 아이콘: 요소 캡처(Crosshair/SquareDashedMousePointer 계열) vs 범위 캡처(점선 사각형) 시각 차별화.
 - **검증**:
-  - [ ] `pnpm typecheck` 통과
+  - [x] `pnpm typecheck` 통과
   - [ ] 수동: 5개 진입 버튼 + footer 2버튼(가이드·이슈 작성)이 올바른 동작으로 진입. 가이드 버튼 잔존. 각 버튼 라벨 = design Task 9 표.
 
 ### Task 9: i18n 라벨
@@ -125,7 +125,7 @@
   - `issue.mode.video` → ko "화면 녹화" / en "Record screen"
   - `issue.mode.replay`·`issue.startDraft` 유지.
 - **검증**:
-  - [ ] PostToolUse 훅(locales.test.ts) 통과
+  - [x] PostToolUse 훅(locales.test.ts) 통과
   - [ ] 수동: 각 버튼 라벨 텍스트가 표와 일치(자동 검증 밖).
 
 ### Task 10: annotation — 확인

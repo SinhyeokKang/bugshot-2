@@ -30,6 +30,9 @@ export interface BuildMarkdownContextArgs {
   // 비-element 캡처 메타 (호출처가 `?? Date.now()` 등 폴백 적용 후 주입)
   viewport?: { width: number; height: number } | null;
   capturedAt?: number;
+  // 요소 캡처(screenshot + shotSelector) selector 노출
+  selector?: string;
+  tagName?: string;
   // freeform/video 한정 로그 요약
   networkLogSummary?: NetworkLogSummary;
   consoleLogSummary?: ConsoleLogSummary;
@@ -77,8 +80,8 @@ export function buildMarkdownContext(args: BuildMarkdownContextArgs): MarkdownCo
   return {
     ...base,
     captureMode: args.captureMode,
-    selector: "",
-    tagName: "",
+    selector: args.selector ?? "",
+    tagName: args.tagName ?? "",
     classListBefore: [],
     classListAfter: [],
     specifiedStyles: {},

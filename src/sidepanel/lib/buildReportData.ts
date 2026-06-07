@@ -15,12 +15,7 @@ export function deriveContextEnvRows(
   if (ctx.os) rows.push({ label: "OS", value: ctx.os });
   if (ctx.browser) rows.push({ label: "Browser", value: ctx.browser });
   rows.push({ label: "Page", value: ctx.url });
-  if (
-    ctx.captureMode !== "screenshot" &&
-    ctx.captureMode !== "video" &&
-    ctx.captureMode !== "freeform" &&
-    ctx.selector
-  ) {
+  if (ctx.selector) {
     rows.push({ label: "DOM", value: ctx.selector });
   }
   // 비-element 폴백으로 viewport {0,0}·capturedAt 0이 들어올 수 있다 — Preview와 동일하게 가드해 0×0·1970 표시를 막는다.

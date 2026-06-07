@@ -162,7 +162,7 @@ describe("buildGithubIssueBody — freeform", () => {
 
   it("freeform 모드 → DOM 미표시", () => {
     const out = buildGithubIssueBody({
-      ctx: makeCtx({ captureMode: "freeform" as MarkdownContext["captureMode"], selector: "div.test" }),
+      ctx: makeCtx({ captureMode: "freeform" as MarkdownContext["captureMode"], selector: "" }),
     });
     expect(out.body).not.toContain("**DOM**");
   });

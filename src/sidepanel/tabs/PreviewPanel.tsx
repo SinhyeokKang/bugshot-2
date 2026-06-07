@@ -44,6 +44,7 @@ export function PreviewPanel() {
   const screenshotAnnotated = useEditorStore((s) => s.screenshotAnnotated);
   const screenshotRaw = useEditorStore((s) => s.screenshotRaw);
   const screenshotViewport = useEditorStore((s) => s.screenshotViewport);
+  const shotSelector = useEditorStore((s) => s.shotSelector);
   const screenshotCapturedAt = useEditorStore((s) => s.screenshotCapturedAt);
   const videoBlob = useEditorStore((s) => s.videoBlob);
   const videoThumbnail = useEditorStore((s) => s.videoThumbnail);
@@ -246,6 +247,8 @@ export function PreviewPanel() {
         environment: draft.environment ?? [],
         viewport: screenshotViewport ?? { width: 0, height: 0 },
         capturedAt: screenshotCapturedAt ?? Date.now(),
+        selector: shotSelector?.selector,
+        tagName: shotSelector?.tagName,
       });
     } else {
       return;

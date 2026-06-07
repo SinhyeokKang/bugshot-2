@@ -28,7 +28,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { formatElementName } from "@/lib/element-label";
 import {
   POST_MEDIA_SECTION_IDS,
   sectionLabelKey,
@@ -928,17 +927,7 @@ function EnvBlock({ issue }: { issue: IssueRecord }) {
     ...(os ? [{ label: "OS", value: os }] : []),
     ...(browser ? [{ label: "Browser", value: browser }] : []),
     { label: "Page", value: issue.pageUrl || "-" },
-    ...(issue.captureMode !== "video" && issue.captureMode !== "freeform" && issue.tagName
-      ? [
-          {
-            label: "DOM",
-            value: formatElementName({
-              tag: issue.tagName,
-              classList: issue.selectionSnapshot?.classList ?? [],
-            }),
-          },
-        ]
-      : []),
+    ...(issue.selector ? [{ label: "DOM", value: issue.selector }] : []),
   ];
   const vp = issue.viewport ?? issue.selectionSnapshot?.viewport;
   if (vp) {

@@ -38,6 +38,7 @@ function snapshotFromState(): EditorSnapshot {
     targetPlatform: s.targetPlatform,
     target: s.target,
     selection: s.selection,
+    shotSelector: s.shotSelector,
     styleEdits: s.styleEdits,
     tokens: s.tokens,
     beforeImage: s.beforeImage,

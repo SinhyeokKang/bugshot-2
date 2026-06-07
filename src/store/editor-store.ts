@@ -81,6 +81,7 @@ interface EditorState {
   targetPlatform: PlatformId;
   target: EditorTarget | null;
   selection: EditorSelection | null;
+  shotSelector: { selector: string; tagName: string } | null;
   styleEdits: EditorStyleEdits;
   tokens: Token[];
   beforeImage: string | null;
@@ -119,6 +120,12 @@ interface EditorState {
   setAiDraftLoading: (loading: boolean) => void;
   startPicking: (target: EditorTarget, mode?: CaptureMode) => void;
   startCapturing: (target: EditorTarget) => void;
+  startElementShot: (target: EditorTarget) => void;
+  onElementShot: (
+    shot: { selector: string; tagName: string },
+    image: string,
+    viewport: { width: number; height: number },
+  ) => void;
   startRecording: (target: EditorTarget) => void;
   startFreeform: (target: EditorTarget) => void;
   onRecordingComplete: (blob: Blob, thumbnail: string, viewport: { width: number; height: number }, startedAt: number, endedAt: number) => void;
@@ -164,6 +171,7 @@ export type EditorSnapshot = Pick<
   | "targetPlatform"
   | "target"
   | "selection"
+  | "shotSelector"
   | "styleEdits"
   | "tokens"
   | "beforeImage"
@@ -194,6 +202,7 @@ const initial = {
   targetPlatform: "jira" as PlatformId,
   target: null,
   selection: null,
+  shotSelector: null as { selector: string; tagName: string } | null,
   styleEdits: {
     classList: [] as string[],
     inlineStyle: {} as Record<string, string>,
@@ -357,6 +366,22 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       consoleLogAttach: true,
       actionLogAttach: true,
     })),
+  startElementShot: (target) =>
+    set((prev) => ({
+      ...initial,
+      captureMode: "screenshot",
+      phase: "picking",
+      target,
+      ...preserveLogs(prev),
+    })),
+  onElementShot: (shot, image, viewport) =>
+    set({
+      phase: "drafting",
+      screenshotRaw: image,
+      screenshotViewport: viewport,
+      screenshotCapturedAt: Date.now(),
+      shotSelector: shot,
+    }),
   startRecording: (target) => set({ ...initial, captureMode: "video", phase: "recording", target }),
   onRecordingComplete: (blob, thumbnail, viewport, startedAt, endedAt) => set({ captureMode: "video", phase: "drafting", videoBlob: blob, videoThumbnail: thumbnail, videoViewport: viewport, videoCapturedAt: Date.now(), videoStartedAt: startedAt, videoEndedAt: endedAt, networkLogAttach: true, consoleLogAttach: true, actionLogAttach: true }),
   cancelRecording: () => set((state) => ({ ...initial, ...preserveLogs(state) })),
@@ -499,6 +524,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         pageUrl: state.target.url,
         pageTitle: state.target.title,
         captureMode: "screenshot",
+        ...(state.shotSelector
+          ? { selector: state.shotSelector.selector, tagName: state.shotSelector.tagName }
+          : {}),
         viewport: state.screenshotViewport ?? undefined,
         draft: { ...state.draft },
         snapshot: {

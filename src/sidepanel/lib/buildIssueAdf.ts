@@ -5,7 +5,6 @@ import {
   type IssueSection,
 } from "@/store/settings-ui-store";
 import { IMAGE_PLACEHOLDER, VIDEO_PLACEHOLDER, inlineImagePlaceholder } from "@/lib/adf-sentinels";
-import { formatElementName } from "@/lib/element-label";
 import type { MarkdownContext } from "./buildIssueMarkdown";
 import type { NetworkLogSummary, ConsoleLogSummary } from "./buildLogSummary";
 import { filterEnvironmentRows } from "./environmentRows";
@@ -46,45 +45,25 @@ export function buildIssueAdf(ctx: MarkdownContext, inlineImageRefIds?: string[]
   const isFreeform = ctx.captureMode === "freeform";
 
   content.push(heading(2, t("md.section.env")));
-  if (isVideo || isScreenshot || isFreeform) {
-    const envItems: AdfNode[] = [];
-    if (ctx.os) {
-      envItems.push(keyValueItem("OS", ctx.os));
-    }
-    if (ctx.browser) {
-      envItems.push(keyValueItem("Browser", ctx.browser));
-    }
-    envItems.push(keyValueItem("Page", ctx.url));
-    if (ctx.viewport) {
-      envItems.push(keyValueItem("Viewport", `${ctx.viewport.width}×${ctx.viewport.height}`));
-    }
-    envItems.push(keyValueItem("Captured", formatTimestamp(ctx.capturedAt)));
-    for (const row of filterEnvironmentRows(ctx.environment)) {
-      envItems.push(keyValueItem(row.label, row.value));
-    }
-    content.push(bulletList(envItems));
-  } else {
-    const domLabel = ctx.tagName
-      ? formatElementName({ tag: ctx.tagName, classList: ctx.classListBefore })
-      : "";
-    const elemItems: AdfNode[] = [];
-    if (ctx.os) {
-      elemItems.push(keyValueItem("OS", ctx.os));
-    }
-    if (ctx.browser) {
-      elemItems.push(keyValueItem("Browser", ctx.browser));
-    }
-    elemItems.push(
-      keyValueItem("Page", ctx.url),
-      ...(domLabel ? [keyValueItem("DOM", domLabel)] : []),
-      ...(ctx.viewport ? [keyValueItem("Viewport", `${ctx.viewport.width}×${ctx.viewport.height}`)] : []),
-      keyValueItem("Captured", formatTimestamp(ctx.capturedAt)),
-    );
-    for (const row of filterEnvironmentRows(ctx.environment)) {
-      elemItems.push(keyValueItem(row.label, row.value));
-    }
-    content.push(bulletList(elemItems));
+  const envItems: AdfNode[] = [];
+  if (ctx.os) {
+    envItems.push(keyValueItem("OS", ctx.os));
   }
+  if (ctx.browser) {
+    envItems.push(keyValueItem("Browser", ctx.browser));
+  }
+  envItems.push(keyValueItem("Page", ctx.url));
+  if (ctx.selector) {
+    envItems.push(keyValueItem("DOM", ctx.selector));
+  }
+  if (ctx.viewport) {
+    envItems.push(keyValueItem("Viewport", `${ctx.viewport.width}×${ctx.viewport.height}`));
+  }
+  envItems.push(keyValueItem("Captured", formatTimestamp(ctx.capturedAt)));
+  for (const row of filterEnvironmentRows(ctx.environment)) {
+    envItems.push(keyValueItem(row.label, row.value));
+  }
+  content.push(bulletList(envItems));
 
   let mediaEmitted = false;
   const emitMedia = () => {

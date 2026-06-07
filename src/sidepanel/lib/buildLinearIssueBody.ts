@@ -4,7 +4,6 @@ import {
   sectionMdLabelKey,
   type IssueSection,
 } from "@/store/settings-ui-store";
-import { formatElementName } from "@/lib/element-label";
 import type { MarkdownContext } from "./buildIssueMarkdown";
 import { filterEnvironmentRows } from "./environmentRows";
 import { formatTimestamp } from "./formatTimestamp";
@@ -65,11 +64,8 @@ export function buildLinearIssueBody(
     lines.push(`- **Browser**: ${ctx.browser}`);
   }
   lines.push(`- **Page**: ${ctx.url}`);
-  if (!isVideo && !isScreenshot && !isFreeform) {
-    const domLabel = ctx.tagName
-      ? formatElementName({ tag: ctx.tagName, classList: ctx.classListBefore })
-      : "";
-    if (domLabel) lines.push(`- **DOM**: ${domLabel}`);
+  if (ctx.selector) {
+    lines.push(`- **DOM**: ${ctx.selector}`);
   }
   if (ctx.viewport) {
     lines.push(`- **Viewport**: ${ctx.viewport.width}×${ctx.viewport.height}`);

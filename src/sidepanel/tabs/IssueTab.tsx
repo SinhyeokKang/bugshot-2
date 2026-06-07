@@ -4,7 +4,8 @@ import {
   ArrowUpRight,
   BookOpen,
   SquareMousePointer,
-  Camera,
+  SquareDashed,
+  SquareDashedMousePointer,
   CircleCheck,
   Crosshair,
   ImageIcon,
@@ -41,6 +42,7 @@ import {
   startPicker,
   stopPicker,
   startAreaCapture,
+  startElementShot,
   cancelAreaCapture,
   clearPicker,
   startFreeformDraft,
@@ -121,6 +123,7 @@ export function IssueTab() {
     return (
       <EmptyState
         onStartElement={() => void startPicker(tabId)}
+        onStartElementShot={() => void startElementShot(tabId)}
         onStartScreenshot={() => void startAreaCapture(tabId)}
         onStartVideo={() => void startVideoCapture(tabId)}
         onStartFreeform={() => void startFreeformDraft(tabId)}
@@ -167,7 +170,7 @@ function ShortcutTooltip({
   );
 }
 
-function EmptyState({ onStartElement, onStartScreenshot, onStartVideo, onStartFreeform }: { onStartElement: () => void; onStartScreenshot: () => void; onStartVideo: () => void; onStartFreeform: () => void }) {
+function EmptyState({ onStartElement, onStartElementShot, onStartScreenshot, onStartVideo, onStartFreeform }: { onStartElement: () => void; onStartElementShot: () => void; onStartScreenshot: () => void; onStartVideo: () => void; onStartFreeform: () => void }) {
   const t = useT();
   const shortcuts = useCommandShortcuts();
   const locale = useSettingsUiStore((s) => s.locale);
@@ -188,9 +191,13 @@ function EmptyState({ onStartElement, onStartScreenshot, onStartVideo, onStartFr
                 {t("issue.mode.element")}
               </Button>
             </ShortcutTooltip>
+            <Button variant="outline" onClick={onStartElementShot}>
+              <SquareDashedMousePointer />
+              {t("issue.mode.elementShot")}
+            </Button>
             <ShortcutTooltip shortcut={shortcuts["capture-screenshot"]}>
               <Button variant="outline" onClick={onStartScreenshot}>
-                <Camera />
+                <SquareDashed />
                 {t("issue.mode.screenshot")}
               </Button>
             </ShortcutTooltip>
@@ -260,12 +267,12 @@ function ReplayButton() {
     </Button>
   );
 
-  if (!tooltip) return <div className="col-span-2">{button}</div>;
+  if (!tooltip) return button;
 
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <span className="col-span-2 inline-flex">{button}</span>
+        <span className="inline-flex w-full">{button}</span>
       </TooltipTrigger>
       <TooltipContent>{tooltip}</TooltipContent>
     </Tooltip>

@@ -326,6 +326,29 @@ describe("confirmDraft screenshot — 로그 blobKey 연결", () => {
     const record = mockSaveDraft.mock.calls[0][0];
     expect(record.networkLogBlobKey).toBeUndefined();
   });
+
+  // element-screenshot: 요소 캡처(shotSelector)는 IssueRecord에 selector/tagName 저장.
+  it("shotSelector 존재(요소 캡처) → selector/tagName을 저장한다", () => {
+    setupScreenshotDrafting({
+      shotSelector: { selector: "button.cta", tagName: "button" },
+    });
+
+    useEditorStore.getState().confirmDraft();
+
+    const record = mockSaveDraft.mock.calls[0][0];
+    expect(record.selector).toBe("button.cta");
+    expect(record.tagName).toBe("button");
+  });
+
+  it("shotSelector null(범위 캡처) → selector/tagName 미저장 (회귀)", () => {
+    setupScreenshotDrafting({ shotSelector: null });
+
+    useEditorStore.getState().confirmDraft();
+
+    const record = mockSaveDraft.mock.calls[0][0];
+    expect(record.selector).toBeUndefined();
+    expect(record.tagName).toBeUndefined();
+  });
 });
 
 /* ------------------------------------------------------------------ */

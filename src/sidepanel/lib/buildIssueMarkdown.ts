@@ -60,7 +60,7 @@ export function buildIssueMarkdown(ctx: MarkdownContext): string {
     lines.push(`- **Browser**: ${ctx.browser}`);
   }
   lines.push(`- **Page**: ${ctx.url}`);
-  if (ctx.captureMode !== "screenshot" && ctx.captureMode !== "video" && ctx.captureMode !== "freeform" && ctx.selector) {
+  if (ctx.selector) {
     lines.push(`- **DOM**: ${ctx.selector}`);
   }
   if (ctx.viewport) {
@@ -156,7 +156,7 @@ export function buildIssueHtml(ctx: MarkdownContext): string {
     parts.push(`<li><strong>Browser</strong>: ${escapeHtml(ctx.browser)}</li>`);
   }
   parts.push(`<li><strong>Page</strong>: ${escapeHtml(ctx.url)}</li>`);
-  if (ctx.captureMode !== "screenshot" && ctx.captureMode !== "video" && ctx.captureMode !== "freeform" && ctx.selector) {
+  if (ctx.selector) {
     parts.push(`<li><strong>DOM</strong>: ${escapeHtml(ctx.selector)}</li>`);
   }
   if (ctx.viewport) {

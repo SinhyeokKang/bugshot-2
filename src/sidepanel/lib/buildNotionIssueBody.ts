@@ -4,7 +4,6 @@ import {
   sectionMdLabelKey,
   type IssueSection,
 } from "@/store/settings-ui-store";
-import { formatElementName } from "@/lib/element-label";
 import type {
   NotionAttachmentInput,
   NotionAttachmentCategory,
@@ -96,13 +95,8 @@ export function buildNotionIssueBody(
     blocks.push({ type: "bulleted_list_item", text: `Browser: ${ctx.browser}` });
   }
   blocks.push({ type: "bulleted_list_item", text: `Page: ${ctx.url}` });
-  if (!isVideo && !isScreenshot && !isFreeform) {
-    const domLabel = ctx.tagName
-      ? formatElementName({ tag: ctx.tagName, classList: ctx.classListBefore })
-      : "";
-    if (domLabel) {
-      blocks.push({ type: "bulleted_list_item", text: `DOM: ${domLabel}` });
-    }
+  if (ctx.selector) {
+    blocks.push({ type: "bulleted_list_item", text: `DOM: ${ctx.selector}` });
   }
   if (ctx.viewport) {
     blocks.push({

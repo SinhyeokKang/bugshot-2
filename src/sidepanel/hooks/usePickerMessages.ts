@@ -3,7 +3,7 @@ import { useEditorStore } from "@/store/editor-store";
 import type { PickerMessage, ViewportRect } from "@/types/picker";
 import { type BgInternalMessage, onPickerIframeUnsupported, onPickerPermissionExpired, sendBg } from "@/types/messages";
 import { captureElementSnapshot, loadImage } from "@/sidepanel/capture";
-import { collectTokens, maybeSurfacePermissionExpired } from "@/sidepanel/picker-control";
+import { clearPicker, collectTokens, maybeSurfacePermissionExpired } from "@/sidepanel/picker-control";
 import { saveNetworkLog, saveConsoleLog, saveActionLog, saveInlineImage, dataUrlToBlob } from "@/store/blob-db";
 import { shouldCompact, compactImage } from "@/sidepanel/lib/compactImage";
 import {
@@ -54,6 +54,12 @@ export function usePickerMessages(myTabId: number | null): void {
 
       if (message.type === "picker.selected") {
         const msg = message as Extract<PickerMessage, { type: "picker.selected" }>;
+        // 요소 캡처(screenshot 세부 모드): styling 대신 요소 크롭 → drafting.
+        if (useEditorStore.getState().captureMode === "screenshot") {
+          const tabId = useEditorStore.getState().target?.tabId;
+          if (tabId) void captureElementShot(tabId, msg.payload);
+          return;
+        }
         useEditorStore.getState().onElementSelected({
           selector: msg.payload.selector,
           tagName: msg.payload.tagName,
@@ -199,6 +205,24 @@ export function usePickerMessages(myTabId: number | null): void {
       chrome.runtime.onMessage.removeListener(handler);
     };
   }, [myTabId]);
+}
+
+async function captureElementShot(
+  tabId: number,
+  payload: { selector: string; tagName: string; viewport: { width: number; height: number } },
+): Promise<void> {
+  // captureElementSnapshot은 권한 만료/캡처 실패 시 내부에서 안내 후 null 반환 → 빈 drafting 진입 금지.
+  const img = await captureElementSnapshot(tabId);
+  if (!img) {
+    useEditorStore.getState().reset();
+    return;
+  }
+  useEditorStore.getState().onElementShot(
+    { selector: payload.selector, tagName: payload.tagName },
+    img,
+    payload.viewport,
+  );
+  void clearPicker(tabId);
 }
 
 async function captureAndCrop(rect: ViewportRect, viewport: { width: number; height: number }): Promise<void> {

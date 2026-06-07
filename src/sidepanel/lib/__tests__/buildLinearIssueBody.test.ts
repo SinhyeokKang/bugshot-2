@@ -190,7 +190,7 @@ describe("buildLinearIssueBody — freeform", () => {
 
   it("freeform 모드 → DOM 미표시", () => {
     const out = buildLinearIssueBody({
-      ctx: makeCtx({ captureMode: "freeform" as MarkdownContext["captureMode"], selector: "div.test" }),
+      ctx: makeCtx({ captureMode: "freeform" as MarkdownContext["captureMode"], selector: "" }),
     });
     expect(out.body).not.toContain("**DOM**");
   });
@@ -231,17 +231,17 @@ describe("buildLinearIssueBody — 구조", () => {
     expect(out.body).toContain("**Captured**:");
   });
 
-  it("element 모드에서 DOM 라벨은 formatElementName 형식", () => {
+  it("element 모드에서 DOM 줄은 ctx.selector 문자열", () => {
     const out = buildLinearIssueBody({
-      ctx: makeCtx({ tagName: "button", classListBefore: ["btn", "primary"] }),
+      ctx: makeCtx({ selector: "button.btn.primary" }),
     });
     expect(out.body).toContain("**DOM**: button.btn.primary");
   });
 
-  it("screenshot/video 모드에서 DOM 미표시", () => {
-    const out1 = buildLinearIssueBody({ ctx: makeCtx({ captureMode: "screenshot" }) });
+  it("screenshot/video 모드 + 빈 selector → DOM 미표시", () => {
+    const out1 = buildLinearIssueBody({ ctx: makeCtx({ captureMode: "screenshot", selector: "" }) });
     expect(out1.body).not.toContain("**DOM**");
-    const out2 = buildLinearIssueBody({ ctx: makeCtx({ captureMode: "video" }) });
+    const out2 = buildLinearIssueBody({ ctx: makeCtx({ captureMode: "video", selector: "" }) });
     expect(out2.body).not.toContain("**DOM**");
   });
 
