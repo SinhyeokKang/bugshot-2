@@ -70,8 +70,8 @@
 ### Task 6: origin별 cap (top-origin 우선 보존) — 테스트 우선
 - **변경 대상**: `src/sidepanel/lib/log-merge.ts`, `src/sidepanel/lib/__tests__/log-merge.test.ts`, `src/sidepanel/hooks/usePickerMessages.ts`
 - **작업 내용**:
-  - `mergeLogItems`에 `topOrigin: string | null` 인자 추가. trim 초과 시 `originOf(item.pageUrl) !== topOrigin`(cross-origin)부터 oldest 순 evict, top-origin 로그는 cap 한도 내 보존. 전부 top-origin이면 기존 FIFO와 동일.
-  - `usePickerMessages`의 `mergeLogItems` 호출 3곳에 `originOf(useEditorStore.getState().target?.url)` 전달.
+  - `mergeLogItems`에 `topOrigin: string | null` 인자 추가. trim 초과 시 `originOf(item.pageUrl) !== topOrigin`(cross-origin)부터 oldest 순 evict, top-origin 로그는 cap 한도 내 보존. 전부 top-origin이거나 `topOrigin === null`이면 기존 FIFO와 동일.
+  - `usePickerMessages`의 `mergeLogItems` 호출 중 **network/console만** `originOf(useEditorStore.getState().target?.url)` 전달. **action은 `null`**(광고가 폭증 안 시켜 cap 유실 없음 → 순수 시간축 FIFO 유지).
   - 타입 제약: `T extends { id: string; pageUrl: string }`.
 - **검증**:
   - [ ] (단위) top-origin 로그가 cross-origin 로그보다 우선 보존됨 — cross-origin이 cap을 채워도 top-origin entry가 살아남음
@@ -80,9 +80,9 @@
   - [ ] `pnpm test` 통과
   - [ ] (수동) 광고 다수 페이지에서 top-origin 본문 로그가 보존됨
 
-### Task 7: origin 필터 UI (사이드패널 + log-viewer 공유)
-- **변경 대상**: `src/sidepanel/components/ConsoleLogContent.tsx`, `NetworkLogContent.tsx`, `ActionLogContent.tsx`
-- **작업 내용**: 세 컴포넌트에 origin 필터(3단째) 추가. **log-viewer(`src/log-viewer/App.tsx`)가 이 컴포넌트를 import 공유하므로 한 번 고치면 양쪽 적용**.
+### Task 7: origin 필터 UI — console/network (action 제외)
+- **변경 대상**: `src/sidepanel/components/ConsoleLogContent.tsx`, `NetworkLogContent.tsx` (**`ActionLogContent.tsx`는 변경 안 함** — action은 시간순 재현 흐름이라 origin 필터 미제공)
+- **작업 내용**: 두 컴포넌트에 origin 필터(3단째) 추가. **컴포넌트를 세 곳이 공유하므로 한 번 고치면 셋 다 적용** — 사이드패널 서브탭 / 로그 다이얼로그(`*LogPreviewDialog`가 `<*LogContent>` 렌더) / log-viewer(`App.tsx` import). 필터 선택 상태는 각 인스턴스 로컬(동기화 X), UI만 공통.
   - distinct origin 목록: `useMemo`로 `entries.map(e => originOf(e.pageUrl))` Set, null/opaque은 "(unknown)" 그룹.
   - `const [originFilter, setOriginFilter] = useState<string | null>(null)`.
   - 필터 파이프라인에 origin 조건 추가(레벨/타입 → origin → query 순).
@@ -92,8 +92,8 @@
   - [ ] distinct origin 목록이 실제 캡처된 프레임 origin과 일치, "(unknown)" 그룹 동작
   - [ ] origin 1개(top만 캡처)면 둘째 줄 미렌더(기존 1줄 레이아웃 동일)
   - [ ] origin 다수(10+)일 때 둘째 줄이 좌우 가로 슬라이드(`overflow-x-auto`)로 동작, wrap 없이 한 줄 유지, top-origin 맨 앞 고정
-  - [ ] **log-viewer(이슈 첨부 로그 HTML)에서 동일 필터 동작** — `pnpm build:log-viewer` 후 확인
-  - [ ] 세 탭(console/network/action) ButtonGroup 일관 동작
+  - [ ] **세 곳 모두 origin 필터 UI 표시** — 사이드패널 서브탭 / 로그 다이얼로그 / log-viewer(`pnpm build:log-viewer` 후)
+  - [ ] console/network 두 탭 ButtonGroup 일관 동작, **action 탭엔 origin 필터 미노출**(기존 그대로)
   - [ ] `pnpm typecheck` 통과
 
 ## 테스트 계획

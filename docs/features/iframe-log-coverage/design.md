@@ -70,14 +70,16 @@ export function mergeLogItems<T extends { id: string; pageUrl: string }>(
   maxEntries: number, topOrigin: string | null,  // ← 추가
 ): T[];
 ```
-초과분 evict 시 `originOf(item.pageUrl) !== topOrigin`(=cross-origin, 주로 광고)부터 oldest 순으로 버리고, top-origin 로그는 남은 cap 한도 내에서 보존. 전부 top-origin이면 기존 FIFO와 동일. `topOrigin`은 호출부(usePickerMessages)가 `editor-store`의 `target.url`에서 `originOf()`로 구한다. **순수 함수라 단위테스트 가능**(`log-merge.test.ts`에 top-origin 보존 케이스 추가).
+초과분 evict 시 `originOf(item.pageUrl) !== topOrigin`(=cross-origin, 주로 광고)부터 oldest 순으로 버리고, top-origin 로그는 남은 cap 한도 내에서 보존. 전부 top-origin이거나 `topOrigin === null`이면 기존 FIFO와 동일. `topOrigin`은 호출부(usePickerMessages)가 `editor-store`의 `target.url`에서 `originOf()`로 구한다. **순수 함수라 단위테스트 가능**(`log-merge.test.ts`에 top-origin 보존 케이스 추가).
+**action 제외**: action은 광고가 폭증시키지 않아(클릭·입력·네비를 광고 iframe이 만들지 않음) cap FIFO 유실 위험이 없다. action 호출은 `topOrigin`을 넘기지 않아(`null`) 기존 순수 시간축 FIFO를 유지한다.
 
 ### 8. `src/sidepanel/hooks/usePickerMessages.ts` — topOrigin 전달
-**변경 내용**: `mergeLogItems` 호출 3곳(network/console/action)에 `originOf(useEditorStore.getState().target?.url)`를 `topOrigin`으로 전달. 그 외 로직 불변.
+**변경 내용**: `mergeLogItems` 호출 중 **network/console 2곳**에만 `originOf(useEditorStore.getState().target?.url)`를 `topOrigin`으로 전달. **action 호출은 `null`**(기존 FIFO). 그 외 로직 불변.
 
-### 9. `ConsoleLogContent` / `NetworkLogContent` / `ActionLogContent` — origin 필터
-**현재 역할**: 각 컴포넌트가 레벨/타입 필터 + 검색 query의 2단 `useMemo` 파이프라인으로 렌더. **log-viewer(`src/log-viewer/App.tsx`)가 이 3개를 그대로 import해 공유**한다.
-**변경 내용**: 각 컴포넌트에 origin 필터(3단째) 추가 — 한 번 고치면 사이드패널·log-viewer 양쪽 적용:
+### 9. `ConsoleLogContent` / `NetworkLogContent` — origin 필터 (action 제외)
+**action 제외 이유**: action-log는 **시간순 재현 흐름**(클릭→입력→이동)이 본질이라 origin 분할이 연속성을 끊는다. origin 전환은 `navigation` 액션(`fromUrl`/`toUrl`/`navType`)이 이미 기록해 간접 파악되므로 별도 origin 필터가 불필요하다. `ActionLogContent`는 변경하지 않는다.
+**현재 역할**: 두 컴포넌트가 레벨/타입 필터 + 검색 query의 2단 `useMemo` 파이프라인으로 렌더. **세 곳이 공유**한다 — ① 사이드패널 서브탭(`ConsoleSubTab`/`NetworkSubTab`), ② 이슈 작성 중 로그 다이얼로그(`ConsoleLogPreviewDialog`/`NetworkLogPreviewDialog`가 `<*LogContent>` 렌더), ③ log-viewer(`src/log-viewer/App.tsx`가 import). 따라서 컴포넌트를 한 번 고치면 **세 곳에 origin 필터 UI가 공통으로 나타난다**. (필터 *선택 상태*는 각 인스턴스 로컬 `useState` 유지 — 동기화 불필요, **UI만 공통**.)
+**변경 내용**: 두 컴포넌트에 origin 필터(3단째) 추가 — 한 번 고치면 위 세 곳 모두 적용:
 - distinct origin 목록: `useMemo(() => new Set(entries.map(e => originOf(e.pageUrl))), [entries])` (null/opaque은 "(unknown)"으로 묶음)
 - 상태: `const [originFilter, setOriginFilter] = useState<string | null>(null)`
 - 필터 파이프라인에 `originFilter ? result.filter(e => originOf(e.pageUrl) === originFilter) : result` 추가

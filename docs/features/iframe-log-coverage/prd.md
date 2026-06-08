@@ -13,8 +13,8 @@ BugShot의 console/network/action 레코더는 `recorders-entry.ts`(MAIN world, 
 - console/network/action 레코더를 **모든 프레임(cross-origin iframe 포함)** 의 MAIN world에 주입한다.
 - **캡처 시작 이후 생성된 iframe**(동적 결제 위젯·lazy-load)도 `webNavigation.onCommitted`(iframe) sentinel 재발행으로 활성화한다.
 - 각 프레임에서 캡처된 로그를 기존 `mergeLogItems`(id dedup + 시간정렬) 경로로 **하나의 단일 타임라인에 병합**한다.
-- **origin별 cap 격리(top-page-origin 우선 보존)**: 광고/트래커 cross-origin iframe이 통합 `MAX_ENTRIES`를 채워도 캡처 대상 페이지(top) origin 로그가 FIFO에 밀려나지 않게 한다.
-- **origin별 필터**: 사이드패널 로그 탭(`ConsoleLogContent`/`NetworkLogContent`/`ActionLogContent`)에 origin 필터를 추가한다. 이 컴포넌트들은 **log-viewer와 공유**되므로 log-viewer(이슈 첨부 로그 HTML)에도 자동 적용된다.
+- **origin별 cap 격리(top-page-origin 우선 보존)** — **console/network만**: 광고/트래커 cross-origin iframe이 통합 `MAX_ENTRIES`를 채워도 캡처 대상 페이지(top) origin 로그가 FIFO에 밀려나지 않게 한다. action은 광고가 폭증시키지 않아 제외(순수 시간축 FIFO 유지).
+- **origin별 필터** — **console/network만**: 로그 탭(`ConsoleLogContent`/`NetworkLogContent`)에 origin 필터를 추가한다. 이 컴포넌트는 **사이드패널 서브탭·로그 다이얼로그·log-viewer 셋이 공유**하므로 한 번 추가로 세 곳에 공통 적용된다. action은 시간순 재현 흐름이 본질이라 제외(origin 전환은 `navigation` 액션으로 간접 파악).
 - 식별 키는 **frameId가 아니라 origin**이다 — 사용자는 "프레임 N"이 아니라 "stripe.com / doubleclick.net" 단위로 인식하고, origin은 기존 `pageUrl`에서 `originOf()`로 파생되므로 **데이터 모델 변경이 0**이다.
 - 요소 선택(picker) 기능은 **top frame 동작을 그대로 유지**한다 — 이번 변경으로 picker가 iframe에 진입하지 않는다.
 - manifest **권한 추가는 0**이다 (`<all_urls>`는 이미 content_scripts matches에 존재하고, `all_frames`는 권한이 아닌 주입 범위 플래그).
@@ -26,6 +26,7 @@ BugShot의 console/network/action 레코더는 `recorders-entry.ts`(MAIN world, 
 - **데이터 모델에 새 필드 추가 안 함**: origin은 기존 `pageUrl`에서 `originOf()`로 런타임 파생하므로 entry 타입(`ConsoleEntry`/`NetworkRequest`/`ActionEntry`)을 변경하지 않는다. 단일 타임라인 병합에는 기존 `id`(프레임마다 `crypto.randomUUID`라 충돌 없음)만으로 충분하다.
 - **origin 인라인 배지 미추가**: 개별 로그 항목에 도메인 배지를 상시 표시하지는 않는다(필터로 출처 구분). Console의 기존 `pageUrl` 링크는 유지.
 - **프레임별 세밀 cap 미채택**: cap 격리는 "top-origin 우선 보존"까지만 한다. 광고 iframe끼리 공평 분배(프레임/origin별 균등 cap)는 needs가 없어 하지 않는다.
+- **action-log origin cap·필터 미제공**: action은 시간순 재현 흐름이 본질이고 광고가 폭증시키지 않으므로, origin cap·필터를 적용하지 않고 기존 순수 시간축 FIFO·필터를 유지한다. origin 전환은 `navigation` 액션으로 간접 파악.
 - **picker의 iframe 요소 선택 미지원**: iframe 내부 DOM 요소를 picker로 고르는 기능은 추가하지 않는다. `onPickerIframeUnsupported` 안내 로직은 그대로 둔다.
 - **DevTools 수준 정확도 미달성**: monkey-patch의 구조적 한계(네이티브 콘솔 CORS/CSP 메시지, 비-fetch 네트워크 img/css/script/ws, 명시적 `console.error/warn` — 의도적 비-wrap)는 이번 범위 밖이다. 그 수준은 `chrome.debugger`(CDP) 기반의 별도 과제다.
 
@@ -53,8 +54,8 @@ BugShot의 console/network/action 레코더는 `recorders-entry.ts`(MAIN world, 
 - **동적 생성 iframe**(클릭 후 생성되는 Stripe Checkout 등) 캡처 시에도 `onCommitted` 재발행으로 로그가 나타난다. (2차 검증 — known limitation 분리 확인)
 - top frame 로그와 iframe 로그가 시간순 단일 타임라인으로 정렬된다.
 - **광고/트래커 iframe이 다수인 페이지에서 캡처해도 top-origin 핵심 로그가 `MAX_ENTRIES` FIFO에 밀려 유실되지 않는다**(top-origin 우선 보존 cap 동작 확인).
-- **origin 필터**: 로그 탭(console/network/action)에서 origin을 선택하면 해당 origin 로그만 보인다. distinct origin 목록이 실제 캡처된 프레임 origin과 일치한다.
-- **log-viewer 동시 적용**: 이슈 첨부 로그 HTML(log-viewer)에서도 동일한 origin 필터가 동작한다(공유 컴포넌트라 자동).
+- **origin 필터(console/network)**: 로그 탭에서 origin을 선택하면 해당 origin 로그만 보인다. distinct origin 목록이 실제 캡처된 프레임 origin과 일치한다. **action 탭은 origin 필터 없이 기존 그대로**.
+- **세 곳 동시 적용**: 사이드패널 서브탭·로그 다이얼로그·log-viewer 셋 다 동일한 origin 필터가 동작한다(공유 컴포넌트라 자동).
 - 요소 선택(picker)을 실행해도 top frame에서만 동작하며 iframe 진입·중복 오버레이가 없다.
 - manifest의 `permissions`·`host_permissions`·`optional_host_permissions` diff가 0이다.
 - 서드파티 iframe(결제·임베드 위젯)이 레코더 주입 후에도 정상 동작한다(fetch/XHR 간섭으로 깨지지 않음).
