@@ -10,7 +10,14 @@
 
 **(2) 페이지 시각 레이어 (누적 프리뷰)** — content script(`src/content/picker.ts`)의 단일 `selectedEl` 추적을 **편집된 element 레지스트리**(`editedEls: Map<Element, OriginalState>`)로 바꿔, 변경이 가해진 모든 element를 추적하고 element 전환 시 이전 element를 복원하지 않고 유지한다. cleanup 경로(취소/제출 완료/idle/탭이동)에서만 `restoreAll()`로 전체를 일괄 원복한다.
 
-`IssueRecord`(draft 영속)와 DraftDetailDialog(재편집)는 신규 복수 element를 위해선 손대지 않는다 — 복수 element는 첫 제출 세션 안에서만 존재한다. (단 no-diff 폐지의 레거시 하위호환은 DraftDetailDialog에 남긴다.)
+> **⚠️ 설계 이후 변경(구현 현황)**: 아래 설계 초안은 "복수 element는 첫 제출 세션 안에서만 존재 / `IssueRecord`·blob 키 무변경 / DraftDetailDialog 단일 복원"을 전제했으나, **구현에서 복수 element draft 영속화가 추가**되었다. 핵심 차이는 다음과 같다(상세는 아래 각 변경 범위 섹션의 정정 표기 참조; tasks.md "Phase 3 — 설계 이후 추가 구현"과 짝):
+> 1. **draft 영속화**: `IssueRecord.bufferedElements`(optional) + blob 키 `b{i}-before`/`b{i}-after` 추가 → DraftDetailDialog **표시·마크다운 복사·재제출**에 복수 element 복원(`resolveDraftStyleElements`/`useDraftStyleElements`). *styling 패널 재편집*만 미지원.
+> 2. **AI 메타 복수 직렬화**: `buildMetaComment`가 `meta.elements` 배열로 element별 cssChanges 직렬화(아래 "부가 흐름"은 단일 유지로 적혔으나 철회).
+> 3. **UI 프리뷰 element별 섹션**: drafting/preview/DraftDetailDialog가 element마다 `Style Changes ({selector})` 독립 섹션으로 렌더 + DOM 줄 `joinStyleSelectors` 공용(설계는 본문 직렬화만 다뤘음).
+> 4. **reset-all 시 selection 재수집**: content script `handleResetAllEdits`가 `scheduleSelectionUpdate`로 패널 입력 표시값 갱신.
+> 5. **함수/파일명**: 설계 초안의 `restoreOriginal`/`handleResetEdits`는 실제 `restoreAll`/`restoreElState`/`handleResetAllEdits`(picker) · `resetAllStyleEdits`(store). jira 후처리·게이트 헬퍼·repick push는 `injectSnapshotRows.ts`/`hasStyleChange.ts`/`useBufferThenSwitch.ts`로 추출됨.
+
+`IssueRecord`(draft 영속)는 **복수 element 영속화를 위해 `bufferedElements`(optional)를 추가**한다 — draft 저장 시 버퍼 전체가 저장돼 DraftDetailDialog 표시·재제출에 복원된다(styling 재편집은 단일도 미지원). (no-diff 폐지의 레거시 하위호환도 DraftDetailDialog에 남긴다.)
 
 ## 변경 범위
 
@@ -59,8 +66,9 @@
   - `captureOriginal(el)`(481): 레지스트리에 없을 때만 원본 기록(최초 원본 유지). 전역 `original*`는 현재 selectedEl 캐시로 레지스트리에서 채움.
   - **restoreOriginal 호출 제거(누적 유지)**: `handleStart`(**391**)·`handleNavigate`(**438**)·`onClickCommit`(**622**)·`onKeyDown` Escape(656)·iframe 분기(634), **그리고 `handleSelectByPath`(724, restoreOriginal 호출 733)** — DOM 트리 다이얼로그 노드 클릭도 element 전환이라 누적 유지 대상(C-4b의 DomNavButton과 별개 경로). (`handleNavigate`는 C-4b navigate 정책과 짝 — diff 있는 element는 페이지 유지, diff 없으면 레지스트리 미등록이라 잔여 없음.)
   - element 떠날 때 diff 없으면 레지스트리에서 제거(빈 항목 정리).
-  - **`restoreAll()` 신설** → `handleClear`(412)에서 `restoreOriginal` 대신 호출(전체 원복 + Map clear).
-  - `handleResetEdits`(475)는 현재 element만 원복 + 레지스트리 제거(단일 reset 유지).
+  - **`restoreAll()` 신설**(각 element는 `restoreElState(el, state)`로 원복) → `handleClear`에서 호출(전체 원복 + Map clear).
+  - **reset-all 경로(구현)**: 스토어 `resetAllStyleEdits`(현재 styleEdits 초기화 + 버퍼 비움)와 content script `handleResetAllEdits`(`restoreAll()` + `render()`)가 짝. 설계 초안의 `handleResetEdits`(현재 element만)는 채택 안 됨 — reset은 **전체 reset**만 있고(StyleEditorPanel "변경사항 초기화"), 속성/클래스 부분 되돌리기는 별도 DOM reset 없이 `applyStyles`/`applyClasses` 재적용으로 처리.
+  - **⚠️ reset 후 selection 재수집(구현 보강)**: `handleResetAllEdits`는 `restoreAll()` 후 **`scheduleSelectionUpdate()`를 호출**해 원복된 DOM에서 selection의 specified/computed 스타일을 다시 읽는다. 안 그러면 class 편집·재선택으로 `scheduleSelectionUpdate`가 갱신해둔 `selection.specifiedStyles`가 편집값에 머물러, 패널 입력 필드 표시값(placeholder·Select)이 초기화 안 된 것처럼 보인다.
   - **전역 `original*` 캐시 의존 함수 전부 점검**: `handleApplyStyles`(459)·`handleApplyClasses`(450)·`handleApplyText`(511) 모두 리셋/원본 기준으로 전역 `original*`(혹은 `editableHandle`)를 쓴다. 단일→Map 전환 시 "전역 `original*`는 **현재 selectedEl** 캐시"라는 전제를 이 셋이 모두 만족해야 한다 — element 전환·재선택·navigate 왕복 후 캐시가 이전 element 것이면 class/text 리셋이 어긋남. element 전환 시 `captureOriginal`로 레지스트리에서 현재 element 원본을 전역 캐시에 채우는 지점을 셋 모두에 보장.
 
 ### C. 복수 element 데이터·직렬화
@@ -113,9 +121,15 @@
 #### C-6. `src/i18n/namespaces/issue.ts`(또는 editor.ts) — 라벨
 - element 소제목 키 / "diff 없이 다음" 안내 문구 추가 시 ko/en 동시(PostToolUse 훅 검사).
 
+#### C-7. UI 프리뷰 element별 섹션 정합 (설계 이후 추가 — 본문뿐 아니라 화면도)
+설계 초안의 "본문 직렬화 형식"은 마크다운/플랫폼 *제출 본문*만 다뤘으나, **사이드패널 화면 프리뷰 3곳도 본문과 동일하게 element별 독립 섹션으로 정합**시켰다.
+- **`joinStyleSelectors(styleElements, fallback)` 공용 순수 함수**(`buildIssueMarkdown.ts`): `styleElements`가 있으면 selector를 `, `로 나열, 없으면 fallback. `styleDomLabel`(본문 DOM 줄)이 이걸 위임하고, UI 3곳의 env `DOM` 줄도 공용 → 본문·화면 단일 출처.
+- **element별 섹션 렌더**(`drafting`=DraftingPanel / `preview`=PreviewPanel / DraftDetailDialog): 단일 `Style Changes` 래퍼 안에서 셀렉터 라벨만 붙이던 방식(`StyleElementsTable`)을 폐지하고, **element마다 `Section`/`FieldSection`(제목 `Style Changes ({selector})`) + 자기 `StyleChangesTable`** 로 분리 — 제출 본문의 `## Style Changes ({selector})` 반복과 일맥상통. `StyleElementsTable`은 고아가 되어 제거, 3곳 모두 `StyleChangesTable`을 직접 map.
+- 각 UI의 env `DOM` 줄은 `joinStyleSelectors(styleElements, selection?.selector ?? issue.selector)`로 복수 selector 쉼표 나열. DraftDetailDialog는 `resolveDraftStyleElements`(이미지 빈 값) 결과로 join.
+
 ### 변경 없음 (명시적)
-- `src/store/issues-store.ts` `IssueRecord`/마이그레이션/`ISSUES_STORE_VERSION` — 변경 없음.
-- `src/store/blob-db.ts` blob 키 체계 — 변경 없음(draft 영속 이미지는 `id:before`/`id:after` 단일 유지). 복수 element 이미지는 IndexedDB에 영속하지 않고 첫 제출 시 플랫폼 업로드용 CaptureFiles로만 생성.
+- ~~`src/store/issues-store.ts` `IssueRecord` — 변경 없음~~ → **변경됨**: `IssueBufferedElement[]`를 담는 `IssueRecord.bufferedElements?`(optional) 추가. optional이라 **마이그레이션·`ISSUES_STORE_VERSION` bump 불필요**(현 버전 5는 무관한 `migrateIssueToV4`).
+- ~~`src/store/blob-db.ts` blob 키 — 변경 없음~~ → **변경됨**: 현재 element는 기존 `id:before`/`id:after`, **버퍼 element는 `id:b{i}-before`/`id:b{i}-after` 키로 영속**(`confirmDraft`가 저장, `loadDraftStyleImages`가 로드). 복수 element draft 영속화를 위해 IndexedDB에 저장된다(설계 초안의 "영속 안 함"은 철회).
 
 ## 데이터 흐름
 
@@ -249,9 +263,10 @@ export function mergeStyleElements(
 ## 부가 흐름 처리 (체크 결과 보강)
 
 - **AI 스타일링**: AI 결과는 `setStyleEdits(merged)` 경유로 현재 element의 `styleEdits`에 반영된다(AiStylingDialog). 따라서 버퍼 push·직렬화에 **자동 포함** — 별도 처리 불필요. `aiStylingLoading`은 transient 상태라 버퍼와 무관(BufferedElement에 안 담음).
-- **tokens**: `tokens`는 element 전환 시마다 `collectTokens`로 재수집되는 현재 element 기준 값이다. 본문 diff 테이블은 `buildStyleDiff`로 만들어 tokens가 필요 없으므로, **BufferedElement에는 tokens를 담지 않는다**. `buildMetaComment`의 `meta.selector`/`cssChanges`/`tokens`는 기존대로 **현재(첫) element 기준 단일 유지**(AI 메타 첨부 `buildAiMetaAttachment`도 동일). → 복수 element의 meta 정보는 축약되지만, 사람이 읽는 본문(styleElements)은 완전하다. meta를 element별 배열로 확장하는 것은 이번 비목표(필요 시 후속).
+- **tokens**: `tokens`는 element 전환 시마다 `collectTokens`로 재수집되는 현재 element 기준 값이다. 본문 diff 테이블은 `buildStyleDiff`로 만들어 tokens가 필요 없으므로, **BufferedElement에는 tokens를 담지 않는다**. `buildMetaComment`의 top-level `meta.selector`/`cssChanges`/`tokens`는 현재(마지막) element 기준 단일 유지.
+  - **~~meta를 element별 배열로 확장하는 것은 비목표~~ → 구현됨**: `buildMetaComment`가 `resolveStyleElements(ctx).length > 1`일 때 **`meta.elements` 배열**(element별 `selector`/`tagName`/`classListBefore`/`classListAfter`/`specifiedStyles`/`cssChanges`)을 추가 직렬화한다. 단일/레거시는 top-level 단일 필드만(회귀 0). `buildAiMetaAttachment`(=`bugshot.md`)·`buildIssueHtml`도 같은 `buildMetaComment`라 자동 반영. → AI 메타도 복수 element를 완전 반영.
 - **EditorSnapshot 하위호환**: 기존 세션 스냅샷에는 `bufferedElements` 필드가 없다. `hydrate`/초기화 시 `bufferedElements: snap.bufferedElements ?? []`로 기본값 처리(마이그레이션 불필요). lite 강등 시 버퍼 항목 이미지 제거(C-5).
-- **confirmDraft → IssueRecord**: 복수 element여도 `confirmDraft`(editor-store)는 **현재(마지막) selection 하나만** IssueRecord에 저장한다(기존 동작 유지). draft 재편집(DraftDetailDialog)은 그 단일 element만 복원 — 복수 draft 영속은 비목표(prd). 즉 "첫 제출 본문은 복수 정상, 로컬 draft 백업은 마지막 element만"이며, 제출 본문(플랫폼 등록)에는 영향 없다.
+- **confirmDraft → IssueRecord (설계 이후 변경 — 복수 영속화)**: `confirmDraft`(editor-store)는 현재 selection + **버퍼의 모든 element를 `IssueRecord.bufferedElements`에 저장**한다(`selector`/`tagName`/`styleEdits`/`selectionSnapshot` + 이미지 존재 플래그 `hasBefore`/`hasAfter`; 이미지 자체는 blob `b{i}-before`/`b{i}-after`). → DraftDetailDialog 재열람 시 `resolveDraftStyleElements`(+`useDraftStyleElements` 훅)가 버퍼+현재를 라이브와 동일 규칙으로 머지해 **표시·마크다운 복사·재제출 본문에 복수 element를 복원**한다. **단 styling 패널로 돌아가 다시 picker 편집하는 UX는 미지원**(단일도 재편집 안 함 — 표시·재제출만). ⚠️ 이는 *저장 후 재열람* 경로이며, *현재 세션 styling↔drafting 왕복*(backToStyling)은 별개로 항상 복수 유지(정상 동작).
 - **sessionExpired와 버퍼**: element styling 중 페이지 만료(`sessionExpired`) → SessionExpiredDialog `onConfirm`의 `reset()`이 `...initial`로 버퍼까지 비운다(별도 작업 불필요). 페이지 변경은 만료된 페이지라 복원 불가(자연 소실).
 
 ## 하위호환 — 레거시 no-diff draft

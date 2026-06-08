@@ -164,6 +164,30 @@
 - **검증**:
   - [x] PostToolUse 훅(locales.test.ts) 통과 (현재 미사용 — 새 키는 editor.ts editor.noChangeHint)
 
+## Phase 3 — 설계 이후 추가 구현 (구현 현황)
+
+> 기획·설계 초안에 없거나 비목표였으나 구현 중/후 추가된 항목. code-review는 이 절을 코드와 대조.
+
+### Task 3-2: 복수 element draft 영속화 (비목표 → 구현)
+- **변경 대상**: `src/store/issues-store.ts`(`IssueRecord.bufferedElements?`, `IssueBufferedElement` — optional이라 버전 bump·마이그레이션 불필요), `src/store/editor-store.ts`(`confirmDraft`가 버퍼 저장 + blob `b{i}-before`/`b{i}-after`), `src/sidepanel/lib/resolveDraftStyleElements.ts`(신규 — issue.bufferedElements+현재를 mergeStyleElements 규칙으로 복원), `src/sidepanel/hooks/useDraftStyleElements.ts`(신규 — `loadDraftStyleImages` blob 로드 + 훅), `src/sidepanel/tabs/DraftDetailDialog.tsx`(표시·재제출에 복원 결과 사용).
+- **범위**: 표시·마크다운 복사·재제출 본문에 복수 element 복원. **styling 패널 재편집은 미지원**(단일도). 현재 세션 styling↔drafting 왕복(backToStyling)은 별개로 항상 유지(코드 변경 불필요 — 확인 완료).
+- **검증**: [x] typecheck/test · [ ] 수동: 복수 element draft 저장 후 재열람 시 표시·재제출 본문에 전체 element.
+
+### Task 3-3: AI 메타(`bugshot.md`) 복수 element 직렬화 (비목표 → 구현)
+- **변경 대상**: `src/sidepanel/lib/buildIssueMarkdown.ts`(`buildMetaComment` — `resolveStyleElements(ctx).length > 1`이면 `meta.elements` 배열 추가; `toCssChanges` 헬퍼).
+- **범위**: top-level 단일 필드 유지(단일/레거시 회귀 0) + 복수일 때 element별 selector/classes/specifiedStyles/cssChanges. `buildAiMetaAttachment`·`buildIssueHtml` 자동 반영.
+- **검증**: [x] typecheck/test(`meta.elements` 단위 테스트 3건 추가) · 단위로 결정적 검증됨.
+
+### Task 3-4: UI 프리뷰 element별 섹션 정합 + `joinStyleSelectors`
+- **변경 대상**: `src/sidepanel/lib/buildIssueMarkdown.ts`(`joinStyleSelectors` 공용, `styleDomLabel` 위임), `src/sidepanel/components/StyleChangesTable.tsx`(`StyleElementsTable` 제거), `DraftingPanel.tsx`/`PreviewPanel.tsx`/`DraftDetailDialog.tsx`(element별 `Section`/`FieldSection` + env DOM 줄 join).
+- **범위**: 화면 프리뷰 3곳을 제출 본문과 동일하게 element별 `Style Changes ({selector})` 독립 섹션 + DOM selector 쉼표 나열.
+- **검증**: [x] typecheck/test(`joinStyleSelectors` 단위 테스트) · [ ] 수동: drafting/preview/DraftDetail에서 element별 섹션·DOM 줄.
+
+### Task 3-5: reset-all 후 selection 재수집
+- **변경 대상**: `src/content/picker.ts`(`handleResetAllEdits`에 `scheduleSelectionUpdate()` 추가).
+- **범위**: 원복된 DOM에서 specified/computed 재수집 → 패널 입력 표시값(placeholder·Select)이 편집값에 머무르지 않게.
+- **검증**: [x] typecheck/test · [ ] 수동: class 편집·재선택 후 "변경사항 초기화" → 속성 필드 표시값 원복.
+
 ## 테스트 계획
 - **단위 테스트**:
   - `bufferCurrentElement`: append, 같은 selector 갱신, before 유지, onSubmitted 비움.

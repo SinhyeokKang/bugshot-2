@@ -21,7 +21,9 @@
 ## 비목표 (Non-goals)
 
 - **버퍼 관리 UI 없음**: 담긴 요소 목록·재편집·개별 삭제 UI는 제외. 이번엔 완전 헤드리스(상태/직렬화 로직 + 최소 진입 가드만). 목록 UI는 후속.
-- **draft 영속/재편집 미지원**: 이슈를 draft로 저장한 뒤 *이슈 목록 → DraftDetailDialog*에서 다시 열어 편집/재제출하는 경로는 **단일(마지막) element만 복원**(기존 동작 유지). 복수 element는 첫 제출 세션 안에서만 산다. **사용자 영향**: 복수 element 이슈를 draft로 저장 후 재편집하면 마지막 요소 외 나머지는 복원되지 않는다(조용한 손실). 단, **첫 제출(플랫폼 등록) 본문에는 영향 없다** — 복수 element는 정상 등록되고, draft 백업만 단일이다. `IssueRecord` 스키마·마이그레이션·blob 키 변경 없음.
+- **저장된 draft의 styling 재편집은 미지원 (DraftDetailDialog 한정)**: 이슈를 draft로 저장한 뒤 *이슈 목록 → DraftDetailDialog*에서 다시 열었을 때, styling 패널로 되돌아가 스타일을 **다시 picker로 편집**하는 UX는 제공하지 않는다(표시·재제출만). 복수 element를 재편집하는 UX도 비목표.
+  - **⚠️ 현재 작성 세션 내 `styling ↔ drafting` 왕복(backToStyling)은 위와 별개 — 복수 element 버퍼·페이지 누적 변경·현재 element 편집값이 그대로 유지된다(정상 동작, 비목표 아님).** 위 "재편집 미지원"은 *저장 후 DraftDetailDialog에서 다시 여는* 경로만 가리킨다(두 경로 혼동 주의).
+  - **복수 element diff 영속화는 지원 (설계 이후 추가됨 — 기존 "draft 영속 미지원" 비목표 철회).** draft 저장 시 버퍼의 모든 element가 `IssueRecord.bufferedElements`(optional)에 영속화되어, DraftDetailDialog의 **표시(프리뷰)·마크다운 복사·재제출 본문**에 복수 element가 그대로 복원된다(`resolveDraftStyleElements`/`useDraftStyleElements`). element별 이미지는 blob 키 `b{i}-before`/`b{i}-after`로 저장. → 기획 초안이 우려한 "마지막 요소 외 조용한 손실"은 **발생하지 않는다**. `IssueRecord.bufferedElements`는 optional 필드라 스토어 버전 bump·마이그레이션 불필요(현 `ISSUES_STORE_VERSION=5`는 무관한 별개 마이그레이션).
 - element 모드 외(screenshot/video/freeform)는 무관 — 변경 없음. **diff 없는 요소를 캡처하고 싶으면 요소 캡처 모드([[element-screenshot]])**가 대체한다.
 - 버퍼 개수 상한·경고 UI 없음(용량 위험은 design.md 참조).
 
@@ -54,5 +56,8 @@
 - 이슈 작성 취소/제출 완료/reset 시 버퍼가 비워지고 페이지의 모든 누적 변경이 원본으로 복원된다(잔여 오염 0). **제출 완료(done) 후 idle 전환 전 패널/탭을 닫아도 페이지가 복원된다**(제출 완료 구독 지점에서 복원 동반).
 - 같은 selector를 두 번 다루면 본문에 한 번만(최종 상태) 나타난다.
 - `buildStyleDiff`·버퍼 머지 등 순수 함수 단위 테스트 통과(`pnpm test`).
-- draft 재편집(DraftDetailDialog)은 기존대로 단일 element로 동작하며, 레거시 no-diff draft 표시도 회귀 없다.
+- 현재 세션 `styling ↔ drafting` 왕복(backToStyling)에서 복수 element 버퍼·페이지 누적 변경이 유지된다.
+- draft로 저장 후 DraftDetailDialog 재열람 시 복수 element가 **표시·마크다운 복사·재제출 본문**에 복원된다(영속화). 단 styling 패널로 돌아가는 재편집은 미지원(단일도 picker 재편집 안 함).
+- 레거시 no-diff draft 표시도 회귀 없다.
+- `bugshot.md` AI 메타 주석에도 복수 element의 selector·cssChanges가 `meta.elements` 배열로 직렬화된다.
 - 본문은 단수·복수 분기 없이 `## Style Changes ({selector})` 섹션을 element마다 반복하고, env DOM은 selector를 쉼표로 나열한다. 단일 element도 이 형식으로 출력된다(기존 `## Style Changes`에서 바뀜 — 의도된 변경).
