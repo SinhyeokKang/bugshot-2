@@ -13,12 +13,14 @@
 
 ### Task 0-1: diff 진입 게이트
 - **변경 대상**: `src/sidepanel/tabs/StyleEditorPanel.tsx`
-- **작업 내용**: "다음" 버튼(line 436, `disabled={proceeding}`은 438)을 `disabled={proceeding || !hasChange}`(hasChange는 line 122). diff 없을 때 안내는 **disabled 버튼이라 툴팁이 안 뜨므로 상시 헬퍼 텍스트로**(PageFooter `flex flex-col gap-2`에 한 줄, screenshot 모드 권유 — element-screenshot 선행 과제와 짝). `handleNext`(124)에 `if (!hasChange) return` 방어.
-  - **게이트 vs 직렬화 판정**: `hasChange`와 `buildStyleDiff().length`의 `>0` 경계는 검증 결과 일치(design 위험요소). 게이트 교체는 불필요 — `hasChange` 유지 + 동치를 단위 테스트로 고정.
+- **작업 내용**: "다음" 버튼(line 436, `disabled={proceeding}`은 438)을 `disabled={proceeding || !hasChange}`(hasChange는 line 122). `handleNext`(124)에 `if (!hasChange) return` 방어.
+  - **diff 없을 때 안내 — 단순 텍스트만(결정 #2)**: disabled 버튼이라 툴팁이 안 뜨므로 **상시 정보성 헬퍼 텍스트**로(PageFooter `flex flex-col gap-2`에 한 줄, `text-xs text-muted-foreground`, screenshot 모드 권유 — element-screenshot 선행 과제와 짝). **인라인 전환 액션은 만들지 않는다** — 요소 캡처 모드는 idle/EmptyState 진입 구조라 안내만. 노출은 **diff 0일 때만**(diff 준 사용자에겐 노이즈).
+  - **접근성(#7)**: 헬퍼 텍스트에 `id` + disabled "다음" Button에 `aria-describedby` 연결(SR 사용자가 비활성 이유 인지).
+  - **게이트 vs 직렬화 판정 + 동치 테스트 실현(#10)**: `hasChange`와 `buildStyleDiff().length`의 `>0` 경계는 검증 결과 일치(design 위험요소). 게이트 교체는 불필요. 단 `hasChange`가 컴포넌트 **인라인 파생값**이라 단위 호출 불가 → **계산식을 순수 헬퍼로 추출**해 동치를 단위 테스트로 고정.
 - **검증**:
   - [ ] `pnpm typecheck` 통과
-  - [ ] 단위: `hasChange === (buildStyleDiff(...).length > 0)` 동치(대표 케이스 — inlineStyle/class/text 변경, shorthand collapse 포함).
-  - [ ] 수동: 요소 선택만 하고 스타일 안 바꾸면 "다음" 비활성 + 상시 헬퍼 텍스트. screenshot 모드로 유도되는지.
+  - [ ] 단위: 추출 헬퍼 기준 `hasChange(...) === (buildStyleDiff(...).length > 0)` 동치(대표 케이스 — inlineStyle/class/text 변경, shorthand collapse 포함).
+  - [ ] 수동: 요소 선택만 하고 스타일 안 바꾸면 "다음" 비활성 + 헬퍼 텍스트(diff 0일 때만). screenshot 모드로 유도되는지. SR에서 비활성 이유 읽히는지.
 
 ### Task 0-2: isElementNoDiff 제거 (신규 경로)
 - **변경 대상**: `src/sidepanel/tabs/IssueCreateModal.tsx`(buildCtx/buildEditorCaptureFiles), `src/sidepanel/lib/buildCaptureFiles.ts`
@@ -29,8 +31,8 @@
 
 ### Task 0-3: media/diff-0 폴백 제거 (본문 빌더)
 - **변경 대상**: `buildIssueMarkdown.ts`(emitMedia, buildIssueHtml), 6개 빌더(`buildGithubIssueBody`/`buildLinearIssueBody`/`buildGitlabIssueBody`/`buildAsanaIssueBody`/`buildNotionIssueBody`/`buildIssueAdf`)
-- **작업 내용**: element 모드의 `diffs.length > 0 ? styleChanges : media` 폴백에서 else(media/screenshot) 가지 삭제(github 폴백 else line 112, notion `startsWith("screenshot")` line 195). element 모드는 항상 styleChanges. (screenshot/video/freeform media 경로는 유지.)
-  - **주의(jira)**: `buildIssueAdf`의 styleChanges(line 102~113)는 텍스트 table만 만들고 **이미지를 본문에 안 넣는다**. before/after 이미지 인라인은 **`messages.ts` jira 제출 후처리**가 담당(Task 1-6b). buildIssueAdf 자체는 폴백 제거만.
+- **작업 내용**: element 모드의 `diffs.length > 0 ? styleChanges : media` 폴백에서 else(media/screenshot) 가지 삭제(github 폴백 `startsWith("screenshot")` line 113, notion line 189 — 함수명 기준으로 찾을 것). element 모드는 항상 styleChanges. (screenshot/video/freeform media 경로는 유지.)
+  - **주의(jira)**: `buildIssueAdf`의 styleChanges(`ctx.diffs.map` line 86)는 텍스트 table만 만들고 **이미지를 본문에 안 넣는다**. before/after 이미지 인라인은 **`messages.ts` jira 제출 후처리**가 담당(Task 1-6b). buildIssueAdf 자체는 폴백 제거만.
 - **검증**:
   - [ ] `pnpm typecheck` 통과
   - [ ] 단위 테스트(buildIssueMarkdown.test.ts 등) 단일 diff 출력 회귀 확인
@@ -48,15 +50,15 @@
 
 ### Task 1-1: `BufferedElement` + 버퍼 상태/액션
 - **변경 대상**: `src/store/editor-store.ts` (+ 제출 완료 구독 지점)
-- **작업 내용**: `BufferedElement` 인터페이스, `EditorState.bufferedElements`, `initial: []`, `bufferCurrentElement(afterImage)`(같은 selector 갱신·before 유지), `preserveBuffer` 헬퍼 + `startPicking`에 적용, `onSubmitted`(line 618)에 `bufferedElements: []`.
-- **제출 완료 페이지 복원**: `onSubmitted`는 `done`만 만들고 `restoreAll`을 안 부른다 → done 상태 패널/탭 닫기 시 누적 변경 잔여. store는 chrome API 직접 호출 회피이므로, **제출 완료를 구독하는 지점**(IssueTab phase subscribe 또는 제출 성공 콜백)에서 `clearPicker`(→`restoreAll`) 동반.
+- **작업 내용**: `BufferedElement` 인터페이스, `EditorState.bufferedElements`, `initial: []`, `bufferCurrentElement(afterImage)`(같은 selector 갱신·before 유지), `preserveBuffer` 헬퍼 + `startPicking`에 적용, `onSubmitted`(**editor-store.ts:652** — 초안의 618은 `backToDraft`니 함수명 `onSubmitted`로 찾을 것)에 `bufferedElements: []`.
+- **제출 완료 페이지 복원(+#12 실측)**: `onSubmitted`는 `done` + 이미지/로그 null만 만들고 `restoreAll`을 안 부른다 → done 상태 패널/탭 닫기 시 누적 변경 잔여 가능. store는 chrome API 직접 호출 회피이므로, **제출 완료를 구독하는 지점**(IssueCreateModal 제출 성공 콜백 권장)에서 `clearPicker`(→`restoreAll`) 동반. **단 구현 전 실측**: 패널 닫기는 port `onDisconnect` → `handleClear` → `restoreAll`이 이미 자동 발화할 수 있고, `useEditorSessionSync.onTabUpdated`가 `done` + 탭 네비게이션 잔여를 이미 막는다. 자동 복원되면 이 명시 보강은 over-engineering이라 생략하고 성공 기준만 테스트.
 - **검증**:
   - [ ] `pnpm typecheck` 통과 / Task 1-2 테스트 통과
   - [ ] 수동: 제출 완료 직후(done) 패널/탭 닫아도 페이지 복원(잔여 0).
 
 ### Task 1-2: 버퍼 단위 테스트
-- **변경 대상**: `src/store/__tests__/editor-store.test.ts`(없으면 신설)
-- **작업 내용**: append / 같은 selector 갱신·before 유지 / startPicking 후 버퍼 보존 / onSubmitted 후 비움.
+- **변경 대상**: `src/store/__tests__/editor-store.test.ts`(**이미 존재** — startCapturing/onRecordingComplete/confirmDraft 등 describe 다수. 신설 아니라 **describe 추가**)
+- **작업 내용**: append / 같은 selector 갱신·before 유지 / startPicking 후 버퍼 보존 / onSubmitted 후 비움 / **`cancelPicking`·`reset`의 `...initial`에 `bufferedElements:[]`가 자동 포함돼 기존 리셋 가정을 안 깨는지 회귀**(#6). 엣지: **backToStyling 후 재진입 시 현재 element가 아직 미버퍼 상태로 유지**(중복 방지 시퀀스) / **버퍼만 있고 현재 element diff 0**(가드 방어 경로).
 - **검증**:
   - [ ] `pnpm test` 통과
 
@@ -72,9 +74,9 @@
 - **검증**:
   - [ ] `pnpm test` 통과
 
-### Task 1-5: buildCaptureFiles element별 파일
-- **변경 대상**: `src/sidepanel/lib/buildCaptureFiles.ts`, `__tests__/buildCaptureFiles.test.ts`
-- **작업 내용**: element별 이미지 배열 입력 → `before-${i}.webp`/`after-${i}.webp` 생성. 단위 테스트로 파일명·개수 고정.
+### Task 1-5: buildCaptureFiles element별 파일 (배열 교체)
+- **변경 대상**: `src/sidepanel/lib/buildCaptureFiles.ts`(`BuildCaptureFilesInput` line 24, 단수 `beforeImage?`/`afterImage?` 28/29, push 96~100), `__tests__/buildCaptureFiles.test.ts`
+- **작업 내용**: **결정 — 배열 교체**: element 모드의 단수 `beforeImage`/`afterImage`를 **element별 배열로 교체**(단수 병존 안 함, element 경로 일원화) → 항목별 `before-${i}.webp`/`after-${i}.webp` 생성. screenshot/video 단수 필드는 유지. 호출부(IssueCreateModal·DraftDetailDialog)는 단일도 1개짜리 배열(`before-0`/`after-0`)로 전달. `getModeImages`(AiDraftDialog 전용)는 무관 — 건드리지 않음. 단위 테스트로 파일명·개수 고정(단일=before-0 회귀 포함).
 - **검증**:
   - [ ] `pnpm test` 통과
 
@@ -87,31 +89,34 @@
   - [ ] 단일 element 출력이 `## Style Changes (selector)` 새 형식으로 나오는지(기존 테스트 갱신)
   - [ ] 수동: 플랫폼별 실제 제출(특히 notion placeholder·asana inline 순서)
 
-### Task 1-7: IssueCreateModal buildCtx/captureFiles 머지
-- **변경 대상**: `src/sidepanel/tabs/IssueCreateModal.tsx`
-- **작업 내용**: element 분기 `buildCtx`에서 `mergeStyleElements(bufferedElements, { selection, styleEdits, before: beforeImage, after: afterImage })` → `ctx.styleElements`; 단일 필드는 첫 element로. `buildEditorCaptureFiles`는 **머지·dedup이 끝난 최종 `styleElements` 배열을 단일 출처로** before/after 이미지 배열을 만들어 buildCaptureFiles에 전달(styleElements[i] ↔ before-${i}.webp 인덱스 일치).
+### Task 1-7: IssueCreateModal buildCtx/captureFiles 머지 (C-2b ① 주입 지점)
+- **변경 대상**: `src/sidepanel/tabs/IssueCreateModal.tsx`(`buildCtx` line 143 인라인, `buildEditorCaptureFiles` 244, `isElementNoDiff` 248)
+- **작업 내용**: 제출 본선의 styleElements 주입(C-2b ①). element 분기 `buildCtx`(인라인 조립)에서 `mergeStyleElements(bufferedElements, { selection, styleEdits, before: beforeImage, after: afterImage })` → `ctx.styleElements`; 단일 필드는 첫 element로. `buildEditorCaptureFiles`는 **머지·dedup이 끝난 최종 `styleElements` 배열을 단일 출처로** before/after 이미지 배열을 만들어 buildCaptureFiles에 전달(styleElements[i] ↔ before-${i}.webp 인덱스 일치).
 - **검증**:
   - [ ] `pnpm typecheck` 통과
   - [ ] 수동: 복수 element 등록 시 본문 element별 섹션·이미지(각 섹션이 자기 before-${i}/after-${i})
 
-### Task 1-7c: ctx.styleElements 경로 통일 — PreviewPanel + DraftDetailDialog (review 추가)
-- **변경 대상**: `src/sidepanel/lib/buildIssueMarkdown.ts`(`buildMarkdownContext`), `src/sidepanel/tabs/PreviewPanel.tsx`(line 216), `src/sidepanel/tabs/DraftDetailDialog.tsx`(line 249 `buildCtxForSubmit`)
-- **작업 내용**: 빌더가 `ctx.styleElements`를 반복하므로, ctx 생성 **공통 지점(`buildMarkdownContext`)이 항상 `styleElements`를 채운다**(단일 폴백 분기 없음). 단일 element도 1개짜리 `styleElements`(`before-0`/`after-0`)로 정규화.
-  - PreviewPanel: `mergeStyleElements(bufferedElements, 현재)`로 버퍼 포함(마크다운 복사에 A·B 섹션).
-  - DraftDetailDialog: 레거시 단일을 1개짜리 styleElements로(레거시 no-diff 분기는 별개 유지). buildCaptureFiles도 `before-0`/`after-0`로 생성.
+### Task 1-7c: ctx.styleElements 채우기 — 3곳 개별 주입 (review 정정 #1)
+- **전제 정정**: ctx 생성 3경로는 **공통 함수를 안 거친다**. ① `IssueCreateModal.tsx:143 buildCtx`(제출 본선)는 `MarkdownContext`를 **인라인 조립**(`buildMarkdownContext` import 안 함) → **Task 1-7에서 주입**. ② `PreviewPanel.tsx`만 별도 파일 `src/sidepanel/lib/buildMarkdownContext.ts:41`을 호출(element 분기 line 217). ③ `DraftDetailDialog.tsx:248 buildCtxForSubmit`도 **인라인 조립**. → "공통 지점 하나" 통일이 불가하므로 **3곳 각각 주입**(공통화 선행 리팩터는 외과 범위 초과라 안 함).
+- **변경 대상(이 태스크)**: `src/sidepanel/lib/buildMarkdownContext.ts`, `src/sidepanel/tabs/PreviewPanel.tsx`(line 217), `src/sidepanel/tabs/DraftDetailDialog.tsx`(line 248 `buildCtxForSubmit`). (① IssueCreateModal은 Task 1-7.)
+- **작업 내용**: 단일 element도 1개짜리 `styleElements`(`before-0`/`after-0`)로 정규화(빌더 단일 폴백 없음).
+  - ② PreviewPanel(buildMarkdownContext 경유): 시그니처에 buffered/현재 입력 추가 → `mergeStyleElements(bufferedElements, 현재)`로 버퍼 포함. **이미지 URL 없는 복사 본문이라 Snapshot 행 없이 element별 diff 테이블만 반복**(`before-${i}` 셀 없음, #14).
+  - ③ DraftDetailDialog: 레거시 단일을 1개짜리 styleElements로(레거시 no-diff 분기는 별개 유지). buildCaptureFiles도 `before-0`/`after-0`로 생성.
 - **검증**:
   - [ ] `pnpm typecheck` 통과
-  - [ ] 수동: A·B 담고 PreviewPanel "마크다운 복사" → 복사 결과에 A·B 섹션 둘 다.
+  - [ ] 수동: A·B 담고 PreviewPanel "마크다운 복사" → 복사 결과에 A·B 섹션 둘 다(diff 테이블).
   - [ ] 수동: 레거시/단일 draft 재제출 → before-0/after-0 이미지 본문에 정상(깨짐 없음).
 
 ### Task 1-6b: jira(ADF) 이미지 인라인 후처리 복수 element (review 추가)
-- **변경 대상**: `src/background/messages.ts`(jira 제출 후처리 line 612~625, `snapshotRow`/`snapshotCell`)
+- **변경 대상**: `src/background/messages.ts`(jira 제출 후처리 line 612~625 — `before.webp` 613, `after.webp` 614, table `findIndex` 616, `splice(1,0,...)` 621, `snapshotRow` 정의 663)
 - **작업 내용**: 현재 후처리는 `uploadMap.get("before.webp")`/`"after.webp")` 단일 파일명 + `findIndex(n => n.type === "table")` 첫 table 1개에만 `snapshotRow` splice. 복수 대응 —
   - 파일명을 **`before-${i}.webp`/`after-${i}.webp`** element별 조회.
   - content의 **모든 styleChanges table을 순서대로 순회**, i번째 table에 i번째 element의 snapshotRow 주입(table 순서 = styleElements 인덱스 i). styleChanges table 식별 기준(heading 직후 table 등) 명확히.
   - 단일도 통일안에 따라 `before-0`이므로 `before-${i}` 순회로 일관(무인덱스 폴백 불요). screenshot/video 후처리는 기존 유지.
+  - **단위화(#9)**: "모든 styleChanges table 순회 → i번째 table에 i번째 element snapshotRow 주입" 로직을 **순수 함수로 추출**(ADF content + uploadMap → 변형된 content). messages.ts 후처리는 5개 빌더 단위 테스트로 안 잡히므로, 이 추출 함수로 "table N개 ↔ element N개 인덱스 일치" 단위 테스트를 둔다.
 - **검증**:
   - [ ] `pnpm typecheck` 통과
+  - [ ] 단위: 추출 함수 — table N개에 각자 자기 before-${i}/after-${i} Snapshot 행 주입(교차 매칭·누락 없음), 단일(before-0) 회귀.
   - [ ] 수동(jira 실제 제출): 복수 element 이슈 본문에 element별 table + 각 table에 자기 before/after Snapshot 행 인라인(KAN 류 실제 확인).
   - [ ] 수동: 단일 element jira 제출 회귀(Snapshot 행 정상).
 
@@ -128,7 +133,7 @@
 
 ### Task 1-8: 세션 영속화에 버퍼 포함
 - **변경 대상**: `src/sidepanel/hooks/useEditorSessionSync.ts`(+ EditorSnapshot in editor-store.ts)
-- **작업 내용**: `EditorSnapshot`·`snapshotFromState`에 `bufferedElements`. **하위호환**: hydrate는 부분 머지라 키 없는 구 스냅샷은 `initial`의 `[]`가 자동 유지(`snapshotFromState`가 명시적 undefined 쓸 때만 `?? []`). **lite 강등 얕은 스프레드 함정**: 현 lite(line 143)는 `{...snap}`이라 `bufferedElements` 배열 내부 base64가 안 비워진다 → `bufferedElements: snap.bufferedElements.map(e => ({ ...e, beforeImage: null, afterImage: null }))`로 **명시 변환**.
+- **작업 내용**: `EditorSnapshot`·`snapshotFromState`에 `bufferedElements`. **하위호환**: hydrate는 부분 머지라 키 없는 구 스냅샷은 `initial`의 `[]`가 자동 유지(`snapshotFromState`가 명시적 undefined 쓸 때만 `?? []`). **lite 강등 얕은 스프레드 함정**: 현 lite(line 144)는 `{...snap}`이라 `bufferedElements` 배열 내부 base64가 안 비워진다 → `bufferedElements: snap.bufferedElements.map(e => ({ ...e, beforeImage: null, afterImage: null }))`로 **명시 변환**.
 - **검증**:
   - [ ] `pnpm typecheck` 통과
   - [ ] 수동: 버퍼 담긴 채 사이드패널 닫았다 열면 복원
@@ -164,8 +169,9 @@
   - `bufferCurrentElement`: append, 같은 selector 갱신, before 유지, onSubmitted 비움.
   - `mergeStyleElements`: 머지, selector dedup, diff 0 제외, **파일명 인덱싱(dedup으로 길이 변한 뒤 최종 배열 i 기준 styleElements[i] ↔ before-${i} 일치)**.
   - `buildIssueMarkdown`/`buildCaptureFiles`: 복수 element 출력 + 단일(`before-0`) 회귀.
-  - 게이트 동치: `hasChange === (buildStyleDiff(...).length > 0)`.
+  - 게이트 동치: 추출 헬퍼 기준 `hasChange(...) === (buildStyleDiff(...).length > 0)`(hasChange 인라인이라 헬퍼 추출 후).
   - 6개 빌더: 복수 element 시 각 섹션이 자기 `before-${i}`/`after-${i}`(교차 매칭 방지) + 첨부 N쌍 중복 없음(github `mediaHandled`/`extras`).
+  - jira 후처리(#9): 추출한 snapshotRow splice 순회 함수 — table N개 ↔ element N개 인덱스 일치(교차/누락 없음), 단일 `before-0` 회귀.
 - **수동 테스트(Chrome)**:
   - [ ] (no-diff 폐지) 요소 선택만·스타일 미변경 → "다음" 비활성 + screenshot 모드 안내.
   - [ ] A 색 변경 → 다시 선택 → B 여백 변경 → 다음 → 등록. 본문 A·B 섹션 각각 selector·diff·before/after.
