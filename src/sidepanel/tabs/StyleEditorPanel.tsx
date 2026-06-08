@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Crosshair, RotateCcw, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useT } from "@/i18n";
@@ -14,8 +14,14 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { Textarea } from "@/components/ui/textarea";
-import { useEditorStore, type EditorStyleEdits } from "@/store/editor-store";
+import { useEditorStore } from "@/store/editor-store";
 import { useBoundTabId } from "@/sidepanel/hooks/useBoundTabId";
 import { useAI } from "@/sidepanel/hooks/useAI";
 import { useBufferThenSwitch } from "@/sidepanel/hooks/useBufferThenSwitch";
@@ -25,9 +31,10 @@ import {
   applyClasses,
   applyText,
   clearPicker,
-  resetEdits,
+  resetAllEdits,
   startPicker,
 } from "@/sidepanel/picker-control";
+import { buildStyleDiff } from "@/sidepanel/components/StyleChangesTable";
 import { PageFooter, PageScroll, PageShell, Section } from "@/sidepanel/components/Section";
 import { CancelConfirmDialog } from "@/sidepanel/components/CancelConfirmDialog";
 import { DomNavButton, DomTreeTitle } from "./DomTreeDialog";
@@ -101,12 +108,12 @@ export function SelectedPanel() {
   const t = useT();
   const selection = useEditorStore((s) => s.selection);
   const styleEdits = useEditorStore((s) => s.styleEdits);
+  const bufferedElements = useEditorStore((s) => s.bufferedElements);
   const setAfterImage = useEditorStore((s) => s.setAfterImage);
   const confirmStyles = useEditorStore((s) => s.confirmStyles);
   const reset = useEditorStore((s) => s.reset);
   const tabId = useBoundTabId();
   const { status: aiStatus, providerLabel, createSession } = useAI();
-  const noChangeHintId = useId();
   const [proceeding, setProceeding] = useState(false);
   const [aiDialogOpen, setAiDialogOpen] = useState(false);
   if (!selection) return null;
@@ -123,18 +130,54 @@ export function SelectedPanel() {
   const changeCount =
     inlineCount + (classDirty ? 1 : 0) + (textDirty ? 1 : 0);
   const hasChange = hasStyleChange(selection, styleEdits);
+  // 현재 element에 diff가 없어도 버퍼에 담긴 element가 있으면 진행 가능.
+  const canProceed = hasChange || bufferedElements.length > 0;
+  // 변경사항 초기화 다이얼로그 카운트 — 현재 + 버퍼 전체 diff 수(전체 원복 대상).
+  const totalChangeCount =
+    changeCount +
+    bufferedElements.reduce(
+      (n, b) =>
+        n +
+        buildStyleDiff(
+          {
+            classList: b.selectionSnapshot.classList,
+            specifiedStyles: b.selectionSnapshot.specifiedStyles,
+            computedStyles: b.selectionSnapshot.computedStyles,
+            text: b.selectionSnapshot.text,
+          },
+          b.styleEdits,
+        ).length,
+      0,
+    );
 
   const handleNext = async () => {
-    if (!tabId || proceeding || !hasChange) return;
+    if (!tabId || proceeding || !canProceed) return;
     setProceeding(true);
     try {
-      const img = await captureElementSnapshot(tabId);
-      setAfterImage(img);
+      // 현재 element에 변경이 있을 때만 after 스냅샷 캡처(없으면 버퍼만 들고 진행).
+      if (hasChange) {
+        const img = await captureElementSnapshot(tabId);
+        setAfterImage(img);
+      }
       confirmStyles();
     } finally {
       setProceeding(false);
     }
   };
+
+  const nextDisabled = proceeding || !canProceed;
+  const nextButton = (
+    <Button
+      className="aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+      aria-disabled={nextDisabled}
+      onClick={() => {
+        if (nextDisabled) return;
+        void handleNext();
+      }}
+    >
+      {t("common.next")}
+    </Button>
+  );
 
   return (
     <PageShell>
@@ -394,11 +437,6 @@ export function SelectedPanel() {
       )}
       <AiStylingDialog open={aiDialogOpen} onOpenChange={setAiDialogOpen} createSession={createSession} />
       <PageFooter>
-        {!hasChange ? (
-          <p id={noChangeHintId} className="text-xs text-muted-foreground">
-            {t("editor.noChangeHint")}
-          </p>
-        ) : null}
         <div className="flex items-center justify-between gap-2">
           <CancelConfirmDialog
             onConfirm={() => {
@@ -411,7 +449,7 @@ export function SelectedPanel() {
               <AlertDialogTrigger asChild>
                 <Button
                   variant="outline"
-                  disabled={!hasChange}
+                  disabled={!canProceed}
                 >
                   {t("editor.resetChanges")}
                 </Button>
@@ -420,20 +458,15 @@ export function SelectedPanel() {
                 <AlertDialogHeader>
                   <AlertDialogTitle>{t("editor.resetChanges")}</AlertDialogTitle>
                   <AlertDialogDescription>
-                    {t("editor.resetChanges.body", { count: changeCount })}
+                    {t("editor.resetChanges.body", { count: totalChangeCount })}
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
                   <AlertDialogCancel>{t("common.close")}</AlertDialogCancel>
                   <AlertDialogAction
                     onClick={() => {
-                      const initial: EditorStyleEdits = {
-                        classList: [...selection.classList],
-                        inlineStyle: {},
-                        text: selection.text ?? "",
-                      };
-                      useEditorStore.getState().setStyleEdits(initial);
-                      if (tabId) void resetEdits(tabId);
+                      useEditorStore.getState().resetAllStyleEdits();
+                      if (tabId) void resetAllEdits(tabId);
                     }}
                   >
                     {t("common.reset")}
@@ -441,13 +474,18 @@ export function SelectedPanel() {
                 </AlertDialogFooter>
               </AlertDialogContent>
             </AlertDialog>
-            <Button
-              onClick={() => void handleNext()}
-              disabled={proceeding || !hasChange}
-              aria-describedby={!hasChange ? noChangeHintId : undefined}
-            >
-              {t("common.next")}
-            </Button>
+            {!canProceed ? (
+              <TooltipProvider delayDuration={0}>
+                <Tooltip>
+                  <TooltipTrigger asChild>{nextButton}</TooltipTrigger>
+                  <TooltipContent className="max-w-60">
+                    {t("editor.noChangeHint")}
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            ) : (
+              nextButton
+            )}
           </div>
         </div>
       </PageFooter>

@@ -170,6 +170,7 @@ interface EditorState {
   setAfterImage: (img: string | null) => void;
   bufferCurrentElement: (afterImage: string | null) => void;
   confirmStyles: () => void;
+  resetAllStyleEdits: () => void;
   backToStyling: () => void;
   setDraft: (draft: EditorDraft) => void;
   confirmDraft: () => void;
@@ -486,6 +487,18 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }),
 
   confirmStyles: () => set({ phase: "drafting", aiStylingLoading: false }),
+  // 현재 element 편집 초기화 + 복수 element 버퍼 비움(페이지 DOM 원복은 picker.resetAllEdits가 담당).
+  resetAllStyleEdits: () =>
+    set((s) => ({
+      styleEdits: s.selection
+        ? {
+            classList: [...s.selection.classList],
+            inlineStyle: {},
+            text: s.selection.text ?? "",
+          }
+        : s.styleEdits,
+      bufferedElements: [],
+    })),
 
   backToStyling: () => set({ phase: "styling", afterImage: null, aiStylingLoading: false }),
 
@@ -655,7 +668,31 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           name: t.name,
           value: t.value,
         })),
+        ...(state.bufferedElements.length > 0
+          ? {
+              bufferedElements: state.bufferedElements.map((b) => ({
+                selector: b.selector,
+                tagName: b.tagName,
+                styleEdits: {
+                  classList: [...b.styleEdits.classList],
+                  inlineStyle: { ...b.styleEdits.inlineStyle },
+                  text: b.styleEdits.text,
+                },
+                selectionSnapshot: {
+                  classList: [...b.selectionSnapshot.classList],
+                  specifiedStyles: { ...b.selectionSnapshot.specifiedStyles },
+                  computedStyles: { ...b.selectionSnapshot.computedStyles },
+                  text: b.selectionSnapshot.text,
+                  viewport: { ...b.selectionSnapshot.viewport },
+                  capturedAt: b.selectionSnapshot.capturedAt,
+                },
+                hasBefore: !!b.beforeImage,
+                hasAfter: !!b.afterImage,
+              })),
+            }
+          : {}),
       });
+      const bufferedSnapshot = state.bufferedElements;
       void (async () => {
         let failed = false;
         if (state.beforeImage) {
@@ -669,6 +706,11 @@ export const useEditorStore = create<EditorState>((set, get) => ({
             useIssuesStore.getState().patchDraftSnapshot(id, { after: false });
             failed = true;
           }
+        }
+        for (let i = 0; i < bufferedSnapshot.length; i++) {
+          const b = bufferedSnapshot[i];
+          if (b.beforeImage && !await saveImageBlob(id, `b${i}-before`, dataUrlToBlob(b.beforeImage))) failed = true;
+          if (b.afterImage && !await saveImageBlob(id, `b${i}-after`, dataUrlToBlob(b.afterImage))) failed = true;
         }
         if (failed) onBlobSaveFailed.fire();
       })();

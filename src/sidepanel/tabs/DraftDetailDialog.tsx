@@ -59,9 +59,14 @@ import { NetworkLogPreviewDialog } from "@/sidepanel/components/NetworkLogPrevie
 import { ConsoleLogPreviewDialog } from "@/sidepanel/components/ConsoleLogPreviewDialog";
 import { ActionLogPreviewDialog } from "@/sidepanel/components/ActionLogPreviewDialog";
 import {
-  StyleChangesTable,
+  StyleElementsTable,
   buildStyleDiff,
 } from "@/sidepanel/components/StyleChangesTable";
+import {
+  useDraftStyleElements,
+  loadDraftStyleImages,
+} from "@/sidepanel/hooks/useDraftStyleElements";
+import { resolveDraftStyleElements } from "@/sidepanel/lib/resolveDraftStyleElements";
 import { buildAiMetaAttachment } from "@/sidepanel/lib/buildAiMetaAttachment";
 import { buildCaptureFiles, type CaptureFiles } from "@/sidepanel/lib/buildCaptureFiles";
 import { deriveContextEnvRows } from "@/sidepanel/lib/buildReportData";
@@ -187,7 +192,11 @@ export function DraftDetailDialog({
   const isScreenshot = issue?.captureMode === "screenshot";
   const isVideo = issue?.captureMode === "video";
   const isFreeform = issue?.captureMode === "freeform";
-  const { beforeUrl, afterUrl } = useIssueImages(issue?.id ?? null, issue?.snapshot);
+  const { beforeUrl } = useIssueImages(issue?.id ?? null, issue?.snapshot);
+  const styleElements = useDraftStyleElements(
+    issue ?? null,
+    open && !isScreenshot && !isVideo && !isFreeform,
+  );
 
   const [networkLogData, setNetworkLogData] = useState<NetworkLog | null>(null);
   const [consoleLogData, setConsoleLogData] = useState<ConsoleLog | null>(null);
@@ -263,6 +272,12 @@ export function DraftDetailDialog({
     // legacy no-diff draft fallback — 신규 경로는 diff 게이트로 미발생. media 폴백이
     // 제거됐으므로 no-diff element draft는 screenshot 모드로 강등해 이미지를 노출한다.
     const legacyNoDiff = !isScreenshot && !isVideo && !isFreeform && diffs.length === 0;
+    const isElement = !isScreenshot && !isVideo && !isFreeform && !legacyNoDiff;
+    // 현재 + 버퍼 element를 라이브와 동일 규칙으로 병합 — 본문·캡처 파일 인덱스 단일 출처.
+    const styleImages = isElement ? await loadDraftStyleImages(issue) : null;
+    const styleElementsForSubmit = styleImages
+      ? resolveDraftStyleElements(issue, styleImages)
+      : [];
     const ctx = {
       os: getOsInfo(),
       browser: parseChromeVersion(navigator.userAgent),
@@ -280,25 +295,23 @@ export function DraftDetailDialog({
       viewport: isFreeform ? (issue.viewport ?? null) : (issue.viewport ?? sel?.viewport ?? { width: 0, height: 0 }),
       capturedAt: sel?.capturedAt ?? issue.createdAt,
       diffs,
+      styleElements: isElement ? styleElementsForSubmit : undefined,
       environment: issue.draft.environment ?? [],
       networkLogSummary: networkLog ? buildNetworkLogSummary(networkLog) : undefined,
       consoleLogSummary: consoleLogForSubmit ? buildConsoleLogSummary(consoleLogForSubmit) : undefined,
     };
 
     const videoBlob = isVideo ? await getVideoBlob(issue.id) : null;
-    const beforeBlob = issue.snapshot.before ? await getImageBlob(issue.id, "before") : null;
-    const afterBlob = !isScreenshot && issue.snapshot.after
-      ? await getImageBlob(issue.id, "after")
+    const beforeBlob = (isScreenshot || legacyNoDiff) && issue.snapshot.before
+      ? await getImageBlob(issue.id, "before")
       : null;
     const beforeDataUrl = beforeBlob ? await blobToDataUrl(beforeBlob) : null;
-    const afterDataUrl = afterBlob ? await blobToDataUrl(afterBlob) : null;
-    const isElement = !isScreenshot && !isVideo && !isFreeform && !legacyNoDiff;
     const captureFiles = await buildCaptureFiles({
       captureMode: legacyNoDiff ? "screenshot" : (issue.captureMode ?? "element"),
       videoBlob,
       screenshotImage: isScreenshot || legacyNoDiff ? beforeDataUrl : null,
-      beforeImages: isElement ? [beforeDataUrl] : undefined,
-      afterImages: isElement ? [afterDataUrl] : undefined,
+      beforeImages: isElement ? styleElementsForSubmit.map((e) => e.beforeImage ?? null) : undefined,
+      afterImages: isElement ? styleElementsForSubmit.map((e) => e.afterImage ?? null) : undefined,
       networkLog,
       consoleLog: consoleLogForSubmit,
       actionLog: actionLogForSubmit,
@@ -677,8 +690,8 @@ export function DraftDetailDialog({
                   issue={issue}
                   sectionConfig={sectionConfig}
                   beforeUrl={beforeUrl}
-                  afterUrl={afterUrl}
                   diffs={diffs}
+                  styleElements={styleElements}
                   isVideo={isVideo}
                   hasScreenshot={hasScreenshot}
                   hasStyleBlock={hasStyleBlock}
@@ -811,8 +824,8 @@ function DraftDetailSections({
   issue,
   sectionConfig,
   beforeUrl,
-  afterUrl,
   diffs,
+  styleElements,
   isVideo,
   hasScreenshot,
   hasStyleBlock,
@@ -826,8 +839,8 @@ function DraftDetailSections({
   issue: IssueRecord;
   sectionConfig: IssueSection[];
   beforeUrl: string | null;
-  afterUrl: string | null;
   diffs: ReturnType<typeof buildStyleDiff>;
+  styleElements: import("@/sidepanel/lib/buildIssueMarkdown").StyleElementContext[];
   isVideo: boolean;
   hasScreenshot: boolean;
   hasStyleBlock: boolean;
@@ -860,11 +873,7 @@ function DraftDetailSections({
       </FieldSection>
     ) : hasStyleBlock && diffs.length > 0 ? (
       <FieldSection key="__media" label={t("section.styleChanges")}>
-        <StyleChangesTable
-          beforeImage={beforeUrl}
-          afterImage={afterUrl}
-          diffs={diffs}
-        />
+        <StyleElementsTable elements={styleElements} />
       </FieldSection>
     ) : hasStyleBlock ? (
       <FieldSection key="__media" label={t("section.media")}>

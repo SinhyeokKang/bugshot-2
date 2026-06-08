@@ -774,6 +774,20 @@ describe("bufferCurrentElement — 복수 element 버퍼", () => {
     expect(buf[0].styleEdits.inlineStyle).toEqual({ color: "#ff0000" });
   });
 
+  it("resetAllStyleEdits — 현재 styleEdits 초기화 + 버퍼 비움", () => {
+    setCurrent({ selector: "button.cta", inline: { color: "#ffffff" } });
+    useEditorStore.getState().bufferCurrentElement("data:after-A");
+    setCurrent({ selector: "div.box", inline: { margin: "8px" } });
+    expect(useEditorStore.getState().bufferedElements).toHaveLength(1);
+
+    useEditorStore.getState().resetAllStyleEdits();
+
+    const s = useEditorStore.getState();
+    expect(s.bufferedElements).toHaveLength(0);
+    expect(s.styleEdits.inlineStyle).toEqual({});
+    expect(s.styleEdits.classList).toEqual(["cta"]);
+  });
+
   it("다른 selector면 별개 항목 누적", () => {
     setCurrent({ selector: "button.cta" });
     useEditorStore.getState().bufferCurrentElement("data:after-A");

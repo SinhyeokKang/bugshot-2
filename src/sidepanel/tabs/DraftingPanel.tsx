@@ -29,9 +29,10 @@ import {
   Section,
 } from "@/sidepanel/components/Section";
 import {
-  StyleChangesTable,
+  StyleElementsTable,
   buildStyleDiff,
 } from "@/sidepanel/components/StyleChangesTable";
+import { mergeStyleElements } from "@/sidepanel/lib/buildIssueMarkdown";
 import {
   deriveReadonlyEnvRows,
   filterEnvironmentRows,
@@ -52,6 +53,7 @@ export function DraftingPanel() {
   const styleEdits = useEditorStore((s) => s.styleEdits);
   const beforeImage = useEditorStore((s) => s.beforeImage);
   const afterImage = useEditorStore((s) => s.afterImage);
+  const bufferedElements = useEditorStore((s) => s.bufferedElements);
   const screenshotAnnotated = useEditorStore((s) => s.screenshotAnnotated);
   const screenshotRaw = useEditorStore((s) => s.screenshotRaw);
   const videoBlob = useEditorStore((s) => s.videoBlob);
@@ -87,6 +89,26 @@ export function DraftingPanel() {
   const diffs = useMemo(
     () => (selection ? buildStyleDiff(selection, styleEdits) : []),
     [selection, styleEdits],
+  );
+
+  const styleElements = useMemo(
+    () =>
+      selection
+        ? mergeStyleElements(bufferedElements, {
+            selection: {
+              selector: selection.selector,
+              tagName: selection.tagName,
+              classList: selection.classList,
+              computedStyles: selection.computedStyles,
+              specifiedStyles: selection.specifiedStyles,
+              text: selection.text,
+            },
+            styleEdits,
+            before: beforeImage,
+            after: afterImage,
+          })
+        : [],
+    [selection, styleEdits, bufferedElements, beforeImage, afterImage],
   );
 
   useEffect(() => {
@@ -125,13 +147,9 @@ export function DraftingPanel() {
       <VideoPreview blob={videoBlob} thumbnail={videoThumbnail} />
     </Section>
   ) : isElementMode ? (
-    diffs.length > 0 ? (
+    styleElements.length > 0 ? (
       <Section key="__media" title={t("section.styleChanges")} collapsible>
-        <StyleChangesTable
-          beforeImage={beforeImage}
-          afterImage={afterImage}
-          diffs={diffs}
-        />
+        <StyleElementsTable elements={styleElements} />
       </Section>
     ) : (
       <Section key="__media" title={t("section.media")} collapsible>

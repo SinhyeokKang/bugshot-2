@@ -170,8 +170,8 @@ export async function applyText(tabId: number, text: string): Promise<void> {
   await send(tabId, { type: "picker.applyText", text });
 }
 
-export async function resetEdits(tabId: number): Promise<void> {
-  await send(tabId, { type: "picker.resetEdits" });
+export async function resetAllEdits(tabId: number): Promise<void> {
+  await send(tabId, { type: "picker.resetAllEdits" });
 }
 
 export async function collectTokens(tabId: number): Promise<Token[]> {

@@ -128,7 +128,12 @@ export async function clearVideoBlobs(): Promise<void> {
 
 // --- Image blob API ---
 
-export type ImageSlot = "before" | "after";
+// before/after = 현재(마지막) element. b${n}-before/after = 복수 element 버퍼의 n번째.
+export type ImageSlot =
+  | "before"
+  | "after"
+  | `b${number}-before`
+  | `b${number}-after`;
 
 function imageKey(issueId: string, slot: ImageSlot): string {
   return `${issueId}:${slot}`;
@@ -182,8 +187,18 @@ export async function deleteImageBlobs(issueId: string): Promise<void> {
     const db = await openDb();
     const tx = db.transaction(STORE_IMAGES, "readwrite");
     const store = tx.objectStore(STORE_IMAGES);
-    store.delete(imageKey(issueId, "before"));
-    store.delete(imageKey(issueId, "after"));
+    // before/after + 임의 개수의 b${n}-* 버퍼 슬롯을 모두 정리(접두사 매치) — 고아 방지.
+    const prefix = `${issueId}:`;
+    await new Promise<void>((resolve, reject) => {
+      const req = store.getAllKeys();
+      req.onsuccess = () => {
+        for (const k of req.result as string[]) {
+          if (k.startsWith(prefix)) store.delete(k);
+        }
+        resolve();
+      };
+      req.onerror = () => reject(req.error);
+    });
     await txComplete(tx);
   } catch (e) {
     console.warn("[blob-db] deleteImageBlobs failed:", e);

@@ -288,8 +288,8 @@ chrome.runtime.onMessage.addListener(
         case "picker.applyText":
           handleApplyText(msg.text);
           break;
-        case "picker.resetEdits":
-          handleResetEdits();
+        case "picker.resetAllEdits":
+          handleResetAllEdits();
           break;
         case "picker.collectTokens":
           void (async () => {
@@ -484,14 +484,9 @@ function handleApplyStyles(inlineStyle: Record<string, string>): void {
   render();
 }
 
-function handleResetEdits(): void {
-  if (!selectedEl) return;
-  const state = editedEls.get(selectedEl);
-  if (state) {
-    restoreElState(selectedEl, state);
-    // 리셋 후 원본 상태 — 레지스트리에서 제거. 재편집 시 apply가 captureOriginal로 다시 등록.
-    editedEls.delete(selectedEl);
-  }
+// 복수 element 버퍼 포함 모든 편집 element를 원복(현재 선택은 유지 — picker 종료 안 함).
+function handleResetAllEdits(): void {
+  restoreAll();
   render();
 }
 

@@ -90,6 +90,46 @@ export function StyleChangesTable({
   );
 }
 
+// 복수 element 프리뷰: 머지된 element마다 selector 라벨 + 표. 단수면 라벨 생략(기존 동작 유지).
+export function StyleElementsTable({
+  elements,
+}: {
+  elements: readonly {
+    selector: string;
+    beforeImage?: string | null;
+    afterImage?: string | null;
+    diffs: StyleDiffRow[];
+  }[];
+}) {
+  if (elements.length === 0) return null;
+  if (elements.length === 1) {
+    const el = elements[0];
+    return (
+      <StyleChangesTable
+        beforeImage={el.beforeImage ?? null}
+        afterImage={el.afterImage ?? null}
+        diffs={el.diffs}
+      />
+    );
+  }
+  return (
+    <div className="space-y-5">
+      {elements.map((el) => (
+        <div key={el.selector} className="space-y-1.5">
+          <p className="break-all font-mono text-xs text-muted-foreground">
+            {el.selector}
+          </p>
+          <StyleChangesTable
+            beforeImage={el.beforeImage ?? null}
+            afterImage={el.afterImage ?? null}
+            diffs={el.diffs}
+          />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function SnapshotCell({ image }: { image: string | null }) {
   if (!image) return null;
   return (

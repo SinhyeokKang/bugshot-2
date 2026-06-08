@@ -73,7 +73,7 @@ export type PickerMessage =
   | { type: "picker.applyClasses"; classList: string[] }
   | { type: "picker.applyStyles"; inlineStyle: Record<string, string> }
   | { type: "picker.applyText"; text: string }
-  | { type: "picker.resetEdits" }
+  | { type: "picker.resetAllEdits" }
   | { type: "picker.collectTokens" }
   | { type: "picker.describeInitial" }
   | { type: "picker.describeChildren"; selector: string }

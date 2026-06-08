@@ -19,10 +19,10 @@ import {
   Section,
 } from "@/sidepanel/components/Section";
 import {
-  StyleChangesTable,
+  StyleElementsTable,
   buildStyleDiff,
 } from "@/sidepanel/components/StyleChangesTable";
-import { buildIssueHtml, buildIssueMarkdown, type MarkdownContext } from "@/sidepanel/lib/buildIssueMarkdown";
+import { buildIssueHtml, buildIssueMarkdown, mergeStyleElements, type MarkdownContext } from "@/sidepanel/lib/buildIssueMarkdown";
 import { buildMarkdownContext } from "@/sidepanel/lib/buildMarkdownContext";
 import { filterEnvironmentRows, parseChromeVersion } from "@/sidepanel/lib/environmentRows";
 import { getOsInfo } from "@/sidepanel/lib/osInfo";
@@ -76,6 +76,26 @@ export function PreviewPanel() {
   const diffs = useMemo(
     () => (selection ? buildStyleDiff(selection, styleEdits) : []),
     [selection, styleEdits],
+  );
+
+  const styleElements = useMemo(
+    () =>
+      selection
+        ? mergeStyleElements(bufferedElements, {
+            selection: {
+              selector: selection.selector,
+              tagName: selection.tagName,
+              classList: selection.classList,
+              computedStyles: selection.computedStyles,
+              specifiedStyles: selection.specifiedStyles,
+              text: selection.text,
+            },
+            styleEdits,
+            before: beforeImage,
+            after: afterImage,
+          })
+        : [],
+    [selection, styleEdits, bufferedElements, beforeImage, afterImage],
   );
 
   const [networkDialogOpen, setNetworkDialogOpen] = useState(false);
@@ -142,11 +162,7 @@ export function PreviewPanel() {
     </Section>
   ) : isElementMode ? (
     <Section title={t("section.styleChanges")}>
-      <StyleChangesTable
-        beforeImage={beforeImage}
-        afterImage={afterImage}
-        diffs={diffs}
-      />
+      <StyleElementsTable elements={styleElements} />
     </Section>
   ) : (
     <Section title={t("section.media")}>
