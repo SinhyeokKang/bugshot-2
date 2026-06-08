@@ -59,7 +59,7 @@ import { NetworkLogPreviewDialog } from "@/sidepanel/components/NetworkLogPrevie
 import { ConsoleLogPreviewDialog } from "@/sidepanel/components/ConsoleLogPreviewDialog";
 import { ActionLogPreviewDialog } from "@/sidepanel/components/ActionLogPreviewDialog";
 import {
-  StyleElementsTable,
+  StyleChangesTable,
   buildStyleDiff,
 } from "@/sidepanel/components/StyleChangesTable";
 import {
@@ -67,6 +67,7 @@ import {
   loadDraftStyleImages,
 } from "@/sidepanel/hooks/useDraftStyleElements";
 import { resolveDraftStyleElements } from "@/sidepanel/lib/resolveDraftStyleElements";
+import { joinStyleSelectors } from "@/sidepanel/lib/buildIssueMarkdown";
 import { buildAiMetaAttachment } from "@/sidepanel/lib/buildAiMetaAttachment";
 import { buildCaptureFiles, type CaptureFiles } from "@/sidepanel/lib/buildCaptureFiles";
 import { deriveContextEnvRows } from "@/sidepanel/lib/buildReportData";
@@ -872,9 +873,18 @@ function DraftDetailSections({
         </div>
       </FieldSection>
     ) : hasStyleBlock && diffs.length > 0 ? (
-      <FieldSection key="__media" label={t("section.styleChanges")}>
-        <StyleElementsTable elements={styleElements} />
-      </FieldSection>
+      styleElements.map((el) => (
+        <FieldSection
+          key={el.selector}
+          label={`${t("section.styleChanges")} (${el.selector})`}
+        >
+          <StyleChangesTable
+            beforeImage={el.beforeImage ?? null}
+            afterImage={el.afterImage ?? null}
+            diffs={el.diffs}
+          />
+        </FieldSection>
+      ))
     ) : hasStyleBlock ? (
       <FieldSection key="__media" label={t("section.media")}>
         {beforeUrl ? (
@@ -934,11 +944,18 @@ function DraftDetailSections({
 function EnvBlock({ issue }: { issue: IssueRecord }) {
   const os = getOsInfo();
   const browser = parseChromeVersion(navigator.userAgent);
+  // 버퍼+현재 element 병합 selector를 쉼표로 나열(이미지는 selector에 무관 → 빈 값).
+  const styleElements = resolveDraftStyleElements(issue, {
+    before: null,
+    after: null,
+    buffered: [],
+  });
+  const domLabel = joinStyleSelectors(styleElements, issue.selector);
   const rows: { label: string; value: string }[] = [
     ...(os ? [{ label: "OS", value: os }] : []),
     ...(browser ? [{ label: "Browser", value: browser }] : []),
     { label: "Page", value: issue.pageUrl || "-" },
-    ...(issue.selector ? [{ label: "DOM", value: issue.selector }] : []),
+    ...(domLabel ? [{ label: "DOM", value: domLabel }] : []),
   ];
   const vp = issue.viewport ?? issue.selectionSnapshot?.viewport;
   if (vp) {

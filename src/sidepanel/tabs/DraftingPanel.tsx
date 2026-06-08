@@ -29,10 +29,10 @@ import {
   Section,
 } from "@/sidepanel/components/Section";
 import {
-  StyleElementsTable,
+  StyleChangesTable,
   buildStyleDiff,
 } from "@/sidepanel/components/StyleChangesTable";
-import { mergeStyleElements } from "@/sidepanel/lib/buildIssueMarkdown";
+import { mergeStyleElements, joinStyleSelectors } from "@/sidepanel/lib/buildIssueMarkdown";
 import {
   deriveReadonlyEnvRows,
   filterEnvironmentRows,
@@ -148,9 +148,19 @@ export function DraftingPanel() {
     </Section>
   ) : isElementMode ? (
     styleElements.length > 0 ? (
-      <Section key="__media" title={t("section.styleChanges")} collapsible>
-        <StyleElementsTable elements={styleElements} />
-      </Section>
+      styleElements.map((el) => (
+        <Section
+          key={el.selector}
+          title={`${t("section.styleChanges")} (${el.selector})`}
+          collapsible
+        >
+          <StyleChangesTable
+            beforeImage={el.beforeImage ?? null}
+            afterImage={el.afterImage ?? null}
+            diffs={el.diffs}
+          />
+        </Section>
+      ))
     ) : (
       <Section key="__media" title={t("section.media")} collapsible>
         {beforeImage ? (
@@ -396,6 +406,8 @@ function ReproEnvironmentSection() {
   const target = useEditorStore((s) => s.target);
   const captureMode = useEditorStore((s) => s.captureMode);
   const selection = useEditorStore((s) => s.selection);
+  const styleEdits = useEditorStore((s) => s.styleEdits);
+  const bufferedElements = useEditorStore((s) => s.bufferedElements);
   const shotSelector = useEditorStore((s) => s.shotSelector);
   const videoViewport = useEditorStore((s) => s.videoViewport);
   const videoCapturedAt = useEditorStore((s) => s.videoCapturedAt);
@@ -405,6 +417,28 @@ function ReproEnvironmentSection() {
   const freeformCapturedAt = useEditorStore((s) => s.freeformCapturedAt);
   const draft = useEditorStore((s) => s.draft);
   const setDraft = useEditorStore((s) => s.setDraft);
+
+  // element 모드 DOM 줄: 버퍼+현재 머지 결과의 selector를 쉼표로 나열(이미지는 selector에
+  // 무관하므로 null). 본문 마크다운과 동일 규칙.
+  const styleElements = useMemo(
+    () =>
+      captureMode === "element" && selection
+        ? mergeStyleElements(bufferedElements, {
+            selection: {
+              selector: selection.selector,
+              tagName: selection.tagName,
+              classList: selection.classList,
+              computedStyles: selection.computedStyles,
+              specifiedStyles: selection.specifiedStyles,
+              text: selection.text,
+            },
+            styleEdits,
+            before: null,
+            after: null,
+          })
+        : [],
+    [captureMode, selection, styleEdits, bufferedElements],
+  );
 
   if (!draft) return null;
 
@@ -423,7 +457,7 @@ function ReproEnvironmentSection() {
     os: getOsInfo(),
     browser: parseChromeVersion(navigator.userAgent),
     url: target?.url ?? "",
-    selector: captureMode === "element" ? selection?.selector : shotSelector?.selector ?? null,
+    selector: captureMode === "element" ? joinStyleSelectors(styleElements, selection?.selector) : shotSelector?.selector ?? null,
     viewport: vp ? { w: vp.width, h: vp.height } : null,
     capturedAt,
   });

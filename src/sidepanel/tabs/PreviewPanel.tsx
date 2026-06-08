@@ -19,10 +19,10 @@ import {
   Section,
 } from "@/sidepanel/components/Section";
 import {
-  StyleElementsTable,
+  StyleChangesTable,
   buildStyleDiff,
 } from "@/sidepanel/components/StyleChangesTable";
-import { buildIssueHtml, buildIssueMarkdown, mergeStyleElements, type MarkdownContext } from "@/sidepanel/lib/buildIssueMarkdown";
+import { buildIssueHtml, buildIssueMarkdown, mergeStyleElements, joinStyleSelectors, type MarkdownContext } from "@/sidepanel/lib/buildIssueMarkdown";
 import { buildMarkdownContext } from "@/sidepanel/lib/buildMarkdownContext";
 import { filterEnvironmentRows, parseChromeVersion } from "@/sidepanel/lib/environmentRows";
 import { getOsInfo } from "@/sidepanel/lib/osInfo";
@@ -136,7 +136,7 @@ export function PreviewPanel() {
     { label: "Page", value: target?.url || "-" },
   ];
   if (isElementMode && selection) {
-    envRows.push({ label: "DOM", value: selection.selector });
+    envRows.push({ label: "DOM", value: joinStyleSelectors(styleElements, selection.selector) });
     envRows.push({ label: "Viewport", value: `${selection.viewport.width}×${selection.viewport.height}` });
     envRows.push({ label: "Captured", value: formatTimestamp(selection.capturedAt) });
   } else {
@@ -161,9 +161,18 @@ export function PreviewPanel() {
       <PreviewVideo blob={videoBlob} thumbnail={videoThumbnail} />
     </Section>
   ) : isElementMode ? (
-    <Section title={t("section.styleChanges")}>
-      <StyleElementsTable elements={styleElements} />
-    </Section>
+    styleElements.map((el) => (
+      <Section
+        key={el.selector}
+        title={`${t("section.styleChanges")} (${el.selector})`}
+      >
+        <StyleChangesTable
+          beforeImage={el.beforeImage ?? null}
+          afterImage={el.afterImage ?? null}
+          diffs={el.diffs}
+        />
+      </Section>
+    ))
   ) : (
     <Section title={t("section.media")}>
       {screenshotImage ? (

@@ -161,12 +161,21 @@ export function resolveStyleElements(ctx: MarkdownContext): StyleElementContext[
   return [];
 }
 
+// styleElements가 있으면 selector를 쉼표로 나열, 없으면 fallback(단일 selector). 순수 함수 —
+// 마크다운 본문과 drafting/preview/detail UI의 DOM 줄이 같은 결과를 내도록 단일 출처.
+export function joinStyleSelectors(
+  styleElements: Pick<StyleElementContext, "selector">[] | undefined,
+  fallback: string | null | undefined,
+): string {
+  if (styleElements && styleElements.length > 0) {
+    return styleElements.map((e) => e.selector).join(", ");
+  }
+  return fallback ?? "";
+}
+
 // element 모드 본문의 DOM 환경 줄(selector 쉼표 나열). styleElements 없으면 ctx.selector.
 export function styleDomLabel(ctx: MarkdownContext): string {
-  if (ctx.styleElements && ctx.styleElements.length > 0) {
-    return ctx.styleElements.map((e) => e.selector).join(", ");
-  }
-  return ctx.selector;
+  return joinStyleSelectors(ctx.styleElements, ctx.selector);
 }
 
 function sectionLabel(section: IssueSection): string {

@@ -21,6 +21,7 @@ import {
   buildIssueMarkdown,
   buildIssueHtml,
   mergeStyleElements,
+  joinStyleSelectors,
   type MarkdownContext,
 } from "../buildIssueMarkdown";
 import type {
@@ -419,6 +420,33 @@ describe("buildIssueMarkdown — 복수 styleElements 직렬화", () => {
     const occurrences = md.split("md.section.styleChanges (").length - 1;
     expect(occurrences).toBe(1);
     expect(md).toContain("md.section.styleChanges (button.cta)");
+  });
+});
+
+describe("joinStyleSelectors — DOM 줄 selector 쉼표 나열", () => {
+  const el = (selector: string) => ({ selector });
+
+  it("styleElements 복수 → 쉼표로 join", () => {
+    expect(
+      joinStyleSelectors([el("button.cta"), el("div.card")], "fallback"),
+    ).toBe("button.cta, div.card");
+  });
+
+  it("styleElements 1개 → 그 selector", () => {
+    expect(joinStyleSelectors([el("button.cta")], "fallback")).toBe("button.cta");
+  });
+
+  it("styleElements 빈 배열 → fallback", () => {
+    expect(joinStyleSelectors([], "div.container")).toBe("div.container");
+  });
+
+  it("styleElements undefined → fallback", () => {
+    expect(joinStyleSelectors(undefined, "div.container")).toBe("div.container");
+  });
+
+  it("styleElements 없고 fallback null → 빈 문자열", () => {
+    expect(joinStyleSelectors([], null)).toBe("");
+    expect(joinStyleSelectors(undefined, undefined)).toBe("");
   });
 });
 
