@@ -485,9 +485,12 @@ function handleApplyStyles(inlineStyle: Record<string, string>): void {
 }
 
 // 복수 element 버퍼 포함 모든 편집 element를 원복(현재 선택은 유지 — picker 종료 안 함).
+// 원복으로 DOM이 원본으로 돌아갔으니 selection의 specified/computed 스타일도 다시 읽어
+// 패널 입력 필드의 표시값(placeholder·Select)이 편집된 값에 머무르지 않도록 갱신한다.
 function handleResetAllEdits(): void {
   restoreAll();
   render();
+  scheduleSelectionUpdate();
 }
 
 // 레지스트리에 없을 때만 원본 기록(최초 원본 유지) + 전역 캐시를 현재 element 원본으로 채움.
