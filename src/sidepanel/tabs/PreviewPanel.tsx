@@ -38,6 +38,7 @@ export function PreviewPanel() {
   const selection = useEditorStore((s) => s.selection);
   const target = useEditorStore((s) => s.target);
   const styleEdits = useEditorStore((s) => s.styleEdits);
+  const bufferedElements = useEditorStore((s) => s.bufferedElements);
   const tokens = useEditorStore((s) => s.tokens);
   const beforeImage = useEditorStore((s) => s.beforeImage);
   const afterImage = useEditorStore((s) => s.afterImage);
@@ -234,6 +235,18 @@ export function PreviewPanel() {
         styleEditsClassList: styleEdits.classList,
         tokens,
         diffs,
+        bufferedElements,
+        mergeCurrent: {
+          selection: {
+            selector: selection.selector,
+            tagName: selection.tagName,
+            classList: selection.classList,
+            computedStyles: selection.computedStyles,
+            specifiedStyles: selection.specifiedStyles,
+            text: selection.text,
+          },
+          styleEdits,
+        },
       });
     } else if (captureMode === "screenshot") {
       ctx = buildMarkdownContext({

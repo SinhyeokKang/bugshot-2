@@ -5,7 +5,11 @@ import {
   type IssueSection,
 } from "@/store/settings-ui-store";
 import { IMAGE_PLACEHOLDER, VIDEO_PLACEHOLDER, inlineImagePlaceholder } from "@/lib/adf-sentinels";
-import type { MarkdownContext } from "./buildIssueMarkdown";
+import {
+  resolveStyleElements,
+  styleDomLabel,
+  type MarkdownContext,
+} from "./buildIssueMarkdown";
 import type { NetworkLogSummary, ConsoleLogSummary } from "./buildLogSummary";
 import { filterEnvironmentRows } from "./environmentRows";
 import { formatTimestamp } from "./formatTimestamp";
@@ -53,8 +57,9 @@ export function buildIssueAdf(ctx: MarkdownContext, inlineImageRefIds?: string[]
     envItems.push(keyValueItem("Browser", ctx.browser));
   }
   envItems.push(keyValueItem("Page", ctx.url));
-  if (ctx.selector) {
-    envItems.push(keyValueItem("DOM", ctx.selector));
+  const domLabel = styleDomLabel(ctx);
+  if (domLabel) {
+    envItems.push(keyValueItem("DOM", domLabel));
   }
   if (ctx.viewport) {
     envItems.push(keyValueItem("Viewport", `${ctx.viewport.width}×${ctx.viewport.height}`));
@@ -78,17 +83,16 @@ export function buildIssueAdf(ctx: MarkdownContext, inlineImageRefIds?: string[]
       content.push(heading(2, t("md.section.media")));
       content.push(paragraph([textNode(IMAGE_PLACEHOLDER)]));
     } else {
-      if (ctx.diffs.length > 0) {
-        content.push(heading(2, t("md.section.styleChanges")));
+      // element 모드: styleElements마다 heading + 텍스트 table(이미지 셀 없음). before/after
+      // Snapshot 행은 messages.ts 제출 후처리가 업로드 후 i번째 table에 splice(A-4b).
+      for (const el of resolveStyleElements(ctx)) {
+        content.push(heading(2, `${t("md.section.styleChanges")} (${el.selector})`));
         content.push(
           table(
             [t("md.column.property"), "As is", "To be"],
-            ctx.diffs.map((d) => [d.prop, d.asIs, d.toBe]),
+            el.diffs.map((d) => [d.prop, d.asIs, d.toBe]),
           ),
         );
-      } else {
-        content.push(heading(2, t("md.section.media")));
-        content.push(paragraph([textNode(IMAGE_PLACEHOLDER)]));
       }
     }
     emitLogSummaryAdf(content, ctx.networkLogSummary, ctx.consoleLogSummary);

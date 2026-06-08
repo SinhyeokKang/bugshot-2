@@ -703,3 +703,119 @@ describe("onElementShot — 요소 선택 → drafting", () => {
     expect(s.selection).toBeNull();
   });
 });
+
+describe("bufferCurrentElement — 복수 element 버퍼", () => {
+  beforeEach(() => {
+    useEditorStore.setState(useEditorStore.getInitialState(), true);
+  });
+
+  function setCurrent(opts: {
+    selector: string;
+    inline?: Record<string, string>;
+    before?: string | null;
+  }) {
+    useEditorStore.setState({
+      selection: {
+        selector: opts.selector,
+        tagName: "button",
+        classList: ["cta"],
+        computedStyles: { color: "#000000" },
+        specifiedStyles: {},
+        propSources: {},
+        hasParent: true,
+        hasChild: false,
+        text: null,
+        viewport: { width: 1440, height: 900 },
+        capturedAt: 1700000000000,
+      },
+      styleEdits: {
+        classList: ["cta"],
+        inlineStyle: opts.inline ?? { color: "#ffffff" },
+        text: "",
+      },
+      beforeImage: opts.before ?? "data:before-1",
+    });
+  }
+
+  it("현재 element를 버퍼에 append", () => {
+    setCurrent({ selector: "button.cta", before: "data:before-A" });
+    useEditorStore.getState().bufferCurrentElement("data:after-A");
+
+    const buf = useEditorStore.getState().bufferedElements;
+    expect(buf).toHaveLength(1);
+    expect(buf[0]).toEqual({
+      selector: "button.cta",
+      tagName: "button",
+      selectionSnapshot: {
+        classList: ["cta"],
+        specifiedStyles: {},
+        computedStyles: { color: "#000000" },
+        text: null,
+        viewport: { width: 1440, height: 900 },
+        capturedAt: 1700000000000,
+      },
+      styleEdits: { classList: ["cta"], inlineStyle: { color: "#ffffff" }, text: "" },
+      beforeImage: "data:before-A",
+      afterImage: "data:after-A",
+    });
+  });
+
+  it("같은 selector 재호출 시 갱신·최초 before 유지·길이 1", () => {
+    setCurrent({ selector: "button.cta", inline: { color: "#ffffff" }, before: "data:before-1" });
+    useEditorStore.getState().bufferCurrentElement("data:after-1");
+    // 같은 selector 재편집: before는 새로 캡처됐지만 버퍼는 최초 before를 유지해야.
+    setCurrent({ selector: "button.cta", inline: { color: "#ff0000" }, before: "data:before-2" });
+    useEditorStore.getState().bufferCurrentElement("data:after-2");
+
+    const buf = useEditorStore.getState().bufferedElements;
+    expect(buf).toHaveLength(1);
+    expect(buf[0].beforeImage).toBe("data:before-1");
+    expect(buf[0].afterImage).toBe("data:after-2");
+    expect(buf[0].styleEdits.inlineStyle).toEqual({ color: "#ff0000" });
+  });
+
+  it("다른 selector면 별개 항목 누적", () => {
+    setCurrent({ selector: "button.cta" });
+    useEditorStore.getState().bufferCurrentElement("data:after-A");
+    setCurrent({ selector: "div.card" });
+    useEditorStore.getState().bufferCurrentElement("data:after-B");
+
+    const buf = useEditorStore.getState().bufferedElements;
+    expect(buf.map((b) => b.selector)).toEqual(["button.cta", "div.card"]);
+  });
+
+  it("startPicking 후에도 버퍼 보존 (preserveBuffer)", () => {
+    setCurrent({ selector: "button.cta" });
+    useEditorStore.getState().bufferCurrentElement("data:after-A");
+    useEditorStore
+      .getState()
+      .startPicking({ tabId: 1, url: "https://e.com", title: "T" });
+
+    expect(useEditorStore.getState().bufferedElements).toHaveLength(1);
+  });
+
+  it("onSubmitted 후 버퍼 비움", () => {
+    setCurrent({ selector: "button.cta" });
+    useEditorStore.getState().bufferCurrentElement("data:after-A");
+    useEditorStore
+      .getState()
+      .onSubmitted({ key: "K-1", url: "https://e.com/K-1", platform: "jira" });
+
+    expect(useEditorStore.getState().bufferedElements).toEqual([]);
+  });
+
+  it("reset 후 버퍼 비움", () => {
+    setCurrent({ selector: "button.cta" });
+    useEditorStore.getState().bufferCurrentElement("data:after-A");
+    useEditorStore.getState().reset();
+
+    expect(useEditorStore.getState().bufferedElements).toEqual([]);
+  });
+
+  it("selection이 없으면 no-op (방어)", () => {
+    useEditorStore.setState({ selection: null });
+    useEditorStore.getState().bufferCurrentElement("data:after-A");
+
+    expect(useEditorStore.getState().bufferedElements).toEqual([]);
+  });
+});

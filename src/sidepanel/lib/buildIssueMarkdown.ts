@@ -4,8 +4,23 @@ import {
   sectionMdLabelKey,
   type IssueSection,
 } from "@/store/settings-ui-store";
-import type { StyleDiffRow } from "@/sidepanel/components/StyleChangesTable";
+import {
+  buildStyleDiff,
+  type StyleDiffRow,
+} from "@/sidepanel/components/StyleChangesTable";
+import type { BufferedElement, EditorStyleEdits } from "@/store/editor-store";
 import type { NetworkLogSummary, ConsoleLogSummary } from "./buildLogSummary";
+
+// mergeStyleElements가 현재 element에서 실제로 읽는 필드만(EditorSelection의 구조적 부분집합).
+// PreviewPanel/buildMarkdownContext가 EditorSelection 전체 없이도 호출 가능.
+export interface MergeCurrentSelection {
+  selector: string;
+  tagName: string;
+  classList: string[];
+  computedStyles: Record<string, string>;
+  specifiedStyles: Record<string, string>;
+  text: string | null;
+}
 import { filterEnvironmentRows, type EnvironmentRow } from "./environmentRows";
 import { formatTimestamp } from "./formatTimestamp";
 import { renderMarkdown } from "./renderMarkdown";
@@ -30,6 +45,128 @@ export interface MarkdownContext {
   environment: EnvironmentRow[];
   networkLogSummary?: NetworkLogSummary;
   consoleLogSummary?: ConsoleLogSummary;
+  // 복수 element 직렬화. 채워지면 element 모드 본문은 이 배열을 반복(단수도 1개짜리).
+  styleElements?: StyleElementContext[];
+}
+
+// 한 element의 본문 직렬화 컨텍스트. beforeFilename/afterFilename은 머지·dedup 후 최종
+// 배열 인덱스로 부여(before-${i}.webp). before/after Image는 CaptureFiles 파생용(본문 무시).
+export interface StyleElementContext {
+  selector: string;
+  tagName: string;
+  classListBefore: string[];
+  classListAfter: string[];
+  specifiedStyles: Record<string, string>;
+  diffs: StyleDiffRow[];
+  beforeFilename?: string;
+  afterFilename?: string;
+  beforeImage?: string | null;
+  afterImage?: string | null;
+}
+
+type ResolvedElement = Omit<StyleElementContext, "beforeFilename" | "afterFilename">;
+
+function bufferedToResolved(b: BufferedElement): ResolvedElement {
+  return {
+    selector: b.selector,
+    tagName: b.tagName,
+    classListBefore: b.selectionSnapshot.classList,
+    classListAfter: b.styleEdits.classList,
+    specifiedStyles: b.selectionSnapshot.specifiedStyles,
+    diffs: buildStyleDiff(
+      {
+        classList: b.selectionSnapshot.classList,
+        specifiedStyles: b.selectionSnapshot.specifiedStyles,
+        computedStyles: b.selectionSnapshot.computedStyles,
+        text: b.selectionSnapshot.text,
+      },
+      b.styleEdits,
+    ),
+    beforeImage: b.beforeImage,
+    afterImage: b.afterImage,
+  };
+}
+
+// 버퍼 + 현재 element를 selector dedup(현재 우선) 머지 → 최종 배열 인덱스로 파일명 부여.
+// diff 0 항목은 제외(안전장치 — 가드로 현재 element는 항상 diff). 순수 함수.
+export function mergeStyleElements(
+  buffered: BufferedElement[],
+  current: {
+    selection: MergeCurrentSelection;
+    styleEdits: EditorStyleEdits;
+    before: string | null;
+    after: string | null;
+  } | null,
+): StyleElementContext[] {
+  const resolved: ResolvedElement[] = buffered
+    .map(bufferedToResolved)
+    .filter((r) => r.diffs.length > 0);
+
+  let curResolved: ResolvedElement | null = null;
+  if (current) {
+    const diffs = buildStyleDiff(
+      {
+        classList: current.selection.classList,
+        specifiedStyles: current.selection.specifiedStyles,
+        computedStyles: current.selection.computedStyles,
+        text: current.selection.text,
+      },
+      current.styleEdits,
+    );
+    if (diffs.length > 0) {
+      curResolved = {
+        selector: current.selection.selector,
+        tagName: current.selection.tagName,
+        classListBefore: current.selection.classList,
+        classListAfter: current.styleEdits.classList,
+        specifiedStyles: current.selection.specifiedStyles,
+        diffs,
+        beforeImage: current.before,
+        afterImage: current.after,
+      };
+    }
+  }
+
+  let merged = resolved;
+  if (curResolved) {
+    merged = resolved.filter((r) => r.selector !== curResolved!.selector);
+    merged.push(curResolved);
+  }
+
+  return merged.map((m, i) => ({
+    ...m,
+    beforeFilename: `before-${i}.webp`,
+    afterFilename: `after-${i}.webp`,
+  }));
+}
+
+// 빌더·범용 본문의 단일 진입점: styleElements가 채워졌으면 그대로, 아니면 레거시 단일
+// 필드(diffs/selector)에서 1개짜리 배열로 정규화(diff 0이면 빈 배열 — media 폴백 없음).
+export function resolveStyleElements(ctx: MarkdownContext): StyleElementContext[] {
+  if (ctx.styleElements && ctx.styleElements.length > 0) return ctx.styleElements;
+  if (ctx.diffs.length > 0) {
+    return [
+      {
+        selector: ctx.selector,
+        tagName: ctx.tagName,
+        classListBefore: ctx.classListBefore,
+        classListAfter: ctx.classListAfter,
+        specifiedStyles: ctx.specifiedStyles,
+        diffs: ctx.diffs,
+        beforeFilename: "before-0.webp",
+        afterFilename: "after-0.webp",
+      },
+    ];
+  }
+  return [];
+}
+
+// element 모드 본문의 DOM 환경 줄(selector 쉼표 나열). styleElements 없으면 ctx.selector.
+export function styleDomLabel(ctx: MarkdownContext): string {
+  if (ctx.styleElements && ctx.styleElements.length > 0) {
+    return ctx.styleElements.map((e) => e.selector).join(", ");
+  }
+  return ctx.selector;
 }
 
 function sectionLabel(section: IssueSection): string {
@@ -60,8 +197,9 @@ export function buildIssueMarkdown(ctx: MarkdownContext): string {
     lines.push(`- **Browser**: ${ctx.browser}`);
   }
   lines.push(`- **Page**: ${ctx.url}`);
-  if (ctx.selector) {
-    lines.push(`- **DOM**: ${ctx.selector}`);
+  const domLabel = styleDomLabel(ctx);
+  if (domLabel) {
+    lines.push(`- **DOM**: ${domLabel}`);
   }
   if (ctx.viewport) {
     lines.push(`- **Viewport**: ${ctx.viewport.width}×${ctx.viewport.height}`);
@@ -89,21 +227,17 @@ export function buildIssueMarkdown(ctx: MarkdownContext): string {
       lines.push(t("md.imageAttached"));
       lines.push("");
     } else {
-      if (ctx.diffs.length > 0) {
-        lines.push(`## ${t("md.section.styleChanges")}`);
+      // element 모드: styleElements를 반복(단수도 1개짜리). media 폴백 없음(no-diff 폐지).
+      for (const el of resolveStyleElements(ctx)) {
+        lines.push(`## ${t("md.section.styleChanges")} (${el.selector})`);
         lines.push("");
         lines.push(`| ${t("md.column.property")} | As is | To be |`);
         lines.push("| --- | --- | --- |");
-        for (const d of ctx.diffs) {
+        for (const d of el.diffs) {
           lines.push(
             `| ${escapeCell(d.prop)} | ${escapeCell(d.asIs)} | ${escapeCell(d.toBe)} |`,
           );
         }
-        lines.push("");
-      } else {
-        lines.push(`## ${t("md.section.media")}`);
-        lines.push("");
-        lines.push(t("md.imageAttached"));
         lines.push("");
       }
     }
@@ -156,8 +290,9 @@ export function buildIssueHtml(ctx: MarkdownContext): string {
     parts.push(`<li><strong>Browser</strong>: ${escapeHtml(ctx.browser)}</li>`);
   }
   parts.push(`<li><strong>Page</strong>: ${escapeHtml(ctx.url)}</li>`);
-  if (ctx.selector) {
-    parts.push(`<li><strong>DOM</strong>: ${escapeHtml(ctx.selector)}</li>`);
+  const domLabel = styleDomLabel(ctx);
+  if (domLabel) {
+    parts.push(`<li><strong>DOM</strong>: ${escapeHtml(domLabel)}</li>`);
   }
   if (ctx.viewport) {
     parts.push(
@@ -187,20 +322,17 @@ export function buildIssueHtml(ctx: MarkdownContext): string {
       parts.push(`<h2>${t("md.section.media")}</h2>`);
       parts.push(`<p>${t("md.imageAttached")}</p>`);
     } else {
-      if (ctx.diffs.length > 0) {
-        parts.push(`<h2>${t("md.section.styleChanges")}</h2>`);
+      for (const el of resolveStyleElements(ctx)) {
+        parts.push(`<h2>${t("md.section.styleChanges")} (${escapeHtml(el.selector)})</h2>`);
         parts.push(
           `<table><thead><tr><th>${t("md.column.property")}</th><th>As is</th><th>To be</th></tr></thead><tbody>`,
         );
-        for (const d of ctx.diffs) {
+        for (const d of el.diffs) {
           parts.push(
             `<tr><td>${escapeHtml(d.prop)}</td><td>${escapeHtml(d.asIs)}</td><td>${escapeHtml(d.toBe)}</td></tr>`,
           );
         }
         parts.push(`</tbody></table>`);
-      } else {
-        parts.push(`<h2>${t("md.section.media")}</h2>`);
-        parts.push(`<p>${t("md.imageAttached")}</p>`);
       }
     }
     emitLogSummaryHtml(parts, ctx);

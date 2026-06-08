@@ -43,6 +43,7 @@ function snapshotFromState(): EditorSnapshot {
     tokens: s.tokens,
     beforeImage: s.beforeImage,
     afterImage: s.afterImage,
+    bufferedElements: s.bufferedElements,
     screenshotRaw: s.screenshotRaw,
     screenshotAnnotated: s.screenshotAnnotated,
     screenshotViewport: s.screenshotViewport,
@@ -141,7 +142,20 @@ export function useEditorSessionSync(tabId: number | null): boolean {
           .set({ [key]: snap })
           .then(() => { saveFailCount.current = 0; })
           .catch(() => {
-            const lite = { ...snap, beforeImage: null, afterImage: null, screenshotRaw: null, screenshotAnnotated: null, videoThumbnail: null };
+            // bufferedElements는 배열 안 base64라 얕은 스프레드로는 안 비워짐 → 명시 변환.
+            const lite = {
+              ...snap,
+              beforeImage: null,
+              afterImage: null,
+              bufferedElements: snap.bufferedElements.map((e) => ({
+                ...e,
+                beforeImage: null,
+                afterImage: null,
+              })),
+              screenshotRaw: null,
+              screenshotAnnotated: null,
+              videoThumbnail: null,
+            };
             void chrome.storage.session.set({ [key]: lite })
               .then(() => { saveFailCount.current = 0; })
               .catch(() => {

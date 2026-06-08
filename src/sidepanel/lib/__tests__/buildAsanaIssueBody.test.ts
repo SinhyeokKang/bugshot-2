@@ -76,26 +76,51 @@ describe("buildAsanaIssueBody", () => {
     expect(out.body).not.toContain("`screenshot.png`");
   });
 
-  it("element 비교 모드 — As is/To be 섹션에 이미지 + 속성값 분리", () => {
+  it("element 비교 모드 — As is/To be (selector) 섹션에 이미지 + 속성값 분리", () => {
     const out = buildAsanaIssueBody({
       ctx: makeCtx({
         captureMode: "element",
+        selector: "div.box",
         diffs: [{ prop: "color", asIs: "red", toBe: "blue" }],
       }),
       images: [
-        { filename: "before.png", contentType: "image/png" },
-        { filename: "after.png", contentType: "image/png" },
+        { filename: "before-0.webp", contentType: "image/webp" },
+        { filename: "after-0.webp", contentType: "image/webp" },
       ],
     });
-    expect(out.body).toContain("## styleTable.asIs");
-    expect(out.body).toContain("## styleTable.toBe");
-    expect(out.body).toContain("![before.png](before.png)");
-    expect(out.body).toContain("![after.png](after.png)");
+    expect(out.body).toContain("## styleTable.asIs (div.box)");
+    expect(out.body).toContain("## styleTable.toBe (div.box)");
+    expect(out.body).toContain("![before-0.webp](before-0.webp)");
+    expect(out.body).toContain("![after-0.webp](after-0.webp)");
     expect(out.body).toContain("- **color**: red");
     expect(out.body).toContain("- **color**: blue");
-    expect(out.body).not.toContain("| As is | To be |");
+    // 비교에 쓰인 이미지는 media 섹션으로 새지 않음
+    expect(out.body).not.toContain("md.section.media");
     expect(out.attached).toEqual(
-      expect.arrayContaining(["before.png", "after.png"]),
+      expect.arrayContaining(["before-0.webp", "after-0.webp"]),
     );
+  });
+
+  it("복수 element — 각 As is/To be 섹션이 자기 before-${i}/after-${i}", () => {
+    const out = buildAsanaIssueBody({
+      ctx: makeCtx({
+        captureMode: "element",
+        styleElements: [
+          { selector: "a.x", tagName: "a", classListBefore: [], classListAfter: [], specifiedStyles: {}, diffs: [{ prop: "color", asIs: "red", toBe: "blue" }], beforeFilename: "before-0.png", afterFilename: "after-0.png" },
+          { selector: "b.y", tagName: "b", classListBefore: [], classListAfter: [], specifiedStyles: {}, diffs: [{ prop: "padding", asIs: "1px", toBe: "2px" }], beforeFilename: "before-1.png", afterFilename: "after-1.png" },
+        ],
+      }),
+      images: [
+        { filename: "before-0.png", contentType: "image/png" },
+        { filename: "after-0.png", contentType: "image/png" },
+        { filename: "before-1.png", contentType: "image/png" },
+        { filename: "after-1.png", contentType: "image/png" },
+      ],
+    });
+    expect(out.body).toContain("## styleTable.asIs (a.x)");
+    expect(out.body).toContain("## styleTable.asIs (b.y)");
+    expect(out.body).toContain("![before-0.png](before-0.png)");
+    expect(out.body).toContain("![before-1.png](before-1.png)");
+    expect(out.body).not.toContain("md.section.media");
   });
 });

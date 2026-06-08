@@ -4,7 +4,11 @@ import {
   sectionMdLabelKey,
   type IssueSection,
 } from "@/store/settings-ui-store";
-import type { MarkdownContext } from "./buildIssueMarkdown";
+import {
+  resolveStyleElements,
+  styleDomLabel,
+  type MarkdownContext,
+} from "./buildIssueMarkdown";
 import { filterEnvironmentRows } from "./environmentRows";
 import { formatTimestamp } from "./formatTimestamp";
 
@@ -47,8 +51,9 @@ export function buildAsanaIssueBody(input: AsanaBuildInput): AsanaBuildResult {
   if (ctx.os) lines.push(`- **OS**: ${ctx.os}`);
   if (ctx.browser) lines.push(`- **Browser**: ${ctx.browser}`);
   lines.push(`- **Page**: ${ctx.url}`);
-  if (ctx.selector) {
-    lines.push(`- **DOM**: ${ctx.selector}`);
+  const domLabel = styleDomLabel(ctx);
+  if (domLabel) {
+    lines.push(`- **DOM**: ${domLabel}`);
   }
   if (ctx.viewport) {
     lines.push(`- **Viewport**: ${ctx.viewport.width}×${ctx.viewport.height}`);
@@ -75,28 +80,28 @@ export function buildAsanaIssueBody(input: AsanaBuildInput): AsanaBuildResult {
     if (mediaEmitted) return;
     mediaEmitted = true;
 
-    const before = images.find((i) => i.filename.startsWith("before"));
-    const after = images.find((i) => i.filename.startsWith("after"));
-    // 비교 캡처: As is / To be 섹션으로 분리 (Asana 테이블은 셀 이미지·가로 비교 불가).
-    const comparison = isElement && (!!before || !!after || ctx.diffs.length > 0);
-
-    if (comparison) {
-      lines.push(`## ${t("styleTable.asIs")}`, "");
-      if (before) inlineImage(before);
-      for (const d of ctx.diffs) {
-        lines.push(`- **${escapeCell(d.prop)}**: ${escapeCell(d.asIs)}`);
+    // 비교 캡처: element마다 As is / To be 섹션으로 분리 (Asana 테이블은 셀 이미지·가로 비교 불가).
+    const handled = new Set<AsanaMediaInput>();
+    if (isElement) {
+      for (const el of resolveStyleElements(ctx)) {
+        const before = images.find((im) => im.filename === el.beforeFilename);
+        const after = images.find((im) => im.filename === el.afterFilename);
+        lines.push(`## ${t("styleTable.asIs")} (${el.selector})`, "");
+        if (before) { inlineImage(before); handled.add(before); }
+        for (const d of el.diffs) {
+          lines.push(`- **${escapeCell(d.prop)}**: ${escapeCell(d.asIs)}`);
+        }
+        lines.push("");
+        lines.push(`## ${t("styleTable.toBe")} (${el.selector})`, "");
+        if (after) { inlineImage(after); handled.add(after); }
+        for (const d of el.diffs) {
+          lines.push(`- **${escapeCell(d.prop)}**: ${escapeCell(d.toBe)}`);
+        }
+        lines.push("");
       }
-      lines.push("");
-      lines.push(`## ${t("styleTable.toBe")}`, "");
-      if (after) inlineImage(after);
-      for (const d of ctx.diffs) {
-        lines.push(`- **${escapeCell(d.prop)}**: ${escapeCell(d.toBe)}`);
-      }
-      lines.push("");
     }
 
     // 비교에 쓰이지 않은 이미지(단일 스크린샷 등)는 미디어 섹션에 인라인.
-    const handled = new Set([before, after].filter(Boolean));
     const rest = images.filter((i) => !handled.has(i));
     if (rest.length > 0) {
       lines.push(`## ${t("md.section.media")}`, "");

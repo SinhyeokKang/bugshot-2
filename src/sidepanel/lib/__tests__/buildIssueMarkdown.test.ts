@@ -20,8 +20,14 @@ vi.mock("@/store/settings-ui-store", () => ({
 import {
   buildIssueMarkdown,
   buildIssueHtml,
+  mergeStyleElements,
   type MarkdownContext,
 } from "../buildIssueMarkdown";
+import type {
+  BufferedElement,
+  EditorSelection,
+  EditorStyleEdits,
+} from "@/store/editor-store";
 
 function makeCtx(overrides: Partial<MarkdownContext> = {}): MarkdownContext {
   return {
@@ -310,14 +316,14 @@ describe("buildIssueHtml", () => {
   });
 });
 
-describe("buildIssueMarkdown — element + diffs 없음", () => {
+describe("buildIssueMarkdown — element + diffs 없음 (no-diff 폐지: media 폴백 제거)", () => {
   const noDiffCtx = (overrides: Partial<MarkdownContext> = {}) =>
     makeCtx({ diffs: [], ...overrides });
 
-  it("element 모드 + diffs=[] → Media 섹션 + imageAttached", () => {
+  it("element 모드 + diffs=[] → media 폴백 없음", () => {
     const md = buildIssueMarkdown(noDiffCtx());
-    expect(md).toContain("md.section.media");
-    expect(md).toContain("md.imageAttached");
+    expect(md).not.toContain("md.section.media");
+    expect(md).not.toContain("md.imageAttached");
   });
 
   it("element 모드 + diffs=[] → Style Changes 미출력", () => {
@@ -325,11 +331,11 @@ describe("buildIssueMarkdown — element + diffs 없음", () => {
     expect(md).not.toContain("md.section.styleChanges");
   });
 
-  it("element 모드 + diffs 존재 → 기존 Style Changes 테이블 유지", () => {
+  it("element 모드 + diffs 존재 → Style Changes (selector) 테이블 유지", () => {
     const md = buildIssueMarkdown(
       noDiffCtx({ diffs: [{ prop: "color", asIs: "#000", toBe: "#fff" }] }),
     );
-    expect(md).toContain("md.section.styleChanges");
+    expect(md).toContain("md.section.styleChanges (div.container)");
     expect(md).toContain("| color | #000 | #fff |");
     expect(md).not.toContain("md.imageAttached");
   });
@@ -338,25 +344,16 @@ describe("buildIssueMarkdown — element + diffs 없음", () => {
     const md = buildIssueMarkdown(noDiffCtx());
     expect(md).toContain("div.container");
   });
-
-  it("POST_MEDIA 위치: Media 섹션이 expectedResult 전에 위치", () => {
-    const md = buildIssueMarkdown(noDiffCtx());
-    const mediaIdx = md.indexOf("md.section.media");
-    const expectedIdx = md.indexOf("md.section.expectedResult");
-    expect(mediaIdx).toBeGreaterThan(-1);
-    expect(expectedIdx).toBeGreaterThan(-1);
-    expect(mediaIdx).toBeLessThan(expectedIdx);
-  });
 });
 
-describe("buildIssueHtml — element + diffs 없음", () => {
+describe("buildIssueHtml — element + diffs 없음 (no-diff 폐지)", () => {
   const noDiffCtx = (overrides: Partial<MarkdownContext> = {}) =>
     makeCtx({ diffs: [], ...overrides });
 
-  it("element 모드 + diffs=[] → Media 섹션 + imageAttached", () => {
+  it("element 모드 + diffs=[] → media 폴백 없음", () => {
     const html = buildIssueHtml(noDiffCtx());
-    expect(html).toContain("md.section.media");
-    expect(html).toContain("md.imageAttached");
+    expect(html).not.toContain("md.section.media");
+    expect(html).not.toContain("md.imageAttached");
   });
 
   it("element 모드 + diffs=[] → Style Changes 미출력", () => {
@@ -369,13 +366,59 @@ describe("buildIssueHtml — element + diffs 없음", () => {
     expect(html).not.toContain("<table>");
   });
 
-  it("element 모드 + diffs 존재 → 기존 Style Changes 테이블 유지", () => {
+  it("element 모드 + diffs 존재 → Style Changes (selector) 테이블 유지", () => {
     const html = buildIssueHtml(
       noDiffCtx({ diffs: [{ prop: "color", asIs: "#000", toBe: "#fff" }] }),
     );
-    expect(html).toContain("md.section.styleChanges");
+    expect(html).toContain("md.section.styleChanges (div.container)");
     expect(html).toContain("<table>");
     expect(html).not.toContain("md.imageAttached");
+  });
+});
+
+describe("buildIssueMarkdown — 복수 styleElements 직렬화", () => {
+  const styleEl = (
+    selector: string,
+    i: number,
+    diffs: { prop: string; asIs: string; toBe: string }[],
+  ) => ({
+    selector,
+    tagName: "div",
+    classListBefore: [],
+    classListAfter: [],
+    specifiedStyles: {},
+    diffs,
+    beforeFilename: `before-${i}.webp`,
+    afterFilename: `after-${i}.webp`,
+  });
+
+  it("styleElements 2개 → 섹션·테이블 2개 + DOM 쉼표 나열", () => {
+    const md = buildIssueMarkdown(
+      makeCtx({
+        styleElements: [
+          styleEl("button.cta", 0, [{ prop: "color", asIs: "#000", toBe: "#fff" }]),
+          styleEl("div.card", 1, [{ prop: "padding", asIs: "10px", toBe: "20px" }]),
+        ],
+      }),
+    );
+    expect(md).toContain("md.section.styleChanges (button.cta)");
+    expect(md).toContain("md.section.styleChanges (div.card)");
+    expect(md).toContain("| color | #000 | #fff |");
+    expect(md).toContain("| padding | 10px | 20px |");
+    expect(md).toContain("- **DOM**: button.cta, div.card");
+  });
+
+  it("styleElements 1개 → (selector) 단일 형식", () => {
+    const md = buildIssueMarkdown(
+      makeCtx({
+        styleElements: [
+          styleEl("button.cta", 0, [{ prop: "color", asIs: "#000", toBe: "#fff" }]),
+        ],
+      }),
+    );
+    const occurrences = md.split("md.section.styleChanges (").length - 1;
+    expect(occurrences).toBe(1);
+    expect(md).toContain("md.section.styleChanges (button.cta)");
   });
 });
 
@@ -534,5 +577,113 @@ describe("요소 캡처 (screenshot + selector) — DOM 줄 노출", () => {
     const start = md.indexOf("<!-- bugshot-meta-for-ai");
     const end = md.indexOf("-->", start);
     expect(md.slice(start, end)).toContain('"selector"');
+  });
+});
+
+describe("mergeStyleElements — 버퍼+현재 머지·dedup·파일명 인덱싱", () => {
+  // buf: inlineStyle color #000000 → #ffffff diff 1개
+  function buf(selector: string, after: string): BufferedElement {
+    return {
+      selector,
+      tagName: "div",
+      selectionSnapshot: {
+        classList: [selector],
+        specifiedStyles: {},
+        computedStyles: { color: "#000000" },
+        text: null,
+        viewport: { width: 0, height: 0 },
+        capturedAt: 0,
+      },
+      styleEdits: { classList: [selector], inlineStyle: { color: "#ffffff" }, text: "" },
+      beforeImage: `data:before-${selector}`,
+      afterImage: after,
+    };
+  }
+
+  // current: inlineStyle padding 10px → 20px diff 1개
+  function cur(
+    selector: string,
+    opts: { diff?: boolean } = {},
+  ): {
+    selection: EditorSelection;
+    styleEdits: EditorStyleEdits;
+    before: string | null;
+    after: string | null;
+  } {
+    const hasDiff = opts.diff ?? true;
+    return {
+      selection: {
+        selector,
+        tagName: "span",
+        classList: [selector],
+        computedStyles: { padding: "10px" },
+        specifiedStyles: {},
+        propSources: {},
+        hasParent: false,
+        hasChild: false,
+        text: null,
+        viewport: { width: 0, height: 0 },
+        capturedAt: 0,
+      },
+      styleEdits: {
+        classList: [selector],
+        inlineStyle: hasDiff ? { padding: "20px" } : {},
+        text: "",
+      },
+      before: `data:before-${selector}`,
+      after: `data:after-${selector}`,
+    };
+  }
+
+  it("버퍼[A] + 현재 B → [A,B], before-0/before-1 인덱싱", () => {
+    const out = mergeStyleElements([buf("a", "data:after-a")], cur("b"));
+    expect(out.map((e) => e.selector)).toEqual(["a", "b"]);
+    expect(out[0].beforeFilename).toBe("before-0.webp");
+    expect(out[0].afterFilename).toBe("after-0.webp");
+    expect(out[1].beforeFilename).toBe("before-1.webp");
+    expect(out[1].afterFilename).toBe("after-1.webp");
+    // 각 항목 diff 1개
+    expect(out[0].diffs).toHaveLength(1);
+    expect(out[1].diffs).toHaveLength(1);
+  });
+
+  it("버퍼 없음 + 현재만 → 1개, before-0", () => {
+    const out = mergeStyleElements([], cur("b"));
+    expect(out).toHaveLength(1);
+    expect(out[0].selector).toBe("b");
+    expect(out[0].beforeFilename).toBe("before-0.webp");
+  });
+
+  it("같은 selector면 dedup, 현재 우선 (길이 1)", () => {
+    const out = mergeStyleElements([buf("a", "data:after-a")], cur("a"));
+    expect(out).toHaveLength(1);
+    // 현재 우선: tagName이 cur의 span
+    expect(out[0].tagName).toBe("span");
+    expect(out[0].beforeFilename).toBe("before-0.webp");
+  });
+
+  it("dedup으로 길이가 변하면 i가 최종 배열 기준으로 재배열 (styleElements[i] ↔ before-${i})", () => {
+    // 버퍼 [a,b] + 현재 a → a가 버퍼에서 빠지고 현재 a가 끝으로 → [b, a]
+    const out = mergeStyleElements(
+      [buf("a", "data:after-a"), buf("b", "data:after-b")],
+      cur("a"),
+    );
+    expect(out.map((e) => e.selector)).toEqual(["b", "a"]);
+    expect(out[0].beforeFilename).toBe("before-0.webp");
+    expect(out[1].beforeFilename).toBe("before-1.webp");
+    // index 1이 현재 a(현재 우선 → tagName span)
+    expect(out[1].tagName).toBe("span");
+  });
+
+  it("diff 0 항목은 제외 (안전장치)", () => {
+    const out = mergeStyleElements([buf("a", "data:after-a")], cur("z", { diff: false }));
+    expect(out.map((e) => e.selector)).toEqual(["a"]);
+    expect(out[0].beforeFilename).toBe("before-0.webp");
+  });
+
+  it("현재 null이면 버퍼만", () => {
+    const out = mergeStyleElements([buf("a", "data:after-a")], null);
+    expect(out.map((e) => e.selector)).toEqual(["a"]);
+    expect(out[0].beforeFilename).toBe("before-0.webp");
   });
 });

@@ -186,12 +186,12 @@ describe("buildNotionIssueBody — 미디어 분기", () => {
       ctx,
       images: [
         {
-          filename: "before.webp",
+          filename: "before-0.webp",
           contentType: "image/webp",
           dataUrl: "data:image/webp;base64,YQ==",
         },
         {
-          filename: "after.webp",
+          filename: "after-0.webp",
           contentType: "image/webp",
           dataUrl: "data:image/webp;base64,YQ==",
         },
@@ -227,8 +227,8 @@ describe("buildNotionIssueBody — 미디어 분기", () => {
     });
 
     expect(out.attachments.map((a) => a.filename).sort()).toEqual([
-      "after.webp",
-      "before.webp",
+      "after-0.webp",
+      "before-0.webp",
     ]);
   });
 
@@ -241,12 +241,12 @@ describe("buildNotionIssueBody — 미디어 분기", () => {
       ctx,
       images: [
         {
-          filename: "before.webp",
+          filename: "before-0.webp",
           contentType: "image/webp",
           dataUrl: "data:image/webp;base64,YQ==",
         },
         {
-          filename: "after.webp",
+          filename: "after-0.webp",
           contentType: "image/webp",
           dataUrl: "data:image/webp;base64,YQ==",
         },
@@ -263,47 +263,32 @@ describe("buildNotionIssueBody — 미디어 분기", () => {
     }
   });
 
-  it("element 모드: before만 있으면 Before 섹션만 image, After 섹션은 heading만 (diffs 없음)", () => {
-    const ctx = makeCtx({ captureMode: "element", diffs: [] });
+  it("복수 element: 각 styleChanges 섹션이 자기 before-${i}/after-${i} (교차 없음)", () => {
     const out = buildNotionIssueBody({
-      ctx,
+      ctx: makeCtx({
+        captureMode: "element",
+        styleElements: [
+          { selector: "a.x", tagName: "a", classListBefore: [], classListAfter: [], specifiedStyles: {}, diffs: [{ prop: "color", asIs: "#000", toBe: "#fff" }], beforeFilename: "before-0.webp", afterFilename: "after-0.webp" },
+          { selector: "b.y", tagName: "b", classListBefore: [], classListAfter: [], specifiedStyles: {}, diffs: [{ prop: "padding", asIs: "1px", toBe: "2px" }], beforeFilename: "before-1.webp", afterFilename: "after-1.webp" },
+        ],
+      }),
       images: [
-        {
-          filename: "before.webp",
-          contentType: "image/webp",
-          dataUrl: "data:image/webp;base64,YQ==",
-        },
+        { filename: "before-0.webp", contentType: "image/webp", dataUrl: "d0b" },
+        { filename: "after-0.webp", contentType: "image/webp", dataUrl: "d0a" },
+        { filename: "before-1.webp", contentType: "image/webp", dataUrl: "d1b" },
+        { filename: "after-1.webp", contentType: "image/webp", dataUrl: "d1a" },
       ],
     });
-    const imageBlocks = out.blocks.filter((b) => b.type === "image");
-    expect(imageBlocks.length).toBe(1);
-    expect(out.attachments.map((a) => a.filename)).toEqual(["before.webp"]);
-    // diffs 없고 after 이미지도 없으면 After 섹션 자체 미emit
-    const headings3Texts = out.blocks
-      .filter((b) => b.type === "heading_3")
-      .map((b) => ("text" in b ? b.text : ""));
-    expect(headings3Texts).toEqual(["md.section.before"]);
-  });
-
-  it("element 모드: after만 있으면 After 섹션만 emit", () => {
-    const ctx = makeCtx({ captureMode: "element", diffs: [] });
-    const out = buildNotionIssueBody({
-      ctx,
-      images: [
-        {
-          filename: "after.webp",
-          contentType: "image/webp",
-          dataUrl: "data:image/webp;base64,YQ==",
-        },
-      ],
-    });
-    const imageBlocks = out.blocks.filter((b) => b.type === "image");
-    expect(imageBlocks.length).toBe(1);
-    expect(out.attachments.map((a) => a.filename)).toEqual(["after.webp"]);
-    const headings3Texts = out.blocks
-      .filter((b) => b.type === "heading_3")
-      .map((b) => ("text" in b ? b.text : ""));
-    expect(headings3Texts).toEqual(["md.section.after"]);
+    const h2 = out.blocks.filter((b) => b.type === "heading_2").map((b) => ("text" in b ? b.text : ""));
+    expect(h2).toContain("md.section.styleChanges (a.x)");
+    expect(h2).toContain("md.section.styleChanges (b.y)");
+    // 4쌍 모두 첨부, 중복 없음
+    expect(out.attachments.map((a) => a.filename).sort()).toEqual([
+      "after-0.webp",
+      "after-1.webp",
+      "before-0.webp",
+      "before-1.webp",
+    ]);
   });
 
   it("element 모드: diffs만 있고 이미지 없으면 image 블록 0개, Before/After 섹션은 bullet list만", () => {
@@ -348,30 +333,7 @@ describe("buildNotionIssueBody — 미디어 분기", () => {
   });
 });
 
-describe("buildNotionIssueBody — element + diffs 없음", () => {
-  it("element + diffs=[] + screenshot.webp → Media heading + image block", () => {
-    const out = buildNotionIssueBody({
-      ctx: makeCtx({ captureMode: "element", diffs: [] }),
-      images: [
-        {
-          filename: "screenshot.webp",
-          contentType: "image/webp",
-          dataUrl: "data:image/webp;base64,YQ==",
-        },
-      ],
-    });
-    const headings2 = out.blocks
-      .filter((b) => b.type === "heading_2")
-      .map((b) => ("text" in b ? b.text : ""));
-    expect(headings2).toContain("md.section.media");
-    expect(headings2).not.toContain("md.section.styleChanges");
-
-    const imageBlocks = out.blocks.filter((b) => b.type === "image");
-    expect(imageBlocks.length).toBe(1);
-    expect(out.attachments.length).toBe(1);
-    expect(out.attachments[0].filename).toBe("screenshot.webp");
-  });
-
+describe("buildNotionIssueBody — element + diffs 없음 (no-diff 폐지)", () => {
   it("element + diffs=[] + 이미지 없음 → styleChanges heading 미출력", () => {
     const out = buildNotionIssueBody({
       ctx: makeCtx({ captureMode: "element", diffs: [] }),
@@ -408,12 +370,12 @@ describe("buildNotionIssueBody — element + diffs 없음", () => {
       }),
       images: [
         {
-          filename: "before.webp",
+          filename: "before-0.webp",
           contentType: "image/webp",
           dataUrl: "data:image/webp;base64,YQ==",
         },
         {
-          filename: "after.webp",
+          filename: "after-0.webp",
           contentType: "image/webp",
           dataUrl: "data:image/webp;base64,YQ==",
         },
@@ -422,7 +384,7 @@ describe("buildNotionIssueBody — element + diffs 없음", () => {
     const headings2 = out.blocks
       .filter((b) => b.type === "heading_2")
       .map((b) => ("text" in b ? b.text : ""));
-    expect(headings2).toContain("md.section.styleChanges");
+    expect(headings2).toContain("md.section.styleChanges (div)");
     const headings3 = out.blocks
       .filter((b) => b.type === "heading_3")
       .map((b) => ("text" in b ? b.text : ""));

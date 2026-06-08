@@ -4,7 +4,11 @@ import {
   sectionMdLabelKey,
   type IssueSection,
 } from "@/store/settings-ui-store";
-import type { MarkdownContext } from "./buildIssueMarkdown";
+import {
+  resolveStyleElements,
+  styleDomLabel,
+  type MarkdownContext,
+} from "./buildIssueMarkdown";
 import { filterEnvironmentRows } from "./environmentRows";
 import { formatTimestamp } from "./formatTimestamp";
 
@@ -64,8 +68,9 @@ export function buildLinearIssueBody(
     lines.push(`- **Browser**: ${ctx.browser}`);
   }
   lines.push(`- **Page**: ${ctx.url}`);
-  if (ctx.selector) {
-    lines.push(`- **DOM**: ${ctx.selector}`);
+  const domLabel = styleDomLabel(ctx);
+  if (domLabel) {
+    lines.push(`- **DOM**: ${domLabel}`);
   }
   if (ctx.viewport) {
     lines.push(`- **Viewport**: ${ctx.viewport.width}×${ctx.viewport.height}`);
@@ -99,40 +104,27 @@ export function buildLinearIssueBody(
       }
       lines.push("");
     } else {
-      const before = images.find((i) => i.filename.startsWith("before"));
-      const after = images.find((i) => i.filename.startsWith("after"));
-      const hasSnapshots = !!(before?.assetUrl || after?.assetUrl);
+      // element 모드: styleElements 반복(단수도 1개짜리). 각 섹션이 자기 before-${i}/after-${i}.
+      for (const el of resolveStyleElements(ctx)) {
+        const before = images.find((im) => im.filename === el.beforeFilename);
+        const after = images.find((im) => im.filename === el.afterFilename);
+        const hasSnapshots = !!(before?.assetUrl || after?.assetUrl);
 
-      if (hasSnapshots || ctx.diffs.length > 0) {
-        lines.push(`## ${t("md.section.styleChanges")}`, "");
+        lines.push(`## ${t("md.section.styleChanges")} (${el.selector})`, "");
+        lines.push(`| ${t("md.column.property")} | As is | To be |`);
+        lines.push("| --- | --- | --- |");
         if (hasSnapshots) {
-          lines.push(`| ${t("md.column.property")} | As is | To be |`);
-          lines.push("| --- | --- | --- |");
           lines.push(
             `| **${t("styleTable.snapshot")}** | ${imageCell(before)} | ${imageCell(after)} |`,
           );
-          for (const d of ctx.diffs) {
-            lines.push(
-              `| ${escapeCell(d.prop)} | ${escapeCell(d.asIs)} | ${escapeCell(d.toBe)} |`,
-            );
-          }
-        } else {
-          lines.push(`| ${t("md.column.property")} | As is | To be |`);
-          lines.push("| --- | --- | --- |");
-          for (const d of ctx.diffs) {
-            lines.push(
-              `| ${escapeCell(d.prop)} | ${escapeCell(d.asIs)} | ${escapeCell(d.toBe)} |`,
-            );
-          }
         }
-      } else {
-        const screenshot = images.find((i) => i.filename.startsWith("screenshot"));
-        lines.push(`## ${t("md.section.media")}`, "");
-        if (screenshot?.assetUrl) {
-          lines.push(`![${screenshot.filename}](${screenshot.assetUrl})`);
+        for (const d of el.diffs) {
+          lines.push(
+            `| ${escapeCell(d.prop)} | ${escapeCell(d.asIs)} | ${escapeCell(d.toBe)} |`,
+          );
         }
+        lines.push("");
       }
-      lines.push("");
     }
 
     emitLogSummary(lines, ctx);

@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils";
 import { useEditorStore } from "@/store/editor-store";
 import type { TreeNode } from "@/types/picker";
 import { useBoundTabId } from "@/sidepanel/hooks/useBoundTabId";
+import { useBufferThenSwitch } from "@/sidepanel/hooks/useBufferThenSwitch";
 import {
   describeChildren,
   describeInitialTree,
@@ -37,6 +38,7 @@ export function DomNavButton({ direction }: { direction: "parent" | "child" }) {
       ? (s.selection?.hasParent ?? false)
       : (s.selection?.hasChild ?? false),
   );
+  const bufferThenSwitch = useBufferThenSwitch();
   const Icon = direction === "parent" ? CornerLeftUp : CornerRightDown;
   const label = direction === "parent" ? t("dom.parent") : t("dom.child");
   return (
@@ -48,7 +50,7 @@ export function DomNavButton({ direction }: { direction: "parent" | "child" }) {
       title={label}
       disabled={!canNavigate}
       onClick={() => {
-        if (tabId) void navigatePicker(tabId, direction);
+        if (tabId) void bufferThenSwitch(tabId, () => navigatePicker(tabId, direction));
       }}
     >
       <Icon />

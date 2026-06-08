@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Crosshair, RotateCcw, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useT } from "@/i18n";
@@ -18,6 +18,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { useEditorStore, type EditorStyleEdits } from "@/store/editor-store";
 import { useBoundTabId } from "@/sidepanel/hooks/useBoundTabId";
 import { useAI } from "@/sidepanel/hooks/useAI";
+import { useBufferThenSwitch } from "@/sidepanel/hooks/useBufferThenSwitch";
+import { hasStyleChange } from "@/sidepanel/lib/hasStyleChange";
 import { captureElementSnapshot } from "@/sidepanel/capture";
 import {
   applyClasses,
@@ -104,6 +106,7 @@ export function SelectedPanel() {
   const reset = useEditorStore((s) => s.reset);
   const tabId = useBoundTabId();
   const { status: aiStatus, providerLabel, createSession } = useAI();
+  const noChangeHintId = useId();
   const [proceeding, setProceeding] = useState(false);
   const [aiDialogOpen, setAiDialogOpen] = useState(false);
   if (!selection) return null;
@@ -119,10 +122,10 @@ export function SelectedPanel() {
     selection.text !== null && styleEdits.text !== selection.text;
   const changeCount =
     inlineCount + (classDirty ? 1 : 0) + (textDirty ? 1 : 0);
-  const hasChange = changeCount > 0;
+  const hasChange = hasStyleChange(selection, styleEdits);
 
   const handleNext = async () => {
-    if (!tabId || proceeding) return;
+    if (!tabId || proceeding || !hasChange) return;
     setProceeding(true);
     try {
       const img = await captureElementSnapshot(tabId);
@@ -391,6 +394,11 @@ export function SelectedPanel() {
       )}
       <AiStylingDialog open={aiDialogOpen} onOpenChange={setAiDialogOpen} createSession={createSession} />
       <PageFooter>
+        {!hasChange ? (
+          <p id={noChangeHintId} className="text-xs text-muted-foreground">
+            {t("editor.noChangeHint")}
+          </p>
+        ) : null}
         <div className="flex items-center justify-between gap-2">
           <CancelConfirmDialog
             onConfirm={() => {
@@ -435,7 +443,8 @@ export function SelectedPanel() {
             </AlertDialog>
             <Button
               onClick={() => void handleNext()}
-              disabled={proceeding}
+              disabled={proceeding || !hasChange}
+              aria-describedby={!hasChange ? noChangeHintId : undefined}
             >
               {t("common.next")}
             </Button>
@@ -449,15 +458,16 @@ export function SelectedPanel() {
 function RepickButton() {
   const t = useT();
   const tabId = useBoundTabId();
+  const bufferThenSwitch = useBufferThenSwitch();
   return (
     <Button
       type="button"
       size="icon"
-      variant="outline"
+      variant="default"
       className="h-8 w-8 shrink-0"
       title={t("dom.repick")}
       onClick={() => {
-        if (tabId) void startPicker(tabId);
+        if (tabId) void bufferThenSwitch(tabId, () => startPicker(tabId));
       }}
     >
       <Crosshair />

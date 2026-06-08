@@ -197,11 +197,20 @@ function handleActionClear(): void {
 let mode: Mode = "idle";
 let selectedEl: Element | null = null;
 let lastHover: Element | null = null;
-let originalClassName: string | null = null;
+// 전역 캐시 = 현재 selectedEl 원본(applyStyles/applyText가 리셋 기준으로 참조).
 let originalStyle: string | null = null;
 let editableHandle: EditableHandle | null = null;
-let originalTextContent: string | null = null;
 let rafHandle: number | null = null;
+
+interface OriginalState {
+  className: string | null;
+  style: string | null;
+  editable: EditableHandle | null;
+  text: string | null;
+}
+// 변경이 가해질 수 있는 모든 element의 원본 추적(누적 프리뷰). element 전환 시 복원하지
+// 않고 유지하며, cleanup(handleClear→restoreAll)에서만 일괄 원복. 순회 필요 → WeakMap 불가.
+const editedEls = new Map<Element, OriginalState>();
 
 let overlay: OverlayHandle | null = null;
 let areaHandle: AreaSelectHandle | null = null;
@@ -393,7 +402,8 @@ function handleStart(): void {
     removeOrphanOverlay();
     overlay = createOverlay();
   }
-  restoreOriginal();
+  // 누적 프리뷰: 이전 element 변경은 유지(복원 안 함). 변경 없는 현재 element만 정리.
+  leaveCurrent();
   selectedEl = null;
   lastHover = null;
   tokenLookup = null;
@@ -416,7 +426,7 @@ function handleClear(): void {
   }
   removeHoverListeners();
   detachViewportListeners();
-  restoreOriginal();
+  restoreAll();
   selectedEl = null;
   lastHover = null;
   mode = "idle";
@@ -440,7 +450,7 @@ function handleNavigate(direction: "parent" | "child"): void {
   const next =
     direction === "parent" ? parentOf(selectedEl) : firstChildOf(selectedEl);
   if (!next) return;
-  restoreOriginal();
+  leaveCurrent();
   selectedEl = next;
   captureOriginal(next);
   render();
@@ -449,6 +459,7 @@ function handleNavigate(direction: "parent" | "child"): void {
 
 function handleApplyClasses(classList: string[]): void {
   if (!selectedEl) return;
+  captureOriginal(selectedEl);
   const el = selectedEl as HTMLElement;
   el.className = classList.join(" ");
   inspectorCache.delete(el);
@@ -458,6 +469,7 @@ function handleApplyClasses(classList: string[]): void {
 
 function handleApplyStyles(inlineStyle: Record<string, string>): void {
   if (!selectedEl) return;
+  captureOriginal(selectedEl);
   const el = selectedEl as HTMLElement;
   if (originalStyle === null) {
     el.removeAttribute("style");
@@ -474,41 +486,84 @@ function handleApplyStyles(inlineStyle: Record<string, string>): void {
 
 function handleResetEdits(): void {
   if (!selectedEl) return;
-  restoreOriginal();
+  const state = editedEls.get(selectedEl);
+  if (state) {
+    restoreElState(selectedEl, state);
+    // 리셋 후 원본 상태 — 레지스트리에서 제거. 재편집 시 apply가 captureOriginal로 다시 등록.
+    editedEls.delete(selectedEl);
+  }
   render();
 }
 
+// 레지스트리에 없을 때만 원본 기록(최초 원본 유지) + 전역 캐시를 현재 element 원본으로 채움.
 function captureOriginal(el: Element): void {
-  const h = el as HTMLElement;
-  originalClassName = h.getAttribute("class");
-  originalStyle = h.getAttribute("style");
-  editableHandle = captureEditable(el);
-  originalTextContent = editableHandle ? readEditableText(editableHandle) : null;
+  let state = editedEls.get(el);
+  if (!state) {
+    const h = el as HTMLElement;
+    const editable = captureEditable(el);
+    state = {
+      className: h.getAttribute("class"),
+      style: h.getAttribute("style"),
+      editable,
+      text: editable ? readEditableText(editable) : null,
+    };
+    editedEls.set(el, state);
+  }
+  originalStyle = state.style;
+  editableHandle = state.editable;
 }
 
-function restoreOriginal(): void {
-  if (!selectedEl) return;
-  const el = selectedEl as HTMLElement;
-  if (originalClassName === null) {
-    el.removeAttribute("class");
+function restoreElState(el: Element, state: OriginalState): void {
+  const h = el as HTMLElement;
+  if (state.className === null) {
+    h.removeAttribute("class");
   } else {
-    el.setAttribute("class", originalClassName);
+    h.setAttribute("class", state.className);
   }
-  if (originalStyle === null) {
-    el.removeAttribute("style");
+  if (state.style === null) {
+    h.removeAttribute("style");
   } else {
-    el.setAttribute("style", originalStyle);
+    h.setAttribute("style", state.style);
   }
   if (
-    editableHandle &&
-    originalTextContent !== null &&
-    shouldRestoreEditable(editableHandle, originalTextContent)
+    state.editable &&
+    state.text !== null &&
+    shouldRestoreEditable(state.editable, state.text)
   ) {
-    restoreEditable(editableHandle, originalTextContent);
+    restoreEditable(state.editable, state.text);
+  }
+}
+
+// 모든 편집 element 일괄 원복 + 레지스트리·캐시 정리(cleanup 종착점 handleClear에서 호출).
+function restoreAll(): void {
+  for (const [el, state] of editedEls) restoreElState(el, state);
+  editedEls.clear();
+  originalStyle = null;
+  editableHandle = null;
+}
+
+function isElementClean(el: Element, state: OriginalState): boolean {
+  const h = el as HTMLElement;
+  if (h.getAttribute("class") !== state.className) return false;
+  if (h.getAttribute("style") !== state.style) return false;
+  if (state.editable && state.text !== null) {
+    if (readEditableText(state.editable) !== state.text) return false;
+  }
+  return true;
+}
+
+// element 전환 직전: 현재 selectedEl이 변경 없으면 레지스트리에서 제거(빈 항목 정리).
+function leaveCurrent(): void {
+  if (!selectedEl) return;
+  const state = editedEls.get(selectedEl);
+  if (state && isElementClean(selectedEl, state)) {
+    editedEls.delete(selectedEl);
   }
 }
 
 function handleApplyText(text: string): void {
+  if (!selectedEl) return;
+  captureOriginal(selectedEl);
   if (!editableHandle) return;
   writeEditableText(editableHandle, text);
   render();
@@ -631,14 +686,14 @@ function onClickCommit(e: MouseEvent): void {
   // 선택을 허용하면 collectTokens / applyStyles 등에서 빈 결과·오류 누적되므로 차단.
   if (target.tagName === "IFRAME") {
     removeHoverListeners();
-    restoreOriginal();
+    leaveCurrent();
     selectedEl = null;
     lastHover = null;
     setMode("idle");
     postToRuntime({ type: "picker.iframeUnsupported" });
     return;
   }
-  restoreOriginal();
+  leaveCurrent();
   selectedEl = target;
   captureOriginal(target);
   lastHover = null;
@@ -653,7 +708,7 @@ function onKeyDown(e: KeyboardEvent): void {
   e.preventDefault();
   e.stopPropagation();
   removeHoverListeners();
-  restoreOriginal();
+  leaveCurrent();
   selectedEl = null;
   lastHover = null;
   setMode("idle");
@@ -729,7 +784,7 @@ function handleSelectByPath(selector: string): void {
     target = null;
   }
   if (!target) return;
-  restoreOriginal();
+  leaveCurrent();
   selectedEl = target;
   captureOriginal(target);
   lastHover = null;

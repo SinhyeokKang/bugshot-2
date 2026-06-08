@@ -1,6 +1,7 @@
 const ko = {
   "editor.resetChanges": "변경사항 초기화",
   "editor.resetChanges.body": "{count}건의 변경사항을 초기화하시겠습니까? 모든 스타일이 원래 값으로 돌아갑니다.",
+  "editor.noChangeHint": "스타일을 변경해야 다음 단계로 진행됩니다. 요소를 그대로 캡처하려면 \"요소 캡처\" 모드를 사용하세요.",
   "editor.textPlaceholder": "요소 텍스트",
   "editor.revertText": "원본 텍스트로 되돌리기",
   "editor.revertClass": "원본 class로 되돌리기",
@@ -101,6 +102,7 @@ type Bundle = Record<keyof typeof ko, string>;
 const en = {
   "editor.resetChanges": "Reset changes",
   "editor.resetChanges.body": "Reset {count} change(s)? All styles will revert to original values.",
+  "editor.noChangeHint": "Change a style to continue. To capture the element as-is, use \"Capture element\" mode.",
   "editor.textPlaceholder": "Element text",
   "editor.revertText": "Revert to original text",
   "editor.revertClass": "Revert to original classes",

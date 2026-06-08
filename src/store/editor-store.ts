@@ -57,6 +57,24 @@ export interface EditorStyleEdits {
   text: string;
 }
 
+// 한 element의 스타일 변경 컨텍스트 한 묶음(복수 element 버퍼 항목). 본문 직렬화는
+// selectionSnapshot + styleEdits로 buildStyleDiff를 다시 만들고, before/after는 플랫폼 업로드용.
+export interface BufferedElement {
+  selector: string;
+  tagName: string;
+  selectionSnapshot: {
+    classList: string[];
+    specifiedStyles: Record<string, string>;
+    computedStyles: Record<string, string>;
+    text: string | null;
+    viewport: { width: number; height: number };
+    capturedAt: number;
+  };
+  styleEdits: EditorStyleEdits;
+  beforeImage: string | null;
+  afterImage: string | null;
+}
+
 // 요소 캡처(screenshot 세부 모드)의 경량 selector 보관 — EditorSelection(스타일 메타)은 재사용 안 함.
 export interface ShotSelector {
   selector: string;
@@ -92,6 +110,7 @@ interface EditorState {
   tokens: Token[];
   beforeImage: string | null;
   afterImage: string | null;
+  bufferedElements: BufferedElement[];
   draft: EditorDraft | null;
   issueFields: EditorIssueFields;
   currentIssueId: string | null;
@@ -149,6 +168,7 @@ interface EditorState {
   setTokens: (tokens: Token[]) => void;
   setBeforeImage: (img: string | null) => void;
   setAfterImage: (img: string | null) => void;
+  bufferCurrentElement: (afterImage: string | null) => void;
   confirmStyles: () => void;
   backToStyling: () => void;
   setDraft: (draft: EditorDraft) => void;
@@ -182,6 +202,7 @@ export type EditorSnapshot = Pick<
   | "tokens"
   | "beforeImage"
   | "afterImage"
+  | "bufferedElements"
   | "screenshotRaw"
   | "screenshotAnnotated"
   | "screenshotViewport"
@@ -217,6 +238,7 @@ const initial = {
   tokens: [] as Token[],
   beforeImage: null,
   afterImage: null,
+  bufferedElements: [] as BufferedElement[],
   screenshotRaw: null as string | null,
   screenshotAnnotated: null as string | null,
   screenshotViewport: null as { width: number; height: number } | null,
@@ -258,6 +280,11 @@ function preserveLogs(state: EditorState): Pick<
     consoleLogAttach: state.consoleLogAttach,
     actionLogAttach: state.actionLogAttach,
   };
+}
+
+// 복수 element 버퍼를 모드(picking) 재진입 시 보존. preserveLogs와 동형.
+function preserveBuffer(state: EditorState): Pick<EditorState, "bufferedElements"> {
+  return { bufferedElements: state.bufferedElements };
 }
 
 function newIssueId(): string {
@@ -350,6 +377,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       phase: "picking",
       target,
       ...preserveLogs(state),
+      ...preserveBuffer(state),
     })),
   cancelPicking: () => set((state) => ({ ...initial, ...preserveLogs(state) })),
 
@@ -423,6 +451,39 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setBeforeImage: (beforeImage) => set({ beforeImage }),
 
   setAfterImage: (afterImage) => set({ afterImage }),
+
+  bufferCurrentElement: (afterImage) =>
+    set((s) => {
+      const sel = s.selection;
+      if (!sel) return {};
+      const entry: BufferedElement = {
+        selector: sel.selector,
+        tagName: sel.tagName,
+        selectionSnapshot: {
+          classList: [...sel.classList],
+          specifiedStyles: { ...sel.specifiedStyles },
+          computedStyles: { ...sel.computedStyles },
+          text: sel.text,
+          viewport: { ...sel.viewport },
+          capturedAt: sel.capturedAt,
+        },
+        styleEdits: {
+          classList: [...s.styleEdits.classList],
+          inlineStyle: { ...s.styleEdits.inlineStyle },
+          text: s.styleEdits.text,
+        },
+        beforeImage: s.beforeImage,
+        afterImage,
+      };
+      const idx = s.bufferedElements.findIndex((b) => b.selector === sel.selector);
+      if (idx >= 0) {
+        // 같은 selector 재편집: 최초 before 유지, 나머지는 최신으로 갱신.
+        const updated = [...s.bufferedElements];
+        updated[idx] = { ...entry, beforeImage: s.bufferedElements[idx].beforeImage };
+        return { bufferedElements: updated };
+      }
+      return { bufferedElements: [...s.bufferedElements, entry] };
+    }),
 
   confirmStyles: () => set({ phase: "drafting", aiStylingLoading: false }),
 
@@ -649,7 +710,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   },
   setTargetPlatform: (platform) => set({ targetPlatform: platform }),
 
-  onSubmitted: (result) => set({ phase: "done", submitResult: result, beforeImage: null, afterImage: null, screenshotRaw: null, screenshotAnnotated: null, videoBlob: null, videoThumbnail: null, networkLog: null, consoleLog: null, actionLog: null }),
+  onSubmitted: (result) => set({ phase: "done", submitResult: result, beforeImage: null, afterImage: null, bufferedElements: [], screenshotRaw: null, screenshotAnnotated: null, videoBlob: null, videoThumbnail: null, networkLog: null, consoleLog: null, actionLog: null }),
 
   reset: () => set({ ...initial }),
 

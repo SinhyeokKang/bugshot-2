@@ -260,10 +260,13 @@ export function DraftDetailDialog({
     if (supportsActionLog(issue.captureMode) && issue.actionLogBlobKey) {
       actionLogForSubmit = await getActionLog(issue.actionLogBlobKey);
     }
+    // legacy no-diff draft fallback — 신규 경로는 diff 게이트로 미발생. media 폴백이
+    // 제거됐으므로 no-diff element draft는 screenshot 모드로 강등해 이미지를 노출한다.
+    const legacyNoDiff = !isScreenshot && !isVideo && !isFreeform && diffs.length === 0;
     const ctx = {
       os: getOsInfo(),
       browser: parseChromeVersion(navigator.userAgent),
-      captureMode: issue.captureMode,
+      captureMode: legacyNoDiff ? "screenshot" : issue.captureMode,
       title: issue.draft.title,
       sections: issue.draft.sections,
       sectionConfig,
@@ -289,14 +292,13 @@ export function DraftDetailDialog({
       : null;
     const beforeDataUrl = beforeBlob ? await blobToDataUrl(beforeBlob) : null;
     const afterDataUrl = afterBlob ? await blobToDataUrl(afterBlob) : null;
-    const noDiffs = diffs.length === 0;
-    const isElementNoDiff = !isScreenshot && !isVideo && !isFreeform && noDiffs;
+    const isElement = !isScreenshot && !isVideo && !isFreeform && !legacyNoDiff;
     const captureFiles = await buildCaptureFiles({
-      captureMode: isElementNoDiff ? "screenshot" : (issue.captureMode ?? "element"),
+      captureMode: legacyNoDiff ? "screenshot" : (issue.captureMode ?? "element"),
       videoBlob,
-      screenshotImage: isScreenshot || isElementNoDiff ? beforeDataUrl : null,
-      beforeImage: isScreenshot || isElementNoDiff ? null : beforeDataUrl,
-      afterImage: isElementNoDiff ? null : afterDataUrl,
+      screenshotImage: isScreenshot || legacyNoDiff ? beforeDataUrl : null,
+      beforeImages: isElement ? [beforeDataUrl] : undefined,
+      afterImages: isElement ? [afterDataUrl] : undefined,
       networkLog,
       consoleLog: consoleLogForSubmit,
       actionLog: actionLogForSubmit,

@@ -202,15 +202,15 @@ describe("buildIssueAdf — element + diffs 없음", () => {
   const noDiffCtx = (overrides: Partial<MarkdownContext> = {}) =>
     makeCtx({ diffs: [], ...overrides });
 
-  it("element 모드 + diffs=[] → Media heading + IMAGE_PLACEHOLDER", () => {
+  it("element 모드 + diffs=[] → media 폴백 없음 (no-diff 폐지)", () => {
     const doc = buildIssueAdf(noDiffCtx());
     const headings = findNodes(doc, "heading");
     const headingTexts = headings.flatMap((h: any) =>
       (h.content || []).filter((c: any) => c.type === "text").map((c: any) => c.text),
     );
-    expect(headingTexts).toContain("md.section.media");
+    expect(headingTexts).not.toContain("md.section.media");
     const texts = findNodes(doc, "text");
-    expect(texts.some((t) => t.text === "__BUGSHOT_IMAGE__")).toBe(true);
+    expect(texts.some((t) => t.text === "__BUGSHOT_IMAGE__")).toBe(false);
   });
 
   it("element 모드 + diffs=[] → Style Changes heading 미출력", () => {
@@ -228,7 +228,7 @@ describe("buildIssueAdf — element + diffs 없음", () => {
     expect(tables).toHaveLength(0);
   });
 
-  it("element 모드 + diffs 존재 → 기존 Style Changes 테이블 유지", () => {
+  it("element 모드 + diffs 존재 → Style Changes (selector) 테이블 유지", () => {
     const doc = buildIssueAdf(
       noDiffCtx({ diffs: [{ prop: "color", asIs: "#000", toBe: "#fff" }] }),
     );
@@ -236,9 +236,26 @@ describe("buildIssueAdf — element + diffs 없음", () => {
     const headingTexts = headings.flatMap((h: any) =>
       (h.content || []).filter((c: any) => c.type === "text").map((c: any) => c.text),
     );
-    expect(headingTexts).toContain("md.section.styleChanges");
+    expect(headingTexts).toContain("md.section.styleChanges (div.container)");
     const tables = findNodes(doc, "table");
     expect(tables.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("복수 styleElements → heading·table 2개, selector별", () => {
+    const doc = buildIssueAdf(
+      noDiffCtx({
+        styleElements: [
+          { selector: "a.x", tagName: "a", classListBefore: [], classListAfter: [], specifiedStyles: {}, diffs: [{ prop: "color", asIs: "#000", toBe: "#fff" }], beforeFilename: "before-0.webp", afterFilename: "after-0.webp" },
+          { selector: "b.y", tagName: "b", classListBefore: [], classListAfter: [], specifiedStyles: {}, diffs: [{ prop: "padding", asIs: "1px", toBe: "2px" }], beforeFilename: "before-1.webp", afterFilename: "after-1.webp" },
+        ],
+      }),
+    );
+    const headingTexts = findNodes(doc, "heading").flatMap((h: any) =>
+      (h.content || []).filter((c: any) => c.type === "text").map((c: any) => c.text),
+    );
+    expect(headingTexts).toContain("md.section.styleChanges (a.x)");
+    expect(headingTexts).toContain("md.section.styleChanges (b.y)");
+    expect(findNodes(doc, "table")).toHaveLength(2);
   });
 });
 

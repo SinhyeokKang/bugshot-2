@@ -278,22 +278,25 @@ describe("buildGithubIssueBody — URL 인라인", () => {
 
   it("혼합 — url 있는 before는 테이블 스냅샷 행, 없는 after는 첨부 섹션", () => {
     const input: GithubBuildInput = {
-      ctx: makeCtx({ captureMode: "element" }),
+      ctx: makeCtx({
+        captureMode: "element",
+        diffs: [{ prop: "color", asIs: "#000", toBe: "#fff" }],
+      }),
       images: [
         {
-          filename: "before.webp",
+          filename: "before-0.webp",
           contentType: "image/webp",
           url: "https://github.com/user-attachments/assets/b1",
         },
-        { filename: "after.webp", contentType: "image/webp" },
+        { filename: "after-0.webp", contentType: "image/webp" },
       ],
     };
     const out = buildGithubIssueBody(input);
     expect(out.body).toContain("styleTable.snapshot");
     expect(out.body).toContain(
-      "![before.webp](https://github.com/user-attachments/assets/b1)",
+      "![before-0.webp](https://github.com/user-attachments/assets/b1)",
     );
-    expect(out.body).toContain("`after.webp`");
+    expect(out.body).toContain("`after-0.webp`");
     expect(out.body).toContain("github.attachmentNotInline");
   });
 
@@ -305,12 +308,12 @@ describe("buildGithubIssueBody — URL 인라인", () => {
       }),
       images: [
         {
-          filename: "before.webp",
+          filename: "before-0.webp",
           contentType: "image/webp",
           url: "https://github.com/user-attachments/assets/b",
         },
         {
-          filename: "after.webp",
+          filename: "after-0.webp",
           contentType: "image/webp",
           url: "https://github.com/user-attachments/assets/a",
         },
@@ -318,74 +321,65 @@ describe("buildGithubIssueBody — URL 인라인", () => {
     };
     const out = buildGithubIssueBody(input);
     expect(out.body).toContain("styleTable.snapshot");
-    expect(out.body).toContain("![before.webp]");
-    expect(out.body).toContain("![after.webp]");
+    expect(out.body).toContain("![before-0.webp]");
+    expect(out.body).toContain("![after-0.webp]");
     expect(out.body).toContain("| color | #000 | #fff |");
     expect(out.body).not.toContain("github.attachmentNotInline");
     expect(out.body).not.toContain("md.section.attachments");
   });
+
+  it("복수 element → 각 섹션이 자기 before-${i}/after-${i} (교차 매칭·중복 없음)", () => {
+    const input: GithubBuildInput = {
+      ctx: makeCtx({
+        captureMode: "element",
+        styleElements: [
+          { selector: "button.cta", tagName: "button", classListBefore: [], classListAfter: [], specifiedStyles: {}, diffs: [{ prop: "color", asIs: "#000", toBe: "#fff" }], beforeFilename: "before-0.webp", afterFilename: "after-0.webp" },
+          { selector: "div.card", tagName: "div", classListBefore: [], classListAfter: [], specifiedStyles: {}, diffs: [{ prop: "padding", asIs: "10px", toBe: "20px" }], beforeFilename: "before-1.webp", afterFilename: "after-1.webp" },
+        ],
+      }),
+      images: [
+        { filename: "before-0.webp", contentType: "image/webp", url: "u-b0" },
+        { filename: "after-0.webp", contentType: "image/webp", url: "u-a0" },
+        { filename: "before-1.webp", contentType: "image/webp", url: "u-b1" },
+        { filename: "after-1.webp", contentType: "image/webp", url: "u-a1" },
+      ],
+    };
+    const out = buildGithubIssueBody(input);
+    expect(out.body).toContain("md.section.styleChanges (button.cta)");
+    expect(out.body).toContain("md.section.styleChanges (div.card)");
+    const sec0 = out.body.indexOf("(button.cta)");
+    const sec1 = out.body.indexOf("(div.card)");
+    expect(out.body.slice(sec0, sec1)).toContain("![before-0.webp](u-b0)");
+    expect(out.body.slice(sec0, sec1)).toContain("![after-0.webp](u-a0)");
+    expect(out.body.slice(sec1)).toContain("![before-1.webp](u-b1)");
+    expect(out.body.slice(sec1)).toContain("![after-1.webp](u-a1)");
+    // 4쌍 모두 mediaHandled → 하단 Attachments 중복 없음
+    expect(out.body).not.toContain("md.section.attachments");
+  });
 });
 
-describe("buildGithubIssueBody — element + diffs 없음", () => {
-  it("element + diffs=[] + screenshot.webp url → Media 섹션 + 이미지 인라인", () => {
-    const input: GithubBuildInput = {
-      ctx: makeCtx({ captureMode: "element", diffs: [] }),
-      images: [
-        {
-          filename: "screenshot.webp",
-          contentType: "image/webp",
-          url: "https://github.com/user-attachments/assets/abc",
-        },
-      ],
-    };
-    const out = buildGithubIssueBody(input);
-    expect(out.body).toContain("md.section.media");
-    expect(out.body).toContain(
-      "![screenshot.webp](https://github.com/user-attachments/assets/abc)",
-    );
-    expect(out.body).not.toContain("md.section.styleChanges");
-  });
-
-  it("element + diffs=[] + screenshot.webp url 없음 → 첨부 안내", () => {
-    const input: GithubBuildInput = {
-      ctx: makeCtx({ captureMode: "element", diffs: [] }),
-      images: [
-        { filename: "screenshot.webp", contentType: "image/webp" },
-      ],
-    };
-    const out = buildGithubIssueBody(input);
-    expect(out.body).toContain("md.section.media");
-    expect(out.body).not.toContain("md.section.styleChanges");
-  });
-
-  it("element + diffs=[] + 이미지 없음 → styleChanges 미출력", () => {
+describe("buildGithubIssueBody — element + diffs 없음 (no-diff 폐지)", () => {
+  it("element + diffs=[] + 이미지 없음 → styleChanges·media 미출력", () => {
     const out = buildGithubIssueBody({
       ctx: makeCtx({ captureMode: "element", diffs: [] }),
     });
     expect(out.body).not.toContain("md.section.styleChanges");
+    expect(out.body).not.toContain("md.section.media");
   });
 
-  it("element + diffs 존재 → 기존 Style Changes 테이블 유지", () => {
+  it("element + diffs 존재 → Style Changes (selector) 테이블 유지", () => {
     const input: GithubBuildInput = {
       ctx: makeCtx({
         captureMode: "element",
         diffs: [{ prop: "color", asIs: "#000", toBe: "#fff" }],
       }),
       images: [
-        {
-          filename: "before.webp",
-          contentType: "image/webp",
-          url: "https://github.com/user-attachments/assets/b",
-        },
-        {
-          filename: "after.webp",
-          contentType: "image/webp",
-          url: "https://github.com/user-attachments/assets/a",
-        },
+        { filename: "before-0.webp", contentType: "image/webp", url: "https://github.com/user-attachments/assets/b" },
+        { filename: "after-0.webp", contentType: "image/webp", url: "https://github.com/user-attachments/assets/a" },
       ],
     };
     const out = buildGithubIssueBody(input);
-    expect(out.body).toContain("md.section.styleChanges");
+    expect(out.body).toContain("md.section.styleChanges (div)");
     expect(out.body).toContain("| color | #000 | #fff |");
   });
 });

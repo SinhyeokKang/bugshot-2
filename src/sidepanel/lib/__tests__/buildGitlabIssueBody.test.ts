@@ -113,3 +113,42 @@ describe("buildGitlabIssueBody", () => {
     expect(out.body).toContain("`recording.mp4`");
   });
 });
+
+describe("buildGitlabIssueBody — element 복수", () => {
+  it("element + diffs 존재 → Style Changes (selector) + before-0 스냅샷", () => {
+    const out = buildGitlabIssueBody({
+      ctx: makeCtx({ captureMode: "element", diffs: [{ prop: "color", asIs: "#000", toBe: "#fff" }] }),
+      images: [
+        { filename: "before-0.webp", contentType: "image/webp", url: "/u/b0" },
+        { filename: "after-0.webp", contentType: "image/webp", url: "/u/a0" },
+      ],
+    });
+    expect(out.body).toContain("md.section.styleChanges (div)");
+    expect(out.body).toContain("![before-0.webp](/u/b0)");
+    expect(out.body).toContain("| color | #000 | #fff |");
+    expect(out.body).not.toContain("md.section.attachments");
+  });
+
+  it("복수 element → 각 섹션이 자기 before-${i}/after-${i}", () => {
+    const out = buildGitlabIssueBody({
+      ctx: makeCtx({
+        captureMode: "element",
+        styleElements: [
+          { selector: "a.x", tagName: "a", classListBefore: [], classListAfter: [], specifiedStyles: {}, diffs: [{ prop: "color", asIs: "#000", toBe: "#fff" }], beforeFilename: "before-0.webp", afterFilename: "after-0.webp" },
+          { selector: "b.y", tagName: "b", classListBefore: [], classListAfter: [], specifiedStyles: {}, diffs: [{ prop: "padding", asIs: "1px", toBe: "2px" }], beforeFilename: "before-1.webp", afterFilename: "after-1.webp" },
+        ],
+      }),
+      images: [
+        { filename: "before-0.webp", contentType: "image/webp", url: "/u/b0" },
+        { filename: "after-0.webp", contentType: "image/webp", url: "/u/a0" },
+        { filename: "before-1.webp", contentType: "image/webp", url: "/u/b1" },
+        { filename: "after-1.webp", contentType: "image/webp", url: "/u/a1" },
+      ],
+    });
+    const sec0 = out.body.indexOf("(a.x)");
+    const sec1 = out.body.indexOf("(b.y)");
+    expect(out.body.slice(sec0, sec1)).toContain("![before-0.webp](/u/b0)");
+    expect(out.body.slice(sec1)).toContain("![before-1.webp](/u/b1)");
+    expect(out.body).not.toContain("md.section.attachments");
+  });
+});

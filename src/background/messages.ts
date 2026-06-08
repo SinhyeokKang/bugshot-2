@@ -2,6 +2,7 @@ import { t } from "@/i18n";
 import { dataUrlToBlob } from "@/store/blob-db";
 import { IMAGE_PLACEHOLDER, VIDEO_PLACEHOLDER, parseInlinePlaceholder } from "@/lib/adf-sentinels";
 import { adfMediaNode, type MediaSource } from "@/background/lib/adf-media";
+import { injectSnapshotRows } from "@/background/injectSnapshotRows";
 import { injectIssueUrl } from "@/lib/inject-issue-url";
 import type { JiraAttachmentInput, JiraAuth, JiraSubmitResult } from "@/types/jira";
 import type { GithubAuth } from "@/types/github";
@@ -610,18 +611,11 @@ async function submitIssue(
       }
 
       if (!screenshotFile) {
-        const beforeFile = uploadMap.get("before.webp");
-        const afterFile = uploadMap.get("after.webp");
-        if (beforeFile || afterFile) {
-          const tableIdx = content.findIndex(
-            (n) => (n as { type: string }).type === "table",
-          );
-          if (tableIdx >= 0) {
-            const tbl = JSON.parse(JSON.stringify(content[tableIdx])) as { content: unknown[] };
-            tbl.content.splice(1, 0, snapshotRow(beforeFile, afterFile));
-            content[tableIdx] = tbl;
-          }
-        }
+        injectSnapshotRows(
+          content,
+          (name) => uploadMap.get(name),
+          (before, after) => snapshotRow(before, after),
+        );
       }
 
       for (let i = 0; i < content.length; i++) {
