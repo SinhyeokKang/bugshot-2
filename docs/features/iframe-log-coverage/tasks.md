@@ -67,9 +67,38 @@
   - [ ] 프레임 간 시간축 정렬 정확 — 세 레코더 모두 `Date.now()` 기준이라 cross-origin 프레임 로그도 단일 타임라인에 올바르게 섞임
   - [ ] 세션 영속(`pending:${tabId}`)·재진입 시 iframe 로그 보존
 
+### Task 6: origin별 cap (top-origin 우선 보존) — 테스트 우선
+- **변경 대상**: `src/sidepanel/lib/log-merge.ts`, `src/sidepanel/lib/__tests__/log-merge.test.ts`, `src/sidepanel/hooks/usePickerMessages.ts`
+- **작업 내용**:
+  - `mergeLogItems`에 `topOrigin: string | null` 인자 추가. trim 초과 시 `originOf(item.pageUrl) !== topOrigin`(cross-origin)부터 oldest 순 evict, top-origin 로그는 cap 한도 내 보존. 전부 top-origin이면 기존 FIFO와 동일.
+  - `usePickerMessages`의 `mergeLogItems` 호출 3곳에 `originOf(useEditorStore.getState().target?.url)` 전달.
+  - 타입 제약: `T extends { id: string; pageUrl: string }`.
+- **검증**:
+  - [ ] (단위) top-origin 로그가 cross-origin 로그보다 우선 보존됨 — cross-origin이 cap을 채워도 top-origin entry가 살아남음
+  - [ ] (단위) 전부 top-origin이면 기존 FIFO(oldest evict)와 동일
+  - [ ] (단위) `topOrigin === null`(target url 없음)일 때 기존 동작 폴백
+  - [ ] `pnpm test` 통과
+  - [ ] (수동) 광고 다수 페이지에서 top-origin 본문 로그가 보존됨
+
+### Task 7: origin 필터 UI (사이드패널 + log-viewer 공유)
+- **변경 대상**: `src/sidepanel/components/ConsoleLogContent.tsx`, `NetworkLogContent.tsx`, `ActionLogContent.tsx`
+- **작업 내용**: 세 컴포넌트에 origin 필터(3단째) 추가. **log-viewer(`src/log-viewer/App.tsx`)가 이 컴포넌트를 import 공유하므로 한 번 고치면 양쪽 적용**.
+  - distinct origin 목록: `useMemo`로 `entries.map(e => originOf(e.pageUrl))` Set, null/opaque은 "(unknown)" 그룹.
+  - `const [originFilter, setOriginFilter] = useState<string | null>(null)`.
+  - 필터 파이프라인에 origin 조건 추가(레벨/타입 → origin → query 순).
+  - UI: 기존 `[탭 ── 검색]` 줄 **아래 둘째 줄**에 shadcn **`ButtonGroup`(size `sm`)** — `[All][origin 호스트명…]` 세그먼트. 선택 origin은 active variant, 라벨은 호스트명만. `ButtonGroup` 미설치면 `npx shadcn@latest add button-group` 후 `src/components/ui/` 위치 확인. **distinct origin 2개 이상일 때만 둘째 줄 렌더**(1개면 숨김). origin이 폭을 넘으면 **좌우 가로 슬라이드(`overflow-x-auto`)** — wrap/더보기 없이 한 줄 유지, top-origin 버튼 맨 앞 고정.
+- **검증**:
+  - [ ] origin 버튼 선택 시 해당 origin 로그만 표시(레벨/검색 필터와 AND 결합), `[All]`로 해제
+  - [ ] distinct origin 목록이 실제 캡처된 프레임 origin과 일치, "(unknown)" 그룹 동작
+  - [ ] origin 1개(top만 캡처)면 둘째 줄 미렌더(기존 1줄 레이아웃 동일)
+  - [ ] origin 다수(10+)일 때 둘째 줄이 좌우 가로 슬라이드(`overflow-x-auto`)로 동작, wrap 없이 한 줄 유지, top-origin 맨 앞 고정
+  - [ ] **log-viewer(이슈 첨부 로그 HTML)에서 동일 필터 동작** — `pnpm build:log-viewer` 후 확인
+  - [ ] 세 탭(console/network/action) ButtonGroup 일관 동작
+  - [ ] `pnpm typecheck` 통과
+
 ## 테스트 계획
 
-- **단위 테스트**: 신규 순수 함수 없음(브리지는 이동, 데이터 모델 불변). `mergeLogItems`는 기존 테스트(`log-merge.test.ts`)가 id dedup + 시간정렬을 이미 커버 — 프레임 무관하므로 추가 케이스 불필요. **단, 브리지 분리로 picker.ts의 기존 단위 테스트가 깨지지 않는지 확인**하고, 깨지면 import 경로만 갱신.
+- **단위 테스트**: `mergeLogItems`의 **top-origin 우선 보존**(Task 6) — `log-merge.test.ts`에 케이스 추가(cross-origin evict 우선, 전부 top-origin 시 FIFO 동일, topOrigin null 폴백). 브리지 분리(Task 1)·필터 UI(Task 7)는 순수 함수가 아니라 단위 대상이 아니며, 브리지 분리로 picker.ts 기존 테스트가 깨지면 import 경로만 갱신.
 - **수동 테스트** (Chrome 실탭). 재현 환경: 가능하면 **고정 fixture 페이지**(`<iframe src=cross-origin>` + 버튼 클릭 시 fetch 유발)를 레포에 두면 테스터가 일관 재현 가능. Stripe Checkout은 iframe 구조가 데모마다 다르고 일부는 redirect(비-iframe)라 보조 검증으로:
   - [ ] **(1차, 정적)** YouTube/Google Maps embed가 있는 페이지에서 screenshot/video 캡처 → iframe 내부 fetch/console 로그가 사이드패널에 나타남
   - [ ] **(2차, 동적)** 클릭 후 동적 생성되는 iframe(Stripe Checkout 또는 fixture)의 로그가 webNav 재발행으로 나타남. 실패 시 known limitation으로 기록하고 Task 4 보강 범위 재검토
@@ -87,9 +116,10 @@
 1. **Task 1**(브리지 분리) → **Task 2**(manifest) 순차. Task 1이 새 파일을 만들어야 Task 2에서 등록 가능.
 2. **Task 3**(정적 프레임 sentinel 검증)은 Task 1·2 완료 후.
 3. **Task 4**(webNav 동적 iframe 재발행)는 Task 3 후 — 정적 커버리지가 동작해야 동적 보강을 분리 검증 가능.
-4. **Task 5**(회귀 검증)는 전체 완료 후 마지막.
-- Task 1·2는 의존 관계라 병렬 불가. Task 4는 유일한 추가 구현(background+sidepanel), 나머지는 검증 위주.
+4. **Task 6**(origin cap)·**Task 7**(origin 필터)은 **iframe 주입(1~4)과 독립**이라 병렬 가능. 단 실효 검증(광고 페이지 cap 보존·필터)은 iframe 로그가 실제로 들어와야 하므로 1~4 후. Task 6은 테스트 우선(순수 함수).
+5. **Task 5**(회귀 검증)는 전체 완료 후 마지막.
+- Task 1·2 의존, 4는 추가 구현(background+sidepanel), 6·7은 cap/UI 구현(주입과 독립). 3·5는 검증 위주.
 
 ## 가이드 영향
 
-iframe 로그가 사이드패널 로그에 추가로 나타나는 것은 사용자 노출 동작 변화지만, **새 UI·설정·플로우가 없고**(필터 UI 제외) 기존 로그 첨부 동작의 커버리지 확장이다. `guide/ko`·`guide/en`의 로그 관련 페이지(`logs/`)에 "cross-origin iframe 로그도 캡처됩니다" 수준의 한 줄 보강이 적절할 수 있음 — 구현 후 `/guide`로 `guide/AUTHORING.md` 대조해 판단. 필수는 아니며 후속 필터 과제와 묶어 갱신해도 됨.
+사용자 노출 변화 2가지: ① cross-origin iframe 로그 캡처, ② **로그 탭·log-viewer의 origin 필터(신규 UI)**. `guide/ko`·`guide/en`의 로그 관련 페이지(`logs/`)에 "iframe 로그도 캡처되며 origin으로 필터할 수 있습니다" 보강이 필요하다 — 구현 후 `/guide`로 `guide/AUTHORING.md` 대조해 ko·en 동시 갱신. origin 필터는 명시적 UI 추가라 가이드 갱신 권장(`/implement` 보고의 "가이드 영향" 플래그 대상).
