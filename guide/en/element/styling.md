@@ -44,13 +44,13 @@ Bugs rarely sit in just one spot. Sometimes you want to bundle several elements 
 
 Fixed element A? Click **Pick another element** (top right) and grab the next one (B). A's changes **stay on the page** instead of disappearing, and they ride along into the issue too. Keep going for A, B, C… as many as you like — before/after is recorded per element.
 
-> There's no separate screen yet to pull out a buffered element or manage them as a list. Whatever you've collected clears when you cancel the draft or finish submitting.
+> There's no separate screen yet to pull out a buffered element or manage them as a list. Whatever you've collected clears when you cancel the draft, finish submitting, or hit **Reset changes**.
 
 ## Next step
 
 When you're done editing, click **Next** to move to the issue draft. The before and after are captured as a comparison.
 
-> **Next** is enabled only once you've changed at least one style. To include an element as-is (without style changes), use [Capture element](../screenshot/capture.md) instead.
+> **Next** is enabled once at least one style has changed (if you've already buffered an element, you can move on without changing the current one). To include an element as-is (without style changes), use [Capture element](../screenshot/capture.md) instead.
 
 ---
 
