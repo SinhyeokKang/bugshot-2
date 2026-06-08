@@ -82,14 +82,14 @@ export function DebugTab({ activeMainTab }: { activeMainTab: string }) {
             <SquarePen className="h-3.5 w-3.5 shrink-0" />
             <TabLabel>{t("debug.tab.issue")}</TabLabel>
           </TabsTrigger>
-          <TabsTrigger value="console" className="min-w-0 gap-1.5">
+          <TabsTrigger value="console" disabled={phase === "recording"} className="min-w-0 gap-1.5">
             <Terminal className="h-3.5 w-3.5 shrink-0" />
             <TabLabel>{t("debug.tab.console")}</TabLabel>
             <Badge className="ml-0.5 h-5 min-w-5 shrink-0 px-1.5 text-[10px]">
               {consoleCount}
             </Badge>
           </TabsTrigger>
-          <TabsTrigger value="network" className="min-w-0 gap-1.5">
+          <TabsTrigger value="network" disabled={phase === "recording"} className="min-w-0 gap-1.5">
             <ArrowLeftRight className="h-3.5 w-3.5 shrink-0" />
             <TabLabel>{t("debug.tab.network")}</TabLabel>
             <Badge className="ml-0.5 h-5 min-w-5 shrink-0 px-1.5 text-[10px]">
