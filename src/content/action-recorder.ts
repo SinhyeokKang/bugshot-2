@@ -3,6 +3,7 @@ import {
   truncateName,
   maskValue,
   shouldMaskField,
+  entryNavOnBind,
 } from "./action-recorder-helpers";
 
 function actionRecorderScript(): void {
@@ -234,6 +235,7 @@ function actionRecorderScript(): void {
 
   // --- Sentinel-bound dispatch ---
   let currentSentinel: string | null = null;
+  let entryNavEmitted = false;
   let stopHandler: (() => void) | null = null;
   let syncHandler: (() => void) | null = null;
   let clearHandler: (() => void) | null = null;
@@ -267,6 +269,13 @@ function actionRecorderScript(): void {
     detachSentinelListeners();
     currentSentinel = sentinel;
     recording = true;
+    // document_start의 load 기록은 recording=false라 버려진다. cross-origin 진입 자취가
+    // 매번 사라지므로, bind 직후 현재 페이지 진입 네비게이션을 1회 보충한다(중복 방지 가드).
+    const entryNav = entryNavOnBind(entryNavEmitted, document.referrer, lastUrl, location.href);
+    if (entryNav) {
+      entryNavEmitted = true;
+      recordNavigation("load", entryNav.fromUrl, entryNav.toUrl);
+    }
     stopHandler = () => { recording = false; dispatch(); };
     syncHandler = () => { dispatch(); };
     clearHandler = () => { clearBuffer(); };

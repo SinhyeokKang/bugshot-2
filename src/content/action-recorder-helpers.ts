@@ -24,6 +24,25 @@ export function maskValue(_value: string): string {
   return "***";
 }
 
+export interface EntryNav {
+  fromUrl: string;
+  toUrl: string;
+}
+
+// 녹화 bind(setSentinel) 시점에 현재 페이지 진입(load) 네비게이션을 1회 기록하기 위한 결정.
+// document_start의 load 기록은 recording=false라 버려지므로, cross-origin으로 새 페이지에
+// 진입할 때마다 그 자취가 사라진다. bind 직후 이 함수로 메운다.
+// referrer가 비면(cross-origin referrer 정책) lastUrl로 fallback, 이미 emit했으면 null(중복 방지).
+export function entryNavOnBind(
+  alreadyEmitted: boolean,
+  referrer: string,
+  lastUrl: string,
+  currentUrl: string,
+): EntryNav | null {
+  if (alreadyEmitted) return null;
+  return { fromUrl: referrer || lastUrl, toUrl: currentUrl };
+}
+
 // 접근가능한 이름을 trim·길이 cap. 역할(button/link 등)은 ActionEntry.role로 따로 들고
 // 렌더 레이어(i18n)에서 로케일에 맞춰 조립한다.
 export function truncateName(name: string | null | undefined): string | undefined {
