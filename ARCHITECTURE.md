@@ -113,9 +113,9 @@ shorthand(var 포함) + 같은 shorthand의 longhand override 조합에서 Chrom
 
 **Console wrap 범위**: `log/info/debug` + `trace/assert/dir/table/group*/count*/time*`만 wrap. **`error/warn`은 의도적 제외** — wrap 함수가 콜스택에 끼면 Chrome이 확장 attribution해 `chrome://extensions`에 페이지 라이브러리 경고 누적. 진짜 에러는 `window.addEventListener("error")`/`unhandledrejection`/`console.assert`로 별도 캡처.
 
-**액션 레코더**: click/input/change를 capture-phase에서, `pushState`/`replaceState` 래핑 + `popstate`/`hashchange`로 네비게이션 기록. 클릭은 가까운 interactive 요소로 정규화, accessible name과 implicit role을 **분리 저장** — 자연어 문장 조립은 뷰어(`ActionLogContent`)의 i18n 레이어가 담당. 입력은 같은 selector 연속 dedup. **민감 필드 마스킹**: `shouldMaskField`가 type=password, autocomplete 힌트, 필드명 키워드(`password|secret|card|cvv|ssn|token` 등)로 판별해 `***` 치환.
+**액션 레코더**: click/input/change를 capture-phase에서, `pushState`/`replaceState` 래핑 + `popstate`/`hashchange`로 네비게이션 기록. 클릭은 가까운 interactive 요소로 정규화, accessible name과 implicit role을 **분리 저장** — 자연어 문장 조립은 뷰어(`ActionLogContent`)의 i18n 레이어가 담당. 입력은 같은 selector 연속 dedup. **민감 필드 마스킹**: `shouldMaskField`가 type=password, autocomplete 힌트, 필드명 키워드(`password|secret|card|cvv|ssn|token` 등)로 판별해 `***` 치환. 녹화 bind(`setSentinel`) 시 현재 페이지 진입 `load` 네비게이션을 1회 보충(`entryNavOnBind`) — document_start의 load는 `recording=false`라 버려지므로 cross-origin 진입 자취가 사라지는 것을 메운다.
 
-**Cross-page 누적**: 네비게이션을 넘어 로그 누적. 떠나는 페이지 로그 꼬리는 `webNavigation.onBeforeNavigate`(주) + content `pagehide`(보조)로 sync. `mergeLogItems`가 id dedup + 시간 정렬 + maxEntries FIFO trim. `onCommitted` 시점에 `shouldClearLogs`로 초기화 판정 — cross-origin 또는 reload 시 리셋, same-origin 내부 이동은 보존. `isLogFrozen(phase)` = drafting/previewing/done일 때 머지 동결.
+**Cross-page 누적**: 네비게이션을 넘어 로그 누적. 떠나는 페이지 로그 꼬리는 `webNavigation.onBeforeNavigate`(주) + content `pagehide`(보조)로 sync. `mergeLogItems`가 id dedup + 시간 정렬 + maxEntries FIFO trim. `onCommitted` 시점에 `shouldClearLogs`로 초기화 판정 — cross-origin 또는 reload 시 리셋, same-origin 내부 이동은 보존. 단 사이드패널 `logClear` 핸들러가 `shouldPreserveBackgroundLogs(phase)`(recording/drafting/previewing/done)로 가드 → **녹화 중 cross-origin 이동도 로그를 유지**(진행 중 캡처가 페이지를 가로지른 한 세션이므로). `isLogFrozen(phase)` = drafting/previewing/done일 때 머지 동결.
 
 **Freeze/Settle**: freeze 전환 직전 `syncAndSettleLogs`가 sync 후 반영 대기(store `endedAt` 증가 감지, 상한 300ms)해 진입 직전 로그를 고정. 30s replay는 settle 후 프레임 버퍼 구간으로 추가 trim.
 
