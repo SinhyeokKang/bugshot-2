@@ -58,6 +58,12 @@ function makeCtx(overrides: Partial<MarkdownContext> = {}): MarkdownContext {
   };
 }
 
+function parseMeta(md: string): Record<string, any> {
+  const start = md.indexOf("<!-- bugshot-meta-for-ai");
+  const end = md.indexOf("-->", start);
+  return JSON.parse(md.slice(start + "<!-- bugshot-meta-for-ai\n".length, end));
+}
+
 describe("buildIssueMarkdown", () => {
   it("타이틀 포함", () => {
     const md = buildIssueMarkdown(makeCtx());
@@ -447,6 +453,68 @@ describe("joinStyleSelectors — DOM 줄 selector 쉼표 나열", () => {
   it("styleElements 없고 fallback null → 빈 문자열", () => {
     expect(joinStyleSelectors([], null)).toBe("");
     expect(joinStyleSelectors(undefined, undefined)).toBe("");
+  });
+});
+
+describe("buildMetaComment — 복수 element cssChanges (AI 메타)", () => {
+  const styleEl = (
+    selector: string,
+    diffs: { prop: string; asIs: string; toBe: string }[],
+  ) => ({
+    selector,
+    tagName: "div",
+    classListBefore: ["base"],
+    classListAfter: ["base", "edited"],
+    specifiedStyles: { color: "#000" },
+    diffs,
+    beforeFilename: "before-0.webp",
+    afterFilename: "after-0.webp",
+  });
+
+  it("복수 styleElements → meta.elements에 각 element selector·cssChanges 직렬화", () => {
+    const md = buildIssueMarkdown(
+      makeCtx({
+        styleElements: [
+          styleEl("button.cta", [{ prop: "color", asIs: "#000", toBe: "#fff" }]),
+          styleEl("div.card", [{ prop: "padding", asIs: "10px", toBe: "20px" }]),
+        ],
+      }),
+    );
+    const meta = parseMeta(md);
+    expect(meta.elements).toHaveLength(2);
+    expect(meta.elements[0].selector).toBe("button.cta");
+    expect(meta.elements[0].cssChanges).toEqual([
+      { property: "color", from: "#000", to: "#fff" },
+    ]);
+    expect(meta.elements[1].selector).toBe("div.card");
+    expect(meta.elements[1].classListAfter).toEqual(["base", "edited"]);
+    expect(meta.elements[1].cssChanges).toEqual([
+      { property: "padding", from: "10px", to: "20px" },
+    ]);
+  });
+
+  it("단일 styleElements → meta.elements 생략(기존 top-level 단일 필드 유지)", () => {
+    const md = buildIssueMarkdown(
+      makeCtx({
+        styleElements: [
+          styleEl("button.cta", [{ prop: "color", asIs: "#000", toBe: "#fff" }]),
+        ],
+      }),
+    );
+    const meta = parseMeta(md);
+    expect(meta.elements).toBeUndefined();
+    expect(meta.selector).toBe("div.container");
+    expect(meta.cssChanges).toEqual([
+      { property: "color", from: "#000", to: "#fff" },
+    ]);
+  });
+
+  it("styleElements 없는 단일 element(레거시) → meta.elements 생략", () => {
+    const meta = parseMeta(buildIssueMarkdown(makeCtx()));
+    expect(meta.elements).toBeUndefined();
+    expect(meta.cssChanges).toEqual([
+      { property: "color", from: "#000", to: "#fff" },
+    ]);
   });
 });
 

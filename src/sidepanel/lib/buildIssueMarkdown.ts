@@ -408,14 +408,31 @@ function buildMetaComment(ctx: MarkdownContext): string {
     meta.classListBefore = ctx.classListBefore;
     meta.classListAfter = ctx.classListAfter;
     meta.specifiedStyles = ctx.specifiedStyles;
-    meta.cssChanges = ctx.diffs.map((d) => ({
-      property: d.prop,
-      from: d.asIs,
-      to: d.toBe,
-    }));
+    meta.cssChanges = toCssChanges(ctx.diffs);
     meta.tokens = ctx.tokens;
+    // 복수 element(multi-element buffer): top-level 단일 필드는 현재 element를 유지하되,
+    // 전체 element의 selector·변경사항을 elements 배열로 직렬화(AI가 모든 element를 파악).
+    const els = resolveStyleElements(ctx);
+    if (els.length > 1) {
+      meta.elements = els.map((e) => ({
+        selector: e.selector,
+        tagName: e.tagName,
+        classListBefore: e.classListBefore,
+        classListAfter: e.classListAfter,
+        specifiedStyles: e.specifiedStyles,
+        cssChanges: toCssChanges(e.diffs),
+      }));
+    }
   }
   return `<!-- bugshot-meta-for-ai\n${JSON.stringify(meta, null, 2)}\n-->`;
+}
+
+function toCssChanges(diffs: StyleDiffRow[]): {
+  property: string;
+  from: string;
+  to: string;
+}[] {
+  return diffs.map((d) => ({ property: d.prop, from: d.asIs, to: d.toBe }));
 }
 
 function escapeCell(value: string): string {
