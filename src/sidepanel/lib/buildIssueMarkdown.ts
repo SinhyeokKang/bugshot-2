@@ -10,6 +10,9 @@ import {
 } from "@/sidepanel/components/StyleChangesTable";
 import type { BufferedElement, EditorStyleEdits } from "@/store/editor-store";
 import type { NetworkLogSummary, ConsoleLogSummary } from "./buildLogSummary";
+import { filterEnvironmentRows, type EnvironmentRow } from "./environmentRows";
+import { formatTimestamp } from "./formatTimestamp";
+import { renderMarkdown } from "./renderMarkdown";
 
 // mergeStyleElements가 현재 element에서 실제로 읽는 필드만(EditorSelection의 구조적 부분집합).
 // PreviewPanel/buildMarkdownContext가 EditorSelection 전체 없이도 호출 가능.
@@ -21,9 +24,6 @@ export interface MergeCurrentSelection {
   specifiedStyles: Record<string, string>;
   text: string | null;
 }
-import { filterEnvironmentRows, type EnvironmentRow } from "./environmentRows";
-import { formatTimestamp } from "./formatTimestamp";
-import { renderMarkdown } from "./renderMarkdown";
 
 export interface MarkdownContext {
   os?: string | null;

@@ -611,11 +611,7 @@ async function submitIssue(
       }
 
       if (!screenshotFile) {
-        injectSnapshotRows(
-          content,
-          (name) => uploadMap.get(name),
-          (before, after) => snapshotRow(before, after),
-        );
+        injectSnapshotRows(content, (name) => uploadMap.get(name), snapshotRow);
       }
 
       for (let i = 0; i < content.length; i++) {
