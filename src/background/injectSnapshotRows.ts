@@ -16,9 +16,10 @@ function tableHeaderTexts(node: unknown): string[] {
   );
 }
 
-// "As is"/"To be" 헤더로 styleChanges table 식별 — 로케일 무관. 안전 전제: markdownToAdf가
-// GFM table 룰을 끄고 있어 사용자 본문은 table 노드를 만들지 못한다(이 두 헤더의 user table 부재).
-// markdownToAdf에서 table을 켜면 동일 헤더의 user table이 오탐될 수 있으니 그때 식별을 강화할 것.
+// "As is"/"To be" 헤더로 styleChanges table 식별 — 로케일 무관. 안전 전제: markdownToAdf의
+// convertTokens가 table 토큰을 ADF 노드로 변환하지 않아(파서 룰은 켜져 있어도) 사용자 본문은
+// type:"table" 노드를 만들지 못한다 → 동일 헤더의 user table 오탐 불가. markdownToAdf에 table
+// 변환을 추가하면 user table이 오탐될 수 있으니 그때 식별을 강화할 것.
 export function isStyleChangesTable(node: unknown): boolean {
   if ((node as { type?: string })?.type !== "table") return false;
   const headers = tableHeaderTexts(node);
