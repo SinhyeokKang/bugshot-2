@@ -6,6 +6,7 @@ import { captureElementSnapshot, loadImage } from "@/sidepanel/capture";
 import { clearPicker, collectTokens, maybeSurfacePermissionExpired } from "@/sidepanel/picker-control";
 import { saveNetworkLog, saveConsoleLog, saveActionLog, saveInlineImage, dataUrlToBlob } from "@/store/blob-db";
 import { shouldCompact, compactImage } from "@/sidepanel/lib/compactImage";
+import { shouldPreserveBackgroundLogs } from "@/sidepanel/hooks/useBackgroundRecorder";
 import {
   mergeLogItems,
   rebuildNetworkLog,
@@ -121,7 +122,10 @@ export function usePickerMessages(myTabId: number | null): void {
         if (myTabId != null && msg.tabId !== myTabId) return;
         deferredActiveTabExpiry = true;
       } else if (message.type === "logClear") {
-        if (isLogFrozen(useEditorStore.getState().phase)) return;
+        // 녹화 중(recording)엔 cross-origin/reload 이동도 한 버그 시나리오의 일부 —
+        // background 레코더가 보존하는 phase 집합과 동일하게 버퍼를 비우지 않는다.
+        // (단 *.data 머지는 isLogFrozen 기준이라 녹화 중 새 로그 유입은 계속된다.)
+        if (shouldPreserveBackgroundLogs(useEditorStore.getState().phase)) return;
         const msg = message as Extract<BgInternalMessage, { type: "logClear" }>;
         if (myTabId != null && msg.tabId !== myTabId) return;
         lastLogClearAt = Date.now();
