@@ -39,6 +39,7 @@ chrome.action.onClicked.addListener((tab) => {
 - `useEditorSessionSync(tabId)` 훅이 hydration + debounced save(300ms) 담당 (zustand persist 미들웨어 대신 직접 구현 — tabId-scoped 키가 persist의 "one store, one key" 모델에 맞지 않음)
 - origin 변경 시 해당 탭의 세션은 버림 (`clearIfOriginChanged` in `tab-bindings.ts`)
 - 탭 닫히면 `onRemoved`에서 정리
+- **복수 element 버퍼(`bufferedElements`)도 세션 영속화**된다. 단 phase별 보존이 비대칭: `styling`에서 세션 만료/`reset`이 걸리면 버퍼가 폐기되고, `drafting`/`previewing`/`done`은 `selection`과 동일하게 스냅샷에 포함돼 패널을 닫았다 열어도 복원된다. quota 초과 시 lite 폴백이 버퍼 내부 before/after base64까지 명시적으로 null화. (단위 복원: draft로 저장 후 `DraftDetailDialog` 재편집은 **마지막 element만** 복원 — 복수 element는 첫 제출 세션 안에서만 산다)
 
 ## 플랫폼 인증
 
@@ -210,5 +211,7 @@ draft 모델: `{ title, sections: Record<string, string>, environment?: Environm
 **재현 환경**: `ReproEnvironmentSection`이 모드별 메타를 readonly 표시 + `draft.environment` 사용자 정의 row 편집. 순수 헬퍼: `filterEnvironmentRows`(빈 row 제거) / `deriveReadonlyEnvRows`(모드별 파생).
 
 **자동 메타 위치**: `POST_MEDIA_SECTION_IDS = {"expectedResult","notes"}` — 첫 해당 섹션 직전에 media/styleChanges emit. 둘 다 disabled면 모든 섹션 끝에 emit. 5종 빌더 + DraftingPanel + DraftDetailDialog에서 동일 룰. PreviewPanel·log-viewer Report 탭 프리뷰는 순수 헬퍼 `composePreviewLayout`로 이 순서를 단일화(`IssuePreviewView` 공용 컴포넌트).
+
+**복수 element 직렬화(styleChanges)**: 한 이슈에 여러 요소의 스타일 변경을 담을 수 있다. `mergeStyleElements`(in `buildIssueMarkdown`)가 버퍼(`bufferedElements`) + 현재 요소를 selector 기준 dedup·재인덱싱해 단일 배열로 만들고, 6개 플랫폼 빌더가 모두 이 배열을 순회해 element별 섹션(selector 소제목 + before/after 스냅샷 + diff 테이블)을 emit한다. 이미지 파일명은 배열 인덱스 단일 출처(`before-${i}`/`after-${i}.webp`) — 본문 빌더·`buildCaptureFiles`·Jira `injectSnapshotRows`(ADF 후처리)가 같은 인덱스를 공유해 오귀속을 막는다. 플랫폼별 렌더 차이는 어댑터 패턴대로(Jira는 ADF table에 Snapshot 행 splice, Notion은 Before/After heading 분리, Asana는 As is/To be 섹션). element 모드는 **diff 필수** — 스타일 변경이 없으면 drafting 진입을 막고(`hasStyleChange` 게이트) 요소 캡처(element-screenshot) 모드로 안내한다.
 
 **마이그레이션**: `issues-store` v5, `settings-store` v6, `settings-ui-store` v5. 각각 순수 헬퍼로 분리해 테스트 (`migrateV2ToV3`, `migrateToV5`, `migrateIssueToV4` 등). 모두 멱등 가드 + sparse 저장. 빈 paragraph는 `(없음)` (`md.noValue`)로 통일.
