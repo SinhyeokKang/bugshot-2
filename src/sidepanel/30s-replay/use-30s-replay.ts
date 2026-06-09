@@ -6,6 +6,7 @@ import { useSettingsUiStore } from "@/store/settings-ui-store";
 import { syncAndSettleLogs } from "@/sidepanel/picker-control";
 import { trimByTime, replayLogBounds } from "@/sidepanel/lib/log-merge";
 import { saveNetworkLog, saveConsoleLog, saveActionLog } from "@/store/blob-db";
+import { networkLogPersist, consoleLogPersist, actionLogPersist } from "@/sidepanel/hooks/usePickerMessages";
 import { useT } from "@/i18n";
 import { FrameBuffer, REPLAY_MAX_DURATION_MS } from "./frame-buffer";
 import { encodeToMp4 } from "./mp4-encoder";
@@ -171,6 +172,11 @@ export function use30sReplay(
       const { lower: logLower, upper: logUpper } = replayLogBounds(lower, captureTime);
       // syncAndSettleLogs가 network/console/action 모두 sync한다.
       await syncAndSettleLogs(id);
+      // 수신부 가드에 대기 중인 전체 버퍼 write를 폐기 — 아래 trim 직접 save가 덮어쓰여
+      // trim 경계 밖 로그가 IDB에서 부활하는 걸 막는다.
+      networkLogPersist.discard();
+      consoleLogPersist.discard();
+      actionLogPersist.discard();
       const { networkLog, consoleLog, actionLog } = useEditorStore.getState();
       if (networkLog) {
         const requests = trimByTime(networkLog.requests, (r) => r.startTime, logLower, logUpper);

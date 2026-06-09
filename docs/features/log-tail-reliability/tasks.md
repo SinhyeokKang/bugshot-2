@@ -12,32 +12,32 @@
 - **변경 대상**: `src/content/log-throttle.ts`(신규), `src/content/__tests__/log-throttle.test.ts`(신규)
 - **작업 내용**: `createTrailingThrottle(flush, intervalMs, scheduleTimer?, clearTimer?)` 구현. `schedule()`(pending이면 무시, 아니면 interval 후 flush 1회 예약), `flushNow()`(예약 취소 + 즉시 flush), `cancel()`(예약만 취소). 타이머는 주입 가능(테스트용 fake timer).
 - **검증**:
-  - [ ] 연속 `schedule()` N회 → interval 동안 flush 1회만 (throttle 보장)
-  - [ ] interval 경과 후 다시 `schedule()` → 다음 flush 예약됨
-  - [ ] `flushNow()` → 즉시 flush + 대기 예약 취소
-  - [ ] `cancel()` → flush 없이 예약만 취소
-  - [ ] `flushNow()` 후 다시 `schedule()` → 정상 재예약(상태 리셋)
-  - [ ] `cancel()` 후 `flushNow()` → flush 1회 발생
-  - [ ] pending 중 `cancel()` → 이후 `schedule()` 재예약됨
-  - [ ] flush 콜백이 throw해도 타이머 상태 오염 없음(다음 schedule 정상)
-  - [ ] `pnpm test` 통과
+  - [x] 연속 `schedule()` N회 → interval 동안 flush 1회만 (throttle 보장)
+  - [x] interval 경과 후 다시 `schedule()` → 다음 flush 예약됨
+  - [x] `flushNow()` → 즉시 flush + 대기 예약 취소
+  - [x] `cancel()` → flush 없이 예약만 취소
+  - [x] `flushNow()` 후 다시 `schedule()` → 정상 재예약(상태 리셋)
+  - [x] `cancel()` 후 `flushNow()` → flush 1회 발생 (예약 없이 flushNow 케이스로 커버)
+  - [x] pending 중 `cancel()` → 이후 `schedule()` 재예약됨 (cancel + flush후 재schedule 케이스로 커버)
+  - [x] flush 콜백이 throw해도 타이머 상태 오염 없음(다음 schedule 정상)
+  - [x] `pnpm test` 통과 (log-throttle.test.ts 7 + log-persist-guard.test.ts 5)
 
 ### Task 2: console-recorder에 throttle flush 연결
 - **변경 대상**: `src/content/console-recorder.ts`
 - **작업 내용**: `createTrailingThrottle(dispatch, FLUSH_INTERVAL_MS)` 생성. `pushEntry` 끝에 `throttle.schedule()`. `stopHandler`/`syncHandler`를 `throttle.flushNow()` 경유로, `clearHandler`에 `throttle.cancel()` 추가. `pagehide`를 `flushNow()`로 교체. `visibilitychange(hidden)` 핸들러 신규 추가.
 - **검증**:
   - [ ] 녹화 중 console.log 발생 시 ~200ms 내 사이드패널에 누적(수동)
-  - [ ] stop/sync 시 즉시 flush, clear 시 예약 취소 동작
-  - [ ] 비녹화(`recording=false`) 시 throttle 미동작(상시비용 0)
-  - [ ] `pnpm typecheck` 통과
+  - [ ] stop/sync 시 즉시 flush, clear 시 예약 취소 동작(수동)
+  - [x] 비녹화(`recording=false`) 시 throttle 미동작(상시비용 0) — pushEntry recording 가드 뒤 schedule
+  - [x] `pnpm typecheck` 통과
 
 ### Task 3: network-recorder에 throttle flush 연결
 - **변경 대상**: `src/content/network-recorder.ts`
 - **작업 내용**: Task 2와 패턴 동일이되 **schedule 삽입 지점이 다름**. network의 `pushEntry`에는 `recording` 가드가 없으므로(가드는 호출처에 있음) **recording 게이트를 통과한 pending push 지점(`recordHook`/XHR `send`/`sendBeacon`)에서만** `throttle.schedule()`을 건다. 응답 갱신(complete/error in-place)에는 schedule을 걸지 않는다 — 갱신본은 다음 trailing 주기(≤200ms)·sync·pagehide에 전체 버퍼로 나가고 dedup이 최신본으로 흡수(complete 반영 최대 200ms 지연, 무손실). pagehide/visibilitychange/stop/sync/clear 동일 적용.
 - **검증**:
   - [ ] fetch/XHR 발생 시 pending→complete 전이가 ~200ms 내 사이드패널 반영(수동)
-  - [ ] 같은 요청이 dedup으로 최신본 유지(중복 행 없음)
-  - [ ] 비녹화(`recording=false`) 시 network throttle 미동작(pending push가 게이트 뒤라 schedule 자체가 안 걸림)
+  - [ ] 같은 요청이 dedup으로 최신본 유지(중복 행 없음)(수동)
+  - [x] 비녹화(`recording=false`) 시 network throttle 미동작(pending push가 게이트 뒤라 schedule 자체가 안 걸림) — recordHook/XHR send/sendBeacon recording 가드 뒤 schedule
 
 ### Task 4: action-recorder에 throttle flush 연결
 - **변경 대상**: `src/content/action-recorder.ts`
@@ -53,8 +53,8 @@
   - **확정 시점 flush**: freeze는 `stop` 메시지가 아니라 store phase 전이(`isLogFrozen`)로 일어나므로, **phase가 frozen으로 전이되는 시점(store subscribe)에 pending save를 `flushNow`**로 강제한다. (수신부는 freeze 후 `*.data`를 가드로 drop하므로 이 트리거가 없으면 마지막 write가 throttle에 갇힘.)
   - **30s replay trim 분리**: `save*Log`는 `use-30s-replay.ts` trim 경로에서도 직접 호출된다. 가드는 수신부에만 두고 trim 경로 save는 우회(즉시) 유지하되, trim save 직전 수신부 pending write를 `cancel`/`flushNow`로 비워 trim 전 전체 버퍼가 trim 후 save를 덮어쓰지 않게 한다.
 - **검증**:
-  - [ ] write 가드 순수 유틸 단위테스트 통과
-  - [ ] 로그 폭주 중 IndexedDB write가 초당 1회 수준으로 제한됨(과부하 없음)
+  - [x] write 가드 순수 유틸 단위테스트 통과 (log-persist-guard.test.ts 5개)
+  - [ ] 로그 폭주 중 IndexedDB write가 초당 1회 수준으로 제한됨(과부하 없음)(수동)
   - [ ] **drafting 전환 직후** IDB에 마지막 로그 상태 반영(freeze 전이 flush)
   - [ ] 세션 재진입 시 마지막 로그 상태 복원됨
   - [ ] **30s replay 캡처 후** 세션 재진입 시 trim된(30s 윈도우 내) 로그만 복원 — trim 전 전체 버퍼 부활 없음
