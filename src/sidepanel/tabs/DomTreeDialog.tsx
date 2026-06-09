@@ -189,7 +189,7 @@ function DomTree({ onPicked }: { onPicked: () => void }) {
   }
 
   return (
-    <Card className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-background py-2 text-[13px]">
+    <Card className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-background py-2 text-[13px] shadow-none">
       <DomTreeNode
         node={tree}
         depth={0}
