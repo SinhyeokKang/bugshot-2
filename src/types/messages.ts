@@ -207,7 +207,8 @@ export type BgRequest =
 // handleMessage를 거치지 않는 bg→sidepanel 내부 통신 메시지.
 export type BgInternalMessage =
   | { type: "logClear"; tabId: number }
-  | { type: "activeTabExpiredDeferred"; tabId: number };
+  | { type: "activeTabExpiredDeferred"; tabId: number }
+  | { type: "frameCommitted"; tabId: number; frameId: number };
 
 export type BgResponse<T = unknown> =
   | { ok: true; result: T }

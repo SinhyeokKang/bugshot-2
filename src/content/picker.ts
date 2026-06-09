@@ -45,6 +45,7 @@ import {
   type AreaSelectHandle,
 } from "./area-select";
 import { PICKER_PORT_NAME } from "@/lib/session-keys";
+import { postToRuntime } from "./post-to-runtime";
 import {
   ensureLoaded as ensureCssCacheLoaded,
   invalidate as invalidateCssCache,
@@ -54,145 +55,6 @@ import {
 } from "./css-source-cache";
 
 type Mode = "idle" | "hover" | "selected" | "area-select";
-
-// chrome.runtime.sendMessage는 확장 reload/무효화 시 호출 시점에 동기 throw한다(.catch로 못 막음).
-// stale content script가 죽은 컨텍스트로 보내는 경우를 id 가드 + try로 흡수해 Uncaught를 막는다.
-function postToRuntime(msg: object): void {
-  if (!chrome.runtime?.id) return;
-  try {
-    void chrome.runtime.sendMessage(msg).catch(() => {});
-  } catch {
-    /* Extension context invalidated */
-  }
-}
-
-/* ── Network recorder bridge ──────────────────────── */
-
-let networkSentinel: string | null = null;
-
-function handleNetData(e: Event): void {
-  const detail = (e as CustomEvent).detail;
-  if (!detail || detail.sentinel !== networkSentinel) return;
-  postToRuntime({
-    type: "networkRecorder.data",
-    payload: {
-      requests: detail.requests,
-      totalSeen: detail.totalSeen,
-      warnings: detail.warnings,
-    },
-  });
-}
-
-function handleSetSentinel(sentinel: string): void {
-  if (networkSentinel) {
-    document.removeEventListener("__bugshot_net_data__" + networkSentinel, handleNetData);
-  }
-  networkSentinel = sentinel;
-  document.addEventListener("__bugshot_net_data__" + sentinel, handleNetData);
-  // MAIN world 레코더에 sentinel 전달 — content_scripts(document_start)로 미리 inject된 레코더를 활성화한다.
-  document.dispatchEvent(
-    new CustomEvent("__bugshot_net_setSentinel__", { detail: { sentinel } }),
-  );
-}
-
-function handleNetworkStop(): void {
-  if (!networkSentinel) return;
-  document.dispatchEvent(new CustomEvent("__bugshot_net_stop__" + networkSentinel));
-}
-
-function handleNetworkSync(): void {
-  if (!networkSentinel) return;
-  document.dispatchEvent(new CustomEvent("__bugshot_net_sync__" + networkSentinel));
-}
-
-function handleNetworkClear(): void {
-  if (!networkSentinel) return;
-  document.dispatchEvent(new CustomEvent("__bugshot_net_clear__" + networkSentinel));
-}
-
-/* ── Console recorder bridge ─────────────────────── */
-
-let consoleSentinel: string | null = null;
-
-function handleConsoleData(e: Event): void {
-  const detail = (e as CustomEvent).detail;
-  if (!detail || detail.sentinel !== consoleSentinel) return;
-  postToRuntime({
-    type: "consoleRecorder.data",
-    payload: {
-      entries: detail.entries,
-      totalSeen: detail.totalSeen,
-    },
-  });
-}
-
-function handleSetConsoleSentinel(sentinel: string): void {
-  if (consoleSentinel) {
-    document.removeEventListener("__bugshot_console_data__" + consoleSentinel, handleConsoleData);
-  }
-  consoleSentinel = sentinel;
-  document.addEventListener("__bugshot_console_data__" + sentinel, handleConsoleData);
-  document.dispatchEvent(
-    new CustomEvent("__bugshot_console_setSentinel__", { detail: { sentinel } }),
-  );
-}
-
-function handleConsoleStop(): void {
-  if (!consoleSentinel) return;
-  document.dispatchEvent(new CustomEvent("__bugshot_console_stop__" + consoleSentinel));
-}
-
-function handleConsoleSync(): void {
-  if (!consoleSentinel) return;
-  document.dispatchEvent(new CustomEvent("__bugshot_console_sync__" + consoleSentinel));
-}
-
-function handleConsoleClear(): void {
-  if (!consoleSentinel) return;
-  document.dispatchEvent(new CustomEvent("__bugshot_console_clear__" + consoleSentinel));
-}
-
-/* ── Action recorder bridge ──────────────────────── */
-
-let actionSentinel: string | null = null;
-
-function handleActionData(e: Event): void {
-  const detail = (e as CustomEvent).detail;
-  if (!detail || detail.sentinel !== actionSentinel) return;
-  postToRuntime({
-    type: "actionRecorder.data",
-    payload: {
-      entries: detail.entries,
-      totalSeen: detail.totalSeen,
-    },
-  });
-}
-
-function handleSetActionSentinel(sentinel: string): void {
-  if (actionSentinel) {
-    document.removeEventListener("__bugshot_action_data__" + actionSentinel, handleActionData);
-  }
-  actionSentinel = sentinel;
-  document.addEventListener("__bugshot_action_data__" + sentinel, handleActionData);
-  document.dispatchEvent(
-    new CustomEvent("__bugshot_action_setSentinel__", { detail: { sentinel } }),
-  );
-}
-
-function handleActionStop(): void {
-  if (!actionSentinel) return;
-  document.dispatchEvent(new CustomEvent("__bugshot_action_stop__" + actionSentinel));
-}
-
-function handleActionSync(): void {
-  if (!actionSentinel) return;
-  document.dispatchEvent(new CustomEvent("__bugshot_action_sync__" + actionSentinel));
-}
-
-function handleActionClear(): void {
-  if (!actionSentinel) return;
-  document.dispatchEvent(new CustomEvent("__bugshot_action_clear__" + actionSentinel));
-}
 
 let mode: Mode = "idle";
 let selectedEl: Element | null = null;
@@ -332,42 +194,7 @@ chrome.runtime.onMessage.addListener(
         case "picker.cancelAreaSelect":
           handleCancelAreaSelect();
           break;
-        case "networkRecorder.setSentinel":
-          handleSetSentinel(msg.sentinel);
-          break;
-        case "networkRecorder.stop":
-          handleNetworkStop();
-          break;
-        case "networkRecorder.sync":
-          handleNetworkSync();
-          break;
-        case "networkRecorder.clear":
-          handleNetworkClear();
-          break;
-        case "consoleRecorder.setSentinel":
-          handleSetConsoleSentinel(msg.sentinel);
-          break;
-        case "consoleRecorder.stop":
-          handleConsoleStop();
-          break;
-        case "consoleRecorder.sync":
-          handleConsoleSync();
-          break;
-        case "consoleRecorder.clear":
-          handleConsoleClear();
-          break;
-        case "actionRecorder.setSentinel":
-          handleSetActionSentinel(msg.sentinel);
-          break;
-        case "actionRecorder.stop":
-          handleActionStop();
-          break;
-        case "actionRecorder.sync":
-          handleActionSync();
-          break;
-        case "actionRecorder.clear":
-          handleActionClear();
-          break;
+        // recorder.* 메시지는 recorder-bridge.ts(all_frames)가 처리 — 무응답으로 흘려 이중 응답 방지.
         default:
           return;
       }

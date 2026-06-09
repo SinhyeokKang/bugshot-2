@@ -1,9 +1,10 @@
 import { useEffect } from "react";
 import { useEditorStore } from "@/store/editor-store";
+import { originOf } from "@/lib/session-keys";
 import type { PickerMessage, ViewportRect } from "@/types/picker";
 import { type BgInternalMessage, onPickerIframeUnsupported, onPickerPermissionExpired, sendBg } from "@/types/messages";
 import { captureElementSnapshot, loadImage } from "@/sidepanel/capture";
-import { clearPicker, collectTokens, maybeSurfacePermissionExpired } from "@/sidepanel/picker-control";
+import { clearPicker, collectTokens, maybeSurfacePermissionExpired, rebroadcastSentinelsToFrame } from "@/sidepanel/picker-control";
 import { saveNetworkLog, saveConsoleLog, saveActionLog, saveInlineImage, dataUrlToBlob } from "@/store/blob-db";
 import { shouldCompact, compactImage } from "@/sidepanel/lib/compactImage";
 import { shouldPreserveBackgroundLogs } from "@/sidepanel/hooks/useBackgroundRecorder";
@@ -145,6 +146,11 @@ export function usePickerMessages(myTabId: number | null): void {
         const msg = message as Extract<BgInternalMessage, { type: "activeTabExpiredDeferred" }>;
         if (myTabId != null && msg.tabId !== myTabId) return;
         deferredActiveTabExpiry = true;
+      } else if (message.type === "frameCommitted") {
+        // 캡처 시작 이후 커밋된 iframe에 보유 sentinel 재발행 → dormant 레코더 활성화.
+        const msg = message as Extract<BgInternalMessage, { type: "frameCommitted" }>;
+        if (myTabId != null && msg.tabId !== myTabId) return;
+        rebroadcastSentinelsToFrame(msg.tabId, msg.frameId);
       } else if (message.type === "logClear") {
         // 녹화 중(recording)엔 cross-origin/reload 이동도 한 버그 시나리오의 일부 —
         // background 레코더가 보존하는 phase 집합과 동일하게 버퍼를 비우지 않는다.
@@ -175,6 +181,7 @@ export function usePickerMessages(myTabId: number | null): void {
           requests,
           (r) => r.startTime,
           NETWORK_MAX_ENTRIES,
+          originOf(useEditorStore.getState().target?.url),
         );
         const log = rebuildNetworkLog(existing, merged, {
           totalSeen: msg.payload.totalSeen,
@@ -198,6 +205,7 @@ export function usePickerMessages(myTabId: number | null): void {
           entries,
           (e) => e.timestamp,
           CONSOLE_MAX_ENTRIES,
+          originOf(useEditorStore.getState().target?.url),
         );
         const log = rebuildConsoleLog(existing, merged, {
           totalSeen: msg.payload.totalSeen,

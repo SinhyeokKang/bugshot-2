@@ -2,9 +2,12 @@ import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { ChevronDown, ChevronUp, CircleX, Info, Search, Terminal, TriangleAlert, X } from "lucide-react";
 import { useT } from "@/i18n";
 import type { ConsoleEntry, ConsoleLevel } from "@/types/console";
+import { Button } from "@/components/ui/button";
+import { ButtonGroup } from "@/components/ui/button-group";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { distinctOriginKeys, originKey, originHostLabel, UNKNOWN_ORIGIN } from "@/sidepanel/lib/logOrigin";
 import { findActiveIndex } from "@/log-viewer/timeline";
 import { formatRelativeTime, syncRowClass } from "@/sidepanel/lib/logRow";
 import { useScrollToEntry } from "@/sidepanel/lib/useScrollToEntry";
@@ -68,6 +71,7 @@ function LevelIcon({ level }: { level: ConsoleLevel }) {
 export function ConsoleLogContent({ entries, startedAt, flush, syncBaseMs, onSeek, activeTs, scrollToEntryId, onScrollComplete }: ConsoleLogContentProps) {
   const t = useT();
   const [filter, setFilter] = useState<ConsoleFilter>("all");
+  const [originFilter, setOriginFilter] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const filterLabel: Record<ConsoleFilter, string> = {
     all: t("consoleLog.filter.all"), error: t("consoleLog.filter.error"),
@@ -81,14 +85,19 @@ export function ConsoleLogContent({ entries, startedAt, flush, syncBaseMs, onSee
   useEffect(() => {
     if (filter !== "all" && !availableFilters.includes(filter)) setFilter("all");
   }, [availableFilters, filter]);
+  const originKeys = useMemo(() => distinctOriginKeys(entries.map((e) => e.pageUrl)), [entries]);
+  useEffect(() => {
+    if (originFilter !== null && !originKeys.includes(originFilter)) setOriginFilter(null);
+  }, [originKeys, originFilter]);
   const filteredEntries = useMemo(() => {
     let result = filter === "all" ? entries : entries.filter((e) => e.level === filter);
+    if (originFilter !== null) result = result.filter((e) => originKey(e.pageUrl) === originFilter);
     if (query) {
       const lower = query.toLowerCase();
       result = result.filter((e) => e.args.toLowerCase().includes(lower));
     }
     return result;
-  }, [entries, filter, query]);
+  }, [entries, filter, originFilter, query]);
 
   const activeId = useMemo(() => {
     if (activeTs == null) return null;
@@ -123,7 +132,7 @@ export function ConsoleLogContent({ entries, startedAt, flush, syncBaseMs, onSee
     scrollToEntryId,
     getListViewport,
     filteredItems: filteredEntries,
-    resetFilters: useCallback(() => { setFilter("all"); setQuery(""); }, []),
+    resetFilters: useCallback(() => { setFilter("all"); setOriginFilter(null); setQuery(""); }, []),
     onScrollComplete,
   });
 
@@ -158,6 +167,31 @@ export function ConsoleLogContent({ entries, startedAt, flush, syncBaseMs, onSee
           </div>
         </div>
       </Tabs>
+      {originKeys.length >= 2 && (
+        <div className={`flex overflow-x-auto border-b ${flush ? "px-4 py-2" : "px-2 py-1.5"}`}>
+          <ButtonGroup>
+            <Button
+              size="sm"
+              variant={originFilter === null ? "default" : "outline"}
+              className="shrink-0"
+              onClick={() => setOriginFilter(null)}
+            >
+              {t("log.originFilter.all")}
+            </Button>
+            {originKeys.map((k) => (
+              <Button
+                key={k}
+                size="sm"
+                variant={originFilter === k ? "default" : "outline"}
+                className="shrink-0"
+                onClick={() => setOriginFilter(k)}
+              >
+                {k === UNKNOWN_ORIGIN ? t("log.originFilter.unknown") : originHostLabel(k)}
+              </Button>
+            ))}
+          </ButtonGroup>
+        </div>
+      )}
       {entries.length === 0 ? (
         <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3">
           <div className="rounded-full bg-muted p-3">

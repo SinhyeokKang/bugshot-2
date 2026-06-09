@@ -17,12 +17,13 @@
   - `recorder-bridge.ts`는 자체 `chrome.runtime.onMessage.addListener`를 등록하고 recorder case만 처리. `postToRuntime`의 `chrome.runtime?.id` invalidation 가드도 함께 이동(iframe은 top보다 reload 빈도가 높아 더 중요).
   - `picker.ts`에는 `picker.*` case와 요소 선택 로직만 남긴다. **참고: `ping`은 background가 처리하므로 picker.ts에 `ping` case가 없다**(switch `default: return`으로 흘러 listener 존재만으로 `pingOk` 통과). 헛되이 ping case를 찾지 말 것.
 - **검증**:
-  - [ ] `pnpm typecheck` 통과
-  - [ ] `picker.ts`에 recorder 관련 식별자(`networkSentinel`, `handleNetData` 등) 잔존 0 (grep)
-  - [ ] `recorder-bridge.ts`가 `picker.*` case를 갖지 않음
-  - [ ] **응답 계약**: picker.ts는 `recorder.*` 메시지를 `default: return`(무응답)으로, recorder-bridge.ts는 `picker.*`를 `default: return`으로 흘린다 — top frame 공존 시 각 메시지에 한 리스너만 `sendResponse`(포트 충돌·이중 응답 없음)
-  - [ ] iframe에서 stale 컨텍스트로 `sendMessage` 시 `postToRuntime` 가드가 Uncaught를 막음(extension reload 후 iframe 잔존 케이스)
+  - [x] `pnpm typecheck` 통과
+  - [x] `picker.ts`에 recorder 관련 식별자(`networkSentinel`, `handleNetData` 등) 잔존 0 (grep)
+  - [x] `recorder-bridge.ts`가 `picker.*` case를 갖지 않음
+  - [x] **응답 계약**: picker.ts는 `recorder.*` 메시지를 `default: return`(무응답)으로, recorder-bridge.ts는 `picker.*`를 `default: return`으로 흘린다 — top frame 공존 시 각 메시지에 한 리스너만 `sendResponse`(포트 충돌·이중 응답 없음)
+  - [x] iframe에서 stale 컨텍스트로 `sendMessage` 시 `postToRuntime` 가드가 Uncaught를 막음(공유 `post-to-runtime.ts`로 이동, `chrome.runtime?.id` 가드 보존)
   - [ ] 분리 전후 top frame에서 console/network/action 로그 캡처 동작 동일(수동)
+  - 추가: 분리로 끊긴 브리지 자가복구를 `ensureRecorderBridge`(capture 시작 시 재주입) + 브리지 멱등 가드(`BRIDGE_FLAG`)로 복원
 
 ### Task 2: manifest에 `all_frames` 적용 + 브리지 등록
 - **변경 대상**: `manifest.config.ts`
@@ -33,8 +34,8 @@
 - **검증**:
   - [ ] 빌드/로드 후 cross-origin iframe 있는 페이지에서 `chrome://extensions` → 해당 탭 → 프레임별로 `recorder-bridge.ts`/`recorders-entry.ts`가 주입됨 확인
   - [ ] `picker.ts`는 top frame에만 주입됨 확인
-  - [ ] **`ensureContentScript`의 인덱스 의존**: `content_scripts[0]`이 여전히 `picker.ts`인지 확인(bridge를 배열에 추가할 때 picker.ts가 index 0을 유지해야 `ensureContentScript`가 올바른 스크립트를 programmatic 주입)
-  - [ ] manifest diff에 permissions 변화 0
+  - [x] **`ensureContentScript`의 인덱스 의존**: `content_scripts[0]`이 여전히 `picker.ts`인지 확인(bridge를 배열에 추가할 때 picker.ts가 index 0을 유지해야 `ensureContentScript`가 올바른 스크립트를 programmatic 주입)
+  - [x] manifest diff에 permissions 변화 0
 
 ### Task 3: 캡처 시작 시점 존재 프레임 sentinel broadcast 검증
 - **변경 대상**: `src/sidepanel/picker-control.ts`(검증 위주, 필요 시 소폭 수정)
@@ -74,10 +75,10 @@
   - `usePickerMessages`의 `mergeLogItems` 호출 중 **network/console만** `originOf(useEditorStore.getState().target?.url)` 전달. **action은 `null`**(광고가 폭증 안 시켜 cap 유실 없음 → 순수 시간축 FIFO 유지).
   - 타입 제약: `T extends { id: string; pageUrl: string }`.
 - **검증**:
-  - [ ] (단위) top-origin 로그가 cross-origin 로그보다 우선 보존됨 — cross-origin이 cap을 채워도 top-origin entry가 살아남음
-  - [ ] (단위) 전부 top-origin이면 기존 FIFO(oldest evict)와 동일
-  - [ ] (단위) `topOrigin === null`(target url 없음)일 때 기존 동작 폴백
-  - [ ] `pnpm test` 통과
+  - [x] (단위) top-origin 로그가 cross-origin 로그보다 우선 보존됨 — cross-origin이 cap을 채워도 top-origin entry가 살아남음
+  - [x] (단위) 전부 top-origin이면 기존 FIFO(oldest evict)와 동일
+  - [x] (단위) `topOrigin === null`(target url 없음)일 때 기존 동작 폴백
+  - [x] `pnpm test` 통과 (1500 tests green)
   - [ ] (수동) 광고 다수 페이지에서 top-origin 본문 로그가 보존됨
 
 ### Task 7: origin 필터 UI — console/network (action 제외)
@@ -93,8 +94,8 @@
   - [ ] origin 1개(top만 캡처)면 둘째 줄 미렌더(기존 1줄 레이아웃 동일)
   - [ ] origin 다수(10+)일 때 둘째 줄이 좌우 가로 슬라이드(`overflow-x-auto`)로 동작, wrap 없이 한 줄 유지, top-origin 맨 앞 고정
   - [ ] **세 곳 모두 origin 필터 UI 표시** — 사이드패널 서브탭 / 로그 다이얼로그 / log-viewer(`pnpm build:log-viewer` 후)
-  - [ ] console/network 두 탭 ButtonGroup 일관 동작, **action 탭엔 origin 필터 미노출**(기존 그대로)
-  - [ ] `pnpm typecheck` 통과
+  - [x] console/network 두 탭에만 적용, **action(`ActionLogContent`)은 변경 안 함**(origin 필터 미노출)
+  - [x] `pnpm typecheck` 통과
 
 ## 테스트 계획
 

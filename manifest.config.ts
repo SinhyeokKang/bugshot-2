@@ -48,6 +48,7 @@ export default defineManifest({
   },
   content_scripts: [
     {
+      // index 0 고정 — picker-control.ts:ensureContentScript가 content_scripts[0].js를 programmatic 주입
       matches: ["<all_urls>"],
       // 자사 가이드(GitBook)에는 picker·recorder가 불필요 — 주입 시 페이지 경고가 확장 오류로 귀속됨
       exclude_matches: ["https://bugshot.gitbook.io/*"],
@@ -55,11 +56,20 @@ export default defineManifest({
       run_at: "document_idle",
     },
     {
+      // 로그 브리지(ISOLATED) — 모든 프레임(top + iframe)에 주입해 iframe 로그 커버리지 확보
+      matches: ["<all_urls>"],
+      exclude_matches: ["https://bugshot.gitbook.io/*"],
+      js: ["src/content/recorder-bridge.ts"],
+      run_at: "document_idle",
+      all_frames: true,
+    },
+    {
       matches: ["<all_urls>"],
       exclude_matches: ["https://bugshot.gitbook.io/*"],
       js: ["src/content/recorders-entry.ts"],
       run_at: "document_start",
       world: "MAIN",
+      all_frames: true,
     },
   ],
   permissions: [

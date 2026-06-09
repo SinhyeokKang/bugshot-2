@@ -164,6 +164,90 @@ describe("mergeLogItems", () => {
   });
 });
 
+// Task 6: cap 초과 evict 시 top-origin 우선 보존 (5번째 인자 topOrigin 추가).
+// cross-origin(주로 광고 iframe)부터 oldest 순으로 버리고 top-origin 로그는 cap 한도 내 보존.
+describe("mergeLogItems — top-origin 우선 보존 (origin cap)", () => {
+  const TOP = "https://example.com";
+  const topUrl = "https://example.com/page";
+  const adUrl = "https://ads.example.net/track";
+
+  it("cross-origin이 cap을 채워도 top-origin 엔트리가 살아남음 (FIFO와 달라짐)", () => {
+    const existing = [
+      makeRequest({ id: "t1", startTime: 1, pageUrl: topUrl }),
+      makeRequest({ id: "x1", startTime: 2, pageUrl: adUrl }),
+    ];
+    const incoming = [
+      makeRequest({ id: "x2", startTime: 3, pageUrl: adUrl }),
+      makeRequest({ id: "t2", startTime: 4, pageUrl: topUrl }),
+    ];
+
+    const merged = mergeLogItems(existing, incoming, reqTime, 3, TOP);
+
+    // 순수 FIFO라면 oldest=t1(top)이 잘려나가지만, origin cap은 oldest cross=x1을 버린다.
+    expect(merged.map((r) => r.id)).toEqual(["t1", "x2", "t2"]);
+  });
+
+  it("cross를 다 버려도 부족하면 top-origin도 oldest부터 evict", () => {
+    const existing = [
+      makeRequest({ id: "x1", startTime: 1, pageUrl: adUrl }),
+      makeRequest({ id: "t1", startTime: 2, pageUrl: topUrl }),
+    ];
+    const incoming = [
+      makeRequest({ id: "t2", startTime: 3, pageUrl: topUrl }),
+      makeRequest({ id: "t3", startTime: 4, pageUrl: topUrl }),
+    ];
+
+    const merged = mergeLogItems(existing, incoming, reqTime, 2, TOP);
+
+    // drop 2 필요: cross(x1) 먼저, 그래도 1개 모자라 top oldest(t1) 추가 evict.
+    expect(merged.map((r) => r.id)).toEqual(["t2", "t3"]);
+  });
+
+  it("origin 판별 불가(pageUrl 빈 값)는 cross 취급으로 우선 evict", () => {
+    const existing = [
+      makeRequest({ id: "t1", startTime: 1, pageUrl: topUrl }),
+      makeRequest({ id: "u1", startTime: 2, pageUrl: "" }),
+    ];
+    const incoming = [makeRequest({ id: "t2", startTime: 3, pageUrl: topUrl })];
+
+    const merged = mergeLogItems(existing, incoming, reqTime, 2, TOP);
+
+    // unknown origin u1을 버리고 top 둘 보존 (FIFO라면 oldest t1이 잘림).
+    expect(merged.map((r) => r.id)).toEqual(["t1", "t2"]);
+  });
+
+  it("전부 top-origin이면 기존 FIFO(oldest evict)와 동일", () => {
+    const existing = [
+      makeRequest({ id: "a", startTime: 1, pageUrl: topUrl }),
+      makeRequest({ id: "b", startTime: 2, pageUrl: topUrl }),
+    ];
+    const incoming = [
+      makeRequest({ id: "c", startTime: 3, pageUrl: topUrl }),
+      makeRequest({ id: "d", startTime: 4, pageUrl: topUrl }),
+    ];
+
+    const merged = mergeLogItems(existing, incoming, reqTime, 3, TOP);
+
+    expect(merged.map((r) => r.id)).toEqual(["b", "c", "d"]);
+  });
+
+  it("topOrigin === null이면 origin 구분 없이 기존 FIFO 폴백", () => {
+    const existing = [
+      makeRequest({ id: "t1", startTime: 1, pageUrl: topUrl }),
+      makeRequest({ id: "x1", startTime: 2, pageUrl: adUrl }),
+    ];
+    const incoming = [
+      makeRequest({ id: "x2", startTime: 3, pageUrl: adUrl }),
+      makeRequest({ id: "t2", startTime: 4, pageUrl: topUrl }),
+    ];
+
+    const merged = mergeLogItems(existing, incoming, reqTime, 3, null);
+
+    // null이면 보존 우선순위 없음 → oldest(t1)부터 제거.
+    expect(merged.map((r) => r.id)).toEqual(["x1", "x2", "t2"]);
+  });
+});
+
 describe("trimByTime", () => {
   const items = [
     makeRequest({ id: "1", startTime: 1 }),
