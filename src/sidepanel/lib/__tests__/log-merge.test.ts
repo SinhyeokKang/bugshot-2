@@ -246,6 +246,26 @@ describe("mergeLogItems — top-origin 우선 보존 (origin cap)", () => {
     // null이면 보존 우선순위 없음 → oldest(t1)부터 제거.
     expect(merged.map((r) => r.id)).toEqual(["x1", "x2", "t2"]);
   });
+
+  // top 페이지 자체가 opaque(data:/about:blank)면 originOf가 리터럴 "null"을 주고
+  // topOrigin도 "null"(≠ JS null)이라 cross-origin-first 분기를 탄다. 같은 opaque("null")
+  // 엔트리는 top과 동일 취급(보존)되고, 실 origin iframe만 우선 evict된다. (현 동작 lock)
+  it('opaque top-origin("null")은 같은 opaque를 보존하고 실 cross-origin을 우선 evict', () => {
+    const opaqueUrl = "about:blank";
+    const existing = [
+      makeRequest({ id: "o1", startTime: 1, pageUrl: opaqueUrl }),
+      makeRequest({ id: "x1", startTime: 2, pageUrl: adUrl }),
+    ];
+    const incoming = [
+      makeRequest({ id: "x2", startTime: 3, pageUrl: adUrl }),
+      makeRequest({ id: "o2", startTime: 4, pageUrl: opaqueUrl }),
+    ];
+
+    const merged = mergeLogItems(existing, incoming, reqTime, 3, "null");
+
+    // FIFO라면 oldest=o1이 잘리지만, opaque top 기준 cross인 x1을 먼저 버린다.
+    expect(merged.map((r) => r.id)).toEqual(["o1", "x2", "o2"]);
+  });
 });
 
 describe("trimByTime", () => {

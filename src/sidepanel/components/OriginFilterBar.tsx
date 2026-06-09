@@ -16,7 +16,7 @@ export function OriginFilterBar({ originKeys, value, onChange, flush }: OriginFi
   const t = useT();
   if (originKeys.length < 2) return null;
   return (
-    <div className={`flex overflow-x-auto border-b ${flush ? "px-4 py-2" : "p-2"}`}>
+    <div className={`flex overflow-x-auto border-b ${flush ? "px-4 py-4" : "p-2"}`}>
       <ButtonGroup>
         <Button
           size="sm"
