@@ -44,7 +44,6 @@ const ko = {
   "consoleLog.filter.debug": "Debug",
   "consoleLog.filter.log": "Log",
 
-  "log.originFilter.all": "전체",
   "log.originFilter.unknown": "(알 수 없음)",
 
   "actionLog.search": "액션 검색…",
@@ -142,7 +141,6 @@ const en = {
   "consoleLog.filter.debug": "Debug",
   "consoleLog.filter.log": "Log",
 
-  "log.originFilter.all": "All",
   "log.originFilter.unknown": "(unknown)",
 
   "actionLog.search": "Search actions…",

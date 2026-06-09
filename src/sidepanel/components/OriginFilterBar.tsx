@@ -16,23 +16,15 @@ export function OriginFilterBar({ originKeys, value, onChange, flush }: OriginFi
   const t = useT();
   if (originKeys.length < 2) return null;
   return (
-    <div className={`flex overflow-x-auto border-b ${flush ? "px-4 py-4" : "p-2"}`}>
+    <div className={`flex overflow-x-auto border-b ${flush ? "px-4 pb-4 pt-1" : "px-2 pb-2 pt-1"}`}>
       <ButtonGroup>
-        <Button
-          size="sm"
-          variant={value === null ? "default" : "outline"}
-          className="shrink-0"
-          onClick={() => onChange(null)}
-        >
-          {t("log.originFilter.all")}
-        </Button>
         {originKeys.map((k) => (
           <Button
             key={k}
             size="sm"
-            variant={value === k ? "default" : "outline"}
-            className="shrink-0"
-            onClick={() => onChange(k)}
+            variant="outline"
+            className={`shrink-0 font-normal h-7 px-2.5 text-[13px]${value === k ? " bg-muted hover:bg-muted hover:brightness-95" : ""}`}
+            onClick={() => onChange(value === k ? null : k)}
           >
             {k === UNKNOWN_ORIGIN ? t("log.originFilter.unknown") : originHostLabel(k)}
           </Button>

@@ -138,7 +138,7 @@ export function ConsoleLogContent({ entries, startedAt, flush, syncBaseMs, onSee
   return (
     <div className={`flex min-h-0 flex-1 flex-col overflow-hidden${flush ? "" : " rounded-lg border"}`}>
       <Tabs value={filter} onValueChange={(v) => setFilter(v as ConsoleFilter)}>
-        <div className={`flex items-center gap-3 border-b${flush ? " px-4 py-4" : " p-2"}`}>
+        <div className={`flex items-center gap-3${originKeys.length >= 2 ? "" : " border-b"}${flush ? " px-4 py-4" : " p-2"}`}>
           <TabsList>
             {availableFilters.map((f) => (
               <TabsTrigger key={f} value={f}>
