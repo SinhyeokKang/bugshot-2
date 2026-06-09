@@ -8,7 +8,7 @@
     "description": "Short name for action button"
   },
   "EXT_DESCRIPTION": {
-    "message": "Discover, fix, capture, and report UI bugs in one workflow.",
+    "message": "Discover, fix, capture, and report bugs in one workflow.",
     "description": "Chrome Web Store description"
   },
   "CMD_TOGGLE_PANEL": {
