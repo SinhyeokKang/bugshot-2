@@ -1,12 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
-  ArrowUpRight,
   BookOpen,
   SquareMousePointer,
   SquareDashed,
   SquareDashedMousePointer,
-  CircleCheck,
   Crosshair,
   ImageIcon,
   Loader2,
@@ -35,6 +33,7 @@ import {
 import { isCaptureEntryScreen } from "@/lib/capture-commands";
 import { PLATFORM_TAB_KEYS } from "@/types/platform";
 import { USER_GUIDE_URLS } from "@/lib/external-links";
+import { SubmitSuccessView } from "@/sidepanel/components/SubmitSuccessView";
 import { useEditorStore } from "@/store/editor-store";
 import { useSettingsUiStore } from "@/store/settings-ui-store";
 import { useBoundTabId } from "@/sidepanel/hooks/useBoundTabId";
@@ -113,7 +112,7 @@ export function IssueTab() {
   }
 
   if (phase === "done") {
-    return <SubmitSuccessView />;
+    return <SubmitSuccessPanel />;
   }
 
   if (phase === "previewing") {
@@ -358,7 +357,7 @@ function RecordingState({ onStop, onCancel }: { onStop: () => void; onCancel: ()
   );
 }
 
-function SubmitSuccessView() {
+function SubmitSuccessPanel() {
   const t = useT();
   const submitResult = useEditorStore((s) => s.submitResult);
   const reset = useEditorStore((s) => s.reset);
@@ -377,30 +376,7 @@ function SubmitSuccessView() {
 
   if (!submitResult) return null;
 
-  return (
-    <PageShell>
-      <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 pb-5 text-center">
-        <div className="mb-3 rounded-full bg-muted p-3">
-          <CircleCheck className="h-6 w-6 text-green-600 dark:text-green-400" />
-        </div>
-        <h3 className="text-lg font-semibold">{t("jira.submitted")}</h3>
-        <a
-          href={submitResult.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-2 inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
-        >
-          {submitResult.key}
-          <ArrowUpRight className="h-3.5 w-3.5" />
-        </a>
-        <div className="mt-6">
-          <Button onClick={() => reset()}>
-            {t("common.ok")}
-          </Button>
-        </div>
-      </div>
-    </PageShell>
-  );
+  return <SubmitSuccessView result={submitResult} onClose={() => reset()} />;
 }
 
 function SessionExpiredDialog({

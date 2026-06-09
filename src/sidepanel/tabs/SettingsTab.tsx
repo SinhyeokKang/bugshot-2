@@ -1,7 +1,6 @@
 import { Fragment } from "react";
-import { BookOpen, Bug, ListOrdered, Monitor, Moon, SlidersHorizontal, Sparkles, StickyNote, Sun, Target, Timer } from "lucide-react";
+import { Bug, ListOrdered, Monitor, Moon, SlidersHorizontal, Sparkles, StickyNote, Sun, Target, Timer } from "lucide-react";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
@@ -10,7 +9,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsTrigger } from "@/components/ui/tabs";
 import { CollapsingTabsList, TabLabel } from "@/components/ui/collapsing-tabs";
 import { useT } from "@/i18n";
-import { USER_GUIDE_URLS } from "@/lib/external-links";
 import {
   sectionHelpKey,
   sectionLabelKey,
@@ -20,8 +18,9 @@ import {
   type ThemeMode,
 } from "@/store/settings-ui-store";
 import { useSettingsStore } from "@/store/settings-store";
-import { PageFooter, PageScroll, PageShell, Section } from "@/sidepanel/components/Section";
+import { PageScroll, PageShell, Section } from "@/sidepanel/components/Section";
 import { REPLAY_ORIGINS } from "@/sidepanel/30s-replay/use-30s-replay";
+import { SettingsFooter } from "./settings/SettingsFooter";
 import { LlmConnectForm } from "./settings/LlmConnectForm";
 
 const LOCALE_OPTIONS: { value: LocaleMode; label: string }[] = [
@@ -164,6 +163,7 @@ function IssueSettingsContent() {
           </Card>
         </Section>
       </PageScroll>
+      <SettingsFooter />
     </PageShell>
   );
 }
@@ -217,28 +217,7 @@ function GeneralSettingsContent() {
           </Select>
         </Section>
       </PageScroll>
-      <PageFooter>
-        <div className="flex items-center justify-between gap-2">
-          <Button
-            variant="outline"
-            onClick={() => chrome.tabs.create({ url: USER_GUIDE_URLS[locale], active: true })}
-          >
-            <BookOpen />
-            {t("settings.guide")}
-          </Button>
-          <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              onClick={() => chrome.tabs.create({ url: "https://chromewebstore.google.com/detail/bugshot/ohakhekagkodklkickemonmifdcbhmig/reviews" })}
-            >
-              {t("settings.review")}
-            </Button>
-            <Button asChild>
-              <a href="mailto:ox501501@gmail.com">{t("settings.contact")}</a>
-            </Button>
-          </div>
-        </div>
-      </PageFooter>
+      <SettingsFooter />
     </PageShell>
   );
 }
