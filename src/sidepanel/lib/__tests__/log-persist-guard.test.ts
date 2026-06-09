@@ -78,6 +78,25 @@ describe("createLogPersistGuard", () => {
     expect(save).not.toHaveBeenCalled();
   });
 
+  it("save가 throw하면 pending을 보존해 다음 flush에서 재시도한다", () => {
+    const save = vi
+      .fn()
+      .mockImplementationOnce(() => {
+        throw new Error("IDB write failed");
+      })
+      .mockImplementation(() => {});
+    const timer = makeFakeTimer();
+    const g = createLogPersistGuard<number>(save, 1000, timer.schedule, timer.clear);
+
+    g.push("k", 9);
+    timer.fireAll(); // 1차 flush: save throw → pending 보존
+    expect(save).toHaveBeenCalledTimes(1);
+
+    g.flushNow(); // 재시도: 동일 payload 저장
+    expect(save).toHaveBeenCalledTimes(2);
+    expect(save).toHaveBeenLastCalledWith("k", 9);
+  });
+
   it("discard 후 다시 push하면 정상적으로 재예약·저장된다", () => {
     const save = vi.fn();
     const timer = makeFakeTimer();

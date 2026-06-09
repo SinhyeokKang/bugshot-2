@@ -22,8 +22,8 @@ export function createLogPersistGuard<T>(
     () => {
       if (!pending) return;
       const { key, value } = pending;
-      pending = null;
       save(key, value);
+      pending = null; // save가 throw하면 pending 보존 → 다음 push/flush에서 재시도
     },
     intervalMs,
     scheduleTimer,
