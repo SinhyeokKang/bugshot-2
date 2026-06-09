@@ -4,7 +4,11 @@ import {
   sectionMdLabelKey,
   type IssueSection,
 } from "@/store/settings-ui-store";
-import type { MarkdownContext } from "./buildIssueMarkdown";
+import {
+  resolveStyleElements,
+  styleDomLabel,
+  type MarkdownContext,
+} from "./buildIssueMarkdown";
 import { filterEnvironmentRows } from "./environmentRows";
 import { formatTimestamp } from "./formatTimestamp";
 
@@ -65,8 +69,9 @@ export function buildGithubIssueBody(
     lines.push(`- **Browser**: ${ctx.browser}`);
   }
   lines.push(`- **Page**: ${ctx.url}`);
-  if (ctx.captureMode !== "screenshot" && ctx.captureMode !== "video" && ctx.captureMode !== "freeform" && ctx.selector) {
-    lines.push(`- **DOM**: ${ctx.selector}`);
+  const domLabel = styleDomLabel(ctx);
+  if (domLabel) {
+    lines.push(`- **DOM**: ${domLabel}`);
   }
   if (ctx.viewport) {
     lines.push(`- **Viewport**: ${ctx.viewport.width}×${ctx.viewport.height}`);
@@ -90,12 +95,13 @@ export function buildGithubIssueBody(
     if (isFreeform) {
       // no media section
     } else if (isElement) {
-      const before = images.find((i) => i.filename.startsWith("before"));
-      const after = images.find((i) => i.filename.startsWith("after"));
-      const hasSnapshots = !!(before?.url || after?.url);
+      // element 모드: styleElements를 반복(단수도 1개짜리). 각 섹션이 자기 before-${i}/after-${i}.
+      for (const el of resolveStyleElements(ctx)) {
+        const before = images.find((im) => im.filename === el.beforeFilename);
+        const after = images.find((im) => im.filename === el.afterFilename);
+        const hasSnapshots = !!(before?.url || after?.url);
 
-      if (hasSnapshots || ctx.diffs.length > 0) {
-        lines.push(`## ${t("md.section.styleChanges")}`, "");
+        lines.push(`## ${t("md.section.styleChanges")} (${el.selector})`, "");
         lines.push(`| ${t("md.column.property")} | As is | To be |`);
         lines.push("| --- | --- | --- |");
         if (hasSnapshots) {
@@ -103,25 +109,16 @@ export function buildGithubIssueBody(
             `| **${t("styleTable.snapshot")}** | ${imageCell(before)} | ${imageCell(after)} |`,
           );
         }
-        for (const d of ctx.diffs) {
+        for (const d of el.diffs) {
           lines.push(
             `| ${escapeCell(d.prop)} | ${escapeCell(d.asIs)} | ${escapeCell(d.toBe)} |`,
           );
         }
         lines.push("");
-      } else {
-        const screenshot = images.find((i) => i.filename.startsWith("screenshot"));
-        lines.push(`## ${t("md.section.media")}`, "");
-        if (screenshot?.url) {
-          lines.push(`![${screenshot.filename}](${screenshot.url})`);
-          attached.push(screenshot.filename);
-          mediaHandled.add(screenshot.filename);
-        }
-        lines.push("");
-      }
 
-      if (before?.url) { attached.push(before.filename); mediaHandled.add(before.filename); }
-      if (after?.url) { attached.push(after.filename); mediaHandled.add(after.filename); }
+        if (before?.url) { attached.push(before.filename); mediaHandled.add(before.filename); }
+        if (after?.url) { attached.push(after.filename); mediaHandled.add(after.filename); }
+      }
     } else if (isVideo && video?.url) {
       lines.push(`## ${t("md.section.media")}`, "");
       lines.push(video.url);

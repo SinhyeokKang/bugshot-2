@@ -1,11 +1,14 @@
 import { useEffect } from "react";
 import { useEditorStore } from "@/store/editor-store";
+import { originOf } from "@/lib/session-keys";
 import type { PickerMessage, ViewportRect } from "@/types/picker";
 import { type BgInternalMessage, onPickerIframeUnsupported, onPickerPermissionExpired, sendBg } from "@/types/messages";
 import { captureElementSnapshot, loadImage } from "@/sidepanel/capture";
-import { collectTokens, maybeSurfacePermissionExpired } from "@/sidepanel/picker-control";
+import { clearPicker, collectTokens, maybeSurfacePermissionExpired, rebroadcastSentinelsToFrame } from "@/sidepanel/picker-control";
 import { saveNetworkLog, saveConsoleLog, saveActionLog, saveInlineImage, dataUrlToBlob } from "@/store/blob-db";
 import { shouldCompact, compactImage } from "@/sidepanel/lib/compactImage";
+import { shouldPreserveBackgroundLogs } from "@/sidepanel/hooks/useBackgroundRecorder";
+import { createLogPersistGuard } from "@/sidepanel/lib/log-persist-guard";
 import {
   mergeLogItems,
   rebuildNetworkLog,
@@ -20,12 +23,35 @@ import {
 let deferredActiveTabExpiry = false;
 let lastLogClearAt = 0;
 
+// 레코더 자동 flush(~200ms)로 *.data 수신 빈도가 올라도 IndexedDB write는 ~1s로 묶는다.
+// store set은 매번(메모리), save만 가드. 30s replay trim 경로(use-30s-replay)가 discard로 stale 쓰기를 비운다.
+const LOG_PERSIST_INTERVAL_MS = 1000;
+export const networkLogPersist = createLogPersistGuard(
+  (key: string, log: Parameters<typeof saveNetworkLog>[1]) => { saveNetworkLog(key, log).catch(() => {}); },
+  LOG_PERSIST_INTERVAL_MS,
+);
+export const consoleLogPersist = createLogPersistGuard(
+  (key: string, log: Parameters<typeof saveConsoleLog>[1]) => { saveConsoleLog(key, log).catch(() => {}); },
+  LOG_PERSIST_INTERVAL_MS,
+);
+export const actionLogPersist = createLogPersistGuard(
+  (key: string, log: Parameters<typeof saveActionLog>[1]) => { saveActionLog(key, log).catch(() => {}); },
+  LOG_PERSIST_INTERVAL_MS,
+);
+
 export function usePickerMessages(myTabId: number | null): void {
   useEffect(() => {
-    const unsub = useEditorStore.subscribe((state) => {
+    const unsub = useEditorStore.subscribe((state, prev) => {
       if (state.phase === "idle" && deferredActiveTabExpiry) {
         deferredActiveTabExpiry = false;
         onPickerPermissionExpired.fire();
+      }
+      // freeze는 stop 메시지가 아니라 phase 전이로 일어난다. frozen 후엔 *.data가 가드로 drop되므로,
+      // 전이 시점에 대기 중 save를 강제 flush해야 마지막 로그 상태가 IDB에 박힌다(세션 재진입 출처).
+      if (!isLogFrozen(prev.phase) && isLogFrozen(state.phase)) {
+        networkLogPersist.flushNow();
+        consoleLogPersist.flushNow();
+        actionLogPersist.flushNow();
       }
     });
     return unsub;
@@ -54,6 +80,12 @@ export function usePickerMessages(myTabId: number | null): void {
 
       if (message.type === "picker.selected") {
         const msg = message as Extract<PickerMessage, { type: "picker.selected" }>;
+        // 요소 캡처(screenshot 세부 모드): styling 대신 요소 크롭 → drafting.
+        if (useEditorStore.getState().captureMode === "screenshot") {
+          const tabId = useEditorStore.getState().target?.tabId;
+          if (tabId) void captureElementShot(tabId, msg.payload);
+          return;
+        }
         useEditorStore.getState().onElementSelected({
           selector: msg.payload.selector,
           tagName: msg.payload.tagName,
@@ -114,11 +146,24 @@ export function usePickerMessages(myTabId: number | null): void {
         const msg = message as Extract<BgInternalMessage, { type: "activeTabExpiredDeferred" }>;
         if (myTabId != null && msg.tabId !== myTabId) return;
         deferredActiveTabExpiry = true;
+      } else if (message.type === "frameCommitted") {
+        // 캡처 시작 이후 커밋된 iframe에 보유 sentinel 재발행 → dormant 레코더 활성화.
+        const msg = message as Extract<BgInternalMessage, { type: "frameCommitted" }>;
+        if (myTabId != null && msg.tabId !== myTabId) return;
+        rebroadcastSentinelsToFrame(msg.tabId, msg.frameId);
       } else if (message.type === "logClear") {
-        if (isLogFrozen(useEditorStore.getState().phase)) return;
+        // 녹화 중(recording)엔 cross-origin/reload 이동도 한 버그 시나리오의 일부 —
+        // background 레코더가 보존하는 phase 집합과 동일하게 버퍼를 비우지 않는다.
+        // (단 *.data 머지는 isLogFrozen 기준이라 녹화 중 새 로그 유입은 계속된다.)
+        if (shouldPreserveBackgroundLogs(useEditorStore.getState().phase)) return;
         const msg = message as Extract<BgInternalMessage, { type: "logClear" }>;
         if (myTabId != null && msg.tabId !== myTabId) return;
         lastLogClearAt = Date.now();
+        // store clear가 IDB의 pending 로그를 delete하므로, 대기 중 throttle write를 먼저 폐기해
+        // delete 이후 stale 버퍼가 IDB에 부활하는 걸 막는다(30s replay trim 경로와 대칭).
+        networkLogPersist.discard();
+        consoleLogPersist.discard();
+        actionLogPersist.discard();
         const store = useEditorStore.getState();
         store.clearNetworkLog(myTabId);
         store.clearConsoleLog(myTabId);
@@ -136,6 +181,7 @@ export function usePickerMessages(myTabId: number | null): void {
           requests,
           (r) => r.startTime,
           NETWORK_MAX_ENTRIES,
+          originOf(useEditorStore.getState().target?.url),
         );
         const log = rebuildNetworkLog(existing, merged, {
           totalSeen: msg.payload.totalSeen,
@@ -144,7 +190,7 @@ export function usePickerMessages(myTabId: number | null): void {
         useEditorStore.getState().setNetworkLog(log);
         const tabId = useEditorStore.getState().target?.tabId;
         if (tabId) {
-          saveNetworkLog(`pending:${tabId}`, log).catch(() => {});
+          networkLogPersist.push(`pending:${tabId}`, log);
         }
       } else if (message.type === "consoleRecorder.data") {
         if (isLogFrozen(useEditorStore.getState().phase)) return;
@@ -159,6 +205,7 @@ export function usePickerMessages(myTabId: number | null): void {
           entries,
           (e) => e.timestamp,
           CONSOLE_MAX_ENTRIES,
+          originOf(useEditorStore.getState().target?.url),
         );
         const log = rebuildConsoleLog(existing, merged, {
           totalSeen: msg.payload.totalSeen,
@@ -166,7 +213,7 @@ export function usePickerMessages(myTabId: number | null): void {
         useEditorStore.getState().setConsoleLog(log);
         const tabId = useEditorStore.getState().target?.tabId;
         if (tabId) {
-          saveConsoleLog(`pending:${tabId}`, log).catch(() => {});
+          consoleLogPersist.push(`pending:${tabId}`, log);
         }
       } else if (message.type === "actionRecorder.data") {
         if (isLogFrozen(useEditorStore.getState().phase)) return;
@@ -188,7 +235,7 @@ export function usePickerMessages(myTabId: number | null): void {
         useEditorStore.getState().setActionLog(log);
         const tabId = useEditorStore.getState().target?.tabId;
         if (tabId) {
-          saveActionLog(`pending:${tabId}`, log).catch(() => {});
+          actionLogPersist.push(`pending:${tabId}`, log);
         }
       }
     }
@@ -199,6 +246,24 @@ export function usePickerMessages(myTabId: number | null): void {
       chrome.runtime.onMessage.removeListener(handler);
     };
   }, [myTabId]);
+}
+
+async function captureElementShot(
+  tabId: number,
+  payload: { selector: string; tagName: string; viewport: { width: number; height: number } },
+): Promise<void> {
+  // captureElementSnapshot은 권한 만료/캡처 실패 시 내부에서 안내 후 null 반환 → 빈 drafting 진입 금지.
+  const img = await captureElementSnapshot(tabId);
+  if (!img) {
+    useEditorStore.getState().reset();
+    return;
+  }
+  useEditorStore.getState().onElementShot(
+    { selector: payload.selector, tagName: payload.tagName },
+    img,
+    payload.viewport,
+  );
+  void clearPicker(tabId);
 }
 
 async function captureAndCrop(rect: ViewportRect, viewport: { width: number; height: number }): Promise<void> {

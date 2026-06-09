@@ -45,6 +45,7 @@ import {
   type AreaSelectHandle,
 } from "./area-select";
 import { PICKER_PORT_NAME } from "@/lib/session-keys";
+import { postToRuntime } from "./post-to-runtime";
 import {
   ensureLoaded as ensureCssCacheLoaded,
   invalidate as invalidateCssCache,
@@ -55,153 +56,23 @@ import {
 
 type Mode = "idle" | "hover" | "selected" | "area-select";
 
-// chrome.runtime.sendMessage는 확장 reload/무효화 시 호출 시점에 동기 throw한다(.catch로 못 막음).
-// stale content script가 죽은 컨텍스트로 보내는 경우를 id 가드 + try로 흡수해 Uncaught를 막는다.
-function postToRuntime(msg: object): void {
-  if (!chrome.runtime?.id) return;
-  try {
-    void chrome.runtime.sendMessage(msg).catch(() => {});
-  } catch {
-    /* Extension context invalidated */
-  }
-}
-
-/* ── Network recorder bridge ──────────────────────── */
-
-let networkSentinel: string | null = null;
-
-function handleNetData(e: Event): void {
-  const detail = (e as CustomEvent).detail;
-  if (!detail || detail.sentinel !== networkSentinel) return;
-  postToRuntime({
-    type: "networkRecorder.data",
-    payload: {
-      requests: detail.requests,
-      totalSeen: detail.totalSeen,
-      warnings: detail.warnings,
-    },
-  });
-}
-
-function handleSetSentinel(sentinel: string): void {
-  if (networkSentinel) {
-    document.removeEventListener("__bugshot_net_data__" + networkSentinel, handleNetData);
-  }
-  networkSentinel = sentinel;
-  document.addEventListener("__bugshot_net_data__" + sentinel, handleNetData);
-  // MAIN world 레코더에 sentinel 전달 — content_scripts(document_start)로 미리 inject된 레코더를 활성화한다.
-  document.dispatchEvent(
-    new CustomEvent("__bugshot_net_setSentinel__", { detail: { sentinel } }),
-  );
-}
-
-function handleNetworkStop(): void {
-  if (!networkSentinel) return;
-  document.dispatchEvent(new CustomEvent("__bugshot_net_stop__" + networkSentinel));
-}
-
-function handleNetworkSync(): void {
-  if (!networkSentinel) return;
-  document.dispatchEvent(new CustomEvent("__bugshot_net_sync__" + networkSentinel));
-}
-
-function handleNetworkClear(): void {
-  if (!networkSentinel) return;
-  document.dispatchEvent(new CustomEvent("__bugshot_net_clear__" + networkSentinel));
-}
-
-/* ── Console recorder bridge ─────────────────────── */
-
-let consoleSentinel: string | null = null;
-
-function handleConsoleData(e: Event): void {
-  const detail = (e as CustomEvent).detail;
-  if (!detail || detail.sentinel !== consoleSentinel) return;
-  postToRuntime({
-    type: "consoleRecorder.data",
-    payload: {
-      entries: detail.entries,
-      totalSeen: detail.totalSeen,
-    },
-  });
-}
-
-function handleSetConsoleSentinel(sentinel: string): void {
-  if (consoleSentinel) {
-    document.removeEventListener("__bugshot_console_data__" + consoleSentinel, handleConsoleData);
-  }
-  consoleSentinel = sentinel;
-  document.addEventListener("__bugshot_console_data__" + sentinel, handleConsoleData);
-  document.dispatchEvent(
-    new CustomEvent("__bugshot_console_setSentinel__", { detail: { sentinel } }),
-  );
-}
-
-function handleConsoleStop(): void {
-  if (!consoleSentinel) return;
-  document.dispatchEvent(new CustomEvent("__bugshot_console_stop__" + consoleSentinel));
-}
-
-function handleConsoleSync(): void {
-  if (!consoleSentinel) return;
-  document.dispatchEvent(new CustomEvent("__bugshot_console_sync__" + consoleSentinel));
-}
-
-function handleConsoleClear(): void {
-  if (!consoleSentinel) return;
-  document.dispatchEvent(new CustomEvent("__bugshot_console_clear__" + consoleSentinel));
-}
-
-/* ── Action recorder bridge ──────────────────────── */
-
-let actionSentinel: string | null = null;
-
-function handleActionData(e: Event): void {
-  const detail = (e as CustomEvent).detail;
-  if (!detail || detail.sentinel !== actionSentinel) return;
-  postToRuntime({
-    type: "actionRecorder.data",
-    payload: {
-      entries: detail.entries,
-      totalSeen: detail.totalSeen,
-    },
-  });
-}
-
-function handleSetActionSentinel(sentinel: string): void {
-  if (actionSentinel) {
-    document.removeEventListener("__bugshot_action_data__" + actionSentinel, handleActionData);
-  }
-  actionSentinel = sentinel;
-  document.addEventListener("__bugshot_action_data__" + sentinel, handleActionData);
-  document.dispatchEvent(
-    new CustomEvent("__bugshot_action_setSentinel__", { detail: { sentinel } }),
-  );
-}
-
-function handleActionStop(): void {
-  if (!actionSentinel) return;
-  document.dispatchEvent(new CustomEvent("__bugshot_action_stop__" + actionSentinel));
-}
-
-function handleActionSync(): void {
-  if (!actionSentinel) return;
-  document.dispatchEvent(new CustomEvent("__bugshot_action_sync__" + actionSentinel));
-}
-
-function handleActionClear(): void {
-  if (!actionSentinel) return;
-  document.dispatchEvent(new CustomEvent("__bugshot_action_clear__" + actionSentinel));
-}
-
 let mode: Mode = "idle";
 let selectedEl: Element | null = null;
 let lastHover: Element | null = null;
-let originalClassName: string | null = null;
+// 전역 캐시 = 현재 selectedEl 원본(applyStyles/applyText가 리셋 기준으로 참조).
 let originalStyle: string | null = null;
 let editableHandle: EditableHandle | null = null;
-let originalTextContent: string | null = null;
 let rafHandle: number | null = null;
+
+interface OriginalState {
+  className: string | null;
+  style: string | null;
+  editable: EditableHandle | null;
+  text: string | null;
+}
+// 변경이 가해질 수 있는 모든 element의 원본 추적(누적 프리뷰). element 전환 시 복원하지
+// 않고 유지하며, cleanup(handleClear→restoreAll)에서만 일괄 원복. 순회 필요 → WeakMap 불가.
+const editedEls = new Map<Element, OriginalState>();
 
 let overlay: OverlayHandle | null = null;
 let areaHandle: AreaSelectHandle | null = null;
@@ -279,8 +150,8 @@ chrome.runtime.onMessage.addListener(
         case "picker.applyText":
           handleApplyText(msg.text);
           break;
-        case "picker.resetEdits":
-          handleResetEdits();
+        case "picker.resetAllEdits":
+          handleResetAllEdits();
           break;
         case "picker.collectTokens":
           void (async () => {
@@ -323,42 +194,7 @@ chrome.runtime.onMessage.addListener(
         case "picker.cancelAreaSelect":
           handleCancelAreaSelect();
           break;
-        case "networkRecorder.setSentinel":
-          handleSetSentinel(msg.sentinel);
-          break;
-        case "networkRecorder.stop":
-          handleNetworkStop();
-          break;
-        case "networkRecorder.sync":
-          handleNetworkSync();
-          break;
-        case "networkRecorder.clear":
-          handleNetworkClear();
-          break;
-        case "consoleRecorder.setSentinel":
-          handleSetConsoleSentinel(msg.sentinel);
-          break;
-        case "consoleRecorder.stop":
-          handleConsoleStop();
-          break;
-        case "consoleRecorder.sync":
-          handleConsoleSync();
-          break;
-        case "consoleRecorder.clear":
-          handleConsoleClear();
-          break;
-        case "actionRecorder.setSentinel":
-          handleSetActionSentinel(msg.sentinel);
-          break;
-        case "actionRecorder.stop":
-          handleActionStop();
-          break;
-        case "actionRecorder.sync":
-          handleActionSync();
-          break;
-        case "actionRecorder.clear":
-          handleActionClear();
-          break;
+        // recorder.* 메시지는 recorder-bridge.ts(all_frames)가 처리 — 무응답으로 흘려 이중 응답 방지.
         default:
           return;
       }
@@ -393,7 +229,8 @@ function handleStart(): void {
     removeOrphanOverlay();
     overlay = createOverlay();
   }
-  restoreOriginal();
+  // 누적 프리뷰: 이전 element 변경은 유지(복원 안 함). 변경 없는 현재 element만 정리.
+  leaveCurrent();
   selectedEl = null;
   lastHover = null;
   tokenLookup = null;
@@ -416,7 +253,7 @@ function handleClear(): void {
   }
   removeHoverListeners();
   detachViewportListeners();
-  restoreOriginal();
+  restoreAll();
   selectedEl = null;
   lastHover = null;
   mode = "idle";
@@ -440,7 +277,7 @@ function handleNavigate(direction: "parent" | "child"): void {
   const next =
     direction === "parent" ? parentOf(selectedEl) : firstChildOf(selectedEl);
   if (!next) return;
-  restoreOriginal();
+  leaveCurrent();
   selectedEl = next;
   captureOriginal(next);
   render();
@@ -449,6 +286,7 @@ function handleNavigate(direction: "parent" | "child"): void {
 
 function handleApplyClasses(classList: string[]): void {
   if (!selectedEl) return;
+  captureOriginal(selectedEl);
   const el = selectedEl as HTMLElement;
   el.className = classList.join(" ");
   inspectorCache.delete(el);
@@ -458,6 +296,7 @@ function handleApplyClasses(classList: string[]): void {
 
 function handleApplyStyles(inlineStyle: Record<string, string>): void {
   if (!selectedEl) return;
+  captureOriginal(selectedEl);
   const el = selectedEl as HTMLElement;
   if (originalStyle === null) {
     el.removeAttribute("style");
@@ -472,43 +311,84 @@ function handleApplyStyles(inlineStyle: Record<string, string>): void {
   render();
 }
 
-function handleResetEdits(): void {
-  if (!selectedEl) return;
-  restoreOriginal();
+// 복수 element 버퍼 포함 모든 편집 element를 원복(현재 선택은 유지 — picker 종료 안 함).
+// 원복으로 DOM이 원본으로 돌아갔으니 selection의 specified/computed 스타일도 다시 읽어
+// 패널 입력 필드의 표시값(placeholder·Select)이 편집된 값에 머무르지 않도록 갱신한다.
+function handleResetAllEdits(): void {
+  restoreAll();
   render();
+  scheduleSelectionUpdate();
 }
 
+// 레지스트리에 없을 때만 원본 기록(최초 원본 유지) + 전역 캐시를 현재 element 원본으로 채움.
 function captureOriginal(el: Element): void {
-  const h = el as HTMLElement;
-  originalClassName = h.getAttribute("class");
-  originalStyle = h.getAttribute("style");
-  editableHandle = captureEditable(el);
-  originalTextContent = editableHandle ? readEditableText(editableHandle) : null;
+  let state = editedEls.get(el);
+  if (!state) {
+    const h = el as HTMLElement;
+    const editable = captureEditable(el);
+    state = {
+      className: h.getAttribute("class"),
+      style: h.getAttribute("style"),
+      editable,
+      text: editable ? readEditableText(editable) : null,
+    };
+    editedEls.set(el, state);
+  }
+  originalStyle = state.style;
+  editableHandle = state.editable;
 }
 
-function restoreOriginal(): void {
-  if (!selectedEl) return;
-  const el = selectedEl as HTMLElement;
-  if (originalClassName === null) {
-    el.removeAttribute("class");
+function restoreElState(el: Element, state: OriginalState): void {
+  const h = el as HTMLElement;
+  if (state.className === null) {
+    h.removeAttribute("class");
   } else {
-    el.setAttribute("class", originalClassName);
+    h.setAttribute("class", state.className);
   }
-  if (originalStyle === null) {
-    el.removeAttribute("style");
+  if (state.style === null) {
+    h.removeAttribute("style");
   } else {
-    el.setAttribute("style", originalStyle);
+    h.setAttribute("style", state.style);
   }
   if (
-    editableHandle &&
-    originalTextContent !== null &&
-    shouldRestoreEditable(editableHandle, originalTextContent)
+    state.editable &&
+    state.text !== null &&
+    shouldRestoreEditable(state.editable, state.text)
   ) {
-    restoreEditable(editableHandle, originalTextContent);
+    restoreEditable(state.editable, state.text);
+  }
+}
+
+// 모든 편집 element 일괄 원복 + 레지스트리·캐시 정리(cleanup 종착점 handleClear에서 호출).
+function restoreAll(): void {
+  for (const [el, state] of editedEls) restoreElState(el, state);
+  editedEls.clear();
+  originalStyle = null;
+  editableHandle = null;
+}
+
+function isElementClean(el: Element, state: OriginalState): boolean {
+  const h = el as HTMLElement;
+  if (h.getAttribute("class") !== state.className) return false;
+  if (h.getAttribute("style") !== state.style) return false;
+  if (state.editable && state.text !== null) {
+    if (readEditableText(state.editable) !== state.text) return false;
+  }
+  return true;
+}
+
+// element 전환 직전: 현재 selectedEl이 변경 없으면 레지스트리에서 제거(빈 항목 정리).
+function leaveCurrent(): void {
+  if (!selectedEl) return;
+  const state = editedEls.get(selectedEl);
+  if (state && isElementClean(selectedEl, state)) {
+    editedEls.delete(selectedEl);
   }
 }
 
 function handleApplyText(text: string): void {
+  if (!selectedEl) return;
+  captureOriginal(selectedEl);
   if (!editableHandle) return;
   writeEditableText(editableHandle, text);
   render();
@@ -631,14 +511,14 @@ function onClickCommit(e: MouseEvent): void {
   // 선택을 허용하면 collectTokens / applyStyles 등에서 빈 결과·오류 누적되므로 차단.
   if (target.tagName === "IFRAME") {
     removeHoverListeners();
-    restoreOriginal();
+    leaveCurrent();
     selectedEl = null;
     lastHover = null;
     setMode("idle");
     postToRuntime({ type: "picker.iframeUnsupported" });
     return;
   }
-  restoreOriginal();
+  leaveCurrent();
   selectedEl = target;
   captureOriginal(target);
   lastHover = null;
@@ -653,7 +533,7 @@ function onKeyDown(e: KeyboardEvent): void {
   e.preventDefault();
   e.stopPropagation();
   removeHoverListeners();
-  restoreOriginal();
+  leaveCurrent();
   selectedEl = null;
   lastHover = null;
   setMode("idle");
@@ -729,7 +609,7 @@ function handleSelectByPath(selector: string): void {
     target = null;
   }
   if (!target) return;
-  restoreOriginal();
+  leaveCurrent();
   selectedEl = target;
   captureOriginal(target);
   lastHover = null;

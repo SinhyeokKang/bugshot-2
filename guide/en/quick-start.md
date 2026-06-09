@@ -26,11 +26,12 @@ To file an issue you need at least one platform connected. In the **Integrations
 
 In the **Debug** tab, pick a capture mode.
 
-- **Select DOM element** — Pick an element, edit its styles, and report before/after.
-- **Screenshot** — Capture the screen and mark it up.
-- **Record video** — Record the behavior as a video.
+- **Edit element styles** — Pick an element, edit its styles, and report before/after.
+- **Capture element** — Click an element to crop just that element as a screenshot.
+- **Capture area** — Drag a screen region and mark it up.
+- **Record screen** — Record the behavior as a video.
 
-If you're not sure which to pick, **Screenshot** is the simplest place to start.
+If you're not sure which to pick, **Capture area** is the simplest place to start.
 
 ![Choosing a capture mode](assets/quick-start-4.jpg)
 

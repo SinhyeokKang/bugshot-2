@@ -9,6 +9,8 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { findActiveIndex } from "@/log-viewer/timeline";
 import { formatRelativeTime, syncRowClass } from "@/sidepanel/lib/logRow";
 import { useScrollToEntry } from "@/sidepanel/lib/useScrollToEntry";
+import { distinctOriginKeys, originKey, originCounts } from "@/sidepanel/lib/logOrigin";
+import { OriginFilterBar } from "./OriginFilterBar";
 import { LogSeekChip } from "./LogSeekChip";
 
 type ActionFilter = "all" | ActionEntryKind;
@@ -95,6 +97,7 @@ function searchText(e: ActionEntry): string {
 export function ActionLogContent({ entries, startedAt, flush, syncBaseMs, onSeek, activeTs, scrollToEntryId, onScrollComplete }: ActionLogContentProps) {
   const t = useT();
   const [filter, setFilter] = useState<ActionFilter>("all");
+  const [originFilter, setOriginFilter] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const filterLabel: Record<ActionFilter, string> = {
     all: t("actionLog.filter.all"),
@@ -109,14 +112,20 @@ export function ActionLogContent({ entries, startedAt, flush, syncBaseMs, onSeek
   useEffect(() => {
     if (filter !== "all" && !availableFilters.includes(filter)) setFilter("all");
   }, [availableFilters, filter]);
+  const originKeys = useMemo(() => distinctOriginKeys(entries.map((e) => e.pageUrl)), [entries]);
+  const originCountMap = useMemo(() => originCounts(entries.map((e) => e.pageUrl)), [entries]);
+  useEffect(() => {
+    if (originFilter !== null && !originKeys.includes(originFilter)) setOriginFilter(null);
+  }, [originKeys, originFilter]);
   const filteredEntries = useMemo(() => {
     let result = filter === "all" ? entries : entries.filter((e) => e.kind === filter);
+    if (originFilter !== null) result = result.filter((e) => originKey(e.pageUrl) === originFilter);
     if (query) {
       const lower = query.toLowerCase();
       result = result.filter((e) => searchText(e).includes(lower));
     }
     return result;
-  }, [entries, filter, query]);
+  }, [entries, filter, originFilter, query]);
 
   const activeId = useMemo(() => {
     if (activeTs == null) return null;
@@ -150,14 +159,14 @@ export function ActionLogContent({ entries, startedAt, flush, syncBaseMs, onSeek
     scrollToEntryId,
     getListViewport,
     filteredItems: filteredEntries,
-    resetFilters: useCallback(() => { setFilter("all"); setQuery(""); }, []),
+    resetFilters: useCallback(() => { setFilter("all"); setOriginFilter(null); setQuery(""); }, []),
     onScrollComplete,
   });
 
   return (
     <div className={`flex min-h-0 flex-1 flex-col overflow-hidden${flush ? "" : " rounded-lg border"}`}>
       <Tabs value={filter} onValueChange={(v) => setFilter(v as ActionFilter)}>
-        <div className={`flex items-center gap-3 border-b${flush ? " px-4 py-4" : " p-2"}`}>
+        <div className={`flex items-center gap-3${originKeys.length >= 2 ? "" : " border-b"}${flush ? " px-4 py-4" : " p-2"}`}>
           <TabsList>
             {availableFilters.map((f) => (
               <TabsTrigger key={f} value={f}>
@@ -185,6 +194,7 @@ export function ActionLogContent({ entries, startedAt, flush, syncBaseMs, onSeek
           </div>
         </div>
       </Tabs>
+      <OriginFilterBar originKeys={originKeys} counts={originCountMap} value={originFilter} onChange={setOriginFilter} flush={flush} />
       {entries.length === 0 ? (
         <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3">
           <div className="rounded-full bg-muted p-3">

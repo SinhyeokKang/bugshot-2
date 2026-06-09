@@ -38,10 +38,12 @@ function snapshotFromState(): EditorSnapshot {
     targetPlatform: s.targetPlatform,
     target: s.target,
     selection: s.selection,
+    shotSelector: s.shotSelector,
     styleEdits: s.styleEdits,
     tokens: s.tokens,
     beforeImage: s.beforeImage,
     afterImage: s.afterImage,
+    bufferedElements: s.bufferedElements,
     screenshotRaw: s.screenshotRaw,
     screenshotAnnotated: s.screenshotAnnotated,
     screenshotViewport: s.screenshotViewport,
@@ -140,7 +142,20 @@ export function useEditorSessionSync(tabId: number | null): boolean {
           .set({ [key]: snap })
           .then(() => { saveFailCount.current = 0; })
           .catch(() => {
-            const lite = { ...snap, beforeImage: null, afterImage: null, screenshotRaw: null, screenshotAnnotated: null, videoThumbnail: null };
+            // bufferedElements는 배열 안 base64라 얕은 스프레드로는 안 비워짐 → 명시 변환.
+            const lite = {
+              ...snap,
+              beforeImage: null,
+              afterImage: null,
+              bufferedElements: snap.bufferedElements.map((e) => ({
+                ...e,
+                beforeImage: null,
+                afterImage: null,
+              })),
+              screenshotRaw: null,
+              screenshotAnnotated: null,
+              videoThumbnail: null,
+            };
             void chrome.storage.session.set({ [key]: lite })
               .then(() => { saveFailCount.current = 0; })
               .catch(() => {
@@ -176,11 +191,12 @@ export function useEditorSessionSync(tabId: number | null): boolean {
         if (needsReset) {
           useEditorStore.getState().reset();
         }
-        if (captureMode === "element" && (needsExpiry || needsReset)) {
-          void clearPicker(tabId).catch(() => {});
-        }
+        // 콘텐츠 picker 정리: area-select(screenshot+capturing)만 cancelAreaSelect,
+        // 그 외 element-select picker(element 스타일 / 요소 캡처 picking)는 clear.
         if (captureMode === "screenshot" && phase === "capturing") {
           void chrome.tabs.sendMessage(tabId, { type: "picker.cancelAreaSelect" }).catch(() => {});
+        } else if (needsExpiry || needsReset) {
+          void clearPicker(tabId).catch(() => {});
         }
       }
     };
@@ -217,13 +233,13 @@ export function useEditorSessionSync(tabId: number | null): boolean {
         (captureMode === "screenshot" && phase === "capturing");
       if (needsReset) {
         useEditorStore.getState().reset();
-        if (captureMode === "element") {
-          void clearPicker(tabId).catch(() => {});
-        }
-        if (captureMode === "screenshot") {
+        // area-select(screenshot+capturing)만 cancelAreaSelect, element-select picker는 clear.
+        if (captureMode === "screenshot" && phase === "capturing") {
           void chrome.tabs
             .sendMessage(tabId, { type: "picker.cancelAreaSelect" })
             .catch(() => {});
+        } else {
+          void clearPicker(tabId).catch(() => {});
         }
         return;
       }

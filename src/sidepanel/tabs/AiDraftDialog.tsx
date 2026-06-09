@@ -78,8 +78,8 @@ export function AiDraftDialog({
           locale: settingsUi.locale,
           url: store.target?.url ?? "",
           pageTitle: store.target?.title ?? "",
-          selector: isElement ? store.selection?.selector : undefined,
-          tagName: isElement ? store.selection?.tagName : undefined,
+          selector: isElement ? store.selection?.selector : store.shotSelector?.selector,
+          tagName: isElement ? store.selection?.tagName : store.shotSelector?.tagName,
           diffs: isElement && elementDiffs?.length ? elementDiffs : undefined,
           tokens:
             isElement && store.tokens.length > 0

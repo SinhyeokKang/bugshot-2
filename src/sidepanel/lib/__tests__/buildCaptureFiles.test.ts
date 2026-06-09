@@ -63,35 +63,72 @@ const actionLog: ActionLog = {
   ],
 };
 
-describe("buildCaptureFiles — element mode", () => {
-  it("before·after 모두 있으면 둘 다 images에", async () => {
+describe("buildCaptureFiles — element mode (복수 element 배열)", () => {
+  it("단일 element: beforeImages/afterImages [1] → before-0/after-0", async () => {
     const out = await buildCaptureFiles({
       captureMode: "element",
-      beforeImage: "data:image/webp;base64,BEFORE",
-      afterImage: "data:image/webp;base64,AFTER",
+      beforeImages: ["data:image/webp;base64,BEFORE"],
+      afterImages: ["data:image/webp;base64,AFTER"],
     });
     expect(out.images).toEqual([
-      { filename: "before.webp", dataUrl: "data:image/webp;base64,BEFORE" },
-      { filename: "after.webp", dataUrl: "data:image/webp;base64,AFTER" },
+      { filename: "before-0.webp", dataUrl: "data:image/webp;base64,BEFORE" },
+      { filename: "after-0.webp", dataUrl: "data:image/webp;base64,AFTER" },
     ]);
     expect(out.video).toBeUndefined();
     expect(out.logs).toEqual([]);
   });
 
-  it("before만 있으면 before만", async () => {
+  it("복수 element: element별 before-${i}/after-${i} (element 묶음 순서)", async () => {
     const out = await buildCaptureFiles({
       captureMode: "element",
-      beforeImage: "data:image/webp;base64,BEFORE",
+      beforeImages: ["data:B0", "data:B1"],
+      afterImages: ["data:A0", "data:A1"],
     });
     expect(out.images).toEqual([
-      { filename: "before.webp", dataUrl: "data:image/webp;base64,BEFORE" },
+      { filename: "before-0.webp", dataUrl: "data:B0" },
+      { filename: "after-0.webp", dataUrl: "data:A0" },
+      { filename: "before-1.webp", dataUrl: "data:B1" },
+      { filename: "after-1.webp", dataUrl: "data:A1" },
     ]);
+  });
+
+  it("after가 null인 항목은 before만 (인덱스 유지)", async () => {
+    const out = await buildCaptureFiles({
+      captureMode: "element",
+      beforeImages: ["data:B0"],
+      afterImages: [null],
+    });
+    expect(out.images).toEqual([
+      { filename: "before-0.webp", dataUrl: "data:B0" },
+    ]);
+  });
+
+  it("중간 before가 null이면 skip하되 인덱스는 배열 위치 기준 유지", async () => {
+    const out = await buildCaptureFiles({
+      captureMode: "element",
+      beforeImages: ["data:B0", null],
+      afterImages: ["data:A0", "data:A1"],
+    });
+    expect(out.images).toEqual([
+      { filename: "before-0.webp", dataUrl: "data:B0" },
+      { filename: "after-0.webp", dataUrl: "data:A0" },
+      { filename: "after-1.webp", dataUrl: "data:A1" },
+    ]);
+  });
+
+  it("빈 배열이면 images 빈", async () => {
+    const out = await buildCaptureFiles({
+      captureMode: "element",
+      beforeImages: [],
+      afterImages: [],
+    });
+    expect(out.images).toEqual([]);
   });
 
   it("element는 networkLog/consoleLog 무시", async () => {
     const out = await buildCaptureFiles({
       captureMode: "element",
-      beforeImage: "data:image/webp;base64,BEFORE",
+      beforeImages: ["data:image/webp;base64,BEFORE"],
       networkLog,
       consoleLog,
     });
@@ -303,7 +340,7 @@ describe("buildCaptureFiles — freeform mode", () => {
   it("freeform + 이미지 무시", async () => {
     const out = await buildCaptureFiles({
       captureMode: "freeform",
-      beforeImage: "data:x",
+      beforeImages: ["data:x"],
       screenshotImage: "data:y",
       networkLog,
     });

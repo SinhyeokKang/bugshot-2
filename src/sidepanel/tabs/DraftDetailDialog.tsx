@@ -28,7 +28,6 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
-import { formatElementName } from "@/lib/element-label";
 import {
   POST_MEDIA_SECTION_IDS,
   sectionLabelKey,
@@ -63,6 +62,12 @@ import {
   StyleChangesTable,
   buildStyleDiff,
 } from "@/sidepanel/components/StyleChangesTable";
+import {
+  useDraftStyleElements,
+  loadDraftStyleImages,
+} from "@/sidepanel/hooks/useDraftStyleElements";
+import { resolveDraftStyleElements } from "@/sidepanel/lib/resolveDraftStyleElements";
+import { joinStyleSelectors } from "@/sidepanel/lib/buildIssueMarkdown";
 import { buildAiMetaAttachment } from "@/sidepanel/lib/buildAiMetaAttachment";
 import { buildCaptureFiles, type CaptureFiles } from "@/sidepanel/lib/buildCaptureFiles";
 import { deriveContextEnvRows } from "@/sidepanel/lib/buildReportData";
@@ -188,7 +193,11 @@ export function DraftDetailDialog({
   const isScreenshot = issue?.captureMode === "screenshot";
   const isVideo = issue?.captureMode === "video";
   const isFreeform = issue?.captureMode === "freeform";
-  const { beforeUrl, afterUrl } = useIssueImages(issue?.id ?? null, issue?.snapshot);
+  const { beforeUrl } = useIssueImages(issue?.id ?? null, issue?.snapshot);
+  const styleElements = useDraftStyleElements(
+    issue ?? null,
+    open && !isScreenshot && !isVideo && !isFreeform,
+  );
 
   const [networkLogData, setNetworkLogData] = useState<NetworkLog | null>(null);
   const [consoleLogData, setConsoleLogData] = useState<ConsoleLog | null>(null);
@@ -261,10 +270,19 @@ export function DraftDetailDialog({
     if (supportsActionLog(issue.captureMode) && issue.actionLogBlobKey) {
       actionLogForSubmit = await getActionLog(issue.actionLogBlobKey);
     }
+    // legacy no-diff draft fallback — 신규 경로는 diff 게이트로 미발생. media 폴백이
+    // 제거됐으므로 no-diff element draft는 screenshot 모드로 강등해 이미지를 노출한다.
+    const legacyNoDiff = !isScreenshot && !isVideo && !isFreeform && diffs.length === 0;
+    const isElement = !isScreenshot && !isVideo && !isFreeform && !legacyNoDiff;
+    // 현재 + 버퍼 element를 라이브와 동일 규칙으로 병합 — 본문·캡처 파일 인덱스 단일 출처.
+    const styleImages = isElement ? await loadDraftStyleImages(issue) : null;
+    const styleElementsForSubmit = styleImages
+      ? resolveDraftStyleElements(issue, styleImages)
+      : [];
     const ctx = {
       os: getOsInfo(),
       browser: parseChromeVersion(navigator.userAgent),
-      captureMode: issue.captureMode,
+      captureMode: legacyNoDiff ? "screenshot" : issue.captureMode,
       title: issue.draft.title,
       sections: issue.draft.sections,
       sectionConfig,
@@ -278,26 +296,23 @@ export function DraftDetailDialog({
       viewport: isFreeform ? (issue.viewport ?? null) : (issue.viewport ?? sel?.viewport ?? { width: 0, height: 0 }),
       capturedAt: sel?.capturedAt ?? issue.createdAt,
       diffs,
+      styleElements: isElement ? styleElementsForSubmit : undefined,
       environment: issue.draft.environment ?? [],
       networkLogSummary: networkLog ? buildNetworkLogSummary(networkLog) : undefined,
       consoleLogSummary: consoleLogForSubmit ? buildConsoleLogSummary(consoleLogForSubmit) : undefined,
     };
 
     const videoBlob = isVideo ? await getVideoBlob(issue.id) : null;
-    const beforeBlob = issue.snapshot.before ? await getImageBlob(issue.id, "before") : null;
-    const afterBlob = !isScreenshot && issue.snapshot.after
-      ? await getImageBlob(issue.id, "after")
+    const beforeBlob = (isScreenshot || legacyNoDiff) && issue.snapshot.before
+      ? await getImageBlob(issue.id, "before")
       : null;
     const beforeDataUrl = beforeBlob ? await blobToDataUrl(beforeBlob) : null;
-    const afterDataUrl = afterBlob ? await blobToDataUrl(afterBlob) : null;
-    const noDiffs = diffs.length === 0;
-    const isElementNoDiff = !isScreenshot && !isVideo && !isFreeform && noDiffs;
     const captureFiles = await buildCaptureFiles({
-      captureMode: isElementNoDiff ? "screenshot" : (issue.captureMode ?? "element"),
+      captureMode: legacyNoDiff ? "screenshot" : (issue.captureMode ?? "element"),
       videoBlob,
-      screenshotImage: isScreenshot || isElementNoDiff ? beforeDataUrl : null,
-      beforeImage: isScreenshot || isElementNoDiff ? null : beforeDataUrl,
-      afterImage: isElementNoDiff ? null : afterDataUrl,
+      screenshotImage: isScreenshot || legacyNoDiff ? beforeDataUrl : null,
+      beforeImages: isElement ? styleElementsForSubmit.map((e) => e.beforeImage ?? null) : undefined,
+      afterImages: isElement ? styleElementsForSubmit.map((e) => e.afterImage ?? null) : undefined,
       networkLog,
       consoleLog: consoleLogForSubmit,
       actionLog: actionLogForSubmit,
@@ -657,7 +672,7 @@ export function DraftDetailDialog({
                 <DialogTitle className="text-xl">{t("draftDetail.title")}</DialogTitle>
               </DialogHeader>
 
-              <Card className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overscroll-contain bg-background p-4">
+              <Card className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overscroll-contain bg-background p-4 shadow-none">
                 <FieldSection label={t("section.issueTitle")}>
                   {issue.draft.title ? (
                     <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">
@@ -676,8 +691,8 @@ export function DraftDetailDialog({
                   issue={issue}
                   sectionConfig={sectionConfig}
                   beforeUrl={beforeUrl}
-                  afterUrl={afterUrl}
                   diffs={diffs}
+                  styleElements={styleElements}
                   isVideo={isVideo}
                   hasScreenshot={hasScreenshot}
                   hasStyleBlock={hasStyleBlock}
@@ -810,8 +825,8 @@ function DraftDetailSections({
   issue,
   sectionConfig,
   beforeUrl,
-  afterUrl,
   diffs,
+  styleElements,
   isVideo,
   hasScreenshot,
   hasStyleBlock,
@@ -825,8 +840,8 @@ function DraftDetailSections({
   issue: IssueRecord;
   sectionConfig: IssueSection[];
   beforeUrl: string | null;
-  afterUrl: string | null;
   diffs: ReturnType<typeof buildStyleDiff>;
+  styleElements: import("@/sidepanel/lib/buildIssueMarkdown").StyleElementContext[];
   isVideo: boolean;
   hasScreenshot: boolean;
   hasStyleBlock: boolean;
@@ -858,13 +873,18 @@ function DraftDetailSections({
         </div>
       </FieldSection>
     ) : hasStyleBlock && diffs.length > 0 ? (
-      <FieldSection key="__media" label={t("section.styleChanges")}>
-        <StyleChangesTable
-          beforeImage={beforeUrl}
-          afterImage={afterUrl}
-          diffs={diffs}
-        />
-      </FieldSection>
+      styleElements.map((el) => (
+        <FieldSection
+          key={el.selector}
+          label={`${t("section.styleChanges")} (${el.selector})`}
+        >
+          <StyleChangesTable
+            beforeImage={el.beforeImage ?? null}
+            afterImage={el.afterImage ?? null}
+            diffs={el.diffs}
+          />
+        </FieldSection>
+      ))
     ) : hasStyleBlock ? (
       <FieldSection key="__media" label={t("section.media")}>
         {beforeUrl ? (
@@ -924,21 +944,18 @@ function DraftDetailSections({
 function EnvBlock({ issue }: { issue: IssueRecord }) {
   const os = getOsInfo();
   const browser = parseChromeVersion(navigator.userAgent);
+  // 버퍼+현재 element 병합 selector를 쉼표로 나열(이미지는 selector에 무관 → 빈 값).
+  const styleElements = resolveDraftStyleElements(issue, {
+    before: null,
+    after: null,
+    buffered: [],
+  });
+  const domLabel = joinStyleSelectors(styleElements, issue.selector);
   const rows: { label: string; value: string }[] = [
     ...(os ? [{ label: "OS", value: os }] : []),
     ...(browser ? [{ label: "Browser", value: browser }] : []),
     { label: "Page", value: issue.pageUrl || "-" },
-    ...(issue.captureMode !== "video" && issue.captureMode !== "freeform" && issue.tagName
-      ? [
-          {
-            label: "DOM",
-            value: formatElementName({
-              tag: issue.tagName,
-              classList: issue.selectionSnapshot?.classList ?? [],
-            }),
-          },
-        ]
-      : []),
+    ...(domLabel ? [{ label: "DOM", value: domLabel }] : []),
   ];
   const vp = issue.viewport ?? issue.selectionSnapshot?.viewport;
   if (vp) {

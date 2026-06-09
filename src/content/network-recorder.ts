@@ -1,5 +1,6 @@
 import { BODY_CAP, classifyBeaconBody, classifyResponseBody, createPatchedFetch, headersToRecord } from "./network-recorder-helpers";
 import type { FetchRecordHook } from "./network-recorder-helpers";
+import { createTrailingThrottle, FLUSH_INTERVAL_MS } from "./log-throttle";
 import type { NetworkRequestBody, NetworkRequestPhase } from "@/types/network";
 
 function networkRecorderScript(): void {
@@ -7,7 +8,7 @@ function networkRecorderScript(): void {
   if ((window as any)[CTRL_KEY]) return; // 이미 초기화됨
 
   const MEMORY_CAP = 50 * 1024 * 1024; // 50 MB
-  const MAX_REQUEST_ENTRIES = 5000; // log-merge.ts NETWORK_MAX_ENTRIES와 동일 유지 (MAIN world 격리로 import 불가)
+  const MAX_REQUEST_ENTRIES = 5000; // log-merge.ts NETWORK_MAX_ENTRIES와 동일 유지 (sidepanel 번들 격리로 값 동기화)
   const SET_SENTINEL_EVENT = "__bugshot_net_setSentinel__";
 
   const MASKED_HEADERS = new Set([
@@ -270,6 +271,7 @@ function networkRecorderScript(): void {
     memoryUsed += estimateBodySize(entry.requestBody);
     pushEntry(entry);
     enforceMemoryCap();
+    throttle.schedule();
 
     return async ({ response, error }) => {
       if (error || !response) {
@@ -411,6 +413,7 @@ function networkRecorderScript(): void {
     memoryUsed += estimateBodySize(entry.requestBody);
     pushEntry(entry);
     enforceMemoryCap();
+    throttle.schedule();
 
     // load / error / abort / timeout이 한 요청에 동시에 발화되는 일은 없지만,
     // race로 두 번 갱신되는 일을 막기 위해 captured 가드를 둔다.
@@ -518,6 +521,7 @@ function networkRecorderScript(): void {
         memoryUsed += estimateBodySize(entry.requestBody);
         pushEntry(entry);
         enforceMemoryCap();
+        throttle.schedule();
       }
       return queued;
     };
@@ -543,6 +547,11 @@ function networkRecorderScript(): void {
     );
   }
 
+  // recording 게이트를 통과한 pending push 지점에서만 schedule → 최대 FLUSH_INTERVAL_MS마다 실시간 dispatch.
+  // 응답 갱신(complete/error in-place)에는 schedule하지 않는다 — 다음 trailing 주기·sync·pagehide에
+  // 전체 버퍼로 나가고 mergeLogItems id dedup이 최신본으로 흡수(complete 반영 최대 200ms 지연, 무손실).
+  const throttle = createTrailingThrottle(dispatch, FLUSH_INTERVAL_MS);
+
   function clearBuffer(): void {
     buffer.length = 0;
     totalSeen = 0;
@@ -561,9 +570,9 @@ function networkRecorderScript(): void {
     detachSentinelListeners();
     currentSentinel = sentinel;
     recording = true;
-    stopHandler = () => { recording = false; dispatch(); };
-    syncHandler = () => { dispatch(); };
-    clearHandler = () => { clearBuffer(); };
+    stopHandler = () => { recording = false; throttle.flushNow(); };
+    syncHandler = () => { throttle.flushNow(); };
+    clearHandler = () => { clearBuffer(); throttle.cancel(); };
     document.addEventListener("__bugshot_net_stop__" + sentinel, stopHandler);
     document.addEventListener("__bugshot_net_sync__" + sentinel, syncHandler);
     document.addEventListener("__bugshot_net_clear__" + sentinel, clearHandler);
@@ -575,7 +584,11 @@ function networkRecorderScript(): void {
   });
 
   // 풀 네비게이션으로 MAIN world가 파괴되기 직전 버퍼 flush(보조). sentinel 없으면 dispatch no-op.
-  window.addEventListener("pagehide", () => dispatch());
+  window.addEventListener("pagehide", () => throttle.flushNow());
+  // 탭 숨김 직전 최신 꼬리까지 flush(안전망 다중화). hidden 외 상태 변화는 무시.
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") throttle.flushNow();
+  });
 
   (window as any)[CTRL_KEY] = { setSentinel, clearBuffer };
 }

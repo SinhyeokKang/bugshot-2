@@ -4,7 +4,8 @@ import {
   ArrowUpRight,
   BookOpen,
   SquareMousePointer,
-  Camera,
+  SquareDashed,
+  SquareDashedMousePointer,
   CircleCheck,
   Crosshair,
   ImageIcon,
@@ -24,6 +25,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { ButtonGroup } from "@/components/ui/button-group";
 import {
   Tooltip,
   TooltipContent,
@@ -41,6 +43,7 @@ import {
   startPicker,
   stopPicker,
   startAreaCapture,
+  startElementShot,
   cancelAreaCapture,
   clearPicker,
   startFreeformDraft,
@@ -121,6 +124,7 @@ export function IssueTab() {
     return (
       <EmptyState
         onStartElement={() => void startPicker(tabId)}
+        onStartElementShot={() => void startElementShot(tabId)}
         onStartScreenshot={() => void startAreaCapture(tabId)}
         onStartVideo={() => void startVideoCapture(tabId)}
         onStartFreeform={() => void startFreeformDraft(tabId)}
@@ -167,7 +171,7 @@ function ShortcutTooltip({
   );
 }
 
-function EmptyState({ onStartElement, onStartScreenshot, onStartVideo, onStartFreeform }: { onStartElement: () => void; onStartScreenshot: () => void; onStartVideo: () => void; onStartFreeform: () => void }) {
+function EmptyState({ onStartElement, onStartElementShot, onStartScreenshot, onStartVideo, onStartFreeform }: { onStartElement: () => void; onStartElementShot: () => void; onStartScreenshot: () => void; onStartVideo: () => void; onStartFreeform: () => void }) {
   const t = useT();
   const shortcuts = useCommandShortcuts();
   const locale = useSettingsUiStore((s) => s.locale);
@@ -181,26 +185,34 @@ function EmptyState({ onStartElement, onStartScreenshot, onStartVideo, onStartFr
           <h3 className="whitespace-pre-line text-center text-lg font-semibold">{t("issue.empty.title")}</h3>
         </div>
         <TooltipProvider delayDuration={0}>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="flex w-full max-w-[336px] flex-col gap-2">
             <ShortcutTooltip shortcut={shortcuts["capture-element"]}>
-              <Button className="col-span-2" onClick={onStartElement}>
+              <Button className="w-full" onClick={onStartElement}>
                 <Crosshair />
                 {t("issue.mode.element")}
               </Button>
             </ShortcutTooltip>
-            <ShortcutTooltip shortcut={shortcuts["capture-screenshot"]}>
-              <Button variant="outline" onClick={onStartScreenshot}>
-                <Camera />
-                {t("issue.mode.screenshot")}
+            <ButtonGroup className="w-full">
+              <Button variant="outline" className="flex-1" onClick={onStartElementShot}>
+                <SquareDashedMousePointer />
+                {t("issue.mode.elementShot")}
               </Button>
-            </ShortcutTooltip>
-            <ShortcutTooltip shortcut={shortcuts["capture-video"]}>
-              <Button variant="outline" onClick={onStartVideo}>
-                <Video />
-                {t("issue.mode.video")}
-              </Button>
-            </ShortcutTooltip>
-            <ReplayButton />
+              <ShortcutTooltip shortcut={shortcuts["capture-screenshot"]}>
+                <Button variant="outline" className="flex-1" onClick={onStartScreenshot}>
+                  <SquareDashed />
+                  {t("issue.mode.screenshot")}
+                </Button>
+              </ShortcutTooltip>
+            </ButtonGroup>
+            <ButtonGroup className="w-full">
+              <ShortcutTooltip shortcut={shortcuts["capture-video"]}>
+                <Button variant="outline" className="flex-1" onClick={onStartVideo}>
+                  <Video />
+                  {t("issue.mode.video")}
+                </Button>
+              </ShortcutTooltip>
+              <ReplayButton />
+            </ButtonGroup>
           </div>
         </TooltipProvider>
       </div>
@@ -236,7 +248,7 @@ function ReplayButton() {
   // 설정 off — 비활성처럼 보이되 클릭은 가능하게 해 설정의 캡처 sub-tab으로 보낸다.
   const button = !replayEnabled ? (
     <Button
-      className="w-full opacity-50"
+      className="flex-1 rounded-l-none border-l-0 opacity-50"
       variant="outline"
       aria-disabled
       onClick={() => navTo("settings", "issue")}
@@ -246,10 +258,13 @@ function ReplayButton() {
     </Button>
   ) : (
     <Button
-      className="w-full"
+      className="flex-1 rounded-l-none border-l-0 aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
       variant="outline"
-      disabled={!isReady || isEncoding}
-      onClick={() => void capture()}
+      aria-disabled={!isReady || isEncoding}
+      onClick={() => {
+        if (!isReady || isEncoding) return;
+        void capture();
+      }}
     >
       {isEncoding ? <Loader2 className="animate-spin" /> : <Timer />}
       {isEncoding
@@ -260,13 +275,11 @@ function ReplayButton() {
     </Button>
   );
 
-  if (!tooltip) return <div className="col-span-2">{button}</div>;
+  if (!tooltip) return button;
 
   return (
     <Tooltip>
-      <TooltipTrigger asChild>
-        <span className="col-span-2 inline-flex">{button}</span>
-      </TooltipTrigger>
+      <TooltipTrigger asChild>{button}</TooltipTrigger>
       <TooltipContent>{tooltip}</TooltipContent>
     </Tooltip>
   );

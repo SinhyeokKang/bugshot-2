@@ -22,7 +22,7 @@ import {
   StyleChangesTable,
   buildStyleDiff,
 } from "@/sidepanel/components/StyleChangesTable";
-import { buildIssueHtml, buildIssueMarkdown, type MarkdownContext } from "@/sidepanel/lib/buildIssueMarkdown";
+import { buildIssueHtml, buildIssueMarkdown, mergeStyleElements, joinStyleSelectors, type MarkdownContext } from "@/sidepanel/lib/buildIssueMarkdown";
 import { buildMarkdownContext } from "@/sidepanel/lib/buildMarkdownContext";
 import { filterEnvironmentRows, parseChromeVersion } from "@/sidepanel/lib/environmentRows";
 import { getOsInfo } from "@/sidepanel/lib/osInfo";
@@ -38,12 +38,14 @@ export function PreviewPanel() {
   const selection = useEditorStore((s) => s.selection);
   const target = useEditorStore((s) => s.target);
   const styleEdits = useEditorStore((s) => s.styleEdits);
+  const bufferedElements = useEditorStore((s) => s.bufferedElements);
   const tokens = useEditorStore((s) => s.tokens);
   const beforeImage = useEditorStore((s) => s.beforeImage);
   const afterImage = useEditorStore((s) => s.afterImage);
   const screenshotAnnotated = useEditorStore((s) => s.screenshotAnnotated);
   const screenshotRaw = useEditorStore((s) => s.screenshotRaw);
   const screenshotViewport = useEditorStore((s) => s.screenshotViewport);
+  const shotSelector = useEditorStore((s) => s.shotSelector);
   const screenshotCapturedAt = useEditorStore((s) => s.screenshotCapturedAt);
   const videoBlob = useEditorStore((s) => s.videoBlob);
   const videoThumbnail = useEditorStore((s) => s.videoThumbnail);
@@ -74,6 +76,26 @@ export function PreviewPanel() {
   const diffs = useMemo(
     () => (selection ? buildStyleDiff(selection, styleEdits) : []),
     [selection, styleEdits],
+  );
+
+  const styleElements = useMemo(
+    () =>
+      selection
+        ? mergeStyleElements(bufferedElements, {
+            selection: {
+              selector: selection.selector,
+              tagName: selection.tagName,
+              classList: selection.classList,
+              computedStyles: selection.computedStyles,
+              specifiedStyles: selection.specifiedStyles,
+              text: selection.text,
+            },
+            styleEdits,
+            before: beforeImage,
+            after: afterImage,
+          })
+        : [],
+    [selection, styleEdits, bufferedElements, beforeImage, afterImage],
   );
 
   const [networkDialogOpen, setNetworkDialogOpen] = useState(false);
@@ -114,7 +136,7 @@ export function PreviewPanel() {
     { label: "Page", value: target?.url || "-" },
   ];
   if (isElementMode && selection) {
-    envRows.push({ label: "DOM", value: selection.selector });
+    envRows.push({ label: "DOM", value: joinStyleSelectors(styleElements, selection.selector) });
     envRows.push({ label: "Viewport", value: `${selection.viewport.width}×${selection.viewport.height}` });
     envRows.push({ label: "Captured", value: formatTimestamp(selection.capturedAt) });
   } else {
@@ -139,13 +161,18 @@ export function PreviewPanel() {
       <PreviewVideo blob={videoBlob} thumbnail={videoThumbnail} />
     </Section>
   ) : isElementMode ? (
-    <Section title={t("section.styleChanges")}>
-      <StyleChangesTable
-        beforeImage={beforeImage}
-        afterImage={afterImage}
-        diffs={diffs}
-      />
-    </Section>
+    styleElements.map((el) => (
+      <Section
+        key={el.selector}
+        title={`${t("section.styleChanges")} (${el.selector})`}
+      >
+        <StyleChangesTable
+          beforeImage={el.beforeImage ?? null}
+          afterImage={el.afterImage ?? null}
+          diffs={el.diffs}
+        />
+      </Section>
+    ))
   ) : (
     <Section title={t("section.media")}>
       {screenshotImage ? (
@@ -233,6 +260,18 @@ export function PreviewPanel() {
         styleEditsClassList: styleEdits.classList,
         tokens,
         diffs,
+        bufferedElements,
+        mergeCurrent: {
+          selection: {
+            selector: selection.selector,
+            tagName: selection.tagName,
+            classList: selection.classList,
+            computedStyles: selection.computedStyles,
+            specifiedStyles: selection.specifiedStyles,
+            text: selection.text,
+          },
+          styleEdits,
+        },
       });
     } else if (captureMode === "screenshot") {
       ctx = buildMarkdownContext({
@@ -246,6 +285,8 @@ export function PreviewPanel() {
         environment: draft.environment ?? [],
         viewport: screenshotViewport ?? { width: 0, height: 0 },
         capturedAt: screenshotCapturedAt ?? Date.now(),
+        selector: shotSelector?.selector,
+        tagName: shotSelector?.tagName,
       });
     } else {
       return;

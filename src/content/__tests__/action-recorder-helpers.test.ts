@@ -3,6 +3,7 @@ import {
   shouldMaskField,
   maskValue,
   truncateName,
+  entryNavOnBind,
 } from "../action-recorder-helpers";
 
 describe("shouldMaskField", () => {
@@ -59,5 +60,25 @@ describe("truncateName", () => {
     const out = truncateName("A".repeat(200))!;
     expect(out.length).toBeLessThan(200);
     expect(out.endsWith("…")).toBe(true);
+  });
+});
+
+describe("entryNavOnBind", () => {
+  it("최초 bind면 referrer→현재 URL 진입 네비게이션을 반환", () => {
+    expect(
+      entryNavOnBind(false, "https://app.com/login", "https://app.com/login", "https://idp.com/authorize"),
+    ).toEqual({ fromUrl: "https://app.com/login", toUrl: "https://idp.com/authorize" });
+  });
+
+  it("referrer가 비면 lastUrl로 fallback (cross-origin referrer 정책으로 referrer 소실 대비)", () => {
+    expect(
+      entryNavOnBind(false, "", "https://idp.com/authorize", "https://app.com/callback"),
+    ).toEqual({ fromUrl: "https://idp.com/authorize", toUrl: "https://app.com/callback" });
+  });
+
+  it("이미 emit했으면 null — 같은 페이지 재bind(setSentinel 재호출) 시 중복 방지", () => {
+    expect(
+      entryNavOnBind(true, "https://app.com", "https://app.com", "https://idp.com"),
+    ).toBeNull();
   });
 });

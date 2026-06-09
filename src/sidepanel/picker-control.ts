@@ -52,6 +52,28 @@ async function ensureContentScript(tabId: number): Promise<void> {
   throw new PickerUnavailableError();
 }
 
+// recorder-bridge.ts(ISOLATED, all_frames)를 programmatic 재주입한다. 정적 주입만으론 확장
+// reload 후 기존 탭에서 ISOLATED world가 재생성돼 브리지가 dormant로 남는데(picker.ts는
+// ensureContentScript로 되살아나지만 분리된 브리지는 별도), capture 시작 시 재주입해 자가복구한다.
+// 브리지의 BRIDGE_FLAG 가드가 멱등성을 보장하므로 정상 케이스에선 리스너 중복 없음.
+async function ensureRecorderBridge(tabId: number): Promise<void> {
+  const manifest = chrome.runtime.getManifest();
+  const entry = manifest.content_scripts?.find(
+    (cs) =>
+      cs.all_frames === true && (cs as { world?: string }).world !== "MAIN",
+  );
+  const files = entry?.js;
+  if (!files?.length) return;
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId, allFrames: true },
+      files,
+    });
+  } catch {
+    // host permission이 없거나 정책 차단 페이지
+  }
+}
+
 async function ensureMainWorldRecorders(tabId: number): Promise<void> {
   const manifest = chrome.runtime.getManifest();
   const entry = manifest.content_scripts?.find(
@@ -79,6 +101,41 @@ async function send<R = void>(
   } catch {
     return undefined;
   }
+}
+
+// 활성 sentinel 보유 — 캡처 시작 이후 커밋된 iframe에 재발행하기 위해 탭별로 최신값을 기억한다.
+type TabSentinels = { network?: string; console?: string; action?: string };
+const tabSentinels = new Map<number, TabSentinels>();
+
+function rememberSentinel(
+  tabId: number,
+  kind: keyof TabSentinels,
+  sentinel: string,
+): void {
+  const s = tabSentinels.get(tabId) ?? {};
+  s[kind] = sentinel;
+  tabSentinels.set(tabId, s);
+}
+
+// stop 시 호출 — 종료된 sentinel이 이후 커밋된 iframe에 재발행되는 것을 막고 맵 누적을 정리한다.
+function forgetSentinel(tabId: number, kind: keyof TabSentinels): void {
+  const s = tabSentinels.get(tabId);
+  if (!s) return;
+  delete s[kind];
+  if (!s.network && !s.console && !s.action) tabSentinels.delete(tabId);
+}
+
+// 특정 프레임에만 setSentinel을 재전송(frameId 지정). setSentinel은 recording=true만 켜고 버퍼를
+// 비우지 않아(코드 검증), 기존 프레임이 동일 sentinel을 재수신해도 누적 로그가 보존된다.
+export function rebroadcastSentinelsToFrame(tabId: number, frameId: number): void {
+  const s = tabSentinels.get(tabId);
+  if (!s) return;
+  const sendToFrame = (msg: PickerMessage): void => {
+    chrome.tabs.sendMessage(tabId, msg, { frameId }).catch(() => {});
+  };
+  if (s.network) sendToFrame({ type: "networkRecorder.setSentinel", sentinel: s.network });
+  if (s.console) sendToFrame({ type: "consoleRecorder.setSentinel", sentinel: s.console });
+  if (s.action) sendToFrame({ type: "actionRecorder.setSentinel", sentinel: s.action });
 }
 
 async function getPageUrl(tabId: number): Promise<string | undefined> {
@@ -170,8 +227,8 @@ export async function applyText(tabId: number, text: string): Promise<void> {
   await send(tabId, { type: "picker.applyText", text });
 }
 
-export async function resetEdits(tabId: number): Promise<void> {
-  await send(tabId, { type: "picker.resetEdits" });
+export async function resetAllEdits(tabId: number): Promise<void> {
+  await send(tabId, { type: "picker.resetAllEdits" });
 }
 
 export async function collectTokens(tabId: number): Promise<Token[]> {
@@ -261,6 +318,35 @@ export async function startAreaCapture(tabId: number): Promise<void> {
   }
 }
 
+export async function startElementShot(tabId: number): Promise<void> {
+  let tab: chrome.tabs.Tab;
+  try {
+    tab = await chrome.tabs.get(tabId);
+  } catch (err) {
+    console.error("[bugshot] element shot start failed", err);
+    return;
+  }
+  if (!(await ensureSupportedTab(tab))) return;
+  useEditorStore.getState().startElementShot({
+    tabId,
+    url: tab.url ?? "",
+    title: tab.title ?? "",
+  });
+  try {
+    await ensureContentScript(tabId);
+    await chrome.tabs.sendMessage<PickerMessage>(tabId, {
+      type: "picker.start",
+    });
+  } catch (err) {
+    if (err instanceof PickerUnavailableError) {
+      onPickerUnavailable.fire();
+    } else {
+      console.error("[bugshot] element shot start failed", err);
+    }
+    useEditorStore.getState().reset();
+  }
+}
+
 export async function startInlineAreaCapture(tabId: number): Promise<void> {
   let tab: chrome.tabs.Tab;
   try {
@@ -297,13 +383,16 @@ export async function cancelAreaCapture(tabId: number): Promise<void> {
 
 export async function activateNetworkRecorder(tabId: number): Promise<string> {
   await ensureContentScript(tabId);
+  await ensureRecorderBridge(tabId);
   await ensureMainWorldRecorders(tabId);
   const sentinel = crypto.randomUUID();
+  rememberSentinel(tabId, "network", sentinel);
   await send(tabId, { type: "networkRecorder.setSentinel", sentinel });
   return sentinel;
 }
 
 export async function stopNetworkRecorder(tabId: number): Promise<void> {
+  forgetSentinel(tabId, "network");
   await send(tabId, { type: "networkRecorder.stop" });
 }
 
@@ -313,13 +402,16 @@ export async function syncNetworkRecorder(tabId: number): Promise<void> {
 
 export async function activateConsoleRecorder(tabId: number): Promise<string> {
   await ensureContentScript(tabId);
+  await ensureRecorderBridge(tabId);
   await ensureMainWorldRecorders(tabId);
   const sentinel = crypto.randomUUID();
+  rememberSentinel(tabId, "console", sentinel);
   await send(tabId, { type: "consoleRecorder.setSentinel", sentinel });
   return sentinel;
 }
 
 export async function stopConsoleRecorder(tabId: number): Promise<void> {
+  forgetSentinel(tabId, "console");
   await send(tabId, { type: "consoleRecorder.stop" });
 }
 
@@ -329,13 +421,16 @@ export async function syncConsoleRecorder(tabId: number): Promise<void> {
 
 export async function activateActionRecorder(tabId: number): Promise<string> {
   await ensureContentScript(tabId);
+  await ensureRecorderBridge(tabId);
   await ensureMainWorldRecorders(tabId);
   const sentinel = crypto.randomUUID();
+  rememberSentinel(tabId, "action", sentinel);
   await send(tabId, { type: "actionRecorder.setSentinel", sentinel });
   return sentinel;
 }
 
 export async function stopActionRecorder(tabId: number): Promise<void> {
+  forgetSentinel(tabId, "action");
   await send(tabId, { type: "actionRecorder.stop" });
 }
 

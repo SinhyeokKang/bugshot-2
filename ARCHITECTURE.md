@@ -39,6 +39,8 @@ chrome.action.onClicked.addListener((tab) => {
 - `useEditorSessionSync(tabId)` 훅이 hydration + debounced save(300ms) 담당 (zustand persist 미들웨어 대신 직접 구현 — tabId-scoped 키가 persist의 "one store, one key" 모델에 맞지 않음)
 - origin 변경 시 해당 탭의 세션은 버림 (`clearIfOriginChanged` in `tab-bindings.ts`)
 - 탭 닫히면 `onRemoved`에서 정리
+- **복수 element 버퍼(`bufferedElements`)도 세션 영속화**된다. 단 phase별 보존이 비대칭: `styling`에서 세션 만료/`reset`이 걸리면 버퍼가 폐기되고, `drafting`/`previewing`/`done`은 `selection`과 동일하게 스냅샷에 포함돼 패널을 닫았다 열어도 복원된다. quota 초과 시 lite 폴백이 버퍼 내부 before/after base64까지 명시적으로 null화.
+- **draft 영속화도 버퍼 전체를 포함**한다. draft로 저장하면 버퍼가 `IssueRecord.bufferedElements`(+ element별 `b${i}-before/after` 이미지 blob in `blob-db`)로 IndexedDB에 저장되고, `DraftDetailDialog` 재오픈 시 전체가 복원·재제출 본문에 모두 포함된다. `resolveDraftStyleElements`가 라이브 `mergeStyleElements`와 동일 규칙으로 병합(`useDraftStyleElements`가 이미지 로드)해 라이브 세션과 결과가 일치. `IssueRecord.bufferedElements`는 optional이라 구 draft는 자동 하위호환(단일 element). 이슈 삭제 시 `deleteImageBlobs`가 `${issueId}:` 접두사 전체를 지워 버퍼 이미지 고아를 방지.
 
 ## 플랫폼 인증
 
@@ -103,6 +105,8 @@ shorthand(var 포함) + 같은 shorthand의 longhand override 조합에서 Chrom
 
 `src/content/recorders-entry.ts`를 MAIN world `document_start`로 등록해 fetch/XHR/sendBeacon/console/사용자 액션을 자동 wrap. 페이지 스크립트보다 먼저 실행되므로 Sentry 등이 `originalFetch` 캐싱 전에 wrap 설치.
 
+**iframe 커버리지**: 로그 레코더는 picker(`picker.ts`, top frame 한정)와 분리된 별도 content_scripts 2개로 **모든 프레임**(`all_frames: true`)에 주입한다 — `recorders-entry.ts`(MAIN, 후크 본체)와 `recorder-bridge.ts`(ISOLATED, sentinel 수신·`recorder.*` data를 `chrome.runtime`으로 중계). 각 프레임 레코더는 entry를 자기 프레임의 `pageUrl: location.href`로 스탬프 → cross-origin iframe(Stripe·임베드 위젯 등) 로그도 캡처되고 출처가 위조 불가. `picker.ts`에 있던 인라인 로그 브리지는 이 파일로 추출됨. `webNavigation.onCommitted`(iframe `frameId !== 0`) 시 `picker-control.ts:rebroadcastSentinelsToFrame`가 그 프레임에만 sentinel을 재발행해 늦게 뜬 iframe도 활성 세션에 합류(setSentinel은 `recording=true`만 켜고 버퍼는 비우지 않아 재수신 안전). origin은 entry `pageUrl`에서 `originOf()`로 런타임 파생(데이터 모델 불변) — ① cap evict 시 `mergeLogItems`의 `topOrigin` 인자로 top-page-origin을 우선 보존(cross-origin = 주로 광고 iframe부터 oldest evict; **console/network만** — action은 광고가 폭증시키지 않아 순수 FIFO 유지로 `topOrigin` 미전달), ② 로그 탭에 출처별 필터(`OriginFilterBar`, console/network 공용, origin 2개+ 일 때만 노출). opaque(`data:`/`about:blank` → `originOf`가 `"null"`) 출처는 필터에서 `UNKNOWN_ORIGIN` 한 그룹으로 묶는다.
+
 **활성 게이트**: 세 레코더의 `recording` 기본값은 `false` — wrap은 document_start에 설치하되 **패널이 탭에 활성인 동안만** 적재한다. 패널 주입 시 `setSentinel`로 `true`, 패널 닫힘(`port.onDisconnect`)·탭 전환(`tab-bindings.ts` `onActivated`에서 직전 활성 탭에 stop)으로 `false`. `recording=false`면 fetch는 `createPatchedFetch`의 `shouldRecord` 게이트로 원본 경로(`new Request` 재구성 없음), XHR/sendBeacon/console/action은 push 차단 — 미활성 탭 트래픽에 일절 간섭하지 않는다. 같은 탭으로 (네비게이션 없이) 복귀해 패널 문서가 살아 있으면 패널 `visibilitychange`(visible)가 재주입을 트리거해 stop과 대칭을 맞춘다.
 
 **페이지 무간섭(예외 격리)**: 세 레코더는 MAIN world에서 페이지와 같은 전역을 공유하므로 wrap이 페이지 동작을 절대 깨뜨리면 안 된다. 불변식 — ① 원본(fetch/XHR/`console.*`/`history.pushState·replaceState`)을 **먼저** 호출해 페이지 동작 보존, ② 기록 로직의 throw는 try/catch로 격리해 페이지 호출자로 전파 금지(`createPatchedFetch` record/settle, XHR `recordXhrSend`, console wrap의 `safeStringify`, action history wrap 모두 격리), ③ 응답 본문 read는 settle을 await하지 않음. 특히 `safeStringify`는 페이지 값의 throwing getter·커스텀 `toString`/`Symbol.toPrimitive`·Proxy trap에도 `[unserializable]`로 흡수해 wrap된 `console.log`(=페이지 코드)가 throw하지 않게 한다. 리팩터 시 이 3원칙을 깨면 페이지 요청·라우팅·콘솔이 깨질 수 있다(과거 fetch `new Request` 재구성이 GitHub 업로드·SigV4를 깬 회귀 전례).
@@ -113,9 +117,13 @@ shorthand(var 포함) + 같은 shorthand의 longhand override 조합에서 Chrom
 
 **Console wrap 범위**: `log/info/debug` + `trace/assert/dir/table/group*/count*/time*`만 wrap. **`error/warn`은 의도적 제외** — wrap 함수가 콜스택에 끼면 Chrome이 확장 attribution해 `chrome://extensions`에 페이지 라이브러리 경고 누적. 진짜 에러는 `window.addEventListener("error")`/`unhandledrejection`/`console.assert`로 별도 캡처.
 
-**액션 레코더**: click/input/change를 capture-phase에서, `pushState`/`replaceState` 래핑 + `popstate`/`hashchange`로 네비게이션 기록. 클릭은 가까운 interactive 요소로 정규화, accessible name과 implicit role을 **분리 저장** — 자연어 문장 조립은 뷰어(`ActionLogContent`)의 i18n 레이어가 담당. 입력은 같은 selector 연속 dedup. **민감 필드 마스킹**: `shouldMaskField`가 type=password, autocomplete 힌트, 필드명 키워드(`password|secret|card|cvv|ssn|token` 등)로 판별해 `***` 치환.
+**액션 레코더**: click/input/change를 capture-phase에서, `pushState`/`replaceState` 래핑 + `popstate`/`hashchange`로 네비게이션 기록. 클릭은 가까운 interactive 요소로 정규화, accessible name과 implicit role을 **분리 저장** — 자연어 문장 조립은 뷰어(`ActionLogContent`)의 i18n 레이어가 담당. 입력은 같은 selector 연속 dedup. **민감 필드 마스킹**: `shouldMaskField`가 type=password, autocomplete 힌트, 필드명 키워드(`password|secret|card|cvv|ssn|token` 등)로 판별해 `***` 치환. 녹화 bind(`setSentinel`) 시 현재 페이지 진입 `load` 네비게이션을 1회 보충(`entryNavOnBind`) — document_start의 load는 `recording=false`라 버려지므로 cross-origin 진입 자취가 사라지는 것을 메운다.
 
-**Cross-page 누적**: 네비게이션을 넘어 로그 누적. 떠나는 페이지 로그 꼬리는 `webNavigation.onBeforeNavigate`(주) + content `pagehide`(보조)로 sync. `mergeLogItems`가 id dedup + 시간 정렬 + maxEntries FIFO trim. `onCommitted` 시점에 `shouldClearLogs`로 초기화 판정 — cross-origin 또는 reload 시 리셋, same-origin 내부 이동은 보존. `isLogFrozen(phase)` = drafting/previewing/done일 때 머지 동결.
+**스트리밍 throttle**: 레코더는 버퍼를 모았다 nav 시점에만 보내지 않고, entry 발생 시 `createTrailingThrottle`(`log-throttle.ts`, `FLUSH_INTERVAL_MS=200`)로 사이드패널에 **연속 stream**한다 — trailing throttle이라 로그 폭주 중에도 flush가 무한정 밀리지 않고 최대 200ms마다 1회 보장. 떠나는 페이지의 마지막 꼬리는 `pagehide`/`visibilitychange(hidden)`에서 `flushNow`로 즉시 비운다. 이로써 nav 직전 동기 sync 1회에 의존하던 꼬리 손실을 줄인다(log-tail-reliability). network의 in-place phase 갱신(pending→complete/error)은 schedule을 안 켜도 다음 push·flush가 흡수(id dedup).
+
+**수신부 IDB 가드**: 사이드패널은 store set(메모리)은 매번, IndexedDB write는 `createLogPersistGuard`(`log-persist-guard.ts`, ~1s trailing throttle)로 묶어 "마지막 push payload"만 저장. **save가 throw하면 `pending`을 비우지 않아** 다음 push/flush에서 재시도(c3d87e5 회귀 수정). 30s replay trim 경로는 `discard()`로 대기 payload를 폐기해 trim 경계 밖 로그의 IDB 부활을 막는다.
+
+**Cross-page 누적**: 네비게이션을 넘어 로그 누적. `mergeLogItems`가 id dedup + 시간 정렬 + maxEntries FIFO trim(topOrigin 주어지면 cross-origin 우선 evict — iframe 커버리지 항목 참조). `onCommitted` 시점에 `shouldClearLogs`로 초기화 판정 — cross-origin 또는 reload 시 리셋, same-origin 내부 이동은 보존. 단 사이드패널 `logClear` 핸들러가 `shouldPreserveBackgroundLogs(phase)`(recording/drafting/previewing/done)로 가드 → **녹화 중 cross-origin 이동도 로그를 유지**(진행 중 캡처가 페이지를 가로지른 한 세션이므로). `isLogFrozen(phase)` = drafting/previewing/done일 때 머지 동결.
 
 **Freeze/Settle**: freeze 전환 직전 `syncAndSettleLogs`가 sync 후 반영 대기(store `endedAt` 증가 감지, 상한 300ms)해 진입 직전 로그를 고정. 30s replay는 settle 후 프레임 버퍼 구간으로 추가 trim.
 
@@ -210,5 +218,7 @@ draft 모델: `{ title, sections: Record<string, string>, environment?: Environm
 **재현 환경**: `ReproEnvironmentSection`이 모드별 메타를 readonly 표시 + `draft.environment` 사용자 정의 row 편집. 순수 헬퍼: `filterEnvironmentRows`(빈 row 제거) / `deriveReadonlyEnvRows`(모드별 파생).
 
 **자동 메타 위치**: `POST_MEDIA_SECTION_IDS = {"expectedResult","notes"}` — 첫 해당 섹션 직전에 media/styleChanges emit. 둘 다 disabled면 모든 섹션 끝에 emit. 5종 빌더 + DraftingPanel + DraftDetailDialog에서 동일 룰. PreviewPanel·log-viewer Report 탭 프리뷰는 순수 헬퍼 `composePreviewLayout`로 이 순서를 단일화(`IssuePreviewView` 공용 컴포넌트).
+
+**복수 element 직렬화(styleChanges)**: 한 이슈에 여러 요소의 스타일 변경을 담을 수 있다. `mergeStyleElements`(in `buildIssueMarkdown`)가 버퍼(`bufferedElements`) + 현재 요소를 selector 기준 dedup·재인덱싱해 단일 배열로 만들고, 6개 플랫폼 빌더가 모두 이 배열을 순회해 element별 섹션(selector 소제목 + before/after 스냅샷 + diff 테이블)을 emit한다. 이미지 파일명은 배열 인덱스 단일 출처(`before-${i}`/`after-${i}.webp`) — 본문 빌더·`buildCaptureFiles`·Jira `injectSnapshotRows`(ADF 후처리)가 같은 인덱스를 공유해 오귀속을 막는다. 플랫폼별 렌더 차이는 어댑터 패턴대로(Jira는 ADF table에 Snapshot 행 splice, Notion은 Before/After heading 분리, Asana는 As is/To be 섹션). element 모드는 **diff 필수** — 현재 요소에 스타일 변경이 없어도 버퍼에 담긴 요소가 있으면 진행 가능하고, 현재·버퍼 둘 다 비면 drafting 진입을 막고(`hasStyleChange` 게이트 + 버퍼 체크) 요소 캡처(element-screenshot) 모드로 안내한다. 스타일링 패널의 "변경사항 초기화"는 현재 + 버퍼 전체를 페이지 DOM까지 원복(`picker.resetAllEdits` → content `restoreAll`).
 
 **마이그레이션**: `issues-store` v5, `settings-store` v6, `settings-ui-store` v5. 각각 순수 헬퍼로 분리해 테스트 (`migrateV2ToV3`, `migrateToV5`, `migrateIssueToV4` 등). 모두 멱등 가드 + sparse 저장. 빈 paragraph는 `(없음)` (`md.noValue`)로 통일.

@@ -10,6 +10,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { distinctOriginKeys, originKey, originCounts } from "@/sidepanel/lib/logOrigin";
+import { OriginFilterBar } from "./OriginFilterBar";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { findActiveIndex } from "@/log-viewer/timeline";
 import { formatRelativeTime, syncRowClass } from "@/sidepanel/lib/logRow";
@@ -149,6 +151,7 @@ export function NetworkLogContent({ requests, flush, syncBaseMs, onSeek, activeT
   const [detailTab, setDetailTab] = useState<DetailTab>("headers");
   const [listWidth, setListWidth] = useState(0);
   const [filter, setFilter] = useState<RequestFilter>("all");
+  const [originFilter, setOriginFilter] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const filterLabel: Record<RequestFilter, string> = {
     all: t("networkLog.filter.all"), json: t("networkLog.filter.json"),
@@ -163,15 +166,21 @@ export function NetworkLogContent({ requests, flush, syncBaseMs, onSeek, activeT
   useEffect(() => {
     if (filter !== "all" && !availableFilters.includes(filter)) setFilter("all");
   }, [availableFilters, filter]);
+  const originKeys = useMemo(() => distinctOriginKeys(requests.map((r) => r.pageUrl)), [requests]);
+  const originCountMap = useMemo(() => originCounts(requests.map((r) => r.pageUrl)), [requests]);
+  useEffect(() => {
+    if (originFilter !== null && !originKeys.includes(originFilter)) setOriginFilter(null);
+  }, [originKeys, originFilter]);
   const activeReq = requests.find((r) => r.id === activeId) ?? null;
   const filteredRequests = useMemo(() => {
     let result = filter === "all" ? requests : requests.filter((r) => classifyRequest(r) === filter);
+    if (originFilter !== null) result = result.filter((r) => originKey(r.pageUrl) === originFilter);
     if (query) {
       const lower = query.toLowerCase();
       result = result.filter((r) => r.url.toLowerCase().includes(lower));
     }
     return result;
-  }, [requests, filter, query]);
+  }, [requests, filter, originFilter, query]);
 
   const syncActiveId = useMemo(() => {
     if (activeTs == null) return null;
@@ -223,7 +232,7 @@ export function NetworkLogContent({ requests, flush, syncBaseMs, onSeek, activeT
     scrollToEntryId,
     getListViewport,
     filteredItems: filteredRequests,
-    resetFilters: useCallback(() => { setFilter("all"); setQuery(""); }, []),
+    resetFilters: useCallback(() => { setFilter("all"); setOriginFilter(null); setQuery(""); }, []),
     onScrollComplete,
     onFound: useCallback(() => { if (scrollToEntryId) setActiveId(scrollToEntryId); }, [scrollToEntryId]),
   });
@@ -256,7 +265,7 @@ export function NetworkLogContent({ requests, flush, syncBaseMs, onSeek, activeT
   return (
     <div ref={containerRef} className={`flex min-h-0 flex-1 flex-col overflow-hidden${flush ? "" : " rounded-lg border"}`}>
       <Tabs value={filter} onValueChange={(v) => setFilter(v as RequestFilter)}>
-        <div className={`flex items-center gap-3 border-b${flush ? " px-4 py-4" : " p-2"}`}>
+        <div className={`flex items-center gap-3${originKeys.length >= 2 ? "" : " border-b"}${flush ? " px-4 py-4" : " p-2"}`}>
           <TabsList>
             {availableFilters.map((f) => (
               <TabsTrigger key={f} value={f}>
@@ -284,6 +293,7 @@ export function NetworkLogContent({ requests, flush, syncBaseMs, onSeek, activeT
           </div>
         </div>
       </Tabs>
+      <OriginFilterBar originKeys={originKeys} counts={originCountMap} value={originFilter} onChange={setOriginFilter} flush={flush} />
       <div className="flex min-h-0 flex-1 overflow-hidden">
       <ScrollArea ref={listScrollRef} className="shrink-0 [&>div>div]:!block" style={{ width: listWidth }}>
         <div>

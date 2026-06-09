@@ -102,14 +102,14 @@ describe("buildLinearIssueBody — 인라인 미디어", () => {
     const input: LinearBuildInput = {
       ctx,
       images: [
-        { filename: "before.webp", assetUrl: "https://cdn.linear.app/before.webp" },
-        { filename: "after.webp", assetUrl: "https://cdn.linear.app/after.webp" },
+        { filename: "before-0.webp", assetUrl: "https://cdn.linear.app/before-0.webp" },
+        { filename: "after-0.webp", assetUrl: "https://cdn.linear.app/after-0.webp" },
       ],
     };
     const out = buildLinearIssueBody(input);
     expect(out.body).toContain("**styleTable.snapshot**");
-    expect(out.body).toContain("![before.webp](https://cdn.linear.app/before.webp)");
-    expect(out.body).toContain("![after.webp](https://cdn.linear.app/after.webp)");
+    expect(out.body).toContain("![before-0.webp](https://cdn.linear.app/before-0.webp)");
+    expect(out.body).toContain("![after-0.webp](https://cdn.linear.app/after-0.webp)");
     expect(out.body).toContain("| color | #000 | #fff |");
   });
 
@@ -124,56 +124,51 @@ describe("buildLinearIssueBody — 인라인 미디어", () => {
   });
 });
 
-describe("buildLinearIssueBody — element + diffs 없음", () => {
-  it("element + diffs=[] + screenshot.webp assetUrl → Media 섹션 + 이미지 인라인", () => {
-    const input: LinearBuildInput = {
-      ctx: makeCtx({ captureMode: "element", diffs: [] }),
-      images: [
-        {
-          filename: "screenshot.webp",
-          assetUrl: "https://cdn.linear.app/screenshot.webp",
-        },
-      ],
-    };
-    const out = buildLinearIssueBody(input);
-    expect(out.body).toContain("md.section.media");
-    expect(out.body).toContain(
-      "![screenshot.webp](https://cdn.linear.app/screenshot.webp)",
-    );
-    expect(out.body).not.toContain("md.section.styleChanges");
-  });
-
-  it("element + diffs=[] + screenshot.webp assetUrl 없음 → Media 섹션 (이미지 없이)", () => {
-    const input: LinearBuildInput = {
-      ctx: makeCtx({ captureMode: "element", diffs: [] }),
-      images: [{ filename: "screenshot.webp" }],
-    };
-    const out = buildLinearIssueBody(input);
-    expect(out.body).toContain("md.section.media");
-    expect(out.body).not.toContain("md.section.styleChanges");
-  });
-
-  it("element + diffs=[] + 이미지 없음 → styleChanges 미출력", () => {
+describe("buildLinearIssueBody — element + diffs 없음 (no-diff 폐지)", () => {
+  it("element + diffs=[] + 이미지 없음 → styleChanges·media 미출력", () => {
     const out = buildLinearIssueBody({
       ctx: makeCtx({ captureMode: "element", diffs: [] }),
     });
     expect(out.body).not.toContain("md.section.styleChanges");
+    expect(out.body).not.toContain("md.section.media");
   });
 
-  it("element + diffs 존재 → 기존 Style Changes 테이블 유지", () => {
+  it("element + diffs 존재 → Style Changes (selector) 테이블 유지", () => {
     const input: LinearBuildInput = {
       ctx: makeCtx({
         captureMode: "element",
         diffs: [{ prop: "color", asIs: "#000", toBe: "#fff" }],
       }),
       images: [
-        { filename: "before.webp", assetUrl: "https://cdn.linear.app/before.webp" },
-        { filename: "after.webp", assetUrl: "https://cdn.linear.app/after.webp" },
+        { filename: "before-0.webp", assetUrl: "https://cdn.linear.app/before-0.webp" },
+        { filename: "after-0.webp", assetUrl: "https://cdn.linear.app/after-0.webp" },
       ],
     };
     const out = buildLinearIssueBody(input);
-    expect(out.body).toContain("md.section.styleChanges");
+    expect(out.body).toContain("md.section.styleChanges (div)");
     expect(out.body).toContain("| color | #000 | #fff |");
+  });
+
+  it("복수 element → 각 섹션이 자기 before-${i}/after-${i}", () => {
+    const out = buildLinearIssueBody({
+      ctx: makeCtx({
+        captureMode: "element",
+        styleElements: [
+          { selector: "a.x", tagName: "a", classListBefore: [], classListAfter: [], specifiedStyles: {}, diffs: [{ prop: "color", asIs: "#000", toBe: "#fff" }], beforeFilename: "before-0.webp", afterFilename: "after-0.webp" },
+          { selector: "b.y", tagName: "b", classListBefore: [], classListAfter: [], specifiedStyles: {}, diffs: [{ prop: "padding", asIs: "1px", toBe: "2px" }], beforeFilename: "before-1.webp", afterFilename: "after-1.webp" },
+        ],
+      }),
+      images: [
+        { filename: "before-0.webp", assetUrl: "u-b0" },
+        { filename: "after-0.webp", assetUrl: "u-a0" },
+        { filename: "before-1.webp", assetUrl: "u-b1" },
+        { filename: "after-1.webp", assetUrl: "u-a1" },
+      ],
+    });
+    const sec0 = out.body.indexOf("(a.x)");
+    const sec1 = out.body.indexOf("(b.y)");
+    expect(out.body.slice(sec0, sec1)).toContain("![before-0.webp](u-b0)");
+    expect(out.body.slice(sec1)).toContain("![before-1.webp](u-b1)");
   });
 });
 
@@ -190,7 +185,7 @@ describe("buildLinearIssueBody — freeform", () => {
 
   it("freeform 모드 → DOM 미표시", () => {
     const out = buildLinearIssueBody({
-      ctx: makeCtx({ captureMode: "freeform" as MarkdownContext["captureMode"], selector: "div.test" }),
+      ctx: makeCtx({ captureMode: "freeform" as MarkdownContext["captureMode"], selector: "" }),
     });
     expect(out.body).not.toContain("**DOM**");
   });
@@ -231,17 +226,17 @@ describe("buildLinearIssueBody — 구조", () => {
     expect(out.body).toContain("**Captured**:");
   });
 
-  it("element 모드에서 DOM 라벨은 formatElementName 형식", () => {
+  it("element 모드에서 DOM 줄은 ctx.selector 문자열", () => {
     const out = buildLinearIssueBody({
-      ctx: makeCtx({ tagName: "button", classListBefore: ["btn", "primary"] }),
+      ctx: makeCtx({ selector: "button.btn.primary" }),
     });
     expect(out.body).toContain("**DOM**: button.btn.primary");
   });
 
-  it("screenshot/video 모드에서 DOM 미표시", () => {
-    const out1 = buildLinearIssueBody({ ctx: makeCtx({ captureMode: "screenshot" }) });
+  it("screenshot/video 모드 + 빈 selector → DOM 미표시", () => {
+    const out1 = buildLinearIssueBody({ ctx: makeCtx({ captureMode: "screenshot", selector: "" }) });
     expect(out1.body).not.toContain("**DOM**");
-    const out2 = buildLinearIssueBody({ ctx: makeCtx({ captureMode: "video" }) });
+    const out2 = buildLinearIssueBody({ ctx: makeCtx({ captureMode: "video", selector: "" }) });
     expect(out2.body).not.toContain("**DOM**");
   });
 
@@ -350,5 +345,28 @@ describe("buildLinearIssueBody — custom environment rows", () => {
       }),
     });
     expect(out.body).toContain("- **OS**: macOS 15");
+  });
+});
+
+// element-screenshot (Group B: domLabel→selector 전환): 요소 캡처(screenshot + selector)는
+// formatElementName이 아니라 ctx.selector 문자열을 DOM 줄에 출력. screenshot 게이트도 완화.
+describe("buildLinearIssueBody — 요소 캡처 (screenshot + selector)", () => {
+  it("screenshot + selector → DOM 줄에 selector(formatElementName 아님)", () => {
+    const out = buildLinearIssueBody({
+      ctx: makeCtx({
+        captureMode: "screenshot",
+        selector: "button.cta",
+        tagName: "button",
+        diffs: [],
+      }),
+    });
+    expect(out.body).toContain("**DOM**: button.cta");
+  });
+
+  it("screenshot + 빈 selector(범위 캡처) → DOM 미표시 (회귀)", () => {
+    const out = buildLinearIssueBody({
+      ctx: makeCtx({ captureMode: "screenshot", selector: "", diffs: [] }),
+    });
+    expect(out.body).not.toContain("**DOM**");
   });
 });

@@ -2,7 +2,7 @@ import type { NetworkLog, NetworkRequest } from "@/types/network";
 import type { ConsoleLog, ConsoleEntry } from "@/types/console";
 import type { ActionLog, ActionEntry } from "@/types/action";
 import type { EditorPhase } from "@/store/editor-store";
-import { FROZEN_PHASES } from "@/lib/session-keys";
+import { FROZEN_PHASES, originOf } from "@/lib/session-keys";
 
 // network-recorder.ts MAX_REQUEST_ENTRIES와 동일 유지 (MAIN world 격리로 import 불가)
 export const NETWORK_MAX_ENTRIES = 5000;
@@ -10,22 +10,40 @@ export const CONSOLE_MAX_ENTRIES = 2000;
 export const ACTION_MAX_ENTRIES = 1000;
 
 // id 기준 dedup(incoming이 갱신본으로 덮어씀, 위치는 기존 순서 유지) → getTime 오름차순 안정 정렬
-// → maxEntries 초과 시 oldest 제거.
-export function mergeLogItems<T extends { id: string }>(
+// → maxEntries 초과 시 evict. topOrigin이 주어지면 cross-origin(주로 광고 iframe)부터 oldest 순으로
+// 버려 top-page-origin 로그를 우선 보존하고, 그래도 모자라면 top-origin도 oldest부터 버린다.
+// topOrigin이 null이면 origin 구분 없이 기존 FIFO(oldest evict)와 동일.
+export function mergeLogItems<T extends { id: string; pageUrl: string }>(
   existing: T[],
   incoming: T[],
   getTime: (item: T) => number,
   maxEntries: number,
+  topOrigin: string | null = null,
 ): T[] {
   const byId = new Map<string, T>();
   for (const item of existing) byId.set(item.id, item);
   for (const item of incoming) byId.set(item.id, item);
   const merged = Array.from(byId.values());
   merged.sort((a, b) => getTime(a) - getTime(b));
-  if (merged.length > maxEntries) {
-    return merged.slice(merged.length - maxEntries);
+  if (merged.length <= maxEntries) return merged;
+  const over = merged.length - maxEntries;
+  if (topOrigin === null) {
+    return merged.slice(over);
   }
-  return merged;
+  const dropIds = new Set<string>();
+  // 1) cross-origin oldest 우선 evict
+  for (const item of merged) {
+    if (dropIds.size >= over) break;
+    if (originOf(item.pageUrl) !== topOrigin) dropIds.add(item.id);
+  }
+  // 2) 여전히 부족하면 top-origin oldest로 채움
+  if (dropIds.size < over) {
+    for (const item of merged) {
+      if (dropIds.size >= over) break;
+      dropIds.add(item.id);
+    }
+  }
+  return merged.filter((item) => !dropIds.has(item.id));
 }
 
 // 30s Replay 캡처 시 영상 프레임 구간으로 로그를 trim할 때의 윈도우.

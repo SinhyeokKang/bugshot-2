@@ -24,7 +24,7 @@ import {
   buildNetworkLogSummary,
   buildConsoleLogSummary,
 } from "@/sidepanel/lib/buildLogSummary";
-import type { MarkdownContext } from "@/sidepanel/lib/buildIssueMarkdown";
+import { mergeStyleElements, type MarkdownContext } from "@/sidepanel/lib/buildIssueMarkdown";
 import { parseChromeVersion } from "@/sidepanel/lib/environmentRows";
 import { getOsInfo } from "@/sidepanel/lib/osInfo";
 import type { NormalizedSubmitResult } from "@/types/platform";
@@ -108,11 +108,13 @@ export function IssueCreateModal() {
 
   const captureMode = useEditorStore((s) => s.captureMode);
   const selection = useEditorStore((s) => s.selection);
+  const shotSelector = useEditorStore((s) => s.shotSelector);
   const target = useEditorStore((s) => s.target);
   const styleEdits = useEditorStore((s) => s.styleEdits);
   const tokens = useEditorStore((s) => s.tokens);
   const beforeImage = useEditorStore((s) => s.beforeImage);
   const afterImage = useEditorStore((s) => s.afterImage);
+  const bufferedElements = useEditorStore((s) => s.bufferedElements);
   const screenshotAnnotated = useEditorStore((s) => s.screenshotAnnotated);
   const screenshotRaw = useEditorStore((s) => s.screenshotRaw);
   const screenshotViewport = useEditorStore((s) => s.screenshotViewport);
@@ -205,8 +207,8 @@ export function IssueCreateModal() {
         sections: draft.sections,
         sectionConfig,
         url: target.url,
-        selector: "",
-        tagName: "",
+        selector: shotSelector?.selector ?? "",
+        tagName: shotSelector?.tagName ?? "",
         classListBefore: [],
         classListAfter: [],
         specifiedStyles: {},
@@ -220,6 +222,12 @@ export function IssueCreateModal() {
       };
     }
     if (!selection) throw new Error(t("create.requiredMissing"));
+    const styleElements = mergeStyleElements(bufferedElements, {
+      selection,
+      styleEdits,
+      before: beforeImage,
+      after: afterImage,
+    });
     return {
       os,
       browser,
@@ -237,6 +245,7 @@ export function IssueCreateModal() {
       capturedAt: selection.capturedAt,
       diffs: buildStyleDiff(selection, styleEdits),
       environment: draft.environment ?? [],
+      styleElements,
     };
   }
 
@@ -244,16 +253,15 @@ export function IssueCreateModal() {
     const hasNet = networkLogAttach && !!networkLog && networkLog.captured > 0;
     const hasCon = consoleLogAttach && !!consoleLog && consoleLog.captured > 0;
     const hasAct = actionLogAttach && !!actionLog && actionLog.captured > 0;
-    const isElementNoDiff =
-      captureMode === "element" &&
-      selection != null &&
-      buildStyleDiff(selection, styleEdits).length === 0;
+    // element 모드는 머지·dedup이 끝난 ctx.styleElements를 단일 출처로 before-${i}/after-${i} 파생.
+    const isElement = captureMode === "element";
+    const styleElements = ctx.styleElements ?? [];
     return buildCaptureFiles({
-      captureMode: isElementNoDiff ? "screenshot" : captureMode,
+      captureMode,
       videoBlob,
-      screenshotImage: isElementNoDiff ? beforeImage : captureMode === "screenshot" ? (screenshotAnnotated ?? screenshotRaw) : null,
-      beforeImage: captureMode === "element" && !isElementNoDiff ? beforeImage : null,
-      afterImage: captureMode === "element" && !isElementNoDiff ? afterImage : null,
+      screenshotImage: captureMode === "screenshot" ? (screenshotAnnotated ?? screenshotRaw) : null,
+      beforeImages: isElement ? styleElements.map((e) => e.beforeImage ?? null) : undefined,
+      afterImages: isElement ? styleElements.map((e) => e.afterImage ?? null) : undefined,
       networkLog: hasNet ? networkLog : null,
       consoleLog: hasCon ? consoleLog : null,
       actionLog: hasAct ? actionLog : null,

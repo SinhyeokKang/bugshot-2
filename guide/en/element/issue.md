@@ -16,6 +16,8 @@ OS, browser, page URL, viewport size, and capture time fill in **on their own** 
 
 This is the heart of element mode. The before and after styles are captured as a **comparison table**, so which properties changed to which values is clear at a glance. The reader grasps "what to change and how" from a single table.
 
+If you bundled several elements back in [Styling](styling.md), each one gets its own table — laid out in order under its selector heading.
+
 ![Before/after style comparison](../assets/element-issue-2.jpg)
 
 ## 4. Body sections

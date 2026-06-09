@@ -4,13 +4,16 @@ import {
   sectionMdLabelKey,
   type IssueSection,
 } from "@/store/settings-ui-store";
-import { formatElementName } from "@/lib/element-label";
 import type {
   NotionAttachmentInput,
   NotionAttachmentCategory,
   NotionBlock,
 } from "@/types/notion";
-import type { MarkdownContext } from "./buildIssueMarkdown";
+import {
+  resolveStyleElements,
+  styleDomLabel,
+  type MarkdownContext,
+} from "./buildIssueMarkdown";
 import { filterEnvironmentRows } from "./environmentRows";
 import { formatTimestamp } from "./formatTimestamp";
 import { markdownToNotionBlocks } from "./markdownToNotionBlocks";
@@ -96,13 +99,9 @@ export function buildNotionIssueBody(
     blocks.push({ type: "bulleted_list_item", text: `Browser: ${ctx.browser}` });
   }
   blocks.push({ type: "bulleted_list_item", text: `Page: ${ctx.url}` });
-  if (!isVideo && !isScreenshot && !isFreeform) {
-    const domLabel = ctx.tagName
-      ? formatElementName({ tag: ctx.tagName, classList: ctx.classListBefore })
-      : "";
-    if (domLabel) {
-      blocks.push({ type: "bulleted_list_item", text: `DOM: ${domLabel}` });
-    }
+  const domLabel = styleDomLabel(ctx);
+  if (domLabel) {
+    blocks.push({ type: "bulleted_list_item", text: `DOM: ${domLabel}` });
   }
   if (ctx.viewport) {
     blocks.push({
@@ -156,47 +155,32 @@ export function buildNotionIssueBody(
         queueAttachment(img, cat, placeholder);
       }
     } else {
-      const before = images.find((i) => i.filename.startsWith("before"));
-      const after = images.find((i) => i.filename.startsWith("after"));
-      const hasSnapshots = !!(before || after);
+      // element 모드: styleElements 반복(단수도 1개짜리). 각 섹션이 자기 before-${i}/after-${i}.
+      for (const el of resolveStyleElements(ctx)) {
+        const before = images.find((im) => im.filename === el.beforeFilename);
+        const after = images.find((im) => im.filename === el.afterFilename);
 
-      if (hasSnapshots || ctx.diffs.length > 0) {
-        blocks.push({ type: "heading_2", text: t("md.section.styleChanges") });
-        if (before || ctx.diffs.length > 0) {
-          blocks.push({ type: "heading_3", text: t("md.section.before") });
-          if (before) {
-            const ph = nextPlaceholder("before");
-            blocks.push({ type: "image", placeholderId: ph });
-            queueAttachment(before, categorize(before, "image"), ph);
-          }
-          for (const d of ctx.diffs) {
-            blocks.push({
-              type: "bulleted_list_item",
-              text: `${d.prop}: ${d.asIs}`,
-            });
-          }
-        }
-        if (after || ctx.diffs.length > 0) {
-          blocks.push({ type: "heading_3", text: t("md.section.after") });
-          if (after) {
-            const ph = nextPlaceholder("after");
-            blocks.push({ type: "image", placeholderId: ph });
-            queueAttachment(after, categorize(after, "image"), ph);
-          }
-          for (const d of ctx.diffs) {
-            blocks.push({
-              type: "bulleted_list_item",
-              text: `${d.prop}: ${d.toBe}`,
-            });
-          }
-        }
-      } else {
-        blocks.push({ type: "heading_2", text: t("md.section.media") });
-        const screenshot = images.find((i) => i.filename.startsWith("screenshot"));
-        if (screenshot) {
-          const ph = nextPlaceholder("screenshot");
+        blocks.push({
+          type: "heading_2",
+          text: `${t("md.section.styleChanges")} (${el.selector})`,
+        });
+        blocks.push({ type: "heading_3", text: t("md.section.before") });
+        if (before) {
+          const ph = nextPlaceholder("before");
           blocks.push({ type: "image", placeholderId: ph });
-          queueAttachment(screenshot, categorize(screenshot, "image"), ph);
+          queueAttachment(before, categorize(before, "image"), ph);
+        }
+        for (const d of el.diffs) {
+          blocks.push({ type: "bulleted_list_item", text: `${d.prop}: ${d.asIs}` });
+        }
+        blocks.push({ type: "heading_3", text: t("md.section.after") });
+        if (after) {
+          const ph = nextPlaceholder("after");
+          blocks.push({ type: "image", placeholderId: ph });
+          queueAttachment(after, categorize(after, "image"), ph);
+        }
+        for (const d of el.diffs) {
+          blocks.push({ type: "bulleted_list_item", text: `${d.prop}: ${d.toBe}` });
         }
       }
     }

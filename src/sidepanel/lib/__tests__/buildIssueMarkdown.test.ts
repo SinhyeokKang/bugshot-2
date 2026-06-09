@@ -20,8 +20,15 @@ vi.mock("@/store/settings-ui-store", () => ({
 import {
   buildIssueMarkdown,
   buildIssueHtml,
+  mergeStyleElements,
+  joinStyleSelectors,
   type MarkdownContext,
 } from "../buildIssueMarkdown";
+import type {
+  BufferedElement,
+  EditorSelection,
+  EditorStyleEdits,
+} from "@/store/editor-store";
 
 function makeCtx(overrides: Partial<MarkdownContext> = {}): MarkdownContext {
   return {
@@ -49,6 +56,12 @@ function makeCtx(overrides: Partial<MarkdownContext> = {}): MarkdownContext {
     environment: [],
     ...overrides,
   };
+}
+
+function parseMeta(md: string): Record<string, any> {
+  const start = md.indexOf("<!-- bugshot-meta-for-ai");
+  const end = md.indexOf("-->", start);
+  return JSON.parse(md.slice(start + "<!-- bugshot-meta-for-ai\n".length, end));
 }
 
 describe("buildIssueMarkdown", () => {
@@ -310,14 +323,14 @@ describe("buildIssueHtml", () => {
   });
 });
 
-describe("buildIssueMarkdown — element + diffs 없음", () => {
+describe("buildIssueMarkdown — element + diffs 없음 (no-diff 폐지: media 폴백 제거)", () => {
   const noDiffCtx = (overrides: Partial<MarkdownContext> = {}) =>
     makeCtx({ diffs: [], ...overrides });
 
-  it("element 모드 + diffs=[] → Media 섹션 + imageAttached", () => {
+  it("element 모드 + diffs=[] → media 폴백 없음", () => {
     const md = buildIssueMarkdown(noDiffCtx());
-    expect(md).toContain("md.section.media");
-    expect(md).toContain("md.imageAttached");
+    expect(md).not.toContain("md.section.media");
+    expect(md).not.toContain("md.imageAttached");
   });
 
   it("element 모드 + diffs=[] → Style Changes 미출력", () => {
@@ -325,11 +338,11 @@ describe("buildIssueMarkdown — element + diffs 없음", () => {
     expect(md).not.toContain("md.section.styleChanges");
   });
 
-  it("element 모드 + diffs 존재 → 기존 Style Changes 테이블 유지", () => {
+  it("element 모드 + diffs 존재 → Style Changes (selector) 테이블 유지", () => {
     const md = buildIssueMarkdown(
       noDiffCtx({ diffs: [{ prop: "color", asIs: "#000", toBe: "#fff" }] }),
     );
-    expect(md).toContain("md.section.styleChanges");
+    expect(md).toContain("md.section.styleChanges (div.container)");
     expect(md).toContain("| color | #000 | #fff |");
     expect(md).not.toContain("md.imageAttached");
   });
@@ -338,25 +351,16 @@ describe("buildIssueMarkdown — element + diffs 없음", () => {
     const md = buildIssueMarkdown(noDiffCtx());
     expect(md).toContain("div.container");
   });
-
-  it("POST_MEDIA 위치: Media 섹션이 expectedResult 전에 위치", () => {
-    const md = buildIssueMarkdown(noDiffCtx());
-    const mediaIdx = md.indexOf("md.section.media");
-    const expectedIdx = md.indexOf("md.section.expectedResult");
-    expect(mediaIdx).toBeGreaterThan(-1);
-    expect(expectedIdx).toBeGreaterThan(-1);
-    expect(mediaIdx).toBeLessThan(expectedIdx);
-  });
 });
 
-describe("buildIssueHtml — element + diffs 없음", () => {
+describe("buildIssueHtml — element + diffs 없음 (no-diff 폐지)", () => {
   const noDiffCtx = (overrides: Partial<MarkdownContext> = {}) =>
     makeCtx({ diffs: [], ...overrides });
 
-  it("element 모드 + diffs=[] → Media 섹션 + imageAttached", () => {
+  it("element 모드 + diffs=[] → media 폴백 없음", () => {
     const html = buildIssueHtml(noDiffCtx());
-    expect(html).toContain("md.section.media");
-    expect(html).toContain("md.imageAttached");
+    expect(html).not.toContain("md.section.media");
+    expect(html).not.toContain("md.imageAttached");
   });
 
   it("element 모드 + diffs=[] → Style Changes 미출력", () => {
@@ -369,13 +373,148 @@ describe("buildIssueHtml — element + diffs 없음", () => {
     expect(html).not.toContain("<table>");
   });
 
-  it("element 모드 + diffs 존재 → 기존 Style Changes 테이블 유지", () => {
+  it("element 모드 + diffs 존재 → Style Changes (selector) 테이블 유지", () => {
     const html = buildIssueHtml(
       noDiffCtx({ diffs: [{ prop: "color", asIs: "#000", toBe: "#fff" }] }),
     );
-    expect(html).toContain("md.section.styleChanges");
+    expect(html).toContain("md.section.styleChanges (div.container)");
     expect(html).toContain("<table>");
     expect(html).not.toContain("md.imageAttached");
+  });
+});
+
+describe("buildIssueMarkdown — 복수 styleElements 직렬화", () => {
+  const styleEl = (
+    selector: string,
+    i: number,
+    diffs: { prop: string; asIs: string; toBe: string }[],
+  ) => ({
+    selector,
+    tagName: "div",
+    classListBefore: [],
+    classListAfter: [],
+    specifiedStyles: {},
+    diffs,
+    beforeFilename: `before-${i}.webp`,
+    afterFilename: `after-${i}.webp`,
+  });
+
+  it("styleElements 2개 → 섹션·테이블 2개 + DOM 쉼표 나열", () => {
+    const md = buildIssueMarkdown(
+      makeCtx({
+        styleElements: [
+          styleEl("button.cta", 0, [{ prop: "color", asIs: "#000", toBe: "#fff" }]),
+          styleEl("div.card", 1, [{ prop: "padding", asIs: "10px", toBe: "20px" }]),
+        ],
+      }),
+    );
+    expect(md).toContain("md.section.styleChanges (button.cta)");
+    expect(md).toContain("md.section.styleChanges (div.card)");
+    expect(md).toContain("| color | #000 | #fff |");
+    expect(md).toContain("| padding | 10px | 20px |");
+    expect(md).toContain("- **DOM**: button.cta, div.card");
+  });
+
+  it("styleElements 1개 → (selector) 단일 형식", () => {
+    const md = buildIssueMarkdown(
+      makeCtx({
+        styleElements: [
+          styleEl("button.cta", 0, [{ prop: "color", asIs: "#000", toBe: "#fff" }]),
+        ],
+      }),
+    );
+    const occurrences = md.split("md.section.styleChanges (").length - 1;
+    expect(occurrences).toBe(1);
+    expect(md).toContain("md.section.styleChanges (button.cta)");
+  });
+});
+
+describe("joinStyleSelectors — DOM 줄 selector 쉼표 나열", () => {
+  const el = (selector: string) => ({ selector });
+
+  it("styleElements 복수 → 쉼표로 join", () => {
+    expect(
+      joinStyleSelectors([el("button.cta"), el("div.card")], "fallback"),
+    ).toBe("button.cta, div.card");
+  });
+
+  it("styleElements 1개 → 그 selector", () => {
+    expect(joinStyleSelectors([el("button.cta")], "fallback")).toBe("button.cta");
+  });
+
+  it("styleElements 빈 배열 → fallback", () => {
+    expect(joinStyleSelectors([], "div.container")).toBe("div.container");
+  });
+
+  it("styleElements undefined → fallback", () => {
+    expect(joinStyleSelectors(undefined, "div.container")).toBe("div.container");
+  });
+
+  it("styleElements 없고 fallback null → 빈 문자열", () => {
+    expect(joinStyleSelectors([], null)).toBe("");
+    expect(joinStyleSelectors(undefined, undefined)).toBe("");
+  });
+});
+
+describe("buildMetaComment — 복수 element cssChanges (AI 메타)", () => {
+  const styleEl = (
+    selector: string,
+    diffs: { prop: string; asIs: string; toBe: string }[],
+  ) => ({
+    selector,
+    tagName: "div",
+    classListBefore: ["base"],
+    classListAfter: ["base", "edited"],
+    specifiedStyles: { color: "#000" },
+    diffs,
+    beforeFilename: "before-0.webp",
+    afterFilename: "after-0.webp",
+  });
+
+  it("복수 styleElements → meta.elements에 각 element selector·cssChanges 직렬화", () => {
+    const md = buildIssueMarkdown(
+      makeCtx({
+        styleElements: [
+          styleEl("button.cta", [{ prop: "color", asIs: "#000", toBe: "#fff" }]),
+          styleEl("div.card", [{ prop: "padding", asIs: "10px", toBe: "20px" }]),
+        ],
+      }),
+    );
+    const meta = parseMeta(md);
+    expect(meta.elements).toHaveLength(2);
+    expect(meta.elements[0].selector).toBe("button.cta");
+    expect(meta.elements[0].cssChanges).toEqual([
+      { property: "color", from: "#000", to: "#fff" },
+    ]);
+    expect(meta.elements[1].selector).toBe("div.card");
+    expect(meta.elements[1].classListAfter).toEqual(["base", "edited"]);
+    expect(meta.elements[1].cssChanges).toEqual([
+      { property: "padding", from: "10px", to: "20px" },
+    ]);
+  });
+
+  it("단일 styleElements → meta.elements 생략(기존 top-level 단일 필드 유지)", () => {
+    const md = buildIssueMarkdown(
+      makeCtx({
+        styleElements: [
+          styleEl("button.cta", [{ prop: "color", asIs: "#000", toBe: "#fff" }]),
+        ],
+      }),
+    );
+    const meta = parseMeta(md);
+    expect(meta.elements).toBeUndefined();
+    expect(meta.selector).toBe("div.container");
+    expect(meta.cssChanges).toEqual([
+      { property: "color", from: "#000", to: "#fff" },
+    ]);
+  });
+
+  it("styleElements 없는 단일 element(레거시) → meta.elements 생략", () => {
+    const meta = parseMeta(buildIssueMarkdown(makeCtx()));
+    expect(meta.elements).toBeUndefined();
+    expect(meta.cssChanges).toEqual([
+      { property: "color", from: "#000", to: "#fff" },
+    ]);
   });
 });
 
@@ -500,5 +639,147 @@ describe("buildIssueHtml — custom environment rows", () => {
       makeCtx({ environment: [{ label: "  ", value: "  " }] }),
     );
     expect(html).not.toContain("<strong></strong>");
+  });
+});
+
+// element-screenshot: 요소 캡처(captureMode "screenshot" + selector 채움)는 env에 DOM 줄 노출.
+// 범위 캡처(screenshot + 빈 selector)는 미표시. 조건을 ctx.selector truthy로 완화.
+describe("요소 캡처 (screenshot + selector) — DOM 줄 노출", () => {
+  it("screenshot + selector → md env에 DOM 줄 표시", () => {
+    const md = buildIssueMarkdown(
+      makeCtx({ captureMode: "screenshot", selector: "button.cta", diffs: [] }),
+    );
+    expect(md).toContain("- **DOM**: button.cta");
+  });
+
+  it("screenshot + 빈 selector(범위 캡처) → DOM 미표시 (회귀)", () => {
+    const md = buildIssueMarkdown(
+      makeCtx({ captureMode: "screenshot", selector: "", diffs: [] }),
+    );
+    expect(md).not.toContain("**DOM**");
+  });
+
+  it("screenshot + selector → html env에 DOM 표시", () => {
+    const html = buildIssueHtml(
+      makeCtx({ captureMode: "screenshot", selector: "button.cta", diffs: [] }),
+    );
+    expect(html).toContain("<strong>DOM</strong>: button.cta");
+  });
+
+  it("screenshot + selector → meta comment에 selector 포함", () => {
+    const md = buildIssueMarkdown(
+      makeCtx({ captureMode: "screenshot", selector: "button.cta", diffs: [] }),
+    );
+    const start = md.indexOf("<!-- bugshot-meta-for-ai");
+    const end = md.indexOf("-->", start);
+    expect(md.slice(start, end)).toContain('"selector"');
+  });
+});
+
+describe("mergeStyleElements — 버퍼+현재 머지·dedup·파일명 인덱싱", () => {
+  // buf: inlineStyle color #000000 → #ffffff diff 1개
+  function buf(selector: string, after: string): BufferedElement {
+    return {
+      selector,
+      tagName: "div",
+      selectionSnapshot: {
+        classList: [selector],
+        specifiedStyles: {},
+        computedStyles: { color: "#000000" },
+        text: null,
+        viewport: { width: 0, height: 0 },
+        capturedAt: 0,
+      },
+      styleEdits: { classList: [selector], inlineStyle: { color: "#ffffff" }, text: "" },
+      beforeImage: `data:before-${selector}`,
+      afterImage: after,
+    };
+  }
+
+  // current: inlineStyle padding 10px → 20px diff 1개
+  function cur(
+    selector: string,
+    opts: { diff?: boolean } = {},
+  ): {
+    selection: EditorSelection;
+    styleEdits: EditorStyleEdits;
+    before: string | null;
+    after: string | null;
+  } {
+    const hasDiff = opts.diff ?? true;
+    return {
+      selection: {
+        selector,
+        tagName: "span",
+        classList: [selector],
+        computedStyles: { padding: "10px" },
+        specifiedStyles: {},
+        propSources: {},
+        hasParent: false,
+        hasChild: false,
+        text: null,
+        viewport: { width: 0, height: 0 },
+        capturedAt: 0,
+      },
+      styleEdits: {
+        classList: [selector],
+        inlineStyle: hasDiff ? { padding: "20px" } : {},
+        text: "",
+      },
+      before: `data:before-${selector}`,
+      after: `data:after-${selector}`,
+    };
+  }
+
+  it("버퍼[A] + 현재 B → [A,B], before-0/before-1 인덱싱", () => {
+    const out = mergeStyleElements([buf("a", "data:after-a")], cur("b"));
+    expect(out.map((e) => e.selector)).toEqual(["a", "b"]);
+    expect(out[0].beforeFilename).toBe("before-0.webp");
+    expect(out[0].afterFilename).toBe("after-0.webp");
+    expect(out[1].beforeFilename).toBe("before-1.webp");
+    expect(out[1].afterFilename).toBe("after-1.webp");
+    // 각 항목 diff 1개
+    expect(out[0].diffs).toHaveLength(1);
+    expect(out[1].diffs).toHaveLength(1);
+  });
+
+  it("버퍼 없음 + 현재만 → 1개, before-0", () => {
+    const out = mergeStyleElements([], cur("b"));
+    expect(out).toHaveLength(1);
+    expect(out[0].selector).toBe("b");
+    expect(out[0].beforeFilename).toBe("before-0.webp");
+  });
+
+  it("같은 selector면 dedup, 현재 우선 (길이 1)", () => {
+    const out = mergeStyleElements([buf("a", "data:after-a")], cur("a"));
+    expect(out).toHaveLength(1);
+    // 현재 우선: tagName이 cur의 span
+    expect(out[0].tagName).toBe("span");
+    expect(out[0].beforeFilename).toBe("before-0.webp");
+  });
+
+  it("dedup으로 길이가 변하면 i가 최종 배열 기준으로 재배열 (styleElements[i] ↔ before-${i})", () => {
+    // 버퍼 [a,b] + 현재 a → a가 버퍼에서 빠지고 현재 a가 끝으로 → [b, a]
+    const out = mergeStyleElements(
+      [buf("a", "data:after-a"), buf("b", "data:after-b")],
+      cur("a"),
+    );
+    expect(out.map((e) => e.selector)).toEqual(["b", "a"]);
+    expect(out[0].beforeFilename).toBe("before-0.webp");
+    expect(out[1].beforeFilename).toBe("before-1.webp");
+    // index 1이 현재 a(현재 우선 → tagName span)
+    expect(out[1].tagName).toBe("span");
+  });
+
+  it("diff 0 항목은 제외 (안전장치)", () => {
+    const out = mergeStyleElements([buf("a", "data:after-a")], cur("z", { diff: false }));
+    expect(out.map((e) => e.selector)).toEqual(["a"]);
+    expect(out[0].beforeFilename).toBe("before-0.webp");
+  });
+
+  it("현재 null이면 버퍼만", () => {
+    const out = mergeStyleElements([buf("a", "data:after-a")], null);
+    expect(out.map((e) => e.selector)).toEqual(["a"]);
+    expect(out[0].beforeFilename).toBe("before-0.webp");
   });
 });

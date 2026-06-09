@@ -25,8 +25,9 @@ export interface BuildCaptureFilesInput {
   captureMode: CaptureMode;
   videoBlob?: Blob | null;
   screenshotImage?: string | null;
-  beforeImage?: string | null;
-  afterImage?: string | null;
+  // element 모드: element별 before/after 배열. 항목별 before-${i}.webp / after-${i}.webp.
+  beforeImages?: (string | null)[];
+  afterImages?: (string | null)[];
   networkLog?: NetworkLog | null;
   consoleLog?: ConsoleLog | null;
   actionLog?: ActionLog | null;
@@ -93,11 +94,14 @@ export async function buildCaptureFiles(
       });
     }
   } else if (input.captureMode === "element") {
-    if (input.beforeImage) {
-      result.images.push({ filename: "before.webp", dataUrl: input.beforeImage });
-    }
-    if (input.afterImage) {
-      result.images.push({ filename: "after.webp", dataUrl: input.afterImage });
+    const befores = input.beforeImages ?? [];
+    const afters = input.afterImages ?? [];
+    const count = Math.max(befores.length, afters.length);
+    for (let i = 0; i < count; i++) {
+      const before = befores[i];
+      const after = afters[i];
+      if (before) result.images.push({ filename: `before-${i}.webp`, dataUrl: before });
+      if (after) result.images.push({ filename: `after-${i}.webp`, dataUrl: after });
     }
   }
 

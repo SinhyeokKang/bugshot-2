@@ -3,7 +3,9 @@ import {
   truncateName,
   maskValue,
   shouldMaskField,
+  entryNavOnBind,
 } from "./action-recorder-helpers";
+import { createTrailingThrottle, FLUSH_INTERVAL_MS } from "./log-throttle";
 
 function actionRecorderScript(): void {
   const CTRL_KEY = "__bugshot_action_ctrl__";
@@ -52,6 +54,7 @@ function actionRecorderScript(): void {
     // 버그 재현 시 가치 있는 신호는 후반부이므로 cap 도달 시 oldest를 버리는 FIFO.
     buffer.push(entry);
     if (buffer.length > MAX_ENTRIES) buffer.shift();
+    throttle.schedule();
   }
 
   function isOwnUi(el: Element | null, path?: EventTarget[]): boolean {
@@ -234,6 +237,7 @@ function actionRecorderScript(): void {
 
   // --- Sentinel-bound dispatch ---
   let currentSentinel: string | null = null;
+  let entryNavEmitted = false;
   let stopHandler: (() => void) | null = null;
   let syncHandler: (() => void) | null = null;
   let clearHandler: (() => void) | null = null;
@@ -251,6 +255,9 @@ function actionRecorderScript(): void {
     );
   }
 
+  // 녹화 중 pushAction마다 schedule → 최대 FLUSH_INTERVAL_MS마다 전체 버퍼를 실시간 dispatch.
+  const throttle = createTrailingThrottle(dispatch, FLUSH_INTERVAL_MS);
+
   function clearBuffer(): void {
     buffer.length = 0;
     totalSeen = 0;
@@ -267,9 +274,16 @@ function actionRecorderScript(): void {
     detachSentinelListeners();
     currentSentinel = sentinel;
     recording = true;
-    stopHandler = () => { recording = false; dispatch(); };
-    syncHandler = () => { dispatch(); };
-    clearHandler = () => { clearBuffer(); };
+    // document_start의 load 기록은 recording=false라 버려진다. cross-origin 진입 자취가
+    // 매번 사라지므로, bind 직후 현재 페이지 진입 네비게이션을 1회 보충한다(중복 방지 가드).
+    const entryNav = entryNavOnBind(entryNavEmitted, document.referrer, lastUrl, location.href);
+    if (entryNav) {
+      entryNavEmitted = true;
+      recordNavigation("load", entryNav.fromUrl, entryNav.toUrl);
+    }
+    stopHandler = () => { recording = false; throttle.flushNow(); };
+    syncHandler = () => { throttle.flushNow(); };
+    clearHandler = () => { clearBuffer(); throttle.cancel(); };
     document.addEventListener("__bugshot_action_stop__" + sentinel, stopHandler);
     document.addEventListener("__bugshot_action_sync__" + sentinel, syncHandler);
     document.addEventListener("__bugshot_action_clear__" + sentinel, clearHandler);
@@ -281,7 +295,11 @@ function actionRecorderScript(): void {
   });
 
   // 풀 네비게이션으로 MAIN world가 파괴되기 직전 버퍼 flush(보조). sentinel 없으면 dispatch no-op.
-  window.addEventListener("pagehide", () => dispatch());
+  window.addEventListener("pagehide", () => throttle.flushNow());
+  // 탭 숨김 직전 최신 꼬리까지 flush(안전망 다중화). hidden 외 상태 변화는 무시.
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") throttle.flushNow();
+  });
 
   (window as any)[CTRL_KEY] = { setSentinel, clearBuffer };
 }

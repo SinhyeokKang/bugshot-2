@@ -326,6 +326,29 @@ describe("confirmDraft screenshot — 로그 blobKey 연결", () => {
     const record = mockSaveDraft.mock.calls[0][0];
     expect(record.networkLogBlobKey).toBeUndefined();
   });
+
+  // element-screenshot: 요소 캡처(shotSelector)는 IssueRecord에 selector/tagName 저장.
+  it("shotSelector 존재(요소 캡처) → selector/tagName을 저장한다", () => {
+    setupScreenshotDrafting({
+      shotSelector: { selector: "button.cta", tagName: "button" },
+    });
+
+    useEditorStore.getState().confirmDraft();
+
+    const record = mockSaveDraft.mock.calls[0][0];
+    expect(record.selector).toBe("button.cta");
+    expect(record.tagName).toBe("button");
+  });
+
+  it("shotSelector null(범위 캡처) → selector/tagName 미저장 (회귀)", () => {
+    setupScreenshotDrafting({ shotSelector: null });
+
+    useEditorStore.getState().confirmDraft();
+
+    const record = mockSaveDraft.mock.calls[0][0];
+    expect(record.selector).toBeUndefined();
+    expect(record.tagName).toBeUndefined();
+  });
 });
 
 /* ------------------------------------------------------------------ */
@@ -635,5 +658,178 @@ describe("clearNetworkLog / clearConsoleLog", () => {
     expect(useEditorStore.getState().consoleLog).toBeNull();
     expect(mockDeleteConsoleLog).not.toHaveBeenCalled();
     expect(mockClearConsoleRecorder).not.toHaveBeenCalled();
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  element-screenshot — 요소 캡처 진입/선택 액션                          */
+/* ------------------------------------------------------------------ */
+
+describe("startElementShot — 요소 캡처 진입", () => {
+  beforeEach(() => {
+    useEditorStore.setState(useEditorStore.getInitialState(), true);
+  });
+
+  it("captureMode='screenshot' + phase='picking' + shotSelector=null", () => {
+    useEditorStore.getState().startElementShot(target);
+
+    const s = useEditorStore.getState();
+    expect(s.captureMode).toBe("screenshot");
+    expect(s.phase).toBe("picking");
+    expect(s.shotSelector).toBeNull();
+  });
+});
+
+describe("onElementShot — 요소 선택 → drafting", () => {
+  beforeEach(() => {
+    useEditorStore.setState(useEditorStore.getInitialState(), true);
+  });
+
+  it("screenshotRaw·viewport·shotSelector 세팅 + phase='drafting' + selection은 null 유지", () => {
+    useEditorStore.getState().startElementShot(target);
+    useEditorStore
+      .getState()
+      .onElementShot(
+        { selector: "button.cta", tagName: "button" },
+        "data:image/png;base64,X",
+        { width: 800, height: 600 },
+      );
+
+    const s = useEditorStore.getState();
+    expect(s.screenshotRaw).toBe("data:image/png;base64,X");
+    expect(s.screenshotViewport).toEqual({ width: 800, height: 600 });
+    expect(s.shotSelector).toEqual({ selector: "button.cta", tagName: "button" });
+    expect(s.phase).toBe("drafting");
+    expect(s.selection).toBeNull();
+  });
+});
+
+describe("bufferCurrentElement — 복수 element 버퍼", () => {
+  beforeEach(() => {
+    useEditorStore.setState(useEditorStore.getInitialState(), true);
+  });
+
+  function setCurrent(opts: {
+    selector: string;
+    inline?: Record<string, string>;
+    before?: string | null;
+  }) {
+    useEditorStore.setState({
+      selection: {
+        selector: opts.selector,
+        tagName: "button",
+        classList: ["cta"],
+        computedStyles: { color: "#000000" },
+        specifiedStyles: {},
+        propSources: {},
+        hasParent: true,
+        hasChild: false,
+        text: null,
+        viewport: { width: 1440, height: 900 },
+        capturedAt: 1700000000000,
+      },
+      styleEdits: {
+        classList: ["cta"],
+        inlineStyle: opts.inline ?? { color: "#ffffff" },
+        text: "",
+      },
+      beforeImage: opts.before ?? "data:before-1",
+    });
+  }
+
+  it("현재 element를 버퍼에 append", () => {
+    setCurrent({ selector: "button.cta", before: "data:before-A" });
+    useEditorStore.getState().bufferCurrentElement("data:after-A");
+
+    const buf = useEditorStore.getState().bufferedElements;
+    expect(buf).toHaveLength(1);
+    expect(buf[0]).toEqual({
+      selector: "button.cta",
+      tagName: "button",
+      selectionSnapshot: {
+        classList: ["cta"],
+        specifiedStyles: {},
+        computedStyles: { color: "#000000" },
+        text: null,
+        viewport: { width: 1440, height: 900 },
+        capturedAt: 1700000000000,
+      },
+      styleEdits: { classList: ["cta"], inlineStyle: { color: "#ffffff" }, text: "" },
+      beforeImage: "data:before-A",
+      afterImage: "data:after-A",
+    });
+  });
+
+  it("같은 selector 재호출 시 갱신·최초 before 유지·길이 1", () => {
+    setCurrent({ selector: "button.cta", inline: { color: "#ffffff" }, before: "data:before-1" });
+    useEditorStore.getState().bufferCurrentElement("data:after-1");
+    // 같은 selector 재편집: before는 새로 캡처됐지만 버퍼는 최초 before를 유지해야.
+    setCurrent({ selector: "button.cta", inline: { color: "#ff0000" }, before: "data:before-2" });
+    useEditorStore.getState().bufferCurrentElement("data:after-2");
+
+    const buf = useEditorStore.getState().bufferedElements;
+    expect(buf).toHaveLength(1);
+    expect(buf[0].beforeImage).toBe("data:before-1");
+    expect(buf[0].afterImage).toBe("data:after-2");
+    expect(buf[0].styleEdits.inlineStyle).toEqual({ color: "#ff0000" });
+  });
+
+  it("resetAllStyleEdits — 현재 styleEdits 초기화 + 버퍼 비움", () => {
+    setCurrent({ selector: "button.cta", inline: { color: "#ffffff" } });
+    useEditorStore.getState().bufferCurrentElement("data:after-A");
+    setCurrent({ selector: "div.box", inline: { margin: "8px" } });
+    expect(useEditorStore.getState().bufferedElements).toHaveLength(1);
+
+    useEditorStore.getState().resetAllStyleEdits();
+
+    const s = useEditorStore.getState();
+    expect(s.bufferedElements).toHaveLength(0);
+    expect(s.styleEdits.inlineStyle).toEqual({});
+    expect(s.styleEdits.classList).toEqual(["cta"]);
+  });
+
+  it("다른 selector면 별개 항목 누적", () => {
+    setCurrent({ selector: "button.cta" });
+    useEditorStore.getState().bufferCurrentElement("data:after-A");
+    setCurrent({ selector: "div.card" });
+    useEditorStore.getState().bufferCurrentElement("data:after-B");
+
+    const buf = useEditorStore.getState().bufferedElements;
+    expect(buf.map((b) => b.selector)).toEqual(["button.cta", "div.card"]);
+  });
+
+  it("startPicking 후에도 버퍼 보존 (preserveBuffer)", () => {
+    setCurrent({ selector: "button.cta" });
+    useEditorStore.getState().bufferCurrentElement("data:after-A");
+    useEditorStore
+      .getState()
+      .startPicking({ tabId: 1, url: "https://e.com", title: "T" });
+
+    expect(useEditorStore.getState().bufferedElements).toHaveLength(1);
+  });
+
+  it("onSubmitted 후 버퍼 비움", () => {
+    setCurrent({ selector: "button.cta" });
+    useEditorStore.getState().bufferCurrentElement("data:after-A");
+    useEditorStore
+      .getState()
+      .onSubmitted({ key: "K-1", url: "https://e.com/K-1", platform: "jira" });
+
+    expect(useEditorStore.getState().bufferedElements).toEqual([]);
+  });
+
+  it("reset 후 버퍼 비움", () => {
+    setCurrent({ selector: "button.cta" });
+    useEditorStore.getState().bufferCurrentElement("data:after-A");
+    useEditorStore.getState().reset();
+
+    expect(useEditorStore.getState().bufferedElements).toEqual([]);
+  });
+
+  it("selection이 없으면 no-op (방어)", () => {
+    useEditorStore.setState({ selection: null });
+    useEditorStore.getState().bufferCurrentElement("data:after-A");
+
+    expect(useEditorStore.getState().bufferedElements).toEqual([]);
   });
 });

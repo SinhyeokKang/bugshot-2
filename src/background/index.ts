@@ -130,10 +130,27 @@ chrome.webNavigation.onBeforeNavigate.addListener((details) => {
 });
 
 chrome.webNavigation.onCommitted.addListener((details) => {
-  if (details.frameId !== 0) return;
+  const key = sessionKey(details.tabId);
+  if (details.frameId !== 0) {
+    // 캡처 시작 이후 생성·커밋된 iframe: 활성 세션이 있으면 sidepanel에 알려 보유 sentinel을
+    // 그 프레임에 재발행 → 정적 주입만으론 못 받는 'broadcast 이후 iframe'을 활성화한다.
+    void chrome.storage.session
+      .get(key)
+      .then((stored) => {
+        if (stored[key] == null) return;
+        chrome.runtime
+          .sendMessage({
+            type: "frameCommitted",
+            tabId: details.tabId,
+            frameId: details.frameId,
+          } satisfies BgInternalMessage)
+          .catch(() => {});
+      })
+      .catch(() => {});
+    return;
+  }
   const urlPromise = navUrlPromise.get(details.tabId);
   navUrlPromise.delete(details.tabId);
-  const key = sessionKey(details.tabId);
   void Promise.all([
     urlPromise ?? Promise.resolve(""),
     chrome.storage.session.get(key),

@@ -135,6 +135,17 @@ export interface IssueTokenSnapshot {
   value: string;
 }
 
+// 복수 element 버퍼의 한 항목(현재 element 제외 — 그건 record 최상위 styleEdits/selectionSnapshot).
+// 이미지는 blob-db에 b${i}-before/after 슬롯으로 저장. hasBefore/hasAfter로 존재 표시.
+export interface IssueBufferedElement {
+  selector: string;
+  tagName: string;
+  styleEdits: IssueStyleEdits;
+  selectionSnapshot: IssueSelectionSnapshot;
+  hasBefore: boolean;
+  hasAfter: boolean;
+}
+
 export interface IssueRecord {
   id: string;
   status: IssueStatus;
@@ -159,6 +170,8 @@ export interface IssueRecord {
   // 초안 재제출을 위한 풀 컨텍스트. 구 초안은 없을 수 있음 (optional).
   selectionSnapshot?: IssueSelectionSnapshot;
   tokensSnapshot?: IssueTokenSnapshot[];
+  // 복수 element 버퍼(현재 element 앞에 편집한 것들). 단일/구 초안은 undefined.
+  bufferedElements?: IssueBufferedElement[];
 
   networkLogBlobKey?: string;
   consoleLogBlobKey?: string;
@@ -199,6 +212,7 @@ export interface IssueRecord {
 // PlatformId union에 "notion" 추가. 모두 optional이라 v4→v5 데이터 마이그레이션은 불필요 — 버전 마커만 bump.
 // action-recorder: IssueRecord에 actionLogBlobKey optional 추가. optional이라 마이그레이션·버전 bump 불필요.
 // video-report: IssueRecord에 videoStartedAt/videoEndedAt optional 추가. 동일하게 버전 bump 불필요.
+// multi-element-buffer: IssueRecord에 bufferedElements optional 추가. optional이라 버전 bump 불필요.
 export const ISSUES_STORE_VERSION = 5;
 
 interface LegacyIssueRecord extends Omit<IssueRecord, "platform"> {
