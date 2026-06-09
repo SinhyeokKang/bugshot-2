@@ -5,7 +5,7 @@ import type { ConsoleEntry, ConsoleLevel } from "@/types/console";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { distinctOriginKeys, originKey } from "@/sidepanel/lib/logOrigin";
+import { distinctOriginKeys, originKey, originCounts } from "@/sidepanel/lib/logOrigin";
 import { OriginFilterBar } from "./OriginFilterBar";
 import { findActiveIndex } from "@/log-viewer/timeline";
 import { formatRelativeTime, syncRowClass } from "@/sidepanel/lib/logRow";
@@ -85,6 +85,7 @@ export function ConsoleLogContent({ entries, startedAt, flush, syncBaseMs, onSee
     if (filter !== "all" && !availableFilters.includes(filter)) setFilter("all");
   }, [availableFilters, filter]);
   const originKeys = useMemo(() => distinctOriginKeys(entries.map((e) => e.pageUrl)), [entries]);
+  const originCountMap = useMemo(() => originCounts(entries.map((e) => e.pageUrl)), [entries]);
   useEffect(() => {
     if (originFilter !== null && !originKeys.includes(originFilter)) setOriginFilter(null);
   }, [originKeys, originFilter]);
@@ -166,7 +167,7 @@ export function ConsoleLogContent({ entries, startedAt, flush, syncBaseMs, onSee
           </div>
         </div>
       </Tabs>
-      <OriginFilterBar originKeys={originKeys} value={originFilter} onChange={setOriginFilter} flush={flush} />
+      <OriginFilterBar originKeys={originKeys} counts={originCountMap} value={originFilter} onChange={setOriginFilter} flush={flush} />
       {entries.length === 0 ? (
         <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3">
           <div className="rounded-full bg-muted p-3">

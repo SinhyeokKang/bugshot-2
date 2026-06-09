@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
-import { distinctOriginKeys, originKey } from "@/sidepanel/lib/logOrigin";
+import { distinctOriginKeys, originKey, originCounts } from "@/sidepanel/lib/logOrigin";
 import { OriginFilterBar } from "./OriginFilterBar";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 import { findActiveIndex } from "@/log-viewer/timeline";
@@ -167,6 +167,7 @@ export function NetworkLogContent({ requests, flush, syncBaseMs, onSeek, activeT
     if (filter !== "all" && !availableFilters.includes(filter)) setFilter("all");
   }, [availableFilters, filter]);
   const originKeys = useMemo(() => distinctOriginKeys(requests.map((r) => r.pageUrl)), [requests]);
+  const originCountMap = useMemo(() => originCounts(requests.map((r) => r.pageUrl)), [requests]);
   useEffect(() => {
     if (originFilter !== null && !originKeys.includes(originFilter)) setOriginFilter(null);
   }, [originKeys, originFilter]);
@@ -292,7 +293,7 @@ export function NetworkLogContent({ requests, flush, syncBaseMs, onSeek, activeT
           </div>
         </div>
       </Tabs>
-      <OriginFilterBar originKeys={originKeys} value={originFilter} onChange={setOriginFilter} flush={flush} />
+      <OriginFilterBar originKeys={originKeys} counts={originCountMap} value={originFilter} onChange={setOriginFilter} flush={flush} />
       <div className="flex min-h-0 flex-1 overflow-hidden">
       <ScrollArea ref={listScrollRef} className="shrink-0 [&>div>div]:!block" style={{ width: listWidth }}>
         <div>

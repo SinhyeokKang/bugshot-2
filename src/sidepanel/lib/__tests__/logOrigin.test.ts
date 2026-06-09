@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import {
   originKey,
   distinctOriginKeys,
+  originCounts,
   originHostLabel,
   UNKNOWN_ORIGIN,
 } from "../logOrigin";
@@ -35,6 +36,27 @@ describe("distinctOriginKeys", () => {
 
   it("빈 입력이면 빈 배열", () => {
     expect(distinctOriginKeys([])).toEqual([]);
+  });
+});
+
+describe("originCounts", () => {
+  it("origin 키별 개수 집계", () => {
+    const counts = originCounts([
+      "https://example.com/1",
+      "https://ads.net/x",
+      "https://example.com/2",
+      "https://example.com/3",
+    ]);
+    expect(counts).toEqual({ "https://example.com": 3, "https://ads.net": 1 });
+  });
+
+  it("빈/opaque은 UNKNOWN_ORIGIN으로 합산", () => {
+    const counts = originCounts(["", "about:blank", "https://example.com/1"]);
+    expect(counts).toEqual({ [UNKNOWN_ORIGIN]: 2, "https://example.com": 1 });
+  });
+
+  it("빈 입력이면 빈 객체", () => {
+    expect(originCounts([])).toEqual({});
   });
 });
 

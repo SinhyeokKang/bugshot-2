@@ -23,6 +23,16 @@ export function distinctOriginKeys(pageUrls: string[]): string[] {
   return out;
 }
 
+// origin 키별 개수(필터 버튼 배지용).
+export function originCounts(pageUrls: string[]): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const url of pageUrls) {
+    const k = originKey(url);
+    out[k] = (out[k] ?? 0) + 1;
+  }
+  return out;
+}
+
 // 버튼 라벨용 호스트명(좁은 폭). unknown 키는 빈 문자열 — 호출부가 i18n 라벨로 대체.
 export function originHostLabel(key: string): string {
   if (key === UNKNOWN_ORIGIN) return "";
