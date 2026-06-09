@@ -2,12 +2,11 @@ import { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import { ChevronDown, ChevronUp, CircleX, Info, Search, Terminal, TriangleAlert, X } from "lucide-react";
 import { useT } from "@/i18n";
 import type { ConsoleEntry, ConsoleLevel } from "@/types/console";
-import { Button } from "@/components/ui/button";
-import { ButtonGroup } from "@/components/ui/button-group";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { distinctOriginKeys, originKey, originHostLabel, UNKNOWN_ORIGIN } from "@/sidepanel/lib/logOrigin";
+import { distinctOriginKeys, originKey } from "@/sidepanel/lib/logOrigin";
+import { OriginFilterBar } from "./OriginFilterBar";
 import { findActiveIndex } from "@/log-viewer/timeline";
 import { formatRelativeTime, syncRowClass } from "@/sidepanel/lib/logRow";
 import { useScrollToEntry } from "@/sidepanel/lib/useScrollToEntry";
@@ -167,31 +166,7 @@ export function ConsoleLogContent({ entries, startedAt, flush, syncBaseMs, onSee
           </div>
         </div>
       </Tabs>
-      {originKeys.length >= 2 && (
-        <div className={`flex overflow-x-auto border-b ${flush ? "px-4 py-2" : "px-2 py-1.5"}`}>
-          <ButtonGroup>
-            <Button
-              size="sm"
-              variant={originFilter === null ? "default" : "outline"}
-              className="shrink-0"
-              onClick={() => setOriginFilter(null)}
-            >
-              {t("log.originFilter.all")}
-            </Button>
-            {originKeys.map((k) => (
-              <Button
-                key={k}
-                size="sm"
-                variant={originFilter === k ? "default" : "outline"}
-                className="shrink-0"
-                onClick={() => setOriginFilter(k)}
-              >
-                {k === UNKNOWN_ORIGIN ? t("log.originFilter.unknown") : originHostLabel(k)}
-              </Button>
-            ))}
-          </ButtonGroup>
-        </div>
-      )}
+      <OriginFilterBar originKeys={originKeys} value={originFilter} onChange={setOriginFilter} flush={flush} />
       {entries.length === 0 ? (
         <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3">
           <div className="rounded-full bg-muted p-3">
