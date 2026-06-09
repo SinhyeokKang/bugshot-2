@@ -1,15 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ArrowLeftRight, SquarePen, Terminal } from "lucide-react";
 import { useT } from "@/i18n";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsTrigger } from "@/components/ui/tabs";
 import { CollapsingTabsList, TabLabel } from "@/components/ui/collapsing-tabs";
 import { Badge } from "@/components/ui/badge";
@@ -30,7 +21,9 @@ export function DebugTab({ activeMainTab }: { activeMainTab: string }) {
   const phase = useEditorStore((s) => s.phase);
   const consoleCount = useEditorStore((s) => s.consoleLog?.entries.length ?? 0);
   const networkCount = useEditorStore((s) => s.networkLog?.requests.length ?? 0);
-  const [logUnavailableOpen, setLogUnavailableOpen] = useState(false);
+  // recording: 진행 중 버퍼를 Clear로 지우는 것 방지. drafting/previewing: 동결된 로그 첨부가
+  // Clear로 깨지는 것 방지. 셋 다 로그 서브탭을 비활성화해 막는다.
+  const logTabsLocked = phase === "recording" || phase === "drafting" || phase === "previewing";
 
   useCaptureShortcuts({ active: activeMainTab === "debug" && sub === "issue", tabId: tabId ?? null });
 
@@ -60,20 +53,7 @@ export function DebugTab({ activeMainTab }: { activeMainTab: string }) {
   return (
     <Tabs
       value={sub}
-      onValueChange={(v) => {
-        const next = v as DebugSubTab;
-        if (
-          (next === "console" || next === "network") &&
-          (phase === "drafting" || phase === "previewing")
-        ) {
-          if (document.activeElement instanceof HTMLElement && document.activeElement !== document.body) {
-            document.activeElement.blur();
-          }
-          setLogUnavailableOpen(true);
-          return;
-        }
-        setSub(next);
-      }}
+      onValueChange={(v) => setSub(v as DebugSubTab)}
       className="flex min-h-0 flex-1 flex-col gap-0"
     >
       <div className="shrink-0 border-b border-border px-4 py-4">
@@ -82,14 +62,14 @@ export function DebugTab({ activeMainTab }: { activeMainTab: string }) {
             <SquarePen className="h-3.5 w-3.5 shrink-0" />
             <TabLabel>{t("debug.tab.issue")}</TabLabel>
           </TabsTrigger>
-          <TabsTrigger value="console" disabled={phase === "recording"} className="min-w-0 gap-1.5">
+          <TabsTrigger value="console" disabled={logTabsLocked} className="min-w-0 gap-1.5">
             <Terminal className="h-3.5 w-3.5 shrink-0" />
             <TabLabel>{t("debug.tab.console")}</TabLabel>
             <Badge className="ml-0.5 h-5 min-w-5 shrink-0 px-1.5 text-[10px]">
               {consoleCount}
             </Badge>
           </TabsTrigger>
-          <TabsTrigger value="network" disabled={phase === "recording"} className="min-w-0 gap-1.5">
+          <TabsTrigger value="network" disabled={logTabsLocked} className="min-w-0 gap-1.5">
             <ArrowLeftRight className="h-3.5 w-3.5 shrink-0" />
             <TabLabel>{t("debug.tab.network")}</TabLabel>
             <Badge className="ml-0.5 h-5 min-w-5 shrink-0 px-1.5 text-[10px]">
@@ -119,22 +99,6 @@ export function DebugTab({ activeMainTab }: { activeMainTab: string }) {
       >
         <NetworkSubTab active={sub === "network"} onStartFreeform={handleStartFreeform} />
       </TabsContent>
-
-      <AlertDialog open={logUnavailableOpen} onOpenChange={setLogUnavailableOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t("debug.logUnavailable.title")}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {t("debug.logUnavailable.body")}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogAction onClick={() => setLogUnavailableOpen(false)}>
-              {t("debug.logUnavailable.action")}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
     </Tabs>
   );
 }
