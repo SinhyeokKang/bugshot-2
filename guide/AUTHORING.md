@@ -88,7 +88,7 @@ element/screenshot/video 세 `issue.md`는 아래 7단계를 **그대로 반복*
 | AI 가용성·폴백 흐름 | `src/sidepanel/hooks/useAI.ts`, `ai-provider.ts` (BYOK → Chrome 내장 AI → 미노출) |
 | 어노테이션 | `src/sidepanel/components/AnnotationOverlay.tsx` (markerjs2 — 도구 제한 없으면 라이브러리 기본 영문 툴바) |
 | 로그 정책(모드별 기본 on/off) | `src/sidepanel/lib/captureLogSupport.ts`, `src/store/editor-store.ts` |
-| 로그 출처 필터(iframe) | `src/sidepanel/lib/logOrigin.ts` (`originKey`/`originHostLabel`/`UNKNOWN_ORIGIN`), `src/sidepanel/components/OriginFilterBar.tsx`, 라벨 `src/i18n/namespaces/logs.ts` (`log.originFilter.unknown`) |
+| 로그 출처 필터(iframe) | `src/sidepanel/lib/logOrigin.ts` (`originKey`/`originHostLabel`/`originCounts`/`UNKNOWN_ORIGIN`), `src/sidepanel/components/OriginFilterBar.tsx`, 라벨 `src/i18n/namespaces/logs.ts` (`log.originFilter.unknown`) |
 | 로그 뷰어 마커 | `src/log-viewer/markers.ts` (`MarkerType`: console/network/action, navigate는 action variant) |
 | GitBook URL | `src/lib/external-links.ts` (`USER_GUIDE_URLS`) |
 | 연동 탭 자동 진입 | `src/sidepanel/tabs/integrationsTabUtils.ts` |
@@ -98,7 +98,7 @@ element/screenshot/video 세 `issue.md`는 아래 7단계를 **그대로 반복*
 - **단축키**: `Cmd/Ctrl+Shift+E`(패널 토글) / `Cmd/Ctrl+Shift+S`(요소 스타일 편집) / `Cmd/Ctrl+Shift+F`(범위 캡처) / `Cmd/Ctrl+Shift+X`(화면 녹화). best-effort라 OS·타 확장 충돌 시 미배정될 수 있음을 한 줄 안내. **요소 캡처는 단축키 없음**(Chrome 4-command 상한 — 버튼 전용).
 - **본문 섹션**: 발생 현상(켜짐·문단) / 재현 과정(켜짐·번호 목록) / 기대 결과(켜짐·문단) / 비고(꺼짐·문단). 라벨·플레이스홀더 override 가능.
 - **로그 정책**: 요소=로그 없음 / 스크린샷=콘솔·네트워크 토글 **기본 off** / 녹화=콘솔·네트워크·액션 **기본 on**. 액션 로그는 **녹화 모드 전용**. 자동 수집은 trailing throttle로 실시간 스트리밍(레코더 ~200ms flush, 사이드패널 IDB 저장은 ~1s로 묶음) — 과거 "~1.5초" 표기는 stale이니 가이드엔 구체 숫자 대신 "실시간"으로.
-- **로그 출처(iframe) 필터**: 콘솔·네트워크 로그는 cross-origin iframe(결제 위젯·임베드 등) 로그까지 수집한다. 출처가 2개 이상 섞이면 콘솔·네트워크 로그 탭에 출처 필터 바(`OriginFilterBar`, 사이드패널 서브탭·로그 다이얼로그·log-viewer 공용) 노출 — 호스트별 버튼 + opaque(`data:`/`about:blank`) 묶음 라벨 ko "(알 수 없음)" · en "(unknown)". **"전체" 버튼은 없음** — 아무것도 선택하지 않은 상태가 전체이고, 선택된 출처 버튼을 다시 누르면 해제(toggle)된다. **액션 로그는 출처 필터 없음**(시간순 재현 흐름이라 제외).
+- **로그 출처(iframe) 필터**: 콘솔·네트워크 로그는 cross-origin iframe(결제 위젯·임베드 등) 로그까지 수집한다. 출처가 2개 이상 섞이면 콘솔·네트워크·액션 로그 탭 모두에 출처 필터 바(`OriginFilterBar`, 사이드패널 서브탭·로그 다이얼로그·log-viewer 공용) 노출 — 호스트별 버튼(각 버튼에 출처별 로그 개수 muted 표시) + opaque(`data:`/`about:blank`) 묶음 라벨 ko "(알 수 없음)" · en "(unknown)". **"전체" 버튼은 없음** — 아무것도 선택하지 않은 상태가 전체이고, 선택된 출처 버튼을 다시 누르면 해제(toggle)된다. (초기엔 액션 로그를 출처 필터에서 제외했으나, top↔iframe 액션이 섞이면 navigation만으론 출처 추적이 안 돼 액션에도 추가함.)
 - **AI 가용성**: BYOK LLM 연결 시 그 모델(배지=프로바이더명) → 미연결 시 Chrome 내장 AI 자동 폴백(배지="Chrome AI", `globalThis.LanguageModel` 가용 시) → 그것도 불가하면 AI 스타일링·초안 배너 **미노출**. "키 없으면 미노출"이 아니다.
 - **로그 뷰어 마커**: 콘솔/네트워크/액션 3종. 페이지 이동은 액션 마커의 variant(별도 타입 아님). `logs.html`은 빌드 산출물 → 일반 사용자는 "이슈 첨부로 받은 리포트를 여는" 개발자 관점으로만 기술.
 - **플랫폼 표** (현 시점 6개 스냅샷):
