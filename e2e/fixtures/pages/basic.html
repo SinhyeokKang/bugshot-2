@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <title>bugshot e2e fixture</title>
+    <style>
+      body {
+        margin: 24px;
+        font-family: sans-serif;
+      }
+      /* #title은 color·padding을 명시 — typography/layout 섹션 defaultOpen 유도 */
+      #title {
+        color: rgb(17, 24, 39);
+        padding: 8px 8px 8px 8px;
+      }
+      .card {
+        border: 1px solid #cccccc;
+        border-radius: 8px;
+      }
+      .box {
+        padding: 16px;
+        margin-top: 12px;
+        width: 240px;
+      }
+      #filler {
+        height: 2000px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1 id="title">Fixture Title</h1>
+    <div id="card" class="card box">Card text content</div>
+    <div id="filler"></div>
+  </body>
+</html>

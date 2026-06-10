@@ -265,7 +265,7 @@ export function DraftingPanel() {
   }
 
   return (
-    <PageShell className="relative">
+    <PageShell className="relative" data-testid="drafting-panel">
       {inlineCaptureTarget ? (
         <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 pb-5 text-center">
           <div className="mb-3 rounded-full bg-muted p-3">

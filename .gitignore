@@ -9,5 +9,8 @@ dist-*
 .vite
 *.tsbuildinfo
 .claude/settings.local.json
+e2e/.last-green
+test-results
+playwright-report
 .wrangler
 *.zip

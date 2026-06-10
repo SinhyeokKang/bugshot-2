@@ -8,6 +8,8 @@
     "build:log-viewer": "vite build --config vite.log-viewer.config.ts",
     "build": "pnpm build:log-viewer && tsc -b && vite build",
     "build:store": "pnpm build:log-viewer && BUGSHOT_STORE_BUILD=1 tsc -b && BUGSHOT_STORE_BUILD=1 vite build",
+    "build:e2e": "pnpm build:log-viewer && BUGSHOT_E2E_BUILD=1 tsc -b && BUGSHOT_E2E_BUILD=1 vite build",
+    "test:e2e": "playwright test --config e2e/playwright.config.ts",
     "preview": "vite preview",
     "typecheck": "tsc -b --noEmit",
     "test": "vitest run",
@@ -56,6 +58,7 @@
   },
   "devDependencies": {
     "@crxjs/vite-plugin": "^2.0.0",
+    "@playwright/test": "^1.60.0",
     "@tailwindcss/container-queries": "^0.1.1",
     "@types/chrome": "^0.0.280",
     "@types/markdown-it": "^14.1.2",

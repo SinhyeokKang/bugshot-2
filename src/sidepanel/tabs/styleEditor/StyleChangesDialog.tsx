@@ -154,12 +154,15 @@ export function StyleChangesDialog() {
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
-        <Button variant="outline" disabled={count === 0}>
+        <Button variant="outline" disabled={count === 0} data-testid="changes-trigger">
           {t("editor.changesDialog.trigger")}
           {count > 0 && <Badge variant="secondary">{count}</Badge>}
         </Button>
       </DialogTrigger>
-      <DialogContent className="w-[80vw] max-w-[80vw] max-h-[80vh] gap-5 rounded-3xl p-6 sm:rounded-3xl">
+      <DialogContent
+        className="w-[80vw] max-w-[80vw] max-h-[80vh] gap-5 rounded-3xl p-6 sm:rounded-3xl"
+        data-testid="changes-dialog"
+      >
         <DialogHeader>
           <DialogTitle className="text-xl">
             {t("editor.changesDialog.title")}
@@ -183,6 +186,7 @@ export function StyleChangesDialog() {
                 variant="outline"
                 className="text-destructive hover:text-destructive"
                 disabled={busy}
+                data-testid="reset-all"
               >
                 {t("editor.changesDialog.resetAll")}
               </Button>
@@ -196,7 +200,7 @@ export function StyleChangesDialog() {
               </AlertDialogHeader>
               <AlertDialogFooter>
                 <AlertDialogCancel>{t("common.close")}</AlertDialogCancel>
-                <AlertDialogAction onClick={handleResetAll}>
+                <AlertDialogAction onClick={handleResetAll} data-testid="reset-all-confirm">
                   {t("common.reset")}
                 </AlertDialogAction>
               </AlertDialogFooter>
@@ -229,7 +233,12 @@ function GroupCard({
   const elementKey = `${group.source}:${group.selector}`;
 
   return (
-    <Card className="p-3">
+    <Card
+      className="p-3"
+      data-testid="changes-card"
+      data-source={group.source}
+      data-selector={group.selector}
+    >
       <div className="flex items-center gap-2">
         <div className="flex min-w-0 flex-1 items-center gap-1.5">
           <span className="truncate text-sm font-medium" title={label}>
@@ -246,6 +255,7 @@ function GroupCard({
           spinning={busyKey === elementKey}
           disabled={busy}
           onClick={() => void onResetElement(group, elementKey)}
+          testid="element-reset"
         />
       </div>
       <div className="mt-2 space-y-2">
@@ -255,6 +265,8 @@ function GroupCard({
             <div
               key={row.prop}
               className="flex items-center gap-2 rounded-lg bg-muted/40 p-3"
+              data-testid="changes-row"
+              data-prop={row.prop}
             >
               <div className="min-w-0 flex-1 space-y-0.5 text-sm">
                 <div className="font-medium">{row.prop}</div>
@@ -269,6 +281,7 @@ function GroupCard({
                 spinning={busyKey === rowKey}
                 disabled={busy}
                 onClick={() => void onResetRow(group, row.prop, rowKey)}
+                testid="row-reset"
               />
             </div>
           );
@@ -283,11 +296,13 @@ function ResetButton({
   spinning,
   disabled,
   onClick,
+  testid,
 }: {
   label: string;
   spinning: boolean;
   disabled: boolean;
   onClick: () => void;
+  testid: string;
 }) {
   return (
     <Button
@@ -298,6 +313,7 @@ function ResetButton({
       aria-label={label}
       disabled={disabled}
       onClick={onClick}
+      data-testid={testid}
     >
       {spinning ? <Loader2 className="animate-spin" /> : <RotateCcw />}
     </Button>

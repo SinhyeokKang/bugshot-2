@@ -133,6 +133,7 @@ export function SelectedPanel() {
     <Button
       className="aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
       aria-disabled={nextDisabled}
+      data-testid="next-step"
       onClick={() => {
         if (nextDisabled) return;
         void handleNext();
@@ -156,7 +157,10 @@ export function SelectedPanel() {
           </div>
         </div>
 
-        <Section title={t("editor.section.class")} action={<ClassRevertButton />}>
+        <Section
+          title={<span data-testid="section-class">{t("editor.section.class")}</span>}
+          action={<ClassRevertButton />}
+        >
           <ClassEditor />
         </Section>
 
@@ -309,7 +313,10 @@ export function SelectedPanel() {
       </Section>
 
       {selection.text !== null ? (
-        <Section title={t("editor.section.text")} action={<TextRevertButton />}>
+        <Section
+          title={<span data-testid="section-text">{t("editor.section.text")}</span>}
+          action={<TextRevertButton />}
+        >
           <TextEditor />
         </Section>
       ) : null}
@@ -439,6 +446,7 @@ function RepickButton() {
       variant="default"
       className="h-8 w-8 shrink-0"
       title={t("dom.repick")}
+      data-testid="repick"
       onClick={() => {
         if (tabId) void bufferThenSwitch(tabId, () => startPicker(tabId));
       }}
@@ -487,6 +495,7 @@ function ClassEditor() {
       className="min-h-9 resize-none text-sm [field-sizing:content]"
       rows={1}
       spellCheck={false}
+      data-testid="class-editor"
     />
   );
 }
@@ -513,6 +522,7 @@ function TextEditor() {
       className="min-h-9 resize-none text-sm [field-sizing:content]"
       rows={1}
       spellCheck={false}
+      data-testid="text-editor"
     />
   );
 }

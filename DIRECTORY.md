@@ -77,6 +77,14 @@ src/
 ├── styles/
 └── types/               # platform.ts (PlatformId/Accounts/LastSubmitFieldsByPlatform), github.ts, jira.ts, linear.ts, notion.ts, gitlab.ts (GitlabAuth/GitlabPatAuth/GitlabOAuthAuth + 이슈 페이로드·상태 타입), asana.ts (AsanaAuth/AsanaPatAuth/AsanaOAuthAuth + workspace/project/user/task 페이로드·상태 타입), environment.ts (EnvironmentRow), console.ts, network.ts, action.ts (ActionEntry/ActionLog/ActionLogSummary), messages.ts, picker.ts, log-viewer.ts (LogViewerData/LogViewerReport — 로그 뷰어 데이터 + Report 탭 본문 인터페이스, video 동기화·screenshot 정적·report 임베드 포함), user-agent-data.d.ts (NavigatorUAData 타입 보강) 등
 vite.log-viewer.config.ts# 로그 뷰어 전용 Vite 빌드 설정 (viteSingleFile → dist-log-viewer/index.html 단일 파일, @/i18n alias redirect)
+tsconfig.e2e.json        # e2e/ 전용 tsconfig — 루트 references 편입으로 pnpm typecheck가 spec·fixture 타입을 검사 (Playwright는 transpile만 함)
+e2e/                     # Playwright e2e 스위트 (@playwright/test, BUGSHOT_E2E_BUILD=1 산출물 dist-e2e/ 로드. .last-green은 /e2e-run이 기록하는 green 커밋 해시 — gitignore)
+├── playwright.config.ts # workers:1 · retries:0 · headed · trace retain-on-failure
+├── fixtures/
+│   ├── extension.ts     # worker-scoped ext fixture (ephemeral 포트 정적 서버·persistent context·extension id·teardown) + pickElement/typeStyleValue/setQuadLinkedValue/closeAllPopovers 헬퍼
+│   └── pages/           # 로컬 fixture 페이지 — basic.html(#title color·padding 명시, #card.card.box, #filler), second.html(cross-page 세션 폐기 검증용)
+├── smoke.spec.ts        # 진입→선택→수정→drafting 스모크 (1 test)
+└── style-changes-dialog.spec.ts # 변경사항 다이얼로그 회귀 16 체크 (test.describe.serial — design.md 체크 목록과 1:1)
 oauth-proxy/             # Cloudflare Worker — Atlassian /token + GitHub /github/{token,refresh} + Notion /notion/token + Asana /asana/{token,refresh} 교환 (client_secret 서버 보관, Linear·GitLab은 PKCE라 proxy 불필요)
 docs/
 ├── features/        # 기능 기획 문서 (PRD·설계·태스크) — dev에서 작업, 구현 완료 시 삭제

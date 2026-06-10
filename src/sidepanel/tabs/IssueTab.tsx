@@ -186,7 +186,7 @@ function EmptyState({ onStartElement, onStartElementShot, onStartScreenshot, onS
         <TooltipProvider delayDuration={0}>
           <div className="flex w-full max-w-[336px] flex-col gap-2">
             <ShortcutTooltip shortcut={shortcuts["capture-element"]}>
-              <Button className="w-full" onClick={onStartElement}>
+              <Button className="w-full" onClick={onStartElement} data-testid="mode-element">
                 <Crosshair />
                 {t("issue.mode.element")}
               </Button>

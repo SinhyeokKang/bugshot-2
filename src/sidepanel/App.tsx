@@ -193,7 +193,7 @@ export default function App() {
         <div className="border-b px-4 py-4">
           <Tabs value={tab} onValueChange={(v) => setTab(v)}>
             <CollapsingTabsList className="grid h-9 w-full grid-cols-4">
-              <TabsTrigger value="debug" className="min-w-0 gap-1.5">
+              <TabsTrigger value="debug" className="min-w-0 gap-1.5" data-testid="tab-debug">
                 <TerminalSquare className="h-3.5 w-3.5 shrink-0" />
                 <TabLabel>{t("app.tab.debug")}</TabLabel>
               </TabsTrigger>
