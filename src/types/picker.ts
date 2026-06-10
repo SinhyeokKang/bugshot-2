@@ -80,7 +80,9 @@ export type PickerMessage =
   | { type: "picker.previewHover"; selector: string }
   | { type: "picker.previewClear" }
   | { type: "picker.selectByPath"; selector: string }
+  | { type: "picker.applyEditsBySelector"; selector: string; classList: string[]; inlineStyle: Record<string, string>; text: string | null }
   | { type: "picker.prepareCapture" }
+  | { type: "picker.prepareCaptureBySelector"; selector: string }
   | { type: "picker.pageUrl" }
   | { type: "picker.endCapture" }
   | { type: "picker.startAreaSelect"; restoreAfter?: boolean }

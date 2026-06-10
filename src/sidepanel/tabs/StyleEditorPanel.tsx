@@ -2,17 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import { Crosshair, RotateCcw, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useT } from "@/i18n";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Tooltip,
@@ -31,10 +20,8 @@ import {
   applyClasses,
   applyText,
   clearPicker,
-  resetAllEdits,
   startPicker,
 } from "@/sidepanel/picker-control";
-import { buildStyleDiff } from "@/sidepanel/components/StyleChangesTable";
 import { PageFooter, PageScroll, PageShell, Section } from "@/sidepanel/components/Section";
 import { CancelConfirmDialog } from "@/sidepanel/components/CancelConfirmDialog";
 import { DomNavButton, DomTreeTitle } from "./DomTreeDialog";
@@ -50,6 +37,7 @@ import {
   TextProp,
 } from "./styleEditor/StylePropEditors";
 import { AiStylingDialog } from "./styleEditor/AiStylingDialog";
+import { StyleChangesDialog } from "./styleEditor/StyleChangesDialog";
 
 const SECTION_PROPS = {
   layout: [
@@ -121,34 +109,9 @@ export function SelectedPanel() {
   const hasSpecified = (props: readonly string[]) =>
     props.some((p) => p in selection.specifiedStyles);
 
-  const inlineCount = Object.keys(styleEdits.inlineStyle).length;
-  const classDirty =
-    selection.classList.length !== styleEdits.classList.length ||
-    selection.classList.some((c, i) => c !== styleEdits.classList[i]);
-  const textDirty =
-    selection.text !== null && styleEdits.text !== selection.text;
-  const changeCount =
-    inlineCount + (classDirty ? 1 : 0) + (textDirty ? 1 : 0);
   const hasChange = hasStyleChange(selection, styleEdits);
   // 현재 element에 diff가 없어도 버퍼에 담긴 element가 있으면 진행 가능.
   const canProceed = hasChange || bufferedElements.length > 0;
-  // 변경사항 초기화 다이얼로그 카운트 — 현재 + 버퍼 전체 diff 수(전체 원복 대상).
-  const totalChangeCount =
-    changeCount +
-    bufferedElements.reduce(
-      (n, b) =>
-        n +
-        buildStyleDiff(
-          {
-            classList: b.selectionSnapshot.classList,
-            specifiedStyles: b.selectionSnapshot.specifiedStyles,
-            computedStyles: b.selectionSnapshot.computedStyles,
-            text: b.selectionSnapshot.text,
-          },
-          b.styleEdits,
-        ).length,
-      0,
-    );
 
   const handleNext = async () => {
     if (!tabId || proceeding || !canProceed) return;
@@ -445,35 +408,7 @@ export function SelectedPanel() {
             }}
           />
           <div className="flex items-center gap-2">
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button
-                  variant="outline"
-                  disabled={!canProceed}
-                >
-                  {t("editor.resetChanges")}
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>{t("editor.resetChanges")}</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    {t("editor.resetChanges.body", { count: totalChangeCount })}
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>{t("common.close")}</AlertDialogCancel>
-                  <AlertDialogAction
-                    onClick={() => {
-                      useEditorStore.getState().resetAllStyleEdits();
-                      if (tabId) void resetAllEdits(tabId);
-                    }}
-                  >
-                    {t("common.reset")}
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+            <StyleChangesDialog />
             {!canProceed ? (
               <TooltipProvider delayDuration={0}>
                 <Tooltip>

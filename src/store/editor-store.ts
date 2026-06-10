@@ -169,6 +169,11 @@ interface EditorState {
   setBeforeImage: (img: string | null) => void;
   setAfterImage: (img: string | null) => void;
   bufferCurrentElement: (afterImage: string | null) => void;
+  patchBufferedElement: (
+    selector: string,
+    patch: Partial<Pick<BufferedElement, "styleEdits" | "afterImage">>,
+  ) => void;
+  removeBufferedElement: (selector: string) => void;
   confirmStyles: () => void;
   resetAllStyleEdits: () => void;
   backToStyling: () => void;
@@ -485,6 +490,20 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       }
       return { bufferedElements: [...s.bufferedElements, entry] };
     }),
+
+  patchBufferedElement: (selector, patch) =>
+    set((s) => ({
+      bufferedElements: s.bufferedElements.map((b) =>
+        b.selector === selector ? { ...b, ...patch } : b,
+      ),
+    })),
+
+  removeBufferedElement: (selector) =>
+    set((s) => ({
+      bufferedElements: s.bufferedElements.filter(
+        (b) => b.selector !== selector,
+      ),
+    })),
 
   confirmStyles: () => set({ phase: "drafting", aiStylingLoading: false }),
   // 현재 element 편집 초기화 + 복수 element 버퍼 비움(페이지 DOM 원복은 picker.resetAllEdits가 담당).

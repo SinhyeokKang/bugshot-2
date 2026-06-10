@@ -276,11 +276,41 @@ export async function selectByPath(
   await send(tabId, { type: "picker.selectByPath", selector });
 }
 
+export async function applyEditsBySelector(
+  tabId: number,
+  selector: string,
+  edits: {
+    classList: string[];
+    inlineStyle: Record<string, string>;
+    text: string | null;
+  },
+): Promise<boolean> {
+  const res = await send<{ found: boolean }>(tabId, {
+    type: "picker.applyEditsBySelector",
+    selector,
+    classList: edits.classList,
+    inlineStyle: edits.inlineStyle,
+    text: edits.text,
+  });
+  return res?.found ?? false;
+}
+
 export async function prepareCapture(
   tabId: number,
 ): Promise<PrepareCaptureResponse | null> {
   const res = await send<PrepareCaptureResponse>(tabId, {
     type: "picker.prepareCapture",
+  });
+  return res ?? null;
+}
+
+export async function prepareCaptureBySelector(
+  tabId: number,
+  selector: string,
+): Promise<PrepareCaptureResponse | null> {
+  const res = await send<PrepareCaptureResponse>(tabId, {
+    type: "picker.prepareCaptureBySelector",
+    selector,
   });
   return res ?? null;
 }

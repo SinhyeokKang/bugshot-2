@@ -103,7 +103,7 @@ function SnapshotCell({ image }: { image: string | null }) {
   );
 }
 
-function DiffValue({ value, muted }: { value: string; muted?: boolean }) {
+export function DiffValue({ value, muted }: { value: string; muted?: boolean }) {
   const t = useT();
   if (!value.trim()) {
     return <span className="text-muted-foreground/60">{t("styleTable.unset")}</span>;
@@ -152,7 +152,7 @@ export function buildStyleDiff(
   return collapseShorthands(rows);
 }
 
-const SHORTHAND_GROUPS: Record<string, string[]> = {
+export const SHORTHAND_GROUPS: Record<string, string[]> = {
   padding: [
     "padding-top",
     "padding-right",

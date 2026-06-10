@@ -833,3 +833,80 @@ describe("bufferCurrentElement — 복수 element 버퍼", () => {
     expect(useEditorStore.getState().bufferedElements).toEqual([]);
   });
 });
+
+describe("patchBufferedElement / removeBufferedElement", () => {
+  beforeEach(() => {
+    useEditorStore.setState(useEditorStore.getInitialState(), true);
+  });
+
+  function seedBuffer(selector: string, inline: Record<string, string>) {
+    useEditorStore.setState({
+      selection: {
+        selector,
+        tagName: "button",
+        classList: ["cta"],
+        computedStyles: {},
+        specifiedStyles: {},
+        propSources: {},
+        hasParent: true,
+        hasChild: false,
+        text: null,
+        viewport: { width: 1440, height: 900 },
+        capturedAt: 1,
+      },
+      styleEdits: { classList: ["cta"], inlineStyle: inline, text: "" },
+      beforeImage: "data:before",
+    });
+    useEditorStore.getState().bufferCurrentElement("data:after");
+  }
+
+  it("patch: 일치 항목의 styleEdits만 갱신, 다른 항목은 불변", () => {
+    seedBuffer("#a", { color: "#fff" });
+    seedBuffer("#b", { margin: "8px" });
+
+    const nextEdits = { classList: ["cta"], inlineStyle: {}, text: "" };
+    useEditorStore.getState().patchBufferedElement("#a", { styleEdits: nextEdits });
+
+    const buf = useEditorStore.getState().bufferedElements;
+    expect(buf[0].styleEdits).toEqual(nextEdits);
+    expect(buf[0].afterImage).toBe("data:after");
+    expect(buf[1].styleEdits.inlineStyle).toEqual({ margin: "8px" });
+  });
+
+  it("patch: afterImage 단독 갱신", () => {
+    seedBuffer("#a", { color: "#fff" });
+
+    useEditorStore.getState().patchBufferedElement("#a", { afterImage: "data:after-2" });
+
+    const buf = useEditorStore.getState().bufferedElements;
+    expect(buf[0].afterImage).toBe("data:after-2");
+    expect(buf[0].styleEdits.inlineStyle).toEqual({ color: "#fff" });
+  });
+
+  it("patch: selector 미일치 시 no-op", () => {
+    seedBuffer("#a", { color: "#fff" });
+    const before = useEditorStore.getState().bufferedElements;
+
+    useEditorStore.getState().patchBufferedElement("#none", { afterImage: "x" });
+
+    expect(useEditorStore.getState().bufferedElements).toEqual(before);
+  });
+
+  it("remove: 이미지 포함 항목 제거, 다른 항목 유지", () => {
+    seedBuffer("#a", { color: "#fff" });
+    seedBuffer("#b", { margin: "8px" });
+
+    useEditorStore.getState().removeBufferedElement("#a");
+
+    const buf = useEditorStore.getState().bufferedElements;
+    expect(buf.map((b) => b.selector)).toEqual(["#b"]);
+  });
+
+  it("remove: selector 미일치 시 no-op", () => {
+    seedBuffer("#a", { color: "#fff" });
+
+    useEditorStore.getState().removeBufferedElement("#none");
+
+    expect(useEditorStore.getState().bufferedElements).toHaveLength(1);
+  });
+});

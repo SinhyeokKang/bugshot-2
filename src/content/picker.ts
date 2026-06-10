@@ -179,9 +179,15 @@ chrome.runtime.onMessage.addListener(
         case "picker.selectByPath":
           handleSelectByPath(msg.selector);
           break;
+        case "picker.applyEditsBySelector":
+          sendResponse(handleApplyEditsBySelector(msg));
+          return;
         case "picker.prepareCapture":
           sendResponse(handlePrepareCapture());
           return;
+        case "picker.prepareCaptureBySelector":
+          handlePrepareCaptureBySelector(msg.selector, sendResponse);
+          return true;
         case "picker.pageUrl":
           sendResponse({ url: location.href });
           return;
@@ -207,6 +213,7 @@ chrome.runtime.onMessage.addListener(
 );
 
 function handlePrepareCapture(): PrepareCaptureResponse {
+  captureInflight += 1;
   if (overlay) overlay.hostEl.style.visibility = "hidden";
   const viewport = {
     width: window.innerWidth,
@@ -220,8 +227,67 @@ function handlePrepareCapture(): PrepareCaptureResponse {
   };
 }
 
+// selector 기반 캡처 준비에서 scrollIntoView 직전의 스크롤 위치. endCapture에서 복원.
+// 캡처 시퀀스가 인터리브되면(재선택 beforeImage 캡처 중 다른 행 초기화 등) 먼저 끝난
+// 쪽의 endCapture가 진행 중 캡처의 스크롤을 미리 원복하지 않도록 inflight 수로 가드.
+let capturedScroll: { x: number; y: number } | null = null;
+let captureInflight = 0;
+
+function handlePrepareCaptureBySelector(
+  selector: string,
+  sendResponse: (res: PrepareCaptureResponse) => void,
+): void {
+  captureInflight += 1;
+  if (overlay) overlay.hostEl.style.visibility = "hidden";
+  const viewport = {
+    width: window.innerWidth,
+    height: window.innerHeight,
+  };
+  let el: Element | null = null;
+  try {
+    el = document.querySelector(selector);
+  } catch {
+    el = null;
+  }
+  if (!el) {
+    sendResponse({ rect: null, viewport });
+    return;
+  }
+  const r = el.getBoundingClientRect();
+  const outside =
+    r.top < 0 ||
+    r.left < 0 ||
+    r.bottom > window.innerHeight ||
+    r.right > window.innerWidth;
+  if (!outside) {
+    sendResponse({
+      rect: { x: r.left, y: r.top, width: r.width, height: r.height },
+      viewport,
+    });
+    return;
+  }
+  capturedScroll = { x: window.scrollX, y: window.scrollY };
+  el.scrollIntoView({ block: "center", inline: "center", behavior: "instant" });
+  const target = el;
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      const r2 = target.getBoundingClientRect();
+      sendResponse({
+        rect: { x: r2.left, y: r2.top, width: r2.width, height: r2.height },
+        viewport: { width: window.innerWidth, height: window.innerHeight },
+      });
+    });
+  });
+}
+
 function handleEndCapture(): void {
+  captureInflight = Math.max(0, captureInflight - 1);
+  if (captureInflight > 0) return;
   if (overlay) overlay.hostEl.style.visibility = "";
+  if (capturedScroll) {
+    window.scrollTo(capturedScroll.x, capturedScroll.y);
+    capturedScroll = null;
+  }
 }
 
 function handleStart(): void {
@@ -268,6 +334,8 @@ function handleClear(): void {
   cancelTokenBuild();
   tokenLookup = null;
   inspectorCache = new WeakMap();
+  capturedScroll = null;
+  captureInflight = 0;
   stopCssCacheObserver();
   invalidateCssCache();
 }
@@ -309,6 +377,50 @@ function handleApplyStyles(inlineStyle: Record<string, string>): void {
   }
   inspectorCache.delete(el);
   render();
+}
+
+// selector로 찾은 편집 element를 원본으로 원복 후 전달받은 잔여 edits만 재적용(부분 원복).
+// found = 요소 발견 && editedEls에 편집 존재. 적용 결과가 원본과 같으면 레지스트리에서 제거.
+function handleApplyEditsBySelector(msg: {
+  selector: string;
+  classList: string[];
+  inlineStyle: Record<string, string>;
+  text: string | null;
+}): { found: boolean } {
+  let el: Element | null = null;
+  try {
+    el = document.querySelector(msg.selector);
+  } catch {
+    el = null;
+  }
+  if (!el) return { found: false };
+  const state = editedEls.get(el);
+  if (!state) return { found: false };
+
+  restoreElState(el, state);
+  const h = el as HTMLElement;
+  const nextClass = msg.classList.join(" ");
+  if ((h.getAttribute("class") ?? "") !== nextClass) {
+    h.className = nextClass;
+  }
+  for (const [prop, value] of Object.entries(msg.inlineStyle)) {
+    if (!value) continue;
+    h.style.setProperty(prop, value);
+  }
+  if (
+    msg.text !== null &&
+    state.editable &&
+    state.text !== null &&
+    msg.text !== state.text
+  ) {
+    writeEditableText(state.editable, msg.text);
+  }
+  if (isElementClean(el, state)) {
+    editedEls.delete(el);
+  }
+  inspectorCache.delete(el);
+  render();
+  return { found: true };
 }
 
 // 복수 element 버퍼 포함 모든 편집 element를 원복(현재 선택은 유지 — picker 종료 안 함).
