@@ -83,7 +83,8 @@
    ? removeBufferedElement(selector)            # 항목 제거 (before/after 이미지 폐기)
    : patchBufferedElement(selector, { styleEdits: next })
      → img = captureElementSnapshotBySelector(tabId, selector)   # 스크롤→캡처→스크롤 복원
-     → patchBufferedElement(selector, { afterImage: img })       # 실패 시 null = 폐기
+     → img !== null 이면 patchBufferedElement(selector, { afterImage: img })
+       # 재캡처 실패 시 기존 afterImage 유지 (stale 허용)
 → selector === selection?.selector (중복 케이스)
    ? selectByPath(tabId, selector)              # 재선택 → picker.selected → onElementSelected
                                                 # → selection·styleEdits 재베이스라인, beforeImage 재캡처
@@ -193,7 +194,7 @@ removeBufferedElement: (selector: string) => void;
 
 ## 대안 검토
 
-- **버퍼 요소 초기화 시 afterImage를 그대로 두거나 즉시 폐기**: 재캡처보다 단순하지만, 사용자가 "초기화 후에도 after 이미지가 실제 화면과 일치하는 것"을 best로 명시 선택. 재캡처 실패 시 폐기를 fallback으로 둬 단순안의 안전성을 흡수했다.
+- **버퍼 요소 초기화 시 afterImage를 그대로 두거나 즉시 폐기**: 재캡처보다 단순하지만, 사용자가 "초기화 후에도 after 이미지가 실제 화면과 일치하는 것"을 best로 명시 선택. 재캡처 실패 시에는 기존 afterImage를 유지(stale 허용)하는 쪽을 fallback으로 택했다 — 이미지가 사라지는 것보다 한 단계 이전 모습이라도 남는 게 낫다는 판단.
 - **개별 초기화를 요소 단위로만 제공**: content script 메시지가 1개로 줄지만(전체 원복만), 사용자가 스타일 항목 단위 초기화를 명시 요구. 기각.
 - **중복 요소(재선택된 버퍼 항목)를 목록에서 제외하거나 행 초기화 비활성화**: 구현이 단순하고 회귀 위험이 작지만 사용자가 "개별 초기화 허용 + 재선택으로 베이스라인 갱신"을 선택. 그 대가로 미버퍼 편집 폐기라는 동작이 생기며 PRD에 명시했다.
 - **diff 행을 uncollapsed(longhand 개별)로 노출**: `removeDiffRow`의 shorthand 역매핑이 불필요해지지만, 기존 `buildStyleDiff`/`StyleChangesTable`의 collapse 표기와 어긋나 drafting 단계 표와 불일치. 기각.
@@ -202,7 +203,7 @@ removeBufferedElement: (selector: string) => void;
 
 - **badge 카운트 산식 변화**: 기존 `changeCount`는 inline 키 수(uncollapsed) 기반, 신규 N은 `buildStyleDiff` 행 수(shorthand collapse 반영). padding 4면을 모두 같은 값으로 바꾼 경우 기존 4 → 신규 1. 다이얼로그 행 수와 일치시키기 위한 의도된 변화.
 - **scrollIntoView 부작용**: 캡처를 위해 페이지 스크롤이 순간 이동한다. `behavior: "instant"` 강제 + `endCapture`에서 복원하지만, 페이지 자체의 scroll listener가 부수 효과를 낼 수 있다. 스크롤 컨테이너 내부 요소(`window` 스크롤이 아닌 경우)는 `scrollIntoView`가 조상 컨테이너들을 함께 스크롤하므로 window 위치 복원만으로 완전 복원이 안 될 수 있음 — 알려진 한계로 수용(캡처 자체는 정상).
-- **captureVisibleTab 호출 빈도**: 연속 개별 초기화 시 캡처가 quota(`MAX_CAPTURE_VISIBLE_TAB_CALLS_PER_SECOND`)에 걸릴 수 있다. 실패 시 afterImage null 폐기로 흡수되고 기능은 깨지지 않는다. busy ref로 연타도 차단.
+- **captureVisibleTab 호출 빈도**: 연속 개별 초기화 시 캡처가 quota(`MAX_CAPTURE_VISIBLE_TAB_CALLS_PER_SECOND`)에 걸릴 수 있다. 실패 시 기존 afterImage 유지로 흡수되고 기능은 깨지지 않는다(이미지가 한 단계 이전 모습으로 stale해질 수 있음). busy ref로 연타도 차단.
 - **중복 요소 행 초기화 → 미버퍼 편집 폐기**: `selectByPath` 재선택이 `onElementSelected`를 타며 styleEdits를 베이스라인으로 리셋한다. 의도된 동작이나 사용자 입장에서 놀랄 수 있음 — 가이드 문서에 한 줄 언급 권장.
 - **selector 불안정성**: `buildSelector` 기반 selector가 페이지 DOM 변형으로 무효해질 수 있다. `applyEditsBySelector`가 `found:false`를 반환해도 store 갱신은 진행해 UI 일관성을 지킨다(원복 불가는 기존 restoreAll도 동일하게 겪는 한계).
 - **전체 초기화의 기존 quirk 유지**: 재선택된 버퍼 요소가 있는 상태의 전체 초기화에서 `selection.classList`가 편집된 베이스라인을 가리키는 기존 동작은 건드리지 않는다(외과적 범위).
