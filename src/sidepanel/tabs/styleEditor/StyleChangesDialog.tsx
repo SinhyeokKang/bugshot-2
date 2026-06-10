@@ -155,7 +155,7 @@ export function StyleChangesDialog() {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
         <Button variant="outline" disabled={count === 0}>
-          {t("editor.confirmChanges")}
+          {t("editor.changesDialog.trigger")}
           {count > 0 && <Badge variant="secondary">{count}</Badge>}
         </Button>
       </DialogTrigger>

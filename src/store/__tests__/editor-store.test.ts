@@ -883,6 +883,20 @@ describe("patchBufferedElement / removeBufferedElement", () => {
     expect(buf[0].styleEdits.inlineStyle).toEqual({ color: "#fff" });
   });
 
+  it("patch: styleEdits + afterImage 동시 갱신", () => {
+    seedBuffer("#a", { color: "#fff" });
+
+    const nextEdits = { classList: ["cta"], inlineStyle: {}, text: "" };
+    useEditorStore.getState().patchBufferedElement("#a", {
+      styleEdits: nextEdits,
+      afterImage: "data:after-2",
+    });
+
+    const buf = useEditorStore.getState().bufferedElements;
+    expect(buf[0].styleEdits).toEqual(nextEdits);
+    expect(buf[0].afterImage).toBe("data:after-2");
+  });
+
   it("patch: selector 미일치 시 no-op", () => {
     seedBuffer("#a", { color: "#fff" });
     const before = useEditorStore.getState().bufferedElements;

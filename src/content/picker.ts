@@ -1,6 +1,7 @@
 import type {
   PickerMessage,
   PrepareCaptureResponse,
+  ViewportRect,
 } from "@/types/picker";
 import {
   buildTokenLookup,
@@ -212,24 +213,27 @@ chrome.runtime.onMessage.addListener(
   },
 );
 
-function handlePrepareCapture(): PrepareCaptureResponse {
+function beginCapturePrep(): { width: number; height: number } {
   captureInflight += 1;
   if (overlay) overlay.hostEl.style.visibility = "hidden";
-  const viewport = {
-    width: window.innerWidth,
-    height: window.innerHeight,
-  };
+  return { width: window.innerWidth, height: window.innerHeight };
+}
+
+function viewportRectOf(el: Element): ViewportRect {
+  const r = el.getBoundingClientRect();
+  return { x: r.left, y: r.top, width: r.width, height: r.height };
+}
+
+function handlePrepareCapture(): PrepareCaptureResponse {
+  const viewport = beginCapturePrep();
   if (!selectedEl) return { rect: null, viewport };
-  const r = selectedEl.getBoundingClientRect();
-  return {
-    rect: { x: r.left, y: r.top, width: r.width, height: r.height },
-    viewport,
-  };
+  return { rect: viewportRectOf(selectedEl), viewport };
 }
 
 // selector 기반 캡처 준비에서 scrollIntoView 직전의 스크롤 위치. endCapture에서 복원.
 // 캡처 시퀀스가 인터리브되면(재선택 beforeImage 캡처 중 다른 행 초기화 등) 먼저 끝난
-// 쪽의 endCapture가 진행 중 캡처의 스크롤을 미리 원복하지 않도록 inflight 수로 가드.
+// 쪽의 endCapture가 진행 중 캡처의 스크롤을 미리 원복하지 않도록 inflight 수로 가드하고,
+// 슬롯 자체는 first-wins(이미 저장돼 있으면 덮어쓰지 않음)로 최초 위치를 보존.
 let capturedScroll: { x: number; y: number } | null = null;
 let captureInflight = 0;
 
@@ -237,12 +241,7 @@ function handlePrepareCaptureBySelector(
   selector: string,
   sendResponse: (res: PrepareCaptureResponse) => void,
 ): void {
-  captureInflight += 1;
-  if (overlay) overlay.hostEl.style.visibility = "hidden";
-  const viewport = {
-    width: window.innerWidth,
-    height: window.innerHeight,
-  };
+  const viewport = beginCapturePrep();
   let el: Element | null = null;
   try {
     el = document.querySelector(selector);
@@ -253,31 +252,33 @@ function handlePrepareCaptureBySelector(
     sendResponse({ rect: null, viewport });
     return;
   }
-  const r = el.getBoundingClientRect();
+  const rect = viewportRectOf(el);
   const outside =
-    r.top < 0 ||
-    r.left < 0 ||
-    r.bottom > window.innerHeight ||
-    r.right > window.innerWidth;
+    rect.y < 0 ||
+    rect.x < 0 ||
+    rect.y + rect.height > window.innerHeight ||
+    rect.x + rect.width > window.innerWidth;
   if (!outside) {
-    sendResponse({
-      rect: { x: r.left, y: r.top, width: r.width, height: r.height },
-      viewport,
-    });
+    sendResponse({ rect, viewport });
     return;
   }
-  capturedScroll = { x: window.scrollX, y: window.scrollY };
+  if (!capturedScroll) capturedScroll = { x: window.scrollX, y: window.scrollY };
   el.scrollIntoView({ block: "center", inline: "center", behavior: "instant" });
   const target = el;
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
-      const r2 = target.getBoundingClientRect();
-      sendResponse({
-        rect: { x: r2.left, y: r2.top, width: r2.width, height: r2.height },
-        viewport: { width: window.innerWidth, height: window.innerHeight },
-      });
+  let responded = false;
+  const respond = (r: ViewportRect | null) => {
+    if (responded) return;
+    responded = true;
+    sendResponse({
+      rect: r,
+      viewport: { width: window.innerWidth, height: window.innerHeight },
     });
+  };
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => respond(viewportRectOf(target)));
   });
+  // hidden 탭에서는 rAF가 발화하지 않아 응답이 매달림 — 캡처 실패(rect null) 경로로 폴백.
+  setTimeout(() => respond(null), 500);
 }
 
 function handleEndCapture(): void {
@@ -334,6 +335,7 @@ function handleClear(): void {
   cancelTokenBuild();
   tokenLookup = null;
   inspectorCache = new WeakMap();
+  if (capturedScroll) window.scrollTo(capturedScroll.x, capturedScroll.y);
   capturedScroll = null;
   captureInflight = 0;
   stopCssCacheObserver();

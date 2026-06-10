@@ -141,6 +141,25 @@ describe("buildChangeGroups", () => {
     expect(groups.every((g) => g.selector === "#a")).toBe(true);
   });
 
+  it("현재 그룹에 text·class·inline 행 혼합 → text→class→prop 순 정렬", () => {
+    const groups = buildChangeGroups(
+      selection({ text: "Old" }),
+      edits({
+        text: "New",
+        classList: ["card", "active"],
+        inlineStyle: { color: "#00f" },
+      }),
+      [],
+    );
+
+    expect(groups).toHaveLength(1);
+    expect(groups[0].rows).toEqual([
+      { prop: "text", asIs: "Old", toBe: "New" },
+      { prop: "class", asIs: "card", toBe: "card active" },
+      { prop: "color", asIs: "", toBe: "#00f" },
+    ]);
+  });
+
   it("그룹에 라벨·원복용 메타(tagName·classList·snapshot·edits)가 실린다", () => {
     const b = buffered("#a");
     const groups = buildChangeGroups(null, edits(), [b]);

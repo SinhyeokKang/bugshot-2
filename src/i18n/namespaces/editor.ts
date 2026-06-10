@@ -1,7 +1,7 @@
 const ko = {
   "editor.resetChanges": "변경사항 초기화",
   "editor.resetChanges.body": "{count}건의 변경사항을 초기화하시겠습니까? 모든 스타일이 원래 값으로 돌아갑니다.",
-  "editor.confirmChanges": "변경사항 보기",
+  "editor.changesDialog.trigger": "변경사항 보기",
   "editor.changesDialog.title": "스타일 변경사항",
   "editor.changesDialog.current": "현재 선택",
   "editor.changesDialog.resetRow": "이 변경 초기화",
@@ -108,7 +108,7 @@ type Bundle = Record<keyof typeof ko, string>;
 const en = {
   "editor.resetChanges": "Reset changes",
   "editor.resetChanges.body": "Reset {count} change(s)? All styles will revert to original values.",
-  "editor.confirmChanges": "Review changes",
+  "editor.changesDialog.trigger": "Review changes",
   "editor.changesDialog.title": "Style changes",
   "editor.changesDialog.current": "Selected",
   "editor.changesDialog.resetRow": "Reset this change",
