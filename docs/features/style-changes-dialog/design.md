@@ -44,7 +44,10 @@
 ### `src/sidepanel/tabs/styleEditor/StyleChangesDialog.tsx` (신규)
 트리거 버튼 + Dialog를 묶은 컴포넌트 (AiStylingDialog와 같은 디렉터리, DomTreeTitle처럼 내부 `useState` open 관리).
 - 트리거: `<Button variant="outline" disabled={count === 0}>{t("editor.confirmChanges")}{count > 0 && <Badge variant="secondary">{count}</Badge>}</Button>`
-- 본문: `buildChangeGroups` 결과를 그룹별로 렌더. 그룹 헤더는 `formatElementName` (`src/lib/element-label.ts`) 라벨 + 현재 선택 그룹엔 구분 표기. 행: `prop` / as-is → to-be / 우측 초기화 IconButton(`RotateCcw`, `h-8 w-8`). 값 표기는 StyleChangesTable의 unset 표기(`styleTable.unset`) 관례를 따른다.
+- 본문 레이아웃 (요소 = Card, 변경 항목 = 카드 내부 muted 컨테이너):
+  - 스크롤 영역: 카드 리스트를 감싸는 `div`에 `max-h`(DialogContent의 `max-h-[80vh]` 관례 내) + `overflow-y-auto` — 카드가 많아 y축 오버플로 시 리스트만 스크롤.
+  - 요소별 shadcn `Card` (`src/components/ui/card.tsx`) 1장씩 세로 스택. 카드 헤더: `formatElementName` (`src/lib/element-label.ts`) 라벨 + 현재 선택 그룹엔 구분 표기(`editor.changesDialog.current`).
+  - 카드 내부: diff 행마다 muted 배경 라운드 컨테이너(`rounded-lg bg-muted/40 p-3` 수준) 1개 — `prop` 라벨 / as-is → to-be 값 / 우측 초기화 IconButton(`RotateCcw`, `h-8 w-8`). 값 표기는 StyleChangesTable의 unset 표기(`styleTable.unset`) 관례를 따른다.
 - 푸터: `<DialogFooter className="sm:justify-between">` — 좌측 `<Button variant="destructive">{t("editor.changesDialog.resetAll")}</Button>`(AlertDialog 트리거), 우측 `<Button>{t("common.ok")}</Button>`(닫기).
 - 개별 초기화 중복 실행 방지: `useBufferThenSwitch` 패턴의 busy ref.
 

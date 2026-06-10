@@ -35,7 +35,7 @@
 
 ### Task 4: `StyleChangesDialog` 컴포넌트
 - **변경 대상**: `src/sidepanel/tabs/styleEditor/StyleChangesDialog.tsx` (신규)
-- **작업 내용**: 트리거 버튼([변경사항 확인] + `Badge variant="secondary"` N, N=0이면 badge 미노출 + disabled) + Dialog 본문(그룹 헤더 `formatElementName` + diff 행 + 행별 `RotateCcw` IconButton `h-8 w-8`) + 푸터(`sm:justify-between`, 좌 destructive [전체 초기화]→AlertDialog 재확인, 우 [확인]=`common.ok`). 개별 초기화 핸들러는 design.md 데이터 흐름대로(현재 요소 / 버퍼 요소 / 중복 요소 분기, busy ref, 0건 시 자동 닫힘).
+- **작업 내용**: 트리거 버튼([변경사항 확인] + `Badge variant="secondary"` N, N=0이면 badge 미노출 + disabled) + Dialog 본문(요소당 shadcn `Card` 1장 — 헤더 `formatElementName`, 내부에 diff 행마다 muted 라운드 컨테이너 + 행별 `RotateCcw` IconButton `h-8 w-8`; 카드 리스트는 y 오버플로 시 스크롤) + 푸터(`sm:justify-between`, 좌 destructive [전체 초기화]→AlertDialog 재확인, 우 [확인]=`common.ok`). 개별 초기화 핸들러는 design.md 데이터 흐름대로(현재 요소 / 버퍼 요소 / 중복 요소 분기, busy ref, 0건 시 자동 닫힘).
 - **검증**:
   - [ ] `pnpm typecheck` 통과
   - [ ] 행 초기화 로직이 `removeDiffRow` + 기존 `apply*`/신규 `applyEditsBySelector`만 사용 (DOM 직접 조작 없음)
@@ -61,7 +61,8 @@
 
 ### 수동 테스트 (Chrome)
 - [ ] 변경 0건: 버튼 비활성 + badge 없음. 속성 1개 수정 → [변경사항 확인 · 1] 활성.
-- [ ] 요소 A(color, padding 4면 동일값), 요소 B(class) 수정 → badge N=3 (padding collapse), 다이얼로그 그룹 2개·행 3개.
+- [ ] 요소 A(color, padding 4면 동일값), 요소 B(class) 수정 → badge N=3 (padding collapse), 다이얼로그 카드 2장·행 3개.
+- [ ] 요소를 5개 이상 수정해 카드가 다이얼로그 높이를 넘으면 카드 리스트만 스크롤되고 푸터는 고정.
 - [ ] 현재 요소 행 개별 초기화 → 페이지 즉시 원복 + 패널 인풋(ValueCombobox·ClassEditor·TextEditor) 원래 값 표시 + badge 감소.
 - [ ] 버퍼 요소 행 개별 초기화 → 페이지 원복 + afterImage 재캡처(drafting 진입해 버퍼 표에서 after 이미지가 현재 화면과 일치하는지 확인).
 - [ ] 뷰포트 밖 버퍼 요소 행 초기화 → 스크롤 이동 후 원위치 복원, 캡처 정상.
