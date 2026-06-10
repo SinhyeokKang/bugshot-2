@@ -157,7 +157,7 @@ export function App({ data }: AppProps) {
                   copyMarkdown: t("logViewer.report.copyMarkdown"),
                   copied: t("logViewer.report.copied"),
                   emptyValue: t("logViewer.report.empty"),
-                  envTitle: t("logViewer.report.env"),
+                  envTitle: data.report!.envTitle ?? t("logViewer.report.env"),
                 }}
                 onCopy={copyReport}
               />

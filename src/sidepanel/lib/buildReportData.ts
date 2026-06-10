@@ -57,6 +57,8 @@ export async function buildReportData(
 
   return {
     title: input.title,
+    // 이슈 본문(buildIssueMarkdown)과 같은 키로 박제 — 제출물과 logs.html 리포트 탭 제목 일치.
+    envTitle: t("md.section.env"),
     env: input.envRows,
     sections,
     copy: {
