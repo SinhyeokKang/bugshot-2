@@ -20,6 +20,13 @@ test.describe.serial("style-changes-dialog", () => {
     panel = await ext.openPanel(tabId);
   });
 
+  // worker fixture(persistent context)를 공유하므로 탭을 남기면 후행 spec의
+  // fixtureTabId가 이 탭(마지막 test의 second.html·만료 세션)을 잡아 간섭한다.
+  test.afterAll(async () => {
+    await panel.close();
+    await fixture.close();
+  });
+
   const trigger = () => panel.getByTestId("changes-trigger");
   const dialog = () => panel.getByTestId("changes-dialog");
   const card = (source: "current" | "buffered") =>
