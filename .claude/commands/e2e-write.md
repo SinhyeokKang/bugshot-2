@@ -11,13 +11,15 @@ tasks.md의 "e2e 시나리오" 섹션(또는 사용자 지시)을 `e2e/*.spec.ts
 
 ## 절차
 
+0. **`e2e/README.md` 숙지 (필수 선행).** 작성 전 **반드시 읽는다** — 기존 커버리지 맵(중복 spec 방지)·수동 잔여(이미 판정 불가로 분류된 것)·함정(탭 누수·`fixtureTabId` 모호성·`aria-disabled` 가드·로그 sync 타이밍 등)·헬퍼/fixture 목록이 거기 있다. 같은 함정을 다시 밟지 않는다.
+
 1. **대상 시나리오 확정.** tasks.md "e2e 시나리오" 섹션 또는 사용자 지시에서 변환할 시나리오를 추린다. "~하면 ~가 된다"로 스크립트 판정 가능한 문장만 대상 — 판정 불가 항목(시각 정합 등)은 수동 잔여로 보고.
 
-2. **spec 작성/갱신.** `e2e/` 컨벤션을 따른다:
-   - fixture·헬퍼는 `e2e/fixtures/extension.ts`의 것을 사용 (`ext` worker fixture, `pickElement`/`typeStyleValue`/`setQuadLinkedValue`/`closeAllPopovers`).
+2. **spec 작성/갱신.** `e2e/` 컨벤션을 따른다 (상세·함정은 `e2e/README.md`):
+   - fixture·헬퍼는 `e2e/fixtures/extension.ts`의 것을 사용 (`ext` worker fixture, `enterDebug`/`enterDebugAndPick`/`pickElement`/`typeStyleValue`/`setQuadLinkedValue`/`closeAllPopovers`).
    - 셀렉터는 `data-testid` 우선. 섹션 제목 등 i18n 텍스트 의존 금지. CSS prop 라벨(`color`, `padding`)은 하드코딩이라 허용.
    - [다음]류 `aria-disabled`+가드 버튼은 클릭 전 `aria-disabled` 부재 단언 필수 (actionability가 막지 않음).
-   - 상태 연속 플로우는 `test.describe.serial`.
+   - 상태 연속 플로우는 `test.describe.serial`. **`beforeAll`로 연 탭/패널은 `afterAll`로 닫는다** (worker fixture 공유 — 누수 시 후행 spec 간섭).
 
 3. **빌드.** `pnpm build:e2e` — **dist-e2e 전용**. `pnpm build`(dist) 금지.
 
@@ -27,7 +29,9 @@ tasks.md의 "e2e 시나리오" 섹션(또는 사용자 지시)을 `e2e/*.spec.ts
 
 5. **연속 통과 확인.** green 후 동일 spec을 1회 재실행해 연속 통과(flaky 없음)를 확인한다.
 
-6. **보고 + 종료.** 작성/갱신한 spec 목록, 루프 횟수, 수동 잔여 항목을 보고. **커밋 안 함.**
+6. **`e2e/README.md` 갱신.** 이번 작업을 단일 출처에 반영한다 — 새/변경 spec을 **커버리지 맵**에, 자동화 못 한 것을 **수동 잔여**에, 새로 밟은 함정을 **함정** 섹션에 추가. 새 헬퍼·fixture를 추가했으면 **빠른 참조**에도 반영.
+
+7. **보고 + 종료.** 작성/갱신한 spec 목록, 루프 횟수, 수동 잔여 항목, README 갱신 여부를 보고. **커밋 안 함.**
 
 ## 금지 사항
 

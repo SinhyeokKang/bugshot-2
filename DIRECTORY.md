@@ -78,17 +78,13 @@ src/
 └── types/               # platform.ts (PlatformId/Accounts/LastSubmitFieldsByPlatform), github.ts, jira.ts, linear.ts, notion.ts, gitlab.ts (GitlabAuth/GitlabPatAuth/GitlabOAuthAuth + 이슈 페이로드·상태 타입), asana.ts (AsanaAuth/AsanaPatAuth/AsanaOAuthAuth + workspace/project/user/task 페이로드·상태 타입), environment.ts (EnvironmentRow), console.ts, network.ts, action.ts (ActionEntry/ActionLog/ActionLogSummary), messages.ts, picker.ts, log-viewer.ts (LogViewerData/LogViewerReport — 로그 뷰어 데이터 + Report 탭 본문 인터페이스, video 동기화·screenshot 정적·report 임베드 포함), user-agent-data.d.ts (NavigatorUAData 타입 보강) 등
 vite.log-viewer.config.ts# 로그 뷰어 전용 Vite 빌드 설정 (viteSingleFile → dist-log-viewer/index.html 단일 파일, @/i18n alias redirect)
 tsconfig.e2e.json        # e2e/ 전용 tsconfig — 루트 references 편입으로 pnpm typecheck가 spec·fixture 타입을 검사 (Playwright는 transpile만 함)
-e2e/                     # Playwright e2e 스위트 (@playwright/test, BUGSHOT_E2E_BUILD=1 산출물 dist-e2e/ 로드. .last-green은 /e2e-run이 기록하는 green 커밋 해시 — gitignore)
+e2e/                     # Playwright e2e 스위트 (@playwright/test, BUGSHOT_E2E_BUILD=1 산출물 dist-e2e/ 로드. .last-green은 /e2e-run이 기록하는 green 커밋 해시 — gitignore). **커버리지·수동 잔여·함정·헬퍼는 e2e/README.md (단일 출처)**
+├── README.md            # 커버리지 맵 · 수동 잔여 · 함정 · 헬퍼/fixture 참조 — 시나리오 추가 시 /e2e-write가 함께 갱신
 ├── playwright.config.ts # workers:1 · retries:0 · headed · trace retain-on-failure
 ├── fixtures/
-│   ├── extension.ts     # worker-scoped ext fixture (ephemeral 포트 정적 서버·persistent context·extension id·teardown) + enterDebug/enterDebugAndPick/pickElement/typeStyleValue/setQuadLinkedValue/closeAllPopovers 헬퍼
-│   └── pages/           # 로컬 fixture 페이지 — basic.html(#title color·padding 명시, #card.card.box, #filler), second.html(cross-page 세션 폐기 검증용), iframe.html(top frame + #frame iframe — picker iframe 가드용)
-├── capture.spec.ts      # 캡처 모드 — screenshot 영역 드래그·element-shot → drafting (2 tests, video는 수동 잔여)
-├── log-capture.spec.ts  # console·network 로그 수집·항목 표시·clear (test.describe.serial — action 로그·origin 필터는 수동 잔여)
-├── picker-guard.spec.ts # iframe 박스 선택 → 미지원 안내 + picker idle 복귀 (1 test — unsupported URL은 수동 잔여)
-├── session.spec.ts      # 세션 스코프 — 패널 재열기 폐기·두 탭 독립 (2 tests, dialog spec test14/16 비중복분)
-├── style-changes-dialog.spec.ts # 변경사항 다이얼로그 회귀 16 체크 (test.describe.serial — design.md 체크 목록과 1:1)
-└── style-edit-flow.spec.ts # 요소 선택→스타일 수정→[다음]→drafting 진입 (1 test — next-step 경로 유일 커버)
+│   ├── extension.ts     # worker-scoped ext fixture (ephemeral 포트 정적 서버·persistent context·extension id·teardown) + 헬퍼 (enterDebug/pickElement/typeStyleValue/… — README 참조)
+│   └── pages/           # 로컬 fixture 페이지 — basic.html · second.html(cross-page 세션 폐기) · iframe.html(picker iframe 가드)
+└── *.spec.ts            # style-edit-flow · style-changes-dialog · capture · log-capture · picker-guard · session (커버리지 맵은 README.md)
 oauth-proxy/             # Cloudflare Worker — Atlassian /token + GitHub /github/{token,refresh} + Notion /notion/token + Asana /asana/{token,refresh} 교환 (client_secret 서버 보관, Linear·GitLab은 PKCE라 proxy 불필요)
 docs/
 ├── features/        # 기능 기획 문서 (PRD·설계·태스크) — dev에서 작업, 구현 완료 시 삭제
