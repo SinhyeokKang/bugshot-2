@@ -24,12 +24,12 @@
   - `{ type: "picker.prepareCaptureBySelector"; selector: string }`
 
 ### `src/content/picker.ts`
-- `handleApplyEditsBySelector(msg)`: `document.querySelector(selector)` → `editedEls.get(el)`의 원본 상태로 `restoreElState` 후 전달받은 edits 재적용(class는 원본과 다를 때만 `className` 설정, inline은 원본 style 위에 `setProperty`, text는 `text !== null`이고 원본과 다를 때만 `writeEditableText`). 적용 후 `isElementClean`이면 `editedEls`에서 제거. `inspectorCache.delete(el)` + `render()`. 요소 미발견·미편집이면 no-op. 응답 `{ found: boolean }`.
+- `handleApplyEditsBySelector(msg)`: `document.querySelector(selector)` → `editedEls.get(el)`의 원본 상태로 `restoreElState` 후 전달받은 edits 재적용(class는 원본과 다를 때만 `className` 설정, inline은 원본 style 위에 `setProperty` — 기존 `handleApplyStyles`와 동일하게 빈 값은 스킵, text는 `text !== null`이고 원본과 다를 때만 `writeEditableText`). 적용 후 `isElementClean`이면 `editedEls`에서 제거. `inspectorCache.delete(el)` + `render()`. 요소 미발견·미편집이면 no-op. 응답 `{ found: boolean }` — `found`는 "요소 발견 && `editedEls`에 편집 존재"(요소는 있으나 미편집이면 false).
 - `handlePrepareCaptureBySelector(selector, sendResponse)`: overlay 숨김 → `querySelector` → rect가 뷰포트를 벗어나면(`top<0 || left<0 || bottom>innerHeight || right>innerWidth`) 현재 스크롤 위치를 모듈 변수에 저장하고 `scrollIntoView({ block: "center", inline: "center", behavior: "instant" })` → double rAF 대기 후 rect 재측정해 비동기 `sendResponse` (리스너에서 `return true`). 요소 미발견이면 `{ rect: null, viewport }`.
 - `handleEndCapture()`: 저장된 스크롤 위치가 있으면 `window.scrollTo`로 복원 후 클리어. overlay 복구는 기존 그대로.
 
 ### `src/sidepanel/picker-control.ts`
-- `applyEditsBySelector(tabId, selector, edits): Promise<boolean>` — 메시지 송신, `found` 반환(실패 시 false).
+- `applyEditsBySelector(tabId, selector, edits): Promise<boolean>` — 메시지 송신, `found` 반환(실패 시 false). **text 변환 규칙**: `EditorStyleEdits.text`는 `string`, 메시지는 `string | null` — 호출부에서 `text: snapshot.text === null ? null : next.text`로 변환(텍스트 없는 요소에 `""` write 시도 방지).
 - `prepareCaptureBySelector(tabId, selector): Promise<PrepareCaptureResponse | null>`.
 
 ### `src/sidepanel/capture.ts`
@@ -45,27 +45,29 @@
 트리거 버튼 + Dialog를 묶은 컴포넌트 (AiStylingDialog와 같은 디렉터리, DomTreeTitle처럼 내부 `useState` open 관리).
 - 트리거: `<Button variant="outline" disabled={count === 0}>{t("editor.confirmChanges")}{count > 0 && <Badge variant="secondary">{count}</Badge>}</Button>`
 - 본문 레이아웃 (요소 = Card, 변경 항목 = 카드 내부 muted 컨테이너):
-  - 스크롤 영역: 카드 리스트를 감싸는 `div`에 `max-h`(DialogContent의 `max-h-[80vh]` 관례 내) + `overflow-y-auto` — 카드가 많아 y축 오버플로 시 리스트만 스크롤.
-  - 요소별 shadcn `Card` (`src/components/ui/card.tsx`) 1장씩 세로 스택. 카드 헤더: 좌상단 `formatElementName` (`src/lib/element-label.ts`) 라벨(현재 선택 그룹엔 구분 표기 `editor.changesDialog.current`), 우상단 [x] IconButton(`X`, `h-8 w-8`) — 클릭 시 **해당 요소의 모든 변경을 확인 없이 즉시 초기화**.
-  - 카드 내부: diff 행마다 muted 배경 라운드 컨테이너(`rounded-lg bg-muted/40 p-3` 수준) 1개 — `prop` 라벨 / as-is → to-be 값 / 우측 [x] IconButton(`X`, `h-8 w-8`) — **해당 항목만 확인 없이 즉시 초기화**. 값 표기는 StyleChangesTable의 unset 표기(`styleTable.unset`) 관례를 따른다.
+  - 스크롤 영역: 카드 리스트 래퍼는 `min-h-0 flex-1 overflow-y-auto`(DialogContent가 `flex-col overflow-hidden`인 DraftDetailDialog 관례) — 카드가 많아 y축 오버플로 시 리스트만 스크롤되고 푸터 고정.
+  - 요소별 shadcn `Card` (`src/components/ui/card.tsx`) 1장씩 세로 스택. 카드 헤더: 좌상단 `formatElementName` (`src/lib/element-label.ts`) 라벨(현재 선택 그룹엔 구분 표기 `editor.changesDialog.current`) — `truncate` + `title={label}`(DomTreeTitle 관례), 우상단 [↺] IconButton(`RotateCcw`, `h-8 w-8`, `title`+`aria-label`=`editor.changesDialog.resetElement`) — 클릭 시 **해당 요소의 모든 변경을 확인 없이 즉시 초기화**.
+  - 카드 내부: diff 행마다 muted 배경 라운드 컨테이너(`rounded-lg bg-muted/40 p-3` 수준) 1개 — `prop` 라벨 / as-is → to-be 값 / 우측 [↺] IconButton(`RotateCcw`, `h-8 w-8`, `title`+`aria-label`=`editor.changesDialog.resetRow`) — **해당 항목만 확인 없이 즉시 초기화**. 값 표기는 StyleChangesTable의 unset 표기(`styleTable.unset`)·`whitespace-pre-wrap break-all` 줄바꿈 관례를 따른다.
+  - 초기화 아이콘은 `RotateCcw`(코드베이스 원복 어휘 — SectionRevertButton·ValueCombobox revert와 동일). `X`는 DialogContent 우상단 자동 닫기 버튼과 혼동되므로 쓰지 않는다.
   - AlertDialog 재확인은 푸터 [전체 초기화]에만 둔다.
   - prop·값 텍스트는 기본 폰트 사용 — `font-mono` 금지 (스타일 에디터·StyleChangesTable 계열의 기존 표기 관례. `font-mono`는 로그 뷰어 전용).
-- 푸터: `<DialogFooter className="sm:justify-between">` — 좌측 `<Button variant="destructive">{t("editor.changesDialog.resetAll")}</Button>`(AlertDialog 트리거), 우측 `<Button>{t("common.ok")}</Button>`(닫기).
-- 개별 초기화 중복 실행 방지: `useBufferThenSwitch` 패턴의 busy ref.
+- 푸터: `<DialogFooter className="!flex-row items-center !justify-between">`(DraftDetailDialog.tsx:716 관례 — `sm:` 브레이크포인트(640px)는 ~400px 사이드패널에서 발화하지 않으므로 `!flex-row` 강제) — 좌측 `<Button variant="outline" className="text-destructive">{t("editor.changesDialog.resetAll")}</Button>`(AlertDialog 트리거 — destructive variant가 아닌 기존 파괴 액션 위계(DraftDetailDialog 이슈 삭제)와 동일 패턴), 우측 `<Button>{t("common.ok")}</Button>`(닫기).
+- 개별 초기화 중복 실행 방지 + busy 피드백: busy 상태(`useState`)로 실행 중인 행/카드의 [↺]는 `Loader2` 스피너로 교체하고, busy 동안 다이얼로그 내 모든 초기화 버튼([↺]·[전체 초기화])을 `disabled` 처리. 무반응 no-op(클릭이 조용히 씹힘) 금지.
+- **0건 자동 닫힘은 reactive로 구현**: 핸들러 말미 1회 판정이 아니라 렌더 시 `countChangeRows(...) === 0`이면 닫는다(effect). 중복 케이스의 `selectByPath` 재선택이 비동기 메시지(`picker.selected`) 경로라 핸들러 시점엔 styleEdits가 옛 값일 수 있고, 다이얼로그 열린 채 페이지 reload로 세션이 리셋되는 케이스도 같은 규칙이 커버한다.
 
 ### `src/sidepanel/tabs/StyleEditorPanel.tsx`
 - 기존 AlertDialog 블록(448-476행) 제거 → `<StyleChangesDialog />`로 교체.
 - `changeCount`/`totalChangeCount` 인라인 계산 제거 → `countChangeRows(buildChangeGroups(...))`로 대체 (StyleChangesDialog 내부로 이동 가능). `canProceed`(=`hasChange || bufferedElements.length > 0`)는 [다음] 버튼용으로 유지.
 
 ### `src/i18n/namespaces/editor.ts`
-- ko/en 동시 추가: `editor.confirmChanges`("변경사항 확인"/"Review changes"), `editor.changesDialog.title`, `editor.changesDialog.current`("현재 선택"/"Selected"), `editor.changesDialog.resetRow`("이 변경 초기화"/"Reset this change"), `editor.changesDialog.resetElement`("이 요소의 변경 초기화"/"Reset this element"), `editor.changesDialog.resetAll`("전체 초기화"/"Reset all").
+- ko/en 동시 추가: `editor.confirmChanges`("변경사항 보기"/"Review changes" — ko는 닫기 버튼 `common.ok`("확인")와의 단어 중첩을 피해 "보기"), `editor.changesDialog.title`("스타일 변경사항"/"Style changes"), `editor.changesDialog.current`("현재 선택"/"Selected"), `editor.changesDialog.resetRow`("이 변경 초기화"/"Reset this change"), `editor.changesDialog.resetElement`("이 요소의 변경 초기화"/"Reset this element"), `editor.changesDialog.resetAll`("전체 초기화"/"Reset all").
 - 기존 `editor.resetChanges`·`editor.resetChanges.body`는 전체 초기화 AlertDialog에 재사용. `common.ok`("확인"/"OK") 기존 키 사용.
 
 ## 데이터 흐름
 
 ### 행 단위 초기화 — 현재 선택 요소 (확인 없이 즉시)
 ```
-행 [x] 클릭
+행 [↺] 클릭
 → next = removeDiffRow(selection, styleEdits, row.prop)
 → setStyleEdits(next)                          # 패널 인풋 자동 갱신 (아래 "기존 패턴 준수")
 → row.prop === "class" ? applyClasses(tabId, next.classList)
@@ -75,7 +77,7 @@
 
 ### 행 단위 초기화 — 버퍼 요소 (확인 없이 즉시)
 ```
-행 [x] 클릭
+행 [↺] 클릭
 → next = removeDiffRow(b.selectionSnapshot, b.styleEdits, row.prop)
 → applyEditsBySelector(tabId, selector, next)   # DOM: 원본 원복 후 잔여 edits 재적용
 → remaining = buildStyleDiff(snapshot, next)
@@ -92,7 +94,7 @@
 → countChangeRows(...) === 0 이면 다이얼로그 닫기
 ```
 
-### 요소 단위 초기화 — 카드 [x] (확인 없이 즉시)
+### 요소 단위 초기화 — 카드 [↺] (확인 없이 즉시)
 ```
 baseline = { classList: [...snapshot.classList], inlineStyle: {}, text: snapshot.text ?? "" }
 
@@ -203,7 +205,8 @@ removeBufferedElement: (selector: string) => void;
 
 - **badge 카운트 산식 변화**: 기존 `changeCount`는 inline 키 수(uncollapsed) 기반, 신규 N은 `buildStyleDiff` 행 수(shorthand collapse 반영). padding 4면을 모두 같은 값으로 바꾼 경우 기존 4 → 신규 1. 다이얼로그 행 수와 일치시키기 위한 의도된 변화.
 - **scrollIntoView 부작용**: 캡처를 위해 페이지 스크롤이 순간 이동한다. `behavior: "instant"` 강제 + `endCapture`에서 복원하지만, 페이지 자체의 scroll listener가 부수 효과를 낼 수 있다. 스크롤 컨테이너 내부 요소(`window` 스크롤이 아닌 경우)는 `scrollIntoView`가 조상 컨테이너들을 함께 스크롤하므로 window 위치 복원만으로 완전 복원이 안 될 수 있음 — 알려진 한계로 수용(캡처 자체는 정상).
-- **captureVisibleTab 호출 빈도**: 연속 개별 초기화 시 캡처가 quota(`MAX_CAPTURE_VISIBLE_TAB_CALLS_PER_SECOND`)에 걸릴 수 있다. 실패 시 기존 afterImage 유지로 흡수되고 기능은 깨지지 않는다(이미지가 한 단계 이전 모습으로 stale해질 수 있음). busy ref로 연타도 차단.
+- **captureVisibleTab 호출 빈도**: 연속 개별 초기화 시 캡처가 Chrome 내부 quota(초당 2회 — 에러 메시지의 `MAX_CAPTURE_VISIBLE_TAB_CALLS_PER_SECOND`는 Chrome 내부 한도이며 코드베이스 상수가 아님)에 걸릴 수 있다. 실패 시 기존 afterImage 유지로 흡수되고 기능은 깨지지 않는다(이미지가 한 단계 이전 모습으로 stale해질 수 있음). busy 상태로 연타도 차단.
+- **중복 케이스의 captureVisibleTab 2연속 호출**: 재선택된 버퍼 요소의 행/카드 초기화는 ① afterImage 재캡처(`captureElementSnapshotBySelector`) ② 직후 `selectByPath` → `picker.selected` → beforeImage 캡처(`usePickerMessages`)가 1초 내 보장적으로 2회 발생한다(Chrome 한도 = 초당 2회). 단독으로는 통과하지만 직전 캡처와 겹치면 beforeImage 캡처가 조용히 실패할 수 있다(`if (img)` 가드라 기능 무영향 — 알려진 한계).
 - **중복 요소 행 초기화 → 미버퍼 편집 폐기**: `selectByPath` 재선택이 `onElementSelected`를 타며 styleEdits를 베이스라인으로 리셋한다. 의도된 동작이나 사용자 입장에서 놀랄 수 있음 — 가이드 문서에 한 줄 언급 권장.
 - **selector 불안정성**: `buildSelector` 기반 selector가 페이지 DOM 변형으로 무효해질 수 있다. `applyEditsBySelector`가 `found:false`를 반환해도 store 갱신은 진행해 UI 일관성을 지킨다(원복 불가는 기존 restoreAll도 동일하게 겪는 한계).
 - **전체 초기화의 기존 quirk 유지**: 재선택된 버퍼 요소가 있는 상태의 전체 초기화에서 `selection.classList`가 편집된 베이스라인을 가리키는 기존 동작은 건드리지 않는다(외과적 범위).
