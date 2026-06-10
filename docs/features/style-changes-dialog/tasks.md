@@ -47,10 +47,14 @@
   - [ ] `pnpm typecheck` 통과
   - [ ] `editor.resetChanges` 키가 AlertDialog 재확인에서 계속 사용됨 (고아 키 없음)
 
-### Task 6: 수동 테스트 (Chrome)
-- **변경 대상**: 없음 (`/build` 후 확장 로드)
-- **작업 내용**: 아래 수동 테스트 체크리스트 수행.
-- **검증**: 체크리스트 전부 통과
+### Task 6: 수동 테스트 (Chrome) + e2e PoC
+- **변경 대상**: 없음 (`/build` 후 확장 로드. PoC 스크립트는 커밋하지 않는 일회성)
+- **작업 내용**: 아래 수동 테스트 체크리스트 수행. 이번 과업에서 **Playwright e2e PoC**를 병행 — `launchPersistentContext` + `--load-extension=dist` 로드, 패널은 `chrome-extension://<id>/...?tabId=N` 직접 진입(SW evaluate로 tabId·storage.session 세팅), 로컬 fixture 페이지 대상. 체크리스트 중 DOM·UI 플로우(원복·badge·자동 닫힘 등)를 스크립트로 수행하고, captureVisibleTab 의존 항목(afterImage 일치·quota)·스크롤 복원은 수동 유지.
+- **검증**: 체크리스트 전부 통과 (자동+수동 합산)
+- **PoC 판정 기준** (충족 시 영구 e2e 스위트를 별도 `/feature`로 문서화):
+  - [ ] 패널 직접 진입 + picker 선택 → 수정 → 다이얼로그 플로우가 스크립트로 완주
+  - [ ] 수동 체크리스트 중 10개 이상 자동 대체
+  - [ ] 동일 스크립트 3회 연속 통과 (flaky 없음)
 
 ## 테스트 계획
 
