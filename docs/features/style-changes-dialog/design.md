@@ -46,8 +46,9 @@
 - 트리거: `<Button variant="outline" disabled={count === 0}>{t("editor.confirmChanges")}{count > 0 && <Badge variant="secondary">{count}</Badge>}</Button>`
 - 본문 레이아웃 (요소 = Card, 변경 항목 = 카드 내부 muted 컨테이너):
   - 스크롤 영역: 카드 리스트를 감싸는 `div`에 `max-h`(DialogContent의 `max-h-[80vh]` 관례 내) + `overflow-y-auto` — 카드가 많아 y축 오버플로 시 리스트만 스크롤.
-  - 요소별 shadcn `Card` (`src/components/ui/card.tsx`) 1장씩 세로 스택. 카드 헤더: `formatElementName` (`src/lib/element-label.ts`) 라벨 + 현재 선택 그룹엔 구분 표기(`editor.changesDialog.current`).
-  - 카드 내부: diff 행마다 muted 배경 라운드 컨테이너(`rounded-lg bg-muted/40 p-3` 수준) 1개 — `prop` 라벨 / as-is → to-be 값 / 우측 초기화 IconButton(`RotateCcw`, `h-8 w-8`). 값 표기는 StyleChangesTable의 unset 표기(`styleTable.unset`) 관례를 따른다.
+  - 요소별 shadcn `Card` (`src/components/ui/card.tsx`) 1장씩 세로 스택. 카드 헤더: 좌상단 `formatElementName` (`src/lib/element-label.ts`) 라벨(현재 선택 그룹엔 구분 표기 `editor.changesDialog.current`), 우상단 [x] IconButton(`X`, `h-8 w-8`) — 클릭 시 **해당 요소의 모든 변경을 확인 없이 즉시 초기화**.
+  - 카드 내부: diff 행마다 muted 배경 라운드 컨테이너(`rounded-lg bg-muted/40 p-3` 수준) 1개 — `prop` 라벨 / as-is → to-be 값 / 우측 [x] IconButton(`X`, `h-8 w-8`) — **해당 항목만 확인 없이 즉시 초기화**. 값 표기는 StyleChangesTable의 unset 표기(`styleTable.unset`) 관례를 따른다.
+  - AlertDialog 재확인은 푸터 [전체 초기화]에만 둔다.
 - 푸터: `<DialogFooter className="sm:justify-between">` — 좌측 `<Button variant="destructive">{t("editor.changesDialog.resetAll")}</Button>`(AlertDialog 트리거), 우측 `<Button>{t("common.ok")}</Button>`(닫기).
 - 개별 초기화 중복 실행 방지: `useBufferThenSwitch` 패턴의 busy ref.
 
@@ -56,14 +57,14 @@
 - `changeCount`/`totalChangeCount` 인라인 계산 제거 → `countChangeRows(buildChangeGroups(...))`로 대체 (StyleChangesDialog 내부로 이동 가능). `canProceed`(=`hasChange || bufferedElements.length > 0`)는 [다음] 버튼용으로 유지.
 
 ### `src/i18n/namespaces/editor.ts`
-- ko/en 동시 추가: `editor.confirmChanges`("변경사항 확인"/"Review changes"), `editor.changesDialog.title`, `editor.changesDialog.current`("현재 선택"/"Selected"), `editor.changesDialog.resetRow`("이 변경 초기화"/"Reset this change"), `editor.changesDialog.resetAll`("전체 초기화"/"Reset all").
+- ko/en 동시 추가: `editor.confirmChanges`("변경사항 확인"/"Review changes"), `editor.changesDialog.title`, `editor.changesDialog.current`("현재 선택"/"Selected"), `editor.changesDialog.resetRow`("이 변경 초기화"/"Reset this change"), `editor.changesDialog.resetElement`("이 요소의 변경 초기화"/"Reset this element"), `editor.changesDialog.resetAll`("전체 초기화"/"Reset all").
 - 기존 `editor.resetChanges`·`editor.resetChanges.body`는 전체 초기화 AlertDialog에 재사용. `common.ok`("확인"/"OK") 기존 키 사용.
 
 ## 데이터 흐름
 
-### 개별 초기화 — 현재 선택 요소
+### 행 단위 초기화 — 현재 선택 요소 (확인 없이 즉시)
 ```
-행 초기화 클릭
+행 [x] 클릭
 → next = removeDiffRow(selection, styleEdits, row.prop)
 → setStyleEdits(next)                          # 패널 인풋 자동 갱신 (아래 "기존 패턴 준수")
 → row.prop === "class" ? applyClasses(tabId, next.classList)
@@ -71,9 +72,9 @@
   : applyStyles(tabId, next.inlineStyle)        # DOM 원복 (applyStyles는 원본 style attr 기준 재적용)
 ```
 
-### 개별 초기화 — 버퍼 요소
+### 행 단위 초기화 — 버퍼 요소 (확인 없이 즉시)
 ```
-행 초기화 클릭
+행 [x] 클릭
 → next = removeDiffRow(b.selectionSnapshot, b.styleEdits, row.prop)
 → applyEditsBySelector(tabId, selector, next)   # DOM: 원본 원복 후 잔여 edits 재적용
 → remaining = buildStyleDiff(snapshot, next)
@@ -86,6 +87,23 @@
    ? selectByPath(tabId, selector)              # 재선택 → picker.selected → onElementSelected
                                                 # → selection·styleEdits 재베이스라인, beforeImage 재캡처
                                                 # (미버퍼 현재 편집은 폐기됨 — PRD 엣지 케이스)
+→ countChangeRows(...) === 0 이면 다이얼로그 닫기
+```
+
+### 요소 단위 초기화 — 카드 [x] (확인 없이 즉시)
+```
+baseline = { classList: [...snapshot.classList], inlineStyle: {}, text: snapshot.text ?? "" }
+
+현재 선택 카드:
+→ setStyleEdits(baseline)                       # resetAllStyleEdits의 현재 요소 분과 동일, 선택 유지
+→ applyClasses(tabId, baseline.classList) + applyStyles(tabId, {})
+  + (selection.text !== null이면 applyText(tabId, baseline.text))
+
+버퍼 카드:
+→ applyEditsBySelector(tabId, selector, baseline)  # 원본 원복 + diff 없음 → editedEls에서도 제거됨
+→ removeBufferedElement(selector)                  # 항목 제거 (before/after 이미지 폐기)
+→ 중복 케이스면 selectByPath(tabId, selector)       # 행 초기화와 동일한 재베이스라인
+
 → countChangeRows(...) === 0 이면 다이얼로그 닫기
 ```
 

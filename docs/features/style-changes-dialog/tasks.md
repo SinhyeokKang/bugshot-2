@@ -35,14 +35,14 @@
 
 ### Task 4: `StyleChangesDialog` 컴포넌트
 - **변경 대상**: `src/sidepanel/tabs/styleEditor/StyleChangesDialog.tsx` (신규)
-- **작업 내용**: 트리거 버튼([변경사항 확인] + `Badge variant="secondary"` N, N=0이면 badge 미노출 + disabled) + Dialog 본문(요소당 shadcn `Card` 1장 — 헤더 `formatElementName`, 내부에 diff 행마다 muted 라운드 컨테이너 + 행별 `RotateCcw` IconButton `h-8 w-8`; 카드 리스트는 y 오버플로 시 스크롤) + 푸터(`sm:justify-between`, 좌 destructive [전체 초기화]→AlertDialog 재확인, 우 [확인]=`common.ok`). 개별 초기화 핸들러는 design.md 데이터 흐름대로(현재 요소 / 버퍼 요소 / 중복 요소 분기, busy ref, 0건 시 자동 닫힘).
+- **작업 내용**: 트리거 버튼([변경사항 확인] + `Badge variant="secondary"` N, N=0이면 badge 미노출 + disabled) + Dialog 본문(요소당 shadcn `Card` 1장 — 헤더 좌측 `formatElementName`·우측 [x](요소 전체 초기화, 확인 없음), 내부에 diff 행마다 muted 라운드 컨테이너 + 우측 [x](행 초기화, 확인 없음), IconButton `X` `h-8 w-8`; 카드 리스트는 y 오버플로 시 스크롤) + 푸터(`sm:justify-between`, 좌 destructive [전체 초기화]→AlertDialog 재확인, 우 [확인]=`common.ok`). 초기화 핸들러는 design.md 데이터 흐름대로(행/요소 × 현재/버퍼/중복 분기, busy ref, 0건 시 자동 닫힘).
 - **검증**:
   - [ ] `pnpm typecheck` 통과
   - [ ] 행 초기화 로직이 `removeDiffRow` + 기존 `apply*`/신규 `applyEditsBySelector`만 사용 (DOM 직접 조작 없음)
 
 ### Task 5: footer 교체 + i18n
 - **변경 대상**: `src/sidepanel/tabs/StyleEditorPanel.tsx`, `src/i18n/namespaces/editor.ts`
-- **작업 내용**: 기존 AlertDialog 블록(448-476행)을 `<StyleChangesDialog />`로 교체, 인라인 `changeCount`/`totalChangeCount` 계산 제거(다이얼로그 내부로 이동), `canProceed`는 [다음]용 유지. i18n 키 5종 ko/en 동시 추가 (design.md 목록).
+- **작업 내용**: 기존 AlertDialog 블록(448-476행)을 `<StyleChangesDialog />`로 교체, 인라인 `changeCount`/`totalChangeCount` 계산 제거(다이얼로그 내부로 이동), `canProceed`는 [다음]용 유지. i18n 키 6종 ko/en 동시 추가 (design.md 목록).
 - **검증**:
   - [ ] `pnpm test` 통과 (i18n PostToolUse 훅 — ko/en 키 대칭)
   - [ ] `pnpm typecheck` 통과
@@ -66,7 +66,9 @@
 - [ ] 현재 요소 행 개별 초기화 → 페이지 즉시 원복 + 패널 인풋(ValueCombobox·ClassEditor·TextEditor) 원래 값 표시 + badge 감소.
 - [ ] 버퍼 요소 행 개별 초기화 → 페이지 원복 + afterImage 재캡처(drafting 진입해 버퍼 표에서 after 이미지가 현재 화면과 일치하는지 확인).
 - [ ] 뷰포트 밖 버퍼 요소 행 초기화 → 스크롤 이동 후 원위치 복원, 캡처 정상.
-- [ ] 버퍼 요소의 마지막 행 초기화 → 그룹 사라짐(버퍼 제거), drafting 버퍼 표에서도 제외.
+- [ ] 버퍼 요소의 마지막 행 초기화 → 카드 사라짐(버퍼 제거), drafting 버퍼 표에서도 제외.
+- [ ] 카드 우상단 [x] (버퍼 요소) → 재확인 없이 해당 요소 전체 원복 + 카드 제거.
+- [ ] 카드 우상단 [x] (현재 선택 요소) → 재확인 없이 styleEdits 원복 + 패널 인풋 갱신 + 선택 유지.
 - [ ] 마지막 변경 항목 초기화 → 다이얼로그 자동 닫힘 + 버튼 비활성.
 - [ ] [전체 초기화] → AlertDialog 재확인 → 전 요소 DOM 원복 + 다이얼로그 닫힘 + 선택 유지(패널 그대로, 인풋 원복).
 - [ ] 버퍼 요소 재선택 후 그 요소의 버퍼 행 초기화 → 재선택(re-emit) 발생, 패널 인풋 새 베이스라인, 작성 중이던 미버퍼 편집 폐기 확인.
