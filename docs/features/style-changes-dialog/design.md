@@ -49,6 +49,7 @@
   - 요소별 shadcn `Card` (`src/components/ui/card.tsx`) 1장씩 세로 스택. 카드 헤더: 좌상단 `formatElementName` (`src/lib/element-label.ts`) 라벨(현재 선택 그룹엔 구분 표기 `editor.changesDialog.current`), 우상단 [x] IconButton(`X`, `h-8 w-8`) — 클릭 시 **해당 요소의 모든 변경을 확인 없이 즉시 초기화**.
   - 카드 내부: diff 행마다 muted 배경 라운드 컨테이너(`rounded-lg bg-muted/40 p-3` 수준) 1개 — `prop` 라벨 / as-is → to-be 값 / 우측 [x] IconButton(`X`, `h-8 w-8`) — **해당 항목만 확인 없이 즉시 초기화**. 값 표기는 StyleChangesTable의 unset 표기(`styleTable.unset`) 관례를 따른다.
   - AlertDialog 재확인은 푸터 [전체 초기화]에만 둔다.
+  - prop·값 텍스트는 기본 폰트 사용 — `font-mono` 금지 (스타일 에디터·StyleChangesTable 계열의 기존 표기 관례. `font-mono`는 로그 뷰어 전용).
 - 푸터: `<DialogFooter className="sm:justify-between">` — 좌측 `<Button variant="destructive">{t("editor.changesDialog.resetAll")}</Button>`(AlertDialog 트리거), 우측 `<Button>{t("common.ok")}</Button>`(닫기).
 - 개별 초기화 중복 실행 방지: `useBufferThenSwitch` 패턴의 busy ref.
 
