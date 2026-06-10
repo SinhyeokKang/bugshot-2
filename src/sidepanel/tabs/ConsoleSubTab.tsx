@@ -41,6 +41,7 @@ export function ConsoleSubTab({ active, onStartFreeform }: { active: boolean; on
             variant="outline"
             disabled={tabId == null || (consoleLog?.entries.length ?? 0) === 0}
             onClick={() => useEditorStore.getState().clearConsoleLog(tabId ?? null)}
+            data-testid="console-clear"
           >
             <ListRestart />
             {t("consoleLog.clear")}

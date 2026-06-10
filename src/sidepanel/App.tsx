@@ -277,7 +277,7 @@ export default function App() {
       </AlertDialog>
 
       <AlertDialog open={iframeUnsupported} onOpenChange={setIframeUnsupported}>
-        <AlertDialogContent>
+        <AlertDialogContent data-testid="iframe-unsupported-dialog">
           <AlertDialogHeader>
             <AlertDialogTitle>{t("app.iframeUnsupported.title")}</AlertDialogTitle>
             <AlertDialogDescription>
@@ -285,7 +285,7 @@ export default function App() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogAction onClick={() => setIframeUnsupported(false)}>
+            <AlertDialogAction onClick={() => setIframeUnsupported(false)} data-testid="iframe-unsupported-ok">
               {t("common.ok")}
             </AlertDialogAction>
           </AlertDialogFooter>

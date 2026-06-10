@@ -138,13 +138,9 @@ export async function pickElement(
   await panel.bringToFront();
 }
 
-// 디버그 탭 진입 → element 모드 → 요소 선택까지의 공통 진입 시퀀스.
-export async function enterDebugAndPick(
-  fixture: Page,
-  panel: Page,
-  selector: string,
-): Promise<void> {
-  // fresh 프로필은 연동 0개 → integrations 자동 전환 effect와 race — 클릭 후 active 단언을 폴링.
+// 디버그 탭 진입까지 — fresh 프로필은 연동 0개라 integrations 자동 전환 effect와 race가 난다.
+// 클릭 후 active 단언을 폴링해 안정화한다. 캡처 진입 화면(mode-* 버튼)을 쓰는 모든 spec의 진입점.
+export async function enterDebug(panel: Page): Promise<void> {
   await expect(async () => {
     await panel.getByTestId("tab-debug").click();
     await expect(panel.getByTestId("tab-debug")).toHaveAttribute(
@@ -152,6 +148,15 @@ export async function enterDebugAndPick(
       "active",
     );
   }).toPass();
+}
+
+// 디버그 탭 진입 → element 모드 → 요소 선택까지의 공통 진입 시퀀스.
+export async function enterDebugAndPick(
+  fixture: Page,
+  panel: Page,
+  selector: string,
+): Promise<void> {
+  await enterDebug(panel);
   await panel.getByTestId("mode-element").click();
   await pickElement(fixture, panel, selector);
   await expect(panel.getByTestId("repick")).toBeVisible();

@@ -192,12 +192,12 @@ function EmptyState({ onStartElement, onStartElementShot, onStartScreenshot, onS
               </Button>
             </ShortcutTooltip>
             <ButtonGroup className="w-full">
-              <Button variant="outline" className="flex-1" onClick={onStartElementShot}>
+              <Button variant="outline" className="flex-1" onClick={onStartElementShot} data-testid="mode-element-shot">
                 <SquareDashedMousePointer />
                 {t("issue.mode.elementShot")}
               </Button>
               <ShortcutTooltip shortcut={shortcuts["capture-screenshot"]}>
-                <Button variant="outline" className="flex-1" onClick={onStartScreenshot}>
+                <Button variant="outline" className="flex-1" onClick={onStartScreenshot} data-testid="mode-screenshot">
                   <SquareDashed />
                   {t("issue.mode.screenshot")}
                 </Button>
@@ -205,7 +205,7 @@ function EmptyState({ onStartElement, onStartElementShot, onStartScreenshot, onS
             </ButtonGroup>
             <ButtonGroup className="w-full">
               <ShortcutTooltip shortcut={shortcuts["capture-video"]}>
-                <Button variant="outline" className="flex-1" onClick={onStartVideo}>
+                <Button variant="outline" className="flex-1" onClick={onStartVideo} data-testid="mode-video">
                   <Video />
                   {t("issue.mode.video")}
                 </Button>

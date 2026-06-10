@@ -38,6 +38,7 @@ export function NetworkSubTab({ active, onStartFreeform }: { active: boolean; on
             variant="outline"
             disabled={tabId == null || (networkLog?.requests.length ?? 0) === 0}
             onClick={() => useEditorStore.getState().clearNetworkLog(tabId ?? null)}
+            data-testid="network-clear"
           >
             <ListRestart />
             {t("networkLog.clear")}
