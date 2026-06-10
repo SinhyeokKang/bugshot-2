@@ -74,20 +74,19 @@ PoC poc.js의 인프라를 Playwright fixture로 포팅:
 - PoC의 함정: Radix Popover content도 `role="dialog"`, Dialog 열림 중 배경 `aria-hidden`으로 role 조회 제외, 카드 라벨이 i18n·원본 classList에 결합, Tailwind 클래스(`rounded-xl.border`) 결합.
 - 원칙: **e2e가 잡는 지점에만** `data-testid`(kebab-case). CSS prop 라벨(`color`, `padding`)은 i18n을 타지 않는 하드코딩 prop이라 기존 셀렉터 유지. 섹션 제목(`Class`, `Text`)은 `t("editor.section.*")` i18n 키를 타며 ko/en 값이 우연히 동일 영문일 뿐이므로 **텍스트 의존 금지 — testid로 통일**(ko 현지화 시 조용히 깨지는 것 방지).
 - 클릭 단언 가이드: [다음](`next-step`)은 `disabled`가 아닌 `aria-disabled`+핸들러 가드 패턴이라 Playwright actionability가 클릭을 막지 않는다 — 비활성 클릭이 조용한 no-op이 되므로 **클릭 전 `aria-disabled` 부재를 단언**한다. `changes-trigger`는 진짜 `disabled` 속성이라 패턴이 다름에 유의.
-- 1차 부착 지점(spec이 요구하는 전부, 17개):
+- 1차 부착 지점(spec이 요구하는 전부, 15개):
 
 | testid | 위치 | 비고 |
 |---|---|---|
 | `tab-debug` | `App.tsx` 디버그 TabsTrigger | 진입 |
 | `mode-element` | `IssueTab.tsx` 요소 스타일 편집 버튼 | 진입 |
 | `repick` | `StyleEditorPanel.tsx` RepickButton | 버퍼 플로우 |
-| `section-class` / `section-text` | StyleEditorPanel Class/Text 섹션 헤더 | i18n 텍스트 의존 제거 |
 | `class-editor` / `text-editor` | ClassEditor/TextEditor Textarea | 입력 |
 | `changes-trigger` | StyleChangesDialog 트리거 버튼 | aria-hidden 우회 |
 | `changes-dialog` | DialogContent | Popover role 충돌 해소 |
 | `changes-card` (+`data-source`, `data-selector`) | GroupCard Card | 라벨 결합 제거 |
 | `changes-row` (+`data-prop`) | diff 행 컨테이너 | |
-| `row-reset` / `element-reset` / `reset-all` | 각 리셋 버튼 | row/element는 공용 `ResetButton` — testid 전달용 prop 신설(속성 전달 한정) |
+| `reset-row` / `reset-element` / `reset-all` | 각 리셋 버튼 | row/element는 공용 `ResetButton` — testid 전달용 prop 신설(속성 전달 한정) |
 | `reset-all-confirm` | 전체 초기화 AlertDialog confirm 버튼 | 중첩 AlertDialog — i18n 텍스트 의존 제거 |
 | `next-step` | [다음] 버튼 | smoke |
 | `drafting-panel` | `DraftingPanel.tsx` 루트 | smoke 종착 판정 |

@@ -20,7 +20,7 @@ export interface ExtContext {
   context: BrowserContext;
   extensionId: string;
   fixtureUrl: (page: string) => string;
-  fixtureTabId: (urlPattern: string) => Promise<number>;
+  fixtureTabId: (urlPattern?: string) => Promise<number>;
   openPanel: (tabId: number) => Promise<Page>;
 }
 
@@ -30,7 +30,7 @@ function startFixtureServer(): Promise<{ server: Server; port: number }> {
       const urlPath = (req.url ?? "/").split("?")[0];
       const name = urlPath === "/" ? "basic.html" : urlPath.replace(/^\//, "");
       const file = path.join(PAGES_DIR, name);
-      if (!file.startsWith(PAGES_DIR)) {
+      if (!file.startsWith(PAGES_DIR + path.sep)) {
         res.writeHead(403);
         res.end();
         return;
@@ -75,6 +75,7 @@ export const test = base.extend<object, { ext: ExtContext }>({
           "--no-default-browser-check",
         ],
       });
+      // waitForEvent는 SW를 깨우지 못한다 — idle 종료 후 호출하면 타임아웃까지 hang. 기동 직후에만 호출할 것.
       const getSw = async (): Promise<Worker> => {
         const [sw] = context.serviceWorkers();
         return sw ?? (await context.waitForEvent("serviceworker"));
@@ -85,7 +86,8 @@ export const test = base.extend<object, { ext: ExtContext }>({
         context,
         extensionId,
         fixtureUrl: (page) => `http://127.0.0.1:${port}/${page}`,
-        fixtureTabId: async (urlPattern) => {
+        // 기본 패턴은 fixture 서버 호스트 — chrome match pattern은 포트를 무시한다.
+        fixtureTabId: async (urlPattern = "http://127.0.0.1/*") => {
           const sw = await getSw();
           const tabs = await sw.evaluate(
             (pattern: string) => chrome.tabs.query({ url: pattern }),
@@ -136,13 +138,37 @@ export async function pickElement(
   await panel.bringToFront();
 }
 
+// 디버그 탭 진입 → element 모드 → 요소 선택까지의 공통 진입 시퀀스.
+export async function enterDebugAndPick(
+  fixture: Page,
+  panel: Page,
+  selector: string,
+): Promise<void> {
+  // fresh 프로필은 연동 0개 → integrations 자동 전환 effect와 race — 클릭 후 active 단언을 폴링.
+  await expect(async () => {
+    await panel.getByTestId("tab-debug").click();
+    await expect(panel.getByTestId("tab-debug")).toHaveAttribute(
+      "data-state",
+      "active",
+    );
+  }).toPass();
+  await panel.getByTestId("mode-element").click();
+  await pickElement(fixture, panel, selector);
+  await expect(panel.getByTestId("repick")).toBeVisible();
+}
+
+// prop 라벨 행 — section 스코프로 한정해 changes-dialog(포털) 행의 prop 텍스트와 strict mode 충돌 방지.
+function propRow(panel: Page, label: string) {
+  return panel.locator("section").getByText(label, { exact: true }).locator("..");
+}
+
 // ValueCombobox 팝오버 열기 → cmdk input fill → 닫기. label은 i18n을 타지 않는 CSS prop 라벨.
 export async function typeStyleValue(
   panel: Page,
   label: string,
   value: string,
 ): Promise<void> {
-  const row = panel.getByText(label, { exact: true }).locator("..");
+  const row = propRow(panel, label);
   await row.locator("button").first().click();
   await panel.locator("[cmdk-input]").fill(value);
   await closeAllPopovers(panel);
@@ -154,12 +180,10 @@ export async function setQuadLinkedValue(
   label: string,
   value: string,
 ): Promise<void> {
-  const row = panel.getByText(label, { exact: true }).locator("..");
+  const row = propRow(panel, label);
   const buttons = row.locator("button");
   const toggle = buttons.last();
-  const linked = await toggle.evaluate((el) =>
-    el.className.includes("bg-foreground"),
-  );
+  const linked = (await toggle.getAttribute("aria-pressed")) === "true";
   if (!linked) await toggle.click();
   await buttons.first().click();
   await panel.locator("[cmdk-input]").fill(value);
@@ -176,6 +200,9 @@ export async function closeAllPopovers(panel: Page): Promise<void> {
     await panel.mouse.click(2, 2);
     await panel.waitForTimeout(100);
   }
+  // 잔존 팝오버는 후속 클릭을 가로채 원인 불명 실패로 전이 — 조용히 넘기지 않는다.
+  if ((await openPopoverCount(panel)) > 0)
+    throw new Error("closeAllPopovers: 4회 시도 후에도 팝오버가 닫히지 않음");
 }
 
 function openPopoverCount(panel: Page): Promise<number> {

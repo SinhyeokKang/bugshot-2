@@ -18,7 +18,7 @@
 
 ### Task 2: data-testid 부착
 - **변경 대상**: `src/sidepanel/App.tsx`, `src/sidepanel/tabs/IssueTab.tsx`, `src/sidepanel/tabs/StyleEditorPanel.tsx`, `src/sidepanel/tabs/styleEditor/StyleChangesDialog.tsx`, `src/sidepanel/tabs/DraftingPanel.tsx`
-- **작업 내용**: design.md 표의 17개 testid 부착(속성 추가만 — 로직·구조·스타일 변경 금지. 단 `row-reset`/`element-reset`은 공용 `ResetButton`이라 **testid 전달용 prop 신설 허용** — 속성 전달 한정). `changes-card`엔 `data-source`/`data-selector`, `changes-row`엔 `data-prop` 데이터 속성 동반.
+- **작업 내용**: design.md 표의 testid 부착(속성 추가만 — 로직·구조·스타일 변경 금지. 단 `reset-row`/`reset-element`은 공용 `ResetButton`이라 **testid 전달용 prop 신설 허용** — 속성 전달 한정). `changes-card`엔 `data-source`/`data-selector`, `changes-row`엔 `data-prop` 데이터 속성 동반.
 - **검증**:
   - [x] `pnpm typecheck` + `pnpm test` 통과 (기존 단위 테스트 회귀 없음 — 1555 tests green)
   - [x] `git diff`에 className·로직 변경 0건 (속성 추가만 — UI 검증 에이전트가 17개 전수 확인)

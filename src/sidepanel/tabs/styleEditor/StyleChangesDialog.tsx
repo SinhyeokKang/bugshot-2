@@ -255,7 +255,7 @@ function GroupCard({
           spinning={busyKey === elementKey}
           disabled={busy}
           onClick={() => void onResetElement(group, elementKey)}
-          testid="element-reset"
+          data-testid="reset-element"
         />
       </div>
       <div className="mt-2 space-y-2">
@@ -281,7 +281,7 @@ function GroupCard({
                 spinning={busyKey === rowKey}
                 disabled={busy}
                 onClick={() => void onResetRow(group, row.prop, rowKey)}
-                testid="row-reset"
+                data-testid="reset-row"
               />
             </div>
           );
@@ -296,13 +296,13 @@ function ResetButton({
   spinning,
   disabled,
   onClick,
-  testid,
+  "data-testid": testid,
 }: {
   label: string;
   spinning: boolean;
   disabled: boolean;
   onClick: () => void;
-  testid: string;
+  "data-testid": string;
 }) {
   return (
     <Button

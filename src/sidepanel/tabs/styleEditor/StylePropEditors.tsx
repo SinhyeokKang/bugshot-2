@@ -104,6 +104,7 @@ function LinkToggle({
     <button
       type="button"
       onClick={onToggle}
+      aria-pressed={linked}
       className={cn(
         "flex h-9 w-9 shrink-0 items-center justify-center rounded-md border text-muted-foreground transition-colors",
         linked ? "border-foreground bg-foreground text-background hover:bg-foreground/80" : "hover:bg-muted",

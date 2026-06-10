@@ -1,23 +1,12 @@
-import { expect, pickElement, test, typeStyleValue } from "./fixtures/extension";
+import { enterDebugAndPick, expect, test, typeStyleValue } from "./fixtures/extension";
 
 test("진입 → 선택 → 수정 → drafting 진입", async ({ ext }) => {
   const fixture = await ext.context.newPage();
   await fixture.goto(ext.fixtureUrl("basic.html"));
-  const tabId = await ext.fixtureTabId("http://127.0.0.1/*");
+  const tabId = await ext.fixtureTabId();
   const panel = await ext.openPanel(tabId);
 
-  // fresh 프로필은 연동 0개 → integrations 자동 전환 effect와 race — 클릭 후 active 단언을 폴링.
-  await expect(async () => {
-    await panel.getByTestId("tab-debug").click();
-    await expect(panel.getByTestId("tab-debug")).toHaveAttribute(
-      "data-state",
-      "active",
-    );
-  }).toPass();
-
-  await panel.getByTestId("mode-element").click();
-  await pickElement(fixture, panel, "#title");
-  await expect(panel.getByTestId("repick")).toBeVisible();
+  await enterDebugAndPick(fixture, panel, "#title");
 
   await typeStyleValue(panel, "color", "#ff0000");
   await expect(fixture.locator("#title")).toHaveCSS("color", "rgb(255, 0, 0)");

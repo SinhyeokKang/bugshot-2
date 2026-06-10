@@ -158,7 +158,7 @@ export function SelectedPanel() {
         </div>
 
         <Section
-          title={<span data-testid="section-class">{t("editor.section.class")}</span>}
+          title={t("editor.section.class")}
           action={<ClassRevertButton />}
         >
           <ClassEditor />
@@ -314,7 +314,7 @@ export function SelectedPanel() {
 
       {selection.text !== null ? (
         <Section
-          title={<span data-testid="section-text">{t("editor.section.text")}</span>}
+          title={t("editor.section.text")}
           action={<TextRevertButton />}
         >
           <TextEditor />

@@ -1,5 +1,6 @@
 import type { Page } from "@playwright/test";
 import {
+  enterDebugAndPick,
   expect,
   pickElement,
   setQuadLinkedValue,
@@ -15,7 +16,7 @@ test.describe.serial("style-changes-dialog", () => {
   test.beforeAll(async ({ ext }) => {
     fixture = await ext.context.newPage();
     await fixture.goto(ext.fixtureUrl("basic.html"));
-    const tabId = await ext.fixtureTabId("http://127.0.0.1/*");
+    const tabId = await ext.fixtureTabId();
     panel = await ext.openPanel(tabId);
   });
 
@@ -44,16 +45,7 @@ test.describe.serial("style-changes-dialog", () => {
   }
 
   test("1. 변경 0건 → 트리거 비활성 + badge 없음", async () => {
-    await expect(async () => {
-      await panel.getByTestId("tab-debug").click();
-      await expect(panel.getByTestId("tab-debug")).toHaveAttribute(
-        "data-state",
-        "active",
-      );
-    }).toPass();
-    await panel.getByTestId("mode-element").click();
-    await pickElement(fixture, panel, "#title");
-    await expect(panel.getByTestId("repick")).toBeVisible();
+    await enterDebugAndPick(fixture, panel, "#title");
 
     await expect(trigger()).toBeDisabled();
     expect(await trigger().innerText()).not.toMatch(/\d/);
@@ -85,14 +77,14 @@ test.describe.serial("style-changes-dialog", () => {
   });
 
   test("5. 현재 요소 행 초기화 → 페이지 즉시 원복 + badge 감소", async () => {
-    await row("current", "class").getByTestId("row-reset").click();
+    await row("current", "class").getByTestId("reset-row").click();
     await expect(fixture.locator("#card")).toHaveClass("card box");
     await expect(trigger()).toContainText("2");
     await expect(panel.getByTestId("changes-card")).toHaveCount(1);
   });
 
   test("6. 버퍼 요소 행 초기화 → 페이지 원복 + 재캡처 에러 없음", async () => {
-    await row("buffered", "color").getByTestId("row-reset").click();
+    await row("buffered", "color").getByTestId("reset-row").click();
     await expect(fixture.locator("#title")).toHaveCSS("color", "rgb(17, 24, 39)");
     // 재캡처 완료는 busy 해제(잔여 행 갱신)로 간접 단언 — afterImage 정합은 수동 잔여.
     await expect(panel.getByTestId("changes-row")).toHaveCount(1);
@@ -104,7 +96,7 @@ test.describe.serial("style-changes-dialog", () => {
     await closeDialog();
     await typeStyleValue(panel, "width", "300px");
     await openDialog();
-    await row("buffered", "padding").getByTestId("row-reset").click();
+    await row("buffered", "padding").getByTestId("reset-row").click();
     await expect(card("buffered")).toHaveCount(0);
     await expect(panel.getByTestId("changes-card")).toHaveCount(1);
     await expect(dialog()).toBeVisible();
@@ -115,7 +107,7 @@ test.describe.serial("style-changes-dialog", () => {
     await repickTo("#title");
     await typeStyleValue(panel, "color", "#00ff00");
     await openDialog();
-    await card("buffered").getByTestId("element-reset").click();
+    await card("buffered").getByTestId("reset-element").click();
     await expect(panel.getByRole("alertdialog")).toHaveCount(0);
     await expect(card("buffered")).toHaveCount(0);
     await expect(fixture.locator("#card")).not.toHaveCSS("width", "300px");
@@ -126,7 +118,7 @@ test.describe.serial("style-changes-dialog", () => {
     await repickTo("#card");
     await panel.getByTestId("class-editor").fill("card box extra2");
     await openDialog();
-    await card("current").getByTestId("element-reset").click();
+    await card("current").getByTestId("reset-element").click();
     await expect(card("current")).toHaveCount(0);
     await expect(fixture.locator("#card")).toHaveClass("card box");
     await expect(trigger()).toContainText("1");
@@ -138,7 +130,7 @@ test.describe.serial("style-changes-dialog", () => {
 
   test("10. 마지막 변경 항목 초기화 → 다이얼로그 자동 닫힘 + 트리거 비활성", async () => {
     await openDialog();
-    await row("buffered", "color").getByTestId("row-reset").click();
+    await row("buffered", "color").getByTestId("reset-row").click();
     await expect(dialog()).toBeHidden();
     await expect(trigger()).toBeDisabled();
   });
@@ -161,7 +153,7 @@ test.describe.serial("style-changes-dialog", () => {
     await panel.getByTestId("text-editor").fill("Changed Title");
     await expect(fixture.locator("#title")).toHaveText("Changed Title");
     await openDialog();
-    await row("current", "text").getByTestId("row-reset").click();
+    await row("current", "text").getByTestId("reset-row").click();
     await expect(fixture.locator("#title")).toHaveText("Fixture Title");
     // 마지막 항목이라 0건 reactive 자동 닫힘
     await expect(dialog()).toBeHidden();
@@ -171,7 +163,7 @@ test.describe.serial("style-changes-dialog", () => {
     await panel.getByTestId("class-editor").fill("highlight");
     await expect(fixture.locator("#title")).toHaveClass(/highlight/);
     await openDialog();
-    await row("current", "class").getByTestId("row-reset").click();
+    await row("current", "class").getByTestId("reset-row").click();
     await expect(fixture.locator("#title")).not.toHaveClass(/highlight/);
     await expect(dialog()).toBeHidden();
   });
@@ -185,7 +177,7 @@ test.describe.serial("style-changes-dialog", () => {
     await fixture.evaluate(() => document.querySelector("#title")?.remove());
     await panel.bringToFront();
     await openDialog();
-    await card("buffered").getByTestId("row-reset").click();
+    await card("buffered").getByTestId("reset-row").click();
     await expect(card("buffered")).toHaveCount(0);
     await expect(card("current")).toHaveCount(1);
     await expect(dialog()).toBeVisible();
@@ -195,7 +187,7 @@ test.describe.serial("style-changes-dialog", () => {
     await closeDialog();
     await typeStyleValue(panel, "width", "320px");
     await openDialog();
-    const resetBtn = row("current", "width").getByTestId("row-reset");
+    const resetBtn = row("current", "width").getByTestId("reset-row");
     await resetBtn.click();
     // busy 가드 검증 — 두 번째 클릭은 no-op이어야 한다 (detach됐으면 무시).
     await resetBtn.click({ force: true, timeout: 1_000 }).catch(() => {});
