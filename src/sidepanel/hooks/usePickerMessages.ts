@@ -88,6 +88,11 @@ export function usePickerMessages(myTabId: number | null): void {
           if (tabId) void captureElementShot(tabId, msg.payload);
           return;
         }
+        // 버퍼된 요소 재선택은 before/after를 복원한다(원래 캡처가 실패해 null이어도). 그 경우
+        // DOM엔 편집이 적용돼 있어 fresh before 캡처는 편집 후 상태를 before로 박는 오염이 된다.
+        const wasBuffered = useEditorStore
+          .getState()
+          .bufferedElements.some((b) => b.selector === msg.payload.selector);
         useEditorStore.getState().onElementSelected({
           selector: msg.payload.selector,
           tagName: msg.payload.tagName,
@@ -108,9 +113,7 @@ export function usePickerMessages(myTabId: number | null): void {
               useEditorStore.getState().setTokens(tokens);
             })
             .catch((err) => console.warn("[bugshot] collectTokens failed", err));
-          // 버퍼된 요소 재선택은 before/after를 복원하므로(이미 non-null) 새 캡처로 덮지 않는다 —
-          // DOM엔 편집이 적용돼 있어 fresh 캡처는 편집 후 상태를 before로 박는 오염이 된다.
-          if (!useEditorStore.getState().beforeImage) {
+          if (!wasBuffered && !useEditorStore.getState().beforeImage) {
             void captureElementSnapshot(tabId)
               .then((img) => {
                 if (img) useEditorStore.getState().setBeforeImage(img);

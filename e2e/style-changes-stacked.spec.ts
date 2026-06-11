@@ -139,12 +139,31 @@ test.describe.serial("style-changes-stacked", () => {
     await closeDialog();
   });
 
-  test("5. class editor — 클래스 추가 행 + 버퍼 보존", async () => {
-    // #el1 현재 선택 상태 (4번 끝에서 repick #el1)
+  test("5. class editor — 클래스 추가 행 + 버퍼 보존 + 기존 스타일 as-is 베이스라인 보존", async () => {
+    // #el1 현재 선택 상태 (4번 끝에서 repick #el1). color는 1번에서 편집됨(rgb(255,0,0)).
     await panel.getByTestId("class-editor").fill("swatch active");
     await expect(fixture.locator("#el1")).toHaveClass("swatch active");
     await openDialog();
     await expect(card("current").locator('[data-prop="class"]')).toHaveCount(1);
+    // 회귀: class 편집이 유발한 selectionUpdated가 color 행의 as-is(원본)를 편집값으로 덮으면 안 됨
+    const colorRow = card("current").locator('[data-prop="color"]');
+    const asIs = (await colorRow.getByTestId("changes-asis").innerText()).trim();
+    const toBe = (await colorRow.getByTestId("changes-tobe").innerText()).trim();
+    expect(asIs).not.toBe(toBe);
+    expect(asIs).toBe("rgb(50, 50, 50)");
+    await closeDialog();
+  });
+
+  test("6. 버퍼 #el2 재선택 후 class 편집 → 기존 bg 행 as-is 베이스라인 보존", async () => {
+    await repickTo("#el2");
+    // class 편집 → selectionUpdated 유발. bg(2번에서 rgb(0,0,255)로 편집)의 as-is가 오염되면 안 됨.
+    await panel.getByTestId("class-editor").fill("swatch wide");
+    await openDialog();
+    const bgRow = card("current").locator('[data-prop="background-color"]');
+    const asIs = (await bgRow.getByTestId("changes-asis").innerText()).trim();
+    const toBe = (await bgRow.getByTestId("changes-tobe").innerText()).trim();
+    expect(asIs).not.toBe(toBe);
+    expect(asIs).toBe("rgb(240, 240, 240)");
     await closeDialog();
   });
 });

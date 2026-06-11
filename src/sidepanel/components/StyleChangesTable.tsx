@@ -104,13 +104,26 @@ function SnapshotCell({ image }: { image: string | null }) {
   );
 }
 
-export function DiffValue({ value, muted }: { value: string; muted?: boolean }) {
+export function DiffValue({
+  value,
+  muted,
+  "data-testid": testid,
+}: {
+  value: string;
+  muted?: boolean;
+  "data-testid"?: string;
+}) {
   const t = useT();
   if (!value.trim()) {
-    return <span className="text-muted-foreground/60">{t("styleTable.unset")}</span>;
+    return (
+      <span data-testid={testid} className="text-muted-foreground/60">
+        {t("styleTable.unset")}
+      </span>
+    );
   }
   return (
     <span
+      data-testid={testid}
       className={cn(
         "whitespace-pre-wrap break-all",
         muted && "text-muted-foreground",

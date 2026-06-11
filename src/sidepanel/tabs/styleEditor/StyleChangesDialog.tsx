@@ -231,9 +231,9 @@ function GroupCard({
               <div className="min-w-0 flex-1 space-y-0.5 text-sm">
                 <div className="font-medium">{row.prop}</div>
                 <div>
-                  <DiffValue value={row.asIs} muted />
+                  <DiffValue value={row.asIs} muted data-testid="changes-asis" />
                   <span className="mx-1 text-muted-foreground">→</span>
-                  <DiffValue value={row.toBe} />
+                  <DiffValue value={row.toBe} data-testid="changes-tobe" />
                 </div>
               </div>
               <ResetButton

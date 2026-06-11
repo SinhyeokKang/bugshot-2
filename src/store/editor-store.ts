@@ -293,6 +293,45 @@ function preserveBuffer(state: EditorState): Pick<EditorState, "bufferedElements
   return { bufferedElements: state.bufferedElements };
 }
 
+// class 변경 후 picker.selectionUpdated의 specified/computed에는 인라인 편집값이 새어든다
+// (css-resolve가 el.style을 [inline] source로 접음). 편집 중(styleEdits.inlineStyle) prop의 diff
+// baseline은 편집 전 원본이어야 하므로, 재수집 패치에서 그 prop만 기존 selection 값으로 되돌린다.
+// 원본에 없던 prop은 제거해 buildStyleDiff의 computed 폴백도 원본을 가리키게 한다.
+export function mergeSelectionStyles(
+  prev: Pick<
+    EditorSelection,
+    "specifiedStyles" | "computedStyles" | "propSources"
+  >,
+  patch: {
+    specifiedStyles: Record<string, string>;
+    computedStyles: Record<string, string>;
+    propSources: Record<string, string>;
+  },
+  inlineEdits: Record<string, string>,
+): {
+  specifiedStyles: Record<string, string>;
+  computedStyles: Record<string, string>;
+  propSources: Record<string, string>;
+} {
+  const specifiedStyles = { ...patch.specifiedStyles };
+  const computedStyles = { ...patch.computedStyles };
+  const propSources = { ...patch.propSources };
+  const restore = (
+    next: Record<string, string>,
+    base: Record<string, string>,
+    prop: string,
+  ) => {
+    if (prop in base) next[prop] = base[prop];
+    else delete next[prop];
+  };
+  for (const prop of Object.keys(inlineEdits)) {
+    restore(specifiedStyles, prev.specifiedStyles, prop);
+    restore(computedStyles, prev.computedStyles, prop);
+    restore(propSources, prev.propSources, prop);
+  }
+  return { specifiedStyles, computedStyles, propSources };
+}
+
 function newIssueId(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
     return crypto.randomUUID();
@@ -474,7 +513,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   updateSelectionStyles: (patch) =>
     set((s) => {
       if (!s.selection) return {};
-      return { selection: { ...s.selection, ...patch } };
+      return {
+        selection: {
+          ...s.selection,
+          ...mergeSelectionStyles(s.selection, patch, s.styleEdits.inlineStyle),
+        },
+      };
     }),
 
   setStyleEdits: (patch) =>

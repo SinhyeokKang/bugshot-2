@@ -70,7 +70,7 @@ vi.mock("@/types/messages", () => ({
   onBlobSaveFailed: { fire: vi.fn(), listen: vi.fn() },
 }));
 
-import { useEditorStore } from "../editor-store";
+import { useEditorStore, mergeSelectionStyles } from "../editor-store";
 
 /* ------------------------------------------------------------------ */
 /*  Fixtures                                                           */
@@ -1023,5 +1023,91 @@ describe("patchBufferedElement / removeBufferedElement", () => {
     useEditorStore.getState().removeBufferedElement("#none");
 
     expect(useEditorStore.getState().bufferedElements).toHaveLength(1);
+  });
+});
+
+describe("mergeSelectionStyles — class 편집 후 baseline 오염 방지", () => {
+  it("편집 중 prop은 재수집 패치의 인라인 오염값 대신 원본 baseline 유지", () => {
+    const prev = {
+      specifiedStyles: { color: "rgb(50, 50, 50)" },
+      computedStyles: { color: "rgb(50, 50, 50)", "padding-top": "0px" },
+      propSources: { color: ".swatch" },
+    };
+    // class 편집 후 picker.selectionUpdated: 인라인 편집값(color/padding-top)이 새어든 패치
+    const patch = {
+      specifiedStyles: { color: "rgb(255, 0, 0)", "padding-top": "20px" },
+      computedStyles: { color: "rgb(255, 0, 0)", "padding-top": "20px" },
+      propSources: { color: "[inline]", "padding-top": "[inline]" },
+    };
+    const inlineEdits = { color: "rgb(255, 0, 0)", "padding-top": "20px" };
+
+    const merged = mergeSelectionStyles(prev, patch, inlineEdits);
+
+    // 원본에 있던 color → baseline 값 복원
+    expect(merged.specifiedStyles.color).toBe("rgb(50, 50, 50)");
+    // 원본 specified에 없던 padding-top → 제거 (computed 폴백이 원본 0px 가리키게)
+    expect(merged.specifiedStyles["padding-top"]).toBeUndefined();
+    expect(merged.computedStyles["padding-top"]).toBe("0px");
+    expect(merged.propSources.color).toBe(".swatch");
+    expect(merged.propSources["padding-top"]).toBeUndefined();
+  });
+
+  it("편집 안 한 prop은 재수집 패치값을 그대로 반영 (class 변경으로 바뀐 규칙)", () => {
+    const prev = {
+      specifiedStyles: { color: "rgb(50, 50, 50)" },
+      computedStyles: { color: "rgb(50, 50, 50)" },
+      propSources: { color: ".swatch" },
+    };
+    const patch = {
+      specifiedStyles: { color: "rgb(50, 50, 50)", "background-color": "rgb(0, 0, 255)" },
+      computedStyles: { color: "rgb(50, 50, 50)", "background-color": "rgb(0, 0, 255)" },
+      propSources: { color: ".swatch", "background-color": ".active" },
+    };
+    // color만 편집 중, background-color는 class 변경으로 새로 매칭된 규칙
+    const merged = mergeSelectionStyles(prev, patch, { color: "rgb(255, 0, 0)" });
+
+    expect(merged.specifiedStyles.color).toBe("rgb(50, 50, 50)");
+    expect(merged.specifiedStyles["background-color"]).toBe("rgb(0, 0, 255)");
+  });
+});
+
+describe("updateSelectionStyles — 편집 중 prop baseline 보존", () => {
+  beforeEach(() => {
+    useEditorStore.setState(useEditorStore.getInitialState(), true);
+  });
+
+  it("스타일 편집 후 selectionUpdated가 와도 편집 prop의 diff 전값이 원본으로 유지된다", () => {
+    useEditorStore.setState({
+      selection: {
+        selector: "#el1",
+        tagName: "div",
+        classList: ["swatch"],
+        specifiedStyles: { color: "rgb(50, 50, 50)" },
+        computedStyles: { color: "rgb(50, 50, 50)", "padding-top": "0px" },
+        propSources: { color: ".swatch" },
+        hasParent: true,
+        hasChild: false,
+        text: null,
+        viewport: { width: 1440, height: 900 },
+        capturedAt: 1700000000000,
+      },
+      styleEdits: {
+        classList: ["swatch"],
+        inlineStyle: { color: "rgb(255, 0, 0)", "padding-top": "20px" },
+        text: "",
+      },
+    });
+
+    // class 편집이 유발한 selectionUpdated (인라인이 새어든 specified/computed)
+    useEditorStore.getState().updateSelectionStyles({
+      specifiedStyles: { color: "rgb(255, 0, 0)", "padding-top": "20px" },
+      computedStyles: { color: "rgb(255, 0, 0)", "padding-top": "20px" },
+      propSources: { color: "[inline]", "padding-top": "[inline]" },
+    });
+
+    const sel = useEditorStore.getState().selection!;
+    expect(sel.specifiedStyles.color).toBe("rgb(50, 50, 50)");
+    expect(sel.specifiedStyles["padding-top"]).toBeUndefined();
+    expect(sel.computedStyles["padding-top"]).toBe("0px");
   });
 });
