@@ -11,7 +11,7 @@ export interface LogPersistGuard<T> {
 }
 
 export function createLogPersistGuard<T>(
-  save: (key: string, value: T) => void,
+  save: (key: string, value: T) => boolean | void | Promise<boolean | void>,
   intervalMs: number,
   scheduleTimer?: (cb: () => void, ms: number) => number,
   clearTimer?: (id: number) => void,
@@ -21,9 +21,26 @@ export function createLogPersistGuard<T>(
   const throttle = createTrailingThrottle(
     () => {
       if (!pending) return;
-      const { key, value } = pending;
-      save(key, value);
-      pending = null; // save가 throw하면 pending 보존 → 다음 push/flush에서 재시도
+      const current = pending;
+      // 실패(sync throw / reject / false resolve — blob-db save는 실패를 false로 resolve)
+      // 시 pending 보존 → 다음 push/flush에서 재시도. 성공 시에만 비우되, save 진행 중
+      // 새 push로 pending이 갱신됐으면 최신 payload를 지우지 않는다.
+      let result: boolean | void | Promise<boolean | void>;
+      try {
+        result = save(current.key, current.value);
+      } catch {
+        return;
+      }
+      if (result instanceof Promise) {
+        void result.then(
+          (ok) => {
+            if (ok !== false && pending === current) pending = null;
+          },
+          () => {},
+        );
+      } else if (result !== false) {
+        pending = null;
+      }
     },
     intervalMs,
     scheduleTimer,

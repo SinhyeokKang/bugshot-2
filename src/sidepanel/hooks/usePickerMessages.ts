@@ -26,16 +26,18 @@ let lastLogClearAt = 0;
 // 레코더 자동 flush(~200ms)로 *.data 수신 빈도가 올라도 IndexedDB write는 ~1s로 묶는다.
 // store set은 매번(메모리), save만 가드. 30s replay trim 경로(use-30s-replay)가 discard로 stale 쓰기를 비운다.
 const LOG_PERSIST_INTERVAL_MS = 1000;
+// save 결과(Promise<boolean>)를 guard에 그대로 전달 — 실패(false/reject) 시 pending이
+// 보존돼 다음 push/flush에서 재시도된다 (c3d87e5 회귀 수정의 실제 배선).
 export const networkLogPersist = createLogPersistGuard(
-  (key: string, log: Parameters<typeof saveNetworkLog>[1]) => { saveNetworkLog(key, log).catch(() => {}); },
+  (key: string, log: Parameters<typeof saveNetworkLog>[1]) => saveNetworkLog(key, log),
   LOG_PERSIST_INTERVAL_MS,
 );
 export const consoleLogPersist = createLogPersistGuard(
-  (key: string, log: Parameters<typeof saveConsoleLog>[1]) => { saveConsoleLog(key, log).catch(() => {}); },
+  (key: string, log: Parameters<typeof saveConsoleLog>[1]) => saveConsoleLog(key, log),
   LOG_PERSIST_INTERVAL_MS,
 );
 export const actionLogPersist = createLogPersistGuard(
-  (key: string, log: Parameters<typeof saveActionLog>[1]) => { saveActionLog(key, log).catch(() => {}); },
+  (key: string, log: Parameters<typeof saveActionLog>[1]) => saveActionLog(key, log),
   LOG_PERSIST_INTERVAL_MS,
 );
 

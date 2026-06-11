@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useEditorStore } from "@/store/editor-store";
 import { useBoundTabId } from "@/sidepanel/hooks/useBoundTabId";
 import { syncNetworkRecorder } from "@/sidepanel/picker-control";
+import { networkLogPersist } from "@/sidepanel/hooks/usePickerMessages";
 import { PageShell, PageFooter } from "@/sidepanel/components/Section";
 import { NetworkLogContent } from "@/sidepanel/components/NetworkLogContent";
 
@@ -37,7 +38,12 @@ export function NetworkSubTab({ active, onStartFreeform }: { active: boolean; on
           <Button
             variant="outline"
             disabled={tabId == null || (networkLog?.requests.length ?? 0) === 0}
-            onClick={() => useEditorStore.getState().clearNetworkLog(tabId ?? null)}
+            onClick={() => {
+              // clear가 IDB pending을 delete하므로 대기 중 throttle write를 먼저 폐기해
+              // delete 이후 stale 버퍼가 IDB에 부활하는 걸 막는다 (logClear 메시지 경로와 대칭).
+              networkLogPersist.discard();
+              useEditorStore.getState().clearNetworkLog(tabId ?? null);
+            }}
             data-testid="network-clear"
           >
             <ListRestart />
