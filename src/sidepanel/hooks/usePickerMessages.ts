@@ -108,11 +108,15 @@ export function usePickerMessages(myTabId: number | null): void {
               useEditorStore.getState().setTokens(tokens);
             })
             .catch((err) => console.warn("[bugshot] collectTokens failed", err));
-          void captureElementSnapshot(tabId)
-            .then((img) => {
-              if (img) useEditorStore.getState().setBeforeImage(img);
-            })
-            .catch((err) => console.warn("[bugshot] before-image capture failed", err));
+          // 버퍼된 요소 재선택은 before/after를 복원하므로(이미 non-null) 새 캡처로 덮지 않는다 —
+          // DOM엔 편집이 적용돼 있어 fresh 캡처는 편집 후 상태를 before로 박는 오염이 된다.
+          if (!useEditorStore.getState().beforeImage) {
+            void captureElementSnapshot(tabId)
+              .then((img) => {
+                if (img) useEditorStore.getState().setBeforeImage(img);
+              })
+              .catch((err) => console.warn("[bugshot] before-image capture failed", err));
+          }
         }
       } else if (message.type === "picker.selectionUpdated") {
         const msg = message as Extract<PickerMessage, { type: "picker.selectionUpdated" }>;

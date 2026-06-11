@@ -430,17 +430,45 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   onAnnotated: (dataUrl) => set({ screenshotAnnotated: dataUrl }),
 
   onElementSelected: (selection) =>
-    set({
-      phase: "styling",
-      selection,
-      styleEdits: {
-        classList: [...selection.classList],
-        inlineStyle: {},
-        text: selection.text ?? "",
-      },
-      beforeImage: null,
-      afterImage: null,
-      aiStylingLoading: false,
+    set((s) => {
+      // 이미 버퍼에 담긴 요소를 재선택하면 그 편집을 작업 set으로 복원한다. 안 그러면
+      // 재선택 시 inlineStyle이 {}로 비워져, 추가 편집 후 재버퍼 시 이전 편집이 소실된다.
+      const buffered = s.bufferedElements.find((b) => b.selector === selection.selector);
+      if (buffered) {
+        return {
+          phase: "styling" as const,
+          // diff baseline(전값)은 인라인이 새어든 재캡처 specified가 아니라 버퍼 원본 snapshot을 쓴다.
+          selection: {
+            ...selection,
+            classList: [...buffered.selectionSnapshot.classList],
+            specifiedStyles: { ...buffered.selectionSnapshot.specifiedStyles },
+            computedStyles: { ...buffered.selectionSnapshot.computedStyles },
+            text: buffered.selectionSnapshot.text,
+          },
+          styleEdits: {
+            classList: [...buffered.styleEdits.classList],
+            inlineStyle: { ...buffered.styleEdits.inlineStyle },
+            text: buffered.styleEdits.text,
+          },
+          beforeImage: buffered.beforeImage,
+          afterImage: buffered.afterImage,
+          // 현재 요소로 승격 — 중복 카드 방지.
+          bufferedElements: s.bufferedElements.filter((b) => b.selector !== selection.selector),
+          aiStylingLoading: false,
+        };
+      }
+      return {
+        phase: "styling" as const,
+        selection,
+        styleEdits: {
+          classList: [...selection.classList],
+          inlineStyle: {},
+          text: selection.text ?? "",
+        },
+        beforeImage: null,
+        afterImage: null,
+        aiStylingLoading: false,
+      };
     }),
 
   updateSelectionStyles: (patch) =>

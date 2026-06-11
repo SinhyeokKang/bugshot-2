@@ -834,6 +834,107 @@ describe("bufferCurrentElement — 복수 element 버퍼", () => {
   });
 });
 
+describe("onElementSelected — 버퍼된 요소 재선택 시 편집 복원", () => {
+  beforeEach(() => {
+    useEditorStore.setState(useEditorStore.getInitialState(), true);
+  });
+
+  function freshPayload(selector: string, overrides?: Partial<{
+    classList: string[];
+    specifiedStyles: Record<string, string>;
+    computedStyles: Record<string, string>;
+    text: string | null;
+  }>) {
+    return {
+      selector,
+      tagName: "h1",
+      classList: overrides?.classList ?? ["title"],
+      computedStyles: overrides?.computedStyles ?? { color: "#000000" },
+      specifiedStyles: overrides?.specifiedStyles ?? {},
+      propSources: {},
+      hasParent: true,
+      hasChild: false,
+      text: overrides?.text ?? null,
+      viewport: { width: 1440, height: 900 },
+      capturedAt: 1700000000000,
+    };
+  }
+
+  it("신규 selector → inlineStyle을 {}로 리셋 (기존 동작)", () => {
+    useEditorStore.getState().onElementSelected(freshPayload("#title"));
+    const s = useEditorStore.getState();
+    expect(s.styleEdits.inlineStyle).toEqual({});
+    expect(s.styleEdits.classList).toEqual(["title"]);
+    expect(s.beforeImage).toBeNull();
+    expect(s.phase).toBe("styling");
+  });
+
+  it("버퍼된 selector 재선택 → 버퍼의 styleEdits·snapshot·before/after 복원 + 버퍼에서 제거", () => {
+    // #title을 py 편집 후 버퍼에 적재
+    useEditorStore.setState({
+      selection: freshPayload("#title", { specifiedStyles: { "padding-top": "8px", "padding-bottom": "8px" } }),
+      styleEdits: {
+        classList: ["title"],
+        inlineStyle: { "padding-top": "20px", "padding-bottom": "20px" },
+        text: "",
+      },
+      beforeImage: "data:before-title",
+    });
+    useEditorStore.getState().bufferCurrentElement("data:after-title");
+    expect(useEditorStore.getState().bufferedElements).toHaveLength(1);
+
+    // 다른 요소로 전환했다가 #title을 재선택. 재선택 payload는 인라인이 새어든 폴루션 specified를 가질 수 있다.
+    useEditorStore.getState().onElementSelected(
+      freshPayload("#title", { specifiedStyles: { "padding-top": "20px", "padding-bottom": "20px" } }),
+    );
+
+    const s = useEditorStore.getState();
+    // 작업 styleEdits가 버퍼 편집으로 복원됨
+    expect(s.styleEdits.inlineStyle).toEqual({ "padding-top": "20px", "padding-bottom": "20px" });
+    // baseline(diff 전값)은 버퍼 snapshot의 원본 specified를 사용
+    expect(s.selection?.specifiedStyles).toEqual({ "padding-top": "8px", "padding-bottom": "8px" });
+    // before/after 이미지 복원
+    expect(s.beforeImage).toBe("data:before-title");
+    expect(s.afterImage).toBe("data:after-title");
+    // 중복 방지: 버퍼에서 제거 (현재 요소로 승격)
+    expect(s.bufferedElements).toHaveLength(0);
+    expect(s.phase).toBe("styling");
+  });
+
+  it("재선택 후 추가 편집 → 다음 전환 시 이전 py 편집이 보존된다 (py-buffer-repro 회귀)", () => {
+    useEditorStore.setState({
+      selection: freshPayload("#title", { specifiedStyles: { "padding-top": "8px", "padding-bottom": "8px", "padding-left": "8px" } }),
+      styleEdits: {
+        classList: ["title"],
+        inlineStyle: { "padding-top": "20px", "padding-bottom": "20px" },
+        text: "",
+      },
+      beforeImage: "data:before-title",
+    });
+    useEditorStore.getState().bufferCurrentElement("data:after-title");
+
+    // #title 재선택 → 편집 복원
+    useEditorStore.getState().onElementSelected(freshPayload("#title"));
+    // px(left) 한 면 추가
+    useEditorStore.getState().setStyleEdits({
+      inlineStyle: {
+        ...useEditorStore.getState().styleEdits.inlineStyle,
+        "padding-left": "10px",
+      },
+    });
+    // 다음 요소로 전환 → 재버퍼
+    useEditorStore.getState().bufferCurrentElement("data:after-title-2");
+
+    const buf = useEditorStore.getState().bufferedElements;
+    expect(buf).toHaveLength(1);
+    expect(buf[0].styleEdits.inlineStyle).toEqual({
+      "padding-top": "20px",
+      "padding-bottom": "20px",
+      "padding-left": "10px",
+    });
+  });
+});
+
 describe("patchBufferedElement / removeBufferedElement", () => {
   beforeEach(() => {
     useEditorStore.setState(useEditorStore.getInitialState(), true);

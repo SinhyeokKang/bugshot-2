@@ -185,7 +185,8 @@ export async function typeStyleValue(
   await closeAllPopovers(panel);
 }
 
-// QuadProp(margin/padding 등) — LinkToggle을 켜고 첫 칸에 입력해 4면 동일값 커밋.
+// QuadProp(margin/padding)·RadiusProp("radius")·GapPairProp("gap") — LinkToggle(=마지막 버튼)을
+// 켜고 첫 칸에 입력해 전 면 동일값 커밋. shorthand collapse 기준값을 만든다.
 export async function setQuadLinkedValue(
   panel: Page,
   label: string,
@@ -199,6 +200,41 @@ export async function setQuadLinkedValue(
   await buttons.first().click();
   await panel.locator("[cmdk-input]").fill(value);
   await closeAllPopovers(panel);
+}
+
+// QuadProp 한 면만(unlink) 입력. idx: top0 right1 bottom2 left3 (gap: row0 column1). toggle=last.
+export async function setQuadSideValue(
+  panel: Page,
+  label: string,
+  idx: number,
+  value: string,
+): Promise<void> {
+  const row = propRow(panel, label);
+  const buttons = row.locator("button");
+  const toggle = buttons.last();
+  if ((await toggle.getAttribute("aria-pressed")) === "true") await toggle.click();
+  await buttons.nth(idx).click();
+  await panel.locator("[cmdk-input]").fill(value);
+  await closeAllPopovers(panel);
+}
+
+// SelectProp(shadcn Select) — 트리거 열고 옵션 텍스트로 선택.
+export async function selectStyleValue(
+  panel: Page,
+  label: string,
+  option: string,
+): Promise<void> {
+  await propRow(panel, label).getByRole("combobox").click();
+  await panel.getByRole("option", { name: option, exact: true }).click();
+}
+
+// AlignmentProp(Tabs) — 인덱스: left0 center1 right2 justify3.
+export async function setAlignment(
+  panel: Page,
+  label: string,
+  idx: number,
+): Promise<void> {
+  await propRow(panel, label).getByRole("tab").nth(idx).click();
 }
 
 // Escape가 중첩 팝오버에서 간헐 무시됨(PoC 실측) — 잔존 시 outside click 폴백, 최대 4회.
