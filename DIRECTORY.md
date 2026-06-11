@@ -84,7 +84,7 @@ e2e/                     # Playwright e2e 스위트 (@playwright/test, BUGSHOT_E
 ├── fixtures/
 │   ├── extension.ts     # worker-scoped ext fixture (ephemeral 포트 정적 서버·persistent context·extension id·teardown) + 헬퍼 (enterDebug/pickElement/typeStyleValue/… — README 참조)
 │   └── pages/           # 로컬 fixture 페이지 — basic.html · second.html(cross-page 세션 폐기) · iframe.html(picker iframe 가드)
-└── *.spec.ts            # style-edit-flow · style-changes-dialog · style-changes-stacked · buffered-reselect-edit · capture · log-capture · picker-guard · session (커버리지 맵은 README.md)
+└── *.spec.ts            # style-edit-flow · style-changes-dialog · style-changes-stacked · buffered-reselect-edit · dom-tree-nav · capture · log-capture · picker-guard · session (커버리지 맵은 README.md)
 oauth-proxy/             # Cloudflare Worker — Atlassian /token + GitHub /github/{token,refresh} + Notion /notion/token + Asana /asana/{token,refresh} 교환 (client_secret 서버 보관, Linear·GitLab은 PKCE라 proxy 불필요)
 docs/
 ├── features/        # 기능 기획 문서 (PRD·설계·태스크) — dev에서 작업, 구현 완료 시 삭제
