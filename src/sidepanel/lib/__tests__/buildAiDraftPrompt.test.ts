@@ -429,6 +429,28 @@ describe("buildAiDraftSessionPrompt", () => {
     expect(prompt).toMatch(/description.*expectedResult|expectedResult.*description/);
   });
 
+  it("Rules에 무관 컨텍스트 배제 지시 포함", () => {
+    const prompt = buildAiDraftSessionPrompt(SESSION_BASE);
+    expect(prompt).toMatch(/plausibly relate|unrelated/i);
+  });
+
+  it("Rules에 출력 언어 못박기 포함 (ko → Korean / en → English)", () => {
+    const ko = buildAiDraftSessionPrompt(SESSION_BASE);
+    expect(ko).toMatch(/all string values in Korean/i);
+    const en = buildAiDraftSessionPrompt({ ...SESSION_BASE, locale: "en" });
+    expect(en).toMatch(/all string values in English/i);
+  });
+
+  it("video 모드: action log를 재현 단계로 변환하라는 지시 (verbatim 복사 금지)", () => {
+    const prompt = buildAiDraftSessionPrompt({
+      ...SESSION_BASE,
+      captureMode: "video",
+      actionLogSummary: ["click Submit 버튼", "input email"],
+    });
+    expect(prompt).toMatch(/rephrase|reproduction steps/i);
+    expect(prompt).toMatch(/verbatim/i);
+  });
+
   it("element 모드: diffs 20개 초과 시 20개로 절삭", () => {
     const diffs = Array.from({ length: 25 }, (_, i) => ({
       prop: `prop-${i}`,

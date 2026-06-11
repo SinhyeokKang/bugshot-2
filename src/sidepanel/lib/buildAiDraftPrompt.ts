@@ -7,6 +7,7 @@ import type { StyleDiffRow } from "@/sidepanel/components/StyleChangesTable";
 import type { NetworkLogSummary, ConsoleLogSummary } from "./buildLogSummary";
 import type { ActionLogSummary } from "@/types/action";
 import type { EditorDraft } from "@/store/editor-store";
+import { extractJson } from "./extractJson";
 
 const MAX_DIFFS = 20;
 const MAX_TOKENS = 10;
@@ -182,7 +183,7 @@ export function buildAiDraftSessionPrompt(ctx: AiDraftSessionContext): string {
     }
     // action log는 video(녹화 타임라인과 묶일 때)에서만 의미가 강하므로 freeform에서는 제외.
     if (ctx.captureMode === "video" && ctx.actionLogSummary && ctx.actionLogSummary.length > 0) {
-      lines.push("- User actions (reference only — context for understanding, do not copy verbatim into stepsToReproduce):");
+      lines.push("- User actions (rephrase these into concise user-facing reproduction steps — do not copy the raw entries verbatim):");
       for (const a of ctx.actionLogSummary) {
         lines.push(`  ${a}`);
       }
@@ -210,18 +211,10 @@ export function buildAiDraftSessionPrompt(ctx: AiDraftSessionContext): string {
   lines.push("Rules:");
   lines.push("- Output only valid JSON. No markdown fences or extra text.");
   lines.push("- Base the report on the user's description and provided context. Never invent details not given.");
+  lines.push("- Only reference logs, errors, or context that plausibly relate to the described bug. Ignore unrelated entries.");
   lines.push("- The description states only the current problem (as-is). Put any expected or desired behavior in expectedResult, never in description.");
   lines.push("- If a section has no relevant information, use an empty string.");
+  lines.push(`- Write all string values in ${lang}.`);
 
   return lines.join("\n");
-}
-
-function extractJson(raw: string): string | null {
-  const stripped = raw
-    .replace(/^```(?:json)?\s*/m, "")
-    .replace(/\s*```\s*$/m, "");
-  const start = stripped.indexOf("{");
-  const end = stripped.lastIndexOf("}");
-  if (start === -1 || end === -1 || end <= start) return null;
-  return stripped.slice(start, end + 1);
 }

@@ -1,4 +1,5 @@
 import type { Token } from "@/types/picker";
+import { extractJson } from "./extractJson";
 
 export interface AiStylingEdits {
   inlineStyle?: Record<string, string>;
@@ -69,7 +70,7 @@ export function buildAiStylingSystemPrompt(ctx: AiStylingContext): string {
     "- inlineStyle: CSS property-value pairs in kebab-case",
     "- Prefer design tokens over raw values. When a matching token exists, use var(--token-name). Prioritize tokens from the same family already used on this element",
     "- classList: optional, the COMPLETE class list. Keep all existing classes, only add/remove what the user asked for",
-    "- Do NOT use these properties (they will be ignored): content, animation, animation-*, will-change, counter-*, custom properties (--*)",
+    "- Do NOT use these as property keys (they will be ignored): content, animation, animation-*, will-change, counter-*, or any name starting with -- (referencing a token via var(--token) in a value is encouraged)",
     "- Do NOT include any other fields",
     "- Output only valid JSON, no markdown fences",
   );
@@ -144,14 +145,4 @@ export function buildStyleContextBlock(ctx: AiStylingContext): string {
 
 function toKebab(s: string): string {
   return s.replace(/[A-Z]/g, (m) => `-${m.toLowerCase()}`);
-}
-
-function extractJson(raw: string): string | null {
-  const stripped = raw
-    .replace(/^```(?:json)?\s*/m, "")
-    .replace(/\s*```\s*$/m, "");
-  const start = stripped.indexOf("{");
-  const end = stripped.lastIndexOf("}");
-  if (start === -1 || end === -1 || end <= start) return null;
-  return stripped.slice(start, end + 1);
 }
