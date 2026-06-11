@@ -6,7 +6,7 @@ import { useSettingsStore } from "@/store/settings-store";
 import type { GithubIssueStatus } from "@/types/github";
 import { sendBg } from "@/types/messages";
 import { classifyBadgeError, type BadgeErrorKind } from "./utils";
-import { resolveGithubCoords } from "../issueListUtils";
+import { resolveGithubCoords } from "@/sidepanel/tabs/issueListUtils";
 import { STATUS_CATEGORY_COLORS } from "./constants";
 import { GithubStatusBadge, type GithubBadgeStatus } from "./GithubStatusBadge";
 

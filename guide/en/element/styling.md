@@ -21,8 +21,20 @@ From top to bottom, the panel is organized into these sections (labels show in E
 ## Live preview and reverting
 
 - Changing a value applies it to the page **immediately**.
-- Don't like it? **Reset changes** rolls back every edit to the original values in one go.
 - Each section can revert just its inline changes, and there are buttons to revert Class or Text to the original — so feel free to experiment.
+
+## Review changes
+
+Lost track of what you've changed? Hit the **Review changes** button at the bottom of the panel. The number beside it is how many changes you've made so far — and if you haven't changed anything, the button stays disabled.
+
+Open it and a dialog lists your edits **grouped per element**, each shown as **before → after**. You'll see the element you have selected now, plus any you buffered earlier (see [More than one element in one issue](#more-than-one-element-in-one-issue) below).
+
+- **Reset this change** (trash icon, right of each row) — rolls back just that one item to its original value. The page and style panel update right away. Reset the last item on an element and that element's card disappears entirely.
+- **Reset all** (bottom left) — rolls back every change across all elements (this one asks for a quick confirmation).
+
+Row resets run instantly without asking, so tidy up with peace of mind. Once nothing is left to revert, the dialog closes on its own.
+
+![Review changes dialog](../assets/element-styling-3.jpg)
 
 ## AI Styling
 
@@ -44,7 +56,7 @@ Bugs rarely sit in just one spot. Sometimes you want to bundle several elements 
 
 Fixed element A? Click **Pick another element** (top right) and grab the next one (B). A's changes **stay on the page** instead of disappearing, and they ride along into the issue too. Keep going for A, B, C… as many as you like — before/after is recorded per element.
 
-> There's no separate screen yet to pull out a buffered element or manage them as a list. Whatever you've collected clears when you cancel the draft, finish submitting, or hit **Reset changes**.
+> Buffered elements show up in **Review changes**, grouped per element, where you can pull out individual items (remove every item on an element and the whole element drops out). To clear everything at once, hit **Reset all**, or just cancel the draft or finish submitting.
 
 ## Next step
 

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { t } from "../i18n";
+import { t } from "@/log-viewer/i18n";
 import { IssueTitleOverlay } from "./IssueTitleOverlay";
 
 interface ImageViewerProps {

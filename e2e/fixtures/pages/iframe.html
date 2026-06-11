@@ -1,0 +1,28 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>bugshot e2e fixture — iframe</title>
+    <style>
+      body {
+        margin: 24px;
+        font-family: sans-serif;
+      }
+      #top-title {
+        color: rgb(17, 24, 39);
+        padding: 8px;
+      }
+      /* picker는 top frame에만 주입 — 이 iframe 박스를 클릭하면 iframeUnsupported로 가야 한다.
+         박스를 크게 잡아 bbox 중심 클릭이 확실히 iframe 위에 떨어지게 한다. */
+      #frame {
+        width: 320px;
+        height: 220px;
+        border: 1px solid #cccccc;
+      }
+    </style>
+  </head>
+  <body>
+    <h1 id="top-title">Top Frame Title</h1>
+    <iframe id="frame" src="basic.html"></iframe>
+  </body>
+</html>

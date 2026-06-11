@@ -1,8 +1,8 @@
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import type { TimelineMarker, MarkerVariant } from "../markers";
-import { clampTooltipLeft, formatPlayerTime } from "../timeline";
-import { t } from "../i18n";
+import type { TimelineMarker, MarkerVariant } from "@/log-viewer/markers";
+import { clampTooltipLeft, formatPlayerTime } from "@/log-viewer/timeline";
+import { t } from "@/log-viewer/i18n";
 
 interface ProgressBarProps {
   currentPct: number;

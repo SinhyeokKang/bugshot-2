@@ -6,8 +6,8 @@ import { useSettingsStore } from "@/store/settings-store";
 import type { NotionPageStatus } from "@/types/notion";
 import { sendBg } from "@/types/messages";
 import { classifyBadgeError, type BadgeErrorKind } from "./utils";
-import { resolveNotionPageId } from "../issueListUtils";
-import { notionStatusCategory } from "../notionStatusColors";
+import { resolveNotionPageId } from "@/sidepanel/tabs/issueListUtils";
+import { notionStatusCategory } from "@/sidepanel/tabs/notionStatusColors";
 import { STATUS_CATEGORY_COLORS } from "./constants";
 import { NotionStatusBadge } from "./NotionStatusBadge";
 

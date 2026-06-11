@@ -2,17 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import { Crosshair, RotateCcw, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useT } from "@/i18n";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Tooltip,
@@ -31,10 +20,8 @@ import {
   applyClasses,
   applyText,
   clearPicker,
-  resetAllEdits,
   startPicker,
 } from "@/sidepanel/picker-control";
-import { buildStyleDiff } from "@/sidepanel/components/StyleChangesTable";
 import { PageFooter, PageScroll, PageShell, Section } from "@/sidepanel/components/Section";
 import { CancelConfirmDialog } from "@/sidepanel/components/CancelConfirmDialog";
 import { DomNavButton, DomTreeTitle } from "./DomTreeDialog";
@@ -50,6 +37,7 @@ import {
   TextProp,
 } from "./styleEditor/StylePropEditors";
 import { AiStylingDialog } from "./styleEditor/AiStylingDialog";
+import { StyleChangesDialog } from "./styleEditor/StyleChangesDialog";
 
 const SECTION_PROPS = {
   layout: [
@@ -121,34 +109,9 @@ export function SelectedPanel() {
   const hasSpecified = (props: readonly string[]) =>
     props.some((p) => p in selection.specifiedStyles);
 
-  const inlineCount = Object.keys(styleEdits.inlineStyle).length;
-  const classDirty =
-    selection.classList.length !== styleEdits.classList.length ||
-    selection.classList.some((c, i) => c !== styleEdits.classList[i]);
-  const textDirty =
-    selection.text !== null && styleEdits.text !== selection.text;
-  const changeCount =
-    inlineCount + (classDirty ? 1 : 0) + (textDirty ? 1 : 0);
   const hasChange = hasStyleChange(selection, styleEdits);
   // 현재 element에 diff가 없어도 버퍼에 담긴 element가 있으면 진행 가능.
   const canProceed = hasChange || bufferedElements.length > 0;
-  // 변경사항 초기화 다이얼로그 카운트 — 현재 + 버퍼 전체 diff 수(전체 원복 대상).
-  const totalChangeCount =
-    changeCount +
-    bufferedElements.reduce(
-      (n, b) =>
-        n +
-        buildStyleDiff(
-          {
-            classList: b.selectionSnapshot.classList,
-            specifiedStyles: b.selectionSnapshot.specifiedStyles,
-            computedStyles: b.selectionSnapshot.computedStyles,
-            text: b.selectionSnapshot.text,
-          },
-          b.styleEdits,
-        ).length,
-      0,
-    );
 
   const handleNext = async () => {
     if (!tabId || proceeding || !canProceed) return;
@@ -158,6 +121,9 @@ export function SelectedPanel() {
       if (hasChange) {
         const img = await captureElementSnapshot(tabId);
         setAfterImage(img);
+      } else {
+        // 버퍼 승격으로 복원된 afterImage가 diff 0건인 채 저장되는 것 방지.
+        setAfterImage(null);
       }
       confirmStyles();
     } finally {
@@ -170,6 +136,7 @@ export function SelectedPanel() {
     <Button
       className="aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
       aria-disabled={nextDisabled}
+      data-testid="next-step"
       onClick={() => {
         if (nextDisabled) return;
         void handleNext();
@@ -193,7 +160,10 @@ export function SelectedPanel() {
           </div>
         </div>
 
-        <Section title={t("editor.section.class")} action={<ClassRevertButton />}>
+        <Section
+          title={t("editor.section.class")}
+          action={<ClassRevertButton />}
+        >
           <ClassEditor />
         </Section>
 
@@ -346,7 +316,10 @@ export function SelectedPanel() {
       </Section>
 
       {selection.text !== null ? (
-        <Section title={t("editor.section.text")} action={<TextRevertButton />}>
+        <Section
+          title={t("editor.section.text")}
+          action={<TextRevertButton />}
+        >
           <TextEditor />
         </Section>
       ) : null}
@@ -445,35 +418,7 @@ export function SelectedPanel() {
             }}
           />
           <div className="flex items-center gap-2">
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button
-                  variant="outline"
-                  disabled={!canProceed}
-                >
-                  {t("editor.resetChanges")}
-                </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>{t("editor.resetChanges")}</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    {t("editor.resetChanges.body", { count: totalChangeCount })}
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>{t("common.close")}</AlertDialogCancel>
-                  <AlertDialogAction
-                    onClick={() => {
-                      useEditorStore.getState().resetAllStyleEdits();
-                      if (tabId) void resetAllEdits(tabId);
-                    }}
-                  >
-                    {t("common.reset")}
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+            <StyleChangesDialog />
             {!canProceed ? (
               <TooltipProvider delayDuration={0}>
                 <Tooltip>
@@ -504,6 +449,8 @@ function RepickButton() {
       variant="default"
       className="h-8 w-8 shrink-0"
       title={t("dom.repick")}
+      aria-label={t("dom.repick")}
+      data-testid="repick"
       onClick={() => {
         if (tabId) void bufferThenSwitch(tabId, () => startPicker(tabId));
       }}
@@ -552,6 +499,7 @@ function ClassEditor() {
       className="min-h-9 resize-none text-sm [field-sizing:content]"
       rows={1}
       spellCheck={false}
+      data-testid="class-editor"
     />
   );
 }
@@ -578,6 +526,7 @@ function TextEditor() {
       className="min-h-9 resize-none text-sm [field-sizing:content]"
       rows={1}
       spellCheck={false}
+      data-testid="text-editor"
     />
   );
 }
@@ -606,6 +555,7 @@ function TextRevertButton() {
       onClick={handleRevert}
       disabled={!dirty}
       title={t("editor.revertText")}
+      aria-label={t("editor.revertText")}
       className="h-8 w-8 shrink-0"
     >
       <RotateCcw />
@@ -641,6 +591,7 @@ function ClassRevertButton() {
       onClick={handleRevert}
       disabled={!dirty}
       title={t("editor.revertClass")}
+      aria-label={t("editor.revertClass")}
       className="h-8 w-8 shrink-0"
     >
       <RotateCcw />

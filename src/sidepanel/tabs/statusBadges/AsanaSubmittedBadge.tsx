@@ -6,7 +6,7 @@ import { useSettingsStore } from "@/store/settings-store";
 import type { AsanaTaskStatus } from "@/types/asana";
 import { sendBg } from "@/types/messages";
 import { classifyBadgeError, type BadgeErrorKind } from "./utils";
-import { resolveAsanaCoords } from "../issueListUtils";
+import { resolveAsanaCoords } from "@/sidepanel/tabs/issueListUtils";
 import { STATUS_CATEGORY_COLORS } from "./constants";
 import { AsanaStatusBadge, type AsanaBadgeStatus } from "./AsanaStatusBadge";
 

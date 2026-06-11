@@ -108,3 +108,39 @@ describe("submitToLinear logsDropped", () => {
     ).rejects.toThrow();
   });
 });
+
+describe("submitToLinear aiMeta·attachment 격리", () => {
+  it("aiMeta(bugshot.md) 업로드 실패해도 제출은 성공으로 보고된다", async () => {
+    sendBg.mockImplementation(async (msg: { type: string; filename?: string }) => {
+      if (msg.type === "linear.submitIssue") return ISSUE;
+      if (msg.type === "linear.uploadFile") {
+        if (msg.filename === "bugshot.md") throw new Error("meta fail");
+        return { assetUrl: `asset-${msg.filename}` };
+      }
+      if (msg.type === "linear.createAttachment") return { ok: true };
+      return undefined;
+    });
+
+    const res = await submitToLinear({ ctx: makeCtx(), teamId: "T" });
+
+    expect(res.key).toBe("ENG-1");
+    expect(res.logsDropped).toBe(false);
+  });
+
+  it("createAttachment 실패해도 제출은 성공으로 보고된다 (이슈는 이미 생성)", async () => {
+    sendBg.mockImplementation(async (msg: { type: string; filename?: string }) => {
+      if (msg.type === "linear.submitIssue") return ISSUE;
+      if (msg.type === "linear.uploadFile") return { assetUrl: `asset-${msg.filename}` };
+      if (msg.type === "linear.createAttachment") throw new Error("attach fail");
+      return undefined;
+    });
+
+    const res = await submitToLinear({
+      ctx: makeCtx(),
+      teamId: "T",
+      logs: [{ filename: "logs.html", dataUrl: "data:LOGS" }],
+    });
+
+    expect(res.key).toBe("ENG-1");
+  });
+});

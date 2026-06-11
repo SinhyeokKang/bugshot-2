@@ -337,6 +337,50 @@ describe("createOpenAICompatibleProvider 재시도 통합", () => {
   });
 });
 
+describe("max_tokens 정책 (양쪽 경로 통일)", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("OpenAI 경로 요청 body에 max_tokens 4096 포함", async () => {
+    const fn = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      json: () => Promise.resolve({ choices: [{ message: { content: "x" } }] }),
+    });
+    vi.stubGlobal("fetch", fn);
+
+    const provider = createOpenAICompatibleProvider({
+      baseUrl: "https://api.openai.com/v1",
+      apiKey: "k",
+      modelId: "gpt-4o",
+    });
+    await provider.generate({ prompt: "hi" });
+
+    const body = JSON.parse(fn.mock.calls[0][1].body);
+    expect(body.max_tokens).toBe(4096);
+  });
+
+  it("Anthropic 경로 요청 body에 max_tokens 4096 포함", async () => {
+    const fn = vi.fn().mockResolvedValue({
+      ok: true,
+      json: () => Promise.resolve({ content: [{ text: "x" }] }),
+    });
+    vi.stubGlobal("fetch", fn);
+
+    const provider = createAnthropicProvider({
+      baseUrl: "https://api.anthropic.com/v1",
+      apiKey: "k",
+      modelId: "claude-sonnet-4-6",
+    });
+    await provider.generate({ prompt: "hi" });
+
+    const body = JSON.parse(fn.mock.calls[0][1].body);
+    expect(body.max_tokens).toBe(4096);
+  });
+});
+
 describe("createAnthropicProvider 헤더", () => {
   afterEach(() => {
     vi.unstubAllGlobals();

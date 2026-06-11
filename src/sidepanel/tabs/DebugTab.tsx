@@ -62,14 +62,14 @@ export function DebugTab({ activeMainTab }: { activeMainTab: string }) {
             <SquarePen className="h-3.5 w-3.5 shrink-0" />
             <TabLabel>{t("debug.tab.issue")}</TabLabel>
           </TabsTrigger>
-          <TabsTrigger value="console" disabled={logTabsLocked} className="min-w-0 gap-1.5">
+          <TabsTrigger value="console" disabled={logTabsLocked} className="min-w-0 gap-1.5" data-testid="subtab-console">
             <Terminal className="h-3.5 w-3.5 shrink-0" />
             <TabLabel>{t("debug.tab.console")}</TabLabel>
             <Badge className="ml-0.5 h-5 min-w-5 shrink-0 px-1.5 text-[10px]">
               {consoleCount}
             </Badge>
           </TabsTrigger>
-          <TabsTrigger value="network" disabled={logTabsLocked} className="min-w-0 gap-1.5">
+          <TabsTrigger value="network" disabled={logTabsLocked} className="min-w-0 gap-1.5" data-testid="subtab-network">
             <ArrowLeftRight className="h-3.5 w-3.5 shrink-0" />
             <TabLabel>{t("debug.tab.network")}</TabLabel>
             <Badge className="ml-0.5 h-5 min-w-5 shrink-0 px-1.5 text-[10px]">

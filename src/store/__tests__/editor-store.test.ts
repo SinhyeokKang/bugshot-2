@@ -70,7 +70,7 @@ vi.mock("@/types/messages", () => ({
   onBlobSaveFailed: { fire: vi.fn(), listen: vi.fn() },
 }));
 
-import { useEditorStore } from "../editor-store";
+import { useEditorStore, mergeSelectionStyles } from "../editor-store";
 
 /* ------------------------------------------------------------------ */
 /*  Fixtures                                                           */
@@ -750,6 +750,7 @@ describe("bufferCurrentElement — 복수 element 버퍼", () => {
         classList: ["cta"],
         specifiedStyles: {},
         computedStyles: { color: "#000000" },
+        propSources: {},
         text: null,
         viewport: { width: 1440, height: 900 },
         capturedAt: 1700000000000,
@@ -831,5 +832,309 @@ describe("bufferCurrentElement — 복수 element 버퍼", () => {
     useEditorStore.getState().bufferCurrentElement("data:after-A");
 
     expect(useEditorStore.getState().bufferedElements).toEqual([]);
+  });
+});
+
+describe("onElementSelected — 버퍼된 요소 재선택 시 편집 복원", () => {
+  beforeEach(() => {
+    useEditorStore.setState(useEditorStore.getInitialState(), true);
+  });
+
+  function freshPayload(selector: string, overrides?: Partial<{
+    classList: string[];
+    specifiedStyles: Record<string, string>;
+    computedStyles: Record<string, string>;
+    text: string | null;
+  }>) {
+    return {
+      selector,
+      tagName: "h1",
+      classList: overrides?.classList ?? ["title"],
+      computedStyles: overrides?.computedStyles ?? { color: "#000000" },
+      specifiedStyles: overrides?.specifiedStyles ?? {},
+      propSources: {},
+      hasParent: true,
+      hasChild: false,
+      text: overrides?.text ?? null,
+      viewport: { width: 1440, height: 900 },
+      capturedAt: 1700000000000,
+    };
+  }
+
+  it("신규 selector → inlineStyle을 {}로 리셋 (기존 동작)", () => {
+    useEditorStore.getState().onElementSelected(freshPayload("#title"));
+    const s = useEditorStore.getState();
+    expect(s.styleEdits.inlineStyle).toEqual({});
+    expect(s.styleEdits.classList).toEqual(["title"]);
+    expect(s.beforeImage).toBeNull();
+    expect(s.phase).toBe("styling");
+  });
+
+  it("버퍼된 selector 재선택 → 버퍼의 styleEdits·snapshot·before/after 복원 + 버퍼에서 제거", () => {
+    // #title을 py 편집 후 버퍼에 적재
+    useEditorStore.setState({
+      selection: freshPayload("#title", { specifiedStyles: { "padding-top": "8px", "padding-bottom": "8px" } }),
+      styleEdits: {
+        classList: ["title"],
+        inlineStyle: { "padding-top": "20px", "padding-bottom": "20px" },
+        text: "",
+      },
+      beforeImage: "data:before-title",
+    });
+    useEditorStore.getState().bufferCurrentElement("data:after-title");
+    expect(useEditorStore.getState().bufferedElements).toHaveLength(1);
+
+    // 다른 요소로 전환했다가 #title을 재선택. 재선택 payload는 인라인이 새어든 폴루션 specified를 가질 수 있다.
+    useEditorStore.getState().onElementSelected(
+      freshPayload("#title", { specifiedStyles: { "padding-top": "20px", "padding-bottom": "20px" } }),
+    );
+
+    const s = useEditorStore.getState();
+    // 작업 styleEdits가 버퍼 편집으로 복원됨
+    expect(s.styleEdits.inlineStyle).toEqual({ "padding-top": "20px", "padding-bottom": "20px" });
+    // baseline(diff 전값)은 버퍼 snapshot의 원본 specified를 사용
+    expect(s.selection?.specifiedStyles).toEqual({ "padding-top": "8px", "padding-bottom": "8px" });
+    // before/after 이미지 복원
+    expect(s.beforeImage).toBe("data:before-title");
+    expect(s.afterImage).toBe("data:after-title");
+    // 중복 방지: 버퍼에서 제거 (현재 요소로 승격)
+    expect(s.bufferedElements).toHaveLength(0);
+    expect(s.phase).toBe("styling");
+  });
+
+  it("버퍼된 selector 재선택 → propSources도 snapshot에서 복원 ([inline] 오염 차단)", () => {
+    useEditorStore.setState({
+      selection: {
+        ...freshPayload("#title", { specifiedStyles: { color: "rgb(50, 50, 50)" } }),
+        propSources: { color: ".swatch" },
+      },
+      styleEdits: {
+        classList: ["title"],
+        inlineStyle: { color: "rgb(255, 0, 0)" },
+        text: "",
+      },
+      beforeImage: null,
+    });
+    useEditorStore.getState().bufferCurrentElement(null);
+
+    // 재선택 payload는 css-resolve가 el.style을 접어 [inline] 소스로 보고한다.
+    useEditorStore.getState().onElementSelected({
+      ...freshPayload("#title", { specifiedStyles: { color: "rgb(255, 0, 0)" } }),
+      propSources: { color: "[inline]" },
+    });
+
+    expect(useEditorStore.getState().selection?.propSources).toEqual({
+      color: ".swatch",
+    });
+  });
+
+  it("재선택 후 추가 편집 → 다음 전환 시 이전 py 편집이 보존된다 (py-buffer-repro 회귀)", () => {
+    useEditorStore.setState({
+      selection: freshPayload("#title", { specifiedStyles: { "padding-top": "8px", "padding-bottom": "8px", "padding-left": "8px" } }),
+      styleEdits: {
+        classList: ["title"],
+        inlineStyle: { "padding-top": "20px", "padding-bottom": "20px" },
+        text: "",
+      },
+      beforeImage: "data:before-title",
+    });
+    useEditorStore.getState().bufferCurrentElement("data:after-title");
+
+    // #title 재선택 → 편집 복원
+    useEditorStore.getState().onElementSelected(freshPayload("#title"));
+    // px(left) 한 면 추가
+    useEditorStore.getState().setStyleEdits({
+      inlineStyle: {
+        ...useEditorStore.getState().styleEdits.inlineStyle,
+        "padding-left": "10px",
+      },
+    });
+    // 다음 요소로 전환 → 재버퍼
+    useEditorStore.getState().bufferCurrentElement("data:after-title-2");
+
+    const buf = useEditorStore.getState().bufferedElements;
+    expect(buf).toHaveLength(1);
+    expect(buf[0].styleEdits.inlineStyle).toEqual({
+      "padding-top": "20px",
+      "padding-bottom": "20px",
+      "padding-left": "10px",
+    });
+  });
+});
+
+describe("patchBufferedElement / removeBufferedElement", () => {
+  beforeEach(() => {
+    useEditorStore.setState(useEditorStore.getInitialState(), true);
+  });
+
+  function seedBuffer(selector: string, inline: Record<string, string>) {
+    useEditorStore.setState({
+      selection: {
+        selector,
+        tagName: "button",
+        classList: ["cta"],
+        computedStyles: {},
+        specifiedStyles: {},
+        propSources: {},
+        hasParent: true,
+        hasChild: false,
+        text: null,
+        viewport: { width: 1440, height: 900 },
+        capturedAt: 1,
+      },
+      styleEdits: { classList: ["cta"], inlineStyle: inline, text: "" },
+      beforeImage: "data:before",
+    });
+    useEditorStore.getState().bufferCurrentElement("data:after");
+  }
+
+  it("patch: 일치 항목의 styleEdits만 갱신, 다른 항목은 불변", () => {
+    seedBuffer("#a", { color: "#fff" });
+    seedBuffer("#b", { margin: "8px" });
+
+    const nextEdits = { classList: ["cta"], inlineStyle: {}, text: "" };
+    useEditorStore.getState().patchBufferedElement("#a", { styleEdits: nextEdits });
+
+    const buf = useEditorStore.getState().bufferedElements;
+    expect(buf[0].styleEdits).toEqual(nextEdits);
+    expect(buf[0].afterImage).toBe("data:after");
+    expect(buf[1].styleEdits.inlineStyle).toEqual({ margin: "8px" });
+  });
+
+  it("patch: afterImage 단독 갱신", () => {
+    seedBuffer("#a", { color: "#fff" });
+
+    useEditorStore.getState().patchBufferedElement("#a", { afterImage: "data:after-2" });
+
+    const buf = useEditorStore.getState().bufferedElements;
+    expect(buf[0].afterImage).toBe("data:after-2");
+    expect(buf[0].styleEdits.inlineStyle).toEqual({ color: "#fff" });
+  });
+
+  it("patch: styleEdits + afterImage 동시 갱신", () => {
+    seedBuffer("#a", { color: "#fff" });
+
+    const nextEdits = { classList: ["cta"], inlineStyle: {}, text: "" };
+    useEditorStore.getState().patchBufferedElement("#a", {
+      styleEdits: nextEdits,
+      afterImage: "data:after-2",
+    });
+
+    const buf = useEditorStore.getState().bufferedElements;
+    expect(buf[0].styleEdits).toEqual(nextEdits);
+    expect(buf[0].afterImage).toBe("data:after-2");
+  });
+
+  it("patch: selector 미일치 시 no-op", () => {
+    seedBuffer("#a", { color: "#fff" });
+    const before = useEditorStore.getState().bufferedElements;
+
+    useEditorStore.getState().patchBufferedElement("#none", { afterImage: "x" });
+
+    expect(useEditorStore.getState().bufferedElements).toEqual(before);
+  });
+
+  it("remove: 이미지 포함 항목 제거, 다른 항목 유지", () => {
+    seedBuffer("#a", { color: "#fff" });
+    seedBuffer("#b", { margin: "8px" });
+
+    useEditorStore.getState().removeBufferedElement("#a");
+
+    const buf = useEditorStore.getState().bufferedElements;
+    expect(buf.map((b) => b.selector)).toEqual(["#b"]);
+  });
+
+  it("remove: selector 미일치 시 no-op", () => {
+    seedBuffer("#a", { color: "#fff" });
+
+    useEditorStore.getState().removeBufferedElement("#none");
+
+    expect(useEditorStore.getState().bufferedElements).toHaveLength(1);
+  });
+});
+
+describe("mergeSelectionStyles — class 편집 후 baseline 오염 방지", () => {
+  it("편집 중 prop은 재수집 패치의 인라인 오염값 대신 원본 baseline 유지", () => {
+    const prev = {
+      specifiedStyles: { color: "rgb(50, 50, 50)" },
+      computedStyles: { color: "rgb(50, 50, 50)", "padding-top": "0px" },
+      propSources: { color: ".swatch" },
+    };
+    // class 편집 후 picker.selectionUpdated: 인라인 편집값(color/padding-top)이 새어든 패치
+    const patch = {
+      specifiedStyles: { color: "rgb(255, 0, 0)", "padding-top": "20px" },
+      computedStyles: { color: "rgb(255, 0, 0)", "padding-top": "20px" },
+      propSources: { color: "[inline]", "padding-top": "[inline]" },
+    };
+    const inlineEdits = { color: "rgb(255, 0, 0)", "padding-top": "20px" };
+
+    const merged = mergeSelectionStyles(prev, patch, inlineEdits);
+
+    // 원본에 있던 color → baseline 값 복원
+    expect(merged.specifiedStyles.color).toBe("rgb(50, 50, 50)");
+    // 원본 specified에 없던 padding-top → 제거 (computed 폴백이 원본 0px 가리키게)
+    expect(merged.specifiedStyles["padding-top"]).toBeUndefined();
+    expect(merged.computedStyles["padding-top"]).toBe("0px");
+    expect(merged.propSources.color).toBe(".swatch");
+    expect(merged.propSources["padding-top"]).toBeUndefined();
+  });
+
+  it("편집 안 한 prop은 재수집 패치값을 그대로 반영 (class 변경으로 바뀐 규칙)", () => {
+    const prev = {
+      specifiedStyles: { color: "rgb(50, 50, 50)" },
+      computedStyles: { color: "rgb(50, 50, 50)" },
+      propSources: { color: ".swatch" },
+    };
+    const patch = {
+      specifiedStyles: { color: "rgb(50, 50, 50)", "background-color": "rgb(0, 0, 255)" },
+      computedStyles: { color: "rgb(50, 50, 50)", "background-color": "rgb(0, 0, 255)" },
+      propSources: { color: ".swatch", "background-color": ".active" },
+    };
+    // color만 편집 중, background-color는 class 변경으로 새로 매칭된 규칙
+    const merged = mergeSelectionStyles(prev, patch, { color: "rgb(255, 0, 0)" });
+
+    expect(merged.specifiedStyles.color).toBe("rgb(50, 50, 50)");
+    expect(merged.specifiedStyles["background-color"]).toBe("rgb(0, 0, 255)");
+  });
+});
+
+describe("updateSelectionStyles — 편집 중 prop baseline 보존", () => {
+  beforeEach(() => {
+    useEditorStore.setState(useEditorStore.getInitialState(), true);
+  });
+
+  it("스타일 편집 후 selectionUpdated가 와도 편집 prop의 diff 전값이 원본으로 유지된다", () => {
+    useEditorStore.setState({
+      selection: {
+        selector: "#el1",
+        tagName: "div",
+        classList: ["swatch"],
+        specifiedStyles: { color: "rgb(50, 50, 50)" },
+        computedStyles: { color: "rgb(50, 50, 50)", "padding-top": "0px" },
+        propSources: { color: ".swatch" },
+        hasParent: true,
+        hasChild: false,
+        text: null,
+        viewport: { width: 1440, height: 900 },
+        capturedAt: 1700000000000,
+      },
+      styleEdits: {
+        classList: ["swatch"],
+        inlineStyle: { color: "rgb(255, 0, 0)", "padding-top": "20px" },
+        text: "",
+      },
+    });
+
+    // class 편집이 유발한 selectionUpdated (인라인이 새어든 specified/computed)
+    useEditorStore.getState().updateSelectionStyles({
+      specifiedStyles: { color: "rgb(255, 0, 0)", "padding-top": "20px" },
+      computedStyles: { color: "rgb(255, 0, 0)", "padding-top": "20px" },
+      propSources: { color: "[inline]", "padding-top": "[inline]" },
+    });
+
+    const sel = useEditorStore.getState().selection!;
+    expect(sel.specifiedStyles.color).toBe("rgb(50, 50, 50)");
+    expect(sel.specifiedStyles["padding-top"]).toBeUndefined();
+    expect(sel.computedStyles["padding-top"]).toBe("0px");
   });
 });

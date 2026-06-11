@@ -1,11 +1,11 @@
 import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import { Play, Pause, Download } from "lucide-react";
-import type { TimelineMarker } from "../markers";
-import { formatPlayerTime } from "../timeline";
+import type { TimelineMarker } from "@/log-viewer/markers";
+import { formatPlayerTime } from "@/log-viewer/timeline";
 import { ProgressBar } from "./ProgressBar";
 import { IssueTitleOverlay } from "./IssueTitleOverlay";
 import { Button } from "@/components/ui/button";
-import { t } from "../i18n";
+import { t } from "@/log-viewer/i18n";
 
 export interface VideoPlayerHandle {
   seekToSec: (timeSec: number) => void;

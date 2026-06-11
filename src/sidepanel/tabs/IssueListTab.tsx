@@ -1,6 +1,8 @@
 import { useCallback, useMemo, useRef, useState } from "react";
-import { ArrowUpRight, CircleCheck, Inbox, Loader2, Search, SearchX, X } from "lucide-react";
+import { Inbox, Loader2, Search, SearchX, X } from "lucide-react";
+import { toast } from "sonner";
 import { useT } from "@/i18n";
+import { PLATFORM_TAB_KEYS } from "@/types/platform";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -17,6 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useIssuesStore } from "@/store/issues-store";
+import { SubmitSuccessView } from "@/sidepanel/components/SubmitSuccessView";
 import type { NormalizedSubmitResult } from "@/types/platform";
 import { PageFooter, PageScroll, PageShell, Section } from "@/sidepanel/components/Section";
 import { DraftDetailDialog } from "./DraftDetailDialog";
@@ -95,28 +98,7 @@ export function IssueListTab() {
 
   if (successResult) {
     return (
-      <PageShell>
-        <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 pb-5 text-center">
-          <div className="mb-3 rounded-full bg-muted p-3">
-            <CircleCheck className="h-6 w-6 text-green-600 dark:text-green-400" />
-          </div>
-          <h3 className="text-lg font-semibold">{t("jira.submitted")}</h3>
-          <a
-            href={successResult.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="mt-2 inline-flex items-center gap-1 text-sm text-muted-foreground transition-colors hover:text-foreground"
-          >
-            {successResult.key}
-            <ArrowUpRight className="h-3.5 w-3.5" />
-          </a>
-          <div className="mt-6">
-            <Button variant="outline" onClick={() => setSuccessResult(null)}>
-              {t("common.ok")}
-            </Button>
-          </div>
-        </div>
-      </PageShell>
+      <SubmitSuccessView result={successResult} onClose={() => setSuccessResult(null)} />
     );
   }
 
@@ -142,6 +124,7 @@ export function IssueListTab() {
             {query && (
               <button
                 type="button"
+                aria-label={t("issueList.clearSearch")}
                 onClick={() => setQuery("")}
                 className="absolute right-2 top-1/2 -translate-y-1/2 rounded-sm p-0.5 text-muted-foreground hover:text-foreground"
               >
@@ -234,6 +217,15 @@ export function IssueListTab() {
         open={!!activeDraft}
         onOpenChange={(v) => !v && setDraftId(null)}
         onSubmitSuccess={(result) => {
+          // 라이브 흐름(IssueTab SubmitSuccessPanel)과 동일하게 logs.html 누락 경고 노출.
+          if (result.logsDropped && activeDraft?.platform) {
+            toast.warning(
+              t("submit.logsDropped", {
+                platform: t(PLATFORM_TAB_KEYS[activeDraft.platform]),
+              }),
+              { id: `logs-dropped-${result.key}` },
+            );
+          }
           setDraftId(null);
           setSuccessResult(result);
         }}

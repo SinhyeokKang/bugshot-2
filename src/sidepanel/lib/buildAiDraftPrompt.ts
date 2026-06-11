@@ -7,6 +7,7 @@ import type { StyleDiffRow } from "@/sidepanel/components/StyleChangesTable";
 import type { NetworkLogSummary, ConsoleLogSummary } from "./buildLogSummary";
 import type { ActionLogSummary } from "@/types/action";
 import type { EditorDraft } from "@/store/editor-store";
+import { extractJson } from "./extractJson";
 
 const MAX_DIFFS = 20;
 const MAX_TOKENS = 10;
@@ -14,13 +15,13 @@ const MAX_TITLE_LENGTH = 80;
 
 const SECTION_DESC_BASE: Record<LocaleMode, Record<IssueSectionId, string>> = {
   ko: {
-    description: "발생 현상을 구체적으로 설명",
+    description: "현재 관찰되는 문제 현상만 구체적으로 (기대 동작·해결책은 쓰지 말 것)",
     stepsToReproduce: "재현 과정을 줄바꿈으로 구분된 단계로 작성 (번호 없이)",
     expectedResult: "수정 후 기대되는 동작",
     notes: "추가 참고 사항. 없으면 빈 문자열",
   },
   en: {
-    description: "describe the issue in detail",
+    description: "describe only the currently observed problem (do not include expected behavior or fixes)",
     stepsToReproduce: "write reproduction steps as newline-separated lines (no numbering)",
     expectedResult: "expected behavior after fix",
     notes: "additional notes. Leave empty string if nothing to add",
@@ -182,7 +183,7 @@ export function buildAiDraftSessionPrompt(ctx: AiDraftSessionContext): string {
     }
     // action log는 video(녹화 타임라인과 묶일 때)에서만 의미가 강하므로 freeform에서는 제외.
     if (ctx.captureMode === "video" && ctx.actionLogSummary && ctx.actionLogSummary.length > 0) {
-      lines.push("- User actions (reference only — context for understanding, do not copy verbatim into stepsToReproduce):");
+      lines.push("- User actions (rephrase these into concise user-facing reproduction steps — do not copy the raw entries verbatim):");
       for (const a of ctx.actionLogSummary) {
         lines.push(`  ${a}`);
       }
@@ -210,17 +211,10 @@ export function buildAiDraftSessionPrompt(ctx: AiDraftSessionContext): string {
   lines.push("Rules:");
   lines.push("- Output only valid JSON. No markdown fences or extra text.");
   lines.push("- Base the report on the user's description and provided context. Never invent details not given.");
+  lines.push("- Only reference logs, errors, or context that plausibly relate to the described bug. Ignore unrelated entries.");
+  lines.push("- The description states only the current problem (as-is). Put any expected or desired behavior in expectedResult, never in description.");
   lines.push("- If a section has no relevant information, use an empty string.");
+  lines.push(`- Write all string values in ${lang}.`);
 
   return lines.join("\n");
-}
-
-function extractJson(raw: string): string | null {
-  const stripped = raw
-    .replace(/^```(?:json)?\s*/m, "")
-    .replace(/\s*```\s*$/m, "");
-  const start = stripped.indexOf("{");
-  const end = stripped.lastIndexOf("}");
-  if (start === -1 || end === -1 || end <= start) return null;
-  return stripped.slice(start, end + 1);
 }

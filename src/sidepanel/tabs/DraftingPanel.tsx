@@ -265,7 +265,7 @@ export function DraftingPanel() {
   }
 
   return (
-    <PageShell className="relative">
+    <PageShell className="relative" data-testid="drafting-panel">
       {inlineCaptureTarget ? (
         <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 pb-5 text-center">
           <div className="mb-3 rounded-full bg-muted p-3">
@@ -295,6 +295,7 @@ export function DraftingPanel() {
                 onChange={(e) => setDraft({ ...draft, title: e.target.value })}
                 onFocus={cursorToEnd}
                 placeholder={t("draft.titlePlaceholder")}
+                data-testid="draft-title"
               />
             </Section>
 
@@ -342,6 +343,7 @@ export function DraftingPanel() {
                     confirmDraft();
                   }}
                   disabled={titleMissing || aiDraftLoading}
+                  data-testid="to-preview"
                 >
                   {t("draft.preview")}
                 </Button>
@@ -750,6 +752,7 @@ function OrderedListEditor({
 }
 
 function VideoPreview({ blob, thumbnail }: { blob: Blob | null; thumbnail: string | null }) {
+  const t = useT();
   const [src, setSrc] = useState<string | null>(null);
 
   useEffect(() => {
@@ -770,7 +773,7 @@ function VideoPreview({ blob, thumbnail }: { blob: Blob | null; thumbnail: strin
         </div>
       ) : thumbnail ? (
         <div className="aspect-video w-full overflow-hidden rounded-lg border bg-black">
-          <img src={thumbnail} alt="Recording thumbnail" className="h-full w-full object-contain" />
+          <img src={thumbnail} alt={t("alt.recordingThumbnail")} className="h-full w-full object-contain" />
         </div>
       ) : null}
     </div>

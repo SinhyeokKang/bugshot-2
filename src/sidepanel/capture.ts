@@ -1,6 +1,11 @@
 import { sendBg } from "@/types/messages";
-import type { ViewportRect } from "@/types/picker";
-import { endCapture, maybeSurfacePermissionExpired, prepareCapture } from "./picker-control";
+import type { PrepareCaptureResponse, ViewportRect } from "@/types/picker";
+import {
+  endCapture,
+  maybeSurfacePermissionExpired,
+  prepareCapture,
+  prepareCaptureBySelector,
+} from "./picker-control";
 
 const DEFAULT_MARGIN = 24;
 
@@ -8,8 +13,27 @@ export async function captureElementSnapshot(
   tabId: number,
   options: { margin?: number } = {},
 ): Promise<string | null> {
+  return captureWithPrep(tabId, await prepareCapture(tabId), options);
+}
+
+export async function captureElementSnapshotBySelector(
+  tabId: number,
+  selector: string,
+  options: { margin?: number } = {},
+): Promise<string | null> {
+  return captureWithPrep(
+    tabId,
+    await prepareCaptureBySelector(tabId, selector),
+    options,
+  );
+}
+
+async function captureWithPrep(
+  tabId: number,
+  prep: PrepareCaptureResponse | null,
+  options: { margin?: number },
+): Promise<string | null> {
   const margin = options.margin ?? DEFAULT_MARGIN;
-  const prep = await prepareCapture(tabId);
   if (!prep?.rect) {
     await endCapture(tabId);
     return null;

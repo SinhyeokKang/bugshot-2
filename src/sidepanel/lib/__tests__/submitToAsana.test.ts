@@ -3,6 +3,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const sendBg = vi.fn();
 vi.mock("@/types/messages", () => ({ sendBg: (...a: unknown[]) => sendBg(...a) }));
 
+vi.mock("@/i18n", () => ({
+  t: (key: string) => key,
+  dateBcp47: () => "en-US",
+}));
+vi.mock("@/store/settings-ui-store", () => ({
+  POST_MEDIA_SECTION_IDS: new Set(["expectedResult", "notes"]),
+  sectionMdLabelKey: (id: string) => `md.section.${id}`,
+}));
+
 vi.mock("../buildAsanaIssueBody", () => ({
   buildAsanaIssueBody: () => ({ body: "BODY_MD", attached: [] }),
 }));
@@ -30,8 +39,8 @@ vi.mock("@/lib/inject-issue-url", () => ({
     injectIssueUrl(...(a as [string, string, string?])),
 }));
 
-import { submitToAsana } from "../submitToAsana";
-import type { MarkdownContext } from "../buildIssueMarkdown";
+import { renameStyleElementFilenames, submitToAsana } from "../submitToAsana";
+import type { MarkdownContext, StyleElementContext } from "../buildIssueMarkdown";
 
 function makeCtx(overrides: Partial<MarkdownContext> = {}): MarkdownContext {
   return {
@@ -62,6 +71,61 @@ beforeEach(() => {
   sendBg.mockReset();
   markdownToAsanaHtml.mockClear();
   injectIssueUrl.mockClear();
+});
+
+function styleElement(i: number): StyleElementContext {
+  return {
+    selector: `#el${i}`,
+    tagName: "div",
+    classListBefore: [],
+    classListAfter: [],
+    specifiedStyles: {},
+    diffs: [{ prop: "color", asIs: "#000", toBe: "#fff" }],
+    beforeFilename: `before-${i}.webp`,
+    afterFilename: `after-${i}.webp`,
+  };
+}
+
+describe("renameStyleElementFilenames", () => {
+  it("webp→jpg 리네임 맵을 styleElements의 before/after 파일명에 반영한다", () => {
+    const ctx = makeCtx({ styleElements: [styleElement(0), styleElement(1)] });
+    const renames = new Map([
+      ["before-0.webp", "before-0.jpg"],
+      ["after-1.webp", "after-1.jpg"],
+    ]);
+
+    const next = renameStyleElementFilenames(ctx, renames);
+
+    expect(next.styleElements?.[0].beforeFilename).toBe("before-0.jpg");
+    expect(next.styleElements?.[0].afterFilename).toBe("after-0.webp");
+    expect(next.styleElements?.[1].afterFilename).toBe("after-1.jpg");
+    // 입력 ctx는 변형하지 않는다.
+    expect(ctx.styleElements?.[0].beforeFilename).toBe("before-0.webp");
+  });
+
+  it("리네임이 없으면 ctx를 그대로 반환한다", () => {
+    const ctx = makeCtx({ styleElements: [styleElement(0)] });
+    expect(renameStyleElementFilenames(ctx, new Map())).toBe(ctx);
+  });
+
+  it("styleElements가 없는 레거시 ctx는 diffs에서 정규화된 배열에 리네임을 적용한다", () => {
+    const ctx = makeCtx({
+      diffs: [{ prop: "color", asIs: "#000", toBe: "#fff" }],
+    });
+    const next = renameStyleElementFilenames(
+      ctx,
+      new Map([["before-0.webp", "before-0.jpg"]]),
+    );
+
+    expect(next.styleElements?.[0].beforeFilename).toBe("before-0.jpg");
+    expect(next.styleElements?.[0].afterFilename).toBe("after-0.webp");
+  });
+
+  it("element 항목이 0개면 ctx를 그대로 반환한다", () => {
+    const ctx = makeCtx();
+    const renames = new Map([["before-0.webp", "before-0.jpg"]]);
+    expect(renameStyleElementFilenames(ctx, renames)).toBe(ctx);
+  });
 });
 
 describe("submitToAsana", () => {

@@ -104,6 +104,12 @@ describe("buildReportData", () => {
     ]);
   });
 
+  it("envTitle은 생성 시점 locale로 박제된다 (이슈 본문 md.section.env와 동일 키)", async () => {
+    const report = await buildReportData(baseInput());
+
+    expect(report.envTitle).toBe("md.section.env");
+  });
+
   it("enabled 섹션만 config 순서대로 담는다 (disabled notes 제외)", async () => {
     const report = await buildReportData(baseInput());
 

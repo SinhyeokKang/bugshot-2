@@ -76,6 +76,9 @@ export class LlmOverloadedError extends Error {
 // 일시적 오버로드/게이트웨이 오류에 한해 1s → 2s 백오프로 2회 재시도.
 const RETRY_DELAYS_MS = [1000, 2000];
 
+// 출력 토큰 상한 — 모든 프로바이더 공통. 초안/스타일링 출력은 한참 밑이라 잘림 방지용 방어값.
+const LLM_MAX_TOKENS = 4096;
+
 export function parseRetryAfterMs(value: string | null): number | null {
   if (!value) return null;
   const seconds = Number(value);
@@ -124,7 +127,7 @@ export const PROVIDER_PRESETS: ProviderPreset[] = [
 export const ANTHROPIC_MODELS: ModelEntry[] = [
   { id: "claude-sonnet-4-6" },
   { id: "claude-haiku-4-5-20251001" },
-  { id: "claude-opus-4-6" },
+  { id: "claude-opus-4-8" },
 ];
 
 export const GEMINI_MODELS: ModelEntry[] = [
@@ -210,7 +213,11 @@ export function createOpenAICompatibleProvider(config: LlmConfig): AIProvider {
     };
     if (config.apiKey) headers["Authorization"] = `Bearer ${config.apiKey}`;
 
-    const body: Record<string, unknown> = { model: config.modelId, messages };
+    const body: Record<string, unknown> = {
+      model: config.modelId,
+      messages,
+      max_tokens: LLM_MAX_TOKENS,
+    };
     if (jsonMode) body.response_format = { type: "json_object" };
 
     const res = await fetchWithRetry(
@@ -255,7 +262,6 @@ export function createOpenAICompatibleProvider(config: LlmConfig): AIProvider {
 }
 
 const ANTHROPIC_VERSION = "2023-06-01";
-const ANTHROPIC_MAX_TOKENS = 4096;
 
 type AnthropicContent =
   | string
@@ -298,7 +304,7 @@ export function createAnthropicProvider(config: LlmConfig): AIProvider {
         headers,
         body: JSON.stringify({
           model: config.modelId,
-          max_tokens: ANTHROPIC_MAX_TOKENS,
+          max_tokens: LLM_MAX_TOKENS,
           system,
           messages,
         }),

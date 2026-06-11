@@ -11,6 +11,9 @@ export interface LogViewerReportSection {
 
 export interface LogViewerReport {
   title: string;
+  // 생성 시점 locale로 박제된 env 섹션 제목 — 섹션 label들과 동일하게 데이터로 고정.
+  // optional: 구버전 logs.html에는 없음 → 뷰어가 자체 i18n으로 폴백.
+  envTitle?: string;
   env: { label: string; value: string }[];
   sections: LogViewerReportSection[];
   copy: { markdown: string; html: string }; // 미리 빌드된 클립보드 페이로드

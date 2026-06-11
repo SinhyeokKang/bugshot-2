@@ -7,7 +7,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { useIssuesStore, type IssueRecord } from "@/store/issues-store";
 import type { NotionDatabaseSchema, NotionPageStatus } from "@/types/notion";
 import { sendBg } from "@/types/messages";
-import { notionStatusCategory } from "../notionStatusColors";
+import { notionStatusCategory } from "@/sidepanel/tabs/notionStatusColors";
 import { STATUS_CATEGORY_COLORS } from "./constants";
 
 export function NotionStatusBadge({

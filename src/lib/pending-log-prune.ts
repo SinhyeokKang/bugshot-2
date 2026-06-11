@@ -1,6 +1,8 @@
 import {
+  deleteActionLog,
   deleteConsoleLog,
   deleteNetworkLog,
+  getActionLogKeys,
   getConsoleLogKeys,
   getNetworkLogKeys,
 } from "@/store/blob-db";
@@ -42,15 +44,18 @@ async function getActiveTabIds(): Promise<Set<number>> {
 
 export async function pruneOrphanPendingLogs(): Promise<void> {
   const activeTabIds = await getActiveTabIds();
-  const [networkKeys, consoleKeys] = await Promise.all([
+  const [networkKeys, consoleKeys, actionKeys] = await Promise.all([
     getNetworkLogKeys(),
     getConsoleLogKeys(),
+    getActionLogKeys(),
   ]);
   const networkOrphans = findOrphanPendingKeys(networkKeys, activeTabIds);
   const consoleOrphans = findOrphanPendingKeys(consoleKeys, activeTabIds);
+  const actionOrphans = findOrphanPendingKeys(actionKeys, activeTabIds);
   await Promise.all([
     ...networkOrphans.map((k) => deleteNetworkLog(k).catch(() => {})),
     ...consoleOrphans.map((k) => deleteConsoleLog(k).catch(() => {})),
+    ...actionOrphans.map((k) => deleteActionLog(k).catch(() => {})),
   ]);
 }
 

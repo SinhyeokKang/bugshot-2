@@ -211,6 +211,7 @@ function DisconnectButton({ id }: { id: PlatformId }) {
           variant="outline"
           size="icon"
           className="h-8 w-8 shrink-0 hover:text-destructive"
+          aria-label={t("platform.disconnect.title", { platform: t(PLATFORM_TAB_KEYS[id]) })}
         >
           <Unplug />
         </Button>

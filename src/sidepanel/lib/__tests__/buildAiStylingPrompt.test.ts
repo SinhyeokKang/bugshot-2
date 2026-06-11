@@ -86,6 +86,12 @@ describe("buildAiStylingSystemPrompt", () => {
     expect(prompt).toContain("animation");
     expect(prompt).toContain("will-change");
   });
+
+  it("-- 금지는 property key 한정, var(--token) 값 참조는 권장임을 명확히", () => {
+    const prompt = buildAiStylingSystemPrompt(BASE_CTX);
+    expect(prompt).toMatch(/property keys/i);
+    expect(prompt).toMatch(/var\(--token\)/);
+  });
 });
 
 describe("buildStyleContextBlock", () => {

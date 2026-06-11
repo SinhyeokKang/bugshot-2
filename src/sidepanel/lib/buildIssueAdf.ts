@@ -205,7 +205,8 @@ function table(headers: string[], rows: string[][]): AdfNode {
         content: row.map((cell) => ({
           type: "tableCell",
           attrs: {},
-          content: [paragraph([textNode(cell)])],
+          // Jira ADF는 빈 text 노드를 거부(400) — 빈 셀(class 전부 제거 등)은 빈 paragraph로.
+          content: [paragraph(cell === "" ? [] : [textNode(cell)])],
         })),
       })),
     ],

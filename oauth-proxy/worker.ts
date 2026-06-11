@@ -95,7 +95,7 @@ async function handleAsanaToken(
   if (!env.ASANA_CLIENT_ID || !env.ASANA_CLIENT_SECRET) {
     return jsonError(503, "asana oauth not configured", corsOrigin);
   }
-  if (body.client_id && body.client_id !== env.ASANA_CLIENT_ID) {
+  if (body.client_id !== env.ASANA_CLIENT_ID) {
     return jsonError(400, "client_id not registered", corsOrigin);
   }
   const upstream = await fetchImpl(ASANA_TOKEN_URL, {
@@ -133,7 +133,7 @@ async function handleAsanaRefresh(
   if (!env.ASANA_CLIENT_ID || !env.ASANA_CLIENT_SECRET) {
     return jsonError(503, "asana oauth not configured", corsOrigin);
   }
-  if (body.client_id && body.client_id !== env.ASANA_CLIENT_ID) {
+  if (body.client_id !== env.ASANA_CLIENT_ID) {
     return jsonError(400, "client_id not registered", corsOrigin);
   }
   const upstream = await fetchImpl(ASANA_TOKEN_URL, {
@@ -170,7 +170,7 @@ async function handleNotionToken(
   if (!env.NOTION_CLIENT_ID || !env.NOTION_CLIENT_SECRET) {
     return jsonError(503, "notion oauth not configured", corsOrigin);
   }
-  if (body.client_id && body.client_id !== env.NOTION_CLIENT_ID) {
+  if (body.client_id !== env.NOTION_CLIENT_ID) {
     return jsonError(400, "client_id not registered", corsOrigin);
   }
   const basic = btoa(`${env.NOTION_CLIENT_ID}:${env.NOTION_CLIENT_SECRET}`);

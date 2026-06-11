@@ -4,7 +4,7 @@ import { originOf } from "@/lib/session-keys";
 import type { PickerMessage, ViewportRect } from "@/types/picker";
 import { type BgInternalMessage, onPickerIframeUnsupported, onPickerPermissionExpired, sendBg } from "@/types/messages";
 import { captureElementSnapshot, loadImage } from "@/sidepanel/capture";
-import { clearPicker, collectTokens, maybeSurfacePermissionExpired, rebroadcastSentinelsToFrame } from "@/sidepanel/picker-control";
+import { clearPicker, collectTokens, maybeSurfacePermissionExpired, rebroadcastSentinelsToFrame, resumeBufferedElement, stopPicker } from "@/sidepanel/picker-control";
 import { saveNetworkLog, saveConsoleLog, saveActionLog, saveInlineImage, dataUrlToBlob } from "@/store/blob-db";
 import { shouldCompact, compactImage } from "@/sidepanel/lib/compactImage";
 import { shouldPreserveBackgroundLogs } from "@/sidepanel/hooks/useBackgroundRecorder";
@@ -26,16 +26,18 @@ let lastLogClearAt = 0;
 // 레코더 자동 flush(~200ms)로 *.data 수신 빈도가 올라도 IndexedDB write는 ~1s로 묶는다.
 // store set은 매번(메모리), save만 가드. 30s replay trim 경로(use-30s-replay)가 discard로 stale 쓰기를 비운다.
 const LOG_PERSIST_INTERVAL_MS = 1000;
+// save 결과(Promise<boolean>)를 guard에 그대로 전달 — 실패(false/reject) 시 pending이
+// 보존돼 다음 push/flush에서 재시도된다 (c3d87e5 회귀 수정의 실제 배선).
 export const networkLogPersist = createLogPersistGuard(
-  (key: string, log: Parameters<typeof saveNetworkLog>[1]) => { saveNetworkLog(key, log).catch(() => {}); },
+  (key: string, log: Parameters<typeof saveNetworkLog>[1]) => saveNetworkLog(key, log),
   LOG_PERSIST_INTERVAL_MS,
 );
 export const consoleLogPersist = createLogPersistGuard(
-  (key: string, log: Parameters<typeof saveConsoleLog>[1]) => { saveConsoleLog(key, log).catch(() => {}); },
+  (key: string, log: Parameters<typeof saveConsoleLog>[1]) => saveConsoleLog(key, log),
   LOG_PERSIST_INTERVAL_MS,
 );
 export const actionLogPersist = createLogPersistGuard(
-  (key: string, log: Parameters<typeof saveActionLog>[1]) => { saveActionLog(key, log).catch(() => {}); },
+  (key: string, log: Parameters<typeof saveActionLog>[1]) => saveActionLog(key, log),
   LOG_PERSIST_INTERVAL_MS,
 );
 
@@ -86,6 +88,11 @@ export function usePickerMessages(myTabId: number | null): void {
           if (tabId) void captureElementShot(tabId, msg.payload);
           return;
         }
+        // 버퍼된 요소 재선택은 before/after를 복원한다(원래 캡처가 실패해 null이어도). 그 경우
+        // DOM엔 편집이 적용돼 있어 fresh before 캡처는 편집 후 상태를 before로 박는 오염이 된다.
+        const wasBuffered = useEditorStore
+          .getState()
+          .bufferedElements.some((b) => b.selector === msg.payload.selector);
         useEditorStore.getState().onElementSelected({
           selector: msg.payload.selector,
           tagName: msg.payload.tagName,
@@ -101,16 +108,24 @@ export function usePickerMessages(myTabId: number | null): void {
         });
         const tabId = useEditorStore.getState().target?.tabId;
         if (tabId) {
+          // 비동기 캡처 중 다른 요소가 선택되면 늦게 도착한 결과가 새 선택을 덮는다 —
+          // 선택 동일성(selector)을 resolve 시점에 재확인.
+          const selector = msg.payload.selector;
           void collectTokens(tabId)
             .then((tokens) => {
+              if (useEditorStore.getState().selection?.selector !== selector) return;
               useEditorStore.getState().setTokens(tokens);
             })
             .catch((err) => console.warn("[bugshot] collectTokens failed", err));
-          void captureElementSnapshot(tabId)
-            .then((img) => {
-              if (img) useEditorStore.getState().setBeforeImage(img);
-            })
-            .catch((err) => console.warn("[bugshot] before-image capture failed", err));
+          if (!wasBuffered && !useEditorStore.getState().beforeImage) {
+            void captureElementSnapshot(tabId)
+              .then((img) => {
+                const s = useEditorStore.getState();
+                if (!img || s.selection?.selector !== selector || s.beforeImage) return;
+                s.setBeforeImage(img);
+              })
+              .catch((err) => console.warn("[bugshot] before-image capture failed", err));
+          }
         }
       } else if (message.type === "picker.selectionUpdated") {
         const msg = message as Extract<PickerMessage, { type: "picker.selectionUpdated" }>;
@@ -135,12 +150,14 @@ export function usePickerMessages(myTabId: number | null): void {
           const { phase } = useEditorStore.getState();
           if (phase === "capturing") {
             useEditorStore.getState().reset();
-          } else {
+          } else if (!resumeAfterRepickCancel()) {
             useEditorStore.getState().cancelPicking();
           }
         }
       } else if (message.type === "picker.iframeUnsupported") {
-        useEditorStore.getState().cancelPicking();
+        if (!resumeAfterRepickCancel()) {
+          useEditorStore.getState().cancelPicking();
+        }
         onPickerIframeUnsupported.fire();
       } else if (message.type === "activeTabExpiredDeferred") {
         const msg = message as Extract<BgInternalMessage, { type: "activeTabExpiredDeferred" }>;
@@ -246,6 +263,22 @@ export function usePickerMessages(myTabId: number | null): void {
       chrome.runtime.onMessage.removeListener(handler);
     };
   }, [myTabId]);
+}
+
+// repick 중 페이지 측 취소(ESC·iframe 차단): 버퍼를 버리지 않고 직전 버퍼 요소로 복귀해
+// 편집을 보존한다(DOM 편집은 페이지에 그대로 남아 있다 — store만 비우면 영구 분기).
+// 복귀를 시작했으면 true, 아니면 false(호출부가 기존 취소 경로 수행). 복귀 실패(요소 전부
+// 소실) 시 stopPicker로 DOM 원복 + store 정리 폴백.
+function resumeAfterRepickCancel(): boolean {
+  const { phase, captureMode, bufferedElements, target } =
+    useEditorStore.getState();
+  if (phase !== "picking" || captureMode !== "element") return false;
+  if (bufferedElements.length === 0 || !target) return false;
+  const tabId = target.tabId;
+  void resumeBufferedElement(tabId).then((resumed) => {
+    if (!resumed) void stopPicker(tabId);
+  });
+  return true;
 }
 
 async function captureElementShot(

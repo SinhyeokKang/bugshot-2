@@ -124,20 +124,23 @@ export async function submitToNotion(
     });
   }
 
-  // 5. AI/디버그 메타 마크다운 — 본문 인라인이 아니라 첨부 file 블록으로
+  // 5. AI/디버그 메타 마크다운 — 본문 인라인이 아니라 첨부 file 블록으로.
+  // 비필수 메타라 업로드 실패는 격리 — 페이지 생성을 막지 않는다 (log 첨부 격리 정책과 동일).
   const aiMeta = buildAiMetaAttachment(input.ctx);
   const aiMetaUploaded = await sendBg<NotionFileUploadResult>({
     type: "notion.uploadFile",
     filename: aiMeta.filename,
     contentType: "text/markdown",
     dataUrl: aiMeta.dataUrl,
-  });
-  uploaded.push({
-    placeholderId: "ai-meta",
-    fileUploadId: aiMetaUploaded.fileUploadId,
-    filename: aiMeta.filename,
-    category: "log",
-  });
+  }).catch(() => null);
+  if (aiMetaUploaded) {
+    uploaded.push({
+      placeholderId: "ai-meta",
+      fileUploadId: aiMetaUploaded.fileUploadId,
+      filename: aiMeta.filename,
+      category: "log",
+    });
+  }
 
   const result = await sendBg<NotionCreatePageResult>({
     type: "notion.submitPage",

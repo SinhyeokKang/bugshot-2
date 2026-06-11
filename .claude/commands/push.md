@@ -22,7 +22,7 @@ description: 원격 푸시 전 상태 점검 + CLAUDE.md/DIRECTORY.md/ARCHITECTU
 4. **문서 신선도 검사 (트라이아지 → 정밀).** 검사 대상이 6개라 무겁게 느껴지지만, 본질은 **diff를 한 번 읽고 트리거에 걸리는 문서만 골라내는 것**이다. 문서 수만큼 비용이 늘지 않는다.
 
    **4a. 트라이아지 (1회, 가볍게).** 푸시될 커밋들의 diff(`git diff @{u}..HEAD`)를 **한 번** 훑어, 아래 트리거에 걸리는 문서를 **후보 목록**으로 매핑한다. 이 단계에서는 문서를 읽지 않는다 — diff와 트리거만 본다.
-   - **후보가 0개면 검사 종료하고 바로 5단계(푸시)로 간다.** 대부분의 push가 여기서 통과한다.
+   - **후보가 0개면 검사 종료하고 바로 5단계(e2e 게이트)로 간다.** 대부분의 push가 여기서 통과한다.
    - 후보가 1개 이상이면 4b로 진행하되, **걸린 문서만** 다룬다.
 
    트리거:
@@ -57,7 +57,13 @@ description: 원격 푸시 전 상태 점검 + CLAUDE.md/DIRECTORY.md/ARCHITECTU
    - 문서별로 별도 커밋 (예: `docs(CLAUDE): update tab scope session description`, `docs(README): add new feature description`, `docs(privacy): add new platform data disclosure`)
    - 변경 불필요하면 건너뜀
 
-5. **푸시 실행.** 확인 없이 바로 푸시한다:
+5. **e2e 게이트.** 문서 신선도 검사 후, 푸시 직전에 수행:
+   1. `cat e2e/.last-green`이 `git rev-parse HEAD`와 일치하면 → "직전 green (해시)" 한 줄로 통과.
+   2. 불일치(또는 파일 없음) → `/e2e-run` 절차 수행 (`pnpm build:e2e` → `pnpm test:e2e` → 리포트).
+   3. **빨강 → 실패 리포트 후 중단 (푸시 안 함).** 사용자가 "skip e2e"로 명시 우회한 경우에만 생략하고 보고에 우회 사실 기록.
+   4. green → 워킹 트리 클린일 때만 `git rev-parse HEAD > e2e/.last-green` 기록(dirty면 생략을 보고에 명시) 후 푸시로 진행. 통상 이 기록으로 `/merge` 게이트가 스킵된다(캐시 priming).
+
+6. **푸시 실행.** 확인 없이 바로 푸시한다:
    - `git push` (upstream 없으면 `git push -u origin <branch>`)
    - 출력에서 결과 줄만 발췌해 보고
 

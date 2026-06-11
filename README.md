@@ -50,11 +50,13 @@ pnpm dev          # dev server (HMR via @crxjs/vite-plugin)
 pnpm build        # production build → dist/
 pnpm build:store  # store upload build (strips manifest key)
 pnpm typecheck    # type check only
-pnpm test         # run tests
-pnpm test:watch   # tests in watch mode
+pnpm test         # run unit tests (Vitest)
+pnpm test:watch   # unit tests in watch mode
+pnpm build:e2e    # e2e-only build → dist-e2e/ (test fixture, has <all_urls> — never load/upload)
+pnpm test:e2e     # Playwright e2e suite (run build:e2e first)
 ```
 
-Load the unpacked extension from `dist/` at `chrome://extensions` (developer mode).
+Load the unpacked extension from `dist/` at `chrome://extensions` (developer mode). The e2e suite lives in `e2e/` — see [`e2e/README.md`](e2e/README.md) for coverage, manual remainders, and gotchas.
 
 ## Stack
 
@@ -64,7 +66,7 @@ Load the unpacked extension from `dist/` at `chrome://extensions` (developer mod
 | UI | React 18, TypeScript, Tailwind CSS v3, shadcn/ui |
 | State | Zustand + chrome.storage (session / local) |
 | Build | Vite + @crxjs/vite-plugin |
-| Test | Vitest |
+| Test | Vitest (unit) · Playwright (e2e) |
 
 ## Privacy Policy
 

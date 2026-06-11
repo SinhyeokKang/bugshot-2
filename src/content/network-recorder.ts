@@ -1,4 +1,4 @@
-import { BODY_CAP, classifyBeaconBody, classifyResponseBody, createPatchedFetch, headersToRecord } from "./network-recorder-helpers";
+import { BODY_CAP, MASKED_QUERY_KEYS, classifyBeaconBody, classifyResponseBody, createPatchedFetch, headersToRecord, maskBody } from "./network-recorder-helpers";
 import type { FetchRecordHook } from "./network-recorder-helpers";
 import { createTrailingThrottle, FLUSH_INTERVAL_MS } from "./log-throttle";
 import type { NetworkRequestBody, NetworkRequestPhase } from "@/types/network";
@@ -26,21 +26,6 @@ function networkRecorderScript(): void {
     /^x-.*-key$/i,
     /^x-.*-secret$/i,
   ];
-  const MASKED_QUERY_KEYS = new Set([
-    "token",
-    "access_token",
-    "id_token",
-    "refresh_token",
-    "api_key",
-    "apikey",
-    "key",
-    "secret",
-    "password",
-    "pwd",
-    "auth",
-  ]);
-  const MASKED_BODY_KEYS = new Set(MASKED_QUERY_KEYS);
-
   type ReqBody = NetworkRequestBody;
   type ReqPhase = NetworkRequestPhase;
 
@@ -114,48 +99,6 @@ function networkRecorderScript(): void {
     return url;
   }
 
-  function maskJsonBody(val: unknown, depth: number): unknown {
-    if (depth > 10) return val;
-    if (Array.isArray(val)) {
-      return val.map((item) => maskJsonBody(item, depth + 1));
-    }
-    if (val && typeof val === "object") {
-      const result: Record<string, unknown> = {};
-      for (const [k, v] of Object.entries(val as Record<string, unknown>)) {
-        if (MASKED_BODY_KEYS.has(k.toLowerCase())) {
-          result[k] = "***";
-        } else {
-          result[k] = maskJsonBody(v, depth + 1);
-        }
-      }
-      return result;
-    }
-    return val;
-  }
-
-  function maskRequestBody(body: string, contentType: string): string {
-    if (/^application\/json/i.test(contentType)) {
-      try {
-        const parsed = JSON.parse(body);
-        return JSON.stringify(maskJsonBody(parsed, 0));
-      } catch { return body; }
-    }
-    if (/^application\/x-www-form-urlencoded/i.test(contentType)) {
-      try {
-        const params = new URLSearchParams(body);
-        let changed = false;
-        for (const key of params.keys()) {
-          if (MASKED_BODY_KEYS.has(key.toLowerCase())) {
-            params.set(key, "***");
-            changed = true;
-          }
-        }
-        return changed ? params.toString() : body;
-      } catch { return body; }
-    }
-    return body;
-  }
-
   function estimateBodySize(body: ReqBody | undefined): number {
     if (!body || typeof body !== "string") return 0;
     return body.length * 2;
@@ -186,10 +129,13 @@ function networkRecorderScript(): void {
 
   // FIFO eviction — body 없는 요청(HEAD/204/binary)이 폭증해도 buffer 자체 길이가 무한해지지 않도록.
   // 버그 재현 시나리오에서 가치 있는 신호는 후반부이므로 oldest를 버린다.
+  // evict된 in-flight entry가 뒤늦게 settle하며 memoryUsed를 영구 과대계상하지 않도록 표시해 둔다.
+  const evictedEntries = new WeakSet<CapturedRequest>();
   function enforceEntryCap(): void {
     while (buffer.length > MAX_REQUEST_ENTRIES) {
       const evicted = buffer.shift();
       if (!evicted) break;
+      evictedEntries.add(evicted);
       memoryUsed -= estimateBodySize(evicted.requestBody);
       memoryUsed -= estimateBodySize(evicted.responseBody);
       warnings.add("ENTRY_CAPPED");
@@ -244,7 +190,7 @@ function networkRecorderScript(): void {
     const requestBodySize = info.requestBodySize;
     if (info.rawBody != null) {
       if (requestBodySize <= BODY_CAP) {
-        requestBody = maskRequestBody(info.rawBody, info.contentType);
+        requestBody = maskBody(info.rawBody, info.contentType);
       } else {
         requestBody = { kind: "truncated", limit: BODY_CAP, size: requestBodySize };
       }
@@ -306,7 +252,7 @@ function networkRecorderScript(): void {
           const body = await readBodyStreaming(cloned, contentType);
           if (typeof body === "string") {
             responseBodySize = body.length;
-            responseBody = body;
+            responseBody = maskBody(body, contentType);
           } else if (body.kind === "truncated") {
             responseBody = body;
             responseBodySize = body.size;
@@ -323,8 +269,10 @@ function networkRecorderScript(): void {
       entry.responseBodySize = responseBodySize;
       entry.phase = "complete";
 
-      memoryUsed += estimateBodySize(entry.responseBody);
-      enforceMemoryCap();
+      if (!evictedEntries.has(entry)) {
+        memoryUsed += estimateBodySize(entry.responseBody);
+        enforceMemoryCap();
+      }
     };
   };
 
@@ -386,7 +334,7 @@ function networkRecorderScript(): void {
       requestBodySize = body.length;
       const ct = meta?.reqHeaders?.["content-type"] || "";
       if (requestBodySize <= BODY_CAP) {
-        requestBody = maskRequestBody(body, ct);
+        requestBody = maskBody(body, ct);
       } else {
         requestBody = { kind: "truncated", limit: BODY_CAP, size: requestBodySize };
       }
@@ -456,7 +404,7 @@ function networkRecorderScript(): void {
               entry.responseBodySize = classified.size;
             }
           } else {
-            entry.responseBody = text;
+            entry.responseBody = maskBody(text, contentType);
             entry.responseBodySize = text.length;
           }
         } else {
@@ -471,8 +419,10 @@ function networkRecorderScript(): void {
         entry.phase = "error";
       }
 
-      memoryUsed += estimateBodySize(entry.responseBody);
-      enforceMemoryCap();
+      if (!evictedEntries.has(entry)) {
+        memoryUsed += estimateBodySize(entry.responseBody);
+        enforceMemoryCap();
+      }
     }
 
     xhr.addEventListener("load", () => captureXhr("load"));
@@ -498,7 +448,7 @@ function networkRecorderScript(): void {
         const contentType = classified.contentType;
 
         if (typeof requestBody === "string") {
-          requestBody = maskRequestBody(requestBody, contentType);
+          requestBody = maskBody(requestBody, contentType);
         }
 
         const entry: CapturedRequest = {

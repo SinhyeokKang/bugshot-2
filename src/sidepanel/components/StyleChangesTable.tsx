@@ -91,25 +91,39 @@ export function StyleChangesTable({
 }
 
 function SnapshotCell({ image }: { image: string | null }) {
+  const t = useT();
   if (!image) return null;
   return (
     <Card className="flex items-center justify-center bg-muted/30 p-1">
       <img
         src={image}
-        alt="snapshot"
+        alt={t("alt.capturedImage")}
         className="max-h-40 w-auto max-w-full object-contain"
       />
     </Card>
   );
 }
 
-function DiffValue({ value, muted }: { value: string; muted?: boolean }) {
+export function DiffValue({
+  value,
+  muted,
+  "data-testid": testid,
+}: {
+  value: string;
+  muted?: boolean;
+  "data-testid"?: string;
+}) {
   const t = useT();
   if (!value.trim()) {
-    return <span className="text-muted-foreground/60">{t("styleTable.unset")}</span>;
+    return (
+      <span data-testid={testid} className="text-muted-foreground/60">
+        {t("styleTable.unset")}
+      </span>
+    );
   }
   return (
     <span
+      data-testid={testid}
       className={cn(
         "whitespace-pre-wrap break-all",
         muted && "text-muted-foreground",
@@ -152,7 +166,7 @@ export function buildStyleDiff(
   return collapseShorthands(rows);
 }
 
-const SHORTHAND_GROUPS: Record<string, string[]> = {
+export const SHORTHAND_GROUPS: Record<string, string[]> = {
   padding: [
     "padding-top",
     "padding-right",
@@ -169,10 +183,13 @@ const SHORTHAND_GROUPS: Record<string, string[]> = {
 };
 
 function collapseShorthands(rows: StyleDiffRow[]): StyleDiffRow[] {
-  const result: StyleDiffRow[] = [];
   const consumed = new Set<string>();
+  // 첫 longhand의 자리에 collapsed 행을 끼워 넣어 text→class→prop 정렬을 유지한다.
+  const collapsedAt = new Map<string, StyleDiffRow>();
 
   for (const [shorthand, longhands] of Object.entries(SHORTHAND_GROUPS)) {
+    // 명시 shorthand 행이 이미 있으면(AI 머지 등) 같은 prop 행을 중복 생성하지 않는다.
+    if (rows.some((r) => r.prop === shorthand)) continue;
     const matching = longhands
       .map((l) => rows.find((r) => r.prop === l))
       .filter((r): r is StyleDiffRow => r != null);
@@ -181,16 +198,20 @@ function collapseShorthands(rows: StyleDiffRow[]): StyleDiffRow[] {
     const allSameAsIs = matching.every((r) => r.asIs === matching[0].asIs);
     const allSameToBe = matching.every((r) => r.toBe === matching[0].toBe);
     if (allSameAsIs && allSameToBe) {
-      result.push({
+      const first = rows.find((r) => longhands.includes(r.prop))!;
+      collapsedAt.set(first.prop, {
         prop: shorthand,
-        asIs: matching[0].asIs,
-        toBe: matching[0].toBe,
+        asIs: first.asIs,
+        toBe: first.toBe,
       });
       for (const l of longhands) consumed.add(l);
     }
   }
 
+  const result: StyleDiffRow[] = [];
   for (const row of rows) {
+    const collapsed = collapsedAt.get(row.prop);
+    if (collapsed) result.push(collapsed);
     if (!consumed.has(row.prop)) result.push(row);
   }
 

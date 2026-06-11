@@ -97,6 +97,64 @@ describe("createLogPersistGuard", () => {
     expect(save).toHaveBeenLastCalledWith("k", 9);
   });
 
+  it("비동기 save가 false를 resolve하면 pending을 보존해 다음 flush에서 재시도한다", async () => {
+    const save = vi
+      .fn()
+      .mockResolvedValueOnce(false) // blob-db save는 실패를 false로 resolve
+      .mockResolvedValue(true);
+    const timer = makeFakeTimer();
+    const g = createLogPersistGuard<number>(save, 1000, timer.schedule, timer.clear);
+
+    g.push("k", 9);
+    timer.fireAll();
+    await Promise.resolve(); // save resolve 대기
+    expect(save).toHaveBeenCalledTimes(1);
+
+    g.flushNow(); // 재시도: 동일 payload 저장
+    await Promise.resolve();
+    expect(save).toHaveBeenCalledTimes(2);
+    expect(save).toHaveBeenLastCalledWith("k", 9);
+
+    g.flushNow(); // 성공 후엔 pending이 비워져 추가 저장 없음
+    expect(save).toHaveBeenCalledTimes(2);
+  });
+
+  it("비동기 save가 reject해도 pending을 보존한다", async () => {
+    const save = vi
+      .fn()
+      .mockRejectedValueOnce(new Error("IDB fail"))
+      .mockResolvedValue(true);
+    const timer = makeFakeTimer();
+    const g = createLogPersistGuard<number>(save, 1000, timer.schedule, timer.clear);
+
+    g.push("k", 3);
+    timer.fireAll();
+    await Promise.resolve();
+    await Promise.resolve();
+
+    g.flushNow();
+    expect(save).toHaveBeenCalledTimes(2);
+    expect(save).toHaveBeenLastCalledWith("k", 3);
+  });
+
+  it("save 진행 중 새 push가 오면 성공해도 최신 pending을 지우지 않는다", async () => {
+    let resolveSave!: (v: boolean) => void;
+    const save = vi.fn().mockImplementationOnce(
+      () => new Promise<boolean>((r) => { resolveSave = r; }),
+    ).mockResolvedValue(true);
+    const timer = makeFakeTimer();
+    const g = createLogPersistGuard<number>(save, 1000, timer.schedule, timer.clear);
+
+    g.push("k", 1);
+    timer.fireAll(); // save(k,1) in-flight
+    g.push("k", 2); // 새 payload 도착
+    resolveSave(true);
+    await Promise.resolve();
+
+    g.flushNow(); // 최신 payload가 보존돼 있어야 한다
+    expect(save).toHaveBeenLastCalledWith("k", 2);
+  });
+
   it("discard 후 다시 push하면 정상적으로 재예약·저장된다", () => {
     const save = vi.fn();
     const timer = makeFakeTimer();

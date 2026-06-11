@@ -18,7 +18,7 @@ import { OAuthError } from "./oauth";
 import { pruneOrphanPendingLogsOncePerSession } from "@/lib/pending-log-prune";
 import { shouldClearLogs } from "@/lib/navigation-clear";
 import type { BgInternalMessage } from "@/types/messages";
-import { activateTab, setupTabBindings, stopRecorders } from "./tab-bindings";
+import { activateTab, setupTabBindings, shouldPreserveSession, stopRecorders } from "./tab-bindings";
 
 initBgLocale();
 void pruneOrphanPendingLogsOncePerSession();
@@ -84,8 +84,20 @@ chrome.runtime.onConnect.addListener((port) => {
   const tabId = Number(port.name.slice(PANEL_PORT_PREFIX.length));
   if (Number.isNaN(tabId)) return;
   port.onDisconnect.addListener(() => {
-    chrome.storage.session.remove(sessionKey(tabId)).catch(() => {});
-    chrome.tabs.sendMessage(tabId, { type: "picker.clear" }).catch(() => {});
+    // 보존 phase(drafting/previewing/done/video)는 패널을 닫았다 열어도 복원돼야 하므로
+    // 세션·picker 상태를 남긴다 (tab-bindings의 phase별 보존 정책과 동일 기준).
+    const key = sessionKey(tabId);
+    chrome.storage.session
+      .get(key)
+      .then((data) => {
+        const snap = data[key] as
+          | { captureMode?: string; phase?: string }
+          | undefined;
+        if (shouldPreserveSession(snap)) return;
+        chrome.storage.session.remove(key).catch(() => {});
+        chrome.tabs.sendMessage(tabId, { type: "picker.clear" }).catch(() => {});
+      })
+      .catch(() => {});
     stopRecorders(tabId);
   });
 });

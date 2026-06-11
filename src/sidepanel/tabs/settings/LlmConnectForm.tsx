@@ -4,6 +4,7 @@ import {
   Check,
   ChevronsUpDown,
   RefreshCw,
+  Unplug,
 } from "lucide-react";
 import { useT } from "@/i18n";
 import {
@@ -44,8 +45,9 @@ import {
   PROVIDER_PRESETS,
   type ModelEntry,
 } from "@/sidepanel/lib/ai-provider";
-import { PageFooter, PageScroll, PageShell, Section } from "@/sidepanel/components/Section";
+import { PageScroll, PageShell, Section } from "@/sidepanel/components/Section";
 import { LlmConnectDialog } from "./LlmConnectDialog";
+import { SettingsFooter } from "./SettingsFooter";
 
 export function LlmConnectForm() {
   const llm = useSettingsUiStore((s) => s.llm);
@@ -136,7 +138,37 @@ function LlmConnected() {
   return (
     <PageShell>
       <PageScroll>
-        <Section title={t("llm.section.connection")}>
+        <Section
+          title={t("llm.section.connection")}
+          action={
+            <AlertDialog>
+              <AlertDialogTrigger asChild>
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="h-8 w-8 shrink-0 hover:text-destructive"
+                  title={t("llm.disconnect")}
+                >
+                  <Unplug />
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>{t("llm.disconnectConfirm.title")}</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    {t("llm.disconnectConfirm.body")}
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                  <AlertDialogCancel>{t("common.close")}</AlertDialogCancel>
+                  <AlertDialogAction onClick={() => setLlm(null)}>
+                    {t("platform.disconnect.confirm")}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          }
+        >
           <Card>
             <CardContent className="flex items-center justify-between px-4 py-3">
               <div className="flex min-w-0 flex-col">
@@ -210,29 +242,7 @@ function LlmConnected() {
         </Section>
       </PageScroll>
 
-      <PageFooter>
-        <div className="flex items-center justify-end">
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant="outline">{t("llm.disconnect")}</Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>{t("llm.disconnectConfirm.title")}</AlertDialogTitle>
-                <AlertDialogDescription>
-                  {t("llm.disconnectConfirm.body")}
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>{t("common.close")}</AlertDialogCancel>
-                <AlertDialogAction onClick={() => setLlm(null)}>
-                  {t("platform.disconnect.confirm")}
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </div>
-      </PageFooter>
+      <SettingsFooter />
     </PageShell>
   );
 }

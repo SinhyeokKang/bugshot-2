@@ -6,7 +6,7 @@ import {
   useEditorStore,
 } from "@/store/editor-store";
 import { onSessionSaveExhausted } from "@/types/messages";
-import { clearPicker } from "@/sidepanel/picker-control";
+import { clearPicker, rebindStylingSession } from "@/sidepanel/picker-control";
 import { getNetworkLog, getConsoleLog, getActionLog, pruneOrphanInlineImages } from "@/store/blob-db";
 import { extractInlineRefs } from "@/sidepanel/lib/resolveInlineImages";
 
@@ -85,9 +85,17 @@ export function useEditorSessionSync(tabId: number | null): boolean {
       const snap = data[key] as EditorSnapshot | undefined;
       if (snap) {
         if (snap.phase === "picking" || snap.phase === "recording" || snap.phase === "capturing") {
+          // picking 중 닫힌 세션의 버퍼는 DOM 편집이 이미 원복돼 ghost가 된다 — idle
+          // 강등과 함께 폐기(남기면 startPicking의 preserveBuffer로 다음 세션에 합류).
+          if (snap.phase === "picking") snap.bufferedElements = [];
           snap.phase = "idle";
         }
         useEditorStore.getState().hydrate(migrateLegacyDraft(snap));
+        // 패널이 닫힐 때 port disconnect로 페이지 편집이 전부 원복되므로, styling 복원은
+        // DOM 재적용 + picker 재바인딩까지 마쳐야 유령 세션이 안 된다(실패 시 sessionExpired).
+        if (snap.phase === "styling" && snap.captureMode === "element") {
+          void rebindStylingSession(tabId);
+        }
         if (snap.networkLogAttach) {
           getNetworkLog(`pending:${tabId}`).then((log) => {
             if (log) useEditorStore.getState().setNetworkLog(log);

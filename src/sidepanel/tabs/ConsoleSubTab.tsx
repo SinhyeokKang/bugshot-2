@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { useEditorStore } from "@/store/editor-store";
 import { useBoundTabId } from "@/sidepanel/hooks/useBoundTabId";
 import { syncConsoleRecorder } from "@/sidepanel/picker-control";
+import { consoleLogPersist } from "@/sidepanel/hooks/usePickerMessages";
 import { PageShell, PageFooter } from "@/sidepanel/components/Section";
 import { ConsoleLogContent } from "@/sidepanel/components/ConsoleLogContent";
 
@@ -40,7 +41,13 @@ export function ConsoleSubTab({ active, onStartFreeform }: { active: boolean; on
           <Button
             variant="outline"
             disabled={tabId == null || (consoleLog?.entries.length ?? 0) === 0}
-            onClick={() => useEditorStore.getState().clearConsoleLog(tabId ?? null)}
+            onClick={() => {
+              // clear가 IDB pending을 delete하므로 대기 중 throttle write를 먼저 폐기해
+              // delete 이후 stale 버퍼가 IDB에 부활하는 걸 막는다 (logClear 메시지 경로와 대칭).
+              consoleLogPersist.discard();
+              useEditorStore.getState().clearConsoleLog(tabId ?? null);
+            }}
+            data-testid="console-clear"
           >
             <ListRestart />
             {t("consoleLog.clear")}

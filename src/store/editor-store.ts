@@ -66,6 +66,8 @@ export interface BufferedElement {
     classList: string[];
     specifiedStyles: Record<string, string>;
     computedStyles: Record<string, string>;
+    // 구버전 영속 스냅샷·IssueRecord 복원 경로엔 없다 — 승격 시 ?? {}로 폴백.
+    propSources?: Record<string, string>;
     text: string | null;
     viewport: { width: number; height: number };
     capturedAt: number;
@@ -169,6 +171,11 @@ interface EditorState {
   setBeforeImage: (img: string | null) => void;
   setAfterImage: (img: string | null) => void;
   bufferCurrentElement: (afterImage: string | null) => void;
+  patchBufferedElement: (
+    selector: string,
+    patch: Partial<Pick<BufferedElement, "styleEdits" | "afterImage">>,
+  ) => void;
+  removeBufferedElement: (selector: string) => void;
   confirmStyles: () => void;
   resetAllStyleEdits: () => void;
   backToStyling: () => void;
@@ -286,6 +293,45 @@ function preserveLogs(state: EditorState): Pick<
 // 복수 element 버퍼를 모드(picking) 재진입 시 보존. preserveLogs와 동형.
 function preserveBuffer(state: EditorState): Pick<EditorState, "bufferedElements"> {
   return { bufferedElements: state.bufferedElements };
+}
+
+// class 변경 후 picker.selectionUpdated의 specified/computed에는 인라인 편집값이 새어든다
+// (css-resolve가 el.style을 [inline] source로 접음). 편집 중(styleEdits.inlineStyle) prop의 diff
+// baseline은 편집 전 원본이어야 하므로, 재수집 패치에서 그 prop만 기존 selection 값으로 되돌린다.
+// 원본에 없던 prop은 제거해 buildStyleDiff의 computed 폴백도 원본을 가리키게 한다.
+export function mergeSelectionStyles(
+  prev: Pick<
+    EditorSelection,
+    "specifiedStyles" | "computedStyles" | "propSources"
+  >,
+  patch: {
+    specifiedStyles: Record<string, string>;
+    computedStyles: Record<string, string>;
+    propSources: Record<string, string>;
+  },
+  inlineEdits: Record<string, string>,
+): {
+  specifiedStyles: Record<string, string>;
+  computedStyles: Record<string, string>;
+  propSources: Record<string, string>;
+} {
+  const specifiedStyles = { ...patch.specifiedStyles };
+  const computedStyles = { ...patch.computedStyles };
+  const propSources = { ...patch.propSources };
+  const restore = (
+    next: Record<string, string>,
+    base: Record<string, string>,
+    prop: string,
+  ) => {
+    if (prop in base) next[prop] = base[prop];
+    else delete next[prop];
+  };
+  for (const prop of Object.keys(inlineEdits)) {
+    restore(specifiedStyles, prev.specifiedStyles, prop);
+    restore(computedStyles, prev.computedStyles, prop);
+    restore(propSources, prev.propSources, prop);
+  }
+  return { specifiedStyles, computedStyles, propSources };
 }
 
 function newIssueId(): string {
@@ -425,23 +471,57 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   onAnnotated: (dataUrl) => set({ screenshotAnnotated: dataUrl }),
 
   onElementSelected: (selection) =>
-    set({
-      phase: "styling",
-      selection,
-      styleEdits: {
-        classList: [...selection.classList],
-        inlineStyle: {},
-        text: selection.text ?? "",
-      },
-      beforeImage: null,
-      afterImage: null,
-      aiStylingLoading: false,
+    set((s) => {
+      // 이미 버퍼에 담긴 요소를 재선택하면 그 편집을 작업 set으로 복원한다. 안 그러면
+      // 재선택 시 inlineStyle이 {}로 비워져, 추가 편집 후 재버퍼 시 이전 편집이 소실된다.
+      const buffered = s.bufferedElements.find((b) => b.selector === selection.selector);
+      if (buffered) {
+        return {
+          phase: "styling" as const,
+          // diff baseline(전값)은 인라인이 새어든 재캡처 specified가 아니라 버퍼 원본 snapshot을 쓴다.
+          selection: {
+            ...selection,
+            classList: [...buffered.selectionSnapshot.classList],
+            specifiedStyles: { ...buffered.selectionSnapshot.specifiedStyles },
+            computedStyles: { ...buffered.selectionSnapshot.computedStyles },
+            propSources: { ...(buffered.selectionSnapshot.propSources ?? {}) },
+            text: buffered.selectionSnapshot.text,
+          },
+          styleEdits: {
+            classList: [...buffered.styleEdits.classList],
+            inlineStyle: { ...buffered.styleEdits.inlineStyle },
+            text: buffered.styleEdits.text,
+          },
+          beforeImage: buffered.beforeImage,
+          afterImage: buffered.afterImage,
+          // 현재 요소로 승격 — 중복 카드 방지.
+          bufferedElements: s.bufferedElements.filter((b) => b.selector !== selection.selector),
+          aiStylingLoading: false,
+        };
+      }
+      return {
+        phase: "styling" as const,
+        selection,
+        styleEdits: {
+          classList: [...selection.classList],
+          inlineStyle: {},
+          text: selection.text ?? "",
+        },
+        beforeImage: null,
+        afterImage: null,
+        aiStylingLoading: false,
+      };
     }),
 
   updateSelectionStyles: (patch) =>
     set((s) => {
       if (!s.selection) return {};
-      return { selection: { ...s.selection, ...patch } };
+      return {
+        selection: {
+          ...s.selection,
+          ...mergeSelectionStyles(s.selection, patch, s.styleEdits.inlineStyle),
+        },
+      };
     }),
 
   setStyleEdits: (patch) =>
@@ -464,6 +544,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           classList: [...sel.classList],
           specifiedStyles: { ...sel.specifiedStyles },
           computedStyles: { ...sel.computedStyles },
+          propSources: { ...sel.propSources },
           text: sel.text,
           viewport: { ...sel.viewport },
           capturedAt: sel.capturedAt,
@@ -485,6 +566,20 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       }
       return { bufferedElements: [...s.bufferedElements, entry] };
     }),
+
+  patchBufferedElement: (selector, patch) =>
+    set((s) => ({
+      bufferedElements: s.bufferedElements.map((b) =>
+        b.selector === selector ? { ...b, ...patch } : b,
+      ),
+    })),
+
+  removeBufferedElement: (selector) =>
+    set((s) => ({
+      bufferedElements: s.bufferedElements.filter(
+        (b) => b.selector !== selector,
+      ),
+    })),
 
   confirmStyles: () => set({ phase: "drafting", aiStylingLoading: false }),
   // 현재 element 편집 초기화 + 복수 element 버퍼 비움(페이지 DOM 원복은 picker.resetAllEdits가 담당).

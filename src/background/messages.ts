@@ -4,7 +4,7 @@ import { IMAGE_PLACEHOLDER, VIDEO_PLACEHOLDER, parseInlinePlaceholder } from "@/
 import { adfMediaNode, type MediaSource } from "@/background/lib/adf-media";
 import { injectSnapshotRows } from "@/background/injectSnapshotRows";
 import { injectIssueUrl } from "@/lib/inject-issue-url";
-import type { JiraAttachmentInput, JiraAuth, JiraSubmitResult } from "@/types/jira";
+import type { JiraAttachmentInput, JiraAuth, JiraCreateIssuePayload, JiraSubmitResult } from "@/types/jira";
 import type { GithubAuth } from "@/types/github";
 import type { BgRequest } from "@/types/messages";
 import {
@@ -236,7 +236,10 @@ export async function handleMessage(
 
     case "github.uploadFiles": {
       const auth = await loadGithubAuth();
-      const repo = await githubFetch<{ id: number }>(auth, `/repos/${message.owner}/${message.repo}`);
+      const repo = await githubFetch<{ id: number }>(
+        auth,
+        `/repos/${encodeURIComponent(message.owner)}/${encodeURIComponent(message.repo)}`,
+      );
       return uploadGithubFiles(message.owner, message.repo, repo.id, message.files);
     }
 
@@ -526,7 +529,7 @@ export async function handleMessage(
 
 async function submitIssue(
   auth: JiraAuth,
-  payload: import("@/types/jira").JiraCreateIssuePayload,
+  payload: JiraCreateIssuePayload,
   attachments: JiraAttachmentInput[],
   relatesKey: string | undefined,
 ): Promise<JiraSubmitResult> {

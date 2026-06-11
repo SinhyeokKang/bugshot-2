@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>bugshot e2e fixture</title>
+    <style>
+      body {
+        margin: 24px;
+        font-family: sans-serif;
+      }
+      /* #title은 color·padding을 명시 — typography/layout 섹션 defaultOpen 유도 */
+      #title {
+        color: rgb(17, 24, 39);
+        padding: 8px 8px 8px 8px;
+      }
+      .card {
+        border: 1px solid #cccccc;
+        border-radius: 8px;
+      }
+      .box {
+        padding: 16px;
+        margin-top: 12px;
+        width: 240px;
+      }
+      #filler {
+        height: 2000px;
+      }
+      /* 전수 검수용 스와치 — 각 섹션(layout/container/size/typography/effects)이 모두
+         specified를 가져 defaultOpen 되도록 명시. quad/radius는 4면 동일값으로 collapse 기준값 제공. */
+      .swatch {
+        display: block;
+        padding: 12px 12px 12px 12px;
+        margin-bottom: 10px;
+        background-color: rgb(240, 240, 240);
+        border: 1px solid #dddddd;
+        border-radius: 4px;
+        color: rgb(50, 50, 50);
+        width: 200px;
+        box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+      }
+    </style>
+  </head>
+  <body>
+    <h1 id="title">Fixture Title</h1>
+    <div id="card" class="card box">Card text content</div>
+    <section id="palette">
+      <div id="el1" class="swatch">Element One</div>
+      <div id="el2" class="swatch">Element Two</div>
+      <div id="el3" class="swatch">Element Three</div>
+    </section>
+    <div id="filler"></div>
+  </body>
+</html>

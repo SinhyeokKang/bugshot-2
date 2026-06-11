@@ -1,6 +1,11 @@
 const ko = {
   "editor.resetChanges": "변경사항 초기화",
   "editor.resetChanges.body": "{count}건의 변경사항을 초기화하시겠습니까? 모든 스타일이 원래 값으로 돌아갑니다.",
+  "editor.changesDialog.trigger": "변경사항 보기",
+  "editor.changesDialog.title": "스타일 변경사항",
+  "editor.changesDialog.current": "현재 선택",
+  "editor.changesDialog.resetRow": "이 변경 초기화",
+  "editor.changesDialog.resetAll": "전체 초기화",
   "editor.noChangeHint": "스타일을 변경해야 다음 단계로 진행됩니다. 요소를 그대로 캡처하려면 \"요소 캡처\" 모드를 사용하세요.",
   "editor.textPlaceholder": "요소 텍스트",
   "editor.revertText": "원본 텍스트로 되돌리기",
@@ -37,6 +42,7 @@ const ko = {
 
   "draftDetail.title": "초안 검토",
 
+  "prop.source": "소스: {value}",
   "prop.editIndividual": "개별 편집",
   "prop.editTogether": "일괄 편집",
   "prop.align.left": "왼쪽",
@@ -102,6 +108,11 @@ type Bundle = Record<keyof typeof ko, string>;
 const en = {
   "editor.resetChanges": "Reset changes",
   "editor.resetChanges.body": "Reset {count} change(s)? All styles will revert to original values.",
+  "editor.changesDialog.trigger": "Review changes",
+  "editor.changesDialog.title": "Style changes",
+  "editor.changesDialog.current": "Selected",
+  "editor.changesDialog.resetRow": "Reset this change",
+  "editor.changesDialog.resetAll": "Reset all",
   "editor.noChangeHint": "Change a style to continue. To capture the element as-is, use \"Capture element\" mode.",
   "editor.textPlaceholder": "Element text",
   "editor.revertText": "Revert to original text",
@@ -138,6 +149,7 @@ const en = {
 
   "draftDetail.title": "Review draft",
 
+  "prop.source": "source: {value}",
   "prop.editIndividual": "Edit individually",
   "prop.editTogether": "Edit together",
   "prop.align.left": "Left",

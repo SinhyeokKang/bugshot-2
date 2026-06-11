@@ -50,6 +50,7 @@ export function SectionRevertButton({ props }: { props: readonly string[] }) {
       onClick={handleRevert}
       disabled={!dirty}
       title={t("editor.revertSection")}
+      aria-label={t("editor.revertSection")}
       className="h-8 w-8 shrink-0"
     >
       <RotateCcw />
@@ -104,11 +105,13 @@ function LinkToggle({
     <button
       type="button"
       onClick={onToggle}
+      aria-pressed={linked}
       className={cn(
         "flex h-9 w-9 shrink-0 items-center justify-center rounded-md border text-muted-foreground transition-colors",
         linked ? "border-foreground bg-foreground text-background hover:bg-foreground/80" : "hover:bg-muted",
       )}
       title={linked ? t("prop.editIndividual") : t("prop.editTogether")}
+      aria-label={linked ? t("prop.editIndividual") : t("prop.editTogether")}
     >
       {linked ? (
         <Link className="h-3.5 w-3.5" />
@@ -128,11 +131,12 @@ function PropRow({
   source?: string;
   children: React.ReactNode;
 }) {
+  const t = useT();
   return (
     <div className="flex flex-col gap-1.5">
       <label
         className="text-xs text-muted-foreground"
-        title={source ? `source: ${source}` : undefined}
+        title={source ? t("prop.source", { value: source }) : undefined}
       >
         {label}
       </label>
@@ -273,7 +277,7 @@ export function AlignmentProp({ label, prop }: { label: string; prop: string }) 
       >
         <TabsList className="grid w-full grid-cols-4">
           {options.map((o) => (
-            <TabsTrigger key={o.v} value={o.v} title={o.title}>
+            <TabsTrigger key={o.v} value={o.v} title={o.title} aria-label={o.title}>
               {o.icon}
             </TabsTrigger>
           ))}

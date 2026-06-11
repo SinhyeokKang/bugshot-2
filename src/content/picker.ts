@@ -1,6 +1,7 @@
 import type {
   PickerMessage,
   PrepareCaptureResponse,
+  ViewportRect,
 } from "@/types/picker";
 import {
   buildTokenLookup,
@@ -177,11 +178,17 @@ chrome.runtime.onMessage.addListener(
           if (overlay) clearPreview(overlay);
           break;
         case "picker.selectByPath":
-          handleSelectByPath(msg.selector);
-          break;
+          sendResponse(handleSelectByPath(msg.selector));
+          return;
+        case "picker.applyEditsBySelector":
+          sendResponse(handleApplyEditsBySelector(msg));
+          return;
         case "picker.prepareCapture":
           sendResponse(handlePrepareCapture());
           return;
+        case "picker.prepareCaptureBySelector":
+          handlePrepareCaptureBySelector(msg.selector, sendResponse);
+          return true;
         case "picker.pageUrl":
           sendResponse({ url: location.href });
           return;
@@ -206,22 +213,82 @@ chrome.runtime.onMessage.addListener(
   },
 );
 
-function handlePrepareCapture(): PrepareCaptureResponse {
+function beginCapturePrep(): { width: number; height: number } {
+  captureInflight += 1;
   if (overlay) overlay.hostEl.style.visibility = "hidden";
-  const viewport = {
-    width: window.innerWidth,
-    height: window.innerHeight,
-  };
+  return { width: window.innerWidth, height: window.innerHeight };
+}
+
+function viewportRectOf(el: Element): ViewportRect {
+  const r = el.getBoundingClientRect();
+  return { x: r.left, y: r.top, width: r.width, height: r.height };
+}
+
+function handlePrepareCapture(): PrepareCaptureResponse {
+  const viewport = beginCapturePrep();
   if (!selectedEl) return { rect: null, viewport };
-  const r = selectedEl.getBoundingClientRect();
-  return {
-    rect: { x: r.left, y: r.top, width: r.width, height: r.height },
-    viewport,
+  return { rect: viewportRectOf(selectedEl), viewport };
+}
+
+// selector 기반 캡처 준비에서 scrollIntoView 직전의 스크롤 위치. endCapture에서 복원.
+// 캡처 시퀀스가 인터리브되면(재선택 beforeImage 캡처 중 다른 행 초기화 등) 먼저 끝난
+// 쪽의 endCapture가 진행 중 캡처의 스크롤을 미리 원복하지 않도록 inflight 수로 가드하고,
+// 슬롯 자체는 first-wins(이미 저장돼 있으면 덮어쓰지 않음)로 최초 위치를 보존.
+let capturedScroll: { x: number; y: number } | null = null;
+let captureInflight = 0;
+
+function handlePrepareCaptureBySelector(
+  selector: string,
+  sendResponse: (res: PrepareCaptureResponse) => void,
+): void {
+  const viewport = beginCapturePrep();
+  let el: Element | null = null;
+  try {
+    el = document.querySelector(selector);
+  } catch {
+    el = null;
+  }
+  if (!el) {
+    sendResponse({ rect: null, viewport });
+    return;
+  }
+  const rect = viewportRectOf(el);
+  const outside =
+    rect.y < 0 ||
+    rect.x < 0 ||
+    rect.y + rect.height > window.innerHeight ||
+    rect.x + rect.width > window.innerWidth;
+  if (!outside) {
+    sendResponse({ rect, viewport });
+    return;
+  }
+  if (!capturedScroll) capturedScroll = { x: window.scrollX, y: window.scrollY };
+  el.scrollIntoView({ block: "center", inline: "center", behavior: "instant" });
+  const target = el;
+  let responded = false;
+  const respond = (r: ViewportRect | null) => {
+    if (responded) return;
+    responded = true;
+    sendResponse({
+      rect: r,
+      viewport: { width: window.innerWidth, height: window.innerHeight },
+    });
   };
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => respond(viewportRectOf(target)));
+  });
+  // hidden 탭에서는 rAF가 발화하지 않아 응답이 매달림 — 캡처 실패(rect null) 경로로 폴백.
+  setTimeout(() => respond(null), 500);
 }
 
 function handleEndCapture(): void {
+  captureInflight = Math.max(0, captureInflight - 1);
+  if (captureInflight > 0) return;
   if (overlay) overlay.hostEl.style.visibility = "";
+  if (capturedScroll) {
+    window.scrollTo(capturedScroll.x, capturedScroll.y);
+    capturedScroll = null;
+  }
 }
 
 function handleStart(): void {
@@ -268,6 +335,9 @@ function handleClear(): void {
   cancelTokenBuild();
   tokenLookup = null;
   inspectorCache = new WeakMap();
+  if (capturedScroll) window.scrollTo(capturedScroll.x, capturedScroll.y);
+  capturedScroll = null;
+  captureInflight = 0;
   stopCssCacheObserver();
   invalidateCssCache();
 }
@@ -309,6 +379,53 @@ function handleApplyStyles(inlineStyle: Record<string, string>): void {
   }
   inspectorCache.delete(el);
   render();
+  // 인라인 편집을 되돌린 직후(키 제거) 직전에 예약된 stale 재수집이 baseline을 오염시킬 수
+  // 있다(120ms 디바운스 레이스) — 적용 후 재수집을 다시 예약해 최신 DOM으로 자가치유한다.
+  scheduleSelectionUpdate();
+}
+
+// selector로 찾은 편집 element를 원본으로 원복 후 전달받은 잔여 edits만 재적용(부분 원복).
+// 미등록 요소는 현재 상태를 원본으로 등록 후 적용(패널 재오픈 재바인딩 경로 — DOM은 원복돼 있음).
+// found = 요소 발견. 적용 결과가 원본과 같으면 레지스트리에서 제거.
+function handleApplyEditsBySelector(msg: {
+  selector: string;
+  classList: string[];
+  inlineStyle: Record<string, string>;
+  text: string | null;
+}): { found: boolean } {
+  let el: Element | null = null;
+  try {
+    el = document.querySelector(msg.selector);
+  } catch {
+    el = null;
+  }
+  if (!el) return { found: false };
+  const state = registerOriginal(el);
+
+  restoreElState(el, state);
+  const h = el as HTMLElement;
+  const nextClass = msg.classList.join(" ");
+  if ((h.getAttribute("class") ?? "") !== nextClass) {
+    h.className = nextClass;
+  }
+  for (const [prop, value] of Object.entries(msg.inlineStyle)) {
+    if (!value) continue;
+    h.style.setProperty(prop, value);
+  }
+  if (
+    msg.text !== null &&
+    state.editable &&
+    state.text !== null &&
+    msg.text !== state.text
+  ) {
+    writeEditableText(state.editable, msg.text);
+  }
+  if (isElementClean(el, state)) {
+    editedEls.delete(el);
+  }
+  inspectorCache.delete(el);
+  render();
+  return { found: true };
 }
 
 // 복수 element 버퍼 포함 모든 편집 element를 원복(현재 선택은 유지 — picker 종료 안 함).
@@ -320,8 +437,8 @@ function handleResetAllEdits(): void {
   scheduleSelectionUpdate();
 }
 
-// 레지스트리에 없을 때만 원본 기록(최초 원본 유지) + 전역 캐시를 현재 element 원본으로 채움.
-function captureOriginal(el: Element): void {
+// 레지스트리에 없을 때만 원본 기록(최초 원본 유지).
+function registerOriginal(el: Element): OriginalState {
   let state = editedEls.get(el);
   if (!state) {
     const h = el as HTMLElement;
@@ -334,6 +451,12 @@ function captureOriginal(el: Element): void {
     };
     editedEls.set(el, state);
   }
+  return state;
+}
+
+// 원본 기록 + 전역 캐시를 현재 element 원본으로 채움.
+function captureOriginal(el: Element): void {
+  const state = registerOriginal(el);
   originalStyle = state.style;
   editableHandle = state.editable;
 }
@@ -601,14 +724,21 @@ function scheduleSelectionUpdate(): void {
   }, 120);
 }
 
-function handleSelectByPath(selector: string): void {
+function handleSelectByPath(selector: string): { found: boolean } {
   let target: Element | null = null;
   try {
     target = document.querySelector(selector);
   } catch {
     target = null;
   }
-  if (!target) return;
+  if (!target) return { found: false };
+  // 재바인딩(패널 재오픈)·복귀 경로는 handleClear 이후라 overlay가 없을 수 있다.
+  if (!overlay) {
+    removeOrphanOverlay();
+    overlay = createOverlay();
+    startCssCacheObserver();
+    void ensureCssCacheLoaded();
+  }
   leaveCurrent();
   selectedEl = target;
   captureOriginal(target);
@@ -617,6 +747,7 @@ function handleSelectByPath(selector: string): void {
   if (overlay) clearPreview(overlay);
   setMode("selected");
   emitSelected(target);
+  return { found: true };
 }
 
 /* ── Area Select ─────────────────────────────────── */

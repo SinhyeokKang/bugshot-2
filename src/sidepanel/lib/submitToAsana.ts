@@ -1,4 +1,5 @@
 import { buildAsanaIssueBody, type AsanaMediaInput } from "./buildAsanaIssueBody";
+import { resolveStyleElements, type MarkdownContext } from "./buildIssueMarkdown";
 import {
   markdownToAsanaHtml,
   type AsanaInlineImage,
@@ -90,10 +91,40 @@ async function webpToJpeg(f: AsanaFileInput): Promise<AsanaFileInput> {
   }
 }
 
+// webp→jpeg 변환으로 캡처 이미지 파일명이 바뀌면 styleElements의 before/after 파일명도
+// 함께 바꿔야 As is/To be 섹션의 filename 매칭(buildAsanaIssueBody)이 깨지지 않는다.
+export function renameStyleElementFilenames(
+  ctx: MarkdownContext,
+  renames: Map<string, string>,
+): MarkdownContext {
+  if (renames.size === 0) return ctx;
+  const resolved = resolveStyleElements(ctx);
+  if (resolved.length === 0) return ctx;
+  return {
+    ...ctx,
+    styleElements: resolved.map((el) => ({
+      ...el,
+      beforeFilename: el.beforeFilename
+        ? renames.get(el.beforeFilename) ?? el.beforeFilename
+        : el.beforeFilename,
+      afterFilename: el.afterFilename
+        ? renames.get(el.afterFilename) ?? el.afterFilename
+        : el.afterFilename,
+    })),
+  };
+}
+
 export async function submitToAsana(
   input: AsanaSubmitInput,
 ): Promise<NormalizedSubmitResult> {
   const imageInputs = await Promise.all((input.images ?? []).map(webpToJpeg));
+  const renames = new Map<string, string>();
+  (input.images ?? []).forEach((orig, i) => {
+    if (orig.filename !== imageInputs[i].filename) {
+      renames.set(orig.filename, imageInputs[i].filename);
+    }
+  });
+  const ctx = renameStyleElementFilenames(input.ctx, renames);
   // 인라인 이미지는 refId 기반 파일명을 부여해 업로드하고, 본문 src(`inline:refId`)로 ref 매핑한다.
   const inlineEntries = await Promise.all(
     (input.inlineImages ?? []).map(async (img) => ({
@@ -104,7 +135,7 @@ export async function submitToAsana(
       }),
     })),
   );
-  const logs = [...(input.logs ?? []), buildAiMetaAttachment(input.ctx)];
+  const logs = [...(input.logs ?? []), buildAiMetaAttachment(ctx)];
   const allFiles = [
     ...imageInputs,
     ...inlineEntries.map((e) => e.file),
@@ -113,7 +144,7 @@ export async function submitToAsana(
   ];
 
   const { body } = buildAsanaIssueBody({
-    ctx: input.ctx,
+    ctx,
     images: imageInputs.length > 0 ? imageInputs.map(toMedia) : undefined,
   });
   const htmlNotes = markdownToAsanaHtml(body);
@@ -124,7 +155,7 @@ export async function submitToAsana(
     payload: {
       workspaceGid: input.workspaceGid,
       projectGid: input.projectGid,
-      name: input.ctx.title.trim(),
+      name: ctx.title.trim(),
       htmlNotes,
       assigneeGid: input.assigneeGid,
     },

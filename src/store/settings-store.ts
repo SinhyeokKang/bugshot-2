@@ -189,19 +189,17 @@ export const useSettingsStore = create<SettingsState>()(
           return { accounts: { ...s.accounts, notion: { ...cur, ...patch } } };
         }),
       updateGitlabAccount: (patch) =>
-        set((s) => ({
-          accounts: {
-            ...s.accounts,
-            gitlab: { ...s.accounts.gitlab, ...patch } as GitlabAccount,
-          },
-        })),
+        set((s) => {
+          const cur = s.accounts.gitlab;
+          if (!cur) return s;
+          return { accounts: { ...s.accounts, gitlab: { ...cur, ...patch } } };
+        }),
       updateAsanaAccount: (patch) =>
-        set((s) => ({
-          accounts: {
-            ...s.accounts,
-            asana: { ...s.accounts.asana, ...patch } as AsanaAccount,
-          },
-        })),
+        set((s) => {
+          const cur = s.accounts.asana;
+          if (!cur) return s;
+          return { accounts: { ...s.accounts, asana: { ...cur, ...patch } } };
+        }),
       setLastSubmitFields: (platform, fields) =>
         set((s) => ({
           lastSubmitFields: { ...s.lastSubmitFields, [platform]: fields },

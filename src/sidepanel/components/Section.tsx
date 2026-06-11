@@ -4,12 +4,14 @@ import { cn } from "@/lib/utils";
 export function PageShell({
   children,
   className,
+  "data-testid": testid,
 }: {
   children: React.ReactNode;
   className?: string;
+  "data-testid"?: string;
 }) {
   return (
-    <div className={cn("flex min-h-0 flex-1 flex-col", className)}>
+    <div className={cn("flex min-h-0 flex-1 flex-col", className)} data-testid={testid}>
       {children}
     </div>
   );

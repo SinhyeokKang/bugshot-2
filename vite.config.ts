@@ -7,6 +7,7 @@ import manifest from "./manifest.config";
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), "");
   const isStoreBuild = process.env.BUGSHOT_STORE_BUILD === "1";
+  const isE2eBuild = process.env.BUGSHOT_E2E_BUILD === "1";
   // GitHub OAuth client_id는 dev/prod 빌드별로 다른 OAuth App을 사용한다.
   // 스토어 빌드면 VITE_GITHUB_CLIENT_ID_PROD를 VITE_GITHUB_CLIENT_ID로 승격.
   const githubClientId = isStoreBuild
@@ -22,7 +23,7 @@ export default defineConfig(({ mode }) => {
     define: {
       "import.meta.env.VITE_GITHUB_CLIENT_ID": JSON.stringify(githubClientId),
     },
-    build: {},
+    build: { outDir: isE2eBuild ? "dist-e2e" : "dist" },
     server: {
       port: 5173,
       strictPort: true,

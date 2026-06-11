@@ -48,6 +48,7 @@ export function DomNavButton({ direction }: { direction: "parent" | "child" }) {
       variant="outline"
       className="h-8 w-8 shrink-0"
       title={label}
+      aria-label={label}
       disabled={!canNavigate}
       onClick={() => {
         if (tabId) void bufferThenSwitch(tabId, () => navigatePicker(tabId, direction));
@@ -69,6 +70,7 @@ export function DomTreeTitle({ tagName, classList }: { tagName: string; classLis
           type="button"
           className="block w-full truncate text-center text-2xl font-semibold outline-none hover:opacity-70 focus-visible:ring-2 focus-visible:ring-ring"
           title={label}
+          data-testid="dom-tree-trigger"
         >
           {label}
         </button>
@@ -99,6 +101,7 @@ function injectChildren(
 function DomTree({ onPicked }: { onPicked: () => void }) {
   const t = useT();
   const tabId = useBoundTabId();
+  const bufferThenSwitch = useBufferThenSwitch();
   const currentSelector = useEditorStore((s) => s.selection?.selector);
   const [tree, setTree] = useState<TreeNode | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
@@ -137,7 +140,11 @@ function DomTree({ onPicked }: { onPicked: () => void }) {
   const handleSelect = (selector: string) => {
     if (!tabId) return;
     void previewClear(tabId);
-    void selectByPath(tabId, selector);
+    // DomNav·repick과 동일하게 현재 요소 편집을 버퍼에 담고 전환 — 안 그러면 트리 이동 시
+    // 편집이 버퍼에 안 담겨 변경사항에서 소실된다(DOM 편집은 페이지에 남은 채).
+    void bufferThenSwitch(tabId, async () => {
+      await selectByPath(tabId, selector);
+    });
     onPicked();
   };
 
@@ -234,6 +241,8 @@ function DomTreeNode({
           isCurrent && "bg-primary/10",
         )}
         style={{ paddingLeft: `${indent}px` }}
+        data-testid="dom-tree-node"
+        data-selector={node.selector}
         onMouseEnter={() => onHover(node.selector)}
         onMouseLeave={() => onHover(null)}
         onClick={() => onSelect(node.selector)}

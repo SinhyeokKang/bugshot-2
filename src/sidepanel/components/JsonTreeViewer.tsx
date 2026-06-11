@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
-import { t } from "@/i18n";
+import { useT } from "@/i18n";
 
 const ARRAY_CHUNK_SIZE = 100;
 const STRING_TRUNCATE_LENGTH = 300;
@@ -153,6 +153,7 @@ function ArrayChildren({
   onToggle: (path: string) => void;
   totalLength: number;
 }) {
+  const t = useT();
   const [visibleCount, setVisibleCount] = useState(ARRAY_CHUNK_SIZE);
   const visible = entries.slice(0, visibleCount);
   const remaining = totalLength - visibleCount;
@@ -193,6 +194,7 @@ function StringRow({
   value: string;
   depth: number;
 }) {
+  const t = useT();
   const [showFull, setShowFull] = useState(false);
   const truncated = value.length > STRING_TRUNCATE_LENGTH && !showFull;
   const display = truncated ? value.slice(0, 150) + "…" : value;
