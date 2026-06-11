@@ -4,6 +4,64 @@ export type NetworkBodyOmission = Exclude<NetworkRequestBody, string>;
 
 export const BODY_CAP = 3 * 1024 * 1024; // 3 MB
 
+export const MASKED_QUERY_KEYS = new Set([
+  "token",
+  "access_token",
+  "id_token",
+  "refresh_token",
+  "api_key",
+  "apikey",
+  "key",
+  "secret",
+  "password",
+  "pwd",
+  "auth",
+]);
+const MASKED_BODY_KEYS = MASKED_QUERY_KEYS;
+
+function maskJsonBody(val: unknown, depth: number): unknown {
+  if (depth > 10) return val;
+  if (Array.isArray(val)) {
+    return val.map((item) => maskJsonBody(item, depth + 1));
+  }
+  if (val && typeof val === "object") {
+    const result: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(val as Record<string, unknown>)) {
+      if (MASKED_BODY_KEYS.has(k.toLowerCase())) {
+        result[k] = "***";
+      } else {
+        result[k] = maskJsonBody(v, depth + 1);
+      }
+    }
+    return result;
+  }
+  return val;
+}
+
+// 요청·응답 본문 공용 민감 키 마스킹 (json/urlencoded만, 그 외 타입은 원문 유지).
+export function maskBody(body: string, contentType: string): string {
+  if (/^application\/json/i.test(contentType)) {
+    try {
+      const parsed = JSON.parse(body);
+      return JSON.stringify(maskJsonBody(parsed, 0));
+    } catch { return body; }
+  }
+  if (/^application\/x-www-form-urlencoded/i.test(contentType)) {
+    try {
+      const params = new URLSearchParams(body);
+      let changed = false;
+      for (const key of params.keys()) {
+        if (MASKED_BODY_KEYS.has(key.toLowerCase())) {
+          params.set(key, "***");
+          changed = true;
+        }
+      }
+      return changed ? params.toString() : body;
+    } catch { return body; }
+  }
+  return body;
+}
+
 const CONTENT_TYPE_DENYLIST = [
   /^image\//i,
   /^audio\//i,

@@ -3,6 +3,7 @@ import {
   classifyResponseBody,
   classifyBeaconBody,
   createPatchedFetch,
+  maskBody,
   BODY_CAP,
 } from "../network-recorder-helpers";
 
@@ -198,5 +199,37 @@ describe("createPatchedFetch — 페이지 요청 무간섭 회귀 가드", () =
     const patched = createPatchedFetch(original, undefined, () => false);
     await patched.call(ctx, "https://example.com");
     expect(received).toBe(ctx);
+  });
+});
+
+describe("maskBody — 본문 민감 키 마스킹 (요청·응답 공용)", () => {
+  it("JSON 본문의 민감 키(access_token/password 등)를 ***로 치환한다", () => {
+    const body = JSON.stringify({
+      access_token: "secret-value",
+      user: { password: "p@ss", name: "kim" },
+      items: [{ token: "t1" }, { note: "ok" }],
+    });
+
+    const masked = JSON.parse(maskBody(body, "application/json"));
+
+    expect(masked.access_token).toBe("***");
+    expect(masked.user.password).toBe("***");
+    expect(masked.user.name).toBe("kim");
+    expect(masked.items[0].token).toBe("***");
+    expect(masked.items[1].note).toBe("ok");
+  });
+
+  it("urlencoded 본문의 민감 키를 ***로 치환한다", () => {
+    const masked = maskBody(
+      "refresh_token=abc&plain=1",
+      "application/x-www-form-urlencoded",
+    );
+    expect(masked).toContain("refresh_token=***");
+    expect(masked).toContain("plain=1");
+  });
+
+  it("json/urlencoded 외 contentType과 비정상 JSON은 원문을 유지한다", () => {
+    expect(maskBody("token=abc", "text/plain")).toBe("token=abc");
+    expect(maskBody("{not json", "application/json")).toBe("{not json");
   });
 });

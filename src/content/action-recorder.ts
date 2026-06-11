@@ -146,8 +146,10 @@ function actionRecorderScript(): void {
     const value = masked ? maskValue(raw) : raw.slice(0, VALUE_CAP);
     const selector = buildLightSelector(el);
 
+    // dedup 분기도 pushAction과 동일한 recording 게이트 적용 — stop 이후 입력이
+    // 정지된 세션 버퍼의 마지막 entry를 덮어쓰지 않도록.
     const last = buffer[buffer.length - 1];
-    if (last && last.kind === "input" && last.selector === selector) {
+    if (recording && last && last.kind === "input" && last.selector === selector) {
       last.value = value;
       last.masked = masked;
       last.timestamp = Date.now();
