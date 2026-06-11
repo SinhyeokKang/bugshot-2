@@ -19,11 +19,19 @@ async function getActivatedSet(): Promise<Set<number>> {
   return new Set(arr);
 }
 
-async function setActivated(tabId: number, on: boolean): Promise<void> {
-  const set = await getActivatedSet();
-  if (on) set.add(tabId);
-  else set.delete(tabId);
-  await chrome.storage.session.set({ [ACTIVATED_KEY]: Array.from(set) });
+// read-modify-write 직렬화: 동시 발화(탭 동시 닫힘 등) 시 last-write-wins로
+// activated set 갱신이 유실되는 것을 막는다.
+let activatedWriteQueue: Promise<void> = Promise.resolve();
+
+function setActivated(tabId: number, on: boolean): Promise<void> {
+  const task = activatedWriteQueue.then(async () => {
+    const set = await getActivatedSet();
+    if (on) set.add(tabId);
+    else set.delete(tabId);
+    await chrome.storage.session.set({ [ACTIVATED_KEY]: Array.from(set) });
+  });
+  activatedWriteQueue = task.catch(() => {});
+  return task;
 }
 
 async function apply(tabId: number, url: string | undefined): Promise<void> {
