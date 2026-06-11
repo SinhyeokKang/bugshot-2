@@ -234,14 +234,25 @@ describe("connectedPlatforms", () => {
 });
 
 describe("updateGitlabAccount", () => {
-  it("gitlab account를 저장하고 다른 플랫폼은 보존한다 (v6→v7 라운드트립)", () => {
-    useSettingsStore.setState({ accounts: { jira: jiraStub }, lastSubmitFields: {} });
+  it("기존 gitlab account에 patch를 병합하고 다른 플랫폼은 보존한다", () => {
+    useSettingsStore.setState({
+      accounts: { jira: jiraStub, gitlab: gitlabStub },
+      lastSubmitFields: {},
+    });
 
-    useSettingsStore.getState().updateGitlabAccount(gitlabStub);
+    useSettingsStore.getState().updateGitlabAccount({ defaults: { projectId: 7 } });
 
     const s = useSettingsStore.getState();
-    expect(s.accounts.gitlab).toEqual(gitlabStub);
+    expect(s.accounts.gitlab).toEqual({ ...gitlabStub, defaults: { projectId: 7 } });
     expect(s.accounts.jira).toEqual(jiraStub);
+  });
+
+  it("계정이 없으면 no-op — 해제 직후 늦은 patch가 ghost 계정을 만들지 않는다", () => {
+    useSettingsStore.setState({ accounts: { jira: jiraStub }, lastSubmitFields: {} });
+
+    useSettingsStore.getState().updateGitlabAccount({ defaults: { projectId: 7 } });
+
+    expect(useSettingsStore.getState().accounts.gitlab).toBeUndefined();
   });
 });
 
@@ -258,23 +269,30 @@ const asanaStub = {
 };
 
 describe("updateAsanaAccount", () => {
-  it("asana account를 저장하고 다른 플랫폼은 보존한다 (v7→v8 라운드트립)", () => {
+  it("기존 asana account에 patch를 병합하고 다른 플랫폼은 보존한다", () => {
     useSettingsStore.setState({
-      accounts: { jira: jiraStub, gitlab: gitlabStub },
+      accounts: {
+        jira: jiraStub,
+        gitlab: gitlabStub,
+        asana: asanaStub as Accounts["asana"],
+      },
       lastSubmitFields: {},
     });
 
-    // updateAsanaAccount/accounts.asana는 구현 단계(Task 5)에서 추가 — 미구현 시 red
-    (useSettingsStore.getState() as unknown as {
-      updateAsanaAccount: (a: unknown) => void;
-    }).updateAsanaAccount(asanaStub);
+    useSettingsStore.getState().updateAsanaAccount({ defaults: { workspaceGid: "W" } });
 
-    const s = useSettingsStore.getState() as unknown as {
-      accounts: Record<string, unknown>;
-    };
-    expect(s.accounts.asana).toEqual(asanaStub);
+    const s = useSettingsStore.getState();
+    expect(s.accounts.asana).toEqual({ ...asanaStub, defaults: { workspaceGid: "W" } });
     expect(s.accounts.jira).toEqual(jiraStub);
     expect(s.accounts.gitlab).toEqual(gitlabStub);
+  });
+
+  it("계정이 없으면 no-op — 해제 직후 늦은 patch가 ghost 계정을 만들지 않는다", () => {
+    useSettingsStore.setState({ accounts: { jira: jiraStub }, lastSubmitFields: {} });
+
+    useSettingsStore.getState().updateAsanaAccount({ defaults: { workspaceGid: "W" } });
+
+    expect(useSettingsStore.getState().accounts.asana).toBeUndefined();
   });
 });
 
