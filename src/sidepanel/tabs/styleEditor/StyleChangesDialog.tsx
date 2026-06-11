@@ -126,7 +126,9 @@ export function StyleChangesDialog() {
       <DialogTrigger asChild>
         <Button variant="outline" disabled={count === 0} data-testid="changes-trigger">
           {t("editor.changesDialog.trigger")}
-          {count > 0 && <Badge variant="secondary">{count}</Badge>}
+          {count > 0 && (
+            <span className="font-normal text-muted-foreground">{count}</span>
+          )}
         </Button>
       </DialogTrigger>
       <DialogContent
