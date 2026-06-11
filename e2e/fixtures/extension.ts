@@ -66,6 +66,9 @@ export const test = base.extend<object, { ext: ExtContext }>({
       const { server, port } = await startFixtureServer();
       const userDataDir = await mkdtemp(path.join(tmpdir(), "bugshot-e2e-"));
       const context = await chromium.launchPersistentContext(userDataDir, {
+        // 확장 SW가 headless에선 안 깨어나므로 headed 유지. 대신 창을 화면 밖으로
+        // 보내 깜빡임·포커스 탈취를 없앤다(완전 백그라운드는 불가). 디버깅으로 창을
+        // 보려면 E2E_SHOW=1.
         headless: false,
         args: [
           `--disable-extensions-except=${DIST_E2E}`,
@@ -73,6 +76,9 @@ export const test = base.extend<object, { ext: ExtContext }>({
           "--lang=ko",
           "--no-first-run",
           "--no-default-browser-check",
+          ...(process.env.E2E_SHOW === "1"
+            ? []
+            : ["--window-position=-10000,-10000"]),
         ],
       });
       // waitForEvent는 SW를 깨우지 못한다 — idle 종료 후 호출하면 타임아웃까지 hang. 기동 직후에만 호출할 것.
