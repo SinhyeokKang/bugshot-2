@@ -45,3 +45,31 @@ test("element shot 캡처 → drafting 진입", async ({ ext }) => {
   await panel.close();
   await fixture.close();
 });
+
+// 회귀: element-shot은 captureMode="screenshot"이라 PreviewPanel env가 element 분기로 안 들어와
+// shotSelector 기반 DOM 행이 누락됐다(drafting·제출 본문엔 있었음). previewing에서 DOM 행 확인.
+test("element shot 캡처 → previewing env에 DOM 행", async ({ ext }) => {
+  const fixture = await ext.context.newPage();
+  await fixture.goto(ext.fixtureUrl("basic.html"));
+  const tabId = await ext.fixtureTabId();
+  const panel = await ext.openPanel(tabId);
+
+  await enterDebug(panel);
+  await panel.getByTestId("mode-element-shot").click();
+  await pickElement(fixture, panel, "#card");
+  await expect(panel.getByTestId("drafting-panel")).toBeVisible();
+
+  // 제목 입력 후 previewing 진입
+  await panel.getByTestId("draft-title").fill("Element shot bug");
+  await panel.getByTestId("to-preview").click();
+
+  // previewing env에 DOM 행이 있어야 한다 (회귀 전엔 element-shot이 else로 빠져 누락)
+  const previewDom = panel.locator(
+    '[data-testid="env-row"][data-env-label="DOM"]',
+  );
+  await expect(previewDom).toHaveCount(1);
+  await expect(previewDom).toContainText("card");
+
+  await panel.close();
+  await fixture.close();
+});

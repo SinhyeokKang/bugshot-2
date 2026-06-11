@@ -101,7 +101,12 @@ export function IssuePreviewView({
       <Section title={labels.envTitle}>
         <div className="space-y-1 text-sm leading-relaxed">
           {envRows.map((r, i) => (
-            <div key={`${r.label}-${i}`} className="flex gap-3">
+            <div
+              key={`${r.label}-${i}`}
+              className="flex gap-3"
+              data-testid="env-row"
+              data-env-label={r.label}
+            >
               <span className="w-20 shrink-0 text-muted-foreground">{r.label}</span>
               <span className="break-all">{r.value}</span>
             </div>

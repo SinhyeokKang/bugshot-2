@@ -140,6 +140,11 @@ export function PreviewPanel() {
     envRows.push({ label: "Viewport", value: `${selection.viewport.width}×${selection.viewport.height}` });
     envRows.push({ label: "Captured", value: formatTimestamp(selection.capturedAt) });
   } else {
+    // 요소 캡처(element-shot)는 captureMode="screenshot"이라 위 element 분기로 안 들어온다 —
+    // shotSelector가 있으면 DOM 행을 넣어 drafting·제출 본문과 동일하게 표시한다.
+    if (shotSelector) {
+      envRows.push({ label: "DOM", value: shotSelector.selector });
+    }
     const vp = isVideoMode ? videoViewport : isFreeformMode ? freeformViewport : screenshotViewport;
     const cap = isVideoMode ? videoCapturedAt : isFreeformMode ? freeformCapturedAt : screenshotCapturedAt;
     if (vp) envRows.push({ label: "Viewport", value: `${vp.width}×${vp.height}` });

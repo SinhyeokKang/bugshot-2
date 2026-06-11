@@ -295,6 +295,7 @@ export function DraftingPanel() {
                 onChange={(e) => setDraft({ ...draft, title: e.target.value })}
                 onFocus={cursorToEnd}
                 placeholder={t("draft.titlePlaceholder")}
+                data-testid="draft-title"
               />
             </Section>
 
@@ -342,6 +343,7 @@ export function DraftingPanel() {
                     confirmDraft();
                   }}
                   disabled={titleMissing || aiDraftLoading}
+                  data-testid="to-preview"
                 >
                   {t("draft.preview")}
                 </Button>
