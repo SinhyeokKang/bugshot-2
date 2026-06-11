@@ -6,7 +6,7 @@ import { useSettingsStore } from "@/store/settings-store";
 import type { GitlabIssueStatus } from "@/types/gitlab";
 import { sendBg } from "@/types/messages";
 import { classifyBadgeError, type BadgeErrorKind } from "./utils";
-import { resolveGitlabCoords } from "../issueListUtils";
+import { resolveGitlabCoords } from "@/sidepanel/tabs/issueListUtils";
 import { STATUS_CATEGORY_COLORS } from "./constants";
 import { GitlabStatusBadge, type GitlabBadgeStatus } from "./GitlabStatusBadge";
 
