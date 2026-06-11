@@ -750,6 +750,7 @@ function OrderedListEditor({
 }
 
 function VideoPreview({ blob, thumbnail }: { blob: Blob | null; thumbnail: string | null }) {
+  const t = useT();
   const [src, setSrc] = useState<string | null>(null);
 
   useEffect(() => {
@@ -770,7 +771,7 @@ function VideoPreview({ blob, thumbnail }: { blob: Blob | null; thumbnail: strin
         </div>
       ) : thumbnail ? (
         <div className="aspect-video w-full overflow-hidden rounded-lg border bg-black">
-          <img src={thumbnail} alt="Recording thumbnail" className="h-full w-full object-contain" />
+          <img src={thumbnail} alt={t("alt.recordingThumbnail")} className="h-full w-full object-contain" />
         </div>
       ) : null}
     </div>

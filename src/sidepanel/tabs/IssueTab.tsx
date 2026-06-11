@@ -270,7 +270,7 @@ function ReplayButton() {
         ? t("issue.replay.encoding")
         : bufferedSeconds >= 30
           ? t("issue.mode.replay")
-          : t("issue.mode.replayProgress").replace("{n}", String(bufferedSeconds))}
+          : t("issue.mode.replayProgress", { n: bufferedSeconds })}
     </Button>
   );
 

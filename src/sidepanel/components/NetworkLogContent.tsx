@@ -111,15 +111,17 @@ function bodyLabel(body: NetworkRequestBody | undefined, t: TranslationFn): stri
   if (typeof body === "string") return null;
   switch (body.kind) {
     case "truncated":
-      return t("networkLog.display.bodyTruncated")
-        .replace("{size}", formatBytes(body.size))
-        .replace("{limit}", formatBytes(body.limit));
+      return t("networkLog.display.bodyTruncated", {
+        size: formatBytes(body.size),
+        limit: formatBytes(body.limit),
+      });
     case "binary":
-      return t("networkLog.display.binary")
-        .replace("{type}", body.contentType || "—")
-        .replace("{size}", formatBytes(body.size));
+      return t("networkLog.display.binary", {
+        type: body.contentType || "—",
+        size: formatBytes(body.size),
+      });
     case "stream":
-      return t("networkLog.display.stream").replace("{type}", body.contentType || "—");
+      return t("networkLog.display.stream", { type: body.contentType || "—" });
     case "omitted":
       return t("networkLog.display.bodyOmitted");
     default:
@@ -421,7 +423,7 @@ function CollapsibleSection({
       <div className="flex items-center justify-between pl-4 pr-2 py-3">
         <span className="text-sm font-medium">{title}</span>
         <CollapsibleTrigger asChild>
-          <Button variant="outline" size="icon" className="h-8 w-8 shrink-0">
+          <Button variant="outline" size="icon" className="h-8 w-8 shrink-0" aria-label={title}>
             {open ? <ChevronDown className="h-3.5 w-3.5" /> : <ChevronRight className="h-3.5 w-3.5" />}
           </Button>
         </CollapsibleTrigger>

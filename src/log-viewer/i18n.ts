@@ -64,6 +64,7 @@ export const koDict: Record<string, string> = {
 
   "debug.network.empty": "네트워크 요청이 없습니다",
   "debug.console.empty": "콘솔 로그가 없습니다",
+  "log.originFilter.unknown": "(알 수 없음)",
 
   "logViewer.tab.report": "리포트",
   "logViewer.tab.console": "콘솔",
@@ -153,6 +154,7 @@ export const enDict: Record<string, string> = {
 
   "debug.network.empty": "No network requests",
   "debug.console.empty": "No console logs",
+  "log.originFilter.unknown": "(unknown)",
 
   "logViewer.tab.report": "Report",
   "logViewer.tab.console": "Console",
@@ -181,7 +183,11 @@ export const enDict: Record<string, string> = {
   "json.moreItems": "… {n} more items",
 };
 
-const dict = navigator.language.startsWith("ko") ? koDict : enDict;
+// Node 20(전역 navigator 없음)에서 vitest가 이 모듈을 로드해도 깨지지 않게 가드.
+const dict =
+  typeof navigator !== "undefined" && navigator.language.startsWith("ko")
+    ? koDict
+    : enDict;
 
 export function t(key: string, params?: Record<string, string | number>): string {
   let text = dict[key];

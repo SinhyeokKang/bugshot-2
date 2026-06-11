@@ -91,12 +91,13 @@ export function StyleChangesTable({
 }
 
 function SnapshotCell({ image }: { image: string | null }) {
+  const t = useT();
   if (!image) return null;
   return (
     <Card className="flex items-center justify-center bg-muted/30 p-1">
       <img
         src={image}
-        alt="snapshot"
+        alt={t("alt.capturedImage")}
         className="max-h-40 w-auto max-w-full object-contain"
       />
     </Card>

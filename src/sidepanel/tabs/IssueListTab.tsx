@@ -1,6 +1,8 @@
 import { useCallback, useMemo, useRef, useState } from "react";
 import { Inbox, Loader2, Search, SearchX, X } from "lucide-react";
+import { toast } from "sonner";
 import { useT } from "@/i18n";
+import { PLATFORM_TAB_KEYS } from "@/types/platform";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -122,6 +124,7 @@ export function IssueListTab() {
             {query && (
               <button
                 type="button"
+                aria-label={t("issueList.clearSearch")}
                 onClick={() => setQuery("")}
                 className="absolute right-2 top-1/2 -translate-y-1/2 rounded-sm p-0.5 text-muted-foreground hover:text-foreground"
               >
@@ -214,6 +217,15 @@ export function IssueListTab() {
         open={!!activeDraft}
         onOpenChange={(v) => !v && setDraftId(null)}
         onSubmitSuccess={(result) => {
+          // 라이브 흐름(IssueTab SubmitSuccessPanel)과 동일하게 logs.html 누락 경고 노출.
+          if (result.logsDropped && activeDraft?.platform) {
+            toast.warning(
+              t("submit.logsDropped", {
+                platform: t(PLATFORM_TAB_KEYS[activeDraft.platform]),
+              }),
+              { id: `logs-dropped-${result.key}` },
+            );
+          }
           setDraftId(null);
           setSuccessResult(result);
         }}

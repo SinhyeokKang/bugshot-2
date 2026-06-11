@@ -1,5 +1,5 @@
 const ko = {
-  "jira.submitted": "이슈가 제출되었습니다",
+  "submit.success": "이슈가 제출되었습니다",
   "submit.logsDropped": "{platform} 첨부 파일 용량 한도로 logs.html이 누락되었습니다",
   "jira.project": "프로젝트",
   "jira.defaultIssueType": "기본 이슈 타입",
@@ -213,7 +213,7 @@ const ko = {
 type Bundle = Record<keyof typeof ko, string>;
 
 const en = {
-  "jira.submitted": "Issue submitted",
+  "submit.success": "Issue submitted",
   "submit.logsDropped": "logs.html was dropped because it exceeds {platform}'s attachment size limit",
   "jira.project": "Project",
   "jira.defaultIssueType": "Default issue type",
