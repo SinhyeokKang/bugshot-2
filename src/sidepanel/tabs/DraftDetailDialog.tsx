@@ -67,7 +67,7 @@ import {
   loadDraftStyleImages,
 } from "@/sidepanel/hooks/useDraftStyleElements";
 import { resolveDraftStyleElements } from "@/sidepanel/lib/resolveDraftStyleElements";
-import { joinStyleSelectors } from "@/sidepanel/lib/buildIssueMarkdown";
+import { joinStyleSelectors, type StyleElementContext } from "@/sidepanel/lib/buildIssueMarkdown";
 import { buildAiMetaAttachment } from "@/sidepanel/lib/buildAiMetaAttachment";
 import { buildCaptureFiles, type CaptureFiles } from "@/sidepanel/lib/buildCaptureFiles";
 import { deriveContextEnvRows } from "@/sidepanel/lib/buildReportData";
@@ -394,7 +394,7 @@ export function DraftDetailDialog({
       relatesLabel: fields.relatesLabel,
     });
     useSettingsStore.getState().setLastSubmittedPlatform("jira");
-    return { key: result.key, url: result.url };
+    return { key: result.key, url: result.url, logsDropped: result.logsDropped };
   }
 
   async function handleGithubSubmit(
@@ -841,7 +841,7 @@ function DraftDetailSections({
   sectionConfig: IssueSection[];
   beforeUrl: string | null;
   diffs: ReturnType<typeof buildStyleDiff>;
-  styleElements: import("@/sidepanel/lib/buildIssueMarkdown").StyleElementContext[];
+  styleElements: StyleElementContext[];
   isVideo: boolean;
   hasScreenshot: boolean;
   hasStyleBlock: boolean;
@@ -986,6 +986,7 @@ function EnvBlock({ issue }: { issue: IssueRecord }) {
 }
 
 function DraftVideoPreview({ issue, thumbnailUrl }: { issue: IssueRecord; thumbnailUrl: string | null }) {
+  const t = useT();
   const editorBlob = useEditorStore(
     (s) => s.currentIssueId === issue.id ? s.videoBlob : null,
   );
@@ -1018,7 +1019,7 @@ function DraftVideoPreview({ issue, thumbnailUrl }: { issue: IssueRecord; thumbn
         </div>
       ) : thumbnailUrl ? (
         <div className="aspect-video w-full overflow-hidden rounded-md border bg-black">
-          <img src={thumbnailUrl} alt="Recording thumbnail" className="h-full w-full object-contain" />
+          <img src={thumbnailUrl} alt={t("alt.recordingThumbnail")} className="h-full w-full object-contain" />
         </div>
       ) : null}
     </div>

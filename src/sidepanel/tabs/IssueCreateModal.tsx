@@ -341,7 +341,7 @@ export function IssueCreateModal() {
     });
     useSettingsStore.getState().setLastSubmittedPlatform("jira");
     onSubmitted({ key: result.key, url: result.url, platform: "jira", logsDropped: result.logsDropped });
-    return { key: result.key, url: result.url };
+    return { key: result.key, url: result.url, logsDropped: result.logsDropped };
   }
 
   async function handleGithubSubmit(

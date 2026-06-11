@@ -17,17 +17,6 @@ vi.mock("@/store/settings-ui-store", () => ({
   sectionMdLabelKey: (id: string) => `md.section.${id}`,
 }));
 
-vi.mock("@/lib/adf-sentinels", () => ({
-  IMAGE_PLACEHOLDER: "__BUGSHOT_IMAGE__",
-  VIDEO_PLACEHOLDER: "__BUGSHOT_VIDEO__",
-  INLINE_IMAGE_PREFIX: "__BUGSHOT_INLINE:",
-  inlineImagePlaceholder: (refId: string) => `__BUGSHOT_INLINE:${refId}__`,
-  parseInlinePlaceholder: (text: string) => {
-    if (!text.startsWith("__BUGSHOT_INLINE:") || !text.endsWith("__")) return null;
-    return text.slice("__BUGSHOT_INLINE:".length, -2);
-  },
-}));
-
 vi.mock("@/lib/element-label", () => ({
   formatElementName: (opts: { tag: string; classList: string[] }) =>
     `${opts.tag}.${opts.classList.join(".")}`,
@@ -110,6 +99,17 @@ describe("buildIssueAdf", () => {
       .map((t: any) => t.text);
     expect(stepTexts).toContain("1단계");
     expect(stepTexts).toContain("2단계");
+  });
+
+  it("diff 값이 빈 문자열(class 전부 제거 등)이어도 빈 text 노드를 만들지 않는다", () => {
+    const doc = buildIssueAdf(
+      makeCtx({ diffs: [{ prop: "class", asIs: "card", toBe: "" }] }),
+    );
+    const tables = findNodes(doc, "table");
+    expect(tables.length).toBeGreaterThanOrEqual(1);
+    // Jira ADF는 {type:"text", text:""}를 거부(400)한다.
+    const texts = findNodes(doc, "text");
+    expect(texts.every((t) => t.text !== "")).toBe(true);
   });
 
   it("빈 섹션 → noValue 텍스트", () => {
