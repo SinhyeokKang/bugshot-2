@@ -29,11 +29,10 @@ Lost track of what you've changed? Hit the **Review changes** button at the bott
 
 Open it and a dialog lists your edits **grouped per element**, each shown as **before → after**. You'll see the element you have selected now, plus any you buffered earlier (see [More than one element in one issue](#more-than-one-element-in-one-issue) below).
 
-- **Reset this change** (right of each row) — rolls back just that one item to its original value. The page and style panel update right away.
-- **Reset this element** (top right of a card) — undoes every edit on that element at once.
+- **Reset this change** (trash icon, right of each row) — rolls back just that one item to its original value. The page and style panel update right away. Reset the last item on an element and that element's card disappears entirely.
 - **Reset all** (bottom left) — rolls back every change across all elements (this one asks for a quick confirmation).
 
-Row and element resets run instantly without asking, so tidy up with peace of mind. Once nothing is left to revert, the dialog closes on its own.
+Row resets run instantly without asking, so tidy up with peace of mind. Once nothing is left to revert, the dialog closes on its own.
 
 ![Review changes dialog](../assets/element-styling-3.jpg)
 
@@ -57,7 +56,7 @@ Bugs rarely sit in just one spot. Sometimes you want to bundle several elements 
 
 Fixed element A? Click **Pick another element** (top right) and grab the next one (B). A's changes **stay on the page** instead of disappearing, and they ride along into the issue too. Keep going for A, B, C… as many as you like — before/after is recorded per element.
 
-> Buffered elements show up in **Review changes**, grouped per element, where you can pull out individual items or whole elements. To clear everything at once, hit **Reset all**, or just cancel the draft or finish submitting.
+> Buffered elements show up in **Review changes**, grouped per element, where you can pull out individual items (remove every item on an element and the whole element drops out). To clear everything at once, hit **Reset all**, or just cancel the draft or finish submitting.
 
 ## Next step
 
