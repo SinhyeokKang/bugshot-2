@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Loader2, RotateCcw } from "lucide-react";
+import { Loader2, Trash2 } from "lucide-react";
 import { useT } from "@/i18n";
 import {
   AlertDialog,
@@ -116,36 +116,6 @@ export function StyleChangesDialog() {
     }
   };
 
-  const handleResetElement = async (group: ChangeGroup, key: string) => {
-    if (!tabId || busy) return;
-    setBusyKey(key);
-    try {
-      const baseline: EditorStyleEdits = {
-        classList: [...group.snapshot.classList],
-        inlineStyle: {},
-        text: group.snapshot.text ?? "",
-      };
-      if (group.source === "current") {
-        useEditorStore.getState().setStyleEdits(baseline);
-        await applyClasses(tabId, baseline.classList);
-        await applyStyles(tabId, {});
-        if (group.snapshot.text !== null) await applyText(tabId, baseline.text);
-      } else {
-        await applyEditsBySelector(tabId, group.selector, {
-          classList: baseline.classList,
-          inlineStyle: {},
-          text: group.snapshot.text === null ? null : baseline.text,
-        });
-        useEditorStore.getState().removeBufferedElement(group.selector);
-        if (group.selector === useEditorStore.getState().selection?.selector) {
-          await selectByPath(tabId, group.selector);
-        }
-      }
-    } finally {
-      setBusyKey(null);
-    }
-  };
-
   const handleResetAll = () => {
     useEditorStore.getState().resetAllStyleEdits();
     if (tabId) void resetAllEdits(tabId);
@@ -175,7 +145,6 @@ export function StyleChangesDialog() {
               group={group}
               busyKey={busyKey}
               onResetRow={handleResetRow}
-              onResetElement={handleResetElement}
             />
           ))}
         </div>
@@ -217,12 +186,10 @@ function GroupCard({
   group,
   busyKey,
   onResetRow,
-  onResetElement,
 }: {
   group: ChangeGroup;
   busyKey: string | null;
   onResetRow: (group: ChangeGroup, prop: string, key: string) => Promise<void>;
-  onResetElement: (group: ChangeGroup, key: string) => Promise<void>;
 }) {
   const t = useT();
   const busy = busyKey !== null;
@@ -250,13 +217,6 @@ function GroupCard({
             </Badge>
           )}
         </div>
-        <ResetButton
-          label={t("editor.changesDialog.resetElement")}
-          spinning={busyKey === elementKey}
-          disabled={busy}
-          onClick={() => void onResetElement(group, elementKey)}
-          data-testid="reset-element"
-        />
       </div>
       <div className="mt-2 space-y-2">
         {group.rows.map((row) => {
@@ -315,7 +275,7 @@ function ResetButton({
       onClick={onClick}
       data-testid={testid}
     >
-      {spinning ? <Loader2 className="animate-spin" /> : <RotateCcw />}
+      {spinning ? <Loader2 className="animate-spin" /> : <Trash2 />}
     </Button>
   );
 }

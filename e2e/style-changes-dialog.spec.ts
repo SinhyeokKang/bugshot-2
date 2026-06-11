@@ -109,23 +109,23 @@ test.describe.serial("style-changes-dialog", () => {
     await expect(dialog()).toBeVisible();
   });
 
-  test("8. 카드 [↺](버퍼) → 재확인 없이 요소 전체 원복 + 카드 제거", async () => {
+  test("8. 버퍼 요소 행 [🗑] → 페이지 원복 + 카드 제거", async () => {
     await closeDialog();
     await repickTo("#title");
     await typeStyleValue(panel, "color", "#00ff00");
     await openDialog();
-    await card("buffered").getByTestId("reset-element").click();
-    await expect(panel.getByRole("alertdialog")).toHaveCount(0);
+    // #card(width)가 버퍼로 내려감 — 그 마지막 행 삭제로 카드 제거 + DOM 원복.
+    await row("buffered", "width").getByTestId("reset-row").click();
     await expect(card("buffered")).toHaveCount(0);
     await expect(fixture.locator("#card")).not.toHaveCSS("width", "300px");
   });
 
-  test("9. 카드 [↺](현재 선택) → styleEdits 원복 + 선택 유지", async () => {
+  test("9. 현재 선택 행 [🗑] → styleEdits 원복 + 선택 유지", async () => {
     await closeDialog();
     await repickTo("#card");
     await panel.getByTestId("class-editor").fill("card box extra2");
     await openDialog();
-    await card("current").getByTestId("reset-element").click();
+    await row("current", "class").getByTestId("reset-row").click();
     await expect(card("current")).toHaveCount(0);
     await expect(fixture.locator("#card")).toHaveClass("card box");
     await expect(trigger()).toContainText("1");
