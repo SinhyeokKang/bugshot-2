@@ -11,9 +11,10 @@ import {
   countChangeRows,
   removeDiffRow,
 } from "../styleChangeGroups";
-import type {
-  StyleDiffSelection,
-  StyleDiffEdits,
+import {
+  buildStyleDiff,
+  type StyleDiffSelection,
+  type StyleDiffEdits,
 } from "@/sidepanel/components/StyleChangesTable";
 import type {
   BufferedElement,
@@ -58,6 +59,7 @@ function buffered(
       classList: ["item"],
       specifiedStyles: {},
       computedStyles: {},
+      propSources: {},
       text: null,
       viewport: { width: 1280, height: 800 },
       capturedAt: 1,
@@ -197,6 +199,58 @@ describe("countChangeRows", () => {
 
   it("빈 배열 → 0", () => {
     expect(countChangeRows([])).toBe(0);
+  });
+});
+
+describe("buildStyleDiff — shorthand collapse", () => {
+  it("collapsed 행은 prepend가 아니라 첫 longhand 자리 (text→class→prop 정렬 유지)", () => {
+    const rows = buildStyleDiff(
+      snap({ text: "Old" }),
+      diffEdits({
+        text: "New",
+        classList: ["card", "active"],
+        inlineStyle: {
+          color: "#00f",
+          "padding-top": "8px",
+          "padding-right": "8px",
+          "padding-bottom": "8px",
+          "padding-left": "8px",
+          width: "320px",
+        },
+      }),
+    );
+
+    expect(rows.map((r) => r.prop)).toEqual([
+      "text",
+      "class",
+      "color",
+      "padding",
+      "width",
+    ]);
+  });
+
+  it("명시 shorthand 키와 longhand 4종 공존 시 같은 prop 행을 중복 생성하지 않는다", () => {
+    const rows = buildStyleDiff(
+      snap(),
+      diffEdits({
+        inlineStyle: {
+          padding: "8px",
+          "padding-top": "12px",
+          "padding-right": "12px",
+          "padding-bottom": "12px",
+          "padding-left": "12px",
+        },
+      }),
+    );
+
+    expect(rows.filter((r) => r.prop === "padding")).toHaveLength(1);
+    expect(rows.map((r) => r.prop)).toEqual([
+      "padding",
+      "padding-bottom",
+      "padding-left",
+      "padding-right",
+      "padding-top",
+    ]);
   });
 });
 

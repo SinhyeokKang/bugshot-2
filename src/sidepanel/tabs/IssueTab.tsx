@@ -40,7 +40,7 @@ import { useBoundTabId } from "@/sidepanel/hooks/useBoundTabId";
 import { useCommandShortcuts } from "@/sidepanel/hooks/useCommandShortcuts";
 import {
   startPicker,
-  stopPicker,
+  stopPickerOrResume,
   startAreaCapture,
   startElementShot,
   cancelAreaCapture,
@@ -78,7 +78,7 @@ export function IssueTab() {
   }
 
   if (phase === "picking") {
-    return <PickingState onCancel={() => void stopPicker(tabId)} />;
+    return <PickingState onCancel={() => void stopPickerOrResume(tabId)} />;
   }
 
   if (phase === "capturing") {

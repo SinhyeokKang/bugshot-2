@@ -48,6 +48,7 @@ export function DomNavButton({ direction }: { direction: "parent" | "child" }) {
       variant="outline"
       className="h-8 w-8 shrink-0"
       title={label}
+      aria-label={label}
       disabled={!canNavigate}
       onClick={() => {
         if (tabId) void bufferThenSwitch(tabId, () => navigatePicker(tabId, direction));

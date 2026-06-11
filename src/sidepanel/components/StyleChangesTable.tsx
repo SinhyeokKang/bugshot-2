@@ -183,10 +183,13 @@ export const SHORTHAND_GROUPS: Record<string, string[]> = {
 };
 
 function collapseShorthands(rows: StyleDiffRow[]): StyleDiffRow[] {
-  const result: StyleDiffRow[] = [];
   const consumed = new Set<string>();
+  // 첫 longhand의 자리에 collapsed 행을 끼워 넣어 text→class→prop 정렬을 유지한다.
+  const collapsedAt = new Map<string, StyleDiffRow>();
 
   for (const [shorthand, longhands] of Object.entries(SHORTHAND_GROUPS)) {
+    // 명시 shorthand 행이 이미 있으면(AI 머지 등) 같은 prop 행을 중복 생성하지 않는다.
+    if (rows.some((r) => r.prop === shorthand)) continue;
     const matching = longhands
       .map((l) => rows.find((r) => r.prop === l))
       .filter((r): r is StyleDiffRow => r != null);
@@ -195,16 +198,20 @@ function collapseShorthands(rows: StyleDiffRow[]): StyleDiffRow[] {
     const allSameAsIs = matching.every((r) => r.asIs === matching[0].asIs);
     const allSameToBe = matching.every((r) => r.toBe === matching[0].toBe);
     if (allSameAsIs && allSameToBe) {
-      result.push({
+      const first = rows.find((r) => longhands.includes(r.prop))!;
+      collapsedAt.set(first.prop, {
         prop: shorthand,
-        asIs: matching[0].asIs,
-        toBe: matching[0].toBe,
+        asIs: first.asIs,
+        toBe: first.toBe,
       });
       for (const l of longhands) consumed.add(l);
     }
   }
 
+  const result: StyleDiffRow[] = [];
   for (const row of rows) {
+    const collapsed = collapsedAt.get(row.prop);
+    if (collapsed) result.push(collapsed);
     if (!consumed.has(row.prop)) result.push(row);
   }
 

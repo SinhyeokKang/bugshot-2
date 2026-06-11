@@ -42,6 +42,7 @@ const ko = {
 
   "draftDetail.title": "초안 검토",
 
+  "prop.source": "소스: {value}",
   "prop.editIndividual": "개별 편집",
   "prop.editTogether": "일괄 편집",
   "prop.align.left": "왼쪽",
@@ -148,6 +149,7 @@ const en = {
 
   "draftDetail.title": "Review draft",
 
+  "prop.source": "source: {value}",
   "prop.editIndividual": "Edit individually",
   "prop.editTogether": "Edit together",
   "prop.align.left": "Left",

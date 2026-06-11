@@ -2,13 +2,22 @@ import type { EditorStyleEdits } from "@/store/editor-store";
 import type { Token } from "@/types/picker";
 import type { AiStylingEdits } from "./buildAiStylingPrompt";
 import { tokenFamilyPrefix } from "@/sidepanel/tabs/styleEditor/tokenUtils";
+import { SHORTHAND_GROUPS } from "@/sidepanel/components/StyleChangesTable";
 
 export function mergeAiEdits(
   current: EditorStyleEdits,
   edits: AiStylingEdits,
 ): EditorStyleEdits {
+  const inlineStyle = { ...current.inlineStyle };
+  // AI가 shorthand를 내면 기존 longhand를 제거 — DOM 적용 순서상 나중 키(shorthand)가
+  // 덮으므로 diff 행도 한 키로 일치시킨다(중복 padding 행 방지).
+  for (const prop of Object.keys(edits.inlineStyle ?? {})) {
+    for (const longhand of SHORTHAND_GROUPS[prop] ?? []) {
+      delete inlineStyle[longhand];
+    }
+  }
   return {
-    inlineStyle: { ...current.inlineStyle, ...(edits.inlineStyle ?? {}) },
+    inlineStyle: { ...inlineStyle, ...(edits.inlineStyle ?? {}) },
     classList: edits.classList ?? current.classList,
     text: current.text,
   };

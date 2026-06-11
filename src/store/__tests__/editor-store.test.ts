@@ -750,6 +750,7 @@ describe("bufferCurrentElement — 복수 element 버퍼", () => {
         classList: ["cta"],
         specifiedStyles: {},
         computedStyles: { color: "#000000" },
+        propSources: {},
         text: null,
         viewport: { width: 1440, height: 900 },
         capturedAt: 1700000000000,
@@ -899,6 +900,32 @@ describe("onElementSelected — 버퍼된 요소 재선택 시 편집 복원", (
     // 중복 방지: 버퍼에서 제거 (현재 요소로 승격)
     expect(s.bufferedElements).toHaveLength(0);
     expect(s.phase).toBe("styling");
+  });
+
+  it("버퍼된 selector 재선택 → propSources도 snapshot에서 복원 ([inline] 오염 차단)", () => {
+    useEditorStore.setState({
+      selection: {
+        ...freshPayload("#title", { specifiedStyles: { color: "rgb(50, 50, 50)" } }),
+        propSources: { color: ".swatch" },
+      },
+      styleEdits: {
+        classList: ["title"],
+        inlineStyle: { color: "rgb(255, 0, 0)" },
+        text: "",
+      },
+      beforeImage: null,
+    });
+    useEditorStore.getState().bufferCurrentElement(null);
+
+    // 재선택 payload는 css-resolve가 el.style을 접어 [inline] 소스로 보고한다.
+    useEditorStore.getState().onElementSelected({
+      ...freshPayload("#title", { specifiedStyles: { color: "rgb(255, 0, 0)" } }),
+      propSources: { color: "[inline]" },
+    });
+
+    expect(useEditorStore.getState().selection?.propSources).toEqual({
+      color: ".swatch",
+    });
   });
 
   it("재선택 후 추가 편집 → 다음 전환 시 이전 py 편집이 보존된다 (py-buffer-repro 회귀)", () => {

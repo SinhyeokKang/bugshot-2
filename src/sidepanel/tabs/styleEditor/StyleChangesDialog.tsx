@@ -206,17 +206,15 @@ function GroupCard({
       data-source={group.source}
       data-selector={group.selector}
     >
-      <div className="flex items-center gap-2">
-        <div className="flex min-w-0 flex-1 items-center gap-1.5">
-          <span className="truncate text-sm font-medium" title={label}>
-            {label}
-          </span>
-          {group.source === "current" && (
-            <Badge variant="secondary" className="shrink-0">
-              {t("editor.changesDialog.current")}
-            </Badge>
-          )}
-        </div>
+      <div className="flex min-w-0 items-center gap-1.5">
+        <span className="truncate text-sm font-medium" title={label}>
+          {label}
+        </span>
+        {group.source === "current" && (
+          <Badge variant="secondary" className="shrink-0">
+            {t("editor.changesDialog.current")}
+          </Badge>
+        )}
       </div>
       <div className="mt-2 space-y-2">
         {group.rows.map((row) => {

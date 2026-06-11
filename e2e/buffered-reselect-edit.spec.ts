@@ -77,13 +77,13 @@ test.describe.serial("buffered-reselect-edit", () => {
   });
 
   test("재선택한 buffered 요소에 다른 면(px) 추가 → repick 시 py·px 모두 유지", async () => {
-    // #title 재선택 — inlineStyle은 {}로 리셋되지만 py는 DOM/specified에 남아 패널엔 보인다.
+    // #title 재선택 — 버퍼 승격으로 py 편집이 styleEdits·baseline과 함께 복원된다.
     await panel.getByTestId("repick").click();
     await expect(panel.getByTestId("repick")).toBeHidden();
     await pickElement(fixture, panel, "#title");
     await expect(panel.getByTestId("repick")).toBeVisible();
 
-    // 패널 padding-top 필드엔 여전히 20px이 보인다 (specified placeholder)
+    // DOM엔 편집된 20px이 그대로 적용돼 있다
     await expect(fixture.locator("#title")).toHaveCSS("padding-top", "20px");
 
     // px(왼쪽) 한 면만 추가 편집

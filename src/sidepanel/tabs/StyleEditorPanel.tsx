@@ -121,6 +121,9 @@ export function SelectedPanel() {
       if (hasChange) {
         const img = await captureElementSnapshot(tabId);
         setAfterImage(img);
+      } else {
+        // 버퍼 승격으로 복원된 afterImage가 diff 0건인 채 저장되는 것 방지.
+        setAfterImage(null);
       }
       confirmStyles();
     } finally {
@@ -446,6 +449,7 @@ function RepickButton() {
       variant="default"
       className="h-8 w-8 shrink-0"
       title={t("dom.repick")}
+      aria-label={t("dom.repick")}
       data-testid="repick"
       onClick={() => {
         if (tabId) void bufferThenSwitch(tabId, () => startPicker(tabId));
@@ -551,6 +555,7 @@ function TextRevertButton() {
       onClick={handleRevert}
       disabled={!dirty}
       title={t("editor.revertText")}
+      aria-label={t("editor.revertText")}
       className="h-8 w-8 shrink-0"
     >
       <RotateCcw />
@@ -586,6 +591,7 @@ function ClassRevertButton() {
       onClick={handleRevert}
       disabled={!dirty}
       title={t("editor.revertClass")}
+      aria-label={t("editor.revertClass")}
       className="h-8 w-8 shrink-0"
     >
       <RotateCcw />

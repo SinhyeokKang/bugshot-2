@@ -66,6 +66,8 @@ export interface BufferedElement {
     classList: string[];
     specifiedStyles: Record<string, string>;
     computedStyles: Record<string, string>;
+    // 구버전 영속 스냅샷·IssueRecord 복원 경로엔 없다 — 승격 시 ?? {}로 폴백.
+    propSources?: Record<string, string>;
     text: string | null;
     viewport: { width: number; height: number };
     capturedAt: number;
@@ -482,6 +484,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
             classList: [...buffered.selectionSnapshot.classList],
             specifiedStyles: { ...buffered.selectionSnapshot.specifiedStyles },
             computedStyles: { ...buffered.selectionSnapshot.computedStyles },
+            propSources: { ...(buffered.selectionSnapshot.propSources ?? {}) },
             text: buffered.selectionSnapshot.text,
           },
           styleEdits: {
@@ -541,6 +544,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           classList: [...sel.classList],
           specifiedStyles: { ...sel.specifiedStyles },
           computedStyles: { ...sel.computedStyles },
+          propSources: { ...sel.propSources },
           text: sel.text,
           viewport: { ...sel.viewport },
           capturedAt: sel.capturedAt,

@@ -8,7 +8,7 @@ import {
   typeStyleValue,
 } from "./fixtures/extension";
 
-// design.md 16개 체크 목록(1차 출처)을 순서 그대로 이식 — 상태 연속 serial 플로우.
+// 변경사항 다이얼로그 16개 체크 시나리오 — 상태 연속 serial 플로우.
 test.describe.serial("style-changes-dialog", () => {
   let fixture: Page;
   let panel: Page;
@@ -190,7 +190,7 @@ test.describe.serial("style-changes-dialog", () => {
     await expect(dialog()).toBeVisible();
   });
 
-  test("15. 행 [↺] 빠른 연속 클릭 → 중복 실행 없음", async () => {
+  test("15. 행 초기화 빠른 연속 클릭 → 중복 실행 없음", async () => {
     await closeDialog();
     await typeStyleValue(panel, "width", "320px");
     await openDialog();

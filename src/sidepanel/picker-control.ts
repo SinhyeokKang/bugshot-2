@@ -1,4 +1,5 @@
 import { classifyTabSupport } from "@/lib/url-support";
+import { pageKeyOf } from "@/lib/session-keys";
 import { useEditorStore } from "@/store/editor-store";
 import { onPickerPermissionExpired, onPickerUnavailable } from "@/types/messages";
 import { isActiveTabPermissionError } from "./lib/capture-error";
@@ -198,6 +199,36 @@ export async function stopPicker(tabId: number): Promise<void> {
   useEditorStore.getState().cancelPicking();
 }
 
+// repick 취소(페이지 ESC·패널 취소·iframe 차단)용 복귀: 버퍼의 마지막 요소를 재선택해
+// styling으로 돌아간다(onElementSelected 승격 경로가 편집·baseline·이미지를 복원).
+// 어떤 버퍼 요소도 DOM에서 못 찾으면 false — 호출부가 전체 취소로 폴백한다.
+// 취소 연타 시 두 번째 picker.selected가 승격 직후 fresh 분기로 빠져 편집을 다시
+// 잃을 수 있어, 복귀 진행 중 재진입은 true로 흡수한다.
+let resumeInFlight = false;
+export async function resumeBufferedElement(tabId: number): Promise<boolean> {
+  if (resumeInFlight) return true;
+  resumeInFlight = true;
+  try {
+    const { bufferedElements } = useEditorStore.getState();
+    for (let i = bufferedElements.length - 1; i >= 0; i--) {
+      if (await selectByPath(tabId, bufferedElements[i].selector)) return true;
+    }
+    return false;
+  } finally {
+    resumeInFlight = false;
+  }
+}
+
+// 패널의 picking 취소 버튼: 버퍼가 있으면(repick 중 취소) 작업을 버리지 않고 직전 요소로
+// 복귀, 아니면 기존대로 전체 정리(picker.clear + cancelPicking).
+export async function stopPickerOrResume(tabId: number): Promise<void> {
+  const { captureMode, bufferedElements } = useEditorStore.getState();
+  if (captureMode === "element" && bufferedElements.length > 0) {
+    if (await resumeBufferedElement(tabId)) return;
+  }
+  await stopPicker(tabId);
+}
+
 export async function clearPicker(tabId: number): Promise<void> {
   await send(tabId, { type: "picker.clear" });
 }
@@ -272,8 +303,12 @@ export async function previewClear(tabId: number): Promise<void> {
 export async function selectByPath(
   tabId: number,
   selector: string,
-): Promise<void> {
-  await send(tabId, { type: "picker.selectByPath", selector });
+): Promise<boolean> {
+  const res = await send<{ found: boolean }>(tabId, {
+    type: "picker.selectByPath",
+    selector,
+  });
+  return res?.found ?? false;
 }
 
 export async function applyEditsBySelector(
@@ -293,6 +328,58 @@ export async function applyEditsBySelector(
     text: edits.text,
   });
   return res?.found ?? false;
+}
+
+// 패널 재오픈으로 styling 세션이 하이드레이트됐을 때 store-DOM 분기를 봉합한다.
+// 패널이 닫히면 port disconnect로 content가 모든 편집을 원복하므로(handleClear→restoreAll),
+// 재오픈 시 버퍼·현재 요소 편집을 DOM에 재적용하고 picker 선택을 재바인딩한다.
+// 페이지가 바뀌었거나 현재 요소가 사라졌으면 기존 cross-page 정책과 동일하게 sessionExpired.
+export async function rebindStylingSession(tabId: number): Promise<void> {
+  // 기존 expiry 경로(useEditorSessionSync)와 동일하게 만료와 페이지 정리를 쌍으로 수행.
+  const expire = async () => {
+    useEditorStore.setState({ sessionExpired: true });
+    await clearPicker(tabId).catch(() => {});
+  };
+  try {
+    await ensureContentScript(tabId);
+  } catch {
+    await expire();
+    return;
+  }
+  const state = useEditorStore.getState();
+  const prevKey = pageKeyOf(state.target?.url);
+  const newKey = pageKeyOf(await getPageUrl(tabId));
+  if (!prevKey || !newKey || prevKey !== newKey) {
+    await expire();
+    return;
+  }
+  // 현재 요소 존재 확인 겸 편집 재적용을 버퍼보다 먼저 — 실패(만료) 시 DOM에 아무것도
+  // 재적용하지 않은 채로 끝나야 한다.
+  const sel = state.selection;
+  if (sel) {
+    const found = await applyEditsBySelector(tabId, sel.selector, {
+      classList: state.styleEdits.classList,
+      inlineStyle: state.styleEdits.inlineStyle,
+      text: sel.text === null ? null : state.styleEdits.text,
+    });
+    if (!found) {
+      await expire();
+      return;
+    }
+  }
+  for (const b of state.bufferedElements) {
+    // 요소 소실(found=false)은 ghost 카드로 유지 — 다이얼로그 행 초기화의 기존 한계와 동일.
+    await applyEditsBySelector(tabId, b.selector, {
+      classList: b.styleEdits.classList,
+      inlineStyle: b.styleEdits.inlineStyle,
+      text: b.selectionSnapshot.text === null ? null : b.styleEdits.text,
+    });
+  }
+  if (!sel) return;
+  // 승격 경로 재사용: 현재 요소를 버퍼에 넣고 재선택하면 onElementSelected가
+  // styleEdits·snapshot baseline·before/after 이미지를 그대로 복원한다.
+  useEditorStore.getState().bufferCurrentElement(state.afterImage);
+  await selectByPath(tabId, sel.selector);
 }
 
 export async function prepareCapture(

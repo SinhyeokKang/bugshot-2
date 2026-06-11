@@ -178,8 +178,8 @@ chrome.runtime.onMessage.addListener(
           if (overlay) clearPreview(overlay);
           break;
         case "picker.selectByPath":
-          handleSelectByPath(msg.selector);
-          break;
+          sendResponse(handleSelectByPath(msg.selector));
+          return;
         case "picker.applyEditsBySelector":
           sendResponse(handleApplyEditsBySelector(msg));
           return;
@@ -379,10 +379,14 @@ function handleApplyStyles(inlineStyle: Record<string, string>): void {
   }
   inspectorCache.delete(el);
   render();
+  // 인라인 편집을 되돌린 직후(키 제거) 직전에 예약된 stale 재수집이 baseline을 오염시킬 수
+  // 있다(120ms 디바운스 레이스) — 적용 후 재수집을 다시 예약해 최신 DOM으로 자가치유한다.
+  scheduleSelectionUpdate();
 }
 
 // selector로 찾은 편집 element를 원본으로 원복 후 전달받은 잔여 edits만 재적용(부분 원복).
-// found = 요소 발견 && editedEls에 편집 존재. 적용 결과가 원본과 같으면 레지스트리에서 제거.
+// 미등록 요소는 현재 상태를 원본으로 등록 후 적용(패널 재오픈 재바인딩 경로 — DOM은 원복돼 있음).
+// found = 요소 발견. 적용 결과가 원본과 같으면 레지스트리에서 제거.
 function handleApplyEditsBySelector(msg: {
   selector: string;
   classList: string[];
@@ -396,8 +400,7 @@ function handleApplyEditsBySelector(msg: {
     el = null;
   }
   if (!el) return { found: false };
-  const state = editedEls.get(el);
-  if (!state) return { found: false };
+  const state = registerOriginal(el);
 
   restoreElState(el, state);
   const h = el as HTMLElement;
@@ -434,8 +437,8 @@ function handleResetAllEdits(): void {
   scheduleSelectionUpdate();
 }
 
-// 레지스트리에 없을 때만 원본 기록(최초 원본 유지) + 전역 캐시를 현재 element 원본으로 채움.
-function captureOriginal(el: Element): void {
+// 레지스트리에 없을 때만 원본 기록(최초 원본 유지).
+function registerOriginal(el: Element): OriginalState {
   let state = editedEls.get(el);
   if (!state) {
     const h = el as HTMLElement;
@@ -448,6 +451,12 @@ function captureOriginal(el: Element): void {
     };
     editedEls.set(el, state);
   }
+  return state;
+}
+
+// 원본 기록 + 전역 캐시를 현재 element 원본으로 채움.
+function captureOriginal(el: Element): void {
+  const state = registerOriginal(el);
   originalStyle = state.style;
   editableHandle = state.editable;
 }
@@ -715,14 +724,21 @@ function scheduleSelectionUpdate(): void {
   }, 120);
 }
 
-function handleSelectByPath(selector: string): void {
+function handleSelectByPath(selector: string): { found: boolean } {
   let target: Element | null = null;
   try {
     target = document.querySelector(selector);
   } catch {
     target = null;
   }
-  if (!target) return;
+  if (!target) return { found: false };
+  // 재바인딩(패널 재오픈)·복귀 경로는 handleClear 이후라 overlay가 없을 수 있다.
+  if (!overlay) {
+    removeOrphanOverlay();
+    overlay = createOverlay();
+    startCssCacheObserver();
+    void ensureCssCacheLoaded();
+  }
   leaveCurrent();
   selectedEl = target;
   captureOriginal(target);
@@ -731,6 +747,7 @@ function handleSelectByPath(selector: string): void {
   if (overlay) clearPreview(overlay);
   setMode("selected");
   emitSelected(target);
+  return { found: true };
 }
 
 /* ── Area Select ─────────────────────────────────── */

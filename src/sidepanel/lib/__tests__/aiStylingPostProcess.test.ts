@@ -33,6 +33,33 @@ describe("mergeAiEdits", () => {
     expect(result.inlineStyle).toEqual(base.inlineStyle);
     expect(result.classList).toEqual(base.classList);
   });
+
+  it("AI shorthand는 기존 longhand를 밀어낸다 (중복 diff 행 방지)", () => {
+    const current: EditorStyleEdits = {
+      inlineStyle: {
+        "padding-top": "12px",
+        "padding-right": "12px",
+        "padding-bottom": "12px",
+        "padding-left": "12px",
+        color: "red",
+      },
+      classList: ["btn"],
+      text: "",
+    };
+    const result = mergeAiEdits(current, { inlineStyle: { padding: "8px" } });
+    expect(result.inlineStyle).toEqual({ padding: "8px", color: "red" });
+  });
+
+  it("AI longhand는 기존 shorthand와 공존한다 (한 면 덮어쓰기)", () => {
+    const result = mergeAiEdits(base, {
+      inlineStyle: { "padding-top": "4px" },
+    });
+    expect(result.inlineStyle).toEqual({
+      color: "red",
+      padding: "8px",
+      "padding-top": "4px",
+    });
+  });
 });
 
 describe("replaceRawWithTokens", () => {
