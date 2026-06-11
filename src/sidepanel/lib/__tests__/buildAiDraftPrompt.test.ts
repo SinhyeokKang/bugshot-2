@@ -399,6 +399,36 @@ describe("buildAiDraftSessionPrompt", () => {
     expect(prompt).not.toContain('"expectedResult"');
   });
 
+  it("description 지시는 현상(as-is)만 + 기대 동작 배제 명시 (ko)", () => {
+    const prompt = buildAiDraftSessionPrompt({
+      ...SESSION_BASE,
+      enabledSections: [{ id: "description" }],
+    });
+    const descLine = prompt
+      .split("\n")
+      .find((l) => l.includes('"description"'))!;
+    expect(descLine).toMatch(/현상|현재/);
+    expect(descLine).toMatch(/기대|해결|말 것|쓰지/);
+  });
+
+  it("description 지시는 현상(as-is)만 + 기대 동작 배제 명시 (en)", () => {
+    const prompt = buildAiDraftSessionPrompt({
+      ...SESSION_BASE,
+      locale: "en",
+      enabledSections: [{ id: "description" }],
+    });
+    const descLine = prompt
+      .split("\n")
+      .find((l) => l.includes('"description"'))!;
+    expect(descLine).toMatch(/current|observed/i);
+    expect(descLine).toMatch(/not.*(expected|fix|desired)/i);
+  });
+
+  it("Rules에 description/expectedResult 경계 규칙 포함", () => {
+    const prompt = buildAiDraftSessionPrompt(SESSION_BASE);
+    expect(prompt).toMatch(/description.*expectedResult|expectedResult.*description/);
+  });
+
   it("element 모드: diffs 20개 초과 시 20개로 절삭", () => {
     const diffs = Array.from({ length: 25 }, (_, i) => ({
       prop: `prop-${i}`,
