@@ -22,6 +22,10 @@ export const PLATFORM_TAB_KEYS = {
   asana: "platform.tab.asana",
 } as const satisfies Record<PlatformId, string>;
 
+// 이슈 본문 cc 줄 포맷 — sidepanel 빌더(ccMention)와 background(notion expandBlock)가 공유.
+export const CC_PREFIX = "cc ";
+export const CC_SEPARATOR = ", ";
+
 export interface PlatformAccountBase<P extends PlatformId> {
   platform: P;
   connectedAt: number;

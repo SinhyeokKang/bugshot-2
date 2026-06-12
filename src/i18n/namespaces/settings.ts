@@ -36,7 +36,7 @@ const ko = {
   "field.cc.search": "이름으로 검색...",
   "field.cc.empty": "일치하는 사용자가 없습니다.",
   "field.cc.clear": "전체 해제",
-  "field.cc.more": "{names} 외 {count}",
+  "field.cc.more": "{names} 외 {count}명",
   "field.cc.notionCapabilityError": "Notion 연결에 사용자 목록 읽기 권한이 없습니다. 설정에서 Notion을 다시 연결해 주세요.",
   "field.cc.submitErrorHint": "CC에 선택한 사용자가 더 이상 유효하지 않을 수 있습니다. CC를 비우거나 다시 선택해 보세요.",
   "field.epic.select": "이슈 선택 (선택사항)",

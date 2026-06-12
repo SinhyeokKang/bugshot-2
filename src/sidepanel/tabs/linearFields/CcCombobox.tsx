@@ -1,9 +1,10 @@
-import { useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { useT } from "@/i18n";
 import {
-  MultiUserCombobox,
-  type MultiUserOption,
-} from "@/sidepanel/components/MultiUserCombobox";
+  CcMultiCombobox,
+  type CcUserOption,
+} from "@/sidepanel/components/CcMultiCombobox";
+import { useLazyListOnOpen } from "@/sidepanel/hooks/useLazyListOnOpen";
 import type { LinearUser } from "@/types/linear";
 import { sendBg } from "@/types/messages";
 
@@ -21,28 +22,14 @@ interface Props {
 export function CcCombobox({ teamId, value, onChange }: Props) {
   const t = useT();
   const [open, setOpen] = useState(false);
-  const [items, setItems] = useState<LinearUser[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [loadedTeamId, setLoadedTeamId] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (!open || !teamId) return;
-    if (loadedTeamId === teamId && items.length > 0) return;
-    setLoading(true);
-    setError(null);
-    sendBg<LinearUser[]>({ type: "linear.getMembers", teamId })
-      .then((list) => {
-        setItems(list);
-        setLoadedTeamId(teamId);
-      })
-      .catch((err: unknown) =>
-        setError(err instanceof Error ? err.message : String(err)),
-      )
-      .finally(() => setLoading(false));
-  }, [open, teamId]);
+  const load = useCallback(
+    () => sendBg<LinearUser[]>({ type: "linear.getMembers", teamId: teamId! }),
+    [teamId],
+  );
+  const { items, loading, error } = useLazyListOnOpen(open, !!teamId, load);
 
-  function toggle(option: MultiUserOption) {
+  function toggle(option: CcUserOption) {
     onChange(
       value.some((v) => v.id === option.key)
         ? value.filter((v) => v.id !== option.key)
@@ -51,7 +38,7 @@ export function CcCombobox({ teamId, value, onChange }: Props) {
   }
 
   return (
-    <MultiUserCombobox
+    <CcMultiCombobox
       options={items.map((u) => ({ key: u.id, label: u.name }))}
       selected={value.map((v) => ({ key: v.id, label: v.name }))}
       onToggle={toggle}
@@ -60,9 +47,6 @@ export function CcCombobox({ teamId, value, onChange }: Props) {
       error={error}
       disabled={!teamId}
       disabledLabel={t("linear.field.requireTeam")}
-      placeholder={t("field.cc.select")}
-      searchPlaceholder={t("field.cc.search")}
-      emptyMessage={t("field.cc.empty")}
       onOpenChange={setOpen}
     />
   );

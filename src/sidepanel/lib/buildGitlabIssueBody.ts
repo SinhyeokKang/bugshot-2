@@ -164,7 +164,8 @@ export function buildGitlabIssueBody(
   ];
   emitAttachments(lines, attached, extras);
 
-  const ccLine = ccMarkdownLine(input.cc ?? []);
+  // username은 영숫자·`_`·`.`·`-`뿐 — `\_` 이스케이프가 멘션 해석을 깰 수 있어 raw로 넣는다.
+  const ccLine = ccMarkdownLine(input.cc ?? [], { escape: false });
   if (ccLine) lines.push(ccLine, "");
 
   lines.push("---", "");

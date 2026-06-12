@@ -12,6 +12,7 @@ import type {
   NotionRichText as NotionRichTextBlock,
   NotionUser,
 } from "@/types/notion";
+import { CC_PREFIX, CC_SEPARATOR } from "@/types/platform";
 import { OAuthError } from "./oauth";
 
 export class NotionError extends Error {
@@ -513,9 +514,9 @@ export function expandBlock(
         quote: { rich_text: expandRichText(block.richText) },
       };
     case "mention_paragraph": {
-      const rich: unknown[] = [{ type: "text", text: { content: "cc " } }];
+      const rich: unknown[] = [{ type: "text", text: { content: CC_PREFIX } }];
       block.userIds.forEach((id, i) => {
-        if (i > 0) rich.push({ type: "text", text: { content: ", " } });
+        if (i > 0) rich.push({ type: "text", text: { content: CC_SEPARATOR } });
         rich.push({ type: "mention", mention: { user: { id } } });
       });
       return {

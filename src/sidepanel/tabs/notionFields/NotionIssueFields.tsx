@@ -7,7 +7,7 @@ import type {
 } from "@/types/notion";
 import { sendBg } from "@/types/messages";
 import { FieldRow } from "@/sidepanel/components/FieldRow";
-import { CcCombobox } from "./CcCombobox";
+import { CcCombobox, type CcValue } from "./CcCombobox";
 import { DatabaseCombobox } from "./DatabaseCombobox";
 import { PropertiesFieldset } from "./PropertiesFieldset";
 import { StatusSelect } from "./StatusSelect";
@@ -24,7 +24,7 @@ export interface NotionIssueFieldsValue {
   databaseTitle?: string;
   statusOption?: string;
   selectValues: NotionSelectFieldValue[];
-  cc?: { id: string; name: string }[];
+  cc?: CcValue[];
 }
 
 export function initialNotionFields(

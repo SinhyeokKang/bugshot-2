@@ -1,6 +1,6 @@
 import { useT } from "@/i18n";
 import { AssigneeCombobox } from "./AssigneeCombobox";
-import { CcCombobox } from "./CcCombobox";
+import { CcCombobox, type CcValue } from "./CcCombobox";
 import { LabelCombobox } from "./LabelCombobox";
 import { ProjectCombobox, type ProjectValue } from "./ProjectCombobox";
 import { FieldRow } from "@/sidepanel/components/FieldRow";
@@ -11,7 +11,7 @@ export interface GitlabIssueFieldsValue {
   label?: string;
   assigneeId?: number;
   assigneeName?: string;
-  cc?: { username: string; name: string }[];
+  cc?: CcValue[];
 }
 
 export function initialGitlabFields(

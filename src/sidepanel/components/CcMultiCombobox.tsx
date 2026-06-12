@@ -17,30 +17,27 @@ import {
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 
-export interface MultiUserOption {
+export interface CcUserOption {
   key: string;
   label: string;
   avatarUrl?: string;
 }
 
 interface Props {
-  options: MultiUserOption[];
+  options: CcUserOption[];
   // 옵션 lazy load 전에도 트리거에 이름을 보여야 하므로 key+label 쌍으로 받는다 (Jira fallbackLabel 패턴).
-  selected: MultiUserOption[];
-  onToggle: (option: MultiUserOption) => void;
+  selected: CcUserOption[];
+  onToggle: (option: CcUserOption) => void;
   onClear: () => void;
   loading: boolean;
   error: string | null;
   disabled?: boolean;
   disabledLabel?: string;
-  placeholder: string;
-  searchPlaceholder: string;
-  emptyMessage: string;
   onOpenChange?: (open: boolean) => void;
   onSearch?: (query: string) => void;
 }
 
-export function MultiUserCombobox({
+export function CcMultiCombobox({
   options,
   selected,
   onToggle,
@@ -49,9 +46,6 @@ export function MultiUserCombobox({
   error,
   disabled,
   disabledLabel,
-  placeholder,
-  searchPlaceholder,
-  emptyMessage,
   onOpenChange,
   onSearch,
 }: Props) {
@@ -64,6 +58,8 @@ export function MultiUserCombobox({
     setOpen(next);
     onOpenChange?.(next);
   }
+
+  const placeholder = t("field.cc.select");
 
   const triggerLabel = (() => {
     if (disabled) return disabledLabel ?? placeholder;
@@ -102,9 +98,19 @@ export function MultiUserCombobox({
         className="w-[var(--radix-popover-trigger-width)] p-0"
         onWheel={(e) => e.stopPropagation()}
       >
-        <Command shouldFilter={!onSearch}>
+        <Command
+          shouldFilter={!onSearch}
+          // 동명이인 구분용 key(UUID·gid)가 검색어에 걸리지 않도록 label(keywords)에만 매칭.
+          filter={(_value, search, keywords) =>
+            keywords?.some((k) =>
+              k.toLowerCase().includes(search.toLowerCase()),
+            )
+              ? 1
+              : 0
+          }
+        >
           <CommandInput
-            placeholder={searchPlaceholder}
+            placeholder={t("field.cc.search")}
             onValueChange={onSearch}
           />
           <CommandList>
@@ -117,7 +123,7 @@ export function MultiUserCombobox({
               <div className="px-3 py-6 text-center text-xs text-destructive">{error}</div>
             ) : (
               <>
-                <CommandEmpty>{emptyMessage}</CommandEmpty>
+                <CommandEmpty>{t("field.cc.empty")}</CommandEmpty>
                 {selected.length > 0 ? (
                   <CommandGroup heading={t("common.actions")}>
                     <CommandItem value="__clear__" onSelect={onClear}>
@@ -132,8 +138,8 @@ export function MultiUserCombobox({
                     return (
                       <CommandItem
                         key={o.key}
-                        // 동명이인 구분 — cmdk는 value로 아이템을 식별하므로 label만 쓰면 충돌.
-                        value={`${o.label} ${o.key}`}
+                        value={o.key}
+                        keywords={[o.label]}
                         onSelect={() => onToggle(o)}
                       >
                         <Check

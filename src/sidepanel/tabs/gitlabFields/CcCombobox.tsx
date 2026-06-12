@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import { useT } from "@/i18n";
 import {
-  MultiUserCombobox,
-  type MultiUserOption,
-} from "@/sidepanel/components/MultiUserCombobox";
+  CcMultiCombobox,
+  type CcUserOption,
+} from "@/sidepanel/components/CcMultiCombobox";
+import { useLazyListOnOpen } from "@/sidepanel/hooks/useLazyListOnOpen";
 import type { GitlabMember } from "@/types/gitlab";
 import { sendBg } from "@/types/messages";
 
@@ -21,42 +22,20 @@ interface Props {
 export function CcCombobox({ projectId, value, onChange }: Props) {
   const t = useT();
   const [open, setOpen] = useState(false);
-  const [items, setItems] = useState<GitlabMember[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const reqIdRef = useRef(0);
 
   const ready = projectId != null;
 
-  useEffect(() => {
-    if (!open || !ready) return;
-    if (items.length > 0) return;
-    const myReq = ++reqIdRef.current;
-    setLoading(true);
-    setError(null);
-    sendBg<GitlabMember[]>({
-      type: "gitlab.searchAssignees",
-      projectId: projectId!,
-    })
-      .then((list) => {
-        if (myReq !== reqIdRef.current) return;
-        setItems(list);
-      })
-      .catch((err: unknown) => {
-        if (myReq !== reqIdRef.current) return;
-        setError(err instanceof Error ? err.message : String(err));
-      })
-      .finally(() => {
-        if (myReq !== reqIdRef.current) return;
-        setLoading(false);
-      });
-  }, [open, ready, projectId, items.length]);
+  const load = useCallback(
+    () =>
+      sendBg<GitlabMember[]>({
+        type: "gitlab.searchAssignees",
+        projectId: projectId!,
+      }),
+    [projectId],
+  );
+  const { items, loading, error } = useLazyListOnOpen(open, ready, load);
 
-  useEffect(() => {
-    setItems([]);
-  }, [projectId]);
-
-  function toggle(option: MultiUserOption) {
+  function toggle(option: CcUserOption) {
     const next = value.some((v) => v.username === option.key)
       ? value.filter((v) => v.username !== option.key)
       : [...value, { username: option.key, name: option.label }];
@@ -64,7 +43,7 @@ export function CcCombobox({ projectId, value, onChange }: Props) {
   }
 
   return (
-    <MultiUserCombobox
+    <CcMultiCombobox
       options={items.map((u) => ({
         key: u.username,
         label: u.name,
@@ -77,9 +56,6 @@ export function CcCombobox({ projectId, value, onChange }: Props) {
       error={error}
       disabled={!ready}
       disabledLabel={t("gitlab.field.requireProject")}
-      placeholder={t("field.cc.select")}
-      searchPlaceholder={t("field.cc.search")}
-      emptyMessage={t("field.cc.empty")}
       onOpenChange={setOpen}
     />
   );

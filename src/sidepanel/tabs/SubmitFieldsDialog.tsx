@@ -181,18 +181,14 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
       onOpenChange(false);
       onSuccess?.(result);
     } catch (err) {
-      const ccCount =
-        platform === "jira"
-          ? jiraFields.cc?.length
-          : platform === "github"
-            ? ghFields.cc?.length
-            : platform === "linear"
-              ? linearFields.cc?.length
-              : platform === "gitlab"
-                ? gitlabFields.cc?.length
-                : platform === "asana"
-                  ? asanaFields.cc?.length
-                  : notionFields.cc?.length;
+      const ccCount = {
+        jira: jiraFields.cc?.length,
+        github: ghFields.cc?.length,
+        linear: linearFields.cc?.length,
+        gitlab: gitlabFields.cc?.length,
+        asana: asanaFields.cc?.length,
+        notion: notionFields.cc?.length,
+      }[platform];
       toast.error(
         err instanceof Error ? err.message : String(err),
         ccCount ? { description: t("field.cc.submitErrorHint") } : undefined,

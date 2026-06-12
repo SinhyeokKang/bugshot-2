@@ -1,6 +1,6 @@
 import { useT } from "@/i18n";
 import { AssigneeCombobox } from "./AssigneeCombobox";
-import { CcCombobox } from "./CcCombobox";
+import { CcCombobox, type CcValue } from "./CcCombobox";
 import { ProjectCombobox, type ProjectValue } from "./ProjectCombobox";
 import { WorkspaceCombobox } from "./WorkspaceCombobox";
 import { FieldRow } from "@/sidepanel/components/FieldRow";
@@ -12,7 +12,7 @@ export interface AsanaIssueFieldsValue {
   projectName?: string;
   assigneeGid?: string;
   assigneeName?: string;
-  cc?: { gid: string; name: string }[];
+  cc?: CcValue[];
 }
 
 export function initialAsanaFields(

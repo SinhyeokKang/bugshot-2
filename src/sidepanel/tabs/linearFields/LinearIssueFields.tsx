@@ -2,7 +2,7 @@ import { useT } from "@/i18n";
 import type { LinearDefaults } from "@/types/linear";
 import { FieldRow } from "@/sidepanel/components/FieldRow";
 import { AssigneeCombobox } from "./AssigneeCombobox";
-import { CcCombobox } from "./CcCombobox";
+import { CcCombobox, type CcValue } from "./CcCombobox";
 import { LabelCombobox } from "./LabelCombobox";
 import { PrioritySelect } from "./PrioritySelect";
 import { ProjectCombobox } from "./ProjectCombobox";
@@ -19,7 +19,7 @@ export interface LinearIssueFieldsValue {
   assigneeId?: string;
   assigneeName?: string;
   priority?: number;
-  cc?: { id: string; name: string }[];
+  cc?: CcValue[];
 }
 
 export function initialLinearFields(

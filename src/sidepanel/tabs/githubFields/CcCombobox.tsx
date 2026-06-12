@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import { useT } from "@/i18n";
 import {
-  MultiUserCombobox,
-  type MultiUserOption,
-} from "@/sidepanel/components/MultiUserCombobox";
+  CcMultiCombobox,
+  type CcUserOption,
+} from "@/sidepanel/components/CcMultiCombobox";
+import { useLazyListOnOpen } from "@/sidepanel/hooks/useLazyListOnOpen";
 import type { GithubUser } from "@/types/github";
 import { sendBg } from "@/types/messages";
 
@@ -17,43 +18,21 @@ interface Props {
 export function CcCombobox({ owner, repo, value, onChange }: Props) {
   const t = useT();
   const [open, setOpen] = useState(false);
-  const [items, setItems] = useState<GithubUser[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const reqIdRef = useRef(0);
 
   const ready = !!owner && !!repo;
 
-  useEffect(() => {
-    if (!open || !ready) return;
-    if (items.length > 0) return;
-    const myReq = ++reqIdRef.current;
-    setLoading(true);
-    setError(null);
-    sendBg<GithubUser[]>({
-      type: "github.searchAssignees",
-      owner: owner!,
-      repo: repo!,
-    })
-      .then((list) => {
-        if (myReq !== reqIdRef.current) return;
-        setItems(list);
-      })
-      .catch((err: unknown) => {
-        if (myReq !== reqIdRef.current) return;
-        setError(err instanceof Error ? err.message : String(err));
-      })
-      .finally(() => {
-        if (myReq !== reqIdRef.current) return;
-        setLoading(false);
-      });
-  }, [open, ready, owner, repo, items.length]);
+  const load = useCallback(
+    () =>
+      sendBg<GithubUser[]>({
+        type: "github.searchAssignees",
+        owner: owner!,
+        repo: repo!,
+      }),
+    [owner, repo],
+  );
+  const { items, loading, error } = useLazyListOnOpen(open, ready, load);
 
-  useEffect(() => {
-    setItems([]);
-  }, [owner, repo]);
-
-  function toggle(option: MultiUserOption) {
+  function toggle(option: CcUserOption) {
     onChange(
       value.includes(option.key)
         ? value.filter((v) => v !== option.key)
@@ -62,7 +41,7 @@ export function CcCombobox({ owner, repo, value, onChange }: Props) {
   }
 
   return (
-    <MultiUserCombobox
+    <CcMultiCombobox
       options={items.map((u) => ({
         key: u.login,
         label: u.login,
@@ -75,9 +54,6 @@ export function CcCombobox({ owner, repo, value, onChange }: Props) {
       error={error}
       disabled={!ready}
       disabledLabel={t("github.field.requireRepo")}
-      placeholder={t("field.cc.select")}
-      searchPlaceholder={t("field.cc.search")}
-      emptyMessage={t("field.cc.empty")}
       onOpenChange={setOpen}
     />
   );

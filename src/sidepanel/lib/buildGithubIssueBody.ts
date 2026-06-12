@@ -167,7 +167,8 @@ export function buildGithubIssueBody(
   ];
   emitAttachments(lines, attached, extras);
 
-  const ccLine = ccMarkdownLine(input.cc ?? []);
+  // login은 영숫자·하이픈뿐 — 이스케이프 불필요 + 멘션 해석 보호.
+  const ccLine = ccMarkdownLine(input.cc ?? [], { escape: false });
   if (ccLine) lines.push(ccLine, "");
 
   lines.push("---", "");

@@ -146,4 +146,16 @@ describe("cc 멘션 (sentinel)", () => {
     const out = buildAsanaIssueBody({ ctx: makeCtx(), hasCc: true });
     expect(markdownToAsanaHtml(out.body)).toContain(CC_SENTINEL);
   });
+
+  it("본문에 마크다운 참조 정의가 있어도 sentinel이 살아남는다 (구 괄호 sentinel 회귀)", () => {
+    const out = buildAsanaIssueBody({
+      ctx: makeCtx({
+        sections: {
+          description: `[bugshot:cc]: https://example.com\n[${CC_SENTINEL}]: https://example.com`,
+        },
+      }),
+      hasCc: true,
+    });
+    expect(markdownToAsanaHtml(out.body)).toContain(CC_SENTINEL);
+  });
 });

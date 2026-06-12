@@ -1,9 +1,10 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import { useT } from "@/i18n";
 import {
-  MultiUserCombobox,
-  type MultiUserOption,
-} from "@/sidepanel/components/MultiUserCombobox";
+  CcMultiCombobox,
+  type CcUserOption,
+} from "@/sidepanel/components/CcMultiCombobox";
+import { useLazyListOnOpen } from "@/sidepanel/hooks/useLazyListOnOpen";
 import type { NotionUser } from "@/types/notion";
 import { BgError, sendBg } from "@/types/messages";
 
@@ -20,38 +21,26 @@ interface Props {
 export function CcCombobox({ value, onChange }: Props) {
   const t = useT();
   const [open, setOpen] = useState(false);
-  const [items, setItems] = useState<NotionUser[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const reqIdRef = useRef(0);
 
-  useEffect(() => {
-    if (!open) return;
-    if (items.length > 0) return;
-    const myReq = ++reqIdRef.current;
-    setLoading(true);
-    setError(null);
-    sendBg<NotionUser[]>({ type: "notion.listUsers" })
-      .then((list) => {
-        if (myReq !== reqIdRef.current) return;
-        setItems(list);
-      })
-      .catch((err: unknown) => {
-        if (myReq !== reqIdRef.current) return;
-        // 403 = 통합에 "사용자 정보 읽기" capability 부재 — 재연결 안내로 치환.
-        if (err instanceof BgError && err.status === 403) {
-          setError(t("field.cc.notionCapabilityError"));
-        } else {
-          setError(err instanceof Error ? err.message : String(err));
-        }
-      })
-      .finally(() => {
-        if (myReq !== reqIdRef.current) return;
-        setLoading(false);
-      });
-  }, [open, items.length, t]);
+  const load = useCallback(
+    () => sendBg<NotionUser[]>({ type: "notion.listUsers" }),
+    [],
+  );
+  // 403 = 통합에 "사용자 정보 읽기" capability 부재 — 재연결 안내로 치환. (훅이 latest-ref로 받아 비메모이즈 OK)
+  const formatError = (err: unknown) => {
+    if (err instanceof BgError && err.status === 403) {
+      return t("field.cc.notionCapabilityError");
+    }
+    return err instanceof Error ? err.message : String(err);
+  };
+  const { items, loading, error } = useLazyListOnOpen(
+    open,
+    true,
+    load,
+    formatError,
+  );
 
-  function toggle(option: MultiUserOption) {
+  function toggle(option: CcUserOption) {
     onChange(
       value.some((v) => v.id === option.key)
         ? value.filter((v) => v.id !== option.key)
@@ -60,7 +49,7 @@ export function CcCombobox({ value, onChange }: Props) {
   }
 
   return (
-    <MultiUserCombobox
+    <CcMultiCombobox
       options={items.map((u) => ({
         key: u.id,
         label: u.name,
@@ -71,9 +60,6 @@ export function CcCombobox({ value, onChange }: Props) {
       onClear={() => onChange([])}
       loading={loading}
       error={error}
-      placeholder={t("field.cc.select")}
-      searchPlaceholder={t("field.cc.search")}
-      emptyMessage={t("field.cc.empty")}
       onOpenChange={setOpen}
     />
   );

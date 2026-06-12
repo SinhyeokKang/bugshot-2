@@ -1,15 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
-import { useT } from "@/i18n";
 import {
-  MultiUserCombobox,
-  type MultiUserOption,
-} from "@/sidepanel/components/MultiUserCombobox";
+  CcMultiCombobox,
+  type CcUserOption,
+} from "@/sidepanel/components/CcMultiCombobox";
 import type { JiraUser } from "@/types/jira";
 import { sendBg } from "@/types/messages";
 import { useDebouncedSearch } from "./useDebouncedSearch";
 import { useJiraConfig } from "./useJiraConfig";
 
-export interface CcValue {
+interface CcValue {
   accountId: string;
   displayName: string;
 }
@@ -20,7 +19,6 @@ interface Props {
 }
 
 export function CcField({ value, onChange }: Props) {
-  const t = useT();
   const jira = useJiraConfig();
   const [open, setOpen] = useState(false);
 
@@ -38,7 +36,7 @@ export function CcField({ value, onChange }: Props) {
     if (open) return search("");
   }, [open, search]);
 
-  function toggle(option: MultiUserOption) {
+  function toggle(option: CcUserOption) {
     onChange(
       value.some((v) => v.accountId === option.key)
         ? value.filter((v) => v.accountId !== option.key)
@@ -47,7 +45,7 @@ export function CcField({ value, onChange }: Props) {
   }
 
   return (
-    <MultiUserCombobox
+    <CcMultiCombobox
       options={items.map((u) => ({
         key: u.accountId,
         label: u.displayName,
@@ -58,9 +56,6 @@ export function CcField({ value, onChange }: Props) {
       onClear={() => onChange([])}
       loading={loading}
       error={error}
-      placeholder={t("field.cc.select")}
-      searchPlaceholder={t("field.cc.search")}
-      emptyMessage={t("field.cc.empty")}
       onOpenChange={setOpen}
       onSearch={search}
     />

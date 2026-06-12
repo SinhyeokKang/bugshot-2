@@ -31,6 +31,22 @@ describe("ccMarkdownLine", () => {
       "cc @a\\_b, @x\\[y\\], @c\\*d",
     );
   });
+
+  it("< > 도 이스케이프한다 (raw 마크업 이름 방지)", () => {
+    expect(ccMarkdownLine(["<img>"])).toBe("cc @\\<img\\>");
+  });
+
+  it("escape:false면 그대로 둔다 (GitHub/GitLab username용)", () => {
+    expect(ccMarkdownLine(["a_b", "c.d"], { escape: false })).toBe(
+      "cc @a_b, @c.d",
+    );
+  });
+});
+
+describe("CC_SENTINEL", () => {
+  it("마크다운 활성 문자를 포함하지 않는다 (참조 정의·linkify에 면역)", () => {
+    expect(CC_SENTINEL).toMatch(/^[A-Z-]+$/);
+  });
 });
 
 describe("ccAdfParagraph", () => {
