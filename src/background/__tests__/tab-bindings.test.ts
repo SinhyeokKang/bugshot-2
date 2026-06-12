@@ -1,5 +1,9 @@
 import { describe, it, expect } from "vitest";
-import { shouldPreserveSession, resolveTabSwitch } from "../tab-bindings";
+import {
+  shouldPreserveSession,
+  resolveTabSwitch,
+  resolveNavigationAction,
+} from "../tab-bindings";
 
 describe("shouldPreserveSession", () => {
   it("returns false for undefined snap", () => {
@@ -67,4 +71,86 @@ describe("resolveTabSwitch", () => {
     expect(resolveTabSwitch(map, 1, 11)).toBe(10);
     expect(map.get(2)).toBe(20);
   });
+});
+
+describe("resolveNavigationAction", () => {
+  type Input = Parameters<typeof resolveNavigationAction>[0];
+  type Case = { name: string; input: Input; expected: ReturnType<typeof resolveNavigationAction> };
+
+  // 광역 미보유(broadGranted=false) — 미보유 사용자 현행 동작을 고정한다(최대 회귀 리스크).
+  const legacyCases: Case[] = [
+    {
+      name: "보존 + same-origin → keep (pageKeyChanged 무관)",
+      input: { preserved: true, sameOrigin: true, pageKeyChanged: true, broadGranted: false, newUrlBroadCovered: false },
+      expected: "keep",
+    },
+    {
+      name: "보존 + cross-origin → notifyDeferredExpiry",
+      input: { preserved: true, sameOrigin: false, pageKeyChanged: true, broadGranted: false, newUrlBroadCovered: false },
+      expected: "notifyDeferredExpiry",
+    },
+    {
+      name: "비보존 + same-origin + pageKey 변경 → clearSession",
+      input: { preserved: false, sameOrigin: true, pageKeyChanged: true, broadGranted: false, newUrlBroadCovered: false },
+      expected: "clearSession",
+    },
+    {
+      name: "비보존 + same-origin + pageKey 유지 → keep",
+      input: { preserved: false, sameOrigin: true, pageKeyChanged: false, broadGranted: false, newUrlBroadCovered: false },
+      expected: "keep",
+    },
+    {
+      name: "비보존 + cross-origin → deactivate",
+      input: { preserved: false, sameOrigin: false, pageKeyChanged: true, broadGranted: false, newUrlBroadCovered: false },
+      expected: "deactivate",
+    },
+  ];
+
+  // 광역 보유(broadGranted=true) + 광역 커버 URL(newUrlBroadCovered=true) → cross-origin을 same-origin처럼.
+  const broadCoveredCases: Case[] = [
+    {
+      name: "광역 보유 + 비보존 + cross-origin + 커버 URL → clearSession (패널 유지)",
+      input: { preserved: false, sameOrigin: false, pageKeyChanged: true, broadGranted: true, newUrlBroadCovered: true },
+      expected: "clearSession",
+    },
+    {
+      name: "광역 보유 + 보존 + cross-origin + 커버 URL → keep (deferred 예약 없음)",
+      input: { preserved: true, sameOrigin: false, pageKeyChanged: true, broadGranted: true, newUrlBroadCovered: true },
+      expected: "keep",
+    },
+  ];
+
+  // 광역 보유하지만 비커버 URL(file: 등, newUrlBroadCovered=false) → 현행 분기로 폴백.
+  const broadUncoveredCases: Case[] = [
+    {
+      name: "광역 보유 + 비보존 + cross-origin + 비커버 URL(file:) → deactivate (현행)",
+      input: { preserved: false, sameOrigin: false, pageKeyChanged: true, broadGranted: true, newUrlBroadCovered: false },
+      expected: "deactivate",
+    },
+    {
+      name: "광역 보유 + 보존 + cross-origin + 비커버 URL(file:) → notifyDeferredExpiry (현행)",
+      input: { preserved: true, sameOrigin: false, pageKeyChanged: true, broadGranted: true, newUrlBroadCovered: false },
+      expected: "notifyDeferredExpiry",
+    },
+  ];
+
+  // 입력 합성 불변식 — same-origin이면 broadGranted/newUrlBroadCovered가 결과에 영향 없음.
+  const invariantCases: Case[] = [
+    {
+      name: "same-origin이면 broadGranted=true여도 비보존+pageKey 변경 → clearSession",
+      input: { preserved: false, sameOrigin: true, pageKeyChanged: true, broadGranted: true, newUrlBroadCovered: true },
+      expected: "clearSession",
+    },
+    {
+      name: "광역 보유 + 비보존 + cross-origin + 커버 + pageKey 유지(refUrl 동일 path) → keep",
+      input: { preserved: false, sameOrigin: false, pageKeyChanged: false, broadGranted: true, newUrlBroadCovered: true },
+      expected: "keep",
+    },
+  ];
+
+  for (const c of [...legacyCases, ...broadCoveredCases, ...broadUncoveredCases, ...invariantCases]) {
+    it(c.name, () => {
+      expect(resolveNavigationAction(c.input)).toBe(c.expected);
+    });
+  }
 });
