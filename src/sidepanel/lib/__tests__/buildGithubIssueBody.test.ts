@@ -96,6 +96,24 @@ describe("buildGithubIssueBody — 첨부 안내", () => {
     expect(out.body).not.toContain("github.attachmentNotInline");
   });
 
+  it("logs url이 있으면 로그 요약 안내 문구의 {file}에 마크다운 링크 주입", () => {
+    const input: GithubBuildInput = {
+      ctx: makeCtx({ networkLogSummary: { captured: 5, errors: [] } }),
+      logs: [{ filename: "logs.html", contentType: "text/html", url: "https://gh/u/logs.html" }],
+    };
+    const out = buildGithubIssueBody(input);
+    expect(out.body).toContain("logSummary.logs.detail file=[logs.html](https://gh/u/logs.html)");
+  });
+
+  it("logs url이 없으면 로그 요약 안내 문구는 평문 logs.html", () => {
+    const input: GithubBuildInput = {
+      ctx: makeCtx({ networkLogSummary: { captured: 5, errors: [] } }),
+      logs: [{ filename: "logs.html", contentType: "text/html" }],
+    };
+    const out = buildGithubIssueBody(input);
+    expect(out.body).toContain("logSummary.logs.detail file=logs.html");
+  });
+
   it("안내 문구는 첨부 섹션당 1회만 (모든 항목마다 반복 X)", () => {
     const out = buildGithubIssueBody({
       ctx: makeCtx({ captureMode: "screenshot" }),

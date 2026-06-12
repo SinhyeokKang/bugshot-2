@@ -2,6 +2,7 @@ import { t } from "@/i18n";
 import { dataUrlToBlob } from "@/store/blob-db";
 import { IMAGE_PLACEHOLDER, VIDEO_PLACEHOLDER, parseInlinePlaceholder } from "@/lib/adf-sentinels";
 import { adfMediaNode, adfMediaSingle, type MediaSource } from "@/background/lib/adf-media";
+import { injectLogsLink } from "@/background/lib/adf-logs-link";
 import { injectSnapshotRows } from "@/background/injectSnapshotRows";
 import { injectIssueUrl } from "@/lib/inject-issue-url";
 import type { JiraAttachmentInput, JiraAuth, JiraCreateIssuePayload, JiraSubmitResult } from "@/types/jira";
@@ -544,6 +545,11 @@ async function submitIssue(
 
   const uploadMap = new Map<string, UploadedFile>();
   let logsDropped = false;
+  let logsUrl: string | undefined;
+  const attachmentBase =
+    auth.kind === "apiKey"
+      ? auth.baseUrl.replace(/\/+$/, "")
+      : auth.siteUrl.replace(/\/+$/, "");
   for (const att of attachments) {
     try {
       const blob = dataUrlToBlob(att.dataUrl);
@@ -551,14 +557,14 @@ async function submitIssue(
       const r = results[0];
       const mediaId = r?.mediaApiFileId || (r?.id ? await getMediaFileId(auth, String(r.id)) : undefined);
       const dims = { width: att.width, height: att.height };
+      // logs.html은 media로 임베드하지 않고 본문 안내 문구에 첨부 링크로 단다.
+      if (att.filename === "logs.html" && r?.id) {
+        logsUrl = `${attachmentBase}/secure/attachment/${r.id}/${encodeURIComponent(r.filename)}`;
+      }
       if (mediaId) {
         uploadMap.set(att.filename, { kind: "media", mediaId, ...dims });
       } else if (r?.id) {
-        const base =
-          auth.kind === "apiKey"
-            ? auth.baseUrl.replace(/\/+$/, "")
-            : auth.siteUrl.replace(/\/+$/, "");
-        const url = `${base}/secure/attachment/${r.id}/${encodeURIComponent(r.filename)}`;
+        const url = `${attachmentBase}/secure/attachment/${r.id}/${encodeURIComponent(r.filename)}`;
         uploadMap.set(att.filename, { kind: "external", url, ...dims });
       }
     } catch (err) {
@@ -621,6 +627,8 @@ async function submitIssue(
         const mediaNode = adfMediaNode(mediaSrc(file), file);
         content[i] = adfMediaSingle(mediaNode);
       }
+
+      if (logsUrl) injectLogsLink(content, logsUrl);
 
       await updateIssueDescription(auth, issue.key, {
         version: 1,

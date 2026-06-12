@@ -467,7 +467,7 @@ function emitLogSummaryMd(lines: string[], ctx: MarkdownContext): void {
     );
   }
   lines.push("");
-  lines.push(`_${t("logSummary.logs.detail")}_`);
+  lines.push(`_${t("logSummary.logs.detail", { file: "logs.html" })}_`);
   lines.push("");
 }
 
@@ -489,5 +489,5 @@ function emitLogSummaryHtml(parts: string[], ctx: MarkdownContext): void {
     parts.push(`<li>${escapeHtml(line)}</li>`);
   }
   parts.push("</ul>");
-  parts.push(`<p><em>${escapeHtml(t("logSummary.logs.detail"))}</em></p>`);
+  parts.push(`<p><em>${escapeHtml(t("logSummary.logs.detail", { file: "logs.html" }))}</em></p>`);
 }

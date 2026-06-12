@@ -151,4 +151,20 @@ describe("buildGitlabIssueBody — element 복수", () => {
     expect(out.body.slice(sec1)).toContain("![before-1.webp](/u/b1)");
     expect(out.body).not.toContain("md.section.attachments");
   });
+
+  it("logs url이 있으면 로그 요약 안내 문구의 {file}에 마크다운 링크 주입", () => {
+    const out = buildGitlabIssueBody({
+      ctx: makeCtx({ networkLogSummary: { captured: 5, errors: [] } }),
+      logs: [{ filename: "logs.html", contentType: "text/html", url: "/uploads/abc/logs.html" }],
+    });
+    expect(out.body).toContain("logSummary.logs.detail file=[logs.html](/uploads/abc/logs.html)");
+  });
+
+  it("logs url이 없으면 로그 요약 안내 문구는 평문 logs.html", () => {
+    const out = buildGitlabIssueBody({
+      ctx: makeCtx({ networkLogSummary: { captured: 5, errors: [] } }),
+      logs: [{ filename: "logs.html", contentType: "text/html" }],
+    });
+    expect(out.body).toContain("logSummary.logs.detail file=logs.html");
+  });
 });

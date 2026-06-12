@@ -234,5 +234,18 @@ function emitLogSummaryAdf(
     items.push(listItem([paragraph([textNode(line)])]));
   }
   content.push(bulletList(items));
-  content.push(paragraph([{ type: "text", text: t("logSummary.logs.detail"), marks: [{ type: "em" }] }]));
+  content.push(paragraph(logsDetailNodes()));
+}
+
+// "logs.html"을 별도 em 노드로 분리해 emit한다. 제출 후처리(injectLogsLink)가
+// 이 노드에 link mark를 붙여 본문에서 첨부로 점프하게 한다.
+function logsDetailNodes(): AdfNode[] {
+  const em = [{ type: "em" }];
+  const segments = t("logSummary.logs.detail").split("{file}");
+  const nodes: AdfNode[] = [];
+  segments.forEach((seg, i) => {
+    if (seg) nodes.push({ type: "text", text: seg, marks: em });
+    if (i < segments.length - 1) nodes.push({ type: "text", text: "logs.html", marks: em });
+  });
+  return nodes;
 }

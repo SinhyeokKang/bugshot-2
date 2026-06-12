@@ -177,5 +177,5 @@ function emitLogSummary(lines: string[], ctx: MarkdownContext): void {
     );
   }
   lines.push("");
-  lines.push(`_${t("logSummary.logs.detail")}_`, "");
+  lines.push(`_${t("logSummary.logs.detail", { file: "logs.html" })}_`, "");
 }

@@ -133,7 +133,7 @@ export function buildGithubIssueBody(
       lines.push("");
     }
 
-    emitLogSummary(lines, ctx);
+    emitLogSummary(lines, ctx, logs.find((l) => l.filename === "logs.html")?.url);
   };
 
   for (const section of ctx.sectionConfig) {
@@ -206,7 +206,7 @@ function emitAttachments(
   }
 }
 
-function emitLogSummary(lines: string[], ctx: MarkdownContext): void {
+function emitLogSummary(lines: string[], ctx: MarkdownContext, logsHref?: string): void {
   const { networkLogSummary: net, consoleLogSummary: con } = ctx;
   if (!net && !con) return;
   lines.push(`## ${t("logSummary.title")}`, "");
@@ -225,5 +225,6 @@ function emitLogSummary(lines: string[], ctx: MarkdownContext): void {
     );
   }
   lines.push("");
-  lines.push(`_${t("logSummary.logs.detail")}_`, "");
+  const file = logsHref ? `[logs.html](${logsHref})` : "logs.html";
+  lines.push(`_${t("logSummary.logs.detail", { file })}_`, "");
 }
