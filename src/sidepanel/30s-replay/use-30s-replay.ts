@@ -8,12 +8,12 @@ import { trimByTime, replayLogBounds } from "@/sidepanel/lib/log-merge";
 import { saveNetworkLog, saveConsoleLog, saveActionLog } from "@/store/blob-db";
 import { networkLogPersist, consoleLogPersist, actionLogPersist } from "@/sidepanel/hooks/usePickerMessages";
 import { useT } from "@/i18n";
+import { BROAD_HOST_ORIGINS } from "@/lib/broad-host-origins";
 import { FrameBuffer, REPLAY_MAX_DURATION_MS } from "./frame-buffer";
 import { encodeToMp4 } from "./mp4-encoder";
 
 const CAPTURE_INTERVAL_MS = 600;
 const MIN_READY_FRAMES = 10;
-export const REPLAY_ORIGINS = ["https://*/*", "http://*/*"];
 
 export interface Use30sReplayReturn {
   isReady: boolean;
@@ -85,7 +85,7 @@ export function use30sReplay(
     void (async () => {
       try {
         const granted = await chrome.permissions.contains({
-          origins: REPLAY_ORIGINS,
+          origins: BROAD_HOST_ORIGINS,
         });
         if (cancelled) return;
         if (!granted) {

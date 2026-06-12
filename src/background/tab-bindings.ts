@@ -1,3 +1,4 @@
+import { BROAD_HOST_ORIGINS } from "@/lib/broad-host-origins";
 import { FROZEN_PHASES, originOf, pageKeyOf, sessionKey } from "@/lib/session-keys";
 import { isSupportedUrl } from "@/lib/url-support";
 import { deleteNetworkLog, deleteConsoleLog, deleteActionLog } from "@/store/blob-db";
@@ -104,8 +105,48 @@ async function clearIfPageChanged(
   }
 }
 
+export type NavigationAction =
+  | "keep"
+  | "clearSession"
+  | "notifyDeferredExpiry"
+  | "deactivate";
+
+// cross-document 네비게이션 시 패널 처리 판정.
+// 계약: sameOrigin=true면 호출부는 permissions.contains를 조회하지 않고
+// broadGranted=false 고정 전달(effectiveSameOrigin이 이미 true라 결과 무영향).
+export function resolveNavigationAction(input: {
+  preserved: boolean;
+  sameOrigin: boolean;
+  pageKeyChanged: boolean;
+  broadGranted: boolean;
+  newUrlBroadCovered: boolean;
+}): NavigationAction {
+  const effectiveSameOrigin =
+    input.sameOrigin || (input.broadGranted && input.newUrlBroadCovered);
+  if (effectiveSameOrigin) {
+    if (input.preserved) return "keep";
+    return input.pageKeyChanged ? "clearSession" : "keep";
+  }
+  return input.preserved ? "notifyDeferredExpiry" : "deactivate";
+}
+
+const BROAD_COVERED_SCHEMES = new Set(["http:", "https:"]);
+
+// 광역 host 권한(https://*/* + http://*/*)이 캡처 능력을 주는 URL인지.
+// file:은 지원 URL이지만 광역 권한 범위 밖이라 명시적 스킴 체크로 배제.
+function isBroadCoveredUrl(url: string | undefined): boolean {
+  if (!isSupportedUrl(url)) return false;
+  try {
+    return BROAD_COVERED_SCHEMES.has(new URL(url as string).protocol);
+  } catch {
+    return false;
+  }
+}
+
 // 메인 프레임 cross-document 네비게이션 시작 시 호출.
 // same-origin이면 패널을 유지하고 stale 세션만 정리, cross-origin이면 패널을 닫는다.
+// 예외: 광역 host 권한 보유 + 새 URL이 광역 커버(http/https) 지원 URL이면
+// cross-origin도 same-origin처럼 패널 유지.
 // URL을 못 읽는 경우(activeTab 만료 + 광역 권한 미부여)는 cross-origin으로 간주한다.
 async function deactivatePanelIfCrossOrigin(
   tabId: number,
@@ -132,24 +173,42 @@ async function deactivatePanelIfCrossOrigin(
     const sameOrigin =
       oldOrigin != null && newOrigin != null && oldOrigin === newOrigin;
 
-    if (sameOrigin) {
-      if (!preserved && pageKeyOf(refUrl) !== pageKeyOf(newUrl)) {
-        await chrome.storage.session.remove(key);
+    let broadGranted = false;
+    if (!sameOrigin) {
+      try {
+        broadGranted = await chrome.permissions.contains({
+          origins: BROAD_HOST_ORIGINS,
+        });
+      } catch {
+        // permissions API 실패 시 미보유로 간주(현행 분기 폴백)
       }
-      return;
     }
 
-    // cross-origin 또는 URL 판별 불가
-    if (preserved) {
-      chrome.runtime
-        .sendMessage({ type: "activeTabExpiredDeferred", tabId } satisfies BgInternalMessage)
-        .catch(() => {});
-      return;
-    }
+    const action = resolveNavigationAction({
+      preserved,
+      sameOrigin,
+      pageKeyChanged: pageKeyOf(refUrl) !== pageKeyOf(newUrl),
+      broadGranted,
+      newUrlBroadCovered: isBroadCoveredUrl(newUrl),
+    });
 
-    await setActivated(tabId, false);
-    await chrome.sidePanel.setOptions({ tabId, enabled: false });
-    await chrome.storage.session.remove(key);
+    switch (action) {
+      case "keep":
+        return;
+      case "clearSession":
+        await chrome.storage.session.remove(key);
+        return;
+      case "notifyDeferredExpiry":
+        chrome.runtime
+          .sendMessage({ type: "activeTabExpiredDeferred", tabId } satisfies BgInternalMessage)
+          .catch(() => {});
+        return;
+      case "deactivate":
+        await setActivated(tabId, false);
+        await chrome.sidePanel.setOptions({ tabId, enabled: false });
+        await chrome.storage.session.remove(key);
+        return;
+    }
   } catch (err) {
     console.error("[bugshot] deactivatePanelIfCrossOrigin", err);
   }
@@ -221,7 +280,8 @@ export function setupTabBindings(): void {
 
   chrome.tabs.onUpdated.addListener((tabId, info, tab) => {
     // cross-document 네비게이션 시작 시 origin 비교: same-origin이면 패널 유지(stale
-    // 세션만 정리), cross-origin이면 패널 닫기. SPA same-document는 loading 없음.
+    // 세션만 정리), cross-origin이면 패널 닫기 — 단 광역 host 권한 보유 시 커버
+    // URL(http/https)로의 cross-origin은 same-origin처럼 유지. SPA same-document는 loading 없음.
     if (info.status === "loading") {
       void deactivatePanelIfCrossOrigin(tabId, info.url ?? tab.url);
       return;

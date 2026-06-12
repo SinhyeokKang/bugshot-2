@@ -14,9 +14,9 @@
   - `src/lib/broad-host-origins.ts` 생성: `export const BROAD_HOST_ORIGINS = ["https://*/*", "http://*/*"];`
   - `use-30s-replay.ts:16`의 `REPLAY_ORIGINS` 정의 제거, 내부 사용처(87–88)와 `SettingsTab.tsx`(import 22·96·98) 참조를 `BROAD_HOST_ORIGINS` import로 교체.
 - **검증**:
-  - [ ] `REPLAY_ORIGINS` grep 0건.
-  - [ ] `pnpm typecheck` 통과.
-  - [ ] Replay 토글·폴링 로직 diff가 import 교체뿐임(값·로직 불변).
+  - [x] `REPLAY_ORIGINS` grep 0건.
+  - [x] `pnpm typecheck` 통과.
+  - [x] Replay 토글·폴링 로직 diff가 import 교체뿐임(값·로직 불변).
 - **참고**: 단순 리터럴 상수라 전용 테스트는 `/tdd` 분류상 스킵. 필요해지면 `src/lib/__tests__/session-keys.test.ts`의 상수 describe 관례를 따른다.
 
 ### Task 2: resolveNavigationAction 순수 헬퍼 + 테스트 (`/tdd interface` 대상)
@@ -27,7 +27,7 @@
   - **file: 케이스 필수**: 지원 URL이지만 광역 비커버 — `broadGranted=true`여도 `newUrlBroadCovered=false` → 현행 분기.
   - 보강 케이스: same-origin일 때 broadGranted·newUrlBroadCovered 무영향 / 보존+pageKeyChanged=true → `keep`(pageKeyChanged 무관) / refUrl 파싱 불가(pageKey null) + 광역 보유 → `clearSession`(null ≠ 비null) 불변 고정.
 - **검증**:
-  - [ ] `pnpm test` — 신규 표 테스트 그린, 기존 `shouldPreserveSession`(10케이스)·`resolveTabSwitch`(4케이스) 불변 그린. 신규 describe는 기존 블록 뒤(라인 70 이후)에 배치.
+  - [x] `pnpm test` — 신규 표 테스트 그린, 기존 `shouldPreserveSession`(10케이스)·`resolveTabSwitch`(4케이스) 불변 그린. 신규 describe는 기존 블록 뒤(라인 70 이후)에 배치.
 
 ### Task 3: deactivatePanelIfCrossOrigin에 판정 통합
 - **변경 대상**: `src/background/tab-bindings.ts`
@@ -37,9 +37,9 @@
   - `chrome.permissions.contains({ origins: BROAD_HOST_ORIGINS })`는 cross-origin 판정일 때만 조회(same-origin이면 false 고정 전달 — 헬퍼 계약).
   - 함수 주석(107–109)·loading 분기 주석(223–224)에 광역 권한 예외 한 줄 반영.
 - **검증**:
-  - [ ] `pnpm typecheck`·`pnpm test` 통과.
-  - [ ] deferred 발신 코드·`activeTabExpiredDeferred` 타입·`usePickerMessages` 핸들러·`App.tsx` 다이얼로그 diff 0.
-  - [ ] `ACTIVATION_URL_PREFIX`·loading 분기·`apply`·`clearIfPageChanged` 구조 불변.
+  - [x] `pnpm typecheck`·`pnpm test` 통과.
+  - [x] deferred 발신 코드·`activeTabExpiredDeferred` 타입·`usePickerMessages` 핸들러·`App.tsx` 다이얼로그 diff 0.
+  - [x] `ACTIVATION_URL_PREFIX`·loading 분기·`apply`·`clearIfPageChanged` 구조 불변.
 
 ### Task 4: 문서 갱신 (별도 docs 커밋, `/push` 신선도 검사)
 - **변경 대상**: `PERMISSION.md`, `ARCHITECTURE.md`, `docs/privacy.md`, `DIRECTORY.md`, `CLAUDE.md`
