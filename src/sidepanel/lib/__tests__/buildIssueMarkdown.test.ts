@@ -22,7 +22,9 @@ import {
   buildIssueHtml,
   mergeStyleElements,
   joinStyleSelectors,
+  styleSelectorList,
   type MarkdownContext,
+  type StyleElementContext,
 } from "../buildIssueMarkdown";
 import type {
   BufferedElement,
@@ -412,7 +414,7 @@ describe("buildIssueMarkdown — 복수 styleElements 직렬화", () => {
     expect(md).toContain("md.section.styleChanges (div.card)");
     expect(md).toContain("| color | #000 | #fff |");
     expect(md).toContain("| padding | 10px | 20px |");
-    expect(md).toContain("- **DOM**: button.cta, div.card");
+    expect(md).toContain("- **DOM**: `button.cta`, `div.card`");
   });
 
   it("styleElements 1개 → (selector) 단일 형식", () => {
@@ -453,6 +455,43 @@ describe("joinStyleSelectors — DOM 줄 selector 쉼표 나열", () => {
   it("styleElements 없고 fallback null → 빈 문자열", () => {
     expect(joinStyleSelectors([], null)).toBe("");
     expect(joinStyleSelectors(undefined, undefined)).toBe("");
+  });
+
+  it("wrap → 각 selector를 감싸고 join (복수)", () => {
+    expect(
+      joinStyleSelectors([el("button.cta"), el("div.card")], "fallback", (s) => `\`${s}\``),
+    ).toBe("`button.cta`, `div.card`");
+  });
+
+  it("wrap → fallback도 감싼다, 빈 fallback은 미적용", () => {
+    expect(joinStyleSelectors(undefined, "div.box", (s) => `\`${s}\``)).toBe("`div.box`");
+    expect(joinStyleSelectors([], "", (s) => `\`${s}\``)).toBe("");
+  });
+});
+
+describe("styleSelectorList — Notion/ADF용 selector 배열", () => {
+  const styleEl2 = (selector: string): StyleElementContext => ({
+    selector,
+    tagName: "div",
+    classListBefore: [],
+    classListAfter: [],
+    specifiedStyles: {},
+    diffs: [],
+  });
+
+  it("styleElements 우선 (복수)", () => {
+    const ctx = makeCtx({
+      styleElements: [styleEl2("button.cta"), styleEl2("div.card")],
+    });
+    expect(styleSelectorList(ctx)).toEqual(["button.cta", "div.card"]);
+  });
+
+  it("styleElements 없으면 ctx.selector 단일", () => {
+    expect(styleSelectorList(makeCtx({ selector: "button.cta" }))).toEqual(["button.cta"]);
+  });
+
+  it("빈 selector → 빈 배열", () => {
+    expect(styleSelectorList(makeCtx({ selector: "" }))).toEqual([]);
   });
 });
 
@@ -649,7 +688,7 @@ describe("요소 캡처 (screenshot + selector) — DOM 줄 노출", () => {
     const md = buildIssueMarkdown(
       makeCtx({ captureMode: "screenshot", selector: "button.cta", diffs: [] }),
     );
-    expect(md).toContain("- **DOM**: button.cta");
+    expect(md).toContain("- **DOM**: `button.cta`");
   });
 
   it("screenshot + 빈 selector(범위 캡처) → DOM 미표시 (회귀)", () => {
@@ -663,7 +702,7 @@ describe("요소 캡처 (screenshot + selector) — DOM 줄 노출", () => {
     const html = buildIssueHtml(
       makeCtx({ captureMode: "screenshot", selector: "button.cta", diffs: [] }),
     );
-    expect(html).toContain("<strong>DOM</strong>: button.cta");
+    expect(html).toContain("<strong>DOM</strong>: <code>button.cta</code>");
   });
 
   it("screenshot + selector → meta comment에 selector 포함", () => {

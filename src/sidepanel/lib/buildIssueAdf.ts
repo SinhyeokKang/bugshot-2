@@ -9,7 +9,7 @@ import { LOGS_LINK_LABEL } from "@/background/lib/adf-logs-link";
 import { ccAdfParagraph } from "./ccMention";
 import {
   resolveStyleElements,
-  styleDomLabel,
+  styleSelectorList,
   type MarkdownContext,
 } from "./buildIssueMarkdown";
 import type { NetworkLogSummary, ConsoleLogSummary } from "./buildLogSummary";
@@ -63,9 +63,9 @@ export function buildIssueAdf(
     envItems.push(keyValueItem("Browser", ctx.browser));
   }
   envItems.push(keyValueItem("Page", ctx.url));
-  const domLabel = styleDomLabel(ctx);
-  if (domLabel) {
-    envItems.push(keyValueItem("DOM", domLabel));
+  const domSelectors = styleSelectorList(ctx);
+  if (domSelectors.length > 0) {
+    envItems.push(domSelectorItem(domSelectors));
   }
   if (ctx.viewport) {
     envItems.push(keyValueItem("Viewport", `${ctx.viewport.width}×${ctx.viewport.height}`));
@@ -194,6 +194,20 @@ function keyValueItem(key: string, value: string): AdfNode {
       paragraph([strongTextNode(`${key}: `), textNode(value)]),
     ],
   };
+}
+
+function codeTextNode(value: string): AdfNode {
+  return { type: "text", text: value, marks: [{ type: "code" }] };
+}
+
+// DOM 줄: "DOM: " 뒤 selector를 code mark로, 복수면 ", "로 잇는다.
+function domSelectorItem(selectors: string[]): AdfNode {
+  const children: AdfNode[] = [strongTextNode("DOM: ")];
+  selectors.forEach((selector, i) => {
+    if (i > 0) children.push(textNode(", "));
+    children.push(codeTextNode(selector));
+  });
+  return { type: "listItem", content: [paragraph(children)] };
 }
 
 function table(headers: string[], rows: string[][]): AdfNode {

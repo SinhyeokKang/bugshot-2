@@ -641,12 +641,17 @@ describe("buildNotionIssueBody — 요소 캡처 (screenshot + selector)", () =>
         diffs: [],
       }),
     });
-    const bullets = out.blocks.filter((b) => b.type === "bulleted_list_item");
-    expect(
-      bullets.some(
-        (b) => "text" in b && b.text.startsWith("DOM:") && b.text.includes("button.cta"),
-      ),
-    ).toBe(true);
+    // DOM 줄은 selector를 code annotation으로 감싼 rich_bulleted_list_item.
+    const domBlock = out.blocks.find((b) => b.type === "rich_bulleted_list_item");
+    expect(domBlock).toBeDefined();
+    if (domBlock && "richText" in domBlock) {
+      expect(domBlock.richText.map((rt) => rt.text.content).join("")).toBe("DOM: button.cta");
+      expect(
+        domBlock.richText.some(
+          (rt) => rt.text.content === "button.cta" && rt.annotations?.code,
+        ),
+      ).toBe(true);
+    }
   });
 
   it("screenshot + 빈 selector(범위 캡처) → DOM bullet 없음 (회귀)", () => {
@@ -655,6 +660,7 @@ describe("buildNotionIssueBody — 요소 캡처 (screenshot + selector)", () =>
     });
     const bullets = out.blocks.filter((b) => b.type === "bulleted_list_item");
     expect(bullets.some((b) => "text" in b && b.text.startsWith("DOM:"))).toBe(false);
+    expect(out.blocks.some((b) => b.type === "rich_bulleted_list_item")).toBe(false);
   });
 });
 

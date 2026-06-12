@@ -57,6 +57,12 @@ describe("buildAsanaIssueBody", () => {
     expect(out.body).toContain("**Viewport**: 1024×768");
   });
 
+  it("element 모드 → DOM 줄 selector는 백틱, HTML 변환 시 <code>", () => {
+    const out = buildAsanaIssueBody({ ctx: makeCtx({ selector: "button.cta" }) });
+    expect(out.body).toContain("**DOM**: `button.cta`");
+    expect(markdownToAsanaHtml(out.body)).toContain("<code>button.cta</code>");
+  });
+
   it("이미지는 본문에 인라인(![filename](filename)) + attached 포함, 첨부 백틱 목록엔 미포함", () => {
     const input: AsanaBuildInput = {
       ctx: makeCtx({ captureMode: "screenshot" }),

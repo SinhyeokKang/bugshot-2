@@ -5,6 +5,7 @@ import {
   type IssueSection,
 } from "@/store/settings-ui-store";
 import {
+  mdInlineCode,
   resolveStyleElements,
   styleDomLabel,
   type MarkdownContext,
@@ -71,7 +72,7 @@ export function buildGithubIssueBody(
     lines.push(`- **Browser**: ${ctx.browser}`);
   }
   lines.push(`- **Page**: ${ctx.url}`);
-  const domLabel = styleDomLabel(ctx);
+  const domLabel = styleDomLabel(ctx, mdInlineCode);
   if (domLabel) {
     lines.push(`- **DOM**: ${domLabel}`);
   }

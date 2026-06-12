@@ -8,10 +8,11 @@ import type {
   NotionAttachmentInput,
   NotionAttachmentCategory,
   NotionBlock,
+  NotionRichText,
 } from "@/types/notion";
 import {
   resolveStyleElements,
-  styleDomLabel,
+  styleSelectorList,
   type MarkdownContext,
 } from "./buildIssueMarkdown";
 import { filterEnvironmentRows } from "./environmentRows";
@@ -52,6 +53,16 @@ function listItems(content: string): string[] {
     .split(/\r?\n/)
     .map((l) => l.trim())
     .filter(Boolean);
+}
+
+// DOM 줄: "DOM: " 뒤에 selector를 code annotation으로, 복수면 ", "로 잇는다.
+function domSelectorRichText(selectors: string[]): NotionRichText[] {
+  const rich: NotionRichText[] = [{ type: "text", text: { content: "DOM: " } }];
+  selectors.forEach((selector, i) => {
+    if (i > 0) rich.push({ type: "text", text: { content: ", " } });
+    rich.push({ type: "text", text: { content: selector }, annotations: { code: true } });
+  });
+  return rich;
 }
 
 function categorize(
@@ -100,9 +111,12 @@ export function buildNotionIssueBody(
     blocks.push({ type: "bulleted_list_item", text: `Browser: ${ctx.browser}` });
   }
   blocks.push({ type: "bulleted_list_item", text: `Page: ${ctx.url}` });
-  const domLabel = styleDomLabel(ctx);
-  if (domLabel) {
-    blocks.push({ type: "bulleted_list_item", text: `DOM: ${domLabel}` });
+  const domSelectors = styleSelectorList(ctx);
+  if (domSelectors.length > 0) {
+    blocks.push({
+      type: "rich_bulleted_list_item",
+      richText: domSelectorRichText(domSelectors),
+    });
   }
   if (ctx.viewport) {
     blocks.push({

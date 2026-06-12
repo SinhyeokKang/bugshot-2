@@ -296,6 +296,47 @@ describe("buildIssueAdf — freeform", () => {
     const texts = findNodes(doc, "text");
     expect(texts.some((t) => t.text?.includes("DOM"))).toBe(false);
   });
+
+  it("element 모드 → DOM 줄 selector는 code mark", () => {
+    const doc = buildIssueAdf(makeCtx({ selector: "button.cta" }));
+    const texts = findNodes(doc, "text");
+    const codeNode = texts.find(
+      (t: any) => t.text === "button.cta" && t.marks?.some((m: any) => m.type === "code"),
+    );
+    expect(codeNode).toBeDefined();
+  });
+
+  it("styleElements 복수 → selector마다 code mark", () => {
+    const doc = buildIssueAdf(
+      makeCtx({
+        styleElements: [
+          {
+            selector: "button.cta",
+            tagName: "button",
+            classListBefore: [],
+            classListAfter: [],
+            specifiedStyles: {},
+            diffs: [{ prop: "color", asIs: "#000", toBe: "#fff" }],
+          },
+          {
+            selector: "div.card",
+            tagName: "div",
+            classListBefore: [],
+            classListAfter: [],
+            specifiedStyles: {},
+            diffs: [{ prop: "padding", asIs: "10px", toBe: "20px" }],
+          },
+        ],
+      }),
+    );
+    const texts = findNodes(doc, "text");
+    const codeNodes = texts.filter((t: any) =>
+      t.marks?.some((m: any) => m.type === "code"),
+    );
+    expect(codeNodes.map((t: any) => t.text)).toEqual(
+      expect.arrayContaining(["button.cta", "div.card"]),
+    );
+  });
 });
 
 describe("buildIssueAdf — inline images", () => {

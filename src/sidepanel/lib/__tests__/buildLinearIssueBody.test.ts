@@ -230,7 +230,7 @@ describe("buildLinearIssueBody — 구조", () => {
     const out = buildLinearIssueBody({
       ctx: makeCtx({ selector: "button.btn.primary" }),
     });
-    expect(out.body).toContain("**DOM**: button.btn.primary");
+    expect(out.body).toContain("**DOM**: `button.btn.primary`");
   });
 
   it("screenshot/video 모드 + 빈 selector → DOM 미표시", () => {
@@ -360,7 +360,7 @@ describe("buildLinearIssueBody — 요소 캡처 (screenshot + selector)", () =>
         diffs: [],
       }),
     });
-    expect(out.body).toContain("**DOM**: button.cta");
+    expect(out.body).toContain("**DOM**: `button.cta`");
   });
 
   it("screenshot + 빈 selector(범위 캡처) → DOM 미표시 (회귀)", () => {

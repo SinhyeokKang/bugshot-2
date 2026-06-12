@@ -474,7 +474,7 @@ describe("buildGithubIssueBody — 요소 캡처 (screenshot + selector)", () =>
     const out = buildGithubIssueBody({
       ctx: makeCtx({ captureMode: "screenshot", selector: "button.cta", diffs: [] }),
     });
-    expect(out.body).toContain("**DOM**: button.cta");
+    expect(out.body).toContain("**DOM**: `button.cta`");
   });
 
   it("screenshot + 빈 selector(범위 캡처) → DOM 미표시 (회귀)", () => {
