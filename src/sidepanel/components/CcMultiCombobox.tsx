@@ -64,12 +64,7 @@ export function CcMultiCombobox({
   const triggerLabel = (() => {
     if (disabled) return disabledLabel ?? placeholder;
     if (selected.length === 0) return placeholder;
-    const names = selected.map((s) => s.label);
-    if (names.length <= 2) return names.join(", ");
-    return t("field.cc.more", {
-      names: names.slice(0, 2).join(", "),
-      count: names.length - 2,
-    });
+    return selected.map((s) => s.label).join(", ");
   })();
 
   return (

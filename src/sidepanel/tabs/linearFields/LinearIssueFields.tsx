@@ -130,17 +130,17 @@ export function LinearIssueFields({ value, onChange }: Props) {
           onChange={(assigneeId, assigneeName) => onChange({ assigneeId, assigneeName })}
         />
       </FieldRow>
+      <FieldRow label={t("linear.field.priority")}>
+        <PrioritySelect
+          value={value.priority}
+          onChange={(priority) => onChange({ priority })}
+        />
+      </FieldRow>
       <FieldRow label={t("field.cc.label")}>
         <CcCombobox
           teamId={value.teamId}
           value={value.cc ?? []}
           onChange={(cc) => onChange({ cc })}
-        />
-      </FieldRow>
-      <FieldRow label={t("linear.field.priority")}>
-        <PrioritySelect
-          value={value.priority}
-          onChange={(priority) => onChange({ priority })}
         />
       </FieldRow>
     </div>

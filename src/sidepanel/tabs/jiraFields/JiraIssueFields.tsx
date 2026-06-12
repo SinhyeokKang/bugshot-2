@@ -48,9 +48,6 @@ export function JiraIssueFields({
           onChange={(id, name) => onChange({ assigneeId: id, assigneeName: name })}
         />
       </FieldRow>
-      <FieldRow label={t("field.cc.label")}>
-        <CcField value={fields.cc ?? []} onChange={(cc) => onChange({ cc })} />
-      </FieldRow>
       <FieldRow label={t("create.priority")}>
         <PriorityField
           value={fields.priorityId}
@@ -74,6 +71,9 @@ export function JiraIssueFields({
           fallbackLabel={fields.relatesLabel}
           onChange={(key, label) => onChange({ relatesKey: key, relatesLabel: label })}
         />
+      </FieldRow>
+      <FieldRow label={t("field.cc.label")}>
+        <CcField value={fields.cc ?? []} onChange={(cc) => onChange({ cc })} />
       </FieldRow>
     </div>
   );
