@@ -1,7 +1,7 @@
 import { t } from "@/i18n";
 import { dataUrlToBlob } from "@/store/blob-db";
 import { IMAGE_PLACEHOLDER, VIDEO_PLACEHOLDER, parseInlinePlaceholder } from "@/lib/adf-sentinels";
-import { adfMediaNode, adfMediaSingle, type MediaSource } from "@/background/lib/adf-media";
+import { adfMediaNode, adfMediaSingle, adfVideoMediaSingle, type MediaSource } from "@/background/lib/adf-media";
 import { injectLogsLink } from "@/background/lib/adf-logs-link";
 import { injectSnapshotRows } from "@/background/injectSnapshotRows";
 import { injectIssueUrl } from "@/lib/inject-issue-url";
@@ -607,9 +607,7 @@ async function submitIssue(
         },
       );
       if (videoFile?.kind === "media" && videoPlaceholderIdx >= 0) {
-        content[videoPlaceholderIdx] = adfMediaSingle(
-          adfMediaNode(mediaSrc(videoFile), videoFile),
-        );
+        content[videoPlaceholderIdx] = adfVideoMediaSingle(mediaSrc(videoFile));
       } else if (videoPlaceholderIdx >= 0) {
         content[videoPlaceholderIdx] = {
           type: "paragraph",

@@ -35,3 +35,14 @@ export function adfMediaSingle(mediaNode: ReturnType<typeof adfMediaNode>) {
     content: [mediaNode],
   };
 }
+
+// 비디오 전용. 원본 픽셀과 무관하게 16:9 종횡비 + 컨테이너 폭 100%로 강제한다.
+// media의 width/height는 비율만 잡으므로 16/9 값이면 충분하고, 실제 폭은
+// mediaSingle.width(퍼센트)가 결정한다.
+export function adfVideoMediaSingle(src: MediaSource) {
+  return {
+    type: "mediaSingle",
+    attrs: { layout: "align-start", width: 100 },
+    content: [adfMediaNode(src, { width: 16, height: 9 })],
+  };
+}
