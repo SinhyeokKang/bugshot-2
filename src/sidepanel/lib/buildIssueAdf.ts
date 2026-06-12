@@ -5,6 +5,7 @@ import {
   type IssueSection,
 } from "@/store/settings-ui-store";
 import { IMAGE_PLACEHOLDER, VIDEO_PLACEHOLDER, inlineImagePlaceholder } from "@/lib/adf-sentinels";
+import { LOGS_LINK_LABEL } from "@/background/lib/adf-logs-link";
 import {
   resolveStyleElements,
   styleDomLabel,
@@ -245,7 +246,7 @@ function logsDetailNodes(): AdfNode[] {
   const nodes: AdfNode[] = [];
   segments.forEach((seg, i) => {
     if (seg) nodes.push({ type: "text", text: seg, marks: em });
-    if (i < segments.length - 1) nodes.push({ type: "text", text: "logs.html", marks: em });
+    if (i < segments.length - 1) nodes.push({ type: "text", text: LOGS_LINK_LABEL, marks: em });
   });
   return nodes;
 }
