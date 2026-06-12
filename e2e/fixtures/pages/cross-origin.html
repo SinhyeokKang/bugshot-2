@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <title>bugshot e2e cross-origin fixture</title>
+  </head>
+  <body>
+    <h1 id="title">cross-origin top</h1>
+    <script>
+      // 같은 fixture 서버를 localhost 호스트명으로 접근 — 127.0.0.1 top과 다른 origin이 된다.
+      const f = document.createElement("iframe");
+      f.id = "xframe";
+      f.src = `http://localhost:${location.port}/basic.html`;
+      f.width = "400";
+      f.height = "200";
+      document.body.appendChild(f);
+    </script>
+  </body>
+</html>

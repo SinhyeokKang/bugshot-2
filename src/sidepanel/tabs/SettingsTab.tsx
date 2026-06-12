@@ -39,7 +39,7 @@ export function SettingsTab({ sub, onSubChange }: { sub: string; onSubChange: (v
     >
       <div className="shrink-0 border-b border-border px-4 py-4">
         <CollapsingTabsList className="grid h-9 w-full grid-cols-3">
-          <TabsTrigger value="issue" className="min-w-0 gap-1.5">
+          <TabsTrigger value="issue" className="min-w-0 gap-1.5" data-testid="settings-sub-issue">
             <StickyNote className="h-3.5 w-3.5 shrink-0" />
             <TabLabel>{t("settings.tab.issue")}</TabLabel>
           </TabsTrigger>

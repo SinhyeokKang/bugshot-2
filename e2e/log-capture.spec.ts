@@ -3,7 +3,7 @@ import { enterDebug, expect, test } from "./fixtures/extension";
 // 패널이 열리면 useBackgroundRecorder가 console/network 레코더를 자동 주입(sentinel 발행)한다.
 // 활성화 완료 신호가 없어, 로그 발생 + sync 주기(1500ms) 대기를 polling으로 반복해
 // 첫 캡처가 잡힐 때까지 기다린다. action 로그는 video 모드 종속 뷰라 여기서 다루지 않는다(수동 잔여).
-// cross-origin iframe origin 필터도 단일 fixture 서버 origin 제약으로 수동 잔여.
+// origin 필터·cross-page 누적·iframe 캡처는 logs-*.spec.ts에서 별도 커버.
 test.describe.serial("log capture", () => {
   test("console 로그 수집 → 항목 표시 → clear", async ({ ext }) => {
     const fixture = await ext.context.newPage();
@@ -35,7 +35,7 @@ test.describe.serial("log capture", () => {
     await fixture.close();
   });
 
-  test("network 요청 수집 → 항목 표시", async ({ ext }) => {
+  test("network 요청 수집 → 상세 status 표시 → clear", async ({ ext }) => {
     const fixture = await ext.context.newPage();
     await fixture.goto(ext.fixtureUrl("basic.html"));
     const tabId = await ext.fixtureTabId();
@@ -55,6 +55,14 @@ test.describe.serial("log capture", () => {
       await panel.waitForTimeout(1700);
       await expect(panel.locator("[data-entry-id]")).not.toHaveCount(0);
     }).toPass({ timeout: 30_000, intervals: [0] });
+
+    // 상세 — fixture 서버는 /e2e-ping-*에 404를 주므로 완료 후 status가 표시돼야 한다.
+    await panel.locator("[data-entry-id]").first().click();
+    await expect(panel.getByText(/404/).first()).toBeVisible();
+
+    // clear → 비움 (console-clear와 대칭).
+    await panel.getByTestId("network-clear").click();
+    await expect(panel.locator("[data-entry-id]")).toHaveCount(0);
 
     await panel.close();
     await fixture.close();

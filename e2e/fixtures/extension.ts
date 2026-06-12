@@ -47,7 +47,11 @@ function startFixtureServer(): Promise<{ server: Server; port: number }> {
     });
     server.on("error", reject);
     // 포트 0(ephemeral) 바인딩 — 실포트를 fixtureUrl에 반영해 점유 충돌 원천 제거.
-    server.listen(0, "127.0.0.1", () => {
+    // host 미지정(전 인터페이스) — localhost(::1 포함)로도 접속돼 cross-origin 재현에 쓴다
+    // (127.0.0.1 vs localhost는 같은 서버지만 origin이 다르다 → origin 필터 spec).
+    // trade-off: 테스트 동안 LAN 노출(정적 HTML + 경로 탈출 가드로 실위험 낮음),
+    // macOS 방화벽 활성 시 최초 1회 수신 허용 프롬프트 가능.
+    server.listen(0, () => {
       const addr = server.address();
       if (typeof addr === "object" && addr) resolve({ server, port: addr.port });
       else reject(new Error("fixture server: 포트를 확인할 수 없음"));

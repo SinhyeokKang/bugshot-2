@@ -39,12 +39,14 @@ export function Section({
   children,
   collapsible,
   defaultOpen = true,
+  testId,
 }: {
   title?: React.ReactNode;
   action?: React.ReactNode;
   children: React.ReactNode;
   collapsible?: boolean;
   defaultOpen?: boolean;
+  testId?: string;
 }) {
   const [open, setOpen] = React.useState(defaultOpen);
   React.useEffect(() => {
@@ -52,7 +54,7 @@ export function Section({
   }, [defaultOpen]);
 
   return (
-    <section className="border-b border-border py-6 last:border-b-0">
+    <section className="border-b border-border py-6 last:border-b-0" data-testid={testId}>
       <div className="flex flex-col gap-3 px-4">
         {title || action ? (
           <div className="flex items-center justify-between gap-2">
