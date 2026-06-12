@@ -2,6 +2,7 @@ import { useT } from "@/i18n";
 import type { LinearDefaults } from "@/types/linear";
 import { FieldRow } from "@/sidepanel/components/FieldRow";
 import { AssigneeCombobox } from "./AssigneeCombobox";
+import { CcCombobox } from "./CcCombobox";
 import { LabelCombobox } from "./LabelCombobox";
 import { PrioritySelect } from "./PrioritySelect";
 import { ProjectCombobox } from "./ProjectCombobox";
@@ -18,6 +19,7 @@ export interface LinearIssueFieldsValue {
   assigneeId?: string;
   assigneeName?: string;
   priority?: number;
+  cc?: { id: string; name: string }[];
 }
 
 export function initialLinearFields(
@@ -36,6 +38,7 @@ export function initialLinearFields(
       assigneeId: defaults?.assigneeId,
       assigneeName: undefined,
       priority: defaults?.priority,
+      cc: undefined,
     };
   }
   // 같은 팀이면 defaults를 fallback으로 사용 (팀 스코프 필드이므로 다른 팀이면 무시)
@@ -51,6 +54,7 @@ export function initialLinearFields(
     assigneeId: last.assigneeId ?? fb?.assigneeId,
     assigneeName: last.assigneeName,
     priority: last.priority ?? fb?.priority,
+    cc: last.cc,
   };
 }
 
@@ -84,6 +88,7 @@ export function LinearIssueFields({ value, onChange }: Props) {
                     labelName: undefined,
                     assigneeId: undefined,
                     assigneeName: undefined,
+                    cc: undefined,
                   }
                 : {
                     teamId: undefined,
@@ -95,6 +100,7 @@ export function LinearIssueFields({ value, onChange }: Props) {
                     labelName: undefined,
                     assigneeId: undefined,
                     assigneeName: undefined,
+                    cc: undefined,
                   },
             )
           }
@@ -122,6 +128,13 @@ export function LinearIssueFields({ value, onChange }: Props) {
           value={value.assigneeId}
           valueName={value.assigneeName}
           onChange={(assigneeId, assigneeName) => onChange({ assigneeId, assigneeName })}
+        />
+      </FieldRow>
+      <FieldRow label={t("field.cc.label")}>
+        <CcCombobox
+          teamId={value.teamId}
+          value={value.cc ?? []}
+          onChange={(cc) => onChange({ cc })}
         />
       </FieldRow>
       <FieldRow label={t("linear.field.priority")}>

@@ -1,7 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   buildNotionAuthHeader,
+  expandBlock,
   footerBlockObjects,
+  listUsers,
   messageForNotionStatus,
   parseDatabaseSchema,
   parsePageStatus,
@@ -232,5 +234,87 @@ describe("footerBlockObjects — Reported via *BugShot* (HR + italic)", () => {
         },
       },
     ]);
+  });
+});
+
+describe("listUsers", () => {
+  const auth = { kind: "apiKey", token: "secret_x", botName: "Bot" } as const;
+
+  function pageResponse(body: unknown): Response {
+    return { ok: true, status: 200, json: async () => body } as Response;
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("start_cursor 페이지네이션으로 전량 로드 + bot 필터", async () => {
+    const f = vi
+      .fn()
+      .mockResolvedValueOnce(
+        pageResponse({
+          results: [
+            { id: "u1", type: "person", name: "Alice", avatar_url: "https://a/1.png" },
+            { id: "b1", type: "bot", name: "BugShot Bot" },
+          ],
+          has_more: true,
+          next_cursor: "cur2",
+        }),
+      )
+      .mockResolvedValueOnce(
+        pageResponse({
+          results: [{ id: "u2", type: "person", name: "Bob", avatar_url: null }],
+          has_more: false,
+          next_cursor: null,
+        }),
+      );
+    vi.stubGlobal("fetch", f);
+
+    const users = await listUsers(auth);
+
+    expect(f).toHaveBeenCalledTimes(2);
+    expect(f.mock.calls[0][0]).toContain("/users?page_size=100");
+    expect(f.mock.calls[1][0]).toContain("start_cursor=cur2");
+    expect(users).toEqual([
+      { id: "u1", name: "Alice", avatarUrl: "https://a/1.png" },
+      { id: "u2", name: "Bob", avatarUrl: undefined },
+    ]);
+  });
+
+  it("has_more=false 단일 페이지면 1회 호출", async () => {
+    const f = vi.fn().mockResolvedValue(
+      pageResponse({
+        results: [{ id: "u1", type: "person", name: "Alice" }],
+        has_more: false,
+        next_cursor: null,
+      }),
+    );
+    vi.stubGlobal("fetch", f);
+
+    const users = await listUsers(auth);
+    expect(f).toHaveBeenCalledTimes(1);
+    expect(users).toHaveLength(1);
+  });
+});
+
+describe("expandBlock mention_paragraph", () => {
+  it('"cc " 텍스트 + user mention rich text(쉼표 구분)로 전개', () => {
+    expect(
+      expandBlock(
+        { type: "mention_paragraph", userIds: ["id1", "id2"] },
+        new Map(),
+      ),
+    ).toEqual({
+      object: "block",
+      type: "paragraph",
+      paragraph: {
+        rich_text: [
+          { type: "text", text: { content: "cc " } },
+          { type: "mention", mention: { user: { id: "id1" } } },
+          { type: "text", text: { content: ", " } },
+          { type: "mention", mention: { user: { id: "id2" } } },
+        ],
+      },
+    });
   });
 });

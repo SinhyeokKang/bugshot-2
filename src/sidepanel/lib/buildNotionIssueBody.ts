@@ -35,6 +35,7 @@ export interface NotionBuildInput {
   video?: NotionMediaInput;
   logs?: NotionMediaInput[];
   inlineImageRefIds?: string[];
+  cc?: string[];
 }
 
 export interface NotionBuildResult {
@@ -227,6 +228,10 @@ export function buildNotionIssueBody(
   }
 
   emitMedia();
+
+  if (input.cc?.length) {
+    blocks.push({ type: "mention_paragraph", userIds: input.cc });
+  }
   // 'Reported via *BugShot*' 푸터는 createPage가 첨부 섹션 뒤에 직접 append (본문 가장 하단 보장).
 
   return { blocks, attachments };

@@ -6,6 +6,7 @@ import {
 } from "@/store/settings-ui-store";
 import { IMAGE_PLACEHOLDER, VIDEO_PLACEHOLDER, inlineImagePlaceholder } from "@/lib/adf-sentinels";
 import { LOGS_LINK_LABEL } from "@/background/lib/adf-logs-link";
+import { ccAdfParagraph } from "./ccMention";
 import {
   resolveStyleElements,
   styleDomLabel,
@@ -42,7 +43,11 @@ function listItems(content: string): string[] {
     .filter(Boolean);
 }
 
-export function buildIssueAdf(ctx: MarkdownContext, inlineImageRefIds?: string[]): AdfDoc {
+export function buildIssueAdf(
+  ctx: MarkdownContext,
+  inlineImageRefIds?: string[],
+  cc?: { accountId: string; displayName: string }[],
+): AdfDoc {
   const content: AdfNode[] = [];
   const uploadedRefSet = new Set(inlineImageRefIds ?? []);
   const isVideo = ctx.captureMode === "video";
@@ -126,6 +131,9 @@ export function buildIssueAdf(ctx: MarkdownContext, inlineImageRefIds?: string[]
   }
 
   emitMedia();
+
+  const ccParagraph = ccAdfParagraph(cc ?? []);
+  if (ccParagraph) content.push(ccParagraph);
 
   content.push({ type: "rule" });
   content.push(footerParagraph());

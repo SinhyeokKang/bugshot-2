@@ -9,6 +9,7 @@ import {
   styleDomLabel,
   type MarkdownContext,
 } from "./buildIssueMarkdown";
+import { ccMarkdownLine } from "./ccMention";
 import { filterEnvironmentRows } from "./environmentRows";
 import { formatTimestamp } from "./formatTimestamp";
 
@@ -21,6 +22,7 @@ export interface LinearBuildInput {
   ctx: MarkdownContext;
   images?: LinearMediaInput[];
   video?: LinearMediaInput;
+  cc?: string[];
 }
 
 export interface LinearBuildResult {
@@ -151,6 +153,9 @@ export function buildLinearIssueBody(
   }
 
   emitMedia();
+
+  const ccLine = ccMarkdownLine(input.cc ?? []);
+  if (ccLine) lines.push(ccLine, "");
 
   lines.push("---", "");
   lines.push(footerMarkdown(), "");

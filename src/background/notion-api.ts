@@ -10,6 +10,7 @@ import type {
   NotionPageStatus,
   NotionPropertySchema,
   NotionRichText as NotionRichTextBlock,
+  NotionUser,
 } from "@/types/notion";
 import { OAuthError } from "./oauth";
 
@@ -161,6 +162,37 @@ export async function searchDatabases(
     title: joinRichText(r.title) || t("notion.field.databaseUntitled"),
     iconEmoji: r.icon?.type === "emoji" ? r.icon.emoji : undefined,
   }));
+}
+
+interface NotionUserRaw {
+  id: string;
+  type?: "person" | "bot";
+  name?: string;
+  avatar_url?: string | null;
+}
+
+export async function listUsers(auth: NotionAuth): Promise<NotionUser[]> {
+  const users: NotionUser[] = [];
+  let cursor: string | undefined;
+  do {
+    const params = new URLSearchParams({ page_size: "100" });
+    if (cursor) params.set("start_cursor", cursor);
+    const data = await notionFetch<{
+      results: NotionUserRaw[];
+      has_more: boolean;
+      next_cursor: string | null;
+    }>(auth, `/users?${params.toString()}`);
+    for (const u of data.results) {
+      if (u.type !== "person") continue;
+      users.push({
+        id: u.id,
+        name: u.name ?? "",
+        avatarUrl: u.avatar_url ?? undefined,
+      });
+    }
+    cursor = data.has_more && data.next_cursor ? data.next_cursor : undefined;
+  } while (cursor);
+  return users;
 }
 
 export function parseDatabaseSchema(
@@ -379,7 +411,7 @@ export function footerBlockObjects(): NotionBlockObject[] {
   ];
 }
 
-function expandBlock(
+export function expandBlock(
   block: NotionCreatePagePayload["blocks"][number],
   attachmentMap: Map<string, { fileUploadId: string; filename: string }>,
 ): NotionBlockObject | null {
@@ -480,6 +512,18 @@ function expandBlock(
         type: "quote",
         quote: { rich_text: expandRichText(block.richText) },
       };
+    case "mention_paragraph": {
+      const rich: unknown[] = [{ type: "text", text: { content: "cc " } }];
+      block.userIds.forEach((id, i) => {
+        if (i > 0) rich.push({ type: "text", text: { content: ", " } });
+        rich.push({ type: "mention", mention: { user: { id } } });
+      });
+      return {
+        object: "block",
+        type: "paragraph",
+        paragraph: { rich_text: rich },
+      };
+    }
     case "divider":
       return {
         object: "block",

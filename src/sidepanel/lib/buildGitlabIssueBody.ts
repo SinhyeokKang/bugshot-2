@@ -9,6 +9,7 @@ import {
   styleDomLabel,
   type MarkdownContext,
 } from "./buildIssueMarkdown";
+import { ccMarkdownLine } from "./ccMention";
 import { filterEnvironmentRows } from "./environmentRows";
 import { formatTimestamp } from "./formatTimestamp";
 
@@ -23,6 +24,7 @@ export interface GitlabBuildInput {
   images?: GitlabMediaInput[];
   video?: GitlabMediaInput;
   logs?: GitlabMediaInput[];
+  cc?: string[];
 }
 
 export interface GitlabBuildResult {
@@ -161,6 +163,9 @@ export function buildGitlabIssueBody(
     ...logs,
   ];
   emitAttachments(lines, attached, extras);
+
+  const ccLine = ccMarkdownLine(input.cc ?? []);
+  if (ccLine) lines.push(ccLine, "");
 
   lines.push("---", "");
   lines.push(footerMarkdown(), "");

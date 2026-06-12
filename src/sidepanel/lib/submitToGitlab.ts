@@ -26,6 +26,7 @@ export interface GitlabSubmitInput {
   projectId: number;
   label?: string;
   assigneeId?: number;
+  cc?: string[];
 }
 
 function toUploadEntry(f: GitlabFileInput) {
@@ -96,6 +97,7 @@ export async function submitToGitlab(
     images: imageInputs.length > 0 ? imageInputs.map(toMedia) : undefined,
     video: input.video ? toMedia(input.video) : undefined,
     logs: logs.map(toMedia),
+    cc: input.cc,
   });
 
   const result = await sendBg<GitlabCreateIssueResult>({

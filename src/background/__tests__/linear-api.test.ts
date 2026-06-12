@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/i18n", () => ({
   t: (key: string, params?: Record<string, string | number>) => {
@@ -13,6 +13,7 @@ vi.mock("@/i18n", () => ({
 
 import {
   buildLinearAuthHeader,
+  createIssue,
   extractLinearErrors,
   messageForLinearStatus,
   sortWorkflowStates,
@@ -153,5 +154,57 @@ describe("sortWorkflowStates", () => {
 
     sortWorkflowStates(states);
     expect(states).toEqual(original);
+  });
+});
+
+describe("createIssue — subscriberIds", () => {
+  const auth = { kind: "apiKey", apiKey: "lin_api_xxx", viewerName: "u" } as const;
+
+  function mockFetch() {
+    const f = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        data: {
+          issueCreate: {
+            success: true,
+            issue: { id: "i1", identifier: "BUG-1", url: "https://linear.app/i/BUG-1" },
+          },
+        },
+      }),
+    } as Response);
+    vi.stubGlobal("fetch", f);
+    return f;
+  }
+
+  function sentInput(f: ReturnType<typeof mockFetch>) {
+    const init = f.mock.calls[0][1] as RequestInit;
+    return JSON.parse(init.body as string).variables.input as Record<string, unknown>;
+  }
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("subscriberIds 있으면 input에 포함", async () => {
+    const f = mockFetch();
+    await createIssue(auth, {
+      teamId: "t1",
+      title: "T",
+      description: "d",
+      subscriberIds: ["u1", "u2"],
+    });
+    expect(sentInput(f).subscriberIds).toEqual(["u1", "u2"]);
+  });
+
+  it("subscriberIds 없으면(빈 배열 포함) input에서 제외", async () => {
+    const f = mockFetch();
+    await createIssue(auth, {
+      teamId: "t1",
+      title: "T",
+      description: "d",
+      subscriberIds: [],
+    });
+    expect(sentInput(f)).not.toHaveProperty("subscriberIds");
   });
 });

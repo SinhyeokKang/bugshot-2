@@ -81,6 +81,7 @@ import {
   getDatabaseSchema as getNotionDatabaseSchema,
   getMyself as notionGetMyself,
   getPageStatus as getNotionPageStatus,
+  listUsers as listNotionUsers,
   searchDatabases as searchNotionDatabases,
   updatePageStatus as updateNotionPageStatus,
   uploadFile as uploadNotionFile,
@@ -339,6 +340,9 @@ export async function handleMessage(
 
     case "notion.getMyself":
       return notionGetMyself(await loadNotionAuth());
+
+    case "notion.listUsers":
+      return listNotionUsers(await loadNotionAuth());
 
     case "notion.searchDatabases":
       return searchNotionDatabases(await loadNotionAuth(), message.query);

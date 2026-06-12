@@ -7,6 +7,7 @@ import type {
 } from "@/types/notion";
 import { sendBg } from "@/types/messages";
 import { FieldRow } from "@/sidepanel/components/FieldRow";
+import { CcCombobox } from "./CcCombobox";
 import { DatabaseCombobox } from "./DatabaseCombobox";
 import { PropertiesFieldset } from "./PropertiesFieldset";
 import { StatusSelect } from "./StatusSelect";
@@ -23,6 +24,7 @@ export interface NotionIssueFieldsValue {
   databaseTitle?: string;
   statusOption?: string;
   selectValues: NotionSelectFieldValue[];
+  cc?: { id: string; name: string }[];
 }
 
 export function initialNotionFields(
@@ -37,6 +39,7 @@ export function initialNotionFields(
       databaseTitle: last.databaseTitle ?? fb?.databaseTitle,
       statusOption: last.statusOption ?? fb?.statusOption,
       selectValues: last.selectValues ?? fb?.selectValues ?? [],
+      cc: last.cc,
     };
   }
   if (defaults?.databaseId) {
@@ -146,6 +149,10 @@ export function NotionIssueFields({ value, onChange, onSchemaResolved }: Props) 
           onChange={(next) => onChange({ selectValues: next })}
         />
       ) : null}
+
+      <FieldRow label={t("field.cc.label")}>
+        <CcCombobox value={value.cc ?? []} onChange={(cc) => onChange({ cc })} />
+      </FieldRow>
     </div>
   );
 }

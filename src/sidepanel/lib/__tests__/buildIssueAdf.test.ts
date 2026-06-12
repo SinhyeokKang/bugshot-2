@@ -465,3 +465,29 @@ describe("buildIssueAdf — 요소 캡처 (screenshot + selector)", () => {
     expect(texts.some((t) => t.text?.includes("button.cta"))).toBe(true);
   });
 });
+
+describe("cc 멘션", () => {
+  it("cc 있으면 rule 직전에 mention paragraph", () => {
+    const doc = buildIssueAdf(makeCtx(), undefined, [
+      { accountId: "id1", displayName: "Alice" },
+      { accountId: "id2", displayName: "Bob" },
+    ]);
+    const ruleIdx = doc.content.findIndex((n) => n.type === "rule");
+    expect(ruleIdx).toBeGreaterThan(0);
+    expect(doc.content[ruleIdx - 1]).toEqual({
+      type: "paragraph",
+      content: [
+        { type: "text", text: "cc " },
+        { type: "mention", attrs: { id: "id1", text: "@Alice" } },
+        { type: "text", text: ", " },
+        { type: "mention", attrs: { id: "id2", text: "@Bob" } },
+      ],
+    });
+  });
+
+  it("cc 미지정·undefined·빈 배열 모두 기존 출력과 등치", () => {
+    const base = buildIssueAdf(makeCtx());
+    expect(buildIssueAdf(makeCtx(), undefined, undefined)).toEqual(base);
+    expect(buildIssueAdf(makeCtx(), undefined, [])).toEqual(base);
+  });
+});

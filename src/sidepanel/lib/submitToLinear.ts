@@ -27,6 +27,7 @@ export interface LinearSubmitInput {
   labelId?: string;
   assigneeId?: string;
   priority?: number;
+  cc?: { id: string; name: string }[];
 }
 
 async function uploadFile(file: LinearFileInput): Promise<LinearMediaInput> {
@@ -84,6 +85,7 @@ export async function submitToLinear(
     ctx: resolvedCtx,
     images: imageResults,
     video: videoResult ?? undefined,
+    cc: input.cc?.map((u) => u.name),
   });
 
   const result = await sendBg<LinearCreateIssueResult>({
@@ -96,6 +98,7 @@ export async function submitToLinear(
       labelId: input.labelId,
       assigneeId: input.assigneeId,
       priority: input.priority,
+      subscriberIds: input.cc?.length ? input.cc.map((u) => u.id) : undefined,
     },
   });
 

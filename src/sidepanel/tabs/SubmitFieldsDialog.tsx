@@ -181,7 +181,22 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
       onOpenChange(false);
       onSuccess?.(result);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : String(err));
+      const ccCount =
+        platform === "jira"
+          ? jiraFields.cc?.length
+          : platform === "github"
+            ? ghFields.cc?.length
+            : platform === "linear"
+              ? linearFields.cc?.length
+              : platform === "gitlab"
+                ? gitlabFields.cc?.length
+                : platform === "asana"
+                  ? asanaFields.cc?.length
+                  : notionFields.cc?.length;
+      toast.error(
+        err instanceof Error ? err.message : String(err),
+        ccCount ? { description: t("field.cc.submitErrorHint") } : undefined,
+      );
       setSubmit({ status: "idle" });
     }
   }
@@ -196,7 +211,7 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="w-[80vw] max-w-[80vw] gap-5 rounded-3xl p-6 sm:rounded-3xl">
+      <DialogContent className="max-h-[80vh] w-[80vw] max-w-[80vw] gap-5 overflow-y-auto rounded-3xl p-6 sm:rounded-3xl">
         <DialogHeader>
           <DialogTitle className="text-xl">{title ?? t("issue.submit")}</DialogTitle>
         </DialogHeader>

@@ -26,6 +26,7 @@ export interface GithubSubmitInput {
   repo: string;
   label?: string;
   assignee?: string;
+  cc?: string[];
 }
 
 function toUploadEntry(f: GithubFileInput) {
@@ -95,6 +96,7 @@ export async function submitToGithub(
     images: imageInputs.length > 0 ? imageInputs.map(toMedia) : undefined,
     video: input.video ? toMedia(input.video) : undefined,
     logs: logs.map(toMedia),
+    cc: input.cc,
   });
 
   const result = await sendBg<GithubCreateIssueResult>({

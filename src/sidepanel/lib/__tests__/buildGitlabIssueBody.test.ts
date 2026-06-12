@@ -168,3 +168,20 @@ describe("buildGitlabIssueBody — element 복수", () => {
     expect(out.body).toContain("logSummary.logs.detail file=logs.html");
   });
 });
+
+describe("cc 멘션", () => {
+  it("cc 줄이 --- 푸터 직전에 위치", () => {
+    const out = buildGitlabIssueBody({ ctx: makeCtx(), cc: ["alice", "bob"] });
+    const lines = out.body.split("\n");
+    const idx = lines.indexOf("cc @alice, @bob");
+    expect(idx).toBeGreaterThan(-1);
+    expect(lines[idx + 2]).toBe("---");
+    expect(lines[idx + 4]).toContain("Reported via");
+  });
+
+  it("cc 미지정·undefined·빈 배열 모두 기존 출력과 등치", () => {
+    const base = buildGitlabIssueBody({ ctx: makeCtx() });
+    expect(buildGitlabIssueBody({ ctx: makeCtx(), cc: undefined })).toEqual(base);
+    expect(buildGitlabIssueBody({ ctx: makeCtx(), cc: [] })).toEqual(base);
+  });
+});

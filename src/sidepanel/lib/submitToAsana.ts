@@ -1,5 +1,6 @@
 import { buildAsanaIssueBody, type AsanaMediaInput } from "./buildAsanaIssueBody";
 import { resolveStyleElements, type MarkdownContext } from "./buildIssueMarkdown";
+import { injectAsanaCc } from "./ccMention";
 import {
   markdownToAsanaHtml,
   type AsanaInlineImage,
@@ -30,6 +31,7 @@ export interface AsanaSubmitInput {
   assigneeGid?: string;
   // 본문(섹션)에 직접 붙여넣은 인라인 이미지 — 캡처 이미지와 동일하게 업로드 후 GID로 인라인.
   inlineImages?: InlineImageInput[];
+  cc?: { gid: string }[];
 }
 
 function imageExtFromDataUrl(dataUrl: string): string {
@@ -143,11 +145,15 @@ export async function submitToAsana(
     ...logs,
   ];
 
+  const cc = input.cc ?? [];
   const { body } = buildAsanaIssueBody({
     ctx,
     images: imageInputs.length > 0 ? imageInputs.map(toMedia) : undefined,
+    hasCc: cc.length > 0,
   });
-  const htmlNotes = markdownToAsanaHtml(body);
+  // cc 없으면 sentinel도 없다 — 사용자가 본문에 입력한 동일 문자열을 지우지 않게 치환 자체를 건너뛴다.
+  const baseHtml = markdownToAsanaHtml(body);
+  const htmlNotes = cc.length > 0 ? injectAsanaCc(baseHtml, cc) : baseHtml;
 
   // Asana attachment는 parent task gid가 필수 → createTask 먼저, 그다음 첨부 (Jira 패턴).
   const task = await sendBg<AsanaCreateTaskResult>({
@@ -207,10 +213,12 @@ export async function submitToAsana(
     );
     if (Object.keys(imageRefs).length > 0) {
       try {
+        // injectAsanaCc 누락 시 2차 write가 cc를 sentinel 문자열로 되돌린다.
+        const updatedHtml = markdownToAsanaHtml(body, imageRefs);
         await sendBg({
           type: "asana.updateTaskNotes",
           taskGid: task.gid,
-          htmlNotes: markdownToAsanaHtml(body, imageRefs),
+          htmlNotes: cc.length > 0 ? injectAsanaCc(updatedHtml, cc) : updatedHtml,
         });
       } catch {
         // 본문 갱신 실패해도 task·첨부는 보존 (이미지는 task 첨부로 남음).

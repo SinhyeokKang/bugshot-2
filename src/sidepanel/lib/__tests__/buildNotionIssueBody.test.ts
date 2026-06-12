@@ -657,3 +657,19 @@ describe("buildNotionIssueBody — 요소 캡처 (screenshot + selector)", () =>
     expect(bullets.some((b) => "text" in b && b.text.startsWith("DOM:"))).toBe(false);
   });
 });
+
+describe("cc 멘션", () => {
+  it("cc 있으면 blocks 마지막이 mention_paragraph", () => {
+    const out = buildNotionIssueBody({ ctx: makeCtx(), cc: ["u1", "u2"] });
+    expect(out.blocks[out.blocks.length - 1]).toEqual({
+      type: "mention_paragraph",
+      userIds: ["u1", "u2"],
+    });
+  });
+
+  it("cc 미지정·undefined·빈 배열 모두 기존 출력과 등치", () => {
+    const base = buildNotionIssueBody({ ctx: makeCtx() });
+    expect(buildNotionIssueBody({ ctx: makeCtx(), cc: undefined })).toEqual(base);
+    expect(buildNotionIssueBody({ ctx: makeCtx(), cc: [] })).toEqual(base);
+  });
+});

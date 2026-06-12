@@ -484,3 +484,20 @@ describe("buildGithubIssueBody — 요소 캡처 (screenshot + selector)", () =>
     expect(out.body).not.toContain("**DOM**");
   });
 });
+
+describe("cc 멘션", () => {
+  it("cc 줄이 --- 푸터 직전에 위치", () => {
+    const out = buildGithubIssueBody({ ctx: makeCtx(), cc: ["alice", "bob"] });
+    const lines = out.body.split("\n");
+    const idx = lines.indexOf("cc @alice, @bob");
+    expect(idx).toBeGreaterThan(-1);
+    expect(lines[idx + 2]).toBe("---");
+    expect(lines[idx + 4]).toContain("Reported via");
+  });
+
+  it("cc 미지정·undefined·빈 배열 모두 기존 출력과 등치", () => {
+    const base = buildGithubIssueBody({ ctx: makeCtx() });
+    expect(buildGithubIssueBody({ ctx: makeCtx(), cc: undefined })).toEqual(base);
+    expect(buildGithubIssueBody({ ctx: makeCtx(), cc: [] })).toEqual(base);
+  });
+});

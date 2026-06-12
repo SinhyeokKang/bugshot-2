@@ -291,7 +291,7 @@ export function IssueCreateModal() {
       throw new Error(t("platform.notConnected.title", { platform: t("platform.tab.jira") }));
     }
     if (!issueFields.issueTypeId) throw new Error(t("create.requiredMissing"));
-    const description: AdfDoc = buildIssueAdf(ctx, inlineImages.map((i) => i.refId));
+    const description: AdfDoc = buildIssueAdf(ctx, inlineImages.map((i) => i.refId), issueFields.cc);
     const rawAttachments: JiraAttachmentInput[] = [
       buildAiMetaAttachment(ctx),
       ...captureFiles.images,
@@ -338,6 +338,7 @@ export function IssueCreateModal() {
       parentLabel: issueFields.parentLabel,
       relatesKey: issueFields.relatesKey,
       relatesLabel: issueFields.relatesLabel,
+      cc: issueFields.cc,
     });
     useSettingsStore.getState().setLastSubmittedPlatform("jira");
     onSubmitted({ key: result.key, url: result.url, platform: "jira", logsDropped: result.logsDropped });
@@ -364,6 +365,7 @@ export function IssueCreateModal() {
       repo: ghFields.repo,
       label: ghFields.label,
       assignee: ghFields.assignee,
+      cc: ghFields.cc,
     });
     if (currentIssueId) {
       markSubmitted(currentIssueId, {
@@ -380,6 +382,7 @@ export function IssueCreateModal() {
       repo: ghFields.repo,
       label: ghFields.label,
       assignee: ghFields.assignee,
+      cc: ghFields.cc,
     });
     useSettingsStore.getState().setLastSubmittedPlatform("github");
     onSubmitted({ key: result.key, url: result.url, platform: "github", logsDropped: result.logsDropped });
@@ -407,6 +410,7 @@ export function IssueCreateModal() {
       labelId: linearFields.labelId,
       assigneeId: linearFields.assigneeId,
       priority: linearFields.priority,
+      cc: linearFields.cc,
     });
     if (currentIssueId) {
       markSubmitted(currentIssueId, {
@@ -429,6 +433,7 @@ export function IssueCreateModal() {
       assigneeId: linearFields.assigneeId,
       assigneeName: linearFields.assigneeName,
       priority: linearFields.priority,
+      cc: linearFields.cc,
     });
     useSettingsStore.getState().setLastSubmittedPlatform("linear");
     onSubmitted({ key: result.key, url: result.url, platform: "linear", logsDropped: result.logsDropped });
@@ -461,6 +466,7 @@ export function IssueCreateModal() {
           }
         : undefined,
       selectValues: notionFields.selectValues,
+      cc: notionFields.cc?.map((u) => u.id),
     });
     if (currentIssueId) {
       const pageId = extractNotionPageId(result.url);
@@ -479,6 +485,7 @@ export function IssueCreateModal() {
       databaseTitle: notionFields.databaseTitle,
       statusOption: notionFields.statusOption,
       selectValues: notionFields.selectValues,
+      cc: notionFields.cc,
     });
     useSettingsStore.getState().setLastSubmittedPlatform("notion");
     onSubmitted({ key: result.key, url: result.url, platform: "notion", logsDropped: result.logsDropped });
@@ -504,6 +511,7 @@ export function IssueCreateModal() {
       projectId: gitlabFields.projectId,
       label: gitlabFields.label,
       assigneeId: gitlabFields.assigneeId,
+      cc: gitlabFields.cc?.map((u) => u.username),
     });
     if (currentIssueId) {
       markSubmitted(currentIssueId, {
@@ -521,6 +529,7 @@ export function IssueCreateModal() {
       label: gitlabFields.label,
       assigneeId: gitlabFields.assigneeId,
       assigneeName: gitlabFields.assigneeName,
+      cc: gitlabFields.cc,
     });
     useSettingsStore.getState().setLastSubmittedPlatform("gitlab");
     onSubmitted({ key: result.key, url: result.url, platform: "gitlab", logsDropped: result.logsDropped });
@@ -546,6 +555,7 @@ export function IssueCreateModal() {
       workspaceGid: asanaFields.workspaceGid,
       projectGid: asanaFields.projectGid,
       assigneeGid: asanaFields.assigneeGid,
+      cc: asanaFields.cc,
     });
     if (currentIssueId) {
       markSubmitted(currentIssueId, {
@@ -562,6 +572,7 @@ export function IssueCreateModal() {
       projectName: asanaFields.projectName,
       assigneeGid: asanaFields.assigneeGid,
       assigneeName: asanaFields.assigneeName,
+      cc: asanaFields.cc,
     });
     useSettingsStore.getState().setLastSubmittedPlatform("asana");
     onSubmitted({ key: result.key, url: result.url, platform: "asana", logsDropped: result.logsDropped });

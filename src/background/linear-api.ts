@@ -207,6 +207,7 @@ export async function createIssue(
   if (payload.assigneeId) input.assigneeId = payload.assigneeId;
   if (payload.labelId) input.labelIds = [payload.labelId];
   if (payload.priority != null) input.priority = payload.priority;
+  if (payload.subscriberIds?.length) input.subscriberIds = payload.subscriberIds;
   const data = await linearGraphQL<{
     issueCreate: {
       success: boolean;

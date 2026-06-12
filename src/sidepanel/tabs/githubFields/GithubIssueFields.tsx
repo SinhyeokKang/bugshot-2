@@ -1,5 +1,6 @@
 import { useT } from "@/i18n";
 import { AssigneeCombobox } from "./AssigneeCombobox";
+import { CcCombobox } from "./CcCombobox";
 import { LabelCombobox } from "./LabelCombobox";
 import { RepoCombobox, type RepoValue } from "./RepoCombobox";
 import { FieldRow } from "@/sidepanel/components/FieldRow";
@@ -9,10 +10,13 @@ export interface GithubIssueFieldsValue {
   repo?: string;
   label?: string;
   assignee?: string;
+  cc?: string[];
 }
 
 export function initialGhFields(
-  last: { owner?: string; repo?: string; label?: string; assignee?: string } | undefined,
+  last:
+    | { owner?: string; repo?: string; label?: string; assignee?: string; cc?: string[] }
+    | undefined,
   defaults: { owner?: string; repo?: string; label?: string; assignee?: string } | undefined,
 ): GithubIssueFieldsValue {
   const src = last?.owner && last.repo ? last : defaults;
@@ -21,6 +25,7 @@ export function initialGhFields(
     repo: src?.repo,
     label: src?.label,
     assignee: src?.assignee,
+    cc: last?.owner && last.repo ? last.cc : undefined,
   };
 }
 
@@ -42,8 +47,8 @@ export function GithubIssueFields({ value, onChange }: Props) {
           onChange={(next) =>
             onChange(
               next
-                ? { owner: next.owner, repo: next.repo, label: undefined, assignee: undefined }
-                : { owner: undefined, repo: undefined, label: undefined, assignee: undefined },
+                ? { owner: next.owner, repo: next.repo, label: undefined, assignee: undefined, cc: undefined }
+                : { owner: undefined, repo: undefined, label: undefined, assignee: undefined, cc: undefined },
             )
           }
         />
@@ -62,6 +67,14 @@ export function GithubIssueFields({ value, onChange }: Props) {
           repo={value.repo}
           value={value.assignee}
           onChange={(assignee) => onChange({ assignee })}
+        />
+      </FieldRow>
+      <FieldRow label={t("field.cc.label")}>
+        <CcCombobox
+          owner={value.owner}
+          repo={value.repo}
+          value={value.cc ?? []}
+          onChange={(cc) => onChange({ cc })}
         />
       </FieldRow>
     </div>

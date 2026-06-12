@@ -14,10 +14,10 @@
 - **변경 대상**: `src/sidepanel/lib/ccMention.ts`(신규), `src/sidepanel/lib/__tests__/ccMention.test.ts`(신규)
 - **작업 내용**: `CC_SENTINEL`, `ccMarkdownLine`, `ccAdfParagraph`, `ccAsanaHtml`, `injectAsanaCc` 구현. design.md 시그니처 준수. `/tdd interface`로 테스트 먼저.
 - **검증**: `pnpm test ccMention`
-  - [ ] `ccMarkdownLine(["a","b"]) === "cc @a, @b"` (쉼표 구분), 빈 배열 → `""`
-  - [ ] `ccMarkdownLine`: 공백 포함 이름(`"Jane Doe"`) 경계 유지, 마크다운 특수문자 이름(`"a_b"`, `"x[y]"`, `"c*d"`) 백슬래시 이스케이프
-  - [ ] `ccAdfParagraph`: "cc " 텍스트 + 사용자별 mention 노드(`attrs.id`, `attrs.text="@Name"`) + 사이 ", " 텍스트, 빈 배열 → null
-  - [ ] `injectAsanaCc`: sentinel → 앵커 치환(쉼표 구분), users 비면 sentinel 제거, sentinel 없는 html은 그대로
+  - [x] `ccMarkdownLine(["a","b"]) === "cc @a, @b"` (쉼표 구분), 빈 배열 → `""`
+  - [x] `ccMarkdownLine`: 공백 포함 이름(`"Jane Doe"`) 경계 유지, 마크다운 특수문자 이름(`"a_b"`, `"x[y]"`, `"c*d"`) 백슬래시 이스케이프
+  - [x] `ccAdfParagraph`: "cc " 텍스트 + 사용자별 mention 노드(`attrs.id`, `attrs.text="@Name"`) + 사이 ", " 텍스트, 빈 배열 → null
+  - [x] `injectAsanaCc`: sentinel → 앵커 치환(쉼표 구분), users 비면 sentinel 제거, sentinel 없는 html은 그대로 (+ 사용자 입력 동일 문자열 충돌 방지 — 마지막 sentinel만 치환)
 
 ### Task 2: 타입·메시지·background API
 - **변경 대상**: `src/types/platform.ts`, `src/types/linear.ts`, `src/types/notion.ts`, `src/types/messages.ts`, `src/store/editor-store.ts`, `src/background/notion-api.ts`, `src/background/linear-api.ts`
@@ -28,22 +28,22 @@
   - `listUsers(auth)`: `/users?page_size=100` + `start_cursor` 페이지네이션 (`has_more` 동안 전량 로드 — 상한 없음, 합의됨)
   - `expandBlock`에 `mention_paragraph` → paragraph(`"cc "` text + user mention rich text, 쉼표 구분)
 - **검증**: `pnpm typecheck` + `pnpm test`
-  - [ ] `notion-api.test.ts`: listUsers 페이지네이션(2페이지 mock)·bot 필터, expandBlock mention_paragraph 전개 — fetch mock은 `asana-api.test.ts`의 `vi.stubGlobal("fetch", ...)` 패턴을 따른다 (notion-api.test.ts 최초의 fetch mock — 새 방식 발명 금지)
-  - [ ] `linear-api.test.ts`: subscriberIds 있으면 input 포함, 없으면 미포함
+  - [x] `notion-api.test.ts`: listUsers 페이지네이션(2페이지 mock)·bot 필터, expandBlock mention_paragraph 전개 — fetch mock은 `asana-api.test.ts`의 `vi.stubGlobal("fetch", ...)` 패턴을 따른다 (notion-api.test.ts 최초의 fetch mock — 새 방식 발명 금지)
+  - [x] `linear-api.test.ts`: subscriberIds 있으면 input 포함, 없으면 미포함
 
 ### Task 3: 본문 빌더 cc 삽입
 - **변경 대상**: `buildIssueAdf.ts`, `buildGithubIssueBody.ts`, `buildGitlabIssueBody.ts`, `buildLinearIssueBody.ts`, `buildNotionIssueBody.ts`, `buildAsanaIssueBody.ts` (모두 `src/sidepanel/lib/`)
 - **작업 내용**: design.md "본문 내 위치 규칙"대로 — 마크다운 3종은 `footerMarkdown()` 직전 `ccMarkdownLine` push, Jira는 `rule` 직전 `ccAdfParagraph` push, Notion은 blocks 마지막에 `mention_paragraph`, Asana는 푸터 직전 `CC_SENTINEL` 줄.
 - **검증**: 각 기존 테스트 파일에 케이스 추가 (`buildIssueAdf.test.ts` 등 6개)
-  - [ ] cc 있을 때: cc 요소가 푸터(또는 rule) 직전에 위치
-  - [ ] **출력 등치 테스트** (기존 테스트는 전부 `toContain`이라 회귀 그물이 없음): 동일 ctx에 대해 `buildX(ctx)` / `buildX(ctx, { cc: undefined })` / `buildX(ctx, { cc: [] })` 전체 출력이 `toEqual`(문자열은 `toBe`)로 등치 — 6개 빌더 모두
-  - [ ] `markdownToAsanaHtml(CC_SENTINEL 포함 본문)` 출력에 sentinel이 원형 보존
+  - [x] cc 있을 때: cc 요소가 푸터(또는 rule) 직전에 위치
+  - [x] **출력 등치 테스트** (기존 테스트는 전부 `toContain`이라 회귀 그물이 없음): 동일 ctx에 대해 `buildX(ctx)` / `buildX(ctx, { cc: undefined })` / `buildX(ctx, { cc: [] })` 전체 출력이 `toEqual`(문자열은 `toBe`)로 등치 — 6개 빌더 모두
+  - [x] `markdownToAsanaHtml(CC_SENTINEL 포함 본문)` 출력에 sentinel이 원형 보존
 
 ### Task 4: submitTo* 배선
 - **변경 대상**: `submitToGithub.ts`, `submitToLinear.ts`, `submitToNotion.ts`, `submitToGitlab.ts`, `submitToAsana.ts` (모두 `src/sidepanel/lib/`)
 - **작업 내용**: 각 input에 cc 추가 → 빌더로 전달. Linear는 `payload.subscriberIds = cc.map(u => u.id)`. Asana는 `hasCc` 전달 + htmlNotes 2곳(create의 `markdownToAsanaHtml(body)`·updateTaskNotes의 `markdownToAsanaHtml(body, imageRefs)`)에 `injectAsanaCc` 적용.
 - **검증**: `pnpm typecheck`
-  - [ ] Asana: create·update 양쪽 모두 치환 적용 확인 (update 누락 시 이미지 인라인 갱신이 cc를 sentinel 문자열로 되돌림)
+  - [x] Asana: create·update 양쪽 모두 치환 적용 확인 (update 누락 시 이미지 인라인 갱신이 cc를 sentinel 문자열로 되돌림)
 
 ### Task 5: UI — MultiUserCombobox + 플랫폼별 CC 필드 + 다이얼로그 + i18n
 - **변경 대상**: `src/sidepanel/components/MultiUserCombobox.tsx`(신규), 플랫폼별 `CcCombobox.tsx`/`CcField.tsx` 6개(신규), `*IssueFields.tsx` 6개, `src/sidepanel/tabs/SubmitFieldsDialog.tsx`, `src/i18n/namespaces/settings.ts`
@@ -55,14 +55,14 @@
   - i18n: `field.cc.label`("CC"), `field.cc.select`, `field.cc.search`, `field.cc.empty`, `field.cc.clear`, `field.cc.notionCapabilityError`, `field.cc.submitErrorHint` ko·en 동시 (PostToolUse 훅 통과).
   - 콤보박스에 `data-testid="cc-combobox"` 부여 (플랫폼 prefix 불필요 — 탭당 1개).
 - **검증**:
-  - [ ] `pnpm typecheck` + i18n 훅 green
+  - [x] `pnpm typecheck` + i18n 훅 green
   - [ ] (수동) 6개 탭 모두 CC 필드 노출·다중 선택·해제·전체 해제 동작, 낮은 창 높이에서 다이얼로그 스크롤
 
 ### Task 6: 제출 핸들러 배선 (두 다이얼로그)
 - **변경 대상**: `src/sidepanel/tabs/IssueCreateModal.tsx`, `src/sidepanel/tabs/DraftDetailDialog.tsx`
 - **작업 내용**: 6개 `handleXSubmit` 각각 — cc를 submitTo*/`buildIssueAdf`에 전달 + `setLastSubmitFields("x", { ..., cc })`. **두 파일 모두** — 단 UI는 두 다이얼로그가 `SubmitFieldsDialog`+`*IssueFields.tsx`를 공유하므로 Task 5만으로 자동 노출되고, 이 태스크는 **제출 핸들러 배선만 2벌**이다 (6핸들러 × 2파일 완전 중복 구조 — 한쪽 누락 주의).
 - **검증**:
-  - [ ] `pnpm typecheck`
+  - [x] `pnpm typecheck`
   - [ ] (수동) 제출 → 재오픈 시 cc prefill, 드래프트 상세에서 제출해도 동일
 
 ## 테스트 계획
@@ -72,7 +72,7 @@
 - **수동 테스트** (Chrome + 실계정):
   - [ ] Jira: cc 멘션이 본문에 렌더 + 멘션 알림 수신
   - [ ] GitHub: `cc @login` 멘션 하이라이트 + 알림
-  - [ ] GitLab: 동일
+  - [ ] GitLab: 동일 (+ underscore 포함 username — `ccMarkdownLine`이 `_`를 `\_`로 이스케이프하는데 GitLab 멘션 파싱이 깨지지 않는지 확인)
   - [ ] Linear: cc 사용자가 구독자로 등록 + 알림 (subscriberIds 동작 확인)
   - [ ] Notion: 본문 멘션 렌더 + 알림 (API 생성 멘션의 알림 여부가 미검증 — 안 가면 보고에 명시)
   - [ ] Asana: 앵커 멘션 렌더 + 팔로워 추가, 이미지 포함 이슈에서 updateTaskNotes 후에도 멘션 유지

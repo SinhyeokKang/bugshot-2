@@ -22,6 +22,8 @@ import {
   type AsanaBuildInput,
 } from "../buildAsanaIssueBody";
 import type { MarkdownContext } from "../buildIssueMarkdown";
+import { CC_SENTINEL } from "../ccMention";
+import { markdownToAsanaHtml } from "../markdownToAsanaHtml";
 
 function makeCtx(overrides: Partial<MarkdownContext> = {}): MarkdownContext {
   return {
@@ -122,5 +124,26 @@ describe("buildAsanaIssueBody", () => {
     expect(out.body).toContain("![before-0.png](before-0.png)");
     expect(out.body).toContain("![before-1.png](before-1.png)");
     expect(out.body).not.toContain("md.section.media");
+  });
+});
+
+describe("cc 멘션 (sentinel)", () => {
+  it("hasCc면 sentinel 줄이 --- 푸터 직전에 위치", () => {
+    const out = buildAsanaIssueBody({ ctx: makeCtx(), hasCc: true });
+    const lines = out.body.split("\n");
+    const idx = lines.indexOf(CC_SENTINEL);
+    expect(idx).toBeGreaterThan(-1);
+    expect(lines[idx + 2]).toBe("---");
+  });
+
+  it("hasCc 미지정·false 모두 기존 출력과 등치", () => {
+    const base = buildAsanaIssueBody({ ctx: makeCtx() });
+    expect(buildAsanaIssueBody({ ctx: makeCtx(), hasCc: undefined })).toEqual(base);
+    expect(buildAsanaIssueBody({ ctx: makeCtx(), hasCc: false })).toEqual(base);
+  });
+
+  it("markdownToAsanaHtml 통과 시 sentinel 원형 보존", () => {
+    const out = buildAsanaIssueBody({ ctx: makeCtx(), hasCc: true });
+    expect(markdownToAsanaHtml(out.body)).toContain(CC_SENTINEL);
   });
 });

@@ -99,6 +99,7 @@ export interface EditorIssueFields {
   parentLabel?: string;
   relatesKey?: string;
   relatesLabel?: string;
+  cc?: { accountId: string; displayName: string }[];
 }
 
 interface EditorState {

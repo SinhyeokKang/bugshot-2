@@ -9,6 +9,7 @@ import {
   styleDomLabel,
   type MarkdownContext,
 } from "./buildIssueMarkdown";
+import { CC_SENTINEL } from "./ccMention";
 import { filterEnvironmentRows } from "./environmentRows";
 import { formatTimestamp } from "./formatTimestamp";
 
@@ -20,6 +21,7 @@ export interface AsanaMediaInput {
 export interface AsanaBuildInput {
   ctx: MarkdownContext;
   images?: AsanaMediaInput[];
+  hasCc?: boolean;
 }
 
 export interface AsanaBuildResult {
@@ -129,6 +131,9 @@ export function buildAsanaIssueBody(input: AsanaBuildInput): AsanaBuildResult {
   emitMedia();
 
   // 영상·로그·메타 첨부는 Asana task 첨부 영역(본문 바로 아래)에 자동 표시되므로 본문에 나열하지 않는다.
+
+  // 네이티브 앵커는 HTML 변환 후 submitToAsana의 injectAsanaCc가 치환.
+  if (input.hasCc) lines.push(CC_SENTINEL, "");
 
   lines.push("---", "");
   lines.push(`_Reported via [BugShot](https://bug-shot.com)_`, "");
