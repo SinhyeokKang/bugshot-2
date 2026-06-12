@@ -1,7 +1,7 @@
 import { t } from "@/i18n";
 import { dataUrlToBlob } from "@/store/blob-db";
 import { IMAGE_PLACEHOLDER, VIDEO_PLACEHOLDER, parseInlinePlaceholder } from "@/lib/adf-sentinels";
-import { adfMediaNode, type MediaSource } from "@/background/lib/adf-media";
+import { adfMediaNode, adfMediaSingle, type MediaSource } from "@/background/lib/adf-media";
 import { injectSnapshotRows } from "@/background/injectSnapshotRows";
 import { injectIssueUrl } from "@/lib/inject-issue-url";
 import type { JiraAttachmentInput, JiraAuth, JiraCreateIssuePayload, JiraSubmitResult } from "@/types/jira";
@@ -581,11 +581,7 @@ async function submitIssue(
         );
         if (mediaPlaceholderIdx >= 0) {
           const mediaNode = adfMediaNode(mediaSrc(screenshotFile), screenshotFile);
-          content[mediaPlaceholderIdx] = {
-            type: "mediaSingle",
-            attrs: { layout: "center", width: 100 },
-            content: [mediaNode],
-          };
+          content[mediaPlaceholderIdx] = adfMediaSingle(mediaNode);
         }
       }
 
@@ -601,11 +597,9 @@ async function submitIssue(
         },
       );
       if (videoFile?.kind === "media" && videoPlaceholderIdx >= 0) {
-        content[videoPlaceholderIdx] = {
-          type: "mediaSingle",
-          attrs: { layout: "center", width: 100 },
-          content: [adfMediaNode(mediaSrc(videoFile), videoFile)],
-        };
+        content[videoPlaceholderIdx] = adfMediaSingle(
+          adfMediaNode(mediaSrc(videoFile), videoFile),
+        );
       } else if (videoPlaceholderIdx >= 0) {
         content[videoPlaceholderIdx] = {
           type: "paragraph",
@@ -625,11 +619,7 @@ async function submitIssue(
         const file = uploadMap.get(`inline-${refId}.webp`);
         if (!file) continue;
         const mediaNode = adfMediaNode(mediaSrc(file), file);
-        content[i] = {
-          type: "mediaSingle",
-          attrs: { layout: "center", width: 100 },
-          content: [mediaNode],
-        };
+        content[i] = adfMediaSingle(mediaNode);
       }
 
       await updateIssueDescription(auth, issue.key, {
@@ -698,13 +688,7 @@ function snapshotCell(file?: UploadedFile) {
   return {
     type: "tableCell" as const,
     attrs: {},
-    content: [
-      {
-        type: "mediaSingle",
-        attrs: { layout: "center" },
-        content: [mediaNode],
-      },
-    ],
+    content: [adfMediaSingle(mediaNode)],
   };
 }
 
