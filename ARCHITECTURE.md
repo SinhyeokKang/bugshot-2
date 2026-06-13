@@ -165,13 +165,16 @@ shorthand(var 포함) + 같은 shorthand의 longhand override 조합에서 Chrom
 
 **권한**: `captureVisibleTab`은 `activeTab` 또는 광역 host permission 요구. activeTab은 cross-document 네비게이션에서 회수되고 프로그램적 재취득 불가 → 30s Replay는 `optional_host_permissions`의 `https://*/*`+`http://*/*`를 **런타임 요청**해 획득 (설정 Switch ON 시 1회 동의, Chrome 영구 저장).
 
-**사이드 패널 종료/유지 정책** — `deactivatePanelIfCrossOrigin`가 `tabs.onUpdated` `status:loading`에서 origin 비교. 기준 URL: 에디터 세션 `target.url` 우선 → 활성화 시점 저장 URL → 둘 다 없으면 패널 유지.
+**사이드 패널 종료/유지 정책** — `deactivatePanelIfCrossOrigin`가 `tabs.onUpdated` `status:loading`에서 origin 비교. 기준 URL: 에디터 세션 `target.url` 우선 → 활성화 시점 저장 URL → 둘 다 없으면 패널 유지. 판정은 순수 헬퍼 `resolveNavigationAction`(단위 테스트로 고정)으로 분리. 아래 cross-origin 행은 **광역 host 권한 미보유 기준**.
 
 | 조건 | 동작 |
 |---|---|
 | **same-origin** | 패널 유지. 비보존+page key 변경 시 stale 세션 제거 |
+| **cross-origin + 광역 권한 보유 + 커버 URL** (http/https 지원 URL) | same-origin과 동일 취급 — 패널 유지, 비보존이면 stale 세션만 제거. deferred 미발생 |
 | **cross-origin + 비보존** (idle 포함) | 패널 닫기 + 세션 제거 |
 | **cross-origin + 보존** (drafting/previewing/done/video) | 패널 유지, `activeTabExpiredDeferred` → idle 복귀 시 만료 다이얼로그 |
+
+광역 권한 예외: 30s Replay 옵트인으로 부여된 `https://*/*`+`http://*/*`를 보유하면 cross-origin 이동에도 캡처가 끊기지 않으므로 same-origin처럼 패널을 유지한다(리플레이 스위치 OFF여도 권한이 있는 한 적용). `chrome.permissions.contains`는 cross-origin 판정일 때만 조회하고, `file:`은 지원 URL이지만 광역 커버 밖이라 현행 분기를 탄다.
 
 보존 → idle 사이 "좀비 구간"에서 캡처 시도 시 3중 방어(진입 `classifyTabSupport` / 런타임 `isActiveTabPermissionError` / tabCapture `isTabCaptureUnavailable`)가 즉시 만료 다이얼로그.
 
