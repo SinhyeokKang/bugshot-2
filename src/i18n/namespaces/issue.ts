@@ -18,7 +18,7 @@ const ko = {
   "issue.capturing.title": "캡처 영역을 선택하세요",
   "issue.recording.title": "녹화 중 {time}",
   "issue.recording.stop": "녹화 완료",
-  "issue.sessionExpired.title": "페이지가 갱신되었습니다",
+  "issue.sessionExpired.title": "페이지가 변경되었습니다",
   "issue.sessionExpired.body": "작성 중인 내용이 초기화됩니다.",
   "issue.submit": "이슈 제출",
 
@@ -108,7 +108,7 @@ const en = {
   "issue.capturing.title": "Select capture area",
   "issue.recording.title": "Recording {time}",
   "issue.recording.stop": "Stop recording",
-  "issue.sessionExpired.title": "Page has been refreshed",
+  "issue.sessionExpired.title": "The page has changed",
   "issue.sessionExpired.body": "Your draft will be reset.",
   "issue.submit": "Submit issue",
 

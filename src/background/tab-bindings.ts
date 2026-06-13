@@ -105,7 +105,7 @@ async function clearIfPageChanged(
   }
 }
 
-export type NavigationAction =
+type NavigationAction =
   | "keep"
   | "clearSession"
   | "notifyDeferredExpiry"
@@ -135,9 +135,9 @@ const BROAD_COVERED_SCHEMES = new Set(["http:", "https:"]);
 // 광역 host 권한(https://*/* + http://*/*)이 캡처 능력을 주는 URL인지.
 // file:은 지원 URL이지만 광역 권한 범위 밖이라 명시적 스킴 체크로 배제.
 function isBroadCoveredUrl(url: string | undefined): boolean {
-  if (!isSupportedUrl(url)) return false;
+  if (!url || !isSupportedUrl(url)) return false;
   try {
-    return BROAD_COVERED_SCHEMES.has(new URL(url as string).protocol);
+    return BROAD_COVERED_SCHEMES.has(new URL(url).protocol);
   } catch {
     return false;
   }
@@ -208,6 +208,8 @@ async function deactivatePanelIfCrossOrigin(
         await chrome.sidePanel.setOptions({ tabId, enabled: false });
         await chrome.storage.session.remove(key);
         return;
+      default:
+        action satisfies never;
     }
   } catch (err) {
     console.error("[bugshot] deactivatePanelIfCrossOrigin", err);

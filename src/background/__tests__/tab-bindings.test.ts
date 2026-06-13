@@ -104,6 +104,17 @@ describe("resolveNavigationAction", () => {
       input: { preserved: false, sameOrigin: false, pageKeyChanged: true, broadGranted: false, newUrlBroadCovered: false },
       expected: "deactivate",
     },
+    // 미보유 사용자의 가장 흔한 현실 입력 — 새 URL이 커버 범위(http/https)여도 권한이 없으면 현행 분기.
+    {
+      name: "미보유 + 보존 + cross-origin + 커버 URL → notifyDeferredExpiry",
+      input: { preserved: true, sameOrigin: false, pageKeyChanged: true, broadGranted: false, newUrlBroadCovered: true },
+      expected: "notifyDeferredExpiry",
+    },
+    {
+      name: "미보유 + 비보존 + cross-origin + 커버 URL → deactivate",
+      input: { preserved: false, sameOrigin: false, pageKeyChanged: true, broadGranted: false, newUrlBroadCovered: true },
+      expected: "deactivate",
+    },
   ];
 
   // 광역 보유(broadGranted=true) + 광역 커버 URL(newUrlBroadCovered=true) → cross-origin을 same-origin처럼.
