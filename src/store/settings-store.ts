@@ -15,8 +15,6 @@ import type { AsanaAccount } from "@/types/asana";
 import { SETTINGS_STORAGE_KEY } from "@/lib/settings-storage";
 import { chromeLocalStorage } from "./chrome-storage";
 
-export type { JiraAccount } from "@/types/platform";
-
 // v6: notion 플랫폼 추가 (accounts.notion / lastSubmitFields.notion / lastSubmittedPlatform="notion").
 // v7: gitlab 플랫폼 추가. 새 필드는 모두 optional이라 v6→v7 데이터 마이그레이션 불필요 — 버전 마커만 bump.
 // v8: asana 플랫폼 추가. 동일하게 새 필드 모두 optional이라 버전 마커만 bump.

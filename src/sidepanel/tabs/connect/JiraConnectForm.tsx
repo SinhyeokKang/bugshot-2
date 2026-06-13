@@ -15,11 +15,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import {
-  useSettingsStore,
-  type JiraAccount,
-  jiraHostLabel,
-} from "@/store/settings-store";
+import { useSettingsStore, jiraHostLabel } from "@/store/settings-store";
+import type { JiraAccount } from "@/types/platform";
 import type {
   JiraApiKeyAuth,
   JiraAuth,

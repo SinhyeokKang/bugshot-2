@@ -70,10 +70,6 @@ const ko = {
   "llm.error.fetch": "연결에 실패했습니다. URL과 API 키를 확인하세요.",
   "llm.error.quota": "API 허용량을 초과했습니다. 잠시 후 다시 시도하세요.",
   "llm.error.overloaded": "AI 서버가 일시적으로 과부하 상태입니다. 잠시 후 다시 시도하세요.",
-
-  "project.select": "프로젝트 선택",
-  "project.search": "프로젝트 검색...",
-  "project.empty": "일치하는 프로젝트가 없습니다.",
 } as const;
 
 type Bundle = Record<keyof typeof ko, string>;
@@ -150,10 +146,6 @@ const en = {
   "llm.error.fetch": "Connection failed. Check URL and API key.",
   "llm.error.quota": "API quota exceeded. Please try again later.",
   "llm.error.overloaded": "AI server is temporarily overloaded. Please try again shortly.",
-
-  "project.select": "Select project",
-  "project.search": "Search projects...",
-  "project.empty": "No matching projects.",
 } satisfies Bundle;
 
 export const settings = { ko, en };

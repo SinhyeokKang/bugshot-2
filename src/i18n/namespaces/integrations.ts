@@ -1,6 +1,11 @@
 const ko = {
   "submit.success": "이슈가 제출되었습니다",
   "submit.logsDropped": "{platform} 첨부 파일 용량 한도로 logs.html이 누락되었습니다",
+
+  "project.select": "프로젝트 선택",
+  "project.search": "프로젝트 검색...",
+  "project.empty": "일치하는 프로젝트가 없습니다.",
+
   "jira.project": "프로젝트",
   "jira.defaultIssueType": "기본 이슈 타입",
   "jira.noJiraSites": "접근 가능한 Jira 사이트가 없습니다.",
@@ -215,6 +220,11 @@ type Bundle = Record<keyof typeof ko, string>;
 const en = {
   "submit.success": "Issue submitted",
   "submit.logsDropped": "logs.html was dropped because it exceeds {platform}'s attachment size limit",
+
+  "project.select": "Select project",
+  "project.search": "Search projects...",
+  "project.empty": "No matching projects.",
+
   "jira.project": "Project",
   "jira.defaultIssueType": "Default issue type",
   "jira.noJiraSites": "No accessible Jira sites.",

@@ -1,25 +1,8 @@
+import { bytesToBase64 } from "./gzip-base64";
+
 // 제출 후 issueUrl/issueKey 마커는 평문 META 태그에만 있다(무거운 데이터는 gzip-base64라 미접근).
 const META_TAG =
   /(<script id="__BUGSHOT_META__" type="application\/json">)([\s\S]*?)(<\/script>)/;
-
-// 49152 = 3의 배수라 청크별 btoa 결과를 그대로 이어 붙여도 유효한 base64가 된다(마지막 청크만 패딩).
-// 영상 임베드(~20MB)에서 단일 거대 btoa·문자열 누적의 메인 스레드/SW 블로킹을 피한다.
-const ENCODE_CHUNK = 0xc000;
-
-async function bytesToBase64(bytes: Uint8Array): Promise<string> {
-  let out = "";
-  for (let i = 0; i < bytes.length; i += ENCODE_CHUNK) {
-    const slice = bytes.subarray(i, i + ENCODE_CHUNK);
-    let binary = "";
-    for (let j = 0; j < slice.length; j += 0x8000) {
-      binary += String.fromCharCode(...slice.subarray(j, j + 0x8000));
-    }
-    out += btoa(binary);
-    // 매 ~1MB마다 매크로태스크에 양보해 SW/UI가 다른 이벤트를 처리할 수 있게 한다.
-    if (i % (ENCODE_CHUNK * 16) === 0) await new Promise((r) => setTimeout(r));
-  }
-  return out;
-}
 
 export async function injectIssueUrl(
   logsDataUrl: string,
@@ -53,5 +36,5 @@ export async function injectIssueUrl(
   }
 
   const newHtml = html.replace(META_TAG, () => `${sm[1]}${json}${sm[3]}`);
-  return `data:${mime};base64,${await bytesToBase64(new TextEncoder().encode(newHtml))}`;
+  return `data:${mime};base64,${await bytesToBase64(new TextEncoder().encode(newHtml), { yield: true })}`;
 }
