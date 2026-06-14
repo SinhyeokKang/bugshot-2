@@ -8,7 +8,7 @@ import {
   serializeArgs,
   shouldCaptureAssertion,
 } from "./console-recorder-helpers";
-import type { EwTarget } from "./console-recorder-helpers";
+import type { EwState } from "./console-recorder-helpers";
 import { createTrailingThrottle, FLUSH_INTERVAL_MS } from "./log-throttle";
 
 function consoleRecorderScript(): void {
@@ -66,24 +66,13 @@ function consoleRecorderScript(): void {
     throttle.schedule();
   }
 
-  // error/warn arm-스코프 wrap. log/info/debug처럼 상시 설치하지 않고 setSentinel(arm) 시
-  // 설치 → stop 시 native 복원한다. 이전엔 attribution 오염(페이지 console.error/warn이
-  // chrome://extensions 오류 로그에 확장 귀속으로 수집됨) 때문에 의도적으로 미wrap했으나(버그 아님),
-  // 페이지 error/warn 캡처 가치가 오염 비용을 상회한다는 PRD 트레이드오프로 번복한다 —
-  // 오염 창을 arm 구간으로 한정하고(상시 설치 회피) native를 먼저 호출해 DevTools 출력은 보존한다.
-  const natives: EwTarget = {
-    error: console.error.bind(console),
-    warn: console.warn.bind(console),
-  };
-  // captureStack 인자 없음: error/warn 경로는 wrapper→record→captureStack로 trace/assert보다
-  // record 프레임 하나 더 깊어, 기존 slice(4)가 그대로 페이지 첫 프레임에 정렬된다(실측 고정).
+  // error/warn은 arm(setSentinel) 구간에만 wrap해 attribution 오염 창을 한정한다(상시 설치 회피).
+  // install이 그 시점의 직전 메서드(페이지 Sentry 등 포함)를 먼저 호출하므로 DevTools 출력·페이지
+  // 모니터링을 보존한다. record 경로(wrapper→record→captureStack)는 captureStack의 slice(4)가
+  // 페이지 첫 프레임에 정렬되도록 한 프레임 깊지만, V8 인라인에 의존하는 가정이라 실탭 회귀로만 검증된다.
   const record = (level: "error" | "warn", args: unknown[]) =>
     pushEntry(level, serializeArgs(args), captureStack());
-  const wrappers: EwTarget = {
-    error: makeConsoleWrapper(natives.error, "error", record),
-    warn: makeConsoleWrapper(natives.warn, "warn", record),
-  };
-  const ewState = { installed: false };
+  const ewState: EwState = { installed: false, prior: null, ours: null };
 
   const LEVELS_TO_WRAP = ["log", "info", "debug"] as const;
 
@@ -270,10 +259,12 @@ function consoleRecorderScript(): void {
     detachSentinelListeners();
     currentSentinel = sentinel;
     recording = true;
-    installConsoleWrap(console, wrappers, ewState);
+    installConsoleWrap(console, ewState, (native, level) =>
+      makeConsoleWrapper(native, level, record),
+    );
     stopHandler = () => {
       recording = false;
-      restoreConsoleWrap(console, wrappers, natives, ewState);
+      restoreConsoleWrap(console, ewState);
       throttle.flushNow();
     };
     syncHandler = () => { throttle.flushNow(); };
