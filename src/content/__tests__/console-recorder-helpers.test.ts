@@ -1,11 +1,15 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import {
   ARG_CAP,
   formatErrorEvent,
   formatRejectionReason,
+  installConsoleWrap,
+  makeConsoleWrapper,
+  restoreConsoleWrap,
   safeStringify,
   serializeArgs,
   shouldCaptureAssertion,
+  shouldRestoreWrapper,
 } from "../console-recorder-helpers";
 
 describe("formatErrorEvent", () => {
@@ -184,5 +188,138 @@ describe("shouldCaptureAssertion", () => {
     expect(shouldCaptureAssertion(1)).toBe(false);
     expect(shouldCaptureAssertion("x")).toBe(false);
     expect(shouldCaptureAssertion({})).toBe(false);
+  });
+});
+
+describe("makeConsoleWrapper", () => {
+  it("native를 받은 인자 그대로 동기 호출", () => {
+    const native = vi.fn();
+    const record = vi.fn();
+    const wrapper = makeConsoleWrapper(native, "error", record);
+    const err = new Error("boom");
+    wrapper("msg", 42, err);
+    expect(native).toHaveBeenCalledTimes(1);
+    expect(native).toHaveBeenCalledWith("msg", 42, err);
+  });
+
+  it("record가 (level, args)로 1회 호출", () => {
+    const native = vi.fn();
+    const record = vi.fn();
+    const wrapper = makeConsoleWrapper(native, "warn", record);
+    wrapper("a", "b");
+    expect(record).toHaveBeenCalledTimes(1);
+    expect(record).toHaveBeenCalledWith("warn", ["a", "b"]);
+  });
+
+  it("native가 record보다 먼저 호출", () => {
+    const order: string[] = [];
+    const native = vi.fn(() => order.push("native"));
+    const record = vi.fn(() => order.push("record"));
+    const wrapper = makeConsoleWrapper(native, "error", record);
+    wrapper("x");
+    expect(order).toEqual(["native", "record"]);
+  });
+
+  // 무간섭 원칙 ①②: record(혹은 captureStack)가 throw해도 페이지의 console.* 호출자로
+  // 전파되면 안 된다. native는 먼저 호출됐어야 한다.
+  it("record가 throw해도 native는 호출됐고 wrapper 호출자에게 전파 안 됨", () => {
+    const native = vi.fn();
+    const record = vi.fn(() => {
+      throw new Error("record boom");
+    });
+    const wrapper = makeConsoleWrapper(native, "error", record);
+    expect(() => wrapper("x")).not.toThrow();
+    expect(native).toHaveBeenCalledTimes(1);
+    expect(native).toHaveBeenCalledWith("x");
+  });
+});
+
+describe("shouldRestoreWrapper", () => {
+  it("동일 참조면 true", () => {
+    const fn = () => {};
+    expect(shouldRestoreWrapper(fn, fn)).toBe(true);
+  });
+
+  it("다른 함수면 false (페이지가 위에 재wrap)", () => {
+    expect(shouldRestoreWrapper(() => {}, () => {})).toBe(false);
+  });
+});
+
+describe("installConsoleWrap", () => {
+  it("미설치 상태면 wrappers를 target에 할당하고 가드를 올림", () => {
+    const ourError = () => {};
+    const ourWarn = () => {};
+    const target = { error: () => {}, warn: () => {} };
+    const wrappers = { error: ourError, warn: ourWarn };
+    const state = { installed: false };
+    installConsoleWrap(target, wrappers, state);
+    expect(target.error).toBe(ourError);
+    expect(target.warn).toBe(ourWarn);
+    expect(state.installed).toBe(true);
+  });
+
+  it("이미 installed면 no-op (멱등 — 재할당 안 함)", () => {
+    const ourError = () => {};
+    const ourWarn = () => {};
+    const pageError = () => {};
+    const pageWarn = () => {};
+    // 페이지가 우리 wrap 위에 덧씌운 상태를 흉내: installed=true인데 target은 페이지 함수.
+    const target = { error: pageError, warn: pageWarn };
+    const wrappers = { error: ourError, warn: ourWarn };
+    const state = { installed: true };
+    installConsoleWrap(target, wrappers, state);
+    expect(target.error).toBe(pageError);
+    expect(target.warn).toBe(pageWarn);
+    expect(state.installed).toBe(true);
+  });
+});
+
+describe("restoreConsoleWrap", () => {
+  it("현재가 우리 wrapper면 natives로 복원하고 가드를 내림", () => {
+    const ourError = () => {};
+    const ourWarn = () => {};
+    const nativeError = () => {};
+    const nativeWarn = () => {};
+    const target = { error: ourError, warn: ourWarn };
+    const wrappers = { error: ourError, warn: ourWarn };
+    const natives = { error: nativeError, warn: nativeWarn };
+    const state = { installed: true };
+    restoreConsoleWrap(target, wrappers, natives, state);
+    expect(target.error).toBe(nativeError);
+    expect(target.warn).toBe(nativeWarn);
+    expect(state.installed).toBe(false);
+  });
+
+  it("페이지가 덧씌웠으면(현재≠우리 wrapper) 복원 스킵·보존, 가드만 내림", () => {
+    const ourError = () => {};
+    const ourWarn = () => {};
+    const nativeError = () => {};
+    const nativeWarn = () => {};
+    const pageError = () => {};
+    const pageWarn = () => {};
+    const target = { error: pageError, warn: pageWarn };
+    const wrappers = { error: ourError, warn: ourWarn };
+    const natives = { error: nativeError, warn: nativeWarn };
+    const state = { installed: true };
+    restoreConsoleWrap(target, wrappers, natives, state);
+    expect(target.error).toBe(pageError);
+    expect(target.warn).toBe(pageWarn);
+    expect(state.installed).toBe(false);
+  });
+
+  it("혼합 — error만 우리 wrapper, warn은 페이지 덧씌움", () => {
+    const ourError = () => {};
+    const ourWarn = () => {};
+    const nativeError = () => {};
+    const nativeWarn = () => {};
+    const pageWarn = () => {};
+    const target = { error: ourError, warn: pageWarn };
+    const wrappers = { error: ourError, warn: ourWarn };
+    const natives = { error: nativeError, warn: nativeWarn };
+    const state = { installed: true };
+    restoreConsoleWrap(target, wrappers, natives, state);
+    expect(target.error).toBe(nativeError);
+    expect(target.warn).toBe(pageWarn);
+    expect(state.installed).toBe(false);
   });
 });

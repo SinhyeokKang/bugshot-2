@@ -117,3 +117,67 @@ export function serializeArgs(args: unknown[]): string {
   }
   return joined;
 }
+
+// --- error/warn arm-스코프 wrap 라이프사이클 (단위 테스트 대상) ---
+// IIFE 클로저는 import 불가라 install/restore 로직까지 순수 함수로 끌어내 멱등성·복원
+// 안전성을 단위로 검증한다. console-recorder.ts는 실제 console·상태 객체를 넘겨 호출만 한다.
+
+export type ConsoleFn = (...args: unknown[]) => void;
+type RecordFn = (level: "error" | "warn", args: unknown[]) => void;
+export interface EwTarget {
+  error: ConsoleFn;
+  warn: ConsoleFn;
+}
+export interface EwState {
+  installed: boolean;
+}
+
+// native를 먼저 동기 호출(페이지 동작·DevTools 출력 보존)한 뒤 record를 try/catch로 격리해
+// 위임한다 — record(혹은 captureStack)가 throw해도 페이지의 console.* 호출자로 전파 금지(무간섭).
+export function makeConsoleWrapper(
+  native: ConsoleFn,
+  level: "error" | "warn",
+  record: RecordFn,
+): ConsoleFn {
+  return function (...args: unknown[]) {
+    native(...args);
+    try {
+      record(level, args);
+    } catch {
+      // 무간섭 원칙: 캡처 실패가 페이지 코드를 깨면 안 된다.
+    }
+  };
+}
+
+// 페이지가 우리 wrap 위에 자체 wrap을 얹었으면(current ≠ ours) 복원 스킵 — 페이지 wrapper 보존.
+export function shouldRestoreWrapper(current: unknown, ours: unknown): boolean {
+  return current === ours;
+}
+
+// 멱등 설치: 이미 installed면 no-op(setSentinel 다회 호출·프레임 rebroadcast 대비).
+export function installConsoleWrap(
+  target: EwTarget,
+  wrappers: EwTarget,
+  state: EwState,
+): void {
+  if (state.installed) return;
+  target.error = wrappers.error;
+  target.warn = wrappers.warn;
+  state.installed = true;
+}
+
+// 안전 복원: 우리 wrapper인 메서드만 native로 되돌리고, 페이지가 덧씌운 메서드는 보존. 가드는 항상 내림.
+export function restoreConsoleWrap(
+  target: EwTarget,
+  wrappers: EwTarget,
+  natives: EwTarget,
+  state: EwState,
+): void {
+  if (shouldRestoreWrapper(target.error, wrappers.error)) {
+    target.error = natives.error;
+  }
+  if (shouldRestoreWrapper(target.warn, wrappers.warn)) {
+    target.warn = natives.warn;
+  }
+  state.installed = false;
+}

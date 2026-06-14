@@ -21,8 +21,8 @@
     - `installConsoleWrap`: 미설치 시 wrappers 할당+가드 true / **이미 installed면 no-op(멱등) — 재할당 안 함**
     - `restoreConsoleWrap`: 우리 wrapper면 natives 복원+가드 false / **페이지가 덧씌운 경우(현재≠우리 wrapper) 복원 스킵·보존, 가드만 false** / 한 메서드만 덧씌워진 혼합 케이스
 - **검증**:
-  - [ ] `pnpm test` — 신규 테스트 통과
-  - [ ] `pnpm typecheck` 통과
+  - [x] `pnpm test` — 신규 테스트 통과
+  - [x] `pnpm typecheck` 통과
 
 ### Task 2: console-recorder에 error/warn arm-스코프 wrap 결선
 - **변경 대상**: `src/content/console-recorder.ts`
@@ -34,11 +34,11 @@
   - `stopHandler`의 `recording = false` 직후 `restoreConsoleWrap(console, wrappers, natives, ewState)` 호출.
   - `LEVELS_TO_WRAP` 위 기존 주석을 새 동작(arm 구간 한정 wrap + 오염 수용, 복원 안전성)으로 갱신하되, **이전 미wrap이 버그가 아니라 의도적 회피였고 이번에 트레이드오프 수용으로 번복**함을 명시(PRD 트레이드오프 한 줄 참조).
 - **검증**:
-  - [ ] `pnpm typecheck` 통과
-  - [ ] `LEVELS_TO_WRAP`(log/info/debug)는 변경 없음 — 기존 캡처 회귀 없음(코드 diff 확인)
-  - [ ] uncaught/rejection/assert 핸들러 변경 없음(코드 diff 확인)
-  - [ ] **모든 disarm 경로(`port.onDisconnect`·탭 전환·미지원 이동·idle)가 `stopHandler`→`restoreConsoleWrap`에 도달**함을 picker-control stop 흐름과 교차해 확인 — 누락 경로가 있으면 오염이 arm 종료 후 잔존
-  - [ ] `stopHandler`에 restore 추가가 기존 `recording=false; throttle.flushNow()` 순서·동작과 충돌 없음(동작 확인)
+  - [x] `pnpm typecheck` 통과
+  - [x] `LEVELS_TO_WRAP`(log/info/debug)는 변경 없음 — 기존 캡처 회귀 없음(코드 diff 확인)
+  - [x] uncaught/rejection/assert 핸들러 변경 없음(코드 diff 확인)
+  - [x] **모든 disarm 경로(`port.onDisconnect`·탭 전환·미지원 이동·idle)가 `stopHandler`→`restoreConsoleWrap`에 도달**함을 picker-control stop 흐름과 교차해 확인 — 누락 경로가 있으면 오염이 arm 종료 후 잔존
+  - [x] `stopHandler`에 restore 추가가 기존 `recording=false; throttle.flushNow()` 순서·동작과 충돌 없음(동작 확인)
 
 ### Task 3: e2e 시나리오 검증
 - **변경 대상**: `e2e/` (스펙은 `/e2e-write`에서 작성) — src 변경은 필요 시 `data-testid`/`data-level` 추가만
@@ -47,9 +47,9 @@
   - iframe(기존 `logs-iframe.spec.ts` 패턴 재사용): iframe 내 `console.error`도 캡처되는지 1케이스.
   - 레벨 단언 견고화를 위해 콘솔 엔트리 div에 `data-level={level}` 추가(src 변경 허용 범위 = testid/속성 부착) → 탭 필터 의존 없이 속성으로 단언.
 - **검증**:
-  - [ ] `/e2e-write`로 spec green
-  - [ ] iframe error/warn 캡처 spec green
-  - [ ] 기존 콘솔 회귀 spec green — 구체 목록 명시: `log-capture.spec.ts`(log 캡처+clear), `logs-iframe.spec.ts`, assert→error push 경로, uncaught/rejection 캡처
+  - [x] `/e2e-write`로 spec green (`logs-error-warn.spec.ts` — top error/warn data-level 단언)
+  - [x] iframe error/warn 캡처 spec green (iframe error 1케이스)
+  - [x] 기존 콘솔 회귀 spec green — `log-capture.spec.ts`(log 캡처+clear)·`logs-iframe.spec.ts`·`logs-cross-page`·`logs-origin-filter` 통과. assert→error·uncaught/rejection 핸들러는 diff 미변경 + 헬퍼 단위테스트 커버(전용 e2e 없음 — 변경 없어 회귀 불가)
 
 ## 테스트 계획
 

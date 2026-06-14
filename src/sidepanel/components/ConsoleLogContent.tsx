@@ -216,6 +216,7 @@ function EntryAccordion({ entry, startedAt, syncBaseMs, onSeek, isActive, scroll
   return (
     <div
       data-entry-id={entry.id}
+      data-level={entry.level}
       className={syncRowClass(!!onSeek, !!isActive, levelBgColor(entry.level))}
       aria-current={isActive ? "true" : undefined}
     >

@@ -1,10 +1,14 @@
 import {
   formatErrorEvent,
   formatRejectionReason,
+  installConsoleWrap,
+  makeConsoleWrapper,
+  restoreConsoleWrap,
   safeStringify,
   serializeArgs,
   shouldCaptureAssertion,
 } from "./console-recorder-helpers";
+import type { EwTarget } from "./console-recorder-helpers";
 import { createTrailingThrottle, FLUSH_INTERVAL_MS } from "./log-throttle";
 
 function consoleRecorderScript(): void {
@@ -62,11 +66,25 @@ function consoleRecorderScript(): void {
     throttle.schedule();
   }
 
-  // error/warn은 wrap하지 않는다. 페이지가 console.error/warn을 호출하면 native 호출 시점의
-  // 콜스택에 우리 wrap 함수가 끼는데, Chrome이 이걸 "이 확장이 console.error를 호출했다"로
-  // 잘못 attribution → chrome://extensions 오류 로그에 페이지의 모든 console.error/warn이
-  // 누적된다. uncaught 에러는 window.error로, unhandled rejection은 unhandledrejection으로,
-  // assertion 실패는 wrapped console.assert에서 직접 error로 push하므로 가치 있는 신호는 보존.
+  // error/warn arm-스코프 wrap. log/info/debug처럼 상시 설치하지 않고 setSentinel(arm) 시
+  // 설치 → stop 시 native 복원한다. 이전엔 attribution 오염(페이지 console.error/warn이
+  // chrome://extensions 오류 로그에 확장 귀속으로 수집됨) 때문에 의도적으로 미wrap했으나(버그 아님),
+  // 페이지 error/warn 캡처 가치가 오염 비용을 상회한다는 PRD 트레이드오프로 번복한다 —
+  // 오염 창을 arm 구간으로 한정하고(상시 설치 회피) native를 먼저 호출해 DevTools 출력은 보존한다.
+  const natives: EwTarget = {
+    error: console.error.bind(console),
+    warn: console.warn.bind(console),
+  };
+  // captureStack 인자 없음: error/warn 경로는 wrapper→record→captureStack로 trace/assert보다
+  // record 프레임 하나 더 깊어, 기존 slice(4)가 그대로 페이지 첫 프레임에 정렬된다(실측 고정).
+  const record = (level: "error" | "warn", args: unknown[]) =>
+    pushEntry(level, serializeArgs(args), captureStack());
+  const wrappers: EwTarget = {
+    error: makeConsoleWrapper(natives.error, "error", record),
+    warn: makeConsoleWrapper(natives.warn, "warn", record),
+  };
+  const ewState = { installed: false };
+
   const LEVELS_TO_WRAP = ["log", "info", "debug"] as const;
 
   for (const level of LEVELS_TO_WRAP) {
@@ -252,7 +270,12 @@ function consoleRecorderScript(): void {
     detachSentinelListeners();
     currentSentinel = sentinel;
     recording = true;
-    stopHandler = () => { recording = false; throttle.flushNow(); };
+    installConsoleWrap(console, wrappers, ewState);
+    stopHandler = () => {
+      recording = false;
+      restoreConsoleWrap(console, wrappers, natives, ewState);
+      throttle.flushNow();
+    };
     syncHandler = () => { throttle.flushNow(); };
     clearHandler = () => { clearBuffer(); throttle.cancel(); };
     document.addEventListener("__bugshot_console_stop__" + sentinel, stopHandler);
