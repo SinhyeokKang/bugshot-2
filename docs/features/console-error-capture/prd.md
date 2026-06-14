@@ -16,17 +16,26 @@
 ## 목표
 
 - 페이지가 호출한 `console.error` / `console.warn`을 콘솔 로그에 캡처한다.
-- 캡처는 백그라운드 레코더가 arm된 동안에만 이뤄지고, arm 해제(`stop`) 시 native로 복원해 **attribution 오염 창을 "사이드패널이 supported 페이지에서 레코더를 arm한 구간"으로 한정**한다.
+- 캡처는 백그라운드 레코더가 arm된 동안에만 이뤄지고, arm 해제(`stop`) 시 native로 복원해 **attribution 오염 창을 레코더 arm 구간으로 한정**한다.
 - 30s 리플레이·수동 영상 캡처 모두에서 캡처 직전 구간의 error/warn이 채워진다(백그라운드 레코더가 캡처 전부터 arm돼 있으므로).
 - 기존 캡처 신호(uncaught/rejection/assert/log/info/debug)와 뷰어 표현을 회귀 없이 유지한다.
 
+### arm 구간의 실제 수명 (중요)
+
+"arm 구간"은 좁은 캡처 직전 구간이 아니라 **사이드패널이 supported 탭에 열린 순간(`setSentinel`)부터 패널 닫힘·탭 전환·미지원 이동·이슈완료 idle로 `stop`이 걸릴 때까지의 전체 세션**이다. 백그라운드 레코더가 캡처 전부터 상시 버퍼링(30s 리플레이가 look-back으로 읽는 구간)이라 wrap도 그 전체 구간 동안 설치돼 있다. 추가로 로그 레코더는 `all_frames: true`라 wrap이 **모든 프레임(iframe 포함)에 설치**된다. 따라서 attribution 오염은 **(패널을 켜둔 전체 세션) × (모든 프레임)** 으로 발생한다 — Jam(녹화 세션에만 주입)보다 넓다. 이 광역 범위를 의도적으로 수용한다(아래 비목표·트레이드오프 참조).
+
 ## 비목표 (Non-goals)
 
-- **attribution 오염 자체의 제거**: 동기 wrap인 이상 arm 구간 중에는 `chrome://extensions`에 페이지 error/warn이 수집된다. 이는 수용한다(일반 사용자는 개발자 모드에서만 노출). 회피 트릭은 추구하지 않는다.
+- **attribution 오염 자체의 제거**: 동기 wrap인 이상 arm 구간 중에는 `chrome://extensions`에 페이지 error/warn이 수집된다. 회피 트릭은 추구하지 않는다.
+  - **트레이드오프 (손익 명시)**: 이 확장의 주 타겟은 개발자이므로 정작 오염이 노출되는 대상이 핵심 사용자다. 그럼에도 수용하는 이유 — (a) catch된 에러/라이브러리 경고는 현재 logs.html에서 영영 안 보이는 가장 큰 디버깅 신호 공백이라 캡처 가치가 오염 불편을 상회한다, (b) 경쟁 제품 Jam도 동일 비용을 감수한다, (c) 오염은 개발자 모드 `chrome://extensions`에서만 노출이고 arm 구간으로 창을 좁혔다. 비용은 "개발 중 본인 `chrome://extensions`가 페이지 에러로 도배"되는 것 — 신규 비용임을 인정하고 수용한다.
+- **오염 창을 캡처 세션으로 좁히기 (Jam식)**: wrap 설치를 30s 버퍼/수동 녹화 active 구간으로만 한정하는 안은 채택하지 않는다. 30s 리플레이가 "캡처 직전 구간"을 채우려면 캡처 전부터 버퍼링(=wrap)돼 있어야 하므로, 광역 arm을 유지한다.
 - **레코더가 arm되기 전(패널 닫힘·미지원 페이지) 발생한 error/warn 소급 캡처**: 하지 않는다. 기존 log/info/debug 캡처 의미론과 동일하게 arm된 구간만.
 - **`console.log/info/debug` 캡처 라이프사이클 변경**: 현행(콘텐츠 스크립트 평가 시 상시 wrap + `recording` 플래그로 capture 게이트) 유지. 이들은 오염을 유발하지 않으므로 건드리지 않는다.
 - **소스맵 기반 스택 복원**: 캡처하는 스택은 페이지 번들 기준(prod는 minified). 복원하지 않는다.
-- **새 UI / 새 필터**: Console 로그 탭은 이미 error/warn 레벨을 색·아이콘·필터로 렌더한다. 추가하지 않는다.
+- **새 UI / 새 필터**: Console 로그 탭은 이미 error/warn 레벨을 색·아이콘·필터로 렌더한다. 추가하지 않는다. 단 아래 두 한계는 알려진 채로 수용한다.
+  - **타임라인 마커 밀집(알려진 한계)**: `markers.ts`/`ProgressBar`에 인접 마커 dedup·clustering·개수 상한이 없다. 지금까지 콘솔 탭 error는 uncaught/rejection(드문 이벤트)이라 마커가 듬성듬성했으나, `console.error/warn` 직접 캡처로 마커 밀도가 구조적으로 높아진다. 좁은(~400px) 패널에서 동일 위치에 마커가 겹쳐 red(error)가 amber(warn) 더미에 묻힐 수 있다. 이번 스코프에선 손대지 않고 한계로 수용한다(후속 dedup/clustering은 별도 작업).
+  - **warn 신호 희석(알려진 한계)**: warn(라이브러리 deprecation·네트워크 경고)을 함께 캡처하므로 warn 폭증 시 error 신호가 콘솔 탭/마커에서 희석될 수 있다. 사용자는 레벨 필터·origin 필터로 추릴 수 있으나 폭증 자체는 막지 않는다. warn 제외 안은 검토 후 기각(catch된 라이브러리 warn도 단서가 됨).
+- **사용자 안내(가이드)를 넘는 인앱 마이크로카피**: chrome://extensions 오염은 `guide/ko·en`의 로그 캡처 설명에 한 줄로만 안내하고, 패널 내 마이크로카피·설정 안내 UI는 추가하지 않는다("새 UI 없음" 유지).
 
 ## 사용자 시나리오
 
@@ -51,5 +60,6 @@
 - arm 해제(`stop`) 후 `console.error`/`console.warn`은 native 동작(원본 호출)으로 복원된다.
 - DevTools 콘솔 출력은 wrap 여부와 무관하게 그대로 보인다(원본을 항상 호출).
 - 기존 uncaught/rejection/assert 캡처와 log/info/debug 캡처가 동일하게 동작한다(회귀 없음).
-- `pnpm test` 통과(기존 helper 단위 테스트 + 신규 분기 테스트).
-- e2e: "arm 중 페이지 console.error 호출 → 콘솔 로그에 error 엔트리" 시나리오 green.
+- `pnpm test` 통과(기존 helper 단위 테스트 + 신규 분기 테스트). 신규 단위 테스트는 wrapper 생성·복원 판정뿐 아니라 **install/restore 멱등성·복원 안전성**(순수 함수로 추출 — design 참조)까지 커버한다.
+- e2e: "arm 중 페이지 console.error 호출 → 콘솔 로그에 error 엔트리" 시나리오 green. iframe 내 error/warn 캡처와 기존 콘솔 캡처 회귀 없음도 e2e로 확인.
+- `guide/ko·en` 로그 캡처 설명에 "arm 중 페이지 error/warn이 확장 오류 로그에 섞일 수 있음" 한 줄 안내가 반영됨.
