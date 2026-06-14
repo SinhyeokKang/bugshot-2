@@ -6,9 +6,9 @@ Both Console and Network also capture logs coming from **other origins embedded 
 
 ## Console
 
-Collects the page's console output and errors.
+Collects the page's console output in full — info, warnings, and errors alike. Warnings and errors your code logs directly (`console.warn`, `console.error`), plus uncaught exceptions, are all captured, so nothing slips by.
 
-- **Filter / search** — Filter by level or find by keyword.
+- **Filter / search** — Filter by level (errors, warnings, and more) or find by keyword.
 - **Detail** — Expand an entry to see the full contents.
 - **Clear Log** — Empty the collected logs.
 
