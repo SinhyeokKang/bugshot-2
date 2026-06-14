@@ -22,6 +22,8 @@ import {
   type AsanaBuildInput,
 } from "../buildAsanaIssueBody";
 import type { MarkdownContext } from "../buildIssueMarkdown";
+import { CC_SENTINEL } from "../ccMention";
+import { markdownToAsanaHtml } from "../markdownToAsanaHtml";
 
 function makeCtx(overrides: Partial<MarkdownContext> = {}): MarkdownContext {
   return {
@@ -53,6 +55,12 @@ describe("buildAsanaIssueBody", () => {
     expect(out.body).not.toContain("# Test");
     expect(out.body).toContain("**Page**: https://example.com");
     expect(out.body).toContain("**Viewport**: 1024×768");
+  });
+
+  it("element 모드 → DOM 줄 selector는 백틱, HTML 변환 시 <code>", () => {
+    const out = buildAsanaIssueBody({ ctx: makeCtx({ selector: "button.cta" }) });
+    expect(out.body).toContain("**DOM**: `button.cta`");
+    expect(markdownToAsanaHtml(out.body)).toContain("<code>button.cta</code>");
   });
 
   it("이미지는 본문에 인라인(![filename](filename)) + attached 포함, 첨부 백틱 목록엔 미포함", () => {
@@ -122,5 +130,38 @@ describe("buildAsanaIssueBody", () => {
     expect(out.body).toContain("![before-0.png](before-0.png)");
     expect(out.body).toContain("![before-1.png](before-1.png)");
     expect(out.body).not.toContain("md.section.media");
+  });
+});
+
+describe("cc 멘션 (sentinel)", () => {
+  it("hasCc면 sentinel 줄이 --- 푸터 직전에 위치", () => {
+    const out = buildAsanaIssueBody({ ctx: makeCtx(), hasCc: true });
+    const lines = out.body.split("\n");
+    const idx = lines.indexOf(CC_SENTINEL);
+    expect(idx).toBeGreaterThan(-1);
+    expect(lines[idx + 2]).toBe("---");
+  });
+
+  it("hasCc 미지정·false 모두 기존 출력과 등치", () => {
+    const base = buildAsanaIssueBody({ ctx: makeCtx() });
+    expect(buildAsanaIssueBody({ ctx: makeCtx(), hasCc: undefined })).toEqual(base);
+    expect(buildAsanaIssueBody({ ctx: makeCtx(), hasCc: false })).toEqual(base);
+  });
+
+  it("markdownToAsanaHtml 통과 시 sentinel 원형 보존", () => {
+    const out = buildAsanaIssueBody({ ctx: makeCtx(), hasCc: true });
+    expect(markdownToAsanaHtml(out.body)).toContain(CC_SENTINEL);
+  });
+
+  it("본문에 마크다운 참조 정의가 있어도 sentinel이 살아남는다 (구 괄호 sentinel 회귀)", () => {
+    const out = buildAsanaIssueBody({
+      ctx: makeCtx({
+        sections: {
+          description: `[bugshot:cc]: https://example.com\n[${CC_SENTINEL}]: https://example.com`,
+        },
+      }),
+      hasCc: true,
+    });
+    expect(markdownToAsanaHtml(out.body)).toContain(CC_SENTINEL);
   });
 });

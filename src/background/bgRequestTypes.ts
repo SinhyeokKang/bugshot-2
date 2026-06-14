@@ -51,6 +51,7 @@ const BG_REQUEST_TYPE_MAP: Record<BgRequest["type"], true> = {
   "notion.testToken": true,
   "notion.disconnect": true,
   "notion.getMyself": true,
+  "notion.listUsers": true,
   "notion.searchDatabases": true,
   "notion.getDatabaseSchema": true,
   "notion.uploadFile": true,

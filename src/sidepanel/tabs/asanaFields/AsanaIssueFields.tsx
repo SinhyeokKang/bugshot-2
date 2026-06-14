@@ -1,5 +1,6 @@
 import { useT } from "@/i18n";
 import { AssigneeCombobox } from "./AssigneeCombobox";
+import { CcCombobox, type CcValue } from "./CcCombobox";
 import { ProjectCombobox, type ProjectValue } from "./ProjectCombobox";
 import { WorkspaceCombobox } from "./WorkspaceCombobox";
 import { FieldRow } from "@/sidepanel/components/FieldRow";
@@ -11,6 +12,7 @@ export interface AsanaIssueFieldsValue {
   projectName?: string;
   assigneeGid?: string;
   assigneeName?: string;
+  cc?: CcValue[];
 }
 
 export function initialAsanaFields(
@@ -31,6 +33,7 @@ export function initialAsanaFields(
     projectName: sameWs ? last?.projectName : defaults?.projectName,
     assigneeGid: sameWs ? last?.assigneeGid : undefined,
     assigneeName: sameWs ? last?.assigneeName : undefined,
+    cc: sameWs ? last?.cc : undefined,
   };
 }
 
@@ -65,6 +68,7 @@ export function AsanaIssueFields({ value, onChange }: Props) {
               projectName: undefined,
               assigneeGid: undefined,
               assigneeName: undefined,
+              cc: undefined,
             })
           }
         />
@@ -97,6 +101,14 @@ export function AsanaIssueFields({ value, onChange }: Props) {
               assigneeName: next?.name,
             })
           }
+        />
+      </FieldRow>
+
+      <FieldRow label={t("field.cc.label")}>
+        <CcCombobox
+          workspaceGid={value.workspaceGid}
+          value={value.cc ?? []}
+          onChange={(cc) => onChange({ cc })}
         />
       </FieldRow>
     </div>

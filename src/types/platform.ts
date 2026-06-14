@@ -22,6 +22,10 @@ export const PLATFORM_TAB_KEYS = {
   asana: "platform.tab.asana",
 } as const satisfies Record<PlatformId, string>;
 
+// 이슈 본문 cc 줄 포맷 — sidepanel 빌더(ccMention)와 background(notion expandBlock)가 공유.
+export const CC_PREFIX = "cc ";
+export const CC_SEPARATOR = ", ";
+
 export interface PlatformAccountBase<P extends PlatformId> {
   platform: P;
   connectedAt: number;
@@ -53,6 +57,7 @@ export interface JiraLastSubmitFields {
   parentLabel?: string;
   relatesKey?: string;
   relatesLabel?: string;
+  cc?: { accountId: string; displayName: string }[];
 }
 
 export interface GithubLastSubmitFields {
@@ -60,6 +65,7 @@ export interface GithubLastSubmitFields {
   repo?: string;
   label?: string;
   assignee?: string;
+  cc?: string[];
 }
 
 export interface LinearLastSubmitFields {
@@ -73,6 +79,7 @@ export interface LinearLastSubmitFields {
   assigneeId?: string;
   assigneeName?: string;
   priority?: number;
+  cc?: { id: string; name: string }[];
 }
 
 export interface NotionLastSubmitFields {
@@ -84,6 +91,7 @@ export interface NotionLastSubmitFields {
     type: "select" | "multi_select";
     options: string[];
   }[];
+  cc?: { id: string; name: string }[];
 }
 
 export interface NormalizedSubmitResult {
@@ -100,6 +108,7 @@ export interface GitlabLastSubmitFields {
   // GitLab create API는 assignee_ids(숫자)만 받으므로 username이 아닌 id를 보존 (Linear 패턴).
   assigneeId?: number;
   assigneeName?: string;
+  cc?: { username: string; name: string }[];
 }
 
 export interface AsanaLastSubmitFields {
@@ -109,6 +118,7 @@ export interface AsanaLastSubmitFields {
   projectName?: string;
   assigneeGid?: string;
   assigneeName?: string;
+  cc?: { gid: string; name: string }[];
 }
 
 export interface LastSubmitFieldsByPlatform {

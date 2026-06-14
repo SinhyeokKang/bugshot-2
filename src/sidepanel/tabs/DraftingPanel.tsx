@@ -590,6 +590,7 @@ function SectionTextarea({
     <Section
       title={label}
       collapsible
+      testId={`draft-section-${section.id}`}
       action={
         isParagraph ? (
           <>

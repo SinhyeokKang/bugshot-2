@@ -107,7 +107,14 @@ export type NotionBlock =
   | { type: "rich_bulleted_list_item"; richText: NotionRichText[] }
   | { type: "rich_numbered_list_item"; richText: NotionRichText[] }
   | { type: "rich_quote"; richText: NotionRichText[] }
+  | { type: "mention_paragraph"; userIds: string[] }
   | { type: "divider" };
+
+export interface NotionUser {
+  id: string;
+  name: string;
+  avatarUrl?: string;
+}
 
 export type NotionAttachmentCategory = "image" | "video" | "log" | "other";
 

@@ -181,7 +181,18 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
       onOpenChange(false);
       onSuccess?.(result);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : String(err));
+      const ccCount = {
+        jira: jiraFields.cc?.length,
+        github: ghFields.cc?.length,
+        linear: linearFields.cc?.length,
+        gitlab: gitlabFields.cc?.length,
+        asana: asanaFields.cc?.length,
+        notion: notionFields.cc?.length,
+      }[platform];
+      toast.error(
+        err instanceof Error ? err.message : String(err),
+        ccCount ? { description: t("field.cc.submitErrorHint") } : undefined,
+      );
       setSubmit({ status: "idle" });
     }
   }
@@ -196,7 +207,7 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="w-[80vw] max-w-[80vw] gap-5 rounded-3xl p-6 sm:rounded-3xl">
+      <DialogContent className="max-h-[80vh] w-[80vw] max-w-[80vw] gap-5 rounded-3xl p-6 sm:rounded-3xl">
         <DialogHeader>
           <DialogTitle className="text-xl">{title ?? t("issue.submit")}</DialogTitle>
         </DialogHeader>
@@ -222,6 +233,7 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
           </Tabs>
         ) : null}
 
+        <div className="-mx-1 min-h-0 flex-1 overflow-y-auto px-1">
         {platform === "jira" ? (
           jiraConfigured ? (
             <JiraIssueFields fields={jiraFields} onChange={setJiraFields} />
@@ -249,6 +261,7 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
             onSchemaResolved={onNotionSchemaResolved}
           />
         ) : null}
+        </div>
 
         <DialogFooter className="flex-row justify-end">
           <Button

@@ -5,10 +5,12 @@ import {
   type IssueSection,
 } from "@/store/settings-ui-store";
 import {
+  mdInlineCode,
   resolveStyleElements,
   styleDomLabel,
   type MarkdownContext,
 } from "./buildIssueMarkdown";
+import { ccMarkdownLine } from "./ccMention";
 import { filterEnvironmentRows } from "./environmentRows";
 import { formatTimestamp } from "./formatTimestamp";
 
@@ -21,6 +23,7 @@ export interface LinearBuildInput {
   ctx: MarkdownContext;
   images?: LinearMediaInput[];
   video?: LinearMediaInput;
+  cc?: string[];
 }
 
 export interface LinearBuildResult {
@@ -68,7 +71,7 @@ export function buildLinearIssueBody(
     lines.push(`- **Browser**: ${ctx.browser}`);
   }
   lines.push(`- **Page**: ${ctx.url}`);
-  const domLabel = styleDomLabel(ctx);
+  const domLabel = styleDomLabel(ctx, mdInlineCode);
   if (domLabel) {
     lines.push(`- **DOM**: ${domLabel}`);
   }
@@ -152,6 +155,9 @@ export function buildLinearIssueBody(
 
   emitMedia();
 
+  const ccLine = ccMarkdownLine(input.cc ?? []);
+  if (ccLine) lines.push(ccLine, "");
+
   lines.push("---", "");
   lines.push(footerMarkdown(), "");
 
@@ -177,5 +183,5 @@ function emitLogSummary(lines: string[], ctx: MarkdownContext): void {
     );
   }
   lines.push("");
-  lines.push(`_${t("logSummary.logs.detail")}_`, "");
+  lines.push(`_${t("logSummary.logs.detail", { file: "logs.html" })}_`, "");
 }

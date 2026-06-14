@@ -63,6 +63,8 @@ export function IssueRow({
       <Card
         className={`group cursor-pointer transition-colors ${badgeHover ? "" : "hover:bg-muted/50"}`}
         onClick={handleCardClick}
+        data-testid="issue-row"
+        data-status={issue.status}
       >
         <CardContent className="flex items-center justify-between gap-3 px-4 py-3">
           <div className="flex min-w-0 flex-col">

@@ -96,6 +96,24 @@ describe("buildGithubIssueBody — 첨부 안내", () => {
     expect(out.body).not.toContain("github.attachmentNotInline");
   });
 
+  it("logs url이 있으면 로그 요약 안내 문구의 {file}에 마크다운 링크 주입", () => {
+    const input: GithubBuildInput = {
+      ctx: makeCtx({ networkLogSummary: { captured: 5, errors: [] } }),
+      logs: [{ filename: "logs.html", contentType: "text/html", url: "https://gh/u/logs.html" }],
+    };
+    const out = buildGithubIssueBody(input);
+    expect(out.body).toContain("logSummary.logs.detail file=[logs.html](https://gh/u/logs.html)");
+  });
+
+  it("logs url이 없으면 로그 요약 안내 문구는 평문 logs.html", () => {
+    const input: GithubBuildInput = {
+      ctx: makeCtx({ networkLogSummary: { captured: 5, errors: [] } }),
+      logs: [{ filename: "logs.html", contentType: "text/html" }],
+    };
+    const out = buildGithubIssueBody(input);
+    expect(out.body).toContain("logSummary.logs.detail file=logs.html");
+  });
+
   it("안내 문구는 첨부 섹션당 1회만 (모든 항목마다 반복 X)", () => {
     const out = buildGithubIssueBody({
       ctx: makeCtx({ captureMode: "screenshot" }),
@@ -456,7 +474,7 @@ describe("buildGithubIssueBody — 요소 캡처 (screenshot + selector)", () =>
     const out = buildGithubIssueBody({
       ctx: makeCtx({ captureMode: "screenshot", selector: "button.cta", diffs: [] }),
     });
-    expect(out.body).toContain("**DOM**: button.cta");
+    expect(out.body).toContain("**DOM**: `button.cta`");
   });
 
   it("screenshot + 빈 selector(범위 캡처) → DOM 미표시 (회귀)", () => {
@@ -464,5 +482,22 @@ describe("buildGithubIssueBody — 요소 캡처 (screenshot + selector)", () =>
       ctx: makeCtx({ captureMode: "screenshot", selector: "", diffs: [] }),
     });
     expect(out.body).not.toContain("**DOM**");
+  });
+});
+
+describe("cc 멘션", () => {
+  it("cc 줄이 --- 푸터 직전에 위치", () => {
+    const out = buildGithubIssueBody({ ctx: makeCtx(), cc: ["alice", "bob"] });
+    const lines = out.body.split("\n");
+    const idx = lines.indexOf("cc @alice, @bob");
+    expect(idx).toBeGreaterThan(-1);
+    expect(lines[idx + 2]).toBe("---");
+    expect(lines[idx + 4]).toContain("Reported via");
+  });
+
+  it("cc 미지정·undefined·빈 배열 모두 기존 출력과 등치", () => {
+    const base = buildGithubIssueBody({ ctx: makeCtx() });
+    expect(buildGithubIssueBody({ ctx: makeCtx(), cc: undefined })).toEqual(base);
+    expect(buildGithubIssueBody({ ctx: makeCtx(), cc: [] })).toEqual(base);
   });
 });

@@ -27,6 +27,7 @@ export interface NotionSubmitInput {
   titlePropertyName: string;
   statusOption?: { propertyName: string; optionName: string };
   selectValues: NotionSelectFieldValue[];
+  cc?: string[];
 }
 
 export async function submitToNotion(
@@ -84,6 +85,7 @@ export async function submitToNotion(
       : undefined,
     logs: mappedLogs,
     inlineImageRefIds: inlineUploaded.map((iu) => iu.refId),
+    cc: input.cc,
   });
 
   // 3. 일반 첨부 업로드 — 직렬 (Notion rate limit 보호)

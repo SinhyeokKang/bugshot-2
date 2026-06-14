@@ -151,4 +151,37 @@ describe("buildGitlabIssueBody — element 복수", () => {
     expect(out.body.slice(sec1)).toContain("![before-1.webp](/u/b1)");
     expect(out.body).not.toContain("md.section.attachments");
   });
+
+  it("logs url이 있으면 로그 요약 안내 문구의 {file}에 마크다운 링크 주입", () => {
+    const out = buildGitlabIssueBody({
+      ctx: makeCtx({ networkLogSummary: { captured: 5, errors: [] } }),
+      logs: [{ filename: "logs.html", contentType: "text/html", url: "/uploads/abc/logs.html" }],
+    });
+    expect(out.body).toContain("logSummary.logs.detail file=[logs.html](/uploads/abc/logs.html)");
+  });
+
+  it("logs url이 없으면 로그 요약 안내 문구는 평문 logs.html", () => {
+    const out = buildGitlabIssueBody({
+      ctx: makeCtx({ networkLogSummary: { captured: 5, errors: [] } }),
+      logs: [{ filename: "logs.html", contentType: "text/html" }],
+    });
+    expect(out.body).toContain("logSummary.logs.detail file=logs.html");
+  });
+});
+
+describe("cc 멘션", () => {
+  it("cc 줄이 --- 푸터 직전에 위치", () => {
+    const out = buildGitlabIssueBody({ ctx: makeCtx(), cc: ["alice", "bob"] });
+    const lines = out.body.split("\n");
+    const idx = lines.indexOf("cc @alice, @bob");
+    expect(idx).toBeGreaterThan(-1);
+    expect(lines[idx + 2]).toBe("---");
+    expect(lines[idx + 4]).toContain("Reported via");
+  });
+
+  it("cc 미지정·undefined·빈 배열 모두 기존 출력과 등치", () => {
+    const base = buildGitlabIssueBody({ ctx: makeCtx() });
+    expect(buildGitlabIssueBody({ ctx: makeCtx(), cc: undefined })).toEqual(base);
+    expect(buildGitlabIssueBody({ ctx: makeCtx(), cc: [] })).toEqual(base);
+  });
 });

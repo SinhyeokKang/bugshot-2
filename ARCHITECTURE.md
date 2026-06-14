@@ -144,8 +144,9 @@ shorthand(var 포함) + 같은 shorthand의 longhand override 조합에서 Chrom
 기본값은 `editor-store.ts`의 모드 진입 액션(`startCapturing`/`startFreeform`/`startRecording`/`onRecordingComplete`)에서 설정. screenshot은 `preserveLogs`로 직전 상태만 승계 (`initial`은 모두 false).
 
 **플랫폼별 패키징**:
-- **Jira/Linear**: `logs.html` 그대로 첨부 → 이슈 생성 **후** `injectIssueUrl`로 뷰어 백링크 주입.
-- **GitHub**: `logs.html` 그대로 첨부 (markdown link) → issueUrl 미주입(빈 값 → 뷰어가 링크 숨김).
+- **Jira**: `logs.html` 그대로 첨부 → 이슈 생성 **후** `injectIssueUrl`로 뷰어 백링크 주입. 본문 로그 요약 안내의 `logs.html`은 제출 시 첨부 URL을 모르므로 업로드 후 `injectLogsLink`(`background/lib/adf-logs-link`)가 해당 em 노드에 link mark를 주입해 클릭 링크화(매칭 노드 없으면 평문 유지).
+- **Linear**: `logs.html` 그대로 첨부 → 이슈 생성 **후** `injectIssueUrl`로 뷰어 백링크 주입 (description-update 경로가 없어 본문 안내는 평문).
+- **GitHub/GitLab**: `logs.html` 그대로 첨부 + 본문 로그 요약 안내에 markdown 링크(빌드 타임에 첨부 href를 알아 `emitLogSummary`가 `{file}`을 링크로 렌더). GitHub은 issueUrl 미주입(빈 값 → 뷰어가 링크 숨김), GitLab은 생성 후 `injectIssueUrl` 재업로드로 백링크 주입.
 - **Notion**: **`logs.zip`** (DEFLATE 압축 zip 1파일 래핑, `zipLogsHtml`). Cloudflare WAF가 `POST /v1/file_uploads/{id}/send`에서 평문 HTML/로그 콘텐츠(스택트레이스·URL·SQL스러운 토큰)를 공격 페이로드로 오탐해 403 반환. store-mode zip도 내부가 평문이라 같은 사유로 막힘 → DEFLATE 압축 바이트는 평문 패턴 매칭 회피. 부수효과로 size ~30%로 줄어 무료 워크스페이스 5 MiB 한도 여유. 단계: 페이지 생성 전 업로드 → issueUrl 주입 불가(GitHub과 동일, 빈 값 → 뷰어 자동 숨김).
 
 **영상-로그 동기화**: `LogViewerData.video`에 영상 임베드 → log-viewer가 좌(영상)/우(3탭) 분할, `LogSeekChip`으로 행↔영상 양방향 seek + active 행 하이라이트. 동기화 0점은 `video.startedAt`. props 미공급(라이브 사이드패널 서브탭)이면 칩·active 안 생겨 기존 레이아웃 불변.
@@ -164,13 +165,16 @@ shorthand(var 포함) + 같은 shorthand의 longhand override 조합에서 Chrom
 
 **권한**: `captureVisibleTab`은 `activeTab` 또는 광역 host permission 요구. activeTab은 cross-document 네비게이션에서 회수되고 프로그램적 재취득 불가 → 30s Replay는 `optional_host_permissions`의 `https://*/*`+`http://*/*`를 **런타임 요청**해 획득 (설정 Switch ON 시 1회 동의, Chrome 영구 저장).
 
-**사이드 패널 종료/유지 정책** — `deactivatePanelIfCrossOrigin`가 `tabs.onUpdated` `status:loading`에서 origin 비교. 기준 URL: 에디터 세션 `target.url` 우선 → 활성화 시점 저장 URL → 둘 다 없으면 패널 유지.
+**사이드 패널 종료/유지 정책** — `deactivatePanelIfCrossOrigin`가 `tabs.onUpdated` `status:loading`에서 origin 비교. 기준 URL: 에디터 세션 `target.url` 우선 → 활성화 시점 저장 URL → 둘 다 없으면 패널 유지. 판정은 순수 헬퍼 `resolveNavigationAction`(단위 테스트로 고정)으로 분리. 아래 cross-origin 행은 **광역 host 권한 미보유 기준**.
 
 | 조건 | 동작 |
 |---|---|
 | **same-origin** | 패널 유지. 비보존+page key 변경 시 stale 세션 제거 |
+| **cross-origin + 광역 권한 보유 + 커버 URL** (http/https 지원 URL) | same-origin과 동일 취급 — 패널 유지, 비보존이면 stale 세션만 제거. deferred 미발생 |
 | **cross-origin + 비보존** (idle 포함) | 패널 닫기 + 세션 제거 |
 | **cross-origin + 보존** (drafting/previewing/done/video) | 패널 유지, `activeTabExpiredDeferred` → idle 복귀 시 만료 다이얼로그 |
+
+광역 권한 예외: 30s Replay 옵트인으로 부여된 `https://*/*`+`http://*/*`를 보유하면 cross-origin 이동에도 캡처가 끊기지 않으므로 same-origin처럼 패널을 유지한다(리플레이 스위치 OFF여도 권한이 있는 한 적용). `chrome.permissions.contains`는 cross-origin 판정일 때만 조회하고, `file:`은 지원 URL이지만 광역 커버 밖이라 현행 분기를 탄다.
 
 보존 → idle 사이 "좀비 구간"에서 캡처 시도 시 3중 방어(진입 `classifyTabSupport` / 런타임 `isActiveTabPermissionError` / tabCapture `isTabCaptureUnavailable`)가 즉시 만료 다이얼로그.
 

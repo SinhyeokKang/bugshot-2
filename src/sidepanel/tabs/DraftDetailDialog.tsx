@@ -91,6 +91,7 @@ type SubmitFields = {
   parentLabel?: string;
   relatesKey?: string;
   relatesLabel?: string;
+  cc?: { accountId: string; displayName: string }[];
 };
 
 export function DraftDetailDialog({
@@ -359,7 +360,7 @@ export function DraftDetailDialog({
       payload: {
         projectKey: jiraAccount.projectKey,
         summary: issue.draft.title.trim(),
-        description: buildIssueAdf(ctx, jiraInline.map((i) => i.refId)),
+        description: buildIssueAdf(ctx, jiraInline.map((i) => i.refId), fields.cc),
         issueTypeId: fields.issueTypeId,
         assigneeAccountId: fields.assigneeId,
         priorityId: fields.priorityId,
@@ -392,6 +393,7 @@ export function DraftDetailDialog({
       parentLabel: fields.parentLabel,
       relatesKey: fields.relatesKey,
       relatesLabel: fields.relatesLabel,
+      cc: fields.cc,
     });
     useSettingsStore.getState().setLastSubmittedPlatform("jira");
     return { key: result.key, url: result.url, logsDropped: result.logsDropped };
@@ -418,6 +420,7 @@ export function DraftDetailDialog({
       repo: ghFields.repo,
       label: ghFields.label,
       assignee: ghFields.assignee,
+      cc: ghFields.cc,
     });
     markSubmitted(issue.id, {
       platform: "github",
@@ -437,6 +440,7 @@ export function DraftDetailDialog({
       repo: ghFields.repo,
       label: ghFields.label,
       assignee: ghFields.assignee,
+      cc: ghFields.cc,
     });
     useSettingsStore.getState().setLastSubmittedPlatform("github");
     return result;
@@ -464,6 +468,7 @@ export function DraftDetailDialog({
       labelId: linearFields.labelId,
       assigneeId: linearFields.assigneeId,
       priority: linearFields.priority,
+      cc: linearFields.cc,
     });
     markSubmitted(issue.id, {
       platform: "linear",
@@ -489,6 +494,7 @@ export function DraftDetailDialog({
       assigneeId: linearFields.assigneeId,
       assigneeName: linearFields.assigneeName,
       priority: linearFields.priority,
+      cc: linearFields.cc,
     });
     useSettingsStore.getState().setLastSubmittedPlatform("linear");
     return result;
@@ -525,6 +531,7 @@ export function DraftDetailDialog({
             }
           : undefined,
       selectValues: notionFields.selectValues,
+      cc: notionFields.cc?.map((u) => u.id),
     });
     const pageId = extractNotionPageId(result.url);
     markSubmitted(issue.id, {
@@ -546,6 +553,7 @@ export function DraftDetailDialog({
       databaseTitle: notionFields.databaseTitle,
       statusOption: notionFields.statusOption,
       selectValues: notionFields.selectValues,
+      cc: notionFields.cc,
     });
     useSettingsStore.getState().setLastSubmittedPlatform("notion");
     return result;
@@ -571,6 +579,7 @@ export function DraftDetailDialog({
       projectId: gitlabFields.projectId,
       label: gitlabFields.label,
       assigneeId: gitlabFields.assigneeId,
+      cc: gitlabFields.cc?.map((u) => u.username),
     });
     markSubmitted(issue.id, {
       platform: "gitlab",
@@ -591,6 +600,7 @@ export function DraftDetailDialog({
       label: gitlabFields.label,
       assigneeId: gitlabFields.assigneeId,
       assigneeName: gitlabFields.assigneeName,
+      cc: gitlabFields.cc,
     });
     useSettingsStore.getState().setLastSubmittedPlatform("gitlab");
     return result;
@@ -616,6 +626,7 @@ export function DraftDetailDialog({
       workspaceGid: asanaFields.workspaceGid,
       projectGid: asanaFields.projectGid,
       assigneeGid: asanaFields.assigneeGid,
+      cc: asanaFields.cc,
     });
     markSubmitted(issue.id, {
       platform: "asana",
@@ -635,6 +646,7 @@ export function DraftDetailDialog({
       projectName: asanaFields.projectName,
       assigneeGid: asanaFields.assigneeGid,
       assigneeName: asanaFields.assigneeName,
+      cc: asanaFields.cc,
     });
     useSettingsStore.getState().setLastSubmittedPlatform("asana");
     return result;
@@ -667,7 +679,7 @@ export function DraftDetailDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="w-[80vw] max-w-[80vw] max-h-[80vh] gap-5 rounded-3xl p-6 sm:rounded-3xl">
+        <DialogContent className="w-[80vw] max-w-[80vw] max-h-[80vh] gap-5 rounded-3xl p-6 sm:rounded-3xl" data-testid="draft-detail-dialog">
               <DialogHeader>
                 <DialogTitle className="text-xl">{t("draftDetail.title")}</DialogTitle>
               </DialogHeader>

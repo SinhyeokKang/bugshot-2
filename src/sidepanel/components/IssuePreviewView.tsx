@@ -90,6 +90,7 @@ export function IssuePreviewView({
               onClick={() => void handleCopy()}
               className="shrink-0"
               aria-live="polite"
+              data-testid="copy-markdown"
             >
               {copied ? <Check /> : <Copy />}
               {copied ? labels.copied : labels.copyMarkdown}
@@ -120,7 +121,7 @@ export function IssuePreviewView({
         const sec = sections.find((s) => s.id === entry.id);
         if (!sec) return null;
         return (
-          <Section key={sec.id} title={sec.label}>
+          <Section key={sec.id} title={sec.label} testId={`preview-section-${sec.id}`}>
             <PreviewSectionBody section={sec} emptyValue={labels.emptyValue} />
           </Section>
         );

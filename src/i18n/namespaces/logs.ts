@@ -65,6 +65,12 @@ const ko = {
   "actionLog.role.menuitem": "메뉴 항목",
   "actionLog.role.textbox": "입력란",
 
+  "debug.tab.issue": "이슈 작성",
+  "debug.tab.console": "콘솔",
+  "debug.tab.network": "네트워크",
+  "debug.console.empty": "콘솔 로그가 없습니다",
+  "debug.network.empty": "네트워크 요청이 없습니다",
+
   "md.section.env": "재현 환경",
   "md.section.description": "발생 현상",
   "md.section.stepsToReproduce": "재현 과정",
@@ -85,7 +91,7 @@ const ko = {
   "logSummary.network.lineNoError": "네트워크: {n}건 (에러 없음)",
   "logSummary.console.line": "콘솔: {n}건 (에러 {errors}건, 경고 {warns}건)",
   "logSummary.console.lineNoError": "콘솔: {n}건 (에러 없음)",
-  "logSummary.logs.detail": "(상세: logs.html 첨부)",
+  "logSummary.logs.detail": "첨부된 {file}을 열면 콘솔·네트워크·클릭 동작을 시간순으로 살펴볼 수 있습니다.",
 
   "logCard.description": "총 {captured}건 (에러 {errors}건)",
 
@@ -162,15 +168,21 @@ const en = {
   "actionLog.role.menuitem": "menu item",
   "actionLog.role.textbox": "text field",
 
+  "debug.tab.issue": "Issue",
+  "debug.tab.console": "Console",
+  "debug.tab.network": "Network",
+  "debug.console.empty": "No console logs captured",
+  "debug.network.empty": "No network requests captured",
+
   "md.section.env": "Environment",
   "md.section.description": "Description",
   "md.section.stepsToReproduce": "Steps to reproduce",
   "md.section.media": "Media",
   "md.section.attachments": "Attachments",
-  "md.section.styleChanges": "Style Changes",
+  "md.section.styleChanges": "Style changes",
   "md.section.before": "Before",
   "md.section.after": "After",
-  "md.section.expectedResult": "Expected Result",
+  "md.section.expectedResult": "Expected result",
   "md.section.notes": "Notes",
   "md.videoAttached": "(See attached recording)",
   "md.imageAttached": "(See attached image)",
@@ -182,7 +194,7 @@ const en = {
   "logSummary.network.lineNoError": "Network: {n} requests (no errors)",
   "logSummary.console.line": "Console: {n} logs ({errors} errors, {warns} warnings)",
   "logSummary.console.lineNoError": "Console: {n} logs (no errors)",
-  "logSummary.logs.detail": "(Details: see logs.html attachment)",
+  "logSummary.logs.detail": "Open the attached {file} to review console, network, and click activity in chronological order.",
 
   "logCard.description": "{captured} captured ({errors} errors)",
 

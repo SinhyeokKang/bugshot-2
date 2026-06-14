@@ -1,5 +1,6 @@
 import { useT } from "@/i18n";
 import { AssigneeCombobox } from "./AssigneeCombobox";
+import { CcCombobox, type CcValue } from "./CcCombobox";
 import { LabelCombobox } from "./LabelCombobox";
 import { ProjectCombobox, type ProjectValue } from "./ProjectCombobox";
 import { FieldRow } from "@/sidepanel/components/FieldRow";
@@ -10,6 +11,7 @@ export interface GitlabIssueFieldsValue {
   label?: string;
   assigneeId?: number;
   assigneeName?: string;
+  cc?: CcValue[];
 }
 
 export function initialGitlabFields(
@@ -23,6 +25,7 @@ export function initialGitlabFields(
     label: src?.label,
     assigneeId: last?.projectId ? last.assigneeId : undefined,
     assigneeName: last?.projectId ? last.assigneeName : undefined,
+    cc: last?.projectId ? last.cc : undefined,
   };
 }
 
@@ -52,6 +55,7 @@ export function GitlabIssueFields({ value, onChange }: Props) {
                     label: undefined,
                     assigneeId: undefined,
                     assigneeName: undefined,
+                    cc: undefined,
                   }
                 : {
                     projectId: undefined,
@@ -59,6 +63,7 @@ export function GitlabIssueFields({ value, onChange }: Props) {
                     label: undefined,
                     assigneeId: undefined,
                     assigneeName: undefined,
+                    cc: undefined,
                   },
             )
           }
@@ -85,6 +90,13 @@ export function GitlabIssueFields({ value, onChange }: Props) {
               assigneeName: next?.username,
             })
           }
+        />
+      </FieldRow>
+      <FieldRow label={t("field.cc.label")}>
+        <CcCombobox
+          projectId={value.projectId}
+          value={value.cc ?? []}
+          onChange={(cc) => onChange({ cc })}
         />
       </FieldRow>
     </div>

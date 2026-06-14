@@ -163,20 +163,37 @@ export function resolveStyleElements(ctx: MarkdownContext): StyleElementContext[
 
 // styleElements가 있으면 selector를 쉼표로 나열, 없으면 fallback(단일 selector). 순수 함수 —
 // 마크다운 본문과 drafting/preview/detail UI의 DOM 줄이 같은 결과를 내도록 단일 출처.
+// wrap은 각 selector를 감싸는 변환(예: 본문 DOM 줄의 인라인 코드). UI 호출은 생략 → 원문 그대로.
 export function joinStyleSelectors(
   styleElements: Pick<StyleElementContext, "selector">[] | undefined,
   fallback: string | null | undefined,
+  wrap: (selector: string) => string = (s) => s,
 ): string {
   if (styleElements && styleElements.length > 0) {
-    return styleElements.map((e) => e.selector).join(", ");
+    return styleElements.map((e) => wrap(e.selector)).join(", ");
   }
-  return fallback ?? "";
+  return fallback ? wrap(fallback) : "";
 }
 
 // element 모드 본문의 DOM 환경 줄(selector 쉼표 나열). styleElements 없으면 ctx.selector.
-export function styleDomLabel(ctx: MarkdownContext): string {
-  return joinStyleSelectors(ctx.styleElements, ctx.selector);
+export function styleDomLabel(
+  ctx: MarkdownContext,
+  wrap?: (selector: string) => string,
+): string {
+  return joinStyleSelectors(ctx.styleElements, ctx.selector, wrap);
 }
+
+// DOM 줄 selector 목록(빈 값 제외) — Notion rich text·ADF code mark처럼 selector를
+// 개별 노드로 감싸야 하는 빌더용. joinStyleSelectors와 같은 우선순위(styleElements → ctx.selector).
+export function styleSelectorList(ctx: MarkdownContext): string[] {
+  if (ctx.styleElements && ctx.styleElements.length > 0) {
+    return ctx.styleElements.map((e) => e.selector);
+  }
+  return ctx.selector ? [ctx.selector] : [];
+}
+
+// 마크다운 본문 DOM 줄에서 selector를 인라인 코드로 감싸는 wrap (md 계열 빌더 공용).
+export const mdInlineCode = (selector: string): string => `\`${selector}\``;
 
 function sectionLabel(section: IssueSection): string {
   return section.labelOverride?.trim() || t(sectionMdLabelKey(section.id));
@@ -206,7 +223,7 @@ export function buildIssueMarkdown(ctx: MarkdownContext): string {
     lines.push(`- **Browser**: ${ctx.browser}`);
   }
   lines.push(`- **Page**: ${ctx.url}`);
-  const domLabel = styleDomLabel(ctx);
+  const domLabel = styleDomLabel(ctx, mdInlineCode);
   if (domLabel) {
     lines.push(`- **DOM**: ${domLabel}`);
   }
@@ -299,9 +316,9 @@ export function buildIssueHtml(ctx: MarkdownContext): string {
     parts.push(`<li><strong>Browser</strong>: ${escapeHtml(ctx.browser)}</li>`);
   }
   parts.push(`<li><strong>Page</strong>: ${escapeHtml(ctx.url)}</li>`);
-  const domLabel = styleDomLabel(ctx);
+  const domLabel = styleDomLabel(ctx, (s) => `<code>${escapeHtml(s)}</code>`);
   if (domLabel) {
-    parts.push(`<li><strong>DOM</strong>: ${escapeHtml(domLabel)}</li>`);
+    parts.push(`<li><strong>DOM</strong>: ${domLabel}</li>`);
   }
   if (ctx.viewport) {
     parts.push(
@@ -467,7 +484,7 @@ function emitLogSummaryMd(lines: string[], ctx: MarkdownContext): void {
     );
   }
   lines.push("");
-  lines.push(`_${t("logSummary.logs.detail")}_`);
+  lines.push(`_${t("logSummary.logs.detail", { file: "logs.html" })}_`);
   lines.push("");
 }
 
@@ -489,5 +506,5 @@ function emitLogSummaryHtml(parts: string[], ctx: MarkdownContext): void {
     parts.push(`<li>${escapeHtml(line)}</li>`);
   }
   parts.push("</ul>");
-  parts.push(`<p><em>${escapeHtml(t("logSummary.logs.detail"))}</em></p>`);
+  parts.push(`<p><em>${escapeHtml(t("logSummary.logs.detail", { file: "logs.html" }))}</em></p>`);
 }

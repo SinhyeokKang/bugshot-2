@@ -3,6 +3,7 @@ import { useT } from "@/i18n";
 import { FieldRow } from "@/sidepanel/components/FieldRow";
 import type { EditorIssueFields } from "@/store/editor-store";
 import { AssigneeField } from "./AssigneeField";
+import { CcField } from "./CcField";
 import { EpicField } from "./EpicField";
 import { IssueTypeField } from "./IssueTypeField";
 import { PriorityField } from "./PriorityField";
@@ -70,6 +71,9 @@ export function JiraIssueFields({
           fallbackLabel={fields.relatesLabel}
           onChange={(key, label) => onChange({ relatesKey: key, relatesLabel: label })}
         />
+      </FieldRow>
+      <FieldRow label={t("field.cc.label")}>
+        <CcField value={fields.cc ?? []} onChange={(cc) => onChange({ cc })} />
       </FieldRow>
     </div>
   );

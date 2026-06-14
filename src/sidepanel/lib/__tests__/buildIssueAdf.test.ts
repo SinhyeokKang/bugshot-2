@@ -296,6 +296,47 @@ describe("buildIssueAdf — freeform", () => {
     const texts = findNodes(doc, "text");
     expect(texts.some((t) => t.text?.includes("DOM"))).toBe(false);
   });
+
+  it("element 모드 → DOM 줄 selector는 code mark", () => {
+    const doc = buildIssueAdf(makeCtx({ selector: "button.cta" }));
+    const texts = findNodes(doc, "text");
+    const codeNode = texts.find(
+      (t: any) => t.text === "button.cta" && t.marks?.some((m: any) => m.type === "code"),
+    );
+    expect(codeNode).toBeDefined();
+  });
+
+  it("styleElements 복수 → selector마다 code mark", () => {
+    const doc = buildIssueAdf(
+      makeCtx({
+        styleElements: [
+          {
+            selector: "button.cta",
+            tagName: "button",
+            classListBefore: [],
+            classListAfter: [],
+            specifiedStyles: {},
+            diffs: [{ prop: "color", asIs: "#000", toBe: "#fff" }],
+          },
+          {
+            selector: "div.card",
+            tagName: "div",
+            classListBefore: [],
+            classListAfter: [],
+            specifiedStyles: {},
+            diffs: [{ prop: "padding", asIs: "10px", toBe: "20px" }],
+          },
+        ],
+      }),
+    );
+    const texts = findNodes(doc, "text");
+    const codeNodes = texts.filter((t: any) =>
+      t.marks?.some((m: any) => m.type === "code"),
+    );
+    expect(codeNodes.map((t: any) => t.text)).toEqual(
+      expect.arrayContaining(["button.cta", "div.card"]),
+    );
+  });
 });
 
 describe("buildIssueAdf — inline images", () => {
@@ -463,5 +504,31 @@ describe("buildIssueAdf — 요소 캡처 (screenshot + selector)", () => {
     );
     const texts = findNodes(doc, "text");
     expect(texts.some((t) => t.text?.includes("button.cta"))).toBe(true);
+  });
+});
+
+describe("cc 멘션", () => {
+  it("cc 있으면 rule 직전에 mention paragraph", () => {
+    const doc = buildIssueAdf(makeCtx(), undefined, [
+      { accountId: "id1", displayName: "Alice" },
+      { accountId: "id2", displayName: "Bob" },
+    ]);
+    const ruleIdx = doc.content.findIndex((n) => n.type === "rule");
+    expect(ruleIdx).toBeGreaterThan(0);
+    expect(doc.content[ruleIdx - 1]).toEqual({
+      type: "paragraph",
+      content: [
+        { type: "text", text: "cc " },
+        { type: "mention", attrs: { id: "id1", text: "@Alice" } },
+        { type: "text", text: ", " },
+        { type: "mention", attrs: { id: "id2", text: "@Bob" } },
+      ],
+    });
+  });
+
+  it("cc 미지정·undefined·빈 배열 모두 기존 출력과 등치", () => {
+    const base = buildIssueAdf(makeCtx());
+    expect(buildIssueAdf(makeCtx(), undefined, undefined)).toEqual(base);
+    expect(buildIssueAdf(makeCtx(), undefined, [])).toEqual(base);
   });
 });

@@ -20,3 +20,29 @@ export function adfMediaNode(src: MediaSource, dims?: MediaDims) {
   }
   return { type: "media", attrs };
 }
+
+// media 노드를 mediaSingle로 감싼다. media에 원본 픽셀(width/height)이 있으면
+// width attr를 생략한다 — mediaSingle.width는 컨테이너 폭의 퍼센트라 값을 주면
+// 작은 이미지도 본문 폭을 가득 채운다. 생략하면 Jira가 원본 크기로 렌더하고
+// 컨테이너보다 클 때만 축소한다. 반대로 dims 측정에 실패해 원본 픽셀이 없으면
+// Jira가 너무 작게 그리므로 width: 100으로 컨테이너에 맞춰 채운다.
+export function adfMediaSingle(mediaNode: ReturnType<typeof adfMediaNode>) {
+  const attrs = mediaNode.attrs as { width?: number; height?: number };
+  const hasDims = (attrs.width ?? 0) > 0 && (attrs.height ?? 0) > 0;
+  return {
+    type: "mediaSingle",
+    attrs: hasDims ? { layout: "align-start" } : { layout: "align-start", width: 100 },
+    content: [mediaNode],
+  };
+}
+
+// 비디오 전용. 원본 픽셀과 무관하게 16:9 종횡비 + 컨테이너 폭 100%로 강제한다.
+// media의 width/height는 비율만 잡으므로 16/9 값이면 충분하고, 실제 폭은
+// mediaSingle.width(퍼센트)가 결정한다.
+export function adfVideoMediaSingle(src: MediaSource) {
+  return {
+    type: "mediaSingle",
+    attrs: { layout: "align-start", width: 100 },
+    content: [adfMediaNode(src, { width: 16, height: 9 })],
+  };
+}

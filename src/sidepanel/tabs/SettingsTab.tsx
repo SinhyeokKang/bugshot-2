@@ -19,7 +19,7 @@ import {
 } from "@/store/settings-ui-store";
 import { useSettingsStore } from "@/store/settings-store";
 import { PageScroll, PageShell, Section } from "@/sidepanel/components/Section";
-import { REPLAY_ORIGINS } from "@/sidepanel/30s-replay/use-30s-replay";
+import { BROAD_HOST_ORIGINS } from "@/lib/broad-host-origins";
 import { SettingsFooter } from "./settings/SettingsFooter";
 import { LlmConnectForm } from "./settings/LlmConnectForm";
 
@@ -39,7 +39,7 @@ export function SettingsTab({ sub, onSubChange }: { sub: string; onSubChange: (v
     >
       <div className="shrink-0 border-b border-border px-4 py-4">
         <CollapsingTabsList className="grid h-9 w-full grid-cols-3">
-          <TabsTrigger value="issue" className="min-w-0 gap-1.5">
+          <TabsTrigger value="issue" className="min-w-0 gap-1.5" data-testid="settings-sub-issue">
             <StickyNote className="h-3.5 w-3.5 shrink-0" />
             <TabLabel>{t("settings.tab.issue")}</TabLabel>
           </TabsTrigger>
@@ -93,9 +93,9 @@ function IssueSettingsContent() {
       return;
     }
     try {
-      const has = await chrome.permissions.contains({ origins: REPLAY_ORIGINS });
+      const has = await chrome.permissions.contains({ origins: BROAD_HOST_ORIGINS });
       const granted =
-        has || (await chrome.permissions.request({ origins: REPLAY_ORIGINS }));
+        has || (await chrome.permissions.request({ origins: BROAD_HOST_ORIGINS }));
       if (granted) setReplayEnabled(true);
       else toast.error(t("settings.replay.permissionDenied"));
     } catch {

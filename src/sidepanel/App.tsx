@@ -197,15 +197,15 @@ export default function App() {
                 <TerminalSquare className="h-3.5 w-3.5 shrink-0" />
                 <TabLabel>{t("app.tab.debug")}</TabLabel>
               </TabsTrigger>
-              <TabsTrigger value="issue-list" className="min-w-0 gap-1.5">
+              <TabsTrigger value="issue-list" className="min-w-0 gap-1.5" data-testid="tab-issue-list">
                 <List className="h-3.5 w-3.5 shrink-0" />
                 <TabLabel>{t("app.tab.issueList")}</TabLabel>
               </TabsTrigger>
-              <TabsTrigger value="integrations" className="min-w-0 gap-1.5">
+              <TabsTrigger value="integrations" className="min-w-0 gap-1.5" data-testid="tab-integrations">
                 <Blocks className="h-3.5 w-3.5 shrink-0" />
                 <TabLabel>{t("app.tab.integrations")}</TabLabel>
               </TabsTrigger>
-              <TabsTrigger value="settings" className="min-w-0 gap-1.5">
+              <TabsTrigger value="settings" className="min-w-0 gap-1.5" data-testid="tab-settings">
                 <Settings className="h-3.5 w-3.5 shrink-0" />
                 <TabLabel>{t("app.tab.settings")}</TabLabel>
               </TabsTrigger>
@@ -261,7 +261,7 @@ export default function App() {
       </AlertDialog>
 
       <AlertDialog open={pickerUnavailable} onOpenChange={setPickerUnavailable}>
-        <AlertDialogContent>
+        <AlertDialogContent data-testid="picker-unavailable-dialog">
           <AlertDialogHeader>
             <AlertDialogTitle>{t("app.pickerUnavailable.title")}</AlertDialogTitle>
             <AlertDialogDescription>
@@ -269,7 +269,7 @@ export default function App() {
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogAction onClick={() => setPickerUnavailable(false)}>
+            <AlertDialogAction onClick={() => setPickerUnavailable(false)} data-testid="picker-unavailable-ok">
               {t("common.ok")}
             </AlertDialogAction>
           </AlertDialogFooter>

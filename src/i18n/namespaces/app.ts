@@ -38,19 +38,13 @@ const ko = {
   "platform.subtab.connected": "내 연동",
   "platform.subtab.add": "플랫폼 추가",
   "platform.add.title": "추가할 플랫폼을 선택하세요",
-  "platform.add.empty.title": "연결된 플랫폼이 없어요",
+  "platform.add.empty.title": "연결된 플랫폼이 없습니다",
   "platform.add.empty.body": "플랫폼을 추가해 이슈를 등록하세요.",
   "platform.connectPlatform": "{platform} 연결",
   "platform.connected": "{platform} 연결 완료",
   "platform.connectMethod.title": "{platform} 연결 방식",
   "platform.connectMethod.body": "연결 방식을 선택하세요.",
   "platform.connectMethod.oauth": "OAuth로 연결",
-
-  "debug.tab.issue": "이슈 작성",
-  "debug.tab.console": "콘솔",
-  "debug.tab.network": "네트워크",
-  "debug.console.empty": "콘솔 로그가 없습니다",
-  "debug.network.empty": "네트워크 요청이 없습니다",
 } as const;
 
 type Bundle = Record<keyof typeof ko, string>;
@@ -102,12 +96,6 @@ const en = {
   "platform.connectMethod.title": "Connect {platform}",
   "platform.connectMethod.body": "Choose how to connect.",
   "platform.connectMethod.oauth": "Connect with OAuth",
-
-  "debug.tab.issue": "Issue",
-  "debug.tab.console": "Console",
-  "debug.tab.network": "Network",
-  "debug.console.empty": "No console logs captured",
-  "debug.network.empty": "No network requests captured",
 } satisfies Bundle;
 
 export const app = { ko, en };

@@ -153,6 +153,7 @@ export type BgRequest =
   | { type: "notion.testToken"; token: string }
   | { type: "notion.disconnect" }
   | { type: "notion.getMyself" }
+  | { type: "notion.listUsers" }
   | { type: "notion.searchDatabases"; query: string }
   | { type: "notion.getDatabaseSchema"; databaseId: string }
   | { type: "notion.uploadFile"; filename: string; contentType: string; dataUrl: string }

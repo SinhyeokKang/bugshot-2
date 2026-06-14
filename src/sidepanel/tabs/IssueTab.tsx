@@ -224,7 +224,7 @@ function EmptyState({ onStartElement, onStartElementShot, onStartScreenshot, onS
             <BookOpen />
             {t("settings.guide")}
           </Button>
-          <Button variant="outline" onClick={onStartFreeform}>
+          <Button variant="outline" onClick={onStartFreeform} data-testid="mode-freeform">
             <SquarePen />
             {t("issue.startDraft")}
           </Button>

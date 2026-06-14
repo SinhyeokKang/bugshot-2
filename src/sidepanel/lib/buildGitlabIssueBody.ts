@@ -5,10 +5,12 @@ import {
   type IssueSection,
 } from "@/store/settings-ui-store";
 import {
+  mdInlineCode,
   resolveStyleElements,
   styleDomLabel,
   type MarkdownContext,
 } from "./buildIssueMarkdown";
+import { ccMarkdownLine } from "./ccMention";
 import { filterEnvironmentRows } from "./environmentRows";
 import { formatTimestamp } from "./formatTimestamp";
 
@@ -23,6 +25,7 @@ export interface GitlabBuildInput {
   images?: GitlabMediaInput[];
   video?: GitlabMediaInput;
   logs?: GitlabMediaInput[];
+  cc?: string[];
 }
 
 export interface GitlabBuildResult {
@@ -69,7 +72,7 @@ export function buildGitlabIssueBody(
     lines.push(`- **Browser**: ${ctx.browser}`);
   }
   lines.push(`- **Page**: ${ctx.url}`);
-  const domLabel = styleDomLabel(ctx);
+  const domLabel = styleDomLabel(ctx, mdInlineCode);
   if (domLabel) {
     lines.push(`- **DOM**: ${domLabel}`);
   }
@@ -130,7 +133,7 @@ export function buildGitlabIssueBody(
       lines.push("");
     }
 
-    emitLogSummary(lines, ctx);
+    emitLogSummary(lines, ctx, logs.find((l) => l.filename === "logs.html")?.url);
   };
 
   for (const section of ctx.sectionConfig) {
@@ -161,6 +164,10 @@ export function buildGitlabIssueBody(
     ...logs,
   ];
   emitAttachments(lines, attached, extras);
+
+  // username은 영숫자·`_`·`.`·`-`뿐 — `\_` 이스케이프가 멘션 해석을 깰 수 있어 raw로 넣는다.
+  const ccLine = ccMarkdownLine(input.cc ?? [], { escape: false });
+  if (ccLine) lines.push(ccLine, "");
 
   lines.push("---", "");
   lines.push(footerMarkdown(), "");
@@ -204,7 +211,7 @@ function emitAttachments(
   }
 }
 
-function emitLogSummary(lines: string[], ctx: MarkdownContext): void {
+function emitLogSummary(lines: string[], ctx: MarkdownContext, logsHref?: string): void {
   const { networkLogSummary: net, consoleLogSummary: con } = ctx;
   if (!net && !con) return;
   lines.push(`## ${t("logSummary.title")}`, "");
@@ -223,5 +230,6 @@ function emitLogSummary(lines: string[], ctx: MarkdownContext): void {
     );
   }
   lines.push("");
-  lines.push(`_${t("logSummary.logs.detail")}_`, "");
+  const file = logsHref ? `[logs.html](${logsHref})` : "logs.html";
+  lines.push(`_${t("logSummary.logs.detail", { file })}_`, "");
 }

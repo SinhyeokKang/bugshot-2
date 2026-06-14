@@ -230,7 +230,7 @@ describe("buildLinearIssueBody — 구조", () => {
     const out = buildLinearIssueBody({
       ctx: makeCtx({ selector: "button.btn.primary" }),
     });
-    expect(out.body).toContain("**DOM**: button.btn.primary");
+    expect(out.body).toContain("**DOM**: `button.btn.primary`");
   });
 
   it("screenshot/video 모드 + 빈 selector → DOM 미표시", () => {
@@ -360,7 +360,7 @@ describe("buildLinearIssueBody — 요소 캡처 (screenshot + selector)", () =>
         diffs: [],
       }),
     });
-    expect(out.body).toContain("**DOM**: button.cta");
+    expect(out.body).toContain("**DOM**: `button.cta`");
   });
 
   it("screenshot + 빈 selector(범위 캡처) → DOM 미표시 (회귀)", () => {
@@ -368,5 +368,22 @@ describe("buildLinearIssueBody — 요소 캡처 (screenshot + selector)", () =>
       ctx: makeCtx({ captureMode: "screenshot", selector: "", diffs: [] }),
     });
     expect(out.body).not.toContain("**DOM**");
+  });
+});
+
+describe("cc 멘션", () => {
+  it("cc 줄이 --- 푸터 직전에 위치 + 표시 이름 마크다운 이스케이프", () => {
+    const out = buildLinearIssueBody({ ctx: makeCtx(), cc: ["Jane Doe", "a_b"] });
+    const lines = out.body.split("\n");
+    const idx = lines.indexOf("cc @Jane Doe, @a\\_b");
+    expect(idx).toBeGreaterThan(-1);
+    expect(lines[idx + 2]).toBe("---");
+    expect(lines[idx + 4]).toContain("Reported via");
+  });
+
+  it("cc 미지정·undefined·빈 배열 모두 기존 출력과 등치", () => {
+    const base = buildLinearIssueBody({ ctx: makeCtx() });
+    expect(buildLinearIssueBody({ ctx: makeCtx(), cc: undefined })).toEqual(base);
+    expect(buildLinearIssueBody({ ctx: makeCtx(), cc: [] })).toEqual(base);
   });
 });

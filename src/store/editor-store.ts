@@ -99,6 +99,7 @@ export interface EditorIssueFields {
   parentLabel?: string;
   relatesKey?: string;
   relatesLabel?: string;
+  cc?: { accountId: string; displayName: string }[];
 }
 
 interface EditorState {
@@ -477,7 +478,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       const buffered = s.bufferedElements.find((b) => b.selector === selection.selector);
       if (buffered) {
         return {
-          phase: "styling" as const,
+          phase: "styling",
           // diff baseline(전값)은 인라인이 새어든 재캡처 specified가 아니라 버퍼 원본 snapshot을 쓴다.
           selection: {
             ...selection,
@@ -500,7 +501,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         };
       }
       return {
-        phase: "styling" as const,
+        phase: "styling",
         selection,
         styleEdits: {
           classList: [...selection.classList],

@@ -1,7 +1,8 @@
 import { t } from "@/i18n";
 import { dataUrlToBlob } from "@/store/blob-db";
 import { IMAGE_PLACEHOLDER, VIDEO_PLACEHOLDER, parseInlinePlaceholder } from "@/lib/adf-sentinels";
-import { adfMediaNode, type MediaSource } from "@/background/lib/adf-media";
+import { adfMediaNode, adfMediaSingle, adfVideoMediaSingle, type MediaSource } from "@/background/lib/adf-media";
+import { injectLogsLink } from "@/background/lib/adf-logs-link";
 import { injectSnapshotRows } from "@/background/injectSnapshotRows";
 import { injectIssueUrl } from "@/lib/inject-issue-url";
 import type { JiraAttachmentInput, JiraAuth, JiraCreateIssuePayload, JiraSubmitResult } from "@/types/jira";
@@ -80,6 +81,7 @@ import {
   getDatabaseSchema as getNotionDatabaseSchema,
   getMyself as notionGetMyself,
   getPageStatus as getNotionPageStatus,
+  listUsers as listNotionUsers,
   searchDatabases as searchNotionDatabases,
   updatePageStatus as updateNotionPageStatus,
   uploadFile as uploadNotionFile,
@@ -339,6 +341,9 @@ export async function handleMessage(
     case "notion.getMyself":
       return notionGetMyself(await loadNotionAuth());
 
+    case "notion.listUsers":
+      return listNotionUsers(await loadNotionAuth());
+
     case "notion.searchDatabases":
       return searchNotionDatabases(await loadNotionAuth(), message.query);
 
@@ -544,6 +549,11 @@ async function submitIssue(
 
   const uploadMap = new Map<string, UploadedFile>();
   let logsDropped = false;
+  let logsUrl: string | undefined;
+  const attachmentBase =
+    auth.kind === "apiKey"
+      ? auth.baseUrl.replace(/\/+$/, "")
+      : auth.siteUrl.replace(/\/+$/, "");
   for (const att of attachments) {
     try {
       const blob = dataUrlToBlob(att.dataUrl);
@@ -551,14 +561,14 @@ async function submitIssue(
       const r = results[0];
       const mediaId = r?.mediaApiFileId || (r?.id ? await getMediaFileId(auth, String(r.id)) : undefined);
       const dims = { width: att.width, height: att.height };
+      // logs.html은 media로 임베드하지 않고 본문 안내 문구에 첨부 링크로 단다.
+      if (att.filename === "logs.html" && r?.id) {
+        logsUrl = `${attachmentBase}/secure/attachment/${r.id}/${encodeURIComponent(r.filename)}`;
+      }
       if (mediaId) {
         uploadMap.set(att.filename, { kind: "media", mediaId, ...dims });
       } else if (r?.id) {
-        const base =
-          auth.kind === "apiKey"
-            ? auth.baseUrl.replace(/\/+$/, "")
-            : auth.siteUrl.replace(/\/+$/, "");
-        const url = `${base}/secure/attachment/${r.id}/${encodeURIComponent(r.filename)}`;
+        const url = `${attachmentBase}/secure/attachment/${r.id}/${encodeURIComponent(r.filename)}`;
         uploadMap.set(att.filename, { kind: "external", url, ...dims });
       }
     } catch (err) {
@@ -581,11 +591,7 @@ async function submitIssue(
         );
         if (mediaPlaceholderIdx >= 0) {
           const mediaNode = adfMediaNode(mediaSrc(screenshotFile), screenshotFile);
-          content[mediaPlaceholderIdx] = {
-            type: "mediaSingle",
-            attrs: { layout: "center", width: 100 },
-            content: [mediaNode],
-          };
+          content[mediaPlaceholderIdx] = adfMediaSingle(mediaNode);
         }
       }
 
@@ -601,11 +607,7 @@ async function submitIssue(
         },
       );
       if (videoFile?.kind === "media" && videoPlaceholderIdx >= 0) {
-        content[videoPlaceholderIdx] = {
-          type: "mediaSingle",
-          attrs: { layout: "center", width: 100 },
-          content: [adfMediaNode(mediaSrc(videoFile), videoFile)],
-        };
+        content[videoPlaceholderIdx] = adfVideoMediaSingle(mediaSrc(videoFile));
       } else if (videoPlaceholderIdx >= 0) {
         content[videoPlaceholderIdx] = {
           type: "paragraph",
@@ -625,12 +627,10 @@ async function submitIssue(
         const file = uploadMap.get(`inline-${refId}.webp`);
         if (!file) continue;
         const mediaNode = adfMediaNode(mediaSrc(file), file);
-        content[i] = {
-          type: "mediaSingle",
-          attrs: { layout: "center", width: 100 },
-          content: [mediaNode],
-        };
+        content[i] = adfMediaSingle(mediaNode);
       }
+
+      if (logsUrl) injectLogsLink(content, logsUrl);
 
       await updateIssueDescription(auth, issue.key, {
         version: 1,
@@ -698,13 +698,7 @@ function snapshotCell(file?: UploadedFile) {
   return {
     type: "tableCell" as const,
     attrs: {},
-    content: [
-      {
-        type: "mediaSingle",
-        attrs: { layout: "center" },
-        content: [mediaNode],
-      },
-    ],
+    content: [adfMediaSingle(mediaNode)],
   };
 }
 

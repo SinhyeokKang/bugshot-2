@@ -5,9 +5,11 @@ import {
   type IssueSection,
 } from "@/store/settings-ui-store";
 import { IMAGE_PLACEHOLDER, VIDEO_PLACEHOLDER, inlineImagePlaceholder } from "@/lib/adf-sentinels";
+import { LOGS_LINK_LABEL } from "@/background/lib/adf-logs-link";
+import { ccAdfParagraph } from "./ccMention";
 import {
   resolveStyleElements,
-  styleDomLabel,
+  styleSelectorList,
   type MarkdownContext,
 } from "./buildIssueMarkdown";
 import type { NetworkLogSummary, ConsoleLogSummary } from "./buildLogSummary";
@@ -41,7 +43,11 @@ function listItems(content: string): string[] {
     .filter(Boolean);
 }
 
-export function buildIssueAdf(ctx: MarkdownContext, inlineImageRefIds?: string[]): AdfDoc {
+export function buildIssueAdf(
+  ctx: MarkdownContext,
+  inlineImageRefIds?: string[],
+  cc?: { accountId: string; displayName: string }[],
+): AdfDoc {
   const content: AdfNode[] = [];
   const uploadedRefSet = new Set(inlineImageRefIds ?? []);
   const isVideo = ctx.captureMode === "video";
@@ -57,9 +63,9 @@ export function buildIssueAdf(ctx: MarkdownContext, inlineImageRefIds?: string[]
     envItems.push(keyValueItem("Browser", ctx.browser));
   }
   envItems.push(keyValueItem("Page", ctx.url));
-  const domLabel = styleDomLabel(ctx);
-  if (domLabel) {
-    envItems.push(keyValueItem("DOM", domLabel));
+  const domSelectors = styleSelectorList(ctx);
+  if (domSelectors.length > 0) {
+    envItems.push(domSelectorItem(domSelectors));
   }
   if (ctx.viewport) {
     envItems.push(keyValueItem("Viewport", `${ctx.viewport.width}×${ctx.viewport.height}`));
@@ -126,6 +132,9 @@ export function buildIssueAdf(ctx: MarkdownContext, inlineImageRefIds?: string[]
 
   emitMedia();
 
+  const ccParagraph = ccAdfParagraph(cc ?? []);
+  if (ccParagraph) content.push(ccParagraph);
+
   content.push({ type: "rule" });
   content.push(footerParagraph());
 
@@ -187,6 +196,20 @@ function keyValueItem(key: string, value: string): AdfNode {
   };
 }
 
+function codeTextNode(value: string): AdfNode {
+  return { type: "text", text: value, marks: [{ type: "code" }] };
+}
+
+// DOM 줄: "DOM: " 뒤 selector를 code mark로, 복수면 ", "로 잇는다.
+function domSelectorItem(selectors: string[]): AdfNode {
+  const children: AdfNode[] = [strongTextNode("DOM: ")];
+  selectors.forEach((selector, i) => {
+    if (i > 0) children.push(textNode(", "));
+    children.push(codeTextNode(selector));
+  });
+  return { type: "listItem", content: [paragraph(children)] };
+}
+
 function table(headers: string[], rows: string[][]): AdfNode {
   return {
     type: "table",
@@ -234,5 +257,18 @@ function emitLogSummaryAdf(
     items.push(listItem([paragraph([textNode(line)])]));
   }
   content.push(bulletList(items));
-  content.push(paragraph([{ type: "text", text: t("logSummary.logs.detail"), marks: [{ type: "em" }] }]));
+  content.push(paragraph(logsDetailNodes()));
+}
+
+// "logs.html"을 별도 em 노드로 분리해 emit한다. 제출 후처리(injectLogsLink)가
+// 이 노드에 link mark를 붙여 본문에서 첨부로 점프하게 한다.
+function logsDetailNodes(): AdfNode[] {
+  const em = [{ type: "em" }];
+  const segments = t("logSummary.logs.detail").split("{file}");
+  const nodes: AdfNode[] = [];
+  segments.forEach((seg, i) => {
+    if (seg) nodes.push({ type: "text", text: seg, marks: em });
+    if (i < segments.length - 1) nodes.push({ type: "text", text: LOGS_LINK_LABEL, marks: em });
+  });
+  return nodes;
 }

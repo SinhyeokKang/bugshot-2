@@ -77,6 +77,7 @@ export interface LinearCreateIssuePayload {
   assigneeId?: string;
   labelId?: string;
   priority?: number;
+  subscriberIds?: string[];
 }
 
 export interface LinearCreateIssueResult {

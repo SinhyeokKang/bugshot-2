@@ -641,12 +641,17 @@ describe("buildNotionIssueBody — 요소 캡처 (screenshot + selector)", () =>
         diffs: [],
       }),
     });
-    const bullets = out.blocks.filter((b) => b.type === "bulleted_list_item");
-    expect(
-      bullets.some(
-        (b) => "text" in b && b.text.startsWith("DOM:") && b.text.includes("button.cta"),
-      ),
-    ).toBe(true);
+    // DOM 줄은 selector를 code annotation으로 감싼 rich_bulleted_list_item.
+    const domBlock = out.blocks.find((b) => b.type === "rich_bulleted_list_item");
+    expect(domBlock).toBeDefined();
+    if (domBlock && "richText" in domBlock) {
+      expect(domBlock.richText.map((rt) => rt.text.content).join("")).toBe("DOM: button.cta");
+      expect(
+        domBlock.richText.some(
+          (rt) => rt.text.content === "button.cta" && rt.annotations?.code,
+        ),
+      ).toBe(true);
+    }
   });
 
   it("screenshot + 빈 selector(범위 캡처) → DOM bullet 없음 (회귀)", () => {
@@ -655,5 +660,22 @@ describe("buildNotionIssueBody — 요소 캡처 (screenshot + selector)", () =>
     });
     const bullets = out.blocks.filter((b) => b.type === "bulleted_list_item");
     expect(bullets.some((b) => "text" in b && b.text.startsWith("DOM:"))).toBe(false);
+    expect(out.blocks.some((b) => b.type === "rich_bulleted_list_item")).toBe(false);
+  });
+});
+
+describe("cc 멘션", () => {
+  it("cc 있으면 blocks 마지막이 mention_paragraph", () => {
+    const out = buildNotionIssueBody({ ctx: makeCtx(), cc: ["u1", "u2"] });
+    expect(out.blocks[out.blocks.length - 1]).toEqual({
+      type: "mention_paragraph",
+      userIds: ["u1", "u2"],
+    });
+  });
+
+  it("cc 미지정·undefined·빈 배열 모두 기존 출력과 등치", () => {
+    const base = buildNotionIssueBody({ ctx: makeCtx() });
+    expect(buildNotionIssueBody({ ctx: makeCtx(), cc: undefined })).toEqual(base);
+    expect(buildNotionIssueBody({ ctx: makeCtx(), cc: [] })).toEqual(base);
   });
 });
