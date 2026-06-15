@@ -83,8 +83,8 @@ e2e/                     # Playwright e2e 스위트 (@playwright/test, BUGSHOT_E
 ├── playwright.config.ts # workers:1 · retries:0 · headed · trace retain-on-failure
 ├── fixtures/
 │   ├── extension.ts     # worker-scoped ext fixture (ephemeral 포트 정적 서버·persistent context·extension id·teardown) + 헬퍼 (enterDebug/pickElement/typeStyleValue/… — README 참조)
-│   └── pages/           # 로컬 fixture 페이지 — basic.html · second.html(cross-page 세션 폐기) · iframe.html(picker iframe 가드·iframe 로그) · cross-origin.html(localhost iframe — origin 필터) · actions.html(action 레코더 click/input/navigation 입력 — Replay)
-└── *.spec.ts            # activetab-broad-permission · style-edit-flow · style-changes-dialog · style-changes-stacked · buffered-reselect-edit · dom-tree-nav · capture · draft-resume · freeform-draft · log-capture · logs-cross-page · logs-error-warn · logs-iframe · logs-origin-filter · onboarding · picker-guard · replay-action-log · session · settings-sections · unsupported-url (커버리지 맵은 README.md)
+│   └── pages/           # 로컬 fixture 페이지 — basic.html · second.html(cross-page 세션 폐기) · iframe.html(picker iframe 가드·iframe 로그) · cross-origin.html(localhost iframe — origin 필터) · actions.html(action 레코더 click/input/navigation/toggle/select/keypress 입력 — Replay)
+└── *.spec.ts            # activetab-broad-permission · style-edit-flow · style-changes-dialog · style-changes-stacked · buffered-reselect-edit · dom-tree-nav · capture · draft-resume · freeform-draft · log-capture · logs-cross-page · logs-error-warn · logs-iframe · logs-origin-filter · onboarding · picker-guard · replay-action-log · action-log-coverage · session · settings-sections · unsupported-url (커버리지 맵은 README.md)
 oauth-proxy/             # Cloudflare Worker — Atlassian /token + GitHub /github/{token,refresh} + Notion /notion/token + Asana /asana/{token,refresh} 교환 (client_secret 서버 보관, Linear·GitLab은 PKCE라 proxy 불필요)
 docs/
 ├── features/        # 기능 기획 문서 (PRD·설계·태스크) — dev에서 작업, 구현 완료 시 삭제
