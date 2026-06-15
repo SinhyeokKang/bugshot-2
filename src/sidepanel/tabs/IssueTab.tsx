@@ -247,6 +247,7 @@ function ReplayButton() {
   // 설정 off — 비활성처럼 보이되 클릭은 가능하게 해 설정의 캡처 sub-tab으로 보낸다.
   const button = !replayEnabled ? (
     <Button
+      data-testid="replay-button"
       className="flex-1 rounded-l-none border-l-0 opacity-50"
       variant="outline"
       aria-disabled
@@ -257,6 +258,7 @@ function ReplayButton() {
     </Button>
   ) : (
     <Button
+      data-testid="replay-button"
       className="flex-1 rounded-l-none border-l-0 aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
       variant="outline"
       aria-disabled={!isReady || isEncoding}

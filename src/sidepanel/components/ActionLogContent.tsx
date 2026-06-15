@@ -234,6 +234,7 @@ function ActionRow({ entry, startedAt, syncBaseMs, onSeek, isActive }: {
   return (
     <div
       data-entry-id={entry.id}
+      data-kind={entry.kind}
       className={syncRowClass(!!onSeek, !!isActive, kindBgColor(entry.kind))}
       aria-current={isActive ? "true" : undefined}
     >

@@ -54,6 +54,7 @@ export function LogAttachmentCards({
       <div className={`grid gap-2 ${cols}`}>
         {showNetwork && (
           <LogCard
+            testId="network-log-card"
             icon={<ArrowLeftRight className="h-4 w-4" />}
             title={t("networkLog.dialog.title")}
             description={networkDescription(networkLog, t)}
@@ -66,6 +67,7 @@ export function LogAttachmentCards({
         )}
         {showConsole && (
           <LogCard
+            testId="console-log-card"
             icon={<Terminal className="h-4 w-4" />}
             title={t("consoleLog.dialog.title")}
             description={consoleDescription(consoleLog, t)}
@@ -78,6 +80,7 @@ export function LogAttachmentCards({
         )}
         {showAction && (
           <LogCard
+            testId="action-log-card"
             icon={<MousePointerClick className="h-4 w-4" />}
             title={t("actionLog.dialog.title")}
             description={t("actionLog.cardDescription", { captured: actionLog.captured })}
@@ -94,6 +97,7 @@ export function LogAttachmentCards({
 }
 
 function LogCard({
+  testId,
   icon,
   title,
   description,
@@ -103,6 +107,7 @@ function LogCard({
   onClick,
   readOnly,
 }: {
+  testId?: string;
   icon: React.ReactNode;
   title: string;
   description: string;
@@ -114,6 +119,7 @@ function LogCard({
 }) {
   return (
     <Card
+      data-testid={testId}
       className={`flex cursor-pointer items-center gap-3 p-3 transition-colors hover:bg-accent/50 ${disabled ? "opacity-50" : ""}`}
       onClick={() => { if (!disabled) onClick(); }}
     >
