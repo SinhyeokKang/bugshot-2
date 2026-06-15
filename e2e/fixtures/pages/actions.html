@@ -22,5 +22,16 @@
     <input id="action-input" aria-label="Bug Summary" type="text" />
     <a id="action-nav" href="#details">Go to details</a>
     <section id="details">details section</section>
+
+    <!-- toggle/select/keypress 커버리지: checkbox(직접) / label[for] 연결 checkbox / radio / select -->
+    <input id="action-check" aria-label="Subscribe" type="checkbox" />
+    <label id="action-check-label" for="action-check-labeled">Accept terms</label>
+    <input id="action-check-labeled" type="checkbox" />
+    <input id="action-radio" aria-label="Pro plan" name="plan" type="radio" />
+    <select id="action-select" aria-label="Country">
+      <option value="">Choose…</option>
+      <option value="kr">Korea</option>
+      <option value="jp">Japan</option>
+    </select>
   </body>
 </html>

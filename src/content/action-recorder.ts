@@ -4,6 +4,7 @@ import {
   maskValue,
   shouldMaskField,
   entryNavOnBind,
+  formatKeyCombo,
 } from "./action-recorder-helpers";
 import { createTrailingThrottle, FLUSH_INTERVAL_MS } from "./log-throttle";
 
@@ -17,7 +18,7 @@ function actionRecorderScript(): void {
   // overlay.ts HOST_ID — MAIN world라 import 불가, 리터럴 동기화.
   const HOST_ID = "__bugshot_picker_host";
 
-  type Kind = "click" | "navigation" | "input";
+  type Kind = "click" | "navigation" | "input" | "keypress" | "toggle" | "select";
   type NavType = "load" | "pushState" | "replaceState" | "popstate" | "hashchange";
 
   interface CapturedAction {
@@ -130,16 +131,21 @@ function actionRecorderScript(): void {
     });
   }
 
-  function recordInput(el: HTMLElement): void {
+  function fieldMaskInput(el: Element) {
     const input = el as HTMLInputElement;
-    const isContentEditable = el.isContentEditable;
-    const masked = shouldMaskField({
-      type: isContentEditable ? undefined : input.type,
+    return {
+      type: (el as HTMLElement).isContentEditable ? undefined : input.type,
       name: el.getAttribute("name") ?? undefined,
       id: el.id || undefined,
       autocomplete: el.getAttribute("autocomplete") ?? undefined,
       ariaLabel: el.getAttribute("aria-label") ?? undefined,
-    });
+    };
+  }
+
+  function recordInput(el: HTMLElement): void {
+    const input = el as HTMLInputElement;
+    const isContentEditable = el.isContentEditable;
+    const masked = shouldMaskField(fieldMaskInput(el));
     const raw = isContentEditable
       ? (el.textContent || "").trim()
       : input.value ?? "";
@@ -181,6 +187,70 @@ function actionRecorderScript(): void {
     lastUrl = toUrl;
   }
 
+  function isToggleControl(el: Element | null): el is HTMLInputElement {
+    if (!el || el.tagName.toLowerCase() !== "input") return false;
+    const t = (el as HTMLInputElement).type;
+    return t === "checkbox" || t === "radio";
+  }
+
+  // 클릭 타깃(또는 <label for>/래핑 label의 연결 컨트롤)이 checkbox/radio면 change가 toggle로
+  // 기록하므로 click을 건너뛴다 — click+toggle 이중 기록 방지.
+  function resolvesToToggle(el: Element): boolean {
+    if (isToggleControl(el)) return true;
+    const label = el.closest?.("label") as HTMLLabelElement | null;
+    if (label) {
+      const control = label.htmlFor
+        ? document.getElementById(label.htmlFor)
+        : label.control ?? null;
+      if (isToggleControl(control)) return true;
+    }
+    return false;
+  }
+
+  function recordToggle(el: HTMLInputElement): void {
+    pushAction({
+      id: genId(),
+      kind: "toggle",
+      timestamp: Date.now(),
+      pageUrl: location.href,
+      fieldLabel: fieldLabel(el),
+      value: el.checked ? "checked" : "unchecked",
+      selector: buildLightSelector(el),
+    });
+  }
+
+  function selectedText(el: HTMLSelectElement): string {
+    if (el.multiple) {
+      const texts = Array.from(el.selectedOptions).map((o) => o.text);
+      return texts.join(", ").slice(0, VALUE_CAP);
+    }
+    return (el.options[el.selectedIndex]?.text ?? "").slice(0, VALUE_CAP);
+  }
+
+  function recordSelect(el: HTMLSelectElement): void {
+    pushAction({
+      id: genId(),
+      kind: "select",
+      timestamp: Date.now(),
+      pageUrl: location.href,
+      fieldLabel: fieldLabel(el),
+      value: selectedText(el),
+      selector: buildLightSelector(el),
+    });
+  }
+
+  function recordKeypress(combo: string, focused: Element | null): void {
+    pushAction({
+      id: genId(),
+      kind: "keypress",
+      timestamp: Date.now(),
+      pageUrl: location.href,
+      value: combo,
+      target: focused ? truncateName(accessibleName(focused)) : undefined,
+      selector: focused ? buildLightSelector(focused) : undefined,
+    });
+  }
+
   // --- Click (capture) ---
   document.addEventListener(
     "click",
@@ -192,7 +262,37 @@ function actionRecorderScript(): void {
       const interactive = target.closest?.(
         "button, a, [role=button], input[type=submit]",
       );
-      recordClick(interactive ?? target);
+      const el = interactive ?? target;
+      if (resolvesToToggle(el)) return;
+      recordClick(el);
+    },
+    true,
+  );
+
+  // --- Keypress (capture) — 특수키·모디파이어 조합만, IME 조합·인쇄 문자 제외 ---
+  document.addEventListener(
+    "keydown",
+    (e: KeyboardEvent) => {
+      const target = e.target as Element | null;
+      const path = typeof e.composedPath === "function" ? e.composedPath() : undefined;
+      if (isOwnUi(target, path)) return;
+      const combo = formatKeyCombo({
+        key: e.key,
+        ctrlKey: e.ctrlKey,
+        metaKey: e.metaKey,
+        altKey: e.altKey,
+        shiftKey: e.shiftKey,
+        isComposing: e.isComposing,
+      });
+      if (!combo) return;
+      const focused = document.activeElement;
+      // 민감 필드(password 등) 포커스 중엔 키 조합·필드 식별자 누출 방지 — 캡처 스킵.
+      if (focused && shouldMaskField(fieldMaskInput(focused))) return;
+      const named =
+        focused && focused !== document.body && focused !== document.documentElement
+          ? focused
+          : null;
+      recordKeypress(combo, named);
     },
     true,
   );
@@ -205,6 +305,15 @@ function actionRecorderScript(): void {
     if (isOwnUi(target, path)) return;
     const el = target as HTMLElement;
     const tag = el.tagName.toLowerCase();
+    // select·toggle은 change 1회만 기록(input·change 동시 발화로 인한 중복 방지). 텍스트는 둘 다 통과 후 dedup.
+    if (tag === "select") {
+      if (e.type === "change") recordSelect(el as HTMLSelectElement);
+      return;
+    }
+    if (isToggleControl(el)) {
+      if (e.type === "change") recordToggle(el);
+      return;
+    }
     if (tag !== "input" && tag !== "textarea" && !el.isContentEditable) return;
     recordInput(el);
   }

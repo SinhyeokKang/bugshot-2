@@ -51,6 +51,38 @@ export function truncateName(name: string | null | undefined): string | undefine
   return n.length > TARGET_NAME_CAP ? `${n.slice(0, TARGET_NAME_CAP)}…` : n;
 }
 
+export interface KeyComboInput {
+  key: string;
+  ctrlKey: boolean;
+  metaKey: boolean;
+  altKey: boolean;
+  shiftKey: boolean;
+  isComposing: boolean;
+}
+
+const SPECIAL_KEYS = new Set([
+  "Enter", "Escape", "Tab", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight",
+]);
+const MODIFIER_KEYS = new Set(["Control", "Meta", "Alt", "Shift"]);
+
+// 모디파이어 조합 또는 특수키만 사람이 읽는 문자열로, 인쇄 문자·단독 모디파이어·IME 조합은 null.
+// IME 가드(isComposing/Process)로 한글·일본어·중국어 조합 중 keydown을 제외한다.
+export function formatKeyCombo(input: KeyComboInput): string | null {
+  if (input.isComposing || input.key === "Process") return null;
+  if (MODIFIER_KEYS.has(input.key)) return null;
+  if (input.ctrlKey || input.metaKey || input.altKey) {
+    const parts: string[] = [];
+    if (input.metaKey) parts.push("⌘");
+    if (input.ctrlKey) parts.push("Ctrl");
+    if (input.altKey) parts.push("Alt");
+    if (input.shiftKey) parts.push("Shift");
+    parts.push(input.key.length === 1 ? input.key.toUpperCase() : input.key);
+    return parts.join("+");
+  }
+  if (SPECIAL_KEYS.has(input.key)) return input.key;
+  return null;
+}
+
 export function buildLightSelector(el: Element): string {
   if (el.id) return `#${el.id}`;
   const tag = el.tagName.toLowerCase();

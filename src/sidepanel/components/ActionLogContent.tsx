@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
-import { Keyboard, MousePointerClick, MapPin, Search, X } from "lucide-react";
+import { Keyboard, MousePointerClick, MapPin, Search, X, CornerDownLeft, SquareCheck, ListChecks } from "lucide-react";
 import { useT } from "@/i18n";
 import type { ActionEntry, ActionEntryKind } from "@/types/action";
 import type { TranslationFn } from "@/i18n";
@@ -15,7 +15,7 @@ import { LogSeekChip } from "./LogSeekChip";
 
 type ActionFilter = "all" | ActionEntryKind;
 
-const ACTION_FILTERS: ActionEntryKind[] = ["click", "navigation", "input"];
+const ACTION_FILTERS: ActionEntryKind[] = ["click", "navigation", "input", "keypress", "toggle", "select"];
 
 interface ActionLogContentProps {
   entries: ActionEntry[];
@@ -44,6 +44,10 @@ function KindIcon({ kind }: { kind: ActionEntryKind }) {
     case "click": return <MousePointerClick className={base} />;
     case "input": return <Keyboard className={base} />;
     case "navigation": return <MapPin className={`${base} text-blue-600 dark:text-blue-400`} />;
+    case "keypress": return <CornerDownLeft className={base} />;
+    case "toggle": return <SquareCheck className={base} />;
+    case "select": return <ListChecks className={base} />;
+    default: { kind satisfies never; return null; }
   }
 }
 
@@ -104,6 +108,9 @@ export function ActionLogContent({ entries, startedAt, flush, syncBaseMs, onSeek
     click: t("actionLog.filter.click"),
     navigation: t("actionLog.filter.navigation"),
     input: t("actionLog.filter.input"),
+    keypress: t("actionLog.filter.keypress"),
+    toggle: t("actionLog.filter.toggle"),
+    select: t("actionLog.filter.select"),
   };
   const availableFilters = useMemo<ActionFilter[]>(() => {
     const present = new Set(entries.map((e) => e.kind));
@@ -167,13 +174,15 @@ export function ActionLogContent({ entries, startedAt, flush, syncBaseMs, onSeek
     <div className={`flex min-h-0 flex-1 flex-col overflow-hidden${flush ? "" : " rounded-lg border"}`}>
       <Tabs value={filter} onValueChange={(v) => setFilter(v as ActionFilter)}>
         <div className={`flex items-center gap-3${originKeys.length >= 2 ? "" : " border-b"}${flush ? " px-4 py-4" : " p-2"}`}>
-          <TabsList>
-            {availableFilters.map((f) => (
-              <TabsTrigger key={f} value={f}>
-                {filterLabel[f]}
-              </TabsTrigger>
-            ))}
-          </TabsList>
+          <div className="min-w-0 overflow-x-auto">
+            <TabsList>
+              {availableFilters.map((f) => (
+                <TabsTrigger key={f} value={f}>
+                  {filterLabel[f]}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </div>
           <div className="relative ml-auto w-full max-w-[280px]">
             <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -251,6 +260,16 @@ function ActionRow({ entry, startedAt, syncBaseMs, onSeek, isActive }: {
               value: entry.masked ? MASKED_DISPLAY : `"${entry.value ?? ""}"`,
             })}
           {entry.kind === "navigation" && <NavigateText t={t} toUrl={entry.toUrl} />}
+          {entry.kind === "keypress" && t("actionLog.verb.keypress", { keys: entry.value ?? "" })}
+          {entry.kind === "toggle" &&
+            t(entry.value === "checked" ? "actionLog.verb.toggle.check" : "actionLog.verb.toggle.uncheck", {
+              field: `"${entry.fieldLabel ?? entry.selector ?? ""}"`,
+            })}
+          {entry.kind === "select" &&
+            t("actionLog.verb.select", {
+              field: `"${entry.fieldLabel ?? entry.selector ?? ""}"`,
+              value: `"${entry.value ?? ""}"`,
+            })}
         </span>
       </div>
     </div>

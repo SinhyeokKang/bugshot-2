@@ -283,6 +283,37 @@ describe("buildActionLogSummary", () => {
     expect(lines[0]).toContain("***");
   });
 
+  it("keypress/toggle/select 줄 포맷", () => {
+    const log = makeActionLog({
+      captured: 4,
+      entries: [
+        makeAction({ id: "1", kind: "keypress", value: "⌘+K" }),
+        makeAction({ id: "2", kind: "toggle", fieldLabel: "약관 동의", value: "checked" }),
+        makeAction({ id: "3", kind: "toggle", fieldLabel: "알림", value: "unchecked" }),
+        makeAction({ id: "4", kind: "select", fieldLabel: "국가", value: "Korea" }),
+      ],
+    });
+    const lines = buildActionLogSummary(log);
+    expect(lines[0]).toBe("Pressed: ⌘+K");
+    expect(lines[1]).toBe('Toggled "약관 동의": checked');
+    expect(lines[2]).toBe('Toggled "알림": unchecked');
+    expect(lines[3]).toBe('Selected "Korea" in "국가"');
+  });
+
+  it("폴백 회귀: keypress/toggle/select가 'Clicked'로 새지 않음", () => {
+    const log = makeActionLog({
+      captured: 3,
+      entries: [
+        makeAction({ id: "1", kind: "keypress", value: "Enter" }),
+        makeAction({ id: "2", kind: "toggle", fieldLabel: "x", value: "checked" }),
+        makeAction({ id: "3", kind: "select", fieldLabel: "y", value: "z" }),
+      ],
+    });
+    for (const line of buildActionLogSummary(log)) {
+      expect(line.startsWith("Clicked")).toBe(false);
+    }
+  });
+
   it("최근 N개로 제한 (오래된 항목 제외)", () => {
     const entries = Array.from({ length: 30 }, (_, i) =>
       makeAction({ id: String(i), kind: "click", target: `버튼${i}` }),
