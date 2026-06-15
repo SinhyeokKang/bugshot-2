@@ -1,0 +1,6 @@
+# Supply-chain mitigation: 새로 publish된 패키지 버전을 24시간 지나기 전까지 설치하지 않음
+minimumReleaseAge: 1440
+
+# 라이프사이클(빌드) 스크립트 실행을 허용할 패키지 화이트리스트 (pnpm 10은 기본 차단)
+onlyBuiltDependencies:
+  - esbuild
