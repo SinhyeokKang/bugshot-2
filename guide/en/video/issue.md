@@ -42,7 +42,7 @@ On top of the video, recording mode bundles three kinds of logs. **All three tog
 
 - **Console Logs** — Console output and errors during the recording.
 - **Network Logs** — Network requests made during the recording.
-- **Action Logs** — A record of user actions like clicks, input, and navigation. **Action logs are only captured in recording mode.**
+- **Action Logs** — A record of user actions: clicks, text input, and navigation, plus **keyboard shortcuts and special keys (Enter, Esc, ⌘K, and the like), checkbox and radio toggles, and dropdown selections**. (It captures which keys and actions happened, not every character you type.) **Action logs are only captured in recording mode.**
 
 The video timeline and the logs are linked by time, so the reader can walk through "what happened at this moment" in the [Log Viewer](../logs/viewer.md).
 
