@@ -12,29 +12,29 @@
 - **변경 대상**: `src/content/action-recorder-helpers.ts`, `src/content/__tests__/action-recorder-helpers.test.ts`
 - **작업 내용**: `KeyComboInput` 인터페이스(`isComposing` 포함)와 `formatKeyCombo` 추가. IME 가드(`isComposing` 또는 `key==="Process"` → null), 모디파이어 조합/특수키 → 표시 문자열, 인쇄 문자·단독 Shift → null. 표기 순서 `⌘·Ctrl·Alt·Shift`.
 - **검증**:
-  - [ ] `{key:"k", metaKey:true}` → `"⌘+K"`
-  - [ ] `{key:"Enter"}` → `"Enter"`, `{key:"Escape"}` → `"Escape"`, `{key:"Tab"}` → `"Tab"`
-  - [ ] `{key:"ArrowDown"}` → `"ArrowDown"`
-  - [ ] `{key:"a"}` (모디파이어 없음) → `null`
-  - [ ] `{key:"Shift"}` 단독 → `null`
-  - [ ] `{key:"p", ctrlKey:true, shiftKey:true}` → `"Ctrl+Shift+P"`
-  - [ ] `{key:"Enter", isComposing:true}` → `null`, `{key:"Process"}` → `null` (IME 가드)
-  - [ ] `pnpm test` 통과
+  - [x] `{key:"k", metaKey:true}` → `"⌘+K"`
+  - [x] `{key:"Enter"}` → `"Enter"`, `{key:"Escape"}` → `"Escape"`, `{key:"Tab"}` → `"Tab"`
+  - [x] `{key:"ArrowDown"}` → `"ArrowDown"`
+  - [x] `{key:"a"}` (모디파이어 없음) → `null`
+  - [x] `{key:"Shift"}` 단독 → `null`
+  - [x] `{key:"p", ctrlKey:true, shiftKey:true}` → `"Ctrl+Shift+P"`
+  - [x] `{key:"Enter", isComposing:true}` → `null`, `{key:"Process"}` → `null` (IME 가드)
+  - [x] `pnpm test` 통과
 
 ### Task 2: `ActionEntryKind` union 확장
 - **변경 대상**: `src/types/action.ts`
 - **작업 내용**: union에 `"keypress" | "toggle" | "select"` 추가 + 종류별 필드 사용 규약 주석. 새 필드 추가 없음.
 - **검증**:
-  - [ ] `pnpm typecheck` 시 `markers.ts` exhaustive switch가 빨갛게 누락 검출(Task 5 전까지 의도된 에러)
+  - [x] `pnpm typecheck` 시 `markers.ts` exhaustive switch가 빨갛게 누락 검출(Task 5 전까지 의도된 에러) — Task 5 완료 후 typecheck green
 
 ### Task 3: 레코더 — keypress 수집
 - **변경 대상**: `src/content/action-recorder.ts`
 - **작업 내용**: 내부 `Kind` 리터럴에 3종 추가. keydown capture 리스너 추가 — `isOwnUi` 가드, **IME 가드**(`e.isComposing || e.key==="Process"` early-return), inline 키 조합 포맷(helpers와 동일 규칙), null이면 무시, 아니면 `kind:"keypress"` push(value=조합, target=포커스 요소 accessibleName, selector). keypress는 dedup 미적용(연타 각각 기록 — input dedup 복제 금지).
 - **검증** (e2e — `e2e/fixtures/pages/actions.html` 확장):
-  - [ ] (e2e) `Escape` → `keypress` "Escape" entry 1건
-  - [ ] (e2e) `⌘+K`(또는 Ctrl+K) → `keypress` 조합 entry 1건
-  - [ ] (e2e) 일반 문자 타이핑 → keypress 미출현(input만)
-  - [ ] (e2e) Enter 2회 → keypress 2건(dedup 병합 안 됨)
+  - [x] (e2e) `Escape` → `keypress` "Escape" entry 1건
+  - [x] (e2e) `⌘+K`(또는 Ctrl+K) → `keypress` 조합 entry 1건
+  - [x] (e2e) 일반 문자 타이핑 → keypress 미출현(input만)
+  - [x] (e2e) Enter 2회 → keypress 2건(dedup 병합 안 됨)
   - [ ] (수동) picker host 내부 키 입력 무시 (자체 UI — e2e 곤란)
   - [ ] (수동) IME(한글) 조합 확정 Enter → keypress 미기록
 
@@ -42,19 +42,19 @@
 - **변경 대상**: `src/content/action-recorder.ts`
 - **작업 내용**: `recordClick` 직전 가드 — 클릭 타깃 또는 `<label for>`/래핑 label의 연결 컨트롤(`htmlFor`/`label.control`)이 `input[type=checkbox|radio]`면 click 기록 제외. `onInput`(change/input) 핸들러에 분기 추가 — `<select>`→`kind:"select"`(단일: `options[selectedIndex].text`, `multiple`: `selectedOptions` text를 ", " join+cap, 빈 선택은 ""/"(none)"), checkbox/radio→`kind:"toggle"`(value="checked"/"unchecked"). 기존 텍스트 dedup은 유지.
 - **검증** (e2e — `e2e/fixtures/pages/actions.html` 확장):
-  - [ ] (e2e) 체크박스 직접 클릭 → toggle 1건만(click 0건)
-  - [ ] (e2e) `<label for>` 클릭으로 체크박스 토글 → toggle 1건만(click 중복 없음)
-  - [ ] (e2e) `<select>` 변경 → "X에서 Y 선택" 1건
-  - [ ] (e2e) radio 선택 → toggle 기록
-  - [ ] (e2e) 텍스트 input 기존 동작·dedup 무회귀
+  - [x] (e2e) 체크박스 직접 클릭 → toggle 1건만(click 0건)
+  - [x] (e2e) `<label for>` 클릭으로 체크박스 토글 → toggle 1건만(click 중복 없음)
+  - [x] (e2e) `<select>` 변경 → select entry 1건 (문구 포맷은 단위 테스트로 커버)
+  - [x] (e2e) radio 선택 → toggle 기록
+  - [x] (e2e) 텍스트 input 기존 동작·dedup 무회귀
   - [ ] (수동) `<select multiple>` 다중 선택 → join 표기 / 전체 해제 → 빈 선택 표기
 
 ### Task 5: 표현 — 라이브 서브탭 + 영상 마커
 - **변경 대상**: `src/sidepanel/components/ActionLogContent.tsx`, `src/log-viewer/markers.ts`
 - **작업 내용**: `ACTION_FILTERS`에 3종 추가 + **필터 탭 오버플로 처리**(TabsList 래퍼에 `overflow-x-auto` — `OriginFilterBar` 패턴). `KindIcon`에 3 case(`CornerDownLeft`·`SquareCheck`·`ListChecks`) + **`default: kind satisfies never` 가드 추가**. `ActionRow` 렌더 분기 + verb i18n. `markers.ts` action switch에 3 case(labelParts, 중립 default variant) 추가 — `satisfies never` 통과.
 - **검증**:
-  - [ ] `pnpm typecheck` 통과(markers.ts + KindIcon exhaustive switch 충족)
-  - [ ] (e2e) 376px viewport에서 필터 6종 동시 present 시 가로 오버플로 없음(스크롤)
+  - [x] `pnpm typecheck` 통과(markers.ts + KindIcon exhaustive switch 충족)
+  - [ ] (e2e) 376px viewport에서 필터 6종 동시 present 시 가로 오버플로 없음(스크롤) — e2e는 ko 2자 라벨이라 376px에도 들어가 스크롤 경로 미탐. 수동 잔여로 이관(e2e/README.md)
   - [ ] (수동) 라이브 서브탭에서 3종 아이콘·문구 정상 렌더
   - [ ] (수동) 영상 타임라인 마커에 3종 표시·seek 동작
 
@@ -62,16 +62,16 @@
 - **변경 대상**: `src/sidepanel/lib/buildLogSummary.ts`, `src/sidepanel/lib/__tests__/buildActionLogJson.test.ts`, `buildLogSummary` 테스트
 - **작업 내용**: `buildActionLogSummary`에 3종 영문 줄 분기. `buildLogSummary`는 if/else "Clicked" 폴백 구조라(exhaustive switch 아님) 분기 누락 시 조용히 오표시 → **폴백 회귀 테스트** 추가. `buildActionLogJson`은 코드 변경 없음 — 새 종류 직렬화 확인 테스트만 추가.
 - **검증**:
-  - [ ] `buildActionLogSummary` 단위 테스트(3종 줄 포맷) 통과
-  - [ ] **폴백 회귀 테스트**: keypress/toggle/select가 "Clicked"로 새지 않음을 단언
-  - [ ] `buildActionLogJson` 테스트에 keypress/toggle/select 케이스 추가·통과(멀티/빈 select 포함)
-  - [ ] `pnpm test` 전체 통과
+  - [x] `buildActionLogSummary` 단위 테스트(3종 줄 포맷) 통과
+  - [x] **폴백 회귀 테스트**: keypress/toggle/select가 "Clicked"로 새지 않음을 단언
+  - [x] `buildActionLogJson` 테스트에 keypress/toggle/select 케이스 추가·통과(멀티/빈 select 포함)
+  - [x] `pnpm test` 전체 통과
 
 ### Task 7: i18n 키 추가
 - **변경 대상**: `src/i18n/namespaces/logs.ts`
 - **작업 내용**: filter.keypress/toggle/select(ko: `키`·`토글`·`선택` — 기존 2자급 통일 / en: `Keys`·`Toggle`·`Select`), verb.keypress, verb.toggle.check/uncheck, verb.select를 ko/en 동시 추가.
 - **검증**:
-  - [ ] PostToolUse 훅 `locales.test` 자동 통과(ko/en 대칭)
+  - [x] PostToolUse 훅 `locales.test` 자동 통과(ko/en 대칭)
 
 ## 테스트 계획
 
