@@ -1,1 +1,1 @@
-export const BROAD_HOST_ORIGINS = ["https://*/*", "http://*/*"];
+export const BROAD_HOST_ORIGINS = ["<all_urls>"];

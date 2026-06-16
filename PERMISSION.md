@@ -59,11 +59,12 @@ ${VITE_OAUTH_PROXY_URL origin}/*   — OAuth proxy (빌드 타임 주입)
 ### optional_host_permissions (런타임 요청)
 
 ```
-https://*/*
-http://*/*
+<all_urls>
 ```
 
-BYOK LLM 프로바이더 연결 + GitLab **self-managed 인스턴스**(gitlab.com 외 임의 호스트) 연결 시 `chrome.permissions.request()`로 런타임 획득. GitLab PAT 검증·업로드·이슈 생성은 이 권한 획득 이후 background fetch.
+`<all_urls>`인 이유: `captureVisibleTab`은 일반 host 패턴(`https://*/*`)을 캡처 권한으로 인정하지 않고 `<all_urls>` 또는 activeTab만 받는다. 30s Replay가 cross-origin 이동 후에도 캡처하려면 `<all_urls>`가 필요하다(`https://*/*`이면 activeTab 만료 시 캡처가 "Permission expired"로 실패).
+
+BYOK LLM 프로바이더 연결 + GitLab **self-managed 인스턴스**(gitlab.com 외 임의 호스트) 연결 시 `chrome.permissions.request()`로 런타임 획득. 이 둘은 특정 origin(`{protocol}//{host}/*`)만 요청하며, `<all_urls>`가 optional에 선언돼 있으므로 그 하위 origin 요청도 허용된다. GitLab PAT 검증·업로드·이슈 생성은 이 권한 획득 이후 background fetch.
 
 사용처: 30s Replay 활성화, BYOK LLM 프로바이더 연결.
 
@@ -141,7 +142,7 @@ video-capture.ts:isTabCaptureUnavailable()
 
 ### 만료 시 동작
 
-아래 두 경로는 **광역 host 권한(`BROAD_HOST_ORIGINS`) 미보유 기준**이다. 광역 권한 보유 시(30s Replay 옵트인으로 부여) 새 URL이 커버 범위(http/https 지원 URL)면 cross-origin도 same-origin처럼 패널 유지 — 만료 자체가 발생하지 않는다. file:·미지원 URL 등 비커버 URL로의 이동은 보유 여부와 무관하게 아래 경로 그대로.
+아래 두 경로는 **광역 host 권한(`BROAD_HOST_ORIGINS` = `<all_urls>`) 미보유 기준**이다. 광역 권한 보유 시(30s Replay 옵트인으로 부여) 새 URL이 커버 범위(http/https 지원 URL)면 cross-origin도 same-origin처럼 패널 유지 — `<all_urls>`가 captureVisibleTab 캡처 권한을 실제로 주므로 만료 자체가 발생하지 않는다. file:·미지원 URL 등 비커버 URL로의 이동은 보유 여부와 무관하게 아래 경로 그대로(`<all_urls>`는 file:을 포함하지만 캡처는 별도 "파일 URL 액세스" 토글을 요구해 `isBroadCoveredUrl`이 의도적으로 배제).
 
 **즉시 경로 (비보존 상태)**:
 
@@ -222,7 +223,7 @@ video-capture.ts:startVideoCapture(tabId)
 | 오디오 | 없음 (`audio: false`) | 없음 |
 | 최대 길이 | 60초 | 30초 (링 버퍼) |
 | 출력 | WebM/MP4 (MediaRecorder, 1.5Mbps) | H.264 MP4 (WebCodecs) |
-| optional permission | 불필요 | `https://*/*`, `http://*/*` 필요 |
+| optional permission | 불필요 | `<all_urls>` 필요 |
 
 ### 실패 시 동작
 
@@ -537,7 +538,7 @@ SettingsTab.tsx — handleReplayToggle()
 └── 거부 → toast.error("settings.replay.permissionDenied")
 ```
 
-`BROAD_HOST_ORIGINS` = `["https://*/*", "http://*/*"]` (`src/lib/broad-host-origins.ts`)
+`BROAD_HOST_ORIGINS` = `["<all_urls>"]` (`src/lib/broad-host-origins.ts`)
 
 부여된 광역 권한은 30s Replay 캡처 외에 **cross-origin 네비게이션 시 패널 선제 닫기 스킵·일반 캡처 지속**에도 사용된다(§ 패널 종료/유지 정책 분기표). 리플레이 스위치를 꺼도 권한이 유지되는 한 적용.
 

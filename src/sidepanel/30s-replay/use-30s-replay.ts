@@ -89,8 +89,9 @@ export function use30sReplay(
         });
         if (cancelled) return;
         if (!granted) {
+          // 권한 미보유면 replay를 끈다. 토글이 OFF가 되며 캡처 버튼이 비활성화돼
+          // 사용자가 직접 인지한다(별도 토스트 없음).
           useSettingsUiStore.getState().setReplayEnabled(false);
-          toast.error(tRef.current("issue.replay.permissionRevoked"));
           return;
         }
         intervalId = setInterval(() => void tick(), CAPTURE_INTERVAL_MS);

@@ -3,6 +3,7 @@ import {
   shouldPreserveSession,
   resolveTabSwitch,
   resolveNavigationAction,
+  isBroadCoveredUrl,
 } from "../tab-bindings";
 
 describe("shouldPreserveSession", () => {
@@ -164,4 +165,37 @@ describe("resolveNavigationAction", () => {
       expect(resolveNavigationAction(c.input)).toBe(c.expected);
     });
   }
+});
+
+// BROAD_HOST_ORIGINS를 <all_urls>로 전환하면 광역 권한이 file:까지 포함하지만,
+// captureVisibleTab은 file:에 별도 "파일 URL 액세스" 토글을 요구하므로 navigation 분기는
+// file:을 의도적으로 비커버(만료 폴백)로 유지해야 한다. 이 경계가 깨지지 않음을 락인한다.
+describe("isBroadCoveredUrl", () => {
+  it("https URL은 커버된다", () => {
+    expect(isBroadCoveredUrl("https://example.com/path")).toBe(true);
+  });
+
+  it("http URL은 커버된다", () => {
+    expect(isBroadCoveredUrl("http://example.com")).toBe(true);
+  });
+
+  it("file: URL은 비커버다 (<all_urls> 범위지만 캡처 별도 토글 요구 — 의도적 배제)", () => {
+    expect(isBroadCoveredUrl("file:///Users/me/page.html")).toBe(false);
+  });
+
+  it("미지원 스킴(chrome:)은 비커버다", () => {
+    expect(isBroadCoveredUrl("chrome://settings")).toBe(false);
+  });
+
+  it("차단 호스트(chromewebstore)는 지원 URL이 아니라 비커버다", () => {
+    expect(isBroadCoveredUrl("https://chromewebstore.google.com/detail/x")).toBe(false);
+  });
+
+  it("undefined는 비커버다", () => {
+    expect(isBroadCoveredUrl(undefined)).toBe(false);
+  });
+
+  it("잘못된 URL은 비커버다", () => {
+    expect(isBroadCoveredUrl("not a url")).toBe(false);
+  });
 });

@@ -10,8 +10,6 @@ const ko = {
   "issue.replay.encoding": "인코딩 중…",
   "issue.replay.tooltip.disabled": "클릭하면 설정에서 30초 리플레이를 켤 수 있습니다",
   "issue.replay.tooltip.recording": "화면을 기록하고 있습니다…",
-  "issue.replay.permissionRevoked":
-    "캡처 권한이 해제되어 30초 리플레이를 껐습니다.",
   "issue.replay.encodeFailed": "영상 생성에 실패했습니다. 다시 시도하세요.",
   "issue.startDraft": "이슈 작성",
   "issue.picking.title": "요소를 선택하세요",
@@ -100,8 +98,6 @@ const en = {
   "issue.replay.encoding": "Encoding…",
   "issue.replay.tooltip.disabled": "Click to enable 30s replay in settings",
   "issue.replay.tooltip.recording": "Recording the screen…",
-  "issue.replay.permissionRevoked":
-    "Capture permission was revoked, so 30s replay was turned off.",
   "issue.replay.encodeFailed": "Failed to create the video. Please try again.",
   "issue.startDraft": "Write issue",
   "issue.picking.title": "Select an element",
