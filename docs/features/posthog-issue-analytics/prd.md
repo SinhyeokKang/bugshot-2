@@ -11,8 +11,9 @@ PostHog로 "이슈 제출" 이벤트를 익명 집계해 **제출 총건수**와
 - 사용자가 BugShot으로 이슈를 제출(성공/실패)할 때마다 PostHog에 `issue_submitted` 이벤트 1건을 전송한다.
 - 이벤트에 `platform`(jira/github/linear/notion/gitlab/asana), `capture_mode`(screenshot/video/element/freeform), `result`(success/failure) 속성을 붙인다.
 - PostHog 대시보드에서 총 제출건수, 플랫폼별·캡처모드별 분포, 성공/실패 비율을 집계할 수 있다.
+- 수집된 분포로 **연동 플랫폼·캡처 모드의 우선순위를 판단한다**(예: 저사용 플랫폼 연동의 유지/축소, 인기 캡처 모드 강화, 성공률이 낮은 플랫폼 제출 경로 개선). 데이터 확보가 이번 스코프의 목표이며, 임계치 등 구체 의사결정 룰의 정의는 비목표.
 - 전송 실패가 이슈 제출 플로우에 어떤 영향도 주지 않는다(완전 fire-and-forget).
-- 개인 식별 정보(제목·URL·본문·로그·계정 정보)를 일절 전송하지 않는다.
+- 개인 식별 정보(제목·URL·본문·로그·계정 정보)를 일절 전송하지 않는다. PostHog가 전송 시점에 수신하는 IP도 이벤트에서 `$ip`를 비우고(`$ip: ""`) GeoIP 추정을 끈다(`$geoip_disable: true`).
 
 ## 비목표 (Non-goals)
 
@@ -43,4 +44,5 @@ PostHog로 "이슈 제출" 이벤트를 익명 집계해 **제출 총건수**와
 - 제출 실패 시 `result=failure` 이벤트가 도착한다.
 - PostHog 키 미설정 빌드에서 전송이 일어나지 않고, 콘솔 에러 없이 제출이 정상 동작한다.
 - 전송 경로 코드가 throw해도 제출 성공/실패 UI가 그대로 유지된다(단위 테스트로 격리 확인).
-- 전송 payload에 제목·URL·본문 등 식별 정보가 포함되지 않는다(코드 리뷰 + 테스트로 확인).
+- 전송 payload에 제목·URL·본문 등 식별 정보가 포함되지 않고, `$ip: ""` + `$geoip_disable: true`가 함께 실린다(코드 리뷰 + 테스트로 확인).
+- 제출 성공(이슈 생성됨)은 `result: "success"`, 제출이 throw로 끝나면 `result: "failure"`로 정확히 1회 집계된다. `result`는 `onSubmit`의 성공/예외에만 묶이며, 로그 첨부 누락(`logsDropped`)·후속 콜백 예외는 분류에 영향을 주지 않는다.

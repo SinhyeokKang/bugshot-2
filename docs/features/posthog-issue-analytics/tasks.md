@@ -18,41 +18,45 @@
 ### Task 2: PostHog 전송 모듈 (background)
 - **변경 대상**: `src/background/analytics.ts` (신규)
 - **작업 내용**:
-  - `POSTHOG_KEY`, `POSTHOG_HOST` 상수(`import.meta.env`에서 trim/슬래시 제거, host 기본값 포함).
-  - `isAnalyticsConfigured(): boolean`.
-  - `buildCaptureBody(event, properties, distinctId): PosthogCaptureBody` — `{ api_key, event, distinct_id, properties: { ...properties, $process_person_profile: false } }` 반환(순수 함수).
-  - `captureEvent(event, properties): Promise<void>` — 키 없으면 return. 있으면 `crypto.randomUUID()`로 distinct_id 만들고 `fetch(POSTHOG_HOST + "/capture/", { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(buildCaptureBody(...)) })`. 전체 try/catch로 감싸 실패 시 `console.warn`만.
+  - `posthogKey()`, `posthogHost()` — **함수 본문에서 `import.meta.env` 재독**(trim/슬래시 제거, host 기본값 `https://us.i.posthog.com`). 모듈 상수로 얼리지 말 것(테스트 `vi.stubEnv` 무효화 방지 — `isAsanaOAuthConfigured` 패턴).
+  - `isAnalyticsConfigured(): boolean` — `!!posthogKey()`.
+  - `buildCaptureBody(event, properties, distinctId): PosthogCaptureBody` — `{ api_key, event, distinct_id, properties: { ...properties, $process_person_profile: false, $ip: "", $geoip_disable: true } }` 반환(순수 함수).
+  - `captureEvent(event, properties): Promise<void>` — `isAnalyticsConfigured()` false면 return. 아니면 `crypto.randomUUID()`로 distinct_id 만들고 `fetch(posthogHost() + "/capture/", { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(buildCaptureBody(...)) })`. 전체 try/catch로 감싸 reject·non-ok 모두 `console.warn`만.
 - **검증**:
-  - [ ] (Task 7) `buildCaptureBody` 단위 테스트 통과: api_key 세팅, `$process_person_profile:false` 포함, properties 병합.
+  - [ ] (Task 7) `buildCaptureBody` 단위: api_key 세팅, `$process_person_profile:false`·`$ip:""`·`$geoip_disable:true` 포함, 입력 properties 병합·손실 없음, distinct_id가 인자값.
   - [ ] (Task 7) 키 미설정 시 `isAnalyticsConfigured()===false`, `captureEvent`가 fetch 호출 안 함.
-  - [ ] `captureEvent`가 어떤 입력에도 reject하지 않는다(throw 격리).
+  - [ ] (Task 7) 키 설정 시 `captureEvent`가 `posthogHost()+"/capture/"`로 올바른 body를 POST한다(fetch mock).
+  - [ ] (Task 7) `captureEvent`가 fetch reject·non-ok 응답 둘 다에서 reject하지 않는다(throw 격리).
 
-### Task 3: 메시지 타입 + 라우팅
-- **변경 대상**: `src/types/messages.ts`, `src/background/messages.ts`
+### Task 3: 메시지 타입 + 라우팅 (3곳)
+- **변경 대상**: `src/types/messages.ts`, `src/background/bgRequestTypes.ts`, `src/background/messages.ts`
 - **작업 내용**:
   - `BgRequest` union에 `{ type: "analytics.capture"; event: string; properties: Record<string, string> }` 추가.
+  - `bgRequestTypes.ts`의 `BG_REQUEST_TYPE_MAP`에 `"analytics.capture": true` 추가. **누락 시 onMessage 화이트리스트(`BG_REQUEST_TYPES` Set)에서 빠져 메시지가 런타임에 silently drop**되고, `Record<BgRequest["type"], true>`라 컴파일도 깨진다.
   - `handleMessage()` switch에 `case "analytics.capture": return captureEvent(message.event, message.properties);` 추가(반환 흐름은 기존 핸들러와 동일, `{ ok: true }` 래핑).
 - **검증**:
-  - [ ] `pnpm typecheck` 통과(union 추가로 switch exhaustiveness 충족).
+  - [ ] `pnpm typecheck` 통과(union 추가로 switch exhaustiveness + `BG_REQUEST_TYPE_MAP` exhaustive Record 충족).
+  - [ ] `BG_REQUEST_TYPES.has("analytics.capture") === true`(화이트리스트 통과).
   - [ ] background에서 `analytics.capture` 수신 시 `captureEvent` 호출(코드 경로 확인).
 
 ### Task 4: sidepanel 추적 헬퍼
 - **변경 대상**: `src/sidepanel/lib/track-submit.ts` (신규)
 - **작업 내용**:
-  - `submitEventProperties(platform, captureMode, result): Record<string,string>` — `{ platform, capture_mode: captureMode ?? "unknown", result }` 반환(순수 함수).
-  - `trackSubmit(platform, captureMode, result): void` — `sendBg({ type:"analytics.capture", event:"issue_submitted", properties: submitEventProperties(...) }).catch(() => {})`.
+  - `submitEventProperties(platform, captureMode, result): Record<string,string>` — `{ platform, capture_mode: captureMode ?? "unknown", result }` 반환(순수 함수). `?? "unknown"`은 도달하지 않는 1줄 방어(전용 테스트 없음).
+  - `trackSubmit(platform, captureMode, result): void` — `sendBg({ type:"analytics.capture", event:"issue_submitted", properties: submitEventProperties(...) }).catch(() => {})`. 동기적으로 throw하지 않는다.
 - **검증**:
-  - [ ] (Task 7) `submitEventProperties` 단위 테스트: 키 집합이 정확히 `{platform, capture_mode, result}`이고 captureMode undefined → `"unknown"`.
-  - [ ] `trackSubmit`는 await 없이 호출되고 sendBg 실패를 삼킨다.
+  - [ ] (Task 7) `submitEventProperties` 단위: 6 platform·4 captureMode 매핑, 반환 키가 정확히 `{platform, capture_mode, result}` 3개(식별 정보 없음).
+  - [ ] `trackSubmit`는 await 없이 호출되고 sendBg reject를 삼킨다(동기 throw 없음).
 
 ### Task 5: SubmitFieldsDialog choke point 연결
 - **변경 대상**: `src/sidepanel/tabs/SubmitFieldsDialog.tsx`
 - **작업 내용**:
   - props에 `captureMode?: CaptureMode` 추가.
-  - `handleSubmit()` 성공 경로(`onOpenChange(false)` 직후)에서 `trackSubmit(platform, captureMode, "success")`.
+  - `handleSubmit()`에서 **`await onSubmit(platform)` 리졸브 직후·`onOpenChange(false)`/`onSuccess?.()` 이전**에 `trackSubmit(platform, captureMode, "success")`. (onSuccess/onOpenChange가 throw해도 success로 이미 집계 → catch의 failure와 중복·오분류 방지.)
   - catch 블록에서 `trackSubmit(platform, captureMode, "failure")`.
 - **검증**:
   - [ ] 제출 성공 시 success, 실패 시 failure 이벤트가 정확히 1회 호출(수동/네트워크 확인).
+  - [ ] `onSuccess`가 throw해도 `failure`가 추가 전송되지 않는다(success만 1회).
   - [ ] 추적 호출 추가가 기존 onSuccess/toast 동작을 바꾸지 않는다.
 
 ### Task 6: captureMode prop 전달
@@ -72,25 +76,26 @@
 
 ### Task 8: 개인정보처리방침 갱신
 - **변경 대상**: `docs/privacy.md`
-- **작업 내용**: 익명 집계 수집 섹션 추가 — 수집 항목(platform, capture_mode, result), 목적(제품 사용량 집계), 익명성(개인 식별자·이슈 내용 미수집, 이벤트별 랜덤 distinct_id), 수신처(PostHog) 명시. 시행일 갱신.
+- **작업 내용**: 익명 집계 수집 섹션 추가 — 수집 항목(platform, capture_mode, result), 목적(제품 사용량 집계 + 연동/캡처 모드 우선순위 판단), 익명성(개인 식별자·이슈 내용 미수집, 이벤트별 랜덤 distinct_id, `$ip` 비움·GeoIP 비활성으로 IP 비저장), 수신처(PostHog), 옵트아웃 부재를 명시. 시행일 갱신. (확장 UI에는 privacy 링크를 두지 않고 웹스토어 대시보드 privacy URL 등록으로 정책 공개 요건 충족 — design 위험 요소 참조.)
 - **검증**:
   - [ ] `/push` 문서 신선도 검사 통과(privacy.md 동작 정합).
   - [ ] 수집 항목 목록이 실제 전송 properties와 일치.
+  - [ ] IP 비저장 조치(`$ip:""`·`$geoip_disable:true`)가 명시돼 "완전 익명" 주장과 정합.
 
 ## 테스트 계획
 
 - **단위 테스트**:
-  - `buildCaptureBody`: (a) `api_key`가 PostHog 키로 세팅 (b) `properties.$process_person_profile === false` (c) 입력 properties가 병합되고 손실 없음 (d) `distinct_id`가 인자로 들어감.
-  - `isAnalyticsConfigured`: 키 빈 문자열/공백 → false, 값 있으면 true. (env mock — `vi.stubEnv` 또는 모듈 mock)
-  - `submitEventProperties`: (a) 6개 platform 각각 그대로 매핑 (b) captureMode 4종 매핑 (c) undefined → `"unknown"` (d) 반환 객체 키가 정확히 3개(`platform`/`capture_mode`/`result`)로 식별 정보 없음.
-- **e2e 시나리오**(`/e2e-write` 입력): PostHog 실키 없이 검증하려면 `/capture/`로 가는 네트워크 요청을 Playwright `page.route`로 가로채 단언.
-  - "제출 성공하면 `**/capture/`로 `event:"issue_submitted"`, `properties.result:"success"` 요청이 1건 발생한다." — 단, 실제 플랫폼 제출 성공은 OAuth 인증이 필요해 자동화 난이도가 높음. **`captureEvent` 경로를 별도로 트리거 가능한 테스트 훅이 없으면 이 시나리오는 수동으로 강등**(아래).
-  - 자동화 가능 최소 단언: 빌드에 `VITE_POSTHOG_KEY` 미주입(e2e 빌드 기본)이면 제출 시도 시 `/capture/` 요청이 **발생하지 않는다**(no-op 게이팅 회귀 방지).
+  - `buildCaptureBody`: (a) `api_key`가 PostHog 키로 세팅 (b) `properties`에 `$process_person_profile:false`·`$ip:""`·`$geoip_disable:true` 포함 (c) 입력 properties가 병합되고 손실 없음 (d) `distinct_id`가 인자로 들어감.
+  - `isAnalyticsConfigured`: 키 빈 문자열/공백 → false, 값 있으면 true. **`vi.stubEnv("VITE_POSTHOG_KEY", …)`**로 검증(함수 내부 env 재독이라 동작 — 기존 `asana-oauth.test.ts` 패턴).
+  - `captureEvent`(fetch mock — `vi.stubGlobal("fetch", …)` 또는 `globalThis.fetch = vi.fn()`, 기존 `github-api.test.ts`/`linear-api.test.ts` 패턴): (a) 키 미설정 → fetch 미호출 (b) 키 설정 → `posthogHost()+"/capture/"`로 POST, body가 `buildCaptureBody` 결과 (c) fetch reject 시 throw 안 함 (d) non-ok(4xx/5xx) 응답 시 throw 안 함.
+  - `submitEventProperties`: (a) 6개 platform 각각 그대로 매핑 (b) captureMode 4종 매핑 (c) 반환 객체 키가 정확히 3개(`platform`/`capture_mode`/`result`)로 식별 정보 없음.
+- **e2e 시나리오**: **없음(전면 강등)**. 근거: PostHog fetch는 service worker에서 발생하는데 Playwright `page.route`/`context.route`는 SW의 native fetch를 가로채지 못한다(현 e2e 스위트에 route/fulfill 사용 0건). 또한 e2e 빌드는 `VITE_POSTHOG_KEY`를 주입하지 않아 "미발생" 단언이 키 게이팅이 아니라 키 부재로 vacuously true가 돼 회귀 방지 가치가 없다. 위 단위 테스트(키 게이팅·fetch 호출·격리)로 대체한다.
 - **수동 테스트**(Chrome):
+  - 구현 중 1회: PostHog `/capture/`로 가는 요청의 **preflight(OPTIONS)**가 200 + `ACAO: *`/`Access-Control-Allow-Headers: content-type`로 통과하는지 DevTools Network에서 확인(설계 CORS 가정 검증).
   - `.env.local`에 실제 키 주입 후 `pnpm build` → 로드. 6개 플랫폼 중 인증된 1~2개로 실제 제출.
-  - DevTools Network에서 `/capture/` 요청 payload 확인: `event:"issue_submitted"`, `properties` = {platform, capture_mode, result}, person profile 미생성(`$process_person_profile:false`).
+  - DevTools Network에서 `/capture/` 요청 payload 확인: `event:"issue_submitted"`, `properties` = {platform, capture_mode, result, `$process_person_profile:false`, `$ip:""`, `$geoip_disable:true`}.
   - 일부러 잘못된 토큰으로 제출 실패 유발 → `result:"failure"` 전송 확인 + 제출 에러 토스트 정상.
-  - PostHog 대시보드에서 이벤트 수신 및 platform/capture_mode breakdown 확인.
+  - PostHog 대시보드에서 이벤트 수신, person profile 미생성, IP/위치 미기록, platform/capture_mode breakdown 확인.
 
 ## 구현 순서 권장
 
