@@ -171,31 +171,31 @@ describe("resolveNavigationAction", () => {
 // captureVisibleTab은 file:에 별도 "파일 URL 액세스" 토글을 요구하므로 navigation 분기는
 // file:을 의도적으로 비커버(만료 폴백)로 유지해야 한다. 이 경계가 깨지지 않음을 락인한다.
 describe("isBroadCoveredUrl", () => {
-  it("https URL은 커버된다", () => {
+  it("returns true for https URL", () => {
     expect(isBroadCoveredUrl("https://example.com/path")).toBe(true);
   });
 
-  it("http URL은 커버된다", () => {
+  it("returns true for http URL", () => {
     expect(isBroadCoveredUrl("http://example.com")).toBe(true);
   });
 
-  it("file: URL은 비커버다 (<all_urls> 범위지만 캡처 별도 토글 요구 — 의도적 배제)", () => {
+  it("returns false for file: URL (<all_urls> includes it but capture needs a separate toggle)", () => {
     expect(isBroadCoveredUrl("file:///Users/me/page.html")).toBe(false);
   });
 
-  it("미지원 스킴(chrome:)은 비커버다", () => {
+  it("returns false for unsupported scheme (chrome:)", () => {
     expect(isBroadCoveredUrl("chrome://settings")).toBe(false);
   });
 
-  it("차단 호스트(chromewebstore)는 지원 URL이 아니라 비커버다", () => {
+  it("returns false for blocked host (chromewebstore)", () => {
     expect(isBroadCoveredUrl("https://chromewebstore.google.com/detail/x")).toBe(false);
   });
 
-  it("undefined는 비커버다", () => {
+  it("returns false for undefined", () => {
     expect(isBroadCoveredUrl(undefined)).toBe(false);
   });
 
-  it("잘못된 URL은 비커버다", () => {
+  it("returns false for invalid URL", () => {
     expect(isBroadCoveredUrl("not a url")).toBe(false);
   });
 });
