@@ -38,7 +38,7 @@ In screenshot mode, AI reads the **annotated screenshot** you attached. A one-li
 
 ## 5. Log attachments
 
-Screenshot mode can attach console and network logs. Both toggles are **off by default**, so flip one on only when you need it.
+Screenshot mode can attach console and network logs. Both toggles are **on by default**, so they're included without any extra steps — turn one off if you don't need it.
 
 > See [Live Logs](../logs/live.md) for how to read and work with logs.
 

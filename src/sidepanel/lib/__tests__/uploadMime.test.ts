@@ -14,7 +14,7 @@ describe("guessUploadMime", () => {
   });
   it("문서 타입", () => {
     expect(guessUploadMime("logs.html")).toBe("text/html");
-    expect(guessUploadMime("bugshot.md")).toBe("text/markdown");
+    expect(guessUploadMime("a.md")).toBe("text/markdown");
   });
   it("미지원 확장자는 octet-stream", () => {
     expect(guessUploadMime("a.bin")).toBe("application/octet-stream");

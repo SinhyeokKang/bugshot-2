@@ -7,9 +7,6 @@ const attachments = vi.fn();
 vi.mock("../buildNotionIssueBody", () => ({
   buildNotionIssueBody: () => ({ blocks: [], attachments: attachments() }),
 }));
-vi.mock("../buildAiMetaAttachment", () => ({
-  buildAiMetaAttachment: () => ({ filename: "bugshot.md", dataUrl: "data:md" }),
-}));
 vi.mock("../zipLogsHtml", () => ({
   zipLogsHtml: async (filename: string) => ({
     filename: `${filename}.zip`,
@@ -121,39 +118,5 @@ describe("submitToNotion logsDropped", () => {
         selectValues: [],
       }),
     ).rejects.toThrow();
-  });
-});
-
-describe("submitToNotion aiMeta 격리", () => {
-  it("aiMeta(bugshot.md) 업로드 실패해도 페이지는 생성되고 첨부에서만 빠진다", async () => {
-    attachments.mockReturnValue([]);
-    let submitAttachments: Array<{ filename: string }> | undefined;
-    sendBg.mockImplementation(
-      async (msg: {
-        type: string;
-        filename?: string;
-        payload?: { attachments?: Array<{ filename: string }> };
-      }) => {
-        if (msg.type === "notion.uploadFile") {
-          if (msg.filename === "bugshot.md") throw new Error("meta fail");
-          return { fileUploadId: `fu-${msg.filename}` };
-        }
-        if (msg.type === "notion.submitPage") {
-          submitAttachments = msg.payload?.attachments;
-          return PAGE;
-        }
-        return undefined;
-      },
-    );
-
-    const res = await submitToNotion({
-      ctx: makeCtx(),
-      databaseId: "DB",
-      titlePropertyName: "Name",
-      selectValues: [],
-    });
-
-    expect(res.url).toBe(PAGE.url);
-    expect(submitAttachments?.some((a) => a.filename === "bugshot.md")).toBe(false);
   });
 });

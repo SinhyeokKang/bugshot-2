@@ -55,6 +55,15 @@ export function buildActionLogSummary(log: ActionLog): ActionLogSummary {
     if (e.kind === "input") {
       return `Typed in "${e.fieldLabel ?? ""}": "${e.value ?? ""}"`;
     }
+    if (e.kind === "keypress") {
+      return `Pressed: ${e.value ?? ""}`;
+    }
+    if (e.kind === "toggle") {
+      return `Toggled "${e.fieldLabel ?? ""}": ${e.value ?? ""}`;
+    }
+    if (e.kind === "select") {
+      return `Selected "${e.value ?? ""}" in "${e.fieldLabel ?? ""}"`;
+    }
     return `Clicked: ${e.target ?? e.selector ?? ""}${e.role ? ` (${e.role})` : ""}`;
   });
 }

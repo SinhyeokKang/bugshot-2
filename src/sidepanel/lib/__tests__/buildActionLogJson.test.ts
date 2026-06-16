@@ -82,6 +82,32 @@ describe("buildActionLogJson", () => {
     expect("masked" in e).toBe(false);
   });
 
+  it("keypress/toggle/select 직렬화 (멀티·빈 select 포함)", () => {
+    const out = buildActionLogJson(
+      makeLog({
+        entries: [
+          { id: "k1", kind: "keypress", timestamp: 0, pageUrl: "", value: "⌘+K", target: "검색", selector: "#q" },
+          { id: "t1", kind: "toggle", timestamp: 0, pageUrl: "", fieldLabel: "약관", value: "checked", selector: "#agree" },
+          { id: "s1", kind: "select", timestamp: 0, pageUrl: "", fieldLabel: "국가", value: "Korea, Japan", selector: "#c" },
+          { id: "s2", kind: "select", timestamp: 0, pageUrl: "", fieldLabel: "태그", value: "", selector: "#tags" },
+        ],
+      }),
+    ) as { entries: Record<string, unknown>[] };
+
+    const [k, tog, sel, selEmpty] = out.entries;
+    expect(k.kind).toBe("keypress");
+    expect(k.value).toBe("⌘+K");
+    expect(k.target).toBe("검색");
+    expect(tog.kind).toBe("toggle");
+    expect(tog.value).toBe("checked");
+    expect(tog.fieldLabel).toBe("약관");
+    expect(sel.kind).toBe("select");
+    expect(sel.value).toBe("Korea, Japan");
+    // 빈 select도 value 키 직렬화(빈 문자열 보존)
+    expect("value" in selEmpty).toBe(true);
+    expect(selEmpty.value).toBe("");
+  });
+
   it("masked=true면 masked 키 포함", () => {
     const out = buildActionLogJson(
       makeLog({

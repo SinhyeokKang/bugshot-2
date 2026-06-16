@@ -5,7 +5,6 @@ import {
   markdownToAsanaHtml,
   type AsanaInlineImage,
 } from "./markdownToAsanaHtml";
-import { buildAiMetaAttachment } from "./buildAiMetaAttachment";
 import type { InlineImageInput } from "./resolveInlineImages";
 import { guessUploadMime } from "./uploadMime";
 import { loadImage } from "@/sidepanel/capture";
@@ -137,7 +136,7 @@ export async function submitToAsana(
       }),
     })),
   );
-  const logs = [...(input.logs ?? []), buildAiMetaAttachment(ctx)];
+  const logs = input.logs ?? [];
   const allFiles = [
     ...imageInputs,
     ...inlineEntries.map((e) => e.file),

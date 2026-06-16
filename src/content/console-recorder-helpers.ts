@@ -117,3 +117,74 @@ export function serializeArgs(args: unknown[]): string {
   }
   return joined;
 }
+
+// --- error/warn arm-스코프 wrap 라이프사이클 (단위 테스트 대상) ---
+// IIFE 클로저는 import 불가라 install/restore 로직까지 순수 함수로 끌어내 멱등성·복원
+// 안전성을 단위로 검증한다. console-recorder.ts는 실제 console·상태 객체를 넘겨 호출만 한다.
+
+export type ConsoleFn = (...args: unknown[]) => void;
+type RecordFn = (level: "error" | "warn", args: unknown[]) => void;
+interface EwTarget {
+  error: ConsoleFn;
+  warn: ConsoleFn;
+}
+// prior: arm 시점의 직전 메서드(페이지 모니터링 wrapper일 수 있음), ours: 우리가 설치한 wrapper.
+export interface EwState {
+  installed: boolean;
+  prior: EwTarget | null;
+  ours: EwTarget | null;
+}
+
+// native를 먼저 동기 호출(페이지 동작·DevTools 출력 보존)한 뒤 record를 try/catch로 격리해
+// 위임한다 — record(혹은 captureStack)가 throw해도 페이지의 console.* 호출자로 전파 금지(무간섭).
+export function makeConsoleWrapper(
+  native: ConsoleFn,
+  level: "error" | "warn",
+  record: RecordFn,
+): ConsoleFn {
+  return function (...args: unknown[]) {
+    native(...args);
+    try {
+      record(level, args);
+    } catch {
+      // 무간섭 원칙: 캡처 실패가 페이지 코드를 깨면 안 된다.
+    }
+  };
+}
+
+// 멱등 설치: arm 시점의 현재 error/warn(페이지 Sentry 등이 덧씌운 wrapper 포함)을 prior로 스냅샷하고
+// 그 prior를 호출하는 wrapper를 설치한다 — prior를 init-native가 아닌 arm 시점값으로 잡아야
+// 페이지 모니터링을 우회·파괴하지 않는다. 이미 installed면 no-op(setSentinel 다회 호출 대비).
+export function installConsoleWrap(
+  target: EwTarget,
+  state: EwState,
+  makeWrapper: (native: ConsoleFn, level: "error" | "warn") => ConsoleFn,
+): void {
+  if (state.installed) return;
+  const prior: EwTarget = {
+    error: target.error.bind(target),
+    warn: target.warn.bind(target),
+  };
+  const ours: EwTarget = {
+    error: makeWrapper(prior.error, "error"),
+    warn: makeWrapper(prior.warn, "warn"),
+  };
+  target.error = ours.error;
+  target.warn = ours.warn;
+  state.prior = prior;
+  state.ours = ours;
+  state.installed = true;
+}
+
+// 안전 복원: 메서드가 여전히 우리 wrapper면 prior로 되돌린다(페이지가 그 위에 또 덧씌웠으면 보존).
+// init-native가 아닌 prior 복원이라 arm 전 설치된 페이지 wrapper가 살아남는다. 가드는 항상 내림.
+export function restoreConsoleWrap(target: EwTarget, state: EwState): void {
+  const { ours, prior } = state;
+  if (ours && prior) {
+    if (target.error === ours.error) target.error = prior.error;
+    if (target.warn === ours.warn) target.warn = prior.warn;
+  }
+  state.installed = false;
+  state.prior = null;
+  state.ours = null;
+}

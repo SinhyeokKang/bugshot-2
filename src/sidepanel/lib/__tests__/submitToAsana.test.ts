@@ -22,12 +22,6 @@ vi.mock("../markdownToAsanaHtml", () => ({
   markdownToAsanaHtml: (...a: unknown[]) =>
     markdownToAsanaHtml(...(a as [string, Record<string, unknown>?])),
 }));
-vi.mock("../buildAiMetaAttachment", () => ({
-  buildAiMetaAttachment: () => ({
-    filename: "ai-meta.json",
-    dataUrl: "data:application/json,{}",
-  }),
-}));
 vi.mock("@/sidepanel/capture", () => ({
   loadImage: vi.fn().mockResolvedValue({ naturalWidth: 800, naturalHeight: 600 }),
 }));
@@ -302,10 +296,7 @@ describe("submitToAsana", () => {
     sendBg.mockImplementation(async (msg: { type: string }) => {
       if (msg.type === "asana.submitIssue") return TASK;
       if (msg.type === "asana.uploadFiles")
-        return [
-          { filename: "logs.html", gid: null },
-          { filename: "ai-meta.json", gid: "ok" },
-        ];
+        return [{ filename: "logs.html", gid: null }];
       return undefined;
     });
 
@@ -322,10 +313,7 @@ describe("submitToAsana", () => {
     sendBg.mockImplementation(async (msg: { type: string }) => {
       if (msg.type === "asana.submitIssue") return TASK;
       if (msg.type === "asana.uploadFiles")
-        return [
-          { filename: "logs.html", gid: "lg" },
-          { filename: "ai-meta.json", gid: "ok" },
-        ];
+        return [{ filename: "logs.html", gid: "lg" }];
       return undefined;
     });
 

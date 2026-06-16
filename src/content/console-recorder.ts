@@ -1,10 +1,14 @@
 import {
   formatErrorEvent,
   formatRejectionReason,
+  installConsoleWrap,
+  makeConsoleWrapper,
+  restoreConsoleWrap,
   safeStringify,
   serializeArgs,
   shouldCaptureAssertion,
 } from "./console-recorder-helpers";
+import type { EwState } from "./console-recorder-helpers";
 import { createTrailingThrottle, FLUSH_INTERVAL_MS } from "./log-throttle";
 
 function consoleRecorderScript(): void {
@@ -62,11 +66,14 @@ function consoleRecorderScript(): void {
     throttle.schedule();
   }
 
-  // error/warn은 wrap하지 않는다. 페이지가 console.error/warn을 호출하면 native 호출 시점의
-  // 콜스택에 우리 wrap 함수가 끼는데, Chrome이 이걸 "이 확장이 console.error를 호출했다"로
-  // 잘못 attribution → chrome://extensions 오류 로그에 페이지의 모든 console.error/warn이
-  // 누적된다. uncaught 에러는 window.error로, unhandled rejection은 unhandledrejection으로,
-  // assertion 실패는 wrapped console.assert에서 직접 error로 push하므로 가치 있는 신호는 보존.
+  // error/warn은 arm(setSentinel) 구간에만 wrap해 attribution 오염 창을 한정한다(상시 설치 회피).
+  // install이 그 시점의 직전 메서드(페이지 Sentry 등 포함)를 먼저 호출하므로 DevTools 출력·페이지
+  // 모니터링을 보존한다. record 경로(wrapper→record→captureStack)는 captureStack의 slice(4)가
+  // 페이지 첫 프레임에 정렬되도록 한 프레임 깊지만, V8 인라인에 의존하는 가정이라 실탭 회귀로만 검증된다.
+  const record = (level: "error" | "warn", args: unknown[]) =>
+    pushEntry(level, serializeArgs(args), captureStack());
+  const ewState: EwState = { installed: false, prior: null, ours: null };
+
   const LEVELS_TO_WRAP = ["log", "info", "debug"] as const;
 
   for (const level of LEVELS_TO_WRAP) {
@@ -252,7 +259,14 @@ function consoleRecorderScript(): void {
     detachSentinelListeners();
     currentSentinel = sentinel;
     recording = true;
-    stopHandler = () => { recording = false; throttle.flushNow(); };
+    installConsoleWrap(console, ewState, (native, level) =>
+      makeConsoleWrapper(native, level, record),
+    );
+    stopHandler = () => {
+      recording = false;
+      restoreConsoleWrap(console, ewState);
+      throttle.flushNow();
+    };
     syncHandler = () => { throttle.flushNow(); };
     clearHandler = () => { clearBuffer(); throttle.cancel(); };
     document.addEventListener("__bugshot_console_stop__" + sentinel, stopHandler);

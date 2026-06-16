@@ -125,6 +125,23 @@ export function buildMarkers(
         labelParts = [{ text: label }];
         break;
       }
+      case "keypress": {
+        label = t("actionLog.verb.keypress", { keys: e.value ?? "" });
+        labelParts = [{ text: label }];
+        break;
+      }
+      case "toggle": {
+        const field = `"${e.fieldLabel ?? e.selector ?? ""}"`;
+        label = t(e.value === "checked" ? "actionLog.verb.toggle.check" : "actionLog.verb.toggle.uncheck", { field });
+        labelParts = [{ text: label }];
+        break;
+      }
+      case "select": {
+        const field = `"${e.fieldLabel ?? e.selector ?? ""}"`;
+        label = t("actionLog.verb.select", { field, value: `"${e.value ?? ""}"` });
+        labelParts = [{ text: label }];
+        break;
+      }
       default: { e.kind satisfies never; label = ""; labelParts = []; }
     }
     return {

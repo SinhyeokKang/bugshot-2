@@ -3,8 +3,8 @@ import { toast } from "sonner";
 import {
   BookOpen,
   SquareMousePointer,
-  SquareDashed,
-  SquareDashedMousePointer,
+  Camera,
+  ScanEye,
   Crosshair,
   ImageIcon,
   Loader2,
@@ -193,12 +193,12 @@ function EmptyState({ onStartElement, onStartElementShot, onStartScreenshot, onS
             </ShortcutTooltip>
             <ButtonGroup className="w-full">
               <Button variant="outline" className="flex-1" onClick={onStartElementShot} data-testid="mode-element-shot">
-                <SquareDashedMousePointer />
+                <ScanEye />
                 {t("issue.mode.elementShot")}
               </Button>
               <ShortcutTooltip shortcut={shortcuts["capture-screenshot"]}>
                 <Button variant="outline" className="flex-1" onClick={onStartScreenshot} data-testid="mode-screenshot">
-                  <SquareDashed />
+                  <Camera />
                   {t("issue.mode.screenshot")}
                 </Button>
               </ShortcutTooltip>
@@ -247,6 +247,7 @@ function ReplayButton() {
   // 설정 off — 비활성처럼 보이되 클릭은 가능하게 해 설정의 캡처 sub-tab으로 보낸다.
   const button = !replayEnabled ? (
     <Button
+      data-testid="replay-button"
       className="flex-1 rounded-l-none border-l-0 opacity-50"
       variant="outline"
       aria-disabled
@@ -257,6 +258,7 @@ function ReplayButton() {
     </Button>
   ) : (
     <Button
+      data-testid="replay-button"
       className="flex-1 rounded-l-none border-l-0 aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
       variant="outline"
       aria-disabled={!isReady || isEncoding}

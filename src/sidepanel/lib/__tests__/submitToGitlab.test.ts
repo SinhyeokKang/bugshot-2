@@ -6,9 +6,6 @@ vi.mock("@/types/messages", () => ({ sendBg: (...a: unknown[]) => sendBg(...a) }
 vi.mock("../buildGitlabIssueBody", () => ({
   buildGitlabIssueBody: () => ({ body: "see OLD_URL in logs" }),
 }));
-vi.mock("../buildAiMetaAttachment", () => ({
-  buildAiMetaAttachment: () => ({ filename: "bugshot.md", dataUrl: "data:md" }),
-}));
 vi.mock("../resolveInlineImages", () => ({
   replaceInlineRefs: (s: string) => s,
 }));
@@ -57,10 +54,7 @@ describe("submitToGitlab 역링크 보강", () => {
         if (msg.type === "gitlab.uploadFiles") {
           uploadCount += 1;
           if (uploadCount === 1)
-            return [
-              { filename: "logs.html", url: "OLD_URL" },
-              { filename: "bugshot.md", url: "MD_URL" },
-            ];
+            return [{ filename: "logs.html", url: "OLD_URL" }];
           return [{ filename: "logs.html", url: "NEW_URL" }];
         }
         if (msg.type === "gitlab.submitIssue") return ISSUE;
@@ -125,10 +119,7 @@ describe("submitToGitlab logsDropped", () => {
   it("logs.html 업로드가 null(용량 초과)이면 logsDropped: true", async () => {
     sendBg.mockImplementation(async (msg: { type: string }) => {
       if (msg.type === "gitlab.uploadFiles")
-        return [
-          { filename: "logs.html", url: null },
-          { filename: "bugshot.md", url: "MD_URL" },
-        ];
+        return [{ filename: "logs.html", url: null }];
       if (msg.type === "gitlab.submitIssue") return ISSUE;
       return undefined;
     });

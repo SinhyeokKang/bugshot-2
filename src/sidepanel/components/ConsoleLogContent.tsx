@@ -140,13 +140,15 @@ export function ConsoleLogContent({ entries, startedAt, flush, syncBaseMs, onSee
     <div className={`flex min-h-0 flex-1 flex-col overflow-hidden${flush ? "" : " rounded-lg border"}`}>
       <Tabs value={filter} onValueChange={(v) => setFilter(v as ConsoleFilter)}>
         <div className={`flex items-center gap-3${originKeys.length >= 2 ? "" : " border-b"}${flush ? " px-4 py-4" : " p-2"}`}>
-          <TabsList>
-            {availableFilters.map((f) => (
-              <TabsTrigger key={f} value={f}>
-                {filterLabel[f]}
-              </TabsTrigger>
-            ))}
-          </TabsList>
+          <div className="min-w-0 overflow-x-auto">
+            <TabsList>
+              {availableFilters.map((f) => (
+                <TabsTrigger key={f} value={f}>
+                  {filterLabel[f]}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+          </div>
           <div className="relative ml-auto w-full max-w-[280px]">
             <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -216,6 +218,7 @@ function EntryAccordion({ entry, startedAt, syncBaseMs, onSeek, isActive, scroll
   return (
     <div
       data-entry-id={entry.id}
+      data-level={entry.level}
       className={syncRowClass(!!onSeek, !!isActive, levelBgColor(entry.level))}
       aria-current={isActive ? "true" : undefined}
     >

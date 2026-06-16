@@ -4,7 +4,21 @@ import {
   maskValue,
   truncateName,
   entryNavOnBind,
+  formatKeyCombo,
+  type KeyComboInput,
 } from "../action-recorder-helpers";
+
+// 모든 boolean 필드가 required라 테스트 가독성을 위해 false 기본값을 채우는 팩토리.
+function combo(p: Partial<KeyComboInput> & { key: string }): KeyComboInput {
+  return {
+    ctrlKey: false,
+    metaKey: false,
+    altKey: false,
+    shiftKey: false,
+    isComposing: false,
+    ...p,
+  };
+}
 
 describe("shouldMaskField", () => {
   it("type=password면 마스킹", () => {
@@ -60,6 +74,45 @@ describe("truncateName", () => {
     const out = truncateName("A".repeat(200))!;
     expect(out.length).toBeLessThan(200);
     expect(out.endsWith("…")).toBe(true);
+  });
+});
+
+describe("formatKeyCombo", () => {
+  it("모디파이어 조합은 표시 문자열 — 단일 문자 키는 대문자", () => {
+    expect(formatKeyCombo(combo({ key: "k", metaKey: true }))).toBe("⌘+K");
+  });
+
+  it("Ctrl+Shift 조합 (shift는 단독으론 트리거 아니지만 다른 모디파이어와 함께면 포함)", () => {
+    expect(formatKeyCombo(combo({ key: "p", ctrlKey: true, shiftKey: true }))).toBe("Ctrl+Shift+P");
+  });
+
+  it("모디파이어 표기 순서는 ⌘·Ctrl·Alt·Shift", () => {
+    expect(
+      formatKeyCombo(combo({ key: "k", metaKey: true, ctrlKey: true, altKey: true, shiftKey: true })),
+    ).toBe("⌘+Ctrl+Alt+Shift+K");
+  });
+
+  it("모디파이어 없는 특수키는 키 이름 그대로", () => {
+    expect(formatKeyCombo(combo({ key: "Enter" }))).toBe("Enter");
+    expect(formatKeyCombo(combo({ key: "Escape" }))).toBe("Escape");
+    expect(formatKeyCombo(combo({ key: "Tab" }))).toBe("Tab");
+    expect(formatKeyCombo(combo({ key: "ArrowDown" }))).toBe("ArrowDown");
+  });
+
+  it("모디파이어 없는 인쇄 문자는 null (input과 중복·키스트로크 누출 방지)", () => {
+    expect(formatKeyCombo(combo({ key: "a" }))).toBeNull();
+  });
+
+  it("단독 Shift는 null (모디파이어 단독 누름은 무시)", () => {
+    expect(formatKeyCombo(combo({ key: "Shift", shiftKey: true }))).toBeNull();
+  });
+
+  it("IME 조합 중(isComposing)은 null — 한글·일본어·중국어 조합 keydown 제외", () => {
+    expect(formatKeyCombo(combo({ key: "Enter", isComposing: true }))).toBeNull();
+  });
+
+  it("key가 Process면 null (IME 가드)", () => {
+    expect(formatKeyCombo(combo({ key: "Process" }))).toBeNull();
   });
 });
 

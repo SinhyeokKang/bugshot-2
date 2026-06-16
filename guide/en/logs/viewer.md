@@ -14,7 +14,7 @@ The screen has a timeline alongside the video, with logs plotted on it as marker
 
 - **Console** — Console output and errors.
 - **Network** — Network requests.
-- **Action** — User actions like clicks, input, and navigation. (Navigation shows up as a kind of action marker.)
+- **Action** — User actions: clicks, text input, and navigation, plus keyboard shortcuts and special keys, checkbox and radio toggles, and dropdown selections. (Navigation shows up as a kind of action marker.)
 
 Logs from several origins (including iframes embedded in the page) all land on one timeline. In the Console, Network, and Action lists, an **origin filter** above the list lets you narrow down by origin, so you're never unsure which origin a log came from (each origin button also shows that origin's log count).
 

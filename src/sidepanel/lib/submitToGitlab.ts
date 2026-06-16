@@ -2,7 +2,6 @@ import {
   buildGitlabIssueBody,
   type GitlabMediaInput,
 } from "./buildGitlabIssueBody";
-import { buildAiMetaAttachment } from "./buildAiMetaAttachment";
 import { replaceInlineRefs, type InlineImageInput } from "./resolveInlineImages";
 import { guessUploadMime } from "./uploadMime";
 import { sendBg } from "@/types/messages";
@@ -41,7 +40,7 @@ export async function submitToGitlab(
   input: GitlabSubmitInput,
 ): Promise<NormalizedSubmitResult> {
   const imageInputs = input.images ?? [];
-  const logs = [...(input.logs ?? []), buildAiMetaAttachment(input.ctx)];
+  const logs = input.logs ?? [];
   const inlineFiles = (input.inlineImages ?? []).map((img) => ({
     filename: `inline-${img.refId}.webp`,
     dataUrl: img.dataUrl,
