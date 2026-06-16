@@ -13,6 +13,10 @@ export default defineConfig(({ mode }) => {
   const githubClientId = isStoreBuild
     ? env.VITE_GITHUB_CLIENT_ID_PROD ?? ""
     : env.VITE_GITHUB_CLIENT_ID ?? "";
+  // PostHog 키도 store 빌드에서만 PROD 값을 승격 → dev/일반/e2e는 빈 값으로 전송 no-op.
+  const posthogKey = isStoreBuild
+    ? env.VITE_POSTHOG_KEY_PROD ?? ""
+    : env.VITE_POSTHOG_KEY ?? "";
   return {
     plugins: [react(), crx({ manifest })],
     resolve: {
@@ -22,6 +26,7 @@ export default defineConfig(({ mode }) => {
     },
     define: {
       "import.meta.env.VITE_GITHUB_CLIENT_ID": JSON.stringify(githubClientId),
+      "import.meta.env.VITE_POSTHOG_KEY": JSON.stringify(posthogKey),
     },
     build: { outDir: isE2eBuild ? "dist-e2e" : "dist" },
     server: {

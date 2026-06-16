@@ -614,6 +614,7 @@ export function IssueCreateModal() {
         onOpenChange={setOpen}
         platform={platform}
         setPlatform={handlePlatformChange}
+        captureMode={captureMode}
         availablePlatforms={available}
         jiraFields={issueFields}
         setJiraFields={setIssueFields}

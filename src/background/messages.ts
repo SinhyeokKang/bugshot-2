@@ -70,6 +70,7 @@ import {
   updateTaskNotes as updateAsanaTaskNotes,
   uploadAttachment as uploadAsanaAttachment,
 } from "./asana-api";
+import { captureEvent } from "./analytics";
 import { isOAuthConfigured, startOAuthFlow } from "./oauth";
 import { isGithubOAuthConfigured, startGithubOAuth } from "./github-oauth";
 import { isLinearOAuthConfigured, startLinearOAuth } from "./linear-oauth";
@@ -524,6 +525,9 @@ export async function handleMessage(
         message.taskGid,
         message.completed,
       );
+
+    case "analytics.capture":
+      return captureEvent(message.event, message.properties);
 
     default: {
       const _exhaustive: never = message;

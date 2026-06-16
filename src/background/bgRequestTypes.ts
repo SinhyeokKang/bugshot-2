@@ -84,6 +84,7 @@ const BG_REQUEST_TYPE_MAP: Record<BgRequest["type"], true> = {
   "asana.updateTaskNotes": true,
   "asana.getTaskStatus": true,
   "asana.setCompleted": true,
+  "analytics.capture": true,
 };
 
 export const BG_REQUEST_TYPES: ReadonlySet<string> = new Set(

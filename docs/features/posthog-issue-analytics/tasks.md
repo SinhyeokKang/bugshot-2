@@ -15,8 +15,8 @@
   - `.env.example`에 `VITE_POSTHOG_KEY=`(dev — 비우면 전송 안 함), `VITE_POSTHOG_KEY_PROD=`(store 빌드 시 승격), `VITE_POSTHOG_HOST=`(기본 `https://us.i.posthog.com`) + "prod 데이터만 누적" 정책 주석 추가.
   - `vite.config.ts`: GitHub 키 옆에 `const posthogKey = isStoreBuild ? env.VITE_POSTHOG_KEY_PROD ?? "" : env.VITE_POSTHOG_KEY ?? "";` 추가 + `define`에 `"import.meta.env.VITE_POSTHOG_KEY": JSON.stringify(posthogKey)` 한 줄 추가.
 - **검증**:
-  - [ ] `.env.example`에 세 항목 + 정책 주석 존재.
-  - [ ] `vite.config.ts` define에 POSTHOG 키 분기가 GitHub 키와 동형으로 추가됨.
+  - [x] `.env.example`에 세 항목 + 정책 주석 존재.
+  - [x] `vite.config.ts` define에 POSTHOG 키 분기가 GitHub 키와 동형으로 추가됨.
   - [ ] (수동) `pnpm build`(dev) 산출물엔 키가 빈 문자열, `pnpm build:store` 산출물엔 PROD 키가 박힘.
 
 ### Task 2: PostHog 전송 모듈 (background)
@@ -29,9 +29,9 @@
   - `postCapture(host, body): Promise<void>` — `fetch(host + "/capture/", { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(body) })`. try/catch로 reject·non-ok 모두 `console.warn`만(격리).
   - `captureEvent(event, properties): Promise<void>` — `const key = (import.meta.env.VITE_POSTHOG_KEY ?? "").trim(); if (!key) return;` 후 `postCapture(posthogHost(), buildCaptureBody(event, properties, crypto.randomUUID(), key))`.
 - **검증**:
-  - [ ] (Task 7) `analyticsEnabled`: `""`·공백 → false, `"phc_x"` → true.
-  - [ ] (Task 7) `buildCaptureBody` 단위: `api_key`가 인자값, `$process_person_profile:false`·`$ip:""`·`$geoip_disable:true` 포함, 입력 properties 병합·손실 없음, distinct_id가 인자값.
-  - [ ] (Task 7) `postCapture` 단위(fetch mock): `host+"/capture/"`로 POST, body가 직렬화된 입력 body. fetch reject·non-ok 응답 둘 다에서 reject 안 함(throw 격리).
+  - [x] (Task 7) `analyticsEnabled`: `""`·공백 → false, `"phc_x"` → true.
+  - [x] (Task 7) `buildCaptureBody` 단위: `api_key`가 인자값, `$process_person_profile:false`·`$ip:""`·`$geoip_disable:true` 포함, 입력 properties 병합·손실 없음, distinct_id가 인자값.
+  - [x] (Task 7) `postCapture` 단위(fetch mock): `host+"/capture/"`로 POST, body가 직렬화된 입력 body. fetch reject·non-ok 응답 둘 다에서 reject 안 함(throw 격리).
 
 ### Task 3: 메시지 타입 + 라우팅 (3곳)
 - **변경 대상**: `src/types/messages.ts`, `src/background/bgRequestTypes.ts`, `src/background/messages.ts`
@@ -40,9 +40,9 @@
   - `bgRequestTypes.ts`의 `BG_REQUEST_TYPE_MAP`에 `"analytics.capture": true` 추가. **누락 시 onMessage 화이트리스트(`BG_REQUEST_TYPES` Set)에서 빠져 메시지가 런타임에 silently drop**되고, `Record<BgRequest["type"], true>`라 컴파일도 깨진다.
   - `handleMessage()` switch에 `case "analytics.capture": return captureEvent(message.event, message.properties);` 추가(반환 흐름은 기존 핸들러와 동일, `{ ok: true }` 래핑).
 - **검증**:
-  - [ ] `pnpm typecheck` 통과(union 추가로 switch exhaustiveness + `BG_REQUEST_TYPE_MAP` exhaustive Record 충족).
-  - [ ] `BG_REQUEST_TYPES.has("analytics.capture") === true`(화이트리스트 통과).
-  - [ ] background에서 `analytics.capture` 수신 시 `captureEvent` 호출(코드 경로 확인).
+  - [x] `pnpm typecheck` 통과(union 추가로 switch exhaustiveness + `BG_REQUEST_TYPE_MAP` exhaustive Record 충족).
+  - [x] `BG_REQUEST_TYPES.has("analytics.capture") === true`(화이트리스트 통과 — MAP 등록으로 보장).
+  - [x] background에서 `analytics.capture` 수신 시 `captureEvent` 호출(코드 경로 확인).
 
 ### Task 4: sidepanel 추적 헬퍼
 - **변경 대상**: `src/sidepanel/lib/track-submit.ts` (신규)
@@ -50,8 +50,8 @@
   - `submitEventProperties(platform, captureMode, result): Record<string,string>` — `{ platform, capture_mode: captureMode ?? "unknown", result }` 반환(순수 함수). `?? "unknown"`은 도달하지 않는 1줄 방어(전용 테스트 없음).
   - `trackSubmit(platform, captureMode, result): void` — `sendBg({ type:"analytics.capture", event:"issue_submitted", properties: submitEventProperties(...) }).catch(() => {})`. 동기적으로 throw하지 않는다.
 - **검증**:
-  - [ ] (Task 7) `submitEventProperties` 단위: 6 platform·4 captureMode 매핑, 반환 키가 정확히 `{platform, capture_mode, result}` 3개(식별 정보 없음).
-  - [ ] `trackSubmit`는 await 없이 호출되고 sendBg reject를 삼킨다(동기 throw 없음).
+  - [x] (Task 7) `submitEventProperties` 단위: 6 platform·4 captureMode 매핑, 반환 키가 정확히 `{platform, capture_mode, result}` 3개(식별 정보 없음).
+  - [x] `trackSubmit`는 await 없이 호출되고 sendBg reject를 삼킨다(동기 throw 없음).
 
 ### Task 5: SubmitFieldsDialog choke point 연결
 - **변경 대상**: `src/sidepanel/tabs/SubmitFieldsDialog.tsx`
@@ -61,8 +61,8 @@
   - catch 블록에서 `trackSubmit(platform, captureMode, "failure")`.
 - **검증**:
   - [ ] 제출 성공 시 success, 실패 시 failure 이벤트가 정확히 1회 호출(수동/네트워크 확인).
-  - [ ] `onSuccess`가 throw해도 `failure`가 추가 전송되지 않는다(success만 1회).
-  - [ ] 추적 호출 추가가 기존 onSuccess/toast 동작을 바꾸지 않는다.
+  - [x] `onSuccess`가 throw해도 `failure`가 추가 전송되지 않는다(success를 onSuccess 이전에 배치 — 코드 확인).
+  - [x] 추적 호출 추가가 기존 onSuccess/toast 동작을 바꾸지 않는다(fire-and-forget, await 없음).
 
 ### Task 6: captureMode prop 전달
 - **변경 대상**: `src/sidepanel/tabs/DraftDetailDialog.tsx`, `src/sidepanel/tabs/IssueCreateModal.tsx`
@@ -70,22 +70,22 @@
   - DraftDetailDialog: `<SubmitFieldsDialog captureMode={issue?.captureMode} … />`.
   - IssueCreateModal: `<SubmitFieldsDialog captureMode={captureMode} … />`(이미 `useEditorStore((s)=>s.captureMode)` 보유).
 - **검증**:
-  - [ ] 두 경로 모두 올바른 captureMode가 이벤트에 실린다.
-  - [ ] `pnpm typecheck` 통과.
+  - [x] 두 경로 모두 올바른 captureMode가 이벤트에 실린다(DraftDetail `issue?.captureMode` / IssueCreate editor store).
+  - [x] `pnpm typecheck` 통과.
 
 ### Task 7: 단위 테스트
 - **변경 대상**: `src/background/__tests__/analytics.test.ts`, `src/sidepanel/lib/__tests__/track-submit.test.ts` (신규)
 - **작업 내용**: 아래 테스트 계획대로 작성.
 - **검증**:
-  - [ ] `pnpm test` 통과.
+  - [x] `pnpm test` 통과 (analytics 11 + track-submit 7 = 18 신규, 전체 1734 green).
 
 ### Task 8: 개인정보처리방침 갱신
 - **변경 대상**: `docs/privacy.md`
 - **작업 내용**: 익명 집계 수집 섹션 추가 — 수집 항목(platform, capture_mode, result), 목적(제품 사용량 집계 + 연동/캡처 모드 우선순위 판단), 익명성(개인 식별자·이슈 내용 미수집, 이벤트별 랜덤 distinct_id, `$ip` 비움·GeoIP 비활성으로 IP 비저장), 수신처(PostHog), 옵트아웃 부재를 명시. 시행일 갱신. (확장 UI에는 privacy 링크를 두지 않고 웹스토어 대시보드 privacy URL 등록으로 정책 공개 요건 충족 — design 위험 요소 참조.)
 - **검증**:
   - [ ] `/push` 문서 신선도 검사 통과(privacy.md 동작 정합).
-  - [ ] 수집 항목 목록이 실제 전송 properties와 일치.
-  - [ ] IP 비저장 조치(`$ip:""`·`$geoip_disable:true`)가 명시돼 "완전 익명" 주장과 정합.
+  - [x] 수집 항목 목록이 실제 전송 properties와 일치(platform/capture_mode/result).
+  - [x] IP 비저장 조치(`$ip:""`·`$geoip_disable:true`)가 명시돼 "완전 익명" 주장과 정합.
 
 ## 테스트 계획
 
