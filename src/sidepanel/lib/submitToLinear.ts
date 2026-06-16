@@ -2,7 +2,6 @@ import {
   buildLinearIssueBody,
   type LinearMediaInput,
 } from "./buildLinearIssueBody";
-import { buildAiMetaAttachment } from "./buildAiMetaAttachment";
 import { replaceInlineRefs, type InlineImageInput } from "./resolveInlineImages";
 import { guessUploadMime } from "./uploadMime";
 import type { MarkdownContext } from "./buildIssueMarkdown";
@@ -115,15 +114,7 @@ export async function submitToLinear(
   ).filter((r): r is LinearMediaInput => r !== null);
   const logsDropped = logResults.length < logFiles.length;
 
-  // 이슈는 이미 생성됨 — 비필수 메타 업로드·첨부 연결 실패가 전체 제출을 실패로 만들지 않게 격리
-  // (실패로 보고되면 재시도 시 중복 이슈가 생긴다).
-  const aiMeta = buildAiMetaAttachment(input.ctx);
-  const aiMetaUploaded = await uploadFile(aiMeta).catch(() => null);
-
-  const attachments = [
-    ...logResults.filter((log) => log.assetUrl),
-    ...(aiMetaUploaded?.assetUrl ? [aiMetaUploaded] : []),
-  ];
+  const attachments = logResults.filter((log) => log.assetUrl);
   await Promise.all(
     attachments.map((att) =>
       sendBg({

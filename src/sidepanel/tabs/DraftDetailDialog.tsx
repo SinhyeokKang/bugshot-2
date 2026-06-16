@@ -68,7 +68,6 @@ import {
 } from "@/sidepanel/hooks/useDraftStyleElements";
 import { resolveDraftStyleElements } from "@/sidepanel/lib/resolveDraftStyleElements";
 import { joinStyleSelectors, type StyleElementContext } from "@/sidepanel/lib/buildIssueMarkdown";
-import { buildAiMetaAttachment } from "@/sidepanel/lib/buildAiMetaAttachment";
 import { buildCaptureFiles, type CaptureFiles } from "@/sidepanel/lib/buildCaptureFiles";
 import { deriveContextEnvRows } from "@/sidepanel/lib/buildReportData";
 import { supportsConsoleNetworkLog, supportsActionLog } from "@/sidepanel/lib/captureLogSupport";
@@ -344,7 +343,6 @@ export function DraftDetailDialog({
     if (!fields.issueTypeId) throw new Error(t("create.requiredMissing"));
 
     const rawAttachments: JiraAttachmentInput[] = [
-      buildAiMetaAttachment(ctx),
       ...captureFiles.images,
       ...(captureFiles.video ? [captureFiles.video] : []),
       ...captureFiles.logs,

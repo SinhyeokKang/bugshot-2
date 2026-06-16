@@ -14,7 +14,6 @@ import {
 import type { PlatformId } from "@/types/platform";
 import { sendBg, type JiraSubmitResult } from "@/types/messages";
 import { buildStyleDiff } from "@/sidepanel/components/StyleChangesTable";
-import { buildAiMetaAttachment } from "@/sidepanel/lib/buildAiMetaAttachment";
 import { buildIssueAdf, type AdfDoc } from "@/sidepanel/lib/buildIssueAdf";
 import { buildCaptureFiles, type CaptureFiles } from "@/sidepanel/lib/buildCaptureFiles";
 import { deriveContextEnvRows } from "@/sidepanel/lib/buildReportData";
@@ -293,7 +292,6 @@ export function IssueCreateModal() {
     if (!issueFields.issueTypeId) throw new Error(t("create.requiredMissing"));
     const description: AdfDoc = buildIssueAdf(ctx, inlineImages.map((i) => i.refId), issueFields.cc);
     const rawAttachments: JiraAttachmentInput[] = [
-      buildAiMetaAttachment(ctx),
       ...captureFiles.images,
       ...(captureFiles.video ? [captureFiles.video] : []),
       ...captureFiles.logs,

@@ -6,9 +6,6 @@ vi.mock("@/types/messages", () => ({ sendBg: (...a: unknown[]) => sendBg(...a) }
 vi.mock("../buildGithubIssueBody", () => ({
   buildGithubIssueBody: () => ({ body: "BODY" }),
 }));
-vi.mock("../buildAiMetaAttachment", () => ({
-  buildAiMetaAttachment: () => ({ filename: "bugshot.md", dataUrl: "data:md" }),
-}));
 vi.mock("../resolveInlineImages", () => ({
   replaceInlineRefs: (s: string) => s,
 }));
@@ -48,10 +45,7 @@ describe("submitToGithub logsDropped", () => {
   it("logs.html 업로드가 href:null(영상/용량 초과)이면 logsDropped: true", async () => {
     sendBg.mockImplementation(async (msg: { type: string }) => {
       if (msg.type === "github.uploadFiles")
-        return [
-          { filename: "logs.html", href: null },
-          { filename: "bugshot.md", href: "MD_HREF" },
-        ];
+        return [{ filename: "logs.html", href: null }];
       if (msg.type === "github.submitIssue") return ISSUE;
       return undefined;
     });

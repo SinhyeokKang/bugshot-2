@@ -284,9 +284,9 @@ describe("buildGithubIssueBody — URL 인라인", () => {
       ],
       logs: [
         {
-          filename: "bugshot.md",
-          contentType: "text/markdown",
-          url: "https://github.com/user-attachments/assets/meta1",
+          filename: "logs.html",
+          contentType: "text/html",
+          url: "https://github.com/user-attachments/assets/log1",
         },
       ],
     };
