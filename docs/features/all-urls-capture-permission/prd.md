@@ -6,7 +6,9 @@
 
 그러나 Chrome `tabs.captureVisibleTab()`은 **일반 host 권한을 캡처 권한으로 인정하지 않는다**. 공식 규칙상 이 API는 `<all_urls>` 권한 또는 `activeTab` grant만 받는다. `https://*/*` + `http://*/*`는 `tab.url`을 읽는 데는 충분하지만 캡처 권한으로는 무효다.
 
-결과적으로 다음 회귀가 발생한다:
+이는 회귀가 아니라 **출시 시점부터 깨져 있던 결함**이다. `docs/privacy.md`(2026-06-13 시행)는 광역 권한 보유 시 cross-origin 캡처 연속성을 이미 공언했는데, 그 기능이 출시 직후부터 cross-origin(http/https)에서 무효였다. 광역 권한을 옵트인한 모든 사용자가 영향을 받는다.
+
+결과적으로 다음 동작이 발생한다:
 
 - origin A에서 사이드패널을 열면 user gesture로 그 탭에 `activeTab` grant가 붙어 캡처가 된다.
 - A → B로 cross-origin 이동하면 Chrome이 `activeTab` grant를 자동 폐기한다. 광역 권한은 남지만 캡처엔 무력하다.
@@ -24,6 +26,8 @@
 - **file:// 로컬 페이지 캡처 지원 안 함**. `<all_urls>`는 file:을 포함하지만 Chrome은 file: 접근에 별도 "파일 URL 액세스 허용" 토글을 요구한다. file: 페이지는 현행대로 `activeTab` 의존을 유지한다(`isBroadCoveredUrl`이 file:을 제외하는 현행 로직 그대로).
 - **static host_permissions 승격 안 함**. 모든 사용자에게 설치 시점부터 광역 권한을 강제하지 않는다. optional 유지.
 - **기존 사용자 자동 업그레이드 로직 추가 안 함**. 구 권한(`https://*/*`) 보유자는 다음에 replay 토글을 켤 때 `<all_urls>`를 자연스럽게 재요청받는다.
+- **마이그레이션 전용 안내 다이얼로그·온보딩 변경 안 함**. 기존 `permissionRevoked` 토스트 경로를 재사용하되 문구만 복구 안내형으로 개선한다(별도 안내 UI 신설 없음).
+- **토글 로딩 상태·`aria-describedby` 개선 안 함**. 기존 UX 패턴 비대칭(LLM/GitLab은 로딩 UI 있음)은 인지하나 이번 권한 전환 범위 밖.
 - BYOK LLM·GitLab self-managed의 특정 origin 요청 흐름 변경 안 함(그대로 동작).
 
 ## 사용자 시나리오
@@ -37,7 +41,7 @@
 
 ### 기존 사용자 (구 `https://*/*` 권한 보유)
 1. 확장 업데이트 후 replay가 켜진 상태로 사이드패널을 연다.
-2. `use-30s-replay`가 `contains({ origins: ["<all_urls>"] })`를 false로 감지 → replay 자동 비활성화 + `issue.replay.permissionRevoked` 토스트.
+2. `use-30s-replay`가 `contains({ origins: ["<all_urls>"] })`를 false로 감지 → replay 자동 비활성화 + **복구 안내형 토스트**(왜 꺼졌나 + "설정에서 다시 켜세요" + 설정 이동 action). 사용자가 권한을 직접 해제한 적 없으므로 문구는 "보안 업데이트로 권한 재허용 필요" 톤.
 3. 사용자가 토글을 다시 ON → `<all_urls>` 권한 다이얼로그 1회 → 허가 → 정상.
 
 ### file: 페이지 (비목표 경계 확인)
@@ -46,8 +50,11 @@
 
 ## 성공 기준
 
+- **(P0 게이트)** `chrome.permissions.request({ origins: ["<all_urls>"] })`가 다이얼로그를 띄우고 grant되며, grant 후 cross-origin `captureVisibleTab`이 성공함을 실증한다(red면 합집합 패턴 폴백으로 동일 성공 기준 충족).
 - `<all_urls>` 권한을 grant한 상태에서 origin A→B(둘 다 https) 이동 후 캡처·pick element·inline 캡처가 모두 성공한다.
 - 같은 상태에서 30s Replay가 origin B에서도 프레임을 계속 쌓는다.
-- 구 `https://*/*` 권한만 가진 사용자는 replay가 자동 비활성화되고 토글 재ON 시 `<all_urls>`를 재요청받는다.
+- 구 `https://*/*` 권한만 가진 사용자는 replay가 자동 비활성화되고, **복구 안내형 토스트로 "다시 켜야 함"을 인지**하며, 토글 재ON 시 `<all_urls>`를 재요청받는다.
 - file: 페이지는 cross-origin 이동 후 캡처가 현행대로 만료된다(회귀 없음).
+- e2e 빌드(`<all_urls>`가 host_permissions·optional_host_permissions에 동시 선언)가 manifest 로드 에러 없이 로드된다.
+- 권한 다이얼로그·스토어 경고 문구 변화를 확인해 재심사·재허가 영향을 확정한다.
 - `pnpm test` 통과, `pnpm typecheck` 통과.
