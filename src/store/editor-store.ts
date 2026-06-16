@@ -436,6 +436,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       phase: "capturing",
       target,
       ...preserveLogs(prev),
+      networkLogAttach: true,
+      consoleLogAttach: true,
+      actionLogAttach: true,
     })),
   startFreeform: (target) =>
     set((state) => ({
@@ -455,6 +458,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       phase: "picking",
       target,
       ...preserveLogs(prev),
+      networkLogAttach: true,
+      consoleLogAttach: true,
+      actionLogAttach: true,
     })),
   onElementShot: (shot, image, viewport) =>
     set({
@@ -467,7 +473,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   startRecording: (target) => set({ ...initial, captureMode: "video", phase: "recording", target }),
   onRecordingComplete: (blob, thumbnail, viewport, startedAt, endedAt) => set({ captureMode: "video", phase: "drafting", videoBlob: blob, videoThumbnail: thumbnail, videoViewport: viewport, videoCapturedAt: Date.now(), videoStartedAt: startedAt, videoEndedAt: endedAt, networkLogAttach: true, consoleLogAttach: true, actionLogAttach: true }),
   cancelRecording: () => set((state) => ({ ...initial, ...preserveLogs(state) })),
-  // screenshot 첨부 토글은 startCapturing의 preserveLogs로 직전 상태만 승계(신규 false). freeform/video와 달리 자동 on하지 않는다.
+  // screenshot도 freeform/video와 동일하게 진입 시 첨부 토글 자동 on (startCapturing·startElementShot). preserveLogs는 로그 데이터 보존용이고 attach는 덮어쓴다.
   onAreaCaptured: (dataUrl, viewport) => set({ phase: "drafting", screenshotRaw: dataUrl, screenshotViewport: viewport, screenshotCapturedAt: Date.now() }),
   onAnnotated: (dataUrl) => set({ screenshotAnnotated: dataUrl }),
 

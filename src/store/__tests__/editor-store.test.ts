@@ -122,16 +122,16 @@ describe("startCapturing — 백그라운드 로그 보존", () => {
     expect(useEditorStore.getState().consoleLog).toEqual(fakeConsoleLog);
   });
 
-  it("networkLogAttach 토글을 보존한다", () => {
-    useEditorStore.setState({ networkLogAttach: true });
+  it("networkLogAttach를 자동으로 켠다 (직전 off여도 on)", () => {
+    useEditorStore.setState({ networkLogAttach: false });
 
     useEditorStore.getState().startCapturing(target);
 
     expect(useEditorStore.getState().networkLogAttach).toBe(true);
   });
 
-  it("consoleLogAttach 토글을 보존한다", () => {
-    useEditorStore.setState({ consoleLogAttach: true });
+  it("consoleLogAttach를 자동으로 켠다 (직전 off여도 on)", () => {
+    useEditorStore.setState({ consoleLogAttach: false });
 
     useEditorStore.getState().startCapturing(target);
 
@@ -147,30 +147,20 @@ describe("startCapturing — 백그라운드 로그 보존", () => {
   });
 });
 
-describe("onAreaCaptured — screenshot 첨부 토글 기본 off", () => {
+describe("onAreaCaptured — screenshot 첨부 토글 기본 on", () => {
   beforeEach(() => {
     useEditorStore.setState(useEditorStore.getInitialState(), true);
   });
 
-  it("attach 토글을 강제로 켜지 않는다 (신규 진입 시 모두 false)", () => {
+  it("신규 진입 시 attach 토글을 모두 켠다", () => {
     useEditorStore.getState().startCapturing(target);
     useEditorStore.getState().onAreaCaptured("data:,", { width: 800, height: 600 });
 
     const s = useEditorStore.getState();
     expect(s.phase).toBe("drafting");
-    expect(s.networkLogAttach).toBe(false);
-    expect(s.consoleLogAttach).toBe(false);
-    expect(s.actionLogAttach).toBe(false);
-  });
-
-  it("startCapturing이 승계한 직전 토글 상태를 유지한다", () => {
-    useEditorStore.setState({ networkLogAttach: true, consoleLogAttach: true });
-    useEditorStore.getState().startCapturing(target);
-    useEditorStore.getState().onAreaCaptured("data:,", { width: 800, height: 600 });
-
-    const s = useEditorStore.getState();
     expect(s.networkLogAttach).toBe(true);
     expect(s.consoleLogAttach).toBe(true);
+    expect(s.actionLogAttach).toBe(true);
   });
 });
 
@@ -677,6 +667,16 @@ describe("startElementShot — 요소 캡처 진입", () => {
     expect(s.captureMode).toBe("screenshot");
     expect(s.phase).toBe("picking");
     expect(s.shotSelector).toBeNull();
+  });
+
+  it("attach 토글을 모두 켠다 (직전 off여도 on)", () => {
+    useEditorStore.setState({ networkLogAttach: false, consoleLogAttach: false });
+    useEditorStore.getState().startElementShot(target);
+
+    const s = useEditorStore.getState();
+    expect(s.networkLogAttach).toBe(true);
+    expect(s.consoleLogAttach).toBe(true);
+    expect(s.actionLogAttach).toBe(true);
   });
 });
 
