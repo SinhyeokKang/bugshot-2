@@ -2,16 +2,18 @@
 
 ## 개요
 
-이슈 제출 UI의 단일 choke point(`SubmitFieldsDialog.handleSubmit`)에서 제출 성공/실패가 갈리는 지점에 fire-and-forget 추적 호출을 1개 넣는다. 호출은 background로 메시지(`analytics.capture`)를 보내고, background의 `src/background/analytics.ts`가 PostHog `/capture/` 엔드포인트로 직접 `fetch`한다. 외부 fetch는 background에서만 한다는 기존 아키텍처를 따른다. PostHog 키는 빌드 타임 env(`VITE_POSTHOG_KEY`)로 주입하며, 키가 없으면 전송 전체가 no-op이 된다(`isOAuthConfigured()`와 동일한 패턴).
+이슈 제출 UI의 단일 choke point(`SubmitFieldsDialog.handleSubmit`)에서 제출 성공/실패가 갈리는 지점에 fire-and-forget 추적 호출을 1개 넣는다. 호출은 background로 메시지(`analytics.capture`)를 보내고, background의 `src/background/analytics.ts`가 PostHog `/capture/` 엔드포인트로 직접 `fetch`한다. 외부 fetch는 background에서만 한다는 기존 아키텍처를 따른다. PostHog 키는 빌드 타임 env로 주입하되 **store 빌드에서만** `VITE_POSTHOG_KEY_PROD`를 vite define으로 승격(GitHub OAuth 키와 동형)해 dev/일반/e2e 빌드는 키가 비어 전송이 no-op이 된다 → **prod(스토어 배포본) 데이터만 누적**.
 
 ## 변경 범위
 
 ### 신규 파일
 
-- **`src/background/analytics.ts`** — PostHog 전송 모듈.
-  - `isAnalyticsConfigured(): boolean` — **함수 본문 안에서 `import.meta.env.VITE_POSTHOG_KEY`를 재독**해 존재 여부 판정. (모듈 상수로 얼리면 `vi.stubEnv`가 안 먹혀 테스트 불가 — 기존 `isAsanaOAuthConfigured()` 패턴을 따른다.)
-  - `buildCaptureBody(event, properties, distinctId): PosthogCaptureBody` — 순수 함수. PostHog `/capture/` 바디 생성. `properties`에 `$process_person_profile: false`, `$ip: ""`, `$geoip_disable: true`를 병합(단위 테스트 대상).
-  - `captureEvent(event: string, properties: Record<string, string>): Promise<void>` — `isAnalyticsConfigured()`가 false면 즉시 return. 아니면 `crypto.randomUUID()`로 distinct_id 생성 후 `fetch(POSTHOG_HOST + "/capture/", …)`. 모든 오류(reject·non-ok 응답 포함) catch해 `console.warn`만.
+- **`src/background/analytics.ts`** — PostHog 전송 모듈. 키는 `VITE_POSTHOG_KEY`로 읽되, store 빌드에서만 `VITE_POSTHOG_KEY_PROD`가 vite define으로 승격된다(아래 vite.config.ts·"기존 패턴" 참조). dev/일반/e2e 빌드는 키가 비어 no-op → **prod 데이터만 누적**.
+  - `analyticsEnabled(key: string | undefined): boolean` — 순수 함수(`!!(key ?? "").trim()`). 게이팅 테스트 대상(define 치환과 무관하게 검증 가능).
+  - `isAnalyticsConfigured(): boolean` — `analyticsEnabled(import.meta.env.VITE_POSTHOG_KEY)`.
+  - `buildCaptureBody(event, properties, distinctId, apiKey): PosthogCaptureBody` — 순수 함수. `properties`에 `$process_person_profile: false`, `$ip: ""`, `$geoip_disable: true`를 병합, `api_key`는 인자(define 치환과 무관하게 테스트). 단위 테스트 대상.
+  - `postCapture(host, body): Promise<void>` — fetch 코어. `fetch(host + "/capture/", { method:"POST", headers, body: JSON.stringify(body) })`. reject·non-ok 모두 catch해 `console.warn`만(격리). 인자 주입이라 fetch mock으로 테스트.
+  - `captureEvent(event, properties): Promise<void>` — 얇은 wrapper. `const key = (import.meta.env.VITE_POSTHOG_KEY ?? "").trim(); if (!key) return;` 후 `postCapture(posthogHost(), buildCaptureBody(event, properties, crypto.randomUUID(), key))`.
 - **`src/background/__tests__/analytics.test.ts`** — `buildCaptureBody`/`isAnalyticsConfigured` 단위 테스트.
 
 ### 변경 파일
@@ -47,13 +49,17 @@
   - 현재 역할: 라이브 편집 → 제출. `<SubmitFieldsDialog …/>`(612줄 부근) 렌더, `useEditorStore((s) => s.captureMode)` 보유.
   - 변경: `<SubmitFieldsDialog captureMode={captureMode} …/>` prop 전달.
 
+- **`vite.config.ts`**
+  - 현재 역할: store 빌드 시 `VITE_GITHUB_CLIENT_ID_PROD`를 `VITE_GITHUB_CLIENT_ID`로 define 승격(23-25줄 define 블록).
+  - 변경: 동일 패턴으로 `const posthogKey = isStoreBuild ? env.VITE_POSTHOG_KEY_PROD ?? "" : env.VITE_POSTHOG_KEY ?? "";` + define에 `"import.meta.env.VITE_POSTHOG_KEY": JSON.stringify(posthogKey)` 추가. → store 빌드에서만 키 주입, 그 외 빈 값(no-op).
+
 - **`.env.example`**
-  - `VITE_POSTHOG_KEY`, `VITE_POSTHOG_HOST` 항목 + 주석 추가(빈 값이면 전송 비활성).
+  - `VITE_POSTHOG_KEY`(dev — 비워두면 dev/일반 빌드에서 전송 안 함), `VITE_POSTHOG_KEY_PROD`(store 빌드에서 승격), `VITE_POSTHOG_HOST`(기본 `https://us.i.posthog.com`) 항목 + 주석.
 
 - **`docs/privacy.md`**
   - 익명 집계 수집·전송 동작 명시(아래 위험/규정 항목 참조). 시행일 갱신.
 
-> manifest·vite.config·권한 변경 **없음**(아래 "외부 의존성" 참조).
+> manifest·권한 변경 **없음**. vite.config.ts는 dev/prod 키 분기 define 1줄만 추가(GitHub 키와 동형).
 
 ## 데이터 흐름
 
@@ -68,7 +74,8 @@
             └ sendBg({ type:"analytics.capture", event:"issue_submitted",
                        properties:{ platform, capture_mode, result } })
                  └ background handleMessage → captureEvent()
-                      └ isAnalyticsConfigured() ? fetch(POSTHOG_HOST+"/capture/") : no-op
+                      └ 키 있으면(=store 빌드) postCapture(host, body) → fetch /capture/
+                        키 없으면(dev/일반/e2e) no-op
 ```
 
 - 추적 호출은 제출 결과를 기다리지 않고(=UI는 이미 onSuccess/toast 처리), 실패해도 삼킨다.
@@ -89,14 +96,18 @@ interface PosthogCaptureBody {
   properties: Record<string, string | boolean>;
 }
 
-// 함수 본문에서 import.meta.env.VITE_POSTHOG_KEY 재독(테스트 stubEnv 가능)
-export function isAnalyticsConfigured(): boolean;
+// 게이팅은 순수 함수로 분리(키 인자) — vite define 치환과 무관하게 테스트 가능
+export function analyticsEnabled(key: string | undefined): boolean;
+export function isAnalyticsConfigured(): boolean; // = analyticsEnabled(import.meta.env.VITE_POSTHOG_KEY)
 
 export function buildCaptureBody(
   event: string,
   properties: Record<string, string>,
   distinctId: string,
+  apiKey: string, // 인자 주입(define 치환 무관 테스트)
 ): PosthogCaptureBody;
+
+export function postCapture(host: string, body: PosthogCaptureBody): Promise<void>; // fetch 코어, 격리
 
 export function captureEvent(
   event: string,
@@ -127,11 +138,10 @@ captureMode?: CaptureMode;
 
 ```typescript
 // src/background/analytics.ts
-// 키/호스트는 isAnalyticsConfigured()·captureEvent() 본문에서 import.meta.env로 재독한다.
-// (모듈 상수로 얼리면 vi.stubEnv가 안 먹혀 단위 테스트 불가 — isAsanaOAuthConfigured 패턴.)
-function posthogKey(): string {
-  return (import.meta.env.VITE_POSTHOG_KEY ?? "").trim();
-}
+// VITE_POSTHOG_KEY는 store 빌드에서만 vite define으로 값이 박힌다(VITE_POSTHOG_KEY_PROD 승격).
+// define 치환이라 모듈 상수든 함수 재독이든 동일하게 빌드타임 리터럴 — vi.stubEnv는 안 먹힌다.
+// 그래서 게이팅(analyticsEnabled)·전송(buildCaptureBody/postCapture)을 키·host 인자로 받는
+// 순수/주입 함수로 분리해 테스트하고, env 읽기는 isAnalyticsConfigured/captureEvent의 얇은 표면에만 둔다.
 function posthogHost(): string {
   return (import.meta.env.VITE_POSTHOG_HOST ?? "https://us.i.posthog.com").trim().replace(/\/+$/, "");
 }
@@ -142,9 +152,10 @@ function posthogHost(): string {
 ## 기존 패턴 준수
 
 - **외부 fetch는 background에서만**: `analytics.capture` 메시지로 위임. sidepanel은 fetch하지 않는다.
-- **env 게이팅**: `isAnalyticsConfigured()`는 `isOAuthConfigured()` 류 패턴 그대로. 키 없으면 기능 자동 비활성.
-- **메시지 추가 패턴**: `src/types/messages.ts` union + `src/background/messages.ts` switch case 2곳 수정(기존 6개 submit 핸들러와 동일 형태).
-- **순수 함수 단위 테스트**: `buildCaptureBody`, `submitEventProperties`를 `__tests__/*.test.ts`에 Vitest로 작성(CLAUDE.md 테스트 우선 원칙).
+- **dev/prod 키 분기**: `VITE_GITHUB_CLIENT_ID`(dev) / `VITE_GITHUB_CLIENT_ID_PROD`(store, vite define 승격) 패턴을 그대로 따라 `VITE_POSTHOG_KEY` / `VITE_POSTHOG_KEY_PROD`로 둔다. dev 키를 비워 prod(스토어 배포본) 데이터만 누적.
+- **env 게이팅**: `isAnalyticsConfigured()`는 `isOAuthConfigured()` 류 패턴. 키 없으면 자동 비활성. 단 define 치환 대상(GitHub과 동일)이라 게이팅 검증은 `analyticsEnabled(key)` 순수 함수로 분리한다.
+- **메시지 추가 패턴**: `src/types/messages.ts` union + `src/background/bgRequestTypes.ts` 맵 + `src/background/messages.ts` switch — 3곳 수정(기존 핸들러와 동일 형태).
+- **순수 함수 단위 테스트**: `analyticsEnabled`, `buildCaptureBody`(키 인자), `postCapture`(host 인자·fetch mock), `submitEventProperties`를 `__tests__/*.test.ts`에 Vitest로 작성(CLAUDE.md 테스트 우선 원칙).
 - **i18n**: 사용자 노출 문자열 없음 → `src/i18n/` 변경 없음.
 
 ## 대안 검토

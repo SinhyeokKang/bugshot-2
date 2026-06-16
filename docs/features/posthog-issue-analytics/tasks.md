@@ -2,31 +2,36 @@
 
 ## 선행 조건
 
-- PostHog 프로젝트 생성 후 **Project API Key**(write-only, 공개 가능) 확보.
+- PostHog 프로젝트 생성 후 **Project API Key**(write-only, 공개 가능) 확보. 프로젝트·키는 1개면 충분(dev 전송 없음).
 - PostHog 호스트 결정(US: `https://us.i.posthog.com` / EU: `https://eu.i.posthog.com`).
-- `.env.local`에 `VITE_POSTHOG_KEY`, (필요 시) `VITE_POSTHOG_HOST` 설정. 미설정이면 기능은 no-op으로 동작(전송 안 함).
-- 권한·매니페스트 변경 없음(CORS 의존, design.md 위험 요소 참조).
+- **prod 데이터만 누적**: 확보한 키를 `.env.local`의 `VITE_POSTHOG_KEY_PROD`에 넣고 `VITE_POSTHOG_KEY`(dev)는 **비워둔다**. → `pnpm build:store`에서만 키가 주입돼 전송, dev/일반 `pnpm build`/e2e는 no-op. (GitHub `VITE_GITHUB_CLIENT_ID` / `_PROD`와 동형)
+- 권한·매니페스트 변경 없음(CORS 의존, design.md 위험 요소 참조). vite.config.ts에 dev/prod 키 분기 define 1줄 추가(Task 1).
 
 ## 태스크
 
-### Task 1: env 항목 추가
-- **변경 대상**: `.env.example`
-- **작업 내용**: `VITE_POSTHOG_KEY=`, `VITE_POSTHOG_HOST=`(기본값 주석으로 `https://us.i.posthog.com`) 항목과 "빈 값이면 익명 집계 전송 비활성" 주석 추가.
+### Task 1: env 항목 + dev/prod 키 분기 (vite.config)
+- **변경 대상**: `.env.example`, `vite.config.ts`
+- **작업 내용**:
+  - `.env.example`에 `VITE_POSTHOG_KEY=`(dev — 비우면 전송 안 함), `VITE_POSTHOG_KEY_PROD=`(store 빌드 시 승격), `VITE_POSTHOG_HOST=`(기본 `https://us.i.posthog.com`) + "prod 데이터만 누적" 정책 주석 추가.
+  - `vite.config.ts`: GitHub 키 옆에 `const posthogKey = isStoreBuild ? env.VITE_POSTHOG_KEY_PROD ?? "" : env.VITE_POSTHOG_KEY ?? "";` 추가 + `define`에 `"import.meta.env.VITE_POSTHOG_KEY": JSON.stringify(posthogKey)` 한 줄 추가.
 - **검증**:
-  - [ ] `.env.example`에 두 키가 존재하고 주석이 정책을 설명한다.
+  - [ ] `.env.example`에 세 항목 + 정책 주석 존재.
+  - [ ] `vite.config.ts` define에 POSTHOG 키 분기가 GitHub 키와 동형으로 추가됨.
+  - [ ] (수동) `pnpm build`(dev) 산출물엔 키가 빈 문자열, `pnpm build:store` 산출물엔 PROD 키가 박힘.
 
 ### Task 2: PostHog 전송 모듈 (background)
 - **변경 대상**: `src/background/analytics.ts` (신규)
-- **작업 내용**:
-  - `posthogKey()`, `posthogHost()` — **함수 본문에서 `import.meta.env` 재독**(trim/슬래시 제거, host 기본값 `https://us.i.posthog.com`). 모듈 상수로 얼리지 말 것(테스트 `vi.stubEnv` 무효화 방지 — `isAsanaOAuthConfigured` 패턴).
-  - `isAnalyticsConfigured(): boolean` — `!!posthogKey()`.
-  - `buildCaptureBody(event, properties, distinctId): PosthogCaptureBody` — `{ api_key, event, distinct_id, properties: { ...properties, $process_person_profile: false, $ip: "", $geoip_disable: true } }` 반환(순수 함수).
-  - `captureEvent(event, properties): Promise<void>` — `isAnalyticsConfigured()` false면 return. 아니면 `crypto.randomUUID()`로 distinct_id 만들고 `fetch(posthogHost() + "/capture/", { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(buildCaptureBody(...)) })`. 전체 try/catch로 감싸 reject·non-ok 모두 `console.warn`만.
+- **작업 내용**: (`VITE_POSTHOG_KEY`는 vite define 치환 대상 → `vi.stubEnv` 무효. 키·host를 **인자로 받는 순수/주입 함수**로 분리해 테스트하고, env 읽기는 얇은 wrapper에만 둔다.)
+  - `analyticsEnabled(key): boolean` — `!!(key ?? "").trim()` (순수, 게이팅 테스트 대상).
+  - `posthogHost(): string` — `import.meta.env.VITE_POSTHOG_HOST` 재독(기본 `https://us.i.posthog.com`, trim/슬래시 제거).
+  - `isAnalyticsConfigured(): boolean` — `analyticsEnabled(import.meta.env.VITE_POSTHOG_KEY)`.
+  - `buildCaptureBody(event, properties, distinctId, apiKey): PosthogCaptureBody` — `{ api_key: apiKey, event, distinct_id: distinctId, properties: { ...properties, $process_person_profile: false, $ip: "", $geoip_disable: true } }` (순수).
+  - `postCapture(host, body): Promise<void>` — `fetch(host + "/capture/", { method:"POST", headers:{ "Content-Type":"application/json" }, body: JSON.stringify(body) })`. try/catch로 reject·non-ok 모두 `console.warn`만(격리).
+  - `captureEvent(event, properties): Promise<void>` — `const key = (import.meta.env.VITE_POSTHOG_KEY ?? "").trim(); if (!key) return;` 후 `postCapture(posthogHost(), buildCaptureBody(event, properties, crypto.randomUUID(), key))`.
 - **검증**:
-  - [ ] (Task 7) `buildCaptureBody` 단위: api_key 세팅, `$process_person_profile:false`·`$ip:""`·`$geoip_disable:true` 포함, 입력 properties 병합·손실 없음, distinct_id가 인자값.
-  - [ ] (Task 7) 키 미설정 시 `isAnalyticsConfigured()===false`, `captureEvent`가 fetch 호출 안 함.
-  - [ ] (Task 7) 키 설정 시 `captureEvent`가 `posthogHost()+"/capture/"`로 올바른 body를 POST한다(fetch mock).
-  - [ ] (Task 7) `captureEvent`가 fetch reject·non-ok 응답 둘 다에서 reject하지 않는다(throw 격리).
+  - [ ] (Task 7) `analyticsEnabled`: `""`·공백 → false, `"phc_x"` → true.
+  - [ ] (Task 7) `buildCaptureBody` 단위: `api_key`가 인자값, `$process_person_profile:false`·`$ip:""`·`$geoip_disable:true` 포함, 입력 properties 병합·손실 없음, distinct_id가 인자값.
+  - [ ] (Task 7) `postCapture` 단위(fetch mock): `host+"/capture/"`로 POST, body가 직렬화된 입력 body. fetch reject·non-ok 응답 둘 다에서 reject 안 함(throw 격리).
 
 ### Task 3: 메시지 타입 + 라우팅 (3곳)
 - **변경 대상**: `src/types/messages.ts`, `src/background/bgRequestTypes.ts`, `src/background/messages.ts`
@@ -84,15 +89,15 @@
 
 ## 테스트 계획
 
-- **단위 테스트**:
-  - `buildCaptureBody`: (a) `api_key`가 PostHog 키로 세팅 (b) `properties`에 `$process_person_profile:false`·`$ip:""`·`$geoip_disable:true` 포함 (c) 입력 properties가 병합되고 손실 없음 (d) `distinct_id`가 인자로 들어감.
-  - `isAnalyticsConfigured`: 키 빈 문자열/공백 → false, 값 있으면 true. **`vi.stubEnv("VITE_POSTHOG_KEY", …)`**로 검증(함수 내부 env 재독이라 동작 — 기존 `asana-oauth.test.ts` 패턴).
-  - `captureEvent`(fetch mock — `vi.stubGlobal("fetch", …)` 또는 `globalThis.fetch = vi.fn()`, 기존 `github-api.test.ts`/`linear-api.test.ts` 패턴): (a) 키 미설정 → fetch 미호출 (b) 키 설정 → `posthogHost()+"/capture/"`로 POST, body가 `buildCaptureBody` 결과 (c) fetch reject 시 throw 안 함 (d) non-ok(4xx/5xx) 응답 시 throw 안 함.
+- **단위 테스트** (키 게이팅·전송은 `import.meta.env.VITE_POSTHOG_KEY`가 vite define 치환 대상이라 `vi.stubEnv` 불가 → **인자 주입 함수**로 검증):
+  - `analyticsEnabled(key)`: `""`·공백 → false, `"phc_x"` → true. (`isAnalyticsConfigured`는 env wrapper라 단위 비대상 — `analyticsEnabled`로 로직 커버.)
+  - `buildCaptureBody`: (a) `api_key`가 인자값 (b) `properties`에 `$process_person_profile:false`·`$ip:""`·`$geoip_disable:true` 포함 (c) 입력 properties가 병합되고 손실 없음 (d) `distinct_id`가 인자값.
+  - `postCapture(host, body)`(fetch mock — `vi.stubGlobal("fetch", …)` 또는 `globalThis.fetch = vi.fn()`, 기존 `github-api.test.ts`/`linear-api.test.ts` 패턴): (a) `host+"/capture/"`로 POST, body가 직렬화된 입력 (b) fetch reject 시 throw 안 함 (c) non-ok(4xx/5xx) 응답 시 throw 안 함.
   - `submitEventProperties`: (a) 6개 platform 각각 그대로 매핑 (b) captureMode 4종 매핑 (c) 반환 객체 키가 정확히 3개(`platform`/`capture_mode`/`result`)로 식별 정보 없음.
 - **e2e 시나리오**: **없음(전면 강등)**. 근거: PostHog fetch는 service worker에서 발생하는데 Playwright `page.route`/`context.route`는 SW의 native fetch를 가로채지 못한다(현 e2e 스위트에 route/fulfill 사용 0건). 또한 e2e 빌드는 `VITE_POSTHOG_KEY`를 주입하지 않아 "미발생" 단언이 키 게이팅이 아니라 키 부재로 vacuously true가 돼 회귀 방지 가치가 없다. 위 단위 테스트(키 게이팅·fetch 호출·격리)로 대체한다.
 - **수동 테스트**(Chrome):
   - 구현 중 1회: PostHog `/capture/`로 가는 요청의 **preflight(OPTIONS)**가 200 + `ACAO: *`/`Access-Control-Allow-Headers: content-type`로 통과하는지 DevTools Network에서 확인(설계 CORS 가정 검증).
-  - `.env.local`에 실제 키 주입 후 `pnpm build` → 로드. 6개 플랫폼 중 인증된 1~2개로 실제 제출.
+  - 전송 검증용: `VITE_POSTHOG_KEY_PROD`를 채우고 `pnpm build:store`로 빌드(또는 일시적으로 `VITE_POSTHOG_KEY`에 키를 넣고 `pnpm build`) → 로드. 6개 플랫폼 중 인증된 1~2개로 실제 제출. (평상시 dev 빌드는 키가 비어 전송되지 않음을 함께 확인.)
   - DevTools Network에서 `/capture/` 요청 payload 확인: `event:"issue_submitted"`, `properties` = {platform, capture_mode, result, `$process_person_profile:false`, `$ip:""`, `$geoip_disable:true`}.
   - 일부러 잘못된 토큰으로 제출 실패 유발 → `result:"failure"` 전송 확인 + 제출 에러 토스트 정상.
   - PostHog 대시보드에서 이벤트 수신, person profile 미생성, IP/위치 미기록, platform/capture_mode breakdown 확인.
