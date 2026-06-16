@@ -75,7 +75,6 @@ chrome.action.onClicked.addListener((tab) => {
 - **API 어댑터**: `{platform}-api.ts`. 401 처리 — Jira: 즉시 refresh, GitHub·Linear·GitLab·Asana: hook 주입형(module side-effect 재등록), Notion: 즉시 throw.
 - **이슈 상태 변경**: `statusBadges/SubmittedBadge` → 플랫폼별 read-only / Popover 상태 변경 분기.
 - **본문 빌더**: `buildIssueAdf`(Jira), `buildIssueMarkdown`/`buildIssueHtml`(클립보드), `build{Github|Linear|Notion|Gitlab|Asana}IssueBody`. 모두 `MarkdownContext` 입력 → `NormalizedSubmitResult { key, url }` 통일. (GitLab은 github 빌더 계열 — DOM raw selector·before/after 표. Asana는 markdown 본문을 `markdownToAsanaHtml`로 html_notes subset 변환.)
-- **AI 메타 첨부**: `buildAiMetaAttachment` → `bugshot.md` (`AI_META_FILENAME`). Jira: 첨부 REST, GitHub: 업로드+본문 링크, Linear/Notion: 별도 첨부.
 - **다이얼로그**: `SubmitFieldsDialog`가 IssueCreateModal·DraftDetailDialog 공유. 연결 1개=Tab 숨김, 2개+=Tab 선택. prefill effect deps `[open, issue?.id]`만 — `issue.platform` 추가 시 다이얼로그 닫힘 버그.
 
 **Jira 인라인 미디어 trap**: ADF `mediaSingle > media`는 `type:"file"` + UUID + `collection:""` 필수. `type:"external"`은 인증 실패로 표시 불가. UUID 추출은 `GET /attachment/content/{id}` redirect URL에서 (`probeMediaRedirect` — GET+Range → HEAD 순). **인라인 재생 실패 시 코덱·해상도 의심 전에 ADF attrs/UUID 추출 경로부터 확인** — 99% 그쪽이 원인.
