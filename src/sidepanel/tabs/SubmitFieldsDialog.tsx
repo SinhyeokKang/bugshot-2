@@ -233,7 +233,7 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
           </Tabs>
         ) : null}
 
-        <div className="-mx-1 min-h-0 flex-1 overflow-y-auto px-1">
+        <div className="-mx-1 min-h-0 flex-1 overflow-y-auto overscroll-contain px-1">
         {platform === "jira" ? (
           jiraConfigured ? (
             <JiraIssueFields fields={jiraFields} onChange={setJiraFields} />

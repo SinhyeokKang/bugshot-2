@@ -19,7 +19,6 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -682,7 +681,7 @@ export function DraftDetailDialog({
                 <DialogTitle className="text-xl">{t("draftDetail.title")}</DialogTitle>
               </DialogHeader>
 
-              <Card className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overscroll-contain bg-background p-4 shadow-none">
+              <div className="-mx-1 flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overscroll-contain px-1">
                 <FieldSection label={t("section.issueTitle")}>
                   {issue.draft.title ? (
                     <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">
@@ -713,7 +712,7 @@ export function DraftDetailDialog({
                   onConsoleLogClick={() => setConsoleDialogOpen(true)}
                   onActionLogClick={() => setActionDialogOpen(true)}
                 />
-              </Card>
+              </div>
 
               {available.length === 0 ? (
                 <Alert variant="default">
