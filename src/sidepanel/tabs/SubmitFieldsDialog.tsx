@@ -179,12 +179,12 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
   async function handleSubmit() {
     if (!canSubmit) return;
     setSubmit({ status: "submitting" });
+    let result: NormalizedSubmitResult;
     try {
-      const result = await onSubmit(platform);
-      trackSubmit(platform, captureMode, "success");
-      onOpenChange(false);
-      onSuccess?.(result);
+      result = await onSubmit(platform);
     } catch (err) {
+      // result는 onSubmit 성공/예외에만 묶는다. onSuccess/onOpenChange 예외가
+      // failure로 오집계·toast 오표시되지 않게 try를 onSubmit으로 좁힌다.
       trackSubmit(platform, captureMode, "failure");
       const ccCount = {
         jira: jiraFields.cc?.length,
@@ -199,7 +199,11 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
         ccCount ? { description: t("field.cc.submitErrorHint") } : undefined,
       );
       setSubmit({ status: "idle" });
+      return;
     }
+    trackSubmit(platform, captureMode, "success");
+    onOpenChange(false);
+    onSuccess?.(result);
   }
 
   function handleOpenChange(next: boolean) {

@@ -59,7 +59,7 @@ export async function captureEvent(
   properties: Record<string, string>,
 ): Promise<void> {
   const key = (import.meta.env.VITE_POSTHOG_KEY ?? "").trim();
-  if (!key) return;
+  if (!analyticsEnabled(key)) return;
   await postCapture(
     posthogHost(),
     buildCaptureBody(event, properties, crypto.randomUUID(), key),

@@ -70,13 +70,13 @@ import {
   updateTaskNotes as updateAsanaTaskNotes,
   uploadAttachment as uploadAsanaAttachment,
 } from "./asana-api";
-import { captureEvent } from "./analytics";
 import { isOAuthConfigured, startOAuthFlow } from "./oauth";
 import { isGithubOAuthConfigured, startGithubOAuth } from "./github-oauth";
 import { isLinearOAuthConfigured, startLinearOAuth } from "./linear-oauth";
 import { isNotionOAuthConfigured, startNotionOAuth } from "./notion-oauth";
 import { isGitlabOAuthConfigured, startGitlabOAuth } from "./gitlab-oauth";
 import { isAsanaOAuthConfigured, startAsanaOAuth } from "./asana-oauth";
+import { captureEvent } from "./analytics";
 import {
   createPage as createNotionPage,
   getDatabaseSchema as getNotionDatabaseSchema,
