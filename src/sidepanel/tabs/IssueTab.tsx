@@ -3,8 +3,8 @@ import { toast } from "sonner";
 import {
   BookOpen,
   SquareMousePointer,
-  SquareDashed,
-  SquareDashedMousePointer,
+  Camera,
+  ScanEye,
   Crosshair,
   ImageIcon,
   Loader2,
@@ -193,12 +193,12 @@ function EmptyState({ onStartElement, onStartElementShot, onStartScreenshot, onS
             </ShortcutTooltip>
             <ButtonGroup className="w-full">
               <Button variant="outline" className="flex-1" onClick={onStartElementShot} data-testid="mode-element-shot">
-                <SquareDashedMousePointer />
+                <ScanEye />
                 {t("issue.mode.elementShot")}
               </Button>
               <ShortcutTooltip shortcut={shortcuts["capture-screenshot"]}>
                 <Button variant="outline" className="flex-1" onClick={onStartScreenshot} data-testid="mode-screenshot">
-                  <SquareDashed />
+                  <Camera />
                   {t("issue.mode.screenshot")}
                 </Button>
               </ShortcutTooltip>
