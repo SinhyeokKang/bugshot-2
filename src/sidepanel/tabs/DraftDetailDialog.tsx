@@ -791,6 +791,7 @@ export function DraftDetailDialog({
         title={t("issue.submit")}
         platform={platform}
         setPlatform={handlePlatformChange}
+        captureMode={issue?.captureMode}
         availablePlatforms={available}
         jiraFields={fields}
         setJiraFields={(patch) => setFields((f) => ({ ...f, ...patch }))}

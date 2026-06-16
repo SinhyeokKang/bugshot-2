@@ -132,9 +132,10 @@ export function resolveNavigationAction(input: {
 
 const BROAD_COVERED_SCHEMES = new Set(["http:", "https:"]);
 
-// 광역 host 권한(https://*/* + http://*/*)이 캡처 능력을 주는 URL인지.
-// file:은 지원 URL이지만 광역 권한 범위 밖이라 명시적 스킴 체크로 배제.
-function isBroadCoveredUrl(url: string | undefined): boolean {
+// 광역 host 권한(<all_urls>)이 captureVisibleTab 캡처 능력을 주는 URL인지.
+// <all_urls>는 file:도 포함하지만, file: 캡처는 Chrome이 별도 "파일 URL 액세스" 토글을
+// 요구하므로 명시적 스킴 체크로 의도적으로 배제한다(navigation 분기는 file:을 만료 폴백 처리).
+export function isBroadCoveredUrl(url: string | undefined): boolean {
   if (!url || !isSupportedUrl(url)) return false;
   try {
     return BROAD_COVERED_SCHEMES.has(new URL(url).protocol);

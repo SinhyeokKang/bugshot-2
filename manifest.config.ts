@@ -85,7 +85,7 @@ export default defineManifest({
     "tabCapture",
     "webNavigation",
   ],
-  optional_host_permissions: ["https://*/*", "http://*/*"],
+  optional_host_permissions: ["<all_urls>"],
   host_permissions: [
     "https://*.atlassian.net/*",
     "https://api.atlassian.com/*",

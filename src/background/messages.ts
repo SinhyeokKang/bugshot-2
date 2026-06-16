@@ -76,6 +76,7 @@ import { isLinearOAuthConfigured, startLinearOAuth } from "./linear-oauth";
 import { isNotionOAuthConfigured, startNotionOAuth } from "./notion-oauth";
 import { isGitlabOAuthConfigured, startGitlabOAuth } from "./gitlab-oauth";
 import { isAsanaOAuthConfigured, startAsanaOAuth } from "./asana-oauth";
+import { captureEvent } from "./analytics";
 import {
   createPage as createNotionPage,
   getDatabaseSchema as getNotionDatabaseSchema,
@@ -524,6 +525,9 @@ export async function handleMessage(
         message.taskGid,
         message.completed,
       );
+
+    case "analytics.capture":
+      return captureEvent(message.event, message.properties);
 
     default: {
       const _exhaustive: never = message;

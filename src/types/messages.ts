@@ -203,7 +203,8 @@ export type BgRequest =
   | { type: "asana.submitIssue"; payload: AsanaCreateTaskPayload }
   | { type: "asana.updateTaskNotes"; taskGid: string; htmlNotes: string }
   | { type: "asana.getTaskStatus"; taskGid: string }
-  | { type: "asana.setCompleted"; taskGid: string; completed: boolean };
+  | { type: "asana.setCompleted"; taskGid: string; completed: boolean }
+  | { type: "analytics.capture"; event: string; properties: Record<string, string> };
 
 // handleMessage를 거치지 않는 bg→sidepanel 내부 통신 메시지.
 export type BgInternalMessage =
