@@ -18,7 +18,6 @@ export function mergeAiSectionsPreservingImages(
     const aiText = (aiSections[id] ?? "").trim();
 
     if (images.length === 0) {
-      // 이미지 없음: ai에 키가 있으면 ai 텍스트로 교체, 없으면 섹션 제외.
       if (id in aiSections) out[id] = aiSections[id] ?? "";
       continue;
     }
