@@ -37,9 +37,18 @@
   ): { accept: number; dropped: number };
   ```
 
-- **`src/sidepanel/components/AttachmentSection.tsx`** — drafting 첨부 UI(버튼 + 리스트 + 경고). shadcn `Button`·`IconButton`(삭제) 사용. 숨김 `<input type="file" multiple>`.
+- **`src/sidepanel/components/AttachmentSection.tsx`** — drafting 첨부 UI. 구성:
+  - **업로드 버튼**: 기존 DraftingPanel 표준인 `Button variant="outline"`(캡처 버튼들과 동형, 예: `DraftingPanel.tsx:476/612`). 라벨에 **카운터 내장** — `파일 첨부 (n/10)`. `n === MAX_ATTACHMENT_COUNT`면 `disabled`. 카운터+비활성으로 상한을 직관 표현하므로 별도 안내 문구 불필요.
+  - **숨김** `<input type="file" multiple>` — 버튼 클릭 시 트리거.
+  - **파일 리스트**: shadcn에 파일 전용 컴포넌트 없음 → **shadcn `item` 컴포넌트 설치**(`npx shadcn@latest add item`, `src/components/ui/item.tsx` 위치 확인)해서 사용. 항목 1개 = `Item`:
+    - `ItemMedia` — MIME 기반 형식 아이콘(`fileIcon` 헬퍼)
+    - `ItemContent` — `ItemTitle`(파일명) + `ItemDescription`(MIME · 크기, `formatBytes`)
+    - `ItemActions` — 삭제 버튼(`Button size="icon" variant="ghost"` + lucide `Trash2`)
+  - **한도 경고**: 타깃 플랫폼 한도 초과 파일(`checkAttachmentLimits.oversizeIds`)에 해당 Item에 경고 색/배지 + 제출 영역 경고 문구.
 
-- 테스트: `src/sidepanel/lib/__tests__/attachmentLimits.test.ts`, `src/store/__tests__/`(attachment blob-db rekey가 순수 추출 가능하면), `buildCaptureFiles` 첨부 분기 테스트.
+- **`src/sidepanel/lib/fileMeta.ts`**(신규) — 순수 헬퍼. `fileCategory(contentType, filename): FileCategory`(`"image"|"video"|"audio"|"pdf"|"archive"|"text"|"file"`)와 `formatBytes(n: number): string`. 아이콘 컴포넌트 매핑은 AttachmentSection에서 카테고리→lucide(`FileImage`/`FileVideo`/`FileAudio`/`FileText`/`FileArchive`/`File`)로(테스트 가능하도록 카테고리 판정만 순수 함수로 분리).
+
+- 테스트: `src/sidepanel/lib/__tests__/attachmentLimits.test.ts`, `src/sidepanel/lib/__tests__/fileMeta.test.ts`(카테고리 판정·바이트 포맷), `buildCaptureFiles` 첨부 분기 테스트.
 
 ### 변경 파일
 
@@ -152,6 +161,11 @@ attachments: UserAttachmentMeta[];                 // 기본 []
 addAttachments: (files: File[]) => Promise<void>;
 removeAttachment: (id: string) => void;
 
+// src/sidepanel/lib/fileMeta.ts (신규)
+export type FileCategory = "image" | "video" | "audio" | "pdf" | "archive" | "text" | "file";
+export function fileCategory(contentType: string, filename: string): FileCategory;
+export function formatBytes(n: number): string;
+
 // src/sidepanel/lib/buildCaptureFiles.ts (변경)
 export interface CaptureFile { filename: string; dataUrl: string; displayName?: string; }
 export interface CaptureFiles { video?: CaptureFile; images: CaptureFile[]; logs: CaptureFile[]; attachments: CaptureFile[]; }
@@ -171,7 +185,7 @@ export interface IssueRecord { /* ... */ attachments?: UserAttachmentMeta[]; }
 - **orphan prune**: `pruneOrphanBlobs`에 동일 패턴 추가(image 키 issueId 추출 로직 복제).
 - **부분 실패 흡수**: 업로드 실패는 기존 캡처 파일과 동일한 플랫폼별 try-catch/부분성공 경로로 흡수. 첨부 전용 에러 UI 신설 안 함.
 - **i18n 동시 갱신**: ko/en 키 대칭(PostToolUse 훅 검사 통과).
-- **shadcn 우선**: 버튼/스위치/아이콘버튼 기존 컴포넌트 재사용. 직접 스타일링 금지.
+- **shadcn 우선**: 업로드 버튼은 기존 `Button variant="outline"` 재사용, 삭제는 ghost icon 버튼. 파일 리스트는 신규로 shadcn `item` 설치(`src/components/ui/item.tsx` 위치 확인 — shadcn이 `@/` 루트에 생성할 수 있음). 직접 스타일링 금지.
 - **테스트 우선**: `attachmentLimits.ts`·`buildCaptureFiles` 첨부 분기 단위 테스트를 구현 전 작성(`/tdd interface`).
 
 ## 대안 검토

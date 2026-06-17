@@ -57,12 +57,22 @@
   - [ ] 없으면 `attachments: []`
   - [ ] `pnpm test`
 
-### Task 7: AttachmentSection UI + DraftingPanel 연결
+### Task 7a: 파일 메타 헬퍼 (테스트 우선) + shadcn item 설치
+- **변경 대상**: `src/sidepanel/lib/fileMeta.ts`(신규), `src/sidepanel/lib/__tests__/fileMeta.test.ts`(신규), `src/components/ui/item.tsx`(shadcn 설치)
+- **작업 내용**: `fileCategory(contentType, filename)`·`formatBytes(n)` 순수 함수 구현(`/tdd interface` 선행). `npx shadcn@latest add item` 설치 후 `src/components/ui/`에 위치 확인(루트에 생성됐으면 이동).
+- **검증**:
+  - [ ] `fileCategory`: image/video/audio/pdf/archive/text MIME 및 확장자 폴백, 미상은 `"file"`
+  - [ ] `formatBytes`: 0·KB·MB 경계 포맷
+  - [ ] `item.tsx`가 `src/components/ui/`에 존재, `pnpm typecheck`
+  - [ ] `pnpm test`
+
+### Task 7b: AttachmentSection UI + DraftingPanel 연결
 - **변경 대상**: `src/sidepanel/components/AttachmentSection.tsx`(신규), `src/sidepanel/tabs/DraftingPanel.tsx`
-- **작업 내용**: 숨김 `<input type="file" multiple>` + "파일 첨부" 버튼 + 리스트(파일명·크기·삭제 IconButton) + 한도 경고 배지/문구(`checkAttachmentLimits`). DraftingPanel은 `attachmentsEnabled`일 때만 렌더, editor 액션 연결. `data-testid` 부여.
+- **작업 내용**: 숨김 `<input type="file" multiple>`. 업로드 버튼은 `Button variant="outline"`, 라벨에 카운터 `파일 첨부 (n/10)` 내장, `n===MAX_ATTACHMENT_COUNT`면 `disabled`. 리스트는 shadcn `Item`(ItemMedia=형식 아이콘[`fileCategory`→lucide], ItemContent=파일명+MIME·크기[`formatBytes`], ItemActions=`Trash2` ghost 버튼). 한도 초과 파일(`checkAttachmentLimits`)에 경고 표시. DraftingPanel은 `attachmentsEnabled`일 때만 렌더, editor 액션 연결. `data-testid` 부여.
 - **검증**:
   - [ ] 토글 ON일 때만 섹션 노출
-  - [ ] 다중 선택→리스트 추가, 개별 삭제, 상한 도달 시 버튼 비활성 + 안내
+  - [ ] 다중 선택→리스트 추가(형식 아이콘·파일명·MIME·크기 표시), 개별 Trash 삭제
+  - [ ] 버튼 라벨 카운터가 `n/10`로 갱신, 10/10에서 비활성
   - [ ] 타깃 플랫폼 한도 초과 파일에 경고 표시(수동: Notion 선택 + 5MiB 초과 파일)
 
 ### Task 8: SettingsTab 토글 row
@@ -91,6 +101,7 @@
 
 - **단위 테스트**:
   - `attachmentLimits.test.ts`: `checkAttachmentLimits`(개수/단건 한도/null 플랫폼), `takeWithinCount`(경계값)
+  - `fileMeta.test.ts`: `fileCategory`(MIME/확장자/폴백), `formatBytes`(경계값)
   - `buildCaptureFiles.test.ts`: userAttachments 유무, filename 고유화/displayName, 빈 배열
   - settings 마이그레이션(있으면): v5→v6 `attachmentsEnabled` 기본 false
   - blob-db rekey/delete가 순수 추출 가능하면 키 파생 함수 단위 테스트
@@ -98,7 +109,7 @@
   - 설정에서 파일 첨부 토글을 켜면 drafting에 첨부 섹션이 나타난다(기본 상태에선 없다).
   - 파일 첨부 버튼으로 파일 2개를 고르면 리스트에 2개가 표시된다(`setInputFiles`).
   - 리스트에서 파일 1개를 삭제하면 1개만 남는다.
-  - 상한(10)까지 채우면 첨부 버튼이 비활성화된다.
+  - 파일을 더 고를수록 버튼 라벨 카운터가 증가하고, 상한(10/10)에서 첨부 버튼이 비활성화된다.
   - 첨부 후 사이드패널을 닫았다 열면 리스트가 유지된다.
   - 토글을 끄면 첨부 섹션이 사라진다.
 - **수동 테스트** (자동화 불가):
@@ -110,7 +121,8 @@
 
 - Task 1 → Task 6은 순수 함수/빌더라 선행·병렬 가능(테스트 우선).
 - Task 2(blob-db) → Task 4(editor-store) → Task 5(issues-store)는 영속 의존 체인이라 순차.
-- Task 3(settings) → Task 8(SettingsTab) 페어, Task 7(UI)와 병렬 가능.
+- Task 7a(fileMeta + item 설치)는 Task 7b 선행. Task 1과 병렬 가능(순수 함수).
+- Task 3(settings) → Task 8(SettingsTab) 페어, Task 7b(UI)와 병렬 가능.
 - Task 9(제출 합류)는 Task 2·4·6 완료 후. 플랫폼 6개는 각각 독립이라 병렬 가능하나 본문 빌더 패턴 1개(GitHub) 먼저 확립 후 복제.
 - Task 10(i18n)은 UI 태스크와 함께 수시 갱신(훅 검사 때문에 ko/en 동시).
 
