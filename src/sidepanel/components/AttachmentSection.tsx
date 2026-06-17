@@ -1,21 +1,13 @@
 import { useRef } from "react";
-import {
-  File,
-  FileArchive,
-  FileAudio,
-  FileImage,
-  FileText,
-  FileVideo,
-  Paperclip,
-  Trash2,
-} from "lucide-react";
+import { Paperclip, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { useT } from "@/i18n";
 import type { PlatformId } from "@/types/platform";
 import type { UserAttachmentMeta } from "@/types/attachment";
-import { fileCategory, fileExtLabel, type FileCategory } from "@/sidepanel/lib/fileMeta";
+import { CATEGORY_ICON } from "./AttachmentList";
+import { fileCategory, fileExtLabel } from "@/sidepanel/lib/fileMeta";
 import { formatBytes } from "@/sidepanel/lib/formatBytes";
 import {
   MAX_ATTACHMENT_COUNT,
@@ -24,16 +16,6 @@ import {
   checkAttachmentLimits,
   type TakeWithinLimitsResult,
 } from "@/sidepanel/lib/attachmentLimits";
-
-export const CATEGORY_ICON: Record<FileCategory, React.ReactNode> = {
-  image: <FileImage className="h-4 w-4" />,
-  video: <FileVideo className="h-4 w-4" />,
-  audio: <FileAudio className="h-4 w-4" />,
-  pdf: <FileText className="h-4 w-4" />,
-  archive: <FileArchive className="h-4 w-4" />,
-  text: <FileText className="h-4 w-4" />,
-  file: <File className="h-4 w-4" />,
-};
 
 interface AttachmentSectionProps {
   attachments: UserAttachmentMeta[];

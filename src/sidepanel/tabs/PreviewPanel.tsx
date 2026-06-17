@@ -8,6 +8,8 @@ import { POST_MEDIA_SECTION_IDS, sectionLabelKey, useSettingsUiStore } from "@/s
 import { useEditorStore } from "@/store/editor-store";
 import { connectedPlatforms, useSettingsStore } from "@/store/settings-store";
 import { IssuePreviewView } from "@/sidepanel/components/IssuePreviewView";
+import { AttachmentList } from "@/sidepanel/components/AttachmentList";
+import { downloadAttachment } from "@/sidepanel/lib/downloadAttachment";
 import { LogAttachmentCards } from "@/sidepanel/components/LogAttachmentCards";
 import { NetworkLogPreviewDialog } from "@/sidepanel/components/NetworkLogPreviewDialog";
 import { ConsoleLogPreviewDialog } from "@/sidepanel/components/ConsoleLogPreviewDialog";
@@ -62,7 +64,10 @@ export function PreviewPanel() {
   const actionLogAttach = useEditorStore((s) => s.actionLogAttach);
   const backToDraft = useEditorStore((s) => s.backToDraft);
   const reset = useEditorStore((s) => s.reset);
+  const attachments = useEditorStore((s) => s.attachments);
+  const currentIssueId = useEditorStore((s) => s.currentIssueId);
   const issueSections = useSettingsUiStore((s) => s.issueSections);
+  const attachmentsEnabled = useSettingsUiStore((s) => s.attachmentsEnabled);
   const accounts = useSettingsStore((s) => s.accounts);
   const noPlatformConnected = useMemo(
     () => connectedPlatforms(accounts).length === 0,
@@ -210,6 +215,21 @@ export function PreviewPanel() {
     </Section>
   ) : null;
 
+  const attachmentsBlock = attachmentsEnabled && attachments.length > 0 ? (
+    <Section title={t("section.attachments")}>
+      <AttachmentList
+        attachments={attachments}
+        onDownload={(m) =>
+          void downloadAttachment(
+            currentIssueId ?? `pending:${target?.tabId}`,
+            m,
+            target?.tabId != null ? `pending:${target.tabId}` : undefined,
+          )
+        }
+      />
+    </Section>
+  ) : null;
+
   const handleCopyMarkdown = async () => {
     const resolved = await resolveSectionImages(draft.sections, issueSections);
 
@@ -327,6 +347,7 @@ export function PreviewPanel() {
           onCopy={handleCopyMarkdown}
           media={mediaBlock}
           logCards={logCardsBlock}
+          attachments={attachmentsBlock}
           postMediaSectionIds={POST_MEDIA_SECTION_IDS}
         />
       </PageScroll>
