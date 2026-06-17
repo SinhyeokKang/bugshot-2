@@ -1,15 +1,26 @@
-.doc-section-body p {
-  margin: 0;
+/* 블록 요소 간 통일 간격 (타입 혼합에도 일관) */
+.doc-section-body > * {
+  margin-block: 0.75em;
 }
 
-.doc-section-body p + p {
-  margin-top: 0.5em;
+.doc-section-body > :first-child {
+  margin-top: 0;
+}
+
+.doc-section-body > :last-child {
+  margin-bottom: 0;
 }
 
 .doc-section-body ul,
 .doc-section-body ol {
   padding-left: 1.25em;
-  margin: 0.25em 0;
+}
+
+/* 중첩 리스트는 촘촘하게 */
+.doc-section-body li > ul,
+.doc-section-body li > ol {
+  margin-block: 0.125em;
+  padding-left: 1em;
 }
 
 .doc-section-body ul {
@@ -29,20 +40,19 @@
 }
 
 .doc-section-body li {
-  margin: 0.125em 0;
+  margin-block: 0.125em;
 }
 
 .doc-section-body hr {
   border: none;
   border-top: 1px solid hsl(var(--border));
-  margin: 0.75em 0;
 }
 
 .doc-section-body img {
+  display: block;
   max-width: 100%;
   height: auto;
   border-radius: 0.375rem;
-  margin: 0.25em 0;
 }
 
 .doc-section-body a {
@@ -60,4 +70,27 @@
   border-radius: 0.25rem;
   padding: 0.125em 0.25em;
   font-size: 0.875em;
+}
+
+.doc-section-body blockquote {
+  border-left: 3px solid hsl(var(--border));
+  padding-left: 0.75em;
+  color: hsl(var(--muted-foreground));
+}
+
+.doc-section-body pre {
+  background: hsl(var(--muted));
+  border-radius: 0.375rem;
+  padding: 0.625em 0.75em;
+  overflow-x: auto;
+  font-size: 0.875em;
+  line-height: 1.5;
+}
+
+/* pre 내부 code는 중복 배경 제거 */
+.doc-section-body pre code {
+  background: none;
+  border-radius: 0;
+  padding: 0;
+  font-size: inherit;
 }

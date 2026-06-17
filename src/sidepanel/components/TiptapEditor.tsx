@@ -1,5 +1,10 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
-import { useEditor, EditorContent, type Editor } from "@tiptap/react";
+import {
+  useEditor,
+  EditorContent,
+  Extension,
+  type Editor,
+} from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
 import Image from "@tiptap/extension-image";
@@ -14,7 +19,31 @@ import {
   extractInlineRefs,
   replaceInlineRefs,
 } from "@/sidepanel/lib/resolveInlineImages";
+import { shouldLiftListItem } from "@/sidepanel/lib/listKeymap";
 import "./tiptap-editor.css";
+
+// 빈 list item 시작에서 Backspace → 리스트 종료 (기본은 이전 항목과 병합)
+const ListExitOnBackspace = Extension.create({
+  name: "listExitOnBackspace",
+  priority: 1000,
+  addKeyboardShortcuts() {
+    return {
+      Backspace: () => {
+        const { $from, empty } = this.editor.state.selection;
+        const lift = shouldLiftListItem({
+          selectionEmpty: empty,
+          parentOffset: $from.parentOffset,
+          parentContentSize: $from.parent.content.size,
+          parentDepth: $from.depth,
+          grandParentTypeName:
+            $from.depth >= 1 ? $from.node($from.depth - 1).type.name : null,
+        });
+        if (!lift) return false;
+        return this.editor.chain().liftListItem("listItem").run();
+      },
+    };
+  },
+});
 
 export interface TiptapEditorProps {
   value: string;
@@ -110,6 +139,7 @@ const TiptapEditor = forwardRef<TiptapEditorHandle, TiptapEditorProps>(function 
           width: 2,
         },
       }),
+      ListExitOnBackspace,
       Link.configure({
         openOnClick: false,
         autolink: true,
