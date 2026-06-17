@@ -123,6 +123,7 @@ export function AttachmentSection({
                 onClick={() => onRemove(a.id)}
                 title={t("attachment.remove")}
                 aria-label={t("attachment.remove")}
+                data-testid="attachment-remove"
               >
                 <Trash2 className="h-4 w-4" />
               </Button>
