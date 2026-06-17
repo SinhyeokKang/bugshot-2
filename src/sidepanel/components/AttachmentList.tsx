@@ -1,5 +1,4 @@
 import {
-  Download,
   File,
   FileArchive,
   FileAudio,
@@ -57,7 +56,6 @@ export function AttachmentList({
               {fileExtLabel(a.filename)} · {formatBytes(a.size)}
             </span>
           </div>
-          <Download className="h-4 w-4 shrink-0 text-muted-foreground" />
         </Card>
       ))}
     </div>
