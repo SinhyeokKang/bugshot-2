@@ -233,9 +233,15 @@ export function buildAiDraftSessionPrompt(ctx: AiDraftSessionContext): string {
   lines.push("- Base the report on the user's description and provided context. Never invent details not given.");
   lines.push("- Only reference logs, errors, or context that plausibly relate to the described bug. Ignore unrelated entries.");
   lines.push("- The description states only the current problem (as-is). Put any expected or desired behavior in expectedResult, never in description.");
+  lines.push("- Be specific but not verbose: keep concrete details (exact values, selectors, error text, observed behavior) and cut everything else — no preamble, no background, no restating the title, no hedging, no filler. Say each thing once.");
+  lines.push("- Keep every section as brief as its content allows; never pad to fill space.");
   lines.push("- Write text only. Do not include markdown picture embeds such as ![](...).");
   lines.push("- If a section has no relevant information, use an empty string.");
-  lines.push(`- Write all string values in ${lang}.`);
+  lines.push(
+    ctx.locale === "ko"
+      ? `- Write all string values in ${lang}, in a terse technical bug-report tone — no greetings, no softening, no redundant honorific padding.`
+      : `- Write all string values in ${lang}.`,
+  );
 
   return lines.join("\n");
 }

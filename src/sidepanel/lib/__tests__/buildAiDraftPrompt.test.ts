@@ -441,6 +441,29 @@ describe("buildAiDraftSessionPrompt", () => {
     expect(en).toMatch(/all string values in English/i);
   });
 
+  it("Rules에 구체성 유지 + 장황 제거 규칙 포함 (ko·en 공통)", () => {
+    for (const locale of ["ko", "en"] as const) {
+      const prompt = buildAiDraftSessionPrompt({ ...SESSION_BASE, locale });
+      expect(prompt).toMatch(/specific but not verbose/i);
+      expect(prompt).toMatch(/no preamble/i);
+      expect(prompt).toMatch(/never pad to fill space/i);
+    }
+  });
+
+  it("ko 출력에는 건조한 톤 지시(존댓말 패딩 금지) 포함, en에는 미포함", () => {
+    const ko = buildAiDraftSessionPrompt(SESSION_BASE);
+    expect(ko).toMatch(/terse technical bug-report tone/i);
+    expect(ko).toMatch(/honorific padding/i);
+
+    const en = buildAiDraftSessionPrompt({ ...SESSION_BASE, locale: "en" });
+    expect(en).not.toMatch(/honorific padding/i);
+  });
+
+  it("문장수 하드캡은 두지 않는다 (섹션별 적정 길이 상이)", () => {
+    const prompt = buildAiDraftSessionPrompt(SESSION_BASE);
+    expect(prompt).not.toMatch(/sentence/i);
+  });
+
   it("video 모드: action log를 재현 단계로 변환하라는 지시 (verbatim 복사 금지)", () => {
     const prompt = buildAiDraftSessionPrompt({
       ...SESSION_BASE,
