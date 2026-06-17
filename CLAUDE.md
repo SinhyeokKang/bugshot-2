@@ -89,6 +89,7 @@ pnpm version major --no-git-tag-version   # 1.0.0 → 2.0.0 (Breaking change)
 /audit          → 코드베이스 전체를 ui·security·dataflow·codehealth 4개 에이전트가 병렬 감사 (선택 호출 가능). 리포트 전용
 /refactor       → audit·code-review 리포트의 지정 항목 수정 (메인 단일) → 4관점 자체 검증 → CTO 게이트. 회귀 위험 항목은 강행 전 확인. 빌드·커밋 안 함
 /guide          → guide/ko·en 사용자 가이드 작성·갱신. AUTHORING.md 규칙 로드 → 코드 대조 stale 탐지 → ko/en 동시 갱신 + 검증. 빌드·커밋 안 함
+/doc-check      → 8개 저장소 문서(CLAUDE/DIRECTORY/ARCHITECTURE/README/PERMISSION/privacy/guide/AUTHORING)를 문서별 전담 에이전트가 병렬로 diff 무관 코드 대조 → 통합 리포트 → 항목별 확인 → 수정. /push 신선도 검사보다 깊다(diff에 안 걸린 누적 stale까지). 빌드 안 함
 /push           → dev push (main에서 호출 차단) + CLAUDE.md/DIRECTORY.md/ARCHITECTURE.md/README.md/PERMISSION.md/docs/privacy.md/guide(+AUTHORING.md) 신선도 검사 + e2e 게이트(.last-green == HEAD면 스킵 / 빨강이면 푸시 중단)
 /merge          → dev에서 e2e 게이트 교차(통상 /push 기록 해시로 스킵 / 빨강이면 중단) → 버전 bump 커밋 + dev → main squash PR 생성 + 자동 머지
 /deploy         → main 한정. tag push → 스토어 빌드 → zip → GitHub Release draft → 심사 요청 안내
@@ -101,7 +102,7 @@ pnpm version major --no-git-tag-version   # 1.0.0 → 2.0.0 (Breaking change)
 
 ### 문서 신선도
 
-`/push`는 항상 CLAUDE.md / DIRECTORY.md / ARCHITECTURE.md / README.md / PERMISSION.md / docs/privacy.md / guide/ (`guide/AUTHORING.md` 포함) 신선도 검사를 거친다. 아래 중 하나라도 해당하면 문서 갱신을 별도 커밋(`docs(CLAUDE): ...` / `docs(DIRECTORY): ...` / `docs(ARCHITECTURE): ...` / `docs(README): ...` / `docs(PERMISSION): ...` / `docs(privacy): ...` / `docs(guide): ...`)으로 묶어 함께 푸시:
+`/push`는 항상 CLAUDE.md / DIRECTORY.md / ARCHITECTURE.md / README.md / PERMISSION.md / docs/privacy.md / guide/ (`guide/AUTHORING.md` 포함) 신선도 검사를 거친다 — 단, **푸시될 diff에 걸린 문서만** 트라이아지하는 2차 안전망이다. diff와 무관하게 누적된 stale(예: 오래 방치된 ARCHITECTURE.md 섹션)을 잡으려면 `/doc-check`로 8개 문서 전문을 코드와 직접 대조한다. 아래 중 하나라도 해당하면 문서 갱신을 별도 커밋(`docs(CLAUDE): ...` / `docs(DIRECTORY): ...` / `docs(ARCHITECTURE): ...` / `docs(README): ...` / `docs(PERMISSION): ...` / `docs(privacy): ...` / `docs(guide): ...`)으로 묶어 함께 푸시:
 
 - 새 디렉터리·파일 추가/삭제 (특히 `src/` 하위 구조 변화)
 - `package.json` scripts 변경
@@ -138,7 +139,7 @@ pnpm version major --no-git-tag-version   # 1.0.0 → 2.0.0 (Breaking change)
 - permissions: `sidePanel`, `activeTab`, `scripting`, `storage`, `commands`, `contextMenus`, `identity`, `tabCapture`, `webNavigation` (메인 프레임 네비게이션 커밋 직전 로그 꼬리 sync — cross-page 로그 누적)
 - host_permissions: `*.atlassian.net` (Jira REST), `api.atlassian.com` (OAuth gateway), `auth.atlassian.com` (authorize), `api.github.com` (GitHub REST), `github.com` (파일 업로드 page injection), `uploads.github.com` (파일 업로드 S3), `api.linear.app` (Linear GraphQL + OAuth token), `api.notion.com` (Notion REST + OAuth token), `gitlab.com` (GitLab REST + OAuth token, gitlab.com 한정), `app.asana.com` (Asana REST + OAuth authorize; confidential client라 token 교환은 proxy 경유), + `VITE_OAUTH_PROXY_URL` origin (빌드 타임 주입 — Atlassian·GitHub·Notion·Asana token 교환 중계)
 - optional_host_permissions: `<all_urls>` — BYOK LLM 프로바이더 연결 + GitLab self-managed 인스턴스 연결 시 `chrome.permissions.request()`로 런타임 획득
-- OAuth 관련 env: `VITE_ATLASSIAN_CLIENT_ID`, `VITE_GITHUB_CLIENT_ID` (dev), `VITE_GITHUB_CLIENT_ID_PROD` (store build 시 치환), `VITE_LINEAR_CLIENT_ID` (dev), `VITE_LINEAR_CLIENT_ID_PROD` (store build 시 치환), `VITE_NOTION_CLIENT_ID`, `VITE_GITLAB_CLIENT_ID`, `VITE_ASANA_CLIENT_ID` (단일 client — dev/store redirect URI 둘 다 한 앱에 등록), `VITE_OAUTH_PROXY_URL` — 누락 시 해당 플랫폼 OAuth UI 자동 비활성화 (`isOAuthConfigured()` / `isGithubOAuthConfigured()` / `isLinearOAuthConfigured()` / `isNotionOAuthConfigured()` / `isGitlabOAuthConfigured()` / `isAsanaOAuthConfigured()`)
+- OAuth 관련 env: `VITE_ATLASSIAN_CLIENT_ID`, `VITE_GITHUB_CLIENT_ID` (dev), `VITE_GITHUB_CLIENT_ID_PROD` (store build 시 치환), `VITE_LINEAR_CLIENT_ID` (단일 client — dev/store redirect URI 둘 다 한 앱에 등록), `VITE_NOTION_CLIENT_ID`, `VITE_GITLAB_CLIENT_ID`, `VITE_ASANA_CLIENT_ID` (단일 client — dev/store redirect URI 둘 다 한 앱에 등록), `VITE_OAUTH_PROXY_URL` — 누락 시 해당 플랫폼 OAuth UI 자동 비활성화 (`isOAuthConfigured()` / `isGithubOAuthConfigured()` / `isLinearOAuthConfigured()` / `isNotionOAuthConfigured()` / `isGitlabOAuthConfigured()` / `isAsanaOAuthConfigured()`)
 - `BUGSHOT_STORE_BUILD=1`: 스토어 업로드용 빌드 (manifest `key` 제거)
 - `BUGSHOT_E2E_BUILD=1`: e2e 전용 빌드 — `dist-e2e/` 분리 산출 + manifest `host_permissions`에 `<all_urls>` 추가 (자동화는 activeTab 제스처를 못 만들어 `captureVisibleTab`에 필요). dev `key` 유지. **dist-e2e는 테스트 전용 — Chrome 수동 로드·스토어 업로드 금지.** 배포 산출물(dist)은 무오염(분리 outDir)
 - `chrome.scripting.executeScript({world:"MAIN", func})`: 직렬화·재평가라 클로저가 안 살아남는다. 주입 함수는 self-contained(헬퍼는 nested로 inline). 현재 사용처 `github-upload.ts:pageBatchUploadFn` — 리팩터 시 실제 탭 회귀 필수. 상세: ARCHITECTURE.md 동명 섹션.
