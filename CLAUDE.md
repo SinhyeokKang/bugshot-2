@@ -89,7 +89,7 @@ pnpm version major --no-git-tag-version   # 1.0.0 → 2.0.0 (Breaking change)
 /audit          → 코드베이스 전체를 ui·security·dataflow·codehealth 4개 에이전트가 병렬 감사 (선택 호출 가능). 리포트 전용
 /refactor       → audit·code-review 리포트의 지정 항목 수정 (메인 단일) → 4관점 자체 검증 → CTO 게이트. 회귀 위험 항목은 강행 전 확인. 빌드·커밋 안 함
 /guide          → guide/ko·en 사용자 가이드 작성·갱신. AUTHORING.md 규칙 로드 → 코드 대조 stale 탐지 → ko/en 동시 갱신 + 검증. 빌드·커밋 안 함
-/doc-check      → 8개 저장소 문서(CLAUDE/DIRECTORY/ARCHITECTURE/README/PERMISSION/privacy/guide/AUTHORING)를 문서별 전담 에이전트가 병렬로 diff 무관 코드 대조 → 통합 리포트 → 항목별 확인 → 수정. /push 신선도 검사보다 깊다(diff에 안 걸린 누적 stale까지). 빌드 안 함
+/doc-check      → 7개 저장소 문서(CLAUDE/DIRECTORY/ARCHITECTURE/README/PERMISSION/privacy/AUTHORING)를 문서별 전담 에이전트가 병렬로 diff 무관 코드 양방향 대조(Pass1 문서→코드 사실오류 + Pass2 코드→문서 누락 커버리지) → 통합 리포트 → 항목별 확인 → 수정. /push 신선도 검사보다 깊다(diff에 안 걸린 누적 stale·섹션 내부 누락까지). guide/ko·en 본문은 제외(/guide 전담, AUTHORING은 검사). 빌드 안 함
 /push           → dev push (main에서 호출 차단) + CLAUDE.md/DIRECTORY.md/ARCHITECTURE.md/README.md/PERMISSION.md/docs/privacy.md/guide(+AUTHORING.md) 신선도 검사 + e2e 게이트(.last-green == HEAD면 스킵 / 빨강이면 푸시 중단)
 /merge          → dev에서 e2e 게이트 교차(통상 /push 기록 해시로 스킵 / 빨강이면 중단) → 버전 bump 커밋 + dev → main squash PR 생성 + 자동 머지
 /deploy         → main 한정. tag push → 스토어 빌드 → zip → GitHub Release draft → 심사 요청 안내
