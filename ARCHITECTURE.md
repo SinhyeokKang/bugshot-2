@@ -136,11 +136,13 @@ shorthand(var 포함) + 같은 shorthand의 longhand override 조합에서 Chrom
 | 캡처 모드 | console | network | action | 첨부 토글 기본값 |
 |---|---|---|---|---|
 | element | ❌ | ❌ | ❌ | — |
-| screenshot | ✅ | ✅ | ❌ | off (사용자가 토글) |
+| screenshot | ✅ | ✅ | ❌ | on (자동) |
 | freeform | ✅ | ✅ | ❌ | on (자동) |
 | video | ✅ | ✅ | ✅ | on (자동) |
 
-기본값은 `editor-store.ts`의 모드 진입 액션(`startCapturing`/`startFreeform`/`startRecording`/`onRecordingComplete`)에서 설정. screenshot은 `preserveLogs`로 직전 상태만 승계 (`initial`은 모두 false).
+로그 첨부 토글은 network/console/action **3종 분리**(`networkLogAttach`/`consoleLogAttach`/`actionLogAttach` + setter 3개). `initial`은 모두 false지만 캡처 모드 진입 액션(`startCapturing`/`startElementShot`/`startFreeform`/`onRecordingComplete`)이 진입 시 3종을 **일괄 true로 강제** — `...preserveLogs(prev)`로 직전 로그 *데이터*는 승계하되, 그 뒤 명시 `true`가 토글 값을 덮으므로 screenshot·freeform·video 모두 기본 on. 지원되지 않는 로그(screenshot·freeform의 action)는 토글이 true여도 `supportsActionLog` 게이트로 실제 첨부·UI 노출에서 빠진다. element 모드는 로그 미지원이라 토글 자체가 무의미.
+
+**사용자 파일 첨부**: 캡처물과 별개로 사용자가 로컬 파일을 직접 첨부할 수 있다(`AttachmentSection`/`AttachmentList`, captureMode 무관). 메타는 editor-store `attachments: UserAttachmentMeta[]`, 바이트는 blob-db(`saveAttachmentBlob`). 캡(`attachmentLimits.ts`) — 개수 10개·합계 50MB는 **하드캡**: `takeWithinLimits`가 store 단일 출처로 초과분을 드롭하고 사유(`count`/`total`)만 toast로 안내(대용량 다중 첨부의 base64 메모리 폭발 방지). 플랫폼 단건 한도는 **경고만**(차단 아님) — Notion 5MB·GitLab 10MB(`PLATFORM_FILE_SIZE_LIMIT`, 나머지 null), `checkAttachmentLimits`가 초과 항목을 빨간 테두리로 표시. 제출 시 `buildCaptureFiles`가 `userAttachments`를 captureMode와 무관하게 `attachments`로 합류시켜 6개 플랫폼 빌더가 모두 업로드. draft 저장/복원의 blob 키 충돌은 `rekeyAttachmentBlobs`(+`whenAttachmentBlobsReady` in-flight 가드)로 재매핑.
 
 **플랫폼별 패키징**:
 - **Jira**: `logs.html` 그대로 첨부 → 이슈 생성 **후** `injectIssueUrl`로 뷰어 백링크 주입. 본문 로그 요약 안내의 `logs.html`은 제출 시 첨부 URL을 모르므로 업로드 후 `injectLogsLink`(`background/lib/adf-logs-link`)가 해당 em 노드에 link mark를 주입해 클릭 링크화(매칭 노드 없으면 평문 유지).
@@ -237,7 +239,7 @@ Jira는 붙여넣기 시 **ProseMirror가 HTML을 해석**하므로 `ClipboardIt
 | `expectedResult` (기대 결과) | ✅ | paragraph |
 | `notes` (비고) | ⬜ | paragraph |
 
-draft 모델: `{ title, sections: Record<string, string>, environment?: EnvironmentRow[] }`. `stepsToReproduce`는 `OrderedListEditor` 전용 UI, 나머지는 Textarea.
+draft 모델: `{ title, sections: Record<string, string>, environment?: EnvironmentRow[] }`. `stepsToReproduce`는 `OrderedListEditor` 전용 UI, 나머지는 Textarea. 본문 섹션과 별개로 **캡처 미디어·로그 첨부·사용자 파일 첨부**(위 "사용자 파일 첨부"·"로그 정책 매트릭스" 참조)가 별도 채널로 들어가며, 자동 메타 위치 규칙에 따라 본문에 삽입되거나 첨부 영역으로 패키징된다.
 
 **재현 환경**: `ReproEnvironmentSection`이 모드별 메타를 readonly 표시 + `draft.environment` 사용자 정의 row 편집. 순수 헬퍼: `filterEnvironmentRows`(빈 row 제거) / `deriveReadonlyEnvRows`(모드별 파생).
 
