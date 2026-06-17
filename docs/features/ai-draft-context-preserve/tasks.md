@@ -13,45 +13,45 @@
 - **변경 대상**: `src/sidepanel/lib/resolveInlineImages.ts`
 - **작업 내용**: `extractInlineImageMarkdown(markdown: string): string[]` 추가 — `![alt](inline:ref)` 매치를 alt 포함 통째로 등장 순서대로 반환. 기존 `INLINE_REF_RE`(`/!\[([^\]]*)\]\(inline:([^)]+)\)/g`) 재사용. `extractInlineRefs`는 ref만(Set, 순서·alt 손실) 반환하므로 별도 함수가 필요.
 - **검증**:
-  - [ ] 이미지 0개 → `[]`
-  - [ ] 1개 → alt·ref 보존된 markdown 1개
-  - [ ] 여러 개 → 등장 순서 유지(중복 ref도 각각 보존)
-  - [ ] 텍스트 사이에 섞인 이미지도 모두 추출
-  - [ ] alt에 특수문자 미포함 정상 / ref·alt 경계(`]`,`)` 인접) 케이스 확인
+  - [x] 이미지 0개 → `[]`
+  - [x] 1개 → alt·ref 보존된 markdown 1개
+  - [x] 여러 개 → 등장 순서 유지(중복 ref도 각각 보존)
+  - [x] 텍스트 사이에 섞인 이미지도 모두 추출
+  - [ ] alt에 특수문자 미포함 정상 / ref·alt 경계(`]`,`)` 인접) 케이스 확인 (정규식 `[^\]]`/`[^)]` 한계로 별도 테스트 미작성)
 
 ### Task 2: 섹션 병합 순수 함수 추가
 - **변경 대상**: `src/sidepanel/lib/mergeAiDraftSections.ts` (신규) + `__tests__/mergeAiDraftSections.test.ts`
 - **작업 내용**: `mergeAiSectionsPreservingImages(prevSections, aiSections)` 구현. 섹션별로 `extractInlineImageMarkdown(prev)`의 이미지를 상단에, `aiSections` 텍스트를 그 아래에 결합. **모든 블록을 빈 줄(`\n\n`)로 구분**(`[...images, aiText.trim()].filter(Boolean).join("\n\n")`). 이미지 없으면 ai 텍스트만. ai에 없고 prev 이미지만 있으면 이미지만.
 - **검증**:
-  - [ ] 이미지 없는 섹션 → ai 텍스트로 전체 교체
-  - [ ] 이미지 1개 + ai 텍스트 → `이미지\n\n텍스트`
-  - [ ] 이미지 N개 → 원본 순서대로 상단, **이미지끼리도 `\n\n` 구분**, 그 아래 텍스트
-  - [ ] ai 텍스트 빈 문자열 + 이미지 있음 → 이미지만(말미 빈 줄 없음)
-  - [ ] `aiSections[id]`가 `undefined`(키 없음) + prev 이미지 있음 → 이미지만 남음
-  - [ ] `aiSections[id]`가 빈 문자열 → undefined와 동일 취급
-  - [ ] ai에만 있는 새 섹션 → 그대로 채택
-  - [ ] orderedList 성격 섹션(이미지 ref 없는 텍스트)이 입력에 섞여도 텍스트 교체로만 동작(추출=[])
+  - [x] 이미지 없는 섹션 → ai 텍스트로 전체 교체
+  - [x] 이미지 1개 + ai 텍스트 → `이미지\n\n텍스트`
+  - [x] 이미지 N개 → 원본 순서대로 상단, **이미지끼리도 `\n\n` 구분**, 그 아래 텍스트
+  - [x] ai 텍스트 빈 문자열 + 이미지 있음 → 이미지만(말미 빈 줄 없음)
+  - [x] `aiSections[id]`가 `undefined`(키 없음) + prev 이미지 있음 → 이미지만 남음
+  - [x] `aiSections[id]`가 빈 문자열 → undefined와 동일 취급
+  - [x] ai에만 있는 새 섹션 → 그대로 채택
+  - [x] orderedList 성격 섹션(이미지 ref 없는 텍스트)이 입력에 섞여도 텍스트 교체로만 동작(추출=[])
 
 ### Task 3: 세션 프롬프트에 선입력 컨텍스트 주입
 - **변경 대상**: `src/sidepanel/lib/buildAiDraftPrompt.ts` + `__tests__/buildAiDraftPrompt.test.ts`
 - **작업 내용**: `AiDraftSessionContext`에 `existingDraft?` 추가. `buildAiDraftSessionPrompt`에서 `existingDraft`의 title+각 섹션 텍스트를 `stripInlineImageRefs`로 정제해 "현재 작성본(참고용)" 블록 추가. 모두 공백이면 블록 생략. 응답에 이미지 markdown을 넣지 말라는 규칙 1줄 추가.
 - **검증**:
-  - [ ] `existingDraft`에 텍스트 있으면 프롬프트에 해당 텍스트 포함
-  - [ ] inline 이미지 ref(`inline:`)는 프롬프트에 노출 안 됨(strip)
-  - [ ] title도 블록에 포함
-  - [ ] title만 비공백 + sections 전부 공백 → 블록 포함(경계)
-  - [ ] 빈 draft(모두 공백) → 블록 미포함(기존 출력과 동일)
-  - [ ] "이미지 markdown 출력 금지" 규칙 라인 존재
-  - [ ] 프롬프트 문자열이 영문 하드코딩 유지(i18n 무영향)
+  - [x] `existingDraft`에 텍스트 있으면 프롬프트에 해당 텍스트 포함
+  - [x] inline 이미지 ref(`inline:`)는 프롬프트에 노출 안 됨(strip)
+  - [x] title도 블록에 포함
+  - [x] title만 비공백 + sections 전부 공백 → 블록 포함(경계)
+  - [x] 빈 draft(모두 공백) → 블록 미포함(기존 출력과 동일)
+  - [x] "이미지 markdown 출력 금지" 규칙 라인 존재(`text only` / `picture embeds` 문구)
+  - [x] 프롬프트 문자열이 영문 하드코딩 유지(i18n 무영향)
 
 ### Task 4: 요청 빌더 순수 함수 추출 (회귀 게이트)
 - **변경 대상**: `src/sidepanel/lib/buildAiDraftRequest.ts` (신규) + `__tests__/buildAiDraftRequest.test.ts`
 - **작업 내용**: `buildAiDraftRequest({ ctx, modeImages, inlineImageDataUrls })` → `{ systemPrompt, images }`. `systemPrompt = buildAiDraftSessionPrompt(ctx)`. `images = [...(modeImages ?? []), ...inlineImageDataUrls]`, 길이 0이면 `undefined`. (비순수 resolve는 호출부가 수행.)
 - **검증**:
-  - [ ] modeImages=undefined(video/freeform) + inline=[] → images=undefined (런타임 에러 없음)
-  - [ ] modeImages 있음 + inline 있음 → 캡처 먼저, inline 뒤 순서로 concat
-  - [ ] modeImages=undefined + inline 있음 → inline만
-  - [ ] systemPrompt가 ctx.existingDraft를 반영(Task3 위임 확인)
+  - [x] modeImages=undefined(video/freeform) + inline=[] → images=undefined (런타임 에러 없음)
+  - [x] modeImages 있음 + inline 있음 → 캡처 먼저, inline 뒤 순서로 concat
+  - [x] modeImages=undefined + inline 있음 → inline만
+  - [x] systemPrompt가 ctx.existingDraft를 반영(Task3 위임 확인)
 
 ### Task 5: TiptapEditor 표시 setContent emitUpdate:false (C)
 - **변경 대상**: `src/sidepanel/components/TiptapEditor.tsx`
@@ -78,7 +78,7 @@
   - [ ] (수동/BYOK) 재오픈 후 재생성 시 최신 선입력이 전달
   - [ ] (수동) 응답 후 이미지 있던 섹션 = 이미지 상단 + 텍스트 하단
   - [ ] (수동) 이미지 없던 섹션 = 전체 교체
-  - [ ] `pnpm test` green, `pnpm typecheck` 통과
+  - [x] `pnpm test` green, `pnpm typecheck` 통과
 
 ## 테스트 계획
 

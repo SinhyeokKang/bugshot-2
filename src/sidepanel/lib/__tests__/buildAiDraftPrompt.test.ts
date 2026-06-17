@@ -482,3 +482,58 @@ describe("buildAiDraftSessionPrompt", () => {
     expect(prompt).not.toContain("--token-10");
   });
 });
+
+describe("buildAiDraftSessionPrompt — existingDraft 컨텍스트", () => {
+  it("existingDraft 본문 텍스트가 프롬프트에 포함", () => {
+    const prompt = buildAiDraftSessionPrompt({
+      ...SESSION_BASE,
+      existingDraft: {
+        title: "기존 제목",
+        sections: { description: "사용자가 적어둔 현상 설명" },
+      },
+    });
+    expect(prompt).toContain("사용자가 적어둔 현상 설명");
+  });
+
+  it("existingDraft title도 프롬프트에 포함", () => {
+    const prompt = buildAiDraftSessionPrompt({
+      ...SESSION_BASE,
+      existingDraft: { title: "기존 제목 텍스트", sections: {} },
+    });
+    expect(prompt).toContain("기존 제목 텍스트");
+  });
+
+  it("본문의 inline 이미지 ref는 strip되어 노출 안 됨", () => {
+    const prompt = buildAiDraftSessionPrompt({
+      ...SESSION_BASE,
+      existingDraft: {
+        title: "t",
+        sections: { description: "설명 ![](inline:abc12345)" },
+      },
+    });
+    expect(prompt).toContain("설명");
+    expect(prompt).not.toContain("inline:abc12345");
+  });
+
+  it("title만 비공백 + sections 전부 공백 → 블록 포함(경계)", () => {
+    const prompt = buildAiDraftSessionPrompt({
+      ...SESSION_BASE,
+      existingDraft: { title: "제목만 있음", sections: { description: "  " } },
+    });
+    expect(prompt).toContain("제목만 있음");
+  });
+
+  it("모두 공백인 existingDraft → 컨텍스트 블록 생략(미지정과 동일 출력)", () => {
+    const withEmpty = buildAiDraftSessionPrompt({
+      ...SESSION_BASE,
+      existingDraft: { title: "   ", sections: { description: "" } },
+    });
+    const without = buildAiDraftSessionPrompt(SESSION_BASE);
+    expect(withEmpty).toBe(without);
+  });
+
+  it("텍스트 전용(이미지 markdown 금지) 규칙이 프롬프트에 존재", () => {
+    const prompt = buildAiDraftSessionPrompt(SESSION_BASE);
+    expect(prompt).toMatch(/text only/i);
+  });
+});

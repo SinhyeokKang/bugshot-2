@@ -8,6 +8,7 @@ import type { NetworkLogSummary, ConsoleLogSummary } from "./buildLogSummary";
 import type { ActionLogSummary } from "@/types/action";
 import type { EditorDraft } from "@/store/editor-store";
 import { extractJson } from "./extractJson";
+import { stripInlineImageRefs } from "./resolveInlineImages";
 
 const MAX_DIFFS = 20;
 const MAX_TOKENS = 10;
@@ -126,6 +127,7 @@ export interface AiDraftSessionContext {
   consoleLogSummary?: ConsoleLogSummary;
   actionLogSummary?: ActionLogSummary;
   enabledSections: { id: IssueSectionId }[];
+  existingDraft?: { title: string; sections: Record<string, string> };
 }
 
 export function buildAiDraftSessionPrompt(ctx: AiDraftSessionContext): string {
@@ -199,6 +201,24 @@ export function buildAiDraftSessionPrompt(ctx: AiDraftSessionContext): string {
     }
   }
 
+  if (ctx.existingDraft) {
+    const ed = ctx.existingDraft;
+    const parts: string[] = [];
+    const title = ed.title.trim();
+    if (title) parts.push(`title: ${title}`);
+    for (const sec of ctx.enabledSections) {
+      const stripped = stripInlineImageRefs(ed.sections[sec.id] ?? "");
+      if (stripped) parts.push(`${sec.id}: ${stripped}`);
+    }
+    if (parts.length > 0) {
+      lines.push("");
+      lines.push(
+        "Current draft (the user already wrote this — use it as reference, then improve and complete it):",
+      );
+      for (const p of parts) lines.push(`- ${p}`);
+    }
+  }
+
   const desc = getSectionDesc(ctx.locale, ctx.captureMode);
   lines.push("");
   lines.push("Output a JSON object with these exact keys:");
@@ -213,6 +233,7 @@ export function buildAiDraftSessionPrompt(ctx: AiDraftSessionContext): string {
   lines.push("- Base the report on the user's description and provided context. Never invent details not given.");
   lines.push("- Only reference logs, errors, or context that plausibly relate to the described bug. Ignore unrelated entries.");
   lines.push("- The description states only the current problem (as-is). Put any expected or desired behavior in expectedResult, never in description.");
+  lines.push("- Write text only. Do not include markdown picture embeds such as ![](...).");
   lines.push("- If a section has no relevant information, use an empty string.");
   lines.push(`- Write all string values in ${lang}.`);
 

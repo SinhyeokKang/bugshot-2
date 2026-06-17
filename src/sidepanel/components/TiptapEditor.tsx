@@ -235,8 +235,9 @@ const TiptapEditor = forwardRef<TiptapEditorHandle, TiptapEditorProps>(function 
         }),
       );
       if (cancelled || resolved.size === 0) return;
-      isInternalChange.current = true;
-      editor.commands.setContent(replaceInlineRefs(value, resolved));
+      editor.commands.setContent(replaceInlineRefs(value, resolved), {
+        emitUpdate: false,
+      });
     })();
 
     return () => { cancelled = true; };
@@ -257,7 +258,7 @@ const TiptapEditor = forwardRef<TiptapEditorHandle, TiptapEditorProps>(function 
       const displayMd = refs.length > 0
         ? replaceInlineRefs(value, refToUrlMap.current)
         : value;
-      editor.commands.setContent(displayMd);
+      editor.commands.setContent(displayMd, { emitUpdate: false });
       return;
     }
 
@@ -274,8 +275,9 @@ const TiptapEditor = forwardRef<TiptapEditorHandle, TiptapEditorProps>(function 
         }),
       );
       if (cancelled) return;
-      isInternalChange.current = true;
-      editor.commands.setContent(replaceInlineRefs(value, refToUrlMap.current));
+      editor.commands.setContent(replaceInlineRefs(value, refToUrlMap.current), {
+        emitUpdate: false,
+      });
     })();
     return () => { cancelled = true; };
   }, [value, editor]);
