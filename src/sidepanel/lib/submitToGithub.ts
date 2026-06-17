@@ -13,6 +13,8 @@ export type { NormalizedSubmitResult } from "@/types/platform";
 export interface GithubFileInput {
   filename: string;
   dataUrl: string;
+  // 사용자 첨부: 업로드 식별용 filename(고유)과 본문 표시명(원본) 분리.
+  displayName?: string;
 }
 
 export interface GithubSubmitInput {
@@ -20,6 +22,7 @@ export interface GithubSubmitInput {
   images?: GithubFileInput[];
   video?: GithubFileInput;
   logs?: GithubFileInput[];
+  attachments?: GithubFileInput[];
   inlineImages?: InlineImageInput[];
   owner: string;
   repo: string;
@@ -41,6 +44,7 @@ export async function submitToGithub(
 ): Promise<NormalizedSubmitResult> {
   const imageInputs = input.images ?? [];
   const logs = input.logs ?? [];
+  const userAttachments = input.attachments ?? [];
   const inlineFiles = (input.inlineImages ?? []).map((img) => ({
     filename: `inline-${img.refId}.webp`,
     dataUrl: img.dataUrl,
@@ -50,6 +54,7 @@ export async function submitToGithub(
     ...(input.video ? [input.video] : []),
     ...logs,
     ...inlineFiles,
+    ...userAttachments,
   ];
 
   const uploadResults = await sendBg<Array<{ filename: string; href: string | null }>>({
@@ -90,11 +95,22 @@ export async function submitToGithub(
     };
   }
 
+  // 사용자 첨부: 본문 표시명은 원본(displayName), url 매칭은 업로드 filename(고유).
+  function toAttachmentMedia(f: GithubFileInput): GithubMediaInput {
+    const name = f.displayName ?? f.filename;
+    return {
+      filename: name,
+      contentType: guessUploadMime(name),
+      url: hrefMap.get(f.filename) ?? undefined,
+    };
+  }
+
   const { body } = buildGithubIssueBody({
     ctx: resolvedCtx,
     images: imageInputs.length > 0 ? imageInputs.map(toMedia) : undefined,
     video: input.video ? toMedia(input.video) : undefined,
     logs: logs.map(toMedia),
+    attachments: userAttachments.map(toAttachmentMedia),
     cc: input.cc,
   });
 

@@ -1,5 +1,5 @@
 import { Fragment } from "react";
-import { Bug, ListOrdered, Monitor, Moon, SlidersHorizontal, Sparkles, StickyNote, Sun, Target, Timer } from "lucide-react";
+import { Bug, ListOrdered, Monitor, Moon, Paperclip, SlidersHorizontal, Sparkles, StickyNote, Sun, Target, Timer } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -84,6 +84,8 @@ function IssueSettingsContent() {
   const setIssueEnabled = useSettingsUiStore((s) => s.setIssueEnabled);
   const replayEnabled = useSettingsUiStore((s) => s.replayEnabled);
   const setReplayEnabled = useSettingsUiStore((s) => s.setReplayEnabled);
+  const attachmentsEnabled = useSettingsUiStore((s) => s.attachmentsEnabled);
+  const setAttachmentsEnabled = useSettingsUiStore((s) => s.setAttachmentsEnabled);
   const titlePrefix = useSettingsStore((s) => s.titlePrefix);
   const setTitlePrefix = useSettingsStore((s) => s.setTitlePrefix);
 
@@ -159,6 +161,11 @@ function IssueSettingsContent() {
                   />
                 </Fragment>
               ))}
+              <Separator />
+              <AttachmentToggleRow
+                enabled={attachmentsEnabled}
+                onToggle={setAttachmentsEnabled}
+              />
             </CardContent>
           </Card>
         </Section>
@@ -228,6 +235,34 @@ const SECTION_ICONS: Record<string, React.ReactNode> = {
   expectedResult: <Target className="h-4 w-4" />,
   notes: <StickyNote className="h-4 w-4" />,
 };
+
+function AttachmentToggleRow({
+  enabled,
+  onToggle,
+}: {
+  enabled: boolean;
+  onToggle: (enabled: boolean) => void;
+}) {
+  const t = useT();
+  return (
+    <div className="flex items-center gap-3">
+      <div className="shrink-0">
+        <Paperclip className="h-4 w-4" />
+      </div>
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <label htmlFor="setting-attachments-enabled" className="cursor-pointer text-sm">
+          {t("settings.attachments.label")}
+        </label>
+        <p className="text-sm text-muted-foreground">{t("settings.attachments.help")}</p>
+      </div>
+      <Switch
+        id="setting-attachments-enabled"
+        checked={enabled}
+        onCheckedChange={(v) => onToggle(v === true)}
+      />
+    </div>
+  );
+}
 
 function IssueSectionRow({
   section,

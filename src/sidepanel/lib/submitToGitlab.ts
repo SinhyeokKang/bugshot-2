@@ -14,6 +14,8 @@ export type { NormalizedSubmitResult } from "@/types/platform";
 export interface GitlabFileInput {
   filename: string;
   dataUrl: string;
+  // 사용자 첨부: 업로드 식별용 filename(고유)과 본문 표시명(원본) 분리.
+  displayName?: string;
 }
 
 export interface GitlabSubmitInput {
@@ -21,6 +23,7 @@ export interface GitlabSubmitInput {
   images?: GitlabFileInput[];
   video?: GitlabFileInput;
   logs?: GitlabFileInput[];
+  attachments?: GitlabFileInput[];
   inlineImages?: InlineImageInput[];
   projectId: number;
   label?: string;
@@ -41,6 +44,7 @@ export async function submitToGitlab(
 ): Promise<NormalizedSubmitResult> {
   const imageInputs = input.images ?? [];
   const logs = input.logs ?? [];
+  const userAttachments = input.attachments ?? [];
   const inlineFiles = (input.inlineImages ?? []).map((img) => ({
     filename: `inline-${img.refId}.webp`,
     dataUrl: img.dataUrl,
@@ -50,6 +54,7 @@ export async function submitToGitlab(
     ...(input.video ? [input.video] : []),
     ...logs,
     ...inlineFiles,
+    ...userAttachments,
   ];
 
   const uploadResults = await sendBg<
@@ -91,11 +96,21 @@ export async function submitToGitlab(
     };
   }
 
+  function toAttachmentMedia(f: GitlabFileInput): GitlabMediaInput {
+    const name = f.displayName ?? f.filename;
+    return {
+      filename: name,
+      contentType: guessUploadMime(name),
+      url: urlMap.get(f.filename) ?? undefined,
+    };
+  }
+
   const { body } = buildGitlabIssueBody({
     ctx: resolvedCtx,
     images: imageInputs.length > 0 ? imageInputs.map(toMedia) : undefined,
     video: input.video ? toMedia(input.video) : undefined,
     logs: logs.map(toMedia),
+    attachments: userAttachments.map(toAttachmentMedia),
     cc: input.cc,
   });
 

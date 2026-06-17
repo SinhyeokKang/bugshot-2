@@ -25,6 +25,7 @@ export interface GithubBuildInput {
   images?: GithubMediaInput[];
   video?: GithubMediaInput;
   logs?: GithubMediaInput[];
+  attachments?: GithubMediaInput[];
   cc?: string[];
 }
 
@@ -165,6 +166,7 @@ export function buildGithubIssueBody(
     ...images.filter((i) => !mediaHandled.has(i.filename)),
     ...(video && !mediaHandled.has(video.filename) ? [video] : []),
     ...logs,
+    ...(input.attachments ?? []),
   ];
   emitAttachments(lines, attached, extras);
 

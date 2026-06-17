@@ -22,9 +22,13 @@ import {
   deleteActionLog,
   clearActionLogs,
   getActionLogKeys,
+  deleteAttachmentBlobs,
+  clearAttachmentBlobs,
+  getAttachmentBlobKeys,
   saveImageBlobRaw,
   dataUrlToBlob,
 } from "./blob-db";
+import type { UserAttachmentMeta } from "@/types/attachment";
 
 export function stripSubmitted(
   issue: IssueRecord,
@@ -48,6 +52,7 @@ export function stripSubmitted(
     networkLogBlobKey: undefined,
     consoleLogBlobKey: undefined,
     actionLogBlobKey: undefined,
+    attachments: undefined,
   };
 }
 
@@ -89,6 +94,16 @@ async function pruneOrphanBlobs(): Promise<void> {
     if (key.startsWith("pending:")) continue;
     if (!currentIds.has(key)) {
       deleteActionLog(key).catch(() => {});
+    }
+  }
+  const attachmentBlobKeys = await getAttachmentBlobKeys();
+  const prunedAttIds = new Set<string>();
+  for (const key of attachmentBlobKeys) {
+    if (key.startsWith("pending:")) continue;
+    const issueId = key.split(":")[0];
+    if (!currentIds.has(issueId) && !prunedAttIds.has(issueId)) {
+      prunedAttIds.add(issueId);
+      deleteAttachmentBlobs(issueId).catch(() => {});
     }
   }
 }
@@ -177,6 +192,9 @@ export interface IssueRecord {
   consoleLogBlobKey?: string;
   actionLogBlobKey?: string;
 
+  // 사용자 직접 첨부 파일 메타. Blob은 attachments store에 `${id}:${meta.id}` 키로. optional이라 버전 bump 불필요.
+  attachments?: UserAttachmentMeta[];
+
   submittedAt?: number;
   platform: PlatformId;
   key?: string;
@@ -256,6 +274,7 @@ export const useIssuesStore = create<IssuesState>()(
         deleteNetworkLog(id).catch(() => {});
         deleteConsoleLog(id).catch(() => {});
         deleteActionLog(id).catch(() => {});
+        deleteAttachmentBlobs(id).catch(() => {});
       },
       patchIssue: (id, patch) =>
         set((s) => ({
@@ -276,6 +295,7 @@ export const useIssuesStore = create<IssuesState>()(
         deleteNetworkLog(id).catch(() => {});
         deleteConsoleLog(id).catch(() => {});
         deleteActionLog(id).catch(() => {});
+        deleteAttachmentBlobs(id).catch(() => {});
         resetEditorIfEditing(id);
       },
       clearIssues: () => {
@@ -285,6 +305,7 @@ export const useIssuesStore = create<IssuesState>()(
         clearNetworkLogs().catch(() => {});
         clearConsoleLogs().catch(() => {});
         clearActionLogs().catch(() => {});
+        clearAttachmentBlobs().catch(() => {});
         resetEditorIfEditing(null);
       },
     }),

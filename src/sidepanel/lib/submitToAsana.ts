@@ -18,6 +18,8 @@ export type { NormalizedSubmitResult } from "@/types/platform";
 export interface AsanaFileInput {
   filename: string;
   dataUrl: string;
+  // 사용자 첨부: task 첨부 표시명(원본). 본문 인라인 없음.
+  displayName?: string;
 }
 
 export interface AsanaSubmitInput {
@@ -25,6 +27,7 @@ export interface AsanaSubmitInput {
   images?: AsanaFileInput[];
   video?: AsanaFileInput;
   logs?: AsanaFileInput[];
+  attachments?: AsanaFileInput[];
   workspaceGid: string;
   projectGid?: string;
   assigneeGid?: string;
@@ -137,11 +140,18 @@ export async function submitToAsana(
     })),
   );
   const logs = input.logs ?? [];
+  // 사용자 첨부: webpToJpeg·renameStyleElement·imageRefs 인라인에 안 섞고 task 첨부로만(표시명=원본).
+  const userAttachmentFiles = (input.attachments ?? []).map((f) => ({
+    filename: f.displayName ?? f.filename,
+    dataUrl: f.dataUrl,
+  }));
+  const userAttachmentNames = new Set(userAttachmentFiles.map((f) => f.filename));
   const allFiles = [
     ...imageInputs,
     ...inlineEntries.map((e) => e.file),
     ...(input.video ? [input.video] : []),
     ...logs,
+    ...userAttachmentFiles,
   ];
 
   const cc = input.cc ?? [];
@@ -192,7 +202,10 @@ export async function submitToAsana(
     // 원본 픽셀 크기를 직접 박아 썸네일 크기 렌더와 Asana 후처리 지연을 회피한다.
     const byName = new Map<string, { gid: string; viewUrl?: string }>();
     for (const r of results) {
-      if (r.gid) byName.set(r.filename, { gid: r.gid, viewUrl: r.viewUrl });
+      // 사용자 첨부는 본문 인라인 안 하므로 byName에서 제외 — imageRefs 매칭 오염 방지.
+      if (r.gid && !userAttachmentNames.has(r.filename)) {
+        byName.set(r.filename, { gid: r.gid, viewUrl: r.viewUrl });
+      }
     }
     logsDropped = (input.logs ?? []).some((l) => !byName.has(l.filename));
     const imageRefs: Record<string, AsanaInlineImage> = {};

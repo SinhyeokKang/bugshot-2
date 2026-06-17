@@ -5,10 +5,12 @@ import type { ConsoleLog } from "@/types/console";
 import type { ActionLog } from "@/types/action";
 import type { PlatformId } from "@/types/platform";
 import type { EnvironmentRow } from "@/types/environment";
+import type { UserAttachmentMeta } from "@/types/attachment";
 import { onBlobSaveFailed } from "@/types/messages";
 import { useIssuesStore } from "./issues-store";
 import { useSettingsStore } from "./settings-store";
-import { saveVideoBlob, saveImageBlob, saveNetworkLog, deleteNetworkLog, saveConsoleLog, deleteConsoleLog, saveActionLog, deleteActionLog, dataUrlToBlob } from "./blob-db";
+import { saveVideoBlob, saveImageBlob, saveNetworkLog, deleteNetworkLog, saveConsoleLog, deleteConsoleLog, saveActionLog, deleteActionLog, dataUrlToBlob, saveAttachmentBlob, deleteAttachmentBlob, deleteAttachmentBlobs, rekeyAttachmentBlobs } from "./blob-db";
+import { takeWithinLimits } from "@/sidepanel/lib/attachmentLimits";
 import { clearNetworkRecorder, clearConsoleRecorder, clearActionRecorder } from "@/sidepanel/recorder-control";
 
 export type CaptureMode = "element" | "screenshot" | "video" | "freeform";
@@ -135,6 +137,7 @@ interface EditorState {
   consoleLogAttach: boolean;
   actionLog: ActionLog | null;
   actionLogAttach: boolean;
+  attachments: UserAttachmentMeta[];
   aiStylingLoading: boolean;
   aiDraftLoading: boolean;
   submitResult: SubmitResult | null;
@@ -193,6 +196,8 @@ interface EditorState {
   clearNetworkLog: (tabId: number | null) => void;
   clearConsoleLog: (tabId: number | null) => void;
   clearActionLog: (tabId: number | null) => void;
+  addAttachments: (files: File[]) => Promise<void>;
+  removeAttachment: (id: string) => void;
   setTargetPlatform: (platform: PlatformId) => void;
   onSubmitted: (result: SubmitResult) => void;
   reset: () => void;
@@ -226,6 +231,7 @@ export type EditorSnapshot = Pick<
   | "networkLogAttach"
   | "consoleLogAttach"
   | "actionLogAttach"
+  | "attachments"
   | "draft"
   | "issueFields"
   | "currentIssueId"
@@ -266,6 +272,7 @@ const initial = {
   consoleLogAttach: false,
   actionLog: null as ActionLog | null,
   actionLogAttach: false,
+  attachments: [] as UserAttachmentMeta[],
   draft: null,
   inlineCaptureTarget: null as string | null,
   issueFields: {} as EditorIssueFields,
@@ -340,6 +347,13 @@ function newIssueId(): string {
     return crypto.randomUUID();
   }
   return `issue-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function newAttachmentId(): string {
+  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
+    return crypto.randomUUID();
+  }
+  return `att-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
 function selectAttachedLogs(state: EditorState): {
@@ -733,6 +747,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       })();
     } else {
       if (!state.selection) {
+        // selection 없으면 draft 미저장 → 첨부도 issueId로 못 옮기므로 pending 정리(고아 방지).
+        if (state.attachments.length) {
+          deleteAttachmentBlobs(`pending:${state.target.tabId}`).catch(() => {});
+        }
         set({ phase: "previewing" });
         return;
       }
@@ -817,6 +835,16 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         if (failed) onBlobSaveFailed.fire();
       })();
     }
+    // 사용자 첨부: 토글과 무관하게 pending→issueId rekey + 메타 저장(정리는 issueId 키 기준).
+    // 4개 captureMode 정상 경로 공통 — early-return(draft/selection 없음)은 첨부 무의미라 미도달.
+    if (state.attachments.length && state.target) {
+      const tabId = state.target.tabId;
+      const metas = state.attachments;
+      useIssuesStore.getState().patchIssue(id, { attachments: metas });
+      void rekeyAttachmentBlobs(`pending:${tabId}`, id, metas.map((a) => a.id)).then((ok) => {
+        if (!ok) onBlobSaveFailed.fire();
+      });
+    }
     set({ phase: "previewing", currentIssueId: id });
   },
 
@@ -852,9 +880,37 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       clearActionRecorder(tabId).catch(() => {});
     }
   },
+  // 파일 선택 즉시 Blob을 pending:${tabId}에 저장하고 메타만 state에 둔다(임의 크기라 session 불가).
+  addAttachments: async (files) => {
+    const tabId = get().target?.tabId;
+    if (tabId == null) return;
+    const owner = `pending:${tabId}`;
+    const { acceptCount } = takeWithinLimits(
+      get().attachments,
+      files.map((f) => ({ size: f.size })),
+    );
+    const metas: UserAttachmentMeta[] = [];
+    for (const file of files.slice(0, acceptCount)) {
+      const id = newAttachmentId();
+      if (await saveAttachmentBlob(owner, id, file)) {
+        metas.push({
+          id,
+          filename: file.name,
+          contentType: file.type || "application/octet-stream",
+          size: file.size,
+        });
+      }
+    }
+    if (metas.length) set((s) => ({ attachments: [...s.attachments, ...metas] }));
+  },
+  removeAttachment: (id) => {
+    const tabId = get().target?.tabId;
+    set((s) => ({ attachments: s.attachments.filter((a) => a.id !== id) }));
+    if (tabId != null) deleteAttachmentBlob(`pending:${tabId}`, id).catch(() => {});
+  },
   setTargetPlatform: (platform) => set({ targetPlatform: platform }),
 
-  onSubmitted: (result) => set({ phase: "done", submitResult: result, beforeImage: null, afterImage: null, bufferedElements: [], screenshotRaw: null, screenshotAnnotated: null, videoBlob: null, videoThumbnail: null, networkLog: null, consoleLog: null, actionLog: null }),
+  onSubmitted: (result) => set({ phase: "done", submitResult: result, beforeImage: null, afterImage: null, bufferedElements: [], screenshotRaw: null, screenshotAnnotated: null, videoBlob: null, videoThumbnail: null, networkLog: null, consoleLog: null, actionLog: null, attachments: [] }),
 
   reset: () => set({ ...initial }),
 

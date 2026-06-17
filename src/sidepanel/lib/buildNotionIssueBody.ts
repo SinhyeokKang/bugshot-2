@@ -35,6 +35,7 @@ export interface NotionBuildInput {
   images?: NotionMediaInput[];
   video?: NotionMediaInput;
   logs?: NotionMediaInput[];
+  userAttachments?: NotionMediaInput[];
   inlineImageRefIds?: string[];
   cc?: string[];
 }
@@ -206,6 +207,11 @@ export function buildNotionIssueBody(
     for (const log of logs) {
       const ph = nextPlaceholder("log");
       queueAttachment(log, categorize(log, "log"), ph);
+    }
+    // 사용자 첨부 (file block) — 이미지/비디오 인라인 없이 category "other"로.
+    for (const ua of input.userAttachments ?? []) {
+      const ph = nextPlaceholder("attachment");
+      queueAttachment(ua, "other", ph);
     }
   };
 

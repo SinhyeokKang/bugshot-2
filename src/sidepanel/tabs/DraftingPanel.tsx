@@ -19,6 +19,7 @@ import { useAI } from "@/sidepanel/hooks/useAI";
 import { clearPicker, startInlineAreaCapture } from "@/sidepanel/picker-control";
 import { CancelConfirmDialog } from "@/sidepanel/components/CancelConfirmDialog";
 import { LogAttachmentCards } from "@/sidepanel/components/LogAttachmentCards";
+import { AttachmentSection } from "@/sidepanel/components/AttachmentSection";
 import { NetworkLogPreviewDialog } from "@/sidepanel/components/NetworkLogPreviewDialog";
 import { ConsoleLogPreviewDialog } from "@/sidepanel/components/ConsoleLogPreviewDialog";
 import { ActionLogPreviewDialog } from "@/sidepanel/components/ActionLogPreviewDialog";
@@ -73,6 +74,11 @@ export function DraftingPanel() {
   const actionLogAttach = useEditorStore((s) => s.actionLogAttach);
   const setActionLogAttach = useEditorStore((s) => s.setActionLogAttach);
   const issueSections = useSettingsUiStore((s) => s.issueSections);
+  const attachmentsEnabled = useSettingsUiStore((s) => s.attachmentsEnabled);
+  const attachments = useEditorStore((s) => s.attachments);
+  const addAttachments = useEditorStore((s) => s.addAttachments);
+  const removeAttachment = useEditorStore((s) => s.removeAttachment);
+  const targetPlatform = useEditorStore((s) => s.targetPlatform);
   const { status: aiStatus, providerLabel, createSession } = useAI();
   const [annotating, setAnnotating] = useState(false);
   const [aiDialogOpen, setAiDialogOpen] = useState(false);
@@ -237,6 +243,17 @@ export function DraftingPanel() {
     </Section>
   ) : null;
 
+  const attachmentBlock = attachmentsEnabled ? (
+    <Section key="__attachments" title={t("section.attachments")} collapsible>
+      <AttachmentSection
+        attachments={attachments}
+        platform={targetPlatform}
+        onAdd={addAttachments}
+        onRemove={removeAttachment}
+      />
+    </Section>
+  ) : null;
+
   const sectionNodes: React.ReactNode[] = [];
   let mediaInserted = false;
   for (const sec of enabledSections) {
@@ -244,6 +261,7 @@ export function DraftingPanel() {
       mediaInserted = true;
       sectionNodes.push(mediaBlock);
       if (logCardsBlock) sectionNodes.push(logCardsBlock);
+      if (attachmentBlock) sectionNodes.push(attachmentBlock);
     }
     sectionNodes.push(
       <SectionTextarea
@@ -262,6 +280,7 @@ export function DraftingPanel() {
   if (!mediaInserted) {
     sectionNodes.push(mediaBlock);
     if (logCardsBlock) sectionNodes.push(logCardsBlock);
+    if (attachmentBlock) sectionNodes.push(attachmentBlock);
   }
 
   return (

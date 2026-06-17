@@ -388,6 +388,69 @@ describe("buildCaptureFiles — actionLog video-only 스코핑", () => {
   });
 });
 
+describe("buildCaptureFiles — userAttachments(사용자 첨부)", () => {
+  it("userAttachments 없으면 attachments 빈 배열", async () => {
+    const out = await buildCaptureFiles({
+      captureMode: "screenshot",
+      screenshotImage: "data:image/webp;base64,SHOT",
+    });
+    expect(out.attachments).toEqual([]);
+  });
+
+  it("filename은 ${id}__${원본}으로 고유화, displayName은 원본 유지", async () => {
+    const out = await buildCaptureFiles({
+      captureMode: "screenshot",
+      screenshotImage: "data:x",
+      userAttachments: [
+        {
+          meta: { id: "a1", filename: "doc.pdf", contentType: "application/pdf", size: 10 },
+          blob: new Blob([new Uint8Array([1])], { type: "application/pdf" }),
+        },
+      ],
+    });
+    expect(out.attachments).toEqual([
+      {
+        filename: "a1__doc.pdf",
+        displayName: "doc.pdf",
+        dataUrl: "data:application/pdf;base64,FAKE",
+      },
+    ]);
+  });
+
+  it("동일 파일명 다중 첨부도 id prefix로 충돌 없이 분리", async () => {
+    const blob = new Blob([new Uint8Array([1])], { type: "image/png" });
+    const out = await buildCaptureFiles({
+      captureMode: "screenshot",
+      screenshotImage: "data:x",
+      userAttachments: [
+        { meta: { id: "a1", filename: "s.png", contentType: "image/png", size: 1 }, blob },
+        { meta: { id: "a2", filename: "s.png", contentType: "image/png", size: 1 }, blob },
+      ],
+    });
+    expect(out.attachments.map((a) => a.filename)).toEqual(["a1__s.png", "a2__s.png"]);
+    expect(out.attachments.map((a) => a.displayName)).toEqual(["s.png", "s.png"]);
+  });
+
+  it("캡처 이미지/로그와 독립 — attachments만 채워지고 images는 캡처 그대로", async () => {
+    const out = await buildCaptureFiles({
+      captureMode: "screenshot",
+      screenshotImage: "data:image/webp;base64,SHOT",
+      userAttachments: [
+        {
+          meta: { id: "a1", filename: "notes.txt", contentType: "text/plain", size: 3 },
+          blob: new Blob(["abc"], { type: "text/plain" }),
+        },
+      ],
+    });
+    expect(out.images).toEqual([
+      { filename: "screenshot.webp", dataUrl: "data:image/webp;base64,SHOT" },
+    ]);
+    expect(out.attachments).toEqual([
+      { filename: "a1__notes.txt", displayName: "notes.txt", dataUrl: "data:text/plain;base64,FAKE" },
+    ]);
+  });
+});
+
 describe("buildCaptureFiles — report 임베드 (logs.html)", () => {
   function lastReportArg(): unknown {
     const call = buildLogsHtmlSpy.mock.calls.at(-1);

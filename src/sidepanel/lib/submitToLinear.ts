@@ -13,6 +13,8 @@ import { injectIssueUrl } from "@/lib/inject-issue-url";
 export interface LinearFileInput {
   filename: string;
   dataUrl: string;
+  // 사용자 첨부: createAttachment 표시명(원본). 업로드 filename은 고유.
+  displayName?: string;
 }
 
 export interface LinearSubmitInput {
@@ -20,6 +22,7 @@ export interface LinearSubmitInput {
   images?: LinearFileInput[];
   video?: LinearFileInput;
   logs?: LinearFileInput[];
+  attachments?: LinearFileInput[];
   inlineImages?: InlineImageInput[];
   teamId: string;
   projectId?: string;
@@ -122,6 +125,27 @@ export async function submitToLinear(
         issueId: result.id,
         title: att.filename,
         url: att.assetUrl!,
+      }).catch(() => null),
+    ),
+  );
+
+  // 사용자 첨부: 업로드 후 Linear attachment API로 등록(본문 링크 없음). 실패 격리.
+  const userAttachmentResults = (
+    await Promise.all(
+      (input.attachments ?? []).map((f) =>
+        uploadFile(f)
+          .then((r) => ({ title: f.displayName ?? f.filename, assetUrl: r.assetUrl }))
+          .catch(() => null),
+      ),
+    )
+  ).filter((r): r is { title: string; assetUrl: string } => r !== null && !!r.assetUrl);
+  await Promise.all(
+    userAttachmentResults.map((att) =>
+      sendBg({
+        type: "linear.createAttachment",
+        issueId: result.id,
+        title: att.title,
+        url: att.assetUrl,
       }).catch(() => null),
     ),
   );

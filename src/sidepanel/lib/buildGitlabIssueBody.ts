@@ -25,6 +25,7 @@ export interface GitlabBuildInput {
   images?: GitlabMediaInput[];
   video?: GitlabMediaInput;
   logs?: GitlabMediaInput[];
+  attachments?: GitlabMediaInput[];
   cc?: string[];
 }
 
@@ -162,6 +163,7 @@ export function buildGitlabIssueBody(
     ...images.filter((i) => !mediaHandled.has(i.filename)),
     ...(video && !mediaHandled.has(video.filename) ? [video] : []),
     ...logs,
+    ...(input.attachments ?? []),
   ];
   emitAttachments(lines, attached, extras);
 
