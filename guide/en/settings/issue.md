@@ -29,12 +29,10 @@ Turn the body sections on or off. Four sections come ready out of the box.
 
 Sometimes you need to drop a file straight onto an issue — something captures or logs can't quite hold. Flip this toggle on and an **Attachments** area appears on the issue screen, where you can pick files to send along.
 
-- It's **off** by default. Screenshots, recordings, and logs cover most cases, so turn this on only when you truly need it.
+- It's **off** by default.
 - You can attach **up to 10 files**, **50MB** total.
 - Each platform has its own per-file size cap (Notion 5MB, GitLab 10MB, for example). Files over that show an "over limit" note and may be rejected by the platform on upload.
 - Attached files upload together when you submit the issue.
-
-> When you can, reach for [Screenshots](../screenshot/capture.md), [Recording](../video/record.md), or [Logs](../logs/live.md) first — they carry a lot more context.
 
 ![File attachments toggle](../assets/settings-issue-4.jpg)
 
