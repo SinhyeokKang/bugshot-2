@@ -37,7 +37,7 @@ chrome.action.onClicked.addListener((tab) => {
 
 - tabId별로 `chrome.storage.session`의 `editor:${tabId}` 키에 저장
 - `useEditorSessionSync(tabId)` 훅이 hydration + debounced save(300ms) 담당 (zustand persist 미들웨어 대신 직접 구현 — tabId-scoped 키가 persist의 "one store, one key" 모델에 맞지 않음)
-- origin 변경 시 해당 탭의 세션은 버림 (`clearIfOriginChanged` in `tab-bindings.ts`)
+- page key 변경 시 해당 탭의 세션은 버림 (`clearIfPageChanged` in `tab-bindings.ts` — `pageKeyOf(prevUrl) !== pageKeyOf(newUrl)` 비교)
 - 탭 닫히면 `onRemoved`에서 정리
 - **복수 element 버퍼(`bufferedElements`)도 세션 영속화**된다. 단 phase별 보존이 비대칭: `styling`에서 세션 만료/`reset`이 걸리면 버퍼가 폐기되고, `drafting`/`previewing`/`done`은 `selection`과 동일하게 스냅샷에 포함돼 패널을 닫았다 열어도 복원된다. quota 초과 시 lite 폴백이 버퍼 내부 before/after base64까지 명시적으로 null화. `picking` 중 닫힌 세션은 hydrate 시 idle 강등과 함께 버퍼도 폐기한다(DOM 편집이 이미 원복된 ghost — 남기면 `preserveBuffer`로 다음 세션에 합류).
 - **styling 세션 복원은 DOM 재바인딩까지 수행**한다. 패널이 닫히면 picker port disconnect로 페이지 편집이 전부 원복되므로 store만 복원하면 유령 세션이 된다. hydrate 시 phase=`styling`(element 모드)이면 `rebindStylingSession`(`picker-control.ts`)이 ① content script 보장 ② content 보고 URL의 pageKey 대조 ③ 현재 요소 편집 재적용(요소 소실 시 `sessionExpired`+`picker.clear`) ④ 버퍼 편집 재적용(`applyEditsBySelector` — 미등록 요소는 원본 등록 후 적용) ⑤ 현재 요소를 버퍼 경유 `selectByPath` 재선택(승격 경로가 styleEdits·baseline·이미지 복원)으로 봉합한다.
@@ -54,7 +54,7 @@ chrome.action.onClicked.addListener((tab) => {
 | Proxy 경로 | `/token` | `/github/token`, `/github/refresh` | ❌ 직접 교환 | `/notion/token` | ❌ 직접 교환 (gitlab.com 한정) | `/asana/token`, `/asana/refresh` |
 | Token Refresh | pre-refresh + 401 retry | hook 주입형, 1회 retry | hook 주입형, 1회 retry | ❌ (토큰 만료 없음) | hook 주입형, pre-refresh + 401 retry | hook 주입형, pre-refresh + 401 retry |
 | dev/prod 분리 | 단일 App | 2 App (callback URL 1개 제한) | 단일 App (multi redirect) | 단일 App (multi redirect) | 단일 App (multi redirect) | 단일 App (multi redirect) |
-| Env var | `VITE_ATLASSIAN_CLIENT_ID` | `VITE_GITHUB_CLIENT_ID` (+`_PROD`) | `VITE_LINEAR_CLIENT_ID` (+`_PROD`) | `VITE_NOTION_CLIENT_ID` | `VITE_GITLAB_CLIENT_ID` | `VITE_ASANA_CLIENT_ID` |
+| Env var | `VITE_ATLASSIAN_CLIENT_ID` | `VITE_GITHUB_CLIENT_ID` (+`_PROD`) | `VITE_LINEAR_CLIENT_ID` | `VITE_NOTION_CLIENT_ID` | `VITE_GITLAB_CLIENT_ID` | `VITE_ASANA_CLIENT_ID` |
 
 공통 env: `VITE_OAUTH_PROXY_URL` — Cloudflare Worker origin (Jira·GitHub·Notion·Asana 공유). manifest가 빌드 시 origin을 `host_permissions`에 자동 추가.
 
@@ -154,7 +154,7 @@ shorthand(var 포함) + 같은 shorthand의 longhand override 조합에서 Chrom
 
 **issueUrl 주입**: `buildLogsHtml`이 meta 마지막에 빈 `issueUrl:""` 예약. 이슈 생성 후 `injectIssueUrl`이 해당 자리만 치환(청크 단위 btoa로 ~20MB 블로킹 회피). Jira·Linear는 생성 후 주입, Asana는 create가 upload보다 먼저라 업로드 직전 주입, GitHub·Notion은 구조상 불가(빈 값 → 뷰어가 링크 숨김).
 
-**handleStartVideo**: `injectNetworkRecorder` → `clearNetworkRecorder` → `startRecording` 순. 녹화 종료(`recording→drafting`) 시 `recordersStopped=true`로 drafting 중 재주입 차단.
+**startVideoCapture** (`video-capture.ts`): 3개 레코더(network/console/action) `activate*Recorder` → `clear*Recorder` → `startRecording` 순. 녹화 종료(`recording→drafting`) 시 `recordersStopped=true`(`useBackgroundRecorder`)로 drafting 중 재주입 차단.
 
 **정리**: `shouldPreserveBackgroundLogs(phase)` = recording/drafting/previewing/done. idle 전환 시 레코더 재주입+새 sentinel. pending IDB는 탭 종료·이슈 저장·고아 정리(`pruneOrphanPendingLogsOncePerSession` — SW 부트 세션당 1회)에서 회수. clear→setSentinel은 sequential await 강제(fire-and-forget 시 Chrome 메시지 큐 순서 미보장으로 race).
 
@@ -182,6 +182,26 @@ shorthand(var 포함) + 같은 shorthand의 longhand override 조합에서 Chrom
 **인코딩**: `capture()` → `frameBuffer.snapshot()` → `encodeToMp4()`(WebCodecs H.264 codec 후보 순차 탐색 + `mp4-muxer`) → 성공 시 `onRecordingComplete(blob, thumbnail, viewport)` 재사용 (`captureMode: "video"`).
 
 **상태 공유**: `replay-context.ts`의 `ReplayProvider`가 `isReady`/`isEncoding`/`capture`를 EmptyState에 공급.
+
+## AI 통합 (BYOK LLM · AI Draft · AI Styling)
+
+이슈 작성을 돕는 두 AI 기능 — **AI Draft**(캡처 컨텍스트로 이슈 본문 초안 생성)와 **AI Styling**(자연어로 라이브 요소 스타일 편집) — 이 공용 프로바이더 추상화 위에 올라간다. 모두 **BYOK(Bring Your Own Key)** — 키·엔드포인트는 사용자가 설정하고 호출은 사이드패널에서 직접 나간다. 서버 중계 없음.
+
+**프로바이더 추상화** (`src/sidepanel/lib/ai-provider.ts`): `AIProvider` 인터페이스 = `generate`(단발) + `createSession`(멀티턴 — `messages` 누적). 구현 3종:
+- **OpenAI-compatible** (`createOpenAICompatibleProvider`): `/chat/completions`. 프리셋 6종(OpenAI·Gemini·Groq·Together·OpenRouter·Ollama) + 임의 baseUrl. `responseSchema`면 `response_format: json_object`.
+- **Anthropic** (`createAnthropicProvider`): `/messages`, `anthropic-dangerous-direct-browser-access` 헤더. JSON 스키마는 system에 인라인. 이미지는 base64 `source`(OpenAI는 `image_url`).
+- **Chrome Built-in AI** (`createChromeAIProvider`): 온디바이스 `LanguageModel`(Prompt API). `CHROME_AI_LANG_OPTIONS`로 출력 언어 고정. 이미지·외부 전송 없음.
+
+**프로바이더 선택·폴백** (`useAI`): `settingsUi.llm.modelId`가 있으면 BYOK(baseUrl로 `detectProviderKind` → anthropic/openai), 없으면 Chrome AI로 폴백. Chrome AI는 `availability()`로 가용성 확인 후 status 노출. 둘 다 불가면 AI UI 미노출.
+
+**키·권한·전송**:
+- API 키는 `chrome.storage`에 `key-obfuscation.ts`(XOR+base64, `obf:` 접두사)로 난독화 저장 — 암호화 아님, 평문 노출만 차단.
+- BYOK는 임의 호스트로 나가므로 연결 시 `requestHostPermission(baseUrl)`가 `chrome.permissions.request`로 해당 origin(optional `<all_urls>`)을 런타임 획득.
+- 재시도/에러: `fetchWithRetry`가 게이트웨이/오버로드(502·503·504·529)에 1s→2s 백오프 2회. 429→`LlmQuotaError`, 503/529→`LlmOverloadedError`. `LLM_MAX_TOKENS=4096` 공통 상한.
+
+**AI Draft** (`buildAiDraftPrompt.ts`): `buildAiDraftSessionPrompt`가 캡처 모드별 컨텍스트를 조립 — element(diff `current→desired`·디자인 토큰), screenshot(이미지 첨부 분석 지시), video/freeform(network·console 에러 요약 + video는 action 로그). 사용자가 이미 쓴 본문은 `existingDraft`로 "참고 후 개선" 지시(인라인 이미지 ref는 `stripInlineImageRefs`로 제거). enabled 섹션별 JSON 스키마(`buildAiDraftSchema`)로 출력 강제. `parseAiDraftResponse`가 JSON 추출·title 80자 cap·`stepsToReproduce` 번호 제거. 덮어쓸 때 `mergeAiSectionsPreservingImages`(`mergeAiDraftSections.ts`)가 기존 섹션의 inline 이미지를 상단에 보존하고 그 아래 LLM 텍스트를 붙인다.
+
+**AI Styling** (`buildAiStylingPrompt.ts` + `aiStylingPostProcess.ts`): `buildAiStylingSystemPrompt`가 요소 현재 스타일·클래스·디자인 토큰을 컨텍스트로 주고, LLM이 `{ explanation, inlineStyle, classList }` JSON 반환. `parseAiStylingResponse`가 kebab 정규화 + `DENIED_STYLE_PROPS`(content·animation·will-change·counter·`--*`) 필터. 후처리 2단계: ① `mergeAiEdits` — AI가 shorthand를 내면 기존 longhand 제거(diff 행 중복 방지), ② `replaceRawWithTokens` — raw 값을 디자인 토큰 `var()`로 치환하되, 색상은 HSL 거리(임계 `COLOR_FUZZY_THRESHOLD=50`)로 같은 family 토큰에 fuzzy 매칭. 결과는 라이브 picker 편집으로 적용돼 styleEdits 파이프라인에 합류한다.
 
 ## chrome.scripting.executeScript MAIN world 주입 규칙
 
