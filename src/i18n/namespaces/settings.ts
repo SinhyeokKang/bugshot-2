@@ -13,7 +13,7 @@ const ko = {
     "권한이 거부되어 30초 리플레이를 켤 수 없습니다.",
   "settings.attachments.label": "파일 첨부",
   "settings.attachments.help":
-    "이슈에 임의의 파일을 첨부합니다. 권장하지 않으며, 캡처·로그를 우선 사용하세요.",
+    "이슈에 임의의 파일을 첨부합니다.",
   "settings.theme": "테마",
   "settings.language": "언어",
   "settings.theme.light": "라이트",
@@ -92,7 +92,7 @@ const en = {
     "Permission denied, so 30s replay could not be enabled.",
   "settings.attachments.label": "File attachments",
   "settings.attachments.help":
-    "Attach arbitrary files to issues. Not recommended — prefer captures and logs.",
+    "Attach arbitrary files to issues.",
   "settings.theme": "Theme",
   "settings.language": "Language",
   "settings.theme.light": "Light",
