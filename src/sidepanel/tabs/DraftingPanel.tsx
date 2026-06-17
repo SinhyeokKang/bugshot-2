@@ -261,7 +261,6 @@ export function DraftingPanel() {
       mediaInserted = true;
       sectionNodes.push(mediaBlock);
       if (logCardsBlock) sectionNodes.push(logCardsBlock);
-      if (attachmentBlock) sectionNodes.push(attachmentBlock);
     }
     sectionNodes.push(
       <SectionTextarea
@@ -280,8 +279,9 @@ export function DraftingPanel() {
   if (!mediaInserted) {
     sectionNodes.push(mediaBlock);
     if (logCardsBlock) sectionNodes.push(logCardsBlock);
-    if (attachmentBlock) sectionNodes.push(attachmentBlock);
   }
+  // 첨부 섹션은 본문 모든 섹션 뒤 맨 하단에 배치.
+  if (attachmentBlock) sectionNodes.push(attachmentBlock);
 
   return (
     <PageShell className="relative" data-testid="drafting-panel">

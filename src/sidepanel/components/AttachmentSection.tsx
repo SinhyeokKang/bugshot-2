@@ -25,7 +25,7 @@ import {
   type TakeWithinLimitsResult,
 } from "@/sidepanel/lib/attachmentLimits";
 
-const CATEGORY_ICON: Record<FileCategory, React.ReactNode> = {
+export const CATEGORY_ICON: Record<FileCategory, React.ReactNode> = {
   image: <FileImage className="h-4 w-4" />,
   video: <FileVideo className="h-4 w-4" />,
   audio: <FileAudio className="h-4 w-4" />,
@@ -90,11 +90,6 @@ export function AttachmentSection({
         <Paperclip className="h-4 w-4" />
         {t("attachment.button", { count: attachments.length, max: MAX_ATTACHMENT_COUNT })}
       </Button>
-      {atMax && (
-        <p className="text-sm text-muted-foreground">
-          {t("attachment.limit.count", { max: MAX_ATTACHMENT_COUNT })}
-        </p>
-      )}
       {attachments.length > 0 && (
         <div className="flex flex-col gap-2">
           {attachments.map((a) => (
@@ -114,14 +109,14 @@ export function AttachmentSection({
               </div>
               <Button
                 size="icon"
-                variant="ghost"
-                className="h-8 w-8 shrink-0"
+                variant="outline"
+                className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
                 onClick={() => onRemove(a.id)}
                 title={t("attachment.remove")}
                 aria-label={t("attachment.remove")}
                 data-testid="attachment-remove"
               >
-                <Trash2 className="h-4 w-4" />
+                <Trash2 />
               </Button>
             </Card>
           ))}

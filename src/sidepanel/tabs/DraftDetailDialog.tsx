@@ -53,6 +53,11 @@ import type { NotionDatabaseSchema } from "@/types/notion";
 import { usePlatformFields } from "@/sidepanel/hooks/usePlatformFields";
 import { extractNotionPageId } from "@/lib/notion-page-id";
 import { DocSectionBody } from "@/sidepanel/components/DocSectionBody";
+import { Card } from "@/components/ui/card";
+import { CATEGORY_ICON } from "@/sidepanel/components/AttachmentSection";
+import { fileCategory, fileExtLabel } from "@/sidepanel/lib/fileMeta";
+import { formatBytes } from "@/sidepanel/lib/formatBytes";
+import type { UserAttachmentMeta } from "@/types/attachment";
 import { LogAttachmentCards } from "@/sidepanel/components/LogAttachmentCards";
 import { NetworkLogPreviewDialog } from "@/sidepanel/components/NetworkLogPreviewDialog";
 import { ConsoleLogPreviewDialog } from "@/sidepanel/components/ConsoleLogPreviewDialog";
@@ -712,6 +717,12 @@ export function DraftDetailDialog({
                   onConsoleLogClick={() => setConsoleDialogOpen(true)}
                   onActionLogClick={() => setActionDialogOpen(true)}
                 />
+
+                {issue.attachments && issue.attachments.length > 0 ? (
+                  <FieldSection label={t("section.attachments")}>
+                    <DraftAttachmentList attachments={issue.attachments} />
+                  </FieldSection>
+                ) : null}
               </div>
 
               {available.length === 0 ? (
@@ -949,6 +960,24 @@ function DraftDetailSections({
     if (logCardsBlock) out.push(logCardsBlock);
   }
   return <>{out}</>;
+}
+
+function DraftAttachmentList({ attachments }: { attachments: UserAttachmentMeta[] }) {
+  return (
+    <div className="flex flex-col gap-2">
+      {attachments.map((a) => (
+        <Card key={a.id} className="flex items-center gap-3 p-3">
+          <div className="shrink-0">{CATEGORY_ICON[fileCategory(a.contentType, a.filename)]}</div>
+          <div className="flex min-w-0 flex-1 flex-col">
+            <span className="truncate text-sm font-medium">{a.filename}</span>
+            <span className="truncate text-sm text-muted-foreground">
+              {fileExtLabel(a.filename)} · {formatBytes(a.size)}
+            </span>
+          </div>
+        </Card>
+      ))}
+    </div>
+  );
 }
 
 function EnvBlock({ issue }: { issue: IssueRecord }) {
