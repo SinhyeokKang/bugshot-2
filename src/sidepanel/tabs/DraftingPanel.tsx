@@ -324,6 +324,7 @@ export function DraftingPanel() {
           </PageScroll>
           {aiStatus === "available" && (
             <button
+              data-testid="ai-draft-trigger"
               className="flex items-center justify-between rounded-t-lg bg-purple-100/80 px-3.5 py-2.5 text-purple-700 transition-colors hover:bg-purple-100 disabled:opacity-50 dark:bg-purple-950/50 dark:text-purple-300 dark:hover:bg-purple-900"
               onClick={() => { (document.activeElement as HTMLElement)?.blur?.(); setAiDialogOpen(true); }}
               disabled={aiDraftLoading}
@@ -615,6 +616,7 @@ function SectionTextarea({
           <>
             <input
               ref={fileInputRef}
+              data-testid={`section-image-input-${section.id}`}
               type="file"
               accept="image/*"
               multiple

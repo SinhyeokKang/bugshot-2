@@ -180,6 +180,7 @@ export function AiDraftDialog({
 
         <div>
           <Textarea
+            data-testid="ai-draft-input"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
@@ -197,7 +198,7 @@ export function AiDraftDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t("common.cancel")}
           </Button>
-          <Button onClick={() => void handleSubmit()} disabled={submitDisabled}>
+          <Button data-testid="ai-draft-submit" onClick={() => void handleSubmit()} disabled={submitDisabled}>
             {t("aiDraft.generate")}
           </Button>
         </DialogFooter>

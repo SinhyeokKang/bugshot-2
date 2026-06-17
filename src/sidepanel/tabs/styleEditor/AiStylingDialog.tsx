@@ -149,6 +149,7 @@ export function AiStylingDialog({
 
         <div>
           <Textarea
+            data-testid="ai-styling-input"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
@@ -166,7 +167,7 @@ export function AiStylingDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t("common.cancel")}
           </Button>
-          <Button onClick={() => void handleSubmit()} disabled={!input.trim()}>
+          <Button data-testid="ai-styling-submit" onClick={() => void handleSubmit()} disabled={!input.trim()}>
             {t("aiStyling.generate")}
           </Button>
         </DialogFooter>
