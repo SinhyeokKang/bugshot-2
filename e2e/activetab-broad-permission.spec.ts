@@ -57,6 +57,19 @@ function hasSession(ext: ExtContext, tabId: number): Promise<boolean> {
   );
 }
 
+// 제품 캡처 경로(background/messages.ts:147)를 SW에서 그대로 미러링:
+// tabs.get(tabId) → captureVisibleTab(windowId, {format:"png"}). 광역 host 권한이
+// 캡처 능력을 주는지(activeTab 없이도)를 격리 검증한다.
+function captureVisibleTab(ext: ExtContext, tabId: number): Promise<string> {
+  return sw(ext).evaluate(
+    (id: number) =>
+      chrome.tabs
+        .get(id)
+        .then((t) => chrome.tabs.captureVisibleTab(t.windowId, { format: "png" })),
+    tabId,
+  );
+}
+
 test("광역 권한 보유: cross-origin 커버 URL 이동 → 패널 유지(세션만 정리, activated 보존)", async ({
   ext,
 }) => {
@@ -87,6 +100,29 @@ test("광역 권한 보유라도 비커버 URL(chrome://) 이동 → 패널 종�
   await fixture.goto("chrome://version");
 
   await expect.poll(() => isActivated(ext, tabId)).toBe(false);
+
+  await fixture.close();
+});
+
+test("광역 권한 보유: cross-origin 이동 후에도 captureVisibleTab 성공 (<all_urls> 캡처 능력)", async ({
+  ext,
+}) => {
+  const fixture = await ext.context.newPage();
+  await fixture.goto(ext.fixtureUrl("basic.html"));
+  await fixture.bringToFront();
+  const tabId = await ext.fixtureTabId();
+
+  // baseline: 첫 origin(127.0.0.1)에서 캡처 성공.
+  await expect.poll(() => captureVisibleTab(ext, tabId)).toMatch(/^data:image\/png/);
+
+  // 127.0.0.1 → localhost: 같은 fixture 서버, origin 상이, 둘 다 http 커버 범위.
+  // 구 https://*/* 권한이었다면 activeTab 만료로 캡처가 거부되던 경로 (v1.3.9 회귀).
+  const port = new URL(ext.fixtureUrl("")).port;
+  await fixture.goto(`http://localhost:${port}/basic.html`);
+  await fixture.bringToFront();
+
+  // <all_urls> 덕에 activeTab 없이도 cross-origin 캡처가 유지된다.
+  await expect.poll(() => captureVisibleTab(ext, tabId)).toMatch(/^data:image\/png/);
 
   await fixture.close();
 });
