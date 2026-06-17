@@ -10,7 +10,7 @@ import { onBlobSaveFailed } from "@/types/messages";
 import { useIssuesStore } from "./issues-store";
 import { useSettingsStore } from "./settings-store";
 import { saveVideoBlob, saveImageBlob, saveNetworkLog, deleteNetworkLog, saveConsoleLog, deleteConsoleLog, saveActionLog, deleteActionLog, dataUrlToBlob, saveAttachmentBlob, deleteAttachmentBlob, deleteAttachmentBlobs, rekeyAttachmentBlobs } from "./blob-db";
-import { takeWithinLimits } from "@/sidepanel/lib/attachmentLimits";
+import { takeWithinLimits, type TakeWithinLimitsResult } from "@/sidepanel/lib/attachmentLimits";
 import { clearNetworkRecorder, clearConsoleRecorder, clearActionRecorder } from "@/sidepanel/recorder-control";
 
 export type CaptureMode = "element" | "screenshot" | "video" | "freeform";
@@ -196,7 +196,7 @@ interface EditorState {
   clearNetworkLog: (tabId: number | null) => void;
   clearConsoleLog: (tabId: number | null) => void;
   clearActionLog: (tabId: number | null) => void;
-  addAttachments: (files: File[]) => Promise<void>;
+  addAttachments: (files: File[]) => Promise<TakeWithinLimitsResult>;
   removeAttachment: (id: string) => void;
   setTargetPlatform: (platform: PlatformId) => void;
   onSubmitted: (result: SubmitResult) => void;
@@ -354,6 +354,13 @@ function newAttachmentId(): string {
     return crypto.randomUUID();
   }
   return `att-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+// confirmDraft가 pending→issueId로 옮기는 첨부 rekey는 비동기다. 제출 전 이 promise를
+// await해 rekey 완료를 보장(빠른 제출 시 issueId 키에 blob 미존재 레이스 방지).
+let attachmentRekeyInFlight: Promise<void> = Promise.resolve();
+export function whenAttachmentBlobsReady(): Promise<void> {
+  return attachmentRekeyInFlight;
 }
 
 function selectAttachedLogs(state: EditorState): {
@@ -841,7 +848,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       const tabId = state.target.tabId;
       const metas = state.attachments;
       useIssuesStore.getState().patchIssue(id, { attachments: metas });
-      void rekeyAttachmentBlobs(`pending:${tabId}`, id, metas.map((a) => a.id)).then((ok) => {
+      attachmentRekeyInFlight = rekeyAttachmentBlobs(`pending:${tabId}`, id, metas.map((a) => a.id)).then((ok) => {
         if (!ok) onBlobSaveFailed.fire();
       });
     }
@@ -883,14 +890,16 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   // 파일 선택 즉시 Blob을 pending:${tabId}에 저장하고 메타만 state에 둔다(임의 크기라 session 불가).
   addAttachments: async (files) => {
     const tabId = get().target?.tabId;
-    if (tabId == null) return;
+    if (tabId == null) return { acceptCount: 0, droppedCount: 0 };
     const owner = `pending:${tabId}`;
-    const { acceptCount } = takeWithinLimits(
+    // 하드캡 적용은 여기 단일 출처. 드롭 사유는 호출처(UI)가 result로 받아 토스트.
+    const result = takeWithinLimits(
       get().attachments,
       files.map((f) => ({ size: f.size })),
     );
     const metas: UserAttachmentMeta[] = [];
-    for (const file of files.slice(0, acceptCount)) {
+    let saveFailed = false;
+    for (const file of files.slice(0, result.acceptCount)) {
       const id = newAttachmentId();
       if (await saveAttachmentBlob(owner, id, file)) {
         metas.push({
@@ -899,14 +908,22 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           contentType: file.type || "application/octet-stream",
           size: file.size,
         });
+      } else {
+        saveFailed = true;
       }
     }
     if (metas.length) set((s) => ({ attachments: [...s.attachments, ...metas] }));
+    if (saveFailed) onBlobSaveFailed.fire();
+    return result;
   },
   removeAttachment: (id) => {
     const tabId = get().target?.tabId;
+    const issueId = get().currentIssueId;
     set((s) => ({ attachments: s.attachments.filter((a) => a.id !== id) }));
+    // blob은 confirm 전 pending:${tabId}, confirm 후 issueId 키에 있다. 어느 쪽인지
+    // 모르므로 양쪽 삭제(없는 키는 no-op) — confirm 후 제거 시 issueId 고아 방지.
     if (tabId != null) deleteAttachmentBlob(`pending:${tabId}`, id).catch(() => {});
+    if (issueId) deleteAttachmentBlob(issueId, id).catch(() => {});
   },
   setTargetPlatform: (platform) => set({ targetPlatform: platform }),
 

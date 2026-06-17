@@ -22,7 +22,7 @@ import {
   MAX_TOTAL_ATTACHMENT_SIZE,
   PLATFORM_FILE_SIZE_LIMIT,
   checkAttachmentLimits,
-  takeWithinLimits,
+  type TakeWithinLimitsResult,
 } from "@/sidepanel/lib/attachmentLimits";
 
 const CATEGORY_ICON: Record<FileCategory, React.ReactNode> = {
@@ -38,7 +38,7 @@ const CATEGORY_ICON: Record<FileCategory, React.ReactNode> = {
 interface AttachmentSectionProps {
   attachments: UserAttachmentMeta[];
   platform: PlatformId;
-  onAdd: (files: File[]) => void;
+  onAdd: (files: File[]) => Promise<TakeWithinLimitsResult>;
   onRemove: (id: string) => void;
 }
 
@@ -54,14 +54,11 @@ export function AttachmentSection({
   const { oversizeIds } = checkAttachmentLimits(attachments, platform);
   const oversize = new Set(oversizeIds);
 
-  function handleFiles(list: FileList | null) {
+  async function handleFiles(list: FileList | null) {
     if (!list || list.length === 0) return;
     const files = Array.from(list);
-    // store와 동일한 하드캡을 미리 적용해 드롭 사유를 사용자에게 안내(무음 드롭 방지).
-    const { droppedCount, reason } = takeWithinLimits(
-      attachments,
-      files.map((f) => ({ size: f.size })),
-    );
+    // 하드캡 적용은 store(onAdd)가 단일 출처. 드롭 사유만 result로 받아 안내(무음 드롭 방지).
+    const { droppedCount, reason } = await onAdd(files);
     if (droppedCount > 0) {
       toast(
         reason === "total"
@@ -69,7 +66,6 @@ export function AttachmentSection({
           : t("attachment.limit.count", { max: MAX_ATTACHMENT_COUNT }),
       );
     }
-    onAdd(files);
   }
 
   return (
@@ -113,7 +109,7 @@ export function AttachmentSection({
                 <span className="truncate text-sm text-muted-foreground">
                   {oversize.has(a.id)
                     ? t("attachment.limit.oversize", { limit: formatBytes(PLATFORM_FILE_SIZE_LIMIT[platform] ?? 0) })
-                    : `${fileExtLabel(a.filename, a.contentType)} · ${formatBytes(a.size)}`}
+                    : `${fileExtLabel(a.filename)} · ${formatBytes(a.size)}`}
                 </span>
               </div>
               <Button

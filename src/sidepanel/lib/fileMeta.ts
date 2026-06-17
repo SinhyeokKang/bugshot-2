@@ -35,7 +35,7 @@ export function fileCategory(contentType: string, filename: string): FileCategor
   return "file";
 }
 
-export function fileExtLabel(filename: string, _contentType: string): string {
+export function fileExtLabel(filename: string): string {
   const ext = extOf(filename);
   return ext ? ext.toUpperCase() : "FILE";
 }

@@ -5,6 +5,7 @@ import {
   type IssueSection,
 } from "@/store/settings-ui-store";
 import {
+  escapeMdLinkText,
   mdInlineCode,
   resolveStyleElements,
   styleDomLabel,
@@ -193,9 +194,9 @@ function emitAttachments(
         a.contentType.startsWith("image/") ||
         a.contentType.startsWith("video/")
       ) {
-        lines.push(`![${a.filename}](${a.url})`);
+        lines.push(`![${escapeMdLinkText(a.filename)}](${a.url})`);
       } else {
-        lines.push(`[${a.filename}](${a.url})`);
+        lines.push(`[${escapeMdLinkText(a.filename)}](${a.url})`);
       }
       attached.push(a.filename);
     }

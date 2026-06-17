@@ -23,6 +23,7 @@ import {
   mergeStyleElements,
   joinStyleSelectors,
   styleSelectorList,
+  escapeMdLinkText,
   type MarkdownContext,
   type StyleElementContext,
 } from "../buildIssueMarkdown";
@@ -65,6 +66,21 @@ function parseMeta(md: string): Record<string, any> {
   const end = md.indexOf("-->", start);
   return JSON.parse(md.slice(start + "<!-- bugshot-meta-for-ai\n".length, end));
 }
+
+describe("escapeMdLinkText", () => {
+  it("일반 파일명은 그대로", () => {
+    expect(escapeMdLinkText("report.pdf")).toBe("report.pdf");
+  });
+
+  it("대괄호는 백슬래시 이스케이프(링크 조기 종료 방지)", () => {
+    expect(escapeMdLinkText("a[1].png")).toBe("a\\[1\\].png");
+    expect(escapeMdLinkText("[draft] notes.md")).toBe("\\[draft\\] notes.md");
+  });
+
+  it("백슬래시 자체도 이스케이프", () => {
+    expect(escapeMdLinkText("a\\b.txt")).toBe("a\\\\b.txt");
+  });
+});
 
 describe("buildIssueMarkdown", () => {
   it("타이틀 포함", () => {

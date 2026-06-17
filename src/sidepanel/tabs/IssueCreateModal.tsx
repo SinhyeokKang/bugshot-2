@@ -4,7 +4,7 @@ import { useT } from "@/i18n";
 import { pruneOrphanInlineImages, getAttachmentBlob } from "@/store/blob-db";
 import type { UserAttachmentMeta } from "@/types/attachment";
 import { useSettingsUiStore } from "@/store/settings-ui-store";
-import { useEditorStore } from "@/store/editor-store";
+import { useEditorStore, whenAttachmentBlobsReady } from "@/store/editor-store";
 import { useIssuesStore } from "@/store/issues-store";
 import {
   connectedPlatforms,
@@ -262,6 +262,8 @@ export function IssueCreateModal() {
     const userAttachmentMetas = attachmentsEnabled ? attachments : [];
     let userAttachments: { meta: UserAttachmentMeta; blob: Blob }[] | undefined;
     if (userAttachmentMetas.length && currentIssueId) {
+      // confirmDraft의 pending→issueId rekey가 끝난 뒤 로드(issueId 키 미존재 레이스 방지).
+      await whenAttachmentBlobsReady();
       const loaded = await Promise.all(
         userAttachmentMetas.map(async (meta) => {
           const blob = await getAttachmentBlob(currentIssueId, meta.id);
