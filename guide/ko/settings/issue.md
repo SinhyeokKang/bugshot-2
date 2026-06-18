@@ -34,7 +34,7 @@
 - 플랫폼마다 한 파일당 용량 제한이 다른데(예: Notion 5MB, GitLab 10MB), 이를 넘는 파일은 "용량 초과"로 표시되고 해당 플랫폼에서 업로드가 거부될 수 있습니다.
 - 붙여 둔 파일은 이슈를 제출할 때 함께 업로드됩니다.
 
-![파일 첨부 토글](../assets/settings-issue-4.jpg)
+![파일 첨부 토글](../assets/settings-issue-3.jpg)
 
 ## 30초 리플레이
 
@@ -44,7 +44,7 @@
 
 > 30초 리플레이를 어떻게 쓰는지 궁금하시면 [30초 리플레이](../video/replay.md)를 참고하세요.
 
-![30초 리플레이 토글](../assets/settings-issue-3.jpg)
+![30초 리플레이 토글](../assets/settings-issue-4.jpg)
 
 ---
 

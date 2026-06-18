@@ -34,7 +34,7 @@ Sometimes you need to drop a file straight onto an issue — something captures 
 - Each platform has its own per-file size cap (Notion 5MB, GitLab 10MB, for example). Files over that show an "over limit" note and may be rejected by the platform on upload.
 - Attached files upload together when you submit the issue.
 
-![File attachments toggle](../assets/settings-issue-4.jpg)
+![File attachments toggle](../assets/settings-issue-3.jpg)
 
 ## 30s replay
 
@@ -44,7 +44,7 @@ Turning this toggle on **requests screen capture permission**. Replay only works
 
 > Curious how to use 30s replay? See [30s Replay](../video/replay.md).
 
-![30s replay toggle](../assets/settings-issue-3.jpg)
+![30s replay toggle](../assets/settings-issue-4.jpg)
 
 ---
 
