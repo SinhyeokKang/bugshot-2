@@ -80,4 +80,50 @@ test.describe.serial("logs pre-arm buffering", () => {
     await panel.close();
     await fixture.close();
   });
+
+  // action-recorder TDZ 회귀(v1.3.10 pre-arm) — active origin reload 시 document_start에서
+  // capturing=true가 되면 init recordNavigation("load") → pushAction → throttle.schedule()이
+  // throttle 선언 전(temporal dead zone)에 호출돼 "Cannot access 'throttle'/'z' before
+  // initialization"이 매 로드마다 uncaught로 쌓였다. throttle 선언을 첫 pushAction 위로 hoist해
+  // 해소. recorders-entry IIFE 안에서 action이 마지막 import라 console/network는 throw 전에 이미
+  // 평가됨 → 위 두 test는 이 회귀를 못 잡는다. 페이지 uncaught error 부재로 직접 단언한다.
+  test("active origin reload 시 recorders-entry가 TDZ 에러 없이 평가된다", async ({ ext }) => {
+    const fixture = await ext.context.newPage();
+    const tdzErrors: string[] = [];
+    fixture.on("pageerror", (err) => {
+      if (/before initialization/i.test(err.message)) tdzErrors.push(err.message);
+    });
+    fixture.on("console", (msg) => {
+      if (msg.type() === "error" && /before initialization/i.test(msg.text())) {
+        tdzErrors.push(msg.text());
+      }
+    });
+
+    await fixture.goto(ext.fixtureUrl("prearm.html"));
+    const tabId = await ext.fixtureTabId("http://127.0.0.1/prearm.html");
+    const panel = await ext.openPanel(tabId);
+
+    await enterDebug(panel);
+    await panel.getByTestId("subtab-console").click();
+
+    // 레코더 활성화(첫 setSentinel → setPreArmFlag) 대기 — active origin 전제 확보.
+    await expect(async () => {
+      await fixture.evaluate(() => console.log("e2e-arm-" + performance.now()));
+      await panel.waitForTimeout(1700);
+      await expect(panel.locator("[data-entry-id]")).not.toHaveCount(0);
+    }).toPass({ timeout: 30_000, intervals: [0] });
+
+    // reload → document_start에 capturing=true로 action 레코더 재평가. TDZ면 여기서 throw.
+    await fixture.reload();
+    await fixture.waitForLoadState("load");
+    await panel.waitForTimeout(1000);
+
+    expect(
+      tdzErrors,
+      `recorders-entry TDZ 회귀:\n${tdzErrors.join("\n")}`,
+    ).toHaveLength(0);
+
+    await panel.close();
+    await fixture.close();
+  });
 });

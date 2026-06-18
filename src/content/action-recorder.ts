@@ -53,6 +53,11 @@ function actionRecorderScript(): void {
     return `ac-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   }
 
+  // throttle은 pushAction이 schedule을 호출하므로 첫 pushAction(아래 init recordNavigation)
+  // 보다 먼저 선언돼야 한다 — pre-arm으로 init부터 capturing=true면 TDZ ReferenceError 발생.
+  // dispatch는 hoisted function 선언이라 여기서 참조 가능.
+  const throttle = createTrailingThrottle(dispatch, FLUSH_INTERVAL_MS);
+
   function pushAction(entry: CapturedAction): void {
     if (!capturing) return;
     if (!recording) entry.preArm = true;
@@ -375,9 +380,6 @@ function actionRecorderScript(): void {
       }),
     );
   }
-
-  // 녹화 중 pushAction마다 schedule → 최대 FLUSH_INTERVAL_MS마다 전체 버퍼를 실시간 dispatch.
-  const throttle = createTrailingThrottle(dispatch, FLUSH_INTERVAL_MS);
 
   function clearBuffer(): void {
     buffer.length = 0;
