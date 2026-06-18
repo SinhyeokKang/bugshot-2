@@ -19,6 +19,7 @@ import { useAI } from "@/sidepanel/hooks/useAI";
 import { clearPicker, startInlineAreaCapture } from "@/sidepanel/picker-control";
 import { CancelConfirmDialog } from "@/sidepanel/components/CancelConfirmDialog";
 import { LogAttachmentCards } from "@/sidepanel/components/LogAttachmentCards";
+import { AttachmentSection } from "@/sidepanel/components/AttachmentSection";
 import { NetworkLogPreviewDialog } from "@/sidepanel/components/NetworkLogPreviewDialog";
 import { ConsoleLogPreviewDialog } from "@/sidepanel/components/ConsoleLogPreviewDialog";
 import { ActionLogPreviewDialog } from "@/sidepanel/components/ActionLogPreviewDialog";
@@ -73,6 +74,11 @@ export function DraftingPanel() {
   const actionLogAttach = useEditorStore((s) => s.actionLogAttach);
   const setActionLogAttach = useEditorStore((s) => s.setActionLogAttach);
   const issueSections = useSettingsUiStore((s) => s.issueSections);
+  const attachmentsEnabled = useSettingsUiStore((s) => s.attachmentsEnabled);
+  const attachments = useEditorStore((s) => s.attachments);
+  const addAttachments = useEditorStore((s) => s.addAttachments);
+  const removeAttachment = useEditorStore((s) => s.removeAttachment);
+  const targetPlatform = useEditorStore((s) => s.targetPlatform);
   const { status: aiStatus, providerLabel, createSession } = useAI();
   const [annotating, setAnnotating] = useState(false);
   const [aiDialogOpen, setAiDialogOpen] = useState(false);
@@ -237,6 +243,17 @@ export function DraftingPanel() {
     </Section>
   ) : null;
 
+  const attachmentBlock = attachmentsEnabled ? (
+    <Section key="__attachments" title={t("section.attachments")} collapsible>
+      <AttachmentSection
+        attachments={attachments}
+        platform={targetPlatform}
+        onAdd={addAttachments}
+        onRemove={removeAttachment}
+      />
+    </Section>
+  ) : null;
+
   const sectionNodes: React.ReactNode[] = [];
   let mediaInserted = false;
   for (const sec of enabledSections) {
@@ -263,6 +280,8 @@ export function DraftingPanel() {
     sectionNodes.push(mediaBlock);
     if (logCardsBlock) sectionNodes.push(logCardsBlock);
   }
+  // 첨부 섹션은 본문 모든 섹션 뒤 맨 하단에 배치.
+  if (attachmentBlock) sectionNodes.push(attachmentBlock);
 
   return (
     <PageShell className="relative" data-testid="drafting-panel">
@@ -305,6 +324,7 @@ export function DraftingPanel() {
           </PageScroll>
           {aiStatus === "available" && (
             <button
+              data-testid="ai-draft-trigger"
               className="flex items-center justify-between rounded-t-lg bg-purple-100/80 px-3.5 py-2.5 text-purple-700 transition-colors hover:bg-purple-100 disabled:opacity-50 dark:bg-purple-950/50 dark:text-purple-300 dark:hover:bg-purple-900"
               onClick={() => { (document.activeElement as HTMLElement)?.blur?.(); setAiDialogOpen(true); }}
               disabled={aiDraftLoading}
@@ -596,6 +616,7 @@ function SectionTextarea({
           <>
             <input
               ref={fileInputRef}
+              data-testid={`section-image-input-${section.id}`}
               type="file"
               accept="image/*"
               multiple

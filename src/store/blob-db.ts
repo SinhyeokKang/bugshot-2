@@ -4,13 +4,14 @@ import type { ActionLog } from "@/types/action";
 import { EDITOR_SESSION_PREFIX } from "@/lib/session-keys";
 
 const DB_NAME = "bugshot-video";
-const DB_VERSION = 6;
+const DB_VERSION = 7;
 const STORE_VIDEO = "blobs";
 const STORE_IMAGES = "images";
 const STORE_NETWORK = "networkLogs";
 const STORE_CONSOLE = "consoleLogs";
 const STORE_ACTION = "actionLogs";
 const STORE_INLINE_IMAGES = "inlineImages";
+const STORE_ATTACHMENTS = "attachments";
 
 let dbPromise: Promise<IDBDatabase> | null = null;
 
@@ -37,6 +38,9 @@ function openDb(): Promise<IDBDatabase> {
       }
       if (!db.objectStoreNames.contains(STORE_INLINE_IMAGES)) {
         db.createObjectStore(STORE_INLINE_IMAGES);
+      }
+      if (!db.objectStoreNames.contains(STORE_ATTACHMENTS)) {
+        db.createObjectStore(STORE_ATTACHMENTS);
       }
     };
     req.onblocked = () => {
@@ -525,6 +529,115 @@ export async function pruneOrphanInlineImages(activeRefIds: string[]): Promise<v
   } catch (e) {
     console.warn("[blob-db] pruneOrphanInlineImages failed:", e);
   }
+}
+
+// --- User attachment blob API ---
+
+// owner = `pending:${tabId}`(drafting 중) 또는 issueId(확정 후). id = 파일별 고유 uuid.
+function attachmentKey(owner: string, id: string): string {
+  return `${owner}:${id}`;
+}
+
+export async function saveAttachmentBlob(owner: string, id: string, blob: Blob): Promise<boolean> {
+  try {
+    const db = await openDb();
+    const tx = db.transaction(STORE_ATTACHMENTS, "readwrite");
+    tx.objectStore(STORE_ATTACHMENTS).put(blob, attachmentKey(owner, id));
+    await txComplete(tx);
+    return true;
+  } catch (e) {
+    console.warn("[blob-db] saveAttachmentBlob failed:", e);
+    return false;
+  }
+}
+
+export async function getAttachmentBlob(owner: string, id: string): Promise<Blob | null> {
+  try {
+    const db = await openDb();
+    const tx = db.transaction(STORE_ATTACHMENTS, "readonly");
+    const req = tx.objectStore(STORE_ATTACHMENTS).get(attachmentKey(owner, id));
+    await txComplete(tx);
+    return (req.result as Blob) ?? null;
+  } catch (e) {
+    console.warn("[blob-db] getAttachmentBlob failed:", e);
+    return null;
+  }
+}
+
+export async function deleteAttachmentBlob(owner: string, id: string): Promise<void> {
+  try {
+    const db = await openDb();
+    const tx = db.transaction(STORE_ATTACHMENTS, "readwrite");
+    tx.objectStore(STORE_ATTACHMENTS).delete(attachmentKey(owner, id));
+    await txComplete(tx);
+  } catch (e) {
+    console.warn("[blob-db] deleteAttachmentBlob failed:", e);
+  }
+}
+
+export async function deleteAttachmentBlobs(owner: string): Promise<void> {
+  try {
+    const db = await openDb();
+    const tx = db.transaction(STORE_ATTACHMENTS, "readwrite");
+    const store = tx.objectStore(STORE_ATTACHMENTS);
+    const prefix = `${owner}:`;
+    await new Promise<void>((resolve, reject) => {
+      const req = store.getAllKeys();
+      req.onsuccess = () => {
+        for (const k of req.result as string[]) {
+          if (k.startsWith(prefix)) store.delete(k);
+        }
+        resolve();
+      };
+      req.onerror = () => reject(req.error);
+    });
+    await txComplete(tx);
+  } catch (e) {
+    console.warn("[blob-db] deleteAttachmentBlobs failed:", e);
+  }
+}
+
+export async function getAttachmentBlobKeys(): Promise<string[]> {
+  try {
+    const db = await openDb();
+    const tx = db.transaction(STORE_ATTACHMENTS, "readonly");
+    const req = tx.objectStore(STORE_ATTACHMENTS).getAllKeys();
+    await txComplete(tx);
+    return (req.result as string[]) ?? [];
+  } catch (e) {
+    console.warn("[blob-db] getAttachmentBlobKeys failed:", e);
+    return [];
+  }
+}
+
+export async function clearAttachmentBlobs(): Promise<void> {
+  try {
+    const db = await openDb();
+    const tx = db.transaction(STORE_ATTACHMENTS, "readwrite");
+    tx.objectStore(STORE_ATTACHMENTS).clear();
+    await txComplete(tx);
+  } catch (e) {
+    console.warn("[blob-db] clearAttachmentBlobs failed:", e);
+  }
+}
+
+// pending:${tabId} → issueId 이동. 로그 rekey와 달리 메모리 객체가 없어 read→write→delete 3-step.
+export async function rekeyAttachmentBlobs(
+  fromOwner: string,
+  toOwner: string,
+  ids: string[],
+): Promise<boolean> {
+  let ok = true;
+  for (const id of ids) {
+    const blob = await getAttachmentBlob(fromOwner, id);
+    if (blob == null) continue;
+    if (!(await saveAttachmentBlob(toOwner, id, blob))) {
+      ok = false;
+      continue;
+    }
+    await deleteAttachmentBlob(fromOwner, id);
+  }
+  return ok;
 }
 
 // --- Utilities ---

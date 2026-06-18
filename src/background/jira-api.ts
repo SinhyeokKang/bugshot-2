@@ -1,4 +1,5 @@
 import { t } from "@/i18n";
+import { readErrorBody } from "./lib/readErrorBody";
 import type {
   JiraAttachmentResult,
   JiraAuth,
@@ -102,20 +103,6 @@ async function authedFetch(
     }
   }
   return res;
-}
-
-async function readErrorBody(res: Response): Promise<unknown> {
-  try {
-    const text = await res.text();
-    try {
-      return JSON.parse(text);
-    } catch {
-      return text;
-    }
-  } catch (err) {
-    console.warn("[bugshot] readErrorBody failed", err);
-    return undefined;
-  }
 }
 
 export async function jiraFetch<T = unknown>(

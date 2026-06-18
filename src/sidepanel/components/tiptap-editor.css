@@ -10,26 +10,32 @@
   flex: 1;
   padding: 0.5rem 0.75rem;
   cursor: text;
+  caret-width: 3px;
+  caret-color: auto;
 }
 
-.tiptap-editor .ProseMirror p {
-  margin: 0;
+/* 블록 요소 간 통일 간격 (타입 혼합에도 일관) */
+.tiptap-editor .ProseMirror > * {
+  margin-block: 0.75em;
 }
 
-.tiptap-editor .ProseMirror p + p {
-  margin-top: 0.5em;
+.tiptap-editor .ProseMirror > :first-child {
+  margin-top: 0;
+}
+
+.tiptap-editor .ProseMirror > :last-child {
+  margin-bottom: 0;
 }
 
 .tiptap-editor .ProseMirror ul,
 .tiptap-editor .ProseMirror ol {
   padding-left: 1.25em;
-  margin: 0.25em 0;
 }
 
-.tiptap-editor .ProseMirror ul ul,
-.tiptap-editor .ProseMirror ol ol,
-.tiptap-editor .ProseMirror ul ol,
-.tiptap-editor .ProseMirror ol ul {
+/* 중첩 리스트는 촘촘하게 */
+.tiptap-editor .ProseMirror li > ul,
+.tiptap-editor .ProseMirror li > ol {
+  margin-block: 0.125em;
   padding-left: 1em;
 }
 
@@ -56,20 +62,19 @@
 }
 
 .tiptap-editor .ProseMirror li {
-  margin: 0.125em 0;
+  margin-block: 0.125em;
 }
 
 .tiptap-editor .ProseMirror hr {
   border: none;
   border-top: 1px solid hsl(var(--border));
-  margin: 0.75em 0;
 }
 
 .tiptap-editor .ProseMirror img {
+  display: block;
   max-width: 100%;
   height: auto;
   border-radius: 0.375rem;
-  margin: 0.25em 0;
 }
 
 .tiptap-editor .ProseMirror a {
@@ -89,15 +94,33 @@
   font-size: 0.875em;
 }
 
+.tiptap-editor .ProseMirror blockquote {
+  border-left: 3px solid hsl(var(--border));
+  padding-left: 0.75em;
+  color: hsl(var(--muted-foreground));
+}
+
+.tiptap-editor .ProseMirror pre {
+  background: hsl(var(--muted));
+  border-radius: 0.375rem;
+  padding: 0.625em 0.75em;
+  overflow-x: auto;
+  font-size: 0.875em;
+  line-height: 1.5;
+}
+
+/* pre 내부 code는 중복 배경 제거 */
+.tiptap-editor .ProseMirror pre code {
+  background: none;
+  border-radius: 0;
+  padding: 0;
+  font-size: inherit;
+}
+
 .tiptap-editor .ProseMirror img.ProseMirror-selectednode {
   outline: 3px solid hsl(199 89% 86%);
   outline-offset: 2px;
   border-radius: 0.375rem;
-}
-
-.tiptap-editor .ProseMirror {
-  caret-width: 3px;
-  caret-color: auto;
 }
 
 .tiptap-editor .ProseMirror p.is-editor-empty:first-child::before {

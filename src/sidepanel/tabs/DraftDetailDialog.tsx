@@ -2,7 +2,8 @@ import { useEffect, useMemo, useState } from "react";
 import type { NetworkLog } from "@/types/network";
 import type { ConsoleLog } from "@/types/console";
 import type { ActionLog } from "@/types/action";
-import { getVideoBlob, getImageBlob, getNetworkLog, getConsoleLog, getActionLog, blobToDataUrl, pruneOrphanInlineImages } from "@/store/blob-db";
+import { getVideoBlob, getImageBlob, getNetworkLog, getConsoleLog, getActionLog, getAttachmentBlob, blobToDataUrl, pruneOrphanInlineImages } from "@/store/blob-db";
+import type { UserAttachmentMeta } from "@/types/attachment";
 import { useIssueImages } from "@/sidepanel/hooks/useIssueImages";
 import { Info } from "lucide-react";
 import { useT, dateBcp47 } from "@/i18n";
@@ -53,6 +54,8 @@ import type { NotionDatabaseSchema } from "@/types/notion";
 import { usePlatformFields } from "@/sidepanel/hooks/usePlatformFields";
 import { extractNotionPageId } from "@/lib/notion-page-id";
 import { DocSectionBody } from "@/sidepanel/components/DocSectionBody";
+import { AttachmentList } from "@/sidepanel/components/AttachmentList";
+import { downloadAttachment } from "@/sidepanel/lib/downloadAttachment";
 import { LogAttachmentCards } from "@/sidepanel/components/LogAttachmentCards";
 import { NetworkLogPreviewDialog } from "@/sidepanel/components/NetworkLogPreviewDialog";
 import { ConsoleLogPreviewDialog } from "@/sidepanel/components/ConsoleLogPreviewDialog";
@@ -301,6 +304,20 @@ export function DraftDetailDialog({
       consoleLogSummary: consoleLogForSubmit ? buildConsoleLogSummary(consoleLogForSubmit) : undefined,
     };
 
+    // 사용자 첨부: 확정 draft라 blob은 issueId 키. 메타 순서대로 로드(없으면 제외).
+    let userAttachments: { meta: UserAttachmentMeta; blob: Blob }[] | undefined;
+    if (issue.attachments?.length) {
+      const loaded = await Promise.all(
+        issue.attachments.map(async (meta) => {
+          const blob = await getAttachmentBlob(issue.id, meta.id);
+          return blob ? { meta, blob } : null;
+        }),
+      );
+      userAttachments = loaded.filter(
+        (x): x is { meta: UserAttachmentMeta; blob: Blob } => x !== null,
+      );
+    }
+
     const videoBlob = isVideo ? await getVideoBlob(issue.id) : null;
     const beforeBlob = (isScreenshot || legacyNoDiff) && issue.snapshot.before
       ? await getImageBlob(issue.id, "before")
@@ -315,6 +332,7 @@ export function DraftDetailDialog({
       networkLog,
       consoleLog: consoleLogForSubmit,
       actionLog: actionLogForSubmit,
+      userAttachments,
       // 영상 동기화 앵커. videoThumbnail은 IssueRecord 미영속 → 저장 draft logs.html은 poster 생략.
       videoStartedAt: issue.videoStartedAt,
       videoEndedAt: issue.videoEndedAt,
@@ -349,6 +367,9 @@ export function DraftDetailDialog({
     const jiraInline = await resolveInlineImagesForSections(ctx.sections, sectionConfig);
     for (const img of jiraInline) {
       rawAttachments.push({ filename: `inline-${img.refId}.webp`, dataUrl: img.dataUrl });
+    }
+    for (const a of captureFiles.attachments) {
+      rawAttachments.push({ filename: a.displayName ?? a.filename, dataUrl: a.dataUrl });
     }
     const attachments = await annotateAttachmentDimensions(rawAttachments);
 
@@ -412,6 +433,7 @@ export function DraftDetailDialog({
       images: captureFiles.images,
       video: captureFiles.video,
       logs: captureFiles.logs,
+      attachments: captureFiles.attachments,
       inlineImages: ghInline,
       owner: ghFields.owner,
       repo: ghFields.repo,
@@ -459,6 +481,7 @@ export function DraftDetailDialog({
       images: captureFiles.images,
       video: captureFiles.video,
       logs: captureFiles.logs,
+      attachments: captureFiles.attachments,
       inlineImages: linearInline,
       teamId: linearFields.teamId,
       projectId: linearFields.projectId,
@@ -517,6 +540,7 @@ export function DraftDetailDialog({
       images: captureFiles.images,
       video: captureFiles.video,
       logs: captureFiles.logs,
+      attachments: captureFiles.attachments,
       inlineImages: notionInline,
       databaseId: notionFields.databaseId,
       titlePropertyName: notionSchema.titlePropertyName,
@@ -572,6 +596,7 @@ export function DraftDetailDialog({
       images: captureFiles.images,
       video: captureFiles.video,
       logs: captureFiles.logs,
+      attachments: captureFiles.attachments,
       inlineImages: gitlabInline,
       projectId: gitlabFields.projectId,
       label: gitlabFields.label,
@@ -619,6 +644,7 @@ export function DraftDetailDialog({
       images: captureFiles.images,
       video: captureFiles.video,
       logs: captureFiles.logs,
+      attachments: captureFiles.attachments,
       inlineImages: asanaInline,
       workspaceGid: asanaFields.workspaceGid,
       projectGid: asanaFields.projectGid,
@@ -712,6 +738,15 @@ export function DraftDetailDialog({
                   onConsoleLogClick={() => setConsoleDialogOpen(true)}
                   onActionLogClick={() => setActionDialogOpen(true)}
                 />
+
+                {issue.attachments && issue.attachments.length > 0 ? (
+                  <FieldSection label={t("section.attachments")}>
+                    <AttachmentList
+                      attachments={issue.attachments}
+                      onDownload={(m) => void downloadAttachment(issue.id, m)}
+                    />
+                  </FieldSection>
+                ) : null}
               </div>
 
               {available.length === 0 ? (

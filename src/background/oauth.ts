@@ -33,6 +33,13 @@ export class OAuthError extends Error {
   }
 }
 
+export function base64url(buffer: ArrayBuffer): string {
+  const bytes = new Uint8Array(buffer);
+  let binary = "";
+  for (const b of bytes) binary += String.fromCharCode(b);
+  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
 export async function launchOAuthWebFlow(
   url: string,
   platform: PlatformId,

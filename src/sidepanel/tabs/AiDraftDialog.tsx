@@ -14,10 +14,13 @@ import { useEditorStore, type CaptureMode } from "@/store/editor-store";
 import { useSettingsUiStore } from "@/store/settings-ui-store";
 import { useSettingsStore } from "@/store/settings-store";
 import {
-  buildAiDraftSessionPrompt,
   buildAiDraftSchema,
   parseAiDraftResponse,
+  type AiDraftSessionContext,
 } from "@/sidepanel/lib/buildAiDraftPrompt";
+import { buildAiDraftRequest } from "@/sidepanel/lib/buildAiDraftRequest";
+import { mergeAiSectionsPreservingImages } from "@/sidepanel/lib/mergeAiDraftSections";
+import { resolveInlineImagesForSections } from "@/sidepanel/lib/resolveInlineImages";
 import type { StyleDiffRow } from "@/sidepanel/components/StyleChangesTable";
 import { buildNetworkLogSummary, buildConsoleLogSummary, buildActionLogSummary } from "@/sidepanel/lib/buildLogSummary";
 import { LlmQuotaError, LlmOverloadedError, type AISession, type AIProvider } from "@/sidepanel/lib/ai-provider";
@@ -38,7 +41,6 @@ export function AiDraftDialog({
   const [input, setInput] = useState("");
   const captureMode = useEditorStore((s) => s.captureMode);
   const sessionRef = useRef<AISession | null>(null);
-  const isFirstMessageRef = useRef(true);
   const createSessionRef = useRef(createSession);
   createSessionRef.current = createSession;
 
@@ -67,51 +69,61 @@ export function AiDraftDialog({
       const sectionIds = enabledSections.map((s) => s.id);
 
       const isElement = captureMode === "element";
+      const networkLog = store.networkLog;
+      const consoleLog = store.consoleLog;
+      const actionLog = store.actionLog;
+      const includeLogCtx = captureMode === "video" || captureMode === "freeform";
 
-      if (isElement || !sessionRef.current) {
-        const networkLog = store.networkLog;
-        const consoleLog = store.consoleLog;
-        const actionLog = store.actionLog;
-        const includeLogCtx = captureMode === "video" || captureMode === "freeform";
-        const systemPrompt = buildAiDraftSessionPrompt({
-          captureMode,
-          locale: settingsUi.locale,
-          url: store.target?.url ?? "",
-          pageTitle: store.target?.title ?? "",
-          selector: isElement ? store.selection?.selector : store.shotSelector?.selector,
-          tagName: isElement ? store.selection?.tagName : store.shotSelector?.tagName,
-          diffs: isElement && elementDiffs?.length ? elementDiffs : undefined,
-          tokens:
-            isElement && store.tokens.length > 0
-              ? store.tokens.map((tk) => ({ name: tk.name, value: tk.value }))
-              : undefined,
-          userPrompt: msg,
-          networkLogSummary:
-            includeLogCtx && networkLog && networkLog.captured > 0
-              ? buildNetworkLogSummary(networkLog)
-              : undefined,
-          consoleLogSummary:
-            includeLogCtx && consoleLog && consoleLog.captured > 0
-              ? buildConsoleLogSummary(consoleLog)
-              : undefined,
-          actionLogSummary:
-            includeLogCtx && actionLog && actionLog.captured > 0
-              ? buildActionLogSummary(actionLog)
-              : undefined,
-          enabledSections,
-        });
-        sessionRef.current?.destroy?.();
-        sessionRef.current = await createSessionRef.current(systemPrompt);
-        isFirstMessageRef.current = true;
-      }
+      const ctx: AiDraftSessionContext = {
+        captureMode,
+        locale: settingsUi.locale,
+        url: store.target?.url ?? "",
+        pageTitle: store.target?.title ?? "",
+        selector: isElement ? store.selection?.selector : store.shotSelector?.selector,
+        tagName: isElement ? store.selection?.tagName : store.shotSelector?.tagName,
+        diffs: isElement && elementDiffs?.length ? elementDiffs : undefined,
+        tokens:
+          isElement && store.tokens.length > 0
+            ? store.tokens.map((tk) => ({ name: tk.name, value: tk.value }))
+            : undefined,
+        userPrompt: msg,
+        networkLogSummary:
+          includeLogCtx && networkLog && networkLog.captured > 0
+            ? buildNetworkLogSummary(networkLog)
+            : undefined,
+        consoleLogSummary:
+          includeLogCtx && consoleLog && consoleLog.captured > 0
+            ? buildConsoleLogSummary(consoleLog)
+            : undefined,
+        actionLogSummary:
+          includeLogCtx && actionLog && actionLog.captured > 0
+            ? buildActionLogSummary(actionLog)
+            : undefined,
+        enabledSections,
+        existingDraft: {
+          title: store.draft?.title ?? "",
+          sections: store.draft?.sections ?? {},
+        },
+      };
+
+      const inlineImageDataUrls = (
+        await resolveInlineImagesForSections(
+          store.draft?.sections ?? {},
+          settingsUi.issueSections,
+        )
+      ).map((img) => img.dataUrl);
+
+      const { systemPrompt, images } = buildAiDraftRequest({
+        ctx,
+        modeImages: getModeImages(store, captureMode),
+        inlineImageDataUrls,
+      });
+
+      // 매 요청마다 최신 선입력으로 세션 재생성 — 재오픈·재생성 시 갱신된 컨텍스트 반영.
+      sessionRef.current?.destroy?.();
+      sessionRef.current = await createSessionRef.current(systemPrompt);
 
       const responseSchema = buildAiDraftSchema(sectionIds);
-      const images: string[] | undefined = isFirstMessageRef.current
-        ? getModeImages(store, captureMode)
-        : undefined;
-
-      isFirstMessageRef.current = false;
-
       const raw = await sessionRef.current.prompt(msg, {
         responseSchema,
         images,
@@ -123,8 +135,11 @@ export function AiDraftDialog({
         const aiTitle = prefix ? prefix + parsed.title : parsed.title;
         const prevDraft = useEditorStore.getState().draft;
         useEditorStore.getState().setDraft({
-          ...parsed,
           title: aiTitle,
+          sections: mergeAiSectionsPreservingImages(
+            prevDraft?.sections ?? {},
+            parsed.sections,
+          ),
           environment: prevDraft?.environment ?? [],
         });
       } else {
@@ -165,6 +180,7 @@ export function AiDraftDialog({
 
         <div>
           <Textarea
+            data-testid="ai-draft-input"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
@@ -182,7 +198,7 @@ export function AiDraftDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t("common.cancel")}
           </Button>
-          <Button onClick={() => void handleSubmit()} disabled={submitDisabled}>
+          <Button data-testid="ai-draft-submit" onClick={() => void handleSubmit()} disabled={submitDisabled}>
             {t("aiDraft.generate")}
           </Button>
         </DialogFooter>

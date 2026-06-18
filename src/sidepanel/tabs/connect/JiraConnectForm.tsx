@@ -313,7 +313,7 @@ function ApiKeyDialog({
             </label>
             <Input
               id="jira-baseUrl"
-              placeholder="https://your-workspace.atlassian.net"
+              placeholder={t("jira.workspaceUrlPlaceholder")}
               value={baseUrl}
               onChange={(e) => setBaseUrl(e.target.value)}
               autoComplete="off"
@@ -328,7 +328,7 @@ function ApiKeyDialog({
             <Input
               id="jira-email"
               type="email"
-              placeholder="you@example.com"
+              placeholder={t("jira.emailPlaceholder")}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               autoComplete="off"
@@ -352,7 +352,7 @@ function ApiKeyDialog({
             </div>
             <Input
               id="jira-token"
-              placeholder="atl_xxx..."
+              placeholder={t("jira.apiTokenPlaceholder")}
               value={apiToken}
               onChange={(e) => setApiToken(e.target.value)}
               autoComplete="off"

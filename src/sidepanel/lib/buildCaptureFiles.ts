@@ -2,6 +2,7 @@ import type { ConsoleLog } from "@/types/console";
 import type { NetworkLog } from "@/types/network";
 import type { ActionLog } from "@/types/action";
 import type { LogViewerData } from "@/types/log-viewer";
+import type { UserAttachmentMeta } from "@/types/attachment";
 import { blobToDataUrl } from "@/store/blob-db";
 import { buildLogsHtml } from "./buildLogsHtml";
 import { buildReportData, type BuildReportDataInput } from "./buildReportData";
@@ -13,12 +14,15 @@ export type CaptureMode = "element" | "screenshot" | "video" | "freeform";
 export interface CaptureFile {
   filename: string;
   dataUrl: string;
+  // 사용자 첨부는 업로드 식별용 filename을 고유화하고 표시명을 별도 유지.
+  displayName?: string;
 }
 
 export interface CaptureFiles {
   video?: CaptureFile;
   images: CaptureFile[];
   logs: CaptureFile[];
+  attachments: CaptureFile[];
 }
 
 export interface BuildCaptureFilesInput {
@@ -38,12 +42,14 @@ export interface BuildCaptureFilesInput {
   issueTitle?: string;
   // 로그 게이팅 통과 시 logs.html에 임베드할 Report 데이터 입력(없으면 report=null).
   report?: BuildReportDataInput | null;
+  // 사용자가 직접 첨부한 로컬 파일(메타+Blob). captureMode 무관하게 attachments로 합류.
+  userAttachments?: { meta: UserAttachmentMeta; blob: Blob }[];
 }
 
 export async function buildCaptureFiles(
   input: BuildCaptureFilesInput,
 ): Promise<CaptureFiles> {
-  const result: CaptureFiles = { images: [], logs: [] };
+  const result: CaptureFiles = { images: [], logs: [], attachments: [] };
 
   // 영상 dataUrl은 인라인 recording.mp4(본문 첨부)와 logs.html 임베드 양쪽에서 쓰므로 한 번만 변환해 재사용.
   let videoDataUrl: string | null = null;
@@ -102,6 +108,16 @@ export async function buildCaptureFiles(
       const after = afters[i];
       if (before) result.images.push({ filename: `before-${i}.webp`, dataUrl: before });
       if (after) result.images.push({ filename: `after-${i}.webp`, dataUrl: after });
+    }
+  }
+
+  if (input.userAttachments?.length) {
+    for (const { meta, blob } of input.userAttachments) {
+      result.attachments.push({
+        filename: `${meta.id}__${meta.filename}`,
+        displayName: meta.filename,
+        dataUrl: await blobToDataUrl(blob),
+      });
     }
   }
 

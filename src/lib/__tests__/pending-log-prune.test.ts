@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { findOrphanPendingKeys } from "../pending-log-prune";
+import {
+  findOrphanPendingAttachmentOwners,
+  findOrphanPendingKeys,
+} from "../pending-log-prune";
 
 describe("findOrphanPendingKeys", () => {
   it("returns pending keys whose tabId is not in activeTabIds", () => {
@@ -43,5 +46,46 @@ describe("findOrphanPendingKeys", () => {
 
   it("empty key list", () => {
     expect(findOrphanPendingKeys([], new Set([1]))).toEqual([]);
+  });
+});
+
+describe("findOrphanPendingAttachmentOwners", () => {
+  it("attachment 키(pending:tabId:uuid)에서 비활성 tab의 owner를 반환", () => {
+    const keys = ["pending:123:aaa", "pending:456:bbb", "pending:456:ccc"];
+    expect(
+      findOrphanPendingAttachmentOwners(keys, new Set([123])),
+    ).toEqual(["pending:456"]);
+  });
+
+  it("같은 tab의 여러 첨부는 owner 하나로 중복 제거", () => {
+    const keys = ["pending:9:a", "pending:9:b", "pending:9:c"];
+    expect(findOrphanPendingAttachmentOwners(keys, new Set())).toEqual([
+      "pending:9",
+    ]);
+  });
+
+  it("활성 tab의 첨부는 고아 아님 — 진행 중 첨부 삭제 방지", () => {
+    const keys = ["pending:7:a", "pending:8:b"];
+    expect(findOrphanPendingAttachmentOwners(keys, new Set([7]))).toEqual([
+      "pending:8",
+    ]);
+  });
+
+  it("non-pending 키(issueId:uuid)는 무시", () => {
+    const keys = ["issue-1-x:aaa", "pending:5:bbb"];
+    expect(findOrphanPendingAttachmentOwners(keys, new Set())).toEqual([
+      "pending:5",
+    ]);
+  });
+
+  it("tabId가 144인 키는 14 활성 여부와 무관(prefix 오매치 없음)", () => {
+    const keys = ["pending:144:a"];
+    expect(findOrphanPendingAttachmentOwners(keys, new Set([14]))).toEqual([
+      "pending:144",
+    ]);
+  });
+
+  it("빈 키 리스트", () => {
+    expect(findOrphanPendingAttachmentOwners([], new Set([1]))).toEqual([]);
   });
 });

@@ -2,7 +2,7 @@ import { t } from "@/i18n";
 import type { LinearAuth, LinearOAuthAuth } from "@/types/linear";
 import { writeStoredLinearOAuthTokens } from "@/lib/settings-storage";
 import { getMyself, setLinearRefreshHook } from "./linear-api";
-import { OAuthError, launchOAuthWebFlow } from "./oauth";
+import { OAuthError, base64url, launchOAuthWebFlow } from "./oauth";
 
 const CLIENT_ID = (import.meta.env.VITE_LINEAR_CLIENT_ID ?? "").trim();
 const AUTHORIZE_URL = "https://linear.app/oauth/authorize";
@@ -23,13 +23,6 @@ function assertConfigured(): void {
 
 function redirectUri(): string {
   return chrome.identity.getRedirectURL();
-}
-
-function base64url(buffer: ArrayBuffer): string {
-  const bytes = new Uint8Array(buffer);
-  let binary = "";
-  for (const b of bytes) binary += String.fromCharCode(b);
-  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
 export async function generatePkceChallenge(): Promise<{

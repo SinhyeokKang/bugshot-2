@@ -1,4 +1,5 @@
 import { t } from "@/i18n";
+import { readErrorBody } from "./lib/readErrorBody";
 import type {
   GithubAuth,
   GithubCreateIssuePayload,
@@ -68,19 +69,6 @@ export function messageForGithubStatus(status: number): string {
   if (status === 429) return t("github.error.429");
   if (status >= 500) return t("github.error.5xx");
   return t("github.error.generic", { status });
-}
-
-async function readErrorBody(res: Response): Promise<unknown> {
-  try {
-    const text = await res.text();
-    try {
-      return JSON.parse(text);
-    } catch {
-      return text;
-    }
-  } catch {
-    return undefined;
-  }
 }
 
 async function doFetch(

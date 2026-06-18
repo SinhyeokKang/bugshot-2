@@ -58,6 +58,7 @@ function snapshotFromState(): EditorSnapshot {
     networkLogAttach: s.networkLogAttach,
     consoleLogAttach: s.consoleLogAttach,
     actionLogAttach: s.actionLogAttach,
+    attachments: s.attachments,
     draft: s.draft,
     issueFields: s.issueFields,
     currentIssueId: s.currentIssueId,

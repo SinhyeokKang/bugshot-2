@@ -3,6 +3,7 @@ const ko = {
   "settings.tab.ai": "AI 모델",
   "settings.tab.general": "일반",
   "settings.titleSettings": "제목 설정",
+  "settings.titlePrefix.placeholder": "[QA] ",
   "settings.titlePrefix.help": "이슈 제목 앞에 붙는 접두어입니다.",
   "settings.bodyComposition": "본문 구성",
   "settings.capture": "캡처 설정",
@@ -11,6 +12,9 @@ const ko = {
     "화면의 최근 30초를 항상 기록해 둡니다. 버그를 발견하면 버튼 한 번으로 직전 상황을 영상으로 첨부할 수 있습니다.",
   "settings.replay.permissionDenied":
     "권한이 거부되어 30초 리플레이를 켤 수 없습니다.",
+  "settings.attachments.label": "파일 첨부",
+  "settings.attachments.help":
+    "이슈에 임의의 파일을 첨부합니다.",
   "settings.theme": "테마",
   "settings.language": "언어",
   "settings.theme.light": "라이트",
@@ -79,6 +83,7 @@ const en = {
   "settings.tab.ai": "AI Model",
   "settings.tab.general": "General",
   "settings.titleSettings": "Title settings",
+  "settings.titlePrefix.placeholder": "[QA] ",
   "settings.titlePrefix.help": "Automatically prepended to issue titles.",
   "settings.bodyComposition": "Body composition",
   "settings.capture": "Capture settings",
@@ -87,6 +92,9 @@ const en = {
     "Always keeps the last 30 seconds of your screen. Spot a bug? Attach what just happened as a video in one click.",
   "settings.replay.permissionDenied":
     "Permission denied, so 30s replay could not be enabled.",
+  "settings.attachments.label": "File attachments",
+  "settings.attachments.help":
+    "Attach arbitrary files to issues.",
   "settings.theme": "Theme",
   "settings.language": "Language",
   "settings.theme.light": "Light",

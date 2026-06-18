@@ -68,7 +68,7 @@ element/screenshot/video 세 `issue.md`는 아래 7단계를 **그대로 반복*
 | 2. 재현 환경 | 자동 메타(OS/브라우저/URL/뷰포트/시각) readonly + 사용자 추가 변수 row |
 | 3. 미디어 | **모드별 고유** — 요소=before/after 스타일 표 / 스크린샷=주석 이미지 / 녹화=영상 |
 | 4. 본문 섹션 | 발생 현상·재현 과정·기대 결과·비고(설정 토글대로) |
-| ✨ AI 초안 작성 | 번호 없는 강조 섹션. 배너(AI 연결 시) → 입력창에 버그 한 줄(요소 모드는 비워도 됨) → **제목+본문 한 번에** 채움(켜 둔 섹션만, 접두어 유지). **모드별 근거**: 요소=before/after 스타일·전후 이미지 / 스크린샷=주석 이미지 / 녹화=콘솔·네트워크·액션 로그 요약 |
+| ✨ AI 초안 작성 | 번호 없는 강조 섹션. 배너(AI 연결 시) → 입력창에 버그 한 줄(요소 모드는 비워도 됨) → **제목+본문 한 번에** 채움(켜 둔 섹션만, 접두어 유지). 사용자가 **이미 적어 둔 제목·본문도 컨텍스트로 참고**하고, 본문에 붙인 **inline 이미지는 보존(텍스트만 교체)**. **모드별 근거**: 요소=before/after 스타일·전후 이미지 / 스크린샷=주석 이미지 / 녹화=콘솔·네트워크·액션 로그 요약 |
 | 5. 로그 첨부 | 요소=없음 / 스크린샷=콘솔·네트워크 기본 on / 녹화=콘솔·네트워크·액션 기본 on |
 | 6. 미리보기 | 제출 전 본문 확인 + 마크다운 복사 |
 | 7. 제출 | 플랫폼 필드 입력(필드 맨 아래 **참조**(CC) 멀티셀렉트 포함 — 본문 푸터 직전 `cc @이름` 멘션 + 알림, 직전 선택 prefill) → 완료 URL |
@@ -98,6 +98,7 @@ element/screenshot/video 세 `issue.md`는 아래 7단계를 **그대로 반복*
 
 - **단축키**: `Cmd/Ctrl+Shift+E`(패널 토글) / `Cmd/Ctrl+Shift+S`(요소 스타일 편집) / `Cmd/Ctrl+Shift+F`(범위 캡처) / `Cmd/Ctrl+Shift+X`(화면 녹화). best-effort라 OS·타 확장 충돌 시 미배정될 수 있음을 한 줄 안내. **요소 캡처는 단축키 없음**(Chrome 4-command 상한 — 버튼 전용).
 - **본문 섹션**: 발생 현상(켜짐·문단) / 재현 과정(켜짐·번호 목록) / 기대 결과(켜짐·문단) / 비고(꺼짐·문단). 라벨·플레이스홀더 override 가능.
+- **파일 첨부 토글**: 설정 > 이슈 설정 > 본문 구성에 `파일 첨부`(en `File attachments`) 토글, **기본 꺼짐**(`attachmentsEnabled` in `settings-ui-store.ts`). 켜면 이슈 작성(drafting) 화면에 `첨부 파일`(en `Attachments`, `section.attachments`) 영역 노출 → 임의 로컬 파일 선택. **최대 10개·합계 50MB** 하드캡(`src/sidepanel/lib/attachmentLimits.ts`), 플랫폼별 단건 경고(Notion 5MB·GitLab 10MB, 초과 시 "용량 초과" 표시·차단 아님). 제출 시 6개 플랫폼에 함께 업로드. 기능 위치상 settings/issue.md에만 두고 중립적 기능 설명 톤으로 기술한다(3개 mode issue.md 공통 흐름엔 미편입).
 - **로그 정책**: 요소=로그 없음 / 스크린샷=콘솔·네트워크 토글 **기본 on** / 녹화=콘솔·네트워크·액션 **기본 on**. 액션 로그는 **녹화 모드 전용**. 자동 수집은 trailing throttle로 실시간 스트리밍(레코더 ~200ms flush, 사이드패널 IDB 저장은 ~1s로 묶음) — 과거 "~1.5초" 표기는 stale이니 가이드엔 구체 숫자 대신 "실시간"으로.
 - **콘솔 캡처 범위** (`src/content/console-recorder.ts`): `log`/`info`/`debug`는 상시 wrap, `console.error`/`console.warn`은 **패널이 arm된(디버그·녹화로 캡처 중인) 동안만** wrap해 캡처(chrome://extensions 오류 로그 attribution 오염을 arm 구간으로 한정). `trace`/`assert`(→error)/`dir`/`table`/`group*`/`count*`/`time*`도 기존 5레벨에 매핑, uncaught 예외·unhandled rejection은 상시 error로. 가이드엔 내부 메커니즘(arm-스코프 wrap) 노출 없이 "정보·경고·에러까지 빠짐없이 모아 본다" 수준으로만 기술.
 - **로그 출처(iframe) 필터**: 콘솔·네트워크 로그는 cross-origin iframe(결제 위젯·임베드 등) 로그까지 수집한다. 출처가 2개 이상 섞이면 콘솔·네트워크·액션 로그 탭 모두에 출처 필터 바(`OriginFilterBar`, 사이드패널 서브탭·로그 다이얼로그·log-viewer 공용) 노출 — 호스트별 버튼(각 버튼에 출처별 로그 개수 muted 표시) + opaque(`data:`/`about:blank`) 묶음 라벨 ko "(알 수 없음)" · en "(unknown)". **"전체" 버튼은 없음** — 아무것도 선택하지 않은 상태가 전체이고, 선택된 출처 버튼을 다시 누르면 해제(toggle)된다. (초기엔 액션 로그를 출처 필터에서 제외했으나, top↔iframe 액션이 섞이면 navigation만으론 출처 추적이 안 돼 액션에도 추가함.)

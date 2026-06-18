@@ -5,6 +5,7 @@ import {
   type IssueSection,
 } from "@/store/settings-ui-store";
 import {
+  escapeMdLinkText,
   mdInlineCode,
   resolveStyleElements,
   styleDomLabel,
@@ -25,6 +26,7 @@ export interface GithubBuildInput {
   images?: GithubMediaInput[];
   video?: GithubMediaInput;
   logs?: GithubMediaInput[];
+  attachments?: GithubMediaInput[];
   cc?: string[];
 }
 
@@ -165,6 +167,7 @@ export function buildGithubIssueBody(
     ...images.filter((i) => !mediaHandled.has(i.filename)),
     ...(video && !mediaHandled.has(video.filename) ? [video] : []),
     ...logs,
+    ...(input.attachments ?? []),
   ];
   emitAttachments(lines, attached, extras);
 
@@ -191,11 +194,11 @@ function emitAttachments(
     lines.push(`## ${t("md.section.attachments")}`, "");
     for (const a of inlined) {
       if (a.contentType.startsWith("image/")) {
-        lines.push(`![${a.filename}](${a.url})`);
+        lines.push(`![${escapeMdLinkText(a.filename)}](${a.url})`);
       } else if (a.contentType.startsWith("video/")) {
         lines.push(a.url!);
       } else {
-        lines.push(`[${a.filename}](${a.url})`);
+        lines.push(`[${escapeMdLinkText(a.filename)}](${a.url})`);
       }
       attached.push(a.filename);
     }

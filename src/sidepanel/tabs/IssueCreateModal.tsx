@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { useT } from "@/i18n";
-import { pruneOrphanInlineImages } from "@/store/blob-db";
+import { pruneOrphanInlineImages, getAttachmentBlob } from "@/store/blob-db";
+import type { UserAttachmentMeta } from "@/types/attachment";
 import { useSettingsUiStore } from "@/store/settings-ui-store";
-import { useEditorStore } from "@/store/editor-store";
+import { useEditorStore, whenAttachmentBlobsReady } from "@/store/editor-store";
 import { useIssuesStore } from "@/store/issues-store";
 import {
   connectedPlatforms,
@@ -135,6 +136,8 @@ export function IssueCreateModal() {
   const actionLog = useEditorStore((s) => s.actionLog);
   const actionLogAttach = useEditorStore((s) => s.actionLogAttach);
   const sectionConfig = useSettingsUiStore((s) => s.issueSections);
+  const attachments = useEditorStore((s) => s.attachments);
+  const attachmentsEnabled = useSettingsUiStore((s) => s.attachmentsEnabled);
 
   const currentIssueId = useEditorStore((s) => s.currentIssueId);
   const markSubmitted = useIssuesStore((s) => s.markSubmitted);
@@ -255,6 +258,22 @@ export function IssueCreateModal() {
     // element 모드는 머지·dedup이 끝난 ctx.styleElements를 단일 출처로 before-${i}/after-${i} 파생.
     const isElement = captureMode === "element";
     const styleElements = ctx.styleElements ?? [];
+    // 사용자 첨부: 토글 ON이고 issueId 확정 상태면 IndexedDB에서 Blob 로드.
+    const userAttachmentMetas = attachmentsEnabled ? attachments : [];
+    let userAttachments: { meta: UserAttachmentMeta; blob: Blob }[] | undefined;
+    if (userAttachmentMetas.length && currentIssueId) {
+      // confirmDraft의 pending→issueId rekey가 끝난 뒤 로드(issueId 키 미존재 레이스 방지).
+      await whenAttachmentBlobsReady();
+      const loaded = await Promise.all(
+        userAttachmentMetas.map(async (meta) => {
+          const blob = await getAttachmentBlob(currentIssueId, meta.id);
+          return blob ? { meta, blob } : null;
+        }),
+      );
+      userAttachments = loaded.filter(
+        (x): x is { meta: UserAttachmentMeta; blob: Blob } => x !== null,
+      );
+    }
     return buildCaptureFiles({
       captureMode,
       videoBlob,
@@ -278,6 +297,7 @@ export function IssueCreateModal() {
             markdownContext: ctx,
           }
         : null,
+      userAttachments,
     });
   }
 
@@ -298,6 +318,10 @@ export function IssueCreateModal() {
     ];
     for (const img of inlineImages) {
       rawAttachments.push({ filename: `inline-${img.refId}.webp`, dataUrl: img.dataUrl });
+    }
+    // 사용자 첨부: Jira는 업로드 시 attachment 영역에 자동 등록(본문 placeholder 불필요). 표시명=원본.
+    for (const a of captureFiles.attachments) {
+      rawAttachments.push({ filename: a.displayName ?? a.filename, dataUrl: a.dataUrl });
     }
     const attachments = await annotateAttachmentDimensions(rawAttachments);
 
@@ -358,6 +382,7 @@ export function IssueCreateModal() {
       images: captureFiles.images,
       video: captureFiles.video,
       logs: captureFiles.logs,
+      attachments: captureFiles.attachments,
       inlineImages,
       owner: ghFields.owner,
       repo: ghFields.repo,
@@ -402,6 +427,7 @@ export function IssueCreateModal() {
       images: captureFiles.images,
       video: captureFiles.video,
       logs: captureFiles.logs,
+      attachments: captureFiles.attachments,
       inlineImages,
       teamId: linearFields.teamId,
       projectId: linearFields.projectId,
@@ -454,6 +480,7 @@ export function IssueCreateModal() {
       images: captureFiles.images,
       video: captureFiles.video,
       logs: captureFiles.logs,
+      attachments: captureFiles.attachments,
       inlineImages,
       databaseId: notionFields.databaseId,
       titlePropertyName: notionSchema.titlePropertyName,
@@ -505,6 +532,7 @@ export function IssueCreateModal() {
       images: captureFiles.images,
       video: captureFiles.video,
       logs: captureFiles.logs,
+      attachments: captureFiles.attachments,
       inlineImages,
       projectId: gitlabFields.projectId,
       label: gitlabFields.label,
@@ -549,6 +577,7 @@ export function IssueCreateModal() {
       images: captureFiles.images,
       video: captureFiles.video,
       logs: captureFiles.logs,
+      attachments: captureFiles.attachments,
       inlineImages,
       workspaceGid: asanaFields.workspaceGid,
       projectGid: asanaFields.projectGid,

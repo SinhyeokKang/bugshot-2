@@ -14,6 +14,8 @@ import type { NormalizedSubmitResult } from "@/types/platform";
 export interface NotionFileInput {
   filename: string;
   dataUrl: string;
+  // 사용자 첨부: file block 표시명(원본). 업로드 filename은 고유.
+  displayName?: string;
 }
 
 export interface NotionSubmitInput {
@@ -21,6 +23,7 @@ export interface NotionSubmitInput {
   images?: NotionFileInput[];
   video?: NotionFileInput;
   logs?: NotionFileInput[];
+  attachments?: NotionFileInput[];
   inlineImages?: InlineImageInput[];
   databaseId: string;
   titlePropertyName: string;
@@ -83,6 +86,15 @@ export async function submitToNotion(
         }
       : undefined,
     logs: mappedLogs,
+    userAttachments: input.attachments?.map((f) => {
+      const name = f.displayName ?? f.filename;
+      return {
+        filename: name,
+        contentType: guessUploadMime(name),
+        dataUrl: f.dataUrl,
+        category: "other" as const,
+      };
+    }),
     inlineImageRefIds: inlineUploaded.map((iu) => iu.refId),
     cc: input.cc,
   });
@@ -105,9 +117,9 @@ export async function submitToNotion(
         category: a.category,
       });
     } catch (err) {
-      // 로그 첨부 실패는 격리 — 누락 placeholder 블록은 createPage에서 자연 스킵.
+      // 로그·사용자 첨부 실패는 격리 — 누락 placeholder 블록은 createPage에서 자연 스킵.
       // image/video는 본문 핵심이라 strict 유지(전체 실패).
-      if (a.category === "log") {
+      if (a.category === "log" || a.category === "other") {
         logsDropped = true;
         continue;
       }

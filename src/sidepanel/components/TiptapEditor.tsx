@@ -1,5 +1,10 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
-import { useEditor, EditorContent, type Editor } from "@tiptap/react";
+import {
+  useEditor,
+  EditorContent,
+  Extension,
+  type Editor,
+} from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Link from "@tiptap/extension-link";
 import Image from "@tiptap/extension-image";
@@ -14,7 +19,31 @@ import {
   extractInlineRefs,
   replaceInlineRefs,
 } from "@/sidepanel/lib/resolveInlineImages";
+import { shouldLiftListItem } from "@/sidepanel/lib/listKeymap";
 import "./tiptap-editor.css";
+
+// 빈 list item 시작에서 Backspace → 리스트 종료 (기본은 이전 항목과 병합)
+const ListExitOnBackspace = Extension.create({
+  name: "listExitOnBackspace",
+  priority: 1000,
+  addKeyboardShortcuts() {
+    return {
+      Backspace: () => {
+        const { $from, empty } = this.editor.state.selection;
+        const lift = shouldLiftListItem({
+          selectionEmpty: empty,
+          parentOffset: $from.parentOffset,
+          parentContentSize: $from.parent.content.size,
+          parentDepth: $from.depth,
+          grandParentTypeName:
+            $from.depth >= 1 ? $from.node($from.depth - 1).type.name : null,
+        });
+        if (!lift) return false;
+        return this.editor.chain().liftListItem("listItem").run();
+      },
+    };
+  },
+});
 
 export interface TiptapEditorProps {
   value: string;
@@ -79,8 +108,10 @@ function createImageDropPlugin(
 }
 
 function editorMarkdown(editor: Editor, urlToRef: Map<string, string>): string {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let md = (editor.storage as any).markdown.getMarkdown() as string;
+  const storage = editor.storage as unknown as {
+    markdown: { getMarkdown(): string };
+  };
+  let md = storage.markdown.getMarkdown();
   for (const [blobUrl, refId] of urlToRef) {
     md = md.replaceAll(blobUrl, `inline:${refId}`);
   }
@@ -110,6 +141,7 @@ const TiptapEditor = forwardRef<TiptapEditorHandle, TiptapEditorProps>(function 
           width: 2,
         },
       }),
+      ListExitOnBackspace,
       Link.configure({
         openOnClick: false,
         autolink: true,
@@ -205,8 +237,9 @@ const TiptapEditor = forwardRef<TiptapEditorHandle, TiptapEditorProps>(function 
         }),
       );
       if (cancelled || resolved.size === 0) return;
-      isInternalChange.current = true;
-      editor.commands.setContent(replaceInlineRefs(value, resolved));
+      editor.commands.setContent(replaceInlineRefs(value, resolved), {
+        emitUpdate: false,
+      });
     })();
 
     return () => { cancelled = true; };
@@ -227,7 +260,7 @@ const TiptapEditor = forwardRef<TiptapEditorHandle, TiptapEditorProps>(function 
       const displayMd = refs.length > 0
         ? replaceInlineRefs(value, refToUrlMap.current)
         : value;
-      editor.commands.setContent(displayMd);
+      editor.commands.setContent(displayMd, { emitUpdate: false });
       return;
     }
 
@@ -244,8 +277,9 @@ const TiptapEditor = forwardRef<TiptapEditorHandle, TiptapEditorProps>(function 
         }),
       );
       if (cancelled) return;
-      isInternalChange.current = true;
-      editor.commands.setContent(replaceInlineRefs(value, refToUrlMap.current));
+      editor.commands.setContent(replaceInlineRefs(value, refToUrlMap.current), {
+        emitUpdate: false,
+      });
     })();
     return () => { cancelled = true; };
   }, [value, editor]);

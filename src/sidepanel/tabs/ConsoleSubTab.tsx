@@ -1,34 +1,20 @@
-import { useEffect, useRef } from "react";
 import { ListRestart, SquarePen } from "lucide-react";
 import { useT } from "@/i18n";
 import { Button } from "@/components/ui/button";
 import { useEditorStore } from "@/store/editor-store";
 import { useBoundTabId } from "@/sidepanel/hooks/useBoundTabId";
+import { useRecorderSyncInterval } from "@/sidepanel/hooks/useRecorderSyncInterval";
 import { syncConsoleRecorder } from "@/sidepanel/picker-control";
 import { consoleLogPersist } from "@/sidepanel/hooks/usePickerMessages";
 import { PageShell, PageFooter } from "@/sidepanel/components/Section";
 import { ConsoleLogContent } from "@/sidepanel/components/ConsoleLogContent";
-
-const SYNC_INTERVAL = 1500;
 
 export function ConsoleSubTab({ active, onStartFreeform }: { active: boolean; onStartFreeform: () => void }) {
   const t = useT();
   const tabId = useBoundTabId();
   const consoleLog = useEditorStore((s) => s.consoleLog);
 
-  const tabIdRef = useRef(tabId);
-  tabIdRef.current = tabId;
-
-  useEffect(() => {
-    if (!active || tabIdRef.current == null) return;
-    syncConsoleRecorder(tabIdRef.current).catch(() => {});
-    const id = setInterval(() => {
-      if (tabIdRef.current != null) {
-        syncConsoleRecorder(tabIdRef.current).catch(() => {});
-      }
-    }, SYNC_INTERVAL);
-    return () => clearInterval(id);
-  }, [active]);
+  useRecorderSyncInterval(active, tabId, syncConsoleRecorder);
 
   return (
     <PageShell>

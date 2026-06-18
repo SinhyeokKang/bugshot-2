@@ -11,11 +11,60 @@ vi.mock("@/store/blob-db", () => ({
 
 import {
   extractInlineRefs,
+  extractInlineImageMarkdown,
   replaceInlineRefs,
   stripInlineImageRefs,
   resolveSectionImages,
   type SectionFilter,
 } from "../resolveInlineImages";
+
+describe("extractInlineImageMarkdown", () => {
+  it("inline 이미지 없는 마크다운 → 빈 배열", () => {
+    expect(extractInlineImageMarkdown("hello world")).toEqual([]);
+  });
+
+  it("일반(외부 URL) 이미지는 제외", () => {
+    expect(
+      extractInlineImageMarkdown("![](https://example.com/img.png)"),
+    ).toEqual([]);
+  });
+
+  it("inline 이미지 1개 → alt 빈 마크다운 통째 반환", () => {
+    expect(extractInlineImageMarkdown("![](inline:abc12345)")).toEqual([
+      "![](inline:abc12345)",
+    ]);
+  });
+
+  it("alt 보존", () => {
+    expect(extractInlineImageMarkdown("![bug shot](inline:abc12345)")).toEqual([
+      "![bug shot](inline:abc12345)",
+    ]);
+  });
+
+  it("여러 개 → 등장 순서 유지", () => {
+    const md = "![first](inline:a1)\n\ntext\n\n![second](inline:b2)";
+    expect(extractInlineImageMarkdown(md)).toEqual([
+      "![first](inline:a1)",
+      "![second](inline:b2)",
+    ]);
+  });
+
+  it("중복 ref도 각각 보존(중복 제거 안 함)", () => {
+    const md = "![](inline:a1) ![](inline:a1)";
+    expect(extractInlineImageMarkdown(md)).toEqual([
+      "![](inline:a1)",
+      "![](inline:a1)",
+    ]);
+  });
+
+  it("텍스트 사이에 섞인 이미지도 모두 추출", () => {
+    const md = "intro ![x](inline:a1) middle ![y](inline:b2) end";
+    expect(extractInlineImageMarkdown(md)).toEqual([
+      "![x](inline:a1)",
+      "![y](inline:b2)",
+    ]);
+  });
+});
 
 describe("extractInlineRefs", () => {
   it("inline 참조 없는 마크다운 → 빈 배열", () => {

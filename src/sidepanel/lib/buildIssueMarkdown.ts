@@ -195,6 +195,11 @@ export function styleSelectorList(ctx: MarkdownContext): string[] {
 // 마크다운 본문 DOM 줄에서 selector를 인라인 코드로 감싸는 wrap (md 계열 빌더 공용).
 export const mdInlineCode = (selector: string): string => `\`${selector}\``;
 
+// 링크 텍스트에 들어가는 사용자 입력(파일명 등)의 구조 문자 이스케이프.
+// `]`/`[`가 링크를 조기 종료하거나 깨지 않게(GitHub·GitLab 본문 공용).
+export const escapeMdLinkText = (text: string): string =>
+  text.replace(/[\\[\]]/g, "\\$&");
+
 function sectionLabel(section: IssueSection): string {
   return section.labelOverride?.trim() || t(sectionMdLabelKey(section.id));
 }

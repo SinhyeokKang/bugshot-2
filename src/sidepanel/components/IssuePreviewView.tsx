@@ -33,6 +33,8 @@ export interface IssuePreviewViewProps {
   // media/logCards slot — PreviewPanel만 채움. Report 탭은 미전달.
   media?: React.ReactNode;
   logCards?: React.ReactNode;
+  // 사용자 첨부 slot — 본문 모든 섹션 뒤 맨 하단. PreviewPanel만 채움(blob-db 의존 격리).
+  attachments?: React.ReactNode;
   postMediaSectionIds?: Set<string>;
 }
 
@@ -44,6 +46,7 @@ export function IssuePreviewView({
   onCopy,
   media,
   logCards,
+  attachments,
   // 슬롯(media/logCards) 삽입 위치. log-viewer Report 탭은 슬롯이 없어 무관 → 기본 빈 set.
   // PreviewPanel은 POST_MEDIA_SECTION_IDS를 명시 전달(settings-ui-store 의존을 log-viewer 번들에서 격리).
   postMediaSectionIds = EMPTY_POST_MEDIA,
@@ -126,6 +129,8 @@ export function IssuePreviewView({
           </Section>
         );
       })}
+
+      {attachments}
     </>
   );
 }

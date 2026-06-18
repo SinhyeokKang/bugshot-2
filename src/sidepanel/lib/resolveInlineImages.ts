@@ -10,6 +10,11 @@ export function extractInlineRefs(markdown: string): string[] {
   return [...refs];
 }
 
+// alt까지 보존한 이미지 markdown을 등장 순서대로(중복 포함) 반환.
+export function extractInlineImageMarkdown(markdown: string): string[] {
+  return [...markdown.matchAll(INLINE_REF_RE)].map((m) => m[0]);
+}
+
 export function replaceInlineRefs(
   markdown: string,
   refToUrl: Map<string, string>,

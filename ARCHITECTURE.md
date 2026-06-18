@@ -37,7 +37,7 @@ chrome.action.onClicked.addListener((tab) => {
 
 - tabId별로 `chrome.storage.session`의 `editor:${tabId}` 키에 저장
 - `useEditorSessionSync(tabId)` 훅이 hydration + debounced save(300ms) 담당 (zustand persist 미들웨어 대신 직접 구현 — tabId-scoped 키가 persist의 "one store, one key" 모델에 맞지 않음)
-- origin 변경 시 해당 탭의 세션은 버림 (`clearIfOriginChanged` in `tab-bindings.ts`)
+- page key 변경 시 해당 탭의 세션은 버림 (`clearIfPageChanged` in `tab-bindings.ts` — `pageKeyOf(prevUrl) !== pageKeyOf(newUrl)` 비교)
 - 탭 닫히면 `onRemoved`에서 정리
 - **복수 element 버퍼(`bufferedElements`)도 세션 영속화**된다. 단 phase별 보존이 비대칭: `styling`에서 세션 만료/`reset`이 걸리면 버퍼가 폐기되고, `drafting`/`previewing`/`done`은 `selection`과 동일하게 스냅샷에 포함돼 패널을 닫았다 열어도 복원된다. quota 초과 시 lite 폴백이 버퍼 내부 before/after base64까지 명시적으로 null화. `picking` 중 닫힌 세션은 hydrate 시 idle 강등과 함께 버퍼도 폐기한다(DOM 편집이 이미 원복된 ghost — 남기면 `preserveBuffer`로 다음 세션에 합류).
 - **styling 세션 복원은 DOM 재바인딩까지 수행**한다. 패널이 닫히면 picker port disconnect로 페이지 편집이 전부 원복되므로 store만 복원하면 유령 세션이 된다. hydrate 시 phase=`styling`(element 모드)이면 `rebindStylingSession`(`picker-control.ts`)이 ① content script 보장 ② content 보고 URL의 pageKey 대조 ③ 현재 요소 편집 재적용(요소 소실 시 `sessionExpired`+`picker.clear`) ④ 버퍼 편집 재적용(`applyEditsBySelector` — 미등록 요소는 원본 등록 후 적용) ⑤ 현재 요소를 버퍼 경유 `selectByPath` 재선택(승격 경로가 styleEdits·baseline·이미지 복원)으로 봉합한다.
@@ -54,7 +54,7 @@ chrome.action.onClicked.addListener((tab) => {
 | Proxy 경로 | `/token` | `/github/token`, `/github/refresh` | ❌ 직접 교환 | `/notion/token` | ❌ 직접 교환 (gitlab.com 한정) | `/asana/token`, `/asana/refresh` |
 | Token Refresh | pre-refresh + 401 retry | hook 주입형, 1회 retry | hook 주입형, 1회 retry | ❌ (토큰 만료 없음) | hook 주입형, pre-refresh + 401 retry | hook 주입형, pre-refresh + 401 retry |
 | dev/prod 분리 | 단일 App | 2 App (callback URL 1개 제한) | 단일 App (multi redirect) | 단일 App (multi redirect) | 단일 App (multi redirect) | 단일 App (multi redirect) |
-| Env var | `VITE_ATLASSIAN_CLIENT_ID` | `VITE_GITHUB_CLIENT_ID` (+`_PROD`) | `VITE_LINEAR_CLIENT_ID` (+`_PROD`) | `VITE_NOTION_CLIENT_ID` | `VITE_GITLAB_CLIENT_ID` | `VITE_ASANA_CLIENT_ID` |
+| Env var | `VITE_ATLASSIAN_CLIENT_ID` | `VITE_GITHUB_CLIENT_ID` (+`_PROD`) | `VITE_LINEAR_CLIENT_ID` | `VITE_NOTION_CLIENT_ID` | `VITE_GITLAB_CLIENT_ID` | `VITE_ASANA_CLIENT_ID` |
 
 공통 env: `VITE_OAUTH_PROXY_URL` — Cloudflare Worker origin (Jira·GitHub·Notion·Asana 공유). manifest가 빌드 시 origin을 `host_permissions`에 자동 추가.
 
@@ -103,11 +103,11 @@ shorthand(var 포함) + 같은 shorthand의 longhand override 조합에서 Chrom
 
 ## 백그라운드 로그 캡처 (Network / Console / Action)
 
-`src/content/recorders-entry.ts`를 MAIN world `document_start`로 등록해 fetch/XHR/sendBeacon/console/사용자 액션을 자동 wrap. 페이지 스크립트보다 먼저 실행되므로 Sentry 등이 `originalFetch` 캐싱 전에 wrap 설치.
+`src/content/recorders-entry.ts`를 MAIN world `document_start`로 등록해 fetch/XHR/sendBeacon/console/사용자 액션을 자동 wrap. 페이지 스크립트보다 먼저 실행되므로 Sentry 등이 `originalFetch` 캐싱 전에 wrap 설치. **선행 전제 — 동기 IIFE emit**: 이 "먼저 실행"은 recorders-entry 청크가 crxjs에 의해 동기 IIFE로 emit돼야 성립한다(crxjs 조건: 청크의 static import·dynamic import·export가 0인 self-contained). 청크가 외부 import를 끌어들이면 crxjs가 async-import loader로 되돌려 후크가 페이지 인라인 스크립트보다 늦게 깔리고 pre-arm(아래 활성 게이트)이 무력화된다 — 그래서 레코더는 `content/log-throttle.ts`를, 사이드패널 수신부는 복제본 `sidepanel/lib/trailing-throttle.ts`를 쓰도록 의도적으로 분리한다(`log-persist-guard`가 `@/content/log-throttle`을 import하면 공유 청크화). 리팩터 시 청크에 외부 static import 유입 금지(회귀).
 
 **iframe 커버리지**: 로그 레코더는 picker(`picker.ts`, top frame 한정)와 분리된 별도 content_scripts 2개로 **모든 프레임**(`all_frames: true`)에 주입한다 — `recorders-entry.ts`(MAIN, 후크 본체)와 `recorder-bridge.ts`(ISOLATED, sentinel 수신·`recorder.*` data를 `chrome.runtime`으로 중계). 각 프레임 레코더는 entry를 자기 프레임의 `pageUrl: location.href`로 스탬프 → cross-origin iframe(Stripe·임베드 위젯 등) 로그도 캡처된다. (sentinel·data가 MAIN world CustomEvent로 오가므로 페이지 스크립트가 자기 탭 로그를 위조 주입할 수는 있다 — 영향 범위는 해당 탭 로그 무결성 한정.) `picker.ts`에 있던 인라인 로그 브리지는 이 파일로 추출됨. `webNavigation.onCommitted`(iframe `frameId !== 0`) 시 `picker-control.ts:rebroadcastSentinelsToFrame`가 그 프레임에만 sentinel을 재발행해 늦게 뜬 iframe도 활성 세션에 합류(setSentinel은 `recording=true`만 켜고 버퍼는 비우지 않아 재수신 안전). origin은 entry `pageUrl`에서 `originOf()`로 런타임 파생(데이터 모델 불변) — ① cap evict 시 `mergeLogItems`의 `topOrigin` 인자로 top-page-origin을 우선 보존(cross-origin = 주로 광고 iframe부터 oldest evict; **console/network만** — action은 광고가 폭증시키지 않아 순수 FIFO 유지로 `topOrigin` 미전달), ② 로그 탭에 출처별 필터(`OriginFilterBar`, console/network/action 공용, origin 2개+ 일 때만 노출). opaque(`data:`/`about:blank` → `originOf`가 `"null"`) 출처는 필터에서 `UNKNOWN_ORIGIN` 한 그룹으로 묶는다.
 
-**활성 게이트**: 세 레코더의 `recording` 기본값은 `false` — wrap은 document_start에 설치하되 **패널이 탭에 활성인 동안만** 적재한다. 패널 주입 시 `setSentinel`로 `true`, 패널 닫힘(`port.onDisconnect`)·탭 전환(`tab-bindings.ts` `onActivated`에서 직전 활성 탭에 stop)으로 `false`. `recording=false`면 fetch는 `createPatchedFetch`의 `shouldRecord` 게이트로 원본 경로(`new Request` 재구성 없음), XHR/sendBeacon/console/action은 push 차단 — 미활성 탭 트래픽에 일절 간섭하지 않는다. 같은 탭으로 (네비게이션 없이) 복귀해 패널 문서가 살아 있으면 패널 `visibilitychange`(visible)가 재주입을 트리거해 stop과 대칭을 맞춘다.
+**활성 게이트 (capturing vs recording 2단)**: 적재 게이트는 `recording`이 아니라 `capturing`이다. 두 플래그를 분리한다 — `capturing`(버퍼 적재 여부)과 `recording`(사이드패널 dispatch/전송 여부). `recording` 기본값은 `false`이고 `setSentinel`로 `true`(패널 주입 시), 패널 닫힘(`port.onDisconnect`)·탭 전환(`tab-bindings.ts` `onActivated`에서 직전 활성 탭에 stop)으로 `false`. `capturing` 초기값은 **pre-arm 플래그**다 — 각 레코더가 init에 `readPreArmFlag()`(`recorder-prearm.ts`, sessionStorage `__bugshot_recorder_active__`)로 초기화해, **한 번이라도 armed된 origin(active origin)이면 sentinel 도착 전 document_start부터 버퍼 적재를 시작한다**(로드 초반 로그 캡처). `setSentinel`은 `capturing=true` + `setPreArmFlag()`(이후 same-origin reload에서 재-pre-arm), `stop`은 `recording=false`+`capturing=false`이되 **sessionStorage 플래그는 유지**(reload 시 새 world가 다시 pre-arm). sentinel 전 적재분은 `entry.preArm=true`로 마킹된다 — dispatch는 sentinel 없으면 no-op이라 사이드패널 전송·IndexedDB 저장은 안 되고 메모리 버퍼에만 쌓이며, 다음 arm 시 소급 flush된다. `capturing=false`면 fetch는 `createPatchedFetch`의 `() => capturing` 게이트로 원본 경로(`new Request` 재구성 없음), XHR/sendBeacon/console/action은 push 차단 — pre-arm 아닌(미armed) origin·미활성 탭 트래픽에 일절 간섭하지 않는다. 같은 탭으로 (네비게이션 없이) 복귀해 패널 문서가 살아 있으면 패널 `visibilitychange`(visible)가 재주입을 트리거해 stop과 대칭을 맞춘다.
 
 **페이지 무간섭(예외 격리)**: 세 레코더는 MAIN world에서 페이지와 같은 전역을 공유하므로 wrap이 페이지 동작을 절대 깨뜨리면 안 된다. 불변식 — ① 원본(fetch/XHR/`console.*`/`history.pushState·replaceState`)을 **먼저** 호출해 페이지 동작 보존, ② 기록 로직의 throw는 try/catch로 격리해 페이지 호출자로 전파 금지(`createPatchedFetch` record/settle, XHR `recordXhrSend`, console wrap의 `safeStringify`, action history wrap 모두 격리), ③ 응답 본문 read는 settle을 await하지 않음. 특히 `safeStringify`는 페이지 값의 throwing getter·커스텀 `toString`/`Symbol.toPrimitive`·Proxy trap에도 `[unserializable]`로 흡수해 wrap된 `console.log`(=페이지 코드)가 throw하지 않게 한다. 리팩터 시 이 3원칙을 깨면 페이지 요청·라우팅·콘솔이 깨질 수 있다(과거 fetch `new Request` 재구성이 GitHub 업로드·SigV4를 깬 회귀 전례).
 
@@ -115,11 +115,11 @@ shorthand(var 포함) + 같은 shorthand의 longhand override 조합에서 Chrom
 
 **Body omission**: `string | NetworkBodyOmission` union. kind: `truncated`(3MB 초과), `binary`(image/font 등), `stream`(SSE/multipart), `omitted`(LRU 회수). UI·logs.html 모두 사유 표시.
 
-**Console wrap 범위**: `log/info/debug` + `trace/assert/dir/table/group*/count*/time*`만 wrap. **`error/warn`은 의도적 제외** — wrap 함수가 콜스택에 끼면 Chrome이 확장 attribution해 `chrome://extensions`에 페이지 라이브러리 경고 누적. 진짜 에러는 `window.addEventListener("error")`/`unhandledrejection`/`console.assert`로 별도 캡처.
+**Console wrap 범위**: `log/info/debug` + `trace/assert/dir/table/group*/count*/time*`는 상시 wrap. **`error/warn`은 arm 구간에 한정해 wrap** — wrap 함수가 콜스택에 끼면 Chrome이 확장 attribution해 `chrome://extensions`에 페이지 라이브러리 경고가 누적되므로 오염 창을 arm 스코프로 좁힌다. arm 트리거는 둘 — `setSentinel`(명시적 arm) 또는 **pre-arm(active origin이면 document_start부터, `installEwWrap`)**. 멱등(`ewState.installed`)이라 중복 설치는 no-op. 복원은 `stop`(`restoreConsoleWrap`) + sentinel 미도착 케이스 보강으로 `pagehide`에서도 원복(멱등이라 중복 안전). 진짜 에러는 `window.addEventListener("error")`/`unhandledrejection`/`console.assert`로 별도 캡처.
 
-**액션 레코더**: click/input/change를 capture-phase에서, `pushState`/`replaceState` 래핑 + `popstate`/`hashchange`로 네비게이션 기록. 클릭은 가까운 interactive 요소로 정규화, accessible name과 implicit role을 **분리 저장** — 자연어 문장 조립은 뷰어(`ActionLogContent`)의 i18n 레이어가 담당. 입력은 같은 selector 연속 dedup. **민감 필드 마스킹**: `shouldMaskField`가 type=password, autocomplete 힌트, 필드명 키워드(`password|secret|card|cvv|ssn|token` 등)로 판별해 `***` 치환. 녹화 bind(`setSentinel`) 시 현재 페이지 진입 `load` 네비게이션을 1회 보충(`entryNavOnBind`) — document_start의 load는 `recording=false`라 버려지므로 cross-origin 진입 자취가 사라지는 것을 메운다.
+**액션 레코더**: click/input/change를 capture-phase에서, `pushState`/`replaceState` 래핑 + `popstate`/`hashchange`로 네비게이션 기록. 클릭은 가까운 interactive 요소로 정규화, accessible name과 implicit role을 **분리 저장** — 자연어 문장 조립은 뷰어(`ActionLogContent`)의 i18n 레이어가 담당. 입력은 같은 selector 연속 dedup. **민감 필드 마스킹**: `shouldMaskField`가 type=password, autocomplete 힌트, 필드명 키워드(`password|secret|card|cvv|ssn|token` 등)로 판별해 `***` 치환. 녹화 bind(`setSentinel`) 시 현재 페이지 진입 `load` 네비게이션을 1회 보충(`entryNavOnBind`, `entryNavEmitted` 가드로 중복 방지) — pre-arm 적용 origin이면 document_start의 load가 `capturing=true`라 이미 적재돼 `entryNavEmitted=true`가 되므로 보충을 스킵하고, 미armed origin이라 load가 버려진 경우에만 1회 합성해 cross-origin 진입 자취 소실을 메운다.
 
-**스트리밍 throttle**: 레코더는 버퍼를 모았다 nav 시점에만 보내지 않고, entry 발생 시 `createTrailingThrottle`(`log-throttle.ts`, `FLUSH_INTERVAL_MS=200`)로 사이드패널에 **연속 stream**한다 — trailing throttle이라 로그 폭주 중에도 flush가 무한정 밀리지 않고 최대 200ms마다 1회 보장. 떠나는 페이지의 마지막 꼬리는 `pagehide`/`visibilitychange(hidden)`에서 `flushNow`로 즉시 비운다. 이로써 nav 직전 동기 sync 1회에 의존하던 꼬리 손실을 줄인다(log-tail-reliability). network의 in-place phase 갱신(pending→complete/error)은 schedule을 안 켜도 다음 push·flush가 흡수(id dedup).
+**스트리밍 throttle**: 레코더는 버퍼를 모았다 nav 시점에만 보내지 않고, entry 발생 시 `createTrailingThrottle`(레코더는 `content/log-throttle.ts`, `FLUSH_INTERVAL_MS=200`)로 사이드패널에 **연속 stream**한다 — trailing throttle이라 로그 폭주 중에도 flush가 무한정 밀리지 않고 최대 200ms마다 1회 보장. (수신부 IDB 가드는 동일 구현의 복제본 `sidepanel/lib/trailing-throttle.ts`를 쓴다 — 위 "동기 IIFE emit" 제약 때문에 의도적 분리.) `setSentinel`은 `if (buffer.length) throttle.schedule()`로 **pre-arm 초반 버퍼를 bind 직후 소급 flush**한다. 떠나는 페이지의 마지막 꼬리는 `pagehide`/`visibilitychange(hidden)`에서 `flushNow`로 즉시 비운다. 이로써 nav 직전 동기 sync 1회에 의존하던 꼬리 손실을 줄인다(log-tail-reliability). network의 in-place phase 갱신(pending→complete/error)은 schedule을 안 켜도 다음 push·flush가 흡수(id dedup).
 
 **수신부 IDB 가드**: 사이드패널은 store set(메모리)은 매번, IndexedDB write는 `createLogPersistGuard`(`log-persist-guard.ts`, ~1s trailing throttle)로 묶어 "마지막 push payload"만 저장. **save 실패(sync throw·reject·blob-db의 false resolve) 시 `pending`을 비우지 않아** 다음 push/flush에서 재시도(c3d87e5 회귀 수정). 30s replay trim 경로는 `discard()`로 대기 payload를 폐기해 trim 경계 밖 로그의 IDB 부활을 막는다.
 
@@ -136,11 +136,13 @@ shorthand(var 포함) + 같은 shorthand의 longhand override 조합에서 Chrom
 | 캡처 모드 | console | network | action | 첨부 토글 기본값 |
 |---|---|---|---|---|
 | element | ❌ | ❌ | ❌ | — |
-| screenshot | ✅ | ✅ | ❌ | off (사용자가 토글) |
+| screenshot | ✅ | ✅ | ❌ | on (자동) |
 | freeform | ✅ | ✅ | ❌ | on (자동) |
 | video | ✅ | ✅ | ✅ | on (자동) |
 
-기본값은 `editor-store.ts`의 모드 진입 액션(`startCapturing`/`startFreeform`/`startRecording`/`onRecordingComplete`)에서 설정. screenshot은 `preserveLogs`로 직전 상태만 승계 (`initial`은 모두 false).
+로그 첨부 토글은 network/console/action **3종 분리**(`networkLogAttach`/`consoleLogAttach`/`actionLogAttach` + setter 3개). `initial`은 모두 false지만 캡처 모드 진입 액션(`startCapturing`/`startElementShot`/`startFreeform`/`onRecordingComplete`)이 진입 시 3종을 **일괄 true로 강제** — `...preserveLogs(prev)`로 직전 로그 *데이터*는 승계하되, 그 뒤 명시 `true`가 토글 값을 덮으므로 screenshot·freeform·video 모두 기본 on. 지원되지 않는 로그(screenshot·freeform의 action)는 토글이 true여도 `supportsActionLog` 게이트로 실제 첨부·UI 노출에서 빠진다. element 모드는 로그 미지원이라 토글 자체가 무의미.
+
+**사용자 파일 첨부**: 캡처물과 별개로 사용자가 로컬 파일을 직접 첨부할 수 있다(`AttachmentSection`/`AttachmentList`, captureMode 무관). 메타는 editor-store `attachments: UserAttachmentMeta[]`, 바이트는 blob-db(`saveAttachmentBlob`). 캡(`attachmentLimits.ts`) — 개수 10개·합계 50MB는 **하드캡**: `takeWithinLimits`가 store 단일 출처로 초과분을 드롭하고 사유(`count`/`total`)만 toast로 안내(대용량 다중 첨부의 base64 메모리 폭발 방지). 플랫폼 단건 한도는 **경고만**(차단 아님) — Notion 5MB·GitLab 10MB(`PLATFORM_FILE_SIZE_LIMIT`, 나머지 null), `checkAttachmentLimits`가 초과 항목을 빨간 테두리로 표시. 제출 시 `buildCaptureFiles`가 `userAttachments`를 captureMode와 무관하게 `attachments`로 합류시켜 6개 플랫폼 빌더가 모두 업로드. draft 저장/복원의 blob 키 충돌은 `rekeyAttachmentBlobs`(+`whenAttachmentBlobsReady` in-flight 가드)로 재매핑.
 
 **플랫폼별 패키징**:
 - **Jira**: `logs.html` 그대로 첨부 → 이슈 생성 **후** `injectIssueUrl`로 뷰어 백링크 주입. 본문 로그 요약 안내의 `logs.html`은 제출 시 첨부 URL을 모르므로 업로드 후 `injectLogsLink`(`background/lib/adf-logs-link`)가 해당 em 노드에 link mark를 주입해 클릭 링크화(매칭 노드 없으면 평문 유지).
@@ -154,7 +156,7 @@ shorthand(var 포함) + 같은 shorthand의 longhand override 조합에서 Chrom
 
 **issueUrl 주입**: `buildLogsHtml`이 meta 마지막에 빈 `issueUrl:""` 예약. 이슈 생성 후 `injectIssueUrl`이 해당 자리만 치환(청크 단위 btoa로 ~20MB 블로킹 회피). Jira·Linear는 생성 후 주입, Asana는 create가 upload보다 먼저라 업로드 직전 주입, GitHub·Notion은 구조상 불가(빈 값 → 뷰어가 링크 숨김).
 
-**handleStartVideo**: `injectNetworkRecorder` → `clearNetworkRecorder` → `startRecording` 순. 녹화 종료(`recording→drafting`) 시 `recordersStopped=true`로 drafting 중 재주입 차단.
+**startVideoCapture** (`video-capture.ts`): 3개 레코더(network/console/action) `activate*Recorder` → `clear*Recorder` → `startRecording` 순. 녹화 종료(`recording→drafting`) 시 `recordersStopped=true`(`useBackgroundRecorder`)로 drafting 중 재주입 차단.
 
 **정리**: `shouldPreserveBackgroundLogs(phase)` = recording/drafting/previewing/done. idle 전환 시 레코더 재주입+새 sentinel. pending IDB는 탭 종료·이슈 저장·고아 정리(`pruneOrphanPendingLogsOncePerSession` — SW 부트 세션당 1회)에서 회수. clear→setSentinel은 sequential await 강제(fire-and-forget 시 Chrome 메시지 큐 순서 미보장으로 race).
 
@@ -182,6 +184,26 @@ shorthand(var 포함) + 같은 shorthand의 longhand override 조합에서 Chrom
 **인코딩**: `capture()` → `frameBuffer.snapshot()` → `encodeToMp4()`(WebCodecs H.264 codec 후보 순차 탐색 + `mp4-muxer`) → 성공 시 `onRecordingComplete(blob, thumbnail, viewport)` 재사용 (`captureMode: "video"`).
 
 **상태 공유**: `replay-context.ts`의 `ReplayProvider`가 `isReady`/`isEncoding`/`capture`를 EmptyState에 공급.
+
+## AI 통합 (BYOK LLM · AI Draft · AI Styling)
+
+이슈 작성을 돕는 두 AI 기능 — **AI Draft**(캡처 컨텍스트로 이슈 본문 초안 생성)와 **AI Styling**(자연어로 라이브 요소 스타일 편집) — 이 공용 프로바이더 추상화 위에 올라간다. 모두 **BYOK(Bring Your Own Key)** — 키·엔드포인트는 사용자가 설정하고 호출은 사이드패널에서 직접 나간다. 서버 중계 없음.
+
+**프로바이더 추상화** (`src/sidepanel/lib/ai-provider.ts`): `AIProvider` 인터페이스 = `generate`(단발) + `createSession`(멀티턴 — `messages` 누적). 구현 3종:
+- **OpenAI-compatible** (`createOpenAICompatibleProvider`): `/chat/completions`. 프리셋 6종(OpenAI·Gemini·Groq·Together·OpenRouter·Ollama) + 임의 baseUrl. `responseSchema`면 `response_format: json_object`.
+- **Anthropic** (`createAnthropicProvider`): `/messages`, `anthropic-dangerous-direct-browser-access` 헤더. JSON 스키마는 system에 인라인. 이미지는 base64 `source`(OpenAI는 `image_url`).
+- **Chrome Built-in AI** (`createChromeAIProvider`): 온디바이스 `LanguageModel`(Prompt API). `CHROME_AI_LANG_OPTIONS`로 출력 언어 고정. 이미지·외부 전송 없음.
+
+**프로바이더 선택·폴백** (`useAI`): `settingsUi.llm.modelId`가 있으면 BYOK(baseUrl로 `detectProviderKind` → anthropic/openai), 없으면 Chrome AI로 폴백. Chrome AI는 `availability()`로 가용성 확인 후 status 노출. 둘 다 불가면 AI UI 미노출.
+
+**키·권한·전송**:
+- API 키는 `chrome.storage`에 `key-obfuscation.ts`(XOR+base64, `obf:` 접두사)로 난독화 저장 — 암호화 아님, 평문 노출만 차단.
+- BYOK는 임의 호스트로 나가므로 연결 시 `requestHostPermission(baseUrl)`가 `chrome.permissions.request`로 해당 origin(optional `<all_urls>`)을 런타임 획득.
+- 재시도/에러: `fetchWithRetry`가 게이트웨이/오버로드(502·503·504·529)에 1s→2s 백오프 2회. 429→`LlmQuotaError`, 503/529→`LlmOverloadedError`. `LLM_MAX_TOKENS=4096` 공통 상한.
+
+**AI Draft** (`buildAiDraftPrompt.ts`): `buildAiDraftSessionPrompt`가 캡처 모드별 컨텍스트를 조립 — element(diff `current→desired`·디자인 토큰), screenshot(이미지 첨부 분석 지시), video/freeform(network·console 에러 요약 + video는 action 로그). 사용자가 이미 쓴 본문은 `existingDraft`로 "참고 후 개선" 지시(인라인 이미지 ref는 `stripInlineImageRefs`로 제거). enabled 섹션별 JSON 스키마(`buildAiDraftSchema`)로 출력 강제. `parseAiDraftResponse`가 JSON 추출·title 80자 cap·`stepsToReproduce` 번호 제거. 덮어쓸 때 `mergeAiSectionsPreservingImages`(`mergeAiDraftSections.ts`)가 기존 섹션의 inline 이미지를 상단에 보존하고 그 아래 LLM 텍스트를 붙인다.
+
+**AI Styling** (`buildAiStylingPrompt.ts` + `aiStylingPostProcess.ts`): `buildAiStylingSystemPrompt`가 요소 현재 스타일·클래스·디자인 토큰을 컨텍스트로 주고, LLM이 `{ explanation, inlineStyle, classList }` JSON 반환. `parseAiStylingResponse`가 kebab 정규화 + `DENIED_STYLE_PROPS`(content·animation·will-change·counter·`--*`) 필터. 후처리 2단계: ① `mergeAiEdits` — AI가 shorthand를 내면 기존 longhand 제거(diff 행 중복 방지), ② `replaceRawWithTokens` — raw 값을 디자인 토큰 `var()`로 치환하되, 색상은 HSL 거리(임계 `COLOR_FUZZY_THRESHOLD=50`)로 같은 family 토큰에 fuzzy 매칭. 결과는 라이브 picker 편집으로 적용돼 styleEdits 파이프라인에 합류한다.
 
 ## chrome.scripting.executeScript MAIN world 주입 규칙
 
@@ -217,7 +239,7 @@ Jira는 붙여넣기 시 **ProseMirror가 HTML을 해석**하므로 `ClipboardIt
 | `expectedResult` (기대 결과) | ✅ | paragraph |
 | `notes` (비고) | ⬜ | paragraph |
 
-draft 모델: `{ title, sections: Record<string, string>, environment?: EnvironmentRow[] }`. `stepsToReproduce`는 `OrderedListEditor` 전용 UI, 나머지는 Textarea.
+draft 모델: `{ title, sections: Record<string, string>, environment?: EnvironmentRow[] }`. `stepsToReproduce`는 `OrderedListEditor` 전용 UI, 나머지는 Textarea. 본문 섹션과 별개로 **캡처 미디어·로그 첨부·사용자 파일 첨부**(위 "사용자 파일 첨부"·"로그 정책 매트릭스" 참조)가 별도 채널로 들어가며, 자동 메타 위치 규칙에 따라 본문에 삽입되거나 첨부 영역으로 패키징된다.
 
 **재현 환경**: `ReproEnvironmentSection`이 모드별 메타를 readonly 표시 + `draft.environment` 사용자 정의 row 편집. 순수 헬퍼: `filterEnvironmentRows`(빈 row 제거) / `deriveReadonlyEnvRows`(모드별 파생).
 
