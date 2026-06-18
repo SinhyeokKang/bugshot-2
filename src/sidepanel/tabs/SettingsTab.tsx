@@ -137,7 +137,7 @@ function IssueSettingsContent() {
           <div className="space-y-2">
             <Input
               id="title-prefix"
-              placeholder="[QA] "
+              placeholder={t("settings.titlePrefix.placeholder")}
               value={titlePrefix}
               onChange={(e) => setTitlePrefix(e.target.value)}
               autoComplete="off"

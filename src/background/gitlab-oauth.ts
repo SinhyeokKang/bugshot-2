@@ -2,7 +2,7 @@ import { t } from "@/i18n";
 import type { GitlabAuth, GitlabOAuthAuth } from "@/types/gitlab";
 import { writeStoredGitlabOAuthTokens } from "@/lib/settings-storage";
 import { getMyself, setGitlabRefreshHook } from "./gitlab-api";
-import { OAuthError, launchOAuthWebFlow } from "./oauth";
+import { OAuthError, base64url, launchOAuthWebFlow } from "./oauth";
 
 const CLIENT_ID = (import.meta.env.VITE_GITLAB_CLIENT_ID ?? "").trim();
 const BASE_URL = "https://gitlab.com";
@@ -24,13 +24,6 @@ function assertConfigured(): void {
 
 function redirectUri(): string {
   return chrome.identity.getRedirectURL();
-}
-
-function base64url(buffer: ArrayBuffer): string {
-  const bytes = new Uint8Array(buffer);
-  let binary = "";
-  for (const b of bytes) binary += String.fromCharCode(b);
-  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
 export async function generatePkceChallenge(): Promise<{

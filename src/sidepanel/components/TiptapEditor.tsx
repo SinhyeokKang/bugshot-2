@@ -108,8 +108,10 @@ function createImageDropPlugin(
 }
 
 function editorMarkdown(editor: Editor, urlToRef: Map<string, string>): string {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let md = (editor.storage as any).markdown.getMarkdown() as string;
+  const storage = editor.storage as unknown as {
+    markdown: { getMarkdown(): string };
+  };
+  let md = storage.markdown.getMarkdown();
   for (const [blobUrl, refId] of urlToRef) {
     md = md.replaceAll(blobUrl, `inline:${refId}`);
   }
