@@ -10,6 +10,7 @@ import {
 } from "./console-recorder-helpers";
 import type { EwState } from "./console-recorder-helpers";
 import { createTrailingThrottle, FLUSH_INTERVAL_MS } from "./log-throttle";
+import { readPreArmFlag, setPreArmFlag } from "./recorder-prearm";
 
 function consoleRecorderScript(): void {
   const CTRL_KEY = "__bugshot_console_ctrl__";
@@ -27,11 +28,15 @@ function consoleRecorderScript(): void {
     args: string;
     stack?: string;
     pageUrl: string;
+    preArm?: boolean;
   }
 
   const buffer: CapturedEntry[] = [];
   let totalSeen = 0;
   let recording = false;
+  // pre-arm: active origin이면 sentinel 전에도 적재(capturing). dispatch는 sentinel 없으면 no-op.
+  const preArm = readPreArmFlag();
+  let capturing = preArm;
 
   function genId(): string {
     if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -50,7 +55,7 @@ function consoleRecorderScript(): void {
   }
 
   function pushEntry(level: Level, args: string, stack?: string): void {
-    if (!recording) return;
+    if (!capturing) return;
     totalSeen++;
     const entry: CapturedEntry = {
       id: genId(),
@@ -60,6 +65,7 @@ function consoleRecorderScript(): void {
       pageUrl: location.href,
     };
     if (stack) entry.stack = stack;
+    if (!recording) entry.preArm = true;
     // 버그 재현 시 가치 있는 신호는 후반부이므로 cap 도달 시 oldest를 버리는 FIFO.
     buffer.push(entry);
     if (buffer.length > MAX_ENTRIES) buffer.shift();
@@ -73,6 +79,16 @@ function consoleRecorderScript(): void {
   const record = (level: "error" | "warn", args: unknown[]) =>
     pushEntry(level, serializeArgs(args), captureStack());
   const ewState: EwState = { installed: false, prior: null, ours: null };
+
+  function installEwWrap(): void {
+    installConsoleWrap(console, ewState, (native, level) =>
+      makeConsoleWrapper(native, level, record),
+    );
+  }
+
+  // pre-arm: active origin이면 document_start부터 error/warn도 후킹해 로드 초반 에러/경고를 잡는다.
+  // 멱등(ewState.installed)이라 이후 setSentinel의 재호출은 no-op.
+  if (preArm) installEwWrap();
 
   const LEVELS_TO_WRAP = ["log", "info", "debug"] as const;
 
@@ -259,11 +275,14 @@ function consoleRecorderScript(): void {
     detachSentinelListeners();
     currentSentinel = sentinel;
     recording = true;
-    installConsoleWrap(console, ewState, (native, level) =>
-      makeConsoleWrapper(native, level, record),
-    );
+    capturing = true;
+    setPreArmFlag(); // 이후 reload/same-origin 네비에서 pre-arm 적재가 켜지도록 active 표시.
+    installEwWrap();
+    if (buffer.length) throttle.schedule(); // pre-arm 초반 버퍼 소급 flush.
+    // stop은 현재 world의 적재·전송을 끄고 error/warn wrap을 원복. 플래그는 유지(reload 시 재-pre-arm).
     stopHandler = () => {
       recording = false;
+      capturing = false;
       restoreConsoleWrap(console, ewState);
       throttle.flushNow();
     };
@@ -280,7 +299,12 @@ function consoleRecorderScript(): void {
   });
 
   // 풀 네비게이션으로 MAIN world가 파괴되기 직전 버퍼 flush(보조). sentinel 없으면 dispatch no-op.
-  window.addEventListener("pagehide", () => throttle.flushNow());
+  // pre-arm으로 init에서 error/warn wrap을 깔았는데 sentinel 미도착(stopHandler 없음)인 경우를 위해
+  // 여기서도 원복한다(멱등이라 stop과 중복 안전).
+  window.addEventListener("pagehide", () => {
+    restoreConsoleWrap(console, ewState);
+    throttle.flushNow();
+  });
   // 탭 숨김 직전 최신 꼬리까지 flush(안전망 다중화). hidden 외 상태 변화는 무시.
   document.addEventListener("visibilitychange", () => {
     if (document.visibilityState === "hidden") throttle.flushNow();

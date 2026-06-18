@@ -9,6 +9,7 @@ import { saveNetworkLog, saveConsoleLog, saveActionLog, saveInlineImage, dataUrl
 import { shouldCompact, compactImage } from "@/sidepanel/lib/compactImage";
 import { shouldPreserveBackgroundLogs } from "@/sidepanel/hooks/useBackgroundRecorder";
 import { createLogPersistGuard } from "@/sidepanel/lib/log-persist-guard";
+import { shouldDropPreArmEntry } from "@/sidepanel/lib/log-prearm-filter";
 import {
   mergeLogItems,
   rebuildNetworkLog,
@@ -188,9 +189,9 @@ export function usePickerMessages(myTabId: number | null): void {
       } else if (message.type === "networkRecorder.data") {
         if (isLogFrozen(useEditorStore.getState().phase)) return;
         const msg = message as Extract<PickerMessage, { type: "networkRecorder.data" }>;
-        const requests = lastLogClearAt > 0
-          ? msg.payload.requests.filter((r) => r.startTime >= lastLogClearAt)
-          : msg.payload.requests;
+        const requests = msg.payload.requests.filter(
+          (r) => !shouldDropPreArmEntry(r.startTime, lastLogClearAt, !!r.preArm),
+        );
         if (requests.length === 0) return;
         const existing = useEditorStore.getState().networkLog;
         const merged = mergeLogItems(
@@ -212,9 +213,9 @@ export function usePickerMessages(myTabId: number | null): void {
       } else if (message.type === "consoleRecorder.data") {
         if (isLogFrozen(useEditorStore.getState().phase)) return;
         const msg = message as Extract<PickerMessage, { type: "consoleRecorder.data" }>;
-        const entries = lastLogClearAt > 0
-          ? msg.payload.entries.filter((e) => e.timestamp >= lastLogClearAt)
-          : msg.payload.entries;
+        const entries = msg.payload.entries.filter(
+          (e) => !shouldDropPreArmEntry(e.timestamp, lastLogClearAt, !!e.preArm),
+        );
         if (entries.length === 0) return;
         const existing = useEditorStore.getState().consoleLog;
         const merged = mergeLogItems(
@@ -235,9 +236,9 @@ export function usePickerMessages(myTabId: number | null): void {
       } else if (message.type === "actionRecorder.data") {
         if (isLogFrozen(useEditorStore.getState().phase)) return;
         const msg = message as Extract<PickerMessage, { type: "actionRecorder.data" }>;
-        const entries = lastLogClearAt > 0
-          ? msg.payload.entries.filter((e) => e.timestamp >= lastLogClearAt)
-          : msg.payload.entries;
+        const entries = msg.payload.entries.filter(
+          (e) => !shouldDropPreArmEntry(e.timestamp, lastLogClearAt, !!e.preArm),
+        );
         if (entries.length === 0) return;
         const existing = useEditorStore.getState().actionLog;
         const merged = mergeLogItems(

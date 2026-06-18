@@ -7,6 +7,7 @@ import {
   formatKeyCombo,
 } from "./action-recorder-helpers";
 import { createTrailingThrottle, FLUSH_INTERVAL_MS } from "./log-throttle";
+import { readPreArmFlag, setPreArmFlag } from "./recorder-prearm";
 
 function actionRecorderScript(): void {
   const CTRL_KEY = "__bugshot_action_ctrl__";
@@ -35,11 +36,14 @@ function actionRecorderScript(): void {
     fieldLabel?: string;
     value?: string;
     masked?: boolean;
+    preArm?: boolean;
   }
 
   const buffer: CapturedAction[] = [];
   let totalSeen = 0;
   let recording = false;
+  // pre-arm: active origin이면 sentinel 전에도 적재(capturing). dispatch는 sentinel 없으면 no-op.
+  let capturing = readPreArmFlag();
   let lastUrl = location.href;
 
   function genId(): string {
@@ -50,7 +54,8 @@ function actionRecorderScript(): void {
   }
 
   function pushAction(entry: CapturedAction): void {
-    if (!recording) return;
+    if (!capturing) return;
+    if (!recording) entry.preArm = true;
     totalSeen++;
     // 버그 재현 시 가치 있는 신호는 후반부이므로 cap 도달 시 oldest를 버리는 FIFO.
     buffer.push(entry);
@@ -155,10 +160,11 @@ function actionRecorderScript(): void {
     // dedup 분기도 pushAction과 동일한 recording 게이트 적용 — stop 이후 입력이
     // 정지된 세션 버퍼의 마지막 entry를 덮어쓰지 않도록.
     const last = buffer[buffer.length - 1];
-    if (recording && last && last.kind === "input" && last.selector === selector) {
+    if (capturing && last && last.kind === "input" && last.selector === selector) {
       last.value = value;
       last.masked = masked;
       last.timestamp = Date.now();
+      if (!recording) last.preArm = true;
       return;
     }
     pushAction({
@@ -173,6 +179,10 @@ function actionRecorderScript(): void {
     });
   }
 
+  // pre-arm으로 init load(아래 recordNavigation("load"))가 적재되면 true가 되어,
+  // setSentinel의 entryNavOnBind 보충을 스킵 → 진입 load 액션 중복 방지.
+  let entryNavEmitted = false;
+
   function recordNavigation(navType: NavType, fromUrl: string, toUrl: string): void {
     if (navType !== "load" && fromUrl === toUrl) return;
     pushAction({
@@ -185,6 +195,7 @@ function actionRecorderScript(): void {
       toUrl,
     });
     lastUrl = toUrl;
+    if (navType === "load" && capturing) entryNavEmitted = true;
   }
 
   function isToggleControl(el: Element | null): el is HTMLInputElement {
@@ -348,7 +359,6 @@ function actionRecorderScript(): void {
 
   // --- Sentinel-bound dispatch ---
   let currentSentinel: string | null = null;
-  let entryNavEmitted = false;
   let stopHandler: (() => void) | null = null;
   let syncHandler: (() => void) | null = null;
   let clearHandler: (() => void) | null = null;
@@ -385,14 +395,17 @@ function actionRecorderScript(): void {
     detachSentinelListeners();
     currentSentinel = sentinel;
     recording = true;
-    // document_start의 load 기록은 recording=false라 버려진다. cross-origin 진입 자취가
-    // 매번 사라지므로, bind 직후 현재 페이지 진입 네비게이션을 1회 보충한다(중복 방지 가드).
+    capturing = true;
+    setPreArmFlag(); // 이후 reload/same-origin 네비에서 pre-arm 적재가 켜지도록 active 표시.
+    // 진입 네비게이션 보충 — pre-arm으로 load 액션이 안 잡힌 경우를 1회 합성(entryNavEmitted 가드로 중복 방지).
     const entryNav = entryNavOnBind(entryNavEmitted, document.referrer, lastUrl, location.href);
     if (entryNav) {
       entryNavEmitted = true;
       recordNavigation("load", entryNav.fromUrl, entryNav.toUrl);
     }
-    stopHandler = () => { recording = false; throttle.flushNow(); };
+    if (buffer.length) throttle.schedule(); // pre-arm 초반 버퍼 소급 flush.
+    // stop은 현재 world의 적재·전송을 끈다(capturing=false). 플래그는 유지(reload 시 재-pre-arm).
+    stopHandler = () => { recording = false; capturing = false; throttle.flushNow(); };
     syncHandler = () => { throttle.flushNow(); };
     clearHandler = () => { clearBuffer(); throttle.cancel(); };
     document.addEventListener("__bugshot_action_stop__" + sentinel, stopHandler);

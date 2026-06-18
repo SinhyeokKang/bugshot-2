@@ -1,6 +1,7 @@
 import { BODY_CAP, MASKED_QUERY_KEYS, classifyBeaconBody, classifyResponseBody, createPatchedFetch, headersToRecord, maskBody } from "./network-recorder-helpers";
 import type { FetchRecordHook } from "./network-recorder-helpers";
 import { createTrailingThrottle, FLUSH_INTERVAL_MS } from "./log-throttle";
+import { readPreArmFlag, setPreArmFlag } from "./recorder-prearm";
 import type { NetworkRequestBody, NetworkRequestPhase } from "@/types/network";
 
 function networkRecorderScript(): void {
@@ -46,12 +47,15 @@ function networkRecorderScript(): void {
     responseBodySize: number;
     contentType: string;
     phase: ReqPhase;
+    preArm?: boolean;
   }
 
   const buffer: CapturedRequest[] = [];
   let totalSeen = 0;
   let memoryUsed = 0;
   let recording = false;
+  // pre-arm: active origin이면 sentinel 전에도 적재(capturing). dispatch는 sentinel 없으면 no-op.
+  let capturing = readPreArmFlag();
   type NetworkWarning = "MEMORY_CAPPED" | "ENTRY_CAPPED" | "BODY_TRUNCATED";
   const warnings = new Set<NetworkWarning>();
 
@@ -180,7 +184,7 @@ function networkRecorderScript(): void {
   const originalFetch = window.fetch;
 
   const recordHook: FetchRecordHook = (info) => {
-    if (!recording) return () => {};
+    if (!capturing) return () => {};
 
     totalSeen++;
     const startTime = Date.now();
@@ -214,6 +218,7 @@ function networkRecorderScript(): void {
       contentType: "",
       phase: "pending",
     };
+    if (!recording) entry.preArm = true;
     memoryUsed += estimateBodySize(entry.requestBody);
     pushEntry(entry);
     enforceMemoryCap();
@@ -276,7 +281,7 @@ function networkRecorderScript(): void {
     };
   };
 
-  window.fetch = createPatchedFetch(originalFetch, recordHook, () => recording);
+  window.fetch = createPatchedFetch(originalFetch, recordHook, () => capturing);
 
   // --- XHR wrap ---
   const XHR = XMLHttpRequest.prototype;
@@ -308,7 +313,7 @@ function networkRecorderScript(): void {
   };
 
   XHR.send = function (this: XMLHttpRequest, body?: Document | XMLHttpRequestBodyInit | null) {
-    if (!recording) {
+    if (!capturing) {
       return originalSend.call(this, body);
     }
     // 기록 로직 실패가 페이지 XHR을 깨뜨리지 않도록 감싸고, 무슨 일이 있어도 originalSend는 호출한다.
@@ -358,6 +363,7 @@ function networkRecorderScript(): void {
       contentType: "",
       phase: "pending",
     };
+    if (!recording) entry.preArm = true;
     memoryUsed += estimateBodySize(entry.requestBody);
     pushEntry(entry);
     enforceMemoryCap();
@@ -437,7 +443,7 @@ function networkRecorderScript(): void {
     const originalSendBeacon = navigator.sendBeacon.bind(navigator);
     navigator.sendBeacon = function patchedSendBeacon(url: string | URL, data?: BodyInit | null): boolean {
       const queued = originalSendBeacon(url, data);
-      if (recording) {
+      if (capturing) {
         totalSeen++;
         const startTime = Date.now();
         const urlStr = maskUrl(typeof url === "string" ? url : url.toString());
@@ -468,6 +474,7 @@ function networkRecorderScript(): void {
           contentType,
           phase: queued ? "complete" : "error",
         };
+        if (!recording) entry.preArm = true;
         memoryUsed += estimateBodySize(entry.requestBody);
         pushEntry(entry);
         enforceMemoryCap();
@@ -520,7 +527,12 @@ function networkRecorderScript(): void {
     detachSentinelListeners();
     currentSentinel = sentinel;
     recording = true;
-    stopHandler = () => { recording = false; throttle.flushNow(); };
+    capturing = true;
+    setPreArmFlag(); // 이후 reload/same-origin 네비에서 pre-arm 적재가 켜지도록 active 표시.
+    if (buffer.length) throttle.schedule(); // pre-arm 초반 버퍼 소급 flush.
+    // stop은 현재 world의 적재·전송을 끈다(capturing=false). sessionStorage 플래그는 유지 —
+    // 이후 reload 시 새 world가 플래그를 읽어 pre-arm을 다시 켠다.
+    stopHandler = () => { recording = false; capturing = false; throttle.flushNow(); };
     syncHandler = () => { throttle.flushNow(); };
     clearHandler = () => { clearBuffer(); throttle.cancel(); };
     document.addEventListener("__bugshot_net_stop__" + sentinel, stopHandler);

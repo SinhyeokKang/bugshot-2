@@ -24,6 +24,8 @@ export interface NetworkRequest {
   responseBodySize: number;
   contentType: string;
   phase: NetworkRequestPhase;
+  // pre-arm 버퍼링으로 sentinel 도착 전(페이지 로드 초반) 캡처됨 → reload logClear 경계 우회 보존.
+  preArm?: boolean;
 }
 
 export interface NetworkLog {
