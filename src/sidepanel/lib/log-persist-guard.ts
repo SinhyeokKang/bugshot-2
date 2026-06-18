@@ -1,4 +1,4 @@
-import { createTrailingThrottle } from "@/content/log-throttle";
+import { createTrailingThrottle } from "./trailing-throttle";
 
 // 수신부 IndexedDB write 가드: 레코더 자동 flush(~200ms)로 수신 빈도가 올라도
 // save(IndexedDB)는 trailing throttle(~1s)로 묶는다. 항상 "마지막으로 push된 payload"만 저장한다.
