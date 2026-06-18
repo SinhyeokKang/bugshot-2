@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>prearm</title>
+    <script>
+      // 문서 로드 초반(head/body/DOMContentLoaded)에 고유 marker fetch + console 로그 발사.
+      // recorders-entry가 동기 IIFE(document_start)로 페이지 스크립트보다 먼저 후크하므로,
+      // active origin이면 pre-arm 버퍼가 이 로드 초반 network·console을 잡는다.
+      // - network: path에 timestamp(networkLogPath가 query를 버림) — 매 로드 고유.
+      // - console.error/warn은 pre-arm에서만 document_start 후킹(installEwWrap) → 조기 후킹 검증용.
+      function fireMarker(tag) {
+        fetch("/prearm-marker-" + tag + "-" + Date.now() + ".json").catch(function () {});
+      }
+      fireMarker("head");
+      console.log("prearm-console-log-" + Date.now());
+      console.error("prearm-console-error-" + Date.now());
+      console.warn("prearm-console-warn-" + Date.now());
+      document.addEventListener("DOMContentLoaded", function () {
+        fireMarker("dcl");
+      });
+    </script>
+  </head>
+  <body>
+    <h1 id="title">prearm fixture</h1>
+    <script>
+      fireMarker("body");
+    </script>
+  </body>
+</html>
