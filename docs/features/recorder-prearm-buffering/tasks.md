@@ -14,48 +14,49 @@
   - `log-prearm-filter.ts`: 순수 `shouldDropPreArmEntry(timestamp, lastLogClearAt, isPreArm)`.
   - 테스트: `isPreArmFlag`(truthy/falsy), `shouldDropPreArmEntry`(경계값 — pre-arm이면 과거여도 false, 비-pre-arm 과거면 true, lastLogClearAt=0이면 항상 false).
 - **검증**:
-  - [ ] `isPreArmFlag("1")===true`, `null/""/"0"/"true"===false`
-  - [ ] `shouldDropPreArmEntry(50, 100, true)===false`, `(50,100,false)===true`, `(50,0,false)===false`, `(150,100,false)===false`
-  - [ ] `pnpm test` 통과, `pnpm typecheck` 통과
+  - [x] `isPreArmFlag("1")===true`, `null/""/"0"/"true"===false`
+  - [x] `shouldDropPreArmEntry(50, 100, true)===false`, `(50,100,false)===true`, `(50,0,false)===false`, `(150,100,false)===false`
+  - [x] `pnpm test` 통과(10 tests), `pnpm typecheck` 통과
 
 ### Task 2: pre-arm 마커 데이터 모델
 - **변경 대상**: `src/types/network.ts`, `src/types/console.ts`, `src/types/action.ts`
 - **작업 내용**: `NetworkRequest`/`ConsoleEntry`/`ActionEntry`에 선택 필드 `preArm?: boolean` 추가. payload 타입(`src/types/picker.ts`)은 이 배열을 그대로 전달하므로 변경 불필요(확인만).
 - **검증**:
-  - [ ] `pnpm typecheck` 통과(기존 생성부에서 optional이라 깨지지 않음)
+  - [x] `pnpm typecheck` 통과(기존 생성부에서 optional이라 깨지지 않음)
 
 ### Task 3: network-recorder pre-arm 적용
 - **변경 대상**: `src/content/network-recorder.ts`
-- **작업 내용**: init에 `const preArm = readPreArmFlag(); let capturing = preArm;`. `recordHook` 게이트(182-183)를 `if (!capturing) return`로 교체, `recording===false`로 적재 시 엔트리에 `preArm: true` 마킹. `setSentinel`에 `capturing=true; setPreArmFlag(); if (buffer.length) throttle.schedule();`. `stopHandler`는 기존 유지(플래그·capturing 무변경).
+- **작업 내용**: init에 `let capturing = readPreArmFlag();`. `recordHook`(fetch)·XHR `send`·`sendBeacon` 게이트를 `capturing` 기준으로 통일, `recording===false`로 적재 시 엔트리에 `preArm: true` 마킹(3경로). `setSentinel`에 `capturing=true; setPreArmFlag(); if (buffer.length) throttle.schedule();`. `stopHandler`에 `capturing=false` 추가(적재·전송 중단); sessionStorage 플래그는 clear 안 함.
 - **검증**:
-  - [ ] `preArm=false`일 때 sentinel 전 요청이 버퍼에 안 쌓임(기존 동작)
-  - [ ] `preArm=true`일 때 sentinel 전 요청이 `preArm:true`로 쌓이고 `setSentinel` 후 dispatch에 포함
-  - [ ] `pnpm typecheck` 통과
+  - [x] `preArm=false`일 때 sentinel 전 요청이 버퍼에 안 쌓임(기존 동작 — capturing=false)
+  - [x] `preArm=true`일 때 sentinel 전 요청이 `preArm:true`로 쌓이고 `setSentinel` 후 dispatch에 포함
+  - [x] `pnpm typecheck` 통과
 
 ### Task 4: action-recorder pre-arm 적용
 - **변경 대상**: `src/content/action-recorder.ts`
-- **작업 내용**: `preArm`/`capturing`/마커 도입, `pushAction`(52-53)·input dedup 분기(157-158) 게이트를 `capturing` 기준으로 교체. `setSentinel`(384-401)에 `capturing=true; setPreArmFlag();` + 소급 flush, 기존 `entryNavOnBind`·`entryNavEmitted` 가드 유지. `stopHandler` 기존 유지.
+- **작업 내용**: `capturing`/마커 도입, `pushAction`·input dedup 분기 게이트를 `capturing` 기준으로 교체(dedup에서 `if (!recording) last.preArm = true` 명시). `setSentinel`에 `capturing=true; setPreArmFlag();` + 소급 flush. **진입 load 중복 방지**: `entryNavEmitted` 선언을 `recordNavigation` 앞으로 옮기고, `recordNavigation`이 load 적재 시(`capturing`) `entryNavEmitted=true` → setSentinel 보충 스킵. `stopHandler`에 `capturing=false` 추가.
 - **검증**:
-  - [ ] `preArm=true`에서 sentinel 전 클릭/입력이 `preArm:true`로 쌓이고 flush에 포함
-  - [ ] 진입 네비(`load`) 레코드가 pre-arm 캡처분과 중복되지 않음(`entryNavEmitted` 가드)
-  - [ ] `pnpm typecheck` 통과
+  - [x] `preArm=true`에서 sentinel 전 클릭/입력이 `preArm:true`로 쌓이고 flush에 포함
+  - [x] 진입 네비(`load`) 레코드가 pre-arm 캡처분과 중복되지 않음(`entryNavEmitted` 가드 통합)
+  - [x] `pnpm typecheck` 통과
 
 ### Task 5: console-recorder pre-arm 적용 (+ error/warn 조기 후킹) — 단독 커밋
 - **변경 대상**: `src/content/console-recorder.ts`
-- **작업 내용**: `preArm`/`capturing`/마커 도입, `pushEntry` 게이트(52-53)를 `capturing` 기준으로 교체. `preArm===true`이면 init에서 `installConsoleWrap(console, ewState, …)` 호출(error/warn을 `document_start`에 후킹 — `ewState.installed` 멱등 가드로 `setSentinel` 재호출 무시). **uninstall 경로 보강**: pagehide(282)에 `restoreConsoleWrap(console, ewState)` 추가(sentinel 미도착 시 stopHandler 없이도 원복). `setSentinel`에 `capturing=true; setPreArmFlag();` + 소급 flush.
+- **작업 내용**: `const preArm`/`let capturing`/마커 도입, `pushEntry` 게이트를 `capturing` 기준으로 교체. `preArm`이면 init에서 `installEwWrap()`(=`installConsoleWrap`) 호출(error/warn을 `document_start`에 후킹 — `ewState.installed` 멱등 가드로 `setSentinel` 재호출 무시). **uninstall 경로 보강**: pagehide에 `restoreConsoleWrap` 추가. `setSentinel`에 `capturing=true; setPreArmFlag();` + 소급 flush. `stopHandler`에 `capturing=false` 추가.
 - **검증**:
-  - [ ] `preArm=true`에서 sentinel 전 `console.log/info/debug` 및 `console.error/warn`이 `preArm:true`로 쌓임
-  - [ ] `preArm=false`에서 error/warn 후킹이 설치되지 않음(현행 attribution 오염 회피 유지)
-  - [ ] pagehide 시 `restoreConsoleWrap` 호출돼 원복(멱등, stop과 중복 안전)
-  - [ ] `pnpm typecheck` 통과
+  - [x] `preArm=true`에서 sentinel 전 `console.log/info/debug` 및 `console.error/warn`이 `preArm:true`로 쌓임(코드 검증)
+  - [x] `preArm=false`에서 error/warn 후킹이 설치되지 않음(현행 attribution 오염 회피 유지)
+  - [x] pagehide 시 `restoreConsoleWrap` 호출돼 원복(멱등, stop과 중복 안전)
+  - [x] `pnpm typecheck` 통과
+  - [ ] **실탭 회귀(수동)**: error/warn 조기 후킹의 스택 attribution·Sentry 보존 — 별도 확인 필요
 
 ### Task 6: usePickerMessages 필터 우회
 - **변경 대상**: `src/sidepanel/hooks/usePickerMessages.ts`
 - **작업 내용**: `networkRecorder.data`/`consoleRecorder.data`/`actionRecorder.data` 머지의 `lastLogClearAt` 필터(191-192, 215-216, 238-240)를 `shouldDropPreArmEntry(ts, lastLogClearAt, !!entry.preArm)` 기준으로 교체. pre-arm 엔트리는 reload 경계 과거여도 보존.
 - **검증**:
-  - [ ] `lastLogClearAt>0`이고 엔트리 `preArm:true`면 보존, `preArm` 없고 과거면 폐기(기존 동작)
+  - [x] `lastLogClearAt>0`이고 엔트리 `preArm:true`면 보존, `preArm` 없고 과거면 폐기(`shouldDropPreArmEntry` 단위 테스트로 동등성 확인)
   - [ ] reload 직후 pre-arm flush 엔트리가 화면에 남음(수동/e2e)
-  - [ ] `pnpm typecheck` 통과
+  - [x] `pnpm typecheck` 통과
 
 ### Task 7: privacy.md 대조
 - **변경 대상**: `docs/privacy.md` (대조 후 필요 시)

@@ -39,9 +39,9 @@ export function setPreArmFlag(): void {
 - 현재: `recording=false` 시작, `recordHook`이 `if (!recording) return`(182-183)으로 sentinel 전 요청 버림.
 - 변경:
   - init: `const preArm = readPreArmFlag(); let capturing = preArm;`. `recording`은 dispatch 자격(=sentinel 보유)으로 유지.
-  - `recordHook` 게이트를 `if (!capturing) return`으로 교체. 적재 시 `recording===false`이면 엔트리에 `preArm: true` 마킹.
+  - `recordHook`(fetch)·XHR `send`·`sendBeacon` 게이트를 모두 `if (!capturing) return`/`if (capturing)`으로 통일. 적재 시 `recording===false`이면 엔트리에 `preArm: true` 마킹(fetch/XHR/beacon 3경로).
   - `setSentinel`: 기존 동작 + `capturing = true; setPreArmFlag(); if (buffer.length) throttle.schedule();`(초반 버퍼 소급 flush).
-  - `stopHandler`: 기존 `recording=false; throttle.flushNow()` 유지. **`capturing`/플래그는 건드리지 않는다**(자연 소멸).
+  - `stopHandler`: 기존 `recording=false; throttle.flushNow()`에 **`capturing=false` 추가**(현재 world의 적재·전송 중단). **sessionStorage 플래그는 clear하지 않는다** — reload 시 새 world가 플래그를 읽어 재-pre-arm. (capturing을 안 끄면 stop 후에도 currentSentinel이 살아 있어 적재·dispatch가 계속되는 회귀가 생김.)
   - dispatch는 `currentSentinel` 없으면 no-op(기존) → pre-arm 중 전송 자동 차단.
 
 ### `src/content/console-recorder.ts`
@@ -52,8 +52,9 @@ export function setPreArmFlag(): void {
 
 ### `src/content/action-recorder.ts`
 - network와 동일한 `preArm`/`capturing`/마커 도입. `pushAction`(52-53) 및 input dedup 분기(157-158) 게이트를 `capturing` 기준으로 교체.
-- `setSentinel`(384-401): 기존 `entryNavOnBind` 진입 네비 보충 + `entryNavEmitted` 가드 유지(pre-arm 중 캡처된 load 액션과 중복 방지) + `capturing=true; setPreArmFlag();` + 버퍼 소급 flush.
-- `stopHandler`: 기존 유지, 플래그 무변경.
+- `setSentinel`(384-401): 기존 `entryNavOnBind` 진입 네비 보충 + `capturing=true; setPreArmFlag();` + 버퍼 소급 flush.
+- **진입 load 중복 방지**: pre-arm이 켜지면 init의 `recordNavigation("load")`가 적재되므로, `recordNavigation`이 load를 적재할 때(`navType==="load" && capturing`) `entryNavEmitted=true`로 세팅해 setSentinel의 `entryNavOnBind` 보충을 스킵. (pre-arm off면 init load가 버려져 가드가 안 서고 보충이 1건 보장.) `entryNavEmitted` 선언을 `recordNavigation` 앞으로 이동.
+- `stopHandler`: `recording=false`에 `capturing=false` 추가(적재·전송 중단). sessionStorage 플래그는 유지.
 
 ### `src/sidepanel/hooks/usePickerMessages.ts`
 - `networkRecorder.data`/`consoleRecorder.data`/`actionRecorder.data` 머지의 `lastLogClearAt` 필터(191-192, 215-216, 238-240)를 **엔트리별 `preArm` 마커 우회**로 교체. 순수 함수로 추출:
