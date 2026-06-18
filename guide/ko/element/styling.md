@@ -34,7 +34,7 @@
 
 항목 초기화는 따로 묻지 않고 바로 실행되니, 부담 없이 정리하셔도 됩니다. 되돌려서 변경이 하나도 안 남으면 다이얼로그는 저절로 닫힙니다.
 
-![변경사항 보기 다이얼로그](../assets/element-styling-3.jpg)
+![변경사항 보기 다이얼로그](../assets/element-styling-2.jpg)
 
 ## AI 스타일링
 
@@ -48,7 +48,7 @@ AI(LLM)를 연결해 두면 패널에 **AI 스타일링** 배너가 나타납니
 
 > AI 연결 방법은 [AI LLM 연동](../settings/ai.md)을 참고하세요. AI도 가끔 실수하니 적용된 결과는 한 번 확인해 주세요.
 
-![AI 스타일링 배너](../assets/element-styling-2.jpg)
+![AI 스타일링 배너](../assets/element-styling-3.jpg)
 
 ## 여러 요소를 한 이슈에
 

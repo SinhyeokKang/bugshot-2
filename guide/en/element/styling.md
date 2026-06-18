@@ -34,7 +34,7 @@ Open it and a dialog lists your edits **grouped per element**, each shown as **b
 
 Row resets run instantly without asking, so tidy up with peace of mind. Once nothing is left to revert, the dialog closes on its own.
 
-![Review changes dialog](../assets/element-styling-3.jpg)
+![Review changes dialog](../assets/element-styling-2.jpg)
 
 ## AI Styling
 
@@ -48,7 +48,7 @@ AI finds the right style/class changes and applies them to the page instantly. W
 
 > See [AI LLM Connection](../settings/ai.md) for how to connect. AI slips up now and then, so give the applied result a quick look.
 
-![AI Styling banner](../assets/element-styling-2.jpg)
+![AI Styling banner](../assets/element-styling-3.jpg)
 
 ## More than one element in one issue
 
