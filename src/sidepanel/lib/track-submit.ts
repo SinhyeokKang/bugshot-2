@@ -25,3 +25,11 @@ export function trackSubmit(
     properties: submitEventProperties(platform, captureMode, result),
   }).catch(() => {});
 }
+
+export function trackDisconnect(platform: PlatformId): void {
+  sendBg({
+    type: "analytics.capture",
+    event: "platform_disconnected",
+    properties: { platform },
+  }).catch(() => {});
+}

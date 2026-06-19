@@ -26,7 +26,7 @@ import {
 import { connectedPlatforms, useSettingsStore } from "@/store/settings-store";
 import { PageFooter, PageScroll, PageShell, Section } from "@/sidepanel/components/Section";
 import { PLATFORM_TAB_KEYS, type PlatformId } from "@/types/platform";
-import { sendBg } from "@/types/messages";
+import { trackDisconnect } from "@/sidepanel/lib/track-submit";
 import {
   orderAddPlatforms,
   pickInitialSubTab,
@@ -142,13 +142,7 @@ export function IntegrationsTab({ activeMainTab }: { activeMainTab: string }) {
                 <div className="flex justify-end">
                   <DisconnectAllButton
                     onConfirm={() => {
-                      for (const id of connected) {
-                        sendBg({
-                          type: "analytics.capture",
-                          event: "platform_disconnected",
-                          properties: { platform: id },
-                        }).catch(() => {});
-                      }
+                      for (const id of connected) trackDisconnect(id);
                       removeAllAccounts();
                     }}
                   />
@@ -239,12 +233,8 @@ function DisconnectButton({ id }: { id: PlatformId }) {
           <AlertDialogCancel>{t("common.close")}</AlertDialogCancel>
           <AlertDialogAction
             onClick={() => {
+              trackDisconnect(id);
               removeAccount(id);
-              sendBg({
-                type: "analytics.capture",
-                event: "platform_disconnected",
-                properties: { platform: id },
-              }).catch(() => {});
             }}
           >
             {t("platform.disconnect.confirm")}
