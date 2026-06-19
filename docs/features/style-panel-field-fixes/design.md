@@ -28,6 +28,7 @@
     ): string | null
     ```
     length/number → computed(`compact`면 `shortValue`), color/image 토큰 → `tokenRawValue`, 그 외 null. 호출부에서 `tokenRawValue = findTokenValue(tokens, tokenRefs[0]?.name)`.
+  - **표시 정책(결정됨)**: color/image 우측 원시값은 compact 포함 **항상 표시**하되, 드롭다운 `TokenItem`의 우측값과 동일하게 **`max-w-[120px] truncate`**(좁은 4면 셀에서는 컨테이너 폭에 맞춰 더 짧게 truncate)로 오버플로를 막는다. `shortValue`는 length의 px 축약 전용이라 color 원시값에는 미적용(truncate로 대체).
 - **[D] 라이브 정규화**: `finalize`(현 144-156)를 파일 밖 순수 함수 `finalizeValue(category, next)`로 추출(신규 모듈, 아래). `onValueChange`(현 291-296)의 라이브 set 경로를 `maybeNormalize` 대신 `finalizeValue(category, v.trim())`로 교체해 length도 px가 라이브 부착되게 한다. `commit`/`handleOpenChange` close 경로도 동일 `finalizeValue` 사용(중복 제거).
   - 주의: 라이브에 px를 붙이면 빈 입력·부분 입력 처리 필요. `finalizeValue`는 빈 문자열·정규식 미매치 입력을 그대로 통과시켜(현 동작 유지) 무한 px 부착을 막는다.
 - **[J-소수]** `finalizeValue`의 length 정규식을 `/^-?(\d+(\.\d+)?|\.\d+)$/`로 넓혀 `.5` 같은 선행점 소수도 px 부착(multiplier 정규식 `-?\d*\.?\d+`과 정합).
@@ -44,10 +45,11 @@
 
 ### `src/sidepanel/tabs/styleEditor/StylePropEditors.tsx` — [C][E][F][H]
 - **[C] SelectProp 빈 옵션 역변환**: `onValueChange={set}`(현 236)을 `onValueChange={(v) => set(v === "__empty__" ? "" : v)}`로. 셀렉트 sentinel을 스토어로 흘리지 않는다. `set("")`은 styleHooks에서 이미 prop 삭제 처리.
-- **[E] linked 상태 동기화**: `useLinkedProps`(현 65-94)의 `linked`를 요소 정체성 변화에 맞춰 재판정.
-  - selection 식별 키를 도출(`selection?.selector ?? null` 등 안정 키)하고, 키가 바뀌면 현재 값 기준으로 linked 기본값을 재계산.
-  - 구현: `const selKey = useEditorStore(s => s.selection?.selector ?? null);` + `useEffect(() => setLinked(computeLinked()), [selKey])`. 단, **사용자가 같은 요소에서 수동 토글한 상태는 보존**(같은 selKey 동안 useEffect 미발화). 초기 `useState`는 유지하고 selKey 변경 시에만 재설정.
-  - `computeLinked()`는 현 `useState` 이니셜라이저 로직을 함수로 추출(props/inlineStyle/selection 값 비교). inlineStyle·selection은 effect 내부에서 `useEditorStore.getState()`로 읽어 deps 최소화.
+- **[E] linked 상태 동기화**: `useLinkedProps`(현 65-94)의 `linked`를 요소 정체성 변화 + 4면 일치 여부에 맞춰 재판정. CTO 검증으로 **useEffect 필요가 확정**됨 — repick(`onElementSelected`)이 selection을 null 미경유로 곧장 교체하고 ValueCombobox에 `key`가 없어 컴포넌트가 remount되지 않으므로, `useState` 이니셜라이저만으로는 재선택 시 재계산이 안 된다(remount 자연해소 가설 기각).
+  - **selKey = selector + capturedAt 조합**: `const selKey = useEditorStore(s => s.selection ? `${s.selection.selector}@${s.selection.capturedAt}` : null);`. selector 단독은 동일 selector 다른 인스턴스를 구분 못 하므로 매 픽마다 갱신되는 `capturedAt`(editor-store.ts)을 합쳐 재선택 시 항상 키가 바뀌게 한다.
+  - **재판정**: `useEffect(() => setLinked(computeLinked()), [selKey])`. 같은 selKey 동안엔 사용자 수동 토글 보존(effect 미발화).
+  - **4면 어긋나면 자동 해제(결정됨)**: 현재 4면 값으로 `sidesEqual`을 매 렌더 계산하고, **effective linked = `linked && sidesEqual`**. linked 모드에서는 `setAllProps`가 4면을 동일하게 유지하므로 정상 흐름에선 항상 일치하지만, 외부 변경(class/AI 스타일)·초기 불일치 시 effectiveLinked가 false로 떨어져 의도치 않은 4면 덮어쓰기를 방지한다. `onLinkedCommit`·LinkToggle 표시는 effectiveLinked 기준.
+  - `computeLinked()`/`sidesEqual`은 현 `useState` 이니셜라이저 로직(props/inlineStyle/selection 값 비교)을 함수로 추출해 공유. effect 내부 값은 `useEditorStore.getState()`로 읽어 deps 최소화.
 - **[F] BoxShadow 레이어 수**: `count = Math.max(placeholderParts.length, 1)`(현 190)을 `Math.max(valueParts.length, placeholderParts.length, 1)`로. value 멀티레이어가 잘리지 않음. (레이어 추가 UI는 비목표)
 - **[H] Alignment resolvedValue**: `resolvedValue`(현 269-270)의 매핑 확장 — `start`→`left`, `end`→`right`, 그 외 4탭(`left/center/right/justify`)에 없는 값(`match-parent` 등)은 `left`로 폴백해 항상 한 탭이 active. 토글 해제 조건(`v === resolvedValue && value`)은 유지.
 
@@ -63,7 +65,7 @@
 - **[J] isTokenValue 정밀화**: `v.includes("var(")` → `/\bvar\(/.test(v)` 또는 `/(^|[\s,(])var\(/.test(v)`로 substring 오탐 축소. (낮은 위험, 최소 변경)
 
 ### `src/sidepanel/tabs/StyleEditorPanel.tsx` — [J-라벨]
-- transition 라벨/매핑 정합: `<TextProp label="transition" prop="transition-property" />`(현 386 부근)에서 라벨을 `transition-property`로 바꾸거나, 의도가 shorthand면 `prop`을 `transition`으로. **권장: 라벨을 `transition-property`로** (외과적, prop 동작 불변). 최종 선택은 구현 시 확정.
+- transition 라벨/매핑 정합(**확정**): `<TextProp label="transition" prop="transition-property" />`(현 386 부근)의 라벨을 `transition-property`로 변경. 외과적·prop 동작 불변(라벨 표기만 정정).
 
 ### `src/sidepanel/tabs/styleEditor/hexUtils.ts` — [J-단축hex]
 - 라이브 무효값 완화: [D]에서 라이브 경로가 `finalizeValue`(=expandShortHex 포함)를 타게 되면 3/4자리 단축 hex도 라이브에서 `#`+확장 적용된다. 즉 [J 단축hex]는 [D] 통합으로 자연 해소. `hexUtils` 자체 변경은 불필요(확인만).
@@ -125,7 +127,7 @@ export function isTokenValue(v: string): boolean;             // 정규식화
 
 ## 위험 요소
 
-- **[E] linked 동기화 회귀** — selKey 도출·effect 타이밍에 따라 (a) 같은 요소에서 토글이 풀리거나 (b) 재선택 시에도 stale이 남을 수 있다. 재현 시나리오(4면 동일 요소→4면 상이 요소 repick)를 e2e/수동으로 반드시 검증. selection 식별 키가 `selector`로 충분히 안정적인지 확인(동일 selector의 다른 인스턴스 가능성).
+- **[E] linked 동기화 회귀 (e2e 필수)** — selKey를 `selector@capturedAt`로 잡아 동일 selector 다른 인스턴스 모호성은 해소했다. 남은 위험: (a) `sidesEqual` 계산이 placeholder/value/specified 중 어느 소스를 보느냐에 따라 effectiveLinked가 깜빡일 수 있음, (b) reload 세션 복원 시 selection이 늦게 채워지면 첫 computeLinked가 빈 값으로 false 고착될 수 있음. 재현 시나리오(4면 동일 요소→4면 상이 요소 repick, 같은 요소 한 면 편집 후 자동 해제, reload 복원)를 **e2e로 반드시 검증**.
 - **[D] 라이브 적용 회귀** — 라이브 px 부착이 length 외 카테고리(color/select 미해당)나 multiplier/calc 입력을 건드리지 않는지 확인. `finalizeValue`가 length+순수숫자에만 px를 붙이고 나머지는 통과하므로 안전하나, `calc(...)`·`var(...)` 라이브 입력이 px로 오염되지 않는지 테스트.
 - **[I] extractTokenRefs 재작성** — 칩 렌더·family grouping·multiplier(`×N`) 표시가 모두 이 함수에 의존. `calc(var(--a)*2)`·`var(--a)`·중첩 fallback 케이스 회귀 테스트 필수.
 - **[A] swatch 확대** — `color()`·`lab()` 등은 구형 Chrome에서 미지원일 수 있으나 `minimum_chrome_version: 116` 기준 대부분 지원. swatch는 `backgroundColor`라 미지원 색은 투명 박스로 그려질 뿐 크래시 없음.

@@ -9,6 +9,8 @@
 - **잘못된/누락된 시각 피드백** — hsl 등 최신 함수형 색상의 swatch가 안 뜨고, 같은 색이라도 토큰이면 보이고 직접 입력이면 안 보이는 비대칭. 선택된 필드 우측에 토큰 원시값 미리보기가 color 토큰에서만 빠짐.
 - **무효/오염된 CSS가 상태·내보내기에 기록** — SelectProp 빈 옵션 선택 시 `display: __empty__` 같은 garbage가 inlineStyle에 저장되고, length 라이브 입력이 단위 없이 적용돼 타이핑 중 무효 CSS가 적용된다. 이 값들은 StyleChanges 내보내기(이슈 본문의 As-is/To-be 표)까지 새어 나간다.
 
+**왜 지금**: 위 무효값(🔴 A/C/D)은 단순 표시 버그가 아니라 **잘못된 CSS가 이슈 본문 As-is/To-be 표를 통해 팀에 그대로 공유**되는 데이터 정합 문제다 — 디자인 이슈 등록 도구의 신뢰도에 직결되므로 이번 사이클에 우선 처리한다.
+
 ## 목표
 
 스타일 패널 값 필드의 입력→정규화→적용→표시 경로를 일관되게 만든다. 검증 가능한 단위로:
@@ -22,13 +24,15 @@
 7. `--_` private alias 토큰이 토큰 드롭다운/family에 노출되지 않는다.
 8. AlignmentProp이 computed `start`/`end`/`match-parent` 등에서도 합리적으로 active 탭을 표시한다.
 9. `var(--x, var(--y))` 형태에서 fallback 토큰이 별도 칩으로 과다 표시되지 않는다.
-10. ⚪ 잔여 일관성 항목(단축 hex 라이브, `.5` 소수 px, transition 라벨, time computed 힌트, 좁은 패널 리플로우, isTokenValue 오탐) 정리.
+10. ⚪ 잔여 일관성 항목(단축 hex 라이브, `.5` 소수 px, transition 라벨, isTokenValue 오탐 등 — 세부는 tasks.md J 항목) 정리. 좁은 패널 container-query 리플로우는 시각 회귀 위험으로 **선택적**이며 성공 기준에 포함하지 않는다(Task 11, 생략 가능).
 
 ## 비목표 (Non-goals)
 
 - 색상 피커(컬러 휠/스포이드) 같은 **새 입력 UI 추가** — 이번은 기존 필드 동작 교정만.
 - BoxShadow "레이어 추가(+)" 버튼 같은 **신규 편집 기능** — F는 기존 value 레이어 표시 누락만 고치고, 추가 UI는 비목표.
 - shorthand(`margin`/`padding`/`border`)와 longhand 동시 편집 충돌 해소 — 별도 스코프(이번 묶음 제외).
+- **이미 저장된 오염값의 소급 정리(마이그레이션)** — 이번은 신규 입력에서 garbage(`__empty__`)·단위 없는 length가 기록되는 것만 차단한다. 기존 세션에 이미 저장된 오염값을 복원 시 제거하는 마이그레이션은 비목표.
+- SelectProp 빈 옵션 라벨의 "리셋" 의미 명시(별도 라벨/아이콘·i18n 키) — 동작만 리셋으로 고치고 라벨은 현행 유지(C). 라벨 차별화는 비목표.
 - 토큰 family grouping(`tokenFamilyPrefix`)의 숫자 경계 오판 같은 **저빈도 grouping 정확도** — 관찰만, 이번 제외.
 - 새 권한·env·OAuth·외부 API 일체 없음.
 
@@ -44,5 +48,5 @@
 
 - 위 목표 1~10이 각 태스크 검증 항목으로 충족되고 `pnpm test`·`pnpm typecheck` 통과.
 - 신규/변경 순수 함수(`isRenderableColorLiteral`, `finalizeValue`, `isInternalToken`, `extractTokenRefs`, SelectProp 값 역변환)에 단위 테스트가 붙고 통과.
-- 회귀 위험 항목(D 라이브 적용, E linked)은 e2e 또는 수동 체크리스트로 실제 탭에서 확인.
+- 회귀 위험 항목: **E(linked)는 e2e 필수**, D(라이브 적용)는 e2e 권장 + 수동 허용. 실제 탭에서 확인.
 - 사용자 노출 동작 변화(swatch·미리보기 표시)가 가이드와 어긋나지 않음(가이드 영향은 tasks.md 참조).
