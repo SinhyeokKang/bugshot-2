@@ -4,6 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { toast } from "sonner";
 import { useT } from "@/i18n";
 import {
   POST_MEDIA_SECTION_IDS,
@@ -360,7 +361,7 @@ export function DraftingPanel() {
                 <Button
                   onClick={() => {
                     setAnnotating(false);
-                    confirmDraft();
+                    if (confirmDraft()) toast.success(t("draft.saved"));
                   }}
                   disabled={titleMissing || aiDraftLoading}
                   data-testid="to-preview"

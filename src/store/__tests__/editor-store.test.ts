@@ -253,6 +253,18 @@ describe("confirmDraft screenshot — 로그 blobKey 연결", () => {
     });
   }
 
+  it("정상 저장 경로 → true 반환(성공 토스트 게이트)", () => {
+    setupScreenshotDrafting();
+    expect(useEditorStore.getState().confirmDraft()).toBe(true);
+    expect(mockSaveDraft).toHaveBeenCalledTimes(1);
+  });
+
+  it("draft 미설정 → 미저장이라 false 반환", () => {
+    // beforeEach가 initial로 리셋 → draft/target null이라 early return.
+    expect(useEditorStore.getState().confirmDraft()).toBe(false);
+    expect(mockSaveDraft).not.toHaveBeenCalled();
+  });
+
   it("networkLogAttach=true + captured>0 → networkLogBlobKey를 설정한다", () => {
     setupScreenshotDrafting({
       networkLog: fakeNetworkLog,

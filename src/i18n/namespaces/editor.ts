@@ -39,6 +39,7 @@ const ko = {
   "draft.aiError": "AI 초안 생성에 실패했습니다. 다시 시도해주세요.",
   "draft.aiParseError": "AI 응답을 해석할 수 없습니다. 다시 시도해주세요.",
   "draft.preview": "이슈 프리뷰",
+  "draft.saved": "초안이 저장되었습니다",
 
   "draftDetail.title": "초안 검토",
 
@@ -146,6 +147,7 @@ const en = {
   "draft.aiError": "Failed to generate AI draft. Please try again.",
   "draft.aiParseError": "Could not parse AI response. Please try again.",
   "draft.preview": "Issue preview",
+  "draft.saved": "Draft saved",
 
   "draftDetail.title": "Review draft",
 
