@@ -84,6 +84,19 @@ describe("diffClassTokens", () => {
       { text: "b", changed: false },
     ]);
   });
+
+  it("중복 토큰 → 집합 기준이라 한쪽에만 있어도 changed (원본 순서·중복 보존)", () => {
+    const { asIs, toBe } = diffClassTokens(["a", "a", "b"], ["a", "c"]);
+    expect(asIs).toEqual([
+      { text: "a", changed: false },
+      { text: "a", changed: false },
+      { text: "b", changed: true },
+    ]);
+    expect(toBe).toEqual([
+      { text: "a", changed: false },
+      { text: "c", changed: true },
+    ]);
+  });
 });
 
 describe("segmentsToMarkdown", () => {
@@ -111,5 +124,14 @@ describe("segmentsToMarkdown", () => {
 
   it("빈 배열 → 빈 문자열", () => {
     expect(segmentsToMarkdown([])).toBe("");
+  });
+
+  it("토큰 내 pipe 이스케이프 (마크다운 셀 컬럼 깨짐 방지)", () => {
+    expect(
+      segmentsToMarkdown([
+        { text: "before:content-['|']", changed: true },
+        { text: "p-4", changed: false },
+      ]),
+    ).toBe("**before:content-['\\|']** p-4");
   });
 });

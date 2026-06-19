@@ -129,6 +129,32 @@ describe("buildGitlabIssueBody — element 복수", () => {
     expect(out.body).not.toContain("md.section.attachments");
   });
 
+  it("class 행: changed 토큰 **볼드** + pipe 이스케이프", () => {
+    const out = buildGitlabIssueBody({
+      ctx: makeCtx({
+        captureMode: "element",
+        diffs: [
+          {
+            prop: "class",
+            asIs: "card text-blue-500",
+            toBe: "card before:content-['|']",
+            asIsSegments: [
+              { text: "card", changed: false },
+              { text: "text-blue-500", changed: true },
+            ],
+            toBeSegments: [
+              { text: "card", changed: false },
+              { text: "before:content-['|']", changed: true },
+            ],
+          },
+        ],
+      }),
+    });
+    expect(out.body).toContain(
+      "| class | card **text-blue-500** | card **before:content-['\\|']** |",
+    );
+  });
+
   it("복수 element → 각 섹션이 자기 before-${i}/after-${i}", () => {
     const out = buildGitlabIssueBody({
       ctx: makeCtx({

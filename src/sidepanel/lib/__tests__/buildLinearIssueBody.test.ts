@@ -122,6 +122,31 @@ describe("buildLinearIssueBody — 인라인 미디어", () => {
     expect(out.body).not.toContain("styleTable.snapshot");
     expect(out.body).toContain("| color | #000 | #fff |");
   });
+
+  it("class 행: changed 토큰 **볼드** + pipe 이스케이프", () => {
+    const ctx = makeCtx({
+      captureMode: "element",
+      diffs: [
+        {
+          prop: "class",
+          asIs: "card text-blue-500",
+          toBe: "card before:content-['|']",
+          asIsSegments: [
+            { text: "card", changed: false },
+            { text: "text-blue-500", changed: true },
+          ],
+          toBeSegments: [
+            { text: "card", changed: false },
+            { text: "before:content-['|']", changed: true },
+          ],
+        },
+      ],
+    });
+    const out = buildLinearIssueBody({ ctx });
+    expect(out.body).toContain(
+      "| class | card **text-blue-500** | card **before:content-['\\|']** |",
+    );
+  });
 });
 
 describe("buildLinearIssueBody — element + diffs 없음 (no-diff 폐지)", () => {

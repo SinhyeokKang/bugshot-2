@@ -13,7 +13,17 @@ export function diffClassTokens(
   };
 }
 
+// 마크다운 셀 메타문자(|·개행) 무력화 — 빌더의 escapeCell과 동일 규칙(비-segment 경로와 일관).
+function escapeCell(value: string): string {
+  return value.replace(/\|/g, "\\|").replace(/\r?\n/g, " ");
+}
+
 // changed 토큰만 **볼드**로 감싸 공백으로 join (마크다운 계열 공용).
 export function segmentsToMarkdown(segs: StyleDiffSegment[]): string {
-  return segs.map((s) => (s.changed ? `**${s.text}**` : s.text)).join(" ");
+  return segs
+    .map((s) => {
+      const text = escapeCell(s.text);
+      return s.changed ? `**${text}**` : text;
+    })
+    .join(" ");
 }
