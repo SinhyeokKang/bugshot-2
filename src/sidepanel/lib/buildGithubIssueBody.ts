@@ -12,6 +12,7 @@ import {
   type MarkdownContext,
 } from "./buildIssueMarkdown";
 import { ccMarkdownLine } from "./ccMention";
+import { segmentsToMarkdown } from "./classDiff";
 import { filterEnvironmentRows } from "./environmentRows";
 import { formatTimestamp } from "./formatTimestamp";
 
@@ -115,9 +116,9 @@ export function buildGithubIssueBody(
           );
         }
         for (const d of el.diffs) {
-          lines.push(
-            `| ${escapeCell(d.prop)} | ${escapeCell(d.asIs)} | ${escapeCell(d.toBe)} |`,
-          );
+          const asIs = d.asIsSegments ? segmentsToMarkdown(d.asIsSegments) : escapeCell(d.asIs);
+          const toBe = d.toBeSegments ? segmentsToMarkdown(d.toBeSegments) : escapeCell(d.toBe);
+          lines.push(`| ${escapeCell(d.prop)} | ${asIs} | ${toBe} |`);
         }
         lines.push("");
 

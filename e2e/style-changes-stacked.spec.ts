@@ -144,7 +144,12 @@ test.describe.serial("style-changes-stacked", () => {
     await panel.getByTestId("class-editor").fill("swatch active");
     await expect(fixture.locator("#el1")).toHaveClass("swatch active");
     await openDialog();
-    await expect(card("current").locator('[data-prop="class"]')).toHaveCount(1);
+    const classRow = card("current").locator('[data-prop="class"]');
+    await expect(classRow).toHaveCount(1);
+    // 토큰 diff 볼드: 추가된 "active"만 강조(<strong>), 공통 "swatch"는 평문. as-is는 강조 없음.
+    await expect(classRow.getByTestId("changes-tobe").locator("strong")).toHaveCount(1);
+    await expect(classRow.getByTestId("changes-tobe").locator("strong")).toHaveText("active");
+    await expect(classRow.getByTestId("changes-asis").locator("strong")).toHaveCount(0);
     // 회귀: class 편집이 유발한 selectionUpdated가 color 행의 as-is(원본)를 편집값으로 덮으면 안 됨
     const colorRow = card("current").locator('[data-prop="color"]');
     const asIs = (await colorRow.getByTestId("changes-asis").innerText()).trim();

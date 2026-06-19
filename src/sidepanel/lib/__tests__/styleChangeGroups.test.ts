@@ -157,7 +157,16 @@ describe("buildChangeGroups", () => {
     expect(groups).toHaveLength(1);
     expect(groups[0].rows).toEqual([
       { prop: "text", asIs: "Old", toBe: "New" },
-      { prop: "class", asIs: "card", toBe: "card active" },
+      {
+        prop: "class",
+        asIs: "card",
+        toBe: "card active",
+        asIsSegments: [{ text: "card", changed: false }],
+        toBeSegments: [
+          { text: "card", changed: false },
+          { text: "active", changed: true },
+        ],
+      },
       { prop: "color", asIs: "", toBe: "#00f" },
     ]);
   });

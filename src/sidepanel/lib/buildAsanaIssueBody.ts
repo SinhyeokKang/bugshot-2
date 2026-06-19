@@ -11,6 +11,7 @@ import {
   type MarkdownContext,
 } from "./buildIssueMarkdown";
 import { CC_SENTINEL } from "./ccMention";
+import { segmentsToMarkdown } from "./classDiff";
 import { filterEnvironmentRows } from "./environmentRows";
 import { formatTimestamp } from "./formatTimestamp";
 
@@ -92,13 +93,15 @@ export function buildAsanaIssueBody(input: AsanaBuildInput): AsanaBuildResult {
         lines.push(`## ${t("styleTable.asIs")} (${el.selector})`, "");
         if (before) { inlineImage(before); handled.add(before); }
         for (const d of el.diffs) {
-          lines.push(`- **${escapeCell(d.prop)}**: ${escapeCell(d.asIs)}`);
+          const asIs = d.asIsSegments ? segmentsToMarkdown(d.asIsSegments) : escapeCell(d.asIs);
+          lines.push(`- **${escapeCell(d.prop)}**: ${asIs}`);
         }
         lines.push("");
         lines.push(`## ${t("styleTable.toBe")} (${el.selector})`, "");
         if (after) { inlineImage(after); handled.add(after); }
         for (const d of el.diffs) {
-          lines.push(`- **${escapeCell(d.prop)}**: ${escapeCell(d.toBe)}`);
+          const toBe = d.toBeSegments ? segmentsToMarkdown(d.toBeSegments) : escapeCell(d.toBe);
+          lines.push(`- **${escapeCell(d.prop)}**: ${toBe}`);
         }
         lines.push("");
       }

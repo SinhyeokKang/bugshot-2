@@ -112,6 +112,30 @@ describe("buildIssueAdf", () => {
     expect(texts.every((t) => t.text !== "")).toBe(true);
   });
 
+  it("class 행: 변경된 토큰만 strong mark, 공통 토큰은 평문", () => {
+    const doc = buildIssueAdf(
+      makeCtx({
+        diffs: [
+          {
+            prop: "class",
+            asIs: "card",
+            toBe: "card active",
+            asIsSegments: [{ text: "card", changed: false }],
+            toBeSegments: [
+              { text: "card", changed: false },
+              { text: "active", changed: true },
+            ],
+          },
+        ],
+      }),
+    );
+    const texts = findNodes(doc, "text");
+    const active = texts.find((t) => t.text === "active");
+    expect(active?.marks?.some((m: any) => m.type === "strong")).toBe(true);
+    const card = texts.find((t) => t.text === "card");
+    expect(card?.marks?.some((m: any) => m.type === "strong")).toBeFalsy();
+  });
+
   it("빈 섹션 → noValue 텍스트", () => {
     const doc = buildIssueAdf(makeCtx({ sections: {} }));
     const texts = findNodes(doc, "text");
