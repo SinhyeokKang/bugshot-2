@@ -26,6 +26,7 @@ import {
 import { connectedPlatforms, useSettingsStore } from "@/store/settings-store";
 import { PageFooter, PageScroll, PageShell, Section } from "@/sidepanel/components/Section";
 import { PLATFORM_TAB_KEYS, type PlatformId } from "@/types/platform";
+import { sendBg } from "@/types/messages";
 import {
   orderAddPlatforms,
   pickInitialSubTab,
@@ -139,7 +140,18 @@ export function IntegrationsTab({ activeMainTab }: { activeMainTab: string }) {
             {connectedCount >= 2 && (
               <PageFooter>
                 <div className="flex justify-end">
-                  <DisconnectAllButton onConfirm={removeAllAccounts} />
+                  <DisconnectAllButton
+                    onConfirm={() => {
+                      for (const id of connected) {
+                        sendBg({
+                          type: "analytics.capture",
+                          event: "platform_disconnected",
+                          properties: { platform: id },
+                        }).catch(() => {});
+                      }
+                      removeAllAccounts();
+                    }}
+                  />
                 </div>
               </PageFooter>
             )}
@@ -225,7 +237,16 @@ function DisconnectButton({ id }: { id: PlatformId }) {
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>{t("common.close")}</AlertDialogCancel>
-          <AlertDialogAction onClick={() => removeAccount(id)}>
+          <AlertDialogAction
+            onClick={() => {
+              removeAccount(id);
+              sendBg({
+                type: "analytics.capture",
+                event: "platform_disconnected",
+                properties: { platform: id },
+              }).catch(() => {});
+            }}
+          >
             {t("platform.disconnect.confirm")}
           </AlertDialogAction>
         </AlertDialogFooter>

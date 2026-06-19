@@ -19,11 +19,11 @@
   - `captureEvent`의 `crypto.randomUUID()` → `await getInstallationId()`로 교체. 시그니처 불변.
   - `ANONYMOUS_*` 같은 고정 상수는 쓰지 않는다(완전 익명 안이 기각됐으므로).
 - **검증**:
-  - [ ] `resolveInstallationId("abc", gen)` → `{id:"abc", created:false}` (gen 미호출)
-  - [ ] `resolveInstallationId(undefined, () => "new")` → `{id:"new", created:true}`
-  - [ ] `resolveInstallationId("", gen)` → 빈 문자열은 무효 취급 → `created:true`
-  - [ ] analytics 경로의 distinct_id 발급이 `getInstallationId` 단일 지점 경유 (`grep`로 매-이벤트 randomUUID 부재 확인)
-  - [ ] 기존 `analytics.test.ts`(buildCaptureBody/postCapture 패스스루 단언)는 영향 없이 통과
+  - [x] `resolveInstallationId("abc", gen)` → `{id:"abc", created:false}` (gen 미호출)
+  - [x] `resolveInstallationId(undefined, () => "new")` → `{id:"new", created:true}`
+  - [x] `resolveInstallationId("", gen)` → 빈 문자열은 무효 취급 → `created:true`
+  - [x] analytics 경로의 distinct_id 발급이 `getInstallationId` 단일 지점 경유 (매-이벤트 randomUUID 제거 확인)
+  - [x] 기존 `analytics.test.ts`(buildCaptureBody/postCapture 패스스루 단언)는 영향 없이 통과
 
 ### Task 2: 연결 결과 분류 + 추적 래퍼 (신규 모듈)
 - **변경 대상**: `src/background/connect-tracking.ts` (신규), `src/background/__tests__/connect-tracking.test.ts` (신규)
@@ -31,29 +31,29 @@
   - `classifyConnectResult(err): "cancelled" | "failed"` — `import { OAuthError } from "./oauth"`. `err instanceof OAuthError && err.cancelled` → `"cancelled"`, 그 외 → `"failed"`.
   - `trackConnect(platform, run)` — `run()` 실행, 성공 시 `captureEvent("platform_connect", {platform, result:"success"})`, 실패 시 `classifyConnectResult` 후 동일 이벤트 전송 + **원본 에러 그대로 rethrow(감싸기 금지)**.
 - **검증**:
-  - [ ] `classifyConnectResult(new OAuthError("x", {cancelled:true}))` → `"cancelled"`
-  - [ ] `classifyConnectResult(new OAuthError("x", {cancelled:false}))` → `"failed"`
-  - [ ] `classifyConnectResult(new Error("x"))` / `new TypeError("Failed to fetch")` → `"failed"`
-  - [ ] `classifyConnectResult("string" | null | undefined)` → `"failed"`
-  - [ ] **trackConnect rethrow 테스트(스킵 금지)**: captureEvent를 mock하고, run이 던진 OAuthError(cancelled)와 raw TypeError가 **동일 객체로 rethrow**되는지(`await expect(...).rejects.toBe(원본)`) + 각각 result="cancelled"/"failed"로 captureEvent 호출됐는지 단언
-  - [ ] 성공 시 run 반환값 그대로 반환 + result="success" 단언
+  - [x] `classifyConnectResult(new OAuthError("x", {cancelled:true}))` → `"cancelled"`
+  - [x] `classifyConnectResult(new OAuthError("x", {cancelled:false}))` → `"failed"`
+  - [x] `classifyConnectResult(new Error("x"))` / `new TypeError("Failed to fetch")` → `"failed"`
+  - [x] `classifyConnectResult("string" | null | undefined)` → `"failed"`
+  - [x] **trackConnect rethrow 테스트(스킵 금지)**: captureEvent를 mock하고, run이 던진 OAuthError(cancelled)와 raw TypeError가 **동일 객체로 rethrow**되는지(`await expect(...).rejects.toBe(원본)`) + 각각 result="cancelled"/"failed"로 captureEvent 호출됐는지 단언
+  - [x] 성공 시 run 반환값 그대로 반환 + result="success" 단언
 
 ### Task 3: 설치 이벤트
 - **변경 대상**: `src/background/index.ts`
 - **작업 내용**: `onInstalled` 콜백을 `(details) =>`로 변경, `if (details.reason === "install") void captureEvent("extension_installed", { version: chrome.runtime.getManifest().version });` 추가. 기존 `disableGlobalSidePanel()`/`setupContextMenu()` 유지.
 - **검증**:
-  - [ ] reason `"install"`일 때만 발화 (`"update"`/`"chrome_update"` 제외)
-  - [ ] 기존 onInstalled 동작(사이드패널 비활성화·컨텍스트 메뉴) 회귀 없음
-  - [ ] `pnpm typecheck` 통과
+  - [x] reason `"install"`일 때만 발화 (`"update"`/`"chrome_update"` 제외) — 코드상 가드 확인
+  - [x] 기존 onInstalled 동작(사이드패널 비활성화·컨텍스트 메뉴) 회귀 없음
+  - [x] `pnpm typecheck` 통과
 
 ### Task 4: 패널 열림 이벤트
 - **변경 대상**: `src/background/index.ts` (L82-103 인라인 핸들러)
 - **작업 내용**: `onConnect`에서 `port.name`이 `PANEL_PORT_PREFIX`로 시작하고 `tabId` NaN 가드를 통과한 직후(약 L84)에 `void captureEvent("sidepanel_opened", {})` 추가. picker 등 다른 포트와 섞이지 않게 분기 안쪽에.
 - **검증**:
-  - [ ] picker 포트 연결 시에는 발화 안 함
-  - [ ] 패널 포트 1회 연결 = 1회 발화(멱등 — onConnect 재진입 중복 없음)
-  - [ ] 멀티탭 동시 사용 시 탭 수만큼 발화(의도 동작 확인)
-  - [ ] `pnpm typecheck` 통과
+  - [x] picker 포트 연결 시에는 발화 안 함 (PANEL_PORT_PREFIX 가드 안쪽)
+  - [x] 패널 포트 1회 연결 = 1회 발화(Number.isNaN 가드 통과 후 단일 호출)
+  - [ ] (수동) 멀티탭 동시 사용 시 탭 수만큼 발화
+  - [x] `pnpm typecheck` 통과
 
 ### Task 5: 플랫폼 연결 추적 (6개 OAuth start case)
 - **변경 대상**: `src/background/messages.ts`
@@ -65,24 +65,24 @@
   - [ ] 토큰 교환/네트워크 실패 → result="failed", 에러 토스트 정상
   - [ ] 6개 플랫폼(Jira 포함) 모두 적용
 
-### Task 6: 플랫폼 해제 추적 (5개 disconnect case + Jira 신규)
-- **변경 대상**: `src/background/messages.ts`, `src/types/messages.ts`, `src/background/bgRequestTypes.ts`, `src/sidepanel/tabs/connect/JiraConnectForm.tsx`
-- **작업 내용**:
-  - 기존 5개 `case "{platform}.disconnect"`에 `void captureEvent("platform_disconnected", { platform })` 추가. 반환값 불변.
-  - **`case "jira.disconnect"` 신규**: `{ ok: true }` 반환 + `void captureEvent("platform_disconnected", { platform: "jira" })`. `types/messages.ts`에 `jira.disconnect` 타입 + `bgRequestTypes.ts` 화이트리스트 등록. `JiraConnectForm`의 연결 해제 핸들러(`removeAccount("jira")` 부근)에 `sendBg({ type: "jira.disconnect" })` 한 줄 추가.
+### Task 6: 플랫폼 해제 추적 (side panel DisconnectButton)
+- **구현 메모(설계 변경)**: design.md는 background `*.disconnect` case에 심으려 했으나, **side panel이 `*.disconnect` 메시지를 보내는 코드가 0건**(messages.ts의 5개 disconnect case는 dead path, jira는 case 자체 없음)임을 구현 중 확인. 실제 해제 진입점인 `IntegrationsTab.tsx`의 DisconnectButton(개별, 6개 공통)·DisconnectAllButton(일괄)에서 `sendBg(analytics.capture, event:"platform_disconnected")`로 구현. background case·신규 메시지 타입·화이트리스트 변경 불필요(`analytics.capture` 재사용).
+- **변경 대상**: `src/sidepanel/tabs/IntegrationsTab.tsx`
+- **작업 내용**: DisconnectButton onClick에 `removeAccount(id)`와 함께 platform별 발화. DisconnectAllButton onConfirm에서 `connected` 순회 후 플랫폼별 발화 + `removeAllAccounts()`.
 - **검증**:
-  - [ ] 5개 플랫폼 해제 시 `platform_disconnected` 발화, platform 정확
-  - [ ] **Jira 해제 시 `jira.disconnect` 메시지 발화 → `platform_disconnected` {platform:"jira"}**
-  - [ ] disconnect 동작(removeAccount, 토큰/필드 정리) 회귀 없음 (Jira 포함)
-  - [ ] `pnpm typecheck` 통과 (신규 메시지 타입 등록 누락 없음)
+  - [x] 6개 플랫폼 공통 DisconnectButton에서 발화(jira 포함, `platform:id`)
+  - [x] DisconnectAllButton 일괄 해제 시 connected 플랫폼별 발화
+  - [x] `analytics.capture` 재사용 — 타입/화이트리스트 변경 불필요 (`pnpm typecheck` 통과)
+  - [ ] (수동) 실제 해제 시 `platform_disconnected` 페이로드 확인
+  - 미추적(의도): JiraConnectForm `handleCancel`(OAuth site 미선택 중도 이탈, 연결 미성립). PAT/API key 연결은 connect 미추적과 대칭으로 별개 스코프.
 
 ### Task 7: privacy.md 갱신
 - **변경 대상**: `docs/privacy.md`
 - **작업 내용**: 익명 분석 수집 항목에 신규 이벤트(설치·패널 오픈·플랫폼 연결/해제) + **설치 단위 익명 식별자(random UUID, chrome.storage.local 저장, PII 아님, 어떤 PII와도 연결 안 됨)** 명시. 시행일 bump.
 - **검증**:
-  - [ ] 수집 이벤트·저장 식별자가 실제 코드와 일치
-  - [ ] 식별자가 익명(무작위, 비-PII)임을 명시
-  - [ ] 시행일 갱신
+  - [x] 수집 이벤트·저장 식별자가 실제 코드와 일치
+  - [x] 식별자가 익명(무작위, 비-PII)임을 명시
+  - [x] 시행일 갱신 (2026년 6월 19일)
 
 ## 테스트 계획
 

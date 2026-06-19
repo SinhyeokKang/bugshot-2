@@ -14,6 +14,7 @@ import { GitlabError } from "./gitlab-api";
 import { AsanaError } from "./asana-api";
 import { handleMessage } from "./messages";
 import { BG_REQUEST_TYPES } from "./bgRequestTypes";
+import { captureEvent } from "./analytics";
 import { OAuthError } from "./oauth";
 import { pruneOrphanPendingLogsOncePerSession } from "@/lib/pending-log-prune";
 import { shouldClearLogs } from "@/lib/navigation-clear";
@@ -64,9 +65,14 @@ function setupContextMenu(): Promise<void> {
   return contextMenuSetup;
 }
 
-chrome.runtime.onInstalled.addListener(() => {
+chrome.runtime.onInstalled.addListener((details) => {
   disableGlobalSidePanel();
   void setupContextMenu();
+  if (details.reason === "install") {
+    void captureEvent("extension_installed", {
+      version: chrome.runtime.getManifest().version,
+    });
+  }
 });
 chrome.runtime.onStartup.addListener(() => {
   disableGlobalSidePanel();
@@ -83,6 +89,7 @@ chrome.runtime.onConnect.addListener((port) => {
   if (!port.name.startsWith(PANEL_PORT_PREFIX)) return;
   const tabId = Number(port.name.slice(PANEL_PORT_PREFIX.length));
   if (Number.isNaN(tabId)) return;
+  void captureEvent("sidepanel_opened", {});
   port.onDisconnect.addListener(() => {
     // 보존 phase(drafting/previewing/done/video)는 패널을 닫았다 열어도 복원돼야 하므로
     // 세션·picker 상태를 남긴다 (tab-bindings의 phase별 보존 정책과 동일 기준).

@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { analyticsEnabled, buildCaptureBody, postCapture } from "../analytics";
+import {
+  analyticsEnabled,
+  buildCaptureBody,
+  postCapture,
+  resolveInstallationId,
+} from "../analytics";
 
 describe("analyticsEnabled", () => {
   it("키가 있으면 true", () => {
@@ -90,5 +95,30 @@ describe("postCapture", () => {
   it("non-ok 응답이어도 throw하지 않음", async () => {
     globalThis.fetch = vi.fn(async () => ({ ok: false, status: 400 }) as Response);
     await expect(postCapture("https://us.i.posthog.com", body)).resolves.toBeUndefined();
+  });
+});
+
+describe("resolveInstallationId", () => {
+  it("저장된 유효 ID가 있으면 그대로 쓰고 생성 안 함", () => {
+    const generate = vi.fn(() => "new-uuid");
+    const { id, created } = resolveInstallationId("stored-uuid", generate);
+    expect(id).toBe("stored-uuid");
+    expect(created).toBe(false);
+    expect(generate).not.toHaveBeenCalled();
+  });
+
+  it("저장값이 undefined면 새로 생성", () => {
+    const generate = vi.fn(() => "new-uuid");
+    const { id, created } = resolveInstallationId(undefined, generate);
+    expect(id).toBe("new-uuid");
+    expect(created).toBe(true);
+    expect(generate).toHaveBeenCalledTimes(1);
+  });
+
+  it("저장값이 빈 문자열이면 무효로 보고 새로 생성", () => {
+    const generate = vi.fn(() => "new-uuid");
+    const { id, created } = resolveInstallationId("", generate);
+    expect(id).toBe("new-uuid");
+    expect(created).toBe(true);
   });
 });

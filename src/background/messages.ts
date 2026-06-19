@@ -77,6 +77,7 @@ import { isNotionOAuthConfigured, startNotionOAuth } from "./notion-oauth";
 import { isGitlabOAuthConfigured, startGitlabOAuth } from "./gitlab-oauth";
 import { isAsanaOAuthConfigured, startAsanaOAuth } from "./asana-oauth";
 import { captureEvent } from "./analytics";
+import { trackConnect } from "./connect-tracking";
 import {
   createPage as createNotionPage,
   getDatabaseSchema as getNotionDatabaseSchema,
@@ -159,7 +160,7 @@ export async function handleMessage(
       return { available: isOAuthConfigured() };
 
     case "oauth.start":
-      return startOAuthFlow();
+      return trackConnect("jira", () => startOAuthFlow());
 
     case "jira.myself":
       return getMyself(message.config);
@@ -208,7 +209,7 @@ export async function handleMessage(
       return { available: isGithubOAuthConfigured() };
 
     case "github.startOAuth":
-      return startGithubOAuth();
+      return trackConnect("github", () => startGithubOAuth());
 
     case "github.testPat":
       return githubGetMyself({
@@ -271,7 +272,7 @@ export async function handleMessage(
       return { available: isLinearOAuthConfigured() };
 
     case "linear.startOAuth":
-      return startLinearOAuth();
+      return trackConnect("linear", () => startLinearOAuth());
 
     case "linear.testApiKey":
       return linearGetMyself({
@@ -327,7 +328,7 @@ export async function handleMessage(
       return { available: isNotionOAuthConfigured() };
 
     case "notion.startOAuth":
-      return startNotionOAuth();
+      return trackConnect("notion", () => startNotionOAuth());
 
     case "notion.testToken":
       return notionGetMyself({
@@ -372,7 +373,7 @@ export async function handleMessage(
       return { available: isGitlabOAuthConfigured() };
 
     case "gitlab.startOAuth":
-      return startGitlabOAuth();
+      return trackConnect("gitlab", () => startGitlabOAuth());
 
     case "gitlab.testPat":
       return gitlabGetMyself({
@@ -448,7 +449,7 @@ export async function handleMessage(
       return { available: isAsanaOAuthConfigured() };
 
     case "asana.startOAuth":
-      return startAsanaOAuth();
+      return trackConnect("asana", () => startAsanaOAuth());
 
     case "asana.testPat":
       return asanaGetMyself({
