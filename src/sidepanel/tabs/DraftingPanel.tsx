@@ -35,7 +35,8 @@ import {
   buildStyleDiff,
 } from "@/sidepanel/components/StyleChangesTable";
 import { mergeStyleElements, joinStyleSelectors } from "@/sidepanel/lib/buildIssueMarkdown";
-import { downloadImageDataUrl, downloadVideoBlob, downloadLogsHtml } from "@/sidepanel/lib/downloadCapture";
+import { downloadImageDataUrl, downloadVideoBlob } from "@/sidepanel/lib/downloadCapture";
+import { downloadEditorLogsHtml } from "@/sidepanel/lib/buildEditorCapture";
 import {
   deriveReadonlyEnvRows,
   filterEnvironmentRows,
@@ -81,7 +82,6 @@ export function DraftingPanel() {
   const addAttachments = useEditorStore((s) => s.addAttachments);
   const removeAttachment = useEditorStore((s) => s.removeAttachment);
   const targetPlatform = useEditorStore((s) => s.targetPlatform);
-  const target = useEditorStore((s) => s.target);
   const { status: aiStatus, providerLabel, createSession } = useAI();
   const [annotating, setAnnotating] = useState(false);
   const [aiDialogOpen, setAiDialogOpen] = useState(false);
@@ -267,15 +267,7 @@ export function DraftingPanel() {
           className="h-8 w-8 shrink-0"
           title={t("common.download")}
           data-testid="download-logs"
-          onClick={() =>
-            void downloadLogsHtml({
-              networkLog,
-              consoleLog,
-              actionLog: showActionCard ? actionLog : null,
-              pageUrl: target?.url ?? "",
-              issueTitle: draft.title,
-            })
-          }
+          onClick={() => void downloadEditorLogsHtml()}
         >
           <Download />
         </Button>

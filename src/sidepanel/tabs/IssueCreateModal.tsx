@@ -14,19 +14,12 @@ import {
 } from "@/store/settings-store";
 import type { PlatformId } from "@/types/platform";
 import { sendBg, type JiraSubmitResult } from "@/types/messages";
-import { buildStyleDiff } from "@/sidepanel/components/StyleChangesTable";
 import { buildIssueAdf, type AdfDoc } from "@/sidepanel/lib/buildIssueAdf";
 import { buildCaptureFiles, type CaptureFiles } from "@/sidepanel/lib/buildCaptureFiles";
-import { deriveContextEnvRows } from "@/sidepanel/lib/buildReportData";
+import { buildEditorMarkdownContext, buildEditorLogsCaptureInput } from "@/sidepanel/lib/buildEditorCapture";
 import { annotateAttachmentDimensions } from "@/sidepanel/lib/attachmentDimensions";
 import type { JiraAttachmentInput } from "@/types/jira";
-import {
-  buildNetworkLogSummary,
-  buildConsoleLogSummary,
-} from "@/sidepanel/lib/buildLogSummary";
-import { mergeStyleElements, type MarkdownContext } from "@/sidepanel/lib/buildIssueMarkdown";
-import { parseChromeVersion } from "@/sidepanel/lib/environmentRows";
-import { getOsInfo } from "@/sidepanel/lib/osInfo";
+import { type MarkdownContext } from "@/sidepanel/lib/buildIssueMarkdown";
 import type { NormalizedSubmitResult } from "@/types/platform";
 import { submitToGithub } from "@/sidepanel/lib/submitToGithub";
 import { submitToLinear } from "@/sidepanel/lib/submitToLinear";
@@ -107,34 +100,10 @@ export function IssueCreateModal() {
   const [notionSchema, setNotionSchema] = useState<NotionDatabaseSchema | null>(null);
 
   const captureMode = useEditorStore((s) => s.captureMode);
-  const selection = useEditorStore((s) => s.selection);
-  const shotSelector = useEditorStore((s) => s.shotSelector);
-  const target = useEditorStore((s) => s.target);
-  const styleEdits = useEditorStore((s) => s.styleEdits);
-  const tokens = useEditorStore((s) => s.tokens);
-  const beforeImage = useEditorStore((s) => s.beforeImage);
-  const afterImage = useEditorStore((s) => s.afterImage);
-  const bufferedElements = useEditorStore((s) => s.bufferedElements);
-  const screenshotAnnotated = useEditorStore((s) => s.screenshotAnnotated);
-  const screenshotRaw = useEditorStore((s) => s.screenshotRaw);
-  const screenshotViewport = useEditorStore((s) => s.screenshotViewport);
-  const screenshotCapturedAt = useEditorStore((s) => s.screenshotCapturedAt);
-  const videoBlob = useEditorStore((s) => s.videoBlob);
-  const videoThumbnail = useEditorStore((s) => s.videoThumbnail);
-  const videoViewport = useEditorStore((s) => s.videoViewport);
-  const videoCapturedAt = useEditorStore((s) => s.videoCapturedAt);
-  const videoStartedAt = useEditorStore((s) => s.videoStartedAt);
-  const videoEndedAt = useEditorStore((s) => s.videoEndedAt);
   const draft = useEditorStore((s) => s.draft);
   const issueFields = useEditorStore((s) => s.issueFields);
   const setIssueFields = useEditorStore((s) => s.setIssueFields);
   const onSubmitted = useEditorStore((s) => s.onSubmitted);
-  const networkLog = useEditorStore((s) => s.networkLog);
-  const networkLogAttach = useEditorStore((s) => s.networkLogAttach);
-  const consoleLog = useEditorStore((s) => s.consoleLog);
-  const consoleLogAttach = useEditorStore((s) => s.consoleLogAttach);
-  const actionLog = useEditorStore((s) => s.actionLog);
-  const actionLogAttach = useEditorStore((s) => s.actionLogAttach);
   const sectionConfig = useSettingsUiStore((s) => s.issueSections);
   const attachments = useEditorStore((s) => s.attachments);
   const attachmentsEnabled = useSettingsUiStore((s) => s.attachmentsEnabled);
@@ -143,121 +112,14 @@ export function IssueCreateModal() {
   const markSubmitted = useIssuesStore((s) => s.markSubmitted);
   const patchIssue = useIssuesStore((s) => s.patchIssue);
 
+  // ctx·캡처 입력은 buildEditorCapture(단일 출처)에 위임 — 패널 로그 다운로드와 동일한 logs.html 보장.
   function buildCtx(): MarkdownContext {
-    if (!draft || !target) throw new Error(t("create.requiredMissing"));
-    const os = getOsInfo();
-    const browser = parseChromeVersion(navigator.userAgent);
-    if (captureMode === "freeform") {
-      const hasNetworkLog = networkLogAttach && networkLog && networkLog.captured > 0;
-      const hasConsoleLog = consoleLogAttach && consoleLog && consoleLog.captured > 0;
-      const { freeformViewport, freeformCapturedAt } = useEditorStore.getState();
-      return {
-        os,
-        browser,
-        captureMode: "freeform",
-        title: draft.title,
-        sections: draft.sections,
-        sectionConfig,
-        url: target.url,
-        selector: "",
-        tagName: "",
-        classListBefore: [],
-        classListAfter: [],
-        specifiedStyles: {},
-        tokens: [],
-        viewport: freeformViewport,
-        capturedAt: freeformCapturedAt ?? Date.now(),
-        diffs: [],
-        environment: draft.environment ?? [],
-        networkLogSummary: hasNetworkLog ? buildNetworkLogSummary(networkLog!) : undefined,
-        consoleLogSummary: hasConsoleLog ? buildConsoleLogSummary(consoleLog!) : undefined,
-      };
-    }
-    if (captureMode === "video") {
-      const hasNetworkLog = networkLogAttach && networkLog && networkLog.captured > 0;
-      const hasConsoleLog = consoleLogAttach && consoleLog && consoleLog.captured > 0;
-      return {
-        os,
-        browser,
-        captureMode: "video",
-        title: draft.title,
-        sections: draft.sections,
-        sectionConfig,
-        url: target.url,
-        selector: "",
-        tagName: "",
-        classListBefore: [],
-        classListAfter: [],
-        specifiedStyles: {},
-        tokens: [],
-        viewport: videoViewport ?? { width: 0, height: 0 },
-        capturedAt: videoCapturedAt ?? Date.now(),
-        diffs: [],
-        environment: draft.environment ?? [],
-        networkLogSummary: hasNetworkLog ? buildNetworkLogSummary(networkLog!) : undefined,
-        consoleLogSummary: hasConsoleLog ? buildConsoleLogSummary(consoleLog!) : undefined,
-      };
-    }
-    if (captureMode === "screenshot") {
-      const hasNetworkLog = networkLogAttach && networkLog && networkLog.captured > 0;
-      const hasConsoleLog = consoleLogAttach && consoleLog && consoleLog.captured > 0;
-      return {
-        os,
-        browser,
-        captureMode: "screenshot",
-        title: draft.title,
-        sections: draft.sections,
-        sectionConfig,
-        url: target.url,
-        selector: shotSelector?.selector ?? "",
-        tagName: shotSelector?.tagName ?? "",
-        classListBefore: [],
-        classListAfter: [],
-        specifiedStyles: {},
-        tokens: [],
-        viewport: screenshotViewport ?? { width: 0, height: 0 },
-        capturedAt: screenshotCapturedAt ?? Date.now(),
-        diffs: [],
-        environment: draft.environment ?? [],
-        networkLogSummary: hasNetworkLog ? buildNetworkLogSummary(networkLog!) : undefined,
-        consoleLogSummary: hasConsoleLog ? buildConsoleLogSummary(consoleLog!) : undefined,
-      };
-    }
-    if (!selection) throw new Error(t("create.requiredMissing"));
-    const styleElements = mergeStyleElements(bufferedElements, {
-      selection,
-      styleEdits,
-      before: beforeImage,
-      after: afterImage,
-    });
-    return {
-      os,
-      browser,
-      title: draft.title,
-      sections: draft.sections,
-      sectionConfig,
-      url: target.url,
-      selector: selection.selector,
-      tagName: selection.tagName,
-      classListBefore: selection.classList,
-      classListAfter: styleEdits.classList,
-      specifiedStyles: selection.specifiedStyles,
-      tokens: tokens.map((tk) => ({ name: tk.name, value: tk.value })),
-      viewport: selection.viewport,
-      capturedAt: selection.capturedAt,
-      diffs: buildStyleDiff(selection, styleEdits),
-      environment: draft.environment ?? [],
-      styleElements,
-    };
+    const ctx = buildEditorMarkdownContext();
+    if (!ctx) throw new Error(t("create.requiredMissing"));
+    return ctx;
   }
 
   async function buildEditorCaptureFiles(ctx: MarkdownContext): Promise<CaptureFiles> {
-    const hasNet = networkLogAttach && !!networkLog && networkLog.captured > 0;
-    const hasCon = consoleLogAttach && !!consoleLog && consoleLog.captured > 0;
-    const hasAct = actionLogAttach && !!actionLog && actionLog.captured > 0;
-    // element 모드는 머지·dedup이 끝난 ctx.styleElements를 단일 출처로 before-${i}/after-${i} 파생.
-    const isElement = captureMode === "element";
-    const styleElements = ctx.styleElements ?? [];
     // 사용자 첨부: 토글 ON이고 issueId 확정 상태면 IndexedDB에서 Blob 로드.
     const userAttachmentMetas = attachmentsEnabled ? attachments : [];
     let userAttachments: { meta: UserAttachmentMeta; blob: Blob }[] | undefined;
@@ -274,29 +136,9 @@ export function IssueCreateModal() {
         (x): x is { meta: UserAttachmentMeta; blob: Blob } => x !== null,
       );
     }
+    // logs/images/video는 단일 출처와 동일, userAttachments만 제출 경로 고유.
     return buildCaptureFiles({
-      captureMode,
-      videoBlob,
-      screenshotImage: captureMode === "screenshot" ? (screenshotAnnotated ?? screenshotRaw) : null,
-      beforeImages: isElement ? styleElements.map((e) => e.beforeImage ?? null) : undefined,
-      afterImages: isElement ? styleElements.map((e) => e.afterImage ?? null) : undefined,
-      networkLog: hasNet ? networkLog : null,
-      consoleLog: hasCon ? consoleLog : null,
-      actionLog: hasAct ? actionLog : null,
-      videoStartedAt: videoStartedAt ?? undefined,
-      videoEndedAt: videoEndedAt ?? undefined,
-      videoThumbnail,
-      pageUrl: target?.url ?? "",
-      issueTitle: draft?.title?.trim() || undefined,
-      report: draft
-        ? {
-            title: draft.title,
-            sections: draft.sections,
-            sectionConfig,
-            envRows: deriveContextEnvRows(ctx),
-            markdownContext: ctx,
-          }
-        : null,
+      ...buildEditorLogsCaptureInput(ctx),
       userAttachments,
     });
   }

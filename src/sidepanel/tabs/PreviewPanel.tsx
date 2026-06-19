@@ -10,7 +10,8 @@ import { connectedPlatforms, useSettingsStore } from "@/store/settings-store";
 import { IssuePreviewView } from "@/sidepanel/components/IssuePreviewView";
 import { AttachmentList } from "@/sidepanel/components/AttachmentList";
 import { downloadAttachment } from "@/sidepanel/lib/downloadAttachment";
-import { downloadImageDataUrl, downloadVideoBlob, downloadLogsHtml } from "@/sidepanel/lib/downloadCapture";
+import { downloadImageDataUrl, downloadVideoBlob } from "@/sidepanel/lib/downloadCapture";
+import { downloadEditorLogsHtml } from "@/sidepanel/lib/buildEditorCapture";
 import { LogAttachmentCards } from "@/sidepanel/components/LogAttachmentCards";
 import { NetworkLogPreviewDialog } from "@/sidepanel/components/NetworkLogPreviewDialog";
 import { ConsoleLogPreviewDialog } from "@/sidepanel/components/ConsoleLogPreviewDialog";
@@ -240,15 +241,7 @@ export function PreviewPanel() {
           className="h-8 w-8 shrink-0"
           title={t("common.download")}
           data-testid="download-logs"
-          onClick={() =>
-            void downloadLogsHtml({
-              networkLog: attachedNetwork,
-              consoleLog: attachedConsole,
-              actionLog: attachedAction,
-              pageUrl: target?.url ?? "",
-              issueTitle: draft.title,
-            })
-          }
+          onClick={() => void downloadEditorLogsHtml()}
         >
           <Download />
         </Button>
