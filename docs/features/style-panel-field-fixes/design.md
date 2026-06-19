@@ -45,11 +45,11 @@
 
 ### `src/sidepanel/tabs/styleEditor/StylePropEditors.tsx` — [C][E][F][H]
 - **[C] SelectProp 빈 옵션 역변환**: `onValueChange={set}`(현 236)을 `onValueChange={(v) => set(v === "__empty__" ? "" : v)}`로. 셀렉트 sentinel을 스토어로 흘리지 않는다. `set("")`은 styleHooks에서 이미 prop 삭제 처리.
-- **[E] linked 상태 동기화**: `useLinkedProps`(현 65-94)의 `linked`를 요소 정체성 변화 + 4면 일치 여부에 맞춰 재판정. CTO 검증으로 **useEffect 필요가 확정**됨 — repick(`onElementSelected`)이 selection을 null 미경유로 곧장 교체하고 ValueCombobox에 `key`가 없어 컴포넌트가 remount되지 않으므로, `useState` 이니셜라이저만으로는 재선택 시 재계산이 안 된다(remount 자연해소 가설 기각).
+- **[E] linked 상태 동기화 (최종: 방향 B)**: `useLinkedProps`(현 65-94)의 `linked`를 **요소 정체성 변화 시에만** 재판정. CTO 검증으로 **useEffect 필요가 확정**됨 — repick(`onElementSelected`)이 selection을 null 미경유로 곧장 교체하고 ValueCombobox에 `key`가 없어 컴포넌트가 remount되지 않으므로, `useState` 이니셜라이저만으로는 재선택 시 재계산이 안 된다(remount 자연해소 가설 기각).
   - **selKey = selector + capturedAt 조합**: `const selKey = useEditorStore(s => s.selection ? `${s.selection.selector}@${s.selection.capturedAt}` : null);`. selector 단독은 동일 selector 다른 인스턴스를 구분 못 하므로 매 픽마다 갱신되는 `capturedAt`(editor-store.ts)을 합쳐 재선택 시 항상 키가 바뀌게 한다.
-  - **재판정**: `useEffect(() => setLinked(computeLinked()), [selKey])`. 같은 selKey 동안엔 사용자 수동 토글 보존(effect 미발화).
-  - **4면 어긋나면 자동 해제(결정됨)**: 현재 4면 값으로 `sidesEqual`을 매 렌더 계산하고, **effective linked = `linked && sidesEqual`**. linked 모드에서는 `setAllProps`가 4면을 동일하게 유지하므로 정상 흐름에선 항상 일치하지만, 외부 변경(class/AI 스타일)·초기 불일치 시 effectiveLinked가 false로 떨어져 의도치 않은 4면 덮어쓰기를 방지한다. `onLinkedCommit`·LinkToggle 표시는 effectiveLinked 기준.
-  - `computeLinked()`/`sidesEqual`은 현 `useState` 이니셜라이저 로직(props/inlineStyle/selection 값 비교)을 함수로 추출해 공유. effect 내부 값은 `useEditorStore.getState()`로 읽어 deps 최소화.
+  - **재판정**: `useEffect(() => setLinked(sidesAllEqual(...)), [selKey])`. 같은 selKey 동안엔 사용자 수동 토글 보존(effect 미발화). 이 selKey useEffect만으로 repick 시 stale-linked 덮어쓰기 버그(PRD 시나리오 5)가 해결된다.
+  - **자동 해제 범위(방향 B — 구현 중 재결정)**: 반환 `linked`는 사용자 토글 상태 그대로다. feature-review에서 "4면 어긋나면 자동 해제"(`effectiveLinked = linked && sidesEqual`)로 정했으나, 그 게이트가 "4면이 다른 요소에서 링크 버튼을 눌러도 무반응(통일 불가)"이라는 어포던스 손실을 일으켜 **사용자가 방향 B로 재결정**: `&& sidesEqual` 게이트 제거. 자동 해제는 selKey 변경(요소 재선택) 시 useEffect 재판정으로만 일어난다. 같은 요소에서 4면이 외부로 어긋나도 사용자 토글은 유지(링크로 한 번에 통일하는 흐름 보존).
+  - `sidesAllEqual(props, inlineStyle, selection)`은 현 `useState` 이니셜라이저 로직(props/inlineStyle/selection 값 비교)을 모듈 함수로 추출해 useState init·effect에서 공유. effect 내부 값은 `useEditorStore.getState()`로 읽어 deps를 `[selKey]`로 최소화.
 - **[F] BoxShadow 레이어 수**: `count = Math.max(placeholderParts.length, 1)`(현 190)을 `Math.max(valueParts.length, placeholderParts.length, 1)`로. value 멀티레이어가 잘리지 않음. (레이어 추가 UI는 비목표)
 - **[H] Alignment resolvedValue**: `resolvedValue`(현 269-270)의 매핑 확장 — `start`→`left`, `end`→`right`, 그 외 4탭(`left/center/right/justify`)에 없는 값(`match-parent` 등)은 `left`로 폴백해 항상 한 탭이 active. 토글 해제 조건(`v === resolvedValue && value`)은 유지.
 
@@ -127,7 +127,7 @@ export function isTokenValue(v: string): boolean;             // 정규식화
 
 ## 위험 요소
 
-- **[E] linked 동기화 회귀 (e2e 필수)** — selKey를 `selector@capturedAt`로 잡아 동일 selector 다른 인스턴스 모호성은 해소했다. 남은 위험: (a) `sidesEqual` 계산이 placeholder/value/specified 중 어느 소스를 보느냐에 따라 effectiveLinked가 깜빡일 수 있음, (b) reload 세션 복원 시 selection이 늦게 채워지면 첫 computeLinked가 빈 값으로 false 고착될 수 있음. 재현 시나리오(4면 동일 요소→4면 상이 요소 repick, 같은 요소 한 면 편집 후 자동 해제, reload 복원)를 **e2e로 반드시 검증**.
+- **[E] linked 동기화 회귀 (e2e 필수)** — selKey를 `selector@capturedAt`로 잡아 동일 selector 다른 인스턴스 모호성은 해소했다. 방향 B(게이트 제거)라 "4면 다를 때 링크 무반응" 위험은 없다. 남은 위험: reload 세션 복원 시 selection이 늦게 채워지면 첫 `sidesAllEqual`가 빈 값으로 false 고착될 수 있음(selKey effect가 채워진 뒤 재판정되는지 확인). 재현 시나리오(4면 동일 요소→4면 상이 요소 repick, 같은 요소 한 면 편집 후 자동 해제, reload 복원)를 **e2e로 반드시 검증**.
 - **[D] 라이브 적용 회귀** — 라이브 px 부착이 length 외 카테고리(color/select 미해당)나 multiplier/calc 입력을 건드리지 않는지 확인. `finalizeValue`가 length+순수숫자에만 px를 붙이고 나머지는 통과하므로 안전하나, `calc(...)`·`var(...)` 라이브 입력이 px로 오염되지 않는지 테스트.
 - **[I] extractTokenRefs 재작성** — 칩 렌더·family grouping·multiplier(`×N`) 표시가 모두 이 함수에 의존. `calc(var(--a)*2)`·`var(--a)`·중첩 fallback 케이스 회귀 테스트 필수.
 - **[A] swatch 확대** — `color()`·`lab()` 등은 구형 Chrome에서 미지원일 수 있으나 `minimum_chrome_version: 116` 기준 대부분 지원. swatch는 `backgroundColor`라 미지원 색은 투명 박스로 그려질 뿐 크래시 없음.

@@ -383,7 +383,7 @@ export function SelectedPanel() {
         collapsible
         defaultOpen={hasSpecified(SECTION_PROPS.transition)}
       >
-        <TextProp label="transition" prop="transition-property" />
+        <TextProp label="transition-property" prop="transition-property" />
         <Row2>
           <TextProp label="duration" prop="transition-duration" />
           <TextProp label="delay" prop="transition-delay" />

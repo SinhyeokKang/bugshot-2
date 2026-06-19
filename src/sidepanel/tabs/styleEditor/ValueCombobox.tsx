@@ -18,7 +18,7 @@ import { cn } from "@/lib/utils";
 import { useEditorStore } from "@/store/editor-store";
 import type { Token, TokenCategory } from "@/types/picker";
 import { isRenderableColorLiteral } from "./colorLiteral";
-import { expandShortHex, normalizeHexInput } from "./hexUtils";
+import { finalizeValue, rightHintText, shortValue } from "./valueFormat";
 import { isKnownDefault, PROP_CATEGORY } from "./propMetadata";
 import { useStyleProp } from "./styleHooks";
 import { TokenChip, TokenItem } from "./TokenChip";
@@ -87,12 +87,6 @@ export function ValueCombobox({
 
   const draftLooksLikeToken = /^var\(/.test(draft.trim());
 
-  const maybeNormalize = useCallback(
-    (v: string) => (category === "color" ? normalizeHexInput(v) : v),
-    [category],
-  );
-
-
   const { familyGroups, primary, extra } = useMemo(() => {
     const base = !category ? tokens : tokens.filter((t) => t.category === category);
     const others = category
@@ -142,16 +136,7 @@ export function ValueCombobox({
   );
 
   const finalize = useCallback(
-    (next: string) => {
-      if (category === "color") {
-        const normalized = normalizeHexInput(next);
-        return expandShortHex(normalized) ?? normalized;
-      }
-      if (category === "length" && next && /^-?\d+(\.\d+)?$/.test(next)) {
-        return `${next}px`;
-      }
-      return next;
-    },
+    (next: string) => finalizeValue(category, next),
     [category],
   );
 
@@ -182,6 +167,19 @@ export function ValueCombobox({
 
   const showRawItem = draft.trim().length > 0 && !draftLooksLikeToken;
   const effectiveShowAll = showAll || draft.trim().length > 0;
+
+  const valueTokenHint = rightHintText(
+    category,
+    computed,
+    findTokenValue(tokens, tokenRefs[0]?.name),
+    !!compact,
+  );
+  const placeholderTokenHint = rightHintText(
+    category,
+    computed,
+    findTokenValue(tokens, placeholderTokenRefs[0]?.name),
+    !!compact,
+  );
 
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
@@ -218,9 +216,9 @@ export function ValueCombobox({
                   compact={compact}
                 />
               ))}
-              {showComputedHint(category, computed) ? (
-                <span className="ml-auto shrink-0 text-[10px] text-muted-foreground/70">
-                  {compact ? shortValue(computed) : computed}
+              {valueTokenHint != null ? (
+                <span className="ml-auto max-w-[120px] shrink-0 truncate text-[10px] text-muted-foreground/70">
+                  {valueTokenHint}
                 </span>
               ) : null}
             </span>
@@ -252,9 +250,9 @@ export function ValueCombobox({
                   compact={compact}
                 />
               ))}
-              {showComputedHint(category, computed) ? (
-                <span className="ml-auto shrink-0 text-[10px] text-muted-foreground/70">
-                  {compact ? shortValue(computed) : computed}
+              {placeholderTokenHint != null ? (
+                <span className="ml-auto max-w-[120px] shrink-0 truncate text-[10px] text-muted-foreground/70">
+                  {placeholderTokenHint}
                 </span>
               ) : null}
             </span>
@@ -290,7 +288,7 @@ export function ValueCombobox({
             value={draft}
             onValueChange={(v) => {
               setDraft(v);
-              const normalized = maybeNormalize(v.trim());
+              const normalized = finalize(v.trim());
               if (onLinkedCommit) onLinkedCommit(normalized);
               else set(normalized);
             }}
@@ -413,10 +411,3 @@ function buildTriggerTitle({
   return iconTitle ? `${iconTitle} · ${body}` : body;
 }
 
-function shortValue(v: string): string {
-  if (v.endsWith("px")) {
-    const n = parseFloat(v);
-    if (!Number.isNaN(n)) return `${n}`;
-  }
-  return v;
-}

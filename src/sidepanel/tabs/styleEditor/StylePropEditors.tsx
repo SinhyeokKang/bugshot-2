@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   AlignCenter,
   AlignJustify,
@@ -62,18 +62,37 @@ export function Row2({ children }: { children: React.ReactNode }) {
   return <div className="grid grid-cols-2 gap-2">{children}</div>;
 }
 
+function sidesAllEqual(
+  props: string[],
+  inlineStyle: Record<string, string>,
+  selection: { specifiedStyles: Record<string, string>; computedStyles: Record<string, string> } | null,
+): boolean {
+  const vals = props.map((p) => {
+    if (inlineStyle[p]) return inlineStyle[p];
+    if (selection?.specifiedStyles[p]) return selection.specifiedStyles[p];
+    if (selection?.computedStyles[p]) return selection.computedStyles[p];
+    return "";
+  });
+  return vals.length > 0 && vals.every((v) => v === vals[0] && v !== "");
+}
+
 function useLinkedProps(props: string[]) {
   const selection = useEditorStore((s) => s.selection);
   const inlineStyle = useEditorStore((s) => s.styleEdits.inlineStyle);
-  const [linked, setLinked] = useState(() => {
-    const vals = props.map((p) => {
-      if (inlineStyle[p]) return inlineStyle[p];
-      if (selection?.specifiedStyles[p]) return selection.specifiedStyles[p];
-      if (selection?.computedStyles[p]) return selection.computedStyles[p];
-      return "";
-    });
-    return vals.length > 0 && vals.every((v) => v === vals[0] && v !== "");
-  });
+  const sidesEqual = sidesAllEqual(props, inlineStyle, selection);
+  const [linked, setLinked] = useState(sidesEqual);
+  // 요소가 바뀌면(같은 selector 다른 인스턴스 포함 — capturedAt로 구분) linked 기본값 재판정.
+  const selKey = selection ? `${selection.selector}@${selection.capturedAt}` : null;
+  useEffect(() => {
+    setLinked(
+      sidesAllEqual(
+        props,
+        useEditorStore.getState().styleEdits.inlineStyle,
+        useEditorStore.getState().selection,
+      ),
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selKey]);
   const tabId = useBoundTabId();
 
   const setAllProps = useCallback(
@@ -187,7 +206,7 @@ export function BoxShadowProp() {
 
   const valueParts = useMemo(() => splitShadowLayers(value), [value]);
   const placeholderParts = useMemo(() => splitShadowLayers(placeholder), [placeholder]);
-  const count = Math.max(placeholderParts.length, 1);
+  const count = Math.max(valueParts.length, placeholderParts.length, 1);
 
   const setLayer = (i: number, v: string) => {
     const parts =
@@ -233,7 +252,7 @@ export function SelectProp({
   const isDefault = !value && isKnownDefault(prop, placeholder);
   return (
     <PropRow label={label} source={source}>
-      <Select value={value} onValueChange={set}>
+      <Select value={value} onValueChange={(v) => set(v === "__empty__" ? "" : v)}>
         <SelectTrigger
           className={cn(
             "h-9 w-full",
@@ -267,7 +286,11 @@ export function AlignmentProp({ label, prop }: { label: string; prop: string }) 
     { v: "justify", icon: <AlignJustify className="h-4 w-4" />, title: t("prop.align.justify") },
   ];
   const resolvedValue =
-    current === "start" || current === "" ? "left" : current;
+    current === "center" || current === "right" || current === "justify"
+      ? current
+      : current === "end"
+        ? "right"
+        : "left";
 
   return (
     <PropRow label={label} source={source}>

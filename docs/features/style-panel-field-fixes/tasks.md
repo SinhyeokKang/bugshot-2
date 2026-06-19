@@ -16,10 +16,10 @@
   - 주의(의도된 차이): `isRenderableColorLiteral`은 `NAMED_COLORS` 150여 개를 추가로 인정(categorizeToken은 `transparent`/`currentColor`만 regex). 그리고 `currentcolor`는 categorizeToken이 color로 분류하지만 여기서는 **계속 false**(좌표 밖 미해결 — swatch 의미 없음). "categorizeToken과 완전 동일"이 아니라 "함수형 색상 목록 정렬"임.
   - `color-mix()`는 이번 목록에서 **제외**(116+ 렌더 가능하나 이번 스코프 밖 — swatch 미표시 허용). tasks/design에 명시.
 - **검증**:
-  - [ ] 테스트: `hsl(...)`/`hsla(...)`/`hwb(...)`/`oklch(...)`/`oklab(...)`/`lab(...)`/`lch(...)`/`color(...)` → true
-  - [ ] 테스트: 대소문자·선행 공백(`  HSL(...)`) 처리 확인
-  - [ ] 테스트: hex(3/4/6/8)·rgb/rgba·named·transparent → true 유지, `currentcolor`·`color-mix(...)`·빈값·`12px`·`solid` → false
-  - [ ] `pnpm test --run colorLiteral`
+  - [x] 테스트: `hsl(...)`/`hsla(...)`/`hwb(...)`/`oklch(...)`/`oklab(...)`/`lab(...)`/`lch(...)`/`color(...)` → true
+  - [x] 테스트: 대소문자·선행 공백(`  HSL(...)`) 처리 확인
+  - [x] 테스트: hex(3/4/6/8)·rgb/rgba·named·transparent → true 유지, `currentcolor`·`color-mix(...)`·빈값·`12px`·`solid` → false
+  - [x] `pnpm test --run colorLiteral`
 
 ### Task 2 [C][🔴]: SelectProp 빈 옵션 리셋
 - **변경 대상**: `src/sidepanel/tabs/styleEditor/StylePropEditors.tsx` (SelectProp), 필요 시 작은 순수 헬퍼 + 테스트
@@ -38,37 +38,37 @@
   2. ValueCombobox의 내부 `finalize`를 `finalizeValue` 호출로 교체.
   3. `onValueChange`(라이브) 경로를 `maybeNormalize` → `finalizeValue(category, v.trim())`로 교체. `maybeNormalize`가 더 안 쓰이면 제거(내 변경이 만든 고아).
 - **검증**:
-  - [ ] 테스트: `("length","16")→"16px"`, `("length","-8")→"-8px"`, `("length",".5")→".5px"`, `("length","0")→"0px"`, `("length","16px")→"16px"`(이중 px 금지), `("length","calc(1px + 2px)")→통과`, `("length","var(--x)")→"var(--x)"`(px 오염 금지), `("length","1.")→"1."`(부분입력 통과), `("color","fff")→"#ffffff"`, `("color","hsl(0 0% 0%)")→통과`, `(undefined,"x")→"x"`, `("length","")→""`
+  - [x] 테스트: `("length","16")→"16px"`, `("length","-8")→"-8px"`, `("length",".5")→".5px"`, `("length","0")→"0px"`, `("length","16px")→"16px"`(이중 px 금지), `("length","calc(1px + 2px)")→통과`, `("length","var(--x)")→"var(--x)"`(px 오염 금지), `("length","1.")→"1."`(부분입력 통과), `("color","fff")→"#ffffff"`, `("color","hsl(0 0% 0%)")→통과`, `(undefined,"x")→"x"`, `("length","")→""`
   - [ ] trim 위치 확인: 호출부가 `finalizeValue(category, v.trim())`이므로 `" 16 "`→`"16px"`
   - [ ] 라이브: padding-top에 `16` 타이핑 중 페이지에 `16px` 적용(수동/e2e)
   - [ ] 팝오버 닫아도 값 불변
   - [ ] **성능(D reflow)**: length 필드에 빠른 연속 입력 시 라이브 px 적용으로 인한 눈에 띄는 버벅임/지연 없음(수동). throttle은 도입 안 함(applyStyles는 기존에도 매 입력 호출).
-  - [ ] `pnpm test --run valueFormat`
+  - [x] `pnpm test --run valueFormat`
 
 ### Task 4 [G][🟡]: `--_` private alias 토큰 숨김
 - **변경 대상**: `src/sidepanel/tabs/styleEditor/tokenUtils.ts`, `__tests__/tokenUtils.test.ts`
 - **작업 내용**: `isInternalToken`에 `|| name.startsWith("--_")` 추가.
 - **순서**: Task 5의 `--_` 필터 검증이 이 변경에 의존(`extractTokenRefs`가 `isInternalToken` 호출). **Task 4 → Task 5** 순서로. 같은 `tokenUtils.test.ts`를 둘이 건드리니 `--_` 필터 검증은 Task 4 쪽에 둔다.
 - **검증**:
-  - [ ] 테스트: `--_x`/`--tw-x` → true, `--color-x`/`--space-1` → false
-  - [ ] 테스트: `extractTokenRefs("var(--_x)")` → `[]`(internal 필터)
+  - [x] 테스트: `--_x`/`--tw-x` → true, `--color-x`/`--space-1` → false
+  - [x] 테스트: `extractTokenRefs("var(--_x)")` → `[]`(internal 필터)
   - [ ] ValueCombobox 드롭다운·family에 `--_` 토큰 미노출(수동)
 
 ### Task 5 [I][🟡]: extractTokenRefs fallback 토큰 제외
 - **변경 대상**: `src/sidepanel/tabs/styleEditor/tokenUtils.ts`, `__tests__/tokenUtils.test.ts`
 - **작업 내용**: top-level `var()` primary 토큰만 추출(중첩 fallback `var()` skip). multiplier 계산은 primary 위치 기준 유지. fallback skip 후 닫는 `)`는 **바깥 var()의 `)`**를 잡아야 `calc(var(--g)*2)`의 `*2`를 정확히 귀속(회귀 주의).
 - **검증**:
-  - [ ] 테스트: `var(--x, var(--y))` → `[--x]`, `calc(var(--a) + var(--b))` → `[--a,--b]`, `var(--a)` → `[--a]`
-  - [ ] 테스트(multiplier): `calc(var(--g)*2)` → `[{--g, x2}]`, `calc(2 * var(--g))` → `[{--g, x2}]`, `calc(.5 * var(--g))` → `[{--g, x0.5}]`, `calc(-1 * var(--g))` → `[{--g, x-1}]`
+  - [x] 테스트: `var(--x, var(--y))` → `[--x]`, `calc(var(--a) + var(--b))` → `[--a,--b]`, `var(--a)` → `[--a]`
+  - [x] 테스트(multiplier): `calc(var(--g)*2)` → `[{--g, x2}]`, `calc(2 * var(--g))` → `[{--g, x2}]`, `calc(.5 * var(--g))` → `[{--g, x0.5}]`, `calc(-1 * var(--g))` → `[{--g, x-1}]`
   - [ ] (Task 4 머지 후) `--tw-`/`--_` 포함 입력 internal 필터 — 단 `--_` 필터 단위 케이스는 Task 4에 위치
-  - [ ] `pnpm test --run tokenUtils`
+  - [x] `pnpm test --run tokenUtils`
 
 ### Task 6 [B][🟡]: 선택 필드 우측 미리보기 — 토큰 원시값 (앵커)
 - **변경 대상**: `src/sidepanel/tabs/styleEditor/ValueCombobox.tsx` + `__tests__/` (`rightHintText` 단위 테스트 **필수**)
 - **작업 내용**: `rightHintText(category, computed, tokenRawValue, compact)` 순수 헬퍼 추가(**추출 필수** — ValueCombobox에 data-testid가 없어 e2e 자동화가 어려워 단위 테스트가 유일한 자동 그물). 토큰 분기 두 곳(현 221-225, 255-259)의 우측 힌트를 이 헬퍼로 교체. color/image 토큰은 `findTokenValue(tokens, tokenRefs[0]?.name)`(value 없으면 placeholderTokenRefs) 원시값 표시(compact 포함 **항상 표시**), length/number는 computed 유지.
 - **표시**: 우측 `<span>`에 `max-w-[120px] truncate`(드롭다운 `TokenItem` 우측과 동일 패턴)로 좁은 셀 오버플로 방지.
 - **검증**:
-  - [ ] **단위 테스트(필수)**: `rightHintText("color", _, "hsl(0 0% 0%)", false)` → 원시값, `("length", "16px", _, false)` → `"16px"`, `("length","16px",_,true)` → `shortValue`, primary 토큰 미해결(`tokenRawValue===undefined`) → null
+  - [x] **단위 테스트(필수)**: `rightHintText("color", _, "hsl(0 0% 0%)", false)` → 원시값, `("length", "16px", _, false)` → `"16px"`, `("length","16px",_,true)` → `shortValue`, primary 토큰 미해결(`tokenRawValue===undefined`) → null
   - [ ] color 토큰 선택 시 선택 필드 우측에 원시값(`hsl(...)` 등) 표시 — 드롭다운 `TokenItem` 우측과 일치(수동)
   - [ ] length 토큰은 기존 computed 힌트 유지(회귀 없음)
   - [ ] **엣지**: `var(--x, var(--y))`에서 primary `--x`가 색 토큰 목록에 없고 fallback `--y`만 색일 때 — Task 5로 `--x`만 추출되므로 우측 힌트는 빈다(의도된 동작, 무시). 케이스 인지만.
@@ -92,11 +92,11 @@
 - **변경 대상**: `src/sidepanel/tabs/styleEditor/StylePropEditors.tsx` (useLinkedProps)
 - **작업 내용**:
   1. 현 `useState` 이니셜라이저를 `computeLinked()`/`sidesEqual()` 함수로 추출.
-  2. selKey = `${selector}@${capturedAt}` 변경 시 `useEffect`로 `setLinked(computeLinked())` 재설정(같은 키 동안 수동 토글 보존).
-  3. **effective linked = `linked && sidesEqual`** — 4면 값이 어긋나면 자동 해제. `onLinkedCommit`·LinkToggle 표시는 effectiveLinked 기준.
+  2. selKey = `${selector}@${capturedAt}` 변경 시 `useEffect`로 `setLinked(sidesAllEqual(...))` 재설정(같은 키 동안 수동 토글 보존).
+  3. **(방향 B — 재결정)** `linked`는 사용자 토글 상태 그대로 반환. `&& sidesEqual` 게이트는 두지 않는다(그 게이트는 4면 다를 때 링크 버튼을 무반응으로 만들어 통일 어포던스를 죽임). 자동 해제는 selKey 변경(요소 재선택) 시 useEffect 재판정으로만.
 - **검증**:
   - [ ] 4면 동일 요소(linked=true) → 4면 상이 요소로 repick → linked 재판정, 한 면 입력이 4면 안 덮음 (**e2e**)
-  - [ ] 같은 요소에서 한 면 편집해 4면 어긋나면 effectiveLinked 자동 false (**e2e**)
+  - [ ] 4면 다른 요소에서 링크 버튼이 정상 동작(눌러서 한 번에 통일 가능) — 어포던스 유지 (**수동/e2e**)
   - [ ] 같은 요소 내 수동 토글이 다음 렌더에 안 풀림
   - [ ] **동일 selector 다른 인스턴스** repick 시에도 capturedAt로 재판정됨
   - [ ] reload 세션 복원 후 linked 합리적 표시(복원 순서로 빈 값 false 고착 없는지)
@@ -107,9 +107,9 @@
   - transition 라벨 `transition` → `transition-property`(외과적, prop 불변)
   - `isTokenValue`: `v.includes("var(")` → `/(^|[\s,(])var\(/.test(v)`
 - **검증**:
-  - [ ] 라벨 표기만 변경, 동작 불변
-  - [ ] 테스트: `isTokenValue("var(--x)")` true, `"linear-gradient(...)"` false, `"avar("` 같은 오탐 false
-  - [ ] 단축 hex 라이브(Task 3 통합)·`.5` 소수(Task 3)는 별도 작업 없이 해소 확인
+  - [x] 라벨 표기만 변경, 동작 불변
+  - [x] 테스트: `isTokenValue("var(--x)")` true, `"linear-gradient(...)"` false, `"avar("` 같은 오탐 false
+  - [x] 단축 hex 라이브(Task 3 통합)·`.5` 소수(Task 3)는 별도 작업 없이 해소 확인
 
 ### Task 11 [J-container-query][⚪, 생략 가능]
 - **변경 대상**: `StylePropEditors.tsx` (`Row2`, QuadProp/RadiusProp grid)
