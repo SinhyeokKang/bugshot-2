@@ -6,6 +6,8 @@ This page is from the angle of the **developer who receives and works the bug**.
 
 Download the `logs.html` attached to the issue and open it in a browser. It's a single HTML file, so it opens right away with nothing to install — easy.
 
+The receiver gets the file attached to the issue, but **the person filing the bug can grab it ahead of time too.** In the issue draft or preview screen, the **Download** button on the right of the **Log attachments** section pulls down the very same `logs.html` that gets attached — handy for checking it before you submit, or for sharing just the file without filing an issue at all.
+
 ![Log viewer screen](../assets/logs-viewer-1.jpg)
 
 ## Timeline markers

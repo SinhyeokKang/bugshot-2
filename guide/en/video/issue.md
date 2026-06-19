@@ -14,7 +14,7 @@ OS, browser, page URL, viewport size, and capture time fill in **on their own** 
 
 ## 3. Media — video
 
-The media in recording mode is the **video**. The clip you just recorded (or pulled in via 30s replay) is attached to the issue.
+The media in recording mode is the **video**. The clip you just recorded (or pulled in via 30s replay) is attached to the issue. The **Download** button on the right of the Media section also lets you save this video as a file.
 
 ![Video attached](../assets/video-issue-2.jpg)
 
@@ -45,6 +45,8 @@ On top of the video, recording mode bundles three kinds of logs. **All three tog
 - **Action Logs** — A record of user actions: clicks, text input, and navigation, plus **keyboard shortcuts and special keys (Enter, Esc, ⌘K, and the like), checkbox and radio toggles, and dropdown selections**. (It captures which keys and actions happened, not every character you type.) **Action logs are only captured in recording mode.**
 
 The video timeline and the logs are linked by time, so the reader can walk through "what happened at this moment" in the [Log Viewer](../logs/viewer.md).
+
+The **Download** button on the right of the Log attachments section lets you grab the same log report (`logs.html`) that gets attached to the issue — before you submit. The video is bundled right in, so you can open it straight in the [Log Viewer](../logs/viewer.md).
 
 ![Recording-mode log policy](../assets/video-issue-5.jpg)
 
