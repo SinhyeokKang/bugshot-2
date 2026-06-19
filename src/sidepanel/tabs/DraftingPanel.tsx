@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { Camera, ImageIcon, ImagePlus, Pencil, Plus, RotateCcw, Trash2, WandSparkles } from "lucide-react";
+import { Camera, Download, ImageIcon, ImagePlus, Pencil, Plus, RotateCcw, Trash2, WandSparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,6 +35,7 @@ import {
   buildStyleDiff,
 } from "@/sidepanel/components/StyleChangesTable";
 import { mergeStyleElements, joinStyleSelectors } from "@/sidepanel/lib/buildIssueMarkdown";
+import { downloadImageDataUrl, downloadVideoBlob, downloadLogsHtml } from "@/sidepanel/lib/downloadCapture";
 import {
   deriveReadonlyEnvRows,
   filterEnvironmentRows,
@@ -80,6 +81,7 @@ export function DraftingPanel() {
   const addAttachments = useEditorStore((s) => s.addAttachments);
   const removeAttachment = useEditorStore((s) => s.removeAttachment);
   const targetPlatform = useEditorStore((s) => s.targetPlatform);
+  const target = useEditorStore((s) => s.target);
   const { status: aiStatus, providerLabel, createSession } = useAI();
   const [annotating, setAnnotating] = useState(false);
   const [aiDialogOpen, setAiDialogOpen] = useState(false);
@@ -150,7 +152,25 @@ export function DraftingPanel() {
   const isFreeformMode = captureMode === "freeform";
 
   const mediaBlock = isFreeformMode ? null : isVideoMode ? (
-    <Section key="__media" title={t("section.media")} collapsible>
+    <Section
+      key="__media"
+      title={t("section.media")}
+      collapsible
+      action={
+        videoBlob ? (
+          <Button
+            size="icon"
+            variant="outline"
+            className="h-8 w-8 shrink-0"
+            title={t("common.download")}
+            data-testid="download-media"
+            onClick={() => downloadVideoBlob(videoBlob)}
+          >
+            <Download />
+          </Button>
+        ) : undefined
+      }
+    >
       <VideoPreview blob={videoBlob} thumbnail={videoThumbnail} />
     </Section>
   ) : isElementMode ? (
@@ -209,6 +229,16 @@ export function DraftingPanel() {
             >
               <Pencil />
             </Button>
+            <Button
+              size="icon"
+              variant="outline"
+              className="h-8 w-8 shrink-0"
+              title={t("common.download")}
+              data-testid="download-media"
+              onClick={() => downloadImageDataUrl(screenshotImage)}
+            >
+              <Download />
+            </Button>
           </>
         ) : undefined
       }
@@ -226,7 +256,31 @@ export function DraftingPanel() {
   );
 
   const logCardsBlock = showLogCards ? (
-    <Section key="__logCards" title={t("section.logs")} collapsible>
+    <Section
+      key="__logCards"
+      title={t("section.logs")}
+      collapsible
+      action={
+        <Button
+          size="icon"
+          variant="outline"
+          className="h-8 w-8 shrink-0"
+          title={t("common.download")}
+          data-testid="download-logs"
+          onClick={() =>
+            void downloadLogsHtml({
+              networkLog,
+              consoleLog,
+              actionLog: showActionCard ? actionLog : null,
+              pageUrl: target?.url ?? "",
+              issueTitle: draft.title,
+            })
+          }
+        >
+          <Download />
+        </Button>
+      }
+    >
       <LogAttachmentCards
         networkLog={networkLog}
         networkLogAttach={networkLogAttach}

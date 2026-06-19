@@ -16,6 +16,7 @@ const ko = {
   "common.delete": "삭제",
   "common.attach": "첨부",
   "common.detach": "첨부 해제",
+  "common.download": "다운로드",
 
   "time.justNow": "방금",
   "time.minutesAgo": "{n}분 전",
@@ -47,6 +48,7 @@ const en = {
   "common.delete": "Delete",
   "common.attach": "Attach",
   "common.detach": "Detach",
+  "common.download": "Download",
 
   "time.justNow": "Just now",
   "time.minutesAgo": "{n}m ago",
