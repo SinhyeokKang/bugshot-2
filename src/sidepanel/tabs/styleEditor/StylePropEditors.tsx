@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
-import { useEditorStore } from "@/store/editor-store";
+import { useEditorStore, type EditorSelection } from "@/store/editor-store";
 import { useBoundTabId } from "@/sidepanel/hooks/useBoundTabId";
 import { applyStyles } from "@/sidepanel/picker-control";
 import { ValueCombobox } from "./ValueCombobox";
@@ -65,7 +65,7 @@ export function Row2({ children }: { children: React.ReactNode }) {
 function sidesAllEqual(
   props: string[],
   inlineStyle: Record<string, string>,
-  selection: { specifiedStyles: Record<string, string>; computedStyles: Record<string, string> } | null,
+  selection: EditorSelection | null,
 ): boolean {
   const vals = props.map((p) => {
     if (inlineStyle[p]) return inlineStyle[p];
@@ -78,12 +78,14 @@ function sidesAllEqual(
 
 function useLinkedProps(props: string[]) {
   const selection = useEditorStore((s) => s.selection);
-  const inlineStyle = useEditorStore((s) => s.styleEdits.inlineStyle);
-  const sidesEqual = sidesAllEqual(props, inlineStyle, selection);
-  const [linked, setLinked] = useState(sidesEqual);
+  const [linked, setLinked] = useState(() =>
+    sidesAllEqual(props, useEditorStore.getState().styleEdits.inlineStyle, selection),
+  );
   // 요소가 바뀌면(같은 selector 다른 인스턴스 포함 — capturedAt로 구분) linked 기본값 재판정.
   const selKey = selection ? `${selection.selector}@${selection.capturedAt}` : null;
   useEffect(() => {
+    // inlineStyle/selection은 구독값이 아닌 getState로 읽어 deps를 [selKey]로 고정 —
+    // 같은 요소에서 편집(inlineStyle 변경) 중엔 재판정 않고 요소 재선택 시에만 재판정한다.
     setLinked(
       sidesAllEqual(
         props,

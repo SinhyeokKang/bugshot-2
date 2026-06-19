@@ -36,17 +36,21 @@ test.describe.serial("style-field-fixes: live normalize + select reset", () => {
   const currentCard = () =>
     panel.locator('[data-testid="changes-card"][data-source="current"]');
 
-  test("D: length 라이브 입력이 px로 정규화되어 즉시(닫기 전) 적용", async () => {
+  test("D: length 다자릿수 라이브 입력이 px로 정규화 + 입력란 raw 유지", async () => {
     await enterDebugAndPick(fixture, panel, "#title");
     const buttons = propRow("padding").locator("button");
     const toggle = buttons.last();
     if ((await toggle.getAttribute("aria-pressed")) === "true") await toggle.click();
     await buttons.nth(0).click(); // top
-    await panel.locator("[cmdk-input]").fill("16"); // 단위 없는 입력
-    // 라이브: 팝오버를 닫기 전에 16px로 정규화돼 적용된다 (기존엔 무효 "16"이라 미적용)
-    await expect(fixture.locator("#title")).toHaveCSS("padding-top", "16px");
+    const input = panel.locator("[cmdk-input]");
+    await input.click();
+    await input.pressSequentially("24"); // 단위 없는 다자릿수를 한 글자씩
+    // 방향 A: 입력란은 raw "24" 유지(px 리싱크 clobber 없음). 버그면 "2px4"가 된다.
+    await expect(input).toHaveValue("24");
+    // 라이브: 팝오버를 닫기 전에 24px로 정규화돼 적용된다 (기존엔 무효 "24"라 미적용)
+    await expect(fixture.locator("#title")).toHaveCSS("padding-top", "24px");
     await closeAllPopovers(panel);
-    await expect(fixture.locator("#title")).toHaveCSS("padding-top", "16px");
+    await expect(fixture.locator("#title")).toHaveCSS("padding-top", "24px");
   });
 
   test("C: SelectProp 빈 옵션 선택이 prop을 리셋(__empty__ 미기록)", async () => {

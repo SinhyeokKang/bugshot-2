@@ -289,6 +289,9 @@ export function ValueCombobox({
             onValueChange={(v) => {
               setDraft(v);
               const normalized = finalize(v.trim());
+              // 정규화값은 페이지에 라이브 적용하되 입력란(draft)은 raw 유지 —
+              // 내가 일으킨 value 변경은 prevValue를 미리 맞춰 리싱크(60행)에서 제외한다.
+              prevValue.current = normalized;
               if (onLinkedCommit) onLinkedCommit(normalized);
               else set(normalized);
             }}
