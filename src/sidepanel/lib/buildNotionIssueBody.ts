@@ -22,6 +22,7 @@ import {
   extractInlineRefs,
   stripInlineImageRefs,
 } from "./resolveInlineImages";
+import type { StyleDiffSegment } from "./classDiff";
 
 export interface NotionMediaInput {
   filename: string;
@@ -54,6 +55,20 @@ function listItems(content: string): string[] {
     .split(/\r?\n/)
     .map((l) => l.trim())
     .filter(Boolean);
+}
+
+// class 줄: "prop: " 뒤에 토큰을 잇되 changed 토큰만 bold annotation.
+function classRichText(prop: string, segs: StyleDiffSegment[]): NotionRichText[] {
+  const rich: NotionRichText[] = [{ type: "text", text: { content: `${prop}: ` } }];
+  segs.forEach((s, i) => {
+    if (i > 0) rich.push({ type: "text", text: { content: " " } });
+    rich.push(
+      s.changed
+        ? { type: "text", text: { content: s.text }, annotations: { bold: true } }
+        : { type: "text", text: { content: s.text } },
+    );
+  });
+  return rich;
 }
 
 // DOM 줄: "DOM: " 뒤에 selector를 code annotation으로, 복수면 ", "로 잇는다.
@@ -187,7 +202,11 @@ export function buildNotionIssueBody(
           queueAttachment(before, categorize(before, "image"), ph);
         }
         for (const d of el.diffs) {
-          blocks.push({ type: "bulleted_list_item", text: `${d.prop}: ${d.asIs}` });
+          if (d.asIsSegments) {
+            blocks.push({ type: "rich_bulleted_list_item", richText: classRichText(d.prop, d.asIsSegments) });
+          } else {
+            blocks.push({ type: "bulleted_list_item", text: `${d.prop}: ${d.asIs}` });
+          }
         }
         blocks.push({ type: "heading_3", text: t("md.section.after") });
         if (after) {
@@ -196,7 +215,11 @@ export function buildNotionIssueBody(
           queueAttachment(after, categorize(after, "image"), ph);
         }
         for (const d of el.diffs) {
-          blocks.push({ type: "bulleted_list_item", text: `${d.prop}: ${d.toBe}` });
+          if (d.toBeSegments) {
+            blocks.push({ type: "rich_bulleted_list_item", richText: classRichText(d.prop, d.toBeSegments) });
+          } else {
+            blocks.push({ type: "bulleted_list_item", text: `${d.prop}: ${d.toBe}` });
+          }
         }
       }
     }

@@ -85,7 +85,7 @@ export default function AnnotationOverlay({
     <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-[2px]">
       <div
         ref={containerRef}
-        className="relative flex flex-col items-center gap-6"
+        className="relative flex flex-col items-center gap-6 py-14"
       >
         <img
           ref={imgRef}

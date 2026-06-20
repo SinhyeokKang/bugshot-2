@@ -40,6 +40,7 @@ A Chrome extension for bug reporting. Pick elements, tweak CSS, and file issues 
 ### Export & i18n
 
 - **Markdown copy** — paste into Slack, Confluence, or other tools with tables intact
+- **Local download** — save the captured screenshot/video and the `logs.html` report from the draft & preview panels
 - **i18n** — Korean / English
 
 ## Development

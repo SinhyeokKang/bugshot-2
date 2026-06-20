@@ -101,6 +101,33 @@ describe("buildNotionIssueBody — block 변환", () => {
     );
     expect(stepBullets.length).toBe(3);
   });
+
+  it("class 행: 변경된 토큰만 bold annotation (rich_bulleted_list_item)", () => {
+    const out = buildNotionIssueBody({
+      ctx: makeCtx({
+        diffs: [
+          {
+            prop: "class",
+            asIs: "card",
+            toBe: "card active",
+            asIsSegments: [{ text: "card", changed: false }],
+            toBeSegments: [
+              { text: "card", changed: false },
+              { text: "active", changed: true },
+            ],
+          },
+        ],
+      }),
+    });
+    const rich = out.blocks.filter(
+      (b) => b.type === "rich_bulleted_list_item",
+    );
+    const all = rich.flatMap((b: any) => b.richText);
+    const active = all.find((r: any) => r.text.content === "active");
+    expect(active?.annotations?.bold).toBe(true);
+    const card = all.find((r: any) => r.text.content === "card");
+    expect(card?.annotations?.bold).toBeFalsy();
+  });
 });
 
 describe("buildNotionIssueBody — 미디어 분기", () => {

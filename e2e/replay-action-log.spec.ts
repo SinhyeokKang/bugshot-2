@@ -68,6 +68,14 @@ test.describe.serial("30s Replay + action 로그", () => {
     // 6) drafting 진입(mp4 인코딩 시간 고려)
     await expect(panel.getByTestId("drafting-panel")).toBeVisible({ timeout: 45_000 });
 
+    // 6.5) 미디어(영상) 섹션 다운로드 → recording.mp4 (encodeToMp4 blob=video/mp4).
+    //      action 카드 다이얼로그 열기 전에 단언(모달 오버레이가 클릭 막는 것 회피).
+    const [videoDownload] = await Promise.all([
+      panel.waitForEvent("download"),
+      panel.getByTestId("download-media").click(),
+    ]);
+    expect(videoDownload.suggestedFilename()).toBe("recording.mp4");
+
     // 7) action 로그 카드 노출 → 클릭해 다이얼로그
     const card = panel.getByTestId("action-log-card");
     await expect(card).toBeVisible();

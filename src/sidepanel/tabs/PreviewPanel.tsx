@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Info } from "lucide-react";
+import { Download, Info } from "lucide-react";
 import { formatTimestamp } from "@/sidepanel/lib/formatTimestamp";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,8 @@ import { connectedPlatforms, useSettingsStore } from "@/store/settings-store";
 import { IssuePreviewView } from "@/sidepanel/components/IssuePreviewView";
 import { AttachmentList } from "@/sidepanel/components/AttachmentList";
 import { downloadAttachment } from "@/sidepanel/lib/downloadAttachment";
+import { downloadImageDataUrl, downloadVideoBlob } from "@/sidepanel/lib/downloadCapture";
+import { downloadEditorLogsHtml } from "@/sidepanel/lib/buildEditorCapture";
 import { LogAttachmentCards } from "@/sidepanel/components/LogAttachmentCards";
 import { NetworkLogPreviewDialog } from "@/sidepanel/components/NetworkLogPreviewDialog";
 import { ConsoleLogPreviewDialog } from "@/sidepanel/components/ConsoleLogPreviewDialog";
@@ -167,7 +169,23 @@ export function PreviewPanel() {
     }));
 
   const mediaBlock = isFreeformMode ? null : isVideoMode ? (
-    <Section title={t("section.media")}>
+    <Section
+      title={t("section.media")}
+      action={
+        videoBlob ? (
+          <Button
+            size="icon"
+            variant="outline"
+            className="h-8 w-8 shrink-0"
+            title={t("common.download")}
+            data-testid="download-media"
+            onClick={() => downloadVideoBlob(videoBlob)}
+          >
+            <Download />
+          </Button>
+        ) : undefined
+      }
+    >
       <PreviewVideo blob={videoBlob} thumbnail={videoThumbnail} />
     </Section>
   ) : isElementMode ? (
@@ -184,7 +202,23 @@ export function PreviewPanel() {
       </Section>
     ))
   ) : (
-    <Section title={t("section.media")}>
+    <Section
+      title={t("section.media")}
+      action={
+        screenshotImage ? (
+          <Button
+            size="icon"
+            variant="outline"
+            className="h-8 w-8 shrink-0"
+            title={t("common.download")}
+            data-testid="download-media"
+            onClick={() => downloadImageDataUrl(screenshotImage)}
+          >
+            <Download />
+          </Button>
+        ) : undefined
+      }
+    >
       {screenshotImage ? (
         <div className="aspect-video w-full overflow-hidden rounded-lg border bg-muted/70">
           <img
@@ -198,7 +232,21 @@ export function PreviewPanel() {
   );
 
   const logCardsBlock = showLogCards ? (
-    <Section title={t("section.logs")}>
+    <Section
+      title={t("section.logs")}
+      action={
+        <Button
+          size="icon"
+          variant="outline"
+          className="h-8 w-8 shrink-0"
+          title={t("common.download")}
+          data-testid="download-logs"
+          onClick={() => void downloadEditorLogsHtml()}
+        >
+          <Download />
+        </Button>
+      }
+    >
       <LogAttachmentCards
         networkLog={attachedNetwork}
         networkLogAttach={networkLogAttach}

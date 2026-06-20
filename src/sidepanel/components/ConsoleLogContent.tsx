@@ -8,7 +8,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { distinctOriginKeys, originKey, originCounts } from "@/sidepanel/lib/logOrigin";
 import { OriginFilterBar } from "./OriginFilterBar";
 import { findActiveIndex } from "@/log-viewer/timeline";
-import { formatRelativeTime, syncRowClass } from "@/sidepanel/lib/logRow";
+import { formatRelativeTime, syncRowClass, ROW_CARD_CLASS, ROW_LIST_CLASS } from "@/sidepanel/lib/logRow";
 import { useScrollToEntry } from "@/sidepanel/lib/useScrollToEntry";
 import { LogSeekChip } from "./LogSeekChip";
 
@@ -179,7 +179,7 @@ export function ConsoleLogContent({ entries, startedAt, flush, syncBaseMs, onSee
         </div>
       ) : (
         <ScrollArea ref={listScrollRef} className="min-h-0 flex-1">
-          <div className="overflow-hidden">
+          <div className={ROW_LIST_CLASS}>
             {filteredEntries.map((entry) => (
               <EntryAccordion
                 key={entry.id}
@@ -219,7 +219,7 @@ function EntryAccordion({ entry, startedAt, syncBaseMs, onSeek, isActive, scroll
     <div
       data-entry-id={entry.id}
       data-level={entry.level}
-      className={syncRowClass(!!onSeek, !!isActive, levelBgColor(entry.level))}
+      className={`${ROW_CARD_CLASS} ${syncRowClass(!!onSeek, !!isActive, levelBgColor(entry.level))}`}
       aria-current={isActive ? "true" : undefined}
     >
       <div

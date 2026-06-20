@@ -8,6 +8,7 @@ import {
   buildStyleDiff,
   type StyleDiffRow,
 } from "@/sidepanel/components/StyleChangesTable";
+import { segmentsToMarkdown, type StyleDiffSegment } from "./classDiff";
 import type { BufferedElement, EditorStyleEdits } from "@/store/editor-store";
 import type { NetworkLogSummary, ConsoleLogSummary } from "./buildLogSummary";
 import { filterEnvironmentRows, type EnvironmentRow } from "./environmentRows";
@@ -265,9 +266,9 @@ export function buildIssueMarkdown(ctx: MarkdownContext): string {
         lines.push(`| ${t("md.column.property")} | As is | To be |`);
         lines.push("| --- | --- | --- |");
         for (const d of el.diffs) {
-          lines.push(
-            `| ${escapeCell(d.prop)} | ${escapeCell(d.asIs)} | ${escapeCell(d.toBe)} |`,
-          );
+          const asIs = d.asIsSegments ? segmentsToMarkdown(d.asIsSegments) : escapeCell(d.asIs);
+          const toBe = d.toBeSegments ? segmentsToMarkdown(d.toBeSegments) : escapeCell(d.toBe);
+          lines.push(`| ${escapeCell(d.prop)} | ${asIs} | ${toBe} |`);
         }
         lines.push("");
       }
@@ -359,8 +360,10 @@ export function buildIssueHtml(ctx: MarkdownContext): string {
           `<table><thead><tr><th>${t("md.column.property")}</th><th>As is</th><th>To be</th></tr></thead><tbody>`,
         );
         for (const d of el.diffs) {
+          const asIs = d.asIsSegments ? segmentsToHtmlCell(d.asIsSegments) : escapeHtml(d.asIs);
+          const toBe = d.toBeSegments ? segmentsToHtmlCell(d.toBeSegments) : escapeHtml(d.toBe);
           parts.push(
-            `<tr><td>${escapeHtml(d.prop)}</td><td>${escapeHtml(d.asIs)}</td><td>${escapeHtml(d.toBe)}</td></tr>`,
+            `<tr><td>${escapeHtml(d.prop)}</td><td>${asIs}</td><td>${toBe}</td></tr>`,
           );
         }
         parts.push(`</tbody></table>`);
@@ -467,6 +470,13 @@ function escapeHtml(value: string): string {
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;");
+}
+
+// class 토큰 세그먼트 → HTML 셀(changed 토큰만 <strong>).
+function segmentsToHtmlCell(segs: StyleDiffSegment[]): string {
+  return segs
+    .map((s) => (s.changed ? `<strong>${escapeHtml(s.text)}</strong>` : escapeHtml(s.text)))
+    .join(" ");
 }
 
 function emitLogSummaryMd(lines: string[], ctx: MarkdownContext): void {

@@ -7,11 +7,15 @@ import {
   docTableHead,
   docTableRow,
 } from "./DocTable";
+import { diffClassTokens, type StyleDiffSegment } from "@/sidepanel/lib/classDiff";
 
 export interface StyleDiffRow {
   prop: string;
   asIs: string;
   toBe: string;
+  // class 행만 채움 — 변경/추가/제거된 토큰을 볼드 강조하기 위한 토큰 단위 세그먼트.
+  asIsSegments?: StyleDiffSegment[];
+  toBeSegments?: StyleDiffSegment[];
 }
 
 export interface StyleDiffSelection {
@@ -77,10 +81,10 @@ export function StyleChangesTable({
             <tr key={d.prop} className={docTableRow}>
               <td className={cn(docTableCell, "font-medium")}>{d.prop}</td>
               <td className={docTableCell}>
-                <DiffValue value={d.asIs} muted />
+                <DiffValue value={d.asIs} segments={d.asIsSegments} muted />
               </td>
               <td className={docTableCell}>
-                <DiffValue value={d.toBe} />
+                <DiffValue value={d.toBe} segments={d.toBeSegments} />
               </td>
             </tr>
           ))
@@ -106,10 +110,12 @@ function SnapshotCell({ image }: { image: string | null }) {
 
 export function DiffValue({
   value,
+  segments,
   muted,
   "data-testid": testid,
 }: {
   value: string;
+  segments?: StyleDiffSegment[];
   muted?: boolean;
   "data-testid"?: string;
 }) {
@@ -129,7 +135,18 @@ export function DiffValue({
         muted && "text-muted-foreground",
       )}
     >
-      {value}
+      {segments
+        ? segments.map((s, i) => (
+            <span key={i}>
+              {i > 0 ? " " : ""}
+              {s.changed ? (
+                <strong className="font-semibold">{s.text}</strong>
+              ) : (
+                s.text
+              )}
+            </span>
+          ))
+        : value}
     </span>
   );
 }
@@ -147,7 +164,14 @@ export function buildStyleDiff(
   const beforeClass = selection.classList.join(" ");
   const afterClass = edits.classList.join(" ");
   if (beforeClass !== afterClass) {
-    rows.push({ prop: "class", asIs: beforeClass, toBe: afterClass });
+    const seg = diffClassTokens(selection.classList, edits.classList);
+    rows.push({
+      prop: "class",
+      asIs: beforeClass,
+      toBe: afterClass,
+      asIsSegments: seg.asIs,
+      toBeSegments: seg.toBe,
+    });
   }
 
   for (const [prop, after] of Object.entries(edits.inlineStyle)) {

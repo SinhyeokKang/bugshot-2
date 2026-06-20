@@ -55,10 +55,30 @@ describe("isRenderableColorLiteral", () => {
       // 정규식은 prefix만 검사. 사용자가 입력 중이거나 손상돼도 swatch는 빈 색으로 fallback.
       expect(isRenderableColorLiteral("rgb(0,0,0")).toBe(true);
     });
-    it("hsl/hwb 등 다른 함수는 거부", () => {
-      expect(isRenderableColorLiteral("hsl(0, 0%, 0%)")).toBe(false);
-      expect(isRenderableColorLiteral("hwb(0 0% 0%)")).toBe(false);
-      expect(isRenderableColorLiteral("oklch(0 0 0)")).toBe(false);
+  });
+
+  describe("함수형 색상 (hsl/hwb/oklch/lab/color 등 — 확대)", () => {
+    it("hsl / hsla", () => {
+      expect(isRenderableColorLiteral("hsl(0, 0%, 0%)")).toBe(true);
+      expect(isRenderableColorLiteral("hsl(210 100% 50%)")).toBe(true);
+      expect(isRenderableColorLiteral("hsla(0, 0%, 0%, 0.5)")).toBe(true);
+    });
+    it("hwb / lab / lch / oklab / oklch", () => {
+      expect(isRenderableColorLiteral("hwb(0 0% 0%)")).toBe(true);
+      expect(isRenderableColorLiteral("lab(50% 40 59.5)")).toBe(true);
+      expect(isRenderableColorLiteral("lch(52.2% 72.2 50)")).toBe(true);
+      expect(isRenderableColorLiteral("oklab(0.4 0.1 0.1)")).toBe(true);
+      expect(isRenderableColorLiteral("oklch(0.7 0.15 180)")).toBe(true);
+    });
+    it("color() 함수", () => {
+      expect(isRenderableColorLiteral("color(display-p3 1 0 0)")).toBe(true);
+    });
+    it("대소문자·선행 공백 무관", () => {
+      expect(isRenderableColorLiteral("HSL(0 0% 0%)")).toBe(true);
+      expect(isRenderableColorLiteral("  oklch(0.7 0.1 180)")).toBe(true);
+    });
+    it("color-mix()는 이번 스코프 제외 (false)", () => {
+      expect(isRenderableColorLiteral("color-mix(in srgb, red, blue)")).toBe(false);
     });
   });
 

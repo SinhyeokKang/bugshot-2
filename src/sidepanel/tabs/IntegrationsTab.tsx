@@ -26,6 +26,7 @@ import {
 import { connectedPlatforms, useSettingsStore } from "@/store/settings-store";
 import { PageFooter, PageScroll, PageShell, Section } from "@/sidepanel/components/Section";
 import { PLATFORM_TAB_KEYS, type PlatformId } from "@/types/platform";
+import { trackDisconnect } from "@/sidepanel/lib/track-submit";
 import {
   orderAddPlatforms,
   pickInitialSubTab,
@@ -139,7 +140,12 @@ export function IntegrationsTab({ activeMainTab }: { activeMainTab: string }) {
             {connectedCount >= 2 && (
               <PageFooter>
                 <div className="flex justify-end">
-                  <DisconnectAllButton onConfirm={removeAllAccounts} />
+                  <DisconnectAllButton
+                    onConfirm={() => {
+                      for (const id of connected) trackDisconnect(id);
+                      removeAllAccounts();
+                    }}
+                  />
                 </div>
               </PageFooter>
             )}
@@ -225,7 +231,12 @@ function DisconnectButton({ id }: { id: PlatformId }) {
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>{t("common.close")}</AlertDialogCancel>
-          <AlertDialogAction onClick={() => removeAccount(id)}>
+          <AlertDialogAction
+            onClick={() => {
+              trackDisconnect(id);
+              removeAccount(id);
+            }}
+          >
             {t("platform.disconnect.confirm")}
           </AlertDialogAction>
         </AlertDialogFooter>

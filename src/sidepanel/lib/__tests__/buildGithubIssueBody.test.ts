@@ -147,6 +147,31 @@ describe("buildGithubIssueBody — 구조", () => {
     expect(out.body).toContain("| color | #000 | #fff |");
   });
 
+  it("class 행: changed 토큰 **볼드** + pipe 이스케이프", () => {
+    const ctx = makeCtx({
+      captureMode: "element",
+      diffs: [
+        {
+          prop: "class",
+          asIs: "card text-blue-500",
+          toBe: "card before:content-['|']",
+          asIsSegments: [
+            { text: "card", changed: false },
+            { text: "text-blue-500", changed: true },
+          ],
+          toBeSegments: [
+            { text: "card", changed: false },
+            { text: "before:content-['|']", changed: true },
+          ],
+        },
+      ],
+    });
+    const out = buildGithubIssueBody({ ctx });
+    expect(out.body).toContain(
+      "| class | card **text-blue-500** | card **before:content-['\\|']** |",
+    );
+  });
+
   it("미디어/이미지 없이도 빈 ctx 처리 안전", () => {
     const out = buildGithubIssueBody({ ctx: makeCtx({ diffs: [] }) });
     expect(out.body).toBeTruthy();

@@ -11,19 +11,35 @@ export function extractTokenRefs(value: string): TokenRef[] {
   let m: RegExpExecArray | null;
   while ((m = re.exec(value)) !== null) {
     const name = m[1];
-    if (isInternalToken(name)) continue;
-    const mul = readMultiplierAround(value, m.index, re.lastIndex);
-    refs.push(mul == null ? { name } : { name, multiplier: mul });
+    const close = findVarClose(value, m.index + 3);
+    if (!isInternalToken(name)) {
+      const mul = readMultiplierAround(value, m.index, re.lastIndex);
+      refs.push(mul == null ? { name } : { name, multiplier: mul });
+    }
+    // var()의 닫는 괄호 뒤로 건너뛰어 fallback 안의 중첩 var()는 별도 참조로 추출하지 않는다.
+    if (close + 1 > re.lastIndex) re.lastIndex = close + 1;
   }
   return refs;
 }
 
+function findVarClose(full: string, openParen: number): number {
+  let depth = 0;
+  for (let i = openParen; i < full.length; i++) {
+    if (full[i] === "(") depth++;
+    else if (full[i] === ")") {
+      depth--;
+      if (depth === 0) return i;
+    }
+  }
+  return full.length;
+}
+
 export function isInternalToken(name: string): boolean {
-  return name.startsWith("--tw-");
+  return name.startsWith("--tw-") || name.startsWith("--_");
 }
 
 export function isTokenValue(v: string): boolean {
-  return v.includes("var(");
+  return /(^|[\s,(])var\(/.test(v);
 }
 
 export function tokenFamilyPrefix(

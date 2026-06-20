@@ -184,7 +184,9 @@ interface EditorState {
   resetAllStyleEdits: () => void;
   backToStyling: () => void;
   setDraft: (draft: EditorDraft) => void;
-  confirmDraft: () => void;
+  // 초안 저장 후 previewing으로 전환. 초안이 실제로 저장됐으면 true, draft/selection
+  // 미설정으로 미저장 전환이면 false (호출부 성공 토스트 게이트).
+  confirmDraft: () => boolean;
   backToDraft: () => void;
   setIssueFields: (patch: Partial<EditorIssueFields>) => void;
   setNetworkLog: (log: NetworkLog) => void;
@@ -631,7 +633,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const state = get();
     if (!state.draft || !state.target) {
       set({ phase: "previewing" });
-      return;
+      return false;
     }
     if (state.targetPlatform === "jira") {
       const { lastSubmitFields, accounts } = useSettingsStore.getState();
@@ -759,7 +761,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           deleteAttachmentBlobs(`pending:${state.target.tabId}`).catch(() => {});
         }
         set({ phase: "previewing" });
-        return;
+        return false;
       }
       useIssuesStore.getState().saveDraft({
         id,
@@ -853,6 +855,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       });
     }
     set({ phase: "previewing", currentIssueId: id });
+    return true;
   },
 
   backToDraft: () => set({ phase: "drafting" }),

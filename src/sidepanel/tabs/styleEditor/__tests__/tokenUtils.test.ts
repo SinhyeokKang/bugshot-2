@@ -53,12 +53,38 @@ describe("extractTokenRefs", () => {
     const refs = extractTokenRefs("var(--color-primary, #000)");
     expect(refs).toEqual([{ name: "--color-primary" }]);
   });
+
+  it("중첩 var fallback은 primary만 추출(fallback 토큰 제외)", () => {
+    expect(extractTokenRefs("var(--x, var(--y))")).toEqual([{ name: "--x" }]);
+  });
+
+  it("top-level var 둘은 모두 추출", () => {
+    expect(extractTokenRefs("calc(var(--a) + var(--b))")).toEqual([
+      { name: "--a" },
+      { name: "--b" },
+    ]);
+  });
+
+  it("선행점 소수 multiplier(.5)", () => {
+    expect(extractTokenRefs("calc(.5 * var(--g))")).toEqual([
+      { name: "--g", multiplier: 0.5 },
+    ]);
+  });
+
+  it("--_ private alias 토큰 필터링", () => {
+    expect(extractTokenRefs("var(--_internal)")).toEqual([]);
+  });
 });
 
 describe("isInternalToken", () => {
   it("--tw- 접두사는 internal", () => {
     expect(isInternalToken("--tw-ring-color")).toBe(true);
     expect(isInternalToken("--tw-shadow")).toBe(true);
+  });
+
+  it("--_ 접두사도 internal (private alias)", () => {
+    expect(isInternalToken("--_internal")).toBe(true);
+    expect(isInternalToken("--_x")).toBe(true);
   });
 
   it("그 외는 external", () => {
@@ -72,9 +98,18 @@ describe("isTokenValue", () => {
     expect(isTokenValue("var(--spacing-4)")).toBe(true);
   });
 
+  it("괄호/공백/콤마 뒤 var( 도 토큰", () => {
+    expect(isTokenValue("calc(var(--x) + 2px)")).toBe(true);
+    expect(isTokenValue("0 0 var(--shadow)")).toBe(true);
+  });
+
   it("var( 미포함", () => {
     expect(isTokenValue("16px")).toBe(false);
     expect(isTokenValue("")).toBe(false);
+  });
+
+  it("단어 중간 var( 오탐 방지", () => {
+    expect(isTokenValue("avar(--x)")).toBe(false);
   });
 });
 

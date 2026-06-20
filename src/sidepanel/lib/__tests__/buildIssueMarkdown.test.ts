@@ -211,6 +211,31 @@ describe("buildIssueMarkdown", () => {
     );
     expect(md).toContain("a\\|b");
   });
+
+  it("class 행: 변경/추가된 토큰만 **볼드**로 출력", () => {
+    const md = buildIssueMarkdown(
+      makeCtx({
+        diffs: [
+          {
+            prop: "class",
+            asIs: "card text-blue-500",
+            toBe: "card text-red-500",
+            asIsSegments: [
+              { text: "card", changed: false },
+              { text: "text-blue-500", changed: true },
+            ],
+            toBeSegments: [
+              { text: "card", changed: false },
+              { text: "text-red-500", changed: true },
+            ],
+          },
+        ],
+      }),
+    );
+    expect(md).toContain(
+      "| class | card **text-blue-500** | card **text-red-500** |",
+    );
+  });
 });
 
 describe("buildIssueMarkdown — freeform", () => {

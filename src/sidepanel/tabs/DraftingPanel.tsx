@@ -1,9 +1,10 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { Camera, ImageIcon, ImagePlus, Pencil, Plus, RotateCcw, Trash2, WandSparkles } from "lucide-react";
+import { Camera, Download, ImageIcon, ImagePlus, Pencil, Plus, RotateCcw, Trash2, WandSparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { toast } from "sonner";
 import { useT } from "@/i18n";
 import {
   POST_MEDIA_SECTION_IDS,
@@ -34,6 +35,8 @@ import {
   buildStyleDiff,
 } from "@/sidepanel/components/StyleChangesTable";
 import { mergeStyleElements, joinStyleSelectors } from "@/sidepanel/lib/buildIssueMarkdown";
+import { downloadImageDataUrl, downloadVideoBlob } from "@/sidepanel/lib/downloadCapture";
+import { downloadEditorLogsHtml } from "@/sidepanel/lib/buildEditorCapture";
 import {
   deriveReadonlyEnvRows,
   filterEnvironmentRows,
@@ -149,7 +152,25 @@ export function DraftingPanel() {
   const isFreeformMode = captureMode === "freeform";
 
   const mediaBlock = isFreeformMode ? null : isVideoMode ? (
-    <Section key="__media" title={t("section.media")} collapsible>
+    <Section
+      key="__media"
+      title={t("section.media")}
+      collapsible
+      action={
+        videoBlob ? (
+          <Button
+            size="icon"
+            variant="outline"
+            className="h-8 w-8 shrink-0"
+            title={t("common.download")}
+            data-testid="download-media"
+            onClick={() => downloadVideoBlob(videoBlob)}
+          >
+            <Download />
+          </Button>
+        ) : undefined
+      }
+    >
       <VideoPreview blob={videoBlob} thumbnail={videoThumbnail} />
     </Section>
   ) : isElementMode ? (
@@ -208,6 +229,16 @@ export function DraftingPanel() {
             >
               <Pencil />
             </Button>
+            <Button
+              size="icon"
+              variant="outline"
+              className="h-8 w-8 shrink-0"
+              title={t("common.download")}
+              data-testid="download-media"
+              onClick={() => downloadImageDataUrl(screenshotImage)}
+            >
+              <Download />
+            </Button>
           </>
         ) : undefined
       }
@@ -225,7 +256,23 @@ export function DraftingPanel() {
   );
 
   const logCardsBlock = showLogCards ? (
-    <Section key="__logCards" title={t("section.logs")} collapsible>
+    <Section
+      key="__logCards"
+      title={t("section.logs")}
+      collapsible
+      action={
+        <Button
+          size="icon"
+          variant="outline"
+          className="h-8 w-8 shrink-0"
+          title={t("common.download")}
+          data-testid="download-logs"
+          onClick={() => void downloadEditorLogsHtml()}
+        >
+          <Download />
+        </Button>
+      }
+    >
       <LogAttachmentCards
         networkLog={networkLog}
         networkLogAttach={networkLogAttach}
@@ -329,11 +376,11 @@ export function DraftingPanel() {
               onClick={() => { (document.activeElement as HTMLElement)?.blur?.(); setAiDialogOpen(true); }}
               disabled={aiDraftLoading}
             >
-              <span className="flex items-center gap-1.5">
-                <Badge variant="outline" className="font-normal border-purple-500 text-purple-600 dark:border-purple-400 dark:text-purple-300">{providerLabel ?? t("ai.badge.chromeAI")}</Badge>
-                <span className="bg-gradient-to-r from-purple-500 to-indigo-500 bg-clip-text text-sm text-transparent dark:from-purple-300 dark:to-indigo-300">{t("draft.aiBanner")}</span>
+              <span className="flex min-w-0 items-center gap-1.5">
+                <Badge variant="outline" className="shrink-0 font-normal border-purple-500 text-purple-600 dark:border-purple-400 dark:text-purple-300">{providerLabel ?? t("ai.badge.chromeAI")}</Badge>
+                <span className="truncate bg-gradient-to-r from-purple-500 to-indigo-500 bg-clip-text text-sm text-transparent dark:from-purple-300 dark:to-indigo-300">{t("draft.aiBanner")}</span>
               </span>
-              <span className="flex items-center gap-1 bg-gradient-to-r from-indigo-500 to-purple-500 bg-clip-text text-sm font-medium text-transparent dark:from-indigo-300 dark:to-purple-300">
+              <span className="flex shrink-0 items-center gap-1 bg-gradient-to-r from-indigo-500 to-purple-500 bg-clip-text text-sm font-medium text-transparent dark:from-indigo-300 dark:to-purple-300">
                 <WandSparkles className="h-4 w-4 text-purple-500 dark:text-purple-300" />
                 {t("draft.aiGenerate")}
               </span>
@@ -360,7 +407,7 @@ export function DraftingPanel() {
                 <Button
                   onClick={() => {
                     setAnnotating(false);
-                    confirmDraft();
+                    if (confirmDraft()) toast.success(t("draft.saved"));
                   }}
                   disabled={titleMissing || aiDraftLoading}
                   data-testid="to-preview"

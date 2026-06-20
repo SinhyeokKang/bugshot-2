@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const sendBg = vi.fn();
 vi.mock("@/types/messages", () => ({ sendBg: (...a: unknown[]) => sendBg(...a) }));
 
-import { submitEventProperties, trackSubmit } from "../track-submit";
+import { submitEventProperties, trackDisconnect, trackSubmit } from "../track-submit";
 import type { PlatformId } from "@/types/platform";
 
 const PLATFORMS: PlatformId[] = [
@@ -78,5 +78,28 @@ describe("trackSubmit", () => {
   it("sendBg가 reject해도 동기적으로 throw하지 않음", () => {
     sendBg.mockRejectedValue(new Error("boom"));
     expect(() => trackSubmit("github", "element", "failure")).not.toThrow();
+  });
+});
+
+describe("trackDisconnect", () => {
+  beforeEach(() => {
+    sendBg.mockReset();
+  });
+
+  it("analytics.capture 메시지를 platform_disconnected 이벤트로 전송", () => {
+    sendBg.mockResolvedValue({ ok: true });
+    trackDisconnect("notion");
+
+    expect(sendBg).toHaveBeenCalledTimes(1);
+    expect(sendBg).toHaveBeenCalledWith({
+      type: "analytics.capture",
+      event: "platform_disconnected",
+      properties: { platform: "notion" },
+    });
+  });
+
+  it("sendBg가 reject해도 동기적으로 throw하지 않음", () => {
+    sendBg.mockRejectedValue(new Error("boom"));
+    expect(() => trackDisconnect("jira")).not.toThrow();
   });
 });

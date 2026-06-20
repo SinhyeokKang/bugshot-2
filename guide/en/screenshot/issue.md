@@ -14,7 +14,7 @@ OS, browser, page URL, viewport size, and capture time fill in **on their own** 
 
 ## 3. Media — annotated screenshot
 
-The media in screenshot mode is the **annotated screenshot**. The image you marked up with arrows and boxes is attached to the issue as-is.
+The media in screenshot mode is the **annotated screenshot**. The image you marked up with arrows and boxes is attached to the issue as-is. The **Download** button on the right of the Media section also lets you save this screenshot as an image file.
 
 ![Annotated screenshot attached](../assets/screenshot-issue-2.jpg)
 
@@ -39,6 +39,8 @@ In screenshot mode, AI reads the **annotated screenshot** you attached. A one-li
 ## 5. Log attachments
 
 Screenshot mode can attach console and network logs. Both toggles are **on by default**, so they're included without any extra steps — turn one off if you don't need it.
+
+The **Download** button on the right of the Log attachments section lets you grab the same log report (`logs.html`) that gets attached to the issue — right here, before you even submit.
 
 > See [Live Logs](../logs/live.md) for how to read and work with logs.
 

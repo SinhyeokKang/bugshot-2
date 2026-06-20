@@ -54,6 +54,31 @@ export async function postCapture(
   }
 }
 
+const INSTALL_ID_KEY = "bugshot:install-id";
+
+export function resolveInstallationId(
+  stored: string | undefined,
+  generate: () => string,
+): { id: string; created: boolean } {
+  const trimmed = (stored ?? "").trim();
+  if (trimmed) return { id: trimmed, created: false };
+  return { id: generate(), created: true };
+}
+
+// 설치 단위 익명 식별자(무작위 UUID, PII 아님). 매 이벤트 새 UUID 대신 이걸 공유해
+// 같은 설치의 이벤트를 PostHog에서 연결한다(활성화율·플랫폼 인기도 비율 산출).
+async function getInstallationId(): Promise<string> {
+  // 락 없음: 최초 동시 발화 시 두 호출이 서로 다른 UUID를 set할 수 있으나(마지막이 승),
+  // 설치당 1~2개 이벤트의 id가 갈리는 정도라 익명 집계 통계엔 무해. 뮤텍스는 과함.
+  const data = await chrome.storage.local.get(INSTALL_ID_KEY);
+  const { id, created } = resolveInstallationId(
+    data[INSTALL_ID_KEY] as string | undefined,
+    () => crypto.randomUUID(),
+  );
+  if (created) await chrome.storage.local.set({ [INSTALL_ID_KEY]: id });
+  return id;
+}
+
 export async function captureEvent(
   event: string,
   properties: Record<string, string>,
@@ -62,6 +87,6 @@ export async function captureEvent(
   if (!analyticsEnabled(key)) return;
   await postCapture(
     posthogHost(),
-    buildCaptureBody(event, properties, crypto.randomUUID(), key),
+    buildCaptureBody(event, properties, await getInstallationId(), key),
   );
 }

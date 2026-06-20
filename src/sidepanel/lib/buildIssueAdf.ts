@@ -7,6 +7,7 @@ import {
 import { IMAGE_PLACEHOLDER, VIDEO_PLACEHOLDER, inlineImagePlaceholder } from "@/lib/adf-sentinels";
 import { LOGS_LINK_LABEL } from "@/background/lib/adf-logs-link";
 import { ccAdfParagraph } from "./ccMention";
+import type { StyleDiffSegment } from "./classDiff";
 import {
   resolveStyleElements,
   styleSelectorList,
@@ -96,7 +97,11 @@ export function buildIssueAdf(
         content.push(
           table(
             [t("md.column.property"), "As is", "To be"],
-            el.diffs.map((d) => [d.prop, d.asIs, d.toBe]),
+            el.diffs.map((d) => [
+              d.prop,
+              d.asIsSegments ? segmentsToAdfInline(d.asIsSegments) : d.asIs,
+              d.toBeSegments ? segmentsToAdfInline(d.toBeSegments) : d.toBe,
+            ]),
           ),
         );
       }
@@ -210,7 +215,8 @@ function domSelectorItem(selectors: string[]): AdfNode {
   return { type: "listItem", content: [paragraph(children)] };
 }
 
-function table(headers: string[], rows: string[][]): AdfNode {
+// 셀은 평문(string) 또는 인라인 노드 배열(class 토큰 부분 볼드)을 받는다.
+function table(headers: string[], rows: (string | AdfNode[])[][]): AdfNode {
   return {
     type: "table",
     attrs: { isNumberColumnEnabled: false, layout: "default" },
@@ -229,11 +235,29 @@ function table(headers: string[], rows: string[][]): AdfNode {
           type: "tableCell",
           attrs: {},
           // Jira ADF는 빈 text 노드를 거부(400) — 빈 셀(class 전부 제거 등)은 빈 paragraph로.
-          content: [paragraph(cell === "" ? [] : [textNode(cell)])],
+          content: [
+            paragraph(
+              typeof cell === "string"
+                ? cell === ""
+                  ? []
+                  : [textNode(cell)]
+                : cell,
+            ),
+          ],
         })),
       })),
     ],
   };
+}
+
+// class 토큰 세그먼트 → ADF 인라인 노드(changed 토큰만 strong, 토큰 사이 공백).
+function segmentsToAdfInline(segs: StyleDiffSegment[]): AdfNode[] {
+  const nodes: AdfNode[] = [];
+  segs.forEach((s, i) => {
+    if (i > 0) nodes.push(textNode(" "));
+    nodes.push(s.changed ? strongTextNode(s.text) : textNode(s.text));
+  });
+  return nodes;
 }
 
 function emitLogSummaryAdf(
