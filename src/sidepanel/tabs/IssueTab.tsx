@@ -12,11 +12,11 @@ import {
   Timer,
   AppWindow,
   MonitorPlay,
-  Settings,
 } from "lucide-react";
 import { useT } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { recordModeMeta } from "@/sidepanel/lib/recordModeMeta";
+import { RecordingSettingsDialog } from "@/sidepanel/components/RecordingSettingsDialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -54,7 +54,6 @@ import { startVideoCapture, startScreenCapture } from "@/sidepanel/video-capture
 import * as videoRecorder from "@/sidepanel/video-recorder";
 import { PageFooter, PageShell } from "@/sidepanel/components/Section";
 import { useReplay } from "@/sidepanel/30s-replay/replay-context";
-import { useTabNav } from "@/sidepanel/tab-nav";
 import { DraftingPanel } from "./DraftingPanel";
 import { PreviewPanel } from "./PreviewPanel";
 import { SelectedPanel } from "./StyleEditorPanel";
@@ -162,9 +161,9 @@ function EmptyState({ onStartElement, onStartElementShot, onStartScreenshot, onS
   const t = useT();
   const locale = useSettingsUiStore((s) => s.locale);
   const recordingMode = useSettingsUiStore((s) => s.recordingMode);
-  const navTo = useTabNav();
   const meta = recordModeMeta(recordingMode);
   const RecordIcon = meta.icon === "monitorPlay" ? MonitorPlay : AppWindow;
+  const [recSettingsOpen, setRecSettingsOpen] = useState(false);
   return (
     <PageShell>
       <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 px-6 pb-5">
@@ -176,22 +175,21 @@ function EmptyState({ onStartElement, onStartElementShot, onStartScreenshot, onS
         </div>
         <TooltipProvider delayDuration={0}>
           <div className="flex w-full max-w-[336px] flex-col gap-2">
-            <Button className="w-full" onClick={onStartElement} data-testid="mode-element">
-              <Crosshair />
-              {t("issue.mode.element")}
-            </Button>
             <ButtonGroup className="w-full">
-              <Button variant="outline" className="flex-1" onClick={onStartElementShot} data-testid="mode-element-shot">
-                <ScanEye />
-                {t("issue.mode.elementShot")}
+              <Button variant="outline" className="min-w-0 flex-1" onClick={onStartElement} data-testid="mode-element">
+                <Crosshair />
+                <span className="truncate">{t("issue.mode.element")}</span>
               </Button>
-              <Button variant="outline" className="flex-1" onClick={onStartScreenshot} data-testid="mode-screenshot">
-                <Camera />
-                {t("issue.mode.screenshot")}
+              <Button variant="outline" className="min-w-0 flex-1" onClick={onStartElementShot} data-testid="mode-element-shot">
+                <ScanEye />
+                <span className="truncate">{t("issue.mode.elementShot")}</span>
               </Button>
             </ButtonGroup>
+            <Button variant="outline" className="w-full" onClick={onStartScreenshot} data-testid="mode-screenshot">
+              <Camera />
+              {t("issue.mode.screenshot")}
+            </Button>
             <ButtonGroup className="w-full">
-              <ReplayButton className="min-w-0 flex-1" />
               <Button
                 variant="outline"
                 className="w-full min-w-0 flex-1"
@@ -203,16 +201,14 @@ function EmptyState({ onStartElement, onStartElementShot, onStartScreenshot, onS
                 <RecordIcon />
                 <span className="truncate">{t(meta.labelKey)}</span>
               </Button>
-              <Button
-                variant="outline"
-                size="icon"
-                className="shrink-0"
-                aria-label={t("settings.recordingMode.label")}
-                data-testid="mode-record-settings"
-                onClick={() => navTo("settings", "issue")}
-              >
-                <Settings />
-              </Button>
+              <ReplayButton
+                className="min-w-0 flex-1"
+                onConfigure={() => setRecSettingsOpen(true)}
+              />
+              <RecordingSettingsDialog
+                open={recSettingsOpen}
+                onOpenChange={setRecSettingsOpen}
+              />
             </ButtonGroup>
           </div>
         </TooltipProvider>
@@ -236,9 +232,14 @@ function EmptyState({ onStartElement, onStartElementShot, onStartScreenshot, onS
   );
 }
 
-function ReplayButton({ className }: { className?: string }) {
+function ReplayButton({
+  className,
+  onConfigure,
+}: {
+  className?: string;
+  onConfigure: () => void;
+}) {
   const t = useT();
-  const navTo = useTabNav();
   const { replayEnabled, isReady, isEncoding, bufferedSeconds, capture } = useReplay();
   const tooltip = !replayEnabled
     ? t("issue.replay.tooltip.disabled")
@@ -246,14 +247,14 @@ function ReplayButton({ className }: { className?: string }) {
       ? t("issue.replay.tooltip.recording")
       : null;
 
-  // 설정 off — 비활성처럼 보이되 클릭은 가능하게 해 설정의 캡처 sub-tab으로 보낸다.
+  // 설정 off — 비활성처럼 보이되 클릭은 가능하게 해 녹화 설정 다이얼로그를 연다(거기서 리플레이 토글).
   const button = !replayEnabled ? (
     <Button
       data-testid="replay-button"
       className={cn("w-full opacity-50", className)}
       variant="outline"
       aria-disabled
-      onClick={() => navTo("settings", "issue")}
+      onClick={onConfigure}
     >
       <Timer />
       {t("issue.mode.replay")}

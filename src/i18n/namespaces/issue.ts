@@ -1,7 +1,7 @@
 const ko = {
   "issue.unsupported": "지원하지 않는 페이지",
   "issue.empty.title": "캡처 방식을 선택하세요",
-  "issue.mode.element": "요소 스타일 편집",
+  "issue.mode.element": "요소 편집",
   "issue.mode.elementShot": "요소 캡처",
   "issue.mode.screenshot": "범위 캡처",
   "issue.mode.video": "탭 녹화",
@@ -98,7 +98,7 @@ type Bundle = Record<keyof typeof ko, string>;
 const en = {
   "issue.unsupported": "Unsupported page",
   "issue.empty.title": "Choose capture mode",
-  "issue.mode.element": "Edit element styles",
+  "issue.mode.element": "Edit element",
   "issue.mode.elementShot": "Capture element",
   "issue.mode.screenshot": "Capture area",
   "issue.mode.video": "Record tab",
