@@ -1,18 +1,22 @@
 # Live Recording
 
-BugShot's live recording comes in two flavors. Choose whether to capture just the **tab** you're looking at, or the **full screen or another window** too.
+BugShot's live recording starts from a single **record button** on the capture screen. Whether it captures just the **tab** you're looking at or the **full screen and other windows** too is something you pick ahead of time in settings — and the gear next to the button lets you switch anytime, so don't sweat it.
+
+## Choosing the recording mode
+
+The record button in the **Debug** tab follows the mode you picked in settings (**Record tab** / **Record screen**). Choose it under **Settings > Issue settings > Capture settings > Recording mode**, or hit the **gear (⚙)** to the right of the record button to jump straight to that setting. Your choice shows up immediately in the record button's icon and label.
+
+![Record button and mode setting](../assets/video-record-1.jpg)
 
 ## Tab recording
 
-In the **Debug** tab, click **Record tab**, and the current tab starts recording right away.
-
-![Start tab recording](../assets/video-record-1.jpg)
+With **Record tab** selected, one click on the record button starts recording the tab you're looking at — fast, with no share picker.
 
 ## Screen recording
 
-Need to show something outside the tab — another app window, the full screen, a payment or login window that pops up on its own? Click **Record screen**. Your browser opens a "what do you want to share?" picker where you choose **the full screen, a specific window, or a tab**, then hit share to start.
+Need to show something outside the tab — another app window, the full screen, a payment or login window that pops up on its own? Set the mode to **Record screen**. When you click the record button, your browser opens a "what do you want to share?" picker where you choose **the full screen, a specific window, or a tab**, then hit share to start.
 
-> Screen recording goes through the browser's own permission picker, so there's one selection step. Just start from the button.
+> Screen recording goes through the browser's own permission picker, so there's one selection step. Just so you know.
 
 ![Screen share picker](../assets/video-record-2.jpg)
 

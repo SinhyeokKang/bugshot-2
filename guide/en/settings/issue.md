@@ -36,6 +36,17 @@ Sometimes you need to drop a file straight onto an issue — something captures 
 
 ![File attachments toggle](../assets/settings-issue-3.jpg)
 
+## Recording mode
+
+Pick ahead of time whether the record button captures **just the tab, or the full screen and other windows too**. The record button on the capture screen follows the mode you choose here.
+
+- **Record tab** — Records only the tab you're looking at. Fast, with no share picker.
+- **Record screen** — Pick the full screen or a specific window to record. Use it when you need to capture beyond the tab (another app window, a payment or login window that pops up on its own).
+
+Once you pick a mode, it stays put until you change it. The **gear (⚙)** to the right of the record button on the capture screen jumps you straight to this setting, so you never have to dig for it.
+
+![Recording mode setting](../assets/settings-issue-4.jpg)
+
 ## 30s replay
 
 Always keeps the last 30 seconds of your screen. Spot a bug? Attach what just happened as a video in one click.
@@ -44,7 +55,7 @@ Turning this toggle on **requests screen capture permission**. Replay only works
 
 > Curious how to use 30s replay? See [30s Replay](../video/replay.md).
 
-![30s replay toggle](../assets/settings-issue-4.jpg)
+![30s replay toggle](../assets/settings-issue-5.jpg)
 
 ---
 
