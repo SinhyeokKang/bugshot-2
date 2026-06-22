@@ -33,6 +33,8 @@ chrome.action.onClicked.addListener((tab) => {
 });
 ```
 
+같은 함정이 **화면 녹화의 `getDisplayMedia`**에도 적용된다(transient user activation 요구). `startScreenCapture`(`video-capture.ts`)는 **getDisplayMedia를 첫 await로** 호출하고 `chrome.tabs.get`·레코더 activate를 그 뒤로 미룬다 — 앞에 다른 await를 두면 activation이 만료돼 picker가 안 뜬다. 탭 녹화(`startVideoCapture`)는 레코더 activate 후 `getMediaStreamId`라 순서가 반대인데, tabCapture는 activeTab 기반이라 이 제약을 안 받는다.
+
 ## 편집 세션 영속화
 
 - tabId별로 `chrome.storage.session`의 `editor:${tabId}` 키에 저장
@@ -157,6 +159,10 @@ shorthand(var 포함) + 같은 shorthand의 longhand override 조합에서 Chrom
 **issueUrl 주입**: `buildLogsHtml`이 meta 마지막에 빈 `issueUrl:""` 예약. 이슈 생성 후 `injectIssueUrl`이 해당 자리만 치환(청크 단위 btoa로 ~20MB 블로킹 회피). Jira·Linear는 생성 후 주입, Asana는 create가 upload보다 먼저라 업로드 직전 주입, GitHub·Notion은 구조상 불가(빈 값 → 뷰어가 링크 숨김).
 
 **startVideoCapture** (`video-capture.ts`): 3개 레코더(network/console/action) `activate*Recorder` → `clear*Recorder` → `startRecording` 순. 녹화 종료(`recording→drafting`) 시 `recordersStopped=true`(`useBackgroundRecorder`)로 drafting 중 재주입 차단.
+
+**영상 캡처 2종 — tab vs screen** (`video-capture.ts` / `video-recorder.ts`): 캡처 모드는 `captureMode:"video"`를 공유하되 `recordingSource:"tab"|"screen"`(`editor-store.ts`)으로 소스만 구분한다(라벨·아이콘 분기용). 스트림 획득 이후 본문(MediaRecorder·청크·onstop·썸네일·viewport·store 전환)은 `beginRecording(stream, tabId, {source, viewportHint?})`로 공통화.
+- **탭 녹화**(`startRecording` → tabCapture `getMediaStreamId`+`getUserMedia`, 720p): viewport는 onstop의 `chrome.tabs.get`.
+- **화면 녹화**(`startScreenCapture` → `getDisplayMedia({displaySurface:"monitor", ≤1920×1080, 12fps})`): viewport는 track 해상도(`trackViewport`, 없으면 `{0,0}` — 다른 모니터일 수 있어 탭 크기 폴백 금지). 사용자 취소(`NotAllowedError`)는 조용한 no-op. video track `ended`(브라우저 "공유 중지")에 `stopRecording`을 바인딩하고 그 리스너를 `onstop`·`cancelRecording` 양쪽에서 정리. 60초 상한·로그 첨부는 탭 녹화와 공통(현재 탭 로그).
 
 **정리**: `shouldPreserveBackgroundLogs(phase)` = recording/drafting/previewing/done. idle 전환 시 레코더 재주입+새 sentinel. pending IDB는 탭 종료·이슈 저장·고아 정리(`pruneOrphanPendingLogsOncePerSession` — SW 부트 세션당 1회)에서 회수. clear→setSentinel은 sequential await 강제(fire-and-forget 시 Chrome 메시지 큐 순서 미보장으로 race).
 
