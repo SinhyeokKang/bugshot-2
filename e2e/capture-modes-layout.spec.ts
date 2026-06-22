@@ -45,17 +45,25 @@ test.describe.serial("capture-modes-layout: idle 1×2×2 + 녹화 모드", () =>
     await expect(panel.getByTestId("mode-screen-record")).toHaveCount(0);
   });
 
-  test("Row3: 녹화·리플레이가 같은 segmented ButtonGroup, ⚙는 녹화칸 오버레이", async () => {
-    // 2행 캡처모드와 동일한 ButtonGroup(segmented)에 녹화 버튼과 리플레이가 같이 든다.
+  test("Row3: [리플레이][녹화][⚙] 3-segment ButtonGroup, 녹화·리플레이 균등 너비 + ⚙ 정방형", async () => {
+    // 3개가 한 segmented ButtonGroup에 든다(리플레이·녹화·설정).
     const recordGroup = panel.locator('[data-slot="button-group"]', {
       has: panel.getByTestId("mode-record"),
     });
     await expect(recordGroup.getByTestId("replay-button")).toHaveCount(1);
     await expect(recordGroup.getByTestId("mode-record-settings")).toHaveCount(1);
-    // ⚙는 녹화 버튼의 부모(relative 래퍼)에 오버레이로 들어가고, 리플레이는 그 래퍼 밖.
-    const recordWrapper = panel.getByTestId("mode-record").locator("xpath=..");
-    await expect(recordWrapper.getByTestId("mode-record-settings")).toHaveCount(1);
-    await expect(recordWrapper.getByTestId("replay-button")).toHaveCount(0);
+
+    // 녹화 버튼과 리플레이는 너비를 균등 공유한다(둘 다 flex-1). ±2px 이내.
+    const recBox = await panel.getByTestId("mode-record").boundingBox();
+    const repBox = await panel.getByTestId("replay-button").boundingBox();
+    expect(recBox).not.toBeNull();
+    expect(repBox).not.toBeNull();
+    expect(Math.abs(recBox!.width - repBox!.width)).toBeLessThanOrEqual(2);
+
+    // ⚙ 설정 버튼은 정방형(size=icon).
+    const gearBox = await panel.getByTestId("mode-record-settings").boundingBox();
+    expect(gearBox).not.toBeNull();
+    expect(Math.abs(gearBox!.width - gearBox!.height)).toBeLessThanOrEqual(2);
   });
 
   test("기본 모드는 탭 녹화 — 녹화 버튼이 탭(AppWindow) 아이콘", async () => {
@@ -69,7 +77,7 @@ test.describe.serial("capture-modes-layout: idle 1×2×2 + 녹화 모드", () =>
     await panel.getByTestId("mode-record-settings").click();
     await expect(panel.getByTestId("tab-settings")).toHaveAttribute("data-state", "active");
     await expect(panel.getByTestId("settings-sub-issue")).toHaveAttribute("data-state", "active");
-    // 녹화가 시작됐다면 설정이 아니라 recording 화면이었을 것 — 설정 진입 자체가 stopPropagation 증거.
+    // 녹화가 시작됐다면 설정이 아니라 recording 화면이었을 것 — 설정 진입 자체가 ⚙가 녹화와 분리됐다는 증거.
     await expect(panel.getByTestId("recording-mode-tab")).toBeVisible();
   });
 
