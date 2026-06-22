@@ -1,10 +1,5 @@
 import { t } from "@/i18n";
 import { initBgLocale } from "@/i18n/bg-init";
-import {
-  CAPTURE_SHORTCUT_MSG,
-  CAPTURE_COMMANDS,
-  type CaptureCommand,
-} from "@/lib/capture-commands";
 import { PANEL_PORT_PREFIX, sessionKey } from "@/lib/session-keys";
 import { GithubError } from "./github-api";
 import { JiraError } from "./jira-api";
@@ -107,18 +102,6 @@ chrome.runtime.onConnect.addListener((port) => {
       .catch(() => {});
     stopRecorders(tabId);
   });
-});
-
-chrome.commands.onCommand.addListener((command, tab) => {
-  if (!(CAPTURE_COMMANDS as readonly string[]).includes(command)) return;
-  if (tab?.id == null) return;
-  chrome.runtime
-    .sendMessage({
-      type: CAPTURE_SHORTCUT_MSG,
-      command: command as CaptureCommand,
-      tabId: tab.id,
-    })
-    .catch(() => {});
 });
 
 // --- 네비게이션 로그 관리 ---

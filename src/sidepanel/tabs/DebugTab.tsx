@@ -6,7 +6,6 @@ import { CollapsingTabsList, TabLabel } from "@/components/ui/collapsing-tabs";
 import { Badge } from "@/components/ui/badge";
 import { useEditorStore } from "@/store/editor-store";
 import { useBoundTabId } from "@/sidepanel/hooks/useBoundTabId";
-import { useCaptureShortcuts } from "@/sidepanel/hooks/useCaptureShortcuts";
 import { startFreeformDraft, syncNetworkRecorder, syncConsoleRecorder, syncActionRecorder } from "@/sidepanel/picker-control";
 import { IssueTab } from "./IssueTab";
 import { ConsoleSubTab } from "./ConsoleSubTab";
@@ -31,8 +30,6 @@ export function DebugTab({ activeMainTab }: { activeMainTab: string }) {
   // 녹화 중엔 바를 노출하되 콘솔/네트워크는 비활성 — 트리거 카운트 배지로 로그 누적만 확인하고,
   // Clear로 진행 중 버퍼를 지우는 건 막는다.
   const logTabsLocked = phase === "recording";
-
-  useCaptureShortcuts({ active: activeMainTab === "debug" && sub === "issue", tabId: tabId ?? null });
 
   const tabIdRef = useRef(tabId);
   tabIdRef.current = tabId;

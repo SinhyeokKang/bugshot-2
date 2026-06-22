@@ -38,7 +38,6 @@ import { SubmitSuccessView } from "@/sidepanel/components/SubmitSuccessView";
 import { useEditorStore } from "@/store/editor-store";
 import { useSettingsUiStore } from "@/store/settings-ui-store";
 import { useBoundTabId } from "@/sidepanel/hooks/useBoundTabId";
-import { useCommandShortcuts } from "@/sidepanel/hooks/useCommandShortcuts";
 import {
   startPicker,
   stopPickerOrResume,
@@ -156,25 +155,8 @@ function UnsupportedPage() {
   );
 }
 
-function ShortcutTooltip({
-  shortcut,
-  children,
-}: {
-  shortcut: string | undefined;
-  children: React.ReactNode;
-}) {
-  if (!shortcut) return <>{children}</>;
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>{children}</TooltipTrigger>
-      <TooltipContent>{shortcut}</TooltipContent>
-    </Tooltip>
-  );
-}
-
 function EmptyState({ onStartElement, onStartElementShot, onStartScreenshot, onStartVideo, onStartScreenRecord, onStartFreeform }: { onStartElement: () => void; onStartElementShot: () => void; onStartScreenshot: () => void; onStartVideo: () => void; onStartScreenRecord: () => void; onStartFreeform: () => void }) {
   const t = useT();
-  const shortcuts = useCommandShortcuts();
   const locale = useSettingsUiStore((s) => s.locale);
   return (
     <PageShell>
@@ -187,31 +169,25 @@ function EmptyState({ onStartElement, onStartElementShot, onStartScreenshot, onS
         </div>
         <TooltipProvider delayDuration={0}>
           <div className="flex w-full max-w-[336px] flex-col gap-2">
-            <ShortcutTooltip shortcut={shortcuts["capture-element"]}>
-              <Button className="w-full" onClick={onStartElement} data-testid="mode-element">
-                <Crosshair />
-                {t("issue.mode.element")}
-              </Button>
-            </ShortcutTooltip>
+            <Button className="w-full" onClick={onStartElement} data-testid="mode-element">
+              <Crosshair />
+              {t("issue.mode.element")}
+            </Button>
             <ButtonGroup className="w-full">
               <Button variant="outline" className="flex-1" onClick={onStartElementShot} data-testid="mode-element-shot">
                 <ScanEye />
                 {t("issue.mode.elementShot")}
               </Button>
-              <ShortcutTooltip shortcut={shortcuts["capture-screenshot"]}>
-                <Button variant="outline" className="flex-1" onClick={onStartScreenshot} data-testid="mode-screenshot">
-                  <Camera />
-                  {t("issue.mode.screenshot")}
-                </Button>
-              </ShortcutTooltip>
+              <Button variant="outline" className="flex-1" onClick={onStartScreenshot} data-testid="mode-screenshot">
+                <Camera />
+                {t("issue.mode.screenshot")}
+              </Button>
             </ButtonGroup>
             <ButtonGroup className="w-full">
-              <ShortcutTooltip shortcut={shortcuts["capture-video"]}>
-                <Button variant="outline" className="min-w-0 flex-1" onClick={onStartVideo} data-testid="mode-video">
-                  <AppWindow />
-                  <span className="truncate">{t("issue.mode.video")}</span>
-                </Button>
-              </ShortcutTooltip>
+              <Button variant="outline" className="min-w-0 flex-1" onClick={onStartVideo} data-testid="mode-video">
+                <AppWindow />
+                <span className="truncate">{t("issue.mode.video")}</span>
+              </Button>
               <Button variant="outline" className="min-w-0 flex-1" onClick={onStartScreenRecord} data-testid="mode-screen-record">
                 <MonitorPlay />
                 <span className="truncate">{t("issue.mode.screenRecord")}</span>
