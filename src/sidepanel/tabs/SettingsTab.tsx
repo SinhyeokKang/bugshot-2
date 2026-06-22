@@ -1,5 +1,5 @@
 import { Fragment } from "react";
-import { AppWindow, Bug, ListOrdered, Monitor, MonitorPlay, Moon, Paperclip, SlidersHorizontal, Sparkles, StickyNote, Sun, Target, Timer, Video } from "lucide-react";
+import { Bug, ListOrdered, Monitor, Moon, Paperclip, SlidersHorizontal, Sparkles, StickyNote, Sun, Target, Timer, Video } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -111,7 +111,23 @@ function IssueSettingsContent() {
   return (
     <PageShell>
       <PageScroll>
-        <Section title={t("settings.capture")}>
+        <Section title={t("settings.titleSettings")}>
+          <div className="space-y-2">
+            <Input
+              id="title-prefix"
+              placeholder={t("settings.titlePrefix.placeholder")}
+              value={titlePrefix}
+              onChange={(e) => setTitlePrefix(e.target.value)}
+              autoComplete="off"
+              spellCheck={false}
+            />
+            <p className="text-[0.8rem] text-muted-foreground">
+              {t("settings.titlePrefix.help")}
+            </p>
+          </div>
+        </Section>
+
+        <Section title={t("settings.recording")}>
           <Card>
             <CardContent className="flex flex-col gap-3 px-3 py-3">
               <div className="flex items-center gap-3">
@@ -130,12 +146,10 @@ function IssueSettingsContent() {
                   className="shrink-0"
                 >
                   <TabsList>
-                    <TabsTrigger value="tab" className="gap-1.5" data-testid="recording-mode-tab">
-                      <AppWindow className="h-3.5 w-3.5 shrink-0" />
+                    <TabsTrigger value="tab" data-testid="recording-mode-tab">
                       {t("settings.recordingMode.tab")}
                     </TabsTrigger>
-                    <TabsTrigger value="screen" className="gap-1.5" data-testid="recording-mode-screen">
-                      <MonitorPlay className="h-3.5 w-3.5 shrink-0" />
+                    <TabsTrigger value="screen" data-testid="recording-mode-screen">
                       {t("settings.recordingMode.screen")}
                     </TabsTrigger>
                   </TabsList>
@@ -162,22 +176,6 @@ function IssueSettingsContent() {
               </div>
             </CardContent>
           </Card>
-        </Section>
-
-        <Section title={t("settings.titleSettings")}>
-          <div className="space-y-2">
-            <Input
-              id="title-prefix"
-              placeholder={t("settings.titlePrefix.placeholder")}
-              value={titlePrefix}
-              onChange={(e) => setTitlePrefix(e.target.value)}
-              autoComplete="off"
-              spellCheck={false}
-            />
-            <p className="text-[0.8rem] text-muted-foreground">
-              {t("settings.titlePrefix.help")}
-            </p>
-          </div>
         </Section>
 
         <Section title={t("settings.bodyComposition")}>

@@ -191,33 +191,28 @@ function EmptyState({ onStartElement, onStartElementShot, onStartScreenshot, onS
               </Button>
             </ButtonGroup>
             <ButtonGroup className="w-full">
-              <div className="relative min-w-0 flex-1">
-                <Button
-                  variant="outline"
-                  className="w-full rounded-r-none pr-9"
-                  onClick={() =>
-                    recordingMode === "screen" ? onStartScreenRecord() : onStartVideo()
-                  }
-                  data-testid="mode-record"
-                >
-                  <RecordIcon />
-                  <span className="truncate">{t(meta.labelKey)}</span>
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="absolute right-2 top-1/2 h-7 w-7 -translate-y-1/2"
-                  aria-label={t("settings.recordingMode.label")}
-                  data-testid="mode-record-settings"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    navTo("settings", "issue");
-                  }}
-                >
-                  <Settings />
-                </Button>
-              </div>
               <ReplayButton className="min-w-0 flex-1" />
+              <Button
+                variant="outline"
+                className="w-full min-w-0 flex-1"
+                onClick={() =>
+                  recordingMode === "screen" ? onStartScreenRecord() : onStartVideo()
+                }
+                data-testid="mode-record"
+              >
+                <RecordIcon />
+                <span className="truncate">{t(meta.labelKey)}</span>
+              </Button>
+              <Button
+                variant="outline"
+                size="icon"
+                className="shrink-0"
+                aria-label={t("settings.recordingMode.label")}
+                data-testid="mode-record-settings"
+                onClick={() => navTo("settings", "issue")}
+              >
+                <Settings />
+              </Button>
             </ButtonGroup>
           </div>
         </TooltipProvider>
