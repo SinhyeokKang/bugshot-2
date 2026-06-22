@@ -201,7 +201,7 @@ content script를 프로그래매틱으로 주입하는 데 사용. SW 하이버
 
 ## 4. tabCapture
 
-탭의 오디오·비디오 미디어 스트림을 획득한다. **수동 영상 녹화**에만 사용.
+탭의 오디오·비디오 미디어 스트림을 획득한다. **탭 녹화**에만 사용. (화면 전체 녹화는 `tabCapture`를 안 쓰고 웹 표준 `getDisplayMedia`로 처리 — 아래 "영상 캡처 3종" 참고.)
 
 ### 사용 흐름
 
@@ -214,17 +214,22 @@ video-capture.ts:startVideoCapture(tabId)
     → recorder.onstop → Blob 조립 → 썸네일 생성 → editor store 저장
 ```
 
-### 30s Replay와의 차이
+### 영상 캡처 3종 (탭 녹화 / 화면 녹화 / 30s Replay)
 
-30s Replay는 `tabCapture`를 사용하지 않는다. `captureVisibleTab` 폴링(600ms 간격)으로 JPEG 프레임을 수집하고 WebCodecs `VideoEncoder` + `mp4-muxer`로 H.264 MP4를 인코딩한다.
+세 경로가 권한 모델이 다르다.
 
-| | 수동 녹화 | 30s Replay |
-|---|---|---|
-| API | `tabCapture.getMediaStreamId` | `captureVisibleTab` 폴링 |
-| 오디오 | 없음 (`audio: false`) | 없음 |
-| 최대 길이 | 60초 | 30초 (링 버퍼) |
-| 출력 | WebM/MP4 (MediaRecorder, 1.5Mbps) | H.264 MP4 (WebCodecs) |
-| optional permission | 불필요 | `<all_urls>` 필요 |
+- **탭 녹화**: `tabCapture.getMediaStreamId` → 현재 탭 뷰포트만. `tabCapture` 권한 + activeTab 필요.
+- **화면 녹화**: `video-capture.ts:startScreenCapture` → `navigator.mediaDevices.getDisplayMedia({video:{displaySurface:"monitor", ≤1920×1080, frameRate:12}})`. **웹 표준 API라 추가 manifest 권한이 없다** — Chrome 화면 공유 picker가 사용자 동의를 직접 받고, 사용자가 [전체 화면/창/탭]을 고른다. transient user activation만 요구(버튼 onClick 첫 await로 호출). 사용자가 "공유 중지"(track `ended`) 또는 60초 상한 시 종료. tabCapture/activeTab/`<all_urls>` 어느 것도 불요.
+- **30s Replay**: `tabCapture` 미사용. `captureVisibleTab` 폴링(600ms)으로 JPEG 프레임 수집 → WebCodecs `VideoEncoder`+`mp4-muxer` H.264 MP4.
+
+| | 탭 녹화 | 화면 녹화 | 30s Replay |
+|---|---|---|---|
+| API | `tabCapture.getMediaStreamId` | `getDisplayMedia` (웹 표준) | `captureVisibleTab` 폴링 |
+| 캡처 범위 | 현재 탭 뷰포트 | 사용자 선택 화면/창/탭 (탭 밖 포함) | 현재 탭 |
+| 오디오 | 없음 (`audio: false`) | 없음 (`audio: false`) | 없음 |
+| 최대 길이 | 60초 | 60초 | 30초 (링 버퍼) |
+| 출력 | WebM/MP4 (MediaRecorder) | WebM/MP4 (MediaRecorder) | H.264 MP4 (WebCodecs) |
+| 추가 권한 | `tabCapture` + activeTab | 없음 (user gesture만) | `<all_urls>` 필요 |
 
 ### 실패 시 동작
 
