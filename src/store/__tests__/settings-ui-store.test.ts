@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   DEFAULT_ISSUE_SECTIONS,
   POST_MEDIA_SECTION_IDS,
+  migrateSettingsUi,
   sectionHelpKey,
   sectionLabelKey,
   sectionMdLabelKey,
@@ -130,6 +131,25 @@ describe("settings-ui-store", () => {
       useSettingsUiStore.getState().setLlm(base);
       useSettingsUiStore.getState().setLlm({ ...base, modelId: "gpt-4o-mini" });
       expect(useSettingsUiStore.getState().llm?.modelId).toBe("gpt-4o-mini");
+    });
+
+    it("setRecordingMode로 녹화 모드 변경", () => {
+      useSettingsUiStore.getState().setRecordingMode("screen");
+      expect(useSettingsUiStore.getState().recordingMode).toBe("screen");
+      useSettingsUiStore.getState().setRecordingMode("tab");
+      expect(useSettingsUiStore.getState().recordingMode).toBe("tab");
+    });
+  });
+
+  describe("recordingMode 마이그레이션 (v5→v6)", () => {
+    it("recordingMode 부재 시 기본값 'tab' 부여", () => {
+      const migrated = migrateSettingsUi({}, 5);
+      expect(migrated.recordingMode).toBe("tab");
+    });
+
+    it("기존 recordingMode는 보존(덮어쓰지 않음)", () => {
+      const migrated = migrateSettingsUi({ recordingMode: "screen" }, 5);
+      expect(migrated.recordingMode).toBe("screen");
     });
   });
 });

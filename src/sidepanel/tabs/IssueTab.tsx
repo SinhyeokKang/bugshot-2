@@ -12,8 +12,11 @@ import {
   Timer,
   AppWindow,
   MonitorPlay,
+  Settings,
 } from "lucide-react";
 import { useT } from "@/i18n";
+import { cn } from "@/lib/utils";
+import { recordModeMeta } from "@/sidepanel/lib/recordModeMeta";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -158,6 +161,10 @@ function UnsupportedPage() {
 function EmptyState({ onStartElement, onStartElementShot, onStartScreenshot, onStartVideo, onStartScreenRecord, onStartFreeform }: { onStartElement: () => void; onStartElementShot: () => void; onStartScreenshot: () => void; onStartVideo: () => void; onStartScreenRecord: () => void; onStartFreeform: () => void }) {
   const t = useT();
   const locale = useSettingsUiStore((s) => s.locale);
+  const recordingMode = useSettingsUiStore((s) => s.recordingMode);
+  const navTo = useTabNav();
+  const meta = recordModeMeta(recordingMode);
+  const RecordIcon = meta.icon === "monitorPlay" ? MonitorPlay : AppWindow;
   return (
     <PageShell>
       <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 px-6 pb-5">
@@ -184,16 +191,34 @@ function EmptyState({ onStartElement, onStartElementShot, onStartScreenshot, onS
               </Button>
             </ButtonGroup>
             <ButtonGroup className="w-full">
-              <Button variant="outline" className="min-w-0 flex-1" onClick={onStartVideo} data-testid="mode-video">
-                <AppWindow />
-                <span className="truncate">{t("issue.mode.video")}</span>
-              </Button>
-              <Button variant="outline" className="min-w-0 flex-1" onClick={onStartScreenRecord} data-testid="mode-screen-record">
-                <MonitorPlay />
-                <span className="truncate">{t("issue.mode.screenRecord")}</span>
-              </Button>
+              <div className="relative min-w-0 flex-1">
+                <Button
+                  variant="outline"
+                  className="w-full rounded-r-none pr-9"
+                  onClick={() =>
+                    recordingMode === "screen" ? onStartScreenRecord() : onStartVideo()
+                  }
+                  data-testid="mode-record"
+                >
+                  <RecordIcon />
+                  <span className="truncate">{t(meta.labelKey)}</span>
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="absolute right-2 top-1/2 h-7 w-7 -translate-y-1/2"
+                  aria-label={t("settings.recordingMode.label")}
+                  data-testid="mode-record-settings"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    navTo("settings", "issue");
+                  }}
+                >
+                  <Settings />
+                </Button>
+              </div>
+              <ReplayButton className="min-w-0 flex-1" />
             </ButtonGroup>
-            <ReplayButton />
           </div>
         </TooltipProvider>
       </div>
@@ -216,7 +241,7 @@ function EmptyState({ onStartElement, onStartElementShot, onStartScreenshot, onS
   );
 }
 
-function ReplayButton() {
+function ReplayButton({ className }: { className?: string }) {
   const t = useT();
   const navTo = useTabNav();
   const { replayEnabled, isReady, isEncoding, bufferedSeconds, capture } = useReplay();
@@ -230,7 +255,7 @@ function ReplayButton() {
   const button = !replayEnabled ? (
     <Button
       data-testid="replay-button"
-      className="w-full opacity-50"
+      className={cn("w-full opacity-50", className)}
       variant="outline"
       aria-disabled
       onClick={() => navTo("settings", "issue")}
@@ -241,7 +266,10 @@ function ReplayButton() {
   ) : (
     <Button
       data-testid="replay-button"
-      className="w-full aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+      className={cn(
+        "w-full aria-disabled:cursor-not-allowed aria-disabled:opacity-50",
+        className,
+      )}
       variant="outline"
       aria-disabled={!isReady || isEncoding}
       onClick={() => {

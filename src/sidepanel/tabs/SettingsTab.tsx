@@ -1,12 +1,12 @@
 import { Fragment } from "react";
-import { Bug, ListOrdered, Monitor, Moon, Paperclip, SlidersHorizontal, Sparkles, StickyNote, Sun, Target, Timer } from "lucide-react";
+import { AppWindow, Bug, ListOrdered, Monitor, MonitorPlay, Moon, Paperclip, SlidersHorizontal, Sparkles, StickyNote, Sun, Target, Timer, Video } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CollapsingTabsList, TabLabel } from "@/components/ui/collapsing-tabs";
 import { useT } from "@/i18n";
 import {
@@ -17,6 +17,7 @@ import {
   type LocaleMode,
   type ThemeMode,
 } from "@/store/settings-ui-store";
+import type { RecordingSource } from "@/store/editor-store";
 import { useSettingsStore } from "@/store/settings-store";
 import { PageScroll, PageShell, Section } from "@/sidepanel/components/Section";
 import { BROAD_HOST_ORIGINS } from "@/lib/broad-host-origins";
@@ -84,6 +85,8 @@ function IssueSettingsContent() {
   const setIssueEnabled = useSettingsUiStore((s) => s.setIssueEnabled);
   const replayEnabled = useSettingsUiStore((s) => s.replayEnabled);
   const setReplayEnabled = useSettingsUiStore((s) => s.setReplayEnabled);
+  const recordingMode = useSettingsUiStore((s) => s.recordingMode);
+  const setRecordingMode = useSettingsUiStore((s) => s.setRecordingMode);
   const attachmentsEnabled = useSettingsUiStore((s) => s.attachmentsEnabled);
   const setAttachmentsEnabled = useSettingsUiStore((s) => s.setAttachmentsEnabled);
   const titlePrefix = useSettingsStore((s) => s.titlePrefix);
@@ -111,6 +114,34 @@ function IssueSettingsContent() {
         <Section title={t("settings.capture")}>
           <Card>
             <CardContent className="flex flex-col gap-3 px-3 py-3">
+              <div className="flex items-center gap-3">
+                <div className="shrink-0">
+                  <Video className="h-4 w-4" />
+                </div>
+                <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+                  <span className="text-sm">{t("settings.recordingMode.label")}</span>
+                  <p className="text-sm text-muted-foreground">
+                    {t("settings.recordingMode.help")}
+                  </p>
+                </div>
+                <Tabs
+                  value={recordingMode}
+                  onValueChange={(v) => setRecordingMode(v as RecordingSource)}
+                  className="shrink-0"
+                >
+                  <TabsList>
+                    <TabsTrigger value="tab" className="gap-1.5" data-testid="recording-mode-tab">
+                      <AppWindow className="h-3.5 w-3.5 shrink-0" />
+                      {t("settings.recordingMode.tab")}
+                    </TabsTrigger>
+                    <TabsTrigger value="screen" className="gap-1.5" data-testid="recording-mode-screen">
+                      <MonitorPlay className="h-3.5 w-3.5 shrink-0" />
+                      {t("settings.recordingMode.screen")}
+                    </TabsTrigger>
+                  </TabsList>
+                </Tabs>
+              </div>
+              <Separator />
               <div className="flex items-center gap-3">
                 <div className="shrink-0">
                   <Timer className="h-4 w-4" />
