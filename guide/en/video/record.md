@@ -4,7 +4,7 @@ BugShot's live recording starts from a single **record button** on the capture s
 
 ## Choosing the recording mode
 
-The record button in the **Debug** tab follows the mode you picked in settings (**Record tab** / **Record screen**). Choose it under **Settings > Issue settings > Recording settings > Recording mode**, or hit the **gear (⚙)** to the right of the record button to jump straight to that setting. Your choice shows up immediately in the record button's icon and label.
+The record button in the **Debug** tab follows the mode you picked in settings (**Record tab** / **Record screen**). Choose it under **Settings > Issue settings > Recording settings > Recording mode**, or hit the **gear (⚙)** to the right of the record button to open a small **Recording settings** dialog right there — no trip to the Settings tab needed. Your choice shows up immediately in the record button's icon and label.
 
 ![Record button and mode setting](../assets/video-record-1.jpg)
 
