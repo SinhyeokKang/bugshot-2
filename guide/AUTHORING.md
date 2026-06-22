@@ -96,7 +96,7 @@ element/screenshot/video 세 `issue.md`는 아래 7단계를 **그대로 반복*
 
 ### 현재 사실 스냅샷 (작성 시점 기준 — 코드 변경 시 갱신)
 
-- **단축키**: `Cmd/Ctrl+Shift+E`(패널 토글) / `Cmd/Ctrl+Shift+S`(요소 스타일 편집) / `Cmd/Ctrl+Shift+F`(범위 캡처) / `Cmd/Ctrl+Shift+X`(탭 녹화). best-effort라 OS·타 확장 충돌 시 미배정될 수 있음을 한 줄 안내. **요소 캡처·화면 녹화는 단축키 없음**(Chrome 4-command 상한 — 버튼 전용).
+- **단축키**: `Cmd/Ctrl+Shift+E`(패널 토글) **1개만**. best-effort라 OS·타 확장 충돌 시 미배정될 수 있음을 한 줄 안내(그땐 툴바 아이콘으로). **캡처 단축키는 모두 제거됨** — 요소 선택·범위 캡처·요소 캡처·탭/화면 녹화 등 캡처는 전부 **버튼 전용**(과거 Shift+S/F/X는 더 이상 없음). 패널 토글만 유일한 command라 가이드 본문의 단축키 표기도 `quick-start`의 `Cmd/Ctrl+Shift+E` 1곳뿐이다(video/issue·logs/viewer의 "단축키 입력"은 액션 로그가 기록하는 사용자 동작 설명이지 확장 단축키가 아님 — 무관).
 - **본문 섹션**: 발생 현상(켜짐·문단) / 재현 과정(켜짐·번호 목록) / 기대 결과(켜짐·문단) / 비고(꺼짐·문단). 라벨·플레이스홀더 override 가능.
 - **파일 첨부 토글**: 설정 > 이슈 설정 > 본문 구성에 `파일 첨부`(en `File attachments`) 토글, **기본 꺼짐**(`attachmentsEnabled` in `settings-ui-store.ts`). 켜면 이슈 작성(drafting) 화면에 `첨부 파일`(en `Attachments`, `section.attachments`) 영역 노출 → 임의 로컬 파일 선택. **최대 10개·합계 50MB** 하드캡(`src/sidepanel/lib/attachmentLimits.ts`), 플랫폼별 단건 경고(Notion 5MB·GitLab 10MB, 초과 시 "용량 초과" 표시·차단 아님). 제출 시 6개 플랫폼에 함께 업로드. 기능 위치상 settings/issue.md에만 두고 중립적 기능 설명 톤으로 기술한다(3개 mode issue.md 공통 흐름엔 미편입).
 - **로그 정책**: 요소=로그 없음 / 스크린샷=콘솔·네트워크 토글 **기본 on** / 녹화=콘솔·네트워크·액션 **기본 on**. 액션 로그는 **녹화 모드 전용**. 자동 수집은 trailing throttle로 실시간 스트리밍(레코더 ~200ms flush, 사이드패널 IDB 저장은 ~1s로 묶음) — 과거 "~1.5초" 표기는 stale이니 가이드엔 구체 숫자 대신 "실시간"으로.

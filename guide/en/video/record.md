@@ -4,9 +4,7 @@ BugShot's live recording comes in two flavors. Choose whether to capture just th
 
 ## Tab recording
 
-In the **Debug** tab, click **Record tab**, or press `Cmd/Ctrl+Shift+X`, and the current tab starts recording right away.
-
-> If the shortcut doesn't respond, it may be clashing with your OS or another extension — feel free to start from the button instead.
+In the **Debug** tab, click **Record tab**, and the current tab starts recording right away.
 
 ![Start tab recording](../assets/video-record-1.jpg)
 
@@ -14,7 +12,7 @@ In the **Debug** tab, click **Record tab**, or press `Cmd/Ctrl+Shift+X`, and the
 
 Need to show something outside the tab — another app window, the full screen, a payment or login window that pops up on its own? Click **Record screen**. Your browser opens a "what do you want to share?" picker where you choose **the full screen, a specific window, or a tab**, then hit share to start.
 
-> Screen recording goes through the browser's own permission picker, so there's one selection step. There's no shortcut for it — just start from the button.
+> Screen recording goes through the browser's own permission picker, so there's one selection step. Just start from the button.
 
 ![Screen share picker](../assets/video-record-2.jpg)
 
