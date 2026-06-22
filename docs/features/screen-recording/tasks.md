@@ -34,7 +34,7 @@
 - **변경 대상**: `src/sidepanel/video-capture.ts`
 - **작업 내용**:
   - `startScreenCapture(tabId)` export 추가. **첫 await가 getDisplayMedia**(user activation 보존):
-    1. `getDisplayMedia({ video: { width: { max: 1920 }, height: { max: 1080 }, frameRate: 12 }, audio: false })`(1080p 상한). reject 시 **취소/실패 분기**: `err.name === "NotAllowedError"`면 silent return(콘솔·토스트 없음), 그 외는 `console.warn` 후 return. 둘 다 idle 유지.
+    1. `getDisplayMedia({ video: { displaySurface: "monitor", width: { max: 1920 }, height: { max: 1080 }, frameRate: 12 }, audio: false })`(전체화면 우선 힌트 + 1080p 상한). reject 시 **취소/실패 분기**: `err.name === "NotAllowedError"`면 silent return(콘솔·토스트 없음), 그 외는 `console.warn` 후 return. 둘 다 idle 유지.
     2. 로그 레코더 activate/clear(현재 탭) — `startVideoCapture`와 동일 블록 재사용.
     3. `chrome.tabs.get(tabId)`로 url/title 확보(getDisplayMedia 이후) → `store.startRecording({ tabId, url, title, source: "screen" })`.
     4. `try { videoRecorder.startScreenRecording(stream, tabId) } catch` → 실패 시 `store.cancelRecording()` + `stream.getTracks().forEach(t => t.stop())`.

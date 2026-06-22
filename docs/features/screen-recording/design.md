@@ -21,7 +21,7 @@
 ### `src/sidepanel/video-capture.ts` (변경)
 - **현재 역할**: `startVideoCapture(tabId)`가 로그 레코더 활성화·초기화 후 `store.startRecording` + `videoRecorder.startRecording(tabId)`.
 - **변경 내용**: 신규 `startScreenCapture(tabId)` export. 순서가 `startVideoCapture`와 **다르다** — getDisplayMedia를 가장 먼저(transient activation 보존):
-  1. `getDisplayMedia({ video: { width: { max: 1920 }, height: { max: 1080 }, frameRate: 12 }, audio: false })` — **버튼 onClick 직후 첫 await**. 1080p 상한으로 4K 전체화면 대용량/과압축 방지. reject 처리는 **취소와 실제 실패를 구분**: `err.name === "NotAllowedError"`(사용자 취소)면 **silent return**(콘솔 경고·토스트 없음), 그 외 에러는 `console.warn` 후 return. 둘 다 idle 유지.
+  1. `getDisplayMedia({ video: { displaySurface: "monitor", width: { max: 1920 }, height: { max: 1080 }, frameRate: 12 }, audio: false })` — **버튼 onClick 직후 첫 await**. `displaySurface: "monitor"`는 picker가 전체 화면 탭을 먼저 보이게 유도하는 advisory 힌트(강제 아님 — picker 자체는 못 없앤다). 1080p 상한으로 4K 전체화면 대용량/과압축 방지. reject 처리는 **취소와 실제 실패를 구분**: `err.name === "NotAllowedError"`(사용자 취소)면 **silent return**(콘솔 경고·토스트 없음), 그 외 에러는 `console.warn` 후 return. 둘 다 idle 유지.
   2. 로그 레코더 activate/clear(현재 탭) — `startVideoCapture`와 동일.
   3. `chrome.tabs.get(tabId)`로 url/title 확보(getDisplayMedia **이후** — activation 보존) → `store.startRecording({ tabId, url, title })`.
   4. `try { videoRecorder.startScreenRecording(stream, tabId) } catch`(동기 함수지만 방어적) → 실패 시 `store.cancelRecording()` + `stream.getTracks().forEach(t => t.stop())`.

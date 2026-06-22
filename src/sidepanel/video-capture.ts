@@ -56,8 +56,9 @@ export async function startScreenCapture(tabId: number): Promise<void> {
   let stream: MediaStream;
   try {
     stream = await navigator.mediaDevices.getDisplayMedia({
+      // displaySurface "monitor" — picker가 전체 화면 탭을 먼저 보이게 유도(advisory 힌트, 강제 아님).
       // 1080p 상한 — 4K 전체화면 60초의 과압축·대용량(IndexedDB)을 방지. frameRate 12.
-      video: { width: { max: 1920 }, height: { max: 1080 }, frameRate: 12 },
+      video: { displaySurface: "monitor", width: { max: 1920 }, height: { max: 1080 }, frameRate: 12 },
       audio: false,
     });
   } catch (err) {
