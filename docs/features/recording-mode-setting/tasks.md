@@ -3,9 +3,9 @@
 ## 선행 조건
 
 - `RecordingSource` 타입은 `src/store/editor-store.ts:17`에 이미 존재 (재사용).
-- ToggleGroup·ButtonGroup shadcn 컴포넌트 설치 확인됨 (`src/components/ui/toggle-group.tsx`, `button-group.tsx`).
+- shadcn 컴포넌트: 설정 컨트롤은 **Tabs**(`src/components/ui/tabs.tsx`), 녹화 버튼은 **Button**(absolute ⚙ 오버레이) 사용 — 둘 다 설치 확인됨. (ButtonGroup split·ToggleGroup은 채택 안 함 — design 결정.)
 - 권한·env 변경 없음.
-- 캡처 단축키는 **건드리지 않는다**(이번 범위 밖, 별도 feature). `useCaptureShortcuts.ts`/`capture-commands.ts`/manifest `commands` 변경 없음.
+- 캡처 단축키는 **이미 제거됨**(`remove-capture-shortcuts` 머지). `useCaptureShortcuts.ts`/`useCommandShortcuts.ts`/`ShortcutTooltip`은 코드에 없으며, `capture-commands.ts`는 `isCaptureEntryScreen`만 남았다. 이 feature는 단축키를 다루지 않는다.
 - testid 의존 grep은 확인 완료: `mode-video`/`mode-screen-record`는 `capture-modes-layout.spec.ts` 1개 파일에만 의존(Task 7 갱신 대상 확정). `replay-button`은 `replay-action-log.spec.ts`·`action-log-coverage.spec.ts`도 의존(클릭만, testid 유지 필요).
 
 ## 태스크
@@ -54,7 +54,7 @@
   - [ ] ⚙ 클릭 → 설정 탭(이슈 sub-tab) 열림, **녹화는 시작되지 않음**(stopPropagation)
   - [ ] 좁은 폭에서 라벨 truncate(⚙ 자리 `pr-9` 확보)·⚙ 우측 중앙 정렬·클릭 분리 (**수동**)
 
-> 단축키 분기 태스크 없음 — `useCaptureShortcuts`는 변경하지 않는다(기존 탭 녹화 고정 유지, 이번 범위 밖).
+> 단축키 분기 태스크 없음 — 캡처 단축키는 `remove-capture-shortcuts`로 이미 제거됨(`useCaptureShortcuts` 파일 없음). 녹화는 버튼 전용.
 
 ### Task 6: e2e 레이아웃 spec 갱신
 - **변경 대상**: `e2e/capture-modes-layout.spec.ts` (의존 spec은 이 1개로 확정 — 선행 grep)
@@ -83,11 +83,11 @@
 - Task 1 · 2 · 3 병렬 가능 (서로 독립).
 - Task 4(설정 Tabs)는 Task 2·3 완료 후. Task 5(그리드)는 Task 1·2 완료 후. 4·5 병렬 가능.
 - Task 6(e2e)은 마지막 (4·5 완료 후).
-- 단축키 태스크 없음(범위 밖).
+- 단축키 태스크 없음(캡처 단축키는 이미 제거됨).
 
 ## 가이드 영향
 
 사용자 노출 UX 변경 — 구현 후 `/guide`로 처리:
-- `guide/ko/video/record.md`·`guide/en/video/record.md` — 캡처 진입 화면 그리드(1×2×2) 설명, 녹화 모드를 설정에서 고른다는 안내, split 버튼 ⚙ 설명. (단축키는 기존 탭 녹화 그대로 — 변경 없음)
+- `guide/ko/video/record.md`·`guide/en/video/record.md` — 캡처 진입 화면 그리드(1×2×2) 설명, 녹화 모드를 설정에서 고른다는 안내, ⚙ 오버레이 설명. (단축키 표기는 `remove-capture-shortcuts`로 이미 제거됨 — 추가 작업 없음.)
 - 설정 가이드에 캡처 설정 섹션 녹화 모드 항목이 있으면 갱신 (없으면 record.md에서 링크)
-- `guide/AUTHORING.md` — 그리드 행 구성(1×2×2)·녹화 모드 설정 스냅샷 갱신. capture-video 단축키 매핑은 불변(탭 녹화)
+- `guide/AUTHORING.md` — 그리드 행 구성(1×2×2)·녹화 모드 설정 스냅샷 갱신. (캡처 단축키 항목은 이미 "버튼 전용"으로 갱신됨.)

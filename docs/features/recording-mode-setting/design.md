@@ -2,7 +2,7 @@
 
 ## 개요
 
-`settings-ui-store`에 영속 상태 `recordingMode: RecordingSource`("tab" | "screen")를 추가하고, 설정 캡처 섹션에 shadcn Tabs(2개 탭을 값 컨트롤로)를 둔다. 캡처 진입 화면 `EmptyState`의 Row 3을 [선택 모드 녹화 버튼 + ⚙][리플레이]로 재구성한다. **그리드 녹화 버튼만** `recordingMode`를 읽어 기존 `startVideoCapture`/`startScreenCapture` 중 하나로 분기한다(클릭 경로는 user gesture가 살아있음). 캡처 단축키와 캡처 로직 자체는 손대지 않는다.
+`settings-ui-store`에 영속 상태 `recordingMode: RecordingSource`("tab" | "screen")를 추가하고, 설정 캡처 섹션에 shadcn Tabs(2개 탭을 값 컨트롤로)를 둔다. 캡처 진입 화면 `EmptyState`의 Row 3을 [선택 모드 녹화 버튼 + ⚙][리플레이]로 재구성한다. **그리드 녹화 버튼만** `recordingMode`를 읽어 기존 `startVideoCapture`/`startScreenCapture` 중 하나로 분기한다(클릭 경로는 user gesture가 살아있음). 캡처 로직 자체는 손대지 않는다. (캡처 단축키는 `remove-capture-shortcuts`로 이미 제거돼 단축키 경로는 존재하지 않는다.)
 
 ## 변경 범위
 
@@ -33,11 +33,11 @@
         - 녹화 버튼: `<Button className="w-full pr-9" data-testid="mode-record">` — `pr-9`로 ⚙ 자리 확보. `recordModeMeta(recordingMode)`로 아이콘/라벨 결정 → `recordingMode === "tab"` ? `<AppWindow/> + <span className="truncate">{t("issue.mode.video")}</span>` : `<MonitorPlay/> + <span className="truncate">{t("issue.mode.screenRecord")}</span>`. **onClick 분기는 IssueTab 인라인 if**(`recordingMode === "screen" ? onStartScreenRecord() : onStartVideo()`) — `recordModeMeta`는 아이콘/라벨만 반환(액션 식별자 미포함)
         - ⚙ 버튼: `<Button>` 위에 absolute 오버레이 — `variant="ghost" size="icon"`, `className="absolute right-2 top-1/2 h-7 w-7 -translate-y-1/2"` (x=우측 8px, y=중앙), `data-testid="mode-record-settings"`, `aria-label={t(...)}`. `onClick={(e) => { e.stopPropagation(); navTo("settings","issue"); }}` — 녹화 버튼 클릭과 분리(⚙ 클릭이 녹화를 시작하지 않게 stopPropagation)
       - `<ReplayButton className="min-w-0 flex-1" />` — 같은 행에 배치. `ReplayButton`에 `className` prop을 받도록 시그니처 확장(현재 내부 `w-full` 하드코딩 → `cn("...", className)`)
-  - `EmptyState` props: `onStartVideo`/`onStartScreenRecord`는 그대로 두고, 녹화 버튼이 `recordingMode`에 따라 둘 중 하나를 호출 (호출부 `:129-130` 유지)
-  - 단축키 툴팁(`ShortcutTooltip` for `capture-video`)은 녹화 버튼에 유지(탭 녹화 단축키 표기 — 단축키 동작 자체는 불변)
+  - `EmptyState` props: `onStartVideo`/`onStartScreenRecord`는 그대로 두고, 녹화 버튼이 `recordingMode`에 따라 둘 중 하나를 호출 (호출부 유지)
+  - 참고: 기존 `mode-video` 버튼에 붙어 있던 `ShortcutTooltip`은 `remove-capture-shortcuts`로 **이미 제거됨**. 현재 `EmptyState`는 툴팁 없는 plain `<Button>` 5개 기준이므로, 새 녹화 버튼도 툴팁 래퍼 없이 작업한다.
 
-### `src/sidepanel/hooks/useCaptureShortcuts.ts`
-- **변경 없음.** 단축키 `video` 액션은 기존대로 `startVideoCapture`(탭 녹화 고정)를 호출한다. 단축키→화면 녹화는 `chrome.commands`→sidepanel 경로에서 transient user activation이 전파되지 않아 `getDisplayMedia` picker가 뜨지 않으므로 분기하지 않는다(PRD 비목표). 캡처 단축키 제거는 별도 feature.
+### 캡처 단축키 — 무관 (제거 완료)
+- 캡처 단축키 3개와 `useCaptureShortcuts.ts`/`useCommandShortcuts.ts`/`ShortcutTooltip`은 `remove-capture-shortcuts`로 모두 제거됐다(머지됨). 이 feature는 단축키 경로를 일절 다루지 않는다 — 녹화는 그리드 버튼 클릭(user gesture 보존)으로만 시작.
 
 ### `src/sidepanel/tabs/SettingsTab.tsx`
 - 현재 역할: 설정 탭. "캡처 설정" 섹션(`:111-134`)에 replay 토글(Switch).
@@ -79,7 +79,7 @@
    → EmptyState 구독(라이브) → Row3 녹화 버튼 아이콘/라벨/onClick 분기
        → onStartVideo(tab) | onStartScreenRecord(screen)  (기존 로직 그대로)
 
-단축키 video 액션 → startVideoCapture(tab)  ※ recordingMode 미참조, 기존 탭 녹화 고정 (이번 범위 밖)
+(캡처 단축키 경로 없음 — remove-capture-shortcuts로 제거됨. 녹화는 버튼 클릭만)
 
 [영속 설정] settings-ui-store.recordingMode = 다음 녹화의 모드 선택 입력
 [세션 상태] editor-store.recordingSource = 진행 중 녹화가 어느 소스인지 (startRecording이 기록)
@@ -129,7 +129,7 @@ export function recordModeMeta(mode: RecordingSource): RecordModeMeta;
 
 ## 위험 요소
 
-- **단축키 user activation (해결 — 분기 안 함)**: `getDisplayMedia`는 transient activation을 요구하고, `video-capture.ts`는 이를 위해 picker 호출을 첫 await로 둔다. 단축키(`chrome.commands`→`sendMessage`→sidepanel) 경로는 activation이 전파되지 않아 `screen` 모드가 picker를 못 띄운다(거의 확정). 그래서 **단축키는 분기하지 않고 기존 탭 녹화 고정**으로 둔다(PRD 비목표). 화면 녹화는 그리드 버튼 클릭(gesture 보존)으로만 시작. → 이번 설계에서 잔여 위험 없음.
+- **단축키 user activation (소멸 — 단축키 제거됨)**: 과거 우려였던 "단축키→화면 녹화 시 `getDisplayMedia`가 transient activation을 못 받아 picker 미표시"는 `remove-capture-shortcuts`로 캡처 단축키가 통째로 제거되면서 **위험 자체가 사라졌다**. 녹화는 그리드 버튼 클릭(user gesture 보존)으로만 시작하므로 activation 문제 없음.
 - **좁은 폭 truncate**: Row 3을 [녹화(아이콘+라벨, flex-1)][⚙ ~36px][gap][리플레이 flex-1]로 한 행에 넣으면 실 가용 ~288px에서 각 텍스트 버튼이 ~120px로 줄어 "화면 녹화"·"30초 리플레이" 한국어 라벨이 잘릴 수 있다. `<span className="truncate">`로 처리하되 아이콘·클릭 영역은 유지. **좁은 폭 실측을 수동 검증 항목**으로 둔다.
 - **absolute 오버레이 ⚙**: 녹화 버튼 위에 ⚙를 겹친다. `pr-9`로 라벨-⚙ 겹침 방지, `e.stopPropagation()`으로 클릭 분리. ⚙ 클릭 영역(`h-7 w-7`)이 녹화 버튼과 겹치므로 우측 가장자리 오클릭 가능성 — `right-2`(8px 안쪽)로 충분히 분리됐는지 시각/실측 확인. 시각 정합 **수동 테스트 필수**.
 - **e2e 회귀**: `capture-modes-layout.spec.ts`가 반드시 깨진다 — 갱신 필수(grep으로 `mode-video`/`mode-screen-record`는 이 1개 spec에만 의존 확인). `replay-button` 의존 2개 spec은 testid·클릭 유지로 회귀 없음.
