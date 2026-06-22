@@ -210,7 +210,7 @@ video-capture.ts:startVideoCapture(tabId)
   → video-recorder.ts:startRecording(tabId)
     → chrome.tabCapture.getMediaStreamId({ targetTabId })
     → navigator.mediaDevices.getUserMedia({ audio: false, video: { chromeMediaSource: "tab" } })
-    → MediaRecorder 생성 (1.5Mbps, 1초 chunk, 최대 60초)
+    → MediaRecorder 생성 (2Mbps, 1초 chunk, 최대 60초)
     → recorder.onstop → Blob 조립 → 썸네일 생성 → editor store 저장
 ```
 
@@ -294,6 +294,7 @@ tab-bindings.ts:231 — activateTab() 내부
 | `video` | 모든 phase | O — 녹화 중단 방지 |
 | `screenshot` | `drafting` / `previewing` / `done` | O |
 | `element` | `drafting` / `previewing` / `done` | O |
+| `freeform` | `drafting` / `previewing` / `done` | O |
 | 그 외 | | X — 비보존 |
 
 ### Deferred 권한 만료 (보존 상태 전용)
@@ -522,7 +523,7 @@ Linear·GitLab은 PKCE 지원으로 proxy 불필요 — 각각 `api.linear.app/o
 
 ## 12. optional_host_permissions (런타임 요청)
 
-### chrome.permissions.request() 호출 2곳
+### chrome.permissions.request() 호출 3곳
 
 #### 1. 30s Replay 토글
 
@@ -545,6 +546,15 @@ ai-provider.ts:383 — requestHostPermission(baseUrl)
 ├── new URL(baseUrl) → origin 추출
 └── chrome.permissions.request({ origins: ["${protocol}//${host}/*"] })
 ```
+
+#### 3. GitLab self-managed 인스턴스 연결
+
+```
+GitlabConnectForm.tsx:217 — requestHostPermission(baseUrl)
+└── 사용자 입력 self-managed 인스턴스 origin에 대해 ai-provider.ts의 requestHostPermission 재사용
+```
+
+gitlab.com OAuth 경로는 고정 host_permission이라 런타임 요청이 없고, **self-managed 인스턴스(임의 origin) PAT 연결만** optional `<all_urls>` 하위 origin을 런타임 요청한다.
 
 ### chrome.permissions.contains() 호출 3곳
 
