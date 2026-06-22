@@ -1,7 +1,7 @@
 # Idle 캡처 진입 레이아웃 원복 (1x2x2) — 기술 설계
 
 ## 개요
-`IssueTab.tsx`의 `EmptyState`·`ReplayButton` 두 컴포넌트만 수정하고 `RecordingSettingsDialog.tsx`를 삭제한다. 녹화 모드 분기(`recordModeMeta`)와 설정 탭의 `RecordingSettingsCard`는 그대로 둔다. store·i18n·manifest 변경 없음. 순수 UI 재배치 + 비활성 리플레이 클릭 핸들러 원복.
+`IssueTab.tsx`의 `EmptyState`·`ReplayButton` 두 컴포넌트만 수정하고 `RecordingSettingsDialog.tsx`를 삭제한다. 녹화 모드 분기(`recordModeMeta`)와 설정 탭의 `RecordingSettingsCard`는 그대로 둔다. manifest·store 마이그레이션 변경 없음. i18n은 `issue.mode.element` 키 **값만** ko/en 수정(키 추가·삭제 없음). 순수 UI 재배치 + 비활성 리플레이 클릭 핸들러 원복 + Row1 레이블 텍스트 변경.
 
 ## 변경 범위
 
@@ -13,18 +13,23 @@
    - 제거: `import { RecordingSettingsDialog } from "@/sidepanel/components/RecordingSettingsDialog";`
    - 추가: `useTabNav` (from `@/sidepanel/tab-nav`).
    - 유지: `recordModeMeta`, `MonitorPlay`, `AppWindow`, `useState`(RecordingState에서 사용), `cn`.
-2. **`EmptyState` 재구성** (현 167~232줄)
-   - `recSettingsOpen` `useState` 및 `RecordingSettingsDialog` JSX 제거.
-   - 버튼 컨테이너를 1x2x2 3행으로:
-     - Row1: 요소 스타일 편집 — primary 전체폭. `<Button className="w-full" onClick={onStartElement} data-testid="mode-element">`(variant 미지정 = default/primary).
+2. **`EmptyState` 재구성** (현 160~233줄)
+   - `recSettingsOpen` `useState`(166줄) 및 `<RecordingSettingsDialog>` 사용(208~211줄) 제거. ⚙ 버튼은 IssueTab JSX가 아니라 `RecordingSettingsDialog` 내부 `DialogTrigger`이므로, 다이얼로그 파일 삭제 + 이 사용 제거로 **자동 소멸**(IssueTab에서 ⚙ JSX를 따로 찾지 말 것).
+   - 버튼 컨테이너를 1x2x2 3행으로(컨테이너는 기존 `max-w-[336px]` 유지 — "전체폭"은 이 캡 안의 full-width):
+     - Row1: 요소 스타일 편집 — primary 전체폭. `<Button className="w-full" onClick={onStartElement} data-testid="mode-element">`(variant 미지정 = default/primary). 레이블은 `t("issue.mode.element")` — 키 값을 "요소 스타일 편집"/"Edit element style"로 바꾼다(Task 0).
      - Row2: `<ButtonGroup className="w-full">` 안에 요소 캡처(`mode-element-shot`, `flex-1`) + 범위 캡처(`mode-screenshot`, `flex-1`), 둘 다 `variant="outline"`.
      - Row3: `<ButtonGroup className="w-full">` 안에 녹화(`mode-record`, `min-w-0 flex-1`) + `<ReplayButton className="min-w-0 flex-1" />`.
-   - 녹화 버튼: 현 동작 유지 — `recordingMode === "screen" ? onStartScreenRecord() : onStartVideo()`, 아이콘 `RecordIcon`(meta 기반), 레이블 `t(meta.labelKey)`.
+   - 녹화 버튼: 현 동작 유지 — onClick 분기(`recordingMode === "screen" ? onStartScreenRecord() : onStartVideo()`)·아이콘 `RecordIcon`(meta 기반)·레이블 `t(meta.labelKey)` 모두 현재 코드(196~203줄)에 이미 존재하므로 그대로 옮긴다(신규 작성 아님). `onStartVideo`/`onStartScreenRecord`는 기존 EmptyState props(6개)에 이미 있음.
    - `meta`/`RecordIcon`/`recordingMode` 셀렉터 유지.
+   - **footer 변경 없음**: 가이드 버튼 + 이슈 초안 작성(`mode-freeform`) 버튼은 현 PageFooter 그대로 둔다(1x2x2는 본문 버튼 영역만 가리킨다).
 3. **`ReplayButton` 시그니처·동작 원복** (현 235~293줄)
    - `onConfigure` prop 제거. `className?: string`만 유지.
    - `useTabNav()` 도입. 비활성(`!replayEnabled`) 버튼 `onClick`을 `() => navTo("settings", "issue")`로 원복(현재는 `onConfigure`).
    - 나머지(활성 capture, tooltip, encoding 표시) 그대로.
+
+### `src/i18n/namespaces/issue.ts` (수정)
+현재 역할: 이슈 탭 i18n 키. `issue.mode.element` = ko "요소 편집" / en "Edit element".
+변경 내용: 값을 ko "요소 스타일 편집" / en "Edit element style"로 수정(키 이름·구조 불변). ko/en 동시 수정 — `src/i18n/__tests__/locales.test.ts` PostToolUse 훅이 자동 검사(키 대칭·placeholder 토큰 없음이라 통과). 다른 키 영향 없음.
 
 ### `src/sidepanel/components/RecordingSettingsDialog.tsx` (삭제)
 현재 역할: ⚙ 버튼 + 인라인 녹화 설정 다이얼로그. `IssueTab`이 유일 사용처(grep 확인). 삭제.
@@ -63,4 +68,6 @@ function ReplayButton({ className }: { className?: string }): JSX.Element
 - **e2e 회귀**: `e2e/capture-modes-layout.spec.ts`가 현 2-1-3 레이아웃·⚙·다이얼로그를 단언한다(특히 `mode-record-settings`, dialog 열림, Row 구성). 레이아웃 변경으로 다수 깨짐 → spec 재작성 필요(`/e2e-write`). 단언 방향: ⚙·dialog 부재, 1x2x2 행 구성, 비활성 리플레이 클릭 시 설정 탭 active.
 - **아이콘 분기 회귀**: 녹화 버튼 아이콘 lucide 클래스(`lucide-app-window`/`lucide-monitor-play`) 기반 e2e 단언은 유지 가능 — 분기 로직 보존.
 - **orphan import**: `RecordingSettingsDialog` 삭제 후 IssueTab에 잔존 import 있으면 빌드 실패 → import 제거 동반 필수.
-- **`mode-record-settings` testid 잔존 검색**: 삭제 후 src/e2e 전체에서 grep해 잔존 참조 0 확인.
+- **`mode-record-settings` testid 잔존 검색**: 삭제 후 `src/`·`e2e/`(README.md 포함)에서 grep해 잔존 참조 0 확인. `onConfigure`/`recSettingsOpen`/`setRecSettingsOpen`도 함께 스윕.
+- **e2e 리플레이 토글 셀렉터**: `RecordingSettingsCard`의 리플레이 스위치는 `data-testid`가 아니라 `id={replayInputId}`(기본 `replay-enabled`)다. 재작성 e2e가 토글에 접근하면 `#replay-enabled` id 셀렉터를 써야 한다(testid 아님).
+- **i18n 라벨 변경 → 가이드/스크린샷 캡션 동기화**: `issue.mode.element` 값 변경으로 가이드 본문의 "요소 편집" 표기가 stale. `/guide`에서 갱신(가이드 영향 참조).
