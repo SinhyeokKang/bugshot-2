@@ -31,12 +31,15 @@
 - 변경: import(`:9`)·호출(`:35`) 제거.
 
 ### `src/sidepanel/tabs/IssueTab.tsx`
-- 현재 역할: `useCommandShortcuts()`(`:177`)로 `shortcuts` 취득 → `ShortcutTooltip` 정의(`:159-173`) → mode-element/screenshot/video 버튼을 `ShortcutTooltip`으로 감쌈(`:190-194`, `:201-206`, `:209-214`).
+- 현재 역할: `useCommandShortcuts()`로 `shortcuts` 취득 → `ShortcutTooltip` 정의 → 진입 화면 버튼 중 **일부**를 `ShortcutTooltip`으로 감쌈.
+- **진입 화면 버튼은 총 5개**(라인 아닌 testid 기준으로 식별 — 라인은 변동 가능): `mode-element`, `mode-element-shot`, `mode-screenshot`, `mode-video`, `mode-screen-record`. 이 중 **ShortcutTooltip로 감싼 건 3개**(`mode-element`/`mode-screenshot`/`mode-video`). `mode-element-shot`·`mode-screen-record`는 **원래 툴팁이 없다**. (`mode-screenshot`은 `mode-element-shot`과, `mode-video`는 `mode-screen-record`와 각각 `ButtonGroup` 형제다.)
 - 변경:
   - `useCommandShortcuts` import·호출 제거, `ShortcutTooltip` 함수 정의 제거.
-  - 세 버튼에서 `ShortcutTooltip` wrapper를 벗기고 `<Button>`만 남긴다(testid·onClick 유지).
-  - `TooltipProvider`는 **보존** — `ReplayButton`의 replay 툴팁(`:287-291`)이 여전히 사용.
+  - **ShortcutTooltip wrapper 3개만 벗기고** `<Button>`만 남긴다(testid·onClick·className 유지). **나머지 2개 버튼과 ButtonGroup 구조는 손대지 않는다.**
+  - `isCaptureEntryScreen`(EmptyState 렌더 게이트) import·사용은 **보존** — 변경 대상 아님(보존 확인 체크는 tasks).
+  - `TooltipProvider`는 **보존** — `ReplayButton`의 replay 툴팁이 여전히 사용.
   - `Tooltip`/`TooltipTrigger`/`TooltipContent` import는 ReplayButton이 계속 쓰므로 유지(ShortcutTooltip만 제거).
+  - 참고: `delayDuration={0}`는 원래 ShortcutTooltip 즉시 표기용 설정이나, ReplayButton 상태 툴팁에 그대로 남는다. **외과적 원칙상 변경하지 않는다**(메모).
 
 ### `public/_locales/ko/messages.json`, `public/_locales/en/messages.json`
 - 변경: `CMD_CAPTURE_ELEMENT`/`CMD_CAPTURE_SCREENSHOT`/`CMD_CAPTURE_VIDEO` 제거(ko/en 대칭). `CMD_TOGGLE_PANEL`·`EXT_NAME`·`EXT_NAME_SHORT` 보존.
@@ -73,7 +76,8 @@ export function isCaptureEntryScreen(state: CaptureGateState): boolean;
 
 ## 기존 패턴 준수
 
-- **외과적 변경**: `capture-commands.ts`는 단축키 관련만 제거하고 파일·게이트 함수 유지(리네임·이동 안 함). `TooltipProvider`/`Tooltip*`는 ReplayButton 의존이라 보존.
+- **외과적 변경**: `capture-commands.ts`는 단축키 관련만 제거하고 파일·게이트 함수 유지(리네임·이동 안 함). `TooltipProvider`/`Tooltip*`는 ReplayButton 의존이라 보존. ButtonGroup 형제 버튼(`mode-element-shot`·`mode-screen-record`)은 손대지 않음.
+- **시각 일관성 향상**: 현재 진입 화면 5개 버튼 중 3개만 ShortcutTooltip이 붙은 **비대칭** 상태다. wrapper 3개를 제거하면 캡처 버튼군이 전부 "툴팁 없음"으로 균일해지고, 진입 화면에서 툴팁이 뜨는 건 ReplayButton 상태 툴팁 하나만 남는다 — 일관성이 오히려 개선된다.
 - **i18n 동시 갱신**: `public/_locales` ko/en 대칭 제거. (이건 Chrome i18n으로 `src/i18n/__tests__/locales.test.ts` 검사 대상 아님 — 수동 대칭 확인.)
 - **테스트 우선**: 신규 함수 없음. 기존 `isCaptureEntryScreen` 테스트 보존, 제거 대상 함수의 테스트 삭제.
 - **권한·게이트웨이 문서화**: CLAUDE.md·PERMISSION.md 동기 갱신(command 표면 축소).
@@ -90,4 +94,7 @@ export function isCaptureEntryScreen(state: CaptureGateState): boolean;
 - **recording-mode-setting feature와 IssueTab 충돌**: 두 feature가 `IssueTab.tsx`의 `EmptyState`를 동시 수정한다. recording-mode-setting design은 "녹화 버튼에 `capture-video` ShortcutTooltip 유지"를 전제하는데, 이 feature가 `ShortcutTooltip`을 통째로 제거한다. **둘 중 먼저 머지되는 쪽 기준으로 나중 것을 rebase**하고, recording-mode-setting의 "단축키 툴팁 유지" 항목은 이 feature 적용 후 무효가 됨을 양쪽 구현 시 인지. (권장: 이 feature를 먼저 적용 → recording-mode-setting은 ShortcutTooltip 없는 깨끗한 EmptyState 위에서 작업.)
 - **버튼 testid 회귀**: `mode-element`/`mode-screenshot`/`mode-video` testid를 `capture-modes-layout.spec.ts`가 의존. ShortcutTooltip wrapper만 벗기고 testid·onClick은 유지 → 회귀 없음.
 - **`_locales` 빌드**: Chrome은 manifest `commands[].description`이 `__MSG_CMD_CAPTURE_*__`를 참조했을 수 있다 — command를 지우면 참조도 사라지므로 메시지 제거가 안전. 단 메시지만 지우고 command를 안 지우는 순서 실수 시 빌드 경고 가능 → manifest와 _locales를 같은 변경에서 처리.
-- **잔여 참조**: 삭제 후 `capture-element`/`capture-screenshot`/`capture-video`/`CAPTURE_SHORTCUT_MSG`/`resolveCaptureShortcut`/`useCaptureShortcuts`/`useCommandShortcuts`/`ShortcutTooltip` 전역 grep으로 0건 확인(테스트·문서 제외).
+- **잔여 참조**: 삭제 후 아래 식별자 전역 grep 0건 확인(테스트·문서·feature docs 제외). `capture-element`·`capture-screenshot`·`capture-video`는 **하이픈 포함 정확 매칭**(testid `mode-element`·i18n 키 `issue.mode.element`와 오탐 구분):
+  - `capture-element` `capture-screenshot` `capture-video` `CAPTURE_SHORTCUT_MSG` `CAPTURE_COMMANDS` `COMMAND_ACTION` `CaptureCommand` `CaptureAction` `CaptureShortcutMessage` `resolveCaptureShortcut` `useCaptureShortcuts` `useCommandShortcuts` `ShortcutTooltip`
+  - **보존이므로 grep 대상 제외**: `CaptureGateState`, `isCaptureEntryScreen`.
+- **삭제 순서**: `capture-commands.ts`의 export 제거를 **먼저** 하면 아직 살아있는 소비자(background·두 훅)가 깨진 import를 가져 중간 `typecheck`가 빨강이 된다. **소비자 제거(background onCommand·훅 삭제·IssueTab)를 먼저**, `capture-commands.ts` export 제거를 **마지막**에 둔다(tasks 구현 순서 참조).
