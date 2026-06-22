@@ -159,6 +159,12 @@ export async function startRecording(tabId: number): Promise<void> {
 // 화면 전체 녹화 — getDisplayMedia 스트림은 video-capture에서 미리 획득(user activation 보존).
 export function startScreenRecording(stream: MediaStream, tabId: number): void {
   if (state) cancelRecording();
+  // getDisplayMedia 획득~셋업 사이에 사용자가 OS "공유 중지"를 누르면 track이 이미 ended —
+  // ended 리스너 바인딩 전이라 빈 세션으로 시작된다. throw해 호출자 catch가 stream·store를 정리한다.
+  const track = stream.getVideoTracks()[0];
+  if (!track || track.readyState === "ended") {
+    throw new Error("screen capture track ended before recording started");
+  }
   beginRecording(stream, tabId, { source: "screen", viewportHint: trackViewport(stream) });
 }
 
