@@ -10,7 +10,7 @@ import {
   Loader2,
   SquarePen,
   Timer,
-  Video,
+  AppWindow,
   MonitorPlay,
 } from "lucide-react";
 import { useT } from "@/i18n";
@@ -208,7 +208,7 @@ function EmptyState({ onStartElement, onStartElementShot, onStartScreenshot, onS
             <ButtonGroup className="w-full">
               <ShortcutTooltip shortcut={shortcuts["capture-video"]}>
                 <Button variant="outline" className="min-w-0 flex-1" onClick={onStartVideo} data-testid="mode-video">
-                  <Video />
+                  <AppWindow />
                   <span className="truncate">{t("issue.mode.video")}</span>
                 </Button>
               </ShortcutTooltip>
@@ -351,7 +351,7 @@ function RecordingState({ onStop, onCancel }: { onStop: () => void; onCancel: ()
           {source === "screen" ? (
             <MonitorPlay className="h-6 w-6 text-red-600 dark:text-red-400" />
           ) : (
-            <Video className="h-6 w-6 text-red-600 dark:text-red-400" />
+            <AppWindow className="h-6 w-6 text-red-600 dark:text-red-400" />
           )}
         </div>
         <h3 className="text-lg font-semibold">
