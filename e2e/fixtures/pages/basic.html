@@ -4,10 +4,13 @@
     <meta charset="utf-8" />
     <title>bugshot e2e fixture</title>
     <style>
-      /* length 디자인 토큰 — 토큰 변경 시 우측 미리보기(hint) 갱신 검증용 */
+      /* 디자인 토큰 — hint 갱신/분류 회귀 검증용.
+         --brand: named color(categorizeToken color 분류), --space-0: unitless 0(length 분류). */
       :root {
         --space-sm: 8px;
         --space-lg: 32px;
+        --brand: tomato;
+        --space-0: 0;
       }
       body {
         margin: 24px;
@@ -59,6 +62,13 @@
       style="padding: 4px 8px 12px 16px; background-color: rgb(238, 238, 238); width: 200px; min-height: 40px;"
     >
       Quad Element
+    </div>
+    <!-- #multi: width에 multiplier 토큰 calc(var(--space-sm) * 2) — multiplier hint(16px) 검증용 -->
+    <div
+      id="multi"
+      style="width: calc(var(--space-sm) * 2); min-height: 40px; background-color: rgb(235, 235, 235);"
+    >
+      Multi Element
     </div>
     <div id="filler"></div>
   </body>

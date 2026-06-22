@@ -10,10 +10,15 @@ export function hasStyleChange(
   selection: StyleDiffSelection,
   edits: StyleDiffEdits,
 ): boolean {
-  const inlineCount = Object.keys(edits.inlineStyle).length;
+  // baseline 동일값은 변경이 아니다 — buildStyleDiff의 same-value skip과 동치 유지.
+  const inlineChanged = Object.entries(edits.inlineStyle).some(([prop, after]) => {
+    const before =
+      selection.specifiedStyles[prop] ?? selection.computedStyles[prop] ?? "";
+    return before !== after;
+  });
   const classDirty =
     selection.classList.length !== edits.classList.length ||
     selection.classList.some((c, i) => c !== edits.classList[i]);
   const textDirty = selection.text !== null && edits.text !== selection.text;
-  return inlineCount > 0 || classDirty || textDirty;
+  return inlineChanged || classDirty || textDirty;
 }

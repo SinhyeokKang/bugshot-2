@@ -18,7 +18,13 @@ import { cn } from "@/lib/utils";
 import { useEditorStore } from "@/store/editor-store";
 import type { Token, TokenCategory } from "@/types/picker";
 import { isRenderableColorLiteral } from "./colorLiteral";
-import { finalizeValue, rightHintText, shortValue } from "./valueFormat";
+import {
+  applyMultiplier,
+  finalizeLiveValue,
+  finalizeValue,
+  rightHintText,
+  shortValue,
+} from "./valueFormat";
 import { isKnownDefault, PROP_CATEGORY } from "./propMetadata";
 import { useStyleProp } from "./styleHooks";
 import { TokenChip, TokenItem } from "./TokenChip";
@@ -136,8 +142,8 @@ export function ValueCombobox({
   );
 
   const finalize = useCallback(
-    (next: string) => finalizeValue(category, next),
-    [category],
+    (next: string) => finalizeValue(category, next, prop),
+    [category, prop],
   );
 
   const commit = (next: string) => {
@@ -171,13 +177,19 @@ export function ValueCombobox({
   const valueTokenHint = rightHintText(
     category,
     computed,
-    findTokenValue(tokens, tokenRefs[0]?.name),
+    applyMultiplier(
+      findTokenValue(tokens, tokenRefs[0]?.name),
+      tokenRefs[0]?.multiplier,
+    ),
     !!compact,
   );
   const placeholderTokenHint = rightHintText(
     category,
     computed,
-    findTokenValue(tokens, placeholderTokenRefs[0]?.name),
+    applyMultiplier(
+      findTokenValue(tokens, placeholderTokenRefs[0]?.name),
+      placeholderTokenRefs[0]?.multiplier,
+    ),
     !!compact,
   );
 
@@ -254,7 +266,10 @@ export function ValueCombobox({
                 />
               ))}
               {placeholderTokenHint != null ? (
-                <span className="ml-auto max-w-[120px] shrink-0 truncate text-[10px] text-muted-foreground/70">
+                <span
+                  data-testid="token-value-hint"
+                  className="ml-auto max-w-[120px] shrink-0 truncate text-[10px] text-muted-foreground/70"
+                >
                   {placeholderTokenHint}
                 </span>
               ) : null}
@@ -291,7 +306,9 @@ export function ValueCombobox({
             value={draft}
             onValueChange={(v) => {
               setDraft(v);
-              const normalized = finalize(v.trim());
+              // 라이브 적용은 finalizeLiveValue — color 단축 hex는 blur 전까지 확장하지
+              // 않아 입력 중 깜빡임을 막는다(commit/blur는 finalize로 확장).
+              const normalized = finalizeLiveValue(category, v.trim(), prop);
               // 정규화값은 페이지에 라이브 적용하되 입력란(draft)은 raw 유지 —
               // 내가 일으킨 value 변경은 prevValue를 미리 맞춰 리싱크(60행)에서 제외한다.
               prevValue.current = normalized;

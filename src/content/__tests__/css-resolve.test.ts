@@ -8,6 +8,7 @@ vi.mock("../css-source-cache", () => ({
 import {
   resolveVarChain,
   INTERESTING_PROPS,
+  categorizeToken,
   tokenizeEditableText,
   serializeEditableTokens,
   classifyEditableChildren,
@@ -16,6 +17,42 @@ import {
   shouldRestoreEditable,
   type EditableHandle,
 } from "../css-resolve";
+
+describe("categorizeToken", () => {
+  it("hex·함수형·named color → color", () => {
+    expect(categorizeToken("#abc")).toBe("color");
+    expect(categorizeToken("rgb(0,0,0)")).toBe("color");
+    expect(categorizeToken("transparent")).toBe("color");
+  });
+  it("CSS named color → color (대소문자 무관)", () => {
+    expect(categorizeToken("tomato")).toBe("color");
+    expect(categorizeToken("rebeccapurple")).toBe("color");
+    expect(categorizeToken("RED")).toBe("color");
+  });
+  it("단위 길이·unitless 0 → length", () => {
+    expect(categorizeToken("16px")).toBe("length");
+    expect(categorizeToken("1.5rem")).toBe("length");
+    expect(categorizeToken("0")).toBe("length");
+    expect(categorizeToken("-0")).toBe("length");
+  });
+  it("길이 단위 포함 calc/clamp/min/max → length", () => {
+    expect(categorizeToken("calc(100% - 16px)")).toBe("length");
+    expect(categorizeToken("clamp(1rem, 2vw, 3rem)")).toBe("length");
+    expect(categorizeToken("min(10px, 5%)")).toBe("length");
+  });
+  it("unitless 양수(0 제외)는 number", () => {
+    expect(categorizeToken("1.5")).toBe("number");
+    expect(categorizeToken("400")).toBe("number");
+  });
+  it("gradient·url → image", () => {
+    expect(categorizeToken("linear-gradient(red, blue)")).toBe("image");
+    expect(categorizeToken("url(a.png)")).toBe("image");
+  });
+  it("미상값 → unknown", () => {
+    expect(categorizeToken("auto")).toBe("unknown");
+    expect(categorizeToken("")).toBe("unknown");
+  });
+});
 
 describe("INTERESTING_PROPS", () => {
   it("주요 CSS 속성 포함", () => {

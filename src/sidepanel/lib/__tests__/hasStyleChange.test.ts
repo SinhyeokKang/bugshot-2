@@ -55,6 +55,33 @@ describe("hasStyleChange — 진입 게이트 판정", () => {
     expect(hasStyleChange(sel(), edits())).toBe(false);
   });
 
+  it("inline 값이 baseline(specified)과 동일하면 false (phantom diff 방지)", () => {
+    expect(
+      hasStyleChange(
+        sel({ specifiedStyles: { "padding-top": "10px" } }),
+        edits({ inlineStyle: { "padding-top": "10px" } }),
+      ),
+    ).toBe(false);
+  });
+
+  it("inline 값이 baseline(computed)과 동일하면 false", () => {
+    expect(
+      hasStyleChange(
+        sel({ computedStyles: { color: "rgb(0, 0, 0)" } }),
+        edits({ inlineStyle: { color: "rgb(0, 0, 0)" } }),
+      ),
+    ).toBe(false);
+  });
+
+  it("inline 값이 baseline과 다르면 true", () => {
+    expect(
+      hasStyleChange(
+        sel({ specifiedStyles: { "padding-top": "10px" } }),
+        edits({ inlineStyle: { "padding-top": "12px" } }),
+      ),
+    ).toBe(true);
+  });
+
   it("text가 null이고 edits.text가 빈 문자열이면 false (no-op)", () => {
     expect(hasStyleChange(sel({ text: null }), edits({ text: "" }))).toBe(false);
   });
@@ -101,6 +128,11 @@ describe("hasStyleChange ↔ buildStyleDiff().length>0 동치 (#10)", () => {
       name: "text null + 빈 edits.text",
       s: sel({ text: null }),
       e: edits({ text: "" }),
+    },
+    {
+      name: "inline == baseline (phantom diff — 둘 다 변경 없음)",
+      s: sel({ specifiedStyles: { "padding-top": "10px" } }),
+      e: edits({ inlineStyle: { "padding-top": "10px" } }),
     },
   ];
 
