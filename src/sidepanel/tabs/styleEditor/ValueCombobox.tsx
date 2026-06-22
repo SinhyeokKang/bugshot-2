@@ -217,7 +217,10 @@ export function ValueCombobox({
                 />
               ))}
               {valueTokenHint != null ? (
-                <span className="ml-auto max-w-[120px] shrink-0 truncate text-[10px] text-muted-foreground/70">
+                <span
+                  data-testid="token-value-hint"
+                  className="ml-auto max-w-[120px] shrink-0 truncate text-[10px] text-muted-foreground/70"
+                >
                   {valueTokenHint}
                 </span>
               ) : null}

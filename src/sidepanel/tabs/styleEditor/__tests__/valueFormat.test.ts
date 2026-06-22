@@ -78,7 +78,7 @@ describe("rightHintText", () => {
     });
   });
 
-  describe("length/number — computed 유지", () => {
+  describe("length/number 직접값 — computed 유지", () => {
     it("length computed 표시", () => {
       expect(rightHintText("length", "16px", undefined, false)).toBe("16px");
     });
@@ -93,6 +93,23 @@ describe("rightHintText", () => {
     });
     it("computed가 토큰값이면 null", () => {
       expect(rightHintText("length", "var(--x)", undefined, false)).toBeNull();
+    });
+  });
+
+  describe("length/number 토큰 — 원시값 우선(stale computed 회귀 방지)", () => {
+    // computed(selection.computedStyles)는 편집 전 baseline에 고정돼 토큰 변경 시
+    // stale하다. 토큰 참조가 있으면 토큰 정의값을 보여줘 즉시 갱신되게 한다.
+    it("length 토큰 원시값 표시 (stale computed 무시)", () => {
+      expect(rightHintText("length", "8px", "24px", false)).toBe("24px");
+    });
+    it("length 토큰 compact는 px 축약", () => {
+      expect(rightHintText("length", "8px", "24px", true)).toBe("24");
+    });
+    it("number 토큰 원시값", () => {
+      expect(rightHintText("number", "1", "2", false)).toBe("2");
+    });
+    it("토큰값 미해결(undefined)이면 computed 폴백", () => {
+      expect(rightHintText("length", "8px", undefined, false)).toBe("8px");
     });
   });
 

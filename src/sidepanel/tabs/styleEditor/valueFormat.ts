@@ -28,8 +28,9 @@ export function shortValue(v: string): string {
   return v;
 }
 
-// 트리거 우측 미리보기 텍스트. color/image 토큰은 원시값(드롭다운과 일관),
-// length/number는 computed(토큰값·빈값 제외)를 반환한다.
+// 트리거 우측 미리보기 텍스트. color/image 토큰은 원시값(드롭다운과 일관).
+// length/number는 토큰 참조면 토큰 정의값(원시값) 우선 — computed는 편집 전
+// baseline에 고정돼 토큰 변경 시 stale하기 때문. 직접값은 computed로 폴백.
 export function rightHintText(
   category: TokenCategory | undefined,
   computed: string,
@@ -40,6 +41,7 @@ export function rightHintText(
     return tokenRawValue ?? null;
   }
   if (category === "length" || category === "number") {
+    if (tokenRawValue) return compact ? shortValue(tokenRawValue) : tokenRawValue;
     if (!computed || isTokenValue(computed)) return null;
     return compact ? shortValue(computed) : computed;
   }
