@@ -30,11 +30,14 @@ export async function startVideoCapture(tabId: number): Promise<void> {
     clearActionRecorder(tabId).catch((err) => console.warn("[bugshot] action recorder clear failed", err)),
   ]);
 
-  useEditorStore.getState().startRecording({
-    tabId,
-    url: tab.url ?? "",
-    title: tab.title ?? "",
-  });
+  useEditorStore.getState().startRecording(
+    {
+      tabId,
+      url: tab.url ?? "",
+      title: tab.title ?? "",
+    },
+    "tab",
+  );
   try {
     await videoRecorder.startRecording(tabId);
   } catch (err) {
@@ -44,6 +47,56 @@ export async function startVideoCapture(tabId: number): Promise<void> {
     } else {
       console.warn("[bugshot] video recording failed to start", err);
     }
+  }
+}
+
+// 화면 전체 녹화 — getDisplayMedia를 첫 await로 호출(transient user activation 보존:
+// 그 전에 다른 await를 두면 picker가 안 뜬다). 취소(NotAllowedError)는 조용히 no-op.
+export async function startScreenCapture(tabId: number): Promise<void> {
+  let stream: MediaStream;
+  try {
+    stream = await navigator.mediaDevices.getDisplayMedia({
+      // 1080p 상한 — 4K 전체화면 60초의 과압축·대용량(IndexedDB)을 방지. frameRate 12.
+      video: { width: { max: 1920 }, height: { max: 1080 }, frameRate: 12 },
+      audio: false,
+    });
+  } catch (err) {
+    if (!(err instanceof DOMException && err.name === "NotAllowedError")) {
+      console.warn("[bugshot] screen capture failed to start", err);
+    }
+    return;
+  }
+
+  deleteNetworkLog(`pending:${tabId}`).catch(() => {});
+  deleteConsoleLog(`pending:${tabId}`).catch(() => {});
+  deleteActionLog(`pending:${tabId}`).catch(() => {});
+
+  await Promise.all([
+    activateNetworkRecorder(tabId).catch((err) => console.warn("[bugshot] network recorder activate failed", err)),
+    activateConsoleRecorder(tabId).catch((err) => console.warn("[bugshot] console recorder activate failed", err)),
+    activateActionRecorder(tabId).catch((err) => console.warn("[bugshot] action recorder activate failed", err)),
+  ]);
+  await Promise.all([
+    clearNetworkRecorder(tabId).catch((err) => console.warn("[bugshot] network recorder clear failed", err)),
+    clearConsoleRecorder(tabId).catch((err) => console.warn("[bugshot] console recorder clear failed", err)),
+    clearActionRecorder(tabId).catch((err) => console.warn("[bugshot] action recorder clear failed", err)),
+  ]);
+
+  const tab = await chrome.tabs.get(tabId);
+  useEditorStore.getState().startRecording(
+    {
+      tabId,
+      url: tab.url ?? "",
+      title: tab.title ?? "",
+    },
+    "screen",
+  );
+  try {
+    videoRecorder.startScreenRecording(stream, tabId);
+  } catch (err) {
+    useEditorStore.getState().cancelRecording();
+    stream.getTracks().forEach((t) => t.stop());
+    console.warn("[bugshot] screen recording failed to start", err);
   }
 }
 

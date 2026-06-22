@@ -25,8 +25,8 @@
   - **track `ended` 리스너 정리**: `beginRecording`에서 `ended` 핸들러를 named 함수로 만들어 `RecorderState`에 보관하고 video track에 등록(`stopRecording` 호출). `onstop`과 **`cancelRecording` 양쪽**에서 `track.removeEventListener("ended", handler)`. `cancelRecording` 본문에 ended 정리 추가(현재 없음).
   - onstop의 viewport: `viewportHint`가 있으면 사용. 화면 경로에서 `viewportHint` undefined면 `{0,0}` 유지(현재 탭 크기 폴백 금지). tab 경로는 기존 `chrome.tabs.get` 폴백.
 - **검증**:
-  - [ ] `pnpm typecheck` 통과
-  - [ ] `trackViewport` 단위 테스트(가짜 settings → {w,h} / undefined 분기) — `src/sidepanel/lib/__tests__/` 또는 video-recorder 인접 `__tests__`, Vitest. `pnpm test` 통과
+  - [x] `pnpm typecheck` 통과
+  - [x] `trackViewport` 단위 테스트(가짜 settings → {w,h} / undefined 분기) — `src/sidepanel/lib/__tests__/trackViewport.test.ts`, 5 케이스 green
   - [ ] 기존 탭 녹화(mode-video)가 회귀 없이 동작(수동: 녹화→drafting 영상 재생)
   - [ ] (수동) 공유 중지·패널 중지·60초 3경로 경합 시 `onRecordingComplete` 중복 미발생(이중 종료 안전 + ended 리스너 정리)
 
@@ -39,7 +39,7 @@
     3. `chrome.tabs.get(tabId)`로 url/title 확보(getDisplayMedia 이후) → `store.startRecording({ tabId, url, title, source: "screen" })`.
     4. `try { videoRecorder.startScreenRecording(stream, tabId) } catch` → 실패 시 `store.cancelRecording()` + `stream.getTracks().forEach(t => t.stop())`.
 - **검증**:
-  - [ ] `pnpm typecheck` 통과
+  - [x] `pnpm typecheck` 통과
   - [ ] (수동) 버튼 클릭 → getDisplayMedia picker 표시
   - [ ] (수동) picker 취소(NotAllowedError) → idle 유지, 콘솔 경고 **없음**
   - [ ] (수동) picker 열린 채 다른 캡처 트리거(단축키 등) 시 상태 깨짐 없음
@@ -66,7 +66,7 @@
   - `issue.mode.screenRecord` 신규: "화면 녹화" / "Record screen"(ko·en).
   - RecordingState source 키 신규: `issue.recording.tab`("탭 녹화 중"/"Recording tab") · `issue.recording.screen`("화면 녹화 중"/"Recording screen"). 기존 녹화중 라벨이 단일 키면 두 키로 분기.
 - **검증**:
-  - [ ] PostToolUse 훅(locales.test.ts) 통과 — ko/en 키 대칭·빈 값·placeholder 일치
+  - [x] PostToolUse 훅(locales.test.ts) 통과 — ko/en 키 대칭·빈 값·placeholder 일치
   - [ ] 양 로케일에서 버튼·녹화중 라벨 정상 표시
 
 ### Task 5: privacy.md 갱신
