@@ -15,7 +15,7 @@ In the **Recording settings** section, pick ahead of time whether the record but
 - **Tab** — Records only the tab you're looking at. Fast, with no share picker.
 - **Screen** — Pick the full screen or a specific window to record. Use it when you need to capture beyond the tab (another app window, a payment or login window that pops up on its own).
 
-Once you pick a mode, it stays put until you change it. The **gear (⚙)** to the right of the record button on the capture screen opens the same settings in a small dialog, so you can change them without leaving the capture screen. Whether you change it in the Settings tab or in that dialog, it's the same setting and always stays in sync.
+Once you pick a mode, it stays put until you change it. Your choice shows up right away in the record button's icon and label on the capture screen.
 
 ![Recording mode setting](../assets/settings-issue-2.jpg)
 

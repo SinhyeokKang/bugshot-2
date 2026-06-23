@@ -16,7 +16,7 @@ Granting this permission once comes with a bonus beyond replay: even if you **na
 
 Once it's ready, the **30s replay** button on the debug screen pulls the last 30 seconds into a video. A quick glance at the button tells you what's going on.
 
-- **Disabled** — Not turned on in settings yet. (Click it to open the **Recording settings** dialog and turn it on right there.)
+- **Disabled** — Not turned on in settings yet. (Click it to jump to **Issue settings**, where you can turn it on right there.)
 - **Recording** — The screen is being recorded. You can grab the last 30 seconds anytime.
 - **Encoding…** — Turning the grabbed 30 seconds into a video.
 - **Ready** — The video is made and attached to the issue.

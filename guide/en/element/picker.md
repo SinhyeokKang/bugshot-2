@@ -2,7 +2,7 @@
 
 ## Start picking
 
-In the **Debug** tab, click **Edit element**. A crosshair appears over the page, and the element under your cursor lights up.
+In the **Debug** tab, click **Edit element style**. A crosshair appears over the page, and the element under your cursor lights up.
 
 > Just want a screenshot of the element without touching its styles? [Capture element](../screenshot/capture.md) is the quicker route.
 

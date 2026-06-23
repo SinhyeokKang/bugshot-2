@@ -1,10 +1,10 @@
 # Live Recording
 
-BugShot's live recording starts from a single **record button** on the capture screen. Whether it captures just the **tab** you're looking at or the **full screen and other windows** too is something you pick ahead of time in settings — and the gear next to the button lets you switch anytime, so don't sweat it.
+BugShot's live recording starts from a single **record button** on the capture screen. Whether it captures just the **tab** you're looking at or the **full screen and other windows** too is something you pick ahead of time in settings — and you can change it anytime, so don't sweat it.
 
 ## Choosing the recording mode
 
-The record button in the **Debug** tab follows the mode you picked in settings (**Record tab** / **Record screen**). Choose it under **Settings > Issue settings > Recording settings > Recording mode**, or hit the **gear (⚙)** to the right of the record button to open a small **Recording settings** dialog right there — no trip to the Settings tab needed. Your choice shows up immediately in the record button's icon and label.
+The record button in the **Debug** tab follows the mode you picked in settings (**Record tab** / **Record screen**). Choose it under **Settings > Issue settings > Recording settings > Recording mode**. Your choice shows up immediately in the record button's icon and label.
 
 ![Record button and mode setting](../assets/video-record-1.jpg)
 
