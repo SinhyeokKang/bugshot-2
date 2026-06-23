@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { findActiveIndex } from "@/log-viewer/timeline";
-import { formatRelativeTime, syncRowClass, ROW_CARD_CLASS, ROW_LIST_CLASS } from "@/sidepanel/lib/logRow";
+import { formatRelativeTime, syncRowClass } from "@/sidepanel/lib/logRow";
 import { useScrollToEntry } from "@/sidepanel/lib/useScrollToEntry";
 import { distinctOriginKeys, originKey, originCounts } from "@/sidepanel/lib/logOrigin";
 import { OriginFilterBar } from "./OriginFilterBar";
@@ -213,7 +213,7 @@ export function ActionLogContent({ entries, startedAt, flush, syncBaseMs, onSeek
         </div>
       ) : (
         <ScrollArea ref={listScrollRef} className="min-h-0 flex-1">
-          <div className={ROW_LIST_CLASS}>
+          <div className="overflow-hidden">
             {filteredEntries.map((entry) => (
               <ActionRow
                 key={entry.id}
@@ -244,7 +244,7 @@ function ActionRow({ entry, startedAt, syncBaseMs, onSeek, isActive }: {
     <div
       data-entry-id={entry.id}
       data-kind={entry.kind}
-      className={`${ROW_CARD_CLASS} ${syncRowClass(!!onSeek, !!isActive, kindBgColor(entry.kind))}`}
+      className={syncRowClass(!!onSeek, !!isActive, kindBgColor(entry.kind))}
       aria-current={isActive ? "true" : undefined}
     >
       <div className="flex items-center gap-3 px-3 py-2 text-[13px]">
