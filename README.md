@@ -15,7 +15,8 @@ A Chrome extension for bug reporting. Pick elements, tweak CSS, and file issues 
 ### Capture
 
 - **Screenshot & annotation** — area crop with arrows, text, shapes, and highlights
-- **Screen recording** — record the current tab for up to 60 seconds
+- **Tab recording** — record the current tab for up to 60 seconds
+- **Screen recording** — record any window or the full screen via the system picker, up to 60 seconds
 - **30s Replay** — opt-in mode that captures the last 30 seconds as MP4, looking back across page navigations (no need to hit record beforehand)
 
 ### Auto-logging

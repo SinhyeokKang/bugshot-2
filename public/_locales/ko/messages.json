@@ -13,14 +13,5 @@
   },
   "CMD_TOGGLE_PANEL": {
     "message": "BugShot 사이드 패널 열기"
-  },
-  "CMD_CAPTURE_ELEMENT": {
-    "message": "요소 선택 캡처 시작"
-  },
-  "CMD_CAPTURE_SCREENSHOT": {
-    "message": "화면 영역 캡처 시작"
-  },
-  "CMD_CAPTURE_VIDEO": {
-    "message": "영상 녹화 시작"
   }
 }

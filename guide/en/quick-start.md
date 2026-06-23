@@ -26,7 +26,7 @@ To file an issue you need at least one platform connected. In the **Integrations
 
 In the **Debug** tab, pick a capture mode.
 
-- **Edit element styles** — Pick an element, edit its styles, and report before/after.
+- **Edit element style** — Pick an element, edit its styles, and report before/after.
 - **Capture element** — Click an element to crop just that element as a screenshot.
 - **Capture area** — Drag a screen region and mark it up.
 - **Record screen** — Record the behavior as a video.

@@ -88,7 +88,7 @@ export async function getVideoBlob(issueId: string): Promise<Blob | null> {
     const tx = db.transaction(STORE_VIDEO, "readonly");
     const req = tx.objectStore(STORE_VIDEO).get(issueId);
     await txComplete(tx);
-    return (req.result as Blob) ?? null;
+    return req.result instanceof Blob ? req.result : null;
   } catch (e) {
     console.warn("[blob-db] getVideoBlob failed:", e);
     return null;
@@ -179,7 +179,7 @@ export async function getImageBlob(
     const tx = db.transaction(STORE_IMAGES, "readonly");
     const req = tx.objectStore(STORE_IMAGES).get(imageKey(issueId, slot));
     await txComplete(tx);
-    return (req.result as Blob) ?? null;
+    return req.result instanceof Blob ? req.result : null;
   } catch (e) {
     console.warn("[blob-db] getImageBlob failed:", e);
     return null;
@@ -443,7 +443,7 @@ export async function getInlineImage(refId: string): Promise<Blob | null> {
     const tx = db.transaction(STORE_INLINE_IMAGES, "readonly");
     const req = tx.objectStore(STORE_INLINE_IMAGES).get(refId);
     await txComplete(tx);
-    return (req.result as Blob) ?? null;
+    return req.result instanceof Blob ? req.result : null;
   } catch (e) {
     console.warn("[blob-db] getInlineImage failed:", e);
     return null;
@@ -557,7 +557,7 @@ export async function getAttachmentBlob(owner: string, id: string): Promise<Blob
     const tx = db.transaction(STORE_ATTACHMENTS, "readonly");
     const req = tx.objectStore(STORE_ATTACHMENTS).get(attachmentKey(owner, id));
     await txComplete(tx);
-    return (req.result as Blob) ?? null;
+    return req.result instanceof Blob ? req.result : null;
   } catch (e) {
     console.warn("[blob-db] getAttachmentBlob failed:", e);
     return null;

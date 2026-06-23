@@ -1,3 +1,5 @@
+// 저장된 API 키의 평문 노출만 차단하는 난독화(XOR+base64). 암호화가 아니다 —
+// SALT가 코드에 박혀 있어 복원 가능하며, 기밀성이 아니라 우발적 노출 방지가 목적.
 const SALT = "bugshot-key-guard";
 const OBF_PREFIX = "obf:";
 

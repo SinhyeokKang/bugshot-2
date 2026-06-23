@@ -1,10 +1,5 @@
 import { t } from "@/i18n";
 import { initBgLocale } from "@/i18n/bg-init";
-import {
-  CAPTURE_SHORTCUT_MSG,
-  CAPTURE_COMMANDS,
-  type CaptureCommand,
-} from "@/lib/capture-commands";
 import { PANEL_PORT_PREFIX, sessionKey } from "@/lib/session-keys";
 import { GithubError } from "./github-api";
 import { JiraError } from "./jira-api";
@@ -15,7 +10,7 @@ import { AsanaError } from "./asana-api";
 import { handleMessage } from "./messages";
 import { BG_REQUEST_TYPES } from "./bgRequestTypes";
 import { captureEvent } from "./analytics";
-import { OAuthError } from "./oauth";
+import { OAuthError, serializeOAuthError } from "./oauth";
 import { pruneOrphanPendingLogsOncePerSession } from "@/lib/pending-log-prune";
 import { shouldClearLogs } from "@/lib/navigation-clear";
 import type { BgInternalMessage } from "@/types/messages";
@@ -107,18 +102,6 @@ chrome.runtime.onConnect.addListener((port) => {
       .catch(() => {});
     stopRecorders(tabId);
   });
-});
-
-chrome.commands.onCommand.addListener((command, tab) => {
-  if (!(CAPTURE_COMMANDS as readonly string[]).includes(command)) return;
-  if (tab?.id == null) return;
-  chrome.runtime
-    .sendMessage({
-      type: CAPTURE_SHORTCUT_MSG,
-      command: command as CaptureCommand,
-      tabId: tab.id,
-    })
-    .catch(() => {});
 });
 
 // --- 네비게이션 로그 관리 ---
@@ -231,14 +214,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           body: error.body,
         });
       } else if (error instanceof OAuthError) {
-        sendResponse({
-          ok: false,
-          error: error.message,
-          status: error.cancelled ? undefined : 401,
-          body: error.cancelled
-            ? { oauthCancelled: true, platform: error.platform }
-            : { oauthRefreshFailed: true, platform: error.platform },
-        });
+        const { status, body } = serializeOAuthError(error);
+        sendResponse({ ok: false, error: error.message, status, body });
       } else {
         sendResponse({ ok: false, error: friendlyError(error) });
       }

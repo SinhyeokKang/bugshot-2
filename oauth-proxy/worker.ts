@@ -343,6 +343,8 @@ async function relayUpstream(upstream: Response, corsOrigin: string): Promise<Re
 }
 
 export function resolveCorsOrigin(origin: string, allowedEnv: string | undefined): string {
+  // allowed 리스트가 비었거나(설정 누락) origin이 미허용이면 "null"을 반환 —
+  // 브라우저가 cross-origin 응답을 거부하는 명시적 차단값(허용 안 함).
   const list = (allowedEnv ?? "").split(",").map((s) => s.trim()).filter(Boolean);
   if (list.length === 0) return "null";
   if (list.includes("*")) return origin || "*";

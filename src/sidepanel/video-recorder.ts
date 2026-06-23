@@ -1,10 +1,11 @@
-import { useEditorStore } from "@/store/editor-store";
+import { useEditorStore, type RecordingSource } from "@/store/editor-store";
 import {
   stopConsoleRecorder,
   stopNetworkRecorder,
   stopActionRecorder,
 } from "./picker-control";
 import { pickVideoRecorderMime } from "./lib/video-mime";
+import { trackViewport } from "./lib/trackViewport";
 
 const MAX_DURATION_SEC = 60;
 
@@ -15,9 +16,113 @@ interface RecorderState {
   startTime: number;
   tabId: number;
   maxTimer: number;
+  source: RecordingSource;
+  endedTrack?: MediaStreamTrack;
+  endedHandler?: () => void;
 }
 
 let state: RecorderState | null = null;
+
+// 스트림 획득 이후 공통 본문 — tabCapture(startRecording)·getDisplayMedia(startScreenRecording)가 공유.
+// source가 "screen"이면 viewportHint(track 해상도)를 viewport로 쓰고, 사용자의 "공유 중지"(track ended)에
+// stopRecording을 바인딩한다. tab은 onstop에서 chrome.tabs.get으로 viewport를 잡는다.
+function beginRecording(
+  stream: MediaStream,
+  tabId: number,
+  opts: { source: RecordingSource; viewportHint?: { width: number; height: number } },
+): void {
+  const mimeType = pickVideoRecorderMime();
+  const recorder = new MediaRecorder(stream, {
+    ...(mimeType ? { mimeType } : {}),
+    // 2Mbps — 텍스트를 선명히 인코딩할 헤드룸. 일반(저모션)은 quality-bound라 안 닿고 작게 유지,
+    // 과모션 세션만 이 선까지 써서 선명+커짐(소수 업로드 실패는 수용한 트레이드오프).
+    videoBitsPerSecond: 2_000_000,
+  });
+
+  const chunks: Blob[] = [];
+  recorder.ondataavailable = (e) => {
+    if (e.data.size > 0) chunks.push(e.data);
+  };
+
+  recorder.onstop = async () => {
+    const localEndedAt = Date.now();
+    const s = state;
+    if (!s) return;
+    window.clearTimeout(s.maxTimer);
+    if (s.endedTrack && s.endedHandler) {
+      s.endedTrack.removeEventListener("ended", s.endedHandler);
+    }
+    s.stream.getTracks().forEach((t) => t.stop());
+
+    // Strip codec parameter — mp4 recorder mime contains
+    // `codecs="avc1.42E01E,mp4a.40.2"` whose comma breaks downstream data URL
+    // parsers (GitHub asset upload uses a strict regex).
+    const recorderMime = s.recorder.mimeType || mimeType || "video/webm";
+    const blobType = recorderMime.split(";")[0] || "video/webm";
+    const blob = new Blob(chunks, { type: blobType });
+    const localTabId = s.tabId;
+    const localStartTime = s.startTime;
+    const localSource = s.source;
+    state = null;
+
+    let thumbnail: string;
+    try {
+      thumbnail = await generateThumbnail(blob);
+    } catch {
+      thumbnail = "";
+    }
+
+    // 화면 녹화 viewport는 track 해상도(다른 모니터일 수 있어 현재 탭 크기 폴백 금지 — undefined면 {0,0}).
+    let viewport =
+      localSource === "screen" ? opts.viewportHint ?? { width: 0, height: 0 } : { width: 0, height: 0 };
+    try {
+      const tab = await chrome.tabs.get(localTabId);
+      if (localSource === "tab") {
+        viewport = { width: tab.width ?? 0, height: tab.height ?? 0 };
+      }
+      const store = useEditorStore.getState();
+      if (store.target && (tab.url || tab.title)) {
+        useEditorStore.setState({
+          target: {
+            ...store.target,
+            url: tab.url ?? store.target.url,
+            title: tab.title ?? store.target.title,
+          },
+        });
+      }
+    } catch { /* tab closed */ }
+
+    useEditorStore
+      .getState()
+      .onRecordingComplete(blob, thumbnail, viewport, localStartTime, localEndedAt);
+  };
+
+  recorder.start(1000);
+
+  const maxTimer = window.setTimeout(() => {
+    stopRecording();
+  }, MAX_DURATION_SEC * 1000);
+
+  let endedTrack: MediaStreamTrack | undefined;
+  let endedHandler: (() => void) | undefined;
+  if (opts.source === "screen") {
+    endedTrack = stream.getVideoTracks()[0];
+    endedHandler = () => stopRecording();
+    endedTrack?.addEventListener("ended", endedHandler);
+  }
+
+  state = {
+    stream,
+    recorder,
+    chunks,
+    startTime: Date.now(),
+    tabId,
+    maxTimer,
+    source: opts.source,
+    endedTrack,
+    endedHandler,
+  };
+}
 
 export async function startRecording(tabId: number): Promise<void> {
   if (state) cancelRecording();
@@ -48,78 +153,19 @@ export async function startRecording(tabId: number): Promise<void> {
     },
   } as MediaStreamConstraints);
 
-  const mimeType = pickVideoRecorderMime();
-  const recorder = new MediaRecorder(stream, {
-    ...(mimeType ? { mimeType } : {}),
-    // 2Mbps — 720p 텍스트를 선명히 인코딩할 헤드룸. 일반(저모션)은 quality-bound라 안 닿고
-    // 작게 유지, 과모션 세션만 이 선까지 써서 선명+커짐(소수 업로드 실패는 수용한 트레이드오프).
-    videoBitsPerSecond: 2_000_000,
-  });
+  beginRecording(stream, tabId, { source: "tab" });
+}
 
-  const chunks: Blob[] = [];
-  recorder.ondataavailable = (e) => {
-    if (e.data.size > 0) chunks.push(e.data);
-  };
-
-  recorder.onstop = async () => {
-    const localEndedAt = Date.now();
-    const s = state;
-    if (!s) return;
-    window.clearTimeout(s.maxTimer);
-    s.stream.getTracks().forEach((t) => t.stop());
-
-    // Strip codec parameter — mp4 recorder mime contains
-    // `codecs="avc1.42E01E,mp4a.40.2"` whose comma breaks downstream data URL
-    // parsers (GitHub asset upload uses a strict regex).
-    const recorderMime = s.recorder.mimeType || mimeType || "video/webm";
-    const blobType = recorderMime.split(";")[0] || "video/webm";
-    const blob = new Blob(chunks, { type: blobType });
-    const localTabId = s.tabId;
-    const localStartTime = s.startTime;
-    state = null;
-
-    let thumbnail: string;
-    try {
-      thumbnail = await generateThumbnail(blob);
-    } catch {
-      thumbnail = "";
-    }
-
-    let viewport = { width: 0, height: 0 };
-    try {
-      const tab = await chrome.tabs.get(localTabId);
-      viewport = { width: tab.width ?? 0, height: tab.height ?? 0 };
-      const store = useEditorStore.getState();
-      if (store.target && (tab.url || tab.title)) {
-        useEditorStore.setState({
-          target: {
-            ...store.target,
-            url: tab.url ?? store.target.url,
-            title: tab.title ?? store.target.title,
-          },
-        });
-      }
-    } catch { /* tab closed */ }
-
-    useEditorStore
-      .getState()
-      .onRecordingComplete(blob, thumbnail, viewport, localStartTime, localEndedAt);
-  };
-
-  recorder.start(1000);
-
-  const maxTimer = window.setTimeout(() => {
-    stopRecording();
-  }, MAX_DURATION_SEC * 1000);
-
-  state = {
-    stream,
-    recorder,
-    chunks,
-    startTime: Date.now(),
-    tabId,
-    maxTimer,
-  };
+// 화면 전체 녹화 — getDisplayMedia 스트림은 video-capture에서 미리 획득(user activation 보존).
+export function startScreenRecording(stream: MediaStream, tabId: number): void {
+  if (state) cancelRecording();
+  // getDisplayMedia 획득~셋업 사이에 사용자가 OS "공유 중지"를 누르면 track이 이미 ended —
+  // ended 리스너 바인딩 전이라 빈 세션으로 시작된다. throw해 호출자 catch가 stream·store를 정리한다.
+  const track = stream.getVideoTracks()[0];
+  if (!track || track.readyState === "ended") {
+    throw new Error("screen capture track ended before recording started");
+  }
+  beginRecording(stream, tabId, { source: "screen", viewportHint: trackViewport(stream) });
 }
 
 export function stopRecording(): void {
@@ -135,6 +181,9 @@ export function stopRecording(): void {
 export function cancelRecording(): void {
   if (!state) return;
   window.clearTimeout(state.maxTimer);
+  if (state.endedTrack && state.endedHandler) {
+    state.endedTrack.removeEventListener("ended", state.endedHandler);
+  }
   state.recorder.ondataavailable = null;
   state.recorder.onstop = null;
   if (state.recorder.state === "recording") {

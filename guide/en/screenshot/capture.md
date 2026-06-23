@@ -4,9 +4,7 @@ You can grab a screenshot two ways: **Capture area**, where you drag a region of
 
 ## Capture an area
 
-In the **Debug** tab, click **Capture area**, or press `Cmd/Ctrl+Shift+F`.
-
-> If the shortcut doesn't respond, it may be clashing with your OS or another extension — feel free to start from the button instead.
+In the **Debug** tab, click **Capture area**.
 
 Drag to select the region you want to capture. You can crop just the part where the bug shows up instead of the whole page, so the reader knows exactly where to look.
 

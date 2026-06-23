@@ -6,7 +6,12 @@ const ko = {
   "settings.titlePrefix.placeholder": "[QA] ",
   "settings.titlePrefix.help": "이슈 제목 앞에 붙는 접두어입니다.",
   "settings.bodyComposition": "본문 구성",
-  "settings.capture": "캡처 설정",
+  "settings.recording": "녹화 설정",
+  "settings.recordingMode.label": "녹화 모드",
+  "settings.recordingMode.help":
+    "녹화 버튼으로 시작할 모드입니다. 탭 녹화는 현재 탭만, 화면 녹화는 원하는 화면·창을 담습니다.",
+  "settings.recordingMode.tab": "탭",
+  "settings.recordingMode.screen": "화면",
   "settings.replay.label": "30초 리플레이",
   "settings.replay.help":
     "화면의 최근 30초를 항상 기록해 둡니다. 버그를 발견하면 버튼 한 번으로 직전 상황을 영상으로 첨부할 수 있습니다.",
@@ -86,7 +91,12 @@ const en = {
   "settings.titlePrefix.placeholder": "[QA] ",
   "settings.titlePrefix.help": "Automatically prepended to issue titles.",
   "settings.bodyComposition": "Body composition",
-  "settings.capture": "Capture settings",
+  "settings.recording": "Recording settings",
+  "settings.recordingMode.label": "Recording mode",
+  "settings.recordingMode.help":
+    "The mode the record button starts. Record tab captures the current tab only; record screen captures any screen or window you choose.",
+  "settings.recordingMode.tab": "Tab",
+  "settings.recordingMode.screen": "Screen",
   "settings.replay.label": "30s replay",
   "settings.replay.help":
     "Always keeps the last 30 seconds of your screen. Spot a bug? Attach what just happened as a video in one click.",

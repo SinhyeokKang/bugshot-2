@@ -60,10 +60,11 @@ async function pruneOrphanBlobs(): Promise<void> {
   const currentIds = new Set(
     useIssuesStore.getState().issues.map((i) => i.id),
   );
+  const deletions: Promise<unknown>[] = [];
   const videoBlobKeys = await getVideoBlobKeys();
   for (const key of videoBlobKeys) {
     if (!currentIds.has(key)) {
-      deleteVideoBlob(key).catch(() => {});
+      deletions.push(deleteVideoBlob(key));
     }
   }
   const imageBlobKeys = await getImageBlobKeys();
@@ -72,28 +73,28 @@ async function pruneOrphanBlobs(): Promise<void> {
     const issueId = key.split(":")[0];
     if (!currentIds.has(issueId) && !prunedImageIds.has(issueId)) {
       prunedImageIds.add(issueId);
-      deleteImageBlobs(issueId).catch(() => {});
+      deletions.push(deleteImageBlobs(issueId));
     }
   }
   const networkLogKeys = await getNetworkLogKeys();
   for (const key of networkLogKeys) {
     if (key.startsWith("pending:")) continue;
     if (!currentIds.has(key)) {
-      deleteNetworkLog(key).catch(() => {});
+      deletions.push(deleteNetworkLog(key));
     }
   }
   const consoleLogKeys = await getConsoleLogKeys();
   for (const key of consoleLogKeys) {
     if (key.startsWith("pending:")) continue;
     if (!currentIds.has(key)) {
-      deleteConsoleLog(key).catch(() => {});
+      deletions.push(deleteConsoleLog(key));
     }
   }
   const actionLogKeys = await getActionLogKeys();
   for (const key of actionLogKeys) {
     if (key.startsWith("pending:")) continue;
     if (!currentIds.has(key)) {
-      deleteActionLog(key).catch(() => {});
+      deletions.push(deleteActionLog(key));
     }
   }
   const attachmentBlobKeys = await getAttachmentBlobKeys();
@@ -103,9 +104,10 @@ async function pruneOrphanBlobs(): Promise<void> {
     const issueId = key.split(":")[0];
     if (!currentIds.has(issueId) && !prunedAttIds.has(issueId)) {
       prunedAttIds.add(issueId);
-      deleteAttachmentBlobs(issueId).catch(() => {});
+      deletions.push(deleteAttachmentBlobs(issueId));
     }
   }
+  await Promise.allSettled(deletions);
 }
 
 function resetEditorIfEditing(removedId: string | null): void {

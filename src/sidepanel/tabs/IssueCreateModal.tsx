@@ -13,14 +13,11 @@ import {
   useSettingsStore,
 } from "@/store/settings-store";
 import type { PlatformId } from "@/types/platform";
-import { sendBg, type JiraSubmitResult } from "@/types/messages";
-import { buildIssueAdf, type AdfDoc } from "@/sidepanel/lib/buildIssueAdf";
 import { buildCaptureFiles, type CaptureFiles } from "@/sidepanel/lib/buildCaptureFiles";
 import { buildEditorMarkdownContext, buildEditorLogsCaptureInput } from "@/sidepanel/lib/buildEditorCapture";
-import { annotateAttachmentDimensions } from "@/sidepanel/lib/attachmentDimensions";
-import type { JiraAttachmentInput } from "@/types/jira";
 import { type MarkdownContext } from "@/sidepanel/lib/buildIssueMarkdown";
 import type { NormalizedSubmitResult } from "@/types/platform";
+import { submitToJira } from "@/sidepanel/lib/submitToJira";
 import { submitToGithub } from "@/sidepanel/lib/submitToGithub";
 import { submitToLinear } from "@/sidepanel/lib/submitToLinear";
 import { submitToNotion } from "@/sidepanel/lib/submitToNotion";
@@ -152,34 +149,21 @@ export function IssueCreateModal() {
       throw new Error(t("platform.notConnected.title", { platform: t("platform.tab.jira") }));
     }
     if (!issueFields.issueTypeId) throw new Error(t("create.requiredMissing"));
-    const description: AdfDoc = buildIssueAdf(ctx, inlineImages.map((i) => i.refId), issueFields.cc);
-    const rawAttachments: JiraAttachmentInput[] = [
-      ...captureFiles.images,
-      ...(captureFiles.video ? [captureFiles.video] : []),
-      ...captureFiles.logs,
-    ];
-    for (const img of inlineImages) {
-      rawAttachments.push({ filename: `inline-${img.refId}.webp`, dataUrl: img.dataUrl });
-    }
-    // 사용자 첨부: Jira는 업로드 시 attachment 영역에 자동 등록(본문 placeholder 불필요). 표시명=원본.
-    for (const a of captureFiles.attachments) {
-      rawAttachments.push({ filename: a.displayName ?? a.filename, dataUrl: a.dataUrl });
-    }
-    const attachments = await annotateAttachmentDimensions(rawAttachments);
-
-    const result = await sendBg<JiraSubmitResult>({
-      type: "jira.submitIssue",
-      payload: {
-        projectKey: jiraAccount.projectKey,
-        summary: draft!.title.trim(),
-        description,
-        issueTypeId: issueFields.issueTypeId,
-        assigneeAccountId: issueFields.assigneeId,
-        priorityId: issueFields.priorityId,
-        parentKey: issueFields.parentKey,
-      },
-      attachments,
+    const result = await submitToJira({
+      ctx,
+      inlineImages,
+      images: captureFiles.images,
+      video: captureFiles.video,
+      logs: captureFiles.logs,
+      attachments: captureFiles.attachments,
+      projectKey: jiraAccount.projectKey,
+      summary: draft!.title.trim(),
+      issueTypeId: issueFields.issueTypeId,
+      assigneeAccountId: issueFields.assigneeId,
+      priorityId: issueFields.priorityId,
+      parentKey: issueFields.parentKey,
       relatesKey: issueFields.relatesKey,
+      cc: issueFields.cc,
     });
     if (currentIssueId) {
       markSubmitted(currentIssueId, {

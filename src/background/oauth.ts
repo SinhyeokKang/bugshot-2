@@ -33,6 +33,17 @@ export class OAuthError extends Error {
   }
 }
 
+// BgError body로 직렬화하는 단일 출처. messages.ts의 isOAuthCancelled /
+// isOAuthRefreshFailed / getOAuthErrorPlatform 판독부와 짝을 이룬다(드리프트 방지).
+export function serializeOAuthError(error: OAuthError): {
+  status: number | undefined;
+  body: Record<string, unknown>;
+} {
+  return error.cancelled
+    ? { status: undefined, body: { oauthCancelled: true, platform: error.platform } }
+    : { status: 401, body: { oauthRefreshFailed: true, platform: error.platform } };
+}
+
 export function base64url(buffer: ArrayBuffer): string {
   const bytes = new Uint8Array(buffer);
   let binary = "";

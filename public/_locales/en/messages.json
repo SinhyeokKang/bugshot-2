@@ -13,14 +13,5 @@
   },
   "CMD_TOGGLE_PANEL": {
     "message": "Open BugShot side panel"
-  },
-  "CMD_CAPTURE_ELEMENT": {
-    "message": "Start element capture"
-  },
-  "CMD_CAPTURE_SCREENSHOT": {
-    "message": "Start screen area capture"
-  },
-  "CMD_CAPTURE_VIDEO": {
-    "message": "Start video recording"
   }
 }

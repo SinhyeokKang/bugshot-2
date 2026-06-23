@@ -14,6 +14,7 @@ import { takeWithinLimits, type TakeWithinLimitsResult } from "@/sidepanel/lib/a
 import { clearNetworkRecorder, clearConsoleRecorder, clearActionRecorder } from "@/sidepanel/recorder-control";
 
 export type CaptureMode = "element" | "screenshot" | "video" | "freeform";
+export type RecordingSource = "tab" | "screen";
 
 export interface SubmitResult {
   key: string;
@@ -106,6 +107,7 @@ export interface EditorIssueFields {
 
 interface EditorState {
   captureMode: CaptureMode;
+  recordingSource: RecordingSource;
   phase: EditorPhase;
   targetPlatform: PlatformId;
   target: EditorTarget | null;
@@ -157,7 +159,7 @@ interface EditorState {
     image: string,
     viewport: { width: number; height: number },
   ) => void;
-  startRecording: (target: EditorTarget) => void;
+  startRecording: (target: EditorTarget, source: RecordingSource) => void;
   startFreeform: (target: EditorTarget) => void;
   onRecordingComplete: (blob: Blob, thumbnail: string, viewport: { width: number; height: number }, startedAt: number, endedAt: number) => void;
   cancelRecording: () => void;
@@ -242,6 +244,7 @@ export type EditorSnapshot = Pick<
 
 const initial = {
   captureMode: "element" as CaptureMode,
+  recordingSource: "tab" as RecordingSource,
   phase: "idle" as EditorPhase,
   targetPlatform: "jira" as PlatformId,
   target: null,
@@ -493,7 +496,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       screenshotCapturedAt: Date.now(),
       shotSelector: shot,
     }),
-  startRecording: (target) => set({ ...initial, captureMode: "video", phase: "recording", target }),
+  startRecording: (target, source) => set({ ...initial, captureMode: "video", recordingSource: source, phase: "recording", target }),
   onRecordingComplete: (blob, thumbnail, viewport, startedAt, endedAt) => set({ captureMode: "video", phase: "drafting", videoBlob: blob, videoThumbnail: thumbnail, videoViewport: viewport, videoCapturedAt: Date.now(), videoStartedAt: startedAt, videoEndedAt: endedAt, networkLogAttach: true, consoleLogAttach: true, actionLogAttach: true }),
   cancelRecording: () => set((state) => ({ ...initial, ...preserveLogs(state) })),
   // screenshot도 freeform/video와 동일하게 진입 시 첨부 토글 자동 on (startCapturing·startElementShot). preserveLogs는 로그 데이터 보존용이고 attach는 덮어쓴다.
@@ -850,9 +853,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       const tabId = state.target.tabId;
       const metas = state.attachments;
       useIssuesStore.getState().patchIssue(id, { attachments: metas });
-      attachmentRekeyInFlight = rekeyAttachmentBlobs(`pending:${tabId}`, id, metas.map((a) => a.id)).then((ok) => {
-        if (!ok) onBlobSaveFailed.fire();
-      });
+      // confirmDraft 동시 호출 시 이전 rekey가 끝난 뒤 실행되도록 체이닝(이전 promise 손실 방지).
+      const prev = attachmentRekeyInFlight;
+      attachmentRekeyInFlight = prev
+        .catch(() => {})
+        .then(() => rekeyAttachmentBlobs(`pending:${tabId}`, id, metas.map((a) => a.id)))
+        .then((ok) => {
+          if (!ok) onBlobSaveFailed.fire();
+        });
     }
     set({ phase: "previewing", currentIssueId: id });
     return true;

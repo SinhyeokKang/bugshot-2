@@ -1,12 +1,24 @@
 # Live Recording
 
-## Start recording
+BugShot's live recording starts from a single **record button** on the capture screen. Whether it captures just the **tab** you're looking at or the **full screen and other windows** too is something you pick ahead of time in settings — and you can change it anytime, so don't sweat it.
 
-In the **Debug** tab, click **Record screen**, or press `Cmd/Ctrl+Shift+X`, and recording starts.
+## Choosing the recording mode
 
-> If the shortcut doesn't respond, it may be clashing with your OS or another extension — feel free to start from the button instead.
+The record button in the **Debug** tab follows the mode you picked in settings (**Record tab** / **Record screen**). Choose it under **Settings > Issue settings > Recording settings > Recording mode**. Your choice shows up immediately in the record button's icon and label.
 
-![Start recording](../assets/video-record-1.jpg)
+![Record button and mode setting](../assets/video-record-1.jpg)
+
+## Tab recording
+
+With **Record tab** selected, one click on the record button starts recording the tab you're looking at — fast, with no share picker.
+
+## Screen recording
+
+Need to show something outside the tab — another app window, the full screen, a payment or login window that pops up on its own? Set the mode to **Record screen**. When you click the record button, your browser opens a "what do you want to share?" picker where you choose **the full screen, a specific window, or a tab**, then hit share to start.
+
+> Screen recording goes through the browser's own permission picker, so there's one selection step. Just so you know.
+
+![Screen share picker](../assets/video-record-2.jpg)
 
 ## While recording
 
@@ -15,9 +27,9 @@ A timer shows the **elapsed time and the maximum length** while you record. Just
 - **Stop recording** — Stop recording and wrap it up as a video.
 - **Cancel** — Discard the recording and go back to the start.
 
-The video has a **maximum length** and stops on its own once it's reached, so there's no need to watch the clock.
+For screen recording, you can also click the browser's **Stop sharing** bar at the top to finish. The video has a **maximum length** and stops on its own once it's reached, so there's no need to watch the clock.
 
-![Recording timer](../assets/video-record-2.jpg)
+![Recording timer](../assets/video-record-3.jpg)
 
 ## Processing and output
 

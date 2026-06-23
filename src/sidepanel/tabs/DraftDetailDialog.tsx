@@ -44,7 +44,7 @@ import {
   useSettingsStore,
 } from "@/store/settings-store";
 import type { NormalizedSubmitResult, PlatformId } from "@/types/platform";
-import { sendBg, type JiraSubmitResult } from "@/types/messages";
+import { submitToJira } from "@/sidepanel/lib/submitToJira";
 import { submitToGithub } from "@/sidepanel/lib/submitToGithub";
 import { submitToLinear } from "@/sidepanel/lib/submitToLinear";
 import { submitToNotion } from "@/sidepanel/lib/submitToNotion";
@@ -73,9 +73,6 @@ import { joinStyleSelectors, type StyleElementContext } from "@/sidepanel/lib/bu
 import { buildCaptureFiles, type CaptureFiles } from "@/sidepanel/lib/buildCaptureFiles";
 import { deriveContextEnvRows } from "@/sidepanel/lib/buildReportData";
 import { supportsConsoleNetworkLog, supportsActionLog } from "@/sidepanel/lib/captureLogSupport";
-import { annotateAttachmentDimensions } from "@/sidepanel/lib/attachmentDimensions";
-import type { JiraAttachmentInput } from "@/types/jira";
-import { buildIssueAdf } from "@/sidepanel/lib/buildIssueAdf";
 import { buildNetworkLogSummary, buildConsoleLogSummary } from "@/sidepanel/lib/buildLogSummary";
 import { filterEnvironmentRows, parseChromeVersion } from "@/sidepanel/lib/environmentRows";
 import { getOsInfo } from "@/sidepanel/lib/osInfo";
@@ -359,33 +356,22 @@ export function DraftDetailDialog({
     }
     if (!fields.issueTypeId) throw new Error(t("create.requiredMissing"));
 
-    const rawAttachments: JiraAttachmentInput[] = [
-      ...captureFiles.images,
-      ...(captureFiles.video ? [captureFiles.video] : []),
-      ...captureFiles.logs,
-    ];
     const jiraInline = await resolveInlineImagesForSections(ctx.sections, sectionConfig);
-    for (const img of jiraInline) {
-      rawAttachments.push({ filename: `inline-${img.refId}.webp`, dataUrl: img.dataUrl });
-    }
-    for (const a of captureFiles.attachments) {
-      rawAttachments.push({ filename: a.displayName ?? a.filename, dataUrl: a.dataUrl });
-    }
-    const attachments = await annotateAttachmentDimensions(rawAttachments);
-
-    const result = await sendBg<JiraSubmitResult>({
-      type: "jira.submitIssue",
-      payload: {
-        projectKey: jiraAccount.projectKey,
-        summary: issue.draft.title.trim(),
-        description: buildIssueAdf(ctx, jiraInline.map((i) => i.refId), fields.cc),
-        issueTypeId: fields.issueTypeId,
-        assigneeAccountId: fields.assigneeId,
-        priorityId: fields.priorityId,
-        parentKey: fields.parentKey,
-      },
-      attachments,
+    const result = await submitToJira({
+      ctx,
+      inlineImages: jiraInline,
+      images: captureFiles.images,
+      video: captureFiles.video,
+      logs: captureFiles.logs,
+      attachments: captureFiles.attachments,
+      projectKey: jiraAccount.projectKey,
+      summary: issue.draft.title.trim(),
+      issueTypeId: fields.issueTypeId,
+      assigneeAccountId: fields.assigneeId,
+      priorityId: fields.priorityId,
+      parentKey: fields.parentKey,
       relatesKey: fields.relatesKey,
+      cc: fields.cc,
     });
     markSubmitted(issue.id, {
       platform: "jira",

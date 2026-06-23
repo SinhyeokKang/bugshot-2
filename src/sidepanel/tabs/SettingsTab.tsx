@@ -1,6 +1,5 @@
 import { Fragment } from "react";
-import { Bug, ListOrdered, Monitor, Moon, Paperclip, SlidersHorizontal, Sparkles, StickyNote, Sun, Target, Timer } from "lucide-react";
-import { toast } from "sonner";
+import { Bug, ListOrdered, Monitor, Moon, Paperclip, SlidersHorizontal, Sparkles, StickyNote, Sun, Target } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
@@ -19,7 +18,7 @@ import {
 } from "@/store/settings-ui-store";
 import { useSettingsStore } from "@/store/settings-store";
 import { PageScroll, PageShell, Section } from "@/sidepanel/components/Section";
-import { BROAD_HOST_ORIGINS } from "@/lib/broad-host-origins";
+import { RecordingSettingsCard } from "@/sidepanel/components/RecordingSettingsCard";
 import { SettingsFooter } from "./settings/SettingsFooter";
 import { LlmConnectForm } from "./settings/LlmConnectForm";
 
@@ -82,57 +81,14 @@ function IssueSettingsContent() {
   const t = useT();
   const issueSections = useSettingsUiStore((s) => s.issueSections);
   const setIssueEnabled = useSettingsUiStore((s) => s.setIssueEnabled);
-  const replayEnabled = useSettingsUiStore((s) => s.replayEnabled);
-  const setReplayEnabled = useSettingsUiStore((s) => s.setReplayEnabled);
   const attachmentsEnabled = useSettingsUiStore((s) => s.attachmentsEnabled);
   const setAttachmentsEnabled = useSettingsUiStore((s) => s.setAttachmentsEnabled);
   const titlePrefix = useSettingsStore((s) => s.titlePrefix);
   const setTitlePrefix = useSettingsStore((s) => s.setTitlePrefix);
 
-  const handleReplayToggle = async (next: boolean) => {
-    if (!next) {
-      setReplayEnabled(false);
-      return;
-    }
-    try {
-      const has = await chrome.permissions.contains({ origins: BROAD_HOST_ORIGINS });
-      const granted =
-        has || (await chrome.permissions.request({ origins: BROAD_HOST_ORIGINS }));
-      if (granted) setReplayEnabled(true);
-      else toast.error(t("settings.replay.permissionDenied"));
-    } catch {
-      toast.error(t("settings.replay.permissionDenied"));
-    }
-  };
-
   return (
     <PageShell>
       <PageScroll>
-        <Section title={t("settings.capture")}>
-          <Card>
-            <CardContent className="flex flex-col gap-3 px-3 py-3">
-              <div className="flex items-center gap-3">
-                <div className="shrink-0">
-                  <Timer className="h-4 w-4" />
-                </div>
-                <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                  <label htmlFor="replay-enabled" className="cursor-pointer text-sm">
-                    {t("settings.replay.label")}
-                  </label>
-                  <p className="text-sm text-muted-foreground">
-                    {t("settings.replay.help")}
-                  </p>
-                </div>
-                <Switch
-                  id="replay-enabled"
-                  checked={replayEnabled}
-                  onCheckedChange={(v) => void handleReplayToggle(v === true)}
-                />
-              </div>
-            </CardContent>
-          </Card>
-        </Section>
-
         <Section title={t("settings.titleSettings")}>
           <div className="space-y-2">
             <Input
@@ -147,6 +103,10 @@ function IssueSettingsContent() {
               {t("settings.titlePrefix.help")}
             </p>
           </div>
+        </Section>
+
+        <Section title={t("settings.recording")}>
+          <RecordingSettingsCard />
         </Section>
 
         <Section title={t("settings.bodyComposition")}>

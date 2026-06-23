@@ -33,6 +33,8 @@ chrome.action.onClicked.addListener((tab) => {
 });
 ```
 
+같은 함정이 **화면 녹화의 `getDisplayMedia`**에도 적용된다(transient user activation 요구). `startScreenCapture`(`video-capture.ts`)는 **getDisplayMedia를 첫 await로** 호출하고 `chrome.tabs.get`·레코더 activate를 그 뒤로 미룬다 — 앞에 다른 await를 두면 activation이 만료돼 picker가 안 뜬다. 탭 녹화(`startVideoCapture`)는 레코더 activate 후 `getMediaStreamId`라 순서가 반대인데, tabCapture는 activeTab 기반이라 이 제약을 안 받는다.
+
 ## 편집 세션 영속화
 
 - tabId별로 `chrome.storage.session`의 `editor:${tabId}` 키에 저장
@@ -158,6 +160,10 @@ shorthand(var 포함) + 같은 shorthand의 longhand override 조합에서 Chrom
 
 **startVideoCapture** (`video-capture.ts`): 3개 레코더(network/console/action) `activate*Recorder` → `clear*Recorder` → `startRecording` 순. 녹화 종료(`recording→drafting`) 시 `recordersStopped=true`(`useBackgroundRecorder`)로 drafting 중 재주입 차단.
 
+**영상 캡처 2종 — tab vs screen** (`video-capture.ts` / `video-recorder.ts`): 캡처 모드는 `captureMode:"video"`를 공유하되 `recordingSource:"tab"|"screen"`(`editor-store.ts`)으로 소스만 구분한다(라벨·아이콘 분기용). 스트림 획득 이후 본문(MediaRecorder·청크·onstop·썸네일·viewport·store 전환)은 `beginRecording(stream, tabId, {source, viewportHint?})`로 공통화.
+- **탭 녹화**(`startRecording` → tabCapture `getMediaStreamId`+`getUserMedia`, 720p): viewport는 onstop의 `chrome.tabs.get`.
+- **화면 녹화**(`startScreenCapture` → `getDisplayMedia({displaySurface:"monitor", ≤1920×1080, 12fps})`): viewport는 track 해상도(`trackViewport`, 없으면 `{0,0}` — 다른 모니터일 수 있어 탭 크기 폴백 금지). 사용자 취소(`NotAllowedError`)는 조용한 no-op. video track `ended`(브라우저 "공유 중지")에 `stopRecording`을 바인딩하고 그 리스너를 `onstop`·`cancelRecording` 양쪽에서 정리. 60초 상한·로그 첨부는 탭 녹화와 공통(현재 탭 로그).
+
 **정리**: `shouldPreserveBackgroundLogs(phase)` = recording/drafting/previewing/done. idle 전환 시 레코더 재주입+새 sentinel. pending IDB는 탭 종료·이슈 저장·고아 정리(`pruneOrphanPendingLogsOncePerSession` — SW 부트 세션당 1회)에서 회수. clear→setSentinel은 sequential await 강제(fire-and-forget 시 Chrome 메시지 큐 순서 미보장으로 race).
 
 ## 30s Replay (직전 30초 캡처)
@@ -249,4 +255,6 @@ draft 모델: `{ title, sections: Record<string, string>, environment?: Environm
 
 **변경사항 보기 다이얼로그(`StyleChangesDialog`)**: 스타일링 패널의 [변경사항 보기] 트리거가 여는 다이얼로그로 요소별 카드(`buildChangeGroups`로 버퍼+현재 요소를 selector 기준 그룹화)와 행 단위 diff를 보여주고 **3단계 granular 초기화**를 제공한다 — ① 행 초기화(`removeDiffRow` + `picker.applyEditsBySelector`로 해당 prop만 selector 기준 부분 원복), ② 요소 초기화(카드 전체), ③ 전체 초기화(현재 + 버퍼 전부 → `picker.resetAllEdits` → content `restoreAll`, AlertDialog 재확인). 행/요소 초기화 후 버퍼 요소의 after 스냅샷은 `picker.prepareCaptureBySelector`(뷰포트 밖이면 `scrollIntoView` 후 캡처, `handleEndCapture`가 `captureInflight` 가드로 원위치 복원 — 인터리브 캡처 시 first-wins)로 재캡처한다. store는 `patchBufferedElement(selector, patch)`/`removeBufferedElement(selector)`로 버퍼 항목을 부분 갱신·제거(selector 미일치 시 no-op). 마지막 변경 항목이 사라지면 다이얼로그는 reactive하게 자동 닫힌다.
 
-**마이그레이션**: `issues-store` v5, `settings-store` v8 (v7 gitlab·v8 asana는 버전 마커만 bump), `settings-ui-store` v5. 각각 순수 헬퍼로 분리해 테스트 (`migrateV2ToV3`, `migrateToV5`, `migrateIssueToV4` 등). 모두 멱등 가드 + sparse 저장. 빈 paragraph는 `(없음)` (`md.noValue`)로 통일.
+**마이그레이션**: `issues-store` v5, `settings-store` v8 (v7 gitlab·v8 asana는 버전 마커만 bump), `settings-ui-store` v6 (v6은 `recordingMode` 추가 — `migrateSettingsUi`에서 `state.recordingMode = state.recordingMode ?? "tab"` 버전 비교 없이 nullish 병합). 각각 순수 헬퍼로 분리해 테스트 (`migrateV2ToV3`, `migrateToV5`, `migrateIssueToV4`, `migrateSettingsUi` 등). 모두 멱등 가드 + sparse 저장. 빈 paragraph는 `(없음)` (`md.noValue`)로 통일.
+
+**녹화 모드 선택(`recordingMode`)**: 영속 설정 `settings-ui-store.recordingMode`("tab"|"screen")는 "다음 녹화에서 어느 함수를 부를지"의 입력일 뿐이고, 세션 진행 중 녹화의 소스인 `editor-store.recordingSource`와 **직교**한다. SettingsTab 캡처 설정 Tabs가 설정하고, IssueTab 캡처 진입 화면의 단일 녹화 버튼이 라이브 구독해 `startVideoCapture`(tab) / `startScreenCapture`(screen)로 분기(클릭 경로라 user gesture 보존). 진행 중 녹화엔 무관.

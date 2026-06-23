@@ -177,6 +177,8 @@ export function buildStyleDiff(
   for (const [prop, after] of Object.entries(edits.inlineStyle)) {
     const before =
       selection.specifiedStyles[prop] ?? selection.computedStyles[prop] ?? "";
+    // baseline과 동일한 값은 변경이 아니다 — phantom diff/가짜 버퍼 카드 방지.
+    if (before === after) continue;
     rows.push({ prop, asIs: before, toBe: after });
   }
 

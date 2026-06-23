@@ -10,9 +10,13 @@ import {
   Loader2,
   SquarePen,
   Timer,
-  Video,
+  AppWindow,
+  MonitorPlay,
 } from "lucide-react";
 import { useT } from "@/i18n";
+import { cn } from "@/lib/utils";
+import { recordModeMeta } from "@/sidepanel/lib/recordModeMeta";
+import { useTabNav } from "@/sidepanel/tab-nav";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -37,7 +41,6 @@ import { SubmitSuccessView } from "@/sidepanel/components/SubmitSuccessView";
 import { useEditorStore } from "@/store/editor-store";
 import { useSettingsUiStore } from "@/store/settings-ui-store";
 import { useBoundTabId } from "@/sidepanel/hooks/useBoundTabId";
-import { useCommandShortcuts } from "@/sidepanel/hooks/useCommandShortcuts";
 import {
   startPicker,
   stopPickerOrResume,
@@ -47,11 +50,10 @@ import {
   clearPicker,
   startFreeformDraft,
 } from "@/sidepanel/picker-control";
-import { startVideoCapture } from "@/sidepanel/video-capture";
+import { startVideoCapture, startScreenCapture } from "@/sidepanel/video-capture";
 import * as videoRecorder from "@/sidepanel/video-recorder";
 import { PageFooter, PageShell } from "@/sidepanel/components/Section";
 import { useReplay } from "@/sidepanel/30s-replay/replay-context";
-import { useTabNav } from "@/sidepanel/tab-nav";
 import { DraftingPanel } from "./DraftingPanel";
 import { PreviewPanel } from "./PreviewPanel";
 import { SelectedPanel } from "./StyleEditorPanel";
@@ -126,6 +128,7 @@ export function IssueTab() {
         onStartElementShot={() => void startElementShot(tabId)}
         onStartScreenshot={() => void startAreaCapture(tabId)}
         onStartVideo={() => void startVideoCapture(tabId)}
+        onStartScreenRecord={() => void startScreenCapture(tabId)}
         onStartFreeform={() => void startFreeformDraft(tabId)}
       />
     );
@@ -154,26 +157,12 @@ function UnsupportedPage() {
   );
 }
 
-function ShortcutTooltip({
-  shortcut,
-  children,
-}: {
-  shortcut: string | undefined;
-  children: React.ReactNode;
-}) {
-  if (!shortcut) return <>{children}</>;
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>{children}</TooltipTrigger>
-      <TooltipContent>{shortcut}</TooltipContent>
-    </Tooltip>
-  );
-}
-
-function EmptyState({ onStartElement, onStartElementShot, onStartScreenshot, onStartVideo, onStartFreeform }: { onStartElement: () => void; onStartElementShot: () => void; onStartScreenshot: () => void; onStartVideo: () => void; onStartFreeform: () => void }) {
+function EmptyState({ onStartElement, onStartElementShot, onStartScreenshot, onStartVideo, onStartScreenRecord, onStartFreeform }: { onStartElement: () => void; onStartElementShot: () => void; onStartScreenshot: () => void; onStartVideo: () => void; onStartScreenRecord: () => void; onStartFreeform: () => void }) {
   const t = useT();
-  const shortcuts = useCommandShortcuts();
   const locale = useSettingsUiStore((s) => s.locale);
+  const recordingMode = useSettingsUiStore((s) => s.recordingMode);
+  const meta = recordModeMeta(recordingMode);
+  const RecordIcon = meta.icon === "monitorPlay" ? MonitorPlay : AppWindow;
   return (
     <PageShell>
       <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 px-6 pb-5">
@@ -185,32 +174,33 @@ function EmptyState({ onStartElement, onStartElementShot, onStartScreenshot, onS
         </div>
         <TooltipProvider delayDuration={0}>
           <div className="flex w-full max-w-[336px] flex-col gap-2">
-            <ShortcutTooltip shortcut={shortcuts["capture-element"]}>
-              <Button className="w-full" onClick={onStartElement} data-testid="mode-element">
-                <Crosshair />
-                {t("issue.mode.element")}
-              </Button>
-            </ShortcutTooltip>
+            <Button className="w-full" onClick={onStartElement} data-testid="mode-element">
+              <Crosshair />
+              {t("issue.mode.element")}
+            </Button>
             <ButtonGroup className="w-full">
-              <Button variant="outline" className="flex-1" onClick={onStartElementShot} data-testid="mode-element-shot">
+              <Button variant="outline" className="min-w-0 flex-1" onClick={onStartElementShot} data-testid="mode-element-shot">
                 <ScanEye />
-                {t("issue.mode.elementShot")}
+                <span className="truncate">{t("issue.mode.elementShot")}</span>
               </Button>
-              <ShortcutTooltip shortcut={shortcuts["capture-screenshot"]}>
-                <Button variant="outline" className="flex-1" onClick={onStartScreenshot} data-testid="mode-screenshot">
-                  <Camera />
-                  {t("issue.mode.screenshot")}
-                </Button>
-              </ShortcutTooltip>
+              <Button variant="outline" className="min-w-0 flex-1" onClick={onStartScreenshot} data-testid="mode-screenshot">
+                <Camera />
+                <span className="truncate">{t("issue.mode.screenshot")}</span>
+              </Button>
             </ButtonGroup>
             <ButtonGroup className="w-full">
-              <ShortcutTooltip shortcut={shortcuts["capture-video"]}>
-                <Button variant="outline" className="flex-1" onClick={onStartVideo} data-testid="mode-video">
-                  <Video />
-                  {t("issue.mode.video")}
-                </Button>
-              </ShortcutTooltip>
-              <ReplayButton />
+              <Button
+                variant="outline"
+                className="min-w-0 flex-1"
+                onClick={() =>
+                  recordingMode === "screen" ? onStartScreenRecord() : onStartVideo()
+                }
+                data-testid="mode-record"
+              >
+                <RecordIcon />
+                <span className="truncate">{t(meta.labelKey)}</span>
+              </Button>
+              <ReplayButton className="min-w-0 flex-1" />
             </ButtonGroup>
           </div>
         </TooltipProvider>
@@ -234,7 +224,7 @@ function EmptyState({ onStartElement, onStartElementShot, onStartScreenshot, onS
   );
 }
 
-function ReplayButton() {
+function ReplayButton({ className }: { className?: string }) {
   const t = useT();
   const navTo = useTabNav();
   const { replayEnabled, isReady, isEncoding, bufferedSeconds, capture } = useReplay();
@@ -248,7 +238,7 @@ function ReplayButton() {
   const button = !replayEnabled ? (
     <Button
       data-testid="replay-button"
-      className="flex-1 rounded-l-none border-l-0 opacity-50"
+      className={cn("w-full opacity-50", className)}
       variant="outline"
       aria-disabled
       onClick={() => navTo("settings", "issue")}
@@ -259,7 +249,10 @@ function ReplayButton() {
   ) : (
     <Button
       data-testid="replay-button"
-      className="flex-1 rounded-l-none border-l-0 aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+      className={cn(
+        "w-full aria-disabled:cursor-not-allowed aria-disabled:opacity-50",
+        className,
+      )}
       variant="outline"
       aria-disabled={!isReady || isEncoding}
       onClick={() => {
@@ -322,6 +315,7 @@ function CapturingState({ onCancel }: { onCancel: () => void }) {
 
 function RecordingState({ onStop, onCancel }: { onStop: () => void; onCancel: () => void }) {
   const t = useT();
+  const source = useEditorStore((s) => s.recordingSource);
   const [elapsed, setElapsed] = useState(0);
   const maxDuration = videoRecorder.getMaxDuration();
 
@@ -341,9 +335,15 @@ function RecordingState({ onStop, onCancel }: { onStop: () => void; onCancel: ()
     <PageShell>
       <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 pb-5 text-center">
         <div className="mb-3 rounded-full bg-red-100 p-3 dark:bg-red-950">
-          <Video className="h-6 w-6 text-red-600 dark:text-red-400" />
+          {source === "screen" ? (
+            <MonitorPlay className="h-6 w-6 text-red-600 dark:text-red-400" />
+          ) : (
+            <AppWindow className="h-6 w-6 text-red-600 dark:text-red-400" />
+          )}
         </div>
-        <h3 className="text-lg font-semibold">{t("issue.recording.title", { time: timeStr })}</h3>
+        <h3 className="text-lg font-semibold">
+          {t(source === "screen" ? "issue.recording.titleScreen" : "issue.recording.titleTab", { time: timeStr })}
+        </h3>
         <div className="mt-3 h-1.5 w-40 overflow-hidden rounded-full bg-muted">
           <div
             className="h-full rounded-full bg-foreground transition-all duration-500"

@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import type { StateStorage } from "zustand/middleware";
 import type { TranslationKey } from "@/i18n/ko";
+import type { RecordingSource } from "@/store/editor-store";
 import { obfuscateApiKey, deobfuscateApiKey } from "@/lib/key-obfuscation";
 import { chromeLocalStorage } from "./chrome-storage";
 
@@ -74,6 +75,7 @@ interface SettingsUiState {
   llm: LlmConfig | null;
   replayEnabled: boolean;
   attachmentsEnabled: boolean;
+  recordingMode: RecordingSource;
   setTheme: (theme: ThemeMode) => void;
   setLocale: (locale: LocaleMode) => void;
   setIssueEnabled: (id: IssueSectionId, enabled: boolean) => void;
@@ -81,6 +83,25 @@ interface SettingsUiState {
   setLlm: (config: LlmConfig | null) => void;
   setReplayEnabled: (enabled: boolean) => void;
   setAttachmentsEnabled: (enabled: boolean) => void;
+  setRecordingMode: (mode: RecordingSource) => void;
+}
+
+export function migrateSettingsUi(
+  persisted: unknown,
+  version: number,
+): SettingsUiState {
+  const state = (persisted ?? {}) as Partial<SettingsUiState>;
+  if (version < 2 || !state.issueSections) {
+    state.issueSections = DEFAULT_ISSUE_SECTIONS;
+  }
+  if (version < 3) {
+    state.llm = state.llm ?? null;
+  }
+  if (version < 5 && state.llm && !state.llm.apiKey) {
+    state.llm = null;
+  }
+  state.recordingMode = state.recordingMode ?? "tab";
+  return state as SettingsUiState;
 }
 
 const apiKeyObfuscatingStorage: StateStorage = {
@@ -122,6 +143,7 @@ export const useSettingsUiStore = create<SettingsUiState>()(
       llm: null,
       replayEnabled: false,
       attachmentsEnabled: false,
+      recordingMode: "tab",
       setTheme: (theme) => set({ theme }),
       setLocale: (locale) => set({ locale }),
       setIssueEnabled: (id, enabled) =>
@@ -134,26 +156,15 @@ export const useSettingsUiStore = create<SettingsUiState>()(
       setLlm: (config) => set({ llm: config }),
       setReplayEnabled: (enabled) => set({ replayEnabled: enabled }),
       setAttachmentsEnabled: (enabled) => set({ attachmentsEnabled: enabled }),
+      setRecordingMode: (recordingMode) => set({ recordingMode }),
     }),
     {
       // 기존 사용자 데이터 호환을 위해 리네이밍 전 키 유지
       name: "bugshot-app-settings",
-      // v3: llm 필드 추가, v4: apiKey를 session→local 이전, v5: apiKey 없는 stale 설정 제거
-      version: 5,
+      // v3: llm 필드 추가, v4: apiKey를 session→local 이전(apiKeyObfuscatingStorage가 흡수, migrate 분기 없음), v5: apiKey 없는 stale 설정 제거, v6: recordingMode 추가
+      version: 6,
       storage: createJSONStorage(() => apiKeyObfuscatingStorage),
-      migrate: (persisted, version) => {
-        const state = (persisted ?? {}) as Partial<SettingsUiState>;
-        if (version < 2 || !state.issueSections) {
-          state.issueSections = DEFAULT_ISSUE_SECTIONS;
-        }
-        if (version < 3) {
-          state.llm = state.llm ?? null;
-        }
-        if (version < 5 && state.llm && !state.llm.apiKey) {
-          state.llm = null;
-        }
-        return state as SettingsUiState;
-      },
+      migrate: migrateSettingsUi,
     },
   ),
 );

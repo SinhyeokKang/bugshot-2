@@ -4,6 +4,7 @@ import type {
   TokenCategory,
 } from "@/types/picker";
 import { getMatchingRules, getRawDeclarationsFor } from "./css-source-cache";
+import { NAMED_COLORS } from "@/lib/named-colors";
 
 export const INTERESTING_PROPS = [
   "color",
@@ -891,17 +892,26 @@ function collectFromRules(rules: CSSRuleList, seen: Map<string, string>): void {
   }
 }
 
-function categorizeToken(value: string): TokenCategory {
+export function categorizeToken(value: string): TokenCategory {
   const v = value.trim();
   if (!v) return "unknown";
   if (/^#[0-9a-f]{3,8}$/i.test(v)) return "color";
   if (/^(rgb|rgba|hsl|hsla|hwb|oklch|oklab|lab|lch|color)\(/i.test(v))
     return "color";
   if (/^(transparent|currentColor)$/i.test(v)) return "color";
+  if (NAMED_COLORS.has(v.toLowerCase())) return "color";
   if (/^(linear-gradient|radial-gradient|conic-gradient|repeating-linear-gradient|repeating-radial-gradient|repeating-conic-gradient|url|image-set)\(/i.test(v))
     return "image";
   if (
     /^-?\d*\.?\d+(px|rem|em|%|vw|vh|ch|ex|vmin|vmax|pt|pc|cm|mm|in)$/.test(v)
+  )
+    return "length";
+  // unitless 0 / 길이 함수(calc·clamp·min·max에 길이 단위 포함)는 length 속성에서 유효 —
+  // number로 떨어뜨리면 length prop 토큰 목록에서 누락된다.
+  if (/^-?0(\.0+)?$/.test(v)) return "length";
+  if (
+    /^(calc|clamp|min|max)\(/i.test(v) &&
+    /\d\s*(px|rem|em|%|vw|vh|ch|ex|vmin|vmax|pt|pc|cm|mm|in)\b/i.test(v)
   )
     return "length";
   if (/^-?\d*\.?\d+$/.test(v)) return "number";
