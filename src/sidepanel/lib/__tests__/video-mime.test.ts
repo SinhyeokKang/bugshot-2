@@ -54,7 +54,19 @@ describe("pickVideoRecorderMime", () => {
   const supported = (whitelist: string[]) => (mime: string) =>
     whitelist.includes(mime);
 
-  it("picks mp4 first when supported", () => {
+  it("prefers avc3 mp4 first to tolerate mid-recording resolution changes", () => {
+    expect(
+      pickVideoRecorderMime(
+        supported([
+          'video/mp4;codecs="avc3.42E01E,mp4a.40.2"',
+          'video/mp4;codecs="avc1.42E01E,mp4a.40.2"',
+          "video/webm",
+        ]),
+      ),
+    ).toBe('video/mp4;codecs="avc3.42E01E,mp4a.40.2"');
+  });
+
+  it("falls back to avc1 mp4 when avc3 not supported", () => {
     expect(
       pickVideoRecorderMime(
         supported([
@@ -86,7 +98,7 @@ describe("pickVideoRecorderMime", () => {
     expect(pickVideoRecorderMime(() => false)).toBe("");
   });
 
-  it("respects priority order: mp4 codec-specific > mp4 bare > webm vp9 > webm vp8 > webm bare", () => {
+  it("respects priority order: mp4 avc3 > mp4 avc1 > mp4 bare > webm vp9 > webm vp8 > webm bare", () => {
     // Only the last two supported: should prefer vp9 over vp8 (priority order).
     expect(
       pickVideoRecorderMime(
