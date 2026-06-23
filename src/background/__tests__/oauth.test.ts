@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { isAtlassianCancellationCode, OAuthError } from "../oauth";
+import { isAtlassianCancellationCode, OAuthError, serializeOAuthError } from "../oauth";
+import {
+  BgError,
+  isOAuthCancelled,
+  isOAuthRefreshFailed,
+  getOAuthErrorPlatform,
+} from "@/types/messages";
 
 describe("OAuthError options", () => {
   it("기본 — cancelled false, platform undefined", () => {
@@ -35,5 +41,29 @@ describe("isAtlassianCancellationCode", () => {
     expect(isAtlassianCancellationCode("server_error")).toBe(false);
     expect(isAtlassianCancellationCode(null)).toBe(false);
     expect(isAtlassianCancellationCode("")).toBe(false);
+  });
+});
+
+describe("serializeOAuthError ↔ messages 판독부 round-trip", () => {
+  it("cancelled → isOAuthCancelled + platform 일치, status undefined", () => {
+    const { status, body } = serializeOAuthError(
+      new OAuthError("user dropped", { platform: "github", cancelled: true }),
+    );
+    expect(status).toBeUndefined();
+    const err = new BgError("user dropped", status, body);
+    expect(isOAuthCancelled(err)).toBe(true);
+    expect(isOAuthRefreshFailed(err)).toBe(false);
+    expect(getOAuthErrorPlatform(err)).toBe("github");
+  });
+
+  it("refresh 실패 → isOAuthRefreshFailed + status 401 + platform 일치", () => {
+    const { status, body } = serializeOAuthError(
+      new OAuthError("expired", { platform: "notion" }),
+    );
+    expect(status).toBe(401);
+    const err = new BgError("expired", status, body);
+    expect(isOAuthRefreshFailed(err)).toBe(true);
+    expect(isOAuthCancelled(err)).toBe(false);
+    expect(getOAuthErrorPlatform(err)).toBe("notion");
   });
 });

@@ -161,7 +161,7 @@ export const useSettingsUiStore = create<SettingsUiState>()(
     {
       // 기존 사용자 데이터 호환을 위해 리네이밍 전 키 유지
       name: "bugshot-app-settings",
-      // v3: llm 필드 추가, v4: apiKey를 session→local 이전, v5: apiKey 없는 stale 설정 제거, v6: recordingMode 추가
+      // v3: llm 필드 추가, v4: apiKey를 session→local 이전(apiKeyObfuscatingStorage가 흡수, migrate 분기 없음), v5: apiKey 없는 stale 설정 제거, v6: recordingMode 추가
       version: 6,
       storage: createJSONStorage(() => apiKeyObfuscatingStorage),
       migrate: migrateSettingsUi,

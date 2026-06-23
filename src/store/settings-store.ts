@@ -129,13 +129,15 @@ export function migrateV2ToV3(legacy: LegacyV2): V3Shape {
   return { accounts, lastSubmitFields };
 }
 
+function readTitlePrefix(account: unknown): string | undefined {
+  const tp = (account as Record<string, unknown> | undefined)?.titlePrefix;
+  return typeof tp === "string" ? tp : undefined;
+}
+
 export function migrateToV5(state: V3Shape): V3Shape & { titlePrefix: string } {
   const a = state.accounts;
   const prefix =
-    (a.jira as Record<string, unknown> | undefined)?.titlePrefix as string | undefined ??
-    (a.github as Record<string, unknown> | undefined)?.titlePrefix as string | undefined ??
-    (a.linear as Record<string, unknown> | undefined)?.titlePrefix as string | undefined ??
-    "";
+    readTitlePrefix(a.jira) ?? readTitlePrefix(a.github) ?? readTitlePrefix(a.linear) ?? "";
   return { ...state, titlePrefix: prefix };
 }
 

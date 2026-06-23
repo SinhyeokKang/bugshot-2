@@ -853,9 +853,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       const tabId = state.target.tabId;
       const metas = state.attachments;
       useIssuesStore.getState().patchIssue(id, { attachments: metas });
-      attachmentRekeyInFlight = rekeyAttachmentBlobs(`pending:${tabId}`, id, metas.map((a) => a.id)).then((ok) => {
-        if (!ok) onBlobSaveFailed.fire();
-      });
+      // confirmDraft 동시 호출 시 이전 rekey가 끝난 뒤 실행되도록 체이닝(이전 promise 손실 방지).
+      const prev = attachmentRekeyInFlight;
+      attachmentRekeyInFlight = prev
+        .catch(() => {})
+        .then(() => rekeyAttachmentBlobs(`pending:${tabId}`, id, metas.map((a) => a.id)))
+        .then((ok) => {
+          if (!ok) onBlobSaveFailed.fire();
+        });
     }
     set({ phase: "previewing", currentIssueId: id });
     return true;

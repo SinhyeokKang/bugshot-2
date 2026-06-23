@@ -10,7 +10,7 @@ import { AsanaError } from "./asana-api";
 import { handleMessage } from "./messages";
 import { BG_REQUEST_TYPES } from "./bgRequestTypes";
 import { captureEvent } from "./analytics";
-import { OAuthError } from "./oauth";
+import { OAuthError, serializeOAuthError } from "./oauth";
 import { pruneOrphanPendingLogsOncePerSession } from "@/lib/pending-log-prune";
 import { shouldClearLogs } from "@/lib/navigation-clear";
 import type { BgInternalMessage } from "@/types/messages";
@@ -214,14 +214,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           body: error.body,
         });
       } else if (error instanceof OAuthError) {
-        sendResponse({
-          ok: false,
-          error: error.message,
-          status: error.cancelled ? undefined : 401,
-          body: error.cancelled
-            ? { oauthCancelled: true, platform: error.platform }
-            : { oauthRefreshFailed: true, platform: error.platform },
-        });
+        const { status, body } = serializeOAuthError(error);
+        sendResponse({ ok: false, error: error.message, status, body });
       } else {
         sendResponse({ ok: false, error: friendlyError(error) });
       }

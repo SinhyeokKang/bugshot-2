@@ -51,6 +51,14 @@ function useSettingsHydrated() {
   return ready;
 }
 
+// 프로그램매틱 dialog open 시 focused element가 root에 남아있으면
+// Radix의 aria-hidden과 충돌해 a11y 경고가 뜨므로 미리 blur.
+function blurActiveElement() {
+  if (document.activeElement instanceof HTMLElement && document.activeElement !== document.body) {
+    document.activeElement.blur();
+  }
+}
+
 export default function App() {
   const t = useT();
   const tabId = useBoundTabId();
@@ -86,11 +94,7 @@ export default function App() {
 
   useEffect(() => {
     const unsub = onOAuthExpired.subscribe((platform) => {
-      // 프로그램매틱 dialog open 시 focused element가 root에 남아있으면
-      // Radix의 aria-hidden과 충돌해 a11y 경고가 뜨므로 미리 blur.
-      if (document.activeElement instanceof HTMLElement && document.activeElement !== document.body) {
-        document.activeElement.blur();
-      }
+      blurActiveElement();
       setOauthExpiredPlatform(platform ?? "jira");
     });
     return unsub;
@@ -98,9 +102,7 @@ export default function App() {
 
   useEffect(() => {
     const unsub = onPickerUnavailable.subscribe(() => {
-      if (document.activeElement instanceof HTMLElement && document.activeElement !== document.body) {
-        document.activeElement.blur();
-      }
+      blurActiveElement();
       setPickerUnavailable(true);
     });
     return unsub;
@@ -108,9 +110,7 @@ export default function App() {
 
   useEffect(() => {
     const unsub = onPickerIframeUnsupported.subscribe(() => {
-      if (document.activeElement instanceof HTMLElement && document.activeElement !== document.body) {
-        document.activeElement.blur();
-      }
+      blurActiveElement();
       setIframeUnsupported(true);
     });
     return unsub;
@@ -118,9 +118,7 @@ export default function App() {
 
   useEffect(() => {
     const unsub = onBlobSaveFailed.subscribe(() => {
-      if (document.activeElement instanceof HTMLElement && document.activeElement !== document.body) {
-        document.activeElement.blur();
-      }
+      blurActiveElement();
       setBlobSaveFailed(true);
     });
     return unsub;
@@ -128,9 +126,7 @@ export default function App() {
 
   useEffect(() => {
     const unsub = onSessionSaveExhausted.subscribe(() => {
-      if (document.activeElement instanceof HTMLElement && document.activeElement !== document.body) {
-        document.activeElement.blur();
-      }
+      blurActiveElement();
       setSessionSaveExhausted(true);
     });
     return unsub;
@@ -138,9 +134,7 @@ export default function App() {
 
   useEffect(() => {
     const unsub = onPickerPermissionExpired.subscribe(() => {
-      if (document.activeElement instanceof HTMLElement && document.activeElement !== document.body) {
-        document.activeElement.blur();
-      }
+      blurActiveElement();
       setPermissionExpired(true);
     });
     return unsub;
