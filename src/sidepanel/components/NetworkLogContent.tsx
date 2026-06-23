@@ -396,7 +396,7 @@ function RequestRow({
   return (
     <div
       data-entry-id={req.id}
-      className={`flex cursor-pointer items-center gap-3 overflow-hidden px-3 py-2 text-[13px] ${syncRowClass(syncBaseMs != null, !!syncActive, rowBg(req, active))}`}
+      className={`flex cursor-pointer items-center gap-3 overflow-hidden px-2.5 py-2 text-[13px] ${syncRowClass(syncBaseMs != null, !!syncActive, rowBg(req, active))}`}
       aria-current={syncActive ? "true" : undefined}
       onClick={onClick}
     >
