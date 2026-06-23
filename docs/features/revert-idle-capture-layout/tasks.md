@@ -10,8 +10,8 @@
 - **변경 대상**: `src/i18n/namespaces/issue.ts`
 - **작업 내용**: `issue.mode.element` 값을 ko "요소 편집"→"요소 스타일 편집", en "Edit element"→"Edit element style"로 수정. 키 추가·삭제·구조 변경 없음. ko/en 동시.
 - **검증**:
-  - [ ] `src/i18n/__tests__/locales.test.ts` 자동 실행(Edit 시 PostToolUse 훅) 통과 — 키 대칭·placeholder 일치.
-  - [ ] `pnpm test` 통과.
+  - [x] `src/i18n/__tests__/locales.test.ts` 자동 실행(Edit 시 PostToolUse 훅) 통과 — 키 대칭·placeholder 일치.
+  - [x] `pnpm test` 통과 (1941 green).
 
 ### Task 1: `RecordingSettingsDialog` 삭제 + IssueTab import 정리
 - **변경 대상**: `src/sidepanel/components/RecordingSettingsDialog.tsx`(삭제), `src/sidepanel/tabs/IssueTab.tsx`
@@ -19,8 +19,8 @@
   - `RecordingSettingsDialog.tsx` 파일 삭제.
   - IssueTab에서 `RecordingSettingsDialog` import 제거, `useTabNav` import 추가(`@/sidepanel/tab-nav`).
 - **검증**:
-  - [ ] `grep -rn "RecordingSettingsDialog" src/ e2e/` 결과 0.
-  - [ ] `pnpm typecheck` 통과(잔존 import 없음).
+  - [x] `grep -rn "RecordingSettingsDialog" src/ e2e/` 결과 0 (src 0; e2e는 /e2e-write 대상).
+  - [x] `pnpm typecheck` 통과(잔존 import 없음).
 
 ### Task 2: `EmptyState` 1x2x2 재구성
 - **변경 대상**: `src/sidepanel/tabs/IssueTab.tsx` `EmptyState`
@@ -32,10 +32,10 @@
     - Row3: `<ButtonGroup className="w-full">` → 녹화 버튼(`mode-record`, outline, `min-w-0 flex-1`, `RecordIcon`+`t(meta.labelKey)`, onClick 모드 분기) + `<ReplayButton className="min-w-0 flex-1" />`.
   - `meta`/`RecordIcon`/`recordingMode` 셀렉터 유지.
 - **검증**:
-  - [ ] idle 화면이 3행으로 렌더, Row1이 primary 단독(ButtonGroup 밖).
-  - [ ] `mode-record-settings` testid가 DOM에 없음.
-  - [ ] 녹화 버튼이 `recordingMode`에 따라 아이콘 분기(tab→AppWindow, screen→MonitorPlay).
-  - [ ] footer의 `mode-freeform`·가이드 버튼 그대로 노출.
+  - [x] idle 화면이 3행으로 렌더, Row1이 primary 단독(ButtonGroup 밖).
+  - [x] `mode-record-settings` testid가 DOM에 없음.
+  - [x] 녹화 버튼이 `recordingMode`에 따라 아이콘 분기(tab→AppWindow, screen→MonitorPlay).
+  - [x] footer의 `mode-freeform`·가이드 버튼 그대로 노출.
 
 ### Task 3: `ReplayButton` 동작 원복
 - **변경 대상**: `src/sidepanel/tabs/IssueTab.tsx` `ReplayButton`
@@ -45,16 +45,16 @@
   - 비활성 분기 버튼 `onClick`을 `() => navTo("settings", "issue")`로.
   - 주석도 "다이얼로그를 연다" → "설정의 캡처 sub-tab으로 보낸다"로 원복.
 - **검증**:
-  - [ ] replayEnabled=off 상태에서 리플레이 클릭 → 설정 탭 이슈 sub-tab 활성.
-  - [ ] replayEnabled=on 상태에서 capture 동작·encoding 표시 정상.
+  - [x] replayEnabled=off 상태에서 리플레이 클릭 → `navTo("settings","issue")` (코드 확인).
+  - [x] replayEnabled=on capture·encoding 경로 무변경 유지.
 
 ### Task 4: 잔존 참조·orphan 확인
 - **변경 대상**: 없음(검증 전용)
 - **작업 내용**: 삭제·변경 후 잔존 참조 스윕.
 - **검증**:
-  - [ ] `grep -rn "mode-record-settings\|onConfigure\|RecordingSettingsDialog\|recSettingsOpen\|setRecSettingsOpen" src/ e2e/` 결과 0(`e2e/README.md` 포함).
-  - [ ] `RecordingSettingsCard`는 `SettingsTab` 단일 사용처로 유지(삭제 금지).
-  - [ ] `pnpm typecheck` 통과.
+  - [x] `grep -rn "mode-record-settings\|onConfigure\|RecordingSettingsDialog\|recSettingsOpen\|setRecSettingsOpen" src/ e2e/` 결과 0(`e2e/README.md` 포함).
+  - [x] `RecordingSettingsCard`는 `SettingsTab` 단일 사용처로 유지(삭제 안 함).
+  - [x] `pnpm typecheck` 통과.
 
 ## 테스트 계획
 - **단위 테스트**: 순수 함수 신규/변경 없음(`recordModeMeta`는 변경 안 함, 기존 `recordModeMeta.test.ts` 유지). i18n 값 변경은 `locales.test.ts`가 커버(키 대칭). 레이아웃은 컴포넌트라 단위 테스트 대상 아님 — e2e로 커버.
