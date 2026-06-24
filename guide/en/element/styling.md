@@ -8,13 +8,14 @@ From top to bottom, the panel is organized into these sections (labels show in E
 
 1. **Class** — Edit the element's class list.
 2. **Layout** — display, position, flex alignment, margin, padding, gap.
-3. **Container** — background, opacity, border, border radius.
-4. **Size** — width, height, and min/max.
-5. **Overflow** — overflow, white-space, text-overflow.
-6. **Text** — Edit the element's text content (shown only for elements with text).
-7. **Typography** — font size, weight, line height, letter spacing, align, color.
-8. **Effects** — shadow, filter, blend.
-9. **Transition** — transition property, duration, easing.
+3. **Container** — background, opacity, border radius.
+4. **Border** — border width, color, and style. Adjust each of the four sides (top/right/bottom/left) on its own, or link them to set all at once.
+5. **Size** — width, height, and min/max.
+6. **Overflow** — overflow, white-space, text-overflow.
+7. **Text** — Edit the element's text content (shown only for elements with text).
+8. **Typography** — font size, weight, line height, letter spacing, align, color.
+9. **Effects** — shadow, filter, blend.
+10. **Transition** — transition property, duration, easing.
 
 ![Style panel sections](../assets/element-styling-1.jpg)
 

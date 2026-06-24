@@ -8,13 +8,14 @@
 
 1. **Class** — 요소의 class 목록 편집.
 2. **Layout** — display·position·flex 정렬·margin·padding·gap.
-3. **Container** — 배경·투명도·테두리·모서리 반경.
-4. **Size** — 너비·높이와 최소/최대값.
-5. **Overflow** — overflow·줄바꿈·말줄임.
-6. **Text** — 요소의 텍스트 내용 편집(텍스트가 있는 요소에서만 표시).
-7. **Typography** — 글꼴 크기·굵기·줄 높이·자간·정렬·색.
-8. **Effects** — 그림자·필터·블렌드.
-9. **Transition** — 전환 속성·시간·이징.
+3. **Container** — 배경·투명도·모서리 반경.
+4. **Border** — 테두리 두께·색·스타일. 네 변(위·오른쪽·아래·왼쪽)을 따로 손보거나, 링크 버튼으로 한꺼번에 맞출 수 있습니다.
+5. **Size** — 너비·높이와 최소/최대값.
+6. **Overflow** — overflow·줄바꿈·말줄임.
+7. **Text** — 요소의 텍스트 내용 편집(텍스트가 있는 요소에서만 표시).
+8. **Typography** — 글꼴 크기·굵기·줄 높이·자간·정렬·색.
+9. **Effects** — 그림자·필터·블렌드.
+10. **Transition** — 전환 속성·시간·이징.
 
 ![스타일 패널 섹션](../assets/element-styling-1.jpg)
 
