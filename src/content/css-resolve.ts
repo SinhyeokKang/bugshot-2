@@ -44,6 +44,10 @@ export const INTERESTING_PROPS = [
   "opacity",
   "border",
   "border-style",
+  "border-top-style",
+  "border-right-style",
+  "border-bottom-style",
+  "border-left-style",
   "border-top-width",
   "border-right-width",
   "border-bottom-width",
@@ -116,6 +120,12 @@ const SHORTHAND_MAP: Record<string, string[]> = {
     "border-bottom-color",
     "border-left-color",
   ],
+  "border-style": [
+    "border-top-style",
+    "border-right-style",
+    "border-bottom-style",
+    "border-left-style",
+  ],
   overflow: ["overflow-x", "overflow-y"],
 };
 
@@ -149,6 +159,12 @@ const TRBL_SHORTHANDS: Record<string, [string, string, string, string]> = {
     "border-right-color",
     "border-bottom-color",
     "border-left-color",
+  ],
+  "border-style": [
+    "border-top-style",
+    "border-right-style",
+    "border-bottom-style",
+    "border-left-style",
   ],
 };
 

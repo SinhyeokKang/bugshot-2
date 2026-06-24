@@ -218,6 +218,12 @@ export const SHORTHAND_GROUPS: Record<string, string[]> = {
     "border-bottom-color",
     "border-left-color",
   ],
+  "border-style": [
+    "border-top-style",
+    "border-right-style",
+    "border-bottom-style",
+    "border-left-style",
+  ],
 };
 
 function collapseShorthands(rows: StyleDiffRow[]): StyleDiffRow[] {

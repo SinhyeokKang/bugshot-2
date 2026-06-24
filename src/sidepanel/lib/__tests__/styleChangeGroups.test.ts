@@ -367,6 +367,22 @@ describe("buildStyleDiff — border 변별 collapse", () => {
     expect(rows).toEqual([{ prop: "border-color", asIs: "", toBe: "red" }]);
   });
 
+  it("border-{side}-style 네 변 동일 → 단일 border-style 행", () => {
+    const rows = buildStyleDiff(
+      snap(),
+      diffEdits({
+        inlineStyle: {
+          "border-top-style": "dashed",
+          "border-right-style": "dashed",
+          "border-bottom-style": "dashed",
+          "border-left-style": "dashed",
+        },
+      }),
+    );
+
+    expect(rows).toEqual([{ prop: "border-style", asIs: "", toBe: "dashed" }]);
+  });
+
   it("부분 일치(3변만 같음) → collapse 안 함, 개별 행 4개", () => {
     const rows = buildStyleDiff(
       snap(),

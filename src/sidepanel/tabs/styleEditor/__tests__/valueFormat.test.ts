@@ -119,10 +119,11 @@ describe("rightHintText", () => {
         "hsl(0 0% 0%)",
       );
     });
-    it("color 토큰 원시값 표시 (compact 포함 항상)", () => {
-      expect(rightHintText("color", "", "hsl(0 0% 0%)", true)).toBe(
-        "hsl(0 0% 0%)",
-      );
+    it("color 토큰 compact는 hint 숨김(스와치로 대체)", () => {
+      expect(rightHintText("color", "", "hsl(0 0% 0%)", true)).toBeNull();
+    });
+    it("image 토큰 compact도 hint 숨김", () => {
+      expect(rightHintText("image", "", "url(a.png)", true)).toBeNull();
     });
     it("image 토큰 원시값", () => {
       expect(rightHintText("image", "", "url(a.png)", false)).toBe("url(a.png)");

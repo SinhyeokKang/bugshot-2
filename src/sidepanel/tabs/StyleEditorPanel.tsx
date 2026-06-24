@@ -30,6 +30,7 @@ import {
   BoxShadowProp,
   GapPairProp,
   QuadProp,
+  QuadStyleProp,
   RadiusProp,
   Row2,
   SectionRevertButton,
@@ -75,7 +76,13 @@ const SECTION_PROPS = {
     "background-color",
     "background-image",
     "opacity",
-    "border-style",
+    "border-radius",
+    "border-top-left-radius",
+    "border-top-right-radius",
+    "border-bottom-right-radius",
+    "border-bottom-left-radius",
+  ],
+  border: [
     "border-top-width",
     "border-right-width",
     "border-bottom-width",
@@ -84,11 +91,11 @@ const SECTION_PROPS = {
     "border-right-color",
     "border-bottom-color",
     "border-left-color",
-    "border-radius",
-    "border-top-left-radius",
-    "border-top-right-radius",
-    "border-bottom-right-radius",
-    "border-bottom-left-radius",
+    "border-style",
+    "border-top-style",
+    "border-right-style",
+    "border-bottom-style",
+    "border-left-style",
   ],
   effects: ["box-shadow", "filter", "backdrop-filter", "mix-blend-mode"],
   transition: [
@@ -250,6 +257,15 @@ export function SelectedPanel() {
           <TextProp label="opacity" prop="opacity" />
         </Row2>
         <TextProp label="bg-image" prop="background-image" />
+        <RadiusProp />
+      </Section>
+
+      <Section
+        title={t("editor.section.border")}
+        action={<SectionRevertButton props={SECTION_PROPS.border} />}
+        collapsible
+        defaultOpen={hasSpecified(SECTION_PROPS.border)}
+      >
         <QuadProp
           label="border-width"
           props={[
@@ -257,22 +273,6 @@ export function SelectedPanel() {
             "border-right-width",
             "border-bottom-width",
             "border-left-width",
-          ]}
-        />
-        <SelectProp
-          label="border-style"
-          prop="border-style"
-          options={[
-            "",
-            "solid",
-            "dashed",
-            "dotted",
-            "double",
-            "groove",
-            "ridge",
-            "inset",
-            "outset",
-            "none",
           ]}
         />
         <QuadProp
@@ -284,7 +284,7 @@ export function SelectedPanel() {
             "border-left-color",
           ]}
         />
-        <RadiusProp />
+        <QuadStyleProp label="border-style" />
       </Section>
 
       <Section

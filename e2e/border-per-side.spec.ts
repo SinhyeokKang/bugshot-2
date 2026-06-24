@@ -2,14 +2,15 @@ import type { Page } from "@playwright/test";
 import {
   enterDebugAndPick,
   expect,
-  selectStyleValue,
   setQuadLinkedValue,
   setQuadSideValue,
+  setQuadStyleLinkedValue,
+  setQuadStyleSideValue,
   test,
 } from "./fixtures/extension";
 
-// per-side-border-editing: container 섹션 border를 margin/padding처럼 변별 편집
-// (border-width 4변 QuadProp + border-style 단일 Select + border-color 4변 QuadProp).
+// per-side-border-editing: 별도 Border 섹션에서 border를 margin/padding처럼 변별 편집
+// (border-width 4변 QuadProp + border-color 4변 QuadProp + border-style 4변 QuadStyleProp).
 // #el1(.swatch)은 `border: 1px solid #dddddd` baseline을 가져 computed border-*-width가
 // style:none→0px로 resolve되는 함정 없이 라이브 반영을 그대로 확인할 수 있다.
 test.describe.serial("border-per-side", () => {
@@ -62,13 +63,21 @@ test.describe.serial("border-per-side", () => {
     await expect(panel.getByTestId("changes-dialog")).toBeHidden();
   });
 
-  test("4. border-style 단일 Select → 네 변 일괄 적용", async () => {
-    await selectStyleValue(panel, "border-style", "dashed");
+  test("4. border-style 링크 토글로 네 변 일괄(dashed) 적용", async () => {
+    await setQuadStyleLinkedValue(panel, "border-style", "dashed");
     await expect(el1()).toHaveCSS("border-top-style", "dashed");
+    await expect(el1()).toHaveCSS("border-right-style", "dashed");
+    await expect(el1()).toHaveCSS("border-bottom-style", "dashed");
+    await expect(el1()).toHaveCSS("border-left-style", "dashed");
+  });
+
+  test("5. border-style 한 변(top)만 dotted → 그 변만 반영", async () => {
+    await setQuadStyleSideValue(panel, "border-style", 0, "dotted");
+    await expect(el1()).toHaveCSS("border-top-style", "dotted");
     await expect(el1()).toHaveCSS("border-bottom-style", "dashed");
   });
 
-  test("5. border-color 한 변(top) 입력 → 그 변만 라이브 반영 (캡처 버그 픽스 경로)", async () => {
+  test("6. border-color 한 변(top) 입력 → 그 변만 라이브 반영 (캡처 버그 픽스 경로)", async () => {
     await setQuadSideValue(panel, "border-color", 0, "#ff0000");
     await expect(el1()).toHaveCSS("border-top-color", "rgb(255, 0, 0)");
     // 나머지 변은 .swatch baseline(#dddddd) 유지

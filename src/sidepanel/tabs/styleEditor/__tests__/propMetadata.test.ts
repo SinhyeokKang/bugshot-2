@@ -13,6 +13,14 @@ describe("isKnownDefault — border 변별 기본값", () => {
     expect(isKnownDefault("border-style", "none")).toBe(true);
   });
 
+  it("border-{side}-style none → 기본값", () => {
+    expect(isKnownDefault("border-top-style", "none")).toBe(true);
+    expect(isKnownDefault("border-right-style", "none")).toBe(true);
+    expect(isKnownDefault("border-bottom-style", "none")).toBe(true);
+    expect(isKnownDefault("border-left-style", "none")).toBe(true);
+    expect(isKnownDefault("border-top-style", "solid")).toBe(false);
+  });
+
   it("border-{side}-color 기본 색 → 기본값", () => {
     expect(isKnownDefault("border-bottom-color", "rgb(0, 0, 0)")).toBe(true);
     expect(isKnownDefault("border-top-color", "currentcolor")).toBe(true);

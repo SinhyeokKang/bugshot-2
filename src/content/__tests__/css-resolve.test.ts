@@ -71,6 +71,13 @@ describe("INTERESTING_PROPS", () => {
     expect(INTERESTING_PROPS).toContain("border-bottom-color");
   });
 
+  it("border-*-style per-side longhand 포함", () => {
+    expect(INTERESTING_PROPS).toContain("border-top-style");
+    expect(INTERESTING_PROPS).toContain("border-right-style");
+    expect(INTERESTING_PROPS).toContain("border-bottom-style");
+    expect(INTERESTING_PROPS).toContain("border-left-style");
+  });
+
   it("충분한 수의 속성", () => {
     expect(INTERESTING_PROPS.length).toBeGreaterThanOrEqual(30);
   });
@@ -119,6 +126,24 @@ describe("splitTrblValue — border-width/color shorthand 분해", () => {
 
   it("슬래시(radius elliptical) 포함 → null (분해 안 함)", () => {
     expect(splitTrblValue("10px / 20px")).toBeNull();
+  });
+
+  it("border-style 키워드 TRBL 분해 (2값 → top/bottom·right/left)", () => {
+    expect(splitTrblValue("solid dashed")).toEqual([
+      "solid",
+      "dashed",
+      "solid",
+      "dashed",
+    ]);
+  });
+
+  it("border-style 키워드 단일 값 → 네 변 동일", () => {
+    expect(splitTrblValue("dotted")).toEqual([
+      "dotted",
+      "dotted",
+      "dotted",
+      "dotted",
+    ]);
   });
 });
 
