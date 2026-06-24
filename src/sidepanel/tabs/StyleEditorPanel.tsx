@@ -75,8 +75,15 @@ const SECTION_PROPS = {
     "background-color",
     "background-image",
     "opacity",
-    "border",
-    "border-color",
+    "border-style",
+    "border-top-width",
+    "border-right-width",
+    "border-bottom-width",
+    "border-left-width",
+    "border-top-color",
+    "border-right-color",
+    "border-bottom-color",
+    "border-left-color",
     "border-radius",
     "border-top-left-radius",
     "border-top-right-radius",
@@ -243,10 +250,40 @@ export function SelectedPanel() {
           <TextProp label="opacity" prop="opacity" />
         </Row2>
         <TextProp label="bg-image" prop="background-image" />
-        <Row2>
-          <TextProp label="border" prop="border" />
-          <TextProp label="border-color" prop="border-color" />
-        </Row2>
+        <QuadProp
+          label="border-width"
+          props={[
+            "border-top-width",
+            "border-right-width",
+            "border-bottom-width",
+            "border-left-width",
+          ]}
+        />
+        <SelectProp
+          label="border-style"
+          prop="border-style"
+          options={[
+            "",
+            "solid",
+            "dashed",
+            "dotted",
+            "double",
+            "groove",
+            "ridge",
+            "inset",
+            "outset",
+            "none",
+          ]}
+        />
+        <QuadProp
+          label="border-color"
+          props={[
+            "border-top-color",
+            "border-right-color",
+            "border-bottom-color",
+            "border-left-color",
+          ]}
+        />
         <RadiusProp />
       </Section>
 

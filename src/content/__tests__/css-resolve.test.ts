@@ -15,6 +15,8 @@ import {
   readEditableText,
   writeEditableText,
   shouldRestoreEditable,
+  splitTrblValue,
+  splitCssTokens,
   type EditableHandle,
 } from "../css-resolve";
 
@@ -63,8 +65,60 @@ describe("INTERESTING_PROPS", () => {
     expect(INTERESTING_PROPS).toContain("display");
   });
 
+  it("border 변별 longhand + border-style 포함", () => {
+    expect(INTERESTING_PROPS).toContain("border-style");
+    expect(INTERESTING_PROPS).toContain("border-bottom-width");
+    expect(INTERESTING_PROPS).toContain("border-bottom-color");
+  });
+
   it("충분한 수의 속성", () => {
     expect(INTERESTING_PROPS.length).toBeGreaterThanOrEqual(30);
+  });
+});
+
+describe("splitCssTokens — 괄호 depth-aware 분해", () => {
+  it("공백 구분 토큰 분해", () => {
+    expect(splitCssTokens("red blue")).toEqual(["red", "blue"]);
+  });
+
+  it("색 함수 내부 공백/콤마는 1토큰으로 보존", () => {
+    expect(splitCssTokens("rgb(1, 2, 3)")).toEqual(["rgb(1, 2, 3)"]);
+    expect(splitCssTokens("hsl(var(--border))")).toEqual([
+      "hsl(var(--border))",
+    ]);
+    expect(splitCssTokens("1px solid rgb(0, 0, 0)")).toEqual([
+      "1px",
+      "solid",
+      "rgb(0, 0, 0)",
+    ]);
+  });
+});
+
+describe("splitTrblValue — border-width/color shorthand 분해", () => {
+  it("단일 값 → 네 변 동일", () => {
+    expect(splitTrblValue("1px")).toEqual(["1px", "1px", "1px", "1px"]);
+  });
+
+  it("2값 → top/bottom, right/left", () => {
+    expect(splitTrblValue("red blue")).toEqual(["red", "blue", "red", "blue"]);
+  });
+
+  it("색 함수(var 포함)는 1토큰 보존하며 네 변에 분배", () => {
+    const v = "hsl(var(--border))";
+    expect(splitTrblValue(v)).toEqual([v, v, v, v]);
+  });
+
+  it("4값 → top right bottom left", () => {
+    expect(splitTrblValue("1px 2px 3px 4px")).toEqual([
+      "1px",
+      "2px",
+      "3px",
+      "4px",
+    ]);
+  });
+
+  it("슬래시(radius elliptical) 포함 → null (분해 안 함)", () => {
+    expect(splitTrblValue("10px / 20px")).toBeNull();
   });
 });
 

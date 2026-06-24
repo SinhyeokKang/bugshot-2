@@ -348,11 +348,25 @@ function SideEdgeIcon({
   );
 }
 
-export function QuadProp({ label, prefix }: { label: string; prefix: string }) {
+export function QuadProp({
+  label,
+  prefix,
+  props: explicitProps,
+}: {
+  label: string;
+  prefix?: string;
+  props?: [string, string, string, string];
+}) {
   const t = useT();
   const props = useMemo(
-    () => [`${prefix}-top`, `${prefix}-right`, `${prefix}-bottom`, `${prefix}-left`],
-    [prefix],
+    () =>
+      explicitProps ?? [
+        `${prefix}-top`,
+        `${prefix}-right`,
+        `${prefix}-bottom`,
+        `${prefix}-left`,
+      ],
+    [explicitProps, prefix],
   );
   const { linked, toggle, setAllProps } = useLinkedProps(props);
   const source = useCommonPropSource(props);

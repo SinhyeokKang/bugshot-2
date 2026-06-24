@@ -16,7 +16,7 @@
   - `removeDiffRow("border-width", ...)`가 4개 width longhand를 inlineStyle에서 제거.
   - `countChangeRows`가 네 변 동일 border-width 편집을 **1**로 센다(longhand 4가 아님).
 - **검증**:
-  - [ ] 테스트가 추가되고, 구현 전이라 collapse/카운트 케이스는 실패(red)한다.
+  - [x] 테스트가 추가되고, 구현 전이라 collapse/카운트 케이스는 실패(red)한다. (구현 후 green 전환 확인)
 
 ### Task 2: 데이터 레이어 — 캡처 + shorthand 확장
 - **변경 대상**: `src/content/css-resolve.ts`
@@ -25,8 +25,8 @@
   - `SHORTHAND_MAP`에 `border-width`·`border-color`(→ 각 4 longhand) 추가.
   - `TRBL_SHORTHANDS`에 `border-width`·`border-color` 추가.
 - **검증**:
-  - [ ] `pnpm typecheck` 통과.
-  - [ ] **단위 테스트**(순수 함수): `splitTrblValue("red blue")`가 `["red","blue","red","blue"]`로, `splitTrblValue("hsl(var(--border))")`가 색 함수를 1토큰으로 보존해 `[v,v,v,v]`로 분해되는지(`splitCssTokens` depth-aware). `splitTrblValue`/`splitCssTokens`가 export 안 돼 있으면 테스트 가능하도록 export하거나, 이미 export된 경로로 검증.
+  - [x] `pnpm typecheck` 통과.
+  - [x] **단위 테스트**(순수 함수): `splitTrblValue("red blue")`→`["red","blue","red","blue"]`, `splitTrblValue("hsl(var(--border))")`→색 함수 1토큰 보존 `[v,v,v,v]`. `splitTrblValue`/`splitCssTokens` export 후 `css-resolve.test.ts`에 케이스 추가·통과.
   - [ ] (실제 Chrome) `border-bottom: 1px solid #ccc` 요소 선택 시 payload의 `specifiedStyles`/`computedStyles`에 `border-bottom-width`·`border-bottom-color`가 잡힘.
   - [ ] `border-border`(border-color shorthand+var) 요소에서 변별 color에 `hsl(var(--border))` 보존(specified) 또는 resolved 값(computed).
 
@@ -34,15 +34,15 @@
 - **변경 대상**: `src/sidepanel/tabs/styleEditor/propMetadata.ts` + 신규 테스트 `src/sidepanel/tabs/styleEditor/__tests__/propMetadata.test.ts`
 - **작업 내용**: `PROP_CATEGORY`에 4 width(`length`)·4 color(`color`) 추가, 고아가 된 `border-color` 제거. `KNOWN_DEFAULTS`에 4 width(`["0px"]`)·4 color(`["rgb(0, 0, 0)","currentcolor"]`)·`border-style: ["none"]` 추가, 고아 `border-color` 제거. `isKnownDefault`의 `border` 특례 유지(전체 shorthand 캡처 유지). **`"medium"`은 넣지 않는다**(computed가 `0px`로 resolve — design.md 참조).
 - **검증**:
-  - [ ] 신규 `propMetadata.test.ts` 생성(현재 `isKnownDefault` 전용 테스트 파일 없음 — `valueFormat.test.ts`만 존재).
-  - [ ] `isKnownDefault("border-bottom-width","0px") === true`, `isKnownDefault("border-style","none") === true` 단위 테스트 통과.
-  - [ ] `pnpm typecheck` 통과.
+  - [x] 신규 `propMetadata.test.ts` 생성.
+  - [x] `isKnownDefault("border-bottom-width","0px") === true`, `isKnownDefault("border-style","none") === true` 단위 테스트 통과.
+  - [x] `pnpm typecheck` 통과.
 
 ### Task 4: QuadProp 일반화
 - **변경 대상**: `src/sidepanel/tabs/styleEditor/StylePropEditors.tsx`
 - **작업 내용**: `QuadProp` 시그니처에 `props?: [string,string,string,string]` 추가, 내부 `props`를 `explicitProps ?? prefix 기반`으로 계산. 나머지 불변.
 - **검증**:
-  - [ ] `pnpm typecheck` 통과.
+  - [x] `pnpm typecheck` 통과.
   - [ ] (실제 Chrome) margin·padding 변별 편집·링크 토글이 기존대로 동작(회귀 없음).
 
 ### Task 5: 패널 container 섹션 교체
@@ -57,8 +57,8 @@
 - **변경 대상**: `src/sidepanel/components/StyleChangesTable.tsx`
 - **작업 내용**: `SHORTHAND_GROUPS`에 `border-width`·`border-color`(각 4 longhand) 추가.
 - **검증**:
-  - [ ] Task 1 테스트가 green.
-  - [ ] `pnpm test` 전체 통과.
+  - [x] Task 1 테스트가 green.
+  - [x] `pnpm test` 전체 통과 (1969개).
   - [ ] (실제 Chrome) 네 변 동일 편집 시 **변경사항 보기**·마크다운에 단일 `border-width`/`border-color` 행, 변별 시 개별 행.
 
 ## 테스트 계획

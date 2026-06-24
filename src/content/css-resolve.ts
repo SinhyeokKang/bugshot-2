@@ -43,6 +43,15 @@ export const INTERESTING_PROPS = [
   "background-image",
   "opacity",
   "border",
+  "border-style",
+  "border-top-width",
+  "border-right-width",
+  "border-bottom-width",
+  "border-left-width",
+  "border-top-color",
+  "border-right-color",
+  "border-bottom-color",
+  "border-left-color",
   "border-radius",
   "border-top-left-radius",
   "border-top-right-radius",
@@ -95,6 +104,18 @@ const SHORTHAND_MAP: Record<string, string[]> = {
     "border-bottom-right-radius",
     "border-bottom-left-radius",
   ],
+  "border-width": [
+    "border-top-width",
+    "border-right-width",
+    "border-bottom-width",
+    "border-left-width",
+  ],
+  "border-color": [
+    "border-top-color",
+    "border-right-color",
+    "border-bottom-color",
+    "border-left-color",
+  ],
   overflow: ["overflow-x", "overflow-y"],
 };
 
@@ -116,6 +137,18 @@ const TRBL_SHORTHANDS: Record<string, [string, string, string, string]> = {
     "border-top-right-radius",
     "border-bottom-right-radius",
     "border-bottom-left-radius",
+  ],
+  "border-width": [
+    "border-top-width",
+    "border-right-width",
+    "border-bottom-width",
+    "border-left-width",
+  ],
+  "border-color": [
+    "border-top-color",
+    "border-right-color",
+    "border-bottom-color",
+    "border-left-color",
   ],
 };
 
@@ -798,7 +831,9 @@ function expandShorthands(
   }
 }
 
-function splitTrblValue(value: string): [string, string, string, string] | null {
+export function splitTrblValue(
+  value: string,
+): [string, string, string, string] | null {
   if (value.includes("/")) return null;
   const parts = splitCssTokens(value);
   if (parts.length === 0 || parts.length > 4) return null;
@@ -806,7 +841,7 @@ function splitTrblValue(value: string): [string, string, string, string] | null 
   return [a, b, c, d];
 }
 
-function splitCssTokens(value: string): string[] {
+export function splitCssTokens(value: string): string[] {
   const parts: string[] = [];
   let current = "";
   let depth = 0;
