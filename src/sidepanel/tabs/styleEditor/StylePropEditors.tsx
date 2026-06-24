@@ -433,9 +433,12 @@ function SideStyleSelect({
     else set(next);
   };
   return (
-    <Select value={value} onValueChange={commit}>
+    <Select value={current} onValueChange={commit}>
       <SelectTrigger
-        className={cn("h-9 gap-1 px-2", isDefault && "opacity-50")}
+        className={cn(
+          "h-9 gap-1 px-1.5 [&>svg:last-child]:hidden",
+          isDefault && "text-muted-foreground/50",
+        )}
         title={`${sideTitle} · ${current || "none"}`}
         aria-label={sideTitle}
       >
@@ -444,6 +447,9 @@ function SideStyleSelect({
           style={current}
           className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
         />
+        <span className="min-w-0 flex-1 truncate text-left text-xs">
+          {current || "none"}
+        </span>
       </SelectTrigger>
       <SelectContent>
         {BORDER_STYLE_OPTIONS.map((o) => (
