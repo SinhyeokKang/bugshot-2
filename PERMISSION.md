@@ -87,7 +87,7 @@ BYOK LLM 프로바이더 연결 + GitLab **self-managed 인스턴스**(gitlab.co
 | API | 용도 | 사용 위치 |
 |---|---|---|
 | `chrome.tabs.captureVisibleTab()` | 요소·영역·30s Replay 스크린샷 | `background/messages.ts:156` (bg handler) |
-| `chrome.tabCapture.getMediaStreamId()` | 수동 영상 녹화 스트림 | `video-recorder.ts:25` |
+| `chrome.tabCapture.getMediaStreamId()` | 수동 영상 녹화 스트림 | `video-recorder.ts:131` |
 | `chrome.tabs.get() → tab.url` | 탭 URL 읽기 | `tab-bindings.ts:160`, `picker-control.ts:113,238,267,365`, `video-capture.ts:13`, `video-recorder.ts:81`, `use-30s-replay.ts:65,145` |
 | `chrome.scripting.executeScript()` | content script 재주입·뷰포트 측정 | `picker-control.ts:39,69,86,612` |
 
@@ -387,7 +387,7 @@ bg service worker에서 직접 읽기/쓰기:
 
 | 함수 | 위치 | 필요 env |
 |---|---|---|
-| `isOAuthConfigured()` | `oauth.ts:222` | `VITE_ATLASSIAN_CLIENT_ID` + `VITE_OAUTH_PROXY_URL` |
+| `isOAuthConfigured()` | `oauth.ts:240` | `VITE_ATLASSIAN_CLIENT_ID` + `VITE_OAUTH_PROXY_URL` |
 | `isGithubOAuthConfigured()` | `github-oauth.ts:14` | `VITE_GITHUB_CLIENT_ID` + `VITE_OAUTH_PROXY_URL` |
 | `isLinearOAuthConfigured()` | `linear-oauth.ts:12` | `VITE_LINEAR_CLIENT_ID` |
 | `isNotionOAuthConfigured()` | `notion-oauth.ts:12` | `VITE_NOTION_CLIENT_ID` + `VITE_OAUTH_PROXY_URL` |

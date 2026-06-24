@@ -333,3 +333,142 @@ describe("removeDiffRow", () => {
     expect(next).not.toBe(input);
   });
 });
+
+describe("buildStyleDiff — border 변별 collapse", () => {
+  it("border-{side}-width 네 변 동일 → 단일 border-width 행", () => {
+    const rows = buildStyleDiff(
+      snap(),
+      diffEdits({
+        inlineStyle: {
+          "border-top-width": "2px",
+          "border-right-width": "2px",
+          "border-bottom-width": "2px",
+          "border-left-width": "2px",
+        },
+      }),
+    );
+
+    expect(rows).toEqual([{ prop: "border-width", asIs: "", toBe: "2px" }]);
+  });
+
+  it("border-{side}-color 네 변 동일 → 단일 border-color 행", () => {
+    const rows = buildStyleDiff(
+      snap(),
+      diffEdits({
+        inlineStyle: {
+          "border-top-color": "red",
+          "border-right-color": "red",
+          "border-bottom-color": "red",
+          "border-left-color": "red",
+        },
+      }),
+    );
+
+    expect(rows).toEqual([{ prop: "border-color", asIs: "", toBe: "red" }]);
+  });
+
+  it("border-{side}-style 네 변 동일 → 단일 border-style 행", () => {
+    const rows = buildStyleDiff(
+      snap(),
+      diffEdits({
+        inlineStyle: {
+          "border-top-style": "dashed",
+          "border-right-style": "dashed",
+          "border-bottom-style": "dashed",
+          "border-left-style": "dashed",
+        },
+      }),
+    );
+
+    expect(rows).toEqual([{ prop: "border-style", asIs: "", toBe: "dashed" }]);
+  });
+
+  it("부분 일치(3변만 같음) → collapse 안 함, 개별 행 4개", () => {
+    const rows = buildStyleDiff(
+      snap(),
+      diffEdits({
+        inlineStyle: {
+          "border-top-width": "2px",
+          "border-right-width": "2px",
+          "border-bottom-width": "4px",
+          "border-left-width": "2px",
+        },
+      }),
+    );
+
+    expect(rows.map((r) => r.prop).sort()).toEqual([
+      "border-bottom-width",
+      "border-left-width",
+      "border-right-width",
+      "border-top-width",
+    ]);
+    expect(rows.some((r) => r.prop === "border-width")).toBe(false);
+  });
+
+  it("한 변만 편집 → 그 변 개별 행만 (collapse 조건 미충족)", () => {
+    const rows = buildStyleDiff(
+      snap(),
+      diffEdits({ inlineStyle: { "border-bottom-width": "2px" } }),
+    );
+
+    expect(rows).toEqual([
+      { prop: "border-bottom-width", asIs: "", toBe: "2px" },
+    ]);
+  });
+});
+
+describe("countChangeRows — border 변별 collapse", () => {
+  it("border-width 네 변 동일 편집 → 1 카운트 (longhand 4 아님)", () => {
+    const groups = buildChangeGroups(
+      selection(),
+      edits({
+        inlineStyle: {
+          "border-top-width": "2px",
+          "border-right-width": "2px",
+          "border-bottom-width": "2px",
+          "border-left-width": "2px",
+        },
+      }),
+      [],
+    );
+
+    expect(countChangeRows(groups)).toBe(1);
+  });
+});
+
+describe("removeDiffRow — border 변별 collapse", () => {
+  it('"border-width" → width longhand 4종 삭제(다른 prop 보존)', () => {
+    const next = removeDiffRow(
+      snap(),
+      diffEdits({
+        inlineStyle: {
+          "border-top-width": "2px",
+          "border-right-width": "2px",
+          "border-bottom-width": "2px",
+          "border-left-width": "2px",
+          color: "#00f",
+        },
+      }),
+      "border-width",
+    );
+
+    expect(next.inlineStyle).toEqual({ color: "#00f" });
+  });
+
+  it('"border-color" → color longhand 4종 삭제', () => {
+    const next = removeDiffRow(
+      snap(),
+      diffEdits({
+        inlineStyle: {
+          "border-top-color": "red",
+          "border-right-color": "red",
+          "border-bottom-color": "red",
+          "border-left-color": "red",
+        },
+      }),
+      "border-color",
+    );
+
+    expect(next.inlineStyle).toEqual({});
+  });
+});

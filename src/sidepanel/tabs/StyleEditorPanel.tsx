@@ -30,6 +30,7 @@ import {
   BoxShadowProp,
   GapPairProp,
   QuadProp,
+  QuadStyleProp,
   RadiusProp,
   Row2,
   SectionRevertButton,
@@ -75,13 +76,26 @@ const SECTION_PROPS = {
     "background-color",
     "background-image",
     "opacity",
-    "border",
-    "border-color",
     "border-radius",
     "border-top-left-radius",
     "border-top-right-radius",
     "border-bottom-right-radius",
     "border-bottom-left-radius",
+  ],
+  border: [
+    "border-top-width",
+    "border-right-width",
+    "border-bottom-width",
+    "border-left-width",
+    "border-top-color",
+    "border-right-color",
+    "border-bottom-color",
+    "border-left-color",
+    "border-style",
+    "border-top-style",
+    "border-right-style",
+    "border-bottom-style",
+    "border-left-style",
   ],
   effects: ["box-shadow", "filter", "backdrop-filter", "mix-blend-mode"],
   transition: [
@@ -243,11 +257,34 @@ export function SelectedPanel() {
           <TextProp label="opacity" prop="opacity" />
         </Row2>
         <TextProp label="bg-image" prop="background-image" />
-        <Row2>
-          <TextProp label="border" prop="border" />
-          <TextProp label="border-color" prop="border-color" />
-        </Row2>
         <RadiusProp />
+      </Section>
+
+      <Section
+        title={t("editor.section.border")}
+        action={<SectionRevertButton props={SECTION_PROPS.border} />}
+        collapsible
+        defaultOpen={hasSpecified(SECTION_PROPS.border)}
+      >
+        <QuadProp
+          label="border-width"
+          props={[
+            "border-top-width",
+            "border-right-width",
+            "border-bottom-width",
+            "border-left-width",
+          ]}
+        />
+        <QuadProp
+          label="border-color"
+          props={[
+            "border-top-color",
+            "border-right-color",
+            "border-bottom-color",
+            "border-left-color",
+          ]}
+        />
+        <QuadStyleProp label="border-style" />
       </Section>
 
       <Section

@@ -85,6 +85,25 @@ export function injectColorSpace(
   return { ...decoderConfig, colorSpace: { ...BT709 } };
 }
 
+// avc1은 codec description(SPS/PPS)이 녹화 내내 불변이어야 한다. mp4-muxer는 키프레임마다
+// 오는 decoderConfig를 덮어써(Object.assign) 마지막 값을 avcC에 박는데, 인코더가 미세하게
+// 다른 description을 내면 앞 샘플이 깨진다("codec description changed"). 첫 decoderConfig만
+// 전달하고 이후 키프레임 청크에선 제거해 description을 고정한다.
+export function prepareChunkMeta(
+  meta: EncodedVideoChunkMetadata | undefined,
+  configAlreadySent: boolean,
+): { meta: EncodedVideoChunkMetadata | undefined; configSent: boolean } {
+  if (!meta?.decoderConfig) return { meta, configSent: configAlreadySent };
+  if (configAlreadySent) {
+    const { decoderConfig: _omit, ...rest } = meta;
+    return { meta: rest, configSent: true };
+  }
+  return {
+    meta: { ...meta, decoderConfig: injectColorSpace(meta.decoderConfig) },
+    configSent: true,
+  };
+}
+
 async function makeThumbnail(blob: Blob, width: number, height: number): Promise<string> {
   try {
     const bitmap = await createImageBitmap(blob);
@@ -133,16 +152,12 @@ export async function encodeToMp4(options: EncodeOptions): Promise<EncodeResult>
 
   // VideoEncoder error는 비동기 콜백으로 와 직접 throw 안 됨 — 변수로 받아 flush 후 throw.
   let encoderError: DOMException | null = null;
+  let configSent = false;
   const encoder = new VideoEncoder({
     output: (chunk, meta) => {
-      if (meta?.decoderConfig) {
-        muxer.addVideoChunk(chunk, {
-          ...meta,
-          decoderConfig: injectColorSpace(meta.decoderConfig),
-        });
-      } else {
-        muxer.addVideoChunk(chunk, meta);
-      }
+      const prepared = prepareChunkMeta(meta, configSent);
+      configSent = prepared.configSent;
+      muxer.addVideoChunk(chunk, prepared.meta);
     },
     error: (e) => {
       encoderError = e;

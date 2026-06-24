@@ -348,11 +348,173 @@ function SideEdgeIcon({
   );
 }
 
-export function QuadProp({ label, prefix }: { label: string; prefix: string }) {
+function borderStyleStroke(style: string): {
+  dash?: string;
+  round?: boolean;
+  faint?: boolean;
+} {
+  if (style === "dashed") return { dash: "2.5 1.5" };
+  if (style === "dotted") return { dash: "0.1 2", round: true };
+  if (!style || style === "none") return { faint: true };
+  return {};
+}
+
+function SideStyleIcon({
+  side,
+  style,
+  className,
+}: {
+  side: keyof typeof SIDE_LINES;
+  style: string;
+  className?: string;
+}) {
+  const l = SIDE_LINES[side];
+  const s = borderStyleStroke(style);
+  return (
+    <svg
+      viewBox="0 0 14 14"
+      fill="none"
+      stroke="currentColor"
+      className={className}
+      aria-hidden="true"
+    >
+      <rect x="2.5" y="2.5" width="9" height="9" strokeWidth="1" opacity="0.35" />
+      <line
+        x1={l.x1}
+        y1={l.y1}
+        x2={l.x2}
+        y2={l.y2}
+        strokeWidth="2.5"
+        strokeLinecap={s.round ? "round" : "butt"}
+        strokeDasharray={s.dash}
+        opacity={s.faint ? 0.3 : 1}
+      />
+    </svg>
+  );
+}
+
+const BORDER_STYLE_PROPS: [string, string, string, string] = [
+  "border-top-style",
+  "border-right-style",
+  "border-bottom-style",
+  "border-left-style",
+];
+
+const BORDER_STYLE_OPTIONS = [
+  "",
+  "solid",
+  "dashed",
+  "dotted",
+  "double",
+  "groove",
+  "ridge",
+  "inset",
+  "outset",
+  "none",
+];
+
+function SideStyleSelect({
+  prop,
+  side,
+  sideTitle,
+  onLinkedCommit,
+}: {
+  prop: string;
+  side: keyof typeof SIDE_LINES;
+  sideTitle: string;
+  onLinkedCommit?: (value: string) => void;
+}) {
+  const { value, placeholder, set } = useStyleProp(prop);
+  const current = (value || placeholder || "").trim();
+  const isDefault = !value && isKnownDefault(prop, placeholder);
+  const commit = (v: string) => {
+    const next = v === "__empty__" ? "" : v;
+    if (onLinkedCommit) onLinkedCommit(next);
+    else set(next);
+  };
+  return (
+    <Select value={value} onValueChange={commit}>
+      <SelectTrigger
+        className={cn("h-9 gap-1 px-2", isDefault && "opacity-50")}
+        title={`${sideTitle} · ${current || "none"}`}
+        aria-label={sideTitle}
+      >
+        <SideStyleIcon
+          side={side}
+          style={current}
+          className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+        />
+      </SelectTrigger>
+      <SelectContent>
+        {BORDER_STYLE_OPTIONS.map((o) => (
+          <SelectItem key={o} value={o || "__empty__"}>
+            {o || `(${placeholder || "none"})`}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+export function QuadStyleProp({ label }: { label: string }) {
+  const t = useT();
+  const { linked, toggle, setAllProps } = useLinkedProps(BORDER_STYLE_PROPS);
+  const source = useCommonPropSource(BORDER_STYLE_PROPS);
+
+  return (
+    <PropRow label={label} source={source}>
+      <div className="flex gap-1">
+        <div className="grid flex-1 grid-cols-4 gap-1">
+          <SideStyleSelect
+            prop={BORDER_STYLE_PROPS[0]}
+            side="top"
+            sideTitle={t("prop.side.top")}
+            onLinkedCommit={linked ? setAllProps : undefined}
+          />
+          <SideStyleSelect
+            prop={BORDER_STYLE_PROPS[1]}
+            side="right"
+            sideTitle={t("prop.side.right")}
+            onLinkedCommit={linked ? setAllProps : undefined}
+          />
+          <SideStyleSelect
+            prop={BORDER_STYLE_PROPS[2]}
+            side="bottom"
+            sideTitle={t("prop.side.bottom")}
+            onLinkedCommit={linked ? setAllProps : undefined}
+          />
+          <SideStyleSelect
+            prop={BORDER_STYLE_PROPS[3]}
+            side="left"
+            sideTitle={t("prop.side.left")}
+            onLinkedCommit={linked ? setAllProps : undefined}
+          />
+        </div>
+        <LinkToggle linked={linked} onToggle={toggle} />
+      </div>
+    </PropRow>
+  );
+}
+
+export function QuadProp({
+  label,
+  prefix,
+  props: explicitProps,
+}: {
+  label: string;
+  prefix?: string;
+  props?: [string, string, string, string];
+}) {
   const t = useT();
   const props = useMemo(
-    () => [`${prefix}-top`, `${prefix}-right`, `${prefix}-bottom`, `${prefix}-left`],
-    [prefix],
+    () =>
+      explicitProps ?? [
+        `${prefix}-top`,
+        `${prefix}-right`,
+        `${prefix}-bottom`,
+        `${prefix}-left`,
+      ],
+    [explicitProps, prefix],
   );
   const { linked, toggle, setAllProps } = useLinkedProps(props);
   const source = useCommonPropSource(props);

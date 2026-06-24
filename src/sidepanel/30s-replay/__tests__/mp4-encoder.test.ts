@@ -5,6 +5,7 @@ import {
   injectColorSpace,
   pickCodec,
   pickEvenDimensions,
+  prepareChunkMeta,
 } from "../mp4-encoder";
 
 const dummyBlob = () => new Blob(["x"], { type: "image/jpeg" });
@@ -101,6 +102,38 @@ describe("pickCodec", () => {
 describe("encodeToMp4", () => {
   it("빈 프레임 배열이면 throw", async () => {
     await expect(encodeToMp4({ frames: [] })).rejects.toThrow();
+  });
+});
+
+describe("prepareChunkMeta", () => {
+  const decoderConfig = { codec: "avc1.42003D", description: new Uint8Array([1, 2, 3]) };
+
+  it("첫 decoderConfig는 colorSpace 주입 후 전달하고 configSent=true", () => {
+    const { meta, configSent } = prepareChunkMeta({ decoderConfig }, false);
+    expect(configSent).toBe(true);
+    expect(meta?.decoderConfig?.description).toBe(decoderConfig.description);
+    expect(meta?.decoderConfig?.colorSpace).toEqual({
+      primaries: "bt709",
+      transfer: "bt709",
+      matrix: "bt709",
+      fullRange: false,
+    });
+  });
+
+  it("이미 전달된 뒤 오는 키프레임 decoderConfig는 제거 (description 고정)", () => {
+    const { meta, configSent } = prepareChunkMeta({ decoderConfig }, true);
+    expect(configSent).toBe(true);
+    expect(meta).not.toHaveProperty("decoderConfig");
+  });
+
+  it("decoderConfig 없는 delta 청크는 그대로 통과, configSent 보존", () => {
+    expect(prepareChunkMeta({}, true)).toEqual({ meta: {}, configSent: true });
+    expect(prepareChunkMeta({}, false)).toEqual({ meta: {}, configSent: false });
+  });
+
+  it("meta 자체가 undefined여도 안전", () => {
+    expect(prepareChunkMeta(undefined, false)).toEqual({ meta: undefined, configSent: false });
+    expect(prepareChunkMeta(undefined, true)).toEqual({ meta: undefined, configSent: true });
   });
 });
 

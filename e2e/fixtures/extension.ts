@@ -232,6 +232,34 @@ export async function selectStyleValue(
   await panel.getByRole("option", { name: option, exact: true }).click();
 }
 
+// QuadStyleProp(border-style) — per-side Select 4개(role=combobox) + LinkToggle(last button).
+// linked 켜고 첫 칸에서 옵션 선택해 전 면 일괄 적용.
+export async function setQuadStyleLinkedValue(
+  panel: Page,
+  label: string,
+  option: string,
+): Promise<void> {
+  const row = propRow(panel, label);
+  const toggle = row.locator("button").last();
+  if ((await toggle.getAttribute("aria-pressed")) !== "true") await toggle.click();
+  await row.getByRole("combobox").first().click();
+  await panel.getByRole("option", { name: option, exact: true }).click();
+}
+
+// QuadStyleProp 한 면만(unlink) 선택. idx: top0 right1 bottom2 left3.
+export async function setQuadStyleSideValue(
+  panel: Page,
+  label: string,
+  idx: number,
+  option: string,
+): Promise<void> {
+  const row = propRow(panel, label);
+  const toggle = row.locator("button").last();
+  if ((await toggle.getAttribute("aria-pressed")) === "true") await toggle.click();
+  await row.getByRole("combobox").nth(idx).click();
+  await panel.getByRole("option", { name: option, exact: true }).click();
+}
+
 // AlignmentProp(Tabs) — 인덱스: left0 center1 right2 justify3.
 export async function setAlignment(
   panel: Page,

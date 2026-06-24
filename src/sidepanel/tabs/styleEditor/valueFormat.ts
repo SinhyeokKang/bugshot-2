@@ -70,6 +70,9 @@ export function rightHintText(
   compact: boolean,
 ): string | null {
   if (category === "color" || category === "image") {
+    // compact(4-col QuadProp border-color)은 폭이 좁고 TokenChip 스와치가 이미 색을
+    // 보여줘 원시값 텍스트는 생략한다.
+    if (compact) return null;
     return tokenRawValue ?? null;
   }
   if (category === "length" || category === "number") {
