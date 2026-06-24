@@ -29,8 +29,9 @@ border 편집을 margin·padding과 같은 변별 패턴으로 통일한다. 데
 
 변경 내용:
 - `PROP_CATEGORY`에 추가: 4개 `border-{side}-width: "length"`, 4개 `border-{side}-color: "color"`. (기존 `"border-color": "color"`는 단일 필드 제거로 고아가 되므로 제거.)
-- `KNOWN_DEFAULTS`에 추가: 4개 `border-{side}-width: ["0px", "medium"]`, 4개 `border-{side}-color: ["rgb(0, 0, 0)", "currentcolor"]`, `border-style: ["none"]`. (기존 `"border-color"` 항목 제거.)
-- `isKnownDefault`의 `border` "0px none" 특례는 유지(전체 shorthand는 캡처 유지).
+- `KNOWN_DEFAULTS`에 추가: 4개 `border-{side}-width: ["0px"]`, 4개 `border-{side}-color: ["rgb(0, 0, 0)", "currentcolor"]`, `border-style: ["none"]`. (기존 `"border-color"` 항목 제거.)
+  - **`"medium"` 미포함**: computed `border-*-width`는 `border-style:none`이면 키워드 `medium`이 아니라 used value `"0px"`로 resolve된다. `"medium"`은 specified로만 드물게 나타나므로 죽은 항목 — `["0px"]`만으로 충분.
+- `isKnownDefault`의 `border` "0px none" 특례는 유지(전체 `border`는 INTERESTING_PROPS에 남아 AI/diff 컨텍스트로 캡처됨 — UI 필드만 제거).
 
 ### `src/sidepanel/tabs/styleEditor/StylePropEditors.tsx`
 현재 역할: `QuadProp`(`prefix-side` 4변), `RadiusProp`, `GapPairProp`, `SelectProp`, `TextProp` 등 편집 컨트롤.
@@ -68,9 +69,10 @@ border 편집을 margin·padding과 같은 변별 패턴으로 통일한다. 데
     props={["border-top-color", "border-right-color", "border-bottom-color", "border-left-color"]}
   />
   ```
-  `<RadiusProp />`는 그대로 유지.
-- `SECTION_PROPS.container`에서 `"border-color"`를 제거하고 변별 longhand 8개 + `"border-style"`를 추가. `"border"`(전체 shorthand)는 **유지**(AI가 적용한 border shorthand를 섹션 revert로 되돌릴 수 있게). 결과 목록:
-  `background-color, background-image, opacity, border, border-style, border-{top,right,bottom,left}-width, border-{top,right,bottom,left}-color, border-radius, border-{tl,tr,br,bl}-radius`.
+  `<RadiusProp />`는 그대로 유지. **순서 의도**: width(풀폭 quad) → style(단일 Select) → color(풀폭 quad). 동일한 `SideEdgeIcon`(top/right/bottom/left)을 쓰는 width·color 두 quad 사이에 style Select가 끼어 시각적 분리 역할을 한다.
+  - **options의 빈 `""` vs `"none"`**: `""`는 `SelectProp`이 `__empty__`(미설정 → inlineStyle에서 delete)로 처리하는 "초기화" 슬롯, `"none"`은 명시적 `border-style: none` 값. computed가 style 없을 때 `none`을 반환하므로 placeholder에 `(none)`이 뜨고 옵션에도 `none`이 있는 건 의도된 구분.
+- `SECTION_PROPS.container`에서 `"border"`와 `"border-color"`를 **제거**하고 변별 longhand 8개 + `"border-style"`를 추가. (`border` 전체 shorthand는 입력 필드도 SECTION_PROPS 항목도 사라지므로 섹션 revert/`defaultOpen` 대상에서 빠진다 — INTERESTING_PROPS의 캡처는 유지되어 AI/diff 컨텍스트로만 남는다.) 결과 목록:
+  `background-color, background-image, opacity, border-style, border-{top,right,bottom,left}-width, border-{top,right,bottom,left}-color, border-radius, border-{tl,tr,br,bl}-radius`.
   이 목록은 `SectionRevertButton`의 revert 대상과 `defaultOpen={hasSpecified(...)}` 판정을 구동한다.
 
 ### `src/sidepanel/components/StyleChangesTable.tsx`
@@ -138,7 +140,10 @@ export const SHORTHAND_GROUPS: Record<string, string[]>; // + "border-width", "b
 ## 위험 요소
 
 - **전체 `border` shorthand 선언의 변별 source 누락**: 페이지가 `border: 1px solid red`(전체 shorthand)로 선언하면 `expandShorthands`는 `border`를 변별로 분해하지 않으므로(SHORTHAND_MAP 미포함, 파싱이 TRBL이 아님) `specifiedStyles`엔 변별 항목이 없다. 값 자체는 computed 루프가 채워 placeholder로 보이지만 source 툴팁·토큰 역추적은 생략될 수 있다. 비목표로 명시. (대다수 케이스인 Tailwind `border-b`/`border-{side}-*`·`border-color` shorthand는 정상 동작.)
-- **변별 `border-style` 혼재**: 변마다 스타일이 다르면 computed `border-style`가 `"solid none none none"` 형태라 단일 Select 옵션과 매칭되지 않아 placeholder로 표시된다(편집은 네 변 일괄 적용). 드문 케이스 — 수용.
+- **변별 `border-style` 혼재**: 변마다 스타일이 다르면 computed `border-style`가 `"solid none none none"` 형태라 단일 Select 옵션과 매칭되지 않아 **빈(muted) 트리거**로 보인다(SelectProp은 placeholder 텍스트 개념이 없음 — 옵션에 없는 값이면 빈 상태). 사용자가 "style 미설정"으로 오해할 수 있으나 드문 케이스라 **수용**(별도 mixed 표시 미구현). 고르면 네 변 일괄 적용된다.
+- **`border-*-color` computed가 `currentcolor` 미보존**: `getComputedStyle`은 `currentcolor`를 요소의 `color`로 resolve한 rgb로 돌려준다. 따라서 텍스트 색이 검정이 아닌 요소에선 border-color 칸에 그 색의 rgb가 표시되고(의도된 동작 — 실제 색 노출) `KNOWN_DEFAULTS`의 `"currentcolor"`/`"rgb(0, 0, 0)"` 매칭이 빗나가 default-dimmed 처리가 안 될 수 있다. 회귀 아님(기존 `border-color` 항목을 그대로 옮김). 수동 테스트로 의도 고정.
+- **collapse 깨짐 시 변별 before가 resolved rgb로 노출**: 한 변만 편집해 4변 collapse 조건이 깨지면 diff 테이블에 변별 행이 남는데, 편집 안 한 변의 `before`가 specified 부재 시 computed resolved rgb(예 `rgb(204, 204, 204)`)로 표기되어 가독성이 다소 낮다. 수용 가능 한계.
+- **좁은 폭 color 칸 가독성 + 섹션 세로 증가**: 400px 기준 QuadProp 각 칸 ~90px. length 칸은 `2px` 등 짧아 OK지만 color 칸은 토큰칩(`--border`)·swatch·hex가 들어가면 빡빡해 raw hex는 truncate된다(swatch/토큰칩 위주로 보임). 또 width(풀폭)+style+color(풀폭)로 풀폭 컨트롤이 늘어 container 섹션 세로 길이가 증가(스크롤↑). 알려진 한계로 수용 — 변별 color 수요가 width보다 낮음을 전제.
 - **jsdom 한계**: `collectSpecifiedStylesWithSources`/computed 캡처는 CSSOM·`getComputedStyle` 의존이라 단위 테스트가 까다롭다. 캡처 정확성은 실제 Chrome(e2e/수동)으로 검증하고, 단위 테스트는 순수 함수(`buildStyleDiff` collapse 등)에 집중한다.
 - **QuadProp 일반화 회귀**: `prefix` 경로를 보존해야 margin·padding·radius·gap이 안 깨진다. 일반화 후 해당 사용처를 회귀 확인.
 - **빈 값 처리**: `ValueCombobox`/`useStyleProp.set`은 빈 문자열 시 inlineStyle에서 prop을 delete → content가 원본으로 원복 후 잔여만 재적용하므로 한 변만 지워도 정상. 기존 동작 재사용.
