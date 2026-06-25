@@ -129,7 +129,7 @@ function consoleRecorderScript(): void {
   if (originalDirxml) {
     console.dirxml = function (...args: unknown[]) {
       originalDirxml(...args);
-      pushEntry("log", `console.dirxml: ${serializeArgs(args)}`);
+      pushEntry("log", `console.dirxml: ${serializeArgs(args)}`.trimEnd());
     };
   }
 

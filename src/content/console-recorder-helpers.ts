@@ -50,11 +50,11 @@ export function shouldCaptureAssertion(condition: unknown): boolean {
   return !condition;
 }
 
-// 스택 문자열에서 우리 확장·레코더 자체 프레임과 무의미한 "Error" 헤더를 제거해 페이지 코드
-// 프레임만 남긴다. URL 기반(chrome-extension://)과 심볼명 기반을 함께 봐서 minify 빌드(함수명
-// 소실)·dev 빌드 둘 다 커버한다. captureStack의 깊이 기반 slice(V8 인라인 가정)를 대체.
-// 동명의 페이지 함수가 있으면 그 프레임도 걸러질 수 있으나(best-effort 디버그 정제) 영향은
-// 진단 프레임 1개 누락뿐이라 허용. 앵커링(` at <sym> (`)은 V8/FF 포맷 차이로 더 취약해 미채택.
+// 스택에서 확장·레코더 프레임과 "Error" 헤더를 제거해 페이지 프레임만 남긴다. URL(chrome-extension://,
+// origin 무관이라 타 확장 프레임도 제거)·심볼명 양쪽을 봐 minify/dev 빌드 모두 커버하고, captureStack의
+// 깊이 slice(V8 인라인 가정)를 대체한다. captureStack(우리 프레임 존재) 경로뿐 아니라 페이지 자체 에러
+// (error/unhandledrejection, 우리 프레임 0개) 정제에도 쓰인다 — 후자에서 동명 페이지 함수가 있으면
+// 오삭제 가능하나 best-effort 정제로 영향은 진단 프레임 누락뿐이라 허용. 앵커링은 V8/FF 차이로 미채택.
 const RECORDER_SYMBOLS = [
   "consoleRecorderScript",
   "captureStack",
@@ -69,8 +69,8 @@ export function cleanStack(raw: string | undefined): string | undefined {
     .split("\n")
     .map((line) => line.replace(/\s+$/, ""))
     .filter((line) => {
-      if (line.trim() === "") return false;
-      if (line.trim() === "Error") return false;
+      const t = line.trim();
+      if (t === "" || t === "Error") return false;
       if (line.includes("chrome-extension://")) return false;
       if (RECORDER_SYMBOLS.some((sym) => line.includes(sym))) return false;
       return true;
