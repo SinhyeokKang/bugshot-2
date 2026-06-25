@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "f=$(jq -r '.tool_input.file_path // empty'); case \"$f\" in *src/i18n/*) out=$(pnpm test --run src/i18n/__tests__/locales.test.ts 2>&1) || { echo \"i18n ko/en 대칭 검사 실패 — locales.test.ts 확인:\" >&2; printf \"%s\\n\" \"$out\" | tail -20 >&2; exit 2; };; esac",
+            "timeout": 60,
+            "statusMessage": "i18n ko/en 대칭 검사"
+          }
+        ]
+      }
+    ]
+  }
+}
