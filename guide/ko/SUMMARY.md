@@ -24,3 +24,4 @@
 - [로그](logs/README.md)
   - [실시간 로그](logs/live.md)
   - [로그 뷰어](logs/viewer.md)
+- [자주 묻는 질문](faq.md)

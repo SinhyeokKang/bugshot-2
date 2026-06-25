@@ -24,3 +24,4 @@
 - [Logs](logs/README.md)
   - [Live Logs](logs/live.md)
   - [Log Viewer](logs/viewer.md)
+- [FAQ](faq.md)

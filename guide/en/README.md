@@ -30,6 +30,7 @@ Not sure where to start? Hop straight to whatever you need below.
 - [Screenshot](screenshot/README.md) — Capture the screen and mark it up.
 - [Recording](video/README.md) — Live recording and 30s replay.
 - [Logs](logs/README.md) — View console/network logs and the log viewer.
+- [FAQ](faq.md) — Pricing, platforms, privacy, and other first questions.
 
 ---
 
