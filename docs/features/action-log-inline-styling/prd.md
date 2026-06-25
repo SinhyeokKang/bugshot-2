@@ -5,7 +5,7 @@
 
 레퍼런스(`~/Desktop/스크린샷 2026-06-25 15.06.25.png`)는 변수 부분을 박스 칩·문법 하이라이팅·링크로 구분한 형태다. 추적성을 위해 핵심 디자인 규칙을 본문(아래 "디자인 규칙")에 텍스트로 고정한다.
 
-함께, 외부 링크(`<a target="_blank">`) 인라인 렌더가 `ActionLogContent`·`ConsoleLogContent`에 동일 스타일로 **중복**돼 있어, 이번에 공용 컴포넌트로 추출해 통합한다(사용자 요구).
+함께, 외부 링크(`<a target="_blank">`) 인라인 렌더가 `ActionLogContent`·`ConsoleLogContent`에 동일 스타일로 **중복**돼 있어, 이번에 공용 컴포넌트로 추출해 통합한다(사용자 요구). 이 링크 중복이 이미 존재해 추출 비용이 낮은 지금이 스타일 강화와 묶기 좋은 시점이다.
 
 ## 목표
 - 사용자가 **입력·선택한 값**(input 텍스트, select 옵션, 키 조합)을 monospace **박스 칩**으로 강조한다.
@@ -19,10 +19,10 @@
 ## 디자인 규칙 (고정 — 레퍼런스 파일 비의존)
 - **값 칩(InlineChip)**: 흰 배경 + 얇은 테두리 + `rounded-md` + monospace(각진 코드 칩). shadcn `Badge`(rounded-full)가 아님.
 - **마스킹 값 칩**: 점선 테두리 + muted 색 + `aria-label`로 스크린리더에 "masked value" 전달.
-- **클릭 태그 하이라이트(ClickTarget)** — 기존 `DomTreeDialog` 팔레트에 통일:
-  - 태그명: `text-sky-600 dark:text-sky-400`
-  - `type` 속성명: `text-amber-600 dark:text-amber-400`
-  - 속성 값(`"submit"`): `text-red-700 dark:text-red-400` (= `JsonTreeViewer.VALUE_COLORS.string`)
+- **클릭 태그 하이라이트(ClickTarget)** — 기존 `DomTreeDialog`(태그명·속성명) + `JsonTreeViewer`(속성 값) 팔레트 차용:
+  - 태그명: `text-sky-600 dark:text-sky-400` (DomTreeDialog)
+  - `type` 속성명: `text-amber-600 dark:text-amber-400` (DomTreeDialog)
+  - 속성 값(`"submit"`): `text-red-700 dark:text-red-400` (= `JsonTreeViewer.VALUE_COLORS.string`. DomTreeDialog는 속성 값을 렌더하지 않으므로 값 색은 JsonTreeViewer 출처)
   - 장식 괄호 `< > =`: `text-muted-foreground` + `aria-hidden`
 - **링크(InlineLink)**: `text-blue-600 underline dark:text-blue-400`, `target="_blank" rel="noopener noreferrer"`.
 - emerald/rose 등 코드베이스 미사용 색을 신규 도입하지 않는다(CLAUDE.md "커스텀 색 남발 금지").
@@ -59,7 +59,8 @@
 
 ## 성공 기준
 - 위 9개 시나리오가 의도대로 렌더된다(수동 + e2e). **완성 판정선**: 칩/태그/링크가 시각적으로 구분되고 색이 디자인 규칙과 일치하면 충족 — 레퍼런스 픽셀 매칭은 요구하지 않는다.
-- 값이 빈 문자열인 input/select는 빈 칩을 만들지 않는다(칩 생략 또는 placeholder).
+- **의도된 표현 변화(회귀 아님)**: 이름 있는 클릭에서 role 단어(button/link) 미표시(시나리오 5), toggle 항목은 칩 전무(동사가 상태 반영), 영상 마커 라벨은 기존 `"name" role` 표기 유지(본문과 비대칭). role 정보는 마커·JSON export에는 그대로 살아 있다.
+- 값이 빈 문자열인 input/select는 빈 칩을 만들지 않는다(칩 생략 — placeholder 없음).
 - `ConsoleLogContent`의 외부 링크가 공용 컴포넌트 치환 후에도 시각·동작 무회귀.
 - `pnpm typecheck`·`pnpm test` 통과, i18n locales 대칭 테스트 통과.
 - 로그 뷰어 빌드(`pnpm build:log-viewer`)에서도 동일 렌더(keypress/toggle/select 포함 — i18n 키 누락 없음 확인).
