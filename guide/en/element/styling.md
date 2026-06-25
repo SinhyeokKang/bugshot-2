@@ -24,6 +24,12 @@ From top to bottom, the panel is organized into these sections (labels show in E
 - Changing a value applies it to the page **immediately**.
 - Each section can revert just its inline changes, and there are buttons to revert Class or Text to the original — so feel free to experiment.
 
+## Design token (CSS variable) awareness
+
+When a value — color, spacing, font, and so on — is set via the site's **design tokens (CSS variables)**, BugShot recognizes them automatically. The value field gathers the tokens in the same family, so instead of typing in an arbitrary color or number, you can switch to a sibling token **within the design system your team already uses**.
+
+For example, if a color is set to `--color-primary`, you can pick another token in the same family — `--color-danger`, `--color-success` — and apply it right away. For teams on a design system, the change you propose lines up with the real code from the start.
+
 ## Review changes
 
 Lost track of what you've changed? Hit the **Review changes** button at the bottom of the panel. The number beside it is how many changes you've made so far — and if you haven't changed anything, the button stays disabled.
