@@ -129,6 +129,14 @@ function consoleRecorderScript(): void {
     };
   }
 
+  const originalDirxml = console.dirxml?.bind(console);
+  if (originalDirxml) {
+    console.dirxml = function (...args: unknown[]) {
+      originalDirxml(...args);
+      pushEntry("log", `console.dirxml: ${serializeArgs(args)}`);
+    };
+  }
+
   const originalTable = console.table?.bind(console);
   if (originalTable) {
     console.table = function (data?: unknown, columns?: unknown) {
@@ -206,6 +214,23 @@ function consoleRecorderScript(): void {
       const elapsed = start != null ? Date.now() - start : NaN;
       const tail = args.length > 0 ? ` ${serializeArgs(args)}` : "";
       pushEntry("log", `${key}: ${isNaN(elapsed) ? "?" : `${elapsed}ms`}${tail}`);
+    };
+  }
+
+  const originalTimeStamp = console.timeStamp?.bind(console);
+  if (originalTimeStamp) {
+    console.timeStamp = function (label?: string) {
+      (originalTimeStamp as (l?: string) => void)(label);
+      pushEntry("log", `console.timeStamp: ${label ?? ""}`.trimEnd());
+    };
+  }
+
+  // 페이지가 콘솔을 비운 시점은 디버깅 맥락이라 신호로 남긴다(버퍼는 비우지 않음).
+  const originalClear = console.clear?.bind(console);
+  if (originalClear) {
+    console.clear = function () {
+      originalClear();
+      pushEntry("log", "console.clear()");
     };
   }
 
