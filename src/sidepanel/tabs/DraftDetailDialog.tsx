@@ -299,6 +299,7 @@ export function DraftDetailDialog({
       environment: issue.draft.environment ?? [],
       networkLogSummary: networkLog ? buildNetworkLogSummary(networkLog) : undefined,
       consoleLogSummary: consoleLogForSubmit ? buildConsoleLogSummary(consoleLogForSubmit) : undefined,
+      actionLogCaptured: actionLogForSubmit && actionLogForSubmit.captured > 0 ? actionLogForSubmit.captured : undefined,
     };
 
     // 사용자 첨부: 확정 draft라 blob은 issueId 키. 메타 순서대로 로드(없으면 제외).

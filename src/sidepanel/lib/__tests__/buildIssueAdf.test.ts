@@ -556,3 +556,13 @@ describe("cc 멘션", () => {
     expect(buildIssueAdf(makeCtx(), undefined, [])).toEqual(base);
   });
 });
+
+describe("buildIssueAdf — action 로그 단독 (video, net/con 없음)", () => {
+  it("action 캡처만 있어도 로그 요약 노드 + logs.html 참조 노출", () => {
+    const doc = buildIssueAdf(makeCtx({ captureMode: "video", selector: "", actionLogCaptured: 7 }));
+    const json = JSON.stringify(doc);
+    expect(json).toContain("logSummary.title");
+    expect(json).toContain("logSummary.action.line n=7");
+    expect(json).toContain("logSummary.logs.detail");
+  });
+});

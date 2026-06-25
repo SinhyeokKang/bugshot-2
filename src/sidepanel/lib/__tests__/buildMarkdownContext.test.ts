@@ -70,6 +70,13 @@ describe("buildMarkdownContext", () => {
     expect(ctx.consoleLogSummary).toEqual({ captured: 5, errorCount: 1, warnCount: 0 });
   });
 
+  it("video 모드: actionLogCaptured 전달 시 그대로 포함", () => {
+    const ctx = buildMarkdownContext(
+      baseArgs({ captureMode: "video", actionLogCaptured: 7 }),
+    );
+    expect(ctx.actionLogCaptured).toBe(7);
+  });
+
   it("freeform 모드: captureMode freeform + 인자 viewport/capturedAt 반영", () => {
     const ctx = buildMarkdownContext(
       baseArgs({

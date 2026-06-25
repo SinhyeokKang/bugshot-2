@@ -3,6 +3,7 @@ import { useSettingsUiStore } from "@/store/settings-ui-store";
 import { buildStyleDiff } from "@/sidepanel/components/StyleChangesTable";
 import { mergeStyleElements, type MarkdownContext } from "@/sidepanel/lib/buildIssueMarkdown";
 import { buildNetworkLogSummary, buildConsoleLogSummary } from "@/sidepanel/lib/buildLogSummary";
+import { supportsActionLog } from "@/sidepanel/lib/captureLogSupport";
 import { deriveContextEnvRows } from "@/sidepanel/lib/buildReportData";
 import { parseChromeVersion } from "@/sidepanel/lib/environmentRows";
 import { getOsInfo } from "@/sidepanel/lib/osInfo";
@@ -26,6 +27,8 @@ export function buildEditorMarkdownContext(): MarkdownContext | null {
     networkLogAttach,
     consoleLog,
     consoleLogAttach,
+    actionLog,
+    actionLogAttach,
   } = s;
   if (!draft || !target) return null;
 
@@ -33,10 +36,13 @@ export function buildEditorMarkdownContext(): MarkdownContext | null {
   const browser = parseChromeVersion(navigator.userAgent);
   const hasNetworkLog = networkLogAttach && !!networkLog && networkLog.captured > 0;
   const hasConsoleLog = consoleLogAttach && !!consoleLog && consoleLog.captured > 0;
+  // 액션 로그는 video 모드 한정 — 본문 요약엔 캡처 건수만 노출.
+  const hasActionLog = supportsActionLog(captureMode) && actionLogAttach && !!actionLog && actionLog.captured > 0;
   // 로그 요약은 console/network 지원 모드(screenshot/video/freeform)에만 붙는다 — element 분기는 제외(원본 buildCtx와 동일).
   const logSummaries = {
     networkLogSummary: hasNetworkLog ? buildNetworkLogSummary(networkLog!) : undefined,
     consoleLogSummary: hasConsoleLog ? buildConsoleLogSummary(consoleLog!) : undefined,
+    actionLogCaptured: hasActionLog ? actionLog!.captured : undefined,
   };
   const common = {
     os,

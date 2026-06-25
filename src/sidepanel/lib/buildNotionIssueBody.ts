@@ -281,8 +281,8 @@ export function buildNotionIssueBody(
 }
 
 function emitLogSummary(blocks: NotionBlock[], ctx: MarkdownContext): void {
-  const { networkLogSummary: net, consoleLogSummary: con } = ctx;
-  if (!net && !con) return;
+  const { networkLogSummary: net, consoleLogSummary: con, actionLogCaptured: act } = ctx;
+  if (!net && !con && !act) return;
   blocks.push({ type: "heading_2", text: t("logSummary.title") });
   const codeLines: string[] = [];
   if (net) {
@@ -298,6 +298,9 @@ function emitLogSummary(blocks: NotionBlock[], ctx: MarkdownContext): void {
         ? t("logSummary.console.line", { n: con.captured, errors: con.errorCount, warns: con.warnCount })
         : t("logSummary.console.lineNoError", { n: con.captured }),
     );
+  }
+  if (act) {
+    codeLines.push(t("logSummary.action.line", { n: act }));
   }
   blocks.push({
     type: "code",

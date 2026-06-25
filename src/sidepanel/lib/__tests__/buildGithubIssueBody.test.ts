@@ -526,3 +526,14 @@ describe("cc 멘션", () => {
     expect(buildGithubIssueBody({ ctx: makeCtx(), cc: [] })).toEqual(base);
   });
 });
+
+describe("buildGithubIssueBody — action 로그 단독 (video, net/con 없음)", () => {
+  it("action 캡처만 있어도 로그 요약 + 업로드된 logs.html 링크 주입", () => {
+    const out = buildGithubIssueBody({
+      ctx: makeCtx({ captureMode: "video", selector: "", actionLogCaptured: 7 }),
+      logs: [{ filename: "logs.html", contentType: "text/html", url: "https://gh/u/logs.html" }],
+    });
+    expect(out.body).toContain("logSummary.action.line n=7");
+    expect(out.body).toContain("logSummary.logs.detail file=[logs.html](https://gh/u/logs.html)");
+  });
+});
