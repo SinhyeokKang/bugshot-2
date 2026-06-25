@@ -1,4 +1,5 @@
 import {
+  cleanStack,
   formatErrorEvent,
   formatRejectionReason,
   installConsoleWrap,
@@ -46,12 +47,7 @@ function consoleRecorderScript(): void {
   }
 
   function captureStack(): string | undefined {
-    const err = new Error();
-    const stack = err.stack;
-    if (!stack) return undefined;
-    const lines = stack.split("\n");
-    const filtered = lines.slice(4).join("\n");
-    return filtered || undefined;
+    return cleanStack(new Error().stack);
   }
 
   function pushEntry(level: Level, args: string, stack?: string): void {
@@ -74,8 +70,8 @@ function consoleRecorderScript(): void {
 
   // error/warn은 arm(setSentinel) 구간에만 wrap해 attribution 오염 창을 한정한다(상시 설치 회피).
   // install이 그 시점의 직전 메서드(페이지 Sentry 등 포함)를 먼저 호출하므로 DevTools 출력·페이지
-  // 모니터링을 보존한다. record 경로(wrapper→record→captureStack)는 captureStack의 slice(4)가
-  // 페이지 첫 프레임에 정렬되도록 한 프레임 깊지만, V8 인라인에 의존하는 가정이라 실탭 회귀로만 검증된다.
+  // 모니터링을 보존한다. record 경로(wrapper→record→captureStack)의 스택은 cleanStack이
+  // 우리 레코더·확장 프레임을 내용 기준으로 걸러 페이지 코드 프레임만 남긴다(깊이 가정 없음).
   const record = (level: "error" | "warn", args: unknown[]) =>
     pushEntry(level, serializeArgs(args), captureStack());
   const ewState: EwState = { installed: false, prior: null, ours: null };

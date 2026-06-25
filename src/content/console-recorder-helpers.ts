@@ -13,7 +13,7 @@ export function formatErrorEvent(e: ErrorEventLike): { args: string; stack?: str
   const loc = e.filename
     ? ` at ${e.filename}:${e.lineno ?? "?"}:${e.colno ?? "?"}`
     : "";
-  const stack = e.error instanceof Error ? e.error.stack : undefined;
+  const stack = e.error instanceof Error ? cleanStack(e.error.stack) : undefined;
   return { args: `Uncaught ${message}${loc}`, stack };
 }
 
@@ -21,7 +21,7 @@ export function formatRejectionReason(reason: unknown): { args: string; stack?: 
   if (reason instanceof Error) {
     return {
       args: `Unhandled promise rejection: ${reason.name}: ${reason.message}`,
-      stack: reason.stack,
+      stack: cleanStack(reason.stack),
     };
   }
   if (reason === undefined) return { args: "Unhandled promise rejection: undefined" };
@@ -48,6 +48,34 @@ export function formatRejectionReason(reason: unknown): { args: string; stack?: 
 
 export function shouldCaptureAssertion(condition: unknown): boolean {
   return !condition;
+}
+
+// 스택 문자열에서 우리 확장·레코더 자체 프레임과 무의미한 "Error" 헤더를 제거해 페이지 코드
+// 프레임만 남긴다. URL 기반(chrome-extension://)과 심볼명 기반을 함께 봐서 minify 빌드(함수명
+// 소실)·dev 빌드 둘 다 커버한다. captureStack의 깊이 기반 slice(V8 인라인 가정)를 대체.
+// 동명의 페이지 함수가 있으면 그 프레임도 걸러질 수 있으나(best-effort 디버그 정제) 영향은
+// 진단 프레임 1개 누락뿐이라 허용. 앵커링(` at <sym> (`)은 V8/FF 포맷 차이로 더 취약해 미채택.
+const RECORDER_SYMBOLS = [
+  "consoleRecorderScript",
+  "captureStack",
+  "pushEntry",
+  "makeConsoleWrapper",
+  "installConsoleWrap",
+];
+
+export function cleanStack(raw: string | undefined): string | undefined {
+  if (!raw) return undefined;
+  const kept = raw
+    .split("\n")
+    .map((line) => line.replace(/\s+$/, ""))
+    .filter((line) => {
+      if (line.trim() === "") return false;
+      if (line.trim() === "Error") return false;
+      if (line.includes("chrome-extension://")) return false;
+      if (RECORDER_SYMBOLS.some((sym) => line.includes(sym))) return false;
+      return true;
+    });
+  return kept.length ? kept.join("\n") : undefined;
 }
 
 export const ARG_CAP = 10 * 1024;
