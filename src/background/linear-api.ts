@@ -348,6 +348,22 @@ export async function updateIssueState(
   };
 }
 
+export async function updateIssueDescription(
+  auth: LinearAuth,
+  issueId: string,
+  description: string,
+): Promise<void> {
+  await linearGraphQL<{ issueUpdate: { success: boolean } }>(
+    auth,
+    `mutation($id: String!, $description: String!) {
+      issueUpdate(id: $id, input: { description: $description }) {
+        success
+      }
+    }`,
+    { id: issueId, description },
+  );
+}
+
 export async function requestFileUpload(
   auth: LinearAuth,
   filename: string,

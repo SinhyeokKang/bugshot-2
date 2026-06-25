@@ -148,6 +148,7 @@ export type BgRequest =
   | { type: "linear.getIssueStatus"; issueId: string }
   | { type: "linear.getWorkflowStates"; issueIdentifier: string }
   | { type: "linear.updateIssueState"; issueId: string; stateId: string }
+  | { type: "linear.updateIssueDescription"; issueId: string; description: string }
   | { type: "notion.oauth.available" }
   | { type: "notion.startOAuth" }
   | { type: "notion.testToken"; token: string }
