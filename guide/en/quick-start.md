@@ -18,7 +18,7 @@ Click the BugShot icon in the toolbar, or press `Cmd/Ctrl+Shift+E` to open the s
 
 ## 3. Connect a platform
 
-To file an issue you need at least one platform connected. In the **Integrations** tab, just connect one of Jira, GitHub, Linear, Notion, GitLab, or Asana. [Connecting Platforms](integrations/platforms.md) walks you through it step by step.
+To file an issue you need at least one platform connected. In the **Integrations** tab, just connect one of Jira, GitHub, Linear, Notion, GitLab, Asana, or ClickUp. [Connecting Platforms](integrations/platforms.md) walks you through it step by step.
 
 ![Connecting a platform in the Integrations tab](assets/quick-start-3.jpg)
 

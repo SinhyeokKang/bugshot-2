@@ -12,7 +12,7 @@ Nope — it's free to use, and there's no sign-up or BugShot account required ei
 
 ## Which issue trackers can I send to?
 
-Six of them: Jira, GitHub, Linear, Notion, GitLab, and Asana. Whatever your team already uses, there's no need to switch — file issues straight into your usual tracker. You only have to connect it once, over in [Integrations](integrations/README.md).
+Seven of them: Jira, GitHub, Linear, Notion, GitLab, Asana, and ClickUp. Whatever your team already uses, there's no need to switch — file issues straight into your usual tracker. You only have to connect it once, over in [Integrations](integrations/README.md).
 
 ## Do I need to be a developer to use it?
 

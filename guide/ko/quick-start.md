@@ -18,7 +18,7 @@ Chrome 웹스토어에서 BugShot을 설치합니다. 설치하면 툴바에 Bug
 
 ## 3. 플랫폼 연결하기
 
-이슈를 보내려면 플랫폼이 하나는 연결되어 있어야 합니다. **연동** 탭에서 Jira·GitHub·Linear·Notion·GitLab·Asana 중 하나만 연결하면 됩니다. 자세한 방법은 [플랫폼 연동](integrations/platforms.md)에서 차근차근 안내해 드립니다.
+이슈를 보내려면 플랫폼이 하나는 연결되어 있어야 합니다. **연동** 탭에서 Jira·GitHub·Linear·Notion·GitLab·Asana·ClickUp 중 하나만 연결하면 됩니다. 자세한 방법은 [플랫폼 연동](integrations/platforms.md)에서 차근차근 안내해 드립니다.
 
 ![연동 탭에서 플랫폼 연결](assets/quick-start-3.jpg)
 
