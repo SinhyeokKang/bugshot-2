@@ -47,18 +47,18 @@ chrome.action.onClicked.addListener((tab) => {
 
 ## 플랫폼 인증
 
-6개 플랫폼 모두 **수동 인증(API Token/PAT) + OAuth** 두 방식을 동시 지원한다. 저장 형태는 discriminated union (`{Platform}Auth`, `kind` 판별자). OAuth는 `chrome.identity.launchWebAuthFlow` → 인가 코드 → 토큰 교환. `is{Platform}OAuthConfigured()` 가드가 false면 OAuth UI 비활성화.
+7개 플랫폼 모두 **수동 인증(API Token/PAT) + OAuth** 두 방식을 동시 지원한다. 저장 형태는 discriminated union (`{Platform}Auth`, `kind` 판별자). OAuth는 `chrome.identity.launchWebAuthFlow` → 인가 코드 → 토큰 교환. `is{Platform}OAuthConfigured()` 가드가 false면 OAuth UI 비활성화.
 
-| | Jira | GitHub | Linear | Notion | GitLab | Asana |
-|---|---|---|---|---|---|---|
-| 수동 인증 | API Token (Basic) | PAT (`token <pat>`) | API Key | Internal Integration Token | PAT (`Bearer`, self-managed baseUrl) | PAT (`Bearer`) |
-| OAuth 타입 | 3LO (confidential) | Web Flow (confidential) | PKCE (public) | Public Integration (confidential) | PKCE (public) | OAuth 2.0 (confidential) |
-| Proxy 경로 | `/token` | `/github/token`, `/github/refresh` | ❌ 직접 교환 | `/notion/token` | ❌ 직접 교환 (gitlab.com 한정) | `/asana/token`, `/asana/refresh` |
-| Token Refresh | pre-refresh + 401 retry | hook 주입형, 1회 retry | hook 주입형, 1회 retry | ❌ (토큰 만료 없음) | hook 주입형, pre-refresh + 401 retry | hook 주입형, pre-refresh + 401 retry |
-| dev/prod 분리 | 단일 App | 2 App (callback URL 1개 제한) | 단일 App (multi redirect) | 단일 App (multi redirect) | 단일 App (multi redirect) | 단일 App (multi redirect) |
-| Env var | `VITE_ATLASSIAN_CLIENT_ID` | `VITE_GITHUB_CLIENT_ID` (+`_PROD`) | `VITE_LINEAR_CLIENT_ID` | `VITE_NOTION_CLIENT_ID` | `VITE_GITLAB_CLIENT_ID` | `VITE_ASANA_CLIENT_ID` |
+| | Jira | GitHub | Linear | Notion | GitLab | Asana | ClickUp |
+|---|---|---|---|---|---|---|---|
+| 수동 인증 | API Token (Basic) | PAT (`token <pat>`) | API Key | Internal Integration Token | PAT (`Bearer`, self-managed baseUrl) | PAT (`Bearer`) | PAT (`pk_`, raw `Authorization` — Bearer 없음) |
+| OAuth 타입 | 3LO (confidential) | Web Flow (confidential) | PKCE (public) | Public Integration (confidential) | PKCE (public) | OAuth 2.0 (confidential) | OAuth 2.0 (confidential) |
+| Proxy 경로 | `/token` | `/github/token`, `/github/refresh` | ❌ 직접 교환 | `/notion/token` | ❌ 직접 교환 (gitlab.com 한정) | `/asana/token`, `/asana/refresh` | `/clickup/token` (refresh 없음) |
+| Token Refresh | pre-refresh + 401 retry | hook 주입형, 1회 retry | hook 주입형, 1회 retry | ❌ (토큰 만료 없음) | hook 주입형, pre-refresh + 401 retry | hook 주입형, pre-refresh + 401 retry | ❌ (토큰 만료 없음) |
+| dev/prod 분리 | 단일 App | 2 App (callback URL 1개 제한) | 단일 App (multi redirect) | 단일 App (multi redirect) | 단일 App (multi redirect) | 단일 App (multi redirect) | 단일 App (multi redirect) |
+| Env var | `VITE_ATLASSIAN_CLIENT_ID` | `VITE_GITHUB_CLIENT_ID` (+`_PROD`) | `VITE_LINEAR_CLIENT_ID` | `VITE_NOTION_CLIENT_ID` | `VITE_GITLAB_CLIENT_ID` | `VITE_ASANA_CLIENT_ID` | `VITE_CLICKUP_CLIENT_ID` |
 
-공통 env: `VITE_OAUTH_PROXY_URL` — Cloudflare Worker origin (Jira·GitHub·Notion·Asana 공유). manifest가 빌드 시 origin을 `host_permissions`에 자동 추가.
+공통 env: `VITE_OAUTH_PROXY_URL` — Cloudflare Worker origin (Jira·GitHub·Notion·Asana·ClickUp 공유). manifest가 빌드 시 origin을 `host_permissions`에 자동 추가.
 
 **왜 proxy가 필요한가**: confidential client는 `client_secret` 요구 — 확장에 비밀키를 번들할 수 없으므로 Worker가 `code↔token`·`refresh↔token` 교환만 중계. Linear·GitLab은 public client(PKCE)라 proxy 불필요. Asana는 native 앱 모드가 OOB redirect만 허용해 custom redirect(`chromiumapp.org`)를 쓰려면 confidential일 수밖에 없어 proxy 경유한다.
 
@@ -66,15 +66,17 @@ chrome.action.onClicked.addListener((tab) => {
 
 **Asana**: REST·authorize는 `app.asana.com` 고정, token 교환은 proxy(`/asana/token`·`/asana/refresh`) 경유. 응답은 `{ data }` 래핑이라 `asanaFetch`가 언랩. html_notes는 인라인 이미지를 지원하므로(`<img data-asana-gid>`) **create → upload → updateTaskNotes** 2-write로 본문에 이미지를 임베드한다(첨부 후 GID 참조라 순서 강제). 캡처 이미지(As is/To be)뿐 아니라 에디터 본문에 붙여넣은 인라인 이미지(`inlineImages`, 본문 src `inline:refId`)도 같은 경로로 업로드·임베드한다. 단 Asana는 webp 인라인을 지원하지 않아 업로드 전 webp→jpeg로 폴백 변환하고, 작게 렌더되지 않도록 `src`(view_url)+`data-src-width/height`+`style`을 채운다. element 비교는 As is/To be 섹션(이미지+속성값)으로 배치(테이블은 `<pre>` 폴백이라 셀 이미지 불가). 영상·로그·메타는 인라인 불가라 task 첨부 영역에만 둔다(본문에 파일 리스트 미표기). logs.html은 createTask가 upload보다 먼저라 업로드 직전 `injectIssueUrl(task.permalinkUrl, task.gid)`로 백링크·key를 주입해 1회 업로드로 끝낸다(GitLab식 재업로드 불필요). refresh_token은 비회전이라 갱신 응답에 없으면 기존 토큰 유지.
 
+**ClickUp**: REST는 `api.clickup.com/api/v2` 고정, authorize는 `app.clickup.com`(host_permission 불필요 — launchWebAuthFlow 처리), token 교환은 proxy(`/clickup/token`, confidential) 경유. **PAT/OAuth 모두 raw token 헤더**(`Authorization: <token>`, Bearer 접두사 없음 — Asana와 다름, `clickupAuthHeader`). **토큰 만료가 없어 refresh hook 자체가 없다**(Notion 유사) — 401은 곧 권한 박탈이라 `clickup.oauthRevoked` 재연결 에러로 직행. 본문은 `markdown_content`를 1급 지원하므로 HTML 변환 없이 markdown을 그대로 전송. 대상은 **Workspace → Space → List 3단계 종속**(task는 `list_id` 필수, 다른 플랫폼은 1~2단계) — List는 folderless list + folder 하위 list를 `flattenLists`로 평탄화해 한 콤보박스로 합친다. 완료 상태는 boolean이 없고 List별 커스텀 status라 `setTaskCompleted`가 list statuses에서 done/non-done type을 매핑해 PUT한다.
+
 **Refresh 실패 → 재인증**: refresh token 무효화 시 `OAuthError({ platform })` → BG `onOAuthExpired(platform)` → App.tsx AlertDialog 재인증 안내. GitHub은 OAuth App "Token expiration" OFF면 refresh token 미발급 → 즉시 재인증 안내. **OAuthError 분기**: `{ platform, cancelled }` → BG가 `body.platform`/`oauthCancelled`/`oauthRefreshFailed` 플래그 직렬화. 정규식 매칭 금지 — `isOAuthCancelled`/`getOAuthErrorPlatform` 헬퍼 사용.
 
 ## 플랫폼 어댑터 패턴
 
-`PlatformId = "jira" | "github" | "linear" | "notion" | "gitlab" | "asana"` union (`src/types/platform.ts`).
+`PlatformId = "jira" | "github" | "linear" | "notion" | "gitlab" | "asana" | "clickup"` union (`src/types/platform.ts`).
 
 - **저장**: `useSettingsStore.accounts` dict + `lastSubmitFields: Record<PlatformId, ...>` + 전역 `titlePrefix`.
 - **메시지**: bg `{platform}.*` namespace 분기. `BgRequest` exhaustive switch 누락 검증. 새 타입은 `BG_REQUEST_TYPES` Set에도 등록.
-- **API 어댑터**: `{platform}-api.ts`. 401 처리 — Jira: 즉시 refresh, GitHub·Linear·GitLab·Asana: hook 주입형(module side-effect 재등록), Notion: 즉시 throw.
+- **API 어댑터**: `{platform}-api.ts`. 401 처리 — Jira: 즉시 refresh, GitHub·Linear·GitLab·Asana: hook 주입형(module side-effect 재등록), Notion·ClickUp: 즉시 throw(만료 없음 → refresh 없이 재연결).
 - **이슈 상태 변경**: `statusBadges/SubmittedBadge` → 플랫폼별 read-only / Popover 상태 변경 분기.
 - **본문 빌더**: `buildIssueAdf`(Jira), `buildIssueMarkdown`/`buildIssueHtml`(클립보드), `build{Github|Linear|Notion|Gitlab|Asana}IssueBody`. 모두 `MarkdownContext` 입력 → `NormalizedSubmitResult { key, url }` 통일. (GitLab은 github 빌더 계열 — DOM raw selector·before/after 표. Asana는 markdown 본문을 `markdownToAsanaHtml`로 html_notes subset 변환.)
 - **다이얼로그**: `SubmitFieldsDialog`가 IssueCreateModal·DraftDetailDialog 공유. 연결 1개=Tab 숨김, 2개+=Tab 선택. prefill effect deps `[open, issue?.id]`만 — `issue.platform` 추가 시 다이얼로그 닫힘 버그.
@@ -144,7 +146,7 @@ shorthand(var 포함) + 같은 shorthand의 longhand override 조합에서 Chrom
 
 로그 첨부 토글은 network/console/action **3종 분리**(`networkLogAttach`/`consoleLogAttach`/`actionLogAttach` + setter 3개). `initial`은 모두 false지만 캡처 모드 진입 액션(`startCapturing`/`startElementShot`/`startFreeform`/`onRecordingComplete`)이 진입 시 3종을 **일괄 true로 강제** — `...preserveLogs(prev)`로 직전 로그 *데이터*는 승계하되, 그 뒤 명시 `true`가 토글 값을 덮으므로 screenshot·freeform·video 모두 기본 on. 지원되지 않는 로그(screenshot·freeform의 action)는 토글이 true여도 `supportsActionLog` 게이트로 실제 첨부·UI 노출에서 빠진다. element 모드는 로그 미지원이라 토글 자체가 무의미.
 
-**사용자 파일 첨부**: 캡처물과 별개로 사용자가 로컬 파일을 직접 첨부할 수 있다(`AttachmentSection`/`AttachmentList`, captureMode 무관). 메타는 editor-store `attachments: UserAttachmentMeta[]`, 바이트는 blob-db(`saveAttachmentBlob`). 캡(`attachmentLimits.ts`) — 개수 10개·합계 50MB는 **하드캡**: `takeWithinLimits`가 store 단일 출처로 초과분을 드롭하고 사유(`count`/`total`)만 toast로 안내(대용량 다중 첨부의 base64 메모리 폭발 방지). 플랫폼 단건 한도는 **경고만**(차단 아님) — Notion 5MB·GitLab 10MB(`PLATFORM_FILE_SIZE_LIMIT`, 나머지 null), `checkAttachmentLimits`가 초과 항목을 빨간 테두리로 표시. 제출 시 `buildCaptureFiles`가 `userAttachments`를 captureMode와 무관하게 `attachments`로 합류시켜 6개 플랫폼 빌더가 모두 업로드. draft 저장/복원의 blob 키 충돌은 `rekeyAttachmentBlobs`(+`whenAttachmentBlobsReady` in-flight 가드)로 재매핑.
+**사용자 파일 첨부**: 캡처물과 별개로 사용자가 로컬 파일을 직접 첨부할 수 있다(`AttachmentSection`/`AttachmentList`, captureMode 무관). 메타는 editor-store `attachments: UserAttachmentMeta[]`, 바이트는 blob-db(`saveAttachmentBlob`). 캡(`attachmentLimits.ts`) — 개수 10개·합계 50MB는 **하드캡**: `takeWithinLimits`가 store 단일 출처로 초과분을 드롭하고 사유(`count`/`total`)만 toast로 안내(대용량 다중 첨부의 base64 메모리 폭발 방지). 플랫폼 단건 한도는 **경고만**(차단 아님) — Notion 5MB·GitLab 10MB(`PLATFORM_FILE_SIZE_LIMIT`, 나머지 null), `checkAttachmentLimits`가 초과 항목을 빨간 테두리로 표시. 제출 시 `buildCaptureFiles`가 `userAttachments`를 captureMode와 무관하게 `attachments`로 합류시켜 7개 플랫폼 빌더가 모두 업로드. draft 저장/복원의 blob 키 충돌은 `rekeyAttachmentBlobs`(+`whenAttachmentBlobsReady` in-flight 가드)로 재매핑.
 
 **플랫폼별 패키징**:
 - **Jira**: `logs.html` 그대로 첨부 → 이슈 생성 **후** `injectIssueUrl`로 뷰어 백링크 주입. 본문 로그 요약 안내의 `logs.html`은 제출 시 첨부 URL을 모르므로 업로드 후 `injectLogsLink`(`background/lib/adf-logs-link`)가 해당 em 노드에 link mark를 주입해 클릭 링크화(매칭 노드 없으면 평문 유지).
@@ -156,7 +158,7 @@ shorthand(var 포함) + 같은 shorthand의 longhand override 조합에서 Chrom
 
 **타임라인 마커**: `markers.ts:buildMarkers`가 활성 로그 탭(console/network/action)에 따라 프로그레스 바 위에 핀 마커를 생성. 마커 variant(error/warn/info/pending/navigate/default)별 색 분류. `ProgressBar` 위에 `absolute` 핀으로 렌더, 호버 시 포탈 툴팁(stacking context clipping 방지). 마커 클릭 → `onMarkerClick` → 우측 로그 탭에서 해당 entry로 스크롤(`useScrollToEntry` 훅 — CSS.escape + 필터 리셋 후 재시도 + `scrollIntoView`). `VideoPlayer`는 커스텀 플레이어(재생/일시정지/다운로드 + 이슈 제목·키 오버레이).
 
-**issueUrl 주입**: `buildLogsHtml`이 meta 마지막에 빈 `issueUrl:""` 예약. 이슈 생성 후 `injectIssueUrl`이 해당 자리만 치환(청크 단위 btoa로 ~20MB 블로킹 회피). Jira·Linear는 생성 후 주입, Asana는 create가 upload보다 먼저라 업로드 직전 주입, GitHub·Notion은 구조상 불가(빈 값 → 뷰어가 링크 숨김).
+**issueUrl 주입**: `buildLogsHtml`이 meta 마지막에 빈 `issueUrl:""` 예약. 이슈 생성 후 `injectIssueUrl`이 해당 자리만 치환(청크 단위 btoa로 ~20MB 블로킹 회피). Jira·Linear는 생성 후 주입, Asana·ClickUp은 create가 upload보다 먼저라 업로드 직전 주입(create-first), GitHub·Notion은 구조상 불가(빈 값 → 뷰어가 링크 숨김).
 
 **startVideoCapture** (`video-capture.ts`): 3개 레코더(network/console/action) `activate*Recorder` → `clear*Recorder` → `startRecording` 순. 녹화 종료(`recording→drafting`) 시 `recordersStopped=true`(`useBackgroundRecorder`)로 drafting 중 재주입 차단.
 
@@ -249,12 +251,12 @@ draft 모델: `{ title, sections: Record<string, string>, environment?: Environm
 
 **재현 환경**: `ReproEnvironmentSection`이 모드별 메타를 readonly 표시 + `draft.environment` 사용자 정의 row 편집. 순수 헬퍼: `filterEnvironmentRows`(빈 row 제거) / `deriveReadonlyEnvRows`(모드별 파생).
 
-**자동 메타 위치**: `POST_MEDIA_SECTION_IDS = {"expectedResult","notes"}` — 첫 해당 섹션 직전에 media/styleChanges emit. 둘 다 disabled면 모든 섹션 끝에 emit. 5종 빌더 + DraftingPanel + DraftDetailDialog에서 동일 룰. PreviewPanel·log-viewer Report 탭 프리뷰는 순수 헬퍼 `composePreviewLayout`로 이 순서를 단일화(`IssuePreviewView` 공용 컴포넌트).
+**자동 메타 위치**: `POST_MEDIA_SECTION_IDS = {"expectedResult","notes"}` — 첫 해당 섹션 직전에 media/styleChanges emit. 둘 다 disabled면 모든 섹션 끝에 emit. 6종 빌더 + DraftingPanel + DraftDetailDialog에서 동일 룰. PreviewPanel·log-viewer Report 탭 프리뷰는 순수 헬퍼 `composePreviewLayout`로 이 순서를 단일화(`IssuePreviewView` 공용 컴포넌트).
 
-**복수 element 직렬화(styleChanges)**: 한 이슈에 여러 요소의 스타일 변경을 담을 수 있다. `mergeStyleElements`(in `buildIssueMarkdown`)가 버퍼(`bufferedElements`) + 현재 요소를 selector 기준 dedup·재인덱싱해 단일 배열로 만들고, 6개 플랫폼 빌더가 모두 이 배열을 순회해 element별 섹션(selector 소제목 + before/after 스냅샷 + diff 테이블)을 emit한다. 이미지 파일명은 배열 인덱스 단일 출처(`before-${i}`/`after-${i}.webp`) — 본문 빌더·`buildCaptureFiles`·Jira `injectSnapshotRows`(ADF 후처리)가 같은 인덱스를 공유해 오귀속을 막는다. 플랫폼별 렌더 차이는 어댑터 패턴대로(Jira는 ADF table에 Snapshot 행 splice, Notion은 Before/After heading 분리, Asana는 As is/To be 섹션). element 모드는 **diff 필수** — 현재 요소에 스타일 변경이 없어도 버퍼에 담긴 요소가 있으면 진행 가능하고, 현재·버퍼 둘 다 비면 drafting 진입을 막고(`hasStyleChange` 게이트 + 버퍼 체크) 요소 캡처(element-screenshot) 모드로 안내한다.
+**복수 element 직렬화(styleChanges)**: 한 이슈에 여러 요소의 스타일 변경을 담을 수 있다. `mergeStyleElements`(in `buildIssueMarkdown`)가 버퍼(`bufferedElements`) + 현재 요소를 selector 기준 dedup·재인덱싱해 단일 배열로 만들고, 7개 플랫폼 빌더가 모두 이 배열을 순회해 element별 섹션(selector 소제목 + before/after 스냅샷 + diff 테이블)을 emit한다. 이미지 파일명은 배열 인덱스 단일 출처(`before-${i}`/`after-${i}.webp`) — 본문 빌더·`buildCaptureFiles`·Jira `injectSnapshotRows`(ADF 후처리)가 같은 인덱스를 공유해 오귀속을 막는다. 플랫폼별 렌더 차이는 어댑터 패턴대로(Jira는 ADF table에 Snapshot 행 splice, Notion은 Before/After heading 분리, Asana는 As is/To be 섹션). element 모드는 **diff 필수** — 현재 요소에 스타일 변경이 없어도 버퍼에 담긴 요소가 있으면 진행 가능하고, 현재·버퍼 둘 다 비면 drafting 진입을 막고(`hasStyleChange` 게이트 + 버퍼 체크) 요소 캡처(element-screenshot) 모드로 안내한다.
 
 **변경사항 보기 다이얼로그(`StyleChangesDialog`)**: 스타일링 패널의 [변경사항 보기] 트리거가 여는 다이얼로그로 요소별 카드(`buildChangeGroups`로 버퍼+현재 요소를 selector 기준 그룹화)와 행 단위 diff를 보여주고 **3단계 granular 초기화**를 제공한다 — ① 행 초기화(`removeDiffRow` + `picker.applyEditsBySelector`로 해당 prop만 selector 기준 부분 원복), ② 요소 초기화(카드 전체), ③ 전체 초기화(현재 + 버퍼 전부 → `picker.resetAllEdits` → content `restoreAll`, AlertDialog 재확인). 행/요소 초기화 후 버퍼 요소의 after 스냅샷은 `picker.prepareCaptureBySelector`(뷰포트 밖이면 `scrollIntoView` 후 캡처, `handleEndCapture`가 `captureInflight` 가드로 원위치 복원 — 인터리브 캡처 시 first-wins)로 재캡처한다. store는 `patchBufferedElement(selector, patch)`/`removeBufferedElement(selector)`로 버퍼 항목을 부분 갱신·제거(selector 미일치 시 no-op). 마지막 변경 항목이 사라지면 다이얼로그는 reactive하게 자동 닫힌다.
 
-**마이그레이션**: `issues-store` v5, `settings-store` v8 (v7 gitlab·v8 asana는 버전 마커만 bump), `settings-ui-store` v6 (v6은 `recordingMode` 추가 — `migrateSettingsUi`에서 `state.recordingMode = state.recordingMode ?? "tab"` 버전 비교 없이 nullish 병합). 각각 순수 헬퍼로 분리해 테스트 (`migrateV2ToV3`, `migrateToV5`, `migrateIssueToV4`, `migrateSettingsUi` 등). 모두 멱등 가드 + sparse 저장. 빈 paragraph는 `(없음)` (`md.noValue`)로 통일.
+**마이그레이션**: `issues-store` v5, `settings-store` v9 (v7 gitlab·v8 asana·v9 clickup은 버전 마커만 bump), `settings-ui-store` v6 (v6은 `recordingMode` 추가 — `migrateSettingsUi`에서 `state.recordingMode = state.recordingMode ?? "tab"` 버전 비교 없이 nullish 병합). 각각 순수 헬퍼로 분리해 테스트 (`migrateV2ToV3`, `migrateToV5`, `migrateIssueToV4`, `migrateSettingsUi` 등). 모두 멱등 가드 + sparse 저장. 빈 paragraph는 `(없음)` (`md.noValue`)로 통일.
 
 **녹화 모드 선택(`recordingMode`)**: 영속 설정 `settings-ui-store.recordingMode`("tab"|"screen")는 "다음 녹화에서 어느 함수를 부를지"의 입력일 뿐이고, 세션 진행 중 녹화의 소스인 `editor-store.recordingSource`와 **직교**한다. SettingsTab 캡처 설정 Tabs가 설정하고, IssueTab 캡처 진입 화면의 단일 녹화 버튼이 라이브 구독해 `startVideoCapture`(tab) / `startScreenCapture`(screen)로 분기(클릭 경로라 user gesture 보존). 진행 중 녹화엔 무관.
