@@ -7,7 +7,7 @@ Once an element is selected, the style panel opens. Change a value and it's **ap
 From top to bottom, the panel is organized into these sections (labels show in English on screen).
 
 1. **Class** — Edit the element's class list.
-2. **Layout** — display, position, flex alignment, margin, padding, gap.
+2. **Layout** — display, position, z-index (stacking order), flex alignment, margin, padding, gap.
 3. **Container** — background, opacity, border radius.
 4. **Border** — border width, color, and style. Adjust each of the four sides (top/right/bottom/left) on its own, or link them to set all at once.
 5. **Size** — width, height, and min/max.
