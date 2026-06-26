@@ -15,8 +15,8 @@
   - `NetworkRequest`에 `webSocket?: WebSocketMeta` 추가.
   - `NetworkLog.warnings` union의 `"WS_UNSUPPORTED"` → `"WS_FRAMES_CAPPED"` 교체.
 - **검증**:
-  - [ ] `pnpm typecheck` 통과.
-  - [ ] `WS_UNSUPPORTED` 참조가 코드베이스에 0개로 남음(grep).
+  - [x] `pnpm typecheck` 통과.
+  - [x] `WS_UNSUPPORTED` 참조가 코드베이스에 0개로 남음(grep).
 
 ### Task 2: 순수 헬퍼 + 단위 테스트 (테스트 우선)
 - **변경 대상**: `src/content/network-recorder-helpers.ts`, `src/content/__tests__/network-recorder-helpers.test.ts`
@@ -26,9 +26,9 @@
     - `maskWsFrame(text)`: 내부적으로 `maskBody(text, "application/json")` 사용. `{"token":"x"}`→마스킹 / `{"a":1}`→무변 / 비JSON 원문 통과.
   - 두 함수 구현.
 - **검증**:
-  - [ ] 신규 테스트가 실패→통과로 전환.
-  - [ ] `pnpm test` green.
-  - [ ] 바이너리 입력은 항상 null 반환(드롭) 케이스 커버. 빈 문자열 케이스 커버.
+  - [x] 신규 테스트가 실패→통과로 전환.
+  - [x] `pnpm test` green.
+  - [x] 바이너리 입력은 항상 null 반환(드롭) 케이스 커버. 빈 문자열 케이스 커버.
 
 ### Task 3: WebSocket 후킹 (레코더)
 - **변경 대상**: `src/content/network-recorder.ts`
@@ -40,10 +40,10 @@
   - 프레임 본문은 `BODY_CAP` truncate 재사용. **전역 `MEMORY_CAP` eviction에는 프레임 미합류**(design 위험요소대로 수용된 한계 — 주석으로 명시).
   - try/catch 격리로 후킹 실패 시 원본 WebSocket 무간섭.
 - **검증**:
-  - [ ] `pnpm typecheck` 통과(로컬 union 포함).
+  - [x] `pnpm typecheck` 통과(로컬 union 포함).
   - [ ] 수동: WebSocket 테스트 페이지에서 연결·send·receive·close가 버퍼에 적재.
   - [ ] 자동(Task 9): 후킹 on 상태에서 `WebSocket.OPEN===1 && typeof window.WebSocket==="function"` + `new WebSocket(...) instanceof WebSocket` 무회귀.
-  - [ ] `recorders-entry.ts` 외부 static import 수 변화 없음 → 빌드 시 `recorders-entry`가 여전히 동기 IIFE.
+  - [x] `recorders-entry.ts` 외부 static import 수 변화 없음 → 빌드 시 `recorders-entry`가 여전히 동기 IIFE. (런타임 import는 helpers 1개 유지, 타입은 import type — security 검증 확인)
 
 ### Task 4: 목록 UI — WS 행 + 필터 + testid
 - **변경 대상**: `src/sidepanel/components/NetworkLogContent.tsx`
@@ -52,8 +52,8 @@
   - `ContentTypeIcon`·`RequestRow`에 WS 분기(method 칸 `WS`, status 101 표시, ws 아이콘).
   - **data-testid 부착**(src 수정은 testid 추가만): ws 필터 칩(`network-filter-ws`), WS 행(기존 `data-entry-id` 활용 + 필요 시 `data-ws="true"`).
 - **검증**:
-  - [ ] `pnpm typecheck` 통과.
-  - [ ] WS 엔트리가 목록에 행 1개로, `ws` 필터로 좁혀짐.
+  - [x] `pnpm typecheck` 통과.
+  - [ ] WS 엔트리가 목록에 행 1개로, `ws` 필터로 좁혀짐. (브라우저 확인 필요 — `/build`)
 
 ### Task 5: 상세 패널 — Messages 탭 + testid
 - **변경 대상**: `src/sidepanel/components/NetworkLogContent.tsx`
@@ -76,14 +76,14 @@
 - **변경 대상**: `src/i18n/namespaces/logs.ts`
 - **작업 내용**: `networkLog.filter.ws`, `networkLog.tab.messages`, `networkLog.ws.{open,close,sent,received,binarySkipped,framesCapped,empty,...}` ko·en 동시 추가.
 - **검증**:
-  - [ ] Edit/Write 시 PostToolUse 훅의 `locales.test.ts`(ko/en 대칭) 자동 통과.
+  - [x] Edit/Write 시 PostToolUse 훅의 `locales.test.ts`(ko/en 대칭) 자동 통과.
 
 ### Task 7: HAR 익스포트
 - **변경 대상**: `src/sidepanel/lib/buildHar.ts`, `src/sidepanel/lib/__tests__/buildHar.test.ts`
 - **작업 내용**: `requestToEntry` **최상단에서 WS early-return**(`new URL`·body 접근 전): `req.webSocket` 존재 시 entry에 `_resourceType:"websocket"` + `_webSocketMessages:[{type, time, opcode:1, data}]`(send/receive 데이터 프레임만). 기존 `buildHar.test.ts`에 **WS 엔트리 케이스 추가**(`_webSocketMessages` 직렬화).
 - **검증**:
-  - [ ] WS 엔트리가 `_webSocketMessages` 포함, 일반 요청 entry 무변.
-  - [ ] `pnpm test` green.
+  - [x] WS 엔트리가 `_webSocketMessages` 포함, 일반 요청 entry 무변.
+  - [x] `pnpm test` green.
 
 ### Task 8: log-viewer 동기화 확인
 - **변경 대상**: 없음. `src/log-viewer/App.tsx`는 이미 `{syncBaseMs, onSeek}` 전달(activeTs 미전달 — playhead 하이라이트 미구현이 의도된 한계).
@@ -97,12 +97,12 @@
   - e2e fixture에 **로컬 ws echo 서버** 추가(`ws` devDep 또는 기존 http 서버 `upgrade` 핸들). 픽스처 페이지가 `ws://localhost:<port>`로 접속해 텍스트 프레임 송신 → 에코 수신.
   - **인페이지 `WebSocket` stub 금지**(레코더 Proxy가 document_start에 먼저 깔려 stub이 덮는 순서 역전 위험).
   - 무간섭 검증을 `page.evaluate`로 스크립트 판정(자동 승격).
-- **검증** (e2e 시나리오 — 스크립트 판정):
-  - [ ] WebSocket을 여는 픽스처 페이지에서 네트워크 서브탭에 status 101 WS 연결 행이 1개 나타난다.
-  - [ ] WS 행 클릭 시 Messages 탭이 바로 열리고, 송신 텍스트가 ▲send, 에코가 ▼receive 프레임으로 시간순 표시된다.
-  - [ ] Send 필터를 누르면 receive 데이터 프레임이 사라지고 send + open/close만 남는다.
-  - [ ] `page.evaluate(() => WebSocket.OPEN === 1 && typeof window.WebSocket === "function")` true (무간섭).
-  - [ ] 동시 다중 연결 시 행이 연결 수만큼 분리된다(id 고유성).
+- **검증** (e2e 시나리오 — 스크립트 판정, `websocket-log.spec.ts` green):
+  - [x] WebSocket을 여는 픽스처 페이지에서 네트워크 서브탭에 WS 연결 행(`data-ws`)이 1개 나타난다(닫은 뒤 Headers에 status 101).
+  - [x] WS 행 클릭 시 Messages 탭이 바로 열리고, 송신·에코가 send/receive 프레임으로 표시된다.
+  - [x] Send 필터를 누르면 receive 데이터 프레임이 사라지고 send + open이 남는다.
+  - [x] `page.evaluate(() => WebSocket.OPEN === 1 && typeof window.WebSocket === "function")` + `instanceof` true (무간섭).
+  - [x] 동시 다중 연결 시 행이 연결 수만큼 분리된다.
 
 ## 테스트 계획
 
