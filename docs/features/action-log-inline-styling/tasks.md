@@ -11,19 +11,19 @@
 - **변경 대상**: `src/sidepanel/lib/actionInline.ts`(신규), `src/sidepanel/lib/__tests__/actionInline.test.ts`(신규)
 - **작업 내용**: `splitTemplate`(정규식 `/(\{[a-zA-Z_][a-zA-Z0-9_]*\})/` — **슬롯 명명 규칙**만 locales 테스트와 일치, 정규식 자체는 split용이라 중괄호 포함 캡처), `resolveClickTarget`(target→tagName/tagType→selector→empty), `shouldRenderChip(value, masked)`. TDD 우선.
 - **검증**:
-  - [ ] `splitTemplate("Entered {value} in {field}")` → text/slot 4토큰
-  - [ ] `splitTemplate("{target} 클릭")` → slot + text
-  - [ ] `splitTemplate("Recording started")` → text 1토큰
-  - [ ] `splitTemplate("{a}{b}")` → slot,slot (빈 문자열 없음)
-  - [ ] 슬롯명에 `_`/숫자 포함 시에도 토큰 인식 (정규식 일치 확인)
-  - [ ] `resolveClickTarget({target:"Save"})` → name
-  - [ ] `resolveClickTarget({target:""})` → tag/empty 폴백 (빈 문자열은 name으로 안 빠짐 — `trim()` truthy 가드)
-  - [ ] `resolveClickTarget({tagName:"button",tagType:"submit"})` → tag(+tagType)
-  - [ ] `resolveClickTarget({tagName:"div"})` → tag(tagType 없음)
-  - [ ] `resolveClickTarget({selector:"div.foo"})` → name(레거시)
-  - [ ] `resolveClickTarget({})` → empty
-  - [ ] `shouldRenderChip("x", false)` → true / `shouldRenderChip("", false)` → false / `shouldRenderChip(undefined, false)` → false / `shouldRenderChip("", true)` → true (masked는 항상 칩)
-  - [ ] `pnpm test -- actionInline` green
+  - [x] `splitTemplate("Entered {value} in {field}")` → text/slot 4토큰
+  - [x] `splitTemplate("{target} 클릭")` → slot + text
+  - [x] `splitTemplate("Recording started")` → text 1토큰
+  - [x] `splitTemplate("{a}{b}")` → slot,slot (빈 문자열 없음)
+  - [x] 슬롯명에 `_`/숫자 포함 시에도 토큰 인식 (정규식 일치 확인)
+  - [x] `resolveClickTarget({target:"Save"})` → name
+  - [x] `resolveClickTarget({target:""})` → tag/empty 폴백 (빈 문자열은 name으로 안 빠짐 — `trim()` truthy 가드)
+  - [x] `resolveClickTarget({tagName:"button",tagType:"submit"})` → tag(+tagType)
+  - [x] `resolveClickTarget({tagName:"div"})` → tag(tagType 없음)
+  - [x] `resolveClickTarget({selector:"div.foo"})` → name(레거시)
+  - [x] `resolveClickTarget({})` → empty
+  - [x] `shouldRenderChip("x", false)` → true / `shouldRenderChip("", false)` → false / `shouldRenderChip(undefined, false)` → false / `shouldRenderChip("", true)` → true (masked는 항상 칩)
+  - [x] `pnpm test -- actionInline` green
 
 ### Task 2: 데이터 타입 확장
 - **변경 대상**: `src/types/action.ts`
@@ -34,8 +34,8 @@
 - **변경 대상**: `src/content/action-recorder.ts`
 - **작업 내용**: `CapturedAction`에 `tagName?`/`tagType?`. `recordClick`에서 `tagName: el.tagName.toLowerCase()`, `tagType: el.getAttribute("type") ?? undefined`. 빈 접근성 이름은 `target`을 `undefined`로 정규화(`name || undefined`)해 tag 모드 진입 보장.
 - **검증**:
-  - [ ] `pnpm typecheck` 통과
-  - [ ] `import type`만 추가됐는지 확인(동기 IIFE 제약 — 런타임 외부 import 0 유지)
+  - [x] `pnpm typecheck` 통과
+  - [x] `import type`만 추가됐는지 확인(동기 IIFE 제약 — 런타임 외부 import 0 유지)
   - [ ] (간접) Task 7 e2e에서 tagName 채워짐 확인
 
 ### Task 4: 공용 컴포넌트 (`InlineLink`, `InlineChip`)
@@ -45,7 +45,7 @@
   - `InlineChip`: `rounded-md border border-border bg-background px-1.5 py-0.5 font-mono text-xs [box-decoration-break:clone] break-words`. `muted`→`border-dashed text-muted-foreground`. `aria-label` passthrough.
   - 두 컴포넌트는 i18n 비의존.
 - **검증**:
-  - [ ] `pnpm typecheck` 통과
+  - [x] `pnpm typecheck` 통과
   - [ ] (Task 6 시각) 칩 흰배경+rounded-md, 마스킹 점선, 링크 blue+underline
 
 ### Task 5: ActionLogContent 렌더 교체
@@ -58,11 +58,11 @@
   - `ActionRow` 보간 블록 → `{renderActionContent(t, entry)}`, span에 `leading-relaxed`. 텍스트 span의 `break-all` → `break-words`로 변경(칩 글자 중간 분할 방지 — 값/URL은 칩·링크로 감싸므로 단어 단위 줄바꿈으로 충분).
   - 고아 `roleWord`/`clickTarget`/`NavigateText` 제거.
 - **검증**:
-  - [ ] `pnpm typecheck` 통과
-  - [ ] `pnpm test` 전체 green (locales 대칭 포함)
-  - [ ] grep으로 `roleWord`/`clickTarget`/`NavigateText` 잔존 0
-  - [ ] `searchText` 미변경 — 칩 래핑 후에도 검색 동작(target/value 등 매칭) 유지
-  - [ ] role 단어(`button`/`link`) 미표시는 **의도된 동작**(회귀 아님)
+  - [x] `pnpm typecheck` 통과
+  - [x] `pnpm test` 전체 green (locales 대칭 포함)
+  - [x] grep으로 `roleWord`/`clickTarget`/`NavigateText` 잔존 0
+  - [x] `searchText` 미변경 — 칩 래핑 후에도 검색 동작(target/value 등 매칭) 유지
+  - [x] role 단어(`button`/`link`) 미표시는 **의도된 동작**(회귀 아님)
 
 ### Task 6: 콘솔 링크 공용화 + log-viewer i18n 감사
 - **변경 대상**: `src/sidepanel/components/ConsoleLogContent.tsx`, `src/log-viewer/i18n.ts`
@@ -70,9 +70,9 @@
   - `ConsoleLogContent.tsx:257`의 페이지 URL `<a>` → `<InlineLink href={entry.pageUrl} className="block text-xs">{entry.pageUrl}</InlineLink>`(시각 동일, `data-testid` 미전달 — 콘솔 링크 오염 방지).
   - `log-viewer/i18n.ts`에 `actionLog.verb.keypress`/`toggle.check`/`toggle.uncheck`/`select` 키 존재 확인, 누락 시 `logs.ts`와 동일 문자열로 ko/en 보강. **이 누락은 신규 회귀가 아닌 선재 버그**(`markers.ts:128-139`도 동일 키 호출, log-viewer `t()`는 미스 시 raw 키 반환) — 동반 수정.
 - **검증**:
-  - [ ] `pnpm typecheck`·`pnpm test` 통과
+  - [x] `pnpm typecheck`·`pnpm test` 통과
   - [ ] (시각) 콘솔 로그 페이지 URL 링크 무회귀
-  - [ ] log-viewer에서 keypress/toggle/select 액션 렌더 시 키 미스 없음
+  - [x] log-viewer에서 keypress/toggle/select 액션 렌더 시 키 미스 없음
   - [ ] (시각) 보강 후 `markers.ts` 영상 마커 라벨도 raw 키 대신 정상 동사 노출(선재 버그 동반 수정 확인)
 
 ### Task 7: 빌드 시각 검증

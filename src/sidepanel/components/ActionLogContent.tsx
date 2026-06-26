@@ -1,4 +1,5 @@
-import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { Fragment, useState, useEffect, useMemo, useCallback, useRef } from "react";
+import type { ReactNode } from "react";
 import { Keyboard, MousePointerClick, MapPin, Search, X, CornerDownLeft, SquareCheck, ListChecks } from "lucide-react";
 import { useT } from "@/i18n";
 import type { ActionEntry, ActionEntryKind } from "@/types/action";
@@ -10,6 +11,9 @@ import { findActiveIndex } from "@/log-viewer/timeline";
 import { formatRelativeTime, syncRowClass } from "@/sidepanel/lib/logRow";
 import { useScrollToEntry } from "@/sidepanel/lib/useScrollToEntry";
 import { distinctOriginKeys, originKey, originCounts } from "@/sidepanel/lib/logOrigin";
+import { splitTemplate, resolveClickTarget, shouldRenderChip } from "@/sidepanel/lib/actionInline";
+import { InlineLink } from "./InlineLink";
+import { InlineChip } from "./InlineChip";
 import { OriginFilterBar } from "./OriginFilterBar";
 import { LogSeekChip } from "./LogSeekChip";
 
@@ -53,45 +57,74 @@ function KindIcon({ kind }: { kind: ActionEntryKind }) {
 
 const MASKED_DISPLAY = "[********]";
 
-function roleWord(t: TranslationFn, role?: string): string {
-  switch (role) {
-    case "button": return t("actionLog.role.button");
-    case "link": return t("actionLog.role.link");
-    case "checkbox": return t("actionLog.role.checkbox");
-    case "radio": return t("actionLog.role.radio");
-    case "tab": return t("actionLog.role.tab");
-    case "menuitem": return t("actionLog.role.menuitem");
-    case "textbox": return t("actionLog.role.textbox");
-    default: return "";
+function ClickTarget({ entry }: { entry: ActionEntry }) {
+  const view = resolveClickTarget(entry);
+  if (view.mode === "name") return <>{view.name}</>;
+  if (view.mode === "tag") {
+    return (
+      <span data-testid="action-tag">
+        <span aria-hidden="true">&lt;</span>
+        <span className="text-sky-600 dark:text-sky-400">{view.tagName}</span>
+        {view.tagType && (
+          <>
+            {" "}
+            <span className="text-amber-600 dark:text-amber-400">type</span>
+            <span aria-hidden="true">=&quot;</span>
+            <span className="text-red-700 dark:text-red-400">{view.tagType}</span>
+            <span aria-hidden="true">&quot;</span>
+          </>
+        )}
+        <span aria-hidden="true">&gt;</span>
+      </span>
+    );
   }
+  return null;
 }
 
-function clickTarget(t: TranslationFn, entry: ActionEntry): string {
-  const name = entry.target ?? entry.selector ?? "";
-  const rw = roleWord(t, entry.role);
-  return rw ? `"${name}" ${rw}` : `"${name}"`;
+function renderVerb(template: string, slots: Record<string, ReactNode>): ReactNode {
+  return splitTemplate(template).map((tok, i) => (
+    <Fragment key={i}>{tok.type === "slot" ? slots[tok.name] ?? "" : tok.value}</Fragment>
+  ));
 }
 
-// 동사 문장 중간에 URL 링크(JSX)를 끼우려면 {target} 슬롯으로 split해 양옆 텍스트와 링크를 조립.
-function NavigateText({ t, toUrl }: { t: TranslationFn; toUrl?: string }) {
-  const [pre, post] = t("actionLog.verb.navigate").split("{target}");
-  return (
-    <>
-      {pre}
-      {toUrl && (
-        <a
-          href={toUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-blue-600 underline dark:text-blue-400"
-          title={toUrl}
-        >
-          {toUrl}
-        </a>
-      )}
-      {post ?? ""}
-    </>
-  );
+function fieldText(entry: ActionEntry): string {
+  return `"${entry.fieldLabel ?? entry.selector ?? ""}"`;
+}
+
+function valueChip(value: string | undefined): ReactNode {
+  return shouldRenderChip(value, false)
+    ? <InlineChip data-testid="action-value-chip">{value}</InlineChip>
+    : "";
+}
+
+function renderActionContent(t: TranslationFn, entry: ActionEntry): ReactNode {
+  switch (entry.kind) {
+    case "click":
+      return renderVerb(t("actionLog.verb.click"), { target: <ClickTarget entry={entry} /> });
+    case "input":
+      return renderVerb(t("actionLog.verb.input"), {
+        value: entry.masked
+          ? <InlineChip muted aria-label="masked value" data-testid="action-value-chip">{MASKED_DISPLAY}</InlineChip>
+          : valueChip(entry.value),
+        field: fieldText(entry),
+      });
+    case "select":
+      return renderVerb(t("actionLog.verb.select"), { value: valueChip(entry.value), field: fieldText(entry) });
+    case "keypress":
+      return renderVerb(t("actionLog.verb.keypress"), { keys: valueChip(entry.value) });
+    case "toggle":
+      return renderVerb(
+        t(entry.value === "checked" ? "actionLog.verb.toggle.check" : "actionLog.verb.toggle.uncheck"),
+        { field: fieldText(entry) },
+      );
+    case "navigation":
+      return renderVerb(t("actionLog.verb.navigate"), {
+        target: entry.toUrl
+          ? <InlineLink href={entry.toUrl} title={entry.toUrl} data-testid="action-nav-link" />
+          : "",
+      });
+    default: { entry.kind satisfies never; return null; }
+  }
 }
 
 function searchText(e: ActionEntry): string {
@@ -252,24 +285,8 @@ function ActionRow({ entry, startedAt, syncBaseMs, onSeek, isActive }: {
           <LogSeekChip ts={entry.timestamp} label={formatRelativeTime(entry.timestamp, base)} onSeek={onSeek} />
         )}
         <KindIcon kind={entry.kind} />
-        <span className={`min-w-0 flex-1 break-all ${kindColor(entry.kind)}`}>
-          {entry.kind === "click" && t("actionLog.verb.click", { target: clickTarget(t, entry) })}
-          {entry.kind === "input" &&
-            t("actionLog.verb.input", {
-              field: `"${entry.fieldLabel ?? entry.selector ?? ""}"`,
-              value: entry.masked ? MASKED_DISPLAY : `"${entry.value ?? ""}"`,
-            })}
-          {entry.kind === "navigation" && <NavigateText t={t} toUrl={entry.toUrl} />}
-          {entry.kind === "keypress" && t("actionLog.verb.keypress", { keys: entry.value ?? "" })}
-          {entry.kind === "toggle" &&
-            t(entry.value === "checked" ? "actionLog.verb.toggle.check" : "actionLog.verb.toggle.uncheck", {
-              field: `"${entry.fieldLabel ?? entry.selector ?? ""}"`,
-            })}
-          {entry.kind === "select" &&
-            t("actionLog.verb.select", {
-              field: `"${entry.fieldLabel ?? entry.selector ?? ""}"`,
-              value: `"${entry.value ?? ""}"`,
-            })}
+        <span className={`min-w-0 flex-1 break-words leading-relaxed ${kindColor(entry.kind)}`}>
+          {renderActionContent(t, entry)}
         </span>
       </div>
     </div>

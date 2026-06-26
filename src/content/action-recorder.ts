@@ -30,6 +30,8 @@ function actionRecorderScript(): void {
     target?: string;
     role?: string;
     selector?: string;
+    tagName?: string;
+    tagType?: string;
     navType?: NavType;
     fromUrl?: string;
     toUrl?: string;
@@ -130,14 +132,18 @@ function actionRecorderScript(): void {
 
   function recordClick(el: Element): void {
     const selector = buildLightSelector(el);
+    // 빈 접근성 이름은 undefined로 정규화 — resolveClickTarget이 tag 모드로 넘어가도록.
+    const name = truncateName(accessibleName(el)) || undefined;
     pushAction({
       id: genId(),
       kind: "click",
       timestamp: Date.now(),
       pageUrl: location.href,
-      target: truncateName(accessibleName(el)),
+      target: name,
       role: implicitRole(el) ?? undefined,
       selector,
+      tagName: el.tagName.toLowerCase(),
+      tagType: el.getAttribute("type") ?? undefined,
     });
   }
 
