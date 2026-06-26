@@ -11,7 +11,7 @@ import { findActiveIndex } from "@/log-viewer/timeline";
 import { formatRelativeTime, syncRowClass } from "@/sidepanel/lib/logRow";
 import { useScrollToEntry } from "@/sidepanel/lib/useScrollToEntry";
 import { distinctOriginKeys, originKey, originCounts } from "@/sidepanel/lib/logOrigin";
-import { splitTemplate, resolveClickTarget, shouldRenderChip } from "@/sidepanel/lib/actionInline";
+import { splitTemplate, resolveClickTarget } from "@/sidepanel/lib/actionInline";
 import { InlineLink } from "./InlineLink";
 import { InlineChip } from "./InlineChip";
 import { OriginFilterBar } from "./OriginFilterBar";
@@ -92,9 +92,7 @@ function fieldText(entry: ActionEntry): string {
 }
 
 function valueChip(value: string | undefined): ReactNode {
-  return shouldRenderChip(value, false)
-    ? <InlineChip data-testid="action-value-chip">{value}</InlineChip>
-    : "";
+  return value ? <InlineChip data-testid="action-value-chip">{value}</InlineChip> : "";
 }
 
 function renderActionContent(t: TranslationFn, entry: ActionEntry): ReactNode {
@@ -104,7 +102,7 @@ function renderActionContent(t: TranslationFn, entry: ActionEntry): ReactNode {
     case "input":
       return renderVerb(t("actionLog.verb.input"), {
         value: entry.masked
-          ? <InlineChip muted aria-label="masked value" data-testid="action-value-chip">{MASKED_DISPLAY}</InlineChip>
+          ? <InlineChip muted aria-label={t("actionLog.maskedValue")} data-testid="action-value-chip">{MASKED_DISPLAY}</InlineChip>
           : valueChip(entry.value),
         field: fieldText(entry),
       });

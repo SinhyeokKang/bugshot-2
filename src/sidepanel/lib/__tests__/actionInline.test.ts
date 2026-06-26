@@ -1,9 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  splitTemplate,
-  resolveClickTarget,
-  shouldRenderChip,
-} from "../actionInline";
+import { splitTemplate, resolveClickTarget } from "../actionInline";
 
 describe("splitTemplate", () => {
   it("다중 슬롯 템플릿을 text/slot 토큰으로 분할한다", () => {
@@ -92,27 +88,5 @@ describe("resolveClickTarget", () => {
     expect(
       resolveClickTarget({ target: "Save", tagName: "button" }),
     ).toEqual({ mode: "name", name: "Save" });
-  });
-});
-
-describe("shouldRenderChip", () => {
-  it("non-empty 값은 칩 렌더", () => {
-    expect(shouldRenderChip("x", false)).toBe(true);
-  });
-
-  it("빈 문자열은 칩 미렌더", () => {
-    expect(shouldRenderChip("", false)).toBe(false);
-  });
-
-  it("undefined는 칩 미렌더", () => {
-    expect(shouldRenderChip(undefined, false)).toBe(false);
-  });
-
-  it("masked면 빈 값이어도 항상 칩 렌더", () => {
-    expect(shouldRenderChip("", true)).toBe(true);
-  });
-
-  it("masked면 undefined여도 칩 렌더", () => {
-    expect(shouldRenderChip(undefined, true)).toBe(true);
   });
 });

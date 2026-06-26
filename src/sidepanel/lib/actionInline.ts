@@ -33,11 +33,3 @@ export function resolveClickTarget(
   if (entry.selector) return { mode: "name", name: entry.selector };
   return { mode: "empty" };
 }
-
-export function shouldRenderChip(
-  value: string | undefined,
-  masked: boolean,
-): boolean {
-  if (masked) return true;
-  return !!value;
-}
