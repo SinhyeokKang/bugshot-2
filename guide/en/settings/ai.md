@@ -29,8 +29,17 @@ BugShot picks the AI for you, in this order — you rarely have to think about i
 
 Once AI is ready, two features become available.
 
-- **AI Styling** — While inspecting an element, change styles with plain language like "make the button rounder" or "add more spacing." → [Styling](../element/styling.md)
-- **AI Draft** — Auto-fill the issue body from your capture and logs. → [Write an Issue (element)](../element/issue.md)
+### AI Styling
+
+While inspecting an element, change styles with plain language like "make the button rounder" or "add more spacing." See [Styling](../element/styling.md) for the full walkthrough.
+
+### AI Draft
+
+Auto-fill the issue body from your capture and logs. On the issue screen, a purple **"Let AI write your draft"** banner shows up below the body sections — click **AI Draft** on the right to open the input.
+
+Jot the bug down in a line or two (you can leave it blank in element mode) and hit **Generate**. AI fills in the title and every enabled body section in one shot. It draws not just on your capture and logs but on anything you've already typed, so feel free to run it again to polish. The evidence differs a bit per mode — see [Write an Issue (element)](../element/issue.md) for the detailed flow.
+
+![AI Draft dialog](../assets/settings-ai-2.jpg)
 
 > AI slips up now and then, so give the generated result a quick look before submitting.
 
