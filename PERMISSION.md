@@ -53,6 +53,7 @@ https://api.linear.app/*           — Linear GraphQL API + OAuth token
 https://api.notion.com/*           — Notion REST API + OAuth token
 https://gitlab.com/*               — GitLab REST API + OAuth token (gitlab.com 한정)
 https://app.asana.com/*            — Asana REST API + OAuth authorize (token 교환은 confidential이라 proxy 경유)
+https://api.clickup.com/*          — ClickUp REST API (authorize는 app.clickup.com — launchWebAuthFlow가 처리해 host 불필요, token 교환은 confidential이라 proxy 경유)
 ${VITE_OAUTH_PROXY_URL origin}/*   — OAuth proxy (빌드 타임 주입)
 ```
 
@@ -357,6 +358,7 @@ idle 복귀 전 캡처를 시도하면 기존 3중 방어(진입 가드 / 런타
 | Notion | `api.notion.com/v1/oauth/authorize` | `${PROXY}/notion/token` | X | O | 없음 (토큰 무기한) |
 | GitLab | `gitlab.com/oauth/authorize` | `gitlab.com/oauth/token` | O (S256) | X | `gitlab.com/oauth/token` |
 | Asana | `app.asana.com/-/oauth_authorize` | `${PROXY}/asana/token` | X | O | `${PROXY}/asana/refresh` (refresh_token 비회전) |
+| ClickUp | `app.clickup.com/api` | `${PROXY}/clickup/token` | X | O | 없음 (토큰 만료 없음) |
 
 ### 토큰 저장
 
@@ -375,6 +377,7 @@ bg service worker에서 직접 읽기/쓰기:
 | Notion | — | 401 시 `OAuthError` throw → 재인증 안내 | — |
 | GitLab | 60초 (`gitlab-api.ts`) | O (`authedFetch`, OAuth 한정) | `refreshInFlight` 훅 주입 |
 | Asana | 60초 (`asana-api.ts:102`) | O (`authedFetch`, OAuth 한정) | `refreshInFlight` 훅 주입 |
+| ClickUp | 없음 (토큰 만료 없음) | X | 없음 — 401은 곧 권한 박탈 → 재연결 (`clickup-api.ts`) |
 
 ### OAuth 에러 처리
 
@@ -393,8 +396,9 @@ bg service worker에서 직접 읽기/쓰기:
 | `isNotionOAuthConfigured()` | `notion-oauth.ts:12` | `VITE_NOTION_CLIENT_ID` + `VITE_OAUTH_PROXY_URL` |
 | `isGitlabOAuthConfigured()` | `gitlab-oauth.ts:13` | `VITE_GITLAB_CLIENT_ID` |
 | `isAsanaOAuthConfigured()` | `asana-oauth.ts:14` | `VITE_ASANA_CLIENT_ID` + `VITE_OAUTH_PROXY_URL` |
+| `isClickupOAuthConfigured()` | `clickup-oauth.ts:13` | `VITE_CLICKUP_CLIENT_ID` + `VITE_OAUTH_PROXY_URL` |
 
-env 누락 시 해당 플랫폼의 OAuth 버튼이 UI에서 자동 비활성화. (GitLab·Asana는 OAuth 미구성이어도 PAT 연결은 가능.)
+env 누락 시 해당 플랫폼의 OAuth 버튼이 UI에서 자동 비활성화. (GitLab·Asana·ClickUp은 OAuth 미구성이어도 PAT/토큰 연결은 가능.)
 
 ### 이중 인증 모드
 
@@ -408,6 +412,7 @@ env 누락 시 해당 플랫폼의 OAuth 버튼이 UI에서 자동 비활성화.
 | Notion | `NotionOAuthAuth` | `NotionApiKeyAuth` (Internal Integration Token) |
 | GitLab | `GitlabOAuthAuth` (baseUrl 포함) | `GitlabPatAuth` (PAT + self-managed baseUrl) |
 | Asana | `AsanaOAuthAuth` | `AsanaPatAuth` (PAT) |
+| ClickUp | `ClickupOAuthAuth` (만료·refresh 없음) | `ClickupPatAuth` (`pk_` 토큰) |
 
 API Key/PAT 모드는 OAuth 인프라(refresh, proxy, identity API)를 일절 거치지 않는다. (GitLab PAT는 self-managed 인스턴스 host 권한만 런타임 획득.)
 
@@ -504,7 +509,8 @@ background/index.ts:134 — webNavigation.onCommitted
 | `api.notion.com/*` | Notion REST + OAuth token | `notion-api.ts`, `notion-oauth.ts` |
 | `gitlab.com/*` | GitLab REST + OAuth token (gitlab.com 한정) | `gitlab-api.ts`, `gitlab-oauth.ts` |
 | `app.asana.com/*` | Asana REST + OAuth authorize (token 교환은 proxy) | `asana-api.ts`, `asana-oauth.ts` |
-| `${PROXY_URL origin}/*` | OAuth proxy (client_secret 은닉) | `oauth.ts`, `github-oauth.ts`, `notion-oauth.ts`, `asana-oauth.ts` |
+| `api.clickup.com/*` | ClickUp REST (task 생성·첨부 업로드·본문 갱신) | `clickup-api.ts`, `clickup-oauth.ts` |
+| `${PROXY_URL origin}/*` | OAuth proxy (client_secret 은닉) | `oauth.ts`, `github-oauth.ts`, `notion-oauth.ts`, `asana-oauth.ts`, `clickup-oauth.ts` |
 
 ### OAuth Proxy 엔드포인트
 
@@ -516,6 +522,7 @@ background/index.ts:134 — webNavigation.onCommitted
 | `${PROXY}/notion/token` | Notion (auth code 교환) |
 | `${PROXY}/asana/token` | Asana (auth code 교환) |
 | `${PROXY}/asana/refresh` | Asana (token refresh, refresh_token 비회전) |
+| `${PROXY}/clickup/token` | ClickUp (auth code 교환, refresh 없음) |
 
 Linear·GitLab은 PKCE 지원으로 proxy 불필요 — 각각 `api.linear.app/oauth/token`·`gitlab.com/oauth/token`으로 직접 교환.
 
