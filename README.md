@@ -21,7 +21,7 @@ A Chrome extension for bug reporting. Pick elements, tweak CSS, and file issues 
 
 ### Auto-logging
 
-- **Network & console logs** — auto-captured in the background and attached to issues, including logs from cross-origin iframes (filterable by origin)
+- **Network & console logs** — auto-captured in the background and attached to issues, including WebSocket frames and logs from cross-origin iframes (filterable by origin)
 - **Action log** — clicks, inputs, navigations, keyboard shortcuts, toggles, and dropdown selections recorded as reproduction steps (sensitive field values masked)
 - **Log viewer** — standalone HTML report with video-synced timeline; click any log entry to jump to that moment in the recording
 
