@@ -46,6 +46,8 @@ export interface MarkdownContext {
   environment: EnvironmentRow[];
   networkLogSummary?: NetworkLogSummary;
   consoleLogSummary?: ConsoleLogSummary;
+  // 액션 로그(video 전용)는 본문 요약에 캡처 건수만 노출 — net/con과 달리 에러 분류 없음.
+  actionLogCaptured?: number;
   // 복수 element 직렬화. 채워지면 element 모드 본문은 이 배열을 반복(단수도 1개짜리).
   styleElements?: StyleElementContext[];
 }
@@ -480,8 +482,8 @@ function segmentsToHtmlCell(segs: StyleDiffSegment[]): string {
 }
 
 function emitLogSummaryMd(lines: string[], ctx: MarkdownContext): void {
-  const { networkLogSummary: net, consoleLogSummary: con } = ctx;
-  if (!net && !con) return;
+  const { networkLogSummary: net, consoleLogSummary: con, actionLogCaptured: act } = ctx;
+  if (!net && !con && !act) return;
   lines.push(`## ${t("logSummary.title")}`);
   lines.push("");
   if (net) {
@@ -498,14 +500,17 @@ function emitLogSummaryMd(lines: string[], ctx: MarkdownContext): void {
         : `- ${t("logSummary.console.lineNoError", { n: con.captured })}`,
     );
   }
+  if (act) {
+    lines.push(`- ${t("logSummary.action.line", { n: act })}`);
+  }
   lines.push("");
   lines.push(`_${t("logSummary.logs.detail", { file: "logs.html" })}_`);
   lines.push("");
 }
 
 function emitLogSummaryHtml(parts: string[], ctx: MarkdownContext): void {
-  const { networkLogSummary: net, consoleLogSummary: con } = ctx;
-  if (!net && !con) return;
+  const { networkLogSummary: net, consoleLogSummary: con, actionLogCaptured: act } = ctx;
+  if (!net && !con && !act) return;
   parts.push(`<h2>${escapeHtml(t("logSummary.title"))}</h2>`);
   parts.push("<ul>");
   if (net) {
@@ -519,6 +524,9 @@ function emitLogSummaryHtml(parts: string[], ctx: MarkdownContext): void {
       ? t("logSummary.console.line", { n: con.captured, errors: con.errorCount, warns: con.warnCount })
       : t("logSummary.console.lineNoError", { n: con.captured });
     parts.push(`<li>${escapeHtml(line)}</li>`);
+  }
+  if (act) {
+    parts.push(`<li>${escapeHtml(t("logSummary.action.line", { n: act }))}</li>`);
   }
   parts.push("</ul>");
   parts.push(`<p><em>${escapeHtml(t("logSummary.logs.detail", { file: "logs.html" }))}</em></p>`);

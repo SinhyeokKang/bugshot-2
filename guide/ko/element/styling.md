@@ -7,7 +7,7 @@
 패널은 위에서 아래로 다음 섹션 순서로 구성됩니다(라벨은 화면에서 영문으로 표시됩니다).
 
 1. **Class** — 요소의 class 목록 편집.
-2. **Layout** — display·position·flex 정렬·margin·padding·gap.
+2. **Layout** — display·position·z-index(겹침 순서)·flex 정렬·margin·padding·gap.
 3. **Container** — 배경·투명도·모서리 반경.
 4. **Border** — 테두리 두께·색·스타일. 네 변(위·오른쪽·아래·왼쪽)을 따로 손보거나, 링크 버튼으로 한꺼번에 맞출 수 있습니다.
 5. **Size** — 너비·높이와 최소/최대값.

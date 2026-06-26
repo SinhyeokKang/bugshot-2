@@ -218,8 +218,8 @@ function emitAttachments(
 }
 
 function emitLogSummary(lines: string[], ctx: MarkdownContext, logsHref?: string): void {
-  const { networkLogSummary: net, consoleLogSummary: con } = ctx;
-  if (!net && !con) return;
+  const { networkLogSummary: net, consoleLogSummary: con, actionLogCaptured: act } = ctx;
+  if (!net && !con && !act) return;
   lines.push(`## ${t("logSummary.title")}`, "");
   if (net) {
     lines.push(
@@ -234,6 +234,9 @@ function emitLogSummary(lines: string[], ctx: MarkdownContext, logsHref?: string
         ? `- ${t("logSummary.console.line", { n: con.captured, errors: con.errorCount, warns: con.warnCount })}`
         : `- ${t("logSummary.console.lineNoError", { n: con.captured })}`,
     );
+  }
+  if (act) {
+    lines.push(`- ${t("logSummary.action.line", { n: act })}`);
   }
   lines.push("");
   const file = logsHref ? `[logs.html](${logsHref})` : "logs.html";

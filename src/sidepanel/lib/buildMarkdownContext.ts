@@ -44,6 +44,8 @@ export interface BuildMarkdownContextArgs {
   // freeform/video 한정 로그 요약
   networkLogSummary?: NetworkLogSummary;
   consoleLogSummary?: ConsoleLogSummary;
+  // video 한정 액션 로그 캡처 건수 (본문 요약 노출용)
+  actionLogCaptured?: number;
 }
 
 export function buildMarkdownContext(args: BuildMarkdownContextArgs): MarkdownContext {
@@ -108,5 +110,6 @@ export function buildMarkdownContext(args: BuildMarkdownContextArgs): MarkdownCo
     diffs: [],
     networkLogSummary: args.networkLogSummary,
     consoleLogSummary: args.consoleLogSummary,
+    actionLogCaptured: args.actionLogCaptured,
   };
 }

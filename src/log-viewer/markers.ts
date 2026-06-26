@@ -76,7 +76,8 @@ export function buildMarkers(
       .map((r) => {
         const isPending = r.phase === "pending";
         const variant: MarkerVariant = isPending ? "pending" : "error";
-        const prefix = isPending ? "[Pending]" : `[${r.status}]`;
+        const pendingLabel = t("networkLog.marker.pending");
+        const prefix = isPending ? `[${pendingLabel}]` : `[${r.status}]`;
         return {
           id: r.id,
           type: "network" as const,
@@ -85,7 +86,7 @@ export function buildMarkers(
           positionPct: pct(r.startTime, videoStartedAt, videoDurationSec),
           label: `${prefix} ${r.method} ${r.url}`,
           labelParts: [
-            { text: isPending ? "Pending" : String(r.status), className: isPending ? "text-amber-600" : "text-red-600" },
+            { text: isPending ? pendingLabel : String(r.status), className: isPending ? "text-amber-600" : "text-red-600" },
             { text: "\n" },
             { text: r.method, className: METHOD_COLOR[r.method] ?? "text-violet-600" },
             { text: "\n" },

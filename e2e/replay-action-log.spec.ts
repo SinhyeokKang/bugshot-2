@@ -51,6 +51,7 @@ test.describe.serial("30s Replay + action 로그", () => {
     //    bringToFront 직후 동작을 기록(가드밴드 1500ms·30s cap 내라 trim 윈도우에 포함).
     await fixture.bringToFront();
     await fixture.locator("#action-btn").click();
+    await fixture.locator("#action-noname").click(); // 이름 없는 버튼 → tag 모드
     await fixture.locator("#action-input").fill("layout broken");
     await fixture.locator("#action-nav").click();
 
@@ -85,6 +86,11 @@ test.describe.serial("30s Replay + action 로그", () => {
     await expect(panel.locator('[data-kind="click"]').first()).toBeVisible();
     await expect(panel.locator('[data-kind="input"]').first()).toBeVisible();
     await expect(panel.locator('[data-kind="navigation"]').first()).toBeVisible();
+
+    // 9) 인라인 스타일링 — 입력값 칩 / 이름 없는 클릭 태그 / 이동 URL 링크
+    await expect(panel.getByTestId("action-value-chip").first()).toBeVisible();
+    await expect(panel.getByTestId("action-tag").first()).toBeVisible();
+    await expect(panel.getByTestId("action-nav-link").first()).toBeVisible();
 
     // 모달을 닫는다 — 열린 채면 afterAll의 탭 전환 클릭이 오버레이에 막혀 행(hang).
     await panel.keyboard.press("Escape");

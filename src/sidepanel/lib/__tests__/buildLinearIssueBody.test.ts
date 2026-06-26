@@ -412,3 +412,13 @@ describe("cc 멘션", () => {
     expect(buildLinearIssueBody({ ctx: makeCtx(), cc: [] })).toEqual(base);
   });
 });
+
+describe("buildLinearIssueBody — action 로그 단독 (video, net/con 없음)", () => {
+  it("action 캡처만 있어도 로그 요약 + logs.html 참조 노출", () => {
+    const out = buildLinearIssueBody({
+      ctx: makeCtx({ captureMode: "video", selector: "", actionLogCaptured: 7 }),
+    });
+    expect(out.body).toContain("logSummary.action.line n=7");
+    expect(out.body).toContain("logSummary.logs.detail file=logs.html");
+  });
+});

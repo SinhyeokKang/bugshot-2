@@ -148,7 +148,7 @@ shorthand(var 포함) + 같은 shorthand의 longhand override 조합에서 Chrom
 
 **플랫폼별 패키징**:
 - **Jira**: `logs.html` 그대로 첨부 → 이슈 생성 **후** `injectIssueUrl`로 뷰어 백링크 주입. 본문 로그 요약 안내의 `logs.html`은 제출 시 첨부 URL을 모르므로 업로드 후 `injectLogsLink`(`background/lib/adf-logs-link`)가 해당 em 노드에 link mark를 주입해 클릭 링크화(매칭 노드 없으면 평문 유지).
-- **Linear**: `logs.html` 그대로 첨부 → 이슈 생성 **후** `injectIssueUrl`로 뷰어 백링크 주입 (description-update 경로가 없어 본문 안내는 평문).
+- **Linear**: `logs.html` 그대로 첨부 → 이슈 생성 **후** `injectIssueUrl`로 뷰어 백링크 주입. 본문은 업로드 전 빌드돼 `logs.html`이 평문이므로, 업로드로 assetUrl을 안 뒤 `injectLogsMarkdownLink`(`sidepanel/lib/markdown-logs-link`)로 안내 줄의 `logs.html`을 markdown 링크화하고 `linear.updateIssueDescription`(issueUpdate description)으로 본문을 패치(GitLab식 보강, 실패는 격리).
 - **GitHub/GitLab**: `logs.html` 그대로 첨부 + 본문 로그 요약 안내에 markdown 링크(빌드 타임에 첨부 href를 알아 `emitLogSummary`가 `{file}`을 링크로 렌더). GitHub은 issueUrl 미주입(빈 값 → 뷰어가 링크 숨김), GitLab은 생성 후 `injectIssueUrl` 재업로드로 백링크 주입.
 - **Notion**: **`logs.zip`** (DEFLATE 압축 zip 1파일 래핑, `zipLogsHtml`). Cloudflare WAF가 `POST /v1/file_uploads/{id}/send`에서 평문 HTML/로그 콘텐츠(스택트레이스·URL·SQL스러운 토큰)를 공격 페이로드로 오탐해 403 반환. store-mode zip도 내부가 평문이라 같은 사유로 막힘 → DEFLATE 압축 바이트는 평문 패턴 매칭 회피. 부수효과로 size ~30%로 줄어 무료 워크스페이스 5 MiB 한도 여유. 단계: 페이지 생성 전 업로드 → issueUrl 주입 불가(GitHub과 동일, 빈 값 → 뷰어 자동 숨김).
 

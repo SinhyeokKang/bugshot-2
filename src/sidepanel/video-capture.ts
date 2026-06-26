@@ -5,15 +5,12 @@ import {
   activateNetworkRecorder,
   activateConsoleRecorder,
   activateActionRecorder,
-  clearNetworkRecorder,
-  clearConsoleRecorder,
-  clearActionRecorder,
 } from "./picker-control";
+import { clearNetworkRecorder, clearConsoleRecorder, clearActionRecorder } from "./recorder-control";
 import * as videoRecorder from "./video-recorder";
 
-export async function startVideoCapture(tabId: number): Promise<void> {
-  const tab = await chrome.tabs.get(tabId);
-
+// pending IDB 정리 → 3개 레코더 activate → clear 순. 탭/화면 녹화 진입 공통 전처리.
+async function prepareRecorders(tabId: number): Promise<void> {
   // pending IndexedDB는 startRecording의 ...initial 리셋과 무관하게 정리 필요.
   deleteNetworkLog(`pending:${tabId}`).catch(() => {});
   deleteConsoleLog(`pending:${tabId}`).catch(() => {});
@@ -29,6 +26,12 @@ export async function startVideoCapture(tabId: number): Promise<void> {
     clearConsoleRecorder(tabId).catch((err) => console.warn("[bugshot] console recorder clear failed", err)),
     clearActionRecorder(tabId).catch((err) => console.warn("[bugshot] action recorder clear failed", err)),
   ]);
+}
+
+export async function startVideoCapture(tabId: number): Promise<void> {
+  const tab = await chrome.tabs.get(tabId);
+
+  await prepareRecorders(tabId);
 
   useEditorStore.getState().startRecording(
     {
@@ -68,20 +71,7 @@ export async function startScreenCapture(tabId: number): Promise<void> {
     return;
   }
 
-  deleteNetworkLog(`pending:${tabId}`).catch(() => {});
-  deleteConsoleLog(`pending:${tabId}`).catch(() => {});
-  deleteActionLog(`pending:${tabId}`).catch(() => {});
-
-  await Promise.all([
-    activateNetworkRecorder(tabId).catch((err) => console.warn("[bugshot] network recorder activate failed", err)),
-    activateConsoleRecorder(tabId).catch((err) => console.warn("[bugshot] console recorder activate failed", err)),
-    activateActionRecorder(tabId).catch((err) => console.warn("[bugshot] action recorder activate failed", err)),
-  ]);
-  await Promise.all([
-    clearNetworkRecorder(tabId).catch((err) => console.warn("[bugshot] network recorder clear failed", err)),
-    clearConsoleRecorder(tabId).catch((err) => console.warn("[bugshot] console recorder clear failed", err)),
-    clearActionRecorder(tabId).catch((err) => console.warn("[bugshot] action recorder clear failed", err)),
-  ]);
+  await prepareRecorders(tabId);
 
   const tab = await chrome.tabs.get(tabId);
   useEditorStore.getState().startRecording(

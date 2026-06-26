@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from "vitest";
 import {
   ARG_CAP,
+  cleanStack,
   formatErrorEvent,
   formatRejectionReason,
   installConsoleWrap,
@@ -323,6 +324,93 @@ describe("restoreConsoleWrap", () => {
     expect(target.error).toBe(priorError);
     expect(target.warn).toBe(pageWarn);
     expect(state.installed).toBe(false);
+  });
+});
+
+describe("cleanStack", () => {
+  it("undefined/빈문자열/공백만 → undefined", () => {
+    expect(cleanStack(undefined)).toBeUndefined();
+    expect(cleanStack("")).toBeUndefined();
+    expect(cleanStack("   ")).toBeUndefined();
+    expect(cleanStack("\n  \n")).toBeUndefined();
+  });
+
+  it("V8 console.error 스택 — Error 헤더·chrome-extension·우리 심볼 프레임 제거, 페이지 프레임만", () => {
+    const raw = [
+      "Error",
+      "    at captureStack (chrome-extension://abc/recorders.js:1:1)",
+      "    at pushEntry (chrome-extension://abc/recorders.js:2:2)",
+      "    at foo (https://app.example.com/main.js:10:5)",
+      "    at bar (https://app.example.com/main.js:20:3)",
+    ].join("\n");
+    expect(cleanStack(raw)).toBe(
+      [
+        "    at foo (https://app.example.com/main.js:10:5)",
+        "    at bar (https://app.example.com/main.js:20:3)",
+      ].join("\n"),
+    );
+  });
+
+  it("페이지 Error(window error 경로) — 메시지 헤더 보존 + 프레임 보존", () => {
+    const raw = [
+      "TypeError: x is not a function",
+      "    at foo (https://app.example.com/main.js:10:5)",
+    ].join("\n");
+    expect(cleanStack(raw)).toBe(raw);
+  });
+
+  it("함수명 보존 빌드(URL이 chrome-extension 아님) — 심볼명 줄 제거, 페이지 프레임 보존", () => {
+    const raw = [
+      "    at consoleRecorderScript (https://app.example.com/x.js:1:1)",
+      "    at foo (https://app.example.com/main.js:10:5)",
+    ].join("\n");
+    expect(cleanStack(raw)).toBe("    at foo (https://app.example.com/main.js:10:5)");
+  });
+
+  it("우리 심볼 — makeConsoleWrapper/installConsoleWrap도 제거", () => {
+    const raw = [
+      "    at makeConsoleWrapper (https://app.example.com/x.js:1:1)",
+      "    at installConsoleWrap (https://app.example.com/x.js:2:1)",
+      "    at handler (https://app.example.com/main.js:10:5)",
+    ].join("\n");
+    expect(cleanStack(raw)).toBe("    at handler (https://app.example.com/main.js:10:5)");
+  });
+
+  it("우리 프레임만 있고 페이지 프레임 0개 → undefined", () => {
+    const raw = [
+      "Error",
+      "    at captureStack (chrome-extension://abc/recorders.js:1:1)",
+      "    at pushEntry (chrome-extension://abc/recorders.js:2:2)",
+    ].join("\n");
+    expect(cleanStack(raw)).toBeUndefined();
+  });
+
+  it("Firefox 스택 형태(foo@url)는 필터 대상 아니면 그대로 보존", () => {
+    const raw = [
+      "foo@https://app.example.com/main.js:10:5",
+      "bar@https://app.example.com/main.js:20:3",
+    ].join("\n");
+    expect(cleanStack(raw)).toBe(raw);
+  });
+
+  it("줄 우측 공백 trim", () => {
+    const raw = "    at foo (https://app.example.com/main.js:10:5)   ";
+    expect(cleanStack(raw)).toBe("    at foo (https://app.example.com/main.js:10:5)");
+  });
+
+  it("'Error' 단독 헤더만 제거하고 'Error: msg'는 보존", () => {
+    expect(
+      cleanStack("Error: boom\n    at foo (https://app.example.com/main.js:10:5)"),
+    ).toBe("Error: boom\n    at foo (https://app.example.com/main.js:10:5)");
+  });
+
+  it("줄 순서 보존", () => {
+    const raw = [
+      "    at a (https://app.example.com/main.js:1:1)",
+      "    at b (https://app.example.com/main.js:2:1)",
+      "    at c (https://app.example.com/main.js:3:1)",
+    ].join("\n");
+    expect(cleanStack(raw)).toBe(raw);
   });
 });
 

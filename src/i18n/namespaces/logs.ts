@@ -64,6 +64,7 @@ const ko = {
   "actionLog.verb.toggle.check": "{field} 체크",
   "actionLog.verb.toggle.uncheck": "{field} 해제",
   "actionLog.verb.select": "{field}에서 {value} 선택",
+  "actionLog.maskedValue": "가려진 값",
   "actionLog.role.button": "버튼",
   "actionLog.role.link": "링크",
   "actionLog.role.checkbox": "체크박스",
@@ -98,6 +99,7 @@ const ko = {
   "logSummary.network.lineNoError": "네트워크: {n}건 (에러 없음)",
   "logSummary.console.line": "콘솔: {n}건 (에러 {errors}건, 경고 {warns}건)",
   "logSummary.console.lineNoError": "콘솔: {n}건 (에러 없음)",
+  "logSummary.action.line": "사용자 동작: {n}건",
   "logSummary.logs.detail": "첨부된 {file}을 열면 콘솔·네트워크·클릭 동작을 시간순으로 살펴볼 수 있습니다.",
 
   "logCard.description": "총 {captured}건 (에러 {errors}건)",
@@ -174,6 +176,7 @@ const en = {
   "actionLog.verb.toggle.check": "Checked {field}",
   "actionLog.verb.toggle.uncheck": "Unchecked {field}",
   "actionLog.verb.select": "Selected {value} in {field}",
+  "actionLog.maskedValue": "masked value",
   "actionLog.role.button": "button",
   "actionLog.role.link": "link",
   "actionLog.role.checkbox": "checkbox",
@@ -208,6 +211,7 @@ const en = {
   "logSummary.network.lineNoError": "Network: {n} requests (no errors)",
   "logSummary.console.line": "Console: {n} logs ({errors} errors, {warns} warnings)",
   "logSummary.console.lineNoError": "Console: {n} logs (no errors)",
+  "logSummary.action.line": "User actions: {n}",
   "logSummary.logs.detail": "Open the attached {file} to review console, network, and click activity in chronological order.",
 
   "logCard.description": "{captured} captured ({errors} errors)",

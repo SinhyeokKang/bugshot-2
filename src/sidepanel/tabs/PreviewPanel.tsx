@@ -311,6 +311,7 @@ export function PreviewPanel() {
         capturedAt: videoCapturedAt ?? Date.now(),
         networkLogSummary: attachedNetwork ? buildNetworkLogSummary(attachedNetwork) : undefined,
         consoleLogSummary: attachedConsole ? buildConsoleLogSummary(attachedConsole) : undefined,
+        actionLogCaptured: attachedAction ? attachedAction.captured : undefined,
       });
     } else if (isElementMode && selection) {
       ctx = buildMarkdownContext({

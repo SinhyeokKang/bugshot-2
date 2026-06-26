@@ -106,7 +106,7 @@ export function buildIssueAdf(
         );
       }
     }
-    emitLogSummaryAdf(content, ctx.networkLogSummary, ctx.consoleLogSummary);
+    emitLogSummaryAdf(content, ctx.networkLogSummary, ctx.consoleLogSummary, ctx.actionLogCaptured);
   };
 
   for (const section of ctx.sectionConfig) {
@@ -264,8 +264,9 @@ function emitLogSummaryAdf(
   content: AdfNode[],
   net: NetworkLogSummary | undefined,
   con: ConsoleLogSummary | undefined,
+  act: number | undefined,
 ): void {
-  if (!net && !con) return;
+  if (!net && !con && !act) return;
   content.push(heading(2, t("logSummary.title")));
   const items: AdfNode[] = [];
   if (net) {
@@ -279,6 +280,9 @@ function emitLogSummaryAdf(
       ? t("logSummary.console.line", { n: con.captured, errors: con.errorCount, warns: con.warnCount })
       : t("logSummary.console.lineNoError", { n: con.captured });
     items.push(listItem([paragraph([textNode(line)])]));
+  }
+  if (act) {
+    items.push(listItem([paragraph([textNode(t("logSummary.action.line", { n: act }))])]));
   }
   content.push(bulletList(items));
   content.push(paragraph(logsDetailNodes()));

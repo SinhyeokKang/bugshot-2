@@ -15,6 +15,9 @@ export interface ActionEntry {
   target?: string;
   role?: string;
   selector?: string;
+  // click 전용: 접근성 이름이 없을 때 태그 폴백 표시용.
+  tagName?: string;
+  tagType?: string;
   // navigation
   navType?: "load" | "pushState" | "replaceState" | "popstate" | "hashchange";
   fromUrl?: string;

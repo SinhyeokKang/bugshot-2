@@ -706,3 +706,14 @@ describe("cc 멘션", () => {
     expect(buildNotionIssueBody({ ctx: makeCtx(), cc: [] })).toEqual(base);
   });
 });
+
+describe("buildNotionIssueBody — action 로그 단독 (video, net/con 없음)", () => {
+  it("action 캡처만 있어도 로그 요약 블록 노출", () => {
+    const out = buildNotionIssueBody({
+      ctx: makeCtx({ captureMode: "video", selector: "", actionLogCaptured: 7 }),
+    });
+    const json = JSON.stringify(out);
+    expect(json).toContain("logSummary.title");
+    expect(json).toContain("logSummary.action.line n=7");
+  });
+});

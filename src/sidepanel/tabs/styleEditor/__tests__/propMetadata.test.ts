@@ -46,3 +46,18 @@ describe("PROP_CATEGORY — border 변별 longhand", () => {
     expect(PROP_CATEGORY["border-bottom-color"]).toBe("color");
   });
 });
+
+describe("z-index", () => {
+  it("PROP_CATEGORY z-index → number (px 미부착)", () => {
+    expect(PROP_CATEGORY["z-index"]).toBe("number");
+  });
+
+  it("computed 기본값 auto → 기본값", () => {
+    expect(isKnownDefault("z-index", "auto")).toBe(true);
+  });
+
+  it("실제 편집값(정수)은 기본값 아님", () => {
+    expect(isKnownDefault("z-index", "10")).toBe(false);
+    expect(isKnownDefault("z-index", "0")).toBe(false);
+  });
+});

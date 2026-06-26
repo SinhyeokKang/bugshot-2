@@ -10,6 +10,7 @@ import { OriginFilterBar } from "./OriginFilterBar";
 import { findActiveIndex } from "@/log-viewer/timeline";
 import { formatRelativeTime, syncRowClass } from "@/sidepanel/lib/logRow";
 import { useScrollToEntry } from "@/sidepanel/lib/useScrollToEntry";
+import { InlineLink } from "./InlineLink";
 import { LogSeekChip } from "./LogSeekChip";
 
 type ConsoleFilter = "all" | "error" | "warn" | "info" | "debug" | "log";
@@ -254,7 +255,7 @@ function EntryAccordion({ entry, startedAt, syncBaseMs, onSeek, isActive, scroll
               </pre>
             </div>
           )}
-          <a href={entry.pageUrl} target="_blank" rel="noopener noreferrer" className="block text-xs text-blue-600 underline dark:text-blue-400">{entry.pageUrl}</a>
+          <InlineLink href={entry.pageUrl} className="block text-xs">{entry.pageUrl}</InlineLink>
         </div>
       )}
     </div>

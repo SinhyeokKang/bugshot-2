@@ -78,6 +78,10 @@ describe("INTERESTING_PROPS", () => {
     expect(INTERESTING_PROPS).toContain("border-left-style");
   });
 
+  it("z-index 포함 (수집 화이트리스트)", () => {
+    expect(INTERESTING_PROPS).toContain("z-index");
+  });
+
   it("충분한 수의 속성", () => {
     expect(INTERESTING_PROPS.length).toBeGreaterThanOrEqual(30);
   });

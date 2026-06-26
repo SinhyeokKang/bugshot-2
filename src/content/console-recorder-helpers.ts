@@ -13,7 +13,7 @@ export function formatErrorEvent(e: ErrorEventLike): { args: string; stack?: str
   const loc = e.filename
     ? ` at ${e.filename}:${e.lineno ?? "?"}:${e.colno ?? "?"}`
     : "";
-  const stack = e.error instanceof Error ? e.error.stack : undefined;
+  const stack = e.error instanceof Error ? cleanStack(e.error.stack) : undefined;
   return { args: `Uncaught ${message}${loc}`, stack };
 }
 
@@ -21,7 +21,7 @@ export function formatRejectionReason(reason: unknown): { args: string; stack?: 
   if (reason instanceof Error) {
     return {
       args: `Unhandled promise rejection: ${reason.name}: ${reason.message}`,
-      stack: reason.stack,
+      stack: cleanStack(reason.stack),
     };
   }
   if (reason === undefined) return { args: "Unhandled promise rejection: undefined" };
@@ -48,6 +48,34 @@ export function formatRejectionReason(reason: unknown): { args: string; stack?: 
 
 export function shouldCaptureAssertion(condition: unknown): boolean {
   return !condition;
+}
+
+// 스택에서 확장·레코더 프레임과 "Error" 헤더를 제거해 페이지 프레임만 남긴다. URL(chrome-extension://,
+// origin 무관이라 타 확장 프레임도 제거)·심볼명 양쪽을 봐 minify/dev 빌드 모두 커버하고, captureStack의
+// 깊이 slice(V8 인라인 가정)를 대체한다. captureStack(우리 프레임 존재) 경로뿐 아니라 페이지 자체 에러
+// (error/unhandledrejection, 우리 프레임 0개) 정제에도 쓰인다 — 후자에서 동명 페이지 함수가 있으면
+// 오삭제 가능하나 best-effort 정제로 영향은 진단 프레임 누락뿐이라 허용. 앵커링은 V8/FF 차이로 미채택.
+const RECORDER_SYMBOLS = [
+  "consoleRecorderScript",
+  "captureStack",
+  "pushEntry",
+  "makeConsoleWrapper",
+  "installConsoleWrap",
+];
+
+export function cleanStack(raw: string | undefined): string | undefined {
+  if (!raw) return undefined;
+  const kept = raw
+    .split("\n")
+    .map((line) => line.replace(/\s+$/, ""))
+    .filter((line) => {
+      const t = line.trim();
+      if (t === "" || t === "Error") return false;
+      if (line.includes("chrome-extension://")) return false;
+      if (RECORDER_SYMBOLS.some((sym) => line.includes(sym))) return false;
+      return true;
+    });
+  return kept.length ? kept.join("\n") : undefined;
 }
 
 export const ARG_CAP = 10 * 1024;

@@ -9,6 +9,7 @@ import { sendBg } from "@/types/messages";
 import type { LinearCreateIssueResult } from "@/types/linear";
 import type { NormalizedSubmitResult } from "@/types/platform";
 import { injectIssueUrl } from "@/lib/inject-issue-url";
+import { injectLogsMarkdownLink } from "./markdown-logs-link";
 
 export interface LinearFileInput {
   filename: string;
@@ -128,6 +129,20 @@ export async function submitToLinear(
       }).catch(() => null),
     ),
   );
+
+  // 본문은 이슈 생성 시점(업로드 전)에 만들어져 logs.html이 평문이다. 업로드로 assetUrl을
+  // 알게 됐으니 description의 logs.html 안내를 링크로 패치한다(다른 플랫폼과 일관). 실패 격리.
+  const logsUrl = logResults.find((l) => l.filename === "logs.html")?.assetUrl;
+  if (logsUrl) {
+    const linkedBody = injectLogsMarkdownLink(body, logsUrl);
+    if (linkedBody !== body) {
+      await sendBg({
+        type: "linear.updateIssueDescription",
+        issueId: result.id,
+        description: linkedBody,
+      }).catch(() => null);
+    }
+  }
 
   // 사용자 첨부: 업로드 후 Linear attachment API로 등록(본문 링크 없음). 실패 격리.
   const userAttachmentResults = (

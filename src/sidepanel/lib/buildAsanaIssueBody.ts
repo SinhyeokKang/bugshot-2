@@ -146,8 +146,8 @@ export function buildAsanaIssueBody(input: AsanaBuildInput): AsanaBuildResult {
 }
 
 function emitLogSummary(lines: string[], ctx: MarkdownContext): void {
-  const { networkLogSummary: net, consoleLogSummary: con } = ctx;
-  if (!net && !con) return;
+  const { networkLogSummary: net, consoleLogSummary: con, actionLogCaptured: act } = ctx;
+  if (!net && !con && !act) return;
   lines.push(`## ${t("logSummary.title")}`, "");
   if (net) {
     lines.push(
@@ -162,6 +162,9 @@ function emitLogSummary(lines: string[], ctx: MarkdownContext): void {
         ? `- ${t("logSummary.console.line", { n: con.captured, errors: con.errorCount, warns: con.warnCount })}`
         : `- ${t("logSummary.console.lineNoError", { n: con.captured })}`,
     );
+  }
+  if (act) {
+    lines.push(`- ${t("logSummary.action.line", { n: act })}`);
   }
   lines.push("");
   lines.push(`_${t("logSummary.logs.detail", { file: "logs.html" })}_`, "");

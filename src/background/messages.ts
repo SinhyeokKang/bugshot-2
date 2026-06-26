@@ -46,6 +46,7 @@ import {
   getTeams as getLinearTeams,
   getWorkflowStates as getLinearWorkflowStates,
   updateIssueState as updateLinearIssueState,
+  updateIssueDescription as updateLinearIssueDescription,
   uploadFileToLinear,
 } from "./linear-api";
 import {
@@ -323,6 +324,10 @@ export async function handleMessage(
 
     case "linear.updateIssueState":
       return updateLinearIssueState(await loadLinearAuth(), message.issueId, message.stateId);
+
+    case "linear.updateIssueDescription":
+      await updateLinearIssueDescription(await loadLinearAuth(), message.issueId, message.description);
+      return { ok: true };
 
     case "notion.oauth.available":
       return { available: isNotionOAuthConfigured() };

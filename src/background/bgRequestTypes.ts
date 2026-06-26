@@ -46,6 +46,7 @@ const BG_REQUEST_TYPE_MAP: Record<BgRequest["type"], true> = {
   "linear.getIssueStatus": true,
   "linear.getWorkflowStates": true,
   "linear.updateIssueState": true,
+  "linear.updateIssueDescription": true,
   "notion.oauth.available": true,
   "notion.startOAuth": true,
   "notion.testToken": true,

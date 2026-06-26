@@ -29,6 +29,7 @@ export const INTERESTING_PROPS = [
   "column-gap",
   "display",
   "position",
+  "z-index",
   "flex-direction",
   "justify-content",
   "align-items",

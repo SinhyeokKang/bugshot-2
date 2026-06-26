@@ -66,6 +66,21 @@ describe("finalizeValue", () => {
     });
   });
 
+  describe("number prop(z-index) px 미부착", () => {
+    it("정수는 그대로 (px 안 붙음)", () => {
+      expect(finalizeValue("number", "9999", "z-index")).toBe("9999");
+    });
+    it("auto는 그대로", () => {
+      expect(finalizeValue("number", "auto", "z-index")).toBe("auto");
+    });
+    it("음수는 그대로", () => {
+      expect(finalizeValue("number", "-1", "z-index")).toBe("-1");
+    });
+    it("0은 그대로 (빈 값으로 새지 않음)", () => {
+      expect(finalizeValue("number", "0", "z-index")).toBe("0");
+    });
+  });
+
   describe("기타", () => {
     it("카테고리 없으면 그대로", () => {
       expect(finalizeValue(undefined, "block")).toBe("block");

@@ -70,6 +70,9 @@ export const test = base.extend<object, { ext: ExtContext }>({
       const { server, port } = await startFixtureServer();
       const userDataDir = await mkdtemp(path.join(tmpdir(), "bugshot-e2e-"));
       const context = await chromium.launchPersistentContext(userDataDir, {
+        // 전역 기본 viewport — config.use.viewport는 persistent context엔 안 먹어 여기 직접 지정.
+        // 사이드패널 폭에 근접해 좁은 폭 컨테이너 쿼리 리플로우를 재현.
+        viewport: { width: 480, height: 720 },
         // 확장 SW가 headless에선 안 깨어나므로 headed 유지. 대신 창을 화면 밖으로
         // 보내 깜빡임·포커스 탈취를 없앤다(완전 백그라운드는 불가). 디버깅으로 창을
         // 보려면 E2E_SHOW=1.
