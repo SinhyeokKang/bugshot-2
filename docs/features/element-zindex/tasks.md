@@ -16,15 +16,15 @@
   - `isKnownDefault("z-index", "auto") === true`, `isKnownDefault("z-index", "10") === false` 검증.
   - `finalizeValue("number", "9999", "z-index") === "9999"`(px 미부착), `finalizeValue("number", "auto", "z-index") === "auto"`, `finalizeValue("number", "-1", "z-index") === "-1"`, `finalizeValue("number", "0", "z-index") === "0"`(0이 빈 값으로 새지 않는 회귀 가드) 검증. ※ `valueFormat.test.ts`에 현재 `number` 카테고리 `finalizeValue` 직접 테스트가 0건이라 신규 커버리지로서 가치 있음.
 - **검증**:
-  - [ ] 추가한 테스트가 구현 전엔 실패(red)한다.
-  - [ ] `pnpm test`로 신규 케이스만 골라 실행해 의도대로 떨어지는지 확인.
+  - [x] 추가한 테스트가 구현 전엔 실패(red)한다.
+  - [x] `pnpm test`로 신규 케이스만 골라 실행해 의도대로 떨어지는지 확인.
 
 ### Task 2: 수집 화이트리스트에 z-index 추가
 - **변경 대상**: `src/content/css-resolve.ts`
 - **작업 내용**: `INTERESTING_PROPS` 배열에 `"position"` 다음 줄에 `"z-index"` 추가. `INHERITED_PROPS`에는 추가하지 않는다.
 - **검증**:
-  - [ ] Task 1의 `INTERESTING_PROPS.includes("z-index")` 테스트 green.
-  - [ ] `pnpm typecheck` 통과.
+  - [x] Task 1의 `INTERESTING_PROPS.includes("z-index")` 테스트 green.
+  - [x] `pnpm typecheck` 통과.
 
 ### Task 3: 카테고리·기본값 메타데이터 추가
 - **변경 대상**: `src/sidepanel/tabs/styleEditor/propMetadata.ts`
@@ -32,8 +32,8 @@
   - `PROP_CATEGORY`에 `"z-index": "number"` 추가.
   - `KNOWN_DEFAULTS`에 `"z-index": ["auto"]` 추가.
 - **검증**:
-  - [ ] Task 1의 `isKnownDefault`·`finalizeValue` 테스트 green.
-  - [ ] `pnpm typecheck` 통과.
+  - [x] Task 1의 `isKnownDefault`·`finalizeValue` 테스트 green.
+  - [x] `pnpm typecheck` 통과.
 
 ### Task 4: Layout 섹션에 z-index 입력 노출
 - **변경 대상**: `src/sidepanel/tabs/StyleEditorPanel.tsx`
@@ -48,15 +48,15 @@
   - `Row2`로 감싸지 않는다 — `PropRow`가 `flex-col`이라 자동 full-width. 빈 스페이서 div 불필요. `bg-image`·`overflow`·`filter` 등 기존 단독 prop과 동일 패턴.
   - `TextProp`은 이미 import되어 있음(import 추가 불필요 확인).
 - **검증**:
-  - [ ] `pnpm typecheck` 통과.
+  - [x] `pnpm typecheck` 통과.
   - [ ] (수동) Chrome에서 요소 선택 시 Layout 섹션 position 바로 아래에 z-index 입력이 full-width로 노출, 현재 값(또는 `auto` placeholder) 표시.
 
 ### Task 5: 전체 회귀 확인
 - **변경 대상**: 없음(검증만).
 - **작업 내용**: `pnpm test` 전체 + `pnpm typecheck`.
 - **검증**:
-  - [ ] `pnpm test` 전체 green.
-  - [ ] `pnpm typecheck` 클린.
+  - [x] `pnpm test` 전체 green.
+  - [x] `pnpm typecheck` 클린.
 
 ## 테스트 계획
 - **단위 테스트**:

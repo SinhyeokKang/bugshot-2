@@ -44,6 +44,7 @@ const SECTION_PROPS = {
   layout: [
     "display",
     "position",
+    "z-index",
     "flex-direction",
     "flex-wrap",
     "justify-content",
@@ -209,6 +210,7 @@ export function SelectedPanel() {
             options={["", "static", "relative", "absolute", "fixed", "sticky"]}
           />
         </Row2>
+        <TextProp label="z-index" prop="z-index" />
         <Row2>
           <SelectProp
             label="flex-direction"

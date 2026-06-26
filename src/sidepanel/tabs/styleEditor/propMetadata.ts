@@ -41,6 +41,7 @@ export const PROP_CATEGORY: Record<string, TokenCategory> = {
   "border-bottom-left-radius": "length",
   "font-weight": "number",
   opacity: "number",
+  "z-index": "number",
 };
 
 const KNOWN_DEFAULTS: Record<string, string[]> = {
@@ -59,6 +60,7 @@ const KNOWN_DEFAULTS: Record<string, string[]> = {
   "line-height": ["normal"],
   "text-align": ["start", "left"],
   position: ["static"],
+  "z-index": ["auto"],
   "flex-direction": ["row"],
   "flex-wrap": ["nowrap"],
   "justify-content": ["normal", "flex-start", "start"],
