@@ -226,6 +226,8 @@ export interface IssueRecord {
   gitlabLabels?: string[];
   // Asana 전용 — task gid로 조회.
   asanaTaskGid?: string;
+  // ClickUp 전용 — task id로 조회.
+  clickupTaskId?: string;
 }
 
 // v5: notion 플랫폼 추가 — IssueRecord에 notionPageId/notionDatabaseId/notionDatabaseTitle/notionStatusOption optional 필드.

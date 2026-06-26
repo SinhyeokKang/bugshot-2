@@ -101,6 +101,7 @@ export function IssueRow({
                 gitlabProjectId={issue.gitlabProjectId}
                 gitlabIssueIid={issue.gitlabIssueIid}
                 asanaTaskGid={issue.asanaTaskGid}
+                clickupTaskId={issue.clickupTaskId}
                 refreshKey={refreshKey}
                 onLoaded={onBadgeLoaded}
               />

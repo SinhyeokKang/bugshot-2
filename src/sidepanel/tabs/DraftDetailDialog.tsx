@@ -50,6 +50,7 @@ import { submitToLinear } from "@/sidepanel/lib/submitToLinear";
 import { submitToNotion } from "@/sidepanel/lib/submitToNotion";
 import { submitToGitlab } from "@/sidepanel/lib/submitToGitlab";
 import { submitToAsana } from "@/sidepanel/lib/submitToAsana";
+import { submitToClickup } from "@/sidepanel/lib/submitToClickup";
 import type { NotionDatabaseSchema } from "@/types/notion";
 import { usePlatformFields } from "@/sidepanel/hooks/usePlatformFields";
 import { extractNotionPageId } from "@/lib/notion-page-id";
@@ -111,6 +112,7 @@ export function DraftDetailDialog({
   const notionAccount = accounts.notion;
   const gitlabAccount = accounts.gitlab;
   const asanaAccount = accounts.asana;
+  const clickupAccount = accounts.clickup;
   const removeIssue = useIssuesStore((s) => s.removeIssue);
   const markSubmitted = useIssuesStore((s) => s.markSubmitted);
   const patchIssue = useIssuesStore((s) => s.patchIssue);
@@ -125,6 +127,7 @@ export function DraftDetailDialog({
   const lastNotionSubmit = useSettingsStore((s) => s.lastSubmitFields.notion);
   const lastGitlabSubmit = useSettingsStore((s) => s.lastSubmitFields.gitlab);
   const lastAsanaSubmit = useSettingsStore((s) => s.lastSubmitFields.asana);
+  const lastClickupSubmit = useSettingsStore((s) => s.lastSubmitFields.clickup);
   const lastSubmittedPlatform = useSettingsStore((s) => s.lastSubmittedPlatform);
 
   const available = useMemo(() => connectedPlatforms(accounts), [accounts]);
@@ -144,6 +147,8 @@ export function DraftDetailDialog({
     setGitlabFields,
     asanaFields,
     setAsanaFields,
+    clickupFields,
+    setClickupFields,
   } = usePlatformFields({
     open,
     lastGhSubmit,
@@ -156,6 +161,8 @@ export function DraftDetailDialog({
     gitlabDefaults: gitlabAccount?.defaults,
     lastAsanaSubmit,
     asanaDefaults: asanaAccount?.defaults,
+    lastClickupSubmit,
+    clickupDefaults: clickupAccount?.defaults,
     resetKey: issue?.id,
   });
   const [notionSchema, setNotionSchema] = useState<NotionDatabaseSchema | null>(null);
@@ -662,6 +669,57 @@ export function DraftDetailDialog({
     return result;
   }
 
+  async function handleClickupSubmit(
+    ctx: Awaited<ReturnType<typeof buildCtxForSubmit>>["ctx"],
+    captureFiles: CaptureFiles,
+  ): Promise<NormalizedSubmitResult> {
+    if (!issue) throw new Error(t("create.requiredMissing"));
+    if (!clickupAccount) {
+      throw new Error(t("platform.notConnected.title", { platform: t("platform.tab.clickup") }));
+    }
+    if (!clickupFields.workspaceId || !clickupFields.listId) {
+      throw new Error(t("create.requiredMissing"));
+    }
+
+    const clickupInline = await resolveInlineImagesForSections(ctx.sections, sectionConfig);
+    const result = await submitToClickup({
+      ctx,
+      images: captureFiles.images,
+      video: captureFiles.video,
+      logs: captureFiles.logs,
+      attachments: captureFiles.attachments,
+      inlineImages: clickupInline,
+      workspaceId: clickupFields.workspaceId,
+      listId: clickupFields.listId,
+      assigneeId: clickupFields.assigneeId,
+      cc: clickupFields.cc,
+    });
+    markSubmitted(issue.id, {
+      platform: "clickup",
+      key: result.key,
+      url: result.url,
+      clickupTaskId: result.key,
+    });
+    if (useEditorStore.getState().currentIssueId === issue.id) {
+      const tabId = useEditorStore.getState().target?.tabId;
+      if (tabId != null) void clearPicker(tabId);
+      useEditorStore.getState().reset();
+    }
+    useSettingsStore.getState().setLastSubmitFields("clickup", {
+      workspaceId: clickupFields.workspaceId,
+      workspaceName: clickupFields.workspaceName,
+      spaceId: clickupFields.spaceId,
+      spaceName: clickupFields.spaceName,
+      listId: clickupFields.listId,
+      listName: clickupFields.listName,
+      assigneeId: clickupFields.assigneeId,
+      assigneeName: clickupFields.assigneeName,
+      cc: clickupFields.cc,
+    });
+    useSettingsStore.getState().setLastSubmittedPlatform("clickup");
+    return result;
+  }
+
   async function handleSubmit(submitPlatform: PlatformId): Promise<NormalizedSubmitResult> {
     const { ctx, captureFiles } = await buildCtxForSubmit();
     let result: NormalizedSubmitResult;
@@ -670,6 +728,7 @@ export function DraftDetailDialog({
     else if (submitPlatform === "notion") result = await handleNotionSubmit(ctx, captureFiles);
     else if (submitPlatform === "gitlab") result = await handleGitlabSubmit(ctx, captureFiles);
     else if (submitPlatform === "asana") result = await handleAsanaSubmit(ctx, captureFiles);
+    else if (submitPlatform === "clickup") result = await handleClickupSubmit(ctx, captureFiles);
     else result = await handleJiraSubmit(ctx, captureFiles);
     if (issue) {
       const activeRefs = extractInlineRefs(
@@ -827,6 +886,8 @@ export function DraftDetailDialog({
         setGitlabFields={setGitlabFields}
         asanaFields={asanaFields}
         setAsanaFields={setAsanaFields}
+        clickupFields={clickupFields}
+        setClickupFields={setClickupFields}
         onNotionSchemaResolved={setNotionSchema}
         onSubmit={handleSubmit}
         onSuccess={(result) => {

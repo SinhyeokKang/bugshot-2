@@ -4,6 +4,7 @@ import type { LinearAuth, LinearOAuthAuth } from "@/types/linear";
 import type { NotionAuth } from "@/types/notion";
 import type { GitlabAuth, GitlabOAuthAuth } from "@/types/gitlab";
 import type { AsanaAuth, AsanaOAuthAuth } from "@/types/asana";
+import type { ClickupAuth, ClickupOAuthAuth } from "@/types/clickup";
 
 export const SETTINGS_STORAGE_KEY = "bugshot-settings";
 
@@ -16,6 +17,7 @@ interface SettingsEnvelope {
       notion?: { auth?: NotionAuth };
       gitlab?: { auth?: GitlabAuth };
       asana?: { auth?: AsanaAuth };
+      clickup?: { auth?: ClickupAuth };
     };
     jiraConfig?: { auth?: JiraAuth };
   };
@@ -133,6 +135,22 @@ export async function writeStoredAsanaOAuthTokens(
   cur.accessToken = auth.accessToken;
   cur.refreshToken = auth.refreshToken;
   cur.expiresAt = auth.expiresAt;
+  const next = typeof raw === "string" ? JSON.stringify(envelope) : envelope;
+  await chrome.storage.local.set({ [SETTINGS_STORAGE_KEY]: next });
+}
+
+export async function readStoredClickupAuth(): Promise<ClickupAuth | null> {
+  const { envelope } = await readEnvelope();
+  return envelope?.state?.accounts?.clickup?.auth ?? null;
+}
+
+export async function writeStoredClickupOAuthTokens(
+  auth: ClickupOAuthAuth,
+): Promise<void> {
+  const { raw, envelope } = await readEnvelope();
+  const cur = envelope?.state?.accounts?.clickup?.auth;
+  if (!cur || cur.kind !== "oauth") return;
+  cur.accessToken = auth.accessToken;
   const next = typeof raw === "string" ? JSON.stringify(envelope) : envelope;
   await chrome.storage.local.set({ [SETTINGS_STORAGE_KEY]: next });
 }

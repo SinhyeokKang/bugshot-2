@@ -97,6 +97,7 @@ export default defineManifest({
     "https://api.notion.com/*",
     "https://gitlab.com/*",
     "https://app.asana.com/*",
+    "https://api.clickup.com/*",
     ...(proxyMatch ? [proxyMatch] : []),
     ...(isE2eBuild ? ["<all_urls>"] : []),
   ],

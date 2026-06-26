@@ -1,5 +1,6 @@
 import {
   SiAsana,
+  SiClickup,
   SiGithub,
   SiGitlab,
   SiJirasoftware,
@@ -48,6 +49,14 @@ export function PlatformChip({ platform }: { platform: PlatformId }) {
       <span className="inline-flex shrink-0 items-center gap-1">
         <SiAsana className="h-3 w-3" color="default" />
         {t("platform.tab.asana")}
+      </span>
+    );
+  }
+  if (platform === "clickup") {
+    return (
+      <span className="inline-flex shrink-0 items-center gap-1">
+        <SiClickup className="h-3 w-3" color="default" />
+        {t("platform.tab.clickup")}
       </span>
     );
   }

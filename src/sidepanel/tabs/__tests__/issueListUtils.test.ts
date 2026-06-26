@@ -302,6 +302,26 @@ describe("isRefreshable", () => {
     } as Partial<IssueRecord>);
     expect(isRefreshable(issue)).toBe(false);
   });
+
+  it("clickup + clickupTaskId 있음 → true", () => {
+    const issue = makeIssue({
+      platform: "clickup",
+      key: "abc123",
+      url: "https://app.clickup.com/t/abc123",
+      clickupTaskId: "abc123",
+    } as Partial<IssueRecord>);
+    expect(isRefreshable(issue)).toBe(true);
+  });
+
+  it("clickup + clickupTaskId 없음 → false", () => {
+    const issue = makeIssue({
+      platform: "clickup",
+      key: "abc123",
+      url: "https://app.clickup.com/t/abc123",
+      clickupTaskId: undefined,
+    } as Partial<IssueRecord>);
+    expect(isRefreshable(issue)).toBe(false);
+  });
 });
 
 describe("matchesStatus", () => {

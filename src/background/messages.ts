@@ -71,12 +71,25 @@ import {
   updateTaskNotes as updateAsanaTaskNotes,
   uploadAttachment as uploadAsanaAttachment,
 } from "./asana-api";
+import {
+  createTask as createClickupTask,
+  getLists as getClickupLists,
+  getMembers as getClickupMembers,
+  getMyself as clickupGetMyself,
+  getSpaces as getClickupSpaces,
+  getTaskStatus as getClickupTaskStatus,
+  getTeams as getClickupTeams,
+  setTaskCompleted as setClickupTaskCompleted,
+  updateTaskMarkdown as updateClickupTaskMarkdown,
+  uploadAttachment as uploadClickupAttachment,
+} from "./clickup-api";
 import { isOAuthConfigured, startOAuthFlow } from "./oauth";
 import { isGithubOAuthConfigured, startGithubOAuth } from "./github-oauth";
 import { isLinearOAuthConfigured, startLinearOAuth } from "./linear-oauth";
 import { isNotionOAuthConfigured, startNotionOAuth } from "./notion-oauth";
 import { isGitlabOAuthConfigured, startGitlabOAuth } from "./gitlab-oauth";
 import { isAsanaOAuthConfigured, startAsanaOAuth } from "./asana-oauth";
+import { isClickupOAuthConfigured, startClickupOAuth } from "./clickup-oauth";
 import { captureEvent } from "./analytics";
 import { trackConnect } from "./connect-tracking";
 import {
@@ -96,11 +109,13 @@ import {
   readStoredNotionAuth,
   readStoredGitlabAuth,
   readStoredAsanaAuth,
+  readStoredClickupAuth,
 } from "@/lib/settings-storage";
 import type { LinearAuth } from "@/types/linear";
 import type { NotionAuth } from "@/types/notion";
 import type { GitlabAuth } from "@/types/gitlab";
 import type { AsanaAuth } from "@/types/asana";
+import type { ClickupAuth } from "@/types/clickup";
 
 async function loadAuth(): Promise<JiraAuth> {
   const auth = await readStoredAuth();
@@ -135,6 +150,12 @@ async function loadGitlabAuth(): Promise<GitlabAuth> {
 async function loadAsanaAuth(): Promise<AsanaAuth> {
   const auth = await readStoredAsanaAuth();
   if (!auth) throw new Error(t("platform.notConnected.title", { platform: t("platform.tab.asana") }));
+  return auth;
+}
+
+async function loadClickupAuth(): Promise<ClickupAuth> {
+  const auth = await readStoredClickupAuth();
+  if (!auth) throw new Error(t("platform.notConnected.title", { platform: t("platform.tab.clickup") }));
   return auth;
 }
 
@@ -529,6 +550,79 @@ export async function handleMessage(
       return setAsanaTaskCompleted(
         await loadAsanaAuth(),
         message.taskGid,
+        message.completed,
+      );
+
+    case "clickup.oauth.available":
+      return { available: isClickupOAuthConfigured() };
+
+    case "clickup.startOAuth":
+      return trackConnect("clickup", () => startClickupOAuth());
+
+    case "clickup.testPat":
+      return clickupGetMyself({
+        kind: "pat",
+        pat: message.pat,
+        viewerId: "",
+        viewerName: "",
+      });
+
+    case "clickup.disconnect":
+      return { ok: true };
+
+    case "clickup.getMyself":
+      return clickupGetMyself(await loadClickupAuth());
+
+    case "clickup.getTeams":
+      return getClickupTeams(await loadClickupAuth());
+
+    case "clickup.getSpaces":
+      return getClickupSpaces(await loadClickupAuth(), message.teamId);
+
+    case "clickup.getLists":
+      return getClickupLists(await loadClickupAuth(), message.spaceId);
+
+    case "clickup.getMembers":
+      return getClickupMembers(await loadClickupAuth(), message.teamId);
+
+    case "clickup.uploadFile": {
+      const auth = await loadClickupAuth();
+      const results: Array<{ filename: string; url: string | null }> = [];
+      // 업로드 1건 실패가 task 생성 전체를 막지 않게 파일별로 격리.
+      for (const f of message.files) {
+        try {
+          const blob = dataUrlToBlob(f.dataUrl);
+          const { url } = await uploadClickupAttachment(
+            auth,
+            message.taskId,
+            f.filename,
+            blob,
+          );
+          results.push({ filename: f.filename, url: url ?? null });
+        } catch {
+          results.push({ filename: f.filename, url: null });
+        }
+      }
+      return results;
+    }
+
+    case "clickup.submitIssue":
+      return createClickupTask(await loadClickupAuth(), message.payload);
+
+    case "clickup.updateTaskMarkdown":
+      return updateClickupTaskMarkdown(
+        await loadClickupAuth(),
+        message.taskId,
+        message.markdownContent,
+      );
+
+    case "clickup.getTaskStatus":
+      return getClickupTaskStatus(await loadClickupAuth(), message.taskId);
+
+    case "clickup.setCompleted":
+      return setClickupTaskCompleted(
+        await loadClickupAuth(),
+        message.taskId,
         message.completed,
       );
 

@@ -20,6 +20,9 @@ export function isRefreshable(issue: IssueRecord): boolean {
   if (issue.platform === "asana") {
     return !!resolveAsanaCoords(issue);
   }
+  if (issue.platform === "clickup") {
+    return !!resolveClickupCoords(issue);
+  }
   return false;
 }
 
@@ -28,6 +31,13 @@ export function resolveAsanaCoords(
   issue: Pick<IssueRecord, "asanaTaskGid">,
 ): { taskGid: string } | null {
   return issue.asanaTaskGid ? { taskGid: issue.asanaTaskGid } : null;
+}
+
+// ClickUp refresh는 task id가 필요. 등록 시 저장된 clickupTaskId가 없으면 refresh 불가.
+export function resolveClickupCoords(
+  issue: Pick<IssueRecord, "clickupTaskId">,
+): { taskId: string } | null {
+  return issue.clickupTaskId ? { taskId: issue.clickupTaskId } : null;
 }
 
 // GitLab refresh는 project id(글로벌)와 iid가 모두 필요. URL에서 project id를 복원할 수 없으므로

@@ -23,6 +23,7 @@ import { submitToLinear } from "@/sidepanel/lib/submitToLinear";
 import { submitToNotion } from "@/sidepanel/lib/submitToNotion";
 import { submitToGitlab } from "@/sidepanel/lib/submitToGitlab";
 import { submitToAsana } from "@/sidepanel/lib/submitToAsana";
+import { submitToClickup } from "@/sidepanel/lib/submitToClickup";
 import { extractInlineRefs, resolveInlineImagesForSections, type InlineImageInput } from "@/sidepanel/lib/resolveInlineImages";
 import type { NotionDatabaseSchema } from "@/types/notion";
 import { extractNotionPageId } from "@/lib/notion-page-id";
@@ -40,6 +41,7 @@ export function IssueCreateModal() {
   const lastNotionSubmit = useSettingsStore((s) => s.lastSubmitFields.notion);
   const lastGitlabSubmit = useSettingsStore((s) => s.lastSubmitFields.gitlab);
   const lastAsanaSubmit = useSettingsStore((s) => s.lastSubmitFields.asana);
+  const lastClickupSubmit = useSettingsStore((s) => s.lastSubmitFields.clickup);
   const setTargetPlatform = useEditorStore((s) => s.setTargetPlatform);
 
   const available = useMemo(() => connectedPlatforms(accounts), [accounts]);
@@ -69,6 +71,7 @@ export function IssueCreateModal() {
   const notionAccount = accounts.notion;
   const gitlabAccount = accounts.gitlab;
   const asanaAccount = accounts.asana;
+  const clickupAccount = accounts.clickup;
 
   const {
     ghFields,
@@ -81,6 +84,8 @@ export function IssueCreateModal() {
     setGitlabFields,
     asanaFields,
     setAsanaFields,
+    clickupFields,
+    setClickupFields,
   } = usePlatformFields({
     open,
     lastGhSubmit,
@@ -93,6 +98,8 @@ export function IssueCreateModal() {
     gitlabDefaults: gitlabAccount?.defaults,
     lastAsanaSubmit,
     asanaDefaults: asanaAccount?.defaults,
+    lastClickupSubmit,
+    clickupDefaults: clickupAccount?.defaults,
   });
   const [notionSchema, setNotionSchema] = useState<NotionDatabaseSchema | null>(null);
 
@@ -432,6 +439,54 @@ export function IssueCreateModal() {
     return result;
   }
 
+  async function handleClickupSubmit(
+    ctx: MarkdownContext,
+    inlineImages: InlineImageInput[],
+    captureFiles: CaptureFiles,
+  ): Promise<NormalizedSubmitResult> {
+    if (!clickupAccount) {
+      throw new Error(t("platform.notConnected.title", { platform: t("platform.tab.clickup") }));
+    }
+    if (!clickupFields.workspaceId || !clickupFields.listId) {
+      throw new Error(t("create.requiredMissing"));
+    }
+
+    const result = await submitToClickup({
+      ctx,
+      images: captureFiles.images,
+      video: captureFiles.video,
+      logs: captureFiles.logs,
+      attachments: captureFiles.attachments,
+      inlineImages,
+      workspaceId: clickupFields.workspaceId,
+      listId: clickupFields.listId,
+      assigneeId: clickupFields.assigneeId,
+      cc: clickupFields.cc,
+    });
+    if (currentIssueId) {
+      markSubmitted(currentIssueId, {
+        platform: "clickup",
+        key: result.key,
+        url: result.url,
+        clickupTaskId: result.key,
+      });
+    }
+    useSettingsStore.getState().setLastSubmitFields("clickup", {
+      workspaceId: clickupFields.workspaceId,
+      workspaceName: clickupFields.workspaceName,
+      spaceId: clickupFields.spaceId,
+      spaceName: clickupFields.spaceName,
+      listId: clickupFields.listId,
+      listName: clickupFields.listName,
+      assigneeId: clickupFields.assigneeId,
+      assigneeName: clickupFields.assigneeName,
+      cc: clickupFields.cc,
+    });
+    useSettingsStore.getState().setLastSubmittedPlatform("clickup");
+    onSubmitted({ key: result.key, url: result.url, platform: "clickup", logsDropped: result.logsDropped });
+    return result;
+  }
+
   async function handleSubmit(submitPlatform: PlatformId): Promise<NormalizedSubmitResult> {
     const ctx = buildCtx();
     const inlineImages = await resolveInlineImagesForSections(ctx.sections, sectionConfig);
@@ -442,6 +497,7 @@ export function IssueCreateModal() {
     else if (submitPlatform === "notion") result = await handleNotionSubmit(ctx, inlineImages, captureFiles);
     else if (submitPlatform === "gitlab") result = await handleGitlabSubmit(ctx, inlineImages, captureFiles);
     else if (submitPlatform === "asana") result = await handleAsanaSubmit(ctx, inlineImages, captureFiles);
+    else if (submitPlatform === "clickup") result = await handleClickupSubmit(ctx, inlineImages, captureFiles);
     else result = await handleJiraSubmit(ctx, inlineImages, captureFiles);
     const activeRefs = extractInlineRefs(
       Object.values(draft?.sections ?? {}).join("\n"),
@@ -458,6 +514,7 @@ export function IssueCreateModal() {
   return (
     <>
       <Button
+        data-testid="issue-submit-open"
         disabled={!canOpen}
         onClick={() => { (document.activeElement as HTMLElement)?.blur?.(); setOpen(true); }}
         title={tooltip}
@@ -483,6 +540,8 @@ export function IssueCreateModal() {
         setGitlabFields={setGitlabFields}
         asanaFields={asanaFields}
         setAsanaFields={setAsanaFields}
+        clickupFields={clickupFields}
+        setClickupFields={setClickupFields}
         onNotionSchemaResolved={setNotionSchema}
         onSubmit={handleSubmit}
       />
