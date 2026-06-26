@@ -58,6 +58,32 @@ describe("buildClickupIssueBody", () => {
     });
     expect(out.body).toContain("md.noValue");
   });
+
+  it("영상은 ![](url)가 아니라 ?view=open 붙은 맨 URL로 들어간다 (클릭하면 ClickUp 뷰어 재생)", () => {
+    const out = buildClickupIssueBody({
+      ctx: makeCtx({ captureMode: "video" }),
+      video: { filename: "recording.mp4", contentType: "video/mp4", url: "https://att/recording.mp4" },
+    });
+    expect(out.body).toMatch(/^https:\/\/att\/recording\.mp4\?view=open$/m);
+    expect(out.body).not.toContain("![recording.mp4]");
+  });
+
+  it("이미 쿼리가 있는 영상 URL엔 ?view=open을 중복 추가하지 않는다", () => {
+    const out = buildClickupIssueBody({
+      ctx: makeCtx({ captureMode: "video" }),
+      video: { filename: "recording.mp4", contentType: "video/mp4", url: "https://att/recording.mp4?view=open" },
+    });
+    expect(out.body).toMatch(/^https:\/\/att\/recording\.mp4\?view=open$/m);
+  });
+
+  it("[첨부] 섹션은 만들지 않는다 (영상·로그·사용자첨부는 네이티브 첨부로만)", () => {
+    const out = buildClickupIssueBody({
+      ctx: makeCtx({ captureMode: "video" }),
+      video: { filename: "recording.mp4", contentType: "video/mp4", url: "https://att/recording.mp4" },
+      logs: [{ filename: "logs.html", contentType: "text/html", url: "https://att/logs.html" }],
+    });
+    expect(out.body).not.toContain("md.section.attachments");
+  });
 });
 
 describe("buildClickupIssueBody — cc 멘션 (markdown @텍스트)", () => {

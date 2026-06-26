@@ -61,19 +61,12 @@ export async function submitToClickup(
   const cc = (input.cc ?? []).map((u) => u.name ?? u.id);
 
   // ClickUp attachment는 task id가 필수 → 먼저 task를 만든다. 이 시점엔 첨부 URL이 없어
-  // 미디어는 본문에 인라인되지 않고(첨부 안내 목록), 업로드 후 2차 갱신으로 인라인한다 (Asana 패턴).
+  // 미디어가 본문에 인라인되지 않고, 업로드 후 2차 갱신으로 인라인한다 (Asana 패턴).
+  // 사용자 첨부·로그파일·영상은 네이티브 task 첨부로만 가고 본문 나열은 안 한다.
   function toMedia(f: ClickupFileInput, urlMap?: Map<string, string | null>): ClickupMediaInput {
     return {
       filename: f.filename,
       contentType: guessUploadMime(f.filename),
-      url: urlMap?.get(f.filename) ?? undefined,
-    };
-  }
-  function toAttachmentMedia(f: ClickupFileInput, urlMap?: Map<string, string | null>): ClickupMediaInput {
-    const name = f.displayName ?? f.filename;
-    return {
-      filename: name,
-      contentType: guessUploadMime(name),
       url: urlMap?.get(f.filename) ?? undefined,
     };
   }
@@ -87,7 +80,6 @@ export async function submitToClickup(
       images: imageInputs.length > 0 ? imageInputs.map((f) => toMedia(f, urlMap)) : undefined,
       video: input.video ? toMedia(input.video, urlMap) : undefined,
       logs: logs.map((f) => toMedia(f, urlMap)),
-      attachments: userAttachments.map((f) => toAttachmentMedia(f, urlMap)),
       cc,
     }).body;
 

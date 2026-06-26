@@ -168,7 +168,6 @@ const ko = {
   "clickup.error.5xx": "ClickUp 서버 오류. 잠시 후 다시 시도하세요.",
   "clickup.error.generic": "ClickUp 요청 실패 ({status})",
   "clickup.error.statusMappingFailed": "이 리스트에서 완료 상태를 찾지 못했습니다.",
-  "clickup.attachmentNotInline": "일부 첨부를 업로드하지 못했습니다. 사이드패널에서 다운로드한 뒤 ClickUp UI에 직접 끌어다 붙여주세요.",
 
   "linear.apiKeyButton": "API Key 인증",
   "linear.auth.kind.oauth": "OAuth",
@@ -429,7 +428,6 @@ const en = {
   "clickup.error.5xx": "ClickUp server error. Please try again later.",
   "clickup.error.generic": "ClickUp request failed ({status})",
   "clickup.error.statusMappingFailed": "Couldn't find a completed status for this list.",
-  "clickup.attachmentNotInline": "Some attachments couldn't be uploaded. Download them from the side panel and drag-drop them into the ClickUp UI.",
 
   "linear.apiKeyButton": "API Key Auth",
   "linear.auth.kind.oauth": "OAuth",

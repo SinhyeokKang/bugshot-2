@@ -5,7 +5,6 @@ import {
   type IssueSection,
 } from "@/store/settings-ui-store";
 import {
-  escapeMdLinkText,
   mdInlineCode,
   resolveStyleElements,
   styleDomLabel,
@@ -27,7 +26,6 @@ export interface ClickupBuildInput {
   images?: ClickupMediaInput[];
   video?: ClickupMediaInput;
   logs?: ClickupMediaInput[];
-  attachments?: ClickupMediaInput[];
   cc?: string[];
 }
 
@@ -91,7 +89,6 @@ export function buildClickupIssueBody(
   const isFreeform = ctx.captureMode === "freeform";
   const isElement = ctx.captureMode !== "video" && ctx.captureMode !== "screenshot" && !isFreeform;
   const isVideo = ctx.captureMode === "video";
-  const mediaHandled = new Set<string>();
 
   let mediaEmitted = false;
   const emitMedia = () => {
@@ -119,20 +116,23 @@ export function buildClickupIssueBody(
         }
         lines.push("");
 
-        if (before?.url) { attached.push(before.filename); mediaHandled.add(before.filename); }
-        if (after?.url) { attached.push(after.filename); mediaHandled.add(after.filename); }
+        if (before?.url) attached.push(before.filename);
+        if (after?.url) attached.push(after.filename);
       }
     } else if (isVideo && video?.url) {
+      // ClickUp은 영상을 본문에 inline embed 못 한다 — 본문은 Quill Delta고 영상은 에디터 전용
+      // `frame`/clickup_video op라 markdown_content에 대응 문법이 없다(이미지 ![](url)만 변환됨).
+      // 대신 `?view=open`(ClickUp 뷰어로 바로 여는 파라미터)을 붙인 맨 URL을 두어, 클릭하면
+      // ClickUp 뷰어에서 재생되게 한다. 파일 자체는 네이티브 task 첨부로도 올라간다.
+      const videoUrl = video.url.includes("?") ? video.url : `${video.url}?view=open`;
       lines.push(`## ${t("md.section.media")}`, "");
-      lines.push(`![${video.filename}](${video.url})`);
+      lines.push(videoUrl);
       attached.push(video.filename);
-      mediaHandled.add(video.filename);
       lines.push("");
     } else if (!isVideo && !isFreeform && images[0]?.url) {
       lines.push(`## ${t("md.section.media")}`, "");
       lines.push(`![${images[0].filename}](${images[0].url})`);
       attached.push(images[0].filename);
-      mediaHandled.add(images[0].filename);
       lines.push("");
     }
 
@@ -161,13 +161,8 @@ export function buildClickupIssueBody(
 
   emitMedia();
 
-  const extras: ClickupMediaInput[] = [
-    ...images.filter((i) => !mediaHandled.has(i.filename)),
-    ...(video && !mediaHandled.has(video.filename) ? [video] : []),
-    ...logs,
-    ...(input.attachments ?? []),
-  ];
-  emitAttachments(lines, attached, extras);
+  // 영상·로그파일·사용자첨부는 ClickUp 네이티브 task 첨부 영역에 자동 표시되므로 본문에 나열하지
+  // 않는다(Asana 패턴). 본문 inline은 이미지만, logs.html은 로그 요약 섹션의 링크로 노출.
 
   const ccLine = ccMarkdownLine(input.cc ?? [], { escape: false });
   if (ccLine) lines.push(ccLine, "");
@@ -176,42 +171,6 @@ export function buildClickupIssueBody(
   lines.push(footerMarkdown(), "");
 
   return { body: lines.join("\n"), attached };
-}
-
-function emitAttachments(
-  lines: string[],
-  attached: string[],
-  items: ClickupMediaInput[],
-): void {
-  if (items.length === 0) return;
-  const inlined = items.filter((a) => a.url);
-  const notInlined = items.filter((a) => !a.url);
-
-  if (inlined.length > 0) {
-    lines.push(`## ${t("md.section.attachments")}`, "");
-    for (const a of inlined) {
-      if (
-        a.contentType.startsWith("image/") ||
-        a.contentType.startsWith("video/")
-      ) {
-        lines.push(`![${escapeMdLinkText(a.filename)}](${a.url})`);
-      } else {
-        lines.push(`[${escapeMdLinkText(a.filename)}](${a.url})`);
-      }
-      attached.push(a.filename);
-    }
-    lines.push("");
-  }
-
-  if (notInlined.length > 0) {
-    if (inlined.length === 0) lines.push(`## ${t("md.section.attachments")}`, "");
-    lines.push(t("clickup.attachmentNotInline"), "");
-    for (const a of notInlined) {
-      lines.push(`- \`${a.filename}\``);
-      attached.push(a.filename);
-    }
-    lines.push("");
-  }
 }
 
 function emitLogSummary(lines: string[], ctx: MarkdownContext, logsHref?: string): void {
