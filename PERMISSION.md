@@ -87,7 +87,7 @@ BYOK LLM 프로바이더 연결 + GitLab **self-managed 인스턴스**(gitlab.co
 
 | API | 용도 | 사용 위치 |
 |---|---|---|
-| `chrome.tabs.captureVisibleTab()` | 요소·영역·30s Replay 스크린샷 | `background/messages.ts:156` (bg handler) |
+| `chrome.tabs.captureVisibleTab()` | 요소·영역·30s Replay 스크린샷 | `background/messages.ts:170` (bg handler) |
 | `chrome.tabCapture.getMediaStreamId()` | 수동 영상 녹화 스트림 | `video-recorder.ts:131` |
 | `chrome.tabs.get() → tab.url` | 탭 URL 읽기 | `tab-bindings.ts:160`, `picker-control.ts:113,238,267,365`, `video-capture.ts:13`, `video-recorder.ts:81`, `use-30s-replay.ts:65,145` |
 | `chrome.scripting.executeScript()` | content script 재주입·뷰포트 측정 | `picker-control.ts:39,69,86,612` |
@@ -255,7 +255,7 @@ background/index.ts:33 — disableGlobalSidePanel()
 | 함수 | 위치 | 동작 |
 |---|---|---|
 | `activateTab()` | `tab-bindings.ts:220` | user gesture → `setOptions({enabled:true})` + `sidePanel.open()` + 활성화 URL 저장(`sidePanel:url:{tabId}`) |
-| `apply()` | `tab-bindings.ts:21` | 탭 전환·URL 변경 시 — activated + supported면 path 재등록, 아니면 비활성화 |
+| `apply()` | `tab-bindings.ts:38` | 탭 전환·URL 변경 시 — activated + supported면 path 재등록, 아니면 비활성화 |
 | `deactivatePanelIfCrossOrigin()` | `tab-bindings.ts` | origin 비교 → same-origin 유지, cross-origin 닫기/deferred (광역 권한 보유 + 커버 URL이면 유지) |
 
 ### sidePanel.open() 호출 조건
@@ -324,7 +324,7 @@ idle 복귀 전 캡처를 시도하면 기존 3중 방어(진입 가드 / 런타
 | 키 | 데이터 | 사용처 |
 |---|---|---|
 | `sidePanel:activated` | `number[]` (tab ID 목록) | `tab-bindings.ts:6` — 패널 활성화 탭 추적 |
-| `sidePanel:url:{tabId}` | `string` (활성화 시점 URL) | `tab-bindings.ts:157` — idle 상태 origin 비교 fallback |
+| `sidePanel:url:{tabId}` | `string` (활성화 시점 URL) | `tab-bindings.ts:166` — idle 상태 origin 비교 fallback |
 | `editor:{tabId}` | `EditorSnapshot` 전체 에디터 상태 | `useEditorSessionSync.ts` — 300ms 디바운스 저장·수화 |
 | `pendingPrunedAt` | `number` (timestamp) | `pending-log-prune.ts:57` — 브라우저 세션당 1회 정리 가드 |
 
@@ -382,7 +382,7 @@ bg service worker에서 직접 읽기/쓰기:
 ### OAuth 에러 처리
 
 - `OAuthError` (`oauth.ts:26`): `cancelled`, `platform` 필드 포함
-- bg에서 시리얼라이즈: `body.oauthCancelled` 또는 `body.oauthRefreshFailed` 플래그 (`background/index.ts:205`)
+- bg에서 시리얼라이즈: `body.oauthCancelled` 또는 `body.oauthRefreshFailed` 플래그 (`background/index.ts:225`)
 - `onOAuthExpired` 이벤트 (`types/messages.ts:209`): refresh 실패 시 발화 → 재인증 UI 표시
 - 사용자 취소 코드: `access_denied` (전 플랫폼), `user_cancelled_login`/`user_cancelled_authorize` (Jira), `user_denied` (Notion)
 
