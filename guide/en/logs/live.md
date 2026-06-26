@@ -25,6 +25,12 @@ See the network requests made by the page.
 
 ![Network sub-tab](../assets/logs-live-2.jpg)
 
+### WebSocket
+
+If your page uses real-time, two-way communication (WebSocket), those connections show up in the network list too. Click the **WS** filter at the top to see just the WebSocket connections. Open a connection and the **Messages** tab appears, stacking the messages exchanged in time order — you can tell sent (▲) from received (▼) at a glance, and narrow by direction with **All / Sent / Received**. Click a message to expand its contents.
+
+> Text messages are captured. Binary messages like images or files are skipped without their contents, and the skipped count is shown above the Messages tab, so you'll know right away if anything was left out.
+
 ## File an issue from logs alone (freeform)
 
 You can also **file an issue with logs only**, no capture (element, screenshot, or video). While viewing the console or network, click **Write issue** to skip the capture step and go straight to the issue draft. Attach the console and network logs and submit.
