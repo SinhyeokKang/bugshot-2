@@ -28,6 +28,13 @@ function startFixtureServer(): Promise<{ server: Server; port: number }> {
   return new Promise((resolve, reject) => {
     const server = createServer((req, res) => {
       const urlPath = (req.url ?? "/").split("?")[0];
+      // 응답 본문 검색 e2e용 — 본문에만 마커 문자열을 담은 JSON(allowlist content-type이라
+      // 레코더가 string variant로 캡처). 마커는 URL 경로엔 없어 "본문으로만 매칭"을 판정.
+      if (urlPath.startsWith("/e2e-json")) {
+        res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ note: "zqxbodyneedle" }));
+        return;
+      }
       const name = urlPath === "/" ? "basic.html" : urlPath.replace(/^\//, "");
       const file = path.join(PAGES_DIR, name);
       if (!file.startsWith(PAGES_DIR + path.sep)) {
