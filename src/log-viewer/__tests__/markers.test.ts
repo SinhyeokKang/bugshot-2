@@ -278,7 +278,7 @@ describe("buildMarkers — network 탭", () => {
       ]),
     });
     const markers = buildMarkers(data, "network", VIDEO_DURATION_SEC, VIDEO_STARTED_AT);
-    expect(markers[0].label).toBe("[Pending] GET https://api.example.com/data");
+    expect(markers[0].label).toBe(`[${t("networkLog.marker.pending")}] GET https://api.example.com/data`);
     expect(markers[1].label).toBe("[404] POST https://api.example.com/users");
   });
 
