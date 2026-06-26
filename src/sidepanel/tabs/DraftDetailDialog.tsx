@@ -689,7 +689,6 @@ export function DraftDetailDialog({
       logs: captureFiles.logs,
       attachments: captureFiles.attachments,
       inlineImages: clickupInline,
-      workspaceId: clickupFields.workspaceId,
       listId: clickupFields.listId,
       assigneeId: clickupFields.assigneeId,
       cc: clickupFields.cc,

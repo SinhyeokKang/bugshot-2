@@ -25,10 +25,9 @@ export interface ClickupSubmitInput {
   logs?: ClickupFileInput[];
   attachments?: ClickupFileInput[];
   inlineImages?: InlineImageInput[];
-  workspaceId: string;
   listId: string;
   assigneeId?: string;
-  cc?: { id: string }[];
+  cc?: { id: string; name?: string }[];
 }
 
 function toUploadEntry(f: ClickupFileInput) {
@@ -57,8 +56,9 @@ export async function submitToClickup(
     ...userAttachments,
   ];
 
-  // CC는 본문 markdown `@텍스트`로 주입 (id를 핸들 토큰으로 사용 — username 미보유).
-  const cc = (input.cc ?? []).map((u) => u.id);
+  // CC는 본문 markdown `@텍스트`로 주입 (ClickUp은 markdown 멘션 미지원이라 사람이 읽을
+  // 이름을 쓴다 — 알림은 안 가지만 누구를 참조하는지 본문에 남는다. name 없으면 id 폴백).
+  const cc = (input.cc ?? []).map((u) => u.name ?? u.id);
 
   // ClickUp attachment는 task id가 필수 → 먼저 task를 만든다. 이 시점엔 첨부 URL이 없어
   // 미디어는 본문에 인라인되지 않고(첨부 안내 목록), 업로드 후 2차 갱신으로 인라인한다 (Asana 패턴).

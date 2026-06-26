@@ -4,11 +4,14 @@ const sendBg = vi.fn();
 vi.mock("@/types/messages", () => ({ sendBg: (...a: unknown[]) => sendBg(...a) }));
 
 // url이 채워지면 다른 본문을 반환 → 2차 갱신(updateTaskMarkdown) 트리거 검증용.
-vi.mock("../buildClickupIssueBody", () => ({
-  buildClickupIssueBody: (input: { images?: Array<{ url?: string }> }) => ({
+const buildBody = vi.fn(
+  (input: { images?: Array<{ url?: string }>; cc?: string[] }) => ({
     body: input.images?.[0]?.url ? "WITH_URL" : "NO_URL",
     attached: [],
   }),
+);
+vi.mock("../buildClickupIssueBody", () => ({
+  buildClickupIssueBody: (...a: unknown[]) => buildBody(...(a as [never])),
 }));
 vi.mock("../resolveInlineImages", () => ({
   replaceInlineRefs: (s: string) => s,
@@ -48,6 +51,23 @@ const TASK = { id: "t1", url: "https://app.clickup.com/t/t1" };
 beforeEach(() => {
   sendBg.mockReset();
   injectIssueUrl.mockReset();
+  buildBody.mockClear();
+});
+
+describe("submitToClickup CC 멘션", () => {
+  it("CC는 본문 빌더에 id가 아닌 이름으로 넘어간다 (name 없으면 id 폴백)", async () => {
+    sendBg.mockImplementation(async (msg: { type: string }) =>
+      msg.type === "clickup.submitIssue" ? TASK : undefined,
+    );
+
+    await submitToClickup({
+      ctx: makeCtx(),
+      listId: "l1",
+      cc: [{ id: "1", name: "Alice" }, { id: "2" }],
+    });
+
+    expect(buildBody.mock.calls[0][0]).toMatchObject({ cc: ["Alice", "2"] });
+  });
 });
 
 describe("submitToClickup 제출 순서", () => {
@@ -62,7 +82,6 @@ describe("submitToClickup 제출 순서", () => {
     const res = await submitToClickup({
       ctx: makeCtx(),
       images: [{ filename: "screenshot.png", dataUrl: "data:IMG" }],
-      workspaceId: "w1",
       listId: "l1",
     });
 
@@ -89,7 +108,7 @@ describe("submitToClickup 제출 순서", () => {
       return undefined;
     });
 
-    await submitToClickup({ ctx: makeCtx(), workspaceId: "w1", listId: "l1" });
+    await submitToClickup({ ctx: makeCtx(), listId: "l1" });
 
     expect(sendBg.mock.calls.map(([m]) => m.type)).toEqual(["clickup.submitIssue"]);
   });
@@ -108,7 +127,6 @@ describe("submitToClickup logsDropped", () => {
     const res = await submitToClickup({
       ctx: makeCtx(),
       logs: [{ filename: "logs.html", dataUrl: "data:LOGS" }],
-      workspaceId: "w1",
       listId: "l1",
     });
 

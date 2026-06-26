@@ -458,7 +458,6 @@ export function IssueCreateModal() {
       logs: captureFiles.logs,
       attachments: captureFiles.attachments,
       inlineImages,
-      workspaceId: clickupFields.workspaceId,
       listId: clickupFields.listId,
       assigneeId: clickupFields.assigneeId,
       cc: clickupFields.cc,

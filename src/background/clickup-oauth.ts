@@ -1,6 +1,5 @@
 import { t } from "@/i18n";
 import type { ClickupOAuthAuth } from "@/types/clickup";
-import { writeStoredClickupOAuthTokens } from "@/lib/settings-storage";
 import { getMyself } from "./clickup-api";
 import { OAuthError, launchOAuthWebFlow } from "./oauth";
 
@@ -121,17 +120,4 @@ async function exchangeCode(code: string): Promise<ClickupTokenResponse> {
     });
   }
   return data as ClickupTokenResponse;
-}
-
-export async function persistClickupOAuthTokens(
-  auth: ClickupOAuthAuth,
-): Promise<void> {
-  try {
-    await writeStoredClickupOAuthTokens(auth);
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    throw new OAuthError(t("oauth.error.tokenPersist", { message }), {
-      platform: "clickup",
-    });
-  }
 }
