@@ -188,29 +188,29 @@ export function SelectedPanel() {
           collapsible
           defaultOpen={hasSpecified(SECTION_PROPS.layout)}
         >
+        <SelectProp
+          label="display"
+          prop="display"
+          options={[
+            "",
+            "block",
+            "inline",
+            "inline-block",
+            "flex",
+            "inline-flex",
+            "grid",
+            "inline-grid",
+            "none",
+          ]}
+        />
         <Row2>
-          <SelectProp
-            label="display"
-            prop="display"
-            options={[
-              "",
-              "block",
-              "inline",
-              "inline-block",
-              "flex",
-              "inline-flex",
-              "grid",
-              "inline-grid",
-              "none",
-            ]}
-          />
           <SelectProp
             label="position"
             prop="position"
             options={["", "static", "relative", "absolute", "fixed", "sticky"]}
           />
+          <TextProp label="z-index" prop="z-index" />
         </Row2>
-        <TextProp label="z-index" prop="z-index" />
         <Row2>
           <SelectProp
             label="flex-direction"
