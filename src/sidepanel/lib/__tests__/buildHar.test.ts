@@ -105,10 +105,10 @@ describe("buildHar", () => {
         protocol: "",
         framesTotal: 4,
         frames: [
-          { direction: "open", ts: 1700000000000, size: 0 },
-          { direction: "send", ts: 1700000001000, data: '{"a":1}', size: 7 },
-          { direction: "receive", ts: 1700000002000, data: '{"b":2}', size: 7 },
-          { direction: "close", ts: 1700000003000, size: 0, code: 1000, wasClean: true },
+          { seq: 0, direction: "open", ts: 1700000000000, size: 0 },
+          { seq: 1, direction: "send", ts: 1700000001000, data: '{"a":1}', size: 7 },
+          { seq: 2, direction: "receive", ts: 1700000002000, data: '{"b":2}', size: 7 },
+          { seq: 3, direction: "close", ts: 1700000003000, size: 0, code: 1000, wasClean: true },
         ],
       },
     });

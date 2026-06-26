@@ -582,15 +582,14 @@ function MessagesPanel({
   const t = useT();
   const meta = req.webSocket!;
   const [dir, setDir] = useState<WsDirFilter>("all");
-  const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
+  const [expandedSeq, setExpandedSeq] = useState<number | null>(null);
 
   const dropped = meta.framesTotal - meta.frames.length;
   // open/close 이벤트 행은 필터와 무관하게 항상 표시 — 연결 수명 컨텍스트.
-  const visible = meta.frames
-    .map((frame, idx) => ({ frame, idx }))
-    .filter(({ frame }) =>
+  const visible = meta.frames.filter(
+    (frame) =>
       frame.direction === "open" || frame.direction === "close" || dir === "all" || frame.direction === dir,
-    );
+  );
 
   const dirLabel: Record<WsDirFilter, string> = {
     all: t("networkLog.ws.all"),
@@ -631,15 +630,15 @@ function MessagesPanel({
         </div>
       ) : (
         <div className="py-1">
-          {visible.map(({ frame, idx }) => (
+          {visible.map((frame) => (
             <FrameRow
-              key={idx}
+              key={frame.seq}
               frame={frame}
               baseTs={req.startTime}
               syncBaseMs={syncBaseMs}
               onSeek={onSeek}
-              expanded={expandedIdx === idx}
-              onToggle={() => setExpandedIdx(expandedIdx === idx ? null : idx)}
+              expanded={expandedSeq === frame.seq}
+              onToggle={() => setExpandedSeq(expandedSeq === frame.seq ? null : frame.seq)}
             />
           ))}
         </div>

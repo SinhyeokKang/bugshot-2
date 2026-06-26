@@ -518,10 +518,11 @@ function networkRecorderScript(): void {
     pushEntry(entry);
     throttle.schedule();
     const meta = entry.webSocket!;
+    let frameSeq = 0;
 
-    function pushFrame(frame: WebSocketFrame): void {
+    function pushFrame(frame: Omit<WebSocketFrame, "seq">): void {
       meta.framesTotal++;
-      frames.push(frame);
+      frames.push({ ...frame, seq: frameSeq++ });
       if (frames.length > MAX_WS_FRAMES_PER_CONN) {
         frames.shift();
         warnings.add("WS_FRAMES_CAPPED");

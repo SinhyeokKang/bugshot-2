@@ -15,6 +15,7 @@ export type WebSocketFrameData =
   | { kind: "truncated"; limit: number; size: number };
 
 export interface WebSocketFrame {
+  seq: number; // 적재 순번 — FIFO evict로 인덱스가 밀려도 불변(React key·펼침 상태 식별용)
   direction: WebSocketFrameDirection;
   ts: number; // 프레임 발생 시각(절대 ms)
   data?: WebSocketFrameData; // open은 undefined; send/receive는 텍스트; close는 reason(있으면)
