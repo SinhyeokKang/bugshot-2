@@ -3,7 +3,6 @@ import { pageKeyOf } from "@/lib/session-keys";
 import { useEditorStore } from "@/store/editor-store";
 import { onPickerPermissionExpired, onPickerUnavailable } from "@/types/messages";
 import { isActiveTabPermissionError } from "./lib/capture-error";
-import { clearNetworkRecorder, clearConsoleRecorder, clearActionRecorder } from "@/sidepanel/recorder-control";
 import type {
   DescribeChildrenResponse,
   DescribeInitialResponse,
@@ -554,8 +553,6 @@ export async function stopActionRecorder(tabId: number): Promise<void> {
 export async function syncActionRecorder(tabId: number): Promise<void> {
   await send(tabId, { type: "actionRecorder.sync" });
 }
-
-export { clearNetworkRecorder, clearConsoleRecorder, clearActionRecorder };
 
 // capture 시 sync broadcast가 누적기에 머지될 때까지 대기하는 상한. 머지 도착 즉시 조기 탈출.
 const LOG_SYNC_SETTLE_MS = 300;
