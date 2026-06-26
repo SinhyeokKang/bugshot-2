@@ -18,7 +18,7 @@ Collects the page's console output in full — info, warnings, and errors alike.
 
 See the network requests made by the page.
 
-- **Filter / search** — Filter or find a request.
+- **Filter / search** — Filter requests by type, or find them with the search box. Search looks through not just the URL but also the request/response **body and headers**, so even if you don't remember the URL, a snippet from the response is enough to find it.
 - **Detail** — Expand to see request and response contents.
 - **Copy as cURL** — Copy a request as a cURL command to reproduce it in your terminal.
 - **Clear Log** — Empty the collected logs.
