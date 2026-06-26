@@ -94,6 +94,33 @@ describe("buildHar", () => {
     expect(content.size).toBe(11);
   });
 
+  it("WebSocket 연결 — _resourceType + _webSocketMessages(데이터 프레임만)", () => {
+    const req = makeRequest({
+      method: "WS",
+      status: 101,
+      statusText: "Switching Protocols",
+      url: "wss://example.com/socket",
+      contentType: "websocket",
+      webSocket: {
+        protocol: "",
+        framesTotal: 4,
+        frames: [
+          { direction: "open", ts: 1700000000000, size: 0 },
+          { direction: "send", ts: 1700000001000, data: '{"a":1}', size: 7 },
+          { direction: "receive", ts: 1700000002000, data: '{"b":2}', size: 7 },
+          { direction: "close", ts: 1700000003000, size: 0, code: 1000, wasClean: true },
+        ],
+      },
+    });
+    const entry = (buildHar(makeLog([req])) as any).log.entries[0];
+    expect(entry._resourceType).toBe("websocket");
+    expect(entry.response.status).toBe(101);
+    expect(entry._webSocketMessages).toEqual([
+      { type: "send", time: 1700000001, opcode: 1, data: '{"a":1}' },
+      { type: "receive", time: 1700000002, opcode: 1, data: '{"b":2}' },
+    ]);
+  });
+
   it("binary responseBody — comment에 contentType/size 표기", () => {
     const req = makeRequest({
       responseBody: { kind: "binary", contentType: "image/png", size: 500 },

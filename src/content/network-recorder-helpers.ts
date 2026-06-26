@@ -62,6 +62,24 @@ export function maskBody(body: string, contentType: string): string {
   return body;
 }
 
+// WebSocket 텍스트 프레임만 캡처. 바이너리(ArrayBuffer/Blob/TypedArray/SharedArrayBuffer)는
+// null로 드롭, BODY_CAP 초과 텍스트는 truncated로 분류. 문자열(빈 문자열 포함)은 그대로.
+// size는 beacon/request 헬퍼와 동일하게 문자열 길이 기준.
+export function classifyWsFrameData(
+  data: unknown,
+): string | { kind: "truncated"; limit: number; size: number } | null {
+  if (typeof data !== "string") return null;
+  if (data.length > BODY_CAP) {
+    return { kind: "truncated", limit: BODY_CAP, size: data.length };
+  }
+  return data;
+}
+
+// WebSocket 텍스트 프레임의 민감 키 마스킹 — 기존 본문 마스킹 경로 재사용.
+export function maskWsFrame(text: string): string {
+  return maskBody(text, "application/json");
+}
+
 const CONTENT_TYPE_DENYLIST = [
   /^image\//i,
   /^audio\//i,

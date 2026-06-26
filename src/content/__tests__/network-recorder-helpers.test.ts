@@ -4,6 +4,8 @@ import {
   classifyBeaconBody,
   createPatchedFetch,
   maskBody,
+  classifyWsFrameData,
+  maskWsFrame,
   BODY_CAP,
 } from "../network-recorder-helpers";
 
@@ -231,5 +233,58 @@ describe("maskBody — 본문 민감 키 마스킹 (요청·응답 공용)", () 
   it("json/urlencoded 외 contentType과 비정상 JSON은 원문을 유지한다", () => {
     expect(maskBody("token=abc", "text/plain")).toBe("token=abc");
     expect(maskBody("{not json", "application/json")).toBe("{not json");
+  });
+});
+
+describe("classifyWsFrameData", () => {
+  it("일반 텍스트 프레임은 문자열 그대로 반환한다", () => {
+    expect(classifyWsFrameData('{"type":"ping"}')).toBe('{"type":"ping"}');
+  });
+
+  it("빈 문자열 프레임은 빈 문자열 그대로 반환한다", () => {
+    expect(classifyWsFrameData("")).toBe("");
+  });
+
+  it("BODY_CAP를 초과하는 텍스트 프레임은 truncated로 분류한다", () => {
+    const big = "a".repeat(BODY_CAP + 100);
+    expect(classifyWsFrameData(big)).toEqual({
+      kind: "truncated",
+      limit: BODY_CAP,
+      size: BODY_CAP + 100,
+    });
+  });
+
+  it("ArrayBuffer 바이너리 프레임은 null(드롭)을 반환한다", () => {
+    expect(classifyWsFrameData(new ArrayBuffer(8))).toBeNull();
+  });
+
+  it("TypedArray(Uint8Array) 바이너리 프레임은 null(드롭)을 반환한다", () => {
+    expect(classifyWsFrameData(new Uint8Array([1, 2, 3]))).toBeNull();
+  });
+
+  it("Blob 바이너리 프레임은 null(드롭)을 반환한다", () => {
+    expect(classifyWsFrameData(new Blob(["x"]))).toBeNull();
+  });
+
+  it("SharedArrayBuffer 바이너리 프레임은 null(드롭)을 반환한다", () => {
+    expect(classifyWsFrameData(new SharedArrayBuffer(8))).toBeNull();
+  });
+});
+
+describe("maskWsFrame", () => {
+  it("JSON 프레임의 민감 키를 ***로 마스킹한다", () => {
+    expect(maskWsFrame('{"token":"abc"}')).toBe('{"token":"***"}');
+  });
+
+  it("민감 키가 없는 JSON 프레임은 값을 보존한다", () => {
+    expect(maskWsFrame('{"a":1}')).toBe('{"a":1}');
+  });
+
+  it("JSON이 아닌 텍스트 프레임은 원문을 유지한다", () => {
+    expect(maskWsFrame("plain text")).toBe("plain text");
+  });
+
+  it("빈 문자열 프레임은 원문을 유지한다", () => {
+    expect(maskWsFrame("")).toBe("");
   });
 });

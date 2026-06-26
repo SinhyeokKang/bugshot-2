@@ -34,7 +34,50 @@ function bodyToHarContent(
   return { size, mimeType: contentType || "application/octet-stream", comment };
 }
 
+function wsToEntry(req: NetworkRequest) {
+  const ws = req.webSocket!;
+  const messages = ws.frames
+    .filter((f) => f.direction === "send" || f.direction === "receive")
+    .map((f) => ({
+      type: f.direction,
+      time: f.ts / 1000,
+      opcode: 1,
+      data: typeof f.data === "string" ? f.data : "",
+    }));
+  return {
+    startedDateTime: new Date(req.startTime).toISOString(),
+    time: req.durationMs,
+    request: {
+      method: "GET",
+      url: req.url,
+      httpVersion: "HTTP/1.1",
+      cookies: [],
+      headers: [],
+      queryString: [],
+      headersSize: -1,
+      bodySize: 0,
+    },
+    response: {
+      status: 101,
+      statusText: "Switching Protocols",
+      httpVersion: "HTTP/1.1",
+      cookies: [],
+      headers: [],
+      content: { size: 0, mimeType: "x-unknown" },
+      redirectURL: "",
+      headersSize: -1,
+      bodySize: 0,
+    },
+    cache: {},
+    timings: { send: 0, wait: req.durationMs, receive: 0, blocked: -1, dns: -1, connect: -1, ssl: -1 },
+    _resourceType: "websocket",
+    _webSocketMessages: messages,
+    _bugshot: { id: req.id, pageUrl: req.pageUrl, phase: req.phase },
+  };
+}
+
 function requestToEntry(req: NetworkRequest) {
+  if (req.webSocket) return wsToEntry(req);
   const url = req.url;
   const queryString: { name: string; value: string }[] = [];
   try {
