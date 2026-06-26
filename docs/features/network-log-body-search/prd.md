@@ -4,7 +4,9 @@
 
 네트워크 로그 탭의 검색창은 현재 요청 **URL만** 매칭한다(`NetworkLogContent.tsx:180-183`). 하지만 사용자가 버그를 추적할 때 찾고 싶은 건 종종 URL이 아니라 **요청 페이로드·응답 본문 안의 값**(에러 메시지, 특정 id, 필드명)이거나 **헤더 값**(content-type, set-cookie 등)이다.
 
-데이터는 이미 다 캡처돼 있다(`NetworkRequest.requestBody` / `responseBody` / `requestHeaders` / `responseHeaders`). 검색 범위만 좁아서 활용을 못 하고 있다. 크롬 데브툴스의 Search 패널이 요청/응답 본문 전체를 grep하는 것과 같은 동작을 기본 필터창에서 제공한다.
+데이터는 이미 캡처돼 있다(`NetworkRequest.requestBody` / `responseBody` / `requestHeaders` / `responseHeaders`). 검색 범위만 좁아서 활용을 못 하고 있다. 크롬 데브툴스의 Search 패널이 요청/응답 본문 전체를 grep하는 것과 같은 동작을 기본 필터창에서 제공한다.
+
+단, **검색 가능한 본문은 텍스트로 저장된 것에 한정**된다. 응답 본문은 allowlist(JSON·text·XML·form-urlencoded)만 문자열로 캡처하고 그 외 content-type은 `binary`로 본문이 없으며, 요청 본문도 Blob/FormData/ArrayBuffer는 미캡처다. 따라서 본문 검색 커버리지는 데브툴스 Search보다 좁다.
 
 ## 목표
 
@@ -28,8 +30,9 @@
 3. 행을 클릭하면 기존대로 Response 탭에서 본문을 확인한다.
 
 엣지 케이스:
-- 검색어가 마스킹된 키(`password` 등)의 **원래 값**이면 매칭 안 됨(저장값이 `***`).
-- 본문이 3MB 초과로 `truncated`거나 이미지 등 `binary`면 그 본문은 검색 대상에서 제외(다른 필드는 검색됨).
+- 검색어가 마스킹된 키(`password`·`token`·`authorization`·`cookie` 등)의 **원래 값**이면 매칭 안 됨. 헤더는 `***[len:N]`, 본문 값은 `***`로 저장됨(원문 검색 불가, 의도된 동작).
+- 본문이 문자열이 아닌 모든 variant — `truncated`(3MB 초과)·`binary`(이미지 등)·`stream`·`omitted`(50MB cap evict) — 면 그 본문은 검색 대상에서 제외(URL·헤더 등 다른 필드는 검색됨). `requestBody`/`responseBody`가 `undefined`(본문 없음)인 경우도 동일.
+- `omitted`는 **시간 의존적**: 로그가 50MB cap을 넘기면 오래된 요청의 본문이 비워져, 방금 전엔 본문으로 검색되던 요청이 더 이상 안 잡힐 수 있다.
 - 검색어가 헤더 키(`content-type`)거나 값(`application/json`)이면 매칭됨.
 
 ## 성공 기준
