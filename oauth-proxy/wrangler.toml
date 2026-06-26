@@ -24,6 +24,11 @@ compatibility_date = "2026-04-01"
 #   wrangler secret put ASANA_CLIENT_ID
 #   wrangler secret put ASANA_CLIENT_SECRET
 #
+# ClickUp OAuth 사용 시 추가 (confidential app, app 1개에 dev/store redirect URI 등록):
+#   wrangler secret put CLICKUP_CLIENT_ID       # 확장의 VITE_CLICKUP_CLIENT_ID와 동일 값 (client_id 화이트리스트 매칭용)
+#   wrangler secret put CLICKUP_CLIENT_SECRET
+#   - 토큰 만료 없음 → /clickup/token(auth code 교환)만, refresh 라우트 없음
+#
 # ALLOWED_ORIGINS 값 예시:
 #   chrome-extension://abcdefghij...,chrome-extension://xxxxxxxxxx...
 #   - 프로덕션 확장 ID + 로컬 dev key의 ID를 콤마로 나열
