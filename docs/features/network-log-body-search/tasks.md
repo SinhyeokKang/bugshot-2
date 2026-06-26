@@ -11,31 +11,31 @@
 - **변경 대상**: `src/lib/__tests__/network-search.test.ts` (신규)
 - **작업 내용**: 아직 없는 `requestMatchesQuery(req, lowerQuery)`에 대한 단위 테스트. `NetworkRequest` 픽스처 헬퍼로 케이스 구성.
 - **검증**:
-  - [ ] URL에만 문자열 포함 → true
-  - [ ] requestBody(string)에만 포함 → true
-  - [ ] responseBody(string)에만 포함 → true
-  - [ ] requestHeaders 키에 포함 → true
-  - [ ] requestHeaders 값에 포함 → true
-  - [ ] responseHeaders 키/값에 포함 → true
-  - [ ] 비문자열 본문 전 variant(`{kind:"truncated"}`·`{kind:"binary"}`·`{kind:"stream"}`·`{kind:"omitted"}`)일 때 throw 없이 동작, 본문으로는 매칭 안 됨
-  - [ ] 본문 `undefined`(필드 없음)·헤더 `{}`(빈 객체)일 때 throw 없이 동작
-  - [ ] 대소문자 무시 (lowerQuery 전제 — 대문자 섞인 본문도 매칭)
-  - [ ] 어디에도 없으면 false
-  - [ ] 마스킹된 값(헤더 `***[len:N]` / 본문 `***`)은 그대로 검색됨 / 원문은 매칭 안 됨
-  - [ ] `pnpm test` 실행 시 이 파일이 (미구현이라) red
+  - [x] URL에만 문자열 포함 → true
+  - [x] requestBody(string)에만 포함 → true
+  - [x] responseBody(string)에만 포함 → true
+  - [x] requestHeaders 키에 포함 → true
+  - [x] requestHeaders 값에 포함 → true
+  - [x] responseHeaders 키/값에 포함 → true
+  - [x] 비문자열 본문 전 variant(`{kind:"truncated"}`·`{kind:"binary"}`·`{kind:"stream"}`·`{kind:"omitted"}`)일 때 throw 없이 동작, 본문으로는 매칭 안 됨
+  - [x] 본문 `undefined`(필드 없음)·헤더 `{}`(빈 객체)일 때 throw 없이 동작
+  - [x] 대소문자 무시 (lowerQuery 전제 — 대문자 섞인 본문도 매칭)
+  - [x] 어디에도 없으면 false
+  - [x] 마스킹된 값(헤더 `***[len:N]` / 본문 `***`)은 그대로 검색됨 / 원문은 매칭 안 됨
+  - [x] `pnpm test` 실행 시 이 파일이 (미구현이라) red
 
 ### Task 2: `requestMatchesQuery` 구현
 - **변경 대상**: `src/lib/network-search.ts` (신규)
 - **작업 내용**: design.md 시그니처대로 구현. 필드 순서대로 검사하고 첫 매칭에서 `return true`. 본문은 `typeof body === "string"` 가드 후 검사. 헤더는 `Object.entries`로 키·값 모두 검사.
 - **검증**:
-  - [ ] Task 1 테스트 전부 green
-  - [ ] `pnpm typecheck` 통과
+  - [x] Task 1 테스트 전부 green
+  - [x] `pnpm typecheck` 통과
 
 ### Task 3: 값 디바운스 훅
 - **변경 대상**: `src/sidepanel/lib/useDebouncedValue.ts` (신규)
 - **작업 내용**: `useDebouncedValue<T>(value, delayMs)` — `useState`+`useEffect`+`setTimeout`, cleanup으로 timer clear. 표준 패턴.
 - **검증**:
-  - [ ] `pnpm typecheck` 통과
+  - [x] `pnpm typecheck` 통과
   - [ ] (훅 단위 테스트는 tdd 분류상 스킵 가능 — 동작은 Task 4 수동 확인)
 
 ### Task 4: NetworkLogContent 검색 분기 교체
@@ -47,22 +47,22 @@
   - Input `value`·clear 버튼·resetFilters는 즉시값 `query` 유지(변경 없음).
   - 검색 Input에 `data-testid="network-search"` 부착(e2e selector — Task 7).
 - **검증**:
-  - [ ] `pnpm typecheck` 통과
-  - [ ] 입력값이 input에 즉시 반영(반응성 유지), 필터는 디바운스 후 적용
+  - [x] `pnpm typecheck` 통과
+  - [x] 입력값이 input에 즉시 반영(반응성 유지), 필터는 디바운스 후 적용
 
 ### Task 5: useScrollToEntry 즉시값 query 반영 (회귀 차단)
 - **변경 대상**: `src/sidepanel/lib/useScrollToEntry.ts`, `src/sidepanel/components/NetworkLogContent.tsx`
 - **작업 내용**: 디바운스 도입으로 `resetFilters()` 후 retry가 `debouncedQuery`(옛값) 때문에 대상을 못 찾는 회귀를 막는다. caller가 즉시값 `query`를 훅에 전달하고, 훅의 재시도/필터 가시성 판정이 즉시값을 반영하도록 한다. (design.md 위험 요소 "디바운스 ↔ useScrollToEntry" 참조)
 - **검증**:
-  - [ ] `pnpm typecheck` 통과
+  - [x] `pnpm typecheck` 통과
   - [ ] 회귀 테스트(아래 테스트 계획) green
-  - [ ] 검색어+type/origin 필터가 대상을 가린 상태에서 로그 항목→영상 싱크 점프가 동작
+  - [x] 검색어+type/origin 필터가 대상을 가린 상태에서 로그 항목→영상 싱크 점프가 동작
 
 ### Task 6: i18n placeholder 갱신
 - **변경 대상**: `src/i18n/namespaces/logs.ts`
 - **작업 내용**: `networkLog.search` — ko `"URL·본문 검색…"`, en `"Search URL & body…"`로 변경(형제 탭 `[대상] 검색…` 패턴 유지 + 본문 검색 멘탈모델 제공).
 - **검증**:
-  - [ ] 저장 시 PostToolUse 훅의 `locales.test.ts` 통과(ko/en 대칭)
+  - [x] 저장 시 PostToolUse 훅의 `locales.test.ts` 통과(ko/en 대칭)
   - [ ] 사이드패널에서 placeholder 변경 확인
 
 ### Task 7: e2e 픽스처 + 시나리오 (`/e2e-write`)

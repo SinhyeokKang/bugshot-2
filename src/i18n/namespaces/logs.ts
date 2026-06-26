@@ -1,6 +1,6 @@
 const ko = {
   "networkLog.clear": "로그 지우기",
-  "networkLog.search": "URL 검색…",
+  "networkLog.search": "URL·본문 검색…",
   "logViewer.seekTo": "{time} 지점으로 이동",
   "networkLog.dialog.title": "네트워크 로그",
   "networkLog.dialog.selectRequest": "요청을 선택하세요",
@@ -112,7 +112,7 @@ type Bundle = Record<keyof typeof ko, string>;
 
 const en = {
   "networkLog.clear": "Clear Log",
-  "networkLog.search": "Search URL…",
+  "networkLog.search": "Search URL & body…",
   "logViewer.seekTo": "Jump to {time}",
   "networkLog.dialog.title": "Network Logs",
   "networkLog.dialog.selectRequest": "Select a request",

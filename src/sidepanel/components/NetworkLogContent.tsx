@@ -5,6 +5,8 @@ import type { NetworkRequest, NetworkRequestBody } from "@/types/network";
 import { formatBytes } from "@/sidepanel/lib/formatBytes";
 import { networkLogPath } from "@/lib/network-log-path";
 import { isStatusHidden } from "@/lib/network-status";
+import { requestMatchesQuery } from "@/lib/network-search";
+import { useDebouncedValue } from "@/sidepanel/lib/useDebouncedValue";
 import { JsonTreeViewer } from "./JsonTreeViewer";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -155,6 +157,7 @@ export function NetworkLogContent({ requests, flush, syncBaseMs, onSeek, activeT
   const [filter, setFilter] = useState<RequestFilter>("all");
   const [originFilter, setOriginFilter] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  const debouncedQuery = useDebouncedValue(query, 200);
   const filterLabel: Record<RequestFilter, string> = {
     all: t("networkLog.filter.all"), json: t("networkLog.filter.json"),
     js: t("networkLog.filter.js"), css: t("networkLog.filter.css"),
@@ -177,12 +180,12 @@ export function NetworkLogContent({ requests, flush, syncBaseMs, onSeek, activeT
   const filteredRequests = useMemo(() => {
     let result = filter === "all" ? requests : requests.filter((r) => classifyRequest(r) === filter);
     if (originFilter !== null) result = result.filter((r) => originKey(r.pageUrl) === originFilter);
-    if (query) {
-      const lower = query.toLowerCase();
-      result = result.filter((r) => r.url.toLowerCase().includes(lower));
+    if (debouncedQuery) {
+      const lower = debouncedQuery.toLowerCase();
+      result = result.filter((r) => requestMatchesQuery(r, lower));
     }
     return result;
-  }, [requests, filter, originFilter, query]);
+  }, [requests, filter, originFilter, debouncedQuery]);
 
   const syncActiveId = useMemo(() => {
     if (activeTs == null) return null;
@@ -234,6 +237,7 @@ export function NetworkLogContent({ requests, flush, syncBaseMs, onSeek, activeT
     scrollToEntryId,
     getListViewport,
     filteredItems: filteredRequests,
+    searchSettled: query === debouncedQuery,
     resetFilters: useCallback(() => { setFilter("all"); setOriginFilter(null); setQuery(""); }, []),
     onScrollComplete,
     onFound: useCallback(() => { if (scrollToEntryId) setActiveId(scrollToEntryId); }, [scrollToEntryId]),
@@ -280,6 +284,7 @@ export function NetworkLogContent({ requests, flush, syncBaseMs, onSeek, activeT
           <div className="relative ml-auto w-full max-w-[280px]">
             <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
+              data-testid="network-search"
               placeholder={t("networkLog.search")}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
