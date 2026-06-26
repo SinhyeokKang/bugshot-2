@@ -99,7 +99,7 @@ element/screenshot/video 세 `issue.md`는 아래 7단계를 **그대로 반복*
 
 - **단축키**: `Cmd/Ctrl+Shift+E`(패널 토글) **1개만**. best-effort라 OS·타 확장 충돌 시 미배정될 수 있음을 한 줄 안내(그땐 툴바 아이콘으로). **캡처 단축키는 모두 제거됨** — 요소 선택·범위 캡처·요소 캡처·탭/화면 녹화 등 캡처는 전부 **버튼 전용**(과거 캡처 단축키는 모두 제거됨 — manifest commands엔 패널 토글만 남음). 패널 토글만 유일한 command라 가이드 본문의 단축키 표기도 `quick-start`의 `Cmd/Ctrl+Shift+E` 1곳뿐이다(video/issue·logs/viewer의 "단축키 입력"은 액션 로그가 기록하는 사용자 동작 설명이지 확장 단축키가 아님 — 무관).
 - **본문 섹션**: 발생 현상(켜짐·문단) / 재현 과정(켜짐·번호 목록) / 기대 결과(켜짐·문단) / 비고(꺼짐·문단). 라벨·플레이스홀더 override 가능.
-- **파일 첨부 토글**: 설정 > 이슈 설정 > 본문 구성에 `파일 첨부`(en `File attachments`) 토글, **기본 꺼짐**(`attachmentsEnabled` in `settings-ui-store.ts`). 켜면 이슈 작성(drafting) 화면에 `첨부 파일`(en `Attachments`, `section.attachments`) 영역 노출 → 임의 로컬 파일 선택. **최대 10개·합계 50MB** 하드캡(`src/sidepanel/lib/attachmentLimits.ts`), 플랫폼별 단건 경고(Notion 5MB·GitLab 10MB, 초과 시 "용량 초과" 표시·차단 아님). 제출 시 6개 플랫폼에 함께 업로드. 기능 위치상 settings/issue.md에만 두고 중립적 기능 설명 톤으로 기술한다(3개 mode issue.md 공통 흐름엔 미편입).
+- **파일 첨부 토글**: 설정 > 이슈 설정 > 본문 구성에 `파일 첨부`(en `File attachments`) 토글, **기본 꺼짐**(`attachmentsEnabled` in `settings-ui-store.ts`). 켜면 이슈 작성(drafting) 화면에 `첨부 파일`(en `Attachments`, `section.attachments`) 영역 노출 → 임의 로컬 파일 선택. **최대 10개·합계 50MB** 하드캡(`src/sidepanel/lib/attachmentLimits.ts`), 플랫폼별 단건 경고(Notion 5MB·GitLab 10MB, 초과 시 "용량 초과" 표시·차단 아님). 제출 시 7개 플랫폼에 함께 업로드. 기능 위치상 settings/issue.md에만 두고 중립적 기능 설명 톤으로 기술한다(3개 mode issue.md 공통 흐름엔 미편입).
 - **녹화 모드 설정**: 캡처 진입 화면(디버그 탭)의 **녹화 버튼은 1개**(`mode-record`)이고, 탭/화면 중 무엇을 녹화할지는 **설정 > 이슈 설정 > 녹화 설정 > 녹화 모드** Tabs에서 고른다(`recordingMode` in `settings-ui-store.ts`, 기본 `tab`). 설정 섹션 제목은 `녹화 설정`/en `Recording settings`(`settings.recording` 키, 30초 리플레이도 같은 섹션). 설정 Tabs 라벨은 짧게 `탭`/`화면`(en `Tab`/`Screen`, `settings.recordingMode.tab`/`.screen`, **아이콘 없음**) — 캡처 화면 녹화 버튼 라벨 `탭 녹화`/`화면 녹화`(`issue.mode.video`/`.screenRecord`)와 **키·문구 분리**. 고른 모드는 캡처 화면 녹화 버튼 아이콘·라벨에 라이브 반영(`recordModeMeta`: tab→AppWindow, screen→MonitorPlay). **캡처 진입 화면 레이아웃은 1x2x2**: Row1 `[요소 스타일 편집]`(primary 단독, 전체폭) / Row2 `[요소 캡처][범위 캡처]`(ButtonGroup) / Row3 `[녹화 버튼][30초 리플레이]`(ButtonGroup). 녹화 모드 변경은 **설정 탭 단일 경로** — 진입 화면엔 ⚙ 톱니바퀴·녹화 설정 다이얼로그가 **없다**(revert-idle-capture-layout에서 제거). **비활성 30초 리플레이 버튼**을 클릭하면 다이얼로그가 아니라 **설정 탭(이슈 설정)으로 이동**한다(`navTo("settings","issue")`). 설정 탭의 녹화 설정 카드는 공용 컴포넌트(`RecordingSettingsCard`, store 단일 출처)다. (과거 Row3 3-segment `[녹화][리플레이][⚙]` + `RecordingSettingsDialog`는 제거됨 — `video/record.md`·`settings/issue.md`·`video/replay.md` 대상.)
 - **로그 정책**: 요소=로그 없음 / 스크린샷=콘솔·네트워크 토글 **기본 on** / 녹화=콘솔·네트워크·액션 **기본 on**. 액션 로그는 **녹화 모드 전용**. 자동 수집은 trailing throttle로 실시간 스트리밍(레코더 ~200ms flush, 사이드패널 IDB 저장은 ~1s로 묶음) — 과거 "~1.5초" 표기는 stale이니 가이드엔 구체 숫자 대신 "실시간"으로.
 - **콘솔 캡처 범위** (`src/content/console-recorder.ts`): `log`/`info`/`debug`는 상시 wrap, `console.error`/`console.warn`은 **패널이 arm된(디버그·녹화로 캡처 중인) 동안만** wrap해 캡처(chrome://extensions 오류 로그 attribution 오염을 arm 구간으로 한정). `trace`/`assert`(→error)/`dir`/`dirxml`/`table`/`group*`/`count*`/`time*`/`timeStamp`/`clear`도 기존 5레벨(주로 log)에 매핑, uncaught 예외·unhandled rejection은 상시 error로. 가이드엔 내부 메커니즘(arm-스코프 wrap) 노출 없이 "정보·경고·에러까지 빠짐없이 모아 본다" 수준으로만 기술.
@@ -107,7 +107,7 @@ element/screenshot/video 세 `issue.md`는 아래 7단계를 **그대로 반복*
 - **AI 가용성**: BYOK LLM 연결 시 그 모델(배지=프로바이더명) → 미연결 시 Chrome 내장 AI 자동 폴백(배지="Chrome AI", `globalThis.LanguageModel` 가용 시) → 그것도 불가하면 AI 스타일링·초안 배너 **미노출**. "키 없으면 미노출"이 아니다.
 - **로그 뷰어 마커**: 콘솔/네트워크/액션 3종. 페이지 이동은 액션 마커의 variant(별도 타입 아님). `logs.html`은 빌드 산출물 → 일반 사용자는 "이슈 첨부로 받은 리포트를 여는" 개발자 관점으로만 기술.
 - **액션 로그가 잡는 동작 종류**(`ActionEntryKind`): 클릭 / 텍스트 입력 / 페이지 이동 / **키 입력(keypress — 단축키·특수키만, 인쇄 문자·필드 입력값은 제외)** / **토글(체크박스·라디오)** / **선택(드롭다운 `<select>`)**. 가이드엔 영문 식별자 대신 "단축키·특수키 입력, 체크박스·라디오 토글, 드롭다운 선택"으로 풀어 쓰고, keypress는 "글자 하나하나가 아니라 어떤 키를 눌렀는지"로 안내(프라이버시 톤). 출처: `video/issue.md`(녹화 로그 정책)·`logs/viewer.md`(액션 마커).
-- **플랫폼 표** (현 시점 6개 스냅샷):
+- **플랫폼 표** (현 시점 7개 스냅샷):
 
   | 플랫폼 | 연결 방식 | 토큰 입력 시 필요값 | 토큰 발급 |
   |---|---|---|---|
@@ -117,8 +117,10 @@ element/screenshot/video 세 `issue.md`는 아래 7단계를 **그대로 반복*
   | Notion | OAuth / Internal Token | token | notion.so 통합 |
   | GitLab | OAuth / PAT | instanceUrl(self-managed만), pat | gitlab.com PAT |
   | Asana | OAuth / PAT | pat | app.asana.com my-apps |
+  | ClickUp | OAuth / API Token | pat(`pk_...`) | app.clickup.com 설정 > Apps |
 
-  > **플랫폼 표는 stale 위험이 크다.** 신규 플랫폼(예: azure-devops·clickup)이 머지되면 이 표와 `integrations/platforms.md`(ko/en)를 즉시 갱신한다. 플랫폼 추가는 별도 `docs(guide)` 갱신 대상.
+  > ClickUp은 이슈 대상이 **Workspace → Space → List 3단계**다(다른 플랫폼은 1~2단계). 연결 후 기본값·이슈 제출 모두 이 3단계로 List를 고른다. 토큰은 만료가 없어 재연결만 있고 자동 갱신은 없다.
+  > **플랫폼 표는 stale 위험이 크다.** 신규 플랫폼(예: azure-devops)이 머지되면 이 표와 `integrations/platforms.md`(ko/en)를 즉시 갱신한다. 플랫폼 추가는 별도 `docs(guide)` 갱신 대상.
 
 ## 5. 톤앤매너
 
