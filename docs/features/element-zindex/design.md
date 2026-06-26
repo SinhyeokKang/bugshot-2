@@ -19,18 +19,17 @@ z-index는 스타일 에디터의 **일반 inlineStyle 파이프라인**(수집 
 - **현재 역할**: 섹션별 속성 편집 UI 렌더 + `SECTION_PROPS`(섹션 펼침 기본값·SectionRevertButton 대상 판정용 속성 목록).
 - **변경**:
   - `SECTION_PROPS.layout` 배열에 `"z-index"` 추가(`"position"` 다음). → 선택 요소에 z-index가 지정돼 있으면 Layout 섹션이 기본 펼침되고, 섹션 revert 버튼이 z-index도 되돌린다.
-  - Layout 섹션 JSX에서 display/position `Row2` 직후에 z-index `TextProp`을 추가. position과 같은 시각적 그룹(바로 아래)에 위치.
+  - Layout 섹션 JSX에서 display/position `Row2` **바로 아래**(StyleEditorPanel.tsx의 position 포함 Row2 닫힘 직후, flex-direction/flex-wrap Row2 위)에 z-index `TextProp`을 **full-width 단독 행**으로 추가.
     ```tsx
     <Row2>
       <SelectProp label="display" prop="display" options={...} />
       <SelectProp label="position" prop="position" options={...} />
     </Row2>
-    <Row2>
-      <TextProp label="z-index" prop="z-index" />
-      <div aria-hidden />
-    </Row2>
+    <TextProp label="z-index" prop="z-index" />
+    {/* ↓ 기존 flex-direction/flex-wrap Row2 */}
     ```
-    - `Row2`는 `grid-cols-2`. z-index TextProp을 좌측 컬럼(display/position 정렬 유지)에 두고 우측은 빈 `<div aria-hidden />` 스페이서로 비운다. position과 한 줄에 묶지 않는 이유: position(SelectProp)과 z-index(TextProp)는 컨트롤 종류가 달라 같은 줄에 섞기보다 바로 아래 줄에 두는 편이 정렬·가독성이 낫다.
+    - `TextProp`을 `Row2`로 감싸지 않고 단독으로 둔다 → `PropRow`가 `flex flex-col`이라 부모가 grid가 아니면 자동 full-width가 된다. 빈 스페이서 div 불필요. position과 한 줄에 묶지 않는 이유: position(SelectProp)과 z-index(TextProp)는 컨트롤 종류가 달라 같은 줄에 섞기보다 바로 아래 줄에 두는 편이 정렬·가독성이 낫다.
+    - **기존 단독 prop 배치 패턴과 일치**: `bg-image`(L259)·`overflow`(L316)·`filter`(L392)·`backdrop-filter`(L393)·`transition-property`(L423) 등 단독 prop은 전부 `Row2` 없이 full-width로 둔다. `Row2`(`grid-cols-2`)는 항상 실제 prop 2개를 짝으로 채우고 빈 셀 사례는 코드 전체에 0건. ~400px 좁은 폭에서도 z-index 입력이 절반으로 쪼그라들지 않아 `9999` 같은 값 가독성이 유지된다.
 
 ### 변경하지 않는 것 (일반 파이프라인 재사용)
 - `src/store/editor-store.ts` `EditorStyleEdits.inlineStyle`은 `Record<string, string>`이라 임의 prop 수용 — 변경 불필요.
@@ -74,5 +73,5 @@ z-index는 스타일 에디터의 **일반 inlineStyle 파이프라인**(수집 
 ## 위험 요소
 - **px 자동부착 회귀**: 카테고리를 실수로 `length`로 넣으면 `9999` → `9999px`로 변질돼 z-index가 무효화된다. 반드시 `number`. 단위 테스트로 `finalizeValue("number","5","z-index")==="5"` 고정 권장.
 - **수집 누락**: `INTERESTING_PROPS`에 추가하지 않으면 UI는 떠도 선택 요소의 현재 z-index 값이 채워지지 않는다(specified/computed 모두 빈 값). 3종 동기 추가 필수.
-- **빈 Row2 스페이서**: `<div aria-hidden />` 빈 셀이 들어가므로 시각 정합은 Chrome에서 수동 확인(좁은 사이드패널·다이얼로그 컨테이너 쿼리 리플로우 포함). 정렬이 어색하면 z-index를 full-width 단독 행으로 둘 수도 있음(구현 시 시각 판단).
+- **placeholder vs 입력값 구분**: 미지정 요소의 computed z-index는 `auto`이고 `KNOWN_DEFAULTS`에 등록돼 "기본값"으로 placeholder 처리된다(입력칸은 빈 값, `auto`는 회색 힌트). 반대로 specified 값(예: `10`)이 있으면 그 값이 실제 입력값으로 채워진다. `isKnownDefault` 분기에 의존하며 구현 시 실제 탭에서 미지정 요소 선택 → `auto`가 placeholder로, 지정 요소 → 값이 채워지는지 1회 확인.
 - **stacking context 함정 미안내**: 부모 transform/filter/opacity로 z-index가 무력화되는 케이스는 안내하지 않음(비목표). 사용자가 적용 후 화면 미변화로 혼란할 수 있으나 이번 스코프 밖.
