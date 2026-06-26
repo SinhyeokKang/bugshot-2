@@ -1,6 +1,6 @@
 # BugShot
 
-A Chrome extension for bug reporting. Pick elements, tweak CSS, and file issues to Jira, GitHub, Linear, Notion, GitLab, or Asana — all from a side panel.
+A Chrome extension for bug reporting. Pick elements, tweak CSS, and file issues to Jira, GitHub, Linear, Notion, GitLab, Asana, or ClickUp — all from a side panel.
 
 [![Chrome Web Store](https://img.shields.io/chrome-web-store/v/ohakhekagkodklkickemonmifdcbhmig)](https://chromewebstore.google.com/detail/bugshot/ohakhekagkodklkickemonmifdcbhmig)
 
@@ -37,6 +37,7 @@ A Chrome extension for bug reporting. Pick elements, tweak CSS, and file issues 
 - **Notion** — OAuth / Internal Token, database picker, status & select properties, file uploads
 - **GitLab** — OAuth PKCE (gitlab.com) / PAT (self-managed instances), project/labels/assignees, file uploads
 - **Asana** — OAuth / PAT, workspace/project/assignee, task attachments
+- **ClickUp** — OAuth / API Token, workspace/space/list/assignee, task attachments
 
 ### Export & i18n
 
