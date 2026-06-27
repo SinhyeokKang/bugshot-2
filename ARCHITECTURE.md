@@ -62,7 +62,7 @@ chrome.action.onClicked.addListener((tab) => {
 
 **왜 proxy가 필요한가**: confidential client는 `client_secret` 요구 — 확장에 비밀키를 번들할 수 없으므로 Worker가 `code↔token`·`refresh↔token` 교환만 중계. Linear·GitLab은 public client(PKCE)라 proxy 불필요. Asana는 native 앱 모드가 OOB redirect만 허용해 custom redirect(`chromiumapp.org`)를 쓰려면 confidential일 수밖에 없어 proxy 경유한다.
 
-**GitLab self-managed**: OAuth는 `gitlab.com` 고정(host_permission). PAT는 임의 self-managed 인스턴스 URL(`gitlabInstanceUrl.normalizeInstanceUrl` — gitlab.com은 https 강제) 지원하며, 연결 시 `requestHostPermission(baseUrl)`로 optional host 권한을 런타임 획득. GitLab은 업로드→이슈생성 순서라 logs.html에 이슈 역링크를 사전 주입 불가 → 생성 후 `injectIssueUrl` 재업로드 + `gitlab.updateIssueDescription`(description PUT)으로 보강(실패는 격리).
+**GitLab self-managed**: OAuth는 `gitlab.com` 고정(host_permission). PAT는 임의 self-managed 인스턴스 URL(`gitlabInstanceUrl.normalizeInstanceUrl` — gitlab.com은 https 강제) 지원하며, 연결 시 `requestHostPermission(baseUrl)` 호출(required `<all_urls>`에 이미 커버돼 즉시 grant — 프롬프트 없음). GitLab은 업로드→이슈생성 순서라 logs.html에 이슈 역링크를 사전 주입 불가 → 생성 후 `injectIssueUrl` 재업로드 + `gitlab.updateIssueDescription`(description PUT)으로 보강(실패는 격리).
 
 **Asana**: REST·authorize는 `app.asana.com` 고정, token 교환은 proxy(`/asana/token`·`/asana/refresh`) 경유. 응답은 `{ data }` 래핑이라 `asanaFetch`가 언랩. html_notes는 인라인 이미지를 지원하므로(`<img data-asana-gid>`) **create → upload → updateTaskNotes** 2-write로 본문에 이미지를 임베드한다(첨부 후 GID 참조라 순서 강제). 캡처 이미지(As is/To be)뿐 아니라 에디터 본문에 붙여넣은 인라인 이미지(`inlineImages`, 본문 src `inline:refId`)도 같은 경로로 업로드·임베드한다. 단 Asana는 webp 인라인을 지원하지 않아 업로드 전 webp→jpeg로 폴백 변환하고, 작게 렌더되지 않도록 `src`(view_url)+`data-src-width/height`+`style`을 채운다. element 비교는 As is/To be 섹션(이미지+속성값)으로 배치(테이블은 `<pre>` 폴백이라 셀 이미지 불가). 영상·로그·메타는 인라인 불가라 task 첨부 영역에만 둔다(본문에 파일 리스트 미표기). logs.html은 createTask가 upload보다 먼저라 업로드 직전 `injectIssueUrl(task.permalinkUrl, task.gid)`로 백링크·key를 주입해 1회 업로드로 끝낸다(GitLab식 재업로드 불필요). refresh_token은 비회전이라 갱신 응답에 없으면 기존 토큰 유지.
 
@@ -174,18 +174,18 @@ shorthand(var 포함) + 같은 shorthand의 longhand override 조합에서 Chrom
 
 `src/sidepanel/30s-replay/`. 수동 녹화와 별개 경로 — "녹화 버튼을 누르기 전 30초"를 사후에 건지기 위한 look-back 캡처.
 
-**권한**: `captureVisibleTab`은 `activeTab` 또는 광역 host permission 요구. activeTab은 cross-document 네비게이션에서 회수되고 프로그램적 재취득 불가 → 30s Replay는 `optional_host_permissions`의 `https://*/*`+`http://*/*`를 **런타임 요청**해 획득 (설정 Switch ON 시 1회 동의, Chrome 영구 저장).
+**권한**: `captureVisibleTab`은 `activeTab` 또는 광역 host permission 요구. activeTab은 cross-document 네비게이션에서 회수되고 프로그램적 재취득 불가 → `<all_urls>`를 **required host_permission**으로 보유(설치 시 부여)해 cross-origin 캡처가 끊기지 않게 한다. (과거 `optional_host_permissions` 런타임 요청 모델은 폐기 — required 승격.)
 
-**사이드 패널 종료/유지 정책** — `deactivatePanelIfCrossOrigin`가 `tabs.onUpdated` `status:loading`에서 origin 비교. 기준 URL: 에디터 세션 `target.url` 우선 → 활성화 시점 저장 URL → 둘 다 없으면 패널 유지. 판정은 순수 헬퍼 `resolveNavigationAction`(단위 테스트로 고정)으로 분리. 아래 cross-origin 행은 **광역 host 권한 미보유 기준**.
+**사이드 패널 종료/유지 정책** — `deactivatePanelIfCrossOrigin`가 `tabs.onUpdated` `status:loading`에서 origin 비교. 기준 URL: 에디터 세션 `target.url` 우선 → 활성화 시점 저장 URL → 둘 다 없으면 패널 유지. 판정은 순수 헬퍼 `resolveNavigationAction`(단위 테스트로 고정)으로 분리. `<all_urls>`가 required라 광역 권한은 항상 보유 → 호출부가 `broadGranted=true` 고정, 아래 cross-origin 행은 **새 URL의 커버 여부(http/https vs file:) 기준**.
 
 | 조건 | 동작 |
 |---|---|
 | **same-origin** | 패널 유지. 비보존+page key 변경 시 stale 세션 제거 |
-| **cross-origin + 광역 권한 보유 + 커버 URL** (http/https 지원 URL) | same-origin과 동일 취급 — 패널 유지, 비보존이면 stale 세션만 제거. deferred 미발생 |
-| **cross-origin + 비보존** (idle 포함) | 패널 닫기 + 세션 제거 |
-| **cross-origin + 보존** (drafting/previewing/done/video) | 패널 유지, `activeTabExpiredDeferred` → idle 복귀 시 만료 다이얼로그 |
+| **cross-origin + 커버 URL** (http/https 지원 URL) | same-origin과 동일 취급 — 패널 유지, 비보존이면 stale 세션만 제거. deferred 미발생 |
+| **cross-origin + 비커버(`file:`) + 비보존** (idle 포함) | 패널 닫기 + 세션 제거 |
+| **cross-origin + 비커버(`file:`) + 보존** (drafting/previewing/done/video) | 패널 유지, `activeTabExpiredDeferred` → idle 복귀 시 만료 다이얼로그 |
 
-광역 권한 예외: 30s Replay 옵트인으로 부여된 `https://*/*`+`http://*/*`를 보유하면 cross-origin 이동에도 캡처가 끊기지 않으므로 same-origin처럼 패널을 유지한다(리플레이 스위치 OFF여도 권한이 있는 한 적용). `chrome.permissions.contains`는 cross-origin 판정일 때만 조회하고, `file:`은 지원 URL이지만 광역 커버 밖이라 현행 분기를 탄다.
+`<all_urls>`가 required라 광역 권한이 항상 보유 → cross-origin 이동에도 캡처가 끊기지 않으므로 커버 URL(http/https)이면 same-origin처럼 패널을 유지한다. `file:`은 지원 URL이지만 광역 커버 밖(Chrome '파일 URL 액세스' 별도 토글 필요)이라 닫힘/만료 분기를 탄다. (과거 `chrome.permissions.contains` 조회는 제거 — 미보유 분기는 `resolveNavigationAction` 순수함수 테스트의 회귀 자산으로만 남음.)
 
 보존 → idle 사이 "좀비 구간"에서 캡처 시도 시 3중 방어(진입 `classifyTabSupport` / 런타임 `isActiveTabPermissionError` / tabCapture `isTabCaptureUnavailable`)가 즉시 만료 다이얼로그.
 
@@ -208,7 +208,7 @@ shorthand(var 포함) + 같은 shorthand의 longhand override 조합에서 Chrom
 
 **키·권한·전송**:
 - API 키는 `chrome.storage`에 `key-obfuscation.ts`(XOR+base64, `obf:` 접두사)로 난독화 저장 — 암호화 아님, 평문 노출만 차단.
-- BYOK는 임의 호스트로 나가므로 연결 시 `requestHostPermission(baseUrl)`가 `chrome.permissions.request`로 해당 origin(optional `<all_urls>`)을 런타임 획득.
+- BYOK는 임의 호스트로 나가므로 연결 시 `requestHostPermission(baseUrl)`가 `chrome.permissions.request`로 해당 origin을 요청하나, required `<all_urls>`에 이미 커버돼 호출이 즉시 grant된다(프롬프트 없음). 함수 자체는 유지.
 - 재시도/에러: `fetchWithRetry`가 게이트웨이/오버로드(502·503·504·529)에 1s→2s 백오프 2회. 429→`LlmQuotaError`, 503/529→`LlmOverloadedError`. `LLM_MAX_TOKENS=4096` 공통 상한.
 
 **AI Draft** (`buildAiDraftPrompt.ts`): `buildAiDraftSessionPrompt`가 캡처 모드별 컨텍스트를 조립 — element(diff `current→desired`·디자인 토큰), screenshot(이미지 첨부 분석 지시), video/freeform(network·console 에러 요약 + video는 action 로그). 사용자가 이미 쓴 본문은 `existingDraft`로 "참고 후 개선" 지시(인라인 이미지 ref는 `stripInlineImageRefs`로 제거). enabled 섹션별 JSON 스키마(`buildAiDraftSchema`)로 출력 강제. `parseAiDraftResponse`가 JSON 추출·title 80자 cap·`stepsToReproduce` 번호 제거. 덮어쓸 때 `mergeAiSectionsPreservingImages`(`mergeAiDraftSections.ts`)가 기존 섹션의 inline 이미지를 상단에 보존하고 그 아래 LLM 텍스트를 붙인다.
