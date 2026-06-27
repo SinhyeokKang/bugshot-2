@@ -153,7 +153,13 @@ function useLinkedProps(props: string[]) {
     [props, tabId],
   );
 
-  // 분리 primitive 셀렉터로 구독 — 객체 단일 셀렉터는 Object.is 실패로 매 변경 리렌더.
+  return { linked, toggle: () => setLinked((v) => !v), setAllProps };
+}
+
+// linked 단일 필드 전용 — merged 상태를 분리 primitive 셀렉터로 구독(객체 단일 셀렉터는
+// Object.is 실패로 매 변경 리렌더). 이 훅을 쓰는 컴포넌트는 linked일 때만 마운트돼야
+// unlinked에서 불필요 구독이 안 생긴다(useLinkedProps와 분리한 이유).
+function useMergedSides(props: string[]) {
   const value = useEditorStore((s) =>
     commonEditValue(props, s.styleEdits.inlineStyle),
   );
@@ -163,13 +169,7 @@ function useLinkedProps(props: string[]) {
   const mixed = useEditorStore((s) =>
     sidesMixed(props, s.styleEdits.inlineStyle, s.selection),
   );
-
-  return {
-    linked,
-    toggle: () => setLinked((v) => !v),
-    setAllProps,
-    merged: { value, placeholder, mixed },
-  };
+  return { value, placeholder, mixed };
 }
 
 function LinkToggle({
@@ -585,27 +585,48 @@ function SideStyleSelect({
   );
 }
 
+// linked 단일 select — linked일 때만 마운트돼 merged 셀렉터를 구독한다.
+function MergedStyleSelect({
+  props,
+  set,
+  sideTitle,
+}: {
+  props: string[];
+  set: (v: string) => void;
+  sideTitle: string;
+}) {
+  const t = useT();
+  const merged = useMergedSides(props);
+  return (
+    <div className="min-w-0 flex-1">
+      <SideStyleSelect
+        prop={props[0]}
+        side="top"
+        sideTitle={sideTitle}
+        controlled={{
+          value: merged.value,
+          placeholder: merged.mixed ? t("prop.mixed") : merged.placeholder,
+          set,
+        }}
+      />
+    </div>
+  );
+}
+
 export function QuadStyleProp({ label }: { label: string }) {
   const t = useT();
-  const { linked, toggle, setAllProps, merged } = useLinkedProps(BORDER_STYLE_PROPS);
+  const { linked, toggle, setAllProps } = useLinkedProps(BORDER_STYLE_PROPS);
   const source = useCommonPropSource(BORDER_STYLE_PROPS);
 
   return (
     <PropRow label={label} source={source}>
       <div className="flex gap-1">
         {linked ? (
-          <div className="min-w-0 flex-1">
-            <SideStyleSelect
-              prop={BORDER_STYLE_PROPS[0]}
-              side="top"
-              sideTitle={t("prop.side.all")}
-              controlled={{
-                value: merged.value,
-                placeholder: merged.mixed ? t("prop.mixed") : merged.placeholder,
-                set: setAllProps,
-              }}
-            />
-          </div>
+          <MergedStyleSelect
+            props={BORDER_STYLE_PROPS}
+            set={setAllProps}
+            sideTitle={t("prop.side.all")}
+          />
         ) : (
           <div className="grid flex-1 grid-cols-4 gap-1">
             <SideStyleSelect
@@ -636,6 +657,39 @@ export function QuadStyleProp({ label }: { label: string }) {
   );
 }
 
+// linked 단일 필드(ValueCombobox) — linked일 때만 마운트돼 merged 셀렉터를 구독한다.
+// QuadProp/RadiusProp/GapPairProp 공용(아이콘·iconTitle·testId만 다름).
+function MergedSideField({
+  props,
+  set,
+  icon,
+  iconTitle,
+  testId,
+}: {
+  props: string[];
+  set: (v: string) => void;
+  icon: React.ReactNode;
+  iconTitle: string;
+  testId?: string;
+}) {
+  const t = useT();
+  const merged = useMergedSides(props);
+  return (
+    <div className="min-w-0 flex-1" data-testid={testId}>
+      <ValueCombobox
+        prop={props[0]}
+        icon={icon}
+        iconTitle={iconTitle}
+        controlled={{
+          value: merged.value,
+          placeholder: merged.mixed ? t("prop.mixed") : merged.placeholder,
+          set,
+        }}
+      />
+    </div>
+  );
+}
+
 export function QuadProp({
   label,
   prefix,
@@ -656,25 +710,20 @@ export function QuadProp({
       ],
     [explicitProps, prefix],
   );
-  const { linked, toggle, setAllProps, merged } = useLinkedProps(props);
+  const { linked, toggle, setAllProps } = useLinkedProps(props);
   const source = useCommonPropSource(props);
 
   return (
     <PropRow label={label} source={source}>
       <div className="flex gap-1">
         {linked ? (
-          <div className="min-w-0 flex-1" data-testid="merged-side-field">
-            <ValueCombobox
-              prop={props[0]}
-              icon={<AllSidesIcon className="h-3.5 w-3.5" />}
-              iconTitle={t("prop.side.all")}
-              controlled={{
-                value: merged.value,
-                placeholder: merged.mixed ? t("prop.mixed") : merged.placeholder,
-                set: setAllProps,
-              }}
-            />
-          </div>
+          <MergedSideField
+            props={props}
+            set={setAllProps}
+            icon={<AllSidesIcon className="h-3.5 w-3.5" />}
+            iconTitle={t("prop.side.all")}
+            testId="merged-side-field"
+          />
         ) : (
           <div className="grid flex-1 grid-cols-4 gap-1" data-testid="quad-sides">
             <ValueCombobox
@@ -764,25 +813,19 @@ const GAP_PROPS = ["row-gap", "column-gap"];
 
 export function GapPairProp() {
   const t = useT();
-  const { linked, toggle, setAllProps, merged } = useLinkedProps(GAP_PROPS);
+  const { linked, toggle, setAllProps } = useLinkedProps(GAP_PROPS);
   const source = useCommonPropSource(GAP_PROPS);
 
   return (
     <PropRow label="gap" source={source}>
       <div className="flex gap-1">
         {linked ? (
-          <div className="min-w-0 flex-1">
-            <ValueCombobox
-              prop="row-gap"
-              icon={<Grid2x2 className="h-3.5 w-3.5" />}
-              iconTitle={t("prop.axis.all")}
-              controlled={{
-                value: merged.value,
-                placeholder: merged.mixed ? t("prop.mixed") : merged.placeholder,
-                set: setAllProps,
-              }}
-            />
-          </div>
+          <MergedSideField
+            props={GAP_PROPS}
+            set={setAllProps}
+            icon={<Grid2x2 className="h-3.5 w-3.5" />}
+            iconTitle={t("prop.axis.all")}
+          />
         ) : (
           <div className="grid flex-1 grid-cols-2 gap-1">
             <ValueCombobox
@@ -814,25 +857,19 @@ const RADIUS_PROPS = [
 
 export function RadiusProp() {
   const t = useT();
-  const { linked, toggle, setAllProps, merged } = useLinkedProps(RADIUS_PROPS);
+  const { linked, toggle, setAllProps } = useLinkedProps(RADIUS_PROPS);
   const source = useCommonPropSource(RADIUS_PROPS);
 
   return (
     <PropRow label="radius" source={source}>
       <div className="flex gap-1">
         {linked ? (
-          <div className="min-w-0 flex-1">
-            <ValueCombobox
-              prop={RADIUS_PROPS[0]}
-              icon={<AllCornersIcon className="h-3.5 w-3.5" />}
-              iconTitle={t("prop.corner.all")}
-              controlled={{
-                value: merged.value,
-                placeholder: merged.mixed ? t("prop.mixed") : merged.placeholder,
-                set: setAllProps,
-              }}
-            />
-          </div>
+          <MergedSideField
+            props={RADIUS_PROPS}
+            set={setAllProps}
+            icon={<AllCornersIcon className="h-3.5 w-3.5" />}
+            iconTitle={t("prop.corner.all")}
+          />
         ) : (
           <div className="grid flex-1 grid-cols-4 gap-1">
             <ValueCombobox
