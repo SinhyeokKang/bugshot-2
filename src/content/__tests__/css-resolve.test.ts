@@ -21,6 +21,7 @@ import {
   splitCssTokens,
   mergeCrossOriginDecls,
   mergeCrossOriginTokens,
+  collectReferencedTokenNames,
   parseBorderShorthand,
   expandShorthands,
   type EditableHandle,
@@ -731,5 +732,47 @@ describe("mergeCrossOriginTokens", () => {
     mergeCrossOriginTokens(seen, { color: "red", "--ok": "#fff" });
     expect(seen.has("color")).toBe(false);
     expect(seen.get("--ok")).toBe("#fff");
+  });
+});
+
+describe("collectReferencedTokenNames", () => {
+  it("specified 값의 var() 참조 이름을 빈 값으로 seen에 추가", () => {
+    // naver: 정의는 CORS 시트라 못 읽지만 background-color: var(--…) 참조는 specified에
+    // 남는다. 이름만 넣으면 resolve 루프가 getComputedStyle로 실제 색을 채워 swatch가 뜬다.
+    const seen = new Map<string, string>();
+    collectReferencedTokenNames(
+      { "background-color": "var(--color-primary-background-default)" },
+      seen,
+    );
+    expect(seen.has("--color-primary-background-default")).toBe(true);
+    expect(seen.get("--color-primary-background-default")).toBe("");
+  });
+
+  it("여러 prop·여러 참조 모두 수집", () => {
+    const seen = new Map<string, string>();
+    collectReferencedTokenNames(
+      { color: "var(--fg)", border: "1px solid var(--line)" },
+      seen,
+    );
+    expect(seen.has("--fg")).toBe(true);
+    expect(seen.has("--line")).toBe(true);
+  });
+
+  it("fallback 있는 var()도 이름 추출", () => {
+    const seen = new Map<string, string>();
+    collectReferencedTokenNames({ color: "var(--fg, #fff)" }, seen);
+    expect(seen.has("--fg")).toBe(true);
+  });
+
+  it("이미 있는 이름은 덮지 않음 (definition 값 우선)", () => {
+    const seen = new Map<string, string>([["--fg", "#03A94D"]]);
+    collectReferencedTokenNames({ color: "var(--fg)" }, seen);
+    expect(seen.get("--fg")).toBe("#03A94D");
+  });
+
+  it("var() 없는 값은 무시", () => {
+    const seen = new Map<string, string>();
+    collectReferencedTokenNames({ color: "#333", padding: "8px" }, seen);
+    expect(seen.size).toBe(0);
   });
 });

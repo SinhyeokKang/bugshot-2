@@ -376,7 +376,10 @@ export function collectTokens(el?: Element): Token[] {
       /* cross-origin sheet, skip */
     }
   }
-  if (el) collectInlineTokens(el, seen);
+  if (el) {
+    collectInlineTokens(el, seen);
+    collectReferencedTokenNames(collectSpecifiedStylesWithSources(el).styles, seen);
+  }
   mergeCrossOriginTokens(seen, getCrossOriginCustomProps());
   const rootStyle = getComputedStyle(document.documentElement);
   const elStyle = el ? getComputedStyle(el) : null;
@@ -1067,6 +1070,20 @@ export function mergeCrossOriginTokens(
 ): void {
   for (const [name, val] of Object.entries(crossProps)) {
     if (name.startsWith("--") && !seen.has(name)) seen.set(name, val);
+  }
+}
+
+// 요소가 specified 값에서 실제 참조하는 var() 이름을 빈 값으로 등록. 정의가 cross-origin
+// 스코프 셀렉터(:root 아님)에 있어 mergeCrossOriginTokens도 못 잡는 변수까지 커버 —
+// 값은 collectTokens의 resolve 루프가 getComputedStyle로 채운다(출처·스코프 무관 해석).
+export function collectReferencedTokenNames(
+  styles: Record<string, string>,
+  seen: Map<string, string>,
+): void {
+  for (const value of Object.values(styles)) {
+    for (const m of value.matchAll(VAR_REF_RE)) {
+      if (!seen.has(m[1])) seen.set(m[1], "");
+    }
   }
 }
 
