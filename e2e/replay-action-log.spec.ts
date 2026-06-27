@@ -6,8 +6,8 @@ import { enterDebug, expect, test } from "./fixtures/extension";
 // 자동화 가능. action 로그는 idle 중 백그라운드 레코더가 상시 캡처하고, capture()가 trim해 첨부한다.
 // replayEnabled는 chrome.storage 영속 → afterAll에서 해제 복원(후행 spec 오염 방지).
 
-// 설정 issue 서브탭의 replay 스위치 토글. e2e 빌드는 host_permissions <all_urls>라
-// permissions.contains(BROAD_HOST_ORIGINS)가 true → 프롬프트 없이 setReplayEnabled.
+// 설정 issue 서브탭의 replay 스위치 토글. <all_urls>가 required라 권한 확인 없이
+// 즉시 setReplayEnabled(토글은 리소스 점유 opt-in일 뿐).
 async function setReplayEnabled(panel: Page, enabled: boolean): Promise<void> {
   await expect(async () => {
     await panel.getByTestId("tab-settings").click();
