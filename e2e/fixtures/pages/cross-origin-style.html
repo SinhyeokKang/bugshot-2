@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <title>bugshot e2e cross-origin stylesheet fixture</title>
+    <script>
+      // 같은 fixture 서버를 localhost 호스트명으로 참조 — 127.0.0.1 페이지와 다른 origin인
+      // stylesheet가 된다. BugShot의 specified(author rule) 채널은 cross-origin이라
+      // cssRules/fetch가 막혀 빈다(naver 로그인 버튼 = pstatic.net CSS와 같은 구조).
+      const link = document.createElement("link");
+      link.rel = "stylesheet";
+      link.href = `http://localhost:${location.port}/cross-origin-style.css`;
+      document.head.appendChild(link);
+    </script>
+  </head>
+  <body>
+    <div id="target">cross-origin styled</div>
+  </body>
+</html>

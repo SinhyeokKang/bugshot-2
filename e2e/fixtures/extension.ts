@@ -45,7 +45,11 @@ function startFixtureServer(): Promise<{ server: Server; port: number }> {
       }
       readFile(file)
         .then((body) => {
-          res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+          // .css는 text/css로 — text/html이면 Chrome이 strict MIME으로 stylesheet 거부.
+          const type = name.endsWith(".css")
+            ? "text/css; charset=utf-8"
+            : "text/html; charset=utf-8";
+          res.writeHead(200, { "content-type": type });
           res.end(body);
         })
         .catch(() => {

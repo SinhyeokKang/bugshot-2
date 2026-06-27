@@ -1,0 +1,9 @@
+#target {
+  display: grid;
+  width: 222px;
+  height: 44px;
+  margin: 20px;
+  padding: 12px;
+  background-color: rgb(10, 20, 30);
+  border: 2px solid rgb(40, 50, 60);
+}

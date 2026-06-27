@@ -15,6 +15,7 @@ import { useBoundTabId } from "@/sidepanel/hooks/useBoundTabId";
 import { useAI } from "@/sidepanel/hooks/useAI";
 import { useBufferThenSwitch } from "@/sidepanel/hooks/useBufferThenSwitch";
 import { hasStyleChange } from "@/sidepanel/lib/hasStyleChange";
+import { sectionDefaultOpen } from "@/sidepanel/lib/sectionDefaultOpen";
 import { captureElementSnapshot } from "@/sidepanel/capture";
 import {
   applyClasses,
@@ -121,8 +122,8 @@ export function SelectedPanel() {
   const [aiDialogOpen, setAiDialogOpen] = useState(false);
   if (!selection) return null;
 
-  const hasSpecified = (props: readonly string[]) =>
-    props.some((p) => p in selection.specifiedStyles);
+  const sectionOpen = (props: readonly string[]) =>
+    sectionDefaultOpen(props, selection.specifiedStyles, selection.computedStyles);
 
   const hasChange = hasStyleChange(selection, styleEdits);
   // 현재 element에 diff가 없어도 버퍼에 담긴 element가 있으면 진행 가능.
@@ -186,7 +187,7 @@ export function SelectedPanel() {
           title={t("editor.section.layout")}
           action={<SectionRevertButton props={SECTION_PROPS.layout} />}
           collapsible
-          defaultOpen={hasSpecified(SECTION_PROPS.layout)}
+          defaultOpen={sectionOpen(SECTION_PROPS.layout)}
         >
         <SelectProp
           label="display"
@@ -252,7 +253,7 @@ export function SelectedPanel() {
         title={t("editor.section.container")}
         action={<SectionRevertButton props={SECTION_PROPS.container} />}
         collapsible
-        defaultOpen={hasSpecified(SECTION_PROPS.container)}
+        defaultOpen={sectionOpen(SECTION_PROPS.container)}
       >
         <Row2>
           <TextProp label="bg-color" prop="background-color" />
@@ -266,7 +267,7 @@ export function SelectedPanel() {
         title={t("editor.section.border")}
         action={<SectionRevertButton props={SECTION_PROPS.border} />}
         collapsible
-        defaultOpen={hasSpecified(SECTION_PROPS.border)}
+        defaultOpen={sectionOpen(SECTION_PROPS.border)}
       >
         <QuadProp
           label="border-width"
@@ -293,7 +294,7 @@ export function SelectedPanel() {
         title={t("editor.section.size")}
         action={<SectionRevertButton props={SECTION_PROPS.size} />}
         collapsible
-        defaultOpen={hasSpecified(SECTION_PROPS.size)}
+        defaultOpen={sectionOpen(SECTION_PROPS.size)}
       >
         <Row2>
           <TextProp label="width" prop="width" />
@@ -313,7 +314,7 @@ export function SelectedPanel() {
         title={t("editor.section.overflow")}
         action={<SectionRevertButton props={SECTION_PROPS.overflow} />}
         collapsible
-        defaultOpen={hasSpecified(SECTION_PROPS.overflow)}
+        defaultOpen={sectionOpen(SECTION_PROPS.overflow)}
       >
         <SelectProp
           label="overflow"
@@ -367,7 +368,7 @@ export function SelectedPanel() {
         title={t("editor.section.typography")}
         action={<SectionRevertButton props={SECTION_PROPS.typography} />}
         collapsible
-        defaultOpen={hasSpecified(SECTION_PROPS.typography)}
+        defaultOpen={sectionOpen(SECTION_PROPS.typography)}
       >
         <Row2>
           <TextProp label="font-size" prop="font-size" />
@@ -388,7 +389,7 @@ export function SelectedPanel() {
         title={t("editor.section.effects")}
         action={<SectionRevertButton props={SECTION_PROPS.effects} />}
         collapsible
-        defaultOpen={hasSpecified(SECTION_PROPS.effects)}
+        defaultOpen={sectionOpen(SECTION_PROPS.effects)}
       >
         <BoxShadowProp />
         <TextProp label="filter" prop="filter" />
@@ -420,7 +421,7 @@ export function SelectedPanel() {
         title={t("editor.section.transition")}
         action={<SectionRevertButton props={SECTION_PROPS.transition} />}
         collapsible
-        defaultOpen={hasSpecified(SECTION_PROPS.transition)}
+        defaultOpen={sectionOpen(SECTION_PROPS.transition)}
       >
         <TextProp label="transition-property" prop="transition-property" />
         <Row2>
