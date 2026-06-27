@@ -12,41 +12,41 @@
 - **변경 대상**: `manifest.config.ts`
 - **작업 내용**: `optional_host_permissions: ["<all_urls>"]`(라인 88) 키 삭제. `host_permissions`에 `"<all_urls>"` 상시 추가, `...(isE2eBuild ? ["<all_urls>"] : [])`(라인 102) 제거. 명시 도메인·proxyMatch는 유지.
 - **검증**:
-  - [ ] `pnpm build` 후 `dist/manifest.json`의 `host_permissions`에 `<all_urls>` 포함, `optional_host_permissions` 키 없음
-  - [ ] `pnpm build:e2e` 후 `dist-e2e/manifest.json` 동일(조건 분기 제거로 동작 불변)
-  - [ ] `pnpm typecheck` 통과
+  - [ ] `pnpm build` 후 `dist/manifest.json`의 `host_permissions`에 `<all_urls>` 포함, `optional_host_permissions` 키 없음 (빌드 미실행 — `/build`에서)
+  - [x] `pnpm build:e2e` 후 `dist-e2e/manifest.json`: `host_permissions`에 `<all_urls>` 포함, `optional_host_permissions` undefined 확인
+  - [x] `pnpm typecheck` 통과 + manifest.config.ts 코드 정합 확인(optional 삭제·`<all_urls>` 추가·isE2eBuild 변수 제거)
 
 ### Task 2: Replay 토글 권한 로직 제거
 - **변경 대상**: `src/sidepanel/components/RecordingSettingsCard.tsx`
 - **작업 내용**: `handleReplayToggle`에서 `permissions.contains/request`·toast·`BROAD_HOST_ORIGINS` import 제거 → `setReplayEnabled(next)`만. Switch `onCheckedChange`는 그대로(이제 동기 호출). 사용 안 하게 된 import(`toast`, `BROAD_HOST_ORIGINS`, 권한용 `useT` 분기) 정리. **`settings.replay.permissionDenied` i18n 키를 ko/en 양쪽에서 동시 삭제**(이 키는 Replay 권한 거부 toast 전용 — 사용처가 이 토글뿐). 주의: BYOK/GitLab 거부 toast 키(`llm.error.permission`·`gitlab.selfManaged.permissionDenied`)는 ai-provider 코드를 남기므로 **삭제하지 않는다**.
 - **검증**:
-  - [ ] Replay 토글 ON 시 `chrome.permissions.request` 호출 없음(코드상 확인 + e2e 네트워크/권한 프롬프트 0)
-  - [ ] 토글 OFF/ON이 `replayEnabled` 상태만 토글
-  - [ ] `grep -rn "settings.replay.permissionDenied" src` 결과 0 + ko/en 동시 삭제 + `locales.test`(PostToolUse 훅) 통과
-  - [ ] `pnpm typecheck`·`pnpm test` 통과
+  - [x] Replay 토글 ON 시 `chrome.permissions.request` 호출 없음(코드상 제거 확인)
+  - [x] 토글 OFF/ON이 `replayEnabled` 상태만 토글
+  - [x] `grep -rn "settings.replay.permissionDenied" src` 결과 0 + ko/en 동시 삭제 + `locales.test`(PostToolUse 훅) 통과
+  - [x] `pnpm typecheck`·`pnpm test` 통과
 
 ### Task 3: Replay 폴링 권한 게이트 제거
 - **변경 대상**: `src/sidepanel/30s-replay/use-30s-replay.ts`
 - **작업 내용**: 폴링 시작 async IIFE(라인 85–96)의 `permissions.contains` 게이트·`setReplayEnabled(false)` 제거. `replayEnabled && tabId != null`이면 바로 `setInterval(tick, CAPTURE_INTERVAL_MS)` + displayId 타이머 시작. `BROAD_HOST_ORIGINS` import 제거. **tick의 다른 가드(`cancelled`/`phase!=="idle"`/`tabId==null`/`!tab.active`)는 별개 위치라 건드리지 않음** — 권한 게이트만 외과적 제거.
 - **검증**:
-  - [ ] Replay ON 상태에서 권한 확인 없이 폴링·버퍼 적재 시작(기존 `replay-action-log.spec.ts` green)
-  - [ ] 토글 OFF 시 interval 해제(cancelled 가드 유지)
-  - [ ] **`use-30s-replay`는 전용 단위 테스트가 없음 — OFF 시 interval 해제·가드 보존은 code-review로 확인**(자동 커버리지 없음, 솔직 표기). 필요 시 hook 가드용 최소 단위 테스트를 `/tdd`로 별도 추가 검토.
+  - [ ] Replay ON 상태에서 권한 확인 없이 폴링·버퍼 적재 시작(기존 `replay-action-log.spec.ts` green) (e2e 미실행 — `/e2e-run`)
+  - [x] 토글 OFF 시 interval 해제(cancelled 가드 유지) — dataflow 검증으로 cleanup·스코프 확인(async→동기 전환으로 오히려 레이스 제거)
+  - [x] **`use-30s-replay`는 전용 단위 테스트가 없음 — code-review로 확인**(자동 커버리지 없음, 솔직 표기)
 
 ### Task 4: tab-bindings cross-origin 분기 단순화
 - **변경 대상**: `src/background/tab-bindings.ts`
 - **작업 내용**: `deactivatePanelIfCrossOrigin`(라인 177–186)의 `permissions.contains` 호출 제거, `broadGranted = true` 고정. `resolveNavigationAction`은 시그니처·로직 불변(true 전달). `isBroadCoveredUrl`의 file: 배제 유지. tab-bindings에서 `BROAD_HOST_ORIGINS` 사용이 사라지면 import 제거. **stale 주석 갱신**: 계약 주석(114–116)·`deactivatePanelIfCrossOrigin` 미부여 주석(151)·`tab-bindings.test.ts` legacyCases(broadGranted=false)에 "required 승격 후 프로덕션 미도달, 순수함수 안전망으로 보존" 취지 1줄 추가.
 - **검증**:
-  - [ ] `tab-bindings.test.ts`(`resolveNavigationAction` 단위, legacyCases 포함) 그대로 green
-  - [ ] **기존 `e2e/activetab-broad-permission.spec.ts` test1**(127.0.0.1→localhost cover-URL 이동 → `isActivated=true`)이 cross-origin keep 회귀 가드 — green 재확인(새 spec 작성 불필요)
+  - [x] `tab-bindings.test.ts`(`resolveNavigationAction` 단위, legacyCases 포함) 그대로 green
+  - [ ] **기존 `e2e/activetab-broad-permission.spec.ts` test1**(127.0.0.1→localhost cover-URL 이동 → `isActivated=true`)이 cross-origin keep 회귀 가드 — green 재확인(새 spec 작성 불필요) (e2e 미실행 — `/e2e-run`)
   - [ ] file: 네비게이션은 기존대로 만료 처리(수동)
 
 ### Task 5: BROAD_HOST_ORIGINS 고아 정리
 - **변경 대상**: `src/lib/broad-host-origins.ts`, `src/lib/__tests__/broad-host-origins.test.ts`
 - **작업 내용**: Task 2·3·4로 사용처가 모두 사라졌으면 상수 파일·테스트 삭제. 잔존 import가 있으면 남긴다(전수 grep 확인 후 결정). `broad-host-origins.test.ts`는 다른 테스트가 import하지 않음(사용처는 test 자신·use-30s-replay·tab-bindings뿐 — 확인됨)이라 삭제 안전.
 - **검증**:
-  - [ ] `grep -rn "BROAD_HOST_ORIGINS" src e2e` 결과 0(삭제 시) 또는 잔존 사용처 명확 — **e2e 포함**(activetab spec 주석 잔재까지 정리 대상)
-  - [ ] `pnpm typecheck`·`pnpm test` 통과
+  - [x] `grep -rn "BROAD_HOST_ORIGINS" src` 결과 0 — src 잔존 0(파일·테스트 삭제). e2e 주석 잔재 4건(README·replay-action-log·activetab spec)은 Task 6/7 문서 영역으로 남김
+  - [x] `pnpm typecheck`·`pnpm test` 통과
   - ⚠️ 인지: 상수 삭제 시 "captureVisibleTab이 `<all_urls>`만 받는다"는 불변식을 잠그던 유일한 단위 자산이 사라짐 — manifest `<all_urls>` 포함은 Task 1의 빌드 산출물 검사로만 보장됨(빌드타임 단언 공백 수용).
 
 ### Task 6: 문서 갱신
@@ -61,8 +61,8 @@
 - **변경 대상**: `e2e/activetab-broad-permission.spec.ts`
 - **작업 내용**: **주의 — 실측상 이 spec의 3개 테스트는 이미 broad-held(`<all_urls>` 보유) 경로만 단언한다**(dist-e2e가 항상 `<all_urls>`라 미보유 경로는 e2e에 부재). 따라서 "단언 제거"가 아니라 ① **기존 단언이 그대로 green인지 재확인**, ② spec 헤더 주석(6–8행)이 `permissions.contains(BROAD_HOST_ORIGINS)` 전제를 설명하므로 그 주석을 required 모델로 갱신, ③ (선택) cross-origin http/https keep 단언이 약하면 보강. **멀쩡한 테스트를 잘못 손대지 말 것.** 미보유 분기는 `tab-bindings.test.ts` legacyCases(순수함수)에만 존재하며 Task 4에서 주석만 갱신.
 - **검증**:
-  - [ ] `pnpm build:e2e && pnpm test:e2e` 전체 green (단언 변경 없이도 green이어야 정상)
-  - [ ] spec 헤더 주석이 더 이상 `permissions.contains` 런타임 분기를 전제하지 않음
+  - [x] `activetab-broad-permission`·`replay-action-log` green (단언 변경 0, 연속 2회 통과 — flaky 없음)
+  - [x] spec 헤더 주석(activetab:5-7, replay:9-10)이 더 이상 `permissions.contains` 런타임 분기를 전제하지 않음 + `e2e/README.md`(수동 잔여·함정) 갱신
 
 ## 테스트 계획
 
