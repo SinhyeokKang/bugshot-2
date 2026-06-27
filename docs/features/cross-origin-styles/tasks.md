@@ -12,16 +12,16 @@
 - **변경 대상**: `src/types/messages.ts`, `src/background/bgRequestTypes.ts`, `src/background/messages.ts`
 - **작업 내용**: `BgRequest` union에 `{ type: "css.fetchSheets"; urls: string[] }` + 결과 타입 `{ sheets: Array<{url:string;text:string}> }` 추가. `BG_REQUEST_TYPES`에 `"css.fetchSheets"` 추가. `handleMessage` switch에 case 추가: **권한 게이트 없음**(`<all_urls>` required). **SSRF 가드** 순수 함수 `isFetchableSheetUrl(url)`(`http(s)` 스킴만 + loopback·link-local·사설 IP 차단)로 url 필터 → 통과분만 `Promise.allSettled(urls.map(u => fetch(u,{credentials:"omit"})))` → `res.ok` && content-type CSS류면 `res.text()`, 그 외/rejected는 제외. 성공만 `{url,text}` 수집.
 - **검증**:
-  - [ ] 단위: `isFetchableSheetUrl` — `http(s)` 통과 / `file:`·`data:`·loopback(`127.x`)·link-local(`169.254.x`)·사설(`10.x`·`192.168.x`·`172.16~31.x`) 차단
+  - [x] 단위: `isFetchableSheetUrl` — `http(s)` 통과 / `file:`·`data:`·loopback(`127.x`)·link-local(`169.254.x`)·사설(`10.x`·`192.168.x`·`172.16~31.x`) 차단
   - [ ] 단위: 일부 실패(rejected·non-ok·non-CSS)→부분결과, 전부 실패→빈배열 (fetch 모킹 부담 크면 e2e로 대체)
-  - [ ] `pnpm typecheck` 통과 (union·Set 타입 정합)
+  - [x] `pnpm typecheck` 통과 (union·Set 타입 정합)
 
 ### Task 2: cross-origin rule 인덱싱 순수 헬퍼
 - **변경 대상**: `src/content/css-source-cache.ts` (+ `__tests__/`)
 - **작업 내용**: `indexCrossOriginRules(parsed, startSeq): CrossOriginIndexedRule[]` 구현 — 실 `ParsedRule`은 `{selectorText, decls:Map}` 2필드라 **확장이 아니라 `seq`만 얹는** 구조. **소스 라벨은 부여 안 함**(descope — css-resolve가 `selectorText`를 source로 사용, `href`는 불필요해 인자 제외). `:root`/전역 `*` 선택자의 `--*` 선언을 분리 수집하는 헬퍼도(또는 동일 함수 반환에 customProps 포함).
 - **검증**:
-  - [ ] 단위: ParsedRule 입력 → seq 연속·`--*` 분리 검증
-  - [ ] `pnpm test` 통과
+  - [x] 단위: ParsedRule 입력 → seq 연속·`--*` 분리 검증
+  - [x] `pnpm test` 통과
 
 ### Task 3: cross-origin 로드·매칭 API
 - **변경 대상**: `src/content/css-source-cache.ts`
@@ -35,17 +35,17 @@
 - **변경 대상**: `src/content/css-resolve.ts`
 - **작업 내용**: `collectRulesForElement` 끝에 `getMatchingCrossOriginRules(el)` 루프 추가 — 각 rule.decls를 `out`에 **빈 prop만** 채우고 `sources[prop]=rule.selectorText`(same-origin과 동일 라벨 — descope), `--*`는 `customProps` 보충. `getCrossOriginCustomProps()`를 `customProps`에 없는 키만 병합. same-origin이 채운 prop은 불변(덮지 않음). 상속(`INHERITED_PROPS`) 부모 순회에도 동일 적용되는지 확인.
 - **검증**:
-  - [ ] 단위(jsdom): cross-origin 규칙 주입 후 `collectSpecifiedStylesWithSources(el)`가 specified·source를 채우고 `var()` 토큰이 cross-origin customProps로 해석되는지
-  - [ ] same-origin 우선: 같은 prop이 both면 same-origin 값 유지
-  - [ ] `pnpm test` 통과
+  - [x] 단위(jsdom): cross-origin 규칙 주입 후 `collectSpecifiedStylesWithSources(el)`가 specified·source를 채우고 `var()` 토큰이 cross-origin customProps로 해석되는지
+  - [x] same-origin 우선: 같은 prop이 both면 same-origin 값 유지
+  - [x] `pnpm test` 통과
 
 ### Task 5: picker 보강 흐름 연결 + stale 가드
 - **변경 대상**: `src/content/picker.ts`, `src/sidepanel/hooks/usePickerMessages.ts`(+ `src/store/editor-store.ts` 수신부)
 - **작업 내용**: `emitSelected`/`scheduleSelectionUpdate`에서 `ensureCssCacheLoaded()` 후 `await ensureCrossOriginLoaded()` 추가 → 요소 변경 가드 통과 시 `collectSelection` 재수집 → `picker.selectionUpdated` 발송. **`scheduleSelectionUpdate`에 await 후 `selectedEl !== target` 재확인 가드 추가**(현재 없음 — cross-origin 지연으로 윈도우 넓어짐). **payload에 selector 동봉 + 수신부 stale 가드**: `picker.selectionUpdated` 핸들러가 payload selector ≠ 현재 `selectedElement` selector면 무시(`picker.selected` 핸들러 패턴 동형). same-origin·cross-origin 보강이 각각 selectionUpdated를 보낼 수 있음(멱등).
 - **검증**:
   - [ ] e2e(아래 시나리오)에서 specified 보강 도착 확인
-  - [ ] 단위/e2e: 요소 빠르게 전환 시 stale 보강(A 페이로드)이 B에 반영 안 됨(수신부 가드)
-  - [ ] 회귀 테스트: stale `picker.selectionUpdated`가 현재 선택 맵을 오염시키지 않음
+  - [x] 단위/e2e: 요소 빠르게 전환 시 stale 보강(A 페이로드)이 B에 반영 안 됨(수신부 가드)
+  - [x] 회귀 테스트: stale `picker.selectionUpdated`가 현재 선택 맵을 오염시키지 않음
 
 ### Task 6: 문서 갱신 (privacy / PERMISSION)
 - **변경 대상**: `docs/privacy.md`, `PERMISSION.md`
