@@ -20,6 +20,8 @@ import {
   splitTrblValue,
   splitCssTokens,
   mergeCrossOriginDecls,
+  parseBorderShorthand,
+  expandShorthands,
   type EditableHandle,
 } from "../css-resolve";
 
@@ -151,6 +153,88 @@ describe("splitTrblValue — border-width/color shorthand 분해", () => {
       "dotted",
       "dotted",
     ]);
+  });
+});
+
+describe("parseBorderShorthand — width|style|color 분류", () => {
+  it("1px solid var(--c): var는 color로 (테마 토큰 보존)", () => {
+    expect(parseBorderShorthand("1px solid var(--color-stroke)")).toEqual({
+      width: "1px",
+      style: "solid",
+      color: "var(--color-stroke)",
+    });
+  });
+
+  it("순서 무관 + 색 함수 1토큰 보존", () => {
+    expect(parseBorderShorthand("dashed rgb(0, 0, 0) 2px")).toEqual({
+      width: "2px",
+      style: "dashed",
+      color: "rgb(0, 0, 0)",
+    });
+  });
+
+  it("thin/thick 키워드 width", () => {
+    expect(parseBorderShorthand("thin solid #f00")).toEqual({
+      width: "thin",
+      style: "solid",
+      color: "#f00",
+    });
+  });
+
+  it("색만/스타일만 부분 지정", () => {
+    expect(parseBorderShorthand("red")).toEqual({ color: "red" });
+    expect(parseBorderShorthand("none")).toEqual({ style: "none" });
+    expect(parseBorderShorthand("1px solid")).toEqual({
+      width: "1px",
+      style: "solid",
+    });
+  });
+});
+
+describe("expandShorthands — border shorthand 전개", () => {
+  it("border: 1px solid var(--c) → 네 변 변별 longhand (naver border-color 회귀)", () => {
+    const all: Record<string, string> = {
+      border: "1px solid var(--color-neutral-stroke-subtle-2)",
+    };
+    const sources: Record<string, string> = { border: ".btn" };
+    expandShorthands(all, sources);
+    for (const side of ["top", "right", "bottom", "left"]) {
+      expect(all[`border-${side}-color`]).toBe(
+        "var(--color-neutral-stroke-subtle-2)",
+      );
+      expect(all[`border-${side}-width`]).toBe("1px");
+      expect(all[`border-${side}-style`]).toBe("solid");
+      expect(sources[`border-${side}-color`]).toBe(".btn");
+    }
+  });
+
+  it("기존 longhand는 border가 안 덮음 (fill-if-absent)", () => {
+    const all: Record<string, string> = {
+      border: "1px solid red",
+      "border-top-color": "var(--accent)",
+    };
+    expandShorthands(all, {});
+    expect(all["border-top-color"]).toBe("var(--accent)");
+    expect(all["border-bottom-color"]).toBe("red");
+  });
+
+  it("per-side border-bottom shorthand는 해당 변만 전개", () => {
+    const all: Record<string, string> = {
+      "border-bottom": "2px dashed var(--c)",
+    };
+    expandShorthands(all, {});
+    expect(all["border-bottom-color"]).toBe("var(--c)");
+    expect(all["border-top-color"]).toBeUndefined();
+  });
+
+  it("per-side(구체)가 border(전체)보다 우선", () => {
+    const all: Record<string, string> = {
+      border: "1px solid red",
+      "border-top": "2px solid var(--accent)",
+    };
+    expandShorthands(all, {});
+    expect(all["border-top-color"]).toBe("var(--accent)");
+    expect(all["border-right-color"]).toBe("red");
   });
 });
 

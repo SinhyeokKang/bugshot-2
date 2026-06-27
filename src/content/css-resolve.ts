@@ -175,6 +175,29 @@ const TRBL_SHORTHANDS: Record<string, [string, string, string, string]> = {
   ],
 };
 
+const BORDER_STYLE_KEYWORDS = new Set([
+  "none",
+  "hidden",
+  "dotted",
+  "dashed",
+  "solid",
+  "double",
+  "groove",
+  "ridge",
+  "inset",
+  "outset",
+]);
+
+// border / border-{side} shorthand → 영향받는 변. per-side(구체)를 먼저 두어 fill-if-absent에서
+// `border-bottom`이 `border`보다 우선하도록(전개 순서 = 우선순위).
+const BORDER_SHORTHAND_SIDES: Record<string, readonly string[]> = {
+  "border-top": ["top"],
+  "border-right": ["right"],
+  "border-bottom": ["bottom"],
+  "border-left": ["left"],
+  border: ["top", "right", "bottom", "left"],
+};
+
 const VAR_REF_RE = /var\(\s*(--[\w-]+)(?:\s*,\s*([^)]*))?\)/g;
 const SIMPLE_VAR_FALLBACK_RE = /^\s*var\(\s*(--[\w-]+)(?:\s*,\s*[^)]*)?\s*\)\s*$/;
 const CSS_DECL_RE = /([\w-]+)\s*:\s*([^;]+)/g;
@@ -873,7 +896,7 @@ function extractVarPropsFromMap(
   }
 }
 
-function expandShorthands(
+export function expandShorthands(
   all: Record<string, string>,
   sources: Record<string, string>,
 ): void {
@@ -900,6 +923,59 @@ function expandShorthands(
       }
     }
   }
+  // border / border-{side} shorthand는 width|style|color 혼합이라 TRBL split이 아니라
+  // 토큰 분류로 변별 longhand에 분배 — `border: 1px solid var(--c)`의 color 토큰을 살린다.
+  for (const [shorthand, sides] of Object.entries(BORDER_SHORTHAND_SIDES)) {
+    if (!(shorthand in all)) continue;
+    const parts = parseBorderShorthand(all[shorthand]);
+    const origin = sources[shorthand];
+    for (const side of sides) {
+      fillIfAbsent(all, sources, `border-${side}-width`, parts.width, origin);
+      fillIfAbsent(all, sources, `border-${side}-style`, parts.style, origin);
+      fillIfAbsent(all, sources, `border-${side}-color`, parts.color, origin);
+    }
+  }
+}
+
+function fillIfAbsent(
+  all: Record<string, string>,
+  sources: Record<string, string>,
+  prop: string,
+  value: string | undefined,
+  origin: string | undefined,
+): void {
+  if (value === undefined || prop in all) return;
+  all[prop] = value;
+  if (origin) sources[prop] = origin;
+}
+
+function isBorderWidthToken(tok: string): boolean {
+  if (tok === "thin" || tok === "medium" || tok === "thick") return true;
+  if (/^-?\d*\.?\d+(px|rem|em|%|vw|vh|ch|ex|vmin|vmax|pt|pc|cm|mm|in|q)?$/i.test(tok))
+    return true;
+  return /^(calc|clamp|min|max)\(/i.test(tok);
+}
+
+// border shorthand 값을 width|style|color로 분류. 모호한 토큰(var()·함수형·named)은 color로
+// 떨어뜨려 테마 색 토큰을 살린다(실무에서 border var는 거의 색).
+export function parseBorderShorthand(value: string): {
+  width?: string;
+  style?: string;
+  color?: string;
+} {
+  const out: { width?: string; style?: string; color?: string } = {};
+  for (const tok of splitCssTokens(value.trim())) {
+    if (!tok) continue;
+    const lower = tok.toLowerCase();
+    if (BORDER_STYLE_KEYWORDS.has(lower)) {
+      out.style ??= tok;
+    } else if (isBorderWidthToken(lower)) {
+      out.width ??= tok;
+    } else {
+      out.color ??= tok;
+    }
+  }
+  return out;
 }
 
 export function splitTrblValue(
