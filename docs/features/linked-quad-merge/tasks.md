@@ -77,14 +77,25 @@
   - [ ] per-side(unlinked) 동작 회귀 없음
   - [ ] `pnpm typecheck` 통과
 
-### Task 6: diff 회귀 확인 (변경 없음 검증)
+### Task 6: border 2차 통합 (collapseShorthands) + 테스트
 
-- **변경 대상**: 없음(검증만)
-- **작업 내용**: `collapseShorthands`가 단일/4필드 어느 경로로 편집했든 동일한 shorthand diff를
-  내는지 확인. 저장 모델이 면별 longhand 그대로이므로 자동 보존돼야 함.
+- **변경 대상**: `src/sidepanel/components/StyleChangesTable.tsx`,
+  `src/sidepanel/lib/__tests__/styleChangeGroups.test.ts`
+- **작업 내용**:
+  - `collapseShorthands`에 2차 패스 추가: 1차 결과에 `border-width`+`border-style`+`border-color`
+    3행이 모두 있으면 `border: "${w.toBe} ${s.toBe} ${c.toBe}"`(asIs도 동일 조합)로 합치고 셋을 소비.
+  - CSS 표준 순서 `width style color`. 명시 `border` 행 있으면 중복 생성 금지. 삽입 위치는 `border-color`
+    자리(정렬 유지).
+  - 테스트 먼저(`/tdd`):
+    - width/style/color 셋 다 4면 동일 변경 → `border: 2px solid red` 1행
+    - color만 4면 불일치(개별 행 잔존) → border 통합 안 함, width/style만 개별 축약
+    - style/color 미변경(width만) → `border-width` 한 줄(통합 없음)
+    - asIs 빈 값(baseline 없음) 케이스 → 빈칸 조합 고정
+    - 기존 padding/margin/border-radius 1차 축약 회귀 없음
 - **검증**:
-  - [ ] `pnpm test styleChangeGroups` 통과
+  - [ ] `pnpm test styleChangeGroups` 통과(신규 케이스 포함)
   - [ ] `pnpm test buildIssueMarkdown` 통과
+  - [ ] UI 편집 경로(단일/4필드) 무관하게 동일 diff — 저장 모델 longhand 보존 확인
 
 ### Task 7: 수동 시각 확인 (Chrome)
 
@@ -106,16 +117,21 @@
   - "padding LinkToggle을 끄면 입력 필드가 4개로 늘어난다"
   - "linked 단일 필드에 16px을 입력하면 4면 모두 16px이 된다"
   - "linked로 4면을 16px로 만든 뒤 이슈 본문을 만들면 diff에 `padding: 16px` 한 줄이 나온다"
+  - "border-width/style/color를 모두 linked로 동일 변경한 뒤 이슈 본문을 만들면 diff에
+    `border: 2px solid red` 한 줄이 나온다"
   - ※ 필드 개수가 모드별 4↔1로 바뀌므로 안정적 셀렉터용 `data-testid`(예: linked 단일 필드,
     LinkToggle) 추가가 필요할 수 있다 — `/e2e-write`에서 src 수정은 `data-testid` 추가만 허용.
 - **수동 테스트**: Task 7(시각 정합·좁은 폭 리플로우).
 
 ## 구현 순서 권장
 
-1. **Task 1**(순수 함수 + 테스트) → **Task 2**(i18n): 독립, 병렬 가능.
-2. **Task 3**(useLinkedProps merged): Task 1 의존.
-3. **Task 4**(Quad/Radius/Gap) · **Task 5**(QuadStyle/SideStyleSelect): Task 2·3 의존, 서로 병렬 가능.
-4. **Task 6**(diff 회귀) · **Task 7**(수동): 마지막.
+- **Task 6**(border 2차 통합 diff)은 UI 트랙(Task 1~5)과 **완전히 독립** — 다른 파일·다른 관심사.
+  병렬로 먼저 끝내도 된다.
+- UI 트랙:
+  1. **Task 1**(순수 함수 + 테스트) → **Task 2**(i18n): 독립, 병렬 가능.
+  2. **Task 3**(useLinkedProps merged): Task 1 의존.
+  3. **Task 4**(Quad/Radius/Gap) · **Task 5**(QuadStyle/SideStyleSelect): Task 2·3 의존, 서로 병렬 가능.
+- **Task 7**(수동 시각 확인): 전체 마지막.
 
 ## 가이드 영향
 

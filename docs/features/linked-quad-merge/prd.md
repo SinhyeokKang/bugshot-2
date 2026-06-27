@@ -19,16 +19,16 @@
 - `LinkToggle`은 두 모드 모두에서 그대로 노출돼 모드 전환이 가능하다.
 - 4면 값이 서로 다른 상태에서 linked를 켜면 단일 필드는 값을 비우고 placeholder를 `mixed`로 표시한다
   (사용자가 새 값을 입력해야 4면이 통일된다 — 기존 값을 임의로 덮어쓰지 않는다).
+- **(추가) 이슈 draft diff의 `border` 완전 통합**: `border-width`·`border-style`·`border-color`가
+  **셋 다 4면 동일값으로 변경**됐을 때, 3줄(`border-width`/`border-style`/`border-color`) 대신
+  `border: <width> <style> <color>` **한 줄**로 합쳐 출력한다.
 
 ## 비목표 (Non-goals)
 
-- **이슈 draft의 CSS diff shorthand 축약은 변경하지 않는다.** `collapseShorthands`(StyleChangesTable.tsx)가
-  이미 4면 동일값을 `padding`/`margin`/`border-width`/`border-color`/`border-style`/`border-radius`
-  한 줄로 합쳐 출력한다. 트리거 조건(linked 토글 무관, "4면 값이 동일")도 현행 유지.
-- `border-width`+`border-style`+`border-color`를 완전한 `border: 2px solid red` 한 줄로 통합하지 않는다
-  (3줄 유지).
+- 기존 shorthand 축약의 트리거 조건(linked 토글 무관, "4면 값이 동일")은 바꾸지 않는다.
+  `padding`/`margin`/`border-width`/`border-color`/`border-style`/`border-radius` 1차 축약은 현행 유지.
 - linked 초기 자동 판정 로직(`sidesAllEqual` — 선택 요소의 4면이 같으면 linked로 시작)은 바꾸지 않는다.
-- 상태/스토리지/메시지 모델 변경 없음. 순수 UI 표현 변경.
+- (UI) 상태/스토리지/메시지 모델 변경 없음. UI 측은 순수 표현 변경. 저장 모델은 면별 longhand 유지.
 
 ## 사용자 시나리오
 
@@ -42,6 +42,9 @@
    placeholder가 `mixed`. 사용자가 값을 입력하면 4면 통일.
 6. border 묶음: width/color는 `QuadProp`, style은 `QuadStyleProp`(select). linked면 각각 단일
    필드/단일 select로 접힌다.
+7. (diff) border-width `2px`·border-style `solid`·border-color `red`를 모두 4면 동일하게 바꾼 뒤
+   이슈를 만들면 본문 diff에 `border | … | 2px solid red` 한 줄이 나온다. 셋 중 일부만 바꿨다면
+   바뀐 것만 개별 줄(`border-width: 2px` 등)로 나온다.
 
 ## 성공 기준
 
@@ -50,5 +53,6 @@
 - 단일 필드 입력 → 4면 동시 반영(`setAllProps` 경로 그대로).
 - 4면 불일치 + linked → 단일 필드 placeholder가 `mixed`, value는 빈 값.
 - 적용 대상: margin, padding, border-width, border-color, border-style, border-radius, gap 전부.
-- 이슈 draft diff 출력은 변경 전과 동일(회귀 없음).
-- 단위 테스트(공통값/mixed 판정)·기존 테스트 모두 통과.
+- diff: border width/style/color 셋 다 4면 동일 변경 시 `border: W S C` 한 줄. 일부만 변경 시 개별 줄.
+  padding/margin 등 기존 1차 축약은 회귀 없음.
+- 단위 테스트(공통값/mixed 판정 + border 2차 통합)·기존 테스트 모두 통과.

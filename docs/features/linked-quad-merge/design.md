@@ -68,10 +68,19 @@ export function sidesMixed(
 - **변경 없음.** `controlled?: { value; placeholder; set }` prop이 이미 존재(39–58행). 단일 필드는
   `controlled={{ value: merged.value, placeholder: merged.mixed ? t("prop.mixed") : merged.placeholder, set: setAllProps }}`로 호출.
 
-### `src/sidepanel/components/StyleChangesTable.tsx`
+### `src/sidepanel/components/StyleChangesTable.tsx` (border 2차 통합)
 
-- **변경 없음.** diff shorthand 축약(`collapseShorthands`/`SHORTHAND_GROUPS`)은 이미 4면 동일값을
-  합쳐 출력하며 이번 스코프에서 그대로 둔다(prd 비목표).
+- `collapseShorthands`(229–263행)에 **2차 패스** 추가. 1차 패스(면→`border-width`/`border-style`/
+  `border-color`)가 끝난 `result`에서 세 행이 **모두 존재**하면 `border` 한 행으로 합치고 셋을 소비한다.
+  - 조합 순서는 CSS 표준 `width style color`:
+    `toBe = "${w.toBe} ${s.toBe} ${c.toBe}"`, `asIs = "${w.asIs} ${s.asIs} ${c.asIs}"`(빈 asIs는 빈칸).
+  - 세 행 중 하나라도 없으면(=변경 안 됨 또는 4면 불일치라 1차 미축약) 통합하지 않는다 → 부분 변경
+    자동 처리.
+  - 명시 `border` 행이 이미 있으면(`rows.some(r => r.prop === "border")`) 중복 생성 금지(기존 가드 패턴).
+  - 삽입 위치: 정렬상 가장 앞서는 `border-color` 자리(`collapsedAt` 동일 패턴)에 끼워 순서 유지.
+- 1차 `SHORTHAND_GROUPS`·트리거 조건은 변경 없음. border 2차만 추가.
+- `buildStyleDiff`는 `collapseShorthands` 결과를 그대로 반환하므로 모든 플랫폼 body builder(markdown/
+  ADF/Notion/meta JSON)에 자동 반영 — 각 builder 수정 불필요.
 
 ## 데이터 흐름
 
@@ -90,6 +99,16 @@ export function sidesMixed(
 
 단일 필드는 표시(read)만 4면 공통값으로 묶고, 저장 모델은 그대로 면별 longhand다. 따라서 diff
 축약·issue 출력은 자동으로 한 줄로 유지된다.
+
+border 2차 통합 흐름:
+
+```
+inlineStyle(border-*-width/style/color 12개 longhand)
+  → buildStyleDiff → collapseShorthands
+     1차: border-top/right/bottom/left-width(4면 동일) → border-width 행 (style·color 동일)
+     2차: border-width + border-style + border-color 3행 존재 → border: "2px solid red" 1행
+  → StyleDiffRow[]("border" 1행) → 각 플랫폼 body builder
+```
 
 ## 인터페이스 설계
 
@@ -152,3 +171,11 @@ function SideStyleSelect(props: {
   단위 테스트로 고정.
 - e2e: 필드 개수가 모드에 따라 4↔1로 바뀌므로 기존 e2e 셀렉터가 per-side 필드를 직접 잡고 있으면
   깨질 수 있다. `data-testid` 확인 필요(tasks 참조).
+- **border 2차 통합 — asIs 조합의 빈 값**: width/style/color 중 baseline이 비어 있으면(`specifiedStyles`·
+  `computedStyles`에 없음) asIs 조합에 빈칸이 생긴다(`" solid red"`). 기존 개별 행도 asIs를 빈 문자열로
+  노출하므로 일관성은 유지되나, 단위 테스트로 빈 asIs 케이스를 고정한다.
+- **border 2차 통합 — 1차 미축약 잔존**: width는 4면 동일이라 `border-width`로 축약됐지만 color는 4면
+  불일치라 `border-top-color` 등 개별 행이 남는 경우, `border-color` 행이 없으므로 2차 통합은 일어나지
+  않아야 한다(부분 통합 금지). 이 케이스 회귀 테스트 필요.
+- **border 2차는 1차 패스 이후에만**: `result` 구성 후(또는 1차 collapsedAt 반영 후) 한 번 더 스캔하는
+  순서를 지켜야 한다. 1차와 동시에 처리하면 border-width/style/color 행이 아직 안 만들어져 누락된다.
