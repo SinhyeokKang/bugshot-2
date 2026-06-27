@@ -103,7 +103,9 @@ shorthand(var 포함) + 같은 shorthand의 longhand override 조합에서 Chrom
 
 매핑: parsed rule list와 `sheet.cssRules`를 순서+selectorText로 1:1 매핑. mismatch 시 CSSOM fallback. `collectSpecifiedFromRules`에서 `getRawDeclarationsFor(rule)` 우선, null이면 CSSOM fallback.
 
-비동기 영향: `picker.collectTokens` 등 메시지 핸들러가 `await ensureCssCacheLoaded()`. content script는 `return true` + IIFE 패턴. 여전히 못 잡는 케이스: CORS 헤더 없는 cross-origin stylesheet.
+비동기 영향: `picker.collectTokens` 등 메시지 핸들러가 `await ensureCssCacheLoaded()`. content script는 `return true` + IIFE 패턴.
+
+**cross-origin 보강 (병렬 경로)**: cross-origin stylesheet는 `cssRules` 접근이 `SecurityError`라 same-origin 정렬 경로에 못 끼운다. content(ISOLATED)는 직접 fetch도 불가(CORS)하므로, **background가 raw CSS를 대신 fetch**한다 — `ensureCrossOriginLoaded()`가 `collectCrossOriginHrefs()`로 타 origin `<link>` href를 모아 `css.fetchSheets` RPC(`background/messages.ts:fetchCssSheets`, `<all_urls>` CORS 우회)로 위임. background는 **SSRF 가드**(`lib/ssrf-guard.ts:isFetchableSheetUrl` — loopback·사설·link-local·IPv6 ULA·IPv4-mapped 차단)를 통과한 공개 http(s) 호스트만 `credentials:omit`·`redirect:manual`·2MB 캡으로 읽는다. 받은 텍스트를 `parseStylesheet`로 파싱 → `indexCrossOriginRules`가 seq 부여 + `:root`/`html`/`*`의 `--*`를 customProps로 분리 → `getMatchingCrossOriginRules(el)`가 `el.matches(selectorText)`로 매칭(throw는 rule별 skip) → `css-resolve.ts:mergeCrossOriginDecls`가 **빈 specified prop만** 채운다(same-origin·inline 우선, source = selectorText). 멱등(`crossLoadPromise`)이고 `invalidate()`에서 함께 초기화. picker는 `ensureCrossOriginLoaded` 완료 후 **2차/3차 `picker.selectionUpdated`**를 비동기 발화하며, payload selector ≠ 현재 선택이면 무시하는 stale 가드(picker `selectedEl !== el` 재확인 + store `updateSelectionStyles` selector 비교)로 늦은 보강이 타 요소를 오염시키지 않게 한다. 여전히 못 잡는 케이스: SSRF 가드 차단·네트워크 실패로 fetch 불가한 sheet(조용히 computed fallback).
 
 ## 백그라운드 로그 캡처 (Network / Console / Action)
 
