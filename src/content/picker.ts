@@ -48,6 +48,7 @@ import {
 import { PICKER_PORT_NAME } from "@/lib/session-keys";
 import { postToRuntime } from "./post-to-runtime";
 import {
+  ensureCrossOriginLoaded,
   ensureLoaded as ensureCssCacheLoaded,
   invalidate as invalidateCssCache,
   isCacheReady as isCssCacheReady,
@@ -663,35 +664,43 @@ function onKeyDown(e: KeyboardEvent): void {
   postToRuntime({ type: "picker.cancelled" });
 }
 
-function emitSelected(el: Element): void {
-  const sendInitial = (): void => {
-    const payload = collectSelection(
-      el,
-      buildSelector,
-      parentOf(el) !== null,
-      firstChildOf(el) !== null,
-    );
-    postToRuntime({ type: "picker.selected", payload });
-  };
-  sendInitial();
-  if (isCssCacheReady()) return;
-  void ensureCssCacheLoaded().then(() => {
-    if (selectedEl !== el) return;
-    const payload = collectSelection(
-      el,
-      buildSelector,
-      parentOf(el) !== null,
-      firstChildOf(el) !== null,
-    );
-    postToRuntime({
-      type: "picker.selectionUpdated",
-      payload: {
-        specifiedStyles: payload.specifiedStyles,
-        propSources: payload.propSources,
-        computedStyles: payload.computedStyles,
-      },
-    });
+function postSelectionUpdate(el: Element): void {
+  const payload = collectSelection(
+    el,
+    buildSelector,
+    parentOf(el) !== null,
+    firstChildOf(el) !== null,
+  );
+  postToRuntime({
+    type: "picker.selectionUpdated",
+    payload: {
+      selector: payload.selector,
+      specifiedStyles: payload.specifiedStyles,
+      propSources: payload.propSources,
+      computedStyles: payload.computedStyles,
+    },
   });
+}
+
+function emitSelected(el: Element): void {
+  const payload = collectSelection(
+    el,
+    buildSelector,
+    parentOf(el) !== null,
+    firstChildOf(el) !== null,
+  );
+  postToRuntime({ type: "picker.selected", payload });
+  void (async () => {
+    if (!isCssCacheReady()) {
+      await ensureCssCacheLoaded();
+      if (selectedEl !== el) return;
+      postSelectionUpdate(el);
+    }
+    // cross-origin author 보강은 background fetch라 더 늦게 도착 — 2차 selectionUpdated.
+    await ensureCrossOriginLoaded();
+    if (selectedEl !== el) return;
+    postSelectionUpdate(el);
+  })();
 }
 
 let selectionUpdateTimer: number | null = null;
@@ -706,20 +715,11 @@ function scheduleSelectionUpdate(): void {
     const target = selectedEl;
     void (async () => {
       await ensureCssCacheLoaded();
-      const payload = collectSelection(
-        target,
-        buildSelector,
-        parentOf(target) !== null,
-        firstChildOf(target) !== null,
-      );
-      postToRuntime({
-        type: "picker.selectionUpdated",
-        payload: {
-          specifiedStyles: payload.specifiedStyles,
-          propSources: payload.propSources,
-          computedStyles: payload.computedStyles,
-        },
-      });
+      if (selectedEl !== target) return;
+      postSelectionUpdate(target);
+      await ensureCrossOriginLoaded();
+      if (selectedEl !== target) return;
+      postSelectionUpdate(target);
     })();
   }, 120);
 }

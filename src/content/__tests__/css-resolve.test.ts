@@ -3,6 +3,8 @@ import { describe, it, expect, vi } from "vitest";
 vi.mock("../css-source-cache", () => ({
   getMatchingRules: () => [],
   getRawDeclarationsFor: () => null,
+  getMatchingCrossOriginRules: () => [],
+  getCrossOriginCustomProps: () => ({}),
 }));
 
 import {
@@ -17,6 +19,7 @@ import {
   shouldRestoreEditable,
   splitTrblValue,
   splitCssTokens,
+  mergeCrossOriginDecls,
   type EditableHandle,
 } from "../css-resolve";
 
@@ -465,5 +468,77 @@ describe("shouldRestoreEditable", () => {
     };
     expect(shouldRestoreEditable(handle, "hello")).toBe(false);
     expect(shouldRestoreEditable(handle, "world")).toBe(true);
+  });
+});
+
+describe("mergeCrossOriginDecls", () => {
+  const co = (selectorText: string, decls: Record<string, string>) => ({
+    selectorText,
+    decls: new Map(Object.entries(decls)),
+  });
+
+  it("빈 prop을 cross-origin 값으로 채우고 source는 selectorText", () => {
+    const out: Record<string, string> = {};
+    const sources: Record<string, string> = {};
+    mergeCrossOriginDecls(out, sources, {}, [co(".card", { padding: "12px" })], {});
+    expect(out.padding).toBe("12px");
+    expect(sources.padding).toBe(".card");
+  });
+
+  it("same-origin이 이미 채운 prop은 보존 (cross-origin이 덮지 않음)", () => {
+    const out: Record<string, string> = { color: "green" };
+    const sources: Record<string, string> = { color: ".same" };
+    mergeCrossOriginDecls(out, sources, {}, [co(".x", { color: "red" })], {});
+    expect(out.color).toBe("green");
+    expect(sources.color).toBe(".same");
+  });
+
+  it("cross-origin 규칙끼리는 뒤(seq 큰) 규칙이 override", () => {
+    const out: Record<string, string> = {};
+    const sources: Record<string, string> = {};
+    // 호출부가 seq 오름차순으로 정렬해 전달
+    mergeCrossOriginDecls(
+      out,
+      sources,
+      {},
+      [co(".a", { color: "red" }), co(".b", { color: "blue" })],
+      {},
+    );
+    expect(out.color).toBe("blue");
+    expect(sources.color).toBe(".b");
+  });
+
+  it("--*를 customProps에 보충해 기존 규칙(private --_)으로 var() 해석", () => {
+    const customProps: Record<string, string> = {};
+    mergeCrossOriginDecls(
+      {},
+      {},
+      customProps,
+      [co(".card", { color: "var(--_brand)" })],
+      { "--_brand": "#06c" },
+    );
+    expect(customProps["--_brand"]).toBe("#06c");
+    // resolveVarChain은 same-origin과 동일하게 private --_ 변수만 펼친다.
+    expect(resolveVarChain("var(--_brand)", customProps)).toBe("#06c");
+  });
+
+  it("이미 있는 customProps 키는 cross-origin이 덮지 않음", () => {
+    const customProps: Record<string, string> = { "--_brand": "#000" };
+    mergeCrossOriginDecls({}, {}, customProps, [], { "--_brand": "#fff" });
+    expect(customProps["--_brand"]).toBe("#000");
+  });
+
+  it("wantedProps 지정 시 그 외 prop은 무시", () => {
+    const out: Record<string, string> = {};
+    mergeCrossOriginDecls(
+      out,
+      {},
+      {},
+      [co(".x", { color: "red", padding: "8px" })],
+      {},
+      new Set(["color"]),
+    );
+    expect(out.color).toBe("red");
+    expect(out.padding).toBeUndefined();
   });
 });

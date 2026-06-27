@@ -3,7 +3,13 @@ import type {
   Token,
   TokenCategory,
 } from "@/types/picker";
-import { getMatchingRules, getRawDeclarationsFor } from "./css-source-cache";
+import {
+  getCrossOriginCustomProps,
+  getMatchingRules,
+  getMatchingCrossOriginRules,
+  getRawDeclarationsFor,
+  type CrossOriginRule,
+} from "./css-source-cache";
 import { NAMED_COLORS } from "@/lib/named-colors";
 
 export const INTERESTING_PROPS = [
@@ -764,6 +770,44 @@ function collectRulesForElement(
         sources[shorthand] = "[inline]";
       }
     }
+  }
+  // cross-origin author 규칙은 same-origin·inline이 채운 뒤 빈 prop만 보강한다.
+  mergeCrossOriginDecls(
+    out,
+    sources,
+    customProps,
+    getMatchingCrossOriginRules(el),
+    getCrossOriginCustomProps(),
+    wantedProps,
+  );
+}
+
+// 순수: same-origin이 이미 채운 prop은 보존하고(빈 prop만 채움), cross-origin 규칙끼리는
+// seq 큰 게 override. --*는 customProps에 보충(없는 키만). var() 해석은 호출부에서 별도.
+export function mergeCrossOriginDecls(
+  out: Record<string, string>,
+  sources: Record<string, string>,
+  customProps: Record<string, string>,
+  rules: CrossOriginRule[],
+  crossCustomProps: Record<string, string>,
+  wantedProps?: Set<string>,
+): void {
+  const sameOriginKeys = new Set(Object.keys(out));
+  for (const rule of rules) {
+    for (const [name, val] of rule.decls) {
+      if (!val) continue;
+      if (name.startsWith("--")) {
+        if (!customProps[name]) customProps[name] = val.trim();
+        continue;
+      }
+      if (wantedProps && !wantedProps.has(name)) continue;
+      if (sameOriginKeys.has(name)) continue;
+      out[name] = val;
+      sources[name] = rule.selectorText;
+    }
+  }
+  for (const name in crossCustomProps) {
+    if (!customProps[name]) customProps[name] = crossCustomProps[name];
   }
 }
 

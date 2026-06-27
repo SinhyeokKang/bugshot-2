@@ -42,4 +42,19 @@ describe("sectionDefaultOpen", () => {
   it("specified·computed 둘 다 전무하면 접는다", () => {
     expect(sectionDefaultOpen(PROPS, {}, {})).toBe(false);
   });
+
+  // cross-origin 부분 보강: 보강이 다른 섹션 prop만 채우면(여기선 color) 이 섹션은
+  // anySpecified=true 분기로 접힌다. design.md 위험요소에 명시된 수용된 트레이드오프 —
+  // 보강 전(specified 전무) computed fallback으로 열려 있던 게 보강 후 접힐 수 있음을 락.
+  it("cross-origin 부분 보강 — 미보강 섹션은 접힌다(수용된 트레이드오프)", () => {
+    expect(
+      sectionDefaultOpen(PROPS, { color: "var(--brand)" }, { margin: "8px" }),
+    ).toBe(false);
+  });
+
+  it("cross-origin 보강 실패(specified 전무) — computed fallback 유지", () => {
+    expect(
+      sectionDefaultOpen(PROPS, {}, { margin: "8px", padding: "4px" }),
+    ).toBe(true);
+  });
 });

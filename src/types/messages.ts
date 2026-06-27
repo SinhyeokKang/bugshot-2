@@ -224,7 +224,8 @@ export type BgRequest =
   | { type: "clickup.updateTaskMarkdown"; taskId: string; markdownContent: string }
   | { type: "clickup.getTaskStatus"; taskId: string }
   | { type: "clickup.setCompleted"; taskId: string; completed: boolean }
-  | { type: "analytics.capture"; event: string; properties: Record<string, string> };
+  | { type: "analytics.capture"; event: string; properties: Record<string, string> }
+  | { type: "css.fetchSheets"; urls: string[] };
 
 // handleMessage를 거치지 않는 bg→sidepanel 내부 통신 메시지.
 export type BgInternalMessage =

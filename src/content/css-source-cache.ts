@@ -12,6 +12,8 @@
  * 캐시 정책: 픽커 세션 단위. ensureLoaded는 멱등. invalidate + MutationObserver로 재로드.
  */
 
+import { sendBg } from "@/types/messages";
+
 const ruleToRaw = new Map<CSSStyleRule, Map<string, string>>();
 let loadPromise: Promise<void> | null = null;
 let isReady = false;
@@ -69,6 +71,9 @@ export function invalidate(): void {
   loadPromise = null;
   isReady = false;
   ruleIndex = null;
+  crossOriginRules = [];
+  crossOriginCustomProps = {};
+  crossLoadPromise = null;
 }
 
 export function getMatchingRules(el: Element): CSSStyleRule[] {
@@ -736,4 +741,121 @@ function parseDeclBlock(text: string, out: Map<string, string>): void {
     if (prop && value) out.set(prop, value);
     i = valueEnd + 1;
   }
+}
+
+/* ── cross-origin author rules ───────────────────── */
+
+export interface CrossOriginRule {
+  selectorText: string;
+  decls: Map<string, string>;
+}
+export interface CrossOriginIndexedRule extends CrossOriginRule {
+  seq: number;
+}
+
+const GLOBAL_CUSTOM_PROP_SELECTORS = new Set([":root", "html", "*"]);
+
+let crossOriginRules: CrossOriginIndexedRule[] = [];
+let crossOriginCustomProps: Record<string, string> = {};
+let crossLoadPromise: Promise<void> | null = null;
+
+// 순수: parseStylesheet 결과에 seq를 부여하고 :root/전역 * 선택자의 --* 커스텀
+// 프로퍼티를 customProps로 분리 수집한다 (스코프 --*는 decls에 잔류).
+export function indexCrossOriginRules(
+  parsed: ParsedRule[],
+  startSeq: number,
+): { rules: CrossOriginIndexedRule[]; customProps: Record<string, string> } {
+  const rules: CrossOriginIndexedRule[] = [];
+  const customProps: Record<string, string> = {};
+  let seq = startSeq;
+  for (const p of parsed) {
+    rules.push({ selectorText: p.selectorText, decls: p.decls, seq: seq++ });
+    if (GLOBAL_CUSTOM_PROP_SELECTORS.has(p.selectorText.trim().toLowerCase())) {
+      for (const [name, val] of p.decls) {
+        if (name.startsWith("--") && !(name in customProps)) {
+          customProps[name] = val;
+        }
+      }
+    }
+  }
+  return { rules, customProps };
+}
+
+// content(ISOLATED)는 cross-origin sheet를 직접 fetch 못 하므로 background에 위임.
+// 멱등 — 픽커 세션 단위로 1회 배치 fetch.
+export function ensureCrossOriginLoaded(): Promise<void> {
+  if (crossLoadPromise) return crossLoadPromise;
+  crossLoadPromise = loadCrossOrigin();
+  return crossLoadPromise;
+}
+
+async function loadCrossOrigin(): Promise<void> {
+  const urls = collectCrossOriginHrefs();
+  if (urls.length === 0) return;
+  let sheets: Array<{ url: string; text: string }>;
+  try {
+    const res = await sendBg<{ sheets: Array<{ url: string; text: string }> }>({
+      type: "css.fetchSheets",
+      urls,
+    });
+    sheets = res.sheets;
+  } catch {
+    return;
+  }
+  let seq = crossOriginRules.length;
+  for (const sheet of sheets) {
+    const parsed: ParsedRule[] = [];
+    parseStylesheet(sheet.text, parsed);
+    const { rules, customProps } = indexCrossOriginRules(parsed, seq);
+    seq += rules.length;
+    crossOriginRules.push(...rules);
+    for (const name in customProps) {
+      if (!(name in crossOriginCustomProps)) {
+        crossOriginCustomProps[name] = customProps[name];
+      }
+    }
+  }
+  dlog("cross-origin loaded", {
+    sheets: sheets.length,
+    rules: crossOriginRules.length,
+    customProps: Object.keys(crossOriginCustomProps).length,
+  });
+}
+
+function collectCrossOriginHrefs(): string[] {
+  const hrefs: string[] = [];
+  const seen = new Set<string>();
+  for (const sheet of collectAllSheets()) {
+    const owner = sheet.ownerNode;
+    if (!(owner instanceof HTMLLinkElement) || !sheet.href) continue;
+    try {
+      const url = new URL(sheet.href, location.href);
+      if (url.origin !== location.origin && !seen.has(sheet.href)) {
+        seen.add(sheet.href);
+        hrefs.push(sheet.href);
+      }
+    } catch {
+      /* skip malformed href */
+    }
+  }
+  return hrefs;
+}
+
+// same-origin getMatchingRules와 달리 byClass/byTag 인덱스 없이 선형 스캔한다 — 보강 경로는
+// 120ms 디바운스된 selection 이벤트에서만 돌고(hover 아님) sheet 사이즈도 캡돼 있어 별도
+// 인덱스는 과설계. el.matches throw(비표준 selector)는 해당 rule만 skip.
+export function getMatchingCrossOriginRules(el: Element): CrossOriginRule[] {
+  const matched = crossOriginRules.filter((r) => {
+    try {
+      return el.matches(r.selectorText);
+    } catch {
+      return false;
+    }
+  });
+  matched.sort((a, b) => a.seq - b.seq);
+  return matched;
+}
+
+export function getCrossOriginCustomProps(): Record<string, string> {
+  return crossOriginCustomProps;
 }

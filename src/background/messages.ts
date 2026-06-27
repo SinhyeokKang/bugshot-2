@@ -5,6 +5,7 @@ import { adfMediaNode, adfMediaSingle, adfVideoMediaSingle, type MediaSource } f
 import { injectLogsLink } from "@/background/lib/adf-logs-link";
 import { injectSnapshotRows } from "@/background/injectSnapshotRows";
 import { injectIssueUrl } from "@/lib/inject-issue-url";
+import { isFetchableSheetUrl } from "@/lib/ssrf-guard";
 import type { JiraAttachmentInput, JiraAuth, JiraCreateIssuePayload, JiraSubmitResult } from "@/types/jira";
 import type { GithubAuth } from "@/types/github";
 import type { BgRequest } from "@/types/messages";
@@ -629,11 +630,42 @@ export async function handleMessage(
     case "analytics.capture":
       return captureEvent(message.event, message.properties);
 
+    case "css.fetchSheets":
+      return { sheets: await fetchCssSheets(message.urls) };
+
     default: {
       const _exhaustive: never = message;
       throw new Error(`unknown message: ${JSON.stringify(_exhaustive)}`);
     }
   }
+}
+
+// cross-origin 스타일 보강용. content가 보낸 page-controlled href를 SSRF 가드로 거른 뒤
+// host_permissions(<all_urls>) CORS 우회로 fetch. credentials 미포함, CSS 응답만 수집.
+// 부분 실패 허용 — 차단/실패 url은 결과에서 제외.
+// redirect:"manual" — 가드를 통과한 공개 url이 내부망(169.254/loopback)으로 302 우회하는
+// SSRF를 차단(opaqueredirect는 res.ok=false라 자동 drop). 사이즈 캡으로 파싱 폭주 방지.
+const MAX_SHEET_BYTES = 2_000_000;
+async function fetchCssSheets(
+  urls: string[],
+): Promise<Array<{ url: string; text: string }>> {
+  const allowed = urls.filter(isFetchableSheetUrl);
+  const settled = await Promise.allSettled(
+    allowed.map(async (url) => {
+      const res = await fetch(url, { credentials: "omit", redirect: "manual" });
+      if (!res.ok) return null;
+      const type = res.headers.get("content-type") ?? "";
+      if (type && !type.toLowerCase().includes("css")) return null;
+      const text = await res.text();
+      if (text.length > MAX_SHEET_BYTES) return null;
+      return { url, text };
+    }),
+  );
+  const sheets: Array<{ url: string; text: string }> = [];
+  for (const r of settled) {
+    if (r.status === "fulfilled" && r.value) sheets.push(r.value);
+  }
+  return sheets;
 }
 
 async function submitIssue(
