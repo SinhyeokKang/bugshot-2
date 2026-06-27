@@ -793,6 +793,12 @@ export function mergeCrossOriginDecls(
   wantedProps?: Set<string>,
 ): void {
   const sameOriginKeys = new Set(Object.keys(out));
+  // same-origin shorthand(padding 등)이 점유한 longhand도 claimed 처리 — 아직 안 펼쳐진
+  // shorthand를 cross-origin longhand가 우회해 덮어쓰는 split(same-origin wins 위반) 방지.
+  for (const key of [...sameOriginKeys]) {
+    const longhands = SHORTHAND_MAP[key];
+    if (longhands) for (const lh of longhands) sameOriginKeys.add(lh);
+  }
   for (const rule of rules) {
     for (const [name, val] of rule.decls) {
       if (!val) continue;

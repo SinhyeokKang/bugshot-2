@@ -493,6 +493,33 @@ describe("mergeCrossOriginDecls", () => {
     expect(sources.color).toBe(".same");
   });
 
+  it("아직 안 펼쳐진 same-origin shorthand의 longhand는 cross-origin이 못 덮음 (split 방지)", () => {
+    // collectRulesForElement는 expandShorthands 전에 merge하므로 out엔 shorthand만 있다.
+    const out: Record<string, string> = { padding: "10px" };
+    const sources: Record<string, string> = { padding: ".same" };
+    mergeCrossOriginDecls(
+      out,
+      sources,
+      {},
+      [co(".card", { "padding-left": "3px" })],
+      {},
+    );
+    expect(out["padding-left"]).toBeUndefined();
+  });
+
+  it("same-origin shorthand 없는 longhand는 cross-origin이 정상 보강", () => {
+    const out: Record<string, string> = {};
+    const sources: Record<string, string> = {};
+    mergeCrossOriginDecls(
+      out,
+      sources,
+      {},
+      [co(".card", { "padding-left": "3px" })],
+      {},
+    );
+    expect(out["padding-left"]).toBe("3px");
+  });
+
   it("cross-origin 규칙끼리는 뒤(seq 큰) 규칙이 override", () => {
     const out: Record<string, string> = {};
     const sources: Record<string, string> = {};

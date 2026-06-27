@@ -48,6 +48,12 @@ describe("indexCrossOriginRules", () => {
     expect(customProps["--x"]).toBe("1");
   });
 
+  it("멀티 셀렉터 한 파트라도 전역(:root)이면 --* 수집", () => {
+    const parsed = [rule(":root, [data-theme='dark']", { "--brand": "#06c" })];
+    const { customProps } = indexCrossOriginRules(parsed, 0);
+    expect(customProps["--brand"]).toBe("#06c");
+  });
+
   it("비전역(스코프) 선택자의 --*는 customProps에 안 들어간다", () => {
     const parsed = [rule(".scoped", { "--local": "9px", color: "red" })];
     const { customProps } = indexCrossOriginRules(parsed, 0);

@@ -640,24 +640,28 @@ export async function handleMessage(
   }
 }
 
-// cross-origin 스타일 보강용. content가 보낸 page-controlled href를 SSRF 가드로 거른 뒤
-// host_permissions(<all_urls>) CORS 우회로 fetch. credentials 미포함, CSS 응답만 수집.
-// 부분 실패 허용 — 차단/실패 url은 결과에서 제외.
-// redirect:"manual" — 가드를 통과한 공개 url이 내부망(169.254/loopback)으로 302 우회하는
-// SSRF를 차단(opaqueredirect는 res.ok=false라 자동 drop). 사이즈 캡으로 파싱 폭주 방지.
+// cross-origin 스타일 보강용. page-controlled href를 SSRF 가드로 거른 뒤 <all_urls> CORS 우회로 fetch.
+// redirect:"manual" — 가드 통과 url이 내부망으로 302 우회하는 SSRF 차단(opaqueredirect는 res.ok=false라 drop).
 const MAX_SHEET_BYTES = 2_000_000;
+const SHEET_FETCH_TIMEOUT_MS = 8_000;
 async function fetchCssSheets(
   urls: string[],
 ): Promise<Array<{ url: string; text: string }>> {
   const allowed = urls.filter(isFetchableSheetUrl);
   const settled = await Promise.allSettled(
     allowed.map(async (url) => {
-      const res = await fetch(url, { credentials: "omit", redirect: "manual" });
+      const res = await fetch(url, {
+        credentials: "omit",
+        redirect: "manual",
+        signal: AbortSignal.timeout(SHEET_FETCH_TIMEOUT_MS),
+      });
       if (!res.ok) return null;
       const type = res.headers.get("content-type") ?? "";
       if (type && !type.toLowerCase().includes("css")) return null;
-      const text = await res.text();
-      if (text.length > MAX_SHEET_BYTES) return null;
+      const len = Number(res.headers.get("content-length"));
+      if (Number.isFinite(len) && len > MAX_SHEET_BYTES) return null;
+      const text = await readCappedText(res, MAX_SHEET_BYTES);
+      if (text == null) return null;
       return { url, text };
     }),
   );
@@ -666,6 +670,37 @@ async function fetchCssSheets(
     if (r.status === "fulfilled" && r.value) sheets.push(r.value);
   }
   return sheets;
+}
+
+// content-length 누락 시에도 maxBytes 초과분을 버퍼링 전에 끊어 SW OOM을 막는다.
+async function readCappedText(
+  res: Response,
+  maxBytes: number,
+): Promise<string | null> {
+  if (!res.body) {
+    const text = await res.text();
+    return text.length > maxBytes ? null : text;
+  }
+  const reader = res.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel();
+      return null;
+    }
+    chunks.push(value);
+  }
+  const merged = new Uint8Array(total);
+  let offset = 0;
+  for (const c of chunks) {
+    merged.set(c, offset);
+    offset += c.byteLength;
+  }
+  return new TextDecoder().decode(merged);
 }
 
 async function submitIssue(

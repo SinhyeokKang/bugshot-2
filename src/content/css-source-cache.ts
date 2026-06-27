@@ -755,12 +755,18 @@ export interface CrossOriginIndexedRule extends CrossOriginRule {
 
 const GLOBAL_CUSTOM_PROP_SELECTORS = new Set([":root", "html", "*"]);
 
+// 멀티 셀렉터(`:root, [data-theme]`)도 한 파트라도 전역이면 전역 토큰으로 인정.
+function hasGlobalCustomPropSelector(selectorText: string): boolean {
+  return splitSelectorList(selectorText).some((p) =>
+    GLOBAL_CUSTOM_PROP_SELECTORS.has(p.trim().toLowerCase()),
+  );
+}
+
 let crossOriginRules: CrossOriginIndexedRule[] = [];
 let crossOriginCustomProps: Record<string, string> = {};
 let crossLoadPromise: Promise<void> | null = null;
 
-// 순수: parseStylesheet 결과에 seq를 부여하고 :root/전역 * 선택자의 --* 커스텀
-// 프로퍼티를 customProps로 분리 수집한다 (스코프 --*는 decls에 잔류).
+// 순수: parsed에 seq 부여 + 전역(:root/html/*) 선택자의 --* 만 customProps로 분리(스코프 --*는 decls 잔류).
 export function indexCrossOriginRules(
   parsed: ParsedRule[],
   startSeq: number,
@@ -770,7 +776,7 @@ export function indexCrossOriginRules(
   let seq = startSeq;
   for (const p of parsed) {
     rules.push({ selectorText: p.selectorText, decls: p.decls, seq: seq++ });
-    if (GLOBAL_CUSTOM_PROP_SELECTORS.has(p.selectorText.trim().toLowerCase())) {
+    if (hasGlobalCustomPropSelector(p.selectorText)) {
       for (const [name, val] of p.decls) {
         if (name.startsWith("--") && !(name in customProps)) {
           customProps[name] = val;
@@ -781,8 +787,7 @@ export function indexCrossOriginRules(
   return { rules, customProps };
 }
 
-// content(ISOLATED)는 cross-origin sheet를 직접 fetch 못 하므로 background에 위임.
-// 멱등 — 픽커 세션 단위로 1회 배치 fetch.
+// content(ISOLATED)는 cross-origin sheet fetch 불가 → background 위임. 멱등(픽커 세션 1회 배치).
 export function ensureCrossOriginLoaded(): Promise<void> {
   if (crossLoadPromise) return crossLoadPromise;
   crossLoadPromise = loadCrossOrigin();
@@ -841,9 +846,8 @@ function collectCrossOriginHrefs(): string[] {
   return hrefs;
 }
 
-// same-origin getMatchingRules와 달리 byClass/byTag 인덱스 없이 선형 스캔한다 — 보강 경로는
-// 120ms 디바운스된 selection 이벤트에서만 돌고(hover 아님) sheet 사이즈도 캡돼 있어 별도
-// 인덱스는 과설계. el.matches throw(비표준 selector)는 해당 rule만 skip.
+// 인덱스 없이 선형 스캔 — 보강은 디바운스된 selection에서만 돌고 sheet 캡도 있어 인덱스는 과설계.
+// el.matches throw(비표준 selector)는 해당 rule만 skip.
 export function getMatchingCrossOriginRules(el: Element): CrossOriginRule[] {
   const matched = crossOriginRules.filter((r) => {
     try {

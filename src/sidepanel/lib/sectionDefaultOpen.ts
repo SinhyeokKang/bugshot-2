@@ -1,7 +1,5 @@
-// 스타일 섹션의 초기 펼침 상태 판정.
-// specified(author rule) 정보가 하나라도 있으면 그 기준으로 펼친다(same-origin 일반 동작).
-// specified가 전무하면(cross-origin stylesheet라 cssRules/fetch가 막힌 경우 등)
-// computed fallback으로 값이 있는 섹션을 펼쳐 "값은 있는데 접혀 안 보임"을 방지.
+// 스타일 섹션 초기 펼침: specified가 있으면 그 기준, 전무하면(cross-origin sheet 등)
+// computed fallback으로 값 있는 섹션을 펼쳐 "값 있는데 접혀 안 보임" 방지.
 export function sectionDefaultOpen(
   props: readonly string[],
   specifiedStyles: Record<string, string>,

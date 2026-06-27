@@ -22,7 +22,8 @@ function isBlockedHost(hostname: string): boolean {
   }
   const v4 = parseIpv4(host);
   if (v4) return isBlockedIpv4(v4);
-  // 일반 도메인은 DNS 단계라 정적 판정 범위 밖 — 허용.
+  // 일반 도메인은 DNS 단계라 정적 판정 범위 밖 — 허용. (잔여 위험: fetch가 DNS를 재해석하므로
+  // 내부 IP로 rebinding되는 도메인은 못 막음. redirect:"manual"+credentials 미포함으로 영향 완화.)
   return false;
 }
 
