@@ -377,6 +377,7 @@ export function collectTokens(el?: Element): Token[] {
     }
   }
   if (el) collectInlineTokens(el, seen);
+  mergeCrossOriginTokens(seen, getCrossOriginCustomProps());
   const rootStyle = getComputedStyle(document.documentElement);
   const elStyle = el ? getComputedStyle(el) : null;
   const tokens: Token[] = [];
@@ -1054,6 +1055,18 @@ function collectInlineTokens(el: Element, seen: Map<string, string>): void {
       }
     }
     cur = cur.parentElement;
+  }
+}
+
+// cross-origin :root/html/* custom props를 토큰 후보로 보충. same-origin·inline 수집
+// 뒤에 호출해 빈칸만 채운다(!seen.has) — same-origin이 우선. cross-origin sheet는 CSSOM
+// 열거가 막혀 collectFromRules가 못 잡으므로, 이게 빠지면 그 변수는 swatch가 누락된다.
+export function mergeCrossOriginTokens(
+  seen: Map<string, string>,
+  crossProps: Record<string, string>,
+): void {
+  for (const [name, val] of Object.entries(crossProps)) {
+    if (name.startsWith("--") && !seen.has(name)) seen.set(name, val);
   }
 }
 

@@ -21,6 +21,15 @@
 
 ---
 
+## 2026-06-28 — cross-origin 전용 custom prop 토큰은 이름만 뜨고 swatch/hex hint 누락
+
+- **증상**: naver(`#account > div > a`)에서 `--color-primary-background-default` 같은 변수가 스타일 편집기에 **이름은 잘 뜨는데** 옆의 색 swatch·hex 미리보기가 안 떴다. 값(`var(--…)`)도 정상 표시. "이름은 찾았는데 왜 색 칩만 없나?"
+- **근본 원인**: **변수 이름과 swatch가 서로 다른 데이터 경로**에서 나온다. 이름은 속성 값 문자열을 `extractTokenRefs`가 정규식으로 뽑아 항상 표시되지만, swatch는 `findTokenValue(tokens, name)`로 store `tokens` 배열에서 그 변수를 찾아야 칠해진다. 그 배열을 만드는 `collectTokens`(`css-resolve.ts`)는 same-origin `cssRules`(cross-origin이면 `sheet.cssRules`가 throw→`catch{}`로 skip)와 inline만 모으고 **`getCrossOriginCustomProps()`를 안 불렀다**. 즉 cross-origin `:root`에만 정의된 변수는 `tokens`에 안 들어가 `findTokenValue`가 undefined → swatch 누락. 값 경로(`mergeCrossOriginDecls`)는 이미 cross-origin 보강을 소비하는데 토큰 수집 경로만 비대칭으로 빠져 있었다(2026-06-28 위 항목·06-27 항목과 **같은 "same-origin/cross-origin 경로 비대칭" 가족**).
+- **재발 방지**: cross-origin author 스타일을 소비하는 경로가 **여럿**(값 resolve=`mergeCrossOriginDecls`, 토큰 수집=`collectTokens`, 역참조=`buildTokenLookup`)이고 보강을 한 경로에만 연결하면 다른 경로에서 조용히 빠진다. 새 cross-origin 소비처를 추가하거나 enrichment를 만질 땐 `grep -n 'getCrossOriginCustomProps\|getMatchingCrossOriginRules' src/content/css-resolve.ts`로 **모든 소비처가 보강을 받는지** 점검. cross-origin sheet를 `catch{}`로 skip하는 곳(`grep -n 'cross-origin sheet' src/content/css-resolve.ts`)은 CSSOM 열거가 막힌 것뿐이라 별도 보충(`getCrossOriginCustomProps`)이 필요함을 기억. 순수 merge 헬퍼는 `css-resolve.test.ts > mergeCrossOriginTokens`로 same-origin 우선·빈칸 채우기를 고정. 단 loopback e2e는 SSRF 가드로 보강 fetch가 막혀 이 경로가 inert — 양성 검증은 수동(공개 CDN·naver).
+- **관련**: `src/content/css-resolve.ts:collectTokens`(`mergeCrossOriginTokens` 호출 추가), `mergeCrossOriginTokens`(신규 순수 헬퍼, same-origin 우선 gap-fill), `src/content/picker.ts`(`picker.collectTokens` 핸들러에 `ensureCrossOriginLoaded()` await), `src/content/__tests__/css-resolve.test.ts`. swatch 렌더는 `ValueCombobox.tsx`의 `findTokenValue`. 같은 element의 다른 레이어는 아래 항목들 참조.
+
+---
+
 ## 2026-06-28 — cross-origin author 스타일에서 var() 토큰이 일부 prop만 computed로 강등
 
 - **증상**: naver 로그인 버튼(`#account > div > a`)에서 `background-color`는 토큰(`var(--…)`)으로 잡히는데 `color`·`border-color`는 computed 리터럴로 표시. DevTools Styles엔 셋 다 `var()` 존재. "왜 일부 prop만 토큰?"

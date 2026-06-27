@@ -159,6 +159,7 @@ chrome.runtime.onMessage.addListener(
           void (async () => {
             try {
               await ensureCssCacheLoaded();
+              await ensureCrossOriginLoaded();
               sendResponse({ tokens: collectTokens(selectedEl ?? undefined) });
             } catch (err) {
               console.error("[bugshot] collectTokens error", err);

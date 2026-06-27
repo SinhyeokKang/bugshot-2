@@ -20,6 +20,7 @@ import {
   splitTrblValue,
   splitCssTokens,
   mergeCrossOriginDecls,
+  mergeCrossOriginTokens,
   parseBorderShorthand,
   expandShorthands,
   type EditableHandle,
@@ -690,5 +691,45 @@ describe("mergeCrossOriginDecls", () => {
     );
     expect(out.color).toBe("red");
     expect(out.padding).toBeUndefined();
+  });
+});
+
+describe("mergeCrossOriginTokens", () => {
+  it("빈 seen에 cross-origin custom prop을 토큰 후보로 추가", () => {
+    // naver: --color-primary-background-default가 cross-origin :root에만 있어
+    // collectTokens의 same-origin/inline 수집에 안 잡히던 것 — swatch 누락 원인.
+    const seen = new Map<string, string>();
+    mergeCrossOriginTokens(seen, {
+      "--color-primary-background-default": "#03c75a",
+    });
+    expect(seen.get("--color-primary-background-default")).toBe("#03c75a");
+    expect(seen.size).toBe(1);
+  });
+
+  it("이미 있는 이름은 cross-origin이 덮지 않음 (same-origin 우선·빈칸 채우기)", () => {
+    const seen = new Map<string, string>([["--brand", "#000"]]);
+    mergeCrossOriginTokens(seen, { "--brand": "#fff" });
+    expect(seen.get("--brand")).toBe("#000");
+  });
+
+  it("일부만 충돌 — 충돌은 유지, 신규는 추가", () => {
+    const seen = new Map<string, string>([["--a", "red"]]);
+    mergeCrossOriginTokens(seen, { "--a": "blue", "--b": "green" });
+    expect(seen.get("--a")).toBe("red");
+    expect(seen.get("--b")).toBe("green");
+  });
+
+  it("빈 crossProps면 seen 불변", () => {
+    const seen = new Map<string, string>([["--x", "1px"]]);
+    mergeCrossOriginTokens(seen, {});
+    expect(seen.size).toBe(1);
+    expect(seen.get("--x")).toBe("1px");
+  });
+
+  it("-- 접두 아닌 키는 무시 (방어)", () => {
+    const seen = new Map<string, string>();
+    mergeCrossOriginTokens(seen, { color: "red", "--ok": "#fff" });
+    expect(seen.has("color")).toBe(false);
+    expect(seen.get("--ok")).toBe("#fff");
   });
 });
