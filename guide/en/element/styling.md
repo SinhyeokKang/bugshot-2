@@ -24,6 +24,14 @@ From top to bottom, the panel is organized into these sections (labels show in E
 - Changing a value applies it to the page **immediately**.
 - Each section can revert just its inline changes, and there are buttons to revert Class or Text to the original — so feel free to experiment.
 
+## Edit four sides together — or separately
+
+Properties with four sides (or corners, or two directions) — margin, padding, gap, Border, and corner radius — have a small **link button** next to their inputs. It decides whether the sides move as one value or get tweaked individually.
+
+- When the link is **on**, the inputs **collapse into one**. Type a value once and all four sides match it — no need to fill in four separate boxes in a narrow panel.
+- Turn the link **off** and the top/right/bottom/left boxes **fan back out**, so you can give each side its own value.
+- Turn the link on while the sides differ, and the merged box reads **Mixed**. No worries — your existing values aren't overwritten; the four sides only unify once you type a new value.
+
 ## Design token (CSS variable) awareness
 
 When a value — color, spacing, font, and so on — is set via the site's **design tokens (CSS variables)**, BugShot recognizes them automatically. The value field gathers the tokens in the same family, so instead of typing in an arbitrary color or number, you can switch to a sibling token **within the design system your team already uses**.
