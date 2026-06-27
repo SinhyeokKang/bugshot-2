@@ -42,6 +42,60 @@ describe("sectionDefaultOpen", () => {
     ).toBe(false);
   });
 
+  // 회귀: border가 없는데 border-color만 currentColor resolve값(rgb(45,49,54))으로
+  // 노출돼 border 섹션이 잘못 펼쳐지던 버그.
+  it("테두리 없고 border-color만 유령색이면 접는다", () => {
+    expect(
+      sectionDefaultOpen(
+        [
+          "border-top-width",
+          "border-top-style",
+          "border-top-color",
+          "border-bottom-width",
+          "border-bottom-style",
+          "border-bottom-color",
+        ],
+        {},
+        {
+          "border-top-width": "0px",
+          "border-top-style": "none",
+          "border-top-color": "rgb(45, 49, 54)",
+          "border-bottom-width": "0px",
+          "border-bottom-style": "none",
+          "border-bottom-color": "rgb(45, 49, 54)",
+        },
+      ),
+    ).toBe(false);
+  });
+
+  it("실제 테두리가 있으면 펼친다 (유령색 가드가 진짜 border를 가리지 않음)", () => {
+    expect(
+      sectionDefaultOpen(
+        ["border-bottom-width", "border-bottom-style", "border-bottom-color"],
+        {},
+        {
+          "border-bottom-width": "1px",
+          "border-bottom-style": "solid",
+          "border-bottom-color": "rgb(45, 49, 54)",
+        },
+      ),
+    ).toBe(true);
+  });
+
+  it("author가 border-color를 명시했으면 유령이어도 펼친다", () => {
+    expect(
+      sectionDefaultOpen(
+        ["border-top-color"],
+        { "border-top-color": "rgb(45, 49, 54)" },
+        {
+          "border-top-width": "0px",
+          "border-top-style": "none",
+          "border-top-color": "rgb(45, 49, 54)",
+        },
+      ),
+    ).toBe(true);
+  });
+
   it("computed 빈 문자열 / 키 없음 / 전무는 접는다", () => {
     expect(sectionDefaultOpen(["padding-top"], {}, { "padding-top": "" })).toBe(
       false,

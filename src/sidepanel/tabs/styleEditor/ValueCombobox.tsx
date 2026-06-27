@@ -25,7 +25,11 @@ import {
   rightHintText,
   shortValue,
 } from "./valueFormat";
-import { isKnownDefault, PROP_CATEGORY } from "./propMetadata";
+import {
+  isInactiveBorderColor,
+  isKnownDefault,
+  PROP_CATEGORY,
+} from "./propMetadata";
 import { useStyleProp } from "./styleHooks";
 import { TokenChip, TokenItem } from "./TokenChip";
 import {
@@ -59,6 +63,10 @@ export function ValueCombobox({
   const computed = useEditorStore(
     (s) => s.selection?.computedStyles[prop] ?? "",
   );
+  const computedStyles = useEditorStore((s) => s.selection?.computedStyles);
+  const isSpecified = useEditorStore(
+    (s) => prop in (s.selection?.specifiedStyles ?? {}),
+  );
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(value);
   const [showAll, setShowAll] = useState(false);
@@ -78,7 +86,10 @@ export function ValueCombobox({
   const placeholderTokenRefs = !value ? extractTokenRefs(placeholder) : [];
   const tokenNames = tokenRefs.map((r) => r.name);
   const placeholderTokenNames = placeholderTokenRefs.map((r) => r.name);
-  const isDefault = !value && isKnownDefault(prop, placeholder);
+  const isDefault =
+    !value &&
+    (isKnownDefault(prop, placeholder) ||
+      (!isSpecified && isInactiveBorderColor(prop, computedStyles ?? {})));
   const activeTokenNames = tokenNames.length > 0 ? tokenNames : placeholderTokenNames;
   const liveFamilyPrefixes = useMemo(() => {
     const prefixes: string[] = [];

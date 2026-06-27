@@ -110,3 +110,23 @@ export function isKnownDefault(prop: string, computed: string): boolean {
   if (!defaults) return false;
   return defaults.includes(value);
 }
+
+const BORDER_COLOR_SIDE = /^border-(top|right|bottom|left)-color$/;
+
+// getComputedStyle은 테두리가 없어도 border-{side}-color를 currentColor의
+// resolve값(글자색 rgb)으로 돌려준다 — KNOWN_DEFAULTS의 "currentcolor" 키워드는
+// 절대 매칭되지 않아 유령 색이 실제 값처럼 노출된다. 같은 side의 테두리가
+// 비활성(style none 또는 width 0px)이면 그 색은 의미 없으므로 기본값으로 취급.
+export function isInactiveBorderColor(
+  prop: string,
+  computedStyles: Record<string, string>,
+): boolean {
+  const m = BORDER_COLOR_SIDE.exec(prop);
+  if (!m) return false;
+  const side = m[1];
+  const style = computedStyles[`border-${side}-style`];
+  const width = computedStyles[`border-${side}-width`];
+  if (style != null && style.trim() === "none") return true;
+  if (width != null && width.trim() === "0px") return true;
+  return false;
+}

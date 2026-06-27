@@ -1,4 +1,7 @@
-import { isKnownDefault } from "@/sidepanel/tabs/styleEditor/propMetadata";
+import {
+  isKnownDefault,
+  isInactiveBorderColor,
+} from "@/sidepanel/tabs/styleEditor/propMetadata";
 
 // 스타일 섹션 초기 펼침: 섹션 prop 중 하나라도 "값이 있으면" 펼친다.
 // - specified에 키가 있으면(author가 명시) 무조건 값으로 간주.
@@ -11,6 +14,7 @@ export function sectionDefaultOpen(
   return props.some((p) => {
     if (p in specifiedStyles) return true;
     const v = computedStyles[p];
-    return v != null && v !== "" && !isKnownDefault(p, v);
+    if (v == null || v === "" || isKnownDefault(p, v)) return false;
+    return !isInactiveBorderColor(p, computedStyles);
   });
 }
