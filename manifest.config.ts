@@ -4,8 +4,6 @@ import pkg from "./package.json" with { type: "json" };
 
 const env = loadEnv(process.env.NODE_ENV ?? "development", process.cwd(), "");
 const isStoreBuild = process.env.BUGSHOT_STORE_BUILD === "1";
-// e2e 자동화는 activeTab 제스처를 못 만들어 captureVisibleTab에 <all_urls>가 필요 — dist-e2e 한정.
-const isE2eBuild = process.env.BUGSHOT_E2E_BUILD === "1";
 const DEV_KEY =
   "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAze+ul+m82KNOush/KW9VlfyEM4SBd0ekf4XqAwRcYLXNnxmtdQyvEEM4U7Ae93NSuSR1dQPBbwS/v98WuWSisw6IA5jJtqHd/J07LuuQIooVra7wOFb9NriipLFPlWgEWuxrRO3xIdQYilVK5ACFpEFDe4m1XF2iUD1VOSCJsRITtd5e/9rZkYu4uyMvFMSbfdJDDCNR+MtKTL3I5dnkMg7iWDF/5Sd0jCCDEw+mIuOtbbzQ0SqOQnLmTC+VwIdg8/rTuU21eAmMrJyen4lsRGqTTMuiqnPmIhZh0bu8s1d+H7wZ8V7gYOr5Fwru8QopnW2TTms5OXnQUlwA0ndXCQIDAQAB";
 function proxyMatchPattern(): string | null {
@@ -85,8 +83,8 @@ export default defineManifest({
     "tabCapture",
     "webNavigation",
   ],
-  optional_host_permissions: ["<all_urls>"],
   host_permissions: [
+    "<all_urls>",
     "https://*.atlassian.net/*",
     "https://api.atlassian.com/*",
     "https://auth.atlassian.com/*",
@@ -99,7 +97,6 @@ export default defineManifest({
     "https://app.asana.com/*",
     "https://api.clickup.com/*",
     ...(proxyMatch ? [proxyMatch] : []),
-    ...(isE2eBuild ? ["<all_urls>"] : []),
   ],
   commands: {
     _execute_action: {

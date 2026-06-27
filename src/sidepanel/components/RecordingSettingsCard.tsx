@@ -1,11 +1,9 @@
 import { Timer, Video } from "lucide-react";
-import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useT } from "@/i18n";
-import { BROAD_HOST_ORIGINS } from "@/lib/broad-host-origins";
 import { useSettingsUiStore } from "@/store/settings-ui-store";
 import type { RecordingSource } from "@/store/editor-store";
 
@@ -22,21 +20,8 @@ export function RecordingSettingsCard({
   const replayEnabled = useSettingsUiStore((s) => s.replayEnabled);
   const setReplayEnabled = useSettingsUiStore((s) => s.setReplayEnabled);
 
-  const handleReplayToggle = async (next: boolean) => {
-    if (!next) {
-      setReplayEnabled(false);
-      return;
-    }
-    try {
-      const has = await chrome.permissions.contains({ origins: BROAD_HOST_ORIGINS });
-      const granted =
-        has || (await chrome.permissions.request({ origins: BROAD_HOST_ORIGINS }));
-      if (granted) setReplayEnabled(true);
-      else toast.error(t("settings.replay.permissionDenied"));
-    } catch {
-      toast.error(t("settings.replay.permissionDenied"));
-    }
-  };
+  // <all_urls>가 required라 권한 확인 불필요 — 토글은 리소스 점유 opt-in일 뿐.
+  const handleReplayToggle = (next: boolean) => setReplayEnabled(next);
 
   return (
     <Card>
@@ -82,7 +67,7 @@ export function RecordingSettingsCard({
           <Switch
             id={replayInputId}
             checked={replayEnabled}
-            onCheckedChange={(v) => void handleReplayToggle(v === true)}
+            onCheckedChange={(v) => handleReplayToggle(v === true)}
           />
         </div>
       </CardContent>

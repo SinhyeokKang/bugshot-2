@@ -78,7 +78,8 @@ describe("resolveNavigationAction", () => {
   type Input = Parameters<typeof resolveNavigationAction>[0];
   type Case = { name: string; input: Input; expected: ReturnType<typeof resolveNavigationAction> };
 
-  // 광역 미보유(broadGranted=false) — 미보유 사용자 현행 동작을 고정한다(최대 회귀 리스크).
+  // 광역 미보유(broadGranted=false) — <all_urls> required 승격 후 프로덕션에서 도달 불가하나,
+  // 순수함수 분기를 잠그는 회귀 자산으로 보존한다(호출부는 항상 broadGranted=true 전달).
   const legacyCases: Case[] = [
     {
       name: "보존 + same-origin → keep (pageKeyChanged 무관)",
@@ -167,7 +168,7 @@ describe("resolveNavigationAction", () => {
   }
 });
 
-// BROAD_HOST_ORIGINS를 <all_urls>로 전환하면 광역 권한이 file:까지 포함하지만,
+// host_permissions의 <all_urls>는 광역 권한이 file:까지 포함하지만,
 // captureVisibleTab은 file:에 별도 "파일 URL 액세스" 토글을 요구하므로 navigation 분기는
 // file:을 의도적으로 비커버(만료 폴백)로 유지해야 한다. 이 경계가 깨지지 않음을 락인한다.
 describe("isBroadCoveredUrl", () => {
