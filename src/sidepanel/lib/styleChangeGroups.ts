@@ -85,8 +85,16 @@ export function removeDiffRow(
   }
   const inlineStyle = { ...edits.inlineStyle };
   delete inlineStyle[prop];
-  for (const longhand of SHORTHAND_GROUPS[prop] ?? []) {
-    delete inlineStyle[longhand];
+  // border 2차 통합 행은 width/style/color 세 그룹의 longhand 12개를 모두 소비한다.
+  const groups =
+    prop === "border"
+      ? ["border-width", "border-style", "border-color"]
+      : [prop];
+  for (const g of groups) {
+    delete inlineStyle[g];
+    for (const longhand of SHORTHAND_GROUPS[g] ?? []) {
+      delete inlineStyle[longhand];
+    }
   }
   return { classList: [...edits.classList], inlineStyle, text: edits.text };
 }

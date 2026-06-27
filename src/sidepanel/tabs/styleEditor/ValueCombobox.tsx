@@ -45,14 +45,12 @@ export function ValueCombobox({
   compact,
   icon,
   iconTitle,
-  onLinkedCommit,
   controlled,
 }: {
   prop: string;
   compact?: boolean;
   icon?: React.ReactNode;
   iconTitle?: string;
-  onLinkedCommit?: (value: string) => void;
   controlled?: { value: string; placeholder: string; set: (v: string) => void };
 }) {
   const t = useT();
@@ -158,9 +156,7 @@ export function ValueCombobox({
   );
 
   const commit = (next: string) => {
-    const finalized = finalize(next);
-    if (onLinkedCommit) onLinkedCommit(finalized);
-    else set(finalized);
+    set(finalize(next));
     setOpen(false);
   };
 
@@ -174,10 +170,7 @@ export function ValueCombobox({
     } else {
       setPinnedPrefixes(null);
       const finalized = finalize(draft.trim());
-      if (finalized && finalized !== value) {
-        if (onLinkedCommit) onLinkedCommit(finalized);
-        else set(finalized);
-      }
+      if (finalized && finalized !== value) set(finalized);
     }
     setOpen(nextOpen);
   };
@@ -323,8 +316,7 @@ export function ValueCombobox({
               // 정규화값은 페이지에 라이브 적용하되 입력란(draft)은 raw 유지 —
               // 내가 일으킨 value 변경은 prevValue를 미리 맞춰 리싱크(60행)에서 제외한다.
               prevValue.current = normalized;
-              if (onLinkedCommit) onLinkedCommit(normalized);
-              else set(normalized);
+              set(normalized);
             }}
             icon={<PenLine className="mr-2 h-4 w-4 shrink-0 opacity-50" />}
             className="h-9"

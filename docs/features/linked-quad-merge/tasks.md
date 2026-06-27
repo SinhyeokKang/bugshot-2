@@ -27,9 +27,9 @@
     - **`sidesAllEqual ⟺ commonBaseline(...) !== ""` 동치성 명시 테스트**: 경계 케이스(selection null,
       4면 모두 빈 값 → 둘 다 false, 편집값 일부만 존재, specified/computed 혼합)에서 두 함수 결과 일치 고정.
 - **검증**:
-  - [ ] `pnpm test linkedSides` 통과
-  - [ ] 기존 `sidesAllEqual` 의존 동작(초기 linked 판정) 회귀 없음 — `pnpm test` 전체 green
-  - [ ] `pnpm typecheck` 통과
+  - [x] `pnpm test linkedSides` 통과
+  - [x] 기존 `sidesAllEqual` 의존 동작(초기 linked 판정) 회귀 없음 — `pnpm test` 전체 green
+  - [x] `pnpm typecheck` 통과
 
 ### Task 2: i18n 키 추가
 
@@ -40,8 +40,8 @@
   - `"prop.axis.all"`: ko `"양축"` / en `"Both axes"` (gap)
   - `"prop.mixed"`: ko `"혼합"` / en `"Mixed"` (단일 필드 placeholder + 단일 select trigger 라벨)
 - **검증**:
-  - [ ] 저장 시 PostToolUse 훅 `locales.test.ts`(ko/en 대칭) 자동 통과
-  - [ ] `pnpm test locales` 통과
+  - [x] 저장 시 PostToolUse 훅 `locales.test.ts`(ko/en 대칭) 자동 통과
+  - [x] `pnpm test locales` 통과
 
 ### Task 3: `useLinkedProps` 확장 (merged 상태)
 
@@ -53,8 +53,8 @@
     리렌더 + "getSnapshot should be cached" 경고).
   - Task 1 순수 함수 사용.
 - **검증**:
-  - [ ] `pnpm typecheck` 통과
-  - [ ] **코드 리뷰 체크: merged 구독이 분리 primitive 셀렉터(또는 useShallow)로 inlineStyle에 반응** —
+  - [x] `pnpm typecheck` 통과
+  - [x] **코드 리뷰 체크: merged 구독이 분리 primitive 셀렉터(또는 useShallow)로 inlineStyle에 반응** —
     객체 단일 셀렉터/useMemo deps 누락 시 입력 후 값이 안 보이는 회귀(자동 테스트로 못 잡음)
   - [ ] 단일 필드 입력 후 값이 즉시 반영(수동 — Task 7 + e2e 왕복 케이스)
 
@@ -71,7 +71,7 @@
   - [ ] linked → 입력 필드 1개, unlinked → 4개(gap 2개) 렌더
   - [ ] 단일 필드 입력 → 4면 동시 반영
   - [ ] 단일 필드 popover가 패널 폭 안에 정상 표시(non-compact 확인)
-  - [ ] `pnpm typecheck` 통과
+  - [x] `pnpm typecheck` 통과
 
 ### Task 5: `SideStyleSelect` controlled + `QuadStyleProp` 단일 select 분기
 
@@ -88,7 +88,7 @@
   - [ ] 단일 select 변경 → 4면 동시 반영
   - [ ] mixed 시 단일 select trigger 라벨 `혼합`/`Mixed` 노출(e2e 1케이스 권장 — 단위 테스트 어려움)
   - [ ] per-side(unlinked) 동작 회귀 없음
-  - [ ] `pnpm typecheck` 통과
+  - [x] `pnpm typecheck` 통과
 
 ### Task 6: border 2차 통합 (collapseShorthands) + 테스트
 
@@ -106,9 +106,9 @@
     - asIs 전부 빈 값(baseline 없음) → asIs `""`로 정규화 고정(공백만 남지 않음)
     - 기존 padding/margin/border-radius 1차 축약 회귀 없음
 - **검증**:
-  - [ ] `pnpm test styleChangeGroups` 통과(신규 케이스 포함)
-  - [ ] `pnpm test buildIssueMarkdown` 통과
-  - [ ] UI 편집 경로(단일/4필드) 무관하게 동일 diff — 저장 모델 longhand 보존 확인
+  - [x] `pnpm test styleChangeGroups` 통과(신규 케이스 포함)
+  - [x] `pnpm test buildIssueMarkdown` 통과
+  - [x] UI 편집 경로(단일/4필드) 무관하게 동일 diff — 저장 모델 longhand 보존 확인
 
 ### Task 7: 수동 시각 확인 (Chrome)
 
