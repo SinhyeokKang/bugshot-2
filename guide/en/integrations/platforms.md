@@ -26,8 +26,6 @@ OAuth is usually the easiest. That said, if your org policy blocks OAuth or you'
 | Asana | OAuth / PAT | pat | app.asana.com my-apps |
 | ClickUp | OAuth / API Token | pat | app.clickup.com Settings > Apps |
 
-> When connecting a GitLab self-managed instance or a custom LLM, BugShot may ask for extra access to that domain. Don't be alarmed — approve it and the connection wraps up.
-
 ## Defaults after connecting
 
 Once connected, you can pick a default location for new issues — a project for Jira/GitLab, a repository for GitHub, a team for Linear, a database for Notion, a project for Asana, a list for ClickUp (picked as Workspace → Space → List). Set it once and you won't have to choose it every time you write an issue, which saves a lot of clicks.

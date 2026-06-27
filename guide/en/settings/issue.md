@@ -23,7 +23,7 @@ Once you pick a mode, it stays put until you change it. Your choice shows up rig
 
 Always keeps the last 30 seconds of your screen. Spot a bug? Attach what just happened as a video in one click.
 
-Turning this toggle on **requests screen capture permission**. Replay only works once you approve it — and if the permission is ever revoked, replay turns off on its own, so there's nothing to clean up.
+Turning this toggle on starts keeping the last 30 seconds of your screen. There's no separate permission prompt — just flip the switch and it's on. Since it keeps capturing your screen in the background, feel free to turn it off when you don't need it.
 
 > Curious how to use 30s replay? See [30s Replay](../video/replay.md).
 

@@ -26,8 +26,6 @@
 | Asana | OAuth / PAT | pat | app.asana.com my-apps |
 | ClickUp | OAuth / API Token | pat | app.clickup.com 설정 > Apps |
 
-> GitLab self-managed 인스턴스나 직접 입력 LLM을 연결할 때는 해당 도메인 접근 권한을 추가로 요청할 수 있습니다. 놀라지 마시고 허용해 주시면 연결이 마무리됩니다.
-
 ## 연결 후 기본값
 
 연결하면 그 플랫폼에서 이슈를 만들 위치의 기본값을 골라 둘 수 있습니다 — Jira·GitLab의 프로젝트, GitHub의 저장소, Linear의 팀, Notion의 데이터베이스, Asana의 프로젝트, ClickUp의 리스트(워크스페이스 → 스페이스 → 리스트 순으로 선택)처럼요. 한 번만 정해 두면 이슈를 쓸 때마다 다시 고르지 않아도 되니 한결 편합니다.

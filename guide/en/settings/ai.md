@@ -11,7 +11,7 @@ Pick a provider and enter your key.
 - **Provider** — Choose your LLM from the list, or type an OpenAI-compatible endpoint URL directly.
 - **API Key** — The key issued by that service.
 
-Once you connect, a screen follows for picking the model — choose the one you want under **Select model**. Most providers with an OpenAI-compatible endpoint connect without a hitch. BugShot may request access to that domain on connect — go ahead and approve it.
+Once you connect, a screen follows for picking the model — choose the one you want under **Select model**. Most providers with an OpenAI-compatible endpoint connect without a hitch. There's no separate permission prompt — once you've filled in the details, it connects right away.
 
 ![Connecting an AI model](../assets/settings-ai-1.jpg)
 
