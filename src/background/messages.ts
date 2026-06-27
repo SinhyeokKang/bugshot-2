@@ -644,10 +644,12 @@ export async function handleMessage(
 // redirect:"manual" — 가드 통과 url이 내부망으로 302 우회하는 SSRF 차단(opaqueredirect는 res.ok=false라 drop).
 const MAX_SHEET_BYTES = 2_000_000;
 const SHEET_FETCH_TIMEOUT_MS = 8_000;
+// 비정상적으로 많은 cross-origin <link>를 가진 페이지가 SW 메모리·동시 fetch를 폭증시키는 걸 차단.
+const MAX_SHEETS = 50;
 async function fetchCssSheets(
   urls: string[],
 ): Promise<Array<{ url: string; text: string }>> {
-  const allowed = urls.filter(isFetchableSheetUrl);
+  const allowed = urls.filter(isFetchableSheetUrl).slice(0, MAX_SHEETS);
   const settled = await Promise.allSettled(
     allowed.map(async (url) => {
       const res = await fetch(url, {

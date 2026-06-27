@@ -60,6 +60,9 @@ describe("isFetchableSheetUrl (SSRF 가드)", () => {
       "http://[feba::1]/x.css", // link-local /10 상단
       "http://[::ffff:127.0.0.1]/x.css", // IPv4-mapped loopback (dotted)
       "http://[::ffff:169.254.169.254]/x.css", // IPv4-mapped link-local (hex 직렬화)
+      "http://[::127.0.0.1]/x.css", // IPv4-compatible(deprecated) loopback (dotted)
+      "http://[::7f00:1]/x.css", // IPv4-compatible loopback (hex 직렬화)
+      "http://[::a9fe:a9fe]/x.css", // IPv4-compatible link-local 169.254.169.254
     ])("%s → false", (url) => {
       expect(isFetchableSheetUrl(url)).toBe(false);
     });

@@ -52,17 +52,18 @@ function isBlockedIpv6(addr: string): boolean {
   if (a === "::1" || a === "::") return true; // loopback / unspecified
   if (/^fe[89ab]/.test(a)) return true; // link-local fe80::/10
   if (/^f[cd]/.test(a)) return true; // ULA fc00::/7
-  const mapped = mappedIpv4(a); // ::ffff:a.b.c.d (dotted) 또는 ::ffff:HHHH:HHHH (hex)
+  const mapped = mappedIpv4(a); // ::ffff:a.b.c.d / ::a.b.c.d (dotted·hex 양표기)
   if (mapped) return isBlockedIpv4(mapped);
   return false;
 }
 
-// IPv4-mapped IPv6. WHATWG URL은 `[::ffff:127.0.0.1]`를 hex hextet 형태
-// `::ffff:7f00:1`로 직렬화하므로 dotted·hex 두 표기를 모두 v4로 환원해야 우회를 막는다.
+// IPv4-mapped(::ffff:a.b.c.d) + IPv4-compatible(deprecated ::a.b.c.d) IPv6를 v4로 환원.
+// WHATWG URL은 dotted를 hex hextet으로 직렬화하므로(`::ffff:7f00:1` / `::7f00:1`)
+// 두 표기를 모두 환원해야 loopback·사설 우회를 막는다.
 function mappedIpv4(a: string): Ipv4 | null {
-  const dotted = /^::ffff:(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/.exec(a);
-  if (dotted) return parseIpv4(dotted[1]);
-  const hex = /^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(a);
+  const dotted = /^::(ffff:)?(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/.exec(a);
+  if (dotted) return parseIpv4(dotted[2]);
+  const hex = /^::(?:ffff:)?([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(a);
   if (hex) {
     const hi = parseInt(hex[1], 16);
     const lo = parseInt(hex[2], 16);
