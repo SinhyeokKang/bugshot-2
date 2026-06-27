@@ -808,6 +808,10 @@ export function mergeCrossOriginDecls(
       }
       if (wantedProps && !wantedProps.has(name)) continue;
       if (sameOriginKeys.has(name)) continue;
+      // same-origin 경로와 동일: 이미 잡은 var(토큰)을 나중 cross-origin literal이 덮지
+      // 않게 보존 — 한 prop이 여러 규칙에서 재선언될 때(예: <a> color) 토큰이 computed로
+      // 강등되는 것 방지. literal→var, var→var는 통과(last-wins).
+      if (out[name]?.includes("var(") && !val.includes("var(")) continue;
       out[name] = val;
       sources[name] = rule.selectorText;
     }

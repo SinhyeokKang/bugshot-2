@@ -535,6 +535,45 @@ describe("mergeCrossOriginDecls", () => {
     expect(sources.color).toBe(".b");
   });
 
+  it("이른 var(토큰)을 나중 cross-origin literal이 덮지 않음 (token 강등 회귀 방지)", () => {
+    // naver <a>: 테마 규칙 color: var(--fg)을 뒤따르는 일반 a { color: #333 } 리셋이
+    // 클로버해 토큰이 computed로 강등되던 버그. background-color는 단일 선언이라 멀쩡.
+    const out: Record<string, string> = {};
+    const sources: Record<string, string> = {};
+    mergeCrossOriginDecls(
+      out,
+      sources,
+      {},
+      [
+        co(".themed", {
+          color: "var(--fg)",
+          "background-color": "var(--bg)",
+          "border-color": "var(--line)",
+        }),
+        co("a", { color: "#333", "border-color": "gray" }),
+      ],
+      {},
+    );
+    expect(out.color).toBe("var(--fg)");
+    expect(sources.color).toBe(".themed");
+    expect(out["border-color"]).toBe("var(--line)");
+    expect(out["background-color"]).toBe("var(--bg)");
+  });
+
+  it("나중 var는 이른 cross-origin literal을 정상 덮음 (token 승격 유지)", () => {
+    const out: Record<string, string> = {};
+    const sources: Record<string, string> = {};
+    mergeCrossOriginDecls(
+      out,
+      sources,
+      {},
+      [co("a", { color: "#333" }), co(".themed", { color: "var(--fg)" })],
+      {},
+    );
+    expect(out.color).toBe("var(--fg)");
+    expect(sources.color).toBe(".themed");
+  });
+
   it("--*를 customProps에 보충해 기존 규칙(private --_)으로 var() 해석", () => {
     const customProps: Record<string, string> = {};
     mergeCrossOriginDecls(
