@@ -606,7 +606,7 @@ function MessagesPanel({
               key={d}
               size="sm"
               variant="outline"
-              className={`shrink-0 h-7 px-2.5 text-xs font-normal${dir === d ? " bg-muted hover:bg-muted hover:brightness-95" : ""}`}
+              className={`shrink-0 h-7 px-2.5 text-[13px] font-normal${dir === d ? " bg-muted hover:bg-muted hover:brightness-95" : ""}`}
               onClick={() => setDir(d)}
               data-testid="ws-dir-filter"
               data-dir={d}
