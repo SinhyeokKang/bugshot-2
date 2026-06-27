@@ -247,6 +247,11 @@ interface IssuesState {
   markSubmitted: (id: string, patch: Partial<IssueRecord>) => void;
   patchIssue: (id: string, patch: Partial<IssueRecord>) => void;
   patchDraftSnapshot: (id: string, patch: Partial<IssueSnapshot>) => void;
+  patchDraftBufferedImageFlags: (
+    id: string,
+    index: number,
+    patch: { hasBefore?: boolean; hasAfter?: boolean },
+  ) => void;
   removeIssue: (id: string) => void;
   clearIssues: () => void;
 }
@@ -290,6 +295,20 @@ export const useIssuesStore = create<IssuesState>()(
         set((s) => ({
           issues: s.issues.map((x) =>
             x.id === id ? { ...x, snapshot: { ...x.snapshot, ...patch } } : x,
+          ),
+        })),
+      // 버퍼 element의 blob 저장 실패 시 hasBefore/hasAfter를 레코드와 일치시킨다(플래그-blob 정합).
+      patchDraftBufferedImageFlags: (id, index, patch) =>
+        set((s) => ({
+          issues: s.issues.map((x) =>
+            x.id === id && x.bufferedElements?.[index]
+              ? {
+                  ...x,
+                  bufferedElements: x.bufferedElements.map((b, i) =>
+                    i === index ? { ...b, ...patch } : b,
+                  ),
+                }
+              : x,
           ),
         })),
       removeIssue: (id) => {

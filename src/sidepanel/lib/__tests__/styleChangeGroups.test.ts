@@ -95,6 +95,18 @@ function diffEdits(overrides: Partial<StyleDiffEdits> = {}): StyleDiffEdits {
 }
 
 describe("buildChangeGroups", () => {
+  it("diff 0인 버퍼는 빈 카드를 만들지 않는다 (현재 그룹과 게이트 대칭)", () => {
+    const noDiff = buffered("#empty", {
+      styleEdits: { classList: ["item"], inlineStyle: {}, text: "" },
+    });
+    const groups = buildChangeGroups(
+      selection(),
+      edits({ inlineStyle: { color: "#00f" } }),
+      [noDiff, buffered("#b")],
+    );
+    expect(groups.map((g) => g.selector)).toEqual(["#b", "#current"]);
+  });
+
   it("버퍼 2개 + 현재 선택 diff 있음 → 그룹 3개, 버퍼 순서 뒤 현재, source 플래그", () => {
     const groups = buildChangeGroups(
       selection(),

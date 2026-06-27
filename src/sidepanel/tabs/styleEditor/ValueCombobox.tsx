@@ -341,7 +341,7 @@ export function ValueCombobox({
                 ) : null}
               </CommandGroup>
             ) : null}
-            {showRawItem && !draftLooksLikeToken ? (
+            {showRawItem ? (
               <CommandGroup heading={t("value.manualInput")}>
                 <CommandItem
                   value={`__raw__${finalize(draft.trim())}`}

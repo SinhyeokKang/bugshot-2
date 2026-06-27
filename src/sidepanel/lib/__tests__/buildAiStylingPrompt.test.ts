@@ -240,6 +240,21 @@ describe("parseAiStylingResponse", () => {
     expect(result?.edits.inlineStyle).toEqual({ opacity: "0.5" });
   });
 
+  it("열거 안 된 animation-*/counter-* 변형도 prefix로 필터링", () => {
+    const raw = JSON.stringify({
+      explanation: "Animated",
+      inlineStyle: {
+        "animation-composition": "add",
+        "animation-range": "entry",
+        "animation-timeline": "scroll()",
+        "counter-set": "x 1",
+        color: "red",
+      },
+    });
+    const result = parseAiStylingResponse(raw);
+    expect(result?.edits.inlineStyle).toEqual({ color: "red" });
+  });
+
   it("z-index, transform 등 통과", () => {
     const raw = JSON.stringify({
       explanation: "Positioned",

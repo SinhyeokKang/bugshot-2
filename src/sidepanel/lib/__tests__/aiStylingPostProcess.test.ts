@@ -60,6 +60,51 @@ describe("mergeAiEdits", () => {
       "padding-top": "4px",
     });
   });
+
+  it("AI gap shorthand는 기존 row-gap/column-gap longhand를 제거", () => {
+    const current = {
+      inlineStyle: { "row-gap": "4px", "column-gap": "8px", color: "red" },
+      classList: [],
+      text: "",
+    };
+    const result = mergeAiEdits(current, { inlineStyle: { gap: "12px" } });
+    expect(result.inlineStyle).toEqual({ gap: "12px", color: "red" });
+  });
+
+  it("AI border shorthand는 기존 border longhand·sub-shorthand를 제거", () => {
+    const current = {
+      inlineStyle: {
+        "border-top-color": "red",
+        "border-width": "2px",
+        "border-left-style": "dashed",
+        color: "blue",
+      },
+      classList: [],
+      text: "",
+    };
+    const result = mergeAiEdits(current, {
+      inlineStyle: { border: "1px solid black" },
+    });
+    expect(result.inlineStyle).toEqual({
+      border: "1px solid black",
+      color: "blue",
+    });
+  });
+
+  it("AI background shorthand는 기존 background-color longhand를 제거", () => {
+    const current = {
+      inlineStyle: { "background-color": "red", padding: "8px" },
+      classList: [],
+      text: "",
+    };
+    const result = mergeAiEdits(current, {
+      inlineStyle: { background: "url(x.png) center / cover" },
+    });
+    expect(result.inlineStyle).toEqual({
+      background: "url(x.png) center / cover",
+      padding: "8px",
+    });
+  });
 });
 
 describe("replaceRawWithTokens", () => {

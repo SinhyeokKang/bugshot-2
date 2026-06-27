@@ -430,16 +430,19 @@ function buildMetaComment(ctx: MarkdownContext): string {
     meta.environment = Object.fromEntries(envRows.map((r) => [r.label, r.value]));
   }
   if (ctx.captureMode !== "freeform") {
-    meta.selector = ctx.selector;
-    meta.tagName = ctx.tagName;
-    meta.classListBefore = ctx.classListBefore;
-    meta.classListAfter = ctx.classListAfter;
-    meta.specifiedStyles = ctx.specifiedStyles;
-    meta.cssChanges = toCssChanges(ctx.diffs);
-    meta.tokens = ctx.tokens;
-    // 복수 element(multi-element buffer): top-level 단일 필드는 현재 element를 유지하되,
-    // 전체 element의 selector·변경사항을 elements 배열로 직렬화(AI가 모든 element를 파악).
+    // top-level 단일 필드는 실제 본문에 emit되는 첫 element(els[0]) 기준 — 현재 요소가
+    // no-diff여도 본문은 버퍼 element만 보여주므로, ctx(현재) 고정 시 selector·cssChanges가
+    // 본문/DOM 줄과 어긋난다. els 비면(이론상 미도달) ctx로 폴백.
     const els = resolveStyleElements(ctx);
+    const head = els[0];
+    meta.selector = head?.selector ?? ctx.selector;
+    meta.tagName = head?.tagName ?? ctx.tagName;
+    meta.classListBefore = head?.classListBefore ?? ctx.classListBefore;
+    meta.classListAfter = head?.classListAfter ?? ctx.classListAfter;
+    meta.specifiedStyles = head?.specifiedStyles ?? ctx.specifiedStyles;
+    meta.cssChanges = toCssChanges(head?.diffs ?? ctx.diffs);
+    meta.tokens = ctx.tokens;
+    // 1개 초과면 전체 element의 selector·변경사항을 elements 배열로도 직렬화(AI가 전부 파악).
     if (els.length > 1) {
       meta.elements = els.map((e) => ({
         selector: e.selector,

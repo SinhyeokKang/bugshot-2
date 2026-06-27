@@ -518,8 +518,28 @@ function flattenStyleRules(
   }
 }
 
-function normalizeSelector(s: string): string {
-  return s.replace(/\s+/g, " ").trim();
+// raw 소스 셀렉터를 CSSOM selectorText 표기에 맞춰 정규화 — top-level 결합자(> + ~)
+// 둘레 간격을 ` x `로 통일한다. `[a~=b]`·`:nth-child(2n+1)`의 ~/+는 []·() 안이라 depth로
+// 보호. 속성 셀렉터 따옴표·태그 대소문자는 셀렉터 파서가 필요해 미정규화(불일치 시 CSSOM fallback).
+export function normalizeSelector(s: string): string {
+  const t = s.replace(/\s+/g, " ").trim();
+  let out = "";
+  let depth = 0;
+  for (let i = 0; i < t.length; i++) {
+    const c = t[i];
+    if (c === "[" || c === "(") {
+      depth++;
+      out += c;
+    } else if (c === "]" || c === ")") {
+      depth--;
+      out += c;
+    } else if (depth === 0 && (c === ">" || c === "+" || c === "~")) {
+      out += ` ${c} `;
+    } else {
+      out += c;
+    }
+  }
+  return out.replace(/\s+/g, " ").trim();
 }
 
 /* ── parser ──────────────────────────────────────── */
@@ -534,8 +554,41 @@ function parseStylesheet(text: string, out: ParsedRule[]): void {
   parseRulesFrom(cleaned, 0, cleaned.length, out);
 }
 
-function stripComments(text: string): string {
-  return text.replace(/\/\*[\s\S]*?\*\//g, "");
+// 문자열 리터럴(content: "a/*b*/c") 안의 /* */는 주석이 아니므로 보존 — 따옴표를 추적.
+export function stripComments(text: string): string {
+  let out = "";
+  let i = 0;
+  const n = text.length;
+  while (i < n) {
+    const c = text[i];
+    if (c === '"' || c === "'") {
+      out += c;
+      i++;
+      while (i < n) {
+        if (text[i] === "\\" && i + 1 < n) {
+          out += text[i] + text[i + 1];
+          i += 2;
+          continue;
+        }
+        out += text[i];
+        if (text[i] === c) {
+          i++;
+          break;
+        }
+        i++;
+      }
+      continue;
+    }
+    if (c === "/" && text[i + 1] === "*") {
+      i += 2;
+      while (i < n && !(text[i] === "*" && text[i + 1] === "/")) i++;
+      i += 2;
+      continue;
+    }
+    out += c;
+    i++;
+  }
+  return out;
 }
 
 const NESTED_AT_RULES = new Set([

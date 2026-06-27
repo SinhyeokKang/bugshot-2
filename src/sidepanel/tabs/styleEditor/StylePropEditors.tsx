@@ -351,6 +351,9 @@ export function AlignmentProp({ label, prop }: { label: string; prop: string }) 
       : current === "end"
         ? "right"
         : "left";
+  // 명시 edit이 없으면(value 없음) 표시되는 highlight는 상속/computed 기본값이므로
+  // 활성 탭을 디밍해 "명시 지정"과 구분 — SelectProp의 isDefault 처리와 일관.
+  const isDefault = !value;
 
   return (
     <PropRow label={label} source={source}>
@@ -358,7 +361,12 @@ export function AlignmentProp({ label, prop }: { label: string; prop: string }) 
         value={resolvedValue}
         onValueChange={(v) => set(v === resolvedValue && value ? "" : v)}
       >
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList
+          className={cn(
+            "grid w-full grid-cols-4",
+            isDefault && "[&_[data-state=active]]:opacity-50",
+          )}
+        >
           {options.map((o) => (
             <TabsTrigger key={o.v} value={o.v} title={o.title} aria-label={o.title}>
               {o.icon}

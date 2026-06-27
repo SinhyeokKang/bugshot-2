@@ -44,6 +44,13 @@ describe("categorizeToken", () => {
     expect(categorizeToken("0")).toBe("length");
     expect(categorizeToken("-0")).toBe("length");
   });
+  it("모던/컨테이너 단위(q·svh·dvh·cqw·vi)도 length", () => {
+    expect(categorizeToken("2q")).toBe("length");
+    expect(categorizeToken("50svh")).toBe("length");
+    expect(categorizeToken("100dvh")).toBe("length");
+    expect(categorizeToken("10cqw")).toBe("length");
+    expect(categorizeToken("5vi")).toBe("length");
+  });
   it("길이 단위 포함 calc/clamp/min/max → length", () => {
     expect(categorizeToken("calc(100% - 16px)")).toBe("length");
     expect(categorizeToken("clamp(1rem, 2vw, 3rem)")).toBe("length");
@@ -297,10 +304,22 @@ describe("resolveVarChain", () => {
     expect(resolveVarChain("var(--_unknown)", {})).toBe("var(--_unknown)");
   });
 
-  it("fallback var: regex가 nested )를 못 잡아서 원본 유지", () => {
+  it("fallback var: primary 없고 fallback이 private면 펼침 (nested ) 균형)", () => {
     const props = { "--_fallback": "10px" };
     const result = resolveVarChain("var(--missing, var(--_fallback))", props);
-    expect(result).toContain("var(--missing");
+    expect(result).toBe("10px");
+  });
+
+  it("같은 private 토큰 반복(sibling)은 각각 펼침", () => {
+    const props = { "--_x": "10px" };
+    expect(resolveVarChain("var(--_x) var(--_x)", props)).toBe("10px 10px");
+  });
+
+  it("같은 private 토큰이 shorthand 내 반복돼도 모두 펼침", () => {
+    const props = { "--_g": "8px" };
+    expect(resolveVarChain("var(--_g) var(--_g) var(--_g)", props)).toBe(
+      "8px 8px 8px",
+    );
   });
 
   it("fallback var: primary 없고 fallback이 public이면 보존", () => {
@@ -619,6 +638,33 @@ describe("mergeCrossOriginDecls", () => {
     );
     expect(out.color).toBe("blue");
     expect(sources.color).toBe(".b");
+  });
+
+  it("same-origin border shorthand의 per-side longhand는 cross-origin이 못 덮음", () => {
+    // collectRulesForElement는 expandShorthands 전에 merge하므로 out엔 border만 있다.
+    const out: Record<string, string> = { border: "1px solid blue" };
+    const sources: Record<string, string> = { border: ".same" };
+    mergeCrossOriginDecls(
+      out,
+      sources,
+      {},
+      [co(".card", { "border-top-color": "red" })],
+      {},
+    );
+    expect(out["border-top-color"]).toBeUndefined();
+  });
+
+  it("same-origin border-bottom의 longhand도 cross-origin이 못 덮음", () => {
+    const out: Record<string, string> = { "border-bottom": "2px dashed green" };
+    const sources: Record<string, string> = { "border-bottom": ".same" };
+    mergeCrossOriginDecls(
+      out,
+      sources,
+      {},
+      [co(".x", { "border-bottom-width": "9px" })],
+      {},
+    );
+    expect(out["border-bottom-width"]).toBeUndefined();
   });
 
   it("이른 var(토큰)을 나중 cross-origin literal이 덮지 않음 (token 강등 회귀 방지)", () => {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Loader2, Trash2 } from "lucide-react";
 import { useT } from "@/i18n";
 import {
@@ -54,6 +54,8 @@ export function StyleChangesDialog() {
   const bufferedElements = useEditorStore((s) => s.bufferedElements);
   const [open, setOpen] = useState(false);
   const [busyKey, setBusyKey] = useState<string | null>(null);
+  // 같은 틱 중복 호출 가드 — busyKey state는 리렌더 후에야 disabled에 반영돼 race가 샌다.
+  const busyRef = useRef(false);
 
   const groups = useMemo(
     () => buildChangeGroups(selection, styleEdits, bufferedElements),
@@ -69,27 +71,29 @@ export function StyleChangesDialog() {
 
   const applyBufferedReset = async (group: ChangeGroup, next: EditorStyleEdits) => {
     if (!tabId) return;
-    // found=false(요소 소실)여도 store 갱신은 진행해 UI 일관성 유지 — 원복 불가는 restoreAll과 동일 한계.
-    const found = await applyEditsBySelector(tabId, group.selector, {
-      classList: next.classList,
-      inlineStyle: next.inlineStyle,
-      text: group.snapshot.text === null ? null : next.text,
-    });
     const remaining = buildStyleDiff(group.snapshot, next);
+    // store 갱신을 DOM await 전에 동기 수행 — DOM 원복과 store mutation 사이에 버퍼가
+    // 바뀌어 selector no-op으로 store-DOM이 갈라지는 창을 없앤다(순수 next/remaining 기반).
     if (remaining.length === 0) {
       useEditorStore.getState().removeBufferedElement(group.selector);
     } else {
       useEditorStore.getState().patchBufferedElement(group.selector, {
         styleEdits: next,
       });
-      // DOM 미원복 상태(found=false)의 재캡처는 잔여 diff와 모순된 이미지를 만들므로 기존 afterImage 유지.
-      if (found) {
-        const img = await captureElementSnapshotBySelector(tabId, group.selector);
-        if (img) {
-          useEditorStore.getState().patchBufferedElement(group.selector, {
-            afterImage: img,
-          });
-        }
+    }
+    // found=false(요소 소실)여도 store는 이미 갱신 — 원복 불가는 restoreAll과 동일 한계.
+    const found = await applyEditsBySelector(tabId, group.selector, {
+      classList: next.classList,
+      inlineStyle: next.inlineStyle,
+      text: group.snapshot.text === null ? null : next.text,
+    });
+    // 잔여 diff가 있고 DOM이 실제 원복된 경우만 after 스냅샷 재캡처(미원복은 모순 이미지 방지).
+    if (remaining.length > 0 && found) {
+      const img = await captureElementSnapshotBySelector(tabId, group.selector);
+      if (img) {
+        useEditorStore.getState().patchBufferedElement(group.selector, {
+          afterImage: img,
+        });
       }
     }
     // 재선택된 버퍼 항목(중복 케이스): 재선택으로 selection·styleEdits 베이스라인 갱신.
@@ -99,7 +103,8 @@ export function StyleChangesDialog() {
   };
 
   const handleResetRow = async (group: ChangeGroup, prop: string, key: string) => {
-    if (!tabId || busy) return;
+    if (!tabId || busyRef.current) return;
+    busyRef.current = true;
     setBusyKey(key);
     try {
       const next = removeDiffRow(group.snapshot, group.edits, prop);
@@ -112,6 +117,7 @@ export function StyleChangesDialog() {
         await applyBufferedReset(group, next);
       }
     } finally {
+      busyRef.current = false;
       setBusyKey(null);
     }
   };

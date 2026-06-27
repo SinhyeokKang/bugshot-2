@@ -90,6 +90,32 @@ describe("isFetchableSheetUrl (SSRF 가드)", () => {
     });
   });
 
+  describe("차단 — 특수/비공개 IPv4 범위", () => {
+    it.each([
+      "http://100.64.0.1/x.css", // CGNAT 100.64/10
+      "http://100.127.255.255/x.css",
+      "http://192.0.0.1/x.css", // IETF 192.0.0.0/24
+      "http://198.18.0.1/x.css", // benchmarking 198.18/15
+      "http://198.19.255.255/x.css",
+      "http://224.0.0.1/x.css", // multicast
+      "http://240.0.0.1/x.css", // reserved
+      "http://255.255.255.255/x.css", // broadcast
+    ])("%s → false", (url) => {
+      expect(isFetchableSheetUrl(url)).toBe(false);
+    });
+  });
+
+  describe("허용 — 공개 IPv4 (특수 범위 인접 경계)", () => {
+    it.each([
+      "http://100.63.255.255/x.css", // CGNAT 직전
+      "http://100.128.0.1/x.css", // CGNAT 직후
+      "http://198.17.255.255/x.css", // benchmarking 직전
+      "http://223.255.255.255/x.css", // multicast 직전
+    ])("%s → true", (url) => {
+      expect(isFetchableSheetUrl(url)).toBe(true);
+    });
+  });
+
   describe("에러 — 파싱 불가 입력", () => {
     it.each([
       "not a url",

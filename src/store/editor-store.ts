@@ -843,8 +843,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         }
         for (let i = 0; i < bufferedSnapshot.length; i++) {
           const b = bufferedSnapshot[i];
-          if (b.beforeImage && !await saveImageBlob(id, `b${i}-before`, dataUrlToBlob(b.beforeImage))) failed = true;
-          if (b.afterImage && !await saveImageBlob(id, `b${i}-after`, dataUrlToBlob(b.afterImage))) failed = true;
+          if (b.beforeImage && !await saveImageBlob(id, `b${i}-before`, dataUrlToBlob(b.beforeImage))) {
+            useIssuesStore.getState().patchDraftBufferedImageFlags(id, i, { hasBefore: false });
+            failed = true;
+          }
+          if (b.afterImage && !await saveImageBlob(id, `b${i}-after`, dataUrlToBlob(b.afterImage))) {
+            useIssuesStore.getState().patchDraftBufferedImageFlags(id, i, { hasAfter: false });
+            failed = true;
+          }
         }
         if (failed) onBlobSaveFailed.fire();
       })();

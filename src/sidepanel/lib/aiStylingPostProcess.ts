@@ -4,6 +4,67 @@ import type { AiStylingEdits } from "./buildAiStylingPrompt";
 import { tokenFamilyPrefix } from "@/sidepanel/tabs/styleEditor/tokenUtils";
 import { SHORTHAND_GROUPS } from "@/sidepanel/components/StyleChangesTable";
 
+// AI 머지 시 "이 shorthand가 덮는 longhand" 맵 — diff 행 중복 방지용. 4-longhand collapse
+// 전용인 SHORTHAND_GROUPS를 확장해 gap·border·background·font 등 비대칭 shorthand까지 커버.
+const AI_SHORTHAND_LONGHANDS: Record<string, string[]> = {
+  ...SHORTHAND_GROUPS,
+  gap: ["row-gap", "column-gap"],
+  inset: ["top", "right", "bottom", "left"],
+  overflow: ["overflow-x", "overflow-y"],
+  "border-top": ["border-top-width", "border-top-style", "border-top-color"],
+  "border-right": [
+    "border-right-width",
+    "border-right-style",
+    "border-right-color",
+  ],
+  "border-bottom": [
+    "border-bottom-width",
+    "border-bottom-style",
+    "border-bottom-color",
+  ],
+  "border-left": ["border-left-width", "border-left-style", "border-left-color"],
+  border: [
+    "border-width",
+    "border-style",
+    "border-color",
+    "border-top",
+    "border-right",
+    "border-bottom",
+    "border-left",
+    "border-top-width",
+    "border-right-width",
+    "border-bottom-width",
+    "border-left-width",
+    "border-top-style",
+    "border-right-style",
+    "border-bottom-style",
+    "border-left-style",
+    "border-top-color",
+    "border-right-color",
+    "border-bottom-color",
+    "border-left-color",
+  ],
+  background: [
+    "background-color",
+    "background-image",
+    "background-position",
+    "background-size",
+    "background-repeat",
+    "background-origin",
+    "background-clip",
+    "background-attachment",
+  ],
+  font: [
+    "font-style",
+    "font-variant",
+    "font-weight",
+    "font-stretch",
+    "font-size",
+    "line-height",
+    "font-family",
+  ],
+};
+
 export function mergeAiEdits(
   current: EditorStyleEdits,
   edits: AiStylingEdits,
@@ -12,7 +73,7 @@ export function mergeAiEdits(
   // AI가 shorthand를 내면 기존 longhand를 제거 — DOM 적용 순서상 나중 키(shorthand)가
   // 덮으므로 diff 행도 한 키로 일치시킨다(중복 padding 행 방지).
   for (const prop of Object.keys(edits.inlineStyle ?? {})) {
-    for (const longhand of SHORTHAND_GROUPS[prop] ?? []) {
+    for (const longhand of AI_SHORTHAND_LONGHANDS[prop] ?? []) {
       delete inlineStyle[longhand];
     }
   }
@@ -123,6 +184,9 @@ function rgbToHsl([r, g, b]: RGB): HSL {
   return [h, s, l];
 }
 
+// hue(deg) 거리 — 채도 낮은(무채색) 색만 배제하고, 명도 차는 의도적으로 무시한다.
+// raw/named 색을 같은 family 디자인 토큰으로 매핑하는 게 목적이라(purple→--color-purple,
+// 명암 무관) lightness 가드를 넣으면 그 매핑이 깨진다(family prefix 필터로 오매칭은 이미 한정).
 function hslDistance(a: HSL, b: HSL): number {
   if (a[1] < 0.1 || b[1] < 0.1) return Infinity;
   return Math.min(Math.abs(a[0] - b[0]), 360 - Math.abs(a[0] - b[0]));

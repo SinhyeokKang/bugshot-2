@@ -202,6 +202,16 @@ const VAR_REF_RE = /var\(\s*(--[\w-]+)(?:\s*,\s*([^)]*))?\)/g;
 const SIMPLE_VAR_FALLBACK_RE = /^\s*var\(\s*(--[\w-]+)(?:\s*,\s*[^)]*)?\s*\)\s*$/;
 const CSS_DECL_RE = /([\w-]+)\s*:\s*([^;]+)/g;
 
+// length 단위 단일 출처 — categorizeToken·isBorderWidthToken이 공유(목록 불일치 방지).
+const LENGTH_UNITS =
+  "px|rem|em|%|vw|vh|vi|vb|vmin|vmax|svh|lvh|dvh|svw|lvw|dvw|ch|ex|cqw|cqh|cqi|cqb|cqmin|cqmax|pt|pc|cm|mm|in|q";
+const LENGTH_TOKEN_RE = new RegExp(`^-?\\d*\\.?\\d+(${LENGTH_UNITS})$`, "i");
+const LENGTH_IN_FN_RE = new RegExp(`\\d\\s*(${LENGTH_UNITS})\\b`, "i");
+const BORDER_WIDTH_NUM_RE = new RegExp(
+  `^-?\\d*\\.?\\d+(${LENGTH_UNITS})?$`,
+  "i",
+);
+
 /* ── public ──────────────────────────────────────── */
 
 export function collectSelection(
@@ -554,12 +564,33 @@ function formatColor(value: string): string | undefined {
   if (!value) return undefined;
   const v = value.trim();
   if (v === "transparent" || v === "rgba(0, 0, 0, 0)") return undefined;
-  const m = v.match(/^rgba?\(\s*(\d+)\s*,?\s*(\d+)\s*,?\s*(\d+)\s*(?:[,/]\s*([\d.]+))?\s*\)$/);
-  if (!m) return v;
-  const r = parseInt(m[1], 10);
-  const g = parseInt(m[2], 10);
-  const b = parseInt(m[3], 10);
-  const a = m[4] !== undefined ? parseFloat(m[4]) : 1;
+  let r: number, g: number, b: number, a = 1;
+  const rgbM = v.match(
+    /^rgba?\(\s*(\d+)\s*,?\s*(\d+)\s*,?\s*(\d+)\s*(?:[,/]\s*([\d.]+))?\s*\)$/,
+  );
+  const hexM = v.match(/^#([0-9a-fA-F]{3,8})$/);
+  if (rgbM) {
+    r = parseInt(rgbM[1], 10);
+    g = parseInt(rgbM[2], 10);
+    b = parseInt(rgbM[3], 10);
+    a = rgbM[4] !== undefined ? parseFloat(rgbM[4]) : 1;
+  } else if (hexM) {
+    // 단축 hex(#abc/#abcf)를 6/8자리로 펼쳐 rgb 경로와 같은 키로 정규화 —
+    // 안 하면 `#fff` 토큰이 computed `rgb(255,255,255)`와 매칭 실패.
+    let h = hexM[1];
+    if (h.length === 3 || h.length === 4)
+      h = h
+        .split("")
+        .map((c) => c + c)
+        .join("");
+    if (h.length !== 6 && h.length !== 8) return v;
+    r = parseInt(h.slice(0, 2), 16);
+    g = parseInt(h.slice(2, 4), 16);
+    b = parseInt(h.slice(4, 6), 16);
+    a = h.length === 8 ? parseInt(h.slice(6, 8), 16) / 255 : 1;
+  } else {
+    return v;
+  }
   if (a < 1) return `rgba(${r}, ${g}, ${b}, ${a})`;
   const hex = (n: number) => n.toString(16).padStart(2, "0");
   return `#${hex(r)}${hex(g)}${hex(b)}`.toUpperCase();
@@ -825,6 +856,13 @@ export function mergeCrossOriginDecls(
   for (const key of [...sameOriginKeys]) {
     const longhands = SHORTHAND_MAP[key];
     if (longhands) for (const lh of longhands) sameOriginKeys.add(lh);
+    // border/border-{side}는 SHORTHAND_MAP 밖(width|style|color 혼합)이라 별도 claim —
+    // same-origin border가 cross-origin border-{side}-color에 split당하는 것 방지.
+    const sides = BORDER_SHORTHAND_SIDES[key];
+    if (sides)
+      for (const side of sides)
+        for (const prop of ["width", "style", "color"])
+          sameOriginKeys.add(`border-${side}-${prop}`);
   }
   for (const rule of rules) {
     for (const [name, val] of rule.decls) {
@@ -860,7 +898,7 @@ function extractVarPropsFromCssText(
   CSS_DECL_RE.lastIndex = 0;
   let m: RegExpExecArray | null;
   while ((m = CSS_DECL_RE.exec(cssText)) !== null) {
-    declared.set(m[1], m[2].trim());
+    declared.set(m[1], m[2].replace(/\s*!\s*important\s*$/i, "").trim());
   }
   extractVarPropsFromMap(declared, out, sources, customProps, origin, wantedProps);
 }
@@ -955,8 +993,7 @@ function fillIfAbsent(
 
 function isBorderWidthToken(tok: string): boolean {
   if (tok === "thin" || tok === "medium" || tok === "thick") return true;
-  if (/^-?\d*\.?\d+(px|rem|em|%|vw|vh|ch|ex|vmin|vmax|pt|pc|cm|mm|in|q)?$/i.test(tok))
-    return true;
+  if (BORDER_WIDTH_NUM_RE.test(tok)) return true;
   return /^(calc|clamp|min|max)\(/i.test(tok);
 }
 
@@ -1010,40 +1047,86 @@ export function splitCssTokens(value: string): string[] {
   return parts;
 }
 
+// 괄호 균형으로 top-level var() 참조를 스캔(중첩 fallback의 nested ) 보존). 각 참조를
+// replace(name, fallback, match)로 위임하고 반환값으로 치환한다.
+function replaceVarRefs(
+  value: string,
+  replace: (name: string, fallback: string | null, match: string) => string,
+): string {
+  let out = "";
+  let i = 0;
+  while (i < value.length) {
+    const idx = value.indexOf("var(", i);
+    if (idx < 0) {
+      out += value.slice(i);
+      break;
+    }
+    out += value.slice(i, idx);
+    let depth = 0;
+    let j = idx;
+    for (; j < value.length; j++) {
+      if (value[j] === "(") depth++;
+      else if (value[j] === ")") {
+        depth--;
+        if (depth === 0) break;
+      }
+    }
+    if (j >= value.length) {
+      out += value.slice(idx);
+      break;
+    }
+    const inner = value.slice(idx + 4, j);
+    const comma = topLevelComma(inner);
+    const name = (comma < 0 ? inner : inner.slice(0, comma)).trim();
+    const fallback = comma < 0 ? null : inner.slice(comma + 1).trim();
+    out += replace(name, fallback, value.slice(idx, j + 1));
+    i = j + 1;
+  }
+  return out;
+}
+
+function topLevelComma(s: string): number {
+  let depth = 0;
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (c === "(") depth++;
+    else if (c === ")") depth--;
+    else if (c === "," && depth === 0) return i;
+  }
+  return -1;
+}
+
 export function resolveVarChain(
   value: string,
   customProps: Record<string, string>,
   depth = 0,
-  visited?: Set<string>,
+  chain?: Set<string>,
 ): string {
   if (depth > 5 || !value.includes("var(")) return value;
-  const seen = visited ?? new Set<string>();
   let changed = false;
-  VAR_REF_RE.lastIndex = 0;
-  const next = value.replace(
-    VAR_REF_RE,
-    (match, name: string, fallback: string | undefined) => {
-      if (seen.has(name)) return match;
-      seen.add(name);
-      let resolvedName = name;
-      let replacement = customProps[name];
-      if (replacement === undefined && fallback) {
-        const fb = SIMPLE_VAR_FALLBACK_RE.exec(fallback.trim());
-        if (fb && !seen.has(fb[1]) && customProps[fb[1]] !== undefined) {
-          resolvedName = fb[1];
-          replacement = customProps[fb[1]];
-          seen.add(fb[1]);
-        }
+  const next = replaceVarRefs(value, (name, fallback, match) => {
+    let resolvedName = name;
+    let replacement = customProps[name];
+    if (replacement === undefined && fallback) {
+      const fb = SIMPLE_VAR_FALLBACK_RE.exec(fallback);
+      if (fb && customProps[fb[1]] !== undefined) {
+        resolvedName = fb[1];
+        replacement = customProps[fb[1]];
       }
-      if (replacement === undefined) return match;
-      const isPrivate = resolvedName.startsWith("--_");
-      if (!isPrivate) return match;
-      changed = true;
-      return replacement;
-    },
-  );
-  if (!changed) return value;
-  return resolveVarChain(next, customProps, depth + 1, seen);
+    }
+    if (replacement === undefined) return match;
+    // public 토큰은 보존(처음 이름에서 멈춤), private(--_)만 끝까지 펼침.
+    if (!resolvedName.startsWith("--_")) return match;
+    // chain은 현재 해석 경로 — 같은 이름이 자기 펼침에서 재등장하면 사이클로 멈춘다.
+    // 같은 값 내 sibling 반복(var(--_x) var(--_x))은 chain이 분기별 복제라 각자 펼쳐진다.
+    const seen = chain ?? new Set<string>();
+    if (seen.has(resolvedName)) return match;
+    changed = true;
+    const nextChain = new Set(seen);
+    nextChain.add(resolvedName);
+    return resolveVarChain(replacement, customProps, depth + 1, nextChain);
+  });
+  return changed ? next : value;
 }
 
 function collectInlineTokens(el: Element, seen: Map<string, string>): void {
@@ -1114,17 +1197,11 @@ export function categorizeToken(value: string): TokenCategory {
   if (NAMED_COLORS.has(v.toLowerCase())) return "color";
   if (/^(linear-gradient|radial-gradient|conic-gradient|repeating-linear-gradient|repeating-radial-gradient|repeating-conic-gradient|url|image-set)\(/i.test(v))
     return "image";
-  if (
-    /^-?\d*\.?\d+(px|rem|em|%|vw|vh|ch|ex|vmin|vmax|pt|pc|cm|mm|in)$/.test(v)
-  )
-    return "length";
+  if (LENGTH_TOKEN_RE.test(v)) return "length";
   // unitless 0 / 길이 함수(calc·clamp·min·max에 길이 단위 포함)는 length 속성에서 유효 —
   // number로 떨어뜨리면 length prop 토큰 목록에서 누락된다.
   if (/^-?0(\.0+)?$/.test(v)) return "length";
-  if (
-    /^(calc|clamp|min|max)\(/i.test(v) &&
-    /\d\s*(px|rem|em|%|vw|vh|ch|ex|vmin|vmax|pt|pc|cm|mm|in)\b/i.test(v)
-  )
+  if (/^(calc|clamp|min|max)\(/i.test(v) && LENGTH_IN_FN_RE.test(v))
     return "length";
   if (/^-?\d*\.?\d+$/.test(v)) return "number";
   return "unknown";

@@ -1,6 +1,40 @@
 import { describe, it, expect } from "vitest";
 
-import { indexCrossOriginRules } from "../css-source-cache";
+import {
+  indexCrossOriginRules,
+  normalizeSelector,
+  stripComments,
+} from "../css-source-cache";
+
+describe("normalizeSelector — CSSOM 표기 정렬", () => {
+  it("top-level 결합자(> + ~) 둘레 간격을 통일", () => {
+    expect(normalizeSelector(".a>.b")).toBe(".a > .b");
+    expect(normalizeSelector(".a   >.b")).toBe(".a > .b");
+    expect(normalizeSelector(".a+.b~.c")).toBe(".a + .b ~ .c");
+  });
+  it("[]·() 내부의 ~/+는 결합자가 아니라 보존", () => {
+    expect(normalizeSelector('[class~="x"]')).toBe('[class~="x"]');
+    expect(normalizeSelector(":nth-child(2n+1)")).toBe(":nth-child(2n+1)");
+    expect(normalizeSelector('.a>[data-x~="y"]')).toBe('.a > [data-x~="y"]');
+  });
+  it("이미 정규화된 셀렉터는 동일하게 통과 (raw↔CSSOM 매핑)", () => {
+    expect(normalizeSelector(".a > .b")).toBe(".a > .b");
+  });
+});
+
+describe("stripComments — 문자열 리터럴 보존", () => {
+  it("주석만 제거", () => {
+    expect(stripComments("a/*c*/b")).toBe("ab");
+    expect(stripComments(".x{color:red/* hi */}")).toBe(".x{color:red}");
+  });
+  it("문자열 안의 /* */는 주석이 아니라 보존", () => {
+    expect(stripComments('content:"a/*b*/c"')).toBe('content:"a/*b*/c"');
+    expect(stripComments("content:'/* x */'")).toBe("content:'/* x */'");
+  });
+  it("이스케이프된 따옴표를 문자열 종료로 오인하지 않음", () => {
+    expect(stripComments('content:"a\\"/*b*/"')).toBe('content:"a\\"/*b*/"');
+  });
+});
 
 // parseStylesheet가 뱉는 ParsedRule({selectorText, decls:Map}) 형태를 흉내낸 헬퍼.
 function rule(selectorText: string, decls: Record<string, string>) {

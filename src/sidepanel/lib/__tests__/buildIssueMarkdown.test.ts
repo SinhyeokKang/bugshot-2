@@ -573,9 +573,11 @@ describe("buildMetaComment — 복수 element cssChanges (AI 메타)", () => {
     ]);
   });
 
-  it("단일 styleElements → meta.elements 생략(기존 top-level 단일 필드 유지)", () => {
+  it("단일 styleElements → meta.elements 생략, top-level은 그 element와 정합", () => {
     const md = buildIssueMarkdown(
       makeCtx({
+        // 현재 요소(div.container)는 no-diff, 버퍼 element(button.cta)만 변경 — top-level
+        // selector는 본문에 emit되는 element(button.cta)를 가리켜야 한다(어긋남 방지).
         styleElements: [
           styleEl("button.cta", [{ prop: "color", asIs: "#000", toBe: "#fff" }]),
         ],
@@ -583,7 +585,7 @@ describe("buildMetaComment — 복수 element cssChanges (AI 메타)", () => {
     );
     const meta = parseMeta(md);
     expect(meta.elements).toBeUndefined();
-    expect(meta.selector).toBe("div.container");
+    expect(meta.selector).toBe("button.cta");
     expect(meta.cssChanges).toEqual([
       { property: "color", from: "#000", to: "#fff" },
     ]);
