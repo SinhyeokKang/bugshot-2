@@ -118,7 +118,7 @@ function SlackSummary() {
   return (
     <div className="flex flex-col gap-1.5">
       <Card>
-        <CardContent className="flex items-center justify-between px-4 py-3">
+        <CardContent className="flex items-center px-4 py-3">
           <div className="flex min-w-0 flex-col">
             <span className="truncate text-base font-medium text-foreground">{name}</span>
             <span className="truncate text-sm text-muted-foreground">

@@ -1,7 +1,6 @@
 import { buildSlackBody } from "./buildSlackBody";
 import { escapeMrkdwn } from "./markdownToMrkdwn";
 import type { InlineImageInput } from "./resolveInlineImages";
-import { guessUploadMime } from "./uploadMime";
 import { sendBg } from "@/types/messages";
 import type {
   SlackPermalinkResult,
@@ -32,7 +31,6 @@ export interface SlackSubmitInput {
 function toUploadEntry(f: SlackFileInput) {
   return {
     filename: f.filename,
-    contentType: guessUploadMime(f.filename),
     dataUrl: f.dataUrl,
   };
 }

@@ -185,7 +185,7 @@ export async function getPermalink(
   return data.permalink;
 }
 
-// files 2-step 업로드: getUploadURLExternal → PUT bytes → completeUploadExternal(thread_ts).
+// files 2-step 업로드: getUploadURLExternal → POST bytes → completeUploadExternal(thread_ts).
 export async function uploadFiles(
   auth: SlackAuth,
   channelId: string,

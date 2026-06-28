@@ -235,7 +235,7 @@ export type BgRequest =
       type: "slack.uploadFiles";
       channelId: string;
       threadTs: string;
-      files: Array<{ filename: string; contentType: string; dataUrl: string }>;
+      files: Array<{ filename: string; dataUrl: string }>;
     }
   | { type: "slack.getPermalink"; channelId: string; ts: string }
   | { type: "analytics.capture"; event: string; properties: Record<string, string> }
