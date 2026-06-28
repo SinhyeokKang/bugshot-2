@@ -1,21 +1,17 @@
 # BugShot
 
-**Spot a bug, file a complete report — without leaving the page.**
+**Bug reports in one shot.**
 
-BugShot is a Chrome side panel extension that turns "this button looks off" into a
-ready-to-submit issue. Pick a DOM element, tweak its CSS, capture a screenshot or
-video, and BugShot bundles the **environment, before/after styles, screenshots,
-video, and console/network logs** into one issue on Jira, GitHub, Linear, Notion,
-GitLab, Asana, or ClickUp.
+Stop explaining bugs in words. BugShot is a Chrome side panel extension that lets
+you discover, fix, capture, and report bugs — all without leaving the browser. Pick
+an element and tweak its CSS live, capture a screenshot or recording, and file a
+complete issue — with the **environment, before/after styles, screenshots, video,
+and console/network logs** bundled in — to Jira, GitHub, Linear, Notion, GitLab,
+Asana, or ClickUp.
 
-No more switching between DevTools, a screen recorder, and your issue tracker. One panel, one shot.
+No sign-up required — just install and go.
 
 [![Chrome Web Store](https://img.shields.io/chrome-web-store/v/ohakhekagkodklkickemonmifdcbhmig)](https://chromewebstore.google.com/detail/bugshot/ohakhekagkodklkickemonmifdcbhmig)
-[![Users](https://img.shields.io/chrome-web-store/users/ohakhekagkodklkickemonmifdcbhmig)](https://chromewebstore.google.com/detail/bugshot/ohakhekagkodklkickemonmifdcbhmig)
-
-🌐 [Website](https://bug-shot.com) · 📖 User Guide [English](https://bugshot.gitbook.io/en) / [한국어](https://bugshot.gitbook.io/ko)
-
-![BugShot side panel — Debug, Issues, Integrations, and Settings tabs with capture modes](guide/en/assets/readme-1.jpg)
 
 ## Why BugShot
 
@@ -45,8 +41,6 @@ Fix the bug visually before you even describe it.
 - **Design token awareness** — resolves `var()` chains and shows the token name (e.g. `--color-primary`) instead of the raw computed value, so the report speaks your design system's language.
 - **Before/after diff** — every change is tracked and rendered as a before → after table in the issue, so developers see exactly which properties to change. Edits across multiple elements are stacked and preserved until you submit.
 
-![The style editor — class and layout fields for a selected element](guide/en/assets/element-styling-1.jpg)
-
 ### 📸 Capture
 
 Grab exactly what's on screen and mark it up.
@@ -55,17 +49,13 @@ Grab exactly what's on screen and mark it up.
 - **Area capture** — drag any region of the screen to capture a precise slice.
 - **Annotation** — mark up the shot with arrows, text, shapes, and highlights before attaching it.
 
-![Annotating a screenshot with arrows, text, and shapes](guide/en/assets/screenshot-annotation-1.jpg)
-
 ### 🎬 Recording
 
 When a still image isn't enough, record the behavior.
 
 - **Tab recording** — record the current tab, up to 60 seconds, encoded to MP4.
 - **Screen recording** — record any window or the full screen via the system picker, up to 60 seconds.
-- **30s Replay** — an opt-in, always-on buffer that keeps the **last 30 seconds** as MP4. It looks back across page navigations, so you can capture a bug that *already happened* without having hit record beforehand.
-
-![Recording in progress with elapsed time and a stop button](guide/en/assets/video-record-3.jpg)
+- **30s Replay** — an opt-in, always-on buffer that keeps the **last 30 seconds** as MP4. It looks back across page navigations, so you can catch the bug even *after* spotting it — no need to hit record beforehand.
 
 ### 📋 Logs
 
@@ -74,8 +64,6 @@ Reproduction context, collected for you in the background.
 - **Network & console logs** — captured automatically while a capture is active and attached to the issue. Includes **WebSocket frames** and logs from **cross-origin iframes** (payment widgets, embeds), all filterable by origin.
 - **Action log** — clicks, text input, navigations, keyboard shortcuts, checkbox/radio toggles, and dropdown selections recorded as step-by-step reproduction. Sensitive field values are masked.
 - **Log viewer** — a standalone `logs.html` report with a **video-synced timeline**: click any console/network/action entry to jump to that exact moment in the recording.
-
-![The log viewer — video on the left, a synced action timeline on the right](guide/en/assets/logs-viewer-1.jpg)
 
 ### 🤖 AI
 
@@ -133,5 +121,3 @@ The e2e suite lives in `e2e/` — see [`e2e/README.md`](e2e/README.md) for cover
 
 BugShot stores your data locally and sends issue content only to the tracker you
 choose. See the [Privacy Policy](https://sinhyeokkang.github.io/bugshot-2/privacy).
-</content>
-</invoke>
