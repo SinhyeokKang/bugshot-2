@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ComponentType } from "react";
-import { Blocks, Plug, Plus, Slack, Unplug } from "lucide-react";
+import { Blocks, Plug, Plus, Unplug } from "lucide-react";
+import { SlackIcon } from "@/components/icons/SlackIcon";
 import {
   SiAsana,
   SiClickup,
@@ -60,7 +61,7 @@ const PLATFORMS: PlatformEntry[] = [
   { id: "asana", Icon: SiAsana, ConnectedBody: AsanaConnectedBody, ConnectFlow: AsanaConnectFlow },
   { id: "clickup", Icon: SiClickup, ConnectedBody: ClickupConnectedBody, ConnectFlow: ClickupConnectFlow },
   // lucide 아이콘은 simple-icons의 color="default"(브랜드 hex)를 못 받아 투명해진다 → currentColor로 렌더.
-  { id: "slack", Icon: ({ className }) => <Slack className={className} />, ConnectedBody: SlackConnectedBody, ConnectFlow: SlackConnectFlow },
+  { id: "slack", Icon: ({ className }) => <SlackIcon className={className} />, ConnectedBody: SlackConnectedBody, ConnectFlow: SlackConnectFlow },
 ];
 
 export function IntegrationsTab({ activeMainTab }: { activeMainTab: string }) {

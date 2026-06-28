@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Loader2, Slack } from "lucide-react";
+import { Loader2 } from "lucide-react";
+import { SlackIcon } from "@/components/icons/SlackIcon";
 import { toast } from "sonner";
 import { useT } from "@/i18n";
 import { Button } from "@/components/ui/button";
@@ -71,7 +72,7 @@ export function SlackConnectFlow({ connected, onConnected }: ConnectFlowProps) {
         </span>
       )}
       <span className={`inline-flex items-center gap-2 ${connecting ? "opacity-0" : ""}`}>
-        <Slack className="h-4 w-4" />
+        <SlackIcon className="h-4 w-4" />
         {connected
           ? t("platform.connected", { platform: t("platform.tab.slack") })
           : t("platform.connectPlatform", { platform: t("platform.tab.slack") })}

@@ -1,5 +1,6 @@
 import { useEffect, useState, type ComponentType } from "react";
-import { Loader2, Slack } from "lucide-react";
+import { Loader2 } from "lucide-react";
+import { SlackIcon } from "@/components/icons/SlackIcon";
 import {
   SiAsana,
   SiClickup,
@@ -119,7 +120,7 @@ const PLATFORM_TABS: {
   { id: "asana", Icon: SiAsana },
   { id: "clickup", Icon: SiClickup },
   // lucide 아이콘은 color="default"(브랜드 hex)를 못 받아 투명해진다 → currentColor로 렌더.
-  { id: "slack", Icon: ({ className }) => <Slack className={className} /> },
+  { id: "slack", Icon: ({ className }) => <SlackIcon className={className} /> },
 ];
 
 export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
