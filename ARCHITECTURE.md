@@ -33,7 +33,7 @@ chrome.action.onClicked.addListener((tab) => {
 });
 ```
 
-같은 함정이 **화면 녹화의 `getDisplayMedia`**에도 적용된다(transient user activation 요구). `startScreenCapture`(`video-capture.ts`)는 **getDisplayMedia를 첫 await로** 호출하고 `chrome.tabs.get`·레코더 activate를 그 뒤로 미룬다 — 앞에 다른 await를 두면 activation이 만료돼 picker가 안 뜬다. 탭 녹화(`startVideoCapture`)는 레코더 activate 후 `getMediaStreamId`라 순서가 반대인데, tabCapture는 activeTab 기반이라 이 제약을 안 받는다.
+같은 함정이 **화면 녹화의 `getDisplayMedia`**에도 적용된다(transient user activation 요구). `startScreenCapture`(`video-capture.ts`)는 **getDisplayMedia를 첫 await로** 호출하고 `chrome.tabs.get`·레코더 activate를 그 뒤로 미룬다 — 앞에 다른 await를 두면 activation이 만료돼 picker가 안 뜬다. 탭 녹화(`startVideoCapture`)도 같은 이유로 `startTabStream`(`getMediaStreamId`+`getUserMedia`)을 **첫 await로** 호출하고 레코더 준비를 그 뒤로 미룬다. tabCapture는 activeTab 기반이라 사이드패널에서 cross-origin 이동 후엔 invoke가 회수돼 막히는데(Chrome은 패널 열기를 activeTab 부여로 인정 안 함), 이때 `startScreenCapture(tabId, {preferTab:true})`로 자동 폴백한다 — `getMediaStreamId` 실패는 미디어 캡처 API가 아니라 activation을 소비하지 않아 폴백 picker가 정상적으로 뜬다.
 
 ## 편집 세션 영속화
 
@@ -166,7 +166,7 @@ shorthand(var 포함) + 같은 shorthand의 longhand override 조합에서 Chrom
 
 **issueUrl 주입**: `buildLogsHtml`이 meta 마지막에 빈 `issueUrl:""` 예약. 이슈 생성 후 `injectIssueUrl`이 해당 자리만 치환(청크 단위 btoa로 ~20MB 블로킹 회피). Jira·Linear는 생성 후 주입, Asana·ClickUp은 create가 upload보다 먼저라 업로드 직전 주입(create-first), GitHub·Notion은 구조상 불가(빈 값 → 뷰어가 링크 숨김).
 
-**startVideoCapture** (`video-capture.ts`): 3개 레코더(network/console/action) `activate*Recorder` → `clear*Recorder` → `startRecording` 순. 녹화 종료(`recording→drafting`) 시 `recordersStopped=true`(`useBackgroundRecorder`)로 drafting 중 재주입 차단.
+**startVideoCapture** (`video-capture.ts`): `startTabStream`으로 탭 스트림을 **먼저** 획득(activeTab 시험 — 실패 시 화면공유 폴백) → 3개 레코더(network/console/action) `activate*Recorder` → `clear*Recorder`(`prepareRecorders`) → `beginTabRecording` 순. 스트림 획득과 recorder 시작을 분리해 그 사이에 레코더 준비를 끼운다(첫 await로 activation 보존 + streamId 만료 회피). 녹화 종료(`recording→drafting`) 시 `recordersStopped=true`(`useBackgroundRecorder`)로 drafting 중 재주입 차단.
 
 **영상 캡처 2종 — tab vs screen** (`video-capture.ts` / `video-recorder.ts`): 캡처 모드는 `captureMode:"video"`를 공유하되 `recordingSource:"tab"|"screen"`(`editor-store.ts`)으로 소스만 구분한다(라벨·아이콘 분기용). 스트림 획득 이후 본문(MediaRecorder·청크·onstop·썸네일·viewport·store 전환)은 `beginRecording(stream, tabId, {source, viewportHint?})`로 공통화.
 - **탭 녹화**(`startRecording` → tabCapture `getMediaStreamId`+`getUserMedia`, 720p): viewport는 onstop의 `chrome.tabs.get`.
