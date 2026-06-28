@@ -12,7 +12,7 @@ It's simpler than it sounds — three steps and you're done.
 
 ![Connect-method dialog](../assets/integrations-platforms-1.jpg)
 
-OAuth is usually the easiest. That said, if your org policy blocks OAuth or you'd rather use a token, the token method works just as well.
+OAuth is usually the easiest. That said, if your org policy blocks OAuth or you'd rather use a token, the token method works just as well. Note that **Slack supports OAuth only**, so hitting "Connect Slack" takes you straight to the login window.
 
 ## What each platform needs
 
@@ -25,10 +25,22 @@ OAuth is usually the easiest. That said, if your org policy blocks OAuth or you'
 | GitLab | OAuth / PAT | instanceUrl (self-managed only), pat | gitlab.com PAT |
 | Asana | OAuth / PAT | pat | app.asana.com my-apps |
 | ClickUp | OAuth / API Token | pat | app.clickup.com Settings > Apps |
+| Slack | OAuth only | — (no token entry) | — |
+
+## Slack — a quick share to a channel or DM
+
+Slack is a messaging app rather than an issue tracker, so it works a little differently from the others. It's perfect for when you want to drop a quick "hey, this is broken" into a team channel before filing a formal issue.
+
+- **Posts as you**: connect via OAuth and messages go out **under your own name** (not a bot). That means there's no bot to invite into channels.
+- **Where it goes**: pick any public channel, private channel, or DM you're a member of. (Channels you haven't joined won't show up in the list.)
+- **Title in the channel, details in a thread**: the title posts as a message in the channel, while the details — environment info, style changes, log summary — plus screenshots, video, and log files land as **thread replies** under it. Your channel timeline stays clean with just the one-line title.
+- **Mentions**: pick members to mention and they'll be pinged by `@name` in the message.
+
+> Slack messages don't have an "open/closed" state, so the issue list just shows "Submitted"; click it to jump straight to the message.
 
 ## Defaults after connecting
 
-Once connected, you can pick a default location for new issues — a project for Jira/GitLab, a repository for GitHub, a team for Linear, a database for Notion, a project for Asana, a list for ClickUp (picked as Workspace → Space → List). Set it once and you won't have to choose it every time you write an issue, which saves a lot of clicks.
+Once connected, you can pick a default location for new issues — a project for Jira/GitLab, a repository for GitHub, a team for Linear, a database for Notion, a project for Asana, a list for ClickUp (picked as Workspace → Space → List), a channel for Slack. Set it once and you won't have to choose it every time you write an issue, which saves a lot of clicks.
 
 ![Setting defaults after connecting](../assets/integrations-platforms-2.jpg)
 
