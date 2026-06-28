@@ -1,22 +1,9 @@
 import { defineManifest } from "@crxjs/vite-plugin";
-import { loadEnv } from "vite";
 import pkg from "./package.json" with { type: "json" };
 
-const env = loadEnv(process.env.NODE_ENV ?? "development", process.cwd(), "");
 const isStoreBuild = process.env.BUGSHOT_STORE_BUILD === "1";
 const DEV_KEY =
   "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAze+ul+m82KNOush/KW9VlfyEM4SBd0ekf4XqAwRcYLXNnxmtdQyvEEM4U7Ae93NSuSR1dQPBbwS/v98WuWSisw6IA5jJtqHd/J07LuuQIooVra7wOFb9NriipLFPlWgEWuxrRO3xIdQYilVK5ACFpEFDe4m1XF2iUD1VOSCJsRITtd5e/9rZkYu4uyMvFMSbfdJDDCNR+MtKTL3I5dnkMg7iWDF/5Sd0jCCDEw+mIuOtbbzQ0SqOQnLmTC+VwIdg8/rTuU21eAmMrJyen4lsRGqTTMuiqnPmIhZh0bu8s1d+H7wZ8V7gYOr5Fwru8QopnW2TTms5OXnQUlwA0ndXCQIDAQAB";
-function proxyMatchPattern(): string | null {
-  const raw = env.VITE_OAUTH_PROXY_URL;
-  if (!raw) return null;
-  try {
-    return `${new URL(raw).origin}/*`;
-  } catch {
-    return null;
-  }
-}
-const proxyMatch = proxyMatchPattern();
-
 export default defineManifest({
   manifest_version: 3,
   name: "__MSG_EXT_NAME__",
@@ -83,21 +70,9 @@ export default defineManifest({
     "tabCapture",
     "webNavigation",
   ],
-  host_permissions: [
-    "<all_urls>",
-    "https://*.atlassian.net/*",
-    "https://api.atlassian.com/*",
-    "https://auth.atlassian.com/*",
-    "https://api.github.com/*",
-    "https://github.com/*",
-    "https://uploads.github.com/*",
-    "https://api.linear.app/*",
-    "https://api.notion.com/*",
-    "https://gitlab.com/*",
-    "https://app.asana.com/*",
-    "https://api.clickup.com/*",
-    ...(proxyMatch ? [proxyMatch] : []),
-  ],
+  // <all_urls>가 모든 https origin을 포섭하므로 플랫폼 REST/OAuth host·OAuth proxy origin을
+  // 따로 나열하지 않는다(전부 <all_urls> 커버). OAuth authorize는 launchWebAuthFlow라 host 불요.
+  host_permissions: ["<all_urls>"],
   commands: {
     _execute_action: {
       suggested_key: {
