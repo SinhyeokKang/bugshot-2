@@ -150,7 +150,7 @@ export function ConsoleLogContent({ entries, startedAt, flush, syncBaseMs, onSee
               ))}
             </TabsList>
           </div>
-          <div className="relative ml-auto w-full max-w-[280px]">
+          <div className="relative ml-auto w-full max-w-[200px]">
             <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder={t("consoleLog.search")}

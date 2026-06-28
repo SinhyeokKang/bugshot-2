@@ -285,7 +285,7 @@ export function NetworkLogContent({ requests, flush, syncBaseMs, onSeek, activeT
               ))}
             </TabsList>
           </div>
-          <div className="relative ml-auto w-full max-w-[280px]">
+          <div className="relative ml-auto w-full max-w-[200px]">
             <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               data-testid="network-search"
