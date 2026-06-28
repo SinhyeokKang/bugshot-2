@@ -1,6 +1,5 @@
 import { useEditorStore } from "@/store/editor-store";
 import { deleteNetworkLog, deleteConsoleLog, deleteActionLog } from "@/store/blob-db";
-import { onPickerPermissionExpired } from "@/types/messages";
 import {
   activateNetworkRecorder,
   activateConsoleRecorder,
@@ -29,10 +28,25 @@ async function prepareRecorders(tabId: number): Promise<void> {
 }
 
 export async function startVideoCapture(tabId: number): Promise<void> {
-  const tab = await chrome.tabs.get(tabId);
+  // 탭 스트림을 첫 await로 획득해 activeTab을 시험한다. cross-origin 이동 등으로 막히면
+  // (사이드패널은 activeTab 재획득 불가 — Chrome 정책) user activation이 살아있는 동안
+  // 화면 공유(getDisplayMedia)로 자동 폴백한다. getMediaStreamId 실패는 미디어 캡처 API가
+  // 아니라 activation을 소비하지 않으므로 폴백 picker가 정상적으로 뜬다.
+  let stream: MediaStream;
+  try {
+    stream = await videoRecorder.startTabStream(tabId);
+  } catch (err) {
+    if (isTabCaptureUnavailable(err)) {
+      await startScreenCapture(tabId, { preferTab: true });
+    } else {
+      console.warn("[bugshot] video recording failed to start", err);
+    }
+    return;
+  }
 
   await prepareRecorders(tabId);
 
+  const tab = await chrome.tabs.get(tabId);
   useEditorStore.getState().startRecording(
     {
       tabId,
@@ -42,26 +56,24 @@ export async function startVideoCapture(tabId: number): Promise<void> {
     "tab",
   );
   try {
-    await videoRecorder.startRecording(tabId);
+    videoRecorder.beginTabRecording(stream, tabId);
   } catch (err) {
     useEditorStore.getState().cancelRecording();
-    if (isTabCaptureUnavailable(err)) {
-      onPickerPermissionExpired.fire();
-    } else {
-      console.warn("[bugshot] video recording failed to start", err);
-    }
+    stream.getTracks().forEach((t) => t.stop());
+    console.warn("[bugshot] video recording failed to start", err);
   }
 }
 
 // 화면 전체 녹화 — getDisplayMedia를 첫 await로 호출(transient user activation 보존:
 // 그 전에 다른 await를 두면 picker가 안 뜬다). 취소(NotAllowedError)는 조용히 no-op.
-export async function startScreenCapture(tabId: number): Promise<void> {
+// preferTab: 탭 녹화 폴백 경로 — picker가 "Chrome 탭"을 먼저 보이게 유도(displaySurface "browser").
+export async function startScreenCapture(tabId: number, opts?: { preferTab?: boolean }): Promise<void> {
   let stream: MediaStream;
   try {
     stream = await navigator.mediaDevices.getDisplayMedia({
-      // displaySurface "monitor" — picker가 전체 화면 탭을 먼저 보이게 유도(advisory 힌트, 강제 아님).
-      // 1080p 상한 — 4K 전체화면 60초의 과압축·대용량(IndexedDB)을 방지. frameRate 12.
-      video: { displaySurface: "monitor", width: { max: 1920 }, height: { max: 1080 }, frameRate: 12 },
+      // displaySurface — 일반 화면 녹화는 "monitor"(전체 화면 먼저), 탭 녹화 폴백은 "browser"(탭 먼저).
+      // advisory 힌트라 강제는 아님. 1080p 상한 — 4K 전체화면 60초의 과압축·대용량(IndexedDB)을 방지. frameRate 12.
+      video: { displaySurface: opts?.preferTab ? "browser" : "monitor", width: { max: 1920 }, height: { max: 1080 }, frameRate: 12 },
       audio: false,
     });
   } catch (err) {
