@@ -11,7 +11,12 @@ vi.hoisted(() => {
   });
 });
 
+import { readFileSync, readdirSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
+
 import { koDict, enDict, t } from "../i18n";
+import { logs } from "../../i18n/namespaces/logs";
 
 describe("log viewer i18n — 사전 구조", () => {
   it("ko/en 키 동일", () => {
@@ -46,6 +51,54 @@ describe("log viewer i18n — 사전 구조", () => {
       }
     }
     expect(mismatches).toEqual([]);
+  });
+});
+
+describe("log viewer i18n — 메인 테이블 대조", () => {
+  // log-viewer dict는 메인 i18n 테이블(src/i18n/namespaces/logs.ts)의 부분집합 +
+  // 동일 문구를 의도한다. 두 가지 회귀를 막는다:
+  //  (1) 누락 — 코드는 t("key")로 참조하는데 dict에 없어 키 문자열이 그대로 노출
+  //      (actionLog.filter.keypress 등)
+  //  (2) drift — 공통 키인데 메인 갱신이 dict에 반영 안 됨 (networkLog.search 본문 검색)
+
+  function walk(dir: string): string[] {
+    const out: string[] = [];
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      if (entry.name === "__tests__") continue;
+      const full = join(dir, entry.name);
+      if (entry.isDirectory()) out.push(...walk(full));
+      else if (/\.tsx?$/.test(entry.name)) out.push(full);
+    }
+    return out;
+  }
+
+  const srcRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
+  const referencedKeys = (() => {
+    const keys = new Set<string>();
+    for (const file of walk(srcRoot)) {
+      const src = readFileSync(file, "utf8");
+      for (const m of src.matchAll(/\bt\(\s*["'`]([a-zA-Z][\w.]*)["'`]/g)) {
+        keys.add(m[1]);
+      }
+    }
+    return [...keys].sort();
+  })();
+
+  it("코드가 t()로 참조하는 리터럴 키는 dict에 모두 존재", () => {
+    const missing = referencedKeys.filter(
+      (k) => !(k in koDict) || !(k in enDict),
+    );
+    expect(missing).toEqual([]);
+  });
+
+  it("메인 테이블과 공통인 키는 값도 일치 (stale drift 방지)", () => {
+    const koDrift = Object.keys(koDict)
+      .filter((k) => k in logs.ko && logs.ko[k as keyof typeof logs.ko] !== koDict[k])
+      .map((k) => `ko ${k}`);
+    const enDrift = Object.keys(enDict)
+      .filter((k) => k in logs.en && logs.en[k as keyof typeof logs.en] !== enDict[k])
+      .map((k) => `en ${k}`);
+    expect([...koDrift, ...enDrift]).toEqual([]);
   });
 });
 
