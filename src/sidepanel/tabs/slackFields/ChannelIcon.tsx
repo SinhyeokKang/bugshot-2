@@ -13,7 +13,7 @@ export function ChannelIcon({ channel }: { channel: SlackChannel }) {
         <img
           src={channel.imageUrl}
           alt=""
-          className="h-4 w-4 shrink-0 rounded-full"
+          className="h-4 w-4 shrink-0 rounded-[4px]"
           onError={() => setImgError(true)}
         />
       );
