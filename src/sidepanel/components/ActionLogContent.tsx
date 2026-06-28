@@ -208,7 +208,7 @@ export function ActionLogContent({ entries, startedAt, flush, syncBaseMs, onSeek
           <div className="min-w-0 overflow-x-auto">
             <TabsList>
               {availableFilters.map((f) => (
-                <TabsTrigger key={f} value={f}>
+                <TabsTrigger key={f} value={f} data-testid={`action-filter-${f}`}>
                   {filterLabel[f]}
                 </TabsTrigger>
               ))}
@@ -217,6 +217,7 @@ export function ActionLogContent({ entries, startedAt, flush, syncBaseMs, onSeek
           <div className="relative ml-auto w-full max-w-[200px]">
             <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
+              data-testid="action-search"
               placeholder={t("actionLog.search")}
               value={query}
               onChange={(e) => setQuery(e.target.value)}

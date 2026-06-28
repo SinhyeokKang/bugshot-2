@@ -144,7 +144,7 @@ export function ConsoleLogContent({ entries, startedAt, flush, syncBaseMs, onSee
           <div className="min-w-0 overflow-x-auto">
             <TabsList>
               {availableFilters.map((f) => (
-                <TabsTrigger key={f} value={f}>
+                <TabsTrigger key={f} value={f} data-testid={`console-filter-${f}`}>
                   {filterLabel[f]}
                 </TabsTrigger>
               ))}
@@ -153,6 +153,7 @@ export function ConsoleLogContent({ entries, startedAt, flush, syncBaseMs, onSee
           <div className="relative ml-auto w-full max-w-[200px]">
             <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
+              data-testid="console-search"
               placeholder={t("consoleLog.search")}
               value={query}
               onChange={(e) => setQuery(e.target.value)}

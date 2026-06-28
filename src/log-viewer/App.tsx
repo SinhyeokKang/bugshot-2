@@ -110,11 +110,11 @@ export function App({ data }: AppProps) {
     <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as LogTab)} className="flex min-h-0 flex-1 flex-col">
       <div className="shrink-0 border-b border-border px-4 py-4">
         <CollapsingTabsList className="grid h-9 w-full grid-cols-4">
-          <TabsTrigger value="report" disabled={!hasReport} className="min-w-0 gap-1.5">
+          <TabsTrigger value="report" disabled={!hasReport} className="min-w-0 gap-1.5" data-testid="logview-tab-report">
             <FileText className="h-3.5 w-3.5 shrink-0" />
             <TabLabel>{t("logViewer.tab.report")}</TabLabel>
           </TabsTrigger>
-          <TabsTrigger value="console" disabled={!hasConsole} className="min-w-0 gap-1.5">
+          <TabsTrigger value="console" disabled={!hasConsole} className="min-w-0 gap-1.5" data-testid="logview-tab-console">
             <Terminal className="h-3.5 w-3.5 shrink-0" />
             <TabLabel>{t("logViewer.tab.console")}</TabLabel>
             {hasConsole && (
@@ -123,7 +123,7 @@ export function App({ data }: AppProps) {
               </Badge>
             )}
           </TabsTrigger>
-          <TabsTrigger value="network" disabled={!hasNetwork} className="min-w-0 gap-1.5">
+          <TabsTrigger value="network" disabled={!hasNetwork} className="min-w-0 gap-1.5" data-testid="logview-tab-network">
             <ArrowLeftRight className="h-3.5 w-3.5 shrink-0" />
             <TabLabel>{t("logViewer.tab.network")}</TabLabel>
             {hasNetwork && (
@@ -132,7 +132,7 @@ export function App({ data }: AppProps) {
               </Badge>
             )}
           </TabsTrigger>
-          <TabsTrigger value="action" disabled={!hasAction} className="min-w-0 gap-1.5">
+          <TabsTrigger value="action" disabled={!hasAction} className="min-w-0 gap-1.5" data-testid="logview-tab-action">
             <MousePointerClick className="h-3.5 w-3.5 shrink-0" />
             <TabLabel>{t("logViewer.tab.action")}</TabLabel>
             {hasAction && (
@@ -227,6 +227,7 @@ export function App({ data }: AppProps) {
           {activeTab === "console" && hasConsole && (
             <Button
               className="gap-1"
+              data-testid="download-console-json"
               onClick={() => downloadJson(buildConsoleLogJson(data.consoleLog!, data.meta.version), "Console-log.json")}
             >
               <Download className="h-4 w-4" />
@@ -236,6 +237,7 @@ export function App({ data }: AppProps) {
           {activeTab === "network" && hasNetwork && (
             <Button
               className="gap-1"
+              data-testid="download-network-har"
               onClick={() => downloadJson(buildHar(data.networkLog!, data.meta.version), "Network-log.har")}
             >
               <Download className="h-4 w-4" />
@@ -245,6 +247,7 @@ export function App({ data }: AppProps) {
           {activeTab === "action" && hasAction && (
             <Button
               className="gap-1"
+              data-testid="download-action-json"
               onClick={() => downloadJson(buildActionLogJson(data.actionLog!, data.meta.version), "Action-log.json")}
             >
               <Download className="h-4 w-4" />
