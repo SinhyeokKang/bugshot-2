@@ -64,15 +64,6 @@ export function AttachmentSection({
           e.target.value = "";
         }}
       />
-      <Button
-        variant="outline"
-        disabled={atMax}
-        onClick={() => inputRef.current?.click()}
-        data-testid="attachment-add"
-      >
-        <Paperclip className="h-4 w-4" />
-        {t("attachment.button", { count: attachments.length, max: MAX_ATTACHMENT_COUNT })}
-      </Button>
       {attachments.length > 0 && (
         <Card>
           <CardContent className="flex flex-col gap-3 px-3 py-3">
@@ -106,6 +97,15 @@ export function AttachmentSection({
           </CardContent>
         </Card>
       )}
+      <Button
+        variant="outline"
+        disabled={atMax}
+        onClick={() => inputRef.current?.click()}
+        data-testid="attachment-add"
+      >
+        <Paperclip className="h-4 w-4" />
+        {t("attachment.button", { count: attachments.length, max: MAX_ATTACHMENT_COUNT })}
+      </Button>
     </div>
   );
 }

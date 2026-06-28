@@ -291,7 +291,23 @@ export function DraftingPanel() {
   ) : null;
 
   const attachmentBlock = attachmentsEnabled ? (
-    <Section key="__attachments" title={t("section.attachments")} collapsible>
+    <Section
+      key="__attachments"
+      title={
+        <>
+          {t("section.attachments")}
+          {attachments.length > 0 && (
+            <Badge
+              variant="secondary"
+              className="ml-2 align-middle text-xs tabular-nums"
+            >
+              {attachments.length}
+            </Badge>
+          )}
+        </>
+      }
+      collapsible
+    >
       <AttachmentSection
         attachments={attachments}
         platform={targetPlatform}
