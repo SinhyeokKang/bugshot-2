@@ -12,6 +12,7 @@ import {
 } from "@icons-pack/react-simple-icons";
 import { useT } from "@/i18n";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsTrigger } from "@/components/ui/tabs";
 import { CollapsingTabsList, TabLabel } from "@/components/ui/collapsing-tabs";
 import {
@@ -105,6 +106,9 @@ export function IntegrationsTab({ activeMainTab }: { activeMainTab: string }) {
           <TabsTrigger value="connected" className="min-w-0 gap-1.5">
             <Plug className="h-4 w-4 shrink-0" />
             <TabLabel>{t("platform.subtab.connected")}</TabLabel>
+            <Badge className="ml-0.5 h-5 min-w-5 shrink-0 px-1.5 text-[10px]">
+              {connectedCount}
+            </Badge>
           </TabsTrigger>
           <TabsTrigger value="add" className="min-w-0 gap-1.5">
             <Plus className="h-4 w-4 shrink-0" />
