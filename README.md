@@ -7,7 +7,7 @@ you discover, fix, capture, and report bugs — all without leaving the browser.
 an element and tweak its CSS live, capture a screenshot or recording, and file a
 complete issue — with the **environment, before/after styles, screenshots, video,
 and console/network logs** bundled in — to Jira, GitHub, Linear, Notion, GitLab,
-Asana, or ClickUp.
+Asana, or ClickUp, or share it straight to a Slack channel or DM.
 
 No sign-up required — just install and go.
 
@@ -24,7 +24,7 @@ report developers can actually act on.
 
 1. **Install** from the [Chrome Web Store](https://chromewebstore.google.com/detail/bugshot/ohakhekagkodklkickemonmifdcbhmig).
 2. **Open the panel** — click the toolbar icon or press `Cmd/Ctrl+Shift+E`.
-3. **Connect a tracker** — in the *Integrations* tab, connect at least one of Jira, GitHub, Linear, Notion, GitLab, Asana, or ClickUp.
+3. **Connect a destination** — in the *Integrations* tab, connect at least one of Jira, GitHub, Linear, Notion, GitLab, Asana, ClickUp, or Slack.
 4. **Capture** — in the *Debug* tab, pick a mode: edit element style, capture an element, capture an area, or record the screen.
 5. **Submit** — the environment fills itself in; add a title, review the preview, and submit. A link to the created issue pops right up.
 
@@ -71,8 +71,9 @@ Reproduction context, collected for you in the background.
 
 ### 🔗 Integrations
 
-Connect via OAuth or a token. Every platform supports project/label/assignee
-selection and attachment upload.
+Connect via OAuth or a token. Every **tracker** supports project/label/assignee
+selection and attachment upload. **Slack** is a messenger rather than a tracker —
+it sends to a channel or DM instead.
 
 | Platform | Auth | Highlights |
 |---|---|---|
@@ -83,6 +84,7 @@ selection and attachment upload.
 | **GitLab** | OAuth PKCE / PAT | gitlab.com + self-managed instances |
 | **Asana** | OAuth / PAT | workspace, project, assignee |
 | **ClickUp** | OAuth / API Token | workspace → space → list, assignee |
+| **Slack** | OAuth (user token) | channel/DM, @mentions, title + threaded details & files |
 
 ### 🌐 Export & i18n
 
