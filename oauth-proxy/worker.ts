@@ -16,6 +16,9 @@ interface Env {
   // ClickUp OAuth — confidential app. 토큰 만료 없음 → refresh 라우트 불필요.
   CLICKUP_CLIENT_ID?: string;
   CLICKUP_CLIENT_SECRET?: string;
+  // Slack OAuth v2 — user token. 토큰 만료 없음(rotation 미사용) → refresh 라우트 불필요.
+  SLACK_CLIENT_ID?: string;
+  SLACK_CLIENT_SECRET?: string;
   ALLOWED_ORIGINS?: string;
 }
 
@@ -32,6 +35,7 @@ const GITHUB_TOKEN_URL = "https://github.com/login/oauth/access_token";
 const NOTION_TOKEN_URL = "https://api.notion.com/v1/oauth/token";
 const ASANA_TOKEN_URL = "https://app.asana.com/-/oauth_token";
 const CLICKUP_TOKEN_URL = "https://api.clickup.com/api/v2/oauth/token";
+const SLACK_TOKEN_URL = "https://slack.com/api/oauth.v2.access";
 
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {
@@ -81,7 +85,47 @@ export async function handleRequest(
   if (url.pathname === "/clickup/token") {
     return handleClickupToken(req, env, corsOrigin, fetchImpl);
   }
+  if (url.pathname === "/slack/token") {
+    return handleSlackToken(req, env, corsOrigin, fetchImpl);
+  }
   return jsonError(404, "not found", corsOrigin);
+}
+
+async function handleSlackToken(
+  req: Request,
+  env: Env,
+  corsOrigin: string,
+  fetchImpl: typeof fetch,
+): Promise<Response> {
+  let body: TokenRequestBody;
+  try {
+    body = (await req.json()) as TokenRequestBody;
+  } catch {
+    return jsonError(400, "invalid JSON body", corsOrigin);
+  }
+  if (!body.code || !body.redirect_uri) {
+    return jsonError(400, "missing code or redirect_uri", corsOrigin);
+  }
+  if (!env.SLACK_CLIENT_ID || !env.SLACK_CLIENT_SECRET) {
+    return jsonError(503, "slack oauth not configured", corsOrigin);
+  }
+  if (body.client_id !== env.SLACK_CLIENT_ID) {
+    return jsonError(400, "client_id not registered", corsOrigin);
+  }
+  const upstream = await fetchImpl(SLACK_TOKEN_URL, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
+      Accept: "application/json",
+    },
+    body: new URLSearchParams({
+      client_id: env.SLACK_CLIENT_ID,
+      client_secret: env.SLACK_CLIENT_SECRET,
+      code: body.code,
+      redirect_uri: body.redirect_uri,
+    }),
+  });
+  return relayUpstream(upstream, corsOrigin);
 }
 
 async function handleClickupToken(

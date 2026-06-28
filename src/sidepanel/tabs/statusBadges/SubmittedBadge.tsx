@@ -6,6 +6,7 @@ import { NotionSubmittedBadge } from "./NotionSubmittedBadge";
 import { GitlabSubmittedBadge } from "./GitlabSubmittedBadge";
 import { AsanaSubmittedBadge } from "./AsanaSubmittedBadge";
 import { ClickupSubmittedBadge } from "./ClickupSubmittedBadge";
+import { SlackSubmittedBadge } from "./SlackSubmittedBadge";
 
 export function SubmittedBadge({
   issueId,
@@ -120,6 +121,9 @@ export function SubmittedBadge({
         onLoaded={onLoaded}
       />
     );
+  }
+  if (platform === "slack") {
+    return <SlackSubmittedBadge onLoaded={onLoaded} />;
   }
   return null;
 }

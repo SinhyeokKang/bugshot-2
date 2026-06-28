@@ -7,6 +7,7 @@ import {
   SiLinear,
   SiNotion,
 } from "@icons-pack/react-simple-icons";
+import { Slack } from "lucide-react";
 import { useT } from "@/i18n";
 import type { PlatformId } from "@/types/platform";
 
@@ -57,6 +58,14 @@ export function PlatformChip({ platform }: { platform: PlatformId }) {
       <span className="inline-flex shrink-0 items-center gap-1">
         <SiClickup className="h-3 w-3" color="default" />
         {t("platform.tab.clickup")}
+      </span>
+    );
+  }
+  if (platform === "slack") {
+    return (
+      <span className="inline-flex shrink-0 items-center gap-1">
+        <Slack className="h-3 w-3" />
+        {t("platform.tab.slack")}
       </span>
     );
   }

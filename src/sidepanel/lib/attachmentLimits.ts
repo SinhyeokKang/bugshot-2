@@ -16,6 +16,7 @@ export const PLATFORM_FILE_SIZE_LIMIT: Record<PlatformId, number | null> = {
   gitlab: 10 * MB,
   asana: null,
   clickup: null,
+  slack: null,
 };
 
 export interface AttachmentLimitWarning {

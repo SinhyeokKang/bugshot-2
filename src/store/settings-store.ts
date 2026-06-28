@@ -13,6 +13,7 @@ import type { NotionAccount } from "@/types/notion";
 import type { GitlabAccount } from "@/types/gitlab";
 import type { AsanaAccount } from "@/types/asana";
 import type { ClickupAccount } from "@/types/clickup";
+import type { SlackAccount } from "@/types/slack";
 import { SETTINGS_STORAGE_KEY } from "@/lib/settings-storage";
 import { chromeLocalStorage } from "./chrome-storage";
 
@@ -20,7 +21,8 @@ import { chromeLocalStorage } from "./chrome-storage";
 // v7: gitlab 플랫폼 추가. 새 필드는 모두 optional이라 v6→v7 데이터 마이그레이션 불필요 — 버전 마커만 bump.
 // v8: asana 플랫폼 추가. 동일하게 새 필드 모두 optional이라 버전 마커만 bump.
 // v9: clickup 플랫폼 추가. 새 필드 모두 optional이라 버전 마커만 bump.
-export const SETTINGS_STORE_VERSION = 9;
+// v10: slack 플랫폼 추가. 동일하게 새 필드 모두 optional이라 버전 마커만 bump.
+export const SETTINGS_STORE_VERSION = 10;
 
 interface SettingsState {
   accounts: Accounts;
@@ -50,6 +52,9 @@ interface SettingsState {
   ) => void;
   updateClickupAccount: (
     patch: Partial<Omit<ClickupAccount, "platform" | "connectedAt">>,
+  ) => void;
+  updateSlackAccount: (
+    patch: Partial<Omit<SlackAccount, "platform" | "connectedAt">>,
   ) => void;
   setLastSubmitFields: <P extends PlatformId>(
     platform: P,
@@ -211,6 +216,12 @@ export const useSettingsStore = create<SettingsState>()(
           if (!cur) return s;
           return { accounts: { ...s.accounts, clickup: { ...cur, ...patch } } };
         }),
+      updateSlackAccount: (patch) =>
+        set((s) => {
+          const cur = s.accounts.slack;
+          if (!cur) return s;
+          return { accounts: { ...s.accounts, slack: { ...cur, ...patch } } };
+        }),
       setLastSubmitFields: (platform, fields) =>
         set((s) => ({
           lastSubmitFields: { ...s.lastSubmitFields, [platform]: fields },
@@ -281,6 +292,7 @@ const PLATFORM_FALLBACK_ORDER: PlatformId[] = [
   "notion",
   "asana",
   "clickup",
+  "slack",
 ];
 
 // 다이얼로그가 열릴 때 어느 플랫폼 탭을 default로 보여줄지 결정.

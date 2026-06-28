@@ -63,6 +63,7 @@ import type {
   AsanaWorkspace,
 } from "./asana";
 import type { ClickupCreateTaskPayload } from "./clickup";
+import type { SlackPostMessagePayload } from "./slack";
 import type { PlatformId } from "./platform";
 
 export interface OAuthStartResultMsg {
@@ -224,6 +225,19 @@ export type BgRequest =
   | { type: "clickup.updateTaskMarkdown"; taskId: string; markdownContent: string }
   | { type: "clickup.getTaskStatus"; taskId: string }
   | { type: "clickup.setCompleted"; taskId: string; completed: boolean }
+  | { type: "slack.oauth.available" }
+  | { type: "slack.startOAuth" }
+  | { type: "slack.disconnect" }
+  | { type: "slack.listChannels" }
+  | { type: "slack.listMembers" }
+  | { type: "slack.postMessage"; payload: SlackPostMessagePayload }
+  | {
+      type: "slack.uploadFiles";
+      channelId: string;
+      threadTs: string;
+      files: Array<{ filename: string; contentType: string; dataUrl: string }>;
+    }
+  | { type: "slack.getPermalink"; channelId: string; ts: string }
   | { type: "analytics.capture"; event: string; properties: Record<string, string> }
   | { type: "css.fetchSheets"; urls: string[] };
 
@@ -296,7 +310,8 @@ export function getOAuthErrorPlatform(err: unknown): PlatformId | null {
     p === "notion" ||
     p === "gitlab" ||
     p === "asana" ||
-    p === "clickup"
+    p === "clickup" ||
+    p === "slack"
     ? p
     : null;
 }

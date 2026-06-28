@@ -1,5 +1,5 @@
 import { useEffect, useState, type ComponentType } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, Slack } from "lucide-react";
 import {
   SiAsana,
   SiClickup,
@@ -56,6 +56,10 @@ import {
   ClickupIssueFields,
   type ClickupIssueFieldsValue,
 } from "./clickupFields/ClickupIssueFields";
+import {
+  SlackIssueFields,
+  type SlackIssueFieldsValue,
+} from "./slackFields/SlackIssueFields";
 import { JiraIssueFields } from "./jiraFields/JiraIssueFields";
 
 type SubmitState =
@@ -84,6 +88,8 @@ export interface SubmitFieldsDialogProps {
   setAsanaFields: (patch: Partial<AsanaIssueFieldsValue>) => void;
   clickupFields: ClickupIssueFieldsValue;
   setClickupFields: (patch: Partial<ClickupIssueFieldsValue>) => void;
+  slackFields: SlackIssueFieldsValue;
+  setSlackFields: (patch: Partial<SlackIssueFieldsValue>) => void;
   onNotionSchemaResolved: (schema: NotionDatabaseSchema | null) => void;
   onSubmit: (platform: PlatformId) => Promise<NormalizedSubmitResult>;
   onSuccess?: (result: NormalizedSubmitResult) => void;
@@ -97,6 +103,7 @@ const TABS_GRID_COLS: Record<number, string> = {
   5: "grid-cols-5",
   6: "grid-cols-6",
   7: "grid-cols-7",
+  8: "grid-cols-8",
 };
 
 const PLATFORM_TABS: {
@@ -111,6 +118,8 @@ const PLATFORM_TABS: {
   { id: "gitlab", Icon: SiGitlab },
   { id: "asana", Icon: SiAsana },
   { id: "clickup", Icon: SiClickup },
+  // lucide 아이콘은 color="default"(브랜드 hex)를 못 받아 투명해진다 → currentColor로 렌더.
+  { id: "slack", Icon: ({ className }) => <Slack className={className} /> },
 ];
 
 export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
@@ -136,6 +145,8 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
     setAsanaFields,
     clickupFields,
     setClickupFields,
+    slackFields,
+    setSlackFields,
     onNotionSchemaResolved,
     onSubmit,
     onSuccess,
@@ -148,6 +159,7 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
   const gitlabAccount = useSettingsStore((s) => s.accounts.gitlab);
   const asanaAccount = useSettingsStore((s) => s.accounts.asana);
   const clickupAccount = useSettingsStore((s) => s.accounts.clickup);
+  const slackAccount = useSettingsStore((s) => s.accounts.slack);
   const [submit, setSubmit] = useState<SubmitState>({ status: "idle" });
 
   useEffect(() => {
@@ -161,6 +173,7 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
   const gitlabConfigured = !!gitlabAccount;
   const asanaConfigured = !!asanaAccount;
   const clickupConfigured = !!clickupAccount;
+  const slackConfigured = !!slackAccount;
   // 삼항 체인은 clickup 누락이 조용히 Notion으로 새므로 exhaustive switch로 전환 (회귀 방지).
   const platformConfigured = ((): boolean => {
     switch (platform) {
@@ -170,6 +183,7 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
       case "gitlab": return gitlabConfigured;
       case "asana": return asanaConfigured;
       case "clickup": return clickupConfigured;
+      case "slack": return slackConfigured;
       case "notion": return notionConfigured;
       default: {
         const _exhaustive: never = platform;
@@ -186,6 +200,7 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
       case "gitlab": return !!gitlabFields.projectId;
       case "asana": return !!asanaFields.workspaceGid;
       case "clickup": return !!clickupFields.workspaceId && !!clickupFields.listId;
+      case "slack": return !!slackFields.channelId;
       case "notion": return !!notionFields.databaseId;
       default: {
         const _exhaustive: never = platform;
@@ -214,6 +229,7 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
         gitlab: gitlabFields.cc?.length,
         asana: asanaFields.cc?.length,
         clickup: clickupFields.cc?.length,
+        slack: undefined,
         notion: notionFields.cc?.length,
       }[platform];
       toast.error(
@@ -288,6 +304,10 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
         ) : platform === "clickup" ? (
           clickupConfigured ? (
             <ClickupIssueFields value={clickupFields} onChange={setClickupFields} />
+          ) : null
+        ) : platform === "slack" ? (
+          slackConfigured ? (
+            <SlackIssueFields value={slackFields} onChange={setSlackFields} />
           ) : null
         ) : notionConfigured ? (
           <NotionIssueFields

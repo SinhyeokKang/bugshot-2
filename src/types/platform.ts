@@ -5,6 +5,7 @@ import type { NotionAccount } from "./notion";
 import type { GitlabAccount } from "./gitlab";
 import type { AsanaAccount } from "./asana";
 import type { ClickupAccount } from "./clickup";
+import type { SlackAccount } from "./slack";
 
 export type PlatformId =
   | "jira"
@@ -13,7 +14,8 @@ export type PlatformId =
   | "notion"
   | "gitlab"
   | "asana"
-  | "clickup";
+  | "clickup"
+  | "slack";
 
 export const PLATFORM_TAB_KEYS = {
   jira: "platform.tab.jira",
@@ -23,6 +25,7 @@ export const PLATFORM_TAB_KEYS = {
   gitlab: "platform.tab.gitlab",
   asana: "platform.tab.asana",
   clickup: "platform.tab.clickup",
+  slack: "platform.tab.slack",
 } as const satisfies Record<PlatformId, string>;
 
 // 이슈 본문 cc 줄 포맷 — sidepanel 빌더(ccMention)와 background(notion expandBlock)가 공유.
@@ -49,6 +52,7 @@ export interface Accounts {
   gitlab?: GitlabAccount;
   asana?: AsanaAccount;
   clickup?: ClickupAccount;
+  slack?: SlackAccount;
 }
 
 export interface JiraLastSubmitFields {
@@ -137,6 +141,12 @@ export interface ClickupLastSubmitFields {
   cc?: { id: string; name: string }[];
 }
 
+export interface SlackLastSubmitFields {
+  channelId?: string;
+  channelName?: string;
+  mentions?: { id: string; name: string }[];
+}
+
 export interface LastSubmitFieldsByPlatform {
   jira?: JiraLastSubmitFields;
   github?: GithubLastSubmitFields;
@@ -145,4 +155,5 @@ export interface LastSubmitFieldsByPlatform {
   gitlab?: GitlabLastSubmitFields;
   asana?: AsanaLastSubmitFields;
   clickup?: ClickupLastSubmitFields;
+  slack?: SlackLastSubmitFields;
 }

@@ -51,6 +51,7 @@ import { submitToNotion } from "@/sidepanel/lib/submitToNotion";
 import { submitToGitlab } from "@/sidepanel/lib/submitToGitlab";
 import { submitToAsana } from "@/sidepanel/lib/submitToAsana";
 import { submitToClickup } from "@/sidepanel/lib/submitToClickup";
+import { submitToSlack } from "@/sidepanel/lib/submitToSlack";
 import type { NotionDatabaseSchema } from "@/types/notion";
 import { usePlatformFields } from "@/sidepanel/hooks/usePlatformFields";
 import { extractNotionPageId } from "@/lib/notion-page-id";
@@ -113,6 +114,7 @@ export function DraftDetailDialog({
   const gitlabAccount = accounts.gitlab;
   const asanaAccount = accounts.asana;
   const clickupAccount = accounts.clickup;
+  const slackAccount = accounts.slack;
   const removeIssue = useIssuesStore((s) => s.removeIssue);
   const markSubmitted = useIssuesStore((s) => s.markSubmitted);
   const patchIssue = useIssuesStore((s) => s.patchIssue);
@@ -128,6 +130,7 @@ export function DraftDetailDialog({
   const lastGitlabSubmit = useSettingsStore((s) => s.lastSubmitFields.gitlab);
   const lastAsanaSubmit = useSettingsStore((s) => s.lastSubmitFields.asana);
   const lastClickupSubmit = useSettingsStore((s) => s.lastSubmitFields.clickup);
+  const lastSlackSubmit = useSettingsStore((s) => s.lastSubmitFields.slack);
   const lastSubmittedPlatform = useSettingsStore((s) => s.lastSubmittedPlatform);
 
   const available = useMemo(() => connectedPlatforms(accounts), [accounts]);
@@ -149,6 +152,8 @@ export function DraftDetailDialog({
     setAsanaFields,
     clickupFields,
     setClickupFields,
+    slackFields,
+    setSlackFields,
   } = usePlatformFields({
     open,
     lastGhSubmit,
@@ -163,6 +168,8 @@ export function DraftDetailDialog({
     asanaDefaults: asanaAccount?.defaults,
     lastClickupSubmit,
     clickupDefaults: clickupAccount?.defaults,
+    lastSlackSubmit,
+    slackDefaults: slackAccount?.defaults,
     resetKey: issue?.id,
   });
   const [notionSchema, setNotionSchema] = useState<NotionDatabaseSchema | null>(null);
@@ -719,6 +726,46 @@ export function DraftDetailDialog({
     return result;
   }
 
+  async function handleSlackSubmit(
+    ctx: Awaited<ReturnType<typeof buildCtxForSubmit>>["ctx"],
+    captureFiles: CaptureFiles,
+  ): Promise<NormalizedSubmitResult> {
+    if (!issue) throw new Error(t("create.requiredMissing"));
+    if (!slackAccount) {
+      throw new Error(t("platform.notConnected.title", { platform: t("platform.tab.slack") }));
+    }
+    if (!slackFields.channelId) throw new Error(t("create.requiredMissing"));
+
+    const slackInline = await resolveInlineImagesForSections(ctx.sections, sectionConfig);
+    const result = await submitToSlack({
+      ctx,
+      images: captureFiles.images,
+      video: captureFiles.video,
+      logs: captureFiles.logs,
+      attachments: captureFiles.attachments,
+      inlineImages: slackInline,
+      channelId: slackFields.channelId,
+      mentions: slackFields.mentions,
+    });
+    markSubmitted(issue.id, {
+      platform: "slack",
+      key: result.key,
+      url: result.url,
+    });
+    if (useEditorStore.getState().currentIssueId === issue.id) {
+      const tabId = useEditorStore.getState().target?.tabId;
+      if (tabId != null) void clearPicker(tabId);
+      useEditorStore.getState().reset();
+    }
+    useSettingsStore.getState().setLastSubmitFields("slack", {
+      channelId: slackFields.channelId,
+      channelName: slackFields.channelName,
+      mentions: slackFields.mentions,
+    });
+    useSettingsStore.getState().setLastSubmittedPlatform("slack");
+    return result;
+  }
+
   async function handleSubmit(submitPlatform: PlatformId): Promise<NormalizedSubmitResult> {
     const { ctx, captureFiles } = await buildCtxForSubmit();
     let result: NormalizedSubmitResult;
@@ -728,6 +775,7 @@ export function DraftDetailDialog({
     else if (submitPlatform === "gitlab") result = await handleGitlabSubmit(ctx, captureFiles);
     else if (submitPlatform === "asana") result = await handleAsanaSubmit(ctx, captureFiles);
     else if (submitPlatform === "clickup") result = await handleClickupSubmit(ctx, captureFiles);
+    else if (submitPlatform === "slack") result = await handleSlackSubmit(ctx, captureFiles);
     else result = await handleJiraSubmit(ctx, captureFiles);
     if (issue) {
       const activeRefs = extractInlineRefs(
@@ -887,6 +935,8 @@ export function DraftDetailDialog({
         setAsanaFields={setAsanaFields}
         clickupFields={clickupFields}
         setClickupFields={setClickupFields}
+        slackFields={slackFields}
+        setSlackFields={setSlackFields}
         onNotionSchemaResolved={setNotionSchema}
         onSubmit={handleSubmit}
         onSuccess={(result) => {

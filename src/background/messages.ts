@@ -91,6 +91,14 @@ import { isNotionOAuthConfigured, startNotionOAuth } from "./notion-oauth";
 import { isGitlabOAuthConfigured, startGitlabOAuth } from "./gitlab-oauth";
 import { isAsanaOAuthConfigured, startAsanaOAuth } from "./asana-oauth";
 import { isClickupOAuthConfigured, startClickupOAuth } from "./clickup-oauth";
+import {
+  getPermalink as slackGetPermalink,
+  listChannels as slackListChannels,
+  listMembers as slackListMembers,
+  postMessage as slackPostMessage,
+  uploadFiles as slackUploadFiles,
+} from "./slack-api";
+import { isSlackOAuthConfigured, startSlackOAuth } from "./slack-oauth";
 import { captureEvent } from "./analytics";
 import { trackConnect } from "./connect-tracking";
 import {
@@ -111,12 +119,14 @@ import {
   readStoredGitlabAuth,
   readStoredAsanaAuth,
   readStoredClickupAuth,
+  readStoredSlackAuth,
 } from "@/lib/settings-storage";
 import type { LinearAuth } from "@/types/linear";
 import type { NotionAuth } from "@/types/notion";
 import type { GitlabAuth } from "@/types/gitlab";
 import type { AsanaAuth } from "@/types/asana";
 import type { ClickupAuth } from "@/types/clickup";
+import type { SlackAuth } from "@/types/slack";
 
 async function loadAuth(): Promise<JiraAuth> {
   const auth = await readStoredAuth();
@@ -157,6 +167,12 @@ async function loadAsanaAuth(): Promise<AsanaAuth> {
 async function loadClickupAuth(): Promise<ClickupAuth> {
   const auth = await readStoredClickupAuth();
   if (!auth) throw new Error(t("platform.notConnected.title", { platform: t("platform.tab.clickup") }));
+  return auth;
+}
+
+async function loadSlackAuth(): Promise<SlackAuth> {
+  const auth = await readStoredSlackAuth();
+  if (!auth) throw new Error(t("platform.notConnected.title", { platform: t("platform.tab.slack") }));
   return auth;
 }
 
@@ -626,6 +642,42 @@ export async function handleMessage(
         message.taskId,
         message.completed,
       );
+
+    case "slack.oauth.available":
+      return { available: isSlackOAuthConfigured() };
+
+    case "slack.startOAuth":
+      return trackConnect("slack", () => startSlackOAuth());
+
+    case "slack.disconnect":
+      return { ok: true };
+
+    case "slack.listChannels":
+      return slackListChannels(await loadSlackAuth());
+
+    case "slack.listMembers":
+      return slackListMembers(await loadSlackAuth());
+
+    case "slack.postMessage":
+      return slackPostMessage(await loadSlackAuth(), message.payload);
+
+    case "slack.uploadFiles": {
+      const auth = await loadSlackAuth();
+      const files = message.files.map((f) => ({
+        filename: f.filename,
+        blob: dataUrlToBlob(f.dataUrl),
+      }));
+      return slackUploadFiles(auth, message.channelId, message.threadTs, files);
+    }
+
+    case "slack.getPermalink":
+      return {
+        permalink: await slackGetPermalink(
+          await loadSlackAuth(),
+          message.channelId,
+          message.ts,
+        ),
+      };
 
     case "analytics.capture":
       return captureEvent(message.event, message.properties);

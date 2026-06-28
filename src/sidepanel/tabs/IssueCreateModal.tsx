@@ -24,6 +24,7 @@ import { submitToNotion } from "@/sidepanel/lib/submitToNotion";
 import { submitToGitlab } from "@/sidepanel/lib/submitToGitlab";
 import { submitToAsana } from "@/sidepanel/lib/submitToAsana";
 import { submitToClickup } from "@/sidepanel/lib/submitToClickup";
+import { submitToSlack } from "@/sidepanel/lib/submitToSlack";
 import { extractInlineRefs, resolveInlineImagesForSections, type InlineImageInput } from "@/sidepanel/lib/resolveInlineImages";
 import type { NotionDatabaseSchema } from "@/types/notion";
 import { extractNotionPageId } from "@/lib/notion-page-id";
@@ -42,6 +43,7 @@ export function IssueCreateModal() {
   const lastGitlabSubmit = useSettingsStore((s) => s.lastSubmitFields.gitlab);
   const lastAsanaSubmit = useSettingsStore((s) => s.lastSubmitFields.asana);
   const lastClickupSubmit = useSettingsStore((s) => s.lastSubmitFields.clickup);
+  const lastSlackSubmit = useSettingsStore((s) => s.lastSubmitFields.slack);
   const setTargetPlatform = useEditorStore((s) => s.setTargetPlatform);
 
   const available = useMemo(() => connectedPlatforms(accounts), [accounts]);
@@ -72,6 +74,7 @@ export function IssueCreateModal() {
   const gitlabAccount = accounts.gitlab;
   const asanaAccount = accounts.asana;
   const clickupAccount = accounts.clickup;
+  const slackAccount = accounts.slack;
 
   const {
     ghFields,
@@ -86,6 +89,8 @@ export function IssueCreateModal() {
     setAsanaFields,
     clickupFields,
     setClickupFields,
+    slackFields,
+    setSlackFields,
   } = usePlatformFields({
     open,
     lastGhSubmit,
@@ -100,6 +105,8 @@ export function IssueCreateModal() {
     asanaDefaults: asanaAccount?.defaults,
     lastClickupSubmit,
     clickupDefaults: clickupAccount?.defaults,
+    lastSlackSubmit,
+    slackDefaults: slackAccount?.defaults,
   });
   const [notionSchema, setNotionSchema] = useState<NotionDatabaseSchema | null>(null);
 
@@ -486,6 +493,43 @@ export function IssueCreateModal() {
     return result;
   }
 
+  async function handleSlackSubmit(
+    ctx: MarkdownContext,
+    inlineImages: InlineImageInput[],
+    captureFiles: CaptureFiles,
+  ): Promise<NormalizedSubmitResult> {
+    if (!slackAccount) {
+      throw new Error(t("platform.notConnected.title", { platform: t("platform.tab.slack") }));
+    }
+    if (!slackFields.channelId) throw new Error(t("create.requiredMissing"));
+
+    const result = await submitToSlack({
+      ctx,
+      images: captureFiles.images,
+      video: captureFiles.video,
+      logs: captureFiles.logs,
+      attachments: captureFiles.attachments,
+      inlineImages,
+      channelId: slackFields.channelId,
+      mentions: slackFields.mentions,
+    });
+    if (currentIssueId) {
+      markSubmitted(currentIssueId, {
+        platform: "slack",
+        key: result.key,
+        url: result.url,
+      });
+    }
+    useSettingsStore.getState().setLastSubmitFields("slack", {
+      channelId: slackFields.channelId,
+      channelName: slackFields.channelName,
+      mentions: slackFields.mentions,
+    });
+    useSettingsStore.getState().setLastSubmittedPlatform("slack");
+    onSubmitted({ key: result.key, url: result.url, platform: "slack", logsDropped: result.logsDropped });
+    return result;
+  }
+
   async function handleSubmit(submitPlatform: PlatformId): Promise<NormalizedSubmitResult> {
     const ctx = buildCtx();
     const inlineImages = await resolveInlineImagesForSections(ctx.sections, sectionConfig);
@@ -497,6 +541,7 @@ export function IssueCreateModal() {
     else if (submitPlatform === "gitlab") result = await handleGitlabSubmit(ctx, inlineImages, captureFiles);
     else if (submitPlatform === "asana") result = await handleAsanaSubmit(ctx, inlineImages, captureFiles);
     else if (submitPlatform === "clickup") result = await handleClickupSubmit(ctx, inlineImages, captureFiles);
+    else if (submitPlatform === "slack") result = await handleSlackSubmit(ctx, inlineImages, captureFiles);
     else result = await handleJiraSubmit(ctx, inlineImages, captureFiles);
     const activeRefs = extractInlineRefs(
       Object.values(draft?.sections ?? {}).join("\n"),
@@ -541,6 +586,8 @@ export function IssueCreateModal() {
         setAsanaFields={setAsanaFields}
         clickupFields={clickupFields}
         setClickupFields={setClickupFields}
+        slackFields={slackFields}
+        setSlackFields={setSlackFields}
         onNotionSchemaResolved={setNotionSchema}
         onSubmit={handleSubmit}
       />

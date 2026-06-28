@@ -5,6 +5,7 @@ import type { NotionAuth } from "@/types/notion";
 import type { GitlabAuth, GitlabOAuthAuth } from "@/types/gitlab";
 import type { AsanaAuth, AsanaOAuthAuth } from "@/types/asana";
 import type { ClickupAuth } from "@/types/clickup";
+import type { SlackAuth } from "@/types/slack";
 
 export const SETTINGS_STORAGE_KEY = "bugshot-settings";
 
@@ -18,6 +19,7 @@ interface SettingsEnvelope {
       gitlab?: { auth?: GitlabAuth };
       asana?: { auth?: AsanaAuth };
       clickup?: { auth?: ClickupAuth };
+      slack?: { auth?: SlackAuth };
     };
     jiraConfig?: { auth?: JiraAuth };
   };
@@ -142,4 +144,9 @@ export async function writeStoredAsanaOAuthTokens(
 export async function readStoredClickupAuth(): Promise<ClickupAuth | null> {
   const { envelope } = await readEnvelope();
   return envelope?.state?.accounts?.clickup?.auth ?? null;
+}
+
+export async function readStoredSlackAuth(): Promise<SlackAuth | null> {
+  const { envelope } = await readEnvelope();
+  return envelope?.state?.accounts?.slack?.auth ?? null;
 }
