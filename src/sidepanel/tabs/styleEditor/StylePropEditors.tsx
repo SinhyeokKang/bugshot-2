@@ -5,7 +5,6 @@ import {
   AlignLeft,
   AlignRight,
   Columns2,
-  Grid2x2,
   Link,
   RotateCcw,
   Rows2,
@@ -414,21 +413,6 @@ function SideEdgeIcon({
   );
 }
 
-// linked 단일 필드용 — 4면을 균일하게 강조한 박스 윤곽.
-function AllSidesIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 14 14"
-      fill="none"
-      stroke="currentColor"
-      className={className}
-      aria-hidden="true"
-    >
-      <rect x="2.5" y="2.5" width="9" height="9" strokeWidth="2" />
-    </svg>
-  );
-}
-
 function borderStyleStroke(style: string): {
   dash?: string;
   round?: boolean;
@@ -466,37 +450,6 @@ function SideStyleIcon({
         x2={l.x2}
         y2={l.y2}
         strokeWidth="2.5"
-        strokeLinecap={s.round ? "round" : "butt"}
-        strokeDasharray={s.dash}
-        opacity={s.faint ? 0.3 : 1}
-      />
-    </svg>
-  );
-}
-
-// linked 단일 select용 — 4면 박스 전체에 스타일 stroke 적용.
-function AllSidesStyleIcon({
-  style,
-  className,
-}: {
-  style: string;
-  className?: string;
-}) {
-  const s = borderStyleStroke(style);
-  return (
-    <svg
-      viewBox="0 0 14 14"
-      fill="none"
-      stroke="currentColor"
-      className={className}
-      aria-hidden="true"
-    >
-      <rect
-        x="2.5"
-        y="2.5"
-        width="9"
-        height="9"
-        strokeWidth="2"
         strokeLinecap={s.round ? "round" : "butt"}
         strokeDasharray={s.dash}
         opacity={s.faint ? 0.3 : 1}
@@ -553,12 +506,7 @@ function SideStyleSelect({
         title={`${sideTitle} · ${current || "none"}`}
         aria-label={sideTitle}
       >
-        {controlled ? (
-          <AllSidesStyleIcon
-            style={current}
-            className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
-          />
-        ) : (
+        {controlled ? null : (
           <SideStyleIcon
             side={side}
             style={current}
@@ -662,13 +610,11 @@ export function QuadStyleProp({ label }: { label: string }) {
 function MergedSideField({
   props,
   set,
-  icon,
   iconTitle,
   testId,
 }: {
   props: string[];
   set: (v: string) => void;
-  icon: React.ReactNode;
   iconTitle: string;
   testId?: string;
 }) {
@@ -678,7 +624,6 @@ function MergedSideField({
     <div className="min-w-0 flex-1" data-testid={testId}>
       <ValueCombobox
         prop={props[0]}
-        icon={icon}
         iconTitle={iconTitle}
         controlled={{
           value: merged.value,
@@ -720,7 +665,6 @@ export function QuadProp({
           <MergedSideField
             props={props}
             set={setAllProps}
-            icon={<AllSidesIcon className="h-3.5 w-3.5" />}
             iconTitle={t("prop.side.all")}
             testId="merged-side-field"
           />
@@ -788,27 +732,6 @@ function CornerRadiusIcon({
   );
 }
 
-// linked 단일 필드용 — 4코너를 모두 강조(둥근 사각형).
-function AllCornersIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      viewBox="0 0 14 14"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-      aria-hidden="true"
-    >
-      <path d={CORNER_PATHS.tl} />
-      <path d={CORNER_PATHS.tr} />
-      <path d={CORNER_PATHS.br} />
-      <path d={CORNER_PATHS.bl} />
-    </svg>
-  );
-}
-
 const GAP_PROPS = ["row-gap", "column-gap"];
 
 export function GapPairProp() {
@@ -823,7 +746,6 @@ export function GapPairProp() {
           <MergedSideField
             props={GAP_PROPS}
             set={setAllProps}
-            icon={<Grid2x2 className="h-3.5 w-3.5" />}
             iconTitle={t("prop.axis.all")}
           />
         ) : (
@@ -867,7 +789,6 @@ export function RadiusProp() {
           <MergedSideField
             props={RADIUS_PROPS}
             set={setAllProps}
-            icon={<AllCornersIcon className="h-3.5 w-3.5" />}
             iconTitle={t("prop.corner.all")}
           />
         ) : (
