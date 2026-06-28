@@ -58,11 +58,11 @@ chrome.action.onClicked.addListener((tab) => {
 | dev/prod 분리 | 단일 App | 2 App (callback URL 1개 제한) | 단일 App (multi redirect) | 단일 App (multi redirect) | 단일 App (multi redirect) | 단일 App (multi redirect) | 단일 App (multi redirect) |
 | Env var | `VITE_ATLASSIAN_CLIENT_ID` | `VITE_GITHUB_CLIENT_ID` (+`_PROD`) | `VITE_LINEAR_CLIENT_ID` | `VITE_NOTION_CLIENT_ID` | `VITE_GITLAB_CLIENT_ID` | `VITE_ASANA_CLIENT_ID` | `VITE_CLICKUP_CLIENT_ID` |
 
-공통 env: `VITE_OAUTH_PROXY_URL` — Cloudflare Worker origin (Jira·GitHub·Notion·Asana·ClickUp 공유). manifest가 빌드 시 origin을 `host_permissions`에 자동 추가.
+공통 env: `VITE_OAUTH_PROXY_URL` — Cloudflare Worker origin (Jira·GitHub·Notion·Asana·ClickUp 공유). proxy origin fetch는 required `<all_urls>`가 커버하므로 manifest `host_permissions`에 별도 추가하지 않는다.
 
 **왜 proxy가 필요한가**: confidential client는 `client_secret` 요구 — 확장에 비밀키를 번들할 수 없으므로 Worker가 `code↔token`·`refresh↔token` 교환만 중계. Linear·GitLab은 public client(PKCE)라 proxy 불필요. Asana는 native 앱 모드가 OOB redirect만 허용해 custom redirect(`chromiumapp.org`)를 쓰려면 confidential일 수밖에 없어 proxy 경유한다.
 
-**GitLab self-managed**: OAuth는 `gitlab.com` 고정(host_permission). PAT는 임의 self-managed 인스턴스 URL(`gitlabInstanceUrl.normalizeInstanceUrl` — gitlab.com은 https 강제) 지원하며, 연결 시 `requestHostPermission(baseUrl)` 호출(required `<all_urls>`에 이미 커버돼 즉시 grant — 프롬프트 없음). GitLab은 업로드→이슈생성 순서라 logs.html에 이슈 역링크를 사전 주입 불가 → 생성 후 `injectIssueUrl` 재업로드 + `gitlab.updateIssueDescription`(description PUT)으로 보강(실패는 격리).
+**GitLab self-managed**: OAuth는 `gitlab.com` 고정(host 접근은 `<all_urls>` 커버). PAT는 임의 self-managed 인스턴스 URL(`gitlabInstanceUrl.normalizeInstanceUrl` — gitlab.com은 https 강제) 지원하며, 연결 시 `requestHostPermission(baseUrl)` 호출(required `<all_urls>`에 이미 커버돼 즉시 grant — 프롬프트 없음). GitLab은 업로드→이슈생성 순서라 logs.html에 이슈 역링크를 사전 주입 불가 → 생성 후 `injectIssueUrl` 재업로드 + `gitlab.updateIssueDescription`(description PUT)으로 보강(실패는 격리).
 
 **Asana**: REST·authorize는 `app.asana.com` 고정, token 교환은 proxy(`/asana/token`·`/asana/refresh`) 경유. 응답은 `{ data }` 래핑이라 `asanaFetch`가 언랩. html_notes는 인라인 이미지를 지원하므로(`<img data-asana-gid>`) **create → upload → updateTaskNotes** 2-write로 본문에 이미지를 임베드한다(첨부 후 GID 참조라 순서 강제). 캡처 이미지(As is/To be)뿐 아니라 에디터 본문에 붙여넣은 인라인 이미지(`inlineImages`, 본문 src `inline:refId`)도 같은 경로로 업로드·임베드한다. 단 Asana는 webp 인라인을 지원하지 않아 업로드 전 webp→jpeg로 폴백 변환하고, 작게 렌더되지 않도록 `src`(view_url)+`data-src-width/height`+`style`을 채운다. element 비교는 As is/To be 섹션(이미지+속성값)으로 배치(테이블은 `<pre>` 폴백이라 셀 이미지 불가). 영상·로그·메타는 인라인 불가라 task 첨부 영역에만 둔다(본문에 파일 리스트 미표기). logs.html은 createTask가 upload보다 먼저라 업로드 직전 `injectIssueUrl(task.permalinkUrl, task.gid)`로 백링크·key를 주입해 1회 업로드로 끝낸다(GitLab식 재업로드 불필요). refresh_token은 비회전이라 갱신 응답에 없으면 기존 토큰 유지.
 
