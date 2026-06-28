@@ -106,26 +106,35 @@ export async function getMyself(
   return { id: data.user_id, name: data.user, teamId: data.team_id, teamName: data.team };
 }
 
+export type RawSlackMember = {
+  id: string;
+  name?: string;
+  deleted?: boolean;
+  is_bot?: boolean;
+  profile?: { display_name?: string; real_name?: string; image_48?: string };
+};
+
+// bot·삭제·USLACKBOT은 제외(null), 그 외엔 표시 이름·프로필 이미지를 정규화.
+export function normalizeMember(m: RawSlackMember): SlackUser | null {
+  if (m.deleted || m.is_bot || m.id === "USLACKBOT") return null;
+  return {
+    id: m.id,
+    name: m.profile?.display_name || m.profile?.real_name || m.name || m.id,
+    image: m.profile?.image_48,
+  };
+}
+
 export async function listMembers(auth: SlackAuth): Promise<SlackUser[]> {
   const members: SlackUser[] = [];
   let cursor: string | undefined;
   do {
     const data = await slackFetch<{
-      members: Array<{
-        id: string;
-        name?: string;
-        deleted?: boolean;
-        is_bot?: boolean;
-        profile?: { display_name?: string; real_name?: string };
-      }>;
+      members: RawSlackMember[];
       response_metadata?: { next_cursor?: string };
     }>(auth, "users.list", { limit: 200, cursor });
     for (const m of data.members) {
-      if (m.deleted || m.is_bot || m.id === "USLACKBOT") continue;
-      members.push({
-        id: m.id,
-        name: m.profile?.display_name || m.profile?.real_name || m.name || m.id,
-      });
+      const user = normalizeMember(m);
+      if (user) members.push(user);
     }
     cursor = data.response_metadata?.next_cursor || undefined;
   } while (cursor);
@@ -149,11 +158,16 @@ export async function listChannels(auth: SlackAuth): Promise<SlackChannel[]> {
     cursor = data.response_metadata?.next_cursor || undefined;
   } while (cursor);
 
-  // im/mpim은 이름이 없어 user id 폴백 상태 → users.list 1회로 id→name 일괄 매핑(N+1 회피).
+  // im은 이름·이미지가 없어 user id 폴백 상태 → users.list 1회로 id→{name,image} 일괄 매핑(N+1 회피).
   if (channels.some((c) => c.kind === "im")) {
-    const nameById = new Map((await listMembers(auth)).map((u) => [u.id, u.name]));
+    const byId = new Map((await listMembers(auth)).map((u) => [u.id, u]));
     for (const c of channels) {
-      if (c.kind === "im") c.name = nameById.get(c.name) ?? c.name;
+      if (c.kind !== "im") continue;
+      const user = byId.get(c.name);
+      if (user) {
+        c.name = user.name;
+        c.imageUrl = user.image;
+      }
     }
   }
   return channels;

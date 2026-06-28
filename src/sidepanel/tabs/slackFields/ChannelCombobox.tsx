@@ -1,6 +1,7 @@
 import { useCallback } from "react";
 import { useT } from "@/i18n";
 import { SingleLazyCombobox } from "@/sidepanel/components/SingleLazyCombobox";
+import { ChannelIcon } from "@/sidepanel/tabs/slackFields/ChannelIcon";
 import type { SlackChannel } from "@/types/slack";
 import { sendBg } from "@/types/messages";
 
@@ -28,6 +29,12 @@ export function ChannelCombobox({ value, onChange, disabled }: Props) {
       load={load}
       getKey={(c) => c.id}
       getName={(c) => c.name}
+      renderItem={(c) => (
+        <span className="flex min-w-0 items-center gap-2">
+          <ChannelIcon channel={c} />
+          <span className="truncate">{c.name.replace(/^#/, "")}</span>
+        </span>
+      )}
       selectedKey={value?.channelId ?? null}
       onSelect={(c) =>
         onChange(c ? { channelId: c.id, channelName: c.name } : null)

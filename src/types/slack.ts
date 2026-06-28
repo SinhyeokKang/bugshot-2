@@ -34,11 +34,13 @@ export interface SlackChannel {
   id: string;
   name: string; // "#general" | DM 상대 이름 | 그룹 DM 라벨
   kind: SlackChannelKind;
+  imageUrl?: string; // im(1:1 DM)만 — 상대 프로필 이미지 (채널과 시각 구분용)
 }
 
 export interface SlackUser {
   id: string; // Uxxxx
   name: string; // display_name || real_name
+  image?: string; // profile.image_48
 }
 
 export interface SlackPostMessagePayload {

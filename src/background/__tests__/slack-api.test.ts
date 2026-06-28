@@ -13,7 +13,11 @@ vi.mock("@/i18n", () => ({
   dateBcp47: () => "en-US",
 }));
 
-import { messageForSlackError, normalizeChannel } from "../slack-api";
+import {
+  messageForSlackError,
+  normalizeChannel,
+  normalizeMember,
+} from "../slack-api";
 
 // Slack conversations 항목은 is_im/is_mpim/is_private 플래그로 종류가 갈린다.
 describe("normalizeChannel — 종류 라벨링", () => {
@@ -53,6 +57,36 @@ describe("normalizeChannel — 종류 라벨링", () => {
     });
     expect(out.kind).toBe("mpim");
     expect(out.id).toBe("G1");
+  });
+});
+
+describe("normalizeMember — 표시 이름·프로필 이미지", () => {
+  it("display_name 우선, image_48 추출", () => {
+    expect(
+      normalizeMember({
+        id: "U1",
+        name: "uname",
+        profile: { display_name: "Disp", real_name: "Real", image_48: "img48" },
+      }),
+    ).toEqual({ id: "U1", name: "Disp", image: "img48" });
+  });
+
+  it("display_name 없으면 real_name → name → id 폴백", () => {
+    expect(normalizeMember({ id: "U2", profile: { real_name: "Real" } })?.name).toBe(
+      "Real",
+    );
+    expect(normalizeMember({ id: "U3", name: "uname" })?.name).toBe("uname");
+    expect(normalizeMember({ id: "U4" })?.name).toBe("U4");
+  });
+
+  it("image 없으면 undefined", () => {
+    expect(normalizeMember({ id: "U5", name: "n" })?.image).toBeUndefined();
+  });
+
+  it("deleted·bot·USLACKBOT은 null", () => {
+    expect(normalizeMember({ id: "U6", deleted: true })).toBeNull();
+    expect(normalizeMember({ id: "U7", is_bot: true })).toBeNull();
+    expect(normalizeMember({ id: "USLACKBOT" })).toBeNull();
   });
 });
 
