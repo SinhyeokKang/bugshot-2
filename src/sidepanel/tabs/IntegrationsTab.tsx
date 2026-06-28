@@ -168,7 +168,7 @@ export function IntegrationsTab({ activeMainTab }: { activeMainTab: string }) {
               </div>
               <h3 className="text-center text-lg font-semibold">{t("platform.add.title")}</h3>
             </div>
-            <div className="flex w-full max-w-[240px] flex-col gap-2">
+            <div className="grid w-full max-w-[336px] grid-cols-2 gap-2">
               {orderAddPlatforms(
                 PLATFORMS.map((p) => p.id),
                 (id) => !!accounts[id],
