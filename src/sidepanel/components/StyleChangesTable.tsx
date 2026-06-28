@@ -1,6 +1,8 @@
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { useT } from "@/i18n";
+import { ColorSwatch } from "./ColorSwatch";
+import { isRenderableColorLiteral } from "@/sidepanel/tabs/styleEditor/colorLiteral";
 import {
   DocTable,
   docTableCell,
@@ -127,6 +129,7 @@ export function DiffValue({
       </span>
     );
   }
+  const showSwatch = !segments && isRenderableColorLiteral(value.trim());
   return (
     <span
       data-testid={testid}
@@ -135,6 +138,12 @@ export function DiffValue({
         muted && "text-muted-foreground",
       )}
     >
+      {showSwatch ? (
+        <ColorSwatch
+          color={value.trim()}
+          className="mr-1 inline-block align-[-1px]"
+        />
+      ) : null}
       {segments
         ? segments.map((s, i) => (
             <span key={i}>

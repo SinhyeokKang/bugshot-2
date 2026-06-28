@@ -1,6 +1,7 @@
 import { Check } from "lucide-react";
 import { CommandItem } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
+import { ColorSwatch } from "@/sidepanel/components/ColorSwatch";
 import type { Token } from "@/types/picker";
 
 export function TokenChip({
@@ -24,13 +25,9 @@ export function TokenChip({
       )}
     >
       {swatch ? (
-        <span
-          className="h-2.5 w-2.5 shrink-0 rounded border border-border/60"
-          style={
-            swatchKind === "image"
-              ? { backgroundImage: swatch, backgroundSize: "cover" }
-              : { backgroundColor: swatch }
-          }
+        <ColorSwatch
+          color={swatchKind === "color" ? swatch : undefined}
+          image={swatchKind === "image" ? swatch : undefined}
         />
       ) : null}
       <span className="min-w-0 truncate">{name}</span>
@@ -63,15 +60,9 @@ export function TokenItem({
         )}
       />
       {token.category === "color" ? (
-        <span
-          className="h-3 w-3 shrink-0 rounded border border-border/60"
-          style={{ backgroundColor: token.value }}
-        />
+        <ColorSwatch color={token.value} />
       ) : token.category === "image" ? (
-        <span
-          className="h-3 w-3 shrink-0 rounded border border-border/60"
-          style={{ backgroundImage: token.value, backgroundSize: "cover" }}
-        />
+        <ColorSwatch image={token.value} />
       ) : null}
       <span
         className={cn(

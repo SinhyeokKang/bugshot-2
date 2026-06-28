@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/popover";
 import { useT } from "@/i18n";
 import { cn } from "@/lib/utils";
+import { ColorSwatch } from "@/sidepanel/components/ColorSwatch";
 import { useEditorStore } from "@/store/editor-store";
 import type { Token, TokenCategory } from "@/types/picker";
 import { isRenderableColorLiteral } from "./colorLiteral";
@@ -244,10 +245,7 @@ export function ValueCombobox({
           ) : value ? (
             category === "color" && isRenderableColorLiteral(value) ? (
               <span className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
-                <span
-                  className="h-2.5 w-2.5 shrink-0 rounded border border-border/60"
-                  style={{ backgroundColor: value }}
-                />
+                <ColorSwatch color={value} />
                 <span className="min-w-0 flex-1 truncate text-left">{value}</span>
               </span>
             ) : (
@@ -277,6 +275,22 @@ export function ValueCombobox({
                   {placeholderTokenHint}
                 </span>
               ) : null}
+            </span>
+          ) : category === "color" &&
+            placeholder &&
+            isRenderableColorLiteral(placeholder) ? (
+            <span className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
+              <ColorSwatch color={placeholder} />
+              <span
+                className={cn(
+                  "min-w-0 flex-1 truncate text-left",
+                  isDefault
+                    ? "text-muted-foreground/50"
+                    : "text-muted-foreground",
+                )}
+              >
+                {compact ? shortValue(placeholder) : placeholder}
+              </span>
             </span>
           ) : (
             <span
@@ -347,6 +361,10 @@ export function ValueCombobox({
                   value={`__raw__${finalize(draft.trim())}`}
                   onSelect={() => commit(draft.trim())}
                 >
+                  {category === "color" &&
+                  isRenderableColorLiteral(finalize(draft.trim())) ? (
+                    <ColorSwatch color={finalize(draft.trim())} />
+                  ) : null}
                   <span className="text-sm">{finalize(draft.trim())}</span>
                 </CommandItem>
               </CommandGroup>
