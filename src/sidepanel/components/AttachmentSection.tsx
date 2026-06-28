@@ -69,7 +69,8 @@ export function AttachmentSection({
           <CardContent className="flex flex-col gap-3 px-3 py-3">
             {attachments.map((a, idx) => (
               <Fragment key={a.id}>
-                {idx > 0 ? <Separator className="-mx-3" /> : null}
+                {/* w-auto로 기본 w-full 해제 — 음수 마진이 폭을 확장해 카드 패딩(px-3)을 풀블리드로 뚫는다. */}
+                {idx > 0 ? <Separator className="-mx-3 w-auto" /> : null}
                 <div data-testid="attachment-item" className="flex items-center gap-3">
                   <div className="shrink-0">{CATEGORY_ICON[fileCategory(a.contentType, a.filename)]}</div>
                   <div className="flex min-w-0 flex-1 flex-col">
