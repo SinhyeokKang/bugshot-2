@@ -48,12 +48,13 @@
 ### Task 5: AnnotationToolbar (shadcn UI, 3단 컨텍스트 레이아웃)
 - **변경 대상**: `src/sidepanel/components/annotation/AnnotationToolbar.tsx`
 - **작업 내용**: design "툴바 레이아웃" 대로 구현. **모든 버튼 아이콘 전용**(텍스트 라벨 없음, `aria-label`/`title`만). 모든 버튼 `<Button size="icon" className="h-8 w-8">`. 각 단 래퍼는 전역 탭 바와 동일 패딩 `px-4 py-4`(+동일 mb/`border-b`). ToggleGroup 금지.
-  - **1단**: 도구 7종 `ButtonGroup`(활성 `bg-muted` + `data-active`, flex-wrap) + 우측 **삭제 버튼**(`Trash2`, `selectedId`일 때만 활성).
-  - **2단**: 색상 5 원형 스와치 `ButtonGroup` + 두께 3 굵기 아이콘(`Minus` strokeWidth 1/2.5/4 등, aria로 S/M/L)`ButtonGroup`(두께는 arrow/rect/ellipse/pen만, text/highlight는 숨김/비활성). 그리기 도구 선택 시에만 내용 렌더하되 **행 높이는 항상 예약**(select 시 `invisible`) — 언마운트 시 이미지 수직 점프 방지.
+  - **1단**: 도구 7종 `ButtonGroup`(활성 `bg-muted` + `data-active`) + 우측 **삭제 버튼**(`Trash2`, `selectedId`일 때만 활성). **flex-wrap 금지** → `flex-nowrap` + 필요 시 `overflow-x-auto`(OriginFilterBar 선례). wrap되면 1단 높이 변동 → canvas 수직 점프 재발.
+  - **2단**: 색상 5 원형 스와치 `ButtonGroup` + 두께 3 굵기 아이콘(`Minus` strokeWidth **1.5/3.5/6**, aria로 S/M/L)`ButtonGroup`. 두께 그룹은 항상 렌더하되 text/highlight면 **`disabled`**(숨김 아님). 그리기 도구 선택 시에만 2단 내용 렌더하되 **행 높이는 항상 예약**(select 시 `invisible`) — 언마운트 시 이미지 수직 점프 방지.
   - **3단**: 왼쪽 Undo/Redo(`Undo2`/`Redo2`, disabled = !canUndo/!canRedo), 오른쪽 Cancel(`X`)/OK(`Check`, 도형 0개면 disabled).
   - data-testid 부착(도구별·undo/redo/delete/cancel/done).
 - **검증**:
   - [ ] 모든 버튼 아이콘 전용(텍스트 없음), aria-label 존재
+  - [ ] 1단 `flex-nowrap`(좁은 폭에서 wrap 안 됨 → 1단 높이 1행 고정)
   - [ ] 각 단 패딩이 전역 탭 바(`px-4 py-4`)와 일치
   - [ ] 활성 도구/색상/두께 시각 표시(`bg-muted`/`data-active`), 콜백 발화
   - [ ] select 도구 선택 시 2단 내용 숨김(높이는 예약 유지), 그리기 도구 시 표시 — 도구 전환 시 이미지 수직 위치 점프 없음(수동)
@@ -62,8 +63,10 @@
   - [ ] 좁은 사이드패널(~320–400px) 폭에서 3단 레이아웃 안 깨짐(수동 확인)
 
 ### Task 6: AnnotationOverlay 재작성 (Konva Stage 호스트)
-- **변경 대상**: `src/sidepanel/components/AnnotationOverlay.tsx` (markerjs2 제거)
-- **작업 내용**: props 시그니처 유지. 오버레이는 탭 컨텐츠 영역 덮음(전역 탭 비가림, `bg-black/40 backdrop-blur` 폐기), 이미지 중앙 정렬, 상단/하단 툴바 고정. **배경 분리**: 툴바 영역 `bg-background`, 가운데 canvas 영역(툴바 제외) `bg-muted/50`(PageFooter와 동일).
+- **변경 대상**: `src/sidepanel/components/AnnotationOverlay.tsx` (markerjs2 제거), `src/sidepanel/tabs/DraftingPanel.tsx` (루트 `PageShell`에 `relative` 1줄 추가).
+- **작업 내용**: props 시그니처 유지.
+  - **오버레이 스코프**: DraftingPanel 루트 `<PageShell>` → `<PageShell className="relative">`. 이래야 오버레이 `absolute inset-0`이 DraftingPanel 컨텐츠에 잡혀 **전역 탭 바를 안 가린다**(현재 유일 relative 조상은 App.tsx:179 패널 전체라 그대로면 탭까지 덮임). `bg-black/40 backdrop-blur` 폐기.
+  - 오버레이: 이미지 중앙 정렬, 상단/하단 툴바 고정. **배경 분리**: 툴바 영역 `bg-background`, 가운데 canvas 영역(툴바 제외) `bg-muted/50`(PageFooter와 동일).
   - `loadImage`로 자연 크기 취득(**reject → 토스트 + `onCancel()` 자동 닫기**)→displayScale 계산.
   - **Stage는 자연 해상도로 생성**, 컨테이너 CSS `transform: scale(displayScale)` `transform-origin: top left`로만 시각 축소. 배경 `Image` Layer(원본 HTMLImage)/도형 Layer/`Transformer` Layer.
   - 포인터 이벤트로 createShape→updateShapeDraft→commit(+isEmptyShape 폐기). 활성 도구별 **커서**(arrow/rect/ellipse/pen/highlight→crosshair, text→text, select→default).
@@ -79,6 +82,7 @@
   - [ ] Undo/Redo 정확(추가/이동/삭제/색상변경 단위)
   - [ ] Done 결과 webp + 자연 해상도(출력 width == naturalWidth)
   - [ ] 도형 0개일 때 Done disabled
+  - [ ] 오버레이가 전역 탭 바를 가리지 않음(탭 컨텐츠 영역만 덮음) — DraftingPanel `relative` 적용 확인
   - [ ] 이미지 로드 실패 시 토스트 + 자동 닫기
   - [ ] 재진입 시 평탄화 이미지 base 로드, 취소 시 폐기
   - [ ] `pnpm typecheck` 통과

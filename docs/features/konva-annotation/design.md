@@ -2,7 +2,7 @@
 
 ## 개요
 
-`AnnotationOverlay.tsx`를 markerjs2 명령형 구현에서 react-konva 선언형 구현으로 재작성한다. 외부 계약(props 시그니처, webp 0.92 출력, `screenshotAnnotated` 저장 흐름)은 동일하게 유지하므로 `DraftingPanel.tsx`·`editor-store.ts`는 무변경이다. 주석 상태(도형 배열·선택·도구·색상·두께·undo/redo 히스토리)는 오버레이 컴포넌트 로컬 state로만 관리하고, 완료 시 Konva Stage를 webp로 flatten해 콜백으로 넘긴다. **Stage는 이미지 자연 해상도로 생성하고 화면에는 CSS transform으로만 축소 표시**하므로 export는 `pixelRatio=1`로 무손실 자연 해상도(배경 화질 퇴행 없음). 도형 모델·팩토리·히스토리 리듀서·프리셋은 순수 모듈로 분리해 단위 테스트한다.
+`AnnotationOverlay.tsx`를 markerjs2 명령형 구현에서 react-konva 선언형 구현으로 재작성한다. 외부 계약(props 시그니처, webp 0.92 출력, `screenshotAnnotated` 저장 흐름)은 유지하며 `editor-store.ts`는 무변경, `DraftingPanel.tsx`는 **오버레이 스코프용 `relative` 한 줄만 변경**(아래 §변경 범위)이다. 주석 상태(도형 배열·선택·도구·색상·두께·undo/redo 히스토리)는 오버레이 컴포넌트 로컬 state로만 관리하고, 완료 시 Konva Stage를 webp로 flatten해 콜백으로 넘긴다. **Stage는 이미지 자연 해상도로 생성하고 화면에는 CSS transform으로만 축소 표시**하므로 export는 `pixelRatio=1`로 무손실 자연 해상도(배경 화질 퇴행 없음). 도형 모델·팩토리·히스토리 리듀서·프리셋은 순수 모듈로 분리해 단위 테스트한다.
 
 ## 변경 범위
 
@@ -12,7 +12,7 @@
 - **`shapes.ts`** — 순수. 도형 모델 타입(`AnnotationShape` 유니온)과 팩토리/업데이트 헬퍼. 포인터 좌표·현재 도구·스타일을 받아 도형 객체를 만들고, 드래그 중 갱신한다. Konva·React 의존 없음.
 - **`history.ts`** — 순수. `AnnotationShape[]` 스냅샷 스택에 대한 undo/redo 리듀서. push/undo/redo/canUndo/canRedo.
 - **`ShapeNode.tsx`** — react-konva. `AnnotationShape` 하나를 타입별 Konva 노드(`Arrow`/`Rect`/`Ellipse`/`Line`/`Text`)로 렌더. 선택·드래그·transform 이벤트를 상위로 콜백.
-- **`AnnotationToolbar.tsx`** — shadcn. **3단 컨텍스트 레이아웃**(아래 "툴바 레이아웃" 참조). **모든 버튼은 아이콘 전용**(텍스트 라벨 없음, 라벨은 `aria-label`/`title`로만). 도구·색상은 shadcn `ButtonGroup`(`@/components/ui/button-group`)으로 묶고, 각 항목은 `Button size="icon" className="h-8 w-8"` + 활성 시 `bg-muted` + `data-active`. 아이콘: 도구 MousePointer2/ArrowUpRight/Square/Circle/Pen/Type/Highlighter, 삭제 Trash2, undo/redo Undo2/Redo2, **Cancel `X` / OK `Check`**, **두께 S/M/L = 굵기 다른 가로선 아이콘**(lucide에 stroke-width 아이콘이 없으므로 `Minus`를 strokeWidth 1/2.5/4로 렌더하거나 높이 다른 막대 글리프; aria로 S/M/L 구분). 색상은 컬러 채운 원형 스와치(아이콘 대용). ToggleGroup은 실사용 0건이라 쓰지 않고 ButtonGroup 패턴을 따른다.
+- **`AnnotationToolbar.tsx`** — shadcn. **3단 컨텍스트 레이아웃**(아래 "툴바 레이아웃" 참조). **모든 버튼은 아이콘 전용**(텍스트 라벨 없음, 라벨은 `aria-label`/`title`로만). 도구·색상은 shadcn `ButtonGroup`(`@/components/ui/button-group`)으로 묶고, 각 항목은 `Button size="icon" className="h-8 w-8"` + 활성 시 `bg-muted` + `data-active`. 아이콘: 도구 MousePointer2/ArrowUpRight/Square/Circle/Pen/Type/Highlighter, 삭제 Trash2, undo/redo Undo2/Redo2, **Cancel `X` / OK `Check`**, **두께 S/M/L = 굵기 다른 가로선 아이콘**(lucide에 stroke-width 아이콘이 없으므로 `Minus`를 strokeWidth **1.5/3.5/6**으로 렌더 — 32px 버튼에서 변별되게 차이를 크게; 활성 `bg-muted` 보강; aria로 S/M/L 구분). 색상은 컬러 채운 원형 스와치(아이콘 대용). ToggleGroup은 실사용 0건이라 쓰지 않고 ButtonGroup 패턴을 따른다.
 - **`TextEditorOverlay.tsx`** (또는 AnnotationOverlay 내 인라인) — 텍스트 노드 편집용 HTML `<textarea>`를 Konva Text 위에 절대배치. Konva 표준 텍스트 편집 패턴.
 - **`__tests__/shapes.test.ts`**, **`__tests__/history.test.ts`**, **`__tests__/presets.test.ts`** — Vitest 단위 테스트.
 
@@ -29,10 +29,10 @@
   - 현재 주석이 "우리 canvas는 getImageData를 안 써서 부작용 없음"인데, markerjs2 제거 후 **이 문장이 거짓**이 된다(Konva hit-detection canvas는 `getImageData`를 빈번히 호출). 패치는 유지하되(제거 시 경고 회귀) 주석을 사실에 맞게 교체: "Konva hit canvas는 getImageData 사용 → 경고 억제 + readback 최적화. 렌더 canvas는 readback이 없어 `willReadFrequently:true`가 미세하게 비최적이나(GPU 경로 회피 신호), 사이드패널 소형 캔버스라 무시 가능." (코드 로직 불변, 주석만)
 - **`src/i18n/namespaces/editor.ts`** — `annotation.*` 키 추가(도구명·undo/redo·삭제·색상/두께 aria 라벨). ko/en 동시. 기존 `annotation.cancel`/`annotation.done`, `draft.addAnnotation`/`editAnnotation`/`removeAnnotation`는 재사용.
 - **`package.json`** — `markerjs2` 제거, `konva`·`react-konva` 추가.
+- **`src/sidepanel/tabs/DraftingPanel.tsx`** (오버레이 스코프) — 오버레이가 **전역 탭 바를 안 가리고 탭 컨텐츠 영역만 덮게** 하려면 오버레이의 `absolute inset-0`가 잡힐 positioned 조상이 DraftingPanel 컨텐츠여야 한다. 현재 유일한 `relative` 조상은 `App.tsx:179`(전역 탭 포함 패널 전체)라 그대로면 탭까지 덮인다. → DraftingPanel 루트 `PageShell`에 **`relative` 클래스 한 줄 추가**(`<PageShell className="relative">`). props·lazy import(50)·렌더(473~483)는 그대로. (이것만이 DraftingPanel 변경이고, "무변경"에서 이 1줄로 완화.)
 
 ### 무변경 (계약 유지로 영향 없음)
 
-- `DraftingPanel.tsx` (라인 50 lazy import, 473~483 렌더) — props 동일.
 - `editor-store.ts` `onAnnotated`(505) / `confirmDraft`(724~761) — `screenshotAnnotated` dataURL 그대로 소비.
 - `capture.ts` `loadImage`(91) — 재사용.
 - `downloadCapture.ts` `imageExtFromDataUrl` — webp MIME 그대로.
@@ -66,7 +66,7 @@ DraftingPanel (annotating && screenshotRaw)
 
 ### 툴바 레이아웃 (3단 컨텍스트)
 
-오버레이는 **사이드패널의 탭 컨텐츠 영역만 덮고**(상단 전역 탭 바는 가리지 않음 — 현행 `absolute inset-0`은 DraftingPanel 컨텐츠 기준, `bg-black/40 backdrop-blur`는 폐기), 이미지 Stage는 **중앙 정렬**, 툴바는 **오버레이 상단/하단에 고정**한다. **배경색 분리**: 툴바 영역(상단 1·2단 + 하단 3단)은 기본 배경(`bg-background`), **이미지가 깔리는 가운데 canvas 영역(툴바 제외 전부)은 회색 `bg-muted/50`** — 다이얼로그/PageFooter(`Section.tsx:30` `bg-muted/50`)와 동일. 좁은 사이드패널(~320–400px)에선 한 줄에 다 못 들어가므로 상단 툴바를 1·2단으로 나눈다. 컨테이너 쿼리로 "넓어지면 펼침"은 사이드패널 폭에선 거의 발동 안 하므로 **고정 다단**으로 간다.
+오버레이는 **사이드패널의 탭 컨텐츠 영역만 덮고**(상단 전역 탭 바는 가리지 않음 — `absolute inset-0`이 DraftingPanel 루트 `PageShell`(`relative` 추가)에 스코프되도록; §변경 범위 참조. `bg-black/40 backdrop-blur`는 폐기), 이미지 Stage는 **중앙 정렬**, 툴바는 **오버레이 상단/하단에 고정**한다. **배경색 분리**: 툴바 영역(상단 1·2단 + 하단 3단)은 기본 배경(`bg-background`), **이미지가 깔리는 가운데 canvas 영역(툴바 제외 전부)은 회색 `bg-muted/50`** — 다이얼로그/PageFooter(`Section.tsx:30` `bg-muted/50`)와 동일. 좁은 사이드패널(~320–400px)에선 한 줄에 다 못 들어가므로 상단 툴바를 1·2단으로 나눈다. 컨테이너 쿼리로 "넓어지면 펼침"은 사이드패널 폭에선 거의 발동 안 하므로 **고정 다단**으로 간다.
 
 ```
 ╔═══════════════════════════════════════════════╗
@@ -96,8 +96,8 @@ DraftingPanel (annotating && screenshotRaw)
 ```
 
 - **단 컨테이너 간격**: 각 툴바 단(1·2·3단)의 래퍼는 **전역 탭 바 컨테이너와 동일한 패딩·하단 간격**을 쓴다 — `App.tsx:187`의 `<div className="border-b px-4 py-4">` 기준으로 `px-4 py-4`(+ 단 구분에 `border-b`/동일 mb). 전역 탭 바와 시각 리듬을 맞춘다.
-- **1단(최상단)**: 도구 7종 ButtonGroup(활성 도구 `bg-muted` + `data-active`, 좁으면 flex-wrap) + 우측에 **선택 도형 삭제 버튼**(`Trash2`, `annotation.delete`). 도형이 선택됐을 때(`selectedId != null`)만 활성, 아니면 disabled. 클릭 = 선택 도형 제거 + history.push. 키보드 `Delete`/`Backspace`와 동일 동작(버튼은 마우스 사용자용 명시적 어포던스).
-- **2단**: 색상 5 스와치 ButtonGroup + 두께 굵기 아이콘 ButtonGroup. 그리기 도구(select 아님) 선택 시에만 **내용**을 렌더하되, **행 높이는 항상 예약**한다(select 도구일 땐 `invisible`/빈 컨테이너로 동일 높이 유지). ⚠️ 그냥 조건부 언마운트하면 상단 툴바 블록 높이가 변해 가운데 canvas 영역 높이가 바뀌고 **이미지 수직 중심이 점프**한다 — 높이 예약으로 차단. (두께는 stroke 도구 arrow/rect/ellipse/pen에만 노출, text/highlight 선택 시 두께 그룹은 비활성/숨김이되 이 역시 1단·2단 전체 높이는 불변.)
+- **1단(최상단)**: 도구 7종 ButtonGroup(활성 도구 `bg-muted` + `data-active`) + 우측에 **선택 도형 삭제 버튼**(`Trash2`, `annotation.delete`, `selectedId != null`일 때만 활성, 클릭 = 제거 + history.push, 키보드 `Delete`/`Backspace`와 동일). ⚠️ **flex-wrap 금지** — 8개 아이콘(7도구+삭제)이 ~320px에서 wrap되면 1단 높이가 1→2행으로 변해 2단처럼 canvas 수직 점프가 재발한다. **단일 행 강제**: `flex-nowrap` + 필요 시 `overflow-x-auto`(OriginFilterBar 가로 스크롤 선례). 1단·2단 모두 높이 불변 보장.
+- **2단**: 색상 5 스와치 ButtonGroup + 두께 굵기 아이콘 ButtonGroup. 그리기 도구(select 아님) 선택 시에만 **내용**을 렌더하되, **행 높이는 항상 예약**한다(select 도구일 땐 `invisible`/빈 컨테이너로 동일 높이 유지). ⚠️ 그냥 조건부 언마운트하면 상단 툴바 블록 높이가 변해 가운데 canvas 영역 높이가 바뀌고 **이미지 수직 중심이 점프**한다 — 높이 예약으로 차단. 두께 그룹은 항상 렌더하되 stroke 도구(arrow/rect/ellipse/pen)가 아니면(text/highlight) **`disabled`**(숨김 아님 — 폭·높이 불변, 일관성).
 - **3단(최하단)**: 왼쪽 Undo/Redo(`disabled = !canUndo/!canRedo`), 오른쪽 Cancel/OK(도형 0개면 OK disabled). 기존 하단 액션바(`annotation.cancel`/`annotation.done`) 위치 계승.
 
 ### 커서 인터랙션
@@ -178,7 +178,7 @@ export function canRedo(h: History<unknown>): boolean;
 
 - **테스트 우선(CLAUDE.md)**: `shapes.ts`/`history.ts`/`presets.ts`는 신규 인터페이스 → `/tdd interface`로 테스트 먼저. 테스트는 대상과 같은 디렉터리 `__tests__/*.test.ts`, Vitest.
 - **i18n 동시 갱신**: `src/i18n/namespaces/editor.ts` ko/en 동시. Edit/Write 시 PostToolUse 훅이 `locales.test.ts` 자동 실행 → 키 대칭·placeholder 검사.
-- **shadcn 우선**: 툴바는 `ButtonGroup`(`@/components/ui/button-group`, **이미 설치됨** — OriginFilterBar 선례) + `Button`/`Tooltip` 사용. 직접 스타일링 금지. 프로젝트엔 `IconButton`이 없으므로 `<Button size="icon" className="h-8 w-8">`로 명시(CVA 기본 h-9 w-9를 override). 도구 버튼은 OriginFilterBar처럼 `size="sm" variant="outline"` + 활성 `bg-muted`.
+- **shadcn 우선**: 툴바는 `ButtonGroup`(`@/components/ui/button-group`, **이미 설치됨** — OriginFilterBar 선례) + `Button`/`Tooltip` 사용. 직접 스타일링 금지. 프로젝트엔 `IconButton`이 없으므로 `<Button size="icon" className="h-8 w-8">`로 명시(CVA 기본 h-9 w-9를 override). **ButtonGroup의 그룹핑 구조만 차용**하고, 항목은 OriginFilterBar의 텍스트 칩(`size="sm" h-7`)과 달리 **아이콘 정사각 `size="icon" h-8 w-8" variant="outline"`** + 활성 `bg-muted`로 통일(아이콘 전용 결정과 정합).
 - **lazy 청크 격리**: AnnotationOverlay는 이미 `React.lazy`. konva static import가 메인 청크로 새지 않음(Task 8 grep 가드).
 - **고정 다단 레이아웃**: `@tailwindcss/container-queries`의 "넓어지면 펼침"은 사이드패널 폭(~400px)에선 거의 발동 안 함(실사용처 LogAttachmentCards 1곳도 그 폭에선 1열). 컨테이너 쿼리 대신 위 3단 고정 레이아웃 + flex-wrap으로 간다.
 - **lucide(UI 일반)**: 도구 아이콘은 lucide-react.
