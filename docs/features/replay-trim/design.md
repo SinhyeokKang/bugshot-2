@@ -32,24 +32,28 @@
 - **`src/sidepanel/tabs/ReplayTrimDialog.tsx`** (소스 비종속 트리밍 오버레이 UI — annotation 패턴 차용)
   - props: `{ videoBlob: Blob; onConfirm: (startSec: number, endSec: number) => void; onCancel: () => void; busy?: boolean }`. (로그·마커는 store에서 직접 읽음 — 소스 비종속 코어는 video+초 구간만 다루고, 로그 표시는 리플레이 전용 부가.)
   - **컨테이너**: shadcn 모달이 아니라 `AnnotationOverlay.tsx:334` 패턴 — 최상위 `<div className="absolute inset-0 z-50 bg-background">` + `flex h-full flex-col`. 위→아래 **1단(정보 bar) / canvas(영상) / 2단(영상 컨트롤러) / 3단(액션바)** 4영역:
-    - **1단 정보 bar**(`flex items-center justify-between px-4 py-3`): 좌측 선택 길이 readout("17s / 30s", `issue.replay.trim.selection` placeholder). 우측 `ButtonGroup` [console][network][action] — 클릭 시 해당 로그 프리뷰 다이얼로그를 **기존 컴포넌트 재사용**으로 연다(`ConsoleLogPreviewDialog`/`NetworkLogPreviewDialog`/`ActionLogPreviewDialog`, `DraftingPanel.tsx:450`). store의 console/network/action 로그(아직 trim 전 전체)와 `startedAt`·attach 토글을 그대로 props로 전달. 로그가 없는 타입의 버튼은 `disabled`. (오버레이 위 중첩 모달 — z-index 상위.)
+    - **1단 정보 bar**(`flex items-center justify-between px-4 py-3`): 좌측 선택 길이 readout("17s / 30s", `issue.replay.trim.selection` placeholder, `aria-live="polite"`로 드래그 중 변화 읽힘). 우측 `ButtonGroup` [console][network][action] — 클릭 시 해당 로그 프리뷰 다이얼로그를 **기존 컴포넌트 재사용**으로 연다(`ConsoleLogPreviewDialog`/`NetworkLogPreviewDialog`/`ActionLogPreviewDialog`, `DraftingPanel.tsx:450`). **props는 타입별로 다름**: console/action은 `entries`+`startedAt`, **network는 `requests`(entries 아님)이며 `startedAt` 미수령** — 어댑터에서 분기 전달. attach 토글도 그대로 전달. 표시 로그는 `capture()`가 이미 1차 trim해 둔 store 로그본(30초 전체가 아님). 로그가 없는 타입의 버튼은 `disabled`. (오버레이 위 중첩 모달 — Radix Portal이 DOM 후순 렌더라 정상 위에 뜸. annotation 텍스트 편집기 전례처럼 필요 시 `z-[60]`로 명시.)
     - **canvas**(`flex min-h-0 flex-1 items-center justify-center`): `<video src={objectURL(videoBlob)} className="aspect-video w-full object-contain">` (`VideoPreview` 패턴, objectURL revoke cleanup). controls 미사용 — 재생은 2단 컨트롤러가 담당.
-    - **2단 영상 컨트롤러**(`<video>`에 붙지 않고 canvas 하단 별도 bar, `flex items-center gap-2 px-4 py-2`): 좌측 재생/일시정지 토글 버튼(`Play`/`Pause`). 그 우측에 **`TrimTimeline`**(아래 신규 파일) — 재생바(현재 위치) + trim 듀얼 핸들 + 에러 마커가 한 트랙에 겹쳐 렌더.
-    - **3단 액션바**(`flex items-center justify-between border-t px-4 py-4`): 좌측 `ButtonGroup` [↶ undo(`Undo2`)][↷ redo(`Redo2`)] / 우측 `ButtonGroup` [✗ 취소(`X`)][✓ 확정(`Check`)]. annotation 푸터(`AnnotationToolbar.tsx:268`) 구조 동일.
+    - **2단 영상 컨트롤러**(`<video>`에 붙지 않고 canvas 하단 별도 bar, `flex items-center gap-2 px-4 py-2`): 좌측 재생/일시정지 토글 버튼(`Play`/`Pause`). 그 우측에 **`TrimTimeline`**(아래 신규 파일).
+    - **3단 액션바**(`flex items-center justify-between border-t px-4 py-4`): 좌측 `ButtonGroup` [↶ undo(`Undo2`)][↷ redo(`Redo2`)] / 우측 `ButtonGroup` [✗ 취소(`X`)][✓ 확정(`Check`)]. annotation 푸터(`AnnotationToolbar.tsx:268`) 구조 동일. **✗는 파괴적(캡처 전체 폐기)이라 `destructive` 색으로 차등**(annotation X는 무해해 비-destructive — 부정 전이 방지, DESIGN §10).
   - **재생 상태**: `video.currentTime`/`paused`를 로컬 state로 추적(`timeupdate`/`play`/`pause` 리스너). 재생 위치는 `TrimTimeline`에 `currentPct`로 전달. 핸들로 trim 경계 변경 시 그 위치로 seek해 경계 프레임 확인.
-  - **undo/redo**: `annotation/history.ts`(`History<[number,number]>`/`initHistory`/`pushHistory`/`undoFn`/`redoFn`)를 재사용해 핸들 값 `[startSec,endSec]` 히스토리를 로컬 state로 관리. `canUndo`/`canRedo`로 버튼 `disabled`. 확정/취소 후 오버레이가 사라지면 히스토리도 소멸(확정 후 undo 없음).
+  - **undo/redo**: `src/sidepanel/components/annotation/history.ts`(제네릭 `History<T>` + 함수형 순수 함수 `initHistory`/`pushHistory`/`undo`/`redo`/`canUndo`/`canRedo` — h를 인자로 받아 새 History 반환, 클래스 아님)를 `History<[number,number]>`로 재사용해 핸들 값 히스토리를 로컬 state로 관리. `canUndo`/`canRedo`로 버튼 `disabled`. 확정/취소 후 오버레이가 사라지면 히스토리도 소멸(확정 후 undo 없음).
   - **✓ 확정**: `onConfirm(startSec, endSec)` 호출. App이 `applyReplayTrim`을 부르고, 전체 구간이면 `isFullRange`로 no-op(전체 유지 흡수). `busy` 시 모든 버튼·핸들 잠금 + `Loader2` 스피너(이중 인코딩·이중 `replaceVideo` 방지). `busy` state는 **App이 소유**(`onConfirm` 진입 시 true, `.finally`에서 false).
   - **✗ 취소**: `onCancel()` 호출 → App이 캡처 폐기 경로 실행(아래 App 변경). 캡처 결과를 버리는 파괴적 동작이라 기존 `CancelConfirmDialog`로 확인 후 진행(오버레이 위 중첩).
   - **lazy 로딩**: `DraftingPanel.tsx`의 annotation처럼 `lazy(() => import("./ReplayTrimDialog"))` + `Suspense` fallback(`Loader2`).
 
-- **`src/sidepanel/tabs/TrimTimeline.tsx`** (영상 타임라인 — log-viewer `ProgressBar` 패턴 복제 + trim 듀얼 핸들 + 에러 마커)
-  - props: `{ durationSec: number; currentPct: number; startSec: number; endSec: number; markers: TrimMarker[]; disabled?: boolean; onSeek: (pct: number) => void; onTrimChange: (startSec: number, endSec: number) => void; }`.
-  - 한 트랙에 3개 레이어 겹침: (a) **재생 위치 인디케이터**(`currentPct`), (b) **trim 듀얼 핸들**(shadcn `Slider` 2-thumb `value=[startSec,endSec]`, `minStepsBetweenThumbs`로 최소 2프레임 보장, 선택 구간 강조), (c) **에러 마커**(`markers.map`로 `positionPct` 위치에 점 — log-viewer `ProgressBar.tsx:93-111` 마커 렌더 + hover tooltip + hit-target 패턴 복제).
-  - **마커**: console/network/action 세 종류를 **한 타임라인에 통합**하되 **에러성(`variant==="error"`)만** 표시. `buildMarkers()`(`log-viewer/markers.ts:31`) 로직을 복제한 리플레이용 헬퍼(아래 `trim-markers.ts`)로 산출. ProgressBar는 `src/log-viewer/`의 별도 inline 빌드라 직접 import 불가 → 패턴·헬퍼 복제.
-  - seek/드래그(포인터 캡처 + `DRAG_THRESHOLD` 클릭/드래그 구분)·tooltip(포털 + viewport clamp)은 `ProgressBar.tsx` 구현 복제. `disabled`면 핸들·seek 잠금.
+- **`src/sidepanel/tabs/TrimTimeline.tsx`** (영상 타임라인 — **1트랙 레이어 분리**: Slider=trim 전용, 마커/playhead=표시 전용)
+  - props: `{ durationSec: number; currentPct: number; startSec: number; endSec: number; markers: TrimMarker[]; disabled?: boolean; onTrimChange: (startSec: number, endSec: number) => void; }`.
+  - **입력 책임 분리(경합 회피)**: trim 듀얼 핸들만 대화형 — shadcn `Slider` 2-thumb(`value=[startSec,endSec]`, `minStepsBetweenThumbs`로 최소 2프레임, 트랙 클릭=가까운 thumb 이동). 재생 위치(`currentPct`)와 에러 마커는 **비대화형 오버레이 레이어(`pointer-events-none`)**로 트랙 위에 absolute 겹침 → Slider 포인터 이벤트를 가로채지 않는다. (별도 임의 seek 트랙 클릭은 두지 않음 — seek는 핸들 이동에 수반되거나 재생/일시정지로. ProgressBar의 트랙클릭=seek는 채용 안 함.)
+  - **시각 차등**: trim thumb=쥘 수 있는 손잡이, playhead=가는 세로 라인, 마커=얇은 세로선(에러 색). z 순서 thumb > playhead > 마커. 좁은 폭(≈288px) 밀도 고려해 마커는 16px 다이아몬드 대신 얇은 라인.
+  - **마커**: `buildErrorMarkers`(아래) 결과를 `positionPct`에 표시만. 클릭/hover 비대화형이라 키보드/SR로는 마커 인지 불가 → 버그 시점 상세는 1단 로그 프리뷰 버튼으로 접근(마커는 `aria-hidden`).
+  - duration 미확정(`loadedmetadata` 전 `durationSec<=0`)이면 timeline `disabled`, `positionPct` NaN 가드(원본 `markers.ts:37` 가드 준용).
+  - 2-thumb 각각 "시작/끝" `aria-label` 부여(Radix가 키보드 화살표는 제공).
 
-- **`src/sidepanel/30s-replay/trim-markers.ts`** (에러 마커 산출 — `buildMarkers` 복제, 순수 함수)
-  - `buildErrorMarkers(logs: { consoleLog; networkLog; actionLog }, videoStartedAt: number, durationSec: number): TrimMarker[]` — 세 로그에서 에러 항목만 골라 `{ id, type, absTs, positionPct }`로 환산(positionPct는 `log-viewer/markers.ts`의 `pct` 계산 복제). 순수 함수라 단위 테스트.
+- **`src/sidepanel/30s-replay/trim-markers.ts`** (에러 마커 어댑터 — `buildMarkers` **재사용**, 순수 함수)
+  - `log-viewer/markers.ts`는 별도 아티팩트가 아니라 `src/` 소스이므로 `@/log-viewer/markers`로 **import 가능** → `buildMarkers`를 재사용한다(복제 금지).
+  - `TrimMarker` 타입을 **여기 정의**(Task 의존순서상 timeline보다 먼저): `{ id; type: "console" | "network"; absTs: number; positionPct: number }`.
+  - `buildErrorMarkers(logs, videoStartedAt, durationSec): TrimMarker[]` — console·network에 대해 `buildMarkers`를 호출하고 **에러성 variant만** 남겨 `TrimMarker`로 매핑·합친다. **에러 기준(넓게)**: console=`level==="error" || level==="warn"`, network=`status>=400 || phase==="error" || phase==="pending"`(원본 분류 그대로). **action은 마커 대상 제외**(`ActionEntry`에 에러 구분 없음 — 1단 로그 버튼으로만 유지). positionPct는 `buildMarkers`가 산출한 값 사용.
 
 - **`src/sidepanel/30s-replay/__tests__/trim-math.test.ts`** — `trim-math.ts` 단위 테스트.
 - **`src/sidepanel/30s-replay/__tests__/trim-markers.test.ts`** — `trim-markers.ts` 단위 테스트(에러만 필터, positionPct clamp).
@@ -65,7 +69,7 @@
   - 현재 역할: `use30sReplay` 호출 + `ReplayProvider` + 각종 전역 다이얼로그 렌더.
   - 변경: `replay.pendingTrim`이 있으면 `<Suspense><ReplayTrimDialog/></Suspense>` 렌더(오버레이라 다른 전역 모달과 달리 `blurActiveElement` 불필요 — annotation 오버레이도 미사용). App이 `busy` state를 소유:
     - `onConfirm={(s,e) => { setBusy(true); applyReplayTrim({ frames, tabId, startSec: s, endSec: e }).catch(() => toast.error(t("issue.replay.encodeFailed"))).finally(() => { setBusy(false); replay.resolveTrim(); }); }}` — `applyReplayTrim`이 `isFullRange`면 no-op이라 전체 구간 확정 시 전체 유지와 동일.
-    - `onCancel={() => { replay.resolveTrim(); reset(); if (tabId) void clearPicker(tabId); }}` — 캡처 폐기 → 진입 화면. 기존 drafting 작성 취소(`DraftingPanel.tsx:410`)와 동일 액션. 파괴 확인은 `ReplayTrimDialog` 내부 `CancelConfirmDialog`가 담당.
+    - `onCancel={() => { replay.resolveTrim(); reset(); if (tabId) { void clearPicker(tabId); deleteNetworkLog(`pending:${tabId}`); deleteConsoleLog(`pending:${tabId}`); deleteActionLog(`pending:${tabId}`); deleteAttachmentBlobs(`pending:${tabId}`); } }}` — 캡처 폐기 → 진입 화면. 기존 drafting 작성 취소(`DraftingPanel.tsx:410`)는 `reset()`+`clearPicker`만 하고 **IDB pending을 안 지우는 결함**(로그·특히 uuid 키 attachment blob 누수)이 있어, trim 취소에선 **IDB pending 로그·attachment까지 즉시 삭제**해 누수를 막는다(이번 스코프에서 보강). 파괴 확인은 `ReplayTrimDialog` 내부 `CancelConfirmDialog`가 담당.
     - `tabId`는 현재 탭 id(기존 경로)에서 취해 `applyReplayTrim`·`clearPicker`에 넘긴다.
 
 - **`src/store/editor-store.ts`** (≈164 타입, ≈501 구현)
@@ -80,8 +84,9 @@
 - **shadcn `Slider`** 미설치(`components/ui/`에 `slider.tsx` 없음) → `npx shadcn@latest add slider` 필요. Radix Slider는 `value`를 배열로 주면 2-thumb 레인지를 지원. (구현 단계에서 설치, 설계에선 명시만.)
 - **재사용(신규 의존성 아님)**:
   - `annotation/history.ts`(undo/redo), `components/ui/button-group.tsx`(`ButtonGroup`), `CancelConfirmDialog`(작성 취소 확인), `AnnotationOverlay`의 오버레이/lazy/objectURL 패턴.
-  - `ConsoleLogPreviewDialog`/`NetworkLogPreviewDialog`/`ActionLogPreviewDialog`(1단 로그 버튼이 여는 기존 모달, props 그대로) + `VideoPreview` objectURL 패턴.
-  - `log-viewer/components/ProgressBar.tsx`(재생바·seek·마커·tooltip·hit-target)와 `log-viewer/markers.ts`의 `buildMarkers`(에러 마커 산출)는 별도 inline 빌드라 **직접 import 불가** → `TrimTimeline.tsx`·`trim-markers.ts`로 **패턴 복제**.
+  - `ConsoleLogPreviewDialog`/`NetworkLogPreviewDialog`/`ActionLogPreviewDialog`(1단 로그 버튼이 여는 기존 모달 — props는 타입별 분기: console/action=`entries`+`startedAt`, network=`requests`) + `VideoPreview` objectURL 패턴.
+  - `log-viewer/markers.ts`의 `buildMarkers`는 `src/` 소스라 `@/log-viewer/markers`로 **import 재사용**(별도 빌드 제약은 `dist-log-viewer` 아티팩트 한정이지 소스 import는 정상 resolve). `trim-markers.ts`는 이를 호출하는 얇은 에러-필터 어댑터. (마커 라벨 i18n은 `log-viewer/i18n` 사전을 타며 번들에 딸려옴 — 경미.)
+  - `TrimTimeline.tsx`는 Slider(trim) + 비대화형 마커/playhead 레이어만 — ProgressBar 통째 복제 안 함(트랙클릭=seek 미채용으로 포인터 경합 회피).
 
 ## 데이터 흐름
 
@@ -96,8 +101,8 @@
   → App: pendingTrim 있음 → <Suspense><ReplayTrimDialog/></Suspense> (absolute inset-0 z-50 오버레이)
       1단 [readout 17s/30s | console·network·action 버튼→기존 로그 PreviewDialog]
       canvas [<video src=fullBlob>]
-      2단 [▶/⏸ | TrimTimeline: 재생바 + trim 듀얼핸들 + 에러마커(buildErrorMarkers)]
-      3단 [↶↷ | ✗✓]
+      2단 [▶/⏸ | TrimTimeline: Slider(trim) + playhead·에러마커(비대화형, buildErrorMarkers console/network)]
+      3단 [↶↷ | ✗(destructive) ✓]
         ── trim 핸들 드래그 → video.currentTime seek (경계 프레임 확인)
         ── ↶/↷ → history undo/redo (핸들 값 [startSec,endSec])
   ── [✓ 확정] App: setBusy(true); onConfirm(startSec, endSec)
@@ -113,8 +118,9 @@
       → .finally: setBusy(false); resolveTrim() → pendingTrim=null → 오버레이 닫힘, frames 폐기
       → .catch: toast.error(encodeFailed) (전체 클립 유지)
   ── (전체 구간 확정 = ✓ 누름) → isFullRange no-op → 전체 클립 그대로 drafting (별도 버튼 없음)
-  ── [✗ 작성 취소] CancelConfirmDialog 확인 → onCancel → resolveTrim() + reset() + clearPicker(tabId)
-        → 캡처 결과(영상·로그) 폐기, phase=idle 진입 화면
+  ── [✗ 작성 취소] CancelConfirmDialog 확인 → onCancel
+        → resolveTrim() + reset() + clearPicker(tabId) + deleteNetwork/Console/ActionLog(pending) + deleteAttachmentBlobs(pending)
+        → 캡처 결과(영상·로그·attachment) 폐기, phase=idle 진입 화면
 ```
 
 - `videoBlob`은 세션 직렬화 제외(IDB 별도) — `useEditorSessionSync.ts:32` 주석대로. drafting 중에는 store 메모리에만 존재하므로 `replaceVideo`의 메모리 교체로 충분. `videoStartedAt/EndedAt/Thumbnail/CapturedAt`은 세션 영속 대상이라 자동 저장됨. IDB 영상 저장은 기존대로 `confirmDraft`에서 `issueId` 키로 수행 — trim 시점엔 IDB 영상 write 불필요.
@@ -172,30 +178,29 @@ interface ReplayTrimDialogProps {
   busy?: boolean;
 }
 
-// TrimTimeline.tsx (재생바 + trim 듀얼핸들 + 에러 마커 한 트랙)
-interface TrimMarker {
+// trim-markers.ts (TrimMarker 타입 정의처 — timeline보다 먼저 의존)
+export interface TrimMarker {
   id: string;
-  type: "console" | "network" | "action";
+  type: "console" | "network"; // action 제외(에러 구분 없음)
   absTs: number;
-  positionPct: number; // 0-100
+  positionPct: number;         // 0-100
 }
-interface TrimTimelineProps {
-  durationSec: number;
-  currentPct: number;             // 재생 위치
-  startSec: number;
-  endSec: number;
-  markers: TrimMarker[];          // 에러만
-  disabled?: boolean;
-  onSeek: (pct: number) => void;
-  onTrimChange: (startSec: number, endSec: number) => void;
-}
-
-// trim-markers.ts
 export function buildErrorMarkers(
-  logs: { consoleLog: ConsoleLog | null; networkLog: NetworkLog | null; actionLog: ActionLog | null },
+  logs: { consoleLog: ConsoleLog | null; networkLog: NetworkLog | null },
   videoStartedAt: number,
   durationSec: number,
-): TrimMarker[];
+): TrimMarker[]; // buildMarkers 재사용 + 에러 필터(console error|warn, network 4xx|error|pending)
+
+// TrimTimeline.tsx (1트랙 레이어 분리: Slider=trim 전용, 마커/playhead=비대화형 표시)
+interface TrimTimelineProps {
+  durationSec: number;
+  currentPct: number;             // 재생 위치(표시만, pointer-events-none)
+  startSec: number;
+  endSec: number;
+  markers: TrimMarker[];          // 에러만(표시만)
+  disabled?: boolean;             // loadedmetadata 전/busy
+  onTrimChange: (startSec: number, endSec: number) => void;
+}
 ```
 
 ## 기존 패턴 준수
@@ -222,3 +227,5 @@ export function buildErrorMarkers(
 - **세션 영속 vs 메모리 프레임**: `pendingTrim` 프레임은 메모리 only. 다이얼로그 도중 패널 닫힘/리로드 시 trim 기회 상실(전체 클립 유지) — 파괴 철학상 허용. `videoStartedAt/EndedAt`만 영속되므로 trim 결과는 정상 복원.
 - **`isFullRange` 미처리 시 불필요 재인코딩**: 전체 구간 선택을 no-op로 처리하지 않으면 동일 영상을 재인코딩 → 반드시 가드.
 - **확장 seam 과설계 경계**: 이번엔 다이얼로그를 소스 비종속(초 기반)으로 두는 선까지만. 일반 녹화용 `applyRecordingTrim`(트랜스코드)·소스 추상 인터페이스는 만들지 않는다(비목표).
+- **타임라인 포인터 경합**: Slider(자체 포인터 캡처)와 ProgressBar식 트랙클릭=seek를 한 트랙에 두면 입력이 충돌한다 → trim은 Slider 단독, 마커/playhead는 `pointer-events-none` 표시 레이어로 분리(트랙클릭=seek 미채용)해 경합 제거.
+- **작성 취소 IDB 누수**: 기존 drafting 작성취소(`reset`+`clearPicker`)는 IDB `pending:` 로그·attachment(uuid 키)를 안 지워 누수가 있다. trim ✗는 `deleteNetwork/Console/ActionLog` + `deleteAttachmentBlobs(`pending:${tabId}`)`로 즉시 정리(이번 스코프 보강). (기존 drafting 경로 자체 수정은 비목표 — 별도 이슈.)
