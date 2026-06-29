@@ -90,6 +90,12 @@ interface SlackPostMessagePayload { channelId: string; text: string; threadTs?: 
 - **순수 함수 테스트 우선**: `parseSlackChannelId`는 순수 함수 → 단위 테스트 먼저.
 - **best-effort 비차단**: `submitToSlack`의 파일 업로드가 개별 실패를 삼키는 패턴과 동일 결의 — 부가 동작이 주 흐름(승격)을 깨지 않는다.
 
+## 작성자·문구 결정
+
+- **작성자**: `slack.postMessage`는 `loadSlackAuth()`의 user token(`xoxp`)으로 전송되므로, 댓글은 **원 메시지를 공유한 본인의 후속 댓글**로 표시된다(봇 메시지 아님). 원 공유와 같은 토큰이라 일관적.
+- **푸터 미부착**: 기존 스레드 답글은 `_Reported via BugShot_` 푸터를 달지만, 이 백링크 댓글은 트래커명+URL만 남기고 푸터를 붙이지 않는다(결정됨). 작성자가 본인(xoxp)으로 드러나 출처가 자명하고, URL이 단독 줄이라 트래커 unfurl 카드로 펼쳐진다.
+- **DM/채널 무구분**: channel은 permalink의 `/archives/<channel>/`에서 파싱하며 채널/DM(`D…`)/그룹 DM을 구분하지 않는다. 원 공유가 DM이면 그 DM 스레드에 댓글이 달린다(PRD 비목표·위험 참조).
+
 ## 대안 검토
 
 1. **`markSlackShared`에서 channelId를 IssueRecord에 저장해 두기** — permalink 파싱 대신 저장된 channelId 사용. 채택 안 함: 새 영속 필드 추가 + 마이그레이션이 필요하고, 기존 보존 이슈(필드 없음)는 어차피 파싱 폴백이 필요하다. permalink 파싱만으로 신·구 이슈 모두 커버되어 더 단순.
@@ -98,8 +104,9 @@ interface SlackPostMessagePayload { channelId: string; text: string; threadTs?: 
 
 ## 위험 요소
 
-- **(핵심) 캡처 시점**: `markSubmitted` → `stripSubmitted`가 `issue.url`/`issue.key`를 트래커 값으로 덮어쓴다(issues-store.ts:37-39). 원 슬랙 permalink·ts는 반드시 `handleSubmit` 진입 직후, 어떤 `markSubmitted`보다 먼저 캡처해야 한다. 늦게 읽으면 트래커 URL을 자기 스레드로 착각해 잘못된 곳에 댓글을 단다.
+- **(핵심) 캡처 시점**: `markSubmitted`는 공통부가 아니라 **각 플랫폼 핸들러 내부**(예: `handleJiraSubmit` ~414행)에서 호출되고, 그 내부에서 `stripSubmitted`(issues-store.ts:33-58)가 `...patch` 스프레드(line 39)로 핸들러가 넘긴 트래커 `url`/`key`를 덮어쓴다. **게다가 line 56에서 `slackPreserved: undefined`로 비우므로 `markSubmitted` 후엔 `isSlackPreserved(issue)`도 false가 된다** — 사전 캡처가 필수인 더 강한 이유. 따라서 원 슬랙 permalink·ts와 `slackOrigin` 판정은 반드시 `handleSubmit` 진입 직후(794행 핸들러 분기 전)에 한 번에 끝내야 한다. 늦게 읽으면 트래커 URL을 자기 스레드로 착각하거나 `slackOrigin`이 null로 새서 댓글을 못 단다.
 - **thread_ts 정합성**: `issue.key`는 `submitToSlack`이 저장한 부모 메시지 ts(`parent.ts`)여야 한다. 슬랙 보존 경로(`markSlackShared`)가 `key: result.key(=parent.ts)`를 저장하므로 충족. 다른 경로로 만들어진 이슈에는 `slackPreserved`가 없어 진입 자체가 안 됨.
 - **enterprise grid permalink**: 형식이 `/archives/<channel>/p<ts>`로 동일하므로 정규식 `\/archives\/([^/]+)\//`로 커버. 그래도 파싱 실패 시 null→drop이라 안전.
 - **submitPlatform === "slack" 가드**: 슬랙 보존 이슈는 승격 대상에서 slack이 제외(`submittablePlatforms`)되지만, 방어적으로 `submitPlatform !== "slack"` 조건을 둬 자기 스레드에 자기 링크를 다는 일을 원천 차단.
+- **slack 미연결 케이스는 폴백 아닌 정상 스킵**: [자세히]/[승격] 노출(`canPromoteSlack`)은 slack auth가 아니라 `isSlackPreserved`(데이터) + 트래커 연결 여부에만 의존하므로, slack 토큰이 없어도 트래커가 1개+면 승격은 정상 동작한다. 이때 `slackOrigin` 캡처 조건의 `accounts.slack` 가드가 백링크를 시도조차 않고 스킵한다(승격 흐름·UX 변화 없음). 트래커가 0개면 애초에 승격 버튼이 안 뜨고 `SubmittedBadge`로 폴백된다.
 - **fire-and-forget unmount**: `void` 호출이라 다이얼로그가 닫힌 뒤 완료될 수 있으나, `sendBg`는 background로 위임되므로 컴포넌트 생명주기와 무관하게 완료된다.

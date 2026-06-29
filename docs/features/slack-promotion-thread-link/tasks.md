@@ -13,15 +13,21 @@
 - **검증**:
   - [ ] `https://ws.slack.com/archives/C123ABC/p1700000000123456` → `"C123ABC"`
   - [ ] enterprise grid 형태 `/archives/C0AB/p…` → channel 반환
+  - [ ] DM permalink `/archives/D123/p…` → `"D123"` (채널/DM 무구분)
   - [ ] archives 없는 URL(`https://ws.slack.com/foo`) → `null`
+  - [ ] `/client/` 포맷(`https://app.slack.com/client/T1/C123/p…`) → `null` (지원 안 함 — 의도 고정)
+  - [ ] 트레일링 세그먼트 없는 `https://ws.slack.com/archives/C123`(뒤에 `/p…` 없음) → `null` (정규식이 channel 뒤 `/`를 요구하는 회귀 방어)
   - [ ] 빈 문자열 → `null`
   - [ ] `pnpm test --run src/sidepanel/lib/__tests__/slackPromotionLink.test.ts` green
 
 ### Task 2: `postSlackPromotionReply` best-effort 전송 헬퍼
 - **변경 대상**: `src/sidepanel/lib/slackPromotionLink.ts`
 - **작업 내용**: `{ permalink, ts, text }`를 받아 `parseSlackChannelId`로 channel 파싱(null이면 즉시 return), `sendBg({ type:"slack.postMessage", payload:{ channelId, text, threadTs: ts } })` 호출. 전체를 try/catch로 감싸 모든 예외를 삼키고 `Promise<void>`로 항상 resolve.
-- **검증**:
-  - [ ] channel 파싱 실패 시 sendBg 미호출하고 정상 resolve (테스트: parse만 검증 가능하면 충분, sendBg는 e2e/수동)
+- **검증** (기존 `submitToSlack.test.ts`의 `vi.mock("@/types/messages")` → `sendBg` 모킹 패턴 재사용, `sendBg.mock.calls`로 호출/payload 검증):
+  - [ ] 유효 permalink → `sendBg`가 `{ type:"slack.postMessage", payload:{ channelId:"C123", text, threadTs: ts } }`로 **1회** 호출
+  - [ ] archives 없는/`/client/` permalink → `sendBg` **미호출**하고 정상 resolve
+  - [ ] `sendBg`가 reject해도 `postSlackPromotionReply`가 throw 없이 resolve (best-effort)
+  - [ ] `pnpm test --run src/sidepanel/lib/__tests__/slackPromotionLink.test.ts` green
   - [ ] `pnpm typecheck` 통과
 
 ### Task 3: i18n 키 추가
@@ -46,11 +52,15 @@
 
 ## 테스트 계획
 
-- **단위 테스트**: `parseSlackChannelId` — 정상 permalink, enterprise grid, archives 없음, 빈 문자열(Task 1 케이스).
+- **단위 테스트**:
+  - `parseSlackChannelId` — Task 1의 7개 케이스(정상/grid/DM/archives없음/`/client/`/트레일링없음/빈문자열).
+  - `postSlackPromotionReply` — Task 2의 3개 케이스(`sendBg` mock 호출/payload, 미호출, reject swallow). **단위로 충분하므로 sendBg 호출 검증은 단위에서 끝낸다** — 아래 e2e는 UI 통합만 본다.
 - **e2e 시나리오** (`e2e/slack-issue-promotion.spec.ts`에 추가, `/e2e-write` 입력):
-  - "슬랙 보존 이슈를 Jira로 승격하면 background로 `slack.postMessage`가 `threadTs`=원 메시지 ts, channel=permalink 파싱값, text에 트래커 URL 포함해 1회 호출된다."
-  - "슬랙 미연결(accounts.slack 없음) 상태로 승격하면 `slack.postMessage`가 호출되지 않고 승격은 성공한다."
-  - "`slack.postMessage`가 실패(mock reject)해도 승격 성공 화면이 정상 표시된다."
+  - **선행 fixture 교체**: 현 spec(L10 부근)의 슬랙 보존 이슈 fixture는 `url`이 `/client/...` 포맷, `key`가 채널 id(`"C123"`)다. 설계상 `url`=`/archives/<channel>/p<ts>` 포맷, `key`=메시지 ts여야 파싱(channel)·threadTs가 성립하므로, **fixture를 `url:"https://ws.slack.com/archives/C123/p1700000000123456"`, `key:"1700000000.123456"`로 교체**한다.
+  - **판정 수단**: 기존 spec은 storage-seed + UI assert만 하고 background 호출을 가로채지 않는다. e2e엔 슬랙 토큰·네트워크가 없어 실제 `slack.postMessage`는 throw→swallow된다. 따라서 패널 컨텍스트에서 **`chrome.runtime.sendMessage`를 스파이로 교체**(기존 `chrome.tabs.create` 스파이 패턴 L117-123과 동형)해 `type === "slack.postMessage"` 호출을 카운트·payload 캡처한다.
+  - "슬랙 보존 이슈를 Jira로 승격하면 스파이된 `slack.postMessage`가 `payload.threadTs`=fixture key(ts), `payload.channelId`=`"C123"`, `payload.text`에 트래커 URL 포함해 **1회** 기록된다."
+  - "슬랙 미연결(seed에서 accounts.slack 제거) 상태로 승격하면 `slack.postMessage` 스파이 호출 0이고 승격 성공 화면이 뜬다."
+  - "`slack.postMessage` 스파이가 reject를 반환해도 승격 성공 화면이 정상 표시된다."
 - **수동 테스트**: 실제 Slack 워크스페이스에서 보존 이슈를 Jira로 승격 → 원 메시지 스레드에 `Jira에 이슈로 등록되었습니다.\n<url>` 댓글 1개 확인. 원 메시지 삭제 후 승격 시 에러 없이 승격만 성공하는지 확인.
 
 ## 구현 순서 권장
