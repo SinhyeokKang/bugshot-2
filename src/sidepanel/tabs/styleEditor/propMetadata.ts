@@ -101,6 +101,11 @@ const KNOWN_DEFAULTS: Record<string, string[]> = {
   filter: ["none"],
   "backdrop-filter": ["none"],
   "mix-blend-mode": ["normal"],
+  // getComputedStyle은 트랜지션이 없어도 transition-* longhand에 항상 기본값을 돌려준다.
+  "transition-property": ["all"],
+  "transition-duration": ["0s"],
+  "transition-timing-function": ["ease"],
+  "transition-delay": ["0s"],
 };
 
 export function isKnownDefault(prop: string, computed: string): boolean {

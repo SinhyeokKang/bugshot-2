@@ -118,6 +118,23 @@ describe("PROP_CATEGORY — border 변별 longhand", () => {
   });
 });
 
+describe("transition — getComputedStyle 유령 기본값 가드", () => {
+  // 트랜지션이 없는 요소도 getComputedStyle은 transition-* 4개를 항상 채워 돌려준다.
+  it("computed 기본값 → 기본값(섹션 펼침 안 함)", () => {
+    expect(isKnownDefault("transition-property", "all")).toBe(true);
+    expect(isKnownDefault("transition-duration", "0s")).toBe(true);
+    expect(isKnownDefault("transition-timing-function", "ease")).toBe(true);
+    expect(isKnownDefault("transition-delay", "0s")).toBe(true);
+  });
+
+  it("실제 트랜지션 값은 기본값 아님", () => {
+    expect(isKnownDefault("transition-property", "opacity")).toBe(false);
+    expect(isKnownDefault("transition-duration", "0.3s")).toBe(false);
+    expect(isKnownDefault("transition-timing-function", "ease-in-out")).toBe(false);
+    expect(isKnownDefault("transition-delay", "0.1s")).toBe(false);
+  });
+});
+
 describe("z-index", () => {
   it("PROP_CATEGORY z-index → number (px 미부착)", () => {
     expect(PROP_CATEGORY["z-index"]).toBe("number");
