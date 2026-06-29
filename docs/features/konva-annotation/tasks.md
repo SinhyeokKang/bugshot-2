@@ -12,38 +12,38 @@
 - **변경 대상**: `src/sidepanel/components/annotation/presets.ts`, `__tests__/presets.test.ts`
 - **작업 내용**: `AnnotationTool`/`ThicknessKey` 타입, `ANNOTATION_COLORS`(5 hex), `DEFAULT_COLOR`, `ANNOTATION_THICKNESS`(S/M/L→px), `DEFAULT_THICKNESS`, `HIGHLIGHT_OPACITY`, `TEXT_FONT_SIZE`, `ANNOTATION_TOOLS`(도구 메타: key·아이콘 식별·i18n 키).
 - **검증**:
-  - [ ] 색상 5개·중복 없음·DEFAULT_COLOR가 목록에 포함
-  - [ ] 두께 3키 모두 양수, S<M<L
-  - [ ] `pnpm test presets` 통과
+  - [x] 색상 5개·중복 없음·DEFAULT_COLOR가 목록에 포함
+  - [x] 두께 3키 모두 양수, S<M<L
+  - [x] `pnpm test presets` 통과
 
 ### Task 2: 도형 모델·팩토리 순수 모듈 + 테스트 (TDD interface)
 - **변경 대상**: `src/sidepanel/components/annotation/shapes.ts`, `__tests__/shapes.test.ts`
 - **작업 내용**: `AnnotationShape` 유니온 타입, `createShape(tool,id,pt,style)`, `updateShapeDraft(shape,pt)`, `isEmptyShape(shape)`, `applyTransform(shape,attrs)`(Transformer scale/rotation 흡수 정규화). Konva/React 의존 0.
 - **검증**:
-  - [ ] `createShape("rect", id, {x:10,y:10}, style)` → width/height 0, 좌표·스타일 반영
-  - [ ] `updateShapeDraft`로 rect/ellipse 크기, arrow 끝점, pen/highlight points 누적 갱신
-  - [ ] `isEmptyShape`: 면적 0 rect/ellipse, 빈 텍스트, 점 1개 pen → true
-  - [ ] `applyTransform`: scaleX/scaleY를 width/height로 흡수(결과 scale 1 전제), rotation 반영, 반복 적용 시 누적 왜곡 없음
-  - [ ] 입력 도형 불변(새 객체 반환) — 순수성
-  - [ ] `pnpm test shapes` 통과
+  - [x] `createShape("rect", id, {x:10,y:10}, style)` → width/height 0, 좌표·스타일 반영
+  - [x] `updateShapeDraft`로 rect/ellipse 크기, arrow 끝점, pen/highlight points 누적 갱신
+  - [x] `isEmptyShape`: 면적 0 rect/ellipse, 빈 텍스트, 점 1개 pen → true
+  - [x] `applyTransform`: scaleX/scaleY를 width/height로 흡수(결과 scale 1 전제), rotation 반영, 반복 적용 시 누적 왜곡 없음
+  - [x] 입력 도형 불변(새 객체 반환) — 순수성
+  - [x] `pnpm test shapes` 통과
 
 ### Task 3: undo/redo 히스토리 리듀서 + 테스트 (TDD interface)
 - **변경 대상**: `src/sidepanel/components/annotation/history.ts`, `__tests__/history.test.ts`
 - **작업 내용**: `History<T>`(past/present/future), `initHistory`/`pushHistory`/`undo`/`redo`/`canUndo`/`canRedo`. 제네릭, 불변 갱신.
 - **검증**:
-  - [ ] push 후 future 비워짐, undo→present 이전 값, redo→복원
-  - [ ] 빈 past에서 undo no-op, 빈 future에서 redo no-op
-  - [ ] canUndo/canRedo 경계 정확
-  - [ ] `pnpm test history` 통과
+  - [x] push 후 future 비워짐, undo→present 이전 값, redo→복원
+  - [x] 빈 past에서 undo no-op, 빈 future에서 redo no-op
+  - [x] canUndo/canRedo 경계 정확
+  - [x] `pnpm test history` 통과
 
 ### Task 4: ShapeNode (react-konva 도형 렌더러)
 - **변경 대상**: `src/sidepanel/components/annotation/ShapeNode.tsx`
 - **작업 내용**: `AnnotationShape` 1개를 타입별 Konva 노드로 렌더(arrow→`Arrow`, rect→`Rect`, ellipse→`Ellipse`, pen→`Line`, highlight→`Line` opacity/round cap, text→`Text`). 선택/드래그/transform end 콜백 props. `draggable`은 select 도구일 때만. select 도구에서 노드 hover 시 커서 `move`(onMouseEnter/Leave로 `stage.container().style.cursor` 토글).
 - **검증**:
-  - [ ] 6개 타입 각각 올바른 Konva 노드로 렌더(타입 분기 누락 없음)
-  - [ ] highlight는 반투명+둥근 캡, text는 fontSize 적용
+  - [x] 6개 타입 각각 올바른 Konva 노드로 렌더(타입 분기 누락 없음)
+  - [x] highlight는 반투명+둥근 캡, text는 fontSize 적용
   - [ ] select 도구에서 도형 hover 시 커서 move, leave 시 복귀(수동)
-  - [ ] `pnpm typecheck` 통과
+  - [x] `pnpm typecheck` 통과
 
 ### Task 5: AnnotationToolbar (shadcn UI, 3단 컨텍스트 레이아웃)
 - **변경 대상**: `src/sidepanel/components/annotation/AnnotationToolbar.tsx`
@@ -53,13 +53,13 @@
   - **3단**: 왼쪽 Undo/Redo(`Undo2`/`Redo2`, disabled = !canUndo/!canRedo), 오른쪽 Cancel(`X`)/OK(`Check`, 도형 0개면 disabled).
   - data-testid 부착(도구별·undo/redo/delete/cancel/done).
 - **검증**:
-  - [ ] 모든 버튼 아이콘 전용(텍스트 없음), aria-label 존재
-  - [ ] 1단 `flex-nowrap`(좁은 폭에서 wrap 안 됨 → 1단 높이 1행 고정)
-  - [ ] 각 단 패딩이 전역 탭 바(`px-4 py-4`)와 일치
-  - [ ] 활성 도구/색상/두께 시각 표시(`bg-muted`/`data-active`), 콜백 발화
+  - [x] 모든 버튼 아이콘 전용(텍스트 없음), aria-label 존재
+  - [x] 1단 `flex-nowrap`(좁은 폭에서 wrap 안 됨 → 1단 높이 1행 고정)
+  - [x] 각 단 패딩이 전역 탭 바(`px-4 py-4`)와 일치
+  - [x] 활성 도구/색상/두께 시각 표시(`bg-muted`/`data-active`), 콜백 발화
   - [ ] select 도구 선택 시 2단 내용 숨김(높이는 예약 유지), 그리기 도구 시 표시 — 도구 전환 시 이미지 수직 위치 점프 없음(수동)
-  - [ ] 삭제 버튼 `selectedId` 없을 때 disabled, 있을 때 활성
-  - [ ] Undo/Redo·OK disabled 상태 연동(도형 0개 OK disabled)
+  - [x] 삭제 버튼 `selectedId` 없을 때 disabled, 있을 때 활성
+  - [x] Undo/Redo·OK disabled 상태 연동(도형 0개 OK disabled)
   - [ ] 좁은 사이드패널(~320–400px) 폭에서 3단 레이아웃 안 깨짐(수동 확인)
 
 ### Task 6: AnnotationOverlay 재작성 (Konva Stage 호스트)
@@ -79,29 +79,29 @@
 - **검증**:
   - [ ] 6개 도구로 그리기·선택·이동·리사이즈·회전·삭제(키보드+버튼) 동작(수동, 실제 탭)
   - [ ] 도구별 커서 전환(crosshair/text/move) 정합(수동)
-  - [ ] Undo/Redo 정확(추가/이동/삭제/색상변경 단위)
-  - [ ] Done 결과 webp + 자연 해상도(출력 width == naturalWidth)
-  - [ ] 도형 0개일 때 Done disabled
-  - [ ] 오버레이가 전역 탭 바를 가리지 않음(탭 컨텐츠 영역만 덮음) — DraftingPanel `relative` 적용 확인
-  - [ ] 이미지 로드 실패 시 토스트 + 자동 닫기
-  - [ ] 재진입 시 평탄화 이미지 base 로드, 취소 시 폐기
-  - [ ] `pnpm typecheck` 통과
+  - [ ] Undo/Redo 정확(추가/이동/삭제/색상변경 단위)(수동)
+  - [ ] Done 결과 webp + 자연 해상도(출력 width == naturalWidth)(수동)
+  - [x] 도형 0개일 때 Done disabled
+  - [x] 오버레이가 전역 탭 바를 가리지 않음(탭 컨텐츠 영역만 덮음) — DraftingPanel `relative` 적용 확인
+  - [ ] 이미지 로드 실패 시 토스트 + 자동 닫기(수동)
+  - [ ] 재진입 시 평탄화 이미지 base 로드, 취소 시 폐기(수동)
+  - [x] `pnpm typecheck` 통과
 
 ### Task 7: i18n 키 추가 (ko/en 동시)
 - **변경 대상**: `src/i18n/namespaces/editor.ts`
 - **작업 내용**: `annotation.*` 도구명(select/arrow/rect/ellipse/pen/text/highlight)·`annotation.undo`/`annotation.redo`/`annotation.delete`·색상명(red/yellow/green/blue/black)·두께(S/M/L) aria 라벨 키 추가. ko/en 동시. 기존 cancel/done/draft.* 재사용. **Task 5 시작 전에 키를 먼저 박는다**(키 없으면 빈 라벨로 typecheck가 거짓 그린).
 - **검증**:
-  - [ ] ko/en 키 대칭 — 저장 시 PostToolUse 훅 `locales.test.ts` 자동 통과
-  - [ ] 툴바·오버레이 모든 사용자 노출 문자열이 `t()` 경유
+  - [x] ko/en 키 대칭 — 저장 시 PostToolUse 훅 `locales.test.ts` 자동 통과
+  - [x] 툴바·오버레이 모든 사용자 노출 문자열이 `t()` 경유
 
 ### Task 8: main.tsx 주석 갱신 + package.json 정리
 - **변경 대상**: `src/sidepanel/main.tsx`(주석만), `package.json`
 - **작업 내용**: getContext 패치 주석을 "Konva hit-detection canvas가 getImageData 사용 → 경고 억제 + hit 최적화, 렌더 canvas는 force-true가 미세 비최적이나 소형이라 무시" 기준으로 사실에 맞게 갱신(로직·패치 불변, 제거 금지). `package.json`에서 `markerjs2` 제거, `konva`/`react-konva` 존재 확인.
 - **검증**:
-  - [ ] `grep -rn markerjs src/ package.json` → 0건
-  - [ ] `grep -n willReadFrequently src/sidepanel/main.tsx` → 1건(패치 존속)
-  - [ ] `grep -rn "from \"konva\"\|react-konva" src/` → annotation/ 하위 + AnnotationOverlay만(비-lazy 경로 유입 0 = 청크 격리 가드)
-  - [ ] `pnpm typecheck` 통과
+  - [x] `grep -rn markerjs src/ package.json` → 0건
+  - [x] `grep -n willReadFrequently src/sidepanel/main.tsx` → 패치 존속(주석+코드 2건, 코드 라인 불변)
+  - [x] `grep -rn "from \"konva\"\|react-konva" src/` → annotation/ 하위 + AnnotationOverlay만(비-lazy 경로 유입 0 = 청크 격리 가드)
+  - [x] `pnpm typecheck` 통과
 
 ## 테스트 계획
 

@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { Camera, Download, ImageIcon, ImagePlus, Pencil, Plus, RotateCcw, Trash2, WandSparkles } from "lucide-react";
+import { Camera, Download, ImageIcon, ImagePlus, Loader2, Pencil, Plus, RotateCcw, Trash2, WandSparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -471,7 +471,13 @@ export function DraftingPanel() {
         elementDiffs={isElementMode ? diffs : undefined}
       />
       {annotating && screenshotRaw ? (
-        <Suspense fallback={null}>
+        <Suspense
+          fallback={
+            <div className="absolute inset-0 z-50 flex items-center justify-center bg-background">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          }
+        >
           <AnnotationOverlay
             imageUrl={screenshotAnnotated ?? screenshotRaw}
             onComplete={(url) => {
