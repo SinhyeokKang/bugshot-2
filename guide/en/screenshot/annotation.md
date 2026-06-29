@@ -1,6 +1,6 @@
 # Annotation
 
-Draw on the captured image to mark where the bug is and what it is. Point with an arrow, box it off, jot a note — and the reader gets it at a glance.
+Draw on the captured image to mark where the bug is and what it is. Point with an arrow, box it off, jot a note — and the reader gets it at a glance. It's simpler than it sounds, so don't sweat it.
 
 ## Add, edit, remove
 
@@ -12,13 +12,18 @@ Draw on the captured image to mark where the bug is and what it is. Point with a
 
 ## Tools
 
-The annotation editor shows the tool palette of the `markerjs2` library as-is. Arrows, shapes, a freehand pen, text, highlight — the tools you need to mark things up are right there in the toolbar, so pick one, draw on the image, and adjust position, size, and color.
+The annotation editor keeps every tool you need right in the toolbar. It's BugShot's own toolbar, so the labels are **fully localized** — just pick a tool and draw on the image.
 
-> The annotation toolbar is markerjs2's own UI and may appear in English. Check the available tools right in the toolbar. (Only the buttons BugShot wraps — add, edit, remove, done — are localized.)
+- **Select** — Grab something you've already drawn to move, resize, or change its color and thickness.
+- **Arrow · Rectangle · Ellipse · Pen** — Point, box things off, circle them, or draw freehand. These tools let you set the line thickness to **Thin · Medium · Thick**.
+- **Text** — Type a note right on the image.
+- **Highlight** — Sweep a highlighter color over an area to emphasize it.
+
+Pick a color from **Red · Yellow · Green · Blue · Black**. Made a mistake? Just hit **Undo · Redo**, and you can always **Delete** an annotation you no longer want — so draw freely.
 
 ## Done
 
-When you're finished, click **Done** to finalize the image. The annotated screenshot is attached to the issue.
+When you're finished, click **Done** to finalize the image. The annotated screenshot is attached to the issue. Not happy with it? **Cancel** backs you out, no harm done.
 
 > Continue with [Write an Issue](issue.md).
 
