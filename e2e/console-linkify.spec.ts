@@ -76,8 +76,8 @@ test.describe.serial("console log linkify", () => {
 
   // 시나리오 1 — 펼치면 console-stack 안에 line:col 꼬리 없는 링크가 1개 이상.
   test("에러 행을 펼치면 스택 pre에 line:col 제거된 링크가 있다", async () => {
-    // 헤더 클릭으로 펼침 — 링크(중앙 span)를 피해 좌측(x=5, 아이콘/패딩 영역)을 클릭.
-    await errorRow().locator("div").first().click({ position: { x: 5, y: 5 } });
+    // 헤더 클릭으로 펼침 — 링크(중앙 span)를 피해 우측 chevron 아이콘을 클릭(링크 아님, locale 무관).
+    await errorRow().locator("svg.lucide-chevron-down").click();
 
     const stack = panel.getByTestId("console-stack").first();
     await expect(stack).toBeVisible();

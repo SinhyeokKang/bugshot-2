@@ -33,7 +33,7 @@ interface ActionLogContentProps {
   onScrollComplete?: () => void;
 }
 
-// navigation만 콘솔 info-틴트 슬롯 재사용, click/input은 중립.
+// navigation만 콘솔 info-틴트 배경 재사용, click/input은 중립(배경 없음).
 function kindBgColor(kind: ActionEntryKind): string {
   return kind === "navigation" ? "bg-blue-100 dark:bg-blue-950/50" : "";
 }

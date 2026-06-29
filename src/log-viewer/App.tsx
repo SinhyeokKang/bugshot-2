@@ -212,6 +212,7 @@ export function App({ data }: AppProps) {
         )}
       </TabsContent>
 
+      {/* h-[68px] 고정(=Button h-9 + py-4): 탭/이슈버튼 유무로 버튼이 안 뜰 때 높이가 줄어 레이아웃이 점프하는 걸 막는다 */}
       <div className="flex h-[68px] shrink-0 items-center gap-2 border-t border-border bg-muted/50 px-4">
         {data.meta.issueUrl ? (
           <Button variant="outline" asChild>
