@@ -14,28 +14,28 @@
 - **변경 대상**: `src/sidepanel/lib/__tests__/linkify.test.ts` (신규)
 - **작업 내용**: `tokenizeLogText`의 케이스를 먼저 고정.
 - **검증**:
-  - [ ] URL 없는 텍스트 → `[{type:'text'}]` 1개
-  - [ ] **빈 문자열 `""` → `[]`** (LinkifiedText가 빈 fragment 렌더; map 무항목)
-  - [ ] `visit https://react.dev/errors/185 for ...` → text/url/text 분리, url value=`https://react.dev/errors/185`
-  - [ ] **URL이 텍스트 전체**: `"https://h/x"` → url 토큰 1개(앞뒤 text 토큰 없음)
-  - [ ] **http(비-https)**: `http://h/x` → url 토큰, href 동일
-  - [ ] 후행 점: `... https://react.dev/errors/185.` → url에 `.` 미포함, 다음 text 토큰에 `.`
-  - [ ] **후행 `,`/`;`**: `a https://h/x, b` → url=`https://h/x`, 다음 text에 `, b`
-  - [ ] 괄호 종료: `at F3 (https://h/assets/index.js:55:27752)` → url value=`https://h/assets/index.js:55:27752`, href=`https://h/assets/index.js`
-  - [ ] **괄호 포함 URL(의도된 절단)**: `https://en.wikipedia.org/wiki/Foo_(bar)` → url value=`https://en.wikipedia.org/wiki/Foo_(bar`(첫 `)`에서 종료, 의도된 동작 명문화)
-  - [ ] line만: `https://h/a.js:55` → href=`https://h/a.js`
-  - [ ] 쿼리스트링: `https://h/p?a=b&c=d` → 통째 url, href 동일
-  - [ ] 멀티 URL 한 줄 → 각각 url 토큰
-  - [ ] **멀티라인**: `"a https://h/x\nb https://h/y"` → URL이 `\n`을 안 넘고 각 줄 url 분리(`\s`가 `\n` 포함)
-  - [ ] 포트-only 비정상 입력 `https://h:8080`(경로 없음) → 동작 문서화(href에서 `:8080` 깎임을 테스트로 명시)
+  - [x] URL 없는 텍스트 → `[{type:'text'}]` 1개
+  - [x] **빈 문자열 `""` → `[]`** (LinkifiedText가 빈 fragment 렌더; map 무항목)
+  - [x] `visit https://react.dev/errors/185 for ...` → text/url/text 분리, url value=`https://react.dev/errors/185`
+  - [x] **URL이 텍스트 전체**: `"https://h/x"` → url 토큰 1개(앞뒤 text 토큰 없음)
+  - [x] **http(비-https)**: `http://h/x` → url 토큰, href 동일
+  - [x] 후행 점: `... https://react.dev/errors/185.` → url에 `.` 미포함, 다음 text 토큰에 `.`
+  - [x] **후행 `,`/`;`**: `a https://h/x, b` → url=`https://h/x`, 다음 text에 `, b`
+  - [x] 괄호 종료: `at F3 (https://h/assets/index.js:55:27752)` → url value=`https://h/assets/index.js:55:27752`, href=`https://h/assets/index.js`
+  - [x] **괄호 포함 URL(의도된 절단)**: `https://en.wikipedia.org/wiki/Foo_(bar)` → url value=`https://en.wikipedia.org/wiki/Foo_(bar`(첫 `)`에서 종료, 의도된 동작 명문화)
+  - [x] line만: `https://h/a.js:55` → href=`https://h/a.js`
+  - [x] 쿼리스트링: `https://h/p?a=b&c=d` → 통째 url, href 동일
+  - [x] 멀티 URL 한 줄 → 각각 url 토큰
+  - [x] **멀티라인**: `"a https://h/x\nb https://h/y"` → URL이 `\n`을 안 넘고 각 줄 url 분리(`\s`가 `\n` 포함)
+  - [x] 포트-only 비정상 입력 `https://h:8080`(경로 없음) → 동작 문서화(href에서 `:8080` 깎임을 테스트로 명시)
 
 ### Task 2: 토크나이저 구현
 
 - **변경 대상**: `src/sidepanel/lib/linkify.ts` (신규)
 - **작업 내용**: `LogTextToken` 타입 + `tokenizeLogText(text)`. URL regex(`/https?:\/\/[^\s)'"<>]+/g`), 후행 `.,;!?` 트림, href에서 끝 `:\d+(:\d+)?` 제거.
 - **검증**:
-  - [ ] Task 1 테스트 전부 통과
-  - [ ] `pnpm typecheck` green
+  - [x] Task 1 테스트 전부 통과
+  - [x] `pnpm typecheck` green
 
 ### Task 3: LinkifiedText 래퍼 + InlineLink onClick prop
 
@@ -44,8 +44,8 @@
   - `InlineLink`에 optional `onClick` prop 추가(additive, 기존 호출부 무영향).
   - `LinkifiedText({ text })`: `tokenizeLogText(text)`를 map. url 토큰 → `<InlineLink href={t.href} onClick={(e)=>e.stopPropagation()}>{t.value}</InlineLink>`, text 토큰 → 문자열. key는 인덱스.
 - **검증**:
-  - [ ] `pnpm typecheck` green
-  - [ ] InlineLink 기존 호출부(action nav, pageUrl 등) 컴파일·동작 무변
+  - [x] `pnpm typecheck` green
+  - [x] InlineLink 기존 호출부(action nav, pageUrl 등) 컴파일·동작 무변
 
 ### Task 4: ConsoleLogContent 본문색 제거 + linkify 적용
 
@@ -60,7 +60,7 @@
   - [ ] 메시지·펼친 본문 `<pre>`·스택 `<pre>` 세 곳 모두 URL이 파란 링크
   - [ ] 헤더 URL 클릭 시 행 펼침 토글 안 됨(`console-stack` 미출현으로 확인)
   - [ ] info 행 본문 기본색(파란 텍스트 제거), 단 파란 배경·Info 아이콘은 유지
-  - [ ] `pnpm typecheck` green
+  - [x] `pnpm typecheck` green
 
 ### Task 5: ActionLogContent navigation 본문색 제거
 
@@ -69,9 +69,9 @@
 - **검증**:
   - [ ] navigation 행 동사부가 기본색, URL만 파란 링크
   - [ ] 파란 배경 틴트 + MapPin 아이콘 유지
-  - [ ] `data-testid="action-nav-link"` 보존
+  - [x] `data-testid="action-nav-link"` 보존
   - [ ] click/input 행 시각 변화 없음
-  - [ ] `pnpm typecheck` green
+  - [x] `pnpm typecheck` green
 
 ## 테스트 계획
 
