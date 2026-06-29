@@ -1,12 +1,12 @@
 import type { ReactNode } from "react";
 import {
-  ArrowUpRight,
   Check,
   Circle,
   Highlighter,
   Minus,
   MousePointer2,
-  Pen,
+  MoveUpRight,
+  Pencil,
   Redo2,
   Square,
   Trash2,
@@ -24,17 +24,20 @@ import {
   ANNOTATION_COLORS,
   ANNOTATION_TOOLS,
   THICKNESS_KEYS,
+  TEXT_SIZE_KEYS,
   isStrokeTool,
   type AnnotationTool,
+  type AnnotationToolMeta,
+  type TextSizeKey,
   type ThicknessKey,
 } from "./presets";
 
 const TOOL_ICONS: Record<AnnotationTool, LucideIcon> = {
   select: MousePointer2,
-  arrow: ArrowUpRight,
+  arrow: MoveUpRight,
   rect: Square,
   ellipse: Circle,
-  pen: Pen,
+  pen: Pencil,
   text: Type,
   highlight: Highlighter,
 };
@@ -55,6 +58,15 @@ const THICKNESS_LABEL_KEYS: Record<ThicknessKey, TranslationKey> = {
 
 const THICKNESS_STROKE: Record<ThicknessKey, number> = { S: 1.5, M: 3.5, L: 6 };
 
+const TEXTSIZE_LABEL_KEYS: Record<TextSizeKey, TranslationKey> = {
+  S: "annotation.textSize.S",
+  M: "annotation.textSize.M",
+  L: "annotation.textSize.L",
+};
+
+// 버튼 안 "A" 글자의 시각 크기(32px 버튼 기준 — 실제 폰트 px와 별개).
+const TEXTSIZE_ICON: Record<TextSizeKey, number> = { S: 11, M: 15, L: 20 };
+
 interface AnnotationToolbarProps {
   tool: AnnotationTool;
   onToolChange: (tool: AnnotationTool) => void;
@@ -62,6 +74,8 @@ interface AnnotationToolbarProps {
   onColorChange: (color: string) => void;
   thickness: ThicknessKey;
   onThicknessChange: (key: ThicknessKey) => void;
+  textSize: TextSizeKey;
+  onTextSizeChange: (key: TextSizeKey) => void;
   hasSelection: boolean;
   // 선택된 도형이 stroke 계열(arrow/rect/ellipse/pen)인지 — select 모드 두께 활성 판정
   selectionIsStroke: boolean;
@@ -85,6 +99,8 @@ export function AnnotationToolbar({
   onColorChange,
   thickness,
   onThicknessChange,
+  textSize,
+  onTextSizeChange,
   hasSelection,
   selectionIsStroke,
   onDelete,
@@ -103,31 +119,37 @@ export function AnnotationToolbar({
   const thicknessEnabled =
     tool === "select" ? selectionIsStroke : isStrokeTool(tool);
 
+  const renderTool = ({ key, labelKey }: AnnotationToolMeta) => {
+    const Icon = TOOL_ICONS[key];
+    const active = tool === key;
+    return (
+      <Button
+        key={key}
+        size="icon"
+        variant="outline"
+        className={cn("h-8 w-8 shrink-0", active && "bg-muted")}
+        data-active={active || undefined}
+        data-testid={`annotation-tool-${key}`}
+        aria-label={t(labelKey)}
+        title={t(labelKey)}
+        aria-pressed={active}
+        onClick={() => onToolChange(key)}
+      >
+        <Icon />
+      </Button>
+    );
+  };
+
+  const selectTool = ANNOTATION_TOOLS.find((m) => m.key === "select");
+  const drawTools = ANNOTATION_TOOLS.filter((m) => m.key !== "select");
+
   return (
     <div className="flex h-full flex-col">
-      {/* 1단: 도구 + 삭제 */}
+      {/* 1단: [선택] [그리기 도구] [삭제] */}
       <div className={cn(ROW, "flex items-center justify-between gap-2")}>
+        {selectTool ? renderTool(selectTool) : null}
         <ButtonGroup className="flex-nowrap overflow-x-auto">
-          {ANNOTATION_TOOLS.map(({ key, labelKey }) => {
-            const Icon = TOOL_ICONS[key];
-            const active = tool === key;
-            return (
-              <Button
-                key={key}
-                size="icon"
-                variant="outline"
-                className={cn("h-8 w-8 shrink-0", active && "bg-muted")}
-                data-active={active || undefined}
-                data-testid={`annotation-tool-${key}`}
-                aria-label={t(labelKey)}
-                title={t(labelKey)}
-                aria-pressed={active}
-                onClick={() => onToolChange(key)}
-              >
-                <Icon />
-              </Button>
-            );
-          })}
+          {drawTools.map(renderTool)}
         </ButtonGroup>
         <Button
           size="icon"
@@ -143,14 +165,18 @@ export function AnnotationToolbar({
         </Button>
       </div>
 
-      {/* 2단: 색상 + 두께 (select 도구면 내용 숨김, 높이는 예약). inert로 숨김 시 키보드 포커스도 제거. */}
+      {/* 2단: 색상 + 두께. select 도구면 내용만 invisible로 숨겨 높이를 예약하되,
+          배경은 canvas와 같은 bg-muted/50로 둬 회색이 끊기지 않게 한다. inert로 포커스 차단. */}
       <div
         ref={(el) => {
           if (el) el.inert = !showStyleRow;
         }}
-        className={cn(ROW, "flex items-center justify-between gap-2", !showStyleRow && "invisible")}
+        className={cn(
+          "flex items-center justify-between gap-2 px-4 py-4",
+          showStyleRow ? "border-b bg-background" : "bg-muted/70",
+        )}
       >
-        <ButtonGroup className="flex-nowrap">
+        <ButtonGroup className={cn("flex-nowrap", !showStyleRow && "invisible")}>
           {ANNOTATION_COLORS.map((c, i) => {
             const active = color === c;
             return (
@@ -174,32 +200,61 @@ export function AnnotationToolbar({
             );
           })}
         </ButtonGroup>
-        <ButtonGroup className="flex-nowrap">
-          {THICKNESS_KEYS.map((key) => {
-            const active = thickness === key;
-            return (
-              <Button
-                key={key}
-                size="icon"
-                variant="outline"
-                className={cn("h-8 w-8 shrink-0", active && "bg-muted")}
-                data-active={active || undefined}
-                data-testid={`annotation-thickness-${key}`}
-                disabled={!thicknessEnabled}
-                aria-label={t(THICKNESS_LABEL_KEYS[key])}
-                title={t(THICKNESS_LABEL_KEYS[key])}
-                aria-pressed={active}
-                onClick={() => onThicknessChange(key)}
-              >
-                <Minus strokeWidth={THICKNESS_STROKE[key]} />
-              </Button>
-            );
-          })}
-        </ButtonGroup>
+        {tool === "text" ? (
+          <ButtonGroup className="flex-nowrap">
+            {TEXT_SIZE_KEYS.map((key) => {
+              const active = textSize === key;
+              return (
+                <Button
+                  key={key}
+                  size="icon"
+                  variant="outline"
+                  className={cn("h-8 w-8 shrink-0", active && "bg-muted")}
+                  data-active={active || undefined}
+                  data-testid={`annotation-textsize-${key}`}
+                  aria-label={t(TEXTSIZE_LABEL_KEYS[key])}
+                  title={t(TEXTSIZE_LABEL_KEYS[key])}
+                  aria-pressed={active}
+                  onClick={() => onTextSizeChange(key)}
+                >
+                  <span
+                    className="font-semibold leading-none"
+                    style={{ fontSize: TEXTSIZE_ICON[key] }}
+                  >
+                    A
+                  </span>
+                </Button>
+              );
+            })}
+          </ButtonGroup>
+        ) : (
+          <ButtonGroup className={cn("flex-nowrap", !showStyleRow && "invisible")}>
+            {THICKNESS_KEYS.map((key) => {
+              const active = thickness === key;
+              return (
+                <Button
+                  key={key}
+                  size="icon"
+                  variant="outline"
+                  className={cn("h-8 w-8 shrink-0", active && "bg-muted")}
+                  data-active={active || undefined}
+                  data-testid={`annotation-thickness-${key}`}
+                  disabled={!thicknessEnabled}
+                  aria-label={t(THICKNESS_LABEL_KEYS[key])}
+                  title={t(THICKNESS_LABEL_KEYS[key])}
+                  aria-pressed={active}
+                  onClick={() => onThicknessChange(key)}
+                >
+                  <Minus strokeWidth={THICKNESS_STROKE[key]} />
+                </Button>
+              );
+            })}
+          </ButtonGroup>
+        )}
       </div>
 
       {/* canvas 영역 */}
-      <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto bg-muted/50">
+      <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto bg-muted/70">
         {children}
       </div>
 
@@ -231,7 +286,7 @@ export function AnnotationToolbar({
             <Redo2 />
           </Button>
         </ButtonGroup>
-        <div className="flex items-center gap-2">
+        <ButtonGroup>
           <Button
             size="icon"
             variant="outline"
@@ -254,7 +309,7 @@ export function AnnotationToolbar({
           >
             <Check />
           </Button>
-        </div>
+        </ButtonGroup>
       </div>
     </div>
   );

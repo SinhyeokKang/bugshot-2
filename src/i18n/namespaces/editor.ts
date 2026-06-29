@@ -110,6 +110,9 @@ const ko = {
   "annotation.thickness.S": "얇게",
   "annotation.thickness.M": "보통",
   "annotation.thickness.L": "굵게",
+  "annotation.textSize.S": "작게",
+  "annotation.textSize.M": "보통",
+  "annotation.textSize.L": "크게",
   "annotation.loadError": "이미지를 불러오지 못했습니다.",
 
   "create.issueType": "이슈 타입",
@@ -242,6 +245,9 @@ const en = {
   "annotation.thickness.S": "Thin",
   "annotation.thickness.M": "Medium",
   "annotation.thickness.L": "Thick",
+  "annotation.textSize.S": "Small",
+  "annotation.textSize.M": "Medium",
+  "annotation.textSize.L": "Large",
   "annotation.loadError": "Failed to load image.",
 
   "create.issueType": "Issue type",

@@ -12,9 +12,11 @@ import {
   ANNOTATION_THICKNESS,
   DEFAULT_COLOR,
   DEFAULT_THICKNESS,
-  TEXT_FONT_SIZE,
+  DEFAULT_TEXT_SIZE,
+  TEXT_SIZES,
   isStrokeTool,
   type AnnotationTool,
+  type TextSizeKey,
   type ThicknessKey,
 } from "./annotation/presets";
 import {
@@ -42,16 +44,17 @@ interface AnnotationOverlayProps {
 }
 
 interface TextEditing {
-  shape: TextShape;
+  shape: TextShape; // natural 좌표 텍스트 도형(x/y/width/height/fontSize)
   value: string;
   left: number;
   top: number;
-  fontSize: number;
+  boxW: number; // 화면 px(natural * scale)
+  boxH: number;
+  fontSize: number; // 화면 px
 }
 
 function toolCursor(tool: AnnotationTool): string {
   if (tool === "select") return "default";
-  if (tool === "text") return "text";
   return "crosshair";
 }
 
@@ -66,6 +69,7 @@ export default function AnnotationOverlay({
   const [tool, setTool] = useState<AnnotationTool>("select");
   const [color, setColor] = useState<string>(DEFAULT_COLOR);
   const [thickness, setThickness] = useState<ThicknessKey>(DEFAULT_THICKNESS);
+  const [textSize, setTextSize] = useState<TextSizeKey>(DEFAULT_TEXT_SIZE);
   const [history, setHistory] = useState<History<AnnotationShape[]>>(() => initHistory([]));
   const [draftShape, setDraftShape] = useState<AnnotationShape | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -163,21 +167,31 @@ export default function AnnotationOverlay({
     );
   };
 
-  const startTextEditing = (pt: { x: number; y: number }) => {
+  // 드래그로 만든 박스를 정규화(음수 방향·클릭 시 기본 크기)해 그 안에 입력할 textarea를 띄운다.
+  const startTextBox = (draft: TextShape) => {
     const stage = stageRef.current;
     if (!stage) return;
     const rect = stage.container().getBoundingClientRect();
-    const id = crypto.randomUUID();
-    const shape = createShape("text", id, pt, {
-      color,
-      strokeWidth: ANNOTATION_THICKNESS[thickness],
-    }) as TextShape;
+    let { x, y, width, height } = draft;
+    if (width < 0) {
+      x += width;
+      width = -width;
+    }
+    if (height < 0) {
+      y += height;
+      height = -height;
+    }
+    if (width < 40) width = 200;
+    if (height < draft.fontSize) height = draft.fontSize * 1.6;
+    const shape: TextShape = { ...draft, x, y, width, height };
     setEditing({
       shape,
       value: "",
-      left: rect.left + pt.x * scale,
-      top: rect.top + pt.y * scale,
-      fontSize: TEXT_FONT_SIZE * scale,
+      left: rect.left + x * scale,
+      top: rect.top + y * scale,
+      boxW: width * scale,
+      boxH: height * scale,
+      fontSize: draft.fontSize * scale,
     });
   };
 
@@ -202,14 +216,11 @@ export default function AnnotationOverlay({
       commitText();
       return;
     }
-    if (tool === "text") {
-      startTextEditing(pt);
-      return;
-    }
     setDraftShape(
       createShape(tool, crypto.randomUUID(), pt, {
         color,
         strokeWidth: ANNOTATION_THICKNESS[thickness],
+        fontSize: TEXT_SIZES[textSize],
       }),
     );
   };
@@ -226,6 +237,10 @@ export default function AnnotationOverlay({
     if (!draftShape) return;
     const d = draftShape;
     setDraftShape(null);
+    if (d.type === "text") {
+      startTextBox(d);
+      return;
+    }
     if (isEmptyShape(d)) return;
     pushShapes((prev) => [...prev, d]);
   };
@@ -292,6 +307,8 @@ export default function AnnotationOverlay({
           onColorChange={handleColorChange}
           thickness={thickness}
           onThicknessChange={handleThicknessChange}
+          textSize={textSize}
+          onTextSizeChange={setTextSize}
           hasSelection={selectedId !== null}
           selectionIsStroke={selectionIsStroke}
           onDelete={handleDelete}
@@ -362,15 +379,13 @@ export default function AnnotationOverlay({
       )}
       {editing ? (
         <textarea
-          autoFocus
+          ref={(el) => el?.focus()}
           value={editing.value}
           onChange={(e) => setEditing({ ...editing, value: e.target.value })}
           onBlur={commitText}
           onKeyDown={(e) => {
-            if (e.key === "Enter" && !e.shiftKey) {
-              e.preventDefault();
-              commitText();
-            } else if (e.key === "Escape") {
+            // 박스 안 여러 줄 입력이므로 Enter는 줄바꿈. 완료는 바깥 클릭(blur), 취소는 Escape.
+            if (e.key === "Escape") {
               e.preventDefault();
               setEditing(null);
             }
@@ -379,12 +394,14 @@ export default function AnnotationOverlay({
             position: "fixed",
             left: editing.left,
             top: editing.top,
+            width: editing.boxW,
+            height: editing.boxH,
             fontSize: editing.fontSize,
-            lineHeight: 1,
+            lineHeight: 1.2,
             color: editing.shape.color,
             transformOrigin: "top left",
           }}
-          className="z-[60] m-0 min-w-[1ch] resize-none overflow-hidden border-none bg-transparent p-0 outline-none"
+          className="z-[60] m-0 resize-none overflow-hidden whitespace-pre-wrap break-words border border-dashed border-foreground/40 bg-transparent p-0 outline-none"
         />
       ) : null}
     </div>

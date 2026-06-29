@@ -25,6 +25,10 @@ function isPointsShape(type: AnnotationShape["type"]): boolean {
   return type === "arrow" || type === "pen" || type === "highlight";
 }
 
+// stroke만 있는 도형은 hit 영역이 stroke 폭뿐이라 정확히 눌러야 선택된다 →
+// hit 영역을 넓혀 경계 근처 클릭으로도 잡히게 한다(렌더엔 영향 없음).
+const SELECT_HIT_WIDTH = 24;
+
 export function ShapeNode({
   shape,
   selectable,
@@ -78,7 +82,7 @@ export function ShapeNode({
 
   switch (shape.type) {
     case "arrow": {
-      const head = Math.max(10, shape.strokeWidth * 2.5);
+      const head = Math.max(14, shape.strokeWidth * 4);
       return (
         <Arrow
           {...common}
@@ -88,7 +92,7 @@ export function ShapeNode({
           strokeWidth={shape.strokeWidth}
           pointerLength={head}
           pointerWidth={head}
-          hitStrokeWidth={Math.max(12, shape.strokeWidth)}
+          hitStrokeWidth={Math.max(SELECT_HIT_WIDTH, shape.strokeWidth)}
         />
       );
     }
@@ -103,6 +107,8 @@ export function ShapeNode({
           rotation={shape.rotation ?? 0}
           stroke={shape.color}
           strokeWidth={shape.strokeWidth}
+          fill="transparent"
+          hitStrokeWidth={SELECT_HIT_WIDTH}
         />
       );
     case "ellipse": {
@@ -122,6 +128,8 @@ export function ShapeNode({
           rotation={shape.rotation ?? 0}
           stroke={shape.color}
           strokeWidth={shape.strokeWidth}
+          fill="transparent"
+          hitStrokeWidth={SELECT_HIT_WIDTH}
         />
       );
     }
@@ -135,6 +143,7 @@ export function ShapeNode({
           lineCap="round"
           lineJoin="round"
           tension={0.4}
+          hitStrokeWidth={Math.max(SELECT_HIT_WIDTH, shape.strokeWidth)}
         />
       );
     case "highlight":
@@ -148,6 +157,7 @@ export function ShapeNode({
           opacity={HIGHLIGHT_OPACITY}
           lineCap="round"
           lineJoin="round"
+          hitStrokeWidth={Math.max(SELECT_HIT_WIDTH, HIGHLIGHT_STROKE_WIDTH)}
         />
       );
     case "text":
@@ -156,8 +166,10 @@ export function ShapeNode({
           {...common}
           x={shape.x}
           y={shape.y}
+          width={shape.width > 0 ? shape.width : undefined}
           text={shape.text}
           fontSize={shape.fontSize}
+          lineHeight={1.2}
           fill={shape.color}
         />
       );

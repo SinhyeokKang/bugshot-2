@@ -9,7 +9,7 @@ import {
   type ShapeStyle,
 } from "../shapes";
 
-const style: ShapeStyle = { color: "#ff0000", strokeWidth: 4 };
+const style: ShapeStyle = { color: "#ff0000", strokeWidth: 4, fontSize: 24 };
 
 describe("createShape — 초기 도형 생성", () => {
   it("rect는 시작점에서 width/height 0으로 생성된다", () => {
@@ -51,14 +51,16 @@ describe("createShape — 초기 도형 생성", () => {
     }
   });
 
-  it("text는 빈 문자열로 생성된다", () => {
+  it("text는 빈 문자열·박스 0·style.fontSize로 생성된다", () => {
     const s = createShape("text", "id5", { x: 8, y: 9 }, style);
     expect(s.type).toBe("text");
     if (s.type === "text") {
       expect(s.text).toBe("");
       expect(s.x).toBe(8);
       expect(s.y).toBe(9);
-      expect(s.fontSize).toBeGreaterThan(0);
+      expect(s.width).toBe(0);
+      expect(s.height).toBe(0);
+      expect(s.fontSize).toBe(24);
     }
   });
 });
@@ -111,11 +113,14 @@ describe("updateShapeDraft — 드래그 중 갱신", () => {
     expect(s.height).toBe(0);
   });
 
-  it("text는 갱신 대상이 아니어도 새 객체를 반환한다(불변)", () => {
-    const s = createShape("text", "id", { x: 0, y: 0 }, style);
-    const next = updateShapeDraft(s, { x: 10, y: 10 });
+  it("text는 드래그로 박스 width/height를 가진다", () => {
+    const s = createShape("text", "id", { x: 5, y: 5 }, style);
+    const next = updateShapeDraft(s, { x: 45, y: 35 });
     expect(next).not.toBe(s);
-    expect(next).toEqual(s);
+    if (next.type === "text") {
+      expect(next.width).toBe(40);
+      expect(next.height).toBe(30);
+    }
   });
 });
 
@@ -304,6 +309,17 @@ describe("applyTransform — scale/rotation 흡수 정규화", () => {
       expect(s.points[1]).toBeCloseTo(5);
       expect(s.points[2]).toBeCloseTo(5);
       expect(s.points[3]).toBeCloseTo(25);
+    }
+  });
+
+  it("text 박스는 scale로 width/height만 변하고 fontSize는 고정된다", () => {
+    const base = createShape("text", "id", { x: 0, y: 0 }, style);
+    let s = updateShapeDraft(base, { x: 100, y: 40 });
+    s = applyTransform(s, { x: 0, y: 0, scaleX: 2, scaleY: 1.5, rotation: 0 });
+    if (s.type === "text") {
+      expect(s.width).toBeCloseTo(200);
+      expect(s.height).toBeCloseTo(60);
+      expect(s.fontSize).toBe(24);
     }
   });
 

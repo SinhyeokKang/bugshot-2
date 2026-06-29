@@ -1,4 +1,4 @@
-import { TEXT_FONT_SIZE, type AnnotationTool } from "./presets";
+import { type AnnotationTool } from "./presets";
 
 export interface ShapeBase {
   id: string;
@@ -38,6 +38,8 @@ export interface TextShape extends ShapeBase {
   type: "text";
   x: number;
   y: number;
+  width: number;
+  height: number;
   text: string;
   fontSize: number;
 }
@@ -53,6 +55,7 @@ export type AnnotationShape =
 export interface ShapeStyle {
   color: string;
   strokeWidth: number;
+  fontSize: number;
 }
 
 type Point = { x: number; y: number };
@@ -76,7 +79,7 @@ export function createShape(
     case "highlight":
       return { ...base, type: "highlight", points: [pt.x, pt.y] };
     case "text":
-      return { ...base, type: "text", x: pt.x, y: pt.y, text: "", fontSize: TEXT_FONT_SIZE };
+      return { ...base, type: "text", x: pt.x, y: pt.y, width: 0, height: 0, text: "", fontSize: style.fontSize };
   }
 }
 
@@ -84,14 +87,13 @@ export function updateShapeDraft(shape: AnnotationShape, pt: Point): AnnotationS
   switch (shape.type) {
     case "rect":
     case "ellipse":
+    case "text":
       return { ...shape, width: pt.x - shape.x, height: pt.y - shape.y };
     case "arrow":
       return { ...shape, points: [shape.points[0], shape.points[1], pt.x, pt.y] };
     case "pen":
     case "highlight":
       return { ...shape, points: [...shape.points, pt.x, pt.y] };
-    case "text":
-      return { ...shape };
   }
 }
 
@@ -139,11 +141,13 @@ export function applyTransform(
         rotation: attrs.rotation,
       };
     case "text":
+      // 박스 리사이즈는 wrap 폭만 바꾼다 — fontSize는 크기 버튼으로만 제어(컨테이너 개념).
       return {
         ...shape,
         x: attrs.x,
         y: attrs.y,
-        fontSize: shape.fontSize * attrs.scaleX,
+        width: shape.width * attrs.scaleX,
+        height: shape.height * attrs.scaleY,
       };
     case "arrow":
     case "pen":
