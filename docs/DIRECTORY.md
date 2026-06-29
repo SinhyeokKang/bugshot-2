@@ -97,7 +97,12 @@ e2e/                     # Playwright e2e 스위트 (@playwright/test, BUGSHOT_E
 ├── logview/             # 확장 없는 standalone 로그 뷰어 스위트(project: logview) — fixtures.ts(dist-log-viewer/index.html에 합성 로그를 평문 JSON으로 setContent 주입 + makeAction/Console/Network/Report 빌더 + clipboard stub) · log-viewer.spec.ts(i18n 라벨 raw-key 회귀·필터·검색·origin 필터·Report 탭·다운로드 버튼, ko/en)
 └── *.spec.ts            # activetab-broad-permission · style-edit-flow · style-zindex · style-changes-dialog · style-changes-stacked · style-field-fixes · style-token-hint · style-bugfix-regression · border-per-side · buffered-reselect-edit · dom-tree-nav · capture · capture-modes-layout · download-buttons · draft-resume · freeform-draft · log-capture · logs-cross-page · logs-error-warn · logs-iframe · logs-origin-filter · logs-prearm · network-body-search · websocket-log · onboarding · picker-guard · replay-action-log · action-log-coverage · session · settings-sections · attachments · clickup-submit-gating · slack-submit-gating · ai-draft · ai-styling · unsupported-url (커버리지 맵은 README.md)
 oauth-proxy/             # Cloudflare Worker — Atlassian /token + GitHub /github/{token,refresh} + Notion /notion/token + Asana /asana/{token,refresh} + ClickUp /clickup/token(refresh 없음) + Slack /slack/token(oauth.v2.access, refresh 없음) 교환 (client_secret 서버 보관, Linear·GitLab은 PKCE라 proxy 불필요)
-docs/
+docs/                    # 프로젝트 레퍼런스 문서 (루트엔 CLAUDE.md·README.md만 유지)
+├── DIRECTORY.md     # 이 문서 — 디렉터리 구조·파일별 역할
+├── ARCHITECTURE.md  # 설계 상세 (탭 스코프·인증·어댑터·토큰 체인·CSSOM 캐시·마이그레이션 등)
+├── DESIGN.md        # 디자인 시스템·UI 컨벤션 (토큰·레이아웃·합성 컴포넌트·상태 표현)
+├── PERMISSION.md    # Chrome 권한 전체 레퍼런스 (activeTab·OAuth 토큰 흐름 등)
+├── POSTMORTEM.md    # 회귀·버그 사후분석 회고 누적 (/postmortem)
 ├── features/        # 기능 기획 문서 (PRD·설계·태스크) — dev에서 작업, 구현 완료 시 삭제
 └── privacy.md       # 개인정보처리방침 (GitHub Pages)
 guide/                   # GitBook 사용 가이드 소스 (ko/en 별도 site, GitHub Sync 단방향). guide/{ko,en}/ 각각 .gitbook.yaml(root: ./) + SUMMARY.md + README.md + assets/ + 6개 섹션(integrations·settings·element·screenshot·video·logs) 23페이지. 각 space의 Project directory를 guide/ko·guide/en로 지정

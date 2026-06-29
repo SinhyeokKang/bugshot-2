@@ -1,5 +1,5 @@
 ---
-description: 원격 푸시 전 상태 점검 + CLAUDE.md/DIRECTORY.md/ARCHITECTURE.md/README.md/PERMISSION.md/docs/privacy.md/guide/ 신선도 확인 + 푸시
+description: 원격 푸시 전 상태 점검 + CLAUDE.md/docs/DIRECTORY.md/docs/ARCHITECTURE.md/README.md/docs/PERMISSION.md/docs/privacy.md/guide/ 신선도 확인 + 푸시
 ---
 
 원격(`origin`)에 현재 브랜치를 안전하게 푸시한다. 푸시 전에 저장소 문서의 신선도를 점검하고 필요시 업데이트까지 커밋한다.
