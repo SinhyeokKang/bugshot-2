@@ -1,5 +1,5 @@
 ---
-description: 저장소 문서(CLAUDE/DIRECTORY/ARCHITECTURE/README/PERMISSION/privacy/AUTHORING)를 문서별 전담 에이전트가 병렬로 코드베이스와 양방향 대조(사실오류 + 누락 커버리지)해 stale 탐지 → 통합 리포트 → 항목별 확인 → 수정. guide/ko·en 본문은 제외(/guide 전담). 빌드 안 함.
+description: 저장소 문서(CLAUDE/DIRECTORY/ARCHITECTURE/DESIGN/README/PERMISSION/privacy/AUTHORING)를 문서별 전담 에이전트가 병렬로 코드베이스와 양방향 대조(사실오류 + 누락 커버리지)해 stale 탐지 → 통합 리포트 → 항목별 확인 → 수정. guide/ko·en 본문은 제외(/guide 전담). 빌드 안 함.
 ---
 
 저장소의 핵심 문서를 **문서별 전담 에이전트**로 병렬 검사한다. 각 에이전트가 담당 문서 전문을 읽고 현재 코드베이스와 **양방향**으로 대조해 **어긋난 부분(stale)**을 찾는다. 메인 스레드가 결과를 통합 리포트로 제시하고, 사용자 확인을 거쳐 수정·커밋한다.
@@ -14,15 +14,16 @@ description: 저장소 문서(CLAUDE/DIRECTORY/ARCHITECTURE/README/PERMISSION/pr
 
 ## 사용
 
-- `/doc-check` — 7개 문서 전부 병렬 검사.
-- `/doc-check <doc> [doc...]` — 지정 문서만. 키워드: `claude`, `directory`, `architecture`, `readme`, `permission`, `privacy`, `authoring`.
+- `/doc-check` — 8개 문서 전부 병렬 검사.
+- `/doc-check <doc> [doc...]` — 지정 문서만. 키워드: `claude`, `directory`, `architecture`, `design`, `readme`, `permission`, `privacy`, `authoring`.
 
 예시:
 
 ```
-/doc-check                       → 7개 전부
+/doc-check                       → 8개 전부
 /doc-check architecture          → ARCHITECTURE.md만
 /doc-check architecture claude   → ARCHITECTURE.md + CLAUDE.md
+/doc-check design                → DESIGN.md만
 ```
 
 ## 검사 대상 (문서별 에이전트)
@@ -32,6 +33,7 @@ description: 저장소 문서(CLAUDE/DIRECTORY/ARCHITECTURE/README/PERMISSION/pr
 | `claude` | **CLAUDE.md** | 스택·명령어 표·코드 컨벤션·게이트웨이·워크플로우(스킬 라인업)·permissions/host_permissions·env 목록이 현재 `package.json`·`manifest.config.ts`·`.claude/commands/`·코드와 일치하는지 |
 | `directory` | **DIRECTORY.md** | 디렉터리 구조·파일별 역할이 현재 `src/` 트리와 일치하는지 (없는 파일 설명·새 파일 누락·이동/리네임) |
 | `architecture` | **ARCHITECTURE.md** | Side Panel 탭 스코프, user gesture, 세션 영속화, 6개 플랫폼 인증, 어댑터 패턴, 토큰 체인 resolve, CSSOM 캐시, DOM lazy load, 마크다운 복사, 이슈 섹션 구성, 마이그레이션 등 설계 상세가 실제 구현과 일치하는지 |
+| `design` | **DESIGN.md** | 디자인 토큰·다크모드·타이포·버튼/아이콘 사이즈·레이아웃·반응형·공용 합성 컴포넌트·상태 표현 컨벤션이 현재 `tailwind.config.js`·`globals.css`·`src/components/ui/`·`src/sidepanel/components/`·실제 사용처와 일치하는지 |
 | `readme` | **README.md** | 기능 목록·설치/사용법·스크린샷 설명·지원 플랫폼이 현재 코드와 맞는지 |
 | `permission` | **PERMISSION.md** | activeTab 라이프사이클·OAuth 토큰 흐름·optional permission 등 권한 레퍼런스가 현재 `manifest.config.ts`·코드 사용처와 일치하는지 |
 | `privacy` | **docs/privacy.md** | 권한·host_permissions·수집 정보·외부 전송 대상·저장 방식이 현재 매니페스트뿐 아니라 **실제 코드 동작**(캡처/수집/전송)과 일치하는지 |
@@ -41,7 +43,7 @@ description: 저장소 문서(CLAUDE/DIRECTORY/ARCHITECTURE/README/PERMISSION/pr
 
 ### 1. 대상 결정
 
-인자가 있으면 해당 키워드 문서만, 없으면 7개 전부. 존재하지 않는 키워드는 무시하고 보고에 명시. `guide`(ko/en 본문)는 의도적 비대상 — 들어오면 "guide 본문은 `/guide` 전담"으로 안내(`authoring`은 검사 대상이니 별개).
+인자가 있으면 해당 키워드 문서만, 없으면 8개 전부. 존재하지 않는 키워드는 무시하고 보고에 명시. `guide`(ko/en 본문)는 의도적 비대상 — 들어오면 "guide 본문은 `/guide` 전담"으로 안내(`authoring`은 검사 대상이니 별개).
 
 ### 2. 공통 컨텍스트 로드 (메인, 1회)
 
@@ -112,7 +114,7 @@ stale이 없으면 "발견 0 — Pass1 N개 단언·Pass2 K개 주제 모두 일
 ### 6. 커밋
 
 수정된 문서를 **문서별 별도 커밋**으로 묶는다 (영문):
-`docs(CLAUDE): ...` / `docs(DIRECTORY): ...` / `docs(ARCHITECTURE): ...` / `docs(README): ...` / `docs(PERMISSION): ...` / `docs(privacy): ...` / `docs(guide): ...` (AUTHORING.md)
+`docs(CLAUDE): ...` / `docs(DIRECTORY): ...` / `docs(ARCHITECTURE): ...` / `docs(DESIGN): ...` / `docs(README): ...` / `docs(PERMISSION): ...` / `docs(privacy): ...` / `docs(guide): ...` (AUTHORING.md)
 
 수정 없으면 커밋 없이 "변경 불필요" 보고.
 
