@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState, type ComponentType } from "react";
 import { Blocks, Plug, Plus, Unplug } from "lucide-react";
+import { SlackIcon } from "@/components/icons/SlackIcon";
 import {
   SiAsana,
+  SiClickup,
   SiGithub,
   SiGitlab,
   SiJirasoftware,
@@ -10,6 +12,7 @@ import {
 } from "@icons-pack/react-simple-icons";
 import { useT } from "@/i18n";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsTrigger } from "@/components/ui/tabs";
 import { CollapsingTabsList, TabLabel } from "@/components/ui/collapsing-tabs";
 import {
@@ -39,6 +42,8 @@ import { LinearConnectedBody, LinearConnectFlow } from "./connect/LinearConnectF
 import { NotionConnectedBody, NotionConnectFlow } from "./connect/NotionConnectForm";
 import { GitlabConnectedBody, GitlabConnectFlow } from "./connect/GitlabConnectForm";
 import { AsanaConnectedBody, AsanaConnectFlow } from "./connect/AsanaConnectForm";
+import { ClickupConnectedBody, ClickupConnectFlow } from "./connect/ClickupConnectForm";
+import { SlackConnectedBody, SlackConnectFlow } from "./connect/SlackConnectForm";
 
 interface PlatformEntry {
   id: PlatformId;
@@ -55,6 +60,9 @@ const PLATFORMS: PlatformEntry[] = [
   { id: "gitlab", Icon: SiGitlab, ConnectedBody: GitlabConnectedBody, ConnectFlow: GitlabConnectFlow },
   { id: "notion", Icon: SiNotion, ConnectedBody: NotionConnectedBody, ConnectFlow: NotionConnectFlow, iconClassName: "dark:invert" },
   { id: "asana", Icon: SiAsana, ConnectedBody: AsanaConnectedBody, ConnectFlow: AsanaConnectFlow },
+  { id: "clickup", Icon: SiClickup, ConnectedBody: ClickupConnectedBody, ConnectFlow: ClickupConnectFlow },
+  // lucide 아이콘은 simple-icons의 color="default"(브랜드 hex)를 못 받아 투명해진다 → currentColor로 렌더.
+  { id: "slack", Icon: ({ className }) => <SlackIcon className={className} />, ConnectedBody: SlackConnectedBody, ConnectFlow: SlackConnectFlow },
 ];
 
 export function IntegrationsTab({ activeMainTab }: { activeMainTab: string }) {
@@ -98,6 +106,9 @@ export function IntegrationsTab({ activeMainTab }: { activeMainTab: string }) {
           <TabsTrigger value="connected" className="min-w-0 gap-1.5">
             <Plug className="h-4 w-4 shrink-0" />
             <TabLabel>{t("platform.subtab.connected")}</TabLabel>
+            <Badge className="ml-0.5 h-5 min-w-5 shrink-0 px-1.5 text-[10px]">
+              {connectedCount}
+            </Badge>
           </TabsTrigger>
           <TabsTrigger value="add" className="min-w-0 gap-1.5">
             <Plus className="h-4 w-4 shrink-0" />
@@ -165,7 +176,7 @@ export function IntegrationsTab({ activeMainTab }: { activeMainTab: string }) {
               </div>
               <h3 className="text-center text-lg font-semibold">{t("platform.add.title")}</h3>
             </div>
-            <div className="flex w-full max-w-[240px] flex-col gap-2">
+            <div className="grid w-full max-w-[336px] grid-cols-2 gap-2">
               {orderAddPlatforms(
                 PLATFORMS.map((p) => p.id),
                 (id) => !!accounts[id],

@@ -3,8 +3,8 @@ import { expect, test } from "./fixtures/extension";
 import type { ExtContext } from "./fixtures/extension";
 
 // 광역 host 권한 보유 시 패널 유지 정책 (resolveNavigationAction 통합).
-// e2e 빌드는 host_permissions에 <all_urls>를 넣어 chrome.permissions.contains(BROAD_HOST_ORIGINS=<all_urls>)가
-// 항상 true → "광역 보유" 경로만 자동 검증 가능(미보유 닫힘·deferred는 수동 전용, tasks.md).
+// <all_urls>가 required host_permission이라 광역 권한은 항상 보유 → 호출부가 broadGranted=true 고정.
+// "광역 보유" 경로만 존재한다(미보유 닫힘·deferred 분기는 프로덕션 도달 불가 — 순수함수 회귀 자산으로만 남음).
 //
 // 관찰 신호: e2e 패널은 실제 side panel이 아니라 일반 Page라 setOptions(enabled:false)로 닫히지
 // 않아 close 이벤트로 판정할 수 없다. 대신 bg가 유지하는 activated set / 세션 키를 SW storage로

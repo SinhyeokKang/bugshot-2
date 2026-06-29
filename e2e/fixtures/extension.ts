@@ -6,6 +6,7 @@ import {
   type Worker,
 } from "@playwright/test";
 import { createServer, type Server } from "node:http";
+import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -28,6 +29,13 @@ function startFixtureServer(): Promise<{ server: Server; port: number }> {
   return new Promise((resolve, reject) => {
     const server = createServer((req, res) => {
       const urlPath = (req.url ?? "/").split("?")[0];
+      // 응답 본문 검색 e2e용 — 본문에만 마커 문자열을 담은 JSON(allowlist content-type이라
+      // 레코더가 string variant로 캡처). 마커는 URL 경로엔 없어 "본문으로만 매칭"을 판정.
+      if (urlPath.startsWith("/e2e-json")) {
+        res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ note: "zqxbodyneedle" }));
+        return;
+      }
       const name = urlPath === "/" ? "basic.html" : urlPath.replace(/^\//, "");
       const file = path.join(PAGES_DIR, name);
       if (!file.startsWith(PAGES_DIR + path.sep)) {
@@ -37,13 +45,72 @@ function startFixtureServer(): Promise<{ server: Server; port: number }> {
       }
       readFile(file)
         .then((body) => {
-          res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
+          // .css는 text/css로 — text/html이면 Chrome이 strict MIME으로 stylesheet 거부.
+          const type = name.endsWith(".css")
+            ? "text/css; charset=utf-8"
+            : "text/html; charset=utf-8";
+          res.writeHead(200, { "content-type": type });
           res.end(body);
         })
         .catch(() => {
           res.writeHead(404);
           res.end();
         });
+    });
+    // WebSocket 로그 e2e용 echo — `ws` 의존 없이 raw 핸드셰이크 + 텍스트 프레임 echo.
+    // 클라이언트→서버 프레임은 항상 masked(unmask 후 텍스트 opcode만 echo, close면 종료).
+    server.on("upgrade", (req, socket) => {
+      const key = req.headers["sec-websocket-key"];
+      if (typeof key !== "string") {
+        socket.destroy();
+        return;
+      }
+      const accept = createHash("sha1")
+        .update(key + "258EAFA5-E914-47DA-95CA-C5AB0DC85B11")
+        .digest("base64");
+      socket.write(
+        "HTTP/1.1 101 Switching Protocols\r\n" +
+          "Upgrade: websocket\r\n" +
+          "Connection: Upgrade\r\n" +
+          `Sec-WebSocket-Accept: ${accept}\r\n\r\n`,
+      );
+      socket.on("data", (buf: Buffer) => {
+        let offset = 0;
+        while (offset + 2 <= buf.length) {
+          const b0 = buf[offset];
+          const b1 = buf[offset + 1];
+          const opcode = b0 & 0x0f;
+          const masked = (b1 & 0x80) !== 0;
+          let len = b1 & 0x7f;
+          let p = offset + 2;
+          if (len === 126) {
+            len = buf.readUInt16BE(p);
+            p += 2;
+          } else if (len === 127) {
+            len = Number(buf.readBigUInt64BE(p));
+            p += 8;
+          }
+          let maskKey: Buffer | null = null;
+          if (masked) {
+            maskKey = buf.subarray(p, p + 4);
+            p += 4;
+          }
+          const payload = buf.subarray(p, p + len);
+          if (maskKey) {
+            for (let i = 0; i < payload.length; i++) payload[i] ^= maskKey[i % 4];
+          }
+          if (opcode === 0x8) {
+            socket.end();
+            return;
+          }
+          if (opcode === 0x1 && len < 126) {
+            // 텍스트 프레임 — 서버→클라이언트는 unmasked로 echo.
+            socket.write(Buffer.concat([Buffer.from([0x81, len]), payload]));
+          }
+          offset = p + len;
+        }
+      });
+      socket.on("error", () => {});
     });
     server.on("error", reject);
     // 포트 0(ephemeral) 바인딩 — 실포트를 fixtureUrl에 반영해 점유 충돌 원천 제거.

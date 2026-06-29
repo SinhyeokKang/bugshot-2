@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { Fragment, useCallback, useMemo, useRef, useState } from "react";
 import { Inbox, Loader2, Search, SearchX, X } from "lucide-react";
 import { toast } from "sonner";
 import { useT } from "@/i18n";
@@ -16,7 +16,9 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useIssuesStore } from "@/store/issues-store";
 import { SubmitSuccessView } from "@/sidepanel/components/SubmitSuccessView";
@@ -113,7 +115,7 @@ export function IssueListTab() {
               <TabsTrigger value="draft">{t("issueList.filter.draft")}</TabsTrigger>
             </TabsList>
           </Tabs>
-          <div className="relative ml-auto w-full max-w-[280px]">
+          <div className="relative ml-auto w-full max-w-[200px]">
             <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
               placeholder={t("issueList.search")}
@@ -155,17 +157,19 @@ export function IssueListTab() {
         <PageScroll>
           {groupByDate(filtered).map(([date, group]) => (
           <Section key={date} title={<>{date}<Badge variant="secondary" className="ml-2 align-middle text-xs tabular-nums">{group.length}</Badge></>} collapsible>
-            <ul className="flex flex-col gap-2">
-              {group.map((issue) => (
-                <IssueRow
-                  key={issue.id}
-                  issue={issue}
-                  refreshKey={refreshKey}
-                  onOpenDraft={() => setDraftId(issue.id)}
-                  onBadgeLoaded={handleBadgeLoaded}
-                />
+            <Card className="overflow-hidden">
+              {group.map((issue, idx) => (
+                <Fragment key={issue.id}>
+                  {idx > 0 ? <Separator /> : null}
+                  <IssueRow
+                    issue={issue}
+                    refreshKey={refreshKey}
+                    onOpenDraft={() => setDraftId(issue.id)}
+                    onBadgeLoaded={handleBadgeLoaded}
+                  />
+                </Fragment>
               ))}
-            </ul>
+            </Card>
           </Section>
         ))}
         </PageScroll>

@@ -35,6 +35,10 @@ interface Props {
   disabledLabel?: string;
   onOpenChange?: (open: boolean) => void;
   onSearch?: (query: string) => void;
+  // 멘션 등 CC가 아닌 용도로 재사용할 때 라벨을 덮어쓴다 (기본은 field.cc.*).
+  selectLabel?: string;
+  searchPlaceholder?: string;
+  emptyLabel?: string;
 }
 
 export function CcMultiCombobox({
@@ -48,6 +52,9 @@ export function CcMultiCombobox({
   disabledLabel,
   onOpenChange,
   onSearch,
+  selectLabel,
+  searchPlaceholder,
+  emptyLabel,
 }: Props) {
   const t = useT();
   const [open, setOpen] = useState(false);
@@ -59,7 +66,7 @@ export function CcMultiCombobox({
     onOpenChange?.(next);
   }
 
-  const placeholder = t("field.cc.select");
+  const placeholder = selectLabel ?? t("field.cc.select");
 
   const triggerLabel = (() => {
     if (disabled) return disabledLabel ?? placeholder;
@@ -105,7 +112,7 @@ export function CcMultiCombobox({
           }
         >
           <CommandInput
-            placeholder={t("field.cc.search")}
+            placeholder={searchPlaceholder ?? t("field.cc.search")}
             onValueChange={onSearch}
           />
           <CommandList>
@@ -118,7 +125,7 @@ export function CcMultiCombobox({
               <div className="px-3 py-6 text-center text-xs text-destructive">{error}</div>
             ) : (
               <>
-                <CommandEmpty>{t("field.cc.empty")}</CommandEmpty>
+                <CommandEmpty>{emptyLabel ?? t("field.cc.empty")}</CommandEmpty>
                 {selected.length > 0 ? (
                   <CommandGroup heading={t("common.actions")}>
                     <CommandItem value="__clear__" onSelect={onClear}>

@@ -1,8 +1,8 @@
-import { BODY_CAP, MASKED_QUERY_KEYS, classifyBeaconBody, classifyResponseBody, createPatchedFetch, headersToRecord, maskBody } from "./network-recorder-helpers";
+import { BODY_CAP, MASKED_QUERY_KEYS, classifyBeaconBody, classifyResponseBody, createPatchedFetch, headersToRecord, maskBody, classifyWsFrameData, maskWsFrame } from "./network-recorder-helpers";
 import type { FetchRecordHook } from "./network-recorder-helpers";
 import { createTrailingThrottle, FLUSH_INTERVAL_MS } from "./log-throttle";
 import { readPreArmFlag, setPreArmFlag } from "./recorder-prearm";
-import type { NetworkRequestBody, NetworkRequestPhase } from "@/types/network";
+import type { NetworkRequestBody, NetworkRequestPhase, WebSocketFrame, WebSocketFrameDirection, WebSocketMeta } from "@/types/network";
 
 function networkRecorderScript(): void {
   const CTRL_KEY = "__bugshot_net_ctrl__";
@@ -10,6 +10,7 @@ function networkRecorderScript(): void {
 
   const MEMORY_CAP = 50 * 1024 * 1024; // 50 MB
   const MAX_REQUEST_ENTRIES = 5000; // log-merge.ts NETWORK_MAX_ENTRIES와 동일 유지 (sidepanel 번들 격리로 값 동기화)
+  const MAX_WS_FRAMES_PER_CONN = 1000; // 연결당 프레임 FIFO 캡
   const SET_SENTINEL_EVENT = "__bugshot_net_setSentinel__";
 
   const MASKED_HEADERS = new Set([
@@ -48,6 +49,7 @@ function networkRecorderScript(): void {
     contentType: string;
     phase: ReqPhase;
     preArm?: boolean;
+    webSocket?: WebSocketMeta;
   }
 
   const buffer: CapturedRequest[] = [];
@@ -56,7 +58,7 @@ function networkRecorderScript(): void {
   let recording = false;
   // pre-arm: active origin이면 sentinel 전에도 적재(capturing). dispatch는 sentinel 없으면 no-op.
   let capturing = readPreArmFlag();
-  type NetworkWarning = "MEMORY_CAPPED" | "ENTRY_CAPPED" | "BODY_TRUNCATED";
+  type NetworkWarning = "MEMORY_CAPPED" | "ENTRY_CAPPED" | "BODY_TRUNCATED" | "WS_FRAMES_CAPPED";
   const warnings = new Set<NetworkWarning>();
 
   function genId(): string {
@@ -108,6 +110,8 @@ function networkRecorderScript(): void {
     return body.length * 2;
   }
 
+  // 주의: WebSocket 프레임(webSocket.frames)은 memoryUsed에 합류하지 않는다 — 연결당 프레임 수 캡
+  // (MAX_WS_FRAMES_PER_CONN) + ENTRY_CAP으로만 bound(수용된 한계, attachWsRecorder 참조).
   function enforceMemoryCap(): void {
     while (memoryUsed > MEMORY_CAP && buffer.length > 0) {
       let oldestWithBody = -1;
@@ -484,6 +488,110 @@ function networkRecorderScript(): void {
     };
   }
 
+  // --- WebSocket wrap ---
+  // 생성자만 Proxy로 가로채고(생성 시점 캡처 불가피), 인스턴스 send는 직접 치환(기존 후킹 컨벤션).
+  // 프레임은 webSocket.frames에 적재 — 전역 MEMORY_CAP eviction에는 합류하지 않고(수용된 한계)
+  // 연결당 프레임 수 캡 + 본문 BODY_CAP truncate + 연결 엔트리 ENTRY_CAP으로만 bound한다.
+  function attachWsRecorder(ws: WebSocket, args: unknown[]): void {
+    totalSeen++;
+    const startTime = Date.now();
+    const rawUrl = ws.url || (typeof args[0] === "string" ? args[0] : String(args[0] ?? ""));
+    const frames: WebSocketFrame[] = [];
+    const entry: CapturedRequest = {
+      id: genId(),
+      url: maskUrl(rawUrl),
+      method: "WS",
+      status: 101,
+      statusText: "Switching Protocols",
+      startTime,
+      durationMs: 0,
+      requestHeaders: {},
+      responseHeaders: {},
+      pageUrl: location.href,
+      requestBodySize: 0,
+      responseBodySize: 0,
+      contentType: "websocket",
+      phase: "pending",
+      webSocket: { protocol: "", frames, framesTotal: 0 },
+    };
+    if (!recording) entry.preArm = true;
+    pushEntry(entry);
+    throttle.schedule();
+    const meta = entry.webSocket!;
+    let frameSeq = 0;
+
+    function pushFrame(frame: Omit<WebSocketFrame, "seq">): void {
+      meta.framesTotal++;
+      frames.push({ ...frame, seq: frameSeq++ });
+      if (frames.length > MAX_WS_FRAMES_PER_CONN) {
+        frames.shift();
+        warnings.add("WS_FRAMES_CAPPED");
+      }
+      throttle.schedule();
+    }
+
+    function recordData(direction: Extract<WebSocketFrameDirection, "send" | "receive">, data: unknown): void {
+      const classified = classifyWsFrameData(data);
+      if (classified === null) {
+        meta.framesTotal++; // 바이너리 — 드롭(프레임 미적재), 통계만 반영.
+        throttle.schedule();
+        return;
+      }
+      if (typeof classified === "string") {
+        pushFrame({ direction, ts: Date.now(), data: maskWsFrame(classified), size: classified.length });
+      } else {
+        warnings.add("BODY_TRUNCATED");
+        pushFrame({ direction, ts: Date.now(), data: classified, size: classified.size });
+      }
+    }
+
+    ws.addEventListener("open", () => {
+      if (!capturing) return;
+      meta.protocol = ws.protocol || "";
+      pushFrame({ direction: "open", ts: Date.now(), size: 0 });
+    });
+    ws.addEventListener("message", (ev: MessageEvent) => {
+      if (!capturing) return;
+      recordData("receive", ev.data);
+    });
+    ws.addEventListener("close", (ev: CloseEvent) => {
+      if (!capturing) return;
+      pushFrame({
+        direction: "close",
+        ts: Date.now(),
+        size: 0,
+        code: ev.code,
+        reason: ev.reason || undefined,
+        wasClean: ev.wasClean,
+      });
+      entry.phase = ev.wasClean ? "complete" : "error";
+      entry.durationMs = Date.now() - startTime;
+    });
+    // error는 별도 프레임 없음 — close 이벤트가 뒤따라 phase를 전이한다.
+
+    const originalSend = ws.send.bind(ws);
+    ws.send = function (data: string | ArrayBufferLike | Blob | ArrayBufferView) {
+      if (capturing) {
+        try { recordData("send", data); } catch { /* 레코더 오류 무시 */ }
+      }
+      return originalSend(data);
+    };
+  }
+
+  function patchWebSocket(): void {
+    const OriginalWebSocket = window.WebSocket;
+    if (typeof OriginalWebSocket !== "function") return;
+    window.WebSocket = new Proxy(OriginalWebSocket, {
+      construct(target, ctorArgs, newTarget) {
+        const ws = Reflect.construct(target, ctorArgs, newTarget) as WebSocket;
+        if (capturing) {
+          try { attachWsRecorder(ws, ctorArgs); } catch { /* 후킹 실패해도 원본 WebSocket 무간섭 */ }
+        }
+        return ws;
+      },
+    });
+  }
+
   // --- Sentinel-bound dispatch ---
   let currentSentinel: string | null = null;
   let stopHandler: (() => void) | null = null;
@@ -508,6 +616,8 @@ function networkRecorderScript(): void {
   // 응답 갱신(complete/error in-place)에는 schedule하지 않는다 — 다음 trailing 주기·sync·pagehide에
   // 전체 버퍼로 나가고 mergeLogItems id dedup이 최신본으로 흡수(complete 반영 최대 200ms 지연, 무손실).
   const throttle = createTrailingThrottle(dispatch, FLUSH_INTERVAL_MS);
+
+  patchWebSocket();
 
   function clearBuffer(): void {
     buffer.length = 0;

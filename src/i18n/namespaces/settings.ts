@@ -15,8 +15,6 @@ const ko = {
   "settings.replay.label": "30초 리플레이",
   "settings.replay.help":
     "화면의 최근 30초를 항상 기록해 둡니다. 버그를 발견하면 버튼 한 번으로 직전 상황을 영상으로 첨부할 수 있습니다.",
-  "settings.replay.permissionDenied":
-    "권한이 거부되어 30초 리플레이를 켤 수 없습니다.",
   "settings.attachments.label": "파일 첨부",
   "settings.attachments.help":
     "이슈에 임의의 파일을 첨부합니다.",
@@ -100,8 +98,6 @@ const en = {
   "settings.replay.label": "30s replay",
   "settings.replay.help":
     "Always keeps the last 30 seconds of your screen. Spot a bug? Attach what just happened as a video in one click.",
-  "settings.replay.permissionDenied":
-    "Permission denied, so 30s replay could not be enabled.",
   "settings.attachments.label": "File attachments",
   "settings.attachments.help":
     "Attach arbitrary files to issues.",

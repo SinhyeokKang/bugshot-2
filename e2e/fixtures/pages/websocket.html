@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>WebSocket fixture</title>
+  </head>
+  <body>
+    <h1 id="title">WebSocket fixture</h1>
+    <script>
+      // 레코더(MAIN world)가 window.WebSocket을 후킹한 뒤 호출돼야 캡처되므로,
+      // 패널 arm 후 spec이 명시적으로 __openWs를 부른다(로드 시 자동 연결 안 함).
+      window.__openWs = function (tag) {
+        return new Promise(function (resolve) {
+          var ws = new WebSocket("ws://" + location.host + "/");
+          window.__lastWs = ws;
+          ws.addEventListener("open", function () {
+            ws.send(JSON.stringify({ ping: tag }));
+          });
+          ws.addEventListener("message", function (ev) {
+            resolve(ev.data);
+          });
+        });
+      };
+      window.__closeWs = function () {
+        if (window.__lastWs) window.__lastWs.close();
+      };
+      // 무간섭 판정 — 후킹 후에도 정적 상수·instanceof·생성자 타입이 유지되는지.
+      window.__wsCheck = function () {
+        var ok =
+          WebSocket.OPEN === 1 && typeof window.WebSocket === "function";
+        try {
+          var probe = new WebSocket("ws://" + location.host + "/");
+          ok = ok && probe instanceof WebSocket;
+          probe.close();
+        } catch (e) {
+          ok = false;
+        }
+        return ok;
+      };
+    </script>
+  </body>
+</html>

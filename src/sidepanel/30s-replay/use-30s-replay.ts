@@ -2,13 +2,11 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { sendBg } from "@/types/messages";
 import { useEditorStore } from "@/store/editor-store";
-import { useSettingsUiStore } from "@/store/settings-ui-store";
 import { syncAndSettleLogs } from "@/sidepanel/picker-control";
 import { trimByTime, replayLogBounds } from "@/sidepanel/lib/log-merge";
 import { saveNetworkLog, saveConsoleLog, saveActionLog } from "@/store/blob-db";
 import { networkLogPersist, consoleLogPersist, actionLogPersist } from "@/sidepanel/hooks/usePickerMessages";
 import { useT } from "@/i18n";
-import { BROAD_HOST_ORIGINS } from "@/lib/broad-host-origins";
 import { FrameBuffer, REPLAY_MAX_DURATION_MS } from "./frame-buffer";
 import { encodeToMp4 } from "./mp4-encoder";
 
@@ -82,34 +80,19 @@ export function use30sReplay(
       }
     }
 
-    void (async () => {
-      try {
-        const granted = await chrome.permissions.contains({
-          origins: BROAD_HOST_ORIGINS,
-        });
-        if (cancelled) return;
-        if (!granted) {
-          // 권한 미보유면 replay를 끈다. 토글이 OFF가 되며 캡처 버튼이 비활성화돼
-          // 사용자가 직접 인지한다(별도 토스트 없음).
-          useSettingsUiStore.getState().setReplayEnabled(false);
-          return;
-        }
-        intervalId = setInterval(() => void tick(), CAPTURE_INTERVAL_MS);
-        // 표시값은 푸시 성공이 아니라 벽시계 1초 타이머로 갱신 — 캡처 스킵(rate limit·in-flight)으로
-        // 숫자가 멈췄다 확 뛰는 현상을 없앤다. oldest 프레임 시각에 앵커돼 30초 캡에서 자연히 멈춘다.
-        displayId = setInterval(() => {
-          if (cancelled || useEditorStore.getState().phase !== "idle") return;
-          const oldest = buffer.oldestTimestamp;
-          setBufferedSeconds(
-            oldest == null
-              ? 0
-              : Math.min(REPLAY_MAX_DURATION_MS / 1000, Math.ceil((Date.now() - oldest) / 1000)),
-          );
-        }, 1000);
-      } catch {
-        // permissions API 실패 시 미시작
-      }
-    })();
+    // <all_urls>가 required라 권한 확인 없이 바로 폴링을 시작한다.
+    intervalId = setInterval(() => void tick(), CAPTURE_INTERVAL_MS);
+    // 표시값은 푸시 성공이 아니라 벽시계 1초 타이머로 갱신 — 캡처 스킵(rate limit·in-flight)으로
+    // 숫자가 멈췄다 확 뛰는 현상을 없앤다. oldest 프레임 시각에 앵커돼 30초 캡에서 자연히 멈춘다.
+    displayId = setInterval(() => {
+      if (cancelled || useEditorStore.getState().phase !== "idle") return;
+      const oldest = buffer.oldestTimestamp;
+      setBufferedSeconds(
+        oldest == null
+          ? 0
+          : Math.min(REPLAY_MAX_DURATION_MS / 1000, Math.ceil((Date.now() - oldest) / 1000)),
+      );
+    }, 1000);
 
     return () => {
       cancelled = true;

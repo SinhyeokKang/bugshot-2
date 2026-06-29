@@ -5,6 +5,8 @@ import { LinearSubmittedBadge } from "./LinearSubmittedBadge";
 import { NotionSubmittedBadge } from "./NotionSubmittedBadge";
 import { GitlabSubmittedBadge } from "./GitlabSubmittedBadge";
 import { AsanaSubmittedBadge } from "./AsanaSubmittedBadge";
+import { ClickupSubmittedBadge } from "./ClickupSubmittedBadge";
+import { SlackSubmittedBadge } from "./SlackSubmittedBadge";
 
 export function SubmittedBadge({
   issueId,
@@ -20,6 +22,7 @@ export function SubmittedBadge({
   gitlabProjectId,
   gitlabIssueIid,
   asanaTaskGid,
+  clickupTaskId,
   refreshKey,
   onLoaded,
 }: {
@@ -36,6 +39,7 @@ export function SubmittedBadge({
   gitlabProjectId?: number;
   gitlabIssueIid?: number;
   asanaTaskGid?: string;
+  clickupTaskId?: string;
   refreshKey: number;
   onLoaded: () => void;
 }) {
@@ -107,6 +111,19 @@ export function SubmittedBadge({
         onLoaded={onLoaded}
       />
     );
+  }
+  if (platform === "clickup") {
+    return (
+      <ClickupSubmittedBadge
+        issueId={issueId}
+        clickupTaskId={clickupTaskId}
+        refreshKey={refreshKey}
+        onLoaded={onLoaded}
+      />
+    );
+  }
+  if (platform === "slack") {
+    return <SlackSubmittedBadge onLoaded={onLoaded} />;
   }
   return null;
 }

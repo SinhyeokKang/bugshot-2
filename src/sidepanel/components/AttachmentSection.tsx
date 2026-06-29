@@ -1,8 +1,9 @@
-import { useRef } from "react";
+import { Fragment, useRef } from "react";
 import { Paperclip, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
 import { useT } from "@/i18n";
 import type { PlatformId } from "@/types/platform";
 import type { UserAttachmentMeta } from "@/types/attachment";
@@ -63,6 +64,40 @@ export function AttachmentSection({
           e.target.value = "";
         }}
       />
+      {attachments.length > 0 && (
+        <Card>
+          <CardContent className="flex flex-col gap-3 px-3 py-3">
+            {attachments.map((a, idx) => (
+              <Fragment key={a.id}>
+                {/* w-auto로 기본 w-full 해제 — 음수 마진이 폭을 확장해 카드 패딩(px-3)을 풀블리드로 뚫는다. */}
+                {idx > 0 ? <Separator className="-mx-3 w-auto" /> : null}
+                <div data-testid="attachment-item" className="flex items-center gap-3">
+                  <div className="shrink-0">{CATEGORY_ICON[fileCategory(a.contentType, a.filename)]}</div>
+                  <div className="flex min-w-0 flex-1 flex-col">
+                    <span className="truncate text-sm font-medium">{a.filename}</span>
+                    <span className={`truncate text-sm ${oversize.has(a.id) ? "text-destructive" : "text-muted-foreground"}`}>
+                      {oversize.has(a.id)
+                        ? t("attachment.limit.oversize", { limit: formatBytes(PLATFORM_FILE_SIZE_LIMIT[platform] ?? 0) })
+                        : `${fileExtLabel(a.filename)} · ${formatBytes(a.size)}`}
+                    </span>
+                  </div>
+                  <Button
+                    size="icon"
+                    variant="outline"
+                    className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+                    onClick={() => onRemove(a.id)}
+                    title={t("attachment.remove")}
+                    aria-label={t("attachment.remove")}
+                    data-testid="attachment-remove"
+                  >
+                    <Trash2 />
+                  </Button>
+                </div>
+              </Fragment>
+            ))}
+          </CardContent>
+        </Card>
+      )}
       <Button
         variant="outline"
         disabled={atMax}
@@ -72,38 +107,6 @@ export function AttachmentSection({
         <Paperclip className="h-4 w-4" />
         {t("attachment.button", { count: attachments.length, max: MAX_ATTACHMENT_COUNT })}
       </Button>
-      {attachments.length > 0 && (
-        <div className="flex flex-col gap-2">
-          {attachments.map((a) => (
-            <Card
-              key={a.id}
-              data-testid="attachment-item"
-              className={`flex items-center gap-3 p-3 ${oversize.has(a.id) ? "border-destructive" : ""}`}
-            >
-              <div className="shrink-0">{CATEGORY_ICON[fileCategory(a.contentType, a.filename)]}</div>
-              <div className="flex min-w-0 flex-1 flex-col">
-                <span className="truncate text-sm font-medium">{a.filename}</span>
-                <span className="truncate text-sm text-muted-foreground">
-                  {oversize.has(a.id)
-                    ? t("attachment.limit.oversize", { limit: formatBytes(PLATFORM_FILE_SIZE_LIMIT[platform] ?? 0) })
-                    : `${fileExtLabel(a.filename)} · ${formatBytes(a.size)}`}
-                </span>
-              </div>
-              <Button
-                size="icon"
-                variant="outline"
-                className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
-                onClick={() => onRemove(a.id)}
-                title={t("attachment.remove")}
-                aria-label={t("attachment.remove")}
-                data-testid="attachment-remove"
-              >
-                <Trash2 />
-              </Button>
-            </Card>
-          ))}
-        </div>
-      )}
     </div>
   );
 }

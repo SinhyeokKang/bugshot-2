@@ -1,6 +1,8 @@
 import { Card } from "@/components/ui/card";
 import { cn } from "@/lib/utils";
 import { useT } from "@/i18n";
+import { ColorSwatch } from "./ColorSwatch";
+import { isRenderableColorLiteral } from "@/sidepanel/tabs/styleEditor/colorLiteral";
 import {
   DocTable,
   docTableCell,
@@ -127,6 +129,7 @@ export function DiffValue({
       </span>
     );
   }
+  const showSwatch = !segments && isRenderableColorLiteral(value.trim());
   return (
     <span
       data-testid={testid}
@@ -135,6 +138,12 @@ export function DiffValue({
         muted && "text-muted-foreground",
       )}
     >
+      {showSwatch ? (
+        <ColorSwatch
+          color={value.trim()}
+          className="mr-1 inline-block align-[-1px]"
+        />
+      ) : null}
       {segments
         ? segments.map((s, i) => (
             <span key={i}>
@@ -259,5 +268,38 @@ function collapseShorthands(rows: StyleDiffRow[]): StyleDiffRow[] {
     if (!consumed.has(row.prop)) result.push(row);
   }
 
-  return result;
+  return collapseBorderShorthand(result);
+}
+
+// 2차 패스: 1차 축약 결과에 border-width/style/color 세 행이 모두 있으면
+// `border: W S C` 한 행으로 합친다. 하나라도 없으면(부분 변경) 통합하지 않는다.
+function collapseBorderShorthand(rows: StyleDiffRow[]): StyleDiffRow[] {
+  if (rows.some((r) => r.prop === "border")) return rows;
+  const w = rows.find((r) => r.prop === "border-width");
+  const s = rows.find((r) => r.prop === "border-style");
+  const c = rows.find((r) => r.prop === "border-color");
+  if (!w || !s || !c) return rows;
+
+  const rawAsIs = `${w.asIs} ${s.asIs} ${c.asIs}`;
+  const merged: StyleDiffRow = {
+    prop: "border",
+    asIs: rawAsIs.trim() === "" ? "" : rawAsIs,
+    toBe: `${w.toBe} ${s.toBe} ${c.toBe}`,
+  };
+
+  const consumed = new Set([
+    "border-width",
+    "border-style",
+    "border-color",
+  ]);
+  const out: StyleDiffRow[] = [];
+  for (const row of rows) {
+    if (consumed.has(row.prop)) {
+      // 정렬상 가장 앞서는 border-color 자리에 끼워 순서 유지.
+      if (row.prop === "border-color") out.push(merged);
+      continue;
+    }
+    out.push(row);
+  }
+  return out;
 }

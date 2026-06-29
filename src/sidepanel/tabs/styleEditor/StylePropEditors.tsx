@@ -62,18 +62,59 @@ export function Row2({ children }: { children: React.ReactNode }) {
   return <div className="grid grid-cols-2 gap-2">{children}</div>;
 }
 
-function sidesAllEqual(
+// 4면 baseline: 편집값(inlineStyle) → specified → computed 순, 없으면 "".
+function sideBaselineValues(
   props: string[],
   inlineStyle: Record<string, string>,
   selection: EditorSelection | null,
-): boolean {
-  const vals = props.map((p) => {
+): string[] {
+  return props.map((p) => {
     if (inlineStyle[p]) return inlineStyle[p];
     if (selection?.specifiedStyles[p]) return selection.specifiedStyles[p];
     if (selection?.computedStyles[p]) return selection.computedStyles[p];
     return "";
   });
-  return vals.length > 0 && vals.every((v) => v === vals[0] && v !== "");
+}
+
+// 4면 편집값(inlineStyle)이 모두 동일하면 그 값, 일부라도 없거나 다르면 "".
+export function commonEditValue(
+  props: string[],
+  inlineStyle: Record<string, string>,
+): string {
+  const vals = props.map((p) => inlineStyle[p] ?? "");
+  return vals.length > 0 && vals.every((v) => v === vals[0] && v !== "")
+    ? vals[0]
+    : "";
+}
+
+// 4면 baseline이 모두 동일하면 그 값, 아니면 "".
+export function commonBaseline(
+  props: string[],
+  inlineStyle: Record<string, string>,
+  selection: EditorSelection | null,
+): string {
+  const vals = sideBaselineValues(props, inlineStyle, selection);
+  return vals.length > 0 && vals.every((v) => v === vals[0] && v !== "")
+    ? vals[0]
+    : "";
+}
+
+// baseline 4면이 서로 다르면 true (전부 같으면 — 빈 값 포함 — false).
+export function sidesMixed(
+  props: string[],
+  inlineStyle: Record<string, string>,
+  selection: EditorSelection | null,
+): boolean {
+  const vals = sideBaselineValues(props, inlineStyle, selection);
+  return vals.length > 0 && !vals.every((v) => v === vals[0]);
+}
+
+export function sidesAllEqual(
+  props: string[],
+  inlineStyle: Record<string, string>,
+  selection: EditorSelection | null,
+): boolean {
+  return commonBaseline(props, inlineStyle, selection) !== "";
 }
 
 function useLinkedProps(props: string[]) {
@@ -112,6 +153,22 @@ function useLinkedProps(props: string[]) {
   );
 
   return { linked, toggle: () => setLinked((v) => !v), setAllProps };
+}
+
+// linked 단일 필드 전용 — merged 상태를 분리 primitive 셀렉터로 구독(객체 단일 셀렉터는
+// Object.is 실패로 매 변경 리렌더). 이 훅을 쓰는 컴포넌트는 linked일 때만 마운트돼야
+// unlinked에서 불필요 구독이 안 생긴다(useLinkedProps와 분리한 이유).
+function useMergedSides(props: string[]) {
+  const value = useEditorStore((s) =>
+    commonEditValue(props, s.styleEdits.inlineStyle),
+  );
+  const placeholder = useEditorStore((s) =>
+    commonBaseline(props, s.styleEdits.inlineStyle, s.selection),
+  );
+  const mixed = useEditorStore((s) =>
+    sidesMixed(props, s.styleEdits.inlineStyle, s.selection),
+  );
+  return { value, placeholder, mixed };
 }
 
 function LinkToggle({
@@ -293,6 +350,9 @@ export function AlignmentProp({ label, prop }: { label: string; prop: string }) 
       : current === "end"
         ? "right"
         : "left";
+  // 명시 edit이 없으면(value 없음) 표시되는 highlight는 상속/computed 기본값이므로
+  // 활성 탭을 디밍해 "명시 지정"과 구분 — SelectProp의 isDefault 처리와 일관.
+  const isDefault = !value;
 
   return (
     <PropRow label={label} source={source}>
@@ -300,7 +360,12 @@ export function AlignmentProp({ label, prop }: { label: string; prop: string }) 
         value={resolvedValue}
         onValueChange={(v) => set(v === resolvedValue && value ? "" : v)}
       >
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList
+          className={cn(
+            "grid w-full grid-cols-4",
+            isDefault && "[&_[data-state=active]]:opacity-50",
+          )}
+        >
           {options.map((o) => (
             <TabsTrigger key={o.v} value={o.v} title={o.title} aria-label={o.title}>
               {o.icon}
@@ -417,21 +482,20 @@ function SideStyleSelect({
   prop,
   side,
   sideTitle,
-  onLinkedCommit,
+  controlled,
 }: {
   prop: string;
   side: keyof typeof SIDE_LINES;
   sideTitle: string;
-  onLinkedCommit?: (value: string) => void;
+  controlled?: { value: string; placeholder: string; set: (v: string) => void };
 }) {
-  const { value, placeholder, set } = useStyleProp(prop);
+  const styleProp = useStyleProp(prop);
+  const value = controlled?.value ?? styleProp.value;
+  const placeholder = controlled?.placeholder ?? styleProp.placeholder;
+  const set = controlled?.set ?? styleProp.set;
   const current = (value || placeholder || "").trim();
   const isDefault = !value && isKnownDefault(prop, placeholder);
-  const commit = (v: string) => {
-    const next = v === "__empty__" ? "" : v;
-    if (onLinkedCommit) onLinkedCommit(next);
-    else set(next);
-  };
+  const commit = (v: string) => set(v === "__empty__" ? "" : v);
   return (
     <Select value={current} onValueChange={commit}>
       <SelectTrigger
@@ -442,12 +506,19 @@ function SideStyleSelect({
         title={`${sideTitle} · ${current || "none"}`}
         aria-label={sideTitle}
       >
-        <SideStyleIcon
-          side={side}
-          style={current}
-          className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
-        />
-        <span className="min-w-0 flex-1 truncate text-left text-xs">
+        {controlled ? null : (
+          <SideStyleIcon
+            side={side}
+            style={current}
+            className="h-3.5 w-3.5 shrink-0 text-muted-foreground"
+          />
+        )}
+        <span
+          className={cn(
+            "min-w-0 flex-1 truncate text-left text-xs",
+            controlled && !value && !isDefault && "text-muted-foreground",
+          )}
+        >
           {current || "none"}
         </span>
       </SelectTrigger>
@@ -462,6 +533,34 @@ function SideStyleSelect({
   );
 }
 
+// linked 단일 select — linked일 때만 마운트돼 merged 셀렉터를 구독한다.
+function MergedStyleSelect({
+  props,
+  set,
+  sideTitle,
+}: {
+  props: string[];
+  set: (v: string) => void;
+  sideTitle: string;
+}) {
+  const t = useT();
+  const merged = useMergedSides(props);
+  return (
+    <div className="min-w-0 flex-1">
+      <SideStyleSelect
+        prop={props[0]}
+        side="top"
+        sideTitle={sideTitle}
+        controlled={{
+          value: merged.value,
+          placeholder: merged.mixed ? t("prop.mixed") : merged.placeholder,
+          set,
+        }}
+      />
+    </div>
+  );
+}
+
 export function QuadStyleProp({ label }: { label: string }) {
   const t = useT();
   const { linked, toggle, setAllProps } = useLinkedProps(BORDER_STYLE_PROPS);
@@ -470,35 +569,69 @@ export function QuadStyleProp({ label }: { label: string }) {
   return (
     <PropRow label={label} source={source}>
       <div className="flex gap-1">
-        <div className="grid flex-1 grid-cols-4 gap-1">
-          <SideStyleSelect
-            prop={BORDER_STYLE_PROPS[0]}
-            side="top"
-            sideTitle={t("prop.side.top")}
-            onLinkedCommit={linked ? setAllProps : undefined}
+        {linked ? (
+          <MergedStyleSelect
+            props={BORDER_STYLE_PROPS}
+            set={setAllProps}
+            sideTitle={t("prop.side.all")}
           />
-          <SideStyleSelect
-            prop={BORDER_STYLE_PROPS[1]}
-            side="right"
-            sideTitle={t("prop.side.right")}
-            onLinkedCommit={linked ? setAllProps : undefined}
-          />
-          <SideStyleSelect
-            prop={BORDER_STYLE_PROPS[2]}
-            side="bottom"
-            sideTitle={t("prop.side.bottom")}
-            onLinkedCommit={linked ? setAllProps : undefined}
-          />
-          <SideStyleSelect
-            prop={BORDER_STYLE_PROPS[3]}
-            side="left"
-            sideTitle={t("prop.side.left")}
-            onLinkedCommit={linked ? setAllProps : undefined}
-          />
-        </div>
+        ) : (
+          <div className="grid flex-1 grid-cols-4 gap-1">
+            <SideStyleSelect
+              prop={BORDER_STYLE_PROPS[0]}
+              side="top"
+              sideTitle={t("prop.side.top")}
+            />
+            <SideStyleSelect
+              prop={BORDER_STYLE_PROPS[1]}
+              side="right"
+              sideTitle={t("prop.side.right")}
+            />
+            <SideStyleSelect
+              prop={BORDER_STYLE_PROPS[2]}
+              side="bottom"
+              sideTitle={t("prop.side.bottom")}
+            />
+            <SideStyleSelect
+              prop={BORDER_STYLE_PROPS[3]}
+              side="left"
+              sideTitle={t("prop.side.left")}
+            />
+          </div>
+        )}
         <LinkToggle linked={linked} onToggle={toggle} />
       </div>
     </PropRow>
+  );
+}
+
+// linked 단일 필드(ValueCombobox) — linked일 때만 마운트돼 merged 셀렉터를 구독한다.
+// QuadProp/RadiusProp/GapPairProp 공용(아이콘·iconTitle·testId만 다름).
+function MergedSideField({
+  props,
+  set,
+  iconTitle,
+  testId,
+}: {
+  props: string[];
+  set: (v: string) => void;
+  iconTitle: string;
+  testId?: string;
+}) {
+  const t = useT();
+  const merged = useMergedSides(props);
+  return (
+    <div className="min-w-0 flex-1" data-testid={testId}>
+      <ValueCombobox
+        prop={props[0]}
+        iconTitle={iconTitle}
+        controlled={{
+          value: merged.value,
+          placeholder: merged.mixed ? t("prop.mixed") : merged.placeholder,
+          set,
+        }}
+      />
+    </div>
   );
 }
 
@@ -528,36 +661,41 @@ export function QuadProp({
   return (
     <PropRow label={label} source={source}>
       <div className="flex gap-1">
-        <div className="grid flex-1 grid-cols-4 gap-1">
-          <ValueCombobox
-            prop={props[0]}
-            compact
-            icon={<SideEdgeIcon side="top" className="h-3.5 w-3.5" />}
-            iconTitle={t("prop.side.top")}
-            onLinkedCommit={linked ? setAllProps : undefined}
+        {linked ? (
+          <MergedSideField
+            props={props}
+            set={setAllProps}
+            iconTitle={t("prop.side.all")}
+            testId="merged-side-field"
           />
-          <ValueCombobox
-            prop={props[1]}
-            compact
-            icon={<SideEdgeIcon side="right" className="h-3.5 w-3.5" />}
-            iconTitle={t("prop.side.right")}
-            onLinkedCommit={linked ? setAllProps : undefined}
-          />
-          <ValueCombobox
-            prop={props[2]}
-            compact
-            icon={<SideEdgeIcon side="bottom" className="h-3.5 w-3.5" />}
-            iconTitle={t("prop.side.bottom")}
-            onLinkedCommit={linked ? setAllProps : undefined}
-          />
-          <ValueCombobox
-            prop={props[3]}
-            compact
-            icon={<SideEdgeIcon side="left" className="h-3.5 w-3.5" />}
-            iconTitle={t("prop.side.left")}
-            onLinkedCommit={linked ? setAllProps : undefined}
-          />
-        </div>
+        ) : (
+          <div className="grid flex-1 grid-cols-4 gap-1" data-testid="quad-sides">
+            <ValueCombobox
+              prop={props[0]}
+              compact
+              icon={<SideEdgeIcon side="top" className="h-3.5 w-3.5" />}
+              iconTitle={t("prop.side.top")}
+            />
+            <ValueCombobox
+              prop={props[1]}
+              compact
+              icon={<SideEdgeIcon side="right" className="h-3.5 w-3.5" />}
+              iconTitle={t("prop.side.right")}
+            />
+            <ValueCombobox
+              prop={props[2]}
+              compact
+              icon={<SideEdgeIcon side="bottom" className="h-3.5 w-3.5" />}
+              iconTitle={t("prop.side.bottom")}
+            />
+            <ValueCombobox
+              prop={props[3]}
+              compact
+              icon={<SideEdgeIcon side="left" className="h-3.5 w-3.5" />}
+              iconTitle={t("prop.side.left")}
+            />
+          </div>
+        )}
         <LinkToggle linked={linked} onToggle={toggle} />
       </div>
     </PropRow>
@@ -604,22 +742,28 @@ export function GapPairProp() {
   return (
     <PropRow label="gap" source={source}>
       <div className="flex gap-1">
-        <div className="grid flex-1 grid-cols-2 gap-1">
-          <ValueCombobox
-            prop="row-gap"
-            compact
-            icon={<Rows2 className="h-3.5 w-3.5" />}
-            iconTitle={t("prop.gap.row")}
-            onLinkedCommit={linked ? setAllProps : undefined}
+        {linked ? (
+          <MergedSideField
+            props={GAP_PROPS}
+            set={setAllProps}
+            iconTitle={t("prop.axis.all")}
           />
-          <ValueCombobox
-            prop="column-gap"
-            compact
-            icon={<Columns2 className="h-3.5 w-3.5" />}
-            iconTitle={t("prop.gap.column")}
-            onLinkedCommit={linked ? setAllProps : undefined}
-          />
-        </div>
+        ) : (
+          <div className="grid flex-1 grid-cols-2 gap-1">
+            <ValueCombobox
+              prop="row-gap"
+              compact
+              icon={<Rows2 className="h-3.5 w-3.5" />}
+              iconTitle={t("prop.gap.row")}
+            />
+            <ValueCombobox
+              prop="column-gap"
+              compact
+              icon={<Columns2 className="h-3.5 w-3.5" />}
+              iconTitle={t("prop.gap.column")}
+            />
+          </div>
+        )}
         <LinkToggle linked={linked} onToggle={toggle} />
       </div>
     </PropRow>
@@ -641,36 +785,40 @@ export function RadiusProp() {
   return (
     <PropRow label="radius" source={source}>
       <div className="flex gap-1">
-        <div className="grid flex-1 grid-cols-4 gap-1">
-          <ValueCombobox
-            prop={RADIUS_PROPS[0]}
-            compact
-            icon={<CornerRadiusIcon corner="tl" className="h-3.5 w-3.5" />}
-            iconTitle={t("prop.corner.topLeft")}
-            onLinkedCommit={linked ? setAllProps : undefined}
+        {linked ? (
+          <MergedSideField
+            props={RADIUS_PROPS}
+            set={setAllProps}
+            iconTitle={t("prop.corner.all")}
           />
-          <ValueCombobox
-            prop={RADIUS_PROPS[1]}
-            compact
-            icon={<CornerRadiusIcon corner="tr" className="h-3.5 w-3.5" />}
-            iconTitle={t("prop.corner.topRight")}
-            onLinkedCommit={linked ? setAllProps : undefined}
-          />
-          <ValueCombobox
-            prop={RADIUS_PROPS[2]}
-            compact
-            icon={<CornerRadiusIcon corner="br" className="h-3.5 w-3.5" />}
-            iconTitle={t("prop.corner.bottomRight")}
-            onLinkedCommit={linked ? setAllProps : undefined}
-          />
-          <ValueCombobox
-            prop={RADIUS_PROPS[3]}
-            compact
-            icon={<CornerRadiusIcon corner="bl" className="h-3.5 w-3.5" />}
-            iconTitle={t("prop.corner.bottomLeft")}
-            onLinkedCommit={linked ? setAllProps : undefined}
-          />
-        </div>
+        ) : (
+          <div className="grid flex-1 grid-cols-4 gap-1">
+            <ValueCombobox
+              prop={RADIUS_PROPS[0]}
+              compact
+              icon={<CornerRadiusIcon corner="tl" className="h-3.5 w-3.5" />}
+              iconTitle={t("prop.corner.topLeft")}
+            />
+            <ValueCombobox
+              prop={RADIUS_PROPS[1]}
+              compact
+              icon={<CornerRadiusIcon corner="tr" className="h-3.5 w-3.5" />}
+              iconTitle={t("prop.corner.topRight")}
+            />
+            <ValueCombobox
+              prop={RADIUS_PROPS[2]}
+              compact
+              icon={<CornerRadiusIcon corner="br" className="h-3.5 w-3.5" />}
+              iconTitle={t("prop.corner.bottomRight")}
+            />
+            <ValueCombobox
+              prop={RADIUS_PROPS[3]}
+              compact
+              icon={<CornerRadiusIcon corner="bl" className="h-3.5 w-3.5" />}
+              iconTitle={t("prop.corner.bottomLeft")}
+            />
+          </div>
+        )}
         <LinkToggle linked={linked} onToggle={toggle} />
       </div>
     </PropRow>

@@ -15,6 +15,8 @@ export const PLATFORM_FILE_SIZE_LIMIT: Record<PlatformId, number | null> = {
   notion: 5 * MB,
   gitlab: 10 * MB,
   asana: null,
+  clickup: null,
+  slack: null,
 };
 
 export interface AttachmentLimitWarning {

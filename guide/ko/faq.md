@@ -12,7 +12,7 @@
 
 ## 어떤 이슈 트래커에 보낼 수 있나요?
 
-Jira·GitHub·Linear·Notion·GitLab·Asana — 여섯 곳을 지원합니다. 팀이 쓰는 도구가 무엇이든 따로 갈아탈 필요 없이, 평소 쓰던 트래커에 그대로 이슈를 올리시면 됩니다. 연결은 [연동 설정](integrations/README.md)에서 한 번만 해두면 됩니다.
+Jira·GitHub·Linear·Notion·GitLab·Asana·ClickUp — 일곱 개 트래커를 지원하고, 여기에 **Slack**까지 더해 채널·DM으로 가볍게 공유할 수도 있습니다. 팀이 쓰는 도구가 무엇이든 따로 갈아탈 필요 없이 평소 쓰던 트래커에 그대로 이슈를 올리거나, 정식 이슈 전에 Slack으로 먼저 알려보세요. 연결은 [연동 설정](integrations/README.md)에서 한 번만 해두면 됩니다.
 
 ## 개발자가 아니어도 쓸 수 있나요?
 

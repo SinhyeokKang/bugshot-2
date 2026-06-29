@@ -1,7 +1,9 @@
 import { useEffect, useState, type ComponentType } from "react";
 import { Loader2 } from "lucide-react";
+import { SlackIcon } from "@/components/icons/SlackIcon";
 import {
   SiAsana,
+  SiClickup,
   SiGithub,
   SiGitlab,
   SiJirasoftware,
@@ -51,6 +53,14 @@ import {
   AsanaIssueFields,
   type AsanaIssueFieldsValue,
 } from "./asanaFields/AsanaIssueFields";
+import {
+  ClickupIssueFields,
+  type ClickupIssueFieldsValue,
+} from "./clickupFields/ClickupIssueFields";
+import {
+  SlackIssueFields,
+  type SlackIssueFieldsValue,
+} from "./slackFields/SlackIssueFields";
 import { JiraIssueFields } from "./jiraFields/JiraIssueFields";
 
 type SubmitState =
@@ -77,6 +87,10 @@ export interface SubmitFieldsDialogProps {
   setGitlabFields: (patch: Partial<GitlabIssueFieldsValue>) => void;
   asanaFields: AsanaIssueFieldsValue;
   setAsanaFields: (patch: Partial<AsanaIssueFieldsValue>) => void;
+  clickupFields: ClickupIssueFieldsValue;
+  setClickupFields: (patch: Partial<ClickupIssueFieldsValue>) => void;
+  slackFields: SlackIssueFieldsValue;
+  setSlackFields: (patch: Partial<SlackIssueFieldsValue>) => void;
   onNotionSchemaResolved: (schema: NotionDatabaseSchema | null) => void;
   onSubmit: (platform: PlatformId) => Promise<NormalizedSubmitResult>;
   onSuccess?: (result: NormalizedSubmitResult) => void;
@@ -89,6 +103,8 @@ const TABS_GRID_COLS: Record<number, string> = {
   4: "grid-cols-4",
   5: "grid-cols-5",
   6: "grid-cols-6",
+  7: "grid-cols-7",
+  8: "grid-cols-8",
 };
 
 const PLATFORM_TABS: {
@@ -102,6 +118,9 @@ const PLATFORM_TABS: {
   { id: "notion", Icon: SiNotion, invertOnDark: true },
   { id: "gitlab", Icon: SiGitlab },
   { id: "asana", Icon: SiAsana },
+  { id: "clickup", Icon: SiClickup },
+  // lucide 아이콘은 color="default"(브랜드 hex)를 못 받아 투명해진다 → currentColor로 렌더.
+  { id: "slack", Icon: ({ className }) => <SlackIcon className={className} /> },
 ];
 
 export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
@@ -125,6 +144,10 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
     setGitlabFields,
     asanaFields,
     setAsanaFields,
+    clickupFields,
+    setClickupFields,
+    slackFields,
+    setSlackFields,
     onNotionSchemaResolved,
     onSubmit,
     onSuccess,
@@ -136,6 +159,8 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
   const notionAccount = useSettingsStore((s) => s.accounts.notion);
   const gitlabAccount = useSettingsStore((s) => s.accounts.gitlab);
   const asanaAccount = useSettingsStore((s) => s.accounts.asana);
+  const clickupAccount = useSettingsStore((s) => s.accounts.clickup);
+  const slackAccount = useSettingsStore((s) => s.accounts.slack);
   const [submit, setSubmit] = useState<SubmitState>({ status: "idle" });
 
   useEffect(() => {
@@ -148,33 +173,45 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
   const notionConfigured = isNotionAccountComplete(notionAccount);
   const gitlabConfigured = !!gitlabAccount;
   const asanaConfigured = !!asanaAccount;
-  const platformConfigured =
-    platform === "jira"
-      ? jiraConfigured
-      : platform === "github"
-        ? ghConfigured
-        : platform === "linear"
-          ? linearConfigured
-          : platform === "gitlab"
-            ? gitlabConfigured
-            : platform === "asana"
-              ? asanaConfigured
-              : notionConfigured;
+  const clickupConfigured = !!clickupAccount;
+  const slackConfigured = !!slackAccount;
+  // 삼항 체인은 clickup 누락이 조용히 Notion으로 새므로 exhaustive switch로 전환 (회귀 방지).
+  const platformConfigured = ((): boolean => {
+    switch (platform) {
+      case "jira": return jiraConfigured;
+      case "github": return ghConfigured;
+      case "linear": return linearConfigured;
+      case "gitlab": return gitlabConfigured;
+      case "asana": return asanaConfigured;
+      case "clickup": return clickupConfigured;
+      case "slack": return slackConfigured;
+      case "notion": return notionConfigured;
+      default: {
+        const _exhaustive: never = platform;
+        return _exhaustive;
+      }
+    }
+  })();
+
+  const fieldsReady = ((): boolean => {
+    switch (platform) {
+      case "jira": return !!jiraFields.issueTypeId;
+      case "github": return !!ghFields.owner && !!ghFields.repo;
+      case "linear": return !!linearFields.teamId;
+      case "gitlab": return !!gitlabFields.projectId;
+      case "asana": return !!asanaFields.workspaceGid;
+      case "clickup": return !!clickupFields.workspaceId && !!clickupFields.listId;
+      case "slack": return !!slackFields.channelId;
+      case "notion": return !!notionFields.databaseId;
+      default: {
+        const _exhaustive: never = platform;
+        return _exhaustive;
+      }
+    }
+  })();
 
   const canSubmit =
-    submit.status !== "submitting" &&
-    platformConfigured &&
-    (platform === "jira"
-      ? !!jiraFields.issueTypeId
-      : platform === "github"
-        ? !!ghFields.owner && !!ghFields.repo
-        : platform === "linear"
-          ? !!linearFields.teamId
-          : platform === "gitlab"
-            ? !!gitlabFields.projectId
-            : platform === "asana"
-              ? !!asanaFields.workspaceGid
-              : !!notionFields.databaseId);
+    submit.status !== "submitting" && platformConfigured && fieldsReady;
 
   async function handleSubmit() {
     if (!canSubmit) return;
@@ -192,6 +229,8 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
         linear: linearFields.cc?.length,
         gitlab: gitlabFields.cc?.length,
         asana: asanaFields.cc?.length,
+        clickup: clickupFields.cc?.length,
+        slack: undefined,
         notion: notionFields.cc?.length,
       }[platform];
       toast.error(
@@ -263,6 +302,14 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
           asanaConfigured ? (
             <AsanaIssueFields value={asanaFields} onChange={setAsanaFields} />
           ) : null
+        ) : platform === "clickup" ? (
+          clickupConfigured ? (
+            <ClickupIssueFields value={clickupFields} onChange={setClickupFields} />
+          ) : null
+        ) : platform === "slack" ? (
+          slackConfigured ? (
+            <SlackIssueFields value={slackFields} onChange={setSlackFields} />
+          ) : null
         ) : notionConfigured ? (
           <NotionIssueFields
             value={notionFields}
@@ -281,6 +328,7 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
             {t("common.close")}
           </Button>
           <Button
+            data-testid="submit-issue-confirm"
             onClick={() => void handleSubmit()}
             disabled={!canSubmit}
             className="relative"

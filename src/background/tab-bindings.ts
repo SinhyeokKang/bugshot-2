@@ -1,4 +1,3 @@
-import { BROAD_HOST_ORIGINS } from "@/lib/broad-host-origins";
 import { FROZEN_PHASES, originOf, pageKeyOf, sessionKey } from "@/lib/session-keys";
 import { isSupportedUrl } from "@/lib/url-support";
 import { deleteNetworkLog, deleteConsoleLog, deleteActionLog } from "@/store/blob-db";
@@ -112,8 +111,8 @@ type NavigationAction =
   | "deactivate";
 
 // cross-document 네비게이션 시 패널 처리 판정.
-// 계약: sameOrigin=true면 호출부는 permissions.contains를 조회하지 않고
-// broadGranted=false 고정 전달(effectiveSameOrigin이 이미 true라 결과 무영향).
+// <all_urls> required 승격 후 호출부는 broadGranted=true 고정 전달 — broadGranted=false 입력은
+// 프로덕션에서 도달 불가하며 순수함수 회귀 자산(tab-bindings.test.ts legacyCases)으로만 남는다.
 export function resolveNavigationAction(input: {
   preserved: boolean;
   sameOrigin: boolean;
@@ -145,10 +144,9 @@ export function isBroadCoveredUrl(url: string | undefined): boolean {
 }
 
 // 메인 프레임 cross-document 네비게이션 시작 시 호출.
-// same-origin이면 패널을 유지하고 stale 세션만 정리, cross-origin이면 패널을 닫는다.
-// 예외: 광역 host 권한 보유 + 새 URL이 광역 커버(http/https) 지원 URL이면
-// cross-origin도 same-origin처럼 패널 유지.
-// URL을 못 읽는 경우(activeTab 만료 + 광역 권한 미부여)는 cross-origin으로 간주한다.
+// same-origin이면 패널을 유지하고 stale 세션만 정리한다.
+// <all_urls>가 required라 광역 권한은 항상 보유 — cross-origin이라도 새 URL이 광역 커버
+// (http/https) 지원 URL이면 same-origin처럼 패널을 유지하고, file: 등 비커버 URL에서만 닫는다.
 async function deactivatePanelIfCrossOrigin(
   tabId: number,
   newUrl: string | undefined,
@@ -174,22 +172,12 @@ async function deactivatePanelIfCrossOrigin(
     const sameOrigin =
       oldOrigin != null && newOrigin != null && oldOrigin === newOrigin;
 
-    let broadGranted = false;
-    if (!sameOrigin) {
-      try {
-        broadGranted = await chrome.permissions.contains({
-          origins: BROAD_HOST_ORIGINS,
-        });
-      } catch {
-        // permissions API 실패 시 미보유로 간주(현행 분기 폴백)
-      }
-    }
-
+    // <all_urls>가 required라 광역 권한은 항상 보유 — 분기 판정은 newUrl 커버 여부에만 달림.
     const action = resolveNavigationAction({
       preserved,
       sameOrigin,
       pageKeyChanged: pageKeyOf(refUrl) !== pageKeyOf(newUrl),
-      broadGranted,
+      broadGranted: true,
       newUrlBroadCovered: isBroadCoveredUrl(newUrl),
     });
 

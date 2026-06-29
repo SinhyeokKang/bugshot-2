@@ -19,6 +19,14 @@ import {
   initialAsanaFields,
   type AsanaIssueFieldsValue,
 } from "@/sidepanel/tabs/asanaFields/AsanaIssueFields";
+import {
+  initialClickupFields,
+  type ClickupIssueFieldsValue,
+} from "@/sidepanel/tabs/clickupFields/ClickupIssueFields";
+import {
+  initialSlackFields,
+  type SlackIssueFieldsValue,
+} from "@/sidepanel/tabs/slackFields/SlackIssueFields";
 
 type GhFieldsInitInput = Parameters<typeof initialGhFields>[0];
 type GhFieldsDefaults = Parameters<typeof initialGhFields>[1];
@@ -30,6 +38,10 @@ type GitlabFieldsInitInput = Parameters<typeof initialGitlabFields>[0];
 type GitlabFieldsDefaults = Parameters<typeof initialGitlabFields>[1];
 type AsanaFieldsInitInput = Parameters<typeof initialAsanaFields>[0];
 type AsanaFieldsDefaults = Parameters<typeof initialAsanaFields>[1];
+type ClickupFieldsInitInput = Parameters<typeof initialClickupFields>[0];
+type ClickupFieldsDefaults = Parameters<typeof initialClickupFields>[1];
+type SlackFieldsInitInput = Parameters<typeof initialSlackFields>[0];
+type SlackFieldsDefaults = Parameters<typeof initialSlackFields>[1];
 
 export interface UsePlatformFieldsInput {
   open: boolean;
@@ -43,6 +55,10 @@ export interface UsePlatformFieldsInput {
   gitlabDefaults: GitlabFieldsDefaults;
   lastAsanaSubmit: AsanaFieldsInitInput;
   asanaDefaults: AsanaFieldsDefaults;
+  lastClickupSubmit: ClickupFieldsInitInput;
+  clickupDefaults: ClickupFieldsDefaults;
+  lastSlackSubmit: SlackFieldsInitInput;
+  slackDefaults: SlackFieldsDefaults;
   // DraftDetailDialog가 draft 전환 시 idempotent reset 트리거하는 추가 deps.
   // IssueCreateModal은 미사용 (undefined로 두면 effect 동작은 동일).
   resetKey?: string;
@@ -59,6 +75,10 @@ export interface PlatformFieldsState {
   setGitlabFields: (patch: Partial<GitlabIssueFieldsValue>) => void;
   asanaFields: AsanaIssueFieldsValue;
   setAsanaFields: (patch: Partial<AsanaIssueFieldsValue>) => void;
+  clickupFields: ClickupIssueFieldsValue;
+  setClickupFields: (patch: Partial<ClickupIssueFieldsValue>) => void;
+  slackFields: SlackIssueFieldsValue;
+  setSlackFields: (patch: Partial<SlackIssueFieldsValue>) => void;
 }
 
 export function usePlatformFields(input: UsePlatformFieldsInput): PlatformFieldsState {
@@ -132,6 +152,34 @@ export function usePlatformFields(input: UsePlatformFieldsInput): PlatformFields
     }
   }, [input.open, input.lastAsanaSubmit, input.asanaDefaults, input.resetKey]);
 
+  const [clickupFields, setClickupFieldsState] = useState<ClickupIssueFieldsValue>(() =>
+    initialClickupFields(input.lastClickupSubmit, input.clickupDefaults),
+  );
+  const setClickupFields = useCallback(
+    (patch: Partial<ClickupIssueFieldsValue>) =>
+      setClickupFieldsState((s) => ({ ...s, ...patch })),
+    [],
+  );
+  useEffect(() => {
+    if (input.open) {
+      setClickupFieldsState(initialClickupFields(input.lastClickupSubmit, input.clickupDefaults));
+    }
+  }, [input.open, input.lastClickupSubmit, input.clickupDefaults, input.resetKey]);
+
+  const [slackFields, setSlackFieldsState] = useState<SlackIssueFieldsValue>(() =>
+    initialSlackFields(input.lastSlackSubmit, input.slackDefaults),
+  );
+  const setSlackFields = useCallback(
+    (patch: Partial<SlackIssueFieldsValue>) =>
+      setSlackFieldsState((s) => ({ ...s, ...patch })),
+    [],
+  );
+  useEffect(() => {
+    if (input.open) {
+      setSlackFieldsState(initialSlackFields(input.lastSlackSubmit, input.slackDefaults));
+    }
+  }, [input.open, input.lastSlackSubmit, input.slackDefaults, input.resetKey]);
+
   return {
     ghFields,
     setGhFields,
@@ -143,5 +191,9 @@ export function usePlatformFields(input: UsePlatformFieldsInput): PlatformFields
     setGitlabFields,
     asanaFields,
     setAsanaFields,
+    clickupFields,
+    setClickupFields,
+    slackFields,
+    setSlackFields,
   };
 }

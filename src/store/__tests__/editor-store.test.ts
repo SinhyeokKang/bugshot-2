@@ -1139,6 +1139,7 @@ describe("updateSelectionStyles — 편집 중 prop baseline 보존", () => {
 
     // class 편집이 유발한 selectionUpdated (인라인이 새어든 specified/computed)
     useEditorStore.getState().updateSelectionStyles({
+      selector: "#el1",
       specifiedStyles: { color: "rgb(255, 0, 0)", "padding-top": "20px" },
       computedStyles: { color: "rgb(255, 0, 0)", "padding-top": "20px" },
       propSources: { color: "[inline]", "padding-top": "[inline]" },
@@ -1148,5 +1149,36 @@ describe("updateSelectionStyles — 편집 중 prop baseline 보존", () => {
     expect(sel.specifiedStyles.color).toBe("rgb(50, 50, 50)");
     expect(sel.specifiedStyles["padding-top"]).toBeUndefined();
     expect(sel.computedStyles["padding-top"]).toBe("0px");
+  });
+
+  it("선택자가 다른 stale 보강은 무시된다 (요소 전환 후 늦게 도착한 cross-origin)", () => {
+    useEditorStore.setState({
+      selection: {
+        selector: "#el-B",
+        tagName: "div",
+        classList: [],
+        specifiedStyles: { color: "rgb(0, 0, 255)" },
+        computedStyles: { color: "rgb(0, 0, 255)" },
+        propSources: { color: ".b" },
+        hasParent: true,
+        hasChild: false,
+        text: null,
+        viewport: { width: 1440, height: 900 },
+        capturedAt: 1700000000000,
+      },
+    });
+
+    // #el-A를 선택했을 때 만들어진 보강이 #el-B 선택 중 뒤늦게 도착.
+    useEditorStore.getState().updateSelectionStyles({
+      selector: "#el-A",
+      specifiedStyles: { padding: "99px" },
+      computedStyles: { padding: "99px" },
+      propSources: { padding: ".a" },
+    });
+
+    const sel = useEditorStore.getState().selection!;
+    expect(sel.selector).toBe("#el-B");
+    expect(sel.specifiedStyles.color).toBe("rgb(0, 0, 255)");
+    expect(sel.specifiedStyles.padding).toBeUndefined();
   });
 });

@@ -33,11 +33,7 @@ interface ActionLogContentProps {
   onScrollComplete?: () => void;
 }
 
-// navigation만 콘솔 info-틴트 슬롯 재사용, click/input은 중립.
-function kindColor(kind: ActionEntryKind): string {
-  return kind === "navigation" ? "text-blue-600 dark:text-blue-400" : "text-foreground";
-}
-
+// navigation만 콘솔 info-틴트 배경 재사용, click/input은 중립(배경 없음).
 function kindBgColor(kind: ActionEntryKind): string {
   return kind === "navigation" ? "bg-blue-100 dark:bg-blue-950/50" : "";
 }
@@ -208,15 +204,16 @@ export function ActionLogContent({ entries, startedAt, flush, syncBaseMs, onSeek
           <div className="min-w-0 overflow-x-auto">
             <TabsList>
               {availableFilters.map((f) => (
-                <TabsTrigger key={f} value={f}>
+                <TabsTrigger key={f} value={f} data-testid={`action-filter-${f}`}>
                   {filterLabel[f]}
                 </TabsTrigger>
               ))}
             </TabsList>
           </div>
-          <div className="relative ml-auto w-full max-w-[280px]">
+          <div className="relative ml-auto w-full max-w-[200px]">
             <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
+              data-testid="action-search"
               placeholder={t("actionLog.search")}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
@@ -283,7 +280,7 @@ function ActionRow({ entry, startedAt, syncBaseMs, onSeek, isActive }: {
           <LogSeekChip ts={entry.timestamp} label={formatRelativeTime(entry.timestamp, base)} onSeek={onSeek} />
         )}
         <KindIcon kind={entry.kind} />
-        <span className={`min-w-0 flex-1 break-words leading-relaxed ${kindColor(entry.kind)}`}>
+        <span className="min-w-0 flex-1 break-words leading-relaxed">
           {renderActionContent(t, entry)}
         </span>
       </div>

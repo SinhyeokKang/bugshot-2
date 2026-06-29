@@ -1,4 +1,5 @@
 export interface PickerSelectionUpdatePayload {
+  selector: string;
   specifiedStyles: Record<string, string>;
   propSources: Record<string, string>;
   computedStyles: Record<string, string>;

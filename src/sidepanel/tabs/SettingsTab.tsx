@@ -114,14 +114,14 @@ function IssueSettingsContent() {
             <CardContent className="flex flex-col gap-3 px-3 py-3">
               {issueSections.map((section, idx) => (
                 <Fragment key={section.id}>
-                  {idx > 0 ? <Separator /> : null}
+                  {idx > 0 ? <Separator className="-mx-3" /> : null}
                   <IssueSectionRow
                     section={section}
                     onToggle={(enabled) => setIssueEnabled(section.id, enabled)}
                   />
                 </Fragment>
               ))}
-              <Separator />
+              <Separator className="-mx-3" />
               <AttachmentToggleRow
                 enabled={attachmentsEnabled}
                 onToggle={setAttachmentsEnabled}

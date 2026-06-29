@@ -131,6 +131,7 @@ export function usePickerMessages(myTabId: number | null): void {
       } else if (message.type === "picker.selectionUpdated") {
         const msg = message as Extract<PickerMessage, { type: "picker.selectionUpdated" }>;
         useEditorStore.getState().updateSelectionStyles({
+          selector: msg.payload.selector,
           specifiedStyles: msg.payload.specifiedStyles,
           propSources: msg.payload.propSources,
           computedStyles: msg.payload.computedStyles,

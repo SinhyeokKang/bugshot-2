@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/popover";
 import { useT } from "@/i18n";
 import { cn } from "@/lib/utils";
+import { ColorSwatch } from "@/sidepanel/components/ColorSwatch";
 import { useEditorStore } from "@/store/editor-store";
 import type { Token, TokenCategory } from "@/types/picker";
 import { isRenderableColorLiteral } from "./colorLiteral";
@@ -25,7 +26,11 @@ import {
   rightHintText,
   shortValue,
 } from "./valueFormat";
-import { isKnownDefault, PROP_CATEGORY } from "./propMetadata";
+import {
+  isInactiveBorderColor,
+  isKnownDefault,
+  PROP_CATEGORY,
+} from "./propMetadata";
 import { useStyleProp } from "./styleHooks";
 import { TokenChip, TokenItem } from "./TokenChip";
 import {
@@ -41,14 +46,12 @@ export function ValueCombobox({
   compact,
   icon,
   iconTitle,
-  onLinkedCommit,
   controlled,
 }: {
   prop: string;
   compact?: boolean;
   icon?: React.ReactNode;
   iconTitle?: string;
-  onLinkedCommit?: (value: string) => void;
   controlled?: { value: string; placeholder: string; set: (v: string) => void };
 }) {
   const t = useT();
@@ -58,6 +61,10 @@ export function ValueCombobox({
   const set = controlled?.set ?? styleProp.set;
   const computed = useEditorStore(
     (s) => s.selection?.computedStyles[prop] ?? "",
+  );
+  const computedStyles = useEditorStore((s) => s.selection?.computedStyles);
+  const isSpecified = useEditorStore(
+    (s) => prop in (s.selection?.specifiedStyles ?? {}),
   );
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(value);
@@ -78,7 +85,10 @@ export function ValueCombobox({
   const placeholderTokenRefs = !value ? extractTokenRefs(placeholder) : [];
   const tokenNames = tokenRefs.map((r) => r.name);
   const placeholderTokenNames = placeholderTokenRefs.map((r) => r.name);
-  const isDefault = !value && isKnownDefault(prop, placeholder);
+  const isDefault =
+    !value &&
+    (isKnownDefault(prop, placeholder) ||
+      (!isSpecified && isInactiveBorderColor(prop, computedStyles ?? {})));
   const activeTokenNames = tokenNames.length > 0 ? tokenNames : placeholderTokenNames;
   const liveFamilyPrefixes = useMemo(() => {
     const prefixes: string[] = [];
@@ -147,9 +157,7 @@ export function ValueCombobox({
   );
 
   const commit = (next: string) => {
-    const finalized = finalize(next);
-    if (onLinkedCommit) onLinkedCommit(finalized);
-    else set(finalized);
+    set(finalize(next));
     setOpen(false);
   };
 
@@ -163,10 +171,7 @@ export function ValueCombobox({
     } else {
       setPinnedPrefixes(null);
       const finalized = finalize(draft.trim());
-      if (finalized && finalized !== value) {
-        if (onLinkedCommit) onLinkedCommit(finalized);
-        else set(finalized);
-      }
+      if (finalized && finalized !== value) set(finalized);
     }
     setOpen(nextOpen);
   };
@@ -240,10 +245,7 @@ export function ValueCombobox({
           ) : value ? (
             category === "color" && isRenderableColorLiteral(value) ? (
               <span className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
-                <span
-                  className="h-2.5 w-2.5 shrink-0 rounded border border-border/60"
-                  style={{ backgroundColor: value }}
-                />
+                <ColorSwatch color={value} />
                 <span className="min-w-0 flex-1 truncate text-left">{value}</span>
               </span>
             ) : (
@@ -273,6 +275,22 @@ export function ValueCombobox({
                   {placeholderTokenHint}
                 </span>
               ) : null}
+            </span>
+          ) : category === "color" &&
+            placeholder &&
+            isRenderableColorLiteral(placeholder) ? (
+            <span className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
+              <ColorSwatch color={placeholder} />
+              <span
+                className={cn(
+                  "min-w-0 flex-1 truncate text-left",
+                  isDefault
+                    ? "text-muted-foreground/50"
+                    : "text-muted-foreground",
+                )}
+              >
+                {compact ? shortValue(placeholder) : placeholder}
+              </span>
             </span>
           ) : (
             <span
@@ -312,8 +330,7 @@ export function ValueCombobox({
               // 정규화값은 페이지에 라이브 적용하되 입력란(draft)은 raw 유지 —
               // 내가 일으킨 value 변경은 prevValue를 미리 맞춰 리싱크(60행)에서 제외한다.
               prevValue.current = normalized;
-              if (onLinkedCommit) onLinkedCommit(normalized);
-              else set(normalized);
+              set(normalized);
             }}
             icon={<PenLine className="mr-2 h-4 w-4 shrink-0 opacity-50" />}
             className="h-9"
@@ -338,12 +355,16 @@ export function ValueCombobox({
                 ) : null}
               </CommandGroup>
             ) : null}
-            {showRawItem && !draftLooksLikeToken ? (
+            {showRawItem ? (
               <CommandGroup heading={t("value.manualInput")}>
                 <CommandItem
                   value={`__raw__${finalize(draft.trim())}`}
                   onSelect={() => commit(draft.trim())}
                 >
+                  {category === "color" &&
+                  isRenderableColorLiteral(finalize(draft.trim())) ? (
+                    <ColorSwatch color={finalize(draft.trim())} />
+                  ) : null}
                   <span className="text-sm">{finalize(draft.trim())}</span>
                 </CommandItem>
               </CommandGroup>

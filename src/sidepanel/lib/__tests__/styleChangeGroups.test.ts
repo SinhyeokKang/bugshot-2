@@ -95,6 +95,18 @@ function diffEdits(overrides: Partial<StyleDiffEdits> = {}): StyleDiffEdits {
 }
 
 describe("buildChangeGroups", () => {
+  it("diff 0인 버퍼는 빈 카드를 만들지 않는다 (현재 그룹과 게이트 대칭)", () => {
+    const noDiff = buffered("#empty", {
+      styleEdits: { classList: ["item"], inlineStyle: {}, text: "" },
+    });
+    const groups = buildChangeGroups(
+      selection(),
+      edits({ inlineStyle: { color: "#00f" } }),
+      [noDiff, buffered("#b")],
+    );
+    expect(groups.map((g) => g.selector)).toEqual(["#b", "#current"]);
+  });
+
   it("버퍼 2개 + 현재 선택 diff 있음 → 그룹 3개, 버퍼 순서 뒤 현재, source 플래그", () => {
     const groups = buildChangeGroups(
       selection(),
@@ -417,6 +429,145 @@ describe("buildStyleDiff — border 변별 collapse", () => {
   });
 });
 
+describe("buildStyleDiff — border 2차 통합 (width/style/color → border)", () => {
+  it("width/style/color 셋 다 4면 동일 변경 → border 한 줄 (asIs baseline 없음 → \"\")", () => {
+    const rows = buildStyleDiff(
+      snap(),
+      diffEdits({
+        inlineStyle: {
+          "border-top-width": "2px",
+          "border-right-width": "2px",
+          "border-bottom-width": "2px",
+          "border-left-width": "2px",
+          "border-top-style": "solid",
+          "border-right-style": "solid",
+          "border-bottom-style": "solid",
+          "border-left-style": "solid",
+          "border-top-color": "red",
+          "border-right-color": "red",
+          "border-bottom-color": "red",
+          "border-left-color": "red",
+        },
+      }),
+    );
+
+    expect(rows).toEqual([
+      { prop: "border", asIs: "", toBe: "2px solid red" },
+    ]);
+  });
+
+  it("baseline(computed) 있으면 asIs도 width style color 순으로 조합", () => {
+    const rows = buildStyleDiff(
+      snap({
+        computedStyles: {
+          "border-top-width": "0px",
+          "border-right-width": "0px",
+          "border-bottom-width": "0px",
+          "border-left-width": "0px",
+          "border-top-style": "none",
+          "border-right-style": "none",
+          "border-bottom-style": "none",
+          "border-left-style": "none",
+          "border-top-color": "rgb(0, 0, 0)",
+          "border-right-color": "rgb(0, 0, 0)",
+          "border-bottom-color": "rgb(0, 0, 0)",
+          "border-left-color": "rgb(0, 0, 0)",
+        },
+      }),
+      diffEdits({
+        inlineStyle: {
+          "border-top-width": "2px",
+          "border-right-width": "2px",
+          "border-bottom-width": "2px",
+          "border-left-width": "2px",
+          "border-top-style": "solid",
+          "border-right-style": "solid",
+          "border-bottom-style": "solid",
+          "border-left-style": "solid",
+          "border-top-color": "red",
+          "border-right-color": "red",
+          "border-bottom-color": "red",
+          "border-left-color": "red",
+        },
+      }),
+    );
+
+    expect(rows).toEqual([
+      { prop: "border", asIs: "0px none rgb(0, 0, 0)", toBe: "2px solid red" },
+    ]);
+  });
+
+  it("color만 4면 불일치(개별 행 잔존) → border 통합 안 함, width/style만 1차 축약", () => {
+    const rows = buildStyleDiff(
+      snap(),
+      diffEdits({
+        inlineStyle: {
+          "border-top-width": "2px",
+          "border-right-width": "2px",
+          "border-bottom-width": "2px",
+          "border-left-width": "2px",
+          "border-top-style": "solid",
+          "border-right-style": "solid",
+          "border-bottom-style": "solid",
+          "border-left-style": "solid",
+          "border-top-color": "red",
+          "border-right-color": "blue",
+          "border-bottom-color": "red",
+          "border-left-color": "red",
+        },
+      }),
+    );
+
+    expect(rows.some((r) => r.prop === "border")).toBe(false);
+    expect(rows.some((r) => r.prop === "border-width")).toBe(true);
+    expect(rows.some((r) => r.prop === "border-style")).toBe(true);
+    // color는 1차 축약도 안 돼 개별 행 4개 잔존
+    expect(rows.filter((r) => r.prop.endsWith("-color"))).toHaveLength(4);
+  });
+
+  it("width만 변경(style/color 미변경) → border-width 한 줄, border 통합 없음", () => {
+    const rows = buildStyleDiff(
+      snap(),
+      diffEdits({
+        inlineStyle: {
+          "border-top-width": "2px",
+          "border-right-width": "2px",
+          "border-bottom-width": "2px",
+          "border-left-width": "2px",
+        },
+      }),
+    );
+
+    expect(rows).toEqual([{ prop: "border-width", asIs: "", toBe: "2px" }]);
+  });
+
+  it("명시 border 행이 이미 있으면 중복 생성 안 함", () => {
+    const rows = buildStyleDiff(
+      snap(),
+      diffEdits({
+        inlineStyle: {
+          border: "1px solid black",
+          "border-top-width": "2px",
+          "border-right-width": "2px",
+          "border-bottom-width": "2px",
+          "border-left-width": "2px",
+          "border-top-style": "solid",
+          "border-right-style": "solid",
+          "border-bottom-style": "solid",
+          "border-left-style": "solid",
+          "border-top-color": "red",
+          "border-right-color": "red",
+          "border-bottom-color": "red",
+          "border-left-color": "red",
+        },
+      }),
+    );
+
+    expect(rows.filter((r) => r.prop === "border")).toHaveLength(1);
+    expect(rows.find((r) => r.prop === "border")?.toBe).toBe("1px solid black");
+  });
+});
+
 describe("countChangeRows — border 변별 collapse", () => {
   it("border-width 네 변 동일 편집 → 1 카운트 (longhand 4 아님)", () => {
     const groups = buildChangeGroups(
@@ -470,5 +621,31 @@ describe("removeDiffRow — border 변별 collapse", () => {
     );
 
     expect(next.inlineStyle).toEqual({});
+  });
+
+  it('"border"(2차 통합 행) → width/style/color longhand 12종 모두 삭제(다른 prop 보존)', () => {
+    const next = removeDiffRow(
+      snap(),
+      diffEdits({
+        inlineStyle: {
+          "border-top-width": "2px",
+          "border-right-width": "2px",
+          "border-bottom-width": "2px",
+          "border-left-width": "2px",
+          "border-top-style": "solid",
+          "border-right-style": "solid",
+          "border-bottom-style": "solid",
+          "border-left-style": "solid",
+          "border-top-color": "red",
+          "border-right-color": "red",
+          "border-bottom-color": "red",
+          "border-left-color": "red",
+          color: "#00f",
+        },
+      }),
+      "border",
+    );
+
+    expect(next.inlineStyle).toEqual({ color: "#00f" });
   });
 });

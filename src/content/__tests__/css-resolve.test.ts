@@ -3,6 +3,8 @@ import { describe, it, expect, vi } from "vitest";
 vi.mock("../css-source-cache", () => ({
   getMatchingRules: () => [],
   getRawDeclarationsFor: () => null,
+  getMatchingCrossOriginRules: () => [],
+  getCrossOriginCustomProps: () => ({}),
 }));
 
 import {
@@ -17,6 +19,11 @@ import {
   shouldRestoreEditable,
   splitTrblValue,
   splitCssTokens,
+  mergeCrossOriginDecls,
+  mergeCrossOriginTokens,
+  collectReferencedTokenNames,
+  parseBorderShorthand,
+  expandShorthands,
   type EditableHandle,
 } from "../css-resolve";
 
@@ -36,6 +43,13 @@ describe("categorizeToken", () => {
     expect(categorizeToken("1.5rem")).toBe("length");
     expect(categorizeToken("0")).toBe("length");
     expect(categorizeToken("-0")).toBe("length");
+  });
+  it("모던/컨테이너 단위(q·svh·dvh·cqw·vi)도 length", () => {
+    expect(categorizeToken("2q")).toBe("length");
+    expect(categorizeToken("50svh")).toBe("length");
+    expect(categorizeToken("100dvh")).toBe("length");
+    expect(categorizeToken("10cqw")).toBe("length");
+    expect(categorizeToken("5vi")).toBe("length");
   });
   it("길이 단위 포함 calc/clamp/min/max → length", () => {
     expect(categorizeToken("calc(100% - 16px)")).toBe("length");
@@ -151,6 +165,88 @@ describe("splitTrblValue — border-width/color shorthand 분해", () => {
   });
 });
 
+describe("parseBorderShorthand — width|style|color 분류", () => {
+  it("1px solid var(--c): var는 color로 (테마 토큰 보존)", () => {
+    expect(parseBorderShorthand("1px solid var(--color-stroke)")).toEqual({
+      width: "1px",
+      style: "solid",
+      color: "var(--color-stroke)",
+    });
+  });
+
+  it("순서 무관 + 색 함수 1토큰 보존", () => {
+    expect(parseBorderShorthand("dashed rgb(0, 0, 0) 2px")).toEqual({
+      width: "2px",
+      style: "dashed",
+      color: "rgb(0, 0, 0)",
+    });
+  });
+
+  it("thin/thick 키워드 width", () => {
+    expect(parseBorderShorthand("thin solid #f00")).toEqual({
+      width: "thin",
+      style: "solid",
+      color: "#f00",
+    });
+  });
+
+  it("색만/스타일만 부분 지정", () => {
+    expect(parseBorderShorthand("red")).toEqual({ color: "red" });
+    expect(parseBorderShorthand("none")).toEqual({ style: "none" });
+    expect(parseBorderShorthand("1px solid")).toEqual({
+      width: "1px",
+      style: "solid",
+    });
+  });
+});
+
+describe("expandShorthands — border shorthand 전개", () => {
+  it("border: 1px solid var(--c) → 네 변 변별 longhand (naver border-color 회귀)", () => {
+    const all: Record<string, string> = {
+      border: "1px solid var(--color-neutral-stroke-subtle-2)",
+    };
+    const sources: Record<string, string> = { border: ".btn" };
+    expandShorthands(all, sources);
+    for (const side of ["top", "right", "bottom", "left"]) {
+      expect(all[`border-${side}-color`]).toBe(
+        "var(--color-neutral-stroke-subtle-2)",
+      );
+      expect(all[`border-${side}-width`]).toBe("1px");
+      expect(all[`border-${side}-style`]).toBe("solid");
+      expect(sources[`border-${side}-color`]).toBe(".btn");
+    }
+  });
+
+  it("기존 longhand는 border가 안 덮음 (fill-if-absent)", () => {
+    const all: Record<string, string> = {
+      border: "1px solid red",
+      "border-top-color": "var(--accent)",
+    };
+    expandShorthands(all, {});
+    expect(all["border-top-color"]).toBe("var(--accent)");
+    expect(all["border-bottom-color"]).toBe("red");
+  });
+
+  it("per-side border-bottom shorthand는 해당 변만 전개", () => {
+    const all: Record<string, string> = {
+      "border-bottom": "2px dashed var(--c)",
+    };
+    expandShorthands(all, {});
+    expect(all["border-bottom-color"]).toBe("var(--c)");
+    expect(all["border-top-color"]).toBeUndefined();
+  });
+
+  it("per-side(구체)가 border(전체)보다 우선", () => {
+    const all: Record<string, string> = {
+      border: "1px solid red",
+      "border-top": "2px solid var(--accent)",
+    };
+    expandShorthands(all, {});
+    expect(all["border-top-color"]).toBe("var(--accent)");
+    expect(all["border-right-color"]).toBe("red");
+  });
+});
+
 describe("resolveVarChain", () => {
   it("var 없는 값은 그대로 반환", () => {
     expect(resolveVarChain("16px", {})).toBe("16px");
@@ -208,10 +304,22 @@ describe("resolveVarChain", () => {
     expect(resolveVarChain("var(--_unknown)", {})).toBe("var(--_unknown)");
   });
 
-  it("fallback var: regex가 nested )를 못 잡아서 원본 유지", () => {
+  it("fallback var: primary 없고 fallback이 private면 펼침 (nested ) 균형)", () => {
     const props = { "--_fallback": "10px" };
     const result = resolveVarChain("var(--missing, var(--_fallback))", props);
-    expect(result).toContain("var(--missing");
+    expect(result).toBe("10px");
+  });
+
+  it("같은 private 토큰 반복(sibling)은 각각 펼침", () => {
+    const props = { "--_x": "10px" };
+    expect(resolveVarChain("var(--_x) var(--_x)", props)).toBe("10px 10px");
+  });
+
+  it("같은 private 토큰이 shorthand 내 반복돼도 모두 펼침", () => {
+    const props = { "--_g": "8px" };
+    expect(resolveVarChain("var(--_g) var(--_g) var(--_g)", props)).toBe(
+      "8px 8px 8px",
+    );
   });
 
   it("fallback var: primary 없고 fallback이 public이면 보존", () => {
@@ -465,5 +573,252 @@ describe("shouldRestoreEditable", () => {
     };
     expect(shouldRestoreEditable(handle, "hello")).toBe(false);
     expect(shouldRestoreEditable(handle, "world")).toBe(true);
+  });
+});
+
+describe("mergeCrossOriginDecls", () => {
+  const co = (selectorText: string, decls: Record<string, string>) => ({
+    selectorText,
+    decls: new Map(Object.entries(decls)),
+  });
+
+  it("빈 prop을 cross-origin 값으로 채우고 source는 selectorText", () => {
+    const out: Record<string, string> = {};
+    const sources: Record<string, string> = {};
+    mergeCrossOriginDecls(out, sources, {}, [co(".card", { padding: "12px" })], {});
+    expect(out.padding).toBe("12px");
+    expect(sources.padding).toBe(".card");
+  });
+
+  it("same-origin이 이미 채운 prop은 보존 (cross-origin이 덮지 않음)", () => {
+    const out: Record<string, string> = { color: "green" };
+    const sources: Record<string, string> = { color: ".same" };
+    mergeCrossOriginDecls(out, sources, {}, [co(".x", { color: "red" })], {});
+    expect(out.color).toBe("green");
+    expect(sources.color).toBe(".same");
+  });
+
+  it("아직 안 펼쳐진 same-origin shorthand의 longhand는 cross-origin이 못 덮음 (split 방지)", () => {
+    // collectRulesForElement는 expandShorthands 전에 merge하므로 out엔 shorthand만 있다.
+    const out: Record<string, string> = { padding: "10px" };
+    const sources: Record<string, string> = { padding: ".same" };
+    mergeCrossOriginDecls(
+      out,
+      sources,
+      {},
+      [co(".card", { "padding-left": "3px" })],
+      {},
+    );
+    expect(out["padding-left"]).toBeUndefined();
+  });
+
+  it("same-origin shorthand 없는 longhand는 cross-origin이 정상 보강", () => {
+    const out: Record<string, string> = {};
+    const sources: Record<string, string> = {};
+    mergeCrossOriginDecls(
+      out,
+      sources,
+      {},
+      [co(".card", { "padding-left": "3px" })],
+      {},
+    );
+    expect(out["padding-left"]).toBe("3px");
+  });
+
+  it("cross-origin 규칙끼리는 뒤(seq 큰) 규칙이 override", () => {
+    const out: Record<string, string> = {};
+    const sources: Record<string, string> = {};
+    // 호출부가 seq 오름차순으로 정렬해 전달
+    mergeCrossOriginDecls(
+      out,
+      sources,
+      {},
+      [co(".a", { color: "red" }), co(".b", { color: "blue" })],
+      {},
+    );
+    expect(out.color).toBe("blue");
+    expect(sources.color).toBe(".b");
+  });
+
+  it("same-origin border shorthand의 per-side longhand는 cross-origin이 못 덮음", () => {
+    // collectRulesForElement는 expandShorthands 전에 merge하므로 out엔 border만 있다.
+    const out: Record<string, string> = { border: "1px solid blue" };
+    const sources: Record<string, string> = { border: ".same" };
+    mergeCrossOriginDecls(
+      out,
+      sources,
+      {},
+      [co(".card", { "border-top-color": "red" })],
+      {},
+    );
+    expect(out["border-top-color"]).toBeUndefined();
+  });
+
+  it("same-origin border-bottom의 longhand도 cross-origin이 못 덮음", () => {
+    const out: Record<string, string> = { "border-bottom": "2px dashed green" };
+    const sources: Record<string, string> = { "border-bottom": ".same" };
+    mergeCrossOriginDecls(
+      out,
+      sources,
+      {},
+      [co(".x", { "border-bottom-width": "9px" })],
+      {},
+    );
+    expect(out["border-bottom-width"]).toBeUndefined();
+  });
+
+  it("이른 var(토큰)을 나중 cross-origin literal이 덮지 않음 (token 강등 회귀 방지)", () => {
+    // naver <a>: 테마 규칙 color: var(--fg)을 뒤따르는 일반 a { color: #333 } 리셋이
+    // 클로버해 토큰이 computed로 강등되던 버그. background-color는 단일 선언이라 멀쩡.
+    const out: Record<string, string> = {};
+    const sources: Record<string, string> = {};
+    mergeCrossOriginDecls(
+      out,
+      sources,
+      {},
+      [
+        co(".themed", {
+          color: "var(--fg)",
+          "background-color": "var(--bg)",
+          "border-color": "var(--line)",
+        }),
+        co("a", { color: "#333", "border-color": "gray" }),
+      ],
+      {},
+    );
+    expect(out.color).toBe("var(--fg)");
+    expect(sources.color).toBe(".themed");
+    expect(out["border-color"]).toBe("var(--line)");
+    expect(out["background-color"]).toBe("var(--bg)");
+  });
+
+  it("나중 var는 이른 cross-origin literal을 정상 덮음 (token 승격 유지)", () => {
+    const out: Record<string, string> = {};
+    const sources: Record<string, string> = {};
+    mergeCrossOriginDecls(
+      out,
+      sources,
+      {},
+      [co("a", { color: "#333" }), co(".themed", { color: "var(--fg)" })],
+      {},
+    );
+    expect(out.color).toBe("var(--fg)");
+    expect(sources.color).toBe(".themed");
+  });
+
+  it("--*를 customProps에 보충해 기존 규칙(private --_)으로 var() 해석", () => {
+    const customProps: Record<string, string> = {};
+    mergeCrossOriginDecls(
+      {},
+      {},
+      customProps,
+      [co(".card", { color: "var(--_brand)" })],
+      { "--_brand": "#06c" },
+    );
+    expect(customProps["--_brand"]).toBe("#06c");
+    // resolveVarChain은 same-origin과 동일하게 private --_ 변수만 펼친다.
+    expect(resolveVarChain("var(--_brand)", customProps)).toBe("#06c");
+  });
+
+  it("이미 있는 customProps 키는 cross-origin이 덮지 않음", () => {
+    const customProps: Record<string, string> = { "--_brand": "#000" };
+    mergeCrossOriginDecls({}, {}, customProps, [], { "--_brand": "#fff" });
+    expect(customProps["--_brand"]).toBe("#000");
+  });
+
+  it("wantedProps 지정 시 그 외 prop은 무시", () => {
+    const out: Record<string, string> = {};
+    mergeCrossOriginDecls(
+      out,
+      {},
+      {},
+      [co(".x", { color: "red", padding: "8px" })],
+      {},
+      new Set(["color"]),
+    );
+    expect(out.color).toBe("red");
+    expect(out.padding).toBeUndefined();
+  });
+});
+
+describe("mergeCrossOriginTokens", () => {
+  it("빈 seen에 cross-origin custom prop을 토큰 후보로 추가", () => {
+    // naver: --color-primary-background-default가 cross-origin :root에만 있어
+    // collectTokens의 same-origin/inline 수집에 안 잡히던 것 — swatch 누락 원인.
+    const seen = new Map<string, string>();
+    mergeCrossOriginTokens(seen, {
+      "--color-primary-background-default": "#03c75a",
+    });
+    expect(seen.get("--color-primary-background-default")).toBe("#03c75a");
+    expect(seen.size).toBe(1);
+  });
+
+  it("이미 있는 이름은 cross-origin이 덮지 않음 (same-origin 우선·빈칸 채우기)", () => {
+    const seen = new Map<string, string>([["--brand", "#000"]]);
+    mergeCrossOriginTokens(seen, { "--brand": "#fff" });
+    expect(seen.get("--brand")).toBe("#000");
+  });
+
+  it("일부만 충돌 — 충돌은 유지, 신규는 추가", () => {
+    const seen = new Map<string, string>([["--a", "red"]]);
+    mergeCrossOriginTokens(seen, { "--a": "blue", "--b": "green" });
+    expect(seen.get("--a")).toBe("red");
+    expect(seen.get("--b")).toBe("green");
+  });
+
+  it("빈 crossProps면 seen 불변", () => {
+    const seen = new Map<string, string>([["--x", "1px"]]);
+    mergeCrossOriginTokens(seen, {});
+    expect(seen.size).toBe(1);
+    expect(seen.get("--x")).toBe("1px");
+  });
+
+  it("-- 접두 아닌 키는 무시 (방어)", () => {
+    const seen = new Map<string, string>();
+    mergeCrossOriginTokens(seen, { color: "red", "--ok": "#fff" });
+    expect(seen.has("color")).toBe(false);
+    expect(seen.get("--ok")).toBe("#fff");
+  });
+});
+
+describe("collectReferencedTokenNames", () => {
+  it("specified 값의 var() 참조 이름을 빈 값으로 seen에 추가", () => {
+    // naver: 정의는 CORS 시트라 못 읽지만 background-color: var(--…) 참조는 specified에
+    // 남는다. 이름만 넣으면 resolve 루프가 getComputedStyle로 실제 색을 채워 swatch가 뜬다.
+    const seen = new Map<string, string>();
+    collectReferencedTokenNames(
+      { "background-color": "var(--color-primary-background-default)" },
+      seen,
+    );
+    expect(seen.has("--color-primary-background-default")).toBe(true);
+    expect(seen.get("--color-primary-background-default")).toBe("");
+  });
+
+  it("여러 prop·여러 참조 모두 수집", () => {
+    const seen = new Map<string, string>();
+    collectReferencedTokenNames(
+      { color: "var(--fg)", border: "1px solid var(--line)" },
+      seen,
+    );
+    expect(seen.has("--fg")).toBe(true);
+    expect(seen.has("--line")).toBe(true);
+  });
+
+  it("fallback 있는 var()도 이름 추출", () => {
+    const seen = new Map<string, string>();
+    collectReferencedTokenNames({ color: "var(--fg, #fff)" }, seen);
+    expect(seen.has("--fg")).toBe(true);
+  });
+
+  it("이미 있는 이름은 덮지 않음 (definition 값 우선)", () => {
+    const seen = new Map<string, string>([["--fg", "#03A94D"]]);
+    collectReferencedTokenNames({ color: "var(--fg)" }, seen);
+    expect(seen.get("--fg")).toBe("#03A94D");
+  });
+
+  it("var() 없는 값은 무시", () => {
+    const seen = new Map<string, string>();
+    collectReferencedTokenNames({ color: "#333", padding: "8px" }, seen);
+    expect(seen.size).toBe(0);
   });
 });

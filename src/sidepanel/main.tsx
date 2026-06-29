@@ -13,8 +13,10 @@ window.addEventListener("error", (e) => {
   }
 });
 
-// markerjs2가 willReadFrequently 힌트 없이 2d 컨텍스트를 만들어 Canvas2D readback 경고가 뜸.
-// 모든 2d 컨텍스트에 힌트를 주입해 경고를 원천 차단. 우리 canvas는 getImageData를 안 써서 부작용 없음.
+// Konva hit-detection canvas가 getImageData로 픽셀을 빈번히 readback하므로 모든 2d 컨텍스트에
+// willReadFrequently 힌트를 주입해 Canvas2D readback 경고를 원천 차단 + hit readback 최적화.
+// 렌더 canvas는 readback이 없어 이 힌트가 미세하게 비최적(GPU 경로 회피 신호)이나 사이드패널
+// 소형 캔버스라 무시 가능. (패치 제거 시 경고 회귀 — 로직 유지, 주석만 사실에 맞게 갱신.)
 const _origGetContext = HTMLCanvasElement.prototype.getContext;
 HTMLCanvasElement.prototype.getContext = function (
   this: HTMLCanvasElement,

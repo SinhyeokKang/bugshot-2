@@ -9,6 +9,7 @@ dist-*
 .vite
 *.tsbuildinfo
 .claude/settings.local.json
+.claude/projects/
 e2e/.last-green
 test-results
 playwright-report

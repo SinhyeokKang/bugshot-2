@@ -7,6 +7,8 @@ import { LinearError } from "./linear-api";
 import { NotionError } from "./notion-api";
 import { GitlabError } from "./gitlab-api";
 import { AsanaError } from "./asana-api";
+import { ClickupError } from "./clickup-api";
+import { SlackError } from "./slack-api";
 import { handleMessage } from "./messages";
 import { BG_REQUEST_TYPES } from "./bgRequestTypes";
 import { captureEvent } from "./analytics";
@@ -207,6 +209,20 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           body: error.body,
         });
       } else if (error instanceof AsanaError) {
+        sendResponse({
+          ok: false,
+          error: error.message,
+          status: error.status,
+          body: error.body,
+        });
+      } else if (error instanceof ClickupError) {
+        sendResponse({
+          ok: false,
+          error: error.message,
+          status: error.status,
+          body: error.body,
+        });
+      } else if (error instanceof SlackError) {
         sendResponse({
           ok: false,
           error: error.message,

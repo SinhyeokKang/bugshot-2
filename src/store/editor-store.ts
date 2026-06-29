@@ -168,6 +168,7 @@ interface EditorState {
   cancelPicking: () => void;
   onElementSelected: (selection: EditorSelection) => void;
   updateSelectionStyles: (patch: {
+    selector: string;
     specifiedStyles: Record<string, string>;
     propSources: Record<string, string>;
     computedStyles: Record<string, string>;
@@ -548,7 +549,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   updateSelectionStyles: (patch) =>
     set((s) => {
-      if (!s.selection) return {};
+      // 늦게 도착한 stale 보강(다른 요소 선택 후)이 현재 선택 맵을 오염시키지 않게 가드.
+      if (!s.selection || s.selection.selector !== patch.selector) return {};
       return {
         selection: {
           ...s.selection,
@@ -841,8 +843,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         }
         for (let i = 0; i < bufferedSnapshot.length; i++) {
           const b = bufferedSnapshot[i];
-          if (b.beforeImage && !await saveImageBlob(id, `b${i}-before`, dataUrlToBlob(b.beforeImage))) failed = true;
-          if (b.afterImage && !await saveImageBlob(id, `b${i}-after`, dataUrlToBlob(b.afterImage))) failed = true;
+          if (b.beforeImage && !await saveImageBlob(id, `b${i}-before`, dataUrlToBlob(b.beforeImage))) {
+            useIssuesStore.getState().patchDraftBufferedImageFlags(id, i, { hasBefore: false });
+            failed = true;
+          }
+          if (b.afterImage && !await saveImageBlob(id, `b${i}-after`, dataUrlToBlob(b.afterImage))) {
+            useIssuesStore.getState().patchDraftBufferedImageFlags(id, i, { hasAfter: false });
+            failed = true;
+          }
         }
         if (failed) onBlobSaveFailed.fire();
       })();

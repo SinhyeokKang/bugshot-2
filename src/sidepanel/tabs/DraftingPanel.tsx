@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { Camera, Download, ImageIcon, ImagePlus, Pencil, Plus, RotateCcw, Trash2, WandSparkles } from "lucide-react";
+import { Camera, Download, ImageIcon, ImagePlus, Loader2, Pencil, Plus, RotateCcw, Trash2, WandSparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -215,6 +215,7 @@ export function DraftingPanel() {
                 variant="outline"
                 className="h-8 w-8 shrink-0"
                 title={t("draft.removeAnnotation")}
+                data-testid="annotation-remove"
                 onClick={() => useEditorStore.setState({ screenshotAnnotated: null })}
               >
                 <RotateCcw />
@@ -225,6 +226,7 @@ export function DraftingPanel() {
               variant="outline"
               className="h-8 w-8 shrink-0"
               title={screenshotAnnotated ? t("draft.editAnnotation") : t("draft.addAnnotation")}
+              data-testid="annotation-edit"
               onClick={() => setAnnotating(true)}
             >
               <Pencil />
@@ -249,6 +251,7 @@ export function DraftingPanel() {
             src={screenshotImage}
             alt={t("section.media")}
             className="h-full w-full object-contain"
+            data-testid="media-preview-img"
           />
         </div>
       ) : null}
@@ -291,7 +294,23 @@ export function DraftingPanel() {
   ) : null;
 
   const attachmentBlock = attachmentsEnabled ? (
-    <Section key="__attachments" title={t("section.attachments")} collapsible>
+    <Section
+      key="__attachments"
+      title={
+        <>
+          {t("section.attachments")}
+          {attachments.length > 0 && (
+            <Badge
+              variant="secondary"
+              className="ml-2 align-middle text-xs tabular-nums"
+            >
+              {attachments.length}
+            </Badge>
+          )}
+        </>
+      }
+      collapsible
+    >
       <AttachmentSection
         attachments={attachments}
         platform={targetPlatform}
@@ -455,7 +474,13 @@ export function DraftingPanel() {
         elementDiffs={isElementMode ? diffs : undefined}
       />
       {annotating && screenshotRaw ? (
-        <Suspense fallback={null}>
+        <Suspense
+          fallback={
+            <div className="absolute inset-0 z-50 flex items-center justify-center bg-background">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          }
+        >
           <AnnotationOverlay
             imageUrl={screenshotAnnotated ?? screenshotRaw}
             onComplete={(url) => {

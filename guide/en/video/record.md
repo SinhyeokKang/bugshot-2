@@ -12,6 +12,8 @@ The record button in the **Debug** tab follows the mode you picked in settings (
 
 With **Record tab** selected, one click on the record button starts recording the tab you're looking at — fast, with no share picker.
 
+> That said, if you opened the side panel on one site and then **navigated to another**, tapping Record tab can't capture that tab directly (a browser permission rule), so it automatically falls back to the screen-share picker. Just pick the tab you're on from the list.
+
 ## Screen recording
 
 Need to show something outside the tab — another app window, the full screen, a payment or login window that pops up on its own? Set the mode to **Record screen**. When you click the record button, your browser opens a "what do you want to share?" picker where you choose **the full screen, a specific window, or a tab**, then hit share to start.

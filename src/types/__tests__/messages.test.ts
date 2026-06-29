@@ -90,12 +90,18 @@ describe("getOAuthErrorPlatform", () => {
     ).toBe("gitlab");
   });
 
+  it("body.platform이 'slack'이면 'slack'", () => {
+    expect(
+      getOAuthErrorPlatform(new BgError("x", 401, { oauthRefreshFailed: true, platform: "slack" })),
+    ).toBe("slack");
+  });
+
   it("platform이 없거나 알 수 없는 값이면 null", () => {
     expect(
       getOAuthErrorPlatform(new BgError("x", 401, { oauthRefreshFailed: true })),
     ).toBeNull();
     expect(
-      getOAuthErrorPlatform(new BgError("x", 401, { platform: "slack" })),
+      getOAuthErrorPlatform(new BgError("x", 401, { platform: "trello" })),
     ).toBeNull();
   });
 

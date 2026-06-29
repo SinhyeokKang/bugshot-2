@@ -2,13 +2,13 @@
 
 Bugs never wait for you to hit record first, do they? 30s replay **always keeps the last 30 seconds** of your screen, so right after you spot a bug you can attach what just happened as a video in one click. It saves you from those "ugh, I should've been recording" moments.
 
-## Prerequisite: setting + permission
+## Prerequisite: setting
 
 Replay only works once it's turned on ahead of time.
 
-> First, in [Issue Settings](../settings/issue.md), **turn on the 30s replay toggle and approve screen capture permission**. The last 30 seconds are only kept once permission is granted. And if permission is ever revoked, replay turns off on its own — nothing for you to worry about.
+> First, in [Issue Settings](../settings/issue.md), **turn on the 30s replay toggle**. The last 30 seconds start getting kept from the moment you flip it on. There's no separate permission prompt — just turn the switch on.
 
-Granting this permission once comes with a bonus beyond replay: even if you **navigate to another page mid-task, the side panel stays open and your capture keeps going**. It applies as long as the permission sticks around — even with the replay switch back off — so reproducing a bug across pages feels a lot smoother.
+On top of that, even if you **navigate to another page mid-task, the side panel stays open and your capture keeps going**. It applies whether or not you use replay, so reproducing a bug across pages feels a lot smoother.
 
 ![Enabling 30s replay](../assets/video-replay-1.jpg)
 

@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import {
   File,
   FileArchive,
@@ -7,6 +8,7 @@ import {
   FileVideo,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
+import { Separator } from "@/components/ui/separator";
 import { useT } from "@/i18n";
 import type { UserAttachmentMeta } from "@/types/attachment";
 import { fileCategory, fileExtLabel, type FileCategory } from "@/sidepanel/lib/fileMeta";
@@ -31,33 +33,36 @@ export function AttachmentList({
   onDownload: (meta: UserAttachmentMeta) => void;
 }) {
   const t = useT();
+  if (attachments.length === 0) return null;
   return (
-    <div className="flex flex-col gap-2">
-      {attachments.map((a) => (
-        <Card
-          key={a.id}
-          role="button"
-          tabIndex={0}
-          onClick={() => onDownload(a)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter" || e.key === " ") {
-              e.preventDefault();
-              onDownload(a);
-            }
-          }}
-          title={t("attachment.download")}
-          className="flex cursor-pointer items-center gap-3 p-3 transition-colors hover:bg-muted/50"
-          data-testid="attachment-item"
-        >
-          <div className="shrink-0">{CATEGORY_ICON[fileCategory(a.contentType, a.filename)]}</div>
-          <div className="flex min-w-0 flex-1 flex-col">
-            <span className="truncate text-sm font-medium">{a.filename}</span>
-            <span className="truncate text-sm text-muted-foreground">
-              {fileExtLabel(a.filename)} · {formatBytes(a.size)}
-            </span>
+    <Card className="overflow-hidden">
+      {attachments.map((a, idx) => (
+        <Fragment key={a.id}>
+          {idx > 0 ? <Separator /> : null}
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={() => onDownload(a)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onDownload(a);
+              }
+            }}
+            title={t("attachment.download")}
+            className="flex cursor-pointer items-center gap-3 p-3 transition-colors hover:bg-muted/50"
+            data-testid="attachment-item"
+          >
+            <div className="shrink-0">{CATEGORY_ICON[fileCategory(a.contentType, a.filename)]}</div>
+            <div className="flex min-w-0 flex-1 flex-col">
+              <span className="truncate text-sm font-medium">{a.filename}</span>
+              <span className="truncate text-sm text-muted-foreground">
+                {fileExtLabel(a.filename)} · {formatBytes(a.size)}
+              </span>
+            </div>
           </div>
-        </Card>
+        </Fragment>
       ))}
-    </div>
+    </Card>
   );
 }

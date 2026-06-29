@@ -12,6 +12,8 @@
  * 캐시 정책: 픽커 세션 단위. ensureLoaded는 멱등. invalidate + MutationObserver로 재로드.
  */
 
+import { sendBg } from "@/types/messages";
+
 const ruleToRaw = new Map<CSSStyleRule, Map<string, string>>();
 let loadPromise: Promise<void> | null = null;
 let isReady = false;
@@ -69,6 +71,9 @@ export function invalidate(): void {
   loadPromise = null;
   isReady = false;
   ruleIndex = null;
+  crossOriginRules = [];
+  crossOriginCustomProps = {};
+  crossLoadPromise = null;
 }
 
 export function getMatchingRules(el: Element): CSSStyleRule[] {
@@ -513,8 +518,28 @@ function flattenStyleRules(
   }
 }
 
-function normalizeSelector(s: string): string {
-  return s.replace(/\s+/g, " ").trim();
+// raw 소스 셀렉터를 CSSOM selectorText 표기에 맞춰 정규화 — top-level 결합자(> + ~)
+// 둘레 간격을 ` x `로 통일한다. `[a~=b]`·`:nth-child(2n+1)`의 ~/+는 []·() 안이라 depth로
+// 보호. 속성 셀렉터 따옴표·태그 대소문자는 셀렉터 파서가 필요해 미정규화(불일치 시 CSSOM fallback).
+export function normalizeSelector(s: string): string {
+  const t = s.replace(/\s+/g, " ").trim();
+  let out = "";
+  let depth = 0;
+  for (let i = 0; i < t.length; i++) {
+    const c = t[i];
+    if (c === "[" || c === "(") {
+      depth++;
+      out += c;
+    } else if (c === "]" || c === ")") {
+      depth--;
+      out += c;
+    } else if (depth === 0 && (c === ">" || c === "+" || c === "~")) {
+      out += ` ${c} `;
+    } else {
+      out += c;
+    }
+  }
+  return out.replace(/\s+/g, " ").trim();
 }
 
 /* ── parser ──────────────────────────────────────── */
@@ -529,8 +554,41 @@ function parseStylesheet(text: string, out: ParsedRule[]): void {
   parseRulesFrom(cleaned, 0, cleaned.length, out);
 }
 
-function stripComments(text: string): string {
-  return text.replace(/\/\*[\s\S]*?\*\//g, "");
+// 문자열 리터럴(content: "a/*b*/c") 안의 /* */는 주석이 아니므로 보존 — 따옴표를 추적.
+export function stripComments(text: string): string {
+  let out = "";
+  let i = 0;
+  const n = text.length;
+  while (i < n) {
+    const c = text[i];
+    if (c === '"' || c === "'") {
+      out += c;
+      i++;
+      while (i < n) {
+        if (text[i] === "\\" && i + 1 < n) {
+          out += text[i] + text[i + 1];
+          i += 2;
+          continue;
+        }
+        out += text[i];
+        if (text[i] === c) {
+          i++;
+          break;
+        }
+        i++;
+      }
+      continue;
+    }
+    if (c === "/" && text[i + 1] === "*") {
+      i += 2;
+      while (i < n && !(text[i] === "*" && text[i + 1] === "/")) i++;
+      i += 2;
+      continue;
+    }
+    out += c;
+    i++;
+  }
+  return out;
 }
 
 const NESTED_AT_RULES = new Set([
@@ -736,4 +794,125 @@ function parseDeclBlock(text: string, out: Map<string, string>): void {
     if (prop && value) out.set(prop, value);
     i = valueEnd + 1;
   }
+}
+
+/* ── cross-origin author rules ───────────────────── */
+
+export interface CrossOriginRule {
+  selectorText: string;
+  decls: Map<string, string>;
+}
+export interface CrossOriginIndexedRule extends CrossOriginRule {
+  seq: number;
+}
+
+const GLOBAL_CUSTOM_PROP_SELECTORS = new Set([":root", "html", "*"]);
+
+// 멀티 셀렉터(`:root, [data-theme]`)도 한 파트라도 전역이면 전역 토큰으로 인정.
+function hasGlobalCustomPropSelector(selectorText: string): boolean {
+  return splitSelectorList(selectorText).some((p) =>
+    GLOBAL_CUSTOM_PROP_SELECTORS.has(p.trim().toLowerCase()),
+  );
+}
+
+let crossOriginRules: CrossOriginIndexedRule[] = [];
+let crossOriginCustomProps: Record<string, string> = {};
+let crossLoadPromise: Promise<void> | null = null;
+
+// 순수: parsed에 seq 부여 + 전역(:root/html/*) 선택자의 --* 만 customProps로 분리(스코프 --*는 decls 잔류).
+export function indexCrossOriginRules(
+  parsed: ParsedRule[],
+  startSeq: number,
+): { rules: CrossOriginIndexedRule[]; customProps: Record<string, string> } {
+  const rules: CrossOriginIndexedRule[] = [];
+  const customProps: Record<string, string> = {};
+  let seq = startSeq;
+  for (const p of parsed) {
+    rules.push({ selectorText: p.selectorText, decls: p.decls, seq: seq++ });
+    if (hasGlobalCustomPropSelector(p.selectorText)) {
+      for (const [name, val] of p.decls) {
+        if (name.startsWith("--") && !(name in customProps)) {
+          customProps[name] = val;
+        }
+      }
+    }
+  }
+  return { rules, customProps };
+}
+
+// content(ISOLATED)는 cross-origin sheet fetch 불가 → background 위임. 멱등(픽커 세션 1회 배치).
+export function ensureCrossOriginLoaded(): Promise<void> {
+  if (crossLoadPromise) return crossLoadPromise;
+  crossLoadPromise = loadCrossOrigin();
+  return crossLoadPromise;
+}
+
+async function loadCrossOrigin(): Promise<void> {
+  const urls = collectCrossOriginHrefs();
+  if (urls.length === 0) return;
+  let sheets: Array<{ url: string; text: string }>;
+  try {
+    const res = await sendBg<{ sheets: Array<{ url: string; text: string }> }>({
+      type: "css.fetchSheets",
+      urls,
+    });
+    sheets = res.sheets;
+  } catch {
+    return;
+  }
+  let seq = crossOriginRules.length;
+  for (const sheet of sheets) {
+    const parsed: ParsedRule[] = [];
+    parseStylesheet(sheet.text, parsed);
+    const { rules, customProps } = indexCrossOriginRules(parsed, seq);
+    seq += rules.length;
+    crossOriginRules.push(...rules);
+    for (const name in customProps) {
+      if (!(name in crossOriginCustomProps)) {
+        crossOriginCustomProps[name] = customProps[name];
+      }
+    }
+  }
+  dlog("cross-origin loaded", {
+    sheets: sheets.length,
+    rules: crossOriginRules.length,
+    customProps: Object.keys(crossOriginCustomProps).length,
+  });
+}
+
+function collectCrossOriginHrefs(): string[] {
+  const hrefs: string[] = [];
+  const seen = new Set<string>();
+  for (const sheet of collectAllSheets()) {
+    const owner = sheet.ownerNode;
+    if (!(owner instanceof HTMLLinkElement) || !sheet.href) continue;
+    try {
+      const url = new URL(sheet.href, location.href);
+      if (url.origin !== location.origin && !seen.has(sheet.href)) {
+        seen.add(sheet.href);
+        hrefs.push(sheet.href);
+      }
+    } catch {
+      /* skip malformed href */
+    }
+  }
+  return hrefs;
+}
+
+// 인덱스 없이 선형 스캔 — 보강은 디바운스된 selection에서만 돌고 sheet 캡도 있어 인덱스는 과설계.
+// el.matches throw(비표준 selector)는 해당 rule만 skip.
+export function getMatchingCrossOriginRules(el: Element): CrossOriginRule[] {
+  const matched = crossOriginRules.filter((r) => {
+    try {
+      return el.matches(r.selectorText);
+    } catch {
+      return false;
+    }
+  });
+  matched.sort((a, b) => a.seq - b.seq);
+  return matched;
+}
+
+export function getCrossOriginCustomProps(): Record<string, string> {
+  return crossOriginCustomProps;
 }

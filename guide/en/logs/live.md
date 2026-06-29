@@ -18,12 +18,18 @@ Collects the page's console output in full — info, warnings, and errors alike.
 
 See the network requests made by the page.
 
-- **Filter / search** — Filter or find a request.
+- **Filter / search** — Filter requests by type, or find them with the search box. Search looks through not just the URL but also the request/response **body and headers**, so even if you don't remember the URL, a snippet from the response is enough to find it.
 - **Detail** — Expand to see request and response contents.
 - **Copy as cURL** — Copy a request as a cURL command to reproduce it in your terminal.
 - **Clear Log** — Empty the collected logs.
 
 ![Network sub-tab](../assets/logs-live-2.jpg)
+
+### WebSocket
+
+If your page uses real-time, two-way communication (WebSocket), those connections show up in the network list too. Click the **WS** filter at the top to see just the WebSocket connections. Open a connection and the **Messages** tab appears, stacking the messages exchanged in time order — you can tell sent (▲) from received (▼) at a glance, and narrow by direction with **All / Sent / Received**. Click a message to expand its contents.
+
+> Text messages are captured. Binary messages like images or files are skipped without their contents, and the skipped count is shown above the Messages tab, so you'll know right away if anything was left out.
 
 ## File an issue from logs alone (freeform)
 

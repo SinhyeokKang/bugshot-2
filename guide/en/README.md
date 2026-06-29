@@ -2,7 +2,7 @@
 
 Ever spotted a bug and thought, "how do I even explain this?" That's exactly the moment BugShot was built for.
 
-BugShot is a Chrome side panel extension that lets you pick DOM elements on a web page, tweak and compare their styles, and file the result as an issue on Jira, GitHub, Linear, Notion, GitLab, or Asana. Capture right where you spot the bug, and ship a report that bundles the environment, screenshots, video, and logs in one shot.
+BugShot is a Chrome side panel extension that lets you pick DOM elements on a web page, tweak and compare their styles, and file the result as an issue on Jira, GitHub, Linear, Notion, GitLab, Asana, or ClickUp. Capture right where you spot the bug, and ship a report that bundles the environment, screenshots, video, and logs in one shot.
 
 No more typing out "the color of this button looks off" — one click does it.
 

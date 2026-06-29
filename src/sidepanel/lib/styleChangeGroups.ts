@@ -26,15 +26,18 @@ export function buildChangeGroups(
   styleEdits: EditorStyleEdits,
   bufferedElements: BufferedElement[],
 ): ChangeGroup[] {
-  const groups: ChangeGroup[] = bufferedElements.map((b) => ({
-    source: "buffered" as const,
-    selector: b.selector,
-    tagName: b.tagName,
-    classList: b.selectionSnapshot.classList,
-    snapshot: b.selectionSnapshot,
-    edits: b.styleEdits,
-    rows: buildStyleDiff(b.selectionSnapshot, b.styleEdits),
-  }));
+  // 현재 그룹과 동일하게 diff 0인 버퍼는 빈 카드를 만들지 않는다(게이트 대칭).
+  const groups: ChangeGroup[] = bufferedElements
+    .map((b) => ({
+      source: "buffered" as const,
+      selector: b.selector,
+      tagName: b.tagName,
+      classList: b.selectionSnapshot.classList,
+      snapshot: b.selectionSnapshot,
+      edits: b.styleEdits,
+      rows: buildStyleDiff(b.selectionSnapshot, b.styleEdits),
+    }))
+    .filter((g) => g.rows.length > 0);
 
   if (selection) {
     const snapshot: StyleDiffSelection = {
@@ -85,8 +88,16 @@ export function removeDiffRow(
   }
   const inlineStyle = { ...edits.inlineStyle };
   delete inlineStyle[prop];
-  for (const longhand of SHORTHAND_GROUPS[prop] ?? []) {
-    delete inlineStyle[longhand];
+  // border 2차 통합 행은 width/style/color 세 그룹의 longhand 12개를 모두 소비한다.
+  const groups =
+    prop === "border"
+      ? ["border-width", "border-style", "border-color"]
+      : [prop];
+  for (const g of groups) {
+    delete inlineStyle[g];
+    for (const longhand of SHORTHAND_GROUPS[g] ?? []) {
+      delete inlineStyle[longhand];
+    }
   }
   return { classList: [...edits.classList], inlineStyle, text: edits.text };
 }

@@ -62,6 +62,8 @@ import type {
   AsanaUser,
   AsanaWorkspace,
 } from "./asana";
+import type { ClickupCreateTaskPayload } from "./clickup";
+import type { SlackPostMessagePayload } from "./slack";
 import type { PlatformId } from "./platform";
 
 export interface OAuthStartResultMsg {
@@ -205,7 +207,39 @@ export type BgRequest =
   | { type: "asana.updateTaskNotes"; taskGid: string; htmlNotes: string }
   | { type: "asana.getTaskStatus"; taskGid: string }
   | { type: "asana.setCompleted"; taskGid: string; completed: boolean }
-  | { type: "analytics.capture"; event: string; properties: Record<string, string> };
+  | { type: "clickup.oauth.available" }
+  | { type: "clickup.startOAuth" }
+  | { type: "clickup.testPat"; pat: string }
+  | { type: "clickup.disconnect" }
+  | { type: "clickup.getMyself" }
+  | { type: "clickup.getTeams" }
+  | { type: "clickup.getSpaces"; teamId: string }
+  | { type: "clickup.getLists"; spaceId: string }
+  | { type: "clickup.getMembers"; teamId: string }
+  | {
+      type: "clickup.uploadFile";
+      taskId: string;
+      files: Array<{ filename: string; contentType: string; dataUrl: string }>;
+    }
+  | { type: "clickup.submitIssue"; payload: ClickupCreateTaskPayload }
+  | { type: "clickup.updateTaskMarkdown"; taskId: string; markdownContent: string }
+  | { type: "clickup.getTaskStatus"; taskId: string }
+  | { type: "clickup.setCompleted"; taskId: string; completed: boolean }
+  | { type: "slack.oauth.available" }
+  | { type: "slack.startOAuth" }
+  | { type: "slack.disconnect" }
+  | { type: "slack.listChannels" }
+  | { type: "slack.listMembers" }
+  | { type: "slack.postMessage"; payload: SlackPostMessagePayload }
+  | {
+      type: "slack.uploadFiles";
+      channelId: string;
+      threadTs: string;
+      files: Array<{ filename: string; dataUrl: string }>;
+    }
+  | { type: "slack.getPermalink"; channelId: string; ts: string }
+  | { type: "analytics.capture"; event: string; properties: Record<string, string> }
+  | { type: "css.fetchSheets"; urls: string[] };
 
 // handleMessage를 거치지 않는 bg→sidepanel 내부 통신 메시지.
 export type BgInternalMessage =
@@ -275,7 +309,9 @@ export function getOAuthErrorPlatform(err: unknown): PlatformId | null {
     p === "linear" ||
     p === "notion" ||
     p === "gitlab" ||
-    p === "asana"
+    p === "asana" ||
+    p === "clickup" ||
+    p === "slack"
     ? p
     : null;
 }

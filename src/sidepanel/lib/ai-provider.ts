@@ -232,7 +232,11 @@ export function createOpenAICompatibleProvider(config: LlmConfig): AIProvider {
       throw new Error(`LLM API error ${res.status}: ${text}`);
     }
     const data = await res.json();
-    return data.choices[0].message.content;
+    const content = data?.choices?.[0]?.message?.content;
+    if (typeof content !== "string") {
+      throw new Error("LLM API: empty or malformed response");
+    }
+    return content;
   }
 
   return {
@@ -318,7 +322,11 @@ export function createAnthropicProvider(config: LlmConfig): AIProvider {
       throw new Error(`Anthropic API error ${res.status}: ${text}`);
     }
     const data = await res.json();
-    return data.content[0].text;
+    const text = data?.content?.[0]?.text;
+    if (typeof text !== "string") {
+      throw new Error("Anthropic API: empty or malformed response");
+    }
+    return text;
   }
 
   return {

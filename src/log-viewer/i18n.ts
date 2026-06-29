@@ -4,7 +4,7 @@ export type TranslationFn = (
 ) => string;
 
 export const koDict: Record<string, string> = {
-  "networkLog.search": "URL 검색…",
+  "networkLog.search": "URL·본문 검색…",
   "networkLog.filter.all": "전체",
   "networkLog.filter.json": "JSON",
   "networkLog.filter.js": "JS",
@@ -51,6 +51,9 @@ export const koDict: Record<string, string> = {
   "actionLog.filter.click": "클릭",
   "actionLog.filter.navigation": "이동",
   "actionLog.filter.input": "입력",
+  "actionLog.filter.keypress": "키",
+  "actionLog.filter.toggle": "토글",
+  "actionLog.filter.select": "선택",
   "actionLog.empty": "캡처된 액션이 없습니다",
   "actionLog.verb.click": "{target} 클릭",
   "actionLog.verb.input": "{field}에 {value} 입력",
@@ -100,7 +103,7 @@ export const koDict: Record<string, string> = {
 };
 
 export const enDict: Record<string, string> = {
-  "networkLog.search": "Search URL…",
+  "networkLog.search": "Search URL & body…",
   "networkLog.filter.all": "All",
   "networkLog.filter.json": "JSON",
   "networkLog.filter.js": "JS",
@@ -147,6 +150,9 @@ export const enDict: Record<string, string> = {
   "actionLog.filter.click": "Click",
   "actionLog.filter.navigation": "Navigation",
   "actionLog.filter.input": "Input",
+  "actionLog.filter.keypress": "Keys",
+  "actionLog.filter.toggle": "Toggle",
+  "actionLog.filter.select": "Select",
   "actionLog.empty": "No actions captured",
   "actionLog.verb.click": "Clicked {target}",
   "actionLog.verb.input": "Entered {value} in {field}",
@@ -164,8 +170,8 @@ export const enDict: Record<string, string> = {
   "actionLog.role.menuitem": "menu item",
   "actionLog.role.textbox": "text field",
 
-  "debug.network.empty": "No network requests",
-  "debug.console.empty": "No console logs",
+  "debug.network.empty": "No network requests captured",
+  "debug.console.empty": "No console logs captured",
   "log.originFilter.unknown": "(unknown)",
 
   "logViewer.tab.report": "Report",

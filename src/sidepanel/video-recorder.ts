@@ -124,7 +124,10 @@ function beginRecording(
   };
 }
 
-export async function startRecording(tabId: number): Promise<void> {
+// 탭 스트림만 획득(getMediaStreamId + getUserMedia). activeTab 만료 시 getMediaStreamId가 reject —
+// 호출자는 그 시점의 user activation으로 getDisplayMedia 폴백을 시작할 수 있다. 스트림 획득과
+// recorder 시작(beginTabRecording)을 분리해, 그 사이에 로그 레코더 준비(prepareRecorders)를 끼운다.
+export async function startTabStream(tabId: number): Promise<MediaStream> {
   if (state) cancelRecording();
 
   const streamId = await new Promise<string>((resolve, reject) => {
@@ -137,7 +140,7 @@ export async function startRecording(tabId: number): Promise<void> {
     });
   });
 
-  const stream = await navigator.mediaDevices.getUserMedia({
+  return navigator.mediaDevices.getUserMedia({
     audio: false,
     video: {
       mandatory: {
@@ -152,7 +155,9 @@ export async function startRecording(tabId: number): Promise<void> {
       },
     },
   } as MediaStreamConstraints);
+}
 
+export function beginTabRecording(stream: MediaStream, tabId: number): void {
   beginRecording(stream, tabId, { source: "tab" });
 }
 

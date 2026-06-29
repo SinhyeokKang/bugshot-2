@@ -39,6 +39,8 @@ export function AiStylingDialog({
   const tabId = useBoundTabId();
   const [input, setInput] = useState("");
   const sessionRef = useRef<AISession | null>(null);
+  // 세션이 어느 요소(selector)용으로 빌드됐는지 — repick 시 stale system prompt 재빌드 판정.
+  const sessionSelectorRef = useRef<string | null>(null);
   const createSessionRef = useRef(createSession);
   createSessionRef.current = createSession;
 
@@ -46,6 +48,7 @@ export function AiStylingDialog({
     return () => {
       sessionRef.current?.destroy?.();
       sessionRef.current = null;
+      sessionSelectorRef.current = null;
     };
   }, [createSession]);
 
@@ -65,25 +68,46 @@ export function AiStylingDialog({
     const msg = input.trim();
     if (!msg) return;
 
+    // 컨텍스트 확정을 입력 비우기/닫기보다 먼저 — 요소 미선택이면 입력을 잃지 않고 안내만.
+    const ctx = buildContext();
+    if (!ctx) {
+      toast.error(t("aiStyling.error"));
+      return;
+    }
+    const targetSelector = ctx.selector;
+
     setInput("");
     onOpenChange(false);
     useEditorStore.getState().setAiStylingLoading(true);
 
     try {
+      // repick으로 세션이 다른 요소용이면 stale system prompt 폐기 후 재빌드.
+      if (
+        sessionRef.current &&
+        sessionSelectorRef.current !== targetSelector
+      ) {
+        sessionRef.current.destroy?.();
+        sessionRef.current = null;
+      }
       if (!sessionRef.current) {
-        const ctx = buildContext();
-        if (!ctx) throw new Error("No element selected");
         sessionRef.current = await createSessionRef.current(
           buildAiStylingSystemPrompt(ctx),
         );
+        sessionSelectorRef.current = targetSelector;
       }
 
-      const ctx = buildContext();
-      const prefix = ctx ? buildStyleContextBlock(ctx) : "";
+      const prefix = buildStyleContextBlock(ctx);
       const raw = await sessionRef.current.prompt(
         prefix ? `${prefix}\n\n${msg}` : msg,
         { responseSchema: buildAiStylingResponseSchema() },
       );
+
+      // 호출 중 다른 요소로 repick됐으면 옛 요소용 결과를 새 요소에 적용하지 않는다.
+      if (
+        useEditorStore.getState().selection?.selector !== targetSelector
+      ) {
+        return;
+      }
 
       const parsed = parseAiStylingResponse(raw);
       if (!parsed) {
@@ -99,11 +123,10 @@ export function AiStylingDialog({
       }
 
       if (parsed.edits.inlineStyle) {
-        const s = useEditorStore.getState();
         parsed.edits.inlineStyle = replaceRawWithTokens(
           parsed.edits.inlineStyle,
-          s.tokens,
-          s.selection?.specifiedStyles ?? {},
+          ctx.tokens,
+          ctx.specifiedStyles,
         );
       }
 
@@ -128,6 +151,7 @@ export function AiStylingDialog({
       }
       sessionRef.current?.destroy?.();
       sessionRef.current = null;
+      sessionSelectorRef.current = null;
     } finally {
       useEditorStore.getState().setAiStylingLoading(false);
     }
