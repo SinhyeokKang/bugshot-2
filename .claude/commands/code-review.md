@@ -56,7 +56,7 @@ base 결정:
 
 활성화된 전문 에이전트를 **동시에** 실행한다 (`subagent_type: general-purpose`). 각 에이전트에게 다음을 전달:
 - diff stat (변경 파일 목록 + 통계)
-- CLAUDE.md + ARCHITECTURE.md 핵심 컨벤션 (리뷰 기준)
+- CLAUDE.md + docs/ARCHITECTURE.md 핵심 컨벤션 (리뷰 기준)
 - 담당 카테고리의 체크 가이드
 - 하위 영역 에이전트 분배 지침
 

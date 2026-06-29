@@ -138,6 +138,7 @@ export function ShapeNode({
         />
       );
     case "highlight":
+      // 폭은 상수 고정 — transform으로 확대해도 폭은 안 따라가는 게 의도(균일한 마커 느낌 유지).
       return (
         <Line
           {...common}

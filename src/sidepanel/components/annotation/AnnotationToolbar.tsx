@@ -23,6 +23,8 @@ import type { TranslationKey } from "@/i18n/ko";
 import {
   ANNOTATION_COLORS,
   ANNOTATION_TOOLS,
+  THICKNESS_KEYS,
+  isStrokeTool,
   type AnnotationTool,
   type ThicknessKey,
 } from "./presets";
@@ -52,14 +54,6 @@ const THICKNESS_LABEL_KEYS: Record<ThicknessKey, TranslationKey> = {
 };
 
 const THICKNESS_STROKE: Record<ThicknessKey, number> = { S: 1.5, M: 3.5, L: 6 };
-const THICKNESS_KEYS: ThicknessKey[] = ["S", "M", "L"];
-
-const STROKE_TOOLS: ReadonlySet<AnnotationTool> = new Set<AnnotationTool>([
-  "arrow",
-  "rect",
-  "ellipse",
-  "pen",
-]);
 
 interface AnnotationToolbarProps {
   tool: AnnotationTool;
@@ -107,7 +101,7 @@ export function AnnotationToolbar({
   // 그리기 도구거나, select 모드에서 도형이 선택돼 있으면 색상/두께 행을 노출(선택 도형 재스타일).
   const showStyleRow = tool !== "select" || hasSelection;
   const thicknessEnabled =
-    tool === "select" ? selectionIsStroke : STROKE_TOOLS.has(tool);
+    tool === "select" ? selectionIsStroke : isStrokeTool(tool);
 
   return (
     <div className="flex h-full flex-col">
@@ -149,8 +143,13 @@ export function AnnotationToolbar({
         </Button>
       </div>
 
-      {/* 2단: 색상 + 두께 (select 도구면 내용 숨김, 높이는 예약) */}
-      <div className={cn(ROW, "flex items-center justify-between gap-2", !showStyleRow && "invisible")}>
+      {/* 2단: 색상 + 두께 (select 도구면 내용 숨김, 높이는 예약). inert로 숨김 시 키보드 포커스도 제거. */}
+      <div
+        ref={(el) => {
+          if (el) el.inert = !showStyleRow;
+        }}
+        className={cn(ROW, "flex items-center justify-between gap-2", !showStyleRow && "invisible")}
+      >
         <ButtonGroup className="flex-nowrap">
           {ANNOTATION_COLORS.map((c, i) => {
             const active = color === c;

@@ -50,3 +50,17 @@ export const ANNOTATION_TOOLS: readonly AnnotationToolMeta[] = [
   { key: "text", labelKey: "annotation.text" },
   { key: "highlight", labelKey: "annotation.highlight" },
 ];
+
+export const THICKNESS_KEYS = Object.keys(ANNOTATION_THICKNESS) as ThicknessKey[];
+
+// 두께가 의미 있는(strokeWidth 활성) 도형 — 툴바 두께 활성·스타일 행 노출 판정의 단일 출처.
+const STROKE_TOOLS: ReadonlySet<AnnotationTool> = new Set<AnnotationTool>([
+  "arrow",
+  "rect",
+  "ellipse",
+  "pen",
+]);
+
+export function isStrokeTool(tool: AnnotationTool): boolean {
+  return STROKE_TOOLS.has(tool);
+}

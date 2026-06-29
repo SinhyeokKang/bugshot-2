@@ -13,6 +13,7 @@ import {
   DEFAULT_COLOR,
   DEFAULT_THICKNESS,
   TEXT_FONT_SIZE,
+  isStrokeTool,
   type AnnotationTool,
   type ThicknessKey,
 } from "./annotation/presets";
@@ -101,7 +102,7 @@ export default function AnnotationOverlay({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [imageUrl]);
 
-  // 도구별 커서
+  // 도구별 커서. image dep은 Stage 마운트(이미지 로드) 직후 커서를 재적용하기 위함.
   useEffect(() => {
     const stage = stageRef.current;
     if (stage) stage.container().style.cursor = toolCursor(tool);
@@ -275,13 +276,7 @@ export default function AnnotationOverlay({
   const natH = image?.naturalHeight ?? 0;
 
   const selectedShape = selectedId ? shapes.find((s) => s.id === selectedId) : null;
-  const selectionIsStroke =
-    selectedShape !== null &&
-    selectedShape !== undefined &&
-    (selectedShape.type === "arrow" ||
-      selectedShape.type === "rect" ||
-      selectedShape.type === "ellipse" ||
-      selectedShape.type === "pen");
+  const selectionIsStroke = selectedShape != null && isStrokeTool(selectedShape.type);
 
   return (
     <div className="absolute inset-0 z-50 bg-background">

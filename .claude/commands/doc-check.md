@@ -21,9 +21,9 @@ description: 저장소 문서(CLAUDE/DIRECTORY/ARCHITECTURE/DESIGN/README/PERMIS
 
 ```
 /doc-check                       → 8개 전부
-/doc-check architecture          → ARCHITECTURE.md만
-/doc-check architecture claude   → ARCHITECTURE.md + CLAUDE.md
-/doc-check design                → DESIGN.md만
+/doc-check architecture          → docs/ARCHITECTURE.md만
+/doc-check architecture claude   → docs/ARCHITECTURE.md + CLAUDE.md
+/doc-check design                → docs/DESIGN.md만
 ```
 
 ## 검사 대상 (문서별 에이전트)
@@ -31,11 +31,11 @@ description: 저장소 문서(CLAUDE/DIRECTORY/ARCHITECTURE/DESIGN/README/PERMIS
 | 키워드 | 문서 | 대조 관점 |
 |---|---|---|
 | `claude` | **CLAUDE.md** | 스택·명령어 표·코드 컨벤션·게이트웨이·워크플로우(스킬 라인업)·permissions/host_permissions·env 목록이 현재 `package.json`·`manifest.config.ts`·`.claude/commands/`·코드와 일치하는지 |
-| `directory` | **DIRECTORY.md** | 디렉터리 구조·파일별 역할이 현재 `src/` 트리와 일치하는지 (없는 파일 설명·새 파일 누락·이동/리네임) |
-| `architecture` | **ARCHITECTURE.md** | Side Panel 탭 스코프, user gesture, 세션 영속화, 6개 플랫폼 인증, 어댑터 패턴, 토큰 체인 resolve, CSSOM 캐시, DOM lazy load, 마크다운 복사, 이슈 섹션 구성, 마이그레이션 등 설계 상세가 실제 구현과 일치하는지 |
-| `design` | **DESIGN.md** | 디자인 토큰·다크모드·타이포·버튼/아이콘 사이즈·레이아웃·반응형·공용 합성 컴포넌트·상태 표현 컨벤션이 현재 `tailwind.config.js`·`globals.css`·`src/components/ui/`·`src/sidepanel/components/`·실제 사용처와 일치하는지 |
+| `directory` | **docs/DIRECTORY.md** | 디렉터리 구조·파일별 역할이 현재 `src/` 트리와 일치하는지 (없는 파일 설명·새 파일 누락·이동/리네임) |
+| `architecture` | **docs/ARCHITECTURE.md** | Side Panel 탭 스코프, user gesture, 세션 영속화, 6개 플랫폼 인증, 어댑터 패턴, 토큰 체인 resolve, CSSOM 캐시, DOM lazy load, 마크다운 복사, 이슈 섹션 구성, 마이그레이션 등 설계 상세가 실제 구현과 일치하는지 |
+| `design` | **docs/DESIGN.md** | 디자인 토큰·다크모드·타이포·버튼/아이콘 사이즈·레이아웃·반응형·공용 합성 컴포넌트·상태 표현 컨벤션이 현재 `tailwind.config.js`·`globals.css`·`src/components/ui/`·`src/sidepanel/components/`·실제 사용처와 일치하는지 |
 | `readme` | **README.md** | 기능 목록·설치/사용법·스크린샷 설명·지원 플랫폼이 현재 코드와 맞는지 |
-| `permission` | **PERMISSION.md** | activeTab 라이프사이클·OAuth 토큰 흐름·optional permission 등 권한 레퍼런스가 현재 `manifest.config.ts`·코드 사용처와 일치하는지 |
+| `permission` | **docs/PERMISSION.md** | activeTab 라이프사이클·OAuth 토큰 흐름·optional permission 등 권한 레퍼런스가 현재 `manifest.config.ts`·코드 사용처와 일치하는지 |
 | `privacy` | **docs/privacy.md** | 권한·host_permissions·수집 정보·외부 전송 대상·저장 방식이 현재 매니페스트뿐 아니라 **실제 코드 동작**(캡처/수집/전송)과 일치하는지 |
 | `authoring` | **guide/AUTHORING.md** | 가이드 작성 매뉴얼의 사실 스냅샷(플랫폼 표·단축키·로그 정책·현재 기능 목록·파일 트리·footer·검증 체크리스트)이 현재 코드/구조와 어긋났는지. **guide 본문 페이지는 검사하지 않고, 작성 기준인 이 매뉴얼만** 코드 대조 |
 

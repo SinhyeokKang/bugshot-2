@@ -43,10 +43,10 @@ description: 원격 푸시 전 상태 점검 + CLAUDE.md/DIRECTORY.md/ARCHITECTU
 
    검사 대상 8개:
    - **CLAUDE.md** — 코드 컨벤션, 게이트웨이, 워크플로우 등 해당 섹션이 최신인지 확인
-   - **DIRECTORY.md** — 디렉터리 구조·파일별 역할이 현재 코드베이스와 일치하는지 확인
-   - **ARCHITECTURE.md** — Side Panel 탭 스코프, 세션 영속화, 인증 플로우, 어댑터 패턴, 토큰 체인, CSSOM 캐시, DOM lazy load, 이슈 섹션 구성, 마이그레이션 등 설계 상세가 최신인지 확인
+   - **docs/DIRECTORY.md** — 디렉터리 구조·파일별 역할이 현재 코드베이스와 일치하는지 확인
+   - **docs/ARCHITECTURE.md** — Side Panel 탭 스코프, 세션 영속화, 인증 플로우, 어댑터 패턴, 토큰 체인, CSSOM 캐시, DOM lazy load, 이슈 섹션 구성, 마이그레이션 등 설계 상세가 최신인지 확인
    - **README.md** — 기능 목록, 설치/사용법, 스크린샷 설명 등이 현재 코드와 맞는지 확인
-   - **PERMISSION.md** — Chrome 권한 전체 레퍼런스(activeTab 라이프사이클, OAuth 토큰 흐름, optional permission 등)가 현재 manifest·코드와 일치하는지 확인. 권한 추가/삭제, 사용처 변경, 새 API 호출 추가 시 갱신
+   - **docs/PERMISSION.md** — Chrome 권한 전체 레퍼런스(activeTab 라이프사이클, OAuth 토큰 흐름, optional permission 등)가 현재 manifest·코드와 일치하는지 확인. 권한 추가/삭제, 사용처 변경, 새 API 호출 추가 시 갱신
    - **docs/privacy.md** — 권한·호스트 권한·수집 정보·외부 전송 대상·저장 방식이 현재 매니페스트·**코드 동작**과 일치하는지 확인. 매니페스트뿐 아니라 캡처/수집/전송 *동작*까지 본다. 내용을 갱신하면 문서 상단의 **시행일도 오늘 날짜로 함께 갱신**한다.
    - **guide/** — 사용자 노출 UX·기능 변경 시 `guide/ko`·`guide/en`(GitBook 사용 가이드, ko/en 양쪽 site)이 현재 동작과 맞는지 대조. **작성·수정에 들어가기 전 `guide/AUTHORING.md`를 먼저 읽어 IA·톤·UI 라벨·footer·검증 규칙을 그대로 따른다** (가이드 작업의 단일 출처). **변경 규모가 크면(여러 페이지·IA 변경) 여기서 직접 쓰지 말고 `/guide` 스킬로 분리**하고, 작은 문구 수정만 인라인 처리. 커밋 prefix `docs(guide): ...`
    - **guide/AUTHORING.md** — 가이드 작성 매뉴얼 자체의 신선도. 가이드 운영 규칙(IA/파일 트리·톤·사실 대조 소스·현재 사실 스냅샷·플랫폼 표·footer·검증 체크리스트)이 코드/구조 변경으로 어긋났는지 확인. 새 플랫폼 연동·단축키 변경·로그 정책 변경·본문 섹션 변경·새 페이지 추가 등이 diff에 보이면 AUTHORING.md의 해당 스냅샷·표를 갱신. 커밋 prefix `docs(guide): ...`

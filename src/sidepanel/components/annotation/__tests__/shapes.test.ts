@@ -130,6 +130,25 @@ describe("isEmptyShape — 빈 도형 판정", () => {
     expect(isEmptyShape(s)).toBe(true);
   });
 
+  it("height만 0인 rect(수평 드래그)도 비어있다", () => {
+    const s = updateShapeDraft(
+      createShape("rect", "id", { x: 0, y: 0 }, style),
+      { x: 30, y: 0 },
+    ) as RectShape;
+    expect(s.width).toBe(30);
+    expect(s.height).toBe(0);
+    expect(isEmptyShape(s)).toBe(true);
+  });
+
+  it("width만 0인 ellipse(수직 드래그)도 비어있다", () => {
+    const s = updateShapeDraft(
+      createShape("ellipse", "id", { x: 0, y: 0 }, style),
+      { x: 0, y: 30 },
+    ) as EllipseShape;
+    expect(s.width).toBe(0);
+    expect(isEmptyShape(s)).toBe(true);
+  });
+
   it("빈 텍스트는 비어있다", () => {
     const s = createShape("text", "id", { x: 0, y: 0 }, style);
     expect(isEmptyShape(s)).toBe(true);
@@ -237,6 +256,40 @@ describe("applyTransform — scale/rotation 흡수 정규화", () => {
     expect(next).not.toBe(s);
     expect(s.width).toBe(100);
     expect(s.height).toBe(50);
+  });
+
+  it("음수 scaleX(flip)도 width에 그대로 흡수한다", () => {
+    const next = applyTransform(baseRect(), {
+      x: 0,
+      y: 0,
+      scaleX: -1,
+      scaleY: 1,
+      rotation: 0,
+    }) as RectShape;
+    expect(next.width).toBeCloseTo(-100);
+    expect(next.height).toBeCloseTo(50);
+  });
+
+  it("ellipse 음수 scaleY(flip)도 height에 흡수한다(렌더는 abs로 복구)", () => {
+    const base: EllipseShape = {
+      id: "id",
+      type: "ellipse",
+      x: 0,
+      y: 0,
+      width: 40,
+      height: 20,
+      color: "#000000",
+      strokeWidth: 2,
+    };
+    const next = applyTransform(base, {
+      x: 0,
+      y: 0,
+      scaleX: 1,
+      scaleY: -1,
+      rotation: 0,
+    }) as EllipseShape;
+    expect(next.height).toBeCloseTo(-20);
+    expect(next.width).toBeCloseTo(40);
   });
 
   it("points 도형은 scale→rotate→translate 행렬을 좌표에 베이크한다", () => {
