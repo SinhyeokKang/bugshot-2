@@ -31,8 +31,8 @@ export const DEFAULT_THICKNESS: ThicknessKey = "M";
 
 export const HIGHLIGHT_OPACITY = 0.4;
 
-// 형광펜은 두께 선택 대상이 아니라(툴바에서 disabled) 고정 폭으로 굵게 칠한다.
-export const HIGHLIGHT_STROKE_WIDTH = 18;
+// 형광펜은 마커 느낌을 위해 일반 stroke 두께(2/4/8)에 배율을 곱해 굵게 칠한다.
+export const HIGHLIGHT_STROKE_SCALE = 4;
 
 export type TextSizeKey = "S" | "M" | "L";
 
@@ -68,6 +68,7 @@ const STROKE_TOOLS: ReadonlySet<AnnotationTool> = new Set<AnnotationTool>([
   "rect",
   "ellipse",
   "pen",
+  "highlight",
 ]);
 
 export function isStrokeTool(tool: AnnotationTool): boolean {

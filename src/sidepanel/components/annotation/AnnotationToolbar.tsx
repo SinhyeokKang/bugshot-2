@@ -68,7 +68,7 @@ const TEXTSIZE_LABEL_KEYS: Record<TextSizeKey, TranslationKey> = {
 const TEXTSIZE_ICON: Record<TextSizeKey, number> = { S: 11, M: 15, L: 20 };
 
 interface AnnotationToolbarProps {
-  tool: AnnotationTool;
+  tool: AnnotationTool | null;
   onToolChange: (tool: AnnotationTool) => void;
   color: string;
   onColorChange: (color: string) => void;
@@ -77,8 +77,10 @@ interface AnnotationToolbarProps {
   textSize: TextSizeKey;
   onTextSizeChange: (key: TextSizeKey) => void;
   hasSelection: boolean;
-  // 선택된 도형이 stroke 계열(arrow/rect/ellipse/pen)인지 — select 모드 두께 활성 판정
+  // 선택된 도형이 stroke 계열인지 — select 모드 두께 활성 판정
   selectionIsStroke: boolean;
+  // 선택된 도형이 text인지 — select 모드에서 두께 대신 크기 노출 판정
+  selectionIsText: boolean;
   onDelete: () => void;
   canUndo: boolean;
   canRedo: boolean;
@@ -103,6 +105,7 @@ export function AnnotationToolbar({
   onTextSizeChange,
   hasSelection,
   selectionIsStroke,
+  selectionIsText,
   onDelete,
   canUndo,
   canRedo,
@@ -115,9 +118,12 @@ export function AnnotationToolbar({
 }: AnnotationToolbarProps) {
   const t = useT();
   // 그리기 도구거나, select 모드에서 도형이 선택돼 있으면 색상/두께 행을 노출(선택 도형 재스타일).
-  const showStyleRow = tool !== "select" || hasSelection;
+  // tool이 null(초기 무선택)이면 숨김.
+  const showStyleRow = (tool !== null && tool !== "select") || hasSelection;
   const thicknessEnabled =
-    tool === "select" ? selectionIsStroke : isStrokeTool(tool);
+    tool === "select" ? selectionIsStroke : tool !== null && isStrokeTool(tool);
+  // text 도구이거나 select 모드에서 text 도형을 선택했으면 두께 대신 텍스트 크기를 노출.
+  const showTextSize = tool === "text" || (tool === "select" && selectionIsText);
 
   const renderTool = ({ key, labelKey }: AnnotationToolMeta) => {
     const Icon = TOOL_ICONS[key];
@@ -200,7 +206,7 @@ export function AnnotationToolbar({
             );
           })}
         </ButtonGroup>
-        {tool === "text" ? (
+        {showTextSize ? (
           <ButtonGroup className="flex-nowrap">
             {TEXT_SIZE_KEYS.map((key) => {
               const active = textSize === key;

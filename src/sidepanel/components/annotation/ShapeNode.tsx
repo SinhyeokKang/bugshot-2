@@ -1,7 +1,7 @@
 import type Konva from "konva";
 import type { KonvaEventObject } from "konva/lib/Node";
 import { Arrow, Ellipse, Line, Rect, Text } from "react-konva";
-import { HIGHLIGHT_OPACITY, HIGHLIGHT_STROKE_WIDTH } from "./presets";
+import { HIGHLIGHT_OPACITY, HIGHLIGHT_STROKE_SCALE } from "./presets";
 import type { AnnotationShape } from "./shapes";
 
 export interface TransformAttrs {
@@ -146,20 +146,22 @@ export function ShapeNode({
           hitStrokeWidth={Math.max(SELECT_HIT_WIDTH, shape.strokeWidth)}
         />
       );
-    case "highlight":
-      // 폭은 상수 고정 — transform으로 확대해도 폭은 안 따라가는 게 의도(균일한 마커 느낌 유지).
+    case "highlight": {
+      // 두께(2/4/8)에 배율을 곱해 마커처럼 굵게. transform은 폭을 안 건드림(두께 버튼으로만 제어).
+      const hlWidth = shape.strokeWidth * HIGHLIGHT_STROKE_SCALE;
       return (
         <Line
           {...common}
           points={shape.points}
           stroke={shape.color}
-          strokeWidth={HIGHLIGHT_STROKE_WIDTH}
+          strokeWidth={hlWidth}
           opacity={HIGHLIGHT_OPACITY}
           lineCap="round"
           lineJoin="round"
-          hitStrokeWidth={Math.max(SELECT_HIT_WIDTH, HIGHLIGHT_STROKE_WIDTH)}
+          hitStrokeWidth={Math.max(SELECT_HIT_WIDTH, hlWidth)}
         />
       );
+    }
     case "text":
       return (
         <Text

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import type Konva from "konva";
 import type { KonvaEventObject } from "konva/lib/Node";
-import { Image as KonvaImage, Layer, Stage, Transformer } from "react-konva";
+import { Image as KonvaImage, Layer, Rect, Stage, Transformer } from "react-konva";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { loadImage } from "@/sidepanel/capture";
@@ -14,6 +14,7 @@ import {
   DEFAULT_THICKNESS,
   DEFAULT_TEXT_SIZE,
   TEXT_SIZES,
+  TEXT_SIZE_KEYS,
   isStrokeTool,
   type AnnotationTool,
   type TextSizeKey,
@@ -53,8 +54,8 @@ interface TextEditing {
   fontSize: number; // 화면 px
 }
 
-function toolCursor(tool: AnnotationTool): string {
-  if (tool === "select") return "default";
+function toolCursor(tool: AnnotationTool | null): string {
+  if (tool === null || tool === "select") return "default";
   return "crosshair";
 }
 
@@ -66,7 +67,7 @@ export default function AnnotationOverlay({
   const t = useT();
   const [image, setImage] = useState<HTMLImageElement | null>(null);
   const [scale, setScale] = useState(1);
-  const [tool, setTool] = useState<AnnotationTool>("select");
+  const [tool, setTool] = useState<AnnotationTool | null>(null);
   const [color, setColor] = useState<string>(DEFAULT_COLOR);
   const [thickness, setThickness] = useState<ThicknessKey>(DEFAULT_THICKNESS);
   const [textSize, setTextSize] = useState<TextSizeKey>(DEFAULT_TEXT_SIZE);
@@ -155,6 +156,11 @@ export default function AnnotationOverlay({
     const shape = shapes.find((s) => s.id === id);
     if (!shape) return;
     setColor(shape.color);
+    if (shape.type === "text") {
+      const sizeKey = TEXT_SIZE_KEYS.find((k) => TEXT_SIZES[k] === shape.fontSize);
+      if (sizeKey) setTextSize(sizeKey);
+      return;
+    }
     const key = (Object.keys(ANNOTATION_THICKNESS) as ThicknessKey[]).find(
       (k) => ANNOTATION_THICKNESS[k] === shape.strokeWidth,
     );
@@ -208,6 +214,7 @@ export default function AnnotationOverlay({
     if (!stage) return;
     const pt = stage.getPointerPosition();
     if (!pt) return;
+    if (!tool) return;
     if (tool === "select") {
       if (e.target === stage) setSelectedId(null);
       return;
@@ -265,6 +272,19 @@ export default function AnnotationOverlay({
     }
   };
 
+  const handleTextSizeChange = (key: TextSizeKey) => {
+    setTextSize(key);
+    if (selectedId) {
+      pushShapes((prev) =>
+        prev.map((s) =>
+          s.id === selectedId && s.type === "text"
+            ? { ...s, fontSize: TEXT_SIZES[key] }
+            : s,
+        ),
+      );
+    }
+  };
+
   const handleDelete = () => {
     if (!selectedId) return;
     pushShapes((prev) => prev.filter((s) => s.id !== selectedId));
@@ -292,6 +312,7 @@ export default function AnnotationOverlay({
 
   const selectedShape = selectedId ? shapes.find((s) => s.id === selectedId) : null;
   const selectionIsStroke = selectedShape != null && isStrokeTool(selectedShape.type);
+  const selectionIsText = selectedShape?.type === "text";
 
   return (
     <div className="absolute inset-0 z-50 bg-background" data-testid="annotation-overlay">
@@ -308,9 +329,10 @@ export default function AnnotationOverlay({
           thickness={thickness}
           onThicknessChange={handleThicknessChange}
           textSize={textSize}
-          onTextSizeChange={setTextSize}
+          onTextSizeChange={handleTextSizeChange}
           hasSelection={selectedId !== null}
           selectionIsStroke={selectionIsStroke}
+          selectionIsText={selectionIsText}
           onDelete={handleDelete}
           canUndo={canUndoFn(history)}
           canRedo={canRedoFn(history)}
@@ -358,13 +380,27 @@ export default function AnnotationOverlay({
                     />
                   ))}
                   {draftShape ? (
-                    <ShapeNode
-                      shape={draftShape}
-                      selectable={false}
-                      onSelect={() => {}}
-                      onCommit={() => {}}
-                      registerRef={() => {}}
-                    />
+                    draftShape.type === "text" ? (
+                      // 텍스트 박스 드래그 중 가이드라인(점선 사각형).
+                      <Rect
+                        x={Math.min(draftShape.x, draftShape.x + draftShape.width)}
+                        y={Math.min(draftShape.y, draftShape.y + draftShape.height)}
+                        width={Math.abs(draftShape.width)}
+                        height={Math.abs(draftShape.height)}
+                        stroke={draftShape.color}
+                        strokeWidth={1}
+                        dash={[6, 4]}
+                        listening={false}
+                      />
+                    ) : (
+                      <ShapeNode
+                        shape={draftShape}
+                        selectable={false}
+                        onSelect={() => {}}
+                        onCommit={() => {}}
+                        registerRef={() => {}}
+                      />
+                    )
                   ) : null}
                   <Transformer ref={transformerRef} rotateEnabled ignoreStroke />
                 </Layer>
