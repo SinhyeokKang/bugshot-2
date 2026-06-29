@@ -114,9 +114,20 @@ describe("tokenizeLogText", () => {
     ]);
   });
 
-  it("경로 없는 포트-only URL은 href에서 :포트가 깎인다(동작 문서화)", () => {
+  it("경로 없는 host:port URL은 포트를 line으로 오인하지 않고 href에 보존한다", () => {
     expect(tokenizeLogText("https://h:8080")).toEqual([
-      { type: "url", value: "https://h:8080", href: "https://h" },
+      { type: "url", value: "https://h:8080", href: "https://h:8080" },
+    ]);
+  });
+
+  it("포트 있는 경로 URL은 포트는 보존하고 끝의 :line:col만 href에서 제거한다", () => {
+    expect(tokenizeLogText("at http://localhost:3000/app.js:5:2")).toEqual([
+      { type: "text", value: "at " },
+      {
+        type: "url",
+        value: "http://localhost:3000/app.js:5:2",
+        href: "http://localhost:3000/app.js",
+      },
     ]);
   });
 });

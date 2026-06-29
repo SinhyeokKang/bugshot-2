@@ -31,7 +31,7 @@ URL 렌더는 2층으로 공유한다: 기존 `InlineLink`(구조화된 단일 U
 - **규칙**:
   - URL 매칭: `https?://` 시작, 공백·`)`·`'`·`"`·`<`·`>`에서 종료. regex `/https?:\/\/[^\s)'"<>]+/g`.
   - 후행 문장부호 트림: 매치 끝의 `.,;!?` 연속을 URL에서 떼어 다음 text 토큰으로. (예: `... errors/185.` → url `.../errors/185`, text `.`)
-  - href 정리: 표시값(`value`)은 매치 전체 유지, `href`는 끝의 `:\d+(:\d+)?`(line 또는 line:col) 제거. (예: `https://h/index.js:55:27752` → value 동일, href `https://h/index.js`)
+  - href 정리: 표시값(`value`)은 매치 전체 유지, `href`는 **경로가 있을 때만** 끝의 `:\d+(:\d+)?`(line 또는 line:col) 제거. (예: `https://h/index.js:55:27752` → href `https://h/index.js`). 경로 없는 `host:port`(`http://localhost:3000`)는 포트를 line으로 오인하지 않도록 그대로 둔다.
   - 매치 없으면 단일 text 토큰 1개.
 
 ### 신규: `src/sidepanel/components/LinkifiedText.tsx` — React 래퍼 (콘솔 전용 소비)
@@ -120,6 +120,6 @@ onClick?: (e: React.MouseEvent<HTMLAnchorElement>) => void;
 - **action nav 시각 회귀**: `kindColor` 제거로 동사부가 foreground가 됨. nav URL 링크·배경·아이콘은 유지돼야 함. `data-testid="action-nav-link"` 보존 확인(e2e).
 - **토크나이저 과탐/누락**: `(url:line:col)` 괄호 종료, `errors/185.` 후행 점, 쿼리스트링, 멀티 URL, 멀티라인(URL이 `\n`을 안 넘음) 경계 → 단위 테스트로 고정.
 - **괄호 포함 URL 절단(의도된 트레이드오프)**: regex `[^\s)'"<>]+`가 첫 `)`에서 종료 → V8 스택 `at f (https://h/x.js:55:27)`를 정확히 자르는 게 목적이지만, `https://en.wikipedia.org/wiki/Foo_(bar)`식 괄호 URL은 `...Foo_(bar`로 잘린다. 콘솔 컨텍스트는 V8 래핑 `(url)`이 지배적이라 `)` 제외가 맞다. 이 동작을 단위 테스트로 명문화(의도된 동작).
-- **href line:col 제거 규칙**: "끝의 `:\d+(:\d+)?`만" 제거라 포트-only(`https://h:8080`, 경로 없음)는 포트가 깎일 수 있음. 실사용 콘솔 URL은 항상 경로/파일이 뒤라 위험 낮음 — 포트-only 케이스를 테스트에 넣어 동작 문서화.
+- **href line:col 제거 규칙**: 끝의 `:\d+(:\d+)?` 제거는 **경로가 있을 때만** 적용해, 경로 없는 `host:port`(`http://localhost:3000` 등 dev 서버 URL)의 포트가 line:col로 오인돼 깎이는 표시/목적지 불일치를 막는다. 포트 있는 경로 URL(`http://localhost:3000/app.js:5:2`)은 포트 보존 + 끝 `:5:2`만 제거. 두 경로 모두 단위 테스트로 락인.
 - **다크모드 변별력**: 다크 배경 틴트(`bg-X-950/50`)는 거의 검정이라 에러/경고/정보 *배경* 구분이 약하고 변별력은 색 입힌 **좌측 아이콘이 사실상 전담**한다(DESIGN.md의 functional color 라이트/다크 WCAG 대비 미검증 명시). → 수동 라이트/다크 체크를 **성공 기준으로 승격**(tasks). 좁은 폭·아이콘 미표시 조건에서 아이콘 가림 시 폴백 점검.
 - **action click/input·network 무영향 확인**: 이번 변경은 nav 색 제거 + URL 링크화뿐 → 그 외 행 시각 회귀 없어야 함(수동 확인).

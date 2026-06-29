@@ -27,7 +27,7 @@
   - [x] 쿼리스트링: `https://h/p?a=b&c=d` → 통째 url, href 동일
   - [x] 멀티 URL 한 줄 → 각각 url 토큰
   - [x] **멀티라인**: `"a https://h/x\nb https://h/y"` → URL이 `\n`을 안 넘고 각 줄 url 분리(`\s`가 `\n` 포함)
-  - [x] 포트-only 비정상 입력 `https://h:8080`(경로 없음) → 동작 문서화(href에서 `:8080` 깎임을 테스트로 명시)
+  - [x] 경로 없는 `host:port` `https://h:8080` → 포트를 line으로 오인 안 하고 href 보존 / 포트+경로 `http://localhost:3000/app.js:5:2` → 포트 보존 + 끝 `:5:2`만 제거
 
 ### Task 2: 토크나이저 구현
 
