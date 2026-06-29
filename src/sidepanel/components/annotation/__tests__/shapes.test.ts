@@ -4,6 +4,7 @@ import {
   createShape,
   fitScale,
   isEmptyShape,
+  PEN_SMOOTHING_ALPHA,
   updateShapeDraft,
   type EllipseShape,
   type RectShape,
@@ -11,6 +12,9 @@ import {
 } from "../shapes";
 
 const style: ShapeStyle = { color: "#ff0000", strokeWidth: 4, fontSize: 24 };
+
+// EMA: 새 점은 직전(이미 보정된) 점에서 raw 쪽으로 α만큼만 이동한다.
+const sm = (prev: number, raw: number) => prev + PEN_SMOOTHING_ALPHA * (raw - prev);
 
 describe("createShape — 초기 도형 생성", () => {
   it("rect는 시작점에서 width/height 0으로 생성된다", () => {
@@ -89,20 +93,42 @@ describe("updateShapeDraft — 드래그 중 갱신", () => {
     }
   });
 
-  it("pen은 points가 누적된다", () => {
+  it("pen은 EMA 보정된 points가 누적된다", () => {
     let s = createShape("pen", "id", { x: 0, y: 0 }, style);
     s = updateShapeDraft(s, { x: 1, y: 1 });
     s = updateShapeDraft(s, { x: 2, y: 2 });
     if (s.type === "pen") {
-      expect(s.points).toEqual([0, 0, 1, 1, 2, 2]);
+      const p1 = sm(0, 1);
+      const p2 = sm(p1, 2);
+      expect(s.points).toEqual([0, 0, p1, p1, p2, p2]);
     }
   });
 
-  it("highlight도 points가 누적된다", () => {
+  it("highlight도 EMA 보정된 points가 누적된다", () => {
     let s = createShape("highlight", "id", { x: 0, y: 0 }, style);
     s = updateShapeDraft(s, { x: 3, y: 4 });
     if (s.type === "highlight") {
-      expect(s.points).toEqual([0, 0, 3, 4]);
+      expect(s.points).toEqual([0, 0, sm(0, 3), sm(0, 4)]);
+    }
+  });
+
+  it("pen 보정점은 시작점과 raw 사이에 놓인다(커서를 그대로 찍지 않음)", () => {
+    let s = createShape("pen", "id", { x: 0, y: 0 }, style);
+    s = updateShapeDraft(s, { x: 100, y: 0 });
+    if (s.type === "pen") {
+      const x = s.points[2];
+      expect(x).toBeGreaterThan(0);
+      expect(x).toBeLessThan(100);
+    }
+  });
+
+  it("같은 좌표를 반복 입력하면 보정점이 그 좌표로 수렴한다", () => {
+    let s = createShape("pen", "id", { x: 0, y: 0 }, style);
+    for (let i = 0; i < 40; i++) s = updateShapeDraft(s, { x: 10, y: 10 });
+    if (s.type === "pen") {
+      const n = s.points.length;
+      expect(s.points[n - 2]).toBeCloseTo(10, 1);
+      expect(s.points[n - 1]).toBeCloseTo(10, 1);
     }
   });
 
