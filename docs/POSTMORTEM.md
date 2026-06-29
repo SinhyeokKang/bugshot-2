@@ -21,6 +21,15 @@
 
 ---
 
+## 2026-06-29 — captureVisibleTab 쿼터 초과로 스냅샷 실패 (캡처 호출처 N개가 직렬화 큐 없이 경쟁)
+
+- **증상**: 30s 리플레이가 켜진 상태에서 엘리먼트 스냅샷·스타일 before/after를 찍으면 `BgError: This request exceeds the MAX_CAPTURE_VISIBLE_TAB_CALLS_PER_SECOND quota.` → 콘솔에 `[bugshot] snapshot failed`, 스냅샷 null 반환.
+- **근본 원인**: Chrome `chrome.tabs.captureVisibleTab`는 **윈도우 단위로 초당 2회**(`MAX_CAPTURE_VISIBLE_TAB_CALLS_PER_SECOND`) 제한인데, 캡처를 쏘는 경로가 4개(30s 리플레이 폴링 600ms·`use-30s-replay.ts`, 엘리먼트 스냅샷·`capture.ts`, 스타일 next after·`StyleEditorPanel`, element 전환 buffer·`useBufferThenSwitch`)고 전부 background `captureVisibleTab` 핸들러를 **직렬화·간격 제어 없이** 그대로 호출했다. 리플레이 폴링 단독으로도 한계 근처(~1.67회/초)라, 사용자 액션 캡처가 같은 1초 창에 끼면 초과. 표면("스냅샷 1건 실패")과 원인(**전역 캡처 호출 빈도가 쿼터를 넘음** — 한 호출처가 아니라 경합)이 다른 레이어. 리플레이 tick은 에러를 `catch {}`로 삼켜 증상이 사용자 액션 경로에서만 드러났다.
+- **재발 방지**: (1) **captureVisibleTab은 반드시 한 큐로 직렬화 + 최소 간격**을 거친다 — background 핸들러가 `captureThrottle.run()` 경유(`src/background/capture-throttle.ts`). 새 캡처 경로를 추가할 때 background 핸들러를 우회해 `chrome.tabs.captureVisibleTab`을 직접 부르면 다시 깨진다. `grep -rn "captureVisibleTab" src/` 결과는 **호출처(sendBg type 발신)만** 늘어야 하고 실제 API 호출은 `messages.ts` 1곳·`capture-throttle` 경유로 유지. (2) **rate-limit은 정상 동작 — 재시도로 흡수**한다(`isCaptureRateLimitError` 매칭 시만 백오프, 그 외 에러는 즉시 throw해 탭 닫힘 등을 무한 재시도하지 않음). (3) 단위 테스트(`capture-throttle.test.ts`)로 직렬화·최소 간격·재시도·실패 격리 고정.
+- **관련**: `src/background/capture-throttle.ts`(`createCaptureThrottle`·`captureThrottle`·`isCaptureRateLimitError`), 소비처 `src/background/messages.ts:captureVisibleTab` 핸들러, 테스트 `src/background/__tests__/capture-throttle.test.ts`.
+
+---
+
 ## 2026-06-29 — 스타일 패널 Transition 섹션이 트랜지션 없어도 항상 펼침 (computed longhand 유령 기본값)
 
 - **증상**: 스타일 에디터에서 섹션 초기 펼침 조건을 손본 뒤, Transition 섹션만 어떤 요소를 골라도 **항상 펼쳐진** 상태로 떴다. 실제로 transition이 걸린 요소가 아닌데도 "값 있음"으로 취급.
