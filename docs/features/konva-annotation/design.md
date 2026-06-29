@@ -12,7 +12,7 @@
 - **`shapes.ts`** — 순수. 도형 모델 타입(`AnnotationShape` 유니온)과 팩토리/업데이트 헬퍼. 포인터 좌표·현재 도구·스타일을 받아 도형 객체를 만들고, 드래그 중 갱신한다. Konva·React 의존 없음.
 - **`history.ts`** — 순수. `AnnotationShape[]` 스냅샷 스택에 대한 undo/redo 리듀서. push/undo/redo/canUndo/canRedo.
 - **`ShapeNode.tsx`** — react-konva. `AnnotationShape` 하나를 타입별 Konva 노드(`Arrow`/`Rect`/`Ellipse`/`Line`/`Text`)로 렌더. 선택·드래그·transform 이벤트를 상위로 콜백.
-- **`AnnotationToolbar.tsx`** — shadcn. **3단 컨텍스트 레이아웃**(아래 "툴바 레이아웃" 참조). 도구·색상은 shadcn `ButtonGroup`(`@/components/ui/button-group`)으로 묶고, 각 항목은 `Button size="sm" variant="outline"` + 활성 시 `bg-muted` className + `data-active`(OriginFilterBar 컨벤션 그대로). lucide 아이콘(MousePointer2/ArrowUpRight/Square/Circle/Pen/Type/Highlighter/Trash2/Undo2/Redo2). ToggleGroup은 코드베이스 실사용 0건이라 쓰지 않고 기존 ButtonGroup 패턴을 따른다.
+- **`AnnotationToolbar.tsx`** — shadcn. **3단 컨텍스트 레이아웃**(아래 "툴바 레이아웃" 참조). **모든 버튼은 아이콘 전용**(텍스트 라벨 없음, 라벨은 `aria-label`/`title`로만). 도구·색상은 shadcn `ButtonGroup`(`@/components/ui/button-group`)으로 묶고, 각 항목은 `Button size="icon" className="h-8 w-8"` + 활성 시 `bg-muted` + `data-active`. 아이콘: 도구 MousePointer2/ArrowUpRight/Square/Circle/Pen/Type/Highlighter, 삭제 Trash2, undo/redo Undo2/Redo2, **Cancel `X` / OK `Check`**, **두께 S/M/L = 굵기 다른 가로선 아이콘**(lucide에 stroke-width 아이콘이 없으므로 `Minus`를 strokeWidth 1/2.5/4로 렌더하거나 높이 다른 막대 글리프; aria로 S/M/L 구분). 색상은 컬러 채운 원형 스와치(아이콘 대용). ToggleGroup은 실사용 0건이라 쓰지 않고 ButtonGroup 패턴을 따른다.
 - **`TextEditorOverlay.tsx`** (또는 AnnotationOverlay 내 인라인) — 텍스트 노드 편집용 HTML `<textarea>`를 Konva Text 위에 절대배치. Konva 표준 텍스트 편집 패턴.
 - **`__tests__/shapes.test.ts`**, **`__tests__/history.test.ts`**, **`__tests__/presets.test.ts`** — Vitest 단위 테스트.
 
@@ -66,36 +66,38 @@ DraftingPanel (annotating && screenshotRaw)
 
 ### 툴바 레이아웃 (3단 컨텍스트)
 
-오버레이는 **사이드패널의 탭 컨텐츠 영역만 덮고**(상단 전역 탭 바는 가리지 않음 — 현행 `absolute inset-0`은 DraftingPanel 컨텐츠 기준), **배경색은 흰색**(`bg-white` — 현행 `bg-black/40 backdrop-blur`는 폐기), 이미지 Stage는 **중앙 정렬**, 툴바는 **오버레이 상단/하단에 고정**한다. 좁은 사이드패널(~320–400px)에선 한 줄에 다 못 들어가므로 상단 툴바를 1·2단으로 나눈다. 컨테이너 쿼리로 "넓어지면 펼침"은 사이드패널 폭에선 거의 발동 안 하므로 **고정 다단**으로 간다.
+오버레이는 **사이드패널의 탭 컨텐츠 영역만 덮고**(상단 전역 탭 바는 가리지 않음 — 현행 `absolute inset-0`은 DraftingPanel 컨텐츠 기준, `bg-black/40 backdrop-blur`는 폐기), 이미지 Stage는 **중앙 정렬**, 툴바는 **오버레이 상단/하단에 고정**한다. **배경색 분리**: 툴바 영역(상단 1·2단 + 하단 3단)은 기본 배경(`bg-background`), **이미지가 깔리는 가운데 canvas 영역(툴바 제외 전부)은 회색 `bg-muted/50`** — 다이얼로그/PageFooter(`Section.tsx:30` `bg-muted/50`)와 동일. 좁은 사이드패널(~320–400px)에선 한 줄에 다 못 들어가므로 상단 툴바를 1·2단으로 나눈다. 컨테이너 쿼리로 "넓어지면 펼침"은 사이드패널 폭에선 거의 발동 안 하므로 **고정 다단**으로 간다.
 
 ```
 ╔═══════════════════════════════════════════════╗
 ║  [ Issue ] [ Logs ] [ Settings ]   ← 전역 탭 (가리지 않음)
 ╠═══════════════════════════════════════════════╣
 ║┌─────────────────────────────────────────────┐║ ← 오버레이 시작 (bg-white)
-║│ ↖  →  ▭  ○  ✎  T  ▮            🗑  (1단: 도구+삭제)│║
-║│ ● ● ● ● ●     S  M  L      (2단: 그리기 선택 시만) │║
+║│ [↖][→][▭][○][✎][T][▮]          [🗑]  (1단: bg-background)│║
+║│ [●][●][●][●][●]   [▁][▃][▇]   (2단: 높이 항상 예약) │║
 ║├─────────────────────────────────────────────┤║
-║│                                               │║
-║│        ┌───────────────────────┐              │║
-║│        │                       │              │║
-║│        │   이미지 Stage         │  ← 중앙 정렬   │║
-║│        │   (CSS scale 축소,     │    max-h 70vh │║
-║│        │    자연 해상도 캔버스)   │              │║
-║│        │            →(화살표 주석)│              │║
-║│        └───────────────────────┘              │║
-║│                                               │║
+║│▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓│║ ← canvas 영역
+║│▓▓▓▓▓▓▓▓┌───────────────────────┐▓▓▓▓▓▓▓▓▓▓▓▓▓│║   bg-muted/50
+║│▓▓▓▓▓▓▓▓│                       │▓▓▓▓▓▓▓▓▓▓▓▓▓│║
+║│▓▓▓▓▓▓▓▓│   이미지 Stage         │← 중앙 정렬▓▓▓│║
+║│▓▓▓▓▓▓▓▓│   (CSS scale 축소,     │  max-h 70vh▓│║
+║│▓▓▓▓▓▓▓▓│    자연 해상도 캔버스)   │▓▓▓▓▓▓▓▓▓▓▓▓▓│║
+║│▓▓▓▓▓▓▓▓│            →(화살표 주석)│▓▓▓▓▓▓▓▓▓▓▓▓▓│║
+║│▓▓▓▓▓▓▓▓└───────────────────────┘▓▓▓▓▓▓▓▓▓▓▓▓▓│║
+║│▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓│║
 ║├─────────────────────────────────────────────┤║
-║│  ⟲ Undo   ⟳ Redo            [Cancel] [  OK  ] │║ ← 3단 (하단 고정)
-║│                                               │║
+║│  [⟲][⟳]                          [✕][✓]      │║ ← 3단 (bg-background)
 ║└─────────────────────────────────────────────┘║ ← 오버레이 끝
 ╚═══════════════════════════════════════════════╝
-   ※ 1단 우측 🗑 = 도형 선택 시만 활성 / OK = 도형>0일 때만 활성
-   ※ select 도구 선택 시 2단(색상·두께) 숨김
+   ※ ▓ = canvas 영역 bg-muted/50(PageFooter·다이얼로그와 동일). 툴바는 bg-background
+   ※ 모든 버튼 아이콘 전용(라벨은 aria/title). 두께 ▁▃▇=가는/중간/굵은 선
+   ※ 🗑 = 도형 선택 시만 활성 / ✓(OK) = 도형>0일 때만 활성
+   ※ 2단은 select 도구 시 내용만 숨기고 높이 예약 → 이미지 수직 점프 방지
 ```
 
+- **단 컨테이너 간격**: 각 툴바 단(1·2·3단)의 래퍼는 **전역 탭 바 컨테이너와 동일한 패딩·하단 간격**을 쓴다 — `App.tsx:187`의 `<div className="border-b px-4 py-4">` 기준으로 `px-4 py-4`(+ 단 구분에 `border-b`/동일 mb). 전역 탭 바와 시각 리듬을 맞춘다.
 - **1단(최상단)**: 도구 7종 ButtonGroup(활성 도구 `bg-muted` + `data-active`, 좁으면 flex-wrap) + 우측에 **선택 도형 삭제 버튼**(`Trash2`, `annotation.delete`). 도형이 선택됐을 때(`selectedId != null`)만 활성, 아니면 disabled. 클릭 = 선택 도형 제거 + history.push. 키보드 `Delete`/`Backspace`와 동일 동작(버튼은 마우스 사용자용 명시적 어포던스).
-- **2단**: 그리기 도구(select 아님) 선택 시에만 렌더. 색상 5 스와치 ButtonGroup + 두께 S/M/L ButtonGroup. select 도구일 땐 숨겨 폭 절약. (highlight/text는 두께 무의미 시 두께 그룹 비활성/숨김 — 두께는 stroke 도구 arrow/rect/ellipse/pen에만, text는 색상만.)
+- **2단**: 색상 5 스와치 ButtonGroup + 두께 굵기 아이콘 ButtonGroup. 그리기 도구(select 아님) 선택 시에만 **내용**을 렌더하되, **행 높이는 항상 예약**한다(select 도구일 땐 `invisible`/빈 컨테이너로 동일 높이 유지). ⚠️ 그냥 조건부 언마운트하면 상단 툴바 블록 높이가 변해 가운데 canvas 영역 높이가 바뀌고 **이미지 수직 중심이 점프**한다 — 높이 예약으로 차단. (두께는 stroke 도구 arrow/rect/ellipse/pen에만 노출, text/highlight 선택 시 두께 그룹은 비활성/숨김이되 이 역시 1단·2단 전체 높이는 불변.)
 - **3단(최하단)**: 왼쪽 Undo/Redo(`disabled = !canUndo/!canRedo`), 오른쪽 Cancel/OK(도형 0개면 OK disabled). 기존 하단 액션바(`annotation.cancel`/`annotation.done`) 위치 계승.
 
 ### 커서 인터랙션
@@ -199,3 +201,4 @@ export function canRedo(h: History<unknown>): boolean;
 - **willReadFrequently 패치 의존**: main.tsx 전역 패치가 Konva hit canvas 경고도 덮는다. 패치 제거 금지(회귀). 주석만 갱신.
 - **메모리/정리**: unmount 시 Stage·이미지·리스너 해제. react-konva는 언마운트로 자동 정리되나 textarea·window 키 리스너는 수동 해제.
 - **빈 도형 commit**: 클릭만 하고 드래그 안 한 rect/ellipse(면적 0), 빈 텍스트 → `isEmptyShape`로 폐기. 누락 시 보이지 않는 노드 누적.
+- **2단 toggle 레이아웃 시프트**: 2단(색상·두께)을 조건부 언마운트하면 상단 툴바 높이가 변해 canvas 영역·이미지 수직 위치가 점프한다. 2단 행 높이를 **항상 예약**(select 시 `invisible`)해 차단. 이미지 크기 자체는 displayScale이 `70vh` 뷰포트 기준이라 불변이지만, 중앙 정렬 기준 영역 변화로 위치가 튀므로 예약이 필요.
