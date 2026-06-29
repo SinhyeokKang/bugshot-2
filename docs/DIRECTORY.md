@@ -29,6 +29,7 @@ src/
 │   ├── injectSnapshotRows.ts # Jira(ADF) 제출 후처리 — buildIssueAdf가 만든 styleChanges table에 업로드된 before-${i}/after-${i} Snapshot 행을 element 인덱스로 splice (순수 함수, "As is"/"To be" 헤더로 table 식별)
 │   ├── analytics.ts     # PostHog 익명 집계 — analyticsEnabled/buildCaptureBody/postCapture(순수·격리 fetch) + resolveInstallationId(순수)/getInstallationId(설치당 1회 UUID를 storage.local에 영속, 이벤트마다 공유 distinct_id) + captureEvent(키 게이팅 후 /capture/). 키는 store 빌드에서만 vite define 승격(prod-only), host_permission 없이 CORS 전송
 │   ├── connect-tracking.ts # OAuth 시작 흐름 래퍼 — trackConnect(run 감싸 platform_connect success/cancelled/failed 집계, 원본 에러 rethrow로 취소 토스트 억제 보존) + classifyConnectResult(OAuthError.cancelled 판정 순수 헬퍼)
+│   ├── capture-throttle.ts # captureVisibleTab 단일 직렬화 큐 (윈도우당 초당 2회 쿼터 회피 — 호출 간 최소 500ms 간격 + rate-limit 에러 한정 백오프 재시도). 리플레이 폴링·엘리먼트 스냅샷·스타일 before/after가 모두 이 큐 경유 (background captureVisibleTab 핸들러 필수)
 │   ├── lib/             # adf-media(ADF media/mediaSingle 노드 빌더), adf-logs-link(업로드 후 logs.html em 노드에 link mark 주입하는 ADF 후처리 + LOGS_LINK_LABEL) — buildIssueAdf 계열 순수 헬퍼. readErrorBody(에러 응답 본문 JSON 우선 파싱 → 원문 → undefined, github/jira/gitlab/asana-api 공용)
 │   └── messages.ts      # 메시지 핸들러 디스패치 (jira.* / github.* / linear.* / notion.* / gitlab.* / asana.* / clickup.* / slack.* / analytics.capture / css.fetchSheets(cross-origin stylesheet 위임 fetch, SSRF 가드) namespace)
 ├── content/
