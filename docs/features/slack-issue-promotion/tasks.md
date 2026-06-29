@@ -15,13 +15,13 @@
   - `isSlackPreserved(issue)`, `promotableTargets(accounts)`, `canPromoteSlack(issue, accounts)`, `submittablePlatforms(issue, accounts)`, `resolveInitialPlatform(picked, available)` 구현.
   - `matchesStatus`는 **변경하지 않음**을 테스트로 고정.
 - **검증**:
-  - [ ] `isSlackPreserved`: submitted+slackPreserved=true → true; draft → false; submitted+플래그없음 → false
-  - [ ] `promotableTargets`: accounts에 slack만 → `[]`; slack+jira → `["jira"]`
-  - [ ] `canPromoteSlack`: slack 보존 이슈 + 트래커 1개 → true; 트래커 0 → false; 일반 submitted → false
-  - [ ] `submittablePlatforms`: slack 보존 이슈 → slack 제외 목록; 일반 draft → connectedPlatforms 전체
-  - [ ] `resolveInitialPlatform`: `("slack", ["jira"]) → "jira"`; `("jira", ["jira","github"]) → "jira"`; `(null, []) → "jira"`; `("slack", []) → "jira"`
-  - [ ] `matchesStatus(slack보존이슈, "submitted")===true`, `matchesStatus(..., "draft")===false`
-  - [ ] `pnpm test` 통과
+  - [x] `isSlackPreserved`: submitted+slackPreserved=true → true; draft → false; submitted+플래그없음 → false
+  - [x] `promotableTargets`: accounts에 slack만 → `[]`; slack+jira → `["jira"]`
+  - [x] `canPromoteSlack`: slack 보존 이슈 + 트래커 1개 → true; 트래커 0 → false; 일반 submitted → false
+  - [x] `submittablePlatforms`: slack 보존 이슈 → slack 제외 목록; 일반 draft → connectedPlatforms 전체
+  - [x] `resolveInitialPlatform`: `("slack", ["jira"]) → "jira"`; `("jira", ["jira","github"]) → "jira"`; `(null, []) → "jira"`; `("slack", []) → "jira"`
+  - [x] `matchesStatus(slack보존이슈, "submitted")===true`, `matchesStatus(..., "draft")===false`
+  - [x] `pnpm test` 통과
 
 ### Task 2: 데이터 모델 + store 액션 (보존/폐기 분기 단위 고정)
 - **변경 대상**: `src/store/issues-store.ts`, `src/store/__tests__/issues-store.test.ts`
@@ -30,24 +30,24 @@
   - `markSlackShared(id, { key, url })` 액션 추가 — status/platform/submittedAt/updatedAt/slackPreserved 세팅, draft·snapshot·styleEdits·blob 참조 유지, **`delete*Blob` 호출 없음**.
   - `stripSubmitted`에 `slackPreserved: undefined` 추가.
 - **검증**:
-  - [ ] `markSlackShared` 후 레코드: status="submitted", platform="slack", slackPreserved=true, key/url 세팅, draft/snapshot/blob키 유지
-  - [ ] **blob 보존 단위 검증**: `delete*Blob`(video/image/network/console/action/attachment)을 `vi.mock` → `markSlackShared`에서 전부 `not.toHaveBeenCalled()`, 대비로 `markSubmitted`에서는 `toHaveBeenCalled()` (state 필드만 보면 실수로 delete가 들어가도 통과하므로 호출 자체를 검증)
-  - [ ] `stripSubmitted`(승격) 후: slackPreserved=undefined, draft 비워짐, blob키 undefined
-  - [ ] 기존 `markSubmitted`(Slack 외) 동작 회귀 없음
-  - [ ] `pnpm test` 통과
+  - [x] `markSlackShared` 후 레코드: status="submitted", platform="slack", slackPreserved=true, key/url 세팅, draft/snapshot/blob키 유지
+  - [x] **blob 보존 단위 검증**: `delete*Blob`(video/image/network/console/action/attachment)을 `vi.mock` → `markSlackShared`에서 전부 `not.toHaveBeenCalled()`, 대비로 `markSubmitted`에서는 `toHaveBeenCalled()` (state 필드만 보면 실수로 delete가 들어가도 통과하므로 호출 자체를 검증)
+  - [x] `stripSubmitted`(승격) 후: slackPreserved=undefined, draft 비워짐, blob키 undefined
+  - [x] 기존 `markSubmitted`(Slack 외) 동작 회귀 없음
+  - [x] `pnpm test` 통과
 
 ### Task 3: i18n 라벨 (UI 태스크보다 선행)
 - **변경 대상**: `src/i18n/ko.ts`, `src/i18n/en.ts`
 - **작업 내용**: `issueList.viewDetail`("자세히"/"View details"), `issueList.promote`("트래커로 등록"/"Promote to tracker") ko/en 추가.
 - **검증**:
-  - [ ] PostToolUse 훅(locales 대칭) 통과
-  - [ ] `pnpm test` 통과
+  - [x] PostToolUse 훅(locales 대칭) 통과
+  - [x] `pnpm test` 통과
 
 ### Task 4: 신규 작성 Slack 제출을 보존 경로로 전환
 - **변경 대상**: `src/sidepanel/tabs/IssueCreateModal.tsx`
 - **작업 내용**: `handleSlackSubmit`의 `markSubmitted(currentIssueId, {platform:"slack",key,url})` → `markSlackShared(currentIssueId, {key,url})`. reset/lastSubmitFields/lastSubmittedPlatform 유지.
 - **검증**:
-  - [ ] `pnpm typecheck` 통과
+  - [x] `pnpm typecheck` 통과
   - [ ] (수동) Slack 제출 후 [자세히] 클릭 시 이미지/로그가 남아 표시됨
 
 ### Task 5: IssueRow — [자세히]·[승격] 버튼 (본문 클릭 불변)
@@ -56,7 +56,7 @@
   - IssueRow: `accounts` 구독, `promotable = canPromoteSlack(issue, accounts)`. **`handleCardClick`은 변경하지 않음**(promotable이어도 submitted라 permalink 이동 유지). 우측에 promotable이면 [자세히](lucide `Eye`, `data-testid="view-detail-issue"`, `onOpenDraft`) + [승격](lucide `Send`, `data-testid="promote-issue"`, `onOpenSubmit`) 두 IconButton, 둘 다 `stopPropagation`·`size="icon"`·`h-8 w-8`·`aria-label`+`title`. 아니면 기존 분기. props에 `onOpenSubmit` 추가.
   - IssueListTab: `autoSubmit` 상태 추가, `onOpenDraft`/`onOpenSubmit` 핸들러에서 set, `DraftDetailDialog`에 `autoOpenSubmit` 전달 + 닫힐 때 reset.
 - **검증**:
-  - [ ] `pnpm typecheck` 통과
+  - [x] `pnpm typecheck` 통과
   - [ ] (e2e) slack 보존 + 트래커 연결 시 카드 우측 [자세히]·[승격] 버튼(testid) 노출
   - [ ] (e2e) 트래커 0이면 두 버튼 미노출, 기존 Slack 배지 유지
   - [ ] (e2e) promotable 카드 **본문** 클릭 시 `draft-detail-dialog`가 열리지 **않음**(permalink 이동 — 부정 판정)
@@ -69,7 +69,7 @@
   - prop `autoOpenSubmit` 추가 — **prefill effect와 분리된 별도 `useEffect`**(deps `[open, autoOpenSubmit]`), `open && autoOpenSubmit`이면 `setSubmitOpen(true)`. 취소 시 detail 유지(추가 처리 없음).
   - `handleSlackSubmit`의 `markSubmitted` → `markSlackShared(issue.id, {key,url})`.
 - **검증**:
-  - [ ] `pnpm typecheck` 통과
+  - [x] `pnpm typecheck` 통과
   - [ ] (e2e) [승격] 클릭 → 제출 다이얼로그 열림 + Slack 탭 없음
   - [ ] (e2e) [자세히] 클릭 → `draft-detail-dialog` 열림(제출 다이얼로그 자동 오픈 안 함)
   - [ ] (수동) lastSubmittedPlatform=slack인 보존 이슈에서 [승격] 시 초기 탭이 Slack 아닌 첫 트래커

@@ -268,7 +268,7 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
             )}>
               {PLATFORM_TABS.filter((p) => availablePlatforms.includes(p.id)).map(
                 ({ id, Icon, invertOnDark }) => (
-                  <TabsTrigger key={id} value={id} className="min-w-0 gap-1.5">
+                  <TabsTrigger key={id} value={id} className="min-w-0 gap-1.5" data-testid={`platform-tab-${id}`}>
                     <Icon
                       className={cn("h-3.5 w-3.5 shrink-0", invertOnDark && "dark:invert")}
                       color="default"

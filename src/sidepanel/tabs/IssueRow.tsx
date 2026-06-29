@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Trash2 } from "lucide-react";
+import { Eye, Send, Trash2 } from "lucide-react";
 import { useT } from "@/i18n";
 import {
   AlertDialog,
@@ -14,24 +14,29 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { useIssuesStore, type IssueRecord } from "@/store/issues-store";
+import { useSettingsStore } from "@/store/settings-store";
 import { PlatformChip } from "./statusBadges/PlatformChip";
 import { SubmittedBadge } from "./statusBadges/SubmittedBadge";
-import { formatDate, formatIssueKey, issueTimestamp } from "./issueListUtils";
+import { canPromoteSlack, formatDate, formatIssueKey, issueTimestamp } from "./issueListUtils";
 
 export function IssueRow({
   issue,
   refreshKey,
   onOpenDraft,
+  onOpenSubmit,
   onBadgeLoaded,
 }: {
   issue: IssueRecord;
   refreshKey: number;
   onOpenDraft: () => void;
+  onOpenSubmit: () => void;
   onBadgeLoaded: () => void;
 }) {
   const t = useT();
   const isSubmitted = issue.status === "submitted" && !!issue.url;
   const removeIssue = useIssuesStore((s) => s.removeIssue);
+  const accounts = useSettingsStore((s) => s.accounts);
+  const promotable = canPromoteSlack(issue, accounts);
   const [badgeHover, setBadgeHover] = useState(false);
 
   const textMetaParts: string[] = [];
@@ -78,7 +83,32 @@ export function IssueRow({
           <span className="min-w-0 truncate">{textMetaParts.join(" · ")}</span>
         </span>
       </div>
-      {isSubmitted && issue.key ? (
+      {promotable ? (
+        <span className="flex shrink-0 items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-8 w-8 shrink-0 text-muted-foreground"
+            aria-label={t("issueList.viewDetail")}
+            title={t("issueList.viewDetail")}
+            data-testid="view-detail-issue"
+            onClick={onOpenDraft}
+          >
+            <Eye />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-8 w-8 shrink-0 text-muted-foreground"
+            aria-label={t("issueList.promote")}
+            title={t("issueList.promote")}
+            data-testid="promote-issue"
+            onClick={onOpenSubmit}
+          >
+            <Send />
+          </Button>
+        </span>
+      ) : isSubmitted && issue.key ? (
         <span
           onClick={(e) => e.stopPropagation()}
           onMouseEnter={() => setBadgeHover(true)}

@@ -10,7 +10,7 @@ export function SlackSubmittedBadge({ onLoaded }: { onLoaded: () => void }) {
     onLoaded();
   }, [onLoaded]);
   return (
-    <Badge variant="outline" className="w-fit shrink-0 text-[11px]">
+    <Badge variant="outline" className="w-fit shrink-0 text-[11px]" data-testid="slack-submitted-badge">
       {t("issueList.submitted")}
     </Badge>
   );
