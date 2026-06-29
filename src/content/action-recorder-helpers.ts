@@ -83,6 +83,22 @@ export function formatKeyCombo(input: KeyComboInput): string | null {
   return null;
 }
 
+// precision 우선 — 10보다 sloppy-click 경계 오탐을 더 줄인다(짧은 드래그 일부 손실 감수).
+export const DRAG_THRESHOLD_PX = 15;
+
+// 제곱 거리 비교(sqrt 회피). 정확히 threshold면 strict-greater라 false(미초과).
+export function exceedsDragThreshold(
+  x0: number,
+  y0: number,
+  x1: number,
+  y1: number,
+  threshold: number,
+): boolean {
+  const dx = x1 - x0;
+  const dy = y1 - y0;
+  return dx * dx + dy * dy > threshold * threshold;
+}
+
 export function buildLightSelector(el: Element): string {
   if (el.id) return `#${el.id}`;
   const tag = el.tagName.toLowerCase();

@@ -18,16 +18,16 @@
   - `action-recorder-helpers.ts`에 `DRAG_THRESHOLD_PX = 15`, `exceedsDragThreshold(x0,y0,x1,y1,threshold)` 추가.
   - 테스트를 **먼저**: 임계 초과/미달/경계(정확히 15px)/대각선/음수 델타. **경계 = strict-greater(`dx²+dy² > t²`)라 정확히 15px는 `false`(미초과)** — 테스트 기대값을 이 방향으로 고정.
 - **검증**:
-  - [ ] `pnpm test` — `exceedsDragThreshold` 신규 테스트 green (15px 경계 = false)
-  - [ ] `pnpm typecheck` 통과
+  - [x] `pnpm test` — `exceedsDragThreshold` 신규 테스트 green (15px 경계 = false)
+  - [x] `pnpm typecheck` 통과
 
 ### Task 2: 렌더 헬퍼 `resolveActionNode` (테스트 우선)
 - **변경 대상**: `src/sidepanel/lib/actionInline.ts`, `src/sidepanel/lib/__tests__/actionInline.test.ts`(없으면 신설)
 - **작업 내용**: `resolveActionNode(node: ActionNode): ClickTargetView` 추가(name→tag→selector→empty 우선순위). `resolveClickTarget`을 이 함수에 위임하도록 외과적 리팩터(로직 단일화).
 - **검증**:
-  - [ ] name 있을 때 `mode:"name"`, name 없고 tagName 있을 때 `mode:"tag"`, selector만 있을 때 `mode:"name"`, 전무 시 `mode:"empty"` 테스트
-  - [ ] `resolveClickTarget` 기존 테스트(있으면) 무회귀
-  - [ ] `pnpm test` green
+  - [x] name 있을 때 `mode:"name"`, name 없고 tagName 있을 때 `mode:"tag"`, selector만 있을 때 `mode:"name"`, 전무 시 `mode:"empty"` 테스트
+  - [x] `resolveClickTarget` 기존 테스트(있으면) 무회귀
+  - [x] `pnpm test` green
 
 ### Task 3: 캡처 — 포인터(source-only) + 네이티브 DnD(source+target)
 - **변경 대상**: `src/content/action-recorder.ts`
@@ -40,7 +40,7 @@
   - 기존 click 리스너 진입부에 `suppressNextClick` 가드.
   - 외부 static import 추가 금지(pre-arm 청크 제약).
 - **검증**:
-  - [ ] `pnpm typecheck` 통과
+  - [x] `pnpm typecheck` 통과
   - [ ] (수동, Task 7) 실제 페이지 검증
 
 ### Task 4: 사이드패널 렌더 분기 (target 유무 분기)
@@ -51,7 +51,7 @@
   - chip truncate: source/target chip에 `max-w` + `title` 툴팁(긴 요소명 wrap 완화, design 참조).
   - 필터 탭 8개(`all`+7종): 기존 행 overflow 정책 상속, 실제 렌더에서 잘림/줄바꿈 없는지 확인.
 - **검증**:
-  - [ ] `pnpm typecheck` — `kind satisfies never` 충족
+  - [x] `pnpm typecheck` — `kind satisfies never` 충족
   - [ ] (수동) 포인터 드래그 → "A 드래그", 네이티브 드래그 → "A를 B로 드래그" 노출
   - [ ] (수동) 필터 탭 8개가 ~400px에서 잘림/줄바꿈 없이 노출
 
@@ -63,16 +63,16 @@
   - `buildActionLogJson`에 `dragSource`/`dragTarget`(조건부) 직렬화.
   - ⚠️ `buildActionLogSummary`(if-체인)·`buildActionLogJson`(kind-agnostic)은 `satisfies never` 안전망 **밖** — drag 분기 누락 시 typecheck 통과한 채 조용히 오출력. 단위 테스트로 가드 필수.
 - **검증**:
-  - [ ] `pnpm typecheck` — markers switch `satisfies never` 충족
-  - [ ] `buildActionLogSummary` 단위 테스트에 drag(source-only → `Dragged X (drop target unknown)`)·drag(source+target → `Dragged X to Y`) 두 케이스 추가 후 `pnpm test` green
-  - [ ] `buildActionLogJson` 테스트(있으면)에 source-only 엔트리는 `dragTarget` 키 부재 확인
+  - [x] `pnpm typecheck` — markers switch `satisfies never` 충족
+  - [x] `buildActionLogSummary` 단위 테스트에 drag(source-only → `Dragged X (drop target unknown)`)·drag(source+target → `Dragged X to Y`) 두 케이스 추가 후 `pnpm test` green
+  - [x] `buildActionLogJson` 테스트(있으면)에 source-only 엔트리는 `dragTarget` 키 부재 확인
 
 ### Task 6: i18n (ko·en 동시, 양쪽 파일)
 - **변경 대상**: `src/i18n/namespaces/logs.ts`, `src/log-viewer/i18n.ts`
 - **작업 내용**: `actionLog.filter.drag`, `actionLog.verb.drag`(source-only), `actionLog.verb.dragTo`(source+target)를 ko·en·양 파일에 추가(design.md 표).
 - **검증**:
-  - [ ] `src/i18n/` 저장 시 PostToolUse 훅 `locales.test.ts` 자동 green(키 대칭·`{source}`/`{target}` 토큰 일치)
-  - [ ] log-viewer i18n 키도 ko/en 대칭 — ⚠️ **수동 확인**(PostToolUse 훅은 `src/i18n/`만 커버, `src/log-viewer/i18n.ts` 별도 사본은 자동검증 밖)
+  - [x] `src/i18n/` 저장 시 PostToolUse 훅 `locales.test.ts` 자동 green(키 대칭·`{source}`/`{target}` 토큰 일치)
+  - [x] log-viewer i18n 키도 ko/en 대칭 — ⚠️ **수동 확인**(PostToolUse 훅은 `src/i18n/`만 커버, `src/log-viewer/i18n.ts` 별도 사본은 자동검증 밖)
 
 ### Task 7: 수동 검증 (실제 탭)
 - **변경 대상**: 없음(검증 전용)

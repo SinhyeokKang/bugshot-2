@@ -314,6 +314,83 @@ describe("buildActionLogSummary", () => {
     }
   });
 
+  it("drag source+target(네이티브 DnD)은 'Dragged X to Y'", () => {
+    const log = makeActionLog({
+      captured: 1,
+      entries: [
+        makeAction({
+          id: "1",
+          kind: "drag",
+          dragSource: { name: "카드" },
+          dragTarget: { name: "받은편지함" },
+        } as Partial<ActionEntry>),
+      ],
+    });
+    expect(buildActionLogSummary(log)[0]).toBe("Dragged 카드 to 받은편지함");
+  });
+
+  it("drag source-only(포인터 경로)는 'Dragged X (drop target unknown)' — AI 목적지 환각 방지", () => {
+    const log = makeActionLog({
+      captured: 1,
+      entries: [
+        makeAction({
+          id: "1",
+          kind: "drag",
+          dragSource: { name: "카드" },
+        } as Partial<ActionEntry>),
+      ],
+    });
+    expect(buildActionLogSummary(log)[0]).toBe(
+      "Dragged 카드 (drop target unknown)",
+    );
+  });
+
+  it("drag source 이름이 없으면 selector로 폴백", () => {
+    const log = makeActionLog({
+      captured: 1,
+      entries: [
+        makeAction({
+          id: "1",
+          kind: "drag",
+          dragSource: { selector: "div.card" },
+        } as Partial<ActionEntry>),
+      ],
+    });
+    expect(buildActionLogSummary(log)[0]).toBe(
+      "Dragged div.card (drop target unknown)",
+    );
+  });
+
+  it("drag source가 name·selector 둘 다 없으면 'element'로 폴백", () => {
+    const log = makeActionLog({
+      captured: 1,
+      entries: [
+        makeAction({
+          id: "1",
+          kind: "drag",
+          dragSource: {},
+        } as Partial<ActionEntry>),
+      ],
+    });
+    expect(buildActionLogSummary(log)[0]).toBe(
+      "Dragged element (drop target unknown)",
+    );
+  });
+
+  it("폴백 회귀: drag가 'Clicked'로 새지 않음", () => {
+    const log = makeActionLog({
+      captured: 1,
+      entries: [
+        makeAction({
+          id: "1",
+          kind: "drag",
+          dragSource: { name: "카드" },
+        } as Partial<ActionEntry>),
+      ],
+    });
+    expect(buildActionLogSummary(log)[0].startsWith("Clicked")).toBe(false);
+  });
+
   it("최근 N개로 제한 (오래된 항목 제외)", () => {
     const entries = Array.from({ length: 30 }, (_, i) =>
       makeAction({ id: String(i), kind: "click", target: `버튼${i}` }),

@@ -24,6 +24,8 @@ export function buildActionLogJson(log: ActionLog, version: string): object {
       ...(e.fieldLabel ? { fieldLabel: e.fieldLabel } : {}),
       ...(e.value !== undefined ? { value: e.value } : {}),
       ...(e.masked ? { masked: e.masked } : {}),
+      ...(e.dragSource ? { dragSource: e.dragSource } : {}),
+      ...(e.dragTarget ? { dragTarget: e.dragTarget } : {}),
     })),
   };
 }

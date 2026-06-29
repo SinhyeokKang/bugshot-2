@@ -143,6 +143,14 @@ export function buildMarkers(
         labelParts = [{ text: label }];
         break;
       }
+      case "drag": {
+        const source = e.dragSource?.name ?? e.dragSource?.selector ?? "";
+        label = e.dragTarget
+          ? t("actionLog.verb.dragTo", { source, target: e.dragTarget.name ?? e.dragTarget.selector ?? "" })
+          : t("actionLog.verb.drag", { source });
+        labelParts = [{ text: label }];
+        break;
+      }
       default: { e.kind satisfies never; label = ""; labelParts = []; }
     }
     return {
