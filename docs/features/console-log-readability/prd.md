@@ -9,6 +9,8 @@
 
 이 기능은 Console·Action을 **Network 레퍼런스 패턴에 통일**하고("본문 중립색 + 신호는 배경/아이콘 + URL은 링크"), URL 링크화를 공유 자원으로 정리한다 — 기존 `InlineLink`(단일 URL 슬롯) + 신규 `LinkifiedText`(URL 박힌 자유 텍스트, 콘솔 전용). 이미 공유 중인 `syncRowClass`·`LogSeekChip`·`OriginFilterBar`는 그대로 둔다.
 
+> 통일의 축은 **색/신호 패턴**(본문 중립 + 배경/아이콘 신호)이다. "URL 클릭 가능성"은 별개 축으로, 콘솔 자유 텍스트의 URL만 링크화한다. Network 상세 패널 URL은 단일 구조 필드라 평문 유지(비목표) — 이로 인해 "URL 클릭 가능성"은 탭 간 완전 일관이 아니지만, 이번 스코프의 목표(색 패턴 통일)와 무관한 의도된 절충이다.
+
 ## 목표
 
 - 콘솔 에러/경고/정보 행의 **본문 텍스트 색을 기본색(foreground)으로** 바꿔, 심각도는 행 배경 틴트(`levelBgColor`)와 좌측 아이콘(`LevelIcon`)으로만 신호한다 (DevTools와 동일한 시각 모델).
@@ -21,10 +23,10 @@
 
 - **브라우저 생성 콘솔 메시지(네트워크 실패·CORS·CSP·Deprecation) 캡처** — `console` 패칭으로 구조적 불가. 별도 검토 대상(이번 스코프 제외).
 - **좌측 심각도 세로 바(left accent border) 추가** — 채택 안 함. 행 배경 + 아이콘으로만 신호.
-- **로그된 객체/값의 syntax highlighting**(숫자·문자열 색) — 우리 args는 이미 문자열로 직렬화돼 구조가 없으므로 제외.
+- **로그된 객체/값의 syntax highlighting**(숫자·문자열 색) — 우리 console args는 이미 문자열로 직렬화돼 구조가 없으므로 제외.
 - **Network 행 변경 일체** — Network는 이미 레퍼런스 패턴(method 배지에만 색, 본문 중립). 상세 패널 URL은 **평문 그대로 유지**(링크화 안 함). `methodColor`·접힌 행 path 미변경.
 - **통합 `<LogRow>` 컴포넌트 추출** — 세 탭의 상호작용 모델(아코디언/선택/정적)이 달라 과추상. 이미 공유 중인 작은 프리미티브 + `LinkifiedText`로 충분.
-- **로그된 객체/값의 syntax highlighting**은 위에 기술. action click/input 색(이미 중립)·network는 미변경.
+- **Action `ClickTarget` 셀렉터 syntax highlight 제거** — `ClickTarget`(`ActionLogContent.tsx:60-82`)은 tagName=sky / `type` 라벨=amber / 값=red로 셀렉터를 하이라이트한다. 이는 network method 배지처럼 "작은 토큰 색"이라 "본문 중립" 원칙과 무관하므로 **유지**한다. 이번 변경은 navigation 행 *전체*에 걸린 `kindColor`만 제거(click/input 행 자체는 원래 무색, 셀렉터 토큰만 색).
 - i18n 문자열 추가/변경 없음.
 
 ## 사용자 시나리오
@@ -39,9 +41,10 @@
 ## 성공 기준
 
 - 에러/경고/정보 콘솔 행의 본문 텍스트가 기본색으로 렌더되고, 심각도는 배경+아이콘으로만 구분된다.
-- `https://...`를 포함한 콘솔 메시지·스택에서 URL만 파란 링크로 분리 렌더되고, 나머지는 텍스트다.
+- `https://...`를 포함한 콘솔 **접힌 헤더·펼친 본문 `<pre>`·스택 `<pre>`** 세 곳 모두에서 URL만 파란 링크로 분리 렌더되고, 나머지는 텍스트다.
 - `at F3 (https://host/assets/index.js:55:27752)`의 링크 href가 `https://host/assets/index.js`(line:col 제거)이고, 표시 텍스트는 `https://host/assets/index.js:55:27752` 그대로다.
 - 접힌 헤더의 링크 클릭이 행 펼침을 토글하지 않는다.
+- 라이트/다크 모드 양쪽에서 에러/경고/정보 행이 식별 가능하다(다크는 배경 틴트가 약해 아이콘이 주 신호 — 시각 확인 필수).
 - Action navigation 행의 동사부가 기본색이고 URL만 파란 링크다(`data-testid="action-nav-link"` 보존). 파란 배경 틴트·아이콘 유지.
 - Network 행은 시각 변화 없음(회귀 없음).
 - linkify 순수 함수 단위 테스트 통과, `pnpm test`·`pnpm typecheck` green.
