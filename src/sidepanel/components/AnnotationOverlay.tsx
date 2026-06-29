@@ -23,6 +23,7 @@ import {
 import {
   applyTransform,
   createShape,
+  fitScale,
   isEmptyShape,
   updateShapeDraft,
   type AnnotationShape,
@@ -59,6 +60,16 @@ function toolCursor(tool: AnnotationTool | null): string {
   return "crosshair";
 }
 
+// 현재 패널 가용 영역(폭 -32 여백, 높이 70%)에 이미지를 맞추는 표시 배율.
+function measureScale(img: HTMLImageElement): number {
+  return fitScale(
+    img.naturalWidth,
+    img.naturalHeight,
+    Math.max(1, window.innerWidth - 32),
+    window.innerHeight * 0.7,
+  );
+}
+
 export default function AnnotationOverlay({
   imageUrl,
   onComplete,
@@ -90,11 +101,8 @@ export default function AnnotationOverlay({
     loadImage(imageUrl)
       .then((img) => {
         if (cancelled) return;
-        const maxW = Math.max(1, window.innerWidth - 32);
-        const maxH = window.innerHeight * 0.7;
-        const s = Math.min(maxW / img.naturalWidth, maxH / img.naturalHeight, 1);
         setImage(img);
-        setScale(s);
+        setScale(measureScale(img));
       })
       .catch(() => {
         if (cancelled) return;
@@ -106,6 +114,14 @@ export default function AnnotationOverlay({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [imageUrl]);
+
+  // 패널 폭/높이 변경 시 표시 배율 재계산. 도형은 natural 좌표라 Stage CSS scale만 바뀌어 함께 리플로우된다.
+  useEffect(() => {
+    if (!image) return;
+    const onResize = () => setScale(measureScale(image));
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, [image]);
 
   // 도구별 커서. image dep은 Stage 마운트(이미지 로드) 직후 커서를 재적용하기 위함.
   useEffect(() => {

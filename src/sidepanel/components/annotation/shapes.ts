@@ -114,6 +114,17 @@ export function isEmptyShape(shape: AnnotationShape): boolean {
   }
 }
 
+// 이미지 자연 크기를 패널 가용 영역(maxW×maxH)에 맞추는 표시 배율 — 확대는 안 함(최대 1).
+export function fitScale(
+  natW: number,
+  natH: number,
+  maxW: number,
+  maxH: number,
+): number {
+  if (natW <= 0 || natH <= 0) return 1;
+  return Math.min(maxW / natW, maxH / natH, 1);
+}
+
 interface TransformAttrs {
   x: number;
   y: number;
