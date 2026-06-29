@@ -13,6 +13,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { ButtonGroup } from "@/components/ui/button-group";
 import { useIssuesStore, type IssueRecord } from "@/store/issues-store";
 import { useSettingsStore } from "@/store/settings-store";
 import { PlatformChip } from "./statusBadges/PlatformChip";
@@ -84,11 +85,11 @@ export function IssueRow({
         </span>
       </div>
       {promotable ? (
-        <span className="flex shrink-0 items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
+        <ButtonGroup className="shrink-0" onClick={(e) => e.stopPropagation()}>
           <Button
             variant="outline"
             size="icon"
-            className="h-8 w-8 shrink-0 text-muted-foreground"
+            className="h-8 w-8"
             aria-label={t("issueList.viewDetail")}
             title={t("issueList.viewDetail")}
             data-testid="view-detail-issue"
@@ -99,7 +100,7 @@ export function IssueRow({
           <Button
             variant="outline"
             size="icon"
-            className="h-8 w-8 shrink-0 text-muted-foreground"
+            className="h-8 w-8"
             aria-label={t("issueList.promote")}
             title={t("issueList.promote")}
             data-testid="promote-issue"
@@ -107,7 +108,7 @@ export function IssueRow({
           >
             <Send />
           </Button>
-        </span>
+        </ButtonGroup>
       ) : isSubmitted && issue.key ? (
         <span
           onClick={(e) => e.stopPropagation()}
