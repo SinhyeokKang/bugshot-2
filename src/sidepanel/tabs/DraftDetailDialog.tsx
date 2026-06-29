@@ -937,7 +937,12 @@ export function DraftDetailDialog({
       )}
       <SubmitFieldsDialog
         open={submitOpen}
-        onOpenChange={setSubmitOpen}
+        onOpenChange={(v) => {
+          setSubmitOpen(v);
+          // 승격 진입은 제출 다이얼로그가 메인 화면 — 닫으면(취소 포함) 초안 다이얼로그까지
+          // 닫고 이슈 목록으로 돌아간다. 일반 진입([자세히])은 초안 검토를 위해 유지.
+          if (!v && autoOpenSubmit) onOpenChange(false);
+        }}
         title={t("issue.submit")}
         platform={platform}
         setPlatform={handlePlatformChange}
