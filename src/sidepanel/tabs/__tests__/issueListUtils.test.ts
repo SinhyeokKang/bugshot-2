@@ -301,7 +301,7 @@ describe("isRefreshable", () => {
       key: "TASK_GID",
       url: "https://app.asana.com/0/0/TASK_GID",
       asanaTaskGid: "TASK_GID",
-    } as Partial<IssueRecord>);
+    });
     expect(isRefreshable(issue)).toBe(true);
   });
 
@@ -311,7 +311,7 @@ describe("isRefreshable", () => {
       key: "TASK_GID",
       url: "https://app.asana.com/0/0/TASK_GID",
       asanaTaskGid: undefined,
-    } as Partial<IssueRecord>);
+    });
     expect(isRefreshable(issue)).toBe(false);
   });
 
@@ -321,7 +321,7 @@ describe("isRefreshable", () => {
       key: "abc123",
       url: "https://app.clickup.com/t/abc123",
       clickupTaskId: "abc123",
-    } as Partial<IssueRecord>);
+    });
     expect(isRefreshable(issue)).toBe(true);
   });
 
@@ -331,7 +331,7 @@ describe("isRefreshable", () => {
       key: "abc123",
       url: "https://app.clickup.com/t/abc123",
       clickupTaskId: undefined,
-    } as Partial<IssueRecord>);
+    });
     expect(isRefreshable(issue)).toBe(false);
   });
 });
@@ -358,7 +358,7 @@ describe("matchesStatus", () => {
       status: "submitted",
       platform: "slack",
       slackPreserved: true,
-    } as Partial<IssueRecord>);
+    });
     expect(matchesStatus(issue, "submitted")).toBe(true);
     expect(matchesStatus(issue, "draft")).toBe(false);
   });
@@ -399,7 +399,7 @@ function slackPreservedIssue(overrides: Partial<IssueRecord> = {}): IssueRecord 
     platform: "slack",
     slackPreserved: true,
     ...overrides,
-  } as Partial<IssueRecord>);
+  });
 }
 
 describe("isSlackPreserved", () => {
@@ -410,7 +410,7 @@ describe("isSlackPreserved", () => {
   it("draft는 false (slackPreserved 플래그가 있어도)", () => {
     expect(
       isSlackPreserved(
-        makeIssue({ status: "draft", slackPreserved: true } as Partial<IssueRecord>),
+        makeIssue({ status: "draft", slackPreserved: true }),
       ),
     ).toBe(false);
   });
