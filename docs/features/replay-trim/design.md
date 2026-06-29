@@ -2,9 +2,11 @@
 
 ## 개요
 
-리플레이 캡처는 이미 `FrameBuffer`의 `{blob, timestamp}[]` 프레임 배열을 들고 있고, `capture()`가 [스냅샷 → `encodeToMp4(전체)` → 로그 trim → `onRecordingComplete` → drafting]을 원자적으로 수행한다(`use-30s-replay.ts`). 이 흐름을 **그대로 둔 채**, 캡처 시 사용한 프레임 스냅샷·captureTime을 메모리 홀더에 보존하고 "trim 대기" 상태를 켠다. drafting 진입 직후 App이 보존된 프레임 위로 **트리밍 다이얼로그**를 띄운다. 사용자가 in/out을 고르고 적용하면, 선택 프레임만 `encodeToMp4`로 재인코딩해 store의 `videoBlob`을 교체하고, 이미 trim된 로그를 새 구간 경계로 한 번 더 좁혀 store·IDB(`pending:${tabId}`)에 덮어쓴다. 원본 프레임은 그 즉시 폐기한다(파괴적, 재편집 불가).
+리플레이 캡처는 이미 `FrameBuffer`의 `{blob, timestamp}[]` 프레임 배열을 들고 있고, `capture()`가 [스냅샷 → `encodeToMp4(전체)` → 로그 trim → `onRecordingComplete` → drafting]을 원자적으로 수행한다(`use-30s-replay.ts`). 이 흐름을 **그대로 둔 채**, 캡처 시 사용한 프레임 스냅샷을 메모리 홀더에 보존하고 "trim 대기" 상태를 켠다. drafting 진입 직후 App이 보존된 프레임 위로 **트리밍 오버레이**(`ReplayTrimDialog`)를 띄운다. 사용자가 in/out을 고르고 확정(✓)하면, 선택 프레임만 `encodeToMp4`로 재인코딩해 store의 `videoBlob`을 교체하고, 이미 trim된 로그를 새 구간 경계로 한 번 더 좁혀 store·IDB(`pending:${tabId}`)에 덮어쓴다. 원본 프레임은 그 즉시 폐기한다(파괴적, 확정 후 재편집 불가).
 
-다이얼로그 UI는 `<video>` currentTime/duration 기반(초 단위)으로만 동작해 영상 소스에 비종속적이다. 리플레이는 적용 콜백에서 초→프레임 인덱스로 환산해 슬라이스하고, 추후 일반 녹화는 같은 다이얼로그에 다른 적용 콜백(트랜스코드)을 물리면 된다.
+**UI는 직전 기능 annotation 오버레이 패턴을 그대로 차용**한다 — shadcn 모달 `Dialog`가 아니라 `absolute inset-0 z-50 bg-background` **full-screen 오버레이 + 3단 레이아웃**(상단 정보 / 중앙 미디어 `flex-1` / 하단 액션바 `border-t`), `lazy`+`Suspense`, 좌측 undo/redo·우측 확정/취소 `ButtonGroup`, `annotation/history.ts` 히스토리 헬퍼까지 재사용한다. 좁은 모달 폭에서 듀얼 핸들을 잡기 어려운 문제를 패널 전폭으로 해소한다.
+
+오버레이 UI는 `<video>` currentTime/duration 기반(초 단위)으로만 동작해 영상 소스에 비종속적이다(프레임·인코딩 무지). 리플레이는 확정 콜백(`onConfirm`)에서 초→프레임 인덱스로 환산해 슬라이스하고, 추후 일반 녹화는 같은 오버레이에 다른 확정 콜백(트랜스코드)을 물리면 된다. **버튼 모델**: ✓ 확정은 현재 핸들 구간으로 적용하되 전체 구간이면 `isFullRange` no-op이라 "전체 유지"가 자동 흡수된다(별도 keep-full 버튼 없음). ✗ 취소는 캡처 결과 전체를 폐기하고 진입 화면으로 — 기존 drafting "작성 취소"(`CancelConfirmDialog` → `reset()` + `clearPicker(tabId)`, `DraftingPanel.tsx:410`) 경로를 재사용한다.
 
 ## 변경 범위
 
@@ -27,17 +29,30 @@
     - `capture()`와 동일하게 pending write를 폐기 후 재trim: `networkLogPersist.discard()` / `consoleLogPersist.discard()` / `actionLogPersist.discard()` → 현재 store의 (이미 trim된) 로그를 위 `{ lower, upper }`로 `trimByTime`해 한 번 더 좁혀 `setNetworkLog/setConsoleLog/setActionLog` + `saveNetworkLog/Console/Action(`pending:${tabId}`, trimmed)`.
     - store 영상 메타 교체: 신규 액션 `replaceVideo(blob, thumbnail, videoStartedAt, videoEndedAt)` 호출(위 raw 경계 — guard 적용된 로그 `lower`가 아님에 주의).
 
-- **`src/sidepanel/tabs/ReplayTrimDialog.tsx`** (소스 비종속 트리밍 다이얼로그 UI)
-  - props: `{ open: boolean; videoBlob: Blob; onApply: (startSec: number, endSec: number) => void; onKeepFull: () => void; busy?: boolean }`.
-  - **닫기 시맨틱 = 전체 유지**: `<Dialog open={open} onOpenChange={(v) => { if (!v) onKeepFull(); }}>`로 controlled. Esc·X·overlay 클릭은 모두 `onKeepFull`(비파괴)로 매핑 — 닫혔는데 `pendingTrim`이 안 풀려 다시 뜨는 버그 방지.
-  - `<Dialog>`(shadcn, 기존 `components/ui/dialog.tsx`) 안에 `<video>` + 듀얼 핸들 타임라인 슬라이더(shadcn `Slider`, `value={[startSec, endSec]}` 2-thumb, `minStepsBetweenThumbs`로 핸들 겹침 방지). duration이 `onLoadedMetadata` 전엔 미확정이라 그 전까지 슬라이더 `disabled`.
-  - **seek-preview**: Radix `Slider`의 `onValueChange`는 `[start,end]` 배열만 주므로, **이전 값과 diff해 움직인 thumb**을 판별하고 그쪽으로 `video.currentTime` seek. 핸들 시각 tooltip·hit-target 확장은 `src/log-viewer/components/ProgressBar.tsx`가 푼 패턴(포털 tooltip + viewport clamp, 보이는 핸들 + invisible padding)을 **복제**한다(ProgressBar는 `src/log-viewer/`의 별도 inline 빌드라 직접 import 불가 — 패턴만 차용).
-  - 트랙 하단에 **선택 길이 readout**("3.4s / 30s") 단일 행 표시.
-  - **undo/redo**: 다이얼로그 내부에서 핸들 값(`[startSec,endSec]`) 변경 히스토리를 로컬 state로 관리해 undo/redo 버튼 제공(확정 전 한정 — 다이얼로그 닫히면 소멸). 적용/전체 유지 후 원본은 폐기되므로 확정 후 undo는 없음.
-  - 푸터: **적용(크롭)** / **전체 유지**. `busy` 시 두 버튼 잠금 + `Loader2` 스피너(이중 인코딩·이중 `replaceVideo` 방지). `busy` state는 **App이 소유**(`onApply` 진입 시 true, `.finally`에서 false).
-  - 일반 녹화 재사용을 위해 프레임·인코딩을 모르고 초 구간만 다룬다.
+- **`src/sidepanel/tabs/ReplayTrimDialog.tsx`** (소스 비종속 트리밍 오버레이 UI — annotation 패턴 차용)
+  - props: `{ videoBlob: Blob; onConfirm: (startSec: number, endSec: number) => void; onCancel: () => void; busy?: boolean }`. (로그·마커는 store에서 직접 읽음 — 소스 비종속 코어는 video+초 구간만 다루고, 로그 표시는 리플레이 전용 부가.)
+  - **컨테이너**: shadcn 모달이 아니라 `AnnotationOverlay.tsx:334` 패턴 — 최상위 `<div className="absolute inset-0 z-50 bg-background">` + `flex h-full flex-col`. 위→아래 **1단(정보 bar) / canvas(영상) / 2단(영상 컨트롤러) / 3단(액션바)** 4영역:
+    - **1단 정보 bar**(`flex items-center justify-between px-4 py-3`): 좌측 선택 길이 readout("17s / 30s", `issue.replay.trim.selection` placeholder). 우측 `ButtonGroup` [console][network][action] — 클릭 시 해당 로그 프리뷰 다이얼로그를 **기존 컴포넌트 재사용**으로 연다(`ConsoleLogPreviewDialog`/`NetworkLogPreviewDialog`/`ActionLogPreviewDialog`, `DraftingPanel.tsx:450`). store의 console/network/action 로그(아직 trim 전 전체)와 `startedAt`·attach 토글을 그대로 props로 전달. 로그가 없는 타입의 버튼은 `disabled`. (오버레이 위 중첩 모달 — z-index 상위.)
+    - **canvas**(`flex min-h-0 flex-1 items-center justify-center`): `<video src={objectURL(videoBlob)} className="aspect-video w-full object-contain">` (`VideoPreview` 패턴, objectURL revoke cleanup). controls 미사용 — 재생은 2단 컨트롤러가 담당.
+    - **2단 영상 컨트롤러**(`<video>`에 붙지 않고 canvas 하단 별도 bar, `flex items-center gap-2 px-4 py-2`): 좌측 재생/일시정지 토글 버튼(`Play`/`Pause`). 그 우측에 **`TrimTimeline`**(아래 신규 파일) — 재생바(현재 위치) + trim 듀얼 핸들 + 에러 마커가 한 트랙에 겹쳐 렌더.
+    - **3단 액션바**(`flex items-center justify-between border-t px-4 py-4`): 좌측 `ButtonGroup` [↶ undo(`Undo2`)][↷ redo(`Redo2`)] / 우측 `ButtonGroup` [✗ 취소(`X`)][✓ 확정(`Check`)]. annotation 푸터(`AnnotationToolbar.tsx:268`) 구조 동일.
+  - **재생 상태**: `video.currentTime`/`paused`를 로컬 state로 추적(`timeupdate`/`play`/`pause` 리스너). 재생 위치는 `TrimTimeline`에 `currentPct`로 전달. 핸들로 trim 경계 변경 시 그 위치로 seek해 경계 프레임 확인.
+  - **undo/redo**: `annotation/history.ts`(`History<[number,number]>`/`initHistory`/`pushHistory`/`undoFn`/`redoFn`)를 재사용해 핸들 값 `[startSec,endSec]` 히스토리를 로컬 state로 관리. `canUndo`/`canRedo`로 버튼 `disabled`. 확정/취소 후 오버레이가 사라지면 히스토리도 소멸(확정 후 undo 없음).
+  - **✓ 확정**: `onConfirm(startSec, endSec)` 호출. App이 `applyReplayTrim`을 부르고, 전체 구간이면 `isFullRange`로 no-op(전체 유지 흡수). `busy` 시 모든 버튼·핸들 잠금 + `Loader2` 스피너(이중 인코딩·이중 `replaceVideo` 방지). `busy` state는 **App이 소유**(`onConfirm` 진입 시 true, `.finally`에서 false).
+  - **✗ 취소**: `onCancel()` 호출 → App이 캡처 폐기 경로 실행(아래 App 변경). 캡처 결과를 버리는 파괴적 동작이라 기존 `CancelConfirmDialog`로 확인 후 진행(오버레이 위 중첩).
+  - **lazy 로딩**: `DraftingPanel.tsx`의 annotation처럼 `lazy(() => import("./ReplayTrimDialog"))` + `Suspense` fallback(`Loader2`).
+
+- **`src/sidepanel/tabs/TrimTimeline.tsx`** (영상 타임라인 — log-viewer `ProgressBar` 패턴 복제 + trim 듀얼 핸들 + 에러 마커)
+  - props: `{ durationSec: number; currentPct: number; startSec: number; endSec: number; markers: TrimMarker[]; disabled?: boolean; onSeek: (pct: number) => void; onTrimChange: (startSec: number, endSec: number) => void; }`.
+  - 한 트랙에 3개 레이어 겹침: (a) **재생 위치 인디케이터**(`currentPct`), (b) **trim 듀얼 핸들**(shadcn `Slider` 2-thumb `value=[startSec,endSec]`, `minStepsBetweenThumbs`로 최소 2프레임 보장, 선택 구간 강조), (c) **에러 마커**(`markers.map`로 `positionPct` 위치에 점 — log-viewer `ProgressBar.tsx:93-111` 마커 렌더 + hover tooltip + hit-target 패턴 복제).
+  - **마커**: console/network/action 세 종류를 **한 타임라인에 통합**하되 **에러성(`variant==="error"`)만** 표시. `buildMarkers()`(`log-viewer/markers.ts:31`) 로직을 복제한 리플레이용 헬퍼(아래 `trim-markers.ts`)로 산출. ProgressBar는 `src/log-viewer/`의 별도 inline 빌드라 직접 import 불가 → 패턴·헬퍼 복제.
+  - seek/드래그(포인터 캡처 + `DRAG_THRESHOLD` 클릭/드래그 구분)·tooltip(포털 + viewport clamp)은 `ProgressBar.tsx` 구현 복제. `disabled`면 핸들·seek 잠금.
+
+- **`src/sidepanel/30s-replay/trim-markers.ts`** (에러 마커 산출 — `buildMarkers` 복제, 순수 함수)
+  - `buildErrorMarkers(logs: { consoleLog; networkLog; actionLog }, videoStartedAt: number, durationSec: number): TrimMarker[]` — 세 로그에서 에러 항목만 골라 `{ id, type, absTs, positionPct }`로 환산(positionPct는 `log-viewer/markers.ts`의 `pct` 계산 복제). 순수 함수라 단위 테스트.
 
 - **`src/sidepanel/30s-replay/__tests__/trim-math.test.ts`** — `trim-math.ts` 단위 테스트.
+- **`src/sidepanel/30s-replay/__tests__/trim-markers.test.ts`** — `trim-markers.ts` 단위 테스트(에러만 필터, positionPct clamp).
 
 ### 변경 파일
 
@@ -48,18 +63,25 @@
 
 - **`src/sidepanel/App.tsx`** (≈68, 170-178, 다이얼로그 렌더 영역)
   - 현재 역할: `use30sReplay` 호출 + `ReplayProvider` + 각종 전역 다이얼로그 렌더.
-  - 변경: `replay.pendingTrim`이 있으면 `<ReplayTrimDialog>` 렌더. App이 `busy` state를 소유: `onApply={(s,e) => { setBusy(true); applyReplayTrim({ frames, tabId, startSec: s, endSec: e }).catch(() => toast.error(t("issue.replay.encodeFailed"))).finally(() => { setBusy(false); replay.resolveTrim(); }); }}`, `onKeepFull={() => replay.resolveTrim()}`. `tabId`는 현재 탭 id(기존 경로)에서 취해 넘긴다. 다이얼로그 자동 오픈 시 `blurActiveElement()` 적용(다른 전역 다이얼로그와 동일). 다른 전역 다이얼로그와 동일 위치.
+  - 변경: `replay.pendingTrim`이 있으면 `<Suspense><ReplayTrimDialog/></Suspense>` 렌더(오버레이라 다른 전역 모달과 달리 `blurActiveElement` 불필요 — annotation 오버레이도 미사용). App이 `busy` state를 소유:
+    - `onConfirm={(s,e) => { setBusy(true); applyReplayTrim({ frames, tabId, startSec: s, endSec: e }).catch(() => toast.error(t("issue.replay.encodeFailed"))).finally(() => { setBusy(false); replay.resolveTrim(); }); }}` — `applyReplayTrim`이 `isFullRange`면 no-op이라 전체 구간 확정 시 전체 유지와 동일.
+    - `onCancel={() => { replay.resolveTrim(); reset(); if (tabId) void clearPicker(tabId); }}` — 캡처 폐기 → 진입 화면. 기존 drafting 작성 취소(`DraftingPanel.tsx:410`)와 동일 액션. 파괴 확인은 `ReplayTrimDialog` 내부 `CancelConfirmDialog`가 담당.
+    - `tabId`는 현재 탭 id(기존 경로)에서 취해 `applyReplayTrim`·`clearPicker`에 넘긴다.
 
 - **`src/store/editor-store.ts`** (≈164 타입, ≈501 구현)
   - 현재 역할: editor 상태·`onRecordingComplete`.
   - 변경: 신규 액션 `replaceVideo: (blob: Blob, thumbnail: string, startedAt: number, endedAt: number) => void` 추가. `set({ videoBlob, videoThumbnail, videoCapturedAt: Date.now(), videoStartedAt, videoEndedAt })`만 갱신(phase·attach 토글·target 불변). `onRecordingComplete`의 영상 메타 set 부분과 대칭.
 
 - **`src/i18n/namespaces/issue.ts`** (ko ≈9-14, en ≈109-114)
-  - 변경: `issue.replay.trim.title`, `issue.replay.trim.apply`(적용/Apply), `issue.replay.trim.keepFull`(전체 유지/Keep full), `issue.replay.trim.hint`(앞뒤 핸들 안내), `issue.replay.trim.undo`(되돌리기/Undo), `issue.replay.trim.redo`(다시 실행/Redo), `issue.replay.trim.selection`(선택 길이 readout — "{{sel}}s / {{total}}s" placeholder) ko/en 동시 추가. 재인코딩 실패 토스트 `issue.replay.encodeFailed`도 없으면 추가. PostToolUse 훅이 ko/en 대칭·placeholder 토큰 일치를 검사하므로 양쪽 함께 갱신.
+  - 변경: `issue.replay.trim.confirm`(확정/Apply — ✓ 버튼 aria-label·title), `issue.replay.trim.cancel`(작성 취소/Discard — ✗ 버튼), `issue.replay.trim.undo`(되돌리기/Undo), `issue.replay.trim.redo`(다시 실행/Redo), `issue.replay.trim.selection`(선택 길이 readout — "{{sel}}s / {{total}}s" placeholder), `issue.replay.trim.play`/`issue.replay.trim.pause`(재생/일시정지 aria-label) ko/en 동시 추가. 재인코딩 실패 토스트 `issue.replay.encodeFailed`도 없으면 추가. (1단 로그 버튼 라벨·작성 취소 확인 문구는 기존 `LogAttachmentCards`/`CancelConfirmDialog` i18n 재사용. keep-full·title 키는 불필요 — ✓ no-op 흡수, 풀스크린이라 헤더 타이틀 생략 가능.) PostToolUse 훅이 ko/en 대칭·placeholder 토큰 일치를 검사하므로 양쪽 함께 갱신.
 
 ### 의존성
 
 - **shadcn `Slider`** 미설치(`components/ui/`에 `slider.tsx` 없음) → `npx shadcn@latest add slider` 필요. Radix Slider는 `value`를 배열로 주면 2-thumb 레인지를 지원. (구현 단계에서 설치, 설계에선 명시만.)
+- **재사용(신규 의존성 아님)**:
+  - `annotation/history.ts`(undo/redo), `components/ui/button-group.tsx`(`ButtonGroup`), `CancelConfirmDialog`(작성 취소 확인), `AnnotationOverlay`의 오버레이/lazy/objectURL 패턴.
+  - `ConsoleLogPreviewDialog`/`NetworkLogPreviewDialog`/`ActionLogPreviewDialog`(1단 로그 버튼이 여는 기존 모달, props 그대로) + `VideoPreview` objectURL 패턴.
+  - `log-viewer/components/ProgressBar.tsx`(재생바·seek·마커·tooltip·hit-target)와 `log-viewer/markers.ts`의 `buildMarkers`(에러 마커 산출)는 별도 inline 빌드라 **직접 import 불가** → `TrimTimeline.tsx`·`trim-markers.ts`로 **패턴 복제**.
 
 ## 데이터 흐름
 
@@ -71,11 +93,14 @@
       로그 trim [frames[0]-guard, captureTime]  (기존)
       onRecordingComplete(fullBlob, ...)  → phase=drafting  (기존)
       pendingTrim = { videoBlob: fullBlob, frames(보존) }  ★신규
-  → App: pendingTrim 있음 → blurActiveElement() → <ReplayTrimDialog> 오버레이
-      <video src=fullBlob> + 듀얼핸들(초) + readout + undo/redo
-        ── 핸들 드래그(diff로 움직인 thumb 판별) → video.currentTime seek
-        ── Esc/X/overlay → onKeepFull (비파괴)
-  ── [적용] App: setBusy(true); onApply(startSec, endSec)
+  → App: pendingTrim 있음 → <Suspense><ReplayTrimDialog/></Suspense> (absolute inset-0 z-50 오버레이)
+      1단 [readout 17s/30s | console·network·action 버튼→기존 로그 PreviewDialog]
+      canvas [<video src=fullBlob>]
+      2단 [▶/⏸ | TrimTimeline: 재생바 + trim 듀얼핸들 + 에러마커(buildErrorMarkers)]
+      3단 [↶↷ | ✗✓]
+        ── trim 핸들 드래그 → video.currentTime seek (경계 프레임 확인)
+        ── ↶/↷ → history undo/redo (핸들 값 [startSec,endSec])
+  ── [✓ 확정] App: setBusy(true); onConfirm(startSec, endSec)
       applyReplayTrim({ frames, tabId, startSec, endSec }):
         secondsToFrameRange(maxFrameDurationMs) → inIndex,outIndex
         sliced = frames.slice(in, out+1)
@@ -85,9 +110,11 @@
         replayLogBounds(sliced[0].ts, videoEndedAt) → {lower,upper}   ← guard 적용(로그 전용)
         *Persist.discard() → trimByTime(store logs, lower, upper) → set*Log + save(`pending:${tabId}`)
         editor.replaceVideo(trimmedBlob, thumbnail, videoStartedAt, videoEndedAt)   ← raw 경계
-      → .finally: setBusy(false); resolveTrim() → pendingTrim=null → 다이얼로그 닫힘, frames 폐기
+      → .finally: setBusy(false); resolveTrim() → pendingTrim=null → 오버레이 닫힘, frames 폐기
       → .catch: toast.error(encodeFailed) (전체 클립 유지)
-  ── [전체 유지] onKeepFull → resolveTrim() → pendingTrim=null (변경 없음)
+  ── (전체 구간 확정 = ✓ 누름) → isFullRange no-op → 전체 클립 그대로 drafting (별도 버튼 없음)
+  ── [✗ 작성 취소] CancelConfirmDialog 확인 → onCancel → resolveTrim() + reset() + clearPicker(tabId)
+        → 캡처 결과(영상·로그) 폐기, phase=idle 진입 화면
 ```
 
 - `videoBlob`은 세션 직렬화 제외(IDB 별도) — `useEditorSessionSync.ts:32` 주석대로. drafting 중에는 store 메모리에만 존재하므로 `replaceVideo`의 메모리 교체로 충분. `videoStartedAt/EndedAt/Thumbnail/CapturedAt`은 세션 영속 대상이라 자동 저장됨. IDB 영상 저장은 기존대로 `confirmDraft`에서 `issueId` 키로 수행 — trim 시점엔 IDB 영상 write 불필요.
@@ -137,14 +164,38 @@ export interface Use30sReplayReturn {
 // startedAt = raw sliced[0].timestamp, endedAt = raw sliced[last].timestamp + lastFrameDurationMs
 replaceVideo: (blob: Blob, thumbnail: string, startedAt: number, endedAt: number) => void;
 
-// ReplayTrimDialog.tsx
+// ReplayTrimDialog.tsx (full-screen 오버레이 — App이 pendingTrim 있을 때만 렌더, open prop 없음)
 interface ReplayTrimDialogProps {
-  open: boolean;
   videoBlob: Blob;
-  onApply: (startSec: number, endSec: number) => void;
-  onKeepFull: () => void;
+  onConfirm: (startSec: number, endSec: number) => void; // ✓ — App이 applyReplayTrim 호출
+  onCancel: () => void;                                   // ✗ — App이 reset()+clearPicker (작성 취소)
   busy?: boolean;
 }
+
+// TrimTimeline.tsx (재생바 + trim 듀얼핸들 + 에러 마커 한 트랙)
+interface TrimMarker {
+  id: string;
+  type: "console" | "network" | "action";
+  absTs: number;
+  positionPct: number; // 0-100
+}
+interface TrimTimelineProps {
+  durationSec: number;
+  currentPct: number;             // 재생 위치
+  startSec: number;
+  endSec: number;
+  markers: TrimMarker[];          // 에러만
+  disabled?: boolean;
+  onSeek: (pct: number) => void;
+  onTrimChange: (startSec: number, endSec: number) => void;
+}
+
+// trim-markers.ts
+export function buildErrorMarkers(
+  logs: { consoleLog: ConsoleLog | null; networkLog: NetworkLog | null; actionLog: ActionLog | null },
+  videoStartedAt: number,
+  durationSec: number,
+): TrimMarker[];
 ```
 
 ## 기존 패턴 준수
@@ -152,7 +203,7 @@ interface ReplayTrimDialogProps {
 - **테스트 우선**: `trim-math.ts`의 순수 함수(`frameOffsetsMs`/`secondsToFrameRange`/`isFullRange`)를 `/tdd interface`로 먼저 작성한다(CLAUDE.md 테스트 우선 원칙).
 - **로그 trim 일관성**: 기존 `trimByTime`/`replayLogBounds`(`log-merge.ts`)와 `*Persist.discard()` 폐기 패턴을 그대로 따른다 — 새 trim 로직을 만들지 않고 경계만 바꿔 재사용.
 - **세션 영속화**: Blob은 store에 두되 세션 직렬화에서 제외하는 기존 규약(`useEditorSessionSync.ts:32`) 유지. trim은 IDB 영상 write를 추가하지 않는다.
-- **UI 컨벤션**: shadcn `Dialog`/`Slider` 사용(직접 스타일링 금지). 캡처 직후 프로그램적 자동 오픈이므로 `blurActiveElement()`를 **반드시 적용**한다(DESIGN §9 규약 — Radix `aria-hidden` 경고 회피). seek tooltip·핸들 hit-target은 `log-viewer/ProgressBar.tsx` 패턴 복제.
+- **UI 컨벤션 / annotation 패턴 재사용**: full-screen 오버레이(`absolute inset-0 z-50`) + 3단 레이아웃 + `ButtonGroup` + `lazy`/`Suspense` + `history.ts`를 **직전 기능 annotation(`AnnotationOverlay`/`AnnotationToolbar`)에서 그대로 차용**한다. shadcn `Slider`만 신규 설치(직접 스타일링 금지). 오버레이라 `blurActiveElement()`는 불필요(annotation 오버레이도 미사용). seek tooltip·핸들 hit-target은 `log-viewer/ProgressBar.tsx` 패턴 복제.
 - **i18n 동시 갱신**: `issue.ts` ko/en 같은 키 동시 추가(PostToolUse 훅 게이트).
 
 ## 대안 검토
