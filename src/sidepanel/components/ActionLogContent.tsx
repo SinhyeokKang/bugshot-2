@@ -34,10 +34,6 @@ interface ActionLogContentProps {
 }
 
 // navigation만 콘솔 info-틴트 슬롯 재사용, click/input은 중립.
-function kindColor(kind: ActionEntryKind): string {
-  return kind === "navigation" ? "text-blue-600 dark:text-blue-400" : "text-foreground";
-}
-
 function kindBgColor(kind: ActionEntryKind): string {
   return kind === "navigation" ? "bg-blue-100 dark:bg-blue-950/50" : "";
 }
@@ -284,7 +280,7 @@ function ActionRow({ entry, startedAt, syncBaseMs, onSeek, isActive }: {
           <LogSeekChip ts={entry.timestamp} label={formatRelativeTime(entry.timestamp, base)} onSeek={onSeek} />
         )}
         <KindIcon kind={entry.kind} />
-        <span className={`min-w-0 flex-1 break-words leading-relaxed ${kindColor(entry.kind)}`}>
+        <span className="min-w-0 flex-1 break-words leading-relaxed">
           {renderActionContent(t, entry)}
         </span>
       </div>

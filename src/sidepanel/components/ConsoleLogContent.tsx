@@ -11,6 +11,7 @@ import { findActiveIndex } from "@/log-viewer/timeline";
 import { formatRelativeTime, syncRowClass } from "@/sidepanel/lib/logRow";
 import { useScrollToEntry } from "@/sidepanel/lib/useScrollToEntry";
 import { InlineLink } from "./InlineLink";
+import { LinkifiedText } from "./LinkifiedText";
 import { LogSeekChip } from "./LogSeekChip";
 
 type ConsoleFilter = "all" | "error" | "warn" | "info" | "debug" | "log";
@@ -27,16 +28,6 @@ interface ConsoleLogContentProps {
   activeTs?: number;
   scrollToEntryId?: string | null;
   onScrollComplete?: () => void;
-}
-
-function levelColor(level: ConsoleLevel): string {
-  switch (level) {
-    case "error": return "text-red-600 dark:text-red-400";
-    case "warn": return "text-amber-600 dark:text-amber-400";
-    case "info": return "text-blue-600 dark:text-blue-400";
-    case "debug": return "text-foreground";
-    default: return "text-foreground";
-  }
 }
 
 function levelBgColor(level: ConsoleLevel): string {
@@ -232,8 +223,8 @@ function EntryAccordion({ entry, startedAt, syncBaseMs, onSeek, isActive, scroll
           <LogSeekChip ts={entry.timestamp} label={formatRelativeTime(entry.timestamp, base)} onSeek={onSeek} />
         )}
         <LevelIcon level={entry.level} />
-        <span className={`min-w-0 flex-1 break-all ${levelColor(entry.level)}`}>
-          {entry.args}
+        <span className="min-w-0 flex-1 break-all">
+          <LinkifiedText text={entry.args} />
         </span>
         {expanded
           ? <ChevronUp className="h-3.5 w-3.5 shrink-0" />
@@ -244,15 +235,15 @@ function EntryAccordion({ entry, startedAt, syncBaseMs, onSeek, isActive, scroll
       {expanded && (
         <div className={`space-y-2 pb-3 pr-3 pt-1 text-xs ${base != null ? "pl-[64px]" : "pl-10"}`}>
           <pre className={`max-h-[300px] overflow-auto rounded p-2 font-mono text-xs whitespace-pre-wrap break-all ${levelCodeBg(entry.level)}`}>
-            {entry.args}
+            <LinkifiedText text={entry.args} />
           </pre>
           {entry.stack && (
             <div>
               <div className="mb-1 text-xs font-medium">
                 {t("consoleLog.detail.stackTrace")}
               </div>
-              <pre className={`max-h-[200px] overflow-auto rounded p-2 font-mono text-xs whitespace-pre-wrap break-all ${levelCodeBg(entry.level)}`}>
-                {entry.stack}
+              <pre data-testid="console-stack" className={`max-h-[200px] overflow-auto rounded p-2 font-mono text-xs whitespace-pre-wrap break-all ${levelCodeBg(entry.level)}`}>
+                <LinkifiedText text={entry.stack} />
               </pre>
             </div>
           )}
