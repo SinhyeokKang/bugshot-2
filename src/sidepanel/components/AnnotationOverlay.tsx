@@ -279,7 +279,7 @@ export default function AnnotationOverlay({
   const selectionIsStroke = selectedShape != null && isStrokeTool(selectedShape.type);
 
   return (
-    <div className="absolute inset-0 z-50 bg-background">
+    <div className="absolute inset-0 z-50 bg-background" data-testid="annotation-overlay">
       {image ? (
         <AnnotationToolbar
           tool={tool}

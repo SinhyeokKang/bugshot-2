@@ -215,6 +215,7 @@ export function DraftingPanel() {
                 variant="outline"
                 className="h-8 w-8 shrink-0"
                 title={t("draft.removeAnnotation")}
+                data-testid="annotation-remove"
                 onClick={() => useEditorStore.setState({ screenshotAnnotated: null })}
               >
                 <RotateCcw />
@@ -225,6 +226,7 @@ export function DraftingPanel() {
               variant="outline"
               className="h-8 w-8 shrink-0"
               title={screenshotAnnotated ? t("draft.editAnnotation") : t("draft.addAnnotation")}
+              data-testid="annotation-edit"
               onClick={() => setAnnotating(true)}
             >
               <Pencil />
@@ -249,6 +251,7 @@ export function DraftingPanel() {
             src={screenshotImage}
             alt={t("section.media")}
             className="h-full w-full object-contain"
+            data-testid="media-preview-img"
           />
         </div>
       ) : null}
