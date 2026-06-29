@@ -3,7 +3,8 @@
 ## 선행 조건
 
 - 새 의존성·권한·env 없음. 순수 렌더 변경.
-- 영향 파일: `src/sidepanel/lib/linkify.ts`(신규), `src/sidepanel/components/LinkifiedText.tsx`(신규), `InlineLink.tsx`, `ConsoleLogContent.tsx`, `NetworkLogContent.tsx`.
+- 영향 파일: `src/sidepanel/lib/linkify.ts`(신규), `src/sidepanel/components/LinkifiedText.tsx`(신규), `InlineLink.tsx`, `ConsoleLogContent.tsx`, `ActionLogContent.tsx`.
+- `NetworkLogContent.tsx`는 변경 없음(레퍼런스 패턴, URL 평문 유지).
 - log-viewer는 `ConsoleLogContent`를 재사용하므로 별도 수정 불필요(자동 반영).
 
 ## 태스크
@@ -54,13 +55,15 @@
   - [ ] info 행 본문도 기본색(파란 텍스트 제거)
   - [ ] `pnpm typecheck` green
 
-### Task 5: NetworkLogContent 상세 URL linkify
+### Task 5: ActionLogContent navigation 본문색 제거
 
-- **변경 대상**: `src/sidepanel/components/NetworkLogContent.tsx`
-- **작업 내용**: 상세 패널 URL `<dd>`(현 473행)의 `{req.url}` → `<LinkifiedText text={req.url} />`. 접힌 행 path 라벨(434행) 미변경.
+- **변경 대상**: `src/sidepanel/components/ActionLogContent.tsx`
+- **작업 내용**: 행 span(`:287`)에서 `kindColor(entry.kind)` 제거 → 기본 foreground. 고아가 된 `kindColor` 함수 제거. `kindBgColor`(파란 배경)·`KindIcon`(파란 MapPin)·nav `InlineLink`(`:121`, `data-testid="action-nav-link"`)는 유지.
 - **검증**:
-  - [ ] 상세 URL이 클릭 가능한 링크
-  - [ ] 접힌 행 path 라벨은 링크 아님(토글 정상)
+  - [ ] navigation 행 동사부가 기본색, URL만 파란 링크
+  - [ ] 파란 배경 틴트 + MapPin 아이콘 유지
+  - [ ] `data-testid="action-nav-link"` 보존
+  - [ ] click/input 행 시각 변화 없음
   - [ ] `pnpm typecheck` green
 
 ## 테스트 계획
@@ -69,16 +72,18 @@
 - **e2e 시나리오** (자동화 가능, `/e2e-write` 입력):
   - 콘솔 에러 행을 펼치면 스택 `<pre>` 안에 `a[href]` 링크가 1개 이상 있고, 그 href에 `:\d+:\d+` 꼬리가 없다.
   - 접힌 콘솔 헤더의 링크를 클릭하면 행이 펼쳐지지 않는다(펼침 상태 토글 X).
+  - action navigation 행에 `[data-testid=action-nav-link]`가 그대로 존재한다(회귀 가드).
   - (data-testid 필요 시 src엔 testid 추가만 — e2e-write 규칙 준수)
 - **수동 테스트** (시각 정합):
-  - [ ] 라이트/다크 모드에서 에러·경고·정보 행 본문이 기본색이고 배경+아이콘으로 심각도 구분되는지
+  - [ ] 라이트/다크 모드에서 콘솔 에러·경고·정보 행 본문이 기본색이고 배경+아이콘으로 심각도 구분되는지
   - [ ] 링크 클릭 시 새 탭에서 소스 파일이 `:line:col` 없이 정상 열리는지
-  - [ ] action/network 행 시각 회귀 없는지
+  - [ ] action navigation 행이 콘솔과 같은 시각 모델(중립 본문 + 링크 + 배경/아이콘)인지
+  - [ ] network 행 시각 회귀 없는지(무변경 확인)
 
 ## 구현 순서 권장
 
-Task 1 → 2 (TDD 토크나이저, 순서 고정) → 3 (래퍼/InlineLink) → 4·5 (병렬 가능, 둘 다 LinkifiedText 소비처).
+Task 1 → 2 (TDD 토크나이저, 순서 고정) → 3 (래퍼/InlineLink) → 4·5 (병렬 가능, 둘 다 독립 컴포넌트). Task 5는 `LinkifiedText` 없이도 가능(색 제거만)하므로 Task 3과도 병렬 가능.
 
 ## 가이드 영향
 
-없음 (시각 정합·가독성 개선이며 기능·플로우·UI 라벨 불변). 단, `/guide` 시 `guide/ko·en`의 로그/리포트 페이지가 콘솔 색을 텍스트로 서술하거나 스크린샷에 의존하면 갱신 여부만 확인.
+없음 (시각 정합·가독성 개선이며 기능·플로우·UI 라벨 불변). 단, `/guide` 시 `guide/ko·en`의 로그/리포트 페이지가 콘솔/action 색을 텍스트로 서술하거나 스크린샷에 의존하면 갱신 여부만 확인.
