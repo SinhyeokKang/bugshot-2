@@ -195,7 +195,9 @@ shorthand(var 포함) + 같은 shorthand의 longhand override 조합에서 Chrom
 
 보존 → idle 사이 "좀비 구간"에서 캡처 시도 시 3중 방어(진입 `classifyTabSupport` / 런타임 `isActiveTabPermissionError` / tabCapture `isTabCaptureUnavailable`)가 즉시 만료 다이얼로그.
 
-**버퍼링**: `use-30s-replay` 훅이 `enabled && phase==="idle" && tab.active`일 때 600ms 간격(Chrome `captureVisibleTab` 쿼터 초당 2회 이내) `captureVisibleTab`(jpeg q80) → `FrameBuffer`. **개수 cap(60) + 시간 cap(30s) 이중 제한**. `MIN_READY_FRAMES`(10) 이상이면 `isReady`. 진행 표시는 1초 벽시계 타이머(`now − oldestTimestamp`)로 갱신. 페이지 네비게이션과 무관하게 유지(이전·새 페이지 프레임 혼합은 의도).
+**버퍼링**: `use-30s-replay` 훅이 `enabled && phase==="idle" && tab.active`일 때 600ms 간격 `captureVisibleTab`(jpeg q80) → `FrameBuffer`. **개수 cap(60) + 시간 cap(30s) 이중 제한**. `MIN_READY_FRAMES`(10) 이상이면 `isReady`. 진행 표시는 1초 벽시계 타이머(`now − oldestTimestamp`)로 갱신. 페이지 네비게이션과 무관하게 유지(이전·새 페이지 프레임 혼합은 의도).
+
+**캡처 쿼터 직렬화**: `captureVisibleTab`은 윈도우 단위로 Chrome 쿼터(초당 2회 `MAX_CAPTURE_VISIBLE_TAB_CALLS_PER_SECOND`)가 걸린다. 리플레이 폴링(600ms ≈ 1.67회/초)·엘리먼트 스냅샷(`capture.ts`)·스타일 before/after(`StyleEditorPanel`·`useBufferThenSwitch`)가 **동시에** 쏘면 합산이 쿼터를 넘어 스냅샷이 실패한다. 그래서 모든 캡처는 background `captureVisibleTab` 핸들러의 단일 직렬화 큐(`capture-throttle.ts`)를 거친다 — 호출 간 최소 500ms 간격 + rate-limit 에러 한정 백오프 재시도(550/700/900ms). 새 캡처 경로는 반드시 background 핸들러(`sendBg({type:"captureVisibleTab"})`)를 거쳐야 하고, `chrome.tabs.captureVisibleTab`을 직접 부르면 큐를 우회해 쿼터 회귀가 재발한다.
 
 **인코딩**: `capture()` → `frameBuffer.snapshot()` → `encodeToMp4()`(WebCodecs H.264 codec 후보 순차 탐색 + `mp4-muxer`) → 성공 시 `onRecordingComplete(blob, thumbnail, viewport)` 재사용 (`captureMode: "video"`).
 
