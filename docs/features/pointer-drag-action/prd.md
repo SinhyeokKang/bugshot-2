@@ -17,8 +17,10 @@
 - 드래그 앤 드롭 동작을 액션 로그에 **`drag` 종류 1건**으로 기록한다. **precision 우선** — 신뢰 가능한 신호만 자신 있게 기록한다(틀린 정보로 개발자를 오도하는 것은 침묵보다 나쁨).
 - 두 캡처 경로를 커버하되, 기록 범위를 신뢰도에 맞춘다:
   1. **포인터 휴리스틱**(`pointerdown → pointermove 임계 초과 → pointerup`, 마우스·터치·펜 통합, 라이브러리 dnd 커버): **source(드래그 시작 요소)만 기록.** 드롭 지점 target은 dnd 라이브러리의 드래그 고스트/오버레이 때문에 신뢰할 수 없어 기록하지 않는다(`elementFromPoint`는 "요소 간 이동" 판정 가드로만 사용).
+     - **의도된 trade-off**: 칸반/리스트 재정렬 같은 라이브러리 dnd의 대표 use case에서 "어디로(목적지)"는 재현의 핵심이지만, 그 target을 *자신 있게 틀리게* 기록하면 precision-first 원칙을 깨고 개발자를 오도한다. 그래서 포인터 경로는 "X를 드래그"까지만(목적지는 침묵) 남기는 **graceful degradation**을 택한다 — 배경의 문제를 포인터 경로에서 절반만 해결하더라도, 틀린 절반을 채우는 것보다 낫다. (목적지까지의 풀 기록은 네이티브 DnD 경로에서만.)
   2. **네이티브 HTML5 DnD**(`dragstart` + `drop`, `draggable=true` 커버): **source + target(드롭존) 기록.** `drop` 이벤트의 target은 브라우저가 정확히 셋팅하므로 신뢰 가능.
 - `dragTarget` 존재 여부가 곧 신뢰 신호 — 있으면 검증된 드롭존, 없으면 포인터 경로 source-only.
+- **AI 재현 단계 환각 방지**: source-only drag는 AI 재현 요약(`buildActionLogSummary`)에 목적지를 비워 보내면 LLM이 "어디로"를 *자유롭게 환각*해 자신 있게 틀린 목적지를 step에 쓸 수 있다(precision-first와 정면 충돌). source-only는 요약에 "drop target unknown" 같은 **신뢰 신호를 명시**해 LLM이 목적지를 지어내지 않게 한다.
 - 드래그로 판정된 시퀀스 끝에 따라오는 `click`을 억제해 **drag 1건만** 남긴다(이중 기록 방지).
 - 액션 로그 UI·로그 뷰어 마커·AI 재현 단계·JSON export 모두에서 drag를 일관되게 표현한다(ko·en, target 유무로 문구 분기).
 
@@ -31,6 +33,8 @@
 - 30s Replay·영상 캡처와의 새로운 연동.
 - 텍스트 선택 드래그를 액션으로 기록(노이즈 — 명시적으로 제외).
 - 취소된 드래그(드롭 실패, 페이지 밖 드롭) 기록 — 성공한 in-page 드롭만.
+- **멀티 아이템 드래그**(여러 개 선택 후 한 번에 드래그) — source는 `pointerdown` 요소 1건만 기록하고 나머지 선택 항목은 추론하지 않는다(이번 스코프 제외).
+- **드래그 핸들 승격** — grip 핸들(`⠿`)을 잡아 부모 카드를 옮기는 패턴에서, source는 `pointerdown`이 떨어진 **핸들 요소 그대로**(부모 카드로 승격 안 함). 핸들이 접근성 이름 없으면 selector 폴백으로 식별(엣지 케이스 참조).
 - 액션 레코더의 활성 조건 변경 — 기존대로 **녹화(video) 모드 전용**.
 
 ## 사용자 시나리오
@@ -56,12 +60,14 @@
 - **자체 UI 위 드래그**: source 또는 target이 picker host(`#__bugshot_picker_host`)면 기록 안 함.
 - **임계 미달**: 15px 미만 이동 후 pointerup → 드래그 아님 → 기존 click 경로로 정상 기록(억제 안 함).
 - **우클릭/보조 포인터 드래그**: primary 포인터(`isPrimary` + `button===0`)만 후보.
+- **드래그 핸들**(grip 핸들로 부모 카드 이동): source = `pointerdown` 요소 그대로(핸들). 접근성 이름이 없으면 `buildLightSelector` 폴백으로 식별 — "(selector) 드래그"로 표시될 수 있고, 이는 부모로 승격해 잘못 귀속하는 것보다 정확하다(승격은 비목표). 식별 품질은 selector 폴백까지 허용.
 
 ## 성공 기준
 
-- 라이브러리 dnd 드래그 1회 → 액션 로그에 `drag` 1건(**source-only**, source 식별), click 0건.
+- 라이브러리 dnd 드래그 1회 → 액션 로그에 `drag` 1건(**source-only**, source 식별 — 접근성 이름 우선, 없으면 selector 폴백), click 0건.
 - 네이티브 `draggable=true` 드래그 1회 → `drag` 1건(**source+target**, 드롭존 식별).
 - 임계 미달 클릭은 여전히 `click`으로 기록(회귀 없음).
 - 텍스트 선택·드래그팬/스크롤(in-element) → `drag` 0건.
+- **정밀도(false-positive)**: 평소 클릭·스크롤·팬 위주로 조작 → 의도치 않은 `drag` 0건에 수렴(수동 실측, Task 7). 가짜 drag가 잦으면 `DRAG_THRESHOLD_PX` 상향. precision-first 검증의 측정 가능한 기준.
 - `drag` 종류가 액션 로그 필터 탭·아이콘·문구, 로그 뷰어 마커, AI 재현 요약, JSON export에 ko·en으로 노출.
 - `pnpm test` 통과(새 순수 헬퍼 단위 테스트 포함), `pnpm typecheck` 통과(`satisfies never` 분기 모두 충족).
