@@ -21,6 +21,15 @@
 
 ---
 
+## 2026-06-29 — 스타일 패널 Transition 섹션이 트랜지션 없어도 항상 펼침 (computed longhand 유령 기본값)
+
+- **증상**: 스타일 에디터에서 섹션 초기 펼침 조건을 손본 뒤, Transition 섹션만 어떤 요소를 골라도 **항상 펼쳐진** 상태로 떴다. 실제로 transition이 걸린 요소가 아닌데도 "값 있음"으로 취급.
+- **근본 원인**: `sectionDefaultOpen`은 specified에 키가 없으면 computed 값이 `isKnownDefault`인지로 펼침을 판단한다. 그런데 `getComputedStyle`은 **트랜지션이 전혀 없는 요소에도 transition-* longhand 4개를 항상 채워** 돌려준다(`transition-property: all`, `transition-duration: 0s`, `transition-timing-function: ease`, `transition-delay: 0s`). 이 4개가 `KNOWN_DEFAULTS`(propMetadata.ts)에 빠져 있어 `isKnownDefault`가 `false`(테이블에 prop 없음 → 기본값 아님) → 늘 "값 있음" → 항상 펼침. 표면("섹션 펼침 로직 버그")과 원인(특정 longhand 그룹의 computed 기본값 미등록)이 다른 레이어다. **getComputedStyle이 longhand로 항상 채우는 단축 프롭(transition·animation·background·font·grid 등)은 전부 같은 함정** — shorthand 섹션을 추가할 때마다 재발한다.
+- **재발 방지**: (1) **새 스타일 섹션을 `SECTION_PROPS`에 추가하면 그 prop들의 computed 기본값을 `KNOWN_DEFAULTS`에 동시 등록**한다 — 안 하면 그 섹션은 무조건 펼침. `grep -n "transition\|animation\|background-\|grid-" src/sidepanel/tabs/styleEditor/propMetadata.ts`로 longhand 그룹 커버리지 확인. (2) **전수 체크**: `SECTION_PROPS`(StyleEditorPanel.tsx)의 모든 prop이 `KNOWN_DEFAULTS` 또는 `isInactiveBorderColor` 같은 별도 가드로 "기본값 판정"이 가능한지 — getComputedStyle은 거의 모든 prop을 빈값 아닌 resolve값으로 돌려주므로, KNOWN_DEFAULTS에 없으면 그 prop은 항상 활성으로 샌다. (3) 단위 테스트(`propMetadata.test.ts`)로 computed 기본값 → `isKnownDefault` true, 실제 값 → false를 섹션별로 고정.
+- **관련**: `src/sidepanel/tabs/styleEditor/propMetadata.ts:KNOWN_DEFAULTS`(transition longhand 4개 추가), 판정 `isKnownDefault`, 소비처 `src/sidepanel/lib/sectionDefaultOpen.ts:sectionDefaultOpen`(StyleEditorPanel.tsx `sectionOpen`이 호출), 테스트 `styleEditor/__tests__/propMetadata.test.ts`.
+
+---
+
 ## 2026-06-28 — 내보낸 로그 뷰어 라벨이 i18n 키 raw 노출 + 검색 placeholder stale (복제 dict 미동기화)
 
 - **증상**: 다운로드한 `logs.html`(로그 뷰어)에서 액션 로그 필터가 번역 대신 `actionLog.filter.keypress`처럼 **키 문자열 그대로** 노출. 네트워크 탭 검색 placeholder도 "URL 검색…"이라 본문(body)까지 검색되는 걸 안내 못 함.
