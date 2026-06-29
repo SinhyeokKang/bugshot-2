@@ -212,7 +212,7 @@ export function App({ data }: AppProps) {
         )}
       </TabsContent>
 
-      <div className="flex shrink-0 items-center gap-2 border-t border-border bg-muted/50 p-4">
+      <div className="flex h-[68px] shrink-0 items-center gap-2 border-t border-border bg-muted/50 px-4">
         {data.meta.issueUrl ? (
           <Button variant="outline" asChild>
             <a href={data.meta.issueUrl} target="_blank" rel="noopener noreferrer">
