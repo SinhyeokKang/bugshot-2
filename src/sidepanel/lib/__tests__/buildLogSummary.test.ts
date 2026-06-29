@@ -377,6 +377,22 @@ describe("buildActionLogSummary", () => {
     );
   });
 
+  it("drag source name이 공백뿐이면 selector로 폴백 (트레일링 공백 방지)", () => {
+    const log = makeActionLog({
+      captured: 1,
+      entries: [
+        makeAction({
+          id: "1",
+          kind: "drag",
+          dragSource: { name: "   ", selector: "div.card" },
+        } as Partial<ActionEntry>),
+      ],
+    });
+    expect(buildActionLogSummary(log)[0]).toBe(
+      "Dragged div.card (drop target unknown)",
+    );
+  });
+
   it("폴백 회귀: drag가 'Clicked'로 새지 않음", () => {
     const log = makeActionLog({
       captured: 1,

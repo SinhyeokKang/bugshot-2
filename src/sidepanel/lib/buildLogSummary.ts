@@ -76,7 +76,7 @@ export function buildActionLogSummary(log: ActionLog): ActionLogSummary {
 }
 
 function nodeName(node?: ActionNode): string {
-  return node?.name ?? node?.selector ?? "element";
+  return node?.name?.trim() || node?.selector || "element";
 }
 
 function extractPath(url: string): string {

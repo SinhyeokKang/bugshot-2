@@ -87,11 +87,13 @@ function ClickTarget({ entry }: { entry: ActionEntry }) {
 function DragNodeChip({ node }: { node: ActionNode }) {
   const view = resolveActionNode(node);
   if (view.mode === "empty") return null;
+  // title이 화면 표시값과 일치하도록 view 기준 — tag 모드면 selector가 아니라 태그 텍스트.
+  const title =
+    view.mode === "name"
+      ? view.name
+      : `<${view.tagName}${view.tagType ? ` type="${view.tagType}"` : ""}>`;
   return (
-    <InlineChip
-      title={node.name ?? node.selector ?? undefined}
-      className="inline-block max-w-[40%] truncate align-bottom"
-    >
+    <InlineChip title={title} className="inline-block max-w-[40%] truncate align-bottom">
       <ResolvedTargetChip view={view} />
     </InlineChip>
   );
