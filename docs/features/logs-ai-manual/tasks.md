@@ -13,22 +13,34 @@
 - **작업 내용**: `AI_LOGS_MANUAL` 상수에 대한 불변식 테스트.
   - `</script`(대소문자 무시) 미포함.
   - 핵심 토큰 포함: `__BUGSHOT_DATA__`, `__BUGSHOT_META__`, `report`, `consoleLog`, `networkLog`, `actionLog`, `video`, `screenshot`, `gzip`(또는 `gunzip`), `base64`, `epoch`.
+  - **self-match 가드**: 레시피가 base64 문자셋 앵커를 쓴다 — `[A-Za-z0-9+/=` 포함, 그리고 단순 첫-매치 캡처 `>([^<]*)`(또는 `[^<]*)`)를 **포함하지 않음**.
+  - fallback 안내 포함: `ask the user`(또는 동등 문구).
+  - 캡 신호 언급 포함: `warnings`, `totalSeen`(또는 `captured`).
 - **검증**:
   - [ ] 테스트 작성 후 (상수 미구현 상태면) import 실패/red 확인 → Task 2 후 green.
 
 ### Task 2: 매뉴얼 상수 추가
 - **변경 대상**: `src/sidepanel/lib/aiLogsManual.ts` (신규)
-- **작업 내용**: `export const AI_LOGS_MANUAL: string` 정의. `design.md` 골자대로 영문 마크다운 작성(디코드 레시피 Python+Node, 최상위 키 설명, report 우선, video/screenshot data URL, 타임스탬프 epoch ms, "respond in user's language"). 데이터 참조 시 닫는 script 태그 표기 금지.
+- **작업 내용**: `export const AI_LOGS_MANUAL: string` 정의. `design.md`의 "인터페이스 설계" 매뉴얼 골자를 **그대로** 옮긴다:
+  - 디코드 레시피 Python+Node — **base64 문자셋 앵커**(`([A-Za-z0-9+/=\s]{100,})`)로 매치(첫-매치 self-match 회피), 파일명은 `the uploaded file`로 일반화, whitespace 제거 후 디코드.
+  - 코드 실행 불가 AI용 **fallback 한 줄**("ask the user to run the snippet and paste the decoded JSON").
+  - 최상위 키 설명: report 우선 + `report.env`(배열, `environment` 아님)·`sections`는 동적 `value` 배열·`report.copy.markdown` 우선 강조 / console·network·action 엔트리 / video·screenshot data URL.
+  - `meta.createdAt`은 **ISO 문자열**(epoch 아님), `issueKey`/`issueUrl`은 트래커 제출 시만 채워지고 미제출 시 빈 문자열.
+  - 캡 신호(`totalSeen` vs `captured`, `networkLog.warnings`) → "로그 잘림" 감안 안내.
+  - "All log timestamps are epoch ms", "respond in user's language".
+  - 데이터 참조 시 닫는 script 태그(`</script`) 표기 금지.
+  - **TS 작성 주의**: 백틱 템플릿 리터럴로 쓰면 본문의 백틱·`${`가 깨진다. 레시피는 펜스·`${` 없는 들여쓰기 코드로 유지하거나, 안전하게 일반 문자열 결합/`String.raw`를 검토.
 - **검증**:
   - [ ] `pnpm test aiLogsManual` green.
   - [ ] `pnpm typecheck` 통과.
 
 ### Task 3: 템플릿에 placeholder 추가
 - **변경 대상**: `src/log-viewer/index.html`
-- **작업 내용**: `<head>`의 **첫 자식**으로 `<script id="__BUGSHOT_AI__" type="text/markdown"></script>` 추가.
+- **작업 내용**: `<head>`의 `<meta charset="UTF-8" />` **바로 다음**(둘째 자식)에 `<script id="__BUGSHOT_AI__" type="text/markdown"></script>` 추가. (charset 앞에 두지 말 것 — 1024바이트 규칙 위반 → 비-ASCII META mojibake.)
 - **검증**:
-  - [ ] `pnpm build:log-viewer` 후 `dist-log-viewer/index.html`에 `id="__BUGSHOT_AI__"` 존재.
-  - [ ] 산출물에서 매뉴얼 placeholder가 head 내 조기 위치(가능하면 거대 inline 모듈 스크립트보다 앞). 번들이 앞서면 허용이나 위치 기록.
+  - [ ] `pnpm build:log-viewer` 후 `dist-log-viewer/index.html`에 `id="__BUGSHOT_AI__"`가 **여전히 빈 `<script id="__BUGSHOT_AI__" ...></script>` 형태로 보존**(Task 4 정규식 `[^>]*><\/script>`가 매치 가능)되는지 — vite가 drop/reorder/속성변형 시 buildLogsHtml이 silent no-op로 매뉴얼을 누락한다.
+  - [ ] 산출물에서 placeholder가 `<meta charset>` 다음·거대 inline 모듈 스크립트보다 앞에 위치.
+  - [ ] **dist 재빌드 의존 명시**: `dist-log-viewer/index.html`을 재빌드하지 않으면 매뉴얼이 조용히 빠진다(buildLogsHtml은 `?raw`로 이 파일을 읽음). `/build`는 `build:log-viewer`를 자동 선행하므로 정상 빌드 시 갱신됨.
 
 ### Task 4: buildLogsHtml에 주입 추가
 - **변경 대상**: `src/sidepanel/lib/buildLogsHtml.ts`
@@ -40,26 +52,31 @@
 - **변경 대상**: `src/sidepanel/lib/__tests__/buildLogsHtml.test.ts`
 - **작업 내용**:
   - 목 템플릿 문자열(`vi.mock(... dist-log-viewer/index.html?raw)`)의 `<head></head>`를 `<head><script id="__BUGSHOT_AI__" type="text/markdown"></script></head>`로 교체.
-  - 케이스 추가: 결과 HTML에 `<script id="__BUGSHOT_AI__" type="text/markdown">`가 존재하고 그 안에 매뉴얼 핵심 토큰(`__BUGSHOT_DATA__`)이 포함된다.
+  - 케이스 추가: 결과 HTML에서 **`__BUGSHOT_AI__` 태그 본문을 정규식으로 추출한 뒤** 그 안에서 매뉴얼 토큰을 단언한다. (주의: 목 템플릿 body에도 `id="__BUGSHOT_DATA__"`가 있어 "HTML에 `__BUGSHOT_DATA__` 포함" 단언은 매뉴얼 없이도 통과하는 false-positive — 반드시 AI 태그 본문 추출 후 단언.)
   - 케이스 추가: 매뉴얼 주입이 기존 DATA/META 추출(`extractData`)을 깨지 않는다(round-trip 유지).
+  - 케이스 추가(불변식 승격): 매뉴얼이 평문 `"issueUrl":""` 마커를 **추가하지 않는다** — 기존 test16(`split('"issueUrl":""').length-1 === 1`)이 자동으로 이를 가드하지만, 매뉴얼 주입 후에도 META 태그에만 마커가 정확히 1개임을 명시 단언(injectIssueUrl `lastIndexOf` 오작동 방지).
 - **검증**:
   - [ ] `pnpm test buildLogsHtml` green.
+  - [ ] 주의: `vi.mock` 목 템플릿은 **빈 placeholder**라 self-match·실제 매뉴얼 내용은 검증 못 함 — 그건 Task 6(실제 산출물)에서 확인.
 
-### Task 6: 실제 산출물 수동 확인
+### Task 6: 실제 산출물 수동 확인 (self-match·가치 검증의 유일 게이트)
 - **변경 대상**: 없음(검증 전용)
-- **작업 내용**: `pnpm build` 후, BugShot으로 임의 캡처 → `logs.html` 내보내기 → (a) 브라우저로 열어 뷰어 외형·동작 이전과 동일(매뉴얼 비가시) (b) 텍스트 에디터로 열어 `__BUGSHOT_AI__` 매뉴얼이 상단에 보이고, 레시피대로 Python으로 `__BUGSHOT_DATA__` 복원되는지 확인.
+- **작업 내용**: `pnpm build` 후, BugShot으로 임의 캡처(console·network·action 섞이게, 가능하면 한글 issueTitle 포함) → `logs.html` 내보내기 → 아래 검증.
 - **검증**:
-  - [ ] 뷰어 렌더 회귀 없음.
+  - [ ] 뷰어 렌더 회귀 없음 + 한글 issueTitle·로그 mojibake 없음(charset 보존).
   - [ ] 매뉴얼 비가시(화면에 텍스트 안 뜸).
-  - [ ] Python 레시피로 console/network/action/report 복원 성공.
+  - [ ] 매뉴얼이 `<meta charset>` 직후에 보임.
+  - [ ] **매뉴얼 안의 레시피를 그대로 복붙 실행**(빈 목 아님, 실제 매뉴얼 포함 파일) → 진짜 `__BUGSHOT_DATA__`(매뉴얼 자신 아님)를 매치해 console/network/action/report 복원 성공. ← self-match 함정은 여기서만 잡힌다.
+  - [ ] **실제 AI 스모크**: 같은 파일을 Claude.ai 분석 도구(또는 ChatGPT Python)에 1회 업로드 → AI가 매뉴얼을 읽고 디코드해 실제 로그·report를 인용·진단하는지 확인.
 
 ## 테스트 계획
 
 - **단위 테스트**:
-  - `aiLogsManual.test.ts`(신규): `</script` 부재 + 핵심 토큰 포함.
-  - `buildLogsHtml.test.ts`(갱신): `__BUGSHOT_AI__` 주입 존재 + 매뉴얼 토큰 포함 + DATA/META round-trip 불변.
-- **e2e 시나리오**: 해당 없음 — logs.html은 뷰어 정적 산출물이고, 매뉴얼은 비렌더 텍스트라 Playwright UI 판정 대상이 아니다. (뷰어 회귀는 기존 `e2e/logview/log-viewer.spec.ts`가 커버. 매뉴얼 추가로 뷰어 셀렉터·렌더가 바뀌지 않으므로 신규 spec 불요.)
-- **수동 테스트**: Task 6 — 빌드 산출물에서 뷰어 비회귀 + 매뉴얼 비가시 + Python 디코드 레시피 동작.
+  - `aiLogsManual.test.ts`(신규): `</script` 부재 + 핵심 토큰 포함 + base64 앵커 사용(첫-매치 캡처 부재) + fallback·캡신호 문구 포함.
+  - `buildLogsHtml.test.ts`(갱신): AI 태그 **본문 추출 후** 토큰 단언 + DATA/META round-trip 불변 + `"issueUrl":""` 마커 1개 불변식.
+  - 한계: 목 템플릿이 빈 placeholder라 **레시피 self-match·실제 매뉴얼 내용은 단위 테스트로 못 잡는다** → Task 6가 유일 게이트.
+- **e2e 시나리오**: 해당 없음 — 매뉴얼은 비렌더 텍스트라 Playwright UI 판정 대상이 아니다. 단 기존 `e2e/logview/log-viewer.spec.ts`는 실제 `dist-log-viewer/index.html`을 `setContent`로 로드하므로 매뉴얼이 DOM에 실제로 들어간다 → **매뉴얼 추가 후 기존 spec을 1회 재실행**해 뷰어 회귀(셀렉터·렌더) 없음을 확인(신규 spec은 불요).
+- **수동 테스트**: Task 6 — 뷰어 비회귀(+charset/한글) + 매뉴얼 비가시 + 실제 파일 레시피 복원(self-match 게이트) + 실제 AI 스모크.
 
 ## 구현 순서 권장
 

@@ -2,17 +2,20 @@
 
 ## 개요
 
-`logs.html`의 데이터 구조·인코딩은 그대로 두고, **정적 평문 매뉴얼 한 덩어리**를 `<head>` 상단의 비활성 `<script type="text/markdown">` 태그에 박는다. 매뉴얼은 데이터 위치·디코드 레시피·각 필드 소비법을 설명한다. 기존 `__BUGSHOT_DATA__`/`__BUGSHOT_META__`가 쓰는 "템플릿에 빈 placeholder 태그 → `buildLogsHtml`이 regex로 치환" 패턴을 그대로 따른다. 뷰어(`main.tsx`)는 이 태그를 읽지 않으므로 자동으로 무시되고, `text/markdown` 타입이라 브라우저가 실행·렌더하지 않는다.
+`logs.html`의 데이터 구조·인코딩은 그대로 두고, **정적 평문 매뉴얼 한 덩어리**를 `<head>`의 `<meta charset>` **바로 다음**(둘째 자식) 비활성 `<script type="text/markdown">` 태그에 박는다. 매뉴얼은 데이터 위치·디코드 레시피·각 필드 소비법을 설명한다. 메커니즘은 기존 `__BUGSHOT_DATA__`/`__BUGSHOT_META__`가 쓰는 "템플릿에 빈 placeholder 태그 → `buildLogsHtml`이 regex로 치환" 패턴을 그대로 따른다(단 위치는 다르다 — DATA/META는 `<body>`에 있고, 매뉴얼은 거대 JS 번들보다 앞서 AI가 파일 앞부분에서 먼저 만나게 하려고 head에 둔다). 뷰어(`main.tsx`)는 이 태그를 읽지 않으므로 자동으로 무시되고, `text/markdown` 타입이라 브라우저가 실행·렌더하지 않는다.
 
 ## 변경 범위
 
 ### `src/log-viewer/index.html` (템플릿)
 - **현재 역할**: 뷰어 진입 HTML. 빌드 시 `dist-log-viewer/index.html`로 산출되며, `buildLogsHtml`이 이를 `?raw`로 읽어 데이터를 주입한다. `__BUGSHOT_DATA__`/`__BUGSHOT_META__` 빈 placeholder 보유.
-- **변경**: `<head>`의 **첫 자식**으로 빈 placeholder 추가:
+- **변경**: `<head>`의 `<meta charset="UTF-8">` **바로 다음**(둘째 자식)에 빈 placeholder 추가:
   ```html
-  <script id="__BUGSHOT_AI__" type="text/markdown"></script>
+  <head>
+    <meta charset="UTF-8" />
+    <script id="__BUGSHOT_AI__" type="text/markdown"></script>
+    ...
   ```
-  첫 자식에 두는 이유: 빌드 산출물에서 매뉴얼이 거대 JS 번들보다 앞서 위치해 AI가 파일 앞부분에서 먼저 만나게 한다(절대 첫 위치는 best-effort — vite가 번들을 head에 hoist하므로 Task에서 산출물 순서 확인). `<!doctype>` 앞에는 두지 않는다(quirks mode 위험).
+  charset **다음**에 두는 이유(중요): 매뉴얼은 수 KB라 charset 선언 **앞**에 넣으면 `<meta charset>`이 HTML5의 "head 첫 1024바이트 이내" 제약 밖으로 밀려, 비-ASCII META(한글 `issueTitle`·`pageUrl` 등) 렌더가 mojibake로 깨질 수 있다(뷰어 회귀). charset 직후면 그 위험이 없고, vite가 번들을 head 하단(title 뒤)으로 hoist하므로 매뉴얼은 여전히 번들보다 앞 → "AI가 먼저 만남" 목표 유지. `<!doctype>` 앞에는 두지 않는다(quirks mode 위험).
 
 ### `src/sidepanel/lib/aiLogsManual.ts` (신규)
 - **역할**: 매뉴얼 마크다운 본문을 담은 상수 `AI_LOGS_MANUAL: string` 1개를 export. 정적·언어 영문. 본문에 리터럴 `</script` 미포함(아래 인터페이스 설계 참조).
@@ -62,25 +65,34 @@ the real data is embedded as described here. Read this first, then consume the d
 All captured data is in the script element with id `__BUGSHOT_DATA__`
 (type application/gzip-base64). Its text is base64-encoded gzip of a JSON object.
 To read it: base64-decode the text, gunzip it, then JSON.parse the UTF-8 result.
+NOTE: this manual appears BEFORE the data in the file, so match the base64 by its
+character set (not the first occurrence of the id) to avoid matching this recipe text.
 
 Python:
     import re, base64, gzip, json
-    html = open("logs.html", encoding="utf-8").read()
-    b64 = re.search(r'id="__BUGSHOT_DATA__"[^>]*>([^<]*)', html).group(1)
-    data = json.loads(gzip.decompress(base64.b64decode(b64)))
+    html = open(PATH_TO_THE_UPLOADED_FILE, encoding="utf-8").read()
+    b64 = re.search(r'id="__BUGSHOT_DATA__"[^>]*>([A-Za-z0-9+/=\s]{100,})', html).group(1)
+    data = json.loads(gzip.decompress(base64.b64decode("".join(b64.split()))))
 
 Node.js:
-    const m = html.match(/id="__BUGSHOT_DATA__"[^>]*>([^<]*)/)[1];
+    const b64 = html.match(/id="__BUGSHOT_DATA__"[^>]*>([A-Za-z0-9+/=\s]{100,})/)[1];
     const zlib = require("zlib");
-    const data = JSON.parse(zlib.gunzipSync(Buffer.from(m, "base64")).toString("utf8"));
+    const data = JSON.parse(zlib.gunzipSync(Buffer.from(b64, "base64")).toString("utf8"));
+
+If you have no code-execution environment, ask the user to run the snippet above on
+the file and paste back the decoded JSON.
 
 A second script element with id `__BUGSHOT_META__` (type application/json) is plain
 JSON, no decoding: { version, createdAt, pageUrl, issueTitle?, issueKey?, issueUrl? }.
+createdAt is an ISO 8601 string (NOT epoch ms). issueKey/issueUrl are present and
+non-empty only if the bug was filed to a tracker (Jira/GitHub/etc.); empty string "" otherwise.
 
 ## What's inside (decoded JSON top-level keys; any may be null)
 - report  — READ THIS FIRST for bug context. The human/AI-drafted issue: title,
-  environment, and sections (description / steps to reproduce / expected result /
-  notes). `report.copy.markdown` is the whole thing as markdown. Tells you WHAT the bug is.
+  env (array of { label, value }), and sections (array of { id, label, renderAs, value };
+  enabled sections only, so they vary — e.g. description / steps to reproduce / expected
+  result / notes). report.copy.markdown is the whole thing as one markdown string — if
+  parsing the structure is awkward, just read report.copy.markdown. Tells you WHAT the bug is.
 - consoleLog.entries[] — console messages: level (log/info/warn/error/debug),
   timestamp (epoch ms), args (text, may include a stack), stack?, pageUrl.
 - networkLog.requests[] — requests: method, url, status, statusText, durationMs,
@@ -97,7 +109,12 @@ JSON, no decoding: { version, createdAt, pageUrl, issueTitle?, issueKey?, issueU
   log timestamps. If you can process MP4, decode dataUrl; otherwise use the timeline + report.
 - screenshot — static image { dataUrl } (image data URL). Decode if you support images.
 
-All timestamps are epoch milliseconds — correlate console/network/action/video by time.
+Each log (consoleLog/networkLog/actionLog) also has totalSeen vs captured and
+networkLog.warnings (e.g. MEMORY_CAPPED, BODY_TRUNCATED, ENTRY_CAPPED, WS_FRAMES_CAPPED).
+If captured < totalSeen or warnings are present, the log is partial/truncated — say so
+and avoid concluding from absence of an entry.
+
+All log timestamps are epoch milliseconds — correlate console/network/action/video by time.
 preArm: true on an entry means it was captured very early in page load.
 Respond in the user's language.
 ```
@@ -118,8 +135,11 @@ Respond in the user's language.
 
 ## 위험 요소
 
-- **빌드 시 placeholder 보존·위치**: vite가 `__BUGSHOT_AI__` 빈 script를 산출물에 유지하는지, 그리고 거대 inline 모듈 스크립트보다 앞에 두는지 확인 필요(DATA/META 빈 placeholder가 이미 유지되므로 보존 자체는 안전, 순서만 확인). 번들이 앞서더라도 head 내 조기 위치면 허용(회귀 아님).
-- **`</script` 조기 종료**: 매뉴얼 본문에 리터럴 `</script`가 들어가면 태그가 깨진다. 본문 작성 규칙 + 단위 테스트로 가드. (정규식 레시피의 `[^<]*` 패턴은 `<` 직후 `script`가 아니므로 안전.)
+- **레시피 self-match (해소됨, 회귀 주의)**: 매뉴얼은 데이터(`<body>`)보다 **앞(`<head>`)**에 있고 본문에 레시피 텍스트(`id="__BUGSHOT_DATA__"...`)를 리터럴로 포함한다. 첫 매치(`re.search`/`String.match`)를 쓰면 진짜 태그가 아니라 매뉴얼 내 레시피 텍스트를 잡아 디코드가 실패한다. → 레시피는 **base64 문자셋 앵커**(`([A-Za-z0-9+/=\s]{100,})`)로 캡처해 매뉴얼 내 비-base64 occurrence를 자동 스킵한다. **검증은 빈 placeholder 목이 아니라 실제 매뉴얼 포함 logs.html에서 레시피를 실행해야 잡힌다**(Task 6 / 성공 기준).
+- **빌드 시 placeholder 보존·위치**: vite가 `__BUGSHOT_AI__` 빈 script를 산출물에 유지하는지(DATA/META 빈 placeholder가 이미 유지되므로 보존 자체는 안전), 그리고 `<meta charset>` 뒤·번들보다 앞에 남는지 확인. **dist-log-viewer 미재빌드 시 매뉴얼이 조용히 빠진다**(`buildLogsHtml`이 `?raw`로 읽는 템플릿이 구버전이면 placeholder 부재 → `.replace()` no-op, 에러 없음). build 게이트 + Task 3 산출물 확인으로 가드.
+- **charset 1024바이트**: 매뉴얼을 `<meta charset>` 앞에 두면 charset이 head 첫 1024B 밖으로 밀려 비-ASCII META가 깨질 수 있음 → charset **다음**에 배치(변경 범위·개요 참조).
+- **`</script` 조기 종료 + escape 부재**: `buildLogsHtml`은 meta JSON만 `<`→`<` escape하고(line 41) **매뉴얼은 함수형 replacement로 원문 그대로 주입한다**(escape 없음). 매뉴얼 본문에 `<`는 있으나(레시피 등) HTML script는 `</script`만 종료 트리거라 무해. 유일한 가드는 "본문에 리터럴 `</script` 없음" — 단위 테스트(대소문자 무시)로 강제.
+- **TS 리터럴 이스케이프**: 매뉴얼을 백틱 템플릿 리터럴로 작성하면 본문의 백틱·`${`가 깨진다. 현재 레시피는 들여쓰기 코드블록(펜스·`${` 없음)이라 안전하나 작성 시 주의.
 - **스키마 드리프트**: 매뉴얼이 데이터 필드명을 기술하므로, `types/network.ts`·`console.ts`·`action.ts`·`log-viewer.ts`가 크게 바뀌면 매뉴얼도 갱신해야 한다. 핵심 키 위주로만 적어 결합도를 낮추고, 세부는 "AI가 JSON 보고 추론"에 위임. (doc-check/구현 시 인지)
-- **순수 채팅 AI 한계**: gzip 해독 불가 환경에선 매뉴얼이 실행 가능한 도움을 주지 못함(상황 인지만). 이는 설계가 아닌 환경 제약 — PRD 비목표에 명시.
+- **순수 채팅 AI 한계**: gzip 해독 불가 환경에선 매뉴얼이 직접 실행은 못 함. 단 매뉴얼 말미 fallback("실행 환경 없으면 사용자에게 one-liner를 돌려 결과를 붙여달라 요청")으로 *간접 실행 경로*를 연다 — 이는 "gzip을 풀 수 있게 만든다"는 비목표를 깨지 않는 사용자 위임이다.
 - **개인정보**: 새로운 캡처·수집·전송 동작 없음(기존 데이터의 인코딩/문서화만 추가). `docs/privacy.md` 갱신 트리거 아님. 단, 매뉴얼이 "복호화하면 헤더·본문이 평문으로 보인다"는 사실을 더 가시화하므로 시행일 변경 없이 현행 방침과 모순 없음 확인.

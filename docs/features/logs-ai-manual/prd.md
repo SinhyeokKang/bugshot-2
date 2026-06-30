@@ -21,27 +21,33 @@
 - 별도 export 버튼·UI·메뉴 추가 (사용자 명시: export 원치 않음).
 - 로그 데이터를 평문/마크다운으로 별도 직렬화해 중복 저장.
 - 뷰어(`main.tsx`/`App.tsx`)의 렌더 로직 변경.
-- 순수 채팅(코드 실행 불가) AI가 gzip을 풀 수 있게 만드는 것 — 불가능. 매뉴얼은 그런 AI에게도 "이건 압축 로그이고 디코드 도구가 필요하다"는 상황 인지만 제공한다.
+- 순수 채팅(코드 실행 불가) AI가 gzip을 **직접** 풀 수 있게 만드는 것 — 불가능. 단 매뉴얼은 그런 AI에게 "이건 압축 로그이고, 실행 환경이 없으면 사용자에게 디코드 one-liner를 돌려 결과를 붙여달라 요청하라"는 fallback을 제공한다(사용자 위임 — 이 비목표를 깨지 않음).
 - 매뉴얼의 다국어(i18n) 분기. 영문 단일.
 
 ## 사용자 시나리오
 
-1. 사용자가 BugShot으로 버그를 캡처하고 `logs.html`을 내보낸다(기존 플로우 그대로).
-2. 사용자가 그 파일을 **코드 실행 가능한 AI**(Claude.ai 분석 도구, Claude Code, ChatGPT Python 등)에 업로드/첨부한다.
-3. AI가 파일 상단의 매뉴얼을 읽고 → 레시피대로 `__BUGSHOT_DATA__`를 base64 디코드 + gunzip + JSON 파싱 → console/network/action/report 전체를 읽는다.
-4. AI가 `report`로 버그 맥락을 먼저 파악하고, 로그 타임스탬프(epoch ms)로 console/network/action을 상관분석해 원인을 진단한다.
+**독자(페르소나) 둘 다 대상**: (1) 버그를 캡처한 본인(QA/개발자), (2) **이슈 트래커 첨부로 logs.html을 받아 트리아지하는 다운스트림 개발자**. logs.html이 손에 들어오는 경로는 (A) PreviewPanel 다운로드 버튼 = 로컬 단일 파일, (B) Jira/GitHub 등 트래커 제출 시 첨부 업로드(다운스트림이 다시 내려받음. Notion은 .zip 래핑) 둘. 어느 경로든 결국 AI에 던져지는 건 동일한 `logs.html`이다.
+
+1. 사용자가 위 경로 중 하나로 `logs.html`을 손에 넣는다(기존 플로우 그대로 — 신규 export·UI 없음).
+2. 사용자가 그 파일을 AI에 업로드/붙여넣는다.
+   - **코드 실행 가능 AI**(Claude.ai 분석 도구, Claude Code, ChatGPT Python 등): 매뉴얼 레시피를 실행해 직접 디코드.
+   - **순수 채팅 AI**: 매뉴얼의 fallback대로 사용자에게 one-liner 실행·붙여넣기를 요청(간접 디코드).
+3. AI가 파일 앞부분의 매뉴얼을 읽고 → 레시피대로 `__BUGSHOT_DATA__`를 base64 디코드 + gunzip + JSON 파싱 → console/network/action/report 전체를 읽는다.
+4. AI가 `report`로 버그 맥락을 먼저 파악하고, 로그 타임스탬프(epoch ms)로 console/network/action을 상관분석해 원인을 진단한다. 캡 신호(`warnings`·`captured<totalSeen`)가 있으면 "로그 일부 잘림"을 감안한다.
 5. (영상 처리 가능 시) `video.dataUrl` MP4를 디코드해 재현 화면을 본다. 불가하면 action 타임라인으로 갈음.
 
 ### 엣지 케이스
 
-- **코드 실행 불가 AI**: 매뉴얼은 읽히지만 gzip을 못 푼다. AI는 최소한 "압축된 디버그 로그이며 디코드가 필요"함을 인지(현재는 그냥 멍듦).
+- **코드 실행 불가 AI**: 매뉴얼은 읽히지만 gzip을 직접 못 푼다. AI는 fallback대로 사용자에게 디코드 one-liner 실행을 요청(간접 경로). 사용자가 거부하면 "압축된 디버그 로그이며 디코드 필요"함만 인지(현재는 그냥 멍듦).
+- **레시피 self-match**: 매뉴얼은 데이터(`<body>`)보다 앞(`<head>`)에 위치하고 본문에 레시피 텍스트를 포함하므로, 첫 매치 정규식은 매뉴얼 자신을 잡아 실패한다. 레시피는 base64 문자셋 앵커로 진짜 태그만 매치한다(design 위험 요소 참조).
 - **구버전 logs.html**: 매뉴얼이 없다 — 기존과 동일하게 동작(회귀 없음). 매뉴얼은 신규 export부터 포함.
 - **로그 일부만 존재**(예: console만, network 없음): 디코드된 JSON의 해당 최상위 키가 `null`. 매뉴얼이 "키가 없거나 null일 수 있다"고 명시.
 - **매뉴얼 내 `</script`**: 매뉴얼 텍스트가 script 태그를 조기 종료시키면 안 됨 — 본문에 리터럴 `</script` 금지(테스트로 가드).
 
 ## 성공 기준
 
-- 새로 내보낸 `logs.html`을 브라우저로 열면 뷰어 외형·동작이 이전과 **동일**(매뉴얼 비가시).
-- 파일을 텍스트로 열면 `<head>` 상단에서 `__BUGSHOT_AI__` 매뉴얼이 보이고, 그 안의 디코드 레시피를 그대로 실행하면 `__BUGSHOT_DATA__`가 console/network/action/report JSON으로 복원된다(예시 파일로 검증 가능 — 실제 Python `gzip.decompress(base64.b64decode(...))`로 복원됨을 확인).
+- 새로 내보낸 `logs.html`을 브라우저로 열면 뷰어 외형·동작이 이전과 **동일**(매뉴얼 비가시). 한글 등 비-ASCII `issueTitle`·로그도 깨지지 않음(charset 보존).
+- 파일을 텍스트로 열면 `<meta charset>` 직후에서 `__BUGSHOT_AI__` 매뉴얼이 보이고, **매뉴얼 안의 디코드 레시피를 (실제 매뉴얼 포함 logs.html에서) 그대로 복붙 실행하면** `__BUGSHOT_DATA__`가 console/network/action/report JSON으로 복원된다(레시피가 매뉴얼 자기 자신이 아닌 진짜 데이터 태그를 매치). 예시 파일 Python 복원으로 확인.
+- **실제 AI 스모크**: 매뉴얼 포함 logs.html을 Claude.ai 분석 도구(또는 ChatGPT Python)에 한 번 넣어, AI가 매뉴얼을 읽고 데이터를 디코드해 로그·report를 실제로 인용·진단하는지 1회 확인(자동화 불가 — 수동 1회).
 - 매뉴얼 추가로 인한 파일 크기 증가가 수 KB 이내(데이터 중복 없음).
-- `pnpm test`의 `buildLogsHtml` 테스트가 매뉴얼 주입·`</script` 부재를 검증하며 통과.
+- `pnpm test`의 `buildLogsHtml`·`aiLogsManual` 테스트가 매뉴얼 주입·`</script` 부재를 검증하며 통과.
