@@ -49,20 +49,35 @@ test.describe.serial("30s Replay 트리밍 오버레이", () => {
       await expect(panel.getByTestId("replay-button")).not.toHaveAttribute("aria-disabled", "true");
     }).toPass({ timeout: 45_000 });
     await panel.bringToFront();
+    // bringToFront로 fixture가 백그라운드가 되며 ready가 순간 뒤집힐 수 있어 클릭 직전 재확인(no-op 클릭 방지).
+    await expect(panel.getByTestId("replay-button")).not.toHaveAttribute("aria-disabled", "true");
     await panel.getByTestId("replay-button").click();
+    // drafting 전환 직후 트림 오버레이가 자동 등장(README 시퀀스) — 인코딩 시간 확보 후 오버레이 대기.
+    await expect(panel.getByTestId("drafting-panel")).toBeVisible({ timeout: 45_000 });
     await expect(panel.getByTestId("replay-trim-overlay")).toBeVisible({ timeout: 45_000 });
   }
 
-  test("오버레이 등장 → 로그 미리보기 → ✗ 취소 시 진입 화면 복귀", async () => {
+  test("오버레이 등장 → 로그 탭 인라인 + play 게이팅 → ✗ 취소 시 진입 화면 복귀", async () => {
     await captureToOverlay();
 
-    // 로그 미리보기 — action 로그 버튼(캡처된 동작 1건 이상이라 활성) → 다이얼로그 열림 → 닫기.
-    const actionLogBtn = panel.getByTestId("replay-trim-log-action");
-    await expect(actionLogBtn).toBeEnabled();
-    await actionLogBtn.click();
-    await expect(panel.getByTestId("action-log-preview-dialog")).toBeVisible();
-    await panel.keyboard.press("Escape");
+    // duration 로드(=confirm·play 활성) 대기.
+    await expect(panel.getByTestId("replay-trim-confirm")).toBeEnabled();
+    // 영상 탭에선 재생 버튼 활성.
+    await expect(panel.getByTestId("replay-trim-play")).toBeEnabled();
+
+    // action 탭 전환 → canvas 자리에 인라인 로그 리스트(다이얼로그 아님)가 뜬다.
+    const actionTab = panel.getByTestId("replay-trim-tab-action");
+    await expect(actionTab).toBeEnabled();
+    await actionTab.click();
+    await expect(actionTab).toHaveAttribute("data-state", "active");
+    const rows = panel.locator("[data-entry-id][data-kind]");
+    await expect(rows.first()).toBeVisible();
+    // 더 이상 모달 다이얼로그를 쓰지 않는다(탭이 대체).
     await expect(panel.getByTestId("action-log-preview-dialog")).toHaveCount(0);
+    // 탭 카운트 Badge 숫자 = 인라인 행 수.
+    await expect(actionTab).toContainText(String(await rows.count()));
+    // 로그 탭에선 영상이 hidden이라 재생 버튼 비활성.
+    await expect(panel.getByTestId("replay-trim-play")).toBeDisabled();
 
     // ✗ 취소 → 확인 AlertDialog → 확정 시 캡처 폐기 + idle(EmptyState) 복귀.
     await panel.getByTestId("replay-trim-cancel").click();

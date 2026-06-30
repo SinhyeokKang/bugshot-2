@@ -48,6 +48,9 @@ test.describe.serial("30s Replay 트리밍 — 로그 트림 + 타임스탬프 �
   });
 
   test("앞 구간 트림 → 앞쪽 로그 잘림 + 살아남은 로그 타임스탬프 보정", async () => {
+    // 헤비 캡처: 6회 시차 클릭(~6.6s) + 백그라운드 throttle ready + 인코딩 + drafting/overlay 대기로
+    // 기본 60s 테스트 예산을 넘긴다. 실제 오래 걸리는 작업이라 예산을 늘린다(셀렉터 band-aid 아님).
+    test.setTimeout(120_000);
     await enterDebug(panel);
     await expect(panel.getByTestId("replay-button")).toBeVisible();
 
@@ -67,23 +70,25 @@ test.describe.serial("30s Replay 트리밍 — 로그 트림 + 타임스탬프 �
 
     // 패널 front → 캡처 → 트림 오버레이.
     await panel.bringToFront();
+    // bringToFront로 fixture가 백그라운드가 되며 ready가 순간 뒤집힐 수 있어 클릭 직전 재확인(no-op 클릭 방지).
+    await expect(panel.getByTestId("replay-button")).not.toHaveAttribute("aria-disabled", "true");
     await panel.getByTestId("replay-button").click();
     const overlay = panel.getByTestId("replay-trim-overlay");
+    await expect(panel.getByTestId("drafting-panel")).toBeVisible({ timeout: 45_000 });
     await expect(overlay).toBeVisible({ timeout: 45_000 });
     await expect(panel.getByTestId("replay-trim-confirm")).toBeEnabled();
 
-    // 트림 전(전체 구간) action 로그 미리보기 — 개수 N, 마지막 행 상대시각 R_pre 확보.
-    await panel.getByTestId("replay-trim-log-action").click();
-    const overlayDialog = panel.getByTestId("action-log-preview-dialog");
-    await expect(overlayDialog).toBeVisible();
-    const N = await overlayDialog.locator("[data-entry-id]").count();
+    // 트림 전(전체 구간) action 로그 — 인라인 action 탭(다이얼로그 아님). 개수 N, 마지막 상대시각 R_pre.
+    const actionTab = panel.getByTestId("replay-trim-tab-action");
+    await actionTab.click();
+    await expect(actionTab).toHaveAttribute("data-state", "active");
+    const rows = panel.locator("[data-entry-id][data-kind]");
+    const N = await rows.count();
     expect(N).toBeGreaterThanOrEqual(4); // 6 클릭 — 환경 변동 흡수해 하한만
-    const rPre = relSeconds(
-      await overlayDialog.getByTestId("log-rel-time").last().textContent(),
-    );
+    // 전체 구간이라 잘림 후보(muted) 0건.
+    await expect(panel.locator("[data-entry-id][data-kind][data-muted]")).toHaveCount(0);
+    const rPre = relSeconds(await panel.getByTestId("log-rel-time").last().textContent());
     expect(rPre).toBeGreaterThan(0); // 마지막 클릭은 영상 뒤쪽 → 0:00 아님
-    await panel.keyboard.press("Escape");
-    await expect(overlayDialog).toHaveCount(0);
 
     // 앞 구간 트림 — 시작 thumb(slider nth0) 포커스 + ArrowRight×30(step 0.1 → +3s).
     const initialSel = Number(await overlay.getAttribute("data-trim-selection"));
@@ -95,6 +100,17 @@ test.describe.serial("30s Replay 트리밍 — 로그 트림 + 타임스탬프 �
       .poll(async () => Number(await overlay.getAttribute("data-trim-selection")))
       .toBeLessThan(initialSel);
 
+    // 앞쪽 로그가 잘림 후보로 흐려진다(data-muted, 실시간). muted/생존 id 수집.
+    await expect(panel.locator("[data-entry-id][data-kind][data-muted]").first()).toBeVisible();
+    const mutedIds = await rows.evaluateAll((els) =>
+      els.filter((e) => e.hasAttribute("data-muted")).map((e) => e.getAttribute("data-entry-id")),
+    );
+    const keptIds = await rows.evaluateAll((els) =>
+      els.filter((e) => !e.hasAttribute("data-muted")).map((e) => e.getAttribute("data-entry-id")),
+    );
+    expect(mutedIds.length).toBeGreaterThanOrEqual(1);
+    expect(keptIds.length).toBeGreaterThanOrEqual(1);
+
     // ✓ 확정 → 재인코딩 → drafting.
     await panel.getByTestId("replay-trim-confirm").click();
     await expect(overlay).toHaveCount(0, { timeout: 45_000 });
@@ -104,13 +120,19 @@ test.describe.serial("30s Replay 트리밍 — 로그 트림 + 타임스탬프 �
     await panel.getByTestId("action-log-card").click();
     const draftDialog = panel.getByTestId("action-log-preview-dialog");
     await expect(draftDialog).toBeVisible();
-    const M = await draftDialog.locator("[data-entry-id]").count();
+    const draftIds = await draftDialog
+      .locator("[data-entry-id]")
+      .evaluateAll((els) => els.map((e) => e.getAttribute("data-entry-id")));
+    const M = draftIds.length;
 
-    // ① 앞쪽 로그가 잘렸다 — M < N (가드밴드 회귀 가드) + 최소 1건 생존.
+    // ① 흐림 = 실제 잘림 (parity) — overlay에서 muted였던 로그는 제거, 생존 로그는 유지.
+    for (const id of mutedIds) expect(draftIds).not.toContain(id);
+    for (const id of keptIds) expect(draftIds).toContain(id);
+    // ② 앞쪽 로그가 잘렸다 — M < N (가드밴드 회귀 가드) + 최소 1건 생존.
     expect(M).toBeGreaterThanOrEqual(1);
     expect(M).toBeLessThan(N);
 
-    // ② 타임스탬프 보정 — 첫 생존 로그는 새 시작 기준 ≈0:00, 마지막 로그는 트림 전보다 작아짐.
+    // ③ 타임스탬프 보정 — 첫 생존 로그는 새 시작 기준 ≈0:00, 마지막 로그는 트림 전보다 작아짐.
     const firstRel = relSeconds(
       await draftDialog.getByTestId("log-rel-time").first().textContent(),
     );
