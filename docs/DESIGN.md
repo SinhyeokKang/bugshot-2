@@ -120,7 +120,7 @@ shadcn `Button` (`src/components/ui/button.tsx`, cva):
 
 ### Slider
 
-shadcn `Slider` (`src/components/ui/slider.tsx`, Radix). 표준에서 **멀티 thumb 확장** — `value`/`defaultValue` 배열 길이로 thumb 개수를 파생해 N개 렌더(미지정 시 1), `thumbAriaLabels?: string[]`로 thumb별 aria-label 주입. 현재 사용처는 `TrimTimeline`의 trim 듀얼 핸들(2-thumb 레인지).
+shadcn `Slider` (`src/components/ui/slider.tsx`, Radix). 표준에서 **멀티 thumb 확장** — `value`/`defaultValue` 배열 길이로 thumb 개수를 파생해 N개 렌더(미지정 시 1), `thumbAriaLabels?: string[]`로 thumb별 aria-label 주입. 추가로 **슬롯 override props** — `trackClassName`/`rangeClassName`/`thumbClassName`(트랙·선택 범위·thumb 비주얼 교체), `thumbContent`(인덱스별 커스텀 핸들 렌더), `onThumbClick`(드래그 아닌 thumb 클릭=seek). 현재 사용처는 `TrimTimeline`의 trim 듀얼 핸들 — 투명 트랙 + outline 핸들(`thumbContent`) + range=`bg-background`로 트림 바를 완전 커스텀.
 
 - **CTA는 `default`(h-9)로 통일** — 대개 `size` 생략(기본값이 h-9).
 - `xl`은 랜딩/온보딩 같은 특수 CTA 전용.
