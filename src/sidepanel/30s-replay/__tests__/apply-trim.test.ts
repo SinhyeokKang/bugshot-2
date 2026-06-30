@@ -84,12 +84,14 @@ describe("applyReplayTrim — 타임베이스 분리", () => {
     expect(startedAt).toBe(10600);
   });
 
-  it("로그 trim 경계 lower는 guard 적용(raw − REPLAY_LOG_GUARD_MS)", async () => {
+  it("앞을 자르면 lower에 guard 미적용 — 경계 직전 로그가 말려들지 않는다", async () => {
+    // inIndex=1>0(앞 trim) → lower=sliced[0].ts(10600) 정확히. guard로 10599가 끌려오면 안 됨.
     const reqs = [
-      makeRequest({ id: "tooEarly", startTime: 10600 - REPLAY_LOG_GUARD_MS - 1 }),
-      makeRequest({ id: "guarded", startTime: 10600 - REPLAY_LOG_GUARD_MS + 1 }),
+      makeRequest({ id: "justBefore", startTime: 10599 }), // 새 시작 직전 — 제외돼야
+      makeRequest({ id: "atStart", startTime: 10600 }),
       makeRequest({ id: "inWindow", startTime: 11000 }),
-      makeRequest({ id: "afterEnd", startTime: 99999 }),
+      makeRequest({ id: "atEnd", startTime: 11200 }),
+      makeRequest({ id: "afterEnd", startTime: 11201 }), // 마지막 프레임 직후 — 제외돼야
     ];
     storeState = makeState({
       id: "n", startedAt: 0, endedAt: 0, totalSeen: reqs.length, captured: reqs.length,
@@ -100,8 +102,46 @@ describe("applyReplayTrim — 타임베이스 분리", () => {
 
     const [key, saved] = saveNetworkLog.mock.calls[0];
     expect(key).toBe("pending:7");
-    expect(saved.requests.map((r: NetworkRequest) => r.id)).toEqual(["guarded", "inWindow"]);
-    expect(saved.captured).toBe(2);
+    expect(saved.requests.map((r: NetworkRequest) => r.id)).toEqual(["atStart", "inWindow", "atEnd"]);
+    expect(saved.captured).toBe(3);
+  });
+
+  it("끝만 자르면(inIndex===0) 앞은 guard 유지 + 상한은 정확한 마지막 프레임", async () => {
+    // sliced=[10000,10600,11200], inIndex=0 → lower=10000-guard, outIndex=2 → upper=11200(정확).
+    const reqs = [
+      makeRequest({ id: "tooEarly", startTime: 10000 - REPLAY_LOG_GUARD_MS - 1 }),
+      makeRequest({ id: "guardedFront", startTime: 10000 - REPLAY_LOG_GUARD_MS + 1 }),
+      makeRequest({ id: "inWindow", startTime: 10600 }),
+      makeRequest({ id: "atEnd", startTime: 11200 }),
+      makeRequest({ id: "afterEnd", startTime: 11201 }),
+    ];
+    storeState = makeState({
+      id: "n", startedAt: 0, endedAt: 0, totalSeen: reqs.length, captured: reqs.length,
+      warnings: [], requests: reqs,
+    });
+
+    await applyReplayTrim({ frames: FRAMES, tabId: 1, startSec: 0, endSec: 1.2 });
+
+    const [, saved] = saveNetworkLog.mock.calls[0];
+    expect(saved.requests.map((r: NetworkRequest) => r.id)).toEqual(["guardedFront", "inWindow", "atEnd"]);
+  });
+
+  it("앞만 자르면(outIndex===last) 상한 없음 — 끝쪽 로그 보존", async () => {
+    // inIndex=1>0, outIndex=4(last) → lower=10600, upper=undefined(capture가 captureTime로 이미 제한).
+    const reqs = [
+      makeRequest({ id: "before", startTime: 10599 }),
+      makeRequest({ id: "atStart", startTime: 10600 }),
+      makeRequest({ id: "wayAfter", startTime: 999999 }),
+    ];
+    storeState = makeState({
+      id: "n", startedAt: 0, endedAt: 0, totalSeen: reqs.length, captured: reqs.length,
+      warnings: [], requests: reqs,
+    });
+
+    await applyReplayTrim({ frames: FRAMES, tabId: 1, startSec: 0.6, endSec: 99 });
+
+    const [, saved] = saveNetworkLog.mock.calls[0];
+    expect(saved.requests.map((r: NetworkRequest) => r.id)).toEqual(["atStart", "wayAfter"]);
   });
 
   it("attach 토글 setter는 호출하지 않음", async () => {

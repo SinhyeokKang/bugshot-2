@@ -53,6 +53,7 @@ export function DraftingPanel() {
   const t = useT();
   const tabId = useBoundTabId();
   const captureMode = useEditorStore((s) => s.captureMode);
+  const videoStartedAt = useEditorStore((s) => s.videoStartedAt);
   const selection = useEditorStore((s) => s.selection);
   const styleEdits = useEditorStore((s) => s.styleEdits);
   const beforeImage = useEditorStore((s) => s.beforeImage);
@@ -445,6 +446,7 @@ export function DraftingPanel() {
           requests={networkLog.requests}
           attach={networkLogAttach}
           onToggleAttach={setNetworkLogAttach}
+          syncBaseMs={videoStartedAt ?? undefined}
         />
       )}
       {consoleLog && (
@@ -455,6 +457,7 @@ export function DraftingPanel() {
           startedAt={consoleLog.startedAt}
           attach={consoleLogAttach}
           onToggleAttach={setConsoleLogAttach}
+          syncBaseMs={videoStartedAt ?? undefined}
         />
       )}
       {showActionCard && actionLog && (
@@ -465,6 +468,7 @@ export function DraftingPanel() {
           startedAt={actionLog.startedAt}
           attach={actionLogAttach}
           onToggleAttach={setActionLogAttach}
+          syncBaseMs={videoStartedAt ?? undefined}
         />
       )}
       <AiDraftDialog

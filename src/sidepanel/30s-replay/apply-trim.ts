@@ -1,5 +1,5 @@
 import { useEditorStore } from "@/store/editor-store";
-import { trimByTime, replayLogBounds } from "@/sidepanel/lib/log-merge";
+import { trimByTime, REPLAY_LOG_GUARD_MS } from "@/sidepanel/lib/log-merge";
 import { saveNetworkLog, saveConsoleLog, saveActionLog } from "@/store/blob-db";
 import {
   networkLogPersist,
@@ -30,8 +30,12 @@ export async function applyReplayTrim(opts: {
   const videoStartedAt = sliced[0].timestamp;
   const videoEndedAt = sliced[sliced.length - 1].timestamp + lastFrameDurationMs;
 
-  // 로그 trim 경계만 guard 적용(영상 타임베이스와 분리).
-  const { lower, upper } = replayLogBounds(videoStartedAt, videoEndedAt);
+  // 로그 trim 경계(영상 타임베이스와 분리). 잘라낸 쪽은 사용자가 고른 interior 프레임의
+  // 정확한 wall-clock을 쓴다 — 가드밴드는 최초 캡처 첫 프레임의 폴링 지연 보정용이라
+  // 재트림엔 경계 밖 로그를 도로 끌어오는 부작용만 낸다. 안 자른 쪽은 capture 동작을 보존:
+  // 앞(inIndex===0)은 가드밴드 유지, 끝(outIndex===last)은 상한 없음(capture가 captureTime로 이미 제한).
+  const lower = inIndex === 0 ? videoStartedAt - REPLAY_LOG_GUARD_MS : videoStartedAt;
+  const upper = outIndex === frames.length - 1 ? undefined : sliced[sliced.length - 1].timestamp;
 
   // capture()와 동일하게 대기 중 버퍼 write를 폐기 후 trim본으로 덮어쓴다.
   networkLogPersist.discard();

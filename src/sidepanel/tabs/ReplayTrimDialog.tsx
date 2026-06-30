@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Check, Loader2, Pause, Play, Redo2, Undo2, X } from "lucide-react";
+import { ArrowLeftRight, Check, Loader2, MousePointerClick, Pause, Play, Redo2, Terminal, Undo2, X } from "lucide-react";
 import { useT } from "@/i18n";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
@@ -45,10 +45,14 @@ export default function ReplayTrimDialog({ videoBlob, onConfirm, onCancel, busy 
   const [currentTime, setCurrentTime] = useState(0);
   const [paused, setPaused] = useState(true);
   const [history, setHistory] = useState<History<[number, number]>>(() => initHistory([0, 0]));
+  // 라이브 값(드래그 중 연속 갱신) — 히스토리는 드래그 종료 시 1회만 커밋해 undo 단위를 "한 번의 드래그"로.
+  const [value, setValue] = useState<[number, number]>([0, 0]);
   const [consoleOpen, setConsoleOpen] = useState(false);
   const [networkOpen, setNetworkOpen] = useState(false);
   const [actionOpen, setActionOpen] = useState(false);
   const [cancelOpen, setCancelOpen] = useState(false);
+  // 마커 클릭으로 연 다이얼로그에서 스크롤·선택할 로그 엔트리 id (수동 열기·닫기 시 null).
+  const [focusEntryId, setFocusEntryId] = useState<string | null>(null);
 
   const consoleLog = useEditorStore((s) => s.consoleLog);
   const networkLog = useEditorStore((s) => s.networkLog);
@@ -67,7 +71,7 @@ export default function ReplayTrimDialog({ videoBlob, onConfirm, onCancel, busy 
     return () => URL.revokeObjectURL(url);
   }, [videoBlob]);
 
-  const [startSec, endSec] = history.present;
+  const [startSec, endSec] = value;
   const currentPct = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   const markers = useMemo(
@@ -85,19 +89,48 @@ export default function ReplayTrimDialog({ videoBlob, onConfirm, onCancel, busy 
     if (d != null && Number.isFinite(d) && d > 0) {
       setDuration(d);
       setHistory(initHistory([0, d]));
+      setValue([0, d]);
     }
   }
 
+  // 드래그 중: 라이브 값만 갱신 + 움직인 핸들로 seek (히스토리 미커밋).
   function handleTrimChange(s: number, e: number) {
-    seek(s !== startSec ? s : e);
+    seek(s !== value[0] ? s : e);
+    setValue([s, e]);
+  }
+
+  // 드래그 종료·키 입력 1회: 히스토리에 커밋(undo 한 단위).
+  function handleTrimCommit(s: number, e: number) {
     setHistory((h) => pushHistory(h, [s, e]));
   }
 
+  function applyHistory(next: History<[number, number]>) {
+    setHistory(next);
+    setValue(next.present);
+    seek(next.present[0]);
+  }
+
+  // 재생은 선택 구간 [start,end]으로 스코프 — 시작 시 좌측 핸들에서, 끝 핸들에서 멈춤.
   function togglePlay() {
     const v = videoRef.current;
     if (!v) return;
-    if (v.paused) void v.play();
-    else v.pause();
+    if (v.paused) {
+      if (v.currentTime < startSec || v.currentTime >= endSec - 0.05) v.currentTime = startSec;
+      void v.play();
+    } else {
+      v.pause();
+    }
+  }
+
+  function handleTimeUpdate() {
+    const v = videoRef.current;
+    if (!v) return;
+    // 재생 중에만 끝 핸들에서 정지. 일시정지 상태의 스크럽은 선택 밖도 허용(Jam).
+    if (!v.paused && v.currentTime >= endSec) {
+      v.pause();
+      v.currentTime = endSec;
+    }
+    setCurrentTime(v.currentTime);
   }
 
   const sel = Math.max(0, Math.round(endSec - startSec));
@@ -116,17 +149,16 @@ export default function ReplayTrimDialog({ videoBlob, onConfirm, onCancel, busy 
             <span className="font-medium tabular-nums" aria-live="polite">
               {t("issue.replay.trim.selection", { sel, total })}
             </span>
-            <span className="truncate text-muted-foreground">{t("issue.replay.trim.hint")}</span>
           </div>
           <ButtonGroup className="shrink-0">
-            <Button variant="outline" size="sm" disabled={!consoleLog || busy} onClick={() => setConsoleOpen(true)} data-testid="replay-trim-log-console">
-              {t("issue.replay.trim.log.console")}
+            <Button variant="outline" size="icon" className="h-8 w-8" disabled={!consoleLog || busy} onClick={() => { setFocusEntryId(null); setConsoleOpen(true); }} aria-label={t("issue.replay.trim.log.console")} title={t("issue.replay.trim.log.console")} data-testid="replay-trim-log-console">
+              <Terminal className="h-4 w-4" />
             </Button>
-            <Button variant="outline" size="sm" disabled={!networkLog || busy} onClick={() => setNetworkOpen(true)} data-testid="replay-trim-log-network">
-              {t("issue.replay.trim.log.network")}
+            <Button variant="outline" size="icon" className="h-8 w-8" disabled={!networkLog || busy} onClick={() => { setFocusEntryId(null); setNetworkOpen(true); }} aria-label={t("issue.replay.trim.log.network")} title={t("issue.replay.trim.log.network")} data-testid="replay-trim-log-network">
+              <ArrowLeftRight className="h-4 w-4" />
             </Button>
-            <Button variant="outline" size="sm" disabled={!actionLog || busy} onClick={() => setActionOpen(true)} data-testid="replay-trim-log-action">
-              {t("issue.replay.trim.log.action")}
+            <Button variant="outline" size="icon" className="h-8 w-8" disabled={!actionLog || busy} onClick={() => setActionOpen(true)} aria-label={t("issue.replay.trim.log.action")} title={t("issue.replay.trim.log.action")} data-testid="replay-trim-log-action">
+              <MousePointerClick className="h-4 w-4" />
             </Button>
           </ButtonGroup>
         </div>
@@ -137,9 +169,9 @@ export default function ReplayTrimDialog({ videoBlob, onConfirm, onCancel, busy 
             <video
               ref={videoRef}
               src={src}
-              className="aspect-video max-h-full w-full object-contain"
+              className="h-full w-full object-contain"
               onLoadedMetadata={handleLoadedMetadata}
-              onTimeUpdate={() => setCurrentTime(videoRef.current?.currentTime ?? 0)}
+              onTimeUpdate={handleTimeUpdate}
               onPlay={() => setPaused(false)}
               onPause={() => setPaused(true)}
             />
@@ -157,7 +189,7 @@ export default function ReplayTrimDialog({ videoBlob, onConfirm, onCancel, busy 
             aria-label={paused ? t("issue.replay.trim.play") : t("issue.replay.trim.pause")}
             title={paused ? t("issue.replay.trim.play") : t("issue.replay.trim.pause")}
           >
-            {paused ? <Play className="h-4 w-4" /> : <Pause className="h-4 w-4" />}
+            {paused ? <Play className="h-4 w-4 fill-current" /> : <Pause className="h-4 w-4 fill-current" />}
           </Button>
           <TrimTimeline
             durationSec={duration}
@@ -167,6 +199,13 @@ export default function ReplayTrimDialog({ videoBlob, onConfirm, onCancel, busy 
             markers={markers}
             disabled={busy}
             onTrimChange={handleTrimChange}
+            onTrimCommit={handleTrimCommit}
+            onSeek={seek}
+            onMarkerClick={(m) => {
+              setFocusEntryId(m.id);
+              if (m.type === "console") setConsoleOpen(true);
+              else setNetworkOpen(true);
+            }}
           />
         </div>
 
@@ -178,7 +217,7 @@ export default function ReplayTrimDialog({ videoBlob, onConfirm, onCancel, busy 
               size="icon"
               className="h-8 w-8"
               disabled={!canUndo(history) || busy}
-              onClick={() => setHistory((h) => undoHistory(h))}
+              onClick={() => applyHistory(undoHistory(history))}
               aria-label={t("issue.replay.trim.undo")}
               title={t("issue.replay.trim.undo")}
             >
@@ -189,7 +228,7 @@ export default function ReplayTrimDialog({ videoBlob, onConfirm, onCancel, busy 
               size="icon"
               className="h-8 w-8"
               disabled={!canRedo(history) || busy}
-              onClick={() => setHistory((h) => redoHistory(h))}
+              onClick={() => applyHistory(redoHistory(history))}
               aria-label={t("issue.replay.trim.redo")}
               title={t("issue.replay.trim.redo")}
             >
@@ -227,20 +266,26 @@ export default function ReplayTrimDialog({ videoBlob, onConfirm, onCancel, busy 
       {consoleLog && (
         <ConsoleLogPreviewDialog
           open={consoleOpen}
-          onOpenChange={setConsoleOpen}
+          onOpenChange={(o) => { setConsoleOpen(o); if (!o) setFocusEntryId(null); }}
           entries={consoleLog.entries}
           startedAt={consoleLog.startedAt}
           attach={consoleLogAttach}
           onToggleAttach={setConsoleLogAttach}
+          attachDisabled
+          syncBaseMs={videoStartedAt ?? undefined}
+          scrollToEntryId={consoleOpen ? focusEntryId : null}
         />
       )}
       {networkLog && (
         <NetworkLogPreviewDialog
           open={networkOpen}
-          onOpenChange={setNetworkOpen}
+          onOpenChange={(o) => { setNetworkOpen(o); if (!o) setFocusEntryId(null); }}
           requests={networkLog.requests}
           attach={networkLogAttach}
           onToggleAttach={setNetworkLogAttach}
+          attachDisabled
+          syncBaseMs={videoStartedAt ?? undefined}
+          scrollToEntryId={networkOpen ? focusEntryId : null}
         />
       )}
       {actionLog && (
@@ -251,6 +296,8 @@ export default function ReplayTrimDialog({ videoBlob, onConfirm, onCancel, busy 
           startedAt={actionLog.startedAt}
           attach={actionLogAttach}
           onToggleAttach={setActionLogAttach}
+          attachDisabled
+          syncBaseMs={videoStartedAt ?? undefined}
         />
       )}
 

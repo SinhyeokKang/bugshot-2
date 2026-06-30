@@ -8,11 +8,12 @@ export function LogSeekChip({ ts, label, onSeek }: {
 }) {
   const t = useT();
   if (!onSeek) {
-    return <span className="w-8 shrink-0 font-mono text-xs">{label}</span>;
+    return <span data-testid="log-rel-time" className="w-8 shrink-0 font-mono text-xs">{label}</span>;
   }
   return (
     <button
       type="button"
+      data-testid="log-rel-time"
       onClick={(e) => {
         e.stopPropagation();
         onSeek(ts);
