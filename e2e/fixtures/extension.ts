@@ -247,6 +247,20 @@ function propRow(panel: Page, label: string) {
   return panel.locator("section").getByText(label, { exact: true }).locator("..");
 }
 
+// 접힌 collapsible Section을 펼친다(접힌 섹션은 자식이 DOM에서 제거됨).
+// probeLabel: 섹션 내부의 고유 prop 라벨(존재하면 이미 펼쳐진 것).
+export async function ensureSectionOpen(
+  panel: Page,
+  toggleTestId: string,
+  probeLabel: string,
+): Promise<void> {
+  const probe = panel.locator("section").getByText(probeLabel, { exact: true });
+  if ((await probe.count()) === 0) {
+    await panel.getByTestId(toggleTestId).click();
+    await probe.first().waitFor();
+  }
+}
+
 // ValueCombobox 팝오버 열기 → cmdk input fill → 닫기. label은 i18n을 타지 않는 CSS prop 라벨.
 export async function typeStyleValue(
   panel: Page,

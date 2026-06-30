@@ -245,6 +245,7 @@ export function SelectedPanel() {
         action={<SectionRevertButton props={SECTION_PROPS.position} />}
         collapsible
         defaultOpen={sectionOpen(SECTION_PROPS.position)}
+        testId="section-position"
       >
         <Row2>
           <SelectProp

@@ -1,12 +1,13 @@
 import type { Page } from "@playwright/test";
 import {
   enterDebugAndPick,
+  ensureSectionOpen,
   expect,
   test,
   typeStyleValue,
 } from "./fixtures/extension";
 
-// element-zindex feature: Layout 섹션 z-index 편집.
+// element-zindex feature: Position 섹션 z-index 편집.
 // z-index 입력 → 라이브 적용 + 변경 행 노출 / 비우기 → 변경 제거(키 delete).
 
 test.describe.serial("style-zindex: edit + clear", () => {
@@ -32,7 +33,9 @@ test.describe.serial("style-zindex: edit + clear", () => {
 
   test("z-index 입력이 라이브 적용 + 변경 행 노출", async () => {
     // #title은 z-index 미지정(computed auto). 9999 입력 → 즉시 적용.
+    // z-index는 이제 Position 섹션 — #title은 position류 기본값이라 섹션이 접혀 있어 펼친다.
     await enterDebugAndPick(fixture, panel, "#title");
+    await ensureSectionOpen(panel, "section-position-toggle", "z-index");
     await typeStyleValue(panel, "z-index", "9999");
     await expect(fixture.locator("#title")).toHaveCSS("z-index", "9999");
 

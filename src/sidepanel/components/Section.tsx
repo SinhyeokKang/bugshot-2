@@ -66,7 +66,11 @@ export function Section({
             <div className="flex items-center gap-1">
               {action}
               {collapsible && (
-                <SectionToggle open={open} onToggle={() => setOpen((v) => !v)} />
+                <SectionToggle
+                  open={open}
+                  onToggle={() => setOpen((v) => !v)}
+                  testId={testId ? `${testId}-toggle` : undefined}
+                />
               )}
             </div>
           </div>
@@ -79,11 +83,20 @@ export function Section({
   );
 }
 
-function SectionToggle({ open, onToggle }: { open: boolean; onToggle: () => void }) {
+function SectionToggle({
+  open,
+  onToggle,
+  testId,
+}: {
+  open: boolean;
+  onToggle: () => void;
+  testId?: string;
+}) {
   return (
     <button
       type="button"
       onClick={onToggle}
+      data-testid={testId}
       className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-input bg-background shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground"
     >
       <svg
