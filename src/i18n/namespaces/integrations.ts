@@ -185,7 +185,7 @@ const ko = {
   "slack.error.channelNotFound": "채널을 찾을 수 없습니다.",
   "slack.error.rateLimited": "요청이 너무 많습니다. 잠시 후 다시 시도하세요.",
   "slack.error.generic": "Slack 요청 실패 ({code})",
-  "slack.promotedComment": "{platform}에 이슈로 등록되었습니다.",
+  "slack.promotedComment": "[BugShot] {platform}에 이슈로 등록되었습니다.",
 
   "linear.apiKeyButton": "API Key 인증",
   "linear.auth.kind.oauth": "OAuth",
@@ -463,7 +463,7 @@ const en = {
   "slack.error.channelNotFound": "Channel not found.",
   "slack.error.rateLimited": "Too many requests. Please try again later.",
   "slack.error.generic": "Slack request failed ({code})",
-  "slack.promotedComment": "Filed as an issue in {platform}.",
+  "slack.promotedComment": "[BugShot] Filed as an issue in {platform}.",
 
   "linear.apiKeyButton": "API Key Auth",
   "linear.auth.kind.oauth": "OAuth",
