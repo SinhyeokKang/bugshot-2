@@ -138,9 +138,11 @@ const SHORTHAND_MAP: Record<string, string[]> = {
     "border-left-style",
   ],
   overflow: ["overflow-x", "overflow-y"],
+  inset: ["top", "right", "bottom", "left"],
 };
 
 const TRBL_SHORTHANDS: Record<string, [string, string, string, string]> = {
+  inset: ["top", "right", "bottom", "left"],
   padding: [
     "padding-top",
     "padding-right",
@@ -234,6 +236,7 @@ export function collectSelection(
   }
   const { styles: specifiedStyles, sources: propSources } =
     collectSpecifiedStylesWithSources(el);
+  normalizePositionOffsets(computedStyles, specifiedStyles);
   const editableHandle = captureEditable(el);
   return {
     selector,
@@ -939,6 +942,18 @@ function extractVarPropsFromMap(
         sources[lh] = origin;
       }
     }
+  }
+}
+
+// getComputedStyle은 absolute/fixed 요소의 미지정 오프셋을 auto가 아니라 containing block
+// 경계까지의 used px로 resolve한다. 작성자가 지정하지 않은 변(specified에 없음)은 cascaded
+// 값(auto)으로 되돌려 편집 필드·diff가 used px를 실제 설정값처럼 노출하지 않게 한다.
+export function normalizePositionOffsets(
+  computedStyles: Record<string, string>,
+  specifiedStyles: Record<string, string>,
+): void {
+  for (const p of ["top", "right", "bottom", "left"]) {
+    if (!(p in specifiedStyles)) computedStyles[p] = "auto";
   }
 }
 
