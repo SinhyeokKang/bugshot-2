@@ -331,7 +331,7 @@ export default function AnnotationOverlay({
   const selectionIsText = selectedShape?.type === "text";
 
   return (
-    <div className="absolute inset-0 z-50 bg-background" data-testid="annotation-overlay">
+    <div className="fixed inset-0 z-50 bg-background" data-testid="annotation-overlay">
       {image ? (
         <AnnotationToolbar
           tool={tool}

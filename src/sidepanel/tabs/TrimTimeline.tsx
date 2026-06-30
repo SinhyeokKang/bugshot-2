@@ -92,19 +92,24 @@ export function TrimTimeline({
           onValueCommit={(v) => onTrimCommit(v[0], v[1])}
           onThumbClick={(i) => onSeek(i === 0 ? startSec : endSec)}
           thumbAriaLabels={[t("issue.replay.trim.trimStart"), t("issue.replay.trim.trimEnd")]}
-          trackClassName="h-8 overflow-visible rounded-lg bg-muted"
+          trackClassName="h-8 overflow-visible rounded-lg bg-muted-foreground/20"
           rangeClassName="border-y border-border rounded-none bg-background"
           // thumb은 0폭 위치점(Radix in-bounds offset 무력화 → 어느 위치든 value%에 정확히 정렬).
           thumbClassName="relative h-8 w-0 border-0 bg-transparent p-0 shadow-none"
           thumbContent={(i) => (
             // 실제 핸들 비주얼: 좌핸들=오른쪽 끝을 value에 맞춰 왼쪽으로(우측 모서리 각짐), 우핸들=반대.
+            // outline 스타일(흰 배경 + 테두리) + primary 아이콘. hover 커서 포인터, 잡은 시각을 title 툴팁으로.
             <span
               className={cn(
-                "absolute top-1/2 flex h-8 w-5 -translate-y-1/2 items-center justify-center bg-foreground text-background",
+                "group absolute top-1/2 flex h-8 w-5 -translate-y-1/2 cursor-pointer items-center justify-center border border-border bg-white text-primary shadow-sm",
                 i === 0 ? "right-0 rounded-l-md" : "left-0 rounded-r-md",
               )}
             >
               <EllipsisVertical className="h-4 w-4" />
+              {/* 호버 툴팁: 핸들이 잡은 시각(초). title은 재생 중 리렌더로 hover가 끊겨 CSS group-hover로. */}
+              <span className="pointer-events-none absolute bottom-full left-1/2 z-30 mb-1.5 -translate-x-1/2 whitespace-nowrap rounded bg-foreground px-1.5 py-0.5 text-[10px] font-medium text-background opacity-0 transition-opacity group-hover:opacity-100">
+                {Math.round(i === 0 ? startSec : endSec)}s
+              </span>
             </span>
           )}
         />
@@ -113,7 +118,7 @@ export function TrimTimeline({
         {ready && (
           <div
             aria-hidden
-            className="pointer-events-none absolute top-1/2 z-20 h-10 w-0.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-foreground"
+            className="pointer-events-none absolute top-1/2 z-20 h-10 w-1 -translate-x-1/2 -translate-y-1/2 rounded-full bg-foreground"
             style={{ left: `${playheadPct}%` }}
           />
         )}

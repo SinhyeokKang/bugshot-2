@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeftRight, Check, Film, Loader2, MousePointerClick, Pause, Play, Redo2, Terminal, Undo2, X } from "lucide-react";
+import { toast } from "sonner";
 import { useT } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsTrigger } from "@/components/ui/tabs";
+import { CollapsingTabsList, TabLabel } from "@/components/ui/collapsing-tabs";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -83,6 +85,12 @@ export default function ReplayTrimDialog({ videoBlob, frames, onConfirm, onCance
   const actionLog = useEditorStore((s) => s.actionLog);
   const videoStartedAt = useEditorStore((s) => s.videoStartedAt);
 
+  // 진입 안내 토스트(영상 트림 사용법) — 오버레이당 1회.
+  useEffect(() => {
+    toast.info(t("issue.replay.trim.toast"));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     const url = URL.createObjectURL(videoBlob);
     setSrc(url);
@@ -98,8 +106,8 @@ export default function ReplayTrimDialog({ videoBlob, frames, onConfirm, onCance
   const currentPct = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   const markers = useMemo(
-    () => buildErrorMarkers({ consoleLog, networkLog }, videoStartedAt ?? 0, duration),
-    [consoleLog, networkLog, videoStartedAt, duration],
+    () => buildErrorMarkers({ consoleLog, networkLog, actionLog }, videoStartedAt ?? 0, duration),
+    [consoleLog, networkLog, actionLog, videoStartedAt, duration],
   );
 
   // 트림 후보(잘려나갈 로그) 경계 — apply-trim과 동일 헬퍼 공유로 "흐림 = 실제 잘림" 일치.
@@ -144,9 +152,11 @@ export default function ReplayTrimDialog({ videoBlob, frames, onConfirm, onCance
   }
 
   // 재생은 선택 구간 [start,end]으로 스코프 — 시작 시 좌측 핸들에서, 끝 핸들에서 멈춤.
+  // 로그 탭에서 누르면 영상 탭으로 전환해 재생(영상이 hidden이면 보이지 않으므로).
   function togglePlay() {
     const v = videoRef.current;
     if (!v) return;
+    if (activeTab !== "video") activate("video");
     if (v.paused) {
       if (v.currentTime < startSec || v.currentTime >= endSec - 0.05) v.currentTime = startSec;
       void v.play();
@@ -176,47 +186,39 @@ export default function ReplayTrimDialog({ videoBlob, frames, onConfirm, onCance
       data-trim-selection={sel}
     >
       <div className="flex h-full flex-col">
-        {/* 1단 정보 bar + 탭 */}
-        <div className="flex items-center justify-between gap-2 border-b px-4 py-3">
-          <div className="flex min-w-0 items-center gap-3 text-sm">
-            <span className="font-medium tabular-nums" aria-live="polite">
-              {t("issue.replay.trim.selection", { sel, total })}
-            </span>
-          </div>
+        {/* 1단: 아이콘+레이블 탭(full-width). 로그 탭은 0건이어도 활성(empty case 조회) + 카운트 Badge 상시. */}
+        <div className="border-b px-4 py-3">
           <Tabs
             value={activeTab}
             onValueChange={(v) => { activate(v as TrimTab); setFocusEntryId(null); }}
-            className="shrink-0"
           >
-            <TabsList className="grid h-9 grid-cols-4">
-              <TabsTrigger value="video" disabled={busy} aria-label={t("issue.replay.trim.tab.video")} title={t("issue.replay.trim.tab.video")} data-testid="replay-trim-tab-video">
-                <Film className="h-4 w-4" />
+            <CollapsingTabsList className="grid h-9 w-full grid-cols-4">
+              <TabsTrigger value="video" disabled={busy} className="min-w-0 gap-1.5" data-testid="replay-trim-tab-video">
+                <Film className="h-3.5 w-3.5 shrink-0" />
+                <TabLabel>{t("issue.replay.trim.tab.video")}</TabLabel>
               </TabsTrigger>
-              <TabsTrigger value="console" disabled={!consoleLog || busy} aria-label={t("issue.replay.trim.log.console")} title={t("issue.replay.trim.log.console")} data-testid="replay-trim-tab-console">
-                <Terminal className="h-4 w-4" />
-                {consoleLog && consoleLog.entries.length > 0 && (
-                  <Badge className="ml-1 h-5 min-w-5 shrink-0 px-1.5 text-[10px]">{countLabel(consoleLog.entries.length)}</Badge>
-                )}
+              <TabsTrigger value="console" disabled={busy} className="min-w-0 gap-1.5" data-testid="replay-trim-tab-console">
+                <Terminal className="h-3.5 w-3.5 shrink-0" />
+                <TabLabel>{t("issue.replay.trim.log.console")}</TabLabel>
+                <Badge className="h-4 min-w-4 shrink-0 px-1 text-[10px]">{countLabel(consoleLog?.entries.length ?? 0)}</Badge>
               </TabsTrigger>
-              <TabsTrigger value="network" disabled={!networkLog || busy} aria-label={t("issue.replay.trim.log.network")} title={t("issue.replay.trim.log.network")} data-testid="replay-trim-tab-network">
-                <ArrowLeftRight className="h-4 w-4" />
-                {networkLog && networkLog.requests.length > 0 && (
-                  <Badge className="ml-1 h-5 min-w-5 shrink-0 px-1.5 text-[10px]">{countLabel(networkLog.requests.length)}</Badge>
-                )}
+              <TabsTrigger value="network" disabled={busy} className="min-w-0 gap-1.5" data-testid="replay-trim-tab-network">
+                <ArrowLeftRight className="h-3.5 w-3.5 shrink-0" />
+                <TabLabel>{t("issue.replay.trim.log.network")}</TabLabel>
+                <Badge className="h-4 min-w-4 shrink-0 px-1 text-[10px]">{countLabel(networkLog?.requests.length ?? 0)}</Badge>
               </TabsTrigger>
-              <TabsTrigger value="action" disabled={!actionLog || busy} aria-label={t("issue.replay.trim.log.action")} title={t("issue.replay.trim.log.action")} data-testid="replay-trim-tab-action">
-                <MousePointerClick className="h-4 w-4" />
-                {actionLog && actionLog.entries.length > 0 && (
-                  <Badge className="ml-1 h-5 min-w-5 shrink-0 px-1.5 text-[10px]">{countLabel(actionLog.entries.length)}</Badge>
-                )}
+              <TabsTrigger value="action" disabled={busy} className="min-w-0 gap-1.5" data-testid="replay-trim-tab-action">
+                <MousePointerClick className="h-3.5 w-3.5 shrink-0" />
+                <TabLabel>{t("issue.replay.trim.log.action")}</TabLabel>
+                <Badge className="h-4 min-w-4 shrink-0 px-1 text-[10px]">{countLabel(actionLog?.entries.length ?? 0)}</Badge>
               </TabsTrigger>
-            </TabsList>
+            </CollapsingTabsList>
           </Tabs>
         </div>
 
         {/* 가운데: 영상 + 로그 탭 (전부 마운트, 비활성은 hidden — 상태 보존 + video ref 유지) */}
         <div className="flex min-h-0 flex-1 flex-col">
-          <div className={cn("flex min-h-0 flex-1 items-center justify-center bg-muted/70", activeTab !== "video" && "hidden")}>
+          <div className={cn("flex min-h-0 flex-1 items-center justify-center bg-muted", activeTab !== "video" && "hidden")}>
             {src && (
               <video
                 ref={videoRef}
@@ -229,12 +231,12 @@ export default function ReplayTrimDialog({ videoBlob, frames, onConfirm, onCance
               />
             )}
           </div>
-          {consoleLog && mounted.console && (
+          {mounted.console && (
             <div className={cn("flex min-h-0 flex-1 flex-col", activeTab !== "console" && "hidden")}>
               <ConsoleLogContent
                 flush
-                entries={consoleLog.entries}
-                startedAt={consoleLog.startedAt}
+                entries={consoleLog?.entries ?? []}
+                startedAt={consoleLog?.startedAt}
                 syncBaseMs={videoStartedAt ?? undefined}
                 isMuted={isMuted}
                 scrollToEntryId={activeTab === "console" ? focusEntryId : null}
@@ -242,11 +244,11 @@ export default function ReplayTrimDialog({ videoBlob, frames, onConfirm, onCance
               />
             </div>
           )}
-          {networkLog && mounted.network && (
+          {mounted.network && (
             <div className={cn("flex min-h-0 flex-1 flex-col", activeTab !== "network" && "hidden")}>
               <NetworkLogContent
                 flush
-                requests={networkLog.requests}
+                requests={networkLog?.requests ?? []}
                 syncBaseMs={videoStartedAt ?? undefined}
                 isMuted={isMuted}
                 scrollToEntryId={activeTab === "network" ? focusEntryId : null}
@@ -254,12 +256,12 @@ export default function ReplayTrimDialog({ videoBlob, frames, onConfirm, onCance
               />
             </div>
           )}
-          {actionLog && mounted.action && (
+          {mounted.action && (
             <div className={cn("flex min-h-0 flex-1 flex-col", activeTab !== "action" && "hidden")}>
               <ActionLogContent
                 flush
-                entries={actionLog.entries}
-                startedAt={actionLog.startedAt}
+                entries={actionLog?.entries ?? []}
+                startedAt={actionLog?.startedAt}
                 syncBaseMs={videoStartedAt ?? undefined}
                 isMuted={isMuted}
                 scrollToEntryId={activeTab === "action" ? focusEntryId : null}
@@ -275,7 +277,7 @@ export default function ReplayTrimDialog({ videoBlob, frames, onConfirm, onCance
             variant="outline"
             size="icon"
             className="h-8 w-8 shrink-0"
-            disabled={busy || duration <= 0 || activeTab !== "video"}
+            disabled={busy || duration <= 0}
             onClick={togglePlay}
             aria-label={paused ? t("issue.replay.trim.play") : t("issue.replay.trim.pause")}
             title={paused ? t("issue.replay.trim.play") : t("issue.replay.trim.pause")}
@@ -326,6 +328,10 @@ export default function ReplayTrimDialog({ videoBlob, frames, onConfirm, onCance
               <Redo2 className="h-4 w-4" />
             </Button>
           </ButtonGroup>
+          {/* 선택 길이 readout — 1단에서 옮겨와 액션바 중앙에. */}
+          <span className="font-medium tabular-nums text-sm" aria-live="polite">
+            {t("issue.replay.trim.selection", { sel, total })}
+          </span>
           <ButtonGroup>
             <Button
               variant="outline"

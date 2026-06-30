@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import { buildErrorMarkers } from "../trim-markers";
 import type { ConsoleLog, ConsoleEntry } from "@/types/console";
 import type { NetworkLog, NetworkRequest } from "@/types/network";
+import type { ActionLog, ActionEntry } from "@/types/action";
 
 function makeEntry(o: Partial<ConsoleEntry> = {}): ConsoleEntry {
   return { id: "1", level: "log", timestamp: 0, args: "", pageUrl: "", ...o };
@@ -50,6 +51,21 @@ function makeNetworkLog(requests: NetworkRequest[]): NetworkLog {
   };
 }
 
+function makeActionEntry(o: Partial<ActionEntry> = {}): ActionEntry {
+  return { id: "1", kind: "click", timestamp: 0, pageUrl: "", ...o };
+}
+
+function makeActionLog(entries: ActionEntry[]): ActionLog {
+  return {
+    id: "act-1",
+    startedAt: 0,
+    endedAt: 0,
+    totalSeen: entries.length,
+    captured: entries.length,
+    entries,
+  };
+}
+
 const START = 1000;
 const DUR = 10; // 영상 10초
 
@@ -62,7 +78,7 @@ describe("buildErrorMarkers — console", () => {
       makeEntry({ id: "l", level: "log", timestamp: START + 4000 }),
     ]);
 
-    const markers = buildErrorMarkers({ consoleLog, networkLog: null }, START, DUR);
+    const markers = buildErrorMarkers({ consoleLog, networkLog: null, actionLog: null }, START, DUR);
 
     expect(markers.map((m) => m.id).sort()).toEqual(["e", "w"]);
     expect(markers.every((m) => m.type === "console")).toBe(true);
@@ -78,10 +94,25 @@ describe("buildErrorMarkers — network", () => {
       makeRequest({ id: "ok", status: 200, startTime: START + 4000 }),
     ]);
 
-    const markers = buildErrorMarkers({ consoleLog: null, networkLog }, START, DUR);
+    const markers = buildErrorMarkers({ consoleLog: null, networkLog, actionLog: null }, START, DUR);
 
     expect(markers.map((m) => m.id).sort()).toEqual(["perr", "ppend", "s500"]);
     expect(markers.every((m) => m.type === "network")).toBe(true);
+  });
+});
+
+describe("buildErrorMarkers — action (navigate)", () => {
+  it("navigation만 포함하고 click·input 등 일반 동작은 제외", () => {
+    const actionLog = makeActionLog([
+      makeActionEntry({ id: "nav", kind: "navigation", navType: "pushState", toUrl: "https://x.com/next", timestamp: START + 1000 }),
+      makeActionEntry({ id: "clk", kind: "click", target: "버튼", timestamp: START + 2000 }),
+      makeActionEntry({ id: "inp", kind: "input", fieldLabel: "검색", value: "x", timestamp: START + 3000 }),
+    ]);
+
+    const markers = buildErrorMarkers({ consoleLog: null, networkLog: null, actionLog }, START, DUR);
+
+    expect(markers.map((m) => m.id)).toEqual(["nav"]);
+    expect(markers.every((m) => m.type === "action" && m.variant === "navigate")).toBe(true);
   });
 });
 
@@ -91,7 +122,7 @@ describe("buildErrorMarkers — positionPct", () => {
       makeEntry({ id: "e", level: "error", timestamp: START + 5000 }),
     ]);
 
-    const [m] = buildErrorMarkers({ consoleLog, networkLog: null }, START, DUR);
+    const [m] = buildErrorMarkers({ consoleLog, networkLog: null, actionLog: null }, START, DUR);
 
     expect(m.positionPct).toBe(50);
   });
@@ -101,7 +132,7 @@ describe("buildErrorMarkers — positionPct", () => {
       makeEntry({ id: "e", level: "error", timestamp: START + 99000 }),
     ]);
 
-    const [m] = buildErrorMarkers({ consoleLog, networkLog: null }, START, DUR);
+    const [m] = buildErrorMarkers({ consoleLog, networkLog: null, actionLog: null }, START, DUR);
 
     expect(m.positionPct).toBe(100);
   });
@@ -113,10 +144,10 @@ describe("buildErrorMarkers — 엣지", () => {
       makeEntry({ id: "e", level: "error", timestamp: START + 1000 }),
     ]);
 
-    expect(buildErrorMarkers({ consoleLog, networkLog: null }, START, 0)).toEqual([]);
+    expect(buildErrorMarkers({ consoleLog, networkLog: null, actionLog: null }, START, 0)).toEqual([]);
   });
 
-  it("로그가 둘 다 null이면 빈 배열", () => {
-    expect(buildErrorMarkers({ consoleLog: null, networkLog: null }, START, DUR)).toEqual([]);
+  it("로그가 모두 null이면 빈 배열", () => {
+    expect(buildErrorMarkers({ consoleLog: null, networkLog: null, actionLog: null }, START, DUR)).toEqual([]);
   });
 });
