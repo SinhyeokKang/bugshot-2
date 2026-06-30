@@ -7,15 +7,16 @@ Once an element is selected, the style panel opens. Change a value and it's **ap
 From top to bottom, the panel is organized into these sections (labels show in English on screen).
 
 1. **Class** — Edit the element's class list.
-2. **Layout** — display, position, z-index (stacking order), flex alignment, margin, padding, gap.
-3. **Container** — background, opacity, border radius.
-4. **Border** — border width, color, and style. Adjust each of the four sides (top/right/bottom/left) on its own, or link them to set all at once.
-5. **Size** — width, height, and min/max.
-6. **Overflow** — overflow, white-space, text-overflow.
-7. **Text** — Edit the element's text content (shown only for elements with text).
-8. **Typography** — font size, weight, line height, letter spacing, align, color.
-9. **Effects** — shadow, filter, blend.
-10. **Transition** — transition property, duration, easing.
+2. **Layout** — display, flex alignment, margin, padding, gap.
+3. **Position** — position (layout mode), z-index (stacking order), and offsets (top, right, bottom, left). Switch position to relative, absolute, and so on, then nudge the element with the four offsets.
+4. **Container** — background, opacity, border radius.
+5. **Border** — border width, color, and style. Adjust each of the four sides (top/right/bottom/left) on its own, or link them to set all at once.
+6. **Size** — width, height, and min/max.
+7. **Overflow** — overflow, white-space, text-overflow.
+8. **Text** — Edit the element's text content (shown only for elements with text).
+9. **Typography** — font size, weight, line height, letter spacing, align, color.
+10. **Effects** — shadow, filter, blend.
+11. **Transition** — transition property, duration, easing.
 
 ![Style panel sections](../assets/element-styling-1.jpg)
 
@@ -26,7 +27,7 @@ From top to bottom, the panel is organized into these sections (labels show in E
 
 ## Edit four sides together — or separately
 
-Properties with four sides (or corners, or two directions) — margin, padding, gap, Border, and corner radius — have a small **link button** next to their inputs. It decides whether the sides move as one value or get tweaked individually.
+Properties with four sides (or corners, or two directions) — margin, padding, gap, Border, corner radius, and Position offsets — have a small **link button** next to their inputs. It decides whether the sides move as one value or get tweaked individually.
 
 - When the link is **on**, the inputs **collapse into one**. Type a value once and all four sides match it — no need to fill in four separate boxes in a narrow panel.
 - Turn the link **off** and the top/right/bottom/left boxes **fan back out**, so you can give each side its own value.
