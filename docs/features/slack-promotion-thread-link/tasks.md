@@ -11,24 +11,24 @@
 - **변경 대상**: `src/sidepanel/lib/slackPromotionLink.ts` (신규), `src/sidepanel/lib/__tests__/slackPromotionLink.test.ts` (신규)
 - **작업 내용**: permalink에서 channel을 정규식(`\/archives\/([^/]+)\//`)으로 추출. archives 세그먼트 없으면 `null`. 테스트를 먼저 작성(TDD).
 - **검증**:
-  - [ ] `https://ws.slack.com/archives/C123ABC/p1700000000123456` → `"C123ABC"`
-  - [ ] enterprise grid 형태 `/archives/C0AB/p…` → channel 반환
-  - [ ] DM permalink `/archives/D123/p…` → `"D123"` (채널/DM 무구분)
-  - [ ] archives 없는 URL(`https://ws.slack.com/foo`) → `null`
-  - [ ] `/client/` 포맷(`https://app.slack.com/client/T1/C123/p…`) → `null` (지원 안 함 — 의도 고정)
-  - [ ] 트레일링 세그먼트 없는 `https://ws.slack.com/archives/C123`(뒤에 `/p…` 없음) → `null` (정규식이 channel 뒤 `/`를 요구하는 회귀 방어)
-  - [ ] 빈 문자열 → `null`
-  - [ ] `pnpm test --run src/sidepanel/lib/__tests__/slackPromotionLink.test.ts` green
+  - [x] `https://ws.slack.com/archives/C123ABC/p1700000000123456` → `"C123ABC"`
+  - [x] enterprise grid 형태 `/archives/C0AB/p…` → channel 반환
+  - [x] DM permalink `/archives/D123/p…` → `"D123"` (채널/DM 무구분)
+  - [x] archives 없는 URL(`https://ws.slack.com/foo`) → `null`
+  - [x] `/client/` 포맷(`https://app.slack.com/client/T1/C123/p…`) → `null` (지원 안 함 — 의도 고정)
+  - [x] 트레일링 세그먼트 없는 `https://ws.slack.com/archives/C123`(뒤에 `/p…` 없음) → `null` (정규식이 channel 뒤 `/`를 요구하는 회귀 방어)
+  - [x] 빈 문자열 → `null`
+  - [x] `pnpm test --run src/sidepanel/lib/__tests__/slackPromotionLink.test.ts` green
 
 ### Task 2: `postSlackPromotionReply` best-effort 전송 헬퍼
 - **변경 대상**: `src/sidepanel/lib/slackPromotionLink.ts`
 - **작업 내용**: `{ permalink, ts, text }`를 받아 `parseSlackChannelId`로 channel 파싱(null이면 즉시 return), `sendBg({ type:"slack.postMessage", payload:{ channelId, text, threadTs: ts } })` 호출. 전체를 try/catch로 감싸 모든 예외를 삼키고 `Promise<void>`로 항상 resolve.
 - **검증** (기존 `submitToSlack.test.ts`의 `vi.mock("@/types/messages")` → `sendBg` 모킹 패턴 재사용, `sendBg.mock.calls`로 호출/payload 검증):
-  - [ ] 유효 permalink → `sendBg`가 `{ type:"slack.postMessage", payload:{ channelId:"C123", text, threadTs: ts } }`로 **1회** 호출
-  - [ ] archives 없는/`/client/` permalink → `sendBg` **미호출**하고 정상 resolve
-  - [ ] `sendBg`가 reject해도 `postSlackPromotionReply`가 throw 없이 resolve (best-effort)
-  - [ ] `pnpm test --run src/sidepanel/lib/__tests__/slackPromotionLink.test.ts` green
-  - [ ] `pnpm typecheck` 통과
+  - [x] 유효 permalink → `sendBg`가 `{ type:"slack.postMessage", payload:{ channelId:"C123", text, threadTs: ts } }`로 **1회** 호출
+  - [x] archives 없는/`/client/` permalink → `sendBg` **미호출**하고 정상 resolve
+  - [x] `sendBg`가 reject해도 `postSlackPromotionReply`가 throw 없이 resolve (best-effort)
+  - [x] `pnpm test --run src/sidepanel/lib/__tests__/slackPromotionLink.test.ts` green
+  - [x] `pnpm typecheck` 통과
 
 ### Task 3: i18n 키 추가
 - **변경 대상**: `src/i18n/namespaces/integrations.ts`
@@ -36,8 +36,8 @@
   - ko: `"{platform}에 이슈로 등록되었습니다."`
   - en: `"Filed as an issue in {platform}."`
 - **검증**:
-  - [ ] PostToolUse 훅 `locales.test.ts`(ko/en 대칭·placeholder 토큰) 통과
-  - [ ] placeholder는 `{platform}` 하나, ko/en 동일
+  - [x] PostToolUse 훅 `locales.test.ts`(ko/en 대칭·placeholder 토큰) 통과
+  - [x] placeholder는 `{platform}` 하나, ko/en 동일
 
 ### Task 4: `handleSubmit`에 승격 백링크 연결
 - **변경 대상**: `src/sidepanel/tabs/DraftDetailDialog.tsx`
@@ -46,9 +46,9 @@
   2. `result` 반환 직전 공통부에서 `slackOrigin && submitPlatform !== "slack"`이면 `text = t("slack.promotedComment",{platform:t(PLATFORM_TAB_KEYS[submitPlatform])}) + "\n" + result.url` 만들어 `void postSlackPromotionReply({...slackOrigin, text})`.
   3. import: `postSlackPromotionReply`, `PLATFORM_TAB_KEYS`.
 - **검증**:
-  - [ ] `pnpm typecheck` 통과
-  - [ ] 캡처가 모든 `markSubmitted` 호출보다 앞선다(코드 리뷰)
-  - [ ] Slack 승격(submitPlatform==="slack")은 자기 스레드에 안 단다 — 가드 확인
+  - [x] `pnpm typecheck` 통과
+  - [x] 캡처가 모든 `markSubmitted` 호출보다 앞선다(코드 리뷰)
+  - [x] Slack 승격(submitPlatform==="slack")은 자기 스레드에 안 단다 — 가드 확인
 
 ## 테스트 계획
 

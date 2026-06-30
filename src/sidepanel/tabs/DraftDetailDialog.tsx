@@ -48,7 +48,12 @@ import {
   resolveInitialPlatform,
   submittablePlatforms,
 } from "./issueListUtils";
-import type { NormalizedSubmitResult, PlatformId } from "@/types/platform";
+import {
+  PLATFORM_TAB_KEYS,
+  type NormalizedSubmitResult,
+  type PlatformId,
+} from "@/types/platform";
+import { postSlackPromotionReply } from "@/sidepanel/lib/slackPromotionLink";
 import { submitToJira } from "@/sidepanel/lib/submitToJira";
 import { submitToGithub } from "@/sidepanel/lib/submitToGithub";
 import { submitToLinear } from "@/sidepanel/lib/submitToLinear";
@@ -789,6 +794,11 @@ export function DraftDetailDialog({
   }
 
   async function handleSubmit(submitPlatform: PlatformId): Promise<NormalizedSubmitResult> {
+    // markSubmitted가 issue.url/key를 트래커 값으로 덮고 slackPreserved를 비우므로 사전 캡처.
+    const slackOrigin =
+      issue && isSlackPreserved(issue) && accounts.slack
+        ? { permalink: issue.url ?? "", ts: issue.key ?? "" }
+        : null;
     const { ctx, captureFiles } = await buildCtxForSubmit();
     let result: NormalizedSubmitResult;
     if (submitPlatform === "github") result = await handleGithubSubmit(ctx, captureFiles);
@@ -799,6 +809,12 @@ export function DraftDetailDialog({
     else if (submitPlatform === "clickup") result = await handleClickupSubmit(ctx, captureFiles);
     else if (submitPlatform === "slack") result = await handleSlackSubmit(ctx, captureFiles);
     else result = await handleJiraSubmit(ctx, captureFiles);
+    if (slackOrigin && submitPlatform !== "slack") {
+      const text = `${t("slack.promotedComment", {
+        platform: t(PLATFORM_TAB_KEYS[submitPlatform]),
+      })}\n${result.url}`;
+      void postSlackPromotionReply({ ...slackOrigin, text });
+    }
     if (issue) {
       const activeRefs = extractInlineRefs(
         Object.values(issue.draft.sections).join("\n"),
