@@ -34,6 +34,7 @@
 ### `src/sidepanel/components/ConsoleLogContent.tsx` / `NetworkLogContent.tsx` / `ActionLogContent.tsx` (optional prop 추가)
 - **현재 역할**: 로그 리스트 렌더(필터·검색·origin·상세). 라이브 서브탭·로그 뷰어·미리보기 공용.
 - **변경**: optional prop `isMuted?: (absTs: number) => boolean` 추가. 각 row 컴포넌트(`EntryAccordion`/`RequestRow`/`ActionRow`)에서 row의 timestamp(console·action=`timestamp`, network=`startTime`)로 호출해 참이면 row 래퍼에 흐림 스타일(`opacity-40`)과 `data-muted` 속성 부여. prop 미공급 시 기존과 완전히 동일(무변화).
+- **네트워크 상세 패널은 muted 무관**: `isMuted`는 좌측 `RequestRow`(요청 리스트)에만 적용한다. 트림 후보 row도 그대로 클릭·선택되고 우측 상세(headers/request/response, WS messages)는 흐림 없이 전체 표시 — 잘리기 전 내용 확인이 목적. 상세 렌더 경로(`HeadersPanel`/`BodyPanel`/`MessagesPanel`)는 변경 없음.
 
 ### `src/sidepanel/App.tsx` (prop 전달)
 - **변경**: `<ReplayTrimDialog frames={replay.pendingTrim.frames} ... />` 한 줄 추가. `frames`는 이미 보유(360~366행 인근에서 `applyReplayTrim`에 전달 중).
