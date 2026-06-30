@@ -68,6 +68,13 @@ test.describe.serial("action 로그 커버리지 (toggle/select/keypress)", () =
     await panel.getByTestId("replay-button").click();
     await expect(panel.getByTestId("drafting-panel")).toBeVisible({ timeout: 45_000 });
 
+    // 트림 오버레이가 drafting 위로 자동 등장 → 전체 구간 그대로 확정(no-op)으로 닫는다(z-50 덮음 회피).
+    await expect(panel.getByTestId("replay-trim-overlay")).toBeVisible();
+    const trimConfirm = panel.getByTestId("replay-trim-confirm");
+    await expect(trimConfirm).toBeEnabled();
+    await trimConfirm.click();
+    await expect(panel.getByTestId("replay-trim-overlay")).toHaveCount(0);
+
     // action 로그 카드 → 다이얼로그
     const card = panel.getByTestId("action-log-card");
     await expect(card).toBeVisible();

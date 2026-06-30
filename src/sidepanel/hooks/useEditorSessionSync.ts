@@ -53,6 +53,7 @@ function snapshotFromState(): EditorSnapshot {
     videoCapturedAt: s.videoCapturedAt,
     videoStartedAt: s.videoStartedAt,
     videoEndedAt: s.videoEndedAt,
+    videoTrimmed: s.videoTrimmed,
     freeformViewport: s.freeformViewport,
     freeformCapturedAt: s.freeformCapturedAt,
     networkLogAttach: s.networkLogAttach,

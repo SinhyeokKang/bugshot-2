@@ -69,6 +69,14 @@ test.describe.serial("30s Replay + action 로그", () => {
     // 6) drafting 진입(mp4 인코딩 시간 고려)
     await expect(panel.getByTestId("drafting-panel")).toBeVisible({ timeout: 45_000 });
 
+    // 6.1) 트림 오버레이가 drafting 위로 자동 등장 → 전체 구간 그대로 확정(no-op)으로 닫는다.
+    //      오버레이(z-50)가 drafting을 덮어 download/action 클릭을 막으므로 먼저 dismiss.
+    await expect(panel.getByTestId("replay-trim-overlay")).toBeVisible();
+    const trimConfirm = panel.getByTestId("replay-trim-confirm");
+    await expect(trimConfirm).toBeEnabled();
+    await trimConfirm.click();
+    await expect(panel.getByTestId("replay-trim-overlay")).toHaveCount(0);
+
     // 6.5) 미디어(영상) 섹션 다운로드 → recording.mp4 (encodeToMp4 blob=video/mp4).
     //      action 카드 다이얼로그 열기 전에 단언(모달 오버레이가 클릭 막는 것 회피).
     const [videoDownload] = await Promise.all([

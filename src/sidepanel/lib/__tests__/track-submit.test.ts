@@ -48,9 +48,14 @@ describe("submitEventProperties", () => {
     expect(submitEventProperties("github", "element", "failure").result).toBe("failure");
   });
 
-  it("반환 키가 정확히 platform/capture_mode/result 3개 (식별 정보 없음)", () => {
+  it("반환 키가 정확히 platform/capture_mode/result/replay_trimmed 4개 (식별 정보 없음)", () => {
     const out = submitEventProperties("github", "element", "success");
-    expect(Object.keys(out).sort()).toEqual(["capture_mode", "platform", "result"]);
+    expect(Object.keys(out).sort()).toEqual(["capture_mode", "platform", "replay_trimmed", "result"]);
+  });
+
+  it("replay_trimmed 플래그 — 기본 false, 전달 시 문자열 'true'", () => {
+    expect(submitEventProperties("github", "video", "success").replay_trimmed).toBe("false");
+    expect(submitEventProperties("github", "video", "success", true).replay_trimmed).toBe("true");
   });
 });
 
@@ -71,6 +76,7 @@ describe("trackSubmit", () => {
         platform: "github",
         capture_mode: "element",
         result: "success",
+        replay_trimmed: "false",
       },
     });
   });

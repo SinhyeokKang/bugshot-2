@@ -187,6 +187,41 @@ describe("onRecordingComplete — idle 직접 호출 (30s Replay)", () => {
   });
 });
 
+describe("replaceVideo — trim 확정 영상 메타 교체", () => {
+  beforeEach(() => {
+    useEditorStore.setState(useEditorStore.getInitialState(), true);
+  });
+
+  it("영상 메타(blob/thumbnail/startedAt/endedAt)만 바뀌고 phase·attach 토글은 불변", () => {
+    const orig = new Blob(["x"], { type: "video/mp4" });
+    useEditorStore.getState().onRecordingComplete(orig, "t0", { width: 800, height: 600 }, 1000, 5000);
+    useEditorStore.setState({ networkLogAttach: false });
+
+    const next = new Blob(["y"], { type: "video/mp4" });
+    useEditorStore.getState().replaceVideo(next, "t1", 2000, 4000);
+
+    const s = useEditorStore.getState();
+    expect(s.videoBlob).toBe(next);
+    expect(s.videoThumbnail).toBe("t1");
+    expect(s.videoStartedAt).toBe(2000);
+    expect(s.videoEndedAt).toBe(4000);
+    expect(s.phase).toBe("drafting");
+    expect(s.networkLogAttach).toBe(false);
+    expect(s.consoleLogAttach).toBe(true);
+    expect(s.actionLogAttach).toBe(true);
+  });
+
+  it("videoCapturedAt은 호출 전 값 그대로(원본 캡처 시각 보존)", () => {
+    const orig = new Blob(["x"], { type: "video/mp4" });
+    useEditorStore.getState().onRecordingComplete(orig, "t0", { width: 800, height: 600 }, 1000, 5000);
+    const capturedAt = useEditorStore.getState().videoCapturedAt;
+
+    useEditorStore.getState().replaceVideo(new Blob(["y"]), "t1", 2000, 4000);
+
+    expect(useEditorStore.getState().videoCapturedAt).toBe(capturedAt);
+  });
+});
+
 describe("confirmDraft video — 30s Replay target 가드", () => {
   beforeEach(() => {
     useEditorStore.setState(useEditorStore.getInitialState(), true);

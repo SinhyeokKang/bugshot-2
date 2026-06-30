@@ -31,7 +31,10 @@ export function ActionLogPreviewDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[80vw] max-w-[80vw] h-[80vh] gap-5 rounded-3xl p-6 sm:rounded-3xl">
+      <DialogContent
+        data-testid="action-log-preview-dialog"
+        className="w-[80vw] max-w-[80vw] h-[80vh] gap-5 rounded-3xl p-6 sm:rounded-3xl"
+      >
         <DialogHeader>
           <DialogTitle className="text-xl">{t("actionLog.dialog.title")}</DialogTitle>
         </DialogHeader>

@@ -51,7 +51,7 @@ export function RecordingSettingsCard({
             </TabsList>
           </Tabs>
         </div>
-        <Separator className="-mx-3" />
+        <Separator className="-mx-3 w-auto" />
         <div className="flex items-center gap-3">
           <div className="shrink-0">
             <Timer className="h-4 w-4" />

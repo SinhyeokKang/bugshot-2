@@ -24,6 +24,7 @@ import { CollapsingTabsList, TabLabel } from "@/components/ui/collapsing-tabs";
 import { useT } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { trackSubmit } from "@/sidepanel/lib/track-submit";
+import { useEditorStore } from "@/store/editor-store";
 import type { CaptureMode, EditorIssueFields } from "@/store/editor-store";
 import {
   isJiraAccountComplete,
@@ -222,7 +223,7 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
     } catch (err) {
       // result는 onSubmit 성공/예외에만 묶는다. onSuccess/onOpenChange 예외가
       // failure로 오집계·toast 오표시되지 않게 try를 onSubmit으로 좁힌다.
-      trackSubmit(platform, captureMode, "failure");
+      trackSubmit(platform, captureMode, "failure", useEditorStore.getState().videoTrimmed);
       const ccCount = {
         jira: jiraFields.cc?.length,
         github: ghFields.cc?.length,
@@ -240,7 +241,7 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
       setSubmit({ status: "idle" });
       return;
     }
-    trackSubmit(platform, captureMode, "success");
+    trackSubmit(platform, captureMode, "success", useEditorStore.getState().videoTrimmed);
     onOpenChange(false);
     onSuccess?.(result);
   }
