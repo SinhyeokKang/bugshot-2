@@ -2,6 +2,8 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { REPLAY_LOG_GUARD_MS } from "@/sidepanel/lib/log-merge";
 import type { CapturedFrame } from "../frame-buffer";
 import type { NetworkLog, NetworkRequest } from "@/types/network";
+import type { ConsoleLog } from "@/types/console";
+import type { ActionLog } from "@/types/action";
 
 // WebCodecs는 jsdom 미지원 → encodeToMp4만 mock(나머지 순수 함수는 실제).
 const encodeToMp4 = vi.fn(async () => ({ blob: new Blob(["v"], { type: "video/mp4" }), thumbnail: "thumb" }));
@@ -24,11 +26,15 @@ vi.mock("@/sidepanel/hooks/usePickerMessages", () => ({
 let storeState: ReturnType<typeof makeState>;
 vi.mock("@/store/editor-store", () => ({ useEditorStore: { getState: () => storeState } }));
 
-function makeState(networkLog: NetworkLog | null) {
+function makeState(
+  networkLog: NetworkLog | null,
+  consoleLog: ConsoleLog | null = null,
+  actionLog: ActionLog | null = null,
+) {
   return {
     networkLog,
-    consoleLog: null,
-    actionLog: null,
+    consoleLog,
+    actionLog,
     setNetworkLog: vi.fn(),
     setConsoleLog: vi.fn(),
     setActionLog: vi.fn(),
@@ -45,6 +51,20 @@ function makeRequest(o: Partial<NetworkRequest> = {}): NetworkRequest {
     startTime: 0, durationMs: 0, requestHeaders: {}, responseHeaders: {},
     pageUrl: "", requestBodySize: 0, responseBodySize: 0, contentType: "",
     phase: "complete", ...o,
+  };
+}
+
+function makeConsoleLog(...ts: number[]): ConsoleLog {
+  return {
+    id: "c", startedAt: 0, endedAt: 0, totalSeen: ts.length, captured: ts.length,
+    entries: ts.map((timestamp, i) => ({ id: `c${i}`, level: "error", timestamp, args: "x", pageUrl: "" })),
+  };
+}
+
+function makeActionLog(...ts: number[]): ActionLog {
+  return {
+    id: "a", startedAt: 0, endedAt: 0, totalSeen: ts.length, captured: ts.length,
+    entries: ts.map((timestamp, i) => ({ id: `a${i}`, kind: "click", timestamp, pageUrl: "" })),
   };
 }
 
@@ -152,5 +172,38 @@ describe("applyReplayTrim — 타임베이스 분리", () => {
     expect(storeState.setNetworkLogAttach).not.toHaveBeenCalled();
     expect(storeState.setConsoleLogAttach).not.toHaveBeenCalled();
     expect(storeState.setActionLogAttach).not.toHaveBeenCalled();
+  });
+});
+
+describe("applyReplayTrim — console/action accessor + 빈 결과", () => {
+  it("console/action도 timestamp accessor로 동일 경계 trim", async () => {
+    // 앞만 자름(inIndex=1>0, outIndex=4=last) → lower=10600, upper=undefined.
+    storeState = makeState(
+      null,
+      makeConsoleLog(10599, 10600, 999999), // 10599 제외, 나머지 보존
+      makeActionLog(10599, 10600, 999999),
+    );
+
+    await applyReplayTrim({ frames: FRAMES, tabId: 3, startSec: 0.6, endSec: 99 });
+
+    const [ckey, csaved] = saveConsoleLog.mock.calls[0] as [string, ConsoleLog];
+    expect(ckey).toBe("pending:3");
+    expect(csaved.entries.map((e) => e.id)).toEqual(["c1", "c2"]);
+    expect(csaved.captured).toBe(2);
+
+    const [, asaved] = saveActionLog.mock.calls[0] as [string, ActionLog];
+    expect(asaved.entries.map((e) => e.id)).toEqual(["a1", "a2"]);
+    expect(asaved.captured).toBe(2);
+  });
+
+  it("경계 밖이라 전부 제외되면 captured=0 빈 결과로 저장", async () => {
+    // lower=10600인데 전부 그 이전 → 0건.
+    storeState = makeState(null, makeConsoleLog(10000, 10500));
+
+    await applyReplayTrim({ frames: FRAMES, tabId: 1, startSec: 0.6, endSec: 99 });
+
+    const [, csaved] = saveConsoleLog.mock.calls[0] as [string, ConsoleLog];
+    expect(csaved.entries).toEqual([]);
+    expect(csaved.captured).toBe(0);
   });
 });

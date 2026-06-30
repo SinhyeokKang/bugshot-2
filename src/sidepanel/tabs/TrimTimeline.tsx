@@ -51,7 +51,7 @@ export function TrimTimeline({
 
   return (
     <div className="relative flex-1 py-2">
-      {/* mx-6: 핸들 너비만큼 트랙을 줄여 핸들이 선택 바깥에 놓일 자리 + 내부 div가 트랙 좌표계
+      {/* mx-5: 핸들 너비만큼 트랙을 줄여 핸들이 선택 바깥에 놓일 자리 + 내부 div가 트랙 좌표계
           → 마커·playhead·스크럽의 %가 트랙과 일치. */}
       <div className="relative mx-5">
         {ready && (

@@ -84,7 +84,7 @@ export function TimelineMarkers({ markers, className, onMarkerClick, onHoverChan
         createPortal(
           <div
             ref={tooltipRef}
-            className="pointer-events-none fixed z-50 max-w-[240px] rounded-md bg-white p-2.5 text-xs text-gray-900 shadow-md break-all"
+            className="pointer-events-none fixed z-50 max-w-[240px] rounded-md bg-white p-2.5 text-xs text-gray-900 shadow-md break-all dark:bg-gray-800 dark:text-gray-100"
             style={{
               left: tooltipLeft ?? hovered.x,
               top: tooltipAbove ? hovered.y - 8 : hovered.y + 18,

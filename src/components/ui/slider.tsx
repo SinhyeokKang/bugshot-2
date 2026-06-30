@@ -10,7 +10,6 @@ type SliderProps = React.ComponentPropsWithoutRef<typeof SliderPrimitive.Root> &
   trackClassName?: string
   rangeClassName?: string
   thumbClassName?: string
-  thumbClassNames?: string[] // thumb별 추가 className (index 순) — 예: 좌/우 핸들 바깥으로 밀기
   thumbContent?: React.ReactNode | ((index: number) => React.ReactNode) // thumb 내부 렌더(인덱스별 가능)
   onThumbClick?: (index: number) => void // thumb 클릭(드래그 아님) — 예: 해당 핸들로 seek
 }
@@ -18,7 +17,7 @@ type SliderProps = React.ComponentPropsWithoutRef<typeof SliderPrimitive.Root> &
 const Slider = React.forwardRef<
   React.ElementRef<typeof SliderPrimitive.Root>,
   SliderProps
->(({ className, thumbAriaLabels, trackClassName, rangeClassName, thumbClassName, thumbClassNames, thumbContent, onThumbClick, ...props }, ref) => {
+>(({ className, thumbAriaLabels, trackClassName, rangeClassName, thumbClassName, thumbContent, onThumbClick, ...props }, ref) => {
   const thumbCount = Array.isArray(props.value)
     ? props.value.length
     : Array.isArray(props.defaultValue)
@@ -43,8 +42,7 @@ const Slider = React.forwardRef<
           onClick={onThumbClick ? () => onThumbClick(i) : undefined}
           className={cn(
             "pointer-events-auto block h-4 w-4 rounded-full border border-primary/50 bg-background shadow transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-50",
-            thumbClassName,
-            thumbClassNames?.[i]
+            thumbClassName
           )}
         >
           {typeof thumbContent === "function" ? thumbContent(i) : thumbContent}
