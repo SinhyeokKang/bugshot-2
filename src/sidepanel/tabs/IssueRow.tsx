@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Eye, Send, Trash2 } from "lucide-react";
+import { FileText, Trash2, Upload } from "lucide-react";
 import { useT } from "@/i18n";
 import {
   AlertDialog,
@@ -38,7 +38,11 @@ export function IssueRow({
   const removeIssue = useIssuesStore((s) => s.removeIssue);
   const accounts = useSettingsStore((s) => s.accounts);
   const promotable = canPromoteSlack(issue, accounts);
-  const [badgeHover, setBadgeHover] = useState(false);
+  const [hoverSuppressed, setHoverSuppressed] = useState(false);
+  const hoverGuard = {
+    onMouseEnter: () => setHoverSuppressed(true),
+    onMouseLeave: () => setHoverSuppressed(false),
+  };
 
   const textMetaParts: string[] = [];
   if (isSubmitted) {
@@ -65,7 +69,7 @@ export function IssueRow({
 
   return (
     <div
-      className={`group flex cursor-pointer items-center justify-between gap-3 px-4 py-3 transition-colors ${badgeHover ? "" : "hover:bg-muted/50"}`}
+      className={`group flex cursor-pointer items-center justify-between gap-3 px-4 py-3 transition-colors ${hoverSuppressed ? "" : "hover:bg-muted/50"}`}
       onClick={handleCardClick}
       data-testid="issue-row"
       data-status={issue.status}
@@ -85,7 +89,7 @@ export function IssueRow({
         </span>
       </div>
       {promotable ? (
-        <ButtonGroup className="shrink-0" onClick={(e) => e.stopPropagation()}>
+        <ButtonGroup className="shrink-0" onClick={(e) => e.stopPropagation()} {...hoverGuard}>
           <Button
             variant="outline"
             size="icon"
@@ -95,7 +99,7 @@ export function IssueRow({
             data-testid="view-detail-issue"
             onClick={onOpenDraft}
           >
-            <Eye />
+            <FileText />
           </Button>
           <Button
             variant="outline"
@@ -106,15 +110,11 @@ export function IssueRow({
             data-testid="promote-issue"
             onClick={onOpenSubmit}
           >
-            <Send />
+            <Upload />
           </Button>
         </ButtonGroup>
       ) : isSubmitted && issue.key ? (
-        <span
-          onClick={(e) => e.stopPropagation()}
-          onMouseEnter={() => setBadgeHover(true)}
-          onMouseLeave={() => setBadgeHover(false)}
-        >
+        <span onClick={(e) => e.stopPropagation()} {...hoverGuard}>
           <SubmittedBadge
             issueId={issue.id}
             issueKey={issue.key}
@@ -143,6 +143,7 @@ export function IssueRow({
               className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
               aria-label={t("issueList.deleteDraft.title")}
               onClick={(e) => e.stopPropagation()}
+              {...hoverGuard}
             >
               <Trash2 />
             </Button>
