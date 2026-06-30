@@ -43,7 +43,7 @@ Slack is a messaging app rather than an issue tracker, so it works a little diff
 Shared something to Slack and then realized it deserves a proper issue too? No worries. Issues you share to Slack keep their **original data — capture images, video, and logs — intact**. So the moment you connect a tracker like Jira or GitHub, two buttons appear on the right of that Slack card in the issue list: **View details** and **Promote to tracker**.
 
 - **View details**: reopen the saved capture and logs to take another look.
-- **Promote to tracker**: opens the submit dialog (with Slack left out). Pick a tracker, file it as a formal issue, and the card turns into a regular issue while the Slack history is cleared.
+- **Promote to tracker**: opens the submit dialog (with Slack left out). Pick a tracker, file it as a formal issue, and the card turns into a regular issue while the Slack history is cleared. BugShot also drops a **comment linking to the new tracker issue right in the original Slack thread**, so teammates following that conversation can see exactly where it landed.
 
 ![View details and Promote buttons on a Slack card](../assets/integrations-platforms-3.jpg)
 
