@@ -204,7 +204,7 @@ shorthand(var 포함) + 같은 shorthand의 longhand override 조합에서 Chrom
 **트리밍 (Replay Trim)**: capture()는 `onRecordingComplete` **직후** 보존한 프레임 스냅샷으로 `pendingTrim={videoBlob, frames}`를 켠다(`frames.length>=2`만 — 그 미만은 trim 무의미). App이 `pendingTrim`이면 drafting 위로 `ReplayTrimDialog` 오버레이(`absolute inset-0 z-50`, lazy)를 띄운다. 사용자가 in/out 핸들로 보존 구간을 고르고 ✓하면 `applyReplayTrim`(`apply-trim.ts`):
 - `secondsToFrameRange`로 초→프레임 인덱스 환산 → `frames.slice` → `isFullRange`면 **no-op**(전체 유지 흡수, 재인코딩 생략).
 - 선택 프레임만 `encodeToMp4` 재인코딩.
-- **타임베이스 2갈래 분리**(sync 회귀 방지): 영상 메타(`videoStartedAt/EndedAt`)는 **raw 프레임 timestamp**(`sliced[0].timestamp` ~ `마지막+lastFrameDurationMs`), 로그 trim 경계만 `replayLogBounds`(시작측 `REPLAY_LOG_GUARD_MS` guard) 적용.
+- **타임베이스 2갈래 분리**(sync 회귀 방지): 영상 메타(`videoStartedAt/EndedAt`)는 **raw 프레임 timestamp**(`sliced[0].timestamp` ~ `마지막+lastFrameDurationMs`). 로그 trim 경계는 **잘라낸 쪽엔 선택 프레임의 정확한 wall-clock**을 쓰고(가드 미적용 — 가드밴드는 최초 캡처 첫 프레임의 폴링 지연 보정용이라 사용자가 고른 interior 프레임 재트림엔 경계 밖 로그를 도로 끌어오는 부작용만 낸다), **안 자른 쪽만 capture 동작 보존**(앞=`inIndex===0`이면 `videoStartedAt − REPLAY_LOG_GUARD_MS`, 끝=`outIndex===last`면 상한 없음 — capture가 captureTime으로 이미 제한). 즉 capture()의 `replayLogBounds`와 달리 apply-trim은 가드를 잘라낸 경계엔 적용하지 않는다.
 - capture()와 동일하게 `*Persist.discard()` 선행 후 `trimByTime`로 store 로그 재trim → `set*Log` + `save*Log("pending:${tabId}")`. 단 trim은 save를 `Promise.allSettled`로 await(늦은 IDB write의 경계 밖 로그 부활 차단)한 뒤 `replaceVideo`로 영상 메타 교체.
 - **파괴적**: 확정 즉시 원본 프레임 폐기(재편집 없음). ✗(작성 취소)는 캡처 결과 폐기 + IDB pending 로그·attachment 삭제 후 진입 화면.
 
