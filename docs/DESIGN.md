@@ -131,6 +131,12 @@ shadcn `Slider` (`src/components/ui/slider.tsx`, Radix). 표준에서 **멀티 t
 - `h-8 w-8` (32px): 패널/섹션 헤더·행 액션의 기본.
 - `h-9 w-9` (36px): Input/Textarea 우측에 직접 붙어 필드 높이(h-9)와 맞춰야 할 때. 항상 `shrink-0` 동반.
 
+**아이콘 버튼 색**
+- idle은 **`foreground`(기본 검정)**. 아이콘 *버튼*의 idle에 `text-muted-foreground`(회색)를 쓰지 않는다 — 비활성처럼 보여 클릭 가능성이 약해진다.
+- 삭제·연결 해제 등 파괴적 액션: idle은 foreground 그대로, **`hover:text-destructive`**(호버 시 빨강)로만 위험을 표현한다.
+- 토글류(`aria-pressed`)도 off의 아이콘은 `foreground`(검정). on/off 대비는 색이 아니라 **배경·테두리**로 표현한다(예: on=`bg-foreground text-background`, off=기본 + `hover:bg-muted` — `LinkToggle`).
+- 예외: empty state·로딩 스피너·상태 표시 아이콘은 *버튼이 아니므로* `text-muted-foreground` 허용(장식·저대비 정보).
+
 **관련 변형 컴포넌트**
 - `Badge`: variant `default`/`secondary`/`destructive`/`outline`, size 없음, `[&>svg]:size-3`.
 - `Toggle`/`ToggleGroup`: variant `default`/`outline`/`segment`/`underline`, size `sm`(h-8)/`default`(h-9)/`lg`(h-10).

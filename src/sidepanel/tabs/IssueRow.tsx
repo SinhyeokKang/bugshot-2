@@ -140,7 +140,7 @@ export function IssueRow({
             <Button
               variant="outline"
               size="icon"
-              className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
+              className="h-8 w-8 shrink-0 hover:text-destructive"
               aria-label={t("issueList.deleteDraft.title")}
               onClick={(e) => e.stopPropagation()}
               {...hoverGuard}

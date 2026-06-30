@@ -185,7 +185,7 @@ function LinkToggle({
       onClick={onToggle}
       aria-pressed={linked}
       className={cn(
-        "flex h-9 w-9 shrink-0 items-center justify-center rounded-md border text-muted-foreground transition-colors",
+        "flex h-9 w-9 shrink-0 items-center justify-center rounded-md border text-foreground transition-colors",
         linked ? "border-foreground bg-foreground text-background hover:bg-foreground/80" : "hover:bg-muted",
       )}
       title={linked ? t("prop.editIndividual") : t("prop.editTogether")}

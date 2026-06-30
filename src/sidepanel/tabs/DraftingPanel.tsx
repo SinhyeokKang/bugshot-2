@@ -611,7 +611,7 @@ function ReproEnvironmentSection() {
               type="button"
               size="icon"
               variant="outline"
-              className="h-9 w-9 shrink-0 text-muted-foreground"
+              className="h-9 w-9 shrink-0 hover:text-destructive"
               title={t("common.delete")}
               disabled
             >
@@ -648,7 +648,7 @@ function ReproEnvironmentSection() {
               type="button"
               size="icon"
               variant="outline"
-              className="h-9 w-9 shrink-0 text-muted-foreground hover:text-destructive"
+              className="h-9 w-9 shrink-0 hover:text-destructive"
               title={t("common.delete")}
               onClick={() => updateRows(customRows.filter((_, i) => i !== idx))}
             >
@@ -835,7 +835,7 @@ function OrderedListEditor({
               type="button"
               size="icon"
               variant="outline"
-              className="h-9 w-9 shrink-0 text-muted-foreground hover:text-destructive"
+              className="h-9 w-9 shrink-0 hover:text-destructive"
               disabled={items.length <= 1}
               onClick={() => removeAt(idx)}
               title={t("common.delete")}
