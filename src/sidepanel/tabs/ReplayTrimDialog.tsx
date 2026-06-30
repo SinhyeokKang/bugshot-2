@@ -85,7 +85,7 @@ export default function ReplayTrimDialog({ videoBlob, frames, onConfirm, onCance
   const actionLog = useEditorStore((s) => s.actionLog);
   const videoStartedAt = useEditorStore((s) => s.videoStartedAt);
 
-  // 진입 안내 토스트(영상 트림 사용법) — 오버레이당 1회.
+  // 진입 안내 토스트(영상 트림 사용법) — 오버레이당 1회. (클릭 닫기·커서는 Toaster 래퍼에서 전역 처리.)
   useEffect(() => {
     toast.info(t("issue.replay.trim.toast"));
     // eslint-disable-next-line react-hooks/exhaustive-deps
