@@ -1,5 +1,5 @@
 import { useEditorStore } from "@/store/editor-store";
-import { trimByTime, REPLAY_LOG_GUARD_MS } from "@/sidepanel/lib/log-merge";
+import { trimByTime } from "@/sidepanel/lib/log-merge";
 import { saveNetworkLog, saveConsoleLog, saveActionLog } from "@/store/blob-db";
 import {
   networkLogPersist,
@@ -8,7 +8,7 @@ import {
 } from "@/sidepanel/hooks/usePickerMessages";
 import type { CapturedFrame } from "./frame-buffer";
 import { encodeToMp4, computeFrameDurationsUs, MAX_FRAME_DURATION_MS } from "./mp4-encoder";
-import { secondsToFrameRange, isFullRange } from "./trim-math";
+import { secondsToFrameRange, isFullRange, replayLogTrimBounds } from "./trim-math";
 
 // 리플레이 트리밍 적용: 선택 구간 프레임만 재인코딩 → 영상 메타 교체 + 로그 재trim.
 // 타임베이스 분리 — 영상 메타는 raw 프레임 timestamp, 로그 trim은 replayLogBounds(guard 적용).
@@ -30,12 +30,8 @@ export async function applyReplayTrim(opts: {
   const videoStartedAt = sliced[0].timestamp;
   const videoEndedAt = sliced[sliced.length - 1].timestamp + lastFrameDurationMs;
 
-  // 로그 trim 경계(영상 타임베이스와 분리). 잘라낸 쪽은 사용자가 고른 interior 프레임의
-  // 정확한 wall-clock을 쓴다 — 가드밴드는 최초 캡처 첫 프레임의 폴링 지연 보정용이라
-  // 재트림엔 경계 밖 로그를 도로 끌어오는 부작용만 낸다. 안 자른 쪽은 capture 동작을 보존:
-  // 앞(inIndex===0)은 가드밴드 유지, 끝(outIndex===last)은 상한 없음(capture가 captureTime로 이미 제한).
-  const lower = inIndex === 0 ? videoStartedAt - REPLAY_LOG_GUARD_MS : videoStartedAt;
-  const upper = outIndex === frames.length - 1 ? undefined : sliced[sliced.length - 1].timestamp;
+  // 로그 trim 경계(영상 타임베이스와 분리) — muted 미리보기와 동일 헬퍼 공유로 "흐림 = 실제 잘림" 보장.
+  const { lower, upper } = replayLogTrimBounds(frames, inIndex, outIndex);
 
   // capture()와 동일하게 대기 중 버퍼 write를 폐기 후 trim본으로 덮어쓴다.
   networkLogPersist.discard();

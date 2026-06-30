@@ -359,6 +359,7 @@ export default function App() {
         >
           <ReplayTrimDialog
             videoBlob={replay.pendingTrim.videoBlob}
+            frames={replay.pendingTrim.frames}
             busy={trimBusy}
             onConfirm={(startSec, endSec) => {
               const frames = replay.pendingTrim?.frames ?? [];

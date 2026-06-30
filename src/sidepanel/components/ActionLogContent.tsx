@@ -32,6 +32,7 @@ interface ActionLogContentProps {
   activeTs?: number;
   scrollToEntryId?: string | null;
   onScrollComplete?: () => void;
+  isMuted?: (absTs: number) => boolean; // 트림 후보(잘려나갈 로그) 흐림 판정
 }
 
 // navigation만 콘솔 info-틴트 배경 재사용, click/input은 중립(배경 없음).
@@ -157,7 +158,7 @@ function searchText(e: ActionEntry): string {
   ].filter(Boolean).join(" ").toLowerCase();
 }
 
-export function ActionLogContent({ entries, startedAt, flush, syncBaseMs, onSeek, activeTs, scrollToEntryId, onScrollComplete }: ActionLogContentProps) {
+export function ActionLogContent({ entries, startedAt, flush, syncBaseMs, onSeek, activeTs, scrollToEntryId, onScrollComplete, isMuted }: ActionLogContentProps) {
   const t = useT();
   const [filter, setFilter] = useState<ActionFilter>("all");
   const [originFilter, setOriginFilter] = useState<string | null>(null);
@@ -283,6 +284,7 @@ export function ActionLogContent({ entries, startedAt, flush, syncBaseMs, onSeek
                 syncBaseMs={syncBaseMs}
                 onSeek={onSeek}
                 isActive={entry.id === activeId}
+                muted={isMuted?.(entry.timestamp) ?? false}
               />
             ))}
           </div>
@@ -292,12 +294,13 @@ export function ActionLogContent({ entries, startedAt, flush, syncBaseMs, onSeek
   );
 }
 
-function ActionRow({ entry, startedAt, syncBaseMs, onSeek, isActive }: {
+function ActionRow({ entry, startedAt, syncBaseMs, onSeek, isActive, muted }: {
   entry: ActionEntry;
   startedAt?: number;
   syncBaseMs?: number;
   onSeek?: (absTs: number) => void;
   isActive?: boolean;
+  muted?: boolean;
 }) {
   const t = useT();
   const base = syncBaseMs ?? startedAt;
@@ -306,7 +309,8 @@ function ActionRow({ entry, startedAt, syncBaseMs, onSeek, isActive }: {
       data-entry-id={entry.id}
       data-kind={entry.kind}
       data-drag-target={entry.kind === "drag" ? (entry.dragTarget ? "1" : "0") : undefined}
-      className={syncRowClass(!!onSeek, !!isActive, kindBgColor(entry.kind))}
+      data-muted={muted || undefined}
+      className={`${syncRowClass(!!onSeek, !!isActive, kindBgColor(entry.kind))}${muted ? " opacity-40" : ""}`}
       aria-current={isActive ? "true" : undefined}
     >
       <div className="flex items-center gap-3 px-2.5 py-2 text-[13px]">

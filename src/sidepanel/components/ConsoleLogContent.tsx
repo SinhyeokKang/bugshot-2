@@ -28,6 +28,7 @@ interface ConsoleLogContentProps {
   activeTs?: number;
   scrollToEntryId?: string | null;
   onScrollComplete?: () => void;
+  isMuted?: (absTs: number) => boolean; // 트림 후보(잘려나갈 로그) 흐림 판정
 }
 
 function levelBgColor(level: ConsoleLevel): string {
@@ -59,7 +60,7 @@ function LevelIcon({ level }: { level: ConsoleLevel }) {
   }
 }
 
-export function ConsoleLogContent({ entries, startedAt, flush, syncBaseMs, onSeek, activeTs, scrollToEntryId, onScrollComplete }: ConsoleLogContentProps) {
+export function ConsoleLogContent({ entries, startedAt, flush, syncBaseMs, onSeek, activeTs, scrollToEntryId, onScrollComplete, isMuted }: ConsoleLogContentProps) {
   const t = useT();
   const [filter, setFilter] = useState<ConsoleFilter>("all");
   const [originFilter, setOriginFilter] = useState<string | null>(null);
@@ -182,6 +183,7 @@ export function ConsoleLogContent({ entries, startedAt, flush, syncBaseMs, onSee
                 onSeek={onSeek}
                 isActive={entry.id === activeId}
                 scrollToEntryId={scrollToEntryId}
+                muted={isMuted?.(entry.timestamp) ?? false}
               />
             ))}
           </div>
@@ -191,13 +193,14 @@ export function ConsoleLogContent({ entries, startedAt, flush, syncBaseMs, onSee
   );
 }
 
-function EntryAccordion({ entry, startedAt, syncBaseMs, onSeek, isActive, scrollToEntryId }: {
+function EntryAccordion({ entry, startedAt, syncBaseMs, onSeek, isActive, scrollToEntryId, muted }: {
   entry: ConsoleEntry;
   startedAt?: number;
   syncBaseMs?: number;
   onSeek?: (absTs: number) => void;
   isActive?: boolean;
   scrollToEntryId?: string | null;
+  muted?: boolean;
 }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -212,7 +215,8 @@ function EntryAccordion({ entry, startedAt, syncBaseMs, onSeek, isActive, scroll
     <div
       data-entry-id={entry.id}
       data-level={entry.level}
-      className={syncRowClass(!!onSeek, !!isActive, levelBgColor(entry.level))}
+      data-muted={muted || undefined}
+      className={`${syncRowClass(!!onSeek, !!isActive, levelBgColor(entry.level))}${muted ? " opacity-40" : ""}`}
       aria-current={isActive ? "true" : undefined}
     >
       <div
