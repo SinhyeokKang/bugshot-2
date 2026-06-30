@@ -7,7 +7,10 @@ import { enterDebug, expect, test } from "./fixtures/extension";
 
 const SETTINGS_KEY = "bugshot-settings";
 
-function envelope(lastSlack?: Record<string, unknown>) {
+function envelope(
+  lastSlack?: Record<string, unknown>,
+  slackDefaults?: Record<string, unknown>,
+) {
   return JSON.stringify({
     state: {
       accounts: {
@@ -23,7 +26,7 @@ function envelope(lastSlack?: Record<string, unknown>) {
           },
           teamId: "T1",
           teamName: "Test Workspace",
-          defaults: {},
+          defaults: slackDefaults ?? {},
         },
       },
       lastSubmitFields: lastSlack ? { slack: lastSlack } : {},
@@ -114,6 +117,29 @@ test.describe.serial("Slack 제출 게이팅", () => {
     await expect(submit).toBeVisible();
     // initialSlackFields가 last로 channelId를 prefill → fieldsReady 충족.
     await expect(submit).toBeEnabled();
+
+    await cleanup(fixture, panel);
+  });
+
+  test("기본 채널이 있어도 직전 제출 채널·멘션을 우선 복원", async ({ ext }) => {
+    // 기본 채널(defaults)과 직전 채널(last)이 다를 때, last가 우선 복원돼야 한다(다른 트래커와 동일).
+    // 과거엔 defaults가 우선이라 직전 채널이 가려지고 sameChannel=false로 멘션까지 드롭됐다.
+    const { fixture, panel } = await openSubmitDialog(
+      ext,
+      envelope(
+        { channelId: "C_LAST", channelName: "#last-channel", mentions: [{ id: "U9", name: "alice" }] },
+        { channelId: "C_DEFAULT", channelName: "#default-channel" },
+      ),
+    );
+
+    // 제출 다이얼로그로 스코프(기본 채널명은 숨겨진 연동 탭 SlackConnectForm에도 떠 전역 단언은 부정확).
+    const dialog = panel.getByTestId("submit-fields-dialog");
+    await expect(dialog).toBeVisible();
+    // 채널 콤보박스 트리거(triggerLabel=channelName)가 직전 채널을 보여준다 — 기본 채널이 아니라.
+    await expect(dialog.getByText("#last-channel")).toBeVisible();
+    await expect(dialog.getByText("#default-channel")).toHaveCount(0);
+    // 멘션도 복원(sameChannel 게이트 통과) — 멘션 콤보박스 트리거가 선택 이름을 표시.
+    await expect(dialog.getByText("alice")).toBeVisible();
 
     await cleanup(fixture, panel);
   });
