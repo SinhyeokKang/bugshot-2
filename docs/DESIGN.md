@@ -91,8 +91,9 @@ Tailwind 4px 스케일을 그대로 쓴다. 자주 쓰는 값(관용):
 
 - **Radix 오버레이(Dialog·Popover·Tooltip·Select)는 모두 `z-50` 공통.** 같은 평면에서 뒤에 열린 것이 위로 온다.
 - 로컬 sticky/겹침은 `z-10` 수준.
-- 그 위로 강제로 떠야 하는 예외는 `z-[60]` (현재 1곳). 새로 만들 땐 `z-50` 기준으로 잡고, 꼭 필요할 때만 `z-[60]`.
-- content script의 picker·overlay·AnnotationOverlay 캔버스는 **페이지 쪽 shadow DOM**에서 별도 최상위 z로 뜬다 — 사이드패널 z축과 무관하니 헷갈리지 말 것.
+- 그 위로 강제로 떠야 하는 예외는 `z-[60]` (현재 2곳 — `AnnotationOverlay` 텍스트 편집 입력, `ReplayTrimDialog` 작성취소 AlertDialog). 새로 만들 땐 `z-50` 기준으로 잡고, 꼭 필요할 때만 `z-[60]`.
+- **전체화면 비-Radix 오버레이 패턴**: 사이드패널 위 풀스크린은 `absolute inset-0 z-50 bg-background` + `flex h-full flex-col`로 만든다(`AnnotationOverlay`·`ReplayTrimDialog`·App AI 로딩·DraftingPanel annotation 마운트). Radix Dialog가 아니라 컨테이너 직접 렌더 + `lazy`/`Suspense`. 이 오버레이들은 **사이드패널 z축 안**(z-50, 필요 시 내부 모달 z-[60])이다.
+- content script의 picker·overlay(`src/content/`)는 **페이지 쪽**에서 별도 최상위 z로 뜬다 — 사이드패널 z축과 무관하니 헷갈리지 말 것. (`AnnotationOverlay`는 페이지가 아니라 사이드패널 컴포넌트 — 위 전체화면 오버레이 항목.)
 
 ## 8. 모션 & 트랜지션
 
@@ -114,8 +115,12 @@ Tailwind 4px 스케일을 그대로 쓴다. 자주 쓰는 값(관용):
 shadcn `Button` (`src/components/ui/button.tsx`, cva):
 
 **variant**: `default`(primary) · `destructive` · `outline` · `secondary` · `ghost` · `link`
-**size**: `default`(h-9 px-4) · `sm`(h-8 px-3 text-xs) · `lg`(h-10) · `xl`(h-11 px-10 text-base) · `icon`(h-9 w-9)
-기본 `variant="default" size="default"`. 아이콘 기본 `[&_svg]:size-4 shrink-0`.
+**size**: `default`(h-9 px-4) · `sm`(h-8 px-3 text-xs) · `lg`(h-10) · `xl`(h-11 px-10 text-base, 아이콘 `size-5`) · `icon`(h-9 w-9)
+기본 `variant="default" size="default"`. 아이콘 기본 `[&_svg]:size-4 shrink-0`(`xl`만 `size-5`).
+
+### Slider
+
+shadcn `Slider` (`src/components/ui/slider.tsx`, Radix). 표준에서 **멀티 thumb 확장** — `value`/`defaultValue` 배열 길이로 thumb 개수를 파생해 N개 렌더(미지정 시 1), `thumbAriaLabels?: string[]`로 thumb별 aria-label 주입. 현재 사용처는 `TrimTimeline`의 trim 듀얼 핸들(2-thumb 레인지).
 
 - **CTA는 `default`(h-9)로 통일** — 대개 `size` 생략(기본값이 h-9).
 - `xl`은 랜딩/온보딩 같은 특수 CTA 전용.

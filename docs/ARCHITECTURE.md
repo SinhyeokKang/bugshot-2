@@ -199,9 +199,18 @@ shorthand(var 포함) + 같은 shorthand의 longhand override 조합에서 Chrom
 
 **캡처 쿼터 직렬화**: `captureVisibleTab`은 윈도우 단위로 Chrome 쿼터(초당 2회 `MAX_CAPTURE_VISIBLE_TAB_CALLS_PER_SECOND`)가 걸린다. 리플레이 폴링(600ms ≈ 1.67회/초)·엘리먼트 스냅샷(`capture.ts`)·스타일 before/after(`StyleEditorPanel`·`useBufferThenSwitch`)가 **동시에** 쏘면 합산이 쿼터를 넘어 스냅샷이 실패한다. 그래서 모든 캡처는 background `captureVisibleTab` 핸들러의 단일 직렬화 큐(`capture-throttle.ts`)를 거친다 — 호출 간 최소 500ms 간격 + rate-limit 에러 한정 백오프 재시도(550/700/900ms). 새 캡처 경로는 반드시 background 핸들러(`sendBg({type:"captureVisibleTab"})`)를 거쳐야 하고, `chrome.tabs.captureVisibleTab`을 직접 부르면 큐를 우회해 쿼터 회귀가 재발한다.
 
-**인코딩**: `capture()` → `frameBuffer.snapshot()` → `encodeToMp4()`(WebCodecs H.264 codec 후보 순차 탐색 + `mp4-muxer`) → 성공 시 `onRecordingComplete(blob, thumbnail, viewport)` 재사용 (`captureMode: "video"`).
+**인코딩**: `capture()` → `frameBuffer.snapshot()` → `encodeToMp4()`(WebCodecs H.264 codec 후보 순차 탐색 + `mp4-muxer`) → 성공 시 `onRecordingComplete(blob, thumbnail, viewport, startedAt, endedAt)` 재사용 (`captureMode: "video"`). `startedAt`=`frames[0].timestamp`(영상-로그 sync 0점), `endedAt`=`captureTime`. capture() 자체도 이 경계로 로그를 1차 trim(`replayLogBounds` guard + `trimByTime`)해 첨부한다.
 
-**상태 공유**: `replay-context.ts`의 `ReplayProvider`가 `isReady`/`isEncoding`/`capture`를 EmptyState에 공급.
+**트리밍 (Replay Trim)**: capture()는 `onRecordingComplete` **직후** 보존한 프레임 스냅샷으로 `pendingTrim={videoBlob, frames}`를 켠다(`frames.length>=2`만 — 그 미만은 trim 무의미). App이 `pendingTrim`이면 drafting 위로 `ReplayTrimDialog` 오버레이(`absolute inset-0 z-50`, lazy)를 띄운다. 사용자가 in/out 핸들로 보존 구간을 고르고 ✓하면 `applyReplayTrim`(`apply-trim.ts`):
+- `secondsToFrameRange`로 초→프레임 인덱스 환산 → `frames.slice` → `isFullRange`면 **no-op**(전체 유지 흡수, 재인코딩 생략).
+- 선택 프레임만 `encodeToMp4` 재인코딩.
+- **타임베이스 2갈래 분리**(sync 회귀 방지): 영상 메타(`videoStartedAt/EndedAt`)는 **raw 프레임 timestamp**(`sliced[0].timestamp` ~ `마지막+lastFrameDurationMs`), 로그 trim 경계만 `replayLogBounds`(시작측 `REPLAY_LOG_GUARD_MS` guard) 적용.
+- capture()와 동일하게 `*Persist.discard()` 선행 후 `trimByTime`로 store 로그 재trim → `set*Log` + `save*Log("pending:${tabId}")`. 단 trim은 save를 `Promise.allSettled`로 await(늦은 IDB write의 경계 밖 로그 부활 차단)한 뒤 `replaceVideo`로 영상 메타 교체.
+- **파괴적**: 확정 즉시 원본 프레임 폐기(재편집 없음). ✗(작성 취소)는 캡처 결과 폐기 + IDB pending 로그·attachment 삭제 후 진입 화면.
+
+trim 적용 여부는 `videoTrimmed`(세션 영속 `EditorSnapshot` 키 — `onRecordingComplete`=false, `replaceVideo`=true)로 추적해 제출 분석(`replay_trimmed`)에 싣는다. 초↔프레임 매핑 순수함수(`trim-math.ts`: `frameOffsetsMs`/`secondsToFrameRange`/`isFullRange`)는 `encodeToMp4`와 동일 `MAX_FRAME_DURATION_MS`를 공유해 `<video>` 시각 드리프트를 막고, 에러 마커(`trim-markers.ts` `buildErrorMarkers`)는 log-viewer `buildMarkers`를 재사용해 console error/warn + network 에러만 표시한다.
+
+**상태 공유**: `replay-context.ts`의 `ReplayProvider`가 `isReady`/`isEncoding`/`capture`를 EmptyState에 공급. `pendingTrim`/`resolveTrim`은 App이 훅에서 직접 받아 오버레이를 제어(context 미경유).
 
 ## AI 통합 (BYOK LLM · AI Draft · AI Styling)
 
