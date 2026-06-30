@@ -147,7 +147,7 @@ shadcn `Button` (`src/components/ui/button.tsx`, cva):
 ```
 핵심 관용구:
 - **`h-screen flex-col`**: side panel 전체 높이를 수직 스택으로.
-- **`flex min-h-0 flex-1 flex-col`**: `min-h-0`이 있어야 flex 자식이 고유 높이를 넘겨 내부 스크롤이 생긴다(스크롤 영역 공식).
+- **`flex min-h-0 flex-1 flex-col`**: `min-h-0`이 있어야 flex 자식이 고유 높이를 넘겨 내부 스크롤이 생긴다(스크롤 영역 공식). 이 패턴은 `PageShell`/`PageScroll`/`PageFooter`(아래 §13)로 표준화돼 있어, raw 클래스 대신 그 조합을 기본으로 쓴다.
 - **`min-w-0`**: 가로 flex 자식이 콘텐츠 최소 폭을 고집해 레이아웃이 깨지는 것 방지. 아이콘은 `shrink-0`, 텍스트는 절단.
 
 ### 탭 시스템
@@ -181,6 +181,7 @@ shadcn `Button` (`src/components/ui/button.tsx`, cva):
 
 | 컴포넌트 | 표준화 대상 |
 |---|---|
+| `PageShell`/`PageScroll`/`PageFooter` (`Section.tsx`) | 탭 페이지 골격 — Shell=`flex min-h-0 flex-1 flex-col`, Scroll=`min-h-0 flex-1 overflow-y-auto`(내부 스크롤 영역), Footer=`shrink-0 border-t bg-muted/50 p-4`(하단 고정 액션). 전 탭 공용 |
 | `Section.tsx` | 섹션 구획 — `<section>` 래퍼에 `border-b`(섹션 간 구분선) + 헤더(title+action) + optional collapsible |
 | `FieldRow.tsx` | 라벨+필드 쌍 — `grid gap-1.5`, 라벨 `text-xs text-muted-foreground`, `required` 시 빨간 별 |
 | `InlineChip.tsx` | 인라인 텍스트 칩 — `muted`면 dashed/muted, 아니면 `border-primary`. `[box-decoration-break:clone]`로 줄바꿈 대응 |
