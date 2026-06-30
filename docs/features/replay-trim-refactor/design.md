@@ -11,7 +11,8 @@
   - `replayLogTrimBounds(frames, inIndex, outIndex)` — 인덱스 → `{ lower, upper }`.
   - `previewTrimBounds(frames, startSec, endSec, maxFrameDurationMs)` — 초 구간 → `{ lower, upper } | null`(전체 구간이면 `null` = muted 없음). 내부에서 `secondsToFrameRange` + `isFullRange` + `replayLogTrimBounds` 조합.
   - `isTrimmedOut(absTs, bounds)` — `ts < lower || (upper != null && ts > upper)`.
-- `REPLAY_LOG_GUARD_MS`를 `@/sidepanel/lib/log-merge`에서 import(순환 없음 — log-merge는 타입만 의존).
+  - 계약: `replayLogTrimBounds`는 **비어있지 않은 `frames` 가정**(직접 호출 시 호출자 책임). `previewTrimBounds`는 빈/단일 프레임에서 `isFullRange` early-return으로 `null` 반환을 보장(크래시 없음).
+- `REPLAY_LOG_GUARD_MS`를 `@/sidepanel/lib/log-merge`에서 import. 순환 없음 — log-merge가 trim-math/frame-buffer/mp4-encoder를 역참조하지 않아 `trim-math → log-merge` 단방향(log-merge 자체는 `@/lib/session-keys`의 런타임 값을 쓰지만 trim-math와 무관). `apply-trim.ts`가 이미 동일 import를 쓰는 선례 있음.
 
 ### `src/sidepanel/30s-replay/apply-trim.ts` (회귀 무손실 리팩터)
 - **현재 역할**: 선택 구간 프레임 재인코딩 + 로그 재trim.
@@ -22,9 +23,9 @@
 - **변경**:
   1. `frames: CapturedFrame[]` prop 추가(muted 경계 계산용).
   2. 로컬 상태 `activeTab: TrimTab` 추가(`"video" | "console" | "network" | "action"`, 기본 `"video"`).
-  3. 상단 정보 bar의 로그 선택 ButtonGroup(현재 153~163행)을 아이콘 4단 `Tabs`로 교체. 각 로그 탭에 카운트 Badge(기존 로그 뷰어 탭 패턴) 부착. 로그 없는 탭은 `disabled`.
-  4. 가운데 영역: `<video>`는 항상 마운트 유지(타임라인·재생·playhead가 ref에 의존)하되 `activeTab !== "video"`면 `hidden`. 로그 탭이면 해당 `*LogContent`(flush)를 같은 영역에 렌더.
-  5. muted 경계: `const bounds = useMemo(() => previewTrimBounds(frames, startSec, endSec, MAX_FRAME_DURATION_MS), [frames, startSec, endSec])`. 각 `*LogContent`에 `isMuted={(ts) => bounds != null && isTrimmedOut(ts, bounds)}` 전달.
+  3. 상단 정보 bar의 로그 선택 ButtonGroup(현재 153~163행)을 아이콘 4단 `Tabs`로 교체. 좌측 `selection` 초 표시(`issue.replay.trim.selection`)는 그대로 유지하고, 탭은 우측(기존 ButtonGroup 자리)에 둔다. 각 로그 탭에 카운트 Badge(로그 뷰어 탭과 동일 className) 부착, 단 4자리 이상은 `999+`로 cap(영상 탭은 Badge 없음 — 정렬 비대칭은 감수). 로그 없는 탭은 `disabled`.
+  4. 가운데 영역: `<video>`는 항상 마운트 유지(타임라인·재생·playhead가 ref에 의존)하되 `activeTab !== "video"`면 `hidden`. 로그 탭 3종 `*LogContent`(flush)도 항상 마운트하고 비활성 탭은 `hidden`(상태 보존, 로그 뷰어 방식 — 아래 위험요소 "탭 콘텐츠 마운트" 참조). 탭 전환 시 필터/검색/스크롤 상태가 보존된다.
+  5. muted 경계: `const bounds = useMemo(() => previewTrimBounds(frames, startSec, endSec, MAX_FRAME_DURATION_MS), [frames, startSec, endSec])`. `isMuted`는 `useCallback((ts) => bounds != null && isTrimmedOut(ts, bounds), [bounds])`로 안정화해 각 `*LogContent`에 전달(후속 row `React.memo` 도입 시에도 무해). 각 LogContent는 자신의 타임스탬프 필드로 호출.
   6. 마커 클릭: 다이얼로그 open 대신 `setActiveTab(m.type)` + `setFocusEntryId(m.id)`. 활성 로그 탭의 `*LogContent`에 `scrollToEntryId={focusEntryId}` 전달, 스크롤 완료/수동 탭 전환 시 `null` 리셋.
   7. 3개 `*LogPreviewDialog` import·렌더 제거(이 파일에서만). 컴포넌트 파일은 유지(타 사용처 존재).
   8. 네트워크/콘솔/동작 탭 모두 `syncBaseMs={videoStartedAt ?? undefined}` 전달 → 네트워크 탭에 상대 timestamp(`LogSeekChip`) 표시(로그 뷰어와 동일).
@@ -113,7 +114,7 @@ interface ReplayTrimDialogProps {
 ```
 - 영상 탭은 카운트 Badge 없음. 아이콘은 영상=`Film`(lucide), 콘솔=`Terminal`, 네트워크=`ArrowLeftRight`, 동작=`MousePointerClick`(기존과 동일).
 
-가운데 영역:
+가운데 영역(상태 보존 위해 전부 마운트, 비활성은 `hidden`):
 ```tsx
 <div className="flex min-h-0 flex-1 ...">
   {src && (
@@ -121,14 +122,17 @@ interface ReplayTrimDialogProps {
       className={cn("h-full w-full object-contain", activeTab !== "video" && "hidden")}
       onLoadedMetadata={...} onTimeUpdate={...} onPlay={...} onPause={...} />
   )}
-  {activeTab === "console" && consoleLog && (
-    <ConsoleLogContent flush entries={consoleLog.entries} startedAt={consoleLog.startedAt}
-      syncBaseMs={videoStartedAt ?? undefined} isMuted={isMuted}
-      scrollToEntryId={focusEntryId} onScrollComplete={() => setFocusEntryId(null)} />
+  {consoleLog && (
+    <div className={cn("flex min-h-0 flex-1", activeTab !== "console" && "hidden")}>
+      <ConsoleLogContent flush entries={consoleLog.entries} startedAt={consoleLog.startedAt}
+        syncBaseMs={videoStartedAt ?? undefined} isMuted={isMuted}
+        scrollToEntryId={focusEntryId} onScrollComplete={() => setFocusEntryId(null)} />
+    </div>
   )}
-  {/* network: NetworkLogContent requests=... ; action: ActionLogContent entries=... */}
+  {/* network: NetworkLogContent requests=... ; action: ActionLogContent entries=... 동일하게 hidden 토글 */}
 </div>
 ```
+- 비활성 탭을 언마운트하지 않고 `hidden`으로 숨겨 필터/검색/스크롤 상태를 보존(로그 뷰어 `data-[state=inactive]:hidden`과 동일 의도). 마커 클릭 → 탭 전환 → `scrollToEntryId` 스크롤도 이미 마운트된 리스트라 타이밍 안정적.
 
 muted row 스타일(각 row 래퍼):
 ```tsx
@@ -141,7 +145,7 @@ data-muted={muted || undefined}
 - **공용 `*LogContent` optional prop 패턴**: `syncBaseMs`/`onSeek`/`scrollToEntryId`처럼 `isMuted`도 optional로 추가해 기존 사용처(라이브 서브탭·로그 뷰어·미리보기) 무영향.
 - **트림 타임베이스 분리**: `apply-trim`의 가드밴드/프레임 스냅 경계 로직을 헬퍼로 추출하되 동작 불변(회귀 테스트로 보증).
 - **i18n 동시 갱신**: ko/en 키 함께 추가(훅 강제).
-- **shadcn 우선**: 탭은 기존 `@/components/ui/tabs`·`@/components/ui/badge` 재사용(신규 컴포넌트·설치 없음). 로그 뷰어 App.tsx의 탭+Badge 패턴 답습.
+- **shadcn 우선**: 탭은 기존 `@/components/ui/tabs`·`@/components/ui/badge` 재사용(신규 컴포넌트·설치 없음). **아이콘 전용 plain `TabsList`**(라벨 없음, `aria-label`로 접근성 이름 부여) — 로그 뷰어의 `CollapsingTabsList`(아이콘+라벨+접힘)는 4탭·400px엔 라벨이 거의 접혀 실익 적고 접힘 시 a11y 갭이 있어 채택 안 함. Badge className만 로그 뷰어와 동일.
 - **단위 테스트 우선**: 신규 순수 헬퍼(`previewTrimBounds`/`replayLogTrimBounds`/`isTrimmedOut`)는 구현 전 테스트 작성.
 
 ## 대안 검토
@@ -154,4 +158,7 @@ data-muted={muted || undefined}
 - **경계 드리프트**: 미리보기와 `apply-trim`이 다른 경로로 경계를 계산하면 "흐림 ≠ 실제 잘림" 발생. → 단일 헬퍼(`replayLogTrimBounds`) 공유 + `apply-trim` 리팩터 회귀 테스트로 차단. `MAX_FRAME_DURATION_MS`도 양쪽 동일 값 사용 필수.
 - **숨긴 `<video>` 상태 유지**: `hidden`(display:none) 비디오도 `currentTime`/`duration` 접근·seek가 유지됨(미디어 요소는 표시와 무관). 로그 탭에서 자동 일시정지하므로 재생은 멈추지만 타임라인 트림/스크럽은 정상. 구현 시 실제 탭에서 확인 필요(수동).
 - **드래그 중 대량 row 재렌더**: 핸들 드래그마다 `value` 변경 → `*LogContent` 재렌더(최대 network 5000행). 30s Replay 로그는 보통 소량이라 실사용 영향 낮지만, 큰 로그에서 끊김 가능. 필요 시 `bounds`를 `useMemo`로 안정화(이미 설계), 추가 최적화(row `React.memo`)는 측정 후 판단 — 선제 추상화는 보류.
-- **탭 콘텐츠 마운트**: 로그 탭을 조건부 렌더(언마운트)하면 탭 전환마다 필터·스크롤 상태가 초기화된다. 로그 뷰어는 `data-[state=inactive]:hidden`으로 마운트 유지하지만, 트림 오버레이는 단순화를 위해 조건부 렌더(상태 보존 불요)로 시작 — 보존이 필요하면 후속에 hidden 방식 전환. (구현 시 결정 사항으로 남김.)
+- **탭 콘텐츠 마운트**: 로그 탭 3종 + 영상을 전부 마운트하고 비활성은 `hidden`으로 숨겨 필터·검색·스크롤 상태를 보존(로그 뷰어 `data-[state=inactive]:hidden` 방식). 조건부 언마운트 대비 초기 마운트 비용은 있으나 30s replay 로그 규모상 무시 가능, 마커 클릭 스크롤 타이밍이 안정적인 이점.
+- **네트워크 2분할 @ ~400px (수용된 알려진 제약)**: `NetworkLogContent`는 좌(리스트)/splitter/우(상세) 2분할이고 초기 리스트 폭 `clientWidth*0.3`(400px면 ~120px, 드래그 최소 160px보다 작음). 트림 미리보기 핵심인 리스트가 좁아 method/path가 truncate되지만, **무변경 재사용을 우선해 현 설계 유지**(listOnly 모드 미도입). 실사용 시야는 수동 확인 대상.
+- **마커 ↔ 로그 리스트 겹침**: `TimelineMarkers`는 타임라인 위쪽(`bottom-full mb-1.5 h-4`)에 뜬다. 영상 탭에선 위가 영상 영역이라 무해하나, 로그 탭에선 위가 로그 리스트라 에러 핀이 마지막 row 위에 겹쳐 보일 수 있다(컨트롤러 bar `py-2`=8px로 h-4=16px 마커를 못 담음). 구현 시 실제 탭에서 확인 — 필요 시 로그 탭에서 마커 레이어 여백 보정(수동검증).
+- **세로 높이 예산**: 로그 탭에서 고정 bar 3개(상단 탭바 + 영상 컨트롤러 + 액션바) + LogContent 자체 헤더(필터탭+검색)가 쌓여 낮은 화면에선 리스트 가시 행이 적다. 전역 트리밍 정책상 컨트롤러 유지는 불가피 — 수동 확인 대상.

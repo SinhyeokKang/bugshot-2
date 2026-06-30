@@ -22,40 +22,46 @@
   - [ ] 끝만 트림(outIndex<last) → `lower = frames[0].timestamp - 1500`, `upper = frames[outIndex].timestamp`
   - [ ] 양쪽 트림 → lower/upper 둘 다 내부 프레임 timestamp
   - [ ] `isTrimmedOut`: 경계 안/밖/`upper===undefined`(상한 없음) 분기
+  - [ ] **parity(최우선)**: 같은 `frames`·`startSec`·`endSec`에 대해 `previewTrimBounds(frames, s, e, MAX_FRAME_DURATION_MS)`가, apply-trim 경로(=`secondsToFrameRange`로 얻은 inIndex/outIndex → `replayLogTrimBounds`)와 **동일한 lower/upper**를 내는지 비교. `maxFrameDurationMs` 동일값까지 한 테스트로 고정 → "흐림 = 실제 잘림" 회귀 차단.
+  - [ ] 빈 배열 `previewTrimBounds([], ...)` → `null`(크래시 없음), 단일 프레임도 `null`
   - [ ] `pnpm test` 통과
 
 ### Task 3: apply-trim 헬퍼 사용으로 리팩터 (동작 불변)
 - **변경 대상**: `src/sidepanel/30s-replay/apply-trim.ts`
 - **작업 내용**: 인라인 `lower`/`upper` 계산을 `replayLogTrimBounds(frames, inIndex, outIndex)` 호출로 대체. `videoStartedAt`/`videoEndedAt`/`sliced` 계산은 유지.
 - **검증**:
-  - [ ] 기존 `apply-trim`/`trim-math` 테스트(있으면) 그대로 통과 — 회귀 없음
-  - [ ] 리팩터 전후 `lower`/`upper` 값 동일(테스트로 고정)
+  - [ ] 기존 `trim-math.test.ts`·`apply-trim.test.ts`(둘 다 실재) 그대로 통과 — 회귀 없음
+  - [ ] `videoStartedAt`(=`sliced[0].timestamp`)는 `replaceVideo`에도 쓰이므로 그대로 유지
+  - [ ] 리팩터 후 apply-trim의 `lower`/`upper`는 `replayLogTrimBounds` 출력과 동일 — apply-trim 직접 단위테스트는 영상 인코딩이 끼어 무겁다. 경계 정확성 보증은 Task 2의 헬퍼 parity 테스트로 충분(apply-trim은 그 헬퍼를 호출만 함). 별도 apply-trim 통합 테스트는 만들지 않는다.
   - [ ] `pnpm typecheck` 통과
 
 ### Task 4: `*LogContent` muted prop 추가
 - **변경 대상**: `src/sidepanel/components/ConsoleLogContent.tsx`, `NetworkLogContent.tsx`, `ActionLogContent.tsx`
 - **작업 내용**: 공통 optional prop `isMuted?: (absTs: number) => boolean` 추가. 각 row 래퍼(`EntryAccordion`/`RequestRow`/`ActionRow`)에서 row timestamp(console·action=`timestamp`, network=`startTime`)로 호출, 참이면 `opacity-40` 클래스 + `data-muted` 속성. prop 미공급 시 무변화.
 - **검증**:
-  - [ ] prop 없이 렌더 시 기존 스냅샷/동작 동일(라이브 서브탭·로그 뷰어·미리보기 무영향)
+  - [ ] prop 없이 렌더 시 기존 동작 동일 — console/network는 라이브 서브탭·로그 뷰어·미리보기, **action은 로그 뷰어·미리보기 2곳**(라이브 서브탭 없음) 무영향
   - [ ] `isMuted` 참인 row에 `opacity-40` + `data-muted` 적용, 레벨/상태 배경색은 유지
+  - [ ] network: `isMuted`는 좌측 `RequestRow`에만, 우측 상세 패널은 흐림 없음
   - [ ] `pnpm typecheck` 통과
 
 ### Task 5: ReplayTrimDialog 탭 구조 전환
 - **변경 대상**: `src/sidepanel/tabs/ReplayTrimDialog.tsx`
 - **작업 내용**:
   - `frames: CapturedFrame[]` prop 추가, `activeTab: TrimTab` 상태(기본 `"video"`).
-  - 정보 bar의 로그 ButtonGroup → 아이콘 4단 `Tabs`(영상=`Film`/콘솔/네트워크/동작). 로그 탭에 카운트 `Badge`(`ml-1 h-5 min-w-5 shrink-0 px-1.5 text-[10px]`). 영상 탭 Badge 없음. 로그 없는 탭 `disabled`. testid `replay-trim-tab-{video|console|network|action}`.
-  - 가운데 영역: `<video>` 항상 마운트(`activeTab!=="video"`면 `hidden`) + 활성 로그 탭의 `*LogContent`(flush, `syncBaseMs={videoStartedAt ?? undefined}`, `isMuted`, `scrollToEntryId={focusEntryId}`, `onScrollComplete`로 focus 리셋).
-  - muted: `bounds = useMemo(previewTrimBounds(frames, startSec, endSec, MAX_FRAME_DURATION_MS))`, `isMuted=(ts)=>bounds!=null && isTrimmedOut(ts, bounds)`.
-  - 재생: 로그 탭 진입 시 자동 일시정지, 재생 버튼 `disabled` 조건에 `activeTab!=="video"` 추가.
+  - 정보 bar: 좌측 `selection` 초 표시 유지, 우측에 아이콘 4단 plain `Tabs`(영상=`Film`/콘솔/네트워크/동작, 아이콘 전용 + `aria-label`). 로그 탭에 카운트 `Badge`(`ml-1 h-5 min-w-5 shrink-0 px-1.5 text-[10px]`, 1000+ 는 `999+`). 영상 탭 Badge 없음. 로그 없는 탭 `disabled`. testid `replay-trim-tab-{video|console|network|action}`.
+  - 가운데 영역: `<video>` + 로그 탭 3종 `*LogContent`(flush)를 **전부 마운트**, 비활성은 `hidden`(상태 보존). 각 LogContent에 `syncBaseMs={videoStartedAt ?? undefined}`, `isMuted`, `scrollToEntryId={focusEntryId}`, `onScrollComplete`로 focus 리셋.
+  - muted: `bounds = useMemo(previewTrimBounds(frames, startSec, endSec, MAX_FRAME_DURATION_MS))`, `isMuted=useCallback((ts)=>bounds!=null && isTrimmedOut(ts, bounds), [bounds])`.
+  - 재생: 로그 탭 진입 시 자동 일시정지, 재생 버튼 `disabled` 조건에 `activeTab!=="video"` 추가. 재생 버튼에 testid `replay-trim-play` 부착(e2e 판정용).
   - 마커 클릭: `setActiveTab(m.type) + setFocusEntryId(m.id)`. 수동 탭 전환 시 `setFocusEntryId(null)`.
   - 3개 `*LogPreviewDialog` import·렌더 제거(이 파일 한정). 고아 상태/ButtonGroup(정보 bar) import 정리.
 - **검증**:
-  - [ ] 4개 탭 전환·아이콘·카운트 Badge 표시
+  - [ ] 4개 탭 전환·아이콘·카운트 Badge 표시(Badge 판정: 탭 trigger 내 텍스트 또는 Badge testid)
+  - [ ] 탭 전환 후 재진입 시 필터/검색/스크롤 상태 보존(hidden 마운트)
   - [ ] 로그 탭에서 핸들 드래그 시 잘림 후보 row 흐림이 실시간 갱신
   - [ ] 트림/언두/리두/취소/제출이 모든 탭에서 동작
-  - [ ] 재생 중 로그 탭 전환 시 자동 일시정지 + 재생버튼 비활성
+  - [ ] 재생 중 로그 탭 전환 시 자동 일시정지 + 재생버튼(`replay-trim-play`) 비활성
   - [ ] 마커 클릭 시 탭 전환 + 스크롤
+  - [ ] PreviewDialog 제거가 타 호스트(PreviewPanel·DraftingPanel·DraftDetailDialog) 렌더에 무영향(타입체크 + 해당 화면 수동 1회)
   - [ ] `pnpm typecheck` 통과
 
 ### Task 6: App.tsx frames 전달
@@ -72,13 +78,13 @@
 
 ## 테스트 계획
 - **단위 테스트**: `trim-math.test.ts` — `previewTrimBounds`(full/시작/끝/양쪽), `replayLogTrimBounds`, `isTrimmedOut` 경계. apply-trim 리팩터 전후 경계 동일성 고정.
-- **e2e 시나리오**(`/e2e-write` 입력):
-  - 트림 오버레이에서 `replay-trim-tab-console` 클릭하면 콘솔 로그 리스트가 보인다.
-  - 각 로그 탭에 카운트 Badge 숫자가 로그 개수와 일치한다.
-  - 트림 핸들을 안쪽으로 옮기면 구간 밖 로그 row에 `data-muted` 속성이 생긴다.
-  - 콘솔 탭에서 제출하면 `data-muted`였던 로그가 제출 후 사라진다(흐림 = 실제 잘림 일치).
-  - 재생 중 로그 탭으로 전환하면 재생 버튼이 disabled가 된다.
-  - 에러 마커 클릭 시 해당 로그 탭으로 전환된다.
+- **e2e 시나리오**(`/e2e-write` 입력, 기존 `replay-trim*.spec.ts` 패턴 재사용):
+  - `replay-trim-tab-console` 클릭하면 콘솔 로그 리스트가 보인다.
+  - 각 로그 탭 trigger에 카운트 Badge 숫자가 로그 개수와 일치한다(탭 trigger 텍스트 또는 Badge testid로 판정).
+  - 트림 핸들(슬라이더 키보드 드래그)을 안쪽으로 옮기면 구간 밖 로그 row에 `data-muted` 속성이 붙고, 구간 안 row엔 없다.
+  - **흐림=실제잘림**: 콘솔 탭에서 `data-muted` row id를 기록 → 제출(`replay-trim-confirm`) → 오버레이가 닫히므로 **drafting preview(`replay-trim-logs.spec.ts`의 개수 N→M 패턴)에서** 그 row가 제거됐는지 단언(오버레이 안이 아니라 제출 후 화면에서 판정).
+  - 재생(`replay-trim-play`) 시작 후 `replay-trim-tab-console` 전환 → `replay-trim-play`가 disabled.
+  - 에러 마커 클릭 시 해당 로그 탭(`replay-trim-tab-{console|network}`)으로 전환된다.
 - **수동 테스트**(captureVisibleTab/시각 의존):
   - 숨긴 영상이 로그 탭에서 멈춘 채 타임라인 스크럽이 정상인지.
   - muted opacity와 레벨/상태 색상이 동시에 식별되는지(다크모드 포함).
