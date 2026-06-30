@@ -17,7 +17,7 @@
   - fallback 안내 포함: `ask the user`(또는 동등 문구).
   - 캡 신호 언급 포함: `warnings`, `totalSeen`(또는 `captured`).
 - **검증**:
-  - [ ] 테스트 작성 후 (상수 미구현 상태면) import 실패/red 확인 → Task 2 후 green.
+  - [x] 테스트 작성 후 (상수 미구현 상태면) import 실패/red 확인 → Task 2 후 green.
 
 ### Task 2: 매뉴얼 상수 추가
 - **변경 대상**: `src/sidepanel/lib/aiLogsManual.ts` (신규)
@@ -31,22 +31,22 @@
   - 데이터 참조 시 닫는 script 태그(`</script`) 표기 금지.
   - **TS 작성 주의**: 백틱 템플릿 리터럴로 쓰면 본문의 백틱·`${`가 깨진다. 레시피는 펜스·`${` 없는 들여쓰기 코드로 유지하거나, 안전하게 일반 문자열 결합/`String.raw`를 검토.
 - **검증**:
-  - [ ] `pnpm test aiLogsManual` green.
-  - [ ] `pnpm typecheck` 통과.
+  - [x] `pnpm test aiLogsManual` green.
+  - [x] `pnpm typecheck` 통과.
 
 ### Task 3: 템플릿에 placeholder 추가
 - **변경 대상**: `src/log-viewer/index.html`
 - **작업 내용**: `<head>`의 `<meta charset="UTF-8" />` **바로 다음**(둘째 자식)에 `<script id="__BUGSHOT_AI__" type="text/markdown"></script>` 추가. (charset 앞에 두지 말 것 — 1024바이트 규칙 위반 → 비-ASCII META mojibake.)
 - **검증**:
-  - [ ] `pnpm build:log-viewer` 후 `dist-log-viewer/index.html`에 `id="__BUGSHOT_AI__"`가 **여전히 빈 `<script id="__BUGSHOT_AI__" ...></script>` 형태로 보존**(Task 4 정규식 `[^>]*><\/script>`가 매치 가능)되는지 — vite가 drop/reorder/속성변형 시 buildLogsHtml이 silent no-op로 매뉴얼을 누락한다.
-  - [ ] 산출물에서 placeholder가 `<meta charset>` 다음·거대 inline 모듈 스크립트보다 앞에 위치.
-  - [ ] **dist 재빌드 의존 명시**: `dist-log-viewer/index.html`을 재빌드하지 않으면 매뉴얼이 조용히 빠진다(buildLogsHtml은 `?raw`로 이 파일을 읽음). `/build`는 `build:log-viewer`를 자동 선행하므로 정상 빌드 시 갱신됨.
+  - [x] `pnpm build:log-viewer` 후 `dist-log-viewer/index.html`에 `id="__BUGSHOT_AI__"`가 **여전히 빈 `<script id="__BUGSHOT_AI__" ...></script>` 형태로 보존**(Task 4 정규식 `[^>]*><\/script>`가 매치 가능)되는지 — vite가 drop/reorder/속성변형 시 buildLogsHtml이 silent no-op로 매뉴얼을 누락한다. → `pnpm build` 후 grep 매치 1건 확인.
+  - [x] 산출물에서 placeholder가 `<meta charset>` 다음·거대 inline 모듈 스크립트보다 앞에 위치. → 순서 `charset → __BUGSHOT_AI__ → script type=module` 확인.
+  - [x] **dist 재빌드 의존 명시**: `dist-log-viewer/index.html`을 재빌드하지 않으면 매뉴얼이 조용히 빠진다(buildLogsHtml은 `?raw`로 이 파일을 읽음). `/build`는 `build:log-viewer`를 자동 선행하므로 정상 빌드 시 갱신됨. → `pnpm build`로 09:43 재생성 완료.
 
 ### Task 4: buildLogsHtml에 주입 추가
 - **변경 대상**: `src/sidepanel/lib/buildLogsHtml.ts`
 - **작업 내용**: `AI_LOGS_MANUAL` import. `__BUGSHOT_AI__` placeholder를 매뉴얼로 치환하는 `.replace()` 추가(DATA/META와 동일하게 함수형 replacement). 정규식: `/<script id="__BUGSHOT_AI__"[^>]*><\/script>/` → `() => \`<script id="__BUGSHOT_AI__" type="text/markdown">${AI_LOGS_MANUAL}</script>\``.
 - **검증**:
-  - [ ] `pnpm typecheck` 통과.
+  - [x] `pnpm typecheck` 통과.
 
 ### Task 5: buildLogsHtml 테스트 갱신
 - **변경 대상**: `src/sidepanel/lib/__tests__/buildLogsHtml.test.ts`
@@ -56,7 +56,7 @@
   - 케이스 추가: 매뉴얼 주입이 기존 DATA/META 추출(`extractData`)을 깨지 않는다(round-trip 유지).
   - 케이스 추가(불변식 승격): 매뉴얼이 평문 `"issueUrl":""` 마커를 **추가하지 않는다** — 기존 test16(`split('"issueUrl":""').length-1 === 1`)이 자동으로 이를 가드하지만, 매뉴얼 주입 후에도 META 태그에만 마커가 정확히 1개임을 명시 단언(injectIssueUrl `lastIndexOf` 오작동 방지).
 - **검증**:
-  - [ ] `pnpm test buildLogsHtml` green.
+  - [x] `pnpm test buildLogsHtml` green.
   - [ ] 주의: `vi.mock` 목 템플릿은 **빈 placeholder**라 self-match·실제 매뉴얼 내용은 검증 못 함 — 그건 Task 6(실제 산출물)에서 확인.
 
 ### Task 6: 실제 산출물 수동 확인 (self-match·가치 검증의 유일 게이트)
@@ -66,7 +66,7 @@
   - [ ] 뷰어 렌더 회귀 없음 + 한글 issueTitle·로그 mojibake 없음(charset 보존).
   - [ ] 매뉴얼 비가시(화면에 텍스트 안 뜸).
   - [ ] 매뉴얼이 `<meta charset>` 직후에 보임.
-  - [ ] **매뉴얼 안의 레시피를 그대로 복붙 실행**(빈 목 아님, 실제 매뉴얼 포함 파일) → 진짜 `__BUGSHOT_DATA__`(매뉴얼 자신 아님)를 매치해 console/network/action/report 복원 성공. ← self-match 함정은 여기서만 잡힌다.
+  - [x] **매뉴얼 안의 레시피를 그대로 복붙 실행**(빈 목 아님, 실제 매뉴얼 포함 파일) → 진짜 `__BUGSHOT_DATA__`(매뉴얼 자신 아님)를 매치해 console/network/action/report 복원 성공. ← self-match 함정은 여기서만 잡힌다. → 실제 레시피 정규식으로 프로그램 검증: 진짜 blob 캡처·디코드 성공, naive 첫-매치였다면 self-match로 깨짐을 대조 확인.
   - [ ] **실제 AI 스모크**: 같은 파일을 Claude.ai 분석 도구(또는 ChatGPT Python)에 1회 업로드 → AI가 매뉴얼을 읽고 디코드해 실제 로그·report를 인용·진단하는지 확인.
 
 ## 테스트 계획

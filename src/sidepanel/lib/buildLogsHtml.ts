@@ -3,6 +3,7 @@ import type { ConsoleLog } from "@/types/console";
 import type { ActionLog } from "@/types/action";
 import type { LogViewerData, LogViewerReport } from "@/types/log-viewer";
 import { gzipToBase64 } from "@/lib/gzip-base64";
+import { AI_LOGS_MANUAL } from "./aiLogsManual";
 import template from "../../../dist-log-viewer/index.html?raw";
 
 export async function buildLogsHtml(
@@ -42,6 +43,7 @@ export async function buildLogsHtml(
 
   // 함수형 replacement — metaJson의 user-controlled 값(issueTitle·pageUrl)에 `$&`·`$1` 등이 있어도
   // String.replace의 특수 치환 패턴으로 오해석되지 않도록 한다(injectIssueUrl과 동일 패턴).
+  // AI_LOGS_MANUAL은 정적이라 특수 패턴 위험은 없으나 일관성 위해 동일하게 함수형으로 넣는다.
   return template
     .replace(
       /<script id="__BUGSHOT_DATA__"[^>]*><\/script>/,
@@ -50,5 +52,9 @@ export async function buildLogsHtml(
     .replace(
       /<script id="__BUGSHOT_META__"[^>]*><\/script>/,
       () => `<script id="__BUGSHOT_META__" type="application/json">${metaJson}</script>`,
+    )
+    .replace(
+      /<script id="__BUGSHOT_AI__"[^>]*><\/script>/,
+      () => `<script id="__BUGSHOT_AI__" type="text/markdown">${AI_LOGS_MANUAL}</script>`,
     );
 }
