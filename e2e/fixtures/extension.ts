@@ -199,22 +199,42 @@ export const test = base.extend<object, { ext: ExtContext }>({
 export const expect = test.expect;
 
 // picker 선택 — blocker(overlay) 경유 bbox 중심 클릭. hover로 하이라이트를 먼저 유도한다.
+// expectSelection(기본 true): repick이 뜰 때까지 hover+click을 재시도한다. repick 클릭 직후
+// 재arm 레이스(panel은 "repick 숨김"인데 content script picker가 아직 안 붙어 단발 클릭이 유실)로
+// 인한 flaky를 막는다. 선택이 안 되는 픽(iframe 미지원 등)은 expectSelection:false로 1회만.
 export async function pickElement(
   fixture: Page,
   panel: Page,
   selector: string,
+  opts: { expectSelection?: boolean } = {},
 ): Promise<void> {
+  const { expectSelection = true } = opts;
   await fixture.bringToFront();
-  const box = await fixture.locator(selector).boundingBox();
-  if (!box) throw new Error(`pickElement: ${selector}의 boundingBox 없음`);
-  const cx = box.x + box.width / 2;
-  const cy = box.y + box.height / 2;
-  await fixture.mouse.move(cx, cy);
-  // double rAF — picker 오버레이가 hover 타깃을 반영할 시간을 준다 (PoC 실측).
-  await fixture.evaluate(
-    () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))),
-  );
-  await fixture.mouse.click(cx, cy);
+  const clickOnce = async () => {
+    const box = await fixture.locator(selector).boundingBox();
+    if (!box) throw new Error(`pickElement: ${selector}의 boundingBox 없음`);
+    const cx = box.x + box.width / 2;
+    const cy = box.y + box.height / 2;
+    await fixture.mouse.move(cx, cy);
+    // double rAF — picker 오버레이가 hover 타깃을 반영할 시간을 준다 (PoC 실측).
+    await fixture.evaluate(
+      () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))),
+    );
+    await fixture.mouse.click(cx, cy);
+  };
+
+  if (!expectSelection) {
+    await clickOnce();
+    await panel.bringToFront();
+    return;
+  }
+
+  // 클릭이 picker 재arm 전에 떨어지면 유실되므로 repick 노출까지 재클릭(이미 선택됐으면
+  // picker가 idle이라 추가 클릭은 무해 — 동일 요소 재선택은 idempotent).
+  await expect(async () => {
+    await clickOnce();
+    await expect(panel.getByTestId("repick")).toBeVisible({ timeout: 1000 });
+  }).toPass({ timeout: 15000 });
   await panel.bringToFront();
 }
 
