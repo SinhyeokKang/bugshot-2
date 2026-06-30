@@ -7,7 +7,12 @@ import { expect, test } from "./fixtures/extension";
 
 const SETTINGS_KEY = "bugshot-settings";
 const ISSUES_KEY = "bugshot-issues";
-const SLACK_URL = "https://app.slack.com/client/T1/C123/p1700000000";
+// 보존 이슈 url=원 메시지 permalink(/archives/<channel>/p<ts>), key=메시지 ts.
+// parseSlackChannelId가 url에서 "C123"을, postSlackPromotionReply가 threadTs로 key를 쓴다.
+const SLACK_URL = "https://ws.slack.com/archives/C123/p1700000000123456";
+const SLACK_TS = "1700000000.123456";
+// 승격 백링크 e2e가 가로채는 fake 트래커 결과(SW fetch 없이 jira.submitIssue 응답을 스파이로 대체).
+const JIRA_URL = "https://your.atlassian.net/browse/BUG-123";
 
 function acct(platform: string) {
   const base = {
@@ -52,7 +57,7 @@ function issuesEnvelope() {
           pageUrl: "http://127.0.0.1/basic.html",
           draft: { title: "Slack promote e2e", sections: { description: "broken" } },
           snapshot: { before: false, after: false },
-          key: "C123",
+          key: SLACK_TS,
           url: SLACK_URL,
         },
       ],
@@ -98,6 +103,55 @@ async function cleanup(
   );
   await panel.close();
   await fixture.close();
+}
+
+// jira.submitIssue를 fake 성공으로, slack.postMessage를 기록(또는 reject)으로 가로채는 스파이.
+// 둘 다 sendBg→chrome.runtime.sendMessage 경유라 panel 컨텍스트에서 덮으면 SW fetch 없이 판정 가능.
+// 그 외 메시지는 원래 핸들러로 통과. 기록은 window.__slackPosts(payload 배열)로 노출.
+async function spySendMessage(
+  panel: Awaited<ReturnType<typeof seedAndOpenList>>["panel"],
+  rejectSlack = false,
+) {
+  await panel.evaluate(
+    ([jiraUrl, reject]) => {
+      const w = window as unknown as { __slackPosts?: unknown[] };
+      w.__slackPosts = [];
+      const orig = chrome.runtime.sendMessage.bind(chrome.runtime);
+      chrome.runtime.sendMessage = ((msg: { type?: string; payload?: unknown }, cb?: (r: unknown) => void) => {
+        if (msg?.type === "jira.submitIssue") {
+          cb?.({ ok: true, result: { key: "BUG-123", url: jiraUrl } });
+          return;
+        }
+        if (msg?.type === "slack.postMessage") {
+          (w.__slackPosts as unknown[]).push(msg.payload);
+          cb?.(reject ? { ok: false, error: "not_in_channel" } : { ok: true, result: { ts: "999" } });
+          return;
+        }
+        return orig(msg as never, cb as never);
+      }) as typeof chrome.runtime.sendMessage;
+    },
+    [JIRA_URL, rejectSlack] as const,
+  );
+}
+
+async function promoteToJira(
+  panel: Awaited<ReturnType<typeof seedAndOpenList>>["panel"],
+) {
+  await panel.getByTestId("promote-issue").click();
+  await expect(panel.getByTestId("submit-issue-confirm")).toBeVisible();
+  // 기본 선택 플랫폼이 비결정적이라 jira 탭을 명시 선택(fake가 jira.submitIssue를 가로채므로).
+  await panel.getByTestId("platform-tab-jira").click();
+  const confirm = panel.getByTestId("submit-issue-confirm");
+  await expect(confirm).toBeEnabled();
+  await confirm.click();
+}
+
+async function slackPosts(
+  panel: Awaited<ReturnType<typeof seedAndOpenList>>["panel"],
+) {
+  return panel.evaluate(
+    () => (window as unknown as { __slackPosts?: Record<string, string>[] }).__slackPosts ?? [],
+  );
 }
 
 test.describe.serial("Slack 이슈 승격", () => {
@@ -176,6 +230,49 @@ test.describe.serial("Slack 이슈 승격", () => {
     await expect(panel.getByTestId("view-detail-issue")).toHaveCount(0);
     await expect(panel.getByTestId("promote-issue")).toHaveCount(0);
     await expect(panel.getByTestId("slack-submitted-badge")).toBeVisible();
+
+    await cleanup(fixture, panel);
+  });
+
+  test("Jira로 승격하면 원 슬랙 스레드에 트래커 URL 댓글 1회 — channel·threadTs·text 검증", async ({ ext }) => {
+    const { fixture, panel } = await seedAndOpenList(ext, ["slack", "jira", "github"]);
+    await spySendMessage(panel);
+
+    await promoteToJira(panel);
+
+    // 승격 성공 화면(SubmitSuccessView) — fake 트래커 key 링크로 판정(i18n 무관).
+    await expect(panel.getByRole("link", { name: "BUG-123" })).toBeVisible();
+
+    const posts = await slackPosts(panel);
+    expect(posts).toHaveLength(1);
+    expect(posts[0].channelId).toBe("C123");
+    expect(posts[0].threadTs).toBe(SLACK_TS);
+    expect(posts[0].text).toContain(JIRA_URL);
+
+    await cleanup(fixture, panel);
+  });
+
+  test("Slack 미연결 상태로 승격하면 slack.postMessage 0회 + 승격 성공", async ({ ext }) => {
+    const { fixture, panel } = await seedAndOpenList(ext, ["jira", "github"]);
+    await spySendMessage(panel);
+
+    await promoteToJira(panel);
+
+    await expect(panel.getByRole("link", { name: "BUG-123" })).toBeVisible();
+    expect(await slackPosts(panel)).toHaveLength(0);
+
+    await cleanup(fixture, panel);
+  });
+
+  test("slack.postMessage가 reject해도 승격 성공 화면이 정상 표시", async ({ ext }) => {
+    const { fixture, panel } = await seedAndOpenList(ext, ["slack", "jira", "github"]);
+    await spySendMessage(panel, true);
+
+    await promoteToJira(panel);
+
+    await expect(panel.getByRole("link", { name: "BUG-123" })).toBeVisible();
+    // best-effort라 호출은 기록되되 reject가 승격 흐름을 막지 않는다.
+    expect(await slackPosts(panel)).toHaveLength(1);
 
     await cleanup(fixture, panel);
   });
