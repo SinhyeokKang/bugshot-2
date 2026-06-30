@@ -469,6 +469,8 @@ export function DraftDetailDialog({
       label: ghFields.label,
       assignee: ghFields.assignee,
       cc: ghFields.cc,
+      // 승격은 markSubmitted가 Slack 원본을 파괴하므로 미디어 업로드 실패 시 등록 전 중단.
+      requireMediaUpload: isSlackPreserved(issue),
     });
     markSubmitted(issue.id, {
       platform: "github",
