@@ -65,6 +65,7 @@ export function IssueTab() {
   const reset = useEditorStore((s) => s.reset);
   const sessionExpired = useEditorStore((s) => s.sessionExpired);
   const tabId = useBoundTabId();
+  const { trimming } = useReplay();
 
   useEffect(() => {
     if (!tabId) return;
@@ -102,6 +103,11 @@ export function IssueTab() {
   }
 
   if (phase === "drafting") {
+    // 30s replay trim 오버레이가 떠 있는 동안엔 DraftingPanel(LazyTiptapEditor)을 마운트하지 않는다.
+    // overlay(ReplayTrimDialog)와 TiptapEditor 두 lazy 청크가 동시에 Suspense 로드되면 editor
+    // 라이프사이클 레이스로 storage.markdown이 사라진 stale editor를 건드려 흰 화면이 됐다(replay-trim-refactor 회귀).
+    // overlay가 화면을 덮고 있어 trim 중 draft 편집은 불가하므로, 확정/취소 후 마운트해도 UX 동일.
+    if (trimming) return null;
     return (
       <>
         <DraftingPanel />

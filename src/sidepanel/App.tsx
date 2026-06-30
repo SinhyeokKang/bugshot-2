@@ -186,6 +186,7 @@ export default function App() {
         isEncoding: replay.isEncoding,
         bufferedSeconds: replay.bufferedSeconds,
         capture: replay.capture,
+        trimming: replay.pendingTrim != null,
       }}
     >
     <div className="relative flex h-screen flex-col">
