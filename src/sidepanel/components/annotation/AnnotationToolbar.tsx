@@ -172,14 +172,14 @@ export function AnnotationToolbar({
       </div>
 
       {/* 2단: 색상 + 두께. select 도구면 내용만 invisible로 숨겨 높이를 예약하되,
-          배경은 canvas와 같은 bg-muted/50로 둬 회색이 끊기지 않게 한다. inert로 포커스 차단. */}
+          배경은 canvas와 같은 bg-muted로 둬 회색이 끊기지 않게 한다(trim 오버레이 canvas와 동일 톤). inert로 포커스 차단. */}
       <div
         ref={(el) => {
           if (el) el.inert = !showStyleRow;
         }}
         className={cn(
           "flex items-center justify-between gap-2 px-4 py-4",
-          showStyleRow ? "border-b bg-background" : "bg-muted/70",
+          showStyleRow ? "border-b bg-background" : "bg-muted",
         )}
       >
         <ButtonGroup className={cn("flex-nowrap", !showStyleRow && "invisible")}>
@@ -260,7 +260,7 @@ export function AnnotationToolbar({
       </div>
 
       {/* canvas 영역 */}
-      <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto bg-muted/70">
+      <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto bg-muted">
         {children}
       </div>
 
