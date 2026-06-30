@@ -24,6 +24,7 @@ import {
   collectReferencedTokenNames,
   parseBorderShorthand,
   expandShorthands,
+  normalizePositionOffsets,
   type EditableHandle,
 } from "../css-resolve";
 
@@ -244,6 +245,49 @@ describe("expandShorthands — border shorthand 전개", () => {
     expandShorthands(all, {});
     expect(all["border-top-color"]).toBe("var(--accent)");
     expect(all["border-right-color"]).toBe("red");
+  });
+
+  it("inset 단축 → top/right/bottom/left TRBL 전개", () => {
+    const all: Record<string, string> = { inset: "16px 24px" };
+    const sources: Record<string, string> = { inset: ".box" };
+    expandShorthands(all, sources);
+    expect(all.top).toBe("16px");
+    expect(all.right).toBe("24px");
+    expect(all.bottom).toBe("16px");
+    expect(all.left).toBe("24px");
+    expect(sources.top).toBe(".box");
+  });
+
+  it("inset 단축은 기존 longhand를 안 덮음 (fill-if-absent)", () => {
+    const all: Record<string, string> = { inset: "0px", top: "10px" };
+    expandShorthands(all, {});
+    expect(all.top).toBe("10px");
+    expect(all.bottom).toBe("0px");
+  });
+});
+
+describe("normalizePositionOffsets — 미지정 오프셋 auto 정규화", () => {
+  it("작성자 미지정 변은 computed used px 대신 auto", () => {
+    const computed: Record<string, string> = {
+      top: "16px",
+      right: "480px",
+      bottom: "240px",
+      left: "24px",
+    };
+    const specified: Record<string, string> = { top: "16px", left: "24px" };
+    normalizePositionOffsets(computed, specified);
+    expect(computed.top).toBe("16px");
+    expect(computed.left).toBe("24px");
+    expect(computed.right).toBe("auto");
+    expect(computed.bottom).toBe("auto");
+  });
+
+  it("작성자 지정 변은 computed 값을 보존", () => {
+    const computed: Record<string, string> = { top: "16px", bottom: "8px" };
+    const specified: Record<string, string> = { top: "16px", bottom: "8px" };
+    normalizePositionOffsets(computed, specified);
+    expect(computed.top).toBe("16px");
+    expect(computed.bottom).toBe("8px");
   });
 });
 
