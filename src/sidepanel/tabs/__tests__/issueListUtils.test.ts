@@ -1,15 +1,27 @@
 import { describe, expect, it } from "vitest";
 import {
+  canPromoteSlack,
   formatIssueKey,
   isRefreshable,
+  isSlackPreserved,
   matchesQuery,
   matchesStatus,
   parseGithubIssueNumber,
   parseGithubIssueUrl,
+  promotableTargets,
   resolveGithubCoords,
+  resolveInitialPlatform,
   resolveNotionPageId,
+  submittablePlatforms,
 } from "../issueListUtils";
 import type { IssueRecord } from "@/store/issues-store";
+import type { Accounts, PlatformId } from "@/types/platform";
+
+function makeAccounts(...platforms: PlatformId[]): Accounts {
+  const acc: Record<string, unknown> = {};
+  for (const p of platforms) acc[p] = { platform: p, connectedAt: 0 };
+  return acc as Accounts;
+}
 
 function makeIssue(overrides: Partial<IssueRecord> = {}): IssueRecord {
   return {
@@ -289,7 +301,7 @@ describe("isRefreshable", () => {
       key: "TASK_GID",
       url: "https://app.asana.com/0/0/TASK_GID",
       asanaTaskGid: "TASK_GID",
-    } as Partial<IssueRecord>);
+    });
     expect(isRefreshable(issue)).toBe(true);
   });
 
@@ -299,7 +311,7 @@ describe("isRefreshable", () => {
       key: "TASK_GID",
       url: "https://app.asana.com/0/0/TASK_GID",
       asanaTaskGid: undefined,
-    } as Partial<IssueRecord>);
+    });
     expect(isRefreshable(issue)).toBe(false);
   });
 
@@ -309,7 +321,7 @@ describe("isRefreshable", () => {
       key: "abc123",
       url: "https://app.clickup.com/t/abc123",
       clickupTaskId: "abc123",
-    } as Partial<IssueRecord>);
+    });
     expect(isRefreshable(issue)).toBe(true);
   });
 
@@ -319,7 +331,7 @@ describe("isRefreshable", () => {
       key: "abc123",
       url: "https://app.clickup.com/t/abc123",
       clickupTaskId: undefined,
-    } as Partial<IssueRecord>);
+    });
     expect(isRefreshable(issue)).toBe(false);
   });
 });
@@ -338,6 +350,17 @@ describe("matchesStatus", () => {
   it("'submitted'는 submitted만 true", () => {
     expect(matchesStatus(makeIssue({ status: "submitted" }), "submitted")).toBe(true);
     expect(matchesStatus(makeIssue({ status: "draft" }), "submitted")).toBe(false);
+  });
+
+  // Slack 보존 이슈는 status="submitted"라 submitted 필터에 뜨고 draft 필터엔 안 뜬다 (목표 2).
+  it("slack 보존 이슈는 submitted로 분류 (draft 필터엔 미노출)", () => {
+    const issue = makeIssue({
+      status: "submitted",
+      platform: "slack",
+      slackPreserved: true,
+    });
+    expect(matchesStatus(issue, "submitted")).toBe(true);
+    expect(matchesStatus(issue, "draft")).toBe(false);
   });
 });
 
@@ -367,5 +390,110 @@ describe("resolveNotionPageId", () => {
         url: "https://www.notion.so/work/Plain-Slug-without-id",
       }),
     ).toBeNull();
+  });
+});
+
+function slackPreservedIssue(overrides: Partial<IssueRecord> = {}): IssueRecord {
+  return makeIssue({
+    status: "submitted",
+    platform: "slack",
+    slackPreserved: true,
+    ...overrides,
+  });
+}
+
+describe("isSlackPreserved", () => {
+  it("submitted + slackPreserved=true → true", () => {
+    expect(isSlackPreserved(slackPreservedIssue())).toBe(true);
+  });
+
+  it("draft는 false (slackPreserved 플래그가 있어도)", () => {
+    expect(
+      isSlackPreserved(
+        makeIssue({ status: "draft", slackPreserved: true }),
+      ),
+    ).toBe(false);
+  });
+
+  it("submitted + 플래그 없음 → false (일반 제출 이슈)", () => {
+    expect(isSlackPreserved(makeIssue({ status: "submitted" }))).toBe(false);
+  });
+});
+
+describe("promotableTargets", () => {
+  it("slack만 연결 → [] (승격 대상 없음)", () => {
+    expect(promotableTargets(makeAccounts("slack"))).toEqual([]);
+  });
+
+  it("slack + jira → ['jira'] (slack 제외)", () => {
+    expect(promotableTargets(makeAccounts("slack", "jira"))).toEqual(["jira"]);
+  });
+
+  it("jira + github + slack → fallback 순서대로 slack 제외", () => {
+    expect(promotableTargets(makeAccounts("github", "jira", "slack"))).toEqual([
+      "jira",
+      "github",
+    ]);
+  });
+
+  it("아무것도 연결 안 됨 → []", () => {
+    expect(promotableTargets(makeAccounts())).toEqual([]);
+  });
+});
+
+describe("canPromoteSlack", () => {
+  it("slack 보존 이슈 + 트래커 1개 → true", () => {
+    expect(canPromoteSlack(slackPreservedIssue(), makeAccounts("slack", "jira"))).toBe(true);
+  });
+
+  it("slack 보존 이슈 + 트래커 0 (slack만 연결) → false", () => {
+    expect(canPromoteSlack(slackPreservedIssue(), makeAccounts("slack"))).toBe(false);
+  });
+
+  it("일반 submitted 이슈는 트래커 있어도 false", () => {
+    expect(
+      canPromoteSlack(makeIssue({ status: "submitted" }), makeAccounts("jira")),
+    ).toBe(false);
+  });
+
+  it("draft는 false", () => {
+    expect(canPromoteSlack(makeIssue({ status: "draft" }), makeAccounts("jira"))).toBe(false);
+  });
+});
+
+describe("submittablePlatforms", () => {
+  it("slack 보존 이슈 → slack 제외 목록", () => {
+    expect(
+      submittablePlatforms(slackPreservedIssue(), makeAccounts("slack", "jira", "github")),
+    ).toEqual(["jira", "github"]);
+  });
+
+  it("일반 draft → connectedPlatforms 전체 (slack 포함)", () => {
+    expect(
+      submittablePlatforms(makeIssue({ status: "draft" }), makeAccounts("jira", "slack")),
+    ).toEqual(["jira", "slack"]);
+  });
+});
+
+describe("resolveInitialPlatform", () => {
+  it("picked=slack이 available에 없으면 available 첫 항목으로 보정", () => {
+    expect(resolveInitialPlatform("slack", ["jira"])).toBe("jira");
+  });
+
+  it("picked가 available에 있으면 그대로 유지", () => {
+    expect(resolveInitialPlatform("jira", ["jira", "github"])).toBe("jira");
+    expect(resolveInitialPlatform("github", ["jira", "github"])).toBe("github");
+  });
+
+  it("picked=null + available 비어있음 → 'jira' 폴백", () => {
+    expect(resolveInitialPlatform(null, [])).toBe("jira");
+  });
+
+  it("picked=slack + available 비어있음 → 'jira' 폴백", () => {
+    expect(resolveInitialPlatform("slack", [])).toBe("jira");
+  });
+
+  it("picked=null이지만 available 있으면 available 첫 항목", () => {
+    expect(resolveInitialPlatform(null, ["github", "linear"])).toBe("github");
   });
 });

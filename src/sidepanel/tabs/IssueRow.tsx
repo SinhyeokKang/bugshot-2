@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Trash2 } from "lucide-react";
+import { FileText, Trash2, Upload } from "lucide-react";
 import { useT } from "@/i18n";
 import {
   AlertDialog,
@@ -13,26 +13,36 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { ButtonGroup } from "@/components/ui/button-group";
 import { useIssuesStore, type IssueRecord } from "@/store/issues-store";
+import { useSettingsStore } from "@/store/settings-store";
 import { PlatformChip } from "./statusBadges/PlatformChip";
 import { SubmittedBadge } from "./statusBadges/SubmittedBadge";
-import { formatDate, formatIssueKey, issueTimestamp } from "./issueListUtils";
+import { canPromoteSlack, formatDate, formatIssueKey, issueTimestamp } from "./issueListUtils";
 
 export function IssueRow({
   issue,
   refreshKey,
   onOpenDraft,
+  onOpenSubmit,
   onBadgeLoaded,
 }: {
   issue: IssueRecord;
   refreshKey: number;
   onOpenDraft: () => void;
+  onOpenSubmit: () => void;
   onBadgeLoaded: () => void;
 }) {
   const t = useT();
   const isSubmitted = issue.status === "submitted" && !!issue.url;
   const removeIssue = useIssuesStore((s) => s.removeIssue);
-  const [badgeHover, setBadgeHover] = useState(false);
+  const accounts = useSettingsStore((s) => s.accounts);
+  const promotable = canPromoteSlack(issue, accounts);
+  const [hoverSuppressed, setHoverSuppressed] = useState(false);
+  const hoverGuard = {
+    onMouseEnter: () => setHoverSuppressed(true),
+    onMouseLeave: () => setHoverSuppressed(false),
+  };
 
   const textMetaParts: string[] = [];
   if (isSubmitted) {
@@ -59,7 +69,7 @@ export function IssueRow({
 
   return (
     <div
-      className={`group flex cursor-pointer items-center justify-between gap-3 px-4 py-3 transition-colors ${badgeHover ? "" : "hover:bg-muted/50"}`}
+      className={`group flex cursor-pointer items-center justify-between gap-3 px-4 py-3 transition-colors ${hoverSuppressed ? "" : "hover:bg-muted/50"}`}
       onClick={handleCardClick}
       data-testid="issue-row"
       data-status={issue.status}
@@ -78,12 +88,33 @@ export function IssueRow({
           <span className="min-w-0 truncate">{textMetaParts.join(" · ")}</span>
         </span>
       </div>
-      {isSubmitted && issue.key ? (
-        <span
-          onClick={(e) => e.stopPropagation()}
-          onMouseEnter={() => setBadgeHover(true)}
-          onMouseLeave={() => setBadgeHover(false)}
-        >
+      {promotable ? (
+        <ButtonGroup className="shrink-0" onClick={(e) => e.stopPropagation()} {...hoverGuard}>
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-8 w-8"
+            aria-label={t("issueList.viewDetail")}
+            title={t("issueList.viewDetail")}
+            data-testid="view-detail-issue"
+            onClick={onOpenDraft}
+          >
+            <FileText />
+          </Button>
+          <Button
+            variant="outline"
+            size="icon"
+            className="h-8 w-8"
+            aria-label={t("issueList.promote")}
+            title={t("issueList.promote")}
+            data-testid="promote-issue"
+            onClick={onOpenSubmit}
+          >
+            <Upload />
+          </Button>
+        </ButtonGroup>
+      ) : isSubmitted && issue.key ? (
+        <span onClick={(e) => e.stopPropagation()} {...hoverGuard}>
           <SubmittedBadge
             issueId={issue.id}
             issueKey={issue.key}
@@ -112,6 +143,7 @@ export function IssueRow({
               className="h-8 w-8 shrink-0 text-muted-foreground hover:text-destructive"
               aria-label={t("issueList.deleteDraft.title")}
               onClick={(e) => e.stopPropagation()}
+              {...hoverGuard}
             >
               <Trash2 />
             </Button>

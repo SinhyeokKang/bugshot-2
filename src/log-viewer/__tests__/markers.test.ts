@@ -411,6 +411,33 @@ describe("buildMarkers — action 탭", () => {
     const markers = buildMarkers(data, "action", VIDEO_DURATION_SEC, VIDEO_STARTED_AT);
     expect(markers[0].type).toBe("action");
   });
+
+  it("drag source+target은 dragTo 라벨", () => {
+    const data = makeData({
+      actionLog: makeActionLog([
+        makeActionEntry({
+          kind: "drag",
+          dragSource: { name: "Card" },
+          dragTarget: { name: "Inbox" },
+        } as Partial<ActionEntry> & Pick<ActionEntry, "kind">),
+      ]),
+    });
+    const markers = buildMarkers(data, "action", VIDEO_DURATION_SEC, VIDEO_STARTED_AT);
+    expect(markers[0].label).toBe(t("actionLog.verb.dragTo", { source: "Card", target: "Inbox" }));
+  });
+
+  it("drag source name이 공백뿐이면 selector로 폴백 (트레일링 공백 방지)", () => {
+    const data = makeData({
+      actionLog: makeActionLog([
+        makeActionEntry({
+          kind: "drag",
+          dragSource: { name: "   ", selector: "div.card" },
+        } as Partial<ActionEntry> & Pick<ActionEntry, "kind">),
+      ]),
+    });
+    const markers = buildMarkers(data, "action", VIDEO_DURATION_SEC, VIDEO_STARTED_AT);
+    expect(markers[0].label).toBe(t("actionLog.verb.drag", { source: "div.card" }));
+  });
 });
 
 // ---------- positionPct 계산 ----------

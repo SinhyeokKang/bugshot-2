@@ -55,7 +55,9 @@ test("element shot 캡처 → drafting 진입", async ({ ext }) => {
   // element-shot은 picker.start(요소 선택) → captureElementShot → onElementShot → drafting.
   await captureUntilDrafting(panel, async () => {
     await panel.getByTestId("mode-element-shot").click();
-    await pickElement(fixture, panel, "#card");
+    // element-shot은 곧장 drafting으로 — repick이 안 뜨므로 재시도 비활성
+    // (유실 클릭은 captureUntilDrafting의 전체 트리거 재시도가 복구).
+    await pickElement(fixture, panel, "#card", { expectSelection: false });
   });
 
   await panel.close();
@@ -74,7 +76,9 @@ test("element shot 캡처 → previewing env에 DOM 행", async ({ ext }) => {
 
   await captureUntilDrafting(panel, async () => {
     await panel.getByTestId("mode-element-shot").click();
-    await pickElement(fixture, panel, "#card");
+    // element-shot은 곧장 drafting으로 — repick이 안 뜨므로 재시도 비활성
+    // (유실 클릭은 captureUntilDrafting의 전체 트리거 재시도가 복구).
+    await pickElement(fixture, panel, "#card", { expectSelection: false });
   });
 
   // 제목 입력 후 previewing 진입

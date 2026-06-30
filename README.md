@@ -62,7 +62,7 @@ When a still image isn't enough, record the behavior.
 Reproduction context, collected for you in the background.
 
 - **Network & console logs** — captured automatically while a capture is active and attached to the issue. Includes **WebSocket frames** and logs from **cross-origin iframes** (payment widgets, embeds), all filterable by origin.
-- **Action log** — clicks, text input, navigations, keyboard shortcuts, checkbox/radio toggles, and dropdown selections recorded as step-by-step reproduction. Sensitive field values are masked.
+- **Action log** — clicks, text input, navigations, keyboard shortcuts, checkbox/radio toggles, dropdown selections, and drag & drop recorded as step-by-step reproduction. Sensitive field values are masked.
 - **Log viewer** — a standalone `logs.html` report with a **video-synced timeline**: click any console/network/action entry to jump to that exact moment in the recording.
 
 ### 🤖 AI

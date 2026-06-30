@@ -1,6 +1,8 @@
 import { dateBcp47, type TranslationFn } from "@/i18n";
 import { extractNotionPageId } from "@/lib/notion-page-id";
 import type { IssueRecord } from "@/store/issues-store";
+import { connectedPlatforms } from "@/store/settings-store";
+import type { Accounts, PlatformId } from "@/types/platform";
 
 export type StatusFilter = "all" | "submitted" | "draft";
 
@@ -104,6 +106,39 @@ export function matchesQuery(issue: IssueRecord, q: string): boolean {
 export function matchesStatus(issue: IssueRecord, filter: StatusFilter): boolean {
   if (filter === "all") return true;
   return issue.status === filter;
+}
+
+// Slack 공유로 원본 데이터를 보존 중인 submitted 이슈 (승격 대상).
+export function isSlackPreserved(issue: IssueRecord): boolean {
+  return issue.status === "submitted" && !!issue.slackPreserved;
+}
+
+// 승격 가능한 트래커(= Slack 제외 연결 플랫폼).
+export function promotableTargets(accounts: Accounts): PlatformId[] {
+  return connectedPlatforms(accounts).filter((p) => p !== "slack");
+}
+
+// Slack 보존 이슈 + 승격 대상 트래커 1개 이상 → [자세히]·[승격] 노출 조건.
+export function canPromoteSlack(issue: IssueRecord, accounts: Accounts): boolean {
+  return isSlackPreserved(issue) && promotableTargets(accounts).length > 0;
+}
+
+// 제출 다이얼로그 available 탭. Slack 보존 이슈는 Slack 탭 제외.
+export function submittablePlatforms(
+  issue: IssueRecord,
+  accounts: Accounts,
+): PlatformId[] {
+  return isSlackPreserved(issue)
+    ? promotableTargets(accounts)
+    : connectedPlatforms(accounts);
+}
+
+// pickInitialPlatform 결과를 available로 보정 — Slack/미연결이 초기 탭으로 잡혀 깨지는 것 방어.
+export function resolveInitialPlatform(
+  picked: PlatformId | null,
+  available: PlatformId[],
+): PlatformId {
+  return picked && available.includes(picked) ? picked : (available[0] ?? "jira");
 }
 
 // Jira는 `[BUG-1]`, GitHub은 `#42`로 시각적 구분.

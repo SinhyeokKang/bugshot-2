@@ -60,6 +60,9 @@ export interface ShapeStyle {
 
 type Point = { x: number; y: number };
 
+// pen/highlight 입력 스무딩 계수(EMA). 낮을수록 강한 보정(손떨림 억제, 약간의 lag).
+export const PEN_SMOOTHING_ALPHA = 0.35;
+
 export function createShape(
   tool: Exclude<AnnotationTool, "select">,
   id: string,
@@ -92,8 +95,14 @@ export function updateShapeDraft(shape: AnnotationShape, pt: Point): AnnotationS
     case "arrow":
       return { ...shape, points: [shape.points[0], shape.points[1], pt.x, pt.y] };
     case "pen":
-    case "highlight":
-      return { ...shape, points: [...shape.points, pt.x, pt.y] };
+    case "highlight": {
+      const n = shape.points.length;
+      const px = shape.points[n - 2];
+      const py = shape.points[n - 1];
+      const sx = px + PEN_SMOOTHING_ALPHA * (pt.x - px);
+      const sy = py + PEN_SMOOTHING_ALPHA * (pt.y - py);
+      return { ...shape, points: [...shape.points, sx, sy] };
+    }
   }
 }
 

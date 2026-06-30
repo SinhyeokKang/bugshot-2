@@ -108,6 +108,48 @@ describe("buildActionLogJson", () => {
     expect(selEmpty.value).toBe("");
   });
 
+  it("drag source+target은 dragSource·dragTarget 둘 다 직렬화", () => {
+    const out = buildActionLogJson(
+      makeLog({
+        entries: [
+          {
+            id: "d1",
+            kind: "drag",
+            timestamp: 0,
+            pageUrl: "",
+            dragSource: { name: "카드", selector: "#card" },
+            dragTarget: { name: "받은편지함", selector: "#inbox" },
+          } as ActionLog["entries"][number],
+        ],
+      }),
+    ) as { entries: Record<string, unknown>[] };
+
+    const e = out.entries[0];
+    expect(e.kind).toBe("drag");
+    expect(e.dragSource).toEqual({ name: "카드", selector: "#card" });
+    expect(e.dragTarget).toEqual({ name: "받은편지함", selector: "#inbox" });
+  });
+
+  it("drag source-only는 dragTarget 키가 빠진다 (신뢰 신호 JSON 반영)", () => {
+    const out = buildActionLogJson(
+      makeLog({
+        entries: [
+          {
+            id: "d1",
+            kind: "drag",
+            timestamp: 0,
+            pageUrl: "",
+            dragSource: { name: "카드" },
+          } as ActionLog["entries"][number],
+        ],
+      }),
+    ) as { entries: Record<string, unknown>[] };
+
+    const e = out.entries[0];
+    expect(e.dragSource).toEqual({ name: "카드" });
+    expect("dragTarget" in e).toBe(false);
+  });
+
   it("masked=true면 masked 키 포함", () => {
     const out = buildActionLogJson(
       makeLog({

@@ -43,7 +43,17 @@ import {
   pickInitialPlatform,
   useSettingsStore,
 } from "@/store/settings-store";
-import type { NormalizedSubmitResult, PlatformId } from "@/types/platform";
+import {
+  isSlackPreserved,
+  resolveInitialPlatform,
+  submittablePlatforms,
+} from "./issueListUtils";
+import {
+  PLATFORM_TAB_KEYS,
+  type NormalizedSubmitResult,
+  type PlatformId,
+} from "@/types/platform";
+import { postSlackPromotionReply } from "@/sidepanel/lib/slackPromotionLink";
 import { submitToJira } from "@/sidepanel/lib/submitToJira";
 import { submitToGithub } from "@/sidepanel/lib/submitToGithub";
 import { submitToLinear } from "@/sidepanel/lib/submitToLinear";
@@ -99,11 +109,13 @@ export function DraftDetailDialog({
   open,
   onOpenChange,
   onSubmitSuccess,
+  autoOpenSubmit,
 }: {
   issue: IssueRecord | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSubmitSuccess?: (result: NormalizedSubmitResult) => void;
+  autoOpenSubmit?: boolean;
 }) {
   const t = useT();
   const accounts = useSettingsStore((s) => s.accounts);
@@ -117,6 +129,7 @@ export function DraftDetailDialog({
   const slackAccount = accounts.slack;
   const removeIssue = useIssuesStore((s) => s.removeIssue);
   const markSubmitted = useIssuesStore((s) => s.markSubmitted);
+  const markSlackShared = useIssuesStore((s) => s.markSlackShared);
   const patchIssue = useIssuesStore((s) => s.patchIssue);
   const sectionConfig = useSettingsUiStore((s) => s.issueSections);
 
@@ -133,12 +146,16 @@ export function DraftDetailDialog({
   const lastSlackSubmit = useSettingsStore((s) => s.lastSubmitFields.slack);
   const lastSubmittedPlatform = useSettingsStore((s) => s.lastSubmittedPlatform);
 
-  const available = useMemo(() => connectedPlatforms(accounts), [accounts]);
-  const initialPlatform = useMemo(
-    () => pickInitialPlatform(accounts, lastSubmittedPlatform),
-    [accounts, lastSubmittedPlatform],
+  // Slack 보존 이슈는 Slack 탭을 제외(승격 전용). 그 외엔 연결된 전체 플랫폼.
+  const available = useMemo(
+    () => (issue ? submittablePlatforms(issue, accounts) : connectedPlatforms(accounts)),
+    [issue, accounts],
   );
-  const [platform, setPlatform] = useState<PlatformId>(initialPlatform ?? "jira");
+  const initialPlatform = useMemo(
+    () => resolveInitialPlatform(pickInitialPlatform(accounts, lastSubmittedPlatform), available),
+    [accounts, lastSubmittedPlatform, available],
+  );
+  const [platform, setPlatform] = useState<PlatformId>(initialPlatform);
   const {
     ghFields,
     setGhFields,
@@ -189,18 +206,29 @@ export function DraftDetailDialog({
       Object.assign(base, restored);
     }
     setFields(base);
-    const initial =
+    const picked =
       issue && accounts[issue.platform]
         ? issue.platform
-        : pickInitialPlatform(accounts, lastSubmittedPlatform) ?? "jira";
-    setPlatform(initial);
+        : pickInitialPlatform(accounts, lastSubmittedPlatform);
+    // Slack 보존 이슈는 issue.platform이 "slack"이라 available에서 빠지므로 첫 트래커로 보정.
+    setPlatform(resolveInitialPlatform(picked, available));
     setSubmitOpen(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, issue?.id]);
 
+  // [승격] 진입 — prefill effect와 분리(deps에 issue.platform 트랩 회피). 열릴 때 제출 다이얼로그 자동 오픈.
+  useEffect(() => {
+    if (open && autoOpenSubmit) setSubmitOpen(true);
+  }, [open, autoOpenSubmit]);
+
   function handlePlatformChange(p: PlatformId) {
     setPlatform(p);
-    if (issue && issue.platform !== p) patchIssue(issue.id, { platform: p });
+    // Slack 보존 이슈는 platform="slack"을 유지해야 PlatformChip·permalink·canPromoteSlack이
+    // 일치한다. 승격 탭 전환을 영속화하면 미제출 닫기 시 platform만 트래커로 바뀌어 불일치.
+    // (실제 승격은 markSubmitted→stripSubmitted가 platform을 올바르게 세팅) — 일반 draft만 영속화.
+    if (issue && !isSlackPreserved(issue) && issue.platform !== p) {
+      patchIssue(issue.id, { platform: p });
+    }
   }
 
   const isScreenshot = issue?.captureMode === "screenshot";
@@ -441,6 +469,8 @@ export function DraftDetailDialog({
       label: ghFields.label,
       assignee: ghFields.assignee,
       cc: ghFields.cc,
+      // 승격은 markSubmitted가 Slack 원본을 파괴하므로 미디어 업로드 실패 시 등록 전 중단.
+      requireMediaUpload: isSlackPreserved(issue),
     });
     markSubmitted(issue.id, {
       platform: "github",
@@ -747,8 +777,7 @@ export function DraftDetailDialog({
       channelId: slackFields.channelId,
       mentions: slackFields.mentions,
     });
-    markSubmitted(issue.id, {
-      platform: "slack",
+    markSlackShared(issue.id, {
       key: result.key,
       url: result.url,
     });
@@ -767,6 +796,11 @@ export function DraftDetailDialog({
   }
 
   async function handleSubmit(submitPlatform: PlatformId): Promise<NormalizedSubmitResult> {
+    // markSubmitted가 issue.url/key를 트래커 값으로 덮고 slackPreserved를 비우므로 사전 캡처.
+    const slackOrigin =
+      issue && isSlackPreserved(issue) && slackAccount
+        ? { permalink: issue.url ?? "", ts: issue.key ?? "" }
+        : null;
     const { ctx, captureFiles } = await buildCtxForSubmit();
     let result: NormalizedSubmitResult;
     if (submitPlatform === "github") result = await handleGithubSubmit(ctx, captureFiles);
@@ -777,6 +811,12 @@ export function DraftDetailDialog({
     else if (submitPlatform === "clickup") result = await handleClickupSubmit(ctx, captureFiles);
     else if (submitPlatform === "slack") result = await handleSlackSubmit(ctx, captureFiles);
     else result = await handleJiraSubmit(ctx, captureFiles);
+    if (slackOrigin && submitPlatform !== "slack" && result.url) {
+      const text = `${t("slack.promotedComment", {
+        platform: t(PLATFORM_TAB_KEYS[submitPlatform]),
+      })}\n${result.url}`;
+      void postSlackPromotionReply({ ...slackOrigin, text });
+    }
     if (issue) {
       const activeRefs = extractInlineRefs(
         Object.values(issue.draft.sections).join("\n"),
@@ -915,7 +955,12 @@ export function DraftDetailDialog({
       )}
       <SubmitFieldsDialog
         open={submitOpen}
-        onOpenChange={setSubmitOpen}
+        onOpenChange={(v) => {
+          setSubmitOpen(v);
+          // 승격 진입은 제출 다이얼로그가 메인 화면 — 닫으면(취소 포함) 초안 다이얼로그까지
+          // 닫고 이슈 목록으로 돌아간다. 일반 진입([자세히])은 초안 검토를 위해 유지.
+          if (!v && autoOpenSubmit) onOpenChange(false);
+        }}
         title={t("issue.submit")}
         platform={platform}
         setPlatform={handlePlatformChange}

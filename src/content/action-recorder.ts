@@ -5,6 +5,8 @@ import {
   shouldMaskField,
   entryNavOnBind,
   formatKeyCombo,
+  exceedsDragThreshold,
+  DRAG_THRESHOLD_PX,
 } from "./action-recorder-helpers";
 import { createTrailingThrottle, FLUSH_INTERVAL_MS } from "./log-throttle";
 import { readPreArmFlag, setPreArmFlag } from "./recorder-prearm";
@@ -19,8 +21,17 @@ function actionRecorderScript(): void {
   // overlay.ts HOST_ID — MAIN world라 import 불가, 리터럴 동기화.
   const HOST_ID = "__bugshot_picker_host";
 
-  type Kind = "click" | "navigation" | "input" | "keypress" | "toggle" | "select";
+  type Kind = "click" | "navigation" | "input" | "keypress" | "toggle" | "select" | "drag";
   type NavType = "load" | "pushState" | "replaceState" | "popstate" | "hashchange";
+
+  // src/types/action.ts ActionNode와 동기화 — MAIN world라 import 대신 리터럴 복제.
+  interface DragNode {
+    name?: string;
+    role?: string;
+    selector?: string;
+    tagName?: string;
+    tagType?: string;
+  }
 
   interface CapturedAction {
     id: string;
@@ -38,6 +49,8 @@ function actionRecorderScript(): void {
     fieldLabel?: string;
     value?: string;
     masked?: boolean;
+    dragSource?: DragNode;
+    dragTarget?: DragNode;
     preArm?: boolean;
   }
 
@@ -47,6 +60,13 @@ function actionRecorderScript(): void {
   // pre-arm: active origin이면 sentinel 전에도 적재(capturing). dispatch는 sentinel 없으면 no-op.
   let capturing = readPreArmFlag();
   let lastUrl = location.href;
+
+  // 드래그 상태기계 (포인터 휴리스틱 source-only / 네이티브 DnD source+target).
+  interface DragCandidate { el: Element; x: number; y: number; pointerId: number; }
+  let dragCandidate: DragCandidate | null = null;
+  let dragging = false;
+  let suppressNextClick = false;
+  let pendingNativeDrag: DragNode | null = null;
 
   function genId(): string {
     if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -144,6 +164,29 @@ function actionRecorderScript(): void {
       selector,
       tagName: el.tagName.toLowerCase(),
       tagType: el.getAttribute("type") ?? undefined,
+    });
+  }
+
+  // recordClick 인라인 로직 재사용하되 closest 인터랙티브 승격은 제외 — 인자 element를
+  // 승격 없이 그대로 기술(grip 핸들·비인터랙티브 드롭존 div도 원소 그대로).
+  function describeNode(el: Element): DragNode {
+    return {
+      name: truncateName(accessibleName(el)) || undefined,
+      role: implicitRole(el) ?? undefined,
+      selector: buildLightSelector(el),
+      tagName: el.tagName.toLowerCase(),
+      tagType: el.getAttribute("type") ?? undefined,
+    };
+  }
+
+  function recordDrag(source: DragNode, target?: DragNode): void {
+    pushAction({
+      id: genId(),
+      kind: "drag",
+      timestamp: Date.now(),
+      pageUrl: location.href,
+      dragSource: source,
+      ...(target ? { dragTarget: target } : {}),
     });
   }
 
@@ -277,6 +320,8 @@ function actionRecorderScript(): void {
   document.addEventListener(
     "click",
     (e: MouseEvent) => {
+      // 직전 포인터 드래그가 합성한 click 1회를 삼킨다(pointerdown에서 리셋되어 1제스처 한정).
+      if (suppressNextClick) { suppressNextClick = false; return; }
       const target = e.target as Element | null;
       if (!target) return;
       const path = typeof e.composedPath === "function" ? e.composedPath() : undefined;
@@ -288,6 +333,102 @@ function actionRecorderScript(): void {
       if (resolvesToToggle(el)) return;
       recordClick(el);
     },
+    true,
+  );
+
+  // --- Drag: 포인터 휴리스틱 (source-only, 라이브러리 dnd 커버) ---
+  document.addEventListener(
+    "pointerdown",
+    (e: PointerEvent) => {
+      suppressNextClick = false; // 매 제스처 시작마다 리셋 — 플래그 누수 방지.
+      // 비녹화 시 candidate를 안 만들면 고빈도 pointermove가 null 체크로 즉시 return → 무료.
+      if (!capturing) return;
+      if (!e.isPrimary || e.button !== 0) return;
+      const target = e.target as Element | null;
+      if (!target) return;
+      const path = typeof e.composedPath === "function" ? e.composedPath() : undefined;
+      if (isOwnUi(target, path)) return;
+      dragCandidate = { el: target, x: e.clientX, y: e.clientY, pointerId: e.pointerId };
+      dragging = false;
+    },
+    true,
+  );
+  document.addEventListener(
+    "pointermove",
+    (e: PointerEvent) => {
+      if (!dragCandidate || e.pointerId !== dragCandidate.pointerId) return;
+      if (!dragging && exceedsDragThreshold(dragCandidate.x, dragCandidate.y, e.clientX, e.clientY, DRAG_THRESHOLD_PX)) {
+        dragging = true;
+      }
+    },
+    true,
+  );
+  document.addEventListener(
+    "pointerup",
+    (e: PointerEvent) => {
+      if (!dragCandidate || e.pointerId !== dragCandidate.pointerId) return;
+      const candidate = dragCandidate;
+      dragCandidate = null;
+      if (!dragging) return;
+      dragging = false;
+      const endEl = document.elementFromPoint(e.clientX, e.clientY);
+      const selection = typeof getSelection === "function" ? getSelection() : null;
+      // 가드: 요소 간 이동(팬·스크롤·슬라이더 제외) + 텍스트 선택 제외 + 자체 UI 제외.
+      // endEl은 가드 판정에만 쓰고 기록하지 않는다(고스트 신뢰 불가) → target 미부착.
+      if (
+        !endEl ||
+        isOwnUi(endEl) ||
+        endEl === candidate.el ||
+        selection?.isCollapsed === false
+      ) return;
+      recordDrag(describeNode(candidate.el));
+      suppressNextClick = true;
+    },
+    true,
+  );
+  document.addEventListener(
+    "pointercancel",
+    (e: PointerEvent) => {
+      // 네이티브 드래그 시작 시 브라우저가 pointercancel 발화 → 후보 클리어로 포인터 경로
+      // 무효화. 네이티브 경로(dragstart/drop)만 살아남는 중복 방지 핵심 메커니즘.
+      if (dragCandidate && e.pointerId === dragCandidate.pointerId) {
+        dragCandidate = null;
+        dragging = false;
+      }
+    },
+    true,
+  );
+
+  // --- Drag: 네이티브 HTML5 DnD (source+target, draggable=true 커버) ---
+  document.addEventListener(
+    "dragstart",
+    (e: DragEvent) => {
+      if (!capturing) return;
+      const target = e.target as Element | null;
+      if (!target) return;
+      const path = typeof e.composedPath === "function" ? e.composedPath() : undefined;
+      if (isOwnUi(target, path)) return;
+      pendingNativeDrag = describeNode(target);
+    },
+    true,
+  );
+  document.addEventListener(
+    "drop",
+    (e: DragEvent) => {
+      if (!pendingNativeDrag) return;
+      const target = e.target as Element | null;
+      const path = typeof e.composedPath === "function" ? e.composedPath() : undefined;
+      // drop의 e.target은 브라우저가 실제 드롭존으로 셋팅 → 신뢰 가능한 target.
+      if (target && !isOwnUi(target, path)) {
+        recordDrag(pendingNativeDrag, describeNode(target));
+      }
+      pendingNativeDrag = null;
+    },
+    true,
+  );
+  document.addEventListener(
+    "dragend",
+    () => { pendingNativeDrag = null; }, // 드롭 없이 끝나면 보류 폐기.
     true,
   );
 

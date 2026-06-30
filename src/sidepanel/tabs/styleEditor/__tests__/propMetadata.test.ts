@@ -135,6 +135,28 @@ describe("transition — getComputedStyle 유령 기본값 가드", () => {
   });
 });
 
+describe("position 오프셋 (inset TRBL)", () => {
+  it("PROP_CATEGORY top/right/bottom/left → length", () => {
+    expect(PROP_CATEGORY["top"]).toBe("length");
+    expect(PROP_CATEGORY["right"]).toBe("length");
+    expect(PROP_CATEGORY["bottom"]).toBe("length");
+    expect(PROP_CATEGORY["left"]).toBe("length");
+  });
+
+  it("computed 기본값 auto → 기본값 (static 요소 유령 펼침 방지)", () => {
+    expect(isKnownDefault("top", "auto")).toBe(true);
+    expect(isKnownDefault("right", "auto")).toBe(true);
+    expect(isKnownDefault("bottom", "auto")).toBe(true);
+    expect(isKnownDefault("left", "auto")).toBe(true);
+  });
+
+  it("실제 오프셋 값은 기본값 아님", () => {
+    expect(isKnownDefault("top", "0px")).toBe(false);
+    expect(isKnownDefault("left", "10px")).toBe(false);
+    expect(isKnownDefault("bottom", "-4px")).toBe(false);
+  });
+});
+
 describe("z-index", () => {
   it("PROP_CATEGORY z-index → number (px 미부착)", () => {
     expect(PROP_CATEGORY["z-index"]).toBe("number");

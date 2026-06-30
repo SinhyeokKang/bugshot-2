@@ -38,6 +38,17 @@ Slack is a messaging app rather than an issue tracker, so it works a little diff
 
 > Slack messages don't have an "open/closed" state, so the issue list just shows "Submitted"; click it to jump straight to the message.
 
+### Promote to a real tracker later
+
+Shared something to Slack and then realized it deserves a proper issue too? No worries. Issues you share to Slack keep their **original data — capture images, video, and logs — intact**. So the moment you connect a tracker like Jira or GitHub, two buttons appear on the right of that Slack card in the issue list: **View details** and **Promote to tracker**.
+
+- **View details**: reopen the saved capture and logs to take another look.
+- **Promote to tracker**: opens the submit dialog (with Slack left out). Pick a tracker, file it as a formal issue, and the card turns into a regular issue while the Slack history is cleared. BugShot also drops a **comment linking to the new tracker issue right in the original Slack thread**, so teammates following that conversation can see exactly where it landed.
+
+![View details and Promote buttons on a Slack card](../assets/integrations-platforms-3.jpg)
+
+> If you haven't connected a tracker yet, the two buttons stay hidden and you'll just see the "Submitted" badge and a shortcut to the message, as before. Connect a tracker later and the buttons quietly show up on the same card. Clicking the card body always jumps to the Slack message — that never changes, so don't worry.
+
 ## Defaults after connecting
 
 Once connected, you can pick a default location for new issues — a project for Jira/GitLab, a repository for GitHub, a team for Linear, a database for Notion, a project for Asana, a list for ClickUp (picked as Workspace → Space → List), a channel for Slack. Set it once and you won't have to choose it every time you write an issue, which saves a lot of clicks.

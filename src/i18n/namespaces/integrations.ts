@@ -64,6 +64,7 @@ const ko = {
   "github.error.429": "요청이 너무 많습니다. 잠시 후 다시 시도하세요.",
   "github.error.5xx": "GitHub 서버 오류. 잠시 후 다시 시도하세요.",
   "github.error.generic": "GitHub 요청 실패 ({status})",
+  "github.error.mediaUploadFailed": "이미지·첨부 업로드에 실패해 이슈를 등록하지 않았습니다. GitHub 로그인 상태를 확인하고 다시 시도하세요.",
   "gitlab.patButton": "PAT 인증",
   "gitlab.auth.kind.oauth": "OAuth",
   "gitlab.auth.kind.pat": "PAT",
@@ -185,6 +186,7 @@ const ko = {
   "slack.error.channelNotFound": "채널을 찾을 수 없습니다.",
   "slack.error.rateLimited": "요청이 너무 많습니다. 잠시 후 다시 시도하세요.",
   "slack.error.generic": "Slack 요청 실패 ({code})",
+  "slack.promotedComment": "[BugShot] {platform}에 이슈로 등록되었습니다.",
 
   "linear.apiKeyButton": "API Key 인증",
   "linear.auth.kind.oauth": "OAuth",
@@ -341,6 +343,7 @@ const en = {
   "github.error.429": "Too many requests. Try again later.",
   "github.error.5xx": "GitHub server error. Try again later.",
   "github.error.generic": "GitHub request failed ({status})",
+  "github.error.mediaUploadFailed": "Image/attachment upload failed, so the issue was not created. Check your GitHub login and try again.",
   "gitlab.patButton": "PAT Authentication",
   "gitlab.auth.kind.oauth": "OAuth",
   "gitlab.auth.kind.pat": "PAT",
@@ -462,6 +465,7 @@ const en = {
   "slack.error.channelNotFound": "Channel not found.",
   "slack.error.rateLimited": "Too many requests. Please try again later.",
   "slack.error.generic": "Slack request failed ({code})",
+  "slack.promotedComment": "[BugShot] Filed as an issue in {platform}.",
 
   "linear.apiKeyButton": "API Key Auth",
   "linear.auth.kind.oauth": "OAuth",

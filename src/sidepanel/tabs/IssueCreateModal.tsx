@@ -121,6 +121,7 @@ export function IssueCreateModal() {
 
   const currentIssueId = useEditorStore((s) => s.currentIssueId);
   const markSubmitted = useIssuesStore((s) => s.markSubmitted);
+  const markSlackShared = useIssuesStore((s) => s.markSlackShared);
   const patchIssue = useIssuesStore((s) => s.patchIssue);
 
   // ctx·캡처 입력은 buildEditorCapture(단일 출처)에 위임 — 패널 로그 다운로드와 동일한 logs.html 보장.
@@ -514,8 +515,7 @@ export function IssueCreateModal() {
       mentions: slackFields.mentions,
     });
     if (currentIssueId) {
-      markSubmitted(currentIssueId, {
-        platform: "slack",
+      markSlackShared(currentIssueId, {
         key: result.key,
         url: result.url,
       });

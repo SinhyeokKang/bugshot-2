@@ -36,5 +36,41 @@
       <option value="kr">Korea</option>
       <option value="jp">Japan</option>
     </select>
+
+    <!-- 드래그: 네이티브 HTML5 DnD(draggable=true) source + drop zone. drag source+target 판정용.
+         Playwright는 real native drag를 못 일으켜 spec이 합성 DragEvent를 dispatch한다(handler는 현실성용). -->
+    <div
+      id="drag-native-src"
+      draggable="true"
+      aria-label="Draggable card"
+      style="width: 90px; height: 40px; border: 1px solid #333"
+    >
+      card
+    </div>
+    <div
+      id="drag-native-zone"
+      aria-label="Inbox dropzone"
+      style="width: 140px; height: 60px; border: 1px dashed #888"
+    ></div>
+
+    <!-- 드래그: 포인터 휴리스틱 — source에서 임계 초과로 끌어 다른 요소(zone) 위에서 뗌. drag source-only 판정용.
+         user-select:none은 실제 dnd 드래그 핸들 관습 — 드래그가 텍스트 선택으로 안 빠져야 레코더의
+         텍스트선택 가드(getSelection isCollapsed)를 통과해 drag로 기록된다. -->
+    <div
+      id="drag-pointer-src"
+      aria-label="Pointer handle"
+      style="width: 60px; height: 60px; background: #ddd; user-select: none; -webkit-user-select: none"
+    ></div>
+    <div
+      id="drag-pointer-zone"
+      aria-label="Pointer target"
+      style="width: 220px; height: 90px; background: #f0f0f0; user-select: none; -webkit-user-select: none"
+    ></div>
+
+    <script>
+      const zone = document.getElementById("drag-native-zone");
+      zone.addEventListener("dragover", (e) => e.preventDefault());
+      zone.addEventListener("drop", (e) => e.preventDefault());
+    </script>
   </body>
 </html>

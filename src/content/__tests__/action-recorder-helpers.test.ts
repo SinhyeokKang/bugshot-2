@@ -5,6 +5,8 @@ import {
   truncateName,
   entryNavOnBind,
   formatKeyCombo,
+  exceedsDragThreshold,
+  DRAG_THRESHOLD_PX,
   type KeyComboInput,
 } from "../action-recorder-helpers";
 
@@ -113,6 +115,40 @@ describe("formatKeyCombo", () => {
 
   it("key가 Process면 null (IME 가드)", () => {
     expect(formatKeyCombo(combo({ key: "Process" }))).toBeNull();
+  });
+});
+
+describe("exceedsDragThreshold", () => {
+  it("기본 임계는 15px (sloppy-click 경계 오탐 완화)", () => {
+    expect(DRAG_THRESHOLD_PX).toBe(15);
+  });
+
+  it("수평 이동이 임계를 넘으면 true", () => {
+    expect(exceedsDragThreshold(0, 0, 20, 0, 15)).toBe(true);
+  });
+
+  it("수평 이동이 임계 미만이면 false", () => {
+    expect(exceedsDragThreshold(0, 0, 10, 0, 15)).toBe(false);
+  });
+
+  it("정확히 임계(15px) 거리는 false — strict-greater(dx²+dy² > t²)", () => {
+    expect(exceedsDragThreshold(0, 0, 15, 0, 15)).toBe(false);
+  });
+
+  it("대각선 합성 거리로 임계 초과 판정 (11,11 → √242 > 15)", () => {
+    expect(exceedsDragThreshold(0, 0, 11, 11, 15)).toBe(true);
+  });
+
+  it("대각선이라도 합성 거리가 임계 미만이면 false (10,10 → √200 < 15)", () => {
+    expect(exceedsDragThreshold(0, 0, 10, 10, 15)).toBe(false);
+  });
+
+  it("음수 델타(역방향 이동)도 거리는 절댓값이라 true", () => {
+    expect(exceedsDragThreshold(20, 20, 0, 0, 15)).toBe(true);
+  });
+
+  it("이동 없음(같은 좌표)은 false", () => {
+    expect(exceedsDragThreshold(5, 5, 5, 5, 15)).toBe(false);
   });
 });
 

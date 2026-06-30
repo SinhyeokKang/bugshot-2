@@ -1,4 +1,4 @@
-import type { ActionEntry } from "@/types/action";
+import type { ActionEntry, ActionNode } from "@/types/action";
 
 export type TemplateToken =
   | { type: "text"; value: string }
@@ -24,12 +24,22 @@ export type ClickTargetView =
   | { mode: "tag"; tagName: string; tagType?: string }
   | { mode: "empty" };
 
+// name → tag(tagName/tagType) → selector(name 모드 폴백) → empty.
+export function resolveActionNode(node: ActionNode): ClickTargetView {
+  if (node.name?.trim()) return { mode: "name", name: node.name };
+  if (node.tagName)
+    return { mode: "tag", tagName: node.tagName, tagType: node.tagType };
+  if (node.selector) return { mode: "name", name: node.selector };
+  return { mode: "empty" };
+}
+
 export function resolveClickTarget(
   entry: Pick<ActionEntry, "target" | "selector" | "tagName" | "tagType">,
 ): ClickTargetView {
-  if (entry.target?.trim()) return { mode: "name", name: entry.target };
-  if (entry.tagName)
-    return { mode: "tag", tagName: entry.tagName, tagType: entry.tagType };
-  if (entry.selector) return { mode: "name", name: entry.selector };
-  return { mode: "empty" };
+  return resolveActionNode({
+    name: entry.target,
+    selector: entry.selector,
+    tagName: entry.tagName,
+    tagType: entry.tagType,
+  });
 }

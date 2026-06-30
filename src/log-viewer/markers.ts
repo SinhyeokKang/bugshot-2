@@ -1,4 +1,5 @@
 import type { LogViewerData } from "@/types/log-viewer";
+import type { ActionNode } from "@/types/action";
 import { toVideoSeconds } from "./timeline";
 import { t } from "./i18n";
 
@@ -22,6 +23,10 @@ export interface TimelineMarker {
 
 function clamp(min: number, max: number, v: number): number {
   return Math.min(max, Math.max(min, v));
+}
+
+function dragNodeText(node?: ActionNode): string {
+  return node?.name?.trim() || node?.selector || "";
 }
 
 function pct(absTs: number, videoStartedAt: number, videoDurationSec: number): number {
@@ -140,6 +145,14 @@ export function buildMarkers(
       case "select": {
         const field = `"${e.fieldLabel ?? e.selector ?? ""}"`;
         label = t("actionLog.verb.select", { field, value: `"${e.value ?? ""}"` });
+        labelParts = [{ text: label }];
+        break;
+      }
+      case "drag": {
+        const source = dragNodeText(e.dragSource);
+        label = e.dragTarget
+          ? t("actionLog.verb.dragTo", { source, target: dragNodeText(e.dragTarget) })
+          : t("actionLog.verb.drag", { source });
         labelParts = [{ text: label }];
         break;
       }

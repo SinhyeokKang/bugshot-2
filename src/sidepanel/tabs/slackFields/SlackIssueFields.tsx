@@ -15,8 +15,9 @@ export function initialSlackFields(
   last: SlackLastSubmitFields | undefined,
   defaults: SlackDefaults | undefined,
 ): SlackIssueFieldsValue {
-  const channelId = defaults?.channelId ?? last?.channelId;
-  const channelName = defaults?.channelName ?? last?.channelName;
+  // 직전 제출 채널을 우선(GitHub/Linear/Notion/GitLab와 동일). 기본 채널은 직전이 없을 때의 fallback.
+  const channelId = last?.channelId ?? defaults?.channelId;
+  const channelName = last?.channelName ?? defaults?.channelName;
   const sameChannel = !!last?.channelId && last.channelId === channelId;
   return {
     channelId,

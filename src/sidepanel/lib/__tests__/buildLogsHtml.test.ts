@@ -9,7 +9,7 @@ vi.stubGlobal("chrome", {
 
 vi.mock("../../../../dist-log-viewer/index.html?raw", () => ({
   default:
-    '<!DOCTYPE html><html><head></head><body><script id="__BUGSHOT_DATA__" type="application/gzip-base64"></script><script id="__BUGSHOT_META__" type="application/json"></script></body></html>',
+    '<!DOCTYPE html><html><head><meta charset="UTF-8" /><script id="__BUGSHOT_AI__" type="text/markdown"></script></head><body><script id="__BUGSHOT_DATA__" type="application/gzip-base64"></script><script id="__BUGSHOT_META__" type="application/json"></script></body></html>',
 }));
 
 import { buildLogsHtml } from "../buildLogsHtml";
@@ -89,6 +89,16 @@ const actionLog: ActionLog = {
 function metaTag(html: string): string {
   const m = html.match(
     /<script id="__BUGSHOT_META__" type="application\/json">([\s\S]*?)<\/script>/,
+  );
+  expect(m).not.toBeNull();
+  return m![1];
+}
+
+// AI 매뉴얼 태그 본문 추출 — 토큰 단언은 반드시 이 본문 안에서 한다.
+// (목 body에도 `__BUGSHOT_DATA__`가 있어 "HTML 전체에 토큰 포함" 단언은 false-positive)
+function aiTag(html: string): string {
+  const m = html.match(
+    /<script id="__BUGSHOT_AI__" type="text\/markdown">([\s\S]*?)<\/script>/,
   );
   expect(m).not.toBeNull();
   return m![1];
@@ -290,5 +300,28 @@ describe("buildLogsHtml", () => {
     );
     const meta = JSON.parse(metaTag(html));
     expect(meta.issueTitle).toBe(title);
+  });
+
+  it("__BUGSHOT_AI__ 태그에 AI 매뉴얼이 주입된다 (태그 본문 안에서 토큰 단언)", async () => {
+    const html = await buildLogsHtml(networkLog, consoleLog, null, null, null, "https://example.com");
+    const manual = aiTag(html);
+    // 빈 placeholder가 아니라 실제 매뉴얼 본문이 채워졌는지
+    expect(manual.length).toBeGreaterThan(0);
+    expect(manual).toContain("__BUGSHOT_DATA__");
+  });
+
+  it("매뉴얼 주입이 기존 DATA/META round-trip을 깨지 않는다", async () => {
+    const data = await extractData(
+      await buildLogsHtml(networkLog, consoleLog, actionLog, null, null, "https://example.com"),
+    );
+    expect(data.networkLog).not.toBeNull();
+    expect(data.consoleLog).not.toBeNull();
+    expect(data.actionLog).not.toBeNull();
+  });
+
+  it('매뉴얼은 평문 "issueUrl":"" 마커를 추가하지 않는다 (injectIssueUrl lastIndexOf 보호)', async () => {
+    const html = await buildLogsHtml(networkLog, null, null, null, null, "https://example.com");
+    // META 태그에 정확히 1개 — 매뉴얼이 추가 마커를 끼워넣으면 이 단언이 깨진다.
+    expect(html.split('"issueUrl":""').length - 1).toBe(1);
   });
 });

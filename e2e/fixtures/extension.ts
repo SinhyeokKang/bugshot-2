@@ -199,22 +199,42 @@ export const test = base.extend<object, { ext: ExtContext }>({
 export const expect = test.expect;
 
 // picker 선택 — blocker(overlay) 경유 bbox 중심 클릭. hover로 하이라이트를 먼저 유도한다.
+// expectSelection(기본 true): repick이 뜰 때까지 hover+click을 재시도한다. repick 클릭 직후
+// 재arm 레이스(panel은 "repick 숨김"인데 content script picker가 아직 안 붙어 단발 클릭이 유실)로
+// 인한 flaky를 막는다. 선택이 안 되는 픽(iframe 미지원 등)은 expectSelection:false로 1회만.
 export async function pickElement(
   fixture: Page,
   panel: Page,
   selector: string,
+  opts: { expectSelection?: boolean } = {},
 ): Promise<void> {
+  const { expectSelection = true } = opts;
   await fixture.bringToFront();
-  const box = await fixture.locator(selector).boundingBox();
-  if (!box) throw new Error(`pickElement: ${selector}의 boundingBox 없음`);
-  const cx = box.x + box.width / 2;
-  const cy = box.y + box.height / 2;
-  await fixture.mouse.move(cx, cy);
-  // double rAF — picker 오버레이가 hover 타깃을 반영할 시간을 준다 (PoC 실측).
-  await fixture.evaluate(
-    () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))),
-  );
-  await fixture.mouse.click(cx, cy);
+  const clickOnce = async () => {
+    const box = await fixture.locator(selector).boundingBox();
+    if (!box) throw new Error(`pickElement: ${selector}의 boundingBox 없음`);
+    const cx = box.x + box.width / 2;
+    const cy = box.y + box.height / 2;
+    await fixture.mouse.move(cx, cy);
+    // double rAF — picker 오버레이가 hover 타깃을 반영할 시간을 준다 (PoC 실측).
+    await fixture.evaluate(
+      () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))),
+    );
+    await fixture.mouse.click(cx, cy);
+  };
+
+  if (!expectSelection) {
+    await clickOnce();
+    await panel.bringToFront();
+    return;
+  }
+
+  // 클릭이 picker 재arm 전에 떨어지면 유실되므로 repick 노출까지 재클릭(이미 선택됐으면
+  // picker가 idle이라 추가 클릭은 무해 — 동일 요소 재선택은 idempotent).
+  await expect(async () => {
+    await clickOnce();
+    await expect(panel.getByTestId("repick")).toBeVisible({ timeout: 1000 });
+  }).toPass({ timeout: 15000 });
   await panel.bringToFront();
 }
 
@@ -245,6 +265,20 @@ export async function enterDebugAndPick(
 // prop 라벨 행 — section 스코프로 한정해 changes-dialog(포털) 행의 prop 텍스트와 strict mode 충돌 방지.
 function propRow(panel: Page, label: string) {
   return panel.locator("section").getByText(label, { exact: true }).locator("..");
+}
+
+// 접힌 collapsible Section을 펼친다(접힌 섹션은 자식이 DOM에서 제거됨).
+// probeLabel: 섹션 내부의 고유 prop 라벨(존재하면 이미 펼쳐진 것).
+export async function ensureSectionOpen(
+  panel: Page,
+  toggleTestId: string,
+  probeLabel: string,
+): Promise<void> {
+  const probe = panel.locator("section").getByText(probeLabel, { exact: true });
+  if ((await probe.count()) === 0) {
+    await panel.getByTestId(toggleTestId).click();
+    await probe.first().waitFor();
+  }
 }
 
 // ValueCombobox 팝오버 열기 → cmdk input fill → 닫기. label은 i18n을 타지 않는 CSS prop 라벨.

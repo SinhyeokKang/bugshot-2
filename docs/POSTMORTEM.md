@@ -21,6 +21,33 @@
 
 ---
 
+## 2026-06-30 — Slack 이슈 GitHub 승격 실패 시 원본까지 소실 (업로드 soft-fail이 실패로 안 잡혀 비가역 파괴 진행)
+
+- **증상**: Slack으로 제출한 이슈를 GitHub로 승격 시도 → GitHub 인증 문제로 실패했는데, 실패 후 원본 **Slack 보존 이슈까지 목록에서 사라짐**(복구 불가).
+- **근본 원인**: 승격이 **원자적이지 않다**. `submitToGithub`은 2단계(`github.uploadFiles`→`github.submitIssue`)이고, 성공 resolve 시 `markSubmitted`→`stripSubmitted`가 `slackPreserved`·draft·snapshot·blob을 **전부 파괴**한다(되돌릴 수 없음). 그런데 파일 업로드 `uploadGithubFiles`는 **모든 실패 경로**(github.com 쿠키 세션 401·403, S3 에러, 탭 없음, injection 실패)를 throw가 아니라 `href: null`로 **soft-fail 반환**하고, `submitToGithub`은 `logsDropped`만 계산하고 그대로 `submitIssue`로 진행했다. 그래서 **OAuth 토큰은 살아있고(=submitIssue 성공) github.com 쿠키 세션만 죽은** 부분 실패에서, 깨진 이미지 링크의 GitHub 이슈가 생성되며 `markSubmitted`가 돌아 원본을 폐기했다. 표면("실패 후 소실")과 원인("업로드 soft-fail이 실패로 취급 안 됨 + 비가역 파괴가 업로드 성공과 무관")이 다른 레이어. 역설적으로 **OAuth 토큰 자체가 죽으면** `loadGithubAuth`가 업로드 *전에* throw해 오히려 안전 — 쿠키 세션만 죽는 부분 실패가 유일한 소실 경로라 재현이 까다로웠다.
+- **재발 방지**: (1) **원본을 비가역 파괴하는 흐름(markSubmitted의 slackPreserved 폐기·blob 삭제)은 미디어 업로드 성공을 확인한 뒤에만** 진행한다 — `submitToGithub({requireMediaUpload})`가 미디어(로그 제외) href 누락 시 `submitIssue` 전에 throw해 markSubmitted 미도달·원본 보존. 승격(`isSlackPreserved`)일 때만 엄격, 일반 제출은 best-effort 유지. (2) **`uploadGithubFiles`는 절대 throw하지 않는 계약**임을 기억 — `grep -n "href: null" src/background/github-upload.ts`로 모든 실패가 soft-fail임을 확인. 호출부가 null href를 실패로 *해석*해야 하며, sendBg가 throw해 주리라 가정하면 안 된다. (3) 새 플랫폼 승격/비가역 제출을 추가할 때 `await submitToXxx` 다음 줄에서 `markSubmitted`를 부르기 전에, 그 submit이 **업로드 부분 실패를 어떻게 신호하는지**(throw인지 silent인지) 확인 — `grep -rn "markSubmitted" src/sidepanel/tabs/DraftDetailDialog.tsx`. (4) e2e `slack-promote-media-guard.spec`(미디어 업로드 실패 → submitIssue 0회·원본 불변) + 단위 `submitToGithub.test.ts > requireMediaUpload`.
+- **관련**: `src/sidepanel/lib/submitToGithub.ts`(`someUploadMissing`·`requireMediaUpload` 가드), 절대 throw 안 하는 `src/background/github-upload.ts:uploadGithubFiles`, 소비처 `src/sidepanel/tabs/DraftDetailDialog.tsx:handleGithubSubmit`, 비가역 파괴 `src/store/issues-store.ts:stripSubmitted`/`markSubmitted`.
+
+---
+
+## 2026-06-30 — Slack 채널·멘션 직전값 미기억 (7개 어댑터 중 Slack만 prefill 우선순위 역전)
+
+- **증상**: Slack 이슈를 제출할 때 직전에 고른 채널·멘션이 기본값으로 안 떴다. 통합 설정에 "기본 채널"을 지정해 둔 경우 그 기본 채널만 뜨고, 직전에 쓴 채널과 멘션은 매번 사라짐.
+- **근본 원인**: `initialSlackFields`가 `defaults?.channelId ?? last?.channelId`로 **사용자 지정 기본 채널을 직전 제출 채널보다 우선**했다. 기본 채널이 한 번 설정되면 직전 채널이 영구히 가려지고, 멘션 복원이 `sameChannel`(last.channelId === 해석된 channelId) 게이트에 묶여 있어 기본 채널 ≠ 직전 채널이면 **멘션까지 드롭**된다. GitHub·Linear·Notion·GitLab은 동일 위상 필드(repo/team/database/project = 제출 목적지)에서 전부 **last 우선**(`last?.x ?? defaults` 또는 `last?.x ? last : defaults`)인데 Slack의 channel만 역전돼 있었다. 7개 플랫폼의 `initial*Fields`가 "제출 목적지 필드는 last 우선"이라는 같은 규칙을 공유해야 하는데 하나만 어긋난 케이스. (Asana/ClickUp이 `defaults` 우선인 건 그게 **workspace = 가장 거친 스코프**라 의도적이고, 하위 project/assignee는 `sameWs ? last : defaults`로 여전히 last를 반영 — Slack의 channel은 거친 스코프가 아니라 제출 목적지 자체라 repo/team에 대응.)
+- **재발 방지**: (1) **새 플랫폼 IssueFields의 `initial*Fields`는 주 제출 목적지 필드를 last 우선**으로 박는다(`defaults`는 last가 없을 때 fallback). `grep -rn "defaults?\." src/sidepanel/tabs/*Fields/*.tsx` 또는 `grep -rln "initial.*Fields" src`로 7개 어댑터의 우선순위 일관성을 전수 대조 — `defaults?.x ?? last` 패턴이 **제출 목적지 필드**에 보이면 역전 의심. (2) Asana/ClickUp의 `defaults` 우선은 **workspace(거친 스코프) 한정** 예외임을 기억 — channel/repo/team/project/database 같은 목적지 필드는 last 우선이 규칙. (3) 단위 `SlackIssueFields.test.ts`(기본≠직전일 때 last 우선·멘션 복원) + e2e `slack-submit-gating.spec`(채널/멘션 복원).
+- **관련**: `src/sidepanel/tabs/slackFields/SlackIssueFields.tsx:initialSlackFields`, 대조군(last 우선) `GithubIssueFields`/`LinearIssueFields`/`NotionIssueFields`/`GitlabIssueFields`, 소비 `src/sidepanel/hooks/usePlatformFields.ts`.
+
+---
+
+## 2026-06-29 — captureVisibleTab 쿼터 초과로 스냅샷 실패 (캡처 호출처 N개가 직렬화 큐 없이 경쟁)
+
+- **증상**: 30s 리플레이가 켜진 상태에서 엘리먼트 스냅샷·스타일 before/after를 찍으면 `BgError: This request exceeds the MAX_CAPTURE_VISIBLE_TAB_CALLS_PER_SECOND quota.` → 콘솔에 `[bugshot] snapshot failed`, 스냅샷 null 반환.
+- **근본 원인**: Chrome `chrome.tabs.captureVisibleTab`는 **윈도우 단위로 초당 2회**(`MAX_CAPTURE_VISIBLE_TAB_CALLS_PER_SECOND`) 제한인데, 캡처를 쏘는 경로가 4개(30s 리플레이 폴링 600ms·`use-30s-replay.ts`, 엘리먼트 스냅샷·`capture.ts`, 스타일 next after·`StyleEditorPanel`, element 전환 buffer·`useBufferThenSwitch`)고 전부 background `captureVisibleTab` 핸들러를 **직렬화·간격 제어 없이** 그대로 호출했다. 리플레이 폴링 단독으로도 한계 근처(~1.67회/초)라, 사용자 액션 캡처가 같은 1초 창에 끼면 초과. 표면("스냅샷 1건 실패")과 원인(**전역 캡처 호출 빈도가 쿼터를 넘음** — 한 호출처가 아니라 경합)이 다른 레이어. 리플레이 tick은 에러를 `catch {}`로 삼켜 증상이 사용자 액션 경로에서만 드러났다.
+- **재발 방지**: (1) **captureVisibleTab은 반드시 한 큐로 직렬화 + 최소 간격**을 거친다 — background 핸들러가 `captureThrottle.run()` 경유(`src/background/capture-throttle.ts`). 새 캡처 경로를 추가할 때 background 핸들러를 우회해 `chrome.tabs.captureVisibleTab`을 직접 부르면 다시 깨진다. `grep -rn "captureVisibleTab" src/` 결과는 **호출처(sendBg type 발신)만** 늘어야 하고 실제 API 호출은 `messages.ts` 1곳·`capture-throttle` 경유로 유지. (2) **rate-limit은 정상 동작 — 재시도로 흡수**한다(`isCaptureRateLimitError` 매칭 시만 백오프, 그 외 에러는 즉시 throw해 탭 닫힘 등을 무한 재시도하지 않음). (3) 단위 테스트(`capture-throttle.test.ts`)로 직렬화·최소 간격·재시도·실패 격리 고정.
+- **관련**: `src/background/capture-throttle.ts`(`createCaptureThrottle`·`captureThrottle`·`isCaptureRateLimitError`), 소비처 `src/background/messages.ts:captureVisibleTab` 핸들러, 테스트 `src/background/__tests__/capture-throttle.test.ts`.
+
+---
+
 ## 2026-06-29 — 스타일 패널 Transition 섹션이 트랜지션 없어도 항상 펼침 (computed longhand 유령 기본값)
 
 - **증상**: 스타일 에디터에서 섹션 초기 펼침 조건을 손본 뒤, Transition 섹션만 어떤 요소를 골라도 **항상 펼쳐진** 상태로 떴다. 실제로 transition이 걸린 요소가 아닌데도 "값 있음"으로 취급.

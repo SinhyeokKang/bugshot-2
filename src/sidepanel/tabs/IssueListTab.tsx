@@ -40,6 +40,7 @@ export function IssueListTab() {
   const issues = useIssuesStore((s) => s.issues);
   const clearIssues = useIssuesStore((s) => s.clearIssues);
   const [draftId, setDraftId] = useState<string | null>(null);
+  const [autoSubmit, setAutoSubmit] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const pendingRef = useRef(0);
@@ -110,9 +111,9 @@ export function IssueListTab() {
         <div className="flex items-center gap-3">
           <Tabs value={statusFilter} onValueChange={(v) => setStatusFilter(v as StatusFilter)}>
             <TabsList className="h-9">
-              <TabsTrigger value="all">{t("issueList.filter.all")}</TabsTrigger>
-              <TabsTrigger value="submitted">{t("issueList.filter.submitted")}</TabsTrigger>
-              <TabsTrigger value="draft">{t("issueList.filter.draft")}</TabsTrigger>
+              <TabsTrigger value="all" data-testid="filter-all">{t("issueList.filter.all")}</TabsTrigger>
+              <TabsTrigger value="submitted" data-testid="filter-submitted">{t("issueList.filter.submitted")}</TabsTrigger>
+              <TabsTrigger value="draft" data-testid="filter-draft">{t("issueList.filter.draft")}</TabsTrigger>
             </TabsList>
           </Tabs>
           <div className="relative ml-auto w-full max-w-[200px]">
@@ -164,7 +165,14 @@ export function IssueListTab() {
                   <IssueRow
                     issue={issue}
                     refreshKey={refreshKey}
-                    onOpenDraft={() => setDraftId(issue.id)}
+                    onOpenDraft={() => {
+                      setDraftId(issue.id);
+                      setAutoSubmit(false);
+                    }}
+                    onOpenSubmit={() => {
+                      setDraftId(issue.id);
+                      setAutoSubmit(true);
+                    }}
                     onBadgeLoaded={handleBadgeLoaded}
                   />
                 </Fragment>
@@ -219,7 +227,13 @@ export function IssueListTab() {
       <DraftDetailDialog
         issue={activeDraft}
         open={!!activeDraft}
-        onOpenChange={(v) => !v && setDraftId(null)}
+        autoOpenSubmit={autoSubmit}
+        onOpenChange={(v) => {
+          if (!v) {
+            setDraftId(null);
+            setAutoSubmit(false);
+          }
+        }}
         onSubmitSuccess={(result) => {
           // 라이브 흐름(IssueTab SubmitSuccessPanel)과 동일하게 logs.html 누락 경고 노출.
           if (result.logsDropped && activeDraft?.platform) {
@@ -231,6 +245,7 @@ export function IssueListTab() {
             );
           }
           setDraftId(null);
+          setAutoSubmit(false);
           setSuccessResult(result);
         }}
       />

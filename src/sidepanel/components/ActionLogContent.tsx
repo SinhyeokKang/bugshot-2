@@ -1,8 +1,8 @@
 import { Fragment, useState, useEffect, useMemo, useCallback, useRef } from "react";
 import type { ReactNode } from "react";
-import { Keyboard, MousePointerClick, MapPin, Search, X, CornerDownLeft, SquareCheck, ListChecks } from "lucide-react";
+import { Keyboard, MousePointerClick, MapPin, Search, X, CornerDownLeft, SquareCheck, ListChecks, Move } from "lucide-react";
 import { useT } from "@/i18n";
-import type { ActionEntry, ActionEntryKind } from "@/types/action";
+import type { ActionEntry, ActionEntryKind, ActionNode } from "@/types/action";
 import type { TranslationFn } from "@/i18n";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -11,7 +11,8 @@ import { findActiveIndex } from "@/log-viewer/timeline";
 import { formatRelativeTime, syncRowClass } from "@/sidepanel/lib/logRow";
 import { useScrollToEntry } from "@/sidepanel/lib/useScrollToEntry";
 import { distinctOriginKeys, originKey, originCounts } from "@/sidepanel/lib/logOrigin";
-import { splitTemplate, resolveClickTarget } from "@/sidepanel/lib/actionInline";
+import { splitTemplate, resolveClickTarget, resolveActionNode } from "@/sidepanel/lib/actionInline";
+import type { ClickTargetView } from "@/sidepanel/lib/actionInline";
 import { InlineLink } from "./InlineLink";
 import { InlineChip } from "./InlineChip";
 import { OriginFilterBar } from "./OriginFilterBar";
@@ -19,7 +20,7 @@ import { LogSeekChip } from "./LogSeekChip";
 
 type ActionFilter = "all" | ActionEntryKind;
 
-const ACTION_FILTERS: ActionEntryKind[] = ["click", "navigation", "input", "keypress", "toggle", "select"];
+const ACTION_FILTERS: ActionEntryKind[] = ["click", "navigation", "input", "keypress", "toggle", "select", "drag"];
 
 interface ActionLogContentProps {
   entries: ActionEntry[];
@@ -47,14 +48,15 @@ function KindIcon({ kind }: { kind: ActionEntryKind }) {
     case "keypress": return <CornerDownLeft className={base} />;
     case "toggle": return <SquareCheck className={base} />;
     case "select": return <ListChecks className={base} />;
+    case "drag": return <Move className={base} />;
     default: { kind satisfies never; return null; }
   }
 }
 
 const MASKED_DISPLAY = "[********]";
 
-function ClickTarget({ entry }: { entry: ActionEntry }) {
-  const view = resolveClickTarget(entry);
+// 단일 chip 렌더러 — name/tag/empty view를 그린다. click 타깃과 drag source/target slot이 공유.
+function ResolvedTargetChip({ view }: { view: ClickTargetView }) {
   if (view.mode === "name") return <>{view.name}</>;
   if (view.mode === "tag") {
     return (
@@ -75,6 +77,26 @@ function ClickTarget({ entry }: { entry: ActionEntry }) {
     );
   }
   return null;
+}
+
+function ClickTarget({ entry }: { entry: ActionEntry }) {
+  return <ResolvedTargetChip view={resolveClickTarget(entry)} />;
+}
+
+// drag source/target slot — 한 행에 chip 2개라 max-w 절단 + title 툴팁으로 밀도 유지.
+function DragNodeChip({ node }: { node: ActionNode }) {
+  const view = resolveActionNode(node);
+  if (view.mode === "empty") return null;
+  // title이 화면 표시값과 일치하도록 view 기준 — tag 모드면 selector가 아니라 태그 텍스트.
+  const title =
+    view.mode === "name"
+      ? view.name
+      : `<${view.tagName}${view.tagType ? ` type="${view.tagType}"` : ""}>`;
+  return (
+    <InlineChip title={title} className="inline-block max-w-[40%] truncate align-bottom">
+      <ResolvedTargetChip view={view} />
+    </InlineChip>
+  );
 }
 
 function renderVerb(template: string, slots: Record<string, ReactNode>): ReactNode {
@@ -117,12 +139,22 @@ function renderActionContent(t: TranslationFn, entry: ActionEntry): ReactNode {
           ? <InlineLink href={entry.toUrl} title={entry.toUrl} data-testid="action-nav-link" />
           : "",
       });
+    case "drag": {
+      const source = <DragNodeChip node={entry.dragSource ?? {}} />;
+      // dragTarget 유무 = 신뢰 신호. 있으면 네이티브 DnD(출발+도착), 없으면 포인터 경로(출발만).
+      return entry.dragTarget
+        ? renderVerb(t("actionLog.verb.dragTo"), { source, target: <DragNodeChip node={entry.dragTarget} /> })
+        : renderVerb(t("actionLog.verb.drag"), { source });
+    }
     default: { entry.kind satisfies never; return null; }
   }
 }
 
 function searchText(e: ActionEntry): string {
-  return [e.target, e.fieldLabel, e.value, e.toUrl].filter(Boolean).join(" ").toLowerCase();
+  return [
+    e.target, e.fieldLabel, e.value, e.toUrl,
+    e.dragSource?.name, e.dragSource?.selector, e.dragTarget?.name, e.dragTarget?.selector,
+  ].filter(Boolean).join(" ").toLowerCase();
 }
 
 export function ActionLogContent({ entries, startedAt, flush, syncBaseMs, onSeek, activeTs, scrollToEntryId, onScrollComplete }: ActionLogContentProps) {
@@ -138,6 +170,7 @@ export function ActionLogContent({ entries, startedAt, flush, syncBaseMs, onSeek
     keypress: t("actionLog.filter.keypress"),
     toggle: t("actionLog.filter.toggle"),
     select: t("actionLog.filter.select"),
+    drag: t("actionLog.filter.drag"),
   };
   const availableFilters = useMemo<ActionFilter[]>(() => {
     const present = new Set(entries.map((e) => e.kind));
@@ -272,6 +305,7 @@ function ActionRow({ entry, startedAt, syncBaseMs, onSeek, isActive }: {
     <div
       data-entry-id={entry.id}
       data-kind={entry.kind}
+      data-drag-target={entry.kind === "drag" ? (entry.dragTarget ? "1" : "0") : undefined}
       className={syncRowClass(!!onSeek, !!isActive, kindBgColor(entry.kind))}
       aria-current={isActive ? "true" : undefined}
     >

@@ -44,8 +44,6 @@ import { StyleChangesDialog } from "./styleEditor/StyleChangesDialog";
 const SECTION_PROPS = {
   layout: [
     "display",
-    "position",
-    "z-index",
     "flex-direction",
     "flex-wrap",
     "justify-content",
@@ -64,6 +62,7 @@ const SECTION_PROPS = {
     "row-gap",
     "column-gap",
   ],
+  position: ["position", "top", "right", "bottom", "left", "z-index"],
   size: ["width", "height", "min-width", "max-width", "min-height", "max-height"],
   overflow: ["overflow", "overflow-x", "overflow-y", "white-space", "text-overflow"],
   typography: [
@@ -206,14 +205,6 @@ export function SelectedPanel() {
         />
         <Row2>
           <SelectProp
-            label="position"
-            prop="position"
-            options={["", "static", "relative", "absolute", "fixed", "sticky"]}
-          />
-          <TextProp label="z-index" prop="z-index" />
-        </Row2>
-        <Row2>
-          <SelectProp
             label="flex-direction"
             prop="flex-direction"
             options={["", "row", "column", "row-reverse", "column-reverse"]}
@@ -247,6 +238,24 @@ export function SelectedPanel() {
         <QuadProp label="margin" prefix="margin" />
         <QuadProp label="padding" prefix="padding" />
         <GapPairProp />
+      </Section>
+
+      <Section
+        title={t("editor.section.position")}
+        action={<SectionRevertButton props={SECTION_PROPS.position} />}
+        collapsible
+        defaultOpen={sectionOpen(SECTION_PROPS.position)}
+        testId="section-position"
+      >
+        <Row2>
+          <SelectProp
+            label="position"
+            prop="position"
+            options={["", "static", "relative", "absolute", "fixed", "sticky"]}
+          />
+          <TextProp label="z-index" prop="z-index" />
+        </Row2>
+        <QuadProp label="inset" props={["top", "right", "bottom", "left"]} />
       </Section>
 
       <Section

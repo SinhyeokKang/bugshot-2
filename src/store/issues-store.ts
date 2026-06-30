@@ -53,6 +53,7 @@ export function stripSubmitted(
     consoleLogBlobKey: undefined,
     actionLogBlobKey: undefined,
     attachments: undefined,
+    slackPreserved: undefined,
   };
 }
 
@@ -228,6 +229,9 @@ export interface IssueRecord {
   asanaTaskGid?: string;
   // ClickUp 전용 — task id로 조회.
   clickupTaskId?: string;
+  // submitted이면서 Slack 공유로 원본 데이터(draft/snapshot/blob)를 보존 중인 이슈.
+  // 일반 트래커로 승격(markSubmitted→stripSubmitted)되면 함께 폐기된다.
+  slackPreserved?: boolean;
 }
 
 // v5: notion 플랫폼 추가 — IssueRecord에 notionPageId/notionDatabaseId/notionDatabaseTitle/notionStatusOption optional 필드.
@@ -245,6 +249,8 @@ interface IssuesState {
   issues: IssueRecord[];
   saveDraft: (record: IssueRecord) => void;
   markSubmitted: (id: string, patch: Partial<IssueRecord>) => void;
+  // Slack 공유 — markSubmitted와 정반대로 데이터를 보존한다(blob 삭제 없음).
+  markSlackShared: (id: string, patch: { key: string; url: string }) => void;
   patchIssue: (id: string, patch: Partial<IssueRecord>) => void;
   patchDraftSnapshot: (id: string, patch: Partial<IssueSnapshot>) => void;
   patchDraftBufferedImageFlags: (
@@ -285,6 +291,23 @@ export const useIssuesStore = create<IssuesState>()(
         deleteActionLog(id).catch(() => {});
         deleteAttachmentBlobs(id).catch(() => {});
       },
+      markSlackShared: (id, patch) =>
+        set((s) => ({
+          issues: s.issues.map((x) =>
+            x.id === id
+              ? {
+                  ...x,
+                  key: patch.key,
+                  url: patch.url,
+                  status: "submitted",
+                  platform: "slack",
+                  slackPreserved: true,
+                  submittedAt: Date.now(),
+                  updatedAt: Date.now(),
+                }
+              : x,
+          ),
+        })),
       patchIssue: (id, patch) =>
         set((s) => ({
           issues: s.issues.map((x) =>

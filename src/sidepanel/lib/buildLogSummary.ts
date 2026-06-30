@@ -1,6 +1,6 @@
 import type { NetworkLog } from "@/types/network";
 import type { ConsoleLog } from "@/types/console";
-import type { ActionLog, ActionLogSummary } from "@/types/action";
+import type { ActionLog, ActionLogSummary, ActionNode } from "@/types/action";
 
 const MAX_ERRORS = 5;
 const MAX_ACTIONS = 20;
@@ -64,8 +64,19 @@ export function buildActionLogSummary(log: ActionLog): ActionLogSummary {
     if (e.kind === "select") {
       return `Selected "${e.value ?? ""}" in "${e.fieldLabel ?? ""}"`;
     }
+    if (e.kind === "drag") {
+      const src = nodeName(e.dragSource);
+      // source-only는 (drop target unknown) 신뢰 신호 — LLM이 목적지를 환각하지 못하게.
+      return e.dragTarget
+        ? `Dragged ${src} to ${nodeName(e.dragTarget)}`
+        : `Dragged ${src} (drop target unknown)`;
+    }
     return `Clicked: ${e.target ?? e.selector ?? ""}${e.role ? ` (${e.role})` : ""}`;
   });
+}
+
+function nodeName(node?: ActionNode): string {
+  return node?.name?.trim() || node?.selector || "element";
 }
 
 function extractPath(url: string): string {
