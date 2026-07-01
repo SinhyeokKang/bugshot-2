@@ -30,6 +30,7 @@ export function AssigneeCombobox({ workspaceId, value, onChange }: Props) {
       getKey={(u) => u.id}
       getName={(u) => u.name}
       getItemValue={(u) => u.id}
+      pinSelected
       renderItem={(u) => (
         <span className="flex min-w-0 flex-1 flex-col">
           <span className="truncate">{u.name}</span>

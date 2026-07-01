@@ -16,6 +16,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { orderSelectedFirst } from "@/sidepanel/components/ccOptions";
 import { useLazyListOnOpen } from "@/sidepanel/hooks/useLazyListOnOpen";
 
 // open 시 목록을 1회 lazy load하는 단일선택 콤보박스 공용 컴포넌트.
@@ -33,6 +34,8 @@ interface Props<T> {
   triggerLabel: string;
   searchPlaceholder: string;
   emptyLabel: string;
+  // 선택 항목을 목록 최상단으로 고정 (유저 검색 필드 공통 정책).
+  pinSelected?: boolean;
 }
 
 export function SingleLazyCombobox<T>({
@@ -47,6 +50,7 @@ export function SingleLazyCombobox<T>({
   triggerLabel,
   searchPlaceholder,
   emptyLabel,
+  pinSelected,
 }: Props<T>) {
   const t = useT();
   const [open, setOpen] = useState(false);
@@ -54,9 +58,12 @@ export function SingleLazyCombobox<T>({
   const { items, loading, error } = useLazyListOnOpen(open, !disabled, load);
 
   const q = query.trim().toLowerCase();
-  const filtered = q
+  const matched = q
     ? items.filter((it) => getName(it).toLowerCase().includes(q))
     : items;
+  const filtered = pinSelected
+    ? orderSelectedFirst(matched, (it) => getKey(it) === selectedKey)
+    : matched;
 
   return (
     <Popover open={open} onOpenChange={(v) => !disabled && setOpen(v)}>
