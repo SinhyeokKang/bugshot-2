@@ -34,7 +34,7 @@ function pct(absTs: number, videoStartedAt: number, videoDurationSec: number): n
 }
 
 export function buildMarkers(
-  data: LogViewerData,
+  data: Pick<LogViewerData, "consoleLog" | "networkLog" | "actionLog">,
   activeTab: "console" | "network" | "action",
   videoDurationSec: number,
   videoStartedAt: number,

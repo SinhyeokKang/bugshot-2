@@ -98,10 +98,10 @@ export function TrimTimeline({
           thumbClassName="relative h-8 w-0 border-0 bg-transparent p-0 shadow-none"
           thumbContent={(i) => (
             // 실제 핸들 비주얼: 좌핸들=오른쪽 끝을 value에 맞춰 왼쪽으로(우측 모서리 각짐), 우핸들=반대.
-            // outline 스타일(흰 배경 + 테두리) + primary 아이콘. hover 커서 포인터, 잡은 시각을 title 툴팁으로.
+            // outline 스타일(배경 토큰 + 테두리) + primary 아이콘. hover 커서 포인터, 잡은 시각을 title 툴팁으로.
             <span
               className={cn(
-                "group absolute top-1/2 flex h-8 w-5 -translate-y-1/2 cursor-pointer items-center justify-center border border-border bg-white text-primary shadow-sm",
+                "group absolute top-1/2 flex h-8 w-5 -translate-y-1/2 cursor-pointer items-center justify-center border border-border bg-background text-primary shadow-sm",
                 i === 0 ? "right-0 rounded-l-md" : "left-0 rounded-r-md",
               )}
             >

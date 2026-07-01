@@ -181,7 +181,7 @@ export default function ReplayTrimDialog({ videoBlob, frames, onConfirm, onCance
 
   return (
     <div
-      className="absolute inset-0 z-50 bg-background"
+      className="fixed inset-0 z-50 bg-background"
       data-testid="replay-trim-overlay"
       data-trim-selection={sel}
     >

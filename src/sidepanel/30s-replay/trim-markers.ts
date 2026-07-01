@@ -1,7 +1,6 @@
 import type { ConsoleLog } from "@/types/console";
 import type { NetworkLog } from "@/types/network";
 import type { ActionLog } from "@/types/action";
-import type { LogViewerData } from "@/types/log-viewer";
 import { buildMarkers, type TimelineMarker } from "@/log-viewer/markers";
 
 // buildMarkers(log-viewer)를 재사용해 에러성·페이지 이동 마커만 추려 그대로 반환(TimelineMarker).
@@ -14,26 +13,21 @@ export function buildErrorMarkers(
   durationSec: number,
 ): TimelineMarker[] {
   if (durationSec <= 0) return [];
-  const data = {
-    consoleLog: logs.consoleLog,
-    networkLog: logs.networkLog,
-    actionLog: logs.actionLog,
-  } as LogViewerData;
 
   const out: TimelineMarker[] = [];
   if (logs.consoleLog) {
     out.push(
-      ...buildMarkers(data, "console", durationSec, videoStartedAt).filter(
+      ...buildMarkers(logs, "console", durationSec, videoStartedAt).filter(
         (m) => m.variant === "error" || m.variant === "warn",
       ),
     );
   }
   if (logs.networkLog) {
-    out.push(...buildMarkers(data, "network", durationSec, videoStartedAt));
+    out.push(...buildMarkers(logs, "network", durationSec, videoStartedAt));
   }
   if (logs.actionLog) {
     out.push(
-      ...buildMarkers(data, "action", durationSec, videoStartedAt).filter(
+      ...buildMarkers(logs, "action", durationSec, videoStartedAt).filter(
         (m) => m.variant === "navigate",
       ),
     );
