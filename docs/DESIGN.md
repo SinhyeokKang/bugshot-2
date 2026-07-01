@@ -92,7 +92,7 @@ Tailwind 4px 스케일을 그대로 쓴다. 자주 쓰는 값(관용):
 - **Radix 오버레이(Dialog·Popover·Tooltip·Select)는 모두 `z-50` 공통.** 같은 평면에서 뒤에 열린 것이 위로 온다.
 - 로컬 sticky/겹침은 `z-10` 수준.
 - 그 위로 강제로 떠야 하는 예외는 `z-[60]` (현재 2곳 — `AnnotationOverlay` 텍스트 편집 입력, `ReplayTrimDialog` 작성취소 AlertDialog). 새로 만들 땐 `z-50` 기준으로 잡고, 꼭 필요할 때만 `z-[60]`.
-- **전체화면 비-Radix 오버레이 패턴**: 사이드패널 위 풀스크린은 `absolute inset-0 z-50 bg-background` + `flex h-full flex-col`로 만든다(`AnnotationOverlay`·`ReplayTrimDialog`·App AI 로딩·DraftingPanel annotation 마운트). Radix Dialog가 아니라 컨테이너 직접 렌더 + `lazy`/`Suspense`. 이 오버레이들은 **사이드패널 z축 안**(z-50, 필요 시 내부 모달 z-[60])이다.
+- **전체화면 비-Radix 오버레이 패턴**: 사이드패널 위 풀스크린은 `inset-0 z-50 bg-background` + `flex h-full flex-col`로 만든다. 풀스크린 컴포넌트 오버레이(`AnnotationOverlay`·`ReplayTrimDialog`)는 `fixed`로 패널 뷰포트를 덮고, App root(`h-screen`) 직속 임시 오버레이(App AI 로딩·Suspense fallback)는 `absolute`를 쓴다. Radix Dialog가 아니라 컨테이너 직접 렌더 + `lazy`/`Suspense`. 이 오버레이들은 **사이드패널 z축 안**(z-50, 필요 시 내부 모달 z-[60])이다.
 - content script의 picker·overlay(`src/content/`)는 **페이지 쪽**에서 별도 최상위 z로 뜬다 — 사이드패널 z축과 무관하니 헷갈리지 말 것. (`AnnotationOverlay`는 페이지가 아니라 사이드패널 컴포넌트 — 위 전체화면 오버레이 항목.)
 
 ## 8. 모션 & 트랜지션
