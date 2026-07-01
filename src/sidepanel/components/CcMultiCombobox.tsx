@@ -20,6 +20,7 @@ import { cn } from "@/lib/utils";
 export interface CcUserOption {
   key: string;
   label: string;
+  email?: string;
   avatarUrl?: string;
 }
 
@@ -141,7 +142,7 @@ export function CcMultiCombobox({
                       <CommandItem
                         key={o.key}
                         value={o.key}
-                        keywords={[o.label]}
+                        keywords={o.email ? [o.label, o.email] : [o.label]}
                         onSelect={() => onToggle(o)}
                       >
                         <Check
@@ -157,7 +158,14 @@ export function CcMultiCombobox({
                             className="mr-2 h-4 w-4 rounded-full"
                           />
                         ) : null}
-                        <span className="truncate">{o.label}</span>
+                        <span className="flex min-w-0 flex-1 flex-col">
+                          <span className="truncate">{o.label}</span>
+                          {o.email ? (
+                            <span className="truncate text-xs text-muted-foreground">
+                              {o.email}
+                            </span>
+                          ) : null}
+                        </span>
                       </CommandItem>
                     );
                   })}

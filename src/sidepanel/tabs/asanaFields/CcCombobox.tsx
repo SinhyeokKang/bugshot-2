@@ -47,7 +47,7 @@ export function CcCombobox({ workspaceGid, value, onChange }: Props) {
 
   return (
     <CcMultiCombobox
-      options={items.map((u) => ({ key: u.gid, label: u.name }))}
+      options={items.map((u) => ({ key: u.gid, label: u.name, email: u.email }))}
       selected={value.map((v) => ({ key: v.gid, label: v.name }))}
       onToggle={toggle}
       onClear={() => onChange([])}

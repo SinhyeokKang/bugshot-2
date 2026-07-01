@@ -49,6 +49,7 @@ export function CcField({ value, onChange }: Props) {
       options={items.map((u) => ({
         key: u.accountId,
         label: u.displayName,
+        email: u.emailAddress,
         avatarUrl: u.avatarUrls?.["16x16"],
       }))}
       selected={value.map((v) => ({ key: v.accountId, label: v.displayName }))}
