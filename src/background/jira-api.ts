@@ -223,6 +223,22 @@ export async function searchUsers(
   );
 }
 
+export async function getUsersByAccountIds(
+  auth: JiraAuth,
+  accountIds: string[],
+): Promise<JiraUser[]> {
+  const ids = accountIds.slice(0, 200);
+  if (ids.length === 0) return [];
+  const params = new URLSearchParams();
+  for (const id of ids) params.append("accountId", id);
+  params.set("maxResults", String(ids.length));
+  const page = await jiraFetch<{ values?: JiraUser[] }>(
+    auth,
+    `/rest/api/3/user/bulk?${params.toString()}`,
+  );
+  return page.values ?? [];
+}
+
 interface JiraSearchResponse {
   issues: JiraIssueSummary[];
   total: number;

@@ -88,6 +88,7 @@ export type BgRequest =
   | { type: "jira.listIssueTypes"; projectKey: string }
   | { type: "jira.listPriorities" }
   | { type: "jira.searchUsers"; query?: string }
+  | { type: "jira.getUsers"; accountIds: string[] }
   | { type: "jira.getIssueStatus"; issueKey: string }
   | { type: "jira.getTransitions"; issueKey: string }
   | { type: "jira.transitionIssue"; issueKey: string; transitionId: string }

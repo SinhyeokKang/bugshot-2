@@ -29,6 +29,18 @@ export function AssigneeCombobox({ workspaceId, value, onChange }: Props) {
       load={load}
       getKey={(u) => u.id}
       getName={(u) => u.name}
+      getItemValue={(u) => u.id}
+      pinSelected
+      renderItem={(u) => (
+        <span className="flex min-w-0 flex-1 flex-col">
+          <span className="truncate">{u.name}</span>
+          {u.email ? (
+            <span className="truncate text-xs text-muted-foreground">
+              {u.email}
+            </span>
+          ) : null}
+        </span>
+      )}
       selectedKey={value?.id ?? null}
       onSelect={(u) => onChange(u ? { id: u.id, name: u.name } : null)}
       triggerLabel={

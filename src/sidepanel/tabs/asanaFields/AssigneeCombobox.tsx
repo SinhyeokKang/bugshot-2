@@ -16,6 +16,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { orderSelectedFirst } from "@/sidepanel/components/ccOptions";
 import type { AsanaUser } from "@/types/asana";
 import { sendBg } from "@/types/messages";
 
@@ -121,7 +122,7 @@ export function AssigneeCombobox({ workspaceGid, value, onChange }: Props) {
               <>
                 <CommandEmpty>{t("asana.field.assignee.empty")}</CommandEmpty>
                 <CommandGroup>
-                  {filtered.map((u) => {
+                  {orderSelectedFirst(filtered, (u) => value?.gid === u.gid).map((u) => {
                     const selected = value?.gid === u.gid;
                     return (
                       <CommandItem

@@ -14,6 +14,7 @@ const BG_REQUEST_TYPE_MAP: Record<BgRequest["type"], true> = {
   "jira.listIssueTypes": true,
   "jira.listPriorities": true,
   "jira.searchUsers": true,
+  "jira.getUsers": true,
   "jira.getIssueStatus": true,
   "jira.getTransitions": true,
   "jira.transitionIssue": true,

@@ -18,6 +18,7 @@ import {
   getMyself,
   getPriorities,
   getTransitions as getJiraTransitions,
+  getUsersByAccountIds,
   searchEpics,
   searchProjects,
   searchUsers,
@@ -219,6 +220,9 @@ export async function handleMessage(
 
     case "jira.searchUsers":
       return searchUsers(await loadAuth(), message.query);
+
+    case "jira.getUsers":
+      return getUsersByAccountIds(await loadAuth(), message.accountIds);
 
     case "jira.getIssueStatus":
       return getIssueStatus(await loadAuth(), message.issueKey);

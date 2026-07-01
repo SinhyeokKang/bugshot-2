@@ -16,6 +16,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { orderSelectedFirst } from "@/sidepanel/components/ccOptions";
 import type { LinearUser } from "@/types/linear";
 import { sendBg } from "@/types/messages";
 
@@ -88,7 +89,7 @@ export function AssigneeCombobox({ teamId, value, valueName, onChange }: Props) 
               <>
                 <CommandEmpty>{t("linear.field.assignee.empty")}</CommandEmpty>
                 <CommandGroup>
-                  {items.map((u) => {
+                  {orderSelectedFirst(items, (u) => value === u.id).map((u) => {
                     const sel = value === u.id;
                     return (
                       <CommandItem

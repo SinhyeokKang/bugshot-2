@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Check, ChevronsUpDown, Loader2, X } from "lucide-react";
 import { useT } from "@/i18n";
 import { Button } from "@/components/ui/button";
@@ -16,12 +16,9 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { pinSelectedFirst, type CcUserOption } from "./ccOptions";
 
-export interface CcUserOption {
-  key: string;
-  label: string;
-  avatarUrl?: string;
-}
+export type { CcUserOption };
 
 interface Props {
   options: CcUserOption[];
@@ -35,6 +32,8 @@ interface Props {
   disabledLabel?: string;
   onOpenChange?: (open: boolean) => void;
   onSearch?: (query: string) => void;
+  // 서버검색형(Jira 등): 이미 선택돼 검색 결과에 없는 유저를 id로 재조회해 아바타·이메일 보강.
+  resolveSelected?: (keys: string[]) => Promise<CcUserOption[]>;
   // 멘션 등 CC가 아닌 용도로 재사용할 때 라벨을 덮어쓴다 (기본은 field.cc.*).
   selectLabel?: string;
   searchPlaceholder?: string;
@@ -52,13 +51,42 @@ export function CcMultiCombobox({
   disabledLabel,
   onOpenChange,
   onSearch,
+  resolveSelected,
   selectLabel,
   searchPlaceholder,
   emptyLabel,
 }: Props) {
   const t = useT();
   const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [resolved, setResolved] = useState<CcUserOption[]>([]);
   const selectedKeys = new Set(selected.map((s) => s.key));
+  const searching = query.trim().length > 0;
+
+  // 열릴 때, 검색 결과·기존 resolve 어디에도 없는 선택 유저를 재조회한다.
+  useEffect(() => {
+    if (!open || !resolveSelected) return;
+    const known = new Set([
+      ...options.map((o) => o.key),
+      ...resolved.map((o) => o.key),
+    ]);
+    const missing = selected
+      .map((s) => s.key)
+      .filter((k) => !known.has(k));
+    if (missing.length === 0) return;
+    let cancelled = false;
+    resolveSelected(missing)
+      .then((users) => {
+        if (!cancelled && users.length > 0) {
+          setResolved((prev) => [...prev, ...users]);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, selected, options]);
 
   function handleOpenChange(next: boolean) {
     if (disabled) return;
@@ -113,7 +141,10 @@ export function CcMultiCombobox({
         >
           <CommandInput
             placeholder={searchPlaceholder ?? t("field.cc.search")}
-            onValueChange={onSearch}
+            onValueChange={(v) => {
+              setQuery(v);
+              onSearch?.(v);
+            }}
           />
           <CommandList>
             {loading ? (
@@ -135,13 +166,16 @@ export function CcMultiCombobox({
                   </CommandGroup>
                 ) : null}
                 <CommandGroup>
-                  {options.map((o) => {
+                  {(searching
+                    ? options
+                    : pinSelectedFirst([...options, ...resolved], selected)
+                  ).map((o) => {
                     const sel = selectedKeys.has(o.key);
                     return (
                       <CommandItem
                         key={o.key}
                         value={o.key}
-                        keywords={[o.label]}
+                        keywords={o.email ? [o.label, o.email] : [o.label]}
                         onSelect={() => onToggle(o)}
                       >
                         <Check
@@ -157,7 +191,14 @@ export function CcMultiCombobox({
                             className="mr-2 h-4 w-4 rounded-full"
                           />
                         ) : null}
-                        <span className="truncate">{o.label}</span>
+                        <span className="flex min-w-0 flex-1 flex-col">
+                          <span className="truncate">{o.label}</span>
+                          {o.email ? (
+                            <span className="truncate text-xs text-muted-foreground">
+                              {o.email}
+                            </span>
+                          ) : null}
+                        </span>
                       </CommandItem>
                     );
                   })}

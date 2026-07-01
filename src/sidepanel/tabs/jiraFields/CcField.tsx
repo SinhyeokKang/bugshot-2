@@ -36,6 +36,23 @@ export function CcField({ value, onChange }: Props) {
     if (open) return search("");
   }, [open, search]);
 
+  const resolveSelected = useCallback(
+    async (accountIds: string[]): Promise<CcUserOption[]> => {
+      if (!jira) return [];
+      const users = await sendBg<JiraUser[]>({
+        type: "jira.getUsers",
+        accountIds,
+      });
+      return users.map((u) => ({
+        key: u.accountId,
+        label: u.displayName,
+        email: u.emailAddress,
+        avatarUrl: u.avatarUrls?.["16x16"],
+      }));
+    },
+    [jira],
+  );
+
   function toggle(option: CcUserOption) {
     onChange(
       value.some((v) => v.accountId === option.key)
@@ -49,6 +66,7 @@ export function CcField({ value, onChange }: Props) {
       options={items.map((u) => ({
         key: u.accountId,
         label: u.displayName,
+        email: u.emailAddress,
         avatarUrl: u.avatarUrls?.["16x16"],
       }))}
       selected={value.map((v) => ({ key: v.accountId, label: v.displayName }))}
@@ -58,6 +76,7 @@ export function CcField({ value, onChange }: Props) {
       error={error}
       onOpenChange={setOpen}
       onSearch={search}
+      resolveSelected={resolveSelected}
     />
   );
 }
