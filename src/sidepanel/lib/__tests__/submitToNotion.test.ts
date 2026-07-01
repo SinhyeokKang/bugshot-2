@@ -97,6 +97,60 @@ describe("submitToNotion logsDropped", () => {
     expect(res.logsDropped).toBe(false);
   });
 
+  it("requireMediaUpload면 사용자 첨부(other) 실패도 throw — submitPage 미호출", async () => {
+    attachments.mockReturnValue([
+      { placeholderId: "att-0", filename: "doc.pdf", contentType: "application/octet-stream", dataUrl: "data:pdf", category: "other" },
+    ]);
+    sendBg.mockImplementation(async (msg: { type: string; filename?: string }) => {
+      if (msg.type === "notion.uploadFile") {
+        if (msg.filename === "doc.pdf") throw new Error("att fail");
+        return { fileUploadId: "fu" };
+      }
+      if (msg.type === "notion.submitPage") return PAGE;
+      return undefined;
+    });
+
+    await expect(
+      submitToNotion({
+        ctx: makeCtx(),
+        attachments: [{ filename: "doc.pdf", dataUrl: "data:pdf" }],
+        databaseId: "DB",
+        titlePropertyName: "Name",
+        selectValues: [],
+        requireMediaUpload: true,
+      }),
+    ).rejects.toThrow();
+
+    expect(
+      sendBg.mock.calls.filter(([m]) => m.type === "notion.submitPage").length,
+    ).toBe(0);
+  });
+
+  it("requireMediaUpload여도 로그 실패는 best-effort(throw 안 함)", async () => {
+    attachments.mockReturnValue([
+      { placeholderId: "log-0", filename: "logs.html.zip", contentType: "application/zip", dataUrl: "data:zip", category: "log" },
+    ]);
+    sendBg.mockImplementation(async (msg: { type: string; filename?: string }) => {
+      if (msg.type === "notion.uploadFile") {
+        if (msg.filename === "logs.html.zip") throw new Error("too large");
+        return { fileUploadId: "fu" };
+      }
+      if (msg.type === "notion.submitPage") return PAGE;
+      return undefined;
+    });
+
+    const res = await submitToNotion({
+      ctx: makeCtx(),
+      logs: [{ filename: "logs.html", dataUrl: "data:LOGS" }],
+      databaseId: "DB",
+      titlePropertyName: "Name",
+      selectValues: [],
+      requireMediaUpload: true,
+    });
+
+    expect(res.logsDropped).toBe(true);
+  });
+
   it("이미지 첨부 실패는 격리 대상 아님 — 전체 reject", async () => {
     attachments.mockReturnValue([
       { placeholderId: "img-0", filename: "screenshot.webp", contentType: "image/webp", dataUrl: "data:img", category: "image" },

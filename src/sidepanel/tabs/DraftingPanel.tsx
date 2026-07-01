@@ -53,6 +53,7 @@ export function DraftingPanel() {
   const t = useT();
   const tabId = useBoundTabId();
   const captureMode = useEditorStore((s) => s.captureMode);
+  const videoStartedAt = useEditorStore((s) => s.videoStartedAt);
   const selection = useEditorStore((s) => s.selection);
   const styleEdits = useEditorStore((s) => s.styleEdits);
   const beforeImage = useEditorStore((s) => s.beforeImage);
@@ -445,6 +446,7 @@ export function DraftingPanel() {
           requests={networkLog.requests}
           attach={networkLogAttach}
           onToggleAttach={setNetworkLogAttach}
+          syncBaseMs={videoStartedAt ?? undefined}
         />
       )}
       {consoleLog && (
@@ -455,6 +457,7 @@ export function DraftingPanel() {
           startedAt={consoleLog.startedAt}
           attach={consoleLogAttach}
           onToggleAttach={setConsoleLogAttach}
+          syncBaseMs={videoStartedAt ?? undefined}
         />
       )}
       {showActionCard && actionLog && (
@@ -465,6 +468,7 @@ export function DraftingPanel() {
           startedAt={actionLog.startedAt}
           attach={actionLogAttach}
           onToggleAttach={setActionLogAttach}
+          syncBaseMs={videoStartedAt ?? undefined}
         />
       )}
       <AiDraftDialog
@@ -607,7 +611,7 @@ function ReproEnvironmentSection() {
               type="button"
               size="icon"
               variant="outline"
-              className="h-9 w-9 shrink-0 text-muted-foreground"
+              className="h-9 w-9 shrink-0 hover:text-destructive"
               title={t("common.delete")}
               disabled
             >
@@ -644,7 +648,7 @@ function ReproEnvironmentSection() {
               type="button"
               size="icon"
               variant="outline"
-              className="h-9 w-9 shrink-0 text-muted-foreground hover:text-destructive"
+              className="h-9 w-9 shrink-0 hover:text-destructive"
               title={t("common.delete")}
               onClick={() => updateRows(customRows.filter((_, i) => i !== idx))}
             >
@@ -831,7 +835,7 @@ function OrderedListEditor({
               type="button"
               size="icon"
               variant="outline"
-              className="h-9 w-9 shrink-0 text-muted-foreground hover:text-destructive"
+              className="h-9 w-9 shrink-0 hover:text-destructive"
               disabled={items.length <= 1}
               onClick={() => removeAt(idx)}
               title={t("common.delete")}

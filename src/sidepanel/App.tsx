@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from "react";
-import { Blocks, Globe, List, Settings, TerminalSquare } from "lucide-react";
+import { lazy, Suspense, useCallback, useEffect, useState } from "react";
+import { Blocks, Globe, List, Loader2, Settings, TerminalSquare } from "lucide-react";
+import { toast } from "sonner";
 import { useT } from "@/i18n";
 import {
   AlertDialog,
@@ -39,6 +40,16 @@ import { IntegrationsTab } from "./tabs/IntegrationsTab";
 import { IssueListTab } from "./tabs/IssueListTab";
 import { SettingsTab } from "./tabs/SettingsTab";
 import { TabNavContext } from "./tab-nav";
+import { applyReplayTrim } from "./30s-replay/apply-trim";
+import { clearPicker } from "@/sidepanel/picker-control";
+import {
+  deleteNetworkLog,
+  deleteConsoleLog,
+  deleteActionLog,
+  deleteAttachmentBlobs,
+} from "@/store/blob-db";
+
+const ReplayTrimDialog = lazy(() => import("./tabs/ReplayTrimDialog"));
 
 function useSettingsHydrated() {
   const [ready, setReady] = useState(
@@ -85,6 +96,7 @@ export default function App() {
   const [blobSaveFailed, setBlobSaveFailed] = useState(false);
   const [sessionSaveExhausted, setSessionSaveExhausted] = useState(false);
   const [permissionExpired, setPermissionExpired] = useState(false);
+  const [trimBusy, setTrimBusy] = useState(false);
 
   useEffect(() => {
     if (settingsHydrated && connectedPlatforms(accounts).length === 0) {
@@ -174,6 +186,7 @@ export default function App() {
         isEncoding: replay.isEncoding,
         bufferedSeconds: replay.bufferedSeconds,
         capture: replay.capture,
+        trimming: replay.pendingTrim != null,
       }}
     >
     <div className="relative flex h-screen flex-col">
@@ -336,6 +349,41 @@ export default function App() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {replay.pendingTrim && (
+        <Suspense
+          fallback={
+            <div className="absolute inset-0 z-50 flex items-center justify-center bg-background">
+              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+            </div>
+          }
+        >
+          <ReplayTrimDialog
+            videoBlob={replay.pendingTrim.videoBlob}
+            frames={replay.pendingTrim.frames}
+            busy={trimBusy}
+            onConfirm={(startSec, endSec) => {
+              const frames = replay.pendingTrim?.frames ?? [];
+              setTrimBusy(true);
+              applyReplayTrim({ frames, tabId, startSec, endSec })
+                .catch(() => toast.error(t("issue.replay.encodeFailed")))
+                .finally(() => {
+                  setTrimBusy(false);
+                  replay.resolveTrim();
+                });
+            }}
+            onCancel={() => {
+              replay.resolveTrim();
+              useEditorStore.getState().reset();
+              void clearPicker(tabId);
+              void deleteNetworkLog(`pending:${tabId}`);
+              void deleteConsoleLog(`pending:${tabId}`);
+              void deleteActionLog(`pending:${tabId}`);
+              void deleteAttachmentBlobs(`pending:${tabId}`);
+            }}
+          />
+        </Suspense>
+      )}
     </div>
     <Toaster position="top-center" offset={24} />
     </ReplayProvider>

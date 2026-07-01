@@ -416,6 +416,8 @@ export function DraftDetailDialog({
       relatesKey: fields.relatesKey,
       cc: fields.cc,
     });
+    // 승격 가드 없음: submitToJira는 업로드+생성이 단일 atomic 호출(jira.submitIssue)이라
+    // 프론트가 첨부 부분 실패를 신호받지 못한다. 가드하려면 background 핸들러 수정 필요. (docs/POSTMORTEM.md)
     markSubmitted(issue.id, {
       platform: "jira",
       key: result.key,
@@ -521,6 +523,8 @@ export function DraftDetailDialog({
       priority: linearFields.priority,
       cc: linearFields.cc,
     });
+    // 승격 가드 불필요: submitToLinear는 이미지·비디오·인라인을 생성 전 업로드하고 실패 시 throw하므로
+    // (href:null soft-fail 없음) 미디어 실패는 markSubmitted에 도달하지 못한다 — 원본 보존됨.
     markSubmitted(issue.id, {
       platform: "linear",
       key: result.key,
@@ -584,6 +588,9 @@ export function DraftDetailDialog({
           : undefined,
       selectValues: notionFields.selectValues,
       cc: notionFields.cc?.map((u) => u.id),
+      // 승격은 markSubmitted가 Slack 원본을 파괴하므로 사용자 첨부 업로드 실패 시 등록 전 중단.
+      // (이미지·비디오는 submitToNotion에서 상시 strict라 별도 가드 불필요.)
+      requireMediaUpload: isSlackPreserved(issue),
     });
     const pageId = extractNotionPageId(result.url);
     markSubmitted(issue.id, {
@@ -633,6 +640,8 @@ export function DraftDetailDialog({
       label: gitlabFields.label,
       assigneeId: gitlabFields.assigneeId,
       cc: gitlabFields.cc?.map((u) => u.username),
+      // 승격은 markSubmitted가 Slack 원본을 파괴하므로 미디어 업로드 실패 시 등록 전 중단.
+      requireMediaUpload: isSlackPreserved(issue),
     });
     markSubmitted(issue.id, {
       platform: "gitlab",
@@ -682,6 +691,8 @@ export function DraftDetailDialog({
       assigneeGid: asanaFields.assigneeGid,
       cc: asanaFields.cc,
     });
+    // 승격 가드 없음: submitToAsana는 task를 먼저 생성하고(attachment에 parent gid 필요) 그 뒤 업로드해서,
+    // 업로드 부분 실패를 등록 전에 막을 수 없다(생성→업로드 역순). 보호하려면 사전 probe/롤백 설계 필요. (docs/POSTMORTEM.md)
     markSubmitted(issue.id, {
       platform: "asana",
       key: result.key,
@@ -730,6 +741,8 @@ export function DraftDetailDialog({
       assigneeId: clickupFields.assigneeId,
       cc: clickupFields.cc,
     });
+    // 승격 가드 없음: submitToClickup은 task를 먼저 생성하고(attachment에 task id 필요) 그 뒤 업로드해서,
+    // 업로드 부분 실패를 등록 전에 막을 수 없다(생성→업로드 역순). 보호하려면 사전 probe/롤백 설계 필요. (docs/POSTMORTEM.md)
     markSubmitted(issue.id, {
       platform: "clickup",
       key: result.key,

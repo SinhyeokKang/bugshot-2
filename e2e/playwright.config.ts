@@ -12,12 +12,14 @@ export default defineConfig({
   use: {
     trace: "retain-on-failure",
   },
-  // 두 스위트로 분리한다. log-viewer는 확장 없이 dist-log-viewer/index.html을 직접 여는
-  // standalone HTML이라 별도 project로 떼고, 사이드패널 project가 green일 때만 뒤따라 돈다.
+  // 두 스위트로 분리한다.
+  // - sidepanel: 확장 구동 메인 스위트(결정적 게이트).
+  // - logview: 확장 없이 dist-log-viewer/index.html을 직접 여는 standalone HTML.
+  // (30s Replay 캡처 spec은 captureVisibleTab cold-start/quota로 환경 flaky가 심해 제거함 — GOTCHAS 참조.)
   projects: [
     {
       name: "sidepanel",
-      testIgnore: "**/logview/**",
+      testIgnore: ["**/logview/**"],
     },
     {
       name: "logview",

@@ -131,6 +131,7 @@ interface EditorState {
   videoCapturedAt: number | null;
   videoStartedAt: number | null;
   videoEndedAt: number | null;
+  videoTrimmed: boolean; // trim 적용(실제 재인코딩) 여부 — 제출 분석 플래그.
   freeformViewport: { width: number; height: number } | null;
   freeformCapturedAt: number | null;
   networkLog: NetworkLog | null;
@@ -162,6 +163,7 @@ interface EditorState {
   startRecording: (target: EditorTarget, source: RecordingSource) => void;
   startFreeform: (target: EditorTarget) => void;
   onRecordingComplete: (blob: Blob, thumbnail: string, viewport: { width: number; height: number }, startedAt: number, endedAt: number) => void;
+  replaceVideo: (blob: Blob, thumbnail: string, startedAt: number, endedAt: number) => void;
   cancelRecording: () => void;
   onAreaCaptured: (dataUrl: string, viewport: { width: number; height: number }) => void;
   onAnnotated: (dataUrl: string) => void;
@@ -231,6 +233,7 @@ export type EditorSnapshot = Pick<
   | "videoCapturedAt"
   | "videoStartedAt"
   | "videoEndedAt"
+  | "videoTrimmed"
   | "freeformViewport"
   | "freeformCapturedAt"
   | "networkLogAttach"
@@ -270,6 +273,7 @@ const initial = {
   videoCapturedAt: null as number | null,
   videoStartedAt: null as number | null,
   videoEndedAt: null as number | null,
+  videoTrimmed: false,
   freeformViewport: null as { width: number; height: number } | null,
   freeformCapturedAt: null as number | null,
   networkLog: null as NetworkLog | null,
@@ -498,7 +502,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       shotSelector: shot,
     }),
   startRecording: (target, source) => set({ ...initial, captureMode: "video", recordingSource: source, phase: "recording", target }),
-  onRecordingComplete: (blob, thumbnail, viewport, startedAt, endedAt) => set({ captureMode: "video", phase: "drafting", videoBlob: blob, videoThumbnail: thumbnail, videoViewport: viewport, videoCapturedAt: Date.now(), videoStartedAt: startedAt, videoEndedAt: endedAt, networkLogAttach: true, consoleLogAttach: true, actionLogAttach: true }),
+  onRecordingComplete: (blob, thumbnail, viewport, startedAt, endedAt) => set({ captureMode: "video", phase: "drafting", videoBlob: blob, videoThumbnail: thumbnail, videoViewport: viewport, videoCapturedAt: Date.now(), videoStartedAt: startedAt, videoEndedAt: endedAt, videoTrimmed: false, networkLogAttach: true, consoleLogAttach: true, actionLogAttach: true }),
+  // trim 확정 시 영상 메타만 교체 — phase·attach·target·videoCapturedAt(원본 캡처 시각)은 불변.
+  replaceVideo: (blob, thumbnail, startedAt, endedAt) => set({ videoBlob: blob, videoThumbnail: thumbnail, videoStartedAt: startedAt, videoEndedAt: endedAt, videoTrimmed: true }),
   cancelRecording: () => set((state) => ({ ...initial, ...preserveLogs(state) })),
   // screenshot도 freeform/video와 동일하게 진입 시 첨부 토글 자동 on (startCapturing·startElementShot). preserveLogs는 로그 데이터 보존용이고 attach는 덮어쓴다.
   onAreaCaptured: (dataUrl, viewport) => set({ phase: "drafting", screenshotRaw: dataUrl, screenshotViewport: viewport, screenshotCapturedAt: Date.now() }),

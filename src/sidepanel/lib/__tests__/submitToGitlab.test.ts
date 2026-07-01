@@ -115,6 +115,94 @@ describe("submitToGitlab 역링크 보강", () => {
   });
 });
 
+describe("submitToGitlab requireMediaUpload (승격 보호)", () => {
+  function submitCallCount(): number {
+    return sendBg.mock.calls.filter(
+      (c) => (c[0] as { type: string }).type === "gitlab.submitIssue",
+    ).length;
+  }
+
+  it("이미지 업로드가 url:null이면 throw하고 submitIssue를 호출하지 않는다", async () => {
+    sendBg.mockImplementation(async (msg: { type: string }) => {
+      if (msg.type === "gitlab.uploadFiles")
+        return [{ filename: "shot.webp", url: null }];
+      if (msg.type === "gitlab.submitIssue") return ISSUE;
+      return undefined;
+    });
+
+    await expect(
+      submitToGitlab({
+        ctx: makeCtx(),
+        projectId: 7,
+        images: [{ filename: "shot.webp", dataUrl: "data:IMG" }],
+        requireMediaUpload: true,
+      }),
+    ).rejects.toThrow();
+
+    expect(submitCallCount()).toBe(0);
+  });
+
+  it("모든 미디어 업로드 성공이면 정상 등록한다", async () => {
+    sendBg.mockImplementation(async (msg: { type: string }) => {
+      if (msg.type === "gitlab.uploadFiles")
+        return [{ filename: "shot.webp", url: "IMG_URL" }];
+      if (msg.type === "gitlab.submitIssue") return ISSUE;
+      return undefined;
+    });
+
+    const res = await submitToGitlab({
+      ctx: makeCtx(),
+      projectId: 7,
+      images: [{ filename: "shot.webp", dataUrl: "data:IMG" }],
+      requireMediaUpload: true,
+    });
+
+    expect(res.key).toBe("#42");
+    expect(submitCallCount()).toBe(1);
+  });
+
+  it("미디어는 성공하고 logs만 실패하면 throw하지 않는다(로그는 best-effort)", async () => {
+    sendBg.mockImplementation(async (msg: { type: string }) => {
+      if (msg.type === "gitlab.uploadFiles")
+        return [
+          { filename: "shot.webp", url: "IMG_URL" },
+          { filename: "logs.html", url: null },
+        ];
+      if (msg.type === "gitlab.submitIssue") return ISSUE;
+      return undefined;
+    });
+
+    const res = await submitToGitlab({
+      ctx: makeCtx(),
+      projectId: 7,
+      images: [{ filename: "shot.webp", dataUrl: "data:IMG" }],
+      logs: [{ filename: "logs.html", dataUrl: "data:LOGS" }],
+      requireMediaUpload: true,
+    });
+
+    expect(res.logsDropped).toBe(true);
+    expect(submitCallCount()).toBe(1);
+  });
+
+  it("requireMediaUpload 미지정(일반 제출)이면 이미지 실패해도 throw하지 않는다", async () => {
+    sendBg.mockImplementation(async (msg: { type: string }) => {
+      if (msg.type === "gitlab.uploadFiles")
+        return [{ filename: "shot.webp", url: null }];
+      if (msg.type === "gitlab.submitIssue") return ISSUE;
+      return undefined;
+    });
+
+    const res = await submitToGitlab({
+      ctx: makeCtx(),
+      projectId: 7,
+      images: [{ filename: "shot.webp", dataUrl: "data:IMG" }],
+    });
+
+    expect(res.key).toBe("#42");
+    expect(submitCallCount()).toBe(1);
+  });
+});
+
 describe("submitToGitlab logsDropped", () => {
   it("logs.html 업로드가 null(용량 초과)이면 logsDropped: true", async () => {
     sendBg.mockImplementation(async (msg: { type: string }) => {

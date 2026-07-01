@@ -107,10 +107,14 @@ function createImageDropPlugin(
   });
 }
 
-function editorMarkdown(editor: Editor, urlToRef: Map<string, string>): string {
+export function editorMarkdown(editor: Editor, urlToRef: Map<string, string>): string {
   const storage = editor.storage as unknown as {
-    markdown: { getMarkdown(): string };
+    markdown?: { getMarkdown(): string };
   };
+  // 정리(destroy)/마운트 레이스 중 stale editor 접근 방어 — markdown storage가 없는 인스턴스에
+  // getMarkdown을 호출하면 throw돼 트리 전체가 unmount된다. 근본 원인(trim overlay와 동시 마운트)은
+  // IssueTab에서 제거했고, 이 가드는 그 외 경로의 stale 접근까지 막는 조용한 안전망이다.
+  if (!storage.markdown) return "";
   let md = storage.markdown.getMarkdown();
   for (const [blobUrl, refId] of urlToRef) {
     md = md.replaceAll(blobUrl, `inline:${refId}`);

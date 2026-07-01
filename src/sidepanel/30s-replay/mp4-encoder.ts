@@ -8,7 +8,7 @@ const CODEC_CANDIDATES = [
   "avc1.640033",
   "avc1.42E01F",
 ];
-const MAX_FRAME_DURATION_MS = 1000;
+export const MAX_FRAME_DURATION_MS = 1000;
 const DEFAULT_LAST_FRAME_MS = 500;
 const KEYFRAME_INTERVAL = 30;
 const YIELD_EVERY = 10;

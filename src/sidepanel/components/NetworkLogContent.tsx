@@ -34,6 +34,7 @@ interface NetworkLogContentProps {
   activeTs?: number;
   scrollToEntryId?: string | null;
   onScrollComplete?: () => void;
+  isMuted?: (absTs: number) => boolean; // 트림 후보(잘려나갈 요청) 흐림 판정 — 좌측 리스트 행만 적용
 }
 
 function methodColor(method: string): string {
@@ -152,7 +153,7 @@ function buildCurl(req: NetworkRequest): string {
 
 type DetailTab = "headers" | "request" | "response" | "messages";
 
-export function NetworkLogContent({ requests, flush, syncBaseMs, onSeek, activeTs, scrollToEntryId, onScrollComplete }: NetworkLogContentProps) {
+export function NetworkLogContent({ requests, flush, syncBaseMs, onSeek, activeTs, scrollToEntryId, onScrollComplete, isMuted }: NetworkLogContentProps) {
   const t = useT();
   const [activeId, setActiveId] = useState<string | null>(null);
   const [detailTab, setDetailTab] = useState<DetailTab>("headers");
@@ -319,6 +320,7 @@ export function NetworkLogContent({ requests, flush, syncBaseMs, onSeek, activeT
               syncBaseMs={syncBaseMs}
               onSeek={onSeek}
               onClick={() => handleSelect(req.id)}
+              muted={isMuted?.(req.startTime) ?? false}
             />
           ))}
         </div>
@@ -410,6 +412,7 @@ function RequestRow({
   syncBaseMs,
   onSeek,
   onClick,
+  muted,
 }: {
   req: NetworkRequest;
   active: boolean;
@@ -417,12 +420,14 @@ function RequestRow({
   syncBaseMs?: number;
   onSeek?: (absTs: number) => void;
   onClick: () => void;
+  muted?: boolean;
 }) {
   return (
     <div
       data-entry-id={req.id}
       data-ws={req.webSocket ? "true" : undefined}
-      className={`flex cursor-pointer items-center gap-3 overflow-hidden px-2.5 py-2 text-[13px] ${syncRowClass(syncBaseMs != null, !!syncActive, rowBg(req, active))}`}
+      data-muted={muted || undefined}
+      className={`flex cursor-pointer items-center gap-3 overflow-hidden px-2.5 py-2 text-[13px] ${syncRowClass(syncBaseMs != null, !!syncActive, rowBg(req, active))}${muted ? " opacity-40" : ""}`}
       aria-current={syncActive ? "true" : undefined}
       onClick={onClick}
     >

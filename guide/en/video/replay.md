@@ -23,7 +23,24 @@ Once it's ready, the **30s replay** button on the debug screen pulls the last 30
 
 ![30s replay button states](../assets/video-replay-2.jpg)
 
-> Once the video is made, you move to the issue draft. Continue with [Write an Issue](issue.md).
+## Trimming the clip
+
+The bug itself usually happens in just a moment of those 30 seconds. Once the video is made, a **trim screen** pops up over the issue draft so you can cut the unneeded parts and keep only the bug moment. It's simpler than it sounds — trim the ends to keep only what matters.
+
+Up top, the trim screen has **Video**, **Console**, **Network**, and **Action** tabs. The Video tab plays your clip in the middle; switch to a log tab and that type of captured log opens up in the same spot (each tab shows a count of what it caught). No matter which tab you're on, the timeline handles and buttons like undo and apply stay right there, so you can trim while reading the logs.
+
+- **Pick the range** — Drag the **Start** and **End** handles at the ends of the timeline to set what to keep. As you move a handle, the selected length ("17s / 30s") shows up top.
+- **Play / pause** — Use the **Video** tab to scrub through the clip and find the bug (playback pauses for a moment when you switch to a log tab). The timeline marks **where errors occurred** (console/network) and **where the page navigated** to help you decide what to keep — click a mark to jump straight to that log tab.
+- **Preview what gets cut** — As you move a handle, the logs that will be cut go **dimmed** in the log tabs. So before you apply, you can see at a glance exactly which logs are about to drop. It's distinct from the error and status colors, so there's no mixing them up.
+- **Undo / redo** — Moved a handle by mistake? No worries — undo or redo it.
+
+When you're happy, hit **Apply**. The video is rebuilt to keep only the selected range, and the attached console, network, and action logs get narrowed to match (the ones shown dimmed drop out). Leave the handles untouched and hit **Apply** to keep the full 30 seconds.
+
+> The trim screen shows up **just once** right after capture, and the original is cleared once you apply. Don't need to trim? Just hit **Apply** as is. To drop this capture entirely, hit **Discard** — you'll confirm and return to the start screen.
+
+![Trimming the replay clip](../assets/video-replay-3.jpg)
+
+> Once you apply, you move to the issue draft. Continue with [Write an Issue](issue.md).
 
 ---
 

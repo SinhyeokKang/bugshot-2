@@ -14,28 +14,28 @@
 - **변경 대상**: `src/sidepanel/30s-replay/trim-math.ts`(신규), `src/sidepanel/30s-replay/__tests__/trim-math.test.ts`(신규)
 - **작업 내용**: (선행) `mp4-encoder.ts:11` `MAX_FRAME_DURATION_MS`를 `export const`로 승격. 그 후 `frameOffsetsMs(frames, maxFrameDurationMs)`(누적 표시 오프셋 ms, `computeFrameDurationsUs` 재사용), `secondsToFrameRange(frames, startSec, endSec, maxFrameDurationMs)`(초→프레임 인덱스 스냅·clamp·**최소 2프레임**), `isFullRange`(in=0&&out=last) 구현. `maxFrameDurationMs`는 위 export 상수 공유. `/tdd interface`로 테스트 먼저.
 - **검증**:
-  - [ ] `frameOffsetsMs`: 빈 배열 `[]`, 단일 프레임 `[0]`, 등간격(600ms) 프레임의 누적 오프셋이 단조 증가.
-  - [ ] `frameOffsetsMs` 마지막 오프셋 + 마지막 프레임 표시 duration == `computeFrameDurationsUs` 총합(영상 duration)과 일치(`<video>` 초↔프레임 매핑 드리프트 없음).
-  - [ ] `secondsToFrameRange`: startSec=0 → inIndex=0; endSec≥총길이 → outIndex=last; 중간값은 가장 가까운 프레임에 스냅; in==out으로 좁혀지면 **최소 2프레임**(outIndex-inIndex≥1) 보장.
-  - [ ] `isFullRange`: (0,last)=true, 그 외 false.
-  - [ ] `pnpm test` 통과.
+  - [x] `frameOffsetsMs`: 빈 배열 `[]`, 단일 프레임 `[0]`, 등간격(600ms) 프레임의 누적 오프셋이 단조 증가.
+  - [x] `frameOffsetsMs` 마지막 오프셋 + 마지막 프레임 표시 duration == `computeFrameDurationsUs` 총합(영상 duration)과 일치(`<video>` 초↔프레임 매핑 드리프트 없음).
+  - [x] `secondsToFrameRange`: startSec=0 → inIndex=0; endSec≥총길이 → outIndex=last; 중간값은 가장 가까운 프레임에 스냅; in==out으로 좁혀지면 **최소 2프레임**(outIndex-inIndex≥1) 보장.
+  - [x] `isFullRange`: (0,last)=true, 그 외 false.
+  - [x] `pnpm test` 통과.
 
 ### Task 2: editor-store `replaceVideo` 액션
 - **변경 대상**: `src/store/editor-store.ts` (타입 ≈164, 구현 ≈501)
 - **작업 내용**: `replaceVideo(blob, thumbnail, startedAt, endedAt)` 추가 — `set({ videoBlob, videoThumbnail, videoStartedAt, videoEndedAt })`. phase·attach·target·**`videoCapturedAt` 불변(원본 캡처 시각 보존 — trim 확정 시각 `Date.now()`로 덮지 않음)**.
 - **검증**:
-  - [ ] `editor-store.test.ts`에 케이스 추가: drafting 상태에서 `replaceVideo` 호출 시 영상 메타(blob/thumbnail/startedAt/endedAt)만 바뀌고 phase/attach 토글 불변.
-  - [ ] `replaceVideo` 후 `videoCapturedAt`이 호출 전 값 그대로(불변)임을 단언.
-  - [ ] `pnpm typecheck` 통과.
+  - [x] `editor-store.test.ts`에 케이스 추가: drafting 상태에서 `replaceVideo` 호출 시 영상 메타(blob/thumbnail/startedAt/endedAt)만 바뀌고 phase/attach 토글 불변.
+  - [x] `replaceVideo` 후 `videoCapturedAt`이 호출 전 값 그대로(불변)임을 단언.
+  - [x] `pnpm typecheck` 통과.
 
 ### Task 3: `applyReplayTrim` 백엔드
 - **변경 대상**: `src/sidepanel/30s-replay/apply-trim.ts`(신규)
 - **작업 내용**: design의 `applyReplayTrim({ frames, tabId, startSec, endSec })`(captureTime 인자 없음) 구현 — `secondsToFrameRange` → slice → `isFullRange`면 no-op → `encodeToMp4` → **타임베이스 분리**: `videoStartedAt=sliced[0].ts`, `videoEndedAt=sliced[last].ts + lastFrameDurationMs`(raw), `replayLogBounds(sliced[0].ts, videoEndedAt)`→{lower,upper}(guard, 로그 전용) → `*Persist.discard()` → `trimByTime`로 store 로그 재trim → `set*Log` + `save*Log(`pending:${tabId}`)` → `editor.replaceVideo(blob, thumbnail, videoStartedAt, videoEndedAt)`(raw 경계). **`save*Log`를 await한 뒤 반환**(`discard()`가 in-flight IDB write를 못 막으므로 — `log-persist-guard.ts:58` — 호출부가 락 해제/`resolveTrim` 전에 save 완료를 보장해 늦은 write의 경계 밖 로그 부활 방지). 실패 시 throw(호출부에서 토스트).
 - **검증**:
-  - [ ] **단위**: `encodeToMp4`를 mock해 전체 구간 입력 시 호출 0회(no-op), 부분 구간 입력 시 1회 assert (WebCodecs는 jsdom 미지원이라 mock 필수).
-  - [ ] **단위**: `replaceVideo`에 넘어가는 startedAt이 raw `sliced[0].ts`(guard 미적용)임을 spy로 확인 — 영상 측 타임베이스.
-  - [ ] **단위**: 로그 `trimByTime`/`save*Log`에 넘어가는 lower가 **guard 적용된 `replayLogBounds` 결과**(raw − `REPLAY_LOG_GUARD_MS`)임을 spy로 확인 — 로그 측 타임베이스(분리 양측 봉인, design 최대 위험요소 둘 다 검증).
-  - [ ] **단위**: `applyReplayTrim` 후 attach 토글(`networkLogAttach`/`consoleLogAttach`/`actionLogAttach`) 불변 — `set*Log`가 토글 미변경(PRD "첨부 토글 유지").
+  - [x] **단위**: `encodeToMp4`를 mock해 전체 구간 입력 시 호출 0회(no-op), 부분 구간 입력 시 1회 assert (WebCodecs는 jsdom 미지원이라 mock 필수).
+  - [x] **단위**: `replaceVideo`에 넘어가는 startedAt이 raw `sliced[0].ts`(guard 미적용)임을 spy로 확인 — 영상 측 타임베이스.
+  - [x] **단위**: 로그 `trimByTime`/`save*Log`에 넘어가는 lower가 **guard 적용된 `replayLogBounds` 결과**(raw − `REPLAY_LOG_GUARD_MS`)임을 spy로 확인 — 로그 측 타임베이스(분리 양측 봉인, design 최대 위험요소 둘 다 검증).
+  - [x] **단위**: `applyReplayTrim` 후 attach 토글(`networkLogAttach`/`consoleLogAttach`/`actionLogAttach`) 불변 — `set*Log`가 토글 미변경(PRD "첨부 토글 유지").
   - [ ] (수동) 실제 캡처에서 앞뒤 자른 뒤 첨부 로그가 새 경계 밖 항목을 포함하지 않음.
 
 ### Task 4: `use30sReplay` pendingTrim/resolveTrim 노출
@@ -45,17 +45,17 @@
   - [ ] (수동/통합) 프레임 2개 이상 캡처 시 `capture()` 후 `pendingTrim != null`. (use-30s-replay는 WebCodecs/`captureVisibleTab`/`chrome` 의존이라 node-env 단위 테스트 불가 — 수동/통합 확인.)
   - [ ] (수동/통합) `resolveTrim` 호출 시 `pendingTrim == null`(프레임 참조 해제).
   - [ ] (수동) 프레임 2개 미만(0/1) 캡처 시 `pendingTrim` 미설정 → 오버레이 미표시·전체 클립 직행(PRD 엣지).
-  - [ ] 기존 `editor-store.test.ts:196`(capture 동등 흐름) 회귀 없음 (`pnpm test` 자동).
+  - [x] 기존 `editor-store.test.ts:196`(capture 동등 흐름) 회귀 없음 (`pnpm test` 자동).
 
 ### Task 5: `trim-markers` 에러 마커 어댑터 + 단위 테스트
 - **변경 대상**: `src/sidepanel/30s-replay/trim-markers.ts`(신규), `src/sidepanel/30s-replay/__tests__/trim-markers.test.ts`(신규)
 - **작업 내용**: `TrimMarker` 타입(여기 정의, `type: "console"|"network"`) + `buildErrorMarkers(logs:{consoleLog,networkLog}, videoStartedAt, durationSec): TrimMarker[]`. `@/log-viewer/markers`의 `buildMarkers`를 **import 재사용**(복제 금지 — 소스 import 정상 resolve)하고 **에러성만** 필터해 매핑. **에러 기준(넓게)**: console=`level==="error"||"warn"`, network=`status>=400||phase==="error"||"pending"`. **action 제외**. 순수 함수, 테스트 우선.
 - **검증**:
-  - [ ] console: error·warn 포함, info·log 제외.
-  - [ ] network: 4xx/5xx·phase error·pending 포함, 2xx 정상 제외.
-  - [ ] action 로그를 줘도 마커 0개(대상 아님).
-  - [ ] `positionPct` 0~100 clamp, `videoStartedAt` 기준 환산 정확, `durationSec<=0`이면 안전(NaN 없음).
-  - [ ] 빈 로그 → `[]`. `pnpm test` 통과.
+  - [x] console: error·warn 포함, info·log 제외.
+  - [x] network: 4xx/5xx·phase error·pending 포함, 2xx 정상 제외.
+  - [x] action 로그를 줘도 마커 0개(대상 아님). — 시그니처가 `{consoleLog, networkLog}`만 받아 action 입력 자체가 없음(둘 다 null → `[]`로 커버).
+  - [x] `positionPct` 0~100 clamp, `videoStartedAt` 기준 환산 정확, `durationSec<=0`이면 안전(NaN 없음).
+  - [x] 빈 로그 → `[]`. `pnpm test` 통과.
 
 ### Task 6: `TrimTimeline` UI (1트랙 레이어 분리: Slider=trim 전용 / 마커·playhead=표시)
 - **변경 대상**: `src/sidepanel/tabs/TrimTimeline.tsx`(신규), `src/components/ui/slider.tsx`(shadcn 설치)
@@ -80,8 +80,8 @@
 - **검증**:
   - [ ] (수동) 30s 리플레이 캡처 → drafting 위에 오버레이 자동 등장.
   - [ ] (수동) ✗ → 확인 후 캡처 폐기·진입 화면 복귀 + IDB pending 로그·attachment 잔존 없음.
-  - [ ] i18n PostToolUse 훅(ko/en 대칭·placeholder 토큰 일치) 통과.
-  - [ ] `pnpm typecheck` 통과.
+  - [x] i18n PostToolUse 훅(ko/en 대칭·placeholder 토큰 일치) 통과.
+  - [x] `pnpm typecheck` 통과.
 
 ## 테스트 계획
 

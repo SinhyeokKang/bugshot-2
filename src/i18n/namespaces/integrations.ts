@@ -100,6 +100,7 @@ const ko = {
   "gitlab.error.429": "요청이 너무 많습니다. 잠시 후 다시 시도하세요.",
   "gitlab.error.5xx": "GitLab 서버 오류. 잠시 후 다시 시도하세요.",
   "gitlab.error.generic": "GitLab 요청 실패 ({status})",
+  "gitlab.error.mediaUploadFailed": "이미지·첨부 업로드에 실패해 이슈를 등록하지 않았습니다. GitLab 로그인 상태를 확인하고 다시 시도하세요.",
 
   "asana.patButton": "PAT 인증",
   "asana.auth.kind.oauth": "OAuth",
@@ -379,6 +380,7 @@ const en = {
   "gitlab.error.429": "Too many requests. Try again later.",
   "gitlab.error.5xx": "GitLab server error. Try again later.",
   "gitlab.error.generic": "GitLab request failed ({status})",
+  "gitlab.error.mediaUploadFailed": "Image/attachment upload failed, so the issue was not created. Check your GitLab login and try again.",
 
   "asana.patButton": "PAT Auth",
   "asana.auth.kind.oauth": "OAuth",

@@ -30,6 +30,9 @@ export interface NotionSubmitInput {
   statusOption?: { propertyName: string; optionName: string };
   selectValues: NotionSelectFieldValue[];
   cc?: string[];
+  // 승격(Slack 보존 이슈)처럼 성공 시 원본을 파괴하는 흐름에서는 사용자 첨부(other) 업로드
+  // 실패도 페이지 생성 전에 중단해 원본 손실을 막는다. 이미지·비디오는 상시 strict, 로그는 best-effort.
+  requireMediaUpload?: boolean;
 }
 
 export async function submitToNotion(
@@ -118,8 +121,9 @@ export async function submitToNotion(
       });
     } catch (err) {
       // 로그·사용자 첨부 실패는 격리 — 누락 placeholder 블록은 createPage에서 자연 스킵.
-      // image/video는 본문 핵심이라 strict 유지(전체 실패).
-      if (a.category === "log" || a.category === "other") {
+      // image/video는 본문 핵심이라 strict 유지(전체 실패). 승격(requireMediaUpload)이면
+      // 사용자 첨부(other)도 strict — 원본 파괴 전에 중단. 로그는 승격에서도 best-effort.
+      if (a.category === "log" || (a.category === "other" && !input.requireMediaUpload)) {
         logsDropped = true;
         continue;
       }

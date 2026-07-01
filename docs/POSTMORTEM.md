@@ -21,6 +21,24 @@
 
 ---
 
+## 2026-07-01 — 30s replay 트림 진입 시 흰 화면 (두 lazy 청크 동시 첫 마운트 → tiptap storage 레이스)
+
+- **증상**: 30s replay 캡처 직후 트림 오버레이가 떠야 하는데 **사이드패널 전체가 흰 화면**. 콘솔에 `Cannot read properties of undefined (reading 'getMarkdown')`. element·스크린샷·일반 녹화 모드는 멀쩡하고 **오직 30s replay만** 깨짐.
+- **근본 원인**: 표면(getMarkdown of undefined)과 원인(컴포넌트 마운트 레이스)이 다른 레이어. 30s replay만 캡처 직후 `phase=drafting`(DraftingPanel→`LazyTiptapEditor`)과 `pendingTrim`(`ReplayTrimDialog`)을 **같은 커밋에 set**해서, 두 `lazy()` 청크가 같은 Suspense 사이클에서 동시 첫 로드된다. 그 레이스 중 tiptap editor 인스턴스는 살아있는데 `editor.storage.markdown`이 아직 없는(초기화 미완/stale) 순간이 생기고, value-sync useEffect의 `editorMarkdown`이 `storage.markdown.getMarkdown()`을 호출 → throw → 에러 바운더리가 없어 **App 트리 전체 unmount**. 다른 모드는 DraftingPanel만(overlay 없음) 마운트라 동시 로드가 안 일어나 무사. replay-trim(원본)은 ReplayTrimDialog가 가벼웠는데 refactor로 LogContent 3개를 정적 import해 청크가 무거워지며 이 레이스를 깨움.
+- **재발 방지**: (1) **lazy 컴포넌트 두 개가 같은 트리에 동시 첫 마운트되는 구조를 피한다** — 한쪽이 모달/오버레이로 다른 쪽을 덮으면, 덮이는 쪽은 아예 마운트하지 않는다(여기선 `pendingTrim` 동안 IssueTab이 DraftingPanel을 마운트 안 함, `ReplayContext.trimming` 플래그). `grep -rn "lazy(" src/sidepanel`로 동시 마운트 후보를 점검. (2) **외부 라이브러리 storage 접근 전 존재 가드** — `editor.storage.markdown` 같은 비동기 초기화 storage는 throw 대신 빈 값 반환(`editorMarkdown`가 안전망). `grep -rn "\.storage\." src/sidepanel/components/TiptapEditor.tsx`. (3) **이 증상이 e2e capture flaky(captureVisibleTab cold-start)에 가려져 한참 "환경 문제"로 오판**했다 — 캡처 의존 e2e가 빨갛다고 환경 탓만 하지 말고, **실제 빌드+Chrome 수동 재현**으로 src 회귀를 분리한다. "특정 모드만 깨짐"(여기선 replay만)이 src 인과의 결정적 단서. (4) 단위 `TiptapEditor.test.ts > editorMarkdown`(storage 없으면 "" 반환).
+- **관련**: `src/sidepanel/tabs/IssueTab.tsx`(trimming 가드), `src/sidepanel/30s-replay/replay-context.ts`(`trimming` 플래그)·`src/sidepanel/App.tsx`(`pendingTrim != null` 전달), 안전망 `src/sidepanel/components/TiptapEditor.tsx:editorMarkdown`, 동시 set 지점 `src/sidepanel/30s-replay/use-30s-replay.ts`(onRecordingComplete + setPendingTrim).
+
+---
+
+## 2026-06-30 — Slack 승격 미디어 가드를 7개 트래커로 확장 (업로드 모델이 달라 균일 복제 불가 — 가능한 곳만 가드, 불가한 곳은 명시)
+
+- **증상**: GitHub 단독 픽스(아래 항목)의 `requireMediaUpload` 가드가 **GitHub 핸들러에만** 있었다. Slack 보존 이슈를 GitHub *외* 트래커로 승격하면 동일한 미디어 업로드 부분 실패에서 여전히 `markSubmitted`가 원본을 비가역 파괴한다(아래 항목 재발방지 (3)이 경고했던 미수정 갭).
+- **근본 원인**: 7개 어댑터의 업로드 모델이 제각각이라 GitHub 패턴을 그대로 복제할 수 없다. **업로드→생성 + soft-fail(href/url:null)** 인 GitHub·GitLab만 "생성 전 누락 감지 후 throw" 가드가 성립한다. 나머지는 (a) **Linear**: 미디어를 생성 전 업로드하되 실패 시 **throw**(soft-fail 맵 없음) → 가드 효과가 이미 내재, (b) **Notion**: 이미지·비디오는 생성 전 strict throw라 안전하고 **사용자 첨부(category `other`)만 soft-fail** 갭, (c) **ClickUp·Asana**: **생성→업로드 역순**(첨부에 task id/parent gid 필요)이라 업로드 실패를 안 시점엔 task가 이미 존재 → 사전 throw 가드 **구조적 불가**, (d) **Jira**: 업로드+생성이 **단일 atomic 호출**이라 프론트가 첨부 부분 실패를 신호받지 못함. "전 플랫폼에 같은 한 줄"이라는 직관이 어긋나는 지점.
+- **재발 방지**: (1) **가능한 곳만 가드, 불가한 곳은 코드 주석 + 이 문서로 명시**한다(은폐 금지). 추가분: **GitLab** = GitHub 가드 직접 복제(`someUploadMissing` 재사용, `href`→`url`), **Notion** = 승격 시 `other` 첨부도 strict throw(`requireMediaUpload && category==="other"`). (2) **소실 위험이 남은 트래커**: ClickUp·Asana(생성→업로드)·Jira(atomic). 보호하려면 *사전 upload-probe* 또는 *생성 task 롤백* 또는 *background 핸들러가 첨부 실패를 반환*하도록 프로토콜 변경이 필요 — 단순 가드로 안 됨. 새 작업 전 `grep -n "승격 가드" src/sidepanel/tabs/DraftDetailDialog.tsx`로 현 상태 확인. (3) **새 트래커 어댑터를 추가할 때** 그 업로드 모델이 위 (a)~(d) 중 무엇인지 먼저 분류하고, 승격 가드 가능 여부를 `markSubmitted` 옆 주석에 박는다. (4) 단위 `submitToGitlab.test.ts`/`submitToNotion.test.ts > requireMediaUpload`(미디어/첨부 실패 → submit 0회, 로그 실패는 best-effort).
+- **관련**: `src/sidepanel/lib/submitToGitlab.ts`·`submitToNotion.ts`(가드 추가), `src/sidepanel/lib/submitToGithub.ts:someUploadMissing`(재사용), 소비처 `src/sidepanel/tabs/DraftDetailDialog.tsx`(handleGitlab/Notion 가드 + Jira/Linear/Asana/ClickUp 주석), i18n `gitlab.error.mediaUploadFailed`.
+
+---
+
 ## 2026-06-30 — Slack 이슈 GitHub 승격 실패 시 원본까지 소실 (업로드 soft-fail이 실패로 안 잡혀 비가역 파괴 진행)
 
 - **증상**: Slack으로 제출한 이슈를 GitHub로 승격 시도 → GitHub 인증 문제로 실패했는데, 실패 후 원본 **Slack 보존 이슈까지 목록에서 사라짐**(복구 불가).

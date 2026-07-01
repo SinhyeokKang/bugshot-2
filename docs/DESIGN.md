@@ -91,8 +91,9 @@ Tailwind 4px 스케일을 그대로 쓴다. 자주 쓰는 값(관용):
 
 - **Radix 오버레이(Dialog·Popover·Tooltip·Select)는 모두 `z-50` 공통.** 같은 평면에서 뒤에 열린 것이 위로 온다.
 - 로컬 sticky/겹침은 `z-10` 수준.
-- 그 위로 강제로 떠야 하는 예외는 `z-[60]` (현재 1곳). 새로 만들 땐 `z-50` 기준으로 잡고, 꼭 필요할 때만 `z-[60]`.
-- content script의 picker·overlay·AnnotationOverlay 캔버스는 **페이지 쪽 shadow DOM**에서 별도 최상위 z로 뜬다 — 사이드패널 z축과 무관하니 헷갈리지 말 것.
+- 그 위로 강제로 떠야 하는 예외는 `z-[60]` (현재 2곳 — `AnnotationOverlay` 텍스트 편집 입력, `ReplayTrimDialog` 작성취소 AlertDialog). 새로 만들 땐 `z-50` 기준으로 잡고, 꼭 필요할 때만 `z-[60]`.
+- **전체화면 비-Radix 오버레이 패턴**: 사이드패널 위 풀스크린은 `inset-0 z-50 bg-background` + `flex h-full flex-col`로 만든다. 풀스크린 컴포넌트 오버레이(`AnnotationOverlay`·`ReplayTrimDialog`)는 `fixed`로 패널 뷰포트를 덮고, App root(`h-screen`) 직속 임시 오버레이(App AI 로딩·Suspense fallback)는 `absolute`를 쓴다. Radix Dialog가 아니라 컨테이너 직접 렌더 + `lazy`/`Suspense`. 이 오버레이들은 **사이드패널 z축 안**(z-50, 필요 시 내부 모달 z-[60])이다.
+- content script의 picker·overlay(`src/content/`)는 **페이지 쪽**에서 별도 최상위 z로 뜬다 — 사이드패널 z축과 무관하니 헷갈리지 말 것. (`AnnotationOverlay`는 페이지가 아니라 사이드패널 컴포넌트 — 위 전체화면 오버레이 항목.)
 
 ## 8. 모션 & 트랜지션
 
@@ -114,8 +115,12 @@ Tailwind 4px 스케일을 그대로 쓴다. 자주 쓰는 값(관용):
 shadcn `Button` (`src/components/ui/button.tsx`, cva):
 
 **variant**: `default`(primary) · `destructive` · `outline` · `secondary` · `ghost` · `link`
-**size**: `default`(h-9 px-4) · `sm`(h-8 px-3 text-xs) · `lg`(h-10) · `xl`(h-11 px-10 text-base) · `icon`(h-9 w-9)
-기본 `variant="default" size="default"`. 아이콘 기본 `[&_svg]:size-4 shrink-0`.
+**size**: `default`(h-9 px-4) · `sm`(h-8 px-3 text-xs) · `lg`(h-10) · `xl`(h-11 px-10 text-base, 아이콘 `size-5`) · `icon`(h-9 w-9)
+기본 `variant="default" size="default"`. 아이콘 기본 `[&_svg]:size-4 shrink-0`(`xl`만 `size-5`).
+
+### Slider
+
+shadcn `Slider` (`src/components/ui/slider.tsx`, Radix). 표준에서 **멀티 thumb 확장** — `value`/`defaultValue` 배열 길이로 thumb 개수를 파생해 N개 렌더(미지정 시 1), `thumbAriaLabels?: string[]`로 thumb별 aria-label 주입. 추가로 **슬롯 override props** — `trackClassName`/`rangeClassName`/`thumbClassName`(트랙·선택 범위·thumb 비주얼 교체), `thumbContent`(인덱스별 커스텀 핸들 렌더), `onThumbClick`(드래그 아닌 thumb 클릭=seek). 현재 사용처는 `TrimTimeline`의 trim 듀얼 핸들 — 투명 트랙 + outline 핸들(`thumbContent`) + range=`bg-background`로 트림 바를 완전 커스텀.
 
 - **CTA는 `default`(h-9)로 통일** — 대개 `size` 생략(기본값이 h-9).
 - `xl`은 랜딩/온보딩 같은 특수 CTA 전용.
@@ -125,6 +130,12 @@ shadcn `Button` (`src/components/ui/button.tsx`, cva):
 **아이콘 버튼(`size="icon"`) 두 사이즈**
 - `h-8 w-8` (32px): 패널/섹션 헤더·행 액션의 기본.
 - `h-9 w-9` (36px): Input/Textarea 우측에 직접 붙어 필드 높이(h-9)와 맞춰야 할 때. 항상 `shrink-0` 동반.
+
+**아이콘 버튼 색**
+- idle은 **`foreground`(기본 검정)**. 아이콘 *버튼*의 idle에 `text-muted-foreground`(회색)를 쓰지 않는다 — 비활성처럼 보여 클릭 가능성이 약해진다.
+- 삭제·연결 해제 등 파괴적 액션: idle은 foreground 그대로, **`hover:text-destructive`**(호버 시 빨강)로만 위험을 표현한다.
+- 토글류(`aria-pressed`)도 off의 아이콘은 `foreground`(검정). on/off 대비는 색이 아니라 **배경·테두리**로 표현한다(예: on=`bg-foreground text-background`, off=기본 + `hover:bg-muted` — `LinkToggle`).
+- 예외: empty state·로딩 스피너·상태 표시 아이콘은 *버튼이 아니므로* `text-muted-foreground` 허용(장식·저대비 정보).
 
 **관련 변형 컴포넌트**
 - `Badge`: variant `default`/`secondary`/`destructive`/`outline`, size 없음, `[&>svg]:size-3`.

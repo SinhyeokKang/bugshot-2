@@ -3,7 +3,9 @@ import {
   type GitlabMediaInput,
 } from "./buildGitlabIssueBody";
 import { replaceInlineRefs, type InlineImageInput } from "./resolveInlineImages";
+import { someUploadMissing } from "./submitToGithub";
 import { guessUploadMime } from "./uploadMime";
+import { t } from "@/i18n";
 import { sendBg } from "@/types/messages";
 import type { GitlabCreateIssueResult } from "@/types/gitlab";
 import type { NormalizedSubmitResult } from "@/types/platform";
@@ -29,6 +31,9 @@ export interface GitlabSubmitInput {
   label?: string;
   assigneeId?: number;
   cc?: string[];
+  // 승격(Slack 보존 이슈)처럼 성공 시 원본을 파괴하는 흐름에서는 미디어 업로드가
+  // 하나라도 누락되면 이슈 생성 전에 중단해 원본 손실을 막는다. 로그는 best-effort라 제외.
+  requireMediaUpload?: boolean;
 }
 
 function toUploadEntry(f: GitlabFileInput) {
@@ -67,6 +72,18 @@ export async function submitToGitlab(
 
   const urlMap = new Map(uploadResults.map((r) => [r.filename, r.url]));
   const logsDropped = (input.logs ?? []).some((l) => !urlMap.get(l.filename));
+
+  if (input.requireMediaUpload) {
+    const requiredMedia = [
+      ...imageInputs,
+      ...(input.video ? [input.video] : []),
+      ...inlineFiles,
+      ...userAttachments,
+    ].map((f) => f.filename);
+    if (someUploadMissing(requiredMedia, urlMap)) {
+      throw new Error(t("gitlab.error.mediaUploadFailed"));
+    }
+  }
 
   let resolvedCtx = input.ctx;
   if (inlineFiles.length > 0) {
