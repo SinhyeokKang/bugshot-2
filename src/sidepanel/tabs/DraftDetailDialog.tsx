@@ -906,10 +906,7 @@ export function DraftDetailDialog({
               <DialogFooter className="!flex-row items-center !justify-between">
                 <AlertDialog>
                   <AlertDialogTrigger asChild>
-                    <Button
-                      variant="outline"
-                      className="text-destructive hover:text-destructive"
-                    >
+                    <Button variant="destructive-outline">
                       {t("issueList.deleteIssue")}
                     </Button>
                   </AlertDialogTrigger>

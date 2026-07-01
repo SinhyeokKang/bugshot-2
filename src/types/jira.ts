@@ -58,6 +58,7 @@ export interface JiraPriority {
 export interface JiraUser {
   accountId: string;
   displayName: string;
+  emailAddress?: string;
   avatarUrls?: Record<string, string>;
 }
 

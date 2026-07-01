@@ -327,6 +327,9 @@ export function SelectProp({
               {o || `(${placeholder || "none"})`}
             </SelectItem>
           ))}
+          {!options.includes("unset") ? (
+            <SelectItem value="unset">unset</SelectItem>
+          ) : null}
         </SelectContent>
       </Select>
     </PropRow>

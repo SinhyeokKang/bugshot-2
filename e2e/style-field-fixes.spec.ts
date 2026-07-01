@@ -79,6 +79,50 @@ test.describe.serial("style-field-fixes: live normalize + select reset", () => {
   });
 });
 
+test.describe.serial("style-field-fixes: select unset", () => {
+  let fixture: Page;
+  let panel: Page;
+
+  test.beforeAll(async ({ ext }) => {
+    fixture = await ext.context.newPage();
+    await fixture.goto(ext.fixtureUrl("basic.html"));
+    const tabId = await ext.fixtureTabId();
+    panel = await ext.openPanel(tabId);
+  });
+
+  test.afterAll(async () => {
+    await panel.close();
+    await fixture.close();
+  });
+
+  const trigger = () => panel.getByTestId("changes-trigger");
+  const dialog = () => panel.getByTestId("changes-dialog");
+  const currentCard = () =>
+    panel.locator('[data-testid="changes-card"][data-source="current"]');
+
+  test("F: SelectProp unset 선택이 원본 author 스타일을 무력화(ellipsis → clip)", async () => {
+    // #clip은 원본 author 규칙에 text-overflow: ellipsis 명시. 빈 옵션은 내 편집만
+    // 취소하므로 원본 ellipsis를 못 끈다 → unset 인라인 명시로 CSS 초기값(clip) 복귀.
+    await fixture.locator("#clip").scrollIntoViewIfNeeded();
+    await enterDebugAndPick(fixture, panel, "#clip");
+    await expect(fixture.locator("#clip")).toHaveCSS("text-overflow", "ellipsis");
+
+    await selectStyleValue(panel, "text-overflow", "unset");
+    // 비상속 속성이라 unset = initial = clip → ellipsis 꺼짐
+    await expect(fixture.locator("#clip")).toHaveCSS("text-overflow", "clip");
+
+    await trigger().click();
+    await expect(dialog()).toBeVisible();
+    // 변경 행에 text-overflow: unset이 기록됨(빈 옵션과 달리 인라인 값이 남는다)
+    await expect(
+      currentCard().locator('[data-prop="text-overflow"]'),
+    ).toHaveCount(1);
+    await expect(dialog()).toContainText("unset");
+    await panel.keyboard.press("Escape");
+    await expect(dialog()).toBeHidden();
+  });
+});
+
 test.describe.serial("style-field-fixes: linked repick", () => {
   let fixture: Page;
   let panel: Page;

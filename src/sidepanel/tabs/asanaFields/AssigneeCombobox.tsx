@@ -126,7 +126,7 @@ export function AssigneeCombobox({ workspaceGid, value, onChange }: Props) {
                     return (
                       <CommandItem
                         key={u.gid}
-                        value={u.name}
+                        value={u.gid}
                         onSelect={() => {
                           onChange(selected ? null : { gid: u.gid, name: u.name });
                           setOpen(false);
@@ -138,7 +138,14 @@ export function AssigneeCombobox({ workspaceGid, value, onChange }: Props) {
                             selected ? "opacity-100" : "opacity-0",
                           )}
                         />
-                        <span className="truncate">{u.name}</span>
+                        <span className="flex min-w-0 flex-1 flex-col">
+                          <span className="truncate">{u.name}</span>
+                          {u.email ? (
+                            <span className="truncate text-xs text-muted-foreground">
+                              {u.email}
+                            </span>
+                          ) : null}
+                        </span>
                       </CommandItem>
                     );
                   })}

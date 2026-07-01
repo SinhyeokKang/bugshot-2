@@ -114,7 +114,7 @@ Tailwind 4px 스케일을 그대로 쓴다. 자주 쓰는 값(관용):
 
 shadcn `Button` (`src/components/ui/button.tsx`, cva):
 
-**variant**: `default`(primary) · `destructive` · `outline` · `secondary` · `ghost` · `link`
+**variant**: `default`(primary) · `destructive` · `destructive-outline` · `outline` · `secondary` · `ghost` · `link`
 **size**: `default`(h-9 px-4) · `sm`(h-8 px-3 text-xs) · `lg`(h-10) · `xl`(h-11 px-10 text-base, 아이콘 `size-5`) · `icon`(h-9 w-9)
 기본 `variant="default" size="default"`. 아이콘 기본 `[&_svg]:size-4 shrink-0`(`xl`만 `size-5`).
 
@@ -125,7 +125,7 @@ shadcn `Slider` (`src/components/ui/slider.tsx`, Radix). 표준에서 **멀티 t
 - **CTA는 `default`(h-9)로 통일** — 대개 `size` 생략(기본값이 h-9).
 - `xl`은 랜딩/온보딩 같은 특수 CTA 전용.
 - `sm`은 텍스트 포함 보조 버튼(복사·필터 등).
-- 위험 동작은 `variant="destructive"` 또는 `className="text-destructive"`.
+- 위험 동작(텍스트 버튼): **`variant="destructive-outline"`**로 통일한다 — outline 골격 + idle·hover 모두 빨간 글자(hover 배경만 accent 연회색). `variant="outline" className="text-destructive"`는 hover에서 `text-accent-foreground`에 덮여 빨강이 사라지므로 쓰지 않는다. 빨강 채움 버튼이 필요하면 `variant="destructive"`.
 
 **아이콘 버튼(`size="icon"`) 두 사이즈**
 - `h-8 w-8` (32px): 패널/섹션 헤더·행 액션의 기본.

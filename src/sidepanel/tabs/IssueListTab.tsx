@@ -187,7 +187,7 @@ export function IssueListTab() {
           <div className="flex justify-between">
             <AlertDialog>
               <AlertDialogTrigger asChild>
-                <Button variant="outline" className="text-destructive">
+                <Button variant="destructive-outline">
                   {t("issueList.deleteAll")}
                 </Button>
               </AlertDialogTrigger>

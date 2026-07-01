@@ -160,7 +160,7 @@ export function AnnotationToolbar({
         <Button
           size="icon"
           variant="outline"
-          className="h-8 w-8 shrink-0"
+          className="h-8 w-8 shrink-0 hover:text-destructive"
           disabled={!hasSelection}
           data-testid="annotation-delete"
           aria-label={t("annotation.delete")}
