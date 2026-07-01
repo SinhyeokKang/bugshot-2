@@ -160,8 +160,7 @@ export function StyleChangesDialog() {
           <AlertDialog>
             <AlertDialogTrigger asChild>
               <Button
-                variant="outline"
-                className="text-destructive hover:text-destructive"
+                variant="destructive-outline"
                 disabled={busy}
                 data-testid="reset-all"
               >
@@ -274,7 +273,7 @@ function ResetButton({
     <Button
       size="icon"
       variant="outline"
-      className="h-8 w-8 shrink-0"
+      className="h-8 w-8 shrink-0 hover:text-destructive"
       title={label}
       aria-label={label}
       disabled={disabled}

@@ -261,7 +261,7 @@ function DisconnectAllButton({ onConfirm }: { onConfirm: () => void }) {
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
-        <Button variant="outline" className="text-destructive">
+        <Button variant="destructive-outline">
           {t("platform.disconnectAll")}
         </Button>
       </AlertDialogTrigger>
