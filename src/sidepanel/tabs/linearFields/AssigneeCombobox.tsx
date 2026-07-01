@@ -93,14 +93,21 @@ export function AssigneeCombobox({ teamId, value, valueName, onChange }: Props) 
                     return (
                       <CommandItem
                         key={u.id}
-                        value={u.name}
+                        value={`${u.name} ${u.email ?? ""} ${u.id}`}
                         onSelect={() => {
                           onChange(sel ? undefined : u.id, sel ? undefined : u.name);
                           setOpen(false);
                         }}
                       >
                         <Check className={cn("mr-2 h-4 w-4", sel ? "opacity-100" : "opacity-0")} />
-                        <span className="truncate">{u.name}</span>
+                        <span className="flex min-w-0 flex-1 flex-col">
+                          <span className="truncate">{u.name}</span>
+                          {u.email ? (
+                            <span className="truncate text-xs text-muted-foreground">
+                              {u.email}
+                            </span>
+                          ) : null}
+                        </span>
                       </CommandItem>
                     );
                   })}

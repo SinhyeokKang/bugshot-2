@@ -60,7 +60,7 @@ export function AssigneeField({
       {items.map((u) => (
         <CommandItem
           key={u.accountId}
-          value={u.displayName}
+          value={u.accountId}
           onSelect={() => {
             onChange(u.accountId, u.displayName);
             setOpen(false);
@@ -79,7 +79,14 @@ export function AssigneeField({
               className="mr-2 h-4 w-4 rounded-full"
             />
           ) : null}
-          <span className="min-w-0 flex-1 truncate">{u.displayName}</span>
+          <span className="flex min-w-0 flex-1 flex-col">
+            <span className="truncate">{u.displayName}</span>
+            {u.emailAddress ? (
+              <span className="truncate text-xs text-muted-foreground">
+                {u.emailAddress}
+              </span>
+            ) : null}
+          </span>
         </CommandItem>
       ))}
     </FieldCombobox>
