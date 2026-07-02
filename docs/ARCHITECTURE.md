@@ -54,7 +54,7 @@ chrome.action.onClicked.addListener((tab) => {
 | 수동 인증 | API Token (Basic) | PAT (`token <pat>`) | API Key | Internal Integration Token | PAT (`Bearer`, self-managed baseUrl) | PAT (`Bearer`) | PAT (`pk_`, raw `Authorization` — Bearer 없음) | ❌ (OAuth 전용) |
 | OAuth 타입 | 3LO (confidential) | Web Flow (confidential) | PKCE (public) | Public Integration (confidential) | PKCE (public) | OAuth 2.0 (confidential) | OAuth 2.0 (confidential) | OAuth v2 user token (confidential) |
 | Proxy 경로 | `/token` | `/github/token`, `/github/refresh` | ❌ 직접 교환 | `/notion/token` | ❌ 직접 교환 (gitlab.com 한정) | `/asana/token`, `/asana/refresh` | `/clickup/token` (refresh 없음) | `/slack/token` (refresh 없음) |
-| Token Refresh | pre-refresh + 401 retry | hook 주입형, 1회 retry | hook 주입형, 1회 retry | ❌ (토큰 만료 없음) | hook 주입형, pre-refresh + 401 retry | hook 주입형, pre-refresh + 401 retry | ❌ (토큰 만료 없음) | ❌ (토큰 만료 없음) |
+| Token Refresh | pre-refresh + 401 retry | hook 주입형, pre-refresh + 401 retry | hook 주입형, pre-refresh + 401 retry | ❌ (토큰 만료 없음) | hook 주입형, pre-refresh + 401 retry | hook 주입형, pre-refresh + 401 retry | ❌ (토큰 만료 없음) | ❌ (토큰 만료 없음) |
 | dev/prod 분리 | 단일 App | 2 App (callback URL 1개 제한) | 단일 App (multi redirect) | 단일 App (multi redirect) | 단일 App (multi redirect) | 단일 App (multi redirect) | 단일 App (multi redirect) | 단일 App (multi redirect) |
 | Env var | `VITE_ATLASSIAN_CLIENT_ID` | `VITE_GITHUB_CLIENT_ID` (+`_PROD`) | `VITE_LINEAR_CLIENT_ID` | `VITE_NOTION_CLIENT_ID` | `VITE_GITLAB_CLIENT_ID` | `VITE_ASANA_CLIENT_ID` | `VITE_CLICKUP_CLIENT_ID` | `VITE_SLACK_CLIENT_ID` |
 
