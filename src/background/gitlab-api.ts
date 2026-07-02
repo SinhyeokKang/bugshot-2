@@ -85,7 +85,7 @@ async function doFetch(
   });
 }
 
-const refreshRunner = createRefreshRunner<GitlabAuth>({ platform: "gitlab" });
+const refreshRunner = createRefreshRunner<GitlabAuth>("gitlab");
 
 export const setGitlabRefreshHook = refreshRunner.setRefreshHook;
 

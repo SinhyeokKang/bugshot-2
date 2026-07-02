@@ -5,20 +5,14 @@ import { getMyself, setGitlabRefreshHook } from "./gitlab-api";
 import { OAuthError, base64url, launchOAuthWebFlow } from "./oauth";
 import {
   OAUTH_CONFIG,
-  isConfigured as isOAuthPlatformConfigured,
   assertConfigured as assertOAuthConfigured,
   isCancellation,
 } from "./oauth/config";
 
-const CLIENT_ID = (import.meta.env.VITE_GITLAB_CLIENT_ID ?? "").trim();
 const BASE_URL = "https://gitlab.com";
 const AUTHORIZE_URL = `${BASE_URL}/oauth/authorize`;
 const TOKEN_URL = `${BASE_URL}/oauth/token`;
 const SCOPES = ["api"];
-
-export function isGitlabOAuthConfigured(): boolean {
-  return isOAuthPlatformConfigured(OAUTH_CONFIG.gitlab);
-}
 
 function assertConfigured(): void {
   assertOAuthConfigured(OAUTH_CONFIG.gitlab);
@@ -87,7 +81,7 @@ export async function startGitlabOAuth(): Promise<GitlabOAuthAuth> {
   const { codeVerifier, codeChallenge } = await generatePkceChallenge();
 
   const url = new URL(AUTHORIZE_URL);
-  url.searchParams.set("client_id", CLIENT_ID);
+  url.searchParams.set("client_id", OAUTH_CONFIG.gitlab.clientId);
   url.searchParams.set("redirect_uri", redirectUri());
   url.searchParams.set("response_type", "code");
   url.searchParams.set("scope", SCOPES.join(" "));
@@ -129,7 +123,7 @@ async function exchangeCode(
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
       grant_type: "authorization_code",
-      client_id: CLIENT_ID,
+      client_id: OAUTH_CONFIG.gitlab.clientId,
       redirect_uri: redirectUri(),
       code,
       code_verifier: codeVerifier,
@@ -162,7 +156,7 @@ export async function refreshGitlabToken(auth: GitlabAuth): Promise<GitlabAuth> 
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
       grant_type: "refresh_token",
-      client_id: CLIENT_ID,
+      client_id: OAUTH_CONFIG.gitlab.clientId,
       refresh_token: auth.refreshToken,
       redirect_uri: redirectUri(),
     }),

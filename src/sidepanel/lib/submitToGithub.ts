@@ -6,7 +6,6 @@ import type { GithubCreateIssueResult } from "@/types/github";
 import type { NormalizedSubmitResult } from "@/types/platform";
 
 export type { NormalizedSubmitResult } from "@/types/platform";
-export { someUploadMissing } from "./prepareUpload";
 
 export type GithubFileInput = UploadFileInput;
 

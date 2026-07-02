@@ -5,13 +5,6 @@ vi.mock("@/i18n", () => ({
   dateBcp47: () => "en-US",
 }));
 
-// oauth.ts(OAuthError) 경유 의존 대비 최소 stub — 기존 *-oauth.test.ts 패턴.
-vi.stubGlobal("chrome", {
-  identity: {
-    getRedirectURL: () => "https://stub.chromiumapp.org/",
-  },
-});
-
 import {
   OAUTH_CONFIG,
   isConfigured,
@@ -19,7 +12,7 @@ import {
   isCancellation,
   type OAuthPlatformConfig,
 } from "../config";
-import { OAuthError } from "../../oauth";
+import { OAuthError } from "../errors";
 import type { PlatformId } from "@/types/platform";
 
 const ALL_PLATFORMS: PlatformId[] = [

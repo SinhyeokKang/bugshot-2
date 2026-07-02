@@ -49,7 +49,7 @@ export function messageForLinearStatus(status: number): string {
   return t("linear.error.generic", { status });
 }
 
-const refreshRunner = createRefreshRunner<LinearAuth>({ platform: "linear" });
+const refreshRunner = createRefreshRunner<LinearAuth>("linear");
 
 export const setLinearRefreshHook = refreshRunner.setRefreshHook;
 

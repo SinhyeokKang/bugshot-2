@@ -1,9 +1,7 @@
 import { t } from "@/i18n";
 import type { TranslationKey } from "@/i18n/ko";
 import type { PlatformId } from "@/types/platform";
-// oauth.ts와 순환 import — 양쪽 모두 교차 바인딩을 함수 내부에서만 써야 한다
-// (top-level 접근 추가 시 TDZ로 깨짐).
-import { OAuthError } from "../oauth";
+import { OAuthError } from "./errors";
 
 export interface OAuthPlatformConfig {
   platform: PlatformId;
@@ -12,7 +10,8 @@ export interface OAuthPlatformConfig {
   proxyUrl: string;
   cancelCodes: Set<string>;
   notConfiguredClientKey: TranslationKey;
-  notConfiguredProxyKey: TranslationKey;
+  // needsProxy=false(PKCE 직행)면 생략 — assertConfigured가 client 키로 폴백.
+  notConfiguredProxyKey?: TranslationKey;
 }
 
 // clientId/proxyUrl은 getter로 lazy 조회 — 테스트가 vi.stubEnv로 런타임 주입하는
@@ -61,7 +60,6 @@ export const OAUTH_CONFIG = {
     proxyUrl: "",
     cancelCodes: new Set(["access_denied"]),
     notConfiguredClientKey: "linear.oauth.notConfigured",
-    notConfiguredProxyKey: "linear.oauth.notConfigured",
   },
   notion: {
     platform: "notion",
@@ -85,7 +83,6 @@ export const OAUTH_CONFIG = {
     proxyUrl: "",
     cancelCodes: new Set(["access_denied"]),
     notConfiguredClientKey: "gitlab.oauth.notConfigured",
-    notConfiguredProxyKey: "gitlab.oauth.notConfigured",
   },
   asana: {
     platform: "asana",
@@ -139,7 +136,7 @@ export function assertConfigured(cfg: OAuthPlatformConfig): void {
     });
   }
   if (cfg.needsProxy && !cfg.proxyUrl) {
-    throw new OAuthError(t(cfg.notConfiguredProxyKey), {
+    throw new OAuthError(t(cfg.notConfiguredProxyKey ?? cfg.notConfiguredClientKey), {
       platform: cfg.platform,
     });
   }

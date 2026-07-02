@@ -94,7 +94,7 @@ async function doFetch(
   });
 }
 
-const refreshRunner = createRefreshRunner<GithubAuth>({ platform: "github" });
+const refreshRunner = createRefreshRunner<GithubAuth>("github");
 
 export const setGithubRefreshHook = refreshRunner.setRefreshHook;
 

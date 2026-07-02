@@ -9,10 +9,6 @@ import {
   isCancellation,
 } from "./oauth/config";
 
-const CLIENT_ID = (import.meta.env.VITE_CLICKUP_CLIENT_ID ?? "").trim();
-const PROXY_URL = ((import.meta.env.VITE_OAUTH_PROXY_URL ?? "") as string)
-  .trim()
-  .replace(/\/+$/, "");
 const AUTHORIZE_URL = "https://app.clickup.com/api";
 
 export function isClickupOAuthConfigured(): boolean {
@@ -67,7 +63,7 @@ export async function startClickupOAuth(): Promise<ClickupOAuthAuth> {
   const state = crypto.randomUUID();
 
   const url = new URL(AUTHORIZE_URL);
-  url.searchParams.set("client_id", CLIENT_ID);
+  url.searchParams.set("client_id", OAUTH_CONFIG.clickup.clientId);
   url.searchParams.set("redirect_uri", redirectUri());
   url.searchParams.set("state", state);
 
@@ -94,13 +90,13 @@ export async function startClickupOAuth(): Promise<ClickupOAuthAuth> {
 }
 
 async function exchangeCode(code: string): Promise<ClickupTokenResponse> {
-  const res = await fetch(`${PROXY_URL}/clickup/token`, {
+  const res = await fetch(`${OAUTH_CONFIG.clickup.proxyUrl}/clickup/token`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       code,
       redirect_uri: redirectUri(),
-      client_id: CLIENT_ID,
+      client_id: OAUTH_CONFIG.clickup.clientId,
     }),
   });
   if (!res.ok) {

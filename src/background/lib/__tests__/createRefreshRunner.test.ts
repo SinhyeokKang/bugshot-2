@@ -6,7 +6,7 @@ vi.mock("@/i18n", () => ({
 }));
 
 import { createRefreshRunner } from "../createRefreshRunner";
-import { OAuthError } from "../../oauth";
+import { OAuthError } from "../../oauth/errors";
 
 interface FakeAuth {
   kind: "oauth" | "manual";
@@ -23,13 +23,13 @@ function res(status: number): { status: number } {
 
 describe("createRefreshRunner — ensureFresh (pre-refresh)", () => {
   it("hook 미등록이면 auth 그대로 반환", async () => {
-    const runner = createRefreshRunner<FakeAuth>({ platform: "github" });
+    const runner = createRefreshRunner<FakeAuth>("github");
     const auth: FakeAuth = { kind: "oauth", token: "old", expiresAt: SOON() };
     expect(await runner.ensureFresh(auth)).toBe(auth);
   });
 
   it("oauth + 만료 60s 이내면 hook으로 갱신 auth 반환", async () => {
-    const runner = createRefreshRunner<FakeAuth>({ platform: "github" });
+    const runner = createRefreshRunner<FakeAuth>("github");
     const refreshed: FakeAuth = { kind: "oauth", token: "new", expiresAt: FAR() };
     const hook = vi.fn(async () => refreshed);
     runner.setRefreshHook(hook);
@@ -40,7 +40,7 @@ describe("createRefreshRunner — ensureFresh (pre-refresh)", () => {
   });
 
   it("만료 여유(60s 초과)면 hook 미호출", async () => {
-    const runner = createRefreshRunner<FakeAuth>({ platform: "github" });
+    const runner = createRefreshRunner<FakeAuth>("github");
     const hook = vi.fn(async (a: FakeAuth) => a);
     runner.setRefreshHook(hook);
 
@@ -50,7 +50,7 @@ describe("createRefreshRunner — ensureFresh (pre-refresh)", () => {
   });
 
   it("expiresAt이 없으면(null/undefined) pre-refresh 스킵", async () => {
-    const runner = createRefreshRunner<FakeAuth>({ platform: "github" });
+    const runner = createRefreshRunner<FakeAuth>("github");
     const hook = vi.fn(async (a: FakeAuth) => a);
     runner.setRefreshHook(hook);
 
@@ -62,7 +62,7 @@ describe("createRefreshRunner — ensureFresh (pre-refresh)", () => {
 
 describe("createRefreshRunner — runWithAuthRetry (401 경로)", () => {
   it("401 → hook 갱신 → 갱신 auth로 재요청 성공", async () => {
-    const runner = createRefreshRunner<FakeAuth>({ platform: "github" });
+    const runner = createRefreshRunner<FakeAuth>("github");
     const refreshed: FakeAuth = { kind: "oauth", token: "new", expiresAt: FAR() };
     const hook = vi.fn(async () => refreshed);
     runner.setRefreshHook(hook);
@@ -78,7 +78,7 @@ describe("createRefreshRunner — runWithAuthRetry (401 경로)", () => {
   });
 
   it("갱신 후에도 401이면 OAuthError(platform) throw", async () => {
-    const runner = createRefreshRunner<FakeAuth>({ platform: "gitlab" });
+    const runner = createRefreshRunner<FakeAuth>("gitlab");
     runner.setRefreshHook(async (a) => a);
 
     const doFetch = vi.fn(async () => res(401));
@@ -92,7 +92,7 @@ describe("createRefreshRunner — runWithAuthRetry (401 경로)", () => {
   });
 
   it("manual auth는 401이어도 hook 미호출, 401 응답 그대로 반환", async () => {
-    const runner = createRefreshRunner<FakeAuth>({ platform: "github" });
+    const runner = createRefreshRunner<FakeAuth>("github");
     const hook = vi.fn(async (a: FakeAuth) => a);
     runner.setRefreshHook(hook);
 
@@ -106,7 +106,7 @@ describe("createRefreshRunner — runWithAuthRetry (401 경로)", () => {
   });
 
   it("hook 미등록 oauth는 401 응답 그대로 반환 (재시도 없음)", async () => {
-    const runner = createRefreshRunner<FakeAuth>({ platform: "github" });
+    const runner = createRefreshRunner<FakeAuth>("github");
     const doFetch = vi.fn(async () => res(401));
     const auth: FakeAuth = { kind: "oauth", token: "old", expiresAt: FAR() };
 

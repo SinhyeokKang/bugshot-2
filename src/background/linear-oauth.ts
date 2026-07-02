@@ -5,19 +5,13 @@ import { getMyself, setLinearRefreshHook } from "./linear-api";
 import { OAuthError, base64url, launchOAuthWebFlow } from "./oauth";
 import {
   OAUTH_CONFIG,
-  isConfigured as isOAuthPlatformConfigured,
   assertConfigured as assertOAuthConfigured,
   isCancellation,
 } from "./oauth/config";
 
-const CLIENT_ID = (import.meta.env.VITE_LINEAR_CLIENT_ID ?? "").trim();
 const AUTHORIZE_URL = "https://linear.app/oauth/authorize";
 const TOKEN_URL = "https://api.linear.app/oauth/token";
 const SCOPES = ["read", "write", "issues:create"];
-
-export function isLinearOAuthConfigured(): boolean {
-  return isOAuthPlatformConfigured(OAUTH_CONFIG.linear);
-}
 
 function assertConfigured(): void {
   assertOAuthConfigured(OAUTH_CONFIG.linear);
@@ -86,7 +80,7 @@ export async function startLinearOAuth(): Promise<LinearOAuthAuth> {
   const { codeVerifier, codeChallenge } = await generatePkceChallenge();
 
   const url = new URL(AUTHORIZE_URL);
-  url.searchParams.set("client_id", CLIENT_ID);
+  url.searchParams.set("client_id", OAUTH_CONFIG.linear.clientId);
   url.searchParams.set("redirect_uri", redirectUri());
   url.searchParams.set("response_type", "code");
   url.searchParams.set("scope", SCOPES.join(","));
@@ -128,7 +122,7 @@ async function exchangeCode(
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
       grant_type: "authorization_code",
-      client_id: CLIENT_ID,
+      client_id: OAUTH_CONFIG.linear.clientId,
       redirect_uri: redirectUri(),
       code,
       code_verifier: codeVerifier,
@@ -161,7 +155,7 @@ export async function refreshLinearToken(
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
       grant_type: "refresh_token",
-      client_id: CLIENT_ID,
+      client_id: OAUTH_CONFIG.linear.clientId,
       refresh_token: auth.refreshToken,
     }),
   });

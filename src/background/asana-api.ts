@@ -87,7 +87,7 @@ async function doFetch(
   });
 }
 
-const refreshRunner = createRefreshRunner<AsanaAuth>({ platform: "asana" });
+const refreshRunner = createRefreshRunner<AsanaAuth>("asana");
 
 export const setAsanaRefreshHook = refreshRunner.setRefreshHook;
 

@@ -1,6 +1,6 @@
 import { t } from "@/i18n";
 import type { PlatformId } from "@/types/platform";
-import { OAuthError } from "../oauth";
+import { OAuthError } from "../oauth/errors";
 
 const TOKEN_REFRESH_THRESHOLD_MS = 60_000;
 
@@ -20,7 +20,7 @@ export interface RefreshRunner<A> {
 // 이중 발급 시 hook과 fetch가 다른 클로저가 되어 401→refresh가 무음 사망한다.
 export function createRefreshRunner<
   A extends { kind: string; expiresAt?: number | null },
->(cfg: { platform: PlatformId }): RefreshRunner<A> {
+>(platform: PlatformId): RefreshRunner<A> {
   let refreshHook: RefreshHook<A> = null;
 
   async function ensureFresh(auth: A): Promise<A> {
@@ -41,7 +41,7 @@ export function createRefreshRunner<
       res = await doFetch(cur);
       if (res.status === 401) {
         throw new OAuthError(t("oauth.error.refreshExhausted"), {
-          platform: cfg.platform,
+          platform,
         });
       }
     }

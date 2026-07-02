@@ -10,10 +10,6 @@ import {
   isCancellation,
 } from "./oauth/config";
 
-const CLIENT_ID = (import.meta.env.VITE_GITHUB_CLIENT_ID ?? "").trim();
-const PROXY_URL = (import.meta.env.VITE_OAUTH_PROXY_URL ?? "")
-  .trim()
-  .replace(/\/+$/, "");
 const AUTHORIZE_URL = "https://github.com/login/oauth/authorize";
 const SCOPES = ["repo", "user:email"];
 export function isGithubOAuthConfigured(): boolean {
@@ -29,11 +25,11 @@ function redirectUri(): string {
 }
 
 function proxyTokenUrl(): string {
-  return `${PROXY_URL}/github/token`;
+  return `${OAUTH_CONFIG.github.proxyUrl}/github/token`;
 }
 
 function proxyRefreshUrl(): string {
-  return `${PROXY_URL}/github/refresh`;
+  return `${OAUTH_CONFIG.github.proxyUrl}/github/refresh`;
 }
 
 interface GithubTokenResponse {
@@ -79,7 +75,7 @@ export async function startGithubOAuth(): Promise<GithubOAuthAuth> {
   assertConfigured();
   const state = crypto.randomUUID();
   const url = new URL(AUTHORIZE_URL);
-  url.searchParams.set("client_id", CLIENT_ID);
+  url.searchParams.set("client_id", OAUTH_CONFIG.github.clientId);
   url.searchParams.set("redirect_uri", redirectUri());
   url.searchParams.set("scope", SCOPES.join(" "));
   url.searchParams.set("state", state);
@@ -118,7 +114,7 @@ async function exchangeCodeForTokens(code: string): Promise<GithubTokenResponse>
     body: JSON.stringify({
       code,
       redirect_uri: redirectUri(),
-      client_id: CLIENT_ID,
+      client_id: OAUTH_CONFIG.github.clientId,
     }),
   });
   if (!res.ok) {
@@ -159,7 +155,7 @@ export async function refreshGithubToken(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       refresh_token: auth.refreshToken,
-      client_id: CLIENT_ID,
+      client_id: OAUTH_CONFIG.github.clientId,
     }),
   });
   if (!res.ok) {
