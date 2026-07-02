@@ -67,7 +67,7 @@
 
 #### P1 — 어댑터 물리 중복 추출 (refresh 골격 4개 + GFM 2종) [최우선]
 - **현재**:
-  - refresh/hook 골격: `background/{github,gitlab,asana,linear}-api.ts` 4개가 `refreshHook` 모듈변수 + `setRefreshHook` + `ensureFresh`(pre-refresh, 60s threshold — **4개 전부 보유**. ARCHITECTURE.md 401 표의 "hook 1회 retry vs pre-refresh" 구분은 stale — 코드가 진실, 표 정정은 별도 `/doc-check`) + 401→refresh→재요청→재401시 `OAuthError` 골격을 공유. 단 **요청 본체(doFetch)는 플랫폼별로 다르다**: github는 `Accept`/`X-GitHub-Api-Version`/`User-Agent` 헤더 3종, gitlab은 self-managed `${auth.baseUrl}/api/v4`, asana는 응답 `.data` 언랩, **linear는 REST가 아닌 GraphQL**(`authedGraphQL`, HTTP 200+`errors` 배열 → `LinearError`).
+  - refresh/hook 골격: `background/{github,gitlab,asana,linear}-api.ts` 4개가 `refreshHook` 모듈변수 + `setRefreshHook` + `ensureFresh`(pre-refresh, 60s threshold — **4개 전부 보유**, 플랫폼별 pre-refresh 유무 분기를 만들지 말 것) + 401→refresh→재요청→재401시 `OAuthError` 골격을 공유. 단 **요청 본체(doFetch)는 플랫폼별로 다르다**: github는 `Accept`/`X-GitHub-Api-Version`/`User-Agent` 헤더 3종, gitlab은 self-managed `${auth.baseUrl}/api/v4`, asana는 응답 `.data` 언랩, **linear는 REST가 아닌 GraphQL**(`authedGraphQL`, HTTP 200+`errors` 배열 → `LinearError`).
   - `submitTo{Github,Gitlab}.ts`: 파일 수집→`uploadFiles`→`hrefMap/urlMap`→`requireMediaUpload`→inline ref 해소(`resolvedCtx`)→`toMedia`/`toAttachmentMedia`→body 빌드→`submitIssue`가 ~90% 동일.
   - `build{Github,Gitlab}IssueBody.ts`: 정규화 후 diff 18줄(비디오 임베드 방식 차이만 — 미디어 섹션과 첨부 섹션 두 지점).
 - **신규**:
