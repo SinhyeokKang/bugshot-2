@@ -366,23 +366,25 @@ bg service worker에서 직접 읽기/쓰기:
 
 ### OAuth 에러 처리
 
-- `OAuthError` (`oauth.ts:26`): `cancelled`, `platform` 필드 포함
+- `OAuthError` (`oauth/errors.ts` — `oauth.ts`가 re-export): `cancelled`, `platform` 필드 포함
 - bg에서 시리얼라이즈: `body.oauthCancelled` 또는 `body.oauthRefreshFailed` 플래그 (`background/index.ts:225`)
 - `onOAuthExpired` 이벤트 (`types/messages.ts:209`): refresh 실패 시 발화 → 재인증 UI 표시
 - 사용자 취소 코드: `access_denied` (전 플랫폼), `user_cancelled_login`/`user_cancelled_authorize` (Jira), `user_denied` (Notion)
 
 ### Env 가드
 
-| 함수 | 위치 | 필요 env |
-|---|---|---|
-| `isOAuthConfigured()` | `oauth.ts:240` | `VITE_ATLASSIAN_CLIENT_ID` + `VITE_OAUTH_PROXY_URL` |
-| `isGithubOAuthConfigured()` | `github-oauth.ts:13` | `VITE_GITHUB_CLIENT_ID` + `VITE_OAUTH_PROXY_URL` |
-| `isLinearOAuthConfigured()` | `linear-oauth.ts:12` | `VITE_LINEAR_CLIENT_ID` |
-| `isNotionOAuthConfigured()` | `notion-oauth.ts:12` | `VITE_NOTION_CLIENT_ID` + `VITE_OAUTH_PROXY_URL` |
-| `isGitlabOAuthConfigured()` | `gitlab-oauth.ts:13` | `VITE_GITLAB_CLIENT_ID` |
-| `isAsanaOAuthConfigured()` | `asana-oauth.ts:14` | `VITE_ASANA_CLIENT_ID` + `VITE_OAUTH_PROXY_URL` |
-| `isClickupOAuthConfigured()` | `clickup-oauth.ts:12` | `VITE_CLICKUP_CLIENT_ID` + `VITE_OAUTH_PROXY_URL` |
-| `isSlackOAuthConfigured()` | `slack-oauth.ts:14` | `VITE_SLACK_CLIENT_ID` + `VITE_OAUTH_PROXY_URL` |
+구성 판정은 `oauth/config.ts`의 `OAUTH_CONFIG` 테이블 + `isConfigured()` 단일 경로 — `messages.ts`의 `*.oauth.available` 핸들러가 이 판정으로 OAuth UI 노출을 결정한다.
+
+| 플랫폼 | 필요 env |
+|---|---|
+| Jira | `VITE_ATLASSIAN_CLIENT_ID` + `VITE_OAUTH_PROXY_URL` |
+| GitHub | `VITE_GITHUB_CLIENT_ID` + `VITE_OAUTH_PROXY_URL` |
+| Linear | `VITE_LINEAR_CLIENT_ID` |
+| Notion | `VITE_NOTION_CLIENT_ID` + `VITE_OAUTH_PROXY_URL` |
+| GitLab | `VITE_GITLAB_CLIENT_ID` |
+| Asana | `VITE_ASANA_CLIENT_ID` + `VITE_OAUTH_PROXY_URL` |
+| ClickUp | `VITE_CLICKUP_CLIENT_ID` + `VITE_OAUTH_PROXY_URL` |
+| Slack | `VITE_SLACK_CLIENT_ID` + `VITE_OAUTH_PROXY_URL` |
 
 env 누락 시 해당 플랫폼의 OAuth 버튼이 UI에서 자동 비활성화. (GitLab·Asana·ClickUp은 OAuth 미구성이어도 PAT/토큰 연결은 가능. Slack은 OAuth 전용이라 env 누락 시 연결 자체가 불가.)
 
