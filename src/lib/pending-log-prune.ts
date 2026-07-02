@@ -3,10 +3,12 @@ import {
   deleteAttachmentBlobs,
   deleteConsoleLog,
   deleteNetworkLog,
+  deleteVideoBlob,
   getActionLogKeys,
   getAttachmentBlobKeys,
   getConsoleLogKeys,
   getNetworkLogKeys,
+  getVideoBlobKeys,
 } from "@/store/blob-db";
 
 const PENDING_PREFIX = "pending:";
@@ -67,20 +69,23 @@ async function getActiveTabIds(): Promise<Set<number>> {
 
 export async function pruneOrphanPendingLogs(): Promise<void> {
   const activeTabIds = await getActiveTabIds();
-  const [networkKeys, consoleKeys, actionKeys, attachmentKeys] = await Promise.all([
+  const [networkKeys, consoleKeys, actionKeys, videoKeys, attachmentKeys] = await Promise.all([
     getNetworkLogKeys(),
     getConsoleLogKeys(),
     getActionLogKeys(),
+    getVideoBlobKeys(),
     getAttachmentBlobKeys(),
   ]);
   const networkOrphans = findOrphanPendingKeys(networkKeys, activeTabIds);
   const consoleOrphans = findOrphanPendingKeys(consoleKeys, activeTabIds);
   const actionOrphans = findOrphanPendingKeys(actionKeys, activeTabIds);
+  const videoOrphans = findOrphanPendingKeys(videoKeys, activeTabIds);
   const attachmentOrphanOwners = findOrphanPendingAttachmentOwners(attachmentKeys, activeTabIds);
   await Promise.all([
     ...networkOrphans.map((k) => deleteNetworkLog(k).catch(() => {})),
     ...consoleOrphans.map((k) => deleteConsoleLog(k).catch(() => {})),
     ...actionOrphans.map((k) => deleteActionLog(k).catch(() => {})),
+    ...videoOrphans.map((k) => deleteVideoBlob(k).catch(() => {})),
     ...attachmentOrphanOwners.map((o) => deleteAttachmentBlobs(o).catch(() => {})),
   ]);
 }

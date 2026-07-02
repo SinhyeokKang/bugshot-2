@@ -7,7 +7,7 @@ import {
 } from "@/store/editor-store";
 import { onSessionSaveExhausted } from "@/types/messages";
 import { clearPicker, rebindStylingSession } from "@/sidepanel/picker-control";
-import { getNetworkLog, getConsoleLog, getActionLog, pruneOrphanInlineImages } from "@/store/blob-db";
+import { getNetworkLog, getConsoleLog, getActionLog, getVideoBlob, pruneOrphanInlineImages } from "@/store/blob-db";
 import { extractInlineRefs } from "@/sidepanel/lib/resolveInlineImages";
 
 function migrateLegacyDraft(snap: EditorSnapshot): EditorSnapshot {
@@ -29,7 +29,8 @@ function migrateLegacyDraft(snap: EditorSnapshot): EditorSnapshot {
 const SAVE_DEBOUNCE_MS = 300;
 const DRAFT_PHASES = new Set(["drafting", "previewing", "done"]);
 
-// videoBlob 제외: Blob은 chrome.storage 직렬화 불가 → IndexedDB(saveVideoBlob)로 별도 저장
+// videoBlob 제외: Blob은 chrome.storage 직렬화 불가 → 로그와 동일하게 IndexedDB(pending:${tabId})에
+// 별도 저장하고 hydrate가 복원. onRecordingComplete/replaceVideo 시점에 미러링된다.
 function snapshotFromState(): EditorSnapshot {
   const s = useEditorStore.getState();
   return {
@@ -121,6 +122,16 @@ export function useEditorSessionSync(tabId: number | null): boolean {
           }).catch(() => {
             useEditorStore.setState({ actionLogAttach: false });
           });
+        }
+        // 영상 blob은 스냅샷 밖(직렬화 불가)이라 IDB에서 복원. drafting은 pending:${tabId}에,
+        // confirm 후(previewing/done, 또는 backToDraft로 돌아온 drafting)엔 issueId 키에 있으므로
+        // pending → currentIssueId 순으로 조회. 둘 다 없으면 썸네일만 남고 videoBlob은 null.
+        if (snap.captureMode === "video" && DRAFT_PHASES.has(snap.phase)) {
+          void (async () => {
+            let blob = await getVideoBlob(`pending:${tabId}`);
+            if (!blob && snap.currentIssueId) blob = await getVideoBlob(snap.currentIssueId);
+            if (blob) useEditorStore.setState({ videoBlob: blob });
+          })().catch(() => {});
         }
       }
       setHydrated(true);
@@ -264,15 +275,24 @@ export function useEditorSessionSync(tabId: number | null): boolean {
     };
     chrome.tabs.onUpdated.addListener(onTabUpdated);
 
+    // debounce 대기 중이던 편집을 즉시 저장 — 마지막 편집 후 300ms 안에 패널이 닫히면 유실되던 꼬리 보강.
+    const flushPendingSave = () => {
+      if (saveTimer.current == null) return;
+      window.clearTimeout(saveTimer.current);
+      saveTimer.current = null;
+      if (useEditorStore.getState().sessionExpired) return;
+      if (saveSuspended.current) return;
+      void chrome.storage.session.set({ [key]: snapshotFromState() }).catch(() => {});
+    };
+    window.addEventListener("pagehide", flushPendingSave);
+
     return () => {
       cancelled = true;
       unsubStore();
       chrome.storage.onChanged.removeListener(onChanged);
       chrome.tabs.onUpdated.removeListener(onTabUpdated);
-      if (saveTimer.current != null) {
-        window.clearTimeout(saveTimer.current);
-        saveTimer.current = null;
-      }
+      window.removeEventListener("pagehide", flushPendingSave);
+      flushPendingSave();
     };
   }, [tabId]);
 

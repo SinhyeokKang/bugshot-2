@@ -1,5 +1,5 @@
 import { useEditorStore } from "@/store/editor-store";
-import { deleteNetworkLog, deleteConsoleLog, deleteActionLog } from "@/store/blob-db";
+import { deleteNetworkLog, deleteConsoleLog, deleteActionLog, deleteVideoBlob } from "@/store/blob-db";
 import {
   activateNetworkRecorder,
   activateConsoleRecorder,
@@ -14,6 +14,7 @@ async function prepareRecorders(tabId: number): Promise<void> {
   deleteNetworkLog(`pending:${tabId}`).catch(() => {});
   deleteConsoleLog(`pending:${tabId}`).catch(() => {});
   deleteActionLog(`pending:${tabId}`).catch(() => {});
+  deleteVideoBlob(`pending:${tabId}`).catch(() => {});
 
   await Promise.all([
     activateNetworkRecorder(tabId).catch((err) => console.warn("[bugshot] network recorder activate failed", err)),

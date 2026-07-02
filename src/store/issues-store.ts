@@ -64,6 +64,7 @@ async function pruneOrphanBlobs(): Promise<void> {
   const deletions: Promise<unknown>[] = [];
   const videoBlobKeys = await getVideoBlobKeys();
   for (const key of videoBlobKeys) {
+    if (key.startsWith("pending:")) continue;
     if (!currentIds.has(key)) {
       deletions.push(deleteVideoBlob(key));
     }
