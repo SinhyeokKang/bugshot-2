@@ -12,7 +12,7 @@ import type {
   LinearUser,
   LinearWorkflowState,
 } from "@/types/linear";
-import { OAuthError } from "./oauth";
+import { createRefreshRunner } from "./lib/createRefreshRunner";
 
 export class LinearError extends Error {
   constructor(
@@ -49,22 +49,9 @@ export function messageForLinearStatus(status: number): string {
   return t("linear.error.generic", { status });
 }
 
-const TOKEN_REFRESH_THRESHOLD_MS = 60_000;
+const refreshRunner = createRefreshRunner<LinearAuth>({ platform: "linear" });
 
-let refreshHook: ((auth: LinearAuth) => Promise<LinearAuth>) | null = null;
-
-export function setLinearRefreshHook(
-  hook: ((auth: LinearAuth) => Promise<LinearAuth>) | null,
-): void {
-  refreshHook = hook;
-}
-
-async function ensureFresh(auth: LinearAuth): Promise<LinearAuth> {
-  if (auth.kind !== "oauth" || !refreshHook) return auth;
-  if (auth.expiresAt == null) return auth;
-  if (auth.expiresAt - Date.now() > TOKEN_REFRESH_THRESHOLD_MS) return auth;
-  return refreshHook(auth);
-}
+export const setLinearRefreshHook = refreshRunner.setRefreshHook;
 
 async function doFetch(
   auth: LinearAuth,
@@ -86,18 +73,9 @@ async function authedGraphQL(
   query: string,
   variables?: Record<string, unknown>,
 ): Promise<Response> {
-  let cur = await ensureFresh(auth);
-  let res = await doFetch(cur, query, variables);
-  if (res.status === 401 && cur.kind === "oauth" && refreshHook) {
-    cur = await refreshHook(cur);
-    res = await doFetch(cur, query, variables);
-    if (res.status === 401) {
-      throw new OAuthError(t("oauth.error.refreshExhausted"), {
-        platform: "linear",
-      });
-    }
-  }
-  return res;
+  return refreshRunner.runWithAuthRetry(auth, (cur) =>
+    doFetch(cur, query, variables),
+  );
 }
 
 export async function linearGraphQL<T>(

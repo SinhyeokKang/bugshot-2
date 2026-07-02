@@ -3,6 +3,12 @@ import type { LinearAuth, LinearOAuthAuth } from "@/types/linear";
 import { writeStoredLinearOAuthTokens } from "@/lib/settings-storage";
 import { getMyself, setLinearRefreshHook } from "./linear-api";
 import { OAuthError, base64url, launchOAuthWebFlow } from "./oauth";
+import {
+  OAUTH_CONFIG,
+  isConfigured as isOAuthPlatformConfigured,
+  assertConfigured as assertOAuthConfigured,
+  isCancellation,
+} from "./oauth/config";
 
 const CLIENT_ID = (import.meta.env.VITE_LINEAR_CLIENT_ID ?? "").trim();
 const AUTHORIZE_URL = "https://linear.app/oauth/authorize";
@@ -10,15 +16,11 @@ const TOKEN_URL = "https://api.linear.app/oauth/token";
 const SCOPES = ["read", "write", "issues:create"];
 
 export function isLinearOAuthConfigured(): boolean {
-  return !!CLIENT_ID;
+  return isOAuthPlatformConfigured(OAUTH_CONFIG.linear);
 }
 
 function assertConfigured(): void {
-  if (!CLIENT_ID) {
-    throw new OAuthError(t("linear.oauth.notConfigured"), {
-      platform: "linear",
-    });
-  }
+  assertOAuthConfigured(OAUTH_CONFIG.linear);
 }
 
 function redirectUri(): string {
@@ -39,10 +41,8 @@ export async function generatePkceChallenge(): Promise<{
   return { codeVerifier, codeChallenge };
 }
 
-const LINEAR_CANCEL_ERROR_CODES = new Set(["access_denied"]);
-
 export function isLinearCancellationCode(code: string | null): boolean {
-  return !!code && LINEAR_CANCEL_ERROR_CODES.has(code);
+  return isCancellation(OAUTH_CONFIG.linear, code);
 }
 
 export interface ParsedLinearCallback {

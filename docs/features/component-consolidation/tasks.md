@@ -95,22 +95,22 @@
   - [ ] 아이콘 크기(h-8/h-9)·hover 빨강 동일
   - [ ] `attachment-remove` 보존 → e2e green (attachments.spec) — 그 외 testid는 grep 확인
 
-### Task U8: 라벨 색 dot을 `ColorSwatch`로 통일 [정합 개선 동반]
+### Task U8: 라벨 색 dot을 `ColorSwatch`로 통일 [정합 개선 동반] ✅ 구현 완료 (육안 확인 잔여)
 - **변경 대상**: `src/components/ui/`의 `ColorSwatch`(shape prop + 색 정규화); `tabs/{linear,github,gitlab}Fields/LabelCombobox.tsx`
 - **작업 내용**: `ColorSwatch`에 `shape="round"` 추가, 3곳 인라인 dot 교체. 색 값 정규화(`#` 유무 흡수)를 `ColorSwatch` 경계 한 곳으로 — **주의: github의 `#${color}`는 버그가 아니라 API 포맷 차이 보정(GitHub API만 `#` 없는 hex 반환). `#`를 제거하면 안 된다.** 시각 정합은 linear dot border 누락 1건.
 - **검증**:
-  - [ ] `pnpm typecheck` 통과 + 색 정규화 순수 함수 단위 테스트(`#` 유무 입력 → 동일 출력)
-  - [ ] **정규화 후에도 세 플랫폼 라벨 색 표시가 이전과 동일** (github 포함 — 색 변화 0)
-  - [ ] linear dot에 border가 생기고 3플랫폼 dot 렌더가 동일 표기로 통일(**라이트/다크** 육안 확인 — 의도된 변화)
+  - [x] `pnpm typecheck` 통과 + 색 정규화 순수 함수 단위 테스트(`#` 유무 입력 → 동일 출력 — `normalizeSwatchColor.test.ts` 6케이스)
+  - [x] **정규화 후에도 세 플랫폼 라벨 색 표시가 이전과 동일** (코드 대조: github bare hex→`#` 부여 = 이전 하드코딩과 등가, gitlab/linear `#` 포함 → 통과. 기존 ColorSwatch 소비처는 `isRenderableColorLiteral` 게이트로 bare hex 도달 불가)
+  - [ ] linear dot에 border가 생기고 3플랫폼 dot 렌더가 동일 표기로 통일(**라이트/다크** 육안 확인 — 의도된 변화) — 수동 잔여
 
-### Task P1: 어댑터 물리 중복 추출 (refresh 골격 4개 + GFM 2종) [최우선]
-- **변경 대상**: 신규 `background/lib/createRefreshRunner.ts`(가칭)·`prepareUpload.ts`·`buildMarkdownIssueBody.ts`; `background/{github,gitlab,asana,linear}-api.ts`, `submitTo{Github,Gitlab}.ts`, `build{Github,Gitlab}IssueBody.ts`
+### Task P1: 어댑터 물리 중복 추출 (refresh 골격 4개 + GFM 2종) [최우선] ✅ 구현 완료
+- **변경 대상**: 신규 `background/lib/createRefreshRunner.ts`·`sidepanel/lib/prepareUpload.ts`·`sidepanel/lib/buildMarkdownIssueBody.ts`(sidepanel 배치 사유는 design.md P1); `background/{github,gitlab,asana,linear}-api.ts`, `sidepanel/lib/submitTo{Github,Gitlab}.ts`, `sidepanel/lib/build{Github,Gitlab}IssueBody.ts`
 - **작업 내용**: (1) refresh 골격(`ensureFresh`+hook+401 retry)만 팩토리로 공용화 — **doFetch(github 헤더 3종/gitlab baseUrl/asana `.data` 언랩/linear GraphQL)는 각 api 파일 잔류**. 팩토리 인스턴스는 api 모듈 top-level 1회 발급 + `setRefreshHook` 동일명 재수출(이중 발급 금지 — design.md hook 소유권 위험 참조). (2) `prepareUpload` 헬퍼로 업로드+inline 해소 공용화. (3) `buildMarkdownIssueBody(ctx, {platform, videoEmbed})`로 github/gitlab 본문 통합(videoEmbed는 미디어+첨부 두 지점). Jira/Notion/ClickUp/Slack 제외.
 - **검증**:
-  - [ ] `pnpm typecheck` 통과 + `prepareUpload`/`buildMarkdownIssueBody` 단위 테스트(스타일 diff·env·cc·footer·비디오 임베드 케이스) — 기존 `buildGithubIssueBody.test.ts`/`buildGitlabIssueBody.test.ts`는 새 공용 헬퍼 테스트로 이관·통폐합
-  - [ ] 401→refresh→재요청→재401시 `OAuthError` 경로 모킹 테스트 — 선례 없음 주의: `*-oauth.test.ts`의 `vi.stubGlobal("chrome", ...)` stub 패턴 참고해 구축
-  - [ ] `github-oauth.test.ts`의 load-time hook 등록 전제 테스트 green 유지
-  - [ ] github/gitlab 실제 이슈 생성 회귀(본문·이미지·비디오 임베드 동일)
+  - [x] `pnpm typecheck` 통과 + `prepareUpload`/`buildMarkdownIssueBody` 단위 테스트(videoEmbed 두 지점·platform 키·inline 해소·logsDropped·requireMediaUpload) — 기존 `build*IssueBody.test.ts`는 thin wrapper 경유로 공용 헬퍼를 그대로 커버(이관 대신 회귀망 유지)
+  - [x] 401→refresh→재요청→재401시 `OAuthError` 경로 모킹 테스트 (`createRefreshRunner.test.ts` 8케이스)
+  - [x] `github-oauth.test.ts`의 load-time hook 등록 전제 테스트 green 유지 (전체 2579 green)
+  - [ ] github/gitlab 실제 이슈 생성 회귀(본문·이미지·비디오 임베드 동일) — 수동 잔여
 
 ### Task P2: `useOAuthConnect` 훅 + 공용 connect UI
 - **변경 대상**: 신규 `src/sidepanel/hooks/useOAuthConnect.ts`, `<PlatformConnectButton>`, 파라미터화 `<PatDialog>`; `tabs/connect/*ConnectForm.tsx` 8파일
@@ -129,13 +129,13 @@
   - [ ] 8개 플랫폼 아이콘·라벨·다크모드 invert가 각 화면(통합 탭·제출 다이얼로그·칩·배지)에서 이전과 동일
   - [ ] Slack 커스텀 아이콘 렌더 정상
 
-### Task P4: `OAUTH_CONFIG` 테이블
+### Task P4: `OAUTH_CONFIG` 테이블 ✅ 구현 완료
 - **변경 대상**: 신규 `background/oauth/config.ts`; `background/oauth.ts`(jira), `background/{github,linear,notion,gitlab,asana,clickup,slack}-oauth.ts`, `background/messages.ts`(8-`available` 핸들러, 약 204~655행)
 - **작업 내용**: configured/assertConfigured/cancelCodes를 테이블+공용 함수로 — **jira 포함 `Record<PlatformId>` 8키 완성**(exhaustiveness 유지). `messages.ts` 8-`available` 핸들러를 map 한 곳으로. 교환 함수는 어댑터별 유지. linear/gitlab `needsProxy:false`.
 - **검증**:
-  - [ ] `pnpm typecheck` 통과 + `isConfigured`/`isCancellation` 단위 테스트(env 유무·취소 코드 매칭)
-  - [ ] 각 플랫폼(jira 포함 8개) OAuth available 판정·취소 처리 동일
-  - [ ] env 누락 시 해당 플랫폼 OAuth UI 비활성 동작 보존
+  - [x] `pnpm typecheck` 통과 + `isConfigured`/`isCancellation` 단위 테스트(env 유무·취소 코드 매칭 — `oauth/__tests__/config.test.ts` 11케이스)
+  - [x] 각 플랫폼(jira 포함 8개) OAuth available 판정·취소 처리 동일 (기존 `*-oauth.test.ts` 8종 green + 삭제 코드 대조 — i18n 키 3계층·cancel Set 전수 일치)
+  - [x] env 누락 시 해당 플랫폼 OAuth UI 비활성 동작 보존 (isConfigured false 경로 테스트 + getter lazy 조회로 `vi.stubEnv` 호환 유지)
 
 > **P5(Submit 디스패치 테이블화)는 이 이니셔티브에서 제외** — `SubmitFieldsDialog` 3중 switch + 모달 8핸들러는 필드 state 클로저 의존·exhaustiveness 제약으로 난도가 높다. 필요 시 별도 `/feature`로 분리해 독립 설계한다.
 

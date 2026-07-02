@@ -2,6 +2,12 @@ import { t } from "@/i18n";
 import type { JiraOAuthAuth, JiraSite } from "@/types/jira";
 import type { PlatformId } from "@/types/platform";
 import { writeStoredOAuthTokens } from "@/lib/settings-storage";
+import {
+  OAUTH_CONFIG,
+  isConfigured as isOAuthPlatformConfigured,
+  assertConfigured as assertOAuthConfigured,
+  isCancellation,
+} from "./oauth/config";
 
 const CLIENT_ID = (import.meta.env.VITE_ATLASSIAN_CLIENT_ID ?? "").trim();
 const PROXY_URL = (import.meta.env.VITE_OAUTH_PROXY_URL ?? "")
@@ -68,14 +74,8 @@ export async function launchOAuthWebFlow(
   }
 }
 
-const ATLASSIAN_CANCEL_ERROR_CODES = new Set([
-  "access_denied",
-  "user_cancelled_login",
-  "user_cancelled_authorize",
-]);
-
 export function isAtlassianCancellationCode(code: string | null): boolean {
-  return !!code && ATLASSIAN_CANCEL_ERROR_CODES.has(code);
+  return isCancellation(OAUTH_CONFIG.jira, code);
 }
 
 function proxyTokenUrl(): string {
@@ -83,12 +83,7 @@ function proxyTokenUrl(): string {
 }
 
 function assertConfigured(): void {
-  if (!CLIENT_ID) {
-    throw new OAuthError(t("oauth.error.notConfiguredClient"), { platform: "jira" });
-  }
-  if (!PROXY_URL) {
-    throw new OAuthError(t("oauth.error.notConfiguredProxy"), { platform: "jira" });
-  }
+  assertOAuthConfigured(OAUTH_CONFIG.jira);
 }
 
 function redirectUri(): string {
@@ -238,5 +233,5 @@ export async function persistOAuthTokens(auth: JiraOAuthAuth): Promise<void> {
 }
 
 export function isOAuthConfigured(): boolean {
-  return !!CLIENT_ID && !!PROXY_URL;
+  return isOAuthPlatformConfigured(OAUTH_CONFIG.jira);
 }

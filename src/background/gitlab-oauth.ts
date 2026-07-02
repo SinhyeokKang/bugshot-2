@@ -3,6 +3,12 @@ import type { GitlabAuth, GitlabOAuthAuth } from "@/types/gitlab";
 import { writeStoredGitlabOAuthTokens } from "@/lib/settings-storage";
 import { getMyself, setGitlabRefreshHook } from "./gitlab-api";
 import { OAuthError, base64url, launchOAuthWebFlow } from "./oauth";
+import {
+  OAUTH_CONFIG,
+  isConfigured as isOAuthPlatformConfigured,
+  assertConfigured as assertOAuthConfigured,
+  isCancellation,
+} from "./oauth/config";
 
 const CLIENT_ID = (import.meta.env.VITE_GITLAB_CLIENT_ID ?? "").trim();
 const BASE_URL = "https://gitlab.com";
@@ -11,15 +17,11 @@ const TOKEN_URL = `${BASE_URL}/oauth/token`;
 const SCOPES = ["api"];
 
 export function isGitlabOAuthConfigured(): boolean {
-  return !!CLIENT_ID;
+  return isOAuthPlatformConfigured(OAUTH_CONFIG.gitlab);
 }
 
 function assertConfigured(): void {
-  if (!CLIENT_ID) {
-    throw new OAuthError(t("gitlab.oauth.notConfigured"), {
-      platform: "gitlab",
-    });
-  }
+  assertOAuthConfigured(OAUTH_CONFIG.gitlab);
 }
 
 function redirectUri(): string {
@@ -40,10 +42,8 @@ export async function generatePkceChallenge(): Promise<{
   return { codeVerifier, codeChallenge };
 }
 
-const GITLAB_CANCEL_ERROR_CODES = new Set(["access_denied"]);
-
 export function isGitlabCancellationCode(code: string | null): boolean {
-  return !!code && GITLAB_CANCEL_ERROR_CODES.has(code);
+  return isCancellation(OAUTH_CONFIG.gitlab, code);
 }
 
 export interface ParsedGitlabCallback {

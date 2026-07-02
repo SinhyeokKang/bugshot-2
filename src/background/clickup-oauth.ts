@@ -2,6 +2,12 @@ import { t } from "@/i18n";
 import type { ClickupOAuthAuth } from "@/types/clickup";
 import { getMyself } from "./clickup-api";
 import { OAuthError, launchOAuthWebFlow } from "./oauth";
+import {
+  OAUTH_CONFIG,
+  isConfigured as isOAuthPlatformConfigured,
+  assertConfigured as assertOAuthConfigured,
+  isCancellation,
+} from "./oauth/config";
 
 const CLIENT_ID = (import.meta.env.VITE_CLICKUP_CLIENT_ID ?? "").trim();
 const PROXY_URL = ((import.meta.env.VITE_OAUTH_PROXY_URL ?? "") as string)
@@ -10,25 +16,19 @@ const PROXY_URL = ((import.meta.env.VITE_OAUTH_PROXY_URL ?? "") as string)
 const AUTHORIZE_URL = "https://app.clickup.com/api";
 
 export function isClickupOAuthConfigured(): boolean {
-  const clientId = (import.meta.env.VITE_CLICKUP_CLIENT_ID ?? "").trim();
-  const proxyUrl = (import.meta.env.VITE_OAUTH_PROXY_URL ?? "").trim();
-  return !!clientId && !!proxyUrl;
+  return isOAuthPlatformConfigured(OAUTH_CONFIG.clickup);
 }
 
 function assertConfigured(): void {
-  if (!CLIENT_ID || !PROXY_URL) {
-    throw new OAuthError(t("clickup.oauth.notConfigured"), { platform: "clickup" });
-  }
+  assertOAuthConfigured(OAUTH_CONFIG.clickup);
 }
 
 function redirectUri(): string {
   return chrome.identity.getRedirectURL();
 }
 
-const CLICKUP_CANCEL_ERROR_CODES = new Set(["access_denied"]);
-
 export function isClickupCancellationCode(code: string | null): boolean {
-  return !!code && CLICKUP_CANCEL_ERROR_CODES.has(code);
+  return isCancellation(OAUTH_CONFIG.clickup, code);
 }
 
 export interface ParsedClickupCallback {

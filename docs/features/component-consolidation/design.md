@@ -72,8 +72,8 @@
   - `build{Github,Gitlab}IssueBody.ts`: 정규화 후 diff 18줄(비디오 임베드 방식 차이만 — 미디어 섹션과 첨부 섹션 두 지점).
 - **신규**:
   - `background/lib/createRefreshRunner.ts`(가칭) — **refresh 골격만** 공용화: `{ensureFresh, runWithAuthRetry, setRefreshHook}`을 발급하는 소형 팩토리. **doFetch(헤더·baseUrl·언랩·GraphQL)는 각 api 파일에 잔류** — linear 포함 4개 전부 골격만 공유. `error401Key`류 파라미터는 두지 않는다(4개 모두 동일 키 `oauth.error.refreshExhausted` — 변하는 건 `platform` 리터럴뿐).
-  - `background/lib/prepareUpload.ts` — `prepareUpload(input, uploadFn)` → `{allFiles, keyMap, resolvedCtx, toMedia, toAttachmentMedia, logsDropped}`.
-  - `background/lib/buildMarkdownIssueBody.ts` — `buildMarkdownIssueBody(ctx, opts)`. `opts.videoEmbed` 콜백은 미디어 섹션과 첨부 섹션(`emitAttachments`) **두 지점**을 커버하고, `opts.platform`으로 플랫폼 접두어 i18n 키(`attachmentNotInline`·`requireMediaUpload`)를 해소. `buildMarkdownContext`/`classDiff`/`ccMarkdownLine`은 이미 공용.
+  - `sidepanel/lib/prepareUpload.ts` — `prepareUpload(input, uploadFn, {platform})` → `{hrefMap, resolvedCtx, toMedia, toAttachmentMedia, logsDropped}`. (`submitTo*`가 sidepanel/lib 소속 + sidepanel 전용 모듈 의존이라 background/lib이 아닌 sidepanel/lib — background에 두면 역방향 레이어 의존 발생.)
+  - `sidepanel/lib/buildMarkdownIssueBody.ts` — `buildMarkdownIssueBody(input, opts)`. (위와 동일 사유로 sidepanel/lib.) `opts.videoEmbed` 콜백은 미디어 섹션과 첨부 섹션(`emitAttachments`) **두 지점**을 커버하고, `opts.platform`으로 플랫폼 접두어 i18n 키(`attachmentNotInline`·`requireMediaUpload`)를 해소. `buildMarkdownContext`/`classDiff`/`ccMarkdownLine`은 이미 공용.
 - **hook 소유권·등록 타이밍 (위험)**: 현재 hook 등록은 각 `*-oauth.ts`의 **top-level side-effect**이고 `messages.ts` 정적 import 체인이 SW 콜드 스타트마다 등록을 보장한다. 팩토리 전환 시 ① 인스턴스는 **api 모듈 top-level 1회 발급 + `setRefreshHook` 동일명 재수출** 필수(oauth 모듈에서 발급하면 순환 의존 — oauth→api `getMyself` import 기존재), ② 이중 발급 시 hook과 fetch가 **다른 클로저**가 되어 401→refresh가 무음 사망(실토큰 만료에서만 재현), ③ `github-oauth.test.ts:2-9`가 load-time 등록을 전제로 chrome stub — 세 경로 모두 주의.
 - **주의(제외)**: Jira(즉시 refresh, ADF 경로), Notion/ClickUp/Slack(만료 없음→즉시 throw)은 hook 모델 부적합 → **4개만**. GitLab 사후 `injectIssueUrl` 재업로드·Slack 2-step 업로드·Jira ADF는 생성/후처리 어댑터별 유지.
 

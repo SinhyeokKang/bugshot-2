@@ -3,6 +3,12 @@ import type { AsanaAuth, AsanaOAuthAuth } from "@/types/asana";
 import { writeStoredAsanaOAuthTokens } from "@/lib/settings-storage";
 import { getMyself, setAsanaRefreshHook } from "./asana-api";
 import { OAuthError, launchOAuthWebFlow } from "./oauth";
+import {
+  OAUTH_CONFIG,
+  isConfigured as isOAuthPlatformConfigured,
+  assertConfigured as assertOAuthConfigured,
+  isCancellation,
+} from "./oauth/config";
 
 const CLIENT_ID = (import.meta.env.VITE_ASANA_CLIENT_ID ?? "").trim();
 const PROXY_URL = ((import.meta.env.VITE_OAUTH_PROXY_URL ?? "") as string)
@@ -12,25 +18,19 @@ const AUTHORIZE_URL = "https://app.asana.com/-/oauth_authorize";
 const SCOPES = ["default"];
 
 export function isAsanaOAuthConfigured(): boolean {
-  const clientId = (import.meta.env.VITE_ASANA_CLIENT_ID ?? "").trim();
-  const proxyUrl = (import.meta.env.VITE_OAUTH_PROXY_URL ?? "").trim();
-  return !!clientId && !!proxyUrl;
+  return isOAuthPlatformConfigured(OAUTH_CONFIG.asana);
 }
 
 function assertConfigured(): void {
-  if (!CLIENT_ID || !PROXY_URL) {
-    throw new OAuthError(t("asana.oauth.notConfigured"), { platform: "asana" });
-  }
+  assertOAuthConfigured(OAUTH_CONFIG.asana);
 }
 
 function redirectUri(): string {
   return chrome.identity.getRedirectURL();
 }
 
-const ASANA_CANCEL_ERROR_CODES = new Set(["access_denied"]);
-
 export function isAsanaCancellationCode(code: string | null): boolean {
-  return !!code && ASANA_CANCEL_ERROR_CODES.has(code);
+  return isCancellation(OAUTH_CONFIG.asana, code);
 }
 
 export interface ParsedAsanaCallback {

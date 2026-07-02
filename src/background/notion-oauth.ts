@@ -2,6 +2,12 @@ import { t } from "@/i18n";
 import type { NotionOAuthAuth } from "@/types/notion";
 import { getMyself } from "./notion-api";
 import { OAuthError, launchOAuthWebFlow } from "./oauth";
+import {
+  OAUTH_CONFIG,
+  isConfigured as isOAuthPlatformConfigured,
+  assertConfigured as assertOAuthConfigured,
+  isCancellation,
+} from "./oauth/config";
 
 const CLIENT_ID = (import.meta.env.VITE_NOTION_CLIENT_ID ?? "").trim();
 const PROXY_URL = ((import.meta.env.VITE_OAUTH_PROXY_URL ?? "") as string)
@@ -10,25 +16,19 @@ const PROXY_URL = ((import.meta.env.VITE_OAUTH_PROXY_URL ?? "") as string)
 const AUTHORIZE_URL = "https://api.notion.com/v1/oauth/authorize";
 
 export function isNotionOAuthConfigured(): boolean {
-  return !!CLIENT_ID && !!PROXY_URL;
+  return isOAuthPlatformConfigured(OAUTH_CONFIG.notion);
 }
 
 function assertConfigured(): void {
-  if (!CLIENT_ID || !PROXY_URL) {
-    throw new OAuthError(t("notion.oauth.notConfigured"), {
-      platform: "notion",
-    });
-  }
+  assertOAuthConfigured(OAUTH_CONFIG.notion);
 }
 
 function redirectUri(): string {
   return chrome.identity.getRedirectURL();
 }
 
-const NOTION_CANCEL_ERROR_CODES = new Set(["access_denied", "user_denied"]);
-
 export function isNotionCancellationCode(code: string | null): boolean {
-  return !!code && NOTION_CANCEL_ERROR_CODES.has(code);
+  return isCancellation(OAUTH_CONFIG.notion, code);
 }
 
 export interface ParsedNotionCallback {

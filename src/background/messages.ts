@@ -1,4 +1,5 @@
 import { t } from "@/i18n";
+import type { PlatformId } from "@/types/platform";
 import { dataUrlToBlob } from "@/store/blob-db";
 import { IMAGE_PLACEHOLDER, VIDEO_PLACEHOLDER, parseInlinePlaceholder } from "@/lib/adf-sentinels";
 import { adfMediaNode, adfMediaSingle, adfVideoMediaSingle, type MediaSource } from "@/background/lib/adf-media";
@@ -86,13 +87,14 @@ import {
   updateTaskMarkdown as updateClickupTaskMarkdown,
   uploadAttachment as uploadClickupAttachment,
 } from "./clickup-api";
-import { isOAuthConfigured, startOAuthFlow } from "./oauth";
-import { isGithubOAuthConfigured, startGithubOAuth } from "./github-oauth";
-import { isLinearOAuthConfigured, startLinearOAuth } from "./linear-oauth";
-import { isNotionOAuthConfigured, startNotionOAuth } from "./notion-oauth";
-import { isGitlabOAuthConfigured, startGitlabOAuth } from "./gitlab-oauth";
-import { isAsanaOAuthConfigured, startAsanaOAuth } from "./asana-oauth";
-import { isClickupOAuthConfigured, startClickupOAuth } from "./clickup-oauth";
+import { startOAuthFlow } from "./oauth";
+import { OAUTH_CONFIG, isConfigured } from "./oauth/config";
+import { startGithubOAuth } from "./github-oauth";
+import { startLinearOAuth } from "./linear-oauth";
+import { startNotionOAuth } from "./notion-oauth";
+import { startGitlabOAuth } from "./gitlab-oauth";
+import { startAsanaOAuth } from "./asana-oauth";
+import { startClickupOAuth } from "./clickup-oauth";
 import {
   getPermalink as slackGetPermalink,
   listChannels as slackListChannels,
@@ -100,7 +102,7 @@ import {
   postMessage as slackPostMessage,
   uploadFiles as slackUploadFiles,
 } from "./slack-api";
-import { isSlackOAuthConfigured, startSlackOAuth } from "./slack-oauth";
+import { startSlackOAuth } from "./slack-oauth";
 import { captureEvent } from "./analytics";
 import { trackConnect } from "./connect-tracking";
 import {
@@ -178,6 +180,18 @@ async function loadSlackAuth(): Promise<SlackAuth> {
   return auth;
 }
 
+// jira만 무접두("oauth.available"), 나머지는 "{platform}.oauth.available".
+const OAUTH_AVAILABLE_PLATFORM = {
+  "oauth.available": "jira",
+  "github.oauth.available": "github",
+  "linear.oauth.available": "linear",
+  "notion.oauth.available": "notion",
+  "gitlab.oauth.available": "gitlab",
+  "asana.oauth.available": "asana",
+  "clickup.oauth.available": "clickup",
+  "slack.oauth.available": "slack",
+} as const satisfies Record<string, PlatformId>;
+
 export async function handleMessage(
   message: BgRequest,
   _sender: chrome.runtime.MessageSender,
@@ -201,7 +215,16 @@ export async function handleMessage(
     }
 
     case "oauth.available":
-      return { available: isOAuthConfigured() };
+    case "github.oauth.available":
+    case "linear.oauth.available":
+    case "notion.oauth.available":
+    case "gitlab.oauth.available":
+    case "asana.oauth.available":
+    case "clickup.oauth.available":
+    case "slack.oauth.available":
+      return {
+        available: isConfigured(OAUTH_CONFIG[OAUTH_AVAILABLE_PLATFORM[message.type]]),
+      };
 
     case "oauth.start":
       return trackConnect("jira", () => startOAuthFlow());
@@ -251,9 +274,6 @@ export async function handleMessage(
         message.attachments,
         message.relatesKey,
       );
-
-    case "github.oauth.available":
-      return { available: isGithubOAuthConfigured() };
 
     case "github.startOAuth":
       return trackConnect("github", () => startGithubOAuth());
@@ -315,9 +335,6 @@ export async function handleMessage(
         message.stateReason,
       );
 
-    case "linear.oauth.available":
-      return { available: isLinearOAuthConfigured() };
-
     case "linear.startOAuth":
       return trackConnect("linear", () => startLinearOAuth());
 
@@ -375,9 +392,6 @@ export async function handleMessage(
       await updateLinearIssueDescription(await loadLinearAuth(), message.issueId, message.description);
       return { ok: true };
 
-    case "notion.oauth.available":
-      return { available: isNotionOAuthConfigured() };
-
     case "notion.startOAuth":
       return trackConnect("notion", () => startNotionOAuth());
 
@@ -419,9 +433,6 @@ export async function handleMessage(
 
     case "notion.updatePageStatus":
       return updateNotionPageStatus(await loadNotionAuth(), message.pageId, message.propertyName, message.optionName);
-
-    case "gitlab.oauth.available":
-      return { available: isGitlabOAuthConfigured() };
 
     case "gitlab.startOAuth":
       return trackConnect("gitlab", () => startGitlabOAuth());
@@ -495,9 +506,6 @@ export async function handleMessage(
         message.iid,
         message.description,
       );
-
-    case "asana.oauth.available":
-      return { available: isAsanaOAuthConfigured() };
 
     case "asana.startOAuth":
       return trackConnect("asana", () => startAsanaOAuth());
@@ -578,9 +586,6 @@ export async function handleMessage(
         message.completed,
       );
 
-    case "clickup.oauth.available":
-      return { available: isClickupOAuthConfigured() };
-
     case "clickup.startOAuth":
       return trackConnect("clickup", () => startClickupOAuth());
 
@@ -650,9 +655,6 @@ export async function handleMessage(
         message.taskId,
         message.completed,
       );
-
-    case "slack.oauth.available":
-      return { available: isSlackOAuthConfigured() };
 
     case "slack.startOAuth":
       return trackConnect("slack", () => startSlackOAuth());

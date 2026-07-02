@@ -3,6 +3,12 @@ import type { GithubAuth, GithubOAuthAuth } from "@/types/github";
 import { writeStoredGithubOAuthTokens } from "@/lib/settings-storage";
 import { getMyself, setGithubRefreshHook } from "./github-api";
 import { OAuthError, launchOAuthWebFlow } from "./oauth";
+import {
+  OAUTH_CONFIG,
+  isConfigured as isOAuthPlatformConfigured,
+  assertConfigured as assertOAuthConfigured,
+  isCancellation,
+} from "./oauth/config";
 
 const CLIENT_ID = (import.meta.env.VITE_GITHUB_CLIENT_ID ?? "").trim();
 const PROXY_URL = (import.meta.env.VITE_OAUTH_PROXY_URL ?? "")
@@ -11,20 +17,11 @@ const PROXY_URL = (import.meta.env.VITE_OAUTH_PROXY_URL ?? "")
 const AUTHORIZE_URL = "https://github.com/login/oauth/authorize";
 const SCOPES = ["repo", "user:email"];
 export function isGithubOAuthConfigured(): boolean {
-  return !!CLIENT_ID && !!PROXY_URL;
+  return isOAuthPlatformConfigured(OAUTH_CONFIG.github);
 }
 
 function assertConfigured(): void {
-  if (!CLIENT_ID) {
-    throw new OAuthError(t("oauth.error.github.notConfiguredClient"), {
-      platform: "github",
-    });
-  }
-  if (!PROXY_URL) {
-    throw new OAuthError(t("oauth.error.notConfiguredProxy"), {
-      platform: "github",
-    });
-  }
+  assertOAuthConfigured(OAUTH_CONFIG.github);
 }
 
 function redirectUri(): string {
@@ -51,12 +48,8 @@ export interface ParsedCallback {
   code: string;
 }
 
-const GITHUB_CANCEL_ERROR_CODES = new Set([
-  "access_denied",
-]);
-
 export function isGithubCancellationCode(code: string | null): boolean {
-  return !!code && GITHUB_CANCEL_ERROR_CODES.has(code);
+  return isCancellation(OAUTH_CONFIG.github, code);
 }
 
 export function parseCallbackParams(
