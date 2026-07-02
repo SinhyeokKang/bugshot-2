@@ -199,7 +199,7 @@ shadcn `Slider` (`src/components/ui/slider.tsx`, Radix). 표준에서 **멀티 t
 | `InlineLink.tsx` | 외부 링크 — `target=_blank rel=noopener noreferrer`, `text-blue-600 underline dark:text-blue-400` |
 | `LinkifiedText.tsx` | 로그 본문 텍스트 linkify — `tokenizeLogText`로 URL 토큰만 `InlineLink`로 렌더(클릭 시 행 토글 방지 stopPropagation). Console 로그 본문·stack 사용 |
 | `ConnectedBadge.tsx` | 연결됨 상태 배지 — CircleCheck + green 톤 |
-| `ColorSwatch.tsx` | 색/이미지 미리보기 — 12×12, `rounded-[3px] border`(picker 인스펙터와 시각 통일) |
+| `ColorSwatch.tsx` | 색/이미지 미리보기 — 12×12, `rounded-[3px] border`(picker 인스펙터와 시각 통일). `shape="round"`면 `rounded-full` — 라벨 색 dot(github/gitlab/linear LabelCombobox) |
 | `DocTable.tsx` | 표 — `table-fixed`, `rounded-lg border`, 셀/헤더/행 클래스 상수(`docTableCell`/`docTableHead`/`docTableRow`) export |
 | `DocSectionBody.tsx` | 이슈 섹션 본문 렌더 — 마크다운(`renderMarkdown`) 또는 orderedList |
 
