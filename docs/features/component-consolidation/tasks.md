@@ -102,6 +102,7 @@
   - [x] `pnpm typecheck` 통과 + 색 정규화 순수 함수 단위 테스트(`#` 유무 입력 → 동일 출력 — `normalizeSwatchColor.test.ts` 6케이스)
   - [x] **정규화 후에도 세 플랫폼 라벨 색 표시가 이전과 동일** (코드 대조: github bare hex→`#` 부여 = 이전 하드코딩과 등가, gitlab/linear `#` 포함 → 통과. 기존 ColorSwatch 소비처는 `isRenderableColorLiteral` 게이트로 bare hex 도달 불가)
   - [ ] linear dot에 border가 생기고 3플랫폼 dot 렌더가 동일 표기로 통일(**라이트/다크** 육안 확인 — 의도된 변화) — 수동 잔여
+- **리뷰 후속(2026-07-03 /code-review→/refactor 반영)**: DESIGN.md·DIRECTORY.md에 `shape="round"`·LabelCombobox 소비처 갱신.
 
 ### Task P1: 어댑터 물리 중복 추출 (refresh 골격 4개 + GFM 2종) [최우선] ✅ 구현 완료
 - **변경 대상**: 신규 `background/lib/createRefreshRunner.ts`·`sidepanel/lib/prepareUpload.ts`·`sidepanel/lib/buildMarkdownIssueBody.ts`(sidepanel 배치 사유는 design.md P1); `background/{github,gitlab,asana,linear}-api.ts`, `sidepanel/lib/submitTo{Github,Gitlab}.ts`, `sidepanel/lib/build{Github,Gitlab}IssueBody.ts`
@@ -111,6 +112,7 @@
   - [x] 401→refresh→재요청→재401시 `OAuthError` 경로 모킹 테스트 (`createRefreshRunner.test.ts` 8케이스)
   - [x] `github-oauth.test.ts`의 load-time hook 등록 전제 테스트 green 유지 (전체 2579 green)
   - [ ] github/gitlab 실제 이슈 생성 회귀(본문·이미지·비디오 임베드 동일) — 수동 잔여
+- **리뷰 후속(2026-07-03 /code-review→/refactor 반영)**: `createRefreshRunner` cfg 객체 → platform plain 인자, `build{Github,Gitlab}IssueBody`의 미사용 타입 알리아스(`*MediaInput`/`*BuildResult`) 삭제, `submitToGithub`의 `someUploadMissing` re-export shim 삭제(테스트는 `prepareUpload` 직수입).
 
 ### Task P2: `useOAuthConnect` 훅 + 공용 connect UI
 - **변경 대상**: 신규 `src/sidepanel/hooks/useOAuthConnect.ts`, `<PlatformConnectButton>`, 파라미터화 `<PatDialog>`; `tabs/connect/*ConnectForm.tsx` 8파일
@@ -136,6 +138,7 @@
   - [x] `pnpm typecheck` 통과 + `isConfigured`/`isCancellation` 단위 테스트(env 유무·취소 코드 매칭 — `oauth/__tests__/config.test.ts` 11케이스)
   - [x] 각 플랫폼(jira 포함 8개) OAuth available 판정·취소 처리 동일 (기존 `*-oauth.test.ts` 8종 green + 삭제 코드 대조 — i18n 키 3계층·cancel Set 전수 일치)
   - [x] env 누락 시 해당 플랫폼 OAuth UI 비활성 동작 보존 (isConfigured false 경로 테스트 + getter lazy 조회로 `vi.stubEnv` 호환 유지)
+- **리뷰 후속(2026-07-03 /code-review→/refactor 반영)**: `OAuthError`를 `oauth/errors.ts` leaf로 분리해 config↔oauth 순환 제거(oauth.ts는 re-export — 기존 importer 무변경), `notConfiguredProxyKey` optional화(linear/gitlab 필러 제거 + client 키 폴백), 8개 `*-oauth.ts`의 local `CLIENT_ID`/`PROXY_URL` const 삭제 → `OAUTH_CONFIG` getter 일원화, 고아 wrapper 4개(jira `isOAuthConfigured`·linear·notion·gitlab) 삭제 + CLAUDE.md/PERMISSION.md env 가드 서술 갱신.
 
 > **P5(Submit 디스패치 테이블화)는 이 이니셔티브에서 제외** — `SubmitFieldsDialog` 3중 switch + 모달 8핸들러는 필드 state 클로저 의존·exhaustiveness 제약으로 난도가 높다. 필요 시 별도 `/feature`로 분리해 독립 설계한다.
 
