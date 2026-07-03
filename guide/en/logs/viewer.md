@@ -6,13 +6,15 @@ This page is from the angle of the **developer who receives and works the bug**.
 
 ## How to open it
 
+![Log viewer screen](../assets/logs-viewer-1.jpg)
+
 Download the `logs.html` attached to the issue and open it in a browser. It's a single HTML file, so it opens right away with nothing to install — easy.
 
 The receiver gets the file attached to the issue, but **the person filing the bug can grab it ahead of time too.** In the issue draft or preview screen, the **Download** button on the right of the **Log attachments** section pulls down the very same `logs.html` that gets attached — handy for checking it before you submit, or for sharing just the file without filing an issue at all.
 
-![Log viewer screen](../assets/logs-viewer-1.jpg)
-
 ## Timeline markers
+
+![Timeline markers](../assets/logs-viewer-2.jpg)
 
 The screen has a timeline alongside the video, with logs plotted on it as markers. There are three kinds.
 
@@ -22,21 +24,19 @@ The screen has a timeline alongside the video, with logs plotted on it as marker
 
 Logs from several origins (including iframes embedded in the page) all land on one timeline. In the Console, Network, and Action lists, an **origin filter** above the list lets you narrow down by origin, so you're never unsure which origin a log came from (each origin button also shows that origin's log count).
 
-![Timeline markers](../assets/logs-viewer-2.jpg)
-
 ## Video and logs in sync
+
+![Jump to a moment by clicking a marker](../assets/logs-viewer-3.jpg)
 
 - Play the video and follow the logs at that point in time.
 - **Click a marker and the video jumps to that moment** — see "what the screen looked like when this error fired" right away.
 - Logs and video share one time axis, making it easy to follow the repro from start to finish.
 
-![Jump to a moment by clicking a marker](../assets/logs-viewer-3.jpg)
-
 ## Report tab
+
+![Log viewer Report tab — title, environment, and body sections shown with inline images, plus a Copy markdown button in the top-right](../assets/logs-viewer-4.jpg)
 
 It's not just video and logs — the **issue write-up itself** lives inside this file too. Click the **Report** tab at the top and you'll see the title, the environment, and the body sections (what happened, steps to reproduce, expected result) exactly as they were filed. Any images pasted into the body show up inline as well, so you can grasp "what the problem was" right here, without bouncing back to the original issue page.
 
 - Want to take the content elsewhere? Hit **Copy markdown** — the write-up is copied to your clipboard as Markdown, ready to paste into another doc or a chat.
 - If the file doesn't include a report, this tab simply stays disabled, so there's nothing to worry about.
-
-![Log viewer Report tab — title, environment, and body sections shown with inline images, plus a Copy markdown button in the top-right](../assets/logs-viewer-4.jpg)

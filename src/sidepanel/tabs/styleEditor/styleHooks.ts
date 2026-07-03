@@ -21,7 +21,8 @@ export function useStyleProp(prop: string) {
     if (next === "") delete nextInline[prop];
     else nextInline[prop] = next;
     useEditorStore.getState().setStyleEdits({ inlineStyle: nextInline });
-    if (tabId) void applyStyles(tabId, nextInline);
+    const frameId = useEditorStore.getState().selection?.frameId ?? 0;
+    if (tabId) void applyStyles(tabId, frameId, nextInline);
   };
 
   return { value, placeholder, set };

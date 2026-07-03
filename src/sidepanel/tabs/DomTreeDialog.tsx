@@ -33,6 +33,7 @@ import {
 export function DomNavButton({ direction }: { direction: "parent" | "child" }) {
   const t = useT();
   const tabId = useBoundTabId();
+  const frameId = useEditorStore((s) => s.selection?.frameId ?? 0);
   const canNavigate = useEditorStore((s) =>
     direction === "parent"
       ? (s.selection?.hasParent ?? false)
@@ -51,7 +52,7 @@ export function DomNavButton({ direction }: { direction: "parent" | "child" }) {
       aria-label={label}
       disabled={!canNavigate}
       onClick={() => {
-        if (tabId) void bufferThenSwitch(tabId, () => navigatePicker(tabId, direction));
+        if (tabId) void bufferThenSwitch(tabId, () => navigatePicker(tabId, frameId, direction));
       }}
     >
       <Icon />
@@ -103,6 +104,7 @@ function DomTree({ onPicked }: { onPicked: () => void }) {
   const tabId = useBoundTabId();
   const bufferThenSwitch = useBufferThenSwitch();
   const currentSelector = useEditorStore((s) => s.selection?.selector);
+  const frameId = useEditorStore((s) => s.selection?.frameId ?? 0);
   const [tree, setTree] = useState<TreeNode | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
@@ -111,7 +113,7 @@ function DomTree({ onPicked }: { onPicked: () => void }) {
     if (!tabId) return;
     let cancelled = false;
     setLoading(true);
-    void describeInitialTree(tabId).then((resp) => {
+    void describeInitialTree(tabId, frameId).then((resp) => {
       if (cancelled || !resp) {
         setLoading(false);
         return;
@@ -123,27 +125,27 @@ function DomTree({ onPicked }: { onPicked: () => void }) {
     return () => {
       cancelled = true;
     };
-  }, [tabId]);
+  }, [tabId, frameId]);
 
   useEffect(() => {
     return () => {
-      if (tabId) void previewClear(tabId);
+      if (tabId) void previewClear(tabId, frameId);
     };
-  }, [tabId]);
+  }, [tabId, frameId]);
 
   const handleHover = (selector: string | null) => {
     if (!tabId) return;
-    if (selector) void previewHover(tabId, selector);
-    else void previewClear(tabId);
+    if (selector) void previewHover(tabId, frameId, selector);
+    else void previewClear(tabId, frameId);
   };
 
   const handleSelect = (selector: string) => {
     if (!tabId) return;
-    void previewClear(tabId);
+    void previewClear(tabId, frameId);
     // DomNav·repick과 동일하게 현재 요소 편집을 버퍼에 담고 전환 — 안 그러면 트리 이동 시
     // 편집이 버퍼에 안 담겨 변경사항에서 소실된다(DOM 편집은 페이지에 남은 채).
     void bufferThenSwitch(tabId, async () => {
-      await selectByPath(tabId, selector);
+      await selectByPath(tabId, frameId, selector);
     });
     onPicked();
   };
@@ -162,7 +164,7 @@ function DomTree({ onPicked }: { onPicked: () => void }) {
       node.childCount > 0 &&
       tabId
     ) {
-      void describeChildren(tabId, node.selector)
+      void describeChildren(tabId, frameId, node.selector)
         .then((resp) => {
           setTree((prev) => {
             if (!prev) return prev;

@@ -202,21 +202,26 @@ export const expect = test.expect;
 // expectSelection(기본 true): repick이 뜰 때까지 hover+click을 재시도한다. repick 클릭 직후
 // 재arm 레이스(panel은 "repick 숨김"인데 content script picker가 아직 안 붙어 단발 클릭이 유실)로
 // 인한 flaky를 막는다. 선택이 안 되는 픽(iframe 미지원 등)은 expectSelection:false로 1회만.
+// frame: iframe 내부 요소 선택 — frameLocator 경유 bbox(메인 프레임 뷰포트 기준)로 클릭.
+// 첫 mousemove가 top blocker 핸드오프(등록 iframe → pointerEvents:none)를 트리거한다.
 export async function pickElement(
   fixture: Page,
   panel: Page,
   selector: string,
-  opts: { expectSelection?: boolean } = {},
+  opts: { expectSelection?: boolean; frame?: string } = {},
 ): Promise<void> {
-  const { expectSelection = true } = opts;
+  const { expectSelection = true, frame } = opts;
   await fixture.bringToFront();
+  const target = frame
+    ? fixture.frameLocator(frame).locator(selector)
+    : fixture.locator(selector);
   const clickOnce = async () => {
-    const box = await fixture.locator(selector).boundingBox();
+    const box = await target.boundingBox();
     if (!box) throw new Error(`pickElement: ${selector}의 boundingBox 없음`);
     const cx = box.x + box.width / 2;
     const cy = box.y + box.height / 2;
     await fixture.mouse.move(cx, cy);
-    // double rAF — picker 오버레이가 hover 타깃을 반영할 시간을 준다 (PoC 실측).
+    // double rAF — picker 오버레이가 hover 타깃(iframe이면 blocker 핸드오프)을 반영할 시간 (PoC 실측).
     await fixture.evaluate(
       () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))),
     );

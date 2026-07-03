@@ -102,6 +102,35 @@ describe("resolveDraftStyleElements", () => {
     expect(els[0].diffs.map((d) => d.prop)).toContain("color");
   });
 
+  it("동일 selector라도 frameId가 다르면 dedup 안 됨 (top·iframe 각각 유지)", () => {
+    const els = resolveDraftStyleElements(
+      {
+        ...issueBase,
+        selector: ".dup",
+        frameId: 3, // 현재 element는 iframe
+        bufferedElements: [
+          { ...buffered(".dup", { margin: "8px" }), frameId: 0, origin: "https://page.example" },
+        ],
+      },
+      noImages,
+    );
+    expect(els).toHaveLength(2);
+    expect(els.map((e) => e.frameId)).toEqual([0, 3]);
+  });
+
+  it("구 draft(frameId 없음) 재열람 시 기존 selector dedup 동작 유지", () => {
+    // issueBase·buffered 헬퍼 모두 frameId 미지정 — ?? 0 폴백으로 종전과 동일하게 collapse.
+    const els = resolveDraftStyleElements(
+      {
+        ...issueBase,
+        selector: ".dup",
+        bufferedElements: [buffered(".dup", { margin: "8px" })],
+      },
+      noImages,
+    );
+    expect(els).toHaveLength(1);
+  });
+
   it("선택 스냅샷 없으면(구 freeform 등) 빈 배열", () => {
     const els = resolveDraftStyleElements(
       { selector: "", tagName: "", styleEdits: undefined, selectionSnapshot: undefined },

@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>bugshot e2e fixture — iframe child (1-depth)</title>
+    <style>
+      body {
+        margin: 16px;
+        font-family: sans-serif;
+      }
+      /* 2-depth iframe — 부모(이 문서)가 top이 아니라 announce가 게이트돼 미등록.
+         부모 picker의 onClickCommit이 거부(iframeUnsupported)해야 한다.
+         박스를 크게 잡아 bbox 중심 클릭이 확실히 iframe 위에 떨어지게 한다. */
+      #inner {
+        width: 280px;
+        height: 180px;
+        border: 1px solid #cccccc;
+      }
+    </style>
+  </head>
+  <body>
+    <h2 id="child-title">1-depth Child Title</h2>
+    <iframe id="inner" src="basic.html"></iframe>
+  </body>
+</html>

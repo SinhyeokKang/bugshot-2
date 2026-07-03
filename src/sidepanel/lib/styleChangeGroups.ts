@@ -10,10 +10,14 @@ import type {
   EditorSelection,
   EditorStyleEdits,
 } from "@/store/editor-store";
+import { sameElementKey } from "@/lib/element-key";
 
 export interface ChangeGroup {
   source: "current" | "buffered";
   selector: string;
+  // 요소가 속한 프레임(0=top)·origin — 행 초기화 라우팅과 출처 배지에 사용.
+  frameId: number;
+  origin: string;
   tagName: string;
   classList: string[];
   snapshot: StyleDiffSelection;
@@ -26,19 +30,9 @@ export function buildChangeGroups(
   styleEdits: EditorStyleEdits,
   bufferedElements: BufferedElement[],
 ): ChangeGroup[] {
-  // 현재 그룹과 동일하게 diff 0인 버퍼는 빈 카드를 만들지 않는다(게이트 대칭).
-  const groups: ChangeGroup[] = bufferedElements
-    .map((b) => ({
-      source: "buffered" as const,
-      selector: b.selector,
-      tagName: b.tagName,
-      classList: b.selectionSnapshot.classList,
-      snapshot: b.selectionSnapshot,
-      edits: b.styleEdits,
-      rows: buildStyleDiff(b.selectionSnapshot, b.styleEdits),
-    }))
-    .filter((g) => g.rows.length > 0);
-
+  // 현재 그룹을 먼저 확정한다 — diff가 있어야 포함되고, 있으면 동일 키 버퍼를 밀어낸다
+  // (mergeStyleElements와 동일: 승격 전 비동기 창에서 selection==buffer 공존 시 이중 카운트 방지).
+  let currentGroup: ChangeGroup | null = null;
   if (selection) {
     const snapshot: StyleDiffSelection = {
       classList: selection.classList,
@@ -48,16 +42,44 @@ export function buildChangeGroups(
     };
     const rows = buildStyleDiff(snapshot, styleEdits);
     if (rows.length > 0) {
-      groups.push({
+      currentGroup = {
         source: "current",
         selector: selection.selector,
+        frameId: selection.frameId ?? 0,
+        origin: selection.origin ?? "",
         tagName: selection.tagName,
         classList: selection.classList,
         snapshot,
         edits: styleEdits,
         rows,
-      });
+      };
     }
+  }
+
+  const groups: ChangeGroup[] = bufferedElements
+    .filter(
+      (b) =>
+        !currentGroup ||
+        !sameElementKey(
+          { selector: b.selector, frameId: b.frameId },
+          { selector: currentGroup.selector, frameId: currentGroup.frameId },
+        ),
+    )
+    .map((b) => ({
+      source: "buffered" as const,
+      selector: b.selector,
+      frameId: b.frameId ?? 0,
+      origin: b.origin ?? "",
+      tagName: b.tagName,
+      classList: b.selectionSnapshot.classList,
+      snapshot: b.selectionSnapshot,
+      edits: b.styleEdits,
+      rows: buildStyleDiff(b.selectionSnapshot, b.styleEdits),
+    }))
+    .filter((g) => g.rows.length > 0);
+
+  if (currentGroup) {
+    groups.push(currentGroup);
   }
 
   return groups;

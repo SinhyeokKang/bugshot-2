@@ -23,7 +23,10 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { sameElementKey } from "@/lib/element-key";
 import { formatElementName } from "@/lib/element-label";
+import { originOf } from "@/lib/session-keys";
+import { originHostLabel, originKey, UNKNOWN_ORIGIN } from "@/sidepanel/lib/logOrigin";
 import { useEditorStore, type EditorStyleEdits } from "@/store/editor-store";
 import { useBoundTabId } from "@/sidepanel/hooks/useBoundTabId";
 import { captureElementSnapshotBySelector } from "@/sidepanel/capture";
@@ -75,30 +78,33 @@ export function StyleChangesDialog() {
     // store 갱신을 DOM await 전에 동기 수행 — DOM 원복과 store mutation 사이에 버퍼가
     // 바뀌어 selector no-op으로 store-DOM이 갈라지는 창을 없앤다(순수 next/remaining 기반).
     if (remaining.length === 0) {
-      useEditorStore.getState().removeBufferedElement(group.selector);
+      useEditorStore.getState().removeBufferedElement(group.selector, group.frameId);
     } else {
-      useEditorStore.getState().patchBufferedElement(group.selector, {
+      useEditorStore.getState().patchBufferedElement(group.selector, group.frameId, {
         styleEdits: next,
       });
     }
     // found=false(요소 소실)여도 store는 이미 갱신 — 원복 불가는 restoreAll과 동일 한계.
-    const found = await applyEditsBySelector(tabId, group.selector, {
+    const found = await applyEditsBySelector(tabId, group.frameId, group.selector, {
       classList: next.classList,
       inlineStyle: next.inlineStyle,
       text: group.snapshot.text === null ? null : next.text,
     });
     // 잔여 diff가 있고 DOM이 실제 원복된 경우만 after 스냅샷 재캡처(미원복은 모순 이미지 방지).
     if (remaining.length > 0 && found) {
-      const img = await captureElementSnapshotBySelector(tabId, group.selector);
+      const img = await captureElementSnapshotBySelector(tabId, group.selector, {
+        frameId: group.frameId,
+      });
       if (img) {
-        useEditorStore.getState().patchBufferedElement(group.selector, {
+        useEditorStore.getState().patchBufferedElement(group.selector, group.frameId, {
           afterImage: img,
         });
       }
     }
     // 재선택된 버퍼 항목(중복 케이스): 재선택으로 selection·styleEdits 베이스라인 갱신.
-    if (group.selector === useEditorStore.getState().selection?.selector) {
-      await selectByPath(tabId, group.selector);
+    const sel = useEditorStore.getState().selection;
+    if (sel && sameElementKey(group, sel)) {
+      await selectByPath(tabId, group.frameId, group.selector);
     }
   };
 
@@ -110,9 +116,9 @@ export function StyleChangesDialog() {
       const next = removeDiffRow(group.snapshot, group.edits, prop);
       if (group.source === "current") {
         useEditorStore.getState().setStyleEdits(next);
-        if (prop === "class") await applyClasses(tabId, next.classList);
-        else if (prop === "text") await applyText(tabId, next.text);
-        else await applyStyles(tabId, next.inlineStyle);
+        if (prop === "class") await applyClasses(tabId, group.frameId, next.classList);
+        else if (prop === "text") await applyText(tabId, group.frameId, next.text);
+        else await applyStyles(tabId, group.frameId, next.inlineStyle);
       } else {
         await applyBufferedReset(group, next);
       }
@@ -149,7 +155,7 @@ export function StyleChangesDialog() {
         <div className="min-h-0 flex-1 space-y-3 overflow-y-auto overscroll-contain">
           {groups.map((group) => (
             <GroupCard
-              key={`${group.source}:${group.selector}`}
+              key={`${group.source}:${group.frameId}:${group.selector}`}
               group={group}
               busyKey={busyKey}
               onResetRow={handleResetRow}
@@ -199,12 +205,23 @@ function GroupCard({
   onResetRow: (group: ChangeGroup, prop: string, key: string) => Promise<void>;
 }) {
   const t = useT();
+  const pageOrigin = useEditorStore((s) => originOf(s.target?.url));
   const busy = busyKey !== null;
   const label = formatElementName({
     tag: group.tagName,
     classList: group.classList,
   });
-  const elementKey = `${group.source}:${group.selector}`;
+  const elementKey = `${group.source}:${group.frameId}:${group.selector}`;
+  // iframe 요소만 출처 배지 — top(페이지 origin과 동일)은 생략해 노이즈 방지. 빈 origin
+  // (구버전 폴백)도 생략. opaque origin(sandbox 등)은 originKey 정규화로 unknown 라벨.
+  const badgeKey =
+    group.origin && group.origin !== pageOrigin ? originKey(group.origin) : null;
+  const originBadge =
+    badgeKey === null
+      ? null
+      : badgeKey === UNKNOWN_ORIGIN
+        ? t("editor.changesDialog.unknownOrigin")
+        : originHostLabel(badgeKey);
 
   return (
     <Card
@@ -220,6 +237,16 @@ function GroupCard({
         {group.source === "current" && (
           <Badge variant="secondary" className="shrink-0">
             {t("editor.changesDialog.current")}
+          </Badge>
+        )}
+        {originBadge && (
+          <Badge
+            variant="outline"
+            className="max-w-[10rem] shrink-0"
+            title={badgeKey === UNKNOWN_ORIGIN ? undefined : group.origin}
+            data-testid="origin-badge"
+          >
+            <span className="truncate">{originBadge}</span>
           </Badge>
         )}
       </div>

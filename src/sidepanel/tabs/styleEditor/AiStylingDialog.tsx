@@ -39,8 +39,8 @@ export function AiStylingDialog({
   const tabId = useBoundTabId();
   const [input, setInput] = useState("");
   const sessionRef = useRef<AISession | null>(null);
-  // 세션이 어느 요소(selector)용으로 빌드됐는지 — repick 시 stale system prompt 재빌드 판정.
-  const sessionSelectorRef = useRef<string | null>(null);
+  // 세션이 어느 요소(selector+frameId)용으로 빌드됐는지 — repick 시 stale system prompt 재빌드 판정.
+  const sessionKeyRef = useRef<string | null>(null);
   const createSessionRef = useRef(createSession);
   createSessionRef.current = createSession;
 
@@ -48,7 +48,7 @@ export function AiStylingDialog({
     return () => {
       sessionRef.current?.destroy?.();
       sessionRef.current = null;
-      sessionSelectorRef.current = null;
+      sessionKeyRef.current = null;
     };
   }, [createSession]);
 
@@ -75,6 +75,8 @@ export function AiStylingDialog({
       return;
     }
     const targetSelector = ctx.selector;
+    const targetFrameId = useEditorStore.getState().selection?.frameId ?? 0;
+    const targetKey = `${targetSelector}::${targetFrameId}`;
 
     setInput("");
     onOpenChange(false);
@@ -82,10 +84,7 @@ export function AiStylingDialog({
 
     try {
       // repick으로 세션이 다른 요소용이면 stale system prompt 폐기 후 재빌드.
-      if (
-        sessionRef.current &&
-        sessionSelectorRef.current !== targetSelector
-      ) {
+      if (sessionRef.current && sessionKeyRef.current !== targetKey) {
         sessionRef.current.destroy?.();
         sessionRef.current = null;
       }
@@ -93,7 +92,7 @@ export function AiStylingDialog({
         sessionRef.current = await createSessionRef.current(
           buildAiStylingSystemPrompt(ctx),
         );
-        sessionSelectorRef.current = targetSelector;
+        sessionKeyRef.current = targetKey;
       }
 
       const prefix = buildStyleContextBlock(ctx);
@@ -102,9 +101,11 @@ export function AiStylingDialog({
         { responseSchema: buildAiStylingResponseSchema() },
       );
 
-      // 호출 중 다른 요소로 repick됐으면 옛 요소용 결과를 새 요소에 적용하지 않는다.
+      // 호출 중 다른 요소로 repick됐으면 옛 요소용 결과를 새 요소에 적용하지 않는다(frameId 포함).
+      const cur = useEditorStore.getState().selection;
       if (
-        useEditorStore.getState().selection?.selector !== targetSelector
+        cur?.selector !== targetSelector ||
+        (cur?.frameId ?? 0) !== targetFrameId
       ) {
         return;
       }
@@ -135,10 +136,11 @@ export function AiStylingDialog({
       useEditorStore.getState().setStyleEdits(merged);
 
       if (tabId) {
+        const frameId = useEditorStore.getState().selection?.frameId ?? 0;
         if (parsed.edits.inlineStyle)
-          void applyStyles(tabId, merged.inlineStyle);
+          void applyStyles(tabId, frameId, merged.inlineStyle);
         if (parsed.edits.classList)
-          void applyClasses(tabId, merged.classList);
+          void applyClasses(tabId, frameId, merged.classList);
       }
     } catch (err) {
       console.error("[AI Styling] error:", err);
@@ -151,7 +153,7 @@ export function AiStylingDialog({
       }
       sessionRef.current?.destroy?.();
       sessionRef.current = null;
-      sessionSelectorRef.current = null;
+      sessionKeyRef.current = null;
     } finally {
       useEditorStore.getState().setAiStylingLoading(false);
     }

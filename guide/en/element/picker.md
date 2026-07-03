@@ -4,11 +4,11 @@
 
 ## Start picking
 
+![Picker crosshair](../assets/element-picker-1.jpg)
+
 In the **Debug** tab, click **Edit element style**. A crosshair appears over the page, and the element under your cursor lights up.
 
 > Just want a screenshot of the element without touching its styles? [Capture element](../screenshot/capture.md) is the quicker route.
-
-![Picker crosshair](../assets/element-picker-1.jpg)
 
 ## Click an element
 
@@ -16,14 +16,14 @@ Click the element you want to select it. Its details show up in the side panel.
 
 ## Move through the DOM tree
 
+![DOM tree navigation](../assets/element-picker-2.jpg)
+
 Can't quite land on the exact element? No problem — you can **move to its parent or child** from the current selection. Step up (parent) or down (child) until you hit the right one.
 
 Want to start over? **Pick another element** lets you begin fresh anytime.
 
-![DOM tree navigation](../assets/element-picker-2.jpg)
+## Elements inside iframes
 
-## iframe limitation
+Elements inside an iframe embedded in the page (a frame holding another document) can be selected and edited just like any other. Even when the frame comes from a **different origin (cross-origin)** — a payment window, an embedded widget — no worries: click an element inside, tweak its styles, and capture it, all the same.
 
-Elements **inside an iframe** (a frame holding another document) **can't be selected**. Click the iframe box itself and a notice appears, cancelling the pick.
-
-> If you really need an element inside an iframe, try [Screenshot](../screenshot/capture.md) or [Recording](../video/record.md) instead.
+The exception is a frame nested inside another frame, or one locked down by a security policy (sandbox) — its inner elements stay out of reach. In that case a notice appears and the pick is cancelled, so grab that part with [Capture area](../screenshot/capture.md) as an image instead.

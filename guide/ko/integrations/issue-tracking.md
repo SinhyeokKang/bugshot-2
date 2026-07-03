@@ -2,9 +2,9 @@
 
 🌐 [English](https://bugshot.gitbook.io/en/integrations/issue-tracking)
 
-지금까지 작성한 초안과 제출한 이슈가 어디 있는지 헷갈리실 일 없습니다. **이슈 목록** 탭에서 한곳에 모아 보실 수 있습니다.
-
 ![이슈 목록 탭](../assets/integrations-issue-tracking-1.jpg)
+
+지금까지 작성한 초안과 제출한 이슈가 어디 있는지 헷갈리실 일 없습니다. **이슈 목록** 탭에서 한곳에 모아 보실 수 있습니다.
 
 ## 찾고 거르기
 
@@ -16,12 +16,12 @@
 
 ## 행을 열면
 
+![이슈 상세 보기](../assets/integrations-issue-tracking-2.jpg)
+
 이슈 행을 클릭하면 상세가 열립니다.
 
 - **초안(Draft)** — 편집할 수 있습니다. 이어서 작성하거나 내용을 고쳐 제출하면 됩니다.
 - **제출됨(Submitted)** — 읽기 전용입니다. 등록된 내용과 플랫폼 링크를 확인합니다.
-
-![이슈 상세 보기](../assets/integrations-issue-tracking-2.jpg)
 
 ## 목록 새로고침
 

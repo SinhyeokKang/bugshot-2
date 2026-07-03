@@ -1,10 +1,11 @@
 import { useEffect } from "react";
 import { useEditorStore } from "@/store/editor-store";
+import { sameElementKey } from "@/lib/element-key";
 import { originOf } from "@/lib/session-keys";
 import type { PickerMessage, ViewportRect } from "@/types/picker";
 import { type BgInternalMessage, onPickerIframeUnsupported, onPickerPermissionExpired, sendBg } from "@/types/messages";
 import { captureElementSnapshot, loadImage } from "@/sidepanel/capture";
-import { clearPicker, collectTokens, maybeSurfacePermissionExpired, rebroadcastSentinelsToFrame, resumeBufferedElement, stopPicker } from "@/sidepanel/picker-control";
+import { clearPicker, collectTokens, getTopViewport, maybeSurfacePermissionExpired, rebroadcastSentinelsToFrame, restartPickerInFrame, resumeBufferedElement, stopHoverAllFrames, stopPicker } from "@/sidepanel/picker-control";
 import { saveNetworkLog, saveConsoleLog, saveActionLog, saveInlineImage, dataUrlToBlob } from "@/store/blob-db";
 import { shouldCompact, compactImage } from "@/sidepanel/lib/compactImage";
 import { shouldPreserveBackgroundLogs } from "@/sidepanel/hooks/useBackgroundRecorder";
@@ -83,17 +84,24 @@ export function usePickerMessages(myTabId: number | null): void {
 
       if (message.type === "picker.selected") {
         const msg = message as Extract<PickerMessage, { type: "picker.selected" }>;
+        // content script 메시지에 표준 제공 — 어느 프레임의 선택인지 추적(위조 방지로
+        // payload가 아니라 sender에서 얻는다). top이면 0. origin(출처 배지 노출)도 동일하게
+        // sender에서 파생 — opaque origin(sandbox)은 "null" 문자열로 온다.
+        const frameId = sender.frameId ?? 0;
+        const origin = sender.origin ?? "";
         // 요소 캡처(screenshot 세부 모드): styling 대신 요소 크롭 → drafting.
         if (useEditorStore.getState().captureMode === "screenshot") {
           const tabId = useEditorStore.getState().target?.tabId;
-          if (tabId) void captureElementShot(tabId, msg.payload);
+          if (tabId) void captureElementShot(tabId, msg.payload, frameId);
           return;
         }
         // 버퍼된 요소 재선택은 before/after를 복원한다(원래 캡처가 실패해 null이어도). 그 경우
         // DOM엔 편집이 적용돼 있어 fresh before 캡처는 편집 후 상태를 before로 박는 오염이 된다.
         const wasBuffered = useEditorStore
           .getState()
-          .bufferedElements.some((b) => b.selector === msg.payload.selector);
+          .bufferedElements.some((b) =>
+            sameElementKey(b, { selector: msg.payload.selector, frameId }),
+          );
         useEditorStore.getState().onElementSelected({
           selector: msg.payload.selector,
           tagName: msg.payload.tagName,
@@ -106,23 +114,41 @@ export function usePickerMessages(myTabId: number | null): void {
           text: msg.payload.text,
           viewport: msg.payload.viewport,
           capturedAt: Date.now(),
+          frameId,
+          origin,
         });
         const tabId = useEditorStore.getState().target?.tabId;
         if (tabId) {
+          // 선택 프레임 외 나머지 프레임의 hover 유령(blocker·inspector) 종료.
+          void stopHoverAllFrames(tabId);
           // 비동기 캡처 중 다른 요소가 선택되면 늦게 도착한 결과가 새 선택을 덮는다 —
-          // 선택 동일성(selector)을 resolve 시점에 재확인.
+          // 선택 동일성(selector+frameId)을 resolve 시점에 재확인.
           const selector = msg.payload.selector;
-          void collectTokens(tabId)
+          const sameSelection = () => {
+            const sel = useEditorStore.getState().selection;
+            return !!sel && sameElementKey(sel, { selector, frameId });
+          };
+          void collectTokens(tabId, frameId)
             .then((tokens) => {
-              if (useEditorStore.getState().selection?.selector !== selector) return;
+              if (!sameSelection()) return;
               useEditorStore.getState().setTokens(tokens);
             })
             .catch((err) => console.warn("[bugshot] collectTokens failed", err));
+          // iframe 선택의 payload viewport는 iframe 내부 크기 — 환경 메타(이슈 본문
+          // Viewport 줄·draft 저장)는 브라우저 뷰포트여야 하므로 top에서 조회해 교체.
+          if (frameId !== 0) {
+            void getTopViewport(tabId).then((vp) => {
+              if (!vp || !sameSelection()) return;
+              const sel = useEditorStore.getState().selection;
+              if (!sel) return;
+              useEditorStore.setState({ selection: { ...sel, viewport: vp } });
+            });
+          }
           if (!wasBuffered && !useEditorStore.getState().beforeImage) {
-            void captureElementSnapshot(tabId)
+            void captureElementSnapshot(tabId, { frameId })
               .then((img) => {
                 const s = useEditorStore.getState();
-                if (!img || s.selection?.selector !== selector || s.beforeImage) return;
+                if (!img || !sameSelection() || s.beforeImage) return;
                 s.setBeforeImage(img);
               })
               .catch((err) => console.warn("[bugshot] before-image capture failed", err));
@@ -132,6 +158,7 @@ export function usePickerMessages(myTabId: number | null): void {
         const msg = message as Extract<PickerMessage, { type: "picker.selectionUpdated" }>;
         useEditorStore.getState().updateSelectionStyles({
           selector: msg.payload.selector,
+          frameId: sender.frameId ?? 0,
           specifiedStyles: msg.payload.specifiedStyles,
           propSources: msg.payload.propSources,
           computedStyles: msg.payload.computedStyles,
@@ -149,16 +176,21 @@ export function usePickerMessages(myTabId: number | null): void {
         if (inlineCaptureTarget) {
           useEditorStore.getState().cancelInlineCapture();
         } else {
-          const { phase } = useEditorStore.getState();
+          const { phase, target } = useEditorStore.getState();
           if (phase === "capturing") {
             useEditorStore.getState().reset();
           } else if (!resumeAfterRepickCancel()) {
             useEditorStore.getState().cancelPicking();
+            // cancel/ESC는 발화 프레임만 idle — 나머지 프레임 정리(유령 picker 방지).
+            // 복귀(resume) 경로는 DOM 편집을 유지해야 하므로 전체 취소일 때만.
+            if (target) void clearPicker(target.tabId);
           }
         }
       } else if (message.type === "picker.iframeUnsupported") {
+        const { target } = useEditorStore.getState();
         if (!resumeAfterRepickCancel()) {
           useEditorStore.getState().cancelPicking();
+          if (target) void clearPicker(target.tabId);
         }
         onPickerIframeUnsupported.fire();
       } else if (message.type === "activeTabExpiredDeferred") {
@@ -170,6 +202,11 @@ export function usePickerMessages(myTabId: number | null): void {
         const msg = message as Extract<BgInternalMessage, { type: "frameCommitted" }>;
         if (myTabId != null && msg.tabId !== myTabId) return;
         rebroadcastSentinelsToFrame(msg.tabId, msg.frameId);
+        // picking 중 네비게이션된 iframe의 새 picker는 idle — 재시작하지 않으면 stale
+        // registry 핸드오프로 클릭이 선택 없이 iframe 페이지에 유실된다.
+        if (useEditorStore.getState().phase === "picking") {
+          void restartPickerInFrame(msg.tabId, msg.frameId);
+        }
       } else if (message.type === "logClear") {
         // 녹화 중(recording)엔 cross-origin/reload 이동도 한 버그 시나리오의 일부 —
         // background 레코더가 보존하는 phase 집합과 동일하게 버퍼를 비우지 않는다.
@@ -286,17 +323,25 @@ function resumeAfterRepickCancel(): boolean {
 async function captureElementShot(
   tabId: number,
   payload: { selector: string; tagName: string; viewport: { width: number; height: number } },
+  frameId: number,
 ): Promise<void> {
+  // styling 분기와 대칭 — 캡처 전 타 프레임 hover 유령(배너·blocker) 종료해 크롭 오염 방지.
+  await stopHoverAllFrames(tabId);
   // captureElementSnapshot은 권한 만료/캡처 실패 시 내부에서 안내 후 null 반환 → 빈 drafting 진입 금지.
-  const img = await captureElementSnapshot(tabId);
+  const img = await captureElementSnapshot(tabId, { frameId });
   if (!img) {
+    // 실패 시에도 전 프레임 정리 — 미정리 시 hover blocker가 페이지 클릭을 계속 삼킨다.
+    void clearPicker(tabId);
     useEditorStore.getState().reset();
     return;
   }
+  // iframe 요소 샷의 payload viewport도 iframe 내부 크기 — 기록 메타는 브라우저 뷰포트로.
+  const viewport =
+    frameId !== 0 ? (await getTopViewport(tabId)) ?? payload.viewport : payload.viewport;
   useEditorStore.getState().onElementShot(
     { selector: payload.selector, tagName: payload.tagName },
     img,
-    payload.viewport,
+    viewport,
   );
   void clearPicker(tabId);
 }

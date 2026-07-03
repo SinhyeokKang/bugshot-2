@@ -760,9 +760,10 @@ describe("요소 캡처 (screenshot + selector) — DOM 줄 노출", () => {
 
 describe("mergeStyleElements — 버퍼+현재 머지·dedup·파일명 인덱싱", () => {
   // buf: inlineStyle color #000000 → #ffffff diff 1개
-  function buf(selector: string, after: string): BufferedElement {
+  function buf(selector: string, after: string, frameId?: number): BufferedElement {
     return {
       selector,
+      frameId,
       tagName: "div",
       selectionSnapshot: {
         classList: [selector],
@@ -781,7 +782,7 @@ describe("mergeStyleElements — 버퍼+현재 머지·dedup·파일명 인덱�
   // current: inlineStyle padding 10px → 20px diff 1개
   function cur(
     selector: string,
-    opts: { diff?: boolean } = {},
+    opts: { diff?: boolean; frameId?: number } = {},
   ): {
     selection: EditorSelection;
     styleEdits: EditorStyleEdits;
@@ -792,6 +793,7 @@ describe("mergeStyleElements — 버퍼+현재 머지·dedup·파일명 인덱�
     return {
       selection: {
         selector,
+        frameId: opts.frameId,
         tagName: "span",
         classList: [selector],
         computedStyles: { padding: "10px" },
@@ -851,6 +853,27 @@ describe("mergeStyleElements — 버퍼+현재 머지·dedup·파일명 인덱�
     expect(out[1].beforeFilename).toBe("before-1.webp");
     // index 1이 현재 a(현재 우선 → tagName span)
     expect(out[1].tagName).toBe("span");
+  });
+
+  it("같은 selector라도 frameId가 다르면 별개 요소 — dedup 안 됨", () => {
+    const out = mergeStyleElements([buf("a", "data:after-a")], cur("a", { frameId: 3 }));
+    expect(out.map((e) => [e.selector, e.frameId ?? 0])).toEqual([
+      ["a", 0],
+      ["a", 3],
+    ]);
+  });
+
+  it("같은 selector + 같은 frameId(≠0)면 dedup, 현재 우선", () => {
+    const out = mergeStyleElements([buf("a", "data:after-a", 3)], cur("a", { frameId: 3 }));
+    expect(out).toHaveLength(1);
+    expect(out[0].tagName).toBe("span");
+    expect(out[0].frameId).toBe(3);
+  });
+
+  it("frameId 미지정(구버전 스냅샷)은 0과 동일 취급 — top 현재 선택과 dedup", () => {
+    const out = mergeStyleElements([buf("a", "data:after-a")], cur("a", { frameId: 0 }));
+    expect(out).toHaveLength(1);
+    expect(out[0].tagName).toBe("span");
   });
 
   it("diff 0 항목은 제외 (안전장치)", () => {

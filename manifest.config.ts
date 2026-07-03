@@ -41,6 +41,8 @@ export default defineManifest({
       exclude_matches: ["https://bugshot.gitbook.io/*"],
       js: ["src/content/picker.ts"],
       run_at: "document_idle",
+      // iframe 내부 요소 선택·편집·캡처 — 프레임마다 독립 picker 인스턴스
+      all_frames: true,
     },
     {
       // 로그 브리지(ISOLATED) — 모든 프레임(top + iframe)에 주입해 iframe 로그 커버리지 확보

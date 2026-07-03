@@ -282,6 +282,13 @@ export function collectSpecifiedStylesWithSources(el: Element): {
     }
   }
 
+  // :root/html의 커스텀 프로퍼티(디자인 토큰·private alias)는 위 조상 순회가 상속 prop을
+  // 다 채우고 documentElement 전에 멈추면 누락된다 — resolve 전에 항상 보강 수집한다.
+  const docEl = el.ownerDocument?.documentElement;
+  if (docEl && docEl !== el) {
+    collectRulesForElement(docEl, {}, {}, customProps);
+  }
+
   for (const prop of Object.keys(all)) {
     all[prop] = resolveVarChain(all[prop], customProps);
   }
@@ -957,6 +964,20 @@ export function normalizePositionOffsets(
   }
 }
 
+// background shorthand은 색·이미지·위치·반복 등을 한 값에 담아, 값 전체를 background-color
+// longhand로 복사하면 비색상 배경에서 specified가 오염된다. top-level 토큰이 하나이고
+// 이미지 함수가 아닐 때만(단색/단일 var) background-color를 채운다.
+function isBareBackgroundColor(value: string): boolean {
+  const v = value.trim();
+  let depth = 0;
+  for (const ch of v) {
+    if (ch === "(") depth++;
+    else if (ch === ")") depth = Math.max(0, depth - 1);
+    else if (depth === 0 && (ch === " " || ch === "\t" || ch === ",")) return false;
+  }
+  return categorizeToken(v) !== "image";
+}
+
 export function expandShorthands(
   all: Record<string, string>,
   sources: Record<string, string>,
@@ -977,6 +998,7 @@ export function expandShorthands(
       }
       continue;
     }
+    if (shorthand === "background" && !isBareBackgroundColor(value)) continue;
     for (const lh of longhands) {
       if (!(lh in all)) {
         all[lh] = value;

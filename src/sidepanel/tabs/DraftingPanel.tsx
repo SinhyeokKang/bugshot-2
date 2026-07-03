@@ -105,14 +105,7 @@ export function DraftingPanel() {
     () =>
       selection
         ? mergeStyleElements(bufferedElements, {
-            selection: {
-              selector: selection.selector,
-              tagName: selection.tagName,
-              classList: selection.classList,
-              computedStyles: selection.computedStyles,
-              specifiedStyles: selection.specifiedStyles,
-              text: selection.text,
-            },
+            selection,
             styleEdits,
             before: beforeImage,
             after: afterImage,
@@ -522,14 +515,7 @@ function ReproEnvironmentSection() {
     () =>
       captureMode === "element" && selection
         ? mergeStyleElements(bufferedElements, {
-            selection: {
-              selector: selection.selector,
-              tagName: selection.tagName,
-              classList: selection.classList,
-              computedStyles: selection.computedStyles,
-              specifiedStyles: selection.specifiedStyles,
-              text: selection.text,
-            },
+            selection,
             styleEdits,
             before: null,
             after: null,

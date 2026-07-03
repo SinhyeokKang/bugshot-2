@@ -291,9 +291,14 @@ export function DraftDetailDialog({
 
   if (!issue) return null;
 
+  // 현재 element에 diff가 없어도 버퍼 element가 있으면 element 모드 draft다(라이브 제출과 동일).
+  const hasBufferedStyle = (issue.bufferedElements?.length ?? 0) > 0;
   const hasStyleBlock =
     !isScreenshot &&
-    (!!issue.snapshot.before || !!issue.snapshot.after || diffs.length > 0);
+    (!!issue.snapshot.before ||
+      !!issue.snapshot.after ||
+      diffs.length > 0 ||
+      hasBufferedStyle);
   const hasScreenshot = isScreenshot && !!issue.snapshot.before;
 
   async function buildCtxForSubmit() {
@@ -311,9 +316,10 @@ export function DraftDetailDialog({
     if (supportsActionLog(issue.captureMode) && issue.actionLogBlobKey) {
       actionLogForSubmit = await getActionLog(issue.actionLogBlobKey);
     }
-    // legacy no-diff draft fallback — 신규 경로는 diff 게이트로 미발생. media 폴백이
-    // 제거됐으므로 no-diff element draft는 screenshot 모드로 강등해 이미지를 노출한다.
-    const legacyNoDiff = !isScreenshot && !isVideo && !isFreeform && diffs.length === 0;
+    // legacy no-diff draft fallback — 현재 element diff도 없고 버퍼도 없을 때만. 버퍼가 있으면
+    // element 모드를 유지해 버퍼 변경이 본문에서 소실되지 않게 한다(라이브 제출과 파리티).
+    const legacyNoDiff =
+      !isScreenshot && !isVideo && !isFreeform && diffs.length === 0 && !hasBufferedStyle;
     const isElement = !isScreenshot && !isVideo && !isFreeform && !legacyNoDiff;
     // 현재 + 버퍼 element를 라이브와 동일 규칙으로 병합 — 본문·캡처 파일 인덱스 단일 출처.
     const styleImages = isElement ? await loadDraftStyleImages(issue) : null;
@@ -872,7 +878,6 @@ export function DraftDetailDialog({
                   issue={issue}
                   sectionConfig={sectionConfig}
                   beforeUrl={beforeUrl}
-                  diffs={diffs}
                   styleElements={styleElements}
                   isVideo={isVideo}
                   hasScreenshot={hasScreenshot}
@@ -1022,7 +1027,6 @@ function DraftDetailSections({
   issue,
   sectionConfig,
   beforeUrl,
-  diffs,
   styleElements,
   isVideo,
   hasScreenshot,
@@ -1037,7 +1041,6 @@ function DraftDetailSections({
   issue: IssueRecord;
   sectionConfig: IssueSection[];
   beforeUrl: string | null;
-  diffs: ReturnType<typeof buildStyleDiff>;
   styleElements: StyleElementContext[];
   isVideo: boolean;
   hasScreenshot: boolean;
@@ -1069,7 +1072,7 @@ function DraftDetailSections({
           />
         </div>
       </FieldSection>
-    ) : hasStyleBlock && diffs.length > 0 ? (
+    ) : hasStyleBlock && styleElements.length > 0 ? (
       styleElements.map((el) => (
         <FieldSection
           key={el.selector}
