@@ -3,6 +3,7 @@ import {
   useEditor,
   EditorContent,
   Extension,
+  InputRule,
   type Editor,
 } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
@@ -20,6 +21,7 @@ import {
   replaceInlineRefs,
 } from "@/sidepanel/lib/resolveInlineImages";
 import { shouldLiftListItem } from "@/sidepanel/lib/listKeymap";
+import { shouldInsertHrAfterBreak } from "@/sidepanel/lib/hrInputRule";
 import "./tiptap-editor.css";
 
 // 빈 list item 시작에서 Backspace → 리스트 종료 (기본은 이전 항목과 병합)
@@ -42,6 +44,34 @@ const ListExitOnBackspace = Extension.create({
         return this.editor.chain().liftListItem("listItem").run();
       },
     };
+  },
+});
+
+// 문단 내 Shift+Enter(hardBreak) 뒤 `---` → 수평선. StarterKit 기본 규칙은 블록 맨 앞(`^---$`)만
+// 처리해서, 줄바꿈만 하고 `---`를 치면 발동하지 않던 사각지대를 채운다. hardBreak+`---`를 지우고
+// 그 자리에 수평선을 넣어 문단을 분리한다.
+const HrAfterHardBreak = Extension.create({
+  name: "hrAfterHardBreak",
+  addInputRules() {
+    return [
+      new InputRule({
+        find: /---$/,
+        handler: ({ state, range, chain }) => {
+          const before = state.doc.resolve(range.from).nodeBefore;
+          if (
+            !before ||
+            !shouldInsertHrAfterBreak({ nodeBeforeTypeName: before.type.name })
+          ) {
+            return null;
+          }
+          chain()
+            .deleteRange({ from: range.from - before.nodeSize, to: range.to })
+            .setHorizontalRule()
+            .run();
+          return undefined;
+        },
+      }),
+    ];
   },
 });
 
@@ -146,6 +176,7 @@ const TiptapEditor = forwardRef<TiptapEditorHandle, TiptapEditorProps>(function 
         },
       }),
       ListExitOnBackspace,
+      HrAfterHardBreak,
       Link.configure({
         openOnClick: false,
         autolink: true,

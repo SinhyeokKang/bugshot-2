@@ -1,5 +1,7 @@
 # 요소 선택
 
+🌐 [English](https://bugshot.gitbook.io/en/element/picker)
+
 ## 선택 시작
 
 **디버그** 탭에서 **요소 스타일 편집**을 누릅니다. 그러면 페이지 위에 십자선(crosshair)이 뜨고, 마우스를 올린 요소가 강조됩니다.
@@ -25,7 +27,3 @@
 페이지 안에 박힌 iframe(다른 문서가 들어 있는 프레임) **내부의 요소는 선택할 수 없습니다**. iframe 박스 자체를 클릭하면 안내가 뜨면서 선택이 취소됩니다.
 
 > iframe 내부 요소가 꼭 필요하다면, [스크린샷 캡처](../screenshot/capture.md)나 [녹화](../video/record.md)를 활용해 보세요.
-
----
-
-🌐 [English](https://bugshot.gitbook.io/en/element/picker)

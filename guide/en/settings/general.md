@@ -1,5 +1,7 @@
 # General
 
+🌐 [한국어](https://bugshot.gitbook.io/ko/settings/general)
+
 Settings you set once and forget — like language and theme — all live in the **General** sub-tab. Nothing complicated here, so feel free to look around.
 
 ## Language
@@ -33,7 +35,3 @@ At the bottom of the General tab you'll find three handy buttons.
 - **Contact Us** — Opens an email so you can ask a question or report a bug. Stuck on something? Don't hesitate to reach out.
 
 ![Guide, Review, and Contact buttons](../assets/settings-general-3.jpg)
-
----
-
-🌐 [한국어](https://bugshot.gitbook.io/ko/settings/general)

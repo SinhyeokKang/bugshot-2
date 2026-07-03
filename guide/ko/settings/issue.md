@@ -1,5 +1,7 @@
 # 이슈 설정
 
+🌐 [English](https://bugshot.gitbook.io/en/settings/issue)
+
 이슈를 쓸 때마다 반복되는 부분, 여기서 미리 맞춰 두면 매번 손이 한결 가벼워집니다.
 
 ## 제목 접두어
@@ -56,7 +58,3 @@
 - 붙여 둔 파일은 이슈를 제출할 때 함께 업로드됩니다.
 
 ![파일 첨부 토글](../assets/settings-issue-5.jpg)
-
----
-
-🌐 [English](https://bugshot.gitbook.io/en/settings/issue)

@@ -9,12 +9,11 @@ main에 새 커밋(squash 머지, deploy 버전 범프 등)이 들어간 후 작
 ```
 1. dev pull → 작업 (/pull → 코드 → /build)
 2. /push
-3. /merge — dev → main squash PR
+3. /merge — dev → main squash PR → 머지 후 이 스킬을 자동 실행 (dev를 main 상태로 맞춤)
 4. (배포 시) main 체크아웃 + git pull → /deploy
-5. /sync ← 여기. dev를 main 상태로 fast-forward
 ```
 
-`/merge` 직후나 `/deploy` 직후 호출하면 됨. main에 새 commit이 없을 땐 안내만 하고 종료.
+통상 `/merge`가 머지 직후 자동 호출한다. 단독으로도 유효 — `/merge`의 자동 sync가 스킵·실패했거나 `/deploy` 후 수동으로 맞출 때 직접 실행. main에 새 commit이 없을 땐 안내만 하고 종료.
 
 ## 절차
 

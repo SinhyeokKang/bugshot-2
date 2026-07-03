@@ -1,5 +1,7 @@
 # Connecting Platforms
 
+🌐 [한국어](https://bugshot.gitbook.io/ko/integrations/platforms)
+
 Connect platforms in the **Integrations** tab. With nothing connected you land on "Add platform"; once one is connected you land on "My integrations".
 
 ## How to connect
@@ -58,7 +60,3 @@ Once connected, you can pick a default location for new issues — a project for
 ## Disconnecting
 
 In "My integrations" you can disconnect each platform (the unplug icon), or disconnect everything at once. Don't worry — disconnecting has no effect on issues you've already submitted.
-
----
-
-🌐 [한국어](https://bugshot.gitbook.io/ko/integrations/platforms)

@@ -1,5 +1,7 @@
 # Issue Tracking
 
+🌐 [한국어](https://bugshot.gitbook.io/ko/integrations/issue-tracking)
+
 Never lose track of where your drafts and submitted issues went. The **Issues** tab gathers them all in one place.
 
 ![Issues tab](../assets/integrations-issue-tracking-1.jpg)
@@ -28,7 +30,3 @@ Re-fetches the current status of a submitted issue from the platform (open, clos
 ## Delete all
 
 Clears every issue in the list at once. Only the drafts and records stored locally are deleted — issues already filed on the platform stay put, so no need to worry.
-
----
-
-🌐 [한국어](https://bugshot.gitbook.io/ko/integrations/issue-tracking)

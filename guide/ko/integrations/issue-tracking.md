@@ -1,5 +1,7 @@
 # 이슈 트래킹
 
+🌐 [English](https://bugshot.gitbook.io/en/integrations/issue-tracking)
+
 지금까지 작성한 초안과 제출한 이슈가 어디 있는지 헷갈리실 일 없습니다. **이슈 목록** 탭에서 한곳에 모아 보실 수 있습니다.
 
 ![이슈 목록 탭](../assets/integrations-issue-tracking-1.jpg)
@@ -28,7 +30,3 @@
 ## 모두 삭제
 
 목록의 모든 이슈를 한 번에 지웁니다. 로컬에 저장된 초안·기록만 삭제되고, 플랫폼에 이미 등록된 이슈 자체는 그대로 남으니 걱정하지 않으셔도 됩니다.
-
----
-
-🌐 [English](https://bugshot.gitbook.io/en/integrations/issue-tracking)

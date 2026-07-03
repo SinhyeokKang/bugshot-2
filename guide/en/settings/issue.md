@@ -1,5 +1,7 @@
 # Issue Settings
 
+🌐 [한국어](https://bugshot.gitbook.io/ko/settings/issue)
+
 Set up the parts that repeat on every issue here, and each one gets a little lighter on your hands.
 
 ## Title prefix
@@ -56,7 +58,3 @@ Sometimes you need to drop a file straight onto an issue — something captures 
 - Attached files upload together when you submit the issue.
 
 ![File attachments toggle](../assets/settings-issue-5.jpg)
-
----
-
-🌐 [한국어](https://bugshot.gitbook.io/ko/settings/issue)

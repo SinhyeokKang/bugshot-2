@@ -1,5 +1,7 @@
 # 일반
 
+🌐 [English](https://bugshot.gitbook.io/en/settings/general)
+
 언어와 테마처럼 한 번 맞춰 두면 계속 쓰게 되는 설정은 **일반** 서브탭에 모아 두었습니다. 복잡한 게 없으니 부담 없이 둘러보세요.
 
 ## 언어
@@ -33,7 +35,3 @@ BugShot의 화면 언어를 고릅니다. **한국어**와 **English** 중에서
 - **문의하기** — 궁금한 점이나 버그 제보를 메일로 보낼 수 있습니다. 막히는 부분이 있으면 편하게 연락 주세요.
 
 ![가이드·후기·문의 버튼](../assets/settings-general-3.jpg)
-
----
-
-🌐 [English](https://bugshot.gitbook.io/en/settings/general)

@@ -1,5 +1,7 @@
 # AI LLM 연동
 
+🌐 [English](https://bugshot.gitbook.io/en/settings/ai)
+
 설정의 **AI 모델** 서브탭에서 직접 쓰시는 LLM을 연결할 수 있습니다. BugShot은 별도 AI 서버를 두지 않고, 여러분이 가진 키를 그대로 씁니다(BYOK — Bring Your Own Key). 그러니 내 키, 내 모델로 안심하고 쓰시면 됩니다.
 
 키가 없어도 괜찮습니다. 브라우저에 Chrome 내장 AI가 준비돼 있으면 별도 설정 없이 그걸로 기본 AI 기능이 동작합니다.
@@ -42,7 +44,3 @@ AI가 준비되면 두 가지 기능을 쓸 수 있습니다.
 ![AI 초안 작성 다이얼로그](../assets/settings-ai-2.jpg)
 
 > AI도 가끔 실수합니다. 생성된 결과는 제출 전에 한 번만 확인해 주세요.
-
----
-
-🌐 [English](https://bugshot.gitbook.io/en/settings/ai)

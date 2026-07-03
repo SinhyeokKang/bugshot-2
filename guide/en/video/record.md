@@ -1,5 +1,7 @@
 # Live Recording
 
+🌐 [한국어](https://bugshot.gitbook.io/ko/video/record)
+
 BugShot's live recording starts from a single **record button** on the capture screen. Whether it captures just the **tab** you're looking at or the **full screen and other windows** too is something you pick ahead of time in settings — and you can change it anytime, so don't sweat it.
 
 ## Choosing the recording mode
@@ -38,7 +40,3 @@ For screen recording, you can also click the browser's **Stop sharing** bar at t
 When you stop, the video is processed to MP4 and a thumbnail is generated. Once processing finishes, you move on to the issue draft naturally.
 
 > Continue with [Write an Issue](issue.md).
-
----
-
-🌐 [한국어](https://bugshot.gitbook.io/ko/video/record)

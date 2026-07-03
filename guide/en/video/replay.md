@@ -1,5 +1,7 @@
 # 30s Replay
 
+🌐 [한국어](https://bugshot.gitbook.io/ko/video/replay)
+
 Bugs never wait for you to hit record first, do they? 30s replay **always keeps the last 30 seconds** of your screen, so right after you spot a bug you can attach what just happened as a video in one click. It saves you from those "ugh, I should've been recording" moments.
 
 ## Prerequisite: setting
@@ -41,7 +43,3 @@ When you're happy, hit **Apply**. The video is rebuilt to keep only the selected
 ![Trimming the replay clip](../assets/video-replay-3.jpg)
 
 > Once you apply, you move to the issue draft. Continue with [Write an Issue](issue.md).
-
----
-
-🌐 [한국어](https://bugshot.gitbook.io/ko/video/replay)

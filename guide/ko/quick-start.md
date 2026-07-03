@@ -1,5 +1,7 @@
 # 빠른 시작
 
+🌐 [English](https://bugshot.gitbook.io/en/readme/quick-start)
+
 처음이라도 걱정 마세요. 설치부터 첫 이슈 제출까지 5분이면 충분합니다. 아래 흐름을 한 번만 천천히 따라 해 보시면, 그다음부터는 손에 익습니다.
 
 ## 1. 설치하기
@@ -50,7 +52,3 @@ Chrome 웹스토어에서 BugShot을 설치합니다. 설치하면 툴바에 Bug
 ---
 
 각 단계의 자세한 내용이 궁금하시면 [요소 선택 & 스타일링](element/README.md), [스크린샷 캡처](screenshot/README.md), [녹화](video/README.md) 섹션에서 이어집니다.
-
----
-
-🌐 [English](https://bugshot.gitbook.io/en/readme/quick-start)

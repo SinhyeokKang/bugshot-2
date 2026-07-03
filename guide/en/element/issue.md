@@ -1,5 +1,7 @@
 # Write an Issue (element mode)
 
+🌐 [한국어](https://bugshot.gitbook.io/ko/element/issue)
+
 When you finish editing styles and click **Next**, the issue draft opens. Just fill it in top to bottom.
 
 ## 1. Title
@@ -57,7 +59,3 @@ At the bottom of the fields sits a **CC** field. Pick the folks who should be in
 > CC unlocks once you've picked the parent item first — repo, team, project, or workspace. Notion is the one exception: its connected integration needs the "read user information" permission to load the member list, so if it comes up empty, reconnect Notion in Settings.
 
 ![Issue submitted](../assets/element-issue-6.jpg)
-
----
-
-🌐 [한국어](https://bugshot.gitbook.io/ko/element/issue)

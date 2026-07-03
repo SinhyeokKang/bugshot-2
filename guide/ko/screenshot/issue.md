@@ -1,5 +1,7 @@
 # 이슈 작성 (스크린샷 모드)
 
+🌐 [English](https://bugshot.gitbook.io/en/screenshot/issue)
+
 주석을 마치고 **주석 완료**를 누르면 이슈 초안이 열립니다. 아래 순서대로 채워 가면 됩니다.
 
 ## 1. 제목
@@ -59,7 +61,3 @@ OS·브라우저·페이지 URL·뷰포트 크기·캡처 시각이 **알아서 
 > 참조는 레포·팀·프로젝트·워크스페이스처럼 상위 항목을 먼저 골라야 활성화됩니다. Notion만은 연결한 통합에 '사용자 정보 읽기' 권한이 있어야 멤버 목록을 불러올 수 있으니, 목록이 비어 있다면 설정에서 Notion을 다시 연결해 주세요.
 
 ![이슈 제출 완료](../assets/screenshot-issue-6.jpg)
-
----
-
-🌐 [English](https://bugshot.gitbook.io/en/screenshot/issue)

@@ -1,5 +1,7 @@
 # FAQ
 
+🌐 [한국어](https://bugshot.gitbook.io/ko/faq)
+
 When you're new to BugShot, a few "wait, how do I do this?" moments are bound to come up. We've gathered the questions we hear most — just jump to whatever you're wondering about.
 
 ## What is BugShot?
@@ -47,7 +49,3 @@ It works on regular web pages (`http`, `https`) and local files (`file`). It can
 ## Where is my data stored?
 
 What you capture, your in-progress drafts, and your settings all stay **only inside your browser (locally)** until you submit an issue. Issues are sent solely to the platforms you've connected yourself, and only at the moment you submit. Those connections happen only through official OAuth or a token you enter — so you can use it with no privacy worries, with peace of mind.
-
----
-
-🌐 [한국어](https://bugshot.gitbook.io/ko/faq)

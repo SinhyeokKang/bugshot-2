@@ -1,5 +1,7 @@
 # 30초 리플레이
 
+🌐 [English](https://bugshot.gitbook.io/en/video/replay)
+
 버그는 늘 녹화를 켜 둔 다음에 일어나 주지 않죠. 30초 리플레이는 화면의 **최근 30초를 항상 기록**해 두기 때문에, 버그를 본 직후 버튼 한 번으로 직전 상황을 영상으로 첨부할 수 있습니다. "아, 방금 녹화 켤걸…" 하는 순간을 줄여 줍니다.
 
 ## 선행조건: 설정
@@ -41,7 +43,3 @@
 ![리플레이 구간 자르기](../assets/video-replay-3.jpg)
 
 > 확정하면 이슈 초안으로 넘어갑니다. 이어지는 작성은 [이슈 작성](issue.md)에서 안내해 드립니다.
-
----
-
-🌐 [English](https://bugshot.gitbook.io/en/video/replay)
