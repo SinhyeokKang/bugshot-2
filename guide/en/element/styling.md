@@ -1,5 +1,7 @@
 # Styling
 
+🌐 [한국어](https://bugshot.gitbook.io/ko/element/styling)
+
 Once an element is selected, the style panel opens. Change a value and it's **applied to the page right away**, so you can fine-tune while watching the fix on the real screen.
 
 ## Style panel sections
@@ -80,7 +82,3 @@ Fixed element A? Click **Pick another element** (top right) and grab the next on
 When you're done editing, click **Next** to move to the issue draft. The before and after are captured as a comparison.
 
 > **Next** is enabled once at least one style has changed (if you've already buffered an element, you can move on without changing the current one). To include an element as-is (without style changes), use [Capture element](../screenshot/capture.md) instead.
-
----
-
-🌐 [한국어](https://bugshot.gitbook.io/ko/element/styling)

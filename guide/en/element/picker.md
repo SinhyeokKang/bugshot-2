@@ -1,5 +1,7 @@
 # Pick an Element
 
+🌐 [한국어](https://bugshot.gitbook.io/ko/element/picker)
+
 ## Start picking
 
 In the **Debug** tab, click **Edit element style**. A crosshair appears over the page, and the element under your cursor lights up.
@@ -25,7 +27,3 @@ Want to start over? **Pick another element** lets you begin fresh anytime.
 Elements **inside an iframe** (a frame holding another document) **can't be selected**. Click the iframe box itself and a notice appears, cancelling the pick.
 
 > If you really need an element inside an iframe, try [Screenshot](../screenshot/capture.md) or [Recording](../video/record.md) instead.
-
----
-
-🌐 [한국어](https://bugshot.gitbook.io/ko/element/picker)

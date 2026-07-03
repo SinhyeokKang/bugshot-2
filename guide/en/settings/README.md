@@ -1,5 +1,7 @@
 # Settings
 
+🌐 [한국어](https://bugshot.gitbook.io/ko/settings)
+
 How issues get written, whether to connect an AI, your language and theme — set up the things you use often once, right here in the **Settings** tab. Settings are split into easy-to-scan sub-tabs — Issue settings / AI Model / General.
 
 - **Issue settings** — Title prefix, body section composition, 30s replay.
@@ -13,7 +15,3 @@ How issues get written, whether to connect an AI, your language and theme — se
 - [Issue Settings](issue.md) — Title prefix, body sections, 30s replay.
 - [AI LLM Connection](ai.md) — Connect an LLM to turn on AI Styling and AI Draft.
 - [General](general.md) — Language and theme, plus quick links for the guide, reviews, and contact.
-
----
-
-🌐 [한국어](https://bugshot.gitbook.io/ko/settings)

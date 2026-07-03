@@ -1,5 +1,7 @@
 # BugShot Guide
 
+🌐 [한국어](https://bugshot.gitbook.io/ko)
+
 Ever spotted a bug and thought, "how do I even explain this?" That's exactly the moment BugShot was built for.
 
 BugShot is a Chrome side panel extension that lets you pick DOM elements on a web page, tweak and compare their styles, and file the result as an issue on Jira, GitHub, Linear, Notion, GitLab, Asana, or ClickUp. Capture right where you spot the bug, and ship a report that bundles the environment, screenshots, video, and logs in one shot.
@@ -31,7 +33,3 @@ Not sure where to start? Hop straight to whatever you need below.
 - [Recording](video/README.md) — Live recording and 30s replay.
 - [Logs](logs/README.md) — View console/network logs and the log viewer.
 - [FAQ](faq.md) — Pricing, platforms, privacy, and other first questions.
-
----
-
-🌐 [한국어](https://bugshot.gitbook.io/ko)

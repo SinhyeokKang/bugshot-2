@@ -1,5 +1,7 @@
 # BugShot 가이드
 
+🌐 [English](https://bugshot.gitbook.io/en)
+
 웹에서 버그를 발견할 때마다 "이거 어떻게 설명하지…" 하고 막막했던 적, 다들 있으시죠. BugShot은 바로 그 순간을 도와드립니다.
 
 BugShot은 웹 페이지의 DOM 요소를 골라 스타일을 수정·비교한 뒤, Jira·GitHub·Linear·Notion·GitLab·Asana·ClickUp 이슈로 등록하는 Chrome 사이드패널 확장입니다. 버그를 발견한 그 화면에서 바로 캡처하고, 재현 환경·스크린샷·영상·로그를 한 번에 담아 리포트로 보냅니다.
@@ -31,7 +33,3 @@ BugShot은 웹 페이지의 DOM 요소를 골라 스타일을 수정·비교한 
 - [녹화](video/README.md) — 실시간 녹화와 30초 리플레이.
 - [로그](logs/README.md) — 콘솔·네트워크 로그 열람과 로그 뷰어.
 - [자주 묻는 질문](faq.md) — 가격·플랫폼·프라이버시 등 처음 궁금한 것들.
-
----
-
-🌐 [English](https://bugshot.gitbook.io/en)

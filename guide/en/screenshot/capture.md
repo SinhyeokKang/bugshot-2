@@ -1,5 +1,7 @@
 # Capture
 
+🌐 [한국어](https://bugshot.gitbook.io/ko/screenshot/capture)
+
 You can grab a screenshot two ways: **Capture area**, where you drag a region of the screen yourself, and **Capture element**, where you click a single element and it crops just that element. Either way the rest of the flow (annotate → write the issue) is identical, so start with whichever feels easier.
 
 ## Capture an area
@@ -25,7 +27,3 @@ As a bonus, the captured element's DOM selector is recorded on the issue's **Env
 The selected region (or element) is captured as an image exactly as it currently appears (viewport-based). Once capture is done, you move on to annotation naturally.
 
 > See [Annotation](annotation.md) for how to draw on it.
-
----
-
-🌐 [한국어](https://bugshot.gitbook.io/ko/screenshot/capture)

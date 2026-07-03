@@ -1,5 +1,7 @@
 # Annotation
 
+🌐 [한국어](https://bugshot.gitbook.io/ko/screenshot/annotation)
+
 Draw on the captured image to mark where the bug is and what it is. Point with an arrow, box it off, jot a note — and the reader gets it at a glance. It's simpler than it sounds, so don't sweat it.
 
 ## Add, edit, remove
@@ -26,7 +28,3 @@ Pick a color from **Red · Yellow · Green · Blue · Black**. Made a mistake? J
 When you're finished, click **Done** to finalize the image. The annotated screenshot is attached to the issue. Not happy with it? **Cancel** backs you out, no harm done.
 
 > Continue with [Write an Issue](issue.md).
-
----
-
-🌐 [한국어](https://bugshot.gitbook.io/ko/screenshot/annotation)

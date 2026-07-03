@@ -1,5 +1,7 @@
 # Write an Issue (recording mode)
 
+🌐 [한국어](https://bugshot.gitbook.io/ko/video/issue)
+
 When recording finishes, the issue draft opens. Just fill it in top to bottom and submit. Recording mode is the one that bundles **the richest logs alongside the video**.
 
 ## 1. Title
@@ -63,7 +65,3 @@ At the bottom of the fields sits a **CC** field. Pick the folks who should be in
 > CC unlocks once you've picked the parent item first — repo, team, project, or workspace. Notion is the one exception: its connected integration needs the "read user information" permission to load the member list, so if it comes up empty, reconnect Notion in Settings.
 
 ![Issue submitted](../assets/video-issue-6.jpg)
-
----
-
-🌐 [한국어](https://bugshot.gitbook.io/ko/video/issue)
