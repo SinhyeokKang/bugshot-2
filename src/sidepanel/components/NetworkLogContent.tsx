@@ -6,6 +6,7 @@ import { formatBytes } from "@/sidepanel/lib/formatBytes";
 import { networkLogPath } from "@/lib/network-log-path";
 import { isStatusHidden } from "@/lib/network-status";
 import { requestMatchesQuery } from "@/lib/network-search";
+import { networkMethodTextClass } from "@/lib/log-colors";
 import { useDebouncedValue } from "@/sidepanel/lib/useDebouncedValue";
 import { JsonTreeViewer } from "./JsonTreeViewer";
 import { Button } from "@/components/ui/button";
@@ -38,14 +39,7 @@ interface NetworkLogContentProps {
 }
 
 function methodColor(method: string): string {
-  switch (method.toUpperCase()) {
-    case "GET": return "text-blue-600 dark:text-blue-400";
-    case "POST": return "text-green-600 dark:text-green-400";
-    case "PUT": return "text-amber-600 dark:text-amber-400";
-    case "PATCH": return "text-amber-600 dark:text-amber-400";
-    case "DELETE": return "text-red-600 dark:text-red-400";
-    default: return "text-foreground";
-  }
+  return networkMethodTextClass(method) || "text-foreground";
 }
 
 function isError(req: NetworkRequest): boolean {

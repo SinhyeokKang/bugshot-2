@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { findActiveIndex } from "@/log-viewer/timeline";
+import { TONE_TEXT } from "@/lib/log-colors";
 import { formatRelativeTime, syncRowClass } from "@/sidepanel/lib/logRow";
 import { useScrollToEntry } from "@/sidepanel/lib/useScrollToEntry";
 import { distinctOriginKeys, originKey, originCounts } from "@/sidepanel/lib/logOrigin";
@@ -45,7 +46,7 @@ function KindIcon({ kind }: { kind: ActionEntryKind }) {
   switch (kind) {
     case "click": return <MousePointerClick className={base} />;
     case "input": return <Keyboard className={base} />;
-    case "navigation": return <MapPin className={`${base} text-blue-600 dark:text-blue-400`} />;
+    case "navigation": return <MapPin className={`${base} ${TONE_TEXT.blue}`} />;
     case "keypress": return <CornerDownLeft className={base} />;
     case "toggle": return <SquareCheck className={base} />;
     case "select": return <ListChecks className={base} />;
