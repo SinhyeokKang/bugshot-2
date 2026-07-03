@@ -21,6 +21,15 @@
 
 ---
 
+## 2026-07-04 — Radix Tabs 정렬 편집기 "재클릭 해제" 구현이 정상 설정까지 지움 (pointerdown에서 값 변경 → click은 리렌더 후 발화)
+
+- **증상**: element 스타일 편집기의 AlignmentProp(text-align 등)에서 비활성 정렬 탭(center)을 한 번 눌렀는데, 적용됐다가 **즉시 지워져** 기본값(start)으로 남았다. `pnpm test`(2645개)·자체 검증 에이전트의 순수 로직 리뷰는 전부 통과 — **e2e(`style-changes-stacked`)만** 잡아냈다.
+- **근본 원인**: 표면(정렬이 안 먹음)과 원인(이벤트 순서/리렌더 타이밍)이 다른 레이어. Radix Tabs는 **pointerdown**(포커스→automatic activation)에서 값을 바꾸고, **활성 탭 재클릭 시엔 `onValueChange`를 안 쏜다**. toggle-off(재클릭 해제)를 `onClick`에서 `value && o.v === resolvedValue`로 판정했는데, click은 pointerdown→store set→**리렌더 후** 발화한다. 그래서 비활성 center를 누르면: pointerdown이 center로 set → resolvedValue가 "center"로 리렌더 → click 핸들러의 클로저가 갱신된 상태를 보고 "활성 탭을 다시 눌렀다"고 오판 → `set("")`로 clear. 정상 설정과 toggle-off가 click 시점 상태로는 구분 불가능했던 게 함정. 순수 함수가 아니라 **DOM 이벤트 순서에 의존**하는 로직이라 단위/코드리뷰가 못 잡고 실제 클릭을 구동하는 e2e만 재현.
+- **재발 방지**: (1) **controlled Radix(Tabs/Toggle/RadioGroup 등)의 클릭 판정을 렌더 상태로 하지 말 것** — 컴포넌트가 pointerdown/focus에서 값을 먼저 바꾸므로 `onClick` 클로저의 값은 이미 갱신된 뒤다. 클릭 직전 상태가 필요하면 **`onPointerDownCapture`(캡처 페이즈, 라이브러리 핸들러보다 먼저)로 ref에 스냅샷**하고 `onClick`에서 그 ref를 읽는다(AlignmentProp가 선례). (2) grep: `grep -rn "onValueChange\|onPressedChange" src/sidepanel/tabs/styleEditor` — 재클릭/토글 판정을 하는 곳이 렌더 상태(`resolvedValue`/`value`)를 직접 비교하면 냄새. (3) **정렬·토글류 인터랙션은 순수 단위 테스트로 못 막는다** — 상태 전이가 라이브러리 이벤트 순서에 걸리므로 `/tdd` 분류상 컴포넌트=스킵이 맞고, **e2e(실제 `.click()`)가 유일한 안전망**. 이런 인터랙션 수정 후엔 e2e 재실행 필수. (4) `setAlignment` 헬퍼를 쓰는 `style-changes-stacked`가 회귀 감지 지점.
+- **관련**: `src/sidepanel/tabs/styleEditor/StylePropEditors.tsx`(`AlignmentProp` — `preClick` ref + `onPointerDownCapture`), e2e `style-changes-stacked.spec.ts:96`(`setAlignment`), 커밋 `92204ea`.
+
+---
+
 ## 2026-07-03 — GitHub Pages 배포가 몇 시간째 실패 (build job은 성공, deploy job만 실패 = GitHub 백엔드 stuck, 코드 무관)
 
 - **증상**: `/deploy`(tag push + #125 main 머지) 후 privacy.md 공개용 GitHub Pages가 `Deployment failed, try again later`로 **몇 시간 반복 실패**. 워크플로우 재실행·강제 빌드해도 계속 빨강.
