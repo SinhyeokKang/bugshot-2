@@ -134,7 +134,9 @@ export function SelectedPanel() {
     try {
       // 현재 element에 변경이 있을 때만 after 스냅샷 캡처(없으면 버퍼만 들고 진행).
       if (hasChange) {
-        const img = await captureElementSnapshot(tabId);
+        const img = await captureElementSnapshot(tabId, {
+          frameId: selection?.frameId ?? 0,
+        });
         setAfterImage(img);
       } else {
         // 버퍼 승격으로 복원된 afterImage가 diff 0건인 채 저장되는 것 방지.
@@ -538,7 +540,8 @@ function ClassEditor() {
     const classList = next.split(/\s+/).filter(Boolean);
     lastCommittedRef.current = classList;
     setStyleEdits({ classList });
-    if (tabId) void applyClasses(tabId, classList);
+    const frameId = useEditorStore.getState().selection?.frameId ?? 0;
+    if (tabId) void applyClasses(tabId, frameId, classList);
   };
 
   return (
@@ -565,7 +568,8 @@ function TextEditor() {
 
   const handleChange = (next: string) => {
     setStyleEdits({ text: next });
-    if (tabId) void applyText(tabId, next);
+    const frameId = useEditorStore.getState().selection?.frameId ?? 0;
+    if (tabId) void applyText(tabId, frameId, next);
   };
 
   return (
@@ -595,7 +599,7 @@ function TextRevertButton() {
   const handleRevert = () => {
     const original = selection.text ?? "";
     setStyleEdits({ text: original });
-    if (tabId) void applyText(tabId, original);
+    if (tabId) void applyText(tabId, selection.frameId ?? 0, original);
   };
 
   return (
@@ -631,7 +635,7 @@ function ClassRevertButton() {
   const handleRevert = () => {
     const classList = [...original];
     setStyleEdits({ classList });
-    if (tabId) void applyClasses(tabId, classList);
+    if (tabId) void applyClasses(tabId, selection.frameId ?? 0, classList);
   };
 
   return (

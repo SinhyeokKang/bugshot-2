@@ -159,6 +159,9 @@ export interface IssueTokenSnapshot {
 export interface IssueBufferedElement {
   selector: string;
   tagName: string;
+  // 프레임 구분(0=top)·origin — 동일 selector의 프레임 간 dedup 붕괴 방지. 구 초안은 undefined → ?? 0 / ?? "".
+  frameId?: number;
+  origin?: string;
   styleEdits: IssueStyleEdits;
   selectionSnapshot: IssueSelectionSnapshot;
   hasBefore: boolean;
@@ -177,6 +180,8 @@ export interface IssueRecord {
   pageTitle?: string;
   selector?: string;
   tagName?: string;
+  // 현재 element의 프레임(0=top). element 모드 draft의 dedup 정합용. 구 초안 undefined → ?? 0.
+  frameId?: number;
   viewport?: { width: number; height: number };
   // 영상 동기화 앵커(공통 0점). video 모드에서만 세팅. 구 draft는 undefined → 동기화 비활성.
   videoStartedAt?: number;

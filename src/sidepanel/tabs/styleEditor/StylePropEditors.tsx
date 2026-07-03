@@ -40,7 +40,8 @@ export function SectionRevertButton({ props }: { props: readonly string[] }) {
     const next = { ...current };
     for (const p of props) delete next[p];
     useEditorStore.getState().setStyleEdits({ inlineStyle: next });
-    if (tabId) void applyStyles(tabId, next);
+    const frameId = useEditorStore.getState().selection?.frameId ?? 0;
+    if (tabId) void applyStyles(tabId, frameId, next);
   };
 
   return (
@@ -147,7 +148,8 @@ function useLinkedProps(props: string[]) {
         else nextInline[p] = value;
       }
       useEditorStore.getState().setStyleEdits({ inlineStyle: nextInline });
-      if (tabId) void applyStyles(tabId, nextInline);
+      const frameId = useEditorStore.getState().selection?.frameId ?? 0;
+      if (tabId) void applyStyles(tabId, frameId, nextInline);
     },
     [props, tabId],
   );

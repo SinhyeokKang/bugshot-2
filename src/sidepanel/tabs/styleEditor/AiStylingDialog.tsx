@@ -135,10 +135,11 @@ export function AiStylingDialog({
       useEditorStore.getState().setStyleEdits(merged);
 
       if (tabId) {
+        const frameId = useEditorStore.getState().selection?.frameId ?? 0;
         if (parsed.edits.inlineStyle)
-          void applyStyles(tabId, merged.inlineStyle);
+          void applyStyles(tabId, frameId, merged.inlineStyle);
         if (parsed.edits.classList)
-          void applyClasses(tabId, merged.classList);
+          void applyClasses(tabId, frameId, merged.classList);
       }
     } catch (err) {
       console.error("[AI Styling] error:", err);

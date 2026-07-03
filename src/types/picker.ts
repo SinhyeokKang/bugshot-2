@@ -16,6 +16,9 @@ export interface PickerSelectionPayload {
   hasChild: boolean;
   text: string | null;
   viewport: { width: number; height: number };
+  // 프레임 location.origin — 다중 편집 리뷰 출처 배지용. frameId는 페이로드가 아니라
+  // sender.frameId에서 얻는다(위조 방지).
+  origin: string;
 }
 
 export interface ViewportRect {
@@ -84,6 +87,9 @@ export type PickerMessage =
   | { type: "picker.applyEditsBySelector"; selector: string; classList: string[]; inlineStyle: Record<string, string>; text: string | null }
   | { type: "picker.prepareCapture" }
   | { type: "picker.prepareCaptureBySelector"; selector: string }
+  // iframe 캡처 직전 top(frame 0)에 전송 — offset 응답기를 1회성 arm. 페이지가 위조할 수
+  // 없는 chrome 메시지 경로라 무인증 postMessage 요청의 top 부작용(overlay 숨김)을 차단.
+  | { type: "picker.armFrameOffset" }
   | { type: "picker.pageUrl" }
   | { type: "picker.endCapture" }
   | { type: "picker.startAreaSelect"; restoreAfter?: boolean }

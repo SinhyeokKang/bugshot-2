@@ -11,19 +11,23 @@ const DEFAULT_MARGIN = 24;
 
 export async function captureElementSnapshot(
   tabId: number,
-  options: { margin?: number } = {},
+  options: { margin?: number; frameId?: number } = {},
 ): Promise<string | null> {
-  return captureWithPrep(tabId, await prepareCapture(tabId), options);
+  return captureWithPrep(
+    tabId,
+    await prepareCapture(tabId, options.frameId ?? 0),
+    options,
+  );
 }
 
 export async function captureElementSnapshotBySelector(
   tabId: number,
   selector: string,
-  options: { margin?: number } = {},
+  options: { margin?: number; frameId?: number } = {},
 ): Promise<string | null> {
   return captureWithPrep(
     tabId,
-    await prepareCaptureBySelector(tabId, selector),
+    await prepareCaptureBySelector(tabId, options.frameId ?? 0, selector),
     options,
   );
 }
@@ -31,11 +35,12 @@ export async function captureElementSnapshotBySelector(
 async function captureWithPrep(
   tabId: number,
   prep: PrepareCaptureResponse | null,
-  options: { margin?: number },
+  options: { margin?: number; frameId?: number },
 ): Promise<string | null> {
   const margin = options.margin ?? DEFAULT_MARGIN;
+  const frameId = options.frameId ?? 0;
   if (!prep?.rect) {
-    await endCapture(tabId);
+    await endCapture(tabId, frameId);
     return null;
   }
   try {
@@ -47,7 +52,7 @@ async function captureWithPrep(
     }
     return null;
   } finally {
-    await endCapture(tabId);
+    await endCapture(tabId, frameId);
   }
 }
 

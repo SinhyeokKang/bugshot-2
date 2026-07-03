@@ -19,6 +19,8 @@ import { renderMarkdown } from "./renderMarkdown";
 // PreviewPanel/buildMarkdownContext가 EditorSelection 전체 없이도 호출 가능.
 export interface MergeCurrentSelection {
   selector: string;
+  // 프레임 구분(0=top) — 다른 프레임의 동일 selector와 dedup 충돌 방지. 구버전 폴백 ?? 0.
+  frameId?: number;
   tagName: string;
   classList: string[];
   computedStyles: Record<string, string>;
@@ -56,6 +58,7 @@ export interface MarkdownContext {
 // 배열 인덱스로 부여(before-${i}.webp). before/after Image는 CaptureFiles 파생용(본문 무시).
 export interface StyleElementContext {
   selector: string;
+  frameId?: number;
   tagName: string;
   classListBefore: string[];
   classListAfter: string[];
@@ -72,6 +75,7 @@ type ResolvedElement = Omit<StyleElementContext, "beforeFilename" | "afterFilena
 function bufferedToResolved(b: BufferedElement): ResolvedElement {
   return {
     selector: b.selector,
+    frameId: b.frameId ?? 0,
     tagName: b.tagName,
     classListBefore: b.selectionSnapshot.classList,
     classListAfter: b.styleEdits.classList,
@@ -119,6 +123,7 @@ export function mergeStyleElements(
     if (diffs.length > 0) {
       curResolved = {
         selector: current.selection.selector,
+        frameId: current.selection.frameId ?? 0,
         tagName: current.selection.tagName,
         classListBefore: current.selection.classList,
         classListAfter: current.styleEdits.classList,
@@ -132,7 +137,11 @@ export function mergeStyleElements(
 
   let merged = resolved;
   if (curResolved) {
-    merged = resolved.filter((r) => r.selector !== curResolved!.selector);
+    merged = resolved.filter(
+      (r) =>
+        r.selector !== curResolved!.selector ||
+        (r.frameId ?? 0) !== (curResolved!.frameId ?? 0),
+    );
     merged.push(curResolved);
   }
 

@@ -18,7 +18,9 @@ export function useBufferThenSwitch(): (
       const { selection, styleEdits, bufferCurrentElement } =
         useEditorStore.getState();
       if (selection && hasStyleChange(selection, styleEdits)) {
-        const after = await captureElementSnapshot(tabId);
+        const after = await captureElementSnapshot(tabId, {
+          frameId: selection.frameId ?? 0,
+        });
         bufferCurrentElement(after);
       }
       await switchAction();

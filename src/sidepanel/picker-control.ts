@@ -21,7 +21,7 @@ class PickerUnavailableError extends Error {
 
 async function pingOk(tabId: number): Promise<boolean> {
   try {
-    await chrome.tabs.sendMessage(tabId, { type: "ping" });
+    await chrome.tabs.sendMessage(tabId, { type: "ping" }, { frameId: 0 });
     return true;
   } catch {
     return false;
@@ -35,7 +35,11 @@ async function ensureContentScript(tabId: number): Promise<void> {
   const files = manifest.content_scripts?.[0]?.js;
   if (!files?.length) throw new PickerUnavailableError();
   try {
-    await chrome.scripting.executeScript({ target: { tabId }, files });
+    // picker는 all_frames 정적 주입 — 재주입도 동일 범위(iframe picker 자가복구).
+    await chrome.scripting.executeScript({
+      target: { tabId, allFrames: true },
+      files,
+    });
   } catch {
     // URL 사전 검사는 통과했지만 정책/제한으로 주입 불가한 케이스
     // (e.g. enterprise runtime_blocked_hosts, file:// 권한 미허용, 또는 검사 후 탭이 unsupported로 이동).
@@ -58,9 +62,12 @@ async function ensureContentScript(tabId: number): Promise<void> {
 // 브리지의 BRIDGE_FLAG 가드가 멱등성을 보장하므로 정상 케이스에선 리스너 중복 없음.
 async function ensureRecorderBridge(tabId: number): Promise<void> {
   const manifest = chrome.runtime.getManifest();
+  // picker(content_scripts[0])도 all_frames라 index 0을 제외해야 브리지가 잡힌다.
   const entry = manifest.content_scripts?.find(
-    (cs) =>
-      cs.all_frames === true && (cs as { world?: string }).world !== "MAIN",
+    (cs, i) =>
+      i > 0 &&
+      cs.all_frames === true &&
+      (cs as { world?: string }).world !== "MAIN",
   );
   const files = entry?.js;
   if (!files?.length) return;
@@ -92,7 +99,24 @@ async function ensureMainWorldRecorders(tabId: number): Promise<void> {
   }
 }
 
+// frameId required — undefined면 top이 아니라 전 프레임 broadcast되는 함정 방지.
+// 정규화(selection.frameId ?? 0)는 소비 지점(호출부)에서 수행한다.
 async function send<R = void>(
+  tabId: number,
+  msg: PickerMessage,
+  frameId: number,
+): Promise<R | undefined> {
+  try {
+    return await chrome.tabs.sendMessage<PickerMessage, R>(tabId, msg, {
+      frameId,
+    });
+  } catch {
+    return undefined;
+  }
+}
+
+// 전 프레임 broadcast — picker.start/stop/clear/endCapture·레코더 제어 등 프레임 무관 메시지 전용.
+async function sendAll<R = void>(
   tabId: number,
   msg: PickerMessage,
 ): Promise<R | undefined> {
@@ -139,7 +163,7 @@ export function rebroadcastSentinelsToFrame(tabId: number, frameId: number): voi
 }
 
 async function getPageUrl(tabId: number): Promise<string | undefined> {
-  const res = await send<{ url: string }>(tabId, { type: "picker.pageUrl" });
+  const res = await send<{ url: string }>(tabId, { type: "picker.pageUrl" }, 0);
   return res?.url;
 }
 
@@ -194,7 +218,7 @@ export async function startPicker(tabId: number): Promise<void> {
 }
 
 export async function stopPicker(tabId: number): Promise<void> {
-  await send(tabId, { type: "picker.clear" });
+  await sendAll(tabId, { type: "picker.clear" });
   useEditorStore.getState().cancelPicking();
 }
 
@@ -210,7 +234,8 @@ export async function resumeBufferedElement(tabId: number): Promise<boolean> {
   try {
     const { bufferedElements } = useEditorStore.getState();
     for (let i = bufferedElements.length - 1; i >= 0; i--) {
-      if (await selectByPath(tabId, bufferedElements[i].selector)) return true;
+      const b = bufferedElements[i];
+      if (await selectByPath(tabId, b.frameId ?? 0, b.selector)) return true;
     }
     return false;
   } finally {
@@ -229,89 +254,119 @@ export async function stopPickerOrResume(tabId: number): Promise<void> {
 }
 
 export async function clearPicker(tabId: number): Promise<void> {
-  await send(tabId, { type: "picker.clear" });
+  await sendAll(tabId, { type: "picker.clear" });
+}
+
+// 선택 확정 후 나머지 프레임의 hover 유령(blocker·inspector) 종료. 선택 프레임은
+// 이미 selected라 no-op — handleStop이 selectedEl 유무로 selected/idle 분기.
+export async function stopHoverAllFrames(tabId: number): Promise<void> {
+  await sendAll(tabId, { type: "picker.stop" });
 }
 
 export async function navigatePicker(
   tabId: number,
+  frameId: number,
   direction: "parent" | "child",
 ): Promise<void> {
-  await send(tabId, { type: "picker.navigate", direction });
+  await send(tabId, { type: "picker.navigate", direction }, frameId);
 }
 
 export async function applyClasses(
   tabId: number,
+  frameId: number,
   classList: string[],
 ): Promise<void> {
-  await send(tabId, { type: "picker.applyClasses", classList });
+  await send(tabId, { type: "picker.applyClasses", classList }, frameId);
 }
 
 export async function applyStyles(
   tabId: number,
+  frameId: number,
   inlineStyle: Record<string, string>,
 ): Promise<void> {
-  await send(tabId, { type: "picker.applyStyles", inlineStyle });
+  await send(tabId, { type: "picker.applyStyles", inlineStyle }, frameId);
 }
 
-export async function applyText(tabId: number, text: string): Promise<void> {
-  await send(tabId, { type: "picker.applyText", text });
+export async function applyText(
+  tabId: number,
+  frameId: number,
+  text: string,
+): Promise<void> {
+  await send(tabId, { type: "picker.applyText", text }, frameId);
 }
 
 export async function resetAllEdits(tabId: number): Promise<void> {
-  await send(tabId, { type: "picker.resetAllEdits" });
+  await sendAll(tabId, { type: "picker.resetAllEdits" });
 }
 
-export async function collectTokens(tabId: number): Promise<Token[]> {
-  const res = await send<PickerTokensResponse>(tabId, {
-    type: "picker.collectTokens",
-  });
+export async function collectTokens(
+  tabId: number,
+  frameId: number,
+): Promise<Token[]> {
+  const res = await send<PickerTokensResponse>(
+    tabId,
+    { type: "picker.collectTokens" },
+    frameId,
+  );
   return res?.tokens ?? [];
 }
 
 export async function describeInitialTree(
   tabId: number,
+  frameId: number,
 ): Promise<DescribeInitialResponse | null> {
-  const res = await send<DescribeInitialResponse>(tabId, {
-    type: "picker.describeInitial",
-  });
+  const res = await send<DescribeInitialResponse>(
+    tabId,
+    { type: "picker.describeInitial" },
+    frameId,
+  );
   return res ?? null;
 }
 
 export async function describeChildren(
   tabId: number,
+  frameId: number,
   selector: string,
 ): Promise<DescribeChildrenResponse> {
-  const res = await send<DescribeChildrenResponse>(tabId, {
-    type: "picker.describeChildren",
-    selector,
-  });
+  const res = await send<DescribeChildrenResponse>(
+    tabId,
+    { type: "picker.describeChildren", selector },
+    frameId,
+  );
   return res ?? { children: [] };
 }
 
 export async function previewHover(
   tabId: number,
+  frameId: number,
   selector: string,
 ): Promise<void> {
-  await send(tabId, { type: "picker.previewHover", selector });
+  await send(tabId, { type: "picker.previewHover", selector }, frameId);
 }
 
-export async function previewClear(tabId: number): Promise<void> {
-  await send(tabId, { type: "picker.previewClear" });
+export async function previewClear(
+  tabId: number,
+  frameId: number,
+): Promise<void> {
+  await send(tabId, { type: "picker.previewClear" }, frameId);
 }
 
 export async function selectByPath(
   tabId: number,
+  frameId: number,
   selector: string,
 ): Promise<boolean> {
-  const res = await send<{ found: boolean }>(tabId, {
-    type: "picker.selectByPath",
-    selector,
-  });
+  const res = await send<{ found: boolean }>(
+    tabId,
+    { type: "picker.selectByPath", selector },
+    frameId,
+  );
   return res?.found ?? false;
 }
 
 export async function applyEditsBySelector(
   tabId: number,
+  frameId: number,
   selector: string,
   edits: {
     classList: string[];
@@ -319,13 +374,17 @@ export async function applyEditsBySelector(
     text: string | null;
   },
 ): Promise<boolean> {
-  const res = await send<{ found: boolean }>(tabId, {
-    type: "picker.applyEditsBySelector",
-    selector,
-    classList: edits.classList,
-    inlineStyle: edits.inlineStyle,
-    text: edits.text,
-  });
+  const res = await send<{ found: boolean }>(
+    tabId,
+    {
+      type: "picker.applyEditsBySelector",
+      selector,
+      classList: edits.classList,
+      inlineStyle: edits.inlineStyle,
+      text: edits.text,
+    },
+    frameId,
+  );
   return res?.found ?? false;
 }
 
@@ -355,8 +414,9 @@ export async function rebindStylingSession(tabId: number): Promise<void> {
   // 현재 요소 존재 확인 겸 편집 재적용을 버퍼보다 먼저 — 실패(만료) 시 DOM에 아무것도
   // 재적용하지 않은 채로 끝나야 한다.
   const sel = state.selection;
+  const selFrameId = sel?.frameId ?? 0;
   if (sel) {
-    const found = await applyEditsBySelector(tabId, sel.selector, {
+    const found = await applyEditsBySelector(tabId, selFrameId, sel.selector, {
       classList: state.styleEdits.classList,
       inlineStyle: state.styleEdits.inlineStyle,
       text: sel.text === null ? null : state.styleEdits.text,
@@ -368,7 +428,7 @@ export async function rebindStylingSession(tabId: number): Promise<void> {
   }
   for (const b of state.bufferedElements) {
     // 요소 소실(found=false)은 ghost 카드로 유지 — 다이얼로그 행 초기화의 기존 한계와 동일.
-    await applyEditsBySelector(tabId, b.selector, {
+    await applyEditsBySelector(tabId, b.frameId ?? 0, b.selector, {
       classList: b.styleEdits.classList,
       inlineStyle: b.styleEdits.inlineStyle,
       text: b.selectionSnapshot.text === null ? null : b.styleEdits.text,
@@ -378,31 +438,51 @@ export async function rebindStylingSession(tabId: number): Promise<void> {
   // 승격 경로 재사용: 현재 요소를 버퍼에 넣고 재선택하면 onElementSelected가
   // styleEdits·snapshot baseline·before/after 이미지를 그대로 복원한다.
   useEditorStore.getState().bufferCurrentElement(state.afterImage);
-  await selectByPath(tabId, sel.selector);
+  await selectByPath(tabId, selFrameId, sel.selector);
+}
+
+// iframe 캡처는 자식의 offset 요청 전에 top 응답기를 1회성 arm — 무인증 postMessage
+// 요청이 top overlay를 임의로 숨기지 못하게 chrome 메시지 경로로만 연다.
+async function armFrameOffsetIfIframe(
+  tabId: number,
+  frameId: number,
+): Promise<void> {
+  if (frameId === 0) return;
+  await send(tabId, { type: "picker.armFrameOffset" }, 0);
 }
 
 export async function prepareCapture(
   tabId: number,
+  frameId: number,
 ): Promise<PrepareCaptureResponse | null> {
-  const res = await send<PrepareCaptureResponse>(tabId, {
-    type: "picker.prepareCapture",
-  });
+  await armFrameOffsetIfIframe(tabId, frameId);
+  const res = await send<PrepareCaptureResponse>(
+    tabId,
+    { type: "picker.prepareCapture" },
+    frameId,
+  );
   return res ?? null;
 }
 
 export async function prepareCaptureBySelector(
   tabId: number,
+  frameId: number,
   selector: string,
 ): Promise<PrepareCaptureResponse | null> {
-  const res = await send<PrepareCaptureResponse>(tabId, {
-    type: "picker.prepareCaptureBySelector",
-    selector,
-  });
+  await armFrameOffsetIfIframe(tabId, frameId);
+  const res = await send<PrepareCaptureResponse>(
+    tabId,
+    { type: "picker.prepareCaptureBySelector", selector },
+    frameId,
+  );
   return res ?? null;
 }
 
-export async function endCapture(tabId: number): Promise<void> {
-  await send(tabId, { type: "picker.endCapture" });
+// 캡처 프레임(+ iframe 캡처가 top overlay 숨김을 유발하므로 top)만 좁혀 전송 —
+// broadcast면 다른 프레임의 진행 중 캡처 inflight를 조기에 깎는다(인터리브 aliasing).
+export async function endCapture(tabId: number, frameId: number): Promise<void> {
+  await send(tabId, { type: "picker.endCapture" }, frameId);
+  if (frameId !== 0) await send(tabId, { type: "picker.endCapture" }, 0);
 }
 
 export async function startAreaCapture(tabId: number): Promise<void> {
@@ -421,9 +501,13 @@ export async function startAreaCapture(tabId: number): Promise<void> {
   });
   try {
     await ensureContentScript(tabId);
-    await chrome.tabs.sendMessage<PickerMessage>(tabId, {
-      type: "picker.startAreaSelect",
-    });
+    // area select는 top 한정 — 전 프레임 broadcast면 프레임마다 crosshair가 뜬다.
+    // top blocker가 iframe 영역 위 드래그도 가로채므로 top 좌표만으로 충분(기존 동작 유지).
+    await chrome.tabs.sendMessage<PickerMessage>(
+      tabId,
+      { type: "picker.startAreaSelect" },
+      { frameId: 0 },
+    );
   } catch (err) {
     if (err instanceof PickerUnavailableError) {
       onPickerUnavailable.fire();
@@ -478,10 +562,11 @@ export async function startInlineAreaCapture(tabId: number): Promise<void> {
   const { captureMode } = useEditorStore.getState();
   try {
     await ensureContentScript(tabId);
-    await chrome.tabs.sendMessage<PickerMessage>(tabId, {
-      type: "picker.startAreaSelect",
-      restoreAfter: captureMode === "element",
-    });
+    await chrome.tabs.sendMessage<PickerMessage>(
+      tabId,
+      { type: "picker.startAreaSelect", restoreAfter: captureMode === "element" },
+      { frameId: 0 },
+    );
   } catch (err) {
     if (err instanceof PickerUnavailableError) {
       onPickerUnavailable.fire();
@@ -493,7 +578,7 @@ export async function startInlineAreaCapture(tabId: number): Promise<void> {
 }
 
 export async function cancelAreaCapture(tabId: number): Promise<void> {
-  await send(tabId, { type: "picker.cancelAreaSelect" });
+  await send(tabId, { type: "picker.cancelAreaSelect" }, 0);
   useEditorStore.getState().reset();
 }
 
@@ -503,17 +588,17 @@ export async function activateNetworkRecorder(tabId: number): Promise<string> {
   await ensureMainWorldRecorders(tabId);
   const sentinel = crypto.randomUUID();
   rememberSentinel(tabId, "network", sentinel);
-  await send(tabId, { type: "networkRecorder.setSentinel", sentinel });
+  await sendAll(tabId, { type: "networkRecorder.setSentinel", sentinel });
   return sentinel;
 }
 
 export async function stopNetworkRecorder(tabId: number): Promise<void> {
   forgetSentinel(tabId, "network");
-  await send(tabId, { type: "networkRecorder.stop" });
+  await sendAll(tabId, { type: "networkRecorder.stop" });
 }
 
 export async function syncNetworkRecorder(tabId: number): Promise<void> {
-  await send(tabId, { type: "networkRecorder.sync" });
+  await sendAll(tabId, { type: "networkRecorder.sync" });
 }
 
 export async function activateConsoleRecorder(tabId: number): Promise<string> {
@@ -522,17 +607,17 @@ export async function activateConsoleRecorder(tabId: number): Promise<string> {
   await ensureMainWorldRecorders(tabId);
   const sentinel = crypto.randomUUID();
   rememberSentinel(tabId, "console", sentinel);
-  await send(tabId, { type: "consoleRecorder.setSentinel", sentinel });
+  await sendAll(tabId, { type: "consoleRecorder.setSentinel", sentinel });
   return sentinel;
 }
 
 export async function stopConsoleRecorder(tabId: number): Promise<void> {
   forgetSentinel(tabId, "console");
-  await send(tabId, { type: "consoleRecorder.stop" });
+  await sendAll(tabId, { type: "consoleRecorder.stop" });
 }
 
 export async function syncConsoleRecorder(tabId: number): Promise<void> {
-  await send(tabId, { type: "consoleRecorder.sync" });
+  await sendAll(tabId, { type: "consoleRecorder.sync" });
 }
 
 export async function activateActionRecorder(tabId: number): Promise<string> {
@@ -541,17 +626,17 @@ export async function activateActionRecorder(tabId: number): Promise<string> {
   await ensureMainWorldRecorders(tabId);
   const sentinel = crypto.randomUUID();
   rememberSentinel(tabId, "action", sentinel);
-  await send(tabId, { type: "actionRecorder.setSentinel", sentinel });
+  await sendAll(tabId, { type: "actionRecorder.setSentinel", sentinel });
   return sentinel;
 }
 
 export async function stopActionRecorder(tabId: number): Promise<void> {
   forgetSentinel(tabId, "action");
-  await send(tabId, { type: "actionRecorder.stop" });
+  await sendAll(tabId, { type: "actionRecorder.stop" });
 }
 
 export async function syncActionRecorder(tabId: number): Promise<void> {
-  await send(tabId, { type: "actionRecorder.sync" });
+  await sendAll(tabId, { type: "actionRecorder.sync" });
 }
 
 // capture 시 sync broadcast가 누적기에 머지될 때까지 대기하는 상한. 머지 도착 즉시 조기 탈출.

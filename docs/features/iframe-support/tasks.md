@@ -18,21 +18,21 @@
   - **`updateSelectionStyles` stale 가드**를 `selector && frameId` 비교로.
   - 구버전·구 draft 복원 매핑(`resolveDraftStyleElements.ts`/`useDraftStyleElements.ts` 포함)에 `frameId ?? 0`·`origin ?? ""`.
 - **검증**:
-  - [ ] `onElementSelected({..., frameId:3, origin:"https://x"})` → `selection.frameId===3`, `origin` 반영
-  - [ ] `bufferCurrentElement` 시 buffered가 frameId·origin 복사
-  - [ ] top·iframe 동일 selector 2개 버퍼 시 `patchBufferedElement(sel, 0)`가 iframe 항목(frameId≠0) 안 건드림
-  - [ ] 구버전 스냅샷(frameId 없음) 복원 → `frameId===0`
-  - [ ] `updateSelectionStyles`가 다른 frameId의 동일 selector 보강을 무시
-  - [ ] `pnpm typecheck` 통과
+  - [x] `onElementSelected({..., frameId:3, origin:"https://x"})` → `selection.frameId===3`, `origin` 반영
+  - [x] `bufferCurrentElement` 시 buffered가 frameId·origin 복사
+  - [x] top·iframe 동일 selector 2개 버퍼 시 `patchBufferedElement(sel, 0)`가 iframe 항목(frameId≠0) 안 건드림
+  - [x] 구버전 스냅샷(frameId 없음) 복원 → `frameId===0`
+  - [x] `updateSelectionStyles`가 다른 frameId의 동일 selector 보강을 무시
+  - [x] `pnpm typecheck` 통과
 
 ### Task 2: picker-control send/export frameId 라우팅 (required)
 - **변경 대상**: `src/sidepanel/picker-control.ts`
 - **작업 내용**: `send<R>(tabId, msg, frameId)` — **frameId required**. 라우팅 대상 export 함수 전부에 frameId 추가: `applyStyles`·`applyClasses`·`applyText`·`resetAllEdits`·`collectTokens`·`previewHover`·`previewClear`·`selectByPath`·`applyEditsBySelector`·`prepareCapture`·`prepareCaptureBySelector`·`navigatePicker`·`describeChildren`·`describeInitialTree`. 호출부의 `frameId ?? 0` 정규화는 소비 지점에서(undefined → broadcast 함정 방지). `ensureContentScript`를 `target:{tabId, allFrames:true}`로.
 - **검증**:
   - [ ] `applyStyles(tabId, 5, {...})` → `sendMessage(tabId, msg, {frameId:5})` (mock)
-  - [ ] `ensureContentScript`가 allFrames로 executeScript
-  - [ ] frameId 미전달 호출부가 전부 타입 에러(required)
-  - [ ] `previewClear`·`describeInitialTree` 포함 확인
+  - [x] `ensureContentScript`가 allFrames로 executeScript
+  - [x] frameId 미전달 호출부가 전부 타입 에러(required)
+  - [x] `previewClear`·`describeInitialTree` 포함 확인
 
 ### Task 3: manifest all_frames + picker 주입 멱등 가드 (리스너 포함)
 - **변경 대상**: `manifest.config.ts`, `src/content/picker.ts`
@@ -49,15 +49,15 @@
   - `announceFrameToParent()`(자식→부모 `__bugshot_frame_present__`), `installFrameOffsetResponder()`(부모: `contentWindow===event.source` 매칭 → child registry 등록 + `__bugshot_frameOffset_req__`에 iframe rect+border offset+topViewport 응답, top 아니면 미지원).
   - `requestFrameOffset(timeoutMs?)`(자식: token 매칭, 타임아웃 null). **자식 측 방어**: `event.source===window.parent`+예상 origin 확인.
 - **검증**:
-  - [ ] `composeTopRect({x:10,y:20,w:100,h:50},{x:200,y:300})` → `{x:210,y:320,w:100,h:50}`
-  - [ ] token 불일치·`event.source≠window.parent` 응답 무시(스푸핑 방어)
-  - [ ] 타임아웃 시 null
+  - [x] `composeTopRect({x:10,y:20,w:100,h:50},{x:200,y:300})` → `{x:210,y:320,w:100,h:50}`
+  - [x] token 불일치·`event.source≠window.parent` 응답 무시(스푸핑 방어)
+  - [x] 타임아웃 시 null
 
 ### Task 5: blocker 핸드오프 게이팅 (registry 기반)
 - **변경 대상**: `src/content/picker.ts`
 - **작업 내용**: iframe이면 `handleStart` 시 `announceFrameToParent()`. `onMouseMove`에서 `elementAtPoint`가 IFRAME이고 **child registry에 등록됨**이면 `blockerEl.pointerEvents="none"`(핸드오프), 미등록이면 `"auto"` 유지. 토글은 `elementAtPoint` 호출 **이후** + `target===lastHover` 가드 안(깜빡임 완화). `onClickCommit` IFRAME 거부(637-645)는 미등록 iframe 폴백으로 유지.
 - **검증** (대부분 수동 — 실제 iframe):
-  - [ ] 등록 iframe hover → iframe **내부** 요소 하이라이트
+  - [x] 등록 iframe hover → iframe **내부** 요소 하이라이트
   - [ ] iframe 밖 복귀 → top 요소 하이라이트
   - [ ] **sandbox/중첩 iframe 클릭 → iframe-unsupported 다이얼로그**(blocker 유지 확인 — 클릭이 iframe으로 통과하지 않음)
   - [ ] iframe 인접 링크 클릭 시 오네비게이션 없음
@@ -74,25 +74,25 @@
 - **변경 대상**: `src/sidepanel/hooks/usePickerMessages.ts`
 - **작업 내용**: `picker.selected`/`selectionUpdated`/`cancelled`에서 `sender.frameId` 사용. `onElementSelected({..., frameId, origin: payload.origin})`. 후속 `collectTokens`·`captureElementSnapshot`·**`captureElementShot`(→`captureElementSnapshot`에 `shotSelector.frameId` 전달)** 라우팅. `wasBuffered` 매칭 `selector&&frameId`. **`picker.cancelled` 수신 시 `clearPicker(tabId)` broadcast**(전 프레임 teardown).
 - **검증**:
-  - [ ] iframe(frameId≠0) 선택 시 selection.frameId·origin 반영
+  - [x] iframe(frameId≠0) 선택 시 selection.frameId·origin 반영
   - [ ] iframe 요소 **screenshot 모드** 크롭이 frameId로 라우팅(오크롭 없음)
-  - [ ] iframe에서 ESC → top 프레임 picker도 정리(유령 없음)
-  - [ ] 동일 selector top·iframe 양쪽 존재 시 올바른 프레임 매칭
+  - [x] iframe에서 ESC → top 프레임 picker도 정리(유령 없음)
+  - [x] 동일 selector top·iframe 양쪽 존재 시 올바른 프레임 매칭
 
 ### Task 8: picker.selected payload에 origin
 - **변경 대상**: `src/content/picker.ts`(`emitSelected`/`collectSelection`), `src/types/picker.ts`
 - **작업 내용**: `PickerSelectionPayload`에 `origin: string` 추가, `emitSelected`가 `location.origin` 실음. frameId는 페이로드 아님(sender.frameId).
 - **검증**:
-  - [ ] iframe 선택 payload.origin === iframe origin
-  - [ ] top 선택 payload.origin === 페이지 origin
+  - [x] iframe 선택 payload.origin === iframe origin
+  - [x] top 선택 payload.origin === 페이지 origin
 
 ### Task 9: 다중 편집 리뷰 출처 배지 + 다이얼로그 복합키
 - **변경 대상**: `src/sidepanel/tabs/styleEditor/styleChangeGroups.ts`, `StyleChangesDialog.tsx`
 - **작업 내용**: `buildChangeGroups` 그룹화를 `selector+frameId`로, group에 frameId·origin. `StyleChangesDialog`의 `removeBufferedElement`·`patchBufferedElement`·`applyEditsBySelector` 호출을 `(selector, frameId)`로. GroupCard 헤더에 **origin 배지**(shadcn `Badge`, `OriginFilterBar` 팔레트) — iframe(origin≠페이지 origin)만 표시.
 - **검증**:
-  - [ ] top·iframe 혼합 다중편집 시 각 카드에 올바른 출처(iframe만 배지)
-  - [ ] 행 초기화·패치가 올바른 프레임 항목에만 적용
-  - [ ] 기존 `style-changes-dialog.spec.ts`·`style-changes-stacked.spec.ts` 회귀 없음
+  - [x] top·iframe 혼합 다중편집 시 각 카드에 올바른 출처(iframe만 배지)
+  - [x] 행 초기화·패치가 올바른 프레임 항목에만 적용
+  - [x] 기존 `style-changes-dialog.spec.ts`·`style-changes-stacked.spec.ts` 회귀 없음
 
 ### Task 10: rebind/resume 경로 frameId 라우팅
 - **변경 대상**: `src/sidepanel/picker-control.ts`(`rebindStylingSession`·`resumeBufferedElement`)
@@ -100,21 +100,21 @@
 - **검증**:
   - [ ] 패널 재오픈 후 iframe 요소 편집이 올바른 프레임 재적용
   - [ ] repick 취소 시 iframe 버퍼 요소 복귀
-  - [ ] 기존 `draft-resume`·`buffered-reselect-edit` spec 회귀 없음
+  - [x] 기존 `draft-resume`·`buffered-reselect-edit` spec 회귀 없음
 
 ### Task 11: iframeUnsupported 문구 조정 (중첩/sandbox 한정, ko/en)
 - **변경 대상**: `src/i18n/namespaces/app.ts`
 - **작업 내용**: `app.iframeUnsupported.*`를 design.md 문구 초안대로(중첩/보안 정책 안내 + 다음 행동). ko/en 동시.
 - **검증**:
-  - [ ] i18n locales 테스트(PostToolUse 훅) 통과 — ko/en 대칭
-  - [ ] 중첩 iframe 클릭 시 새 문구 다이얼로그
+  - [x] i18n locales 테스트(PostToolUse 훅) 통과 — ko/en 대칭
+  - [x] 중첩 iframe 클릭 시 새 문구 다이얼로그
 
 ### Task 12: e2e fixture — 중첩/sandbox + cross-origin origin 서버
 - **변경 대상**: `e2e/` fixture·helper(`extension.ts` 등)
 - **작업 내용**: (1) 중첩 iframe fixture(`iframe-nested.html`, 2-depth) + sandbox iframe fixture. (2) **2번째 origin 서버(다른 포트)** 추가해 cross-origin iframe fixture. (3) **기존 `picker-guard.spec.ts` 갱신** — "1-depth iframe 박스 클릭 → 내부 선택"으로 역전, unsupported 단언은 중첩/sandbox로 이동.
 - **검증**:
-  - [ ] `picker-guard.spec.ts`가 새 동작(1-depth 선택 / 중첩·sandbox 거부)으로 green
-  - [ ] cross-origin fixture 서버 기동·접근 확인
+  - [x] `picker-guard.spec.ts`가 새 동작(1-depth 선택 / 중첩·sandbox 거부)으로 green
+  - [x] cross-origin fixture 서버 기동·접근 확인
 
 ## 테스트 계획
 

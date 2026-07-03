@@ -794,6 +794,8 @@ describe("bufferCurrentElement — 복수 element 버퍼", () => {
     expect(buf[0]).toEqual({
       selector: "button.cta",
       tagName: "button",
+      frameId: 0,
+      origin: "",
       selectionSnapshot: {
         classList: ["cta"],
         specifiedStyles: {},
@@ -1041,7 +1043,7 @@ describe("patchBufferedElement / removeBufferedElement", () => {
     seedBuffer("#b", { margin: "8px" });
 
     const nextEdits = { classList: ["cta"], inlineStyle: {}, text: "" };
-    useEditorStore.getState().patchBufferedElement("#a", { styleEdits: nextEdits });
+    useEditorStore.getState().patchBufferedElement("#a", 0, { styleEdits: nextEdits });
 
     const buf = useEditorStore.getState().bufferedElements;
     expect(buf[0].styleEdits).toEqual(nextEdits);
@@ -1052,7 +1054,7 @@ describe("patchBufferedElement / removeBufferedElement", () => {
   it("patch: afterImage 단독 갱신", () => {
     seedBuffer("#a", { color: "#fff" });
 
-    useEditorStore.getState().patchBufferedElement("#a", { afterImage: "data:after-2" });
+    useEditorStore.getState().patchBufferedElement("#a", 0, { afterImage: "data:after-2" });
 
     const buf = useEditorStore.getState().bufferedElements;
     expect(buf[0].afterImage).toBe("data:after-2");
@@ -1063,7 +1065,7 @@ describe("patchBufferedElement / removeBufferedElement", () => {
     seedBuffer("#a", { color: "#fff" });
 
     const nextEdits = { classList: ["cta"], inlineStyle: {}, text: "" };
-    useEditorStore.getState().patchBufferedElement("#a", {
+    useEditorStore.getState().patchBufferedElement("#a", 0, {
       styleEdits: nextEdits,
       afterImage: "data:after-2",
     });
@@ -1077,7 +1079,7 @@ describe("patchBufferedElement / removeBufferedElement", () => {
     seedBuffer("#a", { color: "#fff" });
     const before = useEditorStore.getState().bufferedElements;
 
-    useEditorStore.getState().patchBufferedElement("#none", { afterImage: "x" });
+    useEditorStore.getState().patchBufferedElement("#none", 0, { afterImage: "x" });
 
     expect(useEditorStore.getState().bufferedElements).toEqual(before);
   });
@@ -1086,7 +1088,7 @@ describe("patchBufferedElement / removeBufferedElement", () => {
     seedBuffer("#a", { color: "#fff" });
     seedBuffer("#b", { margin: "8px" });
 
-    useEditorStore.getState().removeBufferedElement("#a");
+    useEditorStore.getState().removeBufferedElement("#a", 0);
 
     const buf = useEditorStore.getState().bufferedElements;
     expect(buf.map((b) => b.selector)).toEqual(["#b"]);
@@ -1095,9 +1097,202 @@ describe("patchBufferedElement / removeBufferedElement", () => {
   it("remove: selector 미일치 시 no-op", () => {
     seedBuffer("#a", { color: "#fff" });
 
-    useEditorStore.getState().removeBufferedElement("#none");
+    useEditorStore.getState().removeBufferedElement("#none", 0);
 
     expect(useEditorStore.getState().bufferedElements).toHaveLength(1);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  iframe 지원 — frameId·origin 라우팅 + 버퍼 복합키 (selector+frameId)  */
+/* ------------------------------------------------------------------ */
+
+describe("iframe frameId·origin — selection·buffer 복합키", () => {
+  beforeEach(() => {
+    useEditorStore.setState(useEditorStore.getInitialState(), true);
+  });
+
+  // frameId·origin을 실은 선택 payload (0 = top, ≠0 = iframe).
+  function framedSelection(selector: string, frameId: number, origin: string) {
+    return {
+      selector,
+      tagName: "button",
+      classList: ["cta"],
+      computedStyles: { color: "#000000" },
+      specifiedStyles: {},
+      propSources: {},
+      hasParent: true,
+      hasChild: false,
+      text: null,
+      viewport: { width: 1440, height: 900 },
+      capturedAt: 1700000000000,
+      frameId,
+      origin,
+    };
+  }
+
+  // patch/remove 복합키를 직접 겨냥하려 버퍼 배열을 setState로 주입(같은 selector, 다른 frameId).
+  function bufferedEntry(selector: string, frameId: number, origin: string) {
+    return {
+      selector,
+      tagName: "button",
+      frameId,
+      origin,
+      selectionSnapshot: {
+        classList: ["cta"],
+        specifiedStyles: {},
+        computedStyles: {},
+        propSources: {},
+        text: null,
+        viewport: { width: 1440, height: 900 },
+        capturedAt: 1,
+      },
+      styleEdits: { classList: ["cta"], inlineStyle: {}, text: "" },
+      beforeImage: null,
+      afterImage: null,
+    };
+  }
+
+  it("onElementSelected가 selection에 frameId·origin을 싣는다", () => {
+    useEditorStore
+      .getState()
+      .onElementSelected(
+        framedSelection("#btn", 3, "https://iframe.example") as never,
+      );
+
+    const sel = useEditorStore.getState().selection!;
+    expect(sel.frameId).toBe(3);
+    expect(sel.origin).toBe("https://iframe.example");
+  });
+
+  it("버퍼 재선택 매칭이 selector+frameId 복합키 — 다른 frameId 동일 selector는 신규 선택", () => {
+    // top(frameId 0)의 "#dup"을 편집·버퍼에 적재
+    useEditorStore.setState({
+      selection: framedSelection("#dup", 0, "https://page.example") as never,
+      styleEdits: { classList: ["cta"], inlineStyle: { color: "#fff" }, text: "" },
+      beforeImage: "data:before-top",
+    });
+    useEditorStore.getState().bufferCurrentElement("data:after-top");
+    expect(useEditorStore.getState().bufferedElements).toHaveLength(1);
+
+    // iframe(frameId 3)의 동일 selector "#dup" 선택 → top 버퍼를 건드리면 안 됨
+    useEditorStore
+      .getState()
+      .onElementSelected(
+        framedSelection("#dup", 3, "https://iframe.example") as never,
+      );
+
+    const s = useEditorStore.getState();
+    // 신규 선택으로 취급 → inlineStyle 초기화
+    expect(s.styleEdits.inlineStyle).toEqual({});
+    // top 버퍼 항목은 승격 없이 그대로 유지
+    expect(s.bufferedElements).toHaveLength(1);
+    expect(s.bufferedElements[0].frameId).toBe(0);
+  });
+
+  it("bufferCurrentElement가 frameId·origin을 버퍼 항목에 복사한다", () => {
+    useEditorStore.setState({
+      selection: framedSelection("#btn", 5, "https://iframe.example") as never,
+      styleEdits: { classList: ["cta"], inlineStyle: { color: "#fff" }, text: "" },
+      beforeImage: "data:before",
+    });
+
+    useEditorStore.getState().bufferCurrentElement("data:after");
+
+    const buf = useEditorStore.getState().bufferedElements;
+    expect(buf).toHaveLength(1);
+    expect(buf[0].frameId).toBe(5);
+    expect(buf[0].origin).toBe("https://iframe.example");
+  });
+
+  it("bufferCurrentElement dedup이 selector+frameId — 동일 selector 다른 frameId는 별개 항목", () => {
+    useEditorStore.setState({
+      selection: framedSelection("#d", 0, "https://page.example") as never,
+      styleEdits: { classList: ["cta"], inlineStyle: { color: "#fff" }, text: "" },
+      beforeImage: "data:before-0",
+    });
+    useEditorStore.getState().bufferCurrentElement("data:after-0");
+
+    useEditorStore.setState({
+      selection: framedSelection("#d", 3, "https://iframe.example") as never,
+      styleEdits: { classList: ["cta"], inlineStyle: { margin: "8px" }, text: "" },
+      beforeImage: "data:before-3",
+    });
+    useEditorStore.getState().bufferCurrentElement("data:after-3");
+
+    const buf = useEditorStore.getState().bufferedElements;
+    expect(buf).toHaveLength(2);
+    expect(buf.map((b) => b.frameId)).toEqual([0, 3]);
+  });
+
+  it("patchBufferedElement(selector, frameId)가 일치 프레임 항목만 갱신한다", () => {
+    useEditorStore.setState({
+      bufferedElements: [
+        bufferedEntry("#dup", 0, "https://page.example"),
+        bufferedEntry("#dup", 3, "https://iframe.example"),
+      ] as never,
+    });
+
+    useEditorStore
+      .getState()
+      .patchBufferedElement("#dup", 0, { afterImage: "data:patched" });
+
+    const buf = useEditorStore.getState().bufferedElements;
+    const top = buf.find((b) => b.frameId === 0)!;
+    const iframe = buf.find((b) => b.frameId === 3)!;
+    expect(top.afterImage).toBe("data:patched");
+    expect(iframe.afterImage).toBeNull();
+  });
+
+  it("removeBufferedElement(selector, frameId)가 일치 프레임 항목만 제거한다", () => {
+    useEditorStore.setState({
+      bufferedElements: [
+        bufferedEntry("#dup", 0, "https://page.example"),
+        bufferedEntry("#dup", 3, "https://iframe.example"),
+      ] as never,
+    });
+
+    useEditorStore.getState().removeBufferedElement("#dup", 0);
+
+    const buf = useEditorStore.getState().bufferedElements;
+    expect(buf).toHaveLength(1);
+    expect(buf[0].frameId).toBe(3);
+  });
+
+  it("updateSelectionStyles가 다른 frameId의 동일 selector 보강을 무시한다", () => {
+    useEditorStore.setState({
+      selection: {
+        ...framedSelection("#el", 0, "https://page.example"),
+        specifiedStyles: { color: "rgb(0, 0, 255)" },
+        computedStyles: { color: "rgb(0, 0, 255)" },
+        propSources: { color: ".top" },
+      } as never,
+    });
+
+    // iframe(frameId 3)의 동일 selector 보강이 top(frameId 0) 선택에 도착 → 무시돼야
+    useEditorStore.getState().updateSelectionStyles({
+      selector: "#el",
+      frameId: 3,
+      specifiedStyles: { color: "rgb(255, 0, 0)" },
+      computedStyles: { color: "rgb(255, 0, 0)" },
+      propSources: { color: ".iframe" },
+    } as never);
+
+    const sel = useEditorStore.getState().selection!;
+    expect(sel.specifiedStyles.color).toBe("rgb(0, 0, 255)");
+  });
+
+  it("onElementShot가 ShotSelector의 frameId를 보존한다", () => {
+    useEditorStore.getState().startElementShot(target);
+    useEditorStore
+      .getState()
+      .onElementShot(
+        { selector: "button.cta", tagName: "button", frameId: 2 } as never,
+        "data:image/png;base64,X",
+        { width: 800, height: 600 },
+      );
+
+    expect(useEditorStore.getState().shotSelector!.frameId).toBe(2);
   });
 });
 

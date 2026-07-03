@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>bugshot e2e fixture — nested + inert iframe</title>
+    <style>
+      body {
+        margin: 24px;
+        font-family: sans-serif;
+      }
+      /* #outer(1-depth)는 등록돼 핸드오프 — 그 안의 #inner(2-depth) 클릭이 거부 대상.
+         #inert는 srcdoc(about:srcdoc — <all_urls> 미매치)이라 content script 미주입
+         → 미등록 → top이 거부. sandbox는 allow-scripts 유무와 무관하게 ISOLATED
+         world 주입이 일어나 일반 1-depth처럼 선택 가능(e2e probe 실측) — 거부
+         게이트의 실제 대상은 "미주입 프레임"이다. */
+      #outer {
+        width: 360px;
+        height: 280px;
+        border: 1px solid #cccccc;
+      }
+      #inert {
+        width: 320px;
+        height: 160px;
+        border: 1px solid #cccccc;
+        display: block;
+        margin-top: 16px;
+      }
+    </style>
+  </head>
+  <body>
+    <h1 id="nested-top-title">Nested Fixture Top</h1>
+    <iframe id="outer" src="iframe-child.html"></iframe>
+    <iframe id="inert" srcdoc="<h3 style='margin:40px'>inert srcdoc frame</h3>"></iframe>
+  </body>
+</html>

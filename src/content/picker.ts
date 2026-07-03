@@ -48,6 +48,13 @@ import {
 import { PICKER_PORT_NAME } from "@/lib/session-keys";
 import { postToRuntime } from "./post-to-runtime";
 import {
+  announceFrameToParent,
+  composeTopRect,
+  installFrameOffsetResponder,
+  isRegisteredChildFrame,
+  requestFrameOffset,
+} from "./frame-geometry";
+import {
   ensureCrossOriginLoaded,
   ensureLoaded as ensureCssCacheLoaded,
   invalidate as invalidateCssCache,
@@ -114,111 +121,172 @@ function cancelTokenBuild(): void {
   tokenBuildHandle = null;
 }
 
-chrome.runtime.onConnect.addListener((port) => {
-  if (port.name !== PICKER_PORT_NAME) return;
-  port.onDisconnect.addListener(() => {
-    handleClear();
+// 정적(all_frames) 주입 + programmatic 재주입(ensureContentScript)이 모듈을 두 번 평가할
+// 수 있다. 리스너 등록을 포함한 init 전체를 멱등 플래그로 감싸 이중 sendResponse("message
+// port closed")·이중 handleClear를 방지 — removeOrphanOverlay는 overlay만 커버라 불충분.
+// 플래그는 확장 reload 시 ISOLATED world 재생성으로 리셋돼 재주입으로 자가복구된다(BRIDGE_FLAG 선례).
+const PICKER_FLAG = "__bugshotPicker__";
+if (!(window as unknown as Record<string, unknown>)[PICKER_FLAG]) {
+  (window as unknown as Record<string, unknown>)[PICKER_FLAG] = true;
+  registerPickerListeners();
+}
+
+function registerPickerListeners(): void {
+  chrome.runtime.onConnect.addListener((port) => {
+    if (port.name !== PICKER_PORT_NAME) return;
+    port.onDisconnect.addListener(() => {
+      handleClear();
+    });
   });
-});
+  chrome.runtime.onMessage.addListener(handlePickerMessage);
+  // 부모 측 offset 응답기 — 자식 iframe 캡처 시 top overlay 숨김(beginCapturePrep)을 겸한다.
+  // arm은 사이드패널의 picker.armFrameOffset(chrome 경로)으로만 세팅 — postMessage 위조 차단.
+  installFrameOffsetResponder({
+    onChildCapturePrep: beginCapturePrep,
+    consumeArm: () => {
+      if (!frameOffsetArmed) return false;
+      frameOffsetArmed = false;
+      return true;
+    },
+  });
+}
 
 function removeOrphanOverlay(): void {
   const orphan = document.getElementById(HOST_ID);
   if (orphan) orphan.remove();
 }
 
-chrome.runtime.onMessage.addListener(
-  (msg: PickerMessage, _sender, sendResponse) => {
-    if (!msg || typeof msg !== "object" || !("type" in msg)) return;
-    try {
-      switch (msg.type) {
-        case "picker.start":
-          handleStart();
-          break;
-        case "picker.stop":
-          handleStop();
-          break;
-        case "picker.clear":
-          handleClear();
-          break;
-        case "picker.navigate":
-          handleNavigate(msg.direction);
-          break;
-        case "picker.applyClasses":
-          handleApplyClasses(msg.classList);
-          break;
-        case "picker.applyStyles":
-          handleApplyStyles(msg.inlineStyle);
-          break;
-        case "picker.applyText":
-          handleApplyText(msg.text);
-          break;
-        case "picker.resetAllEdits":
-          handleResetAllEdits();
-          break;
-        case "picker.collectTokens":
-          void (async () => {
-            try {
-              await ensureCssCacheLoaded();
-              await ensureCrossOriginLoaded();
-              sendResponse({ tokens: collectTokens(selectedEl ?? undefined) });
-            } catch (err) {
-              console.error("[bugshot] collectTokens error", err);
-              sendResponse({ ok: false, error: String(err) });
-            }
-          })();
+// 함수 선언(호이스팅) — 멱등 가드 블록이 모듈 상단에서 참조한다.
+function handlePickerMessage(
+  msg: PickerMessage,
+  _sender: chrome.runtime.MessageSender,
+  sendResponse: (res?: unknown) => void,
+): boolean | undefined {
+  if (!msg || typeof msg !== "object" || !("type" in msg)) return;
+  try {
+    switch (msg.type) {
+      case "picker.start":
+        handleStart();
+        break;
+      case "picker.stop":
+        handleStop();
+        break;
+      case "picker.clear":
+        handleClear();
+        break;
+      case "picker.navigate":
+        handleNavigate(msg.direction);
+        break;
+      case "picker.applyClasses":
+        handleApplyClasses(msg.classList);
+        break;
+      case "picker.applyStyles":
+        handleApplyStyles(msg.inlineStyle);
+        break;
+      case "picker.applyText":
+        handleApplyText(msg.text);
+        break;
+      case "picker.resetAllEdits":
+        handleResetAllEdits();
+        break;
+      case "picker.collectTokens":
+        void (async () => {
+          try {
+            await ensureCssCacheLoaded();
+            await ensureCrossOriginLoaded();
+            sendResponse({ tokens: collectTokens(selectedEl ?? undefined) });
+          } catch (err) {
+            console.error("[bugshot] collectTokens error", err);
+            sendResponse({ ok: false, error: String(err) });
+          }
+        })();
+        return true;
+      case "picker.describeInitial":
+        sendResponse(buildInitialTree(selectedEl));
+        return;
+      case "picker.describeChildren":
+        sendResponse(buildChildrenResponse(msg.selector));
+        return;
+      case "picker.previewHover":
+        if (overlay) renderPreview(overlay, msg.selector);
+        break;
+      case "picker.previewClear":
+        if (overlay) clearPreview(overlay);
+        break;
+      case "picker.selectByPath":
+        sendResponse(handleSelectByPath(msg.selector));
+        return;
+      case "picker.applyEditsBySelector":
+        sendResponse(handleApplyEditsBySelector(msg));
+        return;
+      case "picker.prepareCapture":
+        if (window !== window.top) {
+          void respondWithTopRect(handlePrepareCapture(), sendResponse);
           return true;
-        case "picker.describeInitial":
-          sendResponse(buildInitialTree(selectedEl));
-          return;
-        case "picker.describeChildren":
-          sendResponse(buildChildrenResponse(msg.selector));
-          return;
-        case "picker.previewHover":
-          if (overlay) renderPreview(overlay, msg.selector);
-          break;
-        case "picker.previewClear":
-          if (overlay) clearPreview(overlay);
-          break;
-        case "picker.selectByPath":
-          sendResponse(handleSelectByPath(msg.selector));
-          return;
-        case "picker.applyEditsBySelector":
-          sendResponse(handleApplyEditsBySelector(msg));
-          return;
-        case "picker.prepareCapture":
-          sendResponse(handlePrepareCapture());
-          return;
-        case "picker.prepareCaptureBySelector":
-          handlePrepareCaptureBySelector(msg.selector, sendResponse);
-          return true;
-        case "picker.pageUrl":
-          sendResponse({ url: location.href });
-          return;
-        case "picker.endCapture":
-          handleEndCapture();
-          break;
-        case "picker.startAreaSelect":
-          handleStartAreaSelect(msg.restoreAfter);
-          break;
-        case "picker.cancelAreaSelect":
-          handleCancelAreaSelect();
-          break;
-        // recorder.* 메시지는 recorder-bridge.ts(all_frames)가 처리 — 무응답으로 흘려 이중 응답 방지.
-        default:
-          return;
-      }
-      sendResponse({ ok: true });
-    } catch (err) {
-      console.error("[bugshot] picker message handler error", msg.type, err);
-      sendResponse({ ok: false, error: String(err) });
+        }
+        sendResponse(handlePrepareCapture());
+        return;
+      case "picker.prepareCaptureBySelector":
+        handlePrepareCaptureBySelector(
+          msg.selector,
+          window === window.top
+            ? sendResponse
+            : (res) => void respondWithTopRect(res, sendResponse),
+        );
+        return true;
+      case "picker.pageUrl":
+        sendResponse({ url: location.href });
+        return;
+      case "picker.armFrameOffset":
+        frameOffsetArmed = true;
+        break;
+      case "picker.endCapture":
+        handleEndCapture();
+        break;
+      case "picker.startAreaSelect":
+        handleStartAreaSelect(msg.restoreAfter);
+        break;
+      case "picker.cancelAreaSelect":
+        handleCancelAreaSelect();
+        break;
+      // recorder.* 메시지는 recorder-bridge.ts(all_frames)가 처리 — 무응답으로 흘려 이중 응답 방지.
+      default:
+        return;
     }
-  },
-);
+    sendResponse({ ok: true });
+  } catch (err) {
+    console.error("[bugshot] picker message handler error", msg.type, err);
+    sendResponse({ ok: false, error: String(err) });
+  }
+  return undefined;
+}
 
 function beginCapturePrep(): { width: number; height: number } {
   captureInflight += 1;
   if (overlay) overlay.hostEl.style.visibility = "hidden";
   return { width: window.innerWidth, height: window.innerHeight };
+}
+
+// iframe 프레임 캡처: inner rect(자기 뷰포트 기준)를 top 좌표로 변환해 응답한다.
+// offset 요청이 top overlay 숨김(beginCapturePrep)을 겸하고, viewport는 크롭 scale
+// 기준이라 top 크기로 교체. 실패(중첩·타임아웃)면 rect null — 캡처 실패 경로 폴백.
+async function respondWithTopRect(
+  prep: PrepareCaptureResponse,
+  sendResponse: (res?: unknown) => void,
+): Promise<void> {
+  if (!prep.rect) {
+    sendResponse(prep);
+    return;
+  }
+  const offset = await requestFrameOffset();
+  if (!offset) {
+    sendResponse({ rect: null, viewport: prep.viewport });
+    return;
+  }
+  sendResponse({
+    rect: composeTopRect(prep.rect, offset),
+    viewport: offset.topViewport,
+  });
 }
 
 function viewportRectOf(el: Element): ViewportRect {
@@ -238,6 +306,8 @@ function handlePrepareCapture(): PrepareCaptureResponse {
 // 슬롯 자체는 first-wins(이미 저장돼 있으면 덮어쓰지 않음)로 최초 위치를 보존.
 let capturedScroll: { x: number; y: number } | null = null;
 let captureInflight = 0;
+// 자식 iframe 캡처 1회에 대해 offset 응답을 허용하는 1회성 플래그(top frame 전용).
+let frameOffsetArmed = false;
 
 function handlePrepareCaptureBySelector(
   selector: string,
@@ -284,6 +354,8 @@ function handlePrepareCaptureBySelector(
 }
 
 function handleEndCapture(): void {
+  // 자식이 요청 없이 끝난 캡처(rect null 조기 실패)의 잔여 arm 정리.
+  frameOffsetArmed = false;
   captureInflight = Math.max(0, captureInflight - 1);
   if (captureInflight > 0) return;
   if (overlay) overlay.hostEl.style.visibility = "";
@@ -294,6 +366,8 @@ function handleEndCapture(): void {
 }
 
 function handleStart(): void {
+  // iframe이면 부모 registry에 등록 — 부모 blocker가 이 프레임 위에서 핸드오프한다.
+  if (window !== window.top) announceFrameToParent();
   if (!overlay) {
     removeOrphanOverlay();
     overlay = createOverlay();
@@ -558,6 +632,7 @@ function render(): void {
 
 function addHoverListeners(): void {
   window.addEventListener("mousemove", onMouseMove, true);
+  window.addEventListener("mouseout", onMouseOut, true);
   window.addEventListener("keydown", onKeyDown, true);
   if (overlay) {
     overlay.blockerEl.addEventListener("click", onClickCommit);
@@ -569,6 +644,7 @@ function addHoverListeners(): void {
 
 function removeHoverListeners(): void {
   window.removeEventListener("mousemove", onMouseMove, true);
+  window.removeEventListener("mouseout", onMouseOut, true);
   window.removeEventListener("keydown", onKeyDown, true);
   if (overlay) {
     overlay.blockerEl.removeEventListener("click", onClickCommit);
@@ -621,7 +697,31 @@ function onMouseMove(e: MouseEvent): void {
   const target = elementAtPoint(e.clientX, e.clientY);
   if (isOwnUi(target) || target === lastHover) return;
   lastHover = target;
+  // 등록된 자식 iframe 위에서는 blocker를 투과시켜 안쪽 picker가 이벤트를 받게 한다
+  // (핸드오프). 미등록(sandbox·중첩)은 auto 유지 → 클릭이 onClickCommit 거부 경로로.
+  // elementAtPoint가 매 호출 끝에 auto 복원하므로 토글은 호출 이후 + hover 변경 시만.
+  const handoff =
+    !!target &&
+    target.tagName === "IFRAME" &&
+    isRegisteredChildFrame(target);
+  if (overlay) {
+    overlay.blockerEl.style.pointerEvents = handoff ? "none" : "auto";
+    if (handoff) {
+      // 안쪽 picker가 hover를 그린다 — 부모 outline은 숨겨 이중 표시 방지.
+      hideOutline(overlay);
+      return;
+    }
+  }
   render();
+}
+
+// 포인터가 문서 밖(자식 iframe 내부·창 밖)으로 나가면 mousemove가 더 안 와 outline이
+// 마지막 hover에 얼어붙는다 — 문서 이탈 시 잔상 정리.
+function onMouseOut(e: MouseEvent): void {
+  if (mode !== "hover") return;
+  if (e.relatedTarget !== null) return;
+  lastHover = null;
+  if (overlay) hideOutline(overlay);
 }
 
 function onClickCommit(e: MouseEvent): void {
@@ -631,10 +731,11 @@ function onClickCommit(e: MouseEvent): void {
   e.stopPropagation();
   const target = elementAtPoint(e.clientX, e.clientY);
   if (isOwnUi(target) || !target) return;
-  // iframe 내부 DOM은 cross-document 경계로 elementFromPoint이 도달 못 함 + content
-  // script가 all_frames=false라 inner element 선택 자체가 불가능. iframe-as-element
-  // 선택을 허용하면 collectTokens / applyStyles 등에서 빈 결과·오류 누적되므로 차단.
+  // 등록 iframe(안쪽 picker 활성)은 핸드오프 대상 — mousemove 전에 클릭이 먼저 온
+  // 드문 레이스에서만 여기 도달하므로 삼킨다(다음 mousemove가 blocker를 투과시킴).
+  // 미등록 iframe(sandbox·중첩)은 cross-document 경계로 내부 선택 불가 — 기존 거부 유지.
   if (target.tagName === "IFRAME") {
+    if (isRegisteredChildFrame(target)) return;
     removeHoverListeners();
     leaveCurrent();
     selectedEl = null;

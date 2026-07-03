@@ -249,6 +249,7 @@ export function collectSelection(
     hasChild,
     text: editableHandle ? readEditableText(editableHandle) : null,
     viewport: { width: window.innerWidth, height: window.innerHeight },
+    origin: location.origin,
   };
 }
 

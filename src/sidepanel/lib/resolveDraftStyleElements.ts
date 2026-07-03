@@ -14,13 +14,20 @@ export interface DraftStyleImages {
 export function resolveDraftStyleElements(
   issue: Pick<
     IssueRecord,
-    "selector" | "tagName" | "styleEdits" | "selectionSnapshot" | "bufferedElements"
+    | "selector"
+    | "tagName"
+    | "frameId"
+    | "styleEdits"
+    | "selectionSnapshot"
+    | "bufferedElements"
   >,
   images: DraftStyleImages,
 ): StyleElementContext[] {
   const buffered: BufferedElement[] = (issue.bufferedElements ?? []).map((b, i) => ({
     selector: b.selector,
     tagName: b.tagName,
+    frameId: b.frameId ?? 0,
+    origin: b.origin ?? "",
     selectionSnapshot: b.selectionSnapshot,
     styleEdits: {
       classList: b.styleEdits.classList,
@@ -36,6 +43,7 @@ export function resolveDraftStyleElements(
       ? {
           selection: {
             selector: issue.selector ?? "",
+            frameId: issue.frameId ?? 0,
             tagName: issue.tagName ?? "",
             classList: issue.selectionSnapshot.classList,
             computedStyles: issue.selectionSnapshot.computedStyles,

@@ -14,6 +14,9 @@ import type {
 export interface ChangeGroup {
   source: "current" | "buffered";
   selector: string;
+  // 요소가 속한 프레임(0=top)·origin — 행 초기화 라우팅과 출처 배지에 사용.
+  frameId: number;
+  origin: string;
   tagName: string;
   classList: string[];
   snapshot: StyleDiffSelection;
@@ -31,6 +34,8 @@ export function buildChangeGroups(
     .map((b) => ({
       source: "buffered" as const,
       selector: b.selector,
+      frameId: b.frameId ?? 0,
+      origin: b.origin ?? "",
       tagName: b.tagName,
       classList: b.selectionSnapshot.classList,
       snapshot: b.selectionSnapshot,
@@ -51,6 +56,8 @@ export function buildChangeGroups(
       groups.push({
         source: "current",
         selector: selection.selector,
+        frameId: selection.frameId ?? 0,
+        origin: selection.origin ?? "",
         tagName: selection.tagName,
         classList: selection.classList,
         snapshot,
