@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlignCenter,
   AlignJustify,
@@ -342,6 +342,9 @@ export function AlignmentProp({ label, prop }: { label: string; prop: string }) 
   const t = useT();
   const { value, placeholder, set } = useStyleProp(prop);
   const source = usePropSource(prop);
+  // Radix Tabs는 pointerdown에서 값을 바꾸고 활성 탭 재클릭 시엔 onValueChange를 안 쏜다.
+  // click 시점엔 이미 리렌더돼 새 값이라 판정이 불가능 — pointerdown(리렌더 전) 상태를 캡처한다.
+  const preClick = useRef({ hadEdit: false, resolved: "" });
   const current = (value || placeholder || "").trim();
   const options: { v: string; icon: React.ReactNode; title: string }[] = [
     { v: "left", icon: <AlignLeft className="h-4 w-4" />, title: t("prop.align.left") },
@@ -374,10 +377,14 @@ export function AlignmentProp({ label, prop }: { label: string; prop: string }) 
               value={o.v}
               title={o.title}
               aria-label={o.title}
-              // Radix Tabs는 활성 탭 재클릭 시 onValueChange를 안 쏜다 — 명시 edit이 있을 때
-              // 활성 탭을 다시 누르면 편집을 지워 상속/computed 기본값으로 되돌린다.
+              onPointerDownCapture={() => {
+                preClick.current = { hadEdit: !!value, resolved: resolvedValue };
+              }}
+              // 명시 edit이 있는 채로 이미 활성인 탭을 다시 누른 경우에만 편집을 지워
+              // 상속/computed 기본값으로 되돌린다(비활성 탭 클릭은 onValueChange가 set).
               onClick={() => {
-                if (value && o.v === resolvedValue) set("");
+                if (preClick.current.hadEdit && o.v === preClick.current.resolved)
+                  set("");
               }}
             >
               {o.icon}
