@@ -2,6 +2,8 @@
 
 🌐 [한국어](https://bugshot.gitbook.io/ko)
 
+![BugShot at a glance — capture and report right where you spot the bug](assets/readme-1.jpg)
+
 Ever spotted a bug and thought, "how do I even explain this?" That's exactly the moment BugShot was built for.
 
 BugShot is a Chrome side panel extension that lets you pick DOM elements on a web page, tweak and compare their styles, and file the result as an issue on Jira, GitHub, Linear, Notion, GitLab, Asana, or ClickUp. Capture right where you spot the bug, and ship a report that bundles the environment, screenshots, video, and logs in one shot.
@@ -19,7 +21,7 @@ It looks like a lot at first, but don't worry — the side panel is just four ta
 - **Integrations** — Connect platforms like Jira and GitHub. With nothing connected yet, this tab opens first.
 - **Settings** — Set up the issue body sections, AI connection, language, and theme just the way you like.
 
-![BugShot side panel main view](assets/readme-1.jpg)
+![BugShot side panel main view — Debug, Issues, Integrations, Settings tabs](assets/readme-2.jpg)
 
 ## Jump to a section
 
