@@ -266,6 +266,47 @@ describe("expandShorthands — border shorthand 전개", () => {
   });
 });
 
+describe("expandShorthands — background shorthand → background-color 가드", () => {
+  it("단색 background는 background-color로 전개", () => {
+    const all: Record<string, string> = { background: "#fff" };
+    const sources: Record<string, string> = { background: ".hero" };
+    expandShorthands(all, sources);
+    expect(all["background-color"]).toBe("#fff");
+    expect(sources["background-color"]).toBe(".hero");
+  });
+
+  it("named color / 단일 var background도 전개(토큰 보존)", () => {
+    const a: Record<string, string> = { background: "red" };
+    expandShorthands(a, {});
+    expect(a["background-color"]).toBe("red");
+    const b: Record<string, string> = { background: "var(--surface)" };
+    expandShorthands(b, {});
+    expect(b["background-color"]).toBe("var(--surface)");
+  });
+
+  it("이미지/다중 레이어 background는 background-color를 오염시키지 않음", () => {
+    const img: Record<string, string> = {
+      background: "#fff url(bg.png) no-repeat",
+    };
+    expandShorthands(img, {});
+    expect(img["background-color"]).toBeUndefined();
+    const grad: Record<string, string> = {
+      background: "linear-gradient(#fff, #000)",
+    };
+    expandShorthands(grad, {});
+    expect(grad["background-color"]).toBeUndefined();
+  });
+
+  it("기존 background-color longhand는 background가 안 덮음", () => {
+    const all: Record<string, string> = {
+      background: "#fff",
+      "background-color": "var(--bg)",
+    };
+    expandShorthands(all, {});
+    expect(all["background-color"]).toBe("var(--bg)");
+  });
+});
+
 describe("normalizePositionOffsets — 미지정 오프셋 auto 정규화", () => {
   it("작성자 미지정 변은 computed used px 대신 auto", () => {
     const computed: Record<string, string> = {

@@ -361,10 +361,7 @@ export function AlignmentProp({ label, prop }: { label: string; prop: string }) 
 
   return (
     <PropRow label={label} source={source}>
-      <Tabs
-        value={resolvedValue}
-        onValueChange={(v) => set(v === resolvedValue && value ? "" : v)}
-      >
+      <Tabs value={resolvedValue} onValueChange={(v) => set(v)}>
         <TabsList
           className={cn(
             "grid w-full grid-cols-4",
@@ -372,7 +369,17 @@ export function AlignmentProp({ label, prop }: { label: string; prop: string }) 
           )}
         >
           {options.map((o) => (
-            <TabsTrigger key={o.v} value={o.v} title={o.title} aria-label={o.title}>
+            <TabsTrigger
+              key={o.v}
+              value={o.v}
+              title={o.title}
+              aria-label={o.title}
+              // Radix Tabs는 활성 탭 재클릭 시 onValueChange를 안 쏜다 — 명시 edit이 있을 때
+              // 활성 탭을 다시 누르면 편집을 지워 상속/computed 기본값으로 되돌린다.
+              onClick={() => {
+                if (value && o.v === resolvedValue) set("");
+              }}
+            >
               {o.icon}
             </TabsTrigger>
           ))}

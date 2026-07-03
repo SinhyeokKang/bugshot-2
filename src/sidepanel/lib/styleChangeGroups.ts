@@ -10,6 +10,7 @@ import type {
   EditorSelection,
   EditorStyleEdits,
 } from "@/store/editor-store";
+import { sameElementKey } from "@/lib/element-key";
 
 export interface ChangeGroup {
   source: "current" | "buffered";
@@ -29,8 +30,41 @@ export function buildChangeGroups(
   styleEdits: EditorStyleEdits,
   bufferedElements: BufferedElement[],
 ): ChangeGroup[] {
-  // 현재 그룹과 동일하게 diff 0인 버퍼는 빈 카드를 만들지 않는다(게이트 대칭).
+  // 현재 그룹을 먼저 확정한다 — diff가 있어야 포함되고, 있으면 동일 키 버퍼를 밀어낸다
+  // (mergeStyleElements와 동일: 승격 전 비동기 창에서 selection==buffer 공존 시 이중 카운트 방지).
+  let currentGroup: ChangeGroup | null = null;
+  if (selection) {
+    const snapshot: StyleDiffSelection = {
+      classList: selection.classList,
+      specifiedStyles: selection.specifiedStyles,
+      computedStyles: selection.computedStyles,
+      text: selection.text,
+    };
+    const rows = buildStyleDiff(snapshot, styleEdits);
+    if (rows.length > 0) {
+      currentGroup = {
+        source: "current",
+        selector: selection.selector,
+        frameId: selection.frameId ?? 0,
+        origin: selection.origin ?? "",
+        tagName: selection.tagName,
+        classList: selection.classList,
+        snapshot,
+        edits: styleEdits,
+        rows,
+      };
+    }
+  }
+
   const groups: ChangeGroup[] = bufferedElements
+    .filter(
+      (b) =>
+        !currentGroup ||
+        !sameElementKey(
+          { selector: b.selector, frameId: b.frameId },
+          { selector: currentGroup.selector, frameId: currentGroup.frameId },
+        ),
+    )
     .map((b) => ({
       source: "buffered" as const,
       selector: b.selector,
@@ -44,27 +78,8 @@ export function buildChangeGroups(
     }))
     .filter((g) => g.rows.length > 0);
 
-  if (selection) {
-    const snapshot: StyleDiffSelection = {
-      classList: selection.classList,
-      specifiedStyles: selection.specifiedStyles,
-      computedStyles: selection.computedStyles,
-      text: selection.text,
-    };
-    const rows = buildStyleDiff(snapshot, styleEdits);
-    if (rows.length > 0) {
-      groups.push({
-        source: "current",
-        selector: selection.selector,
-        frameId: selection.frameId ?? 0,
-        origin: selection.origin ?? "",
-        tagName: selection.tagName,
-        classList: selection.classList,
-        snapshot,
-        edits: styleEdits,
-        rows,
-      });
-    }
+  if (currentGroup) {
+    groups.push(currentGroup);
   }
 
   return groups;

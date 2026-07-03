@@ -143,16 +143,37 @@ describe("buildChangeGroups", () => {
     expect(groups.every((g) => g.source === "buffered")).toBe(true);
   });
 
-  it("중복 selector(버퍼 항목 == 현재 선택) → 두 그룹 모두 포함", () => {
+  it("동일 키 버퍼 + 현재 선택 diff 있음 → 현재가 버퍼를 밀어냄 (mergeStyleElements 파리티)", () => {
     const groups = buildChangeGroups(
       selection({ selector: "#a" }),
       edits({ inlineStyle: { color: "#00f" } }),
       [buffered("#a")],
     );
 
-    expect(groups).toHaveLength(2);
-    expect(groups.map((g) => g.source)).toEqual(["buffered", "current"]);
-    expect(groups.every((g) => g.selector === "#a")).toBe(true);
+    expect(groups).toHaveLength(1);
+    expect(groups[0]).toMatchObject({ source: "current", selector: "#a" });
+  });
+
+  it("동일 키 버퍼 + 현재 선택 diff 없음 → 버퍼 유지 (current 미포함이라 dedup 안 함)", () => {
+    const groups = buildChangeGroups(selection({ selector: "#a" }), edits(), [
+      buffered("#a"),
+    ]);
+
+    expect(groups).toHaveLength(1);
+    expect(groups[0]).toMatchObject({ source: "buffered", selector: "#a" });
+  });
+
+  it("다른 frameId의 동일 selector 버퍼는 밀려나지 않음", () => {
+    const groups = buildChangeGroups(
+      selection({ selector: "#a", frameId: 0 }),
+      edits({ inlineStyle: { color: "#00f" } }),
+      [buffered("#a", { frameId: 2 })],
+    );
+
+    expect(groups.map((g) => [g.source, g.frameId])).toEqual([
+      ["buffered", 2],
+      ["current", 0],
+    ]);
   });
 
   it("현재 그룹에 text·class·inline 행 혼합 → text→class→prop 순 정렬", () => {
@@ -185,7 +206,7 @@ describe("buildChangeGroups", () => {
 
   it("frameId·origin이 그룹에 전파되고 미지정(구버전)은 0·빈 문자열 폴백", () => {
     const groups = buildChangeGroups(
-      selection({ selector: "#a", frameId: 3, origin: "https://embed.example" }),
+      selection({ selector: "#cur", frameId: 3, origin: "https://embed.example" }),
       edits({ inlineStyle: { color: "#00f" } }),
       [
         buffered("#a", { frameId: 3, origin: "https://embed.example" }),
@@ -196,7 +217,7 @@ describe("buildChangeGroups", () => {
     expect(groups.map((g) => [g.selector, g.frameId, g.origin])).toEqual([
       ["#a", 3, "https://embed.example"],
       ["#legacy", 0, ""],
-      ["#a", 3, "https://embed.example"],
+      ["#cur", 3, "https://embed.example"],
     ]);
   });
 
