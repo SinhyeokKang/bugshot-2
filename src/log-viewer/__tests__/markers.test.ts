@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { buildMarkers } from "../markers";
 import { t } from "../i18n";
+import { TONE_TEXT } from "@/lib/log-colors";
 import type { LogViewerData } from "@/types/log-viewer";
 import type { ConsoleLog, ConsoleEntry } from "@/types/console";
 import type { NetworkLog, NetworkRequest } from "@/types/network";
@@ -379,6 +380,22 @@ describe("buildMarkers — action 탭", () => {
     });
     const markers = buildMarkers(data, "action", VIDEO_DURATION_SEC, VIDEO_STARTED_AT);
     expect(markers[0].label).toBe(t("actionLog.verb.navigate", { target: "https://example.com/page" }));
+  });
+
+  it("labelParts: navigation은 URL 조각만 파랑, verb 텍스트는 기본색 (탭 패턴 일치)", () => {
+    const url = "https://example.com/page";
+    const data = makeData({
+      actionLog: makeActionLog([
+        makeActionEntry({ kind: "navigation", toUrl: url }),
+      ]),
+    });
+    const parts = buildMarkers(data, "action", VIDEO_DURATION_SEC, VIDEO_STARTED_AT)[0].labelParts;
+    const urlPart = parts.find((p) => p.text === url);
+    expect(urlPart?.className).toBe(TONE_TEXT.blue);
+    for (const p of parts) {
+      if (p.text !== url) expect(p.className).toBeUndefined();
+    }
+    expect(parts.map((p) => p.text).join("")).toBe(t("actionLog.verb.navigate", { target: url }));
   });
 
   it("label: navigation URL이 길어도 잘리지 않음", () => {

@@ -3,6 +3,7 @@ import type { ActionNode } from "@/types/action";
 import { toVideoSeconds } from "./timeline";
 import { t } from "./i18n";
 import { TONE_TEXT, consoleLevelTextClass, networkMethodTextClass } from "@/lib/log-colors";
+import { splitTemplate } from "@/sidepanel/lib/actionInline";
 
 export type MarkerType = "console" | "network" | "action";
 export type MarkerVariant = "error" | "warn" | "info" | "pending" | "navigate" | "default";
@@ -113,8 +114,14 @@ export function buildMarkers(
       }
       case "navigation": {
         variant = "navigate";
-        label = t("actionLog.verb.navigate", { target: e.toUrl ?? "" });
-        labelParts = [{ text: label, className: TONE_TEXT.blue }];
+        const url = e.toUrl ?? "";
+        label = t("actionLog.verb.navigate", { target: url });
+        // 탭(ActionLogContent)과 동일 패턴: verb 텍스트는 기본색, URL(target 슬롯)만 파랑.
+        labelParts = splitTemplate(t("actionLog.verb.navigate")).map((tok) =>
+          tok.type === "slot"
+            ? { text: url, className: TONE_TEXT.blue }
+            : { text: tok.value },
+        );
         break;
       }
       case "input": {
