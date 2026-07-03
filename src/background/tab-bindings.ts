@@ -1,6 +1,6 @@
 import { FROZEN_PHASES, originOf, pageKeyOf, sessionKey } from "@/lib/session-keys";
 import { isSupportedUrl } from "@/lib/url-support";
-import { deleteNetworkLog, deleteConsoleLog, deleteActionLog } from "@/store/blob-db";
+import { deleteNetworkLog, deleteConsoleLog, deleteActionLog, deleteVideoBlob } from "@/store/blob-db";
 import type { BgInternalMessage } from "@/types/messages";
 
 type SessionSnap = {
@@ -296,6 +296,7 @@ export function setupTabBindings(): void {
     deleteNetworkLog(`pending:${tabId}`).catch(() => {});
     deleteConsoleLog(`pending:${tabId}`).catch(() => {});
     deleteActionLog(`pending:${tabId}`).catch(() => {});
+    deleteVideoBlob(`pending:${tabId}`).catch(() => {});
   });
 
   // 윈도우 종료 시 해당 윈도우의 직전 탭 엔트리 정리(누수 방지).

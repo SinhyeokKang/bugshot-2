@@ -56,6 +56,7 @@ vi.mock("@/store/settings-store", () => ({
 
 vi.mock("@/store/blob-db", () => ({
   saveVideoBlob: vi.fn().mockResolvedValue(true),
+  deleteVideoBlob: vi.fn().mockResolvedValue(undefined),
   saveImageBlob: mockSaveImageBlob,
   saveNetworkLog: mockSaveNetworkLog,
   saveConsoleLog: mockSaveConsoleLog,

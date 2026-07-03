@@ -10,7 +10,7 @@ import type {
   AsanaUser,
   AsanaWorkspace,
 } from "@/types/asana";
-import { OAuthError } from "./oauth";
+import { createRefreshRunner } from "./lib/createRefreshRunner";
 
 const API_BASE = "https://app.asana.com/api/1.0";
 
@@ -87,39 +87,16 @@ async function doFetch(
   });
 }
 
-const TOKEN_REFRESH_THRESHOLD_MS = 60_000;
+const refreshRunner = createRefreshRunner<AsanaAuth>("asana");
 
-let refreshHook: ((auth: AsanaAuth) => Promise<AsanaAuth>) | null = null;
-
-export function setAsanaRefreshHook(
-  hook: ((auth: AsanaAuth) => Promise<AsanaAuth>) | null,
-): void {
-  refreshHook = hook;
-}
-
-async function ensureFresh(auth: AsanaAuth): Promise<AsanaAuth> {
-  if (auth.kind !== "oauth" || !refreshHook) return auth;
-  if (auth.expiresAt - Date.now() > TOKEN_REFRESH_THRESHOLD_MS) return auth;
-  return refreshHook(auth);
-}
+export const setAsanaRefreshHook = refreshRunner.setRefreshHook;
 
 async function authedFetch(
   auth: AsanaAuth,
   url: string,
   init: RequestInit,
 ): Promise<Response> {
-  let cur = await ensureFresh(auth);
-  let res = await doFetch(cur, url, init);
-  if (res.status === 401 && cur.kind === "oauth" && refreshHook) {
-    cur = await refreshHook(cur);
-    res = await doFetch(cur, url, init);
-    if (res.status === 401) {
-      throw new OAuthError(t("oauth.error.refreshExhausted"), {
-        platform: "asana",
-      });
-    }
-  }
-  return res;
+  return refreshRunner.runWithAuthRetry(auth, (cur) => doFetch(cur, url, init));
 }
 
 // Asana 응답은 { data: ... } 래핑 → .data 언랩.

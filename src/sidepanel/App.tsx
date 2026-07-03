@@ -46,6 +46,7 @@ import {
   deleteNetworkLog,
   deleteConsoleLog,
   deleteActionLog,
+  deleteVideoBlob,
   deleteAttachmentBlobs,
 } from "@/store/blob-db";
 
@@ -379,6 +380,7 @@ export default function App() {
               void deleteNetworkLog(`pending:${tabId}`);
               void deleteConsoleLog(`pending:${tabId}`);
               void deleteActionLog(`pending:${tabId}`);
+              void deleteVideoBlob(`pending:${tabId}`);
               void deleteAttachmentBlobs(`pending:${tabId}`);
             }}
           />

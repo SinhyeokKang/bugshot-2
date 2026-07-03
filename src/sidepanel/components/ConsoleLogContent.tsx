@@ -8,6 +8,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { distinctOriginKeys, originKey, originCounts } from "@/sidepanel/lib/logOrigin";
 import { OriginFilterBar } from "./OriginFilterBar";
 import { findActiveIndex } from "@/log-viewer/timeline";
+import { consoleLevelTextClass } from "@/lib/log-colors";
 import { formatRelativeTime, syncRowClass } from "@/sidepanel/lib/logRow";
 import { useScrollToEntry } from "@/sidepanel/lib/useScrollToEntry";
 import { InlineLink } from "./InlineLink";
@@ -50,13 +51,14 @@ function levelCodeBg(level: ConsoleLevel): string {
 }
 
 function LevelIcon({ level }: { level: ConsoleLevel }) {
-  const base = "h-4 w-4 shrink-0";
+  const color = consoleLevelTextClass(level);
+  const cls = color ? `h-4 w-4 shrink-0 ${color}` : "h-4 w-4 shrink-0";
   switch (level) {
-    case "error": return <CircleX className={`${base} text-red-600 dark:text-red-400`} />;
-    case "warn": return <TriangleAlert className={`${base} text-amber-600 dark:text-amber-400`} />;
-    case "info": return <Info className={`${base} text-blue-600 dark:text-blue-400`} />;
-    case "debug": return <Terminal className={base} />;
-    default: return <Terminal className={base} />;
+    case "error": return <CircleX className={cls} />;
+    case "warn": return <TriangleAlert className={cls} />;
+    case "info": return <Info className={cls} />;
+    case "debug": return <Terminal className={cls} />;
+    default: return <Terminal className={cls} />;
   }
 }
 

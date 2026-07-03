@@ -10,7 +10,7 @@ import type {
   GithubRepo,
   GithubUser,
 } from "@/types/github";
-import { OAuthError } from "./oauth";
+import { createRefreshRunner } from "./lib/createRefreshRunner";
 
 export class GithubError extends Error {
   constructor(
@@ -94,40 +94,16 @@ async function doFetch(
   });
 }
 
-const TOKEN_REFRESH_THRESHOLD_MS = 60_000;
+const refreshRunner = createRefreshRunner<GithubAuth>("github");
 
-let refreshHook: ((auth: GithubAuth) => Promise<GithubAuth>) | null = null;
-
-export function setGithubRefreshHook(
-  hook: ((auth: GithubAuth) => Promise<GithubAuth>) | null,
-): void {
-  refreshHook = hook;
-}
-
-async function ensureFresh(auth: GithubAuth): Promise<GithubAuth> {
-  if (auth.kind !== "oauth" || !refreshHook) return auth;
-  if (auth.expiresAt == null) return auth;
-  if (auth.expiresAt - Date.now() > TOKEN_REFRESH_THRESHOLD_MS) return auth;
-  return refreshHook(auth);
-}
+export const setGithubRefreshHook = refreshRunner.setRefreshHook;
 
 async function authedFetch(
   auth: GithubAuth,
   url: string,
   init: RequestInit,
 ): Promise<Response> {
-  let cur = await ensureFresh(auth);
-  let res = await doFetch(cur, url, init);
-  if (res.status === 401 && cur.kind === "oauth" && refreshHook) {
-    cur = await refreshHook(cur);
-    res = await doFetch(cur, url, init);
-    if (res.status === 401) {
-      throw new OAuthError(t("oauth.error.refreshExhausted"), {
-        platform: "github",
-      });
-    }
-  }
-  return res;
+  return refreshRunner.runWithAuthRetry(auth, (cur) => doFetch(cur, url, init));
 }
 
 export async function githubFetch<T = unknown>(

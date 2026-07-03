@@ -3,22 +3,18 @@ import type { LinearAuth, LinearOAuthAuth } from "@/types/linear";
 import { writeStoredLinearOAuthTokens } from "@/lib/settings-storage";
 import { getMyself, setLinearRefreshHook } from "./linear-api";
 import { OAuthError, base64url, launchOAuthWebFlow } from "./oauth";
+import {
+  OAUTH_CONFIG,
+  assertConfigured as assertOAuthConfigured,
+  isCancellation,
+} from "./oauth/config";
 
-const CLIENT_ID = (import.meta.env.VITE_LINEAR_CLIENT_ID ?? "").trim();
 const AUTHORIZE_URL = "https://linear.app/oauth/authorize";
 const TOKEN_URL = "https://api.linear.app/oauth/token";
 const SCOPES = ["read", "write", "issues:create"];
 
-export function isLinearOAuthConfigured(): boolean {
-  return !!CLIENT_ID;
-}
-
 function assertConfigured(): void {
-  if (!CLIENT_ID) {
-    throw new OAuthError(t("linear.oauth.notConfigured"), {
-      platform: "linear",
-    });
-  }
+  assertOAuthConfigured(OAUTH_CONFIG.linear);
 }
 
 function redirectUri(): string {
@@ -39,10 +35,8 @@ export async function generatePkceChallenge(): Promise<{
   return { codeVerifier, codeChallenge };
 }
 
-const LINEAR_CANCEL_ERROR_CODES = new Set(["access_denied"]);
-
 export function isLinearCancellationCode(code: string | null): boolean {
-  return !!code && LINEAR_CANCEL_ERROR_CODES.has(code);
+  return isCancellation(OAUTH_CONFIG.linear, code);
 }
 
 export interface ParsedLinearCallback {
@@ -86,7 +80,7 @@ export async function startLinearOAuth(): Promise<LinearOAuthAuth> {
   const { codeVerifier, codeChallenge } = await generatePkceChallenge();
 
   const url = new URL(AUTHORIZE_URL);
-  url.searchParams.set("client_id", CLIENT_ID);
+  url.searchParams.set("client_id", OAUTH_CONFIG.linear.clientId);
   url.searchParams.set("redirect_uri", redirectUri());
   url.searchParams.set("response_type", "code");
   url.searchParams.set("scope", SCOPES.join(","));
@@ -128,7 +122,7 @@ async function exchangeCode(
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
       grant_type: "authorization_code",
-      client_id: CLIENT_ID,
+      client_id: OAUTH_CONFIG.linear.clientId,
       redirect_uri: redirectUri(),
       code,
       code_verifier: codeVerifier,
@@ -161,7 +155,7 @@ export async function refreshLinearToken(
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
       grant_type: "refresh_token",
-      client_id: CLIENT_ID,
+      client_id: OAUTH_CONFIG.linear.clientId,
       refresh_token: auth.refreshToken,
     }),
   });

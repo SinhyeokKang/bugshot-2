@@ -2,33 +2,24 @@ import { t } from "@/i18n";
 import type { NotionOAuthAuth } from "@/types/notion";
 import { getMyself } from "./notion-api";
 import { OAuthError, launchOAuthWebFlow } from "./oauth";
+import {
+  OAUTH_CONFIG,
+  assertConfigured as assertOAuthConfigured,
+  isCancellation,
+} from "./oauth/config";
 
-const CLIENT_ID = (import.meta.env.VITE_NOTION_CLIENT_ID ?? "").trim();
-const PROXY_URL = ((import.meta.env.VITE_OAUTH_PROXY_URL ?? "") as string)
-  .trim()
-  .replace(/\/+$/, "");
 const AUTHORIZE_URL = "https://api.notion.com/v1/oauth/authorize";
 
-export function isNotionOAuthConfigured(): boolean {
-  return !!CLIENT_ID && !!PROXY_URL;
-}
-
 function assertConfigured(): void {
-  if (!CLIENT_ID || !PROXY_URL) {
-    throw new OAuthError(t("notion.oauth.notConfigured"), {
-      platform: "notion",
-    });
-  }
+  assertOAuthConfigured(OAUTH_CONFIG.notion);
 }
 
 function redirectUri(): string {
   return chrome.identity.getRedirectURL();
 }
 
-const NOTION_CANCEL_ERROR_CODES = new Set(["access_denied", "user_denied"]);
-
 export function isNotionCancellationCode(code: string | null): boolean {
-  return !!code && NOTION_CANCEL_ERROR_CODES.has(code);
+  return isCancellation(OAUTH_CONFIG.notion, code);
 }
 
 export interface ParsedNotionCallback {
@@ -79,13 +70,13 @@ interface NotionTokenResponse {
 }
 
 async function exchangeCode(code: string): Promise<NotionTokenResponse> {
-  const res = await fetch(`${PROXY_URL}/notion/token`, {
+  const res = await fetch(`${OAUTH_CONFIG.notion.proxyUrl}/notion/token`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       code,
       redirect_uri: redirectUri(),
-      client_id: CLIENT_ID,
+      client_id: OAUTH_CONFIG.notion.clientId,
     }),
   });
   if (!res.ok) {
@@ -103,7 +94,7 @@ export async function startNotionOAuth(): Promise<NotionOAuthAuth> {
   const state = crypto.randomUUID();
   const url = new URL(AUTHORIZE_URL);
   url.searchParams.set("owner", "user");
-  url.searchParams.set("client_id", CLIENT_ID);
+  url.searchParams.set("client_id", OAUTH_CONFIG.notion.clientId);
   url.searchParams.set("redirect_uri", redirectUri());
   url.searchParams.set("response_type", "code");
   url.searchParams.set("state", state);

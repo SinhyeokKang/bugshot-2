@@ -2,7 +2,7 @@ import { create } from "zustand";
 import { persist, createJSONStorage } from "zustand/middleware";
 import type { StateStorage } from "zustand/middleware";
 import type { TranslationKey } from "@/i18n/ko";
-import type { RecordingSource } from "@/store/editor-store";
+import type { RecordingSource } from "./editor-store";
 import { obfuscateApiKey, deobfuscateApiKey } from "@/lib/key-obfuscation";
 import { chromeLocalStorage } from "./chrome-storage";
 

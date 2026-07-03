@@ -3,34 +3,30 @@ import type { AsanaAuth, AsanaOAuthAuth } from "@/types/asana";
 import { writeStoredAsanaOAuthTokens } from "@/lib/settings-storage";
 import { getMyself, setAsanaRefreshHook } from "./asana-api";
 import { OAuthError, launchOAuthWebFlow } from "./oauth";
+import {
+  OAUTH_CONFIG,
+  isConfigured as isOAuthPlatformConfigured,
+  assertConfigured as assertOAuthConfigured,
+  isCancellation,
+} from "./oauth/config";
 
-const CLIENT_ID = (import.meta.env.VITE_ASANA_CLIENT_ID ?? "").trim();
-const PROXY_URL = ((import.meta.env.VITE_OAUTH_PROXY_URL ?? "") as string)
-  .trim()
-  .replace(/\/+$/, "");
 const AUTHORIZE_URL = "https://app.asana.com/-/oauth_authorize";
 const SCOPES = ["default"];
 
 export function isAsanaOAuthConfigured(): boolean {
-  const clientId = (import.meta.env.VITE_ASANA_CLIENT_ID ?? "").trim();
-  const proxyUrl = (import.meta.env.VITE_OAUTH_PROXY_URL ?? "").trim();
-  return !!clientId && !!proxyUrl;
+  return isOAuthPlatformConfigured(OAUTH_CONFIG.asana);
 }
 
 function assertConfigured(): void {
-  if (!CLIENT_ID || !PROXY_URL) {
-    throw new OAuthError(t("asana.oauth.notConfigured"), { platform: "asana" });
-  }
+  assertOAuthConfigured(OAUTH_CONFIG.asana);
 }
 
 function redirectUri(): string {
   return chrome.identity.getRedirectURL();
 }
 
-const ASANA_CANCEL_ERROR_CODES = new Set(["access_denied"]);
-
 export function isAsanaCancellationCode(code: string | null): boolean {
-  return !!code && ASANA_CANCEL_ERROR_CODES.has(code);
+  return isCancellation(OAUTH_CONFIG.asana, code);
 }
 
 export interface ParsedAsanaCallback {
@@ -72,7 +68,7 @@ export async function startAsanaOAuth(): Promise<AsanaOAuthAuth> {
   const state = crypto.randomUUID();
 
   const url = new URL(AUTHORIZE_URL);
-  url.searchParams.set("client_id", CLIENT_ID);
+  url.searchParams.set("client_id", OAUTH_CONFIG.asana.clientId);
   url.searchParams.set("redirect_uri", redirectUri());
   url.searchParams.set("response_type", "code");
   url.searchParams.set("scope", SCOPES.join(" "));
@@ -103,13 +99,13 @@ export async function startAsanaOAuth(): Promise<AsanaOAuthAuth> {
 }
 
 async function exchangeCode(code: string): Promise<AsanaTokenResponse> {
-  const res = await fetch(`${PROXY_URL}/asana/token`, {
+  const res = await fetch(`${OAUTH_CONFIG.asana.proxyUrl}/asana/token`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       code,
       redirect_uri: redirectUri(),
-      client_id: CLIENT_ID,
+      client_id: OAUTH_CONFIG.asana.clientId,
     }),
   });
   if (!res.ok) {
@@ -134,12 +130,12 @@ async function exchangeCode(code: string): Promise<AsanaTokenResponse> {
 export async function refreshAsanaToken(auth: AsanaAuth): Promise<AsanaAuth> {
   if (auth.kind !== "oauth") return auth;
   assertConfigured();
-  const res = await fetch(`${PROXY_URL}/asana/refresh`, {
+  const res = await fetch(`${OAUTH_CONFIG.asana.proxyUrl}/asana/refresh`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       refresh_token: auth.refreshToken,
-      client_id: CLIENT_ID,
+      client_id: OAUTH_CONFIG.asana.clientId,
     }),
   });
   if (!res.ok) {

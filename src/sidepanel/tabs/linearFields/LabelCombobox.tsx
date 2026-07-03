@@ -18,6 +18,7 @@ import {
 import { cn } from "@/lib/utils";
 import type { LinearLabel } from "@/types/linear";
 import { sendBg } from "@/types/messages";
+import { ColorSwatch } from "@/sidepanel/components/ColorSwatch";
 
 interface Props {
   teamId: string | undefined;
@@ -100,10 +101,7 @@ export function LabelCombobox({ teamId, value, valueName, onChange }: Props) {
                         }}
                       >
                         <Check className={cn("mr-2 h-4 w-4", sel ? "opacity-100" : "opacity-0")} />
-                        <span
-                          className="mr-2 h-3 w-3 shrink-0 rounded-full"
-                          style={{ backgroundColor: l.color }}
-                        />
+                        <ColorSwatch shape="round" color={l.color} className="mr-2" />
                         <span className="truncate">{l.name}</span>
                       </CommandItem>
                     );

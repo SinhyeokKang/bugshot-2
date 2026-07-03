@@ -1,5 +1,20 @@
 import { describe, expect, it } from "vitest";
-import { formatRelativeTime, syncRowClass } from "../logRow";
+import { formatMmSs, formatRelativeTime, syncRowClass } from "../logRow";
+
+describe("formatMmSs", () => {
+  it("초를 M:SS로 (분·초 분리, 초 2자리 pad)", () => {
+    expect(formatMmSs(0)).toBe("0:00");
+    expect(formatMmSs(5)).toBe("0:05");
+    expect(formatMmSs(65)).toBe("1:05");
+    expect(formatMmSs(3600)).toBe("60:00");
+  });
+  it("소수는 floor", () => {
+    expect(formatMmSs(65.9)).toBe("1:05");
+  });
+  it("음수는 0:00으로 clamp", () => {
+    expect(formatMmSs(-3)).toBe("0:00");
+  });
+});
 
 describe("formatRelativeTime", () => {
   it("base 대비 초를 M:SS로", () => {

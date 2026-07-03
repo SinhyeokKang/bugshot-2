@@ -18,6 +18,7 @@ import {
 import { cn } from "@/lib/utils";
 import type { GithubLabel } from "@/types/github";
 import { sendBg } from "@/types/messages";
+import { ColorSwatch } from "@/sidepanel/components/ColorSwatch";
 
 interface Props {
   owner: string | undefined;
@@ -123,10 +124,7 @@ export function LabelCombobox({ owner, repo, value, onChange }: Props) {
                             isSelected ? "opacity-100" : "opacity-0",
                           )}
                         />
-                        <span
-                          className="mr-2 inline-block h-3 w-3 shrink-0 rounded-full border border-border"
-                          style={{ backgroundColor: `#${l.color}` }}
-                        />
+                        <ColorSwatch shape="round" color={l.color} className="mr-2" />
                         <span className="truncate">{l.name}</span>
                       </CommandItem>
                     );

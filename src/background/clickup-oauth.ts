@@ -2,33 +2,29 @@ import { t } from "@/i18n";
 import type { ClickupOAuthAuth } from "@/types/clickup";
 import { getMyself } from "./clickup-api";
 import { OAuthError, launchOAuthWebFlow } from "./oauth";
+import {
+  OAUTH_CONFIG,
+  isConfigured as isOAuthPlatformConfigured,
+  assertConfigured as assertOAuthConfigured,
+  isCancellation,
+} from "./oauth/config";
 
-const CLIENT_ID = (import.meta.env.VITE_CLICKUP_CLIENT_ID ?? "").trim();
-const PROXY_URL = ((import.meta.env.VITE_OAUTH_PROXY_URL ?? "") as string)
-  .trim()
-  .replace(/\/+$/, "");
 const AUTHORIZE_URL = "https://app.clickup.com/api";
 
 export function isClickupOAuthConfigured(): boolean {
-  const clientId = (import.meta.env.VITE_CLICKUP_CLIENT_ID ?? "").trim();
-  const proxyUrl = (import.meta.env.VITE_OAUTH_PROXY_URL ?? "").trim();
-  return !!clientId && !!proxyUrl;
+  return isOAuthPlatformConfigured(OAUTH_CONFIG.clickup);
 }
 
 function assertConfigured(): void {
-  if (!CLIENT_ID || !PROXY_URL) {
-    throw new OAuthError(t("clickup.oauth.notConfigured"), { platform: "clickup" });
-  }
+  assertOAuthConfigured(OAUTH_CONFIG.clickup);
 }
 
 function redirectUri(): string {
   return chrome.identity.getRedirectURL();
 }
 
-const CLICKUP_CANCEL_ERROR_CODES = new Set(["access_denied"]);
-
 export function isClickupCancellationCode(code: string | null): boolean {
-  return !!code && CLICKUP_CANCEL_ERROR_CODES.has(code);
+  return isCancellation(OAUTH_CONFIG.clickup, code);
 }
 
 export interface ParsedClickupCallback {
@@ -67,7 +63,7 @@ export async function startClickupOAuth(): Promise<ClickupOAuthAuth> {
   const state = crypto.randomUUID();
 
   const url = new URL(AUTHORIZE_URL);
-  url.searchParams.set("client_id", CLIENT_ID);
+  url.searchParams.set("client_id", OAUTH_CONFIG.clickup.clientId);
   url.searchParams.set("redirect_uri", redirectUri());
   url.searchParams.set("state", state);
 
@@ -94,13 +90,13 @@ export async function startClickupOAuth(): Promise<ClickupOAuthAuth> {
 }
 
 async function exchangeCode(code: string): Promise<ClickupTokenResponse> {
-  const res = await fetch(`${PROXY_URL}/clickup/token`, {
+  const res = await fetch(`${OAUTH_CONFIG.clickup.proxyUrl}/clickup/token`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       code,
       redirect_uri: redirectUri(),
-      client_id: CLIENT_ID,
+      client_id: OAUTH_CONFIG.clickup.clientId,
     }),
   });
   if (!res.ok) {

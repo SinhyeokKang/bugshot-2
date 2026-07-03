@@ -2,11 +2,15 @@ import { t } from "@/i18n";
 import type { JiraOAuthAuth, JiraSite } from "@/types/jira";
 import type { PlatformId } from "@/types/platform";
 import { writeStoredOAuthTokens } from "@/lib/settings-storage";
+import {
+  OAUTH_CONFIG,
+  assertConfigured as assertOAuthConfigured,
+  isCancellation,
+} from "./oauth/config";
+import { OAuthError } from "./oauth/errors";
 
-const CLIENT_ID = (import.meta.env.VITE_ATLASSIAN_CLIENT_ID ?? "").trim();
-const PROXY_URL = (import.meta.env.VITE_OAUTH_PROXY_URL ?? "")
-  .trim()
-  .replace(/\/+$/, "");
+export { OAuthError, type OAuthErrorOptions } from "./oauth/errors";
+
 const AUTHORIZE_URL = "https://auth.atlassian.com/authorize";
 const RESOURCES_URL =
   "https://api.atlassian.com/oauth/token/accessible-resources";
@@ -16,22 +20,6 @@ const SCOPES = [
   "write:jira-work",
   "offline_access",
 ];
-
-export interface OAuthErrorOptions {
-  platform?: PlatformId;
-  cancelled?: boolean;
-}
-
-export class OAuthError extends Error {
-  cancelled: boolean;
-  platform?: PlatformId;
-  constructor(message: string, options: OAuthErrorOptions = {}) {
-    super(message);
-    this.name = "OAuthError";
-    this.cancelled = options.cancelled ?? false;
-    this.platform = options.platform;
-  }
-}
 
 // BgError body로 직렬화하는 단일 출처. messages.ts의 isOAuthCancelled /
 // isOAuthRefreshFailed / getOAuthErrorPlatform 판독부와 짝을 이룬다(드리프트 방지).
@@ -68,27 +56,16 @@ export async function launchOAuthWebFlow(
   }
 }
 
-const ATLASSIAN_CANCEL_ERROR_CODES = new Set([
-  "access_denied",
-  "user_cancelled_login",
-  "user_cancelled_authorize",
-]);
-
 export function isAtlassianCancellationCode(code: string | null): boolean {
-  return !!code && ATLASSIAN_CANCEL_ERROR_CODES.has(code);
+  return isCancellation(OAUTH_CONFIG.jira, code);
 }
 
 function proxyTokenUrl(): string {
-  return `${PROXY_URL}/token`;
+  return `${OAUTH_CONFIG.jira.proxyUrl}/token`;
 }
 
 function assertConfigured(): void {
-  if (!CLIENT_ID) {
-    throw new OAuthError(t("oauth.error.notConfiguredClient"), { platform: "jira" });
-  }
-  if (!PROXY_URL) {
-    throw new OAuthError(t("oauth.error.notConfiguredProxy"), { platform: "jira" });
-  }
+  assertOAuthConfigured(OAUTH_CONFIG.jira);
 }
 
 function redirectUri(): string {
@@ -113,7 +90,7 @@ export async function startOAuthFlow(): Promise<OAuthStartResult> {
   const state = crypto.randomUUID();
   const url = new URL(AUTHORIZE_URL);
   url.searchParams.set("audience", "api.atlassian.com");
-  url.searchParams.set("client_id", CLIENT_ID);
+  url.searchParams.set("client_id", OAUTH_CONFIG.jira.clientId);
   url.searchParams.set("scope", SCOPES.join(" "));
   url.searchParams.set("redirect_uri", redirectUri());
   url.searchParams.set("state", state);
@@ -235,8 +212,4 @@ export async function persistOAuthTokens(auth: JiraOAuthAuth): Promise<void> {
       platform: "jira",
     });
   }
-}
-
-export function isOAuthConfigured(): boolean {
-  return !!CLIENT_ID && !!PROXY_URL;
 }

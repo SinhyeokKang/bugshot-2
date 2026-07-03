@@ -2,35 +2,31 @@ import { t } from "@/i18n";
 import type { SlackOAuthAuth, SlackOAuthResult } from "@/types/slack";
 import { getMyself } from "./slack-api";
 import { OAuthError, launchOAuthWebFlow } from "./oauth";
+import {
+  OAUTH_CONFIG,
+  isConfigured as isOAuthPlatformConfigured,
+  assertConfigured as assertOAuthConfigured,
+  isCancellation,
+} from "./oauth/config";
 
-const CLIENT_ID = (import.meta.env.VITE_SLACK_CLIENT_ID ?? "").trim();
-const PROXY_URL = ((import.meta.env.VITE_OAUTH_PROXY_URL ?? "") as string)
-  .trim()
-  .replace(/\/+$/, "");
 const AUTHORIZE_URL = "https://slack.com/oauth/v2/authorize";
 const USER_SCOPES =
   "chat:write,channels:read,groups:read,im:read,mpim:read,files:write,users:read";
 
 export function isSlackOAuthConfigured(): boolean {
-  const clientId = (import.meta.env.VITE_SLACK_CLIENT_ID ?? "").trim();
-  const proxyUrl = (import.meta.env.VITE_OAUTH_PROXY_URL ?? "").trim();
-  return !!clientId && !!proxyUrl;
+  return isOAuthPlatformConfigured(OAUTH_CONFIG.slack);
 }
 
 function assertConfigured(): void {
-  if (!CLIENT_ID || !PROXY_URL) {
-    throw new OAuthError(t("slack.oauth.notConfigured"), { platform: "slack" });
-  }
+  assertOAuthConfigured(OAUTH_CONFIG.slack);
 }
 
 function redirectUri(): string {
   return chrome.identity.getRedirectURL();
 }
 
-const SLACK_CANCEL_ERROR_CODES = new Set(["access_denied"]);
-
 export function isSlackCancellationCode(code: string | null): boolean {
-  return !!code && SLACK_CANCEL_ERROR_CODES.has(code);
+  return isCancellation(OAUTH_CONFIG.slack, code);
 }
 
 export interface ParsedSlackCallback {
@@ -72,7 +68,7 @@ export async function startSlackOAuth(): Promise<SlackOAuthResult> {
   const state = crypto.randomUUID();
 
   const url = new URL(AUTHORIZE_URL);
-  url.searchParams.set("client_id", CLIENT_ID);
+  url.searchParams.set("client_id", OAUTH_CONFIG.slack.clientId);
   url.searchParams.set("user_scope", USER_SCOPES);
   url.searchParams.set("redirect_uri", redirectUri());
   url.searchParams.set("state", state);
@@ -111,10 +107,14 @@ export async function startSlackOAuth(): Promise<SlackOAuthResult> {
 }
 
 async function exchangeCode(code: string): Promise<SlackTokenResponse> {
-  const res = await fetch(`${PROXY_URL}/slack/token`, {
+  const res = await fetch(`${OAUTH_CONFIG.slack.proxyUrl}/slack/token`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ code, redirect_uri: redirectUri(), client_id: CLIENT_ID }),
+    body: JSON.stringify({
+      code,
+      redirect_uri: redirectUri(),
+      client_id: OAUTH_CONFIG.slack.clientId,
+    }),
   });
   if (!res.ok) {
     const text = await res.text().catch(() => "");

@@ -3,28 +3,21 @@ import type { GithubAuth, GithubOAuthAuth } from "@/types/github";
 import { writeStoredGithubOAuthTokens } from "@/lib/settings-storage";
 import { getMyself, setGithubRefreshHook } from "./github-api";
 import { OAuthError, launchOAuthWebFlow } from "./oauth";
+import {
+  OAUTH_CONFIG,
+  isConfigured as isOAuthPlatformConfigured,
+  assertConfigured as assertOAuthConfigured,
+  isCancellation,
+} from "./oauth/config";
 
-const CLIENT_ID = (import.meta.env.VITE_GITHUB_CLIENT_ID ?? "").trim();
-const PROXY_URL = (import.meta.env.VITE_OAUTH_PROXY_URL ?? "")
-  .trim()
-  .replace(/\/+$/, "");
 const AUTHORIZE_URL = "https://github.com/login/oauth/authorize";
 const SCOPES = ["repo", "user:email"];
 export function isGithubOAuthConfigured(): boolean {
-  return !!CLIENT_ID && !!PROXY_URL;
+  return isOAuthPlatformConfigured(OAUTH_CONFIG.github);
 }
 
 function assertConfigured(): void {
-  if (!CLIENT_ID) {
-    throw new OAuthError(t("oauth.error.github.notConfiguredClient"), {
-      platform: "github",
-    });
-  }
-  if (!PROXY_URL) {
-    throw new OAuthError(t("oauth.error.notConfiguredProxy"), {
-      platform: "github",
-    });
-  }
+  assertOAuthConfigured(OAUTH_CONFIG.github);
 }
 
 function redirectUri(): string {
@@ -32,11 +25,11 @@ function redirectUri(): string {
 }
 
 function proxyTokenUrl(): string {
-  return `${PROXY_URL}/github/token`;
+  return `${OAUTH_CONFIG.github.proxyUrl}/github/token`;
 }
 
 function proxyRefreshUrl(): string {
-  return `${PROXY_URL}/github/refresh`;
+  return `${OAUTH_CONFIG.github.proxyUrl}/github/refresh`;
 }
 
 interface GithubTokenResponse {
@@ -51,12 +44,8 @@ export interface ParsedCallback {
   code: string;
 }
 
-const GITHUB_CANCEL_ERROR_CODES = new Set([
-  "access_denied",
-]);
-
 export function isGithubCancellationCode(code: string | null): boolean {
-  return !!code && GITHUB_CANCEL_ERROR_CODES.has(code);
+  return isCancellation(OAUTH_CONFIG.github, code);
 }
 
 export function parseCallbackParams(
@@ -86,7 +75,7 @@ export async function startGithubOAuth(): Promise<GithubOAuthAuth> {
   assertConfigured();
   const state = crypto.randomUUID();
   const url = new URL(AUTHORIZE_URL);
-  url.searchParams.set("client_id", CLIENT_ID);
+  url.searchParams.set("client_id", OAUTH_CONFIG.github.clientId);
   url.searchParams.set("redirect_uri", redirectUri());
   url.searchParams.set("scope", SCOPES.join(" "));
   url.searchParams.set("state", state);
@@ -125,7 +114,7 @@ async function exchangeCodeForTokens(code: string): Promise<GithubTokenResponse>
     body: JSON.stringify({
       code,
       redirect_uri: redirectUri(),
-      client_id: CLIENT_ID,
+      client_id: OAUTH_CONFIG.github.clientId,
     }),
   });
   if (!res.ok) {
@@ -166,7 +155,7 @@ export async function refreshGithubToken(
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
       refresh_token: auth.refreshToken,
-      client_id: CLIENT_ID,
+      client_id: OAUTH_CONFIG.github.clientId,
     }),
   });
   if (!res.ok) {

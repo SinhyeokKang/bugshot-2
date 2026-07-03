@@ -10,7 +10,8 @@ vi.mock("../resolveInlineImages", () => ({
   replaceInlineRefs: (s: string) => s,
 }));
 
-import { submitToGithub, someUploadMissing } from "../submitToGithub";
+import { someUploadMissing } from "../prepareUpload";
+import { submitToGithub } from "../submitToGithub";
 import type { MarkdownContext } from "../buildIssueMarkdown";
 
 function makeCtx(): MarkdownContext {

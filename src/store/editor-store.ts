@@ -7,9 +7,9 @@ import type { PlatformId } from "@/types/platform";
 import type { EnvironmentRow } from "@/types/environment";
 import type { UserAttachmentMeta } from "@/types/attachment";
 import { onBlobSaveFailed } from "@/types/messages";
-import { useIssuesStore } from "@/store/issues-store";
-import { useSettingsStore } from "@/store/settings-store";
-import { saveVideoBlob, saveImageBlob, saveNetworkLog, deleteNetworkLog, saveConsoleLog, deleteConsoleLog, saveActionLog, deleteActionLog, dataUrlToBlob, saveAttachmentBlob, deleteAttachmentBlob, deleteAttachmentBlobs, rekeyAttachmentBlobs } from "@/store/blob-db";
+import { useIssuesStore } from "./issues-store";
+import { useSettingsStore } from "./settings-store";
+import { saveVideoBlob, deleteVideoBlob, saveImageBlob, saveNetworkLog, deleteNetworkLog, saveConsoleLog, deleteConsoleLog, saveActionLog, deleteActionLog, dataUrlToBlob, saveAttachmentBlob, deleteAttachmentBlob, deleteAttachmentBlobs, rekeyAttachmentBlobs } from "./blob-db";
 import { takeWithinLimits, type TakeWithinLimitsResult } from "@/sidepanel/lib/attachmentLimits";
 import { clearNetworkRecorder, clearConsoleRecorder, clearActionRecorder } from "@/sidepanel/recorder-control";
 
@@ -502,9 +502,18 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       shotSelector: shot,
     }),
   startRecording: (target, source) => set({ ...initial, captureMode: "video", recordingSource: source, phase: "recording", target }),
-  onRecordingComplete: (blob, thumbnail, viewport, startedAt, endedAt) => set({ captureMode: "video", phase: "drafting", videoBlob: blob, videoThumbnail: thumbnail, videoViewport: viewport, videoCapturedAt: Date.now(), videoStartedAt: startedAt, videoEndedAt: endedAt, videoTrimmed: false, networkLogAttach: true, consoleLogAttach: true, actionLogAttach: true }),
+  onRecordingComplete: (blob, thumbnail, viewport, startedAt, endedAt) => {
+    set({ captureMode: "video", phase: "drafting", videoBlob: blob, videoThumbnail: thumbnail, videoViewport: viewport, videoCapturedAt: Date.now(), videoStartedAt: startedAt, videoEndedAt: endedAt, videoTrimmed: false, networkLogAttach: true, consoleLogAttach: true, actionLogAttach: true });
+    // drafting 중 패널을 닫아도 영상이 살아남도록 로그와 동일하게 pending:${tabId}에 미러링(hydrate가 복원).
+    const tabId = get().target?.tabId;
+    if (tabId != null) void saveVideoBlob(`pending:${tabId}`, blob);
+  },
   // trim 확정 시 영상 메타만 교체 — phase·attach·target·videoCapturedAt(원본 캡처 시각)은 불변.
-  replaceVideo: (blob, thumbnail, startedAt, endedAt) => set({ videoBlob: blob, videoThumbnail: thumbnail, videoStartedAt: startedAt, videoEndedAt: endedAt, videoTrimmed: true }),
+  replaceVideo: (blob, thumbnail, startedAt, endedAt) => {
+    set({ videoBlob: blob, videoThumbnail: thumbnail, videoStartedAt: startedAt, videoEndedAt: endedAt, videoTrimmed: true });
+    const tabId = get().target?.tabId;
+    if (tabId != null) void saveVideoBlob(`pending:${tabId}`, blob);
+  },
   cancelRecording: () => set((state) => ({ ...initial, ...preserveLogs(state) })),
   // screenshot도 freeform/video와 동일하게 진입 시 첨부 토글 자동 on (startCapturing·startElementShot). preserveLogs는 로그 데이터 보존용이고 attach는 덮어쓴다.
   onAreaCaptured: (dataUrl, viewport) => set({ phase: "drafting", screenshotRaw: dataUrl, screenshotViewport: viewport, screenshotCapturedAt: Date.now() }),
@@ -717,6 +726,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
             useIssuesStore.getState().patchIssue(id, { captureMode: undefined });
             failed = true;
           }
+          deleteVideoBlob(`pending:${targetTabId}`).catch(() => {});
         }
         if (state.videoThumbnail) {
           if (!await saveImageBlob(id, "before", dataUrlToBlob(state.videoThumbnail))) {

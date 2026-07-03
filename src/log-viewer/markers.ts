@@ -2,6 +2,8 @@ import type { LogViewerData } from "@/types/log-viewer";
 import type { ActionNode } from "@/types/action";
 import { toVideoSeconds } from "./timeline";
 import { t } from "./i18n";
+import { TONE_TEXT, consoleLevelTextClass, networkMethodTextClass } from "@/lib/log-colors";
+import { splitTemplate } from "@/sidepanel/lib/actionInline";
 
 export type MarkerType = "console" | "network" | "action";
 export type MarkerVariant = "error" | "warn" | "info" | "pending" | "navigate" | "default";
@@ -47,10 +49,6 @@ export function buildMarkers(
     const LEVEL_VARIANT: Record<string, MarkerVariant> = {
       error: "error", warn: "warn", info: "info",
     };
-    const LEVEL_COLOR: Record<string, string> = {
-      error: "text-red-600", warn: "text-amber-600",
-      info: "text-blue-600", debug: "text-gray-500", log: "text-gray-500",
-    };
     return log.entries.map((e) => {
       const tag = e.level.toUpperCase();
       return {
@@ -61,7 +59,7 @@ export function buildMarkers(
         positionPct: pct(e.timestamp, videoStartedAt, videoDurationSec),
         label: `[${tag}] ${e.args}`,
         labelParts: [
-          { text: tag, className: LEVEL_COLOR[e.level] ?? "text-gray-500" },
+          { text: tag, className: consoleLevelTextClass(e.level) },
           { text: "\n" },
           { text: e.args },
         ],
@@ -72,10 +70,6 @@ export function buildMarkers(
   if (activeTab === "network") {
     const log = data.networkLog;
     if (!log) return [];
-    const METHOD_COLOR: Record<string, string> = {
-      GET: "text-blue-600", POST: "text-green-600", PUT: "text-amber-600",
-      PATCH: "text-amber-600", DELETE: "text-red-600",
-    };
     return log.requests
       .filter((r) => r.phase === "error" || r.phase === "pending" || r.status >= 400)
       .map((r) => {
@@ -91,9 +85,9 @@ export function buildMarkers(
           positionPct: pct(r.startTime, videoStartedAt, videoDurationSec),
           label: `${prefix} ${r.method} ${r.url}`,
           labelParts: [
-            { text: isPending ? pendingLabel : String(r.status), className: isPending ? "text-amber-600" : "text-red-600" },
+            { text: isPending ? pendingLabel : String(r.status), className: isPending ? TONE_TEXT.amber : TONE_TEXT.red },
             { text: "\n" },
-            { text: r.method, className: METHOD_COLOR[r.method] ?? "text-violet-600" },
+            { text: r.method, className: networkMethodTextClass(r.method) },
             { text: "\n" },
             { text: r.url },
           ],
@@ -120,8 +114,14 @@ export function buildMarkers(
       }
       case "navigation": {
         variant = "navigate";
-        label = t("actionLog.verb.navigate", { target: e.toUrl ?? "" });
-        labelParts = [{ text: label, className: "text-blue-600" }];
+        const url = e.toUrl ?? "";
+        label = t("actionLog.verb.navigate", { target: url });
+        // 탭(ActionLogContent)과 동일 패턴: verb 텍스트는 기본색, URL(target 슬롯)만 파랑.
+        labelParts = splitTemplate(t("actionLog.verb.navigate")).map((tok) =>
+          tok.type === "slot"
+            ? { text: url, className: TONE_TEXT.blue }
+            : { text: tok.value },
+        );
         break;
       }
       case "input": {

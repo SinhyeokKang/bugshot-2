@@ -16,6 +16,7 @@ import {
 import { useT } from "@/i18n";
 import { cn } from "@/lib/utils";
 import { recordModeMeta } from "@/sidepanel/lib/recordModeMeta";
+import { formatMmSs } from "@/sidepanel/lib/logRow";
 import { useTabNav } from "@/sidepanel/tab-nav";
 import {
   AlertDialog,
@@ -333,8 +334,7 @@ function RecordingState({ onStop, onCancel }: { onStop: () => void; onCancel: ()
     return () => window.clearInterval(id);
   }, []);
 
-  const fmt = (s: number) => `${Math.floor(s / 60)}:${(s % 60).toString().padStart(2, "0")}`;
-  const timeStr = `${fmt(elapsed)} / ${fmt(maxDuration)}`;
+  const timeStr = `${formatMmSs(elapsed)} / ${formatMmSs(maxDuration)}`;
   const progress = Math.min(elapsed / maxDuration, 1);
 
   return (
