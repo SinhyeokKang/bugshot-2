@@ -21,6 +21,24 @@
 
 ---
 
+## 2026-07-03 — GitHub Pages 배포가 몇 시간째 실패 (build job은 성공, deploy job만 실패 = GitHub 백엔드 stuck, 코드 무관)
+
+- **증상**: `/deploy`(tag push + #125 main 머지) 후 privacy.md 공개용 GitHub Pages가 `Deployment failed, try again later`로 **몇 시간 반복 실패**. 워크플로우 재실행·강제 빌드해도 계속 빨강.
+- **근본 원인**: 우리 코드/docs 무관. `pages-build-deployment` 워크플로우에서 **build job은 매번 success(Jekyll 빌드·아티팩트 정상 생성)**, `actions/deploy-pages`의 **deploy job만** "Getting Pages deployment status…"에서 즉시 실패. 배포 자체는 생성되는데(`Created deployment`) 상태 조회에서 서버가 실패 반환 → **GitHub Pages 배포 백엔드가 이 repo에 대해 stuck**. 전역 status는 green, github-pages 환경 branch policy(main)도 허용, docs Jekyll도 통과 — 전부 정상인데 배포 파이프라인만 잠김. "빌드 실패"로 보이지만 실제론 빌드 성공 후 배포단 단독 실패라 원인 레이어가 표면과 다르다.
+- **재발 방지**: (1) **진단은 build job vs deploy job 분리부터**: `gh run view <id> --json jobs --jq '.jobs[]|"\(.name):\(.conclusion)"'`. **build=success & deploy=failure면 GitHub 백엔드 문제(코드 아님)** — `docs/` 콘텐츠 뒤지느라 시간 낭비 말 것. 우리 콘텐츠 문제는 build 단계 실패여야 성립. (2) **긴급도 체크**: 새 배포가 실패해도 **직전 성공본은 계속 서빙**된다. `curl -sS -o /dev/null -w "%{http_code}\n" https://sinhyeokkang.github.io/bugshot-2/privacy.html`가 200이면 사이트 살아있음 → 안 올라간 건 최신 편집분뿐이라 급하지 않음. (3) **효과 없던 조치**(백엔드 stuck엔 무력): 워크플로우 재실행, `gh api -X POST .../pages/builds`(강제 빌드), `gh api -X PUT .../pages`(source 재저장). (4) **먹힌 조치 = Pages 완전 삭제 후 재생성**: `gh api -X DELETE repos/<o>/<r>/pages` → `gh api -X POST repos/<o>/<r>/pages -f 'source[branch]=main' -f 'source[path]=/docs'`. 파이프라인을 통째 teardown/rebuild해 stuck 해소(이번에 deploy job success로 복구). 단 재생성 사이 **잠깐 404 위험** — privacy는 스토어 심사 제출 URL이라, 200으로 서빙 중이면 급하지 않은 한 강행 전 재고.
+- **관련**: 인프라(코드 파일 없음) — GitHub Pages 설정(source `main` `/docs`, build_type `legacy` Jekyll), `docs/` 콘텐츠, `/deploy` 스킬의 Pages 배포 단계.
+
+---
+
+## 2026-07-03 — 로그 색이 탭/다이얼로그와 마커 툴팁에서 발산 (같은 로그를 두 독립 렌더 경로가 그림 — 값+패턴 둘 다 어긋남)
+
+- **증상**: 로그뷰어 타임라인 마커에 hover하면 뜨는 툴팁의 문구 색이 좌/하단 로그 탭·다이얼로그와 미묘하게 달랐다. (1) **다크모드에서** 툴팁의 레벨/메서드 색이 탭보다 어두웠다(탭은 밝은 `-400`, 툴팁은 `-600` 고정). (2) action **navigation**은 탭이 URL만 파랑인데 툴팁은 **문장 전체가 파랑**이었다.
+- **근본 원인**: "같은 로그"를 **완전히 분리된 두 렌더 경로**가 그린다 — 사이드패널 `{Console,Network,Action}LogContent.tsx`(React, 아이콘·`InlineLink`·`renderVerb`)와 로그뷰어 `markers.ts`(plain `labelParts`의 text+className, 별도 Vite 빌드). 공유 색 소스가 없어 두 축이 독립적으로 어긋났다. **값 축**: 탭은 `text-*-600 dark:text-*-400` 쌍, 툴팁은 `dark:` 없이 `-600`만 → 다크에서 발산. **패턴 축**(어느 토큰을 칠하나): 탭은 `renderVerb`+`splitTemplate`로 `{target}` 슬롯(URL)만 `InlineLink` 처리, 툴팁은 `label` 문장 전체에 `text-blue-600`를 통짜로 입힘 → navigation 과채색. 값만 통일하면 패턴은 여전히 어긋나는 **2층 구조**가 함정.
+- **재발 방지**: (1) **로그 텍스트 색은 두 표면을 항상 함께 고친다** — `src/sidepanel/components/{Console,Network,Action}LogContent.tsx`와 `src/log-viewer/markers.ts`. 한쪽만 바꾸면 발산. markers는 별도 빌드라 잊기 쉬운 게 이 함정의 뿌리. (2) **값은 반드시 `src/lib/log-colors.ts` 경유**(`TONE_TEXT`/`consoleLevelTextClass`/`networkMethodTextClass`). `grep -rnE "text-(red|amber|blue|green)-600" src/sidepanel/components/*LogContent.tsx src/log-viewer/markers.ts`로 우회 인라인 색을 잡는다 — 로그 표면의 인라인 색은 냄새. (3) **패턴은 슬롯 헬퍼를 공유**: 툴팁 `labelParts`가 탭 `renderVerb`의 슬롯 채색과 일치하도록 markers.ts도 `splitTemplate`를 재사용한다(navigation이 그 선례). 새 action verb에 색 구간을 추가하면 두 경로 모두 갱신. (4) **다크 전용 발산은 라이트/일반 테스트에 안 잡힌다** — 로그 UI 색을 건드리면 **다크모드에서 툴팁 vs 탭을 눈으로** 대조. (5) 단위 `markers.test.ts > labelParts: navigation`(URL 조각만 `TONE_TEXT.blue`, verb 텍스트 무색).
+- **관련**: 단일 출처 `src/lib/log-colors.ts`(`TONE_TEXT`·`CONSOLE_LEVEL_TONE`·`NETWORK_METHOD_TONE`), 소비처 `src/log-viewer/markers.ts`(툴팁 labelParts + navigation `splitTemplate` 재사용)·`src/sidepanel/components/{Console,Network,Action}LogContent.tsx`(아이콘/메서드 색), 툴팁 컨테이너 `src/log-viewer/components/TimelineMarkers.tsx`.
+
+---
+
 ## 2026-07-01 — 30s replay 트림 진입 시 흰 화면 (두 lazy 청크 동시 첫 마운트 → tiptap storage 레이스)
 
 - **증상**: 30s replay 캡처 직후 트림 오버레이가 떠야 하는데 **사이드패널 전체가 흰 화면**. 콘솔에 `Cannot read properties of undefined (reading 'getMarkdown')`. element·스크린샷·일반 녹화 모드는 멀쩡하고 **오직 30s replay만** 깨짐.
