@@ -16,9 +16,7 @@ export interface PickerSelectionPayload {
   hasChild: boolean;
   text: string | null;
   viewport: { width: number; height: number };
-  // 프레임 location.origin — 다중 편집 리뷰 출처 배지용. frameId는 페이로드가 아니라
-  // sender.frameId에서 얻는다(위조 방지).
-  origin: string;
+  // frameId·origin은 페이로드가 아니라 sender(frameId·origin)에서 얻는다(위조 방지).
 }
 
 export interface ViewportRect {
@@ -70,7 +68,9 @@ export interface DescribeChildrenResponse {
 
 export type PickerMessage =
   | { type: "ping" }
-  | { type: "picker.start" }
+  // frameToken: 전 프레임 broadcast로 공유되는 PRESENT 등록 인증 토큰 — 자식 announce에
+  // 실리고 top이 검증한다(페이지가 볼 수 없는 chrome 경로라 위조 등록 차단).
+  | { type: "picker.start"; frameToken?: string }
   | { type: "picker.stop" }
   | { type: "picker.clear" }
   | { type: "picker.navigate"; direction: "parent" | "child" }
@@ -91,7 +91,9 @@ export type PickerMessage =
   // 없는 chrome 메시지 경로라 무인증 postMessage 요청의 top 부작용(overlay 숨김)을 차단.
   | { type: "picker.armFrameOffset" }
   | { type: "picker.pageUrl" }
-  | { type: "picker.endCapture" }
+  // cleanup: iframe 캡처 종료 시 frame 0에 보내는 정리 신호 — 미소비 arm이면 top이
+  // inflight를 깎지 않는다(인터리브 중 진행 캡처의 overlay 조기 복원 방지).
+  | { type: "picker.endCapture"; cleanup?: boolean }
   | { type: "picker.startAreaSelect"; restoreAfter?: boolean }
   | { type: "picker.cancelAreaSelect" }
   | { type: "picker.selected"; payload: PickerSelectionPayload }

@@ -127,6 +127,16 @@ async function sendAll<R = void>(
   }
 }
 
+// picking 세션의 PRESENT 등록 token — 커밋된 iframe에 picker.start를 재전송할 때 같은
+// token을 실어야 top registry 검증을 통과한다(tabSentinels와 동형의 탭별 보유).
+const tabFrameTokens = new Map<number, string>();
+
+function newFrameToken(tabId: number): string {
+  const token = crypto.randomUUID();
+  tabFrameTokens.set(tabId, token);
+  return token;
+}
+
 // 활성 sentinel 보유 — 캡처 시작 이후 커밋된 iframe에 재발행하기 위해 탭별로 최신값을 기억한다.
 type TabSentinels = { network?: string; console?: string; action?: string };
 const tabSentinels = new Map<number, TabSentinels>();
@@ -206,6 +216,7 @@ export async function startPicker(tabId: number): Promise<void> {
     await ensureContentScript(tabId);
     await chrome.tabs.sendMessage<PickerMessage>(tabId, {
       type: "picker.start",
+      frameToken: newFrameToken(tabId),
     });
   } catch (err) {
     if (err instanceof PickerUnavailableError) {
@@ -218,6 +229,7 @@ export async function startPicker(tabId: number): Promise<void> {
 }
 
 export async function stopPicker(tabId: number): Promise<void> {
+  tabFrameTokens.delete(tabId);
   await sendAll(tabId, { type: "picker.clear" });
   useEditorStore.getState().cancelPicking();
 }
@@ -254,7 +266,31 @@ export async function stopPickerOrResume(tabId: number): Promise<void> {
 }
 
 export async function clearPicker(tabId: number): Promise<void> {
+  tabFrameTokens.delete(tabId);
   await sendAll(tabId, { type: "picker.clear" });
+}
+
+// picking 중 네비게이션·신규 커밋된 iframe의 picker는 idle인데 top registry엔 옛
+// <iframe>이 남아 blocker 핸드오프로 클릭이 페이지에 유실된다 — picker.start를 그 프레임에
+// 재전송해 복구. onCommitted 시점엔 content script(document_idle)가 아직 없을 수 있어
+// 짧게 재시도하고, 대기 중 picking이 끝나면 중단(종료 후 유령 hover blocker 방지).
+export async function restartPickerInFrame(
+  tabId: number,
+  frameId: number,
+): Promise<void> {
+  const frameToken = tabFrameTokens.get(tabId);
+  if (!frameToken) return;
+  for (let i = 0; i < 10; i++) {
+    if (useEditorStore.getState().phase !== "picking") return;
+    if (tabFrameTokens.get(tabId) !== frameToken) return;
+    const res = await send<{ ok?: boolean }>(
+      tabId,
+      { type: "picker.start", frameToken },
+      frameId,
+    );
+    if (res?.ok) return;
+    await new Promise((r) => setTimeout(r, 200));
+  }
 }
 
 // 선택 확정 후 나머지 프레임의 hover 유령(blocker·inspector) 종료. 선택 프레임은
@@ -392,6 +428,8 @@ export async function applyEditsBySelector(
 // 패널이 닫히면 port disconnect로 content가 모든 편집을 원복하므로(handleClear→restoreAll),
 // 재오픈 시 버퍼·현재 요소 편집을 DOM에 재적용하고 picker 선택을 재바인딩한다.
 // 페이지가 바뀌었거나 현재 요소가 사라졌으면 기존 cross-page 정책과 동일하게 sessionExpired.
+// 한계: same-URL reload는 pageKey가 같아 rebind를 진행하지만 chrome이 iframe frameId를
+// 재발급하므로 옛 frameId send가 조용히 실패한다 — 결말은 요소 소실과 동일(sessionExpired/ghost 카드).
 export async function rebindStylingSession(tabId: number): Promise<void> {
   // 기존 expiry 경로(useEditorSessionSync)와 동일하게 만료와 페이지 정리를 쌍으로 수행.
   const expire = async () => {
@@ -480,9 +518,12 @@ export async function prepareCaptureBySelector(
 
 // 캡처 프레임(+ iframe 캡처가 top overlay 숨김을 유발하므로 top)만 좁혀 전송 —
 // broadcast면 다른 프레임의 진행 중 캡처 inflight를 조기에 깎는다(인터리브 aliasing).
+// top 전송은 cleanup 표시 — 미소비 arm(자식 조기 실패)이면 top이 inflight를 깎지 않는다.
 export async function endCapture(tabId: number, frameId: number): Promise<void> {
   await send(tabId, { type: "picker.endCapture" }, frameId);
-  if (frameId !== 0) await send(tabId, { type: "picker.endCapture" }, 0);
+  if (frameId !== 0) {
+    await send(tabId, { type: "picker.endCapture", cleanup: true }, 0);
+  }
 }
 
 export async function startAreaCapture(tabId: number): Promise<void> {
@@ -536,6 +577,7 @@ export async function startElementShot(tabId: number): Promise<void> {
     await ensureContentScript(tabId);
     await chrome.tabs.sendMessage<PickerMessage>(tabId, {
       type: "picker.start",
+      frameToken: newFrameToken(tabId),
     });
   } catch (err) {
     if (err instanceof PickerUnavailableError) {
@@ -672,6 +714,23 @@ export async function syncAndSettleLogs(
   }
 }
 
+// top 프레임의 브라우저 뷰포트 조회. iframe 선택의 payload viewport(iframe 내부 크기)를
+// 환경 메타용 브라우저 뷰포트로 교체할 때와 freeform 진입 메타에 쓴다.
+export async function getTopViewport(
+  tabId: number,
+): Promise<{ width: number; height: number } | null> {
+  try {
+    const [result] = await chrome.scripting.executeScript({
+      target: { tabId },
+      func: () => ({ width: window.innerWidth, height: window.innerHeight }),
+    });
+    return result?.result ?? null;
+  } catch {
+    // host permission이 없거나 정책 차단 페이지
+    return null;
+  }
+}
+
 export async function startFreeformDraft(tabId: number): Promise<void> {
   let tab: chrome.tabs.Tab;
   try {
@@ -689,18 +748,8 @@ export async function startFreeformDraft(tabId: number): Promise<void> {
 
   useEditorStore.getState().startFreeform(target);
 
-  let viewport: { width: number; height: number } | null = null;
-  try {
-    const [result] = await chrome.scripting.executeScript({
-      target: { tabId },
-      func: () => ({ width: window.innerWidth, height: window.innerHeight }),
-    });
-    viewport = result?.result ?? null;
-  } catch {
-    // host permission이 없거나 정책 차단 페이지
-  }
   useEditorStore.setState({
-    freeformViewport: viewport,
+    freeformViewport: await getTopViewport(tabId),
     freeformCapturedAt: Date.now(),
   });
 }

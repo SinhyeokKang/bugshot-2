@@ -1281,19 +1281,6 @@ describe("iframe frameId·origin — selection·buffer 복합키", () => {
     const sel = useEditorStore.getState().selection!;
     expect(sel.specifiedStyles.color).toBe("rgb(0, 0, 255)");
   });
-
-  it("onElementShot가 ShotSelector의 frameId를 보존한다", () => {
-    useEditorStore.getState().startElementShot(target);
-    useEditorStore
-      .getState()
-      .onElementShot(
-        { selector: "button.cta", tagName: "button", frameId: 2 } as never,
-        "data:image/png;base64,X",
-        { width: 800, height: 600 },
-      );
-
-    expect(useEditorStore.getState().shotSelector!.frameId).toBe(2);
-  });
 });
 
 describe("mergeSelectionStyles — class 편집 후 baseline 오염 방지", () => {

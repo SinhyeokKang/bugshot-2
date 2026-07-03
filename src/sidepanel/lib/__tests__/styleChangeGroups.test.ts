@@ -183,6 +183,23 @@ describe("buildChangeGroups", () => {
     ]);
   });
 
+  it("frameId·origin이 그룹에 전파되고 미지정(구버전)은 0·빈 문자열 폴백", () => {
+    const groups = buildChangeGroups(
+      selection({ selector: "#a", frameId: 3, origin: "https://embed.example" }),
+      edits({ inlineStyle: { color: "#00f" } }),
+      [
+        buffered("#a", { frameId: 3, origin: "https://embed.example" }),
+        buffered("#legacy"),
+      ],
+    );
+
+    expect(groups.map((g) => [g.selector, g.frameId, g.origin])).toEqual([
+      ["#a", 3, "https://embed.example"],
+      ["#legacy", 0, ""],
+      ["#a", 3, "https://embed.example"],
+    ]);
+  });
+
   it("그룹에 라벨·원복용 메타(tagName·classList·snapshot·edits)가 실린다", () => {
     const b = buffered("#a");
     const groups = buildChangeGroups(null, edits(), [b]);

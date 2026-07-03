@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { sameElementKey } from "@/lib/element-key";
 import type { Token } from "@/types/picker";
 import type { NetworkLog } from "@/types/network";
 import type { ConsoleLog } from "@/types/console";
@@ -54,7 +55,7 @@ export interface EditorSelection {
   capturedAt: number;
   // 선택 요소가 속한 프레임(0=top). 구버전 영속 스냅샷엔 없다 — 소비 시점 ?? 0 폴백.
   frameId?: number;
-  // 프레임 location.origin — 다중 편집 리뷰 출처 배지용. 구버전 폴백 ?? "".
+  // 프레임 origin(sender.origin 파생) — 다중 편집 리뷰 출처 배지용. 구버전 폴백 ?? "".
   origin?: string;
 }
 
@@ -91,7 +92,6 @@ export interface BufferedElement {
 export interface ShotSelector {
   selector: string;
   tagName: string;
-  frameId?: number;
 }
 
 export interface EditorDraft {
@@ -534,11 +534,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       // 이미 버퍼에 담긴 요소를 재선택하면 그 편집을 작업 set으로 복원한다. 안 그러면
       // 재선택 시 inlineStyle이 {}로 비워져, 추가 편집 후 재버퍼 시 이전 편집이 소실된다.
       // iframe 지원: 다른 프레임의 동일 selector는 별개 요소 — selector+frameId 복합키.
-      const buffered = s.bufferedElements.find(
-        (b) =>
-          b.selector === selection.selector &&
-          (b.frameId ?? 0) === (selection.frameId ?? 0),
-      );
+      const buffered = s.bufferedElements.find((b) => sameElementKey(b, selection));
       if (buffered) {
         return {
           phase: "styling",
@@ -560,9 +556,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           afterImage: buffered.afterImage,
           // 현재 요소로 승격 — 중복 카드 방지.
           bufferedElements: s.bufferedElements.filter(
-            (b) =>
-              b.selector !== selection.selector ||
-              (b.frameId ?? 0) !== (selection.frameId ?? 0),
+            (b) => !sameElementKey(b, selection),
           ),
           aiStylingLoading: false,
         };
@@ -585,11 +579,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set((s) => {
       // 늦게 도착한 stale 보강(다른 요소 선택 후)이 현재 선택 맵을 오염시키지 않게 가드.
       // 다른 프레임의 동일 selector 보강도 오염 — frameId까지 비교.
-      if (
-        !s.selection ||
-        s.selection.selector !== patch.selector ||
-        (s.selection.frameId ?? 0) !== (patch.frameId ?? 0)
-      ) {
+      if (!s.selection || !sameElementKey(s.selection, patch)) {
         return {};
       }
       return {
@@ -635,11 +625,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         beforeImage: s.beforeImage,
         afterImage,
       };
-      const idx = s.bufferedElements.findIndex(
-        (b) =>
-          b.selector === sel.selector &&
-          (b.frameId ?? 0) === (sel.frameId ?? 0),
-      );
+      const idx = s.bufferedElements.findIndex((b) => sameElementKey(b, sel));
       if (idx >= 0) {
         // 같은 selector 재편집: 최초 before 유지, 나머지는 최신으로 갱신.
         const updated = [...s.bufferedElements];
@@ -652,16 +638,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   patchBufferedElement: (selector, frameId, patch) =>
     set((s) => ({
       bufferedElements: s.bufferedElements.map((b) =>
-        b.selector === selector && (b.frameId ?? 0) === frameId
-          ? { ...b, ...patch }
-          : b,
+        sameElementKey(b, { selector, frameId }) ? { ...b, ...patch } : b,
       ),
     })),
 
   removeBufferedElement: (selector, frameId) =>
     set((s) => ({
       bufferedElements: s.bufferedElements.filter(
-        (b) => b.selector !== selector || (b.frameId ?? 0) !== frameId,
+        (b) => !sameElementKey(b, { selector, frameId }),
       ),
     })),
 

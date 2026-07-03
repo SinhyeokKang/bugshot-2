@@ -9,6 +9,7 @@ import {
   type StyleDiffRow,
 } from "@/sidepanel/components/StyleChangesTable";
 import { segmentsToMarkdown, type StyleDiffSegment } from "./classDiff";
+import { sameElementKey } from "@/lib/element-key";
 import type { BufferedElement, EditorStyleEdits } from "@/store/editor-store";
 import type { NetworkLogSummary, ConsoleLogSummary } from "./buildLogSummary";
 import { filterEnvironmentRows, type EnvironmentRow } from "./environmentRows";
@@ -137,11 +138,7 @@ export function mergeStyleElements(
 
   let merged = resolved;
   if (curResolved) {
-    merged = resolved.filter(
-      (r) =>
-        r.selector !== curResolved!.selector ||
-        (r.frameId ?? 0) !== (curResolved!.frameId ?? 0),
-    );
+    merged = resolved.filter((r) => !sameElementKey(r, curResolved!));
     merged.push(curResolved);
   }
 

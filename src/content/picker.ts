@@ -52,7 +52,9 @@ import {
   composeTopRect,
   installFrameOffsetResponder,
   isRegisteredChildFrame,
+  rectIntersectsViewport,
   requestFrameOffset,
+  setFrameToken,
 } from "./frame-geometry";
 import {
   ensureCrossOriginLoaded,
@@ -144,8 +146,8 @@ function registerPickerListeners(): void {
   installFrameOffsetResponder({
     onChildCapturePrep: beginCapturePrep,
     consumeArm: () => {
-      if (!frameOffsetArmed) return false;
-      frameOffsetArmed = false;
+      if (frameOffsetArmCount <= 0) return false;
+      frameOffsetArmCount -= 1;
       return true;
     },
   });
@@ -166,7 +168,7 @@ function handlePickerMessage(
   try {
     switch (msg.type) {
       case "picker.start":
-        handleStart();
+        handleStart(msg.frameToken);
         break;
       case "picker.stop":
         handleStop();
@@ -238,10 +240,10 @@ function handlePickerMessage(
         sendResponse({ url: location.href });
         return;
       case "picker.armFrameOffset":
-        frameOffsetArmed = true;
+        frameOffsetArmCount += 1;
         break;
       case "picker.endCapture":
-        handleEndCapture();
+        handleEndCapture(msg.cleanup === true);
         break;
       case "picker.startAreaSelect":
         handleStartAreaSelect(msg.restoreAfter);
@@ -283,10 +285,14 @@ async function respondWithTopRect(
     sendResponse({ rect: null, viewport: prep.viewport });
     return;
   }
-  sendResponse({
-    rect: composeTopRect(prep.rect, offset),
-    viewport: offset.topViewport,
-  });
+  const rect = composeTopRect(prep.rect, offset);
+  // iframe 자체가 top 뷰포트 밖으로 스크롤된 상태 — 크롭이 빈 화면 조각(1px clamp)으로
+  // 유효 이미지처럼 저장되는 것을 막고 캡처 실패(rect null) 경로로 폴백.
+  if (!rectIntersectsViewport(rect, offset.topViewport)) {
+    sendResponse({ rect: null, viewport: offset.topViewport });
+    return;
+  }
+  sendResponse({ rect, viewport: offset.topViewport });
 }
 
 function viewportRectOf(el: Element): ViewportRect {
@@ -306,8 +312,9 @@ function handlePrepareCapture(): PrepareCaptureResponse {
 // 슬롯 자체는 first-wins(이미 저장돼 있으면 덮어쓰지 않음)로 최초 위치를 보존.
 let capturedScroll: { x: number; y: number } | null = null;
 let captureInflight = 0;
-// 자식 iframe 캡처 1회에 대해 offset 응답을 허용하는 1회성 플래그(top frame 전용).
-let frameOffsetArmed = false;
+// 자식 iframe 캡처마다 offset 응답을 1회 허용하는 arm 카운터(top frame 전용).
+// boolean이면 iframe 캡처 2건 인터리브 시 arm이 덮여 한쪽이 타임아웃 실패한다.
+let frameOffsetArmCount = 0;
 
 function handlePrepareCaptureBySelector(
   selector: string,
@@ -353,9 +360,18 @@ function handlePrepareCaptureBySelector(
   setTimeout(() => respond(null), 500);
 }
 
-function handleEndCapture(): void {
-  // 자식이 요청 없이 끝난 캡처(rect null 조기 실패)의 잔여 arm 정리.
-  frameOffsetArmed = false;
+// cleanup=true는 iframe 캡처 종료 시 사이드패널이 frame 0에 보내는 정리 신호.
+// arm이 미소비로 남았으면(자식이 offset 요청 전에 rect null로 조기 실패) prep(+1)이
+// 없었던 것이므로 arm만 회수하고 inflight는 깎지 않는다 — 진행 중인 다른 캡처의
+// overlay·스크롤 조기 복원(인터리브 오염) 방지. arm 소비/미소비 합산이 항상 짝이 맞는다.
+// 한계: arm이 캡처에 바인딩되지 않아 인터리브의 좁은 창(다른 캡처의 arm~consume 사이에
+// 이쪽 cleanup 도착)에선 남의 arm을 회수할 수 있다 — 합산은 유지되나 그 캡처는 offset
+// 타임아웃 실패(rect null)로 격하. 페이지가 유발 불가한 가용성 한정 잔여.
+function handleEndCapture(cleanupOnly: boolean): void {
+  if (cleanupOnly && frameOffsetArmCount > 0) {
+    frameOffsetArmCount -= 1;
+    return;
+  }
   captureInflight = Math.max(0, captureInflight - 1);
   if (captureInflight > 0) return;
   if (overlay) overlay.hostEl.style.visibility = "";
@@ -365,7 +381,10 @@ function handleEndCapture(): void {
   }
 }
 
-function handleStart(): void {
+function handleStart(frameToken?: string): void {
+  // 사이드패널이 chrome 경로로 broadcast한 token — top은 PRESENT 등록 검증에, 자식은
+  // announce에 쓴다(무인증 postMessage 위조 등록 차단).
+  setFrameToken(frameToken ?? null);
   // iframe이면 부모 registry에 등록 — 부모 blocker가 이 프레임 위에서 핸드오프한다.
   if (window !== window.top) announceFrameToParent();
   if (!overlay) {
@@ -414,6 +433,9 @@ function handleClear(): void {
   if (capturedScroll) window.scrollTo(capturedScroll.x, capturedScroll.y);
   capturedScroll = null;
   captureInflight = 0;
+  frameOffsetArmCount = 0;
+  // 세션 종료 후 옛 token PRESENT가 계속 등록되지 않게 top 검증 상태도 함께 리셋.
+  setFrameToken(null);
   stopCssCacheObserver();
   invalidateCssCache();
 }

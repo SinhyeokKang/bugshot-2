@@ -89,14 +89,7 @@ export function PreviewPanel() {
     () =>
       selection
         ? mergeStyleElements(bufferedElements, {
-            selection: {
-              selector: selection.selector,
-              tagName: selection.tagName,
-              classList: selection.classList,
-              computedStyles: selection.computedStyles,
-              specifiedStyles: selection.specifiedStyles,
-              text: selection.text,
-            },
+            selection,
             styleEdits,
             before: beforeImage,
             after: afterImage,
@@ -335,17 +328,7 @@ export function PreviewPanel() {
         tokens,
         diffs,
         bufferedElements,
-        mergeCurrent: {
-          selection: {
-            selector: selection.selector,
-            tagName: selection.tagName,
-            classList: selection.classList,
-            computedStyles: selection.computedStyles,
-            specifiedStyles: selection.specifiedStyles,
-            text: selection.text,
-          },
-          styleEdits,
-        },
+        mergeCurrent: { selection, styleEdits },
       });
     } else if (captureMode === "screenshot") {
       ctx = buildMarkdownContext({

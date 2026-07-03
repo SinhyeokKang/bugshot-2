@@ -23,9 +23,10 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { sameElementKey } from "@/lib/element-key";
 import { formatElementName } from "@/lib/element-label";
 import { originOf } from "@/lib/session-keys";
-import { originHostLabel } from "@/sidepanel/lib/logOrigin";
+import { originHostLabel, originKey, UNKNOWN_ORIGIN } from "@/sidepanel/lib/logOrigin";
 import { useEditorStore, type EditorStyleEdits } from "@/store/editor-store";
 import { useBoundTabId } from "@/sidepanel/hooks/useBoundTabId";
 import { captureElementSnapshotBySelector } from "@/sidepanel/capture";
@@ -102,7 +103,7 @@ export function StyleChangesDialog() {
     }
     // 재선택된 버퍼 항목(중복 케이스): 재선택으로 selection·styleEdits 베이스라인 갱신.
     const sel = useEditorStore.getState().selection;
-    if (group.selector === sel?.selector && group.frameId === (sel?.frameId ?? 0)) {
+    if (sel && sameElementKey(group, sel)) {
       await selectByPath(tabId, group.frameId, group.selector);
     }
   };
@@ -211,14 +212,16 @@ function GroupCard({
     classList: group.classList,
   });
   const elementKey = `${group.source}:${group.frameId}:${group.selector}`;
-  // iframe 요소만 출처 배지 — top(페이지 origin과 동일)은 생략해 노이즈 방지.
-  // opaque origin("null" — sandbox 등)은 OriginFilterBar 컨벤션대로 unknown 라벨.
+  // iframe 요소만 출처 배지 — top(페이지 origin과 동일)은 생략해 노이즈 방지. 빈 origin
+  // (구버전 폴백)도 생략. opaque origin(sandbox 등)은 originKey 정규화로 unknown 라벨.
+  const badgeKey =
+    group.origin && group.origin !== pageOrigin ? originKey(group.origin) : null;
   const originBadge =
-    group.origin && group.origin !== pageOrigin
-      ? group.origin === "null"
-        ? t("log.originFilter.unknown")
-        : originHostLabel(group.origin)
-      : null;
+    badgeKey === null
+      ? null
+      : badgeKey === UNKNOWN_ORIGIN
+        ? t("editor.changesDialog.unknownOrigin")
+        : originHostLabel(badgeKey);
 
   return (
     <Card
@@ -240,7 +243,7 @@ function GroupCard({
           <Badge
             variant="outline"
             className="max-w-[10rem] shrink-0"
-            title={group.origin === "null" ? undefined : group.origin}
+            title={badgeKey === UNKNOWN_ORIGIN ? undefined : group.origin}
             data-testid="origin-badge"
           >
             <span className="truncate">{originBadge}</span>
