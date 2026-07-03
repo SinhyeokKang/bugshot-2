@@ -22,8 +22,8 @@ Can't quite land on the exact element? No problem — you can **move to its pare
 
 Want to start over? **Pick another element** lets you begin fresh anytime.
 
-## iframe limitation
+## Elements inside iframes
 
-Elements **inside an iframe** (a frame holding another document) **can't be selected**. Click the iframe box itself and a notice appears, cancelling the pick.
+Elements inside an iframe embedded in the page (a frame holding another document) can be selected and edited just like any other. Even when the frame comes from a **different origin (cross-origin)** — a payment window, an embedded widget — no worries: click an element inside, tweak its styles, and capture it, all the same.
 
-> If you really need an element inside an iframe, try [Screenshot](../screenshot/capture.md) or [Recording](../video/record.md) instead.
+The exception is a frame nested inside another frame, or one locked down by a security policy (sandbox) — its inner elements stay out of reach. In that case a notice appears and the pick is cancelled, so grab that part with [Capture area](../screenshot/capture.md) as an image instead.
