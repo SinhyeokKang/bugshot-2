@@ -6,11 +6,11 @@ Draw on the captured image to mark where the bug is and what it is. Point with a
 
 ## Add, edit, remove
 
+![Annotating](../assets/screenshot-annotation-1.jpg)
+
 - **Add annotation** — Start annotating on top of the captured image.
 - **Edit annotation** — Reopen what you've drawn and adjust it.
 - **Remove annotation** — Clear what you've drawn.
-
-![Annotating](../assets/screenshot-annotation-1.jpg)
 
 ## Tools
 

@@ -8,14 +8,14 @@ No key? No problem. If Chrome's built-in AI is available in your browser, the ba
 
 ## Connect
 
+![Connecting an AI model](../assets/settings-ai-1.jpg)
+
 Pick a provider and enter your key.
 
 - **Provider** — Choose your LLM from the list, or type an OpenAI-compatible endpoint URL directly.
 - **API Key** — The key issued by that service.
 
 Once you connect, a screen follows for picking the model — choose the one you want under **Select model**. Most providers with an OpenAI-compatible endpoint connect without a hitch. There's no separate permission prompt — once you've filled in the details, it connects right away.
-
-![Connecting an AI model](../assets/settings-ai-1.jpg)
 
 ## Which AI runs
 
@@ -37,10 +37,10 @@ While inspecting an element, change styles with plain language like "make the bu
 
 ### AI Draft
 
+![AI Draft dialog](../assets/settings-ai-2.jpg)
+
 Auto-fill the issue body from your capture and logs. On the issue screen, a purple **"Let AI write your draft"** banner shows up below the body sections — click **AI Draft** on the right to open the input.
 
 Jot the bug down in a line or two (you can leave it blank in element mode) and hit **Generate**. AI fills in the title and every enabled body section in one shot. It draws not just on your capture and logs but on anything you've already typed, so feel free to run it again to polish. The evidence differs a bit per mode — see [Write an Issue (element)](../element/issue.md) for the detailed flow.
-
-![AI Draft dialog](../assets/settings-ai-2.jpg)
 
 > AI slips up now and then, so give the generated result a quick look before submitting.

@@ -6,6 +6,8 @@ Once an element is selected, the style panel opens. Change a value and it's **ap
 
 ## Style panel sections
 
+![Style panel sections](../assets/element-styling-1.jpg)
+
 From top to bottom, the panel is organized into these sections (labels show in English on screen).
 
 1. **Class** — Edit the element's class list.
@@ -19,8 +21,6 @@ From top to bottom, the panel is organized into these sections (labels show in E
 9. **Typography** — font size, weight, line height, letter spacing, align, color.
 10. **Effects** — shadow, filter, blend.
 11. **Transition** — transition property, duration, easing.
-
-![Style panel sections](../assets/element-styling-1.jpg)
 
 ## Live preview and reverting
 
@@ -44,6 +44,8 @@ For example, if a color is set to `--color-primary`, you can pick another token 
 
 ## Review changes
 
+![Review changes dialog](../assets/element-styling-2.jpg)
+
 Lost track of what you've changed? Hit the **Review changes** button at the bottom of the panel. The number beside it is how many changes you've made so far — and if you haven't changed anything, the button stays disabled.
 
 Open it and a dialog lists your edits **grouped per element**, each shown as **before → after**. You'll see the element you have selected now, plus any you buffered earlier (see [More than one element in one issue](#more-than-one-element-in-one-issue) below).
@@ -53,9 +55,9 @@ Open it and a dialog lists your edits **grouped per element**, each shown as **b
 
 Row resets run instantly without asking, so tidy up with peace of mind. Once nothing is left to revert, the dialog closes on its own.
 
-![Review changes dialog](../assets/element-styling-2.jpg)
-
 ## AI Styling
+
+![AI Styling banner](../assets/element-styling-3.jpg)
 
 With an AI (LLM) connected, an **AI Styling** banner appears in the panel. When touching values by hand feels like a chore, just **describe what you want**.
 
@@ -66,8 +68,6 @@ With an AI (LLM) connected, an **AI Styling** banner appears in the panel. When 
 AI finds the right style/class changes and applies them to the page instantly. Without an AI connected, this banner doesn't appear.
 
 > See [AI LLM Connection](../settings/ai.md) for how to connect. AI slips up now and then, so give the applied result a quick look.
-
-![AI Styling banner](../assets/element-styling-3.jpg)
 
 ## More than one element in one issue
 

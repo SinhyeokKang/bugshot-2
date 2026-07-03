@@ -6,21 +6,21 @@ You can grab a screenshot two ways: **Capture area**, where you drag a region of
 
 ## Capture an area
 
+![Dragging a region](../assets/screenshot-capture-1.jpg)
+
 In the **Debug** tab, click **Capture area**.
 
 Drag to select the region you want to capture. You can crop just the part where the bug shows up instead of the whole page, so the reader knows exactly where to look.
 
-![Dragging a region](../assets/screenshot-capture-1.jpg)
-
 ## Capture an element
+
+![Capturing an element](../assets/screenshot-capture-2.jpg)
 
 In the **Debug** tab, click **Capture element** and a crosshair appears over the page. Hover an element to highlight it, then click to crop just that element's region into a screenshot. For elements with clear edges — buttons, cards — it's faster and more precise than dragging by hand.
 
 > **Capture element** doesn't change any styles. To pick an element and compare styles before/after, use [Inspect & Style](../element/README.md) instead.
 
 As a bonus, the captured element's DOM selector is recorded on the issue's **Environment** as a `DOM` line, so the reader knows exactly which element on the screen it was.
-
-![Capturing an element](../assets/screenshot-capture-2.jpg)
 
 ## Output
 

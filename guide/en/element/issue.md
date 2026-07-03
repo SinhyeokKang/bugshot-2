@@ -10,25 +10,27 @@ Your configured title prefix (e.g. `[QA] `) is pre-filled. Type the rest of the 
 
 ## 2. Environment
 
-OS, browser, page URL, viewport size, and capture time fill in **on their own** (read-only). Want to add more context? Just drop in a variable row yourself.
-
 ![Environment](../assets/element-issue-1.jpg)
 
+OS, browser, page URL, viewport size, and capture time fill in **on their own** (read-only). Want to add more context? Just drop in a variable row yourself.
+
 ## 3. Media — before/after style table
+
+![Before/after style comparison](../assets/element-issue-2.jpg)
 
 This is the heart of element mode. The before and after styles are captured as a **comparison table**, so which properties changed to which values is clear at a glance. The reader grasps "what to change and how" from a single table.
 
 If you bundled several elements back in [Styling](styling.md), each one gets its own table — laid out in order under its selector heading.
 
-![Before/after style comparison](../assets/element-issue-2.jpg)
-
 ## 4. Body sections
-
-Sections appear per your body composition — Description, Steps to reproduce, Expected result, Notes (only the ones you've turned on). Steps to reproduce is an ordered list. Fill them in by hand, or let AI Draft below do it in one shot.
 
 ![Writing the body](../assets/element-issue-3.jpg)
 
+Sections appear per your body composition — Description, Steps to reproduce, Expected result, Notes (only the ones you've turned on). Steps to reproduce is an ordered list. Fill them in by hand, or let AI Draft below do it in one shot.
+
 ## ✨ AI Draft
+
+![AI Draft banner and input box](../assets/element-issue-4.jpg)
 
 If filling in each line by hand feels tedious, this is where AI earns its keep. With an AI connected, a purple **"Let AI write your draft"** banner shows up right below the body sections.
 
@@ -38,24 +40,22 @@ In element mode, AI grounds the draft in your **before/after style changes** (an
 
 > AI slips up now and then, so give the generated draft a quick look. The banner only shows when an AI is connected — see [AI LLM Connection](../settings/ai.md) for how.
 
-![AI Draft banner and input box](../assets/element-issue-4.jpg)
-
 ## 5. Log attachments
 
 Element mode attaches no logs. For bugs that need logs, reach for [Screenshot](../screenshot/issue.md) or [Recording](../video/issue.md) mode.
 
 ## 6. Preview
 
-Give the body a look in the preview before submitting. **Copy markdown** copies it as-is to paste elsewhere.
-
 ![Issue preview](../assets/element-issue-5.jpg)
 
+Give the body a look in the preview before submitting. **Copy markdown** copies it as-is to paste elsewhere.
+
 ## 7. Submit
+
+![Issue submitted](../assets/element-issue-6.jpg)
 
 Fill in the connected platform's fields (project, assignee, labels, etc.) and hit **Submit issue**. A link to the created issue appears when it's done.
 
 At the bottom of the fields sits a **CC** field. Pick the folks who should be in the loop on this bug (reviewers, designers, PMs) and they land as a `cc @name` mention at the bottom of the created issue, each getting a notification on the platform. Select several at once and search by name to find them fast. Whoever you pick is pre-filled on your next issue too, so you don't have to reselect every time.
 
 > CC unlocks once you've picked the parent item first — repo, team, project, or workspace. Notion is the one exception: its connected integration needs the "read user information" permission to load the member list, so if it comes up empty, reconnect Notion in Settings.
-
-![Issue submitted](../assets/element-issue-6.jpg)

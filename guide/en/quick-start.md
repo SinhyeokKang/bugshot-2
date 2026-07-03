@@ -6,25 +6,27 @@ New here? No worries — going from install to your first submitted issue takes 
 
 ## 1. Install
 
-Install BugShot from the Chrome Web Store. A BugShot icon shows up in your toolbar.
-
 ![Chrome Web Store install page](assets/quick-start-1.jpg)
 
+Install BugShot from the Chrome Web Store. A BugShot icon shows up in your toolbar.
+
 ## 2. Open the side panel
+
+![The side panel opened](assets/quick-start-2.jpg)
 
 Click the BugShot icon in the toolbar, or press `Cmd/Ctrl+Shift+E` to open the side panel.
 
 > If the shortcut doesn't respond, it may be clashing with your OS or another extension — just open it from the toolbar icon instead.
 
-![The side panel opened](assets/quick-start-2.jpg)
-
 ## 3. Connect a platform
-
-To file an issue you need at least one platform connected. In the **Integrations** tab, just connect one of Jira, GitHub, Linear, Notion, GitLab, Asana, or ClickUp. [Connecting Platforms](integrations/platforms.md) walks you through it step by step.
 
 ![Connecting a platform in the Integrations tab](assets/quick-start-3.jpg)
 
+To file an issue you need at least one platform connected. In the **Integrations** tab, just connect one of Jira, GitHub, Linear, Notion, GitLab, Asana, or ClickUp. [Connecting Platforms](integrations/platforms.md) walks you through it step by step.
+
 ## 4. Capture
+
+![Choosing a capture mode](assets/quick-start-4.jpg)
 
 In the **Debug** tab, pick a capture mode.
 
@@ -35,19 +37,17 @@ In the **Debug** tab, pick a capture mode.
 
 If you're not sure which to pick, **Capture area** is the simplest place to start.
 
-![Choosing a capture mode](assets/quick-start-4.jpg)
-
 ## 5. Write the body
-
-After capturing, you land on the issue draft. Just fill in the title and the Description, Steps to reproduce, and Expected result — the environment (OS, browser, URL, etc.) fills itself in, so don't sweat it.
 
 ![Writing the issue draft](assets/quick-start-5.jpg)
 
+After capturing, you land on the issue draft. Just fill in the title and the Description, Steps to reproduce, and Expected result — the environment (OS, browser, URL, etc.) fills itself in, so don't sweat it.
+
 ## 6. Submit
 
-Give the body a quick look in the preview, fill in the connected platform's fields (project, assignee, etc.), and hit **Submit issue**. A link to the created issue pops right up.
-
 ![Issue submitted](assets/quick-start-6.jpg)
+
+Give the body a quick look in the preview, fill in the connected platform's fields (project, assignee, etc.), and hit **Submit issue**. A link to the created issue pops right up.
 
 ---
 

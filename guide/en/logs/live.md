@@ -8,15 +8,17 @@ Both Console and Network also capture logs coming from **other origins embedded 
 
 ## Console
 
+![Console sub-tab](../assets/logs-live-1.jpg)
+
 Collects the page's console output in full — info, warnings, and errors alike. Warnings and errors your code logs directly (`console.warn`, `console.error`), plus uncaught exceptions, are all captured, so nothing slips by.
 
 - **Filter / search** — Filter by level (errors, warnings, and more) or find by keyword.
 - **Detail** — Expand an entry to see the full contents.
 - **Clear Log** — Empty the collected logs.
 
-![Console sub-tab](../assets/logs-live-1.jpg)
-
 ## Network
+
+![Network sub-tab](../assets/logs-live-2.jpg)
 
 See the network requests made by the page.
 
@@ -24,8 +26,6 @@ See the network requests made by the page.
 - **Detail** — Expand to see request and response contents.
 - **Copy as cURL** — Copy a request as a cURL command to reproduce it in your terminal.
 - **Clear Log** — Empty the collected logs.
-
-![Network sub-tab](../assets/logs-live-2.jpg)
 
 ### WebSocket
 
@@ -35,8 +35,8 @@ If your page uses real-time, two-way communication (WebSocket), those connection
 
 ## File an issue from logs alone (freeform)
 
+![Filing a logs-only issue](../assets/logs-live-3.jpg)
+
 You can also **file an issue with logs only**, no capture (element, screenshot, or video). While viewing the console or network, click **Write issue** to skip the capture step and go straight to the issue draft. Attach the console and network logs and submit.
 
 > The issue flow (title, body, preview, submit) is the same as the other modes. See the common steps in [Write an Issue (screenshot)](../screenshot/issue.md).
-
-![Filing a logs-only issue](../assets/logs-live-3.jpg)

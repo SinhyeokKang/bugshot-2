@@ -6,11 +6,13 @@ Set up the parts that repeat on every issue here, and each one gets a little lig
 
 ## Title prefix
 
-A string automatically prepended to issue titles. Set it to `[QA] `, for example, and every title starts with `[QA] `. Pretty handy if your team uses label conventions.
-
 ![Title prefix setting](../assets/settings-issue-1.jpg)
 
+A string automatically prepended to issue titles. Set it to `[QA] `, for example, and every title starts with `[QA] `. Pretty handy if your team uses label conventions.
+
 ## Recording mode
+
+![Recording mode setting](../assets/settings-issue-2.jpg)
 
 In the **Recording settings** section, pick ahead of time whether the record button captures **just the tab, or the full screen and other windows too**. The record button on the capture screen follows the mode you choose here.
 
@@ -19,9 +21,9 @@ In the **Recording settings** section, pick ahead of time whether the record but
 
 Once you pick a mode, it stays put until you change it. Your choice shows up right away in the record button's icon and label on the capture screen.
 
-![Recording mode setting](../assets/settings-issue-2.jpg)
-
 ## 30s replay
+
+![30s replay toggle](../assets/settings-issue-3.jpg)
 
 Always keeps the last 30 seconds of your screen. Spot a bug? Attach what just happened as a video in one click.
 
@@ -29,9 +31,9 @@ Turning this toggle on starts keeping the last 30 seconds of your screen. There'
 
 > Curious how to use 30s replay? See [30s Replay](../video/replay.md).
 
-![30s replay toggle](../assets/settings-issue-3.jpg)
-
 ## Body composition
+
+![Body composition setting](../assets/settings-issue-4.jpg)
 
 Turn the body sections on or off. Four sections come ready out of the box.
 
@@ -46,9 +48,9 @@ Turn the body sections on or off. Four sections come ready out of the box.
 - **Notes** is off by default, so flip it on only when you need it.
 - You can **override each section's label and placeholder text**. Rename "Description" to match your team's wording, for instance.
 
-![Body composition setting](../assets/settings-issue-4.jpg)
-
 ## File attachments
+
+![File attachments toggle](../assets/settings-issue-5.jpg)
 
 Sometimes you need to drop a file straight onto an issue — something captures or logs can't quite hold. Flip this toggle on and an **Attachments** area appears on the issue screen, where you can pick files to send along.
 
@@ -56,5 +58,3 @@ Sometimes you need to drop a file straight onto an issue — something captures 
 - You can attach **up to 10 files**, **50MB** total.
 - Each platform has its own per-file size cap (Notion 5MB, GitLab 10MB, for example). Files over that show an "over limit" note and may be rejected by the platform on upload.
 - Attached files upload together when you submit the issue.
-
-![File attachments toggle](../assets/settings-issue-5.jpg)
