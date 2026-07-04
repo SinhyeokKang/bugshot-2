@@ -1,6 +1,6 @@
 # Summary
 
-- [소개](README.md)
+- [BugShot 소개](README.md)
   - [빠른 시작](quick-start.md)
   - [자주 묻는 질문](faq.md)
 - [연동 설정](integrations/README.md)

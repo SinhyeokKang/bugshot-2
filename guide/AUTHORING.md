@@ -21,7 +21,7 @@
 25페이지 × 2언어 = 50개 마크다운 + 언어별 `SUMMARY.md` + 언어별 더미 이미지.
 
 ```
-README.md                       # 1. 소개
+README.md                       # 1. BugShot 소개 (SUMMARY 최상단 라벨)
 quick-start.md                  # 1-1. 빠른 시작
 faq.md                          # 1-2. 자주 묻는 질문 (강점 간접 안내 — 단일 페이지, SUMMARY상 소개 하위)
 integrations/README.md          # 2. 연동 설정 (개요 + 바로가기)

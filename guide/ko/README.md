@@ -1,4 +1,4 @@
-# BugShot 가이드
+# BugShot 소개
 
 ![BugShot 대표 화면 — 버그를 발견한 그 자리에서 캡처하고 리포트](assets/readme-1.jpg)
 

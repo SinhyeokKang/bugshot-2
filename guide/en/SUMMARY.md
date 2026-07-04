@@ -1,6 +1,6 @@
 # Summary
 
-- [Introduction](README.md)
+- [About BugShot](README.md)
   - [Quick Start](quick-start.md)
   - [FAQ](faq.md)
 - [Integrations](integrations/README.md)
