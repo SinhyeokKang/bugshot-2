@@ -4,7 +4,7 @@ Settings you set once and forget — like language and theme — all live in the
 
 ## Language
 
-![Language setting](../assets/settings-general-1.jpg)
+![Language setting](../.gitbook/assets/settings-general-1.jpg)
 
 Pick the display language for BugShot. You can choose between **한국어** (Korean) and **English**. The change applies across the whole side panel right away — no refresh needed.
 
@@ -12,24 +12,24 @@ Pick the display language for BugShot. You can choose between **한국어** (Kor
 
 ## Theme
 
-![Theme setting](../assets/settings-general-2.jpg)
+![Theme setting](../.gitbook/assets/settings-general-2.jpg)
 
 Choose how bright the panel looks. There are three options.
 
-| Theme | What it does |
-|---|---|
-| Light | Bright interface |
-| Dark | Dark interface |
+| Theme  | What it does            |
+| ------ | ----------------------- |
+| Light  | Bright interface        |
+| Dark   | Dark interface          |
 | System | Follows your OS setting |
 
 With **System**, BugShot goes dark automatically whenever your OS is in dark mode. If you'd rather not think about it, System is the easy pick.
 
 ## Guide · Review · Contact
 
-![Guide, Review, and Contact buttons](../assets/settings-general-3.jpg)
+![Guide, Review, and Contact buttons](../.gitbook/assets/settings-general-3.jpg)
 
 At the bottom of the General tab you'll find three handy buttons.
 
-- **BugShot Guide** — Opens the guide you're reading right now in a new tab, in your current language.
-- **Leave a Review** — Takes you to BugShot's review page on the Chrome Web Store. If it's been helpful, a quick word means a lot to us.
-- **Contact Us** — Opens an email so you can ask a question or report a bug. Stuck on something? Don't hesitate to reach out.
+* **BugShot Guide** — Opens the guide you're reading right now in a new tab, in your current language.
+* **Leave a Review** — Takes you to BugShot's review page on the Chrome Web Store. If it's been helpful, a quick word means a lot to us.
+* **Contact Us** — Opens an email so you can ask a question or report a bug. Stuck on something? Don't hesitate to reach out.

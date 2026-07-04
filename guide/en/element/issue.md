@@ -1,20 +1,20 @@
-# Write an Issue (element mode)
+# Write an Issue
 
 When you finish editing styles and click **Next**, the issue draft opens. Just fill it in top to bottom.
 
 ## 1. Title
 
-Your configured title prefix (e.g. `[QA] `) is pre-filled. Type the rest of the title after it.
+Your configured title prefix (e.g. `[QA]` ) is pre-filled. Type the rest of the title after it.
 
 ## 2. Environment
 
-![Environment](../assets/element-issue-1.jpg)
+![Environment](../.gitbook/assets/element-issue-1.jpg)
 
 OS, browser, page URL, viewport size, and capture time fill in **on their own** (read-only). Want to add more context? Just drop in a variable row yourself.
 
 ## 3. Media — before/after style table
 
-![Before/after style comparison](../assets/element-issue-2.jpg)
+![Before/after style comparison](../.gitbook/assets/element-issue-2.jpg)
 
 This is the heart of element mode. The before and after styles are captured as a **comparison table**, so which properties changed to which values is clear at a glance. The reader grasps "what to change and how" from a single table.
 
@@ -22,13 +22,13 @@ If you bundled several elements back in [Styling](styling.md), each one gets its
 
 ## 4. Body sections
 
-![Writing the body](../assets/element-issue-3.jpg)
+![Writing the body](../.gitbook/assets/element-issue-3.jpg)
 
 Sections appear per your body composition — Description, Steps to reproduce, Expected result, Notes (only the ones you've turned on). Steps to reproduce is an ordered list. Fill them in by hand, or let AI Draft below do it in one shot.
 
 ## ✨ AI Draft
 
-![AI Draft banner and input box](../assets/element-issue-4.jpg)
+![AI Draft banner and input box](../.gitbook/assets/element-issue-4.jpg)
 
 If filling in each line by hand feels tedious, this is where AI earns its keep. With an AI connected, a purple **"Let AI write your draft"** banner shows up right below the body sections.
 
@@ -44,13 +44,13 @@ Element mode attaches no logs. For bugs that need logs, reach for [Screenshot](.
 
 ## 6. Preview
 
-![Issue preview](../assets/element-issue-5.jpg)
+![Issue preview](../.gitbook/assets/element-issue-5.jpg)
 
 Give the body a look in the preview before submitting. **Copy markdown** copies it as-is to paste elsewhere.
 
 ## 7. Submit
 
-![Issue submitted](../assets/element-issue-6.jpg)
+![Issue submitted](../.gitbook/assets/element-issue-6.jpg)
 
 Fill in the connected platform's fields (project, assignee, labels, etc.) and hit **Submit issue**. A link to the created issue appears when it's done.
 
