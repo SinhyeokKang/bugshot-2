@@ -366,22 +366,27 @@ function RecordingState({ onStop, onCancel }: { onStop: () => void; onCancel: ()
             style={{ width: `${progress * 100}%` }}
           />
         </div>
-        <div className="mt-4 flex gap-2">
+        <div className="mt-4 flex w-full max-w-[224px] flex-col gap-2">
           <Button
-            size="icon"
             variant="outline"
-            className={cn("h-9 w-9 shrink-0", penOn && "bg-muted")}
+            className={cn("w-full", penOn && "bg-muted")}
             data-active={penOn || undefined}
             data-testid="annotation-pen-toggle"
-            aria-label={t("issue.recording.pen")}
-            title={t("issue.recording.pen")}
+            title={t("issue.recording.penHint")}
             aria-pressed={penOn}
             onClick={togglePen}
           >
             <Pencil />
+            {t("issue.recording.pen")}
           </Button>
-          <Button variant="outline" onClick={onCancel}>{t("common.cancel")}</Button>
-          <Button onClick={onStop}>{t("issue.recording.stop")}</Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={onCancel}>
+              {t("common.cancel")}
+            </Button>
+            <Button className="flex-1" onClick={onStop}>
+              {t("issue.recording.stop")}
+            </Button>
+          </div>
         </div>
       </div>
     </PageShell>
