@@ -110,8 +110,9 @@ docs/                    # 프로젝트 레퍼런스 문서 (루트엔 CLAUDE.md
 ├── PERMISSION.md    # Chrome 권한 전체 레퍼런스 (activeTab·OAuth 토큰 흐름 등)
 ├── POSTMORTEM.md    # 회귀·버그 사후분석 회고 누적 (/postmortem)
 ├── features/        # 기능 기획 문서 (PRD·설계·태스크) — dev에서 작업, 구현 완료 시 삭제
-├── privacy.ko.md   # 개인정보처리방침 ko 원본 (bug-shot.com/ko/privacy 이관 예정)
-└── privacy.en.md   # 개인정보처리방침 en 번역 (ko와 항상 동기화)
+├── privacy.ko.md   # 개인정보처리방침 ko 원본 (bug-shot.com/ko/privacy 서빙 소스)
+├── privacy.en.md   # 개인정보처리방침 en 번역 (ko와 항상 동기화)
+└── privacy.html    # 임시 리디렉트 스텁 → bug-shot.com/ko/privacy (front matter 無 → Jekyll 통과). 웹스토어 리뷰 통과 후 삭제 + GitHub Pages off
 guide/                   # GitBook 사용 가이드 소스 (ko/en 별도 site, GitHub Sync 단방향). guide/{ko,en}/ 각각 .gitbook.yaml(root: ./) + SUMMARY.md + README.md + assets/ + 6개 섹션(integrations·settings·element·screenshot·video·logs) 23페이지. 각 space의 Project directory를 guide/ko·guide/en로 지정
 guide/AUTHORING.md       # 가이드 작성 매뉴얼 (GitBook sync 밖, 레포 전용 — ko/en 상위). 운영 방식·IA·톤·사실 대조 소스·UI 라벨 규칙·footer·검증 = 가이드 작업의 단일 출처. /guide·/push가 가이드 갱신 시 필독
 ```
