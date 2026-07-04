@@ -96,7 +96,7 @@ pnpm version major --no-git-tag-version   # 1.0.0 → 2.0.0 (Breaking change)
 /postmortem     → 직전에 잡은 버그/회귀를 docs/POSTMORTEM.md에 회고 항목으로 추가 (비자명 함정만, 재발방지 grep/전수 대상 명시). 코드·빌드·커밋 안 함
 /guide          → guide/ko·en 사용자 가이드 작성·갱신. AUTHORING.md 규칙 로드 → 코드 대조 stale 탐지 → ko/en 동시 갱신 + 검증. 빌드·커밋 안 함
 /doc-check      → 8개 저장소 문서(CLAUDE/DIRECTORY/ARCHITECTURE/DESIGN/README/PERMISSION/privacy/AUTHORING)를 문서별 전담 에이전트가 병렬로 diff 무관 코드 양방향 대조(Pass1 문서→코드 사실오류 + Pass2 코드→문서 누락 커버리지) → 통합 리포트 → 항목별 확인 → 수정. /push 신선도 검사보다 깊다(diff에 안 걸린 누적 stale·섹션 내부 누락까지). guide/ko·en 본문은 제외(/guide 전담, AUTHORING은 검사). 빌드 안 함
-/push           → dev push (main에서 호출 차단) + CLAUDE.md/docs/DIRECTORY.md/docs/ARCHITECTURE.md/README.md/docs/PERMISSION.md/docs/privacy.md/guide(+AUTHORING.md) 신선도 검사 + e2e 게이트(.last-green == HEAD면 스킵 / 빨강이면 푸시 중단)
+/push           → dev push (main에서 호출 차단) + CLAUDE.md/docs/DIRECTORY.md/docs/ARCHITECTURE.md/README.md/docs/PERMISSION.md/docs/privacy.{ko,en}.md/guide(+AUTHORING.md) 신선도 검사 + e2e 게이트(.last-green == HEAD면 스킵 / 빨강이면 푸시 중단)
 /merge          → dev에서 e2e 게이트 교차(통상 /push 기록 해시로 스킵 / 빨강이면 중단) → 버전 bump 커밋 + dev → main squash PR 생성 + 자동 머지
 /deploy         → main 한정. tag push → 스토어 빌드 → zip → GitHub Release draft → 심사 요청 안내
 /sync           → dev를 origin/main으로 hard reset + force push (배포/머지 후)
@@ -108,7 +108,7 @@ pnpm version major --no-git-tag-version   # 1.0.0 → 2.0.0 (Breaking change)
 
 ### 문서 신선도
 
-`/push`는 항상 CLAUDE.md / docs/DIRECTORY.md / docs/ARCHITECTURE.md / README.md / docs/PERMISSION.md / docs/privacy.md / guide/ (`guide/AUTHORING.md` 포함) 신선도 검사를 거친다 — 단, **푸시될 diff에 걸린 문서만** 트라이아지하는 2차 안전망이다. diff와 무관하게 누적된 stale(예: 오래 방치된 docs/ARCHITECTURE.md 섹션)을 잡으려면 `/doc-check`로 8개 문서 전문을 코드와 직접 대조한다. 아래 중 하나라도 해당하면 문서 갱신을 별도 커밋(`docs(CLAUDE): ...` / `docs(DIRECTORY): ...` / `docs(ARCHITECTURE): ...` / `docs(README): ...` / `docs(PERMISSION): ...` / `docs(privacy): ...` / `docs(guide): ...`)으로 묶어 함께 푸시:
+`/push`는 항상 CLAUDE.md / docs/DIRECTORY.md / docs/ARCHITECTURE.md / README.md / docs/PERMISSION.md / docs/privacy.{ko,en}.md / guide/ (`guide/AUTHORING.md` 포함) 신선도 검사를 거친다 — 단, **푸시될 diff에 걸린 문서만** 트라이아지하는 2차 안전망이다. diff와 무관하게 누적된 stale(예: 오래 방치된 docs/ARCHITECTURE.md 섹션)을 잡으려면 `/doc-check`로 8개 문서 전문을 코드와 직접 대조한다. 아래 중 하나라도 해당하면 문서 갱신을 별도 커밋(`docs(CLAUDE): ...` / `docs(DIRECTORY): ...` / `docs(ARCHITECTURE): ...` / `docs(README): ...` / `docs(PERMISSION): ...` / `docs(privacy): ...` / `docs(guide): ...`)으로 묶어 함께 푸시:
 
 - 새 디렉터리·파일 추가/삭제 (특히 `src/` 하위 구조 변화)
 - `package.json` scripts 변경
@@ -120,7 +120,7 @@ pnpm version major --no-git-tag-version   # 1.0.0 → 2.0.0 (Breaking change)
 - 가이드 작성 기준 자체(IA·운영 방식·톤·UI 라벨 규칙·사실 스냅샷·플랫폼 표·지원 플랫폼)가 바뀜 → `guide/AUTHORING.md` 대조·갱신 (`docs(guide): ...`). 새 플랫폼 연동·단축키/로그 정책/본문 섹션 변경·새 페이지 추가가 트리거.
 - 워크플로우/스킬 라인업 변경
 - `manifest.config.ts`의 permissions·host_permissions 변경, 또는 새 플랫폼/연동·데이터 수집·외부 API 엔드포인트 추가
-- **docs/privacy.md는 권한 문자열이 아니라 실제 동작에 묶인다**: 새 기능이 *기존* 권한(광역 `https://*/*`·`activeTab`·`tabCapture`·`scripting` 등)을 새 목적으로 쓰거나 새 캡처·수집·저장·전송 동작을 추가하면 **manifest diff가 0이어도** privacy.md를 대조·갱신(시행일 포함)한다. diff에 `chrome.permissions.request`/`captureVisibleTab`/`tabCapture`/`chrome.scripting`/신규 외부 `fetch`/`chrome.storage`·IndexedDB write가 보이면 트리거. (30s Replay가 기존 optional 권한 재사용으로 이 검사를 빠져나가 심사 탈락한 전례 있음)
+- **docs/privacy.{ko,en}.md는 권한 문자열이 아니라 실제 동작에 묶인다**: 새 기능이 *기존* 권한(광역 `https://*/*`·`activeTab`·`tabCapture`·`scripting` 등)을 새 목적으로 쓰거나 새 캡처·수집·저장·전송 동작을 추가하면 **manifest diff가 0이어도** privacy를 대조·갱신한다. **ko가 원본, en은 그 번역이라 항상 같은 내용을 담아야 하므로 ko/en 양쪽 본문과 상단 시행일을 함께 갱신**한다(한쪽만 고치면 즉시 stale). diff에 `chrome.permissions.request`/`captureVisibleTab`/`tabCapture`/`chrome.scripting`/신규 외부 `fetch`/`chrome.storage`·IndexedDB write가 보이면 트리거. (30s Replay가 기존 optional 권한 재사용으로 이 검사를 빠져나가 심사 탈락한 전례 있음)
 
 ## 코드 컨벤션
 
@@ -141,7 +141,7 @@ pnpm version major --no-git-tag-version   # 1.0.0 → 2.0.0 (Breaking change)
 - pre-arm 버퍼링 (동기 IIFE 빌드 제약): `recorders-entry`는 self-contained 청크(외부 static import 0)여야 crxjs가 **동기 IIFE**로 emit → document_start 후크가 페이지 인라인 스크립트보다 먼저 깔린다. 그래야 `recorder-prearm.ts`의 sessionStorage 플래그(`__bugshot_recorder_active__`)를 읽어 active origin(한 번이라도 armed된 origin)이면 sentinel 도착 **전**부터 로그를 버퍼 적재(적재 게이트 `capturing` vs dispatch 게이트 `recording` 분리, sentinel 없으면 전송 no-op). 레코더는 `content/log-throttle.ts`, 사이드패널 수신부는 복제본 `sidepanel/lib/trailing-throttle.ts`를 쓰는 분리가 이 제약 때문 — 청크에 외부 static import가 유입되면 async loader로 되돌아가 pre-arm이 무력화된다(리팩터 시 회귀 주의).
 - 단축키: `_execute_action`(`Cmd/Ctrl+Shift+E`, 사이드패널 토글) 1개만 등록. Chrome이 `action.onClicked`로 내부 처리하므로 별도 `onCommand` 리스너 불필요. (캡처 단축키 3개는 제거됨 — manifest 전용이라 영속 데이터·마이그레이션 없이 무손실. 캡처는 진입 화면 버튼으로만.)
 - permissions: `sidePanel`, `activeTab`, `scripting`, `storage`, `commands`, `contextMenus`, `identity`, `tabCapture`, `webNavigation` (메인 프레임 네비게이션 커밋 직전 로그 꼬리 sync — cross-page 로그 누적)
-- host_permissions: **`<all_urls>` 단일** (required). 모든 페이지 picker·로그 레코더 주입 + `captureVisibleTab`(30s Replay, cross-origin 네비게이션에서 activeTab 회수돼도 캡처 유지) + BYOK LLM·GitLab self-managed 임의 origin fetch + cross-origin stylesheet 원문 fetch(`css.fetchSheets` — 스타일 값 보강, SSRF 가드 경유) + **8개 플랫폼 REST/OAuth host + OAuth proxy origin fetch**까지 전부 `<all_urls>`가 커버한다. 설치 시 "모든 사이트" 경고 상시, 런타임 권한 프롬프트 없음. (과거엔 `*.atlassian.net`·`api.github.com`·`gitlab.com`·`VITE_OAUTH_PROXY_URL` origin 등 구체 host를 함께 나열했으나 전부 `<all_urls>` 중복이라 제거 — 코드에 host별 `permissions.contains` 체크 없고 OAuth authorize는 launchWebAuthFlow라 host 불요. 어느 플랫폼·proxy로 트래픽이 나가는지는 docs/PERMISSION.md·docs/privacy.md 참조.)
+- host_permissions: **`<all_urls>` 단일** (required). 모든 페이지 picker·로그 레코더 주입 + `captureVisibleTab`(30s Replay, cross-origin 네비게이션에서 activeTab 회수돼도 캡처 유지) + BYOK LLM·GitLab self-managed 임의 origin fetch + cross-origin stylesheet 원문 fetch(`css.fetchSheets` — 스타일 값 보강, SSRF 가드 경유) + **8개 플랫폼 REST/OAuth host + OAuth proxy origin fetch**까지 전부 `<all_urls>`가 커버한다. 설치 시 "모든 사이트" 경고 상시, 런타임 권한 프롬프트 없음. (과거엔 `*.atlassian.net`·`api.github.com`·`gitlab.com`·`VITE_OAUTH_PROXY_URL` origin 등 구체 host를 함께 나열했으나 전부 `<all_urls>` 중복이라 제거 — 코드에 host별 `permissions.contains` 체크 없고 OAuth authorize는 launchWebAuthFlow라 host 불요. 어느 플랫폼·proxy로 트래픽이 나가는지는 docs/PERMISSION.md·docs/privacy.ko.md 참조.)
 - (`<all_urls>`는 required — 과거 optional + 런타임 `chrome.permissions.request()` 모델은 폐기. BYOK/GitLab의 `requestHostPermission` 호출은 코드에 남아있으나 이미 보유라 즉시 grant, 프롬프트 없음)
 - OAuth 관련 env: `VITE_ATLASSIAN_CLIENT_ID`, `VITE_GITHUB_CLIENT_ID` (dev), `VITE_GITHUB_CLIENT_ID_PROD` (store build 시 치환), `VITE_LINEAR_CLIENT_ID` (단일 client — dev/store redirect URI 둘 다 한 앱에 등록), `VITE_NOTION_CLIENT_ID`, `VITE_GITLAB_CLIENT_ID`, `VITE_ASANA_CLIENT_ID` (단일 client — dev/store redirect URI 둘 다 한 앱에 등록), `VITE_CLICKUP_CLIENT_ID` (단일 client — dev/store redirect URI 둘 다 한 앱에 등록), `VITE_SLACK_CLIENT_ID` (단일 client — OAuth 전용, dev/store redirect URI 둘 다 한 앱에 등록), `VITE_OAUTH_PROXY_URL` — 누락 시 해당 플랫폼 OAuth UI 자동 비활성화 (`oauth/config.ts`의 `OAUTH_CONFIG` 테이블 + `isConfigured()` 판정 — messages.ts `*.oauth.available` 단일 경로)
 - 분석 env: `VITE_POSTHOG_KEY` (dev), `VITE_POSTHOG_KEY_PROD` (store build 시 치환), `VITE_POSTHOG_HOST` (기본 `us.i.posthog.com`) — 누락 시 PostHog 집계 no-op
@@ -153,5 +153,5 @@ pnpm version major --no-git-tag-version   # 1.0.0 → 2.0.0 (Breaking change)
 
 - `docs/PERMISSION.md` — Chrome 권한 전체 레퍼런스 (activeTab 라이프사이클, OAuth 토큰 흐름, optional permission 등)
 - `docs/POSTMORTEM.md` — 회귀·버그 사후분석 회고 누적 (git 공유). `/postmortem` 스킬이 픽스마다 비자명 함정·재발방지를 한 항목씩 추가
-- `docs/privacy.md` — 개인정보처리방침 (GitHub Pages로 공개)
+- `docs/privacy.ko.md` · `docs/privacy.en.md` — 개인정보처리방침 (ko 원본 + en 번역, 항상 동기화). bug-shot.com/{ko,en}/privacy로 이관 예정(기존 GitHub Pages 폐지)
 - 사용자 개인 메모리: `~/.claude/projects/-Users-sinhyeokkang-code-bugshot-2/memory/`에 있음 (머신 로컬, git에 안 올라감)
