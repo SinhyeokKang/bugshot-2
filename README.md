@@ -122,4 +122,4 @@ The e2e suite lives in `e2e/` — see [`e2e/README.md`](e2e/README.md) for cover
 ## Privacy
 
 BugShot stores your data locally and sends issue content only to the tracker you
-choose. See the [Privacy Policy](https://sinhyeokkang.github.io/bugshot-2/privacy).
+choose. See the [Privacy Policy](https://bug-shot.com/en/privacy).
