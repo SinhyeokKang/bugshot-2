@@ -15,7 +15,7 @@
   - [스타일링](element/styling.md)
   - [이슈 작성](element/issue.md)
 - [스크린샷 캡처](screenshot/README.md)
-  - [스크린샷 캡처](screenshot/capture.md)
+  - [캡처 방식](screenshot/capture.md)
   - [어노테이션](screenshot/annotation.md)
   - [이슈 작성](screenshot/issue.md)
 - [녹화](video/README.md)

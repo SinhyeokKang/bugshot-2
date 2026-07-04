@@ -15,7 +15,7 @@
   - [Styling](element/styling.md)
   - [Write an Issue](element/issue.md)
 - [Screenshot](screenshot/README.md)
-  - [Capture](screenshot/capture.md)
+  - [Capture methods](screenshot/capture.md)
   - [Annotation](screenshot/annotation.md)
   - [Write an Issue](screenshot/issue.md)
 - [Recording](video/README.md)
