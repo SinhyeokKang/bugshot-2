@@ -12,7 +12,7 @@ import {
   Timer,
   AppWindow,
   MonitorPlay,
-  Pen,
+  Pencil,
 } from "lucide-react";
 import { useT } from "@/i18n";
 import { cn } from "@/lib/utils";
@@ -378,7 +378,7 @@ function RecordingState({ onStop, onCancel }: { onStop: () => void; onCancel: ()
             aria-pressed={penOn}
             onClick={togglePen}
           >
-            <Pen />
+            <Pencil />
           </Button>
           <Button variant="outline" onClick={onCancel}>{t("common.cancel")}</Button>
           <Button onClick={onStop}>{t("issue.recording.stop")}</Button>

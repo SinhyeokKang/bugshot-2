@@ -256,7 +256,7 @@ function handlePickerMessage(
       case "picker.cancelAreaSelect":
         handleCancelAreaSelect();
         break;
-      // annotation 오버레이는 top frame 한정(picker와 동일). 자식 프레임은 무응답으로 흘려 이중 응답 방지.
+      // annotation 오버레이는 top frame 한정(자식 iframe엔 안 그림). 자식 프레임은 무응답으로 흘려 이중 응답 방지.
       case "annotation.show":
         if (window !== window.top) return;
         showAnnotation();
@@ -445,6 +445,7 @@ function handleClear(): void {
     destroyOverlay(overlay);
     overlay = null;
   }
+  hideAnnotation();
   cancelTokenBuild();
   tokenLookup = null;
   inspectorCache = new WeakMap();

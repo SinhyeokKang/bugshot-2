@@ -186,6 +186,15 @@ describe("onRecordingComplete — idle 직접 호출 (30s Replay)", () => {
     expect(s.videoStartedAt).toBe(1000);
     expect(s.videoEndedAt).toBe(5000);
   });
+
+  it("펜 ON 상태로 녹화가 끝나도 annotationPenOn을 false로 리셋한다", () => {
+    useEditorStore.getState().setAnnotationPen(true);
+    expect(useEditorStore.getState().annotationPenOn).toBe(true);
+
+    useEditorStore.getState().onRecordingComplete(new Blob(["x"]), "t", { width: 800, height: 600 }, 1000, 5000);
+
+    expect(useEditorStore.getState().annotationPenOn).toBe(false);
+  });
 });
 
 describe("replaceVideo — trim 확정 영상 메타 교체", () => {

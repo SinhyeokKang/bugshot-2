@@ -23,6 +23,7 @@ const ANNOTATION_CSS = `
 .blocker.pen {
   pointer-events: auto;
   cursor: crosshair;
+  touch-action: none;
 }
 svg {
   position: fixed;
@@ -41,7 +42,6 @@ g.fading {
 
 interface AnnotationHandle {
   hostEl: HTMLDivElement;
-  shadow: ShadowRoot;
   svgEl: SVGSVGElement;
   blockerEl: HTMLDivElement;
   penOn: boolean;
@@ -53,6 +53,8 @@ interface AnnotationHandle {
 let handle: AnnotationHandle | null = null;
 
 function newStrokePath(h: AnnotationHandle, e: PointerEvent): void {
+  // pointerup 유실(뷰포트 밖 release)·pointercancel·멀티터치로 이전 획이 남아 있으면 먼저 커밋(fade).
+  commitStroke(h);
   const groupEl = document.createElementNS(SVG_NS, "g");
   const outline = document.createElementNS(SVG_NS, "path");
   outline.setAttribute("fill", "none");
@@ -85,16 +87,30 @@ function commitStroke(h: AnnotationHandle): void {
   const stroke = h.activeStroke;
   if (!stroke) return;
   h.activeStroke = null;
-  const timer = setTimeout(() => {
-    h.fadeTimers.delete(timer);
+  // 제거를 transitionend에 걸면 백그라운드 탭 등 미렌더 상태에서 이벤트가 안 와 노드가 누적된다.
+  // opacity 트랜지션(시각 페이드) 후 타이머로 확정 제거 — hideAnnotation의 fadeTimers clear가 커버.
+  const fadeTimer = setTimeout(() => {
+    h.fadeTimers.delete(fadeTimer);
     stroke.groupEl.classList.add("fading");
-    stroke.groupEl.addEventListener(
-      "transitionend",
-      () => stroke.groupEl.remove(),
-      { once: true },
-    );
+    const removeTimer = setTimeout(() => {
+      h.fadeTimers.delete(removeTimer);
+      stroke.groupEl.remove();
+    }, FADE_DURATION_MS);
+    h.fadeTimers.add(removeTimer);
   }, FADE_DELAY_MS);
-  h.fadeTimers.add(timer);
+  h.fadeTimers.add(fadeTimer);
+}
+
+function addDragListeners(): void {
+  window.addEventListener("pointermove", onPointerMove, true);
+  window.addEventListener("pointerup", onStrokeEnd, true);
+  window.addEventListener("pointercancel", onStrokeEnd, true);
+}
+
+function removeDragListeners(): void {
+  window.removeEventListener("pointermove", onPointerMove, true);
+  window.removeEventListener("pointerup", onStrokeEnd, true);
+  window.removeEventListener("pointercancel", onStrokeEnd, true);
 }
 
 function onPointerMove(e: PointerEvent): void {
@@ -103,19 +119,16 @@ function onPointerMove(e: PointerEvent): void {
   updateStrokePath(handle);
 }
 
-function onPointerUp(): void {
-  if (!handle) return;
-  window.removeEventListener("pointermove", onPointerMove, true);
-  window.removeEventListener("pointerup", onPointerUp, true);
-  commitStroke(handle);
+// pointerup·pointercancel(터치 스크롤 제스처 회수) 공통 종료 경로.
+function onStrokeEnd(): void {
+  if (handle) endActiveStroke(handle);
 }
 
 function onPointerDown(e: PointerEvent): void {
   if (!handle || !handle.penOn || e.button !== 0) return;
   e.preventDefault();
   newStrokePath(handle, e);
-  window.addEventListener("pointermove", onPointerMove, true);
-  window.addEventListener("pointerup", onPointerUp, true);
+  addDragListeners();
 }
 
 function onKeyDown(e: KeyboardEvent): void {
@@ -127,7 +140,8 @@ function onKeyDown(e: KeyboardEvent): void {
 }
 
 function yieldToScroll(): void {
-  if (!handle) return;
+  // 획을 그리는 중이면 스크롤에 양보하지 않는다 — 양보하면 pointer-events가 풀려 획이 끊긴다.
+  if (!handle || handle.activeStroke) return;
   handle.blockerEl.style.pointerEvents = "none";
   if (handle.scrollTimer) clearTimeout(handle.scrollTimer);
   handle.scrollTimer = setTimeout(() => {
@@ -138,13 +152,15 @@ function yieldToScroll(): void {
 
 function endActiveStroke(h: AnnotationHandle): void {
   if (!h.activeStroke) return;
-  window.removeEventListener("pointermove", onPointerMove, true);
-  window.removeEventListener("pointerup", onPointerUp, true);
+  removeDragListeners();
   commitStroke(h);
 }
 
 export function showAnnotation(): void {
-  if (handle || document.getElementById(ANNOTATION_HOST_ID)) return;
+  if (handle) return;
+  // 확장 reload/update로 옛 content script의 host DOM만 남으면(handle=null) 재-show가 영구 차단되므로
+  // picker의 removeOrphanOverlay 선례대로 고아 host를 제거하고 새로 마운트한다.
+  document.getElementById(ANNOTATION_HOST_ID)?.remove();
 
   const hostEl = document.createElement("div");
   hostEl.id = ANNOTATION_HOST_ID;
@@ -173,7 +189,6 @@ export function showAnnotation(): void {
   document.documentElement.appendChild(hostEl);
   handle = {
     hostEl,
-    shadow,
     svgEl,
     blockerEl,
     penOn: false,
@@ -203,8 +218,7 @@ export function hideAnnotation(): void {
   if (!handle) return;
   const h = handle;
   window.removeEventListener("keydown", onKeyDown, true);
-  window.removeEventListener("pointermove", onPointerMove, true);
-  window.removeEventListener("pointerup", onPointerUp, true);
+  removeDragListeners();
   endActiveStroke(h);
   for (const timer of h.fadeTimers) clearTimeout(timer);
   h.fadeTimers.clear();
