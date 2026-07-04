@@ -4,13 +4,13 @@ New here? No worries — going from install to your first submitted issue takes 
 
 ## 1. Install
 
-![Chrome Web Store install page](assets/quick-start-1.jpg)
+![Chrome Web Store install page](.gitbook/assets/quick-start-1.jpg)
 
 Install BugShot from the Chrome Web Store. A BugShot icon shows up in your toolbar.
 
 ## 2. Open the side panel
 
-![The side panel opened](assets/quick-start-2.jpg)
+![The side panel opened](.gitbook/assets/quick-start-2.jpg)
 
 Click the BugShot icon in the toolbar, or press `Cmd/Ctrl+Shift+E` to open the side panel.
 
@@ -18,35 +18,35 @@ Click the BugShot icon in the toolbar, or press `Cmd/Ctrl+Shift+E` to open the s
 
 ## 3. Connect a platform
 
-![Connecting a platform in the Integrations tab](assets/quick-start-3.jpg)
+![Connecting a platform in the Integrations tab](.gitbook/assets/quick-start-3.jpg)
 
 To file an issue you need at least one platform connected. In the **Integrations** tab, just connect one of Jira, GitHub, Linear, Notion, GitLab, Asana, or ClickUp. [Connecting Platforms](integrations/platforms.md) walks you through it step by step.
 
 ## 4. Capture
 
-![Choosing a capture mode](assets/quick-start-4.jpg)
+![Choosing a capture mode](.gitbook/assets/quick-start-4.jpg)
 
 In the **Debug** tab, pick a capture mode.
 
-- **Edit element style** — Pick an element, edit its styles, and report before/after.
-- **Capture element** — Click an element to crop just that element as a screenshot.
-- **Capture area** — Drag a screen region and mark it up.
-- **Record screen** — Record the behavior as a video.
+* **Edit element style** — Pick an element, edit its styles, and report before/after.
+* **Capture element** — Click an element to crop just that element as a screenshot.
+* **Capture area** — Drag a screen region and mark it up.
+* **Record screen** — Record the behavior as a video.
 
 If you're not sure which to pick, **Capture area** is the simplest place to start.
 
 ## 5. Write the body
 
-![Writing the issue draft](assets/quick-start-5.jpg)
+![Writing the issue draft](.gitbook/assets/quick-start-5.jpg)
 
 After capturing, you land on the issue draft. Just fill in the title and the Description, Steps to reproduce, and Expected result — the environment (OS, browser, URL, etc.) fills itself in, so don't sweat it.
 
 ## 6. Submit
 
-![Issue submitted](assets/quick-start-6.jpg)
+![Issue submitted](.gitbook/assets/quick-start-6.jpg)
 
 Give the body a quick look in the preview, fill in the connected platform's fields (project, assignee, etc.), and hit **Submit issue**. A link to the created issue pops right up.
 
----
+***
 
-Want the details of each step? They continue in [Inspect & Style](element/README.md), [Screenshot](screenshot/README.md), and [Recording](video/README.md).
+Want the details of each step? They continue in [Inspect & Style](element/), [Screenshot](screenshot/), and [Recording](video/).

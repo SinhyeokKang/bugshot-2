@@ -1,32 +1,32 @@
-# Write an Issue (recording mode)
+# Write an Issue
 
 When recording finishes, the issue draft opens. Just fill it in top to bottom and submit. Recording mode is the one that bundles **the richest logs alongside the video**.
 
 ## 1. Title
 
-Your configured title prefix (e.g. `[QA] `) is pre-filled. Type the rest of the title after it.
+Your configured title prefix (e.g. `[QA]` ) is pre-filled. Type the rest of the title after it.
 
 ## 2. Environment
 
-![Environment](../assets/video-issue-1.jpg)
+![Environment](../.gitbook/assets/video-issue-1.jpg)
 
 OS, browser, page URL, viewport size, and capture time fill in **on their own** (read-only). Want to add more context? Just drop in a variable row yourself.
 
 ## 3. Media — video
 
-![Video attached](../assets/video-issue-2.jpg)
+![Video attached](../.gitbook/assets/video-issue-2.jpg)
 
 The media in recording mode is the **video**. The clip you just recorded (or pulled in via 30s replay) is attached to the issue. The **Download** button on the right of the Media section also lets you save this video as a file.
 
 ## 4. Body sections
 
-![Writing the body](../assets/video-issue-3.jpg)
+![Writing the body](../.gitbook/assets/video-issue-3.jpg)
 
 Sections appear per your body composition — Description, Steps to reproduce, Expected result, Notes (only the ones you've turned on). Steps to reproduce is an ordered list. Fill them in by hand, or let AI Draft below do it in one shot.
 
 ## ✨ AI Draft
 
-![AI Draft banner and input box](../assets/video-issue-4.jpg)
+![AI Draft banner and input box](../.gitbook/assets/video-issue-4.jpg)
 
 If filling in each line by hand feels tedious, this is where AI earns its keep. With an AI connected, a purple **"Let AI write your draft"** banner shows up right below the body sections.
 
@@ -38,13 +38,13 @@ In recording mode, AI works from a **summary of the console, network, and action
 
 ## 5. Log attachments — recording-mode policy
 
-![Recording-mode log policy](../assets/video-issue-5.jpg)
+![Recording-mode log policy](../.gitbook/assets/video-issue-5.jpg)
 
 On top of the video, recording mode bundles three kinds of logs. **All three toggles are on by default**, so they're captured richly without you lifting a finger.
 
-- **Console Logs** — Console output and errors during the recording.
-- **Network Logs** — Network requests made during the recording.
-- **Action Logs** — A record of user actions: clicks, text input, and navigation, plus **keyboard shortcuts and special keys (Enter, Esc, ⌘K, and the like), checkbox and radio toggles, dropdown selections, and drag-and-drop**. (It captures which keys and actions happened, not every character you type.) **Action logs are only captured in recording mode.**
+* **Console Logs** — Console output and errors during the recording.
+* **Network Logs** — Network requests made during the recording.
+* **Action Logs** — A record of user actions: clicks, text input, and navigation, plus **keyboard shortcuts and special keys (Enter, Esc, ⌘K, and the like), checkbox and radio toggles, dropdown selections, and drag-and-drop**. (It captures which keys and actions happened, not every character you type.) **Action logs are only captured in recording mode.**
 
 The video timeline and the logs are linked by time, so the reader can walk through "what happened at this moment" in the [Log Viewer](../logs/viewer.md).
 
@@ -56,7 +56,7 @@ Give the body a look in the preview before submitting. **Copy markdown** copies 
 
 ## 7. Submit
 
-![Issue submitted](../assets/video-issue-6.jpg)
+![Issue submitted](../.gitbook/assets/video-issue-6.jpg)
 
 Fill in the connected platform's fields (project, assignee, labels, etc.) and hit **Submit issue**. A link to the created issue appears when it's done.
 

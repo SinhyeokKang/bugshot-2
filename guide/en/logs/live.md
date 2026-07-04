@@ -6,24 +6,24 @@ Both Console and Network also capture logs coming from **other origins embedded 
 
 ## Console
 
-![Console sub-tab](../assets/logs-live-1.jpg)
+![Console sub-tab](../.gitbook/assets/logs-live-1.jpg)
 
 Collects the page's console output in full — info, warnings, and errors alike. Warnings and errors your code logs directly (`console.warn`, `console.error`), plus uncaught exceptions, are all captured, so nothing slips by.
 
-- **Filter / search** — Filter by level (errors, warnings, and more) or find by keyword.
-- **Detail** — Expand an entry to see the full contents.
-- **Clear Log** — Empty the collected logs.
+* **Filter / search** — Filter by level (errors, warnings, and more) or find by keyword.
+* **Detail** — Expand an entry to see the full contents.
+* **Clear Log** — Empty the collected logs.
 
 ## Network
 
-![Network sub-tab](../assets/logs-live-2.jpg)
+![Network sub-tab](../.gitbook/assets/logs-live-2.jpg)
 
 See the network requests made by the page.
 
-- **Filter / search** — Filter requests by type, or find them with the search box. Search looks through not just the URL but also the request/response **body and headers**, so even if you don't remember the URL, a snippet from the response is enough to find it.
-- **Detail** — Expand to see request and response contents.
-- **Copy as cURL** — Copy a request as a cURL command to reproduce it in your terminal.
-- **Clear Log** — Empty the collected logs.
+* **Filter / search** — Filter requests by type, or find them with the search box. Search looks through not just the URL but also the request/response **body and headers**, so even if you don't remember the URL, a snippet from the response is enough to find it.
+* **Detail** — Expand to see request and response contents.
+* **Copy as cURL** — Copy a request as a cURL command to reproduce it in your terminal.
+* **Clear Log** — Empty the collected logs.
 
 ### WebSocket
 
@@ -33,7 +33,7 @@ If your page uses real-time, two-way communication (WebSocket), those connection
 
 ## File an issue from logs alone (freeform)
 
-![Filing a logs-only issue](../assets/logs-live-3.jpg)
+![Filing a logs-only issue](../.gitbook/assets/logs-live-3.jpg)
 
 You can also **file an issue with logs only**, no capture (element, screenshot, or video). While viewing the console or network, click **Write issue** to skip the capture step and go straight to the issue draft. Attach the console and network logs and submit.
 
