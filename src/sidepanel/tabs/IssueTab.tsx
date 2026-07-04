@@ -12,6 +12,7 @@ import {
   Timer,
   AppWindow,
   MonitorPlay,
+  Pen,
 } from "lucide-react";
 import { useT } from "@/i18n";
 import { cn } from "@/lib/utils";
@@ -52,6 +53,7 @@ import {
   startFreeformDraft,
 } from "@/sidepanel/picker-control";
 import { startVideoCapture, startScreenCapture } from "@/sidepanel/video-capture";
+import { setAnnotationPen } from "@/sidepanel/annotation-control";
 import * as videoRecorder from "@/sidepanel/video-recorder";
 import { PageFooter, PageShell } from "@/sidepanel/components/Section";
 import { useReplay } from "@/sidepanel/30s-replay/replay-context";
@@ -323,8 +325,16 @@ function CapturingState({ onCancel }: { onCancel: () => void }) {
 function RecordingState({ onStop, onCancel }: { onStop: () => void; onCancel: () => void }) {
   const t = useT();
   const source = useEditorStore((s) => s.recordingSource);
+  const penOn = useEditorStore((s) => s.annotationPenOn);
+  const tabId = useBoundTabId();
   const [elapsed, setElapsed] = useState(0);
   const maxDuration = videoRecorder.getMaxDuration();
+
+  const togglePen = () => {
+    const next = !penOn;
+    useEditorStore.getState().setAnnotationPen(next);
+    if (tabId) void setAnnotationPen(tabId, next);
+  };
 
   useEffect(() => {
     setElapsed(videoRecorder.getElapsedSec());
@@ -357,6 +367,19 @@ function RecordingState({ onStop, onCancel }: { onStop: () => void; onCancel: ()
           />
         </div>
         <div className="mt-4 flex gap-2">
+          <Button
+            size="icon"
+            variant="outline"
+            className={cn("h-9 w-9 shrink-0", penOn && "bg-muted")}
+            data-active={penOn || undefined}
+            data-testid="annotation-pen-toggle"
+            aria-label={t("issue.recording.pen")}
+            title={t("issue.recording.pen")}
+            aria-pressed={penOn}
+            onClick={togglePen}
+          >
+            <Pen />
+          </Button>
           <Button variant="outline" onClick={onCancel}>{t("common.cancel")}</Button>
           <Button onClick={onStop}>{t("issue.recording.stop")}</Button>
         </div>

@@ -6,6 +6,7 @@ import {
   entryNavOnBind,
   formatKeyCombo,
   exceedsDragThreshold,
+  matchesOwnHost,
   DRAG_THRESHOLD_PX,
   type KeyComboInput,
 } from "../action-recorder-helpers";
@@ -169,5 +170,34 @@ describe("entryNavOnBind", () => {
     expect(
       entryNavOnBind(true, "https://app.com", "https://app.com", "https://idp.com"),
     ).toBeNull();
+  });
+});
+
+describe("matchesOwnHost", () => {
+  const PICKER = "__bugshot_picker_host";
+  const ANNOTATION = "__bugshot_annotation_host";
+
+  it("picker host id가 조상 경로에 있으면 true", () => {
+    expect(matchesOwnHost(["something", PICKER], [PICKER, ANNOTATION])).toBe(true);
+  });
+
+  it("annotation host id가 조상 경로에 있으면 true (펜 드래그 오염 방지)", () => {
+    expect(matchesOwnHost([ANNOTATION], [PICKER, ANNOTATION])).toBe(true);
+  });
+
+  it("두 host id가 모두 있어도 true", () => {
+    expect(matchesOwnHost([PICKER, ANNOTATION], [PICKER, ANNOTATION])).toBe(true);
+  });
+
+  it("어느 host와도 매칭 안 되면 false — 일반 페이지 요소는 로깅 대상", () => {
+    expect(matchesOwnHost(["app-root", "my-button"], [PICKER, ANNOTATION])).toBe(false);
+  });
+
+  it("elementIds가 비면 false", () => {
+    expect(matchesOwnHost([], [PICKER, ANNOTATION])).toBe(false);
+  });
+
+  it("hostIds가 비면 항상 false", () => {
+    expect(matchesOwnHost([PICKER, ANNOTATION], [])).toBe(false);
   });
 });

@@ -6,6 +6,7 @@ import {
   entryNavOnBind,
   formatKeyCombo,
   exceedsDragThreshold,
+  matchesOwnHost,
   DRAG_THRESHOLD_PX,
 } from "./action-recorder-helpers";
 import { createTrailingThrottle, FLUSH_INTERVAL_MS } from "./log-throttle";
@@ -18,8 +19,10 @@ function actionRecorderScript(): void {
   const MAX_ENTRIES = 1000;
   const VALUE_CAP = 500;
   const SET_SENTINEL_EVENT = "__bugshot_action_setSentinel__";
-  // overlay.ts HOST_ID — MAIN world라 import 불가, 리터럴 동기화.
+  // overlay.ts HOST_ID / annotation.ts ANNOTATION_HOST_ID — MAIN world라 import 불가, 리터럴 동기화.
   const HOST_ID = "__bugshot_picker_host";
+  const ANNOTATION_HOST_ID = "__bugshot_annotation_host";
+  const OWN_HOST_IDS = [HOST_ID, ANNOTATION_HOST_ID];
 
   type Kind = "click" | "navigation" | "input" | "keypress" | "toggle" | "select" | "drag";
   type NavType = "load" | "pushState" | "replaceState" | "popstate" | "hashchange";
@@ -93,11 +96,12 @@ function actionRecorderScript(): void {
   function isOwnUi(el: Element | null, path?: EventTarget[]): boolean {
     if (!el) return false;
     if (path) {
-      for (const n of path) {
-        if (n instanceof Element && n.id === HOST_ID) return true;
-      }
+      const ids = path
+        .filter((n): n is Element => n instanceof Element)
+        .map((n) => n.id);
+      if (matchesOwnHost(ids, OWN_HOST_IDS)) return true;
     }
-    return !!el.closest?.(`#${HOST_ID}`);
+    return OWN_HOST_IDS.some((id) => !!el.closest?.(`#${id}`));
   }
 
   const ROLE_BY_TAG: Record<string, string> = {

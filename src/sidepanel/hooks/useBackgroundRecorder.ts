@@ -11,6 +11,8 @@ import {
   syncConsoleRecorder,
   syncActionRecorder,
 } from "@/sidepanel/picker-control";
+import { showAnnotation, setAnnotationPen } from "@/sidepanel/annotation-control";
+import * as videoRecorder from "@/sidepanel/video-recorder";
 import { pageKeyOf } from "@/lib/session-keys";
 import { isSupportedUrl } from "@/lib/url-support";
 
@@ -58,6 +60,16 @@ export function useBackgroundRecorder(tabId: number | null): void {
       }
     }
 
+    // 녹화 중 페이지 이동이면 새 페이지의 오버레이가 기본 OFF로 뜨므로 펜 상태를 복원한다.
+    // 마운트·복귀 경로는 video-capture의 showAnnotation이 이미 커버하므로 네비게이션 완료만 처리.
+    async function reshowAnnotation(): Promise<void> {
+      if (cancelled || !videoRecorder.isRecording()) return;
+      await showAnnotation(localTabId);
+      if (useEditorStore.getState().annotationPenOn) {
+        await setAnnotationPen(localTabId, true);
+      }
+    }
+
     void chrome.tabs.get(localTabId).then((tab) => {
       if (cancelled) return;
       // onUpdated가 먼저 baseline을 채운 경우 stale 값으로 덮지 않는다.
@@ -89,7 +101,7 @@ export function useBackgroundRecorder(tabId: number | null): void {
       }
 
       if (info.status === "complete" && !recordersStopped.current) {
-        void inject();
+        void inject().then(reshowAnnotation);
       }
     };
     chrome.tabs.onUpdated.addListener(onTabUpdated);

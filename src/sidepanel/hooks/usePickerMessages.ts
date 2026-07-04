@@ -186,6 +186,9 @@ export function usePickerMessages(myTabId: number | null): void {
             if (target) void clearPicker(target.tabId);
           }
         }
+      } else if (message.type === "annotation.penOff") {
+        // 페이지에서 Esc로 펜을 끈 경우 사이드패널 버튼 상태 동기화.
+        useEditorStore.getState().setAnnotationPen(false);
       } else if (message.type === "picker.iframeUnsupported") {
         const { target } = useEditorStore.getState();
         if (!resumeAfterRepickCancel()) {

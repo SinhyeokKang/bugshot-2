@@ -6,6 +6,7 @@ import {
 } from "./picker-control";
 import { pickVideoRecorderMime } from "./lib/video-mime";
 import { trackViewport } from "./lib/trackViewport";
+import { hideAnnotation } from "./annotation-control";
 
 const MAX_DURATION_SEC = 60;
 
@@ -64,6 +65,9 @@ function beginRecording(
     const localStartTime = s.startTime;
     const localSource = s.source;
     state = null;
+
+    // 어노테이션 오버레이 정리 — send가 내부에서 예외를 삼키므로 fire-and-forget(녹화 결과물 흐름 무간섭).
+    void hideAnnotation(localTabId);
 
     let thumbnail: string;
     try {
@@ -185,6 +189,7 @@ export function stopRecording(): void {
 
 export function cancelRecording(): void {
   if (!state) return;
+  const localTabId = state.tabId;
   window.clearTimeout(state.maxTimer);
   if (state.endedTrack && state.endedHandler) {
     state.endedTrack.removeEventListener("ended", state.endedHandler);
@@ -196,6 +201,7 @@ export function cancelRecording(): void {
   }
   state.stream.getTracks().forEach((t) => t.stop());
   state = null;
+  void hideAnnotation(localTabId);
   useEditorStore.getState().cancelRecording();
 }
 

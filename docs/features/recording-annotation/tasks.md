@@ -14,9 +14,9 @@
   - `pointsToPath(points: Array<[number,number]>): string` — 좌표 배열 → SVG path `d`. 빈 배열·단일 포인트(점 하나) 처리 포함.
   - `matchesOwnHost(elementIds: readonly string[], hostIds: readonly string[]): boolean` — action-recorder `isOwnUi`의 id 매칭 로직을 순수 함수로 추출해 helpers에 추가 (Vitest node 환경에서 DOM 없이 테스트 가능한 형태).
 - **검증**:
-  - [ ] `pnpm test` — pointsToPath: 다중 포인트 → `M...L...`, 단일 포인트 → 유효 최소 path, 빈 배열 → 빈 문자열, **대량 포인트(수천 개)** 케이스.
-  - [ ] `pnpm test` — matchesOwnHost: picker host만/annotation host만/둘 다/무매칭 케이스.
-  - [ ] `pnpm typecheck` 통과.
+  - [x] `pnpm test` — pointsToPath: 다중 포인트 → `M...L...`, 단일 포인트 → 유효 최소 path, 빈 배열 → 빈 문자열, **대량 포인트(수천 개)** 케이스.
+  - [x] `pnpm test` — matchesOwnHost: picker host만/annotation host만/둘 다/무매칭 케이스.
+  - [x] `pnpm typecheck` 통과.
 
 ### Task 2: 어노테이션 모듈 (`annotation.ts`)
 - **변경 대상**: `src/content/annotation.ts` (신규), `src/content/picker.ts` (메시지 분기 위임), `src/types/picker.ts` (union 멤버 추가)
@@ -30,7 +30,7 @@
   - hide: **activeStroke 즉시 확정** + window capture 리스너 제거 + `fadeTimers` 전부 clear + host remove.
   - 상수: `ANNOTATION_HOST_ID`, `STROKE_COLOR`, `STROKE_OUTLINE`, `STROKE_WIDTH`, `OUTLINE_WIDTH`, `FADE_DELAY_MS`, `FADE_DURATION_MS`.
 - **검증**:
-  - [ ] `pnpm typecheck` 통과.
+  - [x] `pnpm typecheck` 통과.
   - [ ] (수동) 콘솔에서 show/setPen/hide 수동 발신 → 오버레이 마운트·드래그 그리기·2겹 획·제거 확인 — 또는 Task 4 이후 실 녹화로 확인.
   - [ ] (수동) **그리는 도중(pointer down 상태) hide/setPen off/Esc** → 획 확정되고 리스너 잔존 없음.
 
@@ -40,14 +40,14 @@
   - editor-store: `annotationPenOn: boolean`(초기 false) + `setAnnotationPen(on)` 액션. `startRecording`의 `...initial` 리셋에 자동 편승 확인.
   - `annotation-control.ts`: `showAnnotation`/`hideAnnotation`/`setAnnotationPen(tabId, on)` — recorder-control.ts:5의 send 패턴. 주입 보장은 `picker-control.ts:ensureContentScript` 재사용(비export면 export 추가).
 - **검증**:
-  - [ ] `pnpm test` — editor-store: setAnnotationPen 토글, startRecording 시 false 리셋.
-  - [ ] `pnpm typecheck` 통과.
+  - [x] `pnpm test` — editor-store: setAnnotationPen 토글, startRecording 시 false 리셋.
+  - [x] `pnpm typecheck` 통과.
 
 ### Task 4: action-recorder 오염 방지
 - **변경 대상**: `src/content/action-recorder.ts`
 - **작업 내용**: `ANNOTATION_HOST_ID = "__bugshot_annotation_host"` 리터럴 추가(HOST_ID :21-22 인접, 동기 복제 주석). `isOwnUi`(:93)를 Task 1의 `matchesOwnHost` 사용으로 전환하고 picker host + annotation host 둘 다 제외.
 - **검증**:
-  - [ ] `pnpm test` — matchesOwnHost 테스트 green (Task 1).
+  - [x] `pnpm test` — matchesOwnHost 테스트 green (Task 1).
   - [ ] (수동, 실 탭) 펜 ON 드래그 → 로그 탭 액션 로그에 drag/click 안 잡힘. **펜 OFF 상태의 일반 클릭은 여전히 잡힘**(기존 동작 회귀 확인).
 
 ### Task 5: 녹화 라이프사이클 배선 (마운트/해제)
@@ -68,7 +68,7 @@
   - 상태는 `useEditorStore`의 `annotationPenOn` 구독. 클릭 → store `setAnnotationPen(next)` + 메시지 `setAnnotationPen(tabId, next)`. tabId는 `useBoundTabId()`(IssueTab.tsx:68).
   - `data-testid` 부착(e2e용).
 - **검증**:
-  - [ ] `pnpm typecheck` + i18n locales 테스트 통과.
+  - [x] `pnpm typecheck` + i18n locales 테스트 통과.
   - [ ] (수동, 실 탭) 펜 ON → crosshair·드래그 그리기·**휠 스크롤 통과(yieldToScroll)**; OFF → 페이지 정상 클릭.
   - [ ] (수동) **페이지에서 Esc** → 펜 꺼지고 사이드패널 버튼 active도 해제(업스트림 동기화 — Task 7의 usePickerMessages 배선 필요).
   - [ ] (수동) 펜 ON 상태로 사이드패널 다른 탭 갔다가 복귀 → 버튼 active 유지(store 승격 효과).

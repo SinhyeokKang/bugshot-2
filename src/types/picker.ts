@@ -115,4 +115,8 @@ export type PickerMessage =
   | { type: "actionRecorder.stop" }
   | { type: "actionRecorder.sync" }
   | { type: "actionRecorder.clear" }
-  | { type: "actionRecorder.data"; payload: { entries: import("@/types/action").ActionEntry[]; totalSeen: number } };
+  | { type: "actionRecorder.data"; payload: { entries: import("@/types/action").ActionEntry[]; totalSeen: number } }
+  | { type: "annotation.show" }
+  | { type: "annotation.hide" }
+  | { type: "annotation.setPen"; on: boolean }
+  | { type: "annotation.penOff" };
