@@ -1,0 +1,14 @@
+name: Trigger bugshot-web deploy
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "docs/privacy.ko.md"
+      - "docs/privacy.en.md"
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - run: curl -fsSL -X POST "${{ secrets.WEB_DEPLOY_HOOK }}"
