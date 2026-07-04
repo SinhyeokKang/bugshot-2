@@ -36,7 +36,7 @@ description: 저장소 문서(CLAUDE/DIRECTORY/ARCHITECTURE/DESIGN/README/PERMIS
 | `design` | **docs/DESIGN.md** | 디자인 토큰·다크모드·타이포·버튼/아이콘 사이즈·레이아웃·반응형·공용 합성 컴포넌트·상태 표현 컨벤션이 현재 `tailwind.config.js`·`globals.css`·`src/components/ui/`·`src/sidepanel/components/`·실제 사용처와 일치하는지 |
 | `readme` | **README.md** | 기능 목록·설치/사용법·스크린샷 설명·지원 플랫폼이 현재 코드와 맞는지 |
 | `permission` | **docs/PERMISSION.md** | activeTab 라이프사이클·OAuth 토큰 흐름·optional permission 등 권한 레퍼런스가 현재 `manifest.config.ts`·코드 사용처와 일치하는지 |
-| `privacy` | **docs/privacy.md** | 권한·host_permissions·수집 정보·외부 전송 대상·저장 방식이 현재 매니페스트뿐 아니라 **실제 코드 동작**(캡처/수집/전송)과 일치하는지 |
+| `privacy` | **docs/privacy.ko.md · docs/privacy.en.md** | 권한·host_permissions·수집 정보·외부 전송 대상·저장 방식이 현재 매니페스트뿐 아니라 **실제 코드 동작**(캡처/수집/전송)과 일치하는지 + **ko(원본)↔en(번역) 내용 동기화** 여부 |
 | `authoring` | **guide/AUTHORING.md** | 가이드 작성 매뉴얼의 사실 스냅샷(플랫폼 표·단축키·로그 정책·현재 기능 목록·파일 트리·footer·검증 체크리스트)이 현재 코드/구조와 어긋났는지. **guide 본문 페이지는 검사하지 않고, 작성 기준인 이 매뉴얼만** 코드 대조 |
 
 ## 절차
@@ -108,7 +108,7 @@ stale이 없으면 "발견 0 — Pass1 N개 단언·Pass2 K개 주제 모두 일
 - 🔴 명백한 사실 오류는 묶어서 일괄 수정 허락을 구할 수 있다.
 - 🟡/⚪ 는 항목별로 적용/제외 선택지 제시.
 - 합의된 항목만 Edit으로 반영.
-- docs/privacy.md를 갱신하면 상단 **시행일도 오늘 날짜로** 갱신.
+- docs/privacy.{ko,en}.md를 갱신하면 **ko/en 양쪽 본문과 상단 시행일**을 오늘 날짜로 함께 갱신(en은 ko 번역이라 항상 동기화).
 - AUTHORING.md를 고칠 땐 사실 스냅샷(표·목록)만 코드에 맞춰 정정한다. 가이드 본문(`guide/ko·en`)이 함께 어긋났다고 판단되면 여기서 손대지 말고 **`/guide`로 분리** 권고만 보고에 남긴다.
 
 ### 6. 커밋
