@@ -6,6 +6,7 @@ import {
   activateActionRecorder,
 } from "./picker-control";
 import { clearNetworkRecorder, clearConsoleRecorder, clearActionRecorder } from "./recorder-control";
+import { showAnnotation } from "./annotation-control";
 import * as videoRecorder from "./video-recorder";
 
 // pending IDB 정리 → 3개 레코더 activate → clear 순. 탭/화면 녹화 진입 공통 전처리.
@@ -58,6 +59,7 @@ export async function startVideoCapture(tabId: number): Promise<void> {
   );
   try {
     videoRecorder.beginTabRecording(stream, tabId);
+    void showAnnotation(tabId);
   } catch (err) {
     useEditorStore.getState().cancelRecording();
     stream.getTracks().forEach((t) => t.stop());
@@ -97,6 +99,7 @@ export async function startScreenCapture(tabId: number, opts?: { preferTab?: boo
   );
   try {
     videoRecorder.startScreenRecording(stream, tabId);
+    void showAnnotation(tabId);
   } catch (err) {
     useEditorStore.getState().cancelRecording();
     stream.getTracks().forEach((t) => t.stop());

@@ -1,6 +1,6 @@
 # Summary
 
-- [소개](README.md)
+- [BugShot 소개](README.md)
   - [빠른 시작](quick-start.md)
   - [자주 묻는 질문](faq.md)
 - [연동 설정](integrations/README.md)
@@ -15,7 +15,7 @@
   - [스타일링](element/styling.md)
   - [이슈 작성](element/issue.md)
 - [스크린샷 캡처](screenshot/README.md)
-  - [스크린샷 캡처](screenshot/capture.md)
+  - [캡처 방식](screenshot/capture.md)
   - [어노테이션](screenshot/annotation.md)
   - [이슈 작성](screenshot/issue.md)
 - [녹화](video/README.md)

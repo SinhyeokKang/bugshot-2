@@ -1,6 +1,6 @@
 # Summary
 
-- [Introduction](README.md)
+- [About BugShot](README.md)
   - [Quick Start](quick-start.md)
   - [FAQ](faq.md)
 - [Integrations](integrations/README.md)
@@ -15,7 +15,7 @@
   - [Styling](element/styling.md)
   - [Write an Issue](element/issue.md)
 - [Screenshot](screenshot/README.md)
-  - [Capture](screenshot/capture.md)
+  - [Capture methods](screenshot/capture.md)
   - [Annotation](screenshot/annotation.md)
   - [Write an Issue](screenshot/issue.md)
 - [Recording](video/README.md)

@@ -106,7 +106,7 @@ Tailwind 4px 스케일을 그대로 쓴다. 자주 쓰는 값(관용):
 - 키보드·역할·포커스 트랩은 **Radix 프리미티브**가 기본 제공한다(shadcn 컴포넌트를 쓰면 따라옴).
 - 포커스 표시는 `focus-visible:ring-2 focus-visible:ring-ring` 컨벤션.
   - ⚠ **현재 `--ring`이 `--border`와 같은 값**이라(`globals.css`) 키보드 포커스 링이 잘 안 보인다. 개선 후보 — 별도 대비색으로 분리하면 좋다. 그 전까진 중요한 인터랙션에 포커스가 보이는지 직접 확인.
-- **아이콘 전용 버튼**(`size="icon"`)은 텍스트가 없으므로 `aria-label`(또는 `sr-only` 텍스트)을 붙인다 — 안 그러면 스크린리더에서 무명 버튼.
+- **아이콘 전용 버튼**(`size="icon"`)은 텍스트가 없으므로 `aria-label`(또는 `sr-only` 텍스트)을 붙인다 — 안 그러면 스크린리더에서 무명 버튼. 실사용 관용은 `aria-label`+`title`(hover 툴팁)을 함께 다는 것(둘 다 i18n — `AnnotationToolbar`·녹화 펜 토글).
 - 보조 정보용 저대비 텍스트(`text-muted-foreground/70`)는 본문 핵심 정보에 쓰지 않는다.
 - 다이얼로그를 **코드로(프로그램적으로) 열 때**는 `blurActiveElement()`(`App.tsx`)로 포커스를 먼저 떼야 Radix `aria-hidden` 경고를 피한다 — 새 전역 다이얼로그 추가 시 참고.
 
@@ -129,12 +129,12 @@ shadcn `Slider` (`src/components/ui/slider.tsx`, Radix). 표준에서 **멀티 t
 
 **아이콘 버튼(`size="icon"`) 두 사이즈**
 - `h-8 w-8` (32px): 패널/섹션 헤더·행 액션의 기본.
-- `h-9 w-9` (36px): Input/Textarea 우측에 직접 붙어 필드 높이(h-9)와 맞춰야 할 때. 항상 `shrink-0` 동반.
+- `h-9 w-9` (36px): Input/Textarea 우측에 직접 붙거나, **인접한 h-9 컨트롤(텍스트 버튼 등)과 높이를 맞춰야 할 때**(예: 녹화 컨트롤 행의 펜 토글이 Cancel/Stop 텍스트 버튼과 정렬 — `IssueTab.tsx` RecordingState). 항상 `shrink-0` 동반.
 
 **아이콘 버튼 색**
 - idle은 **`foreground`(기본 검정)**. 아이콘 *버튼*의 idle에 `text-muted-foreground`(회색)를 쓰지 않는다 — 비활성처럼 보여 클릭 가능성이 약해진다.
 - 삭제·연결 해제 등 파괴적 액션: idle은 foreground 그대로, **`hover:text-destructive`**(호버 시 빨강)로만 위험을 표현한다.
-- 토글류(`aria-pressed`)도 off의 아이콘은 `foreground`(검정). on/off 대비는 색이 아니라 **배경·테두리**로 표현한다(예: on=`bg-foreground text-background`, off=기본 + `hover:bg-muted` — `LinkToggle`).
+- 토글류(`aria-pressed`)도 off의 아이콘은 `foreground`(검정). on/off 대비는 색이 아니라 **배경·테두리**로 표현한다. 두 관용구: ① **약대비** `data-active={active||undefined}` + `aria-pressed` + `cn(..., active && "bg-muted")` — 사이드패널 아이콘 토글의 지배적 패턴(`AnnotationToolbar`·녹화 펜 토글 `IssueTab`·텍스트 pill `OriginFilterBar`), ② **강대비** on=`bg-foreground text-background`, off=기본 + `hover:bg-muted`(`LinkToggle`).
 - 예외: empty state·로딩 스피너·상태 표시 아이콘은 *버튼이 아니므로* `text-muted-foreground` 허용(장식·저대비 정보).
 
 **관련 변형 컴포넌트**

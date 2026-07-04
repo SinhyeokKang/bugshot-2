@@ -186,6 +186,15 @@ describe("onRecordingComplete — idle 직접 호출 (30s Replay)", () => {
     expect(s.videoStartedAt).toBe(1000);
     expect(s.videoEndedAt).toBe(5000);
   });
+
+  it("펜 ON 상태로 녹화가 끝나도 annotationPenOn을 false로 리셋한다", () => {
+    useEditorStore.getState().setAnnotationPen(true);
+    expect(useEditorStore.getState().annotationPenOn).toBe(true);
+
+    useEditorStore.getState().onRecordingComplete(new Blob(["x"]), "t", { width: 800, height: 600 }, 1000, 5000);
+
+    expect(useEditorStore.getState().annotationPenOn).toBe(false);
+  });
 });
 
 describe("replaceVideo — trim 확정 영상 메타 교체", () => {
@@ -1398,5 +1407,37 @@ describe("updateSelectionStyles — 편집 중 prop baseline 보존", () => {
     expect(sel.selector).toBe("#el-B");
     expect(sel.specifiedStyles.color).toBe("rgb(0, 0, 255)");
     expect(sel.specifiedStyles.padding).toBeUndefined();
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  annotationPenOn — 녹화 중 그리기 펜 토글                              */
+/* ------------------------------------------------------------------ */
+
+describe("annotationPenOn — 펜 토글 상태", () => {
+  beforeEach(() => {
+    useEditorStore.setState(useEditorStore.getInitialState(), true);
+  });
+
+  it("초기값은 false", () => {
+    expect(useEditorStore.getState().annotationPenOn).toBe(false);
+  });
+
+  it("setAnnotationPen(true)로 켜고 setAnnotationPen(false)로 끈다", () => {
+    useEditorStore.getState().setAnnotationPen(true);
+    expect(useEditorStore.getState().annotationPenOn).toBe(true);
+
+    useEditorStore.getState().setAnnotationPen(false);
+    expect(useEditorStore.getState().annotationPenOn).toBe(false);
+  });
+
+  it("startRecording은 ...initial 리셋이라 펜을 false로 되돌린다", () => {
+    useEditorStore.getState().setAnnotationPen(true);
+    expect(useEditorStore.getState().annotationPenOn).toBe(true);
+
+    useEditorStore.getState().startRecording(target, "tab");
+
+    expect(useEditorStore.getState().phase).toBe("recording");
+    expect(useEditorStore.getState().annotationPenOn).toBe(false);
   });
 });

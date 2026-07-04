@@ -99,6 +99,15 @@ export function exceedsDragThreshold(
   return dx * dx + dy * dy > threshold * threshold;
 }
 
+// 이벤트 조상 경로/closest에서 뽑은 element id 배열이 확장 자기-UI host(picker·annotation)에
+// 걸리는지 판정. capture phase라 콘텐츠 측 stopPropagation으로 못 막으므로 host 제외가 유일 해법.
+export function matchesOwnHost(
+  elementIds: readonly string[],
+  hostIds: readonly string[],
+): boolean {
+  return elementIds.some((id) => hostIds.includes(id));
+}
+
 export function buildLightSelector(el: Element): string {
   if (el.id) return `#${el.id}`;
   const tag = el.tagName.toLowerCase();

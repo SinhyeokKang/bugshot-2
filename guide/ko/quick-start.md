@@ -6,7 +6,7 @@
 
 ![Chrome 웹스토어 설치 화면](assets/quick-start-1.jpg)
 
-Chrome 웹스토어에서 BugShot을 설치합니다. 설치하면 툴바에 BugShot 아이콘이 생깁니다.
+[Chrome 웹스토어](https://chromewebstore.google.com/detail/bugshot/ohakhekagkodklkickemonmifdcbhmig)에서 BugShot을 설치합니다. 설치하면 툴바에 BugShot 아이콘이 생깁니다.
 
 ## 2. 사이드패널 열기
 

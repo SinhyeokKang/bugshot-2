@@ -1,4 +1,4 @@
-# BugShot Guide
+# About BugShot
 
 ![BugShot at a glance — capture and report right where you spot the bug](assets/readme-1.jpg)
 

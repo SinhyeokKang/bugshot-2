@@ -95,7 +95,7 @@ url-support.ts:classifyTabSupport()
     └── 미지원/응답 없음 → "unsupported"
 ```
 
-- `picker-control.ts:149` — `ensureSupportedTab()`: 모든 캡처 진입점(picker, area, inline, freeform, video)에서 호출
+- `picker-control.ts:183` — `ensureSupportedTab()`: 모든 캡처 진입점(picker, area, inline, freeform, video)에서 호출
 - `tab-bindings.ts:150` — `deactivatePanelIfCrossOrigin()`: URL 판독 불가 시 cross-origin으로 간주
 
 #### 2단계: 캡처 시점 에러 매칭 (런타임 가드)
@@ -109,7 +109,7 @@ capture-error.ts:isActiveTabPermissionError()
 └── "extension has not been invoked" 포함
 ```
 
-- `picker-control.ts:161` — `maybeSurfacePermissionExpired()`: captureVisibleTab 실패 시 호출
+- `picker-control.ts:195` — `maybeSurfacePermissionExpired()`: captureVisibleTab 실패 시 호출
 - `capture.ts:45` — 요소 스냅샷 실패
 - `usePickerMessages.ts:318,376` — 영역 캡처·인라인 캡처 실패
 
@@ -122,7 +122,7 @@ video-capture.ts:isTabCaptureUnavailable()
 └── "activetab"
 ```
 
-- `video-capture.ts:39` — `startRecording()` 실패 시 호출
+- `video-capture.ts:110` — `isTabCaptureUnavailable()` 정의(호출부 `:41`, `startTabStream` 실패 분기)
 
 ### 만료 시 동작
 
@@ -366,7 +366,7 @@ bg service worker에서 직접 읽기/쓰기:
 ### OAuth 에러 처리
 
 - `OAuthError` (`oauth/errors.ts` — `oauth.ts`가 re-export): `cancelled`, `platform` 필드 포함
-- bg에서 시리얼라이즈: `body.oauthCancelled` 또는 `body.oauthRefreshFailed` 플래그 (`background/index.ts:225`)
+- bg에서 시리얼라이즈: `body.oauthCancelled` 또는 `body.oauthRefreshFailed` 플래그 (`background/oauth.ts:26` `serializeOAuthError` — `background/index.ts`에서 호출)
 - `onOAuthExpired` 이벤트 (`types/messages.ts:209`): refresh 실패 시 발화 → 재인증 UI 표시
 - 사용자 취소 코드: `access_denied` (전 플랫폼), `user_cancelled_login`/`user_cancelled_authorize` (Jira), `user_denied` (Notion)
 

@@ -45,6 +45,11 @@ import {
   attachAreaBlockerListener,
   type AreaSelectHandle,
 } from "./area-select";
+import {
+  showAnnotation,
+  hideAnnotation,
+  setAnnotationPen,
+} from "./annotation";
 import { PICKER_PORT_NAME } from "@/lib/session-keys";
 import { postToRuntime } from "./post-to-runtime";
 import {
@@ -251,6 +256,19 @@ function handlePickerMessage(
       case "picker.cancelAreaSelect":
         handleCancelAreaSelect();
         break;
+      // annotation 오버레이는 top frame 한정(자식 iframe엔 안 그림). 자식 프레임은 무응답으로 흘려 이중 응답 방지.
+      case "annotation.show":
+        if (window !== window.top) return;
+        showAnnotation();
+        break;
+      case "annotation.setPen":
+        if (window !== window.top) return;
+        setAnnotationPen(msg.on);
+        break;
+      case "annotation.hide":
+        if (window !== window.top) return;
+        hideAnnotation();
+        break;
       // recorder.* 메시지는 recorder-bridge.ts(all_frames)가 처리 — 무응답으로 흘려 이중 응답 방지.
       default:
         return;
@@ -427,6 +445,7 @@ function handleClear(): void {
     destroyOverlay(overlay);
     overlay = null;
   }
+  hideAnnotation();
   cancelTokenBuild();
   tokenLookup = null;
   inspectorCache = new WeakMap();

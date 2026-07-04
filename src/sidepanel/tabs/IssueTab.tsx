@@ -12,6 +12,7 @@ import {
   Timer,
   AppWindow,
   MonitorPlay,
+  Pencil,
 } from "lucide-react";
 import { useT } from "@/i18n";
 import { cn } from "@/lib/utils";
@@ -52,6 +53,7 @@ import {
   startFreeformDraft,
 } from "@/sidepanel/picker-control";
 import { startVideoCapture, startScreenCapture } from "@/sidepanel/video-capture";
+import { setAnnotationPen } from "@/sidepanel/annotation-control";
 import * as videoRecorder from "@/sidepanel/video-recorder";
 import { PageFooter, PageShell } from "@/sidepanel/components/Section";
 import { useReplay } from "@/sidepanel/30s-replay/replay-context";
@@ -323,8 +325,16 @@ function CapturingState({ onCancel }: { onCancel: () => void }) {
 function RecordingState({ onStop, onCancel }: { onStop: () => void; onCancel: () => void }) {
   const t = useT();
   const source = useEditorStore((s) => s.recordingSource);
+  const penOn = useEditorStore((s) => s.annotationPenOn);
+  const tabId = useBoundTabId();
   const [elapsed, setElapsed] = useState(0);
   const maxDuration = videoRecorder.getMaxDuration();
+
+  const togglePen = () => {
+    const next = !penOn;
+    useEditorStore.getState().setAnnotationPen(next);
+    if (tabId) void setAnnotationPen(tabId, next);
+  };
 
   useEffect(() => {
     setElapsed(videoRecorder.getElapsedSec());
@@ -356,9 +366,27 @@ function RecordingState({ onStop, onCancel }: { onStop: () => void; onCancel: ()
             style={{ width: `${progress * 100}%` }}
           />
         </div>
-        <div className="mt-4 flex gap-2">
-          <Button variant="outline" onClick={onCancel}>{t("common.cancel")}</Button>
-          <Button onClick={onStop}>{t("issue.recording.stop")}</Button>
+        <div className="mt-4 flex w-full max-w-[224px] flex-col gap-2">
+          <Button
+            variant="outline"
+            className={cn("w-full", penOn && "bg-muted")}
+            data-active={penOn || undefined}
+            data-testid="annotation-pen-toggle"
+            title={t("issue.recording.penHint")}
+            aria-pressed={penOn}
+            onClick={togglePen}
+          >
+            <Pencil />
+            {t("issue.recording.pen")}
+          </Button>
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={onCancel}>
+              {t("common.cancel")}
+            </Button>
+            <Button className="flex-1" onClick={onStop}>
+              {t("issue.recording.stop")}
+            </Button>
+          </div>
         </div>
       </div>
     </PageShell>

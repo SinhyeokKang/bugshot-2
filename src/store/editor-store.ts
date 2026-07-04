@@ -154,6 +154,7 @@ interface EditorState {
   submitResult: SubmitResult | null;
   inlineCaptureTarget: string | null;
   sessionExpired: boolean;
+  annotationPenOn: boolean;
 
   startInlineCapture: (sectionId: string) => void;
   cancelInlineCapture: () => void;
@@ -210,6 +211,7 @@ interface EditorState {
   setConsoleLogAttach: (on: boolean) => void;
   setActionLog: (log: ActionLog) => void;
   setActionLogAttach: (on: boolean) => void;
+  setAnnotationPen: (on: boolean) => void;
   clearNetworkLog: (tabId: number | null) => void;
   clearConsoleLog: (tabId: number | null) => void;
   clearActionLog: (tabId: number | null) => void;
@@ -301,6 +303,7 @@ const initial = {
   aiDraftLoading: false,
   submitResult: null as SubmitResult | null,
   sessionExpired: false,
+  annotationPenOn: false,
 };
 
 // cross-page 누적 로그·첨부 토글 4필드를 모드 진입 시 보존. element/screenshot/freeform이 공유.
@@ -513,7 +516,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }),
   startRecording: (target, source) => set({ ...initial, captureMode: "video", recordingSource: source, phase: "recording", target }),
   onRecordingComplete: (blob, thumbnail, viewport, startedAt, endedAt) => {
-    set({ captureMode: "video", phase: "drafting", videoBlob: blob, videoThumbnail: thumbnail, videoViewport: viewport, videoCapturedAt: Date.now(), videoStartedAt: startedAt, videoEndedAt: endedAt, videoTrimmed: false, networkLogAttach: true, consoleLogAttach: true, actionLogAttach: true });
+    set({ captureMode: "video", phase: "drafting", videoBlob: blob, videoThumbnail: thumbnail, videoViewport: viewport, videoCapturedAt: Date.now(), videoStartedAt: startedAt, videoEndedAt: endedAt, videoTrimmed: false, networkLogAttach: true, consoleLogAttach: true, actionLogAttach: true, annotationPenOn: false });
     // drafting 중 패널을 닫아도 영상이 살아남도록 로그와 동일하게 pending:${tabId}에 미러링(hydrate가 복원).
     const tabId = get().target?.tabId;
     if (tabId != null) void saveVideoBlob(`pending:${tabId}`, blob);
@@ -918,6 +921,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   setNetworkLog: (log) => set({ networkLog: log }),
   setNetworkLogAttach: (on) => set({ networkLogAttach: on }),
+  setAnnotationPen: (on) => set({ annotationPenOn: on }),
   setConsoleLog: (log) => set({ consoleLog: log }),
   setConsoleLogAttach: (on) => set({ consoleLogAttach: on }),
   setActionLog: (log) => set({ actionLog: log }),

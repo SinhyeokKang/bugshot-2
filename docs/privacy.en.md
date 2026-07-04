@@ -90,7 +90,7 @@ Beyond the items above, the extension does not collect your browsing history, co
 
 All data is stored **only inside your browser**.
 
-- **chrome.storage.local**: Jira, GitHub, Linear, Notion, GitLab, Asana, ClickUp, Slack integration settings, issue history, app settings, LLM provider settings (API keys stored obfuscated)
+- **chrome.storage.local**: Jira, GitHub, Linear, Notion, GitLab, Asana, ClickUp, Slack integration settings, issue history, app settings, LLM provider settings (LLM API keys stored obfuscated)
 - **chrome.storage.session**: Editing sessions (per tab, automatically deleted when the browser closes)
 - **IndexedDB**: Video recordings, screenshot images, network logs, console logs, user action logs, inline editor images, user-attached files (local device only)
 - **Memory (temporary)**: 30-second replay frame buffer — not stored to disk; encoded to video and saved to IndexedDB only at the moment you perform a capture.

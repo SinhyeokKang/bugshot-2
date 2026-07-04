@@ -6,7 +6,7 @@ New here? No worries — going from install to your first submitted issue takes 
 
 ![Chrome Web Store install page](assets/quick-start-1.jpg)
 
-Install BugShot from the Chrome Web Store. A BugShot icon shows up in your toolbar.
+Install BugShot from the [Chrome Web Store](https://chromewebstore.google.com/detail/bugshot/ohakhekagkodklkickemonmifdcbhmig). A BugShot icon shows up in your toolbar.
 
 ## 2. Open the side panel
 
