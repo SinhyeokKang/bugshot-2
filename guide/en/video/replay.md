@@ -1,7 +1,5 @@
 # 30s Replay
 
-🌐 [한국어](https://bugshot.gitbook.io/ko/video/replay)
-
 Bugs never wait for you to hit record first, do they? 30s replay **always keeps the last 30 seconds** of your screen, so right after you spot a bug you can attach what just happened as a video in one click. It saves you from those "ugh, I should've been recording" moments.
 
 ## Prerequisite: setting

@@ -1,7 +1,5 @@
 # Pick an Element
 
-🌐 [한국어](https://bugshot.gitbook.io/ko/element/picker)
-
 ## Start picking
 
 ![Picker crosshair](../assets/element-picker-1.jpg)

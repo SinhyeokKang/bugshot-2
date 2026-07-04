@@ -1,7 +1,5 @@
 # General
 
-🌐 [한국어](https://bugshot.gitbook.io/ko/settings/general)
-
 Settings you set once and forget — like language and theme — all live in the **General** sub-tab. Nothing complicated here, so feel free to look around.
 
 ## Language

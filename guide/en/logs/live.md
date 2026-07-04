@@ -1,7 +1,5 @@
 # Live Logs
 
-🌐 [한국어](https://bugshot.gitbook.io/ko/logs/live)
-
 The **Debug** tab has Console and Network sub-tabs, so you can watch the logs happening on the current page right inside the side panel. Logs are collected on their own in real time, so there's no need to refresh.
 
 Both Console and Network also capture logs coming from **other origins embedded in the page** (iframes — say a payment widget or an embed). When logs from several origins are mixed in, an **origin filter** appears above the list. Click an origin button to see only its logs, and click it again to go back to everything (no selection means all). Logs without a clear origin are grouped under **(unknown)**. Handy when you want to see only the logs from the page you're actually on.

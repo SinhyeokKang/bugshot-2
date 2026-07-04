@@ -1,7 +1,5 @@
 # Write an Issue (element mode)
 
-🌐 [한국어](https://bugshot.gitbook.io/ko/element/issue)
-
 When you finish editing styles and click **Next**, the issue draft opens. Just fill it in top to bottom.
 
 ## 1. Title

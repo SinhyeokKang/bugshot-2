@@ -1,7 +1,5 @@
 # Write an Issue (screenshot mode)
 
-🌐 [한국어](https://bugshot.gitbook.io/ko/screenshot/issue)
-
 When you finish annotating and click **Done**, the issue draft opens. Just fill it in top to bottom.
 
 ## 1. Title

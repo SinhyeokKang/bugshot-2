@@ -1,7 +1,5 @@
 # BugShot 가이드
 
-🌐 [English](https://bugshot.gitbook.io/en)
-
 ![BugShot 대표 화면 — 버그를 발견한 그 자리에서 캡처하고 리포트](assets/readme-1.jpg)
 
 웹에서 버그를 발견할 때마다 "이거 어떻게 설명하지…" 하고 막막했던 적, 다들 있으시죠. BugShot은 바로 그 순간을 도와드립니다.
@@ -10,7 +8,7 @@ BugShot은 웹 페이지의 DOM 요소를 골라 스타일을 수정·비교한 
 
 "여기 이 버튼 색이 이상해요"를 말로 길게 설명하던 작업, 이제 클릭 한 번이면 충분합니다.
 
-{% embed url="https://bug-shot.com" %}
+{% embed url="https://chromewebstore.google.com/detail/bugshot/ohakhekagkodklkickemonmifdcbhmig" %}
 
 ## 화면 구성: 메인 탭 4개
 

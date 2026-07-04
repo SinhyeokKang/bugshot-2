@@ -1,7 +1,5 @@
 # Log Viewer
 
-🌐 [한국어](https://bugshot.gitbook.io/ko/logs/viewer)
-
 This page is from the angle of the **developer who receives and works the bug**. Issues filed with BugShot may carry a log report file (`logs.html`). Open it and you can view the video and the logs lined up by time on one screen. If the issue was filed in screenshot mode, the captured screenshot shows on the left instead of a video — it's static, with no playback or timeline, so you can glance at "what the screen looked like" while reading the logs.
 
 ## How to open it

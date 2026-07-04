@@ -1,7 +1,5 @@
 # Quick Start
 
-🌐 [한국어](https://bugshot.gitbook.io/ko/readme/quick-start)
-
 New here? No worries — going from install to your first submitted issue takes about five minutes. Walk through this flow once and the rest comes naturally.
 
 ## 1. Install

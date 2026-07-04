@@ -1,7 +1,5 @@
 # AI LLM Connection
 
-🌐 [한국어](https://bugshot.gitbook.io/ko/settings/ai)
-
 In the **AI Model** sub-tab of Settings, connect the LLM you already use. BugShot runs no AI server of its own — it uses your own key (BYOK — Bring Your Own Key). So it's your key, your model, and you can use it with peace of mind.
 
 No key? No problem. If Chrome's built-in AI is available in your browser, the basic AI features just work with it — no setup needed.

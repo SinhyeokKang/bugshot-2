@@ -1,7 +1,5 @@
 # 이슈 트래킹
 
-🌐 [English](https://bugshot.gitbook.io/en/integrations/issue-tracking)
-
 ![이슈 목록 탭](../assets/integrations-issue-tracking-1.jpg)
 
 지금까지 작성한 초안과 제출한 이슈가 어디 있는지 헷갈리실 일 없습니다. **이슈 목록** 탭에서 한곳에 모아 보실 수 있습니다.

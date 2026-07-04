@@ -1,7 +1,5 @@
 # BugShot Guide
 
-🌐 [한국어](https://bugshot.gitbook.io/ko)
-
 ![BugShot at a glance — capture and report right where you spot the bug](assets/readme-1.jpg)
 
 Ever spotted a bug and thought, "how do I even explain this?" That's exactly the moment BugShot was built for.
@@ -10,7 +8,7 @@ BugShot is a Chrome side panel extension that lets you pick DOM elements on a we
 
 No more typing out "the color of this button looks off" — one click does it.
 
-{% embed url="https://bug-shot.com" %}
+{% embed url="https://chromewebstore.google.com/detail/bugshot/ohakhekagkodklkickemonmifdcbhmig" %}
 
 ## The four main tabs
 

@@ -1,7 +1,5 @@
 # FAQ
 
-🌐 [한국어](https://bugshot.gitbook.io/ko/faq)
-
 When you're new to BugShot, a few "wait, how do I do this?" moments are bound to come up. We've gathered the questions we hear most — just jump to whatever you're wondering about.
 
 ## What is BugShot?

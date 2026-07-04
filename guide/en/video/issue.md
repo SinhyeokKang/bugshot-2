@@ -1,7 +1,5 @@
 # Write an Issue (recording mode)
 
-🌐 [한국어](https://bugshot.gitbook.io/ko/video/issue)
-
 When recording finishes, the issue draft opens. Just fill it in top to bottom and submit. Recording mode is the one that bundles **the richest logs alongside the video**.
 
 ## 1. Title

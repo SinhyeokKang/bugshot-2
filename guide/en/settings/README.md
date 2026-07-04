@@ -1,7 +1,5 @@
 # Settings
 
-🌐 [한국어](https://bugshot.gitbook.io/ko/settings)
-
 How issues get written, whether to connect an AI, your language and theme — set up the things you use often once, right here in the **Settings** tab. Settings are split into easy-to-scan sub-tabs — Issue settings / AI Model / General.
 
 - **Issue settings** — Title prefix, body section composition, 30s replay.

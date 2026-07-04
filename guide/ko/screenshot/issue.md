@@ -1,7 +1,5 @@
 # 이슈 작성 (스크린샷 모드)
 
-🌐 [English](https://bugshot.gitbook.io/en/screenshot/issue)
-
 주석을 마치고 **주석 완료**를 누르면 이슈 초안이 열립니다. 아래 순서대로 채워 가면 됩니다.
 
 ## 1. 제목

@@ -1,7 +1,5 @@
 # Annotation
 
-🌐 [한국어](https://bugshot.gitbook.io/ko/screenshot/annotation)
-
 Draw on the captured image to mark where the bug is and what it is. Point with an arrow, box it off, jot a note — and the reader gets it at a glance. It's simpler than it sounds, so don't sweat it.
 
 ## Add, edit, remove

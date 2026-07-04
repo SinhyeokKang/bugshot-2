@@ -1,7 +1,5 @@
 # 빠른 시작
 
-🌐 [English](https://bugshot.gitbook.io/en/readme/quick-start)
-
 처음이라도 걱정 마세요. 설치부터 첫 이슈 제출까지 5분이면 충분합니다. 아래 흐름을 한 번만 천천히 따라 해 보시면, 그다음부터는 손에 익습니다.
 
 ## 1. 설치하기

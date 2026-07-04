@@ -1,7 +1,5 @@
 # Recording
 
-🌐 [한국어](https://bugshot.gitbook.io/ko/video)
-
 Some bugs are hard to capture in a still — flicker, animation, problems that only reproduce after several steps. A video is the surest way to show them, and that's exactly why BugShot gives you two ways to record.
 
 - **Live recording** — Hit the button to record from now. Pick *Record tab* to capture just the tab you're on, or *Record screen* for the full screen or another window.

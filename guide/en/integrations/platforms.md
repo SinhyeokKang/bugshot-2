@@ -1,7 +1,5 @@
 # Connecting Platforms
 
-🌐 [한국어](https://bugshot.gitbook.io/ko/integrations/platforms)
-
 Connect platforms in the **Integrations** tab. With nothing connected you land on "Add platform"; once one is connected you land on "My integrations".
 
 ## How to connect

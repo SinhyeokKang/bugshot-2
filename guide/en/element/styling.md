@@ -1,7 +1,5 @@
 # Styling
 
-🌐 [한국어](https://bugshot.gitbook.io/ko/element/styling)
-
 Once an element is selected, the style panel opens. Change a value and it's **applied to the page right away**, so you can fine-tune while watching the fix on the real screen.
 
 ## Style panel sections

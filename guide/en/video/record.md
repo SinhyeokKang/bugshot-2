@@ -1,7 +1,5 @@
 # Live Recording
 
-🌐 [한국어](https://bugshot.gitbook.io/ko/video/record)
-
 BugShot's live recording starts from a single **record button** on the capture screen. Whether it captures just the **tab** you're looking at or the **full screen and other windows** too is something you pick ahead of time in settings — and you can change it anytime, so don't sweat it.
 
 ## Choosing the recording mode

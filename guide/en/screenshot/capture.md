@@ -1,7 +1,5 @@
 # Capture
 
-🌐 [한국어](https://bugshot.gitbook.io/ko/screenshot/capture)
-
 You can grab a screenshot two ways: **Capture area**, where you drag a region of the screen yourself, and **Capture element**, where you click a single element and it crops just that element. Either way the rest of the flow (annotate → write the issue) is identical, so start with whichever feels easier.
 
 ## Capture an area
