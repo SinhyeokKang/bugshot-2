@@ -33,6 +33,20 @@ A timer shows the **elapsed time and the maximum length** while you record. Just
 
 For screen recording, you can also click the browser's **Stop sharing** bar at the top to finish. The video has a **maximum length** and stops on its own once it's reached, so there's no need to watch the clock.
 
+## Drawing on screen
+
+![Highlighting on screen with the pen while recording](../assets/video-record-4.jpg)
+
+"This button here," "this area looks broken" — for the parts that are hard to put into words, you can draw right on top of the recording to point them out. Once recording starts, a pen button (**Draw on screen**) appears next to **Stop recording**.
+
+- Click the pen button to turn drawing on, and your cursor becomes a crosshair. From there, **press and drag** on the page to draw a line along the path.
+- Each line **fades away on its own after a few seconds**, so there's nothing to erase — just draw whenever you want to highlight something.
+- While you're drawing, page clicks are paused, but **scrolling still works**. When you're done, click the pen button again or press **Esc** on the page to turn drawing off and use the page as usual.
+
+Your drawings are baked right into the recorded video, so teammates watching later can see exactly where to look.
+
+> If you're sharing **another window or monitor** with screen recording, drawings only appear on the tab where BugShot is open, so they may not show up in that recording. Share that tab if you want to keep what you drew on it.
+
 ## Processing and output
 
 When you stop, the video is processed to MP4 and a thumbnail is generated. Once processing finishes, you move on to the issue draft naturally.
