@@ -4,13 +4,13 @@
 
 ## 1. 설치하기
 
-![Chrome 웹스토어 설치 화면](assets/quick-start-1.jpg)
+![Chrome 웹스토어 설치 화면](.gitbook/assets/quick-start-1.jpg)
 
 Chrome 웹스토어에서 BugShot을 설치합니다. 설치하면 툴바에 BugShot 아이콘이 생깁니다.
 
 ## 2. 사이드패널 열기
 
-![사이드패널이 열린 모습](assets/quick-start-2.jpg)
+![사이드패널이 열린 모습](.gitbook/assets/quick-start-2.jpg)
 
 툴바의 BugShot 아이콘을 클릭하거나, 단축키 `Cmd/Ctrl+Shift+E`를 누르면 사이드패널이 열립니다.
 
@@ -18,35 +18,35 @@ Chrome 웹스토어에서 BugShot을 설치합니다. 설치하면 툴바에 Bug
 
 ## 3. 플랫폼 연결하기
 
-![연동 탭에서 플랫폼 연결](assets/quick-start-3.jpg)
+![연동 탭에서 플랫폼 연결](.gitbook/assets/quick-start-3.jpg)
 
 이슈를 보내려면 플랫폼이 하나는 연결되어 있어야 합니다. **연동** 탭에서 Jira·GitHub·Linear·Notion·GitLab·Asana·ClickUp 중 하나만 연결하면 됩니다. 자세한 방법은 [플랫폼 연동](integrations/platforms.md)에서 차근차근 안내해 드립니다.
 
 ## 4. 캡처하기
 
-![캡처 모드 선택](assets/quick-start-4.jpg)
+![캡처 모드 선택](.gitbook/assets/quick-start-4.jpg)
 
 **디버그** 탭에서 캡처 모드를 고릅니다.
 
-- **요소 스타일 편집** — 요소를 골라 스타일을 고친 뒤 before/after로 리포트.
-- **요소 캡처** — 요소를 클릭하면 그 요소만 잘라 스크린샷으로.
-- **범위 캡처** — 화면 영역을 드래그해 캡처하고 주석으로 표시.
-- **화면 녹화** — 동작을 영상으로 녹화.
+* **요소 스타일 편집** — 요소를 골라 스타일을 고친 뒤 before/after로 리포트.
+* **요소 캡처** — 요소를 클릭하면 그 요소만 잘라 스크린샷으로.
+* **범위 캡처** — 화면 영역을 드래그해 캡처하고 주석으로 표시.
+* **화면 녹화** — 동작을 영상으로 녹화.
 
 뭘 골라야 할지 망설여진다면, 처음에는 **범위 캡처**가 가장 간단합니다.
 
 ## 5. 본문 작성하기
 
-![이슈 초안 작성](assets/quick-start-5.jpg)
+![이슈 초안 작성](.gitbook/assets/quick-start-5.jpg)
 
 캡처하면 이슈 초안 화면으로 넘어갑니다. 제목과 발생 현상·재현 과정·기대 결과를 적으면 되는데, 재현 환경(OS·브라우저·URL 등)은 알아서 채워지니 신경 쓰지 않으셔도 됩니다.
 
 ## 6. 제출하기
 
-![이슈 제출 완료](assets/quick-start-6.jpg)
+![이슈 제출 완료](.gitbook/assets/quick-start-6.jpg)
 
 미리보기로 본문을 한 번 확인하고, 연결한 플랫폼의 필드(프로젝트·담당자 등)를 채운 뒤 **이슈 제출**을 누르면 끝입니다. 등록된 이슈 링크가 바로 표시됩니다.
 
----
+***
 
-각 단계의 자세한 내용이 궁금하시면 [요소 선택 & 스타일링](element/README.md), [스크린샷 캡처](screenshot/README.md), [녹화](video/README.md) 섹션에서 이어집니다.
+각 단계의 자세한 내용이 궁금하시면 [요소 선택 & 스타일링](element/), [스크린샷 캡처](screenshot/), [녹화](video/) 섹션에서 이어집니다.

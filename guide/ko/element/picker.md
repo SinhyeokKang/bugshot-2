@@ -2,7 +2,7 @@
 
 ## 선택 시작
 
-![요소 선택 십자선](../assets/element-picker-1.jpg)
+![요소 선택 십자선](../.gitbook/assets/element-picker-1.jpg)
 
 **디버그** 탭에서 **요소 스타일 편집**을 누릅니다. 그러면 페이지 위에 십자선(crosshair)이 뜨고, 마우스를 올린 요소가 강조됩니다.
 
@@ -14,7 +14,7 @@
 
 ## DOM 트리로 이동
 
-![DOM 트리 네비게이션](../assets/element-picker-2.jpg)
+![DOM 트리 네비게이션](../.gitbook/assets/element-picker-2.jpg)
 
 정확히 원하는 요소가 잘 안 잡혀도 괜찮습니다. 선택된 요소를 기준으로 **부모·자식 요소로 이동**할 수 있거든요. 한 단계 위(부모)나 아래(자식)로 옮겨 가며 딱 맞는 요소를 찾으면 됩니다.
 

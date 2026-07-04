@@ -4,7 +4,7 @@
 
 ## 연결하는 법
 
-![연결 방식 선택 다이얼로그](../assets/integrations-platforms-1.jpg)
+![연결 방식 선택 다이얼로그](../.gitbook/assets/integrations-platforms-1.jpg)
 
 생각보다 간단합니다. 세 단계면 됩니다.
 
@@ -16,42 +16,42 @@
 
 ## 플랫폼별 연결 정보
 
-| 플랫폼 | 연결 방식 | 토큰 입력 시 필요값 | 토큰 발급 |
-|---|---|---|---|
-| Jira | OAuth / API Token | baseUrl, email, apiToken | id.atlassian.com → API tokens |
-| GitHub | OAuth / PAT | PAT | github.com/settings/tokens |
-| Linear | OAuth / API Key | apiKey | linear.app 보안 설정 |
-| Notion | OAuth / Internal Token | token | notion.so 통합(Integration) |
-| GitLab | OAuth / PAT | instanceUrl(self-managed만), pat | gitlab.com PAT |
-| Asana | OAuth / PAT | pat | app.asana.com my-apps |
-| ClickUp | OAuth / API Token | pat | app.clickup.com 설정 > Apps |
-| Slack | OAuth 전용 | — (토큰 입력 없음) | — |
+| 플랫폼     | 연결 방식                  | 토큰 입력 시 필요값                     | 토큰 발급                         |
+| ------- | ---------------------- | ------------------------------- | ----------------------------- |
+| Jira    | OAuth / API Token      | baseUrl, email, apiToken        | id.atlassian.com → API tokens |
+| GitHub  | OAuth / PAT            | PAT                             | github.com/settings/tokens    |
+| Linear  | OAuth / API Key        | apiKey                          | linear.app 보안 설정              |
+| Notion  | OAuth / Internal Token | token                           | notion.so 통합(Integration)     |
+| GitLab  | OAuth / PAT            | instanceUrl(self-managed만), pat | gitlab.com PAT                |
+| Asana   | OAuth / PAT            | pat                             | app.asana.com my-apps         |
+| ClickUp | OAuth / API Token      | pat                             | app.clickup.com 설정 > Apps     |
+| Slack   | OAuth 전용               | — (토큰 입력 없음)                    | —                             |
 
 ## Slack — 채널·DM으로 가볍게 공유
 
 Slack은 이슈 트래커가 아니라 메시지 앱이라, 다른 플랫폼과는 조금 다르게 동작합니다. 정식 이슈로 올리기 전에 "이거 깨졌어요" 하고 팀 채널에 먼저 던지고 싶을 때 딱 맞습니다.
 
-- **본인 계정으로 전송**: OAuth로 연결하면 **본인 이름으로** 메시지를 보냅니다(봇이 아니라요). 그래서 채널에 따로 봇을 초대할 필요가 없습니다.
-- **어디로 보낼지**: 공개 채널·비공개 채널은 물론 DM까지, 본인이 참여 중인 대화면 어디든 고를 수 있습니다. (참여하지 않은 채널은 목록에 뜨지 않습니다.)
-- **제목은 채널에, 상세는 스레드로**: 제목이 채널에 메시지로 올라가고, 환경 정보·스타일 변화·로그 요약 같은 상세 내용과 스크린샷·영상·로그 파일은 그 메시지의 **스레드 답글**로 정리됩니다. 채널 타임라인은 제목 한 줄로 깔끔하게 유지됩니다.
-- **멘션**: 호명할 멤버를 고르면 메시지에서 `@이름`으로 불러 알림을 보냅니다.
+* **본인 계정으로 전송**: OAuth로 연결하면 **본인 이름으로** 메시지를 보냅니다(봇이 아니라요). 그래서 채널에 따로 봇을 초대할 필요가 없습니다.
+* **어디로 보낼지**: 공개 채널·비공개 채널은 물론 DM까지, 본인이 참여 중인 대화면 어디든 고를 수 있습니다. (참여하지 않은 채널은 목록에 뜨지 않습니다.)
+* **제목은 채널에, 상세는 스레드로**: 제목이 채널에 메시지로 올라가고, 환경 정보·스타일 변화·로그 요약 같은 상세 내용과 스크린샷·영상·로그 파일은 그 메시지의 **스레드 답글**로 정리됩니다. 채널 타임라인은 제목 한 줄로 깔끔하게 유지됩니다.
+* **멘션**: 호명할 멤버를 고르면 메시지에서 `@이름`으로 불러 알림을 보냅니다.
 
 > Slack은 메시지라 "열림/닫힘" 같은 상태가 없습니다. 그래서 이슈 목록에는 "전송됨" 표시만 뜨고, 누르면 해당 메시지로 바로 이동합니다.
 
 ### 나중에 정식 트래커로 승격하기
 
-![Slack 카드의 자세히·트래커로 등록 버튼](../assets/integrations-platforms-2.jpg)
+![Slack 카드의 자세히·트래커로 등록 버튼](../.gitbook/assets/integrations-platforms-2.jpg)
 
 Slack으로 가볍게 공유했는데 "이건 정식 이슈로도 남겨야겠다" 싶을 때가 있죠. 걱정 마세요. Slack으로 공유한 이슈는 **캡처 이미지·영상·로그 같은 원본 데이터를 그대로 보관**해 둡니다. 그래서 Jira·GitHub 같은 트래커를 하나라도 연결해 두면, 이슈 목록에서 그 Slack 카드 오른쪽에 **자세히**·**트래커로 등록** 두 버튼이 나타납니다.
 
-- **자세히**: 보관해 둔 캡처·로그를 다시 열어 확인합니다.
-- **트래커로 등록**: 제출 창이 열립니다(이때 Slack 탭은 빠집니다). 원하는 트래커를 골라 정식 이슈로 옮기면, 그 카드는 일반 이슈로 바뀌고 Slack 이력은 정리됩니다. 이때 **원래 Slack 메시지 스레드에도 등록된 트래커 이슈 링크가 댓글로 남아**, 그 대화를 함께 보던 팀원도 "이 버그는 여기 정리됐구나"를 바로 알 수 있습니다.
+* **자세히**: 보관해 둔 캡처·로그를 다시 열어 확인합니다.
+* **트래커로 등록**: 제출 창이 열립니다(이때 Slack 탭은 빠집니다). 원하는 트래커를 골라 정식 이슈로 옮기면, 그 카드는 일반 이슈로 바뀌고 Slack 이력은 정리됩니다. 이때 **원래 Slack 메시지 스레드에도 등록된 트래커 이슈 링크가 댓글로 남아**, 그 대화를 함께 보던 팀원도 "이 버그는 여기 정리됐구나"를 바로 알 수 있습니다.
 
 > 트래커를 아직 연결하지 않았다면 두 버튼은 보이지 않고, 기존처럼 "전송됨" 표시와 메시지 바로가기만 유지됩니다. 나중에 트래커를 연결하면 같은 카드에 버튼이 자연스럽게 나타납니다. 카드 본문을 누르면 언제나 Slack 메시지로 이동하는 동작은 그대로니 안심하세요.
 
 ## 연결 후 기본값
 
-![연결 후 기본값 설정](../assets/integrations-platforms-3.jpg)
+![연결 후 기본값 설정](../.gitbook/assets/integrations-platforms-3.jpg)
 
 연결하면 그 플랫폼에서 이슈를 만들 위치의 기본값을 골라 둘 수 있습니다 — Jira·GitLab의 프로젝트, GitHub의 저장소, Linear의 팀, Notion의 데이터베이스, Asana의 프로젝트, ClickUp의 리스트(워크스페이스 → 스페이스 → 리스트 순으로 선택), Slack의 채널처럼요. 한 번만 정해 두면 이슈를 쓸 때마다 다시 고르지 않아도 되니 한결 편합니다.
 

@@ -4,10 +4,10 @@
 
 흐름은 의외로 단순합니다 — **요소 클릭 → 스타일 라이브 수정 → before/after로 이슈 작성**. 여러 요소를 한 이슈에 함께 담을 수도 있습니다.
 
-![요소 모드 개요](../assets/element-readme-1.jpg)
+![요소 모드 개요](../.gitbook/assets/element-readme-1.jpg)
 
 ## 바로가기
 
-- [요소 선택](picker.md) — 페이지에서 요소를 고르고 DOM 트리로 이동.
-- [스타일링](styling.md) — 스타일 패널로 수정하고 AI에게 맡기기.
-- [이슈 작성](issue.md) — before/after를 담아 이슈로 제출.
+* [요소 선택](picker.md) — 페이지에서 요소를 고르고 DOM 트리로 이동.
+* [스타일링](styling.md) — 스타일 패널로 수정하고 AI에게 맡기기.
+* [이슈 작성](issue.md) — before/after를 담아 이슈로 제출.

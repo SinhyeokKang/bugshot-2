@@ -4,9 +4,9 @@
 
 아직 연결된 플랫폼이 하나도 없으면 사이드패널이 자동으로 이 **연동** 탭으로 안내해 드립니다. 부담 없이, 플랫폼 하나 연결하는 것으로 시작해 보세요.
 
-![연동 탭](../assets/integrations-readme-1.jpg)
+![연동 탭](../.gitbook/assets/integrations-readme-1.jpg)
 
 ## 바로가기
 
-- [플랫폼 연동](platforms.md) — 8개 플랫폼을 연결하는 방법과 입력값.
-- [이슈 트래킹](issue-tracking.md) — 작성한 초안·제출한 이슈를 모아 보고 관리.
+* [플랫폼 연동](platforms.md) — 8개 플랫폼을 연결하는 방법과 입력값.
+* [이슈 트래킹](issue-tracking.md) — 작성한 초안·제출한 이슈를 모아 보고 관리.
