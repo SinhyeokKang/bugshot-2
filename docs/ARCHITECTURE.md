@@ -190,6 +190,17 @@ picker content script가 `all_frames: true`라 프레임마다 독립 picker 인
 
 **정리**: `shouldPreserveBackgroundLogs(phase)` = recording/drafting/previewing/done. idle 전환 시 레코더 재주입+새 sentinel. pending IDB는 탭 종료·이슈 저장·고아 정리(`pruneOrphanPendingLogsOncePerSession` — SW 부트 세션당 1회)에서 회수. clear→setSentinel은 sequential await 강제(fire-and-forget 시 Chrome 메시지 큐 순서 미보장으로 race).
 
+## 스크린샷 주석 에디터 (Konva)
+
+`sidepanel/components/AnnotationOverlay.tsx`(+ `annotation/` 폴더: `AnnotationToolbar`·`ShapeNode`·`shapes.ts`·`presets.ts`·`history.ts`, `__tests__` 포함). **드래프팅 단계의 스크린샷 주석 편집기** — 위 "녹화 중 그리기 오버레이"(content script, SVG, 순수 시각효과)와 **완전히 별개**다(react-konva 캔버스, 결과를 이미지로 flatten해 저장). react-konva/konva가 무거워 `DraftingPanel`이 `lazy`+`Suspense`(풀스크린 스피너)로 분리 마운트하고, 마운트 게이트는 `annotating && screenshotRaw`. 진입 버튼 3종은 미디어 섹션에 조건부 렌더 — `annotation-edit`(연필, `screenshotAnnotated` 유무로 add/edit 라벨 분기), `annotation-remove`(RotateCcw, `screenshotAnnotated`가 있을 때만 → `screenshotAnnotated:null` setState로 raw 복귀), 다운로드는 별개.
+
+- **좌표계 단일화 (natural 좌표 + CSS scale)**: Stage는 이미지 자연 해상도(`natW×natH`)로 두고, 바깥 div가 `fitScale`(`Math.min(maxW/natW, maxH/natH, 1)` — **확대 없음**)로 축소한 크기를 점유, 안쪽 div가 `transform: scale()`로 실제 축소 표시한다. 모든 도형은 natural 좌표라 **resize 시 도형 리커밋 불필요**(CSS scale만 갱신). `stage.getPointerPosition()`이 컨테이너 CSS transform을 역산해 natural 좌표를 돌려주므로 포인터 핸들러는 보정 없이 그대로 쓴다. 레이어 2단: 배경 `KonvaImage`(`listening=false`) + 도형/Transformer 레이어.
+- **도구·도형**: `ANNOTATION_TOOLS` 7종(select·pen·arrow·rect·ellipse·text·highlight, `presets.ts`). points 기반(arrow·pen·highlight)과 box 기반(rect·ellipse·text). `createShape`는 0크기로 시작하고 `handlePointerUp`이 `isEmptyShape`(rect/ellipse=면적0, arrow=시작==끝, pen/highlight=점≤2, text=빈문자열)면 커밋 없이 폐기. pen/highlight는 EMA(`PEN_SMOOTHING_ALPHA=0.35`) 입력 스무딩. 색 5종 raw hex(빨강 기본)·두께 S/M/L(2/4/8, 기본 M)·텍스트 크기 S/M/L(16/24/40)·highlight `opacity 0.4`+두께 4배.
+- **히스토리**: `history.ts`의 past/present/future **3-스택** 모델(`shapes = history.present`). 모든 도형 변경이 `pushShapes`로 새 엔트리. Cmd/Ctrl+Z / +Shift=redo, Delete로 선택 삭제(editing 중 무시).
+- **선택·변형 정규화**: `selectedId` + `Transformer`(rotate 가능, `ignoreStroke`). drag/transform 종료 시 `ShapeNode.commitFrom`이 노드의 imperative scale을 1로 리셋하고 `applyTransform`이 scale/rotation을 **도형 좌표에 베이크**(재변환 누적오차 방지). 단 **text 박스 리사이즈는 wrap 폭만 바꾸고 fontSize는 안 건드림**(크기 버튼 전용), **highlight 두께도 두께 버튼 전용**(transform 무시). stroke-only 도형은 hit 영역을 넓혀(`SELECT_HIT_WIDTH=24`) 경계 클릭도 잡는다. 선택 시 툴바가 그 도형의 색/두께/크기로 동기화되고, 스타일 변경은 선택 도형만 리스타일.
+- **텍스트 입력**: Konva 노드가 아니라 화면 좌표로 띄운 **HTML `<textarea>`** 오버레이(Enter=줄바꿈·blur=완료·Esc=취소).
+- **flatten·소비**: `handleDone`이 도형 0개면 no-op, 아니면 **Transformer 핸들을 즉시 detach**(effect 타이밍 비의존) + rAF 후 `stage.toDataURL({mimeType:"image/webp", quality:0.92, pixelRatio:1})`로 래스터화 — `pixelRatio:1`이라 **화면 배율과 무관하게 자연 해상도로 출력**. 결과는 `onAnnotated(url)` → editor-store `screenshotAnnotated`. 소비처는 전부 **`screenshotAnnotated ?? screenshotRaw` 폴백**(DraftingPanel·PreviewPanel·`getModeImages`(AI)·`buildEditorCapture`·제출 경로가 이 이미지를 IndexedDB `before` blob으로 저장). `screenshotAnnotated`는 **EditorSnapshot에 포함(세션 영속)**, 제출·리셋 시 raw와 함께 null. **주의**: 재편집이 이미 flatten된 webp 위에 다시 그려 재-flatten하므로 반복 편집 시 webp 재압축이 누적된다(알려진 열화).
+
 ## 30s Replay (직전 30초 캡처)
 
 `src/sidepanel/30s-replay/`. 수동 녹화와 별개 경로 — "녹화 버튼을 누르기 전 30초"를 사후에 건지기 위한 look-back 캡처.
