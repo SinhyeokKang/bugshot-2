@@ -1,6 +1,6 @@
-# Introduction
+# BugShot Guide
 
-![BugShot at a glance — capture and report right where you spot the bug](.gitbook/assets/readme-1.jpg)
+![BugShot at a glance — capture and report right where you spot the bug](assets/readme-1.jpg)
 
 Ever spotted a bug and thought, "how do I even explain this?" That's exactly the moment BugShot was built for.
 
@@ -14,22 +14,22 @@ No more typing out "the color of this button looks off" — one click does it.
 
 It looks like a lot at first, but don't worry — the side panel is just four tabs, and they click into place quickly.
 
-* **Debug** — Pick a capture mode (Edit element style, Capture element, Capture area, Record screen) and write your issue here. Console and network logs live here too.
-* **Issues** — Browse your drafts and submitted issues, and reopen them anytime.
-* **Integrations** — Connect platforms like Jira and GitHub. With nothing connected yet, this tab opens first.
-* **Settings** — Set up the issue body sections, AI connection, language, and theme just the way you like.
+- **Debug** — Pick a capture mode (Edit element style, Capture element, Capture area, Record screen) and write your issue here. Console and network logs live here too.
+- **Issues** — Browse your drafts and submitted issues, and reopen them anytime.
+- **Integrations** — Connect platforms like Jira and GitHub. With nothing connected yet, this tab opens first.
+- **Settings** — Set up the issue body sections, AI connection, language, and theme just the way you like.
 
-![BugShot side panel main view — Debug, Issues, Integrations, Settings tabs](.gitbook/assets/readme-2.jpg)
+![BugShot side panel main view — Debug, Issues, Integrations, Settings tabs](assets/readme-2.jpg)
 
 ## Jump to a section
 
 Not sure where to start? Hop straight to whatever you need below.
 
-* [Quick Start](quick-start.md) — From install to your first submitted issue, in one flow.
-* [Integrations](integrations/) — Connect platforms and track issues.
-* [Settings](settings/) — Issue body composition and AI connection.
-* [Inspect & Style](element/) — Pick a DOM element, edit its styles, and report.
-* [Screenshot](screenshot/) — Capture the screen and mark it up.
-* [Recording](video/) — Live recording and 30s replay.
-* [Logs](logs/) — View console/network logs and the log viewer.
-* [FAQ](faq.md) — Pricing, platforms, privacy, and other first questions.
+- [Quick Start](quick-start.md) — From install to your first submitted issue, in one flow.
+- [Integrations](integrations/README.md) — Connect platforms and track issues.
+- [Settings](settings/README.md) — Issue body composition and AI connection.
+- [Inspect & Style](element/README.md) — Pick a DOM element, edit its styles, and report.
+- [Screenshot](screenshot/README.md) — Capture the screen and mark it up.
+- [Recording](video/README.md) — Live recording and 30s replay.
+- [Logs](logs/README.md) — View console/network logs and the log viewer.
+- [FAQ](faq.md) — Pricing, platforms, privacy, and other first questions.

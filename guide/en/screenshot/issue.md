@@ -1,32 +1,32 @@
-# Write an Issue
+# Write an Issue (screenshot mode)
 
 When you finish annotating and click **Done**, the issue draft opens. Just fill it in top to bottom.
 
 ## 1. Title
 
-Your configured title prefix (e.g. `[QA]` ) is pre-filled. Type the rest of the title after it.
+Your configured title prefix (e.g. `[QA] `) is pre-filled. Type the rest of the title after it.
 
 ## 2. Environment
 
-![Environment](../.gitbook/assets/screenshot-issue-1.jpg)
+![Environment](../assets/screenshot-issue-1.jpg)
 
 OS, browser, page URL, viewport size, and capture time fill in **on their own** (read-only). Want to add more context? Just drop in a variable row yourself.
 
 ## 3. Media — annotated screenshot
 
-![Annotated screenshot attached](../.gitbook/assets/screenshot-issue-2.jpg)
+![Annotated screenshot attached](../assets/screenshot-issue-2.jpg)
 
 The media in screenshot mode is the **annotated screenshot**. The image you marked up with arrows and boxes is attached to the issue as-is. The **Download** button on the right of the Media section also lets you save this screenshot as an image file.
 
 ## 4. Body sections
 
-![Writing the body](../.gitbook/assets/screenshot-issue-3.jpg)
+![Writing the body](../assets/screenshot-issue-3.jpg)
 
 Sections appear per your body composition — Description, Steps to reproduce, Expected result, Notes (only the ones you've turned on). Steps to reproduce is an ordered list. Fill them in by hand, or let AI Draft below do it in one shot.
 
 ## ✨ AI Draft
 
-![AI Draft banner and input box](../.gitbook/assets/screenshot-issue-4.jpg)
+![AI Draft banner and input box](../assets/screenshot-issue-4.jpg)
 
 If filling in each line by hand feels tedious, this is where AI earns its keep. With an AI connected, a purple **"Let AI write your draft"** banner shows up right below the body sections.
 
@@ -46,13 +46,13 @@ The **Download** button on the right of the Log attachments section lets you gra
 
 ## 6. Preview
 
-![Issue preview](../.gitbook/assets/screenshot-issue-5.jpg)
+![Issue preview](../assets/screenshot-issue-5.jpg)
 
 Give the body a look in the preview before submitting. **Copy markdown** copies it as-is to paste elsewhere.
 
 ## 7. Submit
 
-![Issue submitted](../.gitbook/assets/screenshot-issue-6.jpg)
+![Issue submitted](../assets/screenshot-issue-6.jpg)
 
 Fill in the connected platform's fields (project, assignee, labels, etc.) and hit **Submit issue**. A link to the created issue appears when it's done.
 

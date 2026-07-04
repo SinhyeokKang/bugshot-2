@@ -2,7 +2,7 @@
 
 ## Start picking
 
-![Picker crosshair](../.gitbook/assets/element-picker-1.jpg)
+![Picker crosshair](../assets/element-picker-1.jpg)
 
 In the **Debug** tab, click **Edit element style**. A crosshair appears over the page, and the element under your cursor lights up.
 
@@ -14,7 +14,7 @@ Click the element you want to select it. Its details show up in the side panel.
 
 ## Move through the DOM tree
 
-![DOM tree navigation](../.gitbook/assets/element-picker-2.jpg)
+![DOM tree navigation](../assets/element-picker-2.jpg)
 
 Can't quite land on the exact element? No problem — you can **move to its parent or child** from the current selection. Step up (parent) or down (child) until you hit the right one.
 

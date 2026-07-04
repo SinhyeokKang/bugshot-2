@@ -4,7 +4,7 @@ BugShot's live recording starts from a single **record button** on the capture s
 
 ## Choosing the recording mode
 
-![Record button and mode setting](../.gitbook/assets/video-record-1.jpg)
+![Record button and mode setting](../assets/video-record-1.jpg)
 
 The record button in the **Debug** tab follows the mode you picked in settings (**Record tab** / **Record screen**). Choose it under **Settings > Issue settings > Recording settings > Recording mode**. Your choice shows up immediately in the record button's icon and label.
 
@@ -16,7 +16,7 @@ With **Record tab** selected, one click on the record button starts recording th
 
 ## Screen recording
 
-![Screen share picker](../.gitbook/assets/video-record-2.jpg)
+![Screen share picker](../assets/video-record-2.jpg)
 
 Need to show something outside the tab — another app window, the full screen, a payment or login window that pops up on its own? Set the mode to **Record screen**. When you click the record button, your browser opens a "what do you want to share?" picker where you choose **the full screen, a specific window, or a tab**, then hit share to start.
 
@@ -24,12 +24,12 @@ Need to show something outside the tab — another app window, the full screen, 
 
 ## While recording
 
-![Recording timer](../.gitbook/assets/video-record-3.jpg)
+![Recording timer](../assets/video-record-3.jpg)
 
 A timer shows the **elapsed time and the maximum length** while you record. Just perform the steps that reproduce the bug as you normally would.
 
-* **Stop recording** — Stop recording and wrap it up as a video.
-* **Cancel** — Discard the recording and go back to the start.
+- **Stop recording** — Stop recording and wrap it up as a video.
+- **Cancel** — Discard the recording and go back to the start.
 
 For screen recording, you can also click the browser's **Stop sharing** bar at the top to finish. The video has a **maximum length** and stops on its own once it's reached, so there's no need to watch the clock.
 
