@@ -2,6 +2,7 @@
 
 - [Introduction](README.md)
   - [Quick Start](quick-start.md)
+  - [FAQ](faq.md)
 - [Integrations](integrations/README.md)
   - [Connecting Platforms](integrations/platforms.md)
   - [Issue Tracking](integrations/issue-tracking.md)
@@ -24,4 +25,3 @@
 - [Logs](logs/README.md)
   - [Live Logs](logs/live.md)
   - [Log Viewer](logs/viewer.md)
-- [FAQ](faq.md)

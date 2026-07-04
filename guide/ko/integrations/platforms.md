@@ -1,7 +1,5 @@
 # 플랫폼 연동
 
-🌐 [English](https://bugshot.gitbook.io/en/integrations/platforms)
-
 플랫폼 연결은 **연동** 탭에서 합니다. 연결된 플랫폼이 없으면 "플랫폼 추가" 화면으로, 하나라도 있으면 "내 연동" 화면으로 들어갑니다.
 
 ## 연결하는 법

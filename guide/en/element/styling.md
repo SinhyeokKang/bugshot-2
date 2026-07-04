@@ -1,12 +1,10 @@
 # Styling
 
-🌐 [한국어](https://bugshot.gitbook.io/ko/element/styling)
-
 Once an element is selected, the style panel opens. Change a value and it's **applied to the page right away**, so you can fine-tune while watching the fix on the real screen.
 
 ## Style panel sections
 
-![Style panel sections](../assets/element-styling-1.jpg)
+![Style panel sections](../.gitbook/assets/element-styling-1.jpg)
 
 From top to bottom, the panel is organized into these sections (labels show in English on screen).
 
@@ -24,17 +22,17 @@ From top to bottom, the panel is organized into these sections (labels show in E
 
 ## Live preview and reverting
 
-- Changing a value applies it to the page **immediately**.
-- Each section can revert just its inline changes, and there are buttons to revert Class or Text to the original — so feel free to experiment.
-- To **turn off a style the site itself applies**, pick **`unset`** from a dropdown. Where reverting only cancels your own edit, `unset` says "this style should not apply." For example, when ellipsis (`text-overflow`) is clipping text where it shouldn't, `unset` turns it off so you can show the fixed version.
+* Changing a value applies it to the page **immediately**.
+* Each section can revert just its inline changes, and there are buttons to revert Class or Text to the original — so feel free to experiment.
+* To **turn off a style the site itself applies**, pick **`unset`** from a dropdown. Where reverting only cancels your own edit, `unset` says "this style should not apply." For example, when ellipsis (`text-overflow`) is clipping text where it shouldn't, `unset` turns it off so you can show the fixed version.
 
 ## Edit four sides together — or separately
 
 Properties with four sides (or corners, or two directions) — margin, padding, gap, Border, corner radius, and Position offsets — have a small **link button** next to their inputs. It decides whether the sides move as one value or get tweaked individually.
 
-- When the link is **on**, the inputs **collapse into one**. Type a value once and all four sides match it — no need to fill in four separate boxes in a narrow panel.
-- Turn the link **off** and the top/right/bottom/left boxes **fan back out**, so you can give each side its own value.
-- Turn the link on while the sides differ, and the merged box reads **Mixed**. No worries — your existing values aren't overwritten; the four sides only unify once you type a new value.
+* When the link is **on**, the inputs **collapse into one**. Type a value once and all four sides match it — no need to fill in four separate boxes in a narrow panel.
+* Turn the link **off** and the top/right/bottom/left boxes **fan back out**, so you can give each side its own value.
+* Turn the link on while the sides differ, and the merged box reads **Mixed**. No worries — your existing values aren't overwritten; the four sides only unify once you type a new value.
 
 ## Design token (CSS variable) awareness
 
@@ -44,26 +42,26 @@ For example, if a color is set to `--color-primary`, you can pick another token 
 
 ## Review changes
 
-![Review changes dialog](../assets/element-styling-2.jpg)
+![Review changes dialog](../.gitbook/assets/element-styling-2.jpg)
 
 Lost track of what you've changed? Hit the **Review changes** button at the bottom of the panel. The number beside it is how many changes you've made so far — and if you haven't changed anything, the button stays disabled.
 
-Open it and a dialog lists your edits **grouped per element**, each shown as **before → after**. You'll see the element you have selected now, plus any you buffered earlier (see [More than one element in one issue](#more-than-one-element-in-one-issue) below).
+Open it and a dialog lists your edits **grouped per element**, each shown as **before → after**. You'll see the element you have selected now, plus any you buffered earlier (see [More than one element in one issue](styling.md#more-than-one-element-in-one-issue) below).
 
-- **Reset this change** (trash icon, right of each row) — rolls back just that one item to its original value. The page and style panel update right away. Reset the last item on an element and that element's card disappears entirely.
-- **Reset all** (bottom left) — rolls back every change across all elements (this one asks for a quick confirmation).
+* **Reset this change** (trash icon, right of each row) — rolls back just that one item to its original value. The page and style panel update right away. Reset the last item on an element and that element's card disappears entirely.
+* **Reset all** (bottom left) — rolls back every change across all elements (this one asks for a quick confirmation).
 
 Row resets run instantly without asking, so tidy up with peace of mind. Once nothing is left to revert, the dialog closes on its own.
 
 ## AI Styling
 
-![AI Styling banner](../assets/element-styling-3.jpg)
+![AI Styling banner](../.gitbook/assets/element-styling-3.jpg)
 
 With an AI (LLM) connected, an **AI Styling** banner appears in the panel. When touching values by hand feels like a chore, just **describe what you want**.
 
-- "Make the button rounder"
-- "Add more spacing"
-- "Bigger, bolder text"
+* "Make the button rounder"
+* "Add more spacing"
+* "Bigger, bolder text"
 
 AI finds the right style/class changes and applies them to the page instantly. Without an AI connected, this banner doesn't appear.
 

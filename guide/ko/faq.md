@@ -1,7 +1,5 @@
 # 자주 묻는 질문
 
-🌐 [English](https://bugshot.gitbook.io/en/faq)
-
 처음 BugShot을 쓰시면 "이건 어떻게 하지?" 싶은 순간이 있으시죠. 자주 들어오는 질문들을 모아 두었으니, 궁금한 항목만 펼쳐 보시면 됩니다.
 
 ## BugShot은 어떤 도구인가요?

@@ -2,6 +2,7 @@
 
 - [소개](README.md)
   - [빠른 시작](quick-start.md)
+  - [자주 묻는 질문](faq.md)
 - [연동 설정](integrations/README.md)
   - [플랫폼 연동](integrations/platforms.md)
   - [이슈 트래킹](integrations/issue-tracking.md)
@@ -24,4 +25,3 @@
 - [로그](logs/README.md)
   - [실시간 로그](logs/live.md)
   - [로그 뷰어](logs/viewer.md)
-- [자주 묻는 질문](faq.md)

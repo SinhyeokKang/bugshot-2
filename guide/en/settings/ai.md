@@ -1,19 +1,17 @@
 # AI LLM Connection
 
-🌐 [한국어](https://bugshot.gitbook.io/ko/settings/ai)
-
 In the **AI Model** sub-tab of Settings, connect the LLM you already use. BugShot runs no AI server of its own — it uses your own key (BYOK — Bring Your Own Key). So it's your key, your model, and you can use it with peace of mind.
 
 No key? No problem. If Chrome's built-in AI is available in your browser, the basic AI features just work with it — no setup needed.
 
 ## Connect
 
-![Connecting an AI model](../assets/settings-ai-1.jpg)
+![Connecting an AI model](../.gitbook/assets/settings-ai-1.jpg)
 
 Pick a provider and enter your key.
 
-- **Provider** — Choose your LLM from the list, or type an OpenAI-compatible endpoint URL directly.
-- **API Key** — The key issued by that service.
+* **Provider** — Choose your LLM from the list, or type an OpenAI-compatible endpoint URL directly.
+* **API Key** — The key issued by that service.
 
 Once you connect, a screen follows for picking the model — choose the one you want under **Select model**. Most providers with an OpenAI-compatible endpoint connect without a hitch. There's no separate permission prompt — once you've filled in the details, it connects right away.
 
@@ -37,7 +35,7 @@ While inspecting an element, change styles with plain language like "make the bu
 
 ### AI Draft
 
-![AI Draft dialog](../assets/settings-ai-2.jpg)
+![AI Draft dialog](../.gitbook/assets/settings-ai-2.jpg)
 
 Auto-fill the issue body from your capture and logs. On the issue screen, a purple **"Let AI write your draft"** banner shows up below the body sections — click **AI Draft** on the right to open the input.
 

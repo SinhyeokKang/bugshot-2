@@ -179,7 +179,6 @@ content script를 프로그래매틱으로 주입하는 데 사용. SW 하이버
 
 - MAIN world에서 `chrome.scripting.executeScript({ func })` 사용 시 함수는 직렬화·재평가됨 — **클로저 참조 불가**, 헬퍼는 함수 내부에 inline 정의 필수 (`github-upload.ts:pageBatchUploadFn` 참고)
 - 주입 차단 호스트: `chromewebstore.google.com` 전체, `chrome.google.com/webstore/*` (`url-support.ts:8-22`)
-- 정적 자동 주입 제외(`manifest.config.ts` `content_scripts[].exclude_matches`): `https://bugshot.gitbook.io/*` — 자사 가이드(GitBook)는 새 탭으로만 열리고, 페이지 로드 시 picker/recorder가 자동 주입되면 GitBook 자체 preload 경고가 확장 오류로 귀속되므로 제외. `*.gitbook.io` 전체가 아니라 자사 도메인만 제외(타 GitBook 사이트에서의 사용은 유지). 단 이는 *정적* 주입만 막으며, 사이드패널 바인딩 시 `useBackgroundRecorder` → `executeScript` 동적 주입은 그대로 동작(가이드 페이지 내 picker/캡처 정상)
 
 ---
 

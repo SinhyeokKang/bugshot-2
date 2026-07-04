@@ -1,7 +1,5 @@
 # 일반
 
-🌐 [English](https://bugshot.gitbook.io/en/settings/general)
-
 언어와 테마처럼 한 번 맞춰 두면 계속 쓰게 되는 설정은 **일반** 서브탭에 모아 두었습니다. 복잡한 게 없으니 부담 없이 둘러보세요.
 
 ## 언어

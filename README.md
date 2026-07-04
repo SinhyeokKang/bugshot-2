@@ -28,7 +28,7 @@ report developers can actually act on.
 4. **Capture** — in the *Debug* tab, pick a mode: edit element style, capture an element, capture an area, or record the screen.
 5. **Submit** — the environment fills itself in; add a title, review the preview, and submit. A link to the created issue pops right up.
 
-Full walkthrough in the [Quick Start guide](https://bugshot.gitbook.io/en/readme/quick-start).
+Full walkthrough in the [Quick Start guide](https://bug-shot.com/en/docs/quick-start).
 
 ## Features
 

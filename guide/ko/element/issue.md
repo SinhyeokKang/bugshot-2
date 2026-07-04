@@ -1,7 +1,5 @@
 # 이슈 작성 (요소 모드)
 
-🌐 [English](https://bugshot.gitbook.io/en/element/issue)
-
 스타일 수정을 마치고 **다음**을 누르면 이슈 초안이 열립니다. 아래 순서대로 채워 가면 됩니다.
 
 ## 1. 제목

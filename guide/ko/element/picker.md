@@ -1,7 +1,5 @@
 # 요소 선택
 
-🌐 [English](https://bugshot.gitbook.io/en/element/picker)
-
 ## 선택 시작
 
 ![요소 선택 십자선](../assets/element-picker-1.jpg)

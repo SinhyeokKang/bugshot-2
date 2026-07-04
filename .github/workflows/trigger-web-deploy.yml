@@ -6,6 +6,7 @@ on:
     paths:
       - "docs/privacy.ko.md"
       - "docs/privacy.en.md"
+      - "guide/**"
 
 jobs:
   trigger:
