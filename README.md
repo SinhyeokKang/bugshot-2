@@ -1,5 +1,7 @@
 # BugShot
 
+![BugShot at a glance — capture and report right where you spot the bug](guide/en/assets/readme-1.jpg)
+
 **Bug reports in one shot.**
 
 Stop explaining bugs in words. BugShot is a Chrome side panel extension that lets
