@@ -37,11 +37,11 @@ For screen recording, you can also click the browser's **Stop sharing** bar at t
 
 ![Highlighting on screen with the pen while recording](../assets/video-record-4.jpg)
 
-"This button here," "this area looks broken" — for the parts that are hard to put into words, you can draw right on top of the recording to point them out. Once recording starts, a pen button (**Draw on screen**) appears next to **Stop recording**.
+"This button here," "this area looks broken" — for the parts that are hard to put into words, you can draw right on top of the recording to point them out. Once recording starts, a **Draw on screen** button appears in the recording controls.
 
-- Click the pen button to turn drawing on, and your cursor becomes a crosshair. From there, **press and drag** on the page to draw a line along the path.
+- Click the **Draw on screen** button to turn drawing on, and your cursor becomes a crosshair. From there, **press and drag** on the page to draw a line along the path.
 - Each line **fades away on its own after a few seconds**, so there's nothing to erase — just draw whenever you want to highlight something.
-- While you're drawing, page clicks are paused, but **scrolling still works**. When you're done, click the pen button again or press **Esc** on the page to turn drawing off and use the page as usual.
+- While you're drawing, page clicks are paused, but **scrolling still works**. When you're done, click the **Draw on screen** button again or press **Esc** on the page to turn drawing off and use the page as usual.
 
 Your drawings are baked right into the recorded video, so teammates watching later can see exactly where to look.
 
