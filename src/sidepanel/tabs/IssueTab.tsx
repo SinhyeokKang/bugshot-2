@@ -385,11 +385,11 @@ function RecordingState({ onStop, onCancel }: { onStop: () => void; onCancel: ()
             style={{ width: `${progress * 100}%` }}
           />
         </div>
-        <div className="mt-4 flex w-full max-w-[224px] gap-2">
+        <div className="mt-4 flex w-full gap-2">
           <Button variant="outline" onClick={onCancel}>
             {t("common.cancel")}
           </Button>
-          <Button className="flex-1" onClick={onStop}>
+          <Button className="w-auto" onClick={onStop}>
             {t("issue.recording.stop")}
           </Button>
         </div>
