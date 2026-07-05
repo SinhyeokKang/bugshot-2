@@ -340,7 +340,9 @@ function RecordingState({ onStop, onCancel }: { onStop: () => void; onCancel: ()
 
   // 같은 툴을 다시 누르면 off(null). 색/두께 변경은 현재 툴이 켜져 있을 때만 재전송.
   const pickTool = (picked: AnnotationTool) => {
-    const next: RecordingPenTool | null = tool === picked ? null : (picked as RecordingPenTool);
+    // ToolButtons에 pen/highlight만 넘기지만 onChange 타입은 AnnotationTool — 가드로 좁힌다.
+    if (picked !== "pen" && picked !== "highlight") return;
+    const next: RecordingPenTool | null = tool === picked ? null : picked;
     useEditorStore.getState().setAnnotationTool(next);
     if (tabId) void setAnnotationTool(tabId, next, color, thickness);
   };

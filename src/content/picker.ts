@@ -263,7 +263,10 @@ function handlePickerMessage(
         break;
       case "annotation.setTool":
         if (window !== window.top) return;
-        setAnnotationTool(msg.tool, { color: msg.color, strokeWidth: msg.strokeWidth, opacity: msg.opacity });
+        setAnnotationTool(
+          msg.tool,
+          msg.tool === null ? null : { color: msg.color, strokeWidth: msg.strokeWidth, opacity: msg.opacity },
+        );
         break;
       case "annotation.hide":
         if (window !== window.top) return;

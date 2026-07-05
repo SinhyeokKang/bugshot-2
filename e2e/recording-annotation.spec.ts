@@ -1,10 +1,11 @@
 import type { Page, Worker } from "@playwright/test";
 import { expect, test } from "./fixtures/extension";
 
-// 녹화 중 그리기 오버레이 — annotation.show/setPen/hide 메시지를 SW에서 content script(picker
+// 녹화 중 그리기 오버레이 — annotation.show/setTool/hide 메시지를 SW에서 content script(picker
 // 엔트리, all_frames 자동 주입)로 직접 보내 페이지 DOM(open shadow host)을 판정한다. 실 녹화
 // (tabCapture/getDisplayMedia)는 headed 자동화에서 불안정이라 배제하고 메시지 경로만 검증한다.
 // 획은 open shadow의 svg <g>로 세고, 페이드(3초)는 판정 밖(수동).
+// setTool: pen/highlight는 color·strokeWidth·opacity를 싣고, off는 { tool: null }.
 
 const HOST_ID = "__bugshot_annotation_host";
 
@@ -76,7 +77,7 @@ test.describe.serial("recording annotation overlay", () => {
   });
 
   test("펜 ON + 드래그 → 획 <g>가 추가된다", async () => {
-    await send({ type: "annotation.setPen", on: true });
+    await send({ type: "annotation.setTool", tool: "pen", color: "#ef4444", strokeWidth: 4, opacity: 1 });
     const before = await strokeCount();
 
     await drag();
@@ -89,7 +90,7 @@ test.describe.serial("recording annotation overlay", () => {
     // 이전 테스트의 획(3초 수명)과 무관하게 판정하도록 오버레이를 새로 마운트(획 0).
     await send({ type: "annotation.hide" });
     await send({ type: "annotation.show" });
-    await send({ type: "annotation.setPen", on: false });
+    await send({ type: "annotation.setTool", tool: null });
     expect(await strokeCount()).toBe(0);
 
     await fixture.evaluate(() => {

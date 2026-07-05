@@ -29,7 +29,7 @@ export async function setAnnotationTool(
   thickness: ThicknessKey,
 ): Promise<void> {
   if (tool === null) {
-    await send(tabId, { type: "annotation.setTool", tool: null, color, strokeWidth: 0, opacity: 0 });
+    await send(tabId, { type: "annotation.setTool", tool: null });
     return;
   }
   const { strokeWidth, opacity } = overlayStrokeStyle(tool, thickness);

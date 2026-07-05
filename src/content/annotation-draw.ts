@@ -40,10 +40,10 @@ export function smoothPoint(
 // now - t > lifetimeMs인 선두 연속 구간만 제거하고 나머지는 순서대로 유지. 전부 만료면 [].
 // 만료 점이 없으면 원본 참조를 그대로 반환(프레임마다 불필요한 복사 회피).
 export function dropExpired(
-  points: ReadonlyArray<StrokePoint>,
+  points: StrokePoint[],
   now: number,
   lifetimeMs: number,
-): ReadonlyArray<StrokePoint> {
+): StrokePoint[] {
   let i = 0;
   while (i < points.length && now - points[i][2] > lifetimeMs) i++;
   return i === 0 ? points : points.slice(i);

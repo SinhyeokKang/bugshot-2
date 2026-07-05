@@ -40,8 +40,10 @@ svg {
 `;
 
 interface Stroke {
+  // <g> 래퍼는 e2e(svg g 카운트)·구조 일관성용, path는 실제 렌더 대상(그룹당 1개).
   groupEl: SVGGElement;
-  points: ReadonlyArray<StrokePoint>;
+  pathEl: SVGPathElement;
+  points: StrokePoint[];
 }
 
 interface AnnotationHandle {
@@ -70,18 +72,18 @@ function newStrokePath(h: AnnotationHandle, e: PointerEvent): void {
   // (strokes에 남아 rAF 루프가 계속 페이드시킨다).
   h.activeStroke = null;
   // 획당 단일 path. 스타일을 엘리먼트에 박아둬 트레일 페이드 중 스타일 변경에 영향받지 않는다.
-  // <g> 래퍼는 e2e(svg g 카운트)·구조 일관성 유지용. Konva 벡터와 동일하게 흰 아웃라인 없음.
+  // Konva 벡터와 동일하게 흰 아웃라인 없음.
   const groupEl = document.createElementNS(SVG_NS, "g");
-  const path = document.createElementNS(SVG_NS, "path");
-  path.setAttribute("fill", "none");
-  path.setAttribute("stroke", pen.color);
-  path.setAttribute("stroke-width", String(pen.strokeWidth));
-  path.setAttribute("stroke-opacity", String(pen.opacity));
-  path.setAttribute("stroke-linecap", "round");
-  path.setAttribute("stroke-linejoin", "round");
-  groupEl.appendChild(path);
+  const pathEl = document.createElementNS(SVG_NS, "path");
+  pathEl.setAttribute("fill", "none");
+  pathEl.setAttribute("stroke", pen.color);
+  pathEl.setAttribute("stroke-width", String(pen.strokeWidth));
+  pathEl.setAttribute("stroke-opacity", String(pen.opacity));
+  pathEl.setAttribute("stroke-linecap", "round");
+  pathEl.setAttribute("stroke-linejoin", "round");
+  groupEl.appendChild(pathEl);
   h.svgEl.appendChild(groupEl);
-  const stroke: Stroke = { groupEl, points: [[e.clientX, e.clientY, now()]] };
+  const stroke: Stroke = { groupEl, pathEl, points: [[e.clientX, e.clientY, now()]] };
   h.strokes.push(stroke);
   h.activeStroke = stroke;
   renderStroke(stroke);
@@ -89,10 +91,7 @@ function newStrokePath(h: AnnotationHandle, e: PointerEvent): void {
 }
 
 function renderStroke(s: Stroke): void {
-  const d = pointsToPath(s.points);
-  for (const path of Array.from(s.groupEl.children)) {
-    path.setAttribute("d", d);
-  }
+  s.pathEl.setAttribute("d", pointsToPath(s.points));
 }
 
 // 매 프레임 모든 획의 앞쪽 만료 점을 잘라 그린 순서대로 꼬리부터 사라지게 한다.
@@ -140,7 +139,7 @@ function onPointerMove(e: PointerEvent): void {
   const [sx, sy] = last
     ? smoothPoint([last[0], last[1]], [e.clientX, e.clientY], PEN_SMOOTHING_ALPHA)
     : [e.clientX, e.clientY];
-  handle.activeStroke.points = [...pts, [sx, sy, now()]];
+  pts.push([sx, sy, now()]);
   renderStroke(handle.activeStroke);
 }
 
