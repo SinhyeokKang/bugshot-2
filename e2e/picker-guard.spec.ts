@@ -24,16 +24,29 @@ test.describe.serial("picker-guard (중첩·미주입 iframe 거부)", () => {
 
   const dialog = () => panel.getByTestId("iframe-unsupported-dialog");
 
-  // 거부 픽은 repick이 안 떠 pickElement 재시도를 못 쓴다(GOTCHAS). 대신 다이얼로그
-  // 노출까지 클릭을 재시도 — 핸드오프/announce 등록이 클릭보다 늦는 창(유실 클릭)을 흡수.
-  async function pickUntilUnsupported(selector: string, frame?: string) {
-    await expect(async () => {
-      await pickElement(fixture, panel, selector, {
-        expectSelection: false,
-        frame,
-      });
+  // 거부 픽은 repick이 안 떠 pickElement 재시도를 못 쓴다(GOTCHAS). 다이얼로그 노출까지
+  // 클릭을 재시도해 arm 지연(핸드오프/announce 등록이 클릭보다 늦는 창)을 흡수한다.
+  const tryReject = (selector: string, frame: string | undefined, budgetMs: number) =>
+    expect(async () => {
+      await pickElement(fixture, panel, selector, { expectSelection: false, frame });
       await expect(dialog()).toBeVisible({ timeout: 1000 });
-    }).toPass({ timeout: 15000 });
+    }).toPass({ timeout: budgetMs });
+
+  async function pickUntilUnsupported(selector: string, frame?: string) {
+    try {
+      await tryReject(selector, frame, 15000);
+    } catch {
+      if (await dialog().isVisible().catch(() => false)) return; // 늦게 떴으면 성공
+      // full-suite 부하에서 직전 거부의 fire-and-forget clearPicker가 새 arm을 clobber하면
+      // panel=picking·content=idle로 멈춰 클릭 재시도로는 못 빠져나온다. picking을 취소해
+      // idle로 되돌리고 mode-element로 새로 arm한 뒤 한 번 더 시도한다(one-shot 복구).
+      if (await panel.getByTestId("picking-cancel").isVisible().catch(() => false)) {
+        await panel.getByTestId("picking-cancel").click();
+      }
+      await expect(panel.getByTestId("mode-element")).toBeVisible();
+      await panel.getByTestId("mode-element").click();
+      await tryReject(selector, frame, 15000);
+    }
   }
 
   async function dismissAndExpectIdle() {

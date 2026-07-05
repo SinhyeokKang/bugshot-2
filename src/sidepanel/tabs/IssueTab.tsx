@@ -298,7 +298,7 @@ function PickingState({ onCancel }: { onCancel: () => void }) {
         icon={<Crosshair className="h-6 w-6 text-muted-foreground" />}
         title={t("issue.picking.title")}
         action={
-          <Button variant="outline" onClick={onCancel}>
+          <Button variant="outline" data-testid="picking-cancel" onClick={onCancel}>
             {t("common.cancel")}
           </Button>
         }
