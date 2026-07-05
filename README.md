@@ -57,7 +57,7 @@ When a still image isn't enough, record the behavior.
 
 - **Tab recording** — record the current tab, up to 60 seconds, encoded to MP4.
 - **Screen recording** — record any window or the full screen via the system picker, up to 60 seconds.
-- **Draw while recording** — toggle a pen to sketch freehand highlights over the page during tab/screen recording; strokes fade after ~3s and are baked into the video.
+- **Draw while recording** — a mini toolbar (5 colors, pen or highlighter, three thicknesses) lets you sketch freehand over the page during tab/screen recording; strokes fade tail-first in draw order over ~3s and are baked into the video.
 - **30s Replay** — an opt-in, always-on buffer that keeps the **last 30 seconds** as MP4. It looks back across page navigations, so you can catch the bug even *after* spotting it — no need to hit record beforehand. After capture, **trim** the clip to keep only the bug moment — the attached logs are narrowed to the same range.
 
 ### 📋 Logs
