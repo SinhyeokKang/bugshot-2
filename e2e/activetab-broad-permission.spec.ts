@@ -1,4 +1,3 @@
-import type { Worker } from "@playwright/test";
 import { expect, test } from "./fixtures/extension";
 import type { ExtContext } from "./fixtures/extension";
 
@@ -15,14 +14,8 @@ import type { ExtContext } from "./fixtures/extension";
 
 const ACTIVATED_KEY = "sidePanel:activated";
 
-function sw(ext: ExtContext): Worker {
-  const w = ext.context.serviceWorkers()[0];
-  if (!w) throw new Error("service worker 없음");
-  return w;
-}
-
 async function seedActivatedSession(ext: ExtContext, tabId: number, refUrl: string): Promise<void> {
-  await sw(ext).evaluate(
+  await ext.evalInExt(
     (a: { activatedKey: string; urlKey: string; sessionKey: string; tabId: number; refUrl: string }) =>
       chrome.storage.session.set({
         [a.activatedKey]: [a.tabId],
@@ -41,7 +34,7 @@ async function seedActivatedSession(ext: ExtContext, tabId: number, refUrl: stri
 }
 
 function isActivated(ext: ExtContext, tabId: number): Promise<boolean> {
-  return sw(ext).evaluate(
+  return ext.evalInExt(
     (a: { key: string; tabId: number }) =>
       chrome.storage.session
         .get(a.key)
@@ -51,7 +44,7 @@ function isActivated(ext: ExtContext, tabId: number): Promise<boolean> {
 }
 
 function hasSession(ext: ExtContext, tabId: number): Promise<boolean> {
-  return sw(ext).evaluate(
+  return ext.evalInExt(
     (a: { key: string }) => chrome.storage.session.get(a.key).then((d) => d[a.key] != null),
     { key: `editor:${tabId}` },
   );
@@ -64,8 +57,8 @@ function hasSession(ext: ExtContext, tabId: number): Promise<boolean> {
 // 걸린다 — quota 초과 시 reject. throw를 ""로 흡수해 호출부가 1초 간격으로 spaced 재시도하게 한다
 // (버스트 폴링은 quota를 소진해 같은 run의 후행 캡처 spec까지 말려들게 함).
 function captureVisibleTab(ext: ExtContext, tabId: number): Promise<string> {
-  return sw(ext)
-    .evaluate(
+  return ext
+    .evalInExt(
       (id: number) =>
         chrome.tabs
           .get(id)

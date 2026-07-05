@@ -1,4 +1,4 @@
-import { defineConfig, loadEnv } from "vite";
+import { defineConfig, loadEnv, type Plugin } from "vite";
 import react from "@vitejs/plugin-react";
 import { crx } from "@crxjs/vite-plugin";
 import path from "node:path";
@@ -17,8 +17,21 @@ export default defineConfig(({ mode }) => {
   const posthogKey = isStoreBuild
     ? env.VITE_POSTHOG_KEY_PROD ?? ""
     : env.VITE_POSTHOG_KEY ?? "";
+  // e2e 전용: 앱을 부팅하지 않는 빈 확장 페이지. Playwright는 crxjs가 type:module로 emit하는
+  // 서비스워커의 실행 컨텍스트를 못 잡아 worker.evaluate가 hang하므로, chrome.* API 평가를 이
+  // 특권 확장 페이지(page.evaluate는 정상)에서 수행한다. dist(배포)엔 미포함.
+  const e2eEvalHostPlugin: Plugin | false = isE2eBuild && {
+    name: "e2e-eval-host",
+    generateBundle() {
+      this.emitFile({
+        type: "asset",
+        fileName: "e2e-eval.html",
+        source: "<!doctype html><meta charset=utf-8><title>e2e-eval</title>",
+      });
+    },
+  };
   return {
-    plugins: [react(), crx({ manifest })],
+    plugins: [react(), crx({ manifest }), e2eEvalHostPlugin].filter(Boolean),
     resolve: {
       alias: {
         "@": path.resolve(__dirname, "./src"),

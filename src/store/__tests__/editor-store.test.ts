@@ -187,13 +187,13 @@ describe("onRecordingComplete — idle 직접 호출 (30s Replay)", () => {
     expect(s.videoEndedAt).toBe(5000);
   });
 
-  it("펜 ON 상태로 녹화가 끝나도 annotationPenOn을 false로 리셋한다", () => {
-    useEditorStore.getState().setAnnotationPen(true);
-    expect(useEditorStore.getState().annotationPenOn).toBe(true);
+  it("펜 ON 상태로 녹화가 끝나도 annotationTool을 null로 리셋한다", () => {
+    useEditorStore.getState().setAnnotationTool("pen");
+    expect(useEditorStore.getState().annotationTool).toBe("pen");
 
     useEditorStore.getState().onRecordingComplete(new Blob(["x"]), "t", { width: 800, height: 600 }, 1000, 5000);
 
-    expect(useEditorStore.getState().annotationPenOn).toBe(false);
+    expect(useEditorStore.getState().annotationTool).toBe(null);
   });
 });
 
@@ -1411,33 +1411,46 @@ describe("updateSelectionStyles — 편집 중 prop baseline 보존", () => {
 });
 
 /* ------------------------------------------------------------------ */
-/*  annotationPenOn — 녹화 중 그리기 펜 토글                              */
+/*  annotationTool/Color/Thickness — 녹화 중 그리기 툴바 상태            */
 /* ------------------------------------------------------------------ */
 
-describe("annotationPenOn — 펜 토글 상태", () => {
+describe("annotationTool/Color/Thickness — 녹화 그리기 툴바 상태", () => {
   beforeEach(() => {
     useEditorStore.setState(useEditorStore.getInitialState(), true);
   });
 
-  it("초기값은 false", () => {
-    expect(useEditorStore.getState().annotationPenOn).toBe(false);
+  it("초기값: tool=null(off), color=기본 빨강, thickness=M", () => {
+    expect(useEditorStore.getState().annotationTool).toBe(null);
+    expect(useEditorStore.getState().annotationColor).toBe("#ef4444");
+    expect(useEditorStore.getState().annotationThickness).toBe("M");
   });
 
-  it("setAnnotationPen(true)로 켜고 setAnnotationPen(false)로 끈다", () => {
-    useEditorStore.getState().setAnnotationPen(true);
-    expect(useEditorStore.getState().annotationPenOn).toBe(true);
+  it("setAnnotationTool로 pen/highlight를 켜고 null로 끈다", () => {
+    useEditorStore.getState().setAnnotationTool("pen");
+    expect(useEditorStore.getState().annotationTool).toBe("pen");
 
-    useEditorStore.getState().setAnnotationPen(false);
-    expect(useEditorStore.getState().annotationPenOn).toBe(false);
+    useEditorStore.getState().setAnnotationTool("highlight");
+    expect(useEditorStore.getState().annotationTool).toBe("highlight");
+
+    useEditorStore.getState().setAnnotationTool(null);
+    expect(useEditorStore.getState().annotationTool).toBe(null);
   });
 
-  it("startRecording은 ...initial 리셋이라 펜을 false로 되돌린다", () => {
-    useEditorStore.getState().setAnnotationPen(true);
-    expect(useEditorStore.getState().annotationPenOn).toBe(true);
+  it("setAnnotationColor / setAnnotationThickness로 스타일을 바꾼다", () => {
+    useEditorStore.getState().setAnnotationColor("#3b82f6");
+    expect(useEditorStore.getState().annotationColor).toBe("#3b82f6");
+
+    useEditorStore.getState().setAnnotationThickness("L");
+    expect(useEditorStore.getState().annotationThickness).toBe("L");
+  });
+
+  it("startRecording은 ...initial 리셋이라 tool을 null로 되돌린다", () => {
+    useEditorStore.getState().setAnnotationTool("pen");
+    expect(useEditorStore.getState().annotationTool).toBe("pen");
 
     useEditorStore.getState().startRecording(target, "tab");
 
     expect(useEditorStore.getState().phase).toBe("recording");
-    expect(useEditorStore.getState().annotationPenOn).toBe(false);
+    expect(useEditorStore.getState().annotationTool).toBe(null);
   });
 });

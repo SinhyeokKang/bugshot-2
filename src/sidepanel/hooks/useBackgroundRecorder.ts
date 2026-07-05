@@ -11,7 +11,7 @@ import {
   syncConsoleRecorder,
   syncActionRecorder,
 } from "@/sidepanel/picker-control";
-import { showAnnotation, setAnnotationPen } from "@/sidepanel/annotation-control";
+import { showAnnotation, setAnnotationTool } from "@/sidepanel/annotation-control";
 import * as videoRecorder from "@/sidepanel/video-recorder";
 import { pageKeyOf } from "@/lib/session-keys";
 import { isSupportedUrl } from "@/lib/url-support";
@@ -65,8 +65,9 @@ export function useBackgroundRecorder(tabId: number | null): void {
     async function reshowAnnotation(): Promise<void> {
       if (cancelled || !videoRecorder.isRecording()) return;
       await showAnnotation(localTabId);
-      if (useEditorStore.getState().annotationPenOn) {
-        await setAnnotationPen(localTabId, true);
+      const { annotationTool, annotationColor, annotationThickness } = useEditorStore.getState();
+      if (annotationTool) {
+        await setAnnotationTool(localTabId, annotationTool, annotationColor, annotationThickness);
       }
     }
 

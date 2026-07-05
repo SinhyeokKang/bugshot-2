@@ -118,5 +118,7 @@ export type PickerMessage =
   | { type: "actionRecorder.data"; payload: { entries: import("@/types/action").ActionEntry[]; totalSeen: number } }
   | { type: "annotation.show" }
   | { type: "annotation.hide" }
-  | { type: "annotation.setPen"; on: boolean }
+  // pen/highlight면 color/strokeWidth/opacity(sidepanel 계산)를 싣고, off는 tool:null만 보낸다.
+  | { type: "annotation.setTool"; tool: "pen" | "highlight"; color: string; strokeWidth: number; opacity: number }
+  | { type: "annotation.setTool"; tool: null }
   | { type: "annotation.penOff" };

@@ -12,6 +12,8 @@ import { useIssuesStore } from "./issues-store";
 import { useSettingsStore } from "./settings-store";
 import { saveVideoBlob, deleteVideoBlob, saveImageBlob, saveNetworkLog, deleteNetworkLog, saveConsoleLog, deleteConsoleLog, saveActionLog, deleteActionLog, dataUrlToBlob, saveAttachmentBlob, deleteAttachmentBlob, deleteAttachmentBlobs, rekeyAttachmentBlobs } from "./blob-db";
 import { takeWithinLimits, type TakeWithinLimitsResult } from "@/sidepanel/lib/attachmentLimits";
+import { DEFAULT_COLOR, DEFAULT_THICKNESS, type ThicknessKey } from "@/sidepanel/components/annotation/presets";
+import type { RecordingPenTool } from "@/sidepanel/components/annotation/recording-pen";
 import { clearNetworkRecorder, clearConsoleRecorder, clearActionRecorder } from "@/sidepanel/recorder-control";
 
 export type CaptureMode = "element" | "screenshot" | "video" | "freeform";
@@ -154,7 +156,10 @@ interface EditorState {
   submitResult: SubmitResult | null;
   inlineCaptureTarget: string | null;
   sessionExpired: boolean;
-  annotationPenOn: boolean;
+  // 녹화 중 그리기 툴바 상태. null=off(그리기 비활성). 비영속(세션 한정).
+  annotationTool: RecordingPenTool | null;
+  annotationColor: string;
+  annotationThickness: ThicknessKey;
 
   startInlineCapture: (sectionId: string) => void;
   cancelInlineCapture: () => void;
@@ -211,7 +216,9 @@ interface EditorState {
   setConsoleLogAttach: (on: boolean) => void;
   setActionLog: (log: ActionLog) => void;
   setActionLogAttach: (on: boolean) => void;
-  setAnnotationPen: (on: boolean) => void;
+  setAnnotationTool: (tool: RecordingPenTool | null) => void;
+  setAnnotationColor: (color: string) => void;
+  setAnnotationThickness: (thickness: ThicknessKey) => void;
   clearNetworkLog: (tabId: number | null) => void;
   clearConsoleLog: (tabId: number | null) => void;
   clearActionLog: (tabId: number | null) => void;
@@ -303,7 +310,9 @@ const initial = {
   aiDraftLoading: false,
   submitResult: null as SubmitResult | null,
   sessionExpired: false,
-  annotationPenOn: false,
+  annotationTool: null as RecordingPenTool | null,
+  annotationColor: DEFAULT_COLOR,
+  annotationThickness: DEFAULT_THICKNESS,
 };
 
 // cross-page 누적 로그·첨부 토글 4필드를 모드 진입 시 보존. element/screenshot/freeform이 공유.
@@ -516,7 +525,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }),
   startRecording: (target, source) => set({ ...initial, captureMode: "video", recordingSource: source, phase: "recording", target }),
   onRecordingComplete: (blob, thumbnail, viewport, startedAt, endedAt) => {
-    set({ captureMode: "video", phase: "drafting", videoBlob: blob, videoThumbnail: thumbnail, videoViewport: viewport, videoCapturedAt: Date.now(), videoStartedAt: startedAt, videoEndedAt: endedAt, videoTrimmed: false, networkLogAttach: true, consoleLogAttach: true, actionLogAttach: true, annotationPenOn: false });
+    set({ captureMode: "video", phase: "drafting", videoBlob: blob, videoThumbnail: thumbnail, videoViewport: viewport, videoCapturedAt: Date.now(), videoStartedAt: startedAt, videoEndedAt: endedAt, videoTrimmed: false, networkLogAttach: true, consoleLogAttach: true, actionLogAttach: true, annotationTool: null });
     // drafting 중 패널을 닫아도 영상이 살아남도록 로그와 동일하게 pending:${tabId}에 미러링(hydrate가 복원).
     const tabId = get().target?.tabId;
     if (tabId != null) void saveVideoBlob(`pending:${tabId}`, blob);
@@ -921,7 +930,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   setNetworkLog: (log) => set({ networkLog: log }),
   setNetworkLogAttach: (on) => set({ networkLogAttach: on }),
-  setAnnotationPen: (on) => set({ annotationPenOn: on }),
+  setAnnotationTool: (tool) => set({ annotationTool: tool }),
+  setAnnotationColor: (color) => set({ annotationColor: color }),
+  setAnnotationThickness: (thickness) => set({ annotationThickness: thickness }),
   setConsoleLog: (log) => set({ consoleLog: log }),
   setConsoleLogAttach: (on) => set({ consoleLogAttach: on }),
   setActionLog: (log) => set({ actionLog: log }),

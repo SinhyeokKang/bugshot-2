@@ -1,20 +1,22 @@
-import type { Page, Worker } from "@playwright/test";
+import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures/extension";
+import type { ExtContext } from "./fixtures/extension";
 
-// 녹화 중 그리기 오버레이 — annotation.show/setPen/hide 메시지를 SW에서 content script(picker
+// 녹화 중 그리기 오버레이 — annotation.show/setTool/hide 메시지를 SW에서 content script(picker
 // 엔트리, all_frames 자동 주입)로 직접 보내 페이지 DOM(open shadow host)을 판정한다. 실 녹화
 // (tabCapture/getDisplayMedia)는 headed 자동화에서 불안정이라 배제하고 메시지 경로만 검증한다.
 // 획은 open shadow의 svg <g>로 세고, 페이드(3초)는 판정 밖(수동).
+// setTool: pen/highlight는 color·strokeWidth·opacity를 싣고, off는 { tool: null }.
 
 const HOST_ID = "__bugshot_annotation_host";
 
 test.describe.serial("recording annotation overlay", () => {
   let fixture: Page;
-  let sw: Worker;
+  let extCtx: ExtContext;
   let tabId: number;
 
   async function send(msg: Record<string, unknown>): Promise<void> {
-    await sw.evaluate(
+    await extCtx.evalInExt(
       ([t, m]) => chrome.tabs.sendMessage(t as number, m as object),
       [tabId, msg] as [number, Record<string, unknown>],
     );
@@ -37,11 +39,34 @@ test.describe.serial("recording annotation overlay", () => {
     await fixture.mouse.up();
   }
 
+  // 마지막 획 <g>의 유일한 <path> 스타일. 흰 아웃라인 제거로 그룹당 path 1개(pathCount로 검증).
+  function lastPathStyle(): Promise<{
+    pathCount: number;
+    stroke: string | null;
+    strokeWidth: string | null;
+    strokeOpacity: string | null;
+  } | null> {
+    return fixture.evaluate((id) => {
+      const sr = document.getElementById(id)?.shadowRoot;
+      const groups = sr ? Array.from(sr.querySelectorAll("svg g")) : [];
+      const g = groups[groups.length - 1];
+      if (!g) return null;
+      const paths = g.querySelectorAll("path");
+      const p = paths[paths.length - 1];
+      return {
+        pathCount: paths.length,
+        stroke: p?.getAttribute("stroke") ?? null,
+        strokeWidth: p?.getAttribute("stroke-width") ?? null,
+        strokeOpacity: p?.getAttribute("stroke-opacity") ?? null,
+      };
+    }, HOST_ID);
+  }
+
   test.beforeAll(async ({ ext }) => {
     fixture = await ext.context.newPage();
     await fixture.goto(ext.fixtureUrl("basic.html"));
     tabId = await ext.fixtureTabId();
-    [sw] = ext.context.serviceWorkers();
+    extCtx = ext;
   });
 
   test.afterAll(async () => {
@@ -76,7 +101,7 @@ test.describe.serial("recording annotation overlay", () => {
   });
 
   test("펜 ON + 드래그 → 획 <g>가 추가된다", async () => {
-    await send({ type: "annotation.setPen", on: true });
+    await send({ type: "annotation.setTool", tool: "pen", color: "#ef4444", strokeWidth: 4, opacity: 1 });
     const before = await strokeCount();
 
     await drag();
@@ -85,11 +110,29 @@ test.describe.serial("recording annotation overlay", () => {
     await expect.poll(() => strokeCount()).toBeGreaterThan(before);
   });
 
+  test("형광펜 setTool + 드래그 → 획 path에 색·두께배율·반투명 스타일이 박힌다", async () => {
+    // 이전 획과 격리(3초 페이드 race 회피)하려 오버레이를 새로 마운트해 획 0에서 시작.
+    await send({ type: "annotation.hide" });
+    await send({ type: "annotation.show" });
+    await send({ type: "annotation.setTool", tool: "highlight", color: "#3b82f6", strokeWidth: 16, opacity: 0.4 });
+
+    await drag();
+
+    await expect.poll(() => strokeCount()).toBeGreaterThan(0);
+    // sidepanel이 실어 보낸 스타일이 획 path에 그대로(highlight=두께배율·반투명), path는 그룹당 1개(흰 아웃라인 없음).
+    expect(await lastPathStyle()).toEqual({
+      pathCount: 1,
+      stroke: "#3b82f6",
+      strokeWidth: "16",
+      strokeOpacity: "0.4",
+    });
+  });
+
   test("펜 OFF → 드래그해도 획이 안 생기고 페이지 클릭이 통과한다", async () => {
     // 이전 테스트의 획(3초 수명)과 무관하게 판정하도록 오버레이를 새로 마운트(획 0).
     await send({ type: "annotation.hide" });
     await send({ type: "annotation.show" });
-    await send({ type: "annotation.setPen", on: false });
+    await send({ type: "annotation.setTool", tool: null });
     expect(await strokeCount()).toBe(0);
 
     await fixture.evaluate(() => {

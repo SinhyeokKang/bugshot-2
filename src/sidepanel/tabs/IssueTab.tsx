@@ -12,7 +12,6 @@ import {
   Timer,
   AppWindow,
   MonitorPlay,
-  Pencil,
 } from "lucide-react";
 import { useT } from "@/i18n";
 import { cn } from "@/lib/utils";
@@ -53,7 +52,10 @@ import {
   startFreeformDraft,
 } from "@/sidepanel/picker-control";
 import { startVideoCapture, startScreenCapture } from "@/sidepanel/video-capture";
-import { setAnnotationPen } from "@/sidepanel/annotation-control";
+import { setAnnotationTool } from "@/sidepanel/annotation-control";
+import { ANNOTATION_TOOLS, type AnnotationTool } from "@/sidepanel/components/annotation/presets";
+import type { RecordingPenTool } from "@/sidepanel/components/annotation/recording-pen";
+import { ColorSwatches, ThicknessButtons, ToolButtons } from "@/sidepanel/components/annotation/ToolbarGroups";
 import * as videoRecorder from "@/sidepanel/video-recorder";
 import { PageFooter, PageShell } from "@/sidepanel/components/Section";
 import { useReplay } from "@/sidepanel/30s-replay/replay-context";
@@ -296,7 +298,7 @@ function PickingState({ onCancel }: { onCancel: () => void }) {
         icon={<Crosshair className="h-6 w-6 text-muted-foreground" />}
         title={t("issue.picking.title")}
         action={
-          <Button variant="outline" onClick={onCancel}>
+          <Button variant="outline" data-testid="picking-cancel" onClick={onCancel}>
             {t("common.cancel")}
           </Button>
         }
@@ -322,18 +324,35 @@ function CapturingState({ onCancel }: { onCancel: () => void }) {
   );
 }
 
+const RECORDING_PEN_TOOLS = ANNOTATION_TOOLS.filter(
+  (m) => m.key === "pen" || m.key === "highlight",
+);
+
 function RecordingState({ onStop, onCancel }: { onStop: () => void; onCancel: () => void }) {
   const t = useT();
   const source = useEditorStore((s) => s.recordingSource);
-  const penOn = useEditorStore((s) => s.annotationPenOn);
+  const tool = useEditorStore((s) => s.annotationTool);
+  const color = useEditorStore((s) => s.annotationColor);
+  const thickness = useEditorStore((s) => s.annotationThickness);
   const tabId = useBoundTabId();
   const [elapsed, setElapsed] = useState(0);
   const maxDuration = videoRecorder.getMaxDuration();
 
-  const togglePen = () => {
-    const next = !penOn;
-    useEditorStore.getState().setAnnotationPen(next);
-    if (tabId) void setAnnotationPen(tabId, next);
+  // 같은 툴을 다시 누르면 off(null). 색/두께 변경은 현재 툴이 켜져 있을 때만 재전송.
+  const pickTool = (picked: AnnotationTool) => {
+    // ToolButtons에 pen/highlight만 넘기지만 onChange 타입은 AnnotationTool — 가드로 좁힌다.
+    if (picked !== "pen" && picked !== "highlight") return;
+    const next: RecordingPenTool | null = tool === picked ? null : picked;
+    useEditorStore.getState().setAnnotationTool(next);
+    if (tabId) void setAnnotationTool(tabId, next, color, thickness);
+  };
+  const pickColor = (c: string) => {
+    useEditorStore.getState().setAnnotationColor(c);
+    if (tabId && tool) void setAnnotationTool(tabId, tool, c, thickness);
+  };
+  const pickThickness = (k: typeof thickness) => {
+    useEditorStore.getState().setAnnotationThickness(k);
+    if (tabId && tool) void setAnnotationTool(tabId, tool, color, k);
   };
 
   useEffect(() => {
@@ -366,28 +385,33 @@ function RecordingState({ onStop, onCancel }: { onStop: () => void; onCancel: ()
             style={{ width: `${progress * 100}%` }}
           />
         </div>
-        <div className="mt-4 flex w-full max-w-[224px] flex-col gap-2">
-          <Button
-            variant="outline"
-            className={cn("w-full", penOn && "bg-muted")}
-            data-active={penOn || undefined}
-            data-testid="annotation-pen-toggle"
-            title={t("issue.recording.penHint")}
-            aria-pressed={penOn}
-            onClick={togglePen}
-          >
-            <Pencil />
-            {t("issue.recording.pen")}
+        <div className="mt-4 flex gap-2">
+          <Button variant="outline" onClick={onCancel}>
+            {t("common.cancel")}
           </Button>
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={onCancel}>
-              {t("common.cancel")}
-            </Button>
-            <Button className="flex-1" onClick={onStop}>
-              {t("issue.recording.stop")}
-            </Button>
-          </div>
+          <Button className="w-auto" onClick={onStop}>
+            {t("issue.recording.stop")}
+          </Button>
         </div>
+      </div>
+      {/* 화면에 그리기 툴바: [색] [펜·형광펜] [두께] — 이미지 어노테이션과 동일 그룹 재사용.
+          취소·제출 같은 액션이 없는 순수 툴바라 action footer(bg-muted)가 아니라 흰 배경(bg-background). */}
+      <div
+        className="flex shrink-0 items-center justify-between gap-2 border-t border-border bg-background p-4"
+        title={t("issue.recording.penHint")}
+      >
+        <ColorSwatches value={color} onChange={pickColor} testIdPrefix="rec-annotation-color" />
+        <ToolButtons
+          tools={RECORDING_PEN_TOOLS}
+          value={tool}
+          onChange={pickTool}
+          testIdPrefix="rec-annotation-tool"
+        />
+        <ThicknessButtons
+          value={thickness}
+          onChange={pickThickness}
+          testIdPrefix="rec-annotation-thickness"
+        />
       </div>
     </PageShell>
   );
