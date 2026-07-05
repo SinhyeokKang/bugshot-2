@@ -37,11 +37,12 @@ For screen recording, you can also click the browser's **Stop sharing** bar at t
 
 ![Highlighting on screen with the pen while recording](../assets/video-record-4.jpg)
 
-"This button here," "this area looks broken" — for the parts that are hard to put into words, you can draw right on top of the recording to point them out. Once recording starts, a **Draw on screen** button appears in the recording controls.
+"This button here," "this area looks broken" — for the parts that are hard to put into words, you can draw right on top of the recording to point them out. Once recording starts, a **drawing toolbar** appears below the recording controls — pick a color, a **Pen** or **Highlight**, and a thickness, just like the screenshot annotation editor.
 
-- Click the **Draw on screen** button to turn drawing on, and your cursor becomes a crosshair. From there, **press and drag** on the page to draw a line along the path.
-- Each line **fades away on its own after a few seconds**, so there's nothing to erase — just draw whenever you want to highlight something.
-- While you're drawing, page clicks are paused, but **scrolling still works**. When you're done, click the **Draw on screen** button again or press **Esc** on the page to turn drawing off and use the page as usual.
+- Click **Pen** or **Highlight** to turn drawing on, and your cursor becomes a crosshair. From there, **press and drag** on the page to draw a line along the path. **Highlight** is thick and translucent, like a marker — great for calling out a whole area.
+- Pick from five colors — **Red, Yellow, Green, Blue, Black** — and three thicknesses — **Thin, Medium, Thick**. It's simpler than it sounds.
+- Each line **fades away in the order you drew it, starting from the beginning of the stroke, over a few seconds**, so there's nothing to erase — just draw whenever you want to highlight something.
+- While you're drawing, page clicks are paused, but **scrolling still works**. When you're done, click the active **Pen/Highlight** button again or press **Esc** on the page to turn drawing off and use the page as usual.
 
 Your drawings are baked right into the recorded video, so teammates watching later can see exactly where to look.
 
