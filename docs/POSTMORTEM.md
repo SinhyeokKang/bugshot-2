@@ -21,6 +21,15 @@
 
 ---
 
+## 2026-07-05 — e2e 전 스위트가 "시작도 안 됨"으로 hang — Playwright `worker.evaluate`가 crxjs 모듈 SW에서 무한 대기
+
+- **증상**: 어느 순간부터 `pnpm test:e2e`가 첫 테스트에서 멈춰 스위트가 통째로 진행 안 됨("시작도 안 됨"). 브라우저는 뜨는데 안 보이던 **크롬 번역 버블**까지 관측돼 "환경이 바뀌었다"는 오해를 부름. 코드 diff는 무관(직전 green 이후 guide 이미지 1개뿐).
+- **근본 원인**: 표면(스위트 hang·번역 버블)과 원인이 다른 레이어. crxjs가 서비스워커를 `type:module`(`service-worker-loader.js`가 real 청크를 `import`)로 emit하는데, **Playwright `worker.evaluate`가 이 모듈 SW의 실행 컨텍스트를 못 잡아 무한 대기**한다. fixture(`fixtureTabId`)와 여러 spec이 `sw.evaluate`에 의존하고 `workers:1`이라 **첫 `sw.evaluate` 한 번이 전 스위트를 정지**시킴. SW 자체는 정상(로드 예외 0, `chrome` 바인딩 OK) — 순전히 Playwright 한계. 오진 유발 요소: node 버전(22·25·26 전부 동일 실패), chromium 버전, 번역 UI는 **전부 무관**. 그리고 **Playwright `CDPSession.send(method, params)`는 3번째 sessionId 인자를 조용히 무시**해서, raw CDP로 SW 타깃에 붙어 우회하려던 시도가 전부 앵커 페이지 컨텍스트에서 돌아(`chrome` undefined) 삽질을 길게 만듦.
+- **재발 방지**: (1) **e2e에서 `chrome.*`는 SW가 아니라 확장 페이지에서 평가** — fixture `ext.evalInExt(fn, arg)`(빈 특권 확장 페이지 `e2e-eval.html`, `vite.config.ts`의 `e2eEvalHostPlugin`이 `dist-e2e`에만 emit). `grep -rn "serviceWorkers()\|\.evaluate" e2e | grep -i worker` 로 `worker.evaluate` 신규 유입 감시 — 모듈 SW에선 반드시 hang한다. (2) **`worker.evaluate`가 hang하면 node/chromium/브라우저 UI를 의심하지 말 것** — crxjs=type:module SW가 원인. `dist-e2e/manifest.json`의 `background.type==="module"` + `service-worker-loader.js`가 `import`만 하는 셔틀인지 확인. (3) **Playwright `CDPSession.send`에 sessionId 3번째 인자는 안 먹는다** — flatten 자식 세션(SW 등) 라우팅을 이걸로 시도 말 것(앵커 페이지에서 돌아 조용히 오답). (4) 진단 중 `brew install node@22`가 simdutf를 올려 시스템 node를 dyld로 깨뜨린 전례 — **버전 가설 검증하겠다고 brew로 형제 node 깔지 말 것**(공유 의존 churn), 필요하면 격리된 바이너리를 쓴다.
+- **관련**: `e2e/fixtures/extension.ts`(`evalInExt`·`getEvalHost`·`fixtureTabId`), `vite.config.ts`(`e2eEvalHostPlugin`), 마이그레이션 spec `unsupported-url`·`activetab-broad-permission`·`recording-annotation`, `e2e/GOTCHAS.md` 최상단 항목.
+
+---
+
 ## 2026-07-04 — Radix Tabs 정렬 편집기 "재클릭 해제" 구현이 정상 설정까지 지움 (pointerdown에서 값 변경 → click은 리렌더 후 발화)
 
 - **증상**: element 스타일 편집기의 AlignmentProp(text-align 등)에서 비활성 정렬 탭(center)을 한 번 눌렀는데, 적용됐다가 **즉시 지워져** 기본값(start)으로 남았다. `pnpm test`(2645개)·자체 검증 에이전트의 순수 로직 리뷰는 전부 통과 — **e2e(`style-changes-stacked`)만** 잡아냈다.
