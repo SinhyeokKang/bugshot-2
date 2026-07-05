@@ -385,7 +385,7 @@ function RecordingState({ onStop, onCancel }: { onStop: () => void; onCancel: ()
             style={{ width: `${progress * 100}%` }}
           />
         </div>
-        <div className="mt-4 flex w-full gap-2">
+        <div className="mt-4 flex gap-2">
           <Button variant="outline" onClick={onCancel}>
             {t("common.cancel")}
           </Button>
@@ -394,26 +394,25 @@ function RecordingState({ onStop, onCancel }: { onStop: () => void; onCancel: ()
           </Button>
         </div>
       </div>
-      {/* 화면에 그리기 툴바: [색] [펜·형광펜] [두께] — 이미지 어노테이션과 동일 그룹 재사용. */}
-      <PageFooter>
-        <div
-          className="flex items-center justify-between gap-2"
-          title={t("issue.recording.penHint")}
-        >
-          <ColorSwatches value={color} onChange={pickColor} testIdPrefix="rec-annotation-color" />
-          <ToolButtons
-            tools={RECORDING_PEN_TOOLS}
-            value={tool}
-            onChange={pickTool}
-            testIdPrefix="rec-annotation-tool"
-          />
-          <ThicknessButtons
-            value={thickness}
-            onChange={pickThickness}
-            testIdPrefix="rec-annotation-thickness"
-          />
-        </div>
-      </PageFooter>
+      {/* 화면에 그리기 툴바: [색] [펜·형광펜] [두께] — 이미지 어노테이션과 동일 그룹 재사용.
+          취소·제출 같은 액션이 없는 순수 툴바라 action footer(bg-muted)가 아니라 흰 배경(bg-background). */}
+      <div
+        className="flex shrink-0 items-center justify-between gap-2 border-t border-border bg-background p-4"
+        title={t("issue.recording.penHint")}
+      >
+        <ColorSwatches value={color} onChange={pickColor} testIdPrefix="rec-annotation-color" />
+        <ToolButtons
+          tools={RECORDING_PEN_TOOLS}
+          value={tool}
+          onChange={pickTool}
+          testIdPrefix="rec-annotation-tool"
+        />
+        <ThicknessButtons
+          value={thickness}
+          onChange={pickThickness}
+          testIdPrefix="rec-annotation-thickness"
+        />
+      </div>
     </PageShell>
   );
 }
