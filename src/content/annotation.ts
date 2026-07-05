@@ -1,16 +1,19 @@
 import { postToRuntime } from "./post-to-runtime";
-import { pointsToPath } from "./annotation-draw";
+import { pointsToPath, dropExpired, smoothPoint, PEN_SMOOTHING_ALPHA, type StrokePoint } from "./annotation-draw";
 
 // action-recorder.ts(MAIN world)와 리터럴 동기 복제 — 그쪽 isOwnUi 제외 목록에 같은 값 존재.
 export const ANNOTATION_HOST_ID = "__bugshot_annotation_host";
 
-const STROKE_COLOR = "#ef4444";
-const STROKE_OUTLINE = "#ffffff";
-const STROKE_WIDTH = 3;
-const OUTLINE_WIDTH = 6;
-const FADE_DELAY_MS = 3000;
-const FADE_DURATION_MS = 400;
+// 점 하나의 수명. 그린 지 이만큼 지난 점부터(먼저 그린 순) 사라진다 — Jam식 트레일 페이드.
+const POINT_LIFETIME_MS = 3000;
 const SVG_NS = "http://www.w3.org/2000/svg";
+
+// 획 스타일(색/두께/투명도) — sidepanel이 tool·color·thickness로 계산해 실어 보낸 값.
+interface PenStyle {
+  color: string;
+  strokeWidth: number;
+  opacity: number;
+}
 
 const ANNOTATION_CSS = `
 :host { all: initial; }
@@ -34,71 +37,85 @@ svg {
   z-index: 2147483645;
   overflow: visible;
 }
-g.fading {
-  opacity: 0;
-  transition: opacity ${FADE_DURATION_MS}ms ease-out;
-}
 `;
+
+interface Stroke {
+  groupEl: SVGGElement;
+  points: ReadonlyArray<StrokePoint>;
+}
 
 interface AnnotationHandle {
   hostEl: HTMLDivElement;
   svgEl: SVGSVGElement;
   blockerEl: HTMLDivElement;
-  penOn: boolean;
-  activeStroke: { groupEl: SVGGElement; points: Array<[number, number]> } | null;
-  fadeTimers: Set<ReturnType<typeof setTimeout>>;
+  // 현재 그리기 스타일. null이면 그리기 off(pass-through).
+  pen: PenStyle | null;
+  // 그려진(그려지는 중 포함) 모든 획. 매 프레임 꼬리부터 트리밍되고 빈 획은 제거된다.
+  strokes: Stroke[];
+  activeStroke: Stroke | null;
+  rafId: number | null;
   scrollTimer: ReturnType<typeof setTimeout> | null;
 }
 
 let handle: AnnotationHandle | null = null;
 
-function newStrokePath(h: AnnotationHandle, e: PointerEvent): void {
-  // pointerup 유실(뷰포트 밖 release)·pointercancel·멀티터치로 이전 획이 남아 있으면 먼저 커밋(fade).
-  commitStroke(h);
-  const groupEl = document.createElementNS(SVG_NS, "g");
-  const outline = document.createElementNS(SVG_NS, "path");
-  outline.setAttribute("fill", "none");
-  outline.setAttribute("stroke", STROKE_OUTLINE);
-  outline.setAttribute("stroke-width", String(OUTLINE_WIDTH));
-  outline.setAttribute("stroke-linecap", "round");
-  outline.setAttribute("stroke-linejoin", "round");
-  const main = document.createElementNS(SVG_NS, "path");
-  main.setAttribute("fill", "none");
-  main.setAttribute("stroke", STROKE_COLOR);
-  main.setAttribute("stroke-width", String(STROKE_WIDTH));
-  main.setAttribute("stroke-linecap", "round");
-  main.setAttribute("stroke-linejoin", "round");
-  groupEl.appendChild(outline);
-  groupEl.appendChild(main);
-  h.svgEl.appendChild(groupEl);
-  h.activeStroke = { groupEl, points: [[e.clientX, e.clientY]] };
-  updateStrokePath(h);
+function now(): number {
+  return performance.now();
 }
 
-function updateStrokePath(h: AnnotationHandle): void {
-  if (!h.activeStroke) return;
-  const d = pointsToPath(h.activeStroke.points);
-  for (const path of Array.from(h.activeStroke.groupEl.children)) {
+function newStrokePath(h: AnnotationHandle, e: PointerEvent): void {
+  const pen = h.pen;
+  if (!pen) return;
+  // pointerup 유실(뷰포트 밖 release)·pointercancel·멀티터치로 이전 획이 남아 있으면 놓는다
+  // (strokes에 남아 rAF 루프가 계속 페이드시킨다).
+  h.activeStroke = null;
+  // 획당 단일 path. 스타일을 엘리먼트에 박아둬 트레일 페이드 중 스타일 변경에 영향받지 않는다.
+  // <g> 래퍼는 e2e(svg g 카운트)·구조 일관성 유지용. Konva 벡터와 동일하게 흰 아웃라인 없음.
+  const groupEl = document.createElementNS(SVG_NS, "g");
+  const path = document.createElementNS(SVG_NS, "path");
+  path.setAttribute("fill", "none");
+  path.setAttribute("stroke", pen.color);
+  path.setAttribute("stroke-width", String(pen.strokeWidth));
+  path.setAttribute("stroke-opacity", String(pen.opacity));
+  path.setAttribute("stroke-linecap", "round");
+  path.setAttribute("stroke-linejoin", "round");
+  groupEl.appendChild(path);
+  h.svgEl.appendChild(groupEl);
+  const stroke: Stroke = { groupEl, points: [[e.clientX, e.clientY, now()]] };
+  h.strokes.push(stroke);
+  h.activeStroke = stroke;
+  renderStroke(stroke);
+  startTicking(h);
+}
+
+function renderStroke(s: Stroke): void {
+  const d = pointsToPath(s.points);
+  for (const path of Array.from(s.groupEl.children)) {
     path.setAttribute("d", d);
   }
 }
 
-function commitStroke(h: AnnotationHandle): void {
-  const stroke = h.activeStroke;
-  if (!stroke) return;
-  h.activeStroke = null;
-  // 제거를 transitionend에 걸면 백그라운드 탭 등 미렌더 상태에서 이벤트가 안 와 노드가 누적된다.
-  // opacity 트랜지션(시각 페이드) 후 타이머로 확정 제거 — hideAnnotation의 fadeTimers clear가 커버.
-  const fadeTimer = setTimeout(() => {
-    h.fadeTimers.delete(fadeTimer);
-    stroke.groupEl.classList.add("fading");
-    const removeTimer = setTimeout(() => {
-      h.fadeTimers.delete(removeTimer);
-      stroke.groupEl.remove();
-    }, FADE_DURATION_MS);
-    h.fadeTimers.add(removeTimer);
-  }, FADE_DELAY_MS);
-  h.fadeTimers.add(fadeTimer);
+// 매 프레임 모든 획의 앞쪽 만료 점을 잘라 그린 순서대로 꼬리부터 사라지게 한다.
+// 활성 획은 비어도 남겨두고(계속 그릴 수 있게), 그 외 빈 획은 DOM에서 제거.
+// 남은 획이 없으면 루프를 멈춘다(다음 pointerdown이 재기동). 백그라운드 탭에선 rAF가
+// 멈춰 페이드가 얼지만, 그리기 자체가 보이는 탭을 요구하므로 복귀 시 정리된다.
+function tick(h: AnnotationHandle): void {
+  const t = now();
+  for (let i = h.strokes.length - 1; i >= 0; i--) {
+    const s = h.strokes[i];
+    s.points = dropExpired(s.points, t, POINT_LIFETIME_MS);
+    if (s.points.length === 0 && s !== h.activeStroke) {
+      s.groupEl.remove();
+      h.strokes.splice(i, 1);
+    } else {
+      renderStroke(s);
+    }
+  }
+  h.rafId = h.strokes.length > 0 ? requestAnimationFrame(() => tick(h)) : null;
+}
+
+function startTicking(h: AnnotationHandle): void {
+  if (h.rafId === null) h.rafId = requestAnimationFrame(() => tick(h));
 }
 
 function addDragListeners(): void {
@@ -115,8 +132,16 @@ function removeDragListeners(): void {
 
 function onPointerMove(e: PointerEvent): void {
   if (!handle || !handle.activeStroke) return;
-  handle.activeStroke.points.push([e.clientX, e.clientY]);
-  updateStrokePath(handle);
+  const pts = handle.activeStroke.points;
+  // 정지 상태로 3초를 넘기면 tick이 활성 획의 점까지 전부 만료시켜 pts가 빌 수 있다.
+  // 그 경우 스무딩할 직전 점이 없으므로 raw로 재시작. 아니면 직전(스무딩된) 점 기준 EMA
+  // — Konva pen/highlight와 동일한 손떨림 보정.
+  const last = pts.length > 0 ? pts[pts.length - 1] : null;
+  const [sx, sy] = last
+    ? smoothPoint([last[0], last[1]], [e.clientX, e.clientY], PEN_SMOOTHING_ALPHA)
+    : [e.clientX, e.clientY];
+  handle.activeStroke.points = [...pts, [sx, sy, now()]];
+  renderStroke(handle.activeStroke);
 }
 
 // pointerup·pointercancel(터치 스크롤 제스처 회수) 공통 종료 경로.
@@ -125,17 +150,17 @@ function onStrokeEnd(): void {
 }
 
 function onPointerDown(e: PointerEvent): void {
-  if (!handle || !handle.penOn || e.button !== 0) return;
+  if (!handle || !handle.pen || e.button !== 0) return;
   e.preventDefault();
   newStrokePath(handle, e);
   addDragListeners();
 }
 
 function onKeyDown(e: KeyboardEvent): void {
-  if (!handle || !handle.penOn || e.key !== "Escape") return;
+  if (!handle || !handle.pen || e.key !== "Escape") return;
   e.preventDefault();
   e.stopPropagation();
-  setAnnotationPen(false);
+  setAnnotationTool(null, null);
   postToRuntime({ type: "annotation.penOff" });
 }
 
@@ -145,7 +170,7 @@ function yieldToScroll(): void {
   handle.blockerEl.style.pointerEvents = "none";
   if (handle.scrollTimer) clearTimeout(handle.scrollTimer);
   handle.scrollTimer = setTimeout(() => {
-    if (handle?.penOn) handle.blockerEl.style.pointerEvents = "auto";
+    if (handle?.pen) handle.blockerEl.style.pointerEvents = "auto";
     if (handle) handle.scrollTimer = null;
   }, 120);
 }
@@ -153,7 +178,8 @@ function yieldToScroll(): void {
 function endActiveStroke(h: AnnotationHandle): void {
   if (!h.activeStroke) return;
   removeDragListeners();
-  commitStroke(h);
+  // 획을 놓기만 하면 strokes에 남아 rAF 루프가 꼬리부터 계속 페이드시킨다.
+  h.activeStroke = null;
 }
 
 export function showAnnotation(): void {
@@ -191,27 +217,32 @@ export function showAnnotation(): void {
     hostEl,
     svgEl,
     blockerEl,
-    penOn: false,
+    pen: null,
+    strokes: [],
     activeStroke: null,
-    fadeTimers: new Set(),
+    rafId: null,
     scrollTimer: null,
   };
 }
 
-export function setAnnotationPen(on: boolean): void {
+// tool=null이면 그리기 off(pass-through). 그 외엔 style(color/strokeWidth/opacity)로 획을 그린다.
+export function setAnnotationTool(
+  tool: "pen" | "highlight" | null,
+  style: PenStyle | null,
+): void {
   if (!handle) return;
-  if (on) {
-    handle.penOn = true;
-    handle.blockerEl.classList.add("pen");
-    handle.blockerEl.style.pointerEvents = "auto";
-    window.addEventListener("keydown", onKeyDown, true);
-  } else {
-    handle.penOn = false;
+  if (tool === null || !style) {
+    handle.pen = null;
     handle.blockerEl.classList.remove("pen");
     handle.blockerEl.style.pointerEvents = "none";
     window.removeEventListener("keydown", onKeyDown, true);
     endActiveStroke(handle);
+    return;
   }
+  handle.pen = style;
+  handle.blockerEl.classList.add("pen");
+  handle.blockerEl.style.pointerEvents = "auto";
+  window.addEventListener("keydown", onKeyDown, true);
 }
 
 export function hideAnnotation(): void {
@@ -220,8 +251,7 @@ export function hideAnnotation(): void {
   window.removeEventListener("keydown", onKeyDown, true);
   removeDragListeners();
   endActiveStroke(h);
-  for (const timer of h.fadeTimers) clearTimeout(timer);
-  h.fadeTimers.clear();
+  if (h.rafId !== null) cancelAnimationFrame(h.rafId);
   if (h.scrollTimer) clearTimeout(h.scrollTimer);
   h.hostEl.remove();
   handle = null;

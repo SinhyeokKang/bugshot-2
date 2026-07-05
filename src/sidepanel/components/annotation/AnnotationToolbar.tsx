@@ -1,71 +1,23 @@
 import type { ReactNode } from "react";
-import {
-  Check,
-  Circle,
-  Highlighter,
-  Minus,
-  MousePointer2,
-  MoveUpRight,
-  Pencil,
-  Redo2,
-  Square,
-  Trash2,
-  Type,
-  Undo2,
-  X,
-  type LucideIcon,
-} from "lucide-react";
+import { Check, Redo2, Trash2, Undo2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
 import { cn } from "@/lib/utils";
 import { useT } from "@/i18n";
-import type { TranslationKey } from "@/i18n/ko";
 import {
-  ANNOTATION_COLORS,
   ANNOTATION_TOOLS,
-  THICKNESS_KEYS,
-  TEXT_SIZE_KEYS,
   isStrokeTool,
   type AnnotationTool,
-  type AnnotationToolMeta,
   type TextSizeKey,
   type ThicknessKey,
 } from "./presets";
-
-const TOOL_ICONS: Record<AnnotationTool, LucideIcon> = {
-  select: MousePointer2,
-  arrow: MoveUpRight,
-  rect: Square,
-  ellipse: Circle,
-  pen: Pencil,
-  text: Type,
-  highlight: Highlighter,
-};
-
-const COLOR_LABEL_KEYS: TranslationKey[] = [
-  "annotation.color.red",
-  "annotation.color.yellow",
-  "annotation.color.green",
-  "annotation.color.blue",
-  "annotation.color.black",
-];
-
-const THICKNESS_LABEL_KEYS: Record<ThicknessKey, TranslationKey> = {
-  S: "annotation.thickness.S",
-  M: "annotation.thickness.M",
-  L: "annotation.thickness.L",
-};
-
-const THICKNESS_STROKE: Record<ThicknessKey, number> = { S: 1.5, M: 3.5, L: 6 };
-
-const TEXTSIZE_LABEL_KEYS: Record<TextSizeKey, TranslationKey> = {
-  S: "annotation.textSize.S",
-  M: "annotation.textSize.M",
-  L: "annotation.textSize.L",
-};
-
-// 버튼 안 "A" 글자의 시각 크기(32px 버튼 기준 — 실제 폰트 px와 별개).
-const TEXTSIZE_ICON: Record<TextSizeKey, number> = { S: 11, M: 15, L: 20 };
+import {
+  ColorSwatches,
+  TextSizeButtons,
+  ThicknessButtons,
+  ToolButton,
+  ToolButtons,
+} from "./ToolbarGroups";
 
 interface AnnotationToolbarProps {
   tool: AnnotationTool | null;
@@ -125,27 +77,6 @@ export function AnnotationToolbar({
   // text 도구이거나 select 모드에서 text 도형을 선택했으면 두께 대신 텍스트 크기를 노출.
   const showTextSize = tool === "text" || (tool === "select" && selectionIsText);
 
-  const renderTool = ({ key, labelKey }: AnnotationToolMeta) => {
-    const Icon = TOOL_ICONS[key];
-    const active = tool === key;
-    return (
-      <Button
-        key={key}
-        size="icon"
-        variant="outline"
-        className={cn("h-8 w-8 shrink-0", active && "bg-muted")}
-        data-active={active || undefined}
-        data-testid={`annotation-tool-${key}`}
-        aria-label={t(labelKey)}
-        title={t(labelKey)}
-        aria-pressed={active}
-        onClick={() => onToolChange(key)}
-      >
-        <Icon />
-      </Button>
-    );
-  };
-
   const selectTool = ANNOTATION_TOOLS.find((m) => m.key === "select");
   const drawTools = ANNOTATION_TOOLS.filter((m) => m.key !== "select");
 
@@ -153,10 +84,19 @@ export function AnnotationToolbar({
     <div className="flex h-full flex-col">
       {/* 1단: [선택] [그리기 도구] [삭제] */}
       <div className={cn(ROW, "flex items-center justify-between gap-2")}>
-        {selectTool ? renderTool(selectTool) : null}
-        <ButtonGroup className="flex-nowrap overflow-x-auto">
-          {drawTools.map(renderTool)}
-        </ButtonGroup>
+        {selectTool ? (
+          <ToolButton
+            meta={selectTool}
+            active={tool === "select"}
+            onSelect={onToolChange}
+          />
+        ) : null}
+        <ToolButtons
+          tools={drawTools}
+          value={tool}
+          onChange={onToolChange}
+          className="overflow-x-auto"
+        />
         <Button
           size="icon"
           variant="outline"
@@ -182,80 +122,20 @@ export function AnnotationToolbar({
           showStyleRow ? "border-b bg-background" : "bg-muted",
         )}
       >
-        <ButtonGroup className={cn("flex-nowrap", !showStyleRow && "invisible")}>
-          {ANNOTATION_COLORS.map((c, i) => {
-            const active = color === c;
-            return (
-              <Button
-                key={c}
-                size="icon"
-                variant="outline"
-                className={cn("h-8 w-8 shrink-0", active && "bg-muted")}
-                data-active={active || undefined}
-                data-testid={`annotation-color-${i}`}
-                aria-label={t(COLOR_LABEL_KEYS[i])}
-                title={t(COLOR_LABEL_KEYS[i])}
-                aria-pressed={active}
-                onClick={() => onColorChange(c)}
-              >
-                <span
-                  className="h-4 w-4 rounded-full border"
-                  style={{ backgroundColor: c }}
-                />
-              </Button>
-            );
-          })}
-        </ButtonGroup>
+        <ColorSwatches
+          value={color}
+          onChange={onColorChange}
+          className={cn(!showStyleRow && "invisible")}
+        />
         {showTextSize ? (
-          <ButtonGroup className="flex-nowrap">
-            {TEXT_SIZE_KEYS.map((key) => {
-              const active = textSize === key;
-              return (
-                <Button
-                  key={key}
-                  size="icon"
-                  variant="outline"
-                  className={cn("h-8 w-8 shrink-0", active && "bg-muted")}
-                  data-active={active || undefined}
-                  data-testid={`annotation-textsize-${key}`}
-                  aria-label={t(TEXTSIZE_LABEL_KEYS[key])}
-                  title={t(TEXTSIZE_LABEL_KEYS[key])}
-                  aria-pressed={active}
-                  onClick={() => onTextSizeChange(key)}
-                >
-                  <span
-                    className="font-semibold leading-none"
-                    style={{ fontSize: TEXTSIZE_ICON[key] }}
-                  >
-                    A
-                  </span>
-                </Button>
-              );
-            })}
-          </ButtonGroup>
+          <TextSizeButtons value={textSize} onChange={onTextSizeChange} />
         ) : (
-          <ButtonGroup className={cn("flex-nowrap", !showStyleRow && "invisible")}>
-            {THICKNESS_KEYS.map((key) => {
-              const active = thickness === key;
-              return (
-                <Button
-                  key={key}
-                  size="icon"
-                  variant="outline"
-                  className={cn("h-8 w-8 shrink-0", active && "bg-muted")}
-                  data-active={active || undefined}
-                  data-testid={`annotation-thickness-${key}`}
-                  disabled={!thicknessEnabled}
-                  aria-label={t(THICKNESS_LABEL_KEYS[key])}
-                  title={t(THICKNESS_LABEL_KEYS[key])}
-                  aria-pressed={active}
-                  onClick={() => onThicknessChange(key)}
-                >
-                  <Minus strokeWidth={THICKNESS_STROKE[key]} />
-                </Button>
-              );
-            })}
-          </ButtonGroup>
+          <ThicknessButtons
+            value={thickness}
+            onChange={onThicknessChange}
+            disabled={!thicknessEnabled}
+            className={cn(!showStyleRow && "invisible")}
+          />
         )}
       </div>
 

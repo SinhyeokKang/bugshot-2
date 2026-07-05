@@ -48,7 +48,7 @@ import {
 import {
   showAnnotation,
   hideAnnotation,
-  setAnnotationPen,
+  setAnnotationTool,
 } from "./annotation";
 import { PICKER_PORT_NAME } from "@/lib/session-keys";
 import { postToRuntime } from "./post-to-runtime";
@@ -261,9 +261,9 @@ function handlePickerMessage(
         if (window !== window.top) return;
         showAnnotation();
         break;
-      case "annotation.setPen":
+      case "annotation.setTool":
         if (window !== window.top) return;
-        setAnnotationPen(msg.on);
+        setAnnotationTool(msg.tool, { color: msg.color, strokeWidth: msg.strokeWidth, opacity: msg.opacity });
         break;
       case "annotation.hide":
         if (window !== window.top) return;

@@ -187,8 +187,8 @@ export function usePickerMessages(myTabId: number | null): void {
           }
         }
       } else if (message.type === "annotation.penOff") {
-        // 페이지에서 Esc로 펜을 끈 경우 사이드패널 버튼 상태 동기화.
-        useEditorStore.getState().setAnnotationPen(false);
+        // 페이지에서 Esc로 펜을 끈 경우 사이드패널 툴바 상태 동기화.
+        useEditorStore.getState().setAnnotationTool(null);
       } else if (message.type === "picker.iframeUnsupported") {
         const { target } = useEditorStore.getState();
         if (!resumeAfterRepickCancel()) {

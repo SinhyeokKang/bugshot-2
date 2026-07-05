@@ -118,5 +118,6 @@ export type PickerMessage =
   | { type: "actionRecorder.data"; payload: { entries: import("@/types/action").ActionEntry[]; totalSeen: number } }
   | { type: "annotation.show" }
   | { type: "annotation.hide" }
-  | { type: "annotation.setPen"; on: boolean }
+  // tool=null이면 그리기 off. color/strokeWidth/opacity는 sidepanel이 계산해 실어 보냄.
+  | { type: "annotation.setTool"; tool: "pen" | "highlight" | null; color: string; strokeWidth: number; opacity: number }
   | { type: "annotation.penOff" };
