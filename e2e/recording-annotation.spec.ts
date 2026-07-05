@@ -38,6 +38,29 @@ test.describe.serial("recording annotation overlay", () => {
     await fixture.mouse.up();
   }
 
+  // 마지막 획 <g>의 유일한 <path> 스타일. 흰 아웃라인 제거로 그룹당 path 1개(pathCount로 검증).
+  function lastPathStyle(): Promise<{
+    pathCount: number;
+    stroke: string | null;
+    strokeWidth: string | null;
+    strokeOpacity: string | null;
+  } | null> {
+    return fixture.evaluate((id) => {
+      const sr = document.getElementById(id)?.shadowRoot;
+      const groups = sr ? Array.from(sr.querySelectorAll("svg g")) : [];
+      const g = groups[groups.length - 1];
+      if (!g) return null;
+      const paths = g.querySelectorAll("path");
+      const p = paths[paths.length - 1];
+      return {
+        pathCount: paths.length,
+        stroke: p?.getAttribute("stroke") ?? null,
+        strokeWidth: p?.getAttribute("stroke-width") ?? null,
+        strokeOpacity: p?.getAttribute("stroke-opacity") ?? null,
+      };
+    }, HOST_ID);
+  }
+
   test.beforeAll(async ({ ext }) => {
     fixture = await ext.context.newPage();
     await fixture.goto(ext.fixtureUrl("basic.html"));
@@ -84,6 +107,24 @@ test.describe.serial("recording annotation overlay", () => {
 
     // 드래그 커밋은 pointerup 직후 동기지만 입력 이벤트 전파를 폴링으로 흡수.
     await expect.poll(() => strokeCount()).toBeGreaterThan(before);
+  });
+
+  test("형광펜 setTool + 드래그 → 획 path에 색·두께배율·반투명 스타일이 박힌다", async () => {
+    // 이전 획과 격리(3초 페이드 race 회피)하려 오버레이를 새로 마운트해 획 0에서 시작.
+    await send({ type: "annotation.hide" });
+    await send({ type: "annotation.show" });
+    await send({ type: "annotation.setTool", tool: "highlight", color: "#3b82f6", strokeWidth: 16, opacity: 0.4 });
+
+    await drag();
+
+    await expect.poll(() => strokeCount()).toBeGreaterThan(0);
+    // sidepanel이 실어 보낸 스타일이 획 path에 그대로(highlight=두께배율·반투명), path는 그룹당 1개(흰 아웃라인 없음).
+    expect(await lastPathStyle()).toEqual({
+      pathCount: 1,
+      stroke: "#3b82f6",
+      strokeWidth: "16",
+      strokeOpacity: "0.4",
+    });
   });
 
   test("펜 OFF → 드래그해도 획이 안 생기고 페이지 클릭이 통과한다", async () => {
