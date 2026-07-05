@@ -8,7 +8,7 @@ import {
 import { createServer, type Server } from "node:http";
 import { createHash } from "node:crypto";
 import { existsSync } from "node:fs";
-import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -23,6 +23,13 @@ export interface ExtContext {
   fixtureUrl: (page: string) => string;
   fixtureTabId: (urlPattern?: string) => Promise<number>;
   openPanel: (tabId: number) => Promise<Page>;
+  // chrome.* API를 확장 컨텍스트에서 평가한다. Playwright의 worker.evaluate는 crxjs
+  // type:module 서비스워커에서 실행 컨텍스트를 못 잡아 hang하므로, 빈 특권 확장 페이지
+  // (e2e-eval.html)에서 page.evaluate로 돌린다. sw.evaluate(fn, arg)의 드롭인 대체.
+  evalInExt: <R, A = unknown>(
+    fn: (arg: A) => R | Promise<R>,
+    arg?: A,
+  ) => Promise<R>;
 }
 
 function startFixtureServer(): Promise<{ server: Server; port: number }> {
@@ -136,6 +143,17 @@ export const test = base.extend<object, { ext: ExtContext }>({
       }
       const { server, port } = await startFixtureServer();
       const userDataDir = await mkdtemp(path.join(tmpdir(), "bugshot-e2e-"));
+      // Chrome 번역 제안 버블이 페이지 위에 떠 첫 spec 상호작용을 가로채면 workers:1이라
+      // 전 스위트가 timeout까지 hang한다. Playwright 기본 --disable-features=Translate로도
+      // 최근 Chrome에선 새 번역 UI가 안 막히고, args에 --disable-features를 또 주면 Chrome이
+      // 마지막 것만 적용해 Playwright의 다른 disable을 클로버한다. 그래서 프로필 Preferences로
+      // 번역 제안을 끈다(설정 "Google 번역 사용" 토글과 동일한 translate.enabled pref).
+      const defaultProfile = path.join(userDataDir, "Default");
+      await mkdir(defaultProfile, { recursive: true });
+      await writeFile(
+        path.join(defaultProfile, "Preferences"),
+        JSON.stringify({ translate: { enabled: false } }),
+      );
       const context = await chromium.launchPersistentContext(userDataDir, {
         // 전역 기본 viewport — config.use.viewport는 persistent context엔 안 먹어 여기 직접 지정.
         // 사이드패널 폭에 근접해 좁은 폭 컨테이너 쿼리 리플로우를 재현.
@@ -162,14 +180,28 @@ export const test = base.extend<object, { ext: ExtContext }>({
       };
       const extensionId = new URL((await getSw()).url()).host;
 
+      // chrome.* 평가용 특권 확장 페이지(앱 부팅 없음)를 lazy로 1개 열어 재사용한다.
+      let evalHost: Page | null = null;
+      const getEvalHost = async (): Promise<Page> => {
+        if (!evalHost) {
+          evalHost = await context.newPage();
+          await evalHost.goto(`chrome-extension://${extensionId}/e2e-eval.html`);
+        }
+        return evalHost;
+      };
+
       const ext: ExtContext = {
         context,
         extensionId,
         fixtureUrl: (page) => `http://127.0.0.1:${port}/${page}`,
+        evalInExt: async (fn, arg) => {
+          const host = await getEvalHost();
+          return host.evaluate(fn, arg as never);
+        },
         // 기본 패턴은 fixture 서버 호스트 — chrome match pattern은 포트를 무시한다.
         fixtureTabId: async (urlPattern = "http://127.0.0.1/*") => {
-          const sw = await getSw();
-          const tabs = await sw.evaluate(
+          const host = await getEvalHost();
+          const tabs = await host.evaluate(
             (pattern: string) => chrome.tabs.query({ url: pattern }),
             urlPattern,
           );

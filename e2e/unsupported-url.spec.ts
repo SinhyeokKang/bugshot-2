@@ -5,12 +5,10 @@ import { enterDebug, expect, test } from "./fixtures/extension";
 test("chrome:// 탭에서 요소 선택 시도 → 미지원 안내 다이얼로그 → idle 복귀", async ({
   ext,
 }) => {
-  // SW가 idle로 죽어 있을 수 있다 — fixture 페이지 네비게이션(webNavigation)으로 깨운 뒤 잡는다.
   const fixture = await ext.context.newPage();
   await fixture.goto(ext.fixtureUrl("basic.html"));
   await ext.fixtureTabId();
-  const sw = ext.context.serviceWorkers()[0];
-  const before = await sw.evaluate(() =>
+  const before = await ext.evalInExt(() =>
     chrome.tabs.query({}).then((tabs) => tabs.map((t) => t.id)),
   );
 
@@ -18,7 +16,7 @@ test("chrome:// 탭에서 요소 선택 시도 → 미지원 안내 다이얼로
   await page.goto("chrome://version");
 
   // chrome:// 탭은 url 패턴 쿼리가 안 되므로(호스트 권한 밖) 신규 탭 id를 diff로 찾는다.
-  const tabId = await sw.evaluate(
+  const tabId = await ext.evalInExt(
     (prev: (number | undefined)[]) =>
       chrome.tabs.query({}).then((tabs) => {
         const fresh = tabs.find((t) => t.id != null && !prev.includes(t.id));

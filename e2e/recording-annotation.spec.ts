@@ -1,5 +1,6 @@
-import type { Page, Worker } from "@playwright/test";
+import type { Page } from "@playwright/test";
 import { expect, test } from "./fixtures/extension";
+import type { ExtContext } from "./fixtures/extension";
 
 // 녹화 중 그리기 오버레이 — annotation.show/setTool/hide 메시지를 SW에서 content script(picker
 // 엔트리, all_frames 자동 주입)로 직접 보내 페이지 DOM(open shadow host)을 판정한다. 실 녹화
@@ -11,11 +12,11 @@ const HOST_ID = "__bugshot_annotation_host";
 
 test.describe.serial("recording annotation overlay", () => {
   let fixture: Page;
-  let sw: Worker;
+  let extCtx: ExtContext;
   let tabId: number;
 
   async function send(msg: Record<string, unknown>): Promise<void> {
-    await sw.evaluate(
+    await extCtx.evalInExt(
       ([t, m]) => chrome.tabs.sendMessage(t as number, m as object),
       [tabId, msg] as [number, Record<string, unknown>],
     );
@@ -65,7 +66,7 @@ test.describe.serial("recording annotation overlay", () => {
     fixture = await ext.context.newPage();
     await fixture.goto(ext.fixtureUrl("basic.html"));
     tabId = await ext.fixtureTabId();
-    [sw] = ext.context.serviceWorkers();
+    extCtx = ext;
   });
 
   test.afterAll(async () => {
