@@ -106,7 +106,7 @@ Tailwind 4px 스케일을 그대로 쓴다. 자주 쓰는 값(관용):
 - 키보드·역할·포커스 트랩은 **Radix 프리미티브**가 기본 제공한다(shadcn 컴포넌트를 쓰면 따라옴).
 - 포커스 표시는 `focus-visible:ring-2 focus-visible:ring-ring` 컨벤션.
   - ⚠ **현재 `--ring`이 `--border`와 같은 값**이라(`globals.css`) 키보드 포커스 링이 잘 안 보인다. 개선 후보 — 별도 대비색으로 분리하면 좋다. 그 전까진 중요한 인터랙션에 포커스가 보이는지 직접 확인.
-- **아이콘 전용 버튼**(`size="icon"`)은 텍스트가 없으므로 `aria-label`(또는 `sr-only` 텍스트)을 붙인다 — 안 그러면 스크린리더에서 무명 버튼. 실사용 관용은 `aria-label`+`title`(hover 툴팁)을 함께 다는 것(둘 다 i18n — `AnnotationToolbar`·녹화 그리기 툴바 `ToolbarGroups`).
+- **아이콘 전용 버튼**(`size="icon"`)은 텍스트가 없으므로 `aria-label`(또는 `sr-only` 텍스트)을 붙인다 — 안 그러면 스크린리더에서 무명 버튼. **권장은 `aria-label`+`title`(hover 툴팁)을 함께**(둘 다 i18n). 단 현재 코드는 툴바(`AnnotationToolbar`·녹화 그리기 툴바 `ToolbarGroups`)와 일부 다이얼로그(`DraftDetailDialog`의 [수정] 버튼)만 이를 따르고, 패널·행 액션 아이콘 버튼 다수(`DraftingPanel`·`IssueRow` 등)는 `title`-only다(⚠ 접근명은 `title`이 대체하나 aria-label 병기로 개선 후보). 새 아이콘 버튼은 권장대로 둘 다 붙인다.
 - 보조 정보용 저대비 텍스트(`text-muted-foreground/70`)는 본문 핵심 정보에 쓰지 않는다.
 - 다이얼로그를 **코드로(프로그램적으로) 열 때**는 `blurActiveElement()`(`App.tsx`)로 포커스를 먼저 떼야 Radix `aria-hidden` 경고를 피한다 — 새 전역 다이얼로그 추가 시 참고.
 
