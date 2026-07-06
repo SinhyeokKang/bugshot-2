@@ -2,7 +2,7 @@
 
 ## 개요
 
-순수 함수 `splitHighlight(text, query)`가 텍스트를 매칭/비매칭 세그먼트로 쪼개고(`toLowerCase` 후 `indexOf` 루프 — 정규식 미사용), 표시 컴포넌트 `<HighlightedText>`가 매칭 세그먼트만 `<mark>`(앰버 배경)로 감싼다. 하이라이트 대상은 실제 검색(`requestMatchesQuery`)이 훑는 필드(URL·헤더 key/value·바디)로 한정한다. 네트워크 상세 렌더 경로(`HeadersPanel` / `BodyPanel` / `BodyBlock`)에 현재 검색어(`debouncedQuery`)를 흘려 넣고, JSON 트리(`JsonTreeViewer`)에는 React Context로 쿼리를 전달해 재귀 노드 시그니처를 건드리지 않고 leaf(문자열·숫자·키)만 하이라이트한다. 검색어가 비면 `<HighlightedText>`는 원문 텍스트를 그대로 반환하므로 렌더·동작이 검색 전과 동일하다.
+순수 함수 `splitHighlight(text, query)`가 텍스트를 매칭/비매칭 세그먼트로 쪼개고(`toLowerCase` 후 `indexOf` 루프 — 정규식 미사용), 표시 컴포넌트 `<HighlightedText>`가 매칭 세그먼트만 `<mark>`(초록 배경)로 감싼다. 하이라이트 대상은 실제 검색(`requestMatchesQuery`)이 훑는 필드(URL·헤더 key/value·바디)로 한정한다. 네트워크 상세 렌더 경로(`HeadersPanel` / `BodyPanel` / `BodyBlock`)에 현재 검색어(`debouncedQuery`)를 흘려 넣고, JSON 트리(`JsonTreeViewer`)에는 React Context로 쿼리를 전달해 재귀 노드 시그니처를 건드리지 않고 leaf(문자열·숫자·키)만 하이라이트한다. 검색어가 비면 `<HighlightedText>`는 원문 텍스트를 그대로 반환하므로 렌더·동작이 검색 전과 동일하다.
 
 ## 변경 범위
 
@@ -111,9 +111,9 @@ export function HighlightedText(props: {
 }): JSX.Element;
 // query 비면 <>{text}</> 반환. 매칭 세그먼트는:
 //   <mark data-testid="log-highlight"
-//     className="rounded-sm bg-amber-200 text-inherit dark:bg-amber-400/30 [box-decoration-break:clone]">…</mark>
+//     className="rounded-sm bg-green-200 text-inherit dark:bg-green-400/30 [box-decoration-break:clone]">…</mark>
 // - text-inherit: JSON 구문색(빨강 문자열·보라 키·파랑 숫자) 보존.
-// - dark:bg-amber-400/30: 다크 앰버를 명도 낮춰 dark:text-red-400(문자열 값)과 대비 확보(amber-500/40은 red-400과 hue 인접해 뭉갬).
+// - dark:bg-green-400/30: green은 red-400(문자열 값)·purple/blue-400과 hue가 멀어 다크에서 대비 확보(hue-adjacent한 amber보다 유리).
 // - [box-decoration-break:clone]: break-all wrap 시 줄바꿈 지점 모서리도 rounded 유지(선례 InlineChip.tsx). padding/border/margin은 절대 금지(reflow 유발).
 ```
 
@@ -126,7 +126,7 @@ export function JsonTreeViewer({
 }: JsonTreeViewerProps & { highlightQuery?: string }): JSX.Element;
 
 // JsonTreeViewer.tsx에서 export하는 신규 순수 함수.
-// query가 매칭되는 노드(키·문자열·숫자·불리언)까지의 모든 조상 컨테이너 path를 반환.
+// query가 매칭되는 노드(키, 또는 String(value)가 매칭되는 문자열·숫자·불리언·null)까지의 모든 조상 컨테이너 path를 반환.
 // query 비면 빈 Set. path 포맷은 트리 내부와 동일(SEP="\0", root 기준).
 export function collectMatchExpandedPaths(data: unknown, query: string): Set<string>;
 ```
@@ -134,7 +134,7 @@ export function collectMatchExpandedPaths(data: unknown, query: string): Set<str
 ## 기존 패턴 준수
 
 - **테스트 우선(CLAUDE.md)**: `splitHighlight`·`collectMatchExpandedPaths` 둘 다 신규 순수 함수 → `/tdd interface`로 테스트 먼저 작성 후 구현. `splitHighlight` 테스트는 `src/lib/__tests__/`(기존 `network-search` 등과 동일 위치), `collectMatchExpandedPaths` 테스트는 함수가 사는 `src/sidepanel/components/__tests__/`. 후자는 반환 path의 `SEP="\0"` 인코딩을 정확한 문자열로 assert(계약 고정).
-- **UI 컨벤션(DESIGN.md)**: 색상은 Tailwind 토큰(`bg-amber-200`/`dark:bg-amber-400/30`), 다크모드 양쪽 지정. `<mark>`는 시맨틱 태그 + `text-inherit`로 주변 텍스트 색 보존. DESIGN.md가 요구하는 "새 raw 색 light/dark 대비 눈으로 확인"을 구현 시 실측(특히 앰버 배경 위 `text-muted-foreground` 헤더명·다크 앰버 위 red-400 문자열 값). 앰버는 이 앱에서 warn/pending 시맨틱과 겹치나 하이라이트는 상세 패널 한정이라 amber 행 배경(목록 전용)과 직접 충돌하지 않음.
+- **UI 컨벤션(DESIGN.md)**: 색상은 Tailwind 토큰(`bg-green-200`/`dark:bg-green-400/30`), 다크모드 양쪽 지정. `<mark>`는 시맨틱 태그 + `text-inherit`로 주변 텍스트 색 보존. DESIGN.md가 요구하는 "새 raw 색 light/dark 대비 눈으로 확인"을 구현 시 실측(특히 초록 배경 위 `text-muted-foreground` 헤더명·다크 green 위 red-400 문자열 값). green은 이 앱에서 success/2xx 시맨틱(status 점 `bg-green-500`)과 의미가 겹치나 **배경(`bg-green-200`)으로는 미사용**이라, warn/pending 행 배경으로 이미 쓰이는 amber-200보다 배경색 충돌이 적다(브라우저 Cmd+F 노랑 관례는 포기).
 - **surgical**: 상세 렌더 leaf에서만 텍스트 래핑 교체. 목록·검색·필터·정렬·store 로직 무변경. `JsonTreeViewer` 재귀 시그니처 불변(Context로 우회).
 - **i18n**: 새 사용자 노출 문자열 없음(`<mark>`은 텍스트 미포함) → `src/i18n/` 변경 없음.
 
@@ -142,7 +142,7 @@ export function collectMatchExpandedPaths(data: unknown, query: string): Set<str
 
 - **(대안 1) JSON 트리에 `highlightQuery`를 prop drilling으로 전달** — `JsonNode`·`ArrayChildren`·leaf 전부 시그니처에 prop 추가. 기존 `expanded`/`onToggle` 스레딩과 스타일은 일치하나 재귀 노드 5곳 시그니처를 건드려 diff가 크다. → **Context 채택**(변경 대상을 `JsonTreeViewer` + leaf 3종으로 축소, 재귀 시그니처 불변).
 - **(대안 2) 콘솔·액션까지 하이라이트** — 레벨·종류별 행 배경색과 하이라이트 배경이 겹쳐 시각 충돌. 사용자 결정으로 네트워크 상세로 한정. → 기각.
-- **(대안 3) 접힌 행 URL도 하이라이트** — 행은 `LinkifiedText`로 URL을 링크화(파란 글자)하고 행 높이가 촘촘해 앰버가 산만. 사용자 결정으로 상세만. → 기각.
+- **(대안 3) 접힌 행 URL도 하이라이트** — 행은 `LinkifiedText`로 URL을 링크화(파란 글자)하고 행 높이가 촘촘해 하이라이트가 산만. 사용자 결정으로 상세만. → 기각.
 - **(대안 4) `dangerouslySetInnerHTML`로 `<mark>` 주입** — XSS 위험(로그 값은 페이지 유래 신뢰 불가 데이터). → 기각. 세그먼트 배열 → React 노드 방식이 안전.
 - **(대안 5) 자동 펼침을 렌더 시점 union(`effectiveExpanded`)으로** — 매 렌더 `expanded ∪ matchPaths`를 계산해 넘기면 "검색 중 접어도 다시 열림"이 되어 첫 클릭이 무반응처럼 보인다. → **기각**, `useEffect` 최초 1회 시딩으로 변경(collapse 존중). 대가: 검색어 clear 시 자동 재접힘 없음(mark는 사라져 혼선 없음).
 - **(대안 6) `escapeRegExp` + 정규식** — 사용자 입력을 정규식으로 넘기려면 이스케이프 헬퍼(코드베이스에 없음) + 테스트가 필요하고 오이스케이프 버그 위험. → **기각**, `indexOf` 스캔이 더 단순하고 검색 semantics와 자동 일치.

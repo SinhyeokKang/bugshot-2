@@ -13,21 +13,21 @@
 - **변경 대상**: `src/lib/highlight-text.ts`(신규), `src/lib/__tests__/highlight-text.test.ts`(신규)
 - **작업 내용**: `HighlightSegment` 타입과 `splitHighlight(text, query)` 구현. **`toLowerCase`+`indexOf` 반복으로 세그먼트 분할(정규식·escapeRegExp 없음)**, 좌→우 비중첩. 빈 쿼리/무매칭 시 `[{ text, match: false }]`. (테스트 red 먼저.)
 - **검증**:
-  - [ ] `pnpm test src/lib/__tests__/highlight-text.test.ts` 통과
-  - [ ] 빈 쿼리 → 단일 비매칭 세그먼트 (하이라이트 DOM 미삽입 근거)
-  - [ ] `"Screenshot annotated screenshot"` + `"screenshot"` → 매칭 2곳, 원문 대소문자 보존
-  - [ ] 정규식 특수문자 쿼리(`api.v2(x)`) 리터럴 매칭, 예외 없음
-  - [ ] 무매칭 → 단일 비매칭 세그먼트
-  - [ ] 쿼리가 텍스트보다 김 → 단일 비매칭 세그먼트
+  - [x] `pnpm test src/lib/__tests__/highlight-text.test.ts` 통과
+  - [x] 빈 쿼리 → 단일 비매칭 세그먼트 (하이라이트 DOM 미삽입 근거)
+  - [x] `"Screenshot annotated screenshot"` + `"screenshot"` → 매칭 2곳, 원문 대소문자 보존
+  - [x] 정규식 특수문자 쿼리(`api.v2(x)`) 리터럴 매칭, 예외 없음
+  - [x] 무매칭 → 단일 비매칭 세그먼트
+  - [x] 쿼리가 텍스트보다 김 → 단일 비매칭 세그먼트
 
 ### Task 2: `HighlightedText` 컴포넌트 + Context
 - **변경 대상**: `src/sidepanel/components/HighlightedText.tsx`(신규)
-- **작업 내용**: `splitHighlight` 결과를 렌더. 매칭 세그먼트만 `<mark data-testid="log-highlight" className="rounded-sm bg-amber-200 text-inherit dark:bg-amber-400/30 [box-decoration-break:clone]">`. 쿼리 비면 `<>{text}</>`. `HighlightQueryContext = createContext<string>("")` export. (이 repo는 RTL/jsdom 미보유·vitest env=node라 컴포넌트 렌더 테스트는 안 함 — 로직은 Task 1 `splitHighlight` 단위테스트로 커버, mark 래핑은 e2e·수동 검증.)
+- **작업 내용**: `splitHighlight` 결과를 렌더. 매칭 세그먼트만 `<mark data-testid="log-highlight" className="rounded-sm bg-green-200 text-inherit dark:bg-green-400/30 [box-decoration-break:clone]">`. 쿼리 비면 `<>{text}</>`. `HighlightQueryContext = createContext<string>("")` export. (이 repo는 RTL/jsdom 미보유·vitest env=node라 컴포넌트 렌더 테스트는 안 함 — 로직은 Task 1 `splitHighlight` 단위테스트로 커버, mark 래핑은 e2e·수동 검증.)
 - **검증**:
-  - [ ] `pnpm typecheck` 통과
+  - [x] `pnpm typecheck` 통과
   - [ ] 쿼리 있을 때 매칭 세그먼트가 `<mark>`로 감싸짐(Task 6 e2e/수동으로 육안 확인)
-  - [ ] `text-inherit` 포함 확인(JSON 구문색 보존)
-  - [ ] 라이트 `bg-amber-200`·다크 `dark:bg-amber-400/30` 대비 육안 확인(muted 헤더명·red-400 문자열 값 위)
+  - [x] `text-inherit` 포함 확인(JSON 구문색 보존)
+  - [ ] 라이트 `bg-green-200`·다크 `dark:bg-green-400/30` 대비 육안 확인(muted 헤더명·red-400 문자열 값 위)
 
 ### Task 3: `JsonTreeViewer` 하이라이트 지원
 - **변경 대상**: `src/sidepanel/components/JsonTreeViewer.tsx`
@@ -48,37 +48,37 @@
   const truncated = value.length > STRING_TRUNCATE_LENGTH && !showFull && !hasMatch;
   ```
 - **검증**:
-  - [ ] `pnpm test`에서 `collectMatchExpandedPaths` 통과(빈 쿼리→빈 Set·depth 2+ 중첩 객체/배열 매칭 시 조상 path 전부·키 매칭·값 매칭·무매칭). path 문자열 exact assert.
-  - [ ] `pnpm typecheck` 통과
-  - [ ] `highlightQuery` 미전달 시 렌더 불변(WS `FrameBody` 경로 회귀 없음 — Provider 격리 확인)
-  - [ ] `defaultExpandDepth` 등 기존 prop 동작 유지
-  - [ ] 300자 초과 문자열에 매칭 시 자동 전체 표시(truncate 안 됨)
-  - [ ] depth 2+ 접힌 노드 안 매칭 시 조상 아코디언 자동 펼침 + 펼쳐진 노드 collapse 가능(첫 클릭 정상 동작)
+  - [x] `pnpm test`에서 `collectMatchExpandedPaths` 통과(빈 쿼리→빈 Set·depth 2+ 중첩 객체/배열 매칭 시 조상 path 전부·키 매칭·값 매칭·무매칭·null). path 문자열 exact assert.
+  - [x] `pnpm typecheck` 통과
+  - [x] `highlightQuery` 미전달 시 렌더 불변(WS `FrameBody` 경로 회귀 없음 — Provider 격리 확인. effect가 `!highlightQuery`로 early-return)
+  - [x] `defaultExpandDepth` 등 기존 prop 동작 유지
+  - [ ] 300자 초과 문자열에 매칭 시 자동 전체 표시(truncate 안 됨) — 수동(Task 6)
+  - [ ] depth 2+ 접힌 노드 안 매칭 시 조상 아코디언 자동 펼침 + 펼쳐진 노드 collapse 가능(첫 클릭 정상 동작) — 수동(Task 6)
   - [ ] 배열 100개 캡 이후 매칭은 자동 펼침 안 됨(알려진 한계 — 검증 항목이 아니라 인지 확인)
 
 ### Task 4: `NetworkLogContent` 상세에 쿼리 배선 — 헤더
 - **변경 대상**: `src/sidepanel/components/NetworkLogContent.tsx`
 - **작업 내용**: `HeadersPanel`에 `query` prop 추가, 상세 렌더에서 `query={debouncedQuery}` 전달. General 섹션은 **URL `dd`만** `<HighlightedText>`로 교체(method·status·time·contentType 제외 — 검색 대상 아님). `HeadersTable` `dt`/`dd`(마스킹 `***` 아닌 브랜치)를 `<HighlightedText>`로 교체.
 - **검증**:
-  - [ ] `pnpm typecheck` 통과
-  - [ ] 검색어 입력 후 헤더 매칭 문구가 앰버 배경(Task 6)
-  - [ ] method/status/time/contentType은 우연히 매칭돼도 하이라이트 안 됨
-  - [ ] 검색어 비면 헤더 렌더 불변
+  - [x] `pnpm typecheck` 통과
+  - [ ] 검색어 입력 후 헤더 매칭 문구가 초록 배경(Task 6)
+  - [x] method/status/time/contentType은 우연히 매칭돼도 하이라이트 안 됨(코드상 URL dd만 HighlightedText)
+  - [ ] 검색어 비면 헤더 렌더 불변(Task 6)
 
 ### Task 5: `NetworkLogContent` 상세에 쿼리 배선 — 바디 + e2e testid
 - **변경 대상**: `src/sidepanel/components/NetworkLogContent.tsx`
 - **작업 내용**: `BodyPanel`/`BodyBlock`에 `query` prop 추가, `request`/`response` 탭에서 `query={debouncedQuery}` 전달. `BodyBlock`의 `<pre>` 경로는 `<HighlightedText text={formatBody(body)} query={query} />`, JSON 경로는 `<JsonTreeViewer data={parsed} highlightQuery={query} />`.
 - **e2e testid 부착**: `<TabsTrigger value="request">`/`value="response">`에 `data-testid="detail-tab-request"`/`"detail-tab-response"` 추가(현재 `detail-tab-headers`·`detail-tab-messages`만 있음). e2e가 매칭 탭을 열 셀렉터 확보.
 - **검증**:
-  - [ ] `pnpm typecheck` 통과
+  - [x] `pnpm typecheck` 통과
   - [ ] JSON 바디·non-JSON 바디 양쪽에서 매칭 하이라이트(Task 6)
-  - [ ] WS `messages` 탭·`FrameBody`에는 하이라이트 없음(Non-goal 확인)
+  - [x] WS `messages` 탭·`FrameBody`에는 하이라이트 없음(코드상 highlightQuery 미전달 → Context "" → mark 0)
 
 ### Task 6: 통합 검증
 - **변경 대상**: 없음(검증 전용)
 - **작업 내용**: 실제 탭에서 네트워크 로그 캡처 → 검색 → 상세 3탭 육안 확인. + NetworkLogContent 재사용처 회귀 확인.
 - **검증**:
-  - [ ] headers/request/response 3탭에서 매칭 문구 앰버 하이라이트
+  - [ ] headers/request/response 3탭에서 매칭 문구 초록 하이라이트
   - [ ] URL로만 매칭된 요청: General URL만 하이라이트
   - [ ] 검색어 clear 시 하이라이트 사라짐(자동 펼친 아코디언은 유지돼도 무방 — collapse 존중)
   - [ ] 콘솔·액션 로그, 접힌 네트워크 행에 하이라이트 없음
@@ -96,7 +96,7 @@
   1. 응답 바디에 마커(`zqxbodyneedle`)가 있는 요청을 캡처 → 검색창(`network-search`)에 마커 입력 → 목록에서 요청 클릭 → `detail-tab-response` 클릭 → `mark[data-testid="log-highlight"]` count ≥ 1.
   2. 검색창 clear → `mark[data-testid="log-highlight"]` count == 0.
   3. **WS 격리 가드**: WS 요청(`websocket-log.spec.ts` 픽스처)에서 검색어 매칭 시 `messages` 탭에 `mark[data-testid="log-highlight"]` count == 0.
-- **수동 테스트**: 라이트/다크 시각 정합, JSON 트리 구문색 위 앰버 가독성, PreviewDialog·log-viewer 반영(Task 6).
+- **수동 테스트**: 라이트/다크 시각 정합, JSON 트리 구문색 위 초록 가독성, PreviewDialog·log-viewer 반영(Task 6).
 
 ## 구현 순서 권장
 
