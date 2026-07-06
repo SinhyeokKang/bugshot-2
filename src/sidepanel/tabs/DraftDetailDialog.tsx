@@ -5,7 +5,7 @@ import type { ActionLog } from "@/types/action";
 import { getVideoBlob, getImageBlob, getNetworkLog, getConsoleLog, getActionLog, getAttachmentBlob, blobToDataUrl, pruneOrphanInlineImages } from "@/store/blob-db";
 import type { UserAttachmentMeta } from "@/types/attachment";
 import { useIssueImages } from "@/sidepanel/hooks/useIssueImages";
-import { Info } from "lucide-react";
+import { Info, Pencil } from "lucide-react";
 import { useT, dateBcp47 } from "@/i18n";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
@@ -65,6 +65,11 @@ import { submitToSlack } from "@/sidepanel/lib/submitToSlack";
 import type { NotionDatabaseSchema } from "@/types/notion";
 import { usePlatformFields } from "@/sidepanel/hooks/usePlatformFields";
 import { extractNotionPageId } from "@/lib/notion-page-id";
+import { DraftEditDialog } from "./DraftEditDialog";
+import {
+  applyDraftFieldEdit,
+  type DraftEditTarget,
+} from "@/sidepanel/lib/applyDraftFieldEdit";
 import { DocSectionBody } from "@/sidepanel/components/DocSectionBody";
 import { AttachmentList } from "@/sidepanel/components/AttachmentList";
 import { downloadAttachment } from "@/sidepanel/lib/downloadAttachment";
@@ -190,6 +195,7 @@ export function DraftDetailDialog({
     resetKey: issue?.id,
   });
   const [notionSchema, setNotionSchema] = useState<NotionDatabaseSchema | null>(null);
+  const [editTarget, setEditTarget] = useState<DraftEditTarget | null>(null);
 
   // 다이얼로그 진입 prefill — open / issue.id 변경 시에만 동작.
   // 사용자가 SubmitFieldsDialog의 Tab으로 platform을 바꾸면 patchIssue로 issue.platform이
@@ -851,6 +857,12 @@ export function DraftDetailDialog({
     onOpenChange(false);
   }
 
+  function handleSaveEdit(nextValue: string) {
+    if (!issue || !editTarget) return;
+    patchIssue(issue.id, applyDraftFieldEdit(issue, editTarget, nextValue, Date.now()));
+    setEditTarget(null);
+  }
+
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
@@ -860,7 +872,25 @@ export function DraftDetailDialog({
               </DialogHeader>
 
               <div className="-mx-1 flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overscroll-contain px-1">
-                <FieldSection label={t("section.issueTitle")}>
+                <FieldSection
+                  label={t("section.issueTitle")}
+                  action={
+                    issue.status === "draft" ? (
+                      <Button
+                        size="icon"
+                        variant="outline"
+                        className="h-8 w-8"
+                        title={t("draftDetail.edit")}
+                        data-testid="edit-title"
+                        onClick={() =>
+                          setEditTarget({ kind: "title", value: issue.draft.title })
+                        }
+                      >
+                        <Pencil />
+                      </Button>
+                    ) : undefined
+                  }
+                >
                   {issue.draft.title ? (
                     <div className="whitespace-pre-wrap break-words text-sm leading-relaxed">
                       {issue.draft.title}
@@ -888,6 +918,14 @@ export function DraftDetailDialog({
                   onNetworkLogClick={() => setNetworkDialogOpen(true)}
                   onConsoleLogClick={() => setConsoleDialogOpen(true)}
                   onActionLogClick={() => setActionDialogOpen(true)}
+                  editable={issue.status === "draft"}
+                  onEditSection={(sec) =>
+                    setEditTarget({
+                      kind: "section",
+                      section: sec,
+                      value: issue.draft.sections[sec.id] ?? "",
+                    })
+                  }
                 />
 
                 {issue.attachments && issue.attachments.length > 0 ? (
@@ -1004,6 +1042,14 @@ export function DraftDetailDialog({
           onSubmitSuccess?.(result);
         }}
       />
+      <DraftEditDialog
+        open={editTarget !== null}
+        target={editTarget}
+        onOpenChange={(v) => {
+          if (!v) setEditTarget(null);
+        }}
+        onSave={handleSaveEdit}
+      />
     </>
   );
 }
@@ -1011,13 +1057,22 @@ export function DraftDetailDialog({
 function FieldSection({
   label,
   children,
+  action,
 }: {
   label: string;
   children: React.ReactNode;
+  action?: React.ReactNode;
 }) {
   return (
     <div className="flex flex-col gap-1.5">
-      <Label className="text-base font-semibold">{label}</Label>
+      {action ? (
+        <div className="flex items-center justify-between">
+          <Label className="text-base font-semibold">{label}</Label>
+          {action}
+        </div>
+      ) : (
+        <Label className="text-base font-semibold">{label}</Label>
+      )}
       {children}
     </div>
   );
@@ -1037,6 +1092,8 @@ function DraftDetailSections({
   onNetworkLogClick,
   onConsoleLogClick,
   onActionLogClick,
+  editable,
+  onEditSection,
 }: {
   issue: IssueRecord;
   sectionConfig: IssueSection[];
@@ -1051,6 +1108,8 @@ function DraftDetailSections({
   onNetworkLogClick: () => void;
   onConsoleLogClick: () => void;
   onActionLogClick: () => void;
+  editable: boolean;
+  onEditSection: (section: IssueSection) => void;
 }) {
   const t = useT();
   const enabled = sectionConfig.filter((s) => s.enabled);
@@ -1126,10 +1185,27 @@ function DraftDetailSections({
       if (mediaBlock) out.push(mediaBlock);
       if (logCardsBlock) out.push(logCardsBlock);
     }
-    if (!value.trim()) continue;
+    if (!editable && !value.trim()) continue;
     const label = sec.labelOverride?.trim() || t(sectionLabelKey(sec.id));
     out.push(
-      <FieldSection key={sec.id} label={label}>
+      <FieldSection
+        key={sec.id}
+        label={label}
+        action={
+          editable ? (
+            <Button
+              size="icon"
+              variant="outline"
+              className="h-8 w-8"
+              title={t("draftDetail.edit")}
+              data-testid={`edit-field-${sec.id}`}
+              onClick={() => onEditSection(sec)}
+            >
+              <Pencil />
+            </Button>
+          ) : undefined
+        }
+      >
         <DocSectionBody section={sec} value={value} />
       </FieldSection>,
     );
