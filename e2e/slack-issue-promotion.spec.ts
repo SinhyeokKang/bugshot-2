@@ -187,16 +187,33 @@ test.describe.serial("Slack 이슈 승격", () => {
     await cleanup(fixture, panel);
   });
 
-  test("[자세히] 클릭 → draft-detail-dialog 열림 (제출 다이얼로그 자동 오픈 안 함)", async ({ ext }) => {
+  test("[자세히] 클릭 → draft-detail-dialog 열림 + Slack 보존 이슈도 필드 편집 가능(승격 전 문구 다듬기)", async ({ ext }) => {
     const { fixture, panel } = await seedAndOpenList(ext, ["slack", "jira", "github"]);
 
     await panel.getByTestId("view-detail-issue").click();
-    await expect(panel.getByTestId("draft-detail-dialog")).toBeVisible();
+    const detail = panel.getByTestId("draft-detail-dialog");
+    await expect(detail).toBeVisible();
     // 제출 다이얼로그(SubmitFieldsDialog)는 자동으로 열리지 않는다.
     await expect(panel.getByTestId("submit-issue-confirm")).toHaveCount(0);
-    // submitted(slack 보존) 이슈 상세엔 [수정] 버튼이 없다(editable=status==="draft"만).
-    await expect(panel.getByTestId("edit-title")).toHaveCount(0);
-    await expect(panel.locator('[data-testid^="edit-field-"]')).toHaveCount(0);
+
+    // Slack 보존 이슈(submitted+slackPreserved)도 [수정] 버튼이 뜬다
+    // (canEditDraftFields = draft || isSlackPreserved — 트래커 승격 전 문구 다듬기 허용).
+    await expect(detail.getByTestId("edit-title")).toBeVisible();
+    await expect(detail.getByTestId("edit-field-description")).toBeVisible();
+
+    // 본문 섹션 편집 → 저장 → 상세에 새 텍스트 반영(로컬 draft만 갱신 — 발송된 Slack 메시지와 무관).
+    await expect(detail).toContainText("broken");
+    await detail.getByTestId("edit-field-description").click();
+    const editDialog = panel.getByTestId("draft-edit-dialog");
+    await expect(editDialog).toBeVisible();
+    const editor = editDialog.locator('[contenteditable="true"]');
+    await expect(editor).toBeVisible();
+    await editor.fill("polished before promote");
+    await panel.getByTestId("draft-edit-save").click();
+
+    await expect(editDialog).toHaveCount(0);
+    await expect(detail).toContainText("polished before promote");
+    await expect(detail).not.toContainText("broken");
 
     await cleanup(fixture, panel);
   });

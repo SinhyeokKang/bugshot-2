@@ -44,6 +44,7 @@ import {
   useSettingsStore,
 } from "@/store/settings-store";
 import {
+  canEditDraftFields,
   isSlackPreserved,
   resolveInitialPlatform,
   submittablePlatforms,
@@ -875,7 +876,7 @@ export function DraftDetailDialog({
                 <FieldSection
                   label={t("section.issueTitle")}
                   action={
-                    issue.status === "draft" ? (
+                    canEditDraftFields(issue) ? (
                       <Button
                         size="icon"
                         variant="outline"
@@ -919,7 +920,7 @@ export function DraftDetailDialog({
                   onNetworkLogClick={() => setNetworkDialogOpen(true)}
                   onConsoleLogClick={() => setConsoleDialogOpen(true)}
                   onActionLogClick={() => setActionDialogOpen(true)}
-                  editable={issue.status === "draft"}
+                  editable={canEditDraftFields(issue)}
                   onEditSection={(sec) =>
                     setEditTarget({
                       kind: "section",

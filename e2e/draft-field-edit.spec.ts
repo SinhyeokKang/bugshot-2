@@ -4,7 +4,8 @@ import { enterDebug, expect, test } from "./fixtures/extension";
 // 저장된 draft의 제목·본문 섹션을 이슈 목록 상세(DraftDetailDialog)에서 필드별 [수정]으로
 // 편집(DraftEditDialog) → applyDraftFieldEdit로 patchIssue 반영. draft-resume가 검증한
 // "초안 저장 → 이슈 목록 → 상세" 진입을 재사용하고, 그 상세 위에서 편집을 검증한다.
-// submitted(slack 보존) 상세에 [수정]이 없다는 부정 케이스는 slack-issue-promotion.spec 커버.
+// Slack 보존 이슈(submitted+slackPreserved)도 상세에서 편집 가능한 케이스는 slack-issue-promotion.spec 커버
+// (canEditDraftFields = draft || isSlackPreserved — 승격 전 문구 다듬기).
 test.describe.serial("draft field edit", () => {
   // TITLE↔RENAMED는 서로 substring이 아니어야 issue-row hasText 필터 count 단언이 정확.
   const TITLE = "Alpha draft fieldedit";
