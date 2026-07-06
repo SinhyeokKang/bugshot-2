@@ -8,6 +8,7 @@ import { chromeLocalStorage } from "./chrome-storage";
 
 export type ThemeMode = "light" | "dark" | "system";
 export type LocaleMode = "ko" | "en";
+export type StyleEditorView = "form" | "code";
 
 export type IssueSectionId =
   | "description"
@@ -76,6 +77,7 @@ interface SettingsUiState {
   replayEnabled: boolean;
   attachmentsEnabled: boolean;
   recordingMode: RecordingSource;
+  styleEditorView: StyleEditorView;
   setTheme: (theme: ThemeMode) => void;
   setLocale: (locale: LocaleMode) => void;
   setIssueEnabled: (id: IssueSectionId, enabled: boolean) => void;
@@ -84,6 +86,7 @@ interface SettingsUiState {
   setReplayEnabled: (enabled: boolean) => void;
   setAttachmentsEnabled: (enabled: boolean) => void;
   setRecordingMode: (mode: RecordingSource) => void;
+  setStyleEditorView: (view: StyleEditorView) => void;
 }
 
 export function migrateSettingsUi(
@@ -101,6 +104,7 @@ export function migrateSettingsUi(
     state.llm = null;
   }
   state.recordingMode = state.recordingMode ?? "tab";
+  state.styleEditorView = state.styleEditorView ?? "form";
   return state as SettingsUiState;
 }
 
@@ -144,6 +148,7 @@ export const useSettingsUiStore = create<SettingsUiState>()(
       replayEnabled: false,
       attachmentsEnabled: false,
       recordingMode: "tab",
+      styleEditorView: "form",
       setTheme: (theme) => set({ theme }),
       setLocale: (locale) => set({ locale }),
       setIssueEnabled: (id, enabled) =>
@@ -157,12 +162,13 @@ export const useSettingsUiStore = create<SettingsUiState>()(
       setReplayEnabled: (enabled) => set({ replayEnabled: enabled }),
       setAttachmentsEnabled: (enabled) => set({ attachmentsEnabled: enabled }),
       setRecordingMode: (recordingMode) => set({ recordingMode }),
+      setStyleEditorView: (styleEditorView) => set({ styleEditorView }),
     }),
     {
       // 기존 사용자 데이터 호환을 위해 리네이밍 전 키 유지
       name: "bugshot-app-settings",
-      // v3: llm 필드 추가, v4: apiKey를 session→local 이전(apiKeyObfuscatingStorage가 흡수, migrate 분기 없음), v5: apiKey 없는 stale 설정 제거, v6: recordingMode 추가
-      version: 6,
+      // v3: llm 필드 추가, v4: apiKey를 session→local 이전(apiKeyObfuscatingStorage가 흡수, migrate 분기 없음), v5: apiKey 없는 stale 설정 제거, v6: recordingMode 추가, v7: styleEditorView 추가
+      version: 7,
       storage: createJSONStorage(() => apiKeyObfuscatingStorage),
       migrate: migrateSettingsUi,
     },

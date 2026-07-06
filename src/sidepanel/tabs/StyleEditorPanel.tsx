@@ -10,7 +10,12 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useEditorStore } from "@/store/editor-store";
+import {
+  useSettingsUiStore,
+  type StyleEditorView,
+} from "@/store/settings-ui-store";
 import { useBoundTabId } from "@/sidepanel/hooks/useBoundTabId";
 import { useAI } from "@/sidepanel/hooks/useAI";
 import { useBufferThenSwitch } from "@/sidepanel/hooks/useBufferThenSwitch";
@@ -39,6 +44,7 @@ import {
   TextProp,
 } from "./styleEditor/StylePropEditors";
 import { AiStylingDialog } from "./styleEditor/AiStylingDialog";
+import { StyleCodeEditor } from "./styleEditor/StyleCodeEditor";
 import { StyleChangesDialog } from "./styleEditor/StyleChangesDialog";
 
 const SECTION_PROPS = {
@@ -115,6 +121,8 @@ export function SelectedPanel() {
   const setAfterImage = useEditorStore((s) => s.setAfterImage);
   const confirmStyles = useEditorStore((s) => s.confirmStyles);
   const reset = useEditorStore((s) => s.reset);
+  const styleEditorView = useSettingsUiStore((s) => s.styleEditorView);
+  const setStyleEditorView = useSettingsUiStore((s) => s.setStyleEditorView);
   const tabId = useBoundTabId();
   const { status: aiStatus, providerLabel, createSession } = useAI();
   const [proceeding, setProceeding] = useState(false);
@@ -175,6 +183,20 @@ export function SelectedPanel() {
             <DomNavButton direction="child" />
             <RepickButton />
           </div>
+          <Tabs
+            value={styleEditorView}
+            onValueChange={(v) => setStyleEditorView(v as StyleEditorView)}
+            className="mt-3 px-4"
+          >
+            <TabsList className="grid w-full grid-cols-2" data-testid="style-view-toggle">
+              <TabsTrigger value="form" data-testid="style-view-form">
+                {t("editor.view.form")}
+              </TabsTrigger>
+              <TabsTrigger value="code" data-testid="style-view-code">
+                {t("editor.view.code")}
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
         </div>
 
         <Section
@@ -184,6 +206,13 @@ export function SelectedPanel() {
           <ClassEditor />
         </Section>
 
+        {styleEditorView === "code" && (
+          <Section title={t("editor.section.code")}>
+            <StyleCodeEditor />
+          </Section>
+        )}
+
+        {styleEditorView === "form" && (<>
         <Section
           title={t("editor.section.layout")}
           action={<SectionRevertButton props={SECTION_PROPS.layout} />}
@@ -365,6 +394,7 @@ export function SelectedPanel() {
           />
         </Row2>
       </Section>
+      </>)}
 
       {selection.text !== null ? (
         <Section
@@ -375,6 +405,7 @@ export function SelectedPanel() {
         </Section>
       ) : null}
 
+      {styleEditorView === "form" && (<>
       <Section
         title={t("editor.section.typography")}
         action={<SectionRevertButton props={SECTION_PROPS.typography} />}
@@ -441,6 +472,7 @@ export function SelectedPanel() {
         </Row2>
         <TextProp label="easing" prop="transition-timing-function" />
         </Section>
+      </>)}
       </PageScroll>
       {aiStatus === "available" && (
         <button

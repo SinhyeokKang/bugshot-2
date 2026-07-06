@@ -75,6 +75,12 @@ describe("parseInlineStyle", () => {
     expect(parseInlineStyle("colr: red;")).toEqual({ colr: "red" });
   });
 
+  it("커스텀 프로퍼티(--*)는 케이스 보존(lowercase 예외)", () => {
+    expect(parseInlineStyle("--mainColor: red;")).toEqual({
+      "--mainColor": "red",
+    });
+  });
+
   it("빈 문자열은 빈 맵", () => {
     expect(parseInlineStyle("")).toEqual({});
   });
