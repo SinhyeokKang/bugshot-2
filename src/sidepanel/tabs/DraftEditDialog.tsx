@@ -109,7 +109,11 @@ export function DraftEditDialog({
         </div>
 
         <DialogFooter className="!flex-row items-center !justify-end gap-2">
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button
+            variant="outline"
+            data-testid="draft-edit-cancel"
+            onClick={() => onOpenChange(false)}
+          >
             {t("common.cancel")}
           </Button>
           <Button

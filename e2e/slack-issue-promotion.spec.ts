@@ -194,6 +194,9 @@ test.describe.serial("Slack 이슈 승격", () => {
     await expect(panel.getByTestId("draft-detail-dialog")).toBeVisible();
     // 제출 다이얼로그(SubmitFieldsDialog)는 자동으로 열리지 않는다.
     await expect(panel.getByTestId("submit-issue-confirm")).toHaveCount(0);
+    // submitted(slack 보존) 이슈 상세엔 [수정] 버튼이 없다(editable=status==="draft"만).
+    await expect(panel.getByTestId("edit-title")).toHaveCount(0);
+    await expect(panel.locator('[data-testid^="edit-field-"]')).toHaveCount(0);
 
     await cleanup(fixture, panel);
   });
