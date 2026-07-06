@@ -871,7 +871,7 @@ export function DraftDetailDialog({
                 <DialogTitle className="text-xl">{t("draftDetail.title")}</DialogTitle>
               </DialogHeader>
 
-              <div className="-mx-1 flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overscroll-contain px-1">
+              <div className="-m-1 flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overscroll-contain p-1">
                 <FieldSection
                   label={t("section.issueTitle")}
                   action={

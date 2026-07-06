@@ -72,7 +72,7 @@ export function DraftEditDialog({
           </DialogTitle>
         </DialogHeader>
 
-        <div className="-mx-1 flex min-h-0 flex-1 flex-col overflow-y-auto px-1">
+        <div className="-m-1 min-h-0 flex-1 overflow-y-auto p-1">
           {active?.kind === "title" ? (
             <Input
               value={value}
