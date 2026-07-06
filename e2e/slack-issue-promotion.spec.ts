@@ -13,6 +13,10 @@ const SLACK_URL = "https://ws.slack.com/archives/C123/p1700000000123456";
 const SLACK_TS = "1700000000.123456";
 // 승격 백링크 e2e가 가로채는 fake 트래커 결과(SW fetch 없이 jira.submitIssue 응답을 스파이로 대체).
 const JIRA_URL = "https://your.atlassian.net/browse/BUG-123";
+// 보존 이슈 seed 본문 + 편집 검증 상수(서로 substring이 아니어야 상세 toContainText 판정 정확).
+const SEED_DESC = "seeded broken body";
+const EDITED_DESC = "polished before promote";
+const PROMOTED_DESC = "edited text carried to tracker";
 
 function acct(platform: string) {
   const base = {
@@ -55,7 +59,7 @@ function issuesEnvelope() {
           updatedAt: 1700000000000,
           submittedAt: 1700000000000,
           pageUrl: "http://127.0.0.1/basic.html",
-          draft: { title: "Slack promote e2e", sections: { description: "broken" } },
+          draft: { title: "Slack promote e2e", sections: { description: SEED_DESC } },
           snapshot: { before: false, after: false },
           key: SLACK_TS,
           url: SLACK_URL,
@@ -114,11 +118,14 @@ async function spySendMessage(
 ) {
   await panel.evaluate(
     ([jiraUrl, reject]) => {
-      const w = window as unknown as { __slackPosts?: unknown[] };
+      const w = window as unknown as { __slackPosts?: unknown[]; __jiraSubmits?: unknown[] };
       w.__slackPosts = [];
+      w.__jiraSubmits = [];
       const orig = chrome.runtime.sendMessage.bind(chrome.runtime);
       chrome.runtime.sendMessage = ((msg: { type?: string; payload?: unknown }, cb?: (r: unknown) => void) => {
         if (msg?.type === "jira.submitIssue") {
+          // payload.description은 buildIssueAdf(ctx) — 편집한 섹션 텍스트가 ADF로 실린다.
+          (w.__jiraSubmits as unknown[]).push(msg.payload);
           cb?.({ ok: true, result: { key: "BUG-123", url: jiraUrl } });
           return;
         }
@@ -151,6 +158,14 @@ async function slackPosts(
 ) {
   return panel.evaluate(
     () => (window as unknown as { __slackPosts?: Record<string, string>[] }).__slackPosts ?? [],
+  );
+}
+
+async function jiraSubmits(
+  panel: Awaited<ReturnType<typeof seedAndOpenList>>["panel"],
+) {
+  return panel.evaluate(
+    () => (window as unknown as { __jiraSubmits?: unknown[] }).__jiraSubmits ?? [],
   );
 }
 
@@ -187,13 +202,64 @@ test.describe.serial("Slack 이슈 승격", () => {
     await cleanup(fixture, panel);
   });
 
-  test("[자세히] 클릭 → draft-detail-dialog 열림 (제출 다이얼로그 자동 오픈 안 함)", async ({ ext }) => {
+  test("[자세히] 클릭 → draft-detail-dialog 열림 + Slack 보존 이슈도 필드 편집 가능(승격 전 문구 다듬기)", async ({ ext }) => {
     const { fixture, panel } = await seedAndOpenList(ext, ["slack", "jira", "github"]);
 
     await panel.getByTestId("view-detail-issue").click();
-    await expect(panel.getByTestId("draft-detail-dialog")).toBeVisible();
+    const detail = panel.getByTestId("draft-detail-dialog");
+    await expect(detail).toBeVisible();
     // 제출 다이얼로그(SubmitFieldsDialog)는 자동으로 열리지 않는다.
     await expect(panel.getByTestId("submit-issue-confirm")).toHaveCount(0);
+
+    // Slack 보존 이슈(submitted+slackPreserved)도 [수정] 버튼이 뜬다
+    // (canEditDraftFields = draft || isSlackPreserved — 트래커 승격 전 문구 다듬기 허용).
+    await expect(detail.getByTestId("edit-title")).toBeVisible();
+    await expect(detail.getByTestId("edit-field-description")).toBeVisible();
+
+    // 본문 섹션 편집 → 저장 → 상세에 새 텍스트 반영(로컬 draft만 갱신 — 발송된 Slack 메시지와 무관).
+    await expect(detail).toContainText(SEED_DESC);
+    await detail.getByTestId("edit-field-description").click();
+    const editDialog = panel.getByTestId("draft-edit-dialog");
+    await expect(editDialog).toBeVisible();
+    const editor = editDialog.locator('[contenteditable="true"]');
+    await expect(editor).toBeVisible();
+    await editor.fill(EDITED_DESC);
+    await panel.getByTestId("draft-edit-save").click();
+
+    await expect(editDialog).toHaveCount(0);
+    await expect(detail).toContainText(EDITED_DESC);
+    await expect(detail).not.toContainText(SEED_DESC);
+
+    await cleanup(fixture, panel);
+  });
+
+  test("[자세히]에서 편집한 문구가 승격된 트래커 본문에 실린다(로컬 draft → buildCtxForSubmit)", async ({ ext }) => {
+    const { fixture, panel } = await seedAndOpenList(ext, ["slack", "jira", "github"]);
+    await spySendMessage(panel);
+
+    // 승격 전 [자세히]에서 본문을 다듬는다.
+    await panel.getByTestId("view-detail-issue").click();
+    const detail = panel.getByTestId("draft-detail-dialog");
+    await expect(detail).toBeVisible();
+    await detail.getByTestId("edit-field-description").click();
+    const editDialog = panel.getByTestId("draft-edit-dialog");
+    await expect(editDialog.locator('[contenteditable="true"]')).toBeVisible();
+    await editDialog.locator('[contenteditable="true"]').fill(PROMOTED_DESC);
+    await panel.getByTestId("draft-edit-save").click();
+    await expect(editDialog).toHaveCount(0);
+
+    // 상세를 닫고(Esc) 카드에서 승격 — 편집은 patchIssue로 store에 남아 promote가 새 draft를 읽는다.
+    await panel.keyboard.press("Escape");
+    await expect(detail).toHaveCount(0);
+    await promoteToJira(panel);
+
+    await expect(panel.getByRole("link", { name: "BUG-123" })).toBeVisible();
+    // jira.submitIssue payload.description(ADF)에 편집 문구가 실리고, seed 원문은 빠진다.
+    const submits = await jiraSubmits(panel);
+    expect(submits).toHaveLength(1);
+    const body = JSON.stringify(submits[0]);
+    expect(body).toContain(PROMOTED_DESC);
+    expect(body).not.toContain(SEED_DESC);
 
     await cleanup(fixture, panel);
   });

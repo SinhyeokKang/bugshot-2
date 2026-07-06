@@ -45,6 +45,8 @@ const ko = {
   "draft.saved": "초안이 저장되었습니다",
 
   "draftDetail.title": "초안 검토",
+  "draftDetail.edit": "수정",
+  "draftDetail.editField.title": "{label} 수정",
 
   "prop.source": "소스: {value}",
   "prop.editIndividual": "개별 편집",
@@ -182,6 +184,8 @@ const en = {
   "draft.saved": "Draft saved",
 
   "draftDetail.title": "Review draft",
+  "draftDetail.edit": "Edit",
+  "draftDetail.editField.title": "Edit {label}",
 
   "prop.source": "source: {value}",
   "prop.editIndividual": "Edit individually",

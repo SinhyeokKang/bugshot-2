@@ -113,6 +113,12 @@ export function isSlackPreserved(issue: IssueRecord): boolean {
   return issue.status === "submitted" && !!issue.slackPreserved;
 }
 
+// 초안 필드(제목·섹션) 편집 허용 조건. 미제출 draft + Slack 보존 이슈(승격 전 문구 다듬기).
+// Slack 보존 편집은 로컬 draft만 갱신 — 이미 발송된 Slack 메시지는 불변, 트래커 승격에만 반영.
+export function canEditDraftFields(issue: IssueRecord): boolean {
+  return issue.status === "draft" || isSlackPreserved(issue);
+}
+
 // 승격 가능한 트래커(= Slack 제외 연결 플랫폼).
 export function promotableTargets(accounts: Accounts): PlatformId[] {
   return connectedPlatforms(accounts).filter((p) => p !== "slack");

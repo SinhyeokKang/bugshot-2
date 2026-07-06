@@ -36,6 +36,10 @@ No. Console, network, and user-action logs are attached to the issue as a single
 
 Not necessarily. Connect your own LLM key (OpenAI, Anthropic, and the like) and it uses that model; with nothing connected, it automatically falls back to Chrome's built-in AI. If neither is available, only the AI draft feature stays hidden — capturing, logs, and issue filing all keep working. Set it up in [AI LLM Connection](settings/ai.md).
 
+### Can I edit a saved draft later?
+
+Absolutely. Maybe you captured something in a hurry and want to finish it later, or you'd like to polish what you already wrote — no worries. Open the **Issues** tab and click a saved draft to bring up the **Review draft** view. Hit the pencil-shaped **Edit** button next to the title or any body section (what happened, steps to reproduce, expected result, and so on) and a small window opens to edit just that field; press **Save** and it shows up in the list and the details right away. Steps to reproduce stay a numbered list and the body keeps any images you pasted in, so it works just like it did when you first wrote it.
+
 ### Can I attach a video?
 
 Yes. You can record the current tab or your screen live and attach it, and there's also 30s Replay — which rewinds the **last 30 seconds** into a clip even if you didn't hit record beforehand. No more "oh, I can't reproduce that again…" moments. It's covered in [Recording](video/README.md).

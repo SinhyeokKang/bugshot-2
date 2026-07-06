@@ -18,15 +18,15 @@
   - **`now`를 인자로 주입**(호출부가 `Date.now()`) — 순수 함수 유지 + 테스트 결정성. `id`는 patch에 넣지 않는다.
   - 원본 `issue` 불변 유지.
 - **검증**:
-  - [ ] 테스트를 먼저 작성해 red 확인 후 구현으로 green(`/tdd interface` 경로 권장).
-  - [ ] 제목 편집: 반환 patch의 `title`과 `draft.title`이 모두 새 값. `draft.sections`·`draft.environment` 보존.
-  - [ ] 섹션 편집: `draft.sections[id]`만 새 값, 다른 섹션·`draft.title`·최상위 `title`·`draft.environment` 보존.
-  - [ ] 두 경로 모두 `updatedAt === now`(주입값과 일치).
-  - [ ] patch에 `id` 키가 없음(id 불변 — prefill effect deps 트랩 회귀 방지).
-  - [ ] 존재하지 않던 신규 sectionId 편집 시 `draft.sections`에 키가 추가됨(기존 키 보존).
-  - [ ] 빈 문자열로 섹션 편집 시 해당 키가 `""`로 설정됨(clear 허용).
-  - [ ] 원본 `issue` 객체가 변형되지 않음(불변). `structuredClone` 스냅샷 비교 + `result.draft !== issue.draft` 참조 불일치 확인.
-  - [ ] `pnpm test` 통과.
+  - [x] 테스트를 먼저 작성해 red 확인 후 구현으로 green(`/tdd interface` 경로 권장).
+  - [x] 제목 편집: 반환 patch의 `title`과 `draft.title`이 모두 새 값. `draft.sections`·`draft.environment` 보존.
+  - [x] 섹션 편집: `draft.sections[id]`만 새 값, 다른 섹션·`draft.title`·최상위 `title`·`draft.environment` 보존.
+  - [x] 두 경로 모두 `updatedAt === now`(주입값과 일치).
+  - [x] patch에 `id` 키가 없음(id 불변 — prefill effect deps 트랩 회귀 방지).
+  - [x] 존재하지 않던 신규 sectionId 편집 시 `draft.sections`에 키가 추가됨(기존 키 보존).
+  - [x] 빈 문자열로 섹션 편집 시 해당 키가 `""`로 설정됨(clear 허용).
+  - [x] 원본 `issue` 객체가 변형되지 않음(불변). `structuredClone` 스냅샷 비교 + `result.draft !== issue.draft` 참조 불일치 확인.
+  - [x] `pnpm test` 통과.
 
 ### Task 2: `OrderedListEditor` 공유 컴포넌트 추출
 
@@ -35,7 +35,7 @@
   - `DraftingPanel.tsx`의 로컬 `OrderedListEditor` 함수를 그대로 신규 파일로 이동, `export`.
   - `DraftingPanel.tsx`는 로컬 정의 제거 후 `import { OrderedListEditor } from "@/sidepanel/components/OrderedListEditor"`. 호출부·시그니처 불변.
 - **검증**:
-  - [ ] `pnpm typecheck` 통과.
+  - [x] `pnpm typecheck` 통과.
   - [ ] `DraftingPanel`의 재현 절차 입력 동작 무변화(수동: 라이브 draft 편집에서 번호목록 추가/삭제/포커스 이동 정상).
 
 ### Task 3: `DraftEditDialog` 편집 다이얼로그
@@ -50,7 +50,7 @@
   - **[저장]은 `target.kind === "title" && !value.trim()`이면 disabled**(빈 제목 차단). 저장은 `onSave(value)` 후 `onOpenChange(false)`.
   - **data-testid 부착**: DialogContent `draft-edit-dialog`, 저장 버튼 `draft-edit-save`.
 - **검증**:
-  - [ ] `pnpm typecheck` 통과.
+  - [x] `pnpm typecheck` 통과.
   - [ ] 문단 섹션에서 Tiptap 마운트 시 `Suspense` fallback 정상, DND/붙여넣기 이미지 삽입 동작(수동, Chrome).
   - [ ] 제목 편집 시 값을 비우면 [저장] 비활성(수동).
 
@@ -65,11 +65,11 @@
   - **빈 섹션 완화는 `editable`(draft)일 때만**: `if (!value.trim()) continue`(line 1129)를 `if (!editable && !value.trim()) continue`류로 게이팅 → draft 상세만 빈 섹션을 [수정] 버튼과 함께 렌더(빈 값은 `DocSectionBody` 기본 `common.empty` 표시). submitted는 기존대로 skip. 미디어/로그 블록 삽입 로직(`POST_MEDIA_SECTION_IDS`, 트림 skip 앞)은 불변.
   - 미디어/로그/스타일/첨부/env 섹션에는 [수정] 버튼 없음.
 - **검증**:
-  - [ ] draft 상세에서 제목·enabled 본문 섹션(발생현상·재현절차·기대결과 등)에 [수정] 노출, 미디어/로그/env/첨부엔 없음.
-  - [ ] submitted 이슈 상세에는 [수정] 버튼이 안 뜨고, **빈 섹션도 새로 노출되지 않음**(기존 렌더 유지).
-  - [ ] 각 필드 수정→저장 시 상세 즉시 반영, `updatedAt` 갱신.
-  - [ ] `FieldSection`에 action 미전달 섹션(env·첨부) 렌더 무변화.
-  - [ ] `pnpm typecheck`·`pnpm test` 통과.
+  - [x] draft 상세에서 제목·enabled 본문 섹션(발생현상·재현절차·기대결과 등)에 [수정] 노출, 미디어/로그/env/첨부엔 없음.
+  - [x] submitted 이슈 상세에는 [수정] 버튼이 안 뜨고, **빈 섹션도 새로 노출되지 않음**(기존 렌더 유지).
+  - [x] 각 필드 수정→저장 시 상세 즉시 반영, `updatedAt` 갱신.
+  - [x] `FieldSection`에 action 미전달 섹션(env·첨부) 렌더 무변화.
+  - [x] `pnpm typecheck`·`pnpm test` 통과.
 
 ### Task 5: i18n 키 추가
 
@@ -79,8 +79,8 @@
   - `draftDetail.edit`: "수정" / "Edit".
   - `draftDetail.editField.title`: "{label} 수정" / "Edit {label}".
 - **검증**:
-  - [ ] ko/en 양쪽 추가, PostToolUse locales 대칭 훅 통과.
-  - [ ] placeholder 토큰(`{label}`) ko/en 일치.
+  - [x] ko/en 양쪽 추가, PostToolUse locales 대칭 훅 통과.
+  - [x] placeholder 토큰(`{label}`) ko/en 일치.
 
 ## 테스트 계획
 

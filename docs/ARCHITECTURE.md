@@ -291,7 +291,7 @@ Jira는 붙여넣기 시 **ProseMirror가 HTML을 해석**하므로 `ClipboardIt
 | `expectedResult` (기대 결과) | ✅ | paragraph |
 | `notes` (비고) | ⬜ | paragraph |
 
-draft 모델: `{ title, sections: Record<string, string>, environment?: EnvironmentRow[] }`. `stepsToReproduce`는 `OrderedListEditor` 전용 UI, 나머지는 Textarea. 본문 섹션과 별개로 **캡처 미디어·로그 첨부·사용자 파일 첨부**(위 "사용자 파일 첨부"·"로그 정책 매트릭스" 참조)가 별도 채널로 들어가며, 자동 메타 위치 규칙에 따라 본문에 삽입되거나 첨부 영역으로 패키징된다.
+draft 모델: `{ title, sections: Record<string, string>, environment?: EnvironmentRow[] }`. `stepsToReproduce`는 `OrderedListEditor` 전용 UI, 나머지는 Textarea. 저장된 draft는 이슈 목록 상세(`DraftDetailDialog`)에서 제목·본문 섹션을 필드별 [수정] → `DraftEditDialog`(라이브 편집 위젯 재사용)로 인라인 편집한다 — 저장 patch는 순수 헬퍼 `applyDraftFieldEdit`가 계산해 `patchIssue`로 반영(리스트·검색 정합 위해 title은 최상위 `title`+`draft.title` 동시 갱신, `updatedAt` 주입, `id` 불변; `patchIssue` 얕은 병합 대응으로 `draft` 전체 스프레드). 편집 게이트는 순수 헬퍼 `canEditDraftFields`(`issueListUtils.ts`) = 미제출 draft **또는** Slack 보존 이슈(`isSlackPreserved`) — Slack 공유 후 트래커 승격 전 문구를 다듬을 수 있게 허용한다. Slack 보존 편집은 로컬 draft만 갱신하며(이미 발송된 Slack 메시지는 불변) 승격 시 `buildCtxForSubmit`이 그 draft를 읽어 트래커 이슈에 반영한다. 본문 섹션과 별개로 **캡처 미디어·로그 첨부·사용자 파일 첨부**(위 "사용자 파일 첨부"·"로그 정책 매트릭스" 참조)가 별도 채널로 들어가며, 자동 메타 위치 규칙에 따라 본문에 삽입되거나 첨부 영역으로 패키징된다.
 
 **재현 환경**: `ReproEnvironmentSection`이 모드별 메타를 readonly 표시 + `draft.environment` 사용자 정의 row 편집. 순수 헬퍼: `filterEnvironmentRows`(빈 row 제거) / `deriveReadonlyEnvRows`(모드별 파생).
 

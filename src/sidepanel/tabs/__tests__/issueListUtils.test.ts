@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  canEditDraftFields,
   canPromoteSlack,
   formatIssueKey,
   isRefreshable,
@@ -39,6 +40,28 @@ function makeIssue(overrides: Partial<IssueRecord> = {}): IssueRecord {
     ...overrides,
   };
 }
+
+describe("canEditDraftFields", () => {
+  it("draft 상태는 편집 가능", () => {
+    expect(canEditDraftFields(makeIssue({ status: "draft" }))).toBe(true);
+  });
+
+  it("Slack 보존 이슈(submitted + slackPreserved)는 편집 가능 — 승격 전 문구 다듬기", () => {
+    expect(
+      canEditDraftFields(
+        makeIssue({ status: "submitted", slackPreserved: true }),
+      ),
+    ).toBe(true);
+  });
+
+  it("일반 submitted 이슈는 편집 불가", () => {
+    expect(
+      canEditDraftFields(
+        makeIssue({ status: "submitted", slackPreserved: undefined }),
+      ),
+    ).toBe(false);
+  });
+});
 
 describe("matchesQuery", () => {
   it("제목 부분 매칭", () => {

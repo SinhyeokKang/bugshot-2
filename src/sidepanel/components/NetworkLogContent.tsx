@@ -9,6 +9,7 @@ import { requestMatchesQuery } from "@/lib/network-search";
 import { networkMethodTextClass } from "@/lib/log-colors";
 import { useDebouncedValue } from "@/sidepanel/lib/useDebouncedValue";
 import { JsonTreeViewer } from "./JsonTreeViewer";
+import { HighlightedText } from "./HighlightedText";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
 import { Input } from "@/components/ui/input";
@@ -349,8 +350,8 @@ export function NetworkLogContent({ requests, flush, syncBaseMs, onSeek, activeT
                   <TabsTrigger className="rounded-none border-b-2 border-transparent px-2 pb-2.5 pt-3 shadow-none data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none" value="messages" data-testid="detail-tab-messages">{t("networkLog.tab.messages")}</TabsTrigger>
                 ) : (
                   <>
-                    <TabsTrigger className="rounded-none border-b-2 border-transparent px-2 pb-2.5 pt-3 shadow-none data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none" value="request">{t("networkLog.tab.request")}</TabsTrigger>
-                    <TabsTrigger className="rounded-none border-b-2 border-transparent px-2 pb-2.5 pt-3 shadow-none data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none" value="response">{t("networkLog.tab.response")}</TabsTrigger>
+                    <TabsTrigger className="rounded-none border-b-2 border-transparent px-2 pb-2.5 pt-3 shadow-none data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none" value="request" data-testid="detail-tab-request">{t("networkLog.tab.request")}</TabsTrigger>
+                    <TabsTrigger className="rounded-none border-b-2 border-transparent px-2 pb-2.5 pt-3 shadow-none data-[state=active]:border-primary data-[state=active]:bg-transparent data-[state=active]:shadow-none" value="response" data-testid="detail-tab-response">{t("networkLog.tab.response")}</TabsTrigger>
                   </>
                 )}
               </TabsList>
@@ -367,7 +368,7 @@ export function NetworkLogContent({ requests, flush, syncBaseMs, onSeek, activeT
             </div>
             <ScrollArea className="min-h-0 flex-1 [&>div>div]:!block">
               <TabsContent value="headers" className="mt-0 data-[state=inactive]:hidden">
-                <HeadersPanel req={activeReq} />
+                <HeadersPanel req={activeReq} query={debouncedQuery} />
               </TabsContent>
               {activeReq.webSocket ? (
                 <TabsContent value="messages" className="mt-0 data-[state=inactive]:hidden">
@@ -376,10 +377,10 @@ export function NetworkLogContent({ requests, flush, syncBaseMs, onSeek, activeT
               ) : (
                 <>
                   <TabsContent value="request" className="mt-0 data-[state=inactive]:hidden">
-                    <BodyPanel body={activeReq.requestBody} />
+                    <BodyPanel body={activeReq.requestBody} query={debouncedQuery} />
                   </TabsContent>
                   <TabsContent value="response" className="mt-0 data-[state=inactive]:hidden">
-                    <BodyPanel body={activeReq.responseBody} />
+                    <BodyPanel body={activeReq.responseBody} query={debouncedQuery} />
                   </TabsContent>
                 </>
               )}
@@ -462,14 +463,14 @@ function CollapsibleSection({
   );
 }
 
-function HeadersPanel({ req }: { req: NetworkRequest }) {
+function HeadersPanel({ req, query }: { req: NetworkRequest; query: string }) {
   const t = useT();
   return (
     <div>
       <CollapsibleSection title={t("networkLog.detail.general")}>
         <dl className="grid grid-cols-[minmax(0,auto)_minmax(0,1fr)] gap-x-4 gap-y-1">
           <dt className="text-muted-foreground">{t("networkLog.detail.url")}</dt>
-          <dd className="break-all">{req.url}</dd>
+          <dd className="break-all"><HighlightedText text={req.url} query={query} /></dd>
           <dt className="text-muted-foreground">{t("networkLog.detail.method")}</dt>
           <dd>{req.method}</dd>
           <dt className="text-muted-foreground">{t("networkLog.detail.status")}</dt>
@@ -497,20 +498,20 @@ function HeadersPanel({ req }: { req: NetworkRequest }) {
 
       {Object.keys(req.responseHeaders).length > 0 && (
         <CollapsibleSection title={t("networkLog.detail.responseHeaders")}>
-          <HeadersTable headers={req.responseHeaders} />
+          <HeadersTable headers={req.responseHeaders} query={query} />
         </CollapsibleSection>
       )}
 
       {Object.keys(req.requestHeaders).length > 0 && (
         <CollapsibleSection title={t("networkLog.detail.requestHeaders")}>
-          <HeadersTable headers={req.requestHeaders} />
+          <HeadersTable headers={req.requestHeaders} query={query} />
         </CollapsibleSection>
       )}
     </div>
   );
 }
 
-function BodyPanel({ body }: { body: NetworkRequestBody | undefined }) {
+function BodyPanel({ body, query }: { body: NetworkRequestBody | undefined; query: string }) {
   const t = useT();
   const label = body === undefined ? t("networkLog.detail.noBody") : bodyLabel(body, t);
   if (label) {
@@ -525,24 +526,24 @@ function BodyPanel({ body }: { body: NetworkRequestBody | undefined }) {
   }
   return (
     <div className="py-2 text-xs">
-      <BodyBlock body={body!} />
+      <BodyBlock body={body!} query={query} />
     </div>
   );
 }
 
-function HeadersTable({ headers }: { headers: Record<string, string> }) {
+function HeadersTable({ headers, query }: { headers: Record<string, string>; query: string }) {
   const entries = Object.entries(headers);
   if (entries.length === 0) return <span className="text-muted-foreground">{"—"}</span>;
   return (
     <dl className="grid grid-cols-[minmax(0,auto)_minmax(0,1fr)] gap-x-4 gap-y-1">
       {entries.map(([k, v]) => (
         <Fragment key={k}>
-          <dt className="text-muted-foreground">{k}</dt>
+          <dt className="text-muted-foreground"><HighlightedText text={k} query={query} /></dt>
           <dd className="break-all">
             {v.startsWith("***") ? (
               <span className="italic text-muted-foreground">{v}</span>
             ) : (
-              v
+              <HighlightedText text={v} query={query} />
             )}
           </dd>
         </Fragment>
@@ -551,18 +552,21 @@ function HeadersTable({ headers }: { headers: Record<string, string> }) {
   );
 }
 
-function BodyBlock({ body }: { body: NetworkRequestBody }) {
-  if (typeof body === "string") {
-    try {
-      const parsed = JSON.parse(body);
-      if (typeof parsed === "object" && parsed !== null) {
-        return <JsonTreeViewer data={parsed} />;
-      }
-    } catch { /* fall through */ }
-  }
+function BodyBlock({ body, query }: { body: NetworkRequestBody; query: string }) {
+  // 참조 안정화: 매 렌더 재파싱하면 JsonTreeViewer의 auto-expand effect가 재실행돼 사용자 collapse가 무효화된다.
+  const parsed = useMemo(() => {
+    if (typeof body === "string") {
+      try {
+        const p = JSON.parse(body);
+        if (typeof p === "object" && p !== null) return p;
+      } catch { /* fall through */ }
+    }
+    return undefined;
+  }, [body]);
+  if (parsed !== undefined) return <JsonTreeViewer data={parsed} highlightQuery={query} />;
   return (
     <pre className="max-h-[400px] overflow-auto rounded bg-muted p-2 font-mono text-[11px]">
-      {formatBody(body)}
+      <HighlightedText text={formatBody(body)} query={query} />
     </pre>
   );
 }
