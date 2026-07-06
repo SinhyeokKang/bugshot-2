@@ -22,12 +22,12 @@
 
 ### Task 2: `HighlightedText` 컴포넌트 + Context
 - **변경 대상**: `src/sidepanel/components/HighlightedText.tsx`(신규)
-- **작업 내용**: `splitHighlight` 결과를 렌더. 매칭 세그먼트만 `<mark data-testid="log-highlight" className="rounded-sm bg-green-200 text-inherit dark:bg-green-400/30 [box-decoration-break:clone]">`. 쿼리 비면 `<>{text}</>`. `HighlightQueryContext = createContext<string>("")` export. (이 repo는 RTL/jsdom 미보유·vitest env=node라 컴포넌트 렌더 테스트는 안 함 — 로직은 Task 1 `splitHighlight` 단위테스트로 커버, mark 래핑은 e2e·수동 검증.)
+- **작업 내용**: `splitHighlight` 결과를 렌더. 매칭 세그먼트만 `<mark data-testid="log-highlight" className="-mx-1 bg-blue-200 px-1 py-0.5 text-inherit dark:bg-blue-400/30">`(곡률 없음. px-1 py-0.5로 배경 확대[좌우 4px·상하 2px]하되 -mx-1로 가로 상쇄·inline 세로라 reflow 0). 쿼리 비면 `<>{text}</>`. `HighlightQueryContext = createContext<string>("")` export. (이 repo는 RTL/jsdom 미보유·vitest env=node라 컴포넌트 렌더 테스트는 안 함 — 로직은 Task 1 `splitHighlight` 단위테스트로 커버, mark 래핑은 e2e·수동 검증.)
 - **검증**:
   - [x] `pnpm typecheck` 통과
   - [ ] 쿼리 있을 때 매칭 세그먼트가 `<mark>`로 감싸짐(Task 6 e2e/수동으로 육안 확인)
   - [x] `text-inherit` 포함 확인(JSON 구문색 보존)
-  - [ ] 라이트 `bg-green-200`·다크 `dark:bg-green-400/30` 대비 육안 확인(muted 헤더명·red-400 문자열 값 위)
+  - [ ] 라이트 `bg-blue-200`·다크 `dark:bg-blue-400/30` 대비 육안 확인(muted 헤더명·red-400 문자열 값 위 + **파랑 숫자값(text-blue-700/blue-400) 위 파랑 배경 가독성**)
 
 ### Task 3: `JsonTreeViewer` 하이라이트 지원
 - **변경 대상**: `src/sidepanel/components/JsonTreeViewer.tsx`
@@ -61,7 +61,7 @@
 - **작업 내용**: `HeadersPanel`에 `query` prop 추가, 상세 렌더에서 `query={debouncedQuery}` 전달. General 섹션은 **URL `dd`만** `<HighlightedText>`로 교체(method·status·time·contentType 제외 — 검색 대상 아님). `HeadersTable` `dt`/`dd`(마스킹 `***` 아닌 브랜치)를 `<HighlightedText>`로 교체.
 - **검증**:
   - [x] `pnpm typecheck` 통과
-  - [ ] 검색어 입력 후 헤더 매칭 문구가 초록 배경(Task 6)
+  - [ ] 검색어 입력 후 헤더 매칭 문구가 파랑 배경(Task 6)
   - [x] method/status/time/contentType은 우연히 매칭돼도 하이라이트 안 됨(코드상 URL dd만 HighlightedText)
   - [ ] 검색어 비면 헤더 렌더 불변(Task 6)
 
@@ -78,7 +78,7 @@
 - **변경 대상**: 없음(검증 전용)
 - **작업 내용**: 실제 탭에서 네트워크 로그 캡처 → 검색 → 상세 3탭 육안 확인. + NetworkLogContent 재사용처 회귀 확인.
 - **검증**:
-  - [ ] headers/request/response 3탭에서 매칭 문구 초록 하이라이트
+  - [ ] headers/request/response 3탭에서 매칭 문구 파랑 하이라이트
   - [ ] URL로만 매칭된 요청: General URL만 하이라이트
   - [ ] 검색어 clear 시 하이라이트 사라짐(자동 펼친 아코디언은 유지돼도 무방 — collapse 존중)
   - [ ] 콘솔·액션 로그, 접힌 네트워크 행에 하이라이트 없음
@@ -96,7 +96,7 @@
   1. 응답 바디에 마커(`zqxbodyneedle`)가 있는 요청을 캡처 → 검색창(`network-search`)에 마커 입력 → 목록에서 요청 클릭 → `detail-tab-response` 클릭 → `mark[data-testid="log-highlight"]` count ≥ 1.
   2. 검색창 clear → `mark[data-testid="log-highlight"]` count == 0.
   3. **WS 격리 가드**: WS 요청(`websocket-log.spec.ts` 픽스처)에서 검색어 매칭 시 `messages` 탭에 `mark[data-testid="log-highlight"]` count == 0.
-- **수동 테스트**: 라이트/다크 시각 정합, JSON 트리 구문색 위 초록 가독성, PreviewDialog·log-viewer 반영(Task 6).
+- **수동 테스트**: 라이트/다크 시각 정합, JSON 트리 구문색 위 파랑 가독성, PreviewDialog·log-viewer 반영(Task 6).
 
 ## 구현 순서 권장
 

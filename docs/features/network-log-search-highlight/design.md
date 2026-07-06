@@ -2,7 +2,7 @@
 
 ## 개요
 
-순수 함수 `splitHighlight(text, query)`가 텍스트를 매칭/비매칭 세그먼트로 쪼개고(`toLowerCase` 후 `indexOf` 루프 — 정규식 미사용), 표시 컴포넌트 `<HighlightedText>`가 매칭 세그먼트만 `<mark>`(초록 배경)로 감싼다. 하이라이트 대상은 실제 검색(`requestMatchesQuery`)이 훑는 필드(URL·헤더 key/value·바디)로 한정한다. 네트워크 상세 렌더 경로(`HeadersPanel` / `BodyPanel` / `BodyBlock`)에 현재 검색어(`debouncedQuery`)를 흘려 넣고, JSON 트리(`JsonTreeViewer`)에는 React Context로 쿼리를 전달해 재귀 노드 시그니처를 건드리지 않고 leaf(문자열·숫자·키)만 하이라이트한다. 검색어가 비면 `<HighlightedText>`는 원문 텍스트를 그대로 반환하므로 렌더·동작이 검색 전과 동일하다.
+순수 함수 `splitHighlight(text, query)`가 텍스트를 매칭/비매칭 세그먼트로 쪼개고(`toLowerCase` 후 `indexOf` 루프 — 정규식 미사용), 표시 컴포넌트 `<HighlightedText>`가 매칭 세그먼트만 `<mark>`(파랑 배경, 곡률 없음)로 감싼다. 하이라이트 대상은 실제 검색(`requestMatchesQuery`)이 훑는 필드(URL·헤더 key/value·바디)로 한정한다. 네트워크 상세 렌더 경로(`HeadersPanel` / `BodyPanel` / `BodyBlock`)에 현재 검색어(`debouncedQuery`)를 흘려 넣고, JSON 트리(`JsonTreeViewer`)에는 React Context로 쿼리를 전달해 재귀 노드 시그니처를 건드리지 않고 leaf(문자열·숫자·키)만 하이라이트한다. 검색어가 비면 `<HighlightedText>`는 원문 텍스트를 그대로 반환하므로 렌더·동작이 검색 전과 동일하다.
 
 ## 변경 범위
 
@@ -111,10 +111,10 @@ export function HighlightedText(props: {
 }): JSX.Element;
 // query 비면 <>{text}</> 반환. 매칭 세그먼트는:
 //   <mark data-testid="log-highlight"
-//     className="rounded-sm bg-green-200 text-inherit dark:bg-green-400/30 [box-decoration-break:clone]">…</mark>
-// - text-inherit: JSON 구문색(빨강 문자열·보라 키·파랑 숫자) 보존.
-// - dark:bg-green-400/30: green은 red-400(문자열 값)·purple/blue-400과 hue가 멀어 다크에서 대비 확보(hue-adjacent한 amber보다 유리).
-// - [box-decoration-break:clone]: break-all wrap 시 줄바꿈 지점 모서리도 rounded 유지(선례 InlineChip.tsx). padding/border/margin은 절대 금지(reflow 유발).
+//     className="-mx-1 bg-blue-200 px-1 py-0.5 text-inherit dark:bg-blue-400/30">…</mark>
+// - text-inherit: JSON 구문색(빨강 문자열·보라 키·파랑 숫자) 보존. 단 파랑 숫자값 위 파랑 배경은 대비가 약하니 실측(사용자 선택).
+// - 곡률(rounded)·border 없음.
+// - px-1 py-0.5로 배경 확대(좌우 4px·상하 2px)하되 정렬은 불변: 가로는 -mx-1로 padding을 상쇄(리플로우 0), 세로는 inline 요소라 vertical padding이 line box 높이를 안 바꿔 배경만 위아래로 확장(인접 줄과 겹칠 수 있으나 의도된 확대).
 ```
 
 ```tsx
@@ -134,7 +134,7 @@ export function collectMatchExpandedPaths(data: unknown, query: string): Set<str
 ## 기존 패턴 준수
 
 - **테스트 우선(CLAUDE.md)**: `splitHighlight`·`collectMatchExpandedPaths` 둘 다 신규 순수 함수 → `/tdd interface`로 테스트 먼저 작성 후 구현. `splitHighlight` 테스트는 `src/lib/__tests__/`(기존 `network-search` 등과 동일 위치), `collectMatchExpandedPaths` 테스트는 함수가 사는 `src/sidepanel/components/__tests__/`. 후자는 반환 path의 `SEP="\0"` 인코딩을 정확한 문자열로 assert(계약 고정).
-- **UI 컨벤션(DESIGN.md)**: 색상은 Tailwind 토큰(`bg-green-200`/`dark:bg-green-400/30`), 다크모드 양쪽 지정. `<mark>`는 시맨틱 태그 + `text-inherit`로 주변 텍스트 색 보존. DESIGN.md가 요구하는 "새 raw 색 light/dark 대비 눈으로 확인"을 구현 시 실측(특히 초록 배경 위 `text-muted-foreground` 헤더명·다크 green 위 red-400 문자열 값). green은 이 앱에서 success/2xx 시맨틱(status 점 `bg-green-500`)과 의미가 겹치나 **배경(`bg-green-200`)으로는 미사용**이라, warn/pending 행 배경으로 이미 쓰이는 amber-200보다 배경색 충돌이 적다(브라우저 Cmd+F 노랑 관례는 포기).
+- **UI 컨벤션(DESIGN.md)**: 색상은 Tailwind 토큰(`bg-blue-200`/`dark:bg-blue-400/30`), 다크모드 양쪽 지정. `<mark>`는 시맨틱 태그 + `text-inherit`로 주변 텍스트 색 보존. DESIGN.md가 요구하는 "새 raw 색 light/dark 대비 눈으로 확인"을 구현 시 실측(특히 파랑 배경 위 `text-muted-foreground` 헤더명·**파랑 숫자값(blue-700/blue-400) 위 파랑 배경 대비 약함**). 파랑은 사용자 선택. 곡률은 제거, 크기는 padding으로 키우되 정렬 불변(위 참조).
 - **surgical**: 상세 렌더 leaf에서만 텍스트 래핑 교체. 목록·검색·필터·정렬·store 로직 무변경. `JsonTreeViewer` 재귀 시그니처 불변(Context로 우회).
 - **i18n**: 새 사용자 노출 문자열 없음(`<mark>`은 텍스트 미포함) → `src/i18n/` 변경 없음.
 
