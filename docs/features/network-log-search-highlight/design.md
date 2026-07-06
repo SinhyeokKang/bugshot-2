@@ -14,6 +14,8 @@
 
 - **`src/lib/__tests__/highlight-text.test.ts`** — `splitHighlight` 단위 테스트(Vitest).
 
+- **`src/sidepanel/components/__tests__/jsonTreeMatch.test.ts`(또는 동등 위치)** — `collectMatchExpandedPaths` 단위 테스트(Vitest). 함수 자체는 `JsonTreeViewer.tsx`에서 export.
+
 - **`src/sidepanel/components/HighlightedText.tsx`** — 표시 컴포넌트 + JSON 트리용 Context.
   - `<HighlightedText text query className? />`
   - `HighlightQueryContext`(문자열, 기본 `""`) export — `JsonTreeViewer`가 Provider, leaf 행이 consumer.
@@ -33,12 +35,33 @@
 
 - **`src/sidepanel/components/JsonTreeViewer.tsx`**
   - 현재 역할: JSON을 접힘/펼침 트리로 재귀 렌더(네트워크 바디·WS 프레임 전용 — 타 사용처 없음, grep 확인).
+  - 신규 순수 함수 `collectMatchExpandedPaths(data, query)`를 **같은 파일에 정의**(트리의 path 스킴 `SEP="\0"`·`root`·`path+SEP+key`를 공유해야 하므로). 별도 export로 단위 테스트.
   - 변경: `JsonTreeViewer`에 optional `highlightQuery?: string` prop 추가 → 루트 출력을 `<HighlightQueryContext.Provider value={highlightQuery ?? ""}>`로 감쌈.
+  - **매칭 조상 자동 펼침**: `highlightQuery`가 매칭되는 노드까지의 조상 컨테이너를 강제로 열어, 깊이 접힌 아코디언 뒤에 매칭이 가려지지 않게 한다(`defaultExpandDepth=1`이라 depth 2+ 매칭은 기본 접힘). 사용자 `expanded` state는 건드리지 않고 렌더 시점에 매칭 경로만 union.
+    ```tsx
+    const matchPaths = useMemo(
+      () => collectMatchExpandedPaths(data, highlightQuery ?? ""),
+      [data, highlightQuery]
+    );
+    const effectiveExpanded = useMemo(
+      () => (matchPaths.size ? new Set([...expanded, ...matchPaths]) : expanded),
+      [expanded, matchPaths]
+    );
+    // JsonNode에 expanded 대신 effectiveExpanded 전달
+    ```
+    - 검색어 지우면 `matchPaths` 빈 Set → `expanded`(사용자 상태)로 원복, 아코디언 재접힘.
+    - 검색 중 매칭 노드를 사용자가 접어도 다시 열림(의도 — 매칭 노출 유지).
   - leaf 3종만 consumer로 수정(재귀 노드 `JsonNode`·`ArrayChildren` 시그니처 불변):
-    - `StringRow`: 표시 문자열 `display`를 `<HighlightedText>`로.
+    - `StringRow`: 표시 문자열 `display`를 `<HighlightedText>`로. **또한 truncate 판정에 매칭 시 펼침 조건 추가**(아래).
     - `PrimitiveRow`: `display`(number/boolean)를 `<HighlightedText>`로.
     - `KeyLabel`: `keyName`을 `<HighlightedText>`로.
   - 각 leaf에서 `const q = useContext(HighlightQueryContext)`. `q === ""`이면 `<HighlightedText>`가 원문 반환 → 기존 렌더와 동일.
+  - **`StringRow` truncate 개선**: 300자 초과 문자열이라도 현재 쿼리가 그 값에 매칭되면 자동으로 전체 표시(잘린 뒤쪽 매칭이 안 보이는 문제 해소). 검색 안 할 땐 기존 truncate 동작 그대로.
+    ```tsx
+    const q = useContext(HighlightQueryContext);
+    const hasMatch = q !== "" && value.toLowerCase().includes(q.toLowerCase());
+    const truncated = value.length > STRING_TRUNCATE_LENGTH && !showFull && !hasMatch;
+    ```
 
 ## 데이터 흐름
 
@@ -54,7 +77,8 @@ NetworkLogContent
                     ▼                   ▼                     ▼
               HeadersTable          <pre> 바디            BodyBlock(JSON)
               HighlightedText       HighlightedText      JsonTreeViewer(highlightQuery)
-                                                              │ Context.Provider
+                                                              │ ├ collectMatchExpandedPaths → effectiveExpanded(조상 자동 펼침)
+                                                              │ └ Context.Provider
                                                               ▼
                                                    StringRow/PrimitiveRow/KeyLabel
                                                    useContext → HighlightedText
@@ -90,7 +114,7 @@ export function HighlightedText(props: {
 }): JSX.Element;
 // query 비면 <>{text}</> 반환. 매칭 세그먼트는:
 //   <mark data-testid="log-highlight"
-//     className="rounded-[1px] bg-amber-200 text-inherit dark:bg-amber-500/40">…</mark>
+//     className="rounded-sm bg-amber-200 text-inherit dark:bg-amber-500/40">…</mark>
 // text-inherit로 JSON 구문색(빨강 문자열·보라 키·파랑 숫자) 보존.
 ```
 
@@ -101,6 +125,11 @@ export function JsonTreeViewer({
   defaultExpandDepth = 1,
   highlightQuery,          // 신규 optional
 }: JsonTreeViewerProps & { highlightQuery?: string }): JSX.Element;
+
+// JsonTreeViewer.tsx에서 export하는 신규 순수 함수.
+// query가 매칭되는 노드(키·문자열·숫자·불리언)까지의 모든 조상 컨테이너 path를 반환.
+// query 비면 빈 Set. path 포맷은 트리 내부와 동일(SEP="\0", root 기준).
+export function collectMatchExpandedPaths(data: unknown, query: string): Set<string>;
 ```
 
 ## 기존 패턴 준수
@@ -119,8 +148,9 @@ export function JsonTreeViewer({
 
 ## 위험 요소
 
-- **JSON `StringRow` truncate(300자 초과 시 앞 150자)**: 잘린 뒤쪽 매칭은 "전체 보기" 전까지 안 보인다. 기존 truncate 동작을 바꾸지 않기로 함(스코프 밖). PRD 엣지 케이스에 명시.
+- **깊이 접힌 JSON 매칭 은폐**: `defaultExpandDepth=1`이라 depth 2+ 접힌 노드 안의 매칭은 아코디언에 가려 안 보임 → `collectMatchExpandedPaths`로 조상 자동 펼침(위 변경). path 스킴이 트리 내부와 어긋나면 안 열리므로 `SEP`·root 규칙을 트리와 **동일 파일에서 공유**(회귀 포인트). 대형 JSON 전수 순회지만 상세 1개 요청 한정이라 부담 낮음.
+- **JSON `StringRow` truncate**: 300자 초과 문자열도 쿼리 매칭 시 자동 전체 표시로 해소(위 변경). 검색 안 할 때만 기존 truncate 유지.
 - **정규식 이스케이프 누락 시 오작동/예외**: `.`·`(`·`*`·`\` 등이 포함된 검색어(URL·페이로드에 흔함). `escapeRegExp` 유닛 테스트로 커버.
 - **성능**: 상세는 선택된 1개 요청만 렌더 + leaf 단위 짧은 문자열 분할이라 부담 없음. 대형 JSON도 트리가 이미 청크(`ARRAY_CHUNK_SIZE=100`)·펼침 노드만 렌더하므로 하이라이트가 렌더량을 늘리지 않음.
-- **`text-inherit` 없으면 `<mark>` 기본 검정 글자**로 JSON 구문색이 깨진다 — className에 `text-inherit` 필수(회귀 포인트).
+- **`<mark>` 텍스트 색**: `text-inherit`이 없으면 `<mark>` 기본 검정 글자로 JSON 구문색이 깨진다. 단 className이 `HighlightedText` **단일 출처**라 한 번만 지정하면 되고 회귀 여지는 낮다 — 호출부가 `className` prop으로 텍스트 색을 덮어쓰지만 않으면 안전.
 - **WS 프레임(`FrameBody`)은 같은 `JsonTreeViewer`를 쓰지만 `highlightQuery` 미전달** → messages 탭은 하이라이트 안 됨(의도된 Non-goal). `FrameBody`는 손대지 않음.

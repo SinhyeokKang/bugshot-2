@@ -20,7 +20,7 @@
 
 ### Task 2: `HighlightedText` 컴포넌트 + Context
 - **변경 대상**: `src/sidepanel/components/HighlightedText.tsx`(신규)
-- **작업 내용**: `splitHighlight` 결과를 렌더. 매칭 세그먼트만 `<mark data-testid="log-highlight" className="rounded-[1px] bg-amber-200 text-inherit dark:bg-amber-500/40">`. 쿼리 비면 `<>{text}</>`. `HighlightQueryContext = createContext<string>("")` export.
+- **작업 내용**: `splitHighlight` 결과를 렌더. 매칭 세그먼트만 `<mark data-testid="log-highlight" className="rounded-sm bg-amber-200 text-inherit dark:bg-amber-500/40">`. 쿼리 비면 `<>{text}</>`. `HighlightQueryContext = createContext<string>("")` export.
 - **검증**:
   - [ ] `pnpm typecheck` 통과
   - [ ] 쿼리 있을 때 매칭 세그먼트가 `<mark>`로 감싸짐(Task 6 e2e/수동으로 육안 확인)
@@ -29,10 +29,20 @@
 ### Task 3: `JsonTreeViewer` 하이라이트 지원
 - **변경 대상**: `src/sidepanel/components/JsonTreeViewer.tsx`
 - **작업 내용**: `JsonTreeViewer`에 optional `highlightQuery?: string` 추가, 루트를 `<HighlightQueryContext.Provider value={highlightQuery ?? ""}>`로 감쌈. `StringRow`·`PrimitiveRow`·`KeyLabel`에서 `useContext(HighlightQueryContext)`로 쿼리를 받아 표시 텍스트를 `<HighlightedText>`로 교체. 재귀 노드(`JsonNode`/`ArrayChildren`) 시그니처 불변.
+- **`collectMatchExpandedPaths(data, query)` 순수 함수 + 테스트**: 매칭 노드까지의 조상 컨테이너 path 집합 반환(query 비면 빈 Set). `JsonTreeViewer.tsx`에서 export, `__tests__`에 단위 테스트. `JsonTreeViewer`에서 `useMemo`로 `matchPaths` 계산 → `effectiveExpanded = new Set([...expanded, ...matchPaths])`를 `JsonNode`에 전달(사용자 `expanded` state 불변).
+- **`StringRow` truncate 개선**: 매칭되는 값이면 전체 표시.
+  ```tsx
+  const q = useContext(HighlightQueryContext);
+  const hasMatch = q !== "" && value.toLowerCase().includes(q.toLowerCase());
+  const truncated = value.length > STRING_TRUNCATE_LENGTH && !showFull && !hasMatch;
+  ```
 - **검증**:
+  - [ ] `pnpm test`에서 `collectMatchExpandedPaths` 통과(빈 쿼리·depth 2+ 중첩 매칭·배열 인덱스·무매칭)
   - [ ] `pnpm typecheck` 통과
   - [ ] `highlightQuery` 미전달 시 렌더 불변(기존 스냅샷 동일 — WS `FrameBody` 경로가 회귀 없어야 함)
   - [ ] `defaultExpandDepth` 등 기존 prop 동작 유지
+  - [ ] 300자 초과 문자열에 매칭 시 자동 전체 표시(truncate 안 됨)
+  - [ ] depth 2+ 접힌 노드 안 매칭 시 조상 아코디언 자동 펼침 + 검색 clear 시 재접힘
 
 ### Task 4: `NetworkLogContent` 상세에 쿼리 배선 — 헤더
 - **변경 대상**: `src/sidepanel/components/NetworkLogContent.tsx`
@@ -62,7 +72,9 @@
 
 ## 테스트 계획
 
-- **단위 테스트**: `splitHighlight`(Task 1) — 빈 쿼리, 단일/다중 매칭, 대소문자 보존, 정규식 이스케이프, 무매칭, 쿼리가 텍스트보다 김.
+- **단위 테스트**:
+  - `splitHighlight`(Task 1) — 빈 쿼리, 단일/다중 매칭, 대소문자 보존, 정규식 이스케이프, 무매칭, 쿼리가 텍스트보다 김.
+  - `collectMatchExpandedPaths`(Task 3) — 빈 쿼리→빈 Set, depth 2+ 중첩 객체/배열 매칭 시 조상 path 전부 포함, 키 매칭·값 매칭, 무매칭→빈 Set.
 - **e2e 시나리오**: "네트워크 로그가 있는 상태에서 검색어를 입력하고 매칭 요청 상세를 열면, 상세 패널에 `mark[data-testid=\"log-highlight\"]`가 1개 이상 나타난다. 검색어를 비우면 `mark[data-testid=\"log-highlight\"]`가 0개가 된다." — 기존 네트워크 로그 e2e 픽스처(캡처된 요청)가 있으면 스크립트화 가능. 없으면 수동으로 대체.
 - **수동 테스트**: 라이트/다크 시각 정합, JSON 트리 구문색 위 앰버 가독성, truncate된 긴 문자열 매칭의 "전체 보기" 상호작용(Task 6).
 
