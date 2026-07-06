@@ -32,26 +32,31 @@ export function DraftEditDialog({
 }) {
   const t = useT();
   const [value, setValue] = useState("");
+  // 닫힘 exit 애니메이션 동안 target=null로 폴백돼 헤더 라벨이 깜빡이지 않도록 마지막 대상을 유지.
+  const [active, setActive] = useState<DraftEditTarget | null>(null);
 
   useEffect(() => {
-    if (open && target) setValue(target.value);
+    if (open && target) {
+      setActive(target);
+      setValue(target.value);
+    }
   }, [open, target]);
 
   const label =
-    target?.kind === "section"
-      ? target.section.labelOverride?.trim() ||
-        t(sectionLabelKey(target.section.id))
+    active?.kind === "section"
+      ? active.section.labelOverride?.trim() ||
+        t(sectionLabelKey(active.section.id))
       : t("section.issueTitle");
   const placeholder =
-    target?.kind === "section"
-      ? target.section.placeholderOverride?.trim() ||
-        t(sectionPlaceholderKey(target.section.id))
+    active?.kind === "section"
+      ? active.section.placeholderOverride?.trim() ||
+        t(sectionPlaceholderKey(active.section.id))
       : "";
 
-  const saveDisabled = target?.kind === "title" && !value.trim();
+  const saveDisabled = active?.kind === "title" && !value.trim();
 
   function handleSave() {
-    onSave(value);
+    onSave(active?.kind === "title" ? value.trim() : value);
     onOpenChange(false);
   }
 
@@ -68,7 +73,7 @@ export function DraftEditDialog({
         </DialogHeader>
 
         <div className="-mx-1 flex min-h-0 flex-1 flex-col overflow-y-auto px-1">
-          {target?.kind === "title" ? (
+          {active?.kind === "title" ? (
             <Input
               value={value}
               onChange={(e) => setValue(e.target.value)}
@@ -76,14 +81,14 @@ export function DraftEditDialog({
               className="text-sm"
               autoFocus
             />
-          ) : target?.kind === "section" &&
-            target.section.renderAs === "orderedList" ? (
+          ) : active?.kind === "section" &&
+            active.section.renderAs === "orderedList" ? (
             <OrderedListEditor
               value={value}
               onChange={setValue}
               placeholder={placeholder}
             />
-          ) : target ? (
+          ) : active ? (
             <Suspense
               fallback={
                 <Textarea

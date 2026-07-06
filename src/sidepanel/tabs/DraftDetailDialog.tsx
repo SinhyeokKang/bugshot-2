@@ -881,6 +881,7 @@ export function DraftDetailDialog({
                         variant="outline"
                         className="h-8 w-8"
                         title={t("draftDetail.edit")}
+                        aria-label={t("draftDetail.edit")}
                         data-testid="edit-title"
                         onClick={() =>
                           setEditTarget({ kind: "title", value: issue.draft.title })
@@ -1198,6 +1199,7 @@ function DraftDetailSections({
               variant="outline"
               className="h-8 w-8"
               title={t("draftDetail.edit")}
+              aria-label={t("draftDetail.edit")}
               data-testid={`edit-field-${sec.id}`}
               onClick={() => onEditSection(sec)}
             >
