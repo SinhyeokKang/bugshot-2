@@ -27,7 +27,7 @@ From top to bottom, the panel is organized into these sections (labels show in E
 Just below the element name at the top of the panel sit two tabs: **Edit** and **CSS**. Switch to whichever feels easier.
 
 - **Edit** — the inputs and dropdowns you just saw, section by section. It's the default, and it covers most cases.
-- **CSS** — edit CSS **directly**, like the styles panel in your browser's dev tools. Open the tab and the element's current styles are already **prefilled** as a `selector { … }` block, so you start from the real state instead of a blank page. Syntax highlighting, line numbers, and autocomplete (property names and values) make CSS easy to work with. Up top you also get a **box-model diagram** showing margin, border, padding, and content size at a glance.
+- **CSS** — edit CSS **directly**, like the styles panel in your browser's dev tools. Open the tab and the element's current styles are already **prefilled** as a `selector { … }` block, so you start from the real state instead of a blank page. Syntax highlighting and autocomplete (property names and values) help, four-side spacing and borders are **merged into one line** like in the form, and a small **color swatch** previews the actual color next to color values — so CSS is easy to work with.
 
 Change a value or add a property in the CSS tab and it applies to the page right away, with only what you changed tracked as an edit. Leave the prefilled values alone and nothing counts as a change — so it's fine to just open the tab and look around. Conversely, **delete** a prefilled declaration and that property reverts to its initial value.
 
