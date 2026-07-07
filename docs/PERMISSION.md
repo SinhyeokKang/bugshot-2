@@ -320,9 +320,9 @@ idle 복귀 전 캡처를 시도하면 기존 3중 방어(진입 가드 / 런타
 
 ### 쓰기 패턴 특이사항
 
-- **session quota 초과 대응** (`useEditorSessionSync.ts:156`): 이미지 필드를 제거한 "lite" 스냅샷으로 폴백. 3연속 실패 시 저장 중단 + `onSessionSaveExhausted` 발화
+- **session quota 초과 대응** (`useEditorSessionSync.ts:167`): 이미지 필드를 제거한 "lite" 스냅샷으로 폴백. 3연속 실패 시 저장 중단 + `onSessionSaveExhausted` 발화
 - **bg ↔ sidepanel 동기화** (`main.tsx:33`): bg가 OAuth 토큰을 `chrome.storage.local`에 직접 쓰면 `onChanged` 리스너가 Zustand 재수화 트리거
-- **세션 외부 삭제 감지** (`useEditorSessionSync.ts:182`): `session` area의 editor 키가 null이 되면(bg에서 `remove` 호출) 세션 만료/리셋 처리
+- **세션 외부 삭제 감지** (`useEditorSessionSync.ts:193`): `session` area의 editor 키가 null이 되면(bg에서 `remove` 호출) 세션 만료/리셋 처리
 
 ---
 
@@ -355,11 +355,11 @@ bg service worker에서 직접 읽기/쓰기:
 | 플랫폼 | Pre-refresh 임계값 | 401 재시도 | 갱신 중복 방지 |
 |---|---|---|---|
 | Jira | 60초 (`jira-api.ts:64`) | O (`authedFetch`) | `refreshInFlight` Promise 중복 제거 |
-| GitHub | 60초 (`github-api.ts:109`) | O (`authedFetch`) | `refreshOnceWithLock` 훅 주입 |
+| GitHub | 60초 (`github-api.ts:97` → `createRefreshRunner.ts`) | O (`authedFetch`) | `refreshOnceWithLock` 훅 주입 |
 | Linear | 60초 (`linear-api.ts:52`) | O (`authedGraphQL`) | `refreshOnceWithLock` 훅 주입 |
 | Notion | — | 401 시 `OAuthError` throw → 재인증 안내 | — |
 | GitLab | 60초 (`gitlab-api.ts`) | O (`authedFetch`, OAuth 한정) | `refreshInFlight` 훅 주입 |
-| Asana | 60초 (`asana-api.ts:102`) | O (`authedFetch`, OAuth 한정) | `refreshInFlight` 훅 주입 |
+| Asana | 60초 (`asana-api.ts:90` → `createRefreshRunner.ts`) | O (`authedFetch`, OAuth 한정) | `refreshInFlight` 훅 주입 |
 | ClickUp | 없음 (토큰 만료 없음) | X | 없음 — 401은 곧 권한 박탈 → 재연결 (`clickup-api.ts`) |
 | Slack | 없음 (user token 만료 없음) | X | 없음 — `ok:false`(`token_revoked`/`invalid_auth`)는 곧 권한 박탈 → 재연결 (`slack-api.ts`) |
 
@@ -521,7 +521,7 @@ Linear·GitLab은 PKCE 지원으로 proxy 불필요 — 각각 `api.linear.app/o
 
 ## 12. 광역 host 권한 (`<all_urls>`, required) 사용처
 
-`<all_urls>`는 `host_permissions`에 required로 선언돼 **설치 시 부여**된다(과거 optional + 런타임 요청 모델은 폐기 — §1 참조). 따라서 `chrome.permissions.request`/`contains`/`remove` 기반의 획득·확인·철회 흐름은 코드에서 제거됐고, `BROAD_HOST_ORIGINS` 상수(`src/lib/broad-host-origins.ts`)도 삭제됐다.
+`<all_urls>`는 `host_permissions`에 required로 선언돼 **설치 시 부여**된다(과거 optional + 런타임 요청 모델은 폐기 — §1 참조). 따라서 `chrome.permissions.contains`/`remove` 기반의 확인·철회 흐름은 코드에서 제거됐고(`chrome.permissions.request`는 BYOK/GitLab의 `requestHostPermission`으로 **잔존** — 이미 보유라 즉시 grant, 아래 §requestHostPermission 잔존 호출 참조), `BROAD_HOST_ORIGINS` 상수(`src/lib/broad-host-origins.ts`)도 삭제됐다.
 
 ### 사용처
 
