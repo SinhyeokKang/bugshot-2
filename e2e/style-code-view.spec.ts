@@ -8,7 +8,7 @@ import {
 } from "./fixtures/extension";
 
 // style-code-view: 요소 스타일 편집의 편집(폼)/CSS(코드) 2탭 + CodeMirror CSS 뷰.
-// - 탭 스왑(CSS 탭에서 class·Text·폼 섹션 hidden, 박스모델+에디터 노출)
+// - 탭 스왑(CSS 탭에서 class·Text·폼 섹션 hidden, 에디터 노출)
 // - specified prefill 표시 / 무편집 시 변경 0
 // - 선언 추가 라이브 적용 + 변경 다이얼로그 / 폼↔CSS 양방향 동기화
 // - 폼 미지원 임의 속성(cursor) 왕복 유지 / 버퍼 다중요소 복원 / 삭제=initial 원복 / 탭 영속
@@ -71,7 +71,7 @@ test.describe.serial("style-code-view", () => {
     await panel.keyboard.press("Escape");
   }
 
-  test("탭 스왑 — CSS 탭에서 class·Text·폼 섹션 숨김, 박스모델+에디터 노출", async () => {
+  test("탭 스왑 — CSS 탭에서 class·Text·폼 섹션 숨김, 에디터 노출", async () => {
     await enterDebugAndPick(fixture, panel, "#title");
 
     // 기본 편집(폼) 모드: 토글 노출, class·Text 노출, CSS 뷰 미마운트.
@@ -80,10 +80,9 @@ test.describe.serial("style-code-view", () => {
     await expect(panel.getByTestId("text-editor")).toBeVisible();
     await expect(panel.getByTestId("style-css-view")).toBeHidden();
 
-    // CSS 전환: 에디터·박스모델 노출, class·Text 섹션 hidden(폼 전용).
+    // CSS 전환: 에디터 노출, class·Text 섹션 hidden(폼 전용).
     await panel.getByTestId("style-view-code").click();
     await expect(panel.getByTestId("style-css-view")).toBeVisible();
-    await expect(panel.getByTestId("box-model-diagram")).toBeVisible();
     await expect(cm()).toBeVisible();
     await expect(panel.getByTestId("class-editor")).toBeHidden();
     await expect(panel.getByTestId("text-editor")).toBeHidden();
