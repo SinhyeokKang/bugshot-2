@@ -176,7 +176,7 @@ export function SelectedPanel() {
   return (
     <PageShell>
       <PageScroll>
-        <div className="sticky top-0 z-10 border-b border-border bg-background py-6">
+        <div className="sticky top-0 z-10 border-b border-border bg-background pt-6 pb-3">
           <div className="flex items-center gap-2 px-4">
             <DomNavButton direction="parent" />
             <div className="min-w-0 flex-1">

@@ -11,9 +11,15 @@ importers:
       '@codemirror/lang-css':
         specifier: ^6.3.1
         version: 6.3.1
+      '@codemirror/language':
+        specifier: ^6.12.4
+        version: 6.12.4
       '@icons-pack/react-simple-icons':
         specifier: ^13.13.0
         version: 13.13.0(react@18.3.1)
+      '@lezer/highlight':
+        specifier: ^1.2.3
+        version: 1.2.3
       '@medv/finder':
         specifier: ^4.0.2
         version: 4.0.2

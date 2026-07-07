@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { serializeCssBlock, parseCssBlock, computeOverrides } from "../cssBlock";
+import {
+  serializeCssBlock,
+  parseCssBlock,
+  computeOverrides,
+  collapseTrbl,
+  expandTrbl,
+} from "../cssBlock";
 
 describe("serializeCssBlock", () => {
   it("selector { } 블록으로 감싸고 선언을 2칸 들여쓰기", () => {
@@ -133,5 +139,154 @@ describe("computeOverrides", () => {
       color: "initial",
       padding: "initial",
     });
+  });
+});
+
+describe("expandTrbl — shorthand → longhand 4면", () => {
+  it("단일값 → 4면 동일", () => {
+    expect(expandTrbl({ padding: "8px" })).toEqual({
+      "padding-top": "8px",
+      "padding-right": "8px",
+      "padding-bottom": "8px",
+      "padding-left": "8px",
+    });
+  });
+
+  it("2값 → top/bottom·right/left", () => {
+    expect(expandTrbl({ margin: "8px 16px" })).toEqual({
+      "margin-top": "8px",
+      "margin-right": "16px",
+      "margin-bottom": "8px",
+      "margin-left": "16px",
+    });
+  });
+
+  it("3값 → top·right/left·bottom", () => {
+    expect(expandTrbl({ inset: "1px 2px 3px" })).toEqual({
+      top: "1px",
+      right: "2px",
+      bottom: "3px",
+      left: "2px",
+    });
+  });
+
+  it("4값 → t r b l", () => {
+    expect(expandTrbl({ "border-width": "1px 2px 3px 4px" })).toEqual({
+      "border-top-width": "1px",
+      "border-right-width": "2px",
+      "border-bottom-width": "3px",
+      "border-left-width": "4px",
+    });
+  });
+
+  it("괄호 내부 공백 보존(paren-aware) — border-color rgb", () => {
+    expect(expandTrbl({ "border-color": "rgb(255, 0, 0) blue" })).toEqual({
+      "border-top-color": "rgb(255, 0, 0)",
+      "border-right-color": "blue",
+      "border-bottom-color": "rgb(255, 0, 0)",
+      "border-left-color": "blue",
+    });
+  });
+
+  it("border-radius 코너 순서 TL TR BR BL", () => {
+    expect(expandTrbl({ "border-radius": "1px 2px 3px 4px" })).toEqual({
+      "border-top-left-radius": "1px",
+      "border-top-right-radius": "2px",
+      "border-bottom-right-radius": "3px",
+      "border-bottom-left-radius": "4px",
+    });
+  });
+
+  it("elliptical( / ) border-radius는 opaque 유지", () => {
+    expect(expandTrbl({ "border-radius": "8px / 4px" })).toEqual({
+      "border-radius": "8px / 4px",
+    });
+  });
+
+  it("TRBL 그룹 아닌 prop은 그대로", () => {
+    expect(expandTrbl({ color: "red", display: "flex" })).toEqual({
+      color: "red",
+      display: "flex",
+    });
+  });
+});
+
+describe("collapseTrbl — longhand 4면 → shorthand", () => {
+  it("4면 동일 → 단일값", () => {
+    expect(
+      collapseTrbl({
+        "padding-top": "8px",
+        "padding-right": "8px",
+        "padding-bottom": "8px",
+        "padding-left": "8px",
+      }),
+    ).toEqual({ padding: "8px" });
+  });
+
+  it("top==bottom·right==left → 2값", () => {
+    expect(
+      collapseTrbl({
+        "margin-top": "8px",
+        "margin-right": "16px",
+        "margin-bottom": "8px",
+        "margin-left": "16px",
+      }),
+    ).toEqual({ margin: "8px 16px" });
+  });
+
+  it("right==left(top!=bottom) → 3값", () => {
+    expect(
+      collapseTrbl({
+        top: "1px",
+        right: "2px",
+        bottom: "3px",
+        left: "2px",
+      }),
+    ).toEqual({ inset: "1px 2px 3px" });
+  });
+
+  it("전부 다르면 → 4값", () => {
+    expect(
+      collapseTrbl({
+        "border-top-width": "1px",
+        "border-right-width": "2px",
+        "border-bottom-width": "3px",
+        "border-left-width": "4px",
+      }),
+    ).toEqual({ "border-width": "1px 2px 3px 4px" });
+  });
+
+  it("4면 다 있지 않으면 collapse 안 함(원문 유지)", () => {
+    const partial = {
+      "padding-top": "8px",
+      "padding-right": "8px",
+      "padding-bottom": "8px",
+    };
+    expect(collapseTrbl(partial)).toEqual(partial);
+  });
+
+  it("삽입 순서 보존 — 첫 longhand 위치에 shorthand", () => {
+    const out = collapseTrbl({
+      color: "red",
+      "padding-top": "8px",
+      "padding-right": "8px",
+      "padding-bottom": "8px",
+      "padding-left": "8px",
+      display: "flex",
+    });
+    expect(Object.keys(out)).toEqual(["color", "padding", "display"]);
+  });
+
+  it("비TRBL prop은 그대로", () => {
+    expect(collapseTrbl({ color: "red", "border-radius": "8px" })).toEqual({
+      color: "red",
+      "border-radius": "8px",
+    });
+  });
+
+  it("round-trip: collapseTrbl(expandTrbl(x)) === x (shorthand 형태)", () => {
+    for (const v of ["8px", "8px 16px", "8px 16px 4px", "1px 2px 3px 4px"]) {
+      expect(collapseTrbl(expandTrbl({ padding: v }))).toEqual({ padding: v });
+    }
   });
 });
