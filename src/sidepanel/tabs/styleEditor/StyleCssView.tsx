@@ -16,6 +16,7 @@ export function StyleCssView() {
   const selection = useEditorStore((s) => s.selection);
   const inlineStyle = useEditorStore((s) => s.styleEdits.inlineStyle);
   const setStyleEdits = useEditorStore((s) => s.setStyleEdits);
+  const tokens = useEditorStore((s) => s.tokens);
   const tabId = useBoundTabId();
 
   const selector = selection?.selector ?? "";
@@ -63,16 +64,17 @@ export function StyleCssView() {
   };
 
   return (
-    <div data-testid="style-css-view">
+    <div data-testid="style-css-view" className="flex min-h-0 flex-1 flex-col">
       <Suspense
         fallback={
-          <div className="min-h-24 animate-pulse rounded-md border border-border bg-muted/40" />
+          <div className="min-h-24 flex-1 animate-pulse rounded-md border border-border bg-muted/40" />
         }
       >
         <CssCodeMirror
           value={value}
           onChange={handleChange}
           computed={selection.computedStyles}
+          tokens={tokens}
           onFocus={() => {
             focusedRef.current = true;
           }}

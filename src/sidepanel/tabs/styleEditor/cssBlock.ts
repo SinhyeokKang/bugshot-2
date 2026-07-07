@@ -4,13 +4,11 @@ export function serializeCssBlock(
   selector: string,
   decls: Record<string, string>,
 ): string {
+  // 들여쓰기는 리터럴 공백이 아니라 에디터 line decoration(cm-body-indent)으로 처리 —
+  // 프로포셔널 폰트에서 px 정렬이 정확하고, selector 줄은 제외할 수 있다(parse는 공백 무시).
   const body = serializeInlineStyle(decls);
   if (!body) return `${selector} {\n}`;
-  const indented = body
-    .split("\n")
-    .map((line) => `  ${line}`)
-    .join("\n");
-  return `${selector} {\n${indented}\n}`;
+  return `${selector} {\n${body}\n}`;
 }
 
 export function parseCssBlock(text: string): Record<string, string> {

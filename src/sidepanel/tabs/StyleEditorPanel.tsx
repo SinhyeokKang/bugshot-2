@@ -175,8 +175,9 @@ export function SelectedPanel() {
 
   return (
     <PageShell>
-      <PageScroll>
-        <div className="sticky top-0 z-10 border-b border-border bg-background pt-6 pb-3">
+      {/* 코드 뷰에선 내부 컬럼을 뷰포트 높이로 채워 에디터(flex-1)가 항상 패널을 가득 채우게 한다. */}
+      <PageScroll contentClassName={styleEditorView === "code" ? "min-h-full" : undefined}>
+        <div className="sticky top-0 z-10 shrink-0 border-b border-border bg-background pt-6 pb-3">
           <div className="flex items-center gap-2 px-4">
             <DomNavButton direction="parent" />
             <div className="min-w-0 flex-1">
@@ -213,7 +214,8 @@ export function SelectedPanel() {
         </div>
 
         {styleEditorView === "code" && (
-          <div className="border-b border-border">
+          // 헤더(shrink-0)를 뺀 나머지를 flex-1로 채운다 → 에디터가 항상 패널을 가득 채움.
+          <div className="flex min-h-0 flex-1 flex-col border-b border-border">
             <StyleCssView key={elementKey(selection)} />
           </div>
         )}

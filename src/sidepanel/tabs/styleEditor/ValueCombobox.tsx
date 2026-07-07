@@ -38,8 +38,12 @@ import {
   findTokenValue,
   isInternalToken,
   isTokenValue,
-  tokenFamilyPrefix,
 } from "./tokenUtils";
+import {
+  filterTokensByQuery,
+  groupTokensByFamily,
+  tokenFamilyPrefixes,
+} from "./tokenSuggest";
 
 export function ValueCombobox({
   prop,
@@ -90,48 +94,23 @@ export function ValueCombobox({
     (isKnownDefault(prop, placeholder) ||
       (!isSpecified && isInactiveBorderColor(prop, computedStyles ?? {})));
   const activeTokenNames = tokenNames.length > 0 ? tokenNames : placeholderTokenNames;
-  const liveFamilyPrefixes = useMemo(() => {
-    const prefixes: string[] = [];
-    for (const n of activeTokenNames) {
-      const p = tokenFamilyPrefix(n, tokens);
-      if (p && !prefixes.includes(p)) prefixes.push(p);
-    }
-    return prefixes;
-  }, [activeTokenNames, tokens]);
+  const liveFamilyPrefixes = useMemo(
+    () => tokenFamilyPrefixes(activeTokenNames, tokens),
+    [activeTokenNames, tokens],
+  );
   const [pinnedPrefixes, setPinnedPrefixes] = useState<string[] | null>(null);
   const familyPrefixes = pinnedPrefixes ?? liveFamilyPrefixes;
 
   const draftLooksLikeToken = /^var\(/.test(draft.trim());
 
-  const { familyGroups, primary, extra } = useMemo(() => {
-    const base = !category ? tokens : tokens.filter((t) => t.category === category);
-    const others = category
-      ? tokens.filter((t) => t.category !== category && t.category !== "unknown")
-      : ([] as Token[]);
-    if (familyPrefixes.length === 0)
-      return { familyGroups: [] as { prefix: string; tokens: Token[] }[], primary: base, extra: others };
-    const groups = familyPrefixes.map((p) => ({
-      prefix: p,
-      tokens: base.filter((t) => t.name.startsWith(p)),
-    }));
-    const familySet = new Set(groups.flatMap((g) => g.tokens.map((t) => t.name)));
-    return {
-      familyGroups: groups,
-      primary: base.filter((t) => !familySet.has(t.name)),
-      extra: others,
-    };
-  }, [tokens, category, familyPrefixes]);
+  const { familyGroups, primary, extra } = useMemo(
+    () => groupTokensByFamily(tokens, category, familyPrefixes),
+    [tokens, category, familyPrefixes],
+  );
 
   const filterTokens = useCallback(
-    (list: Token[]) => {
-      const q = draft.trim().toLowerCase();
-      if (!q || draftLooksLikeToken) return list;
-      return list.filter(
-        (t) =>
-          t.name.toLowerCase().includes(q) ||
-          t.value.toLowerCase().includes(q),
-      );
-    },
+    (list: Token[]) =>
+      filterTokensByQuery(list, draftLooksLikeToken ? "" : draft),
     [draft, draftLooksLikeToken],
   );
 

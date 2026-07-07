@@ -8,15 +8,15 @@ import {
 } from "../cssBlock";
 
 describe("serializeCssBlock", () => {
-  it("selector { } 블록으로 감싸고 선언을 2칸 들여쓰기", () => {
+  it("selector { } 블록으로 감싸고 선언을 줄바꿈 (들여쓰기는 에디터 decoration이 담당)", () => {
     expect(serializeCssBlock("sel", { color: "red" })).toBe(
-      "sel {\n  color: red;\n}",
+      "sel {\ncolor: red;\n}",
     );
   });
 
-  it("여러 선언은 삽입 순서 유지 + 각 줄 2칸 들여쓰기", () => {
+  it("여러 선언은 삽입 순서 유지", () => {
     expect(serializeCssBlock("div.card", { color: "red", margin: "0" })).toBe(
-      "div.card {\n  color: red;\n  margin: 0;\n}",
+      "div.card {\ncolor: red;\nmargin: 0;\n}",
     );
   });
 
@@ -26,7 +26,7 @@ describe("serializeCssBlock", () => {
 
   it("!important를 값 그대로 보존", () => {
     expect(serializeCssBlock("sel", { color: "red !important" })).toBe(
-      "sel {\n  color: red !important;\n}",
+      "sel {\ncolor: red !important;\n}",
     );
   });
 });
