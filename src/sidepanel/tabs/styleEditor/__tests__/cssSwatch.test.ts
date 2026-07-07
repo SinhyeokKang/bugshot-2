@@ -21,6 +21,7 @@ describe("swatchColorFor", () => {
     expect(swatchColorFor("inherit", () => true)).toBeNull();
     expect(swatchColorFor("unset", () => true)).toBeNull();
     expect(swatchColorFor("REVERT", () => true)).toBeNull();
+    expect(swatchColorFor("revert-layer", () => true)).toBeNull();
   });
 
   it("앞뒤 공백을 trim", () => {

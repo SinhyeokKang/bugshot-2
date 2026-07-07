@@ -5,6 +5,7 @@ import {
   tokenFamilyPrefixes,
   groupTokensByFamily,
   flattenTokenGroups,
+  matchRange,
 } from "../tokenSuggest";
 
 const tk = (name: string, value: string, category: Token["category"]): Token => ({
@@ -116,5 +117,24 @@ describe("flattenTokenGroups", () => {
       "--z-modal",
       "--brand-logo",
     ]);
+  });
+});
+
+describe("matchRange", () => {
+  it("매칭 범위 [start, end] 반환", () => {
+    expect(matchRange("--color-blue-500", "--color")).toEqual([0, 7]);
+    expect(matchRange("--color-blue-500", "blue")).toEqual([8, 12]);
+  });
+
+  it("대소문자 무시", () => {
+    expect(matchRange("--color-BLUE", "blue")).toEqual([8, 12]);
+  });
+
+  it("빈 query면 빈 배열", () => {
+    expect(matchRange("--color", "")).toEqual([]);
+  });
+
+  it("매칭 없으면 빈 배열", () => {
+    expect(matchRange("--color", "zzz")).toEqual([]);
   });
 });

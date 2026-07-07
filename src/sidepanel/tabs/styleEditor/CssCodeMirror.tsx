@@ -7,6 +7,7 @@ import CodeMirror, {
   WidgetType,
   hoverTooltip,
   type DecorationSet,
+  type Range,
   type ViewUpdate,
 } from "@uiw/react-codemirror";
 import { css, cssLanguage } from "@codemirror/lang-css";
@@ -31,6 +32,7 @@ import {
   filterTokensByQuery,
   flattenTokenGroups,
   groupTokensByFamily,
+  matchRange,
   tokenFamilyPrefixes,
 } from "./tokenSuggest";
 import { swatchColorFor } from "./cssSwatch";
@@ -70,12 +72,7 @@ const VALUE_HINTS = [
 ];
 
 const cssValueCompletion = cssLanguage.data.of({
-  autocomplete: (context: {
-    pos: number;
-    explicit: boolean;
-    state: EditorView["state"];
-    matchBefore: (re: RegExp) => { from: number; to: number; text: string } | null;
-  }) => {
+  autocomplete: (context: CompletionContext) => {
     const line = context.state.doc.lineAt(context.pos);
     const before = context.state.sliceDoc(line.from, context.pos);
     if (!/:[^;{}]*$/.test(before)) return null;
@@ -91,12 +88,6 @@ const cssValueCompletion = cssLanguage.data.of({
 
 // var(--…) 안에서 페이지 디자인 토큰을 제안 — 편집 패널(ValueCombobox)과 동일 데이터(store tokens)·
 // 동일 규칙(category 우선 + family 우선 + LIKE 매칭, tokenSuggest 공유). 선택 시 var()를 닫아준다.
-function matchRange(label: string, query: string): readonly number[] {
-  if (!query) return [];
-  const i = label.toLowerCase().indexOf(query.toLowerCase());
-  return i < 0 ? [] : [i, i + query.length];
-}
-
 function makeTokenCompletion(tokens: Token[]) {
   const usable = tokens.filter((tk) => !isInternalToken(tk.name));
   return cssLanguage.data.of({
@@ -106,7 +97,8 @@ function makeTokenCompletion(tokens: Token[]) {
       const colon = line.text.indexOf(":");
       if (colon < 0 || line.text.includes("{")) return null;
       const rel = context.pos - line.from;
-      // 커서가 걸친 var(--name) 토큰의 이름 영역을 찾는다(이름 안/직후, `var(` 직후 빈 이름 포함).
+      // 커서가 걸친 var(--name) 토큰의 이름(--…) 영역을 찾는다(이름 안 또는 바로 뒤).
+      // regex가 최소 `--`를 요구하므로 var( 직후(--를 아직 안 친 상태)만으론 안 잡힌다.
       const RE = /var\(\s*(--[\w-]*)/g;
       let m: RegExpExecArray | null;
       let nameStartRel = -1;
@@ -365,8 +357,7 @@ const cssHighlightDark = HighlightStyle.define([
   { tag: t.propertyName, color: "#fbbf24" },
 ]);
 
-// CSS-wide 키워드는 색상 아님(swatch 제외). 색상 후보 정규식 — hex / color·var 함수 / 단어.
-const CSS_WIDE = new Set(["inherit", "initial", "unset", "revert"]);
+// 색상 후보 정규식 — hex / color·var 함수 / 단어. CSS-wide 키워드 제외·유효성은 swatchColorFor가 담당.
 const COLOR_RE =
   /#(?:[0-9a-fA-F]{3,4}){1,2}\b|\b(?:rgba?|hsla?|hwb|lab|lch|oklab|oklch|color|var)\([^)]*\)|\b[a-zA-Z]+\b/g;
 // 완성된(닫힌) var(--토큰) 참조의 커스텀 프로퍼티 이름만 캡처 — 네트워크 로그 하이라이트처럼 배경 칠해 "완성 토큰" 신호.
@@ -395,7 +386,7 @@ class SwatchWidget extends WidgetType {
 
 // { } 표시 truncate(데이터엔 유지 — 파싱용) + 값이 색상이면 좌측 인라인 swatch.
 function buildDecos(view: EditorView): DecorationSet {
-  const list = [];
+  const list: Range<Decoration>[] = [];
   const doc = view.state.doc;
   const full = doc.toString();
 
@@ -415,19 +406,18 @@ function buildDecos(view: EditorView): DecorationSet {
     COLOR_RE.lastIndex = 0;
     while ((m = COLOR_RE.exec(text))) {
       const val = m[0];
-      if (CSS_WIDE.has(val.toLowerCase())) continue;
       const pos = from + m.index;
       const line = doc.lineAt(pos);
       const before = doc.sliceString(line.from, pos);
       if (!before.includes(":") || line.text.includes("{")) continue;
-      // 리터럴 색은 그대로. var(--x) 토큰은 그 선언 prop의 computed(resolve된) 색으로.
+      // 리터럴 색은 swatchColorFor(CSS-wide 제외 + 유효성). var(--x) 토큰은 그 선언 prop의 computed(resolve된) 색으로.
       let color: string | null = null;
       if (val.includes("var(")) {
         const prop = line.text.slice(0, line.text.indexOf(":")).trim();
         const c = computed[prop];
         if (c && CSS.supports("color", c)) color = c;
-      } else if (CSS.supports("color", val)) {
-        color = val;
+      } else {
+        color = swatchColorFor(val);
       }
       if (!color) continue;
       list.push(
@@ -469,28 +459,35 @@ function buildDecos(view: EditorView): DecorationSet {
     }
   }
 
-  // 잘못된 선언(값이 `;`로 안 닫혀 lezer가 declaration 대신 TagName=선택자로 파싱한 이름)은
-  // 블록 밖 진짜 선택자와 달리 앰버+취소선으로 표시 — "속성인데 적용 안 됨" 신호.
-  if (open >= 0) {
-    const tree = syntaxTree(view.state);
-    for (const { from, to } of view.visibleRanges) {
-      tree.iterate({
-        from,
-        to,
-        enter: (node) => {
-          if (node.name === "TagName" && node.from > open) {
-            list.push(
-              Decoration.mark({ class: "cm-invalid-decl" }).range(
-                node.from,
-                node.to,
-              ),
-            );
-          }
-        },
-      });
-    }
-  }
+  if (open >= 0) list.push(...collectInvalidDeclMarks(view, open));
   return Decoration.set(list, true);
+}
+
+// 잘못된 선언(값이 `;`로 안 닫혀 lezer가 declaration 대신 TagName=선택자로 파싱한 이름)을 앰버+취소선으로.
+// 블록 밖 진짜 선택자와 구분하려 `{` 안쪽(node.from > open) TagName만 마킹 — "속성인데 적용 안 됨" 신호.
+function collectInvalidDeclMarks(
+  view: EditorView,
+  open: number,
+): Range<Decoration>[] {
+  const marks: Range<Decoration>[] = [];
+  const tree = syntaxTree(view.state);
+  for (const { from, to } of view.visibleRanges) {
+    tree.iterate({
+      from,
+      to,
+      enter: (node) => {
+        if (node.name === "TagName" && node.from > open) {
+          marks.push(
+            Decoration.mark({ class: "cm-invalid-decl" }).range(
+              node.from,
+              node.to,
+            ),
+          );
+        }
+      },
+    });
+  }
+  return marks;
 }
 
 const decoPlugin = ViewPlugin.fromClass(
@@ -513,43 +510,49 @@ const decoPlugin = ViewPlugin.fromClass(
 );
 
 // 커서가 값(콜론 뒤) 컨텍스트일 때만 자동완성을 연다 — 속성/선택자/빈 곳엔 안 띄워 방해를 줄인다.
-// 클릭이 커서를 잡은 뒤 평가해야 하므로 다음 틱에 실행.
-function maybeStartInValue(view: EditorView) {
-  setTimeout(() => {
-    if (!view.hasFocus) return;
-    const pos = view.state.selection.main.head;
-    const line = view.state.doc.lineAt(pos);
-    const before = view.state.sliceDoc(line.from, pos);
-    if (/:[^;{}]*$/.test(before)) startCompletion(view);
-  }, 0);
+function startInValueIfContext(view: EditorView) {
+  if (!view.hasFocus) return;
+  const pos = view.state.selection.main.head;
+  const line = view.state.doc.lineAt(pos);
+  const before = view.state.sliceDoc(line.from, pos);
+  if (/:[^;{}]*$/.test(before)) startCompletion(view);
 }
 
 // 자동완성을 타이핑(삽입)뿐 아니라 커서 이동(클릭·방향키)·focus·삭제(backspace)에도 연다.
-// 소스가 문맥(값/var)에 안 맞으면 no-op. 문서 변경(토큰 수락·타이핑)에는 재발동하지 않아
-// 선택 직후 콤보박스가 다시 열리지 않는다.
-const autoActivate = [
-  EditorView.domEventHandlers({
-    // 키보드(Tab) 진입용 — 클릭/방향키는 아래 updateListener(selectionSet)가 잡는다.
-    focus: (_e, view) => {
-      maybeStartInValue(view);
-      return false;
-    },
-  }),
-  EditorView.updateListener.of((u) => {
-    if (!u.view.hasFocus) return;
-    const deleted = u.transactions.some(
-      (tr) =>
-        tr.isUserEvent("delete.backward") || tr.isUserEvent("delete.forward"),
-    );
-    // 순수 커서 이동(클릭·방향키): 문맥 벗어나면 maybeStartInValue가 알아서 no-op.
-    const cursorMoved = u.selectionSet && !u.docChanged;
-    if (deleted || cursorMoved) {
-      const { view } = u;
-      // 업데이트 진행 중 dispatch 금지 → 다음 틱에 연다.
-      setTimeout(() => maybeStartInValue(view), 0);
+// 소스가 문맥(값/var)에 안 맞으면 no-op. 문서 변경(토큰 수락·타이핑)에는 재발동하지 않아 선택 직후
+// 콤보박스가 다시 열리지 않는다. 타이머를 ViewPlugin이 소유해 destroy 시 정리(언마운트 후 실행 방지).
+const autoActivate = ViewPlugin.fromClass(
+  class {
+    timer: ReturnType<typeof setTimeout> | undefined;
+    constructor(readonly view: EditorView) {}
+    // 클릭이 커서를 잡은 뒤 평가하도록 다음 틱에 한 번만 — 이전 예약은 덮어써 중복/누수 방지.
+    schedule() {
+      clearTimeout(this.timer);
+      this.timer = setTimeout(() => startInValueIfContext(this.view), 0);
     }
-  }),
-];
+    update(u: ViewUpdate) {
+      if (!u.view.hasFocus) return;
+      const deleted = u.transactions.some(
+        (tr) =>
+          tr.isUserEvent("delete.backward") || tr.isUserEvent("delete.forward"),
+      );
+      // 순수 커서 이동(클릭·방향키): 문맥 벗어나면 no-op. 문서 변경(수락·타이핑)엔 재발동 안 함.
+      const cursorMoved = u.selectionSet && !u.docChanged;
+      if (deleted || cursorMoved) this.schedule();
+    }
+    destroy() {
+      clearTimeout(this.timer);
+    }
+  },
+  {
+    // 키보드(Tab) 진입용 — 클릭/방향키는 update(selectionSet)가 잡는다.
+    eventHandlers: {
+      focus() {
+        this.schedule();
+      },
+    },
+  },
+);
 
 // var(--토큰) hover 시 편집 패널 ValueHint(rightHintText)와 동일 로직으로 매핑된 원시값을 툴팁으로.
 function makeTokenHover(tokens: Token[]) {

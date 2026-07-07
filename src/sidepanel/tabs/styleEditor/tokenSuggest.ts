@@ -66,3 +66,11 @@ export function groupTokensByFamily(
 export function flattenTokenGroups(g: TokenGroups): Token[] {
   return [...g.familyGroups.flatMap((x) => x.tokens), ...g.primary, ...g.extra];
 }
+
+// label 안에서 query(대소문자 무시)가 처음 매칭되는 [start, end] 범위. 없거나 빈 query면 [].
+// CodeMirror 자동완성 getMatch(매칭 글자 강조 범위)용.
+export function matchRange(label: string, query: string): readonly number[] {
+  if (!query) return [];
+  const i = label.toLowerCase().indexOf(query.toLowerCase());
+  return i < 0 ? [] : [i, i + query.length];
+}
