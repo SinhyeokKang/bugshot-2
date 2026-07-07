@@ -167,6 +167,7 @@ shadcn `Slider` (`src/components/ui/slider.tsx`, Radix). 표준에서 **멀티 t
   - Radix `Tabs`가 콘텐츠까지 감싸는 영역(DebugTab·SettingsTab·IntegrationsTab 등) → `TabsContent` 자신에 **`data-[state=inactive]:hidden`**.
   - App 최상위처럼 `Tabs`가 탭 바만 감싸는 구조 → 콘텐츠 `<div>`를 상태값으로 **수동 `hidden` 토글**(`App.tsx`). Radix data-state가 닿지 않기 때문.
   - 어느 쪽이든 비활성 탭을 언마운트하지 않고 숨겨 동시 렌더 버그를 피하는 게 의도.
+- **세그먼트 뷰 토글**(`StyleEditorPanel.tsx` 폼/코드 스위치): shadcn `Tabs`를 `TabsContent` 없이 `grid grid-cols-2` 세그먼트 바로만 쓰고, 활성 상태를 로컬 state가 아니라 **store 값**(`useSettingsUiStore.styleEditorView`)에서 읽어 각 뷰 wrapper를 `cn(styleEditorView !== "code" && "hidden")`으로 `display:none` 토글한다(위 "수동 hidden" 계열 — 비활성 뷰 언마운트 안 함, 미파싱 입력·collapsible 접힘 보존). 두 뷰가 공유하는 섹션(class·Text 등)은 토글 wrapper **밖**에 둔다. wrapper가 `Section`의 `:last-child`(`last:border-b-0`, 아래 §합성 컴포넌트) 스코프를 나눠 중간 wrapper 마지막 섹션의 하단 구분선이 사라지므로 그 wrapper에 **`[&>section:last-child]:border-b`**로 복원한다.
 - `collapsing-tabs.tsx` (`CollapsingTabsList`): ResizeObserver/MutationObserver로 폭을 감시해, 트리거가 넘치면 **모든 탭 라벨을 동시에 숨기고 아이콘+배지만** 남긴다. 측정 중엔 `group-data-[measuring]/tabs:inline`로 라벨을 강제 노출해 자연 폭 계산. 사용처: 메인 탭 바, 서브탭.
 
 ### 컨테이너 쿼리
@@ -193,7 +194,7 @@ shadcn `Slider` (`src/components/ui/slider.tsx`, Radix). 표준에서 **멀티 t
 | 컴포넌트 | 표준화 대상 |
 |---|---|
 | `PageShell`/`PageScroll`/`PageFooter` (`Section.tsx`) | 탭 페이지 골격 — Shell=`flex min-h-0 flex-1 flex-col`, Scroll=`min-h-0 flex-1 overflow-y-auto`(내부 스크롤 영역), Footer=`shrink-0 border-t bg-muted/50 p-4`(하단 고정 액션). 전 탭 공용 |
-| `Section.tsx` | 섹션 구획 — `<section>` 래퍼에 `border-b`(섹션 간 구분선) + 헤더(title+action) + optional collapsible |
+| `Section.tsx` | 섹션 구획 — `<section>` 래퍼에 `border-b border-border py-6 last:border-b-0`(섹션 간 구분선, 마지막은 제거) + optional 헤더(title/action 둘 다 없으면 미렌더) + optional collapsible. 토글 wrapper로 섹션을 그룹화하면 `:last-child`가 재스코프되니 wrapper에 `[&>section:last-child]:border-b`로 복원(위 §탭 시스템 세그먼트 토글) |
 | `FieldRow.tsx` | 라벨+필드 쌍 — `grid gap-1.5`, 라벨 `text-xs text-muted-foreground`, `required` 시 빨간 별 |
 | `InlineChip.tsx` | 인라인 텍스트 칩 — `muted`면 dashed/muted, 아니면 `border-primary`. `[box-decoration-break:clone]`로 줄바꿈 대응 |
 | `InlineLink.tsx` | 외부 링크 — `target=_blank rel=noopener noreferrer`, `text-blue-600 underline dark:text-blue-400` |
