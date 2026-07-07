@@ -13,11 +13,12 @@
 - **작업 내용**: `serializeCssBlock`/`parseCssBlock`/`computeOverrides` 구현. `inlineCssText.ts`의 `parseInlineStyle`/`serializeInlineStyle` 재사용. **테스트 먼저**(`/tdd interface`).
   - `serializeCssBlock(sel, {color:"red"})` → `"sel {\n  color: red;\n}"`, 빈 맵 → `"sel {\n}"`.
   - `parseCssBlock("sel {\n color: red;\n}")` → `{color:"red"}`, 중괄호 없는 텍스트도 관대 파싱, selector 무시.
-  - `computeOverrides({color:"red",margin:"0"}, {color:"red",padding:"8px"})` → `{margin:"0"}`(color는 specified와 동일 → 제외, padding은 edited에 없음 → 제외).
+  - `computeOverrides({color:"red",margin:"0"}, {color:"red",padding:"8px"})` → `{margin:"0",padding:"initial"}`(color는 specified와 동일 → 제외, margin은 변경 → 포함, **padding은 edited에서 빠짐 → `initial` 원복**).
 - **검증**:
   - [ ] `pnpm test` — 신규 테스트 통과
   - [ ] round-trip: `parseCssBlock(serializeCssBlock(sel,m))`가 `m`과 동치
-  - [ ] `computeOverrides`가 specified와 동일 값 전부 제거(빈 맵) — phantom diff 방지 케이스
+  - [ ] **무편집 불변식**: `computeOverrides(parseCssBlock(serializeCssBlock(sel, specified)), specified) === {}` — 합성 맵뿐 아니라 **실제 `getComputedStyle` 파생 형태 값**(`rgb(0, 0, 0)`·공백 포함 shorthand·소수 px)에서도 빈 맵
+  - [ ] **삭제=원복**: specified에 있던 prop이 edited에서 빠지면 `{prop:"initial"}` 방출
   - [ ] 엣지: `!important` 값·임의 속성·중복 prop·값 없는 선언·selector만 있는 입력
 
 ### Task 2: parseBoxModel 순수 함수 (테스트 우선)
@@ -30,35 +31,38 @@
 
 ### Task 3: CodeMirror 의존성 추가 + StyleCssView 에디터
 - **변경 대상**: `package.json`(deps), `src/sidepanel/tabs/styleEditor/StyleCssView.tsx`(신규)
-- **작업 내용**: `@uiw/react-codemirror` + `@codemirror/lang-css` 설치. `StyleCssView`에 CodeMirror 마운트 — `doc = serializeCssBlock(selection.selector, {...specifiedStyles, ...inlineStyle})`, 확장 `[css(), lineNumbers 기본 포함, EditorView.lineWrapping]`, 라이트/다크 테마(사이드패널 테마 토큰). onChange → `parseCssBlock` → `computeOverrides(parsed, specifiedStyles)` → `setStyleEdits({inlineStyle})` → `applyStyles`. 외부 변경 재동기화는 `lastCommittedRef`(직전 doc 문자열) 비교 후 `onChange` 아닌 controlled `value` 갱신. `data-testid="style-css-view"`, 에디터 컨테이너 식별용.
-- **검증**:
-  - [ ] CSS 탭에서 selector{}+specified 선언이 신택스 하이라이팅·줄번호로 표시(수동/e2e)
-  - [ ] 선언 값 변경이 페이지 라이브 반영 + 변경사항 다이얼로그에 그 prop만
-  - [ ] specified prefill 안 건드리면 [다음] 비활성(오버라이드 0)
-  - [ ] CSS 자동완성(prop명 타이핑 시 제안) 동작(수동)
-  - [ ] 타이핑 중 커서 점프 없음(수동)
-  - [ ] 번들 영향 확인 — lazy import 검토(CSS 탭 진입 시 로드)
+- **작업 내용**: `@uiw/react-codemirror` + `@codemirror/lang-css`를 **동적 `import()`로 lazy 로드(필수)** + 로드 중 fallback UI(스켈레톤/spinner). `StyleCssView`에 CodeMirror 마운트 — `doc = serializeCssBlock(selection.selector, {...specifiedStyles, ...inlineStyle})`, 확장 `[css(), 값 자동완성 커스텀 completionSource, lineNumbers 기본, Tab escape 키맵, EditorView.lineWrapping]`, 라이트/다크 테마(사이드패널 테마 토큰). onChange → `parseCssBlock` → `computeOverrides(parsed, specifiedStyles)` → `setStyleEdits({inlineStyle})` → `applyStyles`. 외부 변경 재동기화는 `lastCommittedRef`(직전 **재구성 문자열** `serializeCssBlock(sel,{...specified,...overrides})`, raw 텍스트 아님) 비교 후 `onChange` 아닌 controlled `value` 갱신. 요소 전환은 상위에서 `key={sameElementKey(selection)}` remount(Task 5). `data-testid="style-css-view"`.
+- **검증** (자동=단위/e2e, 수동=시각):
+  - [ ] (자동) 선언 값 변경이 페이지 라이브 반영 + 변경사항 다이얼로그에 그 prop만
+  - [ ] (자동) specified prefill 안 건드리면 [다음] 비활성(오버라이드 0)
+  - [ ] (자동) 외부 변경(폼 편집) 시 재동기화로 doc 갱신, 요소 A→B 전환 시 doc 재파생(remount)
+  - [ ] (수동) CSS 탭에서 selector{}+specified 선언이 신택스 하이라이팅·줄번호로 표시
+  - [ ] (수동) 자동완성 — prop명(lang-css) + 값(커스텀 completionSource) 제안 동작
+  - [ ] (수동) 타이핑 중 커서 점프 없음(빠른 연속 입력), Tab 키로 에디터 밖 탈출 가능
+  - [ ] (수동) CSS 탭 진입 시 lazy 로드 fallback 표시 후 에디터 마운트, 초기 메인 청크 번들 증가 없음(lazy 확인)
 
 ### Task 4: BoxModelDiagram 컴포넌트
 - **변경 대상**: `src/sidepanel/tabs/styleEditor/BoxModelDiagram.tsx`(신규), StyleCssView에 편입
-- **작업 내용**: `parseBoxModel` 결과를 중첩 div로 렌더(margin 주황·border 노랑·padding 초록·content 파랑, 각 변 값 텍스트, 가운데 `contentLabel`). read-only. 다크모드 대비.
+- **작업 내용**: `parseBoxModel` 결과를 중첩 div로 렌더(margin 주황·border 노랑·padding 초록·content 파랑, 각 변 값 텍스트, 가운데 `contentLabel`). read-only. 다크모드 대비. **접근성**: 각 영역에 `aria-label`(색상만 의존 회피). **세로 예산**: 높이 상한(`max-h`)으로 좁은 패널 상단 과점 방지. `box={parseBoxModel(selection.computedStyles)}`라 apply 후 computedStyles 재수집 시 자동 재측정.
 - **검증**:
-  - [ ] computed 값과 각 변 표시가 일치(수동 — 실제 요소)
-  - [ ] 라이트/다크 모두 가독(수동)
+  - [ ] computed 값과 각 변 표시가 일치(수동 — 실제 요소), 편집→apply 후 재측정 갱신
+  - [ ] 라이트/다크 모두 가독(수동), 각 영역 aria-label 존재
+  - [ ] 박스모델이 상단을 과점하지 않고 에디터 가시 영역 확보(수동)
 
 ### Task 5: StyleEditorPanel 통합 (탭 재구성 + 아이콘 + 뷰 스왑)
 - **변경 대상**: `src/sidepanel/tabs/StyleEditorPanel.tsx`, `src/i18n/namespaces/editor.ts`
 - **작업 내용**:
-  - 탭 토글을 DOM 네비 밴드 아래 별도 sticky 컨테이너로 분리(`border-t px-4 py-3`).
-  - `TabsTrigger`에 아이콘: 편집=`SlidersHorizontal`, CSS=`Code2`(lucide-react) + 라벨.
-  - `view === "code"` → `<StyleCssView />`, `view === "form"` → 기존 폼 섹션. class·Text 섹션은 **편집 탭 전용**(CSS 탭에서 hidden). 조건부 `hidden` + `[&>section:last-child]:border-b`.
-  - i18n `editor.view.form`=`편집`/`Edit`, `editor.view.code`=`CSS`/`CSS`. `editor.codePlaceholder` 정리(빈 selector 안내로 재활용 또는 제거). ko/en 동시.
+  - 탭 토글을 DOM 네비 밴드 아래 별도 sticky 컨테이너로 분리(`border-t px-4 py-3`, 같은 sticky wrapper 안).
+  - `TabsTrigger`에 아이콘: 편집=`Paintbrush`(`SlidersHorizontal`은 SettingsTab general 점유라 회피), CSS=`Code2`(lucide-react) + 라벨. 아이콘 사이징은 기존 탭 컨벤션 토큰 `h-3.5 w-3.5 shrink-0` + 트리거 `gap-1.5`.
+  - `view === "code"` → `<StyleCssView key={sameElementKey(selection)} />`(요소 전환 remount), `view === "form"` → 기존 폼 섹션. class·Text 섹션은 **편집 탭 전용**(CSS 탭에서 hidden). 조건부 `hidden` + `[&>section:last-child]:border-b`. **언마운트 아닌 hidden**(collapsible open-state 보존).
+  - i18n `editor.view.form`=`편집`/`Edit`, `editor.view.code`=`CSS`/`CSS`. `editor.codePlaceholder`는 **제거 않고 빈 selector 안내로 재활용**(Task 6 전 dangling 참조 방지) — 문구만 ko/en 동시 갱신.
   - `styleEditorView` 값(`"form"|"code"`)·persist v7 그대로(마이그레이션 불필요).
 - **검증**:
   - [ ] `pnpm typecheck` + i18n locales 대칭 테스트 통과
-  - [ ] 탭 아이콘·라벨(편집/CSS) 표시, 전환 시 편집 영역만 스왑(DOM 네비·푸터·변경사항 불변)
+  - [ ] 탭 아이콘(Paintbrush/Code2)·라벨(편집/CSS) 표시, 전환 시 편집 영역만 스왑(DOM 네비·푸터·변경사항 불변)
   - [ ] CSS 탭에서 class·Text 섹션 숨김, 편집 탭에서 노출
   - [ ] 탭 영속(재진입 시 유지)
+  - [ ] 편집↔CSS 왕복 후 폼 collapsible 섹션 open-state 보존(언마운트 아님)
 
 ### Task 6: 기존 StyleCodeEditor 제거 + 참조 정리
 - **변경 대상**: `src/sidepanel/tabs/styleEditor/StyleCodeEditor.tsx`(삭제), import 참조
@@ -70,23 +74,28 @@
 ## 테스트 계획
 
 - **단위 테스트**:
-  - `cssBlock.test.ts` — serialize/parse round-trip + `computeOverrides`(specified 동일 제거·변경분만·엣지).
+  - `cssBlock.test.ts` — serialize/parse round-trip + `computeOverrides`(변경분만·**무편집 시 실제 형태 값 `rgb(0, 0, 0)`으로 빈 맵**·**삭제=`initial` 원복**·엣지).
   - `boxModel.test.ts` — `parseBoxModel`(정상 px·auto·소수·부분 누락).
   - `inlineCssText.test.ts` — 기존 유지(재사용 회귀 가드).
 - **e2e 시나리오** (`/e2e-write` 입력 — v1 `style-code-view.spec.ts` 전면 개편):
-  - CSS 탭 진입 시 selector + specified 선언이 에디터(`style-css-view`)에 prefill돼 있다(요소가 지정한 prop이 코드에 보인다).
+  - **입력/읽기 방식(필수 명시)**: CodeMirror는 `<textarea>`가 아니라 `.cm-content` contenteditable — 기존 spec의 `fill()`/`toHaveValue()`가 throw한다. 타이핑은 `.cm-content` 포커스 후 `pressSequentially`/`keyboard`, 텍스트 검증은 `toHaveText`/`textContent`로 한다. `style-css-view` 컨테이너 안 `.cm-content`를 내부 셀렉터로. **GOTCHAS에 신규 등록**.
+  - **뷰 누출 방지(필수)**: `styleEditorView`는 persist(v7)라 `afterAll`(또는 각 테스트 종료)에서 `"form"`으로 복원해야 폼 기본을 가정하는 인접 스타일 스펙(`style-changes-dialog`·`style-field-fixes`·`border-per-side`·`buffered-reselect-edit` 등)이 깨지지 않는다.
+  - CSS 탭 진입 시 selector + specified 선언이 에디터(`style-css-view`)에 prefill돼 있다.
   - CSS 탭 상단에 박스모델 그래픽이 보인다.
-  - 에디터에서 specified 값을 다른 값으로 바꾸면 페이지에 라이브 반영되고 변경사항 다이얼로그에 그 prop이 잡힌다.
-  - specified 값을 안 건드리면 변경사항 0(오버라이드 없음, `changes-trigger` 비활성).
-  - 폼 미지원 임의 속성(`cursor: pointer;`)을 추가하면 페이지 반영 + 편집 탭 왕복해도 코드에 유지.
-  - 편집(폼) 탭에서 값 바꾸면 CSS 탭 재진입 시 코드에 반영(양방향 동기화).
-  - 버퍼 다중요소: CSS 탭으로 A 편집 → B repick → A 재선택 시 편집 복원(코드에 반영).
+  - 에디터에서 specified 값을 다른 값으로 바꾸면 페이지 라이브 반영 + 변경사항 다이얼로그에 그 prop.
+  - specified 값을 안 건드리면 변경사항 0(`changes-trigger` 비활성).
+  - specified 선언 라인을 지우면 그 속성이 `initial`로 원복되고 변경사항에 잡힌다(삭제=원복).
+  - 폼 미지원 임의 속성(`cursor: pointer;`) 추가 → 페이지 반영 + 편집 탭 왕복해도 코드 유지.
+  - 편집(폼) 탭에서 값 바꾸면 CSS 탭 재진입 시 코드 반영(양방향 동기화 — 외부변경 재동기화 커버).
+  - 버퍼 다중요소: CSS 탭으로 A 편집 → B repick → A 재선택 시 편집 복원(요소 전환 remount로 doc 재파생).
   - 탭(편집/CSS) 선택 후 패널 재열기 시 그 탭으로 시작(영속).
-  - CSS 탭에서 class·Text 섹션이 숨겨진다(편집 탭에선 보인다).
+  - CSS 탭에서 class·Text 섹션 숨김(편집 탭에선 보임), 편집↔CSS 왕복 후 폼 섹션 open-state 보존.
+- **e2e 회귀 게이트**: 개편 후 **스타일 e2e 스위트 전수 재실행**(뷰 누출로 인접 스펙 깨지지 않음 확인).
 - **수동 테스트** (자동화 어려움):
-  - CodeMirror 신택스 하이라이팅·줄번호·자동완성 시각/동작.
-  - 타이핑 중 커서 점프 없음(빠른 연속 입력).
-  - 박스모델 그래픽이 실제 요소 computed와 일치, 라이트/다크 가독.
+  - CodeMirror 신택스 하이라이팅·줄번호·자동완성(prop명 + 값) 시각/동작.
+  - 타이핑 중 커서 점프 없음(빠른 연속 입력), Tab 키 에디터 밖 탈출.
+  - 박스모델 그래픽이 실제 요소 computed와 일치·apply 후 재측정, 라이트/다크 가독.
+  - lazy 로드 fallback 표시 → 에디터 마운트.
   - `!important`가 Tailwind `!important` 페이지에서 실제 적용.
 
 ## 구현 순서 권장
