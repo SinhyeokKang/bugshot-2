@@ -159,11 +159,6 @@ describe("settings-ui-store", () => {
       expect(migrated.styleEditorView).toBe("form");
     });
 
-    it("버전 ≤6 영속 데이터 로드 시 'form'으로 마이그레이트", () => {
-      const migrated = migrateSettingsUi({ recordingMode: "screen" }, 6);
-      expect(migrated.styleEditorView).toBe("form");
-    });
-
     it("기존 styleEditorView는 보존(덮어쓰지 않음)", () => {
       const migrated = migrateSettingsUi({ styleEditorView: "code" }, 6);
       expect(migrated.styleEditorView).toBe("code");

@@ -493,8 +493,12 @@ function applyInlineStyle(
   for (const [prop, value] of Object.entries(inlineStyle)) {
     if (!value) continue;
     const base = value.replace(/\s*!\s*important\s*$/i, "");
-    if (base !== value) el.style.setProperty(prop, base, "important");
-    else el.style.setProperty(prop, value);
+    if (base !== value) {
+      // 값이 !important뿐이면 base가 빈 문자열 — setProperty(prop,"")는 removeProperty라 skip.
+      if (base) el.style.setProperty(prop, base, "important");
+    } else {
+      el.style.setProperty(prop, value);
+    }
   }
 }
 

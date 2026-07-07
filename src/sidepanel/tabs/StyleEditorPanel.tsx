@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/tooltip";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { cn } from "@/lib/utils";
 import { useEditorStore } from "@/store/editor-store";
 import {
   useSettingsUiStore,
@@ -188,7 +189,7 @@ export function SelectedPanel() {
             onValueChange={(v) => setStyleEditorView(v as StyleEditorView)}
             className="mt-3 px-4"
           >
-            <TabsList className="grid w-full grid-cols-2" data-testid="style-view-toggle">
+            <TabsList className="grid h-9 w-full grid-cols-2" data-testid="style-view-toggle">
               <TabsTrigger value="form" data-testid="style-view-form">
                 {t("editor.view.form")}
               </TabsTrigger>
@@ -206,13 +207,13 @@ export function SelectedPanel() {
           <ClassEditor />
         </Section>
 
-        {styleEditorView === "code" && (
-          <Section title={t("editor.section.code")}>
+        <div className={cn("[&>section:last-child]:border-b", styleEditorView !== "code" && "hidden")}>
+          <Section>
             <StyleCodeEditor />
           </Section>
-        )}
+        </div>
 
-        {styleEditorView === "form" && (<>
+        <div className={cn("[&>section:last-child]:border-b", styleEditorView !== "form" && "hidden")}>
         <Section
           title={t("editor.section.layout")}
           action={<SectionRevertButton props={SECTION_PROPS.layout} />}
@@ -394,7 +395,7 @@ export function SelectedPanel() {
           />
         </Row2>
       </Section>
-      </>)}
+      </div>
 
       {selection.text !== null ? (
         <Section
@@ -405,7 +406,7 @@ export function SelectedPanel() {
         </Section>
       ) : null}
 
-      {styleEditorView === "form" && (<>
+      <div className={cn(styleEditorView !== "form" && "hidden")}>
       <Section
         title={t("editor.section.typography")}
         action={<SectionRevertButton props={SECTION_PROPS.typography} />}
@@ -472,7 +473,7 @@ export function SelectedPanel() {
         </Row2>
         <TextProp label="easing" prop="transition-timing-function" />
         </Section>
-      </>)}
+      </div>
       </PageScroll>
       {aiStatus === "available" && (
         <button

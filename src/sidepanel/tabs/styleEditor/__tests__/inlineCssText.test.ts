@@ -53,7 +53,7 @@ describe("parseInlineStyle", () => {
     expect(parseInlineStyle('content: "a;b";')).toEqual({ content: '"a;b"' });
   });
 
-  it("!important는 값의 일부로 왕복", () => {
+  it("!important를 값의 일부로 파싱(opaque)", () => {
     expect(parseInlineStyle("color: red !important;")).toEqual({
       color: "red !important",
     });
@@ -87,19 +87,14 @@ describe("parseInlineStyle", () => {
 });
 
 describe("round-trip", () => {
-  it("parse(serialize(m))가 의미상 동치(값 정규화 제외)", () => {
+  it("parse(serialize(m))가 의미상 동치(값 정규화 제외) — !important 포함", () => {
     const m = {
       padding: "2rem",
-      color: "#fff",
+      color: "red !important",
       "background-image": "url(data:image/png;base64,AAA)",
       content: '"a;b"',
       cursor: "pointer",
     };
-    expect(parseInlineStyle(serializeInlineStyle(m))).toEqual(m);
-  });
-
-  it("!important 값도 왕복 보존", () => {
-    const m = { color: "red !important" };
     expect(parseInlineStyle(serializeInlineStyle(m))).toEqual(m);
   });
 });
