@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { sameElementKey } from "../element-key";
+import { sameElementKey, elementKey } from "../element-key";
 
 describe("sameElementKey — selector+frameId 복합키", () => {
   it("selector·frameId 모두 같으면 true", () => {
@@ -18,5 +18,23 @@ describe("sameElementKey — selector+frameId 복합키", () => {
 
   it("selector 다르면 frameId 무관 false", () => {
     expect(sameElementKey({ selector: "#a", frameId: 3 }, { selector: "#b", frameId: 3 })).toBe(false);
+  });
+});
+
+describe("elementKey — 문자열 복합키", () => {
+  it("sameElementKey면 elementKey도 일치(frameId 미지정=0)", () => {
+    expect(elementKey({ selector: "#a" })).toBe(elementKey({ selector: "#a", frameId: 0 }));
+  });
+
+  it("frameId 다르면 다른 키", () => {
+    expect(elementKey({ selector: "#a", frameId: 3 })).not.toBe(
+      elementKey({ selector: "#a", frameId: 0 }),
+    );
+  });
+
+  it("selector 다르면 다른 키", () => {
+    expect(elementKey({ selector: "#a", frameId: 1 })).not.toBe(
+      elementKey({ selector: "#b", frameId: 1 }),
+    );
   });
 });

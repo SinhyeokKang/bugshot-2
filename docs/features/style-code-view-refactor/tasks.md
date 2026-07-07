@@ -15,27 +15,27 @@
   - `parseCssBlock("sel {\n color: red;\n}")` → `{color:"red"}`, 중괄호 없는 텍스트도 관대 파싱, selector 무시.
   - `computeOverrides({color:"red",margin:"0"}, {color:"red",padding:"8px"})` → `{margin:"0",padding:"initial"}`(color는 specified와 동일 → 제외, margin은 변경 → 포함, **padding은 edited에서 빠짐 → `initial` 원복**).
 - **검증**:
-  - [ ] `pnpm test` — 신규 테스트 통과
-  - [ ] round-trip: `parseCssBlock(serializeCssBlock(sel,m))`가 `m`과 동치
-  - [ ] **무편집 불변식**: `computeOverrides(parseCssBlock(serializeCssBlock(sel, specified)), specified) === {}` — 합성 맵뿐 아니라 **실제 `getComputedStyle` 파생 형태 값**(`rgb(0, 0, 0)`·공백 포함 shorthand·소수 px)에서도 빈 맵
-  - [ ] **삭제=원복**: specified에 있던 prop이 edited에서 빠지면 `{prop:"initial"}` 방출
-  - [ ] 엣지: `!important` 값·임의 속성·중복 prop·값 없는 선언·selector만 있는 입력
+  - [x] `pnpm test` — 신규 테스트 통과 (cssBlock.test.ts 20 케이스)
+  - [x] round-trip: `parseCssBlock(serializeCssBlock(sel,m))`가 `m`과 동치
+  - [x] **무편집 불변식**: `computeOverrides(parseCssBlock(serializeCssBlock(sel, specified)), specified) === {}` — 합성 맵뿐 아니라 **실제 `getComputedStyle` 파생 형태 값**(`rgb(0, 0, 0)`·공백 포함 shorthand·소수 px)에서도 빈 맵
+  - [x] **삭제=원복**: specified에 있던 prop이 edited에서 빠지면 `{prop:"initial"}` 방출
+  - [x] 엣지: `!important` 값·임의 속성·중복 prop·값 없는 선언·selector만 있는 입력
 
 ### Task 2: parseBoxModel 순수 함수 (테스트 우선)
 - **변경 대상**: `src/sidepanel/tabs/styleEditor/boxModel.ts`(신규), `styleEditor/__tests__/boxModel.test.ts`(신규)
 - **작업 내용**: `parseBoxModel(computed)` + `BoxModel`/`BoxSides` 타입. **테스트 먼저**.
   - margin/border-width/padding 4면 + content width/height를 px 숫자로 파싱. `"11px"`→11, `"auto"`/파싱실패→0. `contentLabel`은 `${width}×${height}` 원문(소수 보존).
 - **검증**:
-  - [ ] `pnpm test` — 정상(전 필드 px) / `auto`·빈값 → 0 / 소수 width(`100.273px`) 보존 케이스
-  - [ ] 부분 누락 computed(키 없음) → 0으로 안전
+  - [x] `pnpm test` — 정상(전 필드 px) / `auto`·빈값 → 0 / 소수 width(`100.273px`) 보존 케이스 (boxModel.test.ts 6 케이스)
+  - [x] 부분 누락 computed(키 없음) → 0으로 안전
 
 ### Task 3: CodeMirror 의존성 추가 + StyleCssView 에디터
 - **변경 대상**: `package.json`(deps), `src/sidepanel/tabs/styleEditor/StyleCssView.tsx`(신규)
-- **작업 내용**: `@uiw/react-codemirror` + `@codemirror/lang-css`를 **동적 `import()`로 lazy 로드(필수)** + 로드 중 fallback UI(스켈레톤/spinner). `StyleCssView`에 CodeMirror 마운트 — `doc = serializeCssBlock(selection.selector, {...specifiedStyles, ...inlineStyle})`, 확장 `[css(), 값 자동완성 커스텀 completionSource, lineNumbers 기본, Tab escape 키맵, EditorView.lineWrapping]`, 라이트/다크 테마(사이드패널 테마 토큰). onChange → `parseCssBlock` → `computeOverrides(parsed, specifiedStyles)` → `setStyleEdits({inlineStyle})` → `applyStyles`. 외부 변경 재동기화는 `lastCommittedRef`(직전 **재구성 문자열** `serializeCssBlock(sel,{...specified,...overrides})`, raw 텍스트 아님) 비교 후 `onChange` 아닌 controlled `value` 갱신. 요소 전환은 상위에서 `key={sameElementKey(selection)}` remount(Task 5). `data-testid="style-css-view"`.
+- **작업 내용**: `@uiw/react-codemirror` + `@codemirror/lang-css`를 **동적 `import()`로 lazy 로드(필수)** + 로드 중 fallback UI(스켈레톤/spinner). `StyleCssView`에 CodeMirror 마운트 — `doc = serializeCssBlock(selection.selector, {...specifiedStyles, ...inlineStyle})`, 확장 `[css(), 값 자동완성 커스텀 completionSource, lineNumbers 기본, EditorView.lineWrapping]` + `indentWithTab={false}`(Tab 포커스 이탈 — 트랩 방지), 라이트/다크 테마(사이드패널 테마 토큰). onChange → `parseCssBlock` → `computeOverrides(parsed, specifiedStyles)` → `setStyleEdits({inlineStyle})` → `applyStyles`. 외부 변경 재동기화는 `lastCommittedRef`(직전 **재구성 문자열** `serializeCssBlock(sel,{...specified,...overrides})`, raw 텍스트 아님) 비교 후 `onChange` 아닌 controlled `value` 갱신. 요소 전환은 상위에서 `key={elementKey(selection)}` remount(Task 5). `data-testid="style-css-view"`.
 - **검증** (자동=단위/e2e, 수동=시각):
-  - [ ] (자동) 선언 값 변경이 페이지 라이브 반영 + 변경사항 다이얼로그에 그 prop만
-  - [ ] (자동) specified prefill 안 건드리면 [다음] 비활성(오버라이드 0)
-  - [ ] (자동) 외부 변경(폼 편집) 시 재동기화로 doc 갱신, 요소 A→B 전환 시 doc 재파생(remount)
+  - [x] (자동/로직) 선언 값 변경이 페이지 라이브 반영 + 변경사항 다이얼로그에 그 prop만 — 폼 useStyleProp.set과 동일 apply 경로 확인 (e2e green은 `/e2e-write`)
+  - [x] (자동/로직) specified prefill 안 건드리면 [다음] 비활성(오버라이드 0) — computeOverrides 무편집 {} 테스트 고정
+  - [x] (자동/로직) 외부 변경(폼 편집) 시 재동기화로 doc 갱신, 요소 A→B 전환 시 doc 재파생(remount) — 재구성 문자열 ref + key={elementKey} (e2e green은 `/e2e-write`)
   - [ ] (수동) CSS 탭에서 selector{}+specified 선언이 신택스 하이라이팅·줄번호로 표시
   - [ ] (수동) 자동완성 — prop명(lang-css) + 값(커스텀 completionSource) 제안 동작
   - [ ] (수동) 타이핑 중 커서 점프 없음(빠른 연속 입력), Tab 키로 에디터 밖 탈출 가능
@@ -55,21 +55,21 @@
   - 탭 토글을 DOM 네비 밴드 아래 별도 sticky 컨테이너로 분리(`border-t px-4 py-3`, 같은 sticky wrapper 안).
   - `TabsTrigger`에 아이콘: 편집=`Paintbrush`(`SlidersHorizontal`은 SettingsTab general 점유라 회피), CSS=`Code2`(lucide-react) + 라벨. 아이콘 사이징은 기존 탭 컨벤션 토큰 `h-3.5 w-3.5 shrink-0` + 트리거 `gap-1.5`.
   - `view === "code"` → `<StyleCssView key={sameElementKey(selection)} />`(요소 전환 remount), `view === "form"` → 기존 폼 섹션. class·Text 섹션은 **편집 탭 전용**(CSS 탭에서 hidden). 조건부 `hidden` + `[&>section:last-child]:border-b`. **언마운트 아닌 hidden**(collapsible open-state 보존).
-  - i18n `editor.view.form`=`편집`/`Edit`, `editor.view.code`=`CSS`/`CSS`. `editor.codePlaceholder`는 **제거 않고 빈 selector 안내로 재활용**(Task 6 전 dangling 참조 방지) — 문구만 ko/en 동시 갱신.
+  - i18n `editor.view.form`=`편집`/`Edit`, `editor.view.code`=`CSS`/`CSS`. `editor.codePlaceholder`는 **완전 제거**(ko/en) — 신규 에디터에 placeholder 표면이 없어 재활용 대상이 사라짐. 유일 참조처 StyleCodeEditor를 같은 배치(Task 6)에서 삭제하므로 dangling 없음(typecheck·grep 확인).
   - `styleEditorView` 값(`"form"|"code"`)·persist v7 그대로(마이그레이션 불필요).
 - **검증**:
-  - [ ] `pnpm typecheck` + i18n locales 대칭 테스트 통과
-  - [ ] 탭 아이콘(Paintbrush/Code2)·라벨(편집/CSS) 표시, 전환 시 편집 영역만 스왑(DOM 네비·푸터·변경사항 불변)
-  - [ ] CSS 탭에서 class·Text 섹션 숨김, 편집 탭에서 노출
-  - [ ] 탭 영속(재진입 시 유지)
-  - [ ] 편집↔CSS 왕복 후 폼 collapsible 섹션 open-state 보존(언마운트 아님)
+  - [x] `pnpm typecheck` + i18n locales 대칭 테스트 통과
+  - [x] 탭 아이콘(Paintbrush/Code2)·라벨(편집/CSS) 표시, 전환 시 편집 영역만 스왑(DOM 네비·푸터·변경사항 불변)
+  - [x] CSS 탭에서 class·Text 섹션 숨김, 편집 탭에서 노출
+  - [x] 탭 영속(재진입 시 유지) — styleEditorView persist 그대로
+  - [x] 편집↔CSS 왕복 후 폼 collapsible 섹션 open-state 보존(언마운트 아님 — 폼 섹션은 hidden 유지)
 
 ### Task 6: 기존 StyleCodeEditor 제거 + 참조 정리
 - **변경 대상**: `src/sidepanel/tabs/styleEditor/StyleCodeEditor.tsx`(삭제), import 참조
 - **작업 내용**: v1 `StyleCodeEditor` 제거(StyleCssView가 대체). `inlineCssText.ts`는 cssBlock이 재사용하므로 유지. 고아 import 정리.
 - **검증**:
-  - [ ] `pnpm typecheck` 통과(참조 없음)
-  - [ ] `inlineCssText.test.ts` 여전히 green(재사용)
+  - [x] `pnpm typecheck` 통과(참조 없음 — StyleCodeEditor·codePlaceholder·style-code-editor grep 0건)
+  - [x] `inlineCssText.test.ts` 여전히 green(재사용)
 
 ## 테스트 계획
 

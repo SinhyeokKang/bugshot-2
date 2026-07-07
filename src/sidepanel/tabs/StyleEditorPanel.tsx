@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Crosshair, RotateCcw, Sparkles } from "lucide-react";
+import { Code2, Crosshair, Paintbrush, RotateCcw, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useT } from "@/i18n";
 import { Button } from "@/components/ui/button";
@@ -45,8 +45,9 @@ import {
   TextProp,
 } from "./styleEditor/StylePropEditors";
 import { AiStylingDialog } from "./styleEditor/AiStylingDialog";
-import { StyleCodeEditor } from "./styleEditor/StyleCodeEditor";
+import { StyleCssView } from "./styleEditor/StyleCssView";
 import { StyleChangesDialog } from "./styleEditor/StyleChangesDialog";
+import { elementKey } from "@/lib/element-key";
 
 const SECTION_PROPS = {
   layout: [
@@ -187,31 +188,35 @@ export function SelectedPanel() {
           <Tabs
             value={styleEditorView}
             onValueChange={(v) => setStyleEditorView(v as StyleEditorView)}
-            className="mt-3 px-4"
+            className="mt-6 border-t border-border px-4 pt-3"
           >
             <TabsList className="grid h-9 w-full grid-cols-2" data-testid="style-view-toggle">
-              <TabsTrigger value="form" data-testid="style-view-form">
+              <TabsTrigger value="form" data-testid="style-view-form" className="min-w-0 gap-1.5">
+                <Paintbrush className="h-3.5 w-3.5 shrink-0" />
                 {t("editor.view.form")}
               </TabsTrigger>
-              <TabsTrigger value="code" data-testid="style-view-code">
+              <TabsTrigger value="code" data-testid="style-view-code" className="min-w-0 gap-1.5">
+                <Code2 className="h-3.5 w-3.5 shrink-0" />
                 {t("editor.view.code")}
               </TabsTrigger>
             </TabsList>
           </Tabs>
         </div>
 
-        <Section
-          title={t("editor.section.class")}
-          action={<ClassRevertButton />}
-        >
-          <ClassEditor />
-        </Section>
-
-        <div className={cn("[&>section:last-child]:border-b", styleEditorView !== "code" && "hidden")}>
-          <Section>
-            <StyleCodeEditor />
+        <div className={cn("[&>section:last-child]:border-b", styleEditorView !== "form" && "hidden")}>
+          <Section
+            title={t("editor.section.class")}
+            action={<ClassRevertButton />}
+          >
+            <ClassEditor />
           </Section>
         </div>
+
+        {styleEditorView === "code" && (
+          <div className="border-b border-border">
+            <StyleCssView key={elementKey(selection)} />
+          </div>
+        )}
 
         <div className={cn("[&>section:last-child]:border-b", styleEditorView !== "form" && "hidden")}>
         <Section
@@ -398,12 +403,14 @@ export function SelectedPanel() {
       </div>
 
       {selection.text !== null ? (
-        <Section
-          title={t("editor.section.text")}
-          action={<TextRevertButton />}
-        >
-          <TextEditor />
-        </Section>
+        <div className={cn("[&>section:last-child]:border-b", styleEditorView !== "form" && "hidden")}>
+          <Section
+            title={t("editor.section.text")}
+            action={<TextRevertButton />}
+          >
+            <TextEditor />
+          </Section>
+        </div>
       ) : null}
 
       <div className={cn(styleEditorView !== "form" && "hidden")}>

@@ -23,9 +23,8 @@ const ko = {
   "editor.section.typography": "Typography",
   "editor.section.effects": "Effects",
   "editor.section.transition": "Transition",
-  "editor.view.form": "폼",
-  "editor.view.code": "코드",
-  "editor.codePlaceholder": "padding: 3rem;",
+  "editor.view.form": "편집",
+  "editor.view.code": "CSS",
 
   "draft.titlePlaceholder": "이슈 제목",
   "draft.descriptionPlaceholder": "어떤 문제가 어떻게 나타나는지 적어주세요",
@@ -165,9 +164,8 @@ const en = {
   "editor.section.typography": "Typography",
   "editor.section.effects": "Effects",
   "editor.section.transition": "Transition",
-  "editor.view.form": "Form",
-  "editor.view.code": "Code",
-  "editor.codePlaceholder": "padding: 3rem;",
+  "editor.view.form": "Edit",
+  "editor.view.code": "CSS",
 
   "draft.titlePlaceholder": "Issue title",
   "draft.descriptionPlaceholder": "Describe how the bug shows up",
