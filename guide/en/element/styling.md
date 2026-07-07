@@ -20,23 +20,25 @@ From top to bottom, the panel is organized into these sections (labels show in E
 10. **Effects** — shadow, filter, blend.
 11. **Transition** — transition property, duration, easing.
 
-## By form, or by code
+## The Edit and CSS tabs
 
-![Form/code editing toggle](../assets/element-styling-4.jpg)
+![Edit/CSS tabs](../assets/element-styling-4.jpg)
 
-Just below the element name at the top of the panel sits a **Form / Code** toggle. Switch to whichever feels easier.
+Just below the element name at the top of the panel sit two tabs: **Edit** and **CSS**. Switch to whichever feels easier.
 
-- **Form** — the inputs and dropdowns you just saw, section by section. It's the default, and it covers most cases.
-- **Code** — type CSS **directly** (like `padding: 3rem;`). It's just like editing `element.style` in your browser's dev tools.
+- **Edit** — the inputs and dropdowns you just saw, section by section. It's the default, and it covers most cases.
+- **CSS** — edit CSS **directly**, like the styles panel in your browser's dev tools. Open the tab and the element's current styles are already **prefilled** as a `selector { … }` block, so you start from the real state instead of a blank page. Syntax highlighting, line numbers, and autocomplete (property names and values) make CSS easy to work with. Up top you also get a **box-model diagram** showing margin, border, padding, and content size at a glance.
 
-Both modes **share the same edits**. A value you set in Form shows up in Code, and what you type in Code shows up in Form too (for properties Form supports) — so nothing gets lost when you go back and forth.
+Change a value or add a property in the CSS tab and it applies to the page right away, with only what you changed tracked as an edit. Leave the prefilled values alone and nothing counts as a change — so it's fine to just open the tab and look around. Conversely, **delete** a prefilled declaration and that property reverts to its initial value.
 
-Code mode really shines in two cases:
+Both tabs **share the same edits**. A value you set in Edit shows up in CSS, and what you type in CSS shows up in Edit too (for properties Edit supports) — so nothing gets lost when you go back and forth.
 
-- When you want a property Form has no field for (say, `cursor: pointer;`).
+The CSS tab really shines in two cases:
+
+- When you want a property Edit has no field for (say, `cursor: pointer;`).
 - When you need to beat a style the site locked in with `!important` — just add `!important` at the end of the value.
 
-> Your chosen mode is **remembered**. Use Code mode, close the panel, and the next element you pick opens in Code mode again. Class, Text, Review changes, and AI Styling all work the same in both modes.
+> Your chosen tab is **remembered**. Use the CSS tab, close the panel, and the next element you pick opens on the CSS tab again. Class and Text editing live on the **Edit tab**; Review changes, AI Styling, and the buttons below work the same on both tabs.
 
 ## Live preview and reverting
 
