@@ -88,10 +88,12 @@ test.describe.serial("style-code-view", () => {
     await expect(panel.getByTestId("text-editor")).toBeHidden();
   });
 
-  test("CSS prefill — specified(color·padding) 선언 표시, 무편집 시 변경 0", async () => {
+  test("CSS prefill — specified(color·padding) shorthand 병합 표시, 무편집 시 변경 0", async () => {
     // #title specified(color·padding)가 selector 블록에 prefill돼 있다.
     await expect(cm()).toContainText("color");
-    await expect(cm()).toContainText("padding");
+    // 4면 동일 padding(8px)은 shorthand 한 줄로 병합 — longhand 미노출.
+    await expect(cm()).toContainText("padding: 8px");
+    await expect(cm()).not.toContainText("padding-top");
     // 무편집 → [다음] 비활성(오버라이드 0, phantom diff 없음).
     await expect(panel.getByTestId("next-step")).toHaveAttribute(
       "aria-disabled",
@@ -123,9 +125,10 @@ test.describe.serial("style-code-view", () => {
     await expect(fixture.locator("#title")).toHaveCSS("color", "rgb(0, 255, 0)");
 
     // CSS 재진입: 폼 편집(color)·padding-top이 에디터에 재동기화(remount 재파생).
+    // padding-top은 shorthand 병합돼 `padding: 32px …`로 표시되므로 값(32px)으로 단언.
     await panel.getByTestId("style-view-code").click();
     await expect(cm()).toContainText("#00ff00");
-    await expect(cm()).toContainText("padding-top");
+    await expect(cm()).toContainText("32px");
   });
 
   test("폼 미지원 임의 속성(cursor) — CSS 추가 후 폼↔CSS 왕복에도 유지", async () => {
