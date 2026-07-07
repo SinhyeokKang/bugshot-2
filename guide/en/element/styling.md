@@ -20,6 +20,24 @@ From top to bottom, the panel is organized into these sections (labels show in E
 10. **Effects** — shadow, filter, blend.
 11. **Transition** — transition property, duration, easing.
 
+## By form, or by code
+
+![Form/code editing toggle](../assets/element-styling-4.jpg)
+
+Just below the element name at the top of the panel sits a **Form / Code** toggle. Switch to whichever feels easier.
+
+- **Form** — the inputs and dropdowns you just saw, section by section. It's the default, and it covers most cases.
+- **Code** — type CSS **directly** (like `padding: 3rem;`). It's just like editing `element.style` in your browser's dev tools.
+
+Both modes **share the same edits**. A value you set in Form shows up in Code, and what you type in Code shows up in Form too (for properties Form supports) — so nothing gets lost when you go back and forth.
+
+Code mode really shines in two cases:
+
+- When you want a property Form has no field for (say, `cursor: pointer;`).
+- When you need to beat a style the site locked in with `!important` — just add `!important` at the end of the value.
+
+> Your chosen mode is **remembered**. Use Code mode, close the panel, and the next element you pick opens in Code mode again. Class, Text, Review changes, and AI Styling all work the same in both modes.
+
 ## Live preview and reverting
 
 - Changing a value applies it to the page **immediately**.
