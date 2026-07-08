@@ -52,6 +52,14 @@ base 결정:
 
 리뷰 대상 diff: `git diff <base>` (base..working-tree). 파일 단위로 필요 시 `git diff <base> -- <path>`.
 
+**착수 전 회고 매칭 (메인, 값싸다).** 변경 파일 목록·영역 키워드로 `docs/POSTMORTEM.md`를 grep해, **이 변경 영역에서 과거에 터진 함정**을 추린다 — 이 파일은 같은 자리에서 반복해 터진 버그의 재발 방지 신호(grep 패턴·`file:func`)를 담는다. 매칭된 회고는 2단계에서 해당 영역 에이전트에게 전달해 **"이 변경이 그 함정을 재발시키는지"를 집중 점검**하게 한다. 매칭 0이면 스킵.
+
+```
+grep -ni -e '<변경 파일명>' -e '<영역 키워드>' docs/POSTMORTEM.md
+```
+
+(영역 키워드는 회고 제목의 반복어 — cross-origin·picker·slack·i18n·마이그레이션·user gesture·capture 등.)
+
 ### 2. 전문 에이전트 병렬 리뷰
 
 활성화된 전문 에이전트를 **동시에** 실행한다 (`subagent_type: general-purpose`). 각 에이전트에게 다음을 전달:
@@ -59,6 +67,7 @@ base 결정:
 - CLAUDE.md + docs/ARCHITECTURE.md 핵심 컨벤션 (리뷰 기준)
 - 담당 카테고리의 체크 가이드
 - 하위 영역 에이전트 분배 지침
+- **1단계에서 매칭된 회고**(자기 영역에 해당하는 것) — 증상·근본 원인·재발 방지를 전달하고 "이 변경이 그 함정을 재발시키는지" 우선 점검하게 한다. 재발 징후가 있으면 해당 회고를 근거(`근거: POSTMORTEM YYYY-MM-DD`)로 든 발견을 올린다.
 
 #### 2단계 구조
 

@@ -27,7 +27,7 @@ report developers can actually act on.
 1. **Install** from the [Chrome Web Store](https://chromewebstore.google.com/detail/bugshot/ohakhekagkodklkickemonmifdcbhmig).
 2. **Open the panel** — click the toolbar icon or press `Cmd/Ctrl+Shift+E`.
 3. **Connect a destination** — in the *Integrations* tab, connect at least one of Jira, GitHub, Linear, Notion, GitLab, Asana, ClickUp, or Slack.
-4. **Capture** — in the *Debug* tab, pick a mode: edit element style, capture an element, capture an area, or record the screen.
+4. **Capture** — in the *Debug* tab, pick a mode: edit element style, capture an element, capture an area, or record the screen. You can also start a report from logs alone (no capture) via the console/network log tabs.
 5. **Submit** — the environment fills itself in; add a title, review the preview, and submit. A link to the created issue pops right up.
 
 Full walkthrough in the [Quick Start guide](https://bug-shot.com/en/docs/quick-start).

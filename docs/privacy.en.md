@@ -1,6 +1,6 @@
 # BugShot Privacy Policy
 
-**Effective date**: July 4, 2026
+**Effective date**: July 8, 2026
 
 BugShot (the "extension") values your privacy and collects and processes only the minimum information necessary. This policy transparently explains what information the extension handles.
 
@@ -64,11 +64,11 @@ When you reload a page on which you have previously started debug capture, resum
 
 | Information | When collected | Purpose |
 |---|---|---|
-| LLM provider settings (base URL, API key, model) | When configuring the AI draft feature | Calling the LLM API |
+| LLM provider settings (base URL, API key, model) | When configuring the AI draft / AI styling feature | Calling the LLM API |
 
 The LLM API key is stored obfuscated.
 
-On browsers that support Chrome's built-in AI (Prompt API), drafts can be generated with the on-device model without any external API call. In that case, data never leaves your device and no separate API key is required.
+On browsers that support Chrome's built-in AI (Prompt API), drafts and CSS change suggestions can be generated with the on-device model without any external API call. In that case, data never leaves your device and no separate API key is required.
 
 ### Anonymous Usage Analytics
 
@@ -113,7 +113,8 @@ The extension transmits data only to the services below.
 | ClickUp REST API (`api.clickup.com`) | Task body, workspace/space/list/assignee, screenshots, video, debug logs | Creating tasks and uploading files |
 | Slack Web API (`slack.com` and Slack-issued file upload URLs) | Message body (title, detail), mention targets, screenshots, video, debug logs, and — on promotion — the tracker issue link | Sending messages/attachments to channels/DMs in your own workspace, and auto-commenting the issue link in the original message thread when promoting to a tracker |
 | OAuth proxy server | OAuth authorization code | Token exchange (Jira, GitHub, Notion, Asana, ClickUp, Slack) |
-| User-specified LLM provider | Issue body draft, screenshot (optional), debug log summary (optional) | AI draft generation |
+| User-specified LLM provider (AI draft) | Issue body draft, page URL/title, element selector/style info, screenshot (optional), debug log summary (optional) | AI draft generation |
+| User-specified LLM provider (AI styling) | Selected element's tag, CSS selector, class list, current specified styles, design tokens | CSS change suggestion |
 | PostHog (`us.i.posthog.com`) | Anonymous aggregate events (install, panel open, platform connect/disconnect, issue submission) | Anonymous usage analytics |
 
 The OAuth proxy server only relays the token exchange and does not store or log user data. Linear and GitLab exchange tokens directly via PKCE without a proxy.
@@ -122,13 +123,13 @@ Local files you select yourself through the "file attachment" feature are, on is
 
 When connecting to a GitLab self-managed instance with a PAT, the extension communicates directly with the instance address (an arbitrary origin) you enter. This access is covered by the required broad host permission (`<all_urls>`) granted at install and works without a separate permission dialog.
 
-The LLM provider receives data only at the endpoint you configure yourself, and only when you explicitly run AI draft generation. Access to that host is covered by the required broad host permission (`<all_urls>`).
+The LLM provider receives data only at the endpoint you configure yourself, and only when you explicitly run AI draft generation or AI styling. Access to that host is covered by the required broad host permission (`<all_urls>`).
 
 When searching CC (watcher) mentions, the search term you enter is sent to each platform's user-search API, and the mention targets you select are sent as part of the issue body. All of this works only when you search and select yourself.
 
 ## 4. Third-Party Sharing
 
-We do not sell, share, or transfer the information we collect to third parties. Data is transmitted to a given platform, or to the LLM provider you configure, only when you create an issue or request an AI draft yourself.
+We do not sell, share, or transfer the information we collect to third parties. Data is transmitted to a given platform, or to the LLM provider you configure, only when you create an issue or request an AI draft or AI styling yourself.
 
 ## 5. Data Deletion
 
@@ -168,7 +169,7 @@ There is no separate per-platform host permission; all of the communication abov
 - **DOM selection / style editing**: Picking an element on any web page to collect information and preview styles
 - **Screen capture / 30-second replay**: Current-tab screen capture (`captureVisibleTab`) does not work with ordinary host permissions and requires `<all_urls>`. Capture and log collection continue even when you navigate to another site, without the side panel closing.
 - **Console / network log collection**: Recording logs on arbitrary pages (and iframes)
-- **AI draft**: Transmitting to the LLM provider endpoint you configure yourself (when you explicitly run an AI draft)
+- **AI draft / AI styling**: Transmitting to the LLM provider endpoint you configure yourself (when you explicitly run an AI draft or AI styling)
 - **GitLab self-managed**: PAT communication with the instance (an arbitrary origin) you enter
 - **Style value enrichment**: To accurately display the "author-specified" styles of a selected element, the extension reads, in the background and without credentials (`credentials:omit`), the external stylesheets (cross-origin CSS files) the page references. Only public http(s) hosts are targeted (loopback, internal networks, and private IPs are blocked), and the CSS received is used only on the device and not transmitted to third parties.
 

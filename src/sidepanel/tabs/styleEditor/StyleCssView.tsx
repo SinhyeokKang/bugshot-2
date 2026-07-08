@@ -9,6 +9,7 @@ import {
   collapseTrbl,
   expandTrbl,
 } from "./cssBlock";
+import { shouldResyncDoc } from "./docSync";
 
 const CssCodeMirror = lazy(() => import("./CssCodeMirror"));
 
@@ -17,6 +18,7 @@ export function StyleCssView() {
   const inlineStyle = useEditorStore((s) => s.styleEdits.inlineStyle);
   const setStyleEdits = useEditorStore((s) => s.setStyleEdits);
   const tokens = useEditorStore((s) => s.tokens);
+  const aiStylingLoading = useEditorStore((s) => s.aiStylingLoading);
   const tabId = useBoundTabId();
 
   const selector = selection?.selector ?? "";
@@ -34,6 +36,8 @@ export function StyleCssView() {
   // 에디터 포커스 중엔 외부 재동기화로 doc를 통째 교체하지 않는다 — cross-origin 늦은
   // specified 보강이 타이핑 중 커서를 튀게 하는 것을 막고, blur 시 흡수한다.
   const focusedRef = useRef(false);
+  // AI 턴 종료(로딩 true→false 전이) 감지용. 종료 시엔 포커스 중이어도 강행 재동기화.
+  const prevAiLoadingRef = useRef(aiStylingLoading);
 
   const syncFromStore = () => {
     const next = buildDoc(inlineStyle);
@@ -44,10 +48,16 @@ export function StyleCssView() {
   };
 
   useEffect(() => {
-    if (!focusedRef.current) syncFromStore();
+    const aiApplied = prevAiLoadingRef.current && !aiStylingLoading;
+    prevAiLoadingRef.current = aiStylingLoading;
+    if (shouldResyncDoc({ focused: focusedRef.current, aiApplied })) {
+      syncFromStore();
+    }
     // 요소 전환은 key remount로 doc 재파생 — 동일 요소 내 inlineStyle·specified 변경만 흡수.
+    // aiStylingLoading dep: AI 응답 적용은 로딩 중 inlineStyle을 바꾸지만 포커스 가드로
+    // 스킵되므로, 로딩 해제 전이 시점에 포커스 무관 강행해 stale doc을 만회한다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [inlineStyle, selection?.specifiedStyles]);
+  }, [inlineStyle, selection?.specifiedStyles, aiStylingLoading]);
 
   if (!selection) return null;
 
