@@ -20,6 +20,26 @@ From top to bottom, the panel is organized into these sections (labels show in E
 10. **Effects** — shadow, filter, blend.
 11. **Transition** — transition property, duration, easing.
 
+## The Edit and CSS tabs
+
+![Edit/CSS tabs](../assets/element-styling-2.jpg)
+
+Just below the element name at the top of the panel sit two tabs: **Edit** and **CSS**. Switch to whichever feels easier.
+
+- **Edit** — the inputs and dropdowns you just saw, section by section. It's the default, and it covers most cases.
+- **CSS** — edit CSS **directly**, like the styles panel in your browser's dev tools. Open the tab and the element's current styles are already **prefilled** as a `selector { … }` block, so you start from the real state instead of a blank page. Syntax highlighting and autocomplete (property names and values) help, four-side spacing and borders are **merged into one line** like in the form, and a small **color swatch** previews the actual color next to color values — so CSS is easy to work with.
+
+Change a value or add a property in the CSS tab and it applies to the page right away, with only what you changed tracked as an edit. Leave the prefilled values alone and nothing counts as a change — so it's fine to just open the tab and look around. Conversely, **delete** a prefilled declaration and that property reverts to its initial value. A line you haven't finished yet — missing its closing `;` or otherwise incomplete — shows with a **strikethrough**, so you can tell at a glance it isn't applied yet.
+
+Both tabs **share the same edits**. A value you set in Edit shows up in CSS, and what you type in CSS shows up in Edit too (for properties Edit supports) — so nothing gets lost when you go back and forth.
+
+The CSS tab really shines in two cases:
+
+- When you want a property Edit has no field for (say, `cursor: pointer;`).
+- When you need to beat a style the site locked in with `!important` — just add `!important` at the end of the value.
+
+> Your chosen tab is **remembered**. Use the CSS tab, close the panel, and the next element you pick opens on the CSS tab again. Class and Text editing live on the **Edit tab**; Review changes, AI Styling, and the buttons below work the same on both tabs.
+
 ## Live preview and reverting
 
 - Changing a value applies it to the page **immediately**.
@@ -40,9 +60,11 @@ When a value — color, spacing, font, and so on — is set via the site's **des
 
 For example, if a color is set to `--color-primary`, you can pick another token in the same family — `--color-danger`, `--color-success` — and apply it right away. For teams on a design system, the change you propose lines up with the real code from the start.
 
+This help carries over to the CSS tab too. Type `var(--` or click a token already there, and the same-family tokens pop up as autocomplete for you to swap in wholesale. Hover a completed token and a small hint shows the value it actually points to, so you can tell what it resolves to straight from the code.
+
 ## Review changes
 
-![Review changes dialog](../assets/element-styling-2.jpg)
+![Review changes dialog](../assets/element-styling-3.jpg)
 
 Lost track of what you've changed? Hit the **Review changes** button at the bottom of the panel. The number beside it is how many changes you've made so far — and if you haven't changed anything, the button stays disabled.
 
@@ -55,7 +77,7 @@ Row resets run instantly without asking, so tidy up with peace of mind. Once not
 
 ## AI Styling
 
-![AI Styling banner](../assets/element-styling-3.jpg)
+![AI Styling banner](../assets/element-styling-4.jpg)
 
 With an AI (LLM) connected, an **AI Styling** banner appears in the panel. When touching values by hand feels like a chore, just **describe what you want**.
 

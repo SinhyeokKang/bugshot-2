@@ -14,18 +14,18 @@
   - serialize: `{padding:"2rem", color:"#fff"}` → `"padding: 2rem;\ncolor: #fff;"`, 삽입 순서 유지, 빈 맵 → `""`.
   - parse: 관대 파싱 — 값 없는 선언/콜론 없는 줄 무시, 중복 prop last-wins, prop trim+lowercase, top-level `;`만 분리(괄호·따옴표 내부 `;` 보존), `!important`는 값의 일부로 왕복.
 - **검증**:
-  - [ ] `pnpm test` — 신규 테스트 통과
-  - [ ] round-trip: `parse(serialize(m))` 가 의미상 동치(값 정규화 제외)
-  - [ ] 엣지 케이스 케이스별 통과: `background-image: url(data:image/png;base64,AAA);`, `content: "a;b";`, `color: red !important;`, `colr: red`(오타 유지), `padding:`(무시), 중복 `color` 2줄(마지막 채택)
+  - [x] `pnpm test` — 신규 테스트 통과 (18 cases)
+  - [x] round-trip: `parse(serialize(m))` 가 의미상 동치(값 정규화 제외)
+  - [x] 엣지 케이스 케이스별 통과: `background-image: url(data:image/png;base64,AAA);`, `content: "a;b";`, `color: red !important;`, `colr: red`(오타 유지), `padding:`(무시), 중복 `color` 2줄(마지막 채택) + 커스텀 프로퍼티(`--*`) 케이스 보존
 
 ### Task 2: settings-ui-store에 styleEditorView 추가
 - **변경 대상**: `src/store/settings-ui-store.ts`, `src/store/__tests__/settings-ui-store.test.ts`(실재 — `migrateSettingsUi({}, N)`를 직접 호출하는 persist migrate 테스트. **갱신 필수**)
 - **작업 내용**: `StyleEditorView` 타입 + `styleEditorView` 필드(기본 `"form"`) + `setStyleEditorView` 액션 추가. persist version 6→7, `migrateSettingsUi`에 `state.styleEditorView = state.styleEditorView ?? "form"` 추가.
 - **검증**:
-  - [ ] `pnpm typecheck` 통과
-  - [ ] `pnpm test` — `migrateSettingsUi({}, 6).styleEditorView === "form"` 단위 테스트 추가·통과
-  - [ ] 기존 영속 데이터(version ≤6) 로드 시 `styleEditorView === "form"`로 마이그레이트
-  - [ ] `setStyleEditorView("code")` 후 재로드 시 `"code"` 유지(persist)
+  - [x] `pnpm typecheck` 통과
+  - [x] `pnpm test` — `migrateSettingsUi({}, 6).styleEditorView === "form"` 단위 테스트 추가·통과
+  - [x] 기존 영속 데이터(version ≤6) 로드 시 `styleEditorView === "form"`로 마이그레이트 (단위 테스트)
+  - [ ] `setStyleEditorView("code")` 후 재로드 시 `"code"` 유지(persist) — e2e/수동
 
 ### Task 3: StyleCodeEditor 컴포넌트
 - **변경 대상**: `src/sidepanel/tabs/styleEditor/StyleCodeEditor.tsx` (신규)
@@ -47,7 +47,7 @@
 - **검증**:
   - [ ] 토글 전환 시 스타일 편집 영역만 바뀌고 DOM 네비·클래스·텍스트·푸터·다이얼로그 불변
   - [ ] 토글이 sticky 밴드에 있어 스크롤을 내려도 항상 도달 가능
-  - [ ] `pnpm typecheck` 통과 + i18n locales 대칭 테스트 통과
+  - [x] `pnpm typecheck` 통과 + i18n locales 대칭 테스트 통과
   - [ ] 폼→코드→폼 왕복 시 값 유실 없음(폼 지원 속성)
 
 ### Task 5: 참조 뷰 (matched sources) — v1 미구현, v2 이관

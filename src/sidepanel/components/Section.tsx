@@ -17,10 +17,17 @@ export function PageShell({
   );
 }
 
-export function PageScroll({ children }: { children: React.ReactNode }) {
+export function PageScroll({
+  children,
+  contentClassName,
+}: {
+  children: React.ReactNode;
+  contentClassName?: string;
+}) {
   return (
     <div className="min-h-0 flex-1 overflow-y-auto">
-      <div className="flex flex-col">{children}</div>
+      {/* contentClassName은 내부 컬럼에 붙는다 — flex-1 자식으로 뷰포트를 채우려면 min-h-full 주입용. */}
+      <div className={cn("flex flex-col", contentClassName)}>{children}</div>
     </div>
   );
 }

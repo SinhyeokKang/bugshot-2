@@ -484,6 +484,24 @@ function handleApplyClasses(classList: string[]): void {
   scheduleSelectionUpdate();
 }
 
+// 값 끝 !important를 분리해 priority 인자로 적용 — 2-arg setProperty는
+// "red !important"를 무효값으로 조용히 드롭한다. 접미사 없는 값은 기존 경로 그대로.
+function applyInlineStyle(
+  el: HTMLElement,
+  inlineStyle: Record<string, string>,
+): void {
+  for (const [prop, value] of Object.entries(inlineStyle)) {
+    if (!value) continue;
+    const base = value.replace(/\s*!\s*important\s*$/i, "");
+    if (base !== value) {
+      // 값이 !important뿐이면 base가 빈 문자열 — setProperty(prop,"")는 removeProperty라 skip.
+      if (base) el.style.setProperty(prop, base, "important");
+    } else {
+      el.style.setProperty(prop, value);
+    }
+  }
+}
+
 function handleApplyStyles(inlineStyle: Record<string, string>): void {
   if (!selectedEl) return;
   captureOriginal(selectedEl);
@@ -493,10 +511,7 @@ function handleApplyStyles(inlineStyle: Record<string, string>): void {
   } else {
     el.setAttribute("style", originalStyle);
   }
-  for (const [prop, value] of Object.entries(inlineStyle)) {
-    if (!value) continue;
-    el.style.setProperty(prop, value);
-  }
+  applyInlineStyle(el, inlineStyle);
   inspectorCache.delete(el);
   render();
   // 인라인 편집을 되돌린 직후(키 제거) 직전에 예약된 stale 재수집이 baseline을 오염시킬 수
@@ -528,10 +543,7 @@ function handleApplyEditsBySelector(msg: {
   if ((h.getAttribute("class") ?? "") !== nextClass) {
     h.className = nextClass;
   }
-  for (const [prop, value] of Object.entries(msg.inlineStyle)) {
-    if (!value) continue;
-    h.style.setProperty(prop, value);
-  }
+  applyInlineStyle(h, msg.inlineStyle);
   if (
     msg.text !== null &&
     state.editable &&

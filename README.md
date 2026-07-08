@@ -39,7 +39,7 @@ Full walkthrough in the [Quick Start guide](https://bug-shot.com/en/docs/quick-s
 Fix the bug visually before you even describe it.
 
 - **Element picker** — hover to highlight, click to select any DOM element on the page. Works on nested and deeply styled elements.
-- **Live CSS editing** — edit layout, spacing, sizing, color, typography, borders, and more through structured fields. Changes apply to the live page instantly, so you can dial in the exact fix and see it in place.
+- **Live CSS editing** — edit layout, spacing, sizing, color, typography, borders, and more through structured fields, or switch to a syntax-highlighted CSS code editor — prefilled with the element's current styles (four-side longhands merged into shorthands), with autocomplete and inline color swatches — to edit raw CSS directly (arbitrary properties, `!important`). Changes apply to the live page instantly, so you can dial in the exact fix and see it in place.
 - **Design token awareness** — resolves `var()` chains and shows the token name (e.g. `--color-primary`) instead of the raw computed value, so the report speaks your design system's language.
 - **Before/after diff** — every change is tracked and rendered as a before → after table in the issue, so developers see exactly which properties to change. Edits across multiple elements are stacked and preserved until you submit.
 

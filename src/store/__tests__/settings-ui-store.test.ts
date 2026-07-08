@@ -152,4 +152,16 @@ describe("settings-ui-store", () => {
       expect(migrated.recordingMode).toBe("screen");
     });
   });
+
+  describe("styleEditorView 마이그레이션 (v6→v7)", () => {
+    it("styleEditorView 부재 시 기본값 'form' 부여", () => {
+      const migrated = migrateSettingsUi({}, 6);
+      expect(migrated.styleEditorView).toBe("form");
+    });
+
+    it("기존 styleEditorView는 보존(덮어쓰지 않음)", () => {
+      const migrated = migrateSettingsUi({ styleEditorView: "code" }, 6);
+      expect(migrated.styleEditorView).toBe("code");
+    });
+  });
 });

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Crosshair, RotateCcw, Sparkles } from "lucide-react";
+import { Code2, Crosshair, Paintbrush, RotateCcw, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useT } from "@/i18n";
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,13 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { cn } from "@/lib/utils";
 import { useEditorStore } from "@/store/editor-store";
+import {
+  useSettingsUiStore,
+  type StyleEditorView,
+} from "@/store/settings-ui-store";
 import { useBoundTabId } from "@/sidepanel/hooks/useBoundTabId";
 import { useAI } from "@/sidepanel/hooks/useAI";
 import { useBufferThenSwitch } from "@/sidepanel/hooks/useBufferThenSwitch";
@@ -39,7 +45,9 @@ import {
   TextProp,
 } from "./styleEditor/StylePropEditors";
 import { AiStylingDialog } from "./styleEditor/AiStylingDialog";
+import { StyleCssView } from "./styleEditor/StyleCssView";
 import { StyleChangesDialog } from "./styleEditor/StyleChangesDialog";
+import { elementKey } from "@/lib/element-key";
 
 const SECTION_PROPS = {
   layout: [
@@ -115,6 +123,8 @@ export function SelectedPanel() {
   const setAfterImage = useEditorStore((s) => s.setAfterImage);
   const confirmStyles = useEditorStore((s) => s.confirmStyles);
   const reset = useEditorStore((s) => s.reset);
+  const styleEditorView = useSettingsUiStore((s) => s.styleEditorView);
+  const setStyleEditorView = useSettingsUiStore((s) => s.setStyleEditorView);
   const tabId = useBoundTabId();
   const { status: aiStatus, providerLabel, createSession } = useAI();
   const [proceeding, setProceeding] = useState(false);
@@ -165,8 +175,9 @@ export function SelectedPanel() {
 
   return (
     <PageShell>
-      <PageScroll>
-        <div className="sticky top-0 z-10 border-b border-border bg-background py-6">
+      {/* 코드 뷰에선 내부 컬럼을 뷰포트 높이로 채워 에디터(flex-1)가 항상 패널을 가득 채우게 한다. */}
+      <PageScroll contentClassName={styleEditorView === "code" ? "min-h-full" : undefined}>
+        <div className="sticky top-0 z-10 shrink-0 border-b border-border bg-background pt-6 pb-3">
           <div className="flex items-center gap-2 px-4">
             <DomNavButton direction="parent" />
             <div className="min-w-0 flex-1">
@@ -175,15 +186,41 @@ export function SelectedPanel() {
             <DomNavButton direction="child" />
             <RepickButton />
           </div>
+          <Tabs
+            value={styleEditorView}
+            onValueChange={(v) => setStyleEditorView(v as StyleEditorView)}
+            className="mt-6 border-t border-border px-4 pt-3"
+          >
+            <TabsList className="grid h-9 w-full grid-cols-2" data-testid="style-view-toggle">
+              <TabsTrigger value="form" data-testid="style-view-form" className="min-w-0 gap-1.5">
+                <Paintbrush className="h-3.5 w-3.5 shrink-0" />
+                {t("editor.view.form")}
+              </TabsTrigger>
+              <TabsTrigger value="code" data-testid="style-view-code" className="min-w-0 gap-1.5">
+                <Code2 className="h-3.5 w-3.5 shrink-0" />
+                {t("editor.view.code")}
+              </TabsTrigger>
+            </TabsList>
+          </Tabs>
         </div>
 
-        <Section
-          title={t("editor.section.class")}
-          action={<ClassRevertButton />}
-        >
-          <ClassEditor />
-        </Section>
+        <div className={cn("[&>section:last-child]:border-b", styleEditorView !== "form" && "hidden")}>
+          <Section
+            title={t("editor.section.class")}
+            action={<ClassRevertButton />}
+          >
+            <ClassEditor />
+          </Section>
+        </div>
 
+        {styleEditorView === "code" && (
+          // 헤더(shrink-0)를 뺀 나머지를 flex-1로 채운다 → 에디터가 항상 패널을 가득 채움.
+          <div className="flex min-h-0 flex-1 flex-col border-b border-border">
+            <StyleCssView key={elementKey(selection)} />
+          </div>
+        )}
+
+        <div className={cn("[&>section:last-child]:border-b", styleEditorView !== "form" && "hidden")}>
         <Section
           title={t("editor.section.layout")}
           action={<SectionRevertButton props={SECTION_PROPS.layout} />}
@@ -365,16 +402,20 @@ export function SelectedPanel() {
           />
         </Row2>
       </Section>
+      </div>
 
       {selection.text !== null ? (
-        <Section
-          title={t("editor.section.text")}
-          action={<TextRevertButton />}
-        >
-          <TextEditor />
-        </Section>
+        <div className={cn("[&>section:last-child]:border-b", styleEditorView !== "form" && "hidden")}>
+          <Section
+            title={t("editor.section.text")}
+            action={<TextRevertButton />}
+          >
+            <TextEditor />
+          </Section>
+        </div>
       ) : null}
 
+      <div className={cn(styleEditorView !== "form" && "hidden")}>
       <Section
         title={t("editor.section.typography")}
         action={<SectionRevertButton props={SECTION_PROPS.typography} />}
@@ -441,6 +482,7 @@ export function SelectedPanel() {
         </Row2>
         <TextProp label="easing" prop="transition-timing-function" />
         </Section>
+      </div>
       </PageScroll>
       {aiStatus === "available" && (
         <button
