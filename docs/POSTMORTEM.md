@@ -21,6 +21,15 @@
 
 ---
 
+## 2026-07-08 — AI 스타일 적용이 CSS code view 포커스 중이면 다음 타이핑에 조용히 덮어써짐
+
+- **증상**: element 스타일 편집기의 CSS code view(CodeMirror)에 포커스한 채 AI 스타일링을 실행하면, AI가 넣은 값이 store·DOM엔 반영되지만 에디터 doc은 옛 상태로 남고, 사용자가 이어서 한 글자라도 치면 AI가 넣은 inlineStyle이 흔적 없이 사라졌다.
+- **근본 원인**: 표면(AI 편집 손실)과 원인(포커스 가드로 인한 store↔doc divergence)이 다른 레이어. `StyleCssView`는 타이핑 커서 튐·늦은 cross-origin specified 보강을 막으려고 **포커스 중엔 외부 재동기화(doc 통째 교체)를 스킵**한다. AI 응답이 `setStyleEdits`로 store를 갱신할 때 마침 포커스면 이 가드에 걸려 doc이 stale해지고, 이후 `handleChange`가 stale doc 기준으로 override를 재계산해 store를 덮어쓴다. **함정 포인트**: read-only 잠금만으론 못 막는다 — `AiStylingDialog`가 `setStyleEdits(merged)`(응답 적용)를 `setAiStylingLoading(false)`보다 **먼저** 호출하므로, 로딩이 풀리는 순간 doc은 이미 stale 확정. 로딩 해제 전이 시점에 포커스 무관 강행 재동기화가 있어야 store가 진실의 원천으로 회복된다.
+- **재발 방지**: (1) **store↔로컬 파생 상태(에디터 doc 등)를 포커스/편집 가드로 스킵하는 곳에선, 외부 프로그램적 변경(AI·자동 적용)이 그 가드를 뚫는 예외 경로가 있는지 확인** — 사용자 편집 충돌 방지 가드가 프로그램적 write까지 막으면 조용한 손실이 된다. `StyleCssView`의 `shouldResyncDoc({focused, aiApplied})`가 선례(평시 포커스 스킵 + AI 적용 시 강행). (2) grep: `grep -rn "focusedRef\|focused.*current" src/sidepanel` — 포커스 가드가 store 재동기화를 막는 지점에 프로그램적 변경 예외가 있는지 점검. (3) **적용(setState)과 로딩 플래그 해제의 순서에 의존하지 말 것** — 적용이 먼저면 "로딩 중 read-only"는 이미 늦다. 상태 전이(true→false) 자체를 트리거로 삼아 만회한다. (4) 이 로직은 순수함수(`docSync.ts`)로 뽑아 `docSync.test.ts`에서 `focused=true, aiApplied=true → true` 조합이 회귀 감지 지점 — 컴포넌트 통합은 인프라 부재로 스킵.
+- **관련**: `src/sidepanel/tabs/styleEditor/docSync.ts`(`shouldResyncDoc`), `StyleCssView.tsx`(`prevAiLoadingRef` + 재동기화 effect), `AiStylingDialog.tsx`(`setStyleEdits`→`setAiStylingLoading(false)` 순서), `docSync.test.ts`.
+
+---
+
 ## 2026-07-05 — e2e 전 스위트가 "시작도 안 됨"으로 hang — Playwright `worker.evaluate`가 crxjs 모듈 SW에서 무한 대기
 
 - **증상**: 어느 순간부터 `pnpm test:e2e`가 첫 테스트에서 멈춰 스위트가 통째로 진행 안 됨("시작도 안 됨"). 브라우저는 뜨는데 안 보이던 **크롬 번역 버블**까지 관측돼 "환경이 바뀌었다"는 오해를 부름. 코드 diff는 무관(직전 green 이후 guide 이미지 1개뿐).
