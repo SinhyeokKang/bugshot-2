@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import CodeMirror, {
   Decoration,
+  EditorState,
   EditorView,
   Facet,
   ViewPlugin,
@@ -36,6 +37,13 @@ import {
   tokenFamilyPrefixes,
 } from "./tokenSuggest";
 import { swatchColorFor } from "./cssSwatch";
+import { selectorLineProtectedRange } from "./selectorLock";
+
+// 1행(선택자 줄)은 편집 잠금 — 가려진 `{`가 훼손되면 parseCssBlock이 깨진다. 선택·커서 이동·복사는 허용.
+// changeFilter로 1행만 protected range 처리 → 1행 변경만 드롭되고 본문 변경(전체 삭제 포함)은 통과.
+const lockSelectorLine = EditorState.changeFilter.of((tr) =>
+  selectorLineProtectedRange(tr.startState.doc.lineAt(0).to),
+);
 
 // lang-css의 값 완성이 약해 흔한 값을 커스텀 소스로 보강. 선언부(콜론 뒤)에서만 제안.
 const VALUE_HINTS = [
@@ -224,8 +232,14 @@ const editorTheme = EditorView.theme({
   ".cm-decl-colon": { paddingRight: "4px" },
   // 선언/닫는 줄 들여쓰기 — 번호↔선택자 간격(gutterElement 12px)만큼 property를 밀어넣음(knob).
   ".cm-body-indent": { paddingLeft: "12px" },
-  ".cm-activeLine": { backgroundColor: "transparent" },
-  ".cm-activeLineGutter": { backgroundColor: "transparent" },
+  // 행 hover·focus(활성 줄) 시 배경 살짝 진하게 — muted 토큰 저알파로 라이트/다크 자동 대응.
+  // 본문·번호(gutter)가 별도 컬럼이라 hover는 컬럼별 독립. 활성 줄은 CM이 양 컬럼을 동기화.
+  ".cm-line:hover": { backgroundColor: "hsl(var(--muted) / 0.4)" },
+  ".cm-lineNumbers .cm-gutterElement:hover": {
+    backgroundColor: "hsl(var(--muted) / 0.4)",
+  },
+  ".cm-activeLine": { backgroundColor: "hsl(var(--muted) / 0.55)" },
+  ".cm-activeLineGutter": { backgroundColor: "hsl(var(--muted) / 0.55)" },
   ".cm-color-swatch": {
     display: "inline-block",
     width: "0.85em",
@@ -643,6 +657,7 @@ export default function CssCodeMirror({
       // 라이트/다크를 동일 구성으로 맞춘다. dark는 액센트 하이라이트 선택에만 쓰인다.
       theme="none"
       extensions={[
+        lockSelectorLine,
         css(),
         cssValueCompletion,
         tokenCompletion,
