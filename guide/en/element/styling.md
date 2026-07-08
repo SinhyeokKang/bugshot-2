@@ -22,7 +22,7 @@ From top to bottom, the panel is organized into these sections (labels show in E
 
 ## The Edit and CSS tabs
 
-![Edit/CSS tabs](../assets/element-styling-4.jpg)
+![Edit/CSS tabs](../assets/element-styling-2.jpg)
 
 Just below the element name at the top of the panel sit two tabs: **Edit** and **CSS**. Switch to whichever feels easier.
 
@@ -64,7 +64,7 @@ This help carries over to the CSS tab too. Type `var(--` or click a token alread
 
 ## Review changes
 
-![Review changes dialog](../assets/element-styling-2.jpg)
+![Review changes dialog](../assets/element-styling-3.jpg)
 
 Lost track of what you've changed? Hit the **Review changes** button at the bottom of the panel. The number beside it is how many changes you've made so far — and if you haven't changed anything, the button stays disabled.
 
@@ -77,7 +77,7 @@ Row resets run instantly without asking, so tidy up with peace of mind. Once not
 
 ## AI Styling
 
-![AI Styling banner](../assets/element-styling-3.jpg)
+![AI Styling banner](../assets/element-styling-4.jpg)
 
 With an AI (LLM) connected, an **AI Styling** banner appears in the panel. When touching values by hand feels like a chore, just **describe what you want**.
 
