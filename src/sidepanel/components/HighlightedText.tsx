@@ -15,7 +15,7 @@ export function HighlightedText({ text, query }: { text: string; query: string }
           <mark
             key={i}
             data-testid="log-highlight"
-            className="-mx-0.5 rounded-[4px] bg-blue-200 p-0.5 text-inherit dark:bg-blue-400/30"
+            className="-mx-0.5 rounded-[4px] bg-blue-300/50 p-0.5 text-inherit dark:bg-blue-400/30"
           >
             {seg.text}
           </mark>
