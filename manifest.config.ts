@@ -10,7 +10,7 @@ export default defineManifest({
   short_name: "__MSG_EXT_NAME_SHORT__",
   description: "__MSG_EXT_DESCRIPTION__",
   version: pkg.version,
-  default_locale: "ko",
+  default_locale: "en",
   minimum_chrome_version: "116",
   ...(isStoreBuild ? {} : { key: DEV_KEY }),
   icons: {
