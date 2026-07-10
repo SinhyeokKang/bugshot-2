@@ -215,7 +215,7 @@ export function SelectedPanel() {
 
         {styleEditorView === "code" && (
           // 헤더(shrink-0)를 뺀 나머지를 flex-1로 채운다 → 에디터가 항상 패널을 가득 채움.
-          <div className="flex min-h-0 flex-1 flex-col border-b border-border">
+          <div className="flex min-h-0 flex-1 flex-col">
             <StyleCssView key={elementKey(selection)} />
           </div>
         )}

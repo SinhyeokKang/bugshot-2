@@ -7,3 +7,15 @@ export function selectorLineProtectedRange(
 ): readonly number[] {
   return [0, firstLineTo];
 }
+
+// protected range는 "겹치는 변경 조각"을 통째로 드롭한다. uiw가 value prop 동기화에 쓰는
+// 전체 doc 교체({from:0,to:len,insert})는 1행과 겹쳐 삽입분까지 날아가고 삭제만 남아 doc이
+// 선택자 1행으로 붕괴한다(AI 스타일링·전체 리셋 직후 본문 전멸). 사용자 입력엔 userEvent가
+// 실리고 프로그램적 dispatch엔 없으므로, 보호는 userEvent 있는 변경에만 건다.
+export function selectorLineChangeFilter(opts: {
+  hasUserEvent: boolean;
+  firstLineTo: number;
+}): true | readonly number[] {
+  if (!opts.hasUserEvent) return true;
+  return selectorLineProtectedRange(opts.firstLineTo);
+}
