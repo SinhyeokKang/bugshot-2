@@ -6,7 +6,7 @@
 
 배너의 시각 스펙은 기존 AI 배너 두 개(`DraftingPanel`의 purple, `StyleEditorPanel`의 teal)에서 확립된 패턴을 따른다: 스크롤 영역 다음·footer 바로 위에 붙는 `rounded-t-lg` 버튼.
 
-세 호출부의 구조가 같다는 점이 핵심이다. `PageFooter`(`Section.tsx:37`)는 `border-t bg-muted/50`이고, shadcn `DialogFooter`(`dialog.tsx:70`)도 `-mx-6 -mb-6 border-t border-border bg-muted/50 rounded-b-2xl`로 **같은 면**을 만든다. 따라서 다이얼로그에서도 `rounded-t-lg` 접합이 그대로 성립하며, 배너 형태를 분기할 필요가 없다.
+세 호출부의 구조가 같다는 점이 핵심이다. `PageFooter`(`Section.tsx:37`)는 `border-t bg-muted/50`이고, shadcn `DialogFooter`(`dialog.tsx:70`)도 같은 `border-t border-border bg-muted/50`를 갖는다(전체 클래스는 `flex flex-col-reverse gap-2 -mx-6 -mb-6 border-t border-border bg-muted/50 p-6 rounded-b-2xl sm:flex-row sm:justify-end`). 따라서 다이얼로그에서도 `rounded-t-lg` 접합이 그대로 성립하며, 배너 형태를 분기할 필요가 없다.
 
 ## 변경 범위
 
@@ -38,6 +38,7 @@
 
 - **삭제**: `387-393`의 `noPlatformConnected ? <Alert .../> : null` 블록.
 - **추가**: `</PageScroll>`(`385`) 다음, `<PageFooter>`(`386`) 직전에 배너. 여백 보정 불필요.
+- **주의 — 제자리 교체가 아니라 위치 이동이다.** 기존 Alert는 `<PageFooter>`의 **자식**이고(`386`이 오픈 태그, `387-393`이 그 안), 배너는 `PageFooter`의 **형제**로 승격되어 footer 위에 온다. Alert가 갖고 있던 `className="mb-2"`는 버린다.
 - `noPlatformConnected`(`74-77`)는 배너 노출 조건으로 그대로 재사용한다.
 - `useTabNav` import 추가.
 - import 정리: `Alert`/`AlertDescription`/`AlertTitle`(`4`)과 `Info`(`2`)가 이 파일에서 고아가 되면 제거. `Download`는 다른 곳에서 쓰므로 유지.
@@ -45,15 +46,20 @@
 ### `src/sidepanel/tabs/DraftDetailDialog.tsx`
 
 - **삭제**: `943-949`의 `available.length === 0 ? <Alert .../> : null` 블록.
-- **추가**: 같은 위치에 배너. `className="-mx-6 -mb-5"`.
+- **추가**: 같은 위치에 배너. `className="-mx-6 -mt-5 -mb-5"`.
 - 배너 위치는 `DialogContent`(`870`) 직계 자식이고, 바로 위(`875`)가 `flex-1 overflow-y-auto` 스크롤 영역, 바로 아래(`951`)가 `DialogFooter`다. 즉 `PageScroll → 배너 → PageFooter`와 동일한 3층 구조다.
-- **여백 보정 근거**:
+- **여백 보정 근거**: `DialogContent`는 `flex flex-col gap-5 p-6`이다(`870` — `gap-5`는 shadcn 기본 `gap-4`를 오버라이드한 값). flex column에서 인접 아이템 간격은 `margin-bottom(위) + gap + margin-top(아래)`이므로:
   - `-mx-6` — `DialogContent`가 `p-6`이고 `DialogFooter`는 `-mx-6`로 가장자리까지 넓다. 배너도 같이 밀어야 폭이 맞아 접합된다.
-  - `-mb-5` — `DialogContent`가 `gap-5`로 오버라이드돼 있어(`870`, shadcn 기본 `gap-4` 아님) 배너와 footer 사이에 20px 갭이 생긴다. 이를 상쇄해야 배너 하단이 footer 상단에 닿는다.
-- 노출 조건은 `available.length === 0` 유지 (PRD S4 참조 — Slack-preserved 엣지를 의도적으로 포함).
+  - `-mb-5` — 배너와 `DialogFooter` 사이의 `gap-5`(20px)를 상쇄한다. 배너 하단이 footer 상단에 닿는다.
+  - `-mt-5` — 스크롤 영역과 배너 사이의 `gap-5`(20px)를 상쇄한다. **이것이 없으면 배너 위만 20px 뜨고 아래만 붙는 비대칭이 된다.** 사이드패널의 AI 배너는 `PageShell`이 gap 없는 flex column이라 위아래 모두 flush인데, 다이얼로그만 다르게 보이면 "AI 배너 패턴 준수"라는 설계 전제가 깨진다.
+- 노출 조건은 `available.length === 0` 유지 (PRD S4 참조 — Slack-preserved 엣지를 의도적으로 포함). 이 값은 `useMemo` 내부 삼항식이다: `issue ? submittablePlatforms(issue, accounts) : connectedPlatforms(accounts)` (`156-159`). 다이얼로그는 `issue`가 항상 존재하므로 실질적으로 늘 `submittablePlatforms` 분기다.
 - 클릭 핸들러는 `onOpenChange(false)` 후 `navTo("integrations")`. 다이얼로그를 닫지 않으면 탭이 바뀌어도 다이얼로그가 위를 덮는다. `onOpenChange(false)` 패턴은 `974`의 닫기 버튼과 동일.
 - `useTabNav` import 추가.
 - import 정리: `Alert` 계열과 `Info`가 고아가 되면 제거.
+
+### `src/sidepanel/tabs/DraftingPanel.tsx` · `src/sidepanel/tabs/StyleEditorPanel.tsx`
+
+기존 AI 배너 버튼(`DraftingPanel.tsx:388`, `StyleEditorPanel.tsx:489`)에 `focus-visible` 클래스만 추가한다. 그 외 일절 변경 없음. 위 "focus 링 소급 적용" 참조.
 
 ### `src/i18n/namespaces/app.ts`
 
@@ -114,7 +120,7 @@ export function IntegrationsCta({
 
 `onNavigate`를 prop으로 받는 이유: `DraftDetailDialog`는 `navTo` 앞에 `onOpenChange(false)`를 끼워야 하므로, 컴포넌트가 `useTabNav()`를 직접 호출하면 그 합성이 불가능하다.
 
-`className`은 호출부 여백 보정 전용이다(`DraftDetailDialog`의 `-mx-6 -mb-5`). 형태·색상은 분기하지 않는다.
+`className`은 호출부 여백 보정 전용이다(`DraftDetailDialog`의 `-mx-6 -mt-5 -mb-5`). 형태·색상은 분기하지 않는다.
 
 배너 마크업 (AI 배너 패턴 준수 — `DraftingPanel.tsx:386-402` / `StyleEditorPanel.tsx:487-504`):
 
@@ -126,6 +132,7 @@ export function IntegrationsCta({
     "flex items-center justify-between rounded-t-lg px-3.5 py-2.5 transition-colors",
     "bg-amber-100/80 text-amber-700 hover:bg-amber-100",
     "dark:bg-amber-950/50 dark:text-amber-300 dark:hover:bg-amber-900",
+    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset",
     className,
   )}
   onClick={onNavigate}
@@ -144,6 +151,13 @@ export function IntegrationsCta({
 - 좌측 아이콘 `Info` — 대체되는 Alert가 쓰던 아이콘(`PreviewPanel.tsx:389`, `DraftDetailDialog.tsx:945`)을 그대로 승계. AI 배너에서 `Badge`가 있던 자리다.
 - 우측 아이콘 `Blocks` — 연동 탭 빈 상태(`IntegrationsTab.tsx:208`)가 쓰는 아이콘. 목적지를 가리킨다.
 - AI 배너의 gradient text(`bg-clip-text text-transparent`)는 쓰지 않는다. 담백한 톤 요구.
+- `focus-visible:ring-inset` — 배너가 footer에 접합되고 다이얼로그에서는 `-mx-6`로 가장자리까지 밀리므로, 바깥으로 뻗는 링은 잘린다. 안쪽 링을 쓴다. 링 색은 토큰 `ring`을 쓴다(amber 하드코딩 아님).
+
+### focus 링 소급 적용
+
+기존 AI 배너 두 개(`DraftingPanel.tsx:388`, `StyleEditorPanel.tsx:489`)는 `hover:` 클래스만 있고 focus 스타일이 없다. 셋 다 같은 슬롯·같은 형태의 배너 버튼이므로 **동일한 `focus-visible` 클래스를 세 곳에 함께 적용한다**. CTA에만 넣으면 같은 자리의 형제 배너가 서로 다르게 동작한다.
+
+이는 "외과적 변경" 원칙의 예외로, 이번 변경이 만든 불일치를 해소하는 최소 조치다. 마크업 구조·색·동작은 건드리지 않고 focus 클래스만 추가한다.
 
 ## 기존 패턴 준수
 
@@ -169,7 +183,9 @@ export function IntegrationsCta({
 
 - **e2e 회귀**: `e2e/onboarding.spec.ts`가 현재 동작을 고정하고 있어 반드시 함께 수정해야 한다. 수정하지 않으면 `/push`·`/merge`의 e2e 게이트에서 빨간불로 막힌다.
 - **`DraftDetailDialog` 닫기 순서**: `navTo`를 먼저 호출하고 `onOpenChange(false)`를 나중에 하면, 탭은 바뀌었는데 다이얼로그가 한 프레임 남을 수 있다. 닫기를 먼저 한다.
-- **`-mb-5` 하드코딩**: `DialogContent`의 `gap-5`(`DraftDetailDialog.tsx:870`)에 묶인 값이다. 그 클래스가 바뀌면 배너와 footer 사이에 갭이 생기거나 겹친다. 두 값이 같이 움직여야 한다.
+- **`-mt-5 -mb-5` 하드코딩**: `DialogContent`의 `gap-5`(`DraftDetailDialog.tsx:870`)에 묶인 값이다. 그 클래스가 바뀌면 배너 위아래에 갭이 생기거나 겹친다. 세 값이 같이 움직여야 한다.
+- **`EmptyState`의 배너 위 여백**: `EmptyState`는 `PageScroll` 없이 `flex-1 justify-center` div를 쓴다(`IssueTab.tsx:179`). 따라서 배너 위쪽이 스크롤 경계가 아니라 **중앙 정렬된 캡처 버튼 묶음과 배너 사이의 빈 공간**이다. 같은 `rounded-t-lg` 접합인데도 "footer에 붙은 탭"이 아니라 "화면 하단에 뜬 바"처럼 보일 수 있다. 수동 확인 후 어색하면 배너를 `PageFooter` 내부 첫 자식(`gap-2` 활용)으로 옮기는 것이 백업안이다.
+- **`previewing` 화면의 신호 중복**: 배너(안내)와 `IssueCreateModal`의 disabled 제출 버튼+툴팁(차단)이 한 화면에 함께 보인다. 목적이 달라 의도한 것이며 PRD 목표 4의 "안내 UI 일원화"와 모순되지 않는다(PRD 목표 4 각주 참조).
 - **`DialogFooter` 하단 라운드**: 기본값이 `rounded-b-2xl`(`dialog.tsx:70`)인데 이 다이얼로그는 `rounded-3xl`이다(`870`). 기존부터 어긋나 있던 부분이며 이번 스코프 밖이다. 배너 접합과는 무관(배너는 상단에 붙는다).
 - **`EmptyState` 레이아웃**: 캡처 버튼 컨테이너가 `flex-1 justify-center`라 배너를 추가하면 수직 중앙 정렬 기준이 바뀐다. 배너가 `flex-1` 바깥·`PageFooter` 위에 오므로 중앙 정렬은 남은 공간 기준으로 재계산된다. 시각 확인 필요(수동 테스트 항목).
 - **좁은 사이드패널 폭**: 배너는 좌측 문구 `truncate` + 우측 액션 `shrink-0`이다. ko "플랫폼을 추가해 이슈를 등록하세요."는 en보다 길어 좁은 폭에서 먼저 잘린다. 최소 폭에서 우측 액션이 살아남는지 확인 필요(수동 테스트 항목).
