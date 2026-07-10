@@ -21,6 +21,15 @@
 
 ---
 
+## 2026-07-10 — CodeMirror changeFilter의 protected range가 프로그램적 doc 교체를 삼켜 CSS 뷰 본문 전멸
+
+- **증상**: element 스타일 편집기 CSS 탭에서 AI 스타일링을 돌리거나 "모든 스타일 리셋"을 누르면, 코드 뷰가 선택자 1행(`a:nth-child(4) {`)만 남고 선언이 통째로 사라졌다. 편집 탭으로 갔다 돌아오면 멀쩡히 복구돼 "가끔 그러는 것 같은 느낌"으로만 보였다.
+- **근본 원인**: 1행(가려진 `{`) 보호용 `EditorState.changeFilter`가 `[0, firstLineTo]`를 protected range로 반환한다. CodeMirror는 protected range와 **겹치는 변경 조각을 통째로 드롭**하는데(`ChangeSet.filter`), `@uiw/react-codemirror`는 `value` prop 동기화를 `{from:0, to:doc.length, insert:newDoc}` **전체 교체**로 dispatch한다. 이 교체는 1행과 겹치므로 삽입 텍스트가 붙은 조각이 드롭되고 **삭제만 살아남아** doc이 1행으로 붕괴한다. 즉 "1행만 보호"가 실제로는 "프로그램적 doc 교체 전체를 파괴"였다. 표면(본문 전멸)과 원인(다른 레이어의 필터가 상위 React 동기화를 클립)이 어긋난 케이스. **함정 포인트 3개**: (1) 타이핑은 본문 안에서만 변경하므로 필터가 무해해 보인다 — 회귀는 오직 *프로그램적* 재동기화에서만 터진다. (2) `StyleCssView`는 CSS 탭에서만 마운트되고 `key`로 remount되므로, **탭을 한 번만 왕복해도 `EditorState.create({doc: value})`로 재파생돼 증상이 사라진다**(create는 changeFilter를 안 거친다) — 재현·판정 시 탭 전환 금지. (3) 이 경로를 처음 노출시킨 건 직전 픽스([2026-07-08](#2026-07-08--ai-스타일-적용이-css-code-view-포커스-중이면-다음-타이핑에-조용히-덮어써짐))의 "AI 적용 시 포커스 무관 강행 재동기화"였다 — 강행 재동기화가 없었으면 setValue가 안 일어나 잠복했다. `onChange`가 안 불린 건 uiw가 외부 dispatch에 `External` 어노테이션을 달아 스킵해준 덕 — 안 그랬으면 `computeOverrides({}, specified)`가 전 속성을 `initial`로 방출해 페이지까지 리셋됐다.
+- **재발 방지**: (1) **`changeFilter`/`transactionFilter`로 문서 일부를 보호할 땐 "사용자 입력에만" 걸어라** — 프로그램적 dispatch엔 `userEvent`가 없다. 판별은 `tr.annotation(Transaction.userEvent) !== undefined`. grep: `grep -rn "changeFilter\|transactionFilter" src/`. (2) **React 바인딩(`value` prop)이 doc을 어떻게 밀어넣는지 확인** — uiw는 full-range replace다. 부분 보호 필터와 full-range replace는 항상 충돌한다. (3) 마운트 조건이 붙은 에디터(`styleEditorView === "code"` + `key=elementKey`)는 **탭 왕복이 증상을 지운다** — 회귀 판정은 탭에 머문 채. e2e는 `ai-styling.spec.ts`의 "CSS 탭 유지 상태에서 AI 스타일링" 케이스가 그 지점(픽스를 되돌리면 red 확인됨). (4) 단위는 `selectorLock.test.ts`가 실제 `EditorState.update`로 전체 교체를 태워 본문 보존을 단언한다 — `@codemirror/state`는 직접 dep가 아니라 `@uiw/react-codemirror`의 re-export로 import.
+- **관련**: `src/sidepanel/tabs/styleEditor/selectorLock.ts`(`selectorLineChangeFilter`), `CssCodeMirror.tsx`(`lockSelectorLine`), `__tests__/selectorLock.test.ts`, `e2e/ai-styling.spec.ts`.
+
+---
+
 ## 2026-07-08 — AI 스타일 적용이 CSS code view 포커스 중이면 다음 타이핑에 조용히 덮어써짐
 
 - **증상**: element 스타일 편집기의 CSS code view(CodeMirror)에 포커스한 채 AI 스타일링을 실행하면, AI가 넣은 값이 store·DOM엔 반영되지만 에디터 doc은 옛 상태로 남고, 사용자가 이어서 한 글자라도 치면 AI가 넣은 inlineStyle이 흔적 없이 사라졌다.
