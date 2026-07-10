@@ -5,9 +5,8 @@ import type { ActionLog } from "@/types/action";
 import { getVideoBlob, getImageBlob, getNetworkLog, getConsoleLog, getActionLog, getAttachmentBlob, blobToDataUrl, pruneOrphanInlineImages } from "@/store/blob-db";
 import type { UserAttachmentMeta } from "@/types/attachment";
 import { useIssueImages } from "@/sidepanel/hooks/useIssueImages";
-import { Info, Pencil } from "lucide-react";
+import { Pencil } from "lucide-react";
 import { useT, dateBcp47 } from "@/i18n";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -37,6 +36,8 @@ import {
 import { useEditorStore } from "@/store/editor-store";
 import { useIssuesStore, type IssueRecord } from "@/store/issues-store";
 import { clearPicker } from "@/sidepanel/picker-control";
+import { useTabNav } from "@/sidepanel/tab-nav";
+import { IntegrationsCta } from "@/sidepanel/components/IntegrationsCta";
 import {
   connectedPlatforms,
   jiraSiteId,
@@ -151,6 +152,8 @@ export function DraftDetailDialog({
   const lastClickupSubmit = useSettingsStore((s) => s.lastSubmitFields.clickup);
   const lastSlackSubmit = useSettingsStore((s) => s.lastSubmitFields.slack);
   const lastSubmittedPlatform = useSettingsStore((s) => s.lastSubmittedPlatform);
+
+  const navTo = useTabNav();
 
   // Slack 보존 이슈는 Slack 탭을 제외(승격 전용). 그 외엔 연결된 전체 플랫폼.
   const available = useMemo(
@@ -940,13 +943,15 @@ export function DraftDetailDialog({
                 ) : null}
               </div>
 
-              {available.length === 0 ? (
-                <Alert variant="default">
-                  <Info className="h-4 w-4" />
-                  <AlertTitle>{t("platform.empty.title")}</AlertTitle>
-                  <AlertDescription>{t("platform.empty.body")}</AlertDescription>
-                </Alert>
-              ) : null}
+              {available.length === 0 && (
+                <IntegrationsCta
+                  className="-mx-6 -mt-5 -mb-5"
+                  onNavigate={() => {
+                    onOpenChange(false);
+                    navTo("integrations");
+                  }}
+                />
+              )}
 
               <DialogFooter className="!flex-row items-center !justify-between">
                 <AlertDialog>

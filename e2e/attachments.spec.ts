@@ -6,7 +6,7 @@ import { enterDebug, expect, test } from "./fixtures/extension";
 // 설정은 chrome.storage 영속이라 afterAll에서 OFF로 복원(후행 spec 오염 방지).
 
 async function setAttachmentsEnabled(panel: Page, enabled: boolean) {
-  // fresh 프로필 integrations 자동 전환 race를 active 폴링으로 흡수(settings-sections 패턴).
+  // hydration 전 클릭 유실을 active 폴링으로 흡수(settings-sections 패턴).
   await expect(async () => {
     await panel.getByTestId("tab-settings").click();
     await expect(panel.getByTestId("tab-settings")).toHaveAttribute(
@@ -91,7 +91,7 @@ test.describe.serial("이슈 파일 첨부", () => {
     await panel.waitForTimeout(400);
     await panel.close();
     panel = await ext.openPanel(tabId);
-    // 재오픈 시 debug 탭이 비활성이라 drafting-panel이 hidden — 탭 진입 후 복원 확인.
+    // 재오픈 시 debug가 기본 활성 탭이지만, hydration 전 렌더를 방어해 탭 진입을 확실히 한다.
     await enterDebug(panel);
     await expect(panel.getByTestId("drafting-panel")).toBeVisible();
     await expect(panel.getByTestId("attachment-item")).toHaveCount(10);

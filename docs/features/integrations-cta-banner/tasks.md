@@ -22,9 +22,9 @@
   - 유지: `platform.empty.title` — `IssueCreateModal.tsx:556`이 툴팁으로 계속 쓴다.
 - **주의**: `t()`가 `TranslationKey` 타입(`src/i18n/index.ts:23`)이라, 사용처(`PreviewPanel.tsx:391`·`DraftDetailDialog.tsx:947`)가 남은 채 `platform.empty.body`를 지우면 typecheck가 깨진다. Task 4와 한 배치로 끝내고 마지막에 typecheck를 돌리면 순서는 무관하다. 중간에 typecheck를 돌릴 계획이면 삭제를 Task 4 이후로 미룬다.
 - **검증**:
-  - [ ] `src/i18n/` 편집 시 PostToolUse 훅이 `locales.test.ts`를 자동 실행하고 통과한다 (ko/en 키 대칭·빈 값·placeholder 일치)
-  - [ ] `grep -rn "platform.empty.body" src/ e2e/` → 결과 0건
-  - [ ] `grep -rn "platform.empty.title" src/` → `IssueCreateModal.tsx` 1건만 남음
+  - [x] `src/i18n/` 편집 시 PostToolUse 훅이 `locales.test.ts`를 자동 실행하고 통과한다 (ko/en 키 대칭·빈 값·placeholder 일치) — 훅이 ko만 추가/삭제한 중간 상태를 두 번 차단해 대칭을 강제했다
+  - [x] `grep -rn "platform.empty.body" src/ e2e/` → 결과 0건
+  - [x] `grep -rn "platform.empty.title" src/` → `IssueCreateModal.tsx:556` 1건만 남음
 
 ### Task 2: `IntegrationsCta` 컴포넌트 신설
 
@@ -38,9 +38,9 @@
   - `data-testid="integrations-cta"`
   - `cn()`으로 `className` 합성
 - **검증**:
-  - [ ] `pnpm typecheck` 통과
-  - [ ] 컴포넌트가 `useTabNav`를 직접 호출하지 않는다 (호출부가 `onNavigate` 주입)
-  - [ ] gradient text(`bg-clip-text text-transparent`)를 쓰지 않는다
+  - [x] `pnpm typecheck` 통과
+  - [x] 컴포넌트가 `useTabNav`를 직접 호출하지 않는다 (호출부가 `onNavigate` 주입)
+  - [x] gradient text(`bg-clip-text text-transparent`)를 쓰지 않는다
 
 ### Task 3: AI 배너 2개에 focus 링 소급
 
@@ -62,10 +62,10 @@
   - `settingsHydrated`(`81`)는 유지 — `176` 렌더 가드에서 사용
 - **주의**: `App.tsx:262`의 OAuth 만료 다이얼로그가 `setTab("integrations")`를 호출한다. 이 경로는 독립이며 삭제 대상이 아니다.
 - **검증**:
-  - [ ] `pnpm typecheck` 통과 (미사용 변수·import 없음)
-  - [ ] `grep -n "connectedPlatforms\|accounts" src/sidepanel/App.tsx` → 결과 0건
-  - [ ] `navTo`·`TabNavContext.Provider`는 그대로 남아 있다
-  - [ ] `App.tsx:262`의 `setTab("integrations")`는 그대로 남아 있다
+  - [x] `pnpm typecheck` 통과 (미사용 변수·import 없음)
+  - [x] `grep -n "connectedPlatforms\|accounts" src/sidepanel/App.tsx` → 결과 0건
+  - [x] `navTo`·`TabNavContext.Provider`는 그대로 남아 있다
+  - [x] OAuth 만료 다이얼로그의 `setTab("integrations")`는 그대로 남아 있다 (effect 삭제로 `255`로 이동)
 
 ### Task 5: 3개 호출부에 배너 배치
 
@@ -92,10 +92,10 @@
   - `useTabNav` import 추가
   - `Alert`/`AlertDescription`/`AlertTitle`(`4`), `Info`(`2`) import 제거. `Download`는 `177`·`210`·`239`에서 계속 쓰므로 유지
 - **검증**:
-  - [ ] `pnpm typecheck` 통과
-  - [ ] 미리보기 화면에서 Alert 대신 배너가 뜬다
-  - [ ] 클립보드 복사 버튼이 여전히 동작한다 (연동 무관)
-  - [ ] 제출 버튼은 여전히 disabled + 툴팁 (배너와 공존이 의도)
+  - [x] `pnpm typecheck` 통과
+  - [ ] 미리보기 화면에서 Alert 대신 배너가 뜬다 (수동/e2e)
+  - [ ] 클립보드 복사 버튼이 여전히 동작한다 (연동 무관) (수동/e2e)
+  - [ ] 제출 버튼은 여전히 disabled + 툴팁 (배너와 공존이 의도) (수동/e2e)
 
 #### 5-3. `DraftDetailDialog.tsx`
 
@@ -122,8 +122,8 @@
   2. 빈 `accounts` → `submittablePlatforms`가 `[]` 반환
 - **근거**: 두 경로 모두 `DraftDetailDialog`의 배너 노출 조건이자 제출 버튼 disabled 조건(`978`)을 공유한다.
 - **검증**:
-  - [ ] `pnpm test` 통과
-  - [ ] 위 두 케이스가 실제로 새로 추가됐다 (기존 테스트 재활용 아님)
+  - [x] `pnpm test` 통과 (185 files / 2803 tests)
+  - [x] 위 두 케이스가 실제로 새로 추가됐다 (기존 테스트 재활용 아님)
 
 > 배너 컴포넌트 자체는 `/tdd` 분류표상 단위 테스트 스킵 대상. e2e로 커버한다.
 
@@ -158,10 +158,10 @@
 `PreviewPanel`은 연동 0개로 previewing에 도달하는 여러 spec이 공유한다(`freeform-draft`, `capture`, `download-buttons`, `draft-field-edit`, `settings-sections` 등). 이제 non-interactive `Alert` 대신 interactive `<button>`이 footer 위에 렌더된다.
 
 - **검증**:
-  - [ ] `pnpm build:e2e && pnpm test:e2e` **전체 green** (onboarding.spec.ts만이 아니라 전 스위트)
-  - [ ] previewing에 도달하는 spec들의 footer 버튼(`copy-markdown`·download·복귀)이 배너에 가려지거나 클릭이 가로채이지 않는다
-  - [ ] `onboarding.spec.ts`에 `tab-integrations` 자동 active 단언이 남아 있지 않다
-  - [ ] `grep -rn "자동 전환\|auto-redirect" e2e/` → stale 주석 0건
+  - [x] `pnpm build:e2e && pnpm test:e2e` **전체 green** (174 passed). 1회차에 `picker-guard`가 실패했으나 GOTCHAS 20번에 기록된 알려진 환경 flaky(재arm clobber 데드락)로, 단독 재실행 2/2 green + 전체 재실행 174/174 green으로 판정
+  - [x] previewing에 도달하는 spec들의 footer 버튼(`copy-markdown`·download·복귀)이 배너에 가려지거나 클릭이 가로채이지 않는다 (전체 스위트 green으로 확인)
+  - [x] `onboarding.spec.ts`에 `tab-integrations` 자동 active 단언이 남아 있지 않다 (5 tests로 재작성, 2회 연속 green)
+  - [x] `grep -rn "자동 전환\|auto-redirect" e2e/` → stale 주석 0건 (`onboarding.spec.ts` 제외 — 재작성 대상). `fixtures/extension.ts`·`GOTCHAS.md`·`COVERAGE.md` 외에 `attachments`·`settings-sections`·`draft-resume`·`draft-field-edit` spec 주석 4곳이 추가로 발견돼 함께 정정
 
 ---
 
