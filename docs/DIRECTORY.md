@@ -113,6 +113,7 @@ docs/                    # 프로젝트 레퍼런스 문서 (루트엔 CLAUDE.md
 ├── PERMISSION.md    # Chrome 권한 전체 레퍼런스 (activeTab·OAuth 토큰 흐름 등)
 ├── POSTMORTEM.md    # 회귀·버그 사후분석 회고 누적 (/postmortem)
 ├── features/        # 기능 기획 문서 (PRD·설계·태스크) — dev에서 작업, 구현 완료 시 삭제
+├── product-hunt/    # PH 런치 킷 (제출 폼 카피·규정·체크리스트) + assets/ (thumbnail-240.png + gallery/ 웹스토어 en 스크린샷 5장)
 ├── privacy.ko.md   # 개인정보처리방침 ko 원본 (bug-shot.com/ko/privacy 서빙 소스)
 └── privacy.en.md   # 개인정보처리방침 en 번역 (ko와 항상 동기화)
 guide/                   # 사용자 가이드 소스 (ko/en). bugshot-web docs-portal이 빌드타임에 fetch → bug-shot.com/{locale}/docs로 서빙. guide/{ko,en}/ 각각 SUMMARY.md + README.md + assets/ + 6개 섹션(integrations·settings·element·screenshot·video·logs) 25페이지. 작성 규칙은 guide/AUTHORING.md
