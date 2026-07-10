@@ -4,6 +4,7 @@ import CodeMirror, {
   EditorState,
   EditorView,
   Facet,
+  Transaction,
   ViewPlugin,
   WidgetType,
   hoverTooltip,
@@ -37,12 +38,16 @@ import {
   tokenFamilyPrefixes,
 } from "./tokenSuggest";
 import { swatchColorFor } from "./cssSwatch";
-import { selectorLineProtectedRange } from "./selectorLock";
+import { selectorLineChangeFilter } from "./selectorLock";
 
 // 1행(선택자 줄)은 편집 잠금 — 가려진 `{`가 훼손되면 parseCssBlock이 깨진다. 선택·커서 이동·복사는 허용.
 // changeFilter로 1행만 protected range 처리 → 1행 변경만 드롭되고 본문 변경(전체 삭제 포함)은 통과.
+// 단 uiw의 value 동기화(전체 doc 교체)엔 userEvent가 없다 — 보호를 걸면 본문이 통째로 날아간다.
 const lockSelectorLine = EditorState.changeFilter.of((tr) =>
-  selectorLineProtectedRange(tr.startState.doc.lineAt(0).to),
+  selectorLineChangeFilter({
+    hasUserEvent: tr.annotation(Transaction.userEvent) !== undefined,
+    firstLineTo: tr.startState.doc.lineAt(0).to,
+  }),
 );
 
 // lang-css의 값 완성이 약해 흔한 값을 커스텀 소스로 보강. 선언부(콜론 뒤)에서만 제안.
