@@ -7,6 +7,7 @@ import type { UserAttachmentMeta } from "@/types/attachment";
 import { useIssueImages } from "@/sidepanel/hooks/useIssueImages";
 import { Pencil } from "lucide-react";
 import { useT, dateBcp47 } from "@/i18n";
+import { cn } from "@/lib/utils";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -875,7 +876,13 @@ export function DraftDetailDialog({
                 <DialogTitle className="text-xl">{t("draftDetail.title")}</DialogTitle>
               </DialogHeader>
 
-              <div className="-m-1 flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overscroll-contain p-1">
+              <div
+                className={cn(
+                  "-m-1 flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto overscroll-contain p-1",
+                  // 배너가 -mt-5로 스크롤 영역에 붙으므로 본문 끝이 배너에 닿지 않게 여백을 회복한다.
+                  available.length === 0 && "pb-5",
+                )}
+              >
                 <FieldSection
                   label={t("section.issueTitle")}
                   action={

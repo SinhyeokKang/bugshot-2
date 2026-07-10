@@ -4,7 +4,7 @@
 
 - 새 권한·env·의존성 없음. `manifest.config.ts` 변경 없음.
 - 새 shadcn 컴포넌트 설치 없음. 배너는 raw `<button>`(기존 AI 배너 패턴).
-- 아이콘 `Info`·`Blocks`는 lucide-react에 이미 있고 코드베이스에서 사용 중.
+- 아이콘 `Blocks`는 lucide-react에 이미 있고 코드베이스에서 사용 중(`IntegrationsTab.tsx:208`).
 - 착수 전 `docs/POSTMORTEM.md`를 `sidepanel`·`탭`·`i18n` 키워드로 grep해 과거 함정을 확인한다.
 
 ---
@@ -33,7 +33,7 @@
   - props: `{ onNavigate: () => void; className?: string }`
   - `rounded-t-lg` + amber 컬러 + 다크모드 대응
   - `focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset` (ring-inset — 배너가 가장자리까지 밀리므로 바깥 링은 잘린다)
-  - 좌측 `Info` 아이콘 + `t("platform.cta.body")` (truncate)
+  - 좌측은 아이콘 없이 `t("platform.cta.body")` (truncate). 컨테이너에 `gap-2`로 우측과 간격 확보
   - 우측 `Blocks` 아이콘 + `t("platform.cta.action")` (shrink-0)
   - `data-testid="integrations-cta"`
   - `cn()`으로 `className` 합성
@@ -182,7 +182,7 @@
 
 ### 수동 테스트 (Chrome)
 - [ ] 320px 폭에서 배너 좌측 문구가 truncate되고 우측 `Blocks` + "플랫폼 추가"가 잘리지 않고 표시된다
-- [ ] 320px 폭에서 좌측 문구가 3~4자만 남는 수준이면 좌측 `Info` 아이콘 숨김 또는 문구 단축을 검토한다
+- [ ] 320px 폭에서 좌측 문구가 3~4자만 남는 수준이면 문구 단축을 검토한다 (좌측 아이콘은 이미 제거됨)
 - [ ] `EmptyState`에서 캡처 버튼 6개가 겹침·잘림 없이 표시되고, 배너 위 빈 여백이 어색하지 않다 (어색하면 배너를 `PageFooter` 첫 자식으로 이동 — design.md 위험 요소 참조)
 - [ ] 다크모드에서 배너 텍스트 대비가 WCAG AA(4.5:1)를 충족한다
 - [ ] 라이트모드에서 배너(`bg-amber-100/80`)와 footer(`bg-muted/50`)의 경계가 border로 식별된다

@@ -137,10 +137,7 @@ export function IntegrationsCta({
   )}
   onClick={onNavigate}
 >
-  <span className="flex min-w-0 items-center gap-1.5">
-    <Info className="h-4 w-4 shrink-0" />
-    <span className="truncate text-sm">{t("platform.cta.body")}</span>
-  </span>
+  <span className="min-w-0 truncate text-sm">{t("platform.cta.body")}</span>
   <span className="flex shrink-0 items-center gap-1 text-sm font-medium">
     <Blocks className="h-4 w-4" />
     {t("platform.cta.action")}
@@ -148,8 +145,9 @@ export function IntegrationsCta({
 </button>
 ```
 
-- 좌측 아이콘 `Info` — 대체되는 Alert가 쓰던 아이콘(`PreviewPanel.tsx:389`, `DraftDetailDialog.tsx:945`)을 그대로 승계. AI 배너에서 `Badge`가 있던 자리다.
+- **좌측 아이콘 없음.** 문구가 곧장 나온다. (초안은 대체되는 Alert의 `Info` 아이콘을 승계했으나, AI 배너의 `Badge` 자리를 아이콘으로 채우면 좌·우 아이콘이 좁은 폭에서 몰려 오히려 산만했다. 제거.) 좌측 문구가 truncate될 때 우측과 붙지 않도록 컨테이너에 `gap-2`를 준다 — 아이콘이 겸하던 간격의 대체다.
 - 우측 아이콘 `Blocks` — 연동 탭 빈 상태(`IntegrationsTab.tsx:208`)가 쓰는 아이콘. 목적지를 가리킨다.
+- 텍스트 색은 `text-amber-600 dark:text-amber-400`. AI 배너의 `-700`/`-300` 대비 한 단계 낮춘 값으로, amber는 채도가 높아 `-700`이면 배경 위에서 과하게 진하다.
 - AI 배너의 gradient text(`bg-clip-text text-transparent`)는 쓰지 않는다. 담백한 톤 요구.
 - `focus-visible:ring-inset` — 배너가 footer에 접합되고 다이얼로그에서는 `-mx-6`로 가장자리까지 밀리므로, 바깥으로 뻗는 링은 잘린다. 안쪽 링을 쓴다. 링 색은 토큰 `ring`을 쓴다(amber 하드코딩 아님).
 
