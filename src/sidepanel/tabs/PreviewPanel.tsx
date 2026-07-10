@@ -73,10 +73,7 @@ export function PreviewPanel() {
   const attachmentsEnabled = useSettingsUiStore((s) => s.attachmentsEnabled);
   const accounts = useSettingsStore((s) => s.accounts);
   const navTo = useTabNav();
-  const noPlatformConnected = useMemo(
-    () => connectedPlatforms(accounts).length === 0,
-    [accounts],
-  );
+  const noPlatformConnected = connectedPlatforms(accounts).length === 0;
   const isElementMode = captureMode === "element";
   const isVideoMode = captureMode === "video";
   const isFreeformMode = captureMode === "freeform";

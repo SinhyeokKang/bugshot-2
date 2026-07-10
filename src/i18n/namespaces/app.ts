@@ -41,6 +41,8 @@ const ko = {
   "platform.add.title": "추가할 플랫폼을 선택하세요",
   "platform.add.empty.title": "연결된 플랫폼이 없습니다",
   "platform.add.empty.body": "플랫폼을 추가해 이슈를 등록하세요.",
+  // 연동 CTA 배너 전용. 값은 위 두 키와 같지만 맥락(캡처 화면의 미완 상태 안내)이 달라
+  // 일부러 분리했다 — 한쪽 문구만 고칠 수 있어야 한다. 중복은 의도된 것이니 합치지 말 것.
   "platform.cta.body": "플랫폼을 추가해 이슈를 등록하세요.",
   "platform.cta.action": "플랫폼 추가",
   "platform.connectPlatform": "{platform}",
@@ -95,6 +97,7 @@ const en = {
   "platform.add.title": "Choose a platform to add",
   "platform.add.empty.title": "No connected platforms",
   "platform.add.empty.body": "Add a platform to start filing issues.",
+  // 연동 CTA 배너 전용 — ko 쪽 주석 참조. 의도된 중복이다.
   "platform.cta.body": "Add a platform to start filing issues.",
   "platform.cta.action": "Add platform",
   "platform.connectPlatform": "{platform}",
