@@ -6,7 +6,7 @@ import { enterDebug, expect, test } from "./fixtures/extension";
 // 설정은 chrome.storage에 영속되므로 후행 spec 오염 방지를 위해 finally에서 기본값 복원.
 
 async function setSectionEnabled(panel: Page, sectionId: string, enabled: boolean) {
-  // fresh 프로필은 integrations 자동 전환 effect와 race — enterDebug와 같은 active 폴링으로 흡수.
+  // hydration 전 클릭 유실 — enterDebug와 같은 active 폴링으로 흡수.
   await expect(async () => {
     await panel.getByTestId("tab-settings").click();
     await expect(panel.getByTestId("tab-settings")).toHaveAttribute(

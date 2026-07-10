@@ -40,7 +40,9 @@ import { PLATFORM_TAB_KEYS } from "@/types/platform";
 import { USER_GUIDE_URLS } from "@/lib/external-links";
 import { SubmitSuccessView } from "@/sidepanel/components/SubmitSuccessView";
 import { useEditorStore } from "@/store/editor-store";
+import { connectedPlatforms, useSettingsStore } from "@/store/settings-store";
 import { useSettingsUiStore } from "@/store/settings-ui-store";
+import { IntegrationsCta } from "@/sidepanel/components/IntegrationsCta";
 import { useBoundTabId } from "@/sidepanel/hooks/useBoundTabId";
 import {
   startPicker,
@@ -174,6 +176,9 @@ function EmptyState({ onStartElement, onStartElementShot, onStartScreenshot, onS
   const recordingMode = useSettingsUiStore((s) => s.recordingMode);
   const meta = recordModeMeta(recordingMode);
   const RecordIcon = meta.icon === "monitorPlay" ? MonitorPlay : AppWindow;
+  const navTo = useTabNav();
+  const accounts = useSettingsStore((s) => s.accounts);
+  const noPlatformConnected = connectedPlatforms(accounts).length === 0;
   return (
     <PageShell>
       <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 px-6 pb-5">
@@ -216,6 +221,9 @@ function EmptyState({ onStartElement, onStartElementShot, onStartScreenshot, onS
           </div>
         </TooltipProvider>
       </div>
+      {noPlatformConnected && (
+        <IntegrationsCta onNavigate={() => navTo("integrations")} />
+      )}
       <PageFooter>
         <div className="flex items-center justify-between">
           <Button

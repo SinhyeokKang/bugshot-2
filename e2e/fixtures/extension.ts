@@ -275,8 +275,9 @@ export async function pickElement(
   await panel.bringToFront();
 }
 
-// 디버그 탭 진입까지 — fresh 프로필은 연동 0개라 integrations 자동 전환 effect와 race가 난다.
-// 클릭 후 active 단언을 폴링해 안정화한다. 캡처 진입 화면(mode-* 버튼)을 쓰는 모든 spec의 진입점.
+// 디버그 탭 진입까지 — 연동 0개여도 debug가 기본 탭이라 보통 클릭 한 번이면 끝난다.
+// hydration 전 클릭이 유실될 수 있어 active 단언을 폴링한다(idempotent).
+// 캡처 진입 화면(mode-* 버튼)을 쓰는 모든 spec의 진입점.
 export async function enterDebug(panel: Page): Promise<void> {
   await expect(async () => {
     await panel.getByTestId("tab-debug").click();

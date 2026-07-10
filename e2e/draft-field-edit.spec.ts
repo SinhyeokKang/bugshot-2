@@ -35,7 +35,7 @@ test.describe.serial("draft field edit", () => {
     await expect(panel.getByTestId("preview-section-description")).toContainText(
       DESC,
     );
-    // 이슈 목록 탭 진입(자동 전환 effect race는 클릭+active 폴링으로 흡수).
+    // 이슈 목록 탭 진입(hydration 전 클릭 유실은 클릭+active 폴링으로 흡수).
     await expect(async () => {
       await panel.getByTestId("tab-issue-list").click();
       await expect(panel.getByTestId("tab-issue-list")).toHaveAttribute(

@@ -1,12 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
-import { Download, Info } from "lucide-react";
+import { Download } from "lucide-react";
 import { formatTimestamp } from "@/sidepanel/lib/formatTimestamp";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { useT } from "@/i18n";
 import { POST_MEDIA_SECTION_IDS, sectionLabelKey, useSettingsUiStore } from "@/store/settings-ui-store";
 import { useEditorStore } from "@/store/editor-store";
 import { connectedPlatforms, useSettingsStore } from "@/store/settings-store";
+import { useTabNav } from "@/sidepanel/tab-nav";
+import { IntegrationsCta } from "@/sidepanel/components/IntegrationsCta";
 import { IssuePreviewView } from "@/sidepanel/components/IssuePreviewView";
 import { AttachmentList } from "@/sidepanel/components/AttachmentList";
 import { downloadAttachment } from "@/sidepanel/lib/downloadAttachment";
@@ -71,10 +72,8 @@ export function PreviewPanel() {
   const issueSections = useSettingsUiStore((s) => s.issueSections);
   const attachmentsEnabled = useSettingsUiStore((s) => s.attachmentsEnabled);
   const accounts = useSettingsStore((s) => s.accounts);
-  const noPlatformConnected = useMemo(
-    () => connectedPlatforms(accounts).length === 0,
-    [accounts],
-  );
+  const navTo = useTabNav();
+  const noPlatformConnected = connectedPlatforms(accounts).length === 0;
   const isElementMode = captureMode === "element";
   const isVideoMode = captureMode === "video";
   const isFreeformMode = captureMode === "freeform";
@@ -383,14 +382,10 @@ export function PreviewPanel() {
           postMediaSectionIds={POST_MEDIA_SECTION_IDS}
         />
       </PageScroll>
+      {noPlatformConnected && (
+        <IntegrationsCta onNavigate={() => navTo("integrations")} />
+      )}
       <PageFooter>
-        {noPlatformConnected ? (
-          <Alert variant="default" className="mb-2">
-            <Info className="h-4 w-4" />
-            <AlertTitle>{t("platform.empty.title")}</AlertTitle>
-            <AlertDescription>{t("platform.empty.body")}</AlertDescription>
-          </Alert>
-        ) : null}
         <div className="flex items-center justify-between gap-2">
           <Button
             variant="outline"

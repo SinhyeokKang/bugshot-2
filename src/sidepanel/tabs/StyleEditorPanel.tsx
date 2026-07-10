@@ -487,7 +487,7 @@ export function SelectedPanel() {
       {aiStatus === "available" && (
         <button
           data-testid="ai-styling-trigger"
-          className="flex items-center justify-between rounded-t-lg bg-teal-100/80 px-3.5 py-2.5 text-teal-700 transition-colors hover:bg-teal-100 dark:bg-teal-950/50 dark:text-teal-300 dark:hover:bg-teal-900"
+          className="flex items-center justify-between rounded-t-lg bg-teal-100/80 px-3.5 py-2.5 text-teal-700 transition-colors hover:bg-teal-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring dark:bg-teal-950/50 dark:text-teal-300 dark:hover:bg-teal-900"
           onClick={() => { (document.activeElement as HTMLElement)?.blur?.(); setAiDialogOpen(true); }}
         >
           <span className="flex min-w-0 items-center gap-1.5">

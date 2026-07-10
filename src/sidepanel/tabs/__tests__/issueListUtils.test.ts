@@ -496,6 +496,16 @@ describe("submittablePlatforms", () => {
       submittablePlatforms(makeIssue({ status: "draft" }), makeAccounts("jira", "slack")),
     ).toEqual(["jira", "slack"]);
   });
+
+  // 아래 두 케이스는 DraftDetailDialog의 연동 CTA 배너 노출 조건이자
+  // 제출 버튼 disabled 조건(available.length === 0)을 공유한다.
+  it("slack 단독 연동 + slack 보존 이슈 → [] (승격 대상 트래커 없음)", () => {
+    expect(submittablePlatforms(slackPreservedIssue(), makeAccounts("slack"))).toEqual([]);
+  });
+
+  it("연동 0개 → []", () => {
+    expect(submittablePlatforms(makeIssue({ status: "draft" }), makeAccounts())).toEqual([]);
+  });
 });
 
 describe("resolveInitialPlatform", () => {

@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils";
 import { Toaster } from "@/components/ui/sonner";
 import { PICKER_PORT_NAME, PANEL_PORT_PREFIX } from "@/lib/session-keys";
 import { useEditorStore, useAiLoading } from "@/store/editor-store";
-import { connectedPlatforms, useSettingsStore } from "@/store/settings-store";
+import { useSettingsStore } from "@/store/settings-store";
 import { useSettingsUiStore } from "@/store/settings-ui-store";
 import { use30sReplay } from "./30s-replay/use-30s-replay";
 import { ReplayProvider } from "./30s-replay/replay-context";
@@ -82,7 +82,6 @@ export default function App() {
   usePickerMessages(tabId ?? null);
   useThemeEffect();
 
-  const accounts = useSettingsStore((s) => s.accounts);
   const aiLoading = useAiLoading();
   const aiStylingLoading = useEditorStore((s) => s.aiStylingLoading);
   const [tab, setTab] = useState("debug");
@@ -98,12 +97,6 @@ export default function App() {
   const [sessionSaveExhausted, setSessionSaveExhausted] = useState(false);
   const [permissionExpired, setPermissionExpired] = useState(false);
   const [trimBusy, setTrimBusy] = useState(false);
-
-  useEffect(() => {
-    if (settingsHydrated && connectedPlatforms(accounts).length === 0) {
-      setTab("integrations");
-    }
-  }, [settingsHydrated, accounts]);
 
   useEffect(() => {
     const unsub = onOAuthExpired.subscribe((platform) => {
