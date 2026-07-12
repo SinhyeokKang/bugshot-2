@@ -3,12 +3,15 @@ import {
   buildAiStylingSystemPrompt,
   buildAiStylingResponseSchema,
   parseAiStylingResponse,
-  buildStyleContextBlock,
+  getStylingFewShot,
+  stylesSentInPrompt,
   type AiStylingContext,
 } from "../buildAiStylingPrompt";
 import { mergeAiEdits, replaceRawWithTokens } from "../aiStylingPostProcess";
+import { BYOK_CAPABILITIES, NANO_CAPABILITIES } from "../ai-provider";
 
 const BASE_CTX: AiStylingContext = {
+  caps: BYOK_CAPABILITIES,
   tagName: "button",
   selector: "div.card > button",
   classList: ["btn", "btn-primary"],
@@ -35,15 +38,15 @@ describe("buildAiStylingSystemPrompt", () => {
     expect(prompt).toContain("border-radius: 4px");
   });
 
-  it("specifiedStyles 최대 30개로 자름", () => {
+  it("specifiedStyles가 rich 캡(80)으로 잘림", () => {
     const styles: Record<string, string> = {};
-    for (let i = 0; i < 35; i++) styles[`prop-${i}`] = `val-${i}`;
+    for (let i = 0; i < 85; i++) styles[`prop-${i}`] = `val-${i}`;
     const prompt = buildAiStylingSystemPrompt({
       ...BASE_CTX,
       specifiedStyles: styles,
     });
-    expect(prompt).toContain("prop-29");
-    expect(prompt).not.toContain("prop-30");
+    expect(prompt).toContain("prop-79");
+    expect(prompt).not.toContain("prop-80");
   });
 
   it("클래스 없으면 (none)", () => {
@@ -94,39 +97,85 @@ describe("buildAiStylingSystemPrompt", () => {
   });
 });
 
-describe("buildStyleContextBlock", () => {
-  it("현재 스타일과 클래스를 블록으로 직렬화", () => {
-    const block = buildStyleContextBlock({
-      ...BASE_CTX,
-      specifiedStyles: { "font-size": "14px", color: "#333" },
-      classList: ["btn", "primary"],
-    });
-    expect(block).toContain("[Current state]");
-    expect(block).toContain("font-size: 14px");
-    expect(block).toContain("color: #333");
-    expect(block).toContain("Classes: btn primary");
+describe("buildAiStylingSystemPrompt — compact 계약", () => {
+  const COMPACT_CTX: AiStylingContext = { ...BASE_CTX, caps: NANO_CAPABILITIES };
+
+  it("거절방지 문구가 없다 (few-shot이 대체)", () => {
+    const prompt = buildAiStylingSystemPrompt(COMPACT_CTX);
+    expect(prompt).not.toMatch(/You CAN and MUST/i);
+    expect(prompt).not.toMatch(/only job/i);
   });
 
-  it("스타일 비어있으면 스타일 라인 생략", () => {
-    const block = buildStyleContextBlock({
-      ...BASE_CTX,
-      specifiedStyles: {},
-      classList: ["btn"],
-    });
-    expect(block).toContain("[Current state]");
-    expect(block).not.toContain("font-size");
-    expect(block).toContain("Classes: btn");
+  it("JSON 형식 규칙과 denied prop 목록이 없다 (responseConstraint·파서가 담당)", () => {
+    const prompt = buildAiStylingSystemPrompt(COMPACT_CTX);
+    expect(prompt).not.toMatch(/JSON/i);
+    expect(prompt).not.toMatch(/will-change/);
+    expect(prompt).not.toMatch(/markdown fences/i);
   });
 
-  it("클래스 비어있으면 (none)", () => {
-    const block = buildStyleContextBlock({
-      ...BASE_CTX,
-      specifiedStyles: { color: "red" },
-      classList: [],
+  it("compact 스타일 캡(12) 적용", () => {
+    const styles: Record<string, string> = {};
+    for (let i = 0; i < 20; i++) styles[`prop-${i}`] = "1px";
+    const prompt = buildAiStylingSystemPrompt({
+      ...COMPACT_CTX,
+      specifiedStyles: styles,
     });
-    expect(block).toContain("Classes: (none)");
+    expect(prompt).toContain("prop-11");
+    expect(prompt).not.toContain("prop-12");
+  });
+
+  it("레이아웃 컨텍스트는 rich에만 실린다 (compact는 예산 보호)", () => {
+    const withLayout = {
+      computedStyles: { display: "flex", color: "red" },
+      viewport: { width: 1280, height: 800 },
+    };
+    const rich = buildAiStylingSystemPrompt({ ...BASE_CTX, ...withLayout });
+    expect(rich).toContain("display: flex");
+    expect(rich).toContain("1280");
+
+    const compact = buildAiStylingSystemPrompt({ ...COMPACT_CTX, ...withLayout });
+    expect(compact).not.toContain("display: flex");
   });
 });
+
+describe("getStylingFewShot", () => {
+  it("compact은 거절방지 few-shot 1개를 제공", () => {
+    const fewShot = getStylingFewShot({ ...BASE_CTX, caps: NANO_CAPABILITIES });
+    expect(fewShot).toHaveLength(1);
+    expect(fewShot![0].assistant).toContain("inlineStyle");
+  });
+
+  it("rich은 few-shot 없음", () => {
+    expect(getStylingFewShot(BASE_CTX)).toBeUndefined();
+  });
+});
+
+describe("stylesSentInPrompt", () => {
+  it("시스템 프롬프트에 실제 실린 스타일 맵 = delta 기준선", () => {
+    const styles: Record<string, string> = {};
+    for (let i = 0; i < 20; i++) styles[`prop-${i}`] = "1px";
+    const sent = stylesSentInPrompt({
+      ...BASE_CTX,
+      caps: NANO_CAPABILITIES,
+      specifiedStyles: styles,
+    });
+    expect(Object.keys(sent)).toHaveLength(12);
+  });
+
+  it("사용자 편집 prop이 캡을 넘겨도 기준선에 포함", () => {
+    const styles: Record<string, string> = {};
+    for (let i = 0; i < 20; i++) styles[`prop-${i}`] = "1px";
+    styles["color"] = "red";
+    const sent = stylesSentInPrompt({
+      ...BASE_CTX,
+      caps: NANO_CAPABILITIES,
+      specifiedStyles: styles,
+      editedProps: ["color"],
+    });
+    expect(sent).toHaveProperty("color", "red");
+  });
+});
+
 
 describe("buildAiStylingResponseSchema", () => {
   it("explanation과 inlineStyle 필수, classList 선택", () => {

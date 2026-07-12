@@ -84,7 +84,7 @@ export function DraftingPanel() {
   const addAttachments = useEditorStore((s) => s.addAttachments);
   const removeAttachment = useEditorStore((s) => s.removeAttachment);
   const targetPlatform = useEditorStore((s) => s.targetPlatform);
-  const { status: aiStatus, providerLabel, createSession } = useAI();
+  const { status: aiStatus, providerLabel, capabilities, createSession } = useAI();
   const [annotating, setAnnotating] = useState(false);
   const [aiDialogOpen, setAiDialogOpen] = useState(false);
   const aiDraftLoading = useEditorStore((s) => s.aiDraftLoading);
@@ -466,6 +466,7 @@ export function DraftingPanel() {
         />
       )}
       <AiDraftDialog
+        capabilities={capabilities}
         open={aiDialogOpen}
         onOpenChange={setAiDialogOpen}
         createSession={createSession}

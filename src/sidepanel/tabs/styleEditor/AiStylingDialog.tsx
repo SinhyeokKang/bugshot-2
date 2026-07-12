@@ -20,20 +20,33 @@ import {
   buildAiStylingSystemPrompt,
   buildAiStylingResponseSchema,
   parseAiStylingResponse,
-  buildStyleContextBlock,
+  getStylingFewShot,
+  stylesSentInPrompt,
   type AiStylingContext,
 } from "@/sidepanel/lib/buildAiStylingPrompt";
+import { buildClassDeltaLine, buildStyleDeltaBlock } from "@/sidepanel/lib/prompts/context";
 import { mergeAiEdits, replaceRawWithTokens } from "@/sidepanel/lib/aiStylingPostProcess";
-import { LlmQuotaError, LlmOverloadedError, type AISession, type AIProvider } from "@/sidepanel/lib/ai-provider";
+import {
+  AiContextOverflowError,
+  LlmQuotaError,
+  LlmOverloadedError,
+  mapQuotaError,
+  type AISession,
+  type AIProvider,
+  type ProviderCapabilities,
+} from "@/sidepanel/lib/ai-provider";
+import { isPromptOverBudget } from "@/sidepanel/lib/promptBudget";
 
 export function AiStylingDialog({
   open,
   onOpenChange,
   createSession,
+  capabilities,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   createSession: AIProvider["createSession"];
+  capabilities: ProviderCapabilities;
 }) {
   const t = useT();
   const tabId = useBoundTabId();
@@ -41,6 +54,11 @@ export function AiStylingDialog({
   const sessionRef = useRef<AISession | null>(null);
   // 세션이 어느 요소(selector+frameId)용으로 빌드됐는지 — repick 시 stale system prompt 재빌드 판정.
   const sessionKeyRef = useRef<string | null>(null);
+  // 멀티턴 delta의 기준선 = 직전에 모델이 실제로 본 스타일 맵. 세션 생성 직후 한 곳에서만
+  // 초기화한다 — 파괴 경로가 3개(repick·에러 catch·provider 변경 cleanup)라 파괴 지점마다
+  // 리셋을 흩뿌리면 누락된다.
+  const lastSentStylesRef = useRef<Record<string, string>>({});
+  const lastSentClassesRef = useRef<string[]>([]);
   const createSessionRef = useRef(createSession);
   createSessionRef.current = createSession;
 
@@ -56,13 +74,17 @@ export function AiStylingDialog({
     const s = useEditorStore.getState();
     if (!s.selection) return null;
     return {
+      caps: capabilities,
       tagName: s.selection.tagName,
       selector: s.selection.selector,
       classList: s.styleEdits.classList,
       specifiedStyles: { ...s.selection.specifiedStyles, ...s.styleEdits.inlineStyle },
+      editedProps: Object.keys(s.styleEdits.inlineStyle),
+      computedStyles: s.selection.computedStyles,
+      viewport: s.selection.viewport,
       tokens: s.tokens,
     };
-  }, []);
+  }, [capabilities]);
 
   const handleSubmit = useCallback(async () => {
     const msg = input.trim();
@@ -91,15 +113,42 @@ export function AiStylingDialog({
       if (!sessionRef.current) {
         sessionRef.current = await createSessionRef.current(
           buildAiStylingSystemPrompt(ctx),
+          getStylingFewShot(ctx),
         );
         sessionKeyRef.current = targetKey;
+        // 기준선은 원본 specifiedStyles 전체가 아니라 캡 적용 후 실제로 실린 맵이어야 한다.
+        // 어긋나면 모델이 못 본 prop을 delta가 "변경 없음"으로 판단해 영영 안 보낸다.
+        lastSentStylesRef.current = stylesSentInPrompt(ctx);
+        lastSentClassesRef.current = ctx.classList;
       }
 
-      const prefix = buildStyleContextBlock(ctx);
-      const raw = await sessionRef.current.prompt(
-        prefix ? `${prefix}\n\n${msg}` : msg,
-        { responseSchema: buildAiStylingResponseSchema() },
+      // 스타일링은 1차 게이트(문자 예산 절삭)를 쓰지 않는다 — 모든 컨텍스트가 PROMPT_CAPS로
+      // 이미 유한하다. 새 능력 좌표(예: {compact, budget:8000})를 추가하면 여기에도
+      // caps.contextBudgetChars 기반 절삭을 배선해야 한다.
+      //
+      // 시스템 프롬프트에 요소 상태가 이미 있다. 매 턴 전량 재주입하지 않고 변경분만 보낸다.
+      const currentSent = stylesSentInPrompt(ctx);
+      const styleDelta = buildStyleDeltaBlock(
+        lastSentStylesRef.current,
+        currentSent,
+        ctx.specifiedStyles,
       );
+      const classDelta = buildClassDeltaLine(
+        lastSentClassesRef.current,
+        ctx.classList,
+      );
+      const delta = [styleDelta, classDelta].filter(Boolean).join("\n");
+      const responseSchema = buildAiStylingResponseSchema();
+      const turnInput = delta ? `${delta}\n\n${msg}` : msg;
+
+      if (await isPromptOverBudget(sessionRef.current, turnInput, responseSchema)) {
+        throw new AiContextOverflowError();
+      }
+      const raw = await sessionRef.current
+        .prompt(turnInput, { responseSchema })
+        .catch(mapQuotaError);
+      lastSentStylesRef.current = currentSent;
+      lastSentClassesRef.current = ctx.classList;
 
       // 호출 중 다른 요소로 repick됐으면 옛 요소용 결과를 새 요소에 적용하지 않는다(frameId 포함).
       const cur = useEditorStore.getState().selection;
@@ -144,7 +193,12 @@ export function AiStylingDialog({
       }
     } catch (err) {
       console.error("[AI Styling] error:", err);
-      if (err instanceof LlmQuotaError) {
+      if (err instanceof AiContextOverflowError) {
+        toast.error(t("llm.error.contextOverflow"), {
+          description: t("llm.error.contextOverflow.hint"),
+          duration: 8000,
+        });
+      } else if (err instanceof LlmQuotaError) {
         toast.error(t("llm.error.quota"));
       } else if (err instanceof LlmOverloadedError) {
         toast.error(t("llm.error.overloaded"));

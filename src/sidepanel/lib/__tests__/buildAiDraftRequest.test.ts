@@ -1,14 +1,18 @@
 import { describe, it, expect } from "vitest";
 import { buildAiDraftRequest } from "../buildAiDraftRequest";
 import type { AiDraftSessionContext } from "../buildAiDraftPrompt";
+import { BYOK_CAPABILITIES, NANO_CAPABILITIES } from "../ai-provider";
 
 const CTX: AiDraftSessionContext = {
+  caps: BYOK_CAPABILITIES,
   captureMode: "screenshot",
   locale: "ko",
   url: "https://example.com/page",
   pageTitle: "Example Page",
   enabledSections: [{ id: "description" }],
 };
+
+const NANO_CTX: AiDraftSessionContext = { ...CTX, caps: NANO_CAPABILITIES };
 
 describe("buildAiDraftRequest", () => {
   it("modeImages=undefined + inline 없음 → images=undefined (런타임 에러 없음)", () => {
@@ -60,5 +64,34 @@ describe("buildAiDraftRequest", () => {
       inlineImageDataUrls: [],
     });
     expect(systemPrompt).toContain("기존 본문 내용");
+  });
+
+  // 회귀 재현: Chrome 세션은 options.images를 읽지도 않는데 이미지를 만들어 넘기고
+  // 있었다. 프롬프트는 "스크린샷을 분석하라"고 지시 → 환각.
+  it("supportsImages=false + 캡처 이미지 있음 → images=undefined (전송 안 함)", () => {
+    const { images } = buildAiDraftRequest({
+      ctx: NANO_CTX,
+      modeImages: ["data:cap1"],
+      inlineImageDataUrls: ["data:in1"],
+    });
+    expect(images).toBeUndefined();
+  });
+
+  it("supportsImages=false + 이미지 없음 → images=undefined", () => {
+    const { images } = buildAiDraftRequest({
+      ctx: NANO_CTX,
+      modeImages: undefined,
+      inlineImageDataUrls: [],
+    });
+    expect(images).toBeUndefined();
+  });
+
+  it("supportsImages=true → 기존 concat 동작 유지", () => {
+    const { images } = buildAiDraftRequest({
+      ctx: CTX,
+      modeImages: ["data:cap1"],
+      inlineImageDataUrls: ["data:in1"],
+    });
+    expect(images).toEqual(["data:cap1", "data:in1"]);
   });
 });

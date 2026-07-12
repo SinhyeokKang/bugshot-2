@@ -1,0 +1,267 @@
+import { describe, it, expect, vi } from "vitest";
+import {
+  fitDraftContext,
+  isPromptOverBudget,
+  trimDraftContext,
+} from "../promptBudget";
+import { NANO_CAPABILITIES, BYOK_CAPABILITIES, type AISession } from "../ai-provider";
+import type { AiDraftSessionContext } from "../buildAiDraftPrompt";
+
+const RICH_CTX: AiDraftSessionContext = {
+  caps: BYOK_CAPABILITIES,
+  captureMode: "video",
+  locale: "ko",
+  url: "https://example.com/page",
+  pageTitle: "Example Page",
+  enabledSections: [{ id: "description" }, { id: "notes" }],
+};
+
+const NANO_CTX: AiDraftSessionContext = { ...RICH_CTX, caps: NANO_CAPABILITIES };
+
+const LOGS = {
+  networkLogSummary: {
+    captured: 10,
+    errors: [
+      { method: "POST", path: "/api/pay", status: 500, statusText: "Err" },
+    ],
+  },
+  consoleLogSummary: {
+    captured: 5,
+    errorCount: 3,
+    warnCount: 1,
+    topErrors: ["Uncaught Error: payment failed"],
+  },
+  actionLogSummary: ["click Submit", "input email"],
+};
+
+const DRAFT = {
+  title: "기존 제목",
+  sections: { description: "사용자가 적어둔 현상", notes: "추가 메모" },
+};
+
+const ELEMENT_EXTRAS = {
+  diffs: [{ prop: "border-radius", asIs: "8px", toBe: "4px" }],
+  tokens: [{ name: "--radius-lg", value: "12px" }],
+};
+
+const FULL_CTX: AiDraftSessionContext = {
+  ...NANO_CTX,
+  ...LOGS,
+  ...ELEMENT_EXTRAS,
+  existingDraft: DRAFT,
+};
+
+// 컨텍스트 크기에 비례하는 결정적 build — 실제 프롬프트 문구에 의존하지 않는다.
+const build = (c: AiDraftSessionContext) =>
+  JSON.stringify({
+    url: c.url,
+    userPrompt: c.userPrompt ?? "",
+    net: c.networkLogSummary ?? null,
+    con: c.consoleLogSummary ?? null,
+    act: c.actionLogSummary ?? null,
+    draft: c.existingDraft ?? null,
+    diffs: c.diffs ?? null,
+    tokens: c.tokens ?? null,
+  });
+
+describe("trimDraftContext", () => {
+  it("level 0 — 아무것도 제거하지 않는다", () => {
+    const out = trimDraftContext(FULL_CTX, 0);
+    expect(out.networkLogSummary).toBeDefined();
+    expect(out.existingDraft).toBeDefined();
+    expect(out.diffs).toBeDefined();
+  });
+
+  it("level 1 — 로그(network·console·action)를 제거", () => {
+    const out = trimDraftContext(FULL_CTX, 1);
+    expect(out.networkLogSummary).toBeUndefined();
+    expect(out.consoleLogSummary).toBeUndefined();
+    expect(out.actionLogSummary).toBeUndefined();
+    expect(out.existingDraft).toBeDefined();
+  });
+
+  it("level 2 — 로그 + 기존 초안 제거", () => {
+    const out = trimDraftContext(FULL_CTX, 2);
+    expect(out.networkLogSummary).toBeUndefined();
+    expect(out.existingDraft).toBeUndefined();
+    expect(out.diffs).toBeDefined();
+  });
+
+  it("level 3 — 로그 + 초안 + diff·토큰까지 제거", () => {
+    const out = trimDraftContext(FULL_CTX, 3);
+    expect(out.networkLogSummary).toBeUndefined();
+    expect(out.existingDraft).toBeUndefined();
+    expect(out.diffs).toBeUndefined();
+    expect(out.tokens).toBeUndefined();
+  });
+
+  it("원본 ctx를 변형하지 않는다 (순수)", () => {
+    trimDraftContext(FULL_CTX, 3);
+    expect(FULL_CTX.networkLogSummary).toBeDefined();
+    expect(FULL_CTX.existingDraft).toBeDefined();
+  });
+
+  it("url·captureMode·enabledSections는 어느 level에서도 유지", () => {
+    const out = trimDraftContext(FULL_CTX, 3);
+    expect(out.url).toBe(FULL_CTX.url);
+    expect(out.captureMode).toBe(FULL_CTX.captureMode);
+    expect(out.enabledSections).toEqual(FULL_CTX.enabledSections);
+  });
+});
+
+describe("fitDraftContext", () => {
+  it("예산 내 컨텍스트 → level 0 유지, 무손실", () => {
+    const result = fitDraftContext(FULL_CTX, build, 100_000);
+    expect(result.level).toBe(0);
+    expect(result.ctx.networkLogSummary).toBeDefined();
+    expect(result.ctx.existingDraft).toBeDefined();
+  });
+
+  it("예산 무제한(BYOK) → level 0 즉시 no-op", () => {
+    const result = fitDraftContext(
+      { ...FULL_CTX, caps: BYOK_CAPABILITIES },
+      build,
+      BYOK_CAPABILITIES.contextBudgetChars,
+    );
+    expect(result.level).toBe(0);
+    expect(result.ctx).toEqual({ ...FULL_CTX, caps: BYOK_CAPABILITIES });
+  });
+
+  it("거대 컨텍스트 → level이 올라가며 예산 내로 수렴", () => {
+    const bigLogs: AiDraftSessionContext = {
+      ...NANO_CTX,
+      networkLogSummary: {
+        captured: 100,
+        errors: Array.from({ length: 50 }, (_, i) => ({
+          method: "GET",
+          path: `/api/very/long/path/segment/number/${i}`,
+          status: 500,
+          statusText: "Internal Server Error",
+        })),
+      },
+    };
+    const budget = build(NANO_CTX).length + 50;
+    const result = fitDraftContext(bigLogs, build, budget);
+
+    expect(result.level).toBeGreaterThan(0);
+    expect(result.prompt.length).toBeLessThanOrEqual(budget);
+    expect(result.ctx.networkLogSummary).toBeUndefined();
+  });
+
+  it("절삭은 로그 → 기존 초안 → diff 순 (최소 손실 우선)", () => {
+    const budget = build({ ...NANO_CTX, existingDraft: DRAFT, ...ELEMENT_EXTRAS }).length;
+    const result = fitDraftContext(FULL_CTX, build, budget);
+
+    // 로그만 버려도 맞으면 초안·diff는 살아남는다
+    expect(result.level).toBe(1);
+    expect(result.ctx.existingDraft).toBeDefined();
+    expect(result.ctx.diffs).toBeDefined();
+  });
+
+  it("거대 단일 항목 — level 3까지 가도 던지지 않고 그대로 반환", () => {
+    const huge: AiDraftSessionContext = {
+      ...NANO_CTX,
+      userPrompt: "x".repeat(50_000),
+    };
+    const result = fitDraftContext(huge, build, 1_000);
+
+    expect(result.level).toBe(3);
+    expect(result.prompt.length).toBeGreaterThan(1_000);
+    expect(result.ctx.userPrompt).toBeDefined();
+  });
+
+  it("빈 컨텍스트 → level 0 + 유효한 프롬프트", () => {
+    const result = fitDraftContext(NANO_CTX, build, 10_000);
+    expect(result.level).toBe(0);
+    expect(result.prompt.length).toBeGreaterThan(0);
+  });
+
+  it("includedSections — 초안이 실린 섹션 id 목록", () => {
+    const result = fitDraftContext(FULL_CTX, build, 100_000);
+    expect(result.includedSections).toEqual(["description", "notes"]);
+  });
+
+  it("includedSections — level 2 이상(초안 절삭)이면 빈 배열", () => {
+    const result = fitDraftContext(FULL_CTX, build, 1);
+    expect(result.level).toBeGreaterThanOrEqual(2);
+    expect(result.includedSections).toEqual([]);
+  });
+
+  it("includedSections — 기존 초안이 없으면 빈 배열", () => {
+    const result = fitDraftContext(NANO_CTX, build, 100_000);
+    expect(result.includedSections).toEqual([]);
+  });
+
+  it("includedSections — 활성 섹션이면서 내용이 있는 것만", () => {
+    const result = fitDraftContext(
+      {
+        ...NANO_CTX,
+        existingDraft: { title: "t", sections: { description: "내용", notes: "" } },
+      },
+      build,
+      100_000,
+    );
+    expect(result.includedSections).toEqual(["description"]);
+  });
+});
+
+function fakeSession(overrides: Partial<AISession> = {}): AISession {
+  return {
+    prompt: vi.fn(),
+    destroy: vi.fn(),
+    ...overrides,
+  } as AISession;
+}
+
+describe("isPromptOverBudget", () => {
+  it("measureContextUsage 미지원 → false (통과)", async () => {
+    const session = fakeSession();
+    await expect(isPromptOverBudget(session, "hello")).resolves.toBe(false);
+  });
+
+  it("contextWindow 미지원 → false (통과)", async () => {
+    const session = fakeSession({
+      measureContextUsage: vi.fn().mockResolvedValue(100),
+    });
+    await expect(isPromptOverBudget(session, "hello")).resolves.toBe(false);
+  });
+
+  it("지원 + 미초과 → false", async () => {
+    const session = fakeSession({
+      measureContextUsage: vi.fn().mockResolvedValue(100),
+      contextUsage: 500,
+      contextWindow: 4000,
+    });
+    await expect(isPromptOverBudget(session, "hello")).resolves.toBe(false);
+  });
+
+  it("지원 + 초과 → true (usage + 입력 측정치가 창을 넘음)", async () => {
+    const session = fakeSession({
+      measureContextUsage: vi.fn().mockResolvedValue(3800),
+      contextUsage: 500,
+      contextWindow: 4000,
+    });
+    await expect(isPromptOverBudget(session, "hello")).resolves.toBe(true);
+  });
+
+  it("responseSchema를 measureContextUsage에 함께 전달 (스키마도 컨텍스트를 먹는다)", async () => {
+    const measure = vi.fn().mockResolvedValue(10);
+    const session = fakeSession({
+      measureContextUsage: measure,
+      contextUsage: 0,
+      contextWindow: 4000,
+    });
+    const schema = { type: "object" };
+    await isPromptOverBudget(session, "hello", schema);
+    expect(measure).toHaveBeenCalledWith("hello", { responseSchema: schema });
+  });
+
+  it("측정이 던지면 false (측정 실패가 기능을 막지 않는다)", async () => {
+    const session = fakeSession({
+      measureContextUsage: vi.fn().mockRejectedValue(new Error("boom")),
+      contextUsage: 0,
+      contextWindow: 4000,
+    });
+    await expect(isPromptOverBudget(session, "hello")).resolves.toBe(false);
+  });
+});

@@ -126,7 +126,7 @@ export function SelectedPanel() {
   const styleEditorView = useSettingsUiStore((s) => s.styleEditorView);
   const setStyleEditorView = useSettingsUiStore((s) => s.setStyleEditorView);
   const tabId = useBoundTabId();
-  const { status: aiStatus, providerLabel, createSession } = useAI();
+  const { status: aiStatus, providerLabel, capabilities, createSession } = useAI();
   const [proceeding, setProceeding] = useState(false);
   const [aiDialogOpen, setAiDialogOpen] = useState(false);
   if (!selection) return null;
@@ -502,7 +502,7 @@ export function SelectedPanel() {
           </span>
         </button>
       )}
-      <AiStylingDialog open={aiDialogOpen} onOpenChange={setAiDialogOpen} createSession={createSession} />
+      <AiStylingDialog open={aiDialogOpen} onOpenChange={setAiDialogOpen} createSession={createSession} capabilities={capabilities} />
       <PageFooter>
         <div className="flex items-center justify-between gap-2">
           <CancelConfirmDialog

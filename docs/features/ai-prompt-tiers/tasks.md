@@ -23,9 +23,9 @@
   - `:462-465` `not.toMatch(/sentence/i)` 제거, `:549-556` full-string 동등 단정(`expect(withEmpty).toBe(without)`) 제거 — 프롬프트 어떤 변화든 깨진다.
   - **`:223`/`:270`의 negative 이미지 단정은 여기서 지우지 않는다** — Task 2가 caps 게이팅 단정으로 원자적(red→green) 교체한다. 커버리지 공백(이미지 불변식이 무보호인 채 Task 2가 해당 파일을 수정) 방지.
 - **검증**:
-  - [ ] 워딩 결합 단정 전수 목록 작성 완료 (처분 분류 포함)
-  - [ ] `pnpm test buildAiDraftPrompt` green
-  - [ ] 프로덕션 코드 무변경 (이 태스크는 테스트만 건드린다)
+  - [x] 워딩 결합 단정 전수 목록 작성 완료 (처분 분류 포함)
+  - [x] `pnpm test buildAiDraftPrompt` green
+  - [x] 프로덕션 코드 무변경 (이 태스크는 테스트만 건드린다)
 
 > ⚠️ 지운 단정의 커버리지는 Task 2(이미지 계약)와 Task 4(능력 계약 불변식)가 되메운다.
 
@@ -41,13 +41,13 @@
   - `createSession(systemPrompt, fewShot?: FewShotExample[])`로 시그니처 확장 — Chrome은 `create({ initialPrompts: [{role:"system"}, ...user/assistant 쌍] })`(레거시 `systemPrompt` 옵션에서 규정 경로로 마이그레이션), OpenAI/Anthropic은 `messages` 선주입. `create()` 호출을 try/catch로 감싸 `mapQuotaError` 적용.
   - `useAI()` 반환에 `capabilities` 추가 — **provider에서 파생**한다(새 판정 로직을 만들지 않는다. `llm?.modelId` 유무 판정은 이미 `:53`에 있다).
 - **검증** — 이 경로는 현재 테스트 0개다. 여기서 처음 박는다:
-  - [ ] `ai-provider.test.ts`에 `createChromeAIProvider` 테스트 추가: `capabilities.promptStyle === "compact"`, `supportsImages === false`, `contextBudgetChars === 10_000`
-  - [ ] `createOpenAICompatibleProvider`·`createAnthropicProvider`: `promptStyle === "rich"`, `supportsImages === true`
-  - [ ] `createSession` 테스트: Chrome이 `LanguageModel.create`를 `initialPrompts`(system이 index 0) + `CHROME_AI_LANG_OPTIONS`로 호출, fewShot 쌍이 user/assistant로 이어짐, `destroy`가 네이티브 세션 destroy
-  - [ ] BYOK 세션: fewShot이 messages 선주입으로 들어가고 이후 대화가 그 뒤에 쌓임
-  - [ ] Chrome 세션이 신명칭(`contextUsage`/`contextWindow`/`measureContextUsage`)을 노출, 구명칭만 있는 네이티브에선 폴백, 둘 다 없으면 `undefined`
-  - [ ] `mapQuotaError`: `QuotaExceededError` → `AiContextOverflowError` / 다른 에러 → 원본 재던짐
-  - [ ] `pnpm typecheck`
+  - [x] `ai-provider.test.ts`에 `createChromeAIProvider` 테스트 추가: `capabilities.promptStyle === "compact"`, `supportsImages === false`, `contextBudgetChars === 10_000`
+  - [x] `createOpenAICompatibleProvider`·`createAnthropicProvider`: `promptStyle === "rich"`, `supportsImages === true`
+  - [x] `createSession` 테스트: Chrome이 `LanguageModel.create`를 `initialPrompts`(system이 index 0) + `CHROME_AI_LANG_OPTIONS`로 호출, fewShot 쌍이 user/assistant로 이어짐, `destroy`가 네이티브 세션 destroy
+  - [x] BYOK 세션: fewShot이 messages 선주입으로 들어가고 이후 대화가 그 뒤에 쌓임
+  - [x] Chrome 세션이 신명칭(`contextUsage`/`contextWindow`/`measureContextUsage`)을 노출, 구명칭만 있는 네이티브에선 폴백, 둘 다 없으면 `undefined`
+  - [x] `mapQuotaError`: `QuotaExceededError` → `AiContextOverflowError` / 다른 에러 → 원본 재던짐
+  - [x] `pnpm typecheck`
 
 ---
 
@@ -63,11 +63,11 @@
   - 프롬프트의 스크린샷 지시(`buildAiDraftPrompt.ts:144`)를 `caps.supportsImages`로 게이팅. (Task 4에서 compact 본문은 언급 0으로 고정되고 rich 본문은 지시 포함으로 고정된다 — 이 게이트는 Task 4 전까지의 과도기 방어.)
   - **`buildAiDraftPrompt.test.ts:223`/`:270`의 negative 이미지 단정을 여기서 원자적으로 교체**: 기존 단정 제거와 동시에 "supportsImages:false → 전 캡처 모드에서 이미지·스크린샷 언급 없음 / true → screenshot 모드에 지시 있음" 계약 단정 추가 (red→green 한 커밋).
 - **검증**:
-  - [ ] **회귀 재현 테스트(red 먼저)**: `buildAiDraftRequest.test.ts` — `supportsImages: false` + modeImages 있음 → `images === undefined`
-  - [ ] `supportsImages: true` → 기존 concat 동작 유지 (기존 **5개** 테스트 — 이미지 concat 4 + systemPrompt 반영 1 — 가 `caps` 필드 추가 후에도 green)
-  - [ ] `supportsImages: false` → 전 캡처 모드 프롬프트에 이미지·스크린샷 언급 없음 (:223/:270 대체 단정)
-  - [ ] `supportsImages: true` + screenshot 모드 → 스크린샷 지시 있음
-  - [ ] nanoImageNotice가 `supportsImages: false`에서만 렌더 (i18n 키 ko/en 대칭은 PostToolUse 훅이 검증)
+  - [x] **회귀 재현 테스트(red 먼저)**: `buildAiDraftRequest.test.ts` — `supportsImages: false` + modeImages 있음 → `images === undefined`
+  - [x] `supportsImages: true` → 기존 concat 동작 유지 (기존 **5개** 테스트 — 이미지 concat 4 + systemPrompt 반영 1 — 가 `caps` 필드 추가 후에도 green)
+  - [x] `supportsImages: false` → 전 캡처 모드 프롬프트에 이미지·스크린샷 언급 없음 (:223/:270 대체 단정)
+  - [x] `supportsImages: true` + screenshot 모드 → 스크린샷 지시 있음
+  - [x] nanoImageNotice가 `supportsImages: false`에서만 렌더 (i18n 키 ko/en 대칭은 PostToolUse 훅이 검증)
 
 ---
 
@@ -84,21 +84,21 @@
   - `promptedSections`는 Task 5의 `fitDraftContext` 반환값에서 온다. Task 5 전까지의 과도기엔 호출부가 "활성 섹션 전부"를 넘긴다(현행 동작 보존 — 절삭이 아직 없으므로 안전).
   - 현재는 이미지가 있는 섹션도 AI가 키를 빠뜨리면 `[...images, ""]`로 축약돼 사용자 텍스트가 날아간다. 같이 고친다.
 - **검증**:
-  - [ ] **회귀 재현 테스트(red 먼저)**: AI가 `notes` 키 누락 → 기존 `notes` 텍스트 보존
-  - [ ] AI가 `notes: ""` 명시 + `promptedSections`에 notes 포함 → 비워짐 (의도된 삭제 유지)
-  - [ ] AI가 `notes: ""` 명시 + `promptedSections`에 notes 없음(절삭됨) → 기존 텍스트 보존
-  - [ ] 이미지 있는 섹션에서 AI 키 누락 → 이미지 + 기존 텍스트 둘 다 보존
-  - [ ] 기존 `mergeAiDraftSections.test.ts`에 현재 동작(텍스트 드롭)을 고정하는 케이스는 **없음이 리뷰에서 확인됨**(95줄, 키 누락 2건은 이미지 보존만 단언) — 시그니처 변경 반영만 하면 된다
+  - [x] **회귀 재현 테스트(red 먼저)**: AI가 `notes` 키 누락 → 기존 `notes` 텍스트 보존
+  - [x] AI가 `notes: ""` 명시 + `promptedSections`에 notes 포함 → 비워짐 (의도된 삭제 유지)
+  - [x] AI가 `notes: ""` 명시 + `promptedSections`에 notes 없음(절삭됨) → 기존 텍스트 보존
+  - [x] 이미지 있는 섹션에서 AI 키 누락 → 이미지 + 기존 텍스트 둘 다 보존
+  - [x] 기존 `mergeAiDraftSections.test.ts`에 현재 동작(텍스트 드롭)을 고정하는 케이스는 **없음이 리뷰에서 확인됨**(95줄, 키 누락 2건은 이미지 보존만 단언) — 시그니처 변경 반영만 하면 된다
 
 **C. 스타일 cap이 사용자 편집을 먼저 자름**
 
 - **변경 대상**: `src/sidepanel/lib/prompts/context.ts` (신규 생성 — Task 4는 이 파일에 나머지 함수를 추가한다), `src/sidepanel/lib/buildAiStylingPrompt.ts`, `src/sidepanel/tabs/styleEditor/AiStylingDialog.tsx`
 - **작업 내용**: `selectStyles(specifiedStyles, editedProps, limit)` 순수 함수 추가 — 사용자가 편집한 prop(`styleEdits.inlineStyle`의 키)을 cap에서 **우선 보존**. `AiStylingContext`에 `editedProps` 추가하고 `AiStylingDialog.buildContext`(`:55-65`)에서 채운다. **`buildAiStylingPrompt.ts`의 slice 2곳(`:43`, `:131`)을 `selectStyles` 호출로 교체** — 이 배선이 빠지면 순수 함수만 green이고 프로덕션 버그는 Task 4까지 생존한다(리뷰 QA 지적).
 - **검증**:
-  - [ ] **회귀 재현 테스트(red 먼저)**: 원본 스타일 40개 + 사용자 편집 prop 2개(객체 tail) + limit 30 → 결과에 편집 prop 2개가 **포함**
-  - [ ] 편집 prop이 limit보다 많으면 편집 prop만으로 채움
-  - [ ] 편집 prop 없으면 기존 순서대로 slice
-  - [ ] **프롬프트 레벨 단언**: `buildAiStylingSystemPrompt` 출력에 편집 prop이 실려 있음 (배선 검증)
+  - [x] **회귀 재현 테스트(red 먼저)**: 원본 스타일 40개 + 사용자 편집 prop 2개(객체 tail) + limit 30 → 결과에 편집 prop 2개가 **포함**
+  - [x] 편집 prop이 limit보다 많으면 편집 prop만으로 채움
+  - [x] 편집 prop 없으면 기존 순서대로 slice
+  - [x] **프롬프트 레벨 단언**: `buildAiStylingSystemPrompt` 출력에 편집 prop이 실려 있음 (배선 검증)
 
 ---
 
@@ -115,16 +115,16 @@ Task 0~3이 끝난 뒤. **이게 본체다.**
   - 기존 두 파일은 `buildAiDraftSessionPrompt`/`buildAiStylingSystemPrompt` 디스패처 + 스키마 + 파서만 남긴다. **export 시그니처를 유지**해 호출부 import 변경이 없게.
   - `buildStyleContextBlock` 제거 → `buildStyleDeltaBlock`으로 대체.
 - **검증** — Task 0에서 비운 자리를 **불변식 테스트**로 되메운다:
-  - [ ] compact 초안 system prompt가 컨텍스트 없는 기본 상태에서 `COMPACT_SYSTEM_TARGET_CHARS`(2000자) 이하 — few-shot은 별도 채널이라 계산 제외
-  - [ ] compact 프롬프트에 이미지·스크린샷 언급 없음 (전 캡처 모드, 본문 고정)
-  - [ ] compact 프롬프트에 `"JSON"`·`"fences"`·denied prop 목록 없음
-  - [ ] rich 프롬프트에는 JSON 형식 규칙이 **있음**
-  - [ ] rich 스타일링 프롬프트에 `"You CAN and MUST"` 없음
-  - [ ] rich 스타일링 프롬프트에 레이아웃 컨텍스트 포함 (`display` 등)
-  - [ ] promptStyle별 캡이 실제로 적용됨 (compact diffs 8 / rich diffs 50)
-  - [ ] `selectRelevantTokens`: 요소가 `var()`로 참조하는 토큰이 알파벳 순서와 무관하게 우선 선별
-  - [ ] `buildAiStylingPrompt.test.ts:97-128`의 `buildStyleContextBlock` 테스트 3개 삭제 → `buildStyleDeltaBlock` 테스트로 대체
-  - [ ] `pnpm typecheck`
+  - [x] compact 초안 system prompt가 컨텍스트 없는 기본 상태에서 `COMPACT_SYSTEM_TARGET_CHARS`(2000자) 이하 — few-shot은 별도 채널이라 계산 제외
+  - [x] compact 프롬프트에 이미지·스크린샷 언급 없음 (전 캡처 모드, 본문 고정)
+  - [x] compact 프롬프트에 `"JSON"`·`"fences"`·denied prop 목록 없음
+  - [x] rich 프롬프트에는 JSON 형식 규칙이 **있음**
+  - [x] rich 스타일링 프롬프트에 `"You CAN and MUST"` 없음
+  - [x] rich 스타일링 프롬프트에 레이아웃 컨텍스트 포함 (`display` 등)
+  - [x] promptStyle별 캡이 실제로 적용됨 (compact diffs 8 / rich diffs 50)
+  - [x] `selectRelevantTokens`: 요소가 `var()`로 참조하는 토큰이 알파벳 순서와 무관하게 우선 선별
+  - [x] `buildAiStylingPrompt.test.ts:97-128`의 `buildStyleContextBlock` 테스트 3개 삭제 → `buildStyleDeltaBlock` 테스트로 대체
+  - [x] `pnpm typecheck`
 
 ---
 
@@ -138,15 +138,15 @@ Task 0~3이 끝난 뒤. **이게 본체다.**
   - **두 다이얼로그 공통 배선**: `AiDraftDialog`·`AiStylingDialog` 모두 — `createSession`/`prompt` catch에서 `mapQuotaError`(3차 게이트, 구버전 Chrome의 유일한 신호), `prompt` 직전 `isPromptOverBudget`(2차), catch 체인에 `AiContextOverflowError` → `llm.error.contextOverflow` 토스트. 스타일링만 generic 에러로 남기는 비일관 금지(리뷰 CDO 지적).
   - i18n: `settings.ts`의 `llm.error.contextOverflow` (관례 — AI 실행 에러는 `llm.error.*`에 동거, `ai.error.*` 신설 금지). **2단 문구**: main "분석할 내용이 너무 많아 Chrome 내장 AI가 처리할 수 없습니다" + description "API 키를 연결하면 더 큰 용량의 모델을 사용할 수 있습니다" (ko "-하세요"체 톤 일치, "로그를 줄이라"는 실행 불가 지시라 제외). 토스트는 `duration` 연장 고려(영구 조건인데 휘발 채널).
 - **검증**:
-  - [ ] `trimDraftContext` 각 level이 기대한 필드를 제거 (순수 함수 테스트)
-  - [ ] `fitDraftContext`: 거대 컨텍스트 → level이 올라가며 예산 내로 수렴 + `includedSections` 정합
-  - [ ] 예산 내 컨텍스트 → level 0 유지 (불필요한 절삭 없음)
-  - [ ] 예산 무제한(BYOK) → level 0 no-op, 컨텍스트 무손실
-  - [ ] **거대 단일 항목**(userPrompt 하나가 예산 초과): level 3까지 가도 던지지 않고 그대로 반환
-  - [ ] **빈 컨텍스트**: level 0 + 유효한 프롬프트
-  - [ ] `isPromptOverBudget`: 미지원 → `false` / 지원+미초과 → `false` / **지원+초과 → `true`**
-  - [ ] mock 세션으로 overflow → `AiContextOverflowError` → `llm.error.contextOverflow` 매핑 경로 단언
-  - [ ] i18n ko/en 키 대칭 (PostToolUse 훅이 자동 검증)
+  - [x] `trimDraftContext` 각 level이 기대한 필드를 제거 (순수 함수 테스트)
+  - [x] `fitDraftContext`: 거대 컨텍스트 → level이 올라가며 예산 내로 수렴 + `includedSections` 정합
+  - [x] 예산 내 컨텍스트 → level 0 유지 (불필요한 절삭 없음)
+  - [x] 예산 무제한(BYOK) → level 0 no-op, 컨텍스트 무손실
+  - [x] **거대 단일 항목**(userPrompt 하나가 예산 초과): level 3까지 가도 던지지 않고 그대로 반환
+  - [x] **빈 컨텍스트**: level 0 + 유효한 프롬프트
+  - [x] `isPromptOverBudget`: 미지원 → `false` / 지원+미초과 → `false` / **지원+초과 → `true`**
+  - [x] mock 세션으로 overflow → `AiContextOverflowError` → `llm.error.contextOverflow` 매핑 경로 단언
+  - [x] i18n ko/en 키 대칭 (PostToolUse 훅이 자동 검증)
 
 ---
 
@@ -159,11 +159,11 @@ Task 0~3이 끝난 뒤. **이게 본체다.**
   - `lastSentStylesRef` 기준선 초기화는 **세션 생성 직후 한 지점**(`:91-96`)에서 "시스템 프롬프트에 실제 실은 캡 적용 맵"으로 한다. 세션 파괴 경로가 3개(repick `:87-90` / 에러 catch `:154-156` / provider 변경·언마운트 cleanup `:47-53` — BYOK 연결·해제가 이 경로)라 파괴 지점마다 리셋을 흩뿌리면 누락된다 — 생성 지점 수렴으로 세 경로 전부 커버(리뷰 QA 🔴).
   - 다이얼로그 닫기는 세션을 파괴하지 않으므로(패널 상시 마운트) 닫힌 동안의 수동 편집은 "매 턴 기준선 갱신"이 흡수 — 매 턴 delta 계산 후 `lastSentStyles`를 현재 맵으로 갱신.
 - **검증**:
-  - [ ] `buildStyleDeltaBlock`: 변경 없음 → 빈 문자열
-  - [ ] 변경된 prop만 포함, 미변경 prop 제외
-  - [ ] 삭제된 prop도 표현 (값이 사라진 경우)
-  - [ ] 기준선이 캡 적용 맵 기준 — 캡으로 잘린 prop이 이후 턴에 등장하면 delta에 포함됨
-  - [ ] ⚠️ **`setStyleEdits(merged)` → `setAiStylingLoading(false)` 호출 순서 불변** (POSTMORTEM 2026-07-08·07-10)
+  - [x] `buildStyleDeltaBlock`: 변경 없음 → 빈 문자열
+  - [x] 변경된 prop만 포함, 미변경 prop 제외
+  - [x] 삭제된 prop도 표현 (값이 사라진 경우)
+  - [x] 기준선이 캡 적용 맵 기준 — 캡으로 잘린 prop이 이후 턴에 등장하면 delta에 포함됨
+  - [x] ⚠️ **`setStyleEdits(merged)` → `setAiStylingLoading(false)` 호출 순서 불변** (POSTMORTEM 2026-07-08·07-10)
   - [ ] **"e2e 영향" 플래그로 보고** — e2e 실행(`build:e2e`+`test:e2e`)은 `/e2e-write`·`/e2e-run`·push/merge 게이트 전용이라 `/implement`가 직접 돌리지 않는다. `ai-styling.spec.ts`의 "CSS 탭 유지" 케이스(POSTMORTEM 2026-07-10 회귀 감지 지점)와 멀티턴 delta 신규 시나리오를 플래그에 명시
 
 ---
@@ -175,9 +175,9 @@ Task 0~3이 끝난 뒤. **이게 본체다.**
   - `AiStylingDialog.buildContext`: `computedStyles`·`viewport`를 `EditorSelection`에서 실어준다(이미 수집돼 있다 — 새 수집 없음). rich 스타일링 프롬프트가 `extractLayoutContext`로 레이아웃 관련 prop만 추려 싣는다.
   - ~~`getModeImages` annotated+raw 2장 전송~~ — **기각됨**(리뷰 CPO·CDO: BYOK 이미지 비용 2배 대비 품질 근거 없음). 현행 1장(`annotated ?? raw`) 유지, `getModeImages`·테스트 무변경. 품질 근거가 생기면 별도 작업으로 재검토.
 - **검증**:
-  - [ ] rich 스타일링 프롬프트에 `display`·뷰포트 폭이 실림
-  - [ ] compact 스타일링 프롬프트에는 레이아웃 블록 없음 (예산 보호)
-  - [ ] `getModeImages.test.ts` 무변경 green
+  - [x] rich 스타일링 프롬프트에 `display`·뷰포트 폭이 실림
+  - [x] compact 스타일링 프롬프트에는 레이아웃 블록 없음 (예산 보호)
+  - [x] `getModeImages.test.ts` 무변경 green
 
 ---
 

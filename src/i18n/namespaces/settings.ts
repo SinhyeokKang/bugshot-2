@@ -77,6 +77,8 @@ const ko = {
   "llm.error.fetch": "연결에 실패했습니다. URL과 API 키를 확인하세요.",
   "llm.error.quota": "API 허용량을 초과했습니다. 잠시 후 다시 시도하세요.",
   "llm.error.overloaded": "AI 서버가 일시적으로 과부하 상태입니다. 잠시 후 다시 시도하세요.",
+  "llm.error.contextOverflow": "분석할 내용이 너무 많아 Chrome 내장 AI가 처리할 수 없습니다.",
+  "llm.error.contextOverflow.hint": "설정에서 API 키를 연결하면 더 큰 모델을 사용할 수 있습니다.",
 } as const;
 
 type Bundle = Record<keyof typeof ko, string>;
@@ -160,6 +162,8 @@ const en = {
   "llm.error.fetch": "Connection failed. Check URL and API key.",
   "llm.error.quota": "API quota exceeded. Please try again later.",
   "llm.error.overloaded": "AI server is temporarily overloaded. Please try again shortly.",
+  "llm.error.contextOverflow": "This is too much content for Chrome's built-in AI to handle.",
+  "llm.error.contextOverflow.hint": "Connect an API key in Settings to use a model with a larger context window.",
 } satisfies Bundle;
 
 export const settings = { ko, en };

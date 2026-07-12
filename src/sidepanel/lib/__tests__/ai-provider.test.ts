@@ -1,11 +1,18 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import {
+  AiContextOverflowError,
+  BYOK_CAPABILITIES,
+  CHROME_AI_LANG_OPTIONS,
   createAnthropicProvider,
+  createChromeAIProvider,
   createOpenAICompatibleProvider,
   detectProviderKind,
   fetchWithRetry,
   getProviderLabel,
   LlmOverloadedError,
+  LlmQuotaError,
+  mapQuotaError,
+  NANO_CAPABILITIES,
   parseRetryAfterMs,
   PROVIDER_PRESETS,
   ANTHROPIC_MODELS,
@@ -421,5 +428,210 @@ describe("createAnthropicProvider 헤더", () => {
 
     const headers = mockFetch.mock.calls[0][1].headers;
     expect(headers["x-api-key"]).toBe("sk-ant-test");
+  });
+});
+
+describe("ProviderCapabilities", () => {
+  it("Chrome 빌트인 AI → compact / 이미지 불가 / 절삭 예산 10,000자", () => {
+    const caps = createChromeAIProvider().capabilities;
+    expect(caps).toEqual({
+      promptStyle: "compact",
+      supportsImages: false,
+      contextBudgetChars: 10_000,
+    });
+  });
+
+  it("OpenAI 호환 → rich / 이미지 가능 / 예산 무제한", () => {
+    const caps = createOpenAICompatibleProvider({
+      baseUrl: "https://api.openai.com/v1",
+      apiKey: "k",
+      modelId: "gpt-4o",
+    }).capabilities;
+    expect(caps).toEqual({
+      promptStyle: "rich",
+      supportsImages: true,
+      contextBudgetChars: Number.MAX_SAFE_INTEGER,
+    });
+  });
+
+  it("Anthropic → rich / 이미지 가능 / 예산 무제한", () => {
+    const caps = createAnthropicProvider({
+      baseUrl: "https://api.anthropic.com/v1",
+      apiKey: "k",
+      modelId: "claude-sonnet-4-6",
+    }).capabilities;
+    expect(caps.promptStyle).toBe("rich");
+    expect(caps.supportsImages).toBe(true);
+  });
+
+  it("예산이 Infinity가 아니다 (직렬화 안전)", () => {
+    expect(Number.isFinite(BYOK_CAPABILITIES.contextBudgetChars)).toBe(true);
+    expect(Number.isFinite(NANO_CAPABILITIES.contextBudgetChars)).toBe(true);
+  });
+});
+
+function stubLanguageModel(sessionOverrides: Record<string, unknown> = {}) {
+  const nativeSession = {
+    prompt: vi.fn().mockResolvedValue("{}"),
+    destroy: vi.fn(),
+    ...sessionOverrides,
+  };
+  const create = vi.fn().mockResolvedValue(nativeSession);
+  vi.stubGlobal("LanguageModel", { create, availability: vi.fn() });
+  return { create, nativeSession };
+}
+
+describe("createChromeAIProvider — createSession", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("initialPrompts로 세션 생성 — system이 index 0", async () => {
+    const { create } = stubLanguageModel();
+
+    await createChromeAIProvider().createSession("SYS");
+
+    const opts = create.mock.calls[0][0];
+    expect(opts.initialPrompts[0]).toEqual({ role: "system", content: "SYS" });
+  });
+
+  it("CHROME_AI_LANG_OPTIONS를 함께 전달", async () => {
+    const { create } = stubLanguageModel();
+
+    await createChromeAIProvider().createSession("SYS");
+
+    const opts = create.mock.calls[0][0];
+    expect(opts.outputLanguage).toBe(CHROME_AI_LANG_OPTIONS.outputLanguage);
+    expect(opts.expectedOutputs).toEqual(CHROME_AI_LANG_OPTIONS.expectedOutputs);
+  });
+
+  it("few-shot이 system 뒤에 user/assistant 쌍으로 이어짐", async () => {
+    const { create } = stubLanguageModel();
+
+    await createChromeAIProvider().createSession("SYS", [
+      { user: "배경을 파랗게", assistant: '{"explanation":"x"}' },
+    ]);
+
+    expect(create.mock.calls[0][0].initialPrompts).toEqual([
+      { role: "system", content: "SYS" },
+      { role: "user", content: "배경을 파랗게" },
+      { role: "assistant", content: '{"explanation":"x"}' },
+    ]);
+  });
+
+  it("destroy가 네이티브 세션을 destroy", async () => {
+    const { nativeSession } = stubLanguageModel();
+
+    const session = await createChromeAIProvider().createSession("SYS");
+    session.destroy();
+
+    expect(nativeSession.destroy).toHaveBeenCalled();
+  });
+
+  it("LanguageModel 부재 시 throw", async () => {
+    vi.stubGlobal("LanguageModel", undefined);
+    await expect(
+      createChromeAIProvider().createSession("SYS"),
+    ).rejects.toThrow();
+  });
+});
+
+describe("createChromeAIProvider — 컨텍스트 실측 표면", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("신명칭(contextUsage/contextWindow/measureContextUsage)을 노출", async () => {
+    stubLanguageModel({
+      contextUsage: 120,
+      contextWindow: 4096,
+      measureContextUsage: vi.fn().mockResolvedValue(7),
+    });
+
+    const session = await createChromeAIProvider().createSession("SYS");
+
+    expect(session.contextUsage).toBe(120);
+    expect(session.contextWindow).toBe(4096);
+    await expect(session.measureContextUsage!("hi")).resolves.toBe(7);
+  });
+
+  it("구명칭만 있는 네이티브 → 폴백으로 노출", async () => {
+    stubLanguageModel({
+      inputUsage: 30,
+      inputQuota: 1024,
+      measureInputUsage: vi.fn().mockResolvedValue(5),
+    });
+
+    const session = await createChromeAIProvider().createSession("SYS");
+
+    expect(session.contextUsage).toBe(30);
+    expect(session.contextWindow).toBe(1024);
+    await expect(session.measureContextUsage!("hi")).resolves.toBe(5);
+  });
+
+  it("둘 다 없으면 undefined (구버전 Chrome)", async () => {
+    stubLanguageModel();
+
+    const session = await createChromeAIProvider().createSession("SYS");
+
+    expect(session.contextUsage).toBeUndefined();
+    expect(session.contextWindow).toBeUndefined();
+    expect(session.measureContextUsage).toBeUndefined();
+  });
+});
+
+describe("BYOK createSession — few-shot 선주입", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("system → few-shot 쌍 → 실제 대화 순으로 messages 구성", async () => {
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ choices: [{ message: { content: "ok" } }] }),
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    const session = await createOpenAICompatibleProvider({
+      baseUrl: "https://api.openai.com/v1",
+      apiKey: "k",
+      modelId: "gpt-4o",
+    }).createSession("SYS", [{ user: "U1", assistant: "A1" }]);
+
+    await session.prompt("실제 요청");
+
+    const body = JSON.parse(mockFetch.mock.calls[0][1].body);
+    expect(body.messages).toEqual([
+      { role: "system", content: "SYS" },
+      { role: "user", content: "U1" },
+      { role: "assistant", content: "A1" },
+      { role: "user", content: "실제 요청" },
+    ]);
+  });
+});
+
+describe("mapQuotaError", () => {
+  it("QuotaExceededError → AiContextOverflowError", () => {
+    const err = new DOMException("too big", "QuotaExceededError");
+    expect(() => mapQuotaError(err)).toThrow(AiContextOverflowError);
+  });
+
+  it("name이 QuotaExceededError인 일반 에러도 매핑", () => {
+    const err = Object.assign(new Error("x"), { name: "QuotaExceededError" });
+    expect(() => mapQuotaError(err)).toThrow(AiContextOverflowError);
+  });
+
+  it("다른 에러는 원본 그대로 재던짐", () => {
+    const err = new Error("network down");
+    expect(() => mapQuotaError(err)).toThrow(err);
+  });
+
+  it("LlmQuotaError(429)는 컨텍스트 초과가 아니므로 그대로 재던짐", () => {
+    const err = new LlmQuotaError();
+    expect(() => mapQuotaError(err)).toThrow(LlmQuotaError);
   });
 });
