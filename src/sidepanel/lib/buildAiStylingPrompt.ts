@@ -1,5 +1,17 @@
 import type { Token } from "@/types/picker";
+import type {
+  FewShotExample,
+  PromptStyle,
+  ProviderCapabilities,
+} from "./ai-provider";
 import { extractJson } from "./extractJson";
+import { PROMPT_CAPS } from "./prompts/caps";
+import { selectStyles } from "./prompts/context";
+import {
+  buildCompactStylingPrompt,
+  COMPACT_STYLING_FEW_SHOT,
+} from "./prompts/stylingCompact";
+import { buildRichStylingPrompt } from "./prompts/stylingRich";
 
 export interface AiStylingEdits {
   inlineStyle?: Record<string, string>;
@@ -7,15 +19,16 @@ export interface AiStylingEdits {
 }
 
 export interface AiStylingContext {
+  caps: ProviderCapabilities;
   tagName: string;
   selector: string;
   classList: string[];
   specifiedStyles: Record<string, string>;
   tokens: Token[];
+  editedProps?: string[];
+  computedStyles?: Record<string, string>;
+  viewport?: { width: number; height: number };
 }
-
-const MAX_STYLES = 30;
-const MAX_TOKENS = 20;
 
 const DENIED_STYLE_PROPS = new Set(["content", "animation", "will-change"]);
 
@@ -27,48 +40,56 @@ export function isDeniedStyleProp(prop: string): boolean {
   return prop.startsWith("animation-") || prop.startsWith("counter-");
 }
 
+// 프롬프트 컨텍스트(디자인 토큰·computed 값)는 페이지가 통제하는 문자열이라 인젝션
+// 표면이다. 키 필터만으론 값으로 나가는 외부 요청을 못 막는다 — 응답이 라이브 페이지에
+// 그대로 적용되므로 원격 origin을 가리키는 값은 드롭한다.
+//
+// url() 형태로 좁히지 않는다: image-set("https://…")은 url() 없이도 요청을 낸다.
+// CSS 이스케이프(`\75 rl(`, `\2f\2f`)는 토크나이저만 통과하는 우회 수단이라 백슬래시가
+// 보이면 그대로 거절한다 — AI가 쓰는 스타일 값에 이스케이프가 필요한 경우는 없다.
+// data: URI는 요청이 안 나가므로 검사 전에 들어낸다: SVG data URI는
+// xmlns="http://www.w3.org/2000/svg"를 늘 포함해, 안 들어내면 정당한 값이 통째로 드롭된다.
+export function isDeniedStyleValue(value: string): boolean {
+  if (value.includes("\\")) return true;
+  const withoutDataUris = value
+    .replace(/\burl\(\s*(['"]?)\s*data:[\s\S]*?\1\s*\)/gi, "")
+    .replace(/(['"])\s*data:[\s\S]*?\1/g, "");
+  return /https?:|\/\//i.test(withoutDataUris);
+}
+
+const STYLING_BUILDERS: Record<
+  PromptStyle,
+  (ctx: AiStylingContext) => string
+> = {
+  compact: buildCompactStylingPrompt,
+  rich: buildRichStylingPrompt,
+};
+
+// compact 본문은 거절방지를 few-shot으로 대체한다. rich는 필요 없다.
+const STYLING_FEW_SHOT: Record<PromptStyle, FewShotExample[] | undefined> = {
+  compact: COMPACT_STYLING_FEW_SHOT,
+  rich: undefined,
+};
+
 export function buildAiStylingSystemPrompt(ctx: AiStylingContext): string {
-  const lines: string[] = [];
+  return STYLING_BUILDERS[ctx.caps.promptStyle](ctx);
+}
 
-  lines.push(
-    "You are a CSS styling tool. You DIRECTLY modify CSS styles on a live web page.",
-    "The user describes a visual change. You respond with the exact CSS to apply.",
-    "You CAN and MUST change CSS. That is your only job.",
-    'Respond in JSON: { "explanation": "...", "inlineStyle": {...} }',
-    "",
-    `Element: <${ctx.tagName}> at ${ctx.selector}`,
-    `Current classes: ${ctx.classList.join(" ") || "(none)"}`,
+export function getStylingFewShot(
+  ctx: AiStylingContext,
+): FewShotExample[] | undefined {
+  return STYLING_FEW_SHOT[ctx.caps.promptStyle];
+}
+
+// 시스템 프롬프트에 실제로 실린 스타일 맵 — 멀티턴 delta의 기준선.
+export function stylesSentInPrompt(
+  ctx: AiStylingContext,
+): Record<string, string> {
+  return selectStyles(
+    ctx.specifiedStyles,
+    ctx.editedProps ?? [],
+    PROMPT_CAPS[ctx.caps.promptStyle].styles,
   );
-
-  const specEntries = Object.entries(ctx.specifiedStyles).slice(0, MAX_STYLES);
-  if (specEntries.length > 0) {
-    lines.push("", "Current styles:");
-    for (const [prop, val] of specEntries) {
-      lines.push(`  ${prop}: ${val}`);
-    }
-  }
-
-  const tokenEntries = ctx.tokens.slice(0, MAX_TOKENS);
-  if (tokenEntries.length > 0) {
-    lines.push("", "Design tokens (use var() references, prefer tokens from the same family as those already in use):");
-    for (const t of tokenEntries) {
-      lines.push(`  ${t.name}: ${t.value}`);
-    }
-  }
-
-  lines.push(
-    "",
-    "Rules:",
-    "- explanation: one sentence describing what CSS you changed (Korean if user writes Korean)",
-    "- inlineStyle: CSS property-value pairs in kebab-case",
-    "- Prefer design tokens over raw values. When a matching token exists, use var(--token-name). Prioritize tokens from the same family already used on this element",
-    "- classList: optional, the COMPLETE class list. Keep all existing classes, only add/remove what the user asked for",
-    "- Do NOT use these as property keys (they will be ignored): content, animation, animation-*, will-change, counter-*, or any name starting with -- (referencing a token via var(--token) in a value is encouraged)",
-    "- Do NOT include any other fields",
-    "- Output only valid JSON, no markdown fences",
-  );
-
-  return lines.join("\n");
 }
 
 export function buildAiStylingResponseSchema() {
@@ -109,7 +130,7 @@ export function parseAiStylingResponse(raw: string): {
     )) {
       if (typeof val !== "string" || !val) continue;
       const prop = toKebab(rawProp);
-      if (!isDeniedStyleProp(prop)) {
+      if (!isDeniedStyleProp(prop) && !isDeniedStyleValue(val)) {
         filtered[prop] = val;
       }
     }
@@ -124,16 +145,6 @@ export function parseAiStylingResponse(raw: string): {
   }
 
   return { explanation: parsed.explanation, edits };
-}
-
-export function buildStyleContextBlock(ctx: AiStylingContext): string {
-  const lines: string[] = ["[Current state]"];
-  const entries = Object.entries(ctx.specifiedStyles).slice(0, MAX_STYLES);
-  for (const [prop, val] of entries) {
-    lines.push(`  ${prop}: ${val}`);
-  }
-  lines.push(`Classes: ${ctx.classList.join(" ") || "(none)"}`);
-  return lines.join("\n");
 }
 
 function toKebab(s: string): string {

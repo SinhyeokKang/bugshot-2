@@ -1,6 +1,6 @@
 # BugShot Privacy Policy
 
-**Effective date**: July 8, 2026
+**Effective date**: July 12, 2026
 
 BugShot (the "extension") values your privacy and collects and processes only the minimum information necessary. This policy transparently explains what information the extension handles.
 
@@ -114,7 +114,7 @@ The extension transmits data only to the services below.
 | Slack Web API (`slack.com` and Slack-issued file upload URLs) | Message body (title, detail), mention targets, screenshots, video, debug logs, and — on promotion — the tracker issue link | Sending messages/attachments to channels/DMs in your own workspace, and auto-commenting the issue link in the original message thread when promoting to a tracker |
 | OAuth proxy server | OAuth authorization code | Token exchange (Jira, GitHub, Notion, Asana, ClickUp, Slack) |
 | User-specified LLM provider (AI draft) | Issue body draft, page URL/title, element selector/style info, screenshot (optional), debug log summary (optional) | AI draft generation |
-| User-specified LLM provider (AI styling) | Selected element's tag, CSS selector, class list, current specified styles, design tokens | CSS change suggestion |
+| User-specified LLM provider (AI styling) | Selected element's tag, CSS selector, class list, current specified styles, design tokens, computed layout styles (display, position, width, margin, etc.), browser viewport size | CSS change suggestion |
 | PostHog (`us.i.posthog.com`) | Anonymous aggregate events (install, panel open, platform connect/disconnect, issue submission) | Anonymous usage analytics |
 
 The OAuth proxy server only relays the token exchange and does not store or log user data. Linear and GitLab exchange tokens directly via PKCE without a proxy.

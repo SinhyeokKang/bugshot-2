@@ -8,6 +8,7 @@ import {
   detectProviderKind,
   getProviderLabel,
   type AIProvider,
+  type ProviderCapabilities,
 } from "@/sidepanel/lib/ai-provider";
 
 type AIStatus = "checking" | "available" | "unavailable";
@@ -15,6 +16,7 @@ type AIStatus = "checking" | "available" | "unavailable";
 export function useAI(): {
   status: AIStatus;
   providerLabel: string | null;
+  capabilities: ProviderCapabilities;
   generate: AIProvider["generate"];
   createSession: AIProvider["createSession"];
 } {
@@ -65,6 +67,7 @@ export function useAI(): {
   return {
     status,
     providerLabel,
+    capabilities: provider.capabilities,
     generate: provider.generate,
     createSession: provider.createSession,
   };

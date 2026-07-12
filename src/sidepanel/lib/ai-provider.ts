@@ -6,6 +6,20 @@ interface LanguageModelInstance {
     options?: { responseConstraint?: unknown },
   ): Promise<string>;
   destroy(): void;
+  // 신명칭. 구명칭(inputUsage/inputQuota/measureInputUsage)은 확장에서 deprecated라
+  // 신명칭을 우선 읽고 구명칭으로 폴백한다.
+  contextUsage?: number;
+  contextWindow?: number;
+  measureContextUsage?(
+    input: string,
+    options?: { responseConstraint?: unknown },
+  ): Promise<number>;
+  inputUsage?: number;
+  inputQuota?: number;
+  measureInputUsage?(
+    input: string,
+    options?: { responseConstraint?: unknown },
+  ): Promise<number>;
 }
 
 interface LanguageModelLangOptions {
@@ -13,11 +27,18 @@ interface LanguageModelLangOptions {
   expectedOutputs?: { type: string; languages: string[] }[];
 }
 
+interface LanguageModelInitialPrompt {
+  role: "system" | "user" | "assistant";
+  content: string;
+}
+
 declare global {
   interface LanguageModel {
     availability(options?: LanguageModelLangOptions): Promise<string>;
     create(
-      options?: LanguageModelLangOptions & { systemPrompt?: string },
+      options?: LanguageModelLangOptions & {
+        initialPrompts?: LanguageModelInitialPrompt[];
+      },
     ): Promise<LanguageModelInstance>;
   }
   // eslint-disable-next-line no-var
@@ -33,6 +54,64 @@ export const CHROME_AI_LANG_OPTIONS: LanguageModelLangOptions = {
 
 export type ProviderKind = "openai" | "anthropic";
 
+// 프로바이더 능력은 등급 스칼라가 아니라 독립된 3축이다 — 저가 BYOK 모델(gpt-4o-mini)은
+// 싸지만 나노 제약이 없고, 로컬 소형 모델(Ollama 3B)은 나노와 같은 제약을 갖는다.
+export type PromptStyle = "compact" | "rich";
+
+export interface ProviderCapabilities {
+  readonly promptStyle: PromptStyle;
+  readonly supportsImages: boolean;
+  readonly contextBudgetChars: number;
+}
+
+export const NANO_CAPABILITIES: ProviderCapabilities = {
+  promptStyle: "compact",
+  supportsImages: false,
+  contextBudgetChars: 10_000,
+};
+
+export const BYOK_CAPABILITIES: ProviderCapabilities = {
+  promptStyle: "rich",
+  supportsImages: true,
+  contextBudgetChars: Number.MAX_SAFE_INTEGER,
+};
+
+// 로컬 엔드포인트(Ollama 등)에서 도는 건 통상 소형 모델이라 나노와 같은 제약을 갖는다.
+// rich 본문·스크린샷·무제한 예산을 그대로 밀면 3단 가드가 통째로 우회된다.
+export const LOCAL_BYOK_CAPABILITIES: ProviderCapabilities = {
+  promptStyle: "compact",
+  supportsImages: false,
+  contextBudgetChars: 8_000,
+};
+
+// loopback만 로컬로 본다. LAN에 띄운 Ollama(`OLLAMA_HOST=0.0.0.0` → 192.168.*·*.local)는
+// 원격으로 잡혀 rich 좌표를 받는다 — 의도된 한계다. 주소만으론 그 뒤에 3B가 있는지
+// 사내 vLLM 대형 모델이 있는지 알 수 없어, 추측으로 강등시키지 않는다.
+function isLocalEndpoint(baseUrl: string): boolean {
+  try {
+    const hostname = new URL(baseUrl).hostname;
+    return (
+      hostname === "localhost" ||
+      hostname.endsWith(".localhost") ||
+      hostname === "127.0.0.1" ||
+      hostname === "[::1]"
+    );
+  } catch {
+    return false;
+  }
+}
+
+export function byokCapabilities(baseUrl: string): ProviderCapabilities {
+  return isLocalEndpoint(baseUrl) ? LOCAL_BYOK_CAPABILITIES : BYOK_CAPABILITIES;
+}
+
+// few-shot 1쌍. systemPrompt 문자열이 아니라 별도 채널(Chrome initialPrompts / BYOK
+// messages 선주입)로 나가야 compact 본문의 "JSON 규칙 없음" 불변식과 충돌하지 않는다.
+export interface FewShotExample {
+  user: string;
+  assistant: string;
+}
+
 export interface AISession {
   prompt(
     input: string,
@@ -42,9 +121,17 @@ export interface AISession {
     },
   ): Promise<string>;
   destroy(): void;
+  measureContextUsage?(
+    input: string,
+    options?: { responseSchema?: Record<string, unknown> },
+  ): Promise<number>;
+  readonly contextUsage?: number;
+  readonly contextWindow?: number;
 }
 
 export interface AIProvider {
+  readonly capabilities: ProviderCapabilities;
+
   generate(params: {
     systemPrompt?: string;
     prompt: string;
@@ -52,7 +139,10 @@ export interface AIProvider {
     responseSchema?: Record<string, unknown>;
   }): Promise<string>;
 
-  createSession(systemPrompt: string): Promise<AISession>;
+  createSession(
+    systemPrompt: string,
+    fewShot?: FewShotExample[],
+  ): Promise<AISession>;
 }
 
 export interface ModelEntry {
@@ -71,6 +161,22 @@ export class LlmOverloadedError extends Error {
     super("overloaded");
     this.name = "LlmOverloadedError";
   }
+}
+
+export class AiContextOverflowError extends Error {
+  constructor() {
+    super("context_overflow");
+    this.name = "AiContextOverflowError";
+  }
+}
+
+// create()/prompt()가 던지는 QuotaExceededError를 컨텍스트 초과로 승격한다.
+// 실측 API가 없는 구버전 Chrome에서는 이게 유일한 초과 신호다.
+// DOMException은 Error 서브클래스가 아니라 name으로 판별한다.
+export function mapQuotaError(err: unknown): never {
+  const name = (err as { name?: unknown } | null)?.name;
+  if (name === "QuotaExceededError") throw new AiContextOverflowError();
+  throw err;
 }
 
 // 일시적 오버로드/게이트웨이 오류에 한해 1s → 2s 백오프로 2회 재시도.
@@ -151,39 +257,81 @@ export function getProviderLabel(baseUrl: string): string {
   return preset?.label ?? "Custom";
 }
 
-export function createChromeAIProvider(): AIProvider {
+function buildInitialPrompts(
+  systemPrompt: string,
+  fewShot?: FewShotExample[],
+): LanguageModelInitialPrompt[] {
+  const prompts: LanguageModelInitialPrompt[] = [
+    { role: "system", content: systemPrompt },
+  ];
+  for (const ex of fewShot ?? []) {
+    prompts.push({ role: "user", content: ex.user });
+    prompts.push({ role: "assistant", content: ex.assistant });
+  }
+  return prompts;
+}
+
+function wrapChromeSession(native: LanguageModelInstance): AISession {
+  const measure = native.measureContextUsage ?? native.measureInputUsage;
   return {
-    async generate({ systemPrompt, prompt, responseSchema }) {
-      if (!globalThis.LanguageModel) throw new Error("Chrome AI unavailable");
-      const session = await globalThis.LanguageModel.create({
-        systemPrompt,
-        ...CHROME_AI_LANG_OPTIONS,
-      });
-      try {
-        return await session.prompt(
-          prompt,
-          responseSchema ? { responseConstraint: responseSchema } : undefined,
-        );
-      } finally {
-        session.destroy();
-      }
+    prompt: (input, options) =>
+      native
+        .prompt(
+          input,
+          options?.responseSchema
+            ? { responseConstraint: options.responseSchema }
+            : undefined,
+        )
+        .catch(mapQuotaError),
+    destroy: () => native.destroy(),
+    get contextUsage() {
+      return native.contextUsage ?? native.inputUsage;
     },
-    async createSession(systemPrompt) {
-      if (!globalThis.LanguageModel) throw new Error("Chrome AI unavailable");
-      const session = await globalThis.LanguageModel.create({
-        systemPrompt,
-        ...CHROME_AI_LANG_OPTIONS,
-      });
-      return {
-        prompt: (input, options) =>
-          session.prompt(
+    get contextWindow() {
+      return native.contextWindow ?? native.inputQuota;
+    },
+    measureContextUsage: measure
+      ? (input, options) =>
+          measure.call(
+            native,
             input,
             options?.responseSchema
               ? { responseConstraint: options.responseSchema }
               : undefined,
-          ),
-        destroy: () => session.destroy(),
-      };
+          )
+      : undefined,
+  };
+}
+
+export function createChromeAIProvider(): AIProvider {
+  return {
+    capabilities: NANO_CAPABILITIES,
+
+    async generate({ systemPrompt, prompt, responseSchema }) {
+      if (!globalThis.LanguageModel) throw new Error("Chrome AI unavailable");
+      const session = await globalThis.LanguageModel.create({
+        initialPrompts: buildInitialPrompts(systemPrompt ?? ""),
+        ...CHROME_AI_LANG_OPTIONS,
+      }).catch(mapQuotaError);
+      try {
+        return await session
+          .prompt(
+            prompt,
+            responseSchema ? { responseConstraint: responseSchema } : undefined,
+          )
+          .catch(mapQuotaError);
+      } finally {
+        session.destroy();
+      }
+    },
+
+    async createSession(systemPrompt, fewShot) {
+      if (!globalThis.LanguageModel) throw new Error("Chrome AI unavailable");
+      const native = await globalThis.LanguageModel.create({
+        initialPrompts: buildInitialPrompts(systemPrompt, fewShot),
+        ...CHROME_AI_LANG_OPTIONS,
+      }).catch(mapQuotaError);
+      return wrapChromeSession(native);
     },
   };
 }
@@ -240,16 +388,22 @@ export function createOpenAICompatibleProvider(config: LlmConfig): AIProvider {
   }
 
   return {
+    capabilities: byokCapabilities(config.baseUrl),
+
     async generate({ systemPrompt, prompt, images, responseSchema }) {
       const messages: Array<{ role: string; content: OpenAIContent }> = [];
       if (systemPrompt) messages.push({ role: "system", content: systemPrompt });
       messages.push({ role: "user", content: buildOpenAIContent(prompt, images) });
       return callChatCompletions(messages, !!responseSchema);
     },
-    async createSession(systemPrompt) {
+    async createSession(systemPrompt, fewShot) {
       const messages: Array<{ role: string; content: OpenAIContent }> = [
         { role: "system", content: systemPrompt },
       ];
+      for (const ex of fewShot ?? []) {
+        messages.push({ role: "user", content: ex.user });
+        messages.push({ role: "assistant", content: ex.assistant });
+      }
       return {
         async prompt(input, options) {
           messages.push({ role: "user", content: buildOpenAIContent(input, options?.images) });
@@ -330,14 +484,20 @@ export function createAnthropicProvider(config: LlmConfig): AIProvider {
   }
 
   return {
+    capabilities: byokCapabilities(config.baseUrl),
+
     async generate({ systemPrompt, prompt, images, responseSchema }) {
       const sys = responseSchema
         ? `${systemPrompt ?? ""}\n\nRespond with valid JSON only. Schema: ${JSON.stringify(responseSchema)}`
         : (systemPrompt ?? "");
       return callMessages(sys, [{ role: "user", content: buildAnthropicContent(prompt, images) }]);
     },
-    async createSession(systemPrompt) {
+    async createSession(systemPrompt, fewShot) {
       const messages: Array<{ role: string; content: AnthropicContent }> = [];
+      for (const ex of fewShot ?? []) {
+        messages.push({ role: "user", content: ex.user });
+        messages.push({ role: "assistant", content: ex.assistant });
+      }
       return {
         async prompt(input, options) {
           const sys = options?.responseSchema
