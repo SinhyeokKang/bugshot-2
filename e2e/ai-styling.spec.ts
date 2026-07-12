@@ -129,4 +129,37 @@ test.describe.serial("AI 스타일링 (BYOK mock)", () => {
     // 선택자 1행으로 붕괴하지 않았다.
     expect(await cm.locator(".cm-line").count()).toBeGreaterThan(3);
   });
+
+  // 프롬프트 컨텍스트(디자인 토큰·computed 값)는 페이지가 통제하는 문자열이라 인젝션 표면이다.
+  // 응답은 라이브 페이지에 그대로 적용되므로, 원격 origin을 가리키는 값은 드롭돼야 한다
+  // (키 필터만으론 값으로 나가는 외부 요청을 못 막는다).
+  test("AI 응답의 외부 URL 값은 드롭되고 나머지 선언만 적용된다", async () => {
+    mockStyling = {
+      explanation: "add a background image",
+      inlineStyle: {
+        backgroundImage: "url(https://attacker.example/pixel.png)",
+        color: "rgb(0, 0, 255)",
+      },
+    };
+
+    await panel.getByTestId("ai-styling-trigger").click();
+    await panel.getByTestId("ai-styling-input").fill("배경 이미지 넣어줘");
+    await panel.getByTestId("ai-styling-submit").click();
+
+    // 안전한 선언은 적용된다.
+    await expect(fixture.locator("#title")).toHaveCSS("color", "rgb(0, 0, 255)");
+    // 원격 URL 값은 페이지에 도달하지 않는다.
+    await expect(fixture.locator("#title")).toHaveCSS("background-image", "none");
+
+    // 변경사항에도 남지 않는다(드롭이라 오버라이드 자체가 없다).
+    await panel.getByTestId("changes-trigger").click();
+    await expect(panel.getByTestId("changes-dialog")).toBeVisible();
+    await expect(
+      panel.locator('[data-testid="changes-row"][data-prop="background-image"]'),
+    ).toHaveCount(0);
+    await expect(
+      panel.locator('[data-testid="changes-row"][data-prop="color"]'),
+    ).toBeVisible();
+    await panel.keyboard.press("Escape");
+  });
 });
