@@ -3,6 +3,7 @@ import type { AiStylingContext } from "../buildAiStylingPrompt";
 import { PROMPT_CAPS } from "./caps";
 import {
   extractVarRefs,
+  oneLine,
   selectRelevantTokens,
   selectStyles,
 } from "./context";
@@ -59,5 +60,5 @@ export function buildCompactStylingPrompt(ctx: AiStylingContext): string {
   lines.push("explanation: one sentence on what you changed (Korean if the user writes Korean).");
   lines.push("inlineStyle: CSS properties in kebab-case.");
 
-  return lines.join("\n");
+  return lines.map(oneLine).join("\n");
 }

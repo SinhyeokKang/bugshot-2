@@ -4,15 +4,18 @@ import type { StyleDiffRow } from "@/sidepanel/components/StyleChangesTable";
 import type { NetworkLogSummary, ConsoleLogSummary } from "./buildLogSummary";
 import type { ActionLogSummary } from "@/types/action";
 import type { EditorDraft } from "@/store/editor-store";
-import type { FewShotExample, ProviderCapabilities } from "./ai-provider";
+import type {
+  FewShotExample,
+  PromptStyle,
+  ProviderCapabilities,
+} from "./ai-provider";
 import { extractJson } from "./extractJson";
+import { MAX_TITLE_LENGTH } from "./prompts/caps";
 import {
   buildCompactDraftPrompt,
   COMPACT_DRAFT_FEW_SHOT,
-} from "./prompts/draft.compact";
-import { buildRichDraftPrompt } from "./prompts/draft.rich";
-
-const MAX_TITLE_LENGTH = 80;
+} from "./prompts/draftCompact";
+import { buildRichDraftPrompt } from "./prompts/draftRich";
 
 export function buildAiDraftSchema(sectionIds: IssueSectionId[]) {
   const properties: Record<string, { type: "string" }> = {
@@ -85,15 +88,28 @@ export interface AiDraftSessionContext {
   existingDraft?: { title: string; sections: Record<string, string> };
 }
 
-export function buildAiDraftSessionPrompt(ctx: AiDraftSessionContext): string {
-  return ctx.caps.promptStyle === "compact"
-    ? buildCompactDraftPrompt(ctx)
-    : buildRichDraftPrompt(ctx);
-}
+// Record로 분기해야 PromptStyle에 값이 늘 때 컴파일 에러가 난다. 삼항은 새 style을
+// 조용히 rich로 흘려보낸다 — 창이 가장 좁은 프로바이더가 가장 큰 본문을 받는 방향이다.
+const DRAFT_BUILDERS: Record<
+  PromptStyle,
+  (ctx: AiDraftSessionContext) => string
+> = {
+  compact: buildCompactDraftPrompt,
+  rich: buildRichDraftPrompt,
+};
 
 // compact은 예시로 출력 형태를 잡는다. rich는 규칙 문장으로 충분하다.
+const DRAFT_FEW_SHOT: Record<PromptStyle, FewShotExample[] | undefined> = {
+  compact: COMPACT_DRAFT_FEW_SHOT,
+  rich: undefined,
+};
+
+export function buildAiDraftSessionPrompt(ctx: AiDraftSessionContext): string {
+  return DRAFT_BUILDERS[ctx.caps.promptStyle](ctx);
+}
+
 export function getDraftFewShot(
   ctx: AiDraftSessionContext,
 ): FewShotExample[] | undefined {
-  return ctx.caps.promptStyle === "compact" ? COMPACT_DRAFT_FEW_SHOT : undefined;
+  return DRAFT_FEW_SHOT[ctx.caps.promptStyle];
 }

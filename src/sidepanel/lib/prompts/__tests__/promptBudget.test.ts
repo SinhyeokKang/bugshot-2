@@ -4,8 +4,8 @@ import {
   isPromptOverBudget,
   trimDraftContext,
 } from "../promptBudget";
-import { NANO_CAPABILITIES, BYOK_CAPABILITIES, type AISession } from "../ai-provider";
-import type { AiDraftSessionContext } from "../buildAiDraftPrompt";
+import { NANO_CAPABILITIES, BYOK_CAPABILITIES, type AISession } from "../../ai-provider";
+import type { AiDraftSessionContext } from "../../buildAiDraftPrompt";
 
 const RICH_CTX: AiDraftSessionContext = {
   caps: BYOK_CAPABILITIES,
@@ -263,5 +263,45 @@ describe("isPromptOverBudget", () => {
       contextWindow: 4000,
     });
     await expect(isPromptOverBudget(session, "hello")).resolves.toBe(false);
+  });
+});
+
+// 섹션과 같은 손실 경로가 title에도 있다: level≥2에서 existingDraft가 통째로 빠지면
+// 모델은 사용자의 기존 제목을 본 적 없이 새 제목을 지어낸다.
+describe("fitDraftContext — title 포함 여부", () => {
+  const withDraft = (ctx: AiDraftSessionContext): AiDraftSessionContext => ({
+    ...ctx,
+    existingDraft: {
+      title: "사용자가 쓴 제목",
+      sections: { description: "사용자가 쓴 본문" },
+    },
+  });
+
+  it("예산에 여유가 있으면 title이 실린다", () => {
+    const fitted = fitDraftContext(
+      withDraft(RICH_CTX),
+      (c) => `prompt:${c.existingDraft?.title ?? ""}`,
+      10_000,
+    );
+    expect(fitted.titleIncluded).toBe(true);
+  });
+
+  it("절삭 level≥2(기존 초안 폐기)면 title도 안 실린다", () => {
+    const fitted = fitDraftContext(
+      withDraft(RICH_CTX),
+      (c) => (c.existingDraft ? "x".repeat(500) : "x".repeat(10)),
+      100,
+    );
+    expect(fitted.level).toBeGreaterThanOrEqual(2);
+    expect(fitted.titleIncluded).toBe(false);
+  });
+
+  it("기존 제목이 없으면 titleIncluded=false", () => {
+    const fitted = fitDraftContext(
+      { ...RICH_CTX, existingDraft: { title: "  ", sections: {} } },
+      () => "short",
+      10_000,
+    );
+    expect(fitted.titleIncluded).toBe(false);
   });
 });

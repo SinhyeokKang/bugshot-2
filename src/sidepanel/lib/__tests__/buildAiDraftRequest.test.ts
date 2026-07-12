@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { buildAiDraftRequest } from "../buildAiDraftRequest";
+import { buildAiDraftSessionPrompt } from "../buildAiDraftPrompt";
 import type { AiDraftSessionContext } from "../buildAiDraftPrompt";
 import { BYOK_CAPABILITIES, NANO_CAPABILITIES } from "../ai-provider";
 
@@ -12,12 +13,13 @@ const CTX: AiDraftSessionContext = {
   enabledSections: [{ id: "description" }],
 };
 
-const NANO_CTX: AiDraftSessionContext = { ...CTX, caps: NANO_CAPABILITIES };
+const SYS = "system prompt";
 
 describe("buildAiDraftRequest", () => {
   it("modeImages=undefined + inline 없음 → images=undefined (런타임 에러 없음)", () => {
     const { images } = buildAiDraftRequest({
-      ctx: CTX,
+      caps: BYOK_CAPABILITIES,
+      systemPrompt: SYS,
       modeImages: undefined,
       inlineImageDataUrls: [],
     });
@@ -26,7 +28,8 @@ describe("buildAiDraftRequest", () => {
 
   it("캡처 이미지 + inline 이미지 → 캡처 먼저, inline 뒤 순서로 concat", () => {
     const { images } = buildAiDraftRequest({
-      ctx: CTX,
+      caps: BYOK_CAPABILITIES,
+      systemPrompt: SYS,
       modeImages: ["data:cap1"],
       inlineImageDataUrls: ["data:in1", "data:in2"],
     });
@@ -35,7 +38,8 @@ describe("buildAiDraftRequest", () => {
 
   it("modeImages=undefined + inline 있음 → inline만", () => {
     const { images } = buildAiDraftRequest({
-      ctx: CTX,
+      caps: BYOK_CAPABILITIES,
+      systemPrompt: SYS,
       modeImages: undefined,
       inlineImageDataUrls: ["data:in1"],
     });
@@ -44,7 +48,8 @@ describe("buildAiDraftRequest", () => {
 
   it("캡처만 있고 inline 없음 → 캡처만", () => {
     const { images } = buildAiDraftRequest({
-      ctx: CTX,
+      caps: BYOK_CAPABILITIES,
+      systemPrompt: SYS,
       modeImages: ["data:cap1"],
       inlineImageDataUrls: [],
     });
@@ -53,13 +58,11 @@ describe("buildAiDraftRequest", () => {
 
   it("systemPrompt가 ctx.existingDraft를 반영", () => {
     const { systemPrompt } = buildAiDraftRequest({
-      ctx: {
+      caps: BYOK_CAPABILITIES,
+      systemPrompt: buildAiDraftSessionPrompt({
         ...CTX,
-        existingDraft: {
-          title: "t",
-          sections: { description: "기존 본문 내용" },
-        },
-      },
+        existingDraft: { title: "t", sections: { description: "기존 본문 내용" } },
+      }),
       modeImages: undefined,
       inlineImageDataUrls: [],
     });
@@ -70,7 +73,8 @@ describe("buildAiDraftRequest", () => {
   // 있었다. 프롬프트는 "스크린샷을 분석하라"고 지시 → 환각.
   it("supportsImages=false + 캡처 이미지 있음 → images=undefined (전송 안 함)", () => {
     const { images } = buildAiDraftRequest({
-      ctx: NANO_CTX,
+      caps: NANO_CAPABILITIES,
+      systemPrompt: SYS,
       modeImages: ["data:cap1"],
       inlineImageDataUrls: ["data:in1"],
     });
@@ -79,7 +83,8 @@ describe("buildAiDraftRequest", () => {
 
   it("supportsImages=false + 이미지 없음 → images=undefined", () => {
     const { images } = buildAiDraftRequest({
-      ctx: NANO_CTX,
+      caps: NANO_CAPABILITIES,
+      systemPrompt: SYS,
       modeImages: undefined,
       inlineImageDataUrls: [],
     });
@@ -88,7 +93,8 @@ describe("buildAiDraftRequest", () => {
 
   it("supportsImages=true → 기존 concat 동작 유지", () => {
     const { images } = buildAiDraftRequest({
-      ctx: CTX,
+      caps: BYOK_CAPABILITIES,
+      systemPrompt: SYS,
       modeImages: ["data:cap1"],
       inlineImageDataUrls: ["data:in1"],
     });

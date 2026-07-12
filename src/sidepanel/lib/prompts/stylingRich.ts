@@ -3,6 +3,7 @@ import { PROMPT_CAPS } from "./caps";
 import {
   extractLayoutContext,
   extractVarRefs,
+  oneLine,
   selectRelevantTokens,
   selectStyles,
 } from "./context";
@@ -72,5 +73,5 @@ export function buildRichStylingPrompt(ctx: AiStylingContext): string {
     "- Output only valid JSON, no markdown fences",
   );
 
-  return lines.join("\n");
+  return lines.map(oneLine).join("\n");
 }

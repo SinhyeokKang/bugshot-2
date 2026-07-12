@@ -2,10 +2,8 @@ import type { CaptureMode } from "@/store/editor-store";
 import type { IssueSectionId, LocaleMode } from "@/store/settings-ui-store";
 import type { AiDraftSessionContext } from "../buildAiDraftPrompt";
 import { stripInlineImageRefs } from "../resolveInlineImages";
-import { PROMPT_CAPS } from "./caps";
-import { selectDraftSections } from "./context";
-
-const MAX_TITLE_LENGTH = 80;
+import { MAX_TITLE_LENGTH, PROMPT_CAPS } from "./caps";
+import { includesLogContext, oneLine, selectDraftSections } from "./context";
 
 const SECTION_DESC_BASE: Record<LocaleMode, Record<IssueSectionId, string>> = {
   ko: {
@@ -94,7 +92,7 @@ export function buildRichDraftPrompt(ctx: AiDraftSessionContext): string {
     }
   }
 
-  if (ctx.captureMode === "video" || ctx.captureMode === "freeform") {
+  if (includesLogContext(ctx.captureMode)) {
     if (ctx.captureMode === "video") {
       lines.push("- The user recorded a screen video of the bug. They will describe what happened.");
     } else {
@@ -139,12 +137,18 @@ export function buildRichDraftPrompt(ctx: AiDraftSessionContext): string {
     caps.existingDraftChars,
     stripInlineImageRefs,
   );
+  // 줄 단위로 분해해 push — 통짜로 넣으면 마지막 oneLine이 stepsToReproduce의 단계
+  // 구분 개행까지 접는다(인젝션 방어 대상은 페이지 통제 문자열뿐, 사용자 초안이 아니다).
   if (parts.length > 0) {
     lines.push("");
     lines.push(
       "Current draft (the user already wrote this — use it as reference, then improve and complete it):",
     );
-    for (const p of parts) lines.push(`- ${p}`);
+    for (const p of parts) {
+      const [first, ...rest] = p.split(/\r?\n/);
+      lines.push(`- ${first}`);
+      for (const cont of rest) lines.push(`  ${cont}`);
+    }
   }
 
   const desc = getSectionDesc(ctx.locale, ctx.captureMode);
@@ -174,5 +178,5 @@ export function buildRichDraftPrompt(ctx: AiDraftSessionContext): string {
       : `- Write all string values in ${lang}.`,
   );
 
-  return lines.join("\n");
+  return lines.map(oneLine).join("\n");
 }

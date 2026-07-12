@@ -1,7 +1,9 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import {
   AiContextOverflowError,
+  byokCapabilities,
   BYOK_CAPABILITIES,
+  LOCAL_BYOK_CAPABILITIES,
   CHROME_AI_LANG_OPTIONS,
   createAnthropicProvider,
   createChromeAIProvider,
@@ -467,6 +469,48 @@ describe("ProviderCapabilities", () => {
   it("예산이 Infinity가 아니다 (직렬화 안전)", () => {
     expect(Number.isFinite(BYOK_CAPABILITIES.contextBudgetChars)).toBe(true);
     expect(Number.isFinite(NANO_CAPABILITIES.contextBudgetChars)).toBe(true);
+    expect(Number.isFinite(LOCAL_BYOK_CAPABILITIES.contextBudgetChars)).toBe(true);
+  });
+});
+
+// 로컬 엔드포인트는 소형 모델(Ollama 3B 등)을 돌리는 게 기본이라 나노와 같은 제약을 갖는다.
+// rich 본문 + 스크린샷 + 절삭 없음을 그대로 밀면 3단 가드가 통째로 우회된다.
+describe("byokCapabilities — 로컬 엔드포인트", () => {
+  it.each([
+    "http://localhost:11434/v1",
+    "http://127.0.0.1:1234/v1",
+    "http://[::1]:8080/v1",
+  ])("%s → compact / 이미지 불가 / 유한 예산", (baseUrl) => {
+    expect(byokCapabilities(baseUrl)).toEqual(LOCAL_BYOK_CAPABILITIES);
+    expect(LOCAL_BYOK_CAPABILITIES.promptStyle).toBe("compact");
+    expect(LOCAL_BYOK_CAPABILITIES.supportsImages).toBe(false);
+  });
+
+  it.each([
+    "https://api.openai.com/v1",
+    "https://openrouter.ai/api/v1",
+    "https://llm.internal.example.com/v1",
+  ])("%s → 원격은 rich 유지", (baseUrl) => {
+    expect(byokCapabilities(baseUrl)).toEqual(BYOK_CAPABILITIES);
+  });
+
+  it("Ollama 프리셋이 로컬로 판정된다", () => {
+    const ollama = PROVIDER_PRESETS.find((p) => p.id === "ollama")!;
+    expect(byokCapabilities(ollama.baseUrl)).toEqual(LOCAL_BYOK_CAPABILITIES);
+  });
+
+  it("잘못된 URL → 원격으로 간주(보수적 판정 아님, 기존 동작 유지)", () => {
+    expect(byokCapabilities("not a url")).toEqual(BYOK_CAPABILITIES);
+  });
+
+  it("프로바이더 팩토리가 baseUrl별 능력을 반영", () => {
+    const local = createOpenAICompatibleProvider({
+      baseUrl: "http://localhost:11434/v1",
+      apiKey: "",
+      modelId: "llama3.2",
+    });
+    expect(local.capabilities.promptStyle).toBe("compact");
+    expect(local.capabilities.supportsImages).toBe(false);
   });
 });
 

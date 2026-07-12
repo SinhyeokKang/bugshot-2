@@ -41,3 +41,7 @@ export const PROMPT_CAPS: Record<PromptStyle, PromptCaps> = {
 // 컨텍스트 0인 compact 본문의 문자 상한. 불변식 테스트 전용 — 런타임 절삭 예산
 // (ProviderCapabilities.contextBudgetChars)과는 다른 값이다.
 export const COMPACT_SYSTEM_TARGET_CHARS = 2000;
+
+// 프롬프트가 광고하는 상한과 parseAiDraftResponse가 실제로 자르는 상한의 단일 출처.
+// 갈라지면 모델은 지키는데 파서가 중간에서 자른다.
+export const MAX_TITLE_LENGTH = 80;

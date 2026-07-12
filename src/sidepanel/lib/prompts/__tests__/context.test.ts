@@ -6,7 +6,9 @@ import {
   selectDraftSections,
   extractLayoutContext,
   extractVarRefs,
+  includesLogContext,
   LAYOUT_PROPS,
+  oneLine,
   selectRelevantTokens,
   selectStyles,
 } from "../context";
@@ -173,13 +175,15 @@ describe("extractLayoutContext", () => {
 describe("buildStyleDeltaBlock", () => {
   it("변경 없으면 빈 문자열", () => {
     const styles = { color: "red", padding: "8px" };
-    expect(buildStyleDeltaBlock(styles, { ...styles })).toBe("");
+    expect(buildStyleDeltaBlock(styles, { ...styles }, styles)).toBe("");
   });
 
   it("변경된 prop만 포함, 미변경 prop 제외", () => {
+    const next = { color: "blue", padding: "8px" };
     const block = buildStyleDeltaBlock(
       { color: "red", padding: "8px" },
-      { color: "blue", padding: "8px" },
+      next,
+      next,
     );
     expect(block).toContain("color");
     expect(block).toContain("blue");
@@ -187,19 +191,19 @@ describe("buildStyleDeltaBlock", () => {
   });
 
   it("새로 추가된 prop 포함", () => {
-    const block = buildStyleDeltaBlock({}, { color: "red" });
+    const block = buildStyleDeltaBlock({}, { color: "red" }, { color: "red" });
     expect(block).toContain("color");
     expect(block).toContain("red");
   });
 
   it("삭제된 prop도 제거됐음을 표현", () => {
-    const block = buildStyleDeltaBlock({ color: "red" }, {});
+    const block = buildStyleDeltaBlock({ color: "red" }, {}, {});
     expect(block).toContain("color");
     expect(block).toMatch(/removed|제거/i);
   });
 
   it("양쪽 다 비면 빈 문자열", () => {
-    expect(buildStyleDeltaBlock({}, {})).toBe("");
+    expect(buildStyleDeltaBlock({}, {}, {})).toBe("");
   });
 });
 
@@ -211,6 +215,7 @@ describe("selectDraftSections", () => {
     expect(selectDraftSections(undefined, ENABLED, 400, strip)).toEqual({
       parts: [],
       includedIds: [],
+      titleIncluded: false,
     });
   });
 
@@ -301,5 +306,30 @@ describe("buildClassDeltaLine", () => {
 
   it("전부 제거되면 (none)", () => {
     expect(buildClassDeltaLine(["a"], [])).toContain("(none)");
+  });
+});
+
+describe("oneLine", () => {
+  it("개행을 공백으로 접어 한 줄로 만든다", () => {
+    expect(oneLine("a\nb")).toBe("a b");
+    expect(oneLine("a\r\n\r\nb")).toBe("a b");
+  });
+
+  it("빈 문자열·개행 없는 문자열은 그대로", () => {
+    expect(oneLine("")).toBe("");
+    expect(oneLine("plain")).toBe("plain");
+  });
+
+  it("U+2028/U+2029(줄 구분자)도 접는다", () => {
+    expect(oneLine("a b c")).toBe("a b c");
+  });
+});
+
+describe("includesLogContext", () => {
+  it("video·freeform에서만 로그를 싣는다", () => {
+    expect(includesLogContext("video")).toBe(true);
+    expect(includesLogContext("freeform")).toBe(true);
+    expect(includesLogContext("element")).toBe(false);
+    expect(includesLogContext("screenshot")).toBe(false);
   });
 });

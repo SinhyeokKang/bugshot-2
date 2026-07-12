@@ -28,14 +28,13 @@ import { buildClassDeltaLine, buildStyleDeltaBlock } from "@/sidepanel/lib/promp
 import { mergeAiEdits, replaceRawWithTokens } from "@/sidepanel/lib/aiStylingPostProcess";
 import {
   AiContextOverflowError,
-  LlmQuotaError,
-  LlmOverloadedError,
   mapQuotaError,
   type AISession,
   type AIProvider,
   type ProviderCapabilities,
 } from "@/sidepanel/lib/ai-provider";
-import { isPromptOverBudget } from "@/sidepanel/lib/promptBudget";
+import { toastLlmError } from "@/sidepanel/lib/llmErrorToast";
+import { isPromptOverBudget } from "@/sidepanel/lib/prompts/promptBudget";
 
 export function AiStylingDialog({
   open,
@@ -193,18 +192,7 @@ export function AiStylingDialog({
       }
     } catch (err) {
       console.error("[AI Styling] error:", err);
-      if (err instanceof AiContextOverflowError) {
-        toast.error(t("llm.error.contextOverflow"), {
-          description: t("llm.error.contextOverflow.hint"),
-          duration: 8000,
-        });
-      } else if (err instanceof LlmQuotaError) {
-        toast.error(t("llm.error.quota"));
-      } else if (err instanceof LlmOverloadedError) {
-        toast.error(t("llm.error.overloaded"));
-      } else {
-        toast.error(t("aiStyling.error"));
-      }
+      toastLlmError(err, t, "aiStyling.error");
       sessionRef.current?.destroy?.();
       sessionRef.current = null;
       sessionKeyRef.current = null;

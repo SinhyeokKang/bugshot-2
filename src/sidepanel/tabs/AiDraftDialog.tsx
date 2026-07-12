@@ -27,14 +27,14 @@ import type { StyleDiffRow } from "@/sidepanel/components/StyleChangesTable";
 import { buildNetworkLogSummary, buildConsoleLogSummary, buildActionLogSummary } from "@/sidepanel/lib/buildLogSummary";
 import {
   AiContextOverflowError,
-  LlmQuotaError,
-  LlmOverloadedError,
   mapQuotaError,
   type AISession,
   type AIProvider,
   type ProviderCapabilities,
 } from "@/sidepanel/lib/ai-provider";
-import { fitDraftContext, isPromptOverBudget } from "@/sidepanel/lib/promptBudget";
+import { toastLlmError } from "@/sidepanel/lib/llmErrorToast";
+import { includesLogContext } from "@/sidepanel/lib/prompts/context";
+import { fitDraftContext, isPromptOverBudget } from "@/sidepanel/lib/prompts/promptBudget";
 import { defaultTitle } from "./DraftingPanel";
 
 export function AiDraftDialog({
@@ -85,7 +85,7 @@ export function AiDraftDialog({
       const networkLog = store.networkLog;
       const consoleLog = store.consoleLog;
       const actionLog = store.actionLog;
-      const includeLogCtx = captureMode === "video" || captureMode === "freeform";
+      const includeLogCtx = includesLogContext(captureMode);
 
       const ctx: AiDraftSessionContext = {
         caps: capabilities,
@@ -137,7 +137,8 @@ export function AiDraftDialog({
       );
 
       const { systemPrompt, images } = buildAiDraftRequest({
-        ctx: fitted.ctx,
+        caps: capabilities,
+        systemPrompt: fitted.prompt,
         modeImages: getModeImages(store, captureMode),
         inlineImageDataUrls,
       });
@@ -162,8 +163,13 @@ export function AiDraftDialog({
         const prefix = defaultTitle(titlePrefix);
         const aiTitle = prefix ? prefix + parsed.title : parsed.title;
         const prevDraft = useEditorStore.getState().draft;
+        // 섹션과 같은 보호 규칙: 기존 제목이 프롬프트에 못 실렸으면 모델은 그걸 본 적이
+        // 없다 — 지어낸 제목으로 사용자 원문을 덮지 않는다.
+        const prevTitle = prevDraft?.title?.trim();
+        const title =
+          !fitted.titleIncluded && prevTitle ? prevDraft!.title : aiTitle;
         useEditorStore.getState().setDraft({
-          title: aiTitle,
+          title,
           sections: mergeAiSectionsPreservingImages(
             prevDraft?.sections ?? {},
             parsed.sections,
@@ -171,24 +177,18 @@ export function AiDraftDialog({
           ),
           environment: prevDraft?.environment ?? [],
         });
+        // 절삭·섹션 누락은 결과를 조용히 열화시킨다 — 무엇이 빠졌는지까진 아니어도
+        // "온전한 컨텍스트로 쓴 초안이 아니다"는 사실은 알아야 한다.
+        if (fitted.level >= 1 || fitted.omittedSections.length > 0) {
+          toast.info(t("aiDraft.contextTrimmed"));
+        }
       } else {
         console.warn("[bugshot] AI draft parse failed. Raw response:", raw);
         toast.error(t("draft.aiParseError"));
       }
     } catch (err) {
       console.error("[AI Draft] error:", err);
-      if (err instanceof AiContextOverflowError) {
-        toast.error(t("llm.error.contextOverflow"), {
-          description: t("llm.error.contextOverflow.hint"),
-          duration: 8000,
-        });
-      } else if (err instanceof LlmQuotaError) {
-        toast.error(t("llm.error.quota"));
-      } else if (err instanceof LlmOverloadedError) {
-        toast.error(t("llm.error.overloaded"));
-      } else {
-        toast.error(t("draft.aiError"));
-      }
+      toastLlmError(err, t, "draft.aiError");
       sessionRef.current?.destroy?.();
       sessionRef.current = null;
     } finally {
@@ -224,12 +224,6 @@ export function AiDraftDialog({
             autoFocus
           />
           <p className="mt-1.5 text-center text-xs text-muted-foreground/60">
-            {!capabilities.supportsImages && (
-              <>
-                {t("aiDraft.nanoImageNotice")}
-                <br />
-              </>
-            )}
             {t("aiDraft.disclaimer")}
           </p>
         </div>

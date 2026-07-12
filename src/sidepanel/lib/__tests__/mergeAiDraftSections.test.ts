@@ -143,9 +143,41 @@ describe("mergeAiSectionsPreservingImages", () => {
     expect(result.notes).toBe("사용자가 쓴 메모");
   });
 
-  it("절삭된 섹션이어도 AI가 비어있지 않은 텍스트를 주면 채택", () => {
+  // 같은 절삭×덮어쓰기 충돌의 반대편: 못 본 섹션에 AI가 지어낸 텍스트를 채워 보내도
+  // 그건 사용자 원문을 개선한 결과가 아니다. 원문이 있으면 손대지 않는다.
+  it("절삭된 섹션 + prev에 사용자 원문 있음 → AI 텍스트를 무시하고 원문 보존", () => {
     const result = mergeAiSectionsPreservingImages(
       { notes: "사용자가 쓴 메모" },
+      { notes: "AI가 지어낸 메모" },
+      [],
+    );
+    expect(result.notes).toBe("사용자가 쓴 메모");
+  });
+
+  it("절삭된 섹션 + prev 원문의 inline 이미지도 그대로 보존", () => {
+    const result = mergeAiSectionsPreservingImages(
+      { notes: "메모 ![](inline:a1)" },
+      { notes: "AI가 지어낸 메모" },
+      [],
+    );
+    expect(result.notes).toBe("메모 ![](inline:a1)");
+  });
+
+  // 회귀: "실린 섹션" 판정은 stripInlineImageRefs 후 기준이라, 이미지만 있고 텍스트가
+  // 없는 섹션은 프롬프트에 안 실린다. 원문 보호 가드가 이걸 "절삭된 원문"으로 오인하면
+  // AI가 새로 써준 본문을 통째로 버린다 — 이미지 전용 섹션은 정상 병합 경로여야 한다.
+  it("이미지만 있고 텍스트 없는 섹션 → 이미지 보존 + AI 텍스트 채택", () => {
+    const result = mergeAiSectionsPreservingImages(
+      { description: "![](inline:a1)" },
+      { description: "AI 새 본문" },
+      [],
+    );
+    expect(result.description).toBe("![](inline:a1)\n\nAI 새 본문");
+  });
+
+  it("프롬프트에 안 실렸지만 prev가 비어있으면(신규 섹션) AI 텍스트 채택", () => {
+    const result = mergeAiSectionsPreservingImages(
+      { notes: "   " },
       { notes: "AI 새 메모" },
       [],
     );

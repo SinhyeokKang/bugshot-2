@@ -5,7 +5,7 @@ const ko = {
   "aiDraft.placeholder": "버그를 간단히 설명해주세요...",
   "aiDraft.generate": "초안 작성",
   "aiDraft.disclaimer": "AI는 실수할 수 있습니다. 생성된 초안을 확인해주세요.",
-  "aiDraft.nanoImageNotice": "Chrome 내장 AI는 이미지를 볼 수 없어, 설명과 수집된 정보를 기반으로 작성합니다.",
+  "aiDraft.contextTrimmed": "내용이 많아 일부 참고 정보를 빼고 작성했습니다.",
 
   "aiStyling.banner": "AI에게 스타일 수정을 맡겨보세요",
   "aiStyling.generate": "AI 스타일링",
@@ -25,7 +25,7 @@ const en = {
   "aiDraft.placeholder": "Briefly describe the bug...",
   "aiDraft.generate": "Generate",
   "aiDraft.disclaimer": "AI can make mistakes. Please review the generated draft.",
-  "aiDraft.nanoImageNotice": "Chrome's built-in AI can't see images, so it writes from your description and the collected context.",
+  "aiDraft.contextTrimmed": "There was a lot to cover, so some context was left out.",
 
   "aiStyling.banner": "Let AI handle the styling",
   "aiStyling.generate": "AI Styling",

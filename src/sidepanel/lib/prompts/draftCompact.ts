@@ -2,8 +2,8 @@ import type { IssueSectionId, LocaleMode } from "@/store/settings-ui-store";
 import type { FewShotExample } from "../ai-provider";
 import type { AiDraftSessionContext } from "../buildAiDraftPrompt";
 import { stripInlineImageRefs } from "../resolveInlineImages";
-import { PROMPT_CAPS } from "./caps";
-import { selectDraftSections } from "./context";
+import { MAX_TITLE_LENGTH, PROMPT_CAPS } from "./caps";
+import { includesLogContext, oneLine, selectDraftSections } from "./context";
 
 // 지시는 전부 긍정형이다. 소형 모델은 부정 지시("Do not X")에서 오히려 X를 활성화한다.
 // JSON 형식 규칙("output only JSON" / "no extra fields" / "빈 문자열 사용")은
@@ -63,16 +63,18 @@ export function buildCompactDraftPrompt(ctx: AiDraftSessionContext): string {
     }
   }
 
-  if (ctx.networkLogSummary && ctx.networkLogSummary.errors.length > 0) {
-    lines.push("Network errors:");
-    for (const e of ctx.networkLogSummary.errors.slice(0, caps.networkErrors)) {
-      lines.push(`  ${e.method} ${e.path} → ${e.status}`);
+  if (includesLogContext(ctx.captureMode)) {
+    if (ctx.networkLogSummary && ctx.networkLogSummary.errors.length > 0) {
+      lines.push("Network errors:");
+      for (const e of ctx.networkLogSummary.errors.slice(0, caps.networkErrors)) {
+        lines.push(`  ${e.method} ${e.path} → ${e.status}`);
+      }
     }
-  }
-  if (ctx.consoleLogSummary && ctx.consoleLogSummary.topErrors.length > 0) {
-    lines.push("Console errors:");
-    for (const msg of ctx.consoleLogSummary.topErrors.slice(0, caps.consoleErrors)) {
-      lines.push(`  ${msg}`);
+    if (ctx.consoleLogSummary && ctx.consoleLogSummary.topErrors.length > 0) {
+      lines.push("Console errors:");
+      for (const msg of ctx.consoleLogSummary.topErrors.slice(0, caps.consoleErrors)) {
+        lines.push(`  ${msg}`);
+      }
     }
   }
   if (ctx.captureMode === "video" && ctx.actionLogSummary?.length) {
@@ -95,19 +97,21 @@ export function buildCompactDraftPrompt(ctx: AiDraftSessionContext): string {
     caps.existingDraftChars,
     stripInlineImageRefs,
   );
+  // 사용자 초안은 줄 단위로 분해해 push한다 — 통짜로 넣으면 마지막 oneLine이
+  // stepsToReproduce의 단계 구분 개행까지 접는다(인젝션 방어 대상은 페이지 문자열뿐).
   if (parts.length > 0) {
     lines.push("Draft so far (improve it):");
-    lines.push(...parts);
+    lines.push(...parts.flatMap((p) => p.split(/\r?\n/)));
   }
 
   lines.push("");
   lines.push("Sections:");
-  lines.push("- title: one short line");
+  lines.push(`- title: one short line, at most ${MAX_TITLE_LENGTH} characters`);
   for (const sec of ctx.enabledSections) {
     lines.push(`- ${sec.id}: ${desc[sec.id]}`);
   }
   lines.push("");
   lines.push(`Write in ${lang}.`);
 
-  return lines.join("\n");
+  return lines.map(oneLine).join("\n");
 }

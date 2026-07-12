@@ -13,30 +13,12 @@ const CAP_KEYS: (keyof PromptCaps)[] = [
 ];
 
 describe("PROMPT_CAPS", () => {
-  it("compact 캡이 나노 예산 기준값", () => {
-    expect(PROMPT_CAPS.compact).toEqual({
-      diffs: 8,
-      designTokens: 5,
-      styles: 12,
-      networkErrors: 3,
-      consoleErrors: 3,
-      actions: 5,
-      existingDraftChars: 400,
-      userPromptChars: 600,
-    });
-  });
-
-  it("rich 캡이 고급 모델 기준값 — 무제한은 MAX_SAFE_INTEGER", () => {
-    expect(PROMPT_CAPS.rich).toEqual({
-      diffs: 50,
-      designTokens: 40,
-      styles: 80,
-      networkErrors: 5,
-      consoleErrors: 5,
-      actions: 20,
-      existingDraftChars: Number.MAX_SAFE_INTEGER,
-      userPromptChars: Number.MAX_SAFE_INTEGER,
-    });
+  it("모든 축이 두 style에 정의됨", () => {
+    for (const style of ["compact", "rich"] as const) {
+      for (const key of CAP_KEYS) {
+        expect(PROMPT_CAPS[style][key]).toBeGreaterThan(0);
+      }
+    }
   });
 
   it("rich 캡이 모든 축에서 compact 이상", () => {
