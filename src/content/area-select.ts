@@ -84,6 +84,16 @@ export function cancelAreaSelect(handle: AreaSelectHandle): void {
   handle._deps.onBlockerRequest("hide");
 }
 
+// 드래그 완료(onMouseUp)와 같은 정리 → onSelected 순서를 공유한다 — 오버레이가 걷힌 뒤
+// 캡처가 요청돼야 dim·사각형이 스크린샷에 안 찍힌다.
+export function selectFullViewport(handle: AreaSelectHandle): void {
+  removeListeners(handle);
+  cleanupElements(handle);
+  handle._deps.onBlockerRequest("hide");
+  const viewport = { width: window.innerWidth, height: window.innerHeight };
+  handle._deps.onSelected({ x: 0, y: 0, ...viewport }, viewport);
+}
+
 /* ── internal ────────────────────────────────────── */
 
 function removeListeners(h: AreaSelectHandle): void {

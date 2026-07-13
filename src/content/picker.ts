@@ -1,4 +1,5 @@
 import type {
+  PageMetrics,
   PickerMessage,
   PrepareCaptureResponse,
   ViewportRect,
@@ -42,9 +43,16 @@ import {
 import {
   startAreaSelect,
   cancelAreaSelect,
+  selectFullViewport,
   attachAreaBlockerListener,
   type AreaSelectHandle,
 } from "./area-select";
+import {
+  beginScrollCapture,
+  scrollCaptureTo,
+  endScrollCapture,
+  type ScrollCaptureSession,
+} from "./scroll-capture";
 import {
   showAnnotation,
   hideAnnotation,
@@ -256,6 +264,21 @@ function handlePickerMessage(
       case "picker.cancelAreaSelect":
         handleCancelAreaSelect();
         break;
+      case "picker.selectFullViewport":
+        sendResponse({ ok: handleSelectFullViewport() });
+        return;
+      case "picker.beginScrollCapture":
+        sendResponse(handleBeginScrollCapture());
+        return;
+      case "picker.scrollCaptureTo":
+        // 세션이 없으면(네비게이션·재주입) 무응답 — ack를 주면 사이드패널이 스크롤 안 된
+        // 화면을 남은 타일 수만큼 찍어 깨진 이미지를 "성공"으로 넘긴다.
+        if (!scrollSession) return;
+        void scrollCaptureTo(scrollSession, msg.y, msg.hideFixed).then(sendResponse);
+        return true;
+      case "picker.endScrollCapture":
+        finishScrollCapture();
+        break;
       // annotation 오버레이는 top frame 한정(자식 iframe엔 안 그림). 자식 프레임은 무응답으로 흘려 이중 응답 방지.
       case "annotation.show":
         if (window !== window.top) return;
@@ -430,6 +453,10 @@ function handleStop(): void {
 }
 
 function handleClear(): void {
+  if (scrollSession) {
+    endScrollCapture(scrollSession);
+    scrollSession = null;
+  }
   if (areaHandle) {
     cancelAreaSelect(areaHandle);
     areaHandle = null;
@@ -967,5 +994,43 @@ function handleCancelAreaSelect(): void {
     areaHandle = null;
   }
   mode = "idle";
+  handleClear();
+}
+
+// 드래그 완료 경로 재사용 — areaHandle=null·areaSelected 발화·정리는 startAreaSelect가
+// 등록한 onSelected 콜백이 담당한다(중복 작성 금지). false면 사이드패널이 idle로 빠진다.
+function handleSelectFullViewport(): boolean {
+  if (!areaHandle) return false;
+  selectFullViewport(areaHandle);
+  return true;
+}
+
+/* ── Scroll Capture ──────────────────────────────── */
+
+let scrollSession: ScrollCaptureSession | null = null;
+
+function handleBeginScrollCapture(): { metrics: PageMetrics } {
+  // dim·사각형·라벨은 걷되 blocker는 남긴다 — 투명이라 캡처엔 안 찍히고 클릭(네비게이션·모달)만 막는다.
+  if (areaHandle) {
+    cancelAreaSelect(areaHandle);
+    areaHandle = null;
+  }
+  if (overlay) {
+    // resize 리스너가 배너를 다시 띄우면(updateBanner) 이후 모든 타일에 크기 pill이 박힌다.
+    hideBanner(overlay);
+    setBlockerVisible(overlay, true);
+  }
+  mode = "idle";
+  const { session, metrics } = beginScrollCapture();
+  scrollSession = session;
+  return { metrics };
+}
+
+// 사이드패널이 죽어(패널 닫힘·탭 전환) endScrollCapture가 못 오면 페이지에 숨긴 고정 요소와
+// 엉뚱한 스크롤이 영구 잔류한다 — handleClear(port disconnect 종착점)에서도 자가 복원한다.
+function finishScrollCapture(): void {
+  if (!scrollSession) return;
+  endScrollCapture(scrollSession);
+  scrollSession = null;
   handleClear();
 }

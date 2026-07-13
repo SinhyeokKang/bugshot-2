@@ -16,17 +16,17 @@
   ```
   - x/y를 `[0, imgWidth/imgHeight]`로 클램프, width/height를 남은 영역으로 자르고 최소 1px 보장, 이미지 크기 0 이하면 rect 그대로.
 - **검증**:
-  - [ ] 경계 내부 rect는 입력과 동일하게 반환(항등성 — 기존 드래그 크롭 무영향)
-  - [ ] width가 이미지 우측을 넘으면 `imgWidth - x`로 잘림 / x 음수면 0 보정
-  - [ ] rect가 이미지 완전 바깥이면 최소 1×1 반환(canvas 0 크기 방지)
-  - [ ] `imgWidth <= 0`이면 rect 그대로
-  - [ ] `pnpm test` 통과
+  - [x] 경계 내부 rect는 입력과 동일하게 반환(항등성 — 기존 드래그 크롭 무영향)
+  - [x] width가 이미지 우측을 넘으면 `imgWidth - x`로 잘림 / x 음수면 0 보정
+  - [x] rect가 이미지 완전 바깥이면 최소 1×1 반환(canvas 0 크기 방지)
+  - [x] `imgWidth <= 0`이면 rect 그대로
+  - [x] `pnpm test` 통과
 
 ### Task 2: 크롭 가드 적용
 - **변경 대상**: `src/sidepanel/hooks/usePickerMessages.ts` (로컬 `cropImage`, L373-395)
 - **작업 내용**: `loadImage` 직후 `clampCropRect(rect, img.naturalWidth, img.naturalHeight)` 결과로 canvas 크기·`drawImage` 인자를 대체. DPR 곱셈(L357)·webp 0.92 인코딩은 그대로. element-shot의 별도 `capture.ts:cropImage`는 건드리지 않는다(비목표).
 - **검증**:
-  - [ ] `pnpm typecheck` 통과
+  - [x] `pnpm typecheck` 통과
   - [ ] 기존 드래그 영역 캡처가 동일하게 동작(Task 9 e2e에서 확인)
 
 ### Task 3: content script — 뷰포트 캡처 경로
@@ -36,8 +36,8 @@
   2. `area-select.ts`에 `selectFullViewport(handle)` export — `cancelAreaSelect`와 동일한 정리 3단계(`removeListeners` → `cleanupElements` → `onBlockerRequest("hide")`) 후 `deps.onSelected({x:0,y:0,width:innerWidth,height:innerHeight}, viewport)`. **정리가 `onSelected`보다 먼저**여야 오버레이가 캡처에 안 찍힌다.
   3. `picker.ts` switch(L253-258)에 case + `handleSelectFullViewport()` 추가. `areaHandle`이 null이면 no-op, 아니면 `selectFullViewport(areaHandle)` 호출만 한다(기존 `onSelected` 콜백이 `areaHandle=null`·`postToRuntime`·`mode="idle"`·`handleClear()`를 처리 — `restoreAfter` 분기가 있으나 이 경로는 비복원 분기. 중복 작성 금지).
 - **검증**:
-  - [ ] `pnpm typecheck` 통과
-  - [ ] `handleSelectFullViewport`가 `postToRuntime`/`handleClear`를 직접 부르지 않는다(코드 리뷰)
+  - [x] `pnpm typecheck` 통과
+  - [x] `handleSelectFullViewport`가 `postToRuntime`/`handleClear`를 직접 부르지 않는다(코드 리뷰)
 
 ### Task 4: 타입 + 스크롤 계획 순수 함수 (테스트 우선)
 - **변경 대상**: `src/types/picker.ts` (`PageMetrics`·`ScrollAck` — 스크롤 캡처 메시지 3종의 타입도 여기서 함께 추가), `src/sidepanel/lib/scroll-capture-plan.ts` (신규), `src/sidepanel/lib/__tests__/scroll-capture-plan.test.ts` (신규)
@@ -53,13 +53,13 @@
   - `tileDrawRect`는 content script가 응답한 **실제 scrollY**를 받아 마지막 타일의 겹침(문서 끝 클램프)을 `srcY`로 보정한다.
   - **방어**: `vh ≤ 0` / `scrollHeight ≤ 0`이면 타일 1개 계획으로 강등(무한 루프 좌표 차단).
 - **검증**:
-  - [ ] 페이지 높이 = 뷰포트 높이 → 타일 1개, `truncated: false`
-  - [ ] 페이지 높이가 뷰포트의 2.5배 → 타일 3개, 마지막 타일 겹침이 `tileDrawRect`에서 잘려 `destY` 합이 `totalHeight`와 일치
-  - [ ] 100 뷰포트 높이 → 타일 20개 + `truncated: true`
-  - [ ] vh 1000 × DPR 2 → 캔버스 한계로 20타일 미만 + `truncated: true`
-  - [ ] `vh = 0` / `scrollHeight = 0` → 타일 1개 방어
-  - [ ] DPR 소수점(줌 125% 등)에서 `destY × scale` 반올림이 누적 오차 없이 일관(타일별 `Math.round` 정책 고정)
-  - [ ] `pnpm test` 통과
+  - [x] 페이지 높이 = 뷰포트 높이 → 타일 1개, `truncated: false`
+  - [x] 페이지 높이가 뷰포트의 2.5배 → 타일 3개, 마지막 타일 겹침이 `tileDrawRect`에서 잘려 `destY` 합이 `totalHeight`와 일치
+  - [x] 100 뷰포트 높이 → 타일 20개 + `truncated: true`
+  - [x] vh 1000 × DPR 2 → 캔버스 한계로 20타일 미만 + `truncated: true`
+  - [x] `vh = 0` / `scrollHeight = 0` → 타일 1개 방어
+  - [x] DPR 소수점(줌 125% 등)에서 `destY × scale` 반올림이 누적 오차 없이 일관(타일별 `Math.round` 정책 고정)
+  - [x] `pnpm test` 통과
 
 ### Task 5: content script — 스크롤 캡처 executor
 - **변경 대상**: `src/content/scroll-capture.ts` (신규), `src/content/picker.ts`
@@ -69,9 +69,9 @@
   3. **async 응답 계약**: `scrollCaptureTo`는 비동기 sendResponse — `collectTokens`(picker.ts L199-210)의 IIFE + `return true` 패턴. switch 공통 `sendResponse({ok:true})` fallthrough(L278)와 이중 응답 안 나게 case return 정확히.
   4. **자가 복원 배선**: `handleClear()`(picker.ts:432-463)와 picker port disconnect 정리 경로에 `scrollSession` 존재 시 `endScrollCapture` + blocker hide + `scrollSession=null` 호출 추가(멱등). 사이드패널 사망 시 페이지 잔류(숨긴 고정 요소 + 엉뚱한 스크롤) 방지.
 - **검증**:
-  - [ ] `pnpm typecheck` 통과
-  - [ ] picker 오버레이 shadow host가 고정 요소 수집 대상에서 제외된다(코드 리뷰)
-  - [ ] 세션 없이 `scrollCaptureTo`/`endScrollCapture`가 와도 crash 없이 no-op 응답(코드 리뷰 — 사이드패널 재시작 후 잔여 메시지 대비)
+  - [x] `pnpm typecheck` 통과
+  - [x] picker 오버레이 shadow host가 고정 요소 수집 대상에서 제외된다(코드 리뷰)
+  - [x] 세션 없으면 `scrollCaptureTo`는 **무응답**(사이드패널이 중단) / `endScrollCapture`는 no-op
   - [ ] `handleClear` 경유 시 스크롤·고정 요소·blocker가 원복된다(수동 — 스크롤 캡처 중 패널 닫기)
 
 ### Task 6: 사이드패널 오케스트레이터
@@ -82,16 +82,16 @@
   3. **`send` 응답 `undefined` 처리**: `send`는 실패 시 throw가 아니라 `undefined` 반환 — begin/scrollCaptureTo 응답이 `undefined`면(주입 소실·네비게이션) 즉시 중단하고 `finally` 경유.
   4. **테스트 가능 설계**: `send`/`sendBg`/`tabs.get`을 DI(인자 주입)로 열어 `capture-throttle.test.ts` 선례처럼 단위 테스트 — "중간 타일 throw에도 end 호출", "abort 시 루프 중단 + end 호출", "tab.active false면 중단", "응답 undefined면 중단"을 시퀀스로 판정.
 - **검증**:
-  - [ ] `grep -rn "captureVisibleTab" src/` 결과에서 실제 API 호출은 여전히 `background/messages.ts` 1곳뿐 (POSTMORTEM 재발 방지)
-  - [ ] 단위 테스트: 중간 타일 실패·abort·tab 비활성·응답 undefined 각각에서 `endScrollCapture` 메시지가 나간다
-  - [ ] `frameId: 0`으로만 전송(broadcast 아님)
-  - [ ] `pnpm test` + `pnpm typecheck` 통과
+  - [x] `grep -rn "captureVisibleTab" src/` 결과에서 실제 API 호출은 여전히 `background/messages.ts` 1곳뿐 (POSTMORTEM 재발 방지)
+  - [x] 단위 테스트: 중간 타일 실패·abort·tab 비활성·응답 undefined 각각에서 `endScrollCapture` 메시지가 나간다
+  - [x] `frameId: 0`으로만 전송(broadcast 아님)
+  - [x] `pnpm test` + `pnpm typecheck` 통과
 
 ### Task 7: i18n 라벨
 - **변경 대상**: `src/i18n/namespaces/issue.ts`
 - **작업 내용**: `issue.capturing.method.area` / `.viewport` / `.fullPage`, `issue.capturing.scrolling`, `issue.capturing.progress`, `issue.capturing.truncated` — ko/en 동시(문안은 design.md 표).
 - **검증**:
-  - [ ] i18n PostToolUse 훅(`locales.test.ts`) 통과 — ko/en 키 대칭·placeholder 토큰 일치
+  - [x] i18n PostToolUse 훅(`locales.test.ts`) 통과 — ko/en 키 대칭·placeholder 토큰 일치
 
 ### Task 8: UI — capturing 하단 캡처 방식 툴바
 - **변경 대상**: `src/sidepanel/tabs/IssueTab.tsx`
@@ -104,7 +104,7 @@
   6. 완료 시 **`phase === "capturing"` 재확인 후** `onAreaCaptured(dataUrl, viewport)` — 진행 중 reset 분기 3곳(`useEditorSessionSync.ts:210-218`·`:252-261`·`App.tsx:152-157`) 발화 시 결과 폐기(유령 drafting 차단). `truncated`면 **`toast.info`**(AiDraftDialog contextTrimmed 선례).
   7. `data-testid`: `capture-method-area` / `capture-method-viewport` / `capture-method-fullpage`, `capturing-cancel`(신규).
 - **검증**:
-  - [ ] `pnpm typecheck` 통과
+  - [x] `pnpm typecheck` 통과
   - [ ] 다크모드·좁은 패널 폭(320px)에서 버튼 3개가 줄바꿈 없이 정렬(수동)
   - [ ] 진행 중 툴바가 비활성이고 스피너가 돌며 [취소]는 눌린다(수동)
 

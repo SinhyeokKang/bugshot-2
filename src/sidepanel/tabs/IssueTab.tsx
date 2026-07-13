@@ -4,10 +4,13 @@ import {
   BookOpen,
   SquareMousePointer,
   Camera,
+  Crop,
+  Fullscreen,
   ScanEye,
   Crosshair,
   ImageIcon,
   Loader2,
+  ScrollText,
   SquarePen,
   Timer,
   AppWindow,
@@ -50,9 +53,12 @@ import {
   startAreaCapture,
   startElementShot,
   cancelAreaCapture,
+  captureFullViewport,
   clearPicker,
+  maybeSurfacePermissionExpired,
   startFreeformDraft,
 } from "@/sidepanel/picker-control";
+import { runScrollCapture } from "@/sidepanel/scroll-capture";
 import { startVideoCapture, startScreenCapture } from "@/sidepanel/video-capture";
 import { setAnnotationTool } from "@/sidepanel/annotation-control";
 import { ANNOTATION_TOOLS, type AnnotationTool } from "@/sidepanel/components/annotation/presets";
@@ -73,6 +79,9 @@ export function IssueTab() {
   const sessionExpired = useEditorStore((s) => s.sessionExpired);
   const tabId = useBoundTabId();
   const { trimming } = useReplay();
+  const t = useT();
+  const [scrollProgress, setScrollProgress] = useState<{ done: number; total: number } | null>(null);
+  const scrollAbortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     if (!tabId) return;
@@ -82,6 +91,60 @@ export function IssueTab() {
       }
     });
   }, [tabId]);
+
+  // 언마운트(탭 전환·패널 재마운트) 시 진행 중 루프를 끊는다 — 안 끊으면 캡처 큐를 계속 점유한다.
+  useEffect(() => () => scrollAbortRef.current?.abort(), []);
+
+  const startFullPageCapture = (id: number) => {
+    const controller = new AbortController();
+    scrollAbortRef.current = controller;
+    setScrollProgress({ done: 0, total: 1 });
+    // 늦게 끝난 이전 run이 새 run의 상태·결과를 덮지 않도록 controller를 소유권 토큰으로 쓴다.
+    const isCurrent = () =>
+      scrollAbortRef.current === controller &&
+      useEditorStore.getState().phase === "capturing" &&
+      useEditorStore.getState().target?.tabId === id;
+
+    void runScrollCapture(id, {
+      signal: controller.signal,
+      onProgress: (done, total) => {
+        if (scrollAbortRef.current === controller) setScrollProgress({ done, total });
+      },
+    })
+      .then((result) => {
+        // 캡처 중 세션 만료·URL 변경·picker 단절이 phase를 되돌렸으면 결과를 버린다(유령 drafting 방지).
+        if (!isCurrent()) return;
+        useEditorStore.getState().onAreaCaptured(result.dataUrl, result.viewport);
+        if (result.truncated) toast.info(t("issue.capturing.truncated"));
+      })
+      .catch((err) => {
+        if (!controller.signal.aborted && !maybeSurfacePermissionExpired(err)) {
+          console.error("[bugshot] scroll capture failed", err);
+        }
+        if (isCurrent()) useEditorStore.getState().reset();
+      })
+      .finally(() => {
+        if (scrollAbortRef.current !== controller) return;
+        scrollAbortRef.current = null;
+        setScrollProgress(null);
+      });
+  };
+
+  const captureViewport = (id: number) => {
+    void captureFullViewport(id).then((ok) => {
+      // content가 area-select 상태가 아니면(주입 소실·레이스) 조용히 갇히지 않게 idle로 되돌린다.
+      if (!ok && useEditorStore.getState().phase === "capturing") useEditorStore.getState().reset();
+    });
+  };
+
+  const cancelCapturing = (id: number) => {
+    const controller = scrollAbortRef.current;
+    if (controller) {
+      controller.abort();
+      return;
+    }
+    void cancelAreaCapture(id);
+  };
 
   if (!tabId) {
     return <UnsupportedPage />;
@@ -94,7 +157,12 @@ export function IssueTab() {
   if (phase === "capturing") {
     return (
       <>
-        <CapturingState onCancel={() => void cancelAreaCapture(tabId)} />
+        <CapturingState
+          onCancel={() => cancelCapturing(tabId)}
+          onViewport={() => captureViewport(tabId)}
+          onFullPage={() => startFullPageCapture(tabId)}
+          progress={scrollProgress}
+        />
         <SessionExpiredDialog open={sessionExpired} onConfirm={() => reset()} />
       </>
     );
@@ -315,19 +383,90 @@ function PickingState({ onCancel }: { onCancel: () => void }) {
   );
 }
 
-function CapturingState({ onCancel }: { onCancel: () => void }) {
+function CapturingState({
+  onCancel,
+  onViewport,
+  onFullPage,
+  progress,
+}: {
+  onCancel: () => void;
+  onViewport: () => void;
+  onFullPage: () => void;
+  progress: { done: number; total: number } | null;
+}) {
   const t = useT();
+  const busy = progress !== null;
+  const percent = progress
+    ? Math.round((progress.done / Math.max(1, progress.total)) * 100)
+    : 0;
   return (
     <PageShell>
       <EmptyShell
         icon={<ImageIcon className="h-6 w-6 text-muted-foreground" />}
-        title={t("issue.capturing.title")}
+        title={busy ? t("issue.capturing.scrolling") : t("issue.capturing.title")}
         action={
-          <Button variant="outline" onClick={onCancel}>
+          <Button variant="outline" data-testid="capturing-cancel" onClick={onCancel}>
             {t("common.cancel")}
           </Button>
         }
-      />
+      >
+        {progress ? (
+          <>
+            <p className="mt-2 text-sm text-muted-foreground">
+              {t("issue.capturing.progress", { percent })}
+            </p>
+            <div className="mt-3 h-1.5 w-40 overflow-hidden rounded-full bg-muted">
+              <div
+                className="h-full rounded-full bg-foreground transition-all duration-300"
+                style={{ width: `${percent}%` }}
+              />
+            </div>
+          </>
+        ) : null}
+      </EmptyShell>
+      {/* 캡처 방식 툴바 — 녹화 중 그리기 툴바와 같은 자리(하단 footer). 영역 선택은 지금 켜져
+          있는 모드(활성 표시), 뷰포트·스크롤은 누르면 즉시 캡처되는 액션이라 pressed가 아니다. */}
+      <div className="flex shrink-0 items-center justify-center gap-2 border-t border-border bg-background p-4">
+        <ButtonGroup className="flex-nowrap">
+          <Button
+            size="icon"
+            variant="outline"
+            className={cn("h-8 w-8 shrink-0", !busy && "bg-muted")}
+            data-testid="capture-method-area"
+            data-active={!busy || undefined}
+            aria-label={t("issue.capturing.method.area")}
+            title={t("issue.capturing.method.area")}
+            aria-pressed={!busy}
+            disabled={busy}
+          >
+            <Crop />
+          </Button>
+          <Button
+            size="icon"
+            variant="outline"
+            className="h-8 w-8 shrink-0"
+            data-testid="capture-method-viewport"
+            aria-label={t("issue.capturing.method.viewport")}
+            title={t("issue.capturing.method.viewport")}
+            disabled={busy}
+            onClick={onViewport}
+          >
+            <Fullscreen />
+          </Button>
+          <Button
+            size="icon"
+            variant="outline"
+            className="h-8 w-8 shrink-0"
+            data-testid="capture-method-fullpage"
+            aria-label={t("issue.capturing.method.fullPage")}
+            title={t("issue.capturing.method.fullPage")}
+            disabled={busy}
+            onClick={onFullPage}
+          >
+            {busy ? <Loader2 className="animate-spin" /> : <ScrollText />}
+          </Button>
+        </ButtonGroup>
+      </div>
     </PageShell>
   );
 }
@@ -476,15 +615,18 @@ function EmptyShell({
   icon,
   title,
   action,
+  children,
 }: {
   icon: React.ReactNode;
   title: string;
   action?: React.ReactNode;
+  children?: React.ReactNode;
 }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 pb-5 text-center">
       <div className="mb-3 rounded-full bg-muted p-3">{icon}</div>
       <h3 className="whitespace-pre-line text-lg font-semibold">{title}</h3>
+      {children}
       {action ? <div className="mt-4">{action}</div> : null}
     </div>
   );
