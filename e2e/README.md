@@ -49,6 +49,7 @@ fixture 페이지(`fixtures/pages/`):
 - `second.html` — cross-page 세션 폐기 검증용(pageKey 상이).
 - `console-error.html` — `window.__bugshotThrow()`가 정적 인라인 스크립트의 `bugshotBoom`을 `setTimeout`으로 비동기 throw → uncaught error로 콘솔 로그에 잡힌다. **정적** 인라인 스크립트라야 stack 프레임·`ErrorEvent.filename`이 page URL로 찍혀 args/stack 양쪽에 linkify 대상 URL이 생긴다(`console-linkify.spec`).
 - **서버 엔드포인트** `/e2e-json*` (정적 파일 아님 — `fixtures/extension.ts` 서버 분기): `application/json` 본문 `{"note":"zqxbodyneedle"}`을 준다. 마커가 URL엔 없고 본문에만 있어 네트워크 로그 **본문 검색**(`network-body-search.spec`)을 판정. allowlist content-type이라 레코더가 string variant로 캡처.
+- `scroll-capture.html` — 스크롤 캡처용. `#bar`(`position: fixed` 헤더 — 첫 타일 이후 숨김 대상) + `#tall`(150vh — 뷰포트 1.5배라 타일 2장 고정, captureVisibleTab quota 최소화).
 - `iframe.html` — top frame + `#frame` iframe(src=basic.html, picker iframe 내부 선택·iframe 로그 캡처용).
 - `iframe-nested.html` — `#outer`(src=iframe-child.html, 1-depth 등록 대상) + `#inert`(srcdoc — 미주입·거부 대상). `iframe-child.html`은 그 안에 `#inner`(2-depth, 거부 대상) 보유. picker 거부 게이트용.
 - `cross-origin.html` — `http://localhost:<port>/basic.html` iframe을 JS로 주입(동적 포트). 서버는 전 인터페이스 바인딩이라 localhost로도 접속돼 127.0.0.1 top과 origin이 갈라진다 — origin 필터용.

@@ -5,12 +5,12 @@ import {
   SquareMousePointer,
   Camera,
   Crop,
-  Fullscreen,
+  Monitor,
   ScanEye,
+  ScanText,
   Crosshair,
   ImageIcon,
   Loader2,
-  ScrollText,
   SquarePen,
   Timer,
   AppWindow,
@@ -46,6 +46,7 @@ import { useEditorStore } from "@/store/editor-store";
 import { connectedPlatforms, useSettingsStore } from "@/store/settings-store";
 import { useSettingsUiStore } from "@/store/settings-ui-store";
 import { IntegrationsCta } from "@/sidepanel/components/IntegrationsCta";
+import { TooltipIconButton } from "@/sidepanel/components/TooltipIconButton";
 import { useBoundTabId } from "@/sidepanel/hooks/useBoundTabId";
 import {
   startPicker,
@@ -434,7 +435,7 @@ function CapturingState({
     : 0;
   // disabled는 pointer-events를 죽여 title 툴팁·스피너 대비까지 잃는다 — ReplayButton과 같은
   // aria-disabled 관용구로 시각·툴팁을 유지하고 핸들러에서 가드한다.
-  const lockedClass = "h-8 w-8 shrink-0 aria-disabled:cursor-not-allowed aria-disabled:opacity-50";
+  const lockedClass = "aria-disabled:cursor-not-allowed aria-disabled:opacity-50";
   return (
     <PageShell>
       <EmptyShell
@@ -479,50 +480,34 @@ function CapturingState({
           있는 모드(활성 표시), 뷰포트·스크롤은 누르면 즉시 캡처되는 액션이라 pressed가 아니다. */}
       <div className="flex shrink-0 items-center justify-center gap-2 border-t border-border bg-background p-4">
         <ButtonGroup className="flex-nowrap">
-          <Button
-            size="icon"
-            variant="outline"
-            className={cn(lockedClass, !busy && "bg-muted")}
-            data-testid="capture-method-area"
-            data-active={!busy || undefined}
-            aria-label={t("issue.capturing.method.area")}
-            title={t("issue.capturing.method.area")}
-            aria-pressed={!busy}
-            aria-disabled={busy}
+          <TooltipIconButton
+            label={t("issue.capturing.method.area")}
+            active={!busy}
+            ariaDisabled={busy}
+            className={lockedClass}
+            testId="capture-method-area"
           >
             <Crop />
-          </Button>
-          <Button
-            size="icon"
-            variant="outline"
+          </TooltipIconButton>
+          <TooltipIconButton
+            label={t("issue.capturing.method.viewport")}
+            ariaDisabled={busy}
             className={lockedClass}
-            data-testid="capture-method-viewport"
-            aria-label={t("issue.capturing.method.viewport")}
-            title={t("issue.capturing.method.viewport")}
-            aria-disabled={busy}
-            onClick={() => {
-              if (busy) return;
-              onViewport();
-            }}
+            testId="capture-method-viewport"
+            onClick={onViewport}
           >
-            <Fullscreen />
-          </Button>
-          <Button
-            size="icon"
-            variant="outline"
+            <Monitor />
+          </TooltipIconButton>
+          <TooltipIconButton
+            label={t("issue.capturing.method.fullPage")}
+            ariaDisabled={busy}
             // 진행 중엔 이 버튼이 스피너를 들고 있으므로 흐리게 만들지 않는다.
-            className="h-8 w-8 shrink-0 aria-disabled:cursor-not-allowed"
-            data-testid="capture-method-fullpage"
-            aria-label={t("issue.capturing.method.fullPage")}
-            title={t("issue.capturing.method.fullPage")}
-            aria-disabled={busy}
-            onClick={() => {
-              if (busy) return;
-              onFullPage();
-            }}
+            className="aria-disabled:cursor-not-allowed"
+            testId="capture-method-fullpage"
+            onClick={onFullPage}
           >
-            {busy ? <Loader2 className="animate-spin" /> : <ScrollText />}
-          </Button>
+            {busy ? <Loader2 className="animate-spin" /> : <ScanText />}
+          </TooltipIconButton>
         </ButtonGroup>
       </div>
     </PageShell>

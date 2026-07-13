@@ -9,8 +9,8 @@ import {
   Type,
   type LucideIcon,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
+import { TooltipIconButton } from "@/sidepanel/components/TooltipIconButton";
 import { cn } from "@/lib/utils";
 import { useT } from "@/i18n";
 import type { TranslationKey } from "@/i18n/ko";
@@ -77,19 +77,14 @@ export function ToolButton({
   const t = useT();
   const Icon = TOOL_ICONS[meta.key];
   return (
-    <Button
-      size="icon"
-      variant="outline"
-      className={cn("h-8 w-8 shrink-0", active && "bg-muted")}
-      data-active={active || undefined}
-      data-testid={`${testIdPrefix}-${meta.key}`}
-      aria-label={t(meta.labelKey)}
-      title={t(meta.labelKey)}
-      aria-pressed={active}
+    <TooltipIconButton
+      label={t(meta.labelKey)}
+      active={active}
+      testId={`${testIdPrefix}-${meta.key}`}
       onClick={() => onSelect(meta.key)}
     >
       <Icon />
-    </Button>
+    </TooltipIconButton>
   );
 }
 
@@ -138,23 +133,18 @@ export function ColorSwatches({
       {ANNOTATION_COLORS.map((c, i) => {
         const active = value === c;
         return (
-          <Button
+          <TooltipIconButton
             key={c}
-            size="icon"
-            variant="outline"
-            className={cn("h-8 w-8 shrink-0", active && "bg-muted")}
-            data-active={active || undefined}
-            data-testid={`${testIdPrefix}-${i}`}
-            aria-label={t(COLOR_LABEL_KEYS[i])}
-            title={t(COLOR_LABEL_KEYS[i])}
-            aria-pressed={active}
+            label={t(COLOR_LABEL_KEYS[i])}
+            active={active}
+            testId={`${testIdPrefix}-${i}`}
             onClick={() => onChange(c)}
           >
             <span
               className="h-4 w-4 rounded-full border"
               style={{ backgroundColor: c }}
             />
-          </Button>
+          </TooltipIconButton>
         );
       })}
     </ButtonGroup>
@@ -180,21 +170,16 @@ export function ThicknessButtons({
       {THICKNESS_KEYS.map((key) => {
         const active = value === key;
         return (
-          <Button
+          <TooltipIconButton
             key={key}
-            size="icon"
-            variant="outline"
-            className={cn("h-8 w-8 shrink-0", active && "bg-muted")}
-            data-active={active || undefined}
-            data-testid={`${testIdPrefix}-${key}`}
+            label={t(THICKNESS_LABEL_KEYS[key])}
+            active={active}
             disabled={disabled}
-            aria-label={t(THICKNESS_LABEL_KEYS[key])}
-            title={t(THICKNESS_LABEL_KEYS[key])}
-            aria-pressed={active}
+            testId={`${testIdPrefix}-${key}`}
             onClick={() => onChange(key)}
           >
             <Minus strokeWidth={THICKNESS_STROKE[key]} />
-          </Button>
+          </TooltipIconButton>
         );
       })}
     </ButtonGroup>
@@ -218,16 +203,11 @@ export function TextSizeButtons({
       {TEXT_SIZE_KEYS.map((key) => {
         const active = value === key;
         return (
-          <Button
+          <TooltipIconButton
             key={key}
-            size="icon"
-            variant="outline"
-            className={cn("h-8 w-8 shrink-0", active && "bg-muted")}
-            data-active={active || undefined}
-            data-testid={`${testIdPrefix}-${key}`}
-            aria-label={t(TEXTSIZE_LABEL_KEYS[key])}
-            title={t(TEXTSIZE_LABEL_KEYS[key])}
-            aria-pressed={active}
+            label={t(TEXTSIZE_LABEL_KEYS[key])}
+            active={active}
+            testId={`${testIdPrefix}-${key}`}
             onClick={() => onChange(key)}
           >
             <span
@@ -236,7 +216,7 @@ export function TextSizeButtons({
             >
               A
             </span>
-          </Button>
+          </TooltipIconButton>
         );
       })}
     </ButtonGroup>
