@@ -35,6 +35,7 @@ import {
   hideOutline,
   updateBanner,
   hideBanner,
+  setBlockerScrollYield,
   setBlockerVisible,
   renderPreview,
   clearPreview,
@@ -1009,7 +1010,13 @@ function handleSelectFullViewport(): boolean {
 
 let scrollSession: ScrollCaptureSession | null = null;
 
-function handleBeginScrollCapture(): { metrics: PageMetrics } {
+function handleBeginScrollCapture(): PageMetrics {
+  // 재진입(연타·재마운트)이면 이전 세션을 먼저 원복한다 — 안 그러면 그 세션이 숨긴 fixed 요소가
+  // 영영 복원되지 않고 originalScroll도 유실된다.
+  if (scrollSession) {
+    endScrollCapture(scrollSession);
+    scrollSession = null;
+  }
   // dim·사각형·라벨은 걷되 blocker는 남긴다 — 투명이라 캡처엔 안 찍히고 클릭(네비게이션·모달)만 막는다.
   if (areaHandle) {
     cancelAreaSelect(areaHandle);
@@ -1019,11 +1026,12 @@ function handleBeginScrollCapture(): { metrics: PageMetrics } {
     // resize 리스너가 배너를 다시 띄우면(updateBanner) 이후 모든 타일에 크기 pill이 박힌다.
     hideBanner(overlay);
     setBlockerVisible(overlay, true);
+    setBlockerScrollYield(overlay, false);
   }
   mode = "idle";
   const { session, metrics } = beginScrollCapture();
   scrollSession = session;
-  return { metrics };
+  return metrics;
 }
 
 // 사이드패널이 죽어(패널 닫힘·탭 전환) endScrollCapture가 못 오면 페이지에 숨긴 고정 요소와

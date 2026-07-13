@@ -4,11 +4,10 @@ import { sameElementKey } from "@/lib/element-key";
 import { originOf } from "@/lib/session-keys";
 import type { PickerMessage, ViewportRect } from "@/types/picker";
 import { type BgInternalMessage, onPickerIframeUnsupported, onPickerPermissionExpired, sendBg } from "@/types/messages";
-import { captureElementSnapshot, loadImage } from "@/sidepanel/capture";
+import { captureElementSnapshot, cropImage } from "@/sidepanel/capture";
 import { clearPicker, collectTokens, getTopViewport, maybeSurfacePermissionExpired, rebroadcastSentinelsToFrame, restartPickerInFrame, resumeBufferedElement, stopHoverAllFrames, stopPicker } from "@/sidepanel/picker-control";
 import { saveNetworkLog, saveConsoleLog, saveActionLog, saveInlineImage, dataUrlToBlob } from "@/store/blob-db";
 import { shouldCompact, compactImage } from "@/sidepanel/lib/compactImage";
-import { clampCropRect } from "@/sidepanel/lib/crop-rect";
 import { shouldPreserveBackgroundLogs } from "@/sidepanel/hooks/useBackgroundRecorder";
 import { createLogPersistGuard } from "@/sidepanel/lib/log-persist-guard";
 import { shouldDropPreArmEntry } from "@/sidepanel/lib/log-prearm-filter";
@@ -356,53 +355,17 @@ async function captureAndCrop(rect: ViewportRect, viewport: { width: number; hei
     if (!tabId) return;
     const dataUrl = await sendBg<string>({ type: "captureVisibleTab", tabId });
     const cropped = await cropImage(dataUrl, rect, viewport);
-    useEditorStore.getState().onAreaCaptured(cropped, viewport);
+    // 캡처는 background 큐를 거쳐 수백 ms 걸린다 — 그 사이 취소·세션 만료·탭 변경으로 세션이
+    // 바뀌었으면 결과를 버린다(target 없는 유령 drafting 방지).
+    const s = useEditorStore.getState();
+    if (s.phase !== "capturing" || s.target?.tabId !== tabId) return;
+    s.onAreaCaptured(cropped, viewport);
   } catch (err) {
     if (!maybeSurfacePermissionExpired(err)) {
       console.error("[bugshot] capture and crop failed", err);
     }
-    useEditorStore.getState().reset();
+    if (useEditorStore.getState().phase === "capturing") useEditorStore.getState().reset();
   }
-}
-
-// rect·viewport는 페이지의 CSS px. 스케일은 사이드패널의 devicePixelRatio가 아니라
-// 캡처 이미지 폭 / 페이지 뷰포트 폭에서 유도한다 — 사이드패널 DPR은 페이지 줌을 모르고,
-// 줌 ≠ 100%면 크롭이 통째로 어긋난다(capture.ts:cropImage와 같은 방식).
-async function cropImage(
-  dataUrl: string,
-  rect: { x: number; y: number; width: number; height: number },
-  viewport: { width: number; height: number },
-): Promise<string> {
-  const img = await loadImage(dataUrl);
-  if (viewport.width <= 0 || viewport.height <= 0) return dataUrl;
-  const scale = img.naturalWidth / viewport.width;
-  const r = clampCropRect(
-    {
-      x: rect.x * scale,
-      y: rect.y * scale,
-      width: rect.width * scale,
-      height: rect.height * scale,
-    },
-    img.naturalWidth,
-    img.naturalHeight,
-  );
-  const canvas = document.createElement("canvas");
-  canvas.width = r.width;
-  canvas.height = r.height;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("canvas context failed");
-  ctx.drawImage(
-    img,
-    r.x,
-    r.y,
-    r.width,
-    r.height,
-    0,
-    0,
-    r.width,
-    r.height,
-  );
-  return canvas.toDataURL("image/webp", 0.92);
 }
 
 async function captureAndInsertInline(

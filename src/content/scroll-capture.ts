@@ -46,16 +46,18 @@ export function scrollCaptureTo(
   window.scrollTo({ top: y, left: session.originalScroll.x, behavior: "instant" });
   return new Promise((resolve) => {
     let done = false;
+    let fallback: ReturnType<typeof setTimeout> | null = null;
     const settle = () => {
       if (done) return;
       done = true;
+      if (fallback) clearTimeout(fallback);
       // 스크롤한 뒤에 수집한다 — "스크롤하면 헤더를 fixed로 바꾸는" 사이트가 흔해
       // 스크롤 전에 훑으면 그 헤더를 못 잡고 모든 타일에 반복 인쇄된다.
       if (hideFixed && !session.hiddenFixed) session.hiddenFixed = hideFixedElements();
       resolve({ y: window.scrollY });
     };
     requestAnimationFrame(() => requestAnimationFrame(settle));
-    setTimeout(settle, SCROLL_SETTLE_FALLBACK_MS);
+    fallback = setTimeout(settle, SCROLL_SETTLE_FALLBACK_MS);
   });
 }
 
@@ -78,7 +80,10 @@ export function endScrollCapture(session: ScrollCaptureSession): void {
 // 반복 인쇄(아티팩트)보다 콘텐츠 소실이 나쁘다.
 function hideFixedElements(): HiddenFixed[] {
   const hidden: HiddenFixed[] = [];
-  for (const el of document.body.querySelectorAll<HTMLElement>("*")) {
+  // body 아래만 훑으면 <html> 직속 fixed를 놓친다. shadow DOM·iframe 내부는 여전히 미탐(한계).
+  for (const el of document.querySelectorAll<HTMLElement>("*")) {
+    // html·body 자신이 fixed인 페이지(iOS 스크롤락 관용구)를 숨기면 타일이 통째로 백지가 된다.
+    if (el === document.documentElement || el === document.body) continue;
     if (el.id === HOST_ID || el.id === ANNOTATION_HOST_ID) continue;
     if (getComputedStyle(el).position !== "fixed") continue;
     hidden.push({

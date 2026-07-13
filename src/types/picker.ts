@@ -38,10 +38,6 @@ export interface PageMetrics {
   devicePixelRatio: number;
 }
 
-export interface BeginScrollCaptureResponse {
-  metrics: PageMetrics;
-}
-
 export interface ScrollAck {
   // 실제 도달한 scrollY — 문서 끝에서 클램프될 수 있어 스티치 겹침 보정에 쓴다.
   y: number;

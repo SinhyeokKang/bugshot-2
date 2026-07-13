@@ -2,22 +2,13 @@ import { loadImage } from "@/sidepanel/capture";
 import { sendPickerTop } from "@/sidepanel/picker-control";
 import {
   planScrollCapture,
+  stitchGeometry,
   tilePixelRect,
   type ScrollPlan,
 } from "@/sidepanel/lib/scroll-capture-plan";
 import { sendBg } from "@/types/messages";
 
-import type {
-  BeginScrollCaptureResponse,
-  PageMetrics,
-  PickerMessage,
-  ScrollAck,
-} from "@/types/picker";
-
-// 스티치 결과는 chrome.storage.session(10MB 쿼터)에 dataURL로 그대로 직렬화된다 — 쿼터를
-// 넘기면 lite 스냅샷(screenshotRaw: null)으로 조용히 강등돼 패널 재오픈 시 캡처가 사라진다.
-// webp 0.92 + base64(×1.33)가 그 안에 들어오도록 출력 픽셀을 제한한다.
-const MAX_OUTPUT_PIXELS = 8_000_000;
+import type { PageMetrics, PickerMessage, ScrollAck } from "@/types/picker";
 
 export interface TileShot {
   index: number;
@@ -68,11 +59,10 @@ export async function runScrollCapture(
   const deps = opts.deps ?? defaultDeps;
   try {
     // begin도 try 안에서 — 세션은 열렸는데 응답만 유실되면 finally 없이는 blocker·스크롤이 잔류한다.
-    const begun = await deps.send<BeginScrollCaptureResponse>(tabId, {
-      type: "picker.beginScrollCapture",
-    });
-    if (!begun) throw new Error("scroll capture unavailable");
-    const metrics = begun.metrics;
+    // content가 throw하면 {ok:false} 응답이라 truthy — metrics 유무로 판정해야 한다.
+    const begun = await deps.send<PageMetrics>(tabId, { type: "picker.beginScrollCapture" });
+    if (!begun?.viewport) throw new Error("scroll capture unavailable");
+    const metrics = begun;
     const plan = planScrollCapture(metrics);
     const stitcher = deps.createStitcher(plan, metrics);
     let done = 0;
@@ -90,14 +80,18 @@ export async function runScrollCapture(
       // content 세션이 사라지면(네비게이션·재주입) 무응답 → 스크롤 안 된 화면을 계속 찍는 대신 중단.
       if (!ack) throw new Error("scroll capture unavailable");
 
-      await stitcher.add({
-        index: tile.index,
-        actualY: ack.y,
-        dataUrl: await deps.captureTab(tabId),
-      });
+      const dataUrl = await deps.captureTab(tabId);
+      // 스크롤 ack와 실제 캡처 사이엔 캡처 큐 대기(≥500ms)가 있다 — 그 사이 탭이 바뀌었으면
+      // 방금 찍은 건 남의 탭 화면이다. 스티치에 넣지 않고 버린다.
+      if (opts.signal.aborted) throw new Error("scroll capture aborted");
+      if (!(await deps.isTabActive(tabId))) throw new Error("tab is not active");
+
+      await stitcher.add({ index: tile.index, actualY: ack.y, dataUrl });
       done += 1;
       opts.onProgress(done, plan.tiles.length);
     }
+
+    if (opts.signal.aborted) throw new Error("scroll capture aborted");
 
     return {
       dataUrl: await stitcher.finish(),
@@ -112,36 +106,26 @@ export async function runScrollCapture(
 function createCanvasStitcher(plan: ScrollPlan, metrics: PageMetrics): ScrollStitcher {
   let canvas: HTMLCanvasElement | null = null;
   let ctx: CanvasRenderingContext2D | null = null;
-  let scale = 1;
-  let output = 1;
+  let geometry: ReturnType<typeof stitchGeometry> | null = null;
+  let srcWidth = 0;
 
   return {
     async add(tile) {
       const img = await loadImage(tile.dataUrl);
-      if (!canvas || !ctx) {
-        // 캡처 이미지 폭 / CSS 뷰포트 폭 = 실제 배율(DPR × 줌을 한 번에 흡수).
-        scale = metrics.viewport.width > 0 ? img.naturalWidth / metrics.viewport.width : 1;
-        const fullWidth = metrics.viewport.width * scale;
-        const fullHeight = plan.totalHeight * scale;
-        output = Math.min(1, Math.sqrt(MAX_OUTPUT_PIXELS / Math.max(1, fullWidth * fullHeight)));
+      if (!canvas || !ctx || !geometry) {
+        geometry = stitchGeometry(plan, metrics.viewport.width, img.naturalWidth);
+        srcWidth = img.naturalWidth;
         canvas = document.createElement("canvas");
-        canvas.width = Math.max(1, Math.round(fullWidth * output));
-        canvas.height = Math.max(1, Math.round(fullHeight * output));
+        canvas.width = geometry.width;
+        canvas.height = geometry.height;
         ctx = canvas.getContext("2d");
         if (!ctx) throw new Error("2d context unavailable");
       }
-      const r = tilePixelRect(plan, tile.index, tile.actualY, scale, scale * output);
-      ctx.drawImage(
-        img,
-        0,
-        r.srcY,
-        img.naturalWidth,
-        r.srcHeight,
-        0,
-        r.destY,
-        canvas.width,
-        r.destHeight,
-      );
+      // 캡처 중 창 리사이즈·스크롤바 출현으로 타일 폭이 바뀌면 가로로 늘어난 채 조용히 붙는다.
+      if (img.naturalWidth !== srcWidth) throw new Error("tile width changed mid-capture");
+
+      const r = tilePixelRect(plan, tile.index, tile.actualY, geometry.srcScale, geometry.destScale);
+      ctx.drawImage(img, 0, r.srcY, srcWidth, r.srcHeight, 0, r.destY, canvas.width, r.destHeight);
     },
     async finish() {
       if (!canvas) throw new Error("no tiles captured");

@@ -81,7 +81,11 @@ export function IssueTab() {
   const { trimming } = useReplay();
   const t = useT();
   const [scrollProgress, setScrollProgress] = useState<{ done: number; total: number } | null>(null);
+  const [viewportBusy, setViewportBusy] = useState(false);
+  const [canceling, setCanceling] = useState(false);
   const scrollAbortRef = useRef<AbortController | null>(null);
+  // 캡처가 인플라이트인 동안은 다른 캡처 버튼을 막는다 — 연타하면 진행 중 캡처가 reset으로 날아간다.
+  const captureBusy = scrollProgress !== null || viewportBusy;
 
   useEffect(() => {
     if (!tabId) return;
@@ -95,13 +99,24 @@ export function IssueTab() {
   // 언마운트(탭 전환·패널 재마운트) 시 진행 중 루프를 끊는다 — 안 끊으면 캡처 큐를 계속 점유한다.
   useEffect(() => () => scrollAbortRef.current?.abort(), []);
 
+  // capturing을 벗어나면(캡처 완료·세션 만료·URL 변경) 진행 중 루프를 끊고 잠금을 푼다 —
+  // 안 그러면 다음 capturing 진입이 "캡처 중" + 버튼 잠김 상태로 열린다.
+  useEffect(() => {
+    if (phase === "capturing") return;
+    scrollAbortRef.current?.abort();
+    setViewportBusy(false);
+    setCanceling(false);
+  }, [phase]);
+
   const startFullPageCapture = (id: number) => {
+    if (captureBusy) return;
     const controller = new AbortController();
     scrollAbortRef.current = controller;
     setScrollProgress({ done: 0, total: 1 });
     // 늦게 끝난 이전 run이 새 run의 상태·결과를 덮지 않도록 controller를 소유권 토큰으로 쓴다.
     const isCurrent = () =>
       scrollAbortRef.current === controller &&
+      !controller.signal.aborted &&
       useEditorStore.getState().phase === "capturing" &&
       useEditorStore.getState().target?.tabId === id;
 
@@ -112,7 +127,7 @@ export function IssueTab() {
       },
     })
       .then((result) => {
-        // 캡처 중 세션 만료·URL 변경·picker 단절이 phase를 되돌렸으면 결과를 버린다(유령 drafting 방지).
+        // 캡처 중 취소·세션 만료·URL 변경·picker 단절이 있었으면 결과를 버린다(유령 drafting 방지).
         if (!isCurrent()) return;
         useEditorStore.getState().onAreaCaptured(result.dataUrl, result.viewport);
         if (result.truncated) toast.info(t("issue.capturing.truncated"));
@@ -121,25 +136,38 @@ export function IssueTab() {
         if (!controller.signal.aborted && !maybeSurfacePermissionExpired(err)) {
           console.error("[bugshot] scroll capture failed", err);
         }
-        if (isCurrent()) useEditorStore.getState().reset();
+        const owned =
+          scrollAbortRef.current === controller &&
+          useEditorStore.getState().phase === "capturing" &&
+          useEditorStore.getState().target?.tabId === id;
+        if (owned) useEditorStore.getState().reset();
       })
       .finally(() => {
         if (scrollAbortRef.current !== controller) return;
         scrollAbortRef.current = null;
         setScrollProgress(null);
+        setCanceling(false);
       });
   };
 
   const captureViewport = (id: number) => {
+    if (captureBusy) return;
+    // content 응답(수 ms)이 아니라 실제 캡처(captureVisibleTab 큐, 수백 ms)가 끝날 때까지 잠근다.
+    // 해제는 phase가 capturing을 벗어나는 시점(위 effect) — 연타로 진행 중 캡처를 날리지 않게.
+    setViewportBusy(true);
     void captureFullViewport(id).then((ok) => {
       // content가 area-select 상태가 아니면(주입 소실·레이스) 조용히 갇히지 않게 idle로 되돌린다.
-      if (!ok && useEditorStore.getState().phase === "capturing") useEditorStore.getState().reset();
+      if (!ok && useEditorStore.getState().phase === "capturing") {
+        useEditorStore.getState().reset();
+      }
     });
   };
 
   const cancelCapturing = (id: number) => {
     const controller = scrollAbortRef.current;
     if (controller) {
+      // abort는 다음 타일 경계에서만 반영된다(캡처 큐 왕복 ≤1초) — 그 사이 "취소 중"을 보여준다.
+      setCanceling(true);
       controller.abort();
       return;
     }
@@ -162,6 +190,8 @@ export function IssueTab() {
           onViewport={() => captureViewport(tabId)}
           onFullPage={() => startFullPageCapture(tabId)}
           progress={scrollProgress}
+          busy={captureBusy}
+          canceling={canceling}
         />
         <SessionExpiredDialog open={sessionExpired} onConfirm={() => reset()} />
       </>
@@ -388,31 +418,52 @@ function CapturingState({
   onViewport,
   onFullPage,
   progress,
+  busy,
+  canceling,
 }: {
   onCancel: () => void;
   onViewport: () => void;
   onFullPage: () => void;
   progress: { done: number; total: number } | null;
+  busy: boolean;
+  canceling: boolean;
 }) {
   const t = useT();
-  const busy = progress !== null;
   const percent = progress
     ? Math.round((progress.done / Math.max(1, progress.total)) * 100)
     : 0;
+  // disabled는 pointer-events를 죽여 title 툴팁·스피너 대비까지 잃는다 — ReplayButton과 같은
+  // aria-disabled 관용구로 시각·툴팁을 유지하고 핸들러에서 가드한다.
+  const lockedClass = "h-8 w-8 shrink-0 aria-disabled:cursor-not-allowed aria-disabled:opacity-50";
   return (
     <PageShell>
       <EmptyShell
         icon={<ImageIcon className="h-6 w-6 text-muted-foreground" />}
-        title={busy ? t("issue.capturing.scrolling") : t("issue.capturing.title")}
+        title={
+          canceling
+            ? t("issue.capturing.canceling")
+            : busy
+              ? t("issue.capturing.scrolling")
+              : t("issue.capturing.title")
+        }
         action={
-          <Button variant="outline" data-testid="capturing-cancel" onClick={onCancel}>
+          <Button
+            variant="outline"
+            data-testid="capturing-cancel"
+            className="aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+            aria-disabled={canceling}
+            onClick={() => {
+              if (canceling) return;
+              onCancel();
+            }}
+          >
             {t("common.cancel")}
           </Button>
         }
       >
         {progress ? (
           <>
-            <p className="mt-2 text-sm text-muted-foreground">
+            <p className="mt-2 text-sm tabular-nums text-muted-foreground" aria-live="polite">
               {t("issue.capturing.progress", { percent })}
             </p>
             <div className="mt-3 h-1.5 w-40 overflow-hidden rounded-full bg-muted">
@@ -431,37 +482,44 @@ function CapturingState({
           <Button
             size="icon"
             variant="outline"
-            className={cn("h-8 w-8 shrink-0", !busy && "bg-muted")}
+            className={cn(lockedClass, !busy && "bg-muted")}
             data-testid="capture-method-area"
             data-active={!busy || undefined}
             aria-label={t("issue.capturing.method.area")}
             title={t("issue.capturing.method.area")}
             aria-pressed={!busy}
-            disabled={busy}
+            aria-disabled={busy}
           >
             <Crop />
           </Button>
           <Button
             size="icon"
             variant="outline"
-            className="h-8 w-8 shrink-0"
+            className={lockedClass}
             data-testid="capture-method-viewport"
             aria-label={t("issue.capturing.method.viewport")}
             title={t("issue.capturing.method.viewport")}
-            disabled={busy}
-            onClick={onViewport}
+            aria-disabled={busy}
+            onClick={() => {
+              if (busy) return;
+              onViewport();
+            }}
           >
             <Fullscreen />
           </Button>
           <Button
             size="icon"
             variant="outline"
-            className="h-8 w-8 shrink-0"
+            // 진행 중엔 이 버튼이 스피너를 들고 있으므로 흐리게 만들지 않는다.
+            className="h-8 w-8 shrink-0 aria-disabled:cursor-not-allowed"
             data-testid="capture-method-fullpage"
             aria-label={t("issue.capturing.method.fullPage")}
             title={t("issue.capturing.method.fullPage")}
-            disabled={busy}
-            onClick={onFullPage}
+            aria-disabled={busy}
+            onClick={() => {
+              if (busy) return;
+              onFullPage();
+            }}
           >
             {busy ? <Loader2 className="animate-spin" /> : <ScrollText />}
           </Button>

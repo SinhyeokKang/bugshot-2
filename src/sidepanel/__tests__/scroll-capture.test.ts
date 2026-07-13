@@ -21,7 +21,7 @@ function makeDeps(over: Partial<ScrollCaptureDeps> = {}): {
   const deps: ScrollCaptureDeps = {
     send: vi.fn(async (_tabId: number, msg: PickerMessage) => {
       sent.push(msg);
-      if (msg.type === "picker.beginScrollCapture") return { metrics: METRICS };
+      if (msg.type === "picker.beginScrollCapture") return METRICS;
       if (msg.type === "picker.scrollCaptureTo") return { y: msg.y };
       return undefined;
     }) as ScrollCaptureDeps["send"],
@@ -123,8 +123,12 @@ describe("runScrollCapture", () => {
   });
 
   it("content script 응답이 undefined면(주입 소실) 중단한다", async () => {
+    const sentTypes: string[] = [];
     const { deps } = makeDeps({
-      send: vi.fn(async () => undefined) as ScrollCaptureDeps["send"],
+      send: vi.fn(async (_tabId: number, msg: PickerMessage) => {
+        sentTypes.push(msg.type);
+        return undefined;
+      }) as ScrollCaptureDeps["send"],
     });
 
     await expect(
@@ -132,6 +136,8 @@ describe("runScrollCapture", () => {
     ).rejects.toThrow();
 
     expect(deps.captureTab).not.toHaveBeenCalled();
+    // 세션이 열렸을 수도 있으므로 복원 신호는 반드시 나간다.
+    expect(sentTypes).toContain("picker.endScrollCapture");
   });
 
   it("타일 상한에 걸린 페이지는 truncated true로 반환한다", async () => {
@@ -142,7 +148,7 @@ describe("runScrollCapture", () => {
     };
     const { deps } = makeDeps({
       send: vi.fn(async (_tabId: number, msg: PickerMessage) => {
-        if (msg.type === "picker.beginScrollCapture") return { metrics: longMetrics };
+        if (msg.type === "picker.beginScrollCapture") return longMetrics;
         if (msg.type === "picker.scrollCaptureTo") return { y: msg.y };
         return undefined;
       }) as ScrollCaptureDeps["send"],
@@ -156,5 +162,37 @@ describe("runScrollCapture", () => {
 
     expect(result.truncated).toBe(true);
     expect(deps.captureTab).toHaveBeenCalledTimes(20);
+  });
+});
+
+describe("runScrollCapture — 회귀 가드", () => {
+  it("캡처 직후 탭이 비활성이면 그 타일을 버리고 중단한다 (다른 탭 화면 스티칭 방지)", async () => {
+    // isTabActive: 루프 선두(true) → 캡처 후 재확인(false)
+    const active = [true, false];
+    const { deps, sent, stitched } = makeDeps({
+      isTabActive: vi.fn(async () => active.shift() ?? false),
+    });
+
+    await expect(
+      runScrollCapture(1, { onProgress: vi.fn(), signal: new AbortController().signal, deps }),
+    ).rejects.toThrow();
+
+    expect(stitched).toHaveLength(0);
+    expect(types(sent)).toContain("picker.endScrollCapture");
+  });
+
+  it("begin이 에러 응답({ok:false})을 주면 중단한다", async () => {
+    const { deps, sent } = makeDeps({
+      send: vi.fn(async (_tabId: number, msg: PickerMessage) => {
+        if (msg.type === "picker.beginScrollCapture") return { ok: false, error: "boom" };
+        return undefined;
+      }) as ScrollCaptureDeps["send"],
+    });
+
+    await expect(
+      runScrollCapture(1, { onProgress: vi.fn(), signal: new AbortController().signal, deps }),
+    ).rejects.toThrow("scroll capture unavailable");
+    expect(deps.captureTab).not.toHaveBeenCalled();
+    void sent;
   });
 });

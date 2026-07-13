@@ -3,7 +3,9 @@ import { describe, it, expect } from "vitest";
 import {
   MAX_SCROLL_TILES,
   MAX_CANVAS_HEIGHT_PX,
+  MAX_OUTPUT_PIXELS,
   planScrollCapture,
+  stitchGeometry,
   tileDrawRect,
   tilePixelRect,
 } from "../scroll-capture-plan";
@@ -140,5 +142,29 @@ describe("tilePixelRect — 출력 다운스케일(destScale ≠ srcScale)", () 
     expect(last.destY + last.destHeight).toBe(Math.round(plan.totalHeight * destScale));
     // src는 캡처 이미지 배율 그대로
     expect(rects[2].srcY).toBe(600);
+  });
+});
+
+describe("stitchGeometry", () => {
+  it("캔버스 높이가 마지막 타일의 dest 끝과 정확히 일치한다 (1px 투명 띠 방지)", () => {
+    const plan = planScrollCapture(metrics(1500, 600, 2));
+    const g = stitchGeometry(plan, 800, 1600); // 이미지 폭 1600 = 뷰포트 800 × 2
+    expect(g.srcScale).toBe(2);
+    const last = tilePixelRect(plan, 2, 900, g.srcScale, g.destScale);
+    expect(last.destY + last.destHeight).toBe(g.height);
+    expect(g.width).toBe(Math.round(800 * g.destScale));
+  });
+
+  it("출력 픽셀 상한을 넘으면 destScale을 낮춰 다운스케일한다", () => {
+    const plan = planScrollCapture(metrics(600 * 20, 600, 2));
+    const g = stitchGeometry(plan, 1200, 2400);
+    expect(g.width * g.height).toBeLessThanOrEqual(MAX_OUTPUT_PIXELS);
+    expect(g.destScale).toBeLessThan(g.srcScale);
+  });
+
+  it("상한 안이면 다운스케일하지 않는다 (destScale = srcScale)", () => {
+    const plan = planScrollCapture(metrics(1200, 600, 1));
+    const g = stitchGeometry(plan, 800, 800);
+    expect(g.destScale).toBe(g.srcScale);
   });
 });

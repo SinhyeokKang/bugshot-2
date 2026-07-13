@@ -3,6 +3,10 @@ import type { PageMetrics } from "@/types/picker";
 export const MAX_SCROLL_TILES = 20;
 // 브라우저 canvas 높이 한계(≈32767px) 아래 여유.
 export const MAX_CANVAS_HEIGHT_PX = 32000;
+// 스티치 결과는 chrome.storage.session(전역 10MB 쿼터)에 dataURL로 직렬화되고, 어노테이션을
+// 하면 사본이 하나 더 실린다. 넘치면 lite 스냅샷(screenshotRaw: null)으로 조용히 강등돼
+// 패널 재오픈 시 캡처만 사라지므로, webp 0.92 + base64(×1.33)가 여유 있게 들어올 크기로 제한.
+export const MAX_OUTPUT_PIXELS = 4_000_000;
 
 export interface TilePlan {
   index: number;
@@ -22,10 +26,8 @@ export interface TileDraw {
   destY: number;
 }
 
-export function planScrollCapture(
-  metrics: PageMetrics,
-  maxTiles: number = MAX_SCROLL_TILES,
-): ScrollPlan {
+export function planScrollCapture(metrics: PageMetrics): ScrollPlan {
+  const maxTiles = MAX_SCROLL_TILES;
   const vh = Math.floor(metrics.viewport.height);
   const docHeight = Math.floor(metrics.scrollHeight);
   if (vh <= 0 || docHeight <= 0) {
@@ -63,6 +65,37 @@ export function tileDrawRect(plan: ScrollPlan, index: number, actualY: number): 
     Math.min(plan.tileHeight - srcY, plan.totalHeight - destY),
   );
   return { srcY, srcHeight, destY };
+}
+
+export interface StitchGeometry {
+  srcScale: number;
+  destScale: number;
+  width: number;
+  height: number;
+}
+
+// 스티치 캔버스 크기와 배율. 캔버스 높이를 마지막 타일의 dest 끝과 **같은 식**으로 산출한다 —
+// 곱셈 결합 순서가 갈리면(round(h*scale*output) vs round(h*scale)*output) 하단에 1px 띠가 남는다.
+export function stitchGeometry(
+  plan: ScrollPlan,
+  viewportWidth: number,
+  imgWidth: number,
+): StitchGeometry {
+  // 캡처 이미지 폭 / CSS 뷰포트 폭 = 실제 배율(DPR × 줌을 한 번에 흡수).
+  const srcScale = viewportWidth > 0 && imgWidth > 0 ? imgWidth / viewportWidth : 1;
+  const fullWidth = viewportWidth * srcScale;
+  const fullHeight = plan.totalHeight * srcScale;
+  const output = Math.min(
+    1,
+    Math.sqrt(MAX_OUTPUT_PIXELS / Math.max(1, fullWidth * fullHeight)),
+  );
+  const destScale = srcScale * output;
+  return {
+    srcScale,
+    destScale,
+    width: Math.max(1, Math.round(viewportWidth * destScale)),
+    height: Math.max(1, Math.round(plan.totalHeight * destScale)),
+  };
 }
 
 export interface TilePixelRect {
