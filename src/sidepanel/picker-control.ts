@@ -624,6 +624,21 @@ export async function cancelAreaCapture(tabId: number): Promise<void> {
   useEditorStore.getState().reset();
 }
 
+// 드래그 없이 뷰포트 전체를 선택 — phase 전이는 기존 picker.areaSelected 수신부가 담당한다.
+// false면 content가 area-select 상태가 아니거나(레이스) 주입이 끊긴 것.
+export async function captureFullViewport(tabId: number): Promise<boolean> {
+  const res = await send<{ ok: boolean }>(tabId, { type: "picker.selectFullViewport" }, 0);
+  return res?.ok === true;
+}
+
+// 스크롤 캡처 오케스트레이터(scroll-capture.ts) 전용 — top frame 한정 송신.
+export async function sendPickerTop<R = void>(
+  tabId: number,
+  msg: PickerMessage,
+): Promise<R | undefined> {
+  return send<R>(tabId, msg, 0);
+}
+
 export async function activateNetworkRecorder(tabId: number): Promise<string> {
   await ensureContentScript(tabId);
   await ensureRecorderBridge(tabId);

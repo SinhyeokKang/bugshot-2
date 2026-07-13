@@ -1,6 +1,6 @@
 # BugShot Privacy Policy
 
-**Effective date**: July 12, 2026
+**Effective date**: July 14, 2026
 
 BugShot (the "extension") values your privacy and collects and processes only the minimum information necessary. This policy transparently explains what information the extension handles.
 
@@ -38,7 +38,7 @@ When you use a field that selects a user — such as assignee, CC (watcher), or 
 | Information | When collected | Purpose |
 |---|---|---|
 | DOM element style information | When selecting an element | Style comparison and issue body generation |
-| Screenshots / tab recordings | When capturing / recording a tab | Capturing the current tab's screen to attach to an issue |
+| Screenshots (area / screen / full page) / tab recordings | When capturing / recording a tab | Capturing the range you choose to attach to an issue — **full-page capture automatically scrolls the page beyond the visible screen and stitches multiple shots together, so content that was off-screen is included in the image** |
 | Inline editor images | When inserting part of the screen into the issue body | Capturing the current tab's screen (`captureVisibleTab`) and inserting only the selected region into the body |
 | Screen recording video | When the screen-recording mode is selected | Recording the target **you choose yourself** in the browser's screen-share dialog (which may include the entire screen, other app windows, or other tabs — including screens outside the tab where BugShot is open) to attach to an issue |
 | Network request logs | When debug capture is enabled | Attaching to an issue (debug information) |
@@ -47,6 +47,9 @@ When you use a field that selects a user — such as assignee, CC (watcher), or 
 | User action logs (clicks, input, navigation, shortcut keys, toggles, dropdown selections, drag) | When debug capture is enabled | Attaching to an issue (reproduction steps — attached in video mode only) |
 | 30-second replay frames | When 30-second replay is enabled | Periodically capturing the current tab's screen and temporarily holding the last 30 seconds in memory (not stored, not transmitted; attached as video only when you explicitly capture) |
 | User-attached files | When attaching a file to an issue after enabling the file-attachment feature (optional, off by default) | Attaching an arbitrary local file you select yourself to an issue |
+
+
+When you run a full-page capture, the extension **automatically scrolls the page from top to bottom** until the capture finishes, and **temporarily hides elements pinned to the screen** (headers that follow you as you scroll, floating buttons, and so on), restoring them once the capture is done — this keeps the same header from being printed over and over in the image. While the capture runs, clicks and scrolling on the page are blocked so the result doesn't come out misaligned, and the page is scrolled back to where you were once it finishes. Because of this automatic scrolling, the page's own scroll-driven behavior (loading more content, the page's own analytics scripts, and so on) may run. That is behavior the page performs on its own; the extension does not collect or transmit anything beyond the captured image during this process.
 
 When collecting network logs, sensitive headers such as `authorization` and `cookie`, and sensitive query parameters such as `token` and `access_token`, are masked automatically. Values of sensitive keys such as `token`, `password`, and `secret` in request/response bodies (JSON, form data) are also masked automatically. For real-time messages a page exchanges over WebSocket, only **text frame payloads** are collected (binary frames such as images or files are not collected), and the same body masking applies. Console logs collect the messages a page prints verbatim (with no additional masking), so please be careful with debug capture on pages that print sensitive information to the console.
 
@@ -145,7 +148,7 @@ We do not sell, share, or transfer the information we collect to third parties. 
 | Permission | Purpose |
 |---|---|
 | sidePanel | Displaying the side panel UI |
-| activeTab | Collecting DOM element information from the current tab |
+| activeTab | Collecting DOM element information from the current tab, and capturing the screen or the full page (including scrolling the page during capture) |
 | scripting | Injecting scripts for DOM selection / overlay display, and running page scripts for GitHub file upload |
 | storage | Storing settings, sessions, and issue history |
 | commands | Registering keyboard shortcuts |
@@ -167,7 +170,7 @@ There is no separate per-platform host permission; all of the communication abov
 `<all_urls>` (all sites) is a **required permission granted at install** (shown on the install screen as "Read and change your data on all sites"). It is needed for the extension's core features that operate on arbitrary web pages, and there is no separate runtime permission dialog. Main uses:
 
 - **DOM selection / style editing**: Picking an element on any web page to collect information and preview styles
-- **Screen capture / 30-second replay**: Current-tab screen capture (`captureVisibleTab`) does not work with ordinary host permissions and requires `<all_urls>`. Capture and log collection continue even when you navigate to another site, without the side panel closing.
+- **Screen / full-page capture and 30-second replay**: Current-tab screen capture (`captureVisibleTab`) does not work with ordinary host permissions and requires `<all_urls>`. Full-page capture calls the same API repeatedly while scrolling the page, stitching in the areas that were off-screen. Capture and log collection continue even when you navigate to another site, without the side panel closing.
 - **Console / network log collection**: Recording logs on arbitrary pages (and iframes)
 - **AI draft / AI styling**: Transmitting to the LLM provider endpoint you configure yourself (when you explicitly run an AI draft or AI styling)
 - **GitLab self-managed**: PAT communication with the instance (an arbitrary origin) you enter

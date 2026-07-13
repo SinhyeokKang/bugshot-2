@@ -4,7 +4,7 @@ import { sameElementKey } from "@/lib/element-key";
 import { originOf } from "@/lib/session-keys";
 import type { PickerMessage, ViewportRect } from "@/types/picker";
 import { type BgInternalMessage, onPickerIframeUnsupported, onPickerPermissionExpired, sendBg } from "@/types/messages";
-import { captureElementSnapshot, loadImage } from "@/sidepanel/capture";
+import { captureElementSnapshot, cropImage } from "@/sidepanel/capture";
 import { clearPicker, collectTokens, getTopViewport, maybeSurfacePermissionExpired, rebroadcastSentinelsToFrame, restartPickerInFrame, resumeBufferedElement, stopHoverAllFrames, stopPicker } from "@/sidepanel/picker-control";
 import { saveNetworkLog, saveConsoleLog, saveActionLog, saveInlineImage, dataUrlToBlob } from "@/store/blob-db";
 import { shouldCompact, compactImage } from "@/sidepanel/lib/compactImage";
@@ -354,62 +354,30 @@ async function captureAndCrop(rect: ViewportRect, viewport: { width: number; hei
     const tabId = useEditorStore.getState().target?.tabId;
     if (!tabId) return;
     const dataUrl = await sendBg<string>({ type: "captureVisibleTab", tabId });
-    const dpr = window.devicePixelRatio || 1;
-    const cropped = await cropImage(dataUrl, {
-      x: rect.x * dpr,
-      y: rect.y * dpr,
-      width: rect.width * dpr,
-      height: rect.height * dpr,
-    });
-    useEditorStore.getState().onAreaCaptured(cropped, viewport);
+    const cropped = await cropImage(dataUrl, rect, viewport);
+    // 캡처는 background 큐를 거쳐 수백 ms 걸린다 — 그 사이 취소·세션 만료·탭 변경으로 세션이
+    // 바뀌었으면 결과를 버린다(target 없는 유령 drafting 방지).
+    const s = useEditorStore.getState();
+    if (s.phase !== "capturing" || s.target?.tabId !== tabId) return;
+    s.onAreaCaptured(cropped, viewport);
   } catch (err) {
     if (!maybeSurfacePermissionExpired(err)) {
       console.error("[bugshot] capture and crop failed", err);
     }
-    useEditorStore.getState().reset();
+    if (useEditorStore.getState().phase === "capturing") useEditorStore.getState().reset();
   }
-}
-
-async function cropImage(
-  dataUrl: string,
-  rect: { x: number; y: number; width: number; height: number },
-): Promise<string> {
-  const img = await loadImage(dataUrl);
-  const canvas = document.createElement("canvas");
-  canvas.width = rect.width;
-  canvas.height = rect.height;
-  const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("canvas context failed");
-  ctx.drawImage(
-    img,
-    rect.x,
-    rect.y,
-    rect.width,
-    rect.height,
-    0,
-    0,
-    rect.width,
-    rect.height,
-  );
-  return canvas.toDataURL("image/webp", 0.92);
 }
 
 async function captureAndInsertInline(
   sectionId: string,
   rect: ViewportRect,
-  _viewport: { width: number; height: number },
+  viewport: { width: number; height: number },
 ): Promise<void> {
   try {
     const tabId = useEditorStore.getState().target?.tabId;
     if (!tabId) return;
     const dataUrl = await sendBg<string>({ type: "captureVisibleTab", tabId });
-    const dpr = window.devicePixelRatio || 1;
-    const cropped = await cropImage(dataUrl, {
-      x: rect.x * dpr,
-      y: rect.y * dpr,
-      width: rect.width * dpr,
-      height: rect.height * dpr,
-    });
+    const cropped = await cropImage(dataUrl, rect, viewport);
     let blob = dataUrlToBlob(cropped);
     const bitmap = await createImageBitmap(blob);
     if (shouldCompact(bitmap.width, blob.type)) {

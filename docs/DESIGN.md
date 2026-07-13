@@ -107,7 +107,7 @@ Tailwind 4px 스케일을 그대로 쓴다. 자주 쓰는 값(관용):
 - 키보드·역할·포커스 트랩은 **Radix 프리미티브**가 기본 제공한다(shadcn 컴포넌트를 쓰면 따라옴).
 - 포커스 표시는 `focus-visible:ring-2 focus-visible:ring-ring` 컨벤션.
   - ⚠ **현재 `--ring`이 `--border`와 같은 값**이라(`globals.css`) 키보드 포커스 링이 잘 안 보인다. 개선 후보 — 별도 대비색으로 분리하면 좋다. 그 전까진 중요한 인터랙션에 포커스가 보이는지 직접 확인.
-- **아이콘 전용 버튼**(`size="icon"`)은 텍스트가 없으므로 `aria-label`(또는 `sr-only` 텍스트)을 붙인다 — 안 그러면 스크린리더에서 무명 버튼. **권장은 `aria-label`+`title`(hover 툴팁)을 함께**(둘 다 i18n). 단 현재 코드는 툴바(`AnnotationToolbar`·녹화 그리기 툴바 `ToolbarGroups`)와 일부 다이얼로그(`DraftDetailDialog`의 [수정] 버튼)만 이를 따르고, 패널·행 액션 아이콘 버튼 다수(`DraftingPanel`·`IssueRow` 등)는 `title`-only다(⚠ 접근명은 `title`이 대체하나 aria-label 병기로 개선 후보). 새 아이콘 버튼은 권장대로 둘 다 붙인다.
+- **아이콘 전용 버튼**(`size="icon"`)은 텍스트가 없으므로 `aria-label`(또는 `sr-only` 텍스트)을 붙인다 — 안 그러면 스크린리더에서 무명 버튼. **툴바 아이콘 버튼의 hover 툴팁은 native `title`이 아니라 `TooltipIconButton`(Radix Tooltip + `aria-label`, §13)을 기본으로 한다** — 캡처 방식 툴바·어노테이션 툴바(이미지·녹화)가 전부 이걸 쓴다. `title`-only는 레거시(`AnnotationToolbar`의 액션부·`DraftingPanel`·`IssueRow` 등 — 접근명은 `title`이 대체하나 개선 후보). 새 아이콘 버튼은 `TooltipIconButton`을 쓰거나, 직접 만들면 `aria-label`을 반드시 붙인다.
 - 보조 정보용 저대비 텍스트(`text-muted-foreground/70`)는 본문 핵심 정보에 쓰지 않는다.
 - 다이얼로그를 **코드로(프로그램적으로) 열 때**는 `blurActiveElement()`(`App.tsx`)로 포커스를 먼저 떼야 Radix `aria-hidden` 경고를 피한다 — 새 전역 다이얼로그 추가 시 참고.
 
@@ -135,7 +135,7 @@ shadcn `Slider` (`src/components/ui/slider.tsx`, Radix). 표준에서 **멀티 t
 **아이콘 버튼 색**
 - idle은 **`foreground`(기본 검정)**. 아이콘 *버튼*의 idle에 `text-muted-foreground`(회색)를 쓰지 않는다 — 비활성처럼 보여 클릭 가능성이 약해진다.
 - 삭제·연결 해제 등 파괴적 액션: idle은 foreground 그대로, **`hover:text-destructive`**(호버 시 빨강)로만 위험을 표현한다.
-- 토글류(`aria-pressed`)도 off의 아이콘은 `foreground`(검정). on/off 대비는 색이 아니라 **배경·테두리**로 표현한다. 두 관용구: ① **약대비** `data-active={active||undefined}` + `aria-pressed` + `cn(..., active && "bg-muted")` — 사이드패널 아이콘 토글의 지배적 패턴(`AnnotationToolbar`·녹화 그리기 툴바 `IssueTab`/`ToolbarGroups`·텍스트 pill `OriginFilterBar`), ② **강대비** on=`bg-foreground text-background`, off=기본 + `hover:bg-muted`(`LinkToggle`).
+- 토글류(`aria-pressed`)도 off의 아이콘은 `foreground`(검정). on/off 대비는 색이 아니라 **배경·테두리**로 표현한다. 두 관용구: ① **약대비** `data-active={active||undefined}` + `aria-pressed` + `cn(..., active && "bg-muted")` — 사이드패널 아이콘 토글의 지배적 패턴. 툴바류는 `TooltipIconButton`(§13)이 단일 출처(캡처 방식 툴바·어노테이션 툴바), 그 외 텍스트 pill은 `OriginFilterBar`·`NetworkLogContent`, ② **강대비** on=`bg-foreground text-background`, off=기본 + `hover:bg-muted`(`LinkToggle`).
 - 예외: empty state·로딩 스피너·상태 표시 아이콘은 *버튼이 아니므로* `text-muted-foreground` 허용(장식·저대비 정보).
 
 **관련 변형 컴포넌트**
@@ -194,7 +194,8 @@ shadcn `Slider` (`src/components/ui/slider.tsx`, Radix). 표준에서 **멀티 t
 
 | 컴포넌트 | 표준화 대상 |
 |---|---|
-| `PageShell`/`PageScroll`/`PageFooter` (`Section.tsx`) | 탭 페이지 골격 — Shell=`flex min-h-0 flex-1 flex-col`, Scroll=`min-h-0 flex-1 overflow-y-auto`(내부 스크롤 영역), Footer=`shrink-0 border-t bg-muted/50 p-4`(하단 고정 액션). 전 탭 공용 |
+| `PageShell`/`PageScroll`/`PageFooter` (`Section.tsx`) | 탭 페이지 골격 — Shell=`flex min-h-0 flex-1 flex-col`, Scroll=`min-h-0 flex-1 overflow-y-auto`(내부 스크롤 영역), Footer=`shrink-0 border-t bg-muted/50 p-4`(하단 고정 액션). 전 탭 공용. **취소·제출 같은 액션이 없는 순수 툴바 footer는 `bg-muted/50`이 아니라 `bg-background`**(캡처 방식 툴바·녹화 그리기 툴바) |
+| `TooltipIconButton` | 툴바 아이콘 버튼 — `size="icon"` + `h-8 w-8` + `variant="outline"` + Radix 툴팁(Provider 내장 — 툴바가 오버레이·footer로 흩어져 상위 Provider 보장이 없다) + 토글(`data-active`/`aria-pressed`/`bg-muted`) + `ariaDisabled` 잠금. 캡처 방식 툴바·어노테이션 툴바(이미지·녹화) 공용 |
 | `Section.tsx` | 섹션 구획 — `<section>` 래퍼에 `border-b border-border py-6 last:border-b-0`(섹션 간 구분선, 마지막은 제거) + optional 헤더(title/action 둘 다 없으면 미렌더) + optional collapsible. 토글 wrapper로 섹션을 그룹화하면 `:last-child`가 재스코프되니 wrapper에 `[&>section:last-child]:border-b`로 복원(위 §탭 시스템 세그먼트 토글) |
 | `FieldRow.tsx` | 라벨+필드 쌍 — `grid gap-1.5`, 라벨 `text-xs text-muted-foreground`, `required` 시 빨간 별 |
 | `InlineChip.tsx` | 인라인 텍스트 칩 — `muted`면 dashed/muted, 아니면 `border-primary`. `[box-decoration-break:clone]`로 줄바꿈 대응 |
@@ -220,6 +221,7 @@ shadcn `Slider` (`src/components/ui/slider.tsx`, Radix). 표준에서 **멀티 t
 - **토스트**: `sonner` (`src/components/ui/sonner.tsx`, theme 동기화). `toast.success/error/warning(t(...))`. 스타일은 토큰 기반(`bg-background … rounded-xl`).
 - **툴팁**: `tooltip.tsx` (Radix). `TooltipProvider > Tooltip > TooltipTrigger asChild + TooltipContent`. 내용 `bg-primary text-primary-foreground text-xs`.
 - **로딩 스피너**: lucide `Loader2` + `animate-spin`(`h-4 w-4` 또는 `h-3 w-3`). 오버레이는 `absolute inset-0 flex items-center justify-center`.
+- **진행 중 잠금**: `disabled` 대신 **`aria-disabled` + 핸들러 early-return 가드**를 쓴다 — shadcn Button base의 `disabled:pointer-events-none` 때문에 `disabled`면 툴팁·hover가 죽고 스피너까지 흐려진다. 스타일은 `aria-disabled:cursor-not-allowed aria-disabled:opacity-50`(스피너를 든 버튼은 `opacity-50`을 뺀다). 선례: `ReplayButton`·캡처 방식 툴바(`IssueTab`)·`TooltipIconButton`의 `ariaDisabled`.
 - **shimmer**: `tailwind.config.js`의 `shimmer` keyframe(`animate-shimmer`, 2s) — 그라데이션을 translateY로 흘리는 효과. 사용처는 **AI 로딩 전체 오버레이**(`App.tsx`, `absolute inset-0`, styling=teal / draft=purple 틴트).
 - **빈 상태(empty state)** 관용형:
   ```tsx

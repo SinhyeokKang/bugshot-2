@@ -9,7 +9,10 @@ import { buildReportData, type BuildReportDataInput } from "./buildReportData";
 import { supportsConsoleNetworkLog, supportsActionLog } from "./captureLogSupport";
 import { recordingFilename } from "./video-mime";
 
-export type CaptureMode = "element" | "screenshot" | "video" | "freeform";
+// 선언은 editor-store 단일 출처 — 여기선 기존 import 경로(captureLogSupport 등)를 위해 재export만.
+import type { CaptureMode } from "@/store/editor-store";
+
+export type { CaptureMode };
 
 export interface CaptureFile {
   filename: string;

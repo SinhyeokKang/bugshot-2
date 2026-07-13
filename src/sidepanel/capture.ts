@@ -1,4 +1,5 @@
 import { sendBg } from "@/types/messages";
+import { clampCropRect } from "@/sidepanel/lib/crop-rect";
 import type { PrepareCaptureResponse, ViewportRect } from "@/types/picker";
 import {
   endCapture,
@@ -56,40 +57,34 @@ async function captureWithPrep(
   }
 }
 
-async function cropImage(
+// 스케일은 캡처 이미지 폭 / 페이지 뷰포트 폭에서 유도한다 — 사이드패널의 devicePixelRatio는
+// 페이지 줌을 모른다. 크롭은 영역·인라인·요소 스냅샷 공용(단일 구현).
+export async function cropImage(
   dataUrl: string,
   rect: ViewportRect,
   viewport: { width: number; height: number },
-  margin: number,
+  margin = 0,
 ): Promise<string> {
   const img = await loadImage(dataUrl);
   if (viewport.width <= 0 || viewport.height <= 0) return dataUrl;
-  const scaleX = img.naturalWidth / viewport.width;
-  const scaleY = img.naturalHeight / viewport.height;
-
-  const x = Math.max(0, rect.x - margin);
-  const y = Math.max(0, rect.y - margin);
-  const right = Math.min(viewport.width, rect.x + rect.width + margin);
-  const bottom = Math.min(viewport.height, rect.y + rect.height + margin);
-  const w = Math.max(1, right - x);
-  const h = Math.max(1, bottom - y);
+  const scale = img.naturalWidth / viewport.width;
+  const r = clampCropRect(
+    {
+      x: (rect.x - margin) * scale,
+      y: (rect.y - margin) * scale,
+      width: (rect.width + margin * 2) * scale,
+      height: (rect.height + margin * 2) * scale,
+    },
+    img.naturalWidth,
+    img.naturalHeight,
+  );
 
   const canvas = document.createElement("canvas");
-  canvas.width = Math.round(w * scaleX);
-  canvas.height = Math.round(h * scaleY);
+  canvas.width = Math.round(r.width);
+  canvas.height = Math.round(r.height);
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("2d context unavailable");
-  ctx.drawImage(
-    img,
-    x * scaleX,
-    y * scaleY,
-    w * scaleX,
-    h * scaleY,
-    0,
-    0,
-    canvas.width,
-    canvas.height,
-  );
+  ctx.drawImage(img, r.x, r.y, r.width, r.height, 0, 0, canvas.width, canvas.height);
   return canvas.toDataURL("image/webp", 0.92);
 }
 

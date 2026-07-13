@@ -32,7 +32,7 @@ In the **Debug** tab, pick a capture mode.
 
 - **Edit element style** — Pick an element, edit its styles, and report before/after.
 - **Capture element** — Click an element to crop just that element as a screenshot.
-- **Capture area** — Drag a screen region and mark it up.
+- **Capture area** — Drag a region, grab the whole visible screen, or capture the entire page including what's below the fold — then mark it up.
 - **Record screen** — Record the behavior as a video.
 
 If you're not sure which to pick, **Capture area** is the simplest place to start.

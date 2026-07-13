@@ -17,6 +17,7 @@ interface OverlayInternal extends OverlayHandle {
   boxLabelsEl: SVGGElement;
   borderEl: SVGRectElement;
   previewEl: SVGRectElement;
+  _setScrollYield: (enabled: boolean) => void;
   _onResize: () => void;
   _cleanup: () => void;
 }
@@ -205,7 +206,11 @@ export function createOverlay(): OverlayHandle {
   shadow.appendChild(blockerEl);
 
   let scrollTimer: ReturnType<typeof setTimeout> | null = null;
+  let scrollYieldEnabled = true;
   function yieldToScroll() {
+    // 스크롤 캡처 중에는 양보하지 않는다 — 휠이 페이지로 새면 캡처 큐 대기(≥500ms) 사이에
+    // 스크롤이 밀려 해당 타일이 어긋난 오프셋으로 스티칭된다(검출 수단 없음).
+    if (!scrollYieldEnabled) return;
     blockerEl.style.pointerEvents = "none";
     if (scrollTimer) clearTimeout(scrollTimer);
     scrollTimer = setTimeout(() => {
@@ -213,12 +218,21 @@ export function createOverlay(): OverlayHandle {
       scrollTimer = null;
     }, 120);
   }
+  // 양보가 꺼진 동안(스크롤 캡처)은 기본 동작까지 막아야 페이지가 안 밀린다 — pointerEvents만
+  // 유지하면 wheel이 document로 체이닝돼 그대로 스크롤된다. 그래서 passive:false 리스너를 따로 둔다.
+  function blockScroll(e: Event) {
+    if (!scrollYieldEnabled) e.preventDefault();
+  }
   blockerEl.addEventListener("wheel", yieldToScroll, { passive: true });
   blockerEl.addEventListener("touchmove", yieldToScroll, { passive: true });
+  blockerEl.addEventListener("wheel", blockScroll, { passive: false });
+  blockerEl.addEventListener("touchmove", blockScroll, { passive: false });
 
   function cleanupBlockerListeners() {
     blockerEl.removeEventListener("wheel", yieldToScroll);
     blockerEl.removeEventListener("touchmove", yieldToScroll);
+    blockerEl.removeEventListener("wheel", blockScroll);
+    blockerEl.removeEventListener("touchmove", blockScroll);
     if (scrollTimer) {
       clearTimeout(scrollTimer);
       scrollTimer = null;
@@ -296,6 +310,10 @@ export function createOverlay(): OverlayHandle {
     boxLabelsEl,
     borderEl,
     previewEl,
+    _setScrollYield: (enabled: boolean) => {
+      scrollYieldEnabled = enabled;
+      if (!enabled) blockerEl.style.pointerEvents = "auto";
+    },
     _onResize: () => updateBanner(handle),
     _cleanup: cleanupBlockerListeners,
   };
@@ -321,6 +339,11 @@ export function updateBanner(h: OverlayHandle): void {
 export function hideBanner(h: OverlayHandle): void {
   const o = h as OverlayInternal;
   o.bannerEl.style.display = "none";
+}
+
+// 스크롤 캡처 동안 blocker의 휠 양보(yieldToScroll)를 끈다 — 페이지가 밀리면 타일이 어긋난다.
+export function setBlockerScrollYield(h: OverlayHandle, enabled: boolean): void {
+  (h as OverlayInternal)._setScrollYield(enabled);
 }
 
 export function setBlockerVisible(

@@ -27,7 +27,7 @@ report developers can actually act on.
 1. **Install** from the [Chrome Web Store](https://chromewebstore.google.com/detail/bugshot/ohakhekagkodklkickemonmifdcbhmig).
 2. **Open the panel** — click the toolbar icon or press `Cmd/Ctrl+Shift+E`.
 3. **Connect a destination** — in the *Integrations* tab, connect at least one of Jira, GitHub, Linear, Notion, GitLab, Asana, ClickUp, or Slack.
-4. **Capture** — in the *Debug* tab, pick a mode: edit element style, capture an element, capture an area, or record the screen. You can also start a report from logs alone (no capture) via the console/network log tabs.
+4. **Capture** — in the *Debug* tab, pick a mode: edit element style, capture an element, capture an area (drag, viewport, or full page), or record the screen. You can also start a report from logs alone (no capture) via the console/network log tabs.
 5. **Submit** — the environment fills itself in; add a title, review the preview, and submit. A link to the created issue pops right up.
 
 Full walkthrough in the [Quick Start guide](https://bug-shot.com/en/docs/quick-start).
@@ -49,6 +49,8 @@ Grab exactly what's on screen and mark it up.
 
 - **Element capture** — click an element to crop just that element as a clean screenshot; its DOM selector is added to the issue environment automatically.
 - **Area capture** — drag any region of the screen to capture a precise slice.
+- **Screen capture** — grab the whole visible viewport in one click, no dragging.
+- **Full-page capture** — scroll and stitch the entire page into one tall screenshot; fixed headers are printed once, and very long pages stop at a limit with a notice.
 - **Annotation** — mark up the shot with arrows, text, shapes, and highlights before attaching it.
 
 ### 🎬 Recording

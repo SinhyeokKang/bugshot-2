@@ -31,6 +31,18 @@ export interface PrepareCaptureResponse {
   viewport: { width: number; height: number };
 }
 
+export interface PageMetrics {
+  scrollHeight: number;
+  viewport: { width: number; height: number };
+  // 캡처 전 스티치 계획 단계에서 canvas 높이 한계를 검사해야 해 페이지에서 함께 받는다.
+  devicePixelRatio: number;
+}
+
+export interface ScrollAck {
+  // 실제 도달한 scrollY — 문서 끝에서 클램프될 수 있어 스티치 겹침 보정에 쓴다.
+  y: number;
+}
+
 export type TokenCategory =
   | "color"
   | "length"
@@ -96,6 +108,10 @@ export type PickerMessage =
   | { type: "picker.endCapture"; cleanup?: boolean }
   | { type: "picker.startAreaSelect"; restoreAfter?: boolean }
   | { type: "picker.cancelAreaSelect" }
+  | { type: "picker.selectFullViewport" }
+  | { type: "picker.beginScrollCapture" }
+  | { type: "picker.scrollCaptureTo"; y: number; hideFixed: boolean }
+  | { type: "picker.endScrollCapture" }
   | { type: "picker.selected"; payload: PickerSelectionPayload }
   | { type: "picker.selectionUpdated"; payload: PickerSelectionUpdatePayload }
   | { type: "picker.cancelled" }
