@@ -119,11 +119,13 @@ export function ToolButtons({
 export function ColorSwatches({
   value,
   onChange,
+  disabled,
   className,
   testIdPrefix = "annotation-color",
 }: {
   value: string;
   onChange: (color: string) => void;
+  disabled?: boolean;
   className?: string;
   testIdPrefix?: string;
 }) {
@@ -137,6 +139,7 @@ export function ColorSwatches({
             key={c}
             label={t(COLOR_LABEL_KEYS[i])}
             active={active}
+            disabled={disabled}
             testId={`${testIdPrefix}-${i}`}
             onClick={() => onChange(c)}
           >
@@ -189,11 +192,13 @@ export function ThicknessButtons({
 export function TextSizeButtons({
   value,
   onChange,
+  disabled,
   className,
   testIdPrefix = "annotation-textsize",
 }: {
   value: TextSizeKey;
   onChange: (key: TextSizeKey) => void;
+  disabled?: boolean;
   className?: string;
   testIdPrefix?: string;
 }) {
@@ -207,6 +212,7 @@ export function TextSizeButtons({
             key={key}
             label={t(TEXTSIZE_LABEL_KEYS[key])}
             active={active}
+            disabled={disabled}
             testId={`${testIdPrefix}-${key}`}
             onClick={() => onChange(key)}
           >

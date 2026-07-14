@@ -14,8 +14,6 @@ import {
   DEFAULT_THICKNESS,
   DEFAULT_TEXT_SIZE,
   TEXT_SIZES,
-  TEXT_SIZE_KEYS,
-  isStrokeTool,
   type AnnotationTool,
   type TextSizeKey,
   type ThicknessKey,
@@ -93,6 +91,8 @@ export default function AnnotationOverlay({
   const [panning, setPanning] = useState(false);
   // 진입 직후에도 팬이 동작해야 하므로 선택 도구로 연다(그리기 도구가 아니라 "그리지 않는 모드").
   const [tool, setTool] = useState<AnnotationTool>("select");
+  // select로 돌아가도 스타일 행의 형태(두께 vs 글자 크기)를 유지하기 위한 직전 그리기 도구.
+  const [lastDrawTool, setLastDrawTool] = useState<AnnotationTool>("pen");
   const [color, setColor] = useState<string>(DEFAULT_COLOR);
   const [thickness, setThickness] = useState<ThicknessKey>(DEFAULT_THICKNESS);
   const [textSize, setTextSize] = useState<TextSizeKey>(DEFAULT_TEXT_SIZE);
@@ -262,19 +262,6 @@ export default function AnnotationOverlay({
   const handleSelect = (id: string) => {
     if (tool !== "select") return;
     setSelectedId(id);
-    // 선택 도형의 현재 스타일을 툴바에 반영(스와치/두께 활성 표시 정합).
-    const shape = shapes.find((s) => s.id === id);
-    if (!shape) return;
-    setColor(shape.color);
-    if (shape.type === "text") {
-      const sizeKey = TEXT_SIZE_KEYS.find((k) => TEXT_SIZES[k] === shape.fontSize);
-      if (sizeKey) setTextSize(sizeKey);
-      return;
-    }
-    const key = (Object.keys(ANNOTATION_THICKNESS) as ThicknessKey[]).find(
-      (k) => ANNOTATION_THICKNESS[k] === shape.strokeWidth,
-    );
-    if (key) setThickness(key);
   };
 
   const handleCommitTransform = (id: string, attrs: TransformAttrs) => {
@@ -455,38 +442,9 @@ export default function AnnotationOverlay({
     gestureRef.current = { move: onWindowMove, up: onWindowUp, cancel: onWindowCancel };
   });
 
-  const handleColorChange = (c: string) => {
-    setColor(c);
-    if (selectedId) {
-      pushShapes((prev) =>
-        prev.map((s) => (s.id === selectedId ? { ...s, color: c } : s)),
-      );
-    }
-  };
-
-  const handleThicknessChange = (key: ThicknessKey) => {
-    setThickness(key);
-    if (selectedId) {
-      pushShapes((prev) =>
-        prev.map((s) =>
-          s.id === selectedId ? { ...s, strokeWidth: ANNOTATION_THICKNESS[key] } : s,
-        ),
-      );
-    }
-  };
-
-  const handleTextSizeChange = (key: TextSizeKey) => {
-    setTextSize(key);
-    if (selectedId) {
-      pushShapes((prev) =>
-        prev.map((s) =>
-          s.id === selectedId && s.type === "text"
-            ? { ...s, fontSize: TEXT_SIZES[key] }
-            : s,
-        ),
-      );
-    }
-  };
+  const handleColorChange = (c: string) => setColor(c);
+  const handleThicknessChange = (key: ThicknessKey) => setThickness(key);
+  const handleTextSizeChange = (key: TextSizeKey) => setTextSize(key);
 
   const handleDelete = () => {
     if (!selectedId) return;
@@ -510,10 +468,6 @@ export default function AnnotationOverlay({
     });
   };
 
-  const selectedShape = selectedId ? shapes.find((s) => s.id === selectedId) : null;
-  const selectionIsStroke = selectedShape != null && isStrokeTool(selectedShape.type);
-  const selectionIsText = selectedShape?.type === "text";
-
   return (
     <div className="fixed inset-0 z-50 bg-background" data-testid="annotation-overlay">
       {image ? (
@@ -522,7 +476,10 @@ export default function AnnotationOverlay({
           onToolChange={(next) => {
             commitText();
             setTool(next);
-            if (next !== "select") setSelectedId(null);
+            if (next !== "select") {
+              setLastDrawTool(next);
+              setSelectedId(null);
+            }
           }}
           color={color}
           onColorChange={handleColorChange}
@@ -531,8 +488,7 @@ export default function AnnotationOverlay({
           textSize={textSize}
           onTextSizeChange={handleTextSizeChange}
           hasSelection={selectedId !== null}
-          selectionIsStroke={selectionIsStroke}
-          selectionIsText={selectionIsText}
+          styleTool={tool === "select" ? lastDrawTool : tool}
           onDelete={handleDelete}
           canUndo={canUndoFn(history)}
           canRedo={canRedoFn(history)}
