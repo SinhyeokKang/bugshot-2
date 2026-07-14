@@ -75,7 +75,8 @@ All three logs ride along with every capture except element style editing, and e
 
 ### 🤖 AI
 
-- **AI draft & styling** — BYOK (Bring Your Own Key) with OpenAI, Anthropic, Gemini, and more; falls back to Chrome Built-in AI when no key is set. Drafts the title and body from your capture (styles, screenshot, or log summary) in one go.
+- **AI draft** — BYOK (Bring Your Own Key) with OpenAI, Anthropic, Gemini, and more; falls back to Chrome Built-in AI when no key is set. Drafts the title and body from your capture (styles, screenshot, or log summary) in one go.
+- **AI styling** — describe the fix in words and the AI writes the CSS onto the selected element, live on the page.
 
 ### 📥 Issue list & drafts
 
@@ -87,6 +88,11 @@ All three logs ride along with every capture except element style editing, and e
 Connect via OAuth or a token. Every **tracker** supports project/label/assignee
 selection and attachment upload. **Slack** is a messenger rather than a tracker —
 it sends to a channel or DM instead.
+
+Set defaults once in the *Integrations* tab — destination (project, repo, team,
+workspace) plus **assignee**, label, and issue type — and every new report comes
+pre-filled. Whoever you assigned last still wins over the default, so the common
+case stays one click.
 
 | Platform | Auth | Highlights |
 |---|---|---|
