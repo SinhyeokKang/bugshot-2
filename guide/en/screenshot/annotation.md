@@ -14,12 +14,12 @@ Draw on the captured image to mark where the bug is and what it is. Point with a
 
 The annotation editor keeps every tool you need right in the toolbar. It's BugShot's own toolbar, so the labels are **fully localized** — just pick a tool and draw on the image.
 
-- **Select** — Grab something you've already drawn to move, resize, or change its color and thickness (text uses font size instead).
+- **Select** — Grab something you've already drawn to move, resize, or delete it. It isn't a drawing tool, so the color and thickness row below stays locked while Select is active.
 - **Pen · Arrow · Rectangle · Ellipse** — Draw freehand, point, box things off, or circle them. These tools let you set the line thickness to **Thin · Medium · Thick**.
 - **Text** — Drag a box where you want it, then type your note inside. Pick the font size from **Small · Medium · Large**.
 - **Highlight** — Sweep a highlighter color over an area to emphasize it. Highlight thickness is adjustable too — **Thin · Medium · Thick**.
 
-Pick a color from **Red · Yellow · Green · Blue · Black**. Made a mistake? Just hit **Undo · Redo**, and you can always **Delete** an annotation you no longer want — so draw freely.
+Set the color and thickness **after you pick a drawing tool** — the row is locked while the Select tool is active. Pick a color from **Red · Yellow · Green · Blue · Black**. Made a mistake? Just hit **Undo · Redo**, and you can always **Delete** an annotation you no longer want — so draw freely.
 
 ## Zooming and moving around
 
