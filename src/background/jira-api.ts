@@ -79,7 +79,7 @@ function refreshOnce(auth: JiraOAuthAuth): Promise<JiraOAuthAuth> {
   return refreshInFlight;
 }
 
-async function ensureFreshAuth(auth: JiraAuth): Promise<JiraAuth> {
+export async function ensureFreshAuth(auth: JiraAuth): Promise<JiraAuth> {
   if (auth.kind !== "oauth") return auth;
   if (auth.expiresAt - Date.now() > TOKEN_REFRESH_THRESHOLD_MS) return auth;
   return refreshOnce(auth);
@@ -281,10 +281,9 @@ async function probeMediaRedirect(
   url: string,
   headers: Record<string, string>,
   method: "GET" | "HEAD",
-): Promise<string | undefined> {
+): Promise<Response | undefined> {
   try {
-    const res = await fetch(url, { method, headers });
-    return extractMediaId(res.url);
+    return await fetch(url, { method, headers });
   } catch {
     return undefined;
   }
@@ -307,25 +306,47 @@ export async function retryResolve<T>(
   return result;
 }
 
+// 변환 지연을 흡수하려고 백오프 재시도(총 5회 시도, 누적 5.3초).
+const MEDIA_ID_RETRY_DELAYS_MS = [400, 900, 1500, 2500];
+
 export async function getMediaFileId(
   auth: JiraAuth,
   attachmentId: string,
+  sleepFn: (ms: number) => Promise<void> = sleep,
 ): Promise<string | undefined> {
+  // probe는 본문이 아니라 리다이렉트된 res.url을 봐야 해서 authedFetch를 못 쓴다.
+  // 그래서 토큰 신선화·401 갱신을 여기서 직접 한다 — 빠뜨리면 만료 토큰으로 401을 받고도
+  // "리다이렉트 없음"과 구분되지 않아 조용히 mediaId를 잃고 영상이 본문에서 누락된다.
+  let current = await ensureFreshAuth(auth);
+  let refreshed = false;
   const path = `/rest/api/3/attachment/content/${encodeURIComponent(attachmentId)}`;
-  const url = resolveUrl(auth, path);
-  const authHdr = { Authorization: authHeader(auth) };
+
+  const probe = async (
+    method: "GET" | "HEAD",
+    extra: Record<string, string> = {},
+  ): Promise<string | undefined> => {
+    const send = () =>
+      probeMediaRedirect(
+        resolveUrl(current, path),
+        { Authorization: authHeader(current), ...extra },
+        method,
+      );
+    let res = await send();
+    // 갱신하고도 401이면 토큰 문제가 아니다 — authedFetch와 같이 1회로 끊는다(재시도 루프에 refresh가 곱해지지 않게).
+    if (res?.status === 401 && current.kind === "oauth" && !refreshed) {
+      refreshed = true;
+      current = await refreshOnce(current);
+      res = await send();
+    }
+    return res ? extractMediaId(res.url) : undefined;
+  };
 
   // 대용량 첨부(영상)는 업로드 직후 media 변환 전이라 redirect probe가 빈 값을 줄 수 있다.
-  // 변환 지연을 흡수하려고 백오프 재시도(총 3회 시도).
-  return retryResolve(async () => {
-    const viaRangeGet = await probeMediaRedirect(
-      url,
-      { ...authHdr, Range: "bytes=0-0" },
-      "GET",
-    );
-    if (viaRangeGet) return viaRangeGet;
-    return probeMediaRedirect(url, authHdr, "HEAD");
-  }, [400, 900]);
+  return retryResolve(
+    async () => (await probe("GET", { Range: "bytes=0-0" })) ?? probe("HEAD"),
+    MEDIA_ID_RETRY_DELAYS_MS,
+    sleepFn,
+  );
 }
 
 export async function uploadAttachment(
