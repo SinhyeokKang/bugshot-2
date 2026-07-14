@@ -76,11 +76,7 @@ interface PanOrigin {
   moved: boolean; // 임계값을 넘겼는가 = 클릭이 아니라 드래그였는가
 }
 
-// Konva는 container()가 아니라 그 자식 .konvajs-content에 리스너를 건다. 포인터 캡처는 캡처
-// 타깃의 조상으로만 전파되므로, container에 걸면 content가 move/up을 못 받아 드래그가 죽는다.
-function pointerTarget(stage: Konva.Stage): HTMLDivElement {
-  return stage.content;
-}
+
 
 export default function AnnotationOverlay({
   imageUrl,
@@ -113,7 +109,11 @@ export default function AnnotationOverlay({
   const pendingScrollRef = useRef<{ scrollLeft: number; scrollTop: number } | null>(null);
   const committedRef = useRef<TextEditing | null>(null);
   const drawPointerRef = useRef<number | null>(null);
-  const abortRef = useRef<(pointerId: number) => void>(() => {});
+  const gestureRef = useRef({
+    move: (_e: PointerEvent) => {},
+    up: (_e: PointerEvent) => {},
+    cancel: (_e: PointerEvent) => {},
+  });
 
   const shapes = history.present;
 
@@ -199,22 +199,23 @@ export default function AnnotationOverlay({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scale]);
 
-  // Konva는 DOM pointercancel을 받아도 노드 이벤트 pointercancel을 발화하지 않는다(Stage.js:_pointercancel
-  // 은 도형이 있으면 pointerup으로 바꿔 쏘고, 없으면 아무것도 안 쏜다) → react-konva prop으로는 못 잡는다.
-  // 캡처 타깃(stage.content)에 네이티브로 직접 건다. 안 걸면 터치 팬을 브라우저가 스크롤로 가져갈 때
-  // panRef/draftShape가 남아 이후 모든 제스처가 down 가드에 막힌다.
+  // 드래그의 진실은 window다. pointer capture는 Chrome이 제스처 도중에도 암묵적으로 놓을 수 있고
+  // (도형 위에서 down하면 실제로 그렇다), 그걸 취소로 해석하면 draft가 영원히 남는다. Konva의 노드
+  // 이벤트도 못 쓴다 — pointercancel을 pointerup으로 둔갑시켜 쏘기 때문이다(Stage.js:_pointercancel).
+  // 그래서 move/up/cancel은 전부 window에서 받고, Konva는 제스처 시작(pointerdown)에만 쓴다.
   useEffect(() => {
-    const stage = stageRef.current;
-    if (!stage) return;
-    const content = pointerTarget(stage);
-    const onAbort = (e: PointerEvent) => abortRef.current(e.pointerId);
-    content.addEventListener("pointercancel", onAbort);
-    content.addEventListener("lostpointercapture", onAbort);
+    const move = (e: PointerEvent) => gestureRef.current.move(e);
+    const up = (e: PointerEvent) => gestureRef.current.up(e);
+    const cancel = (e: PointerEvent) => gestureRef.current.cancel(e);
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", up);
+    window.addEventListener("pointercancel", cancel);
     return () => {
-      content.removeEventListener("pointercancel", onAbort);
-      content.removeEventListener("lostpointercapture", onAbort);
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", up);
+      window.removeEventListener("pointercancel", cancel);
     };
-  }, [image]);
+  }, []);
 
   // 도구별 커서. image dep은 Stage 마운트(이미지 로드) 직후 커서를 재적용하기 위함.
   useEffect(() => {
@@ -343,14 +344,6 @@ export default function AnnotationOverlay({
     setZoom(normalized);
   };
 
-  const releaseCapture = (pointerId: number) => {
-    const stage = stageRef.current;
-    if (!stage) return;
-    const target = pointerTarget(stage);
-    if (target.hasPointerCapture(pointerId)) target.releasePointerCapture(pointerId);
-  };
-
-  // 반환 true = 이 포인터 이벤트는 팬이 처리했으니 그리기 경로로 넘기지 않는다.
   const endPan = (pointerId: number): boolean => {
     const pan = panRef.current;
     const stage = stageRef.current;
@@ -358,7 +351,6 @@ export default function AnnotationOverlay({
     if (pointerId !== pan.pointerId) return true; // 팬 중 들어온 다른 포인터는 제스처를 끝내지 못한다
     panRef.current = null;
     setPanning(false);
-    releaseCapture(pan.pointerId);
     // 임계값을 못 넘겼으면 빈 곳 "클릭" — 기존 선택 해제 동작(down에서 up으로 밀렸다).
     if (!pan.moved) setSelectedId(null);
     stage.container().style.cursor = toolCursor(tool, panEnabled);
@@ -378,7 +370,6 @@ export default function AnnotationOverlay({
         setSelectedId(null);
         return;
       }
-      pointerTarget(stage).setPointerCapture(e.evt.pointerId);
       panRef.current = {
         scrollLeft: el.scrollLeft,
         scrollTop: el.scrollTop,
@@ -394,8 +385,6 @@ export default function AnnotationOverlay({
       commitText();
       return;
     }
-    // 드래그가 캔버스 밖이나 플로팅 줌 컨트롤 위를 지나가도 도형이 커밋되도록 포인터를 붙잡는다.
-    pointerTarget(stage).setPointerCapture(e.evt.pointerId);
     drawPointerRef.current = e.evt.pointerId;
     setDraftShape(
       createShape(tool, crypto.randomUUID(), pt, {
@@ -406,42 +395,43 @@ export default function AnnotationOverlay({
     );
   };
 
-  const handlePointerMove = (e: KonvaEventObject<PointerEvent>) => {
+  // window 이벤트라 Konva가 좌표를 안 실어준다 → Stage에 직접 먹여 natural 좌표를 얻는다
+  // (setPointersPositions가 content rect 기준으로 CSS transform까지 역보정한다).
+  const stagePoint = (e: PointerEvent) => {
+    const stage = stageRef.current;
+    if (!stage) return null;
+    stage.setPointersPositions(e);
+    return stage.getPointerPosition();
+  };
+
+  const onWindowMove = (e: PointerEvent) => {
     const stage = stageRef.current;
     const pan = panRef.current;
     if (pan && stage) {
-      if (e.evt.pointerId !== pan.pointerId) return;
+      if (e.pointerId !== pan.pointerId) return;
       const el = viewportRef.current;
       if (!el) return;
-      const dx = e.evt.clientX - pan.clientX;
-      const dy = e.evt.clientY - pan.clientY;
+      const dx = e.clientX - pan.clientX;
+      const dy = e.clientY - pan.clientY;
       if (!pan.moved && Math.hypot(dx, dy) > PAN_CLICK_THRESHOLD) {
         pan.moved = true;
         stage.container().style.cursor = "grabbing";
       }
-      const s = panScroll(pan, { clientX: e.evt.clientX, clientY: e.evt.clientY });
+      const s = panScroll(pan, { clientX: e.clientX, clientY: e.clientY });
       el.scrollLeft = s.scrollLeft;
       el.scrollTop = s.scrollTop;
       return;
     }
-    if (!draftShape) return;
-    const pt = stage?.getPointerPosition();
+    if (!draftShape || drawPointerRef.current !== e.pointerId) return;
+    const pt = stagePoint(e);
     if (!pt) return;
     setDraftShape(updateShapeDraft(draftShape, pt));
   };
 
-  const handlePointerUp = (e: KonvaEventObject<PointerEvent>) => {
-    const id = e.evt.pointerId;
-    // Konva는 pointercancel을 받으면 포인터 아래 도형에 pointerup을 대신 쏜다(Stage.js:_pointercancel).
-    // 그리기 중엔 draft가 항상 포인터 아래라 이 경로로 들어오는데, 취소를 커밋으로 오인하면 안 된다.
-    if (e.evt.type !== "pointerup") {
-      abortGesture(id);
-      return;
-    }
-    if (endPan(id)) return;
-    if (drawPointerRef.current !== id) return; // 그리기를 시작한 포인터의 up만 커밋한다
+  const onWindowUp = (e: PointerEvent) => {
+    if (endPan(e.pointerId)) return;
+    if (drawPointerRef.current !== e.pointerId) return;
     drawPointerRef.current = null;
-    releaseCapture(id);
     if (!draftShape) return;
     const d = draftShape;
     setDraftShape(null);
@@ -453,17 +443,16 @@ export default function AnnotationOverlay({
     pushShapes((prev) => [...prev, d]);
   };
 
-  // 제스처가 취소되면(터치 팬을 브라우저가 스크롤로 가져감, 캡처 강제 해제 등) 팬도 draft도 버린다.
-  const abortGesture = (pointerId: number) => {
-    if (typeof pointerId !== "number") return; // touchcancel은 pointerId가 없다
-    if (endPan(pointerId)) return;
-    if (drawPointerRef.current !== pointerId) return;
+  // 제스처 취소(브라우저가 스크롤로 가져감 등) — 팬도 draft도 버린다.
+  const onWindowCancel = (e: PointerEvent) => {
+    if (endPan(e.pointerId)) return;
+    if (drawPointerRef.current !== e.pointerId) return;
     drawPointerRef.current = null;
-    releaseCapture(pointerId);
     setDraftShape(null);
   };
+
   useEffect(() => {
-    abortRef.current = abortGesture;
+    gestureRef.current = { move: onWindowMove, up: onWindowUp, cancel: onWindowCancel };
   });
 
   const handleColorChange = (c: string) => {
@@ -579,8 +568,6 @@ export default function AnnotationOverlay({
                 width={natW}
                 height={natH}
                 onPointerDown={handlePointerDown}
-                onPointerMove={handlePointerMove}
-                onPointerUp={handlePointerUp}
               >
                 <Layer listening={false}>
                   <KonvaImage image={image} />
