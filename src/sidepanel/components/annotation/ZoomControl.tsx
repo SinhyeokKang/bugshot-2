@@ -63,7 +63,7 @@ export function ZoomControl({ scale, zoom, fit, fitAll, onChange }: ZoomControlP
 
       <Select value={selectValue} onValueChange={handleSelect}>
         <SelectTrigger
-          className="h-8 w-[76px] bg-transparent px-2 text-xs"
+          className="h-8 w-auto gap-1 bg-transparent px-2 text-xs"
           aria-label={t("annotation.zoomLevel")}
           data-testid="annotation-zoom-level"
         >

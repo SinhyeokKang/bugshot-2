@@ -103,7 +103,7 @@
 
 - **변경 대상**: `src/sidepanel/components/annotation/ZoomControl.tsx` (신규)
 - **작업 내용**: design.md 렌더 구조대로 `ButtonGroup` + `TooltipIconButton`(Minus/Plus) + shadcn `Select`.
-  - **`SelectTrigger`에 `h-8 w-[76px] border-border bg-transparent px-2 text-xs` 필수.** `select.tsx`에는 `data-slot`이 **하나도 없어** `button-group.tsx:8`의 셀렉터가 안 걸린다 — 폭을 안 주면 base의 `w-full`로 터진다.
+  - **`SelectTrigger`에 `h-8 w-auto gap-1 bg-transparent px-2 text-xs` 필수.** `select.tsx`에는 `data-slot`이 **하나도 없어** `button-group.tsx:8`의 셀렉터가 안 걸린다 — 폭을 안 주면 base의 `w-full`로 터진다(`w-auto`가 twMerge로 그걸 덮는다).
   - 대비: `ButtonGroup`에 `rounded-md bg-background/90 shadow-md backdrop-blur-sm` (다크에서 `--input` == `--muted`라 기본 테두리가 묻힌다).
   - `atMin`은 `stops[0]` 기준, `atMax`는 `MAX_ZOOM` 기준. `selectValue`는 `zoom === null` → `"fit"`, `zoom === fitAll` → `"all"`, 아니면 `String(zoom)`.
   - testId: `annotation-zoom-out` / `annotation-zoom-level` / `annotation-zoom-in`.
@@ -111,7 +111,7 @@
   - [ ] 맞춤 상태(fitAll 항목 없는 이미지)에서 `[-]`가 `aria-disabled`, 400%에서 `[+]`가 `aria-disabled` (DESIGN §14 — `disabled`는 툴팁·포커스를 죽인다)
   - [ ] 세로로 긴 이미지에선 `[-]`가 `전체`까지 한 단계 더 내려간다
   - [ ] 콤보박스 목록에 fit 미만·fitAll 초과 프리셋이 없다 (fit 36%면 25% 항목 없음)
-  - [ ] `[-]`/`[+]` 버튼 높이가 Select trigger와 같고(h-8), trigger가 `w-full`로 터지지 않는다
+  - [ ] `[-]`/`[+]` 버튼 높이가 Select trigger와 같고(h-8), trigger가 `w-full`로 안 터지고 라벨 길이에 맞는다
   - [ ] 라이트·다크 모두에서 컨트롤이 스크린샷 픽셀 위에서 식별된다
 
 ### Task 8: 툴바 — 플로팅 컨트롤 배치

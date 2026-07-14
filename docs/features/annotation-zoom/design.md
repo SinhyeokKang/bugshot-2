@@ -400,7 +400,7 @@ const atMax = scale >= MAX_ZOOM - 1e-6;
   </TooltipIconButton>
 
   <Select value={selectValue} onValueChange={...}>
-    <SelectTrigger className="h-8 w-[76px] border-border bg-transparent px-2 text-xs"
+    <SelectTrigger className="h-8 w-auto gap-1 bg-transparent px-2 text-xs"
       aria-label={t("annotation.zoomLevel")} data-testid="annotation-zoom-level">
       <SelectValue>{formatZoomPercent(scale)}</SelectValue>
     </SelectTrigger>
@@ -423,7 +423,7 @@ const atMax = scale >= MAX_ZOOM - 1e-6;
 ```
 
 - `selectValue`는 `zoom === null`이면 `"fit"`, `zoom`이 `fitAll`이면 `"all"`, 아니면 `String(zoom)`. `[-]`/`[+]`가 항상 스톱 위로만 이동하므로 Select value는 언제나 항목 중 하나와 일치한다(휠 줌이 없으니 중간값이 생기지 않는다).
-- **`SelectTrigger`에 `h-8 w-[76px]`는 필수다.** `src/components/ui/select.tsx`는 구버전 forwardRef shadcn이라 **`data-slot` 속성이 하나도 없고**, `button-group.tsx:8`의 `[&>[data-slot=select-trigger]…]` 셀렉터가 **매칭되지 않는다.** 즉 `w-fit`·라운딩 복구가 자동으로 걸리지 않는다. base는 `h-9 w-full rounded-md border-input`(`select.tsx:18`)이므로 폭·높이를 명시하지 않으면 `w-full`로 터진다. `text-xs`·`px-2`는 h-8에 맞춘 보정(선례: `StylePropEditors.tsx:520`).
+- **`SelectTrigger`에 `h-8 w-auto`는 필수다.** `src/components/ui/select.tsx`는 구버전 forwardRef shadcn이라 **`data-slot` 속성이 하나도 없고**, `button-group.tsx:8`의 `[&>[data-slot=select-trigger]…]` 셀렉터가 **매칭되지 않는다.** 즉 `w-fit`·라운딩 복구가 자동으로 걸리지 않는다. **폭은 `w-auto`로 명시해 라벨 길이에 맞춘다**(고정폭이면 `34%`와 `400%`가 같은 칸을 쓰느라 여백이 남는다). base는 `h-9 w-full rounded-md border-input`(`select.tsx:18`)이므로 폭·높이를 명시하지 않으면 `w-full`로 터진다. `text-xs`·`px-2`는 h-8에 맞춘 보정(선례: `StylePropEditors.tsx:520`).
 - **대비**: 다크 모드의 `--input`과 `--muted`가 같은 값이라 기본 `border-input` 테두리가 캔버스 배경에 묻힌다. 게다가 fit-width라 컨트롤은 거의 항상 스크린샷 픽셀 위에 얹힌다. `bg-background/90 backdrop-blur-sm shadow-md` + `border-border`로 올린다(선례: `TrimTimeline.tsx:104`).
 
 ### `AnnotationToolbar` 캔버스 영역 (`:143`)
