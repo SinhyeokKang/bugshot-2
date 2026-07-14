@@ -21,6 +21,15 @@
 
 ---
 
+## 2026-07-14 — 어노테이션 드래그: pointer capture 상실을 "제스처 취소"로 오독해 두 번째 도형부터 커서를 따라다님
+
+- **증상**: 스크린샷 주석에서 **첫 도형은 정상**인데, 두 번째부터 클릭(down→up) 후에도 도형이 커밋되지 않고 **마우스를 놓은 뒤에도 커서를 계속 따라다녔다**. 이후 모든 클릭이 먹지 않는다(진행 중 draft가 down 가드에 걸려). 캔버스 줌·팬을 붙이며 mouse → pointer 이벤트 + `setPointerCapture`로 전환한 것이 원인.
+- **근본 원인**: **캡처 상실(`lostpointercapture`)은 제스처 취소가 아니다.** 포인터 아래에 이미 도형이 있는 상태에서 down하면 Chrome이 `stage.content`의 DOM pointer capture를 **제스처 도중 암묵적으로 놓는다**(첫 도형은 빈 캔버스라 hit이 없어 안 일어남 → "두 번째부터"라는 비대칭이 여기서 나온다). 이걸 취소 신호로 받아 `abortGesture`가 `drawPointerRef`를 비웠고, 뒤이어 도착한 **진짜 `pointerup`이 id 불일치로 early-return**해 `draftShape`가 영원히 살아남았다. 표면(그리기 UI)과 원인(브라우저 캡처 수명주기)이 다른 레이어. 그 위에 Konva의 두 함정이 겹쳐 3연속 오진을 만들었다: (1) Konva는 리스너를 `stage.container()`가 아니라 자식 `.konvajs-content`에 걸어서 container에 캡처를 걸면 드래그가 통째로 죽고, (2) Konva는 DOM `pointercancel`을 받아도 **노드 `pointercancel`을 발화하지 않고** 포인터 아래 도형이 있으면 **`pointerup`으로 둔갑시켜 쏜다**(`Stage.js:_pointercancel`) — 그래서 취소가 커밋으로 뒤집힌다. **최종 해법은 캡처를 쓰지 않는 것**: `pointerdown`만 Konva에서 받고 `pointermove`/`pointerup`/`pointercancel`은 **window에서** 받는다(좌표는 `stage.setPointersPositions(e)` → `getPointerPosition()`으로 얻어 CSS transform 역보정 유지).
+- **재발 방지**: (1) **`lostpointercapture`를 종료 신호로 쓰지 말 것.** 제스처의 끝은 `pointerup`/`pointercancel`뿐이다. `grep -rn "lostpointercapture\|setPointerCapture" src/`로 캡처 의존 코드를 점검하고, 캡처는 "이벤트 배달 보조"로만 취급한다. (2) **Konva에 pointer 이벤트를 맡기지 말 것** — `grep -rn "onPointerCancel\|onPointerUp" src/sidepanel/components/annotation/`이 0이어야 한다(드래그 종료는 window). konva 업그레이드 시 `Stage.js`의 `_pointercancel`/`_bindContentEvents`를 재확인. (3) **드래그·포인터 로직은 단위 테스트로 절대 못 잡는다** — 순수 함수(`viewport.ts`) 46개가 전부 green인데 실제 캔버스는 먹통이었다. 게다가 **Playwright 합성 입력에서도 재현되지 않았다**(CDP 입력은 실제 Chrome의 암묵적 캡처 해제를 유발하지 않음 — 영역/전체 캡처·클릭/드래그 3조건 프로브 전부 통과). 이 부류는 **실제 Chrome + 콘솔 계측(어떤 이벤트가 어떤 순서로 오는가)만이 진실**이다. 의심되면 추론하지 말고 down/move/up/cancel/lostpointercapture를 전부 찍어라 — 로그 6줄이 3번의 잘못된 가설을 한 번에 끝냈다. (4) 회귀 감지: 실 브라우저에서 **도형을 두 개 연속으로, 두 번째를 첫 도형 위에서 시작**해 그린다(한 개만 그리면 통과한다).
+- **관련**: `src/sidepanel/components/AnnotationOverlay.tsx`(`handlePointerDown`은 Konva, `onWindowMove`/`onWindowUp`/`onWindowCancel`은 window 리스너 + `gestureRef`, `stagePoint`), `konva/lib/Stage.js`(`_pointercancel`·`_bindContentEvents`), 커밋 `b3269ea`(캡처 도입)·`293e8bf`(잘못된 1차 픽스).
+
+---
+
 ## 2026-07-10 — CodeMirror changeFilter의 protected range가 프로그램적 doc 교체를 삼켜 CSS 뷰 본문 전멸
 
 - **증상**: element 스타일 편집기 CSS 탭에서 AI 스타일링을 돌리거나 "모든 스타일 리셋"을 누르면, 코드 뷰가 선택자 1행(`a:nth-child(4) {`)만 남고 선언이 통째로 사라졌다. 편집 탭으로 갔다 돌아오면 멀쩡히 복구돼 "가끔 그러는 것 같은 느낌"으로만 보였다.
