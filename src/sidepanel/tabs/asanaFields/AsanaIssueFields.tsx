@@ -1,4 +1,5 @@
 import { useT } from "@/i18n";
+import type { AsanaDefaults } from "@/types/asana";
 import { AssigneeCombobox } from "./AssigneeCombobox";
 import { CcCombobox, type CcValue } from "./CcCombobox";
 import { ProjectCombobox, type ProjectValue } from "./ProjectCombobox";
@@ -17,22 +18,21 @@ export interface AsanaIssueFieldsValue {
 
 export function initialAsanaFields(
   last: AsanaIssueFieldsValue | undefined,
-  defaults:
-    | { workspaceGid?: string; workspaceName?: string; projectGid?: string; projectName?: string }
-    | undefined,
+  defaults: AsanaDefaults | undefined,
 ): AsanaIssueFieldsValue {
   // workspace는 connect 기본값을 우선 사용.
   const workspaceGid = defaults?.workspaceGid ?? last?.workspaceGid;
   const workspaceName = defaults?.workspaceName ?? last?.workspaceName;
-  // project·assignee는 같은 workspace일 때만 last로 prefill, 아니면 connect 기본 project.
+  // project·assignee는 같은 workspace일 때만 last로 prefill, 아니면 connect 기본값.
+  // 해소된 workspace가 곧 defaults의 것이므로 defaults.assignee는 항상 유효하다(거친 스코프 예외).
   const sameWs = !!last?.workspaceGid && last.workspaceGid === workspaceGid;
   return {
     workspaceGid,
     workspaceName,
     projectGid: sameWs ? last?.projectGid : defaults?.projectGid,
     projectName: sameWs ? last?.projectName : defaults?.projectName,
-    assigneeGid: sameWs ? last?.assigneeGid : undefined,
-    assigneeName: sameWs ? last?.assigneeName : undefined,
+    assigneeGid: sameWs ? (last?.assigneeGid ?? defaults?.assigneeGid) : defaults?.assigneeGid,
+    assigneeName: sameWs ? (last?.assigneeName ?? defaults?.assigneeName) : defaults?.assigneeName,
     cc: sameWs ? last?.cc : undefined,
   };
 }

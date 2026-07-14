@@ -22,6 +22,7 @@ import type {
   LinearOAuthAuth,
 } from "@/types/linear";
 import { isOAuthCancelled, sendBg } from "@/types/messages";
+import { AssigneeCombobox } from "@/sidepanel/tabs/linearFields/AssigneeCombobox";
 import { TeamCombobox, type TeamValue } from "@/sidepanel/tabs/linearFields/TeamCombobox";
 import { ProjectCombobox } from "@/sidepanel/tabs/linearFields/ProjectCombobox";
 import { LabelCombobox } from "@/sidepanel/tabs/linearFields/LabelCombobox";
@@ -144,10 +145,20 @@ function DefaultTeamField() {
       <TeamCombobox
         value={value}
         onChange={(next) =>
+          // project·label·assignee는 team 하위 값이라 team이 바뀌면(교체·해제 모두) 함께 비운다.
           updateLinearAccount({
-            defaults: next
-              ? { ...account.defaults, teamId: next.teamId, teamName: next.teamName, teamKey: next.teamKey }
-              : { teamId: undefined, teamName: undefined, teamKey: undefined, projectId: undefined, projectName: undefined, labelId: undefined },
+            defaults: {
+              ...account.defaults,
+              teamId: next?.teamId,
+              teamName: next?.teamName,
+              teamKey: next?.teamKey,
+              projectId: undefined,
+              projectName: undefined,
+              labelId: undefined,
+              labelName: undefined,
+              assigneeId: undefined,
+              assigneeName: undefined,
+            },
           })
         }
       />
@@ -185,6 +196,19 @@ function DefaultIssueSettingsFields() {
           onChange={(labelId, labelName) =>
             updateLinearAccount({
               defaults: { ...account.defaults, labelId, labelName },
+            })
+          }
+        />
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <label className="text-xs text-muted-foreground">{t("linear.field.assignee")}</label>
+        <AssigneeCombobox
+          teamId={account.defaults.teamId}
+          value={account.defaults.assigneeId}
+          valueName={account.defaults.assigneeName}
+          onChange={(assigneeId, assigneeName) =>
+            updateLinearAccount({
+              defaults: { ...account.defaults, assigneeId, assigneeName },
             })
           }
         />

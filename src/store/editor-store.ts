@@ -10,6 +10,7 @@ import type { UserAttachmentMeta } from "@/types/attachment";
 import { onBlobSaveFailed } from "@/types/messages";
 import { useIssuesStore } from "./issues-store";
 import { useSettingsStore } from "./settings-store";
+import { initialJiraFields } from "@/sidepanel/tabs/jiraFields/initialJiraFields";
 import { saveVideoBlob, deleteVideoBlob, saveImageBlob, saveNetworkLog, deleteNetworkLog, saveConsoleLog, deleteConsoleLog, saveActionLog, deleteActionLog, dataUrlToBlob, saveAttachmentBlob, deleteAttachmentBlob, deleteAttachmentBlobs, rekeyAttachmentBlobs } from "./blob-db";
 import { takeWithinLimits, type TakeWithinLimitsResult } from "@/sidepanel/lib/attachmentLimits";
 import { DEFAULT_COLOR, DEFAULT_THICKNESS, type ThicknessKey } from "@/sidepanel/components/annotation/presets";
@@ -687,17 +688,19 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
     if (state.targetPlatform === "jira") {
       const { lastSubmitFields, accounts } = useSettingsStore.getState();
-      const lastJira = lastSubmitFields.jira;
       const jiraAccount = accounts.jira;
-      if (
-        lastJira?.projectKey &&
-        lastJira.projectKey === jiraAccount?.projectKey &&
-        !state.issueFields.assigneeId &&
-        !state.issueFields.priorityId
-      ) {
-        const { projectKey: _, ...restored } = lastJira;
-        set((s) => ({ issueFields: { ...restored, ...s.issueFields } }));
-      }
+      // 세션 중 사용자가 이미 고른 값이 있으면 직전 제출값을 덮어 복원하지 않는다(기존 게이트).
+      const restorable = !state.issueFields.assigneeId && !state.issueFields.priorityId;
+      const init = initialJiraFields(lastSubmitFields.jira, jiraAccount);
+      set((s) => {
+        const merged = { ...(restorable ? init : {}), ...s.issueFields };
+        // 기본 담당자는 게이트와 무관하게, 비어 있을 때만 채운다.
+        if (!merged.assigneeId && jiraAccount?.assigneeId) {
+          merged.assigneeId = jiraAccount.assigneeId;
+          merged.assigneeName = jiraAccount.assigneeName;
+        }
+        return { issueFields: merged };
+      });
     }
     const id = state.currentIssueId ?? newIssueId();
     if (state.captureMode === "freeform") {

@@ -42,6 +42,9 @@ export interface JiraAccount extends PlatformAccountBase<"jira"> {
   projectKey?: string;
   issueTypeId?: string;
   issueTypeName?: string;
+  // 기본 담당자. 다른 플랫폼의 defaults 객체에 해당하나 Jira 계정은 평면 구조라 여기 둔다.
+  assigneeId?: string;
+  assigneeName?: string;
 }
 
 export interface Accounts {

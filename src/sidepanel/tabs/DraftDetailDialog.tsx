@@ -97,6 +97,7 @@ import { buildNetworkLogSummary, buildConsoleLogSummary } from "@/sidepanel/lib/
 import { filterEnvironmentRows, parseChromeVersion } from "@/sidepanel/lib/environmentRows";
 import { getOsInfo } from "@/sidepanel/lib/osInfo";
 import { extractInlineRefs, resolveInlineImagesForSections } from "@/sidepanel/lib/resolveInlineImages";
+import { initialJiraFields } from "@/sidepanel/tabs/jiraFields/initialJiraFields";
 import { SubmitFieldsDialog } from "@/sidepanel/tabs/SubmitFieldsDialog";
 
 type SubmitFields = {
@@ -208,14 +209,9 @@ export function DraftDetailDialog({
   // 사용자 인터랙션을 덮어쓴다 (Tab 전환 시 SubmitFieldsDialog가 강제로 닫히는 버그). 그래서 의도적으로 제외.
   useEffect(() => {
     if (!open) return;
-    const base: SubmitFields = { issueTypeId: jiraAccount?.issueTypeId };
-    if (
-      lastJiraSubmit?.projectKey &&
-      lastJiraSubmit.projectKey === jiraAccount?.projectKey
-    ) {
-      const { projectKey: _, ...restored } = lastJiraSubmit;
-      Object.assign(base, restored);
-    }
+    // 캡처→제출 경로(editor-store.confirmDraft)와 같은 단일 출처를 쓴다 — 여기서 갈리면
+    // Connect 탭의 기본 담당자가 드래프트 재제출에만 안 붙는다.
+    const { projectKey: _drop, ...base } = initialJiraFields(lastJiraSubmit, jiraAccount);
     setFields(base);
     const picked =
       issue && accounts[issue.platform]

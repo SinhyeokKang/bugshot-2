@@ -29,6 +29,7 @@ export interface LinearDefaults {
   labelId?: string;
   labelName?: string;
   assigneeId?: string;
+  assigneeName?: string;
   priority?: number;
 }
 

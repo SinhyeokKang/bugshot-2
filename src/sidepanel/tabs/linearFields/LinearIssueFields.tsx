@@ -36,7 +36,7 @@ export function initialLinearFields(
       labelId: defaults?.labelId,
       labelName: defaults?.labelName,
       assigneeId: defaults?.assigneeId,
-      assigneeName: undefined,
+      assigneeName: defaults?.assigneeName,
       priority: defaults?.priority,
       cc: undefined,
     };
@@ -52,7 +52,7 @@ export function initialLinearFields(
     labelId: last.labelId ?? fb?.labelId,
     labelName: last.labelName ?? fb?.labelName,
     assigneeId: last.assigneeId ?? fb?.assigneeId,
-    assigneeName: last.assigneeName,
+    assigneeName: last.assigneeName ?? fb?.assigneeName,
     priority: last.priority ?? fb?.priority,
     cc: last.cc,
   };

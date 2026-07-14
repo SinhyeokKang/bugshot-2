@@ -23,6 +23,7 @@ import type {
   GitlabOAuthAuth,
 } from "@/types/gitlab";
 import { isOAuthCancelled, sendBg } from "@/types/messages";
+import { AssigneeCombobox } from "@/sidepanel/tabs/gitlabFields/AssigneeCombobox";
 import { LabelCombobox } from "@/sidepanel/tabs/gitlabFields/LabelCombobox";
 import { ProjectCombobox, type ProjectValue } from "@/sidepanel/tabs/gitlabFields/ProjectCombobox";
 import { connectMethods, type ConnectFlowProps } from "@/sidepanel/tabs/integrationsTabUtils";
@@ -36,7 +37,7 @@ export function GitlabConnectedBody() {
     <>
       <GitlabSummary />
       <DefaultProjectField />
-      <DefaultLabelField />
+      <DefaultIssueSettingsFields />
     </>
   );
 }
@@ -144,10 +145,16 @@ function DefaultProjectField() {
       <ProjectCombobox
         value={value}
         onChange={(next) =>
+          // label·assignee는 project 하위 값이라 project가 바뀌면 함께 비운다.
           updateGitlabAccount({
-            defaults: next
-              ? { ...account.defaults, projectId: next.projectId, projectPath: next.projectPath }
-              : { ...account.defaults, projectId: undefined, projectPath: undefined, label: undefined },
+            defaults: {
+              ...account.defaults,
+              projectId: next?.projectId,
+              projectPath: next?.projectPath,
+              label: undefined,
+              assigneeId: undefined,
+              assigneeName: undefined,
+            },
           })
         }
       />
@@ -155,24 +162,46 @@ function DefaultProjectField() {
   );
 }
 
-function DefaultLabelField() {
+function DefaultIssueSettingsFields() {
   const t = useT();
   const account = useSettingsStore((s) => s.accounts.gitlab);
   const updateGitlabAccount = useSettingsStore((s) => s.updateGitlabAccount);
   if (!account) return null;
   return (
-    <div className="flex flex-col gap-1.5">
-      <label className="text-xs text-muted-foreground">{t("gitlab.field.labels")}</label>
-      <LabelCombobox
-        projectId={account.defaults.projectId}
-        value={account.defaults.label}
-        onChange={(next) =>
-          updateGitlabAccount({
-            defaults: { ...account.defaults, label: next },
-          })
-        }
-      />
-    </div>
+    <>
+      <div className="flex flex-col gap-1.5">
+        <label className="text-xs text-muted-foreground">{t("gitlab.field.labels")}</label>
+        <LabelCombobox
+          projectId={account.defaults.projectId}
+          value={account.defaults.label}
+          onChange={(next) =>
+            updateGitlabAccount({
+              defaults: { ...account.defaults, label: next },
+            })
+          }
+        />
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <label className="text-xs text-muted-foreground">{t("gitlab.field.assignee")}</label>
+        <AssigneeCombobox
+          projectId={account.defaults.projectId}
+          value={
+            account.defaults.assigneeId && account.defaults.assigneeName
+              ? { id: account.defaults.assigneeId, username: account.defaults.assigneeName }
+              : null
+          }
+          onChange={(next) =>
+            updateGitlabAccount({
+              defaults: {
+                ...account.defaults,
+                assigneeId: next?.id,
+                assigneeName: next?.username,
+              },
+            })
+          }
+        />
+      </div>
+    </>
   );
 }
 

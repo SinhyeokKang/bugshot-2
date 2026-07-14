@@ -70,6 +70,46 @@ describe("initialClickupFields — 3단계 prefill 우선순위", () => {
     expect(out.cc).toBeUndefined();
   });
 
+  // Connect 탭의 default assignee — assignee는 목적지가 아니라 workspace 하위 필드다.
+  // last 우선·defaults fallback이되, workspace가 갈리면 last.assignee는 무효(그 workspace 사람이라).
+  it("last 없으면 defaults의 assignee를 prefill", () => {
+    const out = initialClickupFields(undefined, {
+      workspaceId: "w1",
+      assigneeId: "dflt",
+      assigneeName: "Default User",
+    });
+    expect(out.assigneeId).toBe("dflt");
+    expect(out.assigneeName).toBe("Default User");
+  });
+
+  it("같은 workspace면 last.assignee가 defaults.assignee보다 우선", () => {
+    const out = initialClickupFields(
+      { workspaceId: "w1", assigneeId: "lastUser", assigneeName: "Last" },
+      { workspaceId: "w1", assigneeId: "dflt", assigneeName: "Default User" },
+    );
+    expect(out.assigneeId).toBe("lastUser");
+    expect(out.assigneeName).toBe("Last");
+  });
+
+  it("workspace가 갈리면 last.assignee를 버리고 defaults.assignee로 fallback", () => {
+    const out = initialClickupFields(
+      { workspaceId: "wOTHER", assigneeId: "lastUser", assigneeName: "Last" },
+      { workspaceId: "w1", assigneeId: "dflt", assigneeName: "Default User" },
+    );
+    expect(out.workspaceId).toBe("w1");
+    expect(out.assigneeId).toBe("dflt");
+    expect(out.assigneeName).toBe("Default User");
+  });
+
+  it("같은 workspace + last에 assignee 없으면 defaults.assignee로 채움", () => {
+    const out = initialClickupFields(
+      { workspaceId: "w1", spaceId: "s9" },
+      { workspaceId: "w1", assigneeId: "dflt", assigneeName: "Default User" },
+    );
+    expect(out.spaceId).toBe("s9");
+    expect(out.assigneeId).toBe("dflt");
+  });
+
   it("defaults 없고 last만 있으면 last 전체를 prefill", () => {
     const out = initialClickupFields(
       {

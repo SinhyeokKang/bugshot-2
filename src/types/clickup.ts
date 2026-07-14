@@ -26,6 +26,8 @@ export interface ClickupDefaults {
   spaceName?: string;
   listId?: string;
   listName?: string;
+  assigneeId?: string;
+  assigneeName?: string;
 }
 
 export interface ClickupAccount extends PlatformAccountBase<"clickup"> {

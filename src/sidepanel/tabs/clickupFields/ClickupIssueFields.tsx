@@ -36,8 +36,9 @@ export function initialClickupFields(
     spaceName: sameWs ? last?.spaceName : defaults?.spaceName,
     listId: sameWs ? last?.listId : defaults?.listId,
     listName: sameWs ? last?.listName : defaults?.listName,
-    assigneeId: sameWs ? last?.assigneeId : undefined,
-    assigneeName: sameWs ? last?.assigneeName : undefined,
+    // 해소된 workspace가 곧 defaults의 것이므로 defaults.assignee는 항상 유효(거친 스코프 예외).
+    assigneeId: sameWs ? (last?.assigneeId ?? defaults?.assigneeId) : defaults?.assigneeId,
+    assigneeName: sameWs ? (last?.assigneeName ?? defaults?.assigneeName) : defaults?.assigneeName,
     cc: sameWs ? last?.cc : undefined,
   };
 }
