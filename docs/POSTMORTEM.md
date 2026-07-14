@@ -21,6 +21,15 @@
 
 ---
 
+## 2026-07-14 — 토큰 갱신이 authedFetch 안에만 갇혀, Jira 영상이 간헐적으로 본문에서 누락
+
+- **증상**: Jira(OAuth) 이슈 제출 시 영상이 본문에 인라인되지 않고 "(첨부 녹화 파일 참조)" 텍스트로 폴백. **일부 이슈에서만** 발생하고 파일 크기와 무관(173KB짜리도 발생). 영상 파일 자체는 첨부 패널에 정상으로 남아 있어 "업로드는 됐는데 본문에만 없음". 이미지·로그는 멀쩡해서 영상만 골라 사라지는 것처럼 보였다.
+- **근본 원인**: 갱신된 토큰이 **갱신을 수행한 함수 밖으로 안 나간다**. `authedFetch`는 401이면 `refreshOnce`로 토큰을 갱신하지만 그 결과를 **지역 변수에만** 담는다(`jira-api.ts`). 반면 `submitIssue`(`messages.ts`)는 `loadAuth()`로 읽은 auth 객체를 **값으로** 들고 전 호출 체인에 넘긴다 — 그래서 `createIssue`·`uploadAttachment`는 각자 내부 갱신으로 성공하지만(그래서 **파일은 첨부됨**), `submitIssue`가 쥔 사본은 끝까지 낡은 accessToken이다. 그리고 `getMediaFileId`만 유일하게 `authedFetch`를 안 탄다 — redirect된 `res.url`을 봐야 해서 생 `fetch`를 쓰고, `res.ok`를 검사하지 않는다. 결과적으로 **401 응답과 "아직 media 변환 전이라 리다이렉트가 없음"이 둘 다 `extractMediaId(res.url) === undefined`로 수렴**해 구분되지 않고, mediaId 없이 external 폴백 → 영상만 텍스트로 강등(이미지는 external media로도 렌더링돼 무증상). **간헐적인 이유**: 제출 직전에 필드 조회(프로젝트·이슈타입·담당자)가 돌면 그 갱신본이 storage에 박혀 `loadAuth()`가 fresh 토큰을 읽는다. 폼을 오래 열어뒀거나 드래프트에서 바로 제출해 **만료 토큰으로 submit에 진입한 경우**에만 이 경로를 밟는다.
+- **재발 방지**: (1) **갱신 경로를 우회하는 fetch를 의심하라** — `grep -n "await fetch(" src/background/*.ts`로 `authedFetch`/`*Fetch` 래퍼를 안 타는 생 `fetch`를 전수하고, 각각 401을 어떻게 다루는지 확인한다. 리다이렉트 URL·헤더처럼 **응답 본문이 아닌 걸 봐야 해서 래퍼를 못 쓰는 함수**가 이 사각지대의 전형이다. (2) **실패와 "아직 안 됨"이 같은 값(undefined/null)으로 수렴하면 재시도는 영원히 무의미하다** — probe류는 상태 코드를 분기하고, 재시도로 흡수할 것(변환 지연)과 흡수 못 할 것(401)을 갈라라. (3) **auth를 값으로 넘기는 긴 호출 체인은 갱신본을 못 받는다** — 갱신이 호출자에게 전파되는지 확인하고, 안 되면 진입점에서 한 번 신선화(`ensureFreshAuth`)한다. 안 그러면 낡은 `expiresAt` 때문에 호출마다 refresh가 새로 트리거되고, Atlassian은 refresh token을 rotate하므로 **같은 rotate-out된 토큰 재사용 → `invalid_grant` 연결 끊김**으로도 번질 수 있다. (4) 회귀 테스트는 `__tests__/jira-media-id.test.ts > getMediaFileId`(만료 토큰 → 갱신 후 probe / probe 401 → 갱신 재시도 / 갱신 후에도 401이면 refresh 1회로 상한 / apiKey는 갱신 안 함 / 재시도 예산 ≥5초). e2e로는 못 잡는다 — 실제 만료 토큰과 Jira media API의 302가 필요해 결정적이지 않다.
+- **관련**: `src/background/jira-api.ts`(`getMediaFileId` — `ensureFreshAuth`+401 재시도, `probeMediaRedirect`가 `Response` 반환, 재시도 예산 `[400,900]`→`[400,900,1500,2500]`), `src/background/messages.ts`(`jira.submitIssue` 진입 신선화, `logs.html`은 mediaId를 안 쓰므로 probe 스킵), `src/background/__tests__/jira-media-id.test.ts`.
+
+---
+
 ## 2026-07-14 — 콤보박스 검색어 state가 팝오버 언마운트와 수명이 달라 "선택자 상단 고정"이 영구히 꺼짐
 
 - **증상**: Jira 담당자 필드(이슈 제출/드래프트 다이얼로그)에서 선택된 사람이 목록 최상단에 안 나온다. 스펙(v1.4.5)대로 구현돼 있고 `orderSelectedFirst`도 그대로인데 실제로는 거의 항상 안 보인다 — 다이얼로그를 갓 열고 **검색을 한 번도 안 한 채** 열었을 때만 핀이 뜬다. CC·참조자·Slack 멘션(`CcMultiCombobox`)도 동일.
