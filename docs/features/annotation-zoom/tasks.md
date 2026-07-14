@@ -2,22 +2,24 @@
 
 ## 선행 조건
 
-- 새 의존성 없음. `ButtonGroup`·`Select`·`TooltipIconButton`·`slider` 모두 이미 존재한다. **`npx shadcn add` 실행 금지.**
+- 새 의존성 없음. `ButtonGroup`·`Select`·`TooltipIconButton` 모두 이미 존재한다. **`npx shadcn add` 실행 금지.**
 - manifest 권한 변경 없음. 새 메시지·스토리지·외부 fetch 없음 → `docs/privacy.{ko,en}.md`·`docs/PERMISSION.md` 갱신 트리거 아님.
 - 착수 전 `docs/POSTMORTEM.md`를 `annotation|canvas|konva|scale` 로 grep해 과거 함정 확인(현재 해당 항목 없음).
 
 ## 태스크
 
-### Task 1: `zoom.ts` 순수 함수 (TDD)
+### Task 1: `viewport.ts` 순수 함수 (TDD)
 
-- **변경 대상**: `src/sidepanel/components/annotation/zoom.ts` (신규), `src/sidepanel/components/annotation/__tests__/zoom.test.ts` (신규)
-- **작업 내용**: `/tdd interface`로 테스트를 먼저 쓰고 구현한다. `ZOOM_PRESETS`, `MAX_ZOOM`, `fitWidthScale`, `zoomStops`, `stepZoom`, `centerAnchoredScroll`, `formatZoomPercent`. 시그니처는 design.md "인터페이스 설계" 그대로.
+- **변경 대상**: `src/sidepanel/components/annotation/viewport.ts` (신규), `src/sidepanel/components/annotation/__tests__/viewport.test.ts` (신규)
+- **작업 내용**: `/tdd interface`로 테스트를 먼저 쓰고 구현한다. `ZOOM_PRESETS`, `MAX_ZOOM`, `PAN_CLICK_THRESHOLD`, `fitWidthScale`, `zoomStops`, `stepZoom`, `canPan`, `centerAnchoredScroll`, `panScroll`, `formatZoomPercent`. 시그니처는 design.md "인터페이스 설계" 그대로.
 - **검증**:
   - [ ] `fitWidthScale(1074, 368)` ≈ 0.343 / `fitWidthScale(200, 368)` === 1 (확대 안 함) / `fitWidthScale(0, 368)` === 1 (0 나눗셈 가드)
   - [ ] `zoomStops(0.343)` === `[0.343, 0.5, 0.75, 1, 1.5, 2, 3, 4]` — fit 미만인 0.25가 빠진다
   - [ ] `zoomStops(1)` === `[1, 1.5, 2, 3, 4]` — fit과 같은 100% 프리셋이 중복 제거된다
   - [ ] `stepZoom(0.343, 0.343, +1)` === 0.5 / `stepZoom(0.5, 0.343, -1)` === null (맞춤으로) / `stepZoom(4, fit, +1)` === 4 (상한 유지)
+  - [ ] `canPan`: fit-width 상태에서 세로가 넘치면 true (페이지 전체 캡처) / 이미지가 화면에 다 들어오면 false
   - [ ] `centerAnchoredScroll`: 중앙점 natural 좌표가 배율 변경 전후로 보존된다. 스크롤 여지가 없는 축은 0으로 클램프된다
+  - [ ] `panScroll`: 오른쪽·아래로 끌면 `scrollLeft`/`scrollTop`이 **줄어든다** (부호)
   - [ ] `formatZoomPercent(0.3425)` === `"34%"`
   - [ ] `pnpm test` 통과
 
@@ -29,21 +31,40 @@
   - [ ] `grep -rn "fitScale" src/` 결과 0건
   - [ ] `pnpm typecheck` 통과
 
-### Task 3: `AnnotationOverlay` state 분리 + fit-width + 중앙 앵커
+### Task 3: `AnnotationOverlay` — fit/zoom 분리 + fit-width + 중앙 앵커
 
 - **변경 대상**: `src/sidepanel/components/AnnotationOverlay.tsx`
 - **작업 내용**:
   - `const [scale, setScale] = useState(1)` (`:80`) → `fit` / `zoom` 2개로 분리, `const scale = zoom ?? fit`.
-  - 로컬 `measureScale`(`:63-71`) 제거. `viewportRef`를 두고 `useLayoutEffect` + `ResizeObserver`로 `fit = fitWidthScale(natW, viewport.clientWidth - VIEWPORT_PADDING)` 실측. 기존 `window.resize` 리스너(`:119-124`) 제거.
-  - `applyScale(next: number | null)` 추가 — `commitText()` → `centerAnchoredScroll` → `requestAnimationFrame`에서 `viewport.scrollLeft/Top` 세팅 → `setZoom(next)`. (design.md 코드 참조)
+  - 로컬 `measureScale`(`:63-71`) 제거. `viewportRef`를 두고 `useLayoutEffect` + `ResizeObserver`로 뷰포트 `clientWidth/Height`를 state에 담고, `fit = fitWidthScale(natW, clientWidth - VIEWPORT_PADDING)`. 기존 `window.resize` 리스너(`:119-124`) 제거. (clientWidth/Height는 Task 4의 `canPan` 판정에도 쓰인다)
+  - `applyScale(next: number | null)` — `commitText()` → `centerAnchoredScroll` → `requestAnimationFrame`에서 `viewport.scrollLeft/Top` 세팅 → `setZoom(next)`. (design.md 코드 참조)
   - `AnnotationToolbar`에 `viewportRef` / `scale` / `fit` / `onScaleChange={applyScale}` 전달.
   - **CSS transform 구조(`:367-383`)와 `stage.getPointerPosition()` 호출부는 건드리지 않는다.** 좌표 보정은 Konva에 위임된 채로 유지.
 - **검증**:
   - [ ] `pnpm typecheck` 통과
   - [ ] 페이지 전체 캡처를 어노테이션 진입 → 라벨이 fit-width 배율(대략 30%대)로 뜨고, 현행보다 이미지가 크게 보인다
   - [ ] 요소 캡처(작은 이미지) 진입 화면이 현행과 동일하다 (100%)
+  - [ ] 확대·축소 시 화면 중앙에 보던 지점이 중앙에 남는다
 
-### Task 4: `ZoomControl` 컴포넌트
+### Task 4: `AnnotationOverlay` — 팬 (선택 도구 빈 곳 드래그)
+
+- **변경 대상**: `src/sidepanel/components/AnnotationOverlay.tsx`
+- **작업 내용**:
+  - `panRef: useRef<PanOrigin | null>` 추가. **state가 아니라 ref** — 매 mousemove 리렌더는 Konva Stage를 통째로 다시 그려 큰 이미지에서 드래그가 끊긴다.
+  - `panEnabled = canPan({ clientWidth, clientHeight, contentWidth: natW, contentHeight: natH, scale })`.
+  - `handlePointerDown`(`:228-249`)의 `tool === "select"` 분기 확장: `e.target !== stage`면 그대로 반환(도형 위 → Konva draggable에 위임). `e.target === stage`면 `panEnabled`일 때 팬 시작, 아니면 기존대로 즉시 선택 해제.
+  - `handlePointerMove`(`:251-257`) 맨 앞에 팬 분기: `panScroll`로 `viewport.scrollLeft/Top` **직접 대입**. 이동량이 `PAN_CLICK_THRESHOLD`를 넘으면 `moved = true` + 커서 `grabbing`.
+  - `handlePointerUp`(`:259-269`): 팬 종료. **`moved === false`면 선택 해제**(빈 곳 클릭의 기존 동작을 up으로 옮긴 것). Stage `onMouseLeave`에서도 같은 종료 처리.
+  - `toolCursor`(`:58-61`)에 `panEnabled` 인자 추가 → select + panEnabled면 `grab`.
+- **검증**:
+  - [ ] 페이지 전체 캡처 진입 직후(맞춤 상태, 확대 안 함)에도 세로가 넘치므로 팬이 동작한다
+  - [ ] **도형 선택 후 빈 곳 클릭 → 선택이 풀린다** (팬 도입으로 인한 회귀 없음)
+  - [ ] 빈 곳 드래그 → 화면이 이동하고 선택은 유지된다
+  - [ ] 도형 위 드래그 → 도형이 이동한다 (팬 아님)
+  - [ ] 이미지가 화면에 다 들어오면 커서가 `default`이고 드래그해도 아무 일 없다
+  - [ ] 팬 드래그 중 캔버스 밖에서 마우스를 놓아도 팬이 끝난다
+
+### Task 5: `ZoomControl` 컴포넌트
 
 - **변경 대상**: `src/sidepanel/components/annotation/ZoomControl.tsx` (신규)
 - **작업 내용**: design.md 렌더 구조대로 `ButtonGroup` + `TooltipIconButton`(Minus/Plus) + shadcn `Select`. `SelectTrigger`에 `h-8` 명시. testId: `annotation-zoom-out` / `annotation-zoom-level` / `annotation-zoom-in`.
@@ -52,7 +73,7 @@
   - [ ] 콤보박스 목록에 fit 미만 프리셋이 없다 (fit 34%면 25% 항목 없음)
   - [ ] `[-]`/`[+]` 버튼 높이가 Select trigger와 같다 (h-8)
 
-### Task 5: 툴바 캔버스 영역 레이아웃 + 컨트롤 배치
+### Task 6: 툴바 캔버스 영역 레이아웃 + 컨트롤 배치
 
 - **변경 대상**: `src/sidepanel/components/annotation/AnnotationToolbar.tsx`
 - **작업 내용**:
@@ -61,19 +82,19 @@
   - `pointer-events-none` absolute 레이어에 좌상단 맞춤 버튼(`scale !== fit`일 때만) / 우상단 `ZoomControl` 배치. 각 컨트롤 노드에만 `pointer-events-auto`.
   - props 추가: `viewportRef`, `scale`, `fit`, `onScaleChange`.
 - **검증**:
-  - [ ] 400% 확대 후 이미지 **좌상단 모서리까지** 스크롤로 도달 가능 (클리핑 회귀 확인)
-  - [ ] 캔버스를 스크롤해도 줌 컨트롤·맞춤 버튼이 제자리에 고정
-  - [ ] 컨트롤이 없는 캔버스 영역에서 드래그 그리기가 막히지 않는다
+  - [ ] 400% 확대 후 이미지 **좌상단 모서리까지** 팬·스크롤로 도달 가능 (클리핑 회귀 확인)
+  - [ ] 캔버스를 팬·스크롤해도 줌 컨트롤·맞춤 버튼이 제자리에 고정
+  - [ ] 컨트롤이 없는 캔버스 영역에서 드래그 그리기·팬이 막히지 않는다
   - [ ] 맞춤 상태에서 맞춤 버튼이 보이지 않고, 배율을 바꾸면 나타난다
 
-### Task 6: i18n 키
+### Task 7: i18n 키
 
 - **변경 대상**: `src/i18n/namespaces/editor.ts`
 - **작업 내용**: ko/en 양쪽에 `annotation.zoomIn` / `zoomOut` / `zoomLevel` / `fitToWidth` / `zoomFit` 추가 (design.md 표).
 - **검증**:
   - [ ] PostToolUse 훅의 `locales.test.ts`(ko/en 키 대칭) 자동 통과
 
-### Task 7: e2e 시나리오
+### Task 8: e2e 시나리오
 
 - **변경 대상**: `e2e/annotation-overlay.spec.ts`
 - **작업 내용**: 아래 "e2e 시나리오"를 spec으로. `/e2e-write`로 처리.
@@ -83,14 +104,16 @@
 
 ## 테스트 계획
 
-### 단위 테스트 (`src/sidepanel/components/annotation/__tests__/zoom.test.ts`)
+### 단위 테스트 (`src/sidepanel/components/annotation/__tests__/viewport.test.ts`)
 
 | 함수 | 케이스 |
 |---|---|
 | `fitWidthScale` | 넓은 이미지 축소 / 작은 이미지 1로 클램프 / natW=0 가드 |
 | `zoomStops` | fit 미만 프리셋 제외 / fit==1 중복 제거 / 항상 오름차순, `stops[0] === fit` |
 | `stepZoom` | fit→다음 프리셋 / 최저 프리셋→null(맞춤) / 상한·하한 경계 유지 / 부동소수 ε 비교 |
+| `canPan` | fit-width라 세로만 넘칠 때 true / 완전히 들어오면 false / 확대해서 가로도 넘칠 때 true |
 | `centerAnchoredScroll` | 중앙 natural 좌표 보존 / 확대·축소 양방향 / 스크롤 여지 없는 축 0 클램프 / 최대치 클램프 |
+| `panScroll` | 부호(오른쪽 드래그 → scrollLeft 감소) / 양축 동시 |
 | `formatZoomPercent` | 반올림 |
 
 ### e2e 시나리오 (`/e2e-write` 입력)
@@ -100,38 +123,42 @@
 - 맞춤 버튼을 누르면 줌 라벨이 진입 시 배율로 돌아가고, 맞춤 버튼이 다시 사라진다.
 - 맞춤 상태에서 `[-]`는 disabled다.
 - 줌 라벨 콤보박스를 열고 `100%`를 고르면 라벨이 `100%`가 된다.
+- **선택 도구로 캔버스 빈 곳을 드래그하면 캔버스 뷰포트의 `scrollTop`이 변한다.**
+- **선택 도구로 도형을 그린 뒤 빈 곳을 클릭하면 선택이 해제된다** (팬 도입 회귀 가드 — 삭제 버튼이 다시 disabled가 되는지로 판정).
+- **선택 도구로 도형을 드래그하면 도형이 이동한다** (뷰포트는 스크롤되지 않는다).
 - 확대(100%)한 상태에서 캔버스를 드래그해 사각형을 그리고 완료하면, 결과 이미지의 크기가 **원본 캡처와 같다**(export 해상도가 배율에 영향받지 않음).
 - 기존 케이스(도구 선택 → 취소 복귀 / 도형 그린 뒤 done → annotated webp 전이)가 그대로 통과한다.
 
 ### 수동 테스트 (Chrome)
 
-- [ ] 긴 페이지(예: 위키백과 문서)를 페이지 전체 캡처 → 어노테이션 진입 → 100%로 확대해 본문 텍스트가 읽히는지
+- [ ] 긴 페이지(예: 위키백과 문서)를 페이지 전체 캡처 → 어노테이션 진입 → 진입 직후(맞춤 상태)에 빈 곳 드래그로 아래쪽까지 이동되는지
+- [ ] 100%로 확대해 본문 텍스트가 읽히는지
+- [ ] 팬으로 특정 영역을 중앙에 놓고 `[+]` → **그 영역을 중심으로** 확대되는지 (중앙 앵커 + 팬 연동)
 - [ ] 그 상태에서 화살표를 특정 요소에 찍고 완료 → 미리보기 이미지의 같은 위치에 화살표가 있는지 (좌표 정합)
-- [ ] 확대·축소 시 화면 중앙에 보던 지점이 중앙에 남는지 (중앙 앵커)
-- [ ] 400%에서 이미지 좌상단·우하단 모서리까지 스크롤로 도달되는지
+- [ ] 400%에서 이미지 좌상단·우하단 모서리까지 팬으로 도달되는지
+- [ ] 선택 도구 커서가 팬 가능할 때 `grab`, 드래그 중 `grabbing`, 팬 불가하면 `default`인지
 - [ ] 텍스트 박스 입력 도중 `[+]`를 누르면 입력이 커밋되고 좌표 어긋난 textarea가 남지 않는지
 - [ ] 배율을 조작한 뒤 사이드패널 폭을 바꿔도 배율이 유지되는지 / 맞춤 상태면 자동 추종하는지
 - [ ] 다크 모드에서 플로팅 컨트롤이 캔버스(bg-muted) 위에서 식별되는지
-- [ ] 400% 확대 상태에서 스크롤이 버벅이지 않는지 (4M px 캔버스 합성 부하)
+- [ ] 400% 확대 상태에서 팬 드래그가 버벅이지 않는지 (4M px 캔버스 합성 부하)
 
 ## 구현 순서 권장
 
 ```
-Task 1 (zoom.ts + 테스트)  ─┐
-Task 6 (i18n)              ─┼─▶ Task 4 (ZoomControl) ─┐
-                            │                          ├─▶ Task 5 (툴바 레이아웃) ─▶ Task 7 (e2e)
-Task 2+3 (fitScale 제거 +  ─┘                          │
-          Overlay state)  ─────────────────────────────┘
+Task 1 (viewport.ts + 테스트) ─┬─▶ Task 2+3 (fitScale 제거 + fit/zoom 분리) ─▶ Task 4 (팬) ─┐
+                               │                                                            ├─▶ Task 6 (툴바 레이아웃) ─▶ Task 8 (e2e)
+Task 7 (i18n) ─────────────────┴─▶ Task 5 (ZoomControl) ─────────────────────────────────── ┘
 ```
 
-- **Task 1·6은 서로 독립** — 병렬 가능.
+- **Task 1·7은 서로 독립** — 병렬 가능. 나머지 전부가 Task 1에 의존한다.
 - **Task 2와 3은 한 단위** — `fitScale`을 지우면 `AnnotationOverlay`가 즉시 타입 에러다.
-- Task 4는 Task 1(`zoomStops`/`stepZoom`)과 Task 6(i18n 키)에 의존.
-- Task 5는 Task 3(props)·Task 4(컴포넌트) 둘 다 필요.
-- Task 7은 전부 끝난 뒤.
+- Task 4는 Task 3의 `viewportRef`·뷰포트 크기 state에 의존.
+- Task 5는 Task 1(`zoomStops`/`stepZoom`)과 Task 7(i18n 키)에 의존.
+- Task 6은 Task 3·4(props)와 Task 5(컴포넌트)가 모두 필요.
+- Task 8은 전부 끝난 뒤.
 
 ## 가이드 영향
 
 사용자 노출 UX 변경이다. `/implement` 후 `/guide`로 처리한다 (작성 전 `guide/AUTHORING.md` 필독).
 
-- `guide/ko/screenshot/annotation.md` · `guide/en/screenshot/annotation.md` — 줌 컨트롤(`[-][n%][+]`)·맞춤 버튼 설명 추가. 페이지 전체 캡처를 어노테이션할 때 확대해서 정확한 위치에 주석을 다는 흐름을 안내.
+- `guide/ko/screenshot/annotation.md` · `guide/en/screenshot/annotation.md` — 줌 컨트롤(`[-][n%][+]`)·맞춤 버튼·팬(선택 도구 빈 곳 드래그) 설명 추가. 페이지 전체 캡처를 어노테이션할 때 이동·확대해서 정확한 위치에 주석을 다는 흐름을 안내.
