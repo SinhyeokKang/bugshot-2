@@ -21,6 +21,15 @@
 
 ---
 
+## 2026-07-14 — 콤보박스 검색어 state가 팝오버 언마운트와 수명이 달라 "선택자 상단 고정"이 영구히 꺼짐
+
+- **증상**: Jira 담당자 필드(이슈 제출/드래프트 다이얼로그)에서 선택된 사람이 목록 최상단에 안 나온다. 스펙(v1.4.5)대로 구현돼 있고 `orderSelectedFirst`도 그대로인데 실제로는 거의 항상 안 보인다 — 다이얼로그를 갓 열고 **검색을 한 번도 안 한 채** 열었을 때만 핀이 뜬다. CC·참조자·Slack 멘션(`CcMultiCombobox`)도 동일.
+- **근본 원인**: 핀 정책에는 "검색 중이면 핀 해제"(결과가 화면 밖으로 밀리는 걸 막는 의도된 가드)가 붙어 있고, 그 판정이 컴포넌트 state `query`다. 그런데 **검색어의 실제 소유자는 cmdk의 `CommandInput`(uncontrolled)이고, 그건 `PopoverContent`와 함께 언마운트되며 리셋된다**. 반면 `query`는 필드 컴포넌트에 살아남는다. 즉 두 값의 **수명이 다르다** — 팝오버를 닫으면 입력창은 비었는데 `query`는 `"홍길"`로 남아 `searching === true`가 고착되고, 재오픈 시 목록은 전체로 다시 채워지는데 핀만 계속 꺼진 채다. 담당자를 검색해서 고르는 게 정상 흐름이라 사실상 상시 재현. 게다가 **`AssigneeField`의 항목 선택 경로가 `setOpen(false)`를 직접 호출해 `onOpenChange` 핸들러를 우회**하고 있어서, 닫기 핸들러에만 리셋을 넣은 1차 픽스는 여전히 red였다(핸들러를 안 타는 닫힘 경로가 따로 있었다).
+- **재발 방지**: (1) **팝오버/다이얼로그 내부 입력의 파생 state는 열림 상태에 종속시켜라** — 언마운트로 리셋되는 uncontrolled 입력과 살아남는 `useState`를 짝지으면 조용히 어긋난다. `grep -rn "useState(\"\")" src/sidepanel/components src/sidepanel/tabs | grep -i "query\|search"`로 검색어 state를 전수하고, 각각 닫힐 때 리셋되는지 확인. (2) **팝오버를 닫는 경로가 하나인지 확인** — `grep -rn "setOpen(false)" src/sidepanel`에서 `onOpenChange` 핸들러를 우회하는 호출이 있으면 리셋·정리 로직이 새는 지점이다. 닫기 부수효과가 생기면 전부 단일 핸들러로 모은다. (3) 이 부류는 **순수 함수 테스트로 절대 안 잡힌다** — `ccOptions.test.ts`(`orderSelectedFirst`/`pinSelectedFirst`)는 도입 때부터 전부 green이었고 버그는 그 함수를 *호출하지 않는* 조건 쪽에 있었다. 헬퍼가 green인데 화면이 틀리면 **호출 게이트를 의심**하라. 회귀 테스트는 렌더 테스트로만 가능해서 이 픽스에서 jsdom + @testing-library를 처음 도입했다(`*.test.tsx`만 jsdom, 순수 함수 테스트는 node 유지 — `vitest.config.ts`의 `environmentMatchGlobs`). 재현 시나리오: **검색어를 타이핑해서** 고른 뒤 재오픈 — 검색 없이 고르면 통과한다. (4) 같은 v1.4.5가 GitHub·GitLab 담당자에는 핀 자체를 안 넣었다(이메일/동명이인 사유로 세 정책을 한꺼번에 제외) — 미해결로 남아 있음.
+- **관련**: `src/sidepanel/tabs/jiraFields/AssigneeField.tsx`(`handleOpenChange`, `searching`), `src/sidepanel/components/CcMultiCombobox.tsx`(`handleOpenChange`), `src/sidepanel/components/ccOptions.ts`, `__tests__/AssigneeField.test.tsx`·`__tests__/CcMultiCombobox.test.tsx`(신규 렌더 테스트), 커밋 `5152a6f`(핀 도입 = 버그 유입).
+
+---
+
 ## 2026-07-14 — 어노테이션 드래그: pointer capture 상실을 "제스처 취소"로 오독해 두 번째 도형부터 커서를 따라다님
 
 - **증상**: 스크린샷 주석에서 **첫 도형은 정상**인데, 두 번째부터 클릭(down→up) 후에도 도형이 커밋되지 않고 **마우스를 놓은 뒤에도 커서를 계속 따라다녔다**. 이후 모든 클릭이 먹지 않는다(진행 중 draft가 down 가드에 걸려). 캔버스 줌·팬을 붙이며 mouse → pointer 이벤트 + `setPointerCapture`로 전환한 것이 원인.
