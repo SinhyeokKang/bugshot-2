@@ -36,7 +36,7 @@ export function buildEditorMarkdownContext(): MarkdownContext | null {
   const browser = parseChromeVersion(navigator.userAgent);
   const hasNetworkLog = networkLogAttach && !!networkLog && networkLog.captured > 0;
   const hasConsoleLog = consoleLogAttach && !!consoleLog && consoleLog.captured > 0;
-  // 액션 로그는 video 모드 한정 — 본문 요약엔 캡처 건수만 노출.
+  // 본문 요약엔 캡처 건수만 노출(엔트리는 logs.html).
   const hasActionLog = supportsActionLog(captureMode) && actionLogAttach && !!actionLog && actionLog.captured > 0;
   // 로그 요약은 console/network 지원 모드(screenshot/video/freeform)에만 붙는다 — element 분기는 제외(원본 buildCtx와 동일).
   const logSummaries = {
