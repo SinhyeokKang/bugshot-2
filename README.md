@@ -58,7 +58,7 @@ Grab exactly what's on screen and mark it up.
 
 When a still image isn't enough, record the behavior.
 
-- **Tab recording** — record the current tab, up to 60 seconds, encoded to MP4.
+- **Tab recording** — record the current tab, up to 60 seconds, encoded to MP4 (WebM fallback where MP4 isn't supported).
 - **Screen recording** — record any window or the full screen via the system picker, up to 60 seconds.
 - **Draw while recording** — a mini toolbar (5 colors, pen or highlighter, three thicknesses) lets you sketch freehand over the page during tab/screen recording; strokes fade tail-first in draw order over ~3s and are baked into the video.
 - **30s Replay** — an opt-in, always-on buffer that keeps the **last 30 seconds** as MP4. It looks back across page navigations, so you can catch the bug even *after* spotting it — no need to hit record beforehand. After capture, **trim** the clip to keep only the bug moment — the attached logs are narrowed to the same range.
@@ -67,9 +67,11 @@ When a still image isn't enough, record the behavior.
 
 Reproduction context, collected for you in the background.
 
-- **Network & console logs** — captured automatically while a capture is active and attached to the issue. Includes **WebSocket frames** and logs from **cross-origin iframes** (payment widgets, embeds), all filterable by origin.
-- **Action log** — clicks, text input, navigations, keyboard shortcuts, checkbox/radio toggles, dropdown selections, and drag & drop recorded as step-by-step reproduction. Sensitive field values are masked.
-- **Log viewer** — a standalone `logs.html` report with a **video-synced timeline**: click any console/network/action entry to jump to that exact moment in the recording.
+- **Network & console logs** — captured automatically while the panel is open and attached to the issue. Includes **WebSocket frames** and logs from **cross-origin iframes** (payment widgets, embeds), all filterable by origin.
+- **Action log** — clicks, text input, navigations, keyboard shortcuts, checkbox/radio toggles, dropdown selections, and drag & drop recorded as step-by-step reproduction. Sensitive values are masked, both by field label and by value shape (emails, long digit runs); rich-text editor content is never recorded.
+- **Log viewer** — a standalone `logs.html` report with a **video-synced timeline**: click any console/network/action entry to jump to that exact moment in the recording. It also carries a **Report tab** (issue body preview + copy as markdown) and per-tab exports (HAR, console/action JSON).
+
+All three logs ride along with every capture except element style editing, and each can be toggled off before you submit.
 
 ### 🤖 AI
 
@@ -77,7 +79,7 @@ Reproduction context, collected for you in the background.
 
 ### 📥 Issue list & drafts
 
-- **Submitted issues** — every report you've filed stays in the *Issue list* tab with its platform badge, searchable and filterable by status; refresh to pull the current state back from the tracker.
+- **Submitted issues** — every report you've filed stays in the *Issue list* tab with its platform badge, searchable and filterable by status. Refresh to pull the current state back from the tracker, or change the status right from the panel and have it written back. Reports shared to Slack can be **promoted to a tracker issue later**, and the original Slack thread gets a reply with the new issue's URL.
 - **Drafts** — not ready to file? Save the report as a draft, reopen it later, edit any field, and submit when it's ready.
 
 ### 🔗 Integrations
@@ -100,6 +102,7 @@ it sends to a channel or DM instead.
 ### 🌐 Export & i18n
 
 - **Markdown copy** — paste into Slack, Confluence, or anywhere with tables intact
+- **File attachments** — attach your own files to the report, uploaded natively to the tracker
 - **Local download** — save the captured screenshot/video and the `logs.html` report
 - **i18n** — Korean / English
 - **Report body composition** — toggle which sections (steps, expected result, notes, logs, attachments) go into the issue, plus a title prefix
