@@ -335,6 +335,10 @@ idle 복귀 전 캡처를 시도하면 기존 3중 방어(진입 가드 / 런타
 | `bugshot-app-settings` | 테마·언어·이슈 섹션·LLM 설정·replay 활성화 | `settings-ui-store.ts` (Zustand persist) |
 | `bugshot:install-id` | 익명 설치 ID (UUID, 최초 1회 생성) | `background/analytics.ts` — PostHog `distinct_id` |
 
+### IndexedDB (Chrome 권한 불요 — 저장 데이터 레퍼런스)
+
+스크린샷·영상·사용자 첨부 **blob**은 `chrome.storage`가 아니라 IndexedDB(`src/store/blob-db.ts`)에 저장된다. `storage` 권한과 무관하지만(웹 표준 API), 정리(prune) 시 위 `chrome.storage.session`/`local`의 레코드를 역참조해 고아 blob을 지운다. privacy 문서의 "저장하는 정보"와 대조할 때 이 경로를 빠뜨리지 말 것.
+
 ### 쓰기 패턴 특이사항
 
 - **session quota 초과 대응** (`useEditorSessionSync.ts`): 이미지 필드를 제거한 "lite" 스냅샷으로 폴백. 3연속 실패 시 저장 중단 + `onSessionSaveExhausted` 발화
@@ -504,7 +508,7 @@ background/index.ts:136 — webNavigation.onCommitted
 
 | 호스트 (트래픽 대상) | 사용 기능 | API 호출 위치 |
 |---|---|---|
-| 모든 페이지 | picker·로그 레코더 주입 + `captureVisibleTab`(화면·페이지 전체 캡처 + 30s Replay) + BYOK LLM·GitLab self-managed 임의 origin fetch + cross-origin stylesheet 원문 fetch(스타일 보강) | `picker.ts`, `recorders-entry.ts`, `background/messages.ts`(captureVisibleTab·fetchCssSheets), `ai-provider.ts` |
+| 모든 페이지 | picker·로그 레코더 주입 + `captureVisibleTab`(화면·페이지 전체 캡처 + 30s Replay) + BYOK LLM·GitLab self-managed 임의 origin fetch + cross-origin stylesheet 원문 fetch(스타일 보강) | `picker.ts`, `recorder-bridge.ts`, `recorders-entry.ts`, `background/messages.ts`(captureVisibleTab·fetchCssSheets), `ai-provider.ts` |
 | `*.atlassian.net` | Jira REST API (API Key 모드) | `jira-api.ts` — `${baseUrl}/rest/api/3/*` |
 | `api.atlassian.com` | Jira OAuth API + accessible-resources | `jira-api.ts`, `oauth.ts` |
 | `auth.atlassian.com` | Jira OAuth authorize (launchWebAuthFlow — host_permission 불요) | `oauth.ts` — `launchWebAuthFlow` URL |
@@ -546,10 +550,10 @@ Linear·GitLab은 PKCE 지원으로 proxy 불필요 — 각각 `api.linear.app/o
 
 | 위치 | 용도 |
 |---|---|
-| `picker.ts` / `recorders-entry.ts` | 모든 페이지에 picker·로그 레코더 content script 주입 |
+| `picker.ts` / `recorder-bridge.ts` / `recorders-entry.ts` | 모든 페이지에 picker·로그 레코더 content script 주입 (manifest `content_scripts` 3개 — bridge는 ISOLATED에서 sentinel 수신·데이터 중계, entry는 MAIN에서 console/network/action 후크) |
 | `background/messages.ts` (`captureVisibleTab`) | 30s Replay + 스틸 캡처(영역·화면·페이지 전체) — cross-origin 네비게이션 후에도 캡처 유지(activeTab은 회수되므로 광역 권한이 필요) |
 | `tab-bindings.ts` (`deactivatePanelIfCrossOrigin`) | cross-origin 커버 URL(http/https) 이동 시 패널 유지 — `broadGranted=true` 고정(§ 패널 종료/유지 정책 분기표) |
-| `ai-provider.ts` (`requestHostPermission`) | BYOK LLM 프로바이더 연결 — 임의 baseUrl origin 요청이 `<all_urls>`에 포섭돼 **즉시 grant**(프롬프트 없음) |
+| `LlmConnectDialog.tsx` (`ai-provider.ts:requestHostPermission` 경유) | BYOK LLM 프로바이더 연결 — 임의 baseUrl origin 요청이 `<all_urls>`에 포섭돼 **즉시 grant**(프롬프트 없음) |
 | `GitlabConnectForm.tsx` | GitLab self-managed 인스턴스 PAT 연결 — `requestHostPermission` 공유, 동일하게 즉시 grant |
 | `background/messages.ts` (`fetchCssSheets`) | cross-origin stylesheet 원문 fetch — content가 보낸 page-controlled href를 CORS 우회로 읽어 스타일 specified 값 보강. http(s) 공개 호스트 한정(SSRF 가드 `lib/ssrf-guard.ts` `isFetchableSheetUrl` — loopback·사설·link-local 차단), `credentials:omit` · `redirect:manual` · CSS content-type · 2MB 캡 |
 
