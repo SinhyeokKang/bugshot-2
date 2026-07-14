@@ -82,10 +82,16 @@ export function AssigneeField({
     items.find((u) => u.accountId === value) ??
     (resolved?.accountId === value ? resolved : undefined);
 
+  // 팝오버가 닫히면 cmdk 입력창은 언마운트로 비워지므로 query도 같이 되돌린다 (남아 있으면 핀이 계속 꺼진다).
+  const handleOpenChange = useCallback((next: boolean) => {
+    setOpen(next);
+    if (!next) setQuery("");
+  }, []);
+
   return (
     <FieldCombobox
       open={open}
-      onOpenChange={setOpen}
+      onOpenChange={handleOpenChange}
       loading={loading}
       error={error}
       placeholder={t("field.assignee.select")}
@@ -104,7 +110,7 @@ export function AssigneeField({
           value={u.accountId}
           onSelect={() => {
             onChange(u.accountId, u.displayName);
-            setOpen(false);
+            handleOpenChange(false);
           }}
         >
           <Check

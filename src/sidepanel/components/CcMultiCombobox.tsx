@@ -91,6 +91,8 @@ export function CcMultiCombobox({
   function handleOpenChange(next: boolean) {
     if (disabled) return;
     setOpen(next);
+    // 닫히면 cmdk 입력창은 언마운트로 비워지므로 query도 같이 되돌린다 (남아 있으면 핀이 계속 꺼진다).
+    if (!next) setQuery("");
     onOpenChange?.(next);
   }
 
