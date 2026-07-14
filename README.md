@@ -28,7 +28,7 @@ report developers can actually act on.
 2. **Open the panel** — click the toolbar icon or press `Cmd/Ctrl+Shift+E`.
 3. **Connect a destination** — in the *Integrations* tab, connect at least one of Jira, GitHub, Linear, Notion, GitLab, Asana, ClickUp, or Slack.
 4. **Capture** — in the *Debug* tab, pick a mode: edit element style, capture an element, capture an area (drag, viewport, or full page), or record the screen. You can also start a report from logs alone (no capture) via the console/network log tabs.
-5. **Submit** — the environment fills itself in; add a title, review the preview, and submit. A link to the created issue pops right up.
+5. **Submit** — the environment fills itself in; add a title, review the preview, and submit. A link to the created issue pops right up, and the report is kept in the *Issue list* tab (save it as a draft instead if it isn't ready).
 
 Full walkthrough in the [Quick Start guide](https://bug-shot.com/en/docs/quick-start).
 
@@ -48,10 +48,11 @@ Fix the bug visually before you even describe it.
 Grab exactly what's on screen and mark it up.
 
 - **Element capture** — click an element to crop just that element as a clean screenshot; its DOM selector is added to the issue environment automatically.
+- **Works inside iframes** — the picker reaches one level into embedded frames, cross-origin ones included.
 - **Area capture** — drag any region of the screen to capture a precise slice.
 - **Screen capture** — grab the whole visible viewport in one click, no dragging.
 - **Full-page capture** — scroll and stitch the entire page into one tall screenshot; fixed headers are printed once, and very long pages stop at a limit with a notice.
-- **Annotation** — mark up the shot with arrows, text, shapes, and highlights before attaching it.
+- **Annotation** — mark up the shot with arrows, a freehand pen, text, shapes, and highlights before attaching it. Zoom (fit-to-width up to 400%) and pan the canvas so you can annotate fine detail on a tall full-page shot; the finished image is always attached at its original resolution.
 
 ### 🎬 Recording
 
@@ -73,6 +74,11 @@ Reproduction context, collected for you in the background.
 ### 🤖 AI
 
 - **AI draft & styling** — BYOK (Bring Your Own Key) with OpenAI, Anthropic, Gemini, and more; falls back to Chrome Built-in AI when no key is set. Drafts the title and body from your capture (styles, screenshot, or log summary) in one go.
+
+### 📥 Issue list & drafts
+
+- **Submitted issues** — every report you've filed stays in the *Issue list* tab with its platform badge, searchable and filterable by status; refresh to pull the current state back from the tracker.
+- **Drafts** — not ready to file? Save the report as a draft, reopen it later, edit any field, and submit when it's ready.
 
 ### 🔗 Integrations
 
@@ -96,6 +102,8 @@ it sends to a channel or DM instead.
 - **Markdown copy** — paste into Slack, Confluence, or anywhere with tables intact
 - **Local download** — save the captured screenshot/video and the `logs.html` report
 - **i18n** — Korean / English
+- **Report body composition** — toggle which sections (steps, expected result, notes, logs, attachments) go into the issue, plus a title prefix
+- **Theme** — light / dark / system
 
 ## Development
 
