@@ -159,17 +159,9 @@ export function AnnotationToolbar({
         >
           {children}
         </div>
-        {/* 그리기 중에는 컨트롤이 캔버스를 가려 그 아래에서 드래그를 시작할 수 없다 →
-            선택 도구가 아닐 땐 흐리게 + inert(포인터·포커스 통과). 줌 조작은 선택 도구로 돌아와서. */}
-        <div
-          ref={(el) => {
-            if (el) el.inert = tool !== "select"; // hit-test·포커스 동시 차단(스타일 행과 같은 관용구)
-          }}
-          className={cn(
-            "pointer-events-none absolute inset-x-0 bottom-0 flex items-end justify-between p-3 transition-opacity",
-            tool !== "select" && "opacity-30",
-          )}
-        >
+        {/* 배율 컨트롤은 도구와 무관하게 항상 쓸 수 있다 — 누르면 오버레이가 그리기 도구를 해제한다.
+            컨트롤이 없는 영역은 pointer-events-none으로 통과시켜 캔버스 그리기·팬을 막지 않는다. */}
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 flex items-end justify-between p-3">
           {zoom !== null ? (
             <TooltipIconButton
               label={t("annotation.zoomFit")}

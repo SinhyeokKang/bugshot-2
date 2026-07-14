@@ -33,7 +33,7 @@ A tall image — a full-page capture, say — is unreadable when it's squeezed i
 
 The editor opens with the **Select** tool active. When the image spills past the view, **drag an empty spot to move the canvas** — the cursor turns into a hand. Drag an annotation you've drawn and it moves instead, so the two never get confused. No mouse? Focus the canvas and use the arrow keys.
 
-> Picking a drawing tool dims the zoom controls so they stay out of your way. Switch back to **Select** when you want to change the zoom again.
+> You can change the zoom at any time, even mid-drawing. Doing so **drops the drawing tool** and switches back to Select — adjust your view, then pick the tool again.
 
 Zooming only changes **how you view the image**. The finished screenshot is always attached at its original resolution, so zoom in as much as you like.
 

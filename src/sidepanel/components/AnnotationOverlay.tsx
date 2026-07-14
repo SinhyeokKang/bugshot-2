@@ -313,6 +313,9 @@ export default function AnnotationOverlay({
   // 반대로 하면 목표 스크롤이 아직 옛 배율의 스크롤 최대치를 넘어 브라우저가 잘라버린다.
   const applyScale = (next: ZoomLevel) => {
     commitText();
+    // 배율을 건드리는 건 "그리기를 멈추고 보기를 조정한다"는 의사다 → 그리기 도구를 해제한다.
+    // (컨트롤이 캔버스 하단을 가리므로, 그리기 중에 그 위를 눌렀다면 그리려던 게 아니다.)
+    setTool("select");
     const normalized = typeof next === "number" ? normalizeZoom(next, fit, fitAll) : next;
     const newScale = resolveScale(normalized, fit, fitAll);
     const el = viewportRef.current;
