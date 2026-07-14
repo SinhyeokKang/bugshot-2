@@ -38,7 +38,15 @@ In screenshot mode, AI reads the **annotated screenshot** you attached. A one-li
 
 ## 5. Log attachments
 
-Screenshot mode can attach console and network logs. Both toggles are **on by default**, so they're included without any extra steps — turn one off if you don't need it.
+Screenshot mode attaches three kinds of logs too. **All three toggles are on by default**, so they come along without any extra steps — turn one off if you don't need it.
+
+- **Console Logs** — Console output and errors from the session so far.
+- **Network Logs** — Network requests made along the way.
+- **Action Logs** — Clicks, text input, navigation, shortcuts, toggles, dropdown selections, and drag-and-drop — everything you did on the way to the screenshot, captured as reproduction steps.
+
+Logs keep collecting the whole time the side panel is open, so whatever happened *before* you hit capture is already in there.
+
+> Values you type into fields and pick from dropdowns are recorded **as-is**, unless they look sensitive. Knowing which value broke things is usually the whole point of a repro. See the [Log Viewer](../logs/viewer.md) for the exact rules and what to watch out for.
 
 The **Download** button on the right of the Log attachments section lets you grab the same log report (`logs.html`) that gets attached to the issue — right here, before you even submit.
 

@@ -44,7 +44,11 @@ On top of the video, recording mode bundles three kinds of logs. **All three tog
 
 - **Console Logs** — Console output and errors during the recording.
 - **Network Logs** — Network requests made during the recording.
-- **Action Logs** — A record of user actions: clicks, text input, and navigation, plus **keyboard shortcuts and special keys (Enter, Esc, ⌘K, and the like), checkbox and radio toggles, dropdown selections, and drag-and-drop**. (It captures which keys and actions happened, not every character you type.) **Action logs are only captured in recording mode.**
+- **Action Logs** — A record of user actions: clicks, text input, and navigation, plus **keyboard shortcuts and special keys (Enter, Esc, ⌘K, and the like), checkbox and radio toggles, dropdown selections, and drag-and-drop**. For shortcuts it captures which key you pressed, not every character you type.
+
+Logs keep collecting the whole time the side panel is open, so whatever happened *before* you hit record is already in there.
+
+> Values you type into fields and pick from dropdowns are recorded **as-is**, unless they look sensitive. Knowing which value broke things is usually the whole point of a repro. See the [Log Viewer](../logs/viewer.md) for the exact rules and what to watch out for.
 
 The video timeline and the logs are linked by time, so the reader can walk through "what happened at this moment" in the [Log Viewer](../logs/viewer.md).
 

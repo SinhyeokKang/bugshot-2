@@ -35,6 +35,6 @@ If your page uses real-time, two-way communication (WebSocket), those connection
 
 ![Filing a logs-only issue](../assets/logs-live-3.jpg)
 
-You can also **file an issue with logs only**, no capture (element, screenshot, or video). While viewing the console or network, click **Write issue** to skip the capture step and go straight to the issue draft. Attach the console and network logs and submit.
+You can also **file an issue with logs only**, no capture (element, screenshot, or video). While viewing the console or network, click **Write issue** to skip the capture step and go straight to the issue draft. All three logs — console, network, and the **action log** (clicks, typing, and the rest) — are attached by default, so you can submit as-is.
 
 > The issue flow (title, body, preview, submit) is the same as the other modes. See the common steps in [Write an Issue (screenshot)](../screenshot/issue.md).

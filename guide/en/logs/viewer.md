@@ -20,6 +20,19 @@ The screen has a timeline alongside the video, with logs plotted on it as marker
 - **Network** — Network requests.
 - **Action** — User actions: clicks, text input, and navigation, plus keyboard shortcuts and special keys, checkbox and radio toggles, dropdown selections, and drag-and-drop. (Navigation shows up as a kind of action marker.)
 
+### How much of what you typed gets recorded
+
+Action logs capture **which value you entered**, not just that you entered one. "Put -1 in the quantity field and it broke" only reproduces if the value is there. So values you type into fields and pick from dropdowns are recorded **as-is (up to 500 characters)** and attached to the issue — unless they trip one of the rules below.
+
+Sensitive values are masked automatically (`***`) in two ways.
+
+- **By the field** — password inputs, autocomplete hints, and sensitive keywords in the field's name, label, or placeholder (password, card, cvv, ssn, token, and the like).
+- **By the shape of the value** — even when the label gives nothing away, a value is masked if it looks like an email address or a run of 9 or more digits (phone, card, national ID, or bank account numbers).
+
+Anything you write in a **rich-text editor** — mail bodies, documents, message composers — is never recorded as a value; only the fact that you typed is kept.
+
+> That said, a value with no clue in **either its label or its shape** (a search term, ordinary text) is kept verbatim. If you're on a screen where you enter something sensitive, switch the log attachment toggle off before you submit. You can always open the log card beforehand to see exactly what was captured.
+
 Logs from several origins (including iframes embedded in the page) all land on one timeline. In the Console, Network, and Action lists, an **origin filter** above the list lets you narrow down by origin, so you're never unsure which origin a log came from (each origin button also shows that origin's log count).
 
 ## Video and logs in sync

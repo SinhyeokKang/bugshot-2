@@ -26,7 +26,7 @@ It even recognizes the **design tokens (CSS variables)** modern sites rely on. I
 
 ### Are console and network logs included too?
 
-Yes. While you're capturing, console logs and network requests are collected automatically. It even picks up errors from embedded widgets and payment frames (cross-origin iframes) that barely show on screen, so developers get every clue they need to track down the cause. See [Logs](logs/README.md) for details.
+Yes — and so is a **user-action log**. All three are collected automatically. They keep gathering the whole time the side panel is open, so errors that fired before you started capturing are already in there, and it even picks up errors from embedded widgets and payment frames (cross-origin iframes) that barely show on screen. All three attach by default to every capture mode except element style editing, and you can turn any of them off before submitting. See [Logs](logs/README.md) for details.
 
 ### Do recipients need to install a tool to open the attached logs?
 
