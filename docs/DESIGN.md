@@ -205,7 +205,8 @@ shadcn `Slider` (`src/components/ui/slider.tsx`, Radix). 표준에서 **멀티 t
 | `Section.tsx` | 섹션 구획 — `<section>` 래퍼에 `border-b border-border py-6 last:border-b-0`(섹션 간 구분선, 마지막은 제거) + optional 헤더(title/action 둘 다 없으면 미렌더) + optional collapsible. 토글 wrapper로 섹션을 그룹화하면 `:last-child`가 재스코프되니 wrapper에 `[&>section:last-child]:border-b`로 복원(위 §탭 시스템 세그먼트 토글) |
 | `SingleLazyCombobox.tsx` / `CcMultiCombobox.tsx` | 플랫폼 필드 콤보박스 — Popover+Command 기반 단일 선택(lazy fetch) / 다중 선택(CC 멘션). **8개 플랫폼 필드 폼의 표준 primitive**(jira/github/gitlab/linear/notion/asana/clickup/slack `*Fields/`) — 새 플랫폼 필드는 직접 만들지 말고 이 둘을 조합한다. 선택 항목 상단 고정은 `ccOptions.ts`(`pinSelectedFirst`/`orderSelectedFirst`) 공유 |
 | `HighlightedText.tsx` / `JsonTreeViewer.tsx` / `LogSeekChip.tsx` | 로그 표시 위젯 — 검색어 `<mark>` 하이라이트(+`HighlightQueryContext`로 JSON 트리 leaf까지 전달) / 네트워크 body JSON 트리 / 영상-로그 동기화 점프 칩. 사이드패널 로그 탭·다이얼로그·log-viewer 공용 |
-| `FieldRow.tsx` | 라벨+필드 쌍 — `grid gap-1.5`, 라벨 `text-xs text-muted-foreground`, `required` 시 빨간 별 |
+| `FieldRow.tsx` | 라벨+필드 쌍 — `grid gap-1.5`, 라벨 `text-xs text-muted-foreground`, `required` 시 빨간 별. **⚠ `connect/`는 아직 안 따른다** — 8개 폼이 동일 마크업을 raw `div.flex flex-col gap-1.5` + `<label>`로 42곳 반복(시각 결과는 같지만 규칙 미준수). 신규 필드는 `FieldRow`를 쓴다 |
+| **Connect 폼 기본값 필드** (`connect/*ConnectForm.tsx`) | 연결 후 기본값(위치·담당자·라벨·이슈 타입) 편집 — **이슈 모달의 콤보박스를 그대로 재사용**한다(`*Fields/AssigneeCombobox` 등). 새 콤보박스를 만들지 말 것. 상위 값(저장소·프로젝트·팀·워크스페이스) 콤보박스의 `onChange`는 **하위 담당자·라벨 defaults를 함께 비운다**(다른 스코프의 멤버라 무효). 후보 조회에 상위 값이 필요한 콤보박스는 `ready` 가드로 비활성 + "먼저 선택하세요" 안내를 트리거 라벨에 노출 |
 | `InlineChip.tsx` | 인라인 텍스트 칩 — `muted`면 dashed/muted, 아니면 `border-primary`. `[box-decoration-break:clone]`로 줄바꿈 대응 |
 | `InlineLink.tsx` | 외부 링크 — `target=_blank rel=noopener noreferrer`, `text-blue-600 underline dark:text-blue-400` |
 | `LinkifiedText.tsx` | 로그 본문 텍스트 linkify — `tokenizeLogText`로 URL 토큰만 `InlineLink`로 렌더(클릭 시 행 토글 방지 stopPropagation). Console 로그 본문·stack 사용 |
@@ -217,6 +218,8 @@ shadcn `Slider` (`src/components/ui/slider.tsx`, Radix). 표준에서 **멀티 t
 | `IssuePreviewView.tsx` | 이슈 본문 프리뷰 — 제목·재현 환경·섹션 + 마크다운 복사, `media`/`logCards` 슬롯. PreviewPanel과 log-viewer Report 탭 공용(두 표면이 같은 본문을 그리도록 강제) |
 | `SubmitSuccessView.tsx` | 제출 완료 화면 — 성공 아이콘 + 이슈 링크 + 후기·확인 버튼. IssueTab(작성)·IssueListTab(목록) 공용 |
 | `AttachmentSection.tsx` / `AttachmentList.tsx` | 사용자 파일 첨부 — 편집형(추가·삭제 카드) / 읽기 전용 카드 목록(클릭 시 로컬 재다운로드, `CATEGORY_ICON` 보유). 후자는 PreviewPanel·DraftDetailDialog 공용 |
+| `TiptapEditor.tsx` | WYSIWYG 본문 에디터 (ProseMirror + tiptap-markdown 양방향) — 이슈 본문 paragraph 섹션 |
+| `CancelConfirmDialog.tsx` | 취소 확인 다이얼로그 공용 — 진행 중 작업 폐기 전 확인 |
 | `ZoomControl.tsx` (`annotation/`) | 캔버스 배율 컨트롤 — 플로팅 `[−][n% ▾][+]`(ButtonGroup + shadcn Select). 어노테이션 캔버스 하단 고정, 컨트롤 밖은 `pointer-events-none`으로 통과 |
 | `DocSectionBody.tsx` | 이슈 섹션 본문 렌더 — 마크다운(`renderMarkdown`) 또는 orderedList |
 
