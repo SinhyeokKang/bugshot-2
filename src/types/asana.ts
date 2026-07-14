@@ -26,6 +26,8 @@ export interface AsanaDefaults {
   workspaceName?: string;
   projectGid?: string;
   projectName?: string;
+  assigneeGid?: string;
+  assigneeName?: string;
 }
 
 export interface AsanaAccount extends PlatformAccountBase<"asana"> {

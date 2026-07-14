@@ -31,6 +31,7 @@ const ko = {
   "jira.error.403": "권한 없음: 계정 권한을 확인하세요.",
   "jira.error.404": "찾을 수 없음: workspace URL 또는 사이트를 확인하세요.",
   "jira.error.429": "요청이 너무 많습니다. 잠시 후 다시 시도하세요.",
+  "jira.error.assigneeNotAssignable": "이 프로젝트에 배정할 수 없는 담당자입니다.",
   "jira.error.5xx": "Jira 서버 오류. 잠시 후 다시 시도하세요.",
   "jira.error.generic": "Jira 요청 실패 ({status})",
 
@@ -311,6 +312,7 @@ const en = {
   "jira.error.403": "Forbidden: check your account permissions.",
   "jira.error.404": "Not found: check workspace URL or site.",
   "jira.error.429": "Too many requests. Try again later.",
+  "jira.error.assigneeNotAssignable": "This person can't be assigned in this project.",
   "jira.error.5xx": "Jira server error. Try again later.",
   "jira.error.generic": "Jira request failed ({status})",
 

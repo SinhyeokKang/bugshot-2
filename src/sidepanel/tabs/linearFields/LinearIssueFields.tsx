@@ -36,7 +36,7 @@ export function initialLinearFields(
       labelId: defaults?.labelId,
       labelName: defaults?.labelName,
       assigneeId: defaults?.assigneeId,
-      assigneeName: undefined,
+      assigneeName: defaults?.assigneeName,
       priority: defaults?.priority,
       cc: undefined,
     };
@@ -51,8 +51,10 @@ export function initialLinearFields(
     projectName: last.projectName ?? fb?.projectName,
     labelId: last.labelId ?? fb?.labelId,
     labelName: last.labelName ?? fb?.labelName,
-    assigneeId: last.assigneeId ?? fb?.assigneeId,
-    assigneeName: last.assigneeName,
+    // id·표시명은 한 사람을 가리키는 쌍이라 통째로 고른다 — 따로 fallback하면 다른 사람 이름이 붙는다.
+    ...(last.assigneeId
+      ? { assigneeId: last.assigneeId, assigneeName: last.assigneeName }
+      : { assigneeId: fb?.assigneeId, assigneeName: fb?.assigneeName }),
     priority: last.priority ?? fb?.priority,
     cc: last.cc,
   };

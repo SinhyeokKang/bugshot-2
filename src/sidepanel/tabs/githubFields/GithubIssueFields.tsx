@@ -19,13 +19,18 @@ export function initialGhFields(
     | undefined,
   defaults: { owner?: string; repo?: string; label?: string; assignee?: string } | undefined,
 ): GithubIssueFieldsValue {
-  const src = last?.owner && last.repo ? last : defaults;
+  const hasLastRepo = !!last?.owner && !!last.repo;
+  const src = hasLastRepo ? last : defaults;
+  // assignee는 repo 하위 필드(그 repo의 collaborator) — repo가 갈리면 defaults.assignee는 무효.
+  const sameRepo = hasLastRepo && last?.owner === defaults?.owner && last?.repo === defaults?.repo;
   return {
     owner: src?.owner,
     repo: src?.repo,
     label: src?.label,
-    assignee: src?.assignee,
-    cc: last?.owner && last.repo ? last.cc : undefined,
+    assignee: hasLastRepo
+      ? (last?.assignee ?? (sameRepo ? defaults?.assignee : undefined))
+      : defaults?.assignee,
+    cc: hasLastRepo ? last?.cc : undefined,
   };
 }
 

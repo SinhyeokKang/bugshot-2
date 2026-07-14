@@ -37,6 +37,7 @@ import {
 import { mergeStyleElements, joinStyleSelectors } from "@/sidepanel/lib/buildIssueMarkdown";
 import { downloadImageDataUrl, downloadVideoBlob } from "@/sidepanel/lib/downloadCapture";
 import { downloadEditorLogsHtml } from "@/sidepanel/lib/buildEditorCapture";
+import { supportsActionLog } from "@/sidepanel/lib/captureLogSupport";
 import {
   deriveReadonlyEnvRows,
   filterEnvironmentRows,
@@ -134,8 +135,7 @@ export function DraftingPanel() {
 
   const titleMissing = !draft.title.trim();
 
-  // action log는 video 모드에서만 첨부 대상이라 카드도 video 한정.
-  const showActionCard = isVideoMode && actionLog !== null && actionLog.captured > 0;
+  const showActionCard = supportsActionLog(captureMode) && actionLog !== null && actionLog.captured > 0;
   const showLogCards = captureMode !== "element" && (
     (networkLog !== null && networkLog.captured > 0) ||
     (consoleLog !== null && consoleLog.captured > 0) ||

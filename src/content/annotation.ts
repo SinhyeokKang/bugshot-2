@@ -1,5 +1,5 @@
 import { postToRuntime } from "./post-to-runtime";
-import { pointsToPath, dropExpired, smoothPoint, PEN_SMOOTHING_ALPHA, type StrokePoint } from "./annotation-draw";
+import { pointsToPath, dropExpired, smoothPoint, rectPoints, PEN_SMOOTHING_ALPHA, type StrokePoint } from "./annotation-draw";
 
 // action-recorder.ts(MAIN world)와 리터럴 동기 복제 — 그쪽 isOwnUi 제외 목록에 같은 값 존재.
 export const ANNOTATION_HOST_ID = "__bugshot_annotation_host";
@@ -10,6 +10,8 @@ const SVG_NS = "http://www.w3.org/2000/svg";
 
 // 획 스타일(색/두께/투명도) — sidepanel이 tool·color·thickness로 계산해 실어 보낸 값.
 interface PenStyle {
+  // rect는 드래그로 사각형을 그린다(자유곡선이 아니라) — 렌더 분기의 유일한 근거.
+  tool: "pen" | "rect" | "highlight";
   color: string;
   strokeWidth: number;
   opacity: number;
@@ -44,6 +46,8 @@ interface Stroke {
   groupEl: SVGGElement;
   pathEl: SVGPathElement;
   points: StrokePoint[];
+  // rect 전용: 드래그 시작점·시각. 매 move마다 이 앵커로 사각형을 다시 만든다(점을 누적하지 않는다).
+  rectAnchor?: { x: number; y: number; drawnAt: number };
 }
 
 interface AnnotationHandle {
@@ -83,7 +87,16 @@ function newStrokePath(h: AnnotationHandle, e: PointerEvent): void {
   pathEl.setAttribute("stroke-linejoin", "round");
   groupEl.appendChild(pathEl);
   h.svgEl.appendChild(groupEl);
-  const stroke: Stroke = { groupEl, pathEl, points: [[e.clientX, e.clientY, now()]] };
+  const t = now();
+  const stroke: Stroke =
+    pen.tool === "rect"
+      ? {
+          groupEl,
+          pathEl,
+          points: rectPoints([e.clientX, e.clientY], [e.clientX, e.clientY], t),
+          rectAnchor: { x: e.clientX, y: e.clientY, drawnAt: t },
+        }
+      : { groupEl, pathEl, points: [[e.clientX, e.clientY, t]] };
   h.strokes.push(stroke);
   h.activeStroke = stroke;
   renderStroke(stroke);
@@ -131,6 +144,17 @@ function removeDragListeners(): void {
 
 function onPointerMove(e: PointerEvent): void {
   if (!handle || !handle.activeStroke) return;
+  const anchor = handle.activeStroke.rectAnchor;
+  if (anchor) {
+    // 사각형은 점을 누적하지 않고 앵커→현재점으로 매번 다시 만든다.
+    handle.activeStroke.points = rectPoints(
+      [anchor.x, anchor.y],
+      [e.clientX, e.clientY],
+      anchor.drawnAt,
+    );
+    renderStroke(handle.activeStroke);
+    return;
+  }
   const pts = handle.activeStroke.points;
   // 정지 상태로 3초를 넘기면 tick이 활성 획의 점까지 전부 만료시켜 pts가 빌 수 있다.
   // 그 경우 스무딩할 직전 점이 없으므로 raw로 재시작. 아니면 직전(스무딩된) 점 기준 EMA
@@ -226,7 +250,7 @@ export function showAnnotation(): void {
 
 // tool=null이면 그리기 off(pass-through). 그 외엔 style(color/strokeWidth/opacity)로 획을 그린다.
 export function setAnnotationTool(
-  tool: "pen" | "highlight" | null,
+  tool: "pen" | "rect" | "highlight" | null,
   style: PenStyle | null,
 ): void {
   if (!handle) return;

@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   shouldMaskField,
+  isSensitiveValue,
   maskValue,
   truncateName,
   entryNavOnBind,
@@ -51,6 +52,89 @@ describe("shouldMaskField", () => {
 
   it("힌트 전무하면 마스킹 안 함", () => {
     expect(shouldMaskField({})).toBe(false);
+  });
+});
+
+// 라벨 판정 확대: fieldLabel()이 이미 읽는 label[for] 텍스트·placeholder가 마스킹 판정엔
+// 안 들어가 <label for>Card number</label> 같은 흔한 폼이 그대로 새어나갔다.
+describe("shouldMaskField — 라벨 소스 확대", () => {
+  it("label[for] 텍스트의 민감 키워드로 마스킹", () => {
+    expect(shouldMaskField({ id: "f1", labelText: "Card number" })).toBe(true);
+    expect(shouldMaskField({ id: "f1", labelText: "Nickname" })).toBe(false);
+  });
+
+  it("placeholder의 민감 키워드로 마스킹", () => {
+    expect(shouldMaskField({ placeholder: "CVV" })).toBe(true);
+    expect(shouldMaskField({ placeholder: "Search products" })).toBe(false);
+  });
+});
+
+// 정규식이 영문 전용이라 한국어 라벨 폼이 전부 미탐이었다.
+describe("shouldMaskField — 한국어 라벨", () => {
+  it("한국어 민감 키워드로 마스킹", () => {
+    expect(shouldMaskField({ ariaLabel: "비밀번호" })).toBe(true);
+    expect(shouldMaskField({ labelText: "주민등록번호" })).toBe(true);
+    expect(shouldMaskField({ labelText: "카드 번호" })).toBe(true);
+    expect(shouldMaskField({ labelText: "계좌번호" })).toBe(true);
+    expect(shouldMaskField({ placeholder: "전화번호" })).toBe(true);
+    expect(shouldMaskField({ labelText: "주소" })).toBe(true);
+  });
+
+  it("비민감 한국어 라벨은 원문 유지", () => {
+    expect(shouldMaskField({ labelText: "수량" })).toBe(false);
+    expect(shouldMaskField({ labelText: "검색어" })).toBe(false);
+  });
+});
+
+// placeholder·labelText를 판정에 합류시키면서 부분일치 오탐이 커졌다 —
+// 사람이 읽는 문구가 판정 소스가 되므로 단어 경계로 끊어야 정상 폼이 안 죽는다.
+describe("shouldMaskField — 부분일치 오탐 방지", () => {
+  it("민감 키워드를 부분 문자열로 포함하는 일반 라벨은 마스킹 안 함", () => {
+    expect(shouldMaskField({ placeholder: "Shipping address" })).toBe(false); // pin ⊂ shipping
+    expect(shouldMaskField({ placeholder: "Search by author" })).toBe(false); // auth ⊂ author
+    expect(shouldMaskField({ labelText: "Discard draft" })).toBe(false); // card ⊂ discard
+  });
+
+  it("camelCase·snake_case 경계에서는 여전히 마스킹", () => {
+    expect(shouldMaskField({ name: "cardNumber" })).toBe(true);
+    expect(shouldMaskField({ name: "user_ssn" })).toBe(true);
+    expect(shouldMaskField({ id: "card-number" })).toBe(true);
+  });
+});
+
+// 라벨 기반 판정의 구조적 한계(생성된 id `:r3:`, 커스텀 폼, 라벨 없는 입력)를 값 자체로 보완.
+describe("isSensitiveValue", () => {
+  it("이메일 형태는 민감", () => {
+    expect(isSensitiveValue("hong@example.com")).toBe(true);
+    expect(isSensitiveValue("a.b+c@sub.domain.co.kr")).toBe(true);
+  });
+
+  it("전화번호·카드번호·주민번호 등 9자리 이상 숫자열은 민감 (구분자 무시)", () => {
+    expect(isSensitiveValue("010-1234-5678")).toBe(true);
+    expect(isSensitiveValue("4111 1111 1111 1111")).toBe(true);
+    expect(isSensitiveValue("900101-1234567")).toBe(true);
+    expect(isSensitiveValue("+82 10 1234 5678")).toBe(true);
+  });
+
+  it("짧은 숫자·일반 텍스트는 원문 유지 (재현 가치 보존)", () => {
+    expect(isSensitiveValue("-1")).toBe(false);
+    expect(isSensitiveValue("42")).toBe(false);
+    expect(isSensitiveValue("12345678")).toBe(false);
+    expect(isSensitiveValue("검색어")).toBe(false);
+    expect(isSensitiveValue("hello world")).toBe(false);
+  });
+
+  it("숫자가 섞인 식별자는 원문 유지 (순수 숫자열만 민감)", () => {
+    expect(isSensitiveValue("ORD-12345678")).toBe(false);
+  });
+
+  it("소수·IP는 원문 유지 — 점은 구분자가 아니다 (재현에 필요한 값)", () => {
+    expect(isSensitiveValue("1234.56789")).toBe(false);
+    expect(isSensitiveValue("192.168.0.1")).toBe(false);
+  });
+
+  it("빈 값은 민감 아님", () => {
+    expect(isSensitiveValue("")).toBe(false);
   });
 });
 

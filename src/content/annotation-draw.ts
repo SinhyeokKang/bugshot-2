@@ -36,6 +36,28 @@ export function smoothPoint(
   ];
 }
 
+// 박스: 드래그 시작·현재점으로 사각형 네 꼭짓점(+시작점 반복으로 닫음)을 만든다.
+// 모든 점에 같은 시각을 실어 pen처럼 꼬리부터 사라지지 않고 3초 뒤 통째로 만료된다(도형이라 그게 자연스럽다).
+// 렌더(pointsToPath)·만료(dropExpired)는 pen과 같은 경로를 그대로 쓴다.
+export function rectPoints(
+  start: readonly [number, number],
+  end: readonly [number, number],
+  drawnAt: number,
+): StrokePoint[] {
+  // 어느 방향으로 끌든 같은 사각형이 되도록 정규화.
+  const x1 = Math.min(start[0], end[0]);
+  const y1 = Math.min(start[1], end[1]);
+  const x2 = Math.max(start[0], end[0]);
+  const y2 = Math.max(start[1], end[1]);
+  return [
+    [x1, y1, drawnAt],
+    [x2, y1, drawnAt],
+    [x2, y2, drawnAt],
+    [x1, y2, drawnAt],
+    [x1, y1, drawnAt],
+  ];
+}
+
 // 먼저 그린(앞쪽) 만료 점들을 잘라 반환 — 그린 순서대로 꼬리부터 사라지는 트레일 효과.
 // now - t > lifetimeMs인 선두 연속 구간만 제거하고 나머지는 순서대로 유지. 전부 만료면 [].
 // 만료 점이 없으면 원본 참조를 그대로 반환(프레임마다 불필요한 복사 회피).

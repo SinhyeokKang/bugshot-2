@@ -18,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import { useSettingsStore } from "@/store/settings-store";
 import type { AsanaAccount, AsanaMyself, AsanaOAuthAuth } from "@/types/asana";
 import { isOAuthCancelled, sendBg } from "@/types/messages";
+import { AssigneeCombobox, type AssigneeValue as AsanaAssigneeValue } from "@/sidepanel/tabs/asanaFields/AssigneeCombobox";
 import { ProjectCombobox, type ProjectValue } from "@/sidepanel/tabs/asanaFields/ProjectCombobox";
 import { WorkspaceCombobox, type WorkspaceValue } from "@/sidepanel/tabs/asanaFields/WorkspaceCombobox";
 import { connectMethods, type ConnectFlowProps } from "@/sidepanel/tabs/integrationsTabUtils";
@@ -31,6 +32,7 @@ export function AsanaConnectedBody() {
       <AsanaSummary />
       <DefaultWorkspaceField />
       <DefaultProjectField />
+      <DefaultAssigneeField />
     </>
   );
 }
@@ -138,10 +140,17 @@ function DefaultWorkspaceField() {
       <WorkspaceCombobox
         value={value}
         onChange={(next) =>
+          // project·assignee는 workspace 하위 값이라 workspace가 바뀌면 함께 비운다.
           updateAsanaAccount({
-            defaults: next
-              ? { ...account.defaults, workspaceGid: next.workspaceGid, workspaceName: next.workspaceName, projectGid: undefined, projectName: undefined }
-              : { ...account.defaults, workspaceGid: undefined, workspaceName: undefined, projectGid: undefined, projectName: undefined },
+            defaults: {
+              ...account.defaults,
+              workspaceGid: next?.workspaceGid,
+              workspaceName: next?.workspaceName,
+              projectGid: undefined,
+              projectName: undefined,
+              assigneeGid: undefined,
+              assigneeName: undefined,
+            },
           })
         }
       />
@@ -172,6 +181,35 @@ function DefaultProjectField() {
             defaults: next
               ? { ...account.defaults, projectGid: next.projectGid, projectName: next.projectName }
               : { ...account.defaults, projectGid: undefined, projectName: undefined },
+          })
+        }
+      />
+    </div>
+  );
+}
+
+function DefaultAssigneeField() {
+  const t = useT();
+  const account = useSettingsStore((s) => s.accounts.asana);
+  const updateAsanaAccount = useSettingsStore((s) => s.updateAsanaAccount);
+  if (!account) return null;
+  const value: AsanaAssigneeValue | null =
+    account.defaults.assigneeGid && account.defaults.assigneeName
+      ? { gid: account.defaults.assigneeGid, name: account.defaults.assigneeName }
+      : null;
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label className="text-xs text-muted-foreground">{t("asana.field.assignee")}</label>
+      <AssigneeCombobox
+        workspaceGid={account.defaults.workspaceGid}
+        value={value}
+        onChange={(next) =>
+          updateAsanaAccount({
+            defaults: {
+              ...account.defaults,
+              assigneeGid: next?.gid,
+              assigneeName: next?.name,
+            },
           })
         }
       />

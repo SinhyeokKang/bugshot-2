@@ -514,8 +514,9 @@ function CapturingState({
   );
 }
 
+// 녹화 오버레이는 자유곡선·사각형·형광펜 3종. ANNOTATION_TOOLS 순서(pen → rect → highlight)를 따른다.
 const RECORDING_PEN_TOOLS = ANNOTATION_TOOLS.filter(
-  (m) => m.key === "pen" || m.key === "highlight",
+  (m) => m.key === "pen" || m.key === "rect" || m.key === "highlight",
 );
 
 function RecordingState({ onStop, onCancel }: { onStop: () => void; onCancel: () => void }) {
@@ -530,8 +531,8 @@ function RecordingState({ onStop, onCancel }: { onStop: () => void; onCancel: ()
 
   // 같은 툴을 다시 누르면 off(null). 색/두께 변경은 현재 툴이 켜져 있을 때만 재전송.
   const pickTool = (picked: AnnotationTool) => {
-    // ToolButtons에 pen/highlight만 넘기지만 onChange 타입은 AnnotationTool — 가드로 좁힌다.
-    if (picked !== "pen" && picked !== "highlight") return;
+    // ToolButtons엔 RECORDING_PEN_TOOLS만 넘기지만 onChange 타입은 AnnotationTool — 가드로 좁힌다.
+    if (picked !== "pen" && picked !== "rect" && picked !== "highlight") return;
     const next: RecordingPenTool | null = tool === picked ? null : picked;
     useEditorStore.getState().setAnnotationTool(next);
     if (tabId) void setAnnotationTool(tabId, next, color, thickness);
@@ -584,19 +585,19 @@ function RecordingState({ onStop, onCancel }: { onStop: () => void; onCancel: ()
           </Button>
         </div>
       </div>
-      {/* 화면에 그리기 툴바: [색] [펜·형광펜] [두께] — 이미지 어노테이션과 동일 그룹 재사용.
+      {/* 화면에 그리기 툴바: [펜·사각형·형광펜] [색] [두께] — 이미지 어노테이션과 동일 그룹 재사용.
           취소·제출 같은 액션이 없는 순수 툴바라 action footer(bg-muted)가 아니라 흰 배경(bg-background). */}
       <div
         className="flex shrink-0 items-center justify-between gap-2 border-t border-border bg-background p-4"
         title={t("issue.recording.penHint")}
       >
-        <ColorSwatches value={color} onChange={pickColor} testIdPrefix="rec-annotation-color" />
         <ToolButtons
           tools={RECORDING_PEN_TOOLS}
           value={tool}
           onChange={pickTool}
           testIdPrefix="rec-annotation-tool"
         />
+        <ColorSwatches value={color} onChange={pickColor} testIdPrefix="rec-annotation-color" />
         <ThicknessButtons
           value={thickness}
           onChange={pickThickness}

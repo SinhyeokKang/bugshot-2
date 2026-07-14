@@ -29,6 +29,7 @@ export function initialClickupFields(
   const workspaceId = defaults?.workspaceId ?? last?.workspaceId;
   const workspaceName = defaults?.workspaceName ?? last?.workspaceName;
   const sameWs = !!last?.workspaceId && last.workspaceId === workspaceId;
+  const assigneeSrc = sameWs && last?.assigneeId ? last : defaults;
   return {
     workspaceId,
     workspaceName,
@@ -36,8 +37,10 @@ export function initialClickupFields(
     spaceName: sameWs ? last?.spaceName : defaults?.spaceName,
     listId: sameWs ? last?.listId : defaults?.listId,
     listName: sameWs ? last?.listName : defaults?.listName,
-    assigneeId: sameWs ? last?.assigneeId : undefined,
-    assigneeName: sameWs ? last?.assigneeName : undefined,
+    // 해소된 workspace가 곧 defaults의 것이므로 defaults.assignee는 항상 유효(거친 스코프 예외).
+    // id·표시명은 쌍이라 소스를 통째로 고른다 — 따로 fallback하면 다른 사람 이름이 붙는다.
+    assigneeId: assigneeSrc?.assigneeId,
+    assigneeName: assigneeSrc?.assigneeName,
     cc: sameWs ? last?.cc : undefined,
   };
 }

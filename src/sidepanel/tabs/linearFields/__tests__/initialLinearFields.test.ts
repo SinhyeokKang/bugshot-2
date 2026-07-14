@@ -108,14 +108,76 @@ describe("initialLinearFields", () => {
     expect(result.assigneeName).toBeUndefined();
   });
 
-  it("last.teamId가 falsy면 defaults 사용 (assigneeName은 defaults에 없으므로 undefined)", () => {
+  // 개정: LinearDefaults에 assigneeName이 없어 defaults 경로의 표시명이 항상 undefined였다
+  // (Connect 탭에 assignee 기본값 UI가 없어 assigneeId도 채워질 일이 없던 dead field).
+  // Connect에서 default assignee를 고를 수 있게 되면 id·표시명 쌍으로 저장되어 둘 다 채워져야 한다.
+  it("last.teamId가 falsy면 defaults 사용 (assignee는 id·표시명 쌍으로 채워짐)", () => {
     const partial: Partial<LinearIssueFieldsValue> = {
       assigneeName: "Bob",
     };
-    const result = initialLinearFields(partial, defaults);
+    const result = initialLinearFields(partial, {
+      ...defaults,
+      assigneeId: "dflt",
+      assigneeName: "Default User",
+    });
     expect(result.teamId).toBe("dt");
     expect(result.teamKey).toBe("DT");
     expect(result.labelName).toBe("Default Label");
+    expect(result.assigneeId).toBe("dflt");
+    expect(result.assigneeName).toBe("Default User");
+  });
+
+  // assignee는 team 하위 필드 — last 우선·defaults fallback, 팀이 갈리면 last.assignee 무효.
+  it("같은 팀이면 last.assignee가 defaults.assignee보다 우선", () => {
+    const result = initialLinearFields(
+      { teamId: "dt", assigneeId: "lastUser", assigneeName: "Last" },
+      { ...defaults, assigneeId: "dflt", assigneeName: "Default User" },
+    );
+    expect(result.assigneeId).toBe("lastUser");
+    expect(result.assigneeName).toBe("Last");
+  });
+
+  it("같은 팀 + last에 assignee 없으면 defaults.assignee로 채움 (표시명 포함)", () => {
+    const result = initialLinearFields(
+      { teamId: "dt" },
+      { ...defaults, assigneeId: "dflt", assigneeName: "Default User" },
+    );
+    expect(result.assigneeId).toBe("dflt");
+    expect(result.assigneeName).toBe("Default User");
+  });
+
+  // team은 목적지 필드라 last 우선 → 해소된 team은 last의 것. last.assignee는 그 팀 멤버라 유효.
+  // 무효한 건 defaults.assignee(다른 팀 소속)다.
+  it("팀이 갈리면 last.assignee는 유지된다 (해소된 팀과 같은 쌍이라 유효)", () => {
+    const result = initialLinearFields(
+      { teamId: "OTHER", assigneeId: "lastUser", assigneeName: "Last" },
+      { ...defaults, assigneeId: "dflt", assigneeName: "Default User" },
+    );
+    expect(result.teamId).toBe("OTHER");
+    expect(result.assigneeId).toBe("lastUser");
+    expect(result.assigneeName).toBe("Last");
+  });
+
+  it("팀이 갈리고 last에 assignee가 없으면 defaults.assignee를 쓰지 않는다", () => {
+    const result = initialLinearFields(
+      { teamId: "OTHER" },
+      { ...defaults, assigneeId: "dflt", assigneeName: "Default User" },
+    );
+    expect(result.teamId).toBe("OTHER");
+    expect(result.assigneeId).toBeUndefined();
+    expect(result.assigneeName).toBeUndefined();
+  });
+});
+
+// assigneeId·assigneeName은 한 사람을 가리키는 쌍이다. 각각 독립으로 ?? fallback하면
+// "id는 last, 이름은 defaults"가 되어 *다른 사람 이름이 붙은 id*가 나온다.
+describe("initialLinearFields — assignee id·name 쌍 정합", () => {
+  it("last에 assignee id만 있어도 defaults의 이름을 빌려오지 않는다", () => {
+    const result = initialLinearFields(
+      { teamId: "dt", assigneeId: "lastUser" },
+      { teamId: "dt", assigneeId: "dflt", assigneeName: "Default User" },
+    );
+    expect(result.assigneeId).toBe("lastUser");
     expect(result.assigneeName).toBeUndefined();
   });
 });

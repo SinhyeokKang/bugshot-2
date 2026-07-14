@@ -25,6 +25,7 @@ import type {
   JiraSite,
 } from "@/types/jira";
 import { isOAuthCancelled, sendBg, type OAuthStartResultMsg } from "@/types/messages";
+import { AssigneeField } from "@/sidepanel/tabs/jiraFields/AssigneeField";
 import { IssueTypeCombobox } from "@/sidepanel/tabs/IssueTypeCombobox";
 import { ProjectCombobox } from "@/sidepanel/tabs/ProjectCombobox";
 import { connectMethods, type ConnectFlowProps } from "@/sidepanel/tabs/integrationsTabUtils";
@@ -43,8 +44,30 @@ export function JiraConnectedBody() {
         <label className="text-xs text-muted-foreground">{t("jira.defaultIssueType")}</label>
         <IssueTypeCombobox />
       </div>
+      <DefaultAssigneeField />
       <SetupDialog />
     </>
+  );
+}
+
+// 유저 *검색*은 사이트 전역이라 project 없이도 고를 수 있다(6개 중 유일하게 선행 불요).
+// 다만 담당자 자체는 프로젝트 스코프라(assignable user = 프로젝트 권한) 프로젝트가 바뀌면 비운다 — ProjectCombobox.
+function DefaultAssigneeField() {
+  const t = useT();
+  const account = useSettingsStore((s) => s.accounts.jira);
+  const updateJiraAccount = useSettingsStore((s) => s.updateJiraAccount);
+  if (!account) return null;
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label className="text-xs text-muted-foreground">{t("field.assignee.label")}</label>
+      <AssigneeField
+        value={account.assigneeId}
+        fallbackLabel={account.assigneeName}
+        onChange={(assigneeId, assigneeName) =>
+          updateJiraAccount({ assigneeId, assigneeName })
+        }
+      />
+    </div>
   );
 }
 

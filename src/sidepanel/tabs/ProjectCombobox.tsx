@@ -111,10 +111,14 @@ export function ProjectCombobox() {
                       value={`${project.name} ${project.key}`}
                       onSelect={() => {
                         if (jiraAccount.projectKey !== project.key) {
+                          // issueType·담당자는 프로젝트 스코프(assignable user는 프로젝트 권한에
+                          // 묶인다) — 프로젝트가 바뀌면 함께 비운다.
                           updateJiraAccount({
                             projectKey: project.key,
                             issueTypeId: undefined,
                             issueTypeName: undefined,
+                            assigneeId: undefined,
+                            assigneeName: undefined,
                           });
                         }
                         setOpen(false);

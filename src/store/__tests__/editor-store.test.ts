@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { NetworkLog } from "@/types/network";
 import type { ConsoleLog } from "@/types/console";
 
@@ -45,12 +45,15 @@ vi.mock("@/store/issues-store", () => ({
   },
 }));
 
+// Jira prefill 테스트가 lastSubmitFields/accounts를 갈아끼울 수 있게 가변으로 둔다(기본값은 빈 객체 — 기존 동작 불변).
+const settingsState = vi.hoisted(() => ({
+  current: {} as { lastSubmitFields: Record<string, unknown>; accounts: Record<string, unknown> },
+}));
+settingsState.current = { lastSubmitFields: {}, accounts: {} };
+
 vi.mock("@/store/settings-store", () => ({
   useSettingsStore: {
-    getState: () => ({
-      lastSubmitFields: {},
-      accounts: {},
-    }),
+    getState: () => settingsState.current,
   },
 }));
 
@@ -1452,5 +1455,88 @@ describe("annotationTool/Color/Thickness — 녹화 그리기 툴바 상태", ()
 
     expect(useEditorStore.getState().phase).toBe("recording");
     expect(useEditorStore.getState().annotationTool).toBe(null);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  confirmDraft jira — 기본 담당자 prefill                            */
+/* ------------------------------------------------------------------ */
+
+// 담당자는 "직전 제출값 우선, 없으면 Connect 기본값"이다(POSTMORTEM 2026-06-27: defaults가 last를
+// 가리면 안 된다). last 복원 게이트(사용자가 이미 고른 값 보호)가 이 우선순위를 뒤집으면
+// 조용히 *다른 사람*이 담당자로 붙는다.
+describe("confirmDraft jira — 기본 담당자 prefill", () => {
+  beforeEach(() => {
+    useEditorStore.setState(useEditorStore.getInitialState(), true);
+    mockSaveDraft.mockClear();
+    settingsState.current = { lastSubmitFields: {}, accounts: {} };
+  });
+
+  // 가변 mock이라 뒤에 describe가 추가되면 상태가 샌다 — 기본값으로 되돌린다.
+  afterEach(() => {
+    settingsState.current = { lastSubmitFields: {}, accounts: {} };
+  });
+
+  function seedJira(last: Record<string, unknown>, account: Record<string, unknown>) {
+    settingsState.current = {
+      lastSubmitFields: { jira: last },
+      accounts: { jira: { platform: "jira", ...account } },
+    };
+    useEditorStore.setState({
+      target,
+      targetPlatform: "jira",
+      captureMode: "screenshot",
+      screenshotRaw: "data:image/webp;base64,x",
+      draft: { title: "Jira assignee prefill", sections: {} },
+    });
+  }
+
+  it("직전 제출 담당자가 Connect 기본 담당자보다 우선한다", () => {
+    seedJira(
+      { projectKey: "ENG", assigneeId: "lastUser", assigneeName: "Last" },
+      { projectKey: "ENG", assigneeId: "dflt", assigneeName: "Default" },
+    );
+    useEditorStore.getState().confirmDraft();
+    expect(useEditorStore.getState().issueFields.assigneeId).toBe("lastUser");
+  });
+
+  it("우선순위만 미리 골라둬도 직전 제출 담당자가 유지된다 (기본값이 가로채지 않는다)", () => {
+    seedJira(
+      { projectKey: "ENG", assigneeId: "lastUser", assigneeName: "Last" },
+      { projectKey: "ENG", assigneeId: "dflt", assigneeName: "Default" },
+    );
+    // 세션 중 우선순위만 선택 — last 복원 게이트가 닫히는 조건.
+    useEditorStore.setState({ issueFields: { priorityId: "3" } });
+
+    useEditorStore.getState().confirmDraft();
+
+    const fields = useEditorStore.getState().issueFields;
+    expect(fields.assigneeId).toBe("lastUser");
+    expect(fields.assigneeName).toBe("Last");
+    expect(fields.priorityId).toBe("3");
+  });
+
+  it("직전 제출 담당자가 없으면 Connect 기본 담당자로 채운다", () => {
+    seedJira({ projectKey: "ENG" }, { projectKey: "ENG", assigneeId: "dflt", assigneeName: "Default" });
+    useEditorStore.getState().confirmDraft();
+    expect(useEditorStore.getState().issueFields.assigneeId).toBe("dflt");
+  });
+
+  it("사용자가 이미 고른 담당자를 덮지 않는다", () => {
+    seedJira(
+      { projectKey: "ENG", assigneeId: "lastUser" },
+      { projectKey: "ENG", assigneeId: "dflt" },
+    );
+    useEditorStore.setState({ issueFields: { assigneeId: "picked", assigneeName: "Picked" } });
+
+    useEditorStore.getState().confirmDraft();
+
+    expect(useEditorStore.getState().issueFields.assigneeId).toBe("picked");
+  });
+
+  it("issueFields에 projectKey가 새지 않는다 (EditorIssueFields에 없는 키 — 세션 영속 오염)", () => {
+    seedJira({ projectKey: "ENG", assigneeId: "lastUser" }, { projectKey: "ENG" });
+    useEditorStore.getState().confirmDraft();
+    expect(useEditorStore.getState().issueFields).not.toHaveProperty("projectKey");
   });
 });

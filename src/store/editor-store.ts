@@ -10,6 +10,7 @@ import type { UserAttachmentMeta } from "@/types/attachment";
 import { onBlobSaveFailed } from "@/types/messages";
 import { useIssuesStore } from "./issues-store";
 import { useSettingsStore } from "./settings-store";
+import { initialJiraFields } from "@/sidepanel/lib/initialJiraFields";
 import { saveVideoBlob, deleteVideoBlob, saveImageBlob, saveNetworkLog, deleteNetworkLog, saveConsoleLog, deleteConsoleLog, saveActionLog, deleteActionLog, dataUrlToBlob, saveAttachmentBlob, deleteAttachmentBlob, deleteAttachmentBlobs, rekeyAttachmentBlobs } from "./blob-db";
 import { takeWithinLimits, type TakeWithinLimitsResult } from "@/sidepanel/lib/attachmentLimits";
 import { DEFAULT_COLOR, DEFAULT_THICKNESS, type ThicknessKey } from "@/sidepanel/components/annotation/presets";
@@ -687,17 +688,21 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     }
     if (state.targetPlatform === "jira") {
       const { lastSubmitFields, accounts } = useSettingsStore.getState();
-      const lastJira = lastSubmitFields.jira;
       const jiraAccount = accounts.jira;
-      if (
-        lastJira?.projectKey &&
-        lastJira.projectKey === jiraAccount?.projectKey &&
-        !state.issueFields.assigneeId &&
-        !state.issueFields.priorityId
-      ) {
-        const { projectKey: _, ...restored } = lastJira;
-        set((s) => ({ issueFields: { ...restored, ...s.issueFields } }));
-      }
+      // 세션 중 사용자가 이미 고른 값이 있으면 직전 제출값 전체를 덮어 복원하지 않는다(기존 게이트).
+      const restorable = !state.issueFields.assigneeId && !state.issueFields.priorityId;
+      const init = initialJiraFields(lastSubmitFields.jira, jiraAccount);
+      set((s) => {
+        const merged = { ...(restorable ? init : {}), ...s.issueFields };
+        // 담당자는 게이트와 무관하게 비어 있을 때만 채우되, 우선순위는 init을 따른다
+        // (직전 제출값 우선 · Connect 기본값 fallback). 여기서 account만 보면 기본 담당자가
+        // 직전 담당자를 가로채 *다른 사람*이 붙는다 — POSTMORTEM 2026-06-27과 같은 계열.
+        if (!merged.assigneeId && init.assigneeId) {
+          merged.assigneeId = init.assigneeId;
+          merged.assigneeName = init.assigneeName;
+        }
+        return { issueFields: merged };
+      });
     }
     const id = state.currentIssueId ?? newIssueId();
     if (state.captureMode === "freeform") {

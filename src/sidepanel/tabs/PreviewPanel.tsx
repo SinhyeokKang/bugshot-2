@@ -288,6 +288,7 @@ export function PreviewPanel() {
         capturedAt: useEditorStore.getState().freeformCapturedAt ?? Date.now(),
         networkLogSummary: attachedNetwork ? buildNetworkLogSummary(attachedNetwork) : undefined,
         consoleLogSummary: attachedConsole ? buildConsoleLogSummary(attachedConsole) : undefined,
+        actionLogCaptured: attachedAction ? attachedAction.captured : undefined,
       });
     } else if (isVideoMode) {
       ctx = buildMarkdownContext({
@@ -343,6 +344,9 @@ export function PreviewPanel() {
         capturedAt: screenshotCapturedAt ?? Date.now(),
         selector: shotSelector?.selector,
         tagName: shotSelector?.tagName,
+        networkLogSummary: attachedNetwork ? buildNetworkLogSummary(attachedNetwork) : undefined,
+        consoleLogSummary: attachedConsole ? buildConsoleLogSummary(attachedConsole) : undefined,
+        actionLogCaptured: attachedAction ? attachedAction.captured : undefined,
       });
     } else {
       return;

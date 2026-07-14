@@ -18,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import { useSettingsStore } from "@/store/settings-store";
 import type { ClickupAccount, ClickupMyself, ClickupOAuthAuth } from "@/types/clickup";
 import { isOAuthCancelled, sendBg } from "@/types/messages";
+import { AssigneeCombobox, type AssigneeValue as ClickupAssigneeValue } from "@/sidepanel/tabs/clickupFields/AssigneeCombobox";
 import { ListCombobox, type ListValue } from "@/sidepanel/tabs/clickupFields/ListCombobox";
 import { SpaceCombobox, type SpaceValue } from "@/sidepanel/tabs/clickupFields/SpaceCombobox";
 import { WorkspaceCombobox, type WorkspaceValue } from "@/sidepanel/tabs/clickupFields/WorkspaceCombobox";
@@ -33,6 +34,7 @@ export function ClickupConnectedBody() {
       <DefaultWorkspaceField />
       <DefaultSpaceField />
       <DefaultListField />
+      <DefaultAssigneeField />
     </>
   );
 }
@@ -140,10 +142,19 @@ function DefaultWorkspaceField() {
       <WorkspaceCombobox
         value={value}
         onChange={(next) =>
+          // space·list·assignee는 workspace 하위 값이라 workspace가 바뀌면 함께 비운다.
           updateClickupAccount({
-            defaults: next
-              ? { ...account.defaults, workspaceId: next.workspaceId, workspaceName: next.workspaceName, spaceId: undefined, spaceName: undefined, listId: undefined, listName: undefined }
-              : { ...account.defaults, workspaceId: undefined, workspaceName: undefined, spaceId: undefined, spaceName: undefined, listId: undefined, listName: undefined },
+            defaults: {
+              ...account.defaults,
+              workspaceId: next?.workspaceId,
+              workspaceName: next?.workspaceName,
+              spaceId: undefined,
+              spaceName: undefined,
+              listId: undefined,
+              listName: undefined,
+              assigneeId: undefined,
+              assigneeName: undefined,
+            },
           })
         }
       />
@@ -198,6 +209,35 @@ function DefaultListField() {
             defaults: next
               ? { ...account.defaults, listId: next.listId, listName: next.listName }
               : { ...account.defaults, listId: undefined, listName: undefined },
+          })
+        }
+      />
+    </div>
+  );
+}
+
+function DefaultAssigneeField() {
+  const t = useT();
+  const account = useSettingsStore((s) => s.accounts.clickup);
+  const updateClickupAccount = useSettingsStore((s) => s.updateClickupAccount);
+  if (!account) return null;
+  const value: ClickupAssigneeValue | null =
+    account.defaults.assigneeId && account.defaults.assigneeName
+      ? { id: account.defaults.assigneeId, name: account.defaults.assigneeName }
+      : null;
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label className="text-xs text-muted-foreground">{t("clickup.field.assignee")}</label>
+      <AssigneeCombobox
+        workspaceId={account.defaults.workspaceId}
+        value={value}
+        onChange={(next) =>
+          updateClickupAccount({
+            defaults: {
+              ...account.defaults,
+              assigneeId: next?.id,
+              assigneeName: next?.name,
+            },
           })
         }
       />

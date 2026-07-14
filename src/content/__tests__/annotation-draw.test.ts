@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { pointsToPath, dropExpired, smoothPoint, PEN_SMOOTHING_ALPHA } from "../annotation-draw";
+import { pointsToPath, dropExpired, smoothPoint, rectPoints, PEN_SMOOTHING_ALPHA } from "../annotation-draw";
 import { PEN_SMOOTHING_ALPHA as KONVA_PEN_SMOOTHING_ALPHA } from "@/sidepanel/components/annotation/shapes";
 
 describe("pointsToPath", () => {
@@ -105,5 +105,37 @@ describe("smoothPoint", () => {
   it("드리프트 가드: content 스무딩 계수가 konva shapes.ts와 동일하다", () => {
     expect(PEN_SMOOTHING_ALPHA).toBe(KONVA_PEN_SMOOTHING_ALPHA);
     expect(PEN_SMOOTHING_ALPHA).toBe(0.35);
+  });
+});
+
+// 박스는 네 꼭짓점을 같은 시각으로 찍어 기존 path 렌더·만료 경로를 그대로 탄다
+// (점별 트레일 페이드가 아니라 3초 뒤 통째로 사라진다 — 도형이라 그게 자연스럽다).
+describe("rectPoints", () => {
+  it("시작점→끝점 사각형을 닫힌 점열로 만든다", () => {
+    const pts = rectPoints([10, 20], [40, 60], 100);
+    expect(pts).toEqual([
+      [10, 20, 100],
+      [40, 20, 100],
+      [40, 60, 100],
+      [10, 60, 100],
+      [10, 20, 100],
+    ]);
+  });
+
+  it("역방향 드래그(오른쪽 아래 → 왼쪽 위)도 같은 사각형", () => {
+    const pts = rectPoints([40, 60], [10, 20], 5);
+    expect(pointsToPath(pts)).toBe(pointsToPath(rectPoints([10, 20], [40, 60], 5)));
+  });
+
+  it("모든 점의 타임스탬프가 같아 통째로 만료된다", () => {
+    const pts = rectPoints([0, 0], [10, 10], 1000);
+    expect(new Set(pts.map((p) => p[2])).size).toBe(1);
+    expect(dropExpired([...pts], 1000 + 3001, 3000)).toEqual([]);
+  });
+
+  it("닫힌 경로라 pointsToPath가 사각형을 그린다", () => {
+    expect(pointsToPath(rectPoints([0, 0], [10, 5], 0))).toBe(
+      "M0 0 L10 0 L10 5 L0 5 L0 0",
+    );
   });
 });

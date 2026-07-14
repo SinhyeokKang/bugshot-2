@@ -3,6 +3,7 @@ import {
   truncateName,
   maskValue,
   shouldMaskField,
+  isSensitiveValue,
   entryNavOnBind,
   formatKeyCombo,
   exceedsDragThreshold,
@@ -120,11 +121,22 @@ function actionRecorderScript(): void {
     return ROLE_BY_TAG[tag] ?? null;
   }
 
+  // click·drag·keypress의 target이 모두 여기를 지난다 — 값 경로(recordInput/recordSelect)와
+  // 달리 마스킹 게이트가 없어 저작물·PII가 이름으로 새던 구멍을 여기서 막는다.
   function accessibleName(el: Element): string | null {
+    const raw = rawAccessibleName(el);
+    if (!raw) return null;
+    return isSensitiveValue(raw) ? maskValue(raw) : raw;
+  }
+
+  function rawAccessibleName(el: Element): string | null {
     const aria = el.getAttribute("aria-label");
     if (aria?.trim()) return aria.trim();
-    const text = (el.textContent || "").replace(/\s+/g, " ").trim();
-    if (text) return text;
+    // contentEditable(메일 본문·문서·메시지)의 textContent는 사용자 저작물이라 이름으로 쓰지 않는다.
+    if (!(el as HTMLElement).isContentEditable) {
+      const text = (el.textContent || "").replace(/\s+/g, " ").trim();
+      if (text) return text;
+    }
     const title = el.getAttribute("title");
     if (title?.trim()) return title.trim();
     const alt = el.getAttribute("alt");
@@ -140,6 +152,11 @@ function actionRecorderScript(): void {
   }
 
   function fieldLabel(el: Element): string {
+    const raw = rawFieldLabel(el);
+    return isSensitiveValue(raw) ? maskValue(raw) : raw;
+  }
+
+  function rawFieldLabel(el: Element): string {
     const aria = el.getAttribute("aria-label");
     if (aria?.trim()) return aria.trim();
     if (el.id) {
@@ -194,6 +211,24 @@ function actionRecorderScript(): void {
     });
   }
 
+  function cleanText(el: Element | null): string | undefined {
+    return el?.textContent?.replace(/\s+/g, " ").trim() || undefined;
+  }
+
+  // 마스킹 판정용 라벨 수집 — label[for]·암묵 라벨(래핑)·aria-labelledby 전부.
+  function labelForText(el: Element): string | undefined {
+    if (el.id) {
+      const forLabel = cleanText(document.querySelector(`label[for="${CSS.escape(el.id)}"]`));
+      if (forLabel) return forLabel;
+    }
+    const labelledBy = el.getAttribute("aria-labelledby");
+    if (labelledBy) {
+      const ref = cleanText(document.getElementById(labelledBy));
+      if (ref) return ref;
+    }
+    return cleanText(el.closest("label"));
+  }
+
   function fieldMaskInput(el: Element) {
     const input = el as HTMLInputElement;
     return {
@@ -202,16 +237,18 @@ function actionRecorderScript(): void {
       id: el.id || undefined,
       autocomplete: el.getAttribute("autocomplete") ?? undefined,
       ariaLabel: el.getAttribute("aria-label") ?? undefined,
+      labelText: labelForText(el),
+      placeholder: el.getAttribute("placeholder") ?? undefined,
     };
   }
 
   function recordInput(el: HTMLElement): void {
     const input = el as HTMLInputElement;
     const isContentEditable = el.isContentEditable;
-    const masked = shouldMaskField(fieldMaskInput(el));
-    const raw = isContentEditable
-      ? (el.textContent || "").trim()
-      : input.value ?? "";
+    const raw = isContentEditable ? "" : input.value ?? "";
+    // contentEditable은 사용자 저작물(메일 본문·문서·메시지)이라 값을 싣지 않는다 — 입력 사실만.
+    const masked =
+      isContentEditable || shouldMaskField(fieldMaskInput(el)) || isSensitiveValue(raw);
     const value = masked ? maskValue(raw) : raw.slice(0, VALUE_CAP);
     const selector = buildLightSelector(el);
 
@@ -297,13 +334,16 @@ function actionRecorderScript(): void {
   }
 
   function recordSelect(el: HTMLSelectElement): void {
+    const raw = selectedText(el);
+    const masked = shouldMaskField(fieldMaskInput(el)) || isSensitiveValue(raw);
     pushAction({
       id: genId(),
       kind: "select",
       timestamp: Date.now(),
       pageUrl: location.href,
       fieldLabel: fieldLabel(el),
-      value: selectedText(el),
+      value: masked ? maskValue(raw) : raw,
+      masked,
       selector: buildLightSelector(el),
     });
   }

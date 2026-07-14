@@ -348,31 +348,68 @@ describe("buildCaptureFiles — freeform mode", () => {
   });
 });
 
-describe("buildCaptureFiles — actionLog video-only 스코핑", () => {
-  it("video + actionLog → logs.html 생성", async () => {
+describe("buildCaptureFiles — actionLog 스코핑 (console/network와 동일 계약)", () => {
+  // buildLogsHtml(network, console, action, ...) — action은 3번째 인자.
+  function lastActionArg(): unknown {
+    const call = buildLogsHtmlSpy.mock.calls.at(-1);
+    return call ? call[2] : undefined;
+  }
+
+  it("video + actionLog → logs.html 생성 + action 전달", async () => {
+    buildLogsHtmlSpy.mockClear();
     const out = await buildCaptureFiles({
       captureMode: "video",
       actionLog,
       pageUrl: "https://example.com",
     });
     expect(out.logs.map((l) => l.filename)).toEqual(["logs.html"]);
+    expect(lastActionArg()).toBe(actionLog);
   });
 
-  it("freeform + actionLog → logs.html 없음 (actionLog video-only 스코핑)", async () => {
-    const out = await buildCaptureFiles({
-      captureMode: "freeform",
-      actionLog,
-      pageUrl: "https://example.com",
-    });
-    expect(out.logs).toEqual([]);
-  });
-
-  it("screenshot + actionLog → logs.html 없음", async () => {
+  it("screenshot + actionLog만 → logs.html 생성 + action 전달 (계약 확장)", async () => {
+    buildLogsHtmlSpy.mockClear();
     const out = await buildCaptureFiles({
       captureMode: "screenshot",
       screenshotImage: "data:x",
       actionLog,
       pageUrl: "https://example.com",
+    });
+    expect(out.logs.map((l) => l.filename)).toEqual(["logs.html"]);
+    expect(lastActionArg()).toBe(actionLog);
+  });
+
+  it("freeform + actionLog만 → logs.html 생성 + action 전달 (계약 확장)", async () => {
+    buildLogsHtmlSpy.mockClear();
+    const out = await buildCaptureFiles({
+      captureMode: "freeform",
+      actionLog,
+      pageUrl: "https://example.com",
+    });
+    expect(out.logs.map((l) => l.filename)).toEqual(["logs.html"]);
+    expect(lastActionArg()).toBe(actionLog);
+  });
+
+  it("element + actionLog → logs 없음 (element는 로그 전무 — 회귀 가드)", async () => {
+    buildLogsHtmlSpy.mockClear();
+    const out = await buildCaptureFiles({
+      captureMode: "element",
+      beforeImages: ["data:B0"],
+      actionLog,
+      networkLog,
+      consoleLog,
+      pageUrl: "https://example.com",
+    });
+    expect(out.logs).toEqual([]);
+    expect(buildLogsHtmlSpy).not.toHaveBeenCalled();
+  });
+
+  it("screenshot + actionLog=null → logs 빈 (로그 전무 게이팅 유지)", async () => {
+    const out = await buildCaptureFiles({
+      captureMode: "screenshot",
+      screenshotImage: "data:x",
+      actionLog: null,
+      networkLog: null,
+      consoleLog: null,
     });
     expect(out.logs).toEqual([]);
   });

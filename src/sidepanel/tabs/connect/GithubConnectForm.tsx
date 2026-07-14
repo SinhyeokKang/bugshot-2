@@ -22,6 +22,7 @@ import type {
   GithubOAuthAuth,
 } from "@/types/github";
 import { isOAuthCancelled, sendBg } from "@/types/messages";
+import { AssigneeCombobox } from "@/sidepanel/tabs/githubFields/AssigneeCombobox";
 import { LabelCombobox } from "@/sidepanel/tabs/githubFields/LabelCombobox";
 import { RepoCombobox, type RepoValue } from "@/sidepanel/tabs/githubFields/RepoCombobox";
 import { connectMethods, type ConnectFlowProps } from "@/sidepanel/tabs/integrationsTabUtils";
@@ -137,10 +138,15 @@ function DefaultRepoField() {
       <RepoCombobox
         value={value}
         onChange={(next) =>
+          // label·assignee는 repo 하위 값이라 repo가 바뀌면(교체·해제 모두) 함께 비운다.
           updateGithubAccount({
-            defaults: next
-              ? { ...account.defaults, owner: next.owner, repo: next.repo }
-              : { ...account.defaults, owner: undefined, repo: undefined, label: undefined, assignee: undefined },
+            defaults: {
+              ...account.defaults,
+              owner: next?.owner,
+              repo: next?.repo,
+              label: undefined,
+              assignee: undefined,
+            },
           })
         }
       />
@@ -154,19 +160,34 @@ function DefaultIssueSettingsFields() {
   const updateGithubAccount = useSettingsStore((s) => s.updateGithubAccount);
   if (!account) return null;
   return (
-    <div className="flex flex-col gap-1.5">
-      <label className="text-xs text-muted-foreground">{t("github.field.labels")}</label>
-      <LabelCombobox
-        owner={account.defaults.owner}
-        repo={account.defaults.repo}
-        value={account.defaults.label}
-        onChange={(next) =>
-          updateGithubAccount({
-            defaults: { ...account.defaults, label: next },
-          })
-        }
-      />
-    </div>
+    <>
+      <div className="flex flex-col gap-1.5">
+        <label className="text-xs text-muted-foreground">{t("github.field.labels")}</label>
+        <LabelCombobox
+          owner={account.defaults.owner}
+          repo={account.defaults.repo}
+          value={account.defaults.label}
+          onChange={(next) =>
+            updateGithubAccount({
+              defaults: { ...account.defaults, label: next },
+            })
+          }
+        />
+      </div>
+      <div className="flex flex-col gap-1.5">
+        <label className="text-xs text-muted-foreground">{t("github.field.assignee")}</label>
+        <AssigneeCombobox
+          owner={account.defaults.owner}
+          repo={account.defaults.repo}
+          value={account.defaults.assignee}
+          onChange={(next) =>
+            updateGithubAccount({
+              defaults: { ...account.defaults, assignee: next },
+            })
+          }
+        />
+      </div>
+    </>
   );
 }
 

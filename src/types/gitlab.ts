@@ -26,7 +26,10 @@ export interface GitlabDefaults {
   projectId?: number;
   projectPath?: string;
   label?: string;
-  assignee?: string;
+  // 필드값과 같은 형태(id + 표시명)로 저장 — 과거 `assignee?: string`은 런타임 assigneeId(number)와
+  // 불일치한 채 쓰이지도 않던 dead field였다.
+  assigneeId?: number;
+  assigneeName?: string;
 }
 
 export interface GitlabAccount extends PlatformAccountBase<"gitlab"> {
