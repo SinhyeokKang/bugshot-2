@@ -40,7 +40,9 @@ When you use a field that selects a user — such as assignee, CC (watcher), or 
 | DOM element style information | When selecting an element | Style comparison and issue body generation |
 | Screenshots (area / screen / full page) / tab recordings | When capturing / recording a tab | Capturing the range you choose to attach to an issue — **full-page capture automatically scrolls the page beyond the visible screen and stitches multiple shots together, so content that was off-screen is included in the image** |
 | Inline editor images | When inserting part of the screen into the issue body | Capturing the current tab's screen (`captureVisibleTab`) and inserting only the selected region into the body |
-| Screen recording video | When the screen-recording mode is selected | Recording the target **you choose yourself** in the browser's screen-share dialog (which may include the entire screen, other app windows, or other tabs — including screens outside the tab where BugShot is open) to attach to an issue |
+| Screen recording video | When the screen-recording mode is selected, **or when tab recording is unavailable and BugShot falls back to screen sharing** | Recording the target **you choose yourself** in the browser's screen-share dialog (which may include the entire screen, other app windows, or other tabs — including screens outside the tab where BugShot is open) to attach to an issue. If tab-capture permission is revoked mid-flow (for example by navigating away), the screen-share dialog opens instead, and **even then recording does not start until you pick a target yourself** |
+| Annotations | When you draw on a screenshot or on the page during a recording | Composited into the image or video **on your device only**. Nothing is collected or transmitted separately |
+| Audio | — | **Never collected.** Tab recording, screen recording, and the 30-second replay all capture video without microphone or system audio |
 | Network request logs | When debug capture is enabled | Attaching to an issue (debug information) |
 | WebSocket messages (text frame payloads) | When debug capture is enabled | Attaching to an issue (debug information — sent/received text messages, excluding binary) |
 | Console logs | When debug capture is enabled | Attaching to an issue (debug information) |
@@ -69,7 +71,7 @@ When you reload a page on which you have previously started debug capture, resum
 |---|---|---|
 | LLM provider settings (base URL, API key, model) | When configuring the AI draft / AI styling feature | Calling the LLM API |
 
-The LLM API key is stored obfuscated.
+The LLM API key is stored obfuscated. You choose the provider yourself; presets ship base URLs for OpenAI, Anthropic, Gemini, Groq, OpenRouter, Together, and Ollama — **when you use an AI feature, the material for the draft (title, body, style changes, annotated image, log summaries) is sent to the provider you picked.** Nothing is sent if you don't turn the AI features on.
 
 On browsers that support Chrome's built-in AI (Prompt API), drafts and CSS change suggestions can be generated with the on-device model without any external API call. In that case, data never leaves your device and no separate API key is required.
 
