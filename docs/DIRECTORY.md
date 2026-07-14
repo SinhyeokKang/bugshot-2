@@ -1,6 +1,6 @@
 # DIRECTORY.md
 
-디렉터리 구조 + 파일별 역할. 테스트 파일은 대상과 같은 디렉터리의 `__tests__/*.test.ts`에 위치.
+디렉터리 구조 + 파일별 역할. 테스트 파일은 대상과 같은 디렉터리의 `__tests__/*.test.ts(x)`에 위치.
 
 ```
 src/
@@ -95,6 +95,7 @@ src/
 ├── components/ui/       # shadcn 컴포넌트 + collapsing-tabs.tsx(CollapsingTabsList/TabLabel — 폭 부족 시 탭 라벨을 아이콘만 남기고 일괄 접는 측정 기반 래퍼. 메인/서브/플랫폼/로그뷰어 탭 공용, 필터 탭 제외)
 ├── components/icons/    # 커스텀 브랜드 아이콘 (SlackIcon — @icons-pack/react-simple-icons 미제공 Slack 로고 인라인 SVG)
 ├── styles/              # globals.css (Tailwind/shadcn 디자인 토큰·다크모드 CSS 변수·커스텀 스크롤바·Pretendard import). 디자인 시스템·UI 컨벤션 전반은 DESIGN.md(docs/)
+├── test/               # 테스트 셋업 — setup-dom.ts(`*.test.tsx`(jsdom) 전용: testing-library cleanup + ResizeObserver·PointerCapture·scrollIntoView 폴리필. vitest.config.ts의 environmentMatchGlobs가 확장자로 환경을 가른다 — `*.test.ts`는 node라 무관)
 └── types/               # platform.ts (PlatformId/Accounts/LastSubmitFieldsByPlatform), github.ts, jira.ts, linear.ts, notion.ts, gitlab.ts (GitlabAuth/GitlabPatAuth/GitlabOAuthAuth + 이슈 페이로드·상태 타입), asana.ts (AsanaAuth/AsanaPatAuth/AsanaOAuthAuth + workspace/project/user/task 페이로드·상태 타입), clickup.ts (ClickupAuth/ClickupPatAuth/ClickupOAuthAuth + workspace/space/list/user/task 페이로드·상태 타입 — 토큰 만료 없음이라 OAuth auth에 expiresAt/refreshToken 없음), slack.ts (SlackAuth=SlackOAuthAuth(OAuth 전용·BYOK 없음·만료 없음) + SlackAccount(teamId/teamName/defaults) + channel/user/message 페이로드 타입 + SlackOAuthResult), environment.ts (EnvironmentRow), console.ts, network.ts, action.ts (ActionEntry/ActionLog/ActionLogSummary), attachment.ts (UserAttachmentMeta — 사용자 첨부 파일 메타), messages.ts, picker.ts, log-viewer.ts (LogViewerData/LogViewerReport — 로그 뷰어 데이터 + Report 탭 본문 인터페이스, video 동기화·screenshot 정적·report 임베드 포함), user-agent-data.d.ts (NavigatorUAData 타입 보강) 등
 vite.log-viewer.config.ts# 로그 뷰어 전용 Vite 빌드 설정 (viteSingleFile → dist-log-viewer/index.html 단일 파일, @/i18n alias redirect)
 tsconfig.e2e.json        # e2e/ 전용 tsconfig — 루트 references 편입으로 pnpm typecheck가 spec·fixture 타입을 검사 (Playwright는 transpile만 함)
