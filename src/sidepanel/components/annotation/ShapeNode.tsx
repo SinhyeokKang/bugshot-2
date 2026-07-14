@@ -19,6 +19,9 @@ interface ShapeNodeProps {
   onSelect: () => void;
   onCommit: (attrs: TransformAttrs) => void;
   registerRef: (id: string, node: Konva.Node | null) => void;
+  // 표시 배율. 도형 좌표는 natural이고 캔버스는 CSS로 스케일되므로, 화면에서 일정한 hit 영역을
+  // 유지하려면 배율로 나눠야 한다(400%면 natural 6px = 화면 24px).
+  scale: number;
   // 도형을 벗어날 때 복구할 커서. 오버레이가 도구·팬 상태로 결정하므로 여기서 "default"를
   // 하드코딩하면 팬의 grab 커서를 덮어쓴다.
   restCursor?: string;
@@ -31,7 +34,7 @@ function isPointsShape(type: AnnotationShape["type"]): boolean {
 }
 
 // stroke만 있는 도형은 hit 영역이 stroke 폭뿐이라 정확히 눌러야 선택된다 →
-// hit 영역을 넓혀 경계 근처 클릭으로도 잡히게 한다(렌더엔 영향 없음).
+// hit 영역을 넓혀 경계 근처 클릭으로도 잡히게 한다(렌더엔 영향 없음). 화면 기준 px.
 const SELECT_HIT_WIDTH = 24;
 
 export function ShapeNode({
@@ -40,9 +43,11 @@ export function ShapeNode({
   onSelect,
   onCommit,
   registerRef,
+  scale,
   restCursor = "default",
   cursorLocked = false,
 }: ShapeNodeProps) {
+  const hitWidth = SELECT_HIT_WIDTH / scale;
   const ref = (node: Konva.Node | null) => registerRef(shape.id, node);
 
   const readAttrs = (node: Konva.Node): TransformAttrs => ({
@@ -99,7 +104,7 @@ export function ShapeNode({
           strokeWidth={shape.strokeWidth}
           pointerLength={head}
           pointerWidth={head}
-          hitStrokeWidth={Math.max(SELECT_HIT_WIDTH, shape.strokeWidth)}
+          hitStrokeWidth={Math.max(hitWidth, shape.strokeWidth)}
         />
       );
     }
@@ -115,7 +120,7 @@ export function ShapeNode({
           stroke={shape.color}
           strokeWidth={shape.strokeWidth}
           fill="transparent"
-          hitStrokeWidth={SELECT_HIT_WIDTH}
+          hitStrokeWidth={hitWidth}
         />
       );
     case "ellipse": {
@@ -136,7 +141,7 @@ export function ShapeNode({
           stroke={shape.color}
           strokeWidth={shape.strokeWidth}
           fill="transparent"
-          hitStrokeWidth={SELECT_HIT_WIDTH}
+          hitStrokeWidth={hitWidth}
         />
       );
     }
@@ -150,7 +155,7 @@ export function ShapeNode({
           lineCap="round"
           lineJoin="round"
           tension={0.4}
-          hitStrokeWidth={Math.max(SELECT_HIT_WIDTH, shape.strokeWidth)}
+          hitStrokeWidth={Math.max(hitWidth, shape.strokeWidth)}
         />
       );
     case "highlight": {
@@ -165,7 +170,7 @@ export function ShapeNode({
           opacity={HIGHLIGHT_OPACITY}
           lineCap="round"
           lineJoin="round"
-          hitStrokeWidth={Math.max(SELECT_HIT_WIDTH, hlWidth)}
+          hitStrokeWidth={Math.max(hitWidth, hlWidth)}
         />
       );
     }

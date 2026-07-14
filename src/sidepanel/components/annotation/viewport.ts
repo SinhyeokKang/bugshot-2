@@ -1,5 +1,7 @@
 // 어노테이션 캔버스의 줌·팬 계산. DOM·React 의존 없는 순수 함수 단일 출처.
 
+import type { AnnotationTool } from "./presets";
+
 export const ZOOM_PRESETS = [0.25, 0.5, 0.75, 1, 1.5, 2, 3, 4] as const;
 export const MAX_ZOOM = 4;
 
@@ -25,6 +27,31 @@ export function normalizeZoom(next: number, fit: number, fitAll: number): ZoomLe
   if (Math.abs(next - fit) < EPS) return null;
   if (Math.abs(next - fitAll) < EPS) return "all";
   return next;
+}
+
+// 뷰포트 크기가 바뀌어 fit/fitAll이 갱신된 뒤, 현재 줌 의도가 스톱 목록에서 사라졌으면 맞춤으로
+// 되돌린다. 방치하면 Select value가 어떤 항목과도 안 맞고 맞춤 버튼이 no-op으로 뜨는 유령 상태가 된다.
+export function refitZoom(zoom: ZoomLevel, fit: number, fitAll: number): ZoomLevel {
+  if (zoom === null) return null;
+  // 전체 조망은 fitAll이 fit보다 작을 때만 스톱에 존재한다(가로가 지배하면 항목 자체가 없다).
+  if (zoom === "all") return fitAll < fit - EPS ? "all" : null;
+  return zoom <= fit + EPS ? null : zoom;
+}
+
+interface ScrollExtent {
+  scrollWidth: number;
+  clientWidth: number;
+  scrollHeight: number;
+  clientHeight: number;
+}
+
+export function canPan(m: ScrollExtent): boolean {
+  return m.scrollHeight > m.clientHeight || m.scrollWidth > m.clientWidth;
+}
+
+export function toolCursor(tool: AnnotationTool, panEnabled: boolean): string {
+  if (tool === "select") return panEnabled ? "grab" : "default";
+  return "crosshair";
 }
 
 // 이미지 폭을 가용 폭에 맞추는 배율. 확대는 안 함(최대 1).

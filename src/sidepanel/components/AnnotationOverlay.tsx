@@ -29,14 +29,16 @@ import {
   type TextShape,
 } from "./annotation/shapes";
 import {
+  canPan,
   centerAnchoredScroll,
   fitAllScale,
   fitWidthScale,
   normalizeZoom,
   PAN_CLICK_THRESHOLD,
   panScroll,
+  refitZoom,
   resolveScale,
-  ZOOM_EPS,
+  toolCursor,
   type ZoomLevel,
 } from "./annotation/viewport";
 import {
@@ -74,16 +76,6 @@ interface PanOrigin {
   moved: boolean; // 임계값을 넘겼는가 = 클릭이 아니라 드래그였는가
 }
 
-function toolCursor(tool: AnnotationTool, panEnabled: boolean): string {
-  if (tool === "select") return panEnabled ? "grab" : "default";
-  return "crosshair";
-}
-
-// 스크롤 여지가 있으면 팬 가능. 계산으로 복제하면 스크롤바 폭·서브픽셀에서 어긋나므로 DOM을 읽는다.
-function canPan(el: HTMLElement): boolean {
-  return el.scrollHeight > el.clientHeight || el.scrollWidth > el.clientWidth;
-}
-
 // Konva는 container()가 아니라 그 자식 .konvajs-content에 리스너를 건다. 포인터 캡처는 캡처
 // 타깃의 조상으로만 전파되므로, container에 걸면 content가 move/up을 못 받아 드래그가 죽는다.
 function pointerTarget(stage: Konva.Stage): HTMLDivElement {
@@ -119,6 +111,9 @@ export default function AnnotationOverlay({
   const viewportRef = useRef<HTMLDivElement>(null);
   const panRef = useRef<PanOrigin | null>(null);
   const pendingScrollRef = useRef<{ scrollLeft: number; scrollTop: number } | null>(null);
+  const committedRef = useRef<TextEditing | null>(null);
+  const drawPointerRef = useRef<number | null>(null);
+  const abortRef = useRef<(pointerId: number) => void>(() => {});
 
   const shapes = history.present;
 
@@ -182,14 +177,14 @@ export default function AnnotationOverlay({
     setPanEnabled(el ? canPan(el) : false);
   }, [scale, vp.w, vp.h, image]);
 
-  // 패널이 넓어져 fit이 사용자가 고정한 배율을 따라잡으면 그 배율이 스톱 목록에서 사라지므로 맞춤으로
-  // 되돌린다(등호 포함 — fit === zoom이면 맞춤과 구별되지 않는데 refit만 못 따라가는 유령 상태가 된다).
-  // "all"은 fitAll을 추종하는 의도라 대상이 아니다(fitAll ≤ fit은 항상 참).
+  // 뷰포트가 바뀌면 줌 의도를 재정규화 — 스톱에서 사라진 배율이 유령 상태로 남지 않게.
   useEffect(() => {
-    if (typeof zoom === "number" && zoom <= fit + ZOOM_EPS) setZoom(null);
-  }, [zoom, fit]);
+    const next = refitZoom(zoom, fit, fitAll);
+    if (next !== zoom) setZoom(next);
+  }, [zoom, fit, fitAll]);
 
-  // 편집 중 textarea는 position:fixed라 배율·스크롤이 바뀌면 좌표가 어긋난다 → 스크롤 시 커밋.
+  // 편집 중 textarea는 position:fixed라 배율·스크롤이 바뀌면 좌표가 어긋난다 → 둘 다 커밋으로 회피.
+  // (배율은 applyScale에서도 커밋하지만, 패널 리사이즈로 fit이 바뀌는 경로는 여기서만 걸린다.)
   useEffect(() => {
     const el = viewportRef.current;
     if (!el || !editing) return;
@@ -198,6 +193,28 @@ export default function AnnotationOverlay({
     return () => el.removeEventListener("scroll", onScroll);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editing]);
+
+  useEffect(() => {
+    commitText();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scale]);
+
+  // Konva는 DOM pointercancel을 받아도 노드 이벤트 pointercancel을 발화하지 않는다(Stage.js:_pointercancel
+  // 은 도형이 있으면 pointerup으로 바꿔 쏘고, 없으면 아무것도 안 쏜다) → react-konva prop으로는 못 잡는다.
+  // 캡처 타깃(stage.content)에 네이티브로 직접 건다. 안 걸면 터치 팬을 브라우저가 스크롤로 가져갈 때
+  // panRef/draftShape가 남아 이후 모든 제스처가 down 가드에 막힌다.
+  useEffect(() => {
+    const stage = stageRef.current;
+    if (!stage) return;
+    const content = pointerTarget(stage);
+    const onAbort = (e: PointerEvent) => abortRef.current(e.pointerId);
+    content.addEventListener("pointercancel", onAbort);
+    content.addEventListener("lostpointercapture", onAbort);
+    return () => {
+      content.removeEventListener("pointercancel", onAbort);
+      content.removeEventListener("lostpointercapture", onAbort);
+    };
+  }, [image]);
 
   // 도구별 커서. image dep은 Stage 마운트(이미지 로드) 직후 커서를 재적용하기 위함.
   useEffect(() => {
@@ -293,8 +310,11 @@ export default function AnnotationOverlay({
     });
   };
 
+  // 여러 경로(blur·스크롤·배율 변경)가 같은 배치에서 겹쳐 부를 수 있다. editing 클로저는 그때까지
+  // 갱신되지 않으므로 state 가드만으론 도형이 두 번 push된다 → ref로 커밋 여부를 확정한다.
   const commitText = () => {
-    if (!editing) return;
+    if (!editing || committedRef.current === editing) return;
+    committedRef.current = editing;
     const { shape, value } = editing;
     setEditing(null);
     if (!value.trim()) return;
@@ -330,10 +350,12 @@ export default function AnnotationOverlay({
     if (target.hasPointerCapture(pointerId)) target.releasePointerCapture(pointerId);
   };
 
-  const endPan = (): boolean => {
+  // 반환 true = 이 포인터 이벤트는 팬이 처리했으니 그리기 경로로 넘기지 않는다.
+  const endPan = (pointerId: number): boolean => {
     const pan = panRef.current;
     const stage = stageRef.current;
     if (!pan || !stage) return false;
+    if (pointerId !== pan.pointerId) return true; // 팬 중 들어온 다른 포인터는 제스처를 끝내지 못한다
     panRef.current = null;
     setPanning(false);
     releaseCapture(pan.pointerId);
@@ -374,6 +396,7 @@ export default function AnnotationOverlay({
     }
     // 드래그가 캔버스 밖이나 플로팅 줌 컨트롤 위를 지나가도 도형이 커밋되도록 포인터를 붙잡는다.
     pointerTarget(stage).setPointerCapture(e.evt.pointerId);
+    drawPointerRef.current = e.evt.pointerId;
     setDraftShape(
       createShape(tool, crypto.randomUUID(), pt, {
         color,
@@ -408,8 +431,17 @@ export default function AnnotationOverlay({
   };
 
   const handlePointerUp = (e: KonvaEventObject<PointerEvent>) => {
-    if (endPan()) return;
-    releaseCapture(e.evt.pointerId);
+    const id = e.evt.pointerId;
+    // Konva는 pointercancel을 받으면 포인터 아래 도형에 pointerup을 대신 쏜다(Stage.js:_pointercancel).
+    // 그리기 중엔 draft가 항상 포인터 아래라 이 경로로 들어오는데, 취소를 커밋으로 오인하면 안 된다.
+    if (e.evt.type !== "pointerup") {
+      abortGesture(id);
+      return;
+    }
+    if (endPan(id)) return;
+    if (drawPointerRef.current !== id) return; // 그리기를 시작한 포인터의 up만 커밋한다
+    drawPointerRef.current = null;
+    releaseCapture(id);
     if (!draftShape) return;
     const d = draftShape;
     setDraftShape(null);
@@ -421,12 +453,18 @@ export default function AnnotationOverlay({
     pushShapes((prev) => [...prev, d]);
   };
 
-  // 캡처가 강제 해제되면(제스처 취소) 팬은 물론 진행 중인 draft도 버린다 — 유령 도형 방지.
-  const handlePointerCancel = (e: KonvaEventObject<PointerEvent>) => {
-    if (endPan()) return;
-    releaseCapture(e.evt.pointerId);
+  // 제스처가 취소되면(터치 팬을 브라우저가 스크롤로 가져감, 캡처 강제 해제 등) 팬도 draft도 버린다.
+  const abortGesture = (pointerId: number) => {
+    if (typeof pointerId !== "number") return; // touchcancel은 pointerId가 없다
+    if (endPan(pointerId)) return;
+    if (drawPointerRef.current !== pointerId) return;
+    drawPointerRef.current = null;
+    releaseCapture(pointerId);
     setDraftShape(null);
   };
+  useEffect(() => {
+    abortRef.current = abortGesture;
+  });
 
   const handleColorChange = (c: string) => {
     setColor(c);
@@ -543,7 +581,6 @@ export default function AnnotationOverlay({
                 onPointerDown={handlePointerDown}
                 onPointerMove={handlePointerMove}
                 onPointerUp={handlePointerUp}
-                onPointerCancel={handlePointerCancel}
               >
                 <Layer listening={false}>
                   <KonvaImage image={image} />
@@ -557,6 +594,7 @@ export default function AnnotationOverlay({
                       onSelect={() => handleSelect(s.id)}
                       onCommit={(attrs) => handleCommitTransform(s.id, attrs)}
                       registerRef={registerRef}
+                      scale={scale}
                       restCursor={toolCursor(tool, panEnabled)}
                       cursorLocked={panning}
                     />
@@ -581,10 +619,20 @@ export default function AnnotationOverlay({
                         onSelect={() => {}}
                         onCommit={() => {}}
                         registerRef={() => {}}
+                        scale={scale}
                       />
                     )
                   ) : null}
-                  <Transformer ref={transformerRef} rotateEnabled ignoreStroke />
+                  {/* 앵커·보더도 natural 좌표라 CSS 배율에 비례한다 → 화면에서 일정하게 보이도록 나눈다. */}
+                  <Transformer
+                    ref={transformerRef}
+                    rotateEnabled
+                    ignoreStroke
+                    anchorSize={10 / scale}
+                    borderStrokeWidth={1 / scale}
+                    anchorStrokeWidth={1 / scale}
+                    rotateAnchorOffset={50 / scale}
+                  />
                 </Layer>
               </Stage>
             </div>

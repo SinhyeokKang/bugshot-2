@@ -86,6 +86,8 @@ Tailwind 4px 스케일을 그대로 쓴다. 자주 쓰는 값(관용):
 | 2 | `shadow` / `shadow-md` | default 버튼·팝오버·select 콘텐츠 |
 | 3 | `shadow-lg` | 다이얼로그·토스트 |
 
+**콘텐츠 위에 떠 있는 컨트롤** (캔버스·미디어 등 임의 픽셀 위에 얹히는 오버레이 컨트롤): `bg-background/90 shadow-md backdrop-blur-sm` + `rounded-md`. 불투명 배경(`TrimTimeline`처럼 muted 여백 위에 놓이는 경우)과 달리 배경이 무엇일지 모르므로 반투명 + 블러로 대비를 확보한다. 히트 영역 밖은 `pointer-events-none` 레이어로 통과시켜 아래 콘텐츠 조작을 막지 않는다(선례: `annotation/ZoomControl.tsx`, `AnnotationToolbar` 캔버스 오버레이).
+
 ## 7. Z-index 레이어
 
 오버레이가 많은 확장이므로 레이어를 단순하게 유지한다.

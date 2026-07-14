@@ -12,12 +12,14 @@ import { TooltipIconButton } from "../TooltipIconButton";
 import {
   formatZoomPercent,
   MAX_ZOOM,
-  normalizeZoom,
   stepZoom,
   ZOOM_EPS,
   zoomStops,
   type ZoomLevel,
 } from "./viewport";
+
+// aria-disabled는 disabled와 달리 흐림·커서를 자동으로 안 준다(DESIGN §14 — 툴팁·포커스를 살리려 aria 사용).
+const LOCK_CLASS = "bg-transparent aria-disabled:cursor-not-allowed aria-disabled:opacity-50";
 
 interface ZoomControlProps {
   scale: number; // 현재 표시 배율
@@ -44,16 +46,16 @@ export function ZoomControl({ scale, zoom, fit, fitAll, onChange }: ZoomControlP
     onChange(Number(v));
   };
 
-  const step = (dir: 1 | -1) =>
-    onChange(normalizeZoom(stepZoom(scale, stops, dir), fit, fitAll));
+  // 정규화(fit/fitAll로 접기)는 applyScale의 몫 — 여기서 또 하면 규칙이 두 곳에 흩어진다.
+  const step = (dir: 1 | -1) => onChange(stepZoom(scale, stops, dir));
 
   return (
     <ButtonGroup className="rounded-md bg-background/90 shadow-md backdrop-blur-sm">
       <TooltipIconButton
         label={t("annotation.zoomOut")}
         testId="annotation-zoom-out"
-        className="bg-transparent"
-        disabled={atMin}
+        className={LOCK_CLASS}
+        ariaDisabled={atMin}
         onClick={() => step(-1)}
       >
         <Minus />
@@ -87,8 +89,8 @@ export function ZoomControl({ scale, zoom, fit, fitAll, onChange }: ZoomControlP
       <TooltipIconButton
         label={t("annotation.zoomIn")}
         testId="annotation-zoom-in"
-        className="bg-transparent"
-        disabled={atMax}
+        className={LOCK_CLASS}
+        ariaDisabled={atMax}
         onClick={() => step(1)}
       >
         <Plus />

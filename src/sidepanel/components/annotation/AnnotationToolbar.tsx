@@ -167,10 +167,20 @@ export function AnnotationToolbar({
         >
           {children}
         </div>
-        <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between p-2">
+        {/* 그리기 중에는 컨트롤이 캔버스 상단을 가려 그 아래에서 드래그를 시작할 수 없다 →
+            선택 도구가 아닐 땐 흐리게 + 포인터를 통과시킨다(줌 조작은 선택 도구로 돌아와서). */}
+        <div
+          ref={(el) => {
+            if (el) el.inert = tool !== "select"; // hit-test·포커스 동시 차단(스타일 행과 같은 관용구)
+          }}
+          className={cn(
+            "pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between p-2 transition-opacity",
+            tool !== "select" && "opacity-30",
+          )}
+        >
           {zoom !== null ? (
             <TooltipIconButton
-              label={t("annotation.fitToWidth")}
+              label={t("annotation.zoomFit")}
               testId="annotation-zoom-fit"
               className="pointer-events-auto bg-background/90 shadow-md backdrop-blur-sm"
               onClick={() => onScaleChange(null)}

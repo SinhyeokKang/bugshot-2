@@ -90,9 +90,8 @@ ko/en 동시에 키 추가:
 | `annotation.zoomIn` | 확대 | Zoom in |
 | `annotation.zoomOut` | 축소 | Zoom out |
 | `annotation.zoomLevel` | 배율 | Zoom level |
-| `annotation.fitToWidth` | 너비에 맞추기 | Fit to width |
-| `annotation.zoomFit` | 맞춤 | Fit |
-| `annotation.zoomFitAll` | 전체 | Whole image |
+| `annotation.zoomFit` | 너비 맞춤 | Fit width |
+| `annotation.zoomFitAll` | 이미지 전체 | Whole image |
 | `annotation.canvasViewport` | 캔버스 | Canvas |
 
 ## 데이터 흐름
@@ -438,7 +437,7 @@ const atMax = scale >= MAX_ZOOM - 1e-6;
   </div>
   <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between p-2">
     {zoom !== null ? (
-      <TooltipIconButton label={t("annotation.fitToWidth")} testId="annotation-zoom-fit"
+      <TooltipIconButton label={t("annotation.zoomFit")} testId="annotation-zoom-fit"
         className="pointer-events-auto bg-background/90 shadow-md backdrop-blur-sm"
         onClick={() => onScaleChange(null)}>
         <Minimize2 />

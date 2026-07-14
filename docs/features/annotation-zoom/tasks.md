@@ -28,7 +28,7 @@
 ### Task 2: i18n 키
 
 - **변경 대상**: `src/i18n/namespaces/editor.ts`
-- **작업 내용**: ko/en 양쪽에 `annotation.zoomIn` / `zoomOut` / `zoomLevel` / `fitToWidth` / `zoomFit` / `zoomFitAll` / `canvasViewport` 추가 (design.md 표).
+- **작업 내용**: ko/en 양쪽에 `annotation.zoomIn` / `zoomOut` / `zoomLevel` / `zoomFit` / `zoomFitAll` / `canvasViewport` 추가 (design.md 표). **너비 맞춤은 콤보박스 항목과 좌상단 버튼이 같은 동작이므로 라벨을 `zoomFit` 하나로 통일한다.**
 - **검증**:
   - [x] PostToolUse 훅의 `locales.test.ts`(ko/en 키 대칭) 자동 통과
 
@@ -108,7 +108,7 @@
   - `atMin`은 `stops[0]` 기준, `atMax`는 `MAX_ZOOM` 기준. `selectValue`는 `zoom === null` → `"fit"`, `zoom === fitAll` → `"all"`, 아니면 `String(zoom)`.
   - testId: `annotation-zoom-out` / `annotation-zoom-level` / `annotation-zoom-in`.
 - **검증**:
-  - [ ] 맞춤 상태(fitAll 항목 없는 이미지)에서 `[-]` disabled, 400%에서 `[+]` disabled
+  - [ ] 맞춤 상태(fitAll 항목 없는 이미지)에서 `[-]`가 `aria-disabled`, 400%에서 `[+]`가 `aria-disabled` (DESIGN §14 — `disabled`는 툴팁·포커스를 죽인다)
   - [ ] 세로로 긴 이미지에선 `[-]`가 `전체`까지 한 단계 더 내려간다
   - [ ] 콤보박스 목록에 fit 미만·fitAll 초과 프리셋이 없다 (fit 36%면 25% 항목 없음)
   - [ ] `[-]`/`[+]` 버튼 높이가 Select trigger와 같고(h-8), trigger가 `w-full`로 터지지 않는다
@@ -156,15 +156,16 @@
 > **환경 주의**: e2e viewport는 480×720(`e2e/fixtures/extension.ts:160`)이고 패널도 480px 폭이라, 스크롤 캡처 이미지의 fit-width는 문서 예시(36%)가 아니라 **90%대**가 나올 수 있다. **절대 배율(`< 100%`)로 단언하지 말고 상대 비교·버튼 상태로 판정**할 것.
 > 드래그 좌표는 `canvas.boundingBox()`가 아니라 **뷰포트(`annotation-canvas-viewport`) boundingBox와 canvas box의 교집합** 안에서 잡는다 — 긴 이미지의 canvas box는 화면 밖까지 뻗어 있어 0.7 비율 좌표가 뷰포트를 벗어난다.
 
-- 페이지 전체 캡처로 어노테이션에 진입하면, 맞춤 버튼(`annotation-zoom-fit`)이 보이지 않고 `[-]`(`annotation-zoom-out`)가 disabled가 아니다(세로가 넘쳐 `전체` 스톱이 존재).
+- 페이지 전체 캡처로 어노테이션에 진입하면, 맞춤 버튼(`annotation-zoom-fit`)이 보이지 않고 `[-]`(`annotation-zoom-out`)의 `aria-disabled`가 false다(세로가 넘쳐 `전체` 스톱이 존재).
 - `[+]`를 누르면 줌 라벨의 배율이 **커지고**(진입 시 라벨 문자열과 비교), 좌상단 맞춤 버튼이 나타난다.
 - 맞춤 버튼을 누르면 줌 라벨이 진입 시 배율로 **돌아가고**, 맞춤 버튼이 다시 사라진다.
 - 줌 라벨 콤보박스를 열고 `100%`를 고르면 라벨이 `100%`가 된다.
-- `[+]`를 반복해 400%에 도달하면 라벨이 `400%`이고 `[+]`가 disabled다.
+- `[+]`를 반복해 400%에 도달하면 라벨이 `400%`이고 `[+]`의 `aria-disabled`가 true다(`toBeDisabled()`가 아니라 `toHaveAttribute("aria-disabled", "true")`로 판정).
 - **선택 도구로 캔버스 빈 곳을 드래그하면 `annotation-canvas-viewport`의 `scrollTop`이 변한다.** (진입 직후 = 확대 없이도)
-- **rect 도구로 도형을 그린 뒤 → 선택 도구로 전환 → 도형 위를 클릭하면 선택된다(`annotation-delete` enabled) → 빈 곳을 클릭하면 선택이 해제된다(`annotation-delete` disabled).** (팬 도입 회귀 가드. 그리기 직후엔 도형이 **자동 선택되지 않으므로**(`handlePointerUp`이 `setSelectedId`를 안 건드림) 반드시 클릭으로 선택하는 단계를 거쳐야 한다. 도형 클릭은 `SELECT_HIT_WIDTH = 24` natural px 슬롭 안이어야 하므로 rect 테두리 좌표를 계산해 찍는다.)
+- **rect 도구로 도형을 그린 뒤 → 선택 도구로 전환 → 도형 위를 클릭하면 선택된다(`annotation-delete` enabled) → 빈 곳을 클릭하면 선택이 해제된다(`annotation-delete` disabled).** (팬 도입 회귀 가드. 그리기 직후엔 도형이 **자동 선택되지 않으므로**(`handlePointerUp`이 `setSelectedId`를 안 건드림) 반드시 클릭으로 선택하는 단계를 거쳐야 한다. 도형 클릭은 `SELECT_HIT_WIDTH = 24`(**화면 px** — natural로는 `24/scale`) 슬롭 안이어야 하므로 rect 테두리 좌표를 계산해 찍는다.)
 - **선택된 도형을 드래그하면 도형이 이동하고 뷰포트는 스크롤되지 않는다** (`scrollTop` 불변).
 - **팬 드래그를 캔버스 밖에서 놓아도** 팬이 정상 종료되고 이후 클릭이 정상 동작한다 (pointer capture 가드).
+- **터치로 팬 드래그해 브라우저가 pointercancel을 쏴도** 제스처 상태가 남지 않고 이후 그리기·팬이 정상 동작한다 (Konva가 pointercancel을 노드 이벤트로 안 쏘므로 stage.content 네이티브 리스너로 처리 — 회귀 가드).
 - 확대(100%)한 상태에서 캔버스를 드래그해 사각형을 그리고 완료하면, 결과 이미지의 `naturalWidth`가 **원본 캡처와 같다**(export 해상도가 배율에 영향받지 않음 — `media-preview-img`의 `naturalWidth`로 판정).
 - 기존 `annotation-overlay.spec.ts`(도구 선택 → 취소 복귀 / 도형 그린 뒤 done → annotated webp 전이)가 그대로 통과한다.
 

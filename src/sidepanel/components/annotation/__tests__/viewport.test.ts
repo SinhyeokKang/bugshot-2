@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  canPan,
   centerAnchoredScroll,
   fitAllScale,
   fitWidthScale,
@@ -7,8 +8,10 @@ import {
   MAX_ZOOM,
   normalizeZoom,
   panScroll,
+  refitZoom,
   resolveScale,
   stepZoom,
+  toolCursor,
   ZOOM_PRESETS,
   zoomStops,
 } from "../viewport";
@@ -162,6 +165,63 @@ describe("resolveScale / normalizeZoom — 줌 의도 ↔ 표시 배율", () => 
 
   it("그 외 배율은 숫자 그대로 고정된다", () => {
     expect(normalizeZoom(1, fit, fitAll)).toBe(1);
+  });
+});
+
+describe("refitZoom — 뷰포트가 바뀐 뒤 줌 의도 재정규화", () => {
+  it("fit이 고정 배율을 따라잡으면 맞춤으로 되돌린다 (등호 포함 — 유령 상태 방지)", () => {
+    expect(refitZoom(0.5, 0.6, 0.15)).toBeNull();
+    expect(refitZoom(1, 1, 0.5)).toBeNull();
+  });
+
+  it("fit보다 큰 고정 배율은 유지된다", () => {
+    expect(refitZoom(2, 0.6, 0.15)).toBe(2);
+  });
+
+  it("fitAll이 fit과 같아져 전체 항목이 사라지면 \"all\"도 맞춤으로 되돌린다", () => {
+    // 패널이 넓어져 높이 제약이 풀리면 zoomStops에서 전체 항목이 빠진다 → "all"은 갈 곳이 없다.
+    expect(zoomStops(0.6, 0.6)).not.toContain(0.6 - 1);
+    expect(refitZoom("all", 0.6, 0.6)).toBeNull();
+  });
+
+  it("전체 항목이 살아 있으면 \"all\"은 유지된다", () => {
+    expect(refitZoom("all", 0.6, 0.15)).toBe("all");
+  });
+
+  it("맞춤(null)은 그대로다", () => {
+    expect(refitZoom(null, 0.6, 0.15)).toBeNull();
+  });
+});
+
+describe("canPan — 스크롤 여지 판정", () => {
+  it("세로가 넘치면 팬 가능 (fit-width 진입 직후)", () => {
+    expect(
+      canPan({ scrollWidth: 400, clientWidth: 400, scrollHeight: 1200, clientHeight: 600 }),
+    ).toBe(true);
+  });
+
+  it("가로만 넘쳐도 팬 가능 (확대 상태)", () => {
+    expect(
+      canPan({ scrollWidth: 900, clientWidth: 400, scrollHeight: 500, clientHeight: 600 }),
+    ).toBe(true);
+  });
+
+  it("이미지가 다 들어오면 팬 불가", () => {
+    expect(
+      canPan({ scrollWidth: 400, clientWidth: 400, scrollHeight: 600, clientHeight: 600 }),
+    ).toBe(false);
+  });
+});
+
+describe("toolCursor — 도구·팬 상태별 커서", () => {
+  it("선택 도구는 스크롤 여지가 있으면 grab, 없으면 default", () => {
+    expect(toolCursor("select", true)).toBe("grab");
+    expect(toolCursor("select", false)).toBe("default");
+  });
+
+  it("그리기 도구는 팬 여부와 무관하게 crosshair", () => {
+    expect(toolCursor("rect", true)).toBe("crosshair");
+    expect(toolCursor("text", false)).toBe("crosshair");
   });
 });
 
