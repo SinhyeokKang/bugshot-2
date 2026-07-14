@@ -27,6 +27,7 @@ import {
   getMediaFileId,
   updateIssueDescription,
   uploadAttachment,
+  ensureFreshAuth,
 } from "./jira-api";
 import {
   createIssue as createGithubIssue,
@@ -268,8 +269,10 @@ export async function handleMessage(
       );
 
     case "jira.submitIssue":
+      // 제출은 호출 체인이 길어 auth를 값으로 들고 다닌다. 만료 토큰으로 진입하면 갱신이
+      // authedFetch 안에만 갇혀 호출자 사본은 계속 낡은 채로 남는다 — 진입 시 한 번 신선화.
       return submitIssue(
-        await loadAuth(),
+        await ensureFreshAuth(await loadAuth()),
         message.payload,
         message.attachments,
         message.relatesKey,
@@ -794,7 +797,11 @@ async function submitIssue(
       const blob = dataUrlToBlob(att.dataUrl);
       const results = await uploadAttachment(auth, issue.key, att.filename, blob);
       const r = results[0];
-      const mediaId = r?.mediaApiFileId || (r?.id ? await getMediaFileId(auth, String(r.id)) : undefined);
+      // logs.html은 mediaId를 안 쓰고 첨부 링크로만 나가므로 probe(최대 5.3초)를 태우지 않는다.
+      const needsMediaId = att.filename !== "logs.html";
+      const mediaId = needsMediaId
+        ? r?.mediaApiFileId || (r?.id ? await getMediaFileId(auth, String(r.id)) : undefined)
+        : undefined;
       const dims = { width: att.width, height: att.height };
       // logs.html은 media로 임베드하지 않고 본문 안내 문구에 첨부 링크로 단다.
       if (att.filename === "logs.html" && r?.id) {

@@ -2,7 +2,7 @@
 
 Capture a region of the screen, draw on it to point out the bug, and file it as an issue. It's the fastest, most intuitive route — easy to reach for even on day one.
 
-You can start two ways — **Capture area** to drag a region, or **Capture element** to crop a single element — and the flow is **capture → annotate → write the issue**.
+You can start two ways — **Screenshot** to pick a part of the screen, or **Capture element** to crop a single element — and the flow is **capture → annotate → write the issue**.
 
 ![Screenshot mode overview](../assets/screenshot-readme-1.jpg)
 

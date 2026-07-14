@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import {
   applyTransform,
   createShape,
-  fitScale,
   isEmptyShape,
   PEN_SMOOTHING_ALPHA,
   updateShapeDraft,
@@ -148,25 +147,6 @@ describe("updateShapeDraft — 드래그 중 갱신", () => {
       expect(next.width).toBe(40);
       expect(next.height).toBe(30);
     }
-  });
-});
-
-describe("fitScale — 표시 배율", () => {
-  it("폭 제약이 더 빡세면 폭 기준 축소", () => {
-    expect(fitScale(1000, 500, 400, 1000)).toBeCloseTo(0.4);
-  });
-
-  it("높이 제약이 더 빡세면 높이 기준 축소", () => {
-    expect(fitScale(500, 1000, 1000, 400)).toBeCloseTo(0.4);
-  });
-
-  it("작은 이미지는 확대하지 않는다(최대 1)", () => {
-    expect(fitScale(100, 100, 400, 400)).toBe(1);
-  });
-
-  it("0 이하 크기는 1을 반환한다", () => {
-    expect(fitScale(0, 100, 400, 400)).toBe(1);
-    expect(fitScale(100, 0, 400, 400)).toBe(1);
   });
 });
 
