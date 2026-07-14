@@ -21,6 +21,22 @@ The annotation editor keeps every tool you need right in the toolbar. It's BugSh
 
 Pick a color from **Red · Yellow · Green · Blue · Black**. Made a mistake? Just hit **Undo · Redo**, and you can always **Delete** an annotation you no longer want — so draw freely.
 
+## Zooming and moving around
+
+![Zoom controls](../assets/screenshot-annotation-2.jpg)
+
+A tall image — a full-page capture, say — is unreadable when it's squeezed into one screen. Use the **Zoom level** controls at the bottom of the canvas to blow it up as much as you need and land your annotations exactly where they belong.
+
+- **Zoom in · Zoom out** — The `+` and `−` buttons step through the zoom levels. Zooming keeps **whatever is in the middle of your view** centered, so put the spot you care about in the middle first, then zoom.
+- **Zoom level list** — Click the number in the middle to open the list: **Fit width** (the default, sized to the canvas width), **Whole image** (see it end to end), and 50% through 400%.
+- **Fit width button** — It appears at the bottom-left of the canvas once you change the zoom. One click takes you back to where you started.
+
+The editor opens with the **Select** tool active. When the image spills past the view, **drag an empty spot to move the canvas** — the cursor turns into a hand. Drag an annotation you've drawn and it moves instead, so the two never get confused. No mouse? Focus the canvas and use the arrow keys.
+
+> Picking a drawing tool dims the zoom controls so they stay out of your way. Switch back to **Select** when you want to change the zoom again.
+
+Zooming only changes **how you view the image**. The finished screenshot is always attached at its original resolution, so zoom in as much as you like.
+
 ## Done
 
 When you're finished, click **Done** to finalize the image. The annotated screenshot is attached to the issue. Not happy with it? **Cancel** backs you out, no harm done.
