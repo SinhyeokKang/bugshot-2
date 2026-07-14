@@ -168,3 +168,16 @@ describe("initialLinearFields", () => {
     expect(result.assigneeName).toBeUndefined();
   });
 });
+
+// assigneeId·assigneeName은 한 사람을 가리키는 쌍이다. 각각 독립으로 ?? fallback하면
+// "id는 last, 이름은 defaults"가 되어 *다른 사람 이름이 붙은 id*가 나온다.
+describe("initialLinearFields — assignee id·name 쌍 정합", () => {
+  it("last에 assignee id만 있어도 defaults의 이름을 빌려오지 않는다", () => {
+    const result = initialLinearFields(
+      { teamId: "dt", assigneeId: "lastUser" },
+      { teamId: "dt", assigneeId: "dflt", assigneeName: "Default User" },
+    );
+    expect(result.assigneeId).toBe("lastUser");
+    expect(result.assigneeName).toBeUndefined();
+  });
+});

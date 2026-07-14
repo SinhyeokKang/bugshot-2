@@ -26,13 +26,15 @@ export function initialAsanaFields(
   // project·assignee는 같은 workspace일 때만 last로 prefill, 아니면 connect 기본값.
   // 해소된 workspace가 곧 defaults의 것이므로 defaults.assignee는 항상 유효하다(거친 스코프 예외).
   const sameWs = !!last?.workspaceGid && last.workspaceGid === workspaceGid;
+  // id·표시명은 한 사람을 가리키는 쌍이라 소스를 통째로 고른다 — 따로 fallback하면 다른 사람 이름이 붙는다.
+  const assigneeSrc = sameWs && last?.assigneeGid ? last : defaults;
   return {
     workspaceGid,
     workspaceName,
     projectGid: sameWs ? last?.projectGid : defaults?.projectGid,
     projectName: sameWs ? last?.projectName : defaults?.projectName,
-    assigneeGid: sameWs ? (last?.assigneeGid ?? defaults?.assigneeGid) : defaults?.assigneeGid,
-    assigneeName: sameWs ? (last?.assigneeName ?? defaults?.assigneeName) : defaults?.assigneeName,
+    assigneeGid: assigneeSrc?.assigneeGid,
+    assigneeName: assigneeSrc?.assigneeName,
     cc: sameWs ? last?.cc : undefined,
   };
 }

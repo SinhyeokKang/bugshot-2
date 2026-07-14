@@ -11,7 +11,7 @@ vi.mock("@/i18n", () => ({
   },
 }));
 
-import { messageForJiraStatus, parseTransitions } from "../jira-api";
+import { messageForJiraStatus, parseTransitions, extractJiraDetail } from "../jira-api";
 
 describe("parseTransitions", () => {
   it("표준 트랜지션 목록을 JiraTransition[]으로 매핑", () => {
@@ -120,5 +120,32 @@ describe("messageForJiraStatus", () => {
 
   it("알려지지 않은 상태 코드는 generic 메시지 반환", () => {
     expect(messageForJiraStatus(418)).toContain("jira.error.generic");
+  });
+});
+
+// Jira는 필드별 오류를 errors 객체로 준다. 담당자 배정 불가는 원문이 영문 API 문구라
+// (assignee: User 'x' cannot be assigned issues.) 사용자가 무엇을 해야 할지 알 수 없다 —
+// 그 케이스만 안내 문구로 바꾸고 원문은 뒤에 남긴다.
+describe("extractJiraDetail — 담당자 배정 불가 안내", () => {
+  it("errors.assignee는 안내 문구로 바꾸고 원문을 함께 남긴다", () => {
+    const out = extractJiraDetail({
+      errors: { assignee: "User 'abc' cannot be assigned issues." },
+    });
+    expect(out).toContain("jira.error.assigneeNotAssignable");
+    expect(out).toContain("User 'abc' cannot be assigned issues.");
+  });
+
+  it("다른 필드 오류는 그대로 노출한다", () => {
+    const out = extractJiraDetail({ errors: { summary: "Summary is required." } });
+    expect(out).toContain("summary: Summary is required.");
+    expect(out).not.toContain("jira.error.assigneeNotAssignable");
+  });
+
+  it("errorMessages는 그대로 이어붙인다", () => {
+    expect(extractJiraDetail({ errorMessages: ["Boom"] })).toContain("Boom");
+  });
+
+  it("body가 없으면 빈 문자열", () => {
+    expect(extractJiraDetail(null)).toBe("");
   });
 });

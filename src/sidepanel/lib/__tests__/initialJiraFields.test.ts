@@ -14,7 +14,6 @@ describe("initialJiraFields — default assignee", () => {
       assigneeId: "dflt",
       assigneeName: "Default User",
     });
-    expect(out.projectKey).toBe("ENG");
     expect(out.issueTypeId).toBe("10001");
     expect(out.assigneeId).toBe("dflt");
     expect(out.assigneeName).toBe("Default User");
@@ -44,7 +43,6 @@ describe("initialJiraFields — default assignee", () => {
       { projectKey: "ENG", assigneeId: "dflt", assigneeName: "Default User" },
     );
     // project는 연동 설정이 진실 → 해소된 project(ENG)의 기본 담당자로 채운다.
-    expect(out.projectKey).toBe("ENG");
     expect(out.assigneeId).toBe("dflt");
     expect(out.assigneeName).toBe("Default User");
   });
@@ -59,7 +57,6 @@ describe("initialJiraFields — default assignee", () => {
 
   it("last/account 모두 없으면 빈 값", () => {
     const out = initialJiraFields(undefined, undefined);
-    expect(out.projectKey).toBeUndefined();
     expect(out.assigneeId).toBeUndefined();
   });
 });
@@ -91,7 +88,6 @@ describe("initialJiraFields — 직전 제출값 복원", () => {
     );
     expect(out.priorityId).toBeUndefined();
     expect(out.parentKey).toBeUndefined();
-    expect(out.projectKey).toBe("ENG");
     expect(out.issueTypeId).toBe("10001");
   });
 });

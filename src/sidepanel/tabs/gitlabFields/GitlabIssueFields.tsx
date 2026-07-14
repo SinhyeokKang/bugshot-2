@@ -22,15 +22,17 @@ export function initialGitlabFields(
   const hasLastProject = !!last?.projectId;
   const src = hasLastProject ? last : defaults;
   // assignee는 project 하위 필드(그 프로젝트 멤버) — project가 갈리면 defaults.assignee는 무효.
-  const sameProject = hasLastProject && last!.projectId === defaults?.projectId;
+  const sameProject = hasLastProject && last?.projectId === defaults?.projectId;
   const fb = sameProject ? defaults : undefined;
+  // id·표시명은 한 사람을 가리키는 쌍이라 소스를 통째로 고른다 — 따로 fallback하면 다른 사람 이름이 붙는다.
+  const assigneeSrc = hasLastProject ? (last?.assigneeId ? last : fb) : defaults;
   return {
     projectId: src?.projectId,
     projectPath: src?.projectPath,
     label: src?.label,
-    assigneeId: hasLastProject ? (last!.assigneeId ?? fb?.assigneeId) : defaults?.assigneeId,
-    assigneeName: hasLastProject ? (last!.assigneeName ?? fb?.assigneeName) : defaults?.assigneeName,
-    cc: hasLastProject ? last!.cc : undefined,
+    assigneeId: assigneeSrc?.assigneeId,
+    assigneeName: assigneeSrc?.assigneeName,
+    cc: hasLastProject ? last?.cc : undefined,
   };
 }
 

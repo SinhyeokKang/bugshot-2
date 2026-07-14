@@ -97,7 +97,7 @@ import { buildNetworkLogSummary, buildConsoleLogSummary } from "@/sidepanel/lib/
 import { filterEnvironmentRows, parseChromeVersion } from "@/sidepanel/lib/environmentRows";
 import { getOsInfo } from "@/sidepanel/lib/osInfo";
 import { extractInlineRefs, resolveInlineImagesForSections } from "@/sidepanel/lib/resolveInlineImages";
-import { initialJiraFields } from "@/sidepanel/tabs/jiraFields/initialJiraFields";
+import { initialJiraFields } from "@/sidepanel/lib/initialJiraFields";
 import { SubmitFieldsDialog } from "@/sidepanel/tabs/SubmitFieldsDialog";
 
 type SubmitFields = {
@@ -211,8 +211,7 @@ export function DraftDetailDialog({
     if (!open) return;
     // 캡처→제출 경로(editor-store.confirmDraft)와 같은 단일 출처를 쓴다 — 여기서 갈리면
     // Connect 탭의 기본 담당자가 드래프트 재제출에만 안 붙는다.
-    const { projectKey: _drop, ...base } = initialJiraFields(lastJiraSubmit, jiraAccount);
-    setFields(base);
+    setFields(initialJiraFields(lastJiraSubmit, jiraAccount));
     const picked =
       issue && accounts[issue.platform]
         ? issue.platform

@@ -22,15 +22,15 @@ export function initialGhFields(
   const hasLastRepo = !!last?.owner && !!last.repo;
   const src = hasLastRepo ? last : defaults;
   // assignee는 repo 하위 필드(그 repo의 collaborator) — repo가 갈리면 defaults.assignee는 무효.
-  const sameRepo = hasLastRepo && last!.owner === defaults?.owner && last!.repo === defaults?.repo;
+  const sameRepo = hasLastRepo && last?.owner === defaults?.owner && last?.repo === defaults?.repo;
   return {
     owner: src?.owner,
     repo: src?.repo,
     label: src?.label,
     assignee: hasLastRepo
-      ? (last!.assignee ?? (sameRepo ? defaults?.assignee : undefined))
+      ? (last?.assignee ?? (sameRepo ? defaults?.assignee : undefined))
       : defaults?.assignee,
-    cc: hasLastRepo ? last!.cc : undefined,
+    cc: hasLastRepo ? last?.cc : undefined,
   };
 }
 

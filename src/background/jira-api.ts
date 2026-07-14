@@ -24,12 +24,12 @@ export class JiraError extends Error {
     message: string,
     public body?: unknown,
   ) {
-    super(message + extractDetail(body));
+    super(message + extractJiraDetail(body));
     this.name = "JiraError";
   }
 }
 
-function extractDetail(body: unknown): string {
+export function extractJiraDetail(body: unknown): string {
   if (!body || typeof body !== "object") return "";
   const b = body as Record<string, unknown>;
   const parts: string[] = [];
@@ -38,7 +38,13 @@ function extractDetail(body: unknown): string {
   }
   if (b.errors && typeof b.errors === "object") {
     for (const [k, v] of Object.entries(b.errors as Record<string, string>)) {
-      if (v) parts.push(`${k}: ${v}`);
+      if (!v) continue;
+      // 담당자 배정 불가는 원문이 영문 API 문구라 무엇을 해야 할지 알 수 없다 — 안내를 앞에 붙인다.
+      if (k === "assignee") {
+        parts.push(`${t("jira.error.assigneeNotAssignable")} (${v})`);
+        continue;
+      }
+      parts.push(`${k}: ${v}`);
     }
   }
   return parts.length > 0 ? `\n${parts.join("\n")}` : "";
