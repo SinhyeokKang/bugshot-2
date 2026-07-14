@@ -1,9 +1,12 @@
-import type { ReactNode } from "react";
-import { Check, Redo2, Trash2, Undo2, X } from "lucide-react";
+import type { ReactNode, RefObject } from "react";
+import { Check, Minimize2, Redo2, Trash2, Undo2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
 import { cn } from "@/lib/utils";
 import { useT } from "@/i18n";
+import { TooltipIconButton } from "../TooltipIconButton";
+import { ZoomControl } from "./ZoomControl";
+import type { ZoomLevel } from "./viewport";
 import {
   ANNOTATION_TOOLS,
   isStrokeTool,
@@ -20,7 +23,7 @@ import {
 } from "./ToolbarGroups";
 
 interface AnnotationToolbarProps {
-  tool: AnnotationTool | null;
+  tool: AnnotationTool;
   onToolChange: (tool: AnnotationTool) => void;
   color: string;
   onColorChange: (color: string) => void;
@@ -41,6 +44,13 @@ interface AnnotationToolbarProps {
   onCancel: () => void;
   onDone: () => void;
   doneDisabled: boolean;
+  viewportRef: RefObject<HTMLDivElement>;
+  scale: number;
+  // null이면 맞춤 상태 — 맞춤 버튼 노출 판정의 단일 출처(scale === fit이 아니다).
+  zoom: ZoomLevel;
+  fit: number;
+  fitAll: number;
+  onScaleChange: (zoom: ZoomLevel) => void;
   children: ReactNode;
 }
 
@@ -66,14 +76,18 @@ export function AnnotationToolbar({
   onCancel,
   onDone,
   doneDisabled,
+  viewportRef,
+  scale,
+  zoom,
+  fit,
+  fitAll,
+  onScaleChange,
   children,
 }: AnnotationToolbarProps) {
   const t = useT();
   // 그리기 도구거나, select 모드에서 도형이 선택돼 있으면 색상/두께 행을 노출(선택 도형 재스타일).
-  // tool이 null(초기 무선택)이면 숨김.
-  const showStyleRow = (tool !== null && tool !== "select") || hasSelection;
-  const thicknessEnabled =
-    tool === "select" ? selectionIsStroke : tool !== null && isStrokeTool(tool);
+  const showStyleRow = tool !== "select" || hasSelection;
+  const thicknessEnabled = tool === "select" ? selectionIsStroke : isStrokeTool(tool);
   // text 도구이거나 select 모드에서 text 도형을 선택했으면 두께 대신 텍스트 크기를 노출.
   const showTextSize = tool === "text" || (tool === "select" && selectionIsText);
 
@@ -139,9 +153,43 @@ export function AnnotationToolbar({
         )}
       </div>
 
-      {/* canvas 영역 */}
-      <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto bg-muted">
-        {children}
+      {/* canvas 영역: 스크롤 뷰포트 + 플로팅 줌 컨트롤.
+          items-center 대신 children의 m-auto로 중앙정렬 — flex 중앙정렬은 콘텐츠가 넘칠 때
+          좌·상단이 스크롤로 도달 불가해진다(확대하면 반드시 그 상황이 된다). */}
+      <div className="relative flex min-h-0 flex-1">
+        <div
+          ref={viewportRef}
+          role="group"
+          tabIndex={0}
+          aria-label={t("annotation.canvasViewport")}
+          data-testid="annotation-canvas-viewport"
+          className="flex flex-1 overflow-auto overscroll-contain bg-muted [scrollbar-gutter:stable]"
+        >
+          {children}
+        </div>
+        <div className="pointer-events-none absolute inset-x-0 top-0 flex items-start justify-between p-2">
+          {zoom !== null ? (
+            <TooltipIconButton
+              label={t("annotation.fitToWidth")}
+              testId="annotation-zoom-fit"
+              className="pointer-events-auto bg-background/90 shadow-md backdrop-blur-sm"
+              onClick={() => onScaleChange(null)}
+            >
+              <Minimize2 />
+            </TooltipIconButton>
+          ) : (
+            <span />
+          )}
+          <div className="pointer-events-auto">
+            <ZoomControl
+              scale={scale}
+              zoom={zoom}
+              fit={fit}
+              fitAll={fitAll}
+              onChange={onScaleChange}
+            />
+          </div>
+        </div>
       </div>
 
       {/* 3단: undo/redo + cancel/done */}

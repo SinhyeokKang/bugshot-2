@@ -13,24 +13,24 @@
 - **변경 대상**: `src/sidepanel/components/annotation/viewport.ts` (신규), `src/sidepanel/components/annotation/__tests__/viewport.test.ts` (신규)
 - **작업 내용**: `/tdd interface`로 테스트를 먼저 쓰고 구현한다. `ZOOM_PRESETS`, `MAX_ZOOM`, `PAN_CLICK_THRESHOLD`, `fitWidthScale`, `fitAllScale`, `zoomStops`, `stepZoom`, `centerAnchoredScroll`, `panScroll`, `formatZoomPercent`. 시그니처는 design.md "인터페이스 설계" 그대로. (`canPan`은 순수 함수로 만들지 않는다 — 스크롤 가능 여부는 DOM에서 직접 읽는다)
 - **검증**:
-  - [ ] `fitWidthScale(1074, 390)` ≈ 0.363 / `fitWidthScale(200, 390)` === 1 (확대 안 함)
-  - [ ] **0/음수 가드**: `fitWidthScale(0, 390)` === 1 / `fitWidthScale(1074, 0)` === 1 / `fitWidthScale(1074, -32)` === 1 (첫 렌더 `clientWidth=0` → 음수 배율 방지). `fitAllScale`도 동일
-  - [ ] `fitAllScale`은 이관 전 `shapes.ts:fitScale`과 같은 값을 낸다 (기존 케이스 재사용)
-  - [ ] `zoomStops(0.363, 0.15)` === `[0.15, 0.363, 0.5, 0.75, 1, 1.5, 2, 3, 4]` — fitAll이 맨 앞, 0.25(fit 미만)는 빠진다
-  - [ ] `zoomStops(0.363, 0.363)` === `[0.363, 0.5, …]` — fitAll === fit이면 중복 제거(조망 항목 없음)
-  - [ ] `zoomStops(1, 1)` === `[1, 1.5, 2, 3, 4]` — fit과 같은 100% 프리셋이 중복 제거된다
-  - [ ] `stepZoom`: fit → 다음 프리셋 / fit → `-1` 방향은 fitAll(있으면) 아니면 fit 유지 / `stepZoom(4, stops, +1)` === 4 (상한 유지) / stops에 없는 값이어도 가장 가까운 이웃으로 수렴
-  - [ ] `centerAnchoredScroll`: 중앙점 natural 좌표가 배율 변경 전후로 보존된다 / 확대·축소 양방향 / 스크롤 여지 없는 축은 0으로 클램프 / 최대치 클램프 / `oldScale = 0`이면 `{0, 0}` (NaN 방어)
-  - [ ] `panScroll`: 오른쪽·아래로 끌면 `scrollLeft`/`scrollTop`이 **줄어든다** (부호) / 양축 동시
-  - [ ] `formatZoomPercent(0.3425)` === `"34%"`
-  - [ ] `pnpm test` 통과
+  - [x] `fitWidthScale(1074, 390)` ≈ 0.363 / `fitWidthScale(200, 390)` === 1 (확대 안 함)
+  - [x] **0/음수 가드**: `fitWidthScale(0, 390)` === 1 / `fitWidthScale(1074, 0)` === 1 / `fitWidthScale(1074, -32)` === 1 (첫 렌더 `clientWidth=0` → 음수 배율 방지). `fitAllScale`도 동일
+  - [x] `fitAllScale`은 이관 전 `shapes.ts:fitScale`과 같은 값을 낸다 (기존 케이스 재사용)
+  - [x] `zoomStops(0.363, 0.15)` === `[0.15, 0.363, 0.5, 0.75, 1, 1.5, 2, 3, 4]` — fitAll이 맨 앞, 0.25(fit 미만)는 빠진다
+  - [x] `zoomStops(0.363, 0.363)` === `[0.363, 0.5, …]` — fitAll === fit이면 중복 제거(조망 항목 없음)
+  - [x] `zoomStops(1, 1)` === `[1, 1.5, 2, 3, 4]` — fit과 같은 100% 프리셋이 중복 제거된다
+  - [x] `stepZoom`: fit → 다음 프리셋 / fit → `-1` 방향은 fitAll(있으면) 아니면 fit 유지 / `stepZoom(4, stops, +1)` === 4 (상한 유지) / stops에 없는 값이어도 가장 가까운 이웃으로 수렴
+  - [x] `centerAnchoredScroll`: 중앙점 natural 좌표가 배율 변경 전후로 보존된다 / 확대·축소 양방향 / 스크롤 여지 없는 축은 0으로 클램프 / 최대치 클램프 / `oldScale = 0`이면 `{0, 0}` (NaN 방어)
+  - [x] `panScroll`: 오른쪽·아래로 끌면 `scrollLeft`/`scrollTop`이 **줄어든다** (부호) / 양축 동시
+  - [x] `formatZoomPercent(0.3425)` === `"34%"`
+  - [x] `pnpm test` 통과
 
 ### Task 2: i18n 키
 
 - **변경 대상**: `src/i18n/namespaces/editor.ts`
 - **작업 내용**: ko/en 양쪽에 `annotation.zoomIn` / `zoomOut` / `zoomLevel` / `fitToWidth` / `zoomFit` / `zoomFitAll` / `canvasViewport` 추가 (design.md 표).
 - **검증**:
-  - [ ] PostToolUse 훅의 `locales.test.ts`(ko/en 키 대칭) 자동 통과
+  - [x] PostToolUse 훅의 `locales.test.ts`(ko/en 키 대칭) 자동 통과
 
 ### Task 3: 툴바 캔버스 영역 — 스크롤 뷰포트 골격
 
@@ -43,7 +43,7 @@
   - 뷰포트에 `tabIndex={0}` + `aria-label={t("annotation.canvasViewport")}` + `data-testid="annotation-canvas-viewport"` + `overscroll-contain` + `[scrollbar-gutter:stable]`.
   - props 추가: `viewportRef`. `AnnotationOverlay`는 `useRef<HTMLDivElement>(null)`를 만들어 넘긴다.
 - **검증**:
-  - [ ] `pnpm typecheck` 통과
+  - [x] `pnpm typecheck` 통과
   - [ ] 현행 진입 화면(fit-all)이 그대로 보인다 — 이 태스크는 배율을 안 바꾼다
   - [ ] 뷰포트에 Tab으로 포커스가 가고 화살표키로 스크롤된다 (콘텐츠가 넘칠 때)
 
@@ -59,8 +59,8 @@
   - **리사이즈로 `fit > zoom`이 되면 `zoom`을 `null`로 되돌린다** (맞춤 복귀).
   - **CSS transform 구조(`:367-383`)와 `stage.getPointerPosition()` 호출부는 건드리지 않는다.** 좌표 보정은 Konva에 위임된 채로 유지.
 - **검증**:
-  - [ ] `grep -rn "fitScale" src/` 결과 0건 (`fitAllScale`은 제외하고 셀 것)
-  - [ ] `pnpm typecheck` / `pnpm test` 통과
+  - [x] `grep -rn "fitScale" src/` 결과 0건 (`fitAllScale`은 제외하고 셀 것)
+  - [x] `pnpm typecheck` / `pnpm test` 통과
   - [ ] 페이지 전체 캡처 어노테이션 진입 → 라벨이 fit-width 배율(30%대)로 뜨고, 현행보다 이미지가 크게 보인다
   - [ ] 요소 캡처(폭·높이 모두 작은 이미지) 진입 화면이 현행과 동일하다 (100%)
   - [ ] 확대·축소 시 화면 중앙에 보던 지점이 중앙에 남는다 (확대 방향에서 좌상단으로 튀지 않는다)

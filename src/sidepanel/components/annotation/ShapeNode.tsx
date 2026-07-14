@@ -19,6 +19,11 @@ interface ShapeNodeProps {
   onSelect: () => void;
   onCommit: (attrs: TransformAttrs) => void;
   registerRef: (id: string, node: Konva.Node | null) => void;
+  // 도형을 벗어날 때 복구할 커서. 오버레이가 도구·팬 상태로 결정하므로 여기서 "default"를
+  // 하드코딩하면 팬의 grab 커서를 덮어쓴다.
+  restCursor?: string;
+  // 팬 드래그 진행 중 — hover 커서 갱신을 막아 grabbing이 유지되게 한다.
+  cursorLocked?: boolean;
 }
 
 function isPointsShape(type: AnnotationShape["type"]): boolean {
@@ -35,6 +40,8 @@ export function ShapeNode({
   onSelect,
   onCommit,
   registerRef,
+  restCursor = "default",
+  cursorLocked = false,
 }: ShapeNodeProps) {
   const ref = (node: Konva.Node | null) => registerRef(shape.id, node);
 
@@ -64,7 +71,7 @@ export function ShapeNode({
   const handleTransformEnd = (e: KonvaEventObject<Event>) => commitFrom(e.target);
 
   const hoverCursor = (e: KonvaEventObject<MouseEvent>, cursor: string) => {
-    if (!selectable) return;
+    if (!selectable || cursorLocked) return;
     const stage = e.target.getStage();
     if (stage) stage.container().style.cursor = cursor;
   };
@@ -77,7 +84,7 @@ export function ShapeNode({
     onDragEnd: handleDragEnd,
     onTransformEnd: handleTransformEnd,
     onMouseEnter: (e: KonvaEventObject<MouseEvent>) => hoverCursor(e, "move"),
-    onMouseLeave: (e: KonvaEventObject<MouseEvent>) => hoverCursor(e, "default"),
+    onMouseLeave: (e: KonvaEventObject<MouseEvent>) => hoverCursor(e, restCursor),
   };
 
   switch (shape.type) {
