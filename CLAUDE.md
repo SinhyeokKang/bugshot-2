@@ -133,7 +133,7 @@ pnpm version major --no-git-tag-version   # 1.0.0 → 2.0.0 (Breaking change)
 - 커밋 메시지·PR title/body·GitHub Release notes는 **영문**으로 작성
 - **테스트**: 코드 변경 시 관련 테스트 작성 + `pnpm test` 통과 확인 필수. 대상과 같은 디렉터리의 `__tests__/`에 두고 Vitest를 쓴다. **2트랙**:
   - `*.test.ts` — node 환경. 순수 함수·헬퍼(기본 트랙).
-  - `*.test.tsx` — **jsdom + @testing-library/react**(`vitest.config.ts`의 `environmentMatchGlobs`가 확장자로 자동 분기, 셋업은 `src/test/setup-dom.ts` — cleanup + ResizeObserver·PointerCapture·scrollIntoView 폴리필). 렌더·인터랙션이 상태 전이를 좌우하는 컴포넌트(콤보박스 등)에만 쓴다. 단, **포인터 드래그·캔버스처럼 브라우저 실동작에 걸린 것은 jsdom으로도 못 잡는다** — e2e·수동이 유일한 안전망(docs/POSTMORTEM.md).
+  - `*.test.tsx` — **jsdom + @testing-library/react**(+ `@testing-library/user-event` — 인터랙션 시뮬레이션. `vitest.config.ts`의 `environmentMatchGlobs`가 확장자로 자동 분기, 셋업은 `src/test/setup-dom.ts` — cleanup + ResizeObserver·PointerCapture·scrollIntoView 폴리필). 렌더·인터랙션이 상태 전이를 좌우하는 컴포넌트(콤보박스 등)에만 쓴다. 단, **포인터 드래그·캔버스처럼 브라우저 실동작에 걸린 것은 jsdom으로도 못 잡는다** — e2e·수동이 유일한 안전망(docs/POSTMORTEM.md).
 - **i18n 자동 검사**: `src/i18n/` 파일을 Edit/Write하면 `.claude/settings.json`의 PostToolUse 훅이 `src/i18n/__tests__/locales.test.ts`(ko/en 키 대칭·빈 값·placeholder 토큰 일치)를 자동 실행해 불일치 시 차단. 키 추가 시 ko/en 양쪽을 함께 갱신할 것.
 
 ## 게이트웨이 (알아두면 유용)
@@ -159,4 +159,4 @@ pnpm version major --no-git-tag-version   # 1.0.0 → 2.0.0 (Breaking change)
 - `AGENTS.md` · `.agents/skills/` — CLAUDE.md·`.claude/commands/`의 **Codex 호환 미러**(경로만 치환된 사본). **원본만 편집**하고 미러는 동기화 대상으로만 취급 — 미러를 직접 고치면 조용히 드리프트한다. (현재 미러는 `push`·`merge`를 제외한 16개 — 두 스킬은 git 원격 조작이라 Codex 런타임에서 쓰지 않는다. 미러가 오래되면 `AGENTS.md` 개요 문구부터 stale해지니 스택·캡처 모드 변경 시 함께 본다.)
 - `docs/POSTMORTEM.md` — 회귀·버그 사후분석 회고 누적 (git 공유). `/postmortem` 스킬이 픽스마다 비자명 함정·재발방지를 한 항목씩 추가
 - `docs/privacy.ko.md` · `docs/privacy.en.md` — 개인정보처리방침 (ko 원본 + en 번역, 항상 동기화). bug-shot.com/{ko,en}/privacy로 이관 예정(기존 GitHub Pages 폐지)
-- 사용자 개인 메모리: `~/.claude/projects/-Users-sinhyeokkang-code-bugshot-2/memory/`에 있음 (머신 로컬, git에 안 올라감)
+- 사용자 개인 메모리: `~/.claude/projects/-Users-sinhyeok-code-bugshot-2/memory/`에 있음 (머신 로컬, git에 안 올라감)
