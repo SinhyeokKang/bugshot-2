@@ -1,7 +1,18 @@
 // action-recorder.ts에서 IIFE 자가호출하기 때문에 테스트가 필요한 순수 함수는 별도 파일로 분리.
 
-const SENSITIVE_NAME_RE = /password|secret|card|cvv|ssn|token|pwd|auth|pin/;
+// 영문은 단어 경계로 끊는다 — placeholder·라벨 문구가 판정 소스라 부분일치는 정상 폼을 죽인다
+// (pin ⊂ shipping, auth ⊂ author, card ⊂ discard). 한글은 \b가 안 먹어 부분일치 유지(안전 측).
+const SENSITIVE_NAME_RE =
+  /\b(password|secret|card|cvv|ssn|token|pwd|auth|pin)\b|비밀번호|암호|주민|카드|계좌|전화|연락처|휴대폰|주소/;
 const TARGET_NAME_CAP = 80;
+
+// 라벨에 민감 키워드가 없어도(생성된 id `:r3:`, 커스텀 폼, 라벨 없는 입력) 값 형태로 PII를 잡는다.
+const EMAIL_RE = /[^\s@]+@[^\s@]+\.[a-z]{2,}/i;
+// 점은 구분자에서 뺀다 — 지우면 소수(1234.56789)·IP가 긴 숫자열로 승격돼 오탐.
+const VALUE_SEPARATORS_RE = /[\s\-()+]/g;
+// 전화·카드·주민·계좌는 구분자를 빼면 9자리 이상 순수 숫자열. 짧은 숫자(수량·좌표)는 재현에
+// 필요하므로 남긴다. 섞인 식별자(ORD-12345678)는 순수 숫자가 아니라 통과.
+const LONG_DIGITS_RE = /^\d{9,}$/;
 
 export interface MaskFieldInput {
   type?: string;
@@ -9,15 +20,35 @@ export interface MaskFieldInput {
   id?: string;
   autocomplete?: string;
   ariaLabel?: string;
+  labelText?: string;
+  placeholder?: string;
+}
+
+// camelCase·snake_case·kebab을 단어로 끊어 \b 경계가 식별자에도 걸리게 한다(cardNumber → card number).
+function normalizeName(raw: string): string {
+  return raw
+    .replace(/([a-z\d])([A-Z])/g, "$1 $2")
+    .replace(/[_\-.]/g, " ")
+    .toLowerCase();
 }
 
 export function shouldMaskField(input: MaskFieldInput): boolean {
   if (input.type?.toLowerCase() === "password") return true;
   const ac = input.autocomplete?.toLowerCase() ?? "";
   if (ac.includes("password") || ac.includes("cc-")) return true;
-  // contentEditable은 type=password 신호가 없어 aria-label까지 키워드 검사에 포함.
-  const name = `${input.name ?? ""} ${input.id ?? ""} ${input.ariaLabel ?? ""}`.toLowerCase();
+  // fieldLabel()이 라벨로 쓰는 소스(aria-label·label[for]·placeholder·name)를 판정에도 전부 넣는다.
+  const name = normalizeName(
+    [input.name, input.id, input.ariaLabel, input.labelText, input.placeholder]
+      .filter(Boolean)
+      .join(" "),
+  );
   return SENSITIVE_NAME_RE.test(name);
+}
+
+export function isSensitiveValue(value: string): boolean {
+  if (!value) return false;
+  if (EMAIL_RE.test(value)) return true;
+  return LONG_DIGITS_RE.test(value.replace(VALUE_SEPARATORS_RE, ""));
 }
 
 export function maskValue(_value: string): string {
