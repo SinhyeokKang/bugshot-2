@@ -39,6 +39,16 @@ test.describe.serial("recording annotation overlay", () => {
     await fixture.mouse.up();
   }
 
+  // 마지막 획 path의 d 속성 — 박스는 자유곡선과 달리 닫힌 사각형(정점 5개, 마지막이 시작점)이다.
+  async function lastPathD(): Promise<string> {
+    return fixture.evaluate((id) => {
+      const host = document.getElementById(id);
+      const paths = host?.shadowRoot?.querySelectorAll("svg g path");
+      const last = paths?.[paths.length - 1];
+      return last?.getAttribute("d") ?? "";
+    }, HOST_ID);
+  }
+
   // 마지막 획 <g>의 유일한 <path> 스타일. 흰 아웃라인 제거로 그룹당 path 1개(pathCount로 검증).
   function lastPathStyle(): Promise<{
     pathCount: number;
@@ -125,6 +135,28 @@ test.describe.serial("recording annotation overlay", () => {
       stroke: "#3b82f6",
       strokeWidth: "16",
       strokeOpacity: "0.4",
+    });
+  });
+
+  test("박스 setTool + 드래그 → 자유곡선이 아니라 닫힌 사각형이 그려진다", async () => {
+    await send({ type: "annotation.hide" });
+    await send({ type: "annotation.show" });
+    await send({ type: "annotation.setTool", tool: "rect", color: "#22c55e", strokeWidth: 4, opacity: 1 });
+
+    await drag();
+
+    await expect.poll(() => strokeCount()).toBeGreaterThan(0);
+    // 사각형은 앵커→현재점으로 매번 재생성되므로 드래그 스텝 수와 무관하게 정점이 5개(닫힘)다.
+    const d = await lastPathD();
+    const verts = d.split(/[ML]/).filter((seg) => seg.trim().length > 0);
+    expect(verts).toHaveLength(5);
+    expect(verts[0].trim()).toBe(verts[4].trim());
+    // 스타일은 pen과 동일(불투명·프리셋 두께).
+    expect(await lastPathStyle()).toEqual({
+      pathCount: 1,
+      stroke: "#22c55e",
+      strokeWidth: "4",
+      strokeOpacity: "1",
     });
   });
 

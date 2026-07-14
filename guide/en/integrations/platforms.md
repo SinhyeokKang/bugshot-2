@@ -53,7 +53,13 @@ Shared something to Slack and then realized it deserves a proper issue too? No w
 
 ![Setting defaults after connecting](../assets/integrations-platforms-3.jpg)
 
-Once connected, you can pick a default location for new issues — a project for Jira/GitLab, a repository for GitHub, a team for Linear, a database for Notion, a project for Asana, a list for ClickUp (picked as Workspace → Space → List), a channel for Slack. Set it once and you won't have to choose it every time you write an issue, which saves a lot of clicks.
+Once connected, you can pick a default **location** for new issues — a project for Jira/GitLab, a repository for GitHub, a team for Linear, a database for Notion, a project for Asana, a list for ClickUp (picked as Workspace → Space → List), a channel for Slack. Set it once and you won't have to choose it every time you write an issue, which saves a lot of clicks.
+
+You can also pre-fill the **values that go into the issue**. Pick a default **Assignee** for Jira, GitHub, GitLab, Linear, Asana, or ClickUp (Notion and Slack have no assignee), and while you're there, a default **Label** (GitHub, GitLab, Linear) or **Default issue type** (Jira). Whatever you set shows up already filled in when you write an issue — though **whoever you picked on your last submission wins**. Assign to the same person every time and it just keeps going; assign to someone else once, and that person carries over next time.
+
+> To load assignee candidates, pick the location first (a repository for GitHub, a project for GitLab, a team for Linear, a workspace for Asana and ClickUp). Until you do, the assignee field waits, disabled, and tells you what to pick first. Jira is the exception — you can search for an assignee before choosing a project.
+
+One thing worth knowing: **changing the location clears** the assignee and label defaults under it. A different repository or project probably means a different set of members, and we'd rather clear the field than quietly assign someone who doesn't belong there. Just pick again in the new location.
 
 ## Disconnecting
 

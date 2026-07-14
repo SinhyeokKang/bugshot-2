@@ -5,9 +5,9 @@ import {
   type ThicknessKey,
 } from "./presets";
 
-export type RecordingPenTool = "pen" | "highlight";
+export type RecordingPenTool = "pen" | "rect" | "highlight";
 
-// 녹화 오버레이 획 스타일. pen은 프리셋 두께·불투명, highlight는 두께 배율×반투명(마커).
+// 녹화 오버레이 획 스타일. pen·rect는 프리셋 두께·불투명, highlight는 두께 배율×반투명(마커).
 // 이미지 어노테이션(konva)과 동일 상수에서 파생 — 한 곳(presets)만 바꾸면 양쪽 일치.
 export function overlayStrokeStyle(
   tool: RecordingPenTool,
