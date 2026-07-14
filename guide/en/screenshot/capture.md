@@ -1,12 +1,12 @@
 # Capture methods
 
-You can grab a screenshot two ways: **Capture area**, where you crop the screen yourself, and **Capture element**, where you click a single element and it crops just that element. Either way the rest of the flow (annotate → write the issue) is identical, so start with whichever feels easier.
+There are two ways to grab an image of a bug: **Screenshot**, where you pick what part of the screen to capture, and **Capture element**, where you click a single element and it crops just that element. Either way the rest of the flow (annotate → write the issue) is identical, so start with whichever feels easier.
 
-## Capture an area
+## Screenshot
 
 ![Dragging a region](../assets/screenshot-capture-1.jpg)
 
-In the **Debug** tab, click **Capture area**. A crosshair appears over the page, and three capture buttons show up at the bottom of the side panel. Hover any of them to see what it does before you click.
+In the **Debug** tab, click **Screenshot**. A crosshair appears over the page, and three capture buttons show up at the bottom of the side panel. Hover any of them to see what it does before you click.
 
 - **Area capture** — the one that's on by default. Drag to select the region you want. You can crop just the part where the bug shows up, so the reader knows exactly where to look.
 - **Screen capture** — grabs everything currently on screen, no dragging. No fiddling with the edges.
