@@ -46,10 +46,14 @@
 - 위와 동일하게 `onActiveChange?: (id: string | null) => void` 추가. (콘솔은 현재 단일 activeId 선택이 있는지 확인 필요 — 없으면 표시 전용이므로 선택 하이라이트 상태를 추가하거나, 다이얼로그에서 controlled로 관리. Task에서 실제 구조 확인 후 최소 침습 경로 선택.)
 
 **`src/sidepanel/tabs/DraftingPanel.tsx`** (`SectionTextarea`, `:653`)
-- 현재 역할: 각 이슈 섹션 렌더. paragraph 섹션 헤더 `action` 슬롯에 Camera·ImagePlus 버튼. `editorRef`(TiptapEditorHandle) 보유.
-- 변경: `isParagraph` 분기의 `action`에 **로그 첨부 버튼** 추가(모든 문단 섹션 — 사용자 결정). 클릭 → `LogInsertDialog` 오픈. 다이얼로그의 `onInsert`가 `editorRef.current?.insertCodeBlock(text, lang)` 호출.
-- 로그 존재 여부(`useEditorStore(s => s.networkLog)`, `s.consoleLog`)로 버튼 disabled 판정(둘 다 비면 비활성). 다이얼로그에 `networkLog?.requests`·`consoleLog?.entries` 전달.
+- 현재 역할: 각 이슈 섹션 렌더. paragraph 섹션 헤더 `action` 슬롯에 Camera·ImagePlus 버튼(개별 나열). `editorRef`(TiptapEditorHandle) 보유.
+- 변경: `isParagraph` 분기의 `action`을 **`ButtonGroup`으로 재구성** — tiptap에 콘텐츠를 삽입하는 세 버튼 `[로그 | 캡처 | 업로드]`(이 순서)를 하나의 `ButtonGroup`에 담아 `action`으로 넘긴다. 아코디언(collapsible chevron)은 Section이 `{action}` 뒤에 자동 렌더(`Section.tsx:76-84`, `flex gap-1`)하므로 **ButtonGroup 밖에 자연히 분리** → `[로그|캡처|업로드] [▾]`. Section은 무변경.
+  - 로그 버튼 클릭 → `LogInsertDialog` 오픈. 다이얼로그 `onInsert` → `editorRef.current?.insertCodeBlock(text, lang)`.
+  - 그룹핑 근거: 세 버튼은 "이 섹션에 콘텐츠 삽입"으로 응집 / chevron은 접기(구조 조작)라 성격이 달라 분리. codebase ButtonGroup 관례(`IssueTab`·`OriginFilterBar` 등)와 일관.
+  - 버튼 스타일: 새 로그 버튼은 형제(Camera·ImagePlus, `size="icon" variant="outline" h-8 w-8`, `title`-only 레거시)와 시각 일관 유지. `TooltipIconButton` 승급은 별건(기존 레거시 개조는 이 스코프 밖).
+- 로그 존재 여부(`useEditorStore(s => s.networkLog)`, `s.consoleLog`)로 로그 버튼 disabled 판정(둘 다 비면 비활성). 다이얼로그에 `networkLog?.requests`·`consoleLog?.entries` 전달.
 - `SectionTextarea`가 dialog open 상태(`useState`)를 자체 보유. (섹션마다 독립 다이얼로그 인스턴스 — 섹션별 editorRef가 다르므로.)
+- 폭 주의: ButtonGroup은 테두리만 공유하고 가로 폭은 안 줄인다. 아이콘 3개+chevron+타이틀이 좁은 사이드패널에서 눌리면(실측 확인) 삽입 3개를 단일 `[+]` 드롭다운으로 접는 것을 후속 고려 — 이번 스코프는 ButtonGroup.
 
 **`src/background/notion-api.ts`** (`richText`, `:366`) — 선행 버그 픽스
 - 현재 역할: NotionBlock text → Notion API rich_text 배열. 현재 단일 `{ text: { content } }` 반환 → 2000자 초과 시 API 400.

@@ -56,18 +56,20 @@
   - [ ] `pnpm typecheck` 통과
   - [ ] (수동) 탭 전환·행 선택·삽입 버튼 활성/비활성 동작
 
-### Task 5: SectionTextarea에 버튼 연결
+### Task 5: SectionTextarea에 버튼 연결 + ButtonGroup 재구성
 - **변경 대상**: `src/sidepanel/tabs/DraftingPanel.tsx` (`SectionTextarea`, `:653`)
 - **작업 내용**:
-  - `isParagraph` 분기 `action` 슬롯(Camera·ImagePlus 옆)에 로그 첨부 버튼 추가(모든 문단 섹션).
-  - 로컬 `useState`로 다이얼로그 open 관리. `useEditorStore`에서 `networkLog`·`consoleLog` 구독.
-  - 로그 둘 다 비면 버튼 `disabled`.
+  - `isParagraph` 분기 `action`을 `ButtonGroup`으로 감싸고 tiptap 삽입 버튼 3개를 **`[로그 | 캡처 | 업로드]`** 순서로 담는다(모든 문단 섹션). 아코디언 chevron은 Section이 `{action}` 뒤에 자동 렌더하므로 ButtonGroup 밖에 분리됨 — `[로그|캡처|업로드] [▾]`. Section 무변경.
+  - `import { ButtonGroup } from "@/components/ui/button-group"`.
+  - 로그 버튼: 형제와 동일 스타일(`size="icon" variant="outline"`, ButtonGroup 내부라 개별 `h-8 w-8` rounded는 그룹이 처리). 아이콘 lucide(예: `ScrollText`/`FileCode`) — DESIGN.md 아이콘 컨벤션.
+  - 로컬 `useState`로 다이얼로그 open 관리. `useEditorStore`에서 `networkLog`·`consoleLog` 구독. 로그 둘 다 비면 로그 버튼 `disabled`.
   - `<LogInsertDialog>` 렌더: requests/entries 주입, `onInsert={(text, lang) => editorRef.current?.insertCodeBlock(text, lang)}`.
-  - 아이콘: lucide 적절한 것(예: `FileCode`/`ScrollText`) — DESIGN.md 아이콘 컨벤션.
 - **검증**:
   - [ ] `pnpm typecheck` 통과
-  - [ ] (수동) 발생 현상·기대 결과·비고 섹션 각각에서 버튼 → 다이얼로그 → 삽입 동작
-  - [ ] (수동) 로그 없을 때 버튼 비활성
+  - [ ] (수동) `[로그|캡처|업로드]`가 세그먼트로 묶이고 chevron은 분리 렌더
+  - [ ] (수동) 발생 현상·기대 결과·비고 섹션 각각에서 로그 버튼 → 다이얼로그 → 삽입 동작
+  - [ ] (수동) 기존 캡처·업로드 동작 무회귀
+  - [ ] (수동) 로그 없을 때 로그 버튼 비활성
 
 ### Task 6: Notion 코드블럭 청킹 픽스 (테스트 먼저)
 - **변경 대상**: `src/background/notion-api.ts` (`richText`, `:366`), `src/background/__tests__/notion-api.test.ts` (있으면 추가, 없으면 신규)
