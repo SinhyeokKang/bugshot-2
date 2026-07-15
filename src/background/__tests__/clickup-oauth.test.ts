@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 vi.stubGlobal("chrome", {
   identity: {
@@ -6,10 +6,7 @@ vi.stubGlobal("chrome", {
   },
 });
 
-import {
-  isClickupOAuthConfigured,
-  parseClickupCallbackParams,
-} from "../clickup-oauth";
+import { parseClickupCallbackParams } from "../clickup-oauth";
 import { OAuthError } from "../oauth";
 
 describe("parseClickupCallbackParams", () => {
@@ -62,29 +59,5 @@ describe("parseClickupCallbackParams", () => {
       expect(err.platform).toBe("clickup");
       expect(err.cancelled).toBe(true);
     }
-  });
-});
-
-describe("isClickupOAuthConfigured", () => {
-  afterEach(() => {
-    vi.unstubAllEnvs();
-  });
-
-  it("CLIENT_ID/PROXY_URL 모두 있으면 true", () => {
-    vi.stubEnv("VITE_CLICKUP_CLIENT_ID", "client-123");
-    vi.stubEnv("VITE_OAUTH_PROXY_URL", "https://proxy.example.com");
-    expect(isClickupOAuthConfigured()).toBe(true);
-  });
-
-  it("VITE_CLICKUP_CLIENT_ID 비어있으면 false", () => {
-    vi.stubEnv("VITE_CLICKUP_CLIENT_ID", "");
-    vi.stubEnv("VITE_OAUTH_PROXY_URL", "https://proxy.example.com");
-    expect(isClickupOAuthConfigured()).toBe(false);
-  });
-
-  it("VITE_OAUTH_PROXY_URL 비어있으면 false", () => {
-    vi.stubEnv("VITE_CLICKUP_CLIENT_ID", "client-123");
-    vi.stubEnv("VITE_OAUTH_PROXY_URL", "");
-    expect(isClickupOAuthConfigured()).toBe(false);
   });
 });

@@ -375,18 +375,11 @@ export function mergeSelectionStyles(
   return { specifiedStyles, computedStyles, propSources };
 }
 
-function newIssueId(): string {
+function newId(prefix: string): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
     return crypto.randomUUID();
   }
-  return `issue-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function newAttachmentId(): string {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return crypto.randomUUID();
-  }
-  return `att-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
 // confirmDraft가 pending→issueId로 옮기는 첨부 rekey는 비동기다. 제출 전 이 promise를
@@ -704,7 +697,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         return { issueFields: merged };
       });
     }
-    const id = state.currentIssueId ?? newIssueId();
+    const id = state.currentIssueId ?? newId("issue");
     if (state.captureMode === "freeform") {
       const logs = selectAttachedLogs(state);
       useIssuesStore.getState().saveDraft({
@@ -976,7 +969,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     const metas: UserAttachmentMeta[] = [];
     let saveFailed = false;
     for (const file of files.slice(0, result.acceptCount)) {
-      const id = newAttachmentId();
+      const id = newId("att");
       if (await saveAttachmentBlob(owner, id, file)) {
         metas.push({
           id,

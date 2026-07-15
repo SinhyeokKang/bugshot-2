@@ -6,7 +6,6 @@ import {
   DEFAULT_COLOR,
   DEFAULT_THICKNESS,
   HIGHLIGHT_OPACITY,
-  TEXT_FONT_SIZE,
 } from "../presets";
 
 describe("presets — 색상", () => {
@@ -56,9 +55,6 @@ describe("presets — 기타 상수", () => {
     expect(HIGHLIGHT_OPACITY).toBeLessThanOrEqual(1);
   });
 
-  it("TEXT_FONT_SIZE는 양수다", () => {
-    expect(TEXT_FONT_SIZE).toBeGreaterThan(0);
-  });
 });
 
 describe("presets — 도구 목록", () => {

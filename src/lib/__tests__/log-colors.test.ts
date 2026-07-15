@@ -5,7 +5,6 @@ import {
   NETWORK_METHOD_TONE,
   consoleLevelTextClass,
   networkMethodTextClass,
-  toneTextClass,
 } from "../log-colors";
 
 describe("TONE_TEXT", () => {
@@ -62,11 +61,5 @@ describe("networkMethodTextClass", () => {
 
   it("매핑 상수가 노출된다", () => {
     expect(NETWORK_METHOD_TONE.DELETE).toBe("red");
-  });
-});
-
-describe("toneTextClass", () => {
-  it("톤 직접 조회", () => {
-    expect(toneTextClass("amber")).toBe(TONE_TEXT.amber);
   });
 });

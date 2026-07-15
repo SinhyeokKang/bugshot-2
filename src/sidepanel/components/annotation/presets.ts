@@ -42,9 +42,6 @@ export const TEXT_SIZE_KEYS = Object.keys(TEXT_SIZES) as TextSizeKey[];
 
 export const DEFAULT_TEXT_SIZE: TextSizeKey = "M";
 
-// 기존 단일 상수 — 호환용(M 사이즈와 동일).
-export const TEXT_FONT_SIZE = TEXT_SIZES.M;
-
 export interface AnnotationToolMeta {
   key: AnnotationTool;
   labelKey: TranslationKey;

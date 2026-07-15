@@ -1,4 +1,5 @@
 import { t } from "@/i18n";
+import { escapeTableCell as escapeCell } from "./markdownCell";
 import {
   POST_MEDIA_SECTION_IDS,
   sectionMdLabelKey,
@@ -469,10 +470,6 @@ function toCssChanges(diffs: StyleDiffRow[]): {
   to: string;
 }[] {
   return diffs.map((d) => ({ property: d.prop, from: d.asIs, to: d.toBe }));
-}
-
-function escapeCell(value: string): string {
-  return value.replace(/\|/g, "\\|").replace(/\r?\n/g, " ");
 }
 
 function escapeHtml(value: string): string {

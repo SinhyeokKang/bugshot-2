@@ -1,7 +1,7 @@
 import type { CaptureMode } from "@/store/editor-store";
 import type { IssueSectionId, LocaleMode } from "@/store/settings-ui-store";
-import type { AiDraftSessionContext } from "../buildAiDraftPrompt";
-import { stripInlineImageRefs } from "../resolveInlineImages";
+import type { AiDraftSessionContext } from "@/sidepanel/lib/buildAiDraftPrompt";
+import { stripInlineImageRefs } from "@/sidepanel/lib/resolveInlineImages";
 import {
   supportsActionLog,
   supportsConsoleNetworkLog,

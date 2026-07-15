@@ -8,7 +8,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useT } from "@/i18n";
-import { TooltipIconButton } from "../TooltipIconButton";
+import { TooltipIconButton } from "@/sidepanel/components/TooltipIconButton";
 import {
   formatZoomPercent,
   MAX_ZOOM,

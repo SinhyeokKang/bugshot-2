@@ -62,9 +62,10 @@ export function SlackConnectFlow({ connected, onConnected }: ConnectFlowProps) {
   return (
     <Button
       variant="outline"
-      onClick={() => void startOAuth()}
-      disabled={connected || connecting || !oauthAvailable}
-      className="relative w-full justify-center gap-2"
+      onClick={() => { if (connecting) return; void startOAuth(); }}
+      disabled={connected || !oauthAvailable}
+      aria-disabled={connecting}
+      className="relative w-full justify-center gap-2 aria-disabled:cursor-not-allowed"
     >
       {connecting && (
         <span className="absolute inset-0 flex items-center justify-center">

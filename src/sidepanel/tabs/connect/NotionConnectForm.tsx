@@ -83,6 +83,7 @@ export function NotionConnectFlow({ connected, onConnected }: ConnectFlowProps) 
 
   function handleClick() {
     if (methods.length === 0) return;
+    if (connecting) return;
     if (methods.includes("oauth")) {
       setMethodOpen(true);
     } else {
@@ -95,8 +96,9 @@ export function NotionConnectFlow({ connected, onConnected }: ConnectFlowProps) 
       <Button
         variant="outline"
         onClick={handleClick}
-        disabled={connected || connecting || methods.length === 0}
-        className="relative w-full justify-center gap-2"
+        disabled={connected || methods.length === 0}
+        aria-disabled={connecting}
+        className="relative w-full justify-center gap-2 aria-disabled:cursor-not-allowed"
       >
         {connecting && (
           <span className="absolute inset-0 flex items-center justify-center">
@@ -268,6 +270,7 @@ function InternalTokenDialog({
   const canValidate = !!trimmed && !validating;
 
   async function handleValidate() {
+    if (validating) return;
     setValidating(true);
     try {
       const me = await sendBg<NotionMyself>({
@@ -348,8 +351,9 @@ function InternalTokenDialog({
           </Button>
           <Button
             onClick={handleValidate}
-            disabled={!canValidate}
-            className="relative"
+            disabled={!canValidate && !validating}
+            aria-disabled={validating}
+            className="relative aria-disabled:cursor-not-allowed"
           >
             {validating && (
               <span className="absolute inset-0 flex items-center justify-center">

@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { ButtonGroup } from "@/components/ui/button-group";
 import { cn } from "@/lib/utils";
 import { useT } from "@/i18n";
-import { TooltipIconButton } from "../TooltipIconButton";
+import { TooltipIconButton } from "@/sidepanel/components/TooltipIconButton";
 import { ZoomControl } from "./ZoomControl";
 import type { ZoomLevel } from "./viewport";
 import {

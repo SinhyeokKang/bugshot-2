@@ -63,7 +63,3 @@ export interface NetworkLog {
   warnings: ("MEMORY_CAPPED" | "WS_FRAMES_CAPPED" | "BODY_TRUNCATED" | "ENTRY_CAPPED")[];
   requests: NetworkRequest[];
 }
-
-export interface NetworkLogSelection {
-  selectedIds: string[];
-}

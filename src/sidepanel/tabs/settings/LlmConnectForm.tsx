@@ -191,9 +191,9 @@ function LlmConnected() {
               <Button
                 size="icon"
                 variant="outline"
-                className="h-8 w-8 shrink-0"
-                onClick={() => void loadModels()}
-                disabled={modelsLoading}
+                className="h-8 w-8 shrink-0 aria-disabled:cursor-not-allowed"
+                onClick={() => { if (modelsLoading) return; void loadModels(); }}
+                aria-disabled={modelsLoading}
                 title={t("llm.model.refresh")}
               >
                 <RefreshCw className={cn("h-4 w-4", modelsLoading && "animate-spin")} />

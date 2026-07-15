@@ -1,5 +1,8 @@
 import * as React from "react";
+import { ChevronDown } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { Button } from "@/components/ui/button";
+import { useT } from "@/i18n";
 
 export function PageShell({
   children,
@@ -99,27 +102,22 @@ function SectionToggle({
   onToggle: () => void;
   testId?: string;
 }) {
+  const t = useT();
+  const label = open ? t("common.collapse") : t("common.expand");
   return (
-    <button
+    <Button
       type="button"
+      variant="outline"
+      size="icon"
       onClick={onToggle}
       data-testid={testId}
-      className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-input bg-background shadow-sm transition-colors hover:bg-accent hover:text-accent-foreground"
+      aria-label={label}
+      title={label}
+      className="h-8 w-8 shrink-0"
     >
-      <svg
-        xmlns="http://www.w3.org/2000/svg"
-        width="16"
-        height="16"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        className={`transition-transform ${open ? "rotate-180" : ""}`}
-      >
-        <path d="m6 9 6 6 6-6" />
-      </svg>
-    </button>
+      <ChevronDown
+        className={cn("h-4 w-4 transition-transform", open && "rotate-180")}
+      />
+    </Button>
   );
 }

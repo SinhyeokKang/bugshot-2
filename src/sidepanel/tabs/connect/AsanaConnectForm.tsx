@@ -80,6 +80,7 @@ export function AsanaConnectFlow({ connected, onConnected }: ConnectFlowProps) {
 
   function handleClick() {
     if (methods.length === 0) return;
+    if (connecting) return;
     if (methods.includes("oauth")) {
       setMethodOpen(true);
     } else {
@@ -92,8 +93,9 @@ export function AsanaConnectFlow({ connected, onConnected }: ConnectFlowProps) {
       <Button
         variant="outline"
         onClick={handleClick}
-        disabled={connected || connecting || methods.length === 0}
-        className="relative w-full justify-center gap-2"
+        disabled={connected || methods.length === 0}
+        aria-disabled={connecting}
+        className="relative w-full justify-center gap-2 aria-disabled:cursor-not-allowed"
       >
         {connecting && (
           <span className="absolute inset-0 flex items-center justify-center">
@@ -235,6 +237,7 @@ function PatDialog({
   const canValidate = !!trimmed && !validating;
 
   async function handleValidate() {
+    if (validating) return;
     setValidating(true);
     try {
       const me = await sendBg<AsanaMyself>({
@@ -301,7 +304,7 @@ function PatDialog({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             {t("common.cancel")}
           </Button>
-          <Button onClick={handleValidate} disabled={!canValidate} className="relative">
+          <Button onClick={handleValidate} disabled={!canValidate && !validating} aria-disabled={validating} className="relative aria-disabled:cursor-not-allowed">
             {validating && (
               <span className="absolute inset-0 flex items-center justify-center">
                 <Loader2 className="h-4 w-4 animate-spin" />

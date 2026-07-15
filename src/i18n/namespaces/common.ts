@@ -18,6 +18,8 @@ const ko = {
   "common.attach": "첨부",
   "common.detach": "첨부 해제",
   "common.download": "다운로드",
+  "common.expand": "펼치기",
+  "common.collapse": "접기",
 
   "time.justNow": "방금",
   "time.minutesAgo": "{n}분 전",
@@ -51,6 +53,8 @@ const en = {
   "common.attach": "Attach",
   "common.detach": "Detach",
   "common.download": "Download",
+  "common.expand": "Expand",
+  "common.collapse": "Collapse",
 
   "time.justNow": "Just now",
   "time.minutesAgo": "{n}m ago",

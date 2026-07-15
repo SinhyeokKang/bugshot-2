@@ -12,6 +12,7 @@ import {
 } from "./action-recorder-helpers";
 import { createTrailingThrottle, FLUSH_INTERVAL_MS } from "./log-throttle";
 import { readPreArmFlag, setPreArmFlag } from "./recorder-prearm";
+import { maskUrl } from "./network-recorder-helpers";
 
 function actionRecorderScript(): void {
   const CTRL_KEY = "__bugshot_action_ctrl__";
@@ -280,14 +281,16 @@ function actionRecorderScript(): void {
 
   function recordNavigation(navType: NavType, fromUrl: string, toUrl: string): void {
     if (navType !== "load" && fromUrl === toUrl) return;
+    // 저장 필드만 마스킹(#access_token·?token= 등 URL 시크릿). lastUrl은 raw 유지 — dedup 비교 정확도 보존.
+    const maskedTo = maskUrl(toUrl);
     pushAction({
       id: genId(),
       kind: "navigation",
       timestamp: Date.now(),
-      pageUrl: toUrl,
+      pageUrl: maskedTo,
       navType,
-      fromUrl,
-      toUrl,
+      fromUrl: maskUrl(fromUrl),
+      toUrl: maskedTo,
     });
     lastUrl = toUrl;
     if (navType === "load" && capturing) entryNavEmitted = true;

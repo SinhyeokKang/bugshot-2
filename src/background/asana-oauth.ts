@@ -5,17 +5,12 @@ import { getMyself, setAsanaRefreshHook } from "./asana-api";
 import { OAuthError, launchOAuthWebFlow } from "./oauth";
 import {
   OAUTH_CONFIG,
-  isConfigured as isOAuthPlatformConfigured,
   assertConfigured as assertOAuthConfigured,
   isCancellation,
 } from "./oauth/config";
 
 const AUTHORIZE_URL = "https://app.asana.com/-/oauth_authorize";
 const SCOPES = ["default"];
-
-export function isAsanaOAuthConfigured(): boolean {
-  return isOAuthPlatformConfigured(OAUTH_CONFIG.asana);
-}
 
 function assertConfigured(): void {
   assertOAuthConfigured(OAUTH_CONFIG.asana);
