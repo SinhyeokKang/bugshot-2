@@ -21,6 +21,13 @@
 
 ---
 
+## 2026-07-16 — toLocaleString의 timeZoneName 옵션이 ko 시간 스켈레톤을 바꿔 콜론 포맷이 깨짐
+
+- **증상**: Captured 시각에 타임존 표기를 추가(`timeZoneName: "shortOffset"`)했더니, ko-KR UI에서 시간이 `09:01:50`(콜론) → `09시 1분 50초`로 바뀌고 분 2-digit 패딩까지 깨졌다(`1분`). en-US는 `09:01:50 AM GMT+9`로 멀쩡. 단위테스트는 `dateBcp47`을 en-US로 고정 mock해서 **green이었는데도 ko 화면이 깨진** 상태 — 사용자가 육안으로 발견.
+- **근본 원인**: `Intl.DateTimeFormat`(`toLocaleString`)에 `timeZoneName`을 옵션으로 섞으면 **ICU가 로케일별 time skeleton을 재선택**한다. ko 기본 패턴은 timezone 동반 시 `시/분/초` 한글 표기를 쓰고, 그 과정에서 `hour/minute/second: "2-digit"` 지정이 무력화된다. "오프셋을 뒤에 붙인다"는 의도와 달리 옵션 한 줄이 시간 표기 스타일 전체를 갈아치웠다. en 패턴은 timezone에도 콜론을 유지해 **en-only 테스트로는 구조적으로 못 잡힌다**.
+- **재발 방지**: (1) **표시용 날짜/시각에 오프셋·타임존을 넣을 땐 `timeZoneName` 옵션이 아니라 offset suffix를 수동 조립**한다(`getTimezoneOffset` → `GMT+9`). `grep -rn "timeZoneName" src/`로 신규 유입 감시. (2) **로케일 의존 포맷 함수 테스트는 en 하나로 끝내지 않는다** — `dateBcp47` mock을 `vi.hoisted` ref로 가변화해 **ko-KR 등 CJK 로케일 케이스**를 반드시 포함(콜론 시간 유지 + `시/분/초` 미전환 단언). `grep -rn "toLocaleString\|Intl.DateTimeFormat" src/`가 로케일 편차 위험 지점. (3) 넓게 퍼지는 표시 헬퍼(`formatTimestamp`는 Captured 13곳 단일 출처)는 로케일 회귀가 전 트래커 본문에 번지므로 mock 로케일 스윕이 값싸고 필수.
+- **관련**: `src/sidepanel/lib/formatTimestamp.ts`(`gmtOffset` suffix 조립, `timeZoneName` 제거), 테스트 `src/sidepanel/lib/__tests__/formatTimestamp.test.ts`(가변 로케일 mock + ko 회귀 케이스). 커밋 `2a2ed6c`.
+
 ## 2026-07-14 — 액션 로그 마스킹이 값 경로만 막아, 이름 경로(accessibleName)로 저작물·PII가 그대로 유출
 
 - **증상**: 액션 로그의 민감 입력 마스킹은 "구현돼 있다"고 믿고 있었는데, 실제로는 리치 에디터(Gmail·Notion·Slack) 본문을 클릭하거나 그 안에서 Enter만 눌러도 **작성 중인 글 80자가 엔트리의 `target`에 그대로 실렸다.** 값(`value`)은 마스킹되는데 이름(`target`)으로 같은 텍스트가 도로 나가는 구조. 스크린샷 캡처에도 액션 로그가 붙기 시작하면서(v1.5.8) 이 구멍이 가장 흔한 경로에 올라탔다.
