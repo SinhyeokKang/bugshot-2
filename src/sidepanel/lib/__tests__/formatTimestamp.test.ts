@@ -1,4 +1,10 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+// dateBcp47만 의존 — 로케일을 고정해 포맷을 결정적으로.
+vi.mock("@/i18n", () => ({
+  dateBcp47: () => "en-US",
+}));
+
 import { formatTimestamp } from "../formatTimestamp";
 
 describe("formatTimestamp", () => {
@@ -15,5 +21,13 @@ describe("formatTimestamp", () => {
     expect(result).toContain("15");
     expect(result).toContain("30");
     expect(result).toContain("45");
+  });
+
+  // 회귀: 글로벌 팀이 Captured 시각의 타임존을 판독할 수 있어야 한다.
+  // 리포터 브라우저 로컬 TZ의 GMT 오프셋이 출력에 포함(실행 환경 TZ 무관 — UTC면 "GMT",
+  // 그 외 "GMT+9" 등. 하드코딩 로컬시각 비교는 환경 TZ 의존이라 금지).
+  it("리포터 로컬 타임존 오프셋(GMT)을 포함한다", () => {
+    const result = formatTimestamp(1700000000000);
+    expect(result).toMatch(/GMT/);
   });
 });
