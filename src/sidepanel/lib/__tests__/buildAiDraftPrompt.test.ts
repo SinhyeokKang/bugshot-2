@@ -8,7 +8,6 @@ import {
 } from "../buildAiDraftPrompt";
 import { BYOK_CAPABILITIES, NANO_CAPABILITIES } from "../ai-provider";
 import { COMPACT_SYSTEM_TARGET_CHARS, MAX_TITLE_LENGTH } from "../prompts/caps";
-import { includesLogContext } from "../prompts/context";
 
 // 이 describe들은 기본적으로 rich(BYOK) 본문을 검증한다 — 규칙 문장·로그 헤더·캡은
 // promptStyle별로 다르므로, compact 계약은 파일 하단의 전용 describe에서 단언한다.
@@ -191,14 +190,14 @@ describe("buildAiDraftSessionPrompt", () => {
     expect(prompt).toContain("click Submit 버튼");
   });
 
-  it("freeform 모드: action log는 제외 (video 전용)", () => {
+  it("freeform 모드: action log 포함 (supportsActionLog로 정렬 — 이슈에 실리면 AI도 본다)", () => {
     const prompt = buildAiDraftSessionPrompt({
       ...SESSION_BASE,
       captureMode: "freeform",
       actionLogSummary: ["click Submit 버튼", "input email"],
     });
-    expect(prompt).not.toContain("User actions");
-    expect(prompt).not.toContain("click Submit 버튼");
+    expect(prompt).toContain("User actions");
+    expect(prompt).toContain("click Submit 버튼");
   });
 
   it("locale ko → Korean, en → English", () => {
@@ -680,14 +679,16 @@ describe("compact 사용자 입력 이중 계상 방지", () => {
   });
 });
 
-// 두 본문이 "어느 캡처 모드에 로그를 싣나"를 각자 판단하면 조용히 갈라진다.
-// 규칙의 단일 출처는 includesLogContext — 본문·호출부가 모두 이걸 쓴다.
-describe("로그 컨텍스트 포함 규칙 — compact/rich 대조", () => {
+// 로그(console/network/action)는 "이슈에 실릴 수 있으면 AI도 본다" — capture-support
+// 매트릭스(supportsConsoleNetworkLog/supportsActionLog)가 단일 출처다. UI·첨부·본문과
+// 같은 기준을 AI 프롬프트도 쓴다. compact/rich 두 본문이 동일하게 실어야 한다.
+describe("로그 컨텍스트 포함 규칙 — capture-support 매트릭스 정렬", () => {
   const LOG_CTX = {
     networkLogSummary: {
       errors: [{ method: "GET", path: "/api/x", status: 500, statusText: "Server Error" }],
     },
     consoleLogSummary: { captured: 1, errorCount: 1, warnCount: 0, topErrors: ["TypeError: boom"] },
+    actionLogSummary: ['click on "SubmitOrderBtn"'],
   } as Partial<AiDraftSessionContext>;
 
   it.each(["element", "screenshot", "video", "freeform"] as const)(
@@ -698,14 +699,47 @@ describe("로그 컨텍스트 포함 규칙 — compact/rich 대조", () => {
       const compact = buildAiDraftSessionPrompt({ ...base, caps: NANO_CAPABILITIES });
       expect(compact.includes("/api/x")).toBe(rich.includes("/api/x"));
       expect(compact.includes("TypeError: boom")).toBe(rich.includes("TypeError: boom"));
+      expect(compact.includes("SubmitOrderBtn")).toBe(rich.includes("SubmitOrderBtn"));
     },
   );
 
-  it("includesLogContext가 video·freeform에서만 참", () => {
-    expect(includesLogContext("video")).toBe(true);
-    expect(includesLogContext("freeform")).toBe(true);
-    expect(includesLogContext("element")).toBe(false);
-    expect(includesLogContext("screenshot")).toBe(false);
+  // console/network는 screenshot·freeform·video에 싣는다(supportsConsoleNetworkLog).
+  // 회귀: 예전 includesLogContext가 screenshot을 뺐다 — 이슈엔 실리는데 AI만 못 봤다.
+  it.each([
+    ["compact", NANO_CAPABILITIES],
+    ["rich", BYOK_CAPABILITIES],
+  ] as const)("%s: console/network는 screenshot·freeform·video에 실린다", (_n, caps) => {
+    for (const captureMode of ["screenshot", "freeform", "video"] as const) {
+      const prompt = buildAiDraftSessionPrompt({ ...SESSION_BASE, ...LOG_CTX, caps, captureMode });
+      expect(prompt).toContain("/api/x");
+      expect(prompt).toContain("TypeError: boom");
+    }
+  });
+
+  // action 로그도 같은 매트릭스(supportsActionLog) — 예전엔 video 전용이었다.
+  it.each([
+    ["compact", NANO_CAPABILITIES],
+    ["rich", BYOK_CAPABILITIES],
+  ] as const)("%s: action 로그는 screenshot·freeform·video에 실린다", (_n, caps) => {
+    for (const captureMode of ["screenshot", "freeform", "video"] as const) {
+      const prompt = buildAiDraftSessionPrompt({ ...SESSION_BASE, ...LOG_CTX, caps, captureMode });
+      expect(prompt).toContain("SubmitOrderBtn");
+    }
+  });
+
+  it.each([
+    ["compact", NANO_CAPABILITIES],
+    ["rich", BYOK_CAPABILITIES],
+  ] as const)("%s: element 모드는 로그를 싣지 않는다", (_n, caps) => {
+    const prompt = buildAiDraftSessionPrompt({
+      ...SESSION_BASE,
+      ...LOG_CTX,
+      caps,
+      captureMode: "element",
+    });
+    expect(prompt).not.toContain("/api/x");
+    expect(prompt).not.toContain("TypeError: boom");
+    expect(prompt).not.toContain("SubmitOrderBtn");
   });
 });
 

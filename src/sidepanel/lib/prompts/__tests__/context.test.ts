@@ -6,7 +6,6 @@ import {
   selectDraftSections,
   extractLayoutContext,
   extractVarRefs,
-  includesLogContext,
   LAYOUT_PROPS,
   oneLine,
   selectRelevantTokens,
@@ -325,11 +324,3 @@ describe("oneLine", () => {
   });
 });
 
-describe("includesLogContext", () => {
-  it("video·freeform에서만 로그를 싣는다", () => {
-    expect(includesLogContext("video")).toBe(true);
-    expect(includesLogContext("freeform")).toBe(true);
-    expect(includesLogContext("element")).toBe(false);
-    expect(includesLogContext("screenshot")).toBe(false);
-  });
-});

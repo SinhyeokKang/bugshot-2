@@ -179,12 +179,16 @@ describe("fitDraftContext", () => {
   it("includedSections — 초안이 실린 섹션 id 목록", () => {
     const result = fitDraftContext(FULL_CTX, build, 100_000);
     expect(result.includedSections).toEqual(["description", "notes"]);
+    // 전부 실렸으면 빠진 것 없음.
+    expect(result.omittedSections).toEqual([]);
   });
 
   it("includedSections — level 2 이상(초안 절삭)이면 빈 배열", () => {
     const result = fitDraftContext(FULL_CTX, build, 1);
     expect(result.level).toBeGreaterThanOrEqual(2);
     expect(result.includedSections).toEqual([]);
+    // 예산 절삭으로 빠진 내용 있는 섹션은 omittedSections로 고지된다(병합이 원문 보존).
+    expect(result.omittedSections).toEqual(["description", "notes"]);
   });
 
   it("includedSections — 기존 초안이 없으면 빈 배열", () => {

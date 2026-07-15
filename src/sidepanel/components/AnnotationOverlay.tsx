@@ -74,8 +74,6 @@ interface PanOrigin {
   moved: boolean; // 임계값을 넘겼는가 = 클릭이 아니라 드래그였는가
 }
 
-
-
 export default function AnnotationOverlay({
   imageUrl,
   onComplete,

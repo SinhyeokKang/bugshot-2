@@ -18,7 +18,7 @@ import {
   type ZoomLevel,
 } from "./viewport";
 
-// aria-disabled는 disabled와 달리 흐림·커서를 자동으로 안 준다(DESIGN §14 — 툴팁·포커스를 살리려 aria 사용).
+// aria-disabled는 disabled와 달리 흐림·커서를 자동으로 안 준다(DESIGN "진행 중 잠금" — 툴팁·포커스를 살리려 aria 사용).
 const LOCK_CLASS = "bg-transparent aria-disabled:cursor-not-allowed aria-disabled:opacity-50";
 
 interface ZoomControlProps {

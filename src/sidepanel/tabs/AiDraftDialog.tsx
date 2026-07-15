@@ -33,7 +33,10 @@ import {
   type ProviderCapabilities,
 } from "@/sidepanel/lib/ai-provider";
 import { toastLlmError } from "@/sidepanel/lib/llmErrorToast";
-import { includesLogContext } from "@/sidepanel/lib/prompts/context";
+import {
+  supportsActionLog,
+  supportsConsoleNetworkLog,
+} from "@/sidepanel/lib/captureLogSupport";
 import { fitDraftContext, isPromptOverBudget } from "@/sidepanel/lib/prompts/promptBudget";
 import { defaultTitle } from "./DraftingPanel";
 
@@ -85,7 +88,8 @@ export function AiDraftDialog({
       const networkLog = store.networkLog;
       const consoleLog = store.consoleLog;
       const actionLog = store.actionLog;
-      const includeLogCtx = includesLogContext(captureMode);
+      const includeCnLog = supportsConsoleNetworkLog(captureMode);
+      const includeActionLog = supportsActionLog(captureMode);
 
       const ctx: AiDraftSessionContext = {
         caps: capabilities,
@@ -102,15 +106,15 @@ export function AiDraftDialog({
             : undefined,
         userPrompt: msg,
         networkLogSummary:
-          includeLogCtx && networkLog && networkLog.captured > 0
+          includeCnLog && networkLog && networkLog.captured > 0
             ? buildNetworkLogSummary(networkLog)
             : undefined,
         consoleLogSummary:
-          includeLogCtx && consoleLog && consoleLog.captured > 0
+          includeCnLog && consoleLog && consoleLog.captured > 0
             ? buildConsoleLogSummary(consoleLog)
             : undefined,
         actionLogSummary:
-          includeLogCtx && actionLog && actionLog.captured > 0
+          includeActionLog && actionLog && actionLog.captured > 0
             ? buildActionLogSummary(actionLog)
             : undefined,
         enabledSections,
