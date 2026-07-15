@@ -1,4 +1,5 @@
 import { t } from "@/i18n";
+import { escapeTableCell as escapeCell } from "./markdownCell";
 import {
   POST_MEDIA_SECTION_IDS,
   sectionMdLabelKey,
@@ -40,10 +41,6 @@ function listItems(content: string): string[] {
     .split(/\r?\n/)
     .map((l) => l.trim())
     .filter(Boolean);
-}
-
-function escapeCell(value: string): string {
-  return value.replace(/\|/g, "\\|").replace(/\r?\n/g, " ");
 }
 
 export function buildAsanaIssueBody(input: AsanaBuildInput): AsanaBuildResult {

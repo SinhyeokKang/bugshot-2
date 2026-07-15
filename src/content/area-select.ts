@@ -15,7 +15,6 @@ export interface AreaSelectHandle {
   _areaDimRightEl: HTMLDivElement;
   _areaSizeEl: HTMLDivElement;
   _dragStart: { x: number; y: number } | null;
-  _dragging: boolean;
   _deps: AreaSelectDeps;
   _onMouseDown: (e: MouseEvent) => void;
   _onMouseMove: (e: MouseEvent) => void;
@@ -56,7 +55,6 @@ export function startAreaSelect(deps: AreaSelectDeps): AreaSelectHandle {
     _areaDimRightEl: areaDimRightEl,
     _areaSizeEl: areaSizeEl,
     _dragStart: null,
-    _dragging: false,
     _deps: deps,
     _onMouseDown: (e) => onMouseDown(handle, e),
     _onMouseMove: (e) => onMouseMove(handle, e),
@@ -162,7 +160,6 @@ function onMouseDown(h: AreaSelectHandle, e: MouseEvent): void {
   if (e.button !== 0) return;
   e.preventDefault();
   h._dragStart = { x: e.clientX, y: e.clientY };
-  h._dragging = true;
   window.addEventListener("mousemove", h._onMouseMove, true);
   window.addEventListener("mouseup", h._onMouseUp, true);
 }
@@ -181,7 +178,6 @@ function onMouseUp(h: AreaSelectHandle, e: MouseEvent): void {
   const hh = Math.abs(e.clientY - h._dragStart.y);
   if (w < 10 || hh < 10) {
     h._dragStart = null;
-    h._dragging = false;
     h._areaSelectEl.style.display = "none";
     h._areaSizeEl.style.display = "none";
     showDimming(h, null);

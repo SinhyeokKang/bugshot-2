@@ -638,10 +638,6 @@ export function tokenizeEditableText(text: string): EditableToken[] {
   return out;
 }
 
-export function serializeEditableTokens(tokens: readonly EditableToken[]): string {
-  return tokens.map((t) => (t.kind === "br" ? "\n" : t.value)).join("");
-}
-
 export type EditableHandle =
   | { kind: "single"; node: Text }
   | { kind: "flat"; el: Element; originalChildren: Node[] }

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 vi.stubGlobal("chrome", {
   identity: {
@@ -6,7 +6,7 @@ vi.stubGlobal("chrome", {
   },
 });
 
-import { isAsanaOAuthConfigured, parseAsanaCallbackParams } from "../asana-oauth";
+import { parseAsanaCallbackParams } from "../asana-oauth";
 import { OAuthError } from "../oauth";
 
 describe("parseAsanaCallbackParams", () => {
@@ -59,29 +59,5 @@ describe("parseAsanaCallbackParams", () => {
       expect(err.platform).toBe("asana");
       expect(err.cancelled).toBe(true);
     }
-  });
-});
-
-describe("isAsanaOAuthConfigured", () => {
-  afterEach(() => {
-    vi.unstubAllEnvs();
-  });
-
-  it("CLIENT_ID/PROXY_URL 모두 있으면 true", () => {
-    vi.stubEnv("VITE_ASANA_CLIENT_ID", "client-123");
-    vi.stubEnv("VITE_OAUTH_PROXY_URL", "https://proxy.example.com");
-    expect(isAsanaOAuthConfigured()).toBe(true);
-  });
-
-  it("VITE_ASANA_CLIENT_ID 비어있으면 false", () => {
-    vi.stubEnv("VITE_ASANA_CLIENT_ID", "");
-    vi.stubEnv("VITE_OAUTH_PROXY_URL", "https://proxy.example.com");
-    expect(isAsanaOAuthConfigured()).toBe(false);
-  });
-
-  it("VITE_OAUTH_PROXY_URL 비어있으면 false", () => {
-    vi.stubEnv("VITE_ASANA_CLIENT_ID", "client-123");
-    vi.stubEnv("VITE_OAUTH_PROXY_URL", "");
-    expect(isAsanaOAuthConfigured()).toBe(false);
   });
 });

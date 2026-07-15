@@ -19,6 +19,33 @@ export const MASKED_QUERY_KEYS = new Set([
 ]);
 const MASKED_BODY_KEYS = MASKED_QUERY_KEYS;
 
+// ?query 와 #fragment(OAuth implicit의 access_token 등) 양쪽의 민감 키(token·password 등)를
+// ***로 마스킹. network/console/action 레코더 공용. 히트한 part만 재직렬화 — 순수 앵커(#top) 보존.
+export function maskUrl(url: string): string {
+  try {
+    const u = new URL(url);
+    let changed = false;
+    for (const part of ["search", "hash"] as const) {
+      const raw = u[part].replace(/^[?#]/, "");
+      if (!raw) continue;
+      const params = new URLSearchParams(raw);
+      let hit = false;
+      for (const key of params.keys()) {
+        if (MASKED_QUERY_KEYS.has(key.toLowerCase())) {
+          params.set(key, "***");
+          hit = true;
+        }
+      }
+      if (hit) {
+        u[part] = params.toString();
+        changed = true;
+      }
+    }
+    if (changed) return u.toString();
+  } catch { /* invalid URL, return as-is */ }
+  return url;
+}
+
 function maskJsonBody(val: unknown, depth: number): unknown {
   if (depth > 10) return val;
   if (Array.isArray(val)) {

@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 vi.stubGlobal("chrome", {
   identity: {
@@ -8,7 +8,6 @@ vi.stubGlobal("chrome", {
 
 import {
   isSlackCancellationCode,
-  isSlackOAuthConfigured,
   parseSlackCallbackParams,
 } from "../slack-oauth";
 import { OAuthError } from "../oauth";
@@ -71,29 +70,5 @@ describe("isSlackCancellationCode", () => {
     expect(isSlackCancellationCode("access_denied")).toBe(true);
     expect(isSlackCancellationCode("invalid_scope")).toBe(false);
     expect(isSlackCancellationCode(null)).toBe(false);
-  });
-});
-
-describe("isSlackOAuthConfigured", () => {
-  afterEach(() => {
-    vi.unstubAllEnvs();
-  });
-
-  it("CLIENT_ID/PROXY_URL 모두 있으면 true", () => {
-    vi.stubEnv("VITE_SLACK_CLIENT_ID", "client-123");
-    vi.stubEnv("VITE_OAUTH_PROXY_URL", "https://proxy.example.com");
-    expect(isSlackOAuthConfigured()).toBe(true);
-  });
-
-  it("VITE_SLACK_CLIENT_ID 비어있으면 false", () => {
-    vi.stubEnv("VITE_SLACK_CLIENT_ID", "");
-    vi.stubEnv("VITE_OAUTH_PROXY_URL", "https://proxy.example.com");
-    expect(isSlackOAuthConfigured()).toBe(false);
-  });
-
-  it("VITE_OAUTH_PROXY_URL 비어있으면 false", () => {
-    vi.stubEnv("VITE_SLACK_CLIENT_ID", "client-123");
-    vi.stubEnv("VITE_OAUTH_PROXY_URL", "");
-    expect(isSlackOAuthConfigured()).toBe(false);
   });
 });

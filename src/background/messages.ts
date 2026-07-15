@@ -2,10 +2,10 @@ import { t } from "@/i18n";
 import type { PlatformId } from "@/types/platform";
 import { dataUrlToBlob } from "@/store/blob-db";
 import { IMAGE_PLACEHOLDER, VIDEO_PLACEHOLDER, parseInlinePlaceholder } from "@/lib/adf-sentinels";
-import { adfMediaNode, adfMediaSingle, adfVideoMediaSingle, type MediaSource } from "@/background/lib/adf-media";
-import { injectLogsLink } from "@/background/lib/adf-logs-link";
-import { injectSnapshotRows } from "@/background/injectSnapshotRows";
-import { captureThrottle } from "@/background/capture-throttle";
+import { adfMediaNode, adfMediaSingle, adfVideoMediaSingle, type MediaSource } from "./lib/adf-media";
+import { injectLogsLink } from "./lib/adf-logs-link";
+import { injectSnapshotRows } from "./injectSnapshotRows";
+import { captureThrottle } from "./capture-throttle";
 import { injectIssueUrl } from "@/lib/inject-issue-url";
 import { isFetchableSheetUrl } from "@/lib/ssrf-guard";
 import type { JiraAttachmentInput, JiraAuth, JiraCreateIssuePayload, JiraSubmitResult } from "@/types/jira";
@@ -724,7 +724,8 @@ async function fetchCssSheets(
       });
       if (!res.ok) return null;
       const type = res.headers.get("content-type") ?? "";
-      if (type && !type.toLowerCase().includes("css")) return null;
+      // 빈 content-type도 reject — CSS임을 확증할 수 없는 응답 차단(하드닝).
+      if (!type.toLowerCase().includes("css")) return null;
       const len = Number(res.headers.get("content-length"));
       if (Number.isFinite(len) && len > MAX_SHEET_BYTES) return null;
       const text = await readCappedText(res, MAX_SHEET_BYTES);

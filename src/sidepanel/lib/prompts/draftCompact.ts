@@ -1,9 +1,13 @@
 import type { IssueSectionId, LocaleMode } from "@/store/settings-ui-store";
 import type { FewShotExample } from "../ai-provider";
-import type { AiDraftSessionContext } from "../buildAiDraftPrompt";
-import { stripInlineImageRefs } from "../resolveInlineImages";
+import type { AiDraftSessionContext } from "@/sidepanel/lib/buildAiDraftPrompt";
+import { stripInlineImageRefs } from "@/sidepanel/lib/resolveInlineImages";
+import {
+  supportsActionLog,
+  supportsConsoleNetworkLog,
+} from "@/sidepanel/lib/captureLogSupport";
 import { MAX_TITLE_LENGTH, PROMPT_CAPS } from "./caps";
-import { includesLogContext, oneLine, selectDraftSections } from "./context";
+import { oneLine, selectDraftSections } from "./context";
 
 // 지시는 전부 긍정형이다. 소형 모델은 부정 지시("Do not X")에서 오히려 X를 활성화한다.
 // JSON 형식 규칙("output only JSON" / "no extra fields" / "빈 문자열 사용")은
@@ -63,7 +67,7 @@ export function buildCompactDraftPrompt(ctx: AiDraftSessionContext): string {
     }
   }
 
-  if (includesLogContext(ctx.captureMode)) {
+  if (supportsConsoleNetworkLog(ctx.captureMode)) {
     if (ctx.networkLogSummary && ctx.networkLogSummary.errors.length > 0) {
       lines.push("Network errors:");
       for (const e of ctx.networkLogSummary.errors.slice(0, caps.networkErrors)) {
@@ -77,7 +81,7 @@ export function buildCompactDraftPrompt(ctx: AiDraftSessionContext): string {
       }
     }
   }
-  if (ctx.captureMode === "video" && ctx.actionLogSummary?.length) {
+  if (supportsActionLog(ctx.captureMode) && ctx.actionLogSummary?.length) {
     lines.push("User actions (rewrite as reproduction steps):");
     for (const a of ctx.actionLogSummary.slice(0, caps.actions)) {
       lines.push(`  ${a}`);

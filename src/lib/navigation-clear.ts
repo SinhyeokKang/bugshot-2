@@ -1,4 +1,4 @@
-import { originOf } from "@/lib/session-keys";
+import { originOf } from "./session-keys";
 
 export function shouldClearLogs(
   previousUrl: string,

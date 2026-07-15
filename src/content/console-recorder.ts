@@ -12,6 +12,7 @@ import {
 import type { EwState } from "./console-recorder-helpers";
 import { createTrailingThrottle, FLUSH_INTERVAL_MS } from "./log-throttle";
 import { readPreArmFlag, setPreArmFlag } from "./recorder-prearm";
+import { maskUrl } from "./network-recorder-helpers";
 
 function consoleRecorderScript(): void {
   const CTRL_KEY = "__bugshot_console_ctrl__";
@@ -58,7 +59,7 @@ function consoleRecorderScript(): void {
       level,
       timestamp: Date.now(),
       args,
-      pageUrl: location.href,
+      pageUrl: maskUrl(location.href),
     };
     if (stack) entry.stack = stack;
     if (!recording) entry.preArm = true;

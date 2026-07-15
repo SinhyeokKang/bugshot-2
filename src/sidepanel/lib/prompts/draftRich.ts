@@ -1,9 +1,13 @@
 import type { CaptureMode } from "@/store/editor-store";
 import type { IssueSectionId, LocaleMode } from "@/store/settings-ui-store";
-import type { AiDraftSessionContext } from "../buildAiDraftPrompt";
-import { stripInlineImageRefs } from "../resolveInlineImages";
+import type { AiDraftSessionContext } from "@/sidepanel/lib/buildAiDraftPrompt";
+import { stripInlineImageRefs } from "@/sidepanel/lib/resolveInlineImages";
+import {
+  supportsActionLog,
+  supportsConsoleNetworkLog,
+} from "@/sidepanel/lib/captureLogSupport";
 import { MAX_TITLE_LENGTH, PROMPT_CAPS } from "./caps";
-import { includesLogContext, oneLine, selectDraftSections } from "./context";
+import { oneLine, selectDraftSections } from "./context";
 
 const SECTION_DESC_BASE: Record<LocaleMode, Record<IssueSectionId, string>> = {
   ko: {
@@ -92,12 +96,13 @@ export function buildRichDraftPrompt(ctx: AiDraftSessionContext): string {
     }
   }
 
-  if (includesLogContext(ctx.captureMode)) {
+  if (supportsConsoleNetworkLog(ctx.captureMode)) {
     if (ctx.captureMode === "video") {
       lines.push("- The user recorded a screen video of the bug. They will describe what happened.");
-    } else {
+    } else if (ctx.captureMode === "freeform") {
       lines.push("- The user is writing an issue without a capture. They will describe the bug based on environment info and logs.");
     }
+    // screenshot은 위에서 이미 캡처를 설명했다 — 여기서 서술 줄을 또 넣지 않는다.
     if (ctx.networkLogSummary && ctx.networkLogSummary.errors.length > 0) {
       lines.push("- Network errors:");
       for (const e of ctx.networkLogSummary.errors.slice(0, caps.networkErrors)) {
@@ -113,12 +118,14 @@ export function buildRichDraftPrompt(ctx: AiDraftSessionContext): string {
         }
       }
     }
-    // action log는 video(녹화 타임라인과 묶일 때)에서만 의미가 강하므로 freeform에서는 제외.
-    if (ctx.captureMode === "video" && ctx.actionLogSummary && ctx.actionLogSummary.length > 0) {
-      lines.push("- User actions (rephrase these into concise user-facing reproduction steps — do not copy the raw entries verbatim):");
-      for (const a of ctx.actionLogSummary.slice(0, caps.actions)) {
-        lines.push(`  ${a}`);
-      }
+  }
+
+  // action log는 이슈에 실리는 모든 모드(supportsActionLog)에서 재현 단서다 — AI도 같은 데이터를 본다.
+  // console/network와 별도 게이트로 둔다: 매트릭스가 갈라져도 compact(동일 구조)와 어긋나지 않게.
+  if (supportsActionLog(ctx.captureMode) && ctx.actionLogSummary && ctx.actionLogSummary.length > 0) {
+    lines.push("- User actions (rephrase these into concise user-facing reproduction steps — do not copy the raw entries verbatim):");
+    for (const a of ctx.actionLogSummary.slice(0, caps.actions)) {
+      lines.push(`  ${a}`);
     }
   }
 

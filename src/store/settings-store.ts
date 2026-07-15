@@ -262,10 +262,6 @@ export function isJiraAccountComplete(
   return !!acc?.auth && !!acc.projectKey;
 }
 
-export function jiraCredentialsFilled(acc: JiraAccount | undefined): boolean {
-  return !!acc?.auth;
-}
-
 export function jiraSiteId(auth: JiraAuth): string {
   if (auth.kind === "oauth") return auth.cloudId;
   try {

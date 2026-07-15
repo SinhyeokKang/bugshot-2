@@ -4,7 +4,6 @@ import { getMyself } from "./slack-api";
 import { OAuthError, launchOAuthWebFlow } from "./oauth";
 import {
   OAUTH_CONFIG,
-  isConfigured as isOAuthPlatformConfigured,
   assertConfigured as assertOAuthConfigured,
   isCancellation,
 } from "./oauth/config";
@@ -12,10 +11,6 @@ import {
 const AUTHORIZE_URL = "https://slack.com/oauth/v2/authorize";
 const USER_SCOPES =
   "chat:write,channels:read,groups:read,im:read,mpim:read,files:write,users:read";
-
-export function isSlackOAuthConfigured(): boolean {
-  return isOAuthPlatformConfigured(OAUTH_CONFIG.slack);
-}
 
 function assertConfigured(): void {
   assertOAuthConfigured(OAUTH_CONFIG.slack);

@@ -1,4 +1,4 @@
-import { BODY_CAP, MASKED_QUERY_KEYS, classifyBeaconBody, classifyResponseBody, createPatchedFetch, headersToRecord, maskBody, classifyWsFrameData, maskWsFrame } from "./network-recorder-helpers";
+import { BODY_CAP, classifyBeaconBody, classifyResponseBody, createPatchedFetch, headersToRecord, maskBody, maskUrl, classifyWsFrameData, maskWsFrame } from "./network-recorder-helpers";
 import type { FetchRecordHook } from "./network-recorder-helpers";
 import { createTrailingThrottle, FLUSH_INTERVAL_MS } from "./log-throttle";
 import { readPreArmFlag, setPreArmFlag } from "./recorder-prearm";
@@ -84,25 +84,6 @@ function networkRecorderScript(): void {
       result[k] = isMaskedHeader(k) ? maskHeaderValue(v) : v;
     }
     return result;
-  }
-
-  function maskUrl(url: string): string {
-    try {
-      const u = new URL(url);
-      const params = new URLSearchParams(u.search);
-      let changed = false;
-      for (const key of params.keys()) {
-        if (MASKED_QUERY_KEYS.has(key.toLowerCase())) {
-          params.set(key, "***");
-          changed = true;
-        }
-      }
-      if (changed) {
-        u.search = params.toString();
-        return u.toString();
-      }
-    } catch { /* invalid URL, return as-is */ }
-    return url;
   }
 
   function estimateBodySize(body: ReqBody | undefined): number {
@@ -216,7 +197,7 @@ function networkRecorderScript(): void {
       requestHeaders: maskHeaders(info.requestHeaders),
       responseHeaders: {},
       requestBody,
-      pageUrl: location.href,
+      pageUrl: maskUrl(location.href),
       requestBodySize,
       responseBodySize: 0,
       contentType: "",
@@ -361,7 +342,7 @@ function networkRecorderScript(): void {
       requestHeaders: maskHeaders(meta?.reqHeaders ?? {}),
       responseHeaders: {},
       requestBody,
-      pageUrl: location.href,
+      pageUrl: maskUrl(location.href),
       requestBodySize,
       responseBodySize: 0,
       contentType: "",
@@ -472,7 +453,7 @@ function networkRecorderScript(): void {
           requestHeaders: {},
           responseHeaders: {},
           requestBody,
-          pageUrl: location.href,
+          pageUrl: maskUrl(location.href),
           requestBodySize,
           responseBodySize: 0,
           contentType,
@@ -507,7 +488,7 @@ function networkRecorderScript(): void {
       durationMs: 0,
       requestHeaders: {},
       responseHeaders: {},
-      pageUrl: location.href,
+      pageUrl: maskUrl(location.href),
       requestBodySize: 0,
       responseBodySize: 0,
       contentType: "websocket",

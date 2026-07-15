@@ -29,10 +29,6 @@ export const NETWORK_METHOD_TONE: Record<string, LogTone> = {
   DELETE: "red",
 };
 
-export function toneTextClass(tone: LogTone): string {
-  return TONE_TEXT[tone];
-}
-
 export function consoleLevelTextClass(level: string): string {
   return TONE_TEXT[CONSOLE_LEVEL_TONE[level] ?? "neutral"];
 }

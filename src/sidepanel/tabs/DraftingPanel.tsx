@@ -386,9 +386,9 @@ export function DraftingPanel() {
           {aiStatus === "available" && (
             <button
               data-testid="ai-draft-trigger"
-              className="flex items-center justify-between rounded-t-lg bg-purple-100/80 px-3.5 py-2.5 text-purple-700 transition-colors hover:bg-purple-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring disabled:opacity-50 dark:bg-purple-950/50 dark:text-purple-300 dark:hover:bg-purple-900"
-              onClick={() => { (document.activeElement as HTMLElement)?.blur?.(); setAiDialogOpen(true); }}
-              disabled={aiDraftLoading}
+              className="flex items-center justify-between rounded-t-lg bg-purple-100/80 px-3.5 py-2.5 text-purple-700 transition-colors hover:bg-purple-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring aria-disabled:cursor-not-allowed aria-disabled:opacity-50 dark:bg-purple-950/50 dark:text-purple-300 dark:hover:bg-purple-900"
+              onClick={() => { if (aiDraftLoading) return; (document.activeElement as HTMLElement)?.blur?.(); setAiDialogOpen(true); }}
+              aria-disabled={aiDraftLoading}
             >
               <span className="flex min-w-0 items-center gap-1.5">
                 <Badge variant="outline" className="shrink-0 font-normal border-purple-500 text-purple-600 dark:border-purple-400 dark:text-purple-300">{providerLabel ?? t("ai.badge.chromeAI")}</Badge>
@@ -695,10 +695,11 @@ function SectionTextarea({
             <Button
               size="icon"
               variant="outline"
-              className="h-8 w-8 shrink-0"
+              className="h-8 w-8 shrink-0 aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
               title={t("draft.captureArea")}
-              disabled={aiLoading}
+              aria-disabled={aiLoading}
               onClick={() => {
+                if (aiLoading) return;
                 useEditorStore.getState().startInlineCapture(section.id);
                 const tabId = useEditorStore.getState().target?.tabId;
                 if (tabId) void startInlineAreaCapture(tabId);

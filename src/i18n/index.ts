@@ -21,17 +21,22 @@ export function dateBcp47(): string {
   return BCP47[currentLocale];
 }
 
+function interpolate(
+  text: string,
+  params?: Record<string, string | number>,
+): string {
+  if (!params) return text;
+  for (const [k, v] of Object.entries(params)) {
+    text = text.replaceAll(`{${k}}`, String(v));
+  }
+  return text;
+}
+
 export function t(
   key: TranslationKey,
   params?: Record<string, string | number>,
 ): string {
-  let text = locales[currentLocale][key];
-  if (params) {
-    for (const [k, v] of Object.entries(params)) {
-      text = text.replaceAll(`{${k}}`, String(v));
-    }
-  }
-  return text;
+  return interpolate(locales[currentLocale][key], params);
 }
 
 export type TranslationFn = (
@@ -42,13 +47,5 @@ export type TranslationFn = (
 export function useT(): TranslationFn {
   const locale = useSettingsUiStore((s) => s.locale);
   if (locale !== currentLocale) currentLocale = locale;
-  return (key, params) => {
-    let text = locales[locale][key];
-    if (params) {
-      for (const [k, v] of Object.entries(params)) {
-        text = text.replaceAll(`{${k}}`, String(v));
-      }
-    }
-    return text;
-  };
+  return (key, params) => interpolate(locales[locale][key], params);
 }

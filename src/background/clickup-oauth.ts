@@ -4,16 +4,11 @@ import { getMyself } from "./clickup-api";
 import { OAuthError, launchOAuthWebFlow } from "./oauth";
 import {
   OAUTH_CONFIG,
-  isConfigured as isOAuthPlatformConfigured,
   assertConfigured as assertOAuthConfigured,
   isCancellation,
 } from "./oauth/config";
 
 const AUTHORIZE_URL = "https://app.clickup.com/api";
-
-export function isClickupOAuthConfigured(): boolean {
-  return isOAuthPlatformConfigured(OAUTH_CONFIG.clickup);
-}
 
 function assertConfigured(): void {
   assertOAuthConfigured(OAUTH_CONFIG.clickup);

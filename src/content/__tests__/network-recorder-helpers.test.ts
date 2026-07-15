@@ -4,6 +4,7 @@ import {
   classifyBeaconBody,
   createPatchedFetch,
   maskBody,
+  maskUrl,
   classifyWsFrameData,
   maskWsFrame,
   BODY_CAP,
@@ -286,5 +287,47 @@ describe("maskWsFrame", () => {
 
   it("빈 문자열 프레임은 원문을 유지한다", () => {
     expect(maskWsFrame("")).toBe("");
+  });
+});
+
+describe("maskUrl", () => {
+  it("민감 쿼리 키(token·access_token 등)를 ***로 마스킹한다", () => {
+    expect(maskUrl("https://x.com/cb?access_token=abc&state=1")).toBe(
+      "https://x.com/cb?access_token=***&state=1",
+    );
+    expect(maskUrl("https://x.com/reset?token=secret")).toBe(
+      "https://x.com/reset?token=***",
+    );
+  });
+
+  it("민감 키 대소문자 무관하게 마스킹한다", () => {
+    expect(maskUrl("https://x.com/?Password=p&API_KEY=k")).toBe(
+      "https://x.com/?Password=***&API_KEY=***",
+    );
+  });
+
+  it("민감 키가 없으면 원문을 유지한다", () => {
+    const url = "https://x.com/path?page=2&q=hello";
+    expect(maskUrl(url)).toBe(url);
+  });
+
+  it("URL이 아닌 문자열은 그대로 반환한다", () => {
+    expect(maskUrl("about:blank")).toBe("about:blank");
+    expect(maskUrl("not a url")).toBe("not a url");
+  });
+
+  it("fragment의 민감 키(OAuth implicit #access_token 등)도 마스킹한다", () => {
+    expect(
+      maskUrl("https://x.com/cb#access_token=SECRET&token_type=bearer"),
+    ).toBe("https://x.com/cb#access_token=***&token_type=bearer");
+  });
+
+  it("민감 키 없는 순수 앵커(#section)는 원문을 유지한다", () => {
+    expect(maskUrl("https://x.com/page#section")).toBe(
+      "https://x.com/page#section",
+    );
+    expect(maskUrl("https://x.com/docs?page=2#intro")).toBe(
+      "https://x.com/docs?page=2#intro",
+    );
   });
 });

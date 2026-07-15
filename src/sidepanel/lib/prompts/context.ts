@@ -1,16 +1,9 @@
-import type { CaptureMode } from "@/store/editor-store";
 import type { Token } from "@/types/picker";
 
 // 프롬프트 줄에 들어가는 값 상당수(action log 라벨, 콘솔 메시지, 디자인 토큰)는 페이지가
 // 통제한다. 개행이 살아있으면 악성 페이지가 지시 줄을 위조할 수 있다 — 한 줄로 접는다.
 export function oneLine(text: string): string {
   return text.replace(/[\r\n\u2028\u2029]+/g, " ");
-}
-
-// 어느 캡처 모드에 로그 컨텍스트를 싣는가의 단일 출처 — 본문 빌더 2개와 호출부가 공유한다.
-// 각자 판단하면 갈라지고, 그 틈이 곧 "compact에만 로그가 실리는" 비대칭이 된다.
-export function includesLogContext(mode: CaptureMode): boolean {
-  return mode === "video" || mode === "freeform";
 }
 
 export function extractVarRefs(styles: Record<string, string>): string[] {
