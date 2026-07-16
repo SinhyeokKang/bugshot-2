@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+// setLoading은 스토어의 setReproPrefillLoading을 받는다 — 로딩은 App.tsx AI 오버레이가 소비한다.
 import { t } from "@/i18n";
 import type { CaptureMode, EditorDraft } from "@/store/editor-store";
 import type { LocaleMode } from "@/store/settings-ui-store";
@@ -25,12 +26,12 @@ interface UseReproPrefillArgs {
   autoReproPrefill: boolean;
   reproPrefillDone: boolean;
   setReproPrefillDone: (done: boolean) => void;
+  setLoading: (loading: boolean) => void;
 }
 
 // drafting 진입 시 stepsToReproduce가 비어 있고 AI(나노/BYOK)가 가용하면, 액션 로그를 AI로
 // 정리해 자동 채운다. AI가 없으면 채우지 않는다. 세션 지속 가드(reproPrefillDone, persist)로 1회 발화.
 export function useReproPrefill(args: UseReproPrefillArgs): {
-  loading: boolean;
   aiFilled: boolean;
 } {
   const {
@@ -49,8 +50,8 @@ export function useReproPrefill(args: UseReproPrefillArgs): {
     autoReproPrefill,
     reproPrefillDone,
     setReproPrefillDone,
+    setLoading,
   } = args;
-  const [loading, setLoading] = useState(false);
   const [aiGenerated, setAiGenerated] = useState<string | null>(null);
 
   // draft·actionLog·reproPrefillDone은 최신 값을 ref로 읽는다 — deps에는 원시 플래그만 넣어
@@ -137,6 +138,7 @@ export function useReproPrefill(args: UseReproPrefillArgs): {
     stepsEmpty,
     aiStatus,
     setReproPrefillDone,
+    setLoading,
     setDraft,
     capabilities,
     createSession,
@@ -146,5 +148,5 @@ export function useReproPrefill(args: UseReproPrefillArgs): {
   const aiFilled =
     aiGenerated !== null && draft?.sections.stepsToReproduce === aiGenerated;
 
-  return { loading, aiFilled };
+  return { aiFilled };
 }

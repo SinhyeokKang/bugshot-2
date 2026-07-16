@@ -42,6 +42,7 @@ function baseArgs(over: Record<string, unknown> = {}) {
     actionLog: actionLog(),
     draft: { title: "", sections: {} },
     setDraft: vi.fn(),
+    setLoading: vi.fn(),
     aiStatus: "available",
     capabilities: NANO_CAPABILITIES,
     createSession: vi.fn(),
@@ -230,6 +231,7 @@ describe("useReproPrefill", () => {
     const stable = {
       setDraft,
       setReproPrefillDone: setDone,
+      setLoading: vi.fn(),
       createSession: vi.fn(),
       draft: { title: "", sections: {} },
       actionLog: actionLog(),
@@ -262,12 +264,14 @@ describe("useReproPrefill", () => {
     );
     const setDraft = vi.fn();
     const setDone = vi.fn();
+    const setLoading = vi.fn();
     const createSession = vi.fn();
     const al = actionLog();
     const mk = (draftObj: Record<string, unknown>) =>
       baseArgs({
         setDraft,
         setReproPrefillDone: setDone,
+        setLoading,
         createSession,
         actionLog: al,
         aiStatus: "available",
@@ -300,21 +304,23 @@ describe("useReproPrefill", () => {
     );
     const setDraft = vi.fn();
     const setDone = vi.fn();
+    const setLoading = vi.fn();
     const createSession = vi.fn();
     const stable = {
       setDraft,
       setReproPrefillDone: setDone,
+      setLoading,
       createSession,
       actionLog: actionLog(),
       draft: { title: "", sections: {} },
       aiStatus: "available",
     };
     const mk = (over: Record<string, unknown> = {}) => baseArgs({ ...stable, ...over });
-    const { result, rerender } = renderHook((p: any) => useReproPrefill(p), {
+    const { rerender } = renderHook((p: any) => useReproPrefill(p), {
       initialProps: mk({ locale: "en" }),
     });
     await flush();
-    expect(result.current.loading).toBe(true);
+    expect(setLoading).toHaveBeenLastCalledWith(true);
 
     // 발화가 done을 latch한 뒤 언어 변경으로 리렌더되는 실제 상황(재발화 없음).
     rerender(mk({ locale: "ko", reproPrefillDone: true }));
@@ -323,7 +329,7 @@ describe("useReproPrefill", () => {
       await Promise.resolve();
     });
     expect(setDraft).toHaveBeenCalledTimes(1);
-    expect(result.current.loading).toBe(false);
+    expect(setLoading).toHaveBeenLastCalledWith(false);
   });
 
   it("AI in-flight 중 autoReproPrefill이 꺼지면 취소되더라도 로딩은 풀린다", async () => {
@@ -336,21 +342,23 @@ describe("useReproPrefill", () => {
     );
     const setDraft = vi.fn();
     const setDone = vi.fn();
+    const setLoading = vi.fn();
     const createSession = vi.fn();
     const stable = {
       setDraft,
       setReproPrefillDone: setDone,
+      setLoading,
       createSession,
       actionLog: actionLog(),
       draft: { title: "", sections: {} },
       aiStatus: "available",
     };
     const mk = (over: Record<string, unknown> = {}) => baseArgs({ ...stable, ...over });
-    const { result, rerender } = renderHook((p: any) => useReproPrefill(p), {
+    const { rerender } = renderHook((p: any) => useReproPrefill(p), {
       initialProps: mk({ autoReproPrefill: true }),
     });
     await flush();
-    expect(result.current.loading).toBe(true);
+    expect(setLoading).toHaveBeenLastCalledWith(true);
 
     rerender(mk({ autoReproPrefill: false, reproPrefillDone: true })); // 로딩 중 opt-out.
     await act(async () => {
@@ -358,7 +366,7 @@ describe("useReproPrefill", () => {
       await Promise.resolve();
     });
     expect(setDraft).not.toHaveBeenCalled(); // 취소됨.
-    expect(result.current.loading).toBe(false); // finally로 로딩 해제.
+    expect(setLoading).toHaveBeenLastCalledWith(false); // finally로 로딩 해제.
   });
 
   it("AI in-flight 중 언마운트되면 응답 도착해도 setDraft 미호출", async () => {

@@ -7,8 +7,6 @@ const ko = {
   "aiDraft.disclaimer": "AI는 실수할 수 있습니다. 생성된 초안을 확인해주세요.",
   "aiDraft.contextTrimmed": "내용이 많아 일부 참고 정보를 빼고 작성했습니다.",
 
-  "reproPrefill.loading": "재현 단계 정리 중...",
-
   "aiStyling.banner": "AI에게 스타일 수정을 맡겨보세요",
   "aiStyling.generate": "AI 스타일링",
   "aiStyling.title": "AI 스타일링",
@@ -28,8 +26,6 @@ const en = {
   "aiDraft.generate": "Generate",
   "aiDraft.disclaimer": "AI can make mistakes. Please review the generated draft.",
   "aiDraft.contextTrimmed": "There was a lot to cover, so some context was left out.",
-
-  "reproPrefill.loading": "Composing reproduction steps...",
 
   "aiStyling.banner": "Let AI handle the styling",
   "aiStyling.generate": "AI Styling",

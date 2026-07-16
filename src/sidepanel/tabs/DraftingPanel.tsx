@@ -88,6 +88,8 @@ export function DraftingPanel() {
   const target = useEditorStore((s) => s.target);
   const reproPrefillDone = useEditorStore((s) => s.reproPrefillDone);
   const setReproPrefillDone = useEditorStore((s) => s.setReproPrefillDone);
+  const reproPrefillLoading = useEditorStore((s) => s.reproPrefillLoading);
+  const setReproPrefillLoading = useEditorStore((s) => s.setReproPrefillLoading);
   const { trimming } = useReplay();
   const attachments = useEditorStore((s) => s.attachments);
   const addAttachments = useEditorStore((s) => s.addAttachments);
@@ -136,26 +138,26 @@ export function DraftingPanel() {
     });
   }, [draft, selection, setDraft, titlePrefix, captureMode, screenshotImage, videoThumbnail, videoBlob]);
 
-  const { loading: reproPrefillLoading, aiFilled: reproPrefillAiFilled } =
-    useReproPrefill({
-      captureMode,
-      actionLog,
-      draft,
-      setDraft,
-      aiStatus,
-      capabilities,
-      createSession,
-      url: target?.url ?? "",
-      pageTitle: target?.title ?? "",
-      locale,
-      trimming,
-      sectionEnabled: issueSections.some(
-        (s) => s.id === "stepsToReproduce" && s.enabled,
-      ),
-      autoReproPrefill,
-      reproPrefillDone,
-      setReproPrefillDone,
-    });
+  const { aiFilled: reproPrefillAiFilled } = useReproPrefill({
+    captureMode,
+    actionLog,
+    draft,
+    setDraft,
+    aiStatus,
+    capabilities,
+    createSession,
+    url: target?.url ?? "",
+    pageTitle: target?.title ?? "",
+    locale,
+    trimming,
+    sectionEnabled: issueSections.some(
+      (s) => s.id === "stepsToReproduce" && s.enabled,
+    ),
+    autoReproPrefill,
+    reproPrefillDone,
+    setReproPrefillDone,
+    setLoading: setReproPrefillLoading,
+  });
 
   if (!draft) return null;
   if (captureMode === "element" && !selection) return null;
@@ -363,7 +365,6 @@ export function DraftingPanel() {
             sections: { ...draft.sections, [sec.id]: v },
           })
         }
-        reproLoading={sec.id === "stepsToReproduce" && reproPrefillLoading}
         reproAiHint={sec.id === "stepsToReproduce" && reproPrefillAiFilled}
       />,
     );
@@ -685,13 +686,11 @@ function SectionTextarea({
   section,
   value,
   onChange,
-  reproLoading = false,
   reproAiHint = false,
 }: {
   section: IssueSection;
   value: string;
   onChange: (next: string) => void;
-  reproLoading?: boolean;
   reproAiHint?: boolean;
 }) {
   const t = useT();
@@ -765,21 +764,6 @@ function SectionTextarea({
             <Trash2 />
           </Button>
         )
-      }
-      overlay={
-        reproLoading ? (
-          <div
-            role="status"
-            data-testid="repro-prefill-loading"
-            className="absolute inset-0 z-10 flex items-center justify-center overflow-hidden backdrop-blur-[2px]"
-          >
-            <div className="absolute inset-0 bg-purple-500/5" />
-            <div className="absolute inset-0 animate-shimmer bg-gradient-to-b from-transparent via-purple-400/10 to-transparent" />
-            <span className="relative text-base font-semibold text-purple-600 dark:text-purple-300">
-              {t("reproPrefill.loading")}
-            </span>
-          </div>
-        ) : undefined
       }
     >
       {section.renderAs === "orderedList" ? (
