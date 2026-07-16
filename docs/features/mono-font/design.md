@@ -21,7 +21,23 @@ code, kbd, samp, pre {
 
 `fontFamily.mono`가 미정의인 지금은 두 번째 인자(기본 스택)가 나간다. **정의하는 순간 클래스가 안 붙은 모든 `pre`·`code`·`kbd`·`samp`가 Geist로 바뀐다.** 즉 `grep font-mono`로 센 5곳은 파급 범위가 아니다.
 
-이 파급은 **의도적으로 수용한다** — `pre`/`code`가 코드용 mono를 받는 건 정확히 preflight의 설계 의도이고, 앱이 mono를 소유하게 된 이상 그게 바람직한 방향이다. 다만 **범위를 모르고 수용하는 것과 알고 수용하는 것은 다르므로**, Task 2에서 미클래스 `pre`/`code`를 전수조사해 목록을 문서에 남긴다.
+이 파급은 **의도적으로 수용한다** — `pre`/`code`가 코드용 mono를 받는 건 정확히 preflight의 설계 의도이고, 앱이 mono를 소유하게 된 이상 그게 바람직한 방향이다.
+
+### 전수조사 결과 (Task 2 — 완료)
+
+`grep -rnE "<(pre|code|kbd|samp)([ >]|$)" src/` 전수 결과, **preflight를 실제로 받는 표면은 Tiptap 코드블록 하나뿐이고, `font-sans` 방어가 필요한 곳은 0곳**이다.
+
+| 후보 | 판정 |
+|---|---|
+| `NetworkLogContent.tsx:576` / `ConsoleLogContent.tsx:254`,`:262` | `font-mono` 명시 → preflight 안 받음 |
+| `NetworkLogContent.tsx:733` | `font-sans` 명시 → preflight 안 받음(이 방어가 그대로 유효) |
+| `markdownToAsanaHtml.ts:89`,`:129`,`:203`,`:214` / `buildIssueMarkdown.ts:334` | **우리 DOM이 아님** — 트래커로 보내는 HTML 문자열이라 Asana 페이지에서 렌더. 무관 |
+| **Tiptap 코드블록** (`.tiptap-editor .ProseMirror pre`/`code`) | **preflight 직격 → Geist로 바뀐다** |
+
+- Tiptap의 `tiptap-editor.css:90`(`code`)·`:103`(`pre`)·`:113`(`pre code`)는 배경·radius·padding·font-size·line-height만 잡고 **`font-family`를 안 잡는다.** 따라서 지금은 preflight 경유로 시스템 mono, 변경 후 Geist.
+- **이 전환은 바람직하고 목표에 부합한다.** Tiptap 코드블록은 문자 그대로 코드블록이고, `insertCodeBlock`(`TiptapEditor.tsx:290`)으로 꽂은 로그가 로그 탭과 같은 폰트로 보이게 된다. 별도 조치 불요.
+- `prose`(@tailwindcss/typography) 클래스는 코드베이스에 없어 마크다운 렌더 경로의 추가 파급도 없다.
+- log-viewer도 같은 preflight를 받지만 `@font-face`가 없어 폴백한다(위 비대칭과 동일).
 
 관련 사실 둘:
 - **`NetworkLogContent.tsx:733`의 `font-sans`가 바로 이 메커니즘을 방어하는 코드다** — 주석이 "preflight가 `pre`를 monospace로 리셋하므로 `font-sans`를 명시한다"라고 적혀 있다. 즉 이 파급 벡터는 이미 코드베이스에 증거가 있었다. 이 줄은 **그대로 둔다**(sans여야 하는 `<pre>`).

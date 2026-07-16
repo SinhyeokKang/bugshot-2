@@ -18,7 +18,9 @@
   - [ ] `node_modules/@fontsource-variable/geist-mono/index.css`에 `@font-face` 6개, 전부 `font-style: normal`, family 전부 `'Geist Mono Variable'`
   - [ ] `pnpm install` 시 "Ignored build scripts" 경고에 이 패키지가 **뜨지 않음**
 
-### Task 2: preflight 파급 전수조사 (조사 전용 — 코드 변경 없음)
+### Task 2: preflight 파급 전수조사 (조사 전용 — ✅ 완료, 결과는 design.md "전수조사 결과")
+> **결론: `font-sans` 방어 필요 0곳.** preflight를 실제로 받는 표면은 **Tiptap 코드블록 하나**뿐이고 Geist 전환이 바람직하다. JSX의 `<pre>` 4곳은 전부 `font-mono`/`font-sans` 명시라 무관하고, `markdownToAsanaHtml.ts`·`buildIssueMarkdown.ts`의 `<pre>`/`<code>`는 트래커로 보내는 HTML 문자열이라 우리 DOM이 아니다. 구현 시 이 태스크는 건너뛴다.
+
 - **변경 대상**: `docs/features/mono-font/design.md` (조사 결과 기록)
 - **작업 내용**: `fontFamily.mono` 정의는 preflight(`code, kbd, samp, pre`)를 통해 **클래스가 안 붙은 모든 `pre`/`code`/`kbd`/`samp`**를 Geist로 바꾼다. 그 목록을 확정한다.
   - `grep -rnE "<(pre|code|kbd|samp)[ >]" src/` 로 후보 수집.
