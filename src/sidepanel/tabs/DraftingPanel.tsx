@@ -40,6 +40,7 @@ import { mergeStyleElements, joinStyleSelectors } from "@/sidepanel/lib/buildIss
 import { downloadImageDataUrl, downloadVideoBlob } from "@/sidepanel/lib/downloadCapture";
 import { downloadEditorLogsHtml } from "@/sidepanel/lib/buildEditorCapture";
 import { supportsActionLog } from "@/sidepanel/lib/captureLogSupport";
+import { isReproSectionEnabled } from "@/sidepanel/lib/reproSectionEnabled";
 import {
   deriveReadonlyEnvRows,
   filterEnvironmentRows,
@@ -150,9 +151,7 @@ export function DraftingPanel() {
     pageTitle: target?.title ?? "",
     locale,
     trimming,
-    sectionEnabled: issueSections.some(
-      (s) => s.id === "stepsToReproduce" && s.enabled,
-    ),
+    sectionEnabled: isReproSectionEnabled(issueSections),
     autoReproPrefill,
     reproPrefillDone,
     setReproPrefillDone,

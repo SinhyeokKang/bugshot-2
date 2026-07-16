@@ -19,9 +19,11 @@ const ko = {
   "settings.attachments.help":
     "이슈에 임의의 파일을 첨부합니다.",
   "settings.aiSection": "AI 설정",
-  "settings.autoReproPrefill.label": "재현 단계 채우기",
+  "settings.autoReproPrefill.label": "재현 과정 채우기",
   "settings.autoReproPrefill.help":
-    "AI 모델을 연결하면 녹화 후 액션 로그로 재현 단계를 자동으로 채웁니다. 이때 액션 로그가 연결된 AI로 전송됩니다.",
+    "AI 모델을 연결하면 녹화 후 액션 로그로 재현 과정을 자동으로 채웁니다. 이때 액션 로그가 연결된 AI로 전송됩니다.",
+  "settings.autoReproPrefill.sectionOff":
+    "본문 설정에서 재현 과정 섹션이 꺼져 있어 사용할 수 없습니다.",
   "settings.theme": "테마",
   "settings.language": "언어",
   "settings.theme.light": "라이트",
@@ -110,9 +112,11 @@ const en = {
   "settings.attachments.help":
     "Attach arbitrary files to issues.",
   "settings.aiSection": "AI settings",
-  "settings.autoReproPrefill.label": "Fill reproduction steps",
+  "settings.autoReproPrefill.label": "Fill steps to reproduce",
   "settings.autoReproPrefill.help":
-    "When an AI model is connected, fills reproduction steps from your action log after recording. The action log is then sent to the connected AI.",
+    "When an AI model is connected, fills the steps to reproduce from your action log after recording. The action log is then sent to the connected AI.",
+  "settings.autoReproPrefill.sectionOff":
+    "Unavailable because the Steps to reproduce section is off in Body composition.",
   "settings.theme": "Theme",
   "settings.language": "Language",
   "settings.theme.light": "Light",

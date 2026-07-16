@@ -68,7 +68,7 @@ test.describe.serial("재현 단계 자동 채움", () => {
     await expect(reset).toBeDisabled();
   });
 
-  test("AI 설정 — 재현 단계 채우기 토글 기본 ON, opt-out 영속", async ({
+  test("AI 설정 — 재현 과정 채우기 토글 기본 ON, opt-out 영속", async ({
     ext,
   }) => {
     await gotoSettings(panel);
@@ -88,5 +88,28 @@ test.describe.serial("재현 단계 자동 채움", () => {
     const sw2 = panel.locator(SW);
     await expect(sw2).toBeVisible();
     await expect(sw2).toHaveAttribute("data-state", "unchecked");
+  });
+
+  test("본문 설정에서 재현 과정 섹션을 끄면 채우기 토글은 ON/OFF 상태를 유지한 채 비활성", async () => {
+    await gotoSettings(panel);
+    const sw = panel.locator(SW);
+    const section = panel.locator('[id="issue-section-stepsToReproduce"]');
+    await expect(sw).toBeVisible();
+
+    // 직전 테스트가 opt-out(unchecked)으로 둔 상태에서 시작 — 이 값이 보존되는지가 요점.
+    await expect(sw).toHaveAttribute("data-state", "unchecked");
+    await expect(sw).toBeEnabled();
+
+    // 재현 과정 섹션 off → 토글 비활성, 상태는 그대로.
+    await section.click();
+    await expect(section).toHaveAttribute("data-state", "unchecked");
+    await expect(sw).toBeDisabled();
+    await expect(sw).toHaveAttribute("data-state", "unchecked");
+
+    // 섹션을 다시 켜면 토글도 되살아나고 상태는 여전히 그대로.
+    await section.click();
+    await expect(section).toHaveAttribute("data-state", "checked");
+    await expect(sw).toBeEnabled();
+    await expect(sw).toHaveAttribute("data-state", "unchecked");
   });
 });

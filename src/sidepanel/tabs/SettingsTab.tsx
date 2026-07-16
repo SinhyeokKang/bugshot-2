@@ -7,6 +7,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsTrigger } from "@/components/ui/tabs";
 import { CollapsingTabsList, TabLabel } from "@/components/ui/collapsing-tabs";
+import { cn } from "@/lib/utils";
 import { useT } from "@/i18n";
 import {
   sectionHelpKey,
@@ -18,6 +19,7 @@ import {
 } from "@/store/settings-ui-store";
 import { useSettingsStore } from "@/store/settings-store";
 import { PageScroll, PageShell, Section } from "@/sidepanel/components/Section";
+import { isReproSectionEnabled } from "@/sidepanel/lib/reproSectionEnabled";
 import { RecordingSettingsCard } from "@/sidepanel/components/RecordingSettingsCard";
 import { SettingsFooter } from "./settings/SettingsFooter";
 import { LlmConnectForm } from "./settings/LlmConnectForm";
@@ -117,6 +119,7 @@ function IssueSettingsContent() {
               <AutoReproPrefillToggleRow
                 enabled={autoReproPrefill}
                 onToggle={setAutoReproPrefill}
+                disabled={!isReproSectionEnabled(issueSections)}
               />
             </CardContent>
           </Card>
@@ -240,27 +243,35 @@ function AttachmentToggleRow({
 function AutoReproPrefillToggleRow({
   enabled,
   onToggle,
+  disabled,
 }: {
   enabled: boolean;
   onToggle: (enabled: boolean) => void;
+  disabled: boolean;
 }) {
   const t = useT();
   return (
-    <div className="flex items-center gap-3">
+    <div className={cn("flex items-center gap-3", disabled && "opacity-50")}>
       <div className="shrink-0">
         <WandSparkles className="h-4 w-4" />
       </div>
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <label htmlFor="setting-auto-repro-prefill" className="cursor-pointer text-sm">
+        <label
+          htmlFor="setting-auto-repro-prefill"
+          className={cn("text-sm", !disabled && "cursor-pointer")}
+        >
           {t("settings.autoReproPrefill.label")}
         </label>
         <p className="text-sm text-muted-foreground">
-          {t("settings.autoReproPrefill.help")}
+          {disabled
+            ? t("settings.autoReproPrefill.sectionOff")
+            : t("settings.autoReproPrefill.help")}
         </p>
       </div>
       <Switch
         id="setting-auto-repro-prefill"
         checked={enabled}
+        disabled={disabled}
         onCheckedChange={(v) => onToggle(v === true)}
       />
     </div>
