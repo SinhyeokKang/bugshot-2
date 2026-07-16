@@ -37,4 +37,6 @@ If your page uses real-time, two-way communication (WebSocket), those connection
 
 You can also **file an issue with logs only**, no capture (element, screenshot, or video). While viewing the console or network, click **Write issue** to skip the capture step and go straight to the issue draft. All three logs — console, network, and the **action log** (clicks, typing, and the rest) — are attached by default, so you can submit as-is.
 
+The one log that actually matters can also go **straight into the issue body** — hit **Add log** on the header of a prose section like Description in the draft. It shows up in the issue itself, no attachment to download first, so you don't have to describe the response in words. Full details are in the body-sections part of [Write an Issue (screenshot)](../screenshot/issue.md).
+
 > The issue flow (title, body, preview, submit) is the same as the other modes. See the common steps in [Write an Issue (screenshot)](../screenshot/issue.md).
