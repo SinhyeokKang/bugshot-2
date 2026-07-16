@@ -84,7 +84,7 @@ export default function App() {
 
   const aiLoading = useAiLoading();
   const aiStylingLoading = useEditorStore((s) => s.aiStylingLoading);
-  const replayTrimPending = useEditorStore((s) => s.replayTrimPending);
+  const replayTrim = useEditorStore((s) => s.replayTrim);
   const [tab, setTab] = useState("debug");
   const [settingsSub, setSettingsSub] = useState("issue");
   const navTo = useCallback((next: string, sub?: string) => {
@@ -181,7 +181,7 @@ export default function App() {
         isEncoding: replay.isEncoding,
         bufferedSeconds: replay.bufferedSeconds,
         capture: replay.capture,
-        trimming: replayTrimPending,
+        trimming: replayTrim != null,
       }}
     >
     <div className="relative flex h-screen flex-col">
@@ -345,10 +345,9 @@ export default function App() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* DraftingPanel(IssueTab)과 같은 게이트를 봐야 둘이 절대 동시에 마운트되지 않는다 —
-          두 lazy 청크 동시 첫 로드는 tiptap 레이스로 흰 화면이 됐다(POSTMORTEM 2026-07-01).
-          pendingTrim은 오버레이 페이로드 전용이라 게이트로 쓰지 않는다. */}
-      {replayTrimPending && replay.pendingTrim && (
+      {/* DraftingPanel(IssueTab)과 같은 값을 봐야 둘이 절대 동시에 마운트되지 않는다 —
+          두 lazy 청크 동시 첫 로드는 tiptap 레이스로 흰 화면이 됐다(POSTMORTEM 2026-07-01). */}
+      {replayTrim && (
         <Suspense
           fallback={
             <div className="absolute inset-0 z-50 flex items-center justify-center bg-background">
@@ -357,11 +356,11 @@ export default function App() {
           }
         >
           <ReplayTrimDialog
-            videoBlob={replay.pendingTrim.videoBlob}
-            frames={replay.pendingTrim.frames}
+            videoBlob={replayTrim.videoBlob}
+            frames={replayTrim.frames}
             busy={trimBusy}
             onConfirm={(startSec, endSec) => {
-              const frames = replay.pendingTrim?.frames ?? [];
+              const frames = replayTrim.frames;
               setTrimBusy(true);
               applyReplayTrim({ frames, tabId, startSec, endSec })
                 .catch(() => toast.error(t("issue.replay.encodeFailed")))
@@ -371,8 +370,7 @@ export default function App() {
                 });
             }}
             onCancel={() => {
-              replay.resolveTrim();
-              useEditorStore.getState().reset();
+              useEditorStore.getState().reset(); // ...initial이 replayTrim까지 청소 — resolveTrim 불요.
               void clearPicker(tabId);
               void deleteNetworkLog(`pending:${tabId}`);
               void deleteConsoleLog(`pending:${tabId}`);
