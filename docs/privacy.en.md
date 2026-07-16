@@ -111,7 +111,7 @@ Beyond the items above, the extension does not collect your browsing history, co
 All data is stored **only inside your browser**.
 
 - **chrome.storage.local**: Jira, GitHub, Linear, Notion, GitLab, Asana, ClickUp, Slack integration settings (default project/repository/team and **default assignee**), your last submission (project, assignee, CC — including the identifier and display name of the person you picked), issue history, app settings, LLM provider settings (LLM API keys stored obfuscated)
-- **chrome.storage.session**: Editing sessions (per tab, automatically deleted when the browser closes)
+- **chrome.storage.session**: Editing sessions, and the address of the tab the side panel was opened on (so reopening the panel reconnects to that tab) (per tab, automatically deleted when the browser closes)
 - **IndexedDB**: Video recordings, screenshot images, network logs, console logs, user action logs, inline editor images, user-attached files (local device only)
 - **Memory (temporary)**: 30-second replay frame buffer — not stored to disk; encoded to video and saved to IndexedDB only at the moment you perform a capture.
 
@@ -133,8 +133,8 @@ The extension transmits data only to the services below.
 | ClickUp REST API (`api.clickup.com`) | Task body, workspace/space/list/assignee, screenshots, video, debug logs | Creating tasks and uploading files |
 | Slack Web API (`slack.com` and Slack-issued file upload URLs) | Message body (title, detail), mention targets, screenshots, video, debug logs, and — on promotion — the tracker issue link | Sending messages/attachments to channels/DMs in your own workspace, and auto-commenting the issue link in the original message thread when promoting to a tracker |
 | OAuth proxy server | OAuth authorization code | Token exchange (Jira, GitHub, Notion, Asana, ClickUp, Slack) |
-| User-specified LLM provider (AI draft) | Issue body draft, page URL/title, element selector/style info and design tokens, screenshot (optional), debug log summary (optional), the extra instructions you type, and any draft you have already written | AI draft generation |
-| User-specified LLM provider (AI styling) | Selected element's tag, CSS selector, class list, current specified styles, design tokens, computed layout styles (display, position, width, margin, etc.), browser viewport size | CSS change suggestion |
+| User-specified LLM provider (AI draft) | Issue body draft, page URL/title, element selector/style info and design tokens, screenshot, element before/after images, and inline images placed in the body (optional), debug log summary (optional), the extra instructions you type, and any draft you have already written | AI draft generation |
+| User-specified LLM provider (AI styling) | Selected element's tag, CSS selector, class list, current specified styles, design tokens, computed layout styles (display, position, width, margin, etc.), browser viewport size, and the instruction you type | CSS change suggestion |
 | PostHog (`us.i.posthog.com`) | Anonymous aggregate events (install, panel open, platform connect/disconnect, issue submission) | Anonymous usage analytics |
 
 The OAuth proxy server only relays the token exchange and does not store or log user data. Linear and GitLab exchange tokens directly via PKCE without a proxy.
