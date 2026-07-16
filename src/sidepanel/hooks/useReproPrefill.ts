@@ -22,6 +22,7 @@ interface UseReproPrefillArgs {
   locale: LocaleMode;
   trimming: boolean;
   sectionEnabled: boolean;
+  // 첫 렌더 값만 읽는다 — 이후 변경은 이번 작성 세션에 반영되지 않는다(반응형 아님).
   autoReproPrefill: boolean;
   reproPrefillDone: boolean;
   setReproPrefillDone: (done: boolean) => void;
@@ -54,6 +55,10 @@ export function useReproPrefill(args: UseReproPrefillArgs): {
   } = args;
   const [aiGenerated, setAiGenerated] = useState<string | null>(null);
 
+  // drafting 진입 시점의 설정으로 고정(재대입 없음). deps에 두면 작성 중 설정을 켜는 순간
+  // effect가 재실행돼 그 자리에서 발화한다 — 끄는 쪽도 대칭으로 이번 세션엔 반영하지 않는다.
+  const autoEnabledRef = useRef(autoReproPrefill);
+
   // ref로 읽어야 deps를 원시 플래그로 좁힐 수 있다 — 객체를 deps에 넣으면 무관한 편집이 취소를 부른다.
   const draftRef = useRef(draft);
   draftRef.current = draft;
@@ -68,7 +73,7 @@ export function useReproPrefill(args: UseReproPrefillArgs): {
   const stepsEmpty = !draft?.sections.stepsToReproduce?.trim();
 
   useEffect(() => {
-    if (!autoReproPrefill) return;
+    if (!autoEnabledRef.current) return;
     // video 게이트는 1차 릴리스 스코프 제한, 아래 supportsActionLog는 로그 정책 단일 출처다 — video가 늘 후자를 통과해 겹쳐 보여도 스코프가 넓어질 때를 위해 남긴다(POSTMORTEM 2026-07-14).
     if (captureMode !== "video") return;
     if (trimming) return;
@@ -132,9 +137,9 @@ export function useReproPrefill(args: UseReproPrefillArgs): {
       run.cancelled = true;
     };
     // deps는 발화 판정용 원시 플래그만 — draft/actionLog·locale/url/pageTitle을 넣으면 로딩 중 무관한 변경이 재실행→취소를 유발해 AI 결과 유실·로딩 고착을 만든다(발화 시점 closure로 읽는다).
+    // autoReproPrefill도 의도적으로 뺐다 — 위 autoEnabledRef로 진입 시점에 고정한다.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
-    autoReproPrefill,
     captureMode,
     trimming,
     sectionEnabled,
