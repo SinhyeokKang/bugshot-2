@@ -12,69 +12,70 @@
 - **변경 대상**: `src/sidepanel/lib/buildReproSteps.ts`(신규), `src/sidepanel/lib/__tests__/buildReproSteps.test.ts`(신규)
 - **작업 내용**: `buildReproSteps(log: ActionLog): string`. design "룰 기반 변환 규칙"대로 — kind별 중립 서술 줄, keypress·초기 load 제외, 연속 input dedup, 연속 중복 병합, `MAX_STEPS`(≈15) 상한(초과 시 최근 우선), masked 값 `***` 유지. 출력은 `\n` 구분(번호 없음). **필터 후 0줄이면 빈 문자열**.
 - **검증**:
-  - [ ] navigation(load 제외) → `Go to <url>` 줄 생성
-  - [ ] 같은 selector 연속 input이 마지막 값 한 줄로 dedup
-  - [ ] keypress 엔트리가 결과에 없음
-  - [ ] 20개 초과 로그가 `MAX_STEPS` 이하로 잘리고 최근 단계 우선
-  - [ ] masked input 값이 `***`로 유지
-  - [ ] `captured === 0`(빈 entries) → 빈 문자열
-  - [ ] **`captured > 0`이나 전부 keypress/load라 필터 후 0줄 → 빈 문자열**
-  - [ ] `pnpm test` 통과
+  - [x] navigation(load 제외) → `Go to <url>` 줄 생성
+  - [x] 같은 selector 연속 input이 마지막 값 한 줄로 dedup
+  - [x] keypress 엔트리가 결과에 없음
+  - [x] 20개 초과 로그가 `MAX_STEPS` 이하로 잘리고 최근 단계 우선
+  - [x] masked input 값이 `***`로 유지
+  - [x] `captured === 0`(빈 entries) → 빈 문자열
+  - [x] **`captured > 0`이나 전부 keypress/load라 필터 후 0줄 → 빈 문자열**
+  - [x] `pnpm test` 통과
 
 ### Task 2: AI 경로 오케스트레이션 `generateReproStepsWithAI` (테스트 우선)
 - **변경 대상**: `src/sidepanel/lib/generateReproPrefill.ts`(신규), `src/sidepanel/lib/__tests__/generateReproPrefill.test.ts`(신규)
 - **작업 내용**: `generateReproStepsWithAI(input): Promise<ReproPrefillResult>`. `enabledSections=[{id:"stepsToReproduce"}]`, `buildAiDraftSchema(["stepsToReproduce"])`, `AiDraftSessionContext` 조립(userPrompt·existingDraft·이미지·diff 없음), **`getDraftFewShot` 재사용해 `createSession(sys, fewShot)`**, `session.prompt({responseSchema, signal})`, `parseAiDraftResponse(raw, ["stepsToReproduce"])` → `sections.stepsToReproduce`. title 무시. 성공=`{ok:true,steps}`, 빈 값/파싱실패=`{ok:false,reason:"other"}`, provider throw는 quota/auth/other로 분류. `signal` 전달·abort 반영.
 - **검증**:
-  - [ ] fake provider(고정 JSON 반환)로 `stepsToReproduce`만 추출, title 무시 확인
-  - [ ] 스키마 required가 `["title","stepsToReproduce"]`인지(`buildAiDraftSchema` 반환 검증)
-  - [ ] 프롬프트에 stepsToReproduce 섹션 설명만 포함(다른 섹션 설명 부재) + **few-shot 주입 확인**
-  - [ ] provider throw(quota) → `{ok:false, reason:"quota"}`, auth 오류 → `reason:"auth"`
-  - [ ] 응답에 stepsToReproduce 빈 문자열 → `{ok:false, reason:"other"}`
-  - [ ] `pnpm test` 통과
+  - [x] fake provider(고정 JSON 반환)로 `stepsToReproduce`만 추출, title 무시 확인
+  - [x] 스키마 required가 `["title","stepsToReproduce"]`인지(`buildAiDraftSchema` 반환 검증)
+  - [x] 프롬프트에 stepsToReproduce 섹션 설명만 포함(다른 섹션 설명 부재) + **few-shot 주입 확인**
+  - [x] provider throw(quota) → `{ok:false, reason:"quota"}`, auth 오류 → `reason:"auth"` (LlmAuthError 신설)
+  - [x] 응답에 stepsToReproduce 빈 문자열 → `{ok:false, reason:"other"}`
+  - [x] `pnpm test` 통과
 
 ### Task 3: 트리거 훅 `useReproPrefill` (테스트 우선)
 - **변경 대상**: `src/sidepanel/hooks/useReproPrefill.ts`(신규), `src/sidepanel/hooks/__tests__/useReproPrefill.test.tsx`(신규)
 - **작업 내용**: design "데이터 흐름"의 발화 판정·오케스트레이션을 useEffect로. 발화 조건 전부(autoReproPrefill / captureMode video / !trimming / sectionEnabled / supportsActionLog / captured>0 / steps 비어있음 / `aiStatus!=="checking"` / `reproPrefillDone===false`). 발화 시 `setReproPrefillDone(true)` 먼저, `aiStatus==="available"`이면 로컬 `setLoading(true)` → `generateReproStepsWithAI` → 성공 steps, quota/auth면 룰 폴백+토스트, other면 조용한 룰 폴백 → `setLoading(false)`. `unavailable`이면 즉시 룰. 결과 `steps.trim()` 있고 `!cancelled`일 때만 `setDraft`. `AbortController` + `cancelled` cleanup. `aiStatus`를 의존성에 포함. 반환 `{ loading }`.
 - **검증**:
-  - [ ] 조건 만족(unavailable) 시 setDraft 1회, stepsToReproduce 채워짐
-  - [ ] `stepsToReproduce`에 기존 값 있으면 미발화
-  - [ ] `captureMode !== "video"`면 미발화
-  - [ ] `actionLog === null` 또는 `captured===0`이면 미발화
-  - [ ] **`aiStatus==="checking"`이면 보류, `available`로 바뀌면 그때 AI 발화**(레이스 방지)
-  - [ ] **`reproPrefillDone===true`면 미발화**(재개·삭제 후 부활 방지)
-  - [ ] **`autoReproPrefill===false`면 미발화**
-  - [ ] **`sectionEnabled===false`면 미발화**
-  - [ ] **`trimming===true`면 미발화**
-  - [ ] AI 실패(other) 시 룰 폴백으로 채워짐 / quota·auth 시 토스트 호출
-  - [ ] **룰/AI 결과 공백이면 `setDraft` 미호출**(빈 값 주입·재시도 루프 방지)
-  - [ ] **AI in-flight 중 언마운트 → 응답 도착해도 `setDraft` 미호출**(abort/cancelled)
-  - [ ] `pnpm test` 통과
+  - [x] 조건 만족(unavailable) 시 setDraft 1회, stepsToReproduce 채워짐
+  - [x] `stepsToReproduce`에 기존 값 있으면 미발화
+  - [x] `captureMode !== "video"`면 미발화
+  - [x] `actionLog === null` 또는 `captured===0`이면 미발화
+  - [x] **`aiStatus==="checking"`이면 보류, `available`로 바뀌면 그때 AI 발화**(레이스 방지)
+  - [x] **`reproPrefillDone===true`면 미발화**(재개·삭제 후 부활 방지)
+  - [x] **`autoReproPrefill===false`면 미발화**
+  - [x] **`sectionEnabled===false`면 미발화**
+  - [x] **`trimming===true`면 미발화**
+  - [x] AI 실패(other) 시 룰 폴백으로 채워짐 / quota·auth 시 토스트 호출
+  - [x] **룰/AI 결과 공백이면 `setDraft` 미호출**(빈 값 주입·재시도 루프 방지)
+  - [x] **AI in-flight 중 언마운트 → 응답 도착해도 `setDraft` 미호출**(abort/cancelled)
+  - [x] **AI in-flight 중 무관한 편집(제목 등)이 취소·유실 유발 안 함**(deps 원시화+ref 병합 회귀 가드)
+  - [x] `pnpm test` 통과
 
 ### Task 4: store·설정 상태 추가
 - **변경 대상**: `src/store/editor-store.ts`, `src/store/settings-ui-store.ts`
 - **작업 내용**: editor-store에 `reproPrefillDone: boolean` + `setReproPrefillDone`, **`EditorSnapshot`(persist)에 포함**, `reset`/새 캡처 진입 시 false 초기화. settings-ui-store에 `autoReproPrefill: boolean`(기본 true) + `setAutoReproPrefill`(persist).
 - **검증**:
-  - [ ] `reproPrefillDone`이 snapshot 직렬화/복원에 포함됨(hydrate 후 유지)
-  - [ ] 새 캡처 세션 진입 시 false로 리셋
-  - [ ] `autoReproPrefill` 기본값 true, persist 왕복
-  - [ ] `pnpm typecheck` 통과
+  - [x] `reproPrefillDone`이 snapshot 직렬화/복원에 포함됨(hydrate 후 유지) — EditorSnapshot Pick + snapshotFromState
+  - [x] 새 캡처 세션 진입 시 false로 리셋 — `...initial` 스프레드
+  - [x] `autoReproPrefill` 기본값 true, persist 왕복 — 마이그레이션 v7→v8 단위 테스트
+  - [x] `pnpm typecheck` 통과
 
 ### Task 5: `DraftingPanel` 배선 + 로딩 치환 + disclaimer
 - **변경 대상**: `src/sidepanel/tabs/DraftingPanel.tsx`
 - **작업 내용**: draft 시딩 useEffect(119-129행) 이후 `useReproPrefill({...})` 호출(이미 보유한 값 + `trimming`·`sectionEnabled`·`autoReproPrefill`·`reproPrefillDone`·`setReproPrefillDone` 전달). `stepsToReproduce` 섹션 렌더에서 `loading`이면 `OrderedListEditor`를 **스피너(`Loader2`)로 치환**(clobber 방지 — 입력 차단). AI 경로로 채운 경우 disclaimer 힌트("AI 생성 — 검토") 노출. 로딩 인디케이터·steps 편집기에 e2e용 `data-testid` 부착(예: `repro-prefill-loading`, `draft-section-stepsToReproduce`).
 - **검증**:
   - [ ] video 캡처 후 drafting 진입 시 stepsToReproduce가 채워짐(수동/e2e)
-  - [ ] AI 가용 프로필에서 로딩 스피너가 편집기를 치환하고, 그동안 타이핑 불가
-  - [ ] disclaimer 힌트 노출(AI 경로)
-  - [ ] `data-testid` 부착됨
-  - [ ] `pnpm typecheck` 통과
+  - [ ] AI 가용 프로필에서 로딩 스피너가 편집기를 치환하고, 그동안 타이핑 불가(수동/e2e)
+  - [ ] disclaimer 힌트 노출(AI 경로)(수동/e2e)
+  - [x] `data-testid` 부착됨 (`draft-section-stepsToReproduce`, `repro-prefill-loading`, `repro-prefill-ai-hint`)
+  - [x] `pnpm typecheck` 통과
 
 ### Task 6: 설정 토글 UI + i18n
 - **변경 대상**: 설정 탭 컴포넌트, `src/i18n/namespaces/*`(ko/en 동시)
 - **작업 내용**: `autoReproPrefill` 토글 1개를 설정 UI에 추가(기존 토글 패턴 재사용). 로딩 라벨·disclaimer·토글 라벨/설명 문구 ko/en 추가. PostToolUse 훅이 `locales.test.ts` 자동 실행 — 대칭 유지.
 - **검증**:
   - [ ] 토글 on/off가 `autoReproPrefill` 반영, off 시 자동 채움 미발화(수동)
-  - [ ] ko/en 키 대칭, placeholder 토큰 일치(훅 자동 검사 통과)
+  - [x] ko/en 키 대칭, placeholder 토큰 일치(훅 자동 검사 통과)
 
 ## 테스트 계획
 

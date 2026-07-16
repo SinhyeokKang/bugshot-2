@@ -60,6 +60,7 @@ function snapshotFromState(): EditorSnapshot {
     networkLogAttach: s.networkLogAttach,
     consoleLogAttach: s.consoleLogAttach,
     actionLogAttach: s.actionLogAttach,
+    reproPrefillDone: s.reproPrefillDone,
     attachments: s.attachments,
     draft: s.draft,
     issueFields: s.issueFields,

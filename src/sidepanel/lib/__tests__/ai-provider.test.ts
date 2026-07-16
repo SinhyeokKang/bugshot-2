@@ -11,6 +11,7 @@ import {
   detectProviderKind,
   fetchWithRetry,
   getProviderLabel,
+  LlmAuthError,
   LlmOverloadedError,
   LlmQuotaError,
   mapQuotaError,
@@ -343,6 +344,54 @@ describe("createOpenAICompatibleProvider 재시도 통합", () => {
 
     await expect(promise).resolves.toBe("yay");
     expect(fetchFn).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe("인증 오류 매핑", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("OpenAI 경로 401이면 LlmAuthError throw (재시도 안 함)", async () => {
+    const fetchFn = vi.fn().mockResolvedValue({
+      status: 401,
+      ok: false,
+      headers: { get: () => null },
+      text: () => Promise.resolve("unauthorized"),
+    });
+    vi.stubGlobal("fetch", fetchFn);
+
+    const provider = createOpenAICompatibleProvider({
+      baseUrl: "https://api.openai.com/v1",
+      apiKey: "bad",
+      modelId: "gpt-4o",
+    });
+
+    await expect(provider.generate({ prompt: "hi" })).rejects.toBeInstanceOf(
+      LlmAuthError,
+    );
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+  });
+
+  it("Anthropic 경로 403이면 LlmAuthError throw", async () => {
+    const fetchFn = vi.fn().mockResolvedValue({
+      status: 403,
+      ok: false,
+      headers: { get: () => null },
+      text: () => Promise.resolve("forbidden"),
+    });
+    vi.stubGlobal("fetch", fetchFn);
+
+    const provider = createAnthropicProvider({
+      baseUrl: "https://api.anthropic.com/v1",
+      apiKey: "bad",
+      modelId: "claude-sonnet-4-6",
+    });
+
+    await expect(provider.generate({ prompt: "hi" })).rejects.toBeInstanceOf(
+      LlmAuthError,
+    );
   });
 });
 

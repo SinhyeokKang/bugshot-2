@@ -3,6 +3,7 @@ import type { TranslationFn } from "@/i18n";
 import type { TranslationKey } from "@/i18n/ko";
 import {
   AiContextOverflowError,
+  LlmAuthError,
   LlmOverloadedError,
   LlmQuotaError,
 } from "./ai-provider";
@@ -20,6 +21,8 @@ export function toastLlmError(
       description: t("llm.error.contextOverflow.hint"),
       duration: CONTEXT_OVERFLOW_TOAST_MS,
     });
+  } else if (err instanceof LlmAuthError) {
+    toast.error(t("llm.error.auth"));
   } else if (err instanceof LlmQuotaError) {
     toast.error(t("llm.error.quota"));
   } else if (err instanceof LlmOverloadedError) {

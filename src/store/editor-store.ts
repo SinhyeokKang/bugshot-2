@@ -151,6 +151,8 @@ interface EditorState {
   consoleLogAttach: boolean;
   actionLog: ActionLog | null;
   actionLogAttach: boolean;
+  // drafting 진입 시 재현 단계 자동 채움을 세션 1회로 제한하는 가드(persist — 삭제 후 재개 시 부활 방지).
+  reproPrefillDone: boolean;
   attachments: UserAttachmentMeta[];
   aiStylingLoading: boolean;
   aiDraftLoading: boolean;
@@ -217,6 +219,7 @@ interface EditorState {
   setConsoleLogAttach: (on: boolean) => void;
   setActionLog: (log: ActionLog) => void;
   setActionLogAttach: (on: boolean) => void;
+  setReproPrefillDone: (done: boolean) => void;
   setAnnotationTool: (tool: RecordingPenTool | null) => void;
   setAnnotationColor: (color: string) => void;
   setAnnotationThickness: (thickness: ThicknessKey) => void;
@@ -259,6 +262,7 @@ export type EditorSnapshot = Pick<
   | "networkLogAttach"
   | "consoleLogAttach"
   | "actionLogAttach"
+  | "reproPrefillDone"
   | "attachments"
   | "draft"
   | "issueFields"
@@ -302,6 +306,7 @@ const initial = {
   consoleLogAttach: false,
   actionLog: null as ActionLog | null,
   actionLogAttach: false,
+  reproPrefillDone: false,
   attachments: [] as UserAttachmentMeta[],
   draft: null,
   inlineCaptureTarget: null as string | null,
@@ -935,6 +940,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setConsoleLogAttach: (on) => set({ consoleLogAttach: on }),
   setActionLog: (log) => set({ actionLog: log }),
   setActionLogAttach: (on) => set({ actionLogAttach: on }),
+  setReproPrefillDone: (done) => set({ reproPrefillDone: done }),
   clearNetworkLog: (tabId) => {
     set({ networkLog: null });
     if (tabId != null) {

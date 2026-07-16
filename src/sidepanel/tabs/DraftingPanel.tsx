@@ -17,6 +17,8 @@ import { useEditorStore } from "@/store/editor-store";
 import { useSettingsStore } from "@/store/settings-store";
 import { useBoundTabId } from "@/sidepanel/hooks/useBoundTabId";
 import { useAI } from "@/sidepanel/hooks/useAI";
+import { useReproPrefill } from "@/sidepanel/hooks/useReproPrefill";
+import { useReplay } from "@/sidepanel/30s-replay/replay-context";
 import { clearPicker, startInlineAreaCapture } from "@/sidepanel/picker-control";
 import { CancelConfirmDialog } from "@/sidepanel/components/CancelConfirmDialog";
 import { LogAttachmentCards } from "@/sidepanel/components/LogAttachmentCards";
@@ -81,6 +83,12 @@ export function DraftingPanel() {
   const setActionLogAttach = useEditorStore((s) => s.setActionLogAttach);
   const issueSections = useSettingsUiStore((s) => s.issueSections);
   const attachmentsEnabled = useSettingsUiStore((s) => s.attachmentsEnabled);
+  const autoReproPrefill = useSettingsUiStore((s) => s.autoReproPrefill);
+  const locale = useSettingsUiStore((s) => s.locale);
+  const target = useEditorStore((s) => s.target);
+  const reproPrefillDone = useEditorStore((s) => s.reproPrefillDone);
+  const setReproPrefillDone = useEditorStore((s) => s.setReproPrefillDone);
+  const { trimming } = useReplay();
   const attachments = useEditorStore((s) => s.attachments);
   const addAttachments = useEditorStore((s) => s.addAttachments);
   const removeAttachment = useEditorStore((s) => s.removeAttachment);
@@ -127,6 +135,27 @@ export function DraftingPanel() {
       environment: [],
     });
   }, [draft, selection, setDraft, titlePrefix, captureMode, screenshotImage, videoThumbnail, videoBlob]);
+
+  const { loading: reproPrefillLoading, aiFilled: reproPrefillAiFilled } =
+    useReproPrefill({
+      captureMode,
+      actionLog,
+      draft,
+      setDraft,
+      aiStatus,
+      capabilities,
+      createSession,
+      url: target?.url ?? "",
+      pageTitle: target?.title ?? "",
+      locale,
+      trimming,
+      sectionEnabled: issueSections.some(
+        (s) => s.id === "stepsToReproduce" && s.enabled,
+      ),
+      autoReproPrefill,
+      reproPrefillDone,
+      setReproPrefillDone,
+    });
 
   if (!draft) return null;
   if (captureMode === "element" && !selection) return null;
@@ -334,6 +363,8 @@ export function DraftingPanel() {
             sections: { ...draft.sections, [sec.id]: v },
           })
         }
+        reproLoading={sec.id === "stepsToReproduce" && reproPrefillLoading}
+        reproAiHint={sec.id === "stepsToReproduce" && reproPrefillAiFilled}
       />,
     );
   }
@@ -387,8 +418,8 @@ export function DraftingPanel() {
             <button
               data-testid="ai-draft-trigger"
               className="flex items-center justify-between rounded-t-lg bg-purple-100/80 px-3.5 py-2.5 text-purple-700 transition-colors hover:bg-purple-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring aria-disabled:cursor-not-allowed aria-disabled:opacity-50 dark:bg-purple-950/50 dark:text-purple-300 dark:hover:bg-purple-900"
-              onClick={() => { if (aiDraftLoading) return; (document.activeElement as HTMLElement)?.blur?.(); setAiDialogOpen(true); }}
-              aria-disabled={aiDraftLoading}
+              onClick={() => { if (aiDraftLoading || reproPrefillLoading) return; (document.activeElement as HTMLElement)?.blur?.(); setAiDialogOpen(true); }}
+              aria-disabled={aiDraftLoading || reproPrefillLoading}
             >
               <span className="flex min-w-0 items-center gap-1.5">
                 <Badge variant="outline" className="shrink-0 font-normal border-purple-500 text-purple-600 dark:border-purple-400 dark:text-purple-300">{providerLabel ?? t("ai.badge.chromeAI")}</Badge>
@@ -423,7 +454,7 @@ export function DraftingPanel() {
                     setAnnotating(false);
                     if (confirmDraft()) toast.success(t("draft.saved"));
                   }}
-                  disabled={titleMissing || aiDraftLoading}
+                  disabled={titleMissing || aiDraftLoading || reproPrefillLoading}
                   data-testid="to-preview"
                 >
                   {t("draft.preview")}
@@ -654,10 +685,14 @@ function SectionTextarea({
   section,
   value,
   onChange,
+  reproLoading = false,
+  reproAiHint = false,
 }: {
   section: IssueSection;
   value: string;
   onChange: (next: string) => void;
+  reproLoading?: boolean;
+  reproAiHint?: boolean;
 }) {
   const t = useT();
   const label = section.labelOverride?.trim() || t(sectionLabelKey(section.id));
@@ -721,7 +756,24 @@ function SectionTextarea({
       }
     >
       {section.renderAs === "orderedList" ? (
-        <OrderedListEditor value={value} onChange={onChange} placeholder={placeholder} />
+        reproLoading ? (
+          <div
+            className="flex min-h-16 items-center justify-center gap-2 rounded-md border bg-muted/40 text-sm text-muted-foreground"
+            data-testid="repro-prefill-loading"
+          >
+            <Loader2 className="h-4 w-4 animate-spin" />
+            {t("reproPrefill.loading")}
+          </div>
+        ) : (
+          <div className="space-y-1.5">
+            <OrderedListEditor value={value} onChange={onChange} placeholder={placeholder} />
+            {reproAiHint ? (
+              <p className="text-xs text-muted-foreground/60" data-testid="repro-prefill-ai-hint">
+                {t("reproPrefill.aiHint")}
+              </p>
+            ) : null}
+          </div>
+        )
       ) : (
         <Suspense fallback={<Textarea disabled placeholder={placeholder} className="min-h-32 resize-none text-sm" />}>
           <LazyTiptapEditor

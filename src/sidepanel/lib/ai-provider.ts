@@ -163,6 +163,13 @@ export class LlmOverloadedError extends Error {
   }
 }
 
+export class LlmAuthError extends Error {
+  constructor() {
+    super("auth_failed");
+    this.name = "LlmAuthError";
+  }
+}
+
 export class AiContextOverflowError extends Error {
   constructor() {
     super("context_overflow");
@@ -374,6 +381,7 @@ export function createOpenAICompatibleProvider(config: LlmConfig): AIProvider {
       [502, 503, 504],
     );
     if (!res.ok) {
+      if (res.status === 401 || res.status === 403) throw new LlmAuthError();
       if (res.status === 429) throw new LlmQuotaError();
       if (res.status === 503) throw new LlmOverloadedError();
       const text = await res.text().catch(() => "");
@@ -470,6 +478,7 @@ export function createAnthropicProvider(config: LlmConfig): AIProvider {
       [502, 504, 529],
     );
     if (!res.ok) {
+      if (res.status === 401 || res.status === 403) throw new LlmAuthError();
       if (res.status === 429) throw new LlmQuotaError();
       if (res.status === 529) throw new LlmOverloadedError();
       const text = await res.text().catch(() => "");

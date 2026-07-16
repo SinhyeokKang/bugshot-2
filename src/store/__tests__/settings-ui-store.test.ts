@@ -164,4 +164,16 @@ describe("settings-ui-store", () => {
       expect(migrated.styleEditorView).toBe("code");
     });
   });
+
+  describe("autoReproPrefill 마이그레이션 (v7→v8)", () => {
+    it("autoReproPrefill 부재 시 기본값 true 부여", () => {
+      const migrated = migrateSettingsUi({}, 7);
+      expect(migrated.autoReproPrefill).toBe(true);
+    });
+
+    it("기존 autoReproPrefill=false는 보존(덮어쓰지 않음)", () => {
+      const migrated = migrateSettingsUi({ autoReproPrefill: false }, 7);
+      expect(migrated.autoReproPrefill).toBe(false);
+    });
+  });
 });

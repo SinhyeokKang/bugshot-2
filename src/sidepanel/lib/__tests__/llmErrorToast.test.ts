@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { toastLlmError } from "../llmErrorToast";
 import {
   AiContextOverflowError,
+  LlmAuthError,
   LlmOverloadedError,
   LlmQuotaError,
 } from "../ai-provider";
@@ -34,6 +35,11 @@ describe("toastLlmError", () => {
   it("오버로드 → 전용 문구", () => {
     toastLlmError(new LlmOverloadedError(), t, "draft.aiError");
     expect(toast.error).toHaveBeenCalledWith("llm.error.overloaded");
+  });
+
+  it("인증 실패 → 전용 문구", () => {
+    toastLlmError(new LlmAuthError(), t, "draft.aiError");
+    expect(toast.error).toHaveBeenCalledWith("llm.error.auth");
   });
 
   it("그 외 에러 → 호출부가 준 fallback 키", () => {

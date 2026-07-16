@@ -1,5 +1,5 @@
 import { Fragment } from "react";
-import { Bug, ListOrdered, Monitor, Moon, Paperclip, SlidersHorizontal, Sparkles, StickyNote, Sun, Target } from "lucide-react";
+import { Bug, ListOrdered, Monitor, Moon, Paperclip, SlidersHorizontal, Sparkles, StickyNote, Sun, Target, WandSparkles } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
@@ -83,6 +83,8 @@ function IssueSettingsContent() {
   const setIssueEnabled = useSettingsUiStore((s) => s.setIssueEnabled);
   const attachmentsEnabled = useSettingsUiStore((s) => s.attachmentsEnabled);
   const setAttachmentsEnabled = useSettingsUiStore((s) => s.setAttachmentsEnabled);
+  const autoReproPrefill = useSettingsUiStore((s) => s.autoReproPrefill);
+  const setAutoReproPrefill = useSettingsUiStore((s) => s.setAutoReproPrefill);
   const titlePrefix = useSettingsStore((s) => s.titlePrefix);
   const setTitlePrefix = useSettingsStore((s) => s.setTitlePrefix);
 
@@ -125,6 +127,11 @@ function IssueSettingsContent() {
               <AttachmentToggleRow
                 enabled={attachmentsEnabled}
                 onToggle={setAttachmentsEnabled}
+              />
+              <Separator className="-mx-3 w-auto" />
+              <AutoReproPrefillToggleRow
+                enabled={autoReproPrefill}
+                onToggle={setAutoReproPrefill}
               />
             </CardContent>
           </Card>
@@ -217,6 +224,34 @@ function AttachmentToggleRow({
       </div>
       <Switch
         id="setting-attachments-enabled"
+        checked={enabled}
+        onCheckedChange={(v) => onToggle(v === true)}
+      />
+    </div>
+  );
+}
+
+function AutoReproPrefillToggleRow({
+  enabled,
+  onToggle,
+}: {
+  enabled: boolean;
+  onToggle: (enabled: boolean) => void;
+}) {
+  const t = useT();
+  return (
+    <div className="flex items-center gap-3">
+      <div className="shrink-0">
+        <WandSparkles className="h-4 w-4" />
+      </div>
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <label htmlFor="setting-auto-repro-prefill" className="cursor-pointer text-sm">
+          {t("settings.autoReproPrefill.label")}
+        </label>
+        <p className="text-sm text-muted-foreground">{t("settings.autoReproPrefill.help")}</p>
+      </div>
+      <Switch
+        id="setting-auto-repro-prefill"
         checked={enabled}
         onCheckedChange={(v) => onToggle(v === true)}
       />
