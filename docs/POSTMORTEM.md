@@ -21,6 +21,22 @@
 
 ---
 
+## 2026-07-17 — "mono 표면"이 한 셀렉터로 안 잡혀 v1.6.0의 13px 통일이 표면을 빠뜨렸고, 폰트를 안 열어본 리거처 단언 탓에 `--`가 CSS 토큰마다 그리드를 무너뜨림
+
+- **증상**: v1.6.0이 Geist Mono를 실은 뒤, CSS 코드 뷰에서 `var(--space-lg)` 같은 토큰의 `--`가 **한 글자로 뭉쳐** 회색 칩을 삐져나왔다. 이슈 본문 코드블럭은 긴 줄이 접히며 **들여쓰기가 소실**됐고(중첩 JSON에서 즉시 보임), 코드 표면 크기는 13 / 12.25 / 11px로 제각각이었다. 폰트는 정상 로드됐고(e2e가 `@font-face`를 고정), `pnpm test`·`typecheck`·e2e 전부 green — **어느 게이트에도 안 걸렸다.**
+- **근본 원인**: 세 겹이고, 전부 "코드만 읽어선 안 보이는" 층에 있었다.
+  1. **폰트 파일을 안 열어본 단언.** v1.6.0 design.md가 *"Geist Mono엔 코딩 리거처가 없어 `calt`가 작용할 대상이 없다"*고 단언했다. fontTools로 열어보니 **절반만 맞았다** — `calt`·`rlig`는 없지만 **`liga`가 있고** 그 안에 `hyphen + [hyphen] → hyphen_hyphen.liga`가 실재한다. `liga`는 브라우저 **기본 ON**이라 켠 적이 없어도 작동하고, 그 리거처의 **advance가 600으로 hyphen 하나와 같다**(1200이 아니다) — 즉 잉크 오버플로가 아니라 **2셀이 1셀로 붕괴**해 `--` 뒤 텍스트가 통째로 한 칸 밀린다. CSS 커스텀 프로퍼티는 전부 `--`로 시작하므로 **에디터의 모든 토큰이 이걸 밟았다.**
+  2. **"mono 표면"은 한 셀렉터로 안 잡히는데 v1.6.0은 한 곳만 봤다.** Geist는 **세 짝**으로 갈려 들어온다 — (a) `.font-mono` 유틸(CSS 뷰·DOM 트리·로그 5곳) vs **Tailwind preflight**의 `pre`/`code`(Tiptap·프리뷰), 만나는 지점이 없다. (b) `tiptap-editor.css`(에디터)와 `doc-section-body.css`(프리뷰)는 code/pre 규칙이 **바이트 동일한 클론**이다. (c) `log-viewer`는 별도 빌드라 `globals.css`를 **안 받는데** `App.tsx`가 사이드패널 컴포넌트를 import해 mono 표면이 실재한다. v1.6.0은 (a)의 `.font-mono` 쪽만 보고 "13px 2표면 통일"을 **불변식으로 선언**했고, Tiptap 12.25px가 조용히 갈렸다. **셋 다 sans였을 땐 안 보이다가 mono로 통일되니 드러났다.**
+  3. **범인 CSS가 grep에 안 잡힌다.** 코드블럭 줄바꿈은 `@tiptap/core`가 `src/style.ts`를 **런타임에 `<style data-tiptap-style>`로 주입**하는 `.ProseMirror pre { white-space: pre-wrap }` 때문이었다. 소스에도 `dist/assets/*.css`에도 없다. 그래서 `tiptap-editor.css`의 `overflow-x: auto`는 **죽은 코드**였다(pre-wrap이면 넘칠 일이 없다). `code-block-collapse/prd.md`가 이 지점에서 *"`grep -rn "prosemirror.css" src/` → 0건이라 안 걸린다"*로 전제를 세웠는데, **grep 결과는 지금도 사실이고 틀린 건 "출처가 하나"라는 추론**이었다 — `prosemirror-view`의 CSS 파일은 정말 import 안 하지만 Tiptap이 같은 내용을 자체 주입한다.
+- **재발 방지**:
+  1. **폰트 feature를 근거로 뭔가를 단언하려면 파일을 연다.** `python -c "from fontTools.ttLib import TTFont; ..."`로 GSUB feature 목록과 치환 규칙을 뽑는 게 유일한 검증이다. "이 폰트엔 리거처가 없다"는 **검증 가능한 단언**이지 수사가 아니다(2026-07-16 "JSON 팔레트"와 같은 계열 — 주석·설계 문장의 단언은 grep/실측으로 참을 확인한 것만 쓴다).
+  2. **mono 전역 값을 손대면 세 짝을 전수한다.** `docs/DESIGN.md` §4 "mono 표면 불변식"이 정본이다. 전수: `grep -rn 'font-mono' src --include='*.tsx'`(유틸 경로) + `tiptap-editor.css`↔`doc-section-body.css` 나란히 diff + `log-viewer/styles.css`. **`tokens.test.ts`가 globals↔log-viewer의 mono 블록 일치를 강제**하므로 (c)는 자동으로 잡히지만, (a)·(b)는 여전히 사람이 봐야 한다. **한쪽만 고치면 테스트·typecheck·e2e 전부 green인 채로 갈라진다.**
+  3. **Tiptap 주입 스타일은 DevTools의 `style[data-tiptap-style]`로만 보인다** — `id`가 아니라 **속성**이라 `#tiptap-style`로 찾으면 0건이다. 파일은 pnpm 레이아웃이라 루트 `node_modules/@tiptap/core`에 없고 `.pnpm/@tiptap+core@<ver>/…/dist/index.js`의 `// src/style.ts` 구간이다. **메이저 업그레이드 시 특이도 싸움이 조용히 뒤집힌다.**
+  4. **`letter-spacing`이 리거처 mutation 대조군을 오염시킨다.** Chrome은 `letter-spacing`이 0이 아니면 리거처를 **덤으로 끈다**(CSS Text). 튜닝 중 자간이 있던 동안 `font-variant-ligatures: none` 한 줄만 지우는 대조군이 **green**이라 "단언이 공허하다"고 오판할 뻔했다 — 자간이 대신 막고 있었다. 자간을 0으로 확정한 지금은 대조군이 명확하다(그 한 줄 → red 확인). **mono에 자간을 도입하면 대조군은 블록 전체 제거로 바꿔야 한다**(`e2e/GOTCHAS.md`).
+  5. **`letter-spacing`의 `em`은 선언 요소 자신의 font-size로 resolve된 뒤 절대길이로 상속된다.** `CssCodeMirror`의 래퍼는 크기 클래스 없이 `font-mono`만 달아 body(16px) 기준으로 굳어, 12px인 다른 표면과 **자간만 33% 갈렸다**(-0.16 vs -0.12px). "전 표면 균일"이 불변식인 값에 `em`을 쓰면 **선언 위치가 값을 바꾼다.**
+  6. **"이걸 쓰면 X를 잃는다"류 기각 사유도 실측 대상이다.** design.md가 `font-feature-settings`를 기각하며 *"body의 `rlig`/`calt`를 날린다"*고 썼는데, preflight가 **이미** `code,kbd,samp,pre`에 `font-feature-settings: normal`을 직접 걸어 상속분이 항상 져서 **잃을 게 없었다**. 결론(안 쓴다)은 옳았지만 근거가 거짓이라 다음 리뷰에 뒤집힐 문장이었다 — 2026-07-16의 *"'왜'를 실측하지 않으면 맞는 결론도 다음 리뷰에 뒤집힌다"*가 그대로 반복됐다.
+- **관련**: `src/styles/globals.css`(mono 블록 — `@layer base`, 두 진입 경로를 한 셀렉터 리스트로 묶음)·`src/log-viewer/styles.css`(손복사본), `src/sidepanel/components/tiptap-editor.css`↔`doc-section-body.css`(짝 — `white-space: pre`는 에디터만), `src/sidepanel/tabs/styleEditor/CssCodeMirror.tsx`(인라인 theme 12px/1.5)·`DomTreeDialog.tsx`(`text-xs`)·`NetworkLogContent.tsx:576`(`text-xs`), 가드 `src/styles/__tests__/tokens.test.ts`("mono 타이포그래피" — 파서 자기검증 앵커 포함)·`e2e/style-code-view.spec.ts`(`--` 렌더 폭 실측 + 12px/18px computed). 정본: `docs/DESIGN.md` §4. 선행 회고: **2026-07-16**(미검증 단언·"왜"의 실측).
+
 ## 2026-07-17 — zustand 전이와 React state 게이트가 다른 레인이라 한 렌더가 새고, 그 틈에 발화한 재현 단계 자동 채움이 취소↔래치 함정으로 영구 미충전 (2026-07-16 함정의 하루 만의 재발)
 
 - **증상**: 30s 리플레이로 캡처 → 트림 오버레이에서 구간 확정 → 작성 화면의 **재현 과정이 빈 값**. 실패 토스트도 없다. **매번** 재현되고, 탭/화면 녹화는 멀쩡하다. 2026-07-16 항목의 증상과 **글자 그대로 같다** — 그 항목이 이미 고쳤다고 기록한 그 증상이 하루 만에 돌아왔다.

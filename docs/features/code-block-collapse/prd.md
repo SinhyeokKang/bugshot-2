@@ -59,15 +59,15 @@
 
 `doc-section-body.css:81`·`tiptap-editor.css:103`의 `pre`는 `overflow-x: auto`에 `white-space` 재정의가 없다 → 기본값 `white-space: pre` → **줄바꿈이 일어나지 않는다.** 논리 줄 1개 = 화면 줄 1개다.
 
-> ⚠ **이 전제는 에디터에서 거짓이었다 — `mono-typography-tuning`이 사후적으로 참으로 만들었다(선행 의존).**
+> ⚠ **이 전제는 한때 에디터에서 거짓이었다. 지금은 `tiptap-editor.css`의 `white-space: pre`가 떠받치고 있다 — 그 줄을 지우면 이 기능이 조용히 깨진다.**
 >
-> 원래 근거는 이랬다: *"`prosemirror-view/style/prosemirror.css:14-15`가 `.ProseMirror pre { white-space: pre-wrap; }`인데 `grep -rn "prosemirror.css" src/` → 0건이라 안 걸린다."* **grep 결과 0건은 지금도 사실**이고 문제 규칙·실패 모드도 정확히 짚었다. 틀린 건 **출처가 하나라고 본 것**이다 — `@tiptap/core`(3.23.4)가 동일 CSS를 자체 보유하다가 런타임에 `<style data-tiptap-style>`로 **주입**한다. 즉 import를 grep해선 안 잡히는 두 번째 경로로 `.ProseMirror pre { white-space: pre-wrap }`가 **이미 활성이었고**, 에디터에선 줄이 접혀 "줄 수 = 화면 높이"가 성립하지 않았다. (프리뷰 `doc-section-body`는 ProseMirror가 아니라 전제가 유효했다 — **한 기능이 두 표면을 같은 가정으로 다루는데 에디터에서만 깨져 있었다.**)
+> 원래 근거는 *"`prosemirror-view/style/prosemirror.css:14-15`가 `.ProseMirror pre { white-space: pre-wrap; }`인데 `grep -rn "prosemirror.css" src/` → 0건이라 안 걸린다"*였다. **grep 결과 0건은 지금도 사실**이고 문제 규칙·실패 모드도 정확히 짚었다. 틀린 건 **출처가 하나라고 본 것**이다 — `@tiptap/core`가 동일 CSS를 자체 보유하다가 런타임에 `<style data-tiptap-style>`로 **주입**해서, import를 grep해선 안 잡히는 두 번째 경로로 그 규칙이 이미 활성이었다. 에디터에선 줄이 접혀 "줄 수 = 화면 높이"가 성립하지 않았고, 프리뷰(`doc-section-body`)는 ProseMirror가 아니라 유효했다 — **한 기능이 두 표면을 같은 가정으로 다루는데 에디터에서만 깨져 있었다.**
 >
-> `mono-typography-tuning`의 Task 3이 `.tiptap-editor .ProseMirror pre { white-space: pre }`(특이도 (0,2,1) > 주입 (0,1,1))로 덮어 **이제 두 표면 모두 전제가 성립한다.** 그 작업이 머지되기 전엔 이 기능의 접기 높이 계산이 에디터에서 어긋난다.
+> v1.6.1이 `.tiptap-editor .ProseMirror pre { white-space: pre }`(특이도 (0,2,1) > 주입 (0,1,1))로 덮어 **두 표면 모두 전제가 성립**하게 만들었다. 상세는 `docs/POSTMORTEM.md` 2026-07-17 항목.
 >
-> 리팩터 시: 주입 스타일은 **grep에 안 잡힌다** — DevTools의 `style[data-tiptap-style]`로 확인한다(`id`가 아니라 속성). Tiptap 메이저 업그레이드로 그 내용이 바뀌면 특이도 싸움이 조용히 뒤집힌다.
+> 리팩터 시: 주입 스타일은 **grep에 안 잡힌다** — DevTools의 `style[data-tiptap-style]`로 확인한다(`id`가 아니라 속성). Tiptap 메이저 업그레이드로 내용이 바뀌면 특이도 싸움이 조용히 뒤집힌다.
 >
-> 곁들여 넘길 사실 하나: 가로 스크롤이 살아나면서 **스크롤바가 세로 10px을 점유**한다(`globals.css`의 `::-webkit-scrollbar`는 overlay가 아니라 gutter). 접기 높이 계산의 새 항이다.
+> 곁들여: 가로 스크롤이 살아나면서 **스크롤바가 세로 10px을 점유**한다(`globals.css`의 `::-webkit-scrollbar`는 overlay가 아니라 gutter). 접기 높이 계산의 새 항이다.
 
 → 접기 판정을 `scrollHeight` 같은 **레이아웃 측정 없이 텍스트의 `\n` 개수만으로** 할 수 있다. 이건 단순한 구현 편의가 아니라 **테스트 가능성의 문제**다: jsdom은 `scrollHeight`를 항상 0으로 준다. 줄 수 기반이면 판정 로직이 순수 함수가 되고(node 트랙), 접힘/펼침 전이가 jsdom 렌더 테스트로 잡힌다(tsx 트랙). px 측정으로 갔다면 둘 다 못 잡고 수동 검증만 남는다. POSTMORTEM 2026-07-14·2026-07-04가 반복해서 경고하는 "단위 테스트 전부 green인데 화면만 틀린" 부류를 구조적으로 회피한다.
 
