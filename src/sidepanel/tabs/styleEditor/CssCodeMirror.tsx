@@ -226,7 +226,7 @@ function makeSwatchCompletion(tokens: Token[]) {
 }
 
 // 섹션 자체가 에디터처럼 보이도록: 배경 투명(섹션 bg 노출)·보더/아웃라인 제거,
-// 폰트는 DOM Tree Dialog와 통일(앱 기본 Pretendard·13px). 라인랩 없음 → 가로 스크롤.
+// 폰트는 DOM Tree Dialog와 통일(Geist Mono·13px — 래퍼의 font-mono를 상속). 라인랩 없음 → 가로 스크롤.
 // 프리셋(oneDark 등) 없이 배경·텍스트·캐럿·거터·선택색을 전부 semantic 토큰으로 지정 —
 // 라이트/다크가 같은 구성으로 자동 대응(액센트만 cssHighlightLight/Dark). 라인랩 없음 → 가로 스크롤.
 const editorTheme = EditorView.theme({
@@ -326,7 +326,8 @@ const editorTheme = EditorView.theme({
     overflow: "hidden",
     padding: "4px",
   },
-  // 2-class 셀렉터로 CM 기본(.cm-tooltip.cm-tooltip-autocomplete > ul { monospace })를 덮어 앱 Pretendard로.
+  // 2-class 셀렉터로 CM 기본(.cm-tooltip.cm-tooltip-autocomplete > ul { monospace })를 덮는다.
+  // 그 monospace는 브라우저 기본 mono라 우리 Geist가 아니다 — inherit으로 래퍼의 font-mono를 타야 한다.
   ".cm-tooltip.cm-tooltip-autocomplete > ul": {
     fontFamily: "inherit",
     maxHeight: "15rem",
@@ -718,7 +719,8 @@ export default function CssCodeMirror({
         decoPlugin,
       ]}
       // 코드 뷰는 사이드패널을 가득 채운다 — wrapper를 flex 컨테이너로, .cm-editor가 flex-1로 채움.
-      className="flex min-h-0 flex-1 flex-col"
+      // font-mono는 여기 한 곳만 — theme의 fontFamily:"inherit" 체인이 본문·거터·자동완성 팝업까지 옮긴다.
+      className="flex min-h-0 flex-1 flex-col font-mono"
       // indentWithTab=false로 Tab이 들여쓰기 대신 포커스 이탈 — 키보드 트랩 방지.
       indentWithTab={false}
       // 자동완성은 makeSwatchCompletion으로 직접 구성(icons:false + 미리보기 칩) → basicSetup 기본 끔.

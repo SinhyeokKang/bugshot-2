@@ -198,7 +198,7 @@ function DomTree({ onPicked }: { onPicked: () => void }) {
   }
 
   return (
-    <Card className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-background py-2 text-[13px] shadow-none">
+    <Card className="min-h-0 flex-1 overflow-y-auto overscroll-contain bg-background py-2 font-mono text-[13px] shadow-none">
       <DomTreeNode
         node={tree}
         depth={0}
@@ -268,7 +268,16 @@ function DomTreeNode({
         ) : (
           <span className="inline-block h-4 w-4 shrink-0" />
         )}
-        <span className="min-w-0 flex-1 truncate text-sm">
+        {/* 크기는 Card의 text-[13px]에 맡긴다 — mono는 sans보다 넓어 좁은 패널에서 truncate가 잦다. */}
+        <span
+          className="min-w-0 flex-1 truncate"
+          title={formatElementName({
+            tag: node.tag,
+            classList: node.classes,
+            id: node.id,
+            brackets: true,
+          })}
+        >
           <span className="text-muted-foreground">&lt;</span>
           <span className="text-sky-600 dark:text-sky-400">{node.tag}</span>
           {node.id ? (

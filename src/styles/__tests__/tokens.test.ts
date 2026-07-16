@@ -6,6 +6,7 @@ import { describe, expect, it } from "vitest";
 // 두 벌 존재한다. 별도 Vite 빌드라 서로를 모르고, 어긋나면 같은 제품이 두 톤으로 갈린다.
 const GLOBALS = resolve(__dirname, "../globals.css");
 const LOG_VIEWER = resolve(__dirname, "../../log-viewer/styles.css");
+const TAILWIND_CONFIG = resolve(__dirname, "../../../tailwind.config.js");
 
 function parseTokens(path: string, selector: string): Record<string, string> {
   const css = readFileSync(path, "utf8");
@@ -16,6 +17,16 @@ function parseTokens(path: string, selector: string): Record<string, string> {
   const out: Record<string, string> = {};
   for (const m of body.matchAll(/--([\w-]+):\s*([^;]+);/g)) out[m[1]] = m[2].trim();
   return out;
+}
+
+// tailwind.config.js는 JS인데 allowJs=false라 import하면 vitest는 통과해도 `pnpm typecheck`가
+// TS7016으로 막는다(저장소에 @ts-expect-error 선례 0건). 그래서 위 parseTokens와 같은 기법을 쓴다.
+// 주석을 먼저 걷어내고 따옴표 리터럴만 뽑으므로 배열 안 주석·prettier 리플로우에 안 깨진다.
+function parseFontStack(key: string): string[] {
+  const src = readFileSync(TAILWIND_CONFIG, "utf8").replace(/\/\/[^\n]*/g, "");
+  const block = src.match(new RegExp(`${key}:\\s*\\[([^\\]]*)\\]`));
+  if (!block) throw new Error(`tailwind.config.js에 fontFamily.${key} 배열이 없다`);
+  return [...block[1].matchAll(/(['"])(.*?)\1/g)].map((m) => m[2].replace(/['"]/g, "").trim());
 }
 
 // hsl 삼중값("0 0% 3.9%") → 성분.
@@ -95,6 +106,20 @@ describe("디자인 토큰 표", () => {
         .filter(([, v]) => hsl(v).s !== 0)
         .map(([name, v]) => `--${name}: ${v}`);
       expect(tinted).toEqual([]);
+    });
+  });
+
+  // .font-mono 규칙은 사이드패널과 log-viewer 두 빌드에 똑같이 나가는데, @font-face는
+  // globals.css의 @import로만 들어와 사이드패널에만 있다. 즉 log-viewer는 항상 폴백에 착지한다 —
+  // 이 폴백이 유일한 안전망이라, 스택을 Geist 하나로 "정리"하면 내보낸 logs.html의 코드가 깨진다.
+  describe("mono 폰트 스택 폴백 (log-viewer는 @font-face가 없다)", () => {
+    it("Geist 뒤에 시스템 폴백이 남아 있다", () => {
+      expect(parseFontStack("mono").length).toBeGreaterThan(1);
+    });
+
+    it("제네릭 monospace로 끝난다", () => {
+      const mono = parseFontStack("mono");
+      expect(mono[mono.length - 1]).toBe("monospace");
     });
   });
 

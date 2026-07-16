@@ -25,19 +25,22 @@ code, kbd, samp, pre {
 
 ### 전수조사 결과 (Task 2 — 완료)
 
-`grep -rnE "<(pre|code|kbd|samp)([ >]|$)" src/` 전수 결과, **preflight를 실제로 받는 표면은 Tiptap 코드블록 하나뿐이고, `font-sans` 방어가 필요한 곳은 0곳**이다.
+결론: **preflight를 실제로 받는 표면은 3곳이고, `font-sans` 방어가 필요한 곳은 0곳**이다(전부 mono 전환이 바람직).
 
 | 후보 | 판정 |
 |---|---|
 | `NetworkLogContent.tsx:576` / `ConsoleLogContent.tsx:254`,`:262` | `font-mono` 명시 → preflight 안 받음 |
-| `NetworkLogContent.tsx:733` | `font-sans` 명시 → preflight 안 받음(이 방어가 그대로 유효) |
+| `NetworkLogContent.tsx:733`(`FrameBody` — WebSocket 프레임 본문) | `font-sans` 명시 → preflight 안 받음(이 방어가 그대로 유효) |
 | `markdownToAsanaHtml.ts:89`,`:129`,`:203`,`:214` / `buildIssueMarkdown.ts:334` | **우리 DOM이 아님** — 트래커로 보내는 HTML 문자열이라 Asana 페이지에서 렌더. 무관 |
-| **Tiptap 코드블록** (`.tiptap-editor .ProseMirror pre`/`code`) | **preflight 직격 → Geist로 바뀐다** |
+| **Tiptap 코드블록** (`tiptap-editor.css:90`/`:103`/`:113`) | **preflight 직격 → Geist** |
+| **`DocSectionBody.tsx:100`** (마크다운 → `dangerouslySetInnerHTML`) | **preflight 직격 → Geist** (`doc-section-body.css:68`/`:81`/`:91`) |
+| **`IssuePreviewView.tsx:167`** (마크다운 → `dangerouslySetInnerHTML`) | **preflight 직격 → Geist**. 같은 `doc-section-body.css` 사용. **`log-viewer/App.tsx:7`이 import**하므로 logs.html에도 나가나 `@font-face`가 없어 폴백 |
 
-- Tiptap의 `tiptap-editor.css:90`(`code`)·`:103`(`pre`)·`:113`(`pre code`)는 배경·radius·padding·font-size·line-height만 잡고 **`font-family`를 안 잡는다.** 따라서 지금은 preflight 경유로 시스템 mono, 변경 후 Geist.
-- **이 전환은 바람직하고 목표에 부합한다.** Tiptap 코드블록은 문자 그대로 코드블록이고, `insertCodeBlock`(`TiptapEditor.tsx:290`)으로 꽂은 로그가 로그 탭과 같은 폰트로 보이게 된다. 별도 조치 불요.
-- `prose`(@tailwindcss/typography) 클래스는 코드베이스에 없어 마크다운 렌더 경로의 추가 파급도 없다.
-- log-viewer도 같은 preflight를 받지만 `@font-face`가 없어 폴백한다(위 비대칭과 동일).
+- 위 3개 CSS(`tiptap-editor.css`, `doc-section-body.css` ×2 소비처)는 전부 배경·radius·padding·font-size·line-height만 잡고 **`font-family`를 안 잡는다.** 따라서 지금은 preflight 경유 시스템 mono, 변경 후 Geist.
+- **전환은 전부 바람직하다.** 셋 다 문자 그대로 코드블록·인라인 코드다. `insertCodeBlock`(`TiptapEditor.tsx:290`)으로 꽂은 로그가 로그 탭과 같은 폰트로 보이고, 이슈 프리뷰의 코드도 마찬가지다. 별도 조치 불요.
+- `prose`(@tailwindcss/typography) 클래스는 코드베이스에 없어 그쪽 경로의 추가 파급은 없다.
+
+> **조사 방법의 사각 (재발 방지)**: 1차 조사는 `grep -rnE "<(pre|code|kbd|samp)([ >]|$)" src/`로 **JSX 리터럴만** 훑어 `dangerouslySetInnerHTML` 2곳을 통째로 놓쳤고, "Tiptap 하나뿐"이라 단언했다 — 런타임에 마크다운이 생성하는 마크업은 그 grep에 **구조적으로 안 잡힌다**. preflight 파급을 다시 셀 땐 `grep -rn "dangerouslySetInnerHTML" src/`와 **`font-family`를 안 잡는 `code`/`pre` CSS 규칙**(`grep -rn -A6 "code\s*{\|pre\s*{" src/**/*.css`)을 함께 봐야 한다. POSTMORTEM `2026-07-16` 항목의 교훈("단언은 grep으로 검증한다")에 그대로 걸린 사례다.
 
 관련 사실 둘:
 - **`NetworkLogContent.tsx:733`의 `font-sans`가 바로 이 메커니즘을 방어하는 코드다** — 주석이 "preflight가 `pre`를 monospace로 리셋하므로 `font-sans`를 명시한다"라고 적혀 있다. 즉 이 파급 벡터는 이미 코드베이스에 증거가 있었다. 이 줄은 **그대로 둔다**(sans여야 하는 `<pre>`).
@@ -167,14 +170,18 @@ src/styles/globals.css
 ### 단위 — `tokens.test.ts`에 `describe("폰트 스택")` 추가
 
 ```ts
-import config from "../../../tailwind.config.js";
-const mono = config.theme.extend.fontFamily.mono;
-// 폴백 보장: log-viewer는 별도 빌드라 @font-face가 없고 이 폴백만이 안전망이다.
-expect(mono.length).toBeGreaterThan(1);
+// 주석을 걷어내고 따옴표 리터럴만 뽑는다 — 배열 안 주석·prettier 리플로우에 안 깨진다.
+function parseFontStack(key: string): string[] { /* readFileSync + 정규식 */ }
+expect(parseFontStack("mono").length).toBeGreaterThan(1);
 expect(mono[mono.length - 1]).toBe("monospace");
 ```
 
-- **`import`한다. 텍스트 파싱하지 않는다.** (이전 판은 "`package.json`이 `type:module`인데 config가 `require()`를 쓰므로 Vitest에서 터진다"는 이유로 텍스트 파싱을 택했다. **그 전제는 거짓이다** — vite-node가 모든 모듈에 `require`를 주입한다(`node_modules/vite-node/dist/client.mjs:371`, `require: createRequire(href)`). plain Node ESM에선 터지지만 Vitest는 plain Node가 아니다. `import`는 prettier 리플로우·따옴표 스타일 변경에 안 깨지고 진짜 배열을 단언한다.)
+- **`tailwind.config.js`를 텍스트로 읽는다. `import`하지 않는다** — 단, **이 결론에 이르는 근거가 두 번 바뀌었으니 기록해둔다**:
+  1. 1판: "`package.json`이 `type:module`인데 config가 `require()`를 쓰므로 Vitest에서 터진다" → **거짓**. vite-node가 모든 모듈에 `require`를 주입한다(`node_modules/vite-node/dist/client.mjs:371`, `require: createRequire(href)`). **런타임 import는 실제로 성공한다**(실측).
+  2. 2판: 그래서 `import`로 바꿨다 → **typecheck가 막는다**. `tsconfig.app.json`에 `allowJs`가 없어(기본 false) `import config from "../../../tailwind.config.js"`가 **TS7016**("Could not find a declaration file")으로 실패한다(실측). `pnpm test`는 통과하는데 `pnpm typecheck`만 깨지는 조합이라 눈에 안 띈다.
+  3. 확정: `@ts-expect-error`로 뚫을 수 있으나 **저장소에 `@ts-expect-error`/`@ts-ignore` 선례가 0건**이라 테스트 하나 때문에 첫 사례를 만들지 않는다. `tokens.test.ts`는 이미 `readFileSync` + 정규식이 자기 기법(`parseTokens`)이므로 그걸 따른다.
+- **교훈**: 런타임(vitest)과 타입체크(tsc)는 **별개 게이트**다. "import 되더라"는 절반의 검증이다.
+- QA가 지적한 정규식 취약성(배열 안 주석의 쉼표·괄호)은 **주석 제거 후 따옴표 리터럴만 추출**해 해소한다. 혼합 따옴표(`'"Geist Mono Variable"'` vs `"ui-monospace"`)도 같은 방식으로 정규화된다 — 기존 `sans` 배열로 파서를 검증했다(12개, `sans-serif`로 종료).
 - **검사는 이 하나뿐이다.** 이전 판의 4종 중 나머지 3개는 "같은 PR이 방금 쓴 문자열이 파일에 있는지" 확인하는 동어반복이었다(특히 "log-viewer에 Geist `@import` 없음"은 red가 된 적 없는 항진명제). 폴백 보장만이 **미래의 "정리" 유혹을 막는 진짜 불변식**이다.
 - **신규 파일이 아니라 `tokens.test.ts`에 얹는다** — 단언 1개에 파일 하나는 과잉이고, `tokens.test.ts`의 논지 자체가 "globals ↔ log-viewer 쌍을 지킨다"로 같은 성격이다.
 

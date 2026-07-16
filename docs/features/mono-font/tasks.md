@@ -12,14 +12,17 @@
 
 ### Task 1: 의존성 추가
 - **변경 대상**: `package.json`, `pnpm-lock.yaml`
-- **작업 내용**: `pnpm add @fontsource-variable/geist-mono@5.2.8` — **버전을 명시한다**(`minimumReleaseAge: 1440` 때문에 무버전은 무엇이 잡힐지 고정하지 못한다). `dependencies`에 들어가야 한다(`pretendard`와 같은 위치 — 런타임 CSS가 참조하므로 devDependencies가 아니다).
+- **작업 내용**: `pnpm add @fontsource-variable/geist-mono@5.2.8` — **설치 명령에 버전을 명시한다**(`minimumReleaseAge: 1440` 때문에 무버전은 무엇이 잡힐지 고정하지 못한다). 단 **manifest에 남는 범위는 `^5.2.8`**로 둔다 — 저장소 관례가 캐럿 46 : 정확고정 1이고 `pretendard: ^1.3.9`가 같은 선례다. 재결정은 lockfile이 막으므로 캐럿이어도 결정성은 유지된다. `dependencies`에 들어가야 한다(런타임 CSS가 참조하므로 devDependencies가 아니다).
+  > **함정**: `pnpm add pkg@X`는 manifest에 정확 고정을 쓴다. 손으로 `^`를 붙였으면 **`pnpm install`을 다시 돌려 lockfile specifier를 맞춰야 한다** — 안 그러면 `pnpm install --frozen-lockfile`이 `ERR_PNPM_OUTDATED_LOCKFILE`로 깨진다(CI 기본값).
 - **검증**:
-  - [ ] `package.json`의 `dependencies`에 `@fontsource-variable/geist-mono` 존재, 버전 `5.2.8`
-  - [ ] `node_modules/@fontsource-variable/geist-mono/index.css`에 `@font-face` 6개, 전부 `font-style: normal`, family 전부 `'Geist Mono Variable'`
-  - [ ] `pnpm install` 시 "Ignored build scripts" 경고에 이 패키지가 **뜨지 않음**
+  - [x] `package.json`의 `dependencies`에 `@fontsource-variable/geist-mono: ^5.2.8`
+  - [x] `pnpm install --frozen-lockfile`이 통과한다 (lockfile specifier 동기 확인)
+  - [x] `node_modules/@fontsource-variable/geist-mono/index.css`에 `@font-face` 6개, 전부 `font-style: normal`, family 전부 `'Geist Mono Variable'`
+  - [x] `pnpm install` 시 "Ignored build scripts" 경고에 이 패키지가 **뜨지 않음**
 
 ### Task 2: preflight 파급 전수조사 (조사 전용 — ✅ 완료, 결과는 design.md "전수조사 결과")
-> **결론: `font-sans` 방어 필요 0곳.** preflight를 실제로 받는 표면은 **Tiptap 코드블록 하나**뿐이고 Geist 전환이 바람직하다. JSX의 `<pre>` 4곳은 전부 `font-mono`/`font-sans` 명시라 무관하고, `markdownToAsanaHtml.ts`·`buildIssueMarkdown.ts`의 `<pre>`/`<code>`는 트래커로 보내는 HTML 문자열이라 우리 DOM이 아니다. 구현 시 이 태스크는 건너뛴다.
+> **결론: `font-sans` 방어 필요 0곳.** preflight를 받는 표면은 **3곳**(Tiptap 코드블록, `DocSectionBody`, `IssuePreviewView` — 뒤 둘은 `dangerouslySetInnerHTML` + `doc-section-body.css` 공유)이고 전부 Geist 전환이 바람직하다. JSX의 `<pre>` 4곳은 `font-mono`/`font-sans` 명시라 무관하고, `markdownToAsanaHtml.ts`·`buildIssueMarkdown.ts`의 `<pre>`/`<code>`는 트래커로 보내는 HTML 문자열이라 우리 DOM이 아니다. 구현 시 이 태스크는 건너뛴다.
+> ⚠️ 1차 조사가 JSX grep만 써서 `dangerouslySetInnerHTML` 2곳을 놓쳤다 — design.md "조사 방법의 사각" 참조.
 
 - **변경 대상**: `docs/features/mono-font/design.md` (조사 결과 기록)
 - **작업 내용**: `fontFamily.mono` 정의는 preflight(`code, kbd, samp, pre`)를 통해 **클래스가 안 붙은 모든 `pre`/`code`/`kbd`/`samp`**를 Geist로 바꾼다. 그 목록을 확정한다.
@@ -28,24 +31,24 @@
   - 특히 확인: **Tiptap 에디터의 코드블록·인라인 코드**(`src/sidepanel/components/TiptapEditor.tsx` 및 관련), 마크다운 프리뷰 경로, `src/log-viewer/` 내부(별도 빌드도 같은 preflight를 받는다 — 다만 `@font-face`가 없어 폴백).
   - 각 항목에 "mono로 바뀌는 게 바람직한가" 판정. **바람직하지 않은 게 나오면 그 자리에서 `font-sans` 명시**(`NetworkLogContent.tsx:733`가 그 선례).
 - **검증**:
-  - [ ] 미클래스 `pre`/`code`/`kbd`/`samp` 목록이 design.md에 기록됨 (0건이면 "0건" 명기)
-  - [ ] 각 항목에 mono 전환 가부 판정이 붙음
-  - [ ] `font-sans` 방어가 필요한 곳이 식별됨 (없으면 "없음")
+  - [x] 미클래스 `pre`/`code`/`kbd`/`samp` 목록이 design.md에 기록됨 (0건이면 "0건" 명기)
+  - [x] 각 항목에 mono 전환 가부 판정이 붙음
+  - [x] `font-sans` 방어가 필요한 곳이 식별됨 (없으면 "없음")
 
 ### Task 3: 폴백 보장 테스트 (테스트 먼저 — red)
 - **변경 대상**: `src/styles/__tests__/tokens.test.ts`
 - **작업 내용**: `describe("폰트 스택")` 추가. **신규 파일을 만들지 않는다** — 단언 1개에 파일 하나는 과잉이고, tokens.test.ts의 논지가 "globals ↔ log-viewer 쌍을 지킨다"로 같은 성격이다.
   ```ts
-  import config from "../../../tailwind.config.js";
-  const mono = config.theme.extend.fontFamily.mono;
+  // 주석 제거 후 따옴표 리터럴만 추출 — 배열 내 주석·prettier 리플로우에 안 깨진다.
+  function parseFontStack(key: string): string[] { /* readFileSync + 정규식 */ }
   // log-viewer는 별도 빌드라 @font-face가 없다 — 이 폴백만이 안전망이다.
-  expect(mono.length).toBeGreaterThan(1);
+  expect(parseFontStack("mono").length).toBeGreaterThan(1);
   expect(mono[mono.length - 1]).toBe("monospace");
   ```
-  - **`import`한다. 텍스트 파싱하지 않는다.** vite-node가 모든 모듈에 `require`를 주입하므로(`vite-node/dist/client.mjs:371`) config의 `require("tailwindcss-animate")`는 Vitest에서 문제되지 않는다. 정규식 파싱은 prettier 리플로우·배열 내 주석에 깨진다.
-  - **검사는 이것 하나뿐이다.** family 문자열 일치·`@import` 위치·log-viewer `@import` 부재는 전부 동어반복이거나 항진명제라 뺐다 — 그 위험들은 Task 7의 e2e가 실질적으로 잡는다.
+  - **텍스트 파싱한다. `import`하지 않는다.** 근거는 `require`가 아니다 — vite-node가 `require`를 주입해 **런타임 import는 실제로 성공한다**(실측). 막는 건 **typecheck**다: `tsconfig.app.json`에 `allowJs`가 없어 `import`가 **TS7016**으로 실패하고(`pnpm test`는 통과하는데 `pnpm typecheck`만 깨지는 조합), 저장소에 `@ts-expect-error` 선례가 0건이라 뚫지 않는다. 옆의 `parseTokens`가 같은 기법이다. 상세는 design.md "테스트 설계".
+  - **검사는 이것 하나뿐이다.** family 문자열 일치·`@import` 위치·log-viewer `@import` 부재는 전부 동어반복이거나 항진명제라 뺐다 — 그 위험들은 **Task 6의 e2e**가 실질적으로 잡는다.
 - **검증**:
-  - [ ] Task 4 전이므로 **실패**한다(`fontFamily.mono`가 `undefined` → red 확인)
+  - [x] Task 4 전이므로 **실패**한다(`fontFamily.mono`가 `undefined` → red 확인)
 
 ### Task 4: 폰트 로드 + Tailwind 스택 정의 (green)
 - **변경 대상**: `src/styles/globals.css`, `tailwind.config.js`
@@ -55,8 +58,8 @@
   - `body`의 `font-family`(`globals.css:78-81`)는 **건드리지 않는다**.
   - **플러그인 배열(`:88`)을 건드리지 않는다** — `tailwindcss-animate`와 `@tailwindcss/container-queries` 2개가 한 줄에 있다.
 - **검증**:
-  - [ ] `pnpm test tokens` 통과 (red→green)
-  - [ ] `pnpm typecheck` 통과
+  - [x] `pnpm test tokens` 통과 (red→green)
+  - [x] `pnpm typecheck` 통과
 
 ### Task 5: CSS 코드 뷰 + DOM Tree를 mono로 (동일 커밋)
 > Task 4/5를 나누지 않는다. `CssCodeMirror.tsx:229`가 선언한 "DOM Tree Dialog와 통일" 불변식의 양쪽 절반이라, 하나만 들어가면 문서화된 불변식이 깨진 상태가 된다. (각각 클래스 1개 수준이라 "병렬 가능"을 논할 크기도 아니다.)
@@ -75,7 +78,7 @@
     - **`font-mono`를 `DialogContent`(`:79`)에 얹지 않는다** — 제목(`:81`)·트리거(`:72`)까지 mono가 된다.
     - **로딩·에러 상태(`:186`,`:194`)는 sans 14px로 둔다** — 코드가 아니라 UI 텍스트다.
 - **검증**:
-  - [ ] `pnpm typecheck` 통과
+  - [x] `pnpm typecheck` 통과
   - [ ] 수동은 Task 8에서 일괄
 
 ### Task 6: e2e 폰트 로드 단언
@@ -98,9 +101,9 @@
   - `DESIGN.md:61` 아래(§4 타이포그래피, 헤딩은 `:59`) — ① `font-mono` 스택 한 줄 ② **log-viewer는 `@font-face`가 없어 시스템 mono로 폴백된다는 사실**(의도된 발산임을 남겨야 나중에 "버그"로 오인해 폴백을 지우지 않는다) ③ **사이즈 축**: "코드뷰(CM·DOM 트리) = 13px mono, 두 표면 통일".
   - `DIRECTORY.md:97` — `styles/` 설명의 "Pretendard import"에 Geist Mono import 추가.
 - **검증**:
-  - [ ] `DESIGN.md:13`에 Geist Mono 항목 존재
-  - [ ] `DESIGN.md` §4에 `font-mono` 스택 + log-viewer 폴백 사실 + 13px 통일 규칙 3개 모두 존재
-  - [ ] `DIRECTORY.md:97`에 Geist import 명기
+  - [x] `DESIGN.md:13`에 Geist Mono 항목 존재
+  - [x] `DESIGN.md` §4에 `font-mono` 스택 + log-viewer 폴백 사실 + 13px 통일 규칙 3개 모두 존재
+  - [x] `DIRECTORY.md:97`에 Geist import 명기
 
 ### Task 8: 시각 검증 + weight 판정
 - **변경 대상**: 없음(검증 전용). 조정이 필요하면 `globals.css`에 `@layer base` 한 블록.
