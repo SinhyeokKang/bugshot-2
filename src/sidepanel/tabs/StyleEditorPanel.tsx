@@ -45,6 +45,7 @@ import {
   TextProp,
 } from "./styleEditor/StylePropEditors";
 import { AiStylingDialog } from "./styleEditor/AiStylingDialog";
+import { selectOptions } from "./styleEditor/propValues";
 import { StyleCssView } from "./styleEditor/StyleCssView";
 import { StyleChangesDialog } from "./styleEditor/StyleChangesDialog";
 import { elementKey } from "@/lib/element-key";
@@ -112,6 +113,14 @@ const SECTION_PROPS = {
     "transition-duration",
     "transition-timing-function",
     "transition-delay",
+  ],
+  table: [
+    "table-layout",
+    "border-collapse",
+    "border-spacing",
+    "caption-side",
+    "empty-cells",
+    "vertical-align",
   ],
 } as const;
 
@@ -208,6 +217,9 @@ export function SelectedPanel() {
           <Section
             title={t("editor.section.class")}
             action={<ClassRevertButton />}
+            collapsible
+            defaultOpen={selection.classList.length > 0}
+            testId="section-class"
           >
             <ClassEditor />
           </Section>
@@ -227,51 +239,29 @@ export function SelectedPanel() {
           collapsible
           defaultOpen={sectionOpen(SECTION_PROPS.layout)}
         >
-        <SelectProp
-          label="display"
-          prop="display"
-          options={[
-            "",
-            "block",
-            "inline",
-            "inline-block",
-            "flex",
-            "inline-flex",
-            "grid",
-            "inline-grid",
-            "none",
-          ]}
-        />
+        <SelectProp label="display" prop="display" options={selectOptions("display")} />
         <Row2>
           <SelectProp
             label="flex-direction"
             prop="flex-direction"
-            options={["", "row", "column", "row-reverse", "column-reverse"]}
+            options={selectOptions("flex-direction")}
           />
           <SelectProp
             label="flex-wrap"
             prop="flex-wrap"
-            options={["", "nowrap", "wrap", "wrap-reverse"]}
+            options={selectOptions("flex-wrap")}
           />
         </Row2>
         <Row2>
           <SelectProp
             label="justify-content"
             prop="justify-content"
-            options={[
-              "",
-              "flex-start",
-              "flex-end",
-              "center",
-              "space-between",
-              "space-around",
-              "space-evenly",
-            ]}
+            options={selectOptions("justify-content")}
           />
           <SelectProp
             label="align-items"
             prop="align-items"
-            options={["", "flex-start", "flex-end", "center", "stretch", "baseline"]}
+            options={selectOptions("align-items")}
           />
         </Row2>
         <QuadProp label="margin" prefix="margin" />
@@ -290,7 +280,7 @@ export function SelectedPanel() {
           <SelectProp
             label="position"
             prop="position"
-            options={["", "static", "relative", "absolute", "fixed", "sticky"]}
+            options={selectOptions("position")}
           />
           <TextProp label="z-index" prop="z-index" />
         </Row2>
@@ -364,41 +354,29 @@ export function SelectedPanel() {
         collapsible
         defaultOpen={sectionOpen(SECTION_PROPS.overflow)}
       >
-        <SelectProp
-          label="overflow"
-          prop="overflow"
-          options={["", "visible", "hidden", "scroll", "auto", "clip"]}
-        />
+        <SelectProp label="overflow" prop="overflow" options={selectOptions("overflow")} />
         <Row2>
           <SelectProp
             label="overflow-x"
             prop="overflow-x"
-            options={["", "visible", "hidden", "scroll", "auto", "clip"]}
+            options={selectOptions("overflow-x")}
           />
           <SelectProp
             label="overflow-y"
             prop="overflow-y"
-            options={["", "visible", "hidden", "scroll", "auto", "clip"]}
+            options={selectOptions("overflow-y")}
           />
         </Row2>
         <Row2>
           <SelectProp
             label="white-space"
             prop="white-space"
-            options={[
-              "",
-              "normal",
-              "nowrap",
-              "pre",
-              "pre-wrap",
-              "pre-line",
-              "break-spaces",
-            ]}
+            options={selectOptions("white-space")}
           />
           <SelectProp
             label="text-overflow"
             prop="text-overflow"
-            options={["", "clip", "ellipsis"]}
+            options={selectOptions("text-overflow")}
           />
         </Row2>
       </Section>
@@ -449,23 +427,7 @@ export function SelectedPanel() {
         <SelectProp
           label="mix-blend-mode"
           prop="mix-blend-mode"
-          options={[
-            "",
-            "normal",
-            "multiply",
-            "screen",
-            "overlay",
-            "darken",
-            "lighten",
-            "color-dodge",
-            "color-burn",
-            "difference",
-            "exclusion",
-            "hue",
-            "saturation",
-            "color",
-            "luminosity",
-          ]}
+          options={selectOptions("mix-blend-mode")}
         />
         </Section>
 
@@ -482,12 +444,51 @@ export function SelectedPanel() {
         </Row2>
         <TextProp label="easing" prop="transition-timing-function" />
         </Section>
+
+      <Section
+        title={t("editor.section.table")}
+        action={<SectionRevertButton props={SECTION_PROPS.table} />}
+        collapsible
+        defaultOpen={sectionOpen(SECTION_PROPS.table)}
+        testId="section-table"
+      >
+        <Row2>
+          <SelectProp
+            label="table-layout"
+            prop="table-layout"
+            options={selectOptions("table-layout")}
+          />
+          <SelectProp
+            label="border-collapse"
+            prop="border-collapse"
+            options={selectOptions("border-collapse")}
+          />
+        </Row2>
+        <TextProp label="border-spacing" prop="border-spacing" />
+        <Row2>
+          <SelectProp
+            label="caption-side"
+            prop="caption-side"
+            options={selectOptions("caption-side")}
+          />
+          <SelectProp
+            label="empty-cells"
+            prop="empty-cells"
+            options={selectOptions("empty-cells")}
+          />
+        </Row2>
+        <SelectProp
+          label="vertical-align"
+          prop="vertical-align"
+          options={selectOptions("vertical-align")}
+        />
+        </Section>
       </div>
       </PageScroll>
       {aiStatus === "available" && (
         <button
           data-testid="ai-styling-trigger"
-          className="flex items-center justify-between rounded-t-lg bg-teal-100/80 px-3.5 py-2.5 text-teal-700 transition-colors hover:bg-teal-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring dark:bg-teal-950/50 dark:text-teal-300 dark:hover:bg-teal-900"
+          className="flex items-center justify-between rounded-t-lg bg-teal-100/80 px-3.5 py-2.5 text-teal-700 transition-colors hover:bg-teal-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring dark:bg-teal-950 dark:text-teal-300 dark:hover:bg-teal-900"
           onClick={() => { (document.activeElement as HTMLElement)?.blur?.(); setAiDialogOpen(true); }}
         >
           <span className="flex min-w-0 items-center gap-1.5">

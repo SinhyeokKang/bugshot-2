@@ -114,6 +114,14 @@ const KNOWN_DEFAULTS: Record<string, string[]> = {
   "transition-duration": ["0s"],
   "transition-timing-function": ["ease"],
   "transition-delay": ["0s"],
+  // getComputedStyle은 비-테이블 요소에도 테이블 속성을 항상 채워 돌려준다 —
+  // 등록 안 하면 모든 요소에서 Table 섹션이 유령 펼침. border-spacing은 2값(H V) 반환.
+  "table-layout": ["auto"],
+  "border-collapse": ["separate"],
+  "border-spacing": ["0px 0px", "0px"],
+  "caption-side": ["top"],
+  "empty-cells": ["show"],
+  "vertical-align": ["baseline"],
 };
 
 export function isKnownDefault(prop: string, computed: string): boolean {

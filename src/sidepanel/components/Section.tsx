@@ -49,6 +49,8 @@ export function Section({
   children,
   collapsible,
   defaultOpen = true,
+  open: openProp,
+  onOpenChange,
   testId,
 }: {
   title?: React.ReactNode;
@@ -56,29 +58,41 @@ export function Section({
   children: React.ReactNode;
   collapsible?: boolean;
   defaultOpen?: boolean;
+  // 제어 모드(optional) — 접힌 섹션의 에디터는 언마운트되므로, 본문에 삽입하는 액션이
+  // 먼저 펼칠 수 있어야 한다. 미공급 시 기존 비제어 동작.
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
   testId?: string;
 }) {
-  const [open, setOpen] = React.useState(defaultOpen);
+  const [uncontrolledOpen, setUncontrolledOpen] = React.useState(defaultOpen);
   React.useEffect(() => {
-    setOpen(defaultOpen);
+    setUncontrolledOpen(defaultOpen);
   }, [defaultOpen]);
+  const open = openProp ?? uncontrolledOpen;
+  const setOpen = (next: boolean) => {
+    if (openProp === undefined) setUncontrolledOpen(next);
+    onOpenChange?.(next);
+  };
 
   return (
-    <section className="border-b border-border py-6 last:border-b-0" data-testid={testId}>
+    <section
+      className="border-b border-border py-6 last:border-b-0"
+      data-testid={testId}
+    >
       <div className="flex flex-col gap-3 px-4">
         {title || action ? (
           <div className="flex items-center justify-between gap-2">
             {title ? (
-              <h3 className="text-base font-semibold">{title}</h3>
+              <h3 className="min-w-0 truncate text-base font-semibold">{title}</h3>
             ) : (
               <span />
             )}
-            <div className="flex items-center gap-1">
+            <div className="flex shrink-0 items-center gap-1">
               {action}
               {collapsible && (
                 <SectionToggle
                   open={open}
-                  onToggle={() => setOpen((v) => !v)}
+                  onToggle={() => setOpen(!open)}
                   testId={testId ? `${testId}-toggle` : undefined}
                 />
               )}

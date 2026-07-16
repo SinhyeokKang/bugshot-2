@@ -6,7 +6,7 @@ import { getVideoBlob, getImageBlob, getNetworkLog, getConsoleLog, getActionLog,
 import type { UserAttachmentMeta } from "@/types/attachment";
 import { useIssueImages } from "@/sidepanel/hooks/useIssueImages";
 import { Pencil } from "lucide-react";
-import { useT, dateBcp47 } from "@/i18n";
+import { useT } from "@/i18n";
 import { cn } from "@/lib/utils";
 import {
   AlertDialog,
@@ -65,6 +65,7 @@ import { submitToGitlab } from "@/sidepanel/lib/submitToGitlab";
 import { submitToAsana } from "@/sidepanel/lib/submitToAsana";
 import { submitToClickup } from "@/sidepanel/lib/submitToClickup";
 import { submitToSlack } from "@/sidepanel/lib/submitToSlack";
+import { formatTimestamp } from "@/sidepanel/lib/formatTimestamp";
 import type { NotionDatabaseSchema } from "@/types/notion";
 import { usePlatformFields } from "@/sidepanel/hooks/usePlatformFields";
 import { extractNotionPageId } from "@/lib/notion-page-id";
@@ -1247,16 +1248,7 @@ function EnvBlock({ issue }: { issue: IssueRecord }) {
   if (vp) {
     rows.push({ label: "Viewport", value: `${vp.width}×${vp.height}` });
   }
-  rows.push({
-    label: "Captured",
-    value: new Date(issue.createdAt).toLocaleString(dateBcp47(), {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-    }),
-  });
+  rows.push({ label: "Captured", value: formatTimestamp(issue.createdAt) });
   rows.push(...filterEnvironmentRows(issue.draft.environment ?? []));
 
   return (

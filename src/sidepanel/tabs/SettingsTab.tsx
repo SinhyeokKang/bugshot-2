@@ -1,5 +1,5 @@
 import { Fragment } from "react";
-import { Bug, ListOrdered, Monitor, Moon, Paperclip, SlidersHorizontal, Sparkles, StickyNote, Sun, Target } from "lucide-react";
+import { Bug, ListOrdered, Monitor, Moon, Paperclip, SlidersHorizontal, Sparkles, StickyNote, Sun, Target, WandSparkles } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
@@ -7,6 +7,7 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsTrigger } from "@/components/ui/tabs";
 import { CollapsingTabsList, TabLabel } from "@/components/ui/collapsing-tabs";
+import { cn } from "@/lib/utils";
 import { useT } from "@/i18n";
 import {
   sectionHelpKey,
@@ -18,6 +19,7 @@ import {
 } from "@/store/settings-ui-store";
 import { useSettingsStore } from "@/store/settings-store";
 import { PageScroll, PageShell, Section } from "@/sidepanel/components/Section";
+import { isReproSectionEnabled } from "@/sidepanel/lib/reproSectionEnabled";
 import { RecordingSettingsCard } from "@/sidepanel/components/RecordingSettingsCard";
 import { SettingsFooter } from "./settings/SettingsFooter";
 import { LlmConnectForm } from "./settings/LlmConnectForm";
@@ -83,6 +85,8 @@ function IssueSettingsContent() {
   const setIssueEnabled = useSettingsUiStore((s) => s.setIssueEnabled);
   const attachmentsEnabled = useSettingsUiStore((s) => s.attachmentsEnabled);
   const setAttachmentsEnabled = useSettingsUiStore((s) => s.setAttachmentsEnabled);
+  const autoReproPrefill = useSettingsUiStore((s) => s.autoReproPrefill);
+  const setAutoReproPrefill = useSettingsUiStore((s) => s.setAutoReproPrefill);
   const titlePrefix = useSettingsStore((s) => s.titlePrefix);
   const setTitlePrefix = useSettingsStore((s) => s.setTitlePrefix);
 
@@ -107,6 +111,18 @@ function IssueSettingsContent() {
 
         <Section title={t("settings.recording")}>
           <RecordingSettingsCard />
+        </Section>
+
+        <Section title={t("settings.aiSection")}>
+          <Card>
+            <CardContent className="flex flex-col gap-3 px-3 py-3">
+              <AutoReproPrefillToggleRow
+                enabled={autoReproPrefill}
+                onToggle={setAutoReproPrefill}
+                disabled={!isReproSectionEnabled(issueSections)}
+              />
+            </CardContent>
+          </Card>
         </Section>
 
         <Section title={t("settings.bodyComposition")}>
@@ -218,6 +234,42 @@ function AttachmentToggleRow({
       <Switch
         id="setting-attachments-enabled"
         checked={enabled}
+        onCheckedChange={(v) => onToggle(v === true)}
+      />
+    </div>
+  );
+}
+
+function AutoReproPrefillToggleRow({
+  enabled,
+  onToggle,
+  disabled,
+}: {
+  enabled: boolean;
+  onToggle: (enabled: boolean) => void;
+  disabled: boolean;
+}) {
+  const t = useT();
+  return (
+    <div className={cn("flex items-center gap-3", disabled && "opacity-50")}>
+      <div className="shrink-0">
+        <WandSparkles className="h-4 w-4" />
+      </div>
+      <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <label
+          htmlFor="setting-auto-repro-prefill"
+          className={cn("text-sm", !disabled && "cursor-pointer")}
+        >
+          {t("settings.autoReproPrefill.label")}
+        </label>
+        <p className="text-sm text-muted-foreground">
+          {t("settings.autoReproPrefill.help")}
+        </p>
+      </div>
+      <Switch
+        id="setting-auto-repro-prefill"
+        checked={enabled}
+        disabled={disabled}
         onCheckedChange={(v) => onToggle(v === true)}
       />
     </div>

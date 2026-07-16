@@ -1,4 +1,5 @@
 import { buildSlackBody } from "./buildSlackBody";
+import { splitSlackText } from "./splitSlackText";
 import { escapeMrkdwn } from "./markdownToMrkdwn";
 import type { InlineImageInput } from "./resolveInlineImages";
 import { sendBg } from "@/types/messages";
@@ -62,14 +63,13 @@ export async function submitToSlack(
   });
 
   // 상세 본문은 스레드 답글로 — 채널 타임라인은 제목만 남는다.
-  await sendBg<SlackPostResult>({
-    type: "slack.postMessage",
-    payload: {
-      channelId: input.channelId,
-      text: buildSlackBody({ ctx: input.ctx }).body,
-      threadTs: parent.ts,
-    },
-  });
+  // 4000자를 넘으면 Slack이 임의로 쪼개 코드블럭 펜스를 깨므로, 펜스를 보존해 직접 나눠 보낸다.
+  for (const text of splitSlackText(buildSlackBody({ ctx: input.ctx }).body)) {
+    await sendBg<SlackPostResult>({
+      type: "slack.postMessage",
+      payload: { channelId: input.channelId, text, threadTs: parent.ts },
+    });
+  }
 
   let logsDropped = false;
   if (allFiles.length > 0) {

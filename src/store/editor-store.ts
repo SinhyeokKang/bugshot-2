@@ -151,9 +151,13 @@ interface EditorState {
   consoleLogAttach: boolean;
   actionLog: ActionLog | null;
   actionLogAttach: boolean;
+  // drafting 진입 시 재현 단계 자동 채움을 세션 1회로 제한하는 가드(persist — 삭제 후 재개 시 부활 방지).
+  reproPrefillDone: boolean;
   attachments: UserAttachmentMeta[];
   aiStylingLoading: boolean;
   aiDraftLoading: boolean;
+  // 재현 단계 자동 채움 로딩. AI draft 오버레이(App.tsx)를 공유해 패널 전체를 덮는다. 비영속(전환 상태).
+  reproPrefillLoading: boolean;
   submitResult: SubmitResult | null;
   inlineCaptureTarget: string | null;
   sessionExpired: boolean;
@@ -167,6 +171,7 @@ interface EditorState {
   appendInlineImage: (sectionId: string, refId: string) => void;
   setAiStylingLoading: (loading: boolean) => void;
   setAiDraftLoading: (loading: boolean) => void;
+  setReproPrefillLoading: (loading: boolean) => void;
   startPicking: (target: EditorTarget, mode?: CaptureMode) => void;
   startCapturing: (target: EditorTarget) => void;
   startElementShot: (target: EditorTarget) => void;
@@ -217,6 +222,7 @@ interface EditorState {
   setConsoleLogAttach: (on: boolean) => void;
   setActionLog: (log: ActionLog) => void;
   setActionLogAttach: (on: boolean) => void;
+  setReproPrefillDone: (done: boolean) => void;
   setAnnotationTool: (tool: RecordingPenTool | null) => void;
   setAnnotationColor: (color: string) => void;
   setAnnotationThickness: (thickness: ThicknessKey) => void;
@@ -259,6 +265,7 @@ export type EditorSnapshot = Pick<
   | "networkLogAttach"
   | "consoleLogAttach"
   | "actionLogAttach"
+  | "reproPrefillDone"
   | "attachments"
   | "draft"
   | "issueFields"
@@ -302,6 +309,7 @@ const initial = {
   consoleLogAttach: false,
   actionLog: null as ActionLog | null,
   actionLogAttach: false,
+  reproPrefillDone: false,
   attachments: [] as UserAttachmentMeta[],
   draft: null,
   inlineCaptureTarget: null as string | null,
@@ -309,6 +317,7 @@ const initial = {
   currentIssueId: null as string | null,
   aiStylingLoading: false,
   aiDraftLoading: false,
+  reproPrefillLoading: false,
   submitResult: null as SubmitResult | null,
   sessionExpired: false,
   annotationTool: null as RecordingPenTool | null,
@@ -463,6 +472,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 
   setAiStylingLoading: (loading) => set({ aiStylingLoading: loading }),
   setAiDraftLoading: (loading) => set({ aiDraftLoading: loading }),
+  setReproPrefillLoading: (loading) => set({ reproPrefillLoading: loading }),
 
   // cross-page 누적 로그와 첨부 토글을 모드 진입 시 보존. 다른 자산 필드는 리셋.
   startPicking: (target, mode) =>
@@ -935,6 +945,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setConsoleLogAttach: (on) => set({ consoleLogAttach: on }),
   setActionLog: (log) => set({ actionLog: log }),
   setActionLogAttach: (on) => set({ actionLogAttach: on }),
+  setReproPrefillDone: (done) => set({ reproPrefillDone: done }),
   clearNetworkLog: (tabId) => {
     set({ networkLog: null });
     if (tabId != null) {
@@ -1006,5 +1017,6 @@ export const useEditorStore = create<EditorState>((set, get) => ({
 export function useAiLoading(): boolean {
   const draft = useEditorStore((s) => s.aiDraftLoading);
   const styling = useEditorStore((s) => s.aiStylingLoading);
-  return draft || styling;
+  const repro = useEditorStore((s) => s.reproPrefillLoading);
+  return draft || styling || repro;
 }

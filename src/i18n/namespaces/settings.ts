@@ -18,6 +18,10 @@ const ko = {
   "settings.attachments.label": "파일 첨부",
   "settings.attachments.help":
     "이슈에 임의의 파일을 첨부합니다.",
+  "settings.aiSection": "AI 설정",
+  "settings.autoReproPrefill.label": "재현 과정 채우기",
+  "settings.autoReproPrefill.help":
+    "AI 모델을 연결하면 녹화 후 액션 로그로 재현 과정을 자동으로 채웁니다. 이때 액션 로그가 연결된 AI로 전송됩니다.",
   "settings.theme": "테마",
   "settings.language": "언어",
   "settings.theme.light": "라이트",
@@ -76,6 +80,8 @@ const ko = {
   "llm.error.invalidUrl": "올바른 URL을 입력하세요.",
   "llm.error.fetch": "연결에 실패했습니다. URL과 API 키를 확인하세요.",
   "llm.error.quota": "API 허용량을 초과했습니다. 잠시 후 다시 시도하세요.",
+  "llm.error.auth": "인증에 실패했습니다. API 키를 확인하세요.",
+  "llm.error.empty": "AI가 결과를 만들지 못했습니다. 다시 시도하세요.",
   "llm.error.overloaded": "AI 서버가 일시적으로 과부하 상태입니다. 잠시 후 다시 시도하세요.",
   "llm.error.contextOverflow": "분석할 내용이 너무 많아 Chrome 내장 AI가 처리할 수 없습니다.",
   "llm.error.contextOverflow.hint": "설정에서 API 키를 연결하면 더 큰 모델을 사용할 수 있습니다.",
@@ -103,6 +109,10 @@ const en = {
   "settings.attachments.label": "File attachments",
   "settings.attachments.help":
     "Attach arbitrary files to issues.",
+  "settings.aiSection": "AI settings",
+  "settings.autoReproPrefill.label": "Fill steps to reproduce",
+  "settings.autoReproPrefill.help":
+    "When an AI model is connected, fills the steps to reproduce from your action log after recording. The action log is then sent to the connected AI.",
   "settings.theme": "Theme",
   "settings.language": "Language",
   "settings.theme.light": "Light",
@@ -161,6 +171,8 @@ const en = {
   "llm.error.invalidUrl": "Please enter a valid URL.",
   "llm.error.fetch": "Connection failed. Check URL and API key.",
   "llm.error.quota": "API quota exceeded. Please try again later.",
+  "llm.error.auth": "Authentication failed. Check your API key.",
+  "llm.error.empty": "The AI couldn't produce a result. Please try again.",
   "llm.error.overloaded": "AI server is temporarily overloaded. Please try again shortly.",
   "llm.error.contextOverflow": "This is too much content for Chrome's built-in AI to handle.",
   "llm.error.contextOverflow.hint": "Connect an API key in Settings to use a model with a larger context window.",

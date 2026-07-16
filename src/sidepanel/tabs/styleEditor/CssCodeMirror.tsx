@@ -29,6 +29,7 @@ import type { Token } from "@/types/picker";
 import { useSettingsUiStore } from "@/store/settings-ui-store";
 import { findTokenValue, isInternalToken } from "./tokenUtils";
 import { PROP_CATEGORY } from "./propMetadata";
+import { valueHintsFor, propertyNameHints } from "./propValues";
 import { rightHintText } from "./valueFormat";
 import {
   filterTokensByQuery,
@@ -39,6 +40,7 @@ import {
 } from "./tokenSuggest";
 import { swatchColorFor } from "./cssSwatch";
 import { selectorLineChangeFilter } from "./selectorLock";
+import { isCompleteDeclarationLine } from "./cssBlock";
 
 // 1행(선택자 줄)은 편집 잠금 — 가려진 `{`가 훼손되면 parseCssBlock이 깨진다. 선택·커서 이동·복사는 허용.
 // changeFilter로 1행만 protected range 처리 → 1행 변경만 드롭되고 본문 변경(전체 삭제 포함)은 통과.
@@ -50,31 +52,16 @@ const lockSelectorLine = EditorState.changeFilter.of((tr) =>
   }),
 );
 
-// lang-css의 값 완성이 약해 흔한 값을 커스텀 소스로 보강. 선언부(콜론 뒤)에서만 제안.
-const VALUE_HINTS = [
+// lang-css의 값 완성이 약해(속성 무관 generic 덤프) 흔한 값을 커스텀 소스로 보강.
+// 열거형 속성이 아닐 때(color·length 등)의 generic 폴백 — 선언부(콜론 뒤)에서만 제안.
+const GENERIC_VALUE_HINTS = [
   "initial",
   "inherit",
   "unset",
   "auto",
   "none",
-  "block",
-  "inline-block",
-  "flex",
-  "inline-flex",
-  "grid",
-  "center",
-  "flex-start",
-  "flex-end",
-  "space-between",
-  "absolute",
-  "relative",
-  "fixed",
-  "sticky",
-  "hidden",
-  "visible",
   "bold",
   "normal",
-  "pointer",
   "transparent",
   "currentColor",
   "red",
@@ -84,6 +71,13 @@ const VALUE_HINTS = [
   "white",
 ];
 
+// 커서가 걸친 선언의 속성명 — 현재 세그먼트(마지막 `;` 이후)의 콜론 앞.
+function propBeforeCursor(before: string): string {
+  const seg = before.slice(before.lastIndexOf(";") + 1);
+  const colon = seg.indexOf(":");
+  return colon < 0 ? "" : seg.slice(0, colon).trim().toLowerCase();
+}
+
 const cssValueCompletion = cssLanguage.data.of({
   autocomplete: (context: CompletionContext) => {
     const line = context.state.doc.lineAt(context.pos);
@@ -91,9 +85,54 @@ const cssValueCompletion = cssLanguage.data.of({
     if (!/:[^;{}]*$/.test(before)) return null;
     const word = context.matchBefore(/[\w-]+/);
     if (!word && !context.explicit) return null;
+    // 속성별 값이 있으면 그것만(+CSS-wide) boost로 lang-css generic 덤프 위에 올린다.
+    const specific = valueHintsFor(propBeforeCursor(before));
+    const labels = specific ?? GENERIC_VALUE_HINTS;
     return {
       from: word ? word.from : context.pos,
-      options: VALUE_HINTS.map((label) => ({ label, type: "constant" })),
+      options: labels.map((label, i) => ({
+        label,
+        type: "constant",
+        ...(specific ? { boost: labels.length - i } : {}),
+      })),
+      validFor: /^[\w-]*$/,
+    };
+  },
+});
+
+// 브라우저 지원 속성명(getComputedStyle 열거) + 큐레이션을 한 번만 계산해 캐시.
+let propNameCache: string[] | null = null;
+function cssPropertyNames(): string[] {
+  if (propNameCache) return propNameCache;
+  let computed: string[] = [];
+  try {
+    const s = getComputedStyle(document.documentElement);
+    computed = Array.from({ length: s.length }, (_, i) => s.item(i));
+  } catch {
+    computed = [];
+  }
+  propNameCache = propertyNameHints(computed);
+  return propNameCache;
+}
+
+// 속성명 위치(선언 시작, 콜론 앞)에서 CSS 속성명을 제안 — lang-css 기본 완성이 nesting 문맥에서
+// tag-prefixed 속성(`table-layout` 등)을 누락하고 HTML 태그명만 던지는 것을 보강. 값 위치(콜론 뒤)는
+// cssValueCompletion이 담당하므로 여기선 콜론 앞에서만 연다.
+const cssPropNameCompletion = cssLanguage.data.of({
+  autocomplete: (context: CompletionContext) => {
+    const line = context.state.doc.lineAt(context.pos);
+    if (line.text.includes("{")) return null; // 셀렉터/여는 줄 제외
+    const before = context.state.sliceDoc(line.from, context.pos);
+    if (before.includes(":")) return null; // 콜론 뒤(값)는 cssValueCompletion
+    const word = context.matchBefore(/[\w-]+/);
+    if (!word && !context.explicit) return null;
+    return {
+      from: word ? word.from : context.pos,
+      options: cssPropertyNames().map((label) => ({
+        label,
+        type: "property",
+        boost: 1, // lang-css의 nesting 태그명 완성 위로 올린다
+      })),
       validFor: /^[\w-]*$/,
     };
   },
@@ -187,7 +226,7 @@ function makeSwatchCompletion(tokens: Token[]) {
 }
 
 // 섹션 자체가 에디터처럼 보이도록: 배경 투명(섹션 bg 노출)·보더/아웃라인 제거,
-// 폰트는 DOM Tree Dialog와 통일(앱 기본 Pretendard·13px). 라인랩 없음 → 가로 스크롤.
+// 폰트는 DOM Tree Dialog와 통일(Geist Mono·13px — 래퍼의 font-mono를 상속). 라인랩 없음 → 가로 스크롤.
 // 프리셋(oneDark 등) 없이 배경·텍스트·캐럿·거터·선택색을 전부 semantic 토큰으로 지정 —
 // 라이트/다크가 같은 구성으로 자동 대응(액센트만 cssHighlightLight/Dark). 라인랩 없음 → 가로 스크롤.
 const editorTheme = EditorView.theme({
@@ -287,7 +326,8 @@ const editorTheme = EditorView.theme({
     overflow: "hidden",
     padding: "4px",
   },
-  // 2-class 셀렉터로 CM 기본(.cm-tooltip.cm-tooltip-autocomplete > ul { monospace })를 덮어 앱 Pretendard로.
+  // 2-class 셀렉터로 CM 기본(.cm-tooltip.cm-tooltip-autocomplete > ul { monospace })를 덮는다.
+  // 그 monospace는 브라우저 기본 mono라 우리 Geist가 아니다 — inherit으로 래퍼의 font-mono를 타야 한다.
   ".cm-tooltip.cm-tooltip-autocomplete > ul": {
     fontFamily: "inherit",
     maxHeight: "15rem",
@@ -495,14 +535,17 @@ function collectInvalidDeclMarks(
       from,
       to,
       enter: (node) => {
-        if (node.name === "TagName" && node.from > open) {
-          marks.push(
-            Decoration.mark({ class: "cm-invalid-decl" }).range(
-              node.from,
-              node.to,
-            ),
-          );
-        }
+        if (node.name !== "TagName" || node.from <= open) return;
+        // lezer 증분 파싱이 tag-prefixed 속성(`table-layout` 등)을 셀렉터(TagName)로 오분류하고
+        // 콜론·값을 붙여도 안 풀리는 경우가 있다 — 완결 선언 줄은 실제 적용되므로 취소선 억제.
+        const line = view.state.doc.lineAt(node.from);
+        if (isCompleteDeclarationLine(line.text)) return;
+        marks.push(
+          Decoration.mark({ class: "cm-invalid-decl" }).range(
+            node.from,
+            node.to,
+          ),
+        );
       },
     });
   }
@@ -665,6 +708,7 @@ export default function CssCodeMirror({
         lockSelectorLine,
         css(),
         cssValueCompletion,
+        cssPropNameCompletion,
         tokenCompletion,
         swatchCompletion,
         autoActivate,
@@ -675,7 +719,8 @@ export default function CssCodeMirror({
         decoPlugin,
       ]}
       // 코드 뷰는 사이드패널을 가득 채운다 — wrapper를 flex 컨테이너로, .cm-editor가 flex-1로 채움.
-      className="flex min-h-0 flex-1 flex-col"
+      // font-mono는 여기 한 곳만 — theme의 fontFamily:"inherit" 체인이 본문·거터·자동완성 팝업까지 옮긴다.
+      className="flex min-h-0 flex-1 flex-col font-mono"
       // indentWithTab=false로 Tab이 들여쓰기 대신 포커스 이탈 — 키보드 트랩 방지.
       indentWithTab={false}
       // 자동완성은 makeSwatchCompletion으로 직접 구성(icons:false + 미리보기 칩) → basicSetup 기본 끔.

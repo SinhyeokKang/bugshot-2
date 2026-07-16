@@ -163,6 +163,22 @@ export class LlmOverloadedError extends Error {
   }
 }
 
+export class LlmAuthError extends Error {
+  constructor() {
+    super("auth_failed");
+    this.name = "LlmAuthError";
+  }
+}
+
+// 호출은 성공했으나 모델이 빈/파싱 불가 응답을 준 경우. LLM 의존 기능 공통(초안·스타일링·재현단계)
+// 에서 toastLlmError로 "다시 시도" 안내를 띄우기 위한 에러.
+export class LlmEmptyResponseError extends Error {
+  constructor() {
+    super("empty_response");
+    this.name = "LlmEmptyResponseError";
+  }
+}
+
 export class AiContextOverflowError extends Error {
   constructor() {
     super("context_overflow");
@@ -374,6 +390,7 @@ export function createOpenAICompatibleProvider(config: LlmConfig): AIProvider {
       [502, 503, 504],
     );
     if (!res.ok) {
+      if (res.status === 401 || res.status === 403) throw new LlmAuthError();
       if (res.status === 429) throw new LlmQuotaError();
       if (res.status === 503) throw new LlmOverloadedError();
       const text = await res.text().catch(() => "");
@@ -470,6 +487,7 @@ export function createAnthropicProvider(config: LlmConfig): AIProvider {
       [502, 504, 529],
     );
     if (!res.ok) {
+      if (res.status === 401 || res.status === 403) throw new LlmAuthError();
       if (res.status === 429) throw new LlmQuotaError();
       if (res.status === 529) throw new LlmOverloadedError();
       const text = await res.text().catch(() => "");

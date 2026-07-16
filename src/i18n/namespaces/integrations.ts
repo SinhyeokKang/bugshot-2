@@ -35,7 +35,7 @@ const ko = {
   "jira.error.5xx": "Jira 서버 오류. 잠시 후 다시 시도하세요.",
   "jira.error.generic": "Jira 요청 실패 ({status})",
 
-  "github.patButton": "PAT 인증",
+  "github.patButton": "PAT",
   "github.auth.kind.oauth": "OAuth",
   "github.auth.kind.pat": "PAT",
   "github.patDialog.title": "PAT 인증",
@@ -66,7 +66,7 @@ const ko = {
   "github.error.5xx": "GitHub 서버 오류. 잠시 후 다시 시도하세요.",
   "github.error.generic": "GitHub 요청 실패 ({status})",
   "github.error.mediaUploadFailed": "이미지·첨부 업로드에 실패해 이슈를 등록하지 않았습니다. GitHub 로그인 상태를 확인하고 다시 시도하세요.",
-  "gitlab.patButton": "PAT 인증",
+  "gitlab.patButton": "PAT",
   "gitlab.auth.kind.oauth": "OAuth",
   "gitlab.auth.kind.pat": "PAT",
   "gitlab.patDialog.title": "PAT 인증",
@@ -103,7 +103,7 @@ const ko = {
   "gitlab.error.generic": "GitLab 요청 실패 ({status})",
   "gitlab.error.mediaUploadFailed": "이미지·첨부 업로드에 실패해 이슈를 등록하지 않았습니다. GitLab 로그인 상태를 확인하고 다시 시도하세요.",
 
-  "asana.patButton": "PAT 인증",
+  "asana.patButton": "PAT",
   "asana.auth.kind.oauth": "OAuth",
   "asana.auth.kind.pat": "PAT",
   "asana.patDialog.title": "PAT 인증",
@@ -134,7 +134,7 @@ const ko = {
   "asana.error.5xx": "Asana 서버 오류. 잠시 후 다시 시도하세요.",
   "asana.error.generic": "Asana 요청 실패 ({status})",
 
-  "clickup.patButton": "API 토큰 인증",
+  "clickup.patButton": "API Token",
   "clickup.auth.kind.oauth": "OAuth",
   "clickup.auth.kind.pat": "API 토큰",
   "clickup.patDialog.title": "API 토큰 인증",
@@ -190,7 +190,7 @@ const ko = {
   "slack.error.generic": "Slack 요청 실패 ({code})",
   "slack.promotedComment": "[BugShot] {platform}에 이슈로 등록되었습니다.",
 
-  "linear.apiKeyButton": "API Key 인증",
+  "linear.apiKeyButton": "API Key",
   "linear.auth.kind.oauth": "OAuth",
   "linear.auth.kind.apiKey": "API Key",
   "linear.apiKeyDialog.title": "API Key 인증",
@@ -232,7 +232,7 @@ const ko = {
   "linear.error.generic": "Linear 요청 실패 ({status})",
   "linear.error.uploadFailed": "파일 업로드 실패: {status}",
 
-  "notion.internalToken.button": "Internal Token 인증",
+  "notion.internalToken.button": "Internal Token",
   "notion.internalToken.dialog.title": "Internal Integration Token",
   "notion.internalToken.dialog.body": "Notion Settings > Integrations에서 발급한 Internal Integration Token을 붙여넣으세요. 등록할 페이지나 데이터베이스에 integration이 connect되어 있어야 합니다.",
   "notion.internalToken.label": "Internal Token",
@@ -316,7 +316,7 @@ const en = {
   "jira.error.5xx": "Jira server error. Try again later.",
   "jira.error.generic": "Jira request failed ({status})",
 
-  "github.patButton": "PAT Authentication",
+  "github.patButton": "PAT",
   "github.auth.kind.oauth": "OAuth",
   "github.auth.kind.pat": "PAT",
   "github.patDialog.title": "PAT Authentication",
@@ -347,7 +347,7 @@ const en = {
   "github.error.5xx": "GitHub server error. Try again later.",
   "github.error.generic": "GitHub request failed ({status})",
   "github.error.mediaUploadFailed": "Image/attachment upload failed, so the issue was not created. Check your GitHub login and try again.",
-  "gitlab.patButton": "PAT Authentication",
+  "gitlab.patButton": "PAT",
   "gitlab.auth.kind.oauth": "OAuth",
   "gitlab.auth.kind.pat": "PAT",
   "gitlab.patDialog.title": "PAT Authentication",
@@ -384,7 +384,7 @@ const en = {
   "gitlab.error.generic": "GitLab request failed ({status})",
   "gitlab.error.mediaUploadFailed": "Image/attachment upload failed, so the issue was not created. Check your GitLab login and try again.",
 
-  "asana.patButton": "PAT Auth",
+  "asana.patButton": "PAT",
   "asana.auth.kind.oauth": "OAuth",
   "asana.auth.kind.pat": "PAT",
   "asana.patDialog.title": "PAT Auth",
@@ -415,7 +415,7 @@ const en = {
   "asana.error.5xx": "Asana server error. Try again later.",
   "asana.error.generic": "Asana request failed ({status})",
 
-  "clickup.patButton": "API Token Auth",
+  "clickup.patButton": "API Token",
   "clickup.auth.kind.oauth": "OAuth",
   "clickup.auth.kind.pat": "API Token",
   "clickup.patDialog.title": "API Token Auth",
@@ -471,7 +471,7 @@ const en = {
   "slack.error.generic": "Slack request failed ({code})",
   "slack.promotedComment": "[BugShot] Filed as an issue in {platform}.",
 
-  "linear.apiKeyButton": "API Key Auth",
+  "linear.apiKeyButton": "API Key",
   "linear.auth.kind.oauth": "OAuth",
   "linear.auth.kind.apiKey": "API Key",
   "linear.apiKeyDialog.title": "API Key Auth",

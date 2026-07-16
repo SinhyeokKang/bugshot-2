@@ -24,6 +24,23 @@ The media in recording mode is the **video**. The clip you just recorded (or pul
 
 Sections appear per your body composition — Description, Steps to reproduce, Expected result, Notes (only the ones you've turned on). Steps to reproduce is an ordered list. Fill them in by hand, or let AI Draft below do it in one shot.
 
+**Steps to reproduce fills itself in.** The moment you land here after recording, AI reads the action log it just captured and **writes the reproduction steps for you automatically** (only when an AI model is connected — with no AI available, it's left empty). While it's working, a purple overlay covers the screen for a moment, and the filled-in steps appear when it's done. Not quite right? Hit the **trash (Clear all)** button at the top-right of the Steps to reproduce section to wipe them in one click and write your own.
+
+> If this auto-fill isn't for you, turn it off under **Settings > Issue settings > AI settings > Fill steps to reproduce**.
+
+### Pulling the log that matters into the body
+
+Sections you write as prose — Description, Expected result, Notes — have an **Add log** button on the right of their header (Steps to reproduce is an ordered list, so it doesn't). Instead of describing the response in words, drop the log itself into the body.
+
+The button opens the **Add log** dialog. **Console** and **Network** tabs each show a count badge, and you search and filter exactly as you would in the log tabs. Click the entry you're after, read it in the detail pane, then hit **Add**.
+
+- **Network** — carries the request path and status code plus the **request and response bodies**. Perfect for the "200, but the response says it failed" case the status code alone can't show.
+- **Console** — carries the message the page printed, and the stack trace when it's an error.
+
+What lands is a code block, but it's **just text** — trim it or edit it however you like. It's separate from the attached `logs.html`: the attachment only shows up once the reader downloads and opens the file, while a log you add this way is **right there in the issue body**.
+
+> A log in the body is visible to everyone who can see the issue, and console logs go in verbatim with no masking. If the screen prints anything sensitive, give it a look in the detail pane before you add it.
+
 ## ✨ AI Draft
 
 ![AI Draft banner and input box](../assets/video-issue-4.jpg)
@@ -56,7 +73,7 @@ The **Download** button on the right of the Log attachments section lets you gra
 
 ## 6. Preview
 
-Give the body a look in the preview before submitting. **Copy markdown** copies it as-is to paste elsewhere.
+Give the body a look in the preview before submitting. **Copy** copies it as-is to paste elsewhere.
 
 ## 7. Submit
 

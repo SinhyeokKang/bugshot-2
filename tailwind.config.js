@@ -23,6 +23,21 @@ export default {
           '"Malgun Gothic"',
           "sans-serif",
         ],
+        // 코드뷰(CodeMirror·DOM 트리)·로그 본문 전용. preflight가 pre/code/kbd/samp에도
+        // 이 스택을 깔므로 클래스 없는 코드블록(Tiptap 등)까지 함께 따라온다.
+        mono: [
+          '"Geist Mono Variable"',
+          // 아래 시스템 폴백은 지우지 말 것 — log-viewer는 별도 빌드라 @font-face가 없어
+          // 늘 여기에 착지한다. Geist 하나로 "정리"하면 내보낸 logs.html의 코드가 깨진다.
+          "ui-monospace",
+          "SFMono-Regular",
+          "Menlo",
+          "Monaco",
+          "Consolas",
+          '"Liberation Mono"',
+          '"Courier New"',
+          "monospace",
+        ],
       },
       colors: {
         border: "hsl(var(--border))",

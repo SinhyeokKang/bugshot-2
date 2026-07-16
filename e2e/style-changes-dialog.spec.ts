@@ -167,6 +167,10 @@ test.describe.serial("style-changes-dialog", () => {
   });
 
   test("13. class 행 초기화 동작", async () => {
+    // #title은 class 없음 → Class 섹션 접힘 기본값이라 편집하려면 펼친다.
+    if (!(await panel.getByTestId("class-editor").isVisible())) {
+      await panel.getByTestId("section-class-toggle").click();
+    }
     await panel.getByTestId("class-editor").fill("highlight");
     await expect(fixture.locator("#title")).toHaveClass(/highlight/);
     await openDialog();

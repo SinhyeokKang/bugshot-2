@@ -76,6 +76,7 @@ interface SettingsUiState {
   llm: LlmConfig | null;
   replayEnabled: boolean;
   attachmentsEnabled: boolean;
+  autoReproPrefill: boolean;
   recordingMode: RecordingSource;
   styleEditorView: StyleEditorView;
   setTheme: (theme: ThemeMode) => void;
@@ -85,6 +86,7 @@ interface SettingsUiState {
   setLlm: (config: LlmConfig | null) => void;
   setReplayEnabled: (enabled: boolean) => void;
   setAttachmentsEnabled: (enabled: boolean) => void;
+  setAutoReproPrefill: (enabled: boolean) => void;
   setRecordingMode: (mode: RecordingSource) => void;
   setStyleEditorView: (view: StyleEditorView) => void;
 }
@@ -105,6 +107,7 @@ export function migrateSettingsUi(
   }
   state.recordingMode = state.recordingMode ?? "tab";
   state.styleEditorView = state.styleEditorView ?? "form";
+  state.autoReproPrefill = state.autoReproPrefill ?? true;
   return state as SettingsUiState;
 }
 
@@ -147,6 +150,7 @@ export const useSettingsUiStore = create<SettingsUiState>()(
       llm: null,
       replayEnabled: false,
       attachmentsEnabled: false,
+      autoReproPrefill: true,
       recordingMode: "tab",
       styleEditorView: "form",
       setTheme: (theme) => set({ theme }),
@@ -161,14 +165,15 @@ export const useSettingsUiStore = create<SettingsUiState>()(
       setLlm: (config) => set({ llm: config }),
       setReplayEnabled: (enabled) => set({ replayEnabled: enabled }),
       setAttachmentsEnabled: (enabled) => set({ attachmentsEnabled: enabled }),
+      setAutoReproPrefill: (enabled) => set({ autoReproPrefill: enabled }),
       setRecordingMode: (recordingMode) => set({ recordingMode }),
       setStyleEditorView: (styleEditorView) => set({ styleEditorView }),
     }),
     {
       // 기존 사용자 데이터 호환을 위해 리네이밍 전 키 유지
       name: "bugshot-app-settings",
-      // v3: llm 필드 추가, v4: apiKey를 session→local 이전(apiKeyObfuscatingStorage가 흡수, migrate 분기 없음), v5: apiKey 없는 stale 설정 제거, v6: recordingMode 추가, v7: styleEditorView 추가
-      version: 7,
+      // v3: llm 필드 추가, v4: apiKey를 session→local 이전(apiKeyObfuscatingStorage가 흡수, migrate 분기 없음), v5: apiKey 없는 stale 설정 제거, v6: recordingMode 추가, v7: styleEditorView 추가, v8: autoReproPrefill 추가
+      version: 8,
       storage: createJSONStorage(() => apiKeyObfuscatingStorage),
       migrate: migrateSettingsUi,
     },

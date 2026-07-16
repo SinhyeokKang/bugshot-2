@@ -18,7 +18,7 @@ export function IntegrationsCta({
       className={cn(
         "flex items-center justify-between gap-2 rounded-t-lg px-3.5 py-2.5 transition-colors",
         "bg-amber-100/80 text-amber-600 hover:bg-amber-100",
-        "dark:bg-amber-950/50 dark:text-amber-400 dark:hover:bg-amber-900",
+        "dark:bg-amber-950 dark:text-amber-400 dark:hover:bg-amber-900",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
         className,
       )}

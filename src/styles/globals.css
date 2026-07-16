@@ -1,10 +1,17 @@
 @import "pretendard/dist/web/variable/pretendardvariable-dynamic-subset.css";
+@import "@fontsource-variable/geist-mono/index.css";
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
+  /* 테마별로 base 팔레트가 다르다 — 라이트=slate(푸른 틴트) / 다크=neutral(무채색). 실수가 아니라
+     의도다: 같은 채도가 명도에 따라 정반대로 읽힌다. 고명도(라이트)에선 순백 배경 위 border·muted가
+     "맑게" 보이지만, 저명도(다크)에선 배경 자체를 남색으로 물들여 "칙칙하게" 보인다.
+     표만 보면 갈린 게 지저분해 보여 "일관성" 명목으로 한쪽을 밀기 쉬운데, 그러면 의도한 톤이 죽는다.
+     (실제로 그렇게 밀었다가 되돌린 이력이 있다.) __tests__/tokens.test.ts가 양방향으로 막는다 —
+     라이트 채도>0 / 다크 채도=0. 배경은 docs/DESIGN.md "색상" 절. */
   :root {
     --background: 0 0% 100%;
     --foreground: 222.2 84% 4.9%;
@@ -20,7 +27,10 @@
     --muted-foreground: 215.4 16.3% 46.9%;
     --accent: 210 40% 96.1%;
     --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
+    /* destructive도 테마별로 갈린다(라이트 red-600 / 다크 red-500) — 위 base 비대칭과 같은 이유이자
+       log-colors.ts의 `text-<c>-600 dark:text-<c>-400` 컨벤션과 같은 원리다. 흰 배경엔 진한 빨강,
+       검은 배경엔 밝은 빨강이라야 읽힌다. shadcn 기본값(red-500)은 흰 배경에서 3.76:1로 AA 미달. */
+    --destructive: 0 72.2% 50.6%;
     --destructive-foreground: 210 40% 98%;
     --border: 214.3 31.8% 91.4%;
     --input: 214.3 31.8% 91.4%;
@@ -29,25 +39,30 @@
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 217.2 32.6% 17.5%;
+    --background: 0 0% 3.9%;
+    --foreground: 0 0% 98%;
+    --card: 0 0% 3.9%;
+    --card-foreground: 0 0% 98%;
+    --popover: 0 0% 3.9%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 0 0% 98%;
+    --primary-foreground: 0 0% 9%;
+    --secondary: 0 0% 14.9%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 0 0% 14.9%;
+    --muted-foreground: 0 0% 63.9%;
+    --accent: 0 0% 14.9%;
+    --accent-foreground: 0 0% 98%;
+    /* destructive만 라이트와 값이 같다(위 비대칭의 예외) — 기능색이라 테마별 톤 조정 대상이 아니다.
+       shadcn 다크 기본값(0 62.8% 30.6%)은 bg-destructive용 어두운 빨강이지만, 이 앱은
+       --destructive를 text-destructive/destructive-outline으로만 소비한다(bg 변형 미사용).
+       그 값은 글자색으로 쓰면 배경 대비 약 2:1이라 AA 미달 — 라이트와 같은 밝기로 맞춘다.
+       대비 하한은 styles/__tests__/tokens.test.ts가 고정한다. */
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 14.9%;
+    --input: 0 0% 14.9%;
+    --ring: 0 0% 14.9%;
   }
 }
 

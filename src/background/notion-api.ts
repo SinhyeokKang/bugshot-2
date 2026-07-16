@@ -363,9 +363,20 @@ interface NotionRichTextInput {
   };
 }
 
-function richText(content: string): NotionRichTextInput[] {
+// Notion rich_text 원소당 content 2000자 한도 — 초과하면 API 400.
+export function richText(content: string): NotionRichTextInput[] {
   if (!content) return [];
-  return [{ type: "text", text: { content } }];
+  const CHUNK = 2000;
+  const out: NotionRichTextInput[] = [];
+  for (let i = 0; i < content.length; ) {
+    // 경계가 서로게이트 페어 중간이면 한 칸 물러난다 — lone surrogate는 Notion에서 깨진다.
+    let end = Math.min(i + CHUNK, content.length);
+    const code = content.charCodeAt(end - 1);
+    if (end < content.length && code >= 0xd800 && code <= 0xdbff) end -= 1;
+    out.push({ type: "text", text: { content: content.slice(i, end) } });
+    i = end;
+  }
+  return out;
 }
 
 function expandRichText(items: NotionRichTextBlock[]): NotionRichTextInput[] {

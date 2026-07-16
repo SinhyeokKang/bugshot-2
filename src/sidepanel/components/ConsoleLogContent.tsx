@@ -30,6 +30,9 @@ interface ConsoleLogContentProps {
   scrollToEntryId?: string | null;
   onScrollComplete?: () => void;
   isMuted?: (absTs: number) => boolean; // 트림 후보(잘려나갈 로그) 흐림 판정
+  // 선택 모드(삽입 다이얼로그 전용, optional). 미공급 시 기존 표시 전용 동작.
+  selectedId?: string | null;
+  onActiveChange?: (id: string) => void;
 }
 
 function levelBgColor(level: ConsoleLevel): string {
@@ -62,7 +65,7 @@ function LevelIcon({ level }: { level: ConsoleLevel }) {
   }
 }
 
-export function ConsoleLogContent({ entries, startedAt, flush, syncBaseMs, onSeek, activeTs, scrollToEntryId, onScrollComplete, isMuted }: ConsoleLogContentProps) {
+export function ConsoleLogContent({ entries, startedAt, flush, syncBaseMs, onSeek, activeTs, scrollToEntryId, onScrollComplete, isMuted, selectedId, onActiveChange }: ConsoleLogContentProps) {
   const t = useT();
   const [filter, setFilter] = useState<ConsoleFilter>("all");
   const [originFilter, setOriginFilter] = useState<string | null>(null);
@@ -186,6 +189,8 @@ export function ConsoleLogContent({ entries, startedAt, flush, syncBaseMs, onSee
                 isActive={entry.id === activeId}
                 scrollToEntryId={scrollToEntryId}
                 muted={isMuted?.(entry.timestamp) ?? false}
+                selected={entry.id === selectedId}
+                onSelect={onActiveChange}
               />
             ))}
           </div>
@@ -195,7 +200,7 @@ export function ConsoleLogContent({ entries, startedAt, flush, syncBaseMs, onSee
   );
 }
 
-function EntryAccordion({ entry, startedAt, syncBaseMs, onSeek, isActive, scrollToEntryId, muted }: {
+function EntryAccordion({ entry, startedAt, syncBaseMs, onSeek, isActive, scrollToEntryId, muted, selected, onSelect }: {
   entry: ConsoleEntry;
   startedAt?: number;
   syncBaseMs?: number;
@@ -203,6 +208,8 @@ function EntryAccordion({ entry, startedAt, syncBaseMs, onSeek, isActive, scroll
   isActive?: boolean;
   scrollToEntryId?: string | null;
   muted?: boolean;
+  selected?: boolean;
+  onSelect?: (id: string) => void;
 }) {
   const [expanded, setExpanded] = useState(false);
 
@@ -213,17 +220,21 @@ function EntryAccordion({ entry, startedAt, syncBaseMs, onSeek, isActive, scroll
   const t = useT();
   const base = syncBaseMs ?? startedAt;
 
+  // 선택 신호는 배경이 아니라 ring — 레벨 틴트·sync 하이라이트와 배경이 경합한다.
   return (
     <div
       data-entry-id={entry.id}
       data-level={entry.level}
       data-muted={muted || undefined}
-      className={`${syncRowClass(!!onSeek, !!isActive, levelBgColor(entry.level))}${muted ? " opacity-40" : ""}`}
+      className={`${syncRowClass(!!onSeek, !!isActive, levelBgColor(entry.level))}${muted ? " opacity-40" : ""}${selected ? " ring-2 ring-inset ring-primary" : ""}`}
       aria-current={isActive ? "true" : undefined}
     >
       <div
         className="flex cursor-pointer items-center gap-3 px-2.5 py-2 text-[13px] hover:bg-accent/50"
-        onClick={() => setExpanded(!expanded)}
+        onClick={() => {
+          setExpanded(!expanded);
+          onSelect?.(entry.id);
+        }}
       >
         {base != null && (
           <LogSeekChip ts={entry.timestamp} label={formatRelativeTime(entry.timestamp, base)} onSeek={onSeek} />

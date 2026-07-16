@@ -12,8 +12,9 @@ import Image from "@tiptap/extension-image";
 import Placeholder from "@tiptap/extension-placeholder";
 import { Markdown } from "tiptap-markdown";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
-import type { EditorView } from "@tiptap/pm/view";
+import { Decoration, DecorationSet, type EditorView } from "@tiptap/pm/view";
 import { cn } from "@/lib/utils";
+import { tokenizeJson, JSON_TOKEN_CLASS } from "@/sidepanel/lib/highlightJson";
 import { saveInlineImage, getInlineImage } from "@/store/blob-db";
 import { shouldCompact, compactImage } from "@/sidepanel/lib/compactImage";
 import {
@@ -85,7 +86,43 @@ export interface TiptapEditorProps {
 
 export interface TiptapEditorHandle {
   insertImageFile: (file: File) => void;
+  insertCodeBlock: (text: string, language?: string) => void;
 }
+
+const jsonHighlightKey = new PluginKey("jsonCodeHighlight");
+
+// 삽입된 로그(language=json) 코드블럭만 칠한다 — preview(renderMarkdown)와 같은 tokenizeJson을
+// 써서 두 표면이 발산하지 않게 한다. NodeView 없이 inline decoration이면 편집·커서에 무해.
+const JsonCodeHighlight = Extension.create({
+  name: "jsonCodeHighlight",
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        key: jsonHighlightKey,
+        props: {
+          decorations(state) {
+            const decorations: Decoration[] = [];
+            state.doc.descendants((node, pos) => {
+              if (node.type.name !== "codeBlock" || node.attrs.language !== "json") return;
+              let offset = pos + 1;
+              for (const token of tokenizeJson(node.textContent)) {
+                if (token.kind) {
+                  decorations.push(
+                    Decoration.inline(offset, offset + token.text.length, {
+                      class: JSON_TOKEN_CLASS[token.kind],
+                    }),
+                  );
+                }
+                offset += token.text.length;
+              }
+            });
+            return DecorationSet.create(state.doc, decorations);
+          },
+        },
+      }),
+    ];
+  },
+});
 
 const imagePluginKey = new PluginKey("imageDropPaste");
 
@@ -176,6 +213,7 @@ const TiptapEditor = forwardRef<TiptapEditorHandle, TiptapEditorProps>(function 
         },
       }),
       ListExitOnBackspace,
+      JsonCodeHighlight,
       HrAfterHardBreak,
       Link.configure({
         openOnClick: false,
@@ -248,7 +286,22 @@ const TiptapEditor = forwardRef<TiptapEditorHandle, TiptapEditorProps>(function 
 
   useImperativeHandle(ref, () => ({
     insertImageFile: (file: File) => handleImageFileRef.current(file),
-  }), []);
+    // 코드블럭 뒤에 빈 문단을 함께 넣어 커서가 블럭 끝에 갇히지 않게 한다.
+    insertCodeBlock: (text: string, language?: string) => {
+      editor
+        ?.chain()
+        .focus()
+        .insertContent([
+          {
+            type: "codeBlock",
+            attrs: { language: language ?? null },
+            content: text ? [{ type: "text", text }] : [],
+          },
+          { type: "paragraph" },
+        ])
+        .run();
+    },
+  }), [editor]);
 
   // Resolve inline:refId → blob URL on editor mount
   useEffect(() => {

@@ -23,6 +23,7 @@ const ko = {
   "editor.section.typography": "Typography",
   "editor.section.effects": "Effects",
   "editor.section.transition": "Transition",
+  "editor.section.table": "Table",
   "editor.view.form": "편집",
   "editor.view.code": "CSS",
 
@@ -36,12 +37,18 @@ const ko = {
   "draft.addAnnotation": "주석 추가",
   "draft.captureArea": "영역 캡처",
   "draft.addImage": "이미지 추가",
+  "draft.insertLog": "로그 추가",
+  "draft.insertLog.empty": "추가할 로그가 없습니다",
+  "logInsert.dialog.title": "로그 추가",
+  "logInsert.insert": "추가",
+  "draft.stepsReset": "전체 초기화",
   "draft.envLabelPlaceholder": "항목명",
   "draft.envValuePlaceholder": "설명",
   "draft.envAddRow": "행 추가",
   "draft.aiGenerate": "AI 초안 작성",
   "draft.aiBanner": "AI로 초안을 작성해보세요",
   "draft.aiError": "AI 초안 생성에 실패했습니다. 다시 시도해주세요.",
+  "draft.reproPrefillError": "재현 과정을 자동으로 작성하지 못했습니다.",
   "draft.aiParseError": "AI 응답을 해석할 수 없습니다. 다시 시도해주세요.",
   "draft.preview": "이슈 프리뷰",
   "draft.saved": "초안이 저장되었습니다",
@@ -139,7 +146,7 @@ const ko = {
   "cancelConfirm.body": "작성 중인 내용이 모두 초기화됩니다.",
 
   "preview.copied": "복사됨",
-  "preview.copyMarkdown": "마크다운 복사",
+  "preview.copyMarkdown": "복사",
   "preview.newIssue": "다른 이슈 작성",
 } as const;
 
@@ -170,6 +177,7 @@ const en = {
   "editor.section.typography": "Typography",
   "editor.section.effects": "Effects",
   "editor.section.transition": "Transition",
+  "editor.section.table": "Table",
   "editor.view.form": "Edit",
   "editor.view.code": "CSS",
 
@@ -183,12 +191,18 @@ const en = {
   "draft.addAnnotation": "Add annotation",
   "draft.captureArea": "Area capture",
   "draft.addImage": "Add image",
+  "draft.insertLog": "Add log",
+  "draft.insertLog.empty": "No logs to add",
+  "logInsert.dialog.title": "Add log",
+  "logInsert.insert": "Add",
+  "draft.stepsReset": "Clear all",
   "draft.envLabelPlaceholder": "Field",
   "draft.envValuePlaceholder": "Description",
   "draft.envAddRow": "Add row",
   "draft.aiGenerate": "AI Draft",
   "draft.aiBanner": "Let AI write your draft",
   "draft.aiError": "Failed to generate AI draft. Please try again.",
+  "draft.reproPrefillError": "Couldn't auto-fill the steps to reproduce.",
   "draft.aiParseError": "Could not parse AI response. Please try again.",
   "draft.preview": "Issue preview",
   "draft.saved": "Draft saved",
@@ -286,7 +300,7 @@ const en = {
   "cancelConfirm.body": "All unsaved changes will be lost.",
 
   "preview.copied": "Copied",
-  "preview.copyMarkdown": "Copy markdown",
+  "preview.copyMarkdown": "Copy",
   "preview.newIssue": "New issue",
 } satisfies Bundle;
 

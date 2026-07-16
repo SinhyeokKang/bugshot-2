@@ -1,7 +1,8 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { Camera, Download, ImageIcon, ImagePlus, Loader2, Pencil, Plus, RotateCcw, Trash2, WandSparkles } from "lucide-react";
+import { Camera, Download, FileCode, ImageIcon, ImagePlus, Loader2, Pencil, Plus, RotateCcw, Trash2, WandSparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ButtonGroup } from "@/components/ui/button-group";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
@@ -17,11 +18,15 @@ import { useEditorStore } from "@/store/editor-store";
 import { useSettingsStore } from "@/store/settings-store";
 import { useBoundTabId } from "@/sidepanel/hooks/useBoundTabId";
 import { useAI } from "@/sidepanel/hooks/useAI";
+import { useReproPrefill } from "@/sidepanel/hooks/useReproPrefill";
+import { useReplay } from "@/sidepanel/30s-replay/replay-context";
 import { clearPicker, startInlineAreaCapture } from "@/sidepanel/picker-control";
 import { CancelConfirmDialog } from "@/sidepanel/components/CancelConfirmDialog";
 import { LogAttachmentCards } from "@/sidepanel/components/LogAttachmentCards";
 import { AttachmentSection } from "@/sidepanel/components/AttachmentSection";
 import { NetworkLogPreviewDialog } from "@/sidepanel/components/NetworkLogPreviewDialog";
+import { LogInsertDialog } from "@/sidepanel/components/LogInsertDialog";
+import { TooltipIconButton } from "@/sidepanel/components/TooltipIconButton";
 import { ConsoleLogPreviewDialog } from "@/sidepanel/components/ConsoleLogPreviewDialog";
 import { ActionLogPreviewDialog } from "@/sidepanel/components/ActionLogPreviewDialog";
 import {
@@ -37,7 +42,8 @@ import {
 import { mergeStyleElements, joinStyleSelectors } from "@/sidepanel/lib/buildIssueMarkdown";
 import { downloadImageDataUrl, downloadVideoBlob } from "@/sidepanel/lib/downloadCapture";
 import { downloadEditorLogsHtml } from "@/sidepanel/lib/buildEditorCapture";
-import { supportsActionLog } from "@/sidepanel/lib/captureLogSupport";
+import { supportsActionLog, supportsConsoleNetworkLog } from "@/sidepanel/lib/captureLogSupport";
+import { isReproSectionEnabled } from "@/sidepanel/lib/reproSectionEnabled";
 import {
   deriveReadonlyEnvRows,
   filterEnvironmentRows,
@@ -47,6 +53,9 @@ import {
 import { getOsInfo } from "@/sidepanel/lib/osInfo";
 import { OrderedListEditor } from "@/sidepanel/components/OrderedListEditor";
 import { AiDraftDialog } from "./AiDraftDialog";
+
+// 진행 중 잠금 표시 — IssueTab 캡처 툴바와 같은 관례.
+const lockedClass = "aria-disabled:cursor-not-allowed aria-disabled:opacity-50";
 
 const LazyTiptapEditor = lazy(() => import("../components/TiptapEditor"));
 const AnnotationOverlay = lazy(() => import("../components/AnnotationOverlay"));
@@ -81,6 +90,14 @@ export function DraftingPanel() {
   const setActionLogAttach = useEditorStore((s) => s.setActionLogAttach);
   const issueSections = useSettingsUiStore((s) => s.issueSections);
   const attachmentsEnabled = useSettingsUiStore((s) => s.attachmentsEnabled);
+  const autoReproPrefill = useSettingsUiStore((s) => s.autoReproPrefill);
+  const locale = useSettingsUiStore((s) => s.locale);
+  const target = useEditorStore((s) => s.target);
+  const reproPrefillDone = useEditorStore((s) => s.reproPrefillDone);
+  const setReproPrefillDone = useEditorStore((s) => s.setReproPrefillDone);
+  const reproPrefillLoading = useEditorStore((s) => s.reproPrefillLoading);
+  const setReproPrefillLoading = useEditorStore((s) => s.setReproPrefillLoading);
+  const { trimming } = useReplay();
   const attachments = useEditorStore((s) => s.attachments);
   const addAttachments = useEditorStore((s) => s.addAttachments);
   const removeAttachment = useEditorStore((s) => s.removeAttachment);
@@ -127,6 +144,25 @@ export function DraftingPanel() {
       environment: [],
     });
   }, [draft, selection, setDraft, titlePrefix, captureMode, screenshotImage, videoThumbnail, videoBlob]);
+
+  const { aiFilled: reproPrefillAiFilled } = useReproPrefill({
+    captureMode,
+    actionLog,
+    draft,
+    setDraft,
+    aiStatus,
+    capabilities,
+    createSession,
+    url: target?.url ?? "",
+    pageTitle: target?.title ?? "",
+    locale,
+    trimming,
+    sectionEnabled: isReproSectionEnabled(issueSections),
+    autoReproPrefill,
+    reproPrefillDone,
+    setReproPrefillDone,
+    setLoading: setReproPrefillLoading,
+  });
 
   if (!draft) return null;
   if (captureMode === "element" && !selection) return null;
@@ -334,6 +370,7 @@ export function DraftingPanel() {
             sections: { ...draft.sections, [sec.id]: v },
           })
         }
+        reproAiHint={sec.id === "stepsToReproduce" && reproPrefillAiFilled}
       />,
     );
   }
@@ -386,9 +423,9 @@ export function DraftingPanel() {
           {aiStatus === "available" && (
             <button
               data-testid="ai-draft-trigger"
-              className="flex items-center justify-between rounded-t-lg bg-purple-100/80 px-3.5 py-2.5 text-purple-700 transition-colors hover:bg-purple-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring aria-disabled:cursor-not-allowed aria-disabled:opacity-50 dark:bg-purple-950/50 dark:text-purple-300 dark:hover:bg-purple-900"
-              onClick={() => { if (aiDraftLoading) return; (document.activeElement as HTMLElement)?.blur?.(); setAiDialogOpen(true); }}
-              aria-disabled={aiDraftLoading}
+              className="flex items-center justify-between rounded-t-lg bg-purple-100/80 px-3.5 py-2.5 text-purple-700 transition-colors hover:bg-purple-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring aria-disabled:cursor-not-allowed aria-disabled:opacity-50 dark:bg-purple-950 dark:text-purple-300 dark:hover:bg-purple-900"
+              onClick={() => { if (aiDraftLoading || reproPrefillLoading) return; (document.activeElement as HTMLElement)?.blur?.(); setAiDialogOpen(true); }}
+              aria-disabled={aiDraftLoading || reproPrefillLoading}
             >
               <span className="flex min-w-0 items-center gap-1.5">
                 <Badge variant="outline" className="shrink-0 font-normal border-purple-500 text-purple-600 dark:border-purple-400 dark:text-purple-300">{providerLabel ?? t("ai.badge.chromeAI")}</Badge>
@@ -423,7 +460,7 @@ export function DraftingPanel() {
                     setAnnotating(false);
                     if (confirmDraft()) toast.success(t("draft.saved"));
                   }}
-                  disabled={titleMissing || aiDraftLoading}
+                  disabled={titleMissing || aiDraftLoading || reproPrefillLoading}
                   data-testid="to-preview"
                 >
                   {t("draft.preview")}
@@ -654,10 +691,12 @@ function SectionTextarea({
   section,
   value,
   onChange,
+  reproAiHint = false,
 }: {
   section: IssueSection;
   value: string;
   onChange: (next: string) => void;
+  reproAiHint?: boolean;
 }) {
   const t = useT();
   const label = section.labelOverride?.trim() || t(sectionLabelKey(section.id));
@@ -666,14 +705,27 @@ function SectionTextarea({
 
   const editorRef = useRef<import("../components/TiptapEditor").TiptapEditorHandle>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [logDialogOpen, setLogDialogOpen] = useState(false);
+  const [sectionOpen, setSectionOpen] = useState(true);
 
   const isParagraph = section.renderAs !== "orderedList";
   const aiLoading = useEditorStore((s) => s.aiDraftLoading);
+  const captureMode = useEditorStore((s) => s.captureMode);
+  const networkLog = useEditorStore((s) => s.networkLog);
+  const consoleLog = useEditorStore((s) => s.consoleLog);
+  const videoStartedAt = useEditorStore((s) => s.videoStartedAt);
+  const requests = networkLog?.requests ?? [];
+  const entries = consoleLog?.entries ?? [];
+  // 제출 첨부·AI 프롬프트와 같은 게이트를 타야 한다 — element 모드는 로그를 안 싣는다.
+  const noLogs =
+    !supportsConsoleNetworkLog(captureMode) || (requests.length === 0 && entries.length === 0);
 
   return (
     <Section
       title={label}
       collapsible
+      open={sectionOpen}
+      onOpenChange={setSectionOpen}
       testId={`draft-section-${section.id}`}
       action={
         isParagraph ? (
@@ -692,36 +744,74 @@ function SectionTextarea({
                 e.target.value = "";
               }}
             />
-            <Button
-              size="icon"
-              variant="outline"
-              className="h-8 w-8 shrink-0 aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
-              title={t("draft.captureArea")}
-              aria-disabled={aiLoading}
-              onClick={() => {
-                if (aiLoading) return;
-                useEditorStore.getState().startInlineCapture(section.id);
-                const tabId = useEditorStore.getState().target?.tabId;
-                if (tabId) void startInlineAreaCapture(tabId);
-              }}
-            >
-              <Camera />
-            </Button>
-            <Button
-              size="icon"
-              variant="outline"
-              className="h-8 w-8 shrink-0"
-              title={t("draft.addImage")}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <ImagePlus />
-            </Button>
+            {/* 셋 다 "이 섹션 본문에 콘텐츠 삽입"이라 한 그룹 — 접기(chevron)는 Section이 뒤에 따로 렌더한다. */}
+            <ButtonGroup className="flex-nowrap">
+              <TooltipIconButton
+                label={noLogs ? t("draft.insertLog.empty") : t("draft.insertLog")}
+                ariaDisabled={noLogs}
+                className={lockedClass}
+                testId={`section-log-insert-${section.id}`}
+                onClick={() => {
+                  // 접힌 섹션은 에디터가 언마운트돼 삽입이 조용히 사라진다 — 먼저 펼친다.
+                  setSectionOpen(true);
+                  setLogDialogOpen(true);
+                }}
+              >
+                <FileCode />
+              </TooltipIconButton>
+              <TooltipIconButton
+                label={t("draft.captureArea")}
+                ariaDisabled={aiLoading}
+                className={lockedClass}
+                onClick={() => {
+                  useEditorStore.getState().startInlineCapture(section.id);
+                  const tabId = useEditorStore.getState().target?.tabId;
+                  if (tabId) void startInlineAreaCapture(tabId);
+                }}
+              >
+                <Camera />
+              </TooltipIconButton>
+              <TooltipIconButton
+                label={t("draft.addImage")}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <ImagePlus />
+              </TooltipIconButton>
+            </ButtonGroup>
+            <LogInsertDialog
+              open={logDialogOpen}
+              onOpenChange={setLogDialogOpen}
+              requests={requests}
+              entries={entries}
+              startedAt={consoleLog?.startedAt}
+              syncBaseMs={videoStartedAt ?? undefined}
+              onInsert={(text, language) => editorRef.current?.insertCodeBlock(text, language)}
+            />
           </>
-        ) : undefined
+        ) : (
+          <Button
+            size="icon"
+            variant="outline"
+            className="h-8 w-8 shrink-0 hover:text-destructive"
+            title={t("draft.stepsReset")}
+            data-testid={`draft-section-${section.id}-reset`}
+            disabled={!value.trim()}
+            onClick={() => onChange("")}
+          >
+            <Trash2 />
+          </Button>
+        )
       }
     >
       {section.renderAs === "orderedList" ? (
-        <OrderedListEditor value={value} onChange={onChange} placeholder={placeholder} />
+        <div className="space-y-1.5">
+          <OrderedListEditor value={value} onChange={onChange} placeholder={placeholder} />
+          {reproAiHint ? (
+            <p className="text-center text-xs text-muted-foreground/60" data-testid="repro-prefill-ai-hint">
+              {t("aiDraft.disclaimer")}
+            </p>
+          ) : null}
+        </div>
       ) : (
         <Suspense fallback={<Textarea disabled placeholder={placeholder} className="min-h-32 resize-none text-sm" />}>
           <LazyTiptapEditor

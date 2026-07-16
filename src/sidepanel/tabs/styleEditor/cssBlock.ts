@@ -135,6 +135,18 @@ export function collapseTrbl(
   return out;
 }
 
+// 블록 본문 한 줄이 실제 적용되는 완결 선언(`prop: value`)인지 — 적용 경로(parseInlineStyle)와
+// 동일 기준. lezer 증분 파싱이 tag-prefixed 속성(`table-layout` 등, 앞 세그먼트가 HTML 태그명)을
+// 콜론 없이 타이핑하던 순간 셀렉터(TagName)로 오분류하고 그 해석이 안 풀리는 경우가 있는데,
+// 이 기준으로 "미적용" 취소선을 억제해 실제 적용 여부와 시각 신호를 일치시킨다.
+export function isCompleteDeclarationLine(lineText: string): boolean {
+  const colon = lineText.indexOf(":");
+  if (colon <= 0) return false;
+  if (!lineText.slice(0, colon).trim()) return false;
+  const value = lineText.slice(colon + 1).replace(/;\s*$/, "").trim();
+  return value.length > 0;
+}
+
 // specified 대비 diff. 값이 다르거나 새로 추가된 prop만 오버라이드로 남기고,
 // specified에 있었으나 edited에서 빠진 prop은 `initial` 원복으로 방출(삭제=원복).
 export function computeOverrides(
