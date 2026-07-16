@@ -69,6 +69,7 @@ Reproduction context, collected for you in the background.
 
 - **Network & console logs** — captured automatically while the panel is open and attached to the issue. Includes **WebSocket frames** and logs from **cross-origin iframes** (payment widgets, embeds), all filterable by origin.
 - **Action log** — clicks, text input, navigations, keyboard shortcuts, checkbox/radio toggles, dropdown selections, and drag & drop recorded as step-by-step reproduction. Sensitive values are masked, both by field label and by value shape (emails, long digit runs); rich-text editor content is never recorded.
+- **Add a log to the body** — pick one console or network entry and drop it into the issue body as a code block (JSON pretty-printed and highlighted), right where you're describing the symptom. The attachment only opens after a download; this reads in the issue itself.
 - **Log viewer** — a standalone `logs.html` report with a **video-synced timeline**: click any console/network/action entry to jump to that exact moment in the recording. It also carries a **Report tab** (issue body preview + copy as markdown) and per-tab exports (HAR, console/action JSON).
 
 All three logs ride along with every capture except element style editing, and each can be toggled off before you submit.
@@ -111,7 +112,7 @@ case stays one click.
 - **File attachments** — attach your own files to the report, uploaded natively to the tracker
 - **Local download** — save the captured screenshot/video and the `logs.html` report
 - **i18n** — Korean / English
-- **Report body composition** — toggle which sections (steps, expected result, notes, logs, attachments) go into the issue, plus a title prefix
+- **Report body composition** — toggle which sections (symptom, steps, expected result, notes, attachments) go into the issue, plus a title prefix
 - **Theme** — light / dark / system
 
 ## Development
@@ -119,7 +120,8 @@ case stays one click.
 ```bash
 pnpm install
 pnpm dev          # dev server (HMR via @crxjs/vite-plugin)
-pnpm build        # production build → dist/
+pnpm build        # production build → dist/ (runs build:log-viewer first)
+pnpm build:log-viewer  # log viewer bundle only (build/build:store/build:e2e run it automatically)
 pnpm build:store  # store upload build (strips manifest key)
 pnpm typecheck    # type check only
 pnpm test         # unit tests (Vitest)
