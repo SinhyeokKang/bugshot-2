@@ -23,6 +23,7 @@ const ko = {
   "editor.section.typography": "Typography",
   "editor.section.effects": "Effects",
   "editor.section.transition": "Transition",
+  "editor.section.table": "Table",
   "editor.view.form": "편집",
   "editor.view.code": "CSS",
 
@@ -170,6 +171,7 @@ const en = {
   "editor.section.typography": "Typography",
   "editor.section.effects": "Effects",
   "editor.section.transition": "Transition",
+  "editor.section.table": "Table",
   "editor.view.form": "Edit",
   "editor.view.code": "CSS",
 

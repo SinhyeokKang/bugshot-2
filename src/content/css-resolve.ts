@@ -85,6 +85,12 @@ export const INTERESTING_PROPS = [
   "transition-duration",
   "transition-timing-function",
   "transition-delay",
+  "table-layout",
+  "border-collapse",
+  "border-spacing",
+  "caption-side",
+  "empty-cells",
+  "vertical-align",
 ] as const;
 
 const INHERITED_PROPS = new Set([

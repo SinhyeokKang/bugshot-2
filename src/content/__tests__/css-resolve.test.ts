@@ -96,6 +96,15 @@ describe("INTERESTING_PROPS", () => {
     expect(INTERESTING_PROPS).toContain("z-index");
   });
 
+  it("테이블 속성 포함 (before 캡처 + CSS 뷰 seed)", () => {
+    expect(INTERESTING_PROPS).toContain("table-layout");
+    expect(INTERESTING_PROPS).toContain("border-collapse");
+    expect(INTERESTING_PROPS).toContain("border-spacing");
+    expect(INTERESTING_PROPS).toContain("caption-side");
+    expect(INTERESTING_PROPS).toContain("empty-cells");
+    expect(INTERESTING_PROPS).toContain("vertical-align");
+  });
+
   it("충분한 수의 속성", () => {
     expect(INTERESTING_PROPS.length).toBeGreaterThanOrEqual(30);
   });

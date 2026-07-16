@@ -113,6 +113,14 @@ const SECTION_PROPS = {
     "transition-timing-function",
     "transition-delay",
   ],
+  table: [
+    "table-layout",
+    "border-collapse",
+    "border-spacing",
+    "caption-side",
+    "empty-cells",
+    "vertical-align",
+  ],
 } as const;
 
 export function SelectedPanel() {
@@ -481,6 +489,54 @@ export function SelectedPanel() {
           <TextProp label="delay" prop="transition-delay" />
         </Row2>
         <TextProp label="easing" prop="transition-timing-function" />
+        </Section>
+
+      <Section
+        title={t("editor.section.table")}
+        action={<SectionRevertButton props={SECTION_PROPS.table} />}
+        collapsible
+        defaultOpen={sectionOpen(SECTION_PROPS.table)}
+      >
+        <Row2>
+          <SelectProp
+            label="table-layout"
+            prop="table-layout"
+            options={["", "auto", "fixed"]}
+          />
+          <SelectProp
+            label="border-collapse"
+            prop="border-collapse"
+            options={["", "separate", "collapse"]}
+          />
+        </Row2>
+        <TextProp label="border-spacing" prop="border-spacing" />
+        <Row2>
+          <SelectProp
+            label="caption-side"
+            prop="caption-side"
+            options={["", "top", "bottom"]}
+          />
+          <SelectProp
+            label="empty-cells"
+            prop="empty-cells"
+            options={["", "show", "hide"]}
+          />
+        </Row2>
+        <SelectProp
+          label="vertical-align"
+          prop="vertical-align"
+          options={[
+            "",
+            "baseline",
+            "top",
+            "middle",
+            "bottom",
+            "sub",
+            "super",
+            "text-top",
+            "text-bottom",
+          ]}
+        />
         </Section>
       </div>
       </PageScroll>
