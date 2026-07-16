@@ -55,8 +55,7 @@ function statusSuffix(req: NetworkRequest): string {
 export function serializeNetworkRequest(req: NetworkRequest): LogCodeBlock {
   // WS는 프레임 스트림이라 request/response body 개념이 없다 — 헤더 라인만.
   if (req.webSocket) {
-    const status = req.phase === "pending" ? " → (pending)" : req.status ? ` → ${req.status}` : "";
-    return { text: `WS ${req.url}${status}` };
+    return { text: neutralizeFences(`WS ${networkLogPath(req.url)}${statusSuffix(req)}`) };
   }
 
   const lines = [`${req.method} ${networkLogPath(req.url)}${statusSuffix(req)}`];
@@ -77,6 +76,7 @@ export function serializeNetworkRequest(req: NetworkRequest): LogCodeBlock {
 
 export function serializeConsoleEntry(entry: ConsoleEntry): LogCodeBlock {
   const head = `[${entry.level}] ${truncate(entry.args)}`;
-  const withStack = entry.level === "error" && entry.stack ? `${head}\n${entry.stack}` : head;
+  const withStack =
+    entry.level === "error" && entry.stack ? `${head}\n${truncate(entry.stack)}` : head;
   return { text: neutralizeFences(withStack) };
 }

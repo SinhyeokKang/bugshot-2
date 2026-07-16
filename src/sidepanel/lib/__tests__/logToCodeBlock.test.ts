@@ -143,10 +143,11 @@ describe("serializeNetworkRequest", () => {
     expect(text).toBe("POST /api/orders/123 → 204");
   });
 
-  it("WebSocket은 url 헤더 라인만 (body 섹션 없음)", () => {
+  // statusSuffix를 HTTP와 공유 — statusText까지 붙어 "→ 101 Switching Protocols"가 된다.
+  it("WebSocket은 헤더 라인만 (body 섹션 없음), path는 HTTP와 같게 pathname만", () => {
     const { text, language } = serializeNetworkRequest(
       makeRequest({
-        url: "wss://api.example.com/socket",
+        url: "wss://api.example.com/socket?sid=secret",
         method: "WS",
         status: 101,
         statusText: "Switching Protocols",
@@ -156,8 +157,31 @@ describe("serializeNetworkRequest", () => {
       }),
     );
 
-    expect(text).toBe("WS wss://api.example.com/socket → 101");
+    expect(text).toBe("WS /socket → 101 Switching Protocols");
     expect(language).toBeUndefined();
+  });
+
+  it("pending WebSocket도 status 방어를 공유한다", () => {
+    const { text } = serializeNetworkRequest(
+      makeRequest({
+        url: "wss://api.example.com/socket",
+        method: "WS",
+        status: 0,
+        statusText: "",
+        phase: "pending",
+        webSocket: { protocol: "", frames: [], framesTotal: 0 },
+      }),
+    );
+
+    expect(text).toBe("WS /socket → (pending)");
+  });
+
+  it("payload만 JSON이고 response가 raw여도 language는 json", () => {
+    const { language } = serializeNetworkRequest(
+      makeRequest({ requestBody: '{"a":1}', responseBody: "plain" }),
+    );
+
+    expect(language).toBe("json");
   });
 
   it("URL 파싱에 실패하면 원본 url을 경로로 사용", () => {
@@ -201,6 +225,14 @@ describe("serializeConsoleEntry", () => {
     const { text } = serializeConsoleEntry(makeEntry({ level: "log", args: "a\n```\nb" }));
 
     expect(text).not.toMatch(/^ {0,3}`{3,}/m);
+  });
+
+  it("16384자를 넘는 stack도 자른다 (args와 같은 캡)", () => {
+    const { text } = serializeConsoleEntry(
+      makeEntry({ args: "boom", stack: "s".repeat(20000) }),
+    );
+
+    expect(text).toBe(`[error] boom\n${"s".repeat(16384)}…(truncated)`);
   });
 
   it("16384자를 넘는 args는 자르고 …(truncated) 표시", () => {

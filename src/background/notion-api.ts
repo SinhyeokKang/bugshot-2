@@ -368,8 +368,13 @@ export function richText(content: string): NotionRichTextInput[] {
   if (!content) return [];
   const CHUNK = 2000;
   const out: NotionRichTextInput[] = [];
-  for (let i = 0; i < content.length; i += CHUNK) {
-    out.push({ type: "text", text: { content: content.slice(i, i + CHUNK) } });
+  for (let i = 0; i < content.length; ) {
+    // 경계가 서로게이트 페어 중간이면 한 칸 물러난다 — lone surrogate는 Notion에서 깨진다.
+    let end = Math.min(i + CHUNK, content.length);
+    const code = content.charCodeAt(end - 1);
+    if (end < content.length && code >= 0xd800 && code <= 0xdbff) end -= 1;
+    out.push({ type: "text", text: { content: content.slice(i, end) } });
+    i = end;
   }
   return out;
 }

@@ -43,9 +43,6 @@ const ko = {
   "networkLog.ws.closed": "연결 닫힘 ({code})",
   "networkLog.ws.empty": "아직 프레임이 없습니다",
 
-  "logInsert.dialog.title": "로그를 본문에 삽입",
-  "logInsert.insert": "삽입",
-
   "consoleLog.clear": "로그 지우기",
   "consoleLog.search": "메시지 검색…",
   "consoleLog.dialog.title": "콘솔 로그",
@@ -170,9 +167,6 @@ const en = {
   "networkLog.ws.opened": "Connection opened",
   "networkLog.ws.closed": "Connection closed ({code})",
   "networkLog.ws.empty": "No frames yet",
-
-  "logInsert.dialog.title": "Insert log into body",
-  "logInsert.insert": "Insert",
 
   "consoleLog.clear": "Clear Log",
   "consoleLog.search": "Search messages…",

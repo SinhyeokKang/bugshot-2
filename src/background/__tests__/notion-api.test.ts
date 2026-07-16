@@ -338,6 +338,18 @@ describe("richText", () => {
     ]);
   });
 
+  it("2000자 경계에 걸친 이모지를 서로게이트 페어로 쪼개지 않는다", () => {
+    // 1999자 + 이모지(코드유닛 2) → 코드유닛 slice면 2000번째에서 페어가 갈린다.
+    const s = "a".repeat(1999) + "😀" + "b";
+    const out = richText(s);
+
+    expect(out.map((rt) => rt.text.content).join("")).toBe(s);
+    for (const rt of out) {
+      expect(rt.text.content).not.toMatch(/[\uD800-\uDBFF]$/);
+      expect(rt.text.content).not.toMatch(/^[\uDC00-\uDFFF]/);
+    }
+  });
+
   it("16384자는 9청크로 분할되고 원문이 보존된다", () => {
     const s = "b".repeat(16384);
     const out = richText(s);

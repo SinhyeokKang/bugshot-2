@@ -60,11 +60,11 @@ describe("NetworkLogContent — onActiveChange", () => {
     expect(onActiveChange).toHaveBeenCalledWith(null);
   });
 
-  it("콜백 미공급이어도 렌더·선택이 깨지지 않는다", async () => {
+  it("콜백 미공급이어도 선택이 동작한다", async () => {
     render(<NetworkLogContent requests={REQUESTS} />);
 
     await userEvent.click(row("r1"));
 
-    expect(row("r1")).toBeTruthy();
+    expect(row("r1").className).toContain("bg-accent");
   });
 });

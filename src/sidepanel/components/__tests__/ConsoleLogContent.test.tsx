@@ -39,7 +39,6 @@ function SelectableHarness({ onActiveChange }: { onActiveChange: (id: string | n
   return (
     <ConsoleLogContent
       entries={ENTRIES}
-      selectable
       selectedId={selectedId}
       onActiveChange={(id) => {
         setSelectedId(id);
@@ -49,7 +48,7 @@ function SelectableHarness({ onActiveChange }: { onActiveChange: (id: string | n
   );
 }
 
-describe("ConsoleLogContent — selectable 모드", () => {
+describe("ConsoleLogContent — 선택 모드(selectedId 공급)", () => {
   it("행 클릭이 선택을 통지하고 ring 하이라이트가 뜬다", async () => {
     const onActiveChange = vi.fn();
     render(<SelectableHarness onActiveChange={onActiveChange} />);
@@ -82,7 +81,7 @@ describe("ConsoleLogContent — selectable 모드", () => {
 });
 
 describe("ConsoleLogContent — 비선택(기존) 모드", () => {
-  it("selectable 미공급이면 ring 하이라이트가 없고 클릭은 펼치기만 한다", async () => {
+  it("선택 prop 미공급이면 ring 하이라이트가 없고 클릭은 펼치기만 한다", async () => {
     render(<ConsoleLogContent entries={ENTRIES} />);
 
     await clickRow("e1");

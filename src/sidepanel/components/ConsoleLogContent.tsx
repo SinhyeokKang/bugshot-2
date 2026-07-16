@@ -31,9 +31,8 @@ interface ConsoleLogContentProps {
   onScrollComplete?: () => void;
   isMuted?: (absTs: number) => boolean; // 트림 후보(잘려나갈 로그) 흐림 판정
   // 선택 모드(삽입 다이얼로그 전용, optional). 미공급 시 기존 표시 전용 동작.
-  selectable?: boolean;
   selectedId?: string | null;
-  onActiveChange?: (id: string | null) => void;
+  onActiveChange?: (id: string) => void;
 }
 
 function levelBgColor(level: ConsoleLevel): string {
@@ -66,7 +65,7 @@ function LevelIcon({ level }: { level: ConsoleLevel }) {
   }
 }
 
-export function ConsoleLogContent({ entries, startedAt, flush, syncBaseMs, onSeek, activeTs, scrollToEntryId, onScrollComplete, isMuted, selectable, selectedId, onActiveChange }: ConsoleLogContentProps) {
+export function ConsoleLogContent({ entries, startedAt, flush, syncBaseMs, onSeek, activeTs, scrollToEntryId, onScrollComplete, isMuted, selectedId, onActiveChange }: ConsoleLogContentProps) {
   const t = useT();
   const [filter, setFilter] = useState<ConsoleFilter>("all");
   const [originFilter, setOriginFilter] = useState<string | null>(null);
@@ -190,8 +189,8 @@ export function ConsoleLogContent({ entries, startedAt, flush, syncBaseMs, onSee
                 isActive={entry.id === activeId}
                 scrollToEntryId={scrollToEntryId}
                 muted={isMuted?.(entry.timestamp) ?? false}
-                selected={selectable ? entry.id === selectedId : false}
-                onSelect={selectable ? onActiveChange : undefined}
+                selected={entry.id === selectedId}
+                onSelect={onActiveChange}
               />
             ))}
           </div>
@@ -229,7 +228,6 @@ function EntryAccordion({ entry, startedAt, syncBaseMs, onSeek, isActive, scroll
       data-muted={muted || undefined}
       className={`${syncRowClass(!!onSeek, !!isActive, levelBgColor(entry.level))}${muted ? " opacity-40" : ""}${selected ? " ring-2 ring-inset ring-primary" : ""}`}
       aria-current={isActive ? "true" : undefined}
-      data-selected={selected || undefined}
     >
       <div
         className="flex cursor-pointer items-center gap-3 px-2.5 py-2 text-[13px] hover:bg-accent/50"
