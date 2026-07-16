@@ -143,6 +143,12 @@ interface EditorState {
   videoStartedAt: number | null;
   videoEndedAt: number | null;
   videoTrimmed: boolean; // trim 적용(실제 재인코딩) 여부 — 제출 분석 플래그.
+  // 30s replay trim 오버레이 대기 게이트. drafting 전이와 **같은 set()**에 실려야 한다 — 별도
+  // 레인(React state)에 두면 게이트가 닫히기 전 렌더가 새고, 그 틈에 DraftingPanel이 마운트돼
+  // 재현 단계 자동 채움이 발화→언마운트 취소→결과 폐기로 영구 미발화가 된다(POSTMORTEM 2026-07-17).
+  // 비영속: 오버레이 페이로드(blob·frames)가 패널 로컬이라 재수화되면 다이얼로그를 못 띄운 채
+  // 게이트만 살아나 IssueTab이 영구 null이 된다.
+  replayTrimPending: boolean;
   freeformViewport: { width: number; height: number } | null;
   freeformCapturedAt: number | null;
   networkLog: NetworkLog | null;
@@ -182,7 +188,8 @@ interface EditorState {
   ) => void;
   startRecording: (target: EditorTarget, source: RecordingSource) => void;
   startFreeform: (target: EditorTarget) => void;
-  onRecordingComplete: (blob: Blob, thumbnail: string, viewport: { width: number; height: number }, startedAt: number, endedAt: number) => void;
+  onRecordingComplete: (blob: Blob, thumbnail: string, viewport: { width: number; height: number }, startedAt: number, endedAt: number, trimPending?: boolean) => void;
+  resolveReplayTrim: () => void;
   replaceVideo: (blob: Blob, thumbnail: string, startedAt: number, endedAt: number) => void;
   cancelRecording: () => void;
   onAreaCaptured: (dataUrl: string, viewport: { width: number; height: number }) => void;
@@ -301,6 +308,7 @@ const initial = {
   videoStartedAt: null as number | null,
   videoEndedAt: null as number | null,
   videoTrimmed: false,
+  replayTrimPending: false,
   freeformViewport: null as { width: number; height: number } | null,
   freeformCapturedAt: null as number | null,
   networkLog: null as NetworkLog | null,
@@ -528,12 +536,15 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       shotSelector: shot,
     }),
   startRecording: (target, source) => set({ ...initial, captureMode: "video", recordingSource: source, phase: "recording", target }),
-  onRecordingComplete: (blob, thumbnail, viewport, startedAt, endedAt) => {
-    set({ captureMode: "video", phase: "drafting", videoBlob: blob, videoThumbnail: thumbnail, videoViewport: viewport, videoCapturedAt: Date.now(), videoStartedAt: startedAt, videoEndedAt: endedAt, videoTrimmed: false, networkLogAttach: true, consoleLogAttach: true, actionLogAttach: true, annotationTool: null });
+  // trimPending은 drafting 전이와 원자적이어야 한다(replayTrimPending 선언부 참조). reproPrefillDone은
+  // 리플레이가 startRecording(...initial)을 안 거쳐 drafting에 직행하므로 여기서 리셋한다.
+  onRecordingComplete: (blob, thumbnail, viewport, startedAt, endedAt, trimPending = false) => {
+    set({ captureMode: "video", phase: "drafting", videoBlob: blob, videoThumbnail: thumbnail, videoViewport: viewport, videoCapturedAt: Date.now(), videoStartedAt: startedAt, videoEndedAt: endedAt, videoTrimmed: false, replayTrimPending: trimPending, reproPrefillDone: false, networkLogAttach: true, consoleLogAttach: true, actionLogAttach: true, annotationTool: null });
     // drafting 중 패널을 닫아도 영상이 살아남도록 로그와 동일하게 pending:${tabId}에 미러링(hydrate가 복원).
     const tabId = get().target?.tabId;
     if (tabId != null) void saveVideoBlob(`pending:${tabId}`, blob);
   },
+  resolveReplayTrim: () => set({ replayTrimPending: false }),
   // trim 확정 시 영상 메타만 교체 — phase·attach·target·videoCapturedAt(원본 캡처 시각)은 불변.
   replaceVideo: (blob, thumbnail, startedAt, endedAt) => {
     set({ videoBlob: blob, videoThumbnail: thumbnail, videoStartedAt: startedAt, videoEndedAt: endedAt, videoTrimmed: true });

@@ -198,6 +198,52 @@ describe("onRecordingComplete — idle 직접 호출 (30s Replay)", () => {
 
     expect(useEditorStore.getState().annotationTool).toBe(null);
   });
+
+  // 리플레이는 startRecording을 안 거쳐 drafting에 직행하므로, 그 리셋에 기댈 수 없다.
+  it("리플레이 경로에서도 reproPrefillDone을 리셋한다(직전 세션 래치 상속 차단)", () => {
+    useEditorStore.getState().setReproPrefillDone(true);
+
+    useEditorStore.getState().onRecordingComplete(new Blob(["x"]), "t", { width: 800, height: 600 }, 1000, 5000);
+
+    expect(useEditorStore.getState().reproPrefillDone).toBe(false);
+  });
+
+  it("trimPending 생략(탭/화면 녹화)이면 replayTrimPending은 false다", () => {
+    useEditorStore.getState().onRecordingComplete(new Blob(["x"]), "t", { width: 800, height: 600 }, 1000, 5000);
+
+    expect(useEditorStore.getState().replayTrimPending).toBe(false);
+  });
+
+  // 회귀 가드의 핵심 계약. drafting 전이(zustand)와 trim 게이트(과거 React state)가 다른 레인으로
+  // 갈리면 trim 게이트가 닫히기 전 렌더가 한 번 새고, 그 틈에 DraftingPanel이 마운트돼
+  // useReproPrefill이 발화→언마운트 취소→결과 폐기+done 래치로 영구 미발화가 된다.
+  // 두 값이 같은 set()에 실려야 구독자가 그 중간 상태를 볼 수 없다.
+  it("phase=drafting을 보는 첫 알림에서 replayTrimPending이 이미 true다(전이 원자성)", () => {
+    const seen: Array<{ phase: string; trimPending: boolean }> = [];
+    const unsub = useEditorStore.subscribe((s) => {
+      seen.push({ phase: s.phase, trimPending: s.replayTrimPending });
+    });
+
+    useEditorStore
+      .getState()
+      .onRecordingComplete(new Blob(["x"]), "t", { width: 800, height: 600 }, 1000, 5000, true);
+    unsub();
+
+    const firstDrafting = seen.find((s) => s.phase === "drafting");
+    expect(firstDrafting).toBeDefined();
+    expect(firstDrafting?.trimPending).toBe(true);
+  });
+
+  it("resolveReplayTrim이 게이트를 내린다", () => {
+    useEditorStore
+      .getState()
+      .onRecordingComplete(new Blob(["x"]), "t", { width: 800, height: 600 }, 1000, 5000, true);
+    expect(useEditorStore.getState().replayTrimPending).toBe(true);
+
+    useEditorStore.getState().resolveReplayTrim();
+
+    expect(useEditorStore.getState().replayTrimPending).toBe(false);
+  });
 });
 
 describe("replaceVideo — trim 확정 영상 메타 교체", () => {

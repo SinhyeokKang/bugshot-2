@@ -187,9 +187,12 @@ export function use30sReplay(
 
       // idle 직접 진입이라 startRecording이 하던 target 설정을 여기서 대신 — confirmDraft 가드 통과용.
       useEditorStore.setState({ target });
-      useEditorStore.getState().onRecordingComplete(blob, thumbnail, viewport, lower, captureTime);
       // 보존한 프레임으로 trim 오버레이 대기 상태를 켠다(2프레임 미만이면 trim 무의미 → 전체 클립 직행).
-      if (frames.length >= 2) setPendingTrim({ videoBlob: blob, frames });
+      // 게이트(replayTrimPending)는 drafting 전이와 같은 set()에 실어 원자적으로 켜고, pendingTrim은
+      // 오버레이 페이로드 전용이다 — 게이트를 이 로컬 state에 두면 레인이 갈려 한 렌더가 샌다.
+      const trimPending = frames.length >= 2;
+      useEditorStore.getState().onRecordingComplete(blob, thumbnail, viewport, lower, captureTime, trimPending);
+      if (trimPending) setPendingTrim({ videoBlob: blob, frames });
     } catch {
       toast.error(tRef.current("issue.replay.encodeFailed"));
     } finally {
@@ -199,7 +202,10 @@ export function use30sReplay(
     }
   }, []);
 
-  const resolveTrim = useCallback(() => setPendingTrim(null), []);
+  const resolveTrim = useCallback(() => {
+    setPendingTrim(null);
+    useEditorStore.getState().resolveReplayTrim();
+  }, []);
 
   return { isReady, isEncoding, bufferedSeconds, capture, pendingTrim, resolveTrim };
 }
