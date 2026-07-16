@@ -21,6 +21,20 @@
 
 ---
 
+## 2026-07-16 — vitest에서 멀쩡히 되는 `import`가 typecheck만 깨, 설정 파일 읽는 방식을 두 번 갈아엎음
+
+- **증상**: `tokens.test.ts`가 `tailwind.config.js`의 `fontFamily.mono`를 단언해야 했다. `import config from "../../../tailwind.config.js"`는 `pnpm test` 8/8 green인데 `pnpm typecheck`만 **TS7016**(`Could not find a declaration file`)으로 실패한다. 한쪽 게이트만 돌리면 안 잡힌다.
+- **근본 원인**: **런타임 게이트와 타입 게이트가 서로 다른 판정을 한다.** 런타임은 통과한다 — vite-node가 모든 모듈에 `require`를 주입해(`node_modules/vite-node/dist/client.mjs:371` `require: createRequire(href)`) config 마지막 줄의 `require("tailwindcss-animate")`가 `"type":"module"`에서도 살아난다. 하지만 `tsconfig.app.json`엔 `allowJs`가 없고(기본 false) `strict:true`(→`noImplicitAny`)라 tsc가 선언 파일 없는 `.js` import를 거부한다. **더 나쁜 건 근거가 두 번 다 틀렸다는 것**: 1판은 "config가 `require()`를 쓰니 vitest에서 터진다"는 **미검증 전제**로 텍스트 파싱을 택했고(거짓 — 런타임은 성공), 리뷰가 그걸 반박해 `import`로 갈아탔더니 typecheck가 깨졌다. 결론(텍스트 파싱)은 처음부터 맞았는데 **이유가 두 번 다 달랐다** — 즉 "왜"를 실측하지 않으면 맞는 결론도 다음 리뷰에 뒤집힌다.
+- **재발 방지**: (1) **"돌아가더라"는 절반의 검증** — 게이트가 둘(`pnpm test` + `pnpm typecheck`)이면 **둘 다 돌려야** 판정이다. 한쪽 green을 근거로 설계를 확정하지 말 것. (2) **`src/**/__tests__/`에서 저장소 루트의 `.js` 설정 파일(`tailwind.config.js`·`postcss.config.js`)을 읽어야 하면 `import` 금지, `readFileSync`+정규식** — `tokens.test.ts:parseTokens`/`parseFontStack`이 선례다. 확인: `grep -n "allowJs" tsconfig.app.json`(없으면 import 불가) + `grep -rn "@ts-expect-error\|@ts-ignore" src/`(**0건이 저장소 관례** — 테스트 하나 때문에 첫 사례를 만들지 말 것). (3) 코드를 읽는 정규식은 **주석 선제거 후 따옴표 리터럴만 추출**해야 배열 내 주석·prettier 리플로우에 안 깨진다. 파서를 새로 쓰면 **기존 배열로 먼저 검증**한다(`parseFontStack("sans")`가 12개·`sans-serif` 종료를 내는지).
+- **관련**: `src/styles/__tests__/tokens.test.ts:parseFontStack`(+ 옆의 `parseTokens`가 같은 기법의 원조), `tsconfig.app.json`(`allowJs` 부재), `tailwind.config.js:88`(`require()` 2개 — 마지막 줄이 아니라 `:89`가 `};`).
+
+## 2026-07-16 — `pnpm add pkg@X`가 박은 정확 고정을 손으로 캐럿으로 고쳐, lockfile specifier가 드리프트해 `--frozen-lockfile`이 깨짐
+
+- **증상**: `pnpm install --frozen-lockfile`이 `ERR_PNPM_OUTDATED_LOCKFILE`로 실패한다(`@fontsource-variable/geist-mono` — lockfile: `5.2.8`, manifest: `^5.2.8`). **로컬에선 아무 증상이 없다** — `.github/workflows`에 install 잡이 없어 깨지는 게이트가 지금은 없고, 다음에 누가 `pnpm install`을 돌리면 무관한 커밋에 lockfile 변경이 딸려온다.
+- **근본 원인**: `pnpm add pkg@5.2.8`은 manifest에 **정확 고정**(`"5.2.8"`)을 쓴다. 그런데 이 저장소는 캐럿이 관례라(`dependencies` 47개 중 캐럿 46 : 정확 1) 손으로 `^`를 붙이게 되는데, **`pnpm install`을 다시 안 돌리면 lockfile의 `specifier` 필드는 옛 값 그대로** 남는다. `version`은 같아서 설치 결과물은 동일하고, 그래서 테스트·빌드·typecheck가 전부 green이라 **어느 게이트에도 안 걸린다**. 설계 문서가 "`minimumReleaseAge` 때문에 버전을 명시한다"고 적은 것도 혼동을 키웠다 — 그건 **설치 명령**에 버전을 쓰라는 논거이지 manifest를 정확 고정하라는 논거가 아니다(재결정은 lockfile이 이미 막는다).
+- **재발 방지**: (1) **새 의존성을 추가하고 manifest 범위를 손으로 고쳤으면 반드시 `pnpm install`을 다시 돌린다.** 확인은 `pnpm install --frozen-lockfile`이 `Already up to date`를 내는지 — 이게 유일한 자동 검사다(로컬 test/build/typecheck는 전부 통과한다). (2) 범위 표기는 저장소 관례를 따른다: `node -e 'const d=Object.entries(require("./package.json").dependencies); console.log("caret",d.filter(([,v])=>v.startsWith("^")).length,"exact",d.filter(([,v])=>/^\d/.test(v)).length)'`. (3) 이 함정은 **specifier만 갈리고 version은 같아** diff에서 두 파일을 대조해야 보인다 — `git diff -- package.json pnpm-lock.yaml`을 같이 본다.
+- **관련**: `package.json`(`dependencies`), `pnpm-lock.yaml`(`importers` 아래 `specifier`/`version` 쌍), `pnpm-workspace.yaml`(`minimumReleaseAge: 1440` — 설치 명령 버전 명시의 진짜 이유).
+
 ## 2026-07-16 — 본문에 삽입한 로그가 Slack에서 평문화되고 엉뚱한 섹션이 코드블럭에 씌워짐 (4000자 초과분을 Slack이 임의로 쪼개 fence를 끊음)
 
 - **증상**: 실사용 리포트. 로그 삽입 기능으로 만든 이슈를 Slack에 보냈더니 한 건은 **로그가 코드블럭이 아니라 일반 인라인 텍스트**로 나왔고, 다른 건은 **코드블럭이 엉뚱한 "재현 과정" 섹션에 씌워졌다.** 결정적 단서는 "짧은 로그는 정상"이었다 — 내용이 아니라 **크기**에 걸린 문제.
