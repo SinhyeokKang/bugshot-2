@@ -83,6 +83,21 @@
     font-feature-settings: "rlig" 1, "calt" 1;
   }
 
+  /* Geist를 받는 경로가 둘이다 — .font-mono 유틸(CSS 뷰·DOM 트리·로그)과 preflight의 pre/code
+     (프리뷰 코드블럭). 만나는 지점이 없어 한쪽만 손대면 조용히 갈라진다. log-viewer는 별도
+     빌드라 이 파일이 안 나가서 styles.css에 손복사본이 있다(tokens.test.ts가 일치를 강제). */
+  .font-mono,
+  pre,
+  code,
+  kbd,
+  samp {
+    /* Geist의 liga가 기본 ON이라 `--`를 한 글리프로 잇는다(advance 600 — 2셀이 1셀로 붕괴).
+       CSS 커스텀 프로퍼티가 전부 이걸 밟는다. font-feature-settings는 가산이 아니라 통째로
+       덮어쓰므로 이쪽이 정확한 도구다. letter-spacing을 0이 아닌 값으로 주면 Chrome이
+       리거처를 덤으로 끄지만, 그건 자간을 튜닝할 때 얘기 — 이 선언이 단독 방어다. */
+    font-variant-ligatures: none;
+  }
+
   ::-webkit-scrollbar {
     width: 10px;
     height: 10px;

@@ -65,11 +65,14 @@
   color: hsl(213 94% 68%);
 }
 
+/* 아래 code/pre 규칙은 tiptap-editor.css(에디터)와 짝이다 — 한쪽만 고치면 편집 화면과
+   프리뷰가 갈라진다. white-space는 여기 불필요 — ProseMirror가 아니라 주입 스타일이
+   안 걸리고 UA 기본 pre가 이미 이긴다. */
 .doc-section-body code {
   background: hsl(var(--muted));
   border-radius: 0.25rem;
   padding: 0.125em 0.25em;
-  font-size: 0.875em;
+  font-size: 12px;
 }
 
 .doc-section-body blockquote {
@@ -81,9 +84,9 @@
 .doc-section-body pre {
   background: hsl(var(--muted));
   border-radius: 0.375rem;
-  padding: 0.625em 0.75em;
+  padding: 1em;
   overflow-x: auto;
-  font-size: 0.875em;
+  font-size: 12px;
   line-height: 1.5;
 }
 

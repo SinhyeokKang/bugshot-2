@@ -70,6 +70,21 @@
     font-feature-settings: "rlig" 1, "calt" 1;
   }
 
+  /* ⚠ 이 블록도 globals.css의 복제본이다 — 위 토큰 표와 같은 이유(별도 빌드)로 손으로 맞춘다.
+     App.tsx가 NetworkLogContent·ConsoleLogContent·IssuePreviewView를 사이드패널에서 그대로
+     가져다 써서 여기에도 mono 표면이 있다. @font-face가 없어 보통은 시스템 mono로 폴백하지만,
+     스택 1순위가 "Geist Mono Variable"이라 그 폰트가 설치된 기기에선 로컬 해석돼 liga가 살아난다
+     — 그러면 네트워크 본문의 `------WebKitFormBoundary`가 이어붙는다. 사이드패널은 늘 Geist를
+     받으므로 이 결함은 내보낸 logs.html에만 남아 개발 중엔 안 보인다.
+     (tokens.test.ts가 globals.css와의 완전 일치를 강제한다.) */
+  .font-mono,
+  pre,
+  code,
+  kbd,
+  samp {
+    font-variant-ligatures: none;
+  }
+
   ::-webkit-scrollbar {
     width: 10px;
     height: 10px;
