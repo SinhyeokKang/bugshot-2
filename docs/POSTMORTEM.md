@@ -21,6 +21,13 @@
 
 ---
 
+## 2026-07-16 — 배경용으로 설계된 shadcn `--destructive`를 글자색으로만 소비해, 다크에서 "작성 취소"가 대비 2:1로 안 읽힘
+
+- **증상**: 다크 테마에서 `destructive-outline` 버튼(작성 취소 등) 레이블이 **엄청 흐리게** 보였다. 라이트에선 멀쩡해서 오래 방치됐다.
+- **근본 원인**: 토큰의 **설계 용도와 실제 소비처가 어긋났다**. shadcn 다크 프리셋의 `--destructive: 0 62.8% 30.6%`는 `bg-destructive` + `text-destructive-foreground`(흰 글자) 조합, 즉 **배경색**으로 쓰라고 어두운 빨강(= red-900)으로 잡힌 값이다. 그런데 이 앱은 `variant="destructive"`(bg 형)를 **한 번도 안 쓰고** `text-destructive`(27곳)·`destructive-outline`(5곳)로 **글자색으로만** 소비한다 → 거의 검은 배경(`0 0% 3.9%`) 위 red-900 글자 = **실측 2.0:1**(WCAG AA 4.5:1의 절반 미만). 라이트가 무증상인 건 우연 — 라이트 `--destructive`는 같은 토큰인데 shadcn이 red-500(`0 84.2% 60.2%`)으로 잡아둬서 글자로 써도 3.76:1은 나온다. **한 토큰이 테마별로 다른 용도를 전제**하는데 코드는 한 용도로만 쓰는 구조라, 라이트만 보면 영원히 안 보인다.
+- **재발 방지**: (1) **shadcn 프리셋 값을 그대로 받을 땐 "그 값이 어느 용도로 잡혔나"를 확인**한다 — `--destructive`·`--primary`처럼 `bg`/`text` 양쪽으로 쓸 수 있는 토큰은, 실제 소비 형태를 `grep -rn 'variant="destructive"' src`(bg 형 사용 여부) / `grep -rEoh '\b(text|bg)-destructive\b' src | sort | uniq -c`로 **먼저 세고** 값을 고른다. bg 소비처가 0이면 프리셋의 bg용 값은 그냥 틀린 값이다. (2) **대비는 눈이 아니라 수치로 고정**한다 — `src/styles/__tests__/tokens.test.ts`가 hsl→상대휘도→대비비로 다크 destructive 4.5:1 하한을 박았다. 색은 단위 테스트로 "예쁨"은 못 잡아도 **대비는 잡는다**. (3) **테마 한쪽만 증상이 나는 버그는 반대 테마 검증을 통과한다** — 색 토큰을 건드리면 라이트/다크를 **양쪽 다** 계산하거나 눈으로 본다(같은 교훈: 2026-07-03 로그뷰어 툴팁 항목의 "다크 전용 발산은 라이트/일반 테스트에 안 잡힌다"). (4) 라이트 `--destructive`는 여전히 3.76:1로 **AA 미달**(shadcn 기본값 그대로, 이번 스코프 밖) — 테스트는 3.7 하한으로 현 상태만 고정해뒀다. 손볼 때 4.5로 올린다.
+- **관련**: `src/styles/globals.css`(`.dark`의 `--destructive`), `src/log-viewer/styles.css`(복제 토큰 표 — 함께 갱신), `src/components/ui/button.tsx`(`destructive-outline` = `text-destructive`, 미사용 `destructive` = `bg-destructive`), `src/styles/__tests__/tokens.test.ts`(대비 하한 + 두 표 동등성). 토큰 표가 두 파일에 복제된 구조 자체는 "별도 번들이 메인 모듈을 복제" 계열(아래 2026-06-28 log-viewer i18n dict 항목의 "복제본은 늘 대조 테스트로 묶는다")을 이 쌍에 적용한 것 — 이 쌍이 실제로 발산한 적은 아직 없다.
+
 ## 2026-07-16 — "결과 무관 1회" 래치와 effect cleanup 취소가 만나, 취소된 AI 요청을 아무도 이어받지 않아 재현 단계가 영구 미충전
 
 - **증상**: video 캡처 후 작성 화면에서 재현 단계 자동 채움이 **조용히 안 됐다** — 로딩 오버레이는 떴다 사라지고, 실패 토스트도 없고, BYOK 호출은 1회 소진됐는데 섹션은 빈 채로 남고 재시도도 없다. 재현 조건이 좁아(in-flight 중 `trimming` 왕복, 또는 설정 변경으로 `capabilities`/`createSession` 정체성 변경) 육안으론 잡히지 않았고, `/code-review`는 이 자리를 **"dev StrictMode 이중 발화(⚪ dev 전용 비용)"로만 분류**해 지나갔다.
