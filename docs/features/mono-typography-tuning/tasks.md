@@ -12,7 +12,7 @@
 
 ## 태스크
 
-### Task 1: 리거처·자간 회귀 테스트 (테스트 먼저 — red)
+### Task 1: 리거처 회귀 테스트 (테스트 먼저 — red)
 - **변경 대상**: `src/styles/__tests__/tokens.test.ts`
 - **작업 내용**: `describe("mono 타이포그래피")` 추가. `readFileSync` + 정규식이라는 **기법**은 기존과 같지만 **`parseTokens`는 재사용 불가 — 헬퍼를 새로 짜야 한다**:
   - `:18` `/--([\w-]+):\s*([^;]+);/g` → **`--`로 시작하는 커스텀 프로퍼티만** 잡는다. `font-variant-ligatures: none;`은 매치조차 안 된다.
@@ -26,23 +26,22 @@
 - **함께**: **`:112`의 주석을 정정한다.** *".font-mono 규칙은 사이드패널과 log-viewer 두 빌드에 똑같이 나가는데…"*는 공유 `tailwind.config.js`가 주는 **유틸리티**엔 참이지만 **Task 2가 넣는 base 규칙엔 거짓**이다(log-viewer는 `globals.css`를 import하지 않고 자체 `styles.css`를 쓴다). 편집하는 파일의 몇 줄 위라 지금 안 고치면 거짓인 채로 남는다.
   > **`tailwind.config.js`를 import하지 말 것** — `allowJs` 미설정이라 `pnpm test`는 통과해도 `pnpm typecheck`가 TS7016으로 깨진다(POSTMORTEM `2026-07-16 — vitest에서 멀쩡히 되는 import가…`). 이번엔 CSS만 읽으면 되므로 해당 없음.
 - **검증**:
-  - [ ] Task 2 전이므로 **실패**한다 (red 확인 — 블록 자체가 없음)
+  - [x] Task 2 전이므로 **실패**한다 (red 확인 — 3 failed, 파서 자기검증은 green)
 
-### Task 2: 리거처 off + 자간 (green)
+### Task 2: 리거처 off (green)
 - **변경 대상**: `src/styles/globals.css`
 - **작업 내용**: `@layer base`에 블록 추가 (design.md "채택" 코드 그대로):
   ```css
   .font-mono, pre, code, kbd, samp {
     font-variant-ligatures: none;
-    letter-spacing: -0.01em;
   }
   ```
   - **`@layer base`에 둔다** — utilities(`font-bold`·`tracking-*`)가 이겨야 한다.
   - **주석으로 WHY를 남긴다**: 진입 경로가 둘(`.font-mono` / preflight)이라 짝을 놓치면 갈라진다 + Geist `liga`가 기본 ON이라 `--`를 잇는다.
   - `font-feature-settings`는 **쓰지 않는다**(대안 5).
 - **검증**:
-  - [ ] `pnpm test tokens` 통과 (red→green)
-  - [ ] `pnpm typecheck` 통과
+  - [x] `pnpm test tokens` 통과 (red→green, 12/12)
+  - [x] `pnpm typecheck` 통과
 
 ### Task 3: 에디터·프리뷰 코드블럭 — 12px + 가로 스크롤
 - **변경 대상**: `src/sidepanel/components/tiptap-editor.css` **+ `src/sidepanel/components/doc-section-body.css`**
@@ -77,9 +76,9 @@
     - **`text-[12px]`가 아니다.** `text-xs`는 12px + `line-height: 1rem`(16px)이고, DOM 트리는 코드블럭이 아니라 **한 줄이 한 항목인 리스트**라 이 행간이 맞다 — 이미 `text-xs`인 로그 mono 5곳과 같은 그룹으로 18 → 16px 합류. 스케일 유틸이라 다음 사람이 "정리"하다 행간을 깨뜨릴 여지도 없다(design.md 대안 8).
   - **NetworkLogContent**: `:576` `text-[11px]` → **`text-xs`** — mono 7곳 중 유일하게 12px이 아니던 표면. 형제인 `ConsoleLogContent:254`·`:262`가 이미 `text-xs`다.
     - **`:733`의 `FrameBody`(`font-sans text-[11px]`)는 건드리지 않는다** — sans 표면이다.
-  - **`ConsoleLogContent:254`·`:262`, `LogSeekChip:11`·`:22`는 무변경** — 이미 `text-xs`(12px)라 목표값에 서 있다. 단 자간·리거처는 새로 걸리므로 Task 6에서 눈으로 본다.
+  - **`ConsoleLogContent:254`·`:262`, `LogSeekChip:11`·`:22`는 무변경** — 이미 `text-xs`(12px)라 목표값에 서 있다. 단 리거처 off는 새로 걸리므로 Task 6에서 눈으로 본다.
 - **검증**:
-  - [ ] `pnpm typecheck` 통과
+  - [x] `pnpm typecheck` 통과
   - [ ] DevTools: CSS 뷰 `.cm-content`가 `font-size: 12px` / `line-height: 18px`
   - [ ] DevTools: DOM 트리 노드·네트워크 본문 `<pre>`가 `font-size: 12px` / `line-height: 16px`
   - [ ] CSS 뷰 자동완성 팝업 li가 12px (**띄우는 법**: CSS 뷰에서 속성명 일부를 타이핑 — 예 `col`)
@@ -100,18 +99,22 @@
   3. **크기 불변식 단언 추가** — `.cm-content`의 computed `font-size: 12px` / `line-height: 18px`. v1.6.0이 실제로 깨뜨린 건 **크기 불변식**인데 지금 자동 그물이 0이다(Task 1은 `globals.css`만 본다). `style-css-view` locator가 이미 있어 거의 공짜이고 선언이 아니라 렌더를 잰다.
 - **함께**: **`e2e/COVERAGE.md` 갱신** — style-code-view 맵 행(현재 "serial 9")에 새 시나리오 추가. 리거처 렌더 판정 기법은 GOTCHAS에 선례가 전무하므로(폰트 항목은 `document.fonts.check()` 하나뿐) **`e2e/GOTCHAS.md`에도 남긴다**.
 - **검증**:
-  - [ ] `pnpm build:e2e && pnpm test:e2e style-code-view` 통과
-  - [ ] **비공허함 입증**: `globals.css`의 `font-variant-ligatures: none`을 임시로 지우면 새 단언이 **실패**한다 (확인 후 원복)
+  - [x] `pnpm build:e2e && pnpm test:e2e style-code-view` 통과 (11/11, 연속 2회)
+  - [x] **비공허함 입증**: `globals.css`의 **mono 블록 전체**를 임시로 지우면 새 단언이 **실패**한다 (확인 후 원복)
+    - ⚠ **자간을 튜닝하던 동안엔 이 대조군이 green이었다** — Chrome은 `letter-spacing`이 0이 아니면 리거처를 덤으로 끄기 때문(CSS Text). 자간 0 확정 후엔 `font-variant-ligatures`가 단독 방어라 대조군이 명확하다(그 한 줄 제거 → red 확인). 나중에 자간을 도입하면 다시 모호해진다(`e2e/GOTCHAS.md`).
 
-### Task 6: 시각 검증 + 자간 판정
+### Task 6: 시각 검증 + 자간 판정 → **자간 0 확정**
 > **Task 7(문서)보다 먼저다** — DESIGN.md에 확정된 자간 값을 적어야 하므로, 값이 미정인 채로 문서를 쓰고 나중에 역참조로 때우면 안 된다.
+>
+> **결과: 자간을 건드리지 않기로 확정**(브라우저 기본 0). 12px에서 유의미한 차이를 내려면 `-0.24px` 이상이 필요한데 그 구간은 고정폭 그리드를 흐트러뜨린다. PRD 문제 4는 철회됐고 `letter-spacing` 선언은 코드에 없다. 곁들여 코드블럭 패딩을 `1em`(12px 균등)으로 키웠다.
 
 - **변경 대상**: 없음(검증 전용). 조정 시 `globals.css`의 `letter-spacing` 한 값.
 - **작업 내용**: **`/build` 스킬 실행 후** Chrome 언팩 로드. 아래 "수동 테스트 — 차단"을 통과시키고 자간을 판정한다.
   - **자간 판정 기준**: *"CSS 뷰에서 `var(--space-lg)` 같은 토큰이 답답하지 않으면서, 고정폭 그리드가 흐트러져 보이지 않을 것."* 너무 좁히면 mono 가독성이 되레 떨어진다.
   - **라이트·다크 양 테마에서 본다** — 다크 배경 위 밝은 글자는 halation으로 번져 더 굵고 조밀하게 보인다. 라이트에서 튜닝한 값이 다크에선 과하게 좁을 수 있다.
-  - **`-0.01em`은 12px에서 글자당 0.12px**(45자 줄 전체로도 5.4px ≈ 0.75자)라 사실상 no-op에 가깝다는 점을 알고 시작한다. "Geist Mono 기본 트래킹이 넓다"가 진짜 불만이면 `-0.02~-0.03em`이 필요한데 그 구간은 고정폭 그리드를 흐트러뜨린다 — **이 트레이드오프가 판정의 실체**다.
-  - 조정은 **1회로 끝낸다**. `-0.01em`↔`-0.02em`에서 결론이 안 나면 `-0.01em`으로 확정하고 후속으로 뺀다.
+  - **`-0.12px`는 글자당 0.12px**(45자 줄 전체로도 5.4px ≈ 0.75자)라 사실상 no-op에 가깝다는 점을 알고 시작한다. "Geist Mono 기본 트래킹이 넓다"가 진짜 불만이면 `-0.24~-0.36px`가 필요한데 그 구간은 고정폭 그리드를 흐트러뜨린다 — **이 트레이드오프가 판정의 실체**다.
+  - 조정은 **1회로 끝낸다**. `-0.12px`↔`-0.24px`에서 결론이 안 나면 `-0.12px`로 확정하고 후속으로 뺀다.
+  - **단위를 `em`으로 바꾸지 말 것** — CSS 뷰 래퍼에서만 16px 기준으로 resolve돼 자간이 갈린다(design.md 위험 요소).
 - **검증**: 아래 "수동 테스트 — 차단" 전부 + 자간 판정 기록(값 + 어느 테마·디스플레이에서 봤는지).
 
 ### Task 7: 문서 갱신 (Task 6 뒤)
@@ -127,8 +130,8 @@
     - **§4에 임의값 정책 한 줄 추가**: "스케일에 대응값이 없을 때만 `text-[…]`" (현재 §5 간격에만 있고 타이포엔 없다)
   - **`code-block-collapse/prd.md :62`**: 근거만 정정 — *"grep이 틀렸다"가 아니다.* `grep -rn "prosemirror.css" src/` → 0건은 **지금도 사실**이고 원저자는 문제 규칙·실패 모드를 이미 특정해뒀다. 틀린 건 **출처가 하나라고 본 것** — `@tiptap/core`가 동일 CSS를 자체 보유하다 `<style data-tiptap-style>`로 런타임 주입하므로, import를 grep해선 안 잡히는 두 번째 경로로 `.ProseMirror pre { white-space: pre-wrap }`가 활성이었다. 이 feature의 Task 3이 `white-space: pre`로 덮어 전제를 참으로 만든다는 **선행 의존**을 명시하고, **가로 스크롤바 10px이 접기 높이 계산의 새 항**이 된다는 사실도 넘긴다. **접기 로직·설계는 건드리지 않는다.**
 - **검증**:
-  - [ ] `DESIGN.md`에 12px·표면 목록·두 행간 그룹·두 진입 경로·두 클론 파일·자간(확정값)·리거처·`text-xs` 근거가 모두 존재
-  - [ ] `code-block-collapse/prd.md`에 선행 의존·정정된 근거·스크롤바 항이 존재
+  - [x] `DESIGN.md`에 12px·표면 목록·두 행간 그룹·두 진입 경로·두 클론 파일(+log-viewer 손복사)·자간 0·리거처·`text-xs` 근거가 모두 존재
+  - [x] `code-block-collapse/prd.md`에 선행 의존·정정된 근거·스크롤바 항이 존재
 
 ## 테스트 계획
 
