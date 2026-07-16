@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
 import { t } from "@/i18n";
 import type { CaptureMode, EditorDraft } from "@/store/editor-store";
 import type { LocaleMode } from "@/store/settings-ui-store";
@@ -8,6 +7,7 @@ import type { AIProvider, ProviderCapabilities } from "@/sidepanel/lib/ai-provid
 import { supportsActionLog } from "@/sidepanel/lib/captureLogSupport";
 import { buildActionLogSummary } from "@/sidepanel/lib/buildLogSummary";
 import { generateReproStepsWithAI } from "@/sidepanel/lib/generateReproPrefill";
+import { toastLlmError } from "@/sidepanel/lib/llmErrorToast";
 
 interface UseReproPrefillArgs {
   captureMode: CaptureMode;
@@ -99,7 +99,7 @@ export function useReproPrefill(args: UseReproPrefillArgs): {
     setLoading(true);
     void (async () => {
       try {
-        const result = await generateReproStepsWithAI({
+        const steps = await generateReproStepsWithAI({
           capabilities,
           createSession,
           captureMode,
@@ -109,15 +109,11 @@ export function useReproPrefill(args: UseReproPrefillArgs): {
           actionLogSummary: buildActionLogSummary(log),
         });
         if (cancelled) return;
-        if (result.ok) {
-          apply(result.steps);
-          if (result.steps.trim()) setAiGenerated(result.steps); // 사용자가 편집하면 고지 숨김.
-        } else if (result.reason === "quota") {
-          toast.error(t("llm.error.quota"));
-        } else if (result.reason === "auth") {
-          toast.error(t("llm.error.auth"));
-        }
-        // 실패 시 채우지 않음 — 룰 폴백 없음(AI 없으면 자동 채움 안 함 스펙).
+        apply(steps);
+        if (steps.trim()) setAiGenerated(steps); // 사용자가 편집하면 고지 숨김.
+      } catch (err) {
+        // quota/auth/빈응답(LlmEmptyResponseError) 등 LLM 실패를 공통 토스트로 알린다.
+        if (!cancelled) toastLlmError(err, t, "llm.error.empty");
       } finally {
         // 취소(재실행/언마운트) 경로에서도 로딩을 반드시 해제 — 안 하면 스피너 소프트락.
         setLoading(false);

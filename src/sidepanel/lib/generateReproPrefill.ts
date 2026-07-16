@@ -2,8 +2,7 @@ import type { CaptureMode } from "@/store/editor-store";
 import type { LocaleMode } from "@/store/settings-ui-store";
 import type { ActionLogSummary } from "@/types/action";
 import {
-  LlmAuthError,
-  LlmQuotaError,
+  LlmEmptyResponseError,
   type AIProvider,
   type AISession,
   type ProviderCapabilities,
@@ -27,17 +26,15 @@ export interface ReproPrefillInput {
   actionLogSummary: ActionLogSummary;
 }
 
-export type ReproPrefillResult =
-  | { ok: true; steps: string }
-  | { ok: false; reason: "quota" | "auth" | "other" };
-
 // 기존 AI draft 파이프라인을 stepsToReproduce 단일 섹션으로 좁혀 재사용. userPrompt·이미지·diff
 // 없음(재현 단계는 액션 로그만으로 충분). title은 스키마상 강제되지만 응답에서 무시한다.
 const REQUEST_MESSAGE = "Write the reproduction steps from the actions above.";
 
+// 성공 시 steps 문자열 반환. provider 에러(quota/auth 등)는 그대로 전파하고, 응답이 비거나
+// 파싱 불가면 LlmEmptyResponseError를 던진다 — 호출부가 toastLlmError로 통일 처리.
 export async function generateReproStepsWithAI(
   input: ReproPrefillInput,
-): Promise<ReproPrefillResult> {
+): Promise<string> {
   const ctx: AiDraftSessionContext = {
     caps: input.capabilities,
     captureMode: input.captureMode,
@@ -50,24 +47,18 @@ export async function generateReproStepsWithAI(
   const systemPrompt = buildAiDraftSessionPrompt(ctx);
   const schema = buildAiDraftSchema(["stepsToReproduce"]);
 
-  let session: AISession;
-  try {
-    session = await input.createSession(systemPrompt, getDraftFewShot(ctx));
-  } catch (err) {
-    return { ok: false, reason: classify(err) };
-  }
+  const session: AISession = await input.createSession(
+    systemPrompt,
+    getDraftFewShot(ctx),
+  );
   try {
     const raw = await session.prompt(REQUEST_MESSAGE, { responseSchema: schema });
     const steps = parseSteps(raw);
     if (!steps) {
-      // title을 요구하는 parseAiDraftResponse와 달리 steps만 본다 — 그래도 빈/파싱실패면 여기서 로깅.
       console.warn("[bugshot] repro prefill: AI returned no usable steps. Raw:", raw);
-      return { ok: false, reason: "other" };
+      throw new LlmEmptyResponseError();
     }
-    return { ok: true, steps };
-  } catch (err) {
-    console.warn("[bugshot] repro prefill: AI call failed", err);
-    return { ok: false, reason: classify(err) };
+    return steps;
   } finally {
     session.destroy();
   }
@@ -87,10 +78,4 @@ function parseSteps(raw: string): string | null {
   const val = parsed.stepsToReproduce;
   if (typeof val !== "string") return null;
   return stripLineNumbering(val).trim() || null;
-}
-
-function classify(err: unknown): "quota" | "auth" | "other" {
-  if (err instanceof LlmAuthError) return "auth";
-  if (err instanceof LlmQuotaError) return "quota";
-  return "other";
 }

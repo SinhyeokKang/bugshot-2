@@ -4,6 +4,7 @@ import type { TranslationKey } from "@/i18n/ko";
 import {
   AiContextOverflowError,
   LlmAuthError,
+  LlmEmptyResponseError,
   LlmOverloadedError,
   LlmQuotaError,
 } from "./ai-provider";
@@ -23,6 +24,8 @@ export function toastLlmError(
     });
   } else if (err instanceof LlmAuthError) {
     toast.error(t("llm.error.auth"));
+  } else if (err instanceof LlmEmptyResponseError) {
+    toast.error(t("llm.error.empty"));
   } else if (err instanceof LlmQuotaError) {
     toast.error(t("llm.error.quota"));
   } else if (err instanceof LlmOverloadedError) {

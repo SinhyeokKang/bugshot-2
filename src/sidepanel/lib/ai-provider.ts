@@ -170,6 +170,15 @@ export class LlmAuthError extends Error {
   }
 }
 
+// 호출은 성공했으나 모델이 빈/파싱 불가 응답을 준 경우. LLM 의존 기능 공통(초안·스타일링·재현단계)
+// 에서 toastLlmError로 "다시 시도" 안내를 띄우기 위한 에러.
+export class LlmEmptyResponseError extends Error {
+  constructor() {
+    super("empty_response");
+    this.name = "LlmEmptyResponseError";
+  }
+}
+
 export class AiContextOverflowError extends Error {
   constructor() {
     super("context_overflow");

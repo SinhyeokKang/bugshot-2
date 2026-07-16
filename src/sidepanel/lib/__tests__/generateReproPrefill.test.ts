@@ -1,6 +1,11 @@
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, beforeEach } from "vitest";
 import { generateReproStepsWithAI } from "../generateReproPrefill";
-import { LlmQuotaError, LlmAuthError, NANO_CAPABILITIES } from "../ai-provider";
+import {
+  LlmQuotaError,
+  LlmAuthError,
+  LlmEmptyResponseError,
+  NANO_CAPABILITIES,
+} from "../ai-provider";
 import type { AISession, AIProvider } from "../ai-provider";
 import { COMPACT_DRAFT_FEW_SHOT } from "../prompts/draftCompact";
 import { buildAiDraftSchema } from "../buildAiDraftPrompt";
@@ -35,36 +40,34 @@ function baseInput(createSession: AIProvider["createSession"]) {
   };
 }
 
+beforeEach(() => {
+  vi.spyOn(console, "warn").mockImplementation(() => {});
+});
+
 describe("generateReproStepsWithAI", () => {
-  it("성공 시 stepsToReproduce만 추출하고 title은 무시한다", async () => {
+  it("성공 시 stepsToReproduce 문자열을 반환하고 title은 무시한다", async () => {
     const { createSession } = makeCreateSession(
       async () => '{"title":"Ignore me","stepsToReproduce":"Open X\\nClick Y"}',
     );
-    const r = await generateReproStepsWithAI(baseInput(createSession));
-    expect(r).toEqual({ ok: true, steps: "Open X\nClick Y" });
+    expect(await generateReproStepsWithAI(baseInput(createSession))).toBe("Open X\nClick Y");
   });
 
-  it("title이 없거나 비어도 stepsToReproduce가 있으면 ok (title 의존 제거)", async () => {
+  it("title이 없거나 비어도 stepsToReproduce가 있으면 반환한다 (title 의존 제거)", async () => {
     const noTitle = makeCreateSession(async () => '{"stepsToReproduce":"Open X\\nClick Y"}');
-    expect(await generateReproStepsWithAI(baseInput(noTitle.createSession))).toEqual({
-      ok: true,
-      steps: "Open X\nClick Y",
-    });
+    expect(await generateReproStepsWithAI(baseInput(noTitle.createSession))).toBe(
+      "Open X\nClick Y",
+    );
     const emptyTitle = makeCreateSession(async () => '{"title":"","stepsToReproduce":"Open X"}');
-    expect(await generateReproStepsWithAI(baseInput(emptyTitle.createSession))).toEqual({
-      ok: true,
-      steps: "Open X",
-    });
+    expect(await generateReproStepsWithAI(baseInput(emptyTitle.createSession))).toBe("Open X");
   });
 
   it("응답의 번호 접두(1. 2.)는 제거된다", async () => {
     const { createSession } = makeCreateSession(
       async () => '{"stepsToReproduce":"1. Open the page\\n2. Click Submit"}',
     );
-    expect(await generateReproStepsWithAI(baseInput(createSession))).toEqual({
-      ok: true,
-      steps: "Open the page\nClick Submit",
-    });
+    expect(await generateReproStepsWithAI(baseInput(createSession))).toBe(
+      "Open the page\nClick Submit",
+    );
   });
 
   it("stepsToReproduce 단일 섹션으로 좁히고 few-shot·스키마를 실어 호출한다", async () => {
@@ -86,51 +89,46 @@ describe("generateReproStepsWithAI", () => {
     expect(opts.responseSchema).toEqual(buildAiDraftSchema(["stepsToReproduce"]));
   });
 
-  it("provider가 LlmQuotaError를 던지면 reason:'quota'", async () => {
+  it("provider가 LlmQuotaError를 던지면 그대로 전파한다", async () => {
     const { createSession } = makeCreateSession(async () => {
       throw new LlmQuotaError();
     });
-    expect(await generateReproStepsWithAI(baseInput(createSession))).toEqual({
-      ok: false,
-      reason: "quota",
-    });
+    await expect(generateReproStepsWithAI(baseInput(createSession))).rejects.toBeInstanceOf(
+      LlmQuotaError,
+    );
   });
 
-  it("provider가 LlmAuthError를 던지면 reason:'auth'", async () => {
+  it("provider가 LlmAuthError를 던지면 그대로 전파한다", async () => {
     const { createSession } = makeCreateSession(async () => {
       throw new LlmAuthError();
     });
-    expect(await generateReproStepsWithAI(baseInput(createSession))).toEqual({
-      ok: false,
-      reason: "auth",
-    });
+    await expect(generateReproStepsWithAI(baseInput(createSession))).rejects.toBeInstanceOf(
+      LlmAuthError,
+    );
   });
 
-  it("그 밖의 에러면 reason:'other'", async () => {
+  it("그 밖의 에러도 그대로 전파한다", async () => {
     const { createSession } = makeCreateSession(async () => {
       throw new Error("network boom");
     });
-    expect(await generateReproStepsWithAI(baseInput(createSession))).toEqual({
-      ok: false,
-      reason: "other",
-    });
+    await expect(generateReproStepsWithAI(baseInput(createSession))).rejects.toThrow(
+      "network boom",
+    );
   });
 
-  it("응답의 stepsToReproduce가 빈 문자열이면 reason:'other'", async () => {
+  it("응답의 stepsToReproduce가 빈 문자열이면 LlmEmptyResponseError를 던진다", async () => {
     const { createSession } = makeCreateSession(
       async () => '{"title":"T","stepsToReproduce":""}',
     );
-    expect(await generateReproStepsWithAI(baseInput(createSession))).toEqual({
-      ok: false,
-      reason: "other",
-    });
+    await expect(generateReproStepsWithAI(baseInput(createSession))).rejects.toBeInstanceOf(
+      LlmEmptyResponseError,
+    );
   });
 
-  it("파싱 불가 응답이면 reason:'other'", async () => {
+  it("파싱 불가 응답이면 LlmEmptyResponseError를 던진다", async () => {
     const { createSession } = makeCreateSession(async () => "not json at all");
-    expect(await generateReproStepsWithAI(baseInput(createSession))).toEqual({
-      ok: false,
-      reason: "other",
-    });
+    await expect(generateReproStepsWithAI(baseInput(createSession))).rejects.toBeInstanceOf(
+      LlmEmptyResponseError,
+    );
   });
 });

@@ -4,12 +4,18 @@ import { renderHook, act, waitFor } from "@testing-library/react";
 vi.mock("@/sidepanel/lib/generateReproPrefill", () => ({
   generateReproStepsWithAI: vi.fn(),
 }));
-vi.mock("sonner", () => ({ toast: { error: vi.fn(), info: vi.fn() } }));
+vi.mock("@/sidepanel/lib/llmErrorToast", () => ({
+  toastLlmError: vi.fn(),
+}));
 
 import { useReproPrefill } from "../useReproPrefill";
 import { generateReproStepsWithAI } from "@/sidepanel/lib/generateReproPrefill";
-import { toast } from "sonner";
-import { NANO_CAPABILITIES } from "@/sidepanel/lib/ai-provider";
+import { toastLlmError } from "@/sidepanel/lib/llmErrorToast";
+import {
+  LlmQuotaError,
+  LlmEmptyResponseError,
+  NANO_CAPABILITIES,
+} from "@/sidepanel/lib/ai-provider";
 import type { ActionLog } from "@/types/action";
 
 function actionLog(captured = 2): ActionLog {
@@ -61,10 +67,8 @@ const render = (over: Record<string, unknown> = {}) => {
 const flush = () => act(async () => { await Promise.resolve(); });
 
 beforeEach(() => {
-  vi.mocked(generateReproStepsWithAI)
-    .mockReset()
-    .mockResolvedValue({ ok: true, steps: "AI a\nAI b" });
-  vi.mocked(toast.error).mockReset();
+  vi.mocked(generateReproStepsWithAI).mockReset().mockResolvedValue("AI a\nAI b");
+  vi.mocked(toastLlmError).mockReset();
 });
 
 describe("useReproPrefill", () => {
@@ -85,7 +89,7 @@ describe("useReproPrefill", () => {
   });
 
   it("available이면 AI 결과로 채운다", async () => {
-    vi.mocked(generateReproStepsWithAI).mockResolvedValue({ ok: true, steps: "AI a\nAI b" });
+    vi.mocked(generateReproStepsWithAI).mockResolvedValue("AI a\nAI b");
     const { args } = render({ aiStatus: "available" });
     await waitFor(() => expect(args.setDraft).toHaveBeenCalledTimes(1));
     expect((args.setDraft as any).mock.calls[0][0].sections.stepsToReproduce).toBe("AI a\nAI b");
@@ -96,7 +100,7 @@ describe("useReproPrefill", () => {
   });
 
   it("aiFilled는 AI 값이 draft에 그대로일 때만 true — 사용자가 편집하면 false", async () => {
-    vi.mocked(generateReproStepsWithAI).mockResolvedValue({ ok: true, steps: "AI a" });
+    vi.mocked(generateReproStepsWithAI).mockResolvedValue("AI a");
     const setDraft = vi.fn();
     const setDone = vi.fn();
     const createSession = vi.fn();
@@ -147,7 +151,7 @@ describe("useReproPrefill", () => {
   });
 
   it("aiStatus가 checking이면 보류, available로 바뀌면 그때 AI 발화(레이스 방지)", async () => {
-    vi.mocked(generateReproStepsWithAI).mockResolvedValue({ ok: true, steps: "AI a" });
+    vi.mocked(generateReproStepsWithAI).mockResolvedValue("AI a");
     const setDraft = vi.fn();
     const setDone = vi.fn();
     const mk = (over: Record<string, unknown> = {}) =>
@@ -189,23 +193,22 @@ describe("useReproPrefill", () => {
     expect(args.setDraft).not.toHaveBeenCalled();
   });
 
-  it("AI other 실패면 채우지 않고 토스트도 없음", async () => {
-    vi.mocked(generateReproStepsWithAI).mockResolvedValue({ ok: false, reason: "other" });
+  it("AI 빈응답이면 채우지 않고 toastLlmError로 알린다", async () => {
+    vi.mocked(generateReproStepsWithAI).mockRejectedValue(new LlmEmptyResponseError());
     const { args } = render();
-    await flush();
+    await waitFor(() => expect(toastLlmError).toHaveBeenCalled());
     expect(args.setDraft).not.toHaveBeenCalled();
-    expect(toast.error).not.toHaveBeenCalled();
   });
 
-  it("AI quota 실패면 채우지 않고 토스트만 고지", async () => {
-    vi.mocked(generateReproStepsWithAI).mockResolvedValue({ ok: false, reason: "quota" });
+  it("AI quota 실패면 채우지 않고 toastLlmError로 알린다", async () => {
+    vi.mocked(generateReproStepsWithAI).mockRejectedValue(new LlmQuotaError());
     const { args } = render();
-    await waitFor(() => expect(toast.error).toHaveBeenCalled());
+    await waitFor(() => expect(toastLlmError).toHaveBeenCalled());
     expect(args.setDraft).not.toHaveBeenCalled();
   });
 
   it("AI 실패여도 done은 소진(재시도 루프 방지)하되 setDraft 미호출", async () => {
-    vi.mocked(generateReproStepsWithAI).mockResolvedValue({ ok: false, reason: "other" });
+    vi.mocked(generateReproStepsWithAI).mockRejectedValue(new LlmEmptyResponseError());
     const { args } = render();
     await flush();
     expect(args.setDraft).not.toHaveBeenCalled();
@@ -241,7 +244,7 @@ describe("useReproPrefill", () => {
 
     rerender(mk({ reproPrefillDone: true })); // 발화가 유발한 리렌더 재현.
     await act(async () => {
-      resolveFn({ ok: true, steps: "AI a" });
+      resolveFn("AI a");
       await Promise.resolve();
     });
     expect(setDraft).toHaveBeenCalledTimes(1);
@@ -278,7 +281,7 @@ describe("useReproPrefill", () => {
 
     rerender(mk({ title: "typed", sections: {} })); // 로딩 중 제목 편집(steps는 여전히 빈값).
     await act(async () => {
-      resolveFn({ ok: true, steps: "AI a" });
+      resolveFn("AI a");
       await Promise.resolve();
     });
     expect(setDraft).toHaveBeenCalledTimes(1);
@@ -316,7 +319,7 @@ describe("useReproPrefill", () => {
     // 발화가 done을 latch한 뒤 언어 변경으로 리렌더되는 실제 상황(재발화 없음).
     rerender(mk({ locale: "ko", reproPrefillDone: true }));
     await act(async () => {
-      resolveFn({ ok: true, steps: "AI a" });
+      resolveFn("AI a");
       await Promise.resolve();
     });
     expect(setDraft).toHaveBeenCalledTimes(1);
@@ -351,7 +354,7 @@ describe("useReproPrefill", () => {
 
     rerender(mk({ autoReproPrefill: false, reproPrefillDone: true })); // 로딩 중 opt-out.
     await act(async () => {
-      resolveFn({ ok: true, steps: "AI a" });
+      resolveFn("AI a");
       await Promise.resolve();
     });
     expect(setDraft).not.toHaveBeenCalled(); // 취소됨.
@@ -370,7 +373,7 @@ describe("useReproPrefill", () => {
     expect(generateReproStepsWithAI).toHaveBeenCalledTimes(1);
     unmount();
     await act(async () => {
-      resolveFn({ ok: true, steps: "late" });
+      resolveFn("late");
       await Promise.resolve();
     });
     expect(args.setDraft).not.toHaveBeenCalled();

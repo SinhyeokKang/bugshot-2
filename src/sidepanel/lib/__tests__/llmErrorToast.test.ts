@@ -4,6 +4,7 @@ import { toastLlmError } from "../llmErrorToast";
 import {
   AiContextOverflowError,
   LlmAuthError,
+  LlmEmptyResponseError,
   LlmOverloadedError,
   LlmQuotaError,
 } from "../ai-provider";
@@ -40,6 +41,11 @@ describe("toastLlmError", () => {
   it("인증 실패 → 전용 문구", () => {
     toastLlmError(new LlmAuthError(), t, "draft.aiError");
     expect(toast.error).toHaveBeenCalledWith("llm.error.auth");
+  });
+
+  it("빈/파싱실패 응답 → 재시도 유도 공통 문구", () => {
+    toastLlmError(new LlmEmptyResponseError(), t, "draft.aiError");
+    expect(toast.error).toHaveBeenCalledWith("llm.error.empty");
   });
 
   it("그 외 에러 → 호출부가 준 fallback 키", () => {
