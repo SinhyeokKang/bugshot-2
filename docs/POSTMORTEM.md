@@ -21,6 +21,13 @@
 
 ---
 
+## 2026-07-16 — "결과 무관 1회" 래치와 effect cleanup 취소가 만나, 취소된 AI 요청을 아무도 이어받지 않아 재현 단계가 영구 미충전
+
+- **증상**: video 캡처 후 작성 화면에서 재현 단계 자동 채움이 **조용히 안 됐다** — 로딩 오버레이는 떴다 사라지고, 실패 토스트도 없고, BYOK 호출은 1회 소진됐는데 섹션은 빈 채로 남고 재시도도 없다. 재현 조건이 좁아(in-flight 중 `trimming` 왕복, 또는 설정 변경으로 `capabilities`/`createSession` 정체성 변경) 육안으론 잡히지 않았고, `/code-review`는 이 자리를 **"dev StrictMode 이중 발화(⚪ dev 전용 비용)"로만 분류**해 지나갔다.
+- **근본 원인**: 각각 옳은 두 설계의 **결합**이 함정이었다. (1) `setReproPrefillDone(true)`를 응답 **전에** 선기록한다 — 실패·공백이어도 세션 1회로 못박아 BYOK 할당량 반복 소모를 막는 의도된 설계. (2) effect cleanup이 `cancelled = true`로 in-flight를 취소한다 — stale 적용을 막는 표준 패턴. 둘이 만나면: effect 재실행 시 cleanup이 요청을 취소하고, 재실행된 setup은 done 래치에 걸려 early-return하므로 **아무도 그 요청을 이어받지 않는다.** 응답이 도착해도 `if (cancelled) return`으로 폐기되고 done은 이미 true라 재발화도 없다. **취소는 원래 "다시 하겠다"는 뜻인데 래치가 "다시 안 한다"고 못박아, 취소가 곧 영구 포기로 뒤집힌 것.** deps의 `trimming`·`capabilities`·`createSession`(`useAI`가 `llm`에 memo)이 prod에서 실제로 재실행을 만든다. StrictMode는 이 결함의 **원인이 아니라 드러내는 특수 케이스**였을 뿐인데, 그 표면만 보고 dev 이슈로 오분류한 게 진단 실패의 핵심. 더 나쁜 건 1차 픽스였다 — 이중 발화를 막으려 `doneRef.current = true` 래치를 **추가**하자, 같은 함정의 반대쪽으로 빠져 dev에서 결과 유실이 100% 재현되게 됐다(호출 2회·적용 1회 → 호출 1회·적용 0회).
+- **재발 방지**: (1) **"결과 무관 1회" 래치와 cleanup 취소를 같은 흐름에 두면, 재실행이 in-flight를 이어받는 경로가 반드시 있어야 한다** — 래치를 추가할 땐 "취소된 요청은 누가 이어받나?"를 먼저 답한다. `grep -rn "Done(true)\|doneRef\|cancelled = true" src/sidepanel/hooks/`로 래치+취소 결합 지점을 훑는다. (2) **"dev 전용"·"StrictMode 한정" 분류를 의심하라** — StrictMode 이중 실행은 prod에 없지만 그것이 드러내는 결함(cleanup↔래치 결합)은 **prod의 deps 변경으로 똑같이 터진다.** StrictMode 발견은 dev 비용이 아니라 **prod 재실행 경로의 리허설**로 취급하고, non-StrictMode deps 왕복 테스트로 환산해 재현해 본다(이번에 그 환산이 prod 유실을 드러냈다). (3) **비동기 1회성 작업의 가드는 호출 횟수가 아니라 결과를 단언** — 1차 픽스의 테스트는 `generateReproStepsWithAI` 1회만 봐서 `setDraft` 0회(유실)를 green으로 통과시켰다. "몇 번 불렀나"와 "채워졌나"를 **함께** 본다. (4) **가드의 비공허성은 분기를 일시 제거해 red를 확인**한다 — 채택 분기를 지우면 "게이트 왕복"·"StrictMode" 2케이스가 red가 되는 걸 실증했다.
+- **관련**: `src/sidepanel/hooks/useReproPrefill.ts`(`runRef` 채택 분기 + `doneRef.current` 선래치, cleanup 재등록), 테스트 `src/sidepanel/hooks/__tests__/useReproPrefill.test.tsx`("in-flight 중 게이트가 껐다 켜져도…"·"StrictMode 이중 마운트…"), 의도된 선기록 설계 `src/store/editor-store.ts`(`reproPrefillDone`, 재캡처 시 `...initial`로 리셋).
+
 ## 2026-07-16 — toLocaleString의 timeZoneName 옵션이 ko 시간 스켈레톤을 바꿔 콜론 포맷이 깨짐
 
 - **증상**: Captured 시각에 타임존 표기를 추가(`timeZoneName: "shortOffset"`)했더니, ko-KR UI에서 시간이 `09:01:50`(콜론) → `09시 1분 50초`로 바뀌고 분 2-digit 패딩까지 깨졌다(`1분`). en-US는 `09:01:50 AM GMT+9`로 멀쩡. 단위테스트는 `dateBcp47`을 en-US로 고정 mock해서 **green이었는데도 ko 화면이 깨진** 상태 — 사용자가 육안으로 발견.
