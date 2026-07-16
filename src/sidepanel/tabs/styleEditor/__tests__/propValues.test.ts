@@ -24,6 +24,14 @@ describe("PROP_VALUES — 열거형 속성 값 단일 출처", () => {
     expect(PROP_VALUES["white-space"]).toContain("nowrap");
   });
 
+  it("display에 table 계열 값 포함 (셀·행 레벨 편집)", () => {
+    expect(PROP_VALUES["display"]).toContain("table");
+    expect(PROP_VALUES["display"]).toContain("inline-table");
+    expect(PROP_VALUES["display"]).toContain("table-row");
+    expect(PROP_VALUES["display"]).toContain("table-cell");
+    expect(PROP_VALUES["display"]).toContain("table-caption");
+  });
+
   it("CSS-wide 키워드 상수", () => {
     expect(CSS_WIDE_KEYWORDS).toEqual(["initial", "inherit", "unset", "revert"]);
   });
