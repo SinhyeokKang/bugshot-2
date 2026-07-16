@@ -417,7 +417,7 @@ export function DraftingPanel() {
           {aiStatus === "available" && (
             <button
               data-testid="ai-draft-trigger"
-              className="flex items-center justify-between rounded-t-lg bg-purple-100/80 px-3.5 py-2.5 text-purple-700 transition-colors hover:bg-purple-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring aria-disabled:cursor-not-allowed aria-disabled:opacity-50 dark:bg-purple-950/50 dark:text-purple-300 dark:hover:bg-purple-900"
+              className="flex items-center justify-between rounded-t-lg bg-purple-100/80 px-3.5 py-2.5 text-purple-700 transition-colors hover:bg-purple-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring aria-disabled:cursor-not-allowed aria-disabled:opacity-50 dark:bg-purple-950 dark:text-purple-300 dark:hover:bg-purple-900"
               onClick={() => { if (aiDraftLoading || reproPrefillLoading) return; (document.activeElement as HTMLElement)?.blur?.(); setAiDialogOpen(true); }}
               aria-disabled={aiDraftLoading || reproPrefillLoading}
             >

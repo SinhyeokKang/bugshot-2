@@ -106,12 +106,9 @@ describe("디자인 토큰 표", () => {
       expect(contrastRatio(dark.destructive, dark.background)).toBeGreaterThanOrEqual(4.5);
     });
 
-    // 라이트는 shadcn 기본값 그대로라 실측 3.76:1로 AA에 미달한다(기존 상태, 별도 사안).
-    // 그래서 이 하한은 "기준"이 아니라 현재 값이 더 나빠지는 것만 막는 바닥이다.
-    // 라이트 destructive를 손볼 땐 이 값을 4.5로 올리는 게 목표.
-    it("라이트 destructive 글자 대비가 현 수준 아래로 내려가지 않는다", () => {
+    it("라이트에서 destructive 글자가 배경 대비 WCAG AA(4.5:1)를 넘는다", () => {
       const light = parseTokens(GLOBALS, ":root");
-      expect(contrastRatio(light.destructive, light.background)).toBeGreaterThanOrEqual(3.7);
+      expect(contrastRatio(light.destructive, light.background)).toBeGreaterThanOrEqual(4.5);
     });
   });
 });
