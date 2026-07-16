@@ -29,9 +29,21 @@ Turning this toggle on starts keeping the last 30 seconds of your screen. There'
 
 > Curious how to use 30s replay? See [30s Replay](../video/replay.md).
 
+## AI settings
+
+![AI settings — Fill reproduction steps](../assets/settings-issue-4.jpg)
+
+With **Fill reproduction steps** on, the moment you land on the issue screen after recording, AI reads the action log it just captured and **fills the Steps to reproduce section for you**. It saves you from retyping each step by hand.
+
+- It's **on** by default.
+- It only kicks in when an AI model is connected — with no AI available, nothing gets auto-filled and Steps to reproduce stays empty. See [AI LLM Integration](./ai.md) to connect one.
+- When it runs, the action log is sent to the connected AI. If you recorded a sensitive screen, feel free to turn it off.
+
+> Want to see how it fills things in? Check out [Writing an Issue (Recording mode)](../video/issue.md).
+
 ## Body composition
 
-![Body composition setting](../assets/settings-issue-4.jpg)
+![Body composition setting](../assets/settings-issue-5.jpg)
 
 Turn the body sections on or off. Four sections come ready out of the box.
 
@@ -48,7 +60,7 @@ Turn the body sections on or off. Four sections come ready out of the box.
 
 ## File attachments
 
-![File attachments toggle](../assets/settings-issue-5.jpg)
+![File attachments toggle](../assets/settings-issue-6.jpg)
 
 Sometimes you need to drop a file straight onto an issue — something captures or logs can't quite hold. Flip this toggle on and an **Attachments** area appears on the issue screen, where you can pick files to send along.
 
