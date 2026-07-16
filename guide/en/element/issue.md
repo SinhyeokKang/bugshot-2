@@ -46,7 +46,7 @@ Element mode attaches no logs. For bugs that need logs, reach for [Screenshot](.
 
 ![Issue preview](../assets/element-issue-5.jpg)
 
-Give the body a look in the preview before submitting. **Copy markdown** copies it as-is to paste elsewhere.
+Give the body a look in the preview before submitting. **Copy** copies it as-is to paste elsewhere.
 
 ## 7. Submit
 

@@ -56,7 +56,7 @@ The **Download** button on the right of the Log attachments section lets you gra
 
 ![Issue preview](../assets/screenshot-issue-5.jpg)
 
-Give the body a look in the preview before submitting. **Copy markdown** copies it as-is to paste elsewhere.
+Give the body a look in the preview before submitting. **Copy** copies it as-is to paste elsewhere.
 
 ## 7. Submit
 

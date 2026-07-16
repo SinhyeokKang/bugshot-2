@@ -45,9 +45,9 @@ Logs from several origins (including iframes embedded in the page) all land on o
 
 ## Report tab
 
-![Log viewer Report tab — title, environment, and body sections shown with inline images, plus a Copy markdown button in the top-right](../assets/logs-viewer-4.jpg)
+![Log viewer Report tab — title, environment, and body sections shown with inline images, plus a Copy button in the top-right](../assets/logs-viewer-4.jpg)
 
 It's not just video and logs — the **issue write-up itself** lives inside this file too. Click the **Report** tab at the top and you'll see the title, the environment, and the body sections (what happened, steps to reproduce, expected result) exactly as they were filed. Any images pasted into the body show up inline as well, so you can grasp "what the problem was" right here, without bouncing back to the original issue page.
 
-- Want to take the content elsewhere? Hit **Copy markdown** — the write-up is copied to your clipboard as Markdown, ready to paste into another doc or a chat.
+- Want to take the content elsewhere? Hit **Copy** — the write-up is copied to your clipboard as Markdown, ready to paste into another doc or a chat.
 - If the file doesn't include a report, this tab simply stays disabled, so there's nothing to worry about.
