@@ -74,6 +74,9 @@ test.describe.serial("style-code-view", () => {
   test("탭 스왑 — CSS 탭에서 class·Text·폼 섹션 숨김, 에디터 노출", async () => {
     await enterDebugAndPick(fixture, panel, "#title");
 
+    // #title은 class 없음 → Class 섹션 접힘 기본값. 폼 에디터 노출 검증 위해 펼친다.
+    await panel.getByTestId("section-class-toggle").click();
+
     // 기본 편집(폼) 모드: 토글 노출, class·Text 노출, CSS 뷰 미마운트.
     await expect(panel.getByTestId("style-view-toggle")).toBeVisible();
     await expect(panel.getByTestId("class-editor")).toBeVisible();
