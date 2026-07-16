@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
+import { StrictMode } from "react";
 import { renderHook, act, waitFor } from "@testing-library/react";
 
 vi.mock("@/sidepanel/lib/generateReproPrefill", () => ({
@@ -59,9 +60,9 @@ function baseArgs(over: Record<string, unknown> = {}) {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const render = (over: Record<string, unknown> = {}) => {
+const render = (over: Record<string, unknown> = {}, wrapper?: any) => {
   const args = baseArgs(over);
-  const utils = renderHook((p: any) => useReproPrefill(p), { initialProps: args });
+  const utils = renderHook((p: any) => useReproPrefill(p), { initialProps: args, wrapper });
   return { args, ...utils };
 };
 
@@ -206,6 +207,61 @@ describe("useReproPrefill", () => {
     const { args } = render();
     await waitFor(() => expect(toastLlmError).toHaveBeenCalled());
     expect(args.setDraft).not.toHaveBeenCalled();
+  });
+
+  it("미분류 에러(네트워크 등)의 fallback은 이 경로 전용 키 — 빈응답 문구를 재사용하지 않는다", async () => {
+    vi.mocked(generateReproStepsWithAI).mockRejectedValue(new TypeError("fetch failed"));
+    render();
+    await waitFor(() => expect(toastLlmError).toHaveBeenCalled());
+    expect(toastLlmError).toHaveBeenCalledWith(
+      expect.any(TypeError),
+      expect.anything(),
+      "draft.reproPrefillError",
+    );
+  });
+
+  it("in-flight 중 게이트가 껐다 켜져도 done 래치가 결과를 버리지 않고 이어받는다", async () => {
+    // done이 래치된 뒤 게이트 왕복(trimming 등)으로 effect가 재실행되면, 취소된 in-flight를
+    // 되살리지 않는 한 AI 호출만 소진하고 영구히 안 채워진다(prod 결과 유실 회귀 가드).
+    let resolveFn: (v: unknown) => void = () => {};
+    vi.mocked(generateReproStepsWithAI).mockReturnValue(
+      new Promise((res) => {
+        resolveFn = res;
+      }) as any,
+    );
+    const setDraft = vi.fn();
+    const stable = {
+      setDraft,
+      setReproPrefillDone: vi.fn(),
+      setLoading: vi.fn(),
+      createSession: vi.fn(),
+      actionLog: actionLog(),
+      draft: { title: "", sections: {} },
+      aiStatus: "available",
+    };
+    const mk = (over: Record<string, unknown> = {}) => baseArgs({ ...stable, ...over });
+    const { rerender } = renderHook((p: any) => useReproPrefill(p), {
+      initialProps: mk({ trimming: false }),
+    });
+    await flush();
+    expect(generateReproStepsWithAI).toHaveBeenCalledTimes(1);
+
+    // 발화가 done을 latch한 상태에서 게이트가 닫혔다 열린다.
+    rerender(mk({ trimming: true, reproPrefillDone: true }));
+    rerender(mk({ trimming: false, reproPrefillDone: true }));
+    await act(async () => {
+      resolveFn("AI a");
+      await Promise.resolve();
+    });
+    expect(setDraft).toHaveBeenCalledTimes(1); // 이어받아 적용 — 유실 없음.
+    expect(generateReproStepsWithAI).toHaveBeenCalledTimes(1); // 재발화도 없음.
+  });
+
+  it("StrictMode 이중 마운트에서도 AI 호출은 1회이고 그 결과는 유실되지 않는다", async () => {
+    const { args } = render({}, StrictMode);
+    await waitFor(() => expect(args.setDraft).toHaveBeenCalledTimes(1));
+    expect((args.setDraft as any).mock.calls[0][0].sections.stepsToReproduce).toBe("AI a\nAI b");
+    expect(generateReproStepsWithAI).toHaveBeenCalledTimes(1);
   });
 
   it("AI 실패여도 done은 소진(재시도 루프 방지)하되 setDraft 미호출", async () => {

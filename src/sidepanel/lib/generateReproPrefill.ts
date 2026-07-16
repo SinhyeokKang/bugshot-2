@@ -55,7 +55,8 @@ export async function generateReproStepsWithAI(
     const raw = await session.prompt(REQUEST_MESSAGE, { responseSchema: schema });
     const steps = parseSteps(raw);
     if (!steps) {
-      console.warn("[bugshot] repro prefill: AI returned no usable steps. Raw:", raw);
+      // raw는 액션 로그 파생이라 사용자 입력이 섞일 수 있다 — 본문은 남기지 않는다.
+      console.warn("[bugshot] repro prefill: AI returned no usable steps");
       throw new LlmEmptyResponseError();
     }
     return steps;

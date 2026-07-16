@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from "react";
-// setLoading은 스토어의 setReproPrefillLoading을 받는다 — 로딩은 App.tsx AI 오버레이가 소비한다.
 import { t } from "@/i18n";
 import type { CaptureMode, EditorDraft } from "@/store/editor-store";
 import type { LocaleMode } from "@/store/settings-ui-store";
@@ -26,6 +25,7 @@ interface UseReproPrefillArgs {
   autoReproPrefill: boolean;
   reproPrefillDone: boolean;
   setReproPrefillDone: (done: boolean) => void;
+  // 스토어의 setReproPrefillLoading — 로딩은 App.tsx AI 오버레이가 소비한다.
   setLoading: (loading: boolean) => void;
 }
 
@@ -54,15 +54,14 @@ export function useReproPrefill(args: UseReproPrefillArgs): {
   } = args;
   const [aiGenerated, setAiGenerated] = useState<string | null>(null);
 
-  // draft·actionLog·reproPrefillDone은 최신 값을 ref로 읽는다 — deps에는 원시 플래그만 넣어
-  // AI in-flight 중 무관한 편집(제목 등)이 effect 재실행→취소를 일으키지 않게 한다. apply는
-  // ref의 최신 draft에 병합해 로딩 중 사용자가 편집한 다른 섹션을 덮지 않는다.
+  // ref로 읽어야 deps를 원시 플래그로 좁힐 수 있다 — 객체를 deps에 넣으면 무관한 편집이 취소를 부른다.
   const draftRef = useRef(draft);
   draftRef.current = draft;
   const actionLogRef = useRef(actionLog);
   actionLogRef.current = actionLog;
   const doneRef = useRef(reproPrefillDone);
   doneRef.current = reproPrefillDone;
+  const runRef = useRef<{ cancelled: boolean } | null>(null);
 
   const hasActionLog = !!actionLog && actionLog.captured > 0;
   const draftReady = !!draft;
@@ -70,9 +69,7 @@ export function useReproPrefill(args: UseReproPrefillArgs): {
 
   useEffect(() => {
     if (!autoReproPrefill) return;
-    // 두 게이트는 서로 다른 관심사다: captureMode==="video"는 1차 릴리스 기능 스코프 제한이고,
-    // supportsActionLog는 로그 정책 단일 출처(하드코딩 우회 금지 — docs/POSTMORTEM 2026-07-14).
-    // video는 항상 supportsActionLog이라 지금은 후자가 통과하지만, 스코프가 넓어질 때 단일 출처를 탄다.
+    // video 게이트는 1차 릴리스 스코프 제한, 아래 supportsActionLog는 로그 정책 단일 출처다 — video가 늘 후자를 통과해 겹쳐 보여도 스코프가 넓어질 때를 위해 남긴다(POSTMORTEM 2026-07-14).
     if (captureMode !== "video") return;
     if (trimming) return;
     if (!sectionEnabled) return;
@@ -81,15 +78,25 @@ export function useReproPrefill(args: UseReproPrefillArgs): {
     if (!draftReady) return;
     if (!stepsEmpty) return;
     if (aiStatus !== "available") return; // AI 가용 시에만 자동 채움(checking 보류·unavailable 미발화).
-    if (doneRef.current) return;
+    // done 래치 후 게이트가 다시 열린 재실행(게이트 왕복·StrictMode 이중 마운트)은 직전 요청을 이어받는다 — 취소된 채 두면 AI 호출만 소진하고 영구히 안 채워진다.
+    if (doneRef.current) {
+      const prev = runRef.current;
+      if (!prev) return;
+      prev.cancelled = false;
+      return () => {
+        prev.cancelled = true;
+      };
+    }
 
     setReproPrefillDone(true); // 이하 결과 무관하게 세션 1회(공백·실패여도 재시도 안 함).
+    doneRef.current = true; // 리렌더 전에 래치 — store 왕복을 기다리면 이중 실행이 재발화한다.
     const log = actionLogRef.current!;
-    let cancelled = false;
+    const run = { cancelled: false };
+    runRef.current = run;
 
     const apply = (steps: string) => {
       const current = draftRef.current;
-      if (cancelled || !steps.trim() || !current) return; // 언마운트 후 무시 + 공백 스킵.
+      if (run.cancelled || !current) return; // 언마운트 후 무시.
       // 최신 draft에 병합 — 로딩 중 편집된 다른 섹션·제목 보존.
       setDraft({
         ...current,
@@ -109,12 +116,12 @@ export function useReproPrefill(args: UseReproPrefillArgs): {
           pageTitle,
           actionLogSummary: buildActionLogSummary(log),
         });
-        if (cancelled) return;
+        if (run.cancelled) return;
         apply(steps);
-        if (steps.trim()) setAiGenerated(steps); // 사용자가 편집하면 고지 숨김.
+        setAiGenerated(steps); // 사용자가 편집하면 고지 숨김.
       } catch (err) {
         // quota/auth/빈응답(LlmEmptyResponseError) 등 LLM 실패를 공통 토스트로 알린다.
-        if (!cancelled) toastLlmError(err, t, "llm.error.empty");
+        if (!run.cancelled) toastLlmError(err, t, "draft.reproPrefillError");
       } finally {
         // 취소(재실행/언마운트) 경로에서도 로딩을 반드시 해제 — 안 하면 스피너 소프트락.
         setLoading(false);
@@ -122,11 +129,9 @@ export function useReproPrefill(args: UseReproPrefillArgs): {
     })();
 
     return () => {
-      cancelled = true;
+      run.cancelled = true;
     };
-    // deps는 발화 판정용 원시 플래그만. draft/actionLog 객체나 locale/url/pageTitle(fire-input)을
-    // 넣으면 로딩 중 무관한 변경이 재실행→cleanup 취소를 유발해 AI 결과 유실·로딩 고착을 만든다
-    // (이 값들은 발화 시점 closure로 읽는다).
+    // deps는 발화 판정용 원시 플래그만 — draft/actionLog·locale/url/pageTitle을 넣으면 로딩 중 무관한 변경이 재실행→취소를 유발해 AI 결과 유실·로딩 고착을 만든다(발화 시점 closure로 읽는다).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     autoReproPrefill,

@@ -76,12 +76,12 @@ describe("generateReproStepsWithAI", () => {
     );
     await generateReproStepsWithAI(baseInput(createSession));
 
+    // 섹션 목록은 `- <id>: <설명>` 줄로 나간다 — 카피가 바뀌어도 이 단언은 유효하다.
     const sys = calls[0].systemPrompt;
-    expect(sys).toContain("stepsToReproduce");
-    // 다른 섹션 설명(compact SECTION_DESC.en)은 프롬프트에 없어야 한다.
-    expect(sys).not.toContain("what is broken now"); // description
-    expect(sys).not.toContain("what should happen instead"); // expectedResult
-    expect(sys).not.toContain("any other context"); // notes
+    expect(sys).toContain("- stepsToReproduce:");
+    expect(sys).not.toContain("- description:");
+    expect(sys).not.toContain("- expectedResult:");
+    expect(sys).not.toContain("- notes:");
 
     expect(calls[0].fewShot).toEqual(COMPACT_DRAFT_FEW_SHOT);
 
@@ -130,5 +130,16 @@ describe("generateReproStepsWithAI", () => {
     await expect(generateReproStepsWithAI(baseInput(createSession))).rejects.toBeInstanceOf(
       LlmEmptyResponseError,
     );
+  });
+
+  it("파싱 실패를 경고로 남기되 raw 응답 본문은 싣지 않는다 (액션 로그 파생 입력값 잔류 방지)", async () => {
+    vi.mocked(console.warn).mockClear();
+    const { createSession } = makeCreateSession(async () => "not json: typed p@ssw0rd");
+    await expect(generateReproStepsWithAI(baseInput(createSession))).rejects.toBeInstanceOf(
+      LlmEmptyResponseError,
+    );
+    expect(console.warn).toHaveBeenCalled();
+    const logged = vi.mocked(console.warn).mock.calls.flat().join(" ");
+    expect(logged).not.toContain("p@ssw0rd");
   });
 });
