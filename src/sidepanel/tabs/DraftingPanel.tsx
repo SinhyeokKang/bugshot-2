@@ -752,29 +752,45 @@ function SectionTextarea({
               <ImagePlus />
             </Button>
           </>
+        ) : (
+          <Button
+            size="icon"
+            variant="outline"
+            className="h-8 w-8 shrink-0 hover:text-destructive"
+            title={t("draft.stepsReset")}
+            data-testid={`draft-section-${section.id}-reset`}
+            disabled={!value.trim()}
+            onClick={() => onChange("")}
+          >
+            <Trash2 />
+          </Button>
+        )
+      }
+      overlay={
+        reproLoading ? (
+          <div
+            role="status"
+            data-testid="repro-prefill-loading"
+            className="absolute inset-0 z-10 flex items-center justify-center overflow-hidden backdrop-blur-[2px]"
+          >
+            <div className="absolute inset-0 bg-purple-500/5" />
+            <div className="absolute inset-0 animate-shimmer bg-gradient-to-b from-transparent via-purple-400/10 to-transparent" />
+            <span className="relative text-base font-semibold text-purple-600 dark:text-purple-300">
+              {t("reproPrefill.loading")}
+            </span>
+          </div>
         ) : undefined
       }
     >
       {section.renderAs === "orderedList" ? (
-        reproLoading ? (
-          <div
-            role="status"
-            className="flex min-h-16 items-center justify-center gap-2 rounded-md border bg-muted/40 text-sm text-muted-foreground"
-            data-testid="repro-prefill-loading"
-          >
-            <Loader2 className="h-4 w-4 animate-spin" />
-            {t("reproPrefill.loading")}
-          </div>
-        ) : (
-          <div className="space-y-1.5">
-            <OrderedListEditor value={value} onChange={onChange} placeholder={placeholder} />
-            {reproAiHint ? (
-              <p className="text-xs text-muted-foreground/60" data-testid="repro-prefill-ai-hint">
-                {t("reproPrefill.aiHint")}
-              </p>
-            ) : null}
-          </div>
-        )
+        <div className="space-y-1.5">
+          <OrderedListEditor value={value} onChange={onChange} placeholder={placeholder} />
+          {reproAiHint ? (
+            <p className="text-center text-xs text-muted-foreground/60" data-testid="repro-prefill-ai-hint">
+              {t("aiDraft.disclaimer")}
+            </p>
+          ) : null}
+        </div>
       ) : (
         <Suspense fallback={<Textarea disabled placeholder={placeholder} className="min-h-32 resize-none text-sm" />}>
           <LazyTiptapEditor

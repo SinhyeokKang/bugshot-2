@@ -44,6 +44,29 @@ describe("generateReproStepsWithAI", () => {
     expect(r).toEqual({ ok: true, steps: "Open X\nClick Y" });
   });
 
+  it("title이 없거나 비어도 stepsToReproduce가 있으면 ok (title 의존 제거)", async () => {
+    const noTitle = makeCreateSession(async () => '{"stepsToReproduce":"Open X\\nClick Y"}');
+    expect(await generateReproStepsWithAI(baseInput(noTitle.createSession))).toEqual({
+      ok: true,
+      steps: "Open X\nClick Y",
+    });
+    const emptyTitle = makeCreateSession(async () => '{"title":"","stepsToReproduce":"Open X"}');
+    expect(await generateReproStepsWithAI(baseInput(emptyTitle.createSession))).toEqual({
+      ok: true,
+      steps: "Open X",
+    });
+  });
+
+  it("응답의 번호 접두(1. 2.)는 제거된다", async () => {
+    const { createSession } = makeCreateSession(
+      async () => '{"stepsToReproduce":"1. Open the page\\n2. Click Submit"}',
+    );
+    expect(await generateReproStepsWithAI(baseInput(createSession))).toEqual({
+      ok: true,
+      steps: "Open the page\nClick Submit",
+    });
+  });
+
   it("stepsToReproduce 단일 섹션으로 좁히고 few-shot·스키마를 실어 호출한다", async () => {
     const { createSession, calls, promptCalls } = makeCreateSession(
       async () => '{"title":"T","stepsToReproduce":"s"}',

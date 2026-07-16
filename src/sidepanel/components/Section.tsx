@@ -50,6 +50,7 @@ export function Section({
   collapsible,
   defaultOpen = true,
   testId,
+  overlay,
 }: {
   title?: React.ReactNode;
   action?: React.ReactNode;
@@ -57,6 +58,8 @@ export function Section({
   collapsible?: boolean;
   defaultOpen?: boolean;
   testId?: string;
+  // 섹션 전체(헤더+본문)를 덮는 absolute 오버레이 슬롯(예: 로딩). caller가 absolute inset-0로 준다.
+  overlay?: React.ReactNode;
 }) {
   const [open, setOpen] = React.useState(defaultOpen);
   React.useEffect(() => {
@@ -64,7 +67,10 @@ export function Section({
   }, [defaultOpen]);
 
   return (
-    <section className="border-b border-border py-6 last:border-b-0" data-testid={testId}>
+    <section
+      className="relative border-b border-border py-6 last:border-b-0"
+      data-testid={testId}
+    >
       <div className="flex flex-col gap-3 px-4">
         {title || action ? (
           <div className="flex items-center justify-between gap-2">
@@ -89,6 +95,7 @@ export function Section({
           <div className="flex flex-col gap-3">{children}</div>
         )}
       </div>
+      {overlay}
     </section>
   );
 }

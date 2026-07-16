@@ -7,7 +7,6 @@ import type { ActionLog } from "@/types/action";
 import type { AIProvider, ProviderCapabilities } from "@/sidepanel/lib/ai-provider";
 import { supportsActionLog } from "@/sidepanel/lib/captureLogSupport";
 import { buildActionLogSummary } from "@/sidepanel/lib/buildLogSummary";
-import { buildReproSteps } from "@/sidepanel/lib/buildReproSteps";
 import { generateReproStepsWithAI } from "@/sidepanel/lib/generateReproPrefill";
 
 interface UseReproPrefillArgs {
@@ -28,8 +27,8 @@ interface UseReproPrefillArgs {
   setReproPrefillDone: (done: boolean) => void;
 }
 
-// drafting 진입 시 stepsToReproduce가 비어 있으면 액션 로그로 자동 채운다. AI 가용 시 AI,
-// 없거나 실패 시 룰 baseline. 세션 지속 가드(reproPrefillDone, persist)로 1회 발화.
+// drafting 진입 시 stepsToReproduce가 비어 있고 AI(나노/BYOK)가 가용하면, 액션 로그를 AI로
+// 정리해 자동 채운다. AI가 없으면 채우지 않는다. 세션 지속 가드(reproPrefillDone, persist)로 1회 발화.
 export function useReproPrefill(args: UseReproPrefillArgs): {
   loading: boolean;
   aiFilled: boolean;
@@ -52,7 +51,7 @@ export function useReproPrefill(args: UseReproPrefillArgs): {
     setReproPrefillDone,
   } = args;
   const [loading, setLoading] = useState(false);
-  const [aiFilled, setAiFilled] = useState(false);
+  const [aiGenerated, setAiGenerated] = useState<string | null>(null);
 
   // draft·actionLog·reproPrefillDone은 최신 값을 ref로 읽는다 — deps에는 원시 플래그만 넣어
   // AI in-flight 중 무관한 편집(제목 등)이 effect 재실행→취소를 일으키지 않게 한다. apply는
@@ -80,7 +79,7 @@ export function useReproPrefill(args: UseReproPrefillArgs): {
     if (!hasActionLog) return;
     if (!draftReady) return;
     if (!stepsEmpty) return;
-    if (aiStatus === "checking") return; // 상태 확정까지 보류(AI 가용자가 룰 결과 받는 레이스 방지).
+    if (aiStatus !== "available") return; // AI 가용 시에만 자동 채움(checking 보류·unavailable 미발화).
     if (doneRef.current) return;
 
     setReproPrefillDone(true); // 이하 결과 무관하게 세션 1회(공백·실패여도 재시도 안 함).
@@ -97,36 +96,33 @@ export function useReproPrefill(args: UseReproPrefillArgs): {
       });
     };
 
-    if (aiStatus === "available") {
-      setLoading(true);
-      void (async () => {
-        try {
-          const result = await generateReproStepsWithAI({
-            capabilities,
-            createSession,
-            captureMode,
-            locale,
-            url,
-            pageTitle,
-            actionLogSummary: buildActionLogSummary(log),
-          });
-          if (cancelled) return;
-          if (result.ok) {
-            apply(result.steps);
-            if (result.steps.trim()) setAiFilled(true); // AI 생성 고지용.
-          } else {
-            if (result.reason === "quota") toast.error(t("llm.error.quota"));
-            else if (result.reason === "auth") toast.error(t("llm.error.auth"));
-            apply(buildReproSteps(log)); // 룰 baseline 폴백.
-          }
-        } finally {
-          // 취소(재실행/언마운트) 경로에서도 로딩을 반드시 해제 — 안 하면 스피너 소프트락.
-          setLoading(false);
+    setLoading(true);
+    void (async () => {
+      try {
+        const result = await generateReproStepsWithAI({
+          capabilities,
+          createSession,
+          captureMode,
+          locale,
+          url,
+          pageTitle,
+          actionLogSummary: buildActionLogSummary(log),
+        });
+        if (cancelled) return;
+        if (result.ok) {
+          apply(result.steps);
+          if (result.steps.trim()) setAiGenerated(result.steps); // 사용자가 편집하면 고지 숨김.
+        } else if (result.reason === "quota") {
+          toast.error(t("llm.error.quota"));
+        } else if (result.reason === "auth") {
+          toast.error(t("llm.error.auth"));
         }
-      })();
-    } else {
-      apply(buildReproSteps(log));
-    }
+        // 실패 시 채우지 않음 — 룰 폴백 없음(AI 없으면 자동 채움 안 함 스펙).
+      } finally {
+        // 취소(재실행/언마운트) 경로에서도 로딩을 반드시 해제 — 안 하면 스피너 소프트락.
+        setLoading(false);
+      }
+    })();
 
     return () => {
       cancelled = true;
@@ -149,6 +145,10 @@ export function useReproPrefill(args: UseReproPrefillArgs): {
     capabilities,
     createSession,
   ]);
+
+  // AI가 채운 값을 사용자가 편집해 달라지면 "AI 생성" 고지를 숨긴다.
+  const aiFilled =
+    aiGenerated !== null && draft?.sections.stepsToReproduce === aiGenerated;
 
   return { loading, aiFilled };
 }

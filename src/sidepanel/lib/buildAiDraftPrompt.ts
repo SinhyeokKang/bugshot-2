@@ -63,7 +63,7 @@ export function parseAiDraftResponse(
   return { title, sections };
 }
 
-function stripLineNumbering(text: string): string {
+export function stripLineNumbering(text: string): string {
   return text
     .split("\n")
     .map((line) => line.replace(/^\d+[\.\)]\s*/, ""))

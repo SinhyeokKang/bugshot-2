@@ -12,9 +12,10 @@ import {
   buildAiDraftSchema,
   buildAiDraftSessionPrompt,
   getDraftFewShot,
-  parseAiDraftResponse,
+  stripLineNumbering,
   type AiDraftSessionContext,
 } from "./buildAiDraftPrompt";
+import { extractJson } from "./extractJson";
 
 export interface ReproPrefillInput {
   capabilities: ProviderCapabilities;
@@ -57,15 +58,35 @@ export async function generateReproStepsWithAI(
   }
   try {
     const raw = await session.prompt(REQUEST_MESSAGE, { responseSchema: schema });
-    const parsed = parseAiDraftResponse(raw, ["stepsToReproduce"]);
-    const steps = parsed?.sections.stepsToReproduce?.trim();
-    if (!steps) return { ok: false, reason: "other" };
+    const steps = parseSteps(raw);
+    if (!steps) {
+      // title을 요구하는 parseAiDraftResponse와 달리 steps만 본다 — 그래도 빈/파싱실패면 여기서 로깅.
+      console.warn("[bugshot] repro prefill: AI returned no usable steps. Raw:", raw);
+      return { ok: false, reason: "other" };
+    }
     return { ok: true, steps };
   } catch (err) {
+    console.warn("[bugshot] repro prefill: AI call failed", err);
     return { ok: false, reason: classify(err) };
   } finally {
     session.destroy();
   }
+}
+
+// stepsToReproduce만 추출한다 — title은 스키마상 강제되지만 이 경로는 무시하므로,
+// title 누락/빈값으로 응답 전체를 버리지 않는다(작은 모델이 title을 자주 빠뜨림).
+function parseSteps(raw: string): string | null {
+  const json = extractJson(raw);
+  if (!json) return null;
+  let parsed: Record<string, unknown>;
+  try {
+    parsed = JSON.parse(json);
+  } catch {
+    return null;
+  }
+  const val = parsed.stepsToReproduce;
+  if (typeof val !== "string") return null;
+  return stripLineNumbering(val).trim() || null;
 }
 
 function classify(err: unknown): "quota" | "auth" | "other" {

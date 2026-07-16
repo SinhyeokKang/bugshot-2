@@ -111,6 +111,17 @@ function IssueSettingsContent() {
           <RecordingSettingsCard />
         </Section>
 
+        <Section title={t("settings.aiSection")}>
+          <Card>
+            <CardContent className="flex flex-col gap-3 px-3 py-3">
+              <AutoReproPrefillToggleRow
+                enabled={autoReproPrefill}
+                onToggle={setAutoReproPrefill}
+              />
+            </CardContent>
+          </Card>
+        </Section>
+
         <Section title={t("settings.bodyComposition")}>
           <Card>
             <CardContent className="flex flex-col gap-3 px-3 py-3">
@@ -127,11 +138,6 @@ function IssueSettingsContent() {
               <AttachmentToggleRow
                 enabled={attachmentsEnabled}
                 onToggle={setAttachmentsEnabled}
-              />
-              <Separator className="-mx-3 w-auto" />
-              <AutoReproPrefillToggleRow
-                enabled={autoReproPrefill}
-                onToggle={setAutoReproPrefill}
               />
             </CardContent>
           </Card>
@@ -248,7 +254,9 @@ function AutoReproPrefillToggleRow({
         <label htmlFor="setting-auto-repro-prefill" className="cursor-pointer text-sm">
           {t("settings.autoReproPrefill.label")}
         </label>
-        <p className="text-sm text-muted-foreground">{t("settings.autoReproPrefill.help")}</p>
+        <p className="text-sm text-muted-foreground">
+          {t("settings.autoReproPrefill.help")}
+        </p>
       </div>
       <Switch
         id="setting-auto-repro-prefill"

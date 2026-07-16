@@ -18,9 +18,10 @@ const ko = {
   "settings.attachments.label": "파일 첨부",
   "settings.attachments.help":
     "이슈에 임의의 파일을 첨부합니다.",
-  "settings.autoReproPrefill.label": "재현 단계 자동 채움",
+  "settings.aiSection": "AI 설정",
+  "settings.autoReproPrefill.label": "재현 단계 채우기",
   "settings.autoReproPrefill.help":
-    "녹화 후 액션 로그로 재현 단계를 자동으로 채웁니다. AI 모델을 연결한 경우 액션 로그가 해당 AI로 전송됩니다.",
+    "AI 모델을 연결하면 녹화 후 액션 로그로 재현 단계를 자동으로 채웁니다. 이때 액션 로그가 연결된 AI로 전송됩니다.",
   "settings.theme": "테마",
   "settings.language": "언어",
   "settings.theme.light": "라이트",
@@ -107,9 +108,10 @@ const en = {
   "settings.attachments.label": "File attachments",
   "settings.attachments.help":
     "Attach arbitrary files to issues.",
-  "settings.autoReproPrefill.label": "Auto-fill reproduction steps",
+  "settings.aiSection": "AI settings",
+  "settings.autoReproPrefill.label": "Fill reproduction steps",
   "settings.autoReproPrefill.help":
-    "Fills reproduction steps from your action log after recording. If an AI model is connected, the action log is sent to it.",
+    "When an AI model is connected, fills reproduction steps from your action log after recording. The action log is then sent to the connected AI.",
   "settings.theme": "Theme",
   "settings.language": "Language",
   "settings.theme.light": "Light",
