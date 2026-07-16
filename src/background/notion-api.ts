@@ -363,9 +363,15 @@ interface NotionRichTextInput {
   };
 }
 
-function richText(content: string): NotionRichTextInput[] {
+// Notion rich_text 원소당 content 2000자 한도 — 초과하면 API 400.
+export function richText(content: string): NotionRichTextInput[] {
   if (!content) return [];
-  return [{ type: "text", text: { content } }];
+  const CHUNK = 2000;
+  const out: NotionRichTextInput[] = [];
+  for (let i = 0; i < content.length; i += CHUNK) {
+    out.push({ type: "text", text: { content: content.slice(i, i + CHUNK) } });
+  }
+  return out;
 }
 
 function expandRichText(items: NotionRichTextBlock[]): NotionRichTextInput[] {

@@ -37,6 +37,7 @@ interface NetworkLogContentProps {
   scrollToEntryId?: string | null;
   onScrollComplete?: () => void;
   isMuted?: (absTs: number) => boolean; // 트림 후보(잘려나갈 요청) 흐림 판정 — 좌측 리스트 행만 적용
+  onActiveChange?: (id: string | null) => void; // 선택 변경 통지(삽입 다이얼로그 전용, optional)
 }
 
 function methodColor(method: string): string {
@@ -148,7 +149,7 @@ function buildCurl(req: NetworkRequest): string {
 
 type DetailTab = "headers" | "request" | "response" | "messages";
 
-export function NetworkLogContent({ requests, flush, syncBaseMs, onSeek, activeTs, scrollToEntryId, onScrollComplete, isMuted }: NetworkLogContentProps) {
+export function NetworkLogContent({ requests, flush, syncBaseMs, onSeek, activeTs, scrollToEntryId, onScrollComplete, isMuted, onActiveChange }: NetworkLogContentProps) {
   const t = useT();
   const [activeId, setActiveId] = useState<string | null>(null);
   const [detailTab, setDetailTab] = useState<DetailTab>("headers");
@@ -175,6 +176,13 @@ export function NetworkLogContent({ requests, flush, syncBaseMs, onSeek, activeT
   useEffect(() => {
     if (originFilter !== null && !originKeys.includes(originFilter)) setOriginFilter(null);
   }, [originKeys, originFilter]);
+  // activeId는 handleSelect 외에 scroll onFound에서도 set되므로 effect로 전 경로를 커버한다.
+  const onActiveChangeRef = useRef(onActiveChange);
+  onActiveChangeRef.current = onActiveChange;
+  useEffect(() => {
+    onActiveChangeRef.current?.(activeId);
+  }, [activeId]);
+
   const activeReq = requests.find((r) => r.id === activeId) ?? null;
   const filteredRequests = useMemo(() => {
     let result = filter === "all" ? requests : requests.filter((r) => classifyRequest(r) === filter);

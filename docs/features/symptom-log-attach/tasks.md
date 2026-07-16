@@ -22,8 +22,8 @@
     - `[${level}] ${args}` + level==="error" && stack이면 개행 후 stack. `language` 없음.
     - args도 16384 chars 초과 시 truncate.
 - **검증**:
-  - [ ] `pnpm test logToCodeBlock` 통과
-  - [ ] 케이스: JSON body 정렬 / non-JSON raw / GET(body 없음) / truncated·binary·stream·omitted descriptor 4종 / 16K 초과 truncate / **pending 요청 / status 0 요청** / WS 헤더만 / 콘솔 error+stack / **콘솔 error-no-stack** / 콘솔 비-error(stack 미포함) / **콘솔 거대 args truncate**
+  - [x] `pnpm test logToCodeBlock` 통과
+  - [x] 케이스: JSON body 정렬 / non-JSON raw / GET(body 없음) / truncated·binary·stream·omitted descriptor 4종 / 16K 초과 truncate / **pending 요청 / status 0 요청** / WS 헤더만 / 콘솔 error+stack / **콘솔 error-no-stack** / 콘솔 비-error(stack 미포함) / **콘솔 거대 args truncate**
 
 ### Task 2: TiptapEditor 핸들에 코드블럭 삽입
 - **변경 대상**: `src/sidepanel/components/TiptapEditor.tsx`
@@ -31,7 +31,7 @@
   - `TiptapEditorHandle`(`:86`)에 `insertCodeBlock(text: string, language?: string): void` 추가.
   - `useImperativeHandle`(`:249`)에 구현: `editor?.chain().focus().insertContent([{ type: "codeBlock", attrs: { language: language ?? null }, content: text ? [{ type: "text", text }] : [] }, { type: "paragraph" }]).run()`.
 - **검증**:
-  - [ ] `pnpm typecheck` 통과
+  - [x] `pnpm typecheck` 통과
   - [ ] (수동) 삽입 후 에디터에 코드블럭 렌더, 뒤 문단으로 커서 이동 가능
   - [ ] (수동, **게이트**) `getMarkdown()` 결과에 ```` ```json ```` fence + language가 실제로 출력되는지 눈으로 1회 확인(tiptap-markdown 내부 동작)
 
@@ -41,9 +41,9 @@
   - **NetworkLogContent**: optional `onActiveChange?: (id: string | null) => void` 추가. `activeId`에 `useEffect`를 걸어 발화(초기값·scroll `onFound`·`handleSelect` 전 경로 커버). 기존 master-detail 선택 재사용.
   - **ConsoleLogContent**: 표시 전용(행 클릭=expand만, activeId는 영상sync 파생)이므로 `selectable?: boolean` + `selectedId?: string | null` + `onActiveChange?` 3개 추가. `selectable`일 때: 행 클릭 = 선택(selectedId 설정 + onActiveChange) + expand 이중 동작, 재클릭은 접기(선택 유지). 선택 하이라이트는 **`ring-2 ring-primary` 계열**(배경 아님 — 레벨 틴트·sync 하이라이트와 경합 방지). 미공급 시 기존 동작 완전 동일(비침습).
 - **검증**:
-  - [ ] `pnpm typecheck` 통과
-  - [ ] 기존 SubTab·PreviewDialog(콜백 미공급)에서 동작·렌더 무변경 확인 — 각 호출부 2곳
-  - [ ] (컴포넌트 테스트 `*.test.tsx`) NetworkLogContent 행 클릭 → onActiveChange 호출 / ConsoleLogContent selectable 모드 행 클릭 → onActiveChange 호출 **+ ring 하이라이트가 뜬다 + 선택·expand 이중 동작**
+  - [x] `pnpm typecheck` 통과
+  - [x] 기존 SubTab·PreviewDialog(콜백 미공급)에서 동작·렌더 무변경 확인 — 각 호출부 2곳
+  - [x] (컴포넌트 테스트 `*.test.tsx`) NetworkLogContent 행 클릭 → onActiveChange 호출 / ConsoleLogContent selectable 모드 행 클릭 → onActiveChange 호출 **+ ring 하이라이트가 뜬다 + 선택·expand 이중 동작**
 
 ### Task 4: LogInsertDialog 신규
 - **변경 대상**: `src/sidepanel/components/LogInsertDialog.tsx` (신규)
@@ -55,7 +55,7 @@
   - 레이아웃: `NetworkLogPreviewDialog` 관례(80vw×80vh, rounded-3xl, gap-5, p-6).
   - `data-testid`: 다이얼로그 루트 `log-insert-dialog`(e2e 스코프), 탭·삽입 버튼도 부착.
 - **검증**:
-  - [ ] `pnpm typecheck` 통과
+  - [x] `pnpm typecheck` 통과
   - [ ] (수동) 탭 전환·행 선택·삽입 버튼 활성/비활성 동작
   - [ ] (수동, **폭 게이트**) 사이드패널 폭에서 Tabs 추가로 세로/가로 압박이 수용 가능한지 실측
 
@@ -69,7 +69,7 @@
   - 로컬 `useState`로 다이얼로그 open 관리. `useEditorStore`에서 `networkLog`·`consoleLog` 구독. 로그 둘 다 비면 로그 버튼만 `ariaDisabled`(TooltipIconButton 잠금, 툴팁 유지). 캡처·업로드는 유지.
   - `<LogInsertDialog>` 렌더: requests/entries 주입, `onInsert={(text, lang) => editorRef.current?.insertCodeBlock(text, lang)}`.
 - **검증**:
-  - [ ] `pnpm typecheck` 통과
+  - [x] `pnpm typecheck` 통과
   - [ ] (수동) `[로그|캡처|업로드]`가 세그먼트로 묶이고 chevron은 분리 렌더, 세 버튼 툴팁 노출
   - [ ] (수동) 발생 현상·기대 결과·비고 섹션 각각에서 로그 버튼 → 다이얼로그 → 삽입 동작
   - [ ] (수동) 기존 캡처·업로드 동작 무회귀
@@ -80,8 +80,8 @@
 - **작업 내용**:
   - `richText`를 **export**(단위 테스트 대상)하고, content를 2000자 청크 배열로 분할(design.md 코드). 빈 문자열 `[]` 유지.
 - **검증**:
-  - [ ] `pnpm test notion-api` 통과
-  - [ ] 케이스: 빈 문자열 → `[]` / 2000자 이하 → 단일 원소(기존과 동형) / 2001자 → 2원소 / 16384자 → 9원소
+  - [x] `pnpm test notion-api` 통과
+  - [x] 케이스: 빈 문자열 → `[]` / 2000자 이하 → 단일 원소(기존과 동형) / 2001자 → 2원소 / 16384자 → 9원소
   - [ ] (수동) 2000자 초과 코드블럭 포함 리포트를 Notion 제출 → 400 없이 성공
 
 ### Task 7: i18n 키 (ko/en 동시)
@@ -92,14 +92,14 @@
   - 탭 라벨: 기존 `networkLog.*`/`consoleLog.*` 재사용 가능하면 재사용, 아니면 `logInsert.tab.*`
   - payload/response 구분자는 코드 상수(비-i18n, 영문 고정 — 코드블럭 내부 텍스트)
 - **검증**:
-  - [ ] `src/i18n/__tests__/locales.test.ts` 통과 (PostToolUse 훅 자동)
-  - [ ] ko/en 키 대칭
+  - [x] `src/i18n/__tests__/locales.test.ts` 통과 (PostToolUse 훅 자동)
+  - [x] ko/en 키 대칭
 
 ### Task 8: privacy 문서 갱신
 - **변경 대상**: `docs/privacy.ko.md`, `docs/privacy.en.md` (ko 원본 + en 번역 동시, 상단 시행일 포함)
 - **작업 내용**: 캡처된 네트워크/콘솔 로그를 사용자가 골라 이슈 본문에 코드블럭으로 삽입하는 새 동작 + 마스킹 범위(token/password/secret만) + 그 외 원문 노출은 사용자 확인 후 삽입임을 반영.
 - **검증**:
-  - [ ] ko/en 본문·시행일 동시 갱신, 내용 일치
+  - [x] ko/en 본문·시행일 동시 갱신, 내용 일치
   - [ ] `/push` privacy 신선도 검사 통과 예상
 
 ## 테스트 계획

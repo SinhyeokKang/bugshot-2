@@ -1,7 +1,8 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
-import { Camera, Download, ImageIcon, ImagePlus, Loader2, Pencil, Plus, RotateCcw, Trash2, WandSparkles } from "lucide-react";
+import { Camera, Download, FileCode, ImageIcon, ImagePlus, Loader2, Pencil, Plus, RotateCcw, Trash2, WandSparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ButtonGroup } from "@/components/ui/button-group";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
@@ -24,6 +25,8 @@ import { CancelConfirmDialog } from "@/sidepanel/components/CancelConfirmDialog"
 import { LogAttachmentCards } from "@/sidepanel/components/LogAttachmentCards";
 import { AttachmentSection } from "@/sidepanel/components/AttachmentSection";
 import { NetworkLogPreviewDialog } from "@/sidepanel/components/NetworkLogPreviewDialog";
+import { LogInsertDialog } from "@/sidepanel/components/LogInsertDialog";
+import { TooltipIconButton } from "@/sidepanel/components/TooltipIconButton";
 import { ConsoleLogPreviewDialog } from "@/sidepanel/components/ConsoleLogPreviewDialog";
 import { ActionLogPreviewDialog } from "@/sidepanel/components/ActionLogPreviewDialog";
 import {
@@ -699,9 +702,16 @@ function SectionTextarea({
 
   const editorRef = useRef<import("../components/TiptapEditor").TiptapEditorHandle>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [logDialogOpen, setLogDialogOpen] = useState(false);
 
   const isParagraph = section.renderAs !== "orderedList";
   const aiLoading = useEditorStore((s) => s.aiDraftLoading);
+  const networkLog = useEditorStore((s) => s.networkLog);
+  const consoleLog = useEditorStore((s) => s.consoleLog);
+  const videoStartedAt = useEditorStore((s) => s.videoStartedAt);
+  const requests = networkLog?.requests ?? [];
+  const entries = consoleLog?.entries ?? [];
+  const noLogs = requests.length === 0 && entries.length === 0;
 
   return (
     <Section
@@ -725,30 +735,45 @@ function SectionTextarea({
                 e.target.value = "";
               }}
             />
-            <Button
-              size="icon"
-              variant="outline"
-              className="h-8 w-8 shrink-0 aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
-              title={t("draft.captureArea")}
-              aria-disabled={aiLoading}
-              onClick={() => {
-                if (aiLoading) return;
-                useEditorStore.getState().startInlineCapture(section.id);
-                const tabId = useEditorStore.getState().target?.tabId;
-                if (tabId) void startInlineAreaCapture(tabId);
-              }}
-            >
-              <Camera />
-            </Button>
-            <Button
-              size="icon"
-              variant="outline"
-              className="h-8 w-8 shrink-0"
-              title={t("draft.addImage")}
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <ImagePlus />
-            </Button>
+            {/* 셋 다 "이 섹션 본문에 콘텐츠 삽입"이라 한 그룹 — 접기(chevron)는 Section이 뒤에 따로 렌더한다. */}
+            <ButtonGroup className="flex-nowrap">
+              <TooltipIconButton
+                label={t("draft.insertLog")}
+                ariaDisabled={noLogs}
+                className="aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+                testId={`section-log-insert-${section.id}`}
+                onClick={() => setLogDialogOpen(true)}
+              >
+                <FileCode />
+              </TooltipIconButton>
+              <TooltipIconButton
+                label={t("draft.captureArea")}
+                ariaDisabled={aiLoading}
+                className="aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+                onClick={() => {
+                  useEditorStore.getState().startInlineCapture(section.id);
+                  const tabId = useEditorStore.getState().target?.tabId;
+                  if (tabId) void startInlineAreaCapture(tabId);
+                }}
+              >
+                <Camera />
+              </TooltipIconButton>
+              <TooltipIconButton
+                label={t("draft.addImage")}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <ImagePlus />
+              </TooltipIconButton>
+            </ButtonGroup>
+            <LogInsertDialog
+              open={logDialogOpen}
+              onOpenChange={setLogDialogOpen}
+              requests={requests}
+              entries={entries}
+              startedAt={consoleLog?.startedAt}
+              syncBaseMs={videoStartedAt ?? undefined}
+              onInsert={(text, language) => editorRef.current?.insertCodeBlock(text, language)}
+            />
           </>
         ) : (
           <Button

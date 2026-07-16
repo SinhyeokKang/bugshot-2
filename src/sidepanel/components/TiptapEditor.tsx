@@ -85,6 +85,7 @@ export interface TiptapEditorProps {
 
 export interface TiptapEditorHandle {
   insertImageFile: (file: File) => void;
+  insertCodeBlock: (text: string, language?: string) => void;
 }
 
 const imagePluginKey = new PluginKey("imageDropPaste");
@@ -248,7 +249,22 @@ const TiptapEditor = forwardRef<TiptapEditorHandle, TiptapEditorProps>(function 
 
   useImperativeHandle(ref, () => ({
     insertImageFile: (file: File) => handleImageFileRef.current(file),
-  }), []);
+    // 코드블럭 뒤에 빈 문단을 함께 넣어 커서가 블럭 끝에 갇히지 않게 한다.
+    insertCodeBlock: (text: string, language?: string) => {
+      editor
+        ?.chain()
+        .focus()
+        .insertContent([
+          {
+            type: "codeBlock",
+            attrs: { language: language ?? null },
+            content: text ? [{ type: "text", text }] : [],
+          },
+          { type: "paragraph" },
+        ])
+        .run();
+    },
+  }), [editor]);
 
   // Resolve inline:refId → blob URL on editor mount
   useEffect(() => {

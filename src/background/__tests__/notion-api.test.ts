@@ -7,6 +7,7 @@ import {
   messageForNotionStatus,
   parseDatabaseSchema,
   parsePageStatus,
+  richText,
 } from "../notion-api";
 
 describe("buildNotionAuthHeader", () => {
@@ -316,5 +317,32 @@ describe("expandBlock mention_paragraph", () => {
         ],
       },
     });
+  });
+});
+
+describe("richText", () => {
+  it("빈 문자열은 빈 배열", () => {
+    expect(richText("")).toEqual([]);
+  });
+
+  it("2000자 이하는 단일 원소(기존과 동형)", () => {
+    const s = "a".repeat(2000);
+    expect(richText(s)).toEqual([{ type: "text", text: { content: s } }]);
+  });
+
+  it("2001자는 2000 + 1로 분할", () => {
+    const s = "a".repeat(2001);
+    expect(richText(s)).toEqual([
+      { type: "text", text: { content: "a".repeat(2000) } },
+      { type: "text", text: { content: "a" } },
+    ]);
+  });
+
+  it("16384자는 9청크로 분할되고 원문이 보존된다", () => {
+    const s = "b".repeat(16384);
+    const out = richText(s);
+    expect(out).toHaveLength(9);
+    expect(out.every((rt) => rt.text.content.length <= 2000)).toBe(true);
+    expect(out.map((rt) => rt.text.content).join("")).toBe(s);
   });
 });
