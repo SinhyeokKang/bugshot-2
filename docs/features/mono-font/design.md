@@ -2,25 +2,47 @@
 
 ## 개요
 
-`@fontsource-variable/geist-mono`를 의존성으로 추가하고 `globals.css`에 `@import`해 `@font-face`를 사이드패널에 싣는다. `tailwind.config.js`에 `fontFamily.mono`를 **처음으로** 정의해 `"Geist Mono Variable"`를 맨 앞에, Tailwind 기본 mono 스택을 폴백으로 둔다. 이 한 곳이 단일 출처이고, 기존 `font-mono` 5곳은 코드 변경 없이 따라온다. 코드뷰 통일은 클래스 2개 추가·1개 제거로 끝난다 — CodeMirror 래퍼에 `font-mono`, DOM Tree Card에 `font-mono`, DomTreeNode의 `text-sm` 제거.
+`@fontsource-variable/geist-mono`를 의존성으로 추가하고 `globals.css`에 `@import`해 `@font-face`를 사이드패널에 싣는다. `tailwind.config.js`에 `fontFamily.mono`를 **처음으로** 정의해 `"Geist Mono Variable"`를 맨 앞에, Tailwind 기본 mono 스택을 폴백으로 둔다. 이 한 곳이 단일 출처이고, 기존 `font-mono` 5곳은 코드 변경 없이 따라온다. 코드뷰 통일은 CodeMirror 래퍼에 `font-mono`, DOM Tree Card에 `font-mono`, DomTreeNode의 `text-sm` 제거 + `title` 툴팁 추가로 끝난다.
 
-런타임 로직·상태·메시지 변경이 전혀 없는 순수 스타일 변경이다.
+런타임 로직·상태·메시지 변경이 전혀 없는 순수 스타일 변경이다. **단, 파급 범위는 `font-mono` 사용처보다 넓다 — 아래 preflight 절이 그 이유다.**
+
+## preflight 파급 (설계의 숨은 절반)
+
+Tailwind preflight(`node_modules/.../tailwindcss/src/css/preflight.css:114-119`):
+
+```css
+code, kbd, samp, pre {
+  font-family: theme('fontFamily.mono', ui-monospace, SFMono-Regular, Menlo, …);
+  font-feature-settings: theme('fontFamily.mono[1].fontFeatureSettings', normal);
+  font-variation-settings: theme('fontFamily.mono[1].fontVariationSettings', normal);
+  font-size: 1em;
+}
+```
+
+`fontFamily.mono`가 미정의인 지금은 두 번째 인자(기본 스택)가 나간다. **정의하는 순간 클래스가 안 붙은 모든 `pre`·`code`·`kbd`·`samp`가 Geist로 바뀐다.** 즉 `grep font-mono`로 센 5곳은 파급 범위가 아니다.
+
+이 파급은 **의도적으로 수용한다** — `pre`/`code`가 코드용 mono를 받는 건 정확히 preflight의 설계 의도이고, 앱이 mono를 소유하게 된 이상 그게 바람직한 방향이다. 다만 **범위를 모르고 수용하는 것과 알고 수용하는 것은 다르므로**, Task 2에서 미클래스 `pre`/`code`를 전수조사해 목록을 문서에 남긴다.
+
+관련 사실 둘:
+- **`NetworkLogContent.tsx:733`의 `font-sans`가 바로 이 메커니즘을 방어하는 코드다** — 주석이 "preflight가 `pre`를 monospace로 리셋하므로 `font-sans`를 명시한다"라고 적혀 있다. 즉 이 파급 벡터는 이미 코드베이스에 증거가 있었다. 이 줄은 **그대로 둔다**(sans여야 하는 `<pre>`).
+- `fontFamily.mono`를 **평범한 배열**로 정의하면 `mono[1]`은 문자열(`"ui-monospace"`)이라 `.fontFeatureSettings`/`.fontVariationSettings`가 `undefined` → 둘 다 `normal`로 폴백한다. 튜플 형태(`[family[], {…}]`)를 쓰지 않는 한 무해하다(대안 3 참조).
 
 ## 변경 범위
 
 ### `package.json`
-- **현재 역할**: 의존성 선언. `pretendard: ^1.3.9`가 같은 계열의 선례.
-- **변경 내용**: `dependencies`에 `@fontsource-variable/geist-mono` 추가 (5.2.8, OFL-1.1).
-- **주의**: `pnpm-workspace.yaml`의 `minimumReleaseAge: 1440` 정책이 적용된다 — 24시간 안 지난 버전은 자동 제외되고 직전 버전이 잡힌다. 5.2.8은 충분히 오래돼 무관. 빌드 스크립트 없는 패키지라 `onlyBuiltDependencies` 화이트리스트도 무관.
+- **현재 역할**: 의존성 선언. `pretendard: ^1.3.9`가 `dependencies`에 있는 게 같은 계열의 선례.
+- **변경 내용**: `dependencies`에 `@fontsource-variable/geist-mono@5.2.8` 추가 (OFL-1.1).
+- **버전을 명시적으로 박는다** — `pnpm-workspace.yaml`의 `minimumReleaseAge: 1440`이 24시간 미만 버전을 배제하므로 무버전 `pnpm add`는 무엇이 잡힐지 고정하지 못한다. 빌드 스크립트 없는 패키지라 `onlyBuiltDependencies` 화이트리스트는 무관.
 
 ### `src/styles/globals.css`
 - **현재 역할**: 사이드패널 전역 CSS. `:1`에 Pretendard `@import`, `:3-5`에 `@tailwind` 디렉티브, `:7-66`·`:68-105`에 `@layer base`.
 - **변경 내용**: `:1` 바로 아래에 `@import "@fontsource-variable/geist-mono/index.css";` 추가.
-- **제약**: CSS 사양상 `@import`는 **다른 규칙보다 앞서야 한다**. `@tailwind` 디렉티브 아래로 내려가면 무시된다. Pretendard 줄과 붙여 둔다.
-- **`body`의 `font-family`(`:78-81`)는 건드리지 않는다** — 여긴 sans 기본값이고, mono는 `font-mono` 유틸로만 진입한다.
+- **제약**: `@import`는 다른 규칙보다 앞서야 한다. 처리 주체는 브라우저가 아니라 **빌드 타임의 postcss-import**(vite 내장)이고, 오배치 시 `"@import must precede all other statements"` **경고를 내지만 `vite build`는 통과한다** → 로그를 안 읽으면 폴백만 남는다. Pretendard 줄과 붙여 둔다.
+- **`body`의 `font-family`(`:78-81`)는 건드리지 않는다** — sans 기본값이고, mono는 `font-mono` 유틸과 preflight로만 진입한다.
+- **`font-feature-settings`(`:82`)**: `body`에 걸린 상속 속성이라 모든 `font-mono` 후손이 `"rlig" 1, "calt" 1`을 물려받는다. **무해하다** — 둘 다 브라우저 기본값이고 Geist Mono엔 코딩 리거처가 없어 `calt`가 작용할 대상이 없다. 다만 후속 함정: `font-feature-settings`는 캐스케이드에서 **가산되지 않는다**. 나중에 mono 전용 feature(`tnum`·`zero` 등)를 추가하면 `rlig`/`calt`를 함께 다시 써주지 않는 한 조용히 날아간다.
 
 ### `tailwind.config.js`
-- **현재 역할**: `theme.extend.fontFamily`에 `sans`만 정의(`:11-24`). `mono`는 미정의라 Tailwind 기본값이 나간다.
+- **현재 역할**: `theme.extend.fontFamily`에 `sans`만 정의(`:11-26`, 배열 `:12-25`). `mono`는 미정의라 Tailwind 기본값이 나간다. 플러그인은 `:88`(`tailwindcss-animate` + `@tailwindcss/container-queries` 2개), `:89`가 `};`.
 - **변경 내용**: `sans` 아래에 `mono` 추가.
 - **폴백 스택을 반드시 유지한다** — log-viewer는 `@font-face`가 없으므로 폴백이 없으면 `font-mono`가 아무 데도 해석되지 않는다. 이게 이 설계의 안전장치다.
 
@@ -41,28 +63,38 @@ mono: [
 ],
 ```
 
-- **`tailwindcss/defaultTheme`를 import해 스프레드하지 않는다.** 저장소 어디에도 `defaultTheme` import가 없고(선례 0), 기존 `sans`가 문자열 리터럴로 나열된 스타일을 그대로 따른다. 무엇보다 이 배열을 **테스트가 텍스트로 읽어 검증**하므로(아래) 리터럴이어야 한다.
+- **`tailwindcss/defaultTheme`를 import해 스프레드하지 않는다.** 저장소 어디에도 `defaultTheme` import가 없고(선례 0), 기존 `sans`가 문자열 리터럴로 나열된 스타일을 그대로 따른다.
+- **평범한 배열로 둔다**(튜플 아님) — preflight 절 참조.
 
 ### `src/sidepanel/tabs/styleEditor/CssCodeMirror.tsx`
-- **현재 역할**: CSS 코드 뷰. `EditorView.theme`의 `"&"`(`:234-240`)가 `.cm-editor`에 `fontSize: 13px`만 주고 **`fontFamily`는 의도적으로 안 준다**. 대신 `.cm-scroller`(`:244`)·`.cm-content`(`:251`)·툴팁(`:325`,`:331`,`:395`)이 모두 `fontFamily: "inherit"`으로 상속 체인을 탄다. 체인의 뿌리는 JSX 래퍼 `<CodeMirror className="flex min-h-0 flex-1 flex-col">`(`:721`) → `body`(Pretendard).
-- **변경 내용**: `:721`의 className에 `font-mono` 추가 — **이 한 곳이 에디터 본문·거터·자동완성 팝업·토큰 툴팁 전부를 뒤집는다.** `fontFamily: "inherit"` 5곳은 손대지 않는다.
-- **`:329`의 2-class 오버라이드는 그대로 둔다.** CodeMirror 기본값 `.cm-tooltip.cm-tooltip-autocomplete > ul { font-family: monospace }`를 이겨야 하는 건 변함없다 — 그 `monospace`는 **브라우저 기본 mono이지 우리 Geist가 아니다.** family 지정이 무의미해지는 게 아니라 여전히 필요하다. (`maxHeight` 등 다른 속성도 이 셀렉터에 얹혀 있다.)
+- **현재 역할**: CSS 코드 뷰. `EditorView.theme`의 `"&"`(`:234-240`)가 `.cm-editor`에 `fontSize: 13px`(`:237`)만 주고 **`fontFamily`는 의도적으로 안 준다**. 대신 `.cm-scroller`(`:244`)·`.cm-content`(`:251`)·툴팁(`:325`,`:331`,`:395`)이 모두 `fontFamily: "inherit"`으로 상속 체인을 탄다. 체인의 뿌리는 JSX 래퍼 `<CodeMirror>`(**`:698`에서 열리고 className은 `:721`**) → `body`(Pretendard).
+- **변경 내용**: `:721`의 className(`"flex min-h-0 flex-1 flex-col"`)에 `font-mono` 추가 — **이 한 곳이 에디터 본문·거터·자동완성 팝업·토큰 툴팁 전부를 뒤집는다.** `fontFamily: "inherit"` 5곳은 손대지 않는다.
+- **`:330`의 2-class 오버라이드는 그대로 둔다**(`:329`는 그 주석). CodeMirror 기본값 `.cm-tooltip.cm-tooltip-autocomplete > ul { font-family: monospace }`를 이겨야 하는 건 변함없다 — 그 `monospace`는 **브라우저 기본 mono이지 우리 Geist가 아니다.**
+- **툴팁 상속의 전제**: CM 툴팁이 `inherit` 체인을 타려면 `.cm-editor` 내부에 렌더돼야 하고, 그건 `tooltips({parent})`가 **설정되지 않았을 때**만 참이다. 현재 extension 목록(`:710-719`)에 `tooltips(...)`가 없어 안전하다. 미래에 누가 `parent: document.body`를 넣으면 팝업만 조용히 sans로 남는다 — 이 조건을 여기 기록해둔다.
 - `:229`의 주석을 새 사실("DOM Tree Dialog와 통일 — Geist Mono 13px")로 갱신한다.
+- **13px은 그대로 둔다** — 대안 5 참조.
 
 ### `src/sidepanel/tabs/DomTreeDialog.tsx`
-- **현재 역할**: DOM 트리 다이얼로그. `DomTree`의 `<Card>`(`:201`)가 `text-[13px]`로 크기를 선언하고, `DomTreeNode`의 라벨 span(`:271`)이 `text-sm`(14px)으로 **그걸 덮는다**. 자식 span들(`:272`,`:273`,`:275`,`:282`,`:288`,`:292`,`:294`)은 색만 지정해 크기·family를 상속받는다.
+- **현재 역할**: `DomTree`의 `<Card>`(`:201`)가 `text-[13px]`로 크기를 선언하고, `DomTreeNode`의 라벨 span(`:271`, `"min-w-0 flex-1 truncate text-sm"`)이 `text-sm`(14px)으로 **그걸 덮는다**. 자식 span들(`:272`,`:273`,`:275`,`:282`,`:287`,`:292`,`:294`)은 색만 지정해 크기·family를 상속받는다(`:294`는 `ml-1`도 포함하나 크기·family는 미선언).
 - **변경 내용**:
   1. `:201` Card className에 `font-mono` 추가 — 트리 전체가 상속받는다.
   2. `:271`의 `text-sm` **제거** — Card의 `text-[13px]`가 비로소 주 텍스트에 적용된다.
-- **`text-sm` 제거가 안전한 이유**: 크기를 선언한 유일한 자식이 `:271`이고, 나머지는 색만 지정한다. 제거하면 전부 Card의 13px로 수렴한다. 새 값을 심는 게 아니라 이미 있던 `text-[13px]` 선언(현재 주 텍스트에 안 먹는 사실상 죽은 선언)을 복원하는 것이다.
+  3. `:271`에 `title={...}` 추가 — 트렁케이션 완화(아래 참조). 트리거(`:73`)엔 이미 `title`이 있고 라벨엔 없다.
+- **`text-sm` 제거가 안전한 이유**: 크기를 선언한 유일한 자식이 `:271`이고(`:186`·`:194`의 `text-sm`은 Card의 early-return 형제라 무관), 나머지는 색만 지정한다. 제거하면 전부 Card의 13px로 수렴한다.
+- **단, "복원"은 font-size 축에만 맞다.** `text-sm` = `font-size:.875rem` + `line-height:1.25rem` **쌍**이고 `text-[13px]`는 font-size만 잡는다. 제거하면 line-height 20px 명시값이 사라지고 preflight의 `html { line-height: 1.5 }` 상속으로 떨어져 **19.5px**가 된다. 0.5px 차이라 수용하되, line-height는 복원이 아니라 **유실**이라는 걸 기록해둔다.
+- **로딩·에러 상태(`:186`, `:194`)는 sans 14px로 둔다** — Card의 형제 early-return이라 `font-mono`·`text-[13px]` 어느 쪽도 안 받는다. 상태 메시지는 코드가 아니라 UI 텍스트이므로 의도된 경계다.
 - **`font-mono`를 `DialogContent`(`:79`)에 얹지 않는다** — 다이얼로그 제목(`:81` `text-xl`)과 트리거 버튼(`:72` `text-2xl font-semibold`)까지 mono가 돼버린다. 트리 콘텐츠의 루트인 Card가 정확한 경계다.
 
-### `src/styles/__tests__/fonts.test.ts` (신규)
-- **역할**: 폰트 스택 회귀 고정. 상세는 아래 "기존 패턴 준수".
+### `src/styles/__tests__/tokens.test.ts`
+- **현재 역할**: `globals.css` ↔ `log-viewer/styles.css` 토큰 표 동등성 + 라이트/다크 채도 + destructive 대비 하한. `readFileSync`(`:11`) + 정규식으로 CSS를 파싱한다.
+- **변경 내용**: `describe("폰트 스택")` 1개 추가. 상세는 "테스트 설계" 절.
+
+### `e2e/style-code-view.spec.ts`
+- **변경 내용**: 사이드패널 컨텍스트에서 `document.fonts.check` 단언 추가. 상세는 "테스트 설계" 절.
 
 ### `docs/DESIGN.md`
-- **현재 역할**: 디자인 시스템 단일 출처. `:13`이 폰트로 Pretendard만 나열, `:58-60` "타이포그래피" 절이 `font-sans` 스택만 기술.
-- **변경 내용**: `:13`에 Geist Mono(코드뷰·로그 전용) 추가, `:60`에 `font-mono` 스택 한 줄 추가 + log-viewer 폴백 사실 명기.
+- **현재 역할**: 디자인 시스템 단일 출처. `:13`이 폰트로 Pretendard만 나열, `:59`가 "## 4. 타이포그래피" 헤딩, `:61`이 `font-sans` 스택 기술.
+- **변경 내용**: `:13`에 Geist Mono(코드뷰·로그 전용) 추가. `:61` 아래에 `font-mono` 스택 + **log-viewer 폴백 사실** 한 줄. 추가로 **사이즈 축**: "코드뷰(CM·DOM 트리) = 13px mono, 두 표면 통일". `text-[13px]`는 현재 코드베이스에서 `DomTreeDialog.tsx:201` **단 1곳뿐인 one-off**인데 이 기능이 그걸 두 표면이 공유하는 규칙으로 승격시킨다 — DESIGN.md에 안 적으면 다음 사람이 한쪽만 바꿔 불변식이 조용히 깨진다(`CssCodeMirror.tsx:229` 주석 하나에만 의존하는 건 이미 얇다).
 
 ### `docs/DIRECTORY.md`
 - **변경 내용**: `:97`의 `styles/` 설명이 "Pretendard import"라고만 적혀 있다 — Geist Mono import를 함께 명기.
@@ -75,25 +107,26 @@ mono: [
 [사이드패널]  globals.css @import → @font-face "Geist Mono Variable" (dist/assets/*.woff2, 확장 origin)
                                             │
               tailwind.config fontFamily.mono ┤
-                                            ▼
+                       ├──────────────────────┴─→ preflight: pre/code/kbd/samp (미클래스 전부!)
+                       ▼
               .font-mono { font-family: "Geist Mono Variable", ui-monospace, … }
                     │
                     ├── ConsoleLogContent:254,262 / NetworkLogContent:576 / LogSeekChip:11,22  (변경 0)
                     ├── CssCodeMirror:721 wrapper ──┬─→ .cm-editor (fontFamily 미지정 = 상속)
                     │                               ├─→ .cm-scroller / .cm-content  (inherit)
-                    │                               └─→ .cm-tooltip*               (inherit)
+                    │                               └─→ .cm-tooltip*  (inherit — parent 미설정 조건)
                     └── DomTreeDialog:201 Card ─────→ DomTreeNode 전체            (상속)
                                                      ↳ @font-face 있음 → Geist 렌더
 
 [log-viewer]  styles.css (Geist @import 없음 — 의도)
-              같은 tailwind.config → 같은 .font-mono 규칙이 emit됨
+              같은 tailwind.config → 같은 .font-mono 규칙 + 같은 preflight가 emit됨
                     │
                     └── App.tsx:4-5가 import한 NetworkLogContent/ConsoleLogContent
                                                      ↳ @font-face 없음 → "Geist Mono Variable" 해석 실패
                                                      ↳ 다음 후보 ui-monospace로 폴백 (= 현행 동작)
 ```
 
-핵심은 **`.font-mono` 규칙은 두 빌드에 똑같이 나가지만 `@font-face`는 사이드패널에만 있다**는 비대칭이다. 폴백 스택이 이 비대칭을 흡수한다.
+핵심은 **`.font-mono` 규칙과 preflight는 두 빌드에 똑같이 나가지만 `@font-face`는 사이드패널에만 있다**는 비대칭이다. 폴백 스택이 이 비대칭을 흡수한다. (같은 비대칭이 `font-sans`/Pretendard에 **이미 존재한다** — `dist-log-viewer/index.html`에 `.font-sans{font-family:Pretendard Variable,…}`가 emit돼 있고 `@font-face`는 0건이다. 즉 이 설계가 새 패턴을 만드는 게 아니라 기성 패턴을 따른다.)
 
 ## 인터페이스 설계
 
@@ -101,44 +134,88 @@ mono: [
 
 ```
 tailwind.config.js  theme.extend.fontFamily.mono: string[]
-  - [0]      === '"Geist Mono Variable"'   (globals.css의 @font-face family와 정확히 일치해야 함)
+  - [0]      === '"Geist Mono Variable"'   (패키지 index.css의 @font-face family와 일치해야 함)
   - [last]   === "monospace"               (제네릭 종착점)
-  - length   >  1                          (log-viewer 폴백 보장)
+  - length   >  1                          (log-viewer 폴백 보장 — 유일하게 테스트로 지킬 값어치가 있는 불변식)
 
 src/styles/globals.css
   - @import "@fontsource-variable/geist-mono/index.css";  (@tailwind 디렉티브보다 위)
 ```
 
-`@font-face`의 family 문자열은 패키지가 정한 `'Geist Mono Variable'`이다(`index.css` 6개 블록 전부 동일, `metadata.json`의 `family: "Geist Mono"` + fontsource-variable 관례). Tailwind 스택의 `[0]`과 **문자열이 어긋나면 조용히 폴백**된다 — 아래 테스트가 이 쌍을 묶는다.
+`@font-face`의 family 문자열은 패키지가 정한 `'Geist Mono Variable'`이다(`index.css` 6블록 전부 동일). **globals.css 자체엔 `@font-face`가 없다** — `@import`만 있고 실제 선언은 `node_modules/@fontsource-variable/geist-mono/index.css`에 있으며 postcss-import가 빌드 타임에 인라인한다. Tailwind 스택의 `[0]`과 family가 어긋나면 **콘솔 경고 없이 조용히 폴백**되는데, 이 계약은 단위 테스트가 아니라 **e2e의 `document.fonts.check`**가 지킨다(아래).
+
+## 테스트 설계
+
+두 층으로 나눈다. 각 층이 **다른 층이 구조적으로 못 잡는 것**을 잡는다.
+
+### 단위 — `tokens.test.ts`에 `describe("폰트 스택")` 추가
+
+```ts
+import config from "../../../tailwind.config.js";
+const mono = config.theme.extend.fontFamily.mono;
+// 폴백 보장: log-viewer는 별도 빌드라 @font-face가 없고 이 폴백만이 안전망이다.
+expect(mono.length).toBeGreaterThan(1);
+expect(mono[mono.length - 1]).toBe("monospace");
+```
+
+- **`import`한다. 텍스트 파싱하지 않는다.** (이전 판은 "`package.json`이 `type:module`인데 config가 `require()`를 쓰므로 Vitest에서 터진다"는 이유로 텍스트 파싱을 택했다. **그 전제는 거짓이다** — vite-node가 모든 모듈에 `require`를 주입한다(`node_modules/vite-node/dist/client.mjs:371`, `require: createRequire(href)`). plain Node ESM에선 터지지만 Vitest는 plain Node가 아니다. `import`는 prettier 리플로우·따옴표 스타일 변경에 안 깨지고 진짜 배열을 단언한다.)
+- **검사는 이 하나뿐이다.** 이전 판의 4종 중 나머지 3개는 "같은 PR이 방금 쓴 문자열이 파일에 있는지" 확인하는 동어반복이었다(특히 "log-viewer에 Geist `@import` 없음"은 red가 된 적 없는 항진명제). 폴백 보장만이 **미래의 "정리" 유혹을 막는 진짜 불변식**이다.
+- **신규 파일이 아니라 `tokens.test.ts`에 얹는다** — 단언 1개에 파일 하나는 과잉이고, `tokens.test.ts`의 논지 자체가 "globals ↔ log-viewer 쌍을 지킨다"로 같은 성격이다.
+
+### e2e — `style-code-view.spec.ts`에 1줄
+
+```ts
+await sidePanel.evaluate(() => document.fonts.ready);
+expect(await sidePanel.evaluate(() =>
+  document.fonts.check('13px "Geist Mono Variable"'))).toBe(true);
+```
+
+- **단위 테스트가 구조적으로 못 잡는 것을 잡는다**: 단위는 소스 텍스트만 보므로 "빌드가 실제로 폰트를 실었는가"에 대해 말할 수 있는 게 없다. 이 단언은 `@import` 오배치(경고만 나고 빌드는 통과), family 문자열 불일치, **woff2 미emit**, 패키지 업그레이드 시 family 개명을 전부 잡는다.
+- `getComputedStyle().fontFamily`는 **쓰지 않는다** — 스택 문자열만 돌려주고 실제 해석 결과를 말하지 않아 단위 테스트의 중복일 뿐이다. (이전 판은 이 한계만 보고 e2e 전체를 기각했는데, `document.fonts.check`를 검토하지 않은 절반의 논증이었다.)
+- 참고: repo 전체에 `document.fonts` 사용처 0, 폰트를 단언하는 spec 0 → spurious fail 위험 없음.
 
 ## 기존 패턴 준수
 
-- **"별도 번들이 메인 모듈을 복제 → 복제본은 늘 대조 테스트로 묶는다"** (`docs/POSTMORTEM.md:198`, i18n dict 항목). log-viewer 폰트 공백이 정확히 이 계열이다. 다만 이번엔 *동기화*가 아니라 *의도된 발산*이므로, 테스트는 "두 값이 같다"가 아니라 **"발산해도 안전하도록 폴백이 남아있다"**를 고정한다. 같은 파일 `:29`가 기록한 globals↔log-viewer 토큰 표 쌍과 같은 구조.
-- **테스트는 `tailwind.config.js`를 import하지 말고 텍스트로 읽는다.** `package.json`이 `"type": "module"`인데 `tailwind.config.js`는 마지막 줄에서 `require("tailwindcss-animate")`를 쓴다. Tailwind는 jiti로 로드해 문제없지만 **Vitest에서 `import`하면 `require is not defined`로 터진다.** 같은 디렉터리의 `tokens.test.ts:17`이 이미 `readFileSync` + 정규식으로 CSS를 파싱하는 선례를 만들어놨다 — 그대로 따른다.
-- **테스트 트랙**: 순수 텍스트 파싱이므로 `*.test.ts`(node 환경). jsdom 불필요.
+- **테스트 트랙**: config import + 배열 단언이므로 `*.test.ts`(node 환경). jsdom 불필요.
+- **실패 메시지 관용구**: 위반 항목을 문자열 배열로 모아 `toEqual([])`가 `tokens.test.ts`·`log-viewer/__tests__/i18n.test.ts` 양쪽의 하우스 스타일이다. 단언이 1개라 과할 수 있으나 형식은 맞춘다.
 - **UI 컨벤션**(`docs/DESIGN.md`): 직접 스타일링이 아니라 Tailwind 토큰(`font-mono`) 경유. 새 임의값(`font-[...]`)을 만들지 않는다.
-- **i18n·권한·매니페스트 영향 없음**: 새 문자열 없음. `manifest.config.ts`에 `content_security_policy`·`web_accessible_resources` 키가 없고 추가도 불필요 — 사이드패널이 자기 확장 origin에서 woff2를 로드하는 건 same-origin이라 CSP 무관하고, `web_accessible_resources`는 *웹 페이지*가 읽는 리소스에만 필요하다. **Pretendard가 이미 정확히 이 방식으로 동작 중**(`dist/assets/PretendardVariable.subset.*.woff2`)이라 검증된 경로다.
-- **코어 밸류(Privacy) 무영향**: 폰트는 확장에 번들돼 로컬에서 로드된다. 외부 CDN 요청 0 — 네트워크로 나가는 게 없다. (Google Fonts CDN을 썼다면 사용자 IP가 매 세션 구글로 새어나가 밸류와 충돌했을 것이다.)
+- **i18n·권한·매니페스트 영향 없음**: 새 문자열 없음(`title` 툴팁은 기존 라벨 텍스트 재사용). `manifest.config.ts`에 `content_security_policy`·`web_accessible_resources` 키가 없고 추가도 불필요 — 사이드패널이 자기 확장 origin에서 woff2를 로드하는 건 same-origin이라 CSP 무관하고, `web_accessible_resources`는 *웹 페이지*가 읽는 리소스에만 필요하다. **Pretendard가 이미 정확히 이 방식으로 출하 중**(`dist/assets/`에 woff2 92개·3.0MB).
+- **코어 밸류(Privacy) 무영향**: 폰트가 확장에 번들돼 로컬에서 로드된다. 외부 CDN 요청 0. (Google Fonts CDN을 썼다면 사용자 IP가 매 세션 구글로 새어나가 밸류와 충돌했을 것이다.)
+- **POSTMORTEM 참조**: 이 설계는 `2026-06-28 — 내보낸 로그 뷰어 라벨이 i18n 키 raw 노출 …(복제 dict 미동기화)` 항목 계열과 **인접하지만 같지는 않다**. 그 항목의 처방("복제본은 늘 대조 테스트로 묶는다")은 *복제*가 있을 때 성립하는데, 이번엔 복제가 없어 대조할 짝이 없다 — log-viewer가 폰트를 **의도적으로 안 갖는** 발산이다. 그래서 처방을 그대로 쓰지 않고 "발산해도 안전하도록 폴백을 지킨다"로 뒤집었다. (POSTMORTEM은 새 항목이 위에 쌓여 줄번호가 밀리므로 **항목 제목으로 인용한다**.)
 
 ## 대안 검토
 
-1. **latin subset만 손수 `@font-face`로 작성** — 기각. Pretendard처럼 subset별 CSS 진입점을 기대했으나 이 패키지엔 없다(`index.css`/`wght.css`/`wght-italic.css`뿐, `latin.css` 부재). 직접 쓰면 `unicode-range` 표를 손으로 유지해야 하고 패키지 업데이트 때 조용히 stale된다. 전체 6 subset을 다 실어도 ~75KB이고, `unicode-range` 덕에 **브라우저는 실제 쓰는 subset만 로드**하므로 런타임 비용은 latin-only와 같다. 번들 용량 75KB는 이 정도 유지보수 부채를 살 만큼 크지 않다.
+1. **latin subset만 손수 `@font-face`로 작성** — 기각. Pretendard처럼 subset별 CSS 진입점을 기대했으나 이 패키지엔 없다(`index.css`/`wght.css`/`wght-italic.css`뿐). 직접 쓰면 `unicode-range` 표를 손으로 유지해야 하고 패키지 업데이트 때 조용히 stale된다. 전체 6 subset 실측 **77,256B**이고, `unicode-range` 덕에 브라우저는 실제 쓰는 subset만 로드하므로 런타임 비용은 latin-only와 같다.
 
-2. **log-viewer에도 폰트 번들** — 기각. `vite-plugin-singlefile`이 `assetsInlineLimit`를 무한대로 설정해 모든 애셋을 base64 인라인한다. 6 subset ≈ 75KB → base64 ~100KB가 **내보내는 `logs.html`마다** 붙는다(476KB → ~576KB). log-viewer가 Pretendard를 뺀 것도 같은 이유로 보이며, 그 선례를 깨면서까지 살 가치가 없다. 폴백으로 충분히 읽힌다.
+2. **log-viewer에도 폰트 번들** — 기각. `vite-plugin-singlefile`이 `assetsInlineLimit`를 무한대로 설정해 모든 애셋을 base64 인라인한다. 77KB → base64 ~100KB가 **내보내는 `logs.html`마다** 붙는다(실측 487,257B → ~590KB). 폴백으로 충분히 읽힌다.
 
-3. **`fontVariationSettings`로 기본 weight 고정** — 기각(그리고 이번엔 weight 자체가 비목표). Tailwind `fontFamily`는 `[family, { fontVariationSettings }]` 튜플을 지원하지만, `font-variation-settings`는 **`font-weight` 유틸리티를 무력화**한다(낮은 수준 축이 우선). `font-bold`가 조용히 안 먹는 함정이 생긴다. 나중에 기본 weight를 옮기고 싶으면 `@layer base { .font-mono { font-weight: 450 } }`가 낫다 — base 레이어라 utilities의 `font-medium`·`font-bold`가 정상적으로 이긴다.
+3. **`fontVariationSettings`로 기본 weight 고정** — 기각. Tailwind `fontFamily`는 `[family[], { fontVariationSettings }]` 튜플을 지원하지만, `font-variation-settings`는 **`font-weight` 유틸리티를 무력화**한다(낮은 수준 축이 우선) → `font-bold`가 조용히 안 먹는다. 게다가 preflight가 `theme('fontFamily.mono[1].fontVariationSettings')`를 읽으므로 튜플로 바꾸면 **`pre`/`code`에도 그 설정이 박힌다**. weight를 옮길 땐 `@layer base { .font-mono { font-weight: 450 } }`를 쓴다 — base 레이어라 utilities의 `font-medium`·`font-bold`가 정상적으로 이긴다.
 
 4. **Martian Mono / Monaspace Argon** — 기각. PRD "폰트 선정" 참조. 셋 다 OFL-1.1·npm 제공이라 라이선스·배포 조건은 동일했고, 소구경 가독성과 줄 길이에서 갈렸다.
 
-5. **DOM Tree를 14px로 통일(13px 대신)** — 기각. CSS 코드 뷰가 13px에 고정돼 있어(`CssCodeMirror.tsx:237`) 기준점이 13이고, 14로 올리면 CM까지 따라 올려야 해 스코프가 번진다. 게다가 mono는 같은 px에서 sans보다 넓고 x-height가 높아 체감이 커지는데, 트리 라벨엔 `truncate`가 걸려 있어(`:271`) 폭 증가가 곧 잘림 증가다.
+5. **DOM Tree와 CM을 14px로 통일** — 기각. **트렁케이션이 결정적**이었다. 라벨 가용폭 242px(depth 0) 기준:
+
+   | 안 | 자폭 | depth 0 표시 | 오늘 대비 |
+   |---|---|---|---|
+   | 오늘 (14px sans) | ≈7.0px | 34자 | — |
+   | **13px mono (채택)** | 7.8px | 31자 | **−10.3%** |
+   | 14px mono | 8.4px | 28자 | −17.6% |
+
+   mono 전환 자체가 자폭을 1.2배(0.6em/0.5em)로 올리므로, 13px의 0.929배 축소는 그걸 **일부 상쇄**하지만 14px은 상쇄가 없다. 14px은 추가로 CM을 13→14로 올려야 하는데(`:237` 본문 + `:342` 자동완성 li — 주석이 "본문과 맞춤"이라 짝), **CSS 뷰엔 `lineWrapping`이 없어 가로 스크롤이 확정 증가**한다. 14px의 장점(가독성)은 사이즈가 아니라 weight로 푸는 축이다(Task 6).
+
+6. **DOM Tree를 sans 14px로 두고 CM만 mono** — 기각. "코드뷰 통일"이라는 목표를 절반 포기하는 셈이고, `CssCodeMirror.tsx:229`가 선언한 불변식이 깨진 상태로 남는다.
 
 ## 위험 요소
 
-- **log-viewer 발산은 이제 "기능"이다 — 미래에 폴백을 지우면 조용히 깨진다.** `fontFamily.mono`를 `['"Geist Mono Variable"']`로 정리하고 싶은 유혹이 언젠가 온다. 그 순간 다운로드된 `logs.html`의 코드 텍스트가 family 해석 실패로 브라우저 기본값에 떨어진다. `fonts.test.ts`가 이걸 막고, tailwind.config 주석이 이유를 남긴다.
-- **`@import` 위치 회귀**: 누가 `globals.css` 상단을 정리하며 `@import`를 `@tailwind` 아래로 옮기면 CSS 사양상 **무시되고**, 에러 없이 폴백만 남는다. 증상이 "폰트가 그냥 안 바뀜"이라 진단이 어렵다.
-- **family 문자열 불일치**: `"Geist Mono Variable"` vs `"Geist Mono"`를 헷갈리면 조용히 폴백된다. 콘솔 경고도 없다. → `fonts.test.ts`가 globals.css의 `@font-face` family와 tailwind 스택 `[0]`을 **대조**한다.
-- **`text-sm` 제거의 시각 회귀**: 14px→13px는 눈에 띈다. 게다가 sans→mono 전환과 **동시에** 일어나 체감 변화가 겹친다(mono가 더 넓어 보이므로 일부 상쇄된다). 실기기 확인 필수 — 특히 깊게 중첩된 노드의 들여쓰기·`truncate` 경계.
-- **italic 합성**: `index.css`에 italic face가 없다. mono 영역에 italic이 들어오면 브라우저가 기울여 합성한다(품질 저하). 현재 `italic` 사용처는 `NetworkLogContent.tsx:552` 하나이고 `font-mono` 스코프 밖(`:576`의 `<pre>`와 다른 요소)이라 무관하다. mono 영역에 italic을 새로 쓸 일이 생기면 `wght-italic.css`를 추가로 import해야 한다.
-- **weight 400이 얇을 수 있다**: mono는 고정폭 안 여백이 넉넉해 같은 400이어도 sans보다 묽게 읽힌다. 11px 로그에서 특히. 시각 검증에서 `@layer base`로 450~500 조정이 필요할 수 있다(대안 3 참조) — 이건 예상된 후속이지 회귀가 아니다.
-- **CodeMirror 자동완성 팝업 회귀**: `:331`이 CM 기본 `monospace`를 이기는 구조가 유지돼야 한다. 래퍼만 바꾸면 되지만, 팝업은 시각 확인이 필요한 표면이다(jsdom으로 못 잡음 — `CLAUDE.md`의 "포인터·캔버스" 계열과 같은 한계).
-- **`pnpm install` 시 `minimumReleaseAge` 경고**: 정책상 24시간 미만 버전은 배제된다. 5.2.8은 무관하나, 설치 결과 lockfile 버전이 의도와 다르면 이 정책을 먼저 의심한다.
+- **트렁케이션이 순증한다(−10.3%)** — 대안 5의 표. 그리고 **오늘도 이미 잘리고 있다**: 현실 라벨 `<div.flex.items-center.justify-between+2>`가 40자인데 depth 0 가용이 34자다(depth 5: 26→23자, depth 10: 17→15자). 레이아웃은 안 깨진다(`min-w-0 flex-1` 체인 정상) — **깨지는 건 정보량**이다. sans의 7.0px는 *평균*이라 `.items-center` 같은 narrow-glyph 라벨은 mono가 전부 0.6em을 물려 3자보다 더 잃는다. 완화책으로 `:271`에 `title` 툴팁을 단다. 수동 검증은 "`truncate`가 깨지는지"가 아니라 **"얼마나 더 잘리는지 허용 가능한가"**로 판정한다.
+- **`LogSeekChip`의 `w-8`이 오버플로한다 — 기존 버그이고 이 변경이 Windows에서 악화시킨다.** `w-8`=32px, `text-xs`=12px, `truncate`·`overflow-hidden`·`tabular-nums` **없음**. 라벨은 `formatMmSs()`의 `M:SS`인데 분이 unpadded·무한이라 `61:00`(5자)이 가능하고 `logRow.test.ts:23`이 이미 그걸 고정한다. 0.6em·12px = 7.2px/char → 5자 = **36px > 32px**로 **오늘도 넘친다**. macOS는 SF Mono가 이미 0.6em이라 무변화, **Windows는 Consolas 0.55em → 0.6em으로 +9% 악화**(4자 `0:00`도 28.8px로 여유 3.2px뿐). 파급: 호출 4곳(`ConsoleLogContent.tsx:240`, `NetworkLogContent.tsx:438`·`:710`, `ActionLogContent.tsx:319`) × 2빌드. 덤으로 `ConsoleLogContent.tsx:252`의 하드코딩 `pl-[64px]`는 칩+아이콘 폭에 손으로 맞춘 값이라 metric 변화를 따라가지 않는다. **이번 스코프에서 고치지 않는다**(기존 버그 — CLAUDE.md "외과적 변경"). 수동 체크에 등재만 한다.
+- **preflight 파급 범위를 모른 채 넘어갈 위험** — 위 preflight 절. Task 2 전수조사가 이걸 막는다.
+- **log-viewer 발산은 이제 "기능"이다 — 미래에 폴백을 지우면 조용히 깨진다.** `fontFamily.mono`를 `['"Geist Mono Variable"']`로 정리하고 싶은 유혹이 언젠가 온다. 그 순간 다운로드된 `logs.html`의 코드 텍스트가 family 해석 실패로 브라우저 기본값에 떨어진다. `tokens.test.ts`의 폴백 단언과 tailwind.config 주석이 짝으로 막는다.
+- **`@import` 위치 회귀**: 누가 `globals.css` 상단을 정리하며 `@import`를 `@tailwind` 아래로 옮기면 postcss-import가 **경고는 내지만 빌드는 통과**한다 → 로그를 안 읽으면 폴백만 남는다. 증상이 "폰트가 그냥 안 바뀜"이라 진단이 어렵다. e2e `document.fonts.check`가 이걸 잡는다.
+- **family 문자열 불일치**: `"Geist Mono Variable"` vs `"Geist Mono"`를 헷갈리면 조용히 폴백된다. 콘솔 경고도 없다. e2e가 잡는다.
+- **`text-sm` 제거의 시각 회귀**: 14→13px는 눈에 띈다. sans→mono 전환과 **동시에** 일어나 체감이 겹친다(mono가 넓어 일부 상쇄). line-height는 20px→19.5px. 실기기 확인 필수.
+- **아이콘·텍스트 정렬 미세 이동**: `:263`/`:265` chevron(`h-3 w-3`)과 `:269` spacer(`h-4 w-4`)는 고정 px라 14→13px를 따라가지 않는다. 무시할 수준이나 실기기 확인 항목.
+- **italic 합성**: `index.css`에 italic face가 없다. mono 영역에 italic이 들어오면 브라우저가 기울여 합성한다. 현재 `italic` 사용처는 `NetworkLogContent.tsx:552` 하나이고 `font-mono` 스코프 밖이라 무관하다. **단 preflight 파급으로 `<code>`/`<pre>` 안에 italic이 오면 해당된다** — 전수조사에서 확인.
+- **weight 400이 얇을 수 있다**: mono는 고정폭 안 여백이 넉넉해 같은 400이어도 sans보다 묽게 읽힌다. 11px 로그 × 다크모드가 최악 케이스다. Task 6에서 `@layer base`로 450~500 조정이 필요할 수 있다 — 예상된 후속이지 회귀가 아니다.
+- **CodeMirror 자동완성 팝업 회귀**: jsdom·e2e 사각지대라 눈이 유일한 안전망이다.
+- **FOUT**: `font-display: swap`이라 폴백 metric으로 먼저 그려진다. `unicode-range`로 latin 1개만 디스크에서 읽으므로 체감은 없으나, swap 시프트가 `w-8` 칩과 겹치면 첫 페인트에서 한 번 흔들린다.
