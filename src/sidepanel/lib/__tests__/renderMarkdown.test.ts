@@ -89,3 +89,25 @@ describe("renderMarkdown", () => {
     });
   });
 });
+
+describe("renderMarkdown — 삽입된 로그 코드블럭 하이라이팅", () => {
+  it("```json 펜스는 토큰별 span으로 칠한다", () => {
+    const html = renderMarkdown('```json\n{"id": 1}\n```');
+
+    expect(html).toContain('<span class="text-purple-700 dark:text-purple-400">&quot;id&quot;</span>');
+    expect(html).toContain('<span class="text-blue-700 dark:text-blue-400">1</span>');
+  });
+
+  it("language 없는 펜스는 칠하지 않는다 (우리가 만든 콘텐츠가 아님)", () => {
+    const html = renderMarkdown('```\n{"id": 1}\n```');
+
+    expect(html).not.toContain("<span");
+  });
+
+  it("코드 안의 HTML은 escape된다 (span 주입으로 새지 않음)", () => {
+    const html = renderMarkdown('```json\n{"x": "<img src=x onerror=alert(1)>"}\n```');
+
+    expect(html).not.toContain("<img");
+    expect(html).toContain("&lt;img");
+  });
+});
