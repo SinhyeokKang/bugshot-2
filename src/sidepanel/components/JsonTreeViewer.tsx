@@ -2,17 +2,11 @@ import { useState, useCallback, useContext, useEffect } from "react";
 import { ChevronDown, ChevronRight } from "lucide-react";
 import { useT } from "@/i18n";
 import { HighlightedText, HighlightQueryContext } from "./HighlightedText";
+import { JSON_TOKEN_CLASS } from "@/sidepanel/lib/highlightJson";
 
 const ARRAY_CHUNK_SIZE = 100;
 const STRING_TRUNCATE_LENGTH = 300;
 const SEP = "\0";
-const VALUE_COLORS = {
-  string: "text-red-700 dark:text-red-400",
-  number: "text-blue-700 dark:text-blue-400",
-  boolean: "text-blue-700 dark:text-blue-400",
-  null: "text-muted-foreground italic",
-  key: "text-purple-700 dark:text-purple-400",
-} as const;
 
 interface JsonTreeViewerProps {
   data: unknown;
@@ -113,10 +107,10 @@ function JsonNode({
   expanded: Set<string>;
   onToggle: (path: string) => void;
 }) {
-  if (value === null) return <PrimitiveRow keyName={keyName} depth={depth} valueClass={VALUE_COLORS.null} display="null" />;
+  if (value === null) return <PrimitiveRow keyName={keyName} depth={depth} valueClass={JSON_TOKEN_CLASS.null} display="null" />;
   if (typeof value === "string") return <StringRow keyName={keyName} value={value} depth={depth} />;
-  if (typeof value === "number") return <PrimitiveRow keyName={keyName} depth={depth} valueClass={VALUE_COLORS.number} display={String(value)} />;
-  if (typeof value === "boolean") return <PrimitiveRow keyName={keyName} depth={depth} valueClass={VALUE_COLORS.boolean} display={String(value)} />;
+  if (typeof value === "number") return <PrimitiveRow keyName={keyName} depth={depth} valueClass={JSON_TOKEN_CLASS.number} display={String(value)} />;
+  if (typeof value === "boolean") return <PrimitiveRow keyName={keyName} depth={depth} valueClass={JSON_TOKEN_CLASS.boolean} display={String(value)} />;
 
   const isArray = Array.isArray(value);
   const entries = isArray
@@ -246,7 +240,7 @@ function StringRow({
       <span className="inline-block h-4 w-4 shrink-0" />
       {keyName !== undefined && <KeyLabel keyName={keyName} />}
       <div className="min-w-0">
-        <span className={`break-all ${VALUE_COLORS.string}`}>"<HighlightedText text={display} query={q} />"</span>
+        <span className={`break-all ${JSON_TOKEN_CLASS.string}`}>"<HighlightedText text={display} query={q} />"</span>
         {truncated && (
           <div>
             <span
@@ -287,7 +281,7 @@ function KeyLabel({ keyName }: { keyName: string | number }) {
   const q = useContext(HighlightQueryContext);
   return (
     <span className="shrink-0">
-      <span className={VALUE_COLORS.key}><HighlightedText text={String(keyName)} query={q} /></span>
+      <span className={JSON_TOKEN_CLASS.key}><HighlightedText text={String(keyName)} query={q} /></span>
       <span className="text-muted-foreground">: </span>
     </span>
   );
