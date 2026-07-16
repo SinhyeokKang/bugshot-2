@@ -260,6 +260,77 @@ describe("useReproPrefill", () => {
     expect(arg.title).toBe("typed"); // 최신 draft에 병합 — 사용자 입력 보존.
   });
 
+  it("AI in-flight 중 locale이 바뀌어도 취소되지 않고 채워지며 로딩이 풀린다", async () => {
+    // locale/url/pageTitle은 fire-input이라 in-flight 중 변경돼도 취소를 유발하면 안 된다.
+    let resolveFn: (v: unknown) => void = () => {};
+    vi.mocked(generateReproStepsWithAI).mockReturnValue(
+      new Promise((res) => {
+        resolveFn = res;
+      }) as any,
+    );
+    const setDraft = vi.fn();
+    const setDone = vi.fn();
+    const createSession = vi.fn();
+    const stable = {
+      setDraft,
+      setReproPrefillDone: setDone,
+      createSession,
+      actionLog: actionLog(),
+      draft: { title: "", sections: {} },
+      aiStatus: "available",
+    };
+    const mk = (over: Record<string, unknown> = {}) => baseArgs({ ...stable, ...over });
+    const { result, rerender } = renderHook((p: any) => useReproPrefill(p), {
+      initialProps: mk({ locale: "en" }),
+    });
+    await flush();
+    expect(result.current.loading).toBe(true);
+
+    // 발화가 done을 latch한 뒤 언어 변경으로 리렌더되는 실제 상황(재발화 없음).
+    rerender(mk({ locale: "ko", reproPrefillDone: true }));
+    await act(async () => {
+      resolveFn({ ok: true, steps: "AI a" });
+      await Promise.resolve();
+    });
+    expect(setDraft).toHaveBeenCalledTimes(1);
+    expect(result.current.loading).toBe(false);
+  });
+
+  it("AI in-flight 중 autoReproPrefill이 꺼지면 취소되더라도 로딩은 풀린다", async () => {
+    // gating dep가 바뀌어 취소되는 경우에도 setLoading(false)가 finally로 보장돼야 소프트락이 안 걸린다.
+    let resolveFn: (v: unknown) => void = () => {};
+    vi.mocked(generateReproStepsWithAI).mockReturnValue(
+      new Promise((res) => {
+        resolveFn = res;
+      }) as any,
+    );
+    const setDraft = vi.fn();
+    const setDone = vi.fn();
+    const createSession = vi.fn();
+    const stable = {
+      setDraft,
+      setReproPrefillDone: setDone,
+      createSession,
+      actionLog: actionLog(),
+      draft: { title: "", sections: {} },
+      aiStatus: "available",
+    };
+    const mk = (over: Record<string, unknown> = {}) => baseArgs({ ...stable, ...over });
+    const { result, rerender } = renderHook((p: any) => useReproPrefill(p), {
+      initialProps: mk({ autoReproPrefill: true }),
+    });
+    await flush();
+    expect(result.current.loading).toBe(true);
+
+    rerender(mk({ autoReproPrefill: false, reproPrefillDone: true })); // 로딩 중 opt-out.
+    await act(async () => {
+      resolveFn({ ok: true, steps: "AI a" });
+      await Promise.resolve();
+    });
+    expect(setDraft).not.toHaveBeenCalled(); // 취소됨.
+    expect(result.current.loading).toBe(false); // finally로 로딩 해제.
+  });
+
   it("AI in-flight 중 언마운트되면 응답 도착해도 setDraft 미호출", async () => {
     let resolveFn: (v: unknown) => void = () => {};
     vi.mocked(generateReproStepsWithAI).mockReturnValue(

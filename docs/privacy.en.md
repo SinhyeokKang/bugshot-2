@@ -1,6 +1,6 @@
 # BugShot Privacy Policy
 
-**Effective date**: July 14, 2026
+**Effective date**: July 16, 2026
 
 BugShot (the "extension") values your privacy and collects and processes only the minimum information necessary. This policy transparently explains what information the extension handles.
 
@@ -84,7 +84,7 @@ When you reload a page on which you have previously started debug capture, resum
 |---|---|---|
 | LLM provider settings (base URL, API key, model) | When configuring the AI draft / AI styling feature | Calling the LLM API |
 
-The LLM API key is stored obfuscated. You choose the provider yourself; presets ship base URLs for OpenAI, Anthropic, Gemini, Groq, OpenRouter, Together, and Ollama — **when you use an AI feature, the material for the draft (title, body, style changes, annotated image, log summaries) is sent to the provider you picked.** The action-log summary may carry unmasked input and selection values as-is (masked values are sent as `***`). Nothing is sent if you don't turn the AI features on.
+The LLM API key is stored obfuscated. You choose the provider yourself; presets ship base URLs for OpenAI, Anthropic, Gemini, Groq, OpenRouter, Together, and Ollama — **when you use an AI feature, the material for the draft (title, body, style changes, annotated image, log summaries) is sent to the provider you picked.** The action-log summary may carry unmasked input and selection values as-is (masked values are sent as `***`). Nothing is sent if you don't turn the AI features on. In addition, when you enter the report-drafting screen after a video capture, the action-log summary is sent once per session to your connected AI provider (if one is configured) to auto-fill the reproduction steps. This auto-fill is on by default and can be turned off in settings.
 
 On browsers that support Chrome's built-in AI (Prompt API), drafts and CSS change suggestions can be generated with the on-device model without any external API call. In that case, data never leaves your device and no separate API key is required.
 
@@ -141,13 +141,13 @@ Local files you select yourself through the "file attachment" feature are, on is
 
 When connecting to a GitLab self-managed instance with a PAT, the extension communicates directly with the instance address (an arbitrary origin) you enter. This access is covered by the required broad host permission (`<all_urls>`) granted at install and works without a separate permission dialog.
 
-The LLM provider receives data only at the endpoint you configure yourself, and only when you explicitly run AI draft generation or AI styling. Access to that host is covered by the required broad host permission (`<all_urls>`).
+The LLM provider receives data only at the endpoint you configure yourself. AI draft generation and AI styling run only when you explicitly trigger them, while reproduction-step auto-fill runs automatically once per session when you enter the drafting screen after a video capture (on by default, can be turned off in settings). Access to that host is covered by the required broad host permission (`<all_urls>`).
 
 When searching CC (watcher) mentions, the search term you enter is sent to each platform's user-search API, and the mention targets you select are sent as part of the issue body. All of this works only when you search and select yourself.
 
 ## 4. Third-Party Sharing
 
-We do not sell, share, or transfer the information we collect to third parties. Data is transmitted to a given platform, or to the LLM provider you configure, only when you create an issue or request an AI draft or AI styling yourself.
+We do not sell, share, or transfer the information we collect to third parties. Data is transmitted to a given platform, or to the LLM provider you configure, only when you create an issue or request an AI draft or AI styling yourself, or when reproduction-step auto-fill runs (automatically upon entering the drafting screen after a video capture; can be turned off in settings).
 
 ## 5. Data Deletion
 
@@ -187,11 +187,11 @@ There is no separate per-platform host permission; all of the communication abov
 - **DOM selection / style editing**: Picking an element on any web page to collect information and preview styles
 - **Screen / full-page capture and 30-second replay**: Current-tab screen capture (`captureVisibleTab`) does not work with ordinary host permissions and requires `<all_urls>`. Full-page capture calls the same API repeatedly while scrolling the page, stitching in the areas that were off-screen. Capture and log collection continue even when you navigate to another site, without the side panel closing.
 - **Console / network log collection**: Recording logs on arbitrary pages (and iframes)
-- **AI draft / AI styling**: Transmitting to the LLM provider endpoint you configure yourself (when you explicitly run an AI draft or AI styling)
+- **AI draft / AI styling / reproduction-step auto-fill**: Transmitting to the LLM provider endpoint you configure yourself (AI draft and AI styling when you explicitly run them; reproduction-step auto-fill automatically upon entering the drafting screen after a video capture — on by default, can be turned off in settings)
 - **GitLab self-managed**: PAT communication with the instance (an arbitrary origin) you enter
 - **Style value enrichment**: To accurately display the "author-specified" styles of a selected element, the extension reads, in the background and without credentials (`credentials:omit`), the external stylesheets (cross-origin CSS files) the page references. Only public http(s) hosts are targeted (loopback, internal networks, and private IPs are blocked), and the CSS received is used only on the device and not transmitted to third parties.
 
-Each feature transmits data only when you turn it on or run it yourself. The permission itself is granted at all times from install, but you can narrow the access scope in Chrome settings (Extensions > BugShot > Site access).
+Most features transmit data only when you turn them on or run them yourself (reproduction-step auto-fill is an exception: it is on by default and runs automatically, and can be turned off in settings). The permission itself is granted at all times from install, but you can narrow the access scope in Chrome settings (Extensions > BugShot > Site access).
 
 ## 7. Changes
 

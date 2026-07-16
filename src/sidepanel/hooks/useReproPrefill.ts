@@ -70,6 +70,9 @@ export function useReproPrefill(args: UseReproPrefillArgs): {
 
   useEffect(() => {
     if (!autoReproPrefill) return;
+    // 두 게이트는 서로 다른 관심사다: captureMode==="video"는 1차 릴리스 기능 스코프 제한이고,
+    // supportsActionLog는 로그 정책 단일 출처(하드코딩 우회 금지 — docs/POSTMORTEM 2026-07-14).
+    // video는 항상 supportsActionLog이라 지금은 후자가 통과하지만, 스코프가 넓어질 때 단일 출처를 탄다.
     if (captureMode !== "video") return;
     if (trimming) return;
     if (!sectionEnabled) return;
@@ -97,25 +100,29 @@ export function useReproPrefill(args: UseReproPrefillArgs): {
     if (aiStatus === "available") {
       setLoading(true);
       void (async () => {
-        const result = await generateReproStepsWithAI({
-          capabilities,
-          createSession,
-          captureMode,
-          locale,
-          url,
-          pageTitle,
-          actionLogSummary: buildActionLogSummary(log),
-        });
-        if (cancelled) return;
-        if (result.ok) {
-          apply(result.steps);
-          if (result.steps.trim()) setAiFilled(true); // AI 생성 고지용.
-        } else {
-          if (result.reason === "quota") toast.error(t("llm.error.quota"));
-          else if (result.reason === "auth") toast.error(t("llm.error.auth"));
-          apply(buildReproSteps(log)); // 룰 baseline 폴백.
+        try {
+          const result = await generateReproStepsWithAI({
+            capabilities,
+            createSession,
+            captureMode,
+            locale,
+            url,
+            pageTitle,
+            actionLogSummary: buildActionLogSummary(log),
+          });
+          if (cancelled) return;
+          if (result.ok) {
+            apply(result.steps);
+            if (result.steps.trim()) setAiFilled(true); // AI 생성 고지용.
+          } else {
+            if (result.reason === "quota") toast.error(t("llm.error.quota"));
+            else if (result.reason === "auth") toast.error(t("llm.error.auth"));
+            apply(buildReproSteps(log)); // 룰 baseline 폴백.
+          }
+        } finally {
+          // 취소(재실행/언마운트) 경로에서도 로딩을 반드시 해제 — 안 하면 스피너 소프트락.
+          setLoading(false);
         }
-        setLoading(false);
       })();
     } else {
       apply(buildReproSteps(log));
@@ -124,8 +131,9 @@ export function useReproPrefill(args: UseReproPrefillArgs): {
     return () => {
       cancelled = true;
     };
-    // deps는 발화 판정용 원시 플래그만. draft/actionLog 객체를 넣으면 로딩 중 무관한 편집이
-    // 재실행→cleanup 취소를 유발해 AI 결과 유실·로딩 고착을 만든다(값은 ref로 읽는다).
+    // deps는 발화 판정용 원시 플래그만. draft/actionLog 객체나 locale/url/pageTitle(fire-input)을
+    // 넣으면 로딩 중 무관한 변경이 재실행→cleanup 취소를 유발해 AI 결과 유실·로딩 고착을 만든다
+    // (이 값들은 발화 시점 closure로 읽는다).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     autoReproPrefill,
@@ -140,9 +148,6 @@ export function useReproPrefill(args: UseReproPrefillArgs): {
     setDraft,
     capabilities,
     createSession,
-    locale,
-    url,
-    pageTitle,
   ]);
 
   return { loading, aiFilled };

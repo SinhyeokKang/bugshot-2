@@ -758,6 +758,7 @@ function SectionTextarea({
       {section.renderAs === "orderedList" ? (
         reproLoading ? (
           <div
+            role="status"
             className="flex min-h-16 items-center justify-center gap-2 rounded-md border bg-muted/40 text-sm text-muted-foreground"
             data-testid="repro-prefill-loading"
           >
