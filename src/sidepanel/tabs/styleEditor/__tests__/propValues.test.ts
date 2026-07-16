@@ -1,5 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { PROP_VALUES, valueHintsFor, CSS_WIDE_KEYWORDS } from "../propValues";
+import {
+  PROP_VALUES,
+  valueHintsFor,
+  CSS_WIDE_KEYWORDS,
+  propertyNameHints,
+} from "../propValues";
 
 describe("PROP_VALUES — 열거형 속성 값 단일 출처", () => {
   it("테이블 속성 값 커버", () => {
@@ -67,5 +72,37 @@ describe("valueHintsFor — property-aware 값 제안", () => {
   it("빈/미지 속성 → null", () => {
     expect(valueHintsFor("")).toBeNull();
     expect(valueHintsFor("nonexistent-prop")).toBeNull();
+  });
+});
+
+describe("propertyNameHints — 코드 뷰 속성명 자동완성 목록", () => {
+  it("computed 속성 + 큐레이션(PROP_VALUES 키)을 합쳐 정렬·중복 제거", () => {
+    const hints = propertyNameHints(["color", "table-layout", "z-index"]);
+    expect(hints).toContain("color");
+    expect(hints).toContain("z-index");
+    // 큐레이션 키(예: display)는 computed에 없어도 포함
+    expect(hints).toContain("display");
+    // 정렬됨
+    expect([...hints]).toEqual([...hints].sort());
+    // 중복 없음
+    expect(new Set(hints).size).toBe(hints.length);
+  });
+
+  it("tag-prefixed 속성(table-layout)이 목록에 포함 — lang-css 갭 보강", () => {
+    expect(propertyNameHints([])).toContain("table-layout");
+    expect(propertyNameHints(["table-layout"])).toContain("table-layout");
+  });
+
+  it("커스텀 프로퍼티(--*)·빈 값 제외", () => {
+    const hints = propertyNameHints(["--tw-ring-color", "", "margin"]);
+    expect(hints).not.toContain("--tw-ring-color");
+    expect(hints).not.toContain("");
+    expect(hints).toContain("margin");
+  });
+
+  it("computed가 비어도(비DOM) 큐레이션만으로 동작", () => {
+    const hints = propertyNameHints([]);
+    expect(hints.length).toBeGreaterThan(0);
+    expect(hints).toContain("border-collapse");
   });
 });

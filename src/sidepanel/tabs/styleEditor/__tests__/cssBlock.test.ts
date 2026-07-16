@@ -5,6 +5,7 @@ import {
   computeOverrides,
   collapseTrbl,
   expandTrbl,
+  isCompleteDeclarationLine,
 } from "../cssBlock";
 
 describe("serializeCssBlock", () => {
@@ -288,5 +289,36 @@ describe("collapseTrbl — longhand 4면 → shorthand", () => {
     for (const v of ["8px", "8px 16px", "8px 16px 4px", "1px 2px 3px 4px"]) {
       expect(collapseTrbl(expandTrbl({ padding: v }))).toEqual({ padding: v });
     }
+  });
+});
+
+describe("isCompleteDeclarationLine", () => {
+  it("완결 선언(prop: value)은 true — 세미콜론 유무 무관", () => {
+    expect(isCompleteDeclarationLine("table-layout: fixed;")).toBe(true);
+    expect(isCompleteDeclarationLine("table-layout: fixed")).toBe(true);
+    expect(isCompleteDeclarationLine("color: red;")).toBe(true);
+    expect(isCompleteDeclarationLine("--x: 1;")).toBe(true);
+  });
+
+  it("콜론 없는 미완성 속성명은 false (적용 안 됨 — 취소선 유지)", () => {
+    expect(isCompleteDeclarationLine("table-layout")).toBe(false);
+    expect(isCompleteDeclarationLine("table-layou")).toBe(false);
+  });
+
+  it("콜론만 있고 값이 비면 false", () => {
+    expect(isCompleteDeclarationLine("table-layout:")).toBe(false);
+    expect(isCompleteDeclarationLine("table-layout: ;")).toBe(false);
+    expect(isCompleteDeclarationLine("table-layout:   ")).toBe(false);
+  });
+
+  it("속성명이 비면(선두 콜론) false", () => {
+    expect(isCompleteDeclarationLine(": fixed")).toBe(false);
+  });
+
+  it("들여쓰기/함수값(var())도 정확히 판별", () => {
+    expect(isCompleteDeclarationLine("  border-collapse: separate;")).toBe(true);
+    expect(
+      isCompleteDeclarationLine("border-spacing: var(--tw-x) var(--tw-y);"),
+    ).toBe(true);
   });
 });

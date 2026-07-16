@@ -88,3 +88,15 @@ export function valueHintsFor(prop: string): string[] | null {
   if (!values) return null;
   return [...values, ...CSS_WIDE_KEYWORDS];
 }
+
+// CSS 코드 뷰 속성명 자동완성 목록. 브라우저 지원 속성(getComputedStyle 열거, kebab-case) +
+// 큐레이션(PROP_VALUES 키)을 합쳐 정렬·중복 제거. 커스텀 프로퍼티(--*)는 제외.
+// lang-css 기본 완성이 nesting 문맥에서 속성 위치에 HTML 태그명만 던지는 것을 보강 — `table-layout`
+// 같은 tag-prefixed 속성이 완성 목록에서 누락되던 문제를 잡는다. computed가 비면(비DOM) 큐레이션만.
+export function propertyNameHints(computedNames: Iterable<string>): string[] {
+  const set = new Set<string>(Object.keys(PROP_VALUES));
+  for (const name of computedNames) {
+    if (name && !name.startsWith("--")) set.add(name);
+  }
+  return [...set].sort();
+}

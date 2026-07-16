@@ -29,7 +29,7 @@ import type { Token } from "@/types/picker";
 import { useSettingsUiStore } from "@/store/settings-ui-store";
 import { findTokenValue, isInternalToken } from "./tokenUtils";
 import { PROP_CATEGORY } from "./propMetadata";
-import { valueHintsFor } from "./propValues";
+import { valueHintsFor, propertyNameHints } from "./propValues";
 import { rightHintText } from "./valueFormat";
 import {
   filterTokensByQuery,
@@ -40,6 +40,7 @@ import {
 } from "./tokenSuggest";
 import { swatchColorFor } from "./cssSwatch";
 import { selectorLineChangeFilter } from "./selectorLock";
+import { isCompleteDeclarationLine } from "./cssBlock";
 
 // 1행(선택자 줄)은 편집 잠금 — 가려진 `{`가 훼손되면 parseCssBlock이 깨진다. 선택·커서 이동·복사는 허용.
 // changeFilter로 1행만 protected range 처리 → 1행 변경만 드롭되고 본문 변경(전체 삭제 포함)은 통과.
@@ -93,6 +94,44 @@ const cssValueCompletion = cssLanguage.data.of({
         label,
         type: "constant",
         ...(specific ? { boost: labels.length - i } : {}),
+      })),
+      validFor: /^[\w-]*$/,
+    };
+  },
+});
+
+// 브라우저 지원 속성명(getComputedStyle 열거) + 큐레이션을 한 번만 계산해 캐시.
+let propNameCache: string[] | null = null;
+function cssPropertyNames(): string[] {
+  if (propNameCache) return propNameCache;
+  let computed: string[] = [];
+  try {
+    const s = getComputedStyle(document.documentElement);
+    computed = Array.from({ length: s.length }, (_, i) => s.item(i));
+  } catch {
+    computed = [];
+  }
+  propNameCache = propertyNameHints(computed);
+  return propNameCache;
+}
+
+// 속성명 위치(선언 시작, 콜론 앞)에서 CSS 속성명을 제안 — lang-css 기본 완성이 nesting 문맥에서
+// tag-prefixed 속성(`table-layout` 등)을 누락하고 HTML 태그명만 던지는 것을 보강. 값 위치(콜론 뒤)는
+// cssValueCompletion이 담당하므로 여기선 콜론 앞에서만 연다.
+const cssPropNameCompletion = cssLanguage.data.of({
+  autocomplete: (context: CompletionContext) => {
+    const line = context.state.doc.lineAt(context.pos);
+    if (line.text.includes("{")) return null; // 셀렉터/여는 줄 제외
+    const before = context.state.sliceDoc(line.from, context.pos);
+    if (before.includes(":")) return null; // 콜론 뒤(값)는 cssValueCompletion
+    const word = context.matchBefore(/[\w-]+/);
+    if (!word && !context.explicit) return null;
+    return {
+      from: word ? word.from : context.pos,
+      options: cssPropertyNames().map((label) => ({
+        label,
+        type: "property",
+        boost: 1, // lang-css의 nesting 태그명 완성 위로 올린다
       })),
       validFor: /^[\w-]*$/,
     };
@@ -495,14 +534,17 @@ function collectInvalidDeclMarks(
       from,
       to,
       enter: (node) => {
-        if (node.name === "TagName" && node.from > open) {
-          marks.push(
-            Decoration.mark({ class: "cm-invalid-decl" }).range(
-              node.from,
-              node.to,
-            ),
-          );
-        }
+        if (node.name !== "TagName" || node.from <= open) return;
+        // lezer 증분 파싱이 tag-prefixed 속성(`table-layout` 등)을 셀렉터(TagName)로 오분류하고
+        // 콜론·값을 붙여도 안 풀리는 경우가 있다 — 완결 선언 줄은 실제 적용되므로 취소선 억제.
+        const line = view.state.doc.lineAt(node.from);
+        if (isCompleteDeclarationLine(line.text)) return;
+        marks.push(
+          Decoration.mark({ class: "cm-invalid-decl" }).range(
+            node.from,
+            node.to,
+          ),
+        );
       },
     });
   }
@@ -665,6 +707,7 @@ export default function CssCodeMirror({
         lockSelectorLine,
         css(),
         cssValueCompletion,
+        cssPropNameCompletion,
         tokenCompletion,
         swatchCompletion,
         autoActivate,
