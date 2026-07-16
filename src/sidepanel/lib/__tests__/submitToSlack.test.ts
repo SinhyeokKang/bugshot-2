@@ -4,8 +4,9 @@ const sendBg = vi.fn();
 vi.mock("@/types/messages", () => ({ sendBg: (...a: unknown[]) => sendBg(...a) }));
 
 // 스레드 본문 빌더는 mock — MarkdownContext 처리는 buildSlackBody 자체 테스트의 몫.
+let mockBody = "BODY";
 vi.mock("../buildSlackBody", () => ({
-  buildSlackBody: () => ({ body: "BODY", attached: [] }),
+  buildSlackBody: () => ({ body: mockBody, attached: [] }),
 }));
 
 import { submitToSlack } from "../submitToSlack";
@@ -46,6 +47,7 @@ function defaultSendBg(msg: { type: string; payload?: { threadTs?: string } }) {
 }
 
 beforeEach(() => {
+  mockBody = "BODY";
   sendBg.mockReset();
 });
 
@@ -142,5 +144,28 @@ describe("submitToSlack — logsDropped", () => {
     });
 
     expect(res.logsDropped).toBe(true);
+  });
+});
+
+// 회귀: 4000자를 넘는 본문을 한 번에 보내면 Slack이 임의로 쪼개 코드블럭 펜스가 깨진다
+// (로그가 평문으로 나오거나 엉뚱한 섹션이 코드블럭에 씌워짐 — 실사용 리포트).
+describe("submitToSlack — 긴 본문 분할", () => {
+  it("Slack 한계를 넘는 본문은 펜스를 유지한 채 여러 스레드 답글로 나간다", async () => {
+    const huge = Array.from({ length: 400 }, (_, i) => `  "key${i}": ${i},`).join("\n");
+    mockBody = ["*발생 현상*", "```json", huge, "```"].join("\n");
+    sendBg.mockImplementation(defaultSendBg);
+
+    await submitToSlack({ ctx: makeCtx(), channelId: "C1" });
+
+    const posts = sendBg.mock.calls
+      .map(([m]) => m)
+      .filter((m) => m.type === "slack.postMessage" && m.payload?.threadTs);
+    expect(posts.length).toBeGreaterThan(1);
+    for (const p of posts) {
+      expect(p.payload.text.length).toBeLessThanOrEqual(4000);
+      // 조각마다 펜스가 짝수 = 코드블럭이 그 조각 안에서 열리고 닫힌다.
+      expect((p.payload.text.match(/^ {0,3}```/gm) ?? []).length % 2).toBe(0);
+      expect(p.payload.threadTs).toBe("111");
+    }
   });
 });

@@ -89,3 +89,18 @@ describe("escapeMrkdwn — 특수문자 이스케이프", () => {
     expect(escapeMrkdwn("")).toBe("");
   });
 });
+
+describe("markdownToMrkdwn — fence 판정은 CommonMark 들여쓰기 규칙(≤3)을 따른다", () => {
+  it("4칸 이상 들여쓴 백틱 런은 fence를 열지 않는다 (코드블럭 본문의 무해화된 백틱)", () => {
+    const md = ["```", "before", "    ```", "*keep*", "```"].join("\n");
+
+    // 무해화된 라인이 fence를 토글하면 그 뒤 로그 본문이 convertInline을 타서 변형된다.
+    expect(markdownToMrkdwn(md)).toBe(md);
+  });
+
+  it("들여쓰기 0~3칸 백틱은 기존대로 fence로 인식", () => {
+    const md = ["  ```", "code", "  ```", "*bold*"].join("\n");
+
+    expect(markdownToMrkdwn(md)).toBe(["  ```", "code", "  ```", "_bold_"].join("\n"));
+  });
+});

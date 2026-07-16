@@ -33,7 +33,9 @@ export function markdownToMrkdwn(md: string): string {
   let inFence = false;
 
   for (const line of lines) {
-    if (/^```/.test(line.trim())) {
+    // 들여쓰기 ≤3만 fence — CommonMark 규칙. trim으로 판정하면 코드블럭 본문의
+    // 무해화된(4칸 들여쓴) 백틱 런이 fence를 조기 종료시켜 나머지 본문이 변환된다.
+    if (/^ {0,3}```/.test(line)) {
       inFence = !inFence;
       out.push(line);
       continue;
