@@ -113,7 +113,9 @@ mono: [
 
 ### `docs/DESIGN.md`
 - **현재 역할**: 디자인 시스템 단일 출처. `:13`이 폰트로 Pretendard만 나열, `:59`가 "## 4. 타이포그래피" 헤딩, `:61`이 `font-sans` 스택 기술.
-- **변경 내용**: `:13`에 Geist Mono(코드뷰·로그 전용) 추가. `:61` 아래에 `font-mono` 스택 + **log-viewer 폴백 사실** 한 줄. 추가로 **사이즈 축**: "코드뷰(CM·DOM 트리) = 13px mono, 두 표면 통일". `text-[13px]`는 현재 코드베이스에서 `DomTreeDialog.tsx:201` **단 1곳뿐인 one-off**인데 이 기능이 그걸 두 표면이 공유하는 규칙으로 승격시킨다 — DESIGN.md에 안 적으면 다음 사람이 한쪽만 바꿔 불변식이 조용히 깨진다(`CssCodeMirror.tsx:229` 주석 하나에만 의존하는 건 이미 얇다).
+- **변경 내용**: `:13`에 Geist Mono(코드뷰·로그 전용) 추가. `:61` 아래에 `font-mono` 스택 + **log-viewer 폴백 사실** 한 줄. 추가로 **사이즈 축**: "코드뷰(CM·DOM 트리) = 13px mono, 두 표면 통일". 이 기능이 CM의 `fontSize: "13px"`와 DOM 트리 Card의 `text-[13px]`를 **짝을 이루는 불변식**으로 묶으므로 DESIGN.md에 적는다 — 안 적으면 다음 사람이 한쪽만 바꿔 조용히 깨진다(`CssCodeMirror.tsx:229` 주석 하나에만 의존하는 건 이미 얇다).
+
+> 정정: 이전 판은 "`text-[13px]`는 `DomTreeDialog.tsx:201` **단 1곳뿐인 one-off**"라 적었으나 **거짓**이다 — `grep -rn "text-\[13px\]" src/`는 13곳을 낸다(`NetworkLogContent` 4·`JsonTreeViewer` 5·`ConsoleLogContent`·`ActionLogContent`·`OriginFilterBar`·`DomTreeDialog`). 리뷰가 준 숫자를 grep으로 검증하지 않고 옮겨 적은 결과다(POSTMORTEM `2026-07-16 — JSON 팔레트 단일 출처`의 "단언은 검증 가능한 명제여야 한다"에 그대로 걸린다). 결론(13px 규칙을 DESIGN.md가 소유한다)은 불변이나, **근거는 "희소한 one-off라서"가 아니라 "두 표면이 짝으로 묶이기 때문"이다.**
 
 ### `docs/DIRECTORY.md`
 - **변경 내용**: `:97`의 `styles/` 설명이 "Pretendard import"라고만 적혀 있다 — Geist Mono import를 함께 명기.

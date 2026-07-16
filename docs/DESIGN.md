@@ -11,7 +11,7 @@ bugshot-2의 디자인 시스템·UI 컨벤션 단일 출처. 신규 화면·컴
 - **`tailwindcss-animate`** — Radix data-state 진입/퇴장 애니메이션
 - **lucide-react** — 일반 UI 아이콘 / **`@icons-pack/react-simple-icons`** — 플랫폼 브랜드 마크 (`Si{Name}`)
 - **Pretendard Variable** — 본문 폰트 (`globals.css`에서 dynamic-subset import)
-- **Geist Mono Variable** — 코드뷰(CodeMirror·DOM 트리)·로그 본문 전용 (`globals.css`에서 import)
+- **Geist Mono Variable** — 코드 표면용: `font-mono`(코드뷰·로그 본문) + preflight 경유 `pre`/`code` (`globals.css`에서 import)
 - 컴포넌트 정의: `src/components/ui/` (shadcn 생성물), 합성 컴포넌트: `src/sidepanel/components/`
 
 UI 컴포넌트는 직접 스타일링하기보다 shadcn/ui를 우선 쓰고, 없으면 `npx shadcn@latest add <component>`로 설치한 뒤 `src/components/ui/`에 위치하는지 확인한다(shadcn이 `@/` 루트에 생성할 수 있음).
