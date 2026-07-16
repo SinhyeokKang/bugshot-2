@@ -55,7 +55,10 @@ function contrastRatio(a: string, b: string): number {
   return (hi + 0.05) / (lo + 0.05);
 }
 
-// 기능색(destructive)은 빨강이어야 하므로 무채색 대상에서 제외. radius는 색이 아니다.
+// 기능색(destructive)은 빨강이어야 하므로 채도 검사 대상에서 제외. radius는 색이 아니다.
+// 정확 일치라 --destructive-foreground는 제외되지 **않는데**, 이게 의도다 — 그건 빨강이 아니라
+// 거의 흰 글자색이라 base 팔레트를 따라야 한다(라이트 210 40% 98% 틴트 / 다크 0 0% 98% 무채색).
+// startsWith로 "고치면" 이 토큰이 검사에서 빠진다.
 const CHROMATIC = ["destructive"];
 const NON_COLOR = ["radius"];
 
@@ -76,12 +79,15 @@ describe("디자인 토큰 표", () => {
     });
   });
 
-  describe("neutral 팔레트 (무채색)", () => {
-    it("라이트 회색 토큰은 채도가 0이다", () => {
-      const tinted = grayTokens(parseTokens(GLOBALS, ":root"))
-        .filter(([, v]) => hsl(v).s !== 0)
+  // 테마별로 base가 다른 건 의도다(라이트=slate 틴트 / 다크=neutral 무채색) — 같은 채도가
+  // 고명도에선 "맑음", 저명도에선 배경을 남색으로 물들여 "칙칙함"으로 읽히기 때문.
+  // 표만 보면 갈린 게 실수처럼 보여 "일관성" 명목으로 한쪽을 밀기 쉬워서, 여기서 양방향으로 막는다.
+  describe("테마별 base 비대칭 (라이트=slate / 다크=neutral)", () => {
+    it("라이트 회색 토큰은 틴트를 유지한다 (순백 표면은 틴트 여지가 없어 제외)", () => {
+      const flattened = grayTokens(parseTokens(GLOBALS, ":root"))
+        .filter(([, v]) => hsl(v).l < 100 && hsl(v).s === 0)
         .map(([name, v]) => `--${name}: ${v}`);
-      expect(tinted).toEqual([]);
+      expect(flattened).toEqual([]);
     });
 
     it("다크 회색 토큰은 채도가 0이다", () => {

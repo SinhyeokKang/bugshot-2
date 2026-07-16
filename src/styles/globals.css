@@ -5,26 +5,32 @@
 @tailwind utilities;
 
 @layer base {
+  /* 테마별로 base 팔레트가 다르다 — 라이트=slate(푸른 틴트) / 다크=neutral(무채색). 실수가 아니라
+     의도다: 같은 채도가 명도에 따라 정반대로 읽힌다. 고명도(라이트)에선 순백 배경 위 border·muted가
+     "맑게" 보이지만, 저명도(다크)에선 배경 자체를 남색으로 물들여 "칙칙하게" 보인다.
+     표만 보면 갈린 게 지저분해 보여 "일관성" 명목으로 한쪽을 밀기 쉬운데, 그러면 의도한 톤이 죽는다.
+     (실제로 그렇게 밀었다가 되돌린 이력이 있다.) __tests__/tokens.test.ts가 양방향으로 막는다 —
+     라이트 채도>0 / 다크 채도=0. 배경은 docs/DESIGN.md "색상" 절. */
   :root {
     --background: 0 0% 100%;
-    --foreground: 0 0% 3.9%;
+    --foreground: 222.2 84% 4.9%;
     --card: 0 0% 100%;
-    --card-foreground: 0 0% 3.9%;
+    --card-foreground: 222.2 84% 4.9%;
     --popover: 0 0% 100%;
-    --popover-foreground: 0 0% 3.9%;
-    --primary: 0 0% 9%;
-    --primary-foreground: 0 0% 98%;
-    --secondary: 0 0% 96.1%;
-    --secondary-foreground: 0 0% 9%;
-    --muted: 0 0% 96.1%;
-    --muted-foreground: 0 0% 45.1%;
-    --accent: 0 0% 96.1%;
-    --accent-foreground: 0 0% 9%;
+    --popover-foreground: 222.2 84% 4.9%;
+    --primary: 222.2 47.4% 11.2%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
     --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 0 0% 98%;
-    --border: 0 0% 89.8%;
-    --input: 0 0% 89.8%;
-    --ring: 0 0% 89.8%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 214.3 31.8% 91.4%;
     --radius: 0.75rem;
   }
 
@@ -43,7 +49,8 @@
     --muted-foreground: 0 0% 63.9%;
     --accent: 0 0% 14.9%;
     --accent-foreground: 0 0% 98%;
-    /* shadcn 다크 기본값(0 62.8% 30.6%)은 bg-destructive용 어두운 빨강이지만, 이 앱은
+    /* destructive만 라이트와 값이 같다(위 비대칭의 예외) — 기능색이라 테마별 톤 조정 대상이 아니다.
+       shadcn 다크 기본값(0 62.8% 30.6%)은 bg-destructive용 어두운 빨강이지만, 이 앱은
        --destructive를 text-destructive/destructive-outline으로만 소비한다(bg 변형 미사용).
        그 값은 글자색으로 쓰면 배경 대비 약 2:1이라 AA 미달 — 라이트와 같은 밝기로 맞춘다.
        대비 하한은 styles/__tests__/tokens.test.ts가 고정한다. */

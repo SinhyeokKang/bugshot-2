@@ -2,9 +2,11 @@ export const STATUS_CATEGORY_COLORS: Record<
   string,
   { bg: string; text: string; darkBg: string; darkText: string }
 > = {
+  // new만 테마별로 스케일이 갈린다 — 나머지는 기능색(blue/green/red)이라 양 테마가 같은 색상환을
+  // 쓰지만, new는 "무색" 배지라 base 팔레트를 따라간다(라이트=slate / 다크=neutral, globals.css 참조).
   new: {
-    bg: "bg-neutral-100",
-    text: "text-neutral-700",
+    bg: "bg-slate-100",
+    text: "text-slate-700",
     darkBg: "dark:bg-neutral-500/15",
     darkText: "dark:text-neutral-300",
   },
