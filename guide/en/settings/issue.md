@@ -31,13 +31,14 @@ Turning this toggle on starts keeping the last 30 seconds of your screen. There'
 
 ## AI settings
 
-![AI settings — Fill reproduction steps](../assets/settings-issue-4.jpg)
+![AI settings — Fill steps to reproduce](../assets/settings-issue-4.jpg)
 
-With **Fill reproduction steps** on, the moment you land on the issue screen after recording, AI reads the action log it just captured and **fills the Steps to reproduce section for you**. It saves you from retyping each step by hand.
+With **Fill steps to reproduce** on, the moment you land on the issue screen after recording, AI reads the action log it just captured and **fills the Steps to reproduce section for you**. It saves you from retyping each step by hand.
 
 - It's **on** by default.
 - It only kicks in when an AI model is connected — with no AI available, nothing gets auto-filled and Steps to reproduce stays empty. See [AI LLM Integration](./ai.md) to connect one.
 - When it runs, the action log is sent to the connected AI. If you recorded a sensitive screen, feel free to turn it off.
+- If you turn the Steps to reproduce section off under **Body composition** below, there's nothing left to fill, so this option goes inactive too. Your on/off choice is remembered and comes back when you re-enable the section.
 
 > Want to see how it fills things in? Check out [Writing an Issue (Recording mode)](../video/issue.md).
 
