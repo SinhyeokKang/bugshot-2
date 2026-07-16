@@ -263,9 +263,7 @@ function AutoReproPrefillToggleRow({
           {t("settings.autoReproPrefill.label")}
         </label>
         <p className="text-sm text-muted-foreground">
-          {disabled
-            ? t("settings.autoReproPrefill.sectionOff")
-            : t("settings.autoReproPrefill.help")}
+          {t("settings.autoReproPrefill.help")}
         </p>
       </div>
       <Switch
