@@ -29,6 +29,7 @@ import type { Token } from "@/types/picker";
 import { useSettingsUiStore } from "@/store/settings-ui-store";
 import { findTokenValue, isInternalToken } from "./tokenUtils";
 import { PROP_CATEGORY } from "./propMetadata";
+import { valueHintsFor } from "./propValues";
 import { rightHintText } from "./valueFormat";
 import {
   filterTokensByQuery,
@@ -50,31 +51,16 @@ const lockSelectorLine = EditorState.changeFilter.of((tr) =>
   }),
 );
 
-// lang-css의 값 완성이 약해 흔한 값을 커스텀 소스로 보강. 선언부(콜론 뒤)에서만 제안.
-const VALUE_HINTS = [
+// lang-css의 값 완성이 약해(속성 무관 generic 덤프) 흔한 값을 커스텀 소스로 보강.
+// 열거형 속성이 아닐 때(color·length 등)의 generic 폴백 — 선언부(콜론 뒤)에서만 제안.
+const GENERIC_VALUE_HINTS = [
   "initial",
   "inherit",
   "unset",
   "auto",
   "none",
-  "block",
-  "inline-block",
-  "flex",
-  "inline-flex",
-  "grid",
-  "center",
-  "flex-start",
-  "flex-end",
-  "space-between",
-  "absolute",
-  "relative",
-  "fixed",
-  "sticky",
-  "hidden",
-  "visible",
   "bold",
   "normal",
-  "pointer",
   "transparent",
   "currentColor",
   "red",
@@ -84,6 +70,13 @@ const VALUE_HINTS = [
   "white",
 ];
 
+// 커서가 걸친 선언의 속성명 — 현재 세그먼트(마지막 `;` 이후)의 콜론 앞.
+function propBeforeCursor(before: string): string {
+  const seg = before.slice(before.lastIndexOf(";") + 1);
+  const colon = seg.indexOf(":");
+  return colon < 0 ? "" : seg.slice(0, colon).trim().toLowerCase();
+}
+
 const cssValueCompletion = cssLanguage.data.of({
   autocomplete: (context: CompletionContext) => {
     const line = context.state.doc.lineAt(context.pos);
@@ -91,9 +84,16 @@ const cssValueCompletion = cssLanguage.data.of({
     if (!/:[^;{}]*$/.test(before)) return null;
     const word = context.matchBefore(/[\w-]+/);
     if (!word && !context.explicit) return null;
+    // 속성별 값이 있으면 그것만(+CSS-wide) boost로 lang-css generic 덤프 위에 올린다.
+    const specific = valueHintsFor(propBeforeCursor(before));
+    const labels = specific ?? GENERIC_VALUE_HINTS;
     return {
       from: word ? word.from : context.pos,
-      options: VALUE_HINTS.map((label) => ({ label, type: "constant" })),
+      options: labels.map((label, i) => ({
+        label,
+        type: "constant",
+        ...(specific ? { boost: labels.length - i } : {}),
+      })),
       validFor: /^[\w-]*$/,
     };
   },

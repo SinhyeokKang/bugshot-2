@@ -45,6 +45,7 @@ import {
   TextProp,
 } from "./styleEditor/StylePropEditors";
 import { AiStylingDialog } from "./styleEditor/AiStylingDialog";
+import { selectOptions } from "./styleEditor/propValues";
 import { StyleCssView } from "./styleEditor/StyleCssView";
 import { StyleChangesDialog } from "./styleEditor/StyleChangesDialog";
 import { elementKey } from "@/lib/element-key";
@@ -235,51 +236,29 @@ export function SelectedPanel() {
           collapsible
           defaultOpen={sectionOpen(SECTION_PROPS.layout)}
         >
-        <SelectProp
-          label="display"
-          prop="display"
-          options={[
-            "",
-            "block",
-            "inline",
-            "inline-block",
-            "flex",
-            "inline-flex",
-            "grid",
-            "inline-grid",
-            "none",
-          ]}
-        />
+        <SelectProp label="display" prop="display" options={selectOptions("display")} />
         <Row2>
           <SelectProp
             label="flex-direction"
             prop="flex-direction"
-            options={["", "row", "column", "row-reverse", "column-reverse"]}
+            options={selectOptions("flex-direction")}
           />
           <SelectProp
             label="flex-wrap"
             prop="flex-wrap"
-            options={["", "nowrap", "wrap", "wrap-reverse"]}
+            options={selectOptions("flex-wrap")}
           />
         </Row2>
         <Row2>
           <SelectProp
             label="justify-content"
             prop="justify-content"
-            options={[
-              "",
-              "flex-start",
-              "flex-end",
-              "center",
-              "space-between",
-              "space-around",
-              "space-evenly",
-            ]}
+            options={selectOptions("justify-content")}
           />
           <SelectProp
             label="align-items"
             prop="align-items"
-            options={["", "flex-start", "flex-end", "center", "stretch", "baseline"]}
+            options={selectOptions("align-items")}
           />
         </Row2>
         <QuadProp label="margin" prefix="margin" />
@@ -298,7 +277,7 @@ export function SelectedPanel() {
           <SelectProp
             label="position"
             prop="position"
-            options={["", "static", "relative", "absolute", "fixed", "sticky"]}
+            options={selectOptions("position")}
           />
           <TextProp label="z-index" prop="z-index" />
         </Row2>
@@ -372,41 +351,29 @@ export function SelectedPanel() {
         collapsible
         defaultOpen={sectionOpen(SECTION_PROPS.overflow)}
       >
-        <SelectProp
-          label="overflow"
-          prop="overflow"
-          options={["", "visible", "hidden", "scroll", "auto", "clip"]}
-        />
+        <SelectProp label="overflow" prop="overflow" options={selectOptions("overflow")} />
         <Row2>
           <SelectProp
             label="overflow-x"
             prop="overflow-x"
-            options={["", "visible", "hidden", "scroll", "auto", "clip"]}
+            options={selectOptions("overflow-x")}
           />
           <SelectProp
             label="overflow-y"
             prop="overflow-y"
-            options={["", "visible", "hidden", "scroll", "auto", "clip"]}
+            options={selectOptions("overflow-y")}
           />
         </Row2>
         <Row2>
           <SelectProp
             label="white-space"
             prop="white-space"
-            options={[
-              "",
-              "normal",
-              "nowrap",
-              "pre",
-              "pre-wrap",
-              "pre-line",
-              "break-spaces",
-            ]}
+            options={selectOptions("white-space")}
           />
           <SelectProp
             label="text-overflow"
             prop="text-overflow"
-            options={["", "clip", "ellipsis"]}
+            options={selectOptions("text-overflow")}
           />
         </Row2>
       </Section>
@@ -457,23 +424,7 @@ export function SelectedPanel() {
         <SelectProp
           label="mix-blend-mode"
           prop="mix-blend-mode"
-          options={[
-            "",
-            "normal",
-            "multiply",
-            "screen",
-            "overlay",
-            "darken",
-            "lighten",
-            "color-dodge",
-            "color-burn",
-            "difference",
-            "exclusion",
-            "hue",
-            "saturation",
-            "color",
-            "luminosity",
-          ]}
+          options={selectOptions("mix-blend-mode")}
         />
         </Section>
 
@@ -502,12 +453,12 @@ export function SelectedPanel() {
           <SelectProp
             label="table-layout"
             prop="table-layout"
-            options={["", "auto", "fixed"]}
+            options={selectOptions("table-layout")}
           />
           <SelectProp
             label="border-collapse"
             prop="border-collapse"
-            options={["", "separate", "collapse"]}
+            options={selectOptions("border-collapse")}
           />
         </Row2>
         <TextProp label="border-spacing" prop="border-spacing" />
@@ -515,28 +466,18 @@ export function SelectedPanel() {
           <SelectProp
             label="caption-side"
             prop="caption-side"
-            options={["", "top", "bottom"]}
+            options={selectOptions("caption-side")}
           />
           <SelectProp
             label="empty-cells"
             prop="empty-cells"
-            options={["", "show", "hide"]}
+            options={selectOptions("empty-cells")}
           />
         </Row2>
         <SelectProp
           label="vertical-align"
           prop="vertical-align"
-          options={[
-            "",
-            "baseline",
-            "top",
-            "middle",
-            "bottom",
-            "sub",
-            "super",
-            "text-top",
-            "text-bottom",
-          ]}
+          options={selectOptions("vertical-align")}
         />
         </Section>
       </div>
