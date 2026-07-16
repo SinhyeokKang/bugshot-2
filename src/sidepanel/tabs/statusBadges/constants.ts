@@ -3,10 +3,10 @@ export const STATUS_CATEGORY_COLORS: Record<
   { bg: string; text: string; darkBg: string; darkText: string }
 > = {
   new: {
-    bg: "bg-slate-100",
-    text: "text-slate-700",
-    darkBg: "dark:bg-slate-500/15",
-    darkText: "dark:text-slate-300",
+    bg: "bg-neutral-100",
+    text: "text-neutral-700",
+    darkBg: "dark:bg-neutral-500/15",
+    darkText: "dark:text-neutral-300",
   },
   indeterminate: {
     bg: "bg-blue-100",
