@@ -139,7 +139,7 @@ const ko = {
   "cancelConfirm.body": "작성 중인 내용이 모두 초기화됩니다.",
 
   "preview.copied": "복사됨",
-  "preview.copyMarkdown": "마크다운 복사",
+  "preview.copyMarkdown": "복사",
   "preview.newIssue": "다른 이슈 작성",
 } as const;
 
@@ -286,7 +286,7 @@ const en = {
   "cancelConfirm.body": "All unsaved changes will be lost.",
 
   "preview.copied": "Copied",
-  "preview.copyMarkdown": "Copy markdown",
+  "preview.copyMarkdown": "Copy",
   "preview.newIssue": "New issue",
 } satisfies Bundle;
 
