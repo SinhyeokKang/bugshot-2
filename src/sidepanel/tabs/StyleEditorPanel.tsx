@@ -217,6 +217,9 @@ export function SelectedPanel() {
           <Section
             title={t("editor.section.class")}
             action={<ClassRevertButton />}
+            collapsible
+            defaultOpen={selection.classList.length > 0}
+            testId="section-class"
           >
             <ClassEditor />
           </Section>
