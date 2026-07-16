@@ -42,7 +42,7 @@ import {
 import { mergeStyleElements, joinStyleSelectors } from "@/sidepanel/lib/buildIssueMarkdown";
 import { downloadImageDataUrl, downloadVideoBlob } from "@/sidepanel/lib/downloadCapture";
 import { downloadEditorLogsHtml } from "@/sidepanel/lib/buildEditorCapture";
-import { supportsActionLog } from "@/sidepanel/lib/captureLogSupport";
+import { supportsActionLog, supportsConsoleNetworkLog } from "@/sidepanel/lib/captureLogSupport";
 import { isReproSectionEnabled } from "@/sidepanel/lib/reproSectionEnabled";
 import {
   deriveReadonlyEnvRows,
@@ -53,6 +53,9 @@ import {
 import { getOsInfo } from "@/sidepanel/lib/osInfo";
 import { OrderedListEditor } from "@/sidepanel/components/OrderedListEditor";
 import { AiDraftDialog } from "./AiDraftDialog";
+
+// 진행 중 잠금 표시 — IssueTab 캡처 툴바와 같은 관례.
+const lockedClass = "aria-disabled:cursor-not-allowed aria-disabled:opacity-50";
 
 const LazyTiptapEditor = lazy(() => import("../components/TiptapEditor"));
 const AnnotationOverlay = lazy(() => import("../components/AnnotationOverlay"));
@@ -703,20 +706,26 @@ function SectionTextarea({
   const editorRef = useRef<import("../components/TiptapEditor").TiptapEditorHandle>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [logDialogOpen, setLogDialogOpen] = useState(false);
+  const [sectionOpen, setSectionOpen] = useState(true);
 
   const isParagraph = section.renderAs !== "orderedList";
   const aiLoading = useEditorStore((s) => s.aiDraftLoading);
+  const captureMode = useEditorStore((s) => s.captureMode);
   const networkLog = useEditorStore((s) => s.networkLog);
   const consoleLog = useEditorStore((s) => s.consoleLog);
   const videoStartedAt = useEditorStore((s) => s.videoStartedAt);
   const requests = networkLog?.requests ?? [];
   const entries = consoleLog?.entries ?? [];
-  const noLogs = requests.length === 0 && entries.length === 0;
+  // 제출 첨부·AI 프롬프트와 같은 게이트를 타야 한다 — element 모드는 로그를 안 싣는다.
+  const noLogs =
+    !supportsConsoleNetworkLog(captureMode) || (requests.length === 0 && entries.length === 0);
 
   return (
     <Section
       title={label}
       collapsible
+      open={sectionOpen}
+      onOpenChange={setSectionOpen}
       testId={`draft-section-${section.id}`}
       action={
         isParagraph ? (
@@ -738,18 +747,22 @@ function SectionTextarea({
             {/* 셋 다 "이 섹션 본문에 콘텐츠 삽입"이라 한 그룹 — 접기(chevron)는 Section이 뒤에 따로 렌더한다. */}
             <ButtonGroup className="flex-nowrap">
               <TooltipIconButton
-                label={t("draft.insertLog")}
+                label={noLogs ? t("draft.insertLog.empty") : t("draft.insertLog")}
                 ariaDisabled={noLogs}
-                className="aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+                className={lockedClass}
                 testId={`section-log-insert-${section.id}`}
-                onClick={() => setLogDialogOpen(true)}
+                onClick={() => {
+                  // 접힌 섹션은 에디터가 언마운트돼 삽입이 조용히 사라진다 — 먼저 펼친다.
+                  setSectionOpen(true);
+                  setLogDialogOpen(true);
+                }}
               >
                 <FileCode />
               </TooltipIconButton>
               <TooltipIconButton
                 label={t("draft.captureArea")}
                 ariaDisabled={aiLoading}
-                className="aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+                className={lockedClass}
                 onClick={() => {
                   useEditorStore.getState().startInlineCapture(section.id);
                   const tabId = useEditorStore.getState().target?.tabId;
