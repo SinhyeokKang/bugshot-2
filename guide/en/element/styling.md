@@ -19,6 +19,7 @@ From top to bottom, the panel is organized into these sections (labels show in E
 9. **Typography** — font size, weight, line height, letter spacing, align, color.
 10. **Effects** — shadow, filter, blend.
 11. **Transition** — transition property, duration, easing.
+12. **Table** — table layout (table-layout), border collapse, cell spacing, caption side, empty cells, and vertical alignment. Handy when tidying up a `table` or its cells.
 
 ## The Edit and CSS tabs
 
