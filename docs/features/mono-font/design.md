@@ -190,13 +190,21 @@ expect(mono[mono.length - 1]).toBe("monospace");
 ### e2e — `style-code-view.spec.ts`에 1줄
 
 ```ts
-await sidePanel.evaluate(() => document.fonts.ready);
-expect(await sidePanel.evaluate(() =>
-  document.fonts.check('13px "Geist Mono Variable"'))).toBe(true);
+const faces = await panel.evaluate(async () => {
+  await document.fonts.load('13px "Geist Mono Variable"');   // unicode-range 지연 로드 강제
+  return [...document.fonts]
+    .filter((f) => f.family.replace(/["']/g, "") === "Geist Mono Variable")
+    .map((f) => f.status);
+});
+expect(faces.length).toBeGreaterThan(0);   // @font-face 등록 자체
+expect(faces).toContain("loaded");
 ```
 
-- **단위 테스트가 구조적으로 못 잡는 것을 잡는다**: 단위는 소스 텍스트만 보므로 "빌드가 실제로 폰트를 실었는가"에 대해 말할 수 있는 게 없다. 이 단언은 `@import` 오배치(경고만 나고 빌드는 통과), family 문자열 불일치, **woff2 미emit**, 패키지 업그레이드 시 family 개명을 전부 잡는다.
-- `getComputedStyle().fontFamily`는 **쓰지 않는다** — 스택 문자열만 돌려주고 실제 해석 결과를 말하지 않아 단위 테스트의 중복일 뿐이다. (이전 판은 이 한계만 보고 e2e 전체를 기각했는데, `document.fonts.check`를 검토하지 않은 절반의 논증이었다.)
+- **단위 테스트가 구조적으로 못 잡는 것을 잡는다**: 단위는 소스 텍스트만 보므로 "빌드가 실제로 폰트를 실었는가"에 대해 말할 수 있는 게 없다. 이 단언은 `@import` 오배치(경고만 나고 빌드는 통과), family 문자열 불일치, **woff2 미emit**, 패키지 업그레이드 시 family 개명을 잡는다.
+- **`document.fonts.check()`는 쓰면 안 된다 — 실측으로 기각됐다.** `check('13px "X"')`는 "이 지정으로 텍스트를 그릴 수 있나"를 묻지 "X가 로드됐나"를 묻지 않는다. 매칭 `@font-face`가 **없으면** family가 시스템 폰트로 폴백되고 폴백은 늘 available이라 **true**를 돌려준다. `@import`를 `@tailwind` 아래로 내려 **woff2 0개 emit**인 빌드를 만들어 확인했더니 `check()`는 그대로 통과했다 — 아무것도 안 잡는 공허한 단언이다. 그래서 `document.fonts`를 순회해 **`@font-face` 등록 자체**를 본다.
+- **`document.fonts.load()`가 필요하다.** `unicode-range` 서브셋은 글리프를 실제로 그릴 때 지연 로드되므로, 화면에 mono 텍스트가 없으면 `status`가 `"unloaded"`다. `fonts.ready`만으론 부족하다 — 대기할 로드가 애초에 없다.
+- `getComputedStyle().fontFamily`도 **쓰지 않는다** — 스택 문자열만 돌려주고 실제 해석 결과를 말하지 않아 단위 테스트의 중복일 뿐이다.
+- **이 단언은 비공허함이 증명됐다**: 정상 = green(woff2 6개), `@import` 오배치 = **red**(`faces.length` 0, woff2 0개).
 - 참고: repo 전체에 `document.fonts` 사용처 0, 폰트를 단언하는 spec 0 → spurious fail 위험 없음.
 
 ## 기존 패턴 준수

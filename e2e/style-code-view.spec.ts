@@ -198,4 +198,25 @@ test.describe.serial("style-code-view", () => {
       "active",
     );
   });
+
+  // 빌드가 Geist를 실제로 실었는지는 단위 테스트가 말할 수 없다 — tailwind.config.js 소스만 읽기
+  // 때문. @import를 @tailwind 아래로 옮기면 postcss-import가 경고만 내고 빌드는 통과하는데
+  // woff2는 0개 emit된다(실측) — 콘솔 경고 없이 조용히 폴백하므로 이 단언이 유일한 자동 그물이다.
+  //
+  // document.fonts.check()는 쓰지 말 것: 매칭 @font-face가 **없으면** 그 family는 시스템 폰트로
+  // 폴백되고 폴백은 늘 available이라 true를 돌려준다 — 폰트가 빠져도 통과하는 공허한 단언이 된다
+  // (실측 확인). getComputedStyle().fontFamily도 스택 문자열만 돌려줘 해석 결과를 말하지 않는다.
+  // 그래서 @font-face 등록 자체를 document.fonts에서 직접 확인한다.
+  test("Geist Mono @font-face가 실제로 실려 로드된다 — font-mono가 폴백으로 새지 않는다", async () => {
+    const faces = await panel.evaluate(async () => {
+      // unicode-range 서브셋은 글리프를 그릴 때 지연 로드된다 — load()로 명시적으로 받아야
+      // 화면에 mono 텍스트가 있든 없든 status가 결정적이다.
+      await document.fonts.load('13px "Geist Mono Variable"');
+      return [...document.fonts]
+        .filter((f) => f.family.replace(/["']/g, "") === "Geist Mono Variable")
+        .map((f) => f.status);
+    });
+    expect(faces.length).toBeGreaterThan(0);
+    expect(faces).toContain("loaded");
+  });
 });

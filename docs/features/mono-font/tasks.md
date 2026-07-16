@@ -81,18 +81,18 @@
   - [x] `pnpm typecheck` 통과
   - [ ] 수동은 Task 8에서 일괄
 
-### Task 6: e2e 폰트 로드 단언
+### Task 6: e2e 폰트 로드 단언 (✅ 완료)
 - **변경 대상**: `e2e/style-code-view.spec.ts`
 - **작업 내용**: 사이드패널 컨텍스트에 아래 추가. 단위 테스트는 소스 텍스트만 보므로 "빌드가 실제로 폰트를 실었는가"를 말할 수 없다 — 이 단언이 그 공백을 메운다(`@import` 오배치·family 불일치·woff2 미emit·패키지 업그레이드 시 개명).
   ```ts
-  await sidePanel.evaluate(() => document.fonts.ready);
-  expect(await sidePanel.evaluate(() =>
-    document.fonts.check('13px "Geist Mono Variable"'))).toBe(true);
+  await document.fonts.load('13px "Geist Mono Variable"');   // unicode-range 지연 로드 강제
+  [...document.fonts].filter((f) => f.family.replace(/["']/g, "") === "Geist Mono Variable")
+  // → length > 0 (등록 자체) + status에 "loaded" 포함
   ```
-  `getComputedStyle().fontFamily`는 쓰지 않는다(스택 문자열만 반환 → 단위 테스트 중복).
+  > **`document.fonts.check()`는 쓰지 말 것 — 실측으로 기각됐다.** 매칭 `@font-face`가 없으면 family가 시스템 폰트로 폴백되고 폴백은 늘 available이라 **true**를 돌려준다. woff2가 0개 emit된 빌드에서도 통과하는 공허한 단언이다. `getComputedStyle().fontFamily`도 스택 문자열만 반환해 단위 테스트 중복.
 - **검증**:
-  - [ ] `pnpm build:e2e && pnpm test:e2e style-code-view` 통과
-  - [ ] 일부러 `globals.css`의 `@import`를 `@tailwind` 아래로 옮기면 이 단언이 **실패**한다 (red 확인 — 이 테스트가 실제로 뭘 잡는지 입증)
+  - [x] `pnpm build:e2e && pnpm test:e2e style-code-view` 통과 (9/9, 연속 2회)
+  - [x] 일부러 `globals.css`의 `@import`를 `@tailwind` 아래로 옮기면 이 단언이 **실패**한다 — **확인됨**: woff2 0개 emit + `faces.length` 0으로 red (빌드는 경고만 내고 통과). 원복 완료
 
 ### Task 7: 문서 갱신
 - **변경 대상**: `docs/DESIGN.md`, `docs/DIRECTORY.md`
