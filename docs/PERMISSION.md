@@ -111,7 +111,7 @@ capture-error.ts:isActiveTabPermissionError()
 
 - `picker-control.ts:195` — `maybeSurfacePermissionExpired()`: captureVisibleTab 실패 시 호출
 - `capture.ts:51` — 요소 스냅샷 실패
-- `usePickerMessages.ts:356·379` — 영역 캡처·인라인 캡처 실패
+- `usePickerMessages.ts:364·392` — 영역 캡처·인라인 캡처 실패 분기
 
 #### 3단계: tabCapture 에러 매칭 (영상 녹화)
 
@@ -343,7 +343,7 @@ idle 복귀 전 캡처를 시도하면 기존 3중 방어(진입 가드 / 런타
 
 - **session quota 초과 대응** (`useEditorSessionSync.ts`): 이미지 필드를 제거한 "lite" 스냅샷으로 폴백. 3연속 실패 시 저장 중단 + `onSessionSaveExhausted` 발화
 - **bg ↔ sidepanel 동기화** (`main.tsx`): bg가 OAuth 토큰을 `chrome.storage.local`에 직접 쓰면 `onChanged` 리스너가 Zustand 재수화 트리거
-- **세션 외부 삭제 감지** (`useEditorSessionSync.ts:193`): `session` area의 editor 키가 null이 되면(bg에서 `remove` 호출) 세션 만료/리셋 처리
+- **세션 외부 삭제 감지** (`useEditorSessionSync.ts:201`): `session` area의 editor 키가 null이 되면(bg에서 `remove` 호출) 세션 만료/리셋 처리
 
 ---
 
