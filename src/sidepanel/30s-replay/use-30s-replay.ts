@@ -8,18 +8,18 @@ import { saveNetworkLog, saveConsoleLog, saveActionLog } from "@/store/blob-db";
 import { networkLogPersist, consoleLogPersist, actionLogPersist } from "@/sidepanel/hooks/usePickerMessages";
 import { useT } from "@/i18n";
 import { FrameBuffer, REPLAY_MAX_DURATION_MS } from "./frame-buffer";
-import type { CapturedFrame } from "./frame-buffer";
 import { encodeToMp4 } from "./mp4-encoder";
 
 const CAPTURE_INTERVAL_MS = 600;
 const MIN_READY_FRAMES = 10;
 
+// 트림 대기 상태(게이트+페이로드)는 editor-store의 replayTrim이 단일 출처다 — 여기서 로컬
+// state로 들면 drafting 전이와 레인이 갈린다(POSTMORTEM 2026-07-17).
 export interface Use30sReplayReturn {
   isReady: boolean;
   isEncoding: boolean;
   bufferedSeconds: number;
   capture: () => Promise<void>;
-  pendingTrim: { videoBlob: Blob; frames: CapturedFrame[] } | null;
   resolveTrim: () => void;
 }
 
@@ -34,7 +34,6 @@ export function use30sReplay(
   const [isReady, setIsReady] = useState(false);
   const [isEncoding, setIsEncoding] = useState(false);
   const [bufferedSeconds, setBufferedSeconds] = useState(0);
-  const [pendingTrim, setPendingTrim] = useState<{ videoBlob: Blob; frames: CapturedFrame[] } | null>(null);
 
   const bufferRef = useRef<FrameBuffer>(new FrameBuffer());
   const inFlightRef = useRef(false);
@@ -187,9 +186,10 @@ export function use30sReplay(
 
       // idle 직접 진입이라 startRecording이 하던 target 설정을 여기서 대신 — confirmDraft 가드 통과용.
       useEditorStore.setState({ target });
-      useEditorStore.getState().onRecordingComplete(blob, thumbnail, viewport, lower, captureTime);
       // 보존한 프레임으로 trim 오버레이 대기 상태를 켠다(2프레임 미만이면 trim 무의미 → 전체 클립 직행).
-      if (frames.length >= 2) setPendingTrim({ videoBlob: blob, frames });
+      // drafting 전이와 같은 set()에 실어야 게이트가 늦게 닫히는 렌더가 안 생긴다.
+      const trim = frames.length >= 2 ? { videoBlob: blob, frames } : null;
+      useEditorStore.getState().onRecordingComplete(blob, thumbnail, viewport, lower, captureTime, trim);
     } catch {
       toast.error(tRef.current("issue.replay.encodeFailed"));
     } finally {
@@ -199,7 +199,9 @@ export function use30sReplay(
     }
   }, []);
 
-  const resolveTrim = useCallback(() => setPendingTrim(null), []);
+  const resolveTrim = useCallback(() => {
+    useEditorStore.getState().resolveReplayTrim();
+  }, []);
 
-  return { isReady, isEncoding, bufferedSeconds, capture, pendingTrim, resolveTrim };
+  return { isReady, isEncoding, bufferedSeconds, capture, resolveTrim };
 }

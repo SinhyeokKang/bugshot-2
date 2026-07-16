@@ -211,12 +211,58 @@ test.describe.serial("style-code-view", () => {
     const faces = await panel.evaluate(async () => {
       // unicode-range 서브셋은 글리프를 그릴 때 지연 로드된다 — load()로 명시적으로 받아야
       // 화면에 mono 텍스트가 있든 없든 status가 결정적이다.
-      await document.fonts.load('13px "Geist Mono Variable"');
+      await document.fonts.load('12px "Geist Mono Variable"');
       return [...document.fonts]
         .filter((f) => f.family.replace(/["']/g, "") === "Geist Mono Variable")
         .map((f) => f.status);
     });
     expect(faces.length).toBeGreaterThan(0);
     expect(faces).toContain("loaded");
+  });
+
+  // 크기 불변식(전 mono 표면 12px)이 v1.6.0에서 실제로 깨진 자리다 — 그땐 DESIGN.md 한 줄이
+  // 유일한 그물이었고 Tiptap이 조용히 갈렸다. 단위 테스트는 globals.css만 읽어 CM의 인라인
+  // theme을 못 본다. 여기선 선언이 아니라 실제 렌더 computed를 잰다.
+  test("CSS 뷰 본문이 12px / 행간 18px로 렌더된다", async () => {
+    await expect(cm()).toBeVisible();
+    const box = await cm().evaluate((el) => {
+      const s = getComputedStyle(el);
+      return { fontSize: s.fontSize, lineHeight: s.lineHeight };
+    });
+    expect(box).toEqual({ fontSize: "12px", lineHeight: "18px" });
+  });
+
+  // Geist Mono의 liga는 브라우저 기본 ON이고 `hyphen + hyphen → hyphen_hyphen.liga`가 실재한다
+  // (fontTools 실측). 그 리거처는 advance가 600으로 hyphen 하나와 같아 `--`가 2셀 → 1셀로
+  // 붕괴한다 — CSS 커스텀 프로퍼티가 전부 이걸 밟는다.
+  //
+  // getComputedStyle(...).fontVariantLigatures를 보면 "선언했다"만 확인하는 공허한 단언이 된다
+  // (document.fonts.check()가 폰트 없이도 true를 냈던 것과 같은 부류 — GOTCHAS 참조).
+  // 고정폭이라 모든 글리프 advance가 같다는 성질을 써서, `--`와 하이픈 없는 2글자의 렌더 폭을
+  // 직접 비교한다. 리거처가 살아있으면 `--`만 절반이 되므로 2배 차이의 이산 판정이다.
+  test("`--`가 두 글리프로 렌더된다 — liga가 CSS 토큰을 뭉개지 않는다", async () => {
+    await appendDecl("--bs-probe: 1px;");
+
+    const width = await cm().evaluate((el) => {
+      const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+      for (let n = walker.nextNode(); n; n = walker.nextNode()) {
+        const i = n.textContent?.indexOf("--bs") ?? -1;
+        if (i === -1) continue;
+        const at = (from: number, to: number) => {
+          const r = document.createRange();
+          r.setStart(n, from);
+          r.setEnd(n, to);
+          return r.getBoundingClientRect().width;
+        };
+        // 같은 2글자: 하이픈 쌍 vs 하이픈 없는 쌍. 고정폭이라 리거처가 없으면 같아야 한다.
+        return { hyphens: at(i, i + 2), plain: at(i + 2, i + 4) };
+      }
+      return null;
+    });
+
+    expect(width, "`--bs`를 담은 텍스트 노드를 못 찾았다").not.toBeNull();
+    expect(width!.plain).toBeGreaterThan(0);
+    // 리거처가 살아있으면 hyphens ≈ plain / 2. 마진을 넉넉히 잡아도 갈라진다.
+    expect(width!.hyphens).toBeGreaterThan(width!.plain * 0.9);
   });
 });

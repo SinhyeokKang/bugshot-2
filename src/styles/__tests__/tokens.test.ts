@@ -29,6 +29,24 @@ function parseFontStack(key: string): string[] {
   return [...block[1].matchAll(/(['"])(.*?)\1/g)].map((m) => m[2].replace(/['"]/g, "").trim());
 }
 
+// mono 블록은 `.font-mono, pre, code, …` 멀티라인 셀렉터 리스트라 parseTokens로는 못 찾는다
+// (완전 일치 문자열 검색 + `--` 커스텀 프로퍼티만 매칭). 주석을 먼저 걷어내야 주석 처리된 선언이
+// 잡히지 않고, 중첩 브레이스를 못 넘는 [^{}] 덕에 @layer base 안쪽 규칙만 걸린다.
+function parseRule(path: string, selector: string): { selectors: string[]; decls: Record<string, string> } {
+  const css = readFileSync(path, "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+  for (const rule of css.matchAll(/([^{}]+)\{([^{}]*)\}/g)) {
+    const selectors = rule[1]
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (!selectors.includes(selector)) continue;
+    const decls: Record<string, string> = {};
+    for (const d of rule[2].matchAll(/([\w-]+)\s*:\s*([^;]+);/g)) decls[d[1]] = d[2].trim();
+    return { selectors, decls };
+  }
+  throw new Error(`${path}에 ${selector}를 포함한 규칙이 없다`);
+}
+
 // hsl 삼중값("0 0% 3.9%") → 성분.
 function hsl(value: string): { h: number; s: number; l: number } {
   const [h, s, l] = value.split(/\s+/).map((p) => Number.parseFloat(p));
@@ -109,9 +127,11 @@ describe("디자인 토큰 표", () => {
     });
   });
 
-  // .font-mono 규칙은 사이드패널과 log-viewer 두 빌드에 똑같이 나가는데, @font-face는
-  // globals.css의 @import로만 들어와 사이드패널에만 있다. 즉 log-viewer는 항상 폴백에 착지한다 —
-  // 이 폴백이 유일한 안전망이라, 스택을 Geist 하나로 "정리"하면 내보낸 logs.html의 코드가 깨진다.
+  // .font-mono 유틸리티는 tailwind.config.js를 공유해 사이드패널과 log-viewer 두 빌드에 똑같이
+  // 나가는데, @font-face는 globals.css의 @import로만 들어와 사이드패널에만 있다. 즉 log-viewer는
+  // 항상 폴백에 착지한다 — 이 폴백이 유일한 안전망이라, 스택을 Geist 하나로 "정리"하면 내보낸
+  // logs.html의 코드가 깨진다. (globals.css의 @layer base 규칙은 log-viewer가 자체 styles.css를
+  // 쓰므로 안 나간다 — 폰트 스택과 달리 그쪽엔 공유되지 않는다.)
   describe("mono 폰트 스택 폴백 (log-viewer는 @font-face가 없다)", () => {
     it("Geist 뒤에 시스템 폴백이 남아 있다", () => {
       expect(parseFontStack("mono").length).toBeGreaterThan(1);
@@ -120,6 +140,46 @@ describe("디자인 토큰 표", () => {
     it("제네릭 monospace로 끝난다", () => {
       const mono = parseFontStack("mono");
       expect(mono[mono.length - 1]).toBe("monospace");
+    });
+  });
+
+  // Geist를 받는 경로가 둘이다 — .font-mono 유틸(CSS 뷰·DOM 트리·로그 5곳)과 Tailwind preflight의
+  // pre/code(Tiptap·프리뷰 코드블럭). 만나는 지점이 없어 한쪽만 손대면 조용히 갈라진다(v1.6.0이
+  // 13px 통일을 선언하고 Tiptap을 놓친 이유). 그래서 두 경로를 한 셀렉터 리스트로 묶어 튜닝한다.
+  describe("mono 타이포그래피 (진입 경로가 둘이라 한 블록으로 묶는다)", () => {
+    // 새 파서를 기존 규칙으로 먼저 검증한다 — 파서가 조용히 빈 객체를 내면 아래 단언들이
+    // 전부 공허해진다(POSTMORTEM 2026-07-16 "파서를 새로 쓰면 기존 배열로 먼저 검증한다").
+    it("parseRule이 기존 규칙을 읽는다 (파서 자기검증)", () => {
+      expect(parseRule(GLOBALS, "::-webkit-scrollbar").decls).toMatchObject({
+        width: "10px",
+        height: "10px",
+      });
+    });
+
+    it("리거처를 끈다 — Geist의 liga가 `--`를 한 글리프로 잇는다", () => {
+      expect(parseRule(GLOBALS, ".font-mono").decls["font-variant-ligatures"]).toBe("none");
+    });
+
+    // font-variant-ligatures가 정확한 도구다 — font-feature-settings는 가산이 아니라 통째로
+    // 덮어쓴다. 실측하면 지금은 잃을 게 없다(preflight가 이미 pre/code에 font-feature-settings:
+    // normal을 직접 걸고, .font-mono의 비-pre 표면은 전부 rlig/calt가 없는 Geist Mono다).
+    // 즉 이건 실손실 방어가 아니라 형태 예방이고, 그래서 근거를 사실대로 적어둔다 —
+    // sans 폰트를 바꾸거나 이 리스트가 넓어지면 그때 실제 손실이 생긴다.
+    it("font-feature-settings로 끄지 않는다 (가산이 아니라 통째로 덮어쓴다)", () => {
+      expect(parseRule(GLOBALS, ".font-mono").decls).not.toHaveProperty("font-feature-settings");
+    });
+
+    it("셀렉터 리스트에 .font-mono와 pre가 둘 다 있다 (한쪽만이면 경로가 갈린다)", () => {
+      expect(parseRule(GLOBALS, ".font-mono").selectors).toEqual(expect.arrayContaining([".font-mono", "pre"]));
+    });
+
+    // log-viewer는 globals.css를 import하지 못하는 별도 빌드인데, App.tsx가 NetworkLogContent·
+    // ConsoleLogContent·IssuePreviewView를 사이드패널에서 그대로 가져다 써서 mono 표면이 있다.
+    // 폰트 스택 1순위가 "Geist Mono Variable"이라 그 폰트를 시스템에 설치한 사용자(=개발자·QA)는
+    // @font-face 없이도 로컬 해석으로 Geist를 받아 liga가 살아난다 — 내보낸 logs.html의 네트워크
+    // 본문에서 `------WebKitFormBoundary`가 이어붙는다. 사이드패널은 늘 Geist라 개발 중엔 안 보인다.
+    it("log-viewer에도 같은 mono 블록이 있다 (별도 빌드라 globals.css가 안 나간다)", () => {
+      expect(parseRule(LOG_VIEWER, ".font-mono")).toEqual(parseRule(GLOBALS, ".font-mono"));
     });
   });
 

@@ -573,7 +573,7 @@ function BodyBlock({ body, query }: { body: NetworkRequestBody; query: string })
   }, [body]);
   if (parsed !== undefined) return <JsonTreeViewer data={parsed} highlightQuery={query} />;
   return (
-    <pre className="max-h-[400px] overflow-auto rounded bg-muted p-2 font-mono text-[11px]">
+    <pre className="max-h-[400px] overflow-auto rounded bg-muted p-2 font-mono text-xs">
       <HighlightedText text={formatBody(body)} query={query} />
     </pre>
   );

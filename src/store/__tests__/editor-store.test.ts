@@ -168,6 +168,17 @@ describe("onAreaCaptured — screenshot 첨부 토글 기본 on", () => {
   });
 });
 
+// 트림 오버레이 페이로드 — 게이트와 한 몸이라 onRecordingComplete 인자로 실린다.
+function replayTrim() {
+  return {
+    videoBlob: new Blob(["v"], { type: "video/mp4" }),
+    frames: [
+      { blob: new Blob(["f0"]), timestamp: 0 },
+      { blob: new Blob(["f1"]), timestamp: 100 },
+    ],
+  };
+}
+
 describe("onRecordingComplete — idle 직접 호출 (30s Replay)", () => {
   beforeEach(() => {
     useEditorStore.setState(useEditorStore.getInitialState(), true);
@@ -197,6 +208,65 @@ describe("onRecordingComplete — idle 직접 호출 (30s Replay)", () => {
     useEditorStore.getState().onRecordingComplete(new Blob(["x"]), "t", { width: 800, height: 600 }, 1000, 5000);
 
     expect(useEditorStore.getState().annotationTool).toBe(null);
+  });
+
+  // 리플레이는 startRecording을 안 거쳐 drafting에 직행하므로, 그 리셋에 기댈 수 없다.
+  it("리플레이 경로에서도 reproPrefillDone을 리셋한다(직전 세션 래치 상속 차단)", () => {
+    useEditorStore.getState().setReproPrefillDone(true);
+
+    useEditorStore.getState().onRecordingComplete(new Blob(["x"]), "t", { width: 800, height: 600 }, 1000, 5000);
+
+    expect(useEditorStore.getState().reproPrefillDone).toBe(false);
+  });
+
+  it("trim 인자 생략(탭/화면 녹화)이면 replayTrim은 null이다", () => {
+    useEditorStore.getState().onRecordingComplete(new Blob(["x"]), "t", { width: 800, height: 600 }, 1000, 5000);
+
+    expect(useEditorStore.getState().replayTrim).toBe(null);
+  });
+
+  // 회귀 가드의 핵심 계약. drafting 전이(zustand)와 trim 게이트(과거 React state)가 다른 레인으로
+  // 갈리면 trim 게이트가 닫히기 전 렌더가 한 번 새고, 그 틈에 DraftingPanel이 마운트돼
+  // useReproPrefill이 발화→언마운트 취소→결과 폐기+done 래치로 영구 미발화가 된다.
+  // 게이트가 같은 set()에 실려야 구독자가 그 중간 상태를 볼 수 없다.
+  it("phase=drafting을 보는 첫 알림에서 replayTrim이 이미 실려 있다(전이 원자성)", () => {
+    const seen: Array<{ phase: string; hasTrim: boolean }> = [];
+    const unsub = useEditorStore.subscribe((s) => {
+      seen.push({ phase: s.phase, hasTrim: s.replayTrim != null });
+    });
+
+    useEditorStore
+      .getState()
+      .onRecordingComplete(new Blob(["x"]), "t", { width: 800, height: 600 }, 1000, 5000, replayTrim());
+    unsub();
+
+    const firstDrafting = seen.find((s) => s.phase === "drafting");
+    expect(firstDrafting).toBeDefined();
+    expect(firstDrafting?.hasTrim).toBe(true);
+  });
+
+  // 페이로드가 게이트와 한 몸이라 얻는 것. 로컬 state로 두면 store만 리셋되고 페이로드가 살아남아
+  // "reset 호출부를 전수해서 얻은 안전"에 의존해야 한다.
+  it("reset이 replayTrim까지 청소한다", () => {
+    useEditorStore
+      .getState()
+      .onRecordingComplete(new Blob(["x"]), "t", { width: 800, height: 600 }, 1000, 5000, replayTrim());
+    expect(useEditorStore.getState().replayTrim).not.toBe(null);
+
+    useEditorStore.getState().reset();
+
+    expect(useEditorStore.getState().replayTrim).toBe(null);
+  });
+
+  it("resolveReplayTrim이 게이트를 내린다", () => {
+    useEditorStore
+      .getState()
+      .onRecordingComplete(new Blob(["x"]), "t", { width: 800, height: 600 }, 1000, 5000, replayTrim());
+    expect(useEditorStore.getState().replayTrim).not.toBe(null);
+
+    useEditorStore.getState().resolveReplayTrim();
+
+    expect(useEditorStore.getState().replayTrim).toBe(null);
   });
 });
 

@@ -388,8 +388,7 @@ describe("useReproPrefill", () => {
     expect(setLoading).toHaveBeenLastCalledWith(false);
   });
 
-  it("AI in-flight 중 autoReproPrefill이 꺼지면 취소되더라도 로딩은 풀린다", async () => {
-    // gating dep가 바뀌어 취소되는 경우에도 setLoading(false)가 finally로 보장돼야 소프트락이 안 걸린다.
+  it("AI in-flight 중 설정을 꺼도 이번 발화는 그대로 채운다(진입 시점 설정 고정)", async () => {
     let resolveFn: (v: unknown) => void = () => {};
     vi.mocked(generateReproStepsWithAI).mockReturnValue(
       new Promise((res) => {
@@ -397,14 +396,12 @@ describe("useReproPrefill", () => {
       }) as any,
     );
     const setDraft = vi.fn();
-    const setDone = vi.fn();
     const setLoading = vi.fn();
-    const createSession = vi.fn();
     const stable = {
       setDraft,
-      setReproPrefillDone: setDone,
+      setReproPrefillDone: vi.fn(),
       setLoading,
-      createSession,
+      createSession: vi.fn(),
       actionLog: actionLog(),
       draft: { title: "", sections: {} },
       aiStatus: "available",
@@ -416,7 +413,72 @@ describe("useReproPrefill", () => {
     await flush();
     expect(setLoading).toHaveBeenLastCalledWith(true);
 
-    rerender(mk({ autoReproPrefill: false, reproPrefillDone: true })); // 로딩 중 opt-out.
+    rerender(mk({ autoReproPrefill: false, reproPrefillDone: true })); // 로딩 중 설정 OFF.
+    await act(async () => {
+      resolveFn("AI a");
+      await Promise.resolve();
+    });
+    expect(setDraft).toHaveBeenCalledTimes(1); // 취소 안 됨 — 진입 시 켜져 있었다.
+    expect(setLoading).toHaveBeenLastCalledWith(false);
+  });
+
+  // 사용자 보고: OFF로 drafting 진입 → 설정에서 ON → 즉시 오버레이 + 자동 채움.
+  // autoReproPrefill이 effect dep라 재실행을 일으켰다. 진입 시점 값으로 고정해 막는다.
+  it("drafting 진입 시 꺼져 있었으면 이후 설정을 켜도 발화하지 않는다", async () => {
+    const setDraft = vi.fn();
+    const setDone = vi.fn();
+    const stable = {
+      setDraft,
+      setReproPrefillDone: setDone,
+      setLoading: vi.fn(),
+      createSession: vi.fn(),
+      actionLog: actionLog(),
+      draft: { title: "", sections: {} },
+      aiStatus: "available",
+    };
+    const mk = (over: Record<string, unknown> = {}) => baseArgs({ ...stable, ...over });
+    const { rerender } = renderHook((p: any) => useReproPrefill(p), {
+      initialProps: mk({ autoReproPrefill: false }),
+    });
+    await flush();
+    expect(generateReproStepsWithAI).not.toHaveBeenCalled();
+
+    rerender(mk({ autoReproPrefill: true })); // 작성 중 설정 ON.
+    await flush();
+
+    expect(generateReproStepsWithAI).not.toHaveBeenCalled();
+    expect(setDraft).not.toHaveBeenCalled();
+    expect(setDone).not.toHaveBeenCalled();
+  });
+
+  // autoReproPrefill을 dep에서 뺀 뒤에도 남는 게이트 dep가 취소를 만들 수 있다 —
+  // 그 경로에서 setLoading(false)가 finally로 보장돼야 스피너 소프트락이 안 걸린다.
+  it("AI in-flight 중 sectionEnabled가 꺼지면 취소되더라도 로딩은 풀린다", async () => {
+    let resolveFn: (v: unknown) => void = () => {};
+    vi.mocked(generateReproStepsWithAI).mockReturnValue(
+      new Promise((res) => {
+        resolveFn = res;
+      }) as any,
+    );
+    const setDraft = vi.fn();
+    const setLoading = vi.fn();
+    const stable = {
+      setDraft,
+      setReproPrefillDone: vi.fn(),
+      setLoading,
+      createSession: vi.fn(),
+      actionLog: actionLog(),
+      draft: { title: "", sections: {} },
+      aiStatus: "available",
+    };
+    const mk = (over: Record<string, unknown> = {}) => baseArgs({ ...stable, ...over });
+    const { rerender } = renderHook((p: any) => useReproPrefill(p), {
+      initialProps: mk({ sectionEnabled: true }),
+    });
+    await flush();
+    expect(setLoading).toHaveBeenLastCalledWith(true);
+
+    rerender(mk({ sectionEnabled: false, reproPrefillDone: true })); // 로딩 중 섹션 OFF.
     await act(async () => {
       resolveFn("AI a");
       await Promise.resolve();
