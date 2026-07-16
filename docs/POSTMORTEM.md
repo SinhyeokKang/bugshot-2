@@ -21,6 +21,27 @@
 
 ---
 
+## 2026-07-16 — 본문에 삽입한 로그가 Slack에서 평문화되고 엉뚱한 섹션이 코드블럭에 씌워짐 (4000자 초과분을 Slack이 임의로 쪼개 fence를 끊음)
+
+- **증상**: 실사용 리포트. 로그 삽입 기능으로 만든 이슈를 Slack에 보냈더니 한 건은 **로그가 코드블럭이 아니라 일반 인라인 텍스트**로 나왔고, 다른 건은 **코드블럭이 엉뚱한 "재현 과정" 섹션에 씌워졌다.** 결정적 단서는 "짧은 로그는 정상"이었다 — 내용이 아니라 **크기**에 걸린 문제.
+- **근본 원인**: 2층이다. ① `chat.postMessage`의 `text`는 **4000자 한계**이고 넘으면 **Slack이 알아서 여러 메시지로 쪼갠다**(리포트에 `[오후 9:15]`가 여러 번 찍힌 게 그 증거였다). 코드블럭 fence는 메시지 경계를 못 넘으므로 첫 조각만 블록으로 닫히고 나머지는 평문으로 흐르며, 경계가 펜스 사이에 떨어지면 뒤 섹션이 통째로 코드블럭에 말려든다. `submitToSlack`은 본문 전체를 `text` 하나로 넘기고 **어디에도 길이 처리가 없었다** — 삽입 로그는 body당 16384자 캡이라 4000을 우습게 넘는다. ② 그 전에 심어둔 `neutralizeFences`(본문의 라인 시작 백틱 런을 4칸 들여써 무해화)는 **CommonMark의 닫힘 fence 들여쓰기 ≤3 규칙**을 전제하는데, Slack의 `markdownToMrkdwn`만 손으로 짠 라인 스캐너라 `/^```/.test(line.trim())` — `.trim()`이 들여쓰기를 지워 무해화가 무력화됐다. **8개 빌더 중 7개(markdown-it 계열·GFM)는 통하고 Slack만 샜다.**
+- **재발 방지**: (1) **본문에 들어가는 텍스트의 상한을 정할 땐 "가장 빡빡한 소비처"를 기준으로 센다** — 설계 때 Notion 2000자는 잡았으면서 Slack의 per-message 4000자는 계산에 없었다. `grep -rn "postMessage\|chat\.\|/messages" src/background/*-api.ts`로 메시지형 API의 길이 한계를 먼저 확인할 것. 트래커(이슈 본문)와 **메시지 앱은 길이 축이 다르다**. (2) **"짧으면 정상, 길면 깨짐"은 렌더러가 아니라 전송 계층을 의심**한다 — 마크다운 문법을 아무리 봐도 안 나온다. (3) **8개 빌더에 공통으로 나가는 텍스트를 만들 땐 빌더별 파서 전제를 전수 확인**한다: markdown-it 계열(Jira ADF·Notion·Asana)·GFM(GitHub·GitLab·Linear·ClickUp)은 CommonMark 규칙을 따르지만 **Slack만 자체 라인 스캐너**다. `grep -rn "inFence\|```" src/sidepanel/lib/markdownToMrkdwn.ts`로 그 예외를 확인. (4) 단위 `splitSlackText.test.ts`(펜스 보존 분할·하드 분할 원문 보존)·`submitToSlack.test.ts > 긴 본문 분할`(답글 N개·조각마다 펜스 짝수·각 ≤4000자)·`markdownToMrkdwn.test.ts`(들여쓰기 ≤3 규칙)가 고정. (5) **Slack 화면의 실제 렌더는 저장소 안에서 검증 불가** — mrkdwn은 CommonMark가 아니라 4칸 들여쓴 백틱이 Slack에서 어떻게 보이는지는 실제 제출로만 확인된다(수동 잔여).
+- **관련**: `src/sidepanel/lib/splitSlackText.ts`(`SLACK_TEXT_LIMIT=3800`·펜스 보존 분할), `src/sidepanel/lib/submitToSlack.ts`(스레드 답글 N개 순차 전송), `src/sidepanel/lib/markdownToMrkdwn.ts`(fence 판정 `/^ {0,3}```/`), `src/sidepanel/lib/logToCodeBlock.ts:neutralizeFences`(tiptap-markdown이 fence를 3백틱으로 하드코딩하고 본문을 escape하지 않는 게 이 계열의 뿌리). 계열: 2026-07-14 "로그 지원 매트릭스 단일 출처 우회"(본문 노출은 8곳에 동시 전파된다).
+
+## 2026-07-16 — 접힌 섹션에서 로그를 삽입하면 다이얼로그만 닫히고 아무 일도 안 일어남 (Section이 children을 언마운트해 editorRef가 null)
+
+- **증상**: 섹션을 접은 채 헤더의 [로그 추가]를 누르면 다이얼로그가 정상으로 열리고, 탭을 고르고 행을 선택하고 [추가]까지 눌러도 **다이얼로그만 닫히고 본문엔 아무것도 안 들어간다.** 에러도 토스트도 없다.
+- **근본 원인**: 표면(삽입 실패)과 원인(레이아웃 컴포넌트)이 다른 레이어. `Section.tsx`가 `{(!collapsible || open) && <div>{children}</div>}`로 **접히면 children을 통째로 언마운트**하는데, 액션 버튼은 헤더에 있어 접힌 상태에서도 살아 있다. 그래서 `editorRef.current`가 null인 채 `editorRef.current?.insertCodeBlock(...)`이 **optional chaining으로 조용히 no-op**된다. ref를 통한 명령형 호출 + 조건부 언마운트 + `?.`의 조합이 "실패를 성공처럼" 만든다.
+- **재발 방지**: (1) **명령형 ref 호출의 대상이 조건부로 언마운트되는지 확인한다** — `grep -rn "Ref.current?\." src/sidepanel/tabs src/sidepanel/components`로 `?.` 호출을 훑고, 그 ref가 가리키는 컴포넌트가 `collapsible`·탭·Suspense 안에 있으면 no-op 경로가 있다. `?.`는 null을 **정상 흐름으로 삼켜** 실패가 안 보인다. (2) **트리거와 대상이 같은 마운트 스코프에 있는지 본다** — 헤더(항상 렌더)에서 body(조건부 렌더)를 조작하는 구조가 이 함정의 형태다. (3) 고칠 땐 트리거가 **먼저 펼치게** 한다(`Section`에 optional 제어 `open`/`onOpenChange` 추가, 미공급 시 기존 비제어 동작 유지 — 공용 컴포넌트라 비침습이 조건). (4) **같은 함정이 `draft.addImage`에 그대로 남아 있다**(`DraftingPanel.tsx`의 `editorRef.current?.insertImageFile`) — 접힌 섹션에서 이미지 추가도 조용히 사라진다. 캡처 버튼은 store 경로(`startInlineCapture` → `appendInlineImage`)라 무관. (5) 이 부류는 **순수 함수 테스트로 절대 안 잡힌다** — 직렬화도 다이얼로그도 전부 green인데 화면만 아무 일이 없다. 렌더 테스트나 실제 클릭이 유일한 감지 수단.
+- **관련**: `src/sidepanel/components/Section.tsx`(제어 `open`/`onOpenChange` + 비제어 폴백), `src/sidepanel/tabs/DraftingPanel.tsx:SectionTextarea`(로그 버튼이 `setSectionOpen(true)` 후 다이얼로그 오픈), 미해결 잔여 `draft.addImage`.
+
+## 2026-07-16 — "팔레트를 단일 출처로 승격했다"는 주석·커밋 메시지가 거짓인 채 머지됨 (복제본이 그대로 남아 있었다)
+
+- **증상**: 코드 동작엔 증상이 없었다. `highlightJson.ts` 헤더 주석이 "JsonTreeViewer와도 팔레트를 공유해 세 화면이 안 갈린다"고 단언하고 커밋 메시지도 "palette lifted out of the component"라고 했는데, **실제로는 `JsonTreeViewer.tsx`가 자기 `VALUE_COLORS`를 그대로 들고 있었고 `highlightJson`을 import조차 안 했다.** 값이 같아서 아무도 못 느낀 잠복 상태.
+- **근본 원인**: 새 파일(`highlightJson.ts`)에 팔레트를 **복사해 넣고 원본을 안 지웠다.** diff에는 신규 파일과 그 주석만 보이고 `JsonTreeViewer.tsx`는 등장하지 않으니 **리뷰에서 diff만 봐선 구조적으로 안 보인다** — "승격했다"는 주장은 diff 밖 파일의 상태에 대한 것이라 diff 리뷰의 사각이다. 정작 2026-06-28 항목이 같은 계열에 "**복제본은 늘 대조 테스트로 묶는다**"고 못박아 뒀는데 그걸 다시 밟았다.
+- **재발 방지**: (1) **"단일 출처로 승격/통합했다"고 쓸 땐 원본이 실제로 사라졌는지 grep으로 확인**한다 — `grep -rn "<옛 상수명>" src`가 0이어야 주장이 참이다. 주석·커밋 메시지의 "공유한다/단일 출처다"는 **검증 가능한 단언**이지 수사가 아니다. (2) **새 모듈에 값 테이블을 만들 땐 그 값이 이미 어딘가 있는지 먼저 찾는다** — `grep -rn "text-purple-700\|text-red-700" src`류로 같은 값의 복제를 잡는다. (3) 이 건은 **`/doc-check`가 잡았다**(문서 에이전트 2개가 주석을 읽고 코드로 대조) — 주석이 코드보다 앞서 나간 거짓말은 diff 리뷰가 아니라 **문서↔코드 양방향 대조**에 걸린다. 코드 주석도 검사 대상으로 취급할 것. (4) 복제가 불가피하면(별도 번들 등) 대조 테스트로 묶는다 — 선례 `log-viewer/__tests__/i18n.test.ts`(메인 테이블 drift 대조), `styles/__tests__/tokens.test.ts`(두 토큰 표 동등성).
+- **관련**: `src/sidepanel/lib/highlightJson.ts:JSON_TOKEN_CLASS`(단일 출처), `src/sidepanel/components/JsonTreeViewer.tsx`(`VALUE_COLORS` 삭제 → import). 계열: 2026-06-28 "log-viewer 복제 dict 미동기화", 2026-07-03 "같은 로그를 두 독립 렌더 경로가 그림".
+
 ## 2026-07-16 — 배경용으로 설계된 shadcn `--destructive`를 글자색으로만 소비해, 다크에서 "작성 취소"가 대비 2:1로 안 읽힘
 
 - **증상**: 다크 테마에서 `destructive-outline` 버튼(작성 취소 등) 레이블이 **엄청 흐리게** 보였다. 라이트에선 멀쩡해서 오래 방치됐다.
