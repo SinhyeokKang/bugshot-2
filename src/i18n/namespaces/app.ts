@@ -49,7 +49,7 @@ const ko = {
   "platform.connected": "{platform} 연결 완료",
   "platform.connectMethod.title": "{platform} 연결 방식",
   "platform.connectMethod.body": "연결 방식을 선택하세요.",
-  "platform.connectMethod.oauth": "OAuth로 연결",
+  "platform.connectMethod.oauth": "OAuth",
 } as const;
 
 type Bundle = Record<keyof typeof ko, string>;
@@ -104,7 +104,7 @@ const en = {
   "platform.connected": "{platform} connected",
   "platform.connectMethod.title": "Connect {platform}",
   "platform.connectMethod.body": "Choose how to connect.",
-  "platform.connectMethod.oauth": "Connect with OAuth",
+  "platform.connectMethod.oauth": "OAuth",
 } satisfies Bundle;
 
 export const app = { ko, en };
