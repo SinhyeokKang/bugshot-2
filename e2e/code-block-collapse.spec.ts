@@ -169,15 +169,14 @@ test.describe.serial("code block collapse", () => {
   });
 });
 
-// 에디터(NodeView) 경로 — 브라우저가 mousedown에서 caret을 옮기므로 jsdom+user-event로는
-// 재현이 안 된다(POSTMORTEM 2026-07-04과 같은 부류).
+// 접힌 블럭은 readonly다 — 안 보이는 줄에 글자가 들어가면 안 된다.
 //
-// 이 테스트가 실제로 무는 건 **toggle의 `contenteditable="false"`**다(design.md 위험 11).
-// mutation으로 실측했다: 그 속성을 지우면 pill 클릭이 caret을 pill 텍스트 안으로 끌고 가
-// anchor가 "cursor anchor paragraph"(offset 23) → "Collapse"(offset 0)로 바뀐다.
-// 반대로 `stopEvent`를 통째로 `return false`로 만들어도 이 테스트는 green이다 — 즉 커서를
-// 지키는 건 stopEvent가 아니다(design.md 위험 3의 근거와 어긋난다. 보고 참조).
-test("에디터에서 pill을 클릭해도 본문 커서가 안 움직인다", async ({ ext }) => {
+// **클릭으로는 이걸 못 잡는다**: 접힌 블럭 클릭은 우리 핸들러가 먼저 펼쳐버려서, caret이
+// 들어와도 이미 편집 가능 상태라 가드 유무가 결과에 안 나타난다(그렇게 쓴 첫 판은 공허했다).
+// 방향키는 우리 핸들러를 안 거치고 PM/브라우저가 직접 caret을 옮기는 유일한 경로라 갈린다.
+// mutation 실측: 셸의 `contenteditable="false"`를 빼면 anchor가 코드 안(" OK\n--- response -")으로
+// 들어가고 타이핑이 접힌 줄에 유입된다(true). 있으면 anchor "" · 유입 false.
+test("접힌 블럭에 방향키로 들어가 타이핑해도 글자가 안 들어간다", async ({ ext }) => {
   const fixture = await ext.context.newPage();
   await fixture.goto(ext.fixtureUrl("basic.html"));
   const tabId = await ext.fixtureTabId();
@@ -192,27 +191,29 @@ test("에디터에서 pill을 클릭해도 본문 커서가 안 움직인다", a
   await expect(panel.getByTestId("drafting-panel")).toBeVisible();
 
   const section = panel.getByTestId("draft-section-description");
-  // 커서 앵커로 쓸 문단을 코드블럭보다 먼저 넣는다.
-  await section.locator('[contenteditable="true"]').fill("cursor anchor paragraph");
+  // 코드블럭 위에 문단을 둬 방향키 출발점을 만든다.
+  await section.locator('[contenteditable="true"]').first().fill("cursor anchor paragraph");
   await insertLog(panel, "/e2e-bigjson");
 
   const wrapper = section.getByTestId("code-collapse");
   await expect(wrapper).toHaveAttribute("data-collapsed", "true");
 
-  // 문단 안에 커서를 놓고 위치를 기록한다.
   await section.locator("p", { hasText: "cursor anchor paragraph" }).click();
-  const readSelection = () =>
-    panel.evaluate(() => {
-      const s = window.getSelection();
-      return { text: s?.anchorNode?.textContent ?? null, offset: s?.anchorOffset ?? null };
-    });
-  const before = await readSelection();
-  expect(before.text).toContain("cursor anchor paragraph");
+  await panel.keyboard.press("End");
+  await panel.keyboard.press("ArrowDown");
+  await panel.keyboard.press("ArrowDown");
+  await panel.keyboard.type("QQQ");
 
-  await wrapper.getByTestId("code-collapse-toggle").click();
-  await expect(wrapper).toHaveAttribute("data-collapsed", "false");
-
-  expect(await readSelection()).toEqual(before);
+  // 접힌 채로 남아야 하고, 코드 본문에 글자가 새면 안 된다.
+  await expect(wrapper).toHaveAttribute("data-collapsed", "true");
+  expect(
+    await panel.evaluate(
+      () =>
+        document
+          .querySelector('[data-testid="code-collapse"] code')
+          ?.textContent?.includes("QQQ") ?? false,
+    ),
+  ).toBe(false);
 
   await panel.close();
   await fixture.close();
