@@ -508,7 +508,7 @@ background/index.ts:136 — webNavigation.onCommitted
 
 | 호스트 (트래픽 대상) | 사용 기능 | API 호출 위치 |
 |---|---|---|
-| 모든 페이지 | picker·로그 레코더 주입 + `captureVisibleTab`(화면·페이지 전체 캡처 + 30s Replay) + BYOK LLM·GitLab self-managed 임의 origin fetch + cross-origin stylesheet 원문 fetch(스타일 보강) | `picker.ts`, `recorder-bridge.ts`, `recorders-entry.ts`, `background/messages.ts`(captureVisibleTab·fetchCssSheets), `ai-provider.ts` |
+| 모든 페이지 | picker·로그 레코더 주입 + `captureVisibleTab`(화면·페이지 전체 캡처 + 30s Replay) + BYOK LLM 동봉 프리셋 7종(OpenAI·Anthropic·Gemini·Groq·Together·OpenRouter·Ollama(localhost))·사용자 임의 baseUrl·GitLab self-managed 임의 origin fetch + cross-origin stylesheet 원문 fetch(스타일 보강) | `picker.ts`, `recorder-bridge.ts`, `recorders-entry.ts`, `background/messages.ts`(captureVisibleTab·fetchCssSheets), `ai-provider.ts` |
 | `*.atlassian.net` | Jira REST API (API Key 모드) | `jira-api.ts` — `${baseUrl}/rest/api/3/*` |
 | `api.atlassian.com` | Jira OAuth API + accessible-resources | `jira-api.ts`, `oauth.ts` |
 | `auth.atlassian.com` | Jira OAuth authorize (launchWebAuthFlow — host_permission 불요) | `oauth.ts` — `launchWebAuthFlow` URL |
@@ -559,7 +559,7 @@ Linear·GitLab은 PKCE 지원으로 proxy 불필요 — 각각 `api.linear.app/o
 
 ### requestHostPermission 잔존 호출
 
-`ai-provider.ts`의 `requestHostPermission(baseUrl)`는 코드에 남아있다(BYOK·GitLab self-managed). `<all_urls>`를 required로 보유하므로 하위 origin 요청은 Chrome이 프롬프트 없이 즉시 `true`로 resolve한다. 함수 제거는 별도 정리 사항(현재 무해한 즉시-grant no-op).
+`ai-provider.ts`의 `requestHostPermission(baseUrl)`는 코드에 남아있다(BYOK·GitLab self-managed). `<all_urls>`를 required로 보유하므로 하위 origin 요청은 프롬프트 없이 통과하는 것으로 **관측**된다 — 다만 이건 테스트가 없는 런타임 동작이고(`optional_host_permissions` 미선언 상태에서 Chrome이 어떻게 resolve하는지는 코드로 확정 불가), 두 호출부 모두 `!granted` → toast로 방어하므로 어느 쪽이든 안전하다. 함수 제거는 별도 정리 사항.
 
 ### 권한 범위 좁히기 (사용자 측)
 
