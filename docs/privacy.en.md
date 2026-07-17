@@ -1,6 +1,6 @@
 # BugShot Privacy Policy
 
-**Effective date**: July 16, 2026
+**Effective date**: July 17, 2026
 
 BugShot (the "extension") values your privacy and collects and processes only the minimum information necessary. This policy transparently explains what information the extension handles.
 
@@ -12,7 +12,7 @@ BugShot (the "extension") values your privacy and collects and processes only th
 
 | Information | When collected | Purpose |
 |---|---|---|
-| Jira credentials (API token or OAuth token) | When configuring the Jira integration | Creating and attaching to issues |
+| Jira credentials (API token or OAuth token), site URL | When configuring the Jira integration | Creating and attaching to issues |
 | Jira user email | When verifying the integration | Displaying integration status |
 | GitHub credentials (PAT or OAuth token) | When configuring the GitHub integration | Creating issues and uploading files |
 | GitHub user ID | When verifying the integration | Displaying integration status |
@@ -68,6 +68,8 @@ User action logs record, in addition to the clicked element, input field, and na
 - **By field type and label**: `type=password`, autocomplete hints, and sensitive keywords found in the field's name, id, `aria-label`, associated label (a `label` element or `aria-labelledby`), or placeholder (password, card, cvv, ssn, token, and their Korean equivalents).
 - **By value shape**: even when the label gives no clue, a value is masked if it looks like an email address or a run of 9 or more digits (phone, card, national ID, or bank account numbers).
 
+Every action also records the **page address** it happened on. The address on a navigation action gets the sensitive-query-parameter masking described above, but the address on click, input, toggle, select, shortcut-key, and drag actions is recorded **verbatim** — so take care on pages that carry tokens in the URL itself.
+
 The **value-shape rule above applies not just to what you type, but to the element's on-screen text and field labels as well** — if the name of the element you clicked looks like an email address or a long digit run, it is masked too.
 
 In addition, content typed into rich-text editors (`contenteditable` — mail bodies, documents, message composers) is **never recorded, neither as a value nor as an element name**; only the fact that you typed is kept. Keystrokes while a sensitive field is focused are not recorded either. However, **a value with no sensitive signal in either its label or its shape (a search term, ordinary text) is recorded verbatim**, so on screens where you enter sensitive content, please turn off log attachment before submitting.
@@ -86,7 +88,7 @@ When you reload a page on which you have previously started debug capture, resum
 |---|---|---|
 | LLM provider settings (base URL, API key, model) | When configuring the AI draft / AI styling feature | Calling the LLM API |
 
-The LLM API key is stored obfuscated. You choose the provider yourself; presets ship base URLs for OpenAI, Anthropic, Gemini, Groq, OpenRouter, Together, and Ollama — **when you use an AI feature, the material for the draft (title, body, style changes, annotated image, log summaries) is sent to the provider you picked.** The action-log summary may carry unmasked input and selection values as-is (masked values are sent as `***`). Nothing is sent if you don't turn the AI features on. In addition, when you enter the report-drafting screen after a video capture, the action-log summary is sent once per session to your connected AI provider (if one is configured) to auto-fill the reproduction steps. This auto-fill is on by default and can be turned off in settings.
+The LLM API key is stored obfuscated. You choose the provider yourself; presets ship base URLs for OpenAI, Anthropic, Gemini, Groq, OpenRouter, Together, and Ollama — **when you use an AI feature, the material for the draft (title, body, style changes, annotated image, log summaries) is sent to the provider you picked.** The action-log summary may carry unmasked input and selection values as-is (masked values are sent as `***`). Nothing is sent if you don't turn the AI features on. In addition, when you enter the report-drafting screen after a video capture, the action-log summary along with the page address and title is sent once per session to your connected AI provider (if one is configured) to auto-fill the reproduction steps. This auto-fill is on by default and can be turned off in settings.
 
 On browsers that support Chrome's built-in AI (Prompt API), drafts and CSS change suggestions can be generated with the on-device model without any external API call. In that case, data never leaves your device and no separate API key is required.
 
@@ -111,7 +113,7 @@ Beyond the items above, the extension does not collect your browsing history, co
 All data is stored **only inside your browser**.
 
 - **chrome.storage.local**: Jira, GitHub, Linear, Notion, GitLab, Asana, ClickUp, Slack integration settings (default project/repository/team and **default assignee**), your last submission (project, assignee, CC — including the identifier and display name of the person you picked), issue history, app settings, LLM provider settings (LLM API keys stored obfuscated)
-- **chrome.storage.session**: Editing sessions, and the address of the tab the side panel was opened on (so reopening the panel reconnects to that tab) (per tab, automatically deleted when the browser closes)
+- **chrome.storage.session**: Editing sessions (including the screenshot and element before/after images you're working on), and the address of the tab the side panel was opened on (so reopening the panel reconnects to that tab) (per tab, automatically deleted when the browser closes)
 - **IndexedDB**: Video recordings, screenshot images, network logs, console logs, user action logs, inline editor images, user-attached files (local device only)
 - **Memory (temporary)**: 30-second replay frame buffer — not stored to disk; encoded to video and saved to IndexedDB only at the moment you perform a capture.
 
@@ -123,7 +125,7 @@ The extension transmits data only to the services below.
 
 | Destination | Data transmitted | Purpose |
 |---|---|---|
-| Jira REST API (`*.atlassian.net`, `api.atlassian.com`) | Issue body, screenshots, video, debug logs | Creating and attaching to issues |
+| Jira REST API (`*.atlassian.net`, `api.atlassian.com`, or the site URL you specify in API token mode) | Issue body, screenshots, video, debug logs | Creating and attaching to issues |
 | GitHub REST API (`api.github.com`) | Issue body, labels, assignees | Creating issues |
 | GitHub (`api.github.com`, `github.com`, and GitHub-issued upload URLs [AWS S3]) | Screenshots, video, debug logs | File upload |
 | Linear GraphQL API (`api.linear.app`; attachments to Linear-issued upload URLs) | Issue body, screenshots, video, debug logs | Creating and attaching to issues |
