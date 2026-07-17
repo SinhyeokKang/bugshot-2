@@ -21,6 +21,13 @@
 
 ---
 
+## 2026-07-18 — 접힘=readonly로 들어가는 경로가 둘인데 caret 보정은 한쪽(pill 클릭)에만 있었다
+
+- **증상**: 에디터에서 코드블럭에 타이핑으로 16번째 줄을 치는 순간 블럭이 접히는데, caret이 잘린(접힌) 영역 안에 갇힌 채 접힌다 — 브라우저가 caret을 보이게 pre를 스크롤해 둔 상태라 **로그 중간이 보인 채 접히고**, 안 보이는 줄이 keymap 키(Enter·Backspace)로 계속 편집된다(문자 입력은 `contenteditable="false"`로 죽지만 keymap은 `state.selection`에 트랜잭션을 넣어 **편집은 되는데 안 보이는** 비대칭).
+- **근본 원인**: **readonly(접힘)로 진입하는 경로가 둘인데 보정이 한쪽에만 있었다.** ① pill 클릭 → `setExpanded(false)`: caret 축출(`onCollapse`=`moveCaretOut`)·`scrollTop=0` 보정을 **한다**. ② 타이핑·붙여넣기로 줄 수가 임계값을 넘음 → `update()`→`render()`: `contenteditable="false"`만 걸고 **caret 축출도 스크롤 리셋도 안 한다**. `setExpanded`가 실사용 제보로 정확히 이 "로그 중간이 보인 채 접힘" 아티팩트를 고쳤는데(주석까지 달아뒀는데), 그 보정이 두 번째 진입로엔 복제되지 않았다 — "펼침 전이는 pill로만 일어난다"는 암묵 전제가 틀렸다. 픽스는 보정을 복제하는 대신 **편집 중엔 접지 않는다**로 갔다(read/edit 모델: caret이 블럭 안이면 `update()`가 `setExpanded(true)`로 승격) — 접기 자체를 안 하니 갇힐 caret이 없다.
+- **재발 방지**: (1) **같은 종단 상태(readonly)로 가는 진입로가 여럿이면 보정도 전수한다** — 상태 전이 보정을 한 경로(`setExpanded`)에만 넣으면 다른 경로(`update()`)가 조용히 우회한다. `grep -n "contenteditable" src/sidepanel/lib/codeCollapseShell.ts`로 readonly를 거는 지점을 세고, 각 지점이 같은 후처리(caret 축출·scroll 리셋)를 지나는지 대조. (2) **이 축은 jsdom·클릭 e2e로 안 잡힌다** — 2026-07-17 항목대로 접힌 블럭 **클릭**은 우리 핸들러가 먼저 펼쳐 프로브를 무효화하고, "타이핑으로 임계 돌파"는 살아있는 PM view + keymap이 필요해 단위 테스트가 불가. e2e에서 **펼친 블럭에 타이핑으로 16줄을 만들어** `data-collapsed=false` 유지 + caret이 블럭 안에서 정상 편집됨을 실측해야 갈린다. (3) **잔존 경로(미해결 관찰)**: 16줄+ 코드블럭을 **통째로 붙여넣어 새 노드가 생기는 constructor 경로**는 `update()`가 아니라 constructor라 auto-expand를 안 타고 접힌 채 만들어진다 — 단 e2e가 "삽입된 로그는 접힘"을 의도 UX로 단언하므로 여기서 auto-expand하면 그 계약이 깨진다. 붙여넣기 후 caret 유입 여부는 실기 확인 후 판단.
+- **관련**: `src/sidepanel/components/TiptapEditor.tsx:CodeCollapseNodeView.update`(전이 시점 `setExpanded(true)` 승격 + `selectionInside` — `moveCaretOut`의 교차 판정 여집합)·`moveCaretOut`, `src/sidepanel/lib/codeCollapseShell.ts:setExpanded`(pill 경로 보정 — `onCollapse`+`scrollTop=0`)·`render`(update 경로 — `contenteditable`만 걸던 자리). 계열: **2026-07-17**(같은 접기 기능의 guard-label·프로브 무효화 — 그땐 방향키로만, 이번엔 타이핑으로만 갈렸다).
+
 ## 2026-07-17 — 설계가 단언한 "이 가드가 이 회귀를 막는다"가 넷 다 틀렸고, 그 문장을 이름표로 옮긴 e2e가 공허했다 (같은 실수를 같은 세션에서 두 번)
 
 - **증상**: 코드엔 증상이 없었다 — 결론(가드를 둔다)이 옳아서 아무도 못 느꼈다. 드러난 건 e2e에서다. `design.md` 위험 3이 *"`stopEvent` 누락 → pill 클릭이 커서를 점프시킨다"*라 못박았고 그걸 근거로 e2e 시나리오를 **"`stopEvent` 회귀 가드"**로 승격시켰는데, `stopEvent`를 통째로 `return false`로 만들어도 **전 테스트가 green**이었다. "회귀 가드" 이름표를 단 채 그 회귀를 전혀 안 무는 테스트가 머지될 뻔했다.
