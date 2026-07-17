@@ -30,14 +30,16 @@
 }
 
 /* ButtonGroup 관용구 — 인접 모서리를 합치고 테두리를 겹치지 않게 한다. */
+/* rounded-md = calc(var(--radius) - 2px) — Tailwind 기본 0.375rem이 아니다(이 저장소는
+   --radius: 0.75rem 스케일이라 md가 10px). 하드코딩하면 다른 버튼보다 각져 보인다. */
 .block-actions-button:first-child {
-  border-radius: 0.375rem 0 0 0.375rem;
+  border-radius: calc(var(--radius) - 2px) 0 0 calc(var(--radius) - 2px);
 }
 .block-actions-button:last-child {
-  border-radius: 0 0.375rem 0.375rem 0;
+  border-radius: 0 calc(var(--radius) - 2px) calc(var(--radius) - 2px) 0;
 }
 .block-actions-button:only-child {
-  border-radius: 0.375rem;
+  border-radius: calc(var(--radius) - 2px);
 }
 .block-actions-button:not(:first-child) {
   border-left: 0;

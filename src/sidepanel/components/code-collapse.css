@@ -34,7 +34,7 @@
   bottom: 1px;
   height: 2.25rem;
   pointer-events: none;
-  border-radius: 0 0 calc(0.5rem - 1px) calc(0.5rem - 1px);
+  border-radius: 0 0 calc(var(--radius) - 1px) calc(var(--radius) - 1px);
   background: linear-gradient(to bottom, transparent, hsl(var(--muted)));
 }
 .code-collapse:not([data-collapsible="true"][data-collapsed="true"]) .code-collapse-fade {
@@ -56,7 +56,7 @@
   align-items: center;
   gap: 0.25rem;
   height: 1.75rem;
-  border-radius: 0.375rem;
+  border-radius: calc(var(--radius) - 2px);   /* rounded-md — 기본 컨트롤 관용구 */
   border: 1px solid hsl(var(--input));
   background: hsl(var(--background));
   color: hsl(var(--foreground));

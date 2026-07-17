@@ -84,7 +84,7 @@
 .doc-section-body pre {
   background: hsl(var(--muted));
   border: 1px solid hsl(var(--border));
-  border-radius: 0.5rem;
+  border-radius: var(--radius);
   padding: 16px;
   overflow-x: auto;
   font-size: 12px;
