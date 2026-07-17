@@ -5,7 +5,7 @@
 - **새 의존성 없음.** `@tiptap/pm`(설치됨)의 `Plugin`/`PluginKey`/`Decoration`/`DecorationSet`은 `TiptapEditor.tsx:14-15`가 이미 import한다. NodeView는 플러그인 `props.nodeViews`로 제공하므로 `@tiptap/extension-code-block` 추가가 **불필요**하다 — 이건 소스로 확인된 사실이다(design.md 위험 1). tiptap 실제 버전은 **3.23.4**.
 - 새 권한·env·외부 API 없음. `manifest.config.ts` 무변경 → `docs/privacy.*` 트리거 아님.
 - shadcn 컴포넌트 설치 없음(pill은 vanilla DOM이라 `Button`을 못 쓴다).
-- 착수 전 `docs/POSTMORTEM.md`에서 아래 4건을 읽고 온다: 2026-07-16 팔레트 단일 출처 거짓, 2026-06-28 log-viewer 사전 drift, 2026-07-14 포인터/레이아웃은 단위 테스트로 못 잡음, **2026-07-04 Radix Tabs pointerdown(단위 2645개 green인데 e2e만 잡음 — Task 9 시나리오 7의 근거)**. `POSTMORTEM.md:52`의 StrictMode 항목도 Task 3에 직결된다.
+- 착수 전 `docs/POSTMORTEM.md`에서 아래 4건을 읽고 온다: 2026-07-16 팔레트 단일 출처 거짓, 2026-06-28 log-viewer 사전 drift, 2026-07-14 포인터/레이아웃은 단위 테스트로 못 잡음, **2026-07-04 Radix Tabs pointerdown(단위 2645개 green인데 e2e만 잡음 — Task 9 시나리오 7의 근거)**. POSTMORTEM 2026-07-16(useReproPrefill) 항목의 StrictMode 경고도 Task 3에 직결된다. (POSTMORTEM은 최신순 prepend라 하드 라인 참조가 썩는다 — 날짜+제목으로 인용.)
 
 ---
 
@@ -54,7 +54,7 @@
 - **작업 순서**: 위험 1은 소스로 해소됐으므로(design.md) **스파이크 없이 바로 구현**한다. 폴백이 필요해지면 `StarterKit.configure({ codeBlock: false })` + `@tiptap/extension-code-block` 하나뿐이다.
 - **검증** (⚠ **실제 Chrome 필수** — 아래 전부 jsdom·단위로 못 잡는다). **두 에디터 모두에서 확인**: `DraftingPanel` + `DraftEditDialog`(섹션 연필 버튼 — 다이얼로그의 낮은 높이에서도 접힘이 정상인지):
   - [ ] `pnpm build` 후 언팩 로드 → 40줄 JSON 로그 삽입 → 에디터에서 15줄로 접힘 + 페이드
-  - [ ] **16번째 줄의 절반이 실제로 보인다** (border-box calc 검증 — 1.5px만 보이면 `+1.25em` 누락, design.md CSS 주석)
+  - [ ] **16번째 줄의 절반이 실제로 보인다** (border-box calc 검증 — 0px면 `+2em` padding 항 누락, 가로 오버플로 블럭에서만 안 보이면 `+10px` 스크롤바 항 누락 — design.md CSS 주석)
   - [ ] **JSON 하이라이팅이 그대로다** (보라 key / 빨강 string) — design.md 위험 2
   - [ ] pill 클릭 → 펼침. **커서가 안 움직인다** — design.md 위험 3 (e2e 시나리오 7이 자동으로도 잡는다)
   - [ ] 접힌 블럭 안 클릭 → 자동 펼침 + pill·페이드 사라짐. **커서를 밖으로 빼도 펼침 유지** + pill이 `접기`로 복귀 (PRD 시나리오 B-3)
@@ -70,7 +70,7 @@
 
 - **변경 대상**: `src/i18n/namespaces/logs.ts`
 - **작업 내용**: `"codeBlock.expand"` — ko `"펼치기 ({count}줄)"` / en `"Expand ({count} lines)"`, `"codeBlock.collapse"` — ko `"접기"` / en `"Collapse"`. ko/en을 **같은 편집으로** 넣는다(PostToolUse 훅이 `locales.test.ts`를 자동 실행해 불일치면 차단). count는 항상 ≥16이라 en 복수형 `(s)` 관용구가 불필요하다.
-- **왜 `editor.ts`가 아니라 `logs.ts`인가**: `log-viewer/__tests__/i18n.test.ts:90-98`의 복제 사전 drift 검사가 **`logs` 네임스페이스만 대조한다**(`Object.keys(koDict).filter(k => k in logs.ko)`). `editor.ts`에 두면 이 키들의 ko/en drift가 영원히 무방비다 — design.md 위험 6. `logs.ts` 배치는 **코드 0줄로** 기존 검사에 걸린다.
+- **왜 `editor.ts`가 아니라 `logs.ts`인가**: `log-viewer/__tests__/i18n.test.ts:94-102`의 복제 사전 drift 검사가 **`logs` 네임스페이스만 대조한다**(`Object.keys(koDict).filter(k => k in logs.ko)`). `editor.ts`에 두면 이 키들의 ko/en drift가 영원히 무방비다 — design.md 위험 6. `logs.ts` 배치는 **코드 0줄로** 기존 검사에 걸린다.
 - **검증**:
   - [ ] 저장 시 i18n 훅 자동 통과 (ko/en 키 대칭 + `{count}` 토큰 일치)
   - [ ] 기존 `logInsert.*`가 아닌 `codeBlock.*` prefix — 로그 전용이 아니라 모든 코드블럭이므로 (prd.md 전제 2)
@@ -87,11 +87,11 @@
 - **변경 대상**: `src/log-viewer/i18n.ts`, `src/log-viewer/App.tsx`, `src/log-viewer/__tests__/i18n.test.ts`
 - **작업 내용**:
   - `koDict`/`enDict`에 Task 5와 **같은 키·같은 문구** 2개 추가. `App.tsx`의 labels(`labels={{`는 :155)에 Task 6과 같은 형태로 주입.
-  - **`i18n.test.ts:90-98`의 drift 검사 대조 대상에 `editor` 네임스페이스 추가.** 지금은 `logs`만 본다. Task 5가 키를 `logs.ts`에 두어 당장은 걸리지만, 앞으로 누가 `editor.ts`에 넣어도 사각지대가 없게 만든다.
+  - **`i18n.test.ts:94-102`의 drift 검사 대조 대상에 `editor` 네임스페이스 추가.** 지금은 `logs`만 본다. Task 5가 키를 `logs.ts`에 두어 당장은 걸리지만, 앞으로 누가 `editor.ts`에 넣어도 사각지대가 없게 만든다. **이 확장은 현재 log-viewer dict와 `editor` 네임스페이스의 교집합이 0키라 당장은 no-op(장래 방어용)이다** — 지금 무는 건 어디까지나 기존 `logs` 대조다.
 - **왜 별도 태스크인가**: log-viewer는 `src/i18n/`을 안 쓰는 복제 사전이라 **PostToolUse 훅이 이 파일을 안 본다.** 빠뜨리면 Report 탭에 원시 키가 뜬다. POSTMORTEM 2026-06-28이 잡은 drift의 재발 지점이고, 그 처방("복제본은 늘 대조 테스트로 묶는다")을 **grep·육안이 아니라 테스트로** 이행하는 게 이 태스크의 핵심이다.
 - **검증**:
   - [ ] `grep -n "codeBlock.expand\|codeBlock.collapse" src/log-viewer/i18n.ts` → 4건(ko 2 + en 2)
-  - [ ] **drift 검사 확장 후 일부러 `enDict`의 `{count}`를 `{n}`으로 바꿔보면 테스트가 빨개진다** (검사가 실제로 무는지 확인 — 확장이 no-op이면 이 태스크가 무의미)
+  - [ ] **일부러 `enDict`의 `{count}`를 `{n}`으로 바꿔보면 테스트가 빨개진다** — 이 변조가 확인하는 건 **기존 `logs` 대조**가 codeBlock 키를 실제로 무는지다(`editor` 확장 분기는 교집합 0키라 이 변조로는 실행되지 않는다 — 위 작업 내용 참조)
   - [ ] `pnpm test` 통과
   - [ ] `pnpm build` → logs.html 다운로드 → Report 탭에서 pill 라벨 정상 (원시 키 아님)
 
@@ -100,7 +100,7 @@
 - **변경 대상**: `src/sidepanel/lib/__tests__/renderMarkdown.test.ts`, `src/sidepanel/components/__tests__/DocSectionBody.test.tsx` (신규)
 - **작업 내용**:
   - `renderMarkdown.test.ts`: 16줄 이상 ` ```json ` 블럭을 렌더해도 출력에 `code-collapse`·`펼치기`·`button`이 **없다**고 단언. `buildIssueHtml`이 이 함수를 쓰므로 이게 곧 클립보드·트래커 본문 무오염 증명이다(design.md 데이터 흐름).
-  - `DocSectionBody.test.tsx`(jsdom + user-event): 20줄 블럭 → `data-collapsed="true"`, **pill의 `data-lines`가 `"20"`** → pill 클릭 → `data-collapsed="false"` + `aria-expanded="true"` + 라벨이 `codeBlock.collapse`. 10줄 블럭 → `data-collapsible="false"`, pill 없음.
+  - `DocSectionBody.test.tsx`(jsdom + user-event): 20줄 블럭 → `data-collapsed="true"`, **pill의 `data-lines`가 `"20"`** → pill 클릭 → `data-collapsed="false"` + `aria-expanded="true"` + 라벨이 `codeBlock.collapse`. 10줄 블럭 → `data-collapsible="false"`, pill 없음. 코드블럭 2개 렌더 → 두 `pre`의 id가 서로 다르고 각 pill의 `aria-controls`가 자기 `pre` id와 매칭(셸의 "인스턴스마다 유일 id 발급" 단언).
   - **라벨은 키로 단언한다.** 기존 tsx 트랙 3건(`ConsoleLogContent`/`NetworkLogContent`/`CcMultiCombobox.test.tsx`)이 전부 `vi.mock("@/i18n", () => ({ useT: () => (key) => key, … }))`로 모킹하므로 실제 렌더 결과는 `codeBlock.collapse`다. `접기`로 단언하면 처음부터 실패하고, 모킹을 빼면 `useT`가 `useSettingsUiStore`(zustand persist)를 구독해 chrome.storage에 닿는다. **줄 수는 라벨 텍스트가 아니라 `data-lines`로 잡는다** — 키 모킹 하에선 `{count}` 보간이 안 일어나기 때문이다. 실제 ko/en 문구는 `locales.test.ts`(Task 5)와 e2e(Task 9)가 맡는다.
 - **검증**:
   - [ ] 접기 코드를 되돌리면(임시) `renderMarkdown` 단언이 여전히 통과 — 즉 이 테스트가 **접기 도입과 무관하게** 마크다운 경로를 지킨다
@@ -130,11 +130,11 @@
 
 ### e2e 시나리오 (`/e2e-write` 입력 — 스크립트 판정 가능한 문장만)
 1. 30줄 이상 네트워크 로그를 본문에 삽입하고 preview로 가면, 코드블럭 wrapper에 `data-collapsed="true"`가 붙는다.
-2. 그 코드블럭에 hover한 뒤 pill(`code-collapse-toggle`)을 클릭하면 `data-collapsed="false"`로 바뀌고 pill 텍스트가 `접기`/`Collapse`로 바뀐다.
+2. 그 코드블럭에 hover한 뒤 pill(`code-collapse-toggle`)을 클릭하면 `data-collapsed="false"`로 바뀌고 pill 텍스트가 `접기`/`Collapse`로 바뀐다. (셸은 짧은 블럭에도 상시 생성되고 에디터·preview가 같은 `data-testid`를 공유하므로, 단언은 **preview 섹션 컨테이너 내부 + `data-collapsible="true"`인 wrapper**로 스코프를 한정하고 텍스트 단언의 로케일 전제를 spec에 명시한다.)
 3. 다시 클릭하면 `data-collapsed="true"`로 되돌아온다.
 4. pill의 `aria-expanded`가 `data-collapsed`와 반대로 따라간다.
 5. 15줄 이하 로그(`/e2e-json`)를 삽입하면 wrapper에 `data-collapsible="false"`가 붙고 pill이 안 보인다.
-6. 접힘/펼침 어느 상태에서 `마크다운 복사`를 눌러도 클립보드 텍스트에 `펼치기`·`code-collapse`가 없다. *(가능하면 — 클립보드 권한이 걸리면 Task 8 단위 테스트로 대체)*
+6. 16줄 이상 블럭을 삽입해 **에디터에서 pill로 펼침/접힘을 토글한 뒤** `마크다운 복사`를 눌러도 클립보드 텍스트에 `펼치기`·`code-collapse`가 없다. **필수** — 클립보드 payload 단언 선례가 이미 2건 있고(`e2e/freeform-draft.spec.ts:29-53`, `e2e/logview/log-viewer.spec.ts:97-104`), Task 8의 `renderMarkdown` 단언은 **NodeView 부착 상태의 `getMarkdown()` 직렬화** 축을 못 덮으므로 이 시나리오가 그 축의 유일한 자동 검증이다.
 7. **에디터에서 접힌 코드블럭의 pill을 클릭해도 커서 위치가 안 바뀐다** (`stopEvent` 회귀 — design.md 위험 3). PM은 click보다 먼저 mousedown에서 selection을 잡으므로 **jsdom+user-event로는 재현이 안 된다**. POSTMORTEM 2026-07-04(Radix Tabs pointerdown)이 같은 부류였고 `pnpm test` 2645개가 전부 통과한 채 e2e만 잡아냈다 — 그래서 수동 체크리스트에 두지 않고 여기로 승격했다.
 
 > **판정 가능한 이유**: 접힘을 `data-collapsed` 속성으로 표현했기 때문이다. `max-height`·페이드·hover 페이드인은 시각 판정이라 e2e가 못 본다 — 하지만 **상태 전이는 속성으로 전부 잡힌다.** Playwright는 `opacity: 0`을 visible로 치므로 hover 없이도 pill 클릭이 가능하나, 시나리오 2는 실제 hover를 넣어 관용구를 지킨다.
@@ -147,6 +147,7 @@
 - [ ] Tab 키로 pill에 포커스 → hover 없이 보이고 **포커스 링이 보인다**(`--ring`이 `--border`와 같은 값이라 링이 흐릴 수 있음 — DESIGN.md 경고)
 - [ ] 긴 줄이 **접힘 상태에서도 가로 스크롤된다**
 - [ ] **preview를 dev(StrictMode)에서 열어 wrapper가 1겹** (design.md 위험 10)
+- [ ] **`DraftDetailDialog`(DocSectionBody)에서 접힘 높이·페이드 이음매·pill 위치 정상** — 다이얼로그의 좁은 높이. 5개 표면 중 이 목록에 빠져 있던 유일한 표면(jsdom은 상태 전이만 잡고 시각은 못 잡는다)
 - [ ] logs.html Report 탭 pill (Task 7) + **탭을 옮겼다 와도 접힘이 유지된다**(언마운트 없음 — PRD 목표의 수명 차이)
 
 ## 구현 순서 권장
@@ -163,7 +164,7 @@ Task 9 (e2e) — 전부 후
 ```
 
 - **스파이크는 이제 불필요하다.** 위험 1(플러그인 `props.nodeViews`)이 소스로 해소돼(design.md) 범위가 바뀔 여지가 없다. Task 4는 여전히 최고 위험이지만 그건 구현 난이도(NodeView 함정)이지 설계 불확실성이 아니다.
-- Task 5는 독립적이라 언제든. Task 6·7은 Task 3이 만든 타입 에러를 해소하는 짝이라 함께 처리한다.
+- Task 5는 독립적이라 언제든 — 단 **Task 3·4의 라벨 육안 검증 전에는 완료**돼 있어야 한다(키 부재면 raw 키가 떠서 육안 확인이 오염된다). Task 6·7은 Task 3이 만든 타입 에러를 해소하는 짝이라 함께 처리한다.
 - Task 3과 Task 4는 서로 독립 — 병렬 가능.
 
 ## 가이드 영향

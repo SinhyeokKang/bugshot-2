@@ -30,13 +30,13 @@
 
 ## 비목표 (Non-goals)
 
-- **접힘 상태 영속화 안 함.** `chrome.storage`·draft에 아무것도 저장하지 않는다. 새로고침·탭 전환·에디터 재마운트하면 전부 접힌 초기 상태로 돌아간다. 원 PRD(`symptom-log-attach`)의 비목표 "영속 상태를 만들지 않는다"를 그대로 승계한다.
+- **접힘 상태 영속화 안 함.** `chrome.storage`·draft에 아무것도 저장하지 않는다. 새로고침·탭 전환·에디터 재마운트하면 전부 접힌 초기 상태로 돌아간다. 원 PRD(`symptom-log-attach` — 구현 완료로 문서는 삭제됨)의 비목표 "영속 상태를 만들지 않는다"를 그대로 승계한다.
 - **"로그 코드블럭만" 선별 안 함.** 아래 "결정된 전제" 참조 — 모든 코드블럭에 같은 규칙이 적용된다.
 - **임계값 사용자 설정 안 함.** 15줄 고정.
 - **트래커 본문에서의 접기 안 함.** Jira·Linear 등에 등록된 이슈가 어떻게 렌더되는지는 우리 손 밖이다.
 - **접기 애니메이션(height transition) 안 함.** opacity transition만.
 - **성능 개선이 아니다.** 접기는 `max-height` + `overflow-y: hidden`일 뿐 DOM은 전부 그려진다. 배경의 "한 화면을 통째로 먹는다"는 **시각·탐색 문제**지 렌더 비용 문제가 아니다. 이 기능으로 에디터가 빨라지길 기대하지 않는다.
-- **가로 스크롤은 접힘 상태에서도 유지한다**(기존 `overflow-x: auto` 보존). `overflow: hidden` shorthand를 쓰면 기존 규칙을 덮어 긴 줄을 못 읽게 되므로 `overflow-y: hidden`으로 세로만 자른다. `logToCodeBlock`의 `truncate()`가 non-JSON body를 **한 줄 16KB**로 내므로 이 구분이 실재하는 케이스다.
+- **가로 스크롤은 접힘 상태에서도 유지한다**(기존 `overflow-x: auto` 보존). `overflow: hidden` shorthand를 쓰면 기존 규칙을 덮어 긴 줄을 못 읽게 되므로 `overflow-y: hidden`으로 세로만 자른다. `logToCodeBlock`의 `truncate()`는 개행을 보존한 채 자를 뿐이지만, 개행 없는 minified body는 **한 줄 16KB**로 들어오므로 이 구분이 실재하는 케이스다.
 
 ## 결정된 전제 (코드 조사로 확정 — 설계 선택지가 아님)
 
@@ -45,7 +45,7 @@
 `sidepanel/lib/renderMarkdown.ts`는 preview 전용이 아니다. `buildIssueMarkdown.ts:319`의 `buildIssueHtml()`이 같은 함수를 호출하고(`:403`이 그 내부의 `renderMarkdown(content)` 호출), 그 HTML이 두 갈래로 나간다:
 
 - `PreviewPanel.tsx:355` → **클립보드 HTML 복사** (사용자가 트래커에 직접 붙여넣는 본문)
-- `buildReportData.ts:66` → logs.html 리포트의 `report.html`
+- `buildReportData.ts:66` → logs.html 리포트의 `report.copy.html`
 
 따라서 접기 마크업(wrapper·pill·fade)을 `renderMarkdown` 출력에 넣으면 **붙여넣기 본문에 "펼치기 (38줄)" 버튼이 딸려 들어간다.** → 접기는 renderMarkdown 바깥, **렌더된 DOM 위에서만** 붙인다.
 
@@ -57,7 +57,7 @@
 
 ### 3. `pre`는 줄바꿈이 없어서 "줄 수 = 화면 높이"가 정확히 성립한다
 
-`doc-section-body.css:81`·`tiptap-editor.css:103`의 `pre`는 `overflow-x: auto`에 `white-space` 재정의가 없다 → 기본값 `white-space: pre` → **줄바꿈이 일어나지 않는다.** 논리 줄 1개 = 화면 줄 1개다.
+`doc-section-body.css:84`·`tiptap-editor.css:106`의 `pre`는 `overflow-x: auto`에 `white-space` 재정의가 없다 → 기본값 `white-space: pre` → **줄바꿈이 일어나지 않는다.** 논리 줄 1개 = 화면 줄 1개다.
 
 > ⚠ **이 전제는 한때 에디터에서 거짓이었다. 지금은 `tiptap-editor.css`의 `white-space: pre`가 떠받치고 있다 — 그 줄을 지우면 이 기능이 조용히 깨진다.**
 >
@@ -67,7 +67,7 @@
 >
 > 리팩터 시: 주입 스타일은 **grep에 안 잡힌다** — DevTools의 `style[data-tiptap-style]`로 확인한다(`id`가 아니라 속성). Tiptap 메이저 업그레이드로 내용이 바뀌면 특이도 싸움이 조용히 뒤집힌다.
 >
-> 곁들여: 가로 스크롤이 살아나면서 **스크롤바가 세로 10px을 점유**한다(`globals.css`의 `::-webkit-scrollbar`는 overlay가 아니라 gutter). 접기 높이 계산의 새 항이다.
+> 곁들여: 가로 스크롤이 살아나면서 **스크롤바가 세로 10px을 점유**한다(`globals.css`의 `::-webkit-scrollbar`는 overlay가 아니라 gutter). 접기 높이 계산의 새 항이다 (design.md calc가 `+10px` 상수 항으로 반영).
 
 → 접기 판정을 `scrollHeight` 같은 **레이아웃 측정 없이 텍스트의 `\n` 개수만으로** 할 수 있다. 이건 단순한 구현 편의가 아니라 **테스트 가능성의 문제**다: jsdom은 `scrollHeight`를 항상 0으로 준다. 줄 수 기반이면 판정 로직이 순수 함수가 되고(node 트랙), 접힘/펼침 전이가 jsdom 렌더 테스트로 잡힌다(tsx 트랙). px 측정으로 갔다면 둘 다 못 잡고 수동 검증만 남는다. POSTMORTEM 2026-07-14·2026-07-04가 반복해서 경고하는 "단위 테스트 전부 green인데 화면만 틀린" 부류를 구조적으로 회피한다.
 
@@ -82,7 +82,7 @@
 5. preview 단계로 넘어가면 같은 블럭이 **다시 접힌 상태**로 보인다(접힘은 표면별 ephemeral 상태 — 비목표 참조). 여기서도 hover → pill → 펼침이 동일하게 동작한다.
 6. `마크다운 복사`를 누르면 클립보드 본문에 접기 흔적이 전혀 없다.
 
-> A-5는 탭 전환이 아니라 **phase 전환**이다. `IssueTab.tsx:211/232`가 `drafting`/`previewing`을 상호배타 early return으로 갈라 DraftingPanel을 통째로 언마운트한다. 전환 트리거도 명시적 버튼 2개뿐이다(`DraftingPanel.tsx:463` → `confirmDraft()` / `PreviewPanel.tsx:403` → `backToDraft()`). 즉 리셋 시점이 "다른 화면으로 갔다 왔다"는 사용자 인지와 정확히 일치한다. 접힘 비영속은 튀는 결정이 아니라 **형제 UI와 동일**하다 — `Section.tsx:67`(섹션 접힘)·`JsonTreeViewer.tsx:68`(JSON 트리)·모든 origin/레벨 필터가 이미 `useState` ephemeral이고, `settings-ui-store.ts`의 영속 대상은 preference뿐이다.
+> A-5는 탭 전환이 아니라 **phase 전환**이다. `IssueTab.tsx:211/232`가 `drafting`/`previewing`을 상호배타 early return으로 갈라 DraftingPanel을 통째로 언마운트한다. 전환 트리거도 명시적 버튼 2개뿐이다(`DraftingPanel.tsx:461` → `confirmDraft()` / `PreviewPanel.tsx:403` → `backToDraft()`). 즉 리셋 시점이 "다른 화면으로 갔다 왔다"는 사용자 인지와 정확히 일치한다. 접힘 비영속은 튀는 결정이 아니라 **형제 UI와 동일**하다 — `Section.tsx:67`(섹션 접힘)·`JsonTreeViewer.tsx:68`(JSON 트리)·모든 origin/레벨 필터가 이미 `useState` ephemeral이고, `settings-ui-store.ts`의 영속 대상은 preference뿐이다.
 
 ### B. 접힌 블럭을 편집
 
@@ -98,7 +98,11 @@
 
 - 15줄 이하면 접히지 않는다. hover해도 pill이 안 뜨고 페이드도 없다. 기존 렌더와 완전히 동일하다.
 
-### D. 엣지 케이스
+### D. 저장된 draft 재열람
+
+- `DraftDetailDialog`에서 저장된 draft를 열면(또는 logs.html Report 탭에서) 16줄 이상 코드블럭이 접힌 상태로 보이고, hover → pill → 펼침이 동일하게 동작한다.
+
+### E. 엣지 케이스
 
 | 상황 | 기대 동작 |
 |---|---|
