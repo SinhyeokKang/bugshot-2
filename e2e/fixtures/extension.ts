@@ -36,8 +36,19 @@ function startFixtureServer(): Promise<{ server: Server; port: number }> {
   return new Promise((resolve, reject) => {
     const server = createServer((req, res) => {
       const urlPath = (req.url ?? "/").split("?")[0];
+      // 코드블럭 접기 e2e용 — pretty-print 시 임계값(15줄)을 넉넉히 넘는 본문.
+      // 배열 원소로 늘린다: maskJsonBody가 depth>10이면 원본을 반환하므로 깊은 중첩은 금물이고,
+      // 키는 SENSITIVE 목록(token·api_key 등)을 피해야 값이 "***"로 치환되지 않는다.
+      // serializeNetworkRequest 기준 헤더 1 + `--- response ---` 1 + JSON 34 = 36줄.
+      if (urlPath.startsWith("/e2e-bigjson")) {
+        const items = Array.from({ length: 30 }, (_, i) => `e2e-bigjson-${String(i).padStart(3, "0")}`);
+        res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
+        res.end(JSON.stringify({ items }));
+        return;
+      }
       // 응답 본문 검색 e2e용 — 본문에만 마커 문자열을 담은 JSON(allowlist content-type이라
       // 레코더가 string variant로 캡처). 마커는 URL 경로엔 없어 "본문으로만 매칭"을 판정.
+      // pretty-print해도 헤더 포함 5줄이라 접기 임계값 아래 — 접기 spec의 음성 케이스도 겸한다.
       if (urlPath.startsWith("/e2e-json")) {
         res.writeHead(200, { "content-type": "application/json; charset=utf-8" });
         res.end(JSON.stringify({ note: "zqxbodyneedle" }));

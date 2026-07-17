@@ -402,6 +402,7 @@ export function PreviewPanel() {
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
+              data-testid="back-to-draft"
               onClick={() => backToDraft()}
             >
               {t("common.back")}
