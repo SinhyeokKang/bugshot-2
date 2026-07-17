@@ -253,3 +253,63 @@ test("caret을 아래쪽에 둔 채 접어도 로그 최상단이 보인다", as
   await panel.close();
   await fixture.close();
 });
+
+// 편집 중 타이핑으로 임계값(15줄)을 넘는 순간, 접는 대신 펼쳐야 한다(read/edit 모델).
+// 그대로 접으면 caret이 잘린 영역에 갇히고 keymap 키가 안 보이는 줄을 편집한다(POSTMORTEM 2026-07-18:
+// readonly 진입로가 pill 클릭 말고 update()에도 있는데 보정이 pill 쪽에만 있었다).
+//
+// 이건 삽입(constructor)이 아니라 **이미 있는 짧은 블럭을 타이핑으로 키워 넘기는** update() 경로
+// 전용이다. mutation 실측: update()의 setExpanded(true) 승격을 빼면 16줄째에 data-collapsed=true로
+// 접히고(red), contenteditable=false라 이후 타이핑도 코드에 안 들어간다(ZZZ 부재 → red).
+test("편집 중 타이핑으로 임계값을 넘기면 접지 않고 펼친 채 편집이 이어진다", async ({ ext }) => {
+  const fixture = await ext.context.newPage();
+  await fixture.goto(ext.fixtureUrl("basic.html"));
+  const tabId = await ext.fixtureTabId();
+  const panel = await ext.openPanel(tabId);
+
+  await enterDebug(panel);
+  await panel.getByTestId("subtab-network").click();
+  await seedNetworkLog(fixture, panel, "/e2e-json");
+
+  await panel.getByTestId("subtab-issue").click();
+  await panel.getByTestId("mode-freeform").click();
+  await expect(panel.getByTestId("drafting-panel")).toBeVisible();
+
+  const section = panel.getByTestId("draft-section-description");
+  await insertLog(panel, "/e2e-json");
+
+  const wrapper = section.getByTestId("code-collapse");
+  const toggle = wrapper.getByTestId("code-collapse-toggle");
+  // 5줄이라 접힘 대상이 아니다 — 출발 상태 확인.
+  await expect(wrapper).toHaveAttribute("data-collapsible", "false");
+
+  // caret을 코드 **시작**에 두고 위에서부터 줄을 쌓는다 — triple-click으로 textblock을 잡고
+  // ArrowLeft로 시작에 collapse. (코드 끝에서 Enter는 블럭을 빠져나가 문단에 입력된다 — 끝에
+  // 안 닿게 위에서 쌓으면 caret이 계속 블럭 안이라 전이 시점 selectionInside=true.)
+  await wrapper.locator("code").click({ clickCount: 3 });
+  await panel.keyboard.press("ArrowLeft");
+  for (let i = 0; i < 15; i++) {
+    await panel.keyboard.type("x");
+    await panel.keyboard.press("Enter");
+  }
+
+  // 임계값을 넘겼는데도 접히지 않고 펼친 채 남는다.
+  await expect(wrapper).toHaveAttribute("data-collapsible", "true");
+  await expect(wrapper).toHaveAttribute("data-collapsed", "false");
+  await expect(toggle).toHaveAttribute("aria-expanded", "true");
+  expect(Number(await toggle.getAttribute("data-lines"))).toBeGreaterThan(15);
+
+  // caret이 갇히지 않았다 — 임계 돌파 뒤 친 글자가 코드에 들어간다.
+  await panel.keyboard.type("ZZZ");
+  expect(
+    await panel.evaluate(
+      () =>
+        document
+          .querySelector('[data-testid="code-collapse"] code')
+          ?.textContent?.includes("ZZZ") ?? false,
+    ),
+  ).toBe(true);
+
+  await panel.close();
+  await fixture.close();
+});
