@@ -226,7 +226,7 @@ function EntryAccordion({ entry, startedAt, syncBaseMs, onSeek, isActive, scroll
       data-entry-id={entry.id}
       data-level={entry.level}
       data-muted={muted || undefined}
-      className={`${syncRowClass(!!onSeek, !!isActive, levelBgColor(entry.level))}${muted ? " opacity-40" : ""}${selected ? " ring-2 ring-inset ring-primary" : ""}`}
+      className={`${syncRowClass(!!onSeek, !!isActive, levelBgColor(entry.level))}${muted ? " opacity-40" : ""}${selected ? " ring-1 ring-inset ring-primary/40" : ""}`}
       aria-current={isActive ? "true" : undefined}
     >
       <div

@@ -98,6 +98,8 @@ function MarkdownBody({ value }: { value: string }) {
   const collapseRef = useCodeCollapse(html, {
     expand: (lines) => t("codeBlock.expand", { count: lines }),
     collapse: t("codeBlock.collapse"),
+    copy: t("codeBlock.copy"),
+    copied: t("codeBlock.copied"),
   });
 
   return (

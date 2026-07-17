@@ -192,7 +192,7 @@ describe("serializeNetworkRequest", () => {
 });
 
 describe("serializeConsoleEntry", () => {
-  it("error는 [level] args 다음 줄에 stack", () => {
+  it("error는 [level] args → stack → 발생 페이지 순으로 담는다", () => {
     const { text, language } = serializeConsoleEntry(
       makeEntry({ stack: "  at foo (app.js:12:3)\n  at bar (app.js:34:5)" }),
     );
@@ -202,23 +202,24 @@ describe("serializeConsoleEntry", () => {
         "[error] Uncaught TypeError: x is not a function",
         "  at foo (app.js:12:3)",
         "  at bar (app.js:34:5)",
+        "https://example.com/",
       ].join("\n"),
     );
     expect(language).toBeUndefined();
   });
 
-  it("stack 없는 error는 헤더 라인만", () => {
+  it("stack 없는 error는 헤더 + 발생 페이지", () => {
     const { text } = serializeConsoleEntry(makeEntry());
 
-    expect(text).toBe("[error] Uncaught TypeError: x is not a function");
+    expect(text).toBe("[error] Uncaught TypeError: x is not a function\nhttps://example.com/");
   });
 
-  it("error가 아니면 stack이 있어도 포함하지 않는다", () => {
+  it("error가 아니면 stack이 있어도 포함하지 않는다 (발생 페이지는 유지)", () => {
     const { text } = serializeConsoleEntry(
       makeEntry({ level: "warn", args: "deprecated API", stack: "  at foo (app.js:1:1)" }),
     );
 
-    expect(text).toBe("[warn] deprecated API");
+    expect(text).toBe("[warn] deprecated API\nhttps://example.com/");
   });
 
   it("args의 라인 시작 백틱 런도 무해화한다", () => {
@@ -232,12 +233,18 @@ describe("serializeConsoleEntry", () => {
       makeEntry({ args: "boom", stack: "s".repeat(20000) }),
     );
 
-    expect(text).toBe(`[error] boom\n${"s".repeat(16384)}…(truncated)`);
+    expect(text).toBe(`[error] boom\n${"s".repeat(16384)}…(truncated)\nhttps://example.com/`);
   });
 
   it("16384자를 넘는 args는 자르고 …(truncated) 표시", () => {
     const { text } = serializeConsoleEntry(makeEntry({ level: "log", args: "y".repeat(20000) }));
 
-    expect(text).toBe(`[log] ${"y".repeat(16384)}…(truncated)`);
+    expect(text).toBe(`[log] ${"y".repeat(16384)}…(truncated)\nhttps://example.com/`);
+  });
+
+  it("pageUrl이 없으면 그 줄을 안 넣는다", () => {
+    const { text } = serializeConsoleEntry(makeEntry({ level: "log", args: "hi", pageUrl: "" }));
+
+    expect(text).toBe("[log] hi");
   });
 });

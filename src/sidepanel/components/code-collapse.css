@@ -2,15 +2,25 @@
   position: relative;
 }
 
-/* 2em은 pre의 padding 상하(border-box라 max-height에 포함), 0.75em은 다음 줄의 절반을 남겨
-   "더 있다"를 드러내는 몫. 이 식이 doc-section-body.css/tiptap-editor.css의 pre 값에 기대는
-   정합성은 codeCollapse.test.ts가 세 파일을 읽어 대조한다(값을 고정하진 않는다).
+/* 접힘 높이 = 임계값 줄 + 위 패딩 + 테두리 + 다음 줄 절반("더 있다"를 드러내는 몫).
+   **아래 패딩은 0으로 죽인다** — 남겨두면 잘린 줄과 블럭 바닥 사이에 빈 띠가 생겨 페이드가
+   텍스트가 아니라 그 여백을 덮는다(어색한 fading-edge). 0이면 잘린 줄이 바닥에 닿아 페이드가
+   실제 글자 위로 떨어진다. box-sizing: border-box라 max-height가 패딩·테두리를 포함한다.
+   이 식이 doc-section-body.css/tiptap-editor.css의 pre 값에 기대는 정합성은
+   codeCollapse.test.ts가 세 파일을 읽어 대조한다(값을 고정하진 않는다).
    가로 스크롤바(globals.css의 ::-webkit-scrollbar는 gutter) 10px은 더하지 않는다 — CSS가
    오버플로 유무를 분기할 수 없어 상수로 더하면 임계값+1줄 블럭이 안 잘리는데 pill만 뜬다.
    overflow shorthand 금지 — 기존 pre 규칙의 overflow-x: auto를 덮으면 긴 줄을 못 읽는다. */
 .code-collapse[data-collapsible="true"][data-collapsed="true"] pre {
-  max-height: calc(var(--code-collapse-lines) * 1.5em + 2em + 0.75em);
+  max-height: calc(var(--code-collapse-lines) * 1.5em + 16px + 2px + 0.75em);
+  padding-bottom: 0;
   overflow-y: hidden;
+}
+
+/* 접힌 블럭은 통째로 펼치기 버튼 — 잘린 줄은 클릭할 수도 없으니 코드 영역에 caret을 둘
+   이유가 없다(셸이 pre에 contenteditable=false를 걸어 실제로도 막는다). */
+.code-collapse[data-collapsible="true"][data-collapsed="true"] {
+  cursor: pointer;
 }
 
 /* pre 배경과 같은 토큰이라 다크모드가 자동 대응된다.
@@ -19,11 +29,12 @@
    되고, bottom을 올려 피하면 스크롤바가 없는 대다수 블럭에 안 흐려진 띠가 생긴다. 수용. */
 .code-collapse-fade {
   position: absolute;
-  inset-inline: 0;
-  bottom: 0;
+  /* pre의 1px 테두리 안쪽에 앉힌다 — 0이면 페이드가 테두리를 덮어 아래쪽만 끊겨 보인다. */
+  inset-inline: 1px;
+  bottom: 1px;
   height: 2.25rem;
   pointer-events: none;
-  border-radius: 0 0 0.375rem 0.375rem;
+  border-radius: 0 0 calc(0.5rem - 1px) calc(0.5rem - 1px);
   background: linear-gradient(to bottom, transparent, hsl(var(--muted)));
 }
 .code-collapse:not([data-collapsible="true"][data-collapsed="true"]) .code-collapse-fade {
@@ -64,6 +75,12 @@
   opacity: 1;
 }
 
+/* 우상단 액션(복사·삭제)도 pill과 같은 등장 규칙 — 블럭 hover 또는 키보드 포커스. */
+.code-collapse:hover .block-actions,
+.code-collapse .block-actions:focus-within {
+  opacity: 1;
+}
+
 /* DESIGN.md §9의 focus-visible:ring-2 ring-ring 관용구. --ring이 --border와 같은 값이라
    링이 흐린 건 저장소 전역의 알려진 한계다 — outline-offset으로 띄우면 링이 pre의 --muted
    위에 얹혀 다크에서 대비 1:1로 아예 사라지므로 offset을 두지 않는다. */
@@ -72,9 +89,3 @@
   box-shadow: 0 0 0 2px hsl(var(--ring)), 0 1px 2px 0 rgb(0 0 0 / 0.05);
 }
 
-/* 커서가 블럭 안에 있는 동안은 방해물을 치운다. 접힘 자체는 expanded 승격이 이미 풀어놨으므로
-   여기서 max-height를 안 건드린다 → 특이도 싸움이 없다. */
-.code-collapse.is-editing .code-collapse-fade,
-.code-collapse.is-editing .code-collapse-toggle {
-  display: none;
-}

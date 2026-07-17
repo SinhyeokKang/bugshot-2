@@ -27,6 +27,8 @@ export interface IssuePreviewViewLabels {
   // 달라 raw 키가 뜬다) → 템플릿 함수로 받는다.
   expandCode: (lines: number) => string;
   collapseCode: string;
+  copyCode: string;
+  copiedCode: string;
 }
 
 export interface IssuePreviewViewProps {
@@ -135,6 +137,8 @@ export function IssuePreviewView({
               emptyValue={labels.emptyValue}
               expandCode={labels.expandCode}
               collapseCode={labels.collapseCode}
+              copyCode={labels.copyCode}
+              copiedCode={labels.copiedCode}
             />
           </Section>
         );
@@ -150,11 +154,15 @@ function PreviewSectionBody({
   emptyValue,
   expandCode,
   collapseCode,
+  copyCode,
+  copiedCode,
 }: {
   section: IssuePreviewViewSection;
   emptyValue: string;
   expandCode: (lines: number) => string;
   collapseCode: string;
+  copyCode: string;
+  copiedCode: string;
 }) {
   if (section.renderAs === "orderedList") {
     const items = section.value
@@ -180,6 +188,8 @@ function PreviewSectionBody({
       value={section.value}
       expandCode={expandCode}
       collapseCode={collapseCode}
+      copyCode={copyCode}
+      copiedCode={copiedCode}
     />
   );
 }
@@ -188,15 +198,24 @@ function PreviewMarkdownBody({
   value,
   expandCode,
   collapseCode,
+  copyCode,
+  copiedCode,
 }: {
   value: string;
   expandCode: (lines: number) => string;
   collapseCode: string;
+  copyCode: string;
+  copiedCode: string;
 }) {
   // copied 토글(1.5초 타이머)마다 이 트리가 재렌더되므로 markdown-it 재실행을 막는다.
   // (셸 재생성 방지는 아니다 — html은 문자열이라 값이 같으면 [html] dep이 안 변한다.)
   const html = useMemo(() => renderMarkdown(value), [value]);
-  const collapseRef = useCodeCollapse(html, { expand: expandCode, collapse: collapseCode });
+  const collapseRef = useCodeCollapse(html, {
+    expand: expandCode,
+    collapse: collapseCode,
+    copy: copyCode,
+    copied: copiedCode,
+  });
   return (
     <div
       ref={collapseRef}

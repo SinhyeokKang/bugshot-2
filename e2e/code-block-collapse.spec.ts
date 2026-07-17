@@ -217,3 +217,38 @@ test("에디터에서 pill을 클릭해도 본문 커서가 안 움직인다", a
   await panel.close();
   await fixture.close();
 });
+
+// 접힘은 항상 "로그 최상단"이어야 한다. 펼쳐서 아래쪽에 caret을 두고 접으면, 브라우저가 그
+// caret을 보이게 pre를 스크롤해둔 상태가 남아 로그 중간이 보인 채 접힌다(실사용 제보).
+// DOM selection만 지우는 걸론 못 막는다 — PM이 state.selection에서 되돌려놓고 다시 스크롤한다.
+test("caret을 아래쪽에 둔 채 접어도 로그 최상단이 보인다", async ({ ext }) => {
+  const fixture = await ext.context.newPage();
+  await fixture.goto(ext.fixtureUrl("basic.html"));
+  const tabId = await ext.fixtureTabId();
+  const panel = await ext.openPanel(tabId);
+
+  await enterDebug(panel);
+  await panel.getByTestId("subtab-network").click();
+  await seedNetworkLog(fixture, panel, "/e2e-bigjson");
+
+  await panel.getByTestId("subtab-issue").click();
+  await panel.getByTestId("mode-freeform").click();
+  await expect(panel.getByTestId("drafting-panel")).toBeVisible();
+
+  const section = panel.getByTestId("draft-section-description");
+  await insertLog(panel, "/e2e-bigjson");
+
+  const wrapper = section.getByTestId("code-collapse");
+  // 접힌 블럭 클릭 = 펼침. 한 번 더 클릭해야 caret이 들어간다(펼친 뒤엔 편집 대상).
+  await wrapper.locator("code").click();
+  await wrapper.locator("code").click();
+  for (let i = 0; i < 30; i++) await panel.keyboard.press("ArrowDown");
+
+  await wrapper.getByTestId("code-collapse-toggle").click();
+  await expect(wrapper).toHaveAttribute("data-collapsed", "true");
+
+  expect(await panel.evaluate(() => document.querySelector("[data-testid='code-collapse'] pre")!.scrollTop)).toBe(0);
+
+  await panel.close();
+  await fixture.close();
+});

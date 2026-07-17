@@ -106,6 +106,8 @@ export const koDict: Record<string, string> = {
 
   "codeBlock.expand": "펼치기 ({count}줄)",
   "codeBlock.collapse": "접기",
+  "codeBlock.copy": "복사",
+  "codeBlock.copied": "복사됨",
 };
 
 export const enDict: Record<string, string> = {
@@ -211,6 +213,8 @@ export const enDict: Record<string, string> = {
 
   "codeBlock.expand": "Expand ({count} lines)",
   "codeBlock.collapse": "Collapse",
+  "codeBlock.copy": "Copy",
+  "codeBlock.copied": "Copied",
 };
 
 // Node 20(전역 navigator 없음)에서 vitest가 이 모듈을 로드해도 깨지지 않게 가드.

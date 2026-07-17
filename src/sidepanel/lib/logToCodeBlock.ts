@@ -75,8 +75,10 @@ export function serializeNetworkRequest(req: NetworkRequest): LogCodeBlock {
 }
 
 export function serializeConsoleEntry(entry: ConsoleEntry): LogCodeBlock {
-  const head = `[${entry.level}] ${truncate(entry.args)}`;
-  const withStack =
-    entry.level === "error" && entry.stack ? `${head}\n${truncate(entry.stack)}` : head;
-  return { text: neutralizeFences(withStack) };
+  // 로그 목록 확장 영역(ConsoleLogContent)이 보여주는 순서 그대로 — 메시지 → 스택 → 발생 페이지.
+  // pageUrl은 "어느 페이지에서 났나"라 이슈 받는 쪽에 필요하고, 캡처 시점에 이미 마스킹된 값이다.
+  const lines = [`[${entry.level}] ${truncate(entry.args)}`];
+  if (entry.level === "error" && entry.stack) lines.push(truncate(entry.stack));
+  if (entry.pageUrl) lines.push(entry.pageUrl);
+  return { text: neutralizeFences(lines.join("\n")) };
 }

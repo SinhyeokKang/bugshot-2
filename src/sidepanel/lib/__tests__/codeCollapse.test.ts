@@ -54,10 +54,21 @@ describe("shouldCollapseCode", () => {
       expect(value, `${file}의 ${selector}에 ${prop} 선언이 없음`).toBeDefined();
       return value!;
     };
-    return { fontSize: decl("font-size"), lineHeight: decl("line-height"), padding: decl("padding") };
+    return {
+      background: decl("background"),
+      fontSize: decl("font-size"),
+      lineHeight: decl("line-height"),
+      padding: decl("padding"),
+      border: decl("border"),
+      borderRadius: decl("border-radius"),
+    };
   }
 
-  it("두 표면의 pre 규칙이 접힘 높이 산식의 전제를 똑같이 유지한다", () => {
+  // 에딧(tiptap)과 읽기(doc-section-body)의 pre는 **손복사본 2벌**이다 — 공유가 아니라 클론이라
+  // 한쪽만 고치면 같은 코드블럭이 편집 화면과 프리뷰에서 다르게 보인다. 높이 산식의 전제
+  // (font-size·line-height·padding·border)뿐 아니라 배경·라운드까지 함께 묶어야 시각 드리프트도
+  // 잡힌다. tiptap 쪽 white-space: pre 한 줄만 의도된 예외(주석은 파서가 걷어낸다).
+  it("에딧·읽기 두 표면의 pre 규칙이 동일하다", () => {
     expect(preStyle("doc-section-body.css", ".doc-section-body pre")).toEqual(
       preStyle("tiptap-editor.css", ".tiptap-editor .ProseMirror pre"),
     );
@@ -69,28 +80,36 @@ describe("shouldCollapseCode", () => {
     const pre = preStyle("doc-section-body.css", ".doc-section-body pre");
     const fontPx = Number(pre.fontSize.replace("px", ""));
     const linePx = Number(pre.lineHeight) * fontPx;
-    // box-sizing: border-box라 max-height가 padding 상하를 포함한다.
-    const paddingPx = 2 * Number(pre.padding.replace("em", "")) * fontPx;
+    const px = (v: string) =>
+      v.trim().endsWith("em") ? Number(v.replace("em", "")) * fontPx : Number(v.replace("px", ""));
 
-    const calc = readFileSync(join(componentsDir, "code-collapse.css"), "utf8")
-      .match(/max-height:\s*calc\(([^;]+)\);/)?.[1];
+    const collapseCss = readFileSync(join(componentsDir, "code-collapse.css"), "utf8");
+    const collapsedRule = collapseCss.split('[data-collapsed="true"] pre {')[1]?.split("}")[0];
+    expect(collapsedRule, "접힘 pre 규칙을 못 찾음").toBeDefined();
+
+    const calc = collapsedRule!.match(/max-height:\s*calc\(([^;]+)\);/)?.[1];
     expect(calc).toBeDefined();
-
     // 아래 리듀서는 `<n><em|px>` 항의 덧셈만 안다 — 빼기나 다른 단위가 들어오면 조용히
     // 오판정하므로, 파서가 다루는 형태를 벗어나면 여기서 먼저 멈춘다.
     expect(calc!.replace(/var\([^)]*\)/g, "")).not.toMatch(/-|rem|ch|%/);
 
-    const collapsedPx = [
+    const boxPx = [
       ...calc!.matchAll(/(?:var\(--code-collapse-lines\)\s*\*\s*)?([\d.]+)(em|px)/g),
     ].reduce((sum, [whole, n, unit]) => {
       const value = unit === "em" ? Number(n) * fontPx : Number(n);
       return sum + (whole.startsWith("var(") ? value * CODE_COLLAPSE_LINE_THRESHOLD : value);
     }, 0);
 
+    // box-sizing: border-box라 max-height가 패딩·테두리를 포함한다 → 빼야 실제로 보이는 높이다.
+    // 접힘 규칙은 아래 패딩을 0으로 죽인다(페이드가 여백이 아니라 글자를 덮게).
+    const padBottom = collapsedRule!.match(/padding-bottom:\s*([^;]+);/)?.[1] ?? pre.padding;
+    const visiblePx =
+      boxPx - px(pre.padding) - px(padBottom) - px(pre.border.split(/\s+/)[0]) * 2;
+
     // 임계값 줄 수는 온전히 보이고(하한) 그다음 줄은 반드시 잘린다(상한).
     // 그 사이 여백(현재 0.75em = 다음 줄 절반)은 자유롭게 튜닝할 수 있어야 한다.
-    expect(collapsedPx).toBeGreaterThanOrEqual(CODE_COLLAPSE_LINE_THRESHOLD * linePx + paddingPx);
-    expect(collapsedPx).toBeLessThan((CODE_COLLAPSE_LINE_THRESHOLD + 1) * linePx + paddingPx);
+    expect(visiblePx).toBeGreaterThanOrEqual(CODE_COLLAPSE_LINE_THRESHOLD * linePx);
+    expect(visiblePx).toBeLessThan((CODE_COLLAPSE_LINE_THRESHOLD + 1) * linePx);
   });
 
   it("15줄은 안 접고 16줄부터 접는다", () => {

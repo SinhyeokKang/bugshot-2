@@ -151,6 +151,9 @@ const ko = {
 
   "codeBlock.expand": "펼치기 ({count}줄)",
   "codeBlock.collapse": "접기",
+  "codeBlock.copy": "복사",
+  "codeBlock.copied": "복사됨",
+  "codeBlock.delete": "삭제",
 } as const;
 
 type Bundle = Record<keyof typeof ko, string>;
@@ -308,6 +311,9 @@ const en = {
 
   "codeBlock.expand": "Expand ({count} lines)",
   "codeBlock.collapse": "Collapse",
+  "codeBlock.copy": "Copy",
+  "codeBlock.copied": "Copied",
+  "codeBlock.delete": "Delete",
 } satisfies Bundle;
 
 export const editor = { ko, en };
