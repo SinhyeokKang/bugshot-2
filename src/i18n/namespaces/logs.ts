@@ -119,6 +119,9 @@ const ko = {
 
   "json.showAll": "전체 보기",
   "json.moreItems": "… {n}개 더",
+
+  "codeBlock.expand": "펼치기 ({count}줄)",
+  "codeBlock.collapse": "접기",
 } as const;
 
 type Bundle = Record<keyof typeof ko, string>;
@@ -244,6 +247,9 @@ const en = {
 
   "json.showAll": "show all",
   "json.moreItems": "… {n} more items",
+
+  "codeBlock.expand": "Expand ({count} lines)",
+  "codeBlock.collapse": "Collapse",
 } satisfies Bundle;
 
 export const logs = { ko, en };

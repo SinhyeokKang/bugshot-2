@@ -7,6 +7,7 @@ import {
   replaceInlineRefs,
 } from "@/sidepanel/lib/resolveInlineImages";
 import { renderMarkdown } from "@/sidepanel/lib/renderMarkdown";
+import { useCodeCollapse } from "@/sidepanel/hooks/useCodeCollapse";
 import "./doc-section-body.css";
 
 export function DocSectionBody({
@@ -46,6 +47,7 @@ export function DocSectionBody({
 }
 
 function MarkdownBody({ value }: { value: string }) {
+  const t = useT();
   const [resolvedValue, setResolvedValue] = useState(value);
   const prevBlobUrls = useRef<string[]>([]);
 
@@ -93,9 +95,14 @@ function MarkdownBody({ value }: { value: string }) {
   }, []);
 
   const html = useMemo(() => renderMarkdown(resolvedValue), [resolvedValue]);
+  const collapseRef = useCodeCollapse(html, {
+    expand: (lines) => t("codeBlock.expand", { count: lines }),
+    collapse: t("codeBlock.collapse"),
+  });
 
   return (
     <div
+      ref={collapseRef}
       className="doc-section-body break-words text-sm leading-relaxed"
       dangerouslySetInnerHTML={{ __html: html }}
     />

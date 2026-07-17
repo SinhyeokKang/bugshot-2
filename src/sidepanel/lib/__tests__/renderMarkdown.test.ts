@@ -110,4 +110,17 @@ describe("renderMarkdown — 삽입된 로그 코드블럭 하이라이팅", () 
     expect(html).not.toContain("<img");
     expect(html).toContain("&lt;img");
   });
+
+  // buildIssueHtml()이 이 함수를 쓰고 그 출력이 클립보드 HTML·logs.html 리포트로 나간다 —
+  // 접기 마크업이 여기 섞이면 사용자가 트래커에 붙여넣는 본문에 pill이 딸려 들어간다.
+  // 접기는 렌더된 DOM 위에서만 붙으므로 이 경로는 도입 전후로 동일해야 한다.
+  it("긴 코드블럭을 렌더해도 접기 마크업이 섞이지 않는다", () => {
+    const body = Array.from({ length: 30 }, (_, i) => `  "k${i}": ${i},`).join("\n");
+    const html = renderMarkdown(`\`\`\`json\n{\n${body}\n}\n\`\`\``);
+
+    expect(html).not.toContain("code-collapse");
+    expect(html).not.toContain("펼치기");
+    expect(html).not.toContain("Expand");
+    expect(html).not.toContain("<button");
+  });
 });

@@ -12,9 +12,21 @@ import Image from "@tiptap/extension-image";
 import Placeholder from "@tiptap/extension-placeholder";
 import { Markdown } from "tiptap-markdown";
 import { Plugin, PluginKey } from "@tiptap/pm/state";
-import { Decoration, DecorationSet, type EditorView } from "@tiptap/pm/view";
+import {
+  Decoration,
+  DecorationSet,
+  type EditorView,
+  type ViewMutationRecord,
+} from "@tiptap/pm/view";
+import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 import { cn } from "@/lib/utils";
+import { t } from "@/i18n";
 import { tokenizeJson, JSON_TOKEN_CLASS } from "@/sidepanel/lib/highlightJson";
+import { countCodeLines } from "@/sidepanel/lib/codeCollapse";
+import {
+  createCodeCollapseShell,
+  type CodeCollapseShell,
+} from "@/sidepanel/lib/codeCollapseShell";
 import { saveInlineImage, getInlineImage } from "@/store/blob-db";
 import { shouldCompact, compactImage } from "@/sidepanel/lib/compactImage";
 import {
@@ -92,7 +104,8 @@ export interface TiptapEditorHandle {
 const jsonHighlightKey = new PluginKey("jsonCodeHighlight");
 
 // 삽입된 로그(language=json) 코드블럭만 칠한다 — preview(renderMarkdown)와 같은 tokenizeJson을
-// 써서 두 표면이 발산하지 않게 한다. NodeView 없이 inline decoration이면 편집·커서에 무해.
+// 써서 두 표면이 발산하지 않게 한다. inline decoration은 contentDOM 안에 렌더되므로
+// CodeBlockCollapse가 같은 codeBlock에 제공하는 NodeView와 충돌 없이 공존한다.
 const JsonCodeHighlight = Extension.create({
   name: "jsonCodeHighlight",
   addProseMirrorPlugins() {
@@ -114,6 +127,96 @@ const JsonCodeHighlight = Extension.create({
                   );
                 }
                 offset += token.text.length;
+              }
+            });
+            return DecorationSet.create(state.doc, decorations);
+          },
+        },
+      }),
+    ];
+  },
+});
+
+const codeCollapseKey = new PluginKey("codeBlockCollapse");
+
+// NodeView는 vanilla라 훅을 못 쓴다 — 모듈 레벨 t를 호출 시점마다 부르므로 에디터를
+// 다시 만들지 않고도 현재 locale을 따른다(이미 떠 있는 pill 라벨은 다음 update까지 stale).
+function editorCollapseLabels() {
+  return {
+    expand: (lines: number) => t("codeBlock.expand", { count: lines }),
+    collapse: t("codeBlock.collapse"),
+  };
+}
+
+class CodeCollapseNodeView {
+  dom: HTMLElement;
+  contentDOM: HTMLElement;
+  private shell: CodeCollapseShell;
+
+  constructor(node: ProseMirrorNode, decorations: readonly Decoration[]) {
+    const pre = document.createElement("pre");
+    this.contentDOM = document.createElement("code");
+    if (node.attrs.language) this.contentDOM.className = `language-${node.attrs.language}`;
+    pre.appendChild(this.contentDOM);
+    this.shell = createCodeCollapseShell(pre, editorCollapseLabels());
+    this.dom = this.shell.wrapper;
+    this.shell.update(countCodeLines(node.textContent));
+    this.syncEditing(decorations);
+  }
+
+  update(node: ProseMirrorNode, decorations: readonly Decoration[]) {
+    if (node.type.name !== "codeBlock") return false;
+    this.shell.update(countCodeLines(node.textContent));
+    this.syncEditing(decorations);
+    return true;
+  }
+
+  // 커서 진입은 펼침을 승격시키기만 한다 — 이탈해도 되돌리지 않는다. 40줄이 15줄로 도로
+  // 접히면 아래 본문이 점프하고, 사용자가 만든 펼침 의도를 시스템이 뒤집는 셈이 된다.
+  private syncEditing(decorations: readonly Decoration[]) {
+    const editing = decorations.some(
+      (d) => (d.spec as { isEditing?: boolean } | undefined)?.isEditing,
+    );
+    if (editing && !this.shell.expanded) this.shell.setExpanded(true);
+  }
+
+  // fade·toggle은 contentDOM 밖이다 — PM이 자기 DOM이 훼손됐다고 오해하지 않게 막는다.
+  ignoreMutation(m: ViewMutationRecord) {
+    return !this.contentDOM.contains(m.target);
+  }
+
+  // pill에서 난 이벤트만 가로챈다. 넓게 잡으면 pre 빈 영역 클릭의 커서 배치까지 삼킨다.
+  stopEvent(e: Event) {
+    return this.shell.toggle.contains(e.target as Node);
+  }
+
+  destroy() {
+    this.shell.destroy();
+  }
+}
+
+const CodeBlockCollapse = Extension.create({
+  name: "codeBlockCollapse",
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        key: codeCollapseKey,
+        props: {
+          nodeViews: {
+            codeBlock: (node, _view, _getPos, decorations) =>
+              new CodeCollapseNodeView(node, decorations),
+          },
+          decorations(state) {
+            const { from, to } = state.selection;
+            const decorations: Decoration[] = [];
+            state.doc.descendants((node, pos) => {
+              if (node.type.name !== "codeBlock") return;
+              const end = pos + node.nodeSize;
+              // attrs(3번째)는 wrapper 클래스, spec(4번째)은 NodeView 판정 키 — 별개 인자다.
+              if (from < end && to > pos) {
+                decorations.push(
+                  Decoration.node(pos, end, { class: "is-editing" }, { isEditing: true }),
+                );
               }
             });
             return DecorationSet.create(state.doc, decorations);
@@ -214,6 +317,7 @@ const TiptapEditor = forwardRef<TiptapEditorHandle, TiptapEditorProps>(function 
       }),
       ListExitOnBackspace,
       JsonCodeHighlight,
+      CodeBlockCollapse,
       HrAfterHardBreak,
       Link.configure({
         openOnClick: false,

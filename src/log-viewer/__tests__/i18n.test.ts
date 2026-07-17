@@ -17,6 +17,7 @@ import { dirname, join } from "node:path";
 
 import { koDict, enDict, t } from "../i18n";
 import { logs } from "../../i18n/namespaces/logs";
+import { editor } from "../../i18n/namespaces/editor";
 
 describe("log viewer i18n — 사전 구조", () => {
   it("ko/en 키 동일", () => {
@@ -91,14 +92,21 @@ describe("log viewer i18n — 메인 테이블 대조", () => {
     expect(missing).toEqual([]);
   });
 
+  // editor는 현재 이 사전과 교집합이 0이라 장래 방어용이다 — 지금 codeBlock.* 키를 무는 건
+  // logs 쪽이고, 앞으로 누가 editor.ts에 키를 넣어도 사각지대가 생기지 않게 함께 대조한다.
+  const MAIN_NAMESPACES = [logs, editor];
+
   it("메인 테이블과 공통인 키는 값도 일치 (stale drift 방지)", () => {
-    const koDrift = Object.keys(koDict)
-      .filter((k) => k in logs.ko && logs.ko[k as keyof typeof logs.ko] !== koDict[k])
-      .map((k) => `ko ${k}`);
-    const enDrift = Object.keys(enDict)
-      .filter((k) => k in logs.en && logs.en[k as keyof typeof logs.en] !== enDict[k])
-      .map((k) => `en ${k}`);
-    expect([...koDrift, ...enDrift]).toEqual([]);
+    const drift = (["ko", "en"] as const).flatMap((locale) => {
+      const dict = locale === "ko" ? koDict : enDict;
+      return MAIN_NAMESPACES.flatMap((ns) => {
+        const table = ns[locale] as Record<string, string>;
+        return Object.keys(dict)
+          .filter((k) => k in table && table[k] !== dict[k])
+          .map((k) => `${locale} ${k}`);
+      });
+    });
+    expect(drift).toEqual([]);
   });
 });
 

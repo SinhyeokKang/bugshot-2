@@ -16,34 +16,34 @@
 - **변경 대상**: `src/sidepanel/lib/codeCollapse.ts` (신규), `src/sidepanel/lib/__tests__/codeCollapse.test.ts` (신규)
 - **작업 내용**: `/tdd interface` 모드로 **테스트 먼저**. `CODE_COLLAPSE_LINE_THRESHOLD = 15`, `countCodeLines(text)`, `shouldCollapseCode(lineCount)`. `countCodeLines`는 후행 개행 **1개만** 제거 후 `\n`으로 센다(markdown-it은 붙이고 ProseMirror는 안 붙인다 — design.md 위험 7).
 - **검증**:
-  - [ ] `countCodeLines("a\nb")` = 2, `countCodeLines("a\nb\n")` = 2 (두 표면이 같은 숫자)
-  - [ ] `countCodeLines("a\nb\n\n")` = 3 (의도적 빈 줄은 살린다 — 후행 개행은 1개만 제거)
-  - [ ] `countCodeLines("")` = 1, `countCodeLines("a")` = 1
-  - [ ] `shouldCollapseCode(15)` = false, `shouldCollapseCode(16)` = true (PRD 엣지 케이스 표)
-  - [ ] `pnpm test` 통과
+  - [x] `countCodeLines("a\nb")` = 2, `countCodeLines("a\nb\n")` = 2 (두 표면이 같은 숫자)
+  - [x] `countCodeLines("a\nb\n\n")` = 3 (의도적 빈 줄은 살린다 — 후행 개행은 1개만 제거)
+  - [x] `countCodeLines("")` = 1, `countCodeLines("a")` = 1
+  - [x] `shouldCollapseCode(15)` = false, `shouldCollapseCode(16)` = true (PRD 엣지 케이스 표)
+  - [x] `pnpm test` 통과
 
 ### Task 2: DOM 셸 + CSS
 
 - **변경 대상**: `src/sidepanel/lib/codeCollapseShell.ts` (신규), `src/sidepanel/components/code-collapse.css` (신규)
-- **작업 내용**: `createCodeCollapseShell(pre, labels)` — design.md "생성되는 DOM" 그대로. `--code-collapse-lines`를 `CODE_COLLAPSE_LINE_THRESHOLD`로 주입(CSS에 `15` 리터럴 금지). `update(lineCount)`가 `data-collapsible`·`data-lines`·pill 라벨 갱신(**`expanded`는 절대 안 건드림**), `setExpanded`가 `data-collapsed`·`aria-expanded`·라벨 갱신 + `onToggle` 통지. fade·toggle에 **`contenteditable="false"`**, toggle에 `aria-controls`(+`pre`에 유일 id 발급). 라벨은 **`textContent`로만** 설정. `destroy()`는 click 리스너 해제 **+ wrapper unwrap**(pre를 원래 자리로 복원 — StrictMode 재부착 시 중첩 방지). **`code-collapse.css`는 이 파일이 side-effect import한다**(design.md의 import 주체 노트 — `globals.css` 경유 금지). CSS는 design.md 블록 그대로.
+- **작업 내용**: `createCodeCollapseShell(pre, labels)` — design.md "생성되는 DOM" 그대로. `--code-collapse-lines`를 `CODE_COLLAPSE_LINE_THRESHOLD`로 주입(CSS에 `15` 리터럴 금지). `update(lineCount)`가 `data-collapsible`·`data-lines`·pill 라벨 갱신(**`expanded`는 절대 안 건드림**), `setExpanded`가 `data-collapsed`·`aria-expanded`·라벨 갱신. 펼침 상태는 셸의 `readonly expanded` getter가 **단일 출처**다(구현 중 정정 — 당초 `onToggle` 콜백으로 호출자가 미러링하게 했으나 이중 보관이라 제거). fade·toggle에 **`contenteditable="false"`**, toggle에 `aria-controls`(+`pre`에 유일 id 발급). 라벨은 **`textContent`로만** 설정. `destroy()`는 click 리스너 해제, **`unwrap()`은 별도 메서드**로 preview 훅만 부른다(구현 중 정정 — NodeView가 unwrap하면 PM이 걷어간 자리에 고아 `pre`가 남는다). **`code-collapse.css`는 이 파일이 side-effect import한다**(design.md의 import 주체 노트 — `globals.css` 경유 금지). CSS는 design.md 블록 그대로.
 - **검증**:
-  - [ ] `grep -n "15" src/sidepanel/components/code-collapse.css` → 0건 (임계값 단일 출처)
-  - [ ] `grep -rn "dark:" src/sidepanel/components/code-collapse.css` → 0건 (semantic 토큰만 — DESIGN.md §3)
-  - [ ] `grep -n "overflow" src/sidepanel/components/code-collapse.css` → `overflow-y` 만, `overflow:` shorthand 0건 (기존 `overflow-x: auto`를 덮으면 안 됨)
-  - [ ] `grep -n "data-testid" src/sidepanel/lib/codeCollapseShell.ts` → `code-collapse`·`code-collapse-toggle` 2건 (**e2e 시나리오 전부가 이 셀렉터에 걸려 있다** — 빠뜨리면 Task 9에서야 발견된다)
-  - [ ] `grep -n "contenteditable" src/sidepanel/lib/codeCollapseShell.ts` → 2건 (fade + toggle)
-  - [ ] `grep -n "code-collapse.css" src/sidepanel/lib/codeCollapseShell.ts` → 1건 (세 표면 자동 커버)
-  - [ ] `pnpm typecheck` 통과
+  - [x] `grep -n "15" src/sidepanel/components/code-collapse.css` → 0건 (임계값 단일 출처)
+  - [x] `grep -rn "dark:" src/sidepanel/components/code-collapse.css` → 0건 (semantic 토큰만 — DESIGN.md §3)
+  - [x] `grep -n "overflow" src/sidepanel/components/code-collapse.css` → `overflow-y` 만, `overflow:` shorthand 0건 (기존 `overflow-x: auto`를 덮으면 안 됨)
+  - [x] `grep -n "data-testid" src/sidepanel/lib/codeCollapseShell.ts` → `code-collapse`·`code-collapse-toggle` 2건 (**e2e 시나리오 전부가 이 셀렉터에 걸려 있다** — 빠뜨리면 Task 9에서야 발견된다)
+  - [x] `grep -n "contenteditable" src/sidepanel/lib/codeCollapseShell.ts` → 2건 (fade + toggle)
+  - [x] `grep -n "code-collapse.css" src/sidepanel/lib/codeCollapseShell.ts` → 1건 (세 표면 자동 커버)
+  - [x] `pnpm typecheck` 통과
 
 ### Task 3: preview 부착 (훅 + 두 표면)
 
 - **변경 대상**: `src/sidepanel/hooks/useCodeCollapse.ts` (신규), `src/sidepanel/components/DocSectionBody.tsx`, `src/sidepanel/components/IssuePreviewView.tsx`
-- **작업 내용**: design.md의 `useCodeCollapse` 구현 — **`pre.closest(".code-collapse")` 가드 필수**(StrictMode 중첩 방지, design.md 위험 10). `DocSectionBody.MarkdownBody`(:48)는 기존 `html` useMemo(:95)를 dep으로 넘기고 라벨은 `useT()`로 조달. `IssuePreviewView.PreviewSectionBody`(:138)는 `renderMarkdown(section.value)`(:167)를 **`useMemo`로 뽑고**(최적화가 아니라 정확성 요건 — 안 하면 `copied` 토글마다 펼침이 리셋된다) 라벨은 **`labels` prop으로** 받는다(`useT()` 절대 금지 — 키 네임스페이스가 달라 raw 키가 화면에 뜬다). `IssuePreviewViewLabels`에 `expandCode`/`collapseCode` 추가.
+- **작업 내용**: design.md의 `useCodeCollapse` 구현 — **`pre.closest(".code-collapse")` 가드 필수**(StrictMode 중첩 방지, design.md 위험 10). `DocSectionBody.MarkdownBody`(:48)는 기존 `html` useMemo(:95)를 dep으로 넘기고 라벨은 `useT()`로 조달. `IssuePreviewView.PreviewSectionBody`(:138)는 `renderMarkdown(section.value)`(:167)를 **`useMemo`로 뽑고**(markdown-it 재실행 회피 — 당초 "펼침 리셋을 막는 정확성 요건"이라 적었으나 근거가 거짓이었다, design.md 위험 12 참조. 훅 규칙상 별도 컴포넌트로 분리 필요) 라벨은 **`labels` prop으로** 받는다(`useT()` 절대 금지 — 키 네임스페이스가 달라 raw 키가 화면에 뜬다). `IssuePreviewViewLabels`에 `expandCode`/`collapseCode` 추가.
 - **검증**:
-  - [ ] `grep -n "useT\|@/i18n" src/sidepanel/components/IssuePreviewView.tsx` → 0건 (log-viewer 격리 유지)
-  - [ ] `grep -n "closest" src/sidepanel/hooks/useCodeCollapse.ts` → 1건 (StrictMode 가드)
+  - [x] `grep -n "useT\|@/i18n" src/sidepanel/components/IssuePreviewView.tsx` → 0건 (log-viewer 격리 유지)
+  - [x] `grep -n "closest" src/sidepanel/hooks/useCodeCollapse.ts` → 1건 (StrictMode 가드)
   - [ ] **dev 서버에서 preview를 열어 wrapper가 1겹인지 확인** — StrictMode 중첩은 `pnpm test`가 못 잡고 dev에서 100% 재현된다
-  - [ ] `logCards`/`media`/`attachments` 슬롯의 `pre`가 안 감싸진다 (훅 root가 `.doc-section-body` 컨테이너 내부로 한정 — design.md 위험 5)
+  - [x] `logCards`/`media`/`attachments` 슬롯의 `pre`가 안 감싸진다 (훅 root가 `.doc-section-body` 컨테이너 내부로 한정 — design.md 위험 5)
   - [ ] `pnpm typecheck` — `PreviewPanel.tsx`·`log-viewer/App.tsx` 두 호출부가 labels 누락으로 **타입 에러가 나야 정상**(Task 6·7이 채운다)
 
 ### Task 4: 에디터 부착 (NodeView) — ⚠ 최고 위험
@@ -54,7 +54,7 @@
 - **작업 순서**: 위험 1은 소스로 해소됐으므로(design.md) **스파이크 없이 바로 구현**한다. 폴백이 필요해지면 `StarterKit.configure({ codeBlock: false })` + `@tiptap/extension-code-block` 하나뿐이다.
 - **검증** (⚠ **실제 Chrome 필수** — 아래 전부 jsdom·단위로 못 잡는다). **두 에디터 모두에서 확인**: `DraftingPanel` + `DraftEditDialog`(섹션 연필 버튼 — 다이얼로그의 낮은 높이에서도 접힘이 정상인지):
   - [ ] `pnpm build` 후 언팩 로드 → 40줄 JSON 로그 삽입 → 에디터에서 15줄로 접힘 + 페이드
-  - [ ] **16번째 줄의 절반이 실제로 보인다** (border-box calc 검증 — 0px면 `+2em` padding 항 누락, 가로 오버플로 블럭에서만 안 보이면 `+10px` 스크롤바 항 누락 — design.md CSS 주석)
+  - [ ] **16번째 줄의 절반이 실제로 보인다** (border-box calc 검증 — 0px면 `+2em` padding 항 누락. 가로 오버플로 블럭은 스크롤바 gutter 10px 때문에 ~14.9줄만 보이는 게 **의도된 수용**이다 — design.md CSS 주석)
   - [ ] **JSON 하이라이팅이 그대로다** (보라 key / 빨강 string) — design.md 위험 2
   - [ ] pill 클릭 → 펼침. **커서가 안 움직인다** — design.md 위험 3 (e2e 시나리오 7이 자동으로도 잡는다)
   - [ ] 접힌 블럭 안 클릭 → 자동 펼침 + pill·페이드 사라짐. **커서를 밖으로 빼도 펼침 유지** + pill이 `접기`로 복귀 (PRD 시나리오 B-3)
@@ -72,9 +72,9 @@
 - **작업 내용**: `"codeBlock.expand"` — ko `"펼치기 ({count}줄)"` / en `"Expand ({count} lines)"`, `"codeBlock.collapse"` — ko `"접기"` / en `"Collapse"`. ko/en을 **같은 편집으로** 넣는다(PostToolUse 훅이 `locales.test.ts`를 자동 실행해 불일치면 차단). count는 항상 ≥16이라 en 복수형 `(s)` 관용구가 불필요하다.
 - **왜 `editor.ts`가 아니라 `logs.ts`인가**: `log-viewer/__tests__/i18n.test.ts:94-102`의 복제 사전 drift 검사가 **`logs` 네임스페이스만 대조한다**(`Object.keys(koDict).filter(k => k in logs.ko)`). `editor.ts`에 두면 이 키들의 ko/en drift가 영원히 무방비다 — design.md 위험 6. `logs.ts` 배치는 **코드 0줄로** 기존 검사에 걸린다.
 - **검증**:
-  - [ ] 저장 시 i18n 훅 자동 통과 (ko/en 키 대칭 + `{count}` 토큰 일치)
-  - [ ] 기존 `logInsert.*`가 아닌 `codeBlock.*` prefix — 로그 전용이 아니라 모든 코드블럭이므로 (prd.md 전제 2)
-  - [ ] `common.collapse`("접기")·`editor.dom.collapse`가 이미 존재하지만 **재사용하지 않는다** — 표면별 라벨 수명이 다르고, `codeBlock.expand`가 `{count}`로 짝을 이뤄야 해서 한 네임스페이스에 모으는 게 낫다. (문구 중복은 감수)
+  - [x] 저장 시 i18n 훅 자동 통과 (ko/en 키 대칭 + `{count}` 토큰 일치)
+  - [x] 기존 `logInsert.*`가 아닌 `codeBlock.*` prefix — 로그 전용이 아니라 모든 코드블럭이므로 (prd.md 전제 2)
+  - [x] `common.collapse`("접기")·`editor.dom.collapse`가 이미 존재하지만 **재사용하지 않는다** — 표면별 라벨 수명이 다르고, `codeBlock.expand`가 `{count}`로 짝을 이뤄야 해서 한 네임스페이스에 모으는 게 낫다. (문구 중복은 감수)
 
 ### Task 6: 사이드패널 preview 라벨 주입
 
@@ -90,9 +90,9 @@
   - **`i18n.test.ts:94-102`의 drift 검사 대조 대상에 `editor` 네임스페이스 추가.** 지금은 `logs`만 본다. Task 5가 키를 `logs.ts`에 두어 당장은 걸리지만, 앞으로 누가 `editor.ts`에 넣어도 사각지대가 없게 만든다. **이 확장은 현재 log-viewer dict와 `editor` 네임스페이스의 교집합이 0키라 당장은 no-op(장래 방어용)이다** — 지금 무는 건 어디까지나 기존 `logs` 대조다.
 - **왜 별도 태스크인가**: log-viewer는 `src/i18n/`을 안 쓰는 복제 사전이라 **PostToolUse 훅이 이 파일을 안 본다.** 빠뜨리면 Report 탭에 원시 키가 뜬다. POSTMORTEM 2026-06-28이 잡은 drift의 재발 지점이고, 그 처방("복제본은 늘 대조 테스트로 묶는다")을 **grep·육안이 아니라 테스트로** 이행하는 게 이 태스크의 핵심이다.
 - **검증**:
-  - [ ] `grep -n "codeBlock.expand\|codeBlock.collapse" src/log-viewer/i18n.ts` → 4건(ko 2 + en 2)
-  - [ ] **일부러 `enDict`의 `{count}`를 `{n}`으로 바꿔보면 테스트가 빨개진다** — 이 변조가 확인하는 건 **기존 `logs` 대조**가 codeBlock 키를 실제로 무는지다(`editor` 확장 분기는 교집합 0키라 이 변조로는 실행되지 않는다 — 위 작업 내용 참조)
-  - [ ] `pnpm test` 통과
+  - [x] `grep -n "codeBlock.expand\|codeBlock.collapse" src/log-viewer/i18n.ts` → 4건(ko 2 + en 2)
+  - [x] **일부러 `enDict`의 `{count}`를 `{n}`으로 바꿔보면 테스트가 빨개진다** — 이 변조가 확인하는 건 **기존 `logs` 대조**가 codeBlock 키를 실제로 무는지다(`editor` 확장 분기는 교집합 0키라 이 변조로는 실행되지 않는다 — 위 작업 내용 참조)
+  - [x] `pnpm test` 통과
   - [ ] `pnpm build` → logs.html 다운로드 → Report 탭에서 pill 라벨 정상 (원시 키 아님)
 
 ### Task 8: 마크다운 무오염 회귀 테스트 — 이 기능의 핵심 안전망
@@ -103,8 +103,8 @@
   - `DocSectionBody.test.tsx`(jsdom + user-event): 20줄 블럭 → `data-collapsed="true"`, **pill의 `data-lines`가 `"20"`** → pill 클릭 → `data-collapsed="false"` + `aria-expanded="true"` + 라벨이 `codeBlock.collapse`. 10줄 블럭 → `data-collapsible="false"`, pill 없음. 코드블럭 2개 렌더 → 두 `pre`의 id가 서로 다르고 각 pill의 `aria-controls`가 자기 `pre` id와 매칭(셸의 "인스턴스마다 유일 id 발급" 단언).
   - **라벨은 키로 단언한다.** 기존 tsx 트랙 3건(`ConsoleLogContent`/`NetworkLogContent`/`CcMultiCombobox.test.tsx`)이 전부 `vi.mock("@/i18n", () => ({ useT: () => (key) => key, … }))`로 모킹하므로 실제 렌더 결과는 `codeBlock.collapse`다. `접기`로 단언하면 처음부터 실패하고, 모킹을 빼면 `useT`가 `useSettingsUiStore`(zustand persist)를 구독해 chrome.storage에 닿는다. **줄 수는 라벨 텍스트가 아니라 `data-lines`로 잡는다** — 키 모킹 하에선 `{count}` 보간이 안 일어나기 때문이다. 실제 ko/en 문구는 `locales.test.ts`(Task 5)와 e2e(Task 9)가 맡는다.
 - **검증**:
-  - [ ] 접기 코드를 되돌리면(임시) `renderMarkdown` 단언이 여전히 통과 — 즉 이 테스트가 **접기 도입과 무관하게** 마크다운 경로를 지킨다
-  - [ ] `pnpm test` 통과
+  - [x] 접기 코드를 되돌리면(임시) `renderMarkdown` 단언이 여전히 통과 — 즉 이 테스트가 **접기 도입과 무관하게** 마크다운 경로를 지킨다
+  - [x] `pnpm test` 통과
 
 ### Task 9: e2e
 

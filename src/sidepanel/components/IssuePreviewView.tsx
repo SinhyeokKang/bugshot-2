@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Section } from "@/sidepanel/components/Section";
 import { renderMarkdown } from "@/sidepanel/lib/renderMarkdown";
 import { composePreviewLayout } from "@/sidepanel/lib/composePreviewLayout";
+import { useCodeCollapse } from "@/sidepanel/hooks/useCodeCollapse";
 import "./doc-section-body.css";
 
 const EMPTY_POST_MEDIA: Set<string> = new Set();
@@ -22,6 +23,10 @@ export interface IssuePreviewViewLabels {
   copied: string;
   emptyValue: string;
   envTitle: string;
+  // 줄 수가 런타임 DOM에서 나오는데 이 컴포넌트는 i18n을 못 쓴다(키 네임스페이스가 표면마다
+  // 달라 raw 키가 뜬다) → 템플릿 함수로 받는다.
+  expandCode: (lines: number) => string;
+  collapseCode: string;
 }
 
 export interface IssuePreviewViewProps {
@@ -125,7 +130,12 @@ export function IssuePreviewView({
         if (!sec) return null;
         return (
           <Section key={sec.id} title={sec.label} testId={`preview-section-${sec.id}`}>
-            <PreviewSectionBody section={sec} emptyValue={labels.emptyValue} />
+            <PreviewSectionBody
+              section={sec}
+              emptyValue={labels.emptyValue}
+              expandCode={labels.expandCode}
+              collapseCode={labels.collapseCode}
+            />
           </Section>
         );
       })}
@@ -138,9 +148,13 @@ export function IssuePreviewView({
 function PreviewSectionBody({
   section,
   emptyValue,
+  expandCode,
+  collapseCode,
 }: {
   section: IssuePreviewViewSection;
   emptyValue: string;
+  expandCode: (lines: number) => string;
+  collapseCode: string;
 }) {
   if (section.renderAs === "orderedList") {
     const items = section.value
@@ -162,9 +176,32 @@ function PreviewSectionBody({
     return <p className="text-sm text-muted-foreground/70">{emptyValue}</p>;
   }
   return (
+    <PreviewMarkdownBody
+      value={section.value}
+      expandCode={expandCode}
+      collapseCode={collapseCode}
+    />
+  );
+}
+
+function PreviewMarkdownBody({
+  value,
+  expandCode,
+  collapseCode,
+}: {
+  value: string;
+  expandCode: (lines: number) => string;
+  collapseCode: string;
+}) {
+  // copied 토글(1.5초 타이머)마다 이 트리가 재렌더되므로 markdown-it 재실행을 막는다.
+  // (셸 재생성 방지는 아니다 — html은 문자열이라 값이 같으면 [html] dep이 안 변한다.)
+  const html = useMemo(() => renderMarkdown(value), [value]);
+  const collapseRef = useCodeCollapse(html, { expand: expandCode, collapse: collapseCode });
+  return (
     <div
+      ref={collapseRef}
       className="doc-section-body break-words text-sm leading-relaxed"
-      dangerouslySetInnerHTML={{ __html: renderMarkdown(section.value) }}
+      dangerouslySetInnerHTML={{ __html: html }}
     />
   );
 }
