@@ -153,7 +153,10 @@ export function NetworkLogContent({ requests, flush, syncBaseMs, onSeek, activeT
   const t = useT();
   const [activeId, setActiveId] = useState<string | null>(null);
   const [detailTab, setDetailTab] = useState<DetailTab>("headers");
-  const [listWidth, setListWidth] = useState(0);
+  // null = 아직 실측 전 → CSS 30%로 그린다. 0으로 시작하면 마운트 시점 clientWidth가 0인 순간
+  // (다이얼로그 오픈 애니메이션·숨은 탭 등) 폭이 영영 0으로 굳어 목록 패널이 통째로 사라진다
+  // — 데이터는 멀쩡한데 "네트워크 로그 empty"로 보이던 실사용 버그.
+  const [listWidth, setListWidth] = useState<number | null>(null);
   const [filter, setFilter] = useState<RequestFilter>("all");
   const [originFilter, setOriginFilter] = useState<string | null>(null);
   const [query, setQuery] = useState("");
@@ -213,9 +216,18 @@ export function NetworkLogContent({ requests, flush, syncBaseMs, onSeek, activeT
   const containerRef = useRef<HTMLDivElement>(null);
   const dragging = useRef(false);
 
+  // 실측은 1회지만, 0이면 잡지 않고 폭이 생길 때까지 ResizeObserver로 기다린다.
   useEffect(() => {
-    if (!containerRef.current) return;
-    setListWidth(Math.round(containerRef.current.clientWidth * 0.3));
+    const el = containerRef.current;
+    if (!el) return;
+    const measure = () => {
+      const w = el.clientWidth;
+      if (w > 0) setListWidth((prev) => prev ?? Math.round(w * 0.3));
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
   }, []);
 
   // 신규 로그 tail: 사용자가 바닥 근처(<24px)에 있을 때만 새 항목에 맞춰 자동 스크롤. 위로 올려
@@ -255,7 +267,7 @@ export function NetworkLogContent({ requests, flush, syncBaseMs, onSeek, activeT
     e.preventDefault();
     dragging.current = true;
     const startX = e.clientX;
-    const startW = listWidth;
+    const startW = listWidth ?? Math.round((containerRef.current?.clientWidth ?? 0) * 0.3);
 
     const onMove = (ev: MouseEvent) => {
       if (!dragging.current) return;
@@ -312,7 +324,7 @@ export function NetworkLogContent({ requests, flush, syncBaseMs, onSeek, activeT
       </Tabs>
       <OriginFilterBar originKeys={originKeys} counts={originCountMap} value={originFilter} onChange={setOriginFilter} flush={flush} />
       <div className="flex min-h-0 flex-1 overflow-hidden">
-      <ScrollArea ref={listScrollRef} className="shrink-0 [&>div>div]:!block" style={{ width: listWidth }}>
+      <ScrollArea ref={listScrollRef} className="shrink-0 [&>div>div]:!block" style={{ width: listWidth ?? "30%" }}>
         <div>
           {filteredRequests.map((req) => (
             <RequestRow

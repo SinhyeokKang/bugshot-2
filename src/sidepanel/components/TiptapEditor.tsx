@@ -11,10 +11,23 @@ import Link from "@tiptap/extension-link";
 import Image from "@tiptap/extension-image";
 import Placeholder from "@tiptap/extension-placeholder";
 import { Markdown } from "tiptap-markdown";
-import { Plugin, PluginKey } from "@tiptap/pm/state";
-import { Decoration, DecorationSet, type EditorView } from "@tiptap/pm/view";
+import { Plugin, PluginKey, TextSelection } from "@tiptap/pm/state";
+import {
+  Decoration,
+  DecorationSet,
+  type EditorView,
+  type ViewMutationRecord,
+} from "@tiptap/pm/view";
+import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 import { cn } from "@/lib/utils";
+import { t, setLocale } from "@/i18n";
 import { tokenizeJson, JSON_TOKEN_CLASS } from "@/sidepanel/lib/highlightJson";
+import { countCodeLines, shouldCollapseCode } from "@/sidepanel/lib/codeCollapse";
+import {
+  createCodeCollapseShell,
+  type CodeCollapseShell,
+} from "@/sidepanel/lib/codeCollapseShell";
+import { useSettingsUiStore } from "@/store/settings-ui-store";
 import { saveInlineImage, getInlineImage } from "@/store/blob-db";
 import { shouldCompact, compactImage } from "@/sidepanel/lib/compactImage";
 import {
@@ -92,7 +105,8 @@ export interface TiptapEditorHandle {
 const jsonHighlightKey = new PluginKey("jsonCodeHighlight");
 
 // 삽입된 로그(language=json) 코드블럭만 칠한다 — preview(renderMarkdown)와 같은 tokenizeJson을
-// 써서 두 표면이 발산하지 않게 한다. NodeView 없이 inline decoration이면 편집·커서에 무해.
+// 써서 두 표면이 발산하지 않게 한다. inline decoration은 contentDOM 안에 렌더되므로
+// CodeBlockCollapse가 같은 codeBlock에 제공하는 NodeView와 충돌 없이 공존한다.
 const JsonCodeHighlight = Extension.create({
   name: "jsonCodeHighlight",
   addProseMirrorPlugins() {
@@ -117,6 +131,152 @@ const JsonCodeHighlight = Extension.create({
               }
             });
             return DecorationSet.create(state.doc, decorations);
+          },
+        },
+      }),
+    ];
+  },
+});
+
+const codeCollapseKey = new PluginKey("codeBlockCollapse");
+
+// NodeView는 vanilla라 훅을 못 쓴다 → 모듈 레벨 t. collapse가 getter인 건 즉시 평가하면
+// 셸이 그 문자열을 클로저로 잡아 NodeView 수명 내내 첫 locale로 얼어붙기 때문이다.
+// 다시 그리는 건 아래 locale 구독이 맡는다(PM은 locale 변경으로 update()를 안 부른다).
+function editorCollapseLabels() {
+  return {
+    expand: (lines: number) => t("codeBlock.expand", { count: lines }),
+    get collapse() {
+      return t("codeBlock.collapse");
+    },
+    get copy() {
+      return t("codeBlock.copy");
+    },
+    get copied() {
+      return t("codeBlock.copied");
+    },
+  };
+}
+
+class CodeCollapseNodeView {
+  dom: HTMLElement;
+  contentDOM: HTMLElement;
+  private shell: CodeCollapseShell;
+  private node: ProseMirrorNode;
+  private unsubLocale: () => void;
+
+  constructor(
+    node: ProseMirrorNode,
+    private view: EditorView,
+    private getPos: () => number | undefined,
+  ) {
+    this.node = node;
+    const pre = document.createElement("pre");
+    this.contentDOM = document.createElement("code");
+    this.syncLanguage(node);
+    pre.appendChild(this.contentDOM);
+    // 삭제는 에디터 전용 — 읽기 표면엔 지울 문서 모델이 없다.
+    this.shell = createCodeCollapseShell(pre, editorCollapseLabels(), [
+      {
+        icon: "trash",
+        get label() {
+          return t("codeBlock.delete");
+        },
+        testId: "code-collapse-delete",
+        onClick: () => this.deleteNode(),
+      },
+    ]);
+    this.shell.onCollapse = () => this.moveCaretOut();
+    this.dom = this.shell.wrapper;
+    this.shell.update(countCodeLines(node.textContent));
+
+    // 라벨은 t()라 살아있지만 아무도 다시 그려주지 않는다 — PM은 locale 변경으로 update()를
+    // 부르지 않으니 pill이 옛 언어로 굳는다(preview는 훅 dep이 있어 무사). 직접 구독한다.
+    // setLocale까지 부르는 건 t()가 읽는 모듈 전역이 React 렌더 중에만 동기화되기 때문 —
+    // 구독자가 렌더보다 먼저 깨면 t()가 아직 옛 locale을 준다.
+    this.unsubLocale = useSettingsUiStore.subscribe((s, prev) => {
+      if (s.locale === prev.locale) return;
+      setLocale(s.locale);
+      this.shell.update(countCodeLines(this.node.textContent));
+    });
+  }
+
+  update(node: ProseMirrorNode) {
+    if (node.type.name !== "codeBlock") return false;
+    const wasCollapsible = shouldCollapseCode(countCodeLines(this.node.textContent));
+    this.node = node;
+    // NodeView를 재사용하므로(true 반환) 노드가 바뀐 만큼은 여기서 직접 따라가야 한다.
+    this.syncLanguage(node);
+    const lineCount = countCodeLines(node.textContent);
+    // 편집 중(caret이 블럭 안) 타이핑·붙여넣기로 임계값을 넘으면 접지 않고 펼친 채 둔다 —
+    // 그대로 접으면 caret이 잘린 영역에 갇히고(setExpanded의 보정도 이 경로는 못 탄다),
+    // keymap 키(Enter 등)가 안 보이는 줄을 계속 편집한다. read/edit 모델: 편집 중 = 펼침.
+    if (!wasCollapsible && shouldCollapseCode(lineCount) && this.selectionInside()) {
+      this.shell.setExpanded(true);
+    }
+    this.shell.update(lineCount);
+    return true;
+  }
+
+  private selectionInside() {
+    const pos = this.getPos();
+    if (pos == null) return false;
+    const { from, to } = this.view.state.selection;
+    return from < pos + this.node.nodeSize && to > pos;
+  }
+
+  // 접힌 블럭은 readonly라 caret이 잘린 영역에 갇힌다 — 그대로 두면 PM이 그 caret을 보이게
+  // pre를 스크롤해 로그 중간이 보인 채 접힌다. 블럭 바로 뒤로 빼야 실제로 풀린다.
+  private moveCaretOut() {
+    const pos = this.getPos();
+    if (pos == null) return;
+    const { state } = this.view;
+    const end = pos + this.node.nodeSize;
+    if (state.selection.from >= end || state.selection.to <= pos) return;
+    this.view.dispatch(state.tr.setSelection(TextSelection.near(state.doc.resolve(end))));
+  }
+
+  private deleteNode() {
+    const pos = this.getPos();
+    if (pos == null) return;
+    this.view.dispatch(this.view.state.tr.delete(pos, pos + this.node.nodeSize));
+  }
+
+  private syncLanguage(node: ProseMirrorNode) {
+    this.contentDOM.className = node.attrs.language ? `language-${node.attrs.language}` : "";
+  }
+
+  // fade·toggle은 contentDOM 밖이다 — PM이 자기 DOM이 훼손됐다고 오해하지 않게 막는다.
+  ignoreMutation(m: ViewMutationRecord) {
+    return !this.contentDOM.contains(m.target);
+  }
+
+  // pill 클릭과 "접힌 블럭 클릭 = 펼침"은 셸이 처리한다 — PM이 같은 클릭을 selection으로
+  // 가로채면 안 된다. 펼친 뒤엔 코드 영역을 PM에 그대로 넘겨 caret이 정상 동작한다.
+  stopEvent(e: Event) {
+    const target = e.target as Node;
+    return (
+      this.shell.toggle.contains(target) ||
+      this.shell.actionsEl.contains(target) ||
+      this.shell.readonly
+    );
+  }
+
+  destroy() {
+    this.unsubLocale();
+    this.shell.destroy();
+  }
+}
+
+const CodeBlockCollapse = Extension.create({
+  name: "codeBlockCollapse",
+  addProseMirrorPlugins() {
+    return [
+      new Plugin({
+        key: codeCollapseKey,
+        props: {
+          nodeViews: {
+            codeBlock: (node, view, getPos) => new CodeCollapseNodeView(node, view, getPos),
           },
         },
       }),
@@ -214,6 +374,7 @@ const TiptapEditor = forwardRef<TiptapEditorHandle, TiptapEditorProps>(function 
       }),
       ListExitOnBackspace,
       JsonCodeHighlight,
+      CodeBlockCollapse,
       HrAfterHardBreak,
       Link.configure({
         openOnClick: false,

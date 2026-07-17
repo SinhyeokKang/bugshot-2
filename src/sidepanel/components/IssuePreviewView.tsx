@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Section } from "@/sidepanel/components/Section";
 import { renderMarkdown } from "@/sidepanel/lib/renderMarkdown";
 import { composePreviewLayout } from "@/sidepanel/lib/composePreviewLayout";
+import { useCodeCollapse } from "@/sidepanel/hooks/useCodeCollapse";
+import type { CodeCollapseLabels } from "@/sidepanel/lib/codeCollapseShell";
 import "./doc-section-body.css";
 
 const EMPTY_POST_MEDIA: Set<string> = new Set();
@@ -22,6 +24,9 @@ export interface IssuePreviewViewLabels {
   copied: string;
   emptyValue: string;
   envTitle: string;
+  // 줄 수가 런타임 DOM에서 나오는데 이 컴포넌트는 i18n을 못 쓴다(키 네임스페이스가 표면마다
+  // 달라 raw 키가 뜬다) → 셸의 라벨 묶음(expand는 템플릿 함수)을 그대로 받는다.
+  code: CodeCollapseLabels;
 }
 
 export interface IssuePreviewViewProps {
@@ -125,7 +130,11 @@ export function IssuePreviewView({
         if (!sec) return null;
         return (
           <Section key={sec.id} title={sec.label} testId={`preview-section-${sec.id}`}>
-            <PreviewSectionBody section={sec} emptyValue={labels.emptyValue} />
+            <PreviewSectionBody
+              section={sec}
+              emptyValue={labels.emptyValue}
+              codeLabels={labels.code}
+            />
           </Section>
         );
       })}
@@ -138,9 +147,11 @@ export function IssuePreviewView({
 function PreviewSectionBody({
   section,
   emptyValue,
+  codeLabels,
 }: {
   section: IssuePreviewViewSection;
   emptyValue: string;
+  codeLabels: CodeCollapseLabels;
 }) {
   if (section.renderAs === "orderedList") {
     const items = section.value
@@ -161,10 +172,25 @@ function PreviewSectionBody({
   if (!section.value.trim()) {
     return <p className="text-sm text-muted-foreground/70">{emptyValue}</p>;
   }
+  return <PreviewMarkdownBody value={section.value} codeLabels={codeLabels} />;
+}
+
+function PreviewMarkdownBody({
+  value,
+  codeLabels,
+}: {
+  value: string;
+  codeLabels: CodeCollapseLabels;
+}) {
+  // copied 토글(1.5초 타이머)마다 이 트리가 재렌더되므로 markdown-it 재실행을 막는다.
+  // (셸 재생성 방지는 아니다 — html은 문자열이라 값이 같으면 [html] dep이 안 변한다.)
+  const html = useMemo(() => renderMarkdown(value), [value]);
+  const collapseRef = useCodeCollapse(html, codeLabels);
   return (
     <div
+      ref={collapseRef}
       className="doc-section-body break-words text-sm leading-relaxed"
-      dangerouslySetInnerHTML={{ __html: renderMarkdown(section.value) }}
+      dangerouslySetInnerHTML={{ __html: html }}
     />
   );
 }

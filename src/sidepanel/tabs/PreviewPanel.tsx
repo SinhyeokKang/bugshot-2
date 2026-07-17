@@ -378,6 +378,12 @@ export function PreviewPanel() {
             copied: t("preview.copied"),
             emptyValue: t("common.empty"),
             envTitle: t("section.env"),
+            code: {
+              expand: (lines) => t("codeBlock.expand", { count: lines }),
+              collapse: t("codeBlock.collapse"),
+              copy: t("codeBlock.copy"),
+              copied: t("codeBlock.copied"),
+            },
           }}
           onCopy={handleCopyMarkdown}
           media={mediaBlock}
@@ -400,6 +406,7 @@ export function PreviewPanel() {
           <div className="flex items-center gap-2">
             <Button
               variant="outline"
+              data-testid="back-to-draft"
               onClick={() => backToDraft()}
             >
               {t("common.back")}

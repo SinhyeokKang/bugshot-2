@@ -1,0 +1,64 @@
+/* 블럭(코드블럭·이미지) 우상단 아이콘 버튼 그룹. React 밖 DOM에서 쓰므로 shadcn Button·
+   ButtonGroup을 vanilla로 재현한다(DESIGN.md §1의 "React 미도달 DOM" 예외).
+   치수는 기존 아이콘 버튼 관용구 그대로 — h-8 w-8 + size-4 아이콘(TooltipIconButton). */
+.block-actions {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  display: flex;
+  width: fit-content;
+  align-items: stretch;
+  opacity: 0;
+  /* Tailwind transition-opacity 기본값과 동일(150ms + cubic-bezier) — pill과 같은 곡선. */
+  transition: opacity 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  user-select: none;
+}
+
+.block-actions-button {
+  display: inline-flex;
+  height: 2rem;
+  width: 2rem;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid hsl(var(--input));
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  cursor: pointer;
+  transition: color 150ms cubic-bezier(0.4, 0, 0.2, 1); /* = transition-colors */
+}
+
+/* ButtonGroup 관용구 — 인접 모서리를 합치고 테두리를 겹치지 않게 한다. */
+/* rounded-md = calc(var(--radius) - 2px) — Tailwind 기본 0.375rem이 아니다(이 저장소는
+   --radius: 0.75rem 스케일이라 md가 10px). 하드코딩하면 다른 버튼보다 각져 보인다. */
+.block-actions-button:first-child {
+  border-radius: calc(var(--radius) - 2px) 0 0 calc(var(--radius) - 2px);
+}
+.block-actions-button:last-child {
+  border-radius: 0 calc(var(--radius) - 2px) calc(var(--radius) - 2px) 0;
+}
+.block-actions-button:only-child {
+  border-radius: calc(var(--radius) - 2px);
+}
+.block-actions-button:not(:first-child) {
+  border-left: 0;
+}
+
+.block-actions-button svg {
+  height: 1rem;
+  width: 1rem;
+}
+
+/* --accent가 --muted(코드블럭 배경)와 같은 값이라 hover 배경은 못 쓴다(DESIGN.md §2).
+   muted 표면 위 컨트롤의 hover는 글자색으로 낸다. */
+.block-actions-button:hover {
+  color: hsl(var(--primary));
+}
+
+.block-actions-button:focus-visible {
+  outline: none;
+  position: relative;
+  z-index: 1;
+  box-shadow: 0 0 0 2px hsl(var(--ring)), 0 1px 2px 0 rgb(0 0 0 / 0.05);
+}

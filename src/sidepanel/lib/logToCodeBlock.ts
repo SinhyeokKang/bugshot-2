@@ -75,8 +75,13 @@ export function serializeNetworkRequest(req: NetworkRequest): LogCodeBlock {
 }
 
 export function serializeConsoleEntry(entry: ConsoleEntry): LogCodeBlock {
-  const head = `[${entry.level}] ${truncate(entry.args)}`;
-  const withStack =
-    entry.level === "error" && entry.stack ? `${head}\n${truncate(entry.stack)}` : head;
-  return { text: neutralizeFences(withStack) };
+  // 로그 목록 확장 영역(ConsoleLogContent)이 보여주는 것과 같은 것을 같은 순서로 —
+  // 메시지 → 스택 → 발생 페이지. 목록에서 보고 고른 걸 그대로 넣는 기능이라 화면과 결과가
+  // 갈리면 안 된다. 스택은 **레벨 무관**하게 있으면 담는다(UI도 `entry.stack &&`로만 건다) —
+  // console.warn도 스택을 갖고, 그게 경고의 출처라 버리면 목록에 보이던 게 사라진다.
+  // pageUrl은 "어느 페이지에서 났나"라 이슈 받는 쪽에 필요하고, 캡처 시점에 이미 마스킹된 값이다.
+  const lines = [`[${entry.level}] ${truncate(entry.args)}`];
+  if (entry.stack) lines.push(truncate(entry.stack));
+  if (entry.pageUrl) lines.push(truncate(entry.pageUrl));
+  return { text: neutralizeFences(lines.join("\n")) };
 }

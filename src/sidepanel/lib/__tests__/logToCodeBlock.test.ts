@@ -192,7 +192,7 @@ describe("serializeNetworkRequest", () => {
 });
 
 describe("serializeConsoleEntry", () => {
-  it("error는 [level] args 다음 줄에 stack", () => {
+  it("error는 [level] args → stack → 발생 페이지 순으로 담는다", () => {
     const { text, language } = serializeConsoleEntry(
       makeEntry({ stack: "  at foo (app.js:12:3)\n  at bar (app.js:34:5)" }),
     );
@@ -202,23 +202,33 @@ describe("serializeConsoleEntry", () => {
         "[error] Uncaught TypeError: x is not a function",
         "  at foo (app.js:12:3)",
         "  at bar (app.js:34:5)",
+        "https://example.com/",
       ].join("\n"),
     );
     expect(language).toBeUndefined();
   });
 
-  it("stack 없는 error는 헤더 라인만", () => {
+  it("stack 없는 error는 헤더 + 발생 페이지", () => {
     const { text } = serializeConsoleEntry(makeEntry());
 
-    expect(text).toBe("[error] Uncaught TypeError: x is not a function");
+    expect(text).toBe("[error] Uncaught TypeError: x is not a function\nhttps://example.com/");
   });
 
-  it("error가 아니면 stack이 있어도 포함하지 않는다", () => {
+  // 로그 목록(ConsoleLogContent)은 `entry.stack &&`로만 걸어 레벨 무관하게 스택을 보여준다.
+  // 목록에서 보고 고른 걸 넣는 기능이라 삽입이 화면보다 적게 담으면 안 된다 —
+  // console.warn의 스택이 조용히 사라지던 회귀(실사용 제보).
+  it("error가 아니어도 stack이 있으면 담는다 (목록 표시와 일치)", () => {
     const { text } = serializeConsoleEntry(
       makeEntry({ level: "warn", args: "deprecated API", stack: "  at foo (app.js:1:1)" }),
     );
 
-    expect(text).toBe("[warn] deprecated API");
+    expect(text).toBe("[warn] deprecated API\n  at foo (app.js:1:1)\nhttps://example.com/");
+  });
+
+  it("stack이 없으면 그 줄을 안 넣는다", () => {
+    const { text } = serializeConsoleEntry(makeEntry({ level: "warn", args: "no stack here" }));
+
+    expect(text).toBe("[warn] no stack here\nhttps://example.com/");
   });
 
   it("args의 라인 시작 백틱 런도 무해화한다", () => {
@@ -232,12 +242,26 @@ describe("serializeConsoleEntry", () => {
       makeEntry({ args: "boom", stack: "s".repeat(20000) }),
     );
 
-    expect(text).toBe(`[error] boom\n${"s".repeat(16384)}…(truncated)`);
+    expect(text).toBe(`[error] boom\n${"s".repeat(16384)}…(truncated)\nhttps://example.com/`);
   });
 
   it("16384자를 넘는 args는 자르고 …(truncated) 표시", () => {
     const { text } = serializeConsoleEntry(makeEntry({ level: "log", args: "y".repeat(20000) }));
 
-    expect(text).toBe(`[log] ${"y".repeat(16384)}…(truncated)`);
+    expect(text).toBe(`[log] ${"y".repeat(16384)}…(truncated)\nhttps://example.com/`);
+  });
+
+  it("16384자를 넘는 pageUrl도 자른다 (args·stack과 같은 캡)", () => {
+    const { text } = serializeConsoleEntry(
+      makeEntry({ level: "log", args: "hi", pageUrl: "u".repeat(20000) }),
+    );
+
+    expect(text).toBe(`[log] hi\n${"u".repeat(16384)}…(truncated)`);
+  });
+
+  it("pageUrl이 없으면 그 줄을 안 넣는다", () => {
+    const { text } = serializeConsoleEntry(makeEntry({ level: "log", args: "hi", pageUrl: "" }));
+
+    expect(text).toBe("[log] hi");
   });
 });

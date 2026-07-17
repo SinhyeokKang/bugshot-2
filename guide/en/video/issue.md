@@ -39,6 +39,8 @@ The button opens the **Add log** dialog. **Console** and **Network** tabs each s
 
 What lands is a code block, but it's **just text** — trim it or edit it however you like. It's separate from the attached `logs.html`: the attachment only shows up once the reader downloads and opens the file, while a log you add this way is **right there in the issue body**.
 
+Long logs are nothing to worry about. Any code block over 15 lines lands **collapsed**, so a single response never swallows the panel. Hover the block and a pill appears at the bottom center — **Expand (38 lines)**, where the number is that block's full line count. Click it to see the whole thing, **Collapse** to fold it back, and preview behaves the same way. Start editing inside a collapsed block and it opens up on its own, so type away. Folding is purely for comfortable reading — **the issue you file always carries the full log**.
+
 > A log in the body is visible to everyone who can see the issue, and console logs go in verbatim with no masking. If the screen prints anything sensitive, give it a look in the detail pane before you add it.
 
 ## ✨ AI Draft

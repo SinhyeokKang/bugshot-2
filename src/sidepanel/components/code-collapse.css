@@ -1,0 +1,97 @@
+.code-collapse {
+  position: relative;
+}
+
+/* 접힘 높이 = 임계값 줄 + 위 패딩 + 테두리 + 다음 줄 절반("더 있다"를 드러내는 몫).
+   **아래 패딩은 0으로 죽인다** — 남겨두면 잘린 줄과 블럭 바닥 사이에 빈 띠가 생겨 페이드가
+   텍스트가 아니라 그 여백을 덮는다(어색한 fading-edge). 0이면 잘린 줄이 바닥에 닿아 페이드가
+   실제 글자 위로 떨어진다. box-sizing: border-box라 max-height가 패딩·테두리를 포함한다.
+   이 식이 doc-section-body.css/tiptap-editor.css의 pre 값에 기대는 정합성은
+   codeCollapse.test.ts가 세 파일을 읽어 대조한다(값을 고정하진 않는다).
+   가로 스크롤바(globals.css의 ::-webkit-scrollbar는 gutter) 10px은 더하지 않는다 — CSS가
+   오버플로 유무를 분기할 수 없어 상수로 더하면 임계값+1줄 블럭이 안 잘리는데 pill만 뜬다.
+   overflow shorthand 금지 — 기존 pre 규칙의 overflow-x: auto를 덮으면 긴 줄을 못 읽는다. */
+.code-collapse[data-collapsible="true"][data-collapsed="true"] pre {
+  max-height: calc(var(--code-collapse-lines) * 1.5em + 16px + 2px + 0.75em);
+  padding-bottom: 0;
+  overflow-y: hidden;
+}
+
+/* 접힌 블럭은 통째로 펼치기 버튼 — 잘린 줄은 클릭할 수도 없으니 코드 영역에 caret을 둘
+   이유가 없다(셸이 pre에 contenteditable=false를 걸어 실제로도 막는다). */
+.code-collapse[data-collapsible="true"][data-collapsed="true"] {
+  cursor: pointer;
+}
+
+/* pre 배경과 같은 토큰이라 다크모드가 자동 대응된다.
+   height의 em은 pre가 아니라 wrapper가 상속한 주변 폰트 기준이라 표면마다 흔들린다 → rem 고정.
+   가로 오버플로 블럭에선 하단 스크롤바 밴드를 덮을 수 있다 — pointer-events: none이라 조작은
+   되고, bottom을 올려 피하면 스크롤바가 없는 대다수 블럭에 안 흐려진 띠가 생긴다. 수용. */
+.code-collapse-fade {
+  position: absolute;
+  /* pre의 1px 테두리 안쪽에 앉힌다 — 0이면 페이드가 테두리를 덮어 아래쪽만 끊겨 보인다. */
+  inset-inline: 1px;
+  bottom: 1px;
+  height: 2.25rem;
+  pointer-events: none;
+  border-radius: 0 0 calc(var(--radius) - 1px) calc(var(--radius) - 1px);
+  background: linear-gradient(to bottom, transparent, hsl(var(--muted)));
+}
+.code-collapse:not([data-collapsible="true"][data-collapsed="true"]) .code-collapse-fade {
+  display: none;
+}
+
+/* 치수는 저장소 텍스트 버튼 관용구(OriginFilterBar / NetworkLogContent = Button
+   variant="outline" size="sm" + h-7 px-2.5 text-[13px] font-normal).
+   단 그 variant의 hover:bg-accent는 안 따른다 — --accent가 --muted(= pre 배경)와 라이트·다크
+   모두 같은 값이라 muted 표면 위의 이 pill은 hover 시 배경이 주변과 같아지고, 다크에선
+   --input(테두리)까지 --muted와 같아 통째로 사라진다. 등장(opacity 0→1)이 hover 피드백이다.
+   user-select: none이 없으면 opacity 0이어도 DOM에 있어 본문 드래그 복사에 라벨이 섞인다. */
+.code-collapse-toggle {
+  position: absolute;
+  bottom: 0.75rem;
+  left: 50%;
+  transform: translateX(-50%);
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  height: 1.75rem;
+  border-radius: calc(var(--radius) - 2px);   /* rounded-md — 기본 컨트롤 관용구 */
+  border: 1px solid hsl(var(--input));
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+  box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  padding: 0 0.625rem;
+  font-size: 13px;
+  font-weight: 400;
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  opacity: 0;
+  /* Tailwind transition-opacity와 동일 — 유틸리티를 못 쓰는 vanilla라 기본값을 그대로 적는다
+     (150ms + cubic-bezier(0.4, 0, 0.2, 1)). timing function을 빼면 브라우저 기본 ease로
+     돌아 다른 hover 노출(TrimTimeline 등)과 곡선이 갈린다. */
+  transition: opacity 150ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.code-collapse[data-collapsible="false"] .code-collapse-toggle {
+  display: none;
+}
+.code-collapse:hover .code-collapse-toggle,
+.code-collapse-toggle:focus-visible {
+  opacity: 1;
+}
+
+/* 우상단 액션(복사·삭제)도 pill과 같은 등장 규칙 — 블럭 hover 또는 키보드 포커스. */
+.code-collapse:hover .block-actions,
+.code-collapse .block-actions:focus-within {
+  opacity: 1;
+}
+
+/* DESIGN.md §9의 focus-visible:ring-2 ring-ring 관용구. --ring이 --border와 같은 값이라
+   링이 흐린 건 저장소 전역의 알려진 한계다 — outline-offset으로 띄우면 링이 pre의 --muted
+   위에 얹혀 다크에서 대비 1:1로 아예 사라지므로 offset을 두지 않는다. */
+.code-collapse-toggle:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px hsl(var(--ring)), 0 1px 2px 0 rgb(0 0 0 / 0.05);
+}
+
