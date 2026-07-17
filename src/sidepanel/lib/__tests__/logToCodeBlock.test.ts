@@ -214,12 +214,21 @@ describe("serializeConsoleEntry", () => {
     expect(text).toBe("[error] Uncaught TypeError: x is not a function\nhttps://example.com/");
   });
 
-  it("error가 아니면 stack이 있어도 포함하지 않는다 (발생 페이지는 유지)", () => {
+  // 로그 목록(ConsoleLogContent)은 `entry.stack &&`로만 걸어 레벨 무관하게 스택을 보여준다.
+  // 목록에서 보고 고른 걸 넣는 기능이라 삽입이 화면보다 적게 담으면 안 된다 —
+  // console.warn의 스택이 조용히 사라지던 회귀(실사용 제보).
+  it("error가 아니어도 stack이 있으면 담는다 (목록 표시와 일치)", () => {
     const { text } = serializeConsoleEntry(
       makeEntry({ level: "warn", args: "deprecated API", stack: "  at foo (app.js:1:1)" }),
     );
 
-    expect(text).toBe("[warn] deprecated API\nhttps://example.com/");
+    expect(text).toBe("[warn] deprecated API\n  at foo (app.js:1:1)\nhttps://example.com/");
+  });
+
+  it("stack이 없으면 그 줄을 안 넣는다", () => {
+    const { text } = serializeConsoleEntry(makeEntry({ level: "warn", args: "no stack here" }));
+
+    expect(text).toBe("[warn] no stack here\nhttps://example.com/");
   });
 
   it("args의 라인 시작 백틱 런도 무해화한다", () => {

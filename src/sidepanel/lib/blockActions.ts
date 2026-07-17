@@ -19,6 +19,11 @@ export type BlockActionIcon = keyof typeof ICON_PATHS;
 
 export function createBlockIcon(icon: BlockActionIcon): SVGSVGElement {
   const svg = document.createElementNS(SVG_NS, "svg");
+  // viewBox만 주면 SVG가 컨테이너를 꽉 채운다 — lucide-react가 size=24를 기본으로 다는 것과
+  // 같은 이유로 내재 크기를 박는다(CSS로 덮을 수 있다). 없으면 소비자가 크기를 안 주는 순간
+  // 아이콘이 버튼을 터뜨린다.
+  svg.setAttribute("width", "14");
+  svg.setAttribute("height", "14");
   svg.setAttribute("viewBox", "0 0 24 24");
   svg.setAttribute("fill", "none");
   svg.setAttribute("stroke", "currentColor");
