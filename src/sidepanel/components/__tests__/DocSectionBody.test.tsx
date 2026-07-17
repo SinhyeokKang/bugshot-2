@@ -1,16 +1,22 @@
 import { StrictMode } from "react";
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { DocSectionBody } from "../DocSectionBody";
 import type { IssueSection } from "@/store/settings-ui-store";
 
 // 키 반환 모킹 — 실제 ko/en 문구는 locales.test.ts와 e2e가 맡는다. 모킹을 빼면 useT가
 // useSettingsUiStore(zustand persist)를 구독해 chrome.storage에 닿는다. 줄 수도 라벨이
 // 아니라 data-lines로 잡는다 — 키 모킹 하에선 {count} 보간이 안 일어난다.
+// suffix는 locale 전환을 흉내내는 스위치다(기본 "" — 나머지 테스트는 키 그대로 본다).
+const i18n = vi.hoisted(() => ({ suffix: "" }));
 vi.mock("@/i18n", () => ({
-  useT: () => (key: string) => key,
+  useT: () => (key: string) => `${key}${i18n.suffix}`,
 }));
+
+afterEach(() => {
+  i18n.suffix = "";
+});
 
 vi.mock("@/store/blob-db", () => ({
   getInlineImage: vi.fn(async () => null),
@@ -98,6 +104,18 @@ describe("DocSectionBody — 코드블럭 접기", () => {
     await user.click(screen.getByTestId("code-collapse-toggle"));
 
     expect(screen.getByTestId("code-collapse").getAttribute("data-collapsed")).toBe("false");
+  });
+
+  // 설정에 실시간 ko↔en Select가 있고 나머지 UI는 전부 즉시 반영된다 — 본문이 바뀔 때까지
+  // pill만 이전 언어로 남으면 안 된다. 본문(html)은 그대로 두고 locale만 흔든다.
+  it("locale이 바뀌면 이미 붙은 pill 라벨도 따라 바뀐다", () => {
+    const { rerender } = render(<DocSectionBody section={SECTION} value={codeBlock(20)} />);
+    expect(screen.getByTestId("code-collapse-toggle").textContent).toBe("codeBlock.expand");
+
+    i18n.suffix = "-en";
+    rerender(<DocSectionBody section={SECTION} value={codeBlock(20)} />);
+
+    expect(screen.getByTestId("code-collapse-toggle").textContent).toBe("codeBlock.expand-en");
   });
 
   it("코드블럭 2개는 각각 독립적으로 토글되고 aria-controls가 자기 pre를 가리킨다", async () => {

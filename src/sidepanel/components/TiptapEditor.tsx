@@ -139,12 +139,16 @@ const JsonCodeHighlight = Extension.create({
 
 const codeCollapseKey = new PluginKey("codeBlockCollapse");
 
-// NodeView는 vanilla라 훅을 못 쓴다 — 모듈 레벨 t를 호출 시점마다 부르므로 에디터를
-// 다시 만들지 않고도 현재 locale을 따른다(이미 떠 있는 pill 라벨은 다음 update까지 stale).
+// NodeView는 vanilla라 훅을 못 쓴다 → 모듈 레벨 t. collapse가 getter인 건 즉시 평가하면
+// 셸이 그 문자열을 클로저로 잡아 NodeView 수명 내내 첫 locale로 얼어붙기 때문이다.
+// 단 locale 변경만으로는 PM이 update()를 안 부르므로, 이미 떠 있는 pill은 그 블럭을 다음에
+// 건드릴 때 따라온다 — preview(useCodeCollapse)는 dep으로 즉시 갱신되는 것과 다른 비대칭이다.
 function editorCollapseLabels() {
   return {
     expand: (lines: number) => t("codeBlock.expand", { count: lines }),
-    collapse: t("codeBlock.collapse"),
+    get collapse() {
+      return t("codeBlock.collapse");
+    },
   };
 }
 
@@ -156,7 +160,7 @@ class CodeCollapseNodeView {
   constructor(node: ProseMirrorNode, decorations: readonly Decoration[]) {
     const pre = document.createElement("pre");
     this.contentDOM = document.createElement("code");
-    if (node.attrs.language) this.contentDOM.className = `language-${node.attrs.language}`;
+    this.syncLanguage(node);
     pre.appendChild(this.contentDOM);
     this.shell = createCodeCollapseShell(pre, editorCollapseLabels());
     this.dom = this.shell.wrapper;
@@ -166,13 +170,20 @@ class CodeCollapseNodeView {
 
   update(node: ProseMirrorNode, decorations: readonly Decoration[]) {
     if (node.type.name !== "codeBlock") return false;
+    // NodeView를 재사용하므로(true 반환) 노드가 바뀐 만큼은 여기서 직접 따라가야 한다.
+    this.syncLanguage(node);
     this.shell.update(countCodeLines(node.textContent));
     this.syncEditing(decorations);
     return true;
   }
 
+  private syncLanguage(node: ProseMirrorNode) {
+    this.contentDOM.className = node.attrs.language ? `language-${node.attrs.language}` : "";
+  }
+
   // 커서 진입은 펼침을 승격시키기만 한다 — 이탈해도 되돌리지 않는다. 40줄이 15줄로 도로
-  // 접히면 아래 본문이 점프하고, 사용자가 만든 펼침 의도를 시스템이 뒤집는 셈이 된다.
+  // 접히면 아래 본문이 점프하기 때문이다. 반대로 접힘 의도는 커서가 들어올 때마다 깨진다
+  // (편집 중엔 내용이 다 보여야 한다) — 대칭이 아니라 편집 가능성을 우선한 트레이드오프다.
   private syncEditing(decorations: readonly Decoration[]) {
     const editing = decorations.some(
       (d) => (d.spec as { isEditing?: boolean } | undefined)?.isEditing,

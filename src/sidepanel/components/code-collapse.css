@@ -2,15 +2,11 @@
   position: relative;
 }
 
-/* pre는 line-height: 1.5, padding: 1em (doc-section-body.css / tiptap-editor.css — 앞 6개 선언
-   동일, 에디터만 white-space: pre 추가). em은 pre 자신의 font-size 기준이라 줄 수 × 1.5em이
-   정확히 그만큼의 줄이 된다. Tailwind preflight의 box-sizing: border-box 때문에 max-height가
-   padding 상하를 포함하므로 2em(=1em×2)을 더해야 콘텐츠가 딱 임계값 줄 수다. + 0.75em은
-   16번째 줄의 절반을 남겨 "더 있다"를 드러낸다.
-   가로 스크롤바(globals.css의 ::-webkit-scrollbar는 overlay가 아니라 gutter) 10px은 더하지
-   않는다 — CSS가 오버플로 유무를 분기할 수 없어 상수로 더하면 오버플로 없는 16줄 블럭이
-   안 잘리는데도 pill이 떠서 클릭해도 아무 일이 없다. 대신 오버플로 블럭은 15.5줄이 아니라
-   ~14.9줄만 보이는 걸 수용한다(페이드가 "더 있다"를 계속 알린다).
+/* 2em은 pre의 padding 상하(border-box라 max-height에 포함), 0.75em은 다음 줄의 절반을 남겨
+   "더 있다"를 드러내는 몫. 이 식이 doc-section-body.css/tiptap-editor.css의 pre 값에 기대는
+   정합성은 codeCollapse.test.ts가 세 파일을 읽어 대조한다(값을 고정하진 않는다).
+   가로 스크롤바(globals.css의 ::-webkit-scrollbar는 gutter) 10px은 더하지 않는다 — CSS가
+   오버플로 유무를 분기할 수 없어 상수로 더하면 임계값+1줄 블럭이 안 잘리는데 pill만 뜬다.
    overflow shorthand 금지 — 기존 pre 규칙의 overflow-x: auto를 덮으면 긴 줄을 못 읽는다. */
 .code-collapse[data-collapsible="true"][data-collapsed="true"] pre {
   max-height: calc(var(--code-collapse-lines) * 1.5em + 2em + 0.75em);
@@ -18,7 +14,9 @@
 }
 
 /* pre 배경과 같은 토큰이라 다크모드가 자동 대응된다.
-   height의 em은 pre가 아니라 wrapper가 상속한 주변 폰트 기준이라 표면마다 흔들린다 → rem 고정. */
+   height의 em은 pre가 아니라 wrapper가 상속한 주변 폰트 기준이라 표면마다 흔들린다 → rem 고정.
+   가로 오버플로 블럭에선 하단 스크롤바 밴드를 덮을 수 있다 — pointer-events: none이라 조작은
+   되고, bottom을 올려 피하면 스크롤바가 없는 대다수 블럭에 안 흐려진 띠가 생긴다. 수용. */
 .code-collapse-fade {
   position: absolute;
   inset-inline: 0;
@@ -32,9 +30,11 @@
   display: none;
 }
 
-/* 저장소 텍스트 버튼 관용구(OriginFilterBar / NetworkLogContent) = Button variant="outline"
-   size="sm" + h-7 px-2.5 text-[13px] font-normal → border·bg-background·shadow-sm·rounded-md와
-   hover:bg-accent까지 따른다. bottom은 스크롤바 밴드(하단 10px)를 피한다.
+/* 치수는 저장소 텍스트 버튼 관용구(OriginFilterBar / NetworkLogContent = Button
+   variant="outline" size="sm" + h-7 px-2.5 text-[13px] font-normal).
+   단 그 variant의 hover:bg-accent는 안 따른다 — --accent가 --muted(= pre 배경)와 라이트·다크
+   모두 같은 값이라 muted 표면 위의 이 pill은 hover 시 배경이 주변과 같아지고, 다크에선
+   --input(테두리)까지 --muted와 같아 통째로 사라진다. 등장(opacity 0→1)이 hover 피드백이다.
    user-select: none이 없으면 opacity 0이어도 DOM에 있어 본문 드래그 복사에 라벨이 섞인다. */
 .code-collapse-toggle {
   position: absolute;
@@ -43,7 +43,7 @@
   transform: translateX(-50%);
   height: 1.75rem;
   border-radius: 0.375rem;
-  border: 1px solid hsl(var(--border));
+  border: 1px solid hsl(var(--input));
   background: hsl(var(--background));
   color: hsl(var(--foreground));
   box-shadow: 0 1px 2px 0 rgb(0 0 0 / 0.05);
@@ -54,11 +54,7 @@
   cursor: pointer;
   user-select: none;
   opacity: 0;
-  transition: opacity 150ms, background-color 150ms, color 150ms;
-}
-.code-collapse-toggle:hover {
-  background: hsl(var(--accent));
-  color: hsl(var(--accent-foreground));
+  transition: opacity 150ms;
 }
 .code-collapse[data-collapsible="false"] .code-collapse-toggle {
   display: none;

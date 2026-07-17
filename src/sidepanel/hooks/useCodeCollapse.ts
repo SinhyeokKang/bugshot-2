@@ -33,8 +33,9 @@ export function useCodeCollapse(html: string, labels: CodeCollapseLabels) {
         shell.unwrap();
       }
     };
-    // locale만 바뀌면 effect가 안 돌아 이미 붙은 pill 라벨은 stale하다(에디터도 동일 — 수용).
-  }, [html]);
+    // labels.collapse는 locale이 바뀔 때만 값이 변하는 문자열이다 — 그때 셸을 다시 만들어
+    // 이미 붙은 pill 라벨까지 새 언어로 돌린다(그 대가로 펼침 상태가 초기화된다).
+  }, [html, labels.collapse]);
 
   return rootRef;
 }

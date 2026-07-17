@@ -148,6 +148,9 @@ const ko = {
   "preview.copied": "복사됨",
   "preview.copyMarkdown": "복사",
   "preview.newIssue": "다른 이슈 작성",
+
+  "codeBlock.expand": "펼치기 ({count}줄)",
+  "codeBlock.collapse": "접기",
 } as const;
 
 type Bundle = Record<keyof typeof ko, string>;
@@ -302,6 +305,9 @@ const en = {
   "preview.copied": "Copied",
   "preview.copyMarkdown": "Copy",
   "preview.newIssue": "New issue",
+
+  "codeBlock.expand": "Expand ({count} lines)",
+  "codeBlock.collapse": "Collapse",
 } satisfies Bundle;
 
 export const editor = { ko, en };

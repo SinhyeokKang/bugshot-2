@@ -68,9 +68,9 @@
 
 ### Task 5: i18n 키 (ko/en)
 
-- **변경 대상**: `src/i18n/namespaces/logs.ts`
+- **변경 대상**: `src/i18n/namespaces/editor.ts`
 - **작업 내용**: `"codeBlock.expand"` — ko `"펼치기 ({count}줄)"` / en `"Expand ({count} lines)"`, `"codeBlock.collapse"` — ko `"접기"` / en `"Collapse"`. ko/en을 **같은 편집으로** 넣는다(PostToolUse 훅이 `locales.test.ts`를 자동 실행해 불일치면 차단). count는 항상 ≥16이라 en 복수형 `(s)` 관용구가 불필요하다.
-- **왜 `editor.ts`가 아니라 `logs.ts`인가**: `log-viewer/__tests__/i18n.test.ts:94-102`의 복제 사전 drift 검사가 **`logs` 네임스페이스만 대조한다**(`Object.keys(koDict).filter(k => k in logs.ko)`). `editor.ts`에 두면 이 키들의 ko/en drift가 영원히 무방비다 — design.md 위험 6. `logs.ts` 배치는 **코드 0줄로** 기존 검사에 걸린다.
+- **왜 `logs.ts`가 아니라 `editor.ts`인가** (구현 중 뒤집힘): 당초엔 log-viewer 복제 사전 drift 검사가 `logs` 네임스페이스만 대조해서 거기 두면 공짜로 걸린다는 이유였다. 그런데 `codeBlock.*`의 실사용처는 에디터·프리뷰라 `logs`는 의미론이 안 맞고, Task 7이 어차피 검사 대상에 `editor`를 추가하므로 위치 제약이 사라진다. `editor.ts`에 두면 그 확장이 **no-op이 아니라 실제로 무는** 검사가 된다.
 - **검증**:
   - [x] 저장 시 i18n 훅 자동 통과 (ko/en 키 대칭 + `{count}` 토큰 일치)
   - [x] 기존 `logInsert.*`가 아닌 `codeBlock.*` prefix — 로그 전용이 아니라 모든 코드블럭이므로 (prd.md 전제 2)
@@ -87,7 +87,7 @@
 - **변경 대상**: `src/log-viewer/i18n.ts`, `src/log-viewer/App.tsx`, `src/log-viewer/__tests__/i18n.test.ts`
 - **작업 내용**:
   - `koDict`/`enDict`에 Task 5와 **같은 키·같은 문구** 2개 추가. `App.tsx`의 labels(`labels={{`는 :155)에 Task 6과 같은 형태로 주입.
-  - **`i18n.test.ts:94-102`의 drift 검사 대조 대상에 `editor` 네임스페이스 추가.** 지금은 `logs`만 본다. Task 5가 키를 `logs.ts`에 두어 당장은 걸리지만, 앞으로 누가 `editor.ts`에 넣어도 사각지대가 없게 만든다. **이 확장은 현재 log-viewer dict와 `editor` 네임스페이스의 교집합이 0키라 당장은 no-op(장래 방어용)이다** — 지금 무는 건 어디까지나 기존 `logs` 대조다.
+  - **drift 검사 대조 대상에 `editor` 네임스페이스 추가.** 원래는 `logs`만 본다. Task 5가 키를 `editor.ts`에 두므로 **이 확장이 곧 그 키들을 무는 유일한 장치**다(no-op이 아니다 — 복제 사전 값을 변조해 red를 확인할 것).
 - **왜 별도 태스크인가**: log-viewer는 `src/i18n/`을 안 쓰는 복제 사전이라 **PostToolUse 훅이 이 파일을 안 본다.** 빠뜨리면 Report 탭에 원시 키가 뜬다. POSTMORTEM 2026-06-28이 잡은 drift의 재발 지점이고, 그 처방("복제본은 늘 대조 테스트로 묶는다")을 **grep·육안이 아니라 테스트로** 이행하는 게 이 태스크의 핵심이다.
 - **검증**:
   - [x] `grep -n "codeBlock.expand\|codeBlock.collapse" src/log-viewer/i18n.ts` → 4건(ko 2 + en 2)

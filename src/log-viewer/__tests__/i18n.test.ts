@@ -56,7 +56,7 @@ describe("log viewer i18n — 사전 구조", () => {
 });
 
 describe("log viewer i18n — 메인 테이블 대조", () => {
-  // log-viewer dict는 메인 i18n 테이블(src/i18n/namespaces/logs.ts)의 부분집합 +
+  // log-viewer dict는 메인 i18n 테이블(src/i18n/namespaces/의 logs·editor)의 부분집합 +
   // 동일 문구를 의도한다. 두 가지 회귀를 막는다:
   //  (1) 누락 — 코드는 t("key")로 참조하는데 dict에 없어 키 문자열이 그대로 노출
   //      (actionLog.filter.keypress 등)
@@ -92,8 +92,8 @@ describe("log viewer i18n — 메인 테이블 대조", () => {
     expect(missing).toEqual([]);
   });
 
-  // editor는 현재 이 사전과 교집합이 0이라 장래 방어용이다 — 지금 codeBlock.* 키를 무는 건
-  // logs 쪽이고, 앞으로 누가 editor.ts에 키를 넣어도 사각지대가 생기지 않게 함께 대조한다.
+  // 이 사전이 복제하는 키는 두 네임스페이스에 걸쳐 있다(logs의 로그 문구 + editor의 codeBlock.*).
+  // 한쪽만 대조하면 나머지 쪽 drift가 무방비다.
   const MAIN_NAMESPACES = [logs, editor];
 
   it("메인 테이블과 공통인 키는 값도 일치 (stale drift 방지)", () => {
