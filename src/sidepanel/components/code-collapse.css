@@ -68,7 +68,10 @@
   cursor: pointer;
   user-select: none;
   opacity: 0;
-  transition: opacity 150ms;
+  /* Tailwind transition-opacity와 동일 — 유틸리티를 못 쓰는 vanilla라 기본값을 그대로 적는다
+     (150ms + cubic-bezier(0.4, 0, 0.2, 1)). timing function을 빼면 브라우저 기본 ease로
+     돌아 다른 hover 노출(TrimTimeline 등)과 곡선이 갈린다. */
+  transition: opacity 150ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 .code-collapse[data-collapsible="false"] .code-collapse-toggle {
   display: none;
