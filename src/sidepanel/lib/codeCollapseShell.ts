@@ -15,8 +15,6 @@ export interface CodeCollapseShell {
   readonly toggle: HTMLButtonElement;
   /** 우상단 액션 그룹(복사·삭제). stopEvent 판정용 — PM이 이 클릭을 가로채면 안 된다. */
   readonly actionsEl: HTMLDivElement;
-  /** 펼침 상태의 단일 출처 — 호출자가 따로 미러링하지 않는다. */
-  readonly expanded: boolean;
   /** 접혀 있어 편집 대상이 아닌 상태(= collapsible && !expanded). NodeView의 stopEvent 판정용. */
   readonly readonly: boolean;
   /** 접힘으로 전이하는 순간 호출. 프레임워크가 caret을 블럭 밖으로 빼는 자리 —
@@ -25,7 +23,6 @@ export interface CodeCollapseShell {
   /** 줄 수 갱신 → collapsible 여부·pill 라벨 재계산. expanded는 건드리지 않는다. */
   update(lineCount: number): void;
   setExpanded(expanded: boolean): void;
-  /** click 리스너 해제. */
   destroy(): void;
   /** wrapper를 pre로 치환해 원래 자리를 복원. preview 훅 전용 —
    *  NodeView는 PM이 wrapper째 걷어가므로 부르면 에디터에 pre가 남는다. */
@@ -64,6 +61,7 @@ export function createCodeCollapseShell(
 
   let copied = false;
   let copiedTimer: number | undefined;
+  let destroyed = false;
 
   const actions = createBlockActions([
     {
@@ -114,6 +112,7 @@ export function createCodeCollapseShell(
     } catch {
       return; // 클립보드 거부는 조용히 — 되돌릴 상태가 없다
     }
+    if (destroyed) return; // destroy가 지운 타이머를 늦은 resolve가 재장전하면 안 된다
     copied = true;
     renderActions();
     window.clearTimeout(copiedTimer);
@@ -140,9 +139,6 @@ export function createCodeCollapseShell(
     wrapper,
     toggle,
     actionsEl: actions.el,
-    get expanded() {
-      return expanded;
-    },
     get readonly() {
       return isReadonly();
     },
@@ -163,6 +159,7 @@ export function createCodeCollapseShell(
       pre.scrollTop = 0;
     },
     destroy() {
+      destroyed = true;
       window.clearTimeout(copiedTimer);
       actions.destroy();
       wrapper.removeEventListener("click", onClick);

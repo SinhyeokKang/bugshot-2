@@ -251,6 +251,14 @@ describe("serializeConsoleEntry", () => {
     expect(text).toBe(`[log] ${"y".repeat(16384)}…(truncated)\nhttps://example.com/`);
   });
 
+  it("16384자를 넘는 pageUrl도 자른다 (args·stack과 같은 캡)", () => {
+    const { text } = serializeConsoleEntry(
+      makeEntry({ level: "log", args: "hi", pageUrl: "u".repeat(20000) }),
+    );
+
+    expect(text).toBe(`[log] hi\n${"u".repeat(16384)}…(truncated)`);
+  });
+
   it("pageUrl이 없으면 그 줄을 안 넣는다", () => {
     const { text } = serializeConsoleEntry(makeEntry({ level: "log", args: "hi", pageUrl: "" }));
 

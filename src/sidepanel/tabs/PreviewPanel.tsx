@@ -378,10 +378,12 @@ export function PreviewPanel() {
             copied: t("preview.copied"),
             emptyValue: t("common.empty"),
             envTitle: t("section.env"),
-            expandCode: (lines) => t("codeBlock.expand", { count: lines }),
-            collapseCode: t("codeBlock.collapse"),
-            copyCode: t("codeBlock.copy"),
-            copiedCode: t("codeBlock.copied"),
+            code: {
+              expand: (lines) => t("codeBlock.expand", { count: lines }),
+              collapse: t("codeBlock.collapse"),
+              copy: t("codeBlock.copy"),
+              copied: t("codeBlock.copied"),
+            },
           }}
           onCopy={handleCopyMarkdown}
           media={mediaBlock}

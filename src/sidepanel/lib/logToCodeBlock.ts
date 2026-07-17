@@ -82,6 +82,6 @@ export function serializeConsoleEntry(entry: ConsoleEntry): LogCodeBlock {
   // pageUrl은 "어느 페이지에서 났나"라 이슈 받는 쪽에 필요하고, 캡처 시점에 이미 마스킹된 값이다.
   const lines = [`[${entry.level}] ${truncate(entry.args)}`];
   if (entry.stack) lines.push(truncate(entry.stack));
-  if (entry.pageUrl) lines.push(entry.pageUrl);
+  if (entry.pageUrl) lines.push(truncate(entry.pageUrl));
   return { text: neutralizeFences(lines.join("\n")) };
 }

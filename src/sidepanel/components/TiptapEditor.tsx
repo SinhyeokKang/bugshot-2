@@ -22,7 +22,7 @@ import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
 import { cn } from "@/lib/utils";
 import { t, setLocale } from "@/i18n";
 import { tokenizeJson, JSON_TOKEN_CLASS } from "@/sidepanel/lib/highlightJson";
-import { countCodeLines } from "@/sidepanel/lib/codeCollapse";
+import { countCodeLines, shouldCollapseCode } from "@/sidepanel/lib/codeCollapse";
 import {
   createCodeCollapseShell,
   type CodeCollapseShell,
@@ -203,11 +203,26 @@ class CodeCollapseNodeView {
 
   update(node: ProseMirrorNode) {
     if (node.type.name !== "codeBlock") return false;
+    const wasCollapsible = shouldCollapseCode(countCodeLines(this.node.textContent));
     this.node = node;
     // NodeView를 재사용하므로(true 반환) 노드가 바뀐 만큼은 여기서 직접 따라가야 한다.
     this.syncLanguage(node);
-    this.shell.update(countCodeLines(node.textContent));
+    const lineCount = countCodeLines(node.textContent);
+    // 편집 중(caret이 블럭 안) 타이핑·붙여넣기로 임계값을 넘으면 접지 않고 펼친 채 둔다 —
+    // 그대로 접으면 caret이 잘린 영역에 갇히고(setExpanded의 보정도 이 경로는 못 탄다),
+    // keymap 키(Enter 등)가 안 보이는 줄을 계속 편집한다. read/edit 모델: 편집 중 = 펼침.
+    if (!wasCollapsible && shouldCollapseCode(lineCount) && this.selectionInside()) {
+      this.shell.setExpanded(true);
+    }
+    this.shell.update(lineCount);
     return true;
+  }
+
+  private selectionInside() {
+    const pos = this.getPos();
+    if (pos == null) return false;
+    const { from, to } = this.view.state.selection;
+    return from < pos + this.node.nodeSize && to > pos;
   }
 
   // 접힌 블럭은 readonly라 caret이 잘린 영역에 갇힌다 — 그대로 두면 PM이 그 caret을 보이게

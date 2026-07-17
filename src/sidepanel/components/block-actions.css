@@ -1,6 +1,5 @@
 /* 블럭(코드블럭·이미지) 우상단 아이콘 버튼 그룹. React 밖 DOM에서 쓰므로 shadcn Button·
    ButtonGroup을 vanilla로 재현한다(DESIGN.md §1의 "React 미도달 DOM" 예외).
-   치수는 기존 아이콘 버튼 관용구(TooltipIconButton h-8 w-8)보다 한 단계 작은 h-6 —
    치수는 기존 아이콘 버튼 관용구 그대로 — h-8 w-8 + size-4 아이콘(TooltipIconButton). */
 .block-actions {
   position: absolute;

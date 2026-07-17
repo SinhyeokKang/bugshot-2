@@ -46,7 +46,6 @@ export interface BlockActionSpec {
 export interface BlockActions {
   /** 블럭 우상단에 얹을 컨테이너. 배치는 호출자 CSS 몫. */
   el: HTMLDivElement;
-  /** 아이콘 교체(복사→체크 피드백 등). */
   setIcon(testId: string, icon: BlockActionIcon): void;
   setLabel(testId: string, label: string): void;
   destroy(): void;

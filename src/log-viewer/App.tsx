@@ -158,10 +158,12 @@ export function App({ data }: AppProps) {
                   copied: t("logViewer.report.copied"),
                   emptyValue: t("logViewer.report.empty"),
                   envTitle: data.report!.envTitle ?? t("logViewer.report.env"),
-                  expandCode: (lines) => t("codeBlock.expand", { count: lines }),
-                  collapseCode: t("codeBlock.collapse"),
-                  copyCode: t("codeBlock.copy"),
-                  copiedCode: t("codeBlock.copied"),
+                  code: {
+                    expand: (lines) => t("codeBlock.expand", { count: lines }),
+                    collapse: t("codeBlock.collapse"),
+                    copy: t("codeBlock.copy"),
+                    copied: t("codeBlock.copied"),
+                  },
                 }}
                 onCopy={copyReport}
               />

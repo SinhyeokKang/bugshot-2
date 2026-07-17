@@ -118,6 +118,57 @@ describe("shouldCollapseCode", () => {
   });
 });
 
+// pill(.code-collapse-toggle)과 블럭 액션 버튼(.block-actions-button)은 같은 shadcn outline
+// 관용구의 vanilla 재현 2벌인데 클래스를 공유하지 않는다 — 한쪽만 고치면 조용히 갈라진다.
+// border-radius(ButtonGroup 모서리 합침)와 transition 대상 속성(등장 vs 글자색)만 의도된 차이.
+describe("pill·block-actions 버튼 관용구 대조", () => {
+  const componentsDir = join(dirname(fileURLToPath(import.meta.url)), "../../components");
+
+  function bodies(file: string, selector: string): string[] {
+    const css = readFileSync(join(componentsDir, file), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+    const found = css.split(`${selector} {`).slice(1).map((s) => s.split("}")[0]);
+    expect(found.length, `${selector} 규칙을 ${file}에서 못 찾음`).toBeGreaterThan(0);
+    return found;
+  }
+
+  function decl(body: string, prop: string, ctx: string): string {
+    const value = body.match(new RegExp(`(?:^|[^-\\w])${prop}:\\s*([^;]+);`))?.[1]?.trim();
+    expect(value, `${ctx}에 ${prop} 선언이 없음`).toBeDefined();
+    return value!;
+  }
+
+  // 수집 시점이 아니라 it 안에서 읽는다 — 여기서 throw하면 파일 전체가 수집 실패로 뭉개진다.
+  const toggle = () => bodies("code-collapse.css", ".code-collapse-toggle")[0];
+  const button = () => bodies("block-actions.css", ".block-actions-button")[0];
+
+  it("기본 상태의 테두리·배경·글자색·그림자가 일치한다", () => {
+    for (const prop of ["border", "background", "color", "box-shadow"]) {
+      expect(decl(button(), prop, "block-actions-button")).toBe(decl(toggle(), prop, "toggle"));
+    }
+  });
+
+  it("transition 시간·곡선이 일치한다 (대상 속성만 의도된 차이)", () => {
+    const curve = (body: string, ctx: string) =>
+      decl(body, "transition", ctx).replace(/^\S+\s+/, "");
+    expect(curve(button(), "block-actions-button")).toBe(curve(toggle(), "toggle"));
+  });
+
+  it("focus-visible 링이 일치한다", () => {
+    const focusRing = (file: string, selector: string) => {
+      // :focus-visible 셀렉터는 등장(opacity) 그룹 규칙에도 나타난다 — 링 규칙은 box-shadow를
+      // 가진 쪽 하나여야 한다.
+      const ringBodies = bodies(file, `${selector}:focus-visible`).filter((b) =>
+        b.includes("box-shadow"),
+      );
+      expect(ringBodies.length, `${file}의 ${selector}:focus-visible 링 규칙이 1개가 아님`).toBe(1);
+      return decl(ringBodies[0], "box-shadow", `${selector}:focus-visible`);
+    };
+    expect(focusRing("block-actions.css", ".block-actions-button")).toBe(
+      focusRing("code-collapse.css", ".code-collapse-toggle"),
+    );
+  });
+});
+
 describe("countCodeLines + shouldCollapseCode", () => {
   it("정확히 15줄인 블럭은 안 접힌다", () => {
     expect(shouldCollapseCode(countCodeLines(lines(15)))).toBe(false);
