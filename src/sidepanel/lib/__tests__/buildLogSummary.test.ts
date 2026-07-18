@@ -173,7 +173,10 @@ describe("buildConsoleLogSummary", () => {
       ],
     });
     const summary = buildConsoleLogSummary(log);
-    expect(summary.topErrors).toEqual(["same error", "different"]);
+    expect(summary.topErrors.map((e) => e.message)).toEqual([
+      "same error",
+      "different",
+    ]);
   });
 
   it("120자 초과 잘림", () => {
@@ -183,8 +186,8 @@ describe("buildConsoleLogSummary", () => {
       entries: [makeEntry({ id: "1", level: "error", args: longMsg })],
     });
     const summary = buildConsoleLogSummary(log);
-    expect(summary.topErrors[0]).toHaveLength(118);
-    expect(summary.topErrors[0].endsWith("…")).toBe(true);
+    expect(summary.topErrors[0].message).toHaveLength(118);
+    expect(summary.topErrors[0].message.endsWith("…")).toBe(true);
   });
 
   it("멀티라인은 첫 줄만", () => {
@@ -192,7 +195,7 @@ describe("buildConsoleLogSummary", () => {
       captured: 1,
       entries: [makeEntry({ id: "1", level: "error", args: "first line\nsecond line" })],
     });
-    expect(buildConsoleLogSummary(log).topErrors[0]).toBe("first line");
+    expect(buildConsoleLogSummary(log).topErrors[0].message).toBe("first line");
   });
 
   it("topErrors 최대 5개", () => {
@@ -201,6 +204,49 @@ describe("buildConsoleLogSummary", () => {
     );
     const log = makeConsoleLog({ captured: 8, entries });
     expect(buildConsoleLogSummary(log).topErrors).toHaveLength(5);
+  });
+});
+
+// ai-draft-log-refs: 요약 항목에 원본 id가 동행해야 AI가 지목한 ref를 store 원본으로
+// 되짚을 수 있다. id는 절대 프롬프트에 인쇄되지 않는다(그건 logCandidates·프롬프트 테스트가 잠근다).
+describe("요약 항목의 원본 id 동행", () => {
+  it("network 에러 항목은 원본 NetworkRequest.id를 갖는다", () => {
+    const log = makeNetworkLog({
+      captured: 2,
+      requests: [
+        makeRequest({ id: "nr-1700000000000-a", url: "https://example.com/a", status: 500 }),
+        makeRequest({ id: "nr-1700000000000-b", url: "https://example.com/b", status: 404 }),
+      ],
+    });
+    expect(buildNetworkLogSummary(log).errors.map((e) => e.id)).toEqual([
+      "nr-1700000000000-a",
+      "nr-1700000000000-b",
+    ]);
+  });
+
+  it("console topErrors 항목은 {id, message} — 원본 ConsoleEntry.id를 갖는다", () => {
+    const log = makeConsoleLog({
+      captured: 1,
+      entries: [makeEntry({ id: "cl-1700000000000-a", level: "error", args: "boom" })],
+    });
+    expect(buildConsoleLogSummary(log).topErrors).toEqual([
+      { id: "cl-1700000000000-a", message: "boom" },
+    ]);
+  });
+
+  it("first-line dedup 시 id는 첫 발생 항목으로 고정", () => {
+    const log = makeConsoleLog({
+      captured: 3,
+      entries: [
+        makeEntry({ id: "cl-1", level: "error", args: "same error\nstack A" }),
+        makeEntry({ id: "cl-2", level: "error", args: "same error\nstack B" }),
+        makeEntry({ id: "cl-3", level: "error", args: "different" }),
+      ],
+    });
+    expect(buildConsoleLogSummary(log).topErrors.map((e) => e.id)).toEqual([
+      "cl-1",
+      "cl-3",
+    ]);
   });
 });
 

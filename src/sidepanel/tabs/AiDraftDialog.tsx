@@ -21,7 +21,16 @@ import {
   type AiDraftSessionContext,
 } from "@/sidepanel/lib/buildAiDraftPrompt";
 import { buildAiDraftRequest } from "@/sidepanel/lib/buildAiDraftRequest";
-import { mergeAiSectionsPreservingImages } from "@/sidepanel/lib/mergeAiDraftSections";
+import { mergeAiSectionsPreservingBlocks } from "@/sidepanel/lib/mergeAiDraftSections";
+import {
+  candidateRefs,
+  canRequestLogRefs,
+  selectLogCandidates,
+} from "@/sidepanel/lib/prompts/logCandidates";
+import {
+  appendLogBlocks,
+  renderLogRefBlocks,
+} from "@/sidepanel/lib/renderLogRefs";
 import { resolveInlineImagesForSections } from "@/sidepanel/lib/resolveInlineImages";
 import type { StyleDiffRow } from "@/sidepanel/components/StyleChangesTable";
 import { buildNetworkLogSummary, buildConsoleLogSummary, buildActionLogSummary } from "@/sidepanel/lib/buildLogSummary";
@@ -140,6 +149,13 @@ export function AiDraftDialog({
         capabilities.contextBudgetChars,
       );
 
+      // 후보·스키마·few-shot 전부 fitted.ctx 파생 — 절삭이 로그를 지우면 셋이 동시 소멸.
+      // description 비활성 게이트도 canRequestLogRefs 단일 출처(프롬프트 빌더와 동일 판정).
+      const candidates = selectLogCandidates(fitted.ctx);
+      const refs = canRequestLogRefs(fitted.ctx, candidates)
+        ? candidateRefs(candidates)
+        : [];
+
       const { systemPrompt, images } = buildAiDraftRequest({
         caps: capabilities,
         systemPrompt: fitted.prompt,
@@ -154,7 +170,10 @@ export function AiDraftDialog({
         getDraftFewShot(fitted.ctx),
       );
 
-      const responseSchema = buildAiDraftSchema(sectionIds);
+      const responseSchema = buildAiDraftSchema(
+        sectionIds,
+        refs.length ? { logRefs: refs } : undefined,
+      );
       if (await isPromptOverBudget(sessionRef.current, msg, responseSchema)) {
         throw new AiContextOverflowError();
       }
@@ -172,13 +191,28 @@ export function AiDraftDialog({
         const prevTitle = prevDraft?.title?.trim();
         const title =
           !fitted.titleIncluded && prevTitle ? prevDraft!.title : aiTitle;
+        const sections = mergeAiSectionsPreservingBlocks(
+          prevDraft?.sections ?? {},
+          parsed.sections,
+          fitted.includedSections,
+        );
+        // truthy 게이트 — description 키 누락이면 merge가 살린 사용자 원문 위에 블록이
+        // 붙으면 안 되고, 빈 문자열이면 산문 없이 블록만 붙는 기형 출력이 된다.
+        // 로그 스냅샷은 await 이전 지역 변수(networkLog/consoleLog) — 느린 BYOK 왕복 뒤
+        // store를 다시 읽으면 네비게이션 logClear에 걸려 블록이 조용히 사라진다.
+        if (refs.length && parsed.sections.description?.trim()) {
+          sections.description = appendLogBlocks(
+            sections.description ?? "",
+            renderLogRefBlocks(parsed.logRefs, {
+              candidates,
+              requests: networkLog?.requests ?? [],
+              entries: consoleLog?.entries ?? [],
+            }),
+          );
+        }
         useEditorStore.getState().setDraft({
           title,
-          sections: mergeAiSectionsPreservingImages(
-            prevDraft?.sections ?? {},
-            parsed.sections,
-            fitted.includedSections,
-          ),
+          sections,
           environment: prevDraft?.environment ?? [],
         });
         // 절삭·섹션 누락은 결과를 조용히 열화시킨다 — 무엇이 빠졌는지까진 아니어도

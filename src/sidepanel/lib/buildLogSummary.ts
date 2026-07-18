@@ -5,16 +5,30 @@ import type { ActionLog, ActionLogSummary, ActionNode } from "@/types/action";
 const MAX_ERRORS = 5;
 const MAX_ACTIONS = 20;
 
+// id는 AI 프롬프트에 절대 인쇄하지 않는다 — logRefs 응답을 store 원본으로 되짚는 용도뿐.
+export interface NetworkLogSummaryError {
+  id: string;
+  method: string;
+  path: string;
+  status: number;
+  statusText: string;
+}
+
+export interface ConsoleLogSummaryError {
+  id: string;
+  message: string;
+}
+
 export interface NetworkLogSummary {
   captured: number;
-  errors: { method: string; path: string; status: number; statusText: string }[];
+  errors: NetworkLogSummaryError[];
 }
 
 export interface ConsoleLogSummary {
   captured: number;
   errorCount: number;
   warnCount: number;
-  topErrors: string[];
+  topErrors: ConsoleLogSummaryError[];
 }
 
 export function buildNetworkLogSummary(log: NetworkLog): NetworkLogSummary {
@@ -22,6 +36,7 @@ export function buildNetworkLogSummary(log: NetworkLog): NetworkLogSummary {
     .filter((r) => r.phase === "error" || r.status >= 400)
     .slice(0, MAX_ERRORS)
     .map((r) => ({
+      id: r.id,
       method: r.method,
       path: extractPath(r.url),
       status: r.status,
@@ -34,13 +49,13 @@ export function buildConsoleLogSummary(log: ConsoleLog): ConsoleLogSummary {
   const errorCount = log.entries.filter((e) => e.level === "error").length;
   const warnCount = log.entries.filter((e) => e.level === "warn").length;
   const seen = new Set<string>();
-  const topErrors: string[] = [];
+  const topErrors: ConsoleLogSummaryError[] = [];
   for (const e of log.entries) {
     if (e.level !== "error") continue;
     const msg = firstLine(e.args);
     if (seen.has(msg)) continue;
     seen.add(msg);
-    topErrors.push(msg);
+    topErrors.push({ id: e.id, message: msg });
     if (topErrors.length >= MAX_ERRORS) break;
   }
   return { captured: log.captured, errorCount, warnCount, topErrors };

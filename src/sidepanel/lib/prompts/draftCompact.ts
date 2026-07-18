@@ -1,13 +1,13 @@
 import type { IssueSectionId, LocaleMode } from "@/store/settings-ui-store";
 import type { FewShotExample } from "../ai-provider";
 import type { AiDraftSessionContext } from "@/sidepanel/lib/buildAiDraftPrompt";
-import { stripInlineImageRefs } from "@/sidepanel/lib/resolveInlineImages";
 import {
   supportsActionLog,
   supportsConsoleNetworkLog,
 } from "@/sidepanel/lib/captureLogSupport";
 import { MAX_TITLE_LENGTH, PROMPT_CAPS } from "./caps";
 import { oneLine, selectDraftSections } from "./context";
+import { canRequestLogRefs, selectLogCandidates } from "./logCandidates";
 
 // 지시는 전부 긍정형이다. 소형 모델은 부정 지시("Do not X")에서 오히려 X를 활성화한다.
 // JSON 형식 규칙("output only JSON" / "no extra fields" / "빈 문자열 사용")은
@@ -35,6 +35,16 @@ export const COMPACT_DRAFT_FEW_SHOT: FewShotExample[] = [
     user: "The submit button does nothing on the checkout page.",
     assistant:
       '{"title":"Submit button does nothing on checkout","description":"Clicking Submit on the checkout page produces no response.","stepsToReproduce":"Open the checkout page\\nClick Submit","expectedResult":"The order is submitted.","notes":""}',
+  },
+];
+
+// logRefs 후보가 있을 때의 변형. 값을 채운 예시(["n1"])는 금지 — 실제 런에 없는 ref를
+// 가르친다(console-only 캡처엔 n1이 없다). 빈 배열이 기본값임을 형태로 보여준다.
+export const COMPACT_DRAFT_FEW_SHOT_LOGREFS: FewShotExample[] = [
+  {
+    user: COMPACT_DRAFT_FEW_SHOT[0].user,
+    assistant:
+      '{"title":"Submit button does nothing on checkout","description":"Clicking Submit on the checkout page produces no response.","stepsToReproduce":"Open the checkout page\\nClick Submit","expectedResult":"The order is submitted.","notes":"","logRefs":[]}',
   },
 ];
 
@@ -67,17 +77,19 @@ export function buildCompactDraftPrompt(ctx: AiDraftSessionContext): string {
     }
   }
 
+  const cand = selectLogCandidates(ctx);
+  const hasLogRefs = canRequestLogRefs(ctx, cand);
   if (supportsConsoleNetworkLog(ctx.captureMode)) {
-    if (ctx.networkLogSummary && ctx.networkLogSummary.errors.length > 0) {
+    if (cand.network.length > 0) {
       lines.push("Network errors:");
-      for (const e of ctx.networkLogSummary.errors.slice(0, caps.networkErrors)) {
-        lines.push(`  ${e.method} ${e.path} → ${e.status}`);
+      for (const e of cand.network) {
+        lines.push(`  [${e.ref}] ${e.method} ${e.path} → ${e.status}`);
       }
     }
-    if (ctx.consoleLogSummary && ctx.consoleLogSummary.topErrors.length > 0) {
+    if (cand.console.length > 0) {
       lines.push("Console errors:");
-      for (const msg of ctx.consoleLogSummary.topErrors.slice(0, caps.consoleErrors)) {
-        lines.push(`  ${msg}`);
+      for (const e of cand.console) {
+        lines.push(`  [${e.ref}] ${e.message}`);
       }
     }
   }
@@ -99,7 +111,6 @@ export function buildCompactDraftPrompt(ctx: AiDraftSessionContext): string {
     ctx.existingDraft,
     ctx.enabledSections.map((s) => s.id),
     caps.existingDraftChars,
-    stripInlineImageRefs,
   );
   // 사용자 초안은 줄 단위로 분해해 push한다 — 통짜로 넣으면 마지막 oneLine이
   // stepsToReproduce의 단계 구분 개행까지 접는다(인젝션 방어 대상은 페이지 문자열뿐).
@@ -113,6 +124,11 @@ export function buildCompactDraftPrompt(ctx: AiDraftSessionContext): string {
   lines.push(`- title: one short line, at most ${MAX_TITLE_LENGTH} characters`);
   for (const sec of ctx.enabledSections) {
     lines.push(`- ${sec.id}: ${desc[sec.id]}`);
+  }
+  if (hasLogRefs) {
+    lines.push(
+      "- logRefs: tags of the log entries above (n1, c1) that directly show this bug; an empty array is the normal result",
+    );
   }
   lines.push("");
   lines.push(`Write in ${lang}.`);

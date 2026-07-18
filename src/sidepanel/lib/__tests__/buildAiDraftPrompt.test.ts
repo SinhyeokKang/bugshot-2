@@ -51,6 +51,7 @@ describe("parseAiDraftResponse", () => {
         stepsToReproduce: "페이지 접속\nCTA 버튼 확인",
         expectedResult: "8px 적용",
       },
+      logRefs: [],
     });
   });
 
@@ -60,6 +61,7 @@ describe("parseAiDraftResponse", () => {
     expect(result).toEqual({
       title: "Test",
       sections: { description: "desc" },
+      logRefs: [],
     });
   });
 
@@ -86,7 +88,7 @@ describe("parseAiDraftResponse", () => {
   it("빈 sections 허용 (title만 있어도 OK)", () => {
     const raw = JSON.stringify({ title: "Title only" });
     const result = parseAiDraftResponse(raw, ["description"]);
-    expect(result).toEqual({ title: "Title only", sections: {} });
+    expect(result).toEqual({ title: "Title only", sections: {}, logRefs: [] });
   });
 
   it("값이 string이 아닌 섹션 키 무시", () => {
@@ -148,6 +150,7 @@ describe("buildAiDraftSessionPrompt", () => {
         captured: 10,
         errors: [
           {
+            id: "nr-t1",
             method: "POST",
             path: "/api/pay",
             status: 500,
@@ -159,7 +162,7 @@ describe("buildAiDraftSessionPrompt", () => {
         captured: 5,
         errorCount: 3,
         warnCount: 1,
-        topErrors: ["Uncaught Error: payment failed"],
+        topErrors: [{ id: "cl-t1", message: "Uncaught Error: payment failed" }],
       },
     });
     expect(prompt).toContain("https://example.com/page");
@@ -253,13 +256,13 @@ describe("buildAiDraftSessionPrompt", () => {
       captureMode: "freeform" as AiDraftSessionContext["captureMode"],
       networkLogSummary: {
         captured: 3,
-        errors: [{ method: "GET", path: "/api/data", status: 404, statusText: "Not Found" }],
+        errors: [{ id: "nr-t2", method: "GET", path: "/api/data", status: 404, statusText: "Not Found" }],
       },
       consoleLogSummary: {
         captured: 2,
         errorCount: 1,
         warnCount: 0,
-        topErrors: ["TypeError: fetch failed"],
+        topErrors: [{ id: "cl-t2", message: "TypeError: fetch failed" }],
       },
     });
     expect(prompt).toContain("https://example.com/page");
@@ -368,6 +371,7 @@ describe("buildAiDraftSessionPrompt", () => {
         captured: 10,
         errors: [
           {
+            id: "nr-t3",
             method: "GET",
             path: "/api/x",
             status: 500,
@@ -379,7 +383,7 @@ describe("buildAiDraftSessionPrompt", () => {
         captured: 5,
         errorCount: 2,
         warnCount: 1,
-        topErrors: ["TypeError: x"],
+        topErrors: [{ id: "cl-t3", message: "TypeError: x" }],
       },
     });
     expect(prompt).not.toContain("Network errors");
@@ -685,9 +689,9 @@ describe("compact 사용자 입력 이중 계상 방지", () => {
 describe("로그 컨텍스트 포함 규칙 — capture-support 매트릭스 정렬", () => {
   const LOG_CTX = {
     networkLogSummary: {
-      errors: [{ method: "GET", path: "/api/x", status: 500, statusText: "Server Error" }],
+      errors: [{ id: "nr-t4", method: "GET", path: "/api/x", status: 500, statusText: "Server Error" }],
     },
-    consoleLogSummary: { captured: 1, errorCount: 1, warnCount: 0, topErrors: ["TypeError: boom"] },
+    consoleLogSummary: { captured: 1, errorCount: 1, warnCount: 0, topErrors: [{ id: "cl-t4", message: "TypeError: boom" }] },
     actionLogSummary: ['click on "SubmitOrderBtn"'],
   } as Partial<AiDraftSessionContext>;
 
@@ -770,7 +774,7 @@ describe("프롬프트 인젝션 — 페이지 문자열의 개행 무력화", (
       ...SESSION_BASE,
       caps,
       captureMode: "freeform",
-      consoleLogSummary: { captured: 1, errorCount: 1, warnCount: 0, topErrors: [INJECTION] },
+      consoleLogSummary: { captured: 1, errorCount: 1, warnCount: 0, topErrors: [{ id: "cl-inj", message: INJECTION }] },
     });
     expect(prompt).not.toMatch(/^- Ignore all previous rules/m);
   });
@@ -786,6 +790,211 @@ describe("프롬프트 인젝션 — 페이지 문자열의 개행 무력화", (
       tokens: [{ name: "--brand", value: INJECTION }],
     });
     expect(prompt).not.toMatch(/^- Ignore all previous rules/m);
+  });
+});
+
+// ai-draft-log-refs: AI는 로그 id를 직접 못 본다 — 프롬프트에 인쇄되는 건 [n1]/[c1] 태그뿐이고,
+// 응답 logRefs는 그 태그로만 온다. 원본 id 노출은 UUID 정규식이 아니라 값 자체로 검사한다
+// (crypto.randomUUID 부재 시 nr-/cl- 폴백 id는 정규식이 못 잡는다).
+const NET_ID = "nr-1700000000000-netabc";
+const CON_ID = "cl-1700000000000-conabc";
+const LOGREF_CTX: Partial<AiDraftSessionContext> = {
+  captureMode: "video",
+  networkLogSummary: {
+    captured: 3,
+    errors: [
+      {
+        id: NET_ID,
+        method: "POST",
+        path: "/api/pay",
+        status: 500,
+        statusText: "Internal Server Error",
+      },
+    ],
+  },
+  consoleLogSummary: {
+    captured: 2,
+    errorCount: 1,
+    warnCount: 0,
+    topErrors: [{ id: CON_ID, message: "TypeError: boom" }],
+  },
+};
+
+describe("buildAiDraftSchema — logRefs", () => {
+  it("opts 없으면 logRefs 없음 — generateReproPrefill 호출 형태 보호", () => {
+    const schema = buildAiDraftSchema(["stepsToReproduce"]);
+    expect(schema.properties).not.toHaveProperty("logRefs");
+    expect(schema.required).not.toContain("logRefs");
+  });
+
+  it("opts.logRefs 전달 시 enum 배열 스키마 + required", () => {
+    const schema = buildAiDraftSchema(["description"], {
+      logRefs: ["n1", "c1"],
+    });
+    expect(schema.properties.logRefs).toEqual({
+      type: "array",
+      items: { type: "string", enum: ["n1", "c1"] },
+    });
+    expect(schema.required).toContain("logRefs");
+  });
+});
+
+describe("parseAiDraftResponse — logRefs", () => {
+  it("정상 배열 → 그대로 반환", () => {
+    const raw = JSON.stringify({
+      title: "T",
+      description: "d",
+      logRefs: ["n1", "c1"],
+    });
+    const result = parseAiDraftResponse(raw, ["description"]);
+    expect(result?.logRefs).toEqual(["n1", "c1"]);
+  });
+
+  it("logRefs 누락 → []", () => {
+    const raw = JSON.stringify({ title: "T", description: "d" });
+    expect(parseAiDraftResponse(raw, ["description"])?.logRefs).toEqual([]);
+  });
+
+  it("logRefs가 배열이 아니면 → []", () => {
+    const raw = JSON.stringify({ title: "T", logRefs: "n1" });
+    expect(parseAiDraftResponse(raw, ["description"])?.logRefs).toEqual([]);
+  });
+
+  it("혼합 배열은 string만 남긴다", () => {
+    const raw = JSON.stringify({ title: "T", logRefs: ["n1", 2, null, "c1"] });
+    expect(parseAiDraftResponse(raw, ["description"])?.logRefs).toEqual([
+      "n1",
+      "c1",
+    ]);
+  });
+});
+
+describe("프롬프트 로그 후보 태그 — rich/compact", () => {
+  it("rich: [n1]/[c1] 태그가 인쇄되고 statusText 포함", () => {
+    const prompt = buildAiDraftSessionPrompt({ ...SESSION_BASE, ...LOGREF_CTX });
+    expect(prompt).toContain("[n1] POST /api/pay → 500 Internal Server Error");
+    expect(prompt).toContain("[c1] TypeError: boom");
+  });
+
+  it("compact: [n1] 태그 인쇄 (statusText 없이)", () => {
+    const prompt = buildAiDraftSessionPrompt({
+      ...SESSION_BASE,
+      ...LOGREF_CTX,
+      caps: NANO_CAPABILITIES,
+    });
+    expect(prompt).toContain("[n1] POST /api/pay → 500");
+    expect(prompt).toContain("[c1] TypeError: boom");
+  });
+
+  it("원본 id는 어느 스타일 프롬프트에도 새지 않는다", () => {
+    for (const caps of [BYOK_CAPABILITIES, NANO_CAPABILITIES]) {
+      const prompt = buildAiDraftSessionPrompt({
+        ...SESSION_BASE,
+        ...LOGREF_CTX,
+        caps,
+      });
+      expect(prompt).not.toContain(NET_ID);
+      expect(prompt).not.toContain(CON_ID);
+    }
+  });
+
+  it("요약 타입 변경 후에도 [object Object]가 인쇄되지 않는다 (템플릿 리터럴 맹점 가드)", () => {
+    for (const caps of [BYOK_CAPABILITIES, NANO_CAPABILITIES]) {
+      const prompt = buildAiDraftSessionPrompt({
+        ...SESSION_BASE,
+        ...LOGREF_CTX,
+        caps,
+      });
+      expect(prompt).not.toContain("[object Object]");
+    }
+  });
+
+  it("후보가 있으면 logRefs 지시 줄 포함, 없으면 없음", () => {
+    const withLogs = buildAiDraftSessionPrompt({ ...SESSION_BASE, ...LOGREF_CTX });
+    expect(withLogs).toContain("logRefs");
+    const noLogs = buildAiDraftSessionPrompt({
+      ...SESSION_BASE,
+      captureMode: "video",
+    });
+    expect(noLogs).not.toContain("logRefs");
+  });
+
+  it("warn-only 캡처: rich 콘솔 헤더는 유지되고 후보·logRefs 지시만 없음", () => {
+    const prompt = buildAiDraftSessionPrompt({
+      ...SESSION_BASE,
+      captureMode: "video",
+      consoleLogSummary: {
+        captured: 3,
+        errorCount: 0,
+        warnCount: 2,
+        topErrors: [],
+      },
+    });
+    expect(prompt).toContain("- Console: 0 errors, 2 warnings");
+    expect(prompt).not.toContain("logRefs");
+  });
+
+  // description 비활성이면 스키마가 logRefs를 안 싣는다(AiDraftDialog 게이트) — 프롬프트
+  // 지시·few-shot도 같은 판정을 따라야 한다. 후보 줄 자체는 에러 컨텍스트로 남는다.
+  it("description 비활성: 후보 줄은 남고 logRefs 지시만 없음 (rich·compact)", () => {
+    for (const caps of [BYOK_CAPABILITIES, NANO_CAPABILITIES]) {
+      const prompt = buildAiDraftSessionPrompt({
+        ...SESSION_BASE,
+        ...LOGREF_CTX,
+        caps,
+        enabledSections: [{ id: "stepsToReproduce" }, { id: "notes" }],
+      });
+      expect(prompt).toContain("[n1]");
+      expect(prompt).not.toContain("logRefs");
+    }
+  });
+
+  it("element 모드는 로그 요약이 있어도 후보 태그·지시 없음", () => {
+    const prompt = buildAiDraftSessionPrompt({
+      ...SESSION_BASE,
+      ...LOGREF_CTX,
+      captureMode: "element",
+    });
+    expect(prompt).not.toContain("[n1]");
+    expect(prompt).not.toContain("logRefs");
+  });
+});
+
+describe("getDraftFewShot — logRefs 변형", () => {
+  it("compact + 후보 있음 → 예시에 logRefs 빈 배열 포함 (값 채운 예시 금지)", () => {
+    const fewShot = getDraftFewShot({
+      ...SESSION_BASE,
+      ...LOGREF_CTX,
+      caps: NANO_CAPABILITIES,
+    });
+    expect(fewShot).toHaveLength(1);
+    const example = JSON.parse(fewShot![0].assistant);
+    expect(example.logRefs).toEqual([]);
+  });
+
+  it("compact + 후보 없음 → 기본 few-shot 유지 (logRefs 키 없음)", () => {
+    const fewShot = getDraftFewShot({
+      ...SESSION_BASE,
+      captureMode: "video",
+      caps: NANO_CAPABILITIES,
+    });
+    const example = JSON.parse(fewShot![0].assistant);
+    expect(example).not.toHaveProperty("logRefs");
+  });
+
+  it("rich는 후보 유무와 무관하게 few-shot 없음", () => {
+    expect(getDraftFewShot({ ...SESSION_BASE, ...LOGREF_CTX })).toBeUndefined();
+  });
+
+  it("description 비활성 → 후보가 있어도 기본 few-shot (스키마와 정합)", () => {
+    const fewShot = getDraftFewShot({
+      ...SESSION_BASE,
+      ...LOGREF_CTX,
+      caps: NANO_CAPABILITIES,
+      enabledSections: [{ id: "stepsToReproduce" }],
+    });
+    const example = JSON.parse(fewShot![0].assistant);
+    expect(example).not.toHaveProperty("logRefs");
   });
 });
 

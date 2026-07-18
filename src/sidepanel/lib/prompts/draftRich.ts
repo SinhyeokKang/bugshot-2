@@ -1,13 +1,13 @@
 import type { CaptureMode } from "@/store/editor-store";
 import type { IssueSectionId, LocaleMode } from "@/store/settings-ui-store";
 import type { AiDraftSessionContext } from "@/sidepanel/lib/buildAiDraftPrompt";
-import { stripInlineImageRefs } from "@/sidepanel/lib/resolveInlineImages";
 import {
   supportsActionLog,
   supportsConsoleNetworkLog,
 } from "@/sidepanel/lib/captureLogSupport";
 import { MAX_TITLE_LENGTH, PROMPT_CAPS } from "./caps";
 import { oneLine, selectDraftSections } from "./context";
+import { canRequestLogRefs, selectLogCandidates } from "./logCandidates";
 
 const SECTION_DESC_BASE: Record<LocaleMode, Record<IssueSectionId, string>> = {
   ko: {
@@ -58,6 +58,8 @@ function getSectionDesc(
 export function buildRichDraftPrompt(ctx: AiDraftSessionContext): string {
   const caps = PROMPT_CAPS.rich;
   const lang = ctx.locale === "ko" ? "Korean" : "English";
+  const cand = selectLogCandidates(ctx);
+  const hasLogRefs = canRequestLogRefs(ctx, cand);
   const lines: string[] = [];
 
   lines.push(
@@ -103,18 +105,19 @@ export function buildRichDraftPrompt(ctx: AiDraftSessionContext): string {
       lines.push("- The user is writing an issue without a capture. They will describe the bug based on environment info and logs.");
     }
     // screenshot은 위에서 이미 캡처를 설명했다 — 여기서 서술 줄을 또 넣지 않는다.
-    if (ctx.networkLogSummary && ctx.networkLogSummary.errors.length > 0) {
+    if (cand.network.length > 0) {
       lines.push("- Network errors:");
-      for (const e of ctx.networkLogSummary.errors.slice(0, caps.networkErrors)) {
-        lines.push(`  ${e.method} ${e.path} → ${e.status} ${e.statusText}`);
+      for (const e of cand.network) {
+        lines.push(`  [${e.ref}] ${e.method} ${e.path} → ${e.status} ${e.statusText}`);
       }
     }
+    // 헤더는 후보와 별개로 유지 — warn-only 캡처에서 후보는 0이지만 "경고 N건"은 유효 정보다.
     if (ctx.consoleLogSummary) {
       const c = ctx.consoleLogSummary;
       if (c.errorCount > 0 || c.warnCount > 0) {
         lines.push(`- Console: ${c.errorCount} errors, ${c.warnCount} warnings`);
-        for (const msg of c.topErrors.slice(0, caps.consoleErrors)) {
-          lines.push(`  ${msg}`);
+        for (const e of cand.console) {
+          lines.push(`  [${e.ref}] ${e.message}`);
         }
       }
     }
@@ -142,7 +145,6 @@ export function buildRichDraftPrompt(ctx: AiDraftSessionContext): string {
     ctx.existingDraft,
     ctx.enabledSections.map((s) => s.id),
     caps.existingDraftChars,
-    stripInlineImageRefs,
   );
   // 줄 단위로 분해해 push — 통짜로 넣으면 마지막 oneLine이 stepsToReproduce의 단계
   // 구분 개행까지 접는다(인젝션 방어 대상은 페이지 통제 문자열뿐, 사용자 초안이 아니다).
@@ -167,6 +169,11 @@ export function buildRichDraftPrompt(ctx: AiDraftSessionContext): string {
   for (const sec of ctx.enabledSections) {
     lines.push(`- "${sec.id}": ${desc[sec.id]}`);
   }
+  if (hasLogRefs) {
+    lines.push(
+      '- "logRefs": tags of the log entries above (e.g. "n1", "c1") that are direct evidence of the described bug. An empty array is the normal result when none apply',
+    );
+  }
 
   lines.push("");
   lines.push("Rules:");
@@ -174,6 +181,11 @@ export function buildRichDraftPrompt(ctx: AiDraftSessionContext): string {
   lines.push("- Base the report on the user's description and provided context. Never invent details not given.");
   lines.push("- Only reference logs, errors, or context that plausibly relate to the described bug. Ignore unrelated entries.");
   lines.push("- When quoting a log or error, copy the original snippet verbatim rather than paraphrasing it.");
+  if (hasLogRefs) {
+    lines.push(
+      "- Name the causal log briefly in prose, then return its tag in logRefs — the app inserts the full log; keep full request/response bodies and stack traces out of the prose.",
+    );
+  }
   lines.push("- The description states only the current problem (as-is). Put any expected or desired behavior in expectedResult, never in description.");
   lines.push("- Every sentence carries an observed fact or a concrete value: exact values, selectors, error text, observed behavior. One new piece of information per sentence, stated once.");
   lines.push("- Keep every section as brief as its content allows.");

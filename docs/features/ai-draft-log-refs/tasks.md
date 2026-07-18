@@ -20,11 +20,11 @@
   - `ref`는 여기서 부여하지 **않는다** (Task 2에서).
   - ⚠ **`draftRich.ts:116`·`draftCompact.ts:79`는 명시적 수동 교체 대상이다 — TS가 안 잡는다.** 둘 다 `` `  ${msg}` `` 템플릿 리터럴 보간이라 `topErrors`가 객체 배열이 돼도 컴파일이 통과하고(`symbol`만 거부) 프롬프트에 **`[object Object]`가 조용히 인쇄**된다. `.message`를 읽도록 직접 고친다. (`draftCompact.ts:77`은 `topErrors.length`만 읽어 무관.)
 - **검증**
-  - [ ] `pnpm typecheck` 통과 — 8개 이슈 빌더는 `errors.length`·카운트만 읽으므로 안 깨진다. 단 **typecheck 통과가 위 2곳의 정합을 증명하지 않는다**(템플릿 리터럴 맹점)
-  - [ ] **rich/compact 프롬프트 출력이 변경 전과 바이트 동일** — 같은 요약 입력으로 Task 1 전후 프롬프트 문자열을 비교하는 단위 테스트. "Task 1~2 동작 중립" 주장의 실제 증명이 이 테스트다
-  - [ ] `buildMarkdownContext.test.ts:64/70`은 `baseArgs(overrides: Record<string, unknown>)`가 타입을 지워서 **TS가 안 잡는다** — `topErrors` 없이 요약을 구성하지만 그 필드를 안 읽으므로 통과가 맞다. "TS가 전 소비자를 잡아준다"의 예외로 인지만 할 것
-  - [ ] 요약 항목의 `id`가 원본 `NetworkRequest.id`/`ConsoleEntry.id`와 일치
-  - [ ] console 요약의 dedup 동작(first-line 기준)이 기존과 동일
+  - [x] `pnpm typecheck` 통과 — 8개 이슈 빌더는 `errors.length`·카운트만 읽으므로 안 깨진다. 단 **typecheck 통과가 위 2곳의 정합을 증명하지 않는다**(템플릿 리터럴 맹점)
+  - [x] **rich/compact 프롬프트 출력이 변경 전과 바이트 동일** — 같은 요약 입력으로 Task 1 전후 프롬프트 문자열을 비교하는 단위 테스트. "Task 1~2 동작 중립" 주장의 실제 증명이 이 테스트다
+  - [x] `buildMarkdownContext.test.ts:64/70`은 `baseArgs(overrides: Record<string, unknown>)`가 타입을 지워서 **TS가 안 잡는다** — `topErrors` 없이 요약을 구성하지만 그 필드를 안 읽으므로 통과가 맞다. "TS가 전 소비자를 잡아준다"의 예외로 인지만 할 것
+  - [x] 요약 항목의 `id`가 원본 `NetworkRequest.id`/`ConsoleEntry.id`와 일치
+  - [x] console 요약의 dedup 동작(first-line 기준)이 기존과 동일
 
 ### Task 2: 후보 집합 단일 출처
 
@@ -35,11 +35,11 @@
   - **후보** 게이트는 **배열 길이로만** 판정 (rich의 `errorCount>0||warnCount>0` 헤더 조건을 따라가면 warn-only 캡처에서 compact와 갈린다). ⚠ 이건 후보 게이트 얘기지 **헤더 얘기가 아니다** — Task 3 참조.
   - `AiDraftSessionContext`는 **`import type`으로만** 들여온다. `buildAiDraftPrompt.ts`에서 값을 하나라도 import하면 순환이 된다(Task 4가 `getDraftFewShot`에서 이 모듈을 값 참조하므로).
 - **검증**
-  - [ ] 캡은 **kind별**이다: `PROMPT_CAPS.compact.networkErrors = 3` / `.consoleErrors = 3`(합계 최대 6), `PROMPT_CAPS.rich.networkErrors = 5` / `.consoleErrors = 5`(합계 최대 10)
-  - [ ] `ref` 집합 = 실제 인쇄될 집합 (필터·캡 통과 후 부여라 번호가 연속)
-  - [ ] 같은 엔드포인트 500 × 5 → 후보 1개
-  - [ ] `element` 모드 → 빈 후보
-  - [ ] warn-only console → 양 스타일 모두 빈 후보
+  - [x] 캡은 **kind별**이다: `PROMPT_CAPS.compact.networkErrors = 3` / `.consoleErrors = 3`(합계 최대 6), `PROMPT_CAPS.rich.networkErrors = 5` / `.consoleErrors = 5`(합계 최대 10)
+  - [x] `ref` 집합 = 실제 인쇄될 집합 (필터·캡 통과 후 부여라 번호가 연속)
+  - [x] 같은 엔드포인트 500 × 5 → 후보 1개
+  - [x] `element` 모드 → 빈 후보
+  - [x] warn-only console → 양 스타일 모두 빈 후보
 
 > 참고: **rich에선 캡이 절대 안 걸린다** — `buildLogSummary.MAX_ERRORS = 5` == rich 캡 5라 요약이 이미 5개로 잘려 온다. rich의 유일한 후보 감소 요인은 dedup뿐이고, 그래서 "compact `n5` 스킵" 테스트(Task 5)가 compact 전용이다.
 
@@ -53,11 +53,11 @@
   - ⚠ **rich의 console 헤더를 지우지 말 것.** `draftRich.ts:114`의 `errorCount > 0 || warnCount > 0` → `- Console: N errors, M warnings`는 그대로 유지한다. 후보 순회로 교체하면서 같이 지우면 **warn-only 캡처에서 "경고 N건"이라는 유효 정보가 사라진다**(후보는 0이지만 헤더는 남아야 한다).
   - `COMPACT_DRAFT_FEW_SHOT_LOGREFS` 추가 — 기존 예시와 동일하되 `"logRefs":[]`. **값을 채운 예시(`["n1"]`) 금지** — 실제 런에 없는 ref를 가르친다(console-only 캡처엔 `n1`이 없다).
 - **검증**
-  - [ ] rich/compact 양쪽에 `[n1]` 태그가 인쇄됨
-  - [ ] **원본 `id`가 프롬프트에 없음** — UUID 정규식이 아니라 `id` 값 자체를 `not.toContain`으로 검사(`crypto.randomUUID()` 부재 시 `nr-`/`cl-` 폴백(`network-recorder.ts:68`·`console-recorder.ts:47`)이라 정규식은 그 경로를 못 잡는다)
-  - [ ] 후보 0이면 `logRefs` 지시 줄 없음
-  - [ ] **warn-only 캡처에서 rich의 `- Console: 0 errors, N warnings` 헤더가 유지되고 후보만 0**
-  - [ ] compact 본문이 `COMPACT_SYSTEM_TARGET_CHARS = 2000` 불변식 유지
+  - [x] rich/compact 양쪽에 `[n1]` 태그가 인쇄됨
+  - [x] **원본 `id`가 프롬프트에 없음** — UUID 정규식이 아니라 `id` 값 자체를 `not.toContain`으로 검사(`crypto.randomUUID()` 부재 시 `nr-`/`cl-` 폴백(`network-recorder.ts:68`·`console-recorder.ts:47`)이라 정규식은 그 경로를 못 잡는다)
+  - [x] 후보 0이면 `logRefs` 지시 줄 없음
+  - [x] **warn-only 캡처에서 rich의 `- Console: 0 errors, N warnings` 헤더가 유지되고 후보만 0**
+  - [x] compact 본문이 `COMPACT_SYSTEM_TARGET_CHARS = 2000` 불변식 유지
 
 ### Task 4: 스키마·파싱
 
@@ -69,10 +69,10 @@
   - `getDraftFewShot(ctx)` — compact이고 후보가 있으면 LOGREFS 변형.
   - `import type { EditorDraft }` 제거.
 - **검증**
-  - [ ] `buildAiDraftSchema(["stepsToReproduce"])`에 `logRefs` **없음** — `generateReproPrefill.ts:48` 무변경, `generateReproPrefill.test.ts:89` 무수정 통과
-  - [ ] `generateReproPrefill.test.ts:86`(`fewShot === COMPACT_DRAFT_FEW_SHOT` 고정)도 **무수정 통과** — few-shot을 후보 유무로 분기시키므로 이것도 회귀 가드다. repro ctx는 로그 요약을 아예 안 넣어(`generateReproPrefill.ts:38-46`) 후보 0 → 기본 few-shot 유지가 성립한다. 단 `captureMode`는 screenshot/video/freeform이 올 수 있어 `supportsConsoleNetworkLog` 게이트는 통과하므로, **Task 2의 "배열 길이로만 판정"이 지켜져야만 이게 성립한다**
-  - [ ] `parseAiDraftResponse`가 누락/비배열/혼합배열에서 `[]` 반환
-  - [ ] 스키마가 `logRefs`를 안 실으면 few-shot도 그 키를 안 보여줌
+  - [x] `buildAiDraftSchema(["stepsToReproduce"])`에 `logRefs` **없음** — `generateReproPrefill.ts:48` 무변경, `generateReproPrefill.test.ts:89` 무수정 통과
+  - [x] `generateReproPrefill.test.ts:86`(`fewShot === COMPACT_DRAFT_FEW_SHOT` 고정)도 **무수정 통과** — few-shot을 후보 유무로 분기시키므로 이것도 회귀 가드다. repro ctx는 로그 요약을 아예 안 넣어(`generateReproPrefill.ts:38-46`) 후보 0 → 기본 few-shot 유지가 성립한다. 단 `captureMode`는 screenshot/video/freeform이 올 수 있어 `supportsConsoleNetworkLog` 게이트는 통과하므로, **Task 2의 "배열 길이로만 판정"이 지켜져야만 이게 성립한다**
+  - [x] `parseAiDraftResponse`가 누락/비배열/혼합배열에서 `[]` 반환
+  - [x] 스키마가 `logRefs`를 안 실으면 few-shot도 그 키를 안 보여줌
 
 ### Task 5: ref → 코드블럭 렌더
 
@@ -85,12 +85,12 @@
 
 > ⚠ `markdownBlocks.ts`는 **Task 6으로 이관**했다 — 코드블럭 추출·strip 기준은 Task 6(보존)의 본질이고, 여기 두면 Task 6이 Task 5에 하드 의존해 "3·5·6 병렬"이 성립하지 않는다.
 - **검증**
-  - [ ] 후보에 없는 ref → 스킵, throw 없음
-  - [ ] compact에서 `n5`(요약엔 있지만 미인쇄) → 스킵
-  - [ ] 유효 4개 → `[]` + warn / 3개 → 3블록
-  - [ ] `responseBody`에 백틱 3개 → 결과 마크다운의 비들여쓰기 fence가 정확히 2개
-  - [ ] 이미 같은 블록이 있는 섹션에 같은 로그 → 안 늘어남. **비교 기준은 `codeBlockMarkdown` 출력끼리가 아니라 Tiptap 왕복본 vs AI 생성본이다** — fence 생성 주체가 달라(수동은 `tiptap-markdown` 직렬화, AI는 직접 문자열) 출력끼리 비교하면 유닛만 green이고 실제 패널에서 블록이 늘어난다(PRD 목표 절)
-  - [ ] **Slack 부피**: AI 삽입 3블록이 `splitSlackText`(`SLACK_TEXT_LIMIT = 3800`) 분할을 타도 fence가 짝수로 보존된다 — 또는 기존 `submitToSlack.test.ts > 긴 본문 분할`이 커버함을 확인. 수동은 사용자가 1건을 의도적으로 넣지만 **AI는 최대 3건을 사용자 인지 없이 자동 삽입하는 새 부피 축**이다(POSTMORTEM 2026-07-16: "상한은 가장 빡빡한 소비처 기준으로 센다")
+  - [x] 후보에 없는 ref → 스킵, throw 없음
+  - [x] compact에서 `n5`(요약엔 있지만 미인쇄) → 스킵
+  - [x] 유효 4개 → `[]` + warn / 3개 → 3블록
+  - [x] `responseBody`에 백틱 3개 → 결과 마크다운의 비들여쓰기 fence가 정확히 2개
+  - [x] 이미 같은 블록이 있는 섹션에 같은 로그 → 안 늘어남. **비교 기준은 `codeBlockMarkdown` 출력끼리가 아니라 Tiptap 왕복본 vs AI 생성본이다** — fence 생성 주체가 달라(수동은 `tiptap-markdown` 직렬화, AI는 직접 문자열) 출력끼리 비교하면 유닛만 green이고 실제 패널에서 블록이 늘어난다(PRD 목표 절)
+  - [x] **Slack 부피**: AI 삽입 3블록이 `splitSlackText`(`SLACK_TEXT_LIMIT = 3800`) 분할을 타도 fence가 짝수로 보존된다 — 또는 기존 `submitToSlack.test.ts > 긴 본문 분할`이 커버함을 확인. 수동은 사용자가 1건을 의도적으로 넣지만 **AI는 최대 3건을 사용자 인지 없이 자동 삽입하는 새 부피 축**이다(POSTMORTEM 2026-07-16: "상한은 가장 빡빡한 소비처 기준으로 센다")
 
 ### Task 6: 코드블럭 보존 + strip 기준 교체
 
@@ -110,15 +110,15 @@
 > **`stripPreservedContent`는 rename이 아니라 신규 함수다.** `stripInlineImageRefs`는 그대로 남고 계약 테스트(`resolveInlineImages.test.ts:134-149`) 4개도 green이어야 한다.
 
 - **검증**
-  - [ ] 코드블럭만 있는 섹션이 "절삭된 원문"으로 오인되지 않음 — **기준이 갈리면 사용자 텍스트가 조용히 삭제된다**
-  - [ ] `stripPreservedContent("```\n…\n```")` → **빈 문자열**(`"\n\n"` 아님 — `.trim()` 계약)
-  - [ ] **통합 레벨**: 코드블럭만 있는 섹션이 `selectDraftSections`에서 제외되고 `includedIds`에 안 들어감 — strip 단위·merge 단위 양 끝 테스트만으로는 이 사고 경로(`context.ts:105-106` truthy 판정 통과 → merge 가드 풀림)가 안 잡힌다. `promptBudget.test.ts` 확장으로 직접 단언
-  - [ ] `selectDraftSections` 시그니처 변경 후 호출처 3곳 컴파일·기존 테스트 green
-  - [ ] 수동 삽입 블록이 AI 재생성 후 남음 (**이미지 없는 섹션에서도** — early-return 제거 확인)
-  - [ ] 이미지 + 코드블럭 + AI 텍스트 순서: 이미지 → AI 산문 → 기존 블록
-  - [ ] 기존 가드 3개(미프롬프트 섹션 prev 우선 / AI 키 누락 시 보존 / 이미지 hoist) 회귀 없음
-  - [ ] `buildIssueAdf.ts:128`·`buildNotionIssueBody.ts:261` **무변경** — Notion·Jira 본문에서 코드블럭이 살아남는다
-  - [ ] `resolveInlineImages.test.ts` 무수정 green
+  - [x] 코드블럭만 있는 섹션이 "절삭된 원문"으로 오인되지 않음 — **기준이 갈리면 사용자 텍스트가 조용히 삭제된다**
+  - [x] `stripPreservedContent("```\n…\n```")` → **빈 문자열**(`"\n\n"` 아님 — `.trim()` 계약)
+  - [x] **통합 레벨**: 코드블럭만 있는 섹션이 `selectDraftSections`에서 제외되고 `includedIds`에 안 들어감 — strip 단위·merge 단위 양 끝 테스트만으로는 이 사고 경로(`context.ts:105-106` truthy 판정 통과 → merge 가드 풀림)가 안 잡힌다. `promptBudget.test.ts` 확장으로 직접 단언
+  - [x] `selectDraftSections` 시그니처 변경 후 호출처 3곳 컴파일·기존 테스트 green
+  - [x] 수동 삽입 블록이 AI 재생성 후 남음 (**이미지 없는 섹션에서도** — early-return 제거 확인)
+  - [x] 이미지 + 코드블럭 + AI 텍스트 순서: 이미지 → AI 산문 → 기존 블록
+  - [x] 기존 가드 3개(미프롬프트 섹션 prev 우선 / AI 키 누락 시 보존 / 이미지 hoist) 회귀 없음
+  - [x] `buildIssueAdf.ts:128`·`buildNotionIssueBody.ts:261` **무변경** — Notion·Jira 본문에서 코드블럭이 살아남는다
+  - [x] `resolveInlineImages.test.ts` 무수정 green
 
 ### Task 7: 배선
 
@@ -129,10 +129,10 @@
   - merge 이후: `refs.length && parsed.sections.description?.trim()`일 때만 `appendLogBlocks(merged.description ?? "", renderLogRefBlocks(parsed.logRefs, {candidates, requests, entries}))`. **키 존재(`in`)가 아니라 truthy 판정** — 게이트가 없으면 AI가 키를 누락했을 때 merge가 살린 사용자 원문 위에 블록이 붙고, `in` 판정이면 빈 문자열 반환 시 산문 없이 블록만 붙는다(PRD 엣지 케이스 — 빈 문자열은 키 누락과 동일 취급).
   - 스냅샷은 **await 이전에 잡은 지역 변수**(`:88-90`)를 쓴다. ⚠ 그 변수명은 `requests`/`entries`가 아니라 **`networkLog`/`consoleLog`**이고 **undefined 가능** → `networkLog?.requests ?? []`, `consoleLog?.entries ?? []`로 넘긴다.
 - **검증**
-  - [ ] `description` 비활성 → 스키마·프롬프트에 `logRefs` 없음, 다른 섹션 폴백 없음
-  - [ ] AI가 `description` 키 누락 → 블록 미삽입 + prev 보존 유지
-  - [ ] AI가 `description`을 **빈 문자열로** 반환 → **블록 미삽입**(truthy 게이트 — 키 누락과 동일 취급. merge 경로는 별개지만(`mergeAiDraftSections.ts:41`의 `!aiText && !(id in aiSections)` 가드를 안 탄다) 삽입 게이트에서 같은 결과로 수렴)
-  - [ ] 절삭 level≥1 → 후보·스키마·few-shot 동시 소멸
+  - [x] `description` 비활성 → 스키마·프롬프트에 `logRefs` 없음, 다른 섹션 폴백 없음
+  - [x] AI가 `description` 키 누락 → 블록 미삽입 + prev 보존 유지
+  - [x] AI가 `description`을 **빈 문자열로** 반환 → **블록 미삽입**(truthy 게이트 — 키 누락과 동일 취급. merge 경로는 별개지만(`mergeAiDraftSections.ts:41`의 `!aiText && !(id in aiSections)` 가드를 안 탄다) 삽입 게이트에서 같은 결과로 수렴)
+  - [x] 절삭 level≥1 → 후보·스키마·few-shot 동시 소멸
   - [ ] **기존 동작 유지**: `e2e/ai-draft.spec.ts` 기존 3개 시나리오 green, `mergeAiDraftSections.test.ts` 기존 호출 전부 green
   - [ ] **`e2e/ai-local-provider.spec.ts` green** — loopback BYOK = compact 좌표로 AI 초안을 도는 별도 스위트. Task 3(compact 프롬프트·few-shot)·Task 4(스키마)·Task 6(strip 교체가 compact `existingDraftChars=400` 절삭 판정에 닿음 — 이 spec의 "KEEPDESC 원문 보존" 시나리오가 정확히 그 캡을 검증)의 직접 회귀 표면
 
