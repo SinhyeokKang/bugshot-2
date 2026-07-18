@@ -6,13 +6,15 @@ const SVG_NS = "http://www.w3.org/2000/svg";
 // React가 닿지 않는 DOM(ProseMirror NodeView·renderMarkdown 후처리)에선 쓸 수 없다.
 // 그래서 lucide 원본 path를 그대로 인라인한다 — 두 번째 출처지만 아이콘은 값이 안정적이고
 // 대안(코드블럭마다 React 루트를 심는 것)이 훨씬 무겁다. lucide를 올릴 땐 이 표를 확인한다.
-// 출처: lucide `copy` / `check` / `trash-2` / `chevron-down` / `chevron-up`.
+// 출처: lucide `copy` / `check` / `trash-2` / `chevron-down` / `chevron-up` / `rotate-ccw` / `pencil`.
 const ICON_PATHS = {
   copy: '<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
   check: '<path d="M20 6 9 17l-5-5"/>',
   trash: '<path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/><line x1="10" x2="10" y1="11" y2="17"/><line x1="14" x2="14" y1="11" y2="17"/>',
   chevronDown: '<path d="m6 9 6 6 6-6"/>',
   chevronUp: '<path d="m18 15-6-6-6 6"/>',
+  rotateCcw: '<path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/>',
+  pencil: '<path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/>',
 } as const;
 
 export type BlockActionIcon = keyof typeof ICON_PATHS;
@@ -48,6 +50,8 @@ export interface BlockActions {
   el: HTMLDivElement;
   setIcon(testId: string, icon: BlockActionIcon): void;
   setLabel(testId: string, label: string): void;
+  /** 버튼 표시/숨김 토글. 인라인 이미지의 초기화 버튼 조건부 노출용. */
+  setHidden(testId: string, hidden: boolean): void;
   destroy(): void;
 }
 
@@ -94,6 +98,11 @@ export function createBlockActions(specs: BlockActionSpec[]): BlockActions {
       if (!btn) return;
       btn.setAttribute("aria-label", label);
       btn.title = label;
+    },
+    setHidden(testId, hidden) {
+      const btn = buttons.get(testId);
+      if (!btn) return;
+      btn.hidden = hidden;
     },
     destroy() {
       for (const fn of cleanups) fn();

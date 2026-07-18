@@ -4,13 +4,14 @@ import type { ActionLog } from "@/types/action";
 import { EDITOR_SESSION_PREFIX } from "@/lib/session-keys";
 
 const DB_NAME = "bugshot-video";
-const DB_VERSION = 7;
+const DB_VERSION = 8;
 const STORE_VIDEO = "blobs";
 const STORE_IMAGES = "images";
 const STORE_NETWORK = "networkLogs";
 const STORE_CONSOLE = "consoleLogs";
 const STORE_ACTION = "actionLogs";
 const STORE_INLINE_IMAGES = "inlineImages";
+const STORE_INLINE_ORIGINS = "inlineImageOrigins";
 const STORE_ATTACHMENTS = "attachments";
 
 let dbPromise: Promise<IDBDatabase> | null = null;
@@ -38,6 +39,9 @@ function openDb(): Promise<IDBDatabase> {
       }
       if (!db.objectStoreNames.contains(STORE_INLINE_IMAGES)) {
         db.createObjectStore(STORE_INLINE_IMAGES);
+      }
+      if (!db.objectStoreNames.contains(STORE_INLINE_ORIGINS)) {
+        db.createObjectStore(STORE_INLINE_ORIGINS);
       }
       if (!db.objectStoreNames.contains(STORE_ATTACHMENTS)) {
         db.createObjectStore(STORE_ATTACHMENTS);
@@ -486,6 +490,76 @@ export async function clearInlineImages(): Promise<void> {
   }
 }
 
+// --- Inline image origin backup API ---
+// 어노테이션 직전 원본 백업. inlineImages와 refId 공간을 공유하되 별도 store라 prune 대상 밖
+// (markdown에 안 나타나므로). 초기화(reset)로 원본 복원 후 삭제한다. clearInlineOrigins는
+// 두지 않는다 — 대칭인 clearInlineImages가 이미 호출처 0(dead)이라 대칭 추가도 dead code.
+
+export async function saveInlineOrigin(refId: string, blob: Blob): Promise<boolean> {
+  try {
+    const db = await openDb();
+    const tx = db.transaction(STORE_INLINE_ORIGINS, "readwrite");
+    tx.objectStore(STORE_INLINE_ORIGINS).put(blob, refId);
+    await txComplete(tx);
+    return true;
+  } catch (e) {
+    console.warn("[blob-db] saveInlineOrigin failed:", e);
+    return false;
+  }
+}
+
+export async function getInlineOrigin(refId: string): Promise<Blob | null> {
+  try {
+    const db = await openDb();
+    const tx = db.transaction(STORE_INLINE_ORIGINS, "readonly");
+    const req = tx.objectStore(STORE_INLINE_ORIGINS).get(refId);
+    await txComplete(tx);
+    return req.result instanceof Blob ? req.result : null;
+  } catch (e) {
+    console.warn("[blob-db] getInlineOrigin failed:", e);
+    return null;
+  }
+}
+
+export async function hasInlineOrigin(refId: string): Promise<boolean> {
+  try {
+    const db = await openDb();
+    const tx = db.transaction(STORE_INLINE_ORIGINS, "readonly");
+    const req = tx.objectStore(STORE_INLINE_ORIGINS).getKey(refId);
+    await txComplete(tx);
+    return req.result != null;
+  } catch (e) {
+    console.warn("[blob-db] hasInlineOrigin failed:", e);
+    return false;
+  }
+}
+
+export async function deleteInlineOrigins(refIds: string[]): Promise<void> {
+  if (refIds.length === 0) return;
+  try {
+    const db = await openDb();
+    const tx = db.transaction(STORE_INLINE_ORIGINS, "readwrite");
+    const store = tx.objectStore(STORE_INLINE_ORIGINS);
+    for (const id of refIds) store.delete(id);
+    await txComplete(tx);
+  } catch (e) {
+    console.warn("[blob-db] deleteInlineOrigins failed:", e);
+  }
+}
+
+export async function getInlineOriginKeys(): Promise<string[]> {
+  try {
+    const db = await openDb();
+    const tx = db.transaction(STORE_INLINE_ORIGINS, "readonly");
+    const req = tx.objectStore(STORE_INLINE_ORIGINS).getAllKeys();
+    await txComplete(tx);
+    return (req.result as string[]) ?? [];
+  } catch (e) {
+    console.warn("[blob-db] getInlineOriginKeys failed:", e);
+    return [];
+  }
+}
+
 const INLINE_REF_SCAN_RE = /!\[[^\]]*\]\(inline:([a-zA-Z0-9-]+)\)/g;
 
 function scanInlineRefs(text: string, out: Set<string>): void {
@@ -526,6 +600,11 @@ export async function pruneOrphanInlineImages(activeRefIds: string[]): Promise<v
     const allKeys = await getInlineImageKeys();
     const orphans = allKeys.filter((k) => !globalRefs.has(k));
     if (orphans.length > 0) await deleteInlineImages(orphans);
+    // 원본 백업도 동일 globalRefs로 정리 — markdown에서 사라진 이미지의 원본까지 회수.
+    // 별도 globalRefs를 재계산하지 않고 같은 집합을 predicate로 재사용(참조 중 refId 오삭제 방지).
+    const originKeys = await getInlineOriginKeys();
+    const originOrphans = originKeys.filter((k) => !globalRefs.has(k));
+    if (originOrphans.length > 0) await deleteInlineOrigins(originOrphans);
   } catch (e) {
     console.warn("[blob-db] pruneOrphanInlineImages failed:", e);
   }
