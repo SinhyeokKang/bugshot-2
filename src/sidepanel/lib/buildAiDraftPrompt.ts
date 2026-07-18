@@ -3,7 +3,6 @@ import type { IssueSectionId, LocaleMode } from "@/store/settings-ui-store";
 import type { StyleDiffRow } from "@/sidepanel/components/StyleChangesTable";
 import type { NetworkLogSummary, ConsoleLogSummary } from "./buildLogSummary";
 import type { ActionLogSummary } from "@/types/action";
-import type { EditorDraft } from "@/store/editor-store";
 import type {
   FewShotExample,
   PromptStyle,
@@ -14,27 +13,59 @@ import { MAX_TITLE_LENGTH } from "./prompts/caps";
 import {
   buildCompactDraftPrompt,
   COMPACT_DRAFT_FEW_SHOT,
+  COMPACT_DRAFT_FEW_SHOT_LOGREFS,
 } from "./prompts/draftCompact";
 import { buildRichDraftPrompt } from "./prompts/draftRich";
+import {
+  canRequestLogRefs,
+  selectLogCandidates,
+} from "./prompts/logCandidates";
 
-export function buildAiDraftSchema(sectionIds: IssueSectionId[]) {
-  const properties: Record<string, { type: "string" }> = {
+type SchemaProperty =
+  | { type: "string" }
+  | { type: "array"; items: { type: "string"; enum: string[] } };
+
+// opts.logRefs는 non-empty여야 한다 — enum: []는 퇴화 스키마라 nano의 문법 컴파일이
+// 깨질 수 있다. 후보가 없으면 호출부가 opts를 생략한다.
+export function buildAiDraftSchema(
+  sectionIds: IssueSectionId[],
+  opts?: { logRefs: string[] },
+) {
+  const properties: Record<string, SchemaProperty> = {
     title: { type: "string" },
   };
   for (const id of sectionIds) {
     properties[id] = { type: "string" };
   }
+  const required: string[] = ["title", ...sectionIds];
+  if (opts) {
+    properties.logRefs = {
+      type: "array",
+      items: { type: "string", enum: opts.logRefs },
+    };
+    required.push("logRefs");
+  }
   return {
     type: "object",
-    required: ["title", ...sectionIds],
+    required,
     properties,
   };
 }
 
+// EditorDraft가 아닌 전용 타입 — logRefs는 setDraft 이전에 소비되는 transient 값이라
+// store가 들고 있으면 안 된다.
+export interface AiDraftResponse {
+  title: string;
+  sections: Record<string, string>;
+  logRefs: string[];
+}
+
+// logRefs의 후보 대조는 여기서 하지 않는다 — 순수 JSON 디코더로 남기고,
+// 검증·해석은 renderLogRefs 한 곳에만 둔다.
 export function parseAiDraftResponse(
   raw: string,
   enabledSectionIds: IssueSectionId[],
-): EditorDraft | null {
+): AiDraftResponse | null {
   const json = extractJson(raw);
   if (!json) return null;
 
@@ -60,7 +91,11 @@ export function parseAiDraftResponse(
     }
   }
 
-  return { title, sections };
+  const logRefs = Array.isArray(parsed.logRefs)
+    ? parsed.logRefs.filter((r): r is string => typeof r === "string")
+    : [];
+
+  return { title, sections, logRefs };
 }
 
 export function stripLineNumbering(text: string): string {
@@ -99,8 +134,16 @@ const DRAFT_BUILDERS: Record<
 };
 
 // compact은 예시로 출력 형태를 잡는다. rich는 규칙 문장으로 충분하다.
-const DRAFT_FEW_SHOT: Record<PromptStyle, FewShotExample[] | undefined> = {
-  compact: COMPACT_DRAFT_FEW_SHOT,
+// style 축은 Record 유지(새 style이 조용히 흘러가지 않게), 후보 유무는 그 위에 얹는다 —
+// 스키마가 logRefs를 실을 때만 예시도 그 키를 보여준다(안 실으면 없는 키를 가르치게 된다).
+const DRAFT_FEW_SHOT: Record<
+  PromptStyle,
+  { base: FewShotExample[]; logRefs: FewShotExample[] } | undefined
+> = {
+  compact: {
+    base: COMPACT_DRAFT_FEW_SHOT,
+    logRefs: COMPACT_DRAFT_FEW_SHOT_LOGREFS,
+  },
   rich: undefined,
 };
 
@@ -111,5 +154,9 @@ export function buildAiDraftSessionPrompt(ctx: AiDraftSessionContext): string {
 export function getDraftFewShot(
   ctx: AiDraftSessionContext,
 ): FewShotExample[] | undefined {
-  return DRAFT_FEW_SHOT[ctx.caps.promptStyle];
+  const entry = DRAFT_FEW_SHOT[ctx.caps.promptStyle];
+  if (!entry) return undefined;
+  return canRequestLogRefs(ctx, selectLogCandidates(ctx))
+    ? entry.logRefs
+    : entry.base;
 }

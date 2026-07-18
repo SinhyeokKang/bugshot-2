@@ -1,6 +1,6 @@
 import type { AISession } from "../ai-provider";
 import type { AiDraftSessionContext } from "../buildAiDraftPrompt";
-import { stripInlineImageRefs } from "../resolveInlineImages";
+import { stripPreservedContent } from "../markdownBlocks";
 import { PROMPT_CAPS } from "./caps";
 import { selectDraftSections } from "./context";
 
@@ -38,7 +38,6 @@ function selectionOf(ctx: AiDraftSessionContext) {
     ctx.existingDraft,
     ctx.enabledSections.map((s) => s.id),
     PROMPT_CAPS[ctx.caps.promptStyle].existingDraftChars,
-    stripInlineImageRefs,
   );
 }
 
@@ -49,7 +48,7 @@ function contentfulSectionsOf(ctx: AiDraftSessionContext): string[] {
   if (!draft) return [];
   return ctx.enabledSections
     .map((s) => s.id)
-    .filter((id) => stripInlineImageRefs(draft.sections[id] ?? "").trim());
+    .filter((id) => stripPreservedContent(draft.sections[id] ?? ""));
 }
 
 export interface FittedDraftContext {

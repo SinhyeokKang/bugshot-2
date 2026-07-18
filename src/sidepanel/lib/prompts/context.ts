@@ -1,4 +1,5 @@
 import type { Token } from "@/types/picker";
+import { stripPreservedContent } from "../markdownBlocks";
 
 // 프롬프트 줄에 들어가는 값 상당수(action log 라벨, 콘솔 메시지, 디자인 토큰)는 페이지가
 // 통제한다. 개행이 살아있으면 악성 페이지가 지시 줄을 위조할 수 있다 — 한 줄로 접는다.
@@ -76,11 +77,12 @@ export function selectStyles(
 // "기존 초안 중 무엇이 프롬프트에 실렸는가"의 단일 출처. 빌더와 예산 계산기가 각자
 // 추정하면 어긋나고, 그 틈에서 "AI가 못 본 섹션의 빈 응답"이 비우기 의도로 오인돼
 // 사용자 텍스트가 삭제된다. 섹션은 통째로 싣거나 통째로 뺀다 — 중간에 자르지 않는다.
+// "내용 있음" 판정은 stripPreservedContent 고정 — 보존물(이미지·코드블럭)만 있는 섹션은
+// 싣지 않는다. 기준이 merge 쪽과 갈리면 사용자 텍스트가 조용히 삭제된다.
 export function selectDraftSections(
   existingDraft: { title: string; sections: Record<string, string> } | undefined,
   enabledSectionIds: string[],
   budgetChars: number,
-  strip: (text: string) => string,
 ): { parts: string[]; includedIds: string[]; titleIncluded: boolean } {
   if (!existingDraft) {
     return { parts: [], includedIds: [], titleIncluded: false };
@@ -102,7 +104,7 @@ export function selectDraftSections(
   }
 
   for (const id of enabledSectionIds) {
-    const text = strip(existingDraft.sections[id] ?? "");
+    const text = stripPreservedContent(existingDraft.sections[id] ?? "");
     if (!text) continue;
     const line = `${id}: ${text}`;
     if (used + line.length > budgetChars) continue;

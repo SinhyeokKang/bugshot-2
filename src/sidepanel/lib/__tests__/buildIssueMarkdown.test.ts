@@ -195,7 +195,7 @@ describe("buildIssueMarkdown", () => {
       makeCtx({
         networkLogSummary: {
           captured: 10,
-          errors: [{ method: "GET", path: "/api", status: 500, statusText: "Error" }],
+          errors: [{ id: "nr-t1", method: "GET", path: "/api", status: 500, statusText: "Error" }],
         },
       }),
     );
@@ -283,7 +283,7 @@ describe("buildIssueMarkdown — freeform", () => {
       freeformCtx({
         networkLogSummary: {
           captured: 5,
-          errors: [{ method: "POST", path: "/api/submit", status: 502, statusText: "Bad Gateway" }],
+          errors: [{ id: "nr-t2", method: "POST", path: "/api/submit", status: 502, statusText: "Bad Gateway" }],
         },
       }),
     );

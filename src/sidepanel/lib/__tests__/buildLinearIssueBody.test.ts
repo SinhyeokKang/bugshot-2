@@ -232,7 +232,7 @@ describe("buildLinearIssueBody — freeform", () => {
         diffs: [],
         networkLogSummary: {
           captured: 8,
-          errors: [{ method: "PUT", path: "/api/update", status: 403, statusText: "Forbidden" }],
+          errors: [{ id: "nr-t1", method: "PUT", path: "/api/update", status: 403, statusText: "Forbidden" }],
         },
       }),
     });
@@ -283,7 +283,7 @@ describe("buildLinearIssueBody — 구조", () => {
         networkLogSummary: {
           captured: 10,
           errors: [
-            { method: "GET", path: "/api/x", status: 500, statusText: "Internal Server Error" },
+            { id: "nr-t2", method: "GET", path: "/api/x", status: 500, statusText: "Internal Server Error" },
           ],
         },
       }),
@@ -300,7 +300,7 @@ describe("buildLinearIssueBody — 구조", () => {
           captured: 20,
           errorCount: 3,
           warnCount: 1,
-          topErrors: ["TypeError: Cannot read property 'x' of null"],
+          topErrors: [{ id: "cl-t1", message: "TypeError: Cannot read property 'x' of null" }],
         },
       }),
     });

@@ -207,11 +207,10 @@ describe("buildStyleDeltaBlock", () => {
 });
 
 describe("selectDraftSections", () => {
-  const strip = (t: string) => t.trim();
   const ENABLED = ["description", "stepsToReproduce", "notes"];
 
   it("초안 없으면 빈 결과", () => {
-    expect(selectDraftSections(undefined, ENABLED, 400, strip)).toEqual({
+    expect(selectDraftSections(undefined, ENABLED, 400)).toEqual({
       parts: [],
       includedIds: [],
       titleIncluded: false,
@@ -223,7 +222,6 @@ describe("selectDraftSections", () => {
       { title: "T", sections: { description: "d", notes: "n" } },
       ENABLED,
       400,
-      strip,
     );
     expect(includedIds).toEqual(["description", "notes"]);
     expect(parts[0]).toContain("title: T");
@@ -234,7 +232,6 @@ describe("selectDraftSections", () => {
       { title: "", sections: { description: "d", notes: "   " } },
       ENABLED,
       400,
-      strip,
     );
     expect(includedIds).toEqual(["description"]);
   });
@@ -253,7 +250,6 @@ describe("selectDraftSections", () => {
       },
       ENABLED,
       400,
-      strip,
     );
     expect(includedIds).toContain("description");
     expect(includedIds).not.toContain("stepsToReproduce");
@@ -267,7 +263,6 @@ describe("selectDraftSections", () => {
       { title: "", sections: { description: "d".repeat(500) } },
       ENABLED,
       400,
-      strip,
     );
     expect(includedIds).toEqual([]);
     expect(parts).toEqual([]);

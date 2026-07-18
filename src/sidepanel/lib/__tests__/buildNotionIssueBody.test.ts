@@ -484,6 +484,7 @@ describe("buildNotionIssueBody — 로그 요약", () => {
           captured: 10,
           errors: [
             {
+              id: "nr-t1",
               method: "GET",
               path: "/api/x",
               status: 500,
@@ -495,7 +496,7 @@ describe("buildNotionIssueBody — 로그 요약", () => {
           captured: 20,
           errorCount: 3,
           warnCount: 1,
-          topErrors: ["TypeError"],
+          topErrors: [{ id: "cl-t1", message: "TypeError" }],
         },
       }),
     });

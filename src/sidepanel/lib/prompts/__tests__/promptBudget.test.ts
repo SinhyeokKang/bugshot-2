@@ -5,6 +5,7 @@ import {
   trimDraftContext,
 } from "../promptBudget";
 import { NANO_CAPABILITIES, BYOK_CAPABILITIES, type AISession } from "../../ai-provider";
+import { selectLogCandidates } from "../logCandidates";
 import type { AiDraftSessionContext } from "../../buildAiDraftPrompt";
 
 const RICH_CTX: AiDraftSessionContext = {
@@ -22,14 +23,14 @@ const LOGS = {
   networkLogSummary: {
     captured: 10,
     errors: [
-      { method: "POST", path: "/api/pay", status: 500, statusText: "Err" },
+      { id: "nr-t1", method: "POST", path: "/api/pay", status: 500, statusText: "Err" },
     ],
   },
   consoleLogSummary: {
     captured: 5,
     errorCount: 3,
     warnCount: 1,
-    topErrors: ["Uncaught Error: payment failed"],
+    topErrors: [{ id: "cl-t1", message: "Uncaught Error: payment failed" }],
   },
   actionLogSummary: ["click Submit", "input email"],
 };
@@ -133,6 +134,7 @@ describe("fitDraftContext", () => {
       networkLogSummary: {
         captured: 100,
         errors: Array.from({ length: 50 }, (_, i) => ({
+          id: `nr-${i}`,
           method: "GET",
           path: `/api/very/long/path/segment/number/${i}`,
           status: 500,
@@ -267,6 +269,87 @@ describe("isPromptOverBudget", () => {
       contextWindow: 4000,
     });
     await expect(isPromptOverBudget(session, "hello")).resolves.toBe(false);
+  });
+});
+
+// ai-draft-log-refs: 후보·스키마·few-shot이 전부 fitted.ctx에서 파생되므로,
+// 예산 절삭(level≥1)이 로그 요약을 지우면 후보도 동시에 소멸해야 한다 — 절삭 결합 계약.
+describe("fitDraftContext × selectLogCandidates — 절삭 결합", () => {
+  const LOGGED_CTX: AiDraftSessionContext = {
+    ...NANO_CTX,
+    networkLogSummary: {
+      captured: 3,
+      errors: [
+        {
+          id: "nr-1700000000000-a",
+          method: "POST",
+          path: "/api/pay",
+          status: 500,
+          statusText: "Err",
+        },
+      ],
+    },
+    consoleLogSummary: {
+      captured: 2,
+      errorCount: 1,
+      warnCount: 0,
+      topErrors: [{ id: "cl-1700000000000-a", message: "TypeError: boom" }],
+    },
+  };
+
+  it("level 0 → 후보가 살아 있다", () => {
+    const fitted = fitDraftContext(LOGGED_CTX, build, 100_000);
+    expect(fitted.level).toBe(0);
+    const c = selectLogCandidates(fitted.ctx);
+    expect(c.network).toHaveLength(1);
+    expect(c.console).toHaveLength(1);
+  });
+
+  it("level≥1 절삭 → selectLogCandidates(fitted.ctx)가 빈 후보", () => {
+    const fitted = fitDraftContext(LOGGED_CTX, build, build(NANO_CTX).length + 10);
+    expect(fitted.level).toBeGreaterThanOrEqual(1);
+    const c = selectLogCandidates(fitted.ctx);
+    expect(c.network).toEqual([]);
+    expect(c.console).toEqual([]);
+  });
+});
+
+// 코드블럭이 보존 대상이 되면 "원문 있음" 판정도 코드블럭을 빼야 한다. strip 단위·merge
+// 단위 양 끝 테스트로는 이 사고 경로(빈 섹션이 includedIds에 실려 merge 가드가 풀림)가
+// 안 잡힌다 — selectDraftSections 경유 통합 레벨에서 직접 단언한다.
+describe("fitDraftContext — 코드블럭만 있는 섹션은 프롬프트에 실리지 않는다", () => {
+  it("코드블럭만 있는 섹션은 includedSections·omittedSections 어디에도 없다", () => {
+    const fitted = fitDraftContext(
+      {
+        ...RICH_CTX,
+        existingDraft: {
+          title: "t",
+          sections: {
+            description: "```\nGET /api → 500\n```",
+            notes: "산문 메모",
+          },
+        },
+      },
+      build,
+      100_000,
+    );
+    expect(fitted.includedSections).toEqual(["notes"]);
+    expect(fitted.omittedSections).toEqual([]);
+  });
+
+  it("산문 + 코드블럭 섹션은 여전히 실린다 (산문이 있으므로)", () => {
+    const fitted = fitDraftContext(
+      {
+        ...RICH_CTX,
+        existingDraft: {
+          title: "t",
+          sections: { description: "산문 설명\n\n```\ncode\n```" },
+        },
+      },
+      build,
+      100_000,
+    );
+    expect(fitted.includedSections).toEqual(["description"]);
   });
 });
 
