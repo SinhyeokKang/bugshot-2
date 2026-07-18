@@ -140,7 +140,7 @@ pnpm version major --no-git-tag-version   # 1.0.0 → 2.0.0 (Breaking change)
 - 커밋 메시지·PR title/body·GitHub Release notes는 **영문**으로 작성
 - **테스트**: 코드 변경 시 관련 테스트 작성 + `pnpm test` 통과 확인 필수. 대상과 같은 디렉터리의 `__tests__/`에 두고 Vitest를 쓴다. **2트랙**:
   - `*.test.ts` — node 환경. 순수 함수·헬퍼(기본 트랙).
-  - `*.test.tsx` — **jsdom + @testing-library/react**(+ `@testing-library/user-event` — 인터랙션 시뮬레이션. `vitest.config.ts`의 `environmentMatchGlobs`가 확장자로 자동 분기, 셋업은 `src/test/setup-dom.ts` — cleanup + ResizeObserver·PointerCapture·scrollIntoView 폴리필). 렌더·인터랙션이 상태 전이를 좌우하는 컴포넌트(콤보박스 등)에만 쓴다. 단, **포인터 드래그·캔버스처럼 브라우저 실동작에 걸린 것은 jsdom으로도 못 잡는다** — e2e·수동이 유일한 안전망(docs/POSTMORTEM.md).
+  - `*.test.tsx` — **jsdom + @testing-library/react**(+ `@testing-library/user-event` — 인터랙션 시뮬레이션. `vitest.config.ts`의 `environmentMatchGlobs`가 확장자로 자동 분기, 셋업은 `src/test/setup-dom.ts` — cleanup + ResizeObserver·PointerCapture·scrollIntoView 폴리필). 렌더·인터랙션이 상태 전이를 좌우하는 컴포넌트(콤보박스 등)와, 실제 DOM이 필요한 비컴포넌트 검증(헤드리스 Tiptap 왕복·vanilla DOM 셸 등)에 쓴다. 단, **포인터 드래그·캔버스처럼 브라우저 실동작에 걸린 것은 jsdom으로도 못 잡는다** — e2e·수동이 유일한 안전망(docs/POSTMORTEM.md).
 - **i18n 자동 검사**: `src/i18n/` 파일을 Edit/Write하면 `.claude/settings.json`의 PostToolUse 훅이 `src/i18n/__tests__/locales.test.ts`(ko/en 키 대칭·빈 값·placeholder 토큰 일치)를 자동 실행해 불일치 시 차단. 키 추가 시 ko/en 양쪽을 함께 갱신할 것.
   - **사전은 두 벌이다** — log-viewer는 별도 빌드라 `src/log-viewer/i18n.ts`에 `koDict`/`enDict` **복제 사전**을 따로 둔다. 훅 matcher가 `*src/i18n/*`라 이 파일엔 **안 걸리고**, 대신 `src/log-viewer/__tests__/i18n.test.ts`가 ko/en 대칭·placeholder·**메인 테이블(`logs`·`editor`) 값 일치**를 대조한다 — 즉 저장 즉시가 아니라 `pnpm test`에서 잡힌다. log-viewer가 재사용하는 공용 컴포넌트(NetworkLog·ConsoleLog·ActionLog·IssuePreview)에 키를 추가하면 **두 사전을 함께** 갱신할 것.
 
