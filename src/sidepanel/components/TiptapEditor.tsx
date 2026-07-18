@@ -56,11 +56,11 @@ import {
   extractInlineRefs,
   replaceInlineRefs,
 } from "@/sidepanel/lib/resolveInlineImages";
-
-const AnnotationOverlay = lazy(() => import("./AnnotationOverlay"));
 import { shouldLiftListItem } from "@/sidepanel/lib/listKeymap";
 import { shouldInsertHrAfterBreak } from "@/sidepanel/lib/hrInputRule";
 import "./tiptap-editor.css";
+
+const AnnotationOverlay = lazy(() => import("./AnnotationOverlay"));
 
 // 빈 list item 시작에서 Backspace → 리스트 종료 (기본은 이전 항목과 병합)
 const ListExitOnBackspace = Extension.create({
@@ -637,17 +637,18 @@ const TiptapEditor = forwardRef<TiptapEditorHandle, TiptapEditorProps>(function 
 
     // 어노테이션 완료 콜백에서 getPos 클로저는 setContent로 무효화될 수 있다 — refId로 doc를
     // 다시 스캔해 최신 pos를 찾는다(node.attrs.src의 blobUrl이 아직 이 refId에 매핑돼 있는 동안).
-    const rescanPos = (refId: string): number | undefined => {
-      let found: number | undefined;
+    // 같은 refId를 쓰는 이미지 노드가 여러 개일 수 있다(에디터 내 이미지 복붙·중복 inline:refId).
+    // 전부 찾아 함께 옮겨야 한 노드만 새 URL로 바뀌고 나머지가 revoke된 old URL로 깨지는 걸 막는다.
+    const rescanAllPos = (refId: string): number[] => {
+      const out: number[] = [];
       editor.state.doc.descendants((n, pos) => {
-        if (found !== undefined) return false;
         if (n.type.name === "image") {
           const ref = urlToRefMap.current.get((n.attrs.src ?? "") as string);
-          if (ref === refId) found = pos;
+          if (ref === refId) out.push(pos);
         }
-        return found === undefined;
+        return true;
       });
-      return found;
+      return out;
     };
 
     // 어노테이션·초기화 후 새 blob을 표시로 반영: URL 재매핑을 여기(TiptapEditor)서 단일 관리한다.
@@ -659,17 +660,25 @@ const TiptapEditor = forwardRef<TiptapEditorHandle, TiptapEditorProps>(function 
       getPos: () => number | undefined,
     ) => {
       // 재매핑 전에 pos를 먼저 찾는다 — 아직 node.attrs.src(oldUrl)가 refId에 매핑돼 있다.
-      const pos = rescanPos(refId) ?? getPos();
+      const positions = rescanAllPos(refId);
+      if (positions.length === 0) {
+        // 스캔 미스 시에만 getPos 폴백 — 단 그 자리에 정말 이미지가 있는지 검증(stale 방어).
+        const fallback = getPos();
+        if (fallback != null && editor.state.doc.nodeAt(fallback)?.type.name === "image") {
+          positions.push(fallback);
+        }
+      }
       const oldUrl = refToUrlMap.current.get(refId);
       const newUrl = URL.createObjectURL(blob);
       blobUrls.current.push(newUrl);
       urlToRefMap.current.set(newUrl, refId);
       refToUrlMap.current.set(refId, newUrl);
-      if (pos != null) {
+      if (positions.length > 0) {
+        // src attr 변경은 노드 크기를 안 바꾸므로 pre-tx pos들이 한 tr 안에서 유효하다.
         editor
           .chain()
           .command(({ tr }) => {
-            tr.setNodeAttribute(pos, "src", newUrl);
+            for (const pos of positions) tr.setNodeAttribute(pos, "src", newUrl);
             return true;
           })
           .run();
@@ -699,9 +708,13 @@ const TiptapEditor = forwardRef<TiptapEditorHandle, TiptapEditorProps>(function 
 
     completeRef.current = ({ refId, getPos }, annotatedUrl) => {
       void (async () => {
-        const blob = await annotateInlineImage(refId, annotatedUrl);
-        swapInlineDisplay(refId, blob, getPos);
-        setAnnotatingInline(null);
+        try {
+          const blob = await annotateInlineImage(refId, annotatedUrl);
+          swapInlineDisplay(refId, blob, getPos);
+        } finally {
+          // 어노테이션 저장이 throw해도 오버레이는 반드시 닫는다(stuck 방지).
+          setAnnotatingInline(null);
+        }
       })();
     };
 

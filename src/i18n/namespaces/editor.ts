@@ -27,8 +27,8 @@ const ko = {
   "editor.view.form": "편집",
   "editor.view.code": "CSS",
 
-  "editor.image.annotate": "주석",
-  "editor.image.reset": "원본으로",
+  "editor.image.annotate": "주석 달기",
+  "editor.image.reset": "원본 복원",
   "editor.image.delete": "삭제",
 
   "draft.titlePlaceholder": "이슈 제목",
