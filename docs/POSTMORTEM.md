@@ -21,6 +21,20 @@
 
 ---
 
+## 2026-07-18 — `DB_VERSION`을 올렸더니 무관한 슬랙 spec이 `VersionError`로 죽었다 — e2e가 IndexedDB 버전을 하드코딩 seed
+
+- **증상**: 인라인 이미지 어노테이션(blob-db에 `inlineImageOrigins` store 추가)만 건드렸는데, `/push` e2e 게이트에서 **전혀 무관한** `slack-promote-media-guard.spec`이 `VersionError: The requested version (7) is less than the existing version (8)`로 빨강. 정작 내가 만든 `inline-image-annotation.spec`은 green이었다.
+- **근본 원인**: `DB_VERSION`을 7→8로 bump하면 앱 `openDb`는 `onupgradeneeded`로 새 store를 만들지만, **e2e가 IndexedDB를 직접 seed하는 곳**(`slack-promote-media-guard.spec:seedBeforeImage`)이 `indexedDB.open("bugshot-video", 7)`로 **버전을 하드코딩**한다. 앱이 먼저 DB를 v8로 올려놓은 뒤 테스트가 v7로 열면 IndexedDB 규약상 요청 버전 < 기존 버전이라 **즉시 throw**. 스키마 단일 출처(`blob-db.ts`)와 e2e의 복제 seed가 조용히 갈라졌다 — 증상이 터진 파일과 원인이 있는 파일이 무관하다.
+- **재발 방지**: (1) **`DB_VERSION`을 bump할 땐 `grep -rn 'indexedDB.open("bugshot-video"' e2e/`로 하드코딩 seed를 전수**하고, **버전 숫자 + store 목록 둘 다** 앱 스키마에 맞춘다(store만 추가하고 버전을 안 올리면 반대로 기존 커넥션에서 upgrade가 안 돈다). GOTCHAS의 seed 함정 항목에 "DB_VERSION bump 시 seed의 버전·store도 함께"를 명시했다. (2) **무관한 spec에서 터지므로 변경 spec만 돌리면 절대 안 잡힌다** — 전체 스위트(`/push` e2e 게이트 = `pnpm test:e2e` 전량)가 유일한 그물이다. 이번에도 `inline-image-annotation`만 돌렸을 땐 green, 전체를 돌려서야 잡혔다.
+- **관련**: `src/store/blob-db.ts`(`DB_VERSION=8`·`STORE_INLINE_ORIGINS`·`onupgradeneeded`), `e2e/slack-promote-media-guard.spec.ts:seedBeforeImage`(하드코딩 v7→v8 + `inlineImageOrigins` 추가), `e2e/GOTCHAS.md`(IndexedDB seed 함정).
+
+## 2026-07-18 — `hidden` 속성으로 숨긴 버튼이 여전히 `:first-child`를 차지해 ButtonGroup 좌측 모서리가 각졌다
+
+- **증상**: 본문 인라인 이미지에 hover하면 뜨는 액션 그룹(`[초기화][주석][삭제]`)에서, 어노테이션 기록이 없어 **초기화 버튼이 숨겨진** 상태일 때 보이는 첫 버튼(연필)의 **좌측 모서리가 둥글지 않고 각지게** 나왔다(좌상단·좌하단 라운딩 소실 + 좌측 테두리 처리도 어긋남). 어노테이션을 한 번 넣어 초기화가 보이면 정상.
+- **근본 원인**: `blockActions.setHidden`이 버튼을 **`hidden` 속성(=`display:none`)** 으로 숨기는데, `display:none` 요소도 **DOM 자식으로 남아 CSS `:first-child`를 계속 차지**한다. `block-actions.css`의 ButtonGroup 라운딩은 `.block-actions-button:first-child`(좌측 라운딩)·`:not(:first-child){border-left:0}` 같은 **구조 선택자**에 걸려 있어서, 숨은 초기화 버튼이 여전히 `:first-child`고 실제 보이는 첫 버튼(연필)은 `:nth-child(2)` → 좌측 라운딩도 좌측 테두리도 못 받는다. 증상은 CSS(모서리)인데 원인은 **"visibility를 `hidden` 속성으로 표현"과 "구조 선택자"의 상호작용** — 서로 다른 레이어다. (feature-review에서 CDO가 "hover 중 라운딩 점프" 위험을 지적했으나 실제 버그는 그 async 타이밍이 아니라 hidden이 상시 `:first-child`를 점유하는 정적 문제였다 — 예측한 위험과 실제 버그가 갈렸다.)
+- **재발 방지**: **`hidden`/`display:none`으로 요소를 숨기면서 `:first-child`/`:last-child`/`:nth-child`에 의존하는 스타일이 있으면 반드시 깨진다.** 숨김을 "보이는 것 중 첫/막"으로 해석하려면 `[hidden] + sibling` 인접 선택자로 다음 요소를 승격하거나(이번 픽스), 아예 DOM에서 detach한다. `grep -rn ":first-child\|:last-child\|:only-child" src/**/*.css`로 구조 선택자 쓰는 그룹을 찾아, 그 소비처가 `setHidden`·조건부 `hidden`을 쓰는지 대조. **e2e 판정 주의**: Playwright `toBeVisible()`은 `opacity:0`은 visible로, `display:none`(hidden 속성)만 not-visible로 친다 — 모서리 라운딩은 `toHaveCSS("border-top-left-radius", ...)`로 실측해야 하고(버그 시 `0px`), `inline-image-annotation.spec`이 이 값으로 가드한다.
+- **관련**: `src/sidepanel/components/block-actions.css`(`.block-actions-button:first-child, .block-actions-button[hidden] + .block-actions-button` 승격 — specificity (0,3,0)로 `:not(:first-child)` (0,2,0)를 이겨 border-left 복원), `src/sidepanel/lib/blockActions.ts:setHidden`(`btn.hidden` 토글), `e2e/inline-image-annotation.spec.ts`(border-radius 실측 가드).
+
 ## 2026-07-18 — 접힘=readonly로 들어가는 경로가 둘인데 caret 보정은 한쪽(pill 클릭)에만 있었다
 
 - **증상**: 에디터에서 코드블럭에 타이핑으로 16번째 줄을 치는 순간 블럭이 접히는데, caret이 잘린(접힌) 영역 안에 갇힌 채 접힌다 — 브라우저가 caret을 보이게 pre를 스크롤해 둔 상태라 **로그 중간이 보인 채 접히고**, 안 보이는 줄이 keymap 키(Enter·Backspace)로 계속 편집된다(문자 입력은 `contenteditable="false"`로 죽지만 keymap은 `state.selection`에 트랜잭션을 넣어 **편집은 되는데 안 보이는** 비대칭).
