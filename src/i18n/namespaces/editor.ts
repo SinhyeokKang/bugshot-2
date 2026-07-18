@@ -27,6 +27,10 @@ const ko = {
   "editor.view.form": "편집",
   "editor.view.code": "CSS",
 
+  "editor.image.annotate": "주석 달기",
+  "editor.image.reset": "원본 복원",
+  "editor.image.delete": "삭제",
+
   "draft.titlePlaceholder": "이슈 제목",
   "draft.descriptionPlaceholder": "어떤 문제가 어떻게 나타나는지 적어주세요",
   "draft.stepsToReproducePlaceholder": "한 줄에 한 단계씩 입력하세요",
@@ -186,6 +190,10 @@ const en = {
   "editor.section.table": "Table",
   "editor.view.form": "Edit",
   "editor.view.code": "CSS",
+
+  "editor.image.annotate": "Annotate",
+  "editor.image.reset": "Restore",
+  "editor.image.delete": "Delete",
 
   "draft.titlePlaceholder": "Issue title",
   "draft.descriptionPlaceholder": "Describe how the bug shows up",

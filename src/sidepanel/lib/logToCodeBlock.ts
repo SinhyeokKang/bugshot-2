@@ -17,7 +17,7 @@ function truncate(s: string): string {
 // tiptap-markdown은 코드블럭을 항상 3백틱으로 감싸고 본문을 escape하지 않는다 — 본문에 들여쓰기
 // 0~3칸의 백틱 런이 있으면 fence가 거기서 닫혀 나머지가 이슈 본문으로 새고 8개 빌더 전부로 전파된다.
 // 4칸 들여쓰면 닫힘 fence 조건(들여쓰기 ≤3)을 벗어나 본문으로 남는다.
-function neutralizeFences(s: string): string {
+export function neutralizeFences(s: string): string {
   return s.replace(/^ {0,3}(`{3,})/gm, "    $1");
 }
 

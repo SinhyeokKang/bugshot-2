@@ -919,6 +919,19 @@ describe("프롬프트 로그 후보 태그 — rich/compact", () => {
     expect(noLogs).not.toContain("logRefs");
   });
 
+  // 원문은 앱이 코드블럭으로 삽입한다 — compact/rich 둘 다 산문에 중복하지 말라고 지시해야
+  // 재생성 시 AI 산 fence가 보존물로 승격돼 안 지워지는 함정을 막는다.
+  it("compact·rich 둘 다 '앱이 원문 삽입, 산문에 중복 금지' 지시 포함", () => {
+    const rich = buildAiDraftSessionPrompt({ ...SESSION_BASE, ...LOGREF_CTX });
+    const compact = buildAiDraftSessionPrompt({
+      ...SESSION_BASE,
+      ...LOGREF_CTX,
+      caps: NANO_CAPABILITIES,
+    });
+    expect(rich).toContain("inserts the full log");
+    expect(compact).toContain("inserts the full log");
+  });
+
   it("warn-only 캡처: rich 콘솔 헤더는 유지되고 후보·logRefs 지시만 없음", () => {
     const prompt = buildAiDraftSessionPrompt({
       ...SESSION_BASE,

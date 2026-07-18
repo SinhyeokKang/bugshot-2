@@ -71,10 +71,11 @@ async function seedBeforeImage(
 ) {
   await panel.evaluate(async (issueId) => {
     await new Promise<void>((resolve, reject) => {
-      const req = indexedDB.open("bugshot-video", 7);
+      // 앱 openDb와 동일 스키마·버전이라야 VersionError가 안 난다(현재 DB_VERSION=8, store 8개).
+      const req = indexedDB.open("bugshot-video", 8);
       req.onupgradeneeded = () => {
         const db = req.result;
-        for (const s of ["blobs", "images", "networkLogs", "consoleLogs", "actionLogs", "inlineImages", "attachments"]) {
+        for (const s of ["blobs", "images", "networkLogs", "consoleLogs", "actionLogs", "inlineImages", "inlineImageOrigins", "attachments"]) {
           if (!db.objectStoreNames.contains(s)) db.createObjectStore(s);
         }
       };

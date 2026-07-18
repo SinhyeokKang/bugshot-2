@@ -1,4 +1,13 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from "react";
+import {
+  forwardRef,
+  lazy,
+  Suspense,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+  useState,
+} from "react";
+import { createPortal } from "react-dom";
 import {
   useEditor,
   EditorContent,
@@ -28,7 +37,20 @@ import {
   type CodeCollapseShell,
 } from "@/sidepanel/lib/codeCollapseShell";
 import { useSettingsUiStore } from "@/store/settings-ui-store";
-import { saveInlineImage, getInlineImage } from "@/store/blob-db";
+import {
+  saveInlineImage,
+  getInlineImage,
+  blobToDataUrl,
+  hasInlineOrigin,
+} from "@/store/blob-db";
+import {
+  annotateInlineImage,
+  resetInlineImage,
+} from "@/sidepanel/lib/inlineImageAnnotation";
+import {
+  createBlockActions,
+  type BlockActions,
+} from "@/sidepanel/lib/blockActions";
 import { shouldCompact, compactImage } from "@/sidepanel/lib/compactImage";
 import {
   extractInlineRefs,
@@ -37,6 +59,8 @@ import {
 import { shouldLiftListItem } from "@/sidepanel/lib/listKeymap";
 import { shouldInsertHrAfterBreak } from "@/sidepanel/lib/hrInputRule";
 import "./tiptap-editor.css";
+
+const AnnotationOverlay = lazy(() => import("./AnnotationOverlay"));
 
 // 빈 list item 시작에서 Backspace → 리스트 종료 (기본은 이전 항목과 병합)
 const ListExitOnBackspace = Extension.create({
@@ -284,6 +308,161 @@ const CodeBlockCollapse = Extension.create({
   },
 });
 
+// --- 본문 삽입 이미지 어노테이션 NodeView ---
+// stock Image는 그대로 두고, 코드블럭과 동일하게 별도 Extension이 props.nodeViews.image에
+// 팩토리를 등록한다. 스키마·직렬화·setImage 커맨드는 기본 Image 상속(추가 attr 없음).
+
+interface ImageAnnotationOptions {
+  /** blobUrl(node.attrs.src) → refId. urlToRefMap 조회. 미해소면 undefined. */
+  resolveRefId: (src: string) => string | undefined;
+  onAnnotate: (ctx: { refId: string; getPos: () => number | undefined }) => void;
+  onReset: (ctx: { refId: string; getPos: () => number | undefined }) => void;
+  labels: () => { annotate: string; reset: string; delete: string };
+}
+
+const imageAnnotationKey = new PluginKey("imageAnnotation");
+
+class ImageAnnotationNodeView {
+  dom: HTMLElement;
+  private img: HTMLImageElement;
+  private actions: BlockActions;
+  private node: ProseMirrorNode;
+  private refId: string | undefined;
+  private unsubLocale: () => void;
+
+  constructor(
+    node: ProseMirrorNode,
+    private view: EditorView,
+    private getPos: () => number | undefined,
+    private options: ImageAnnotationOptions,
+  ) {
+    this.node = node;
+    const wrapper = document.createElement("div");
+    wrapper.className = "inline-image";
+
+    this.img = document.createElement("img");
+    this.img.setAttribute("contenteditable", "false");
+    this.img.setAttribute("src", node.attrs.src ?? "");
+    if (node.attrs.alt) this.img.alt = node.attrs.alt as string;
+    if (node.attrs.title) this.img.title = node.attrs.title as string;
+
+    this.refId = options.resolveRefId(node.attrs.src ?? "");
+
+    const labels = options.labels();
+    this.actions = createBlockActions([
+      {
+        icon: "rotateCcw",
+        label: labels.reset,
+        testId: "inline-image-reset",
+        onClick: () => {
+          if (this.refId) this.options.onReset({ refId: this.refId, getPos: this.getPos });
+        },
+      },
+      {
+        icon: "pencil",
+        label: labels.annotate,
+        testId: "inline-image-annotate",
+        onClick: () => {
+          if (this.refId) this.options.onAnnotate({ refId: this.refId, getPos: this.getPos });
+        },
+      },
+      {
+        icon: "trash",
+        label: labels.delete,
+        testId: "inline-image-delete",
+        onClick: () => this.deleteNode(),
+      },
+    ]);
+    // 초기화 버튼은 어노테이션 기록이 있을 때만 — 첫 렌더는 숨김, 마운트 조회 후 반영.
+    this.actions.setHidden("inline-image-reset", true);
+    void this.refreshReset();
+
+    wrapper.append(this.img, this.actions.el);
+    this.dom = wrapper;
+
+    this.unsubLocale = useSettingsUiStore.subscribe((s, prev) => {
+      if (s.locale === prev.locale) return;
+      setLocale(s.locale);
+      const l = this.options.labels();
+      this.actions.setLabel("inline-image-reset", l.reset);
+      this.actions.setLabel("inline-image-annotate", l.annotate);
+      this.actions.setLabel("inline-image-delete", l.delete);
+    });
+  }
+
+  private async refreshReset() {
+    const ref = this.refId;
+    if (!ref) {
+      this.actions.setHidden("inline-image-reset", true);
+      return;
+    }
+    const has = await hasInlineOrigin(ref);
+    // 비동기 조회 사이 refId가 바뀌었으면 버린다(레이스 방어).
+    if (this.refId !== ref) return;
+    this.actions.setHidden("inline-image-reset", !has);
+  }
+
+  private deleteNode() {
+    const pos = this.getPos();
+    if (pos == null) return;
+    this.view.dispatch(this.view.state.tr.delete(pos, pos + this.node.nodeSize));
+  }
+
+  update(node: ProseMirrorNode) {
+    if (node.type.name !== "image") return false;
+    this.node = node;
+    const newSrc = (node.attrs.src ?? "") as string;
+    if (this.img.getAttribute("src") !== newSrc) {
+      this.img.setAttribute("src", newSrc);
+      this.refId = this.options.resolveRefId(newSrc);
+      // src 교체(어노테이션·초기화)는 origin 상태를 뒤집으므로 항상 재조회.
+      void this.refreshReset();
+    }
+    return true;
+  }
+
+  // 버튼(actions)에서 난 클릭·이벤트는 PM이 selection으로 가로채면 안 된다. img는 leaf라
+  // contentDOM이 없으므로 그 외 mutation은 전부 무시한다.
+  stopEvent(e: Event) {
+    return this.actions.el.contains(e.target as Node);
+  }
+
+  ignoreMutation() {
+    return true;
+  }
+
+  destroy() {
+    this.unsubLocale();
+    this.actions.destroy();
+  }
+}
+
+const ImageAnnotation = Extension.create<ImageAnnotationOptions>({
+  name: "imageAnnotation",
+  addOptions() {
+    return {
+      resolveRefId: () => undefined,
+      onAnnotate: () => {},
+      onReset: () => {},
+      labels: () => ({ annotate: "", reset: "", delete: "" }),
+    };
+  },
+  addProseMirrorPlugins() {
+    const options = this.options;
+    return [
+      new Plugin({
+        key: imageAnnotationKey,
+        props: {
+          nodeViews: {
+            image: (node, view, getPos) =>
+              new ImageAnnotationNodeView(node, view, getPos, options),
+          },
+        },
+      }),
+    ];
+  },
+});
+
 const imagePluginKey = new PluginKey("imageDropPaste");
 
 function createImageDropPlugin(
@@ -362,6 +541,15 @@ const TiptapEditor = forwardRef<TiptapEditorHandle, TiptapEditorProps>(function 
   const urlToRefMap = useRef(new Map<string, string>());
   const refToUrlMap = useRef(new Map<string, string>());
 
+  // 인라인 이미지 어노테이션: NodeView(1회 생성)가 최신 핸들러를 부르도록 ref로 우회.
+  type InlineCtx = { refId: string; getPos: () => number | undefined };
+  const annotateRef = useRef<(ctx: InlineCtx) => void>(() => {});
+  const resetRef = useRef<(ctx: InlineCtx) => void>(() => {});
+  const completeRef = useRef<(ctx: InlineCtx, annotatedUrl: string) => void>(() => {});
+  const [annotatingInline, setAnnotatingInline] = useState<
+    { refId: string; getPos: () => number | undefined; url: string } | null
+  >(null);
+
   const editor = useEditor({
     extensions: [
       StarterKit.configure({
@@ -381,6 +569,16 @@ const TiptapEditor = forwardRef<TiptapEditorHandle, TiptapEditorProps>(function 
         autolink: true,
       }),
       Image,
+      ImageAnnotation.configure({
+        resolveRefId: (src) => urlToRefMap.current.get(src),
+        onAnnotate: (ctx) => annotateRef.current(ctx),
+        onReset: (ctx) => resetRef.current(ctx),
+        labels: () => ({
+          annotate: t("editor.image.annotate"),
+          reset: t("editor.image.reset"),
+          delete: t("editor.image.delete"),
+        }),
+      }),
       Placeholder.configure({
         placeholder: placeholderText,
       }),
@@ -436,6 +634,89 @@ const TiptapEditor = forwardRef<TiptapEditorHandle, TiptapEditorProps>(function 
     };
 
     handleImageFileRef.current = handleImageFile;
+
+    // 어노테이션 완료 콜백에서 getPos 클로저는 setContent로 무효화될 수 있다 — refId로 doc를
+    // 다시 스캔해 최신 pos를 찾는다(node.attrs.src의 blobUrl이 아직 이 refId에 매핑돼 있는 동안).
+    // 같은 refId를 쓰는 이미지 노드가 여러 개일 수 있다(에디터 내 이미지 복붙·중복 inline:refId).
+    // 전부 찾아 함께 옮겨야 한 노드만 새 URL로 바뀌고 나머지가 revoke된 old URL로 깨지는 걸 막는다.
+    const rescanAllPos = (refId: string): number[] => {
+      const out: number[] = [];
+      editor.state.doc.descendants((n, pos) => {
+        if (n.type.name === "image") {
+          const ref = urlToRefMap.current.get((n.attrs.src ?? "") as string);
+          if (ref === refId) out.push(pos);
+        }
+        return true;
+      });
+      return out;
+    };
+
+    // 어노테이션·초기화 후 새 blob을 표시로 반영: URL 재매핑을 여기(TiptapEditor)서 단일 관리한다.
+    // NodeView가 직접 createObjectURL 하면 urlToRefMap/blobUrls 갱신을 빠뜨려 raw blob:이
+    // 마크다운에 새거나 revoke가 누락된다.
+    const swapInlineDisplay = (
+      refId: string,
+      blob: Blob,
+      getPos: () => number | undefined,
+    ) => {
+      // 재매핑 전에 pos를 먼저 찾는다 — 아직 node.attrs.src(oldUrl)가 refId에 매핑돼 있다.
+      const positions = rescanAllPos(refId);
+      if (positions.length === 0) {
+        // 스캔 미스 시에만 getPos 폴백 — 단 그 자리에 정말 이미지가 있는지 검증(stale 방어).
+        const fallback = getPos();
+        if (fallback != null && editor.state.doc.nodeAt(fallback)?.type.name === "image") {
+          positions.push(fallback);
+        }
+      }
+      const oldUrl = refToUrlMap.current.get(refId);
+      const newUrl = URL.createObjectURL(blob);
+      blobUrls.current.push(newUrl);
+      urlToRefMap.current.set(newUrl, refId);
+      refToUrlMap.current.set(refId, newUrl);
+      if (positions.length > 0) {
+        // src attr 변경은 노드 크기를 안 바꾸므로 pre-tx pos들이 한 tr 안에서 유효하다.
+        editor
+          .chain()
+          .command(({ tr }) => {
+            for (const pos of positions) tr.setNodeAttribute(pos, "src", newUrl);
+            return true;
+          })
+          .run();
+      }
+      if (oldUrl && oldUrl !== newUrl) {
+        urlToRefMap.current.delete(oldUrl);
+        // 다음 tick에 revoke — setNodeAttribute 반영 전 revoke하면 이미지가 깨진다.
+        setTimeout(() => URL.revokeObjectURL(oldUrl), 0);
+      }
+    };
+
+    annotateRef.current = ({ refId, getPos }) => {
+      void (async () => {
+        const blob = await getInlineImage(refId);
+        if (!blob) return;
+        const url = await blobToDataUrl(blob);
+        setAnnotatingInline({ refId, getPos, url });
+      })();
+    };
+
+    resetRef.current = ({ refId, getPos }) => {
+      void (async () => {
+        const blob = await resetInlineImage(refId);
+        if (blob) swapInlineDisplay(refId, blob, getPos);
+      })();
+    };
+
+    completeRef.current = ({ refId, getPos }, annotatedUrl) => {
+      void (async () => {
+        try {
+          const blob = await annotateInlineImage(refId, annotatedUrl);
+          swapInlineDisplay(refId, blob, getPos);
+        } finally {
+          // 어노테이션 저장이 throw해도 오버레이는 반드시 닫는다(stuck 방지).
+          setAnnotatingInline(null);
+        }
+      })();
+    };
 
     const plugin = createImageDropPlugin(handleImageFile, setIsDragOver);
     editor.registerPlugin(plugin);
@@ -554,6 +835,17 @@ const TiptapEditor = forwardRef<TiptapEditorHandle, TiptapEditorProps>(function 
       {isDragOver && (
         <div className="absolute inset-0 rounded-md bg-sky-200/30 pointer-events-none dark:bg-sky-400/20" />
       )}
+      {annotatingInline &&
+        createPortal(
+          <Suspense fallback={null}>
+            <AnnotationOverlay
+              imageUrl={annotatingInline.url}
+              onComplete={(url) => completeRef.current(annotatingInline, url)}
+              onCancel={() => setAnnotatingInline(null)}
+            />
+          </Suspense>,
+          document.body,
+        )}
     </div>
   );
 });

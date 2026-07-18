@@ -196,11 +196,9 @@ export function AiDraftDialog({
           parsed.sections,
           fitted.includedSections,
         );
-        // truthy 게이트가 막는 건 AI의 실패 신호 2종뿐 — description 키 누락(원문 보존
-        // 위에 블록 금지)·빈 문자열(산문 없는 블록 기형). 예산 절삭으로 description 원문이
-        // 프롬프트에 못 실린 경우는 다르다: AI 산문이 있으면 merge가 원문을 살려도 블록
-        // 삽입은 의도된 동작이다(후보는 로그에서 나와 원문과 무관 — design.md 위험 7).
-        // 로그 스냅샷은 await 이전 지역 변수(networkLog/consoleLog) — 느린 BYOK 왕복 뒤
+        // 게이트는 AI 실패 신호 2종만 막는다 — description 키 누락·빈 문자열. 예산 절삭으로
+        // 원문이 프롬프트에 못 실려도 AI 산문이 있으면 블록 삽입은 의도된 동작이다(후보는
+        // 로그에서 나와 원문과 무관). 로그 스냅샷은 await 이전 지역 변수 — 느린 BYOK 왕복 뒤
         // store를 다시 읽으면 네비게이션 logClear에 걸려 블록이 조용히 사라진다.
         if (refs.length && parsed.sections.description?.trim()) {
           sections.description = appendLogBlocks(

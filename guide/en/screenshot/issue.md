@@ -39,6 +39,12 @@ Long logs are nothing to worry about. Any code block over 15 lines lands **colla
 
 > A log in the body is visible to everyone who can see the issue, and console logs go in verbatim with no masking. If the screen prints anything sensitive, give it a look in the detail pane before you add it.
 
+### Annotating an image in the body
+
+Prose sections like Description can hold images too — paste a screenshot, drag a file in, or use the **Add image** button on the section header. **Hover** an image that's in the body and a small toolbar appears at its top-right. **Annotate** opens the same editor as screenshot annotation, so you can point an arrow at the problem or cover something sensitive and have it applied right in place. Once you've annotated at least once, a **Restore** button joins it — one click brings back the pre-edit original. Drop an image you don't need with **Delete**.
+
+> Editing a body image used to mean deleting it, fixing it elsewhere, and dropping it back in — now you touch it up right where it sits. Both the annotated version and the pre-annotation original live only in your browser, and what goes out with the issue is always the image you see now (annotated, if you annotated it).
+
 ## ✨ AI Draft
 
 ![AI Draft banner and input box](../assets/screenshot-issue-4.jpg)

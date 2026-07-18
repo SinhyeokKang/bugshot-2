@@ -8,7 +8,7 @@
 .tiptap-editor .ProseMirror {
   outline: none;
   flex: 1;
-  padding: 0.5rem 0.75rem;
+  padding: 0.75rem;
   cursor: text;
   caret-width: 3px;
   caret-color: auto;
@@ -124,7 +124,33 @@
   font-size: inherit;
 }
 
-.tiptap-editor .ProseMirror img.ProseMirror-selectednode {
+/* 인라인 이미지 어노테이션 NodeView 래퍼. img를 감싸 우상단 액션 그룹을 얹는다(코드블럭과 동형).
+   position:relative라 .block-actions(absolute top/right)가 이미지 경계에 앵커된다. */
+.tiptap-editor .ProseMirror .inline-image {
+  position: relative;
+  /* 콘텐츠(이미지)에 맞춰 줄되 에디터 폭을 넘지 않게 캡 — 안 그러면 img max-width:100%의
+     기준이 이 래퍼(fit-content)가 돼 큰 이미지가 에디터를 가로로 넘친다. */
+  width: fit-content;
+  max-width: 100%;
+}
+
+/* 소형 이미지(파비콘·아이콘 캡처 ≈60px)에서 버튼 그룹(~96px)이 가로로 삐져나오지 않게 최소 폭을
+   버튼 그룹 이상으로 강제한다(작은 이미지는 그만큼 확대된다 — 의도된 트레이드오프). 세로축은
+   강제하지 않는다 — min-height는 얇고 넓은 이미지의 종횡비를 왜곡한다. 이미지 높이가 버튼 그룹
+   (~40px)보다 낮으면 hover 시 그룹이 이미지 아래로 잠깐 걸칠 수 있으나(자체 배경 있어 가독),
+   흔한 케이스인 스크린샷은 충분히 높아 실사용 영향은 작다. */
+.tiptap-editor .ProseMirror .inline-image img {
+  min-width: 7rem;
+}
+
+/* 액션 그룹은 기본 숨김(opacity:0) → 이미지 hover/포커스 시 노출. 코드블럭 트리거와 동일 결. */
+.tiptap-editor .ProseMirror .inline-image:hover .block-actions,
+.tiptap-editor .ProseMirror .inline-image .block-actions:focus-within {
+  opacity: 1;
+}
+
+/* NodeSelection 아웃라인은 이제 img가 아니라 NodeView 래퍼(.inline-image)에 붙는다. */
+.tiptap-editor .ProseMirror .inline-image.ProseMirror-selectednode {
   outline: 3px solid hsl(199 89% 86%);
   outline-offset: 2px;
   border-radius: 0.375rem;

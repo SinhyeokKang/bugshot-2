@@ -127,7 +127,7 @@ export function buildCompactDraftPrompt(ctx: AiDraftSessionContext): string {
   }
   if (hasLogRefs) {
     lines.push(
-      "- logRefs: tags of the log entries above (n1, c1) that directly show this bug; an empty array is the normal result",
+      "- logRefs: tags of the log entries above (n1, c1) that directly show this bug; an empty array is the normal result. The app inserts the full log — keep raw bodies and stack traces out of the other fields",
     );
   }
   lines.push("");

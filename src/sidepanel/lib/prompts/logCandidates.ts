@@ -31,21 +31,16 @@ export function selectLogCandidates(ctx: AiDraftSessionContext): LogCandidates {
   }
   const caps = PROMPT_CAPS[ctx.caps.promptStyle];
 
-  const seen = new Set<string>();
-  const network: NetworkLogCandidate[] = [];
-  for (const e of ctx.networkLogSummary?.errors ?? []) {
-    const key = `${e.method} ${e.path} ${e.status}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    network.push({ ...e, ref: `n${network.length + 1}` });
-    if (network.length >= caps.networkErrors) break;
-  }
+  // dedup은 buildNetworkLogSummary(캡 앞)가 이미 했다 — 여기선 console과 대칭으로 캡·ref만.
+  const network = (ctx.networkLogSummary?.errors ?? [])
+    .slice(0, caps.networkErrors)
+    .map((e, i) => ({ ...e, ref: `n${i + 1}` }));
 
-  const console = (ctx.consoleLogSummary?.topErrors ?? [])
+  const consoleCands = (ctx.consoleLogSummary?.topErrors ?? [])
     .slice(0, caps.consoleErrors)
     .map((e, i) => ({ ...e, ref: `c${i + 1}` }));
 
-  return { network, console };
+  return { network, console: consoleCands };
 }
 
 export function candidateRefs(c: LogCandidates): string[] {
@@ -69,9 +64,11 @@ export function findCandidate(
   c: LogCandidates,
   ref: string,
 ): { id: string; kind: LogCandidateKind } | undefined {
-  const net = c.network.find((x) => x.ref === ref);
+  // BYOK는 enum이 강제되지 않아 "N1"처럼 대문자로 올 수 있다 — ref는 항상 소문자로 부여된다.
+  const norm = ref.toLowerCase();
+  const net = c.network.find((x) => x.ref === norm);
   if (net) return { id: net.id, kind: "network" };
-  const con = c.console.find((x) => x.ref === ref);
+  const con = c.console.find((x) => x.ref === norm);
   if (con) return { id: con.id, kind: "console" };
   return undefined;
 }
