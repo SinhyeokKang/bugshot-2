@@ -57,6 +57,12 @@ test.describe.serial("본문 인라인 이미지 어노테이션", () => {
       "opacity",
       "1",
     );
+    // 초기화 버튼이 hidden일 때, 보이는 첫 버튼(주석)이 좌측 모서리를 둥글게 가져야 한다.
+    // hidden 요소가 :first-child를 차지해 각지던 회귀 가드(0px면 버그).
+    await expect(panel.getByTestId("inline-image-annotate")).toHaveCSS(
+      "border-top-left-radius",
+      "10px",
+    );
   });
 
   test("주석 버튼 → 어노테이션 오버레이 진입 → 취소 시 이미지 유지", async () => {
