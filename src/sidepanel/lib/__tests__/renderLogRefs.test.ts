@@ -1,6 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import {
-  MAX_LOG_REFS,
   renderLogRefBlocks,
   codeBlockMarkdown,
   appendLogBlocks,
@@ -89,12 +88,6 @@ function makeSource(
 
 beforeEach(() => {
   vi.spyOn(console, "warn").mockImplementation(() => {});
-});
-
-describe("MAX_LOG_REFS", () => {
-  it("상한은 3 (임의값 — PRD 결정 2)", () => {
-    expect(MAX_LOG_REFS).toBe(3);
-  });
 });
 
 describe("renderLogRefBlocks", () => {

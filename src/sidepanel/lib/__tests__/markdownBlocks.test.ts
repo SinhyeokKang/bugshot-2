@@ -25,6 +25,13 @@ describe("extractCodeBlocks", () => {
     expect(blocks[0]).toBe(md);
   });
 
+  // CommonMark·markdownToMrkdwn(/^ {0,3}```/)·tiptap 렌더러는 들여쓰기 ≤3을 fence로
+  // 본다. AI 산문 유래 1~3칸 들여쓴 fence를 여기서 놓치면 렌더러 판정과 갈린다.
+  it("1~3칸 들여쓴 fence도 추출 (렌더러와 동일 ≤3 규칙)", () => {
+    const md = "산문\n\n  ```\n code\n  ```";
+    expect(extractCodeBlocks(md)).toEqual(["  ```\n code\n  ```"]);
+  });
+
   it("미닫힘 fence는 블록으로 추출하지 않음 (텍스트 취급)", () => {
     expect(extractCodeBlocks("산문\n\n```\n열려만 있음")).toEqual([]);
   });

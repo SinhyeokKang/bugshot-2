@@ -111,53 +111,8 @@ describe("selectLogCandidates — 캡·게이트", () => {
   });
 });
 
-describe("selectLogCandidates — network dedup", () => {
-  it("같은 method+path+status × 5 → 후보 1개 (첫 발생 id 고정)", () => {
-    const c = selectLogCandidates(
-      makeCtx({
-        networkLogSummary: {
-          captured: 5,
-          errors: Array.from({ length: 5 }, (_, i) =>
-            netErr(i, { method: "POST", path: "/api/pay", status: 500 }),
-          ),
-        },
-      }),
-    );
-    expect(c.network).toHaveLength(1);
-    expect(c.network[0].id).toBe(netErr(0).id);
-  });
-
-  it("status가 다르면 같은 엔드포인트라도 별개 후보", () => {
-    const c = selectLogCandidates(
-      makeCtx({
-        networkLogSummary: {
-          captured: 2,
-          errors: [
-            netErr(0, { path: "/api/pay", status: 500 }),
-            netErr(1, { path: "/api/pay", status: 404, statusText: "Not Found" }),
-          ],
-        },
-      }),
-    );
-    expect(c.network).toHaveLength(2);
-  });
-
-  it("dedup 후에도 ref 번호는 연속 (n1, n2 — 구멍 없음)", () => {
-    const c = selectLogCandidates(
-      makeCtx({
-        networkLogSummary: {
-          captured: 3,
-          errors: [
-            netErr(0, { path: "/api/pay" }),
-            netErr(1, { path: "/api/pay" }),
-            netErr(2, { path: "/api/user" }),
-          ],
-        },
-      }),
-    );
-    expect(c.network.map((x) => x.ref)).toEqual(["n1", "n2"]);
-  });
-});
+// network dedup은 buildNetworkLogSummary(캡 앞)로 이관 — 그쪽 테스트가 잠근다.
+// selectLogCandidates는 console과 대칭으로 캡·ref 부여만 한다.
 
 describe("candidateRefs / findCandidate", () => {
   it("candidateRefs는 인쇄될 ref 전체를 반환", () => {
@@ -175,5 +130,12 @@ describe("candidateRefs / findCandidate", () => {
     const c = selectLogCandidates(withLogs(1, 1));
     expect(findCandidate(c, "n9")).toBeUndefined();
     expect(findCandidate(c, "x1")).toBeUndefined();
+  });
+
+  // BYOK는 스키마 enum이 강제되지 않아 모델이 "N1"처럼 대문자로 답할 수 있다 — 조용히 드랍 대신 회수.
+  it("findCandidate: 대소문자 무시 (N1 → n1 후보)", () => {
+    const c = selectLogCandidates(withLogs(1, 1));
+    expect(findCandidate(c, "N1")).toEqual({ id: netErr(0).id, kind: "network" });
+    expect(findCandidate(c, "C1")).toEqual({ id: conErr(0).id, kind: "console" });
   });
 });

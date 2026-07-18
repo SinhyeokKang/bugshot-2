@@ -131,6 +131,40 @@ describe("buildNetworkLogSummary", () => {
     });
     expect(buildNetworkLogSummary(log).errors).toHaveLength(0);
   });
+
+  it("같은 method+path+status는 1개로 dedup (첫 발생 id 고정)", () => {
+    const requests = Array.from({ length: 5 }, (_, i) =>
+      makeRequest({ id: `d${i}`, url: "https://example.com/api/pay", method: "POST", status: 500, statusText: "Internal Server Error" }),
+    );
+    const summary = buildNetworkLogSummary(makeNetworkLog({ captured: 5, requests }));
+    expect(summary.errors).toHaveLength(1);
+    expect(summary.errors[0].id).toBe("d0");
+  });
+
+  it("status가 다르면 같은 엔드포인트라도 별개 에러", () => {
+    const log = makeNetworkLog({
+      captured: 2,
+      requests: [
+        makeRequest({ id: "1", url: "https://example.com/api/pay", status: 500 }),
+        makeRequest({ id: "2", url: "https://example.com/api/pay", status: 404, statusText: "Not Found" }),
+      ],
+    });
+    expect(buildNetworkLogSummary(log).errors).toHaveLength(2);
+  });
+
+  // 회귀: dedup이 slice(0,5) 이후면 동일요청 5회가 캡을 채워 6번째의 다른 에러가 사라진다.
+  // dedup을 캡 앞으로 올려야 distinct 에러가 후보·본문에 남는다.
+  it("동일요청 반복 뒤 다른 에러 → dedup이 캡보다 앞서 distinct가 살아남음", () => {
+    const requests = [
+      ...Array.from({ length: 5 }, (_, i) =>
+        makeRequest({ id: `dup${i}`, url: "https://example.com/api/pay", method: "POST", status: 500 }),
+      ),
+      makeRequest({ id: "distinct", url: "https://example.com/api/other", status: 503, statusText: "Unavailable" }),
+    ];
+    const summary = buildNetworkLogSummary(makeNetworkLog({ captured: 6, requests }));
+    expect(summary.errors).toHaveLength(2);
+    expect(summary.errors[1].path).toBe("/api/other");
+  });
 });
 
 describe("buildConsoleLogSummary", () => {

@@ -1,5 +1,6 @@
 import { extractInlineImageMarkdown } from "./resolveInlineImages";
 import { extractCodeBlocks, stripPreservedContent } from "./markdownBlocks";
+import { neutralizeFences } from "./logToCodeBlock";
 
 // LLM 텍스트 응답을 적용하되 기존 섹션의 inline 이미지와 코드블럭은 보존한다.
 // 보존물은 이미지(상단) → LLM 텍스트 → 코드블럭(하단) 순, 빈 줄 구분.
@@ -35,7 +36,10 @@ export function mergeAiSectionsPreservingBlocks(
 
     const images = extractInlineImageMarkdown(prev);
     const codeBlocks = extractCodeBlocks(prev);
-    const aiText = (aiSections[id] ?? "").trim();
+    // AI 산문의 fence는 무해화한다 — 미닫힘 fence가 뒤에 붙는 보존 블록의 여는 fence를
+    // 닫힘으로 삼켜 로그 원문(페이지 통제 가능)이 산문으로 새는 걸 막는다. 로그는 refs로만
+    // 들어오므로 산문 fence는 설계상 없어야 한다.
+    const aiText = neutralizeFences((aiSections[id] ?? "").trim());
 
     // AI가 키를 누락한 경우 → 기존 내용 보존.
     if (!aiText && !(id in aiSections)) {

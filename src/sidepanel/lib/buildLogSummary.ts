@@ -32,16 +32,19 @@ export interface ConsoleLogSummary {
 }
 
 export function buildNetworkLogSummary(log: NetworkLog): NetworkLogSummary {
-  const errors = log.requests
-    .filter((r) => r.phase === "error" || r.status >= 400)
-    .slice(0, MAX_ERRORS)
-    .map((r) => ({
-      id: r.id,
-      method: r.method,
-      path: extractPath(r.url),
-      status: r.status,
-      statusText: r.statusText,
-    }));
+  // dedup(method+path+status)은 캡보다 앞선다 — console과 대칭. 캡 뒤로 밀면 동일요청
+  // 반복이 캡을 채워 그 뒤의 distinct 에러가 후보·본문에서 사라진다.
+  const seen = new Set<string>();
+  const errors: NetworkLogSummaryError[] = [];
+  for (const r of log.requests) {
+    if (!(r.phase === "error" || r.status >= 400)) continue;
+    const path = extractPath(r.url);
+    const key = `${r.method} ${path} ${r.status}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    errors.push({ id: r.id, method: r.method, path, status: r.status, statusText: r.statusText });
+    if (errors.length >= MAX_ERRORS) break;
+  }
   return { captured: log.captured, errors };
 }
 

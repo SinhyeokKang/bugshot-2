@@ -1,9 +1,10 @@
 import { stripInlineImageRefs } from "./resolveInlineImages";
 
-// 들여쓰기 0의 fence만 취급한다 — neutralizeFences가 본문 내 백틱 런을 4칸 들여쓰므로
-// (logToCodeBlock.ts) 내부 fence는 여기 안 걸린다. 미닫힘 fence는 텍스트 취급.
-const FENCE_OPEN = /^`{3,}/;
-const FENCE_CLOSE = /^`{3,}\s*$/;
+// 들여쓰기 ≤3의 fence를 취급한다 — CommonMark·markdownToMrkdwn·tiptap 렌더러와 같은
+// 기준. neutralizeFences가 본문 내 백틱 런을 4칸 들여쓰므로(logToCodeBlock.ts) 내부
+// fence는 여전히 안 걸린다. 미닫힘 fence는 텍스트 취급.
+const FENCE_OPEN = /^ {0,3}`{3,}/;
+const FENCE_CLOSE = /^ {0,3}`{3,}\s*$/;
 
 export function extractCodeBlocks(markdown: string): string[] {
   const lines = markdown.split("\n");
