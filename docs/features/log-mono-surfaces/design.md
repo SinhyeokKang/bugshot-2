@@ -14,12 +14,12 @@
   - 색상 토큰(`JSON_TOKEN_CLASS`)·들여쓰기(`depth*12+4`)·`ChevronDown/Right` 아이콘 크기 등 그 외는 불변.
 
 ### 2. `src/sidepanel/components/ConsoleLogContent.tsx`
-- **현재 역할**: 콘솔 로그 행. 접힌 요약은 sans `text-[13px]`, 펼침 `<pre>`/스택은 이미 `font-mono`.
-- **변경**: `EntryAccordion` 접힌 행의 메시지 `<span>`(L243 `min-w-0 flex-1 break-all`)에 `font-mono text-xs` 추가. `LinkifiedText`는 그대로 감싸짐. 아이콘·타임스탬프 칩(이미 mono)·행 배경 불변.
+- **현재 역할**: 콘솔 로그 행. 접힌 요약 메시지는 크기 클래스 없이 부모 행 컨테이너(L233 `text-[13px]`)에서 sans 13px를 상속, 펼침 `<pre>`/스택은 이미 `font-mono`.
+- **변경**: `EntryAccordion` 접힌 행의 메시지 `<span>`(L243 `min-w-0 flex-1 break-all`)에 `font-mono text-xs` 추가 — 상속 13px sans를 12px mono로 오버라이드. `LinkifiedText`는 그대로 감싸짐. 아이콘·타임스탬프 칩(이미 mono)·행 배경 불변. 결과적으로 행은 **메시지만 12px mono, 형제 아이콘 등은 부모 13px sans 유지**(의도된 부분 전환 — 코드성 메시지만 mono).
 
 ### 3. `src/sidepanel/components/ActionLogContent.tsx`
-- **현재 역할**: 액션 로그 행. verb 문장 + selector/tag/value chip 조합, 전체 sans `text-[13px]`.
-- **변경**: `ActionRow`의 콘텐츠 `<span>`(L322 `min-w-0 flex-1 break-words leading-relaxed`)에 `font-mono text-xs` 추가. verb 문장·`InlineChip`·`ResolvedTargetChip`·`InlineLink`가 모두 mono를 상속(전체 mono = 콘솔과 통일). `leading-relaxed`는 다중 행 액션 문장 가독성을 위해 유지.
+- **현재 역할**: 액션 로그 행. verb 문장 + selector/tag/value chip 조합. 콘텐츠 `<span>`은 크기 클래스 없이 부모에서 sans 13px를 상속, `leading-relaxed`.
+- **변경**: `ActionRow`의 콘텐츠 `<span>`(L322 `min-w-0 flex-1 break-words leading-relaxed`)에 `font-mono text-xs` 추가 + `leading-relaxed` **제거**. verb 문장·`InlineChip`·`ResolvedTargetChip`·`InlineLink`가 모두 mono를 상속(전체 mono = 콘솔과 통일). `text-xs`가 16px line-height를 공급하므로 relaxed를 빼면 콘솔 인라인(text-xs, relaxed 없음)과 **행간까지 통일**되고 DESIGN 리스트·칩 불변식(16px)에 그대로 합류한다(세 번째 행간 발산 없음).
 - `InlineChip.tsx`·`ResolvedTargetChip`은 **수정 없음** — 부모 span의 mono를 상속.
 
 ### 4. `src/log-viewer/components/TimelineMarkers.tsx`
@@ -40,7 +40,7 @@
 
 데이터·상태 흐름 변화 없음. 순수 렌더 서체 변경.
 
-**렌더 재사용 주의**: `JsonTreeViewer`·`ConsoleLogContent`·`ActionLogContent`는 `log-viewer/App.tsx`가 그대로 import하고, `TimelineMarkers`는 로그뷰어 native + 사이드패널 `TrimTimeline` 공용이다. `NetworkLogContent`(FrameBody 포함)도 `log-viewer/App.tsx`가 import한다. 따라서 5개 변경 모두 **사이드패널과 내보낸 `logs.html` 양쪽에 동시 반영**된다. `logs.html`엔 Geist `@font-face`가 없어 시스템 mono로 폴백(기존 mono 표면과 동일한 의도된 발산).
+**렌더 재사용 주의**: `ConsoleLogContent`·`ActionLogContent`·`NetworkLogContent`(FrameBody 포함)는 `log-viewer/App.tsx`가 **직접 import**하고, `JsonTreeViewer`는 `NetworkLogContent`(BodyBlock·FrameBody) 경유 **전이 재사용**이다. `TimelineMarkers`는 로그뷰어 native + 사이드패널 `TrimTimeline` 공용이다. 따라서 5개 변경 모두 **사이드패널과 내보낸 `logs.html` 양쪽에 동시 반영**된다. `logs.html`엔 Geist `@font-face`가 없어 시스템 mono로 폴백(기존 mono 표면과 동일한 의도된 발산).
 
 ## 인터페이스 설계
 
@@ -50,7 +50,7 @@
 
 - **mono 표면 불변식(DESIGN §4)**: "모든 mono 표면은 12px". 신규 리스트·칩 표면은 `text-xs`(12px / line-height 16px)를 쓴다. `text-[12px]` 금지(행간 18px 누수). → JSON 트리·콘솔 인라인·액션 행을 `text-xs`로. 마커 툴팁은 이미 `text-xs`.
 - **리거처 방어**: `font-feature-settings`가 아니라 `.font-mono` 셀렉터의 `font-variant-ligatures: none`. 신규 표면은 `font-mono` 클래스만 붙이면 자동 적용(추가 규칙 불필요).
-- **preflight sans 오버라이드 패턴**: sans여야 하는 `<pre>`는 `font-sans` 명시(WS `FrameBody` 사례) — 이번 변경은 그 반대 방향이라 무관하나, WS non-JSON `FrameBody`는 건드리지 않는다.
+- **preflight sans 오버라이드 패턴 역전**: 원래 preflight의 `pre`→mono 리셋을 되돌려 sans로 두려던 `<pre>`는 `font-sans`를 명시했고, WS non-JSON `FrameBody`가 그 대표 사례였다. 이번 변경(Task 5)은 바로 그 결정을 **역전**한다(`font-sans`→`font-mono`). 되돌려도 `--` 리거처 붕괴가 없는 건 `.font-mono`의 `font-variant-ligatures: none`이 커버하기 때문. → 이 역전으로 DESIGN이 `FrameBody`를 "sans여야 하는 pre는 font-sans 명시"의 대표 사례로 인용한 문장이 사실오류가 되므로 Task 6에서 함께 정정한다.
 - **log-viewer 손복사본**: CSS는 손대지 않으므로 `styles.css` 동기화 불필요. 컴포넌트 재사용 경로만 타므로 자동 반영.
 
 ## 대안 검토
@@ -64,6 +64,6 @@
 
 - **크기 변경(13→12px) 회귀**: JSON 트리·콘솔·액션 행이 1px 작아진다. 행 높이·truncation·가로 스크롤이 미세 변동. 좁은 패널에서 오히려 밀도 개선이나, 스냅샷성 시각 검증 필요.
 - **log-viewer export 시각 검증**: 시스템 mono 폴백이라 개발 중(개발자 기기 Geist 설치)엔 안 보이는 발산. `pnpm build` 후 `logs.html`을 Geist 미설치 상태에 준해 확인.
-- **액션 로그 `leading-relaxed` + `text-xs` 조합**: 불변식 표의 "리스트·칩 16px"과 살짝 어긋나나(다중 행 문장이라 relaxed 유지), 기존에도 relaxed였으므로 신규 발산 아님. DESIGN 표에 각주로 남긴다.
+- **액션 로그 행간**: `leading-relaxed`를 제거해 `text-xs`(16px line-height)로 DESIGN 리스트·칩 불변식(16px)에 정확히 합류한다. mono 집합 안에서 세 번째 행간을 만들지 않으므로 별도 예외·각주 불필요(콘솔 인라인과 서체·행간 모두 통일). 다중 행 액션 문장은 relaxed 없이도 16px로 충분히 읽히는지 시각 확인.
 - **기존 컴포넌트 테스트**: `ConsoleLogContent.test.tsx`·`NetworkLogContent.test.tsx`는 서체 className을 assert하지 않음(확인함) → 회귀 없음. `markers.test.ts`는 `buildMarkers` 데이터만 검사(툴팁 DOM 무관) → 무영향.
 - **WS 프레임 본문 11→12px**: `FrameBody` non-JSON `<pre>`가 `text-[11px]` → `text-xs`로 커진다. 형제 raw body pre(12px)와 정합되지만 WS 프레임 밀도가 미세 변동 — 시각 확인.
