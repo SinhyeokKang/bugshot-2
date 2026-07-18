@@ -53,6 +53,8 @@ Click **AI Draft** on the right and a small input box opens. Describe the bug in
 
 In recording mode, AI works from a **summary of the console, network, and action logs**, weaving what actually happened during the recording into the draft. With the richest logs of any mode, this is where AI Draft is most accurate.
 
+If error logs were captured, AI does one more thing — it picks the ones directly tied to the bug and drops the **actual log, verbatim, as a code block right under the description**. The log text never comes from the AI itself, so there's no made-up stack trace to worry about. If nothing's relevant, nothing gets added — that's normal. Log blocks you inserted yourself survive a regenerate, and you can always delete a block you don't need.
+
 > AI slips up now and then, so give the generated draft a quick look. The banner only shows when an AI is connected — see [AI LLM Connection](../settings/ai.md) for how.
 
 ## 5. Log attachments — recording-mode policy

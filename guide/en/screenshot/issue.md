@@ -47,7 +47,9 @@ If filling in each line by hand feels tedious, this is where AI earns its keep. 
 
 Click **AI Draft** on the right and a small input box opens. Describe the bug in a line or two, hit **Generate**, and AI fills in **both the title and the body sections** at once. Only the sections you've turned on get filled, and your title prefix stays put. If you've already jotted down a title or body, AI takes that in as context too — and any images you placed in the body stay put, with only the text refreshed.
 
-In screenshot mode, AI reads the **annotated screenshot** you attached. A one-line description helps it pin down what's wrong on screen and reflect it in the draft.
+In screenshot mode, AI reads the **annotated screenshot** you attached along with a **summary of the console, network, and action logs** collected so far. A one-line description helps it pin down what's wrong on screen and reflect it in the draft.
+
+If error logs were captured, AI does one more thing — it picks the ones directly tied to the bug and drops the **actual log, verbatim, as a code block right under the description**. The log text never comes from the AI itself, so there's no made-up stack trace to worry about. If nothing's relevant, nothing gets added — that's normal. Log blocks you inserted yourself survive a regenerate, and you can always delete a block you don't need.
 
 > AI slips up now and then, so give the generated draft a quick look. The banner only shows when an AI is connected — see [AI LLM Connection](../settings/ai.md) for how.
 
