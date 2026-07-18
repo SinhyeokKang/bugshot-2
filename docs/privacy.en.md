@@ -114,7 +114,7 @@ All data is stored **only inside your browser**.
 
 - **chrome.storage.local**: Jira, GitHub, Linear, Notion, GitLab, Asana, ClickUp, Slack integration settings (default project/repository/team and **default assignee**), your last submission (project, assignee, CC — including the identifier and display name of the person you picked), issue history, app settings, LLM provider settings (LLM API keys stored obfuscated)
 - **chrome.storage.session**: Editing sessions (including the screenshot and element before/after images you're working on), and the address of the tab the side panel was opened on (so reopening the panel reconnects to that tab) (per tab, automatically deleted when the browser closes)
-- **IndexedDB**: Video recordings, screenshot images, network logs, console logs, user action logs, inline editor images, user-attached files (local device only)
+- **IndexedDB**: Video recordings, screenshot images, network logs, console logs, user action logs, inline editor images (including pre-annotation originals), user-attached files (local device only)
 - **Memory (temporary)**: 30-second replay frame buffer — not stored to disk; encoded to video and saved to IndexedDB only at the moment you perform a capture.
 
 We do not store user data on external servers.
