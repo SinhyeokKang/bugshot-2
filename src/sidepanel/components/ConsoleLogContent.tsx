@@ -264,7 +264,7 @@ function EntryAccordion({ entry, startedAt, syncBaseMs, onSeek, isActive, scroll
               </pre>
             </div>
           )}
-          <InlineLink href={entry.pageUrl} className="block text-xs">{entry.pageUrl}</InlineLink>
+          <InlineLink href={entry.pageUrl} className="block font-mono text-xs">{entry.pageUrl}</InlineLink>
         </div>
       )}
     </div>

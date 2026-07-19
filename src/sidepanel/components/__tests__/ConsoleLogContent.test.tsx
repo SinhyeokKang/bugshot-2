@@ -98,4 +98,12 @@ describe("ConsoleLogContent — mono 표면", () => {
     const msg = row("e2").querySelector(".flex-1") as HTMLElement;
     expect(msg.className).toContain("font-mono");
   });
+
+  it("펼친 상세의 페이지 URL 링크가 font-mono다(펼침 본문 서체 통일)", async () => {
+    render(<ConsoleLogContent entries={ENTRIES} />);
+    await clickRow("e1");
+
+    const link = row("e1").querySelector('a[href="https://example.com/"]') as HTMLElement;
+    expect(link.className).toContain("font-mono");
+  });
 });
