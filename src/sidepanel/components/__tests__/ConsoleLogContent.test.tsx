@@ -107,3 +107,24 @@ describe("ConsoleLogContent — mono 표면", () => {
     expect(link.className).toContain("font-mono");
   });
 });
+
+describe("ConsoleLogContent — 펼침 상세 정렬", () => {
+  // timestamp(LogSeekChip) 있을 때: 헤더 메시지 시작점 82px에 맞춰 pl-[82px].
+  it("timestamp 있으면 pl-[82px]로 헤딩 텍스트에 정렬", async () => {
+    render(<ConsoleLogContent entries={ENTRIES} startedAt={500} />);
+    await clickRow("e1");
+
+    const detail = row("e1").querySelector(".pt-1") as HTMLElement;
+    expect(detail.className).toContain("pl-[82px]");
+  });
+
+  // timestamp 없을 때: 기존 pl-10 유지(아이콘 뒤 38px에 근사).
+  it("timestamp 없으면 pl-10 유지", async () => {
+    render(<ConsoleLogContent entries={ENTRIES} />);
+    await clickRow("e1");
+
+    const detail = row("e1").querySelector(".pt-1") as HTMLElement;
+    expect(detail.className).toContain("pl-10");
+    expect(detail.className).not.toContain("pl-[82px]");
+  });
+});

@@ -230,7 +230,7 @@ function EntryAccordion({ entry, startedAt, syncBaseMs, onSeek, isActive, scroll
       aria-current={isActive ? "true" : undefined}
     >
       <div
-        className="flex cursor-pointer items-center gap-3 px-2.5 py-2 text-[13px] hover:bg-accent/50"
+        className="flex cursor-pointer items-center gap-3 p-2.5 text-[13px] hover:bg-accent/50"
         onClick={() => {
           setExpanded(!expanded);
           onSelect?.(entry.id);
@@ -250,7 +250,10 @@ function EntryAccordion({ entry, startedAt, syncBaseMs, onSeek, isActive, scroll
       </div>
 
       {expanded && (
-        <div className={`space-y-2 pb-3 pr-3 pt-1 text-xs ${base != null ? "pl-[64px]" : "pl-10"}`}>
+        // 펼침 상세를 접힘 헤더의 메시지 텍스트 시작점에 정렬한다.
+        // base 있을 때 82px = px-2.5(10) + LogSeekChip w-8(32) + gap-3(12) + LevelIcon(16) + gap-3(12).
+        // 없을 때 pl-10(40) ≈ 아이콘 뒤 38px.
+        <div className={`space-y-2 pb-3 pr-3 pt-1 text-xs ${base != null ? "pl-[82px]" : "pl-10"}`}>
           <pre className={`max-h-[300px] overflow-auto rounded p-2 font-mono text-xs whitespace-pre-wrap break-all ${levelCodeBg(entry.level)}`}>
             <LinkifiedText text={entry.args} />
           </pre>
