@@ -314,12 +314,12 @@ function ActionRow({ entry, startedAt, syncBaseMs, onSeek, isActive, muted }: {
       className={`${syncRowClass(!!onSeek, !!isActive, kindBgColor(entry.kind))}${muted ? " opacity-40" : ""}`}
       aria-current={isActive ? "true" : undefined}
     >
-      <div className="flex items-center gap-3 px-2.5 py-2 text-[13px]">
+      <div className="flex items-center gap-3 p-2.5 text-[13px]">
         {base != null && (
           <LogSeekChip ts={entry.timestamp} label={formatRelativeTime(entry.timestamp, base)} onSeek={onSeek} />
         )}
         <KindIcon kind={entry.kind} />
-        <span className="min-w-0 flex-1 break-words leading-relaxed">
+        <span className="min-w-0 flex-1 break-words font-mono text-xs">
           {renderActionContent(t, entry)}
         </span>
       </div>

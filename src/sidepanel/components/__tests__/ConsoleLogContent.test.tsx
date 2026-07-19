@@ -90,3 +90,41 @@ describe("ConsoleLogContent — 비선택(기존) 모드", () => {
     expect(row("e1").className).not.toContain("ring-primary");
   });
 });
+
+describe("ConsoleLogContent — mono 표면", () => {
+  it("접힌 행 메시지 span이 font-mono다(펼친 pre와 서체 통일)", () => {
+    render(<ConsoleLogContent entries={ENTRIES} />);
+
+    const msg = row("e2").querySelector(".flex-1") as HTMLElement;
+    expect(msg.className).toContain("font-mono");
+  });
+
+  it("펼친 상세의 페이지 URL 링크가 font-mono다(펼침 본문 서체 통일)", async () => {
+    render(<ConsoleLogContent entries={ENTRIES} />);
+    await clickRow("e1");
+
+    const link = row("e1").querySelector('a[href="https://example.com/"]') as HTMLElement;
+    expect(link.className).toContain("font-mono");
+  });
+});
+
+describe("ConsoleLogContent — 펼침 상세 정렬", () => {
+  // timestamp(LogSeekChip) 있을 때: 헤더 메시지 시작점 82px에 맞춰 pl-[82px].
+  it("timestamp 있으면 pl-[82px]로 헤딩 텍스트에 정렬", async () => {
+    render(<ConsoleLogContent entries={ENTRIES} startedAt={500} />);
+    await clickRow("e1");
+
+    const detail = row("e1").querySelector(".pt-1") as HTMLElement;
+    expect(detail.className).toContain("pl-[82px]");
+  });
+
+  // timestamp 없을 때: 기존 pl-10 유지(아이콘 뒤 38px에 근사).
+  it("timestamp 없으면 pl-10 유지", async () => {
+    render(<ConsoleLogContent entries={ENTRIES} />);
+    await clickRow("e1");
+
+    const detail = row("e1").querySelector(".pt-1") as HTMLElement;
+    expect(detail.className).toContain("pl-10");
+    expect(detail.className).not.toContain("pl-[82px]");
+  });
+});

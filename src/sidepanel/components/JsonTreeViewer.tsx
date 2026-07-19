@@ -87,7 +87,9 @@ export function JsonTreeViewer({ data, defaultExpandDepth = 1, highlightQuery }:
 
   return (
     <HighlightQueryContext.Provider value={highlightQuery ?? ""}>
-      <JsonNode value={data} path="root" depth={0} expanded={expanded} onToggle={toggle} />
+      <div className="font-mono text-xs">
+        <JsonNode value={data} path="root" depth={0} expanded={expanded} onToggle={toggle} />
+      </div>
     </HighlightQueryContext.Provider>
   );
 }
@@ -125,7 +127,7 @@ function JsonNode({
 
   if (isEmpty) {
     return (
-      <div className="flex items-center gap-1 py-0.5 pr-2 text-[13px] hover:bg-muted" style={{ paddingLeft: indent }}>
+      <div className="flex items-center gap-1 py-0.5 pr-2 hover:bg-muted" style={{ paddingLeft: indent }}>
         <span className="inline-block h-4 w-4 shrink-0" />
         {keyName !== undefined && <KeyLabel keyName={keyName} />}
         <span className="text-muted-foreground">{openBracket}{closeBracket}</span>
@@ -136,7 +138,7 @@ function JsonNode({
   return (
     <div>
       <div
-        className="flex cursor-pointer items-center gap-1 py-0.5 pr-2 text-[13px] hover:bg-muted"
+        className="flex cursor-pointer items-center gap-1 py-0.5 pr-2 hover:bg-muted"
         style={{ paddingLeft: indent }}
         onClick={() => onToggle(path)}
       >
@@ -207,7 +209,7 @@ function ArrayChildren({
       ))}
       {remaining > 0 && (
         <div
-          className="flex cursor-pointer items-center gap-1 py-0.5 pr-2 text-[13px] text-blue-600 hover:underline dark:text-blue-400"
+          className="flex cursor-pointer items-center gap-1 py-0.5 pr-2 text-blue-600 hover:underline dark:text-blue-400"
           style={{ paddingLeft: (depth + 1) * 12 + 4 }}
           onClick={() => setVisibleCount((c) => c + ARRAY_CHUNK_SIZE)}
         >
@@ -236,7 +238,7 @@ function StringRow({
   const display = truncated ? value.slice(0, 150) + "…" : value;
 
   return (
-    <div className="flex items-start gap-1 py-0.5 pr-2 text-[13px] hover:bg-muted" style={{ paddingLeft: depth * 12 + 4 }}>
+    <div className="flex items-start gap-1 py-0.5 pr-2 hover:bg-muted" style={{ paddingLeft: depth * 12 + 4 }}>
       <span className="inline-block h-4 w-4 shrink-0" />
       {keyName !== undefined && <KeyLabel keyName={keyName} />}
       <div className="min-w-0">
@@ -269,7 +271,7 @@ function PrimitiveRow({
 }) {
   const q = useContext(HighlightQueryContext);
   return (
-    <div className="flex items-center gap-1 py-0.5 pr-2 text-[13px] hover:bg-muted" style={{ paddingLeft: depth * 12 + 4 }}>
+    <div className="flex items-center gap-1 py-0.5 pr-2 hover:bg-muted" style={{ paddingLeft: depth * 12 + 4 }}>
       <span className="inline-block h-4 w-4 shrink-0" />
       {keyName !== undefined && <KeyLabel keyName={keyName} />}
       <span className={valueClass}><HighlightedText text={display} query={q} /></span>

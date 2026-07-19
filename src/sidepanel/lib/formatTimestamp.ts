@@ -9,6 +9,9 @@ export function formatTimestamp(ts: number): string {
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
+    // 24시간제(00–23) — AM/PM 제거. h23이라 자정이 24:xx가 아니라 00:xx.
+    // hourCycle은 시 표기만 바꿔 콜론 스켈레톤은 유지된다(timeZoneName과 달리 ko 스켈레톤 미전환).
+    hourCycle: "h23",
   });
   return `${dateStr} ${gmtOffset(d)}`;
 }
