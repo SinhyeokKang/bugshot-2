@@ -28,6 +28,22 @@ describe("formatTimestamp", () => {
     expect(result).toContain("45");
   });
 
+  // 24시간제 — 오후 7시가 "07:..PM"이 아니라 "19:.."로 렌더, AM/PM 접미사 없음.
+  it("24시간제로 렌더 — AM/PM 없이 0–23시", () => {
+    const d = new Date(2024, 0, 15, 19, 22, 14);
+    const result = formatTimestamp(d.getTime());
+    expect(result).toContain("19:22:14");
+    expect(result).not.toMatch(/[AP]M/);
+  });
+
+  // h23 — 자정이 24:xx로 새지 않고 00:xx.
+  it("자정을 00시로 렌더 (h23 — 24시 표기 아님)", () => {
+    const d = new Date(2024, 0, 15, 0, 5, 30);
+    const result = formatTimestamp(d.getTime());
+    expect(result).toContain("00:05:30");
+    expect(result).not.toContain("24:05");
+  });
+
   // 회귀: 글로벌 팀이 Captured 시각의 타임존을 판독할 수 있어야 한다.
   // 리포터 브라우저 로컬 TZ의 GMT 오프셋이 출력에 포함(실행 환경 TZ 무관 — UTC면 "GMT",
   // 그 외 "GMT+9" 등. 하드코딩 로컬시각 비교는 환경 TZ 의존이라 금지).
