@@ -716,7 +716,7 @@ function FrameRow({
         onClick={canExpand ? onToggle : undefined}
       >
         <FrameDirectionIcon direction={frame.direction} />
-        <span className="min-w-0 flex-1 truncate text-[12px]">{frameText(frame, t)}</span>
+        <span className="min-w-0 flex-1 truncate font-mono text-xs">{frameText(frame, t)}</span>
         {isData && <span className="shrink-0 text-[11px] text-muted-foreground">{formatBytes(frame.size)}</span>}
         {syncBaseMs != null ? (
           <LogSeekChip ts={frame.ts} label={formatRelativeTime(frame.ts, syncBaseMs)} onSeek={onSeek} />
@@ -741,7 +741,6 @@ function FrameBody({ text }: { text: string }) {
     }
   } catch { /* fall through */ }
   return (
-    // preflight가 pre를 monospace로 리셋하므로 font-sans를 명시한다.
-    <pre className="max-h-[300px] overflow-auto rounded bg-muted p-2 font-sans text-[11px]">{text}</pre>
+    <pre className="max-h-[300px] overflow-auto rounded bg-muted p-2 font-mono text-xs">{text}</pre>
   );
 }

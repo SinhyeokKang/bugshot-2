@@ -240,7 +240,7 @@ function EntryAccordion({ entry, startedAt, syncBaseMs, onSeek, isActive, scroll
           <LogSeekChip ts={entry.timestamp} label={formatRelativeTime(entry.timestamp, base)} onSeek={onSeek} />
         )}
         <LevelIcon level={entry.level} />
-        <span className="min-w-0 flex-1 break-all">
+        <span className="min-w-0 flex-1 break-all font-mono text-xs">
           <LinkifiedText text={entry.args} />
         </span>
         {expanded

@@ -90,3 +90,12 @@ describe("ConsoleLogContent — 비선택(기존) 모드", () => {
     expect(row("e1").className).not.toContain("ring-primary");
   });
 });
+
+describe("ConsoleLogContent — mono 표면", () => {
+  it("접힌 행 메시지 span이 font-mono다(펼친 pre와 서체 통일)", () => {
+    render(<ConsoleLogContent entries={ENTRIES} />);
+
+    const msg = row("e2").querySelector(".flex-1") as HTMLElement;
+    expect(msg.className).toContain("font-mono");
+  });
+});
