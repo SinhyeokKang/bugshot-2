@@ -200,6 +200,28 @@ test.describe("behavior", () => {
     await expect(page.locator("[data-entry-id]")).toHaveCount(6);
   });
 
+  // 유닛 테스트는 className 문자열만 본다 — 실제 렌더 크기·서체 적용은 못 본다(POSTMORTEM
+  // 2026-07-17: 크기 불변식이 깨져도 pnpm test green). computed style로 실측한다. log-viewer는
+  // Geist @font-face가 없어 시스템 mono로 폴백하지만, font-mono가 깔아둔 선언 스택
+  // ("Geist Mono Variable", …)은 computed font-family 문자열에 그대로 남아 sans와 구별된다.
+  test("로그 표면 mono 실측 — 콘솔 메시지·액션 행이 12px + mono 서체(className 아닌 렌더)", async ({ page }) => {
+    await openViewer(page, { consoleLog: makeConsoleLog(), actionLog: makeActionLog() });
+
+    // 콘솔 접힘 메시지 span (기본 탭=console, c-log는 stack 없어 접힌 채)
+    const consoleMsg = page.locator('[data-entry-id="c-log"] span.break-all');
+    await expect(consoleMsg).toHaveCSS("font-size", "12px");
+    await expect(consoleMsg).toHaveCSS("font-family", /Geist Mono Variable/);
+
+    // 액션 행 콘텐츠 span
+    await page.getByTestId("logview-tab-action").click();
+    const actionContent = page.locator('[data-entry-id="a-click"] span.break-words');
+    await expect(actionContent).toHaveCSS("font-size", "12px");
+    await expect(actionContent).toHaveCSS("font-family", /Geist Mono Variable/);
+
+    // 대조 — UI 크롬(필터 탭)은 sans 유지(mono 스택 미포함). 전역 mono 오적용 회귀 가드.
+    await expect(page.getByTestId("action-filter-all")).not.toHaveCSS("font-family", /Geist Mono Variable/);
+  });
+
   test("빈 상태 — 없는 로그 탭은 disabled, 데이터 0이면 noData", async ({ page }) => {
     // actionLog만 → console/network 탭 비활성
     await openViewer(page, { actionLog: makeActionLog() });
