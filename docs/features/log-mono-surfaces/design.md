@@ -37,6 +37,10 @@
 - **변경**: L719 span의 `text-[12px]` → `font-mono text-xs` 교체. DESIGN이 `text-[12px]`를 금지(행간 18px 누수)하는 것과도 정합 — 단 이 span은 `truncate` 단일 행이라 행간 누수 실영향은 없던 곳이고, 크기는 12px 그대로다(서체만 전환).
 - `frameText`는 open/close/truncated 이벤트의 i18n 라벨도 반환하므로 이벤트 행 라벨까지 mono가 되는데, 콘솔 인라인(메시지 전체 mono — 라벨성 텍스트 포함)과 같은 결로 수용한다. 행 컨테이너(L715 `text-[13px]`)·바이트 크기·타임스탬프 span(L720·L724)은 불변.
 
+### 7. `src/sidepanel/components/ConsoleLogContent.tsx` — 펼침 상세 페이지 URL (리뷰 후 추가)
+- **현재 역할**: 콘솔 로그 펼침 상세 하단의 출처 URL 링크(`InlineLink`, L267 `block text-xs`). 최초 스코프에선 "출처 귀속 메타"라 sans 유지(네트워크 헤더 URL·IssuePreview env와 같은 축)로 비목표에 뒀다.
+- **변경(스코프 확장)**: L267 `InlineLink`에 `font-mono` 추가(`block font-mono text-xs`). 근거: 이 링크가 콘솔 펼침 상세 **안**에 있어 mono 메시지 pre·스택 pre와 한 패널에서 서체가 갈렸다(§5 WS 본문 통일과 같은 "한 펼침 본문 내 서체 통일" 논리). 출처 URL 중 **콘솔 펼침 내부**만 이 논리로 mono로 당기고, 패널 밖 출처 URL(네트워크 헤더·IssuePreview env·`OriginFilterBar`)은 여전히 sans 유지 — 경계는 "펼침 본문 내부 vs 독립 메타 표면".
+
 ### 변경 없음 (확인 완료)
 - **인라인 `<code>`·코드블럭**(`doc-section-body.css`·`tiptap-editor.css`): font-family 미지정 → Tailwind preflight가 `fontFamily.mono`를 공급. 이미 Geist Mono 12px. 스코프 외.
 - **`globals.css` / `log-viewer/styles.css`의 `.font-mono` 규칙**: 신규 표면이 `.font-mono` 셀렉터를 타므로 리거처 규칙 자동 적용. CSS 파일 수정 불필요(`tokens.test.ts` 일치 검사도 무영향).

@@ -143,7 +143,7 @@ describe("디자인 토큰 표", () => {
     });
   });
 
-  // Geist를 받는 경로가 둘이다 — .font-mono 유틸(CSS 뷰·DOM 트리·로그 11곳)과 Tailwind preflight의
+  // Geist를 받는 경로가 둘이다 — .font-mono 유틸(CSS 뷰·DOM 트리·로그 12곳)과 Tailwind preflight의
   // pre/code(Tiptap·프리뷰 코드블럭). 만나는 지점이 없어 한쪽만 손대면 조용히 갈라진다(v1.6.0이
   // 13px 통일을 선언하고 Tiptap을 놓친 이유). 그래서 두 경로를 한 셀렉터 리스트로 묶어 튜닝한다.
   describe("mono 타이포그래피 (진입 경로가 둘이라 한 블록으로 묶는다)", () => {
