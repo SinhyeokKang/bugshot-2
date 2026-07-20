@@ -6,6 +6,8 @@ import {
   DEFAULT_COLOR,
   DEFAULT_THICKNESS,
   HIGHLIGHT_OPACITY,
+  RECORDING_MIN_COLORS,
+  recordingColorCount,
 } from "../presets";
 
 describe("presets — 색상", () => {
@@ -55,6 +57,32 @@ describe("presets — 기타 상수", () => {
     expect(HIGHLIGHT_OPACITY).toBeLessThanOrEqual(1);
   });
 
+});
+
+describe("presets — 녹화 footer 색 개수(폭 대응)", () => {
+  it("넉넉하면 5색 전부", () => {
+    expect(recordingColorCount(404)).toBe(5);
+    expect(recordingColorCount(600)).toBe(5);
+  });
+
+  it("좁아지면 우측부터 하나씩 접어 4색", () => {
+    expect(recordingColorCount(403)).toBe(4);
+    expect(recordingColorCount(372)).toBe(4);
+  });
+
+  it("가장 좁으면 최소 3색 바닥", () => {
+    expect(recordingColorCount(371)).toBe(RECORDING_MIN_COLORS);
+    expect(recordingColorCount(0)).toBe(RECORDING_MIN_COLORS);
+  });
+
+  it("폭이 커질수록 색 개수는 단조 증가한다", () => {
+    let prev = 0;
+    for (let w = 0; w <= 500; w += 4) {
+      const c = recordingColorCount(w);
+      expect(c).toBeGreaterThanOrEqual(prev);
+      prev = c;
+    }
+  });
 });
 
 describe("presets — 도구 목록", () => {
