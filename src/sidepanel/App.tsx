@@ -36,7 +36,7 @@ import { useBackgroundRecorder } from "./hooks/useBackgroundRecorder";
 import { usePickerMessages } from "./hooks/usePickerMessages";
 import { useThemeEffect } from "./hooks/useThemeEffect";
 import { useAiLoadingStep } from "./hooks/useAiLoadingStep";
-import { aiLoadingSurface, aiLoadingPhraseKey } from "./lib/aiLoadingPhrases";
+import { aiLoadingSurface, aiLoadingPhraseKey, type AiLoadingSurface } from "./lib/aiLoadingPhrases";
 import { AiLoadingText } from "./components/AiLoadingText";
 import { DebugTab } from "./tabs/DebugTab";
 import { IntegrationsTab } from "./tabs/IntegrationsTab";
@@ -73,6 +73,27 @@ function blurActiveElement() {
     document.activeElement.blur();
   }
 }
+
+const AI_OVERLAY_STYLE: Record<
+  AiLoadingSurface,
+  { tint: string; ripple: string; text: string }
+> = {
+  styling: {
+    tint: "bg-teal-500/5",
+    ripple: "bg-[radial-gradient(circle,transparent_0%,rgba(45,212,191,0.1)_46%,transparent_141%)]",
+    text: "text-teal-700 dark:text-teal-300",
+  },
+  draft: {
+    tint: "bg-purple-500/5",
+    ripple: "bg-[radial-gradient(circle,transparent_0%,rgba(192,132,252,0.1)_46%,transparent_141%)]",
+    text: "text-purple-700 dark:text-purple-300",
+  },
+  repro: {
+    tint: "bg-amber-500/5",
+    ripple: "bg-[radial-gradient(circle,transparent_0%,rgba(251,191,36,0.1)_46%,transparent_141%)]",
+    text: "text-amber-700 dark:text-amber-300",
+  },
+};
 
 export default function App() {
   const t = useT();
@@ -197,25 +218,20 @@ export default function App() {
     <div className="relative flex h-screen flex-col">
       {aiSurface && (
         <div className="absolute inset-0 z-50 flex items-center justify-center overflow-hidden backdrop-blur-[2px]">
-          <div className={cn("absolute inset-0", aiStylingLoading ? "bg-teal-500/5" : "bg-purple-500/5")} />
+          <div className={cn("absolute inset-0", AI_OVERLAY_STYLE[aiSurface].tint)} />
           <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
             <div
               key={aiStep}
               className={cn(
-                "h-[180vh] w-[180vh] animate-ai-ripple rounded-full blur-3xl motion-reduce:animate-none",
-                aiStylingLoading
-                  ? "bg-[radial-gradient(circle,transparent_0%,rgba(45,212,191,0.1)_46%,transparent_141%)]"
-                  : "bg-[radial-gradient(circle,transparent_0%,rgba(192,132,252,0.1)_46%,transparent_141%)]",
+                "h-[240vh] w-[240vh] animate-ai-ripple rounded-full blur-3xl motion-reduce:animate-none",
+                AI_OVERLAY_STYLE[aiSurface].ripple,
               )}
             />
           </div>
           <div className="relative z-10 flex animate-text-breathe items-center justify-center px-6 motion-reduce:animate-none">
             <AiLoadingText
               text={t(aiLoadingPhraseKey(aiSurface, aiStep))}
-              className={cn(
-                "text-lg font-semibold",
-                aiStylingLoading ? "text-teal-700 dark:text-teal-300" : "text-purple-700 dark:text-purple-300",
-              )}
+              className={cn("text-lg font-semibold", AI_OVERLAY_STYLE[aiSurface].text)}
             />
           </div>
         </div>
