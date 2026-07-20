@@ -230,7 +230,7 @@ function EntryAccordion({ entry, startedAt, syncBaseMs, onSeek, isActive, scroll
       aria-current={isActive ? "true" : undefined}
     >
       <div
-        className="flex cursor-pointer items-center gap-3 p-2.5 text-[13px] hover:bg-accent/50"
+        className="flex cursor-pointer items-center gap-3 px-2.5 py-2 text-[13px] hover:bg-accent/50"
         onClick={() => {
           setExpanded(!expanded);
           onSelect?.(entry.id);
