@@ -29,6 +29,18 @@ function parseFontStack(key: string): string[] {
   return [...block[1].matchAll(/(['"])(.*?)\1/g)].map((m) => m[2].replace(/['"]/g, "").trim());
 }
 
+// fontSize.mono는 fontFamily.mono와 키가 겹쳐 parseFontStack이 먼저 나오는 fontFamily 쪽을
+// 문다 → fontSize 블록으로 스코프를 좁혀 그 안의 mono 배열만 뽑는다. 값은 CSS var 리터럴이라
+// 위 parseFontStack의 따옴표-리터럴 추출과 동일 기법을 쓴다.
+function parseFontSizeMono(): string[] {
+  const src = readFileSync(TAILWIND_CONFIG, "utf8").replace(/\/\/[^\n]*/g, "");
+  const block = src.match(/fontSize:\s*\{([\s\S]*?)\}/);
+  if (!block) throw new Error("tailwind.config.js에 fontSize 블록이 없다");
+  const mono = block[1].match(/mono:\s*\[([^\]]*)\]/);
+  if (!mono) throw new Error("tailwind.config.js에 fontSize.mono 배열이 없다");
+  return [...mono[1].matchAll(/(['"])(.*?)\1/g)].map((m) => m[2].trim());
+}
+
 // mono 블록은 `.font-mono, pre, code, …` 멀티라인 셀렉터 리스트라 parseTokens로는 못 찾는다
 // (완전 일치 문자열 검색 + `--` 커스텀 프로퍼티만 매칭). 주석을 먼저 걷어내야 주석 처리된 선언이
 // 잡히지 않고, 중첩 브레이스를 못 넘는 [^{}] 덕에 @layer base 안쪽 규칙만 걸린다.
@@ -89,7 +101,7 @@ function contrastRatio(a: string, b: string): number {
 // 거의 흰 글자색이라 base 팔레트를 따라야 한다(라이트 210 40% 98% 틴트 / 다크 0 0% 98% 무채색).
 // startsWith로 "고치면" 이 토큰이 검사에서 빠진다.
 const CHROMATIC = ["destructive"];
-const NON_COLOR = ["radius"];
+const NON_COLOR = ["radius", "mono-size", "mono-leading"];
 
 function grayTokens(tokens: Record<string, string>): [string, string][] {
   return Object.entries(tokens).filter(
@@ -180,6 +192,25 @@ describe("디자인 토큰 표", () => {
     // 본문에서 `------WebKitFormBoundary`가 이어붙는다. 사이드패널은 늘 Geist라 개발 중엔 안 보인다.
     it("log-viewer에도 같은 mono 블록이 있다 (별도 빌드라 globals.css가 안 나간다)", () => {
       expect(parseRule(LOG_VIEWER, ".font-mono")).toEqual(parseRule(GLOBALS, ".font-mono"));
+    });
+  });
+
+  // mono 코드 표면(로그·CodeMirror·Tiptap·프리뷰)의 사이즈/행간을 한 곳에서 계속 보정할 수
+  // 있게 --mono-size/--mono-leading 두 변수를 단일 출처로 둔다. 소비처가 셋(Tailwind 유틸,
+  // CodeMirror JS theme, pre/code CSS)이라 리터럴을 흩뿌리면 v1.6.0처럼 한 경로가 뒤처진다.
+  describe("mono 타입스케일 단일출처 (--mono-size / --mono-leading)", () => {
+    it(":root에 --mono-size 13px가 있다", () => {
+      expect(parseTokens(GLOBALS, ":root")["mono-size"]).toBe("13px");
+    });
+
+    it(":root에 --mono-leading 18px가 있다", () => {
+      expect(parseTokens(GLOBALS, ":root")["mono-leading"]).toBe("18px");
+    });
+
+    // fontSize.mono → text-mono 유틸이 로그 13곳의 text-xs를 대체한다. 두 변수를 그대로 물어야
+    // :root 한 곳 수정이 유틸까지 흐른다(리터럴 13px/18px을 박으면 단일출처가 깨진다).
+    it("tailwind fontSize.mono가 두 변수를 [size, leading]으로 참조한다", () => {
+      expect(parseFontSizeMono()).toEqual(["var(--mono-size)", "var(--mono-leading)"]);
     });
   });
 

@@ -88,13 +88,13 @@
 }
 
 /* 아래 code/pre 규칙은 doc-section-body.css(프리뷰)와 짝이다 — 같은 마크다운의 편집 화면과
-   프리뷰라 한쪽만 고치면 WYSIWYG이 갈라진다. em을 안 쓰는 건 mono 표면 전체가 12px이라는 게
-   불변식이라, 부모(.ProseMirror의 text-sm)에 묶이면 부모가 바뀔 때 조용히 어긋나기 때문. */
+   프리뷰라 한쪽만 고치면 WYSIWYG이 갈라진다. em을 안 쓰는 건 mono 표면 전체가 --mono-size
+   단일값이라는 게 불변식이라, 부모(.ProseMirror의 text-sm)에 묶이면 조용히 어긋나기 때문. */
 .tiptap-editor .ProseMirror code {
   background: hsl(var(--muted));
   border-radius: 0.25rem;
   padding: 0.125em 0.25em;
-  font-size: 12px;
+  font-size: var(--mono-size);
 }
 
 .tiptap-editor .ProseMirror blockquote {
@@ -109,8 +109,8 @@
   border-radius: var(--radius);
   padding: 16px;
   overflow-x: auto;
-  font-size: 12px;
-  line-height: 1.5;
+  font-size: var(--mono-size);
+  line-height: var(--mono-leading);
   /* @tiptap/core가 런타임 주입하는 .ProseMirror pre { white-space: pre-wrap }(0,1,1)를
      (0,2,1)로 이긴다 — 그게 줄을 접어 들여쓰기를 지우고 위 overflow-x를 죽여놨다. */
   white-space: pre;

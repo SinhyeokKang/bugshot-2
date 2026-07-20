@@ -87,7 +87,7 @@ export function JsonTreeViewer({ data, defaultExpandDepth = 1, highlightQuery }:
 
   return (
     <HighlightQueryContext.Provider value={highlightQuery ?? ""}>
-      <div className="font-mono text-xs">
+      <div className="font-mono text-mono">
         <JsonNode value={data} path="root" depth={0} expanded={expanded} onToggle={toggle} />
       </div>
     </HighlightQueryContext.Provider>

@@ -240,7 +240,7 @@ function EntryAccordion({ entry, startedAt, syncBaseMs, onSeek, isActive, scroll
           <LogSeekChip ts={entry.timestamp} label={formatRelativeTime(entry.timestamp, base)} onSeek={onSeek} />
         )}
         <LevelIcon level={entry.level} />
-        <span className="min-w-0 flex-1 break-all font-mono text-xs">
+        <span className="min-w-0 flex-1 break-all font-mono text-mono">
           <LinkifiedText text={entry.args} />
         </span>
         {expanded
@@ -254,7 +254,7 @@ function EntryAccordion({ entry, startedAt, syncBaseMs, onSeek, isActive, scroll
         // base 있을 때 82px = px-2.5(10) + LogSeekChip w-8(32) + gap-3(12) + LevelIcon(16) + gap-3(12).
         // 없을 때 pl-10(40) ≈ 아이콘 뒤 38px.
         <div className={`space-y-2 pb-3 pr-3 pt-1 text-xs ${base != null ? "pl-[82px]" : "pl-10"}`}>
-          <pre className={`max-h-[300px] overflow-auto rounded p-2 font-mono text-xs whitespace-pre-wrap break-all ${levelCodeBg(entry.level)}`}>
+          <pre className={`max-h-[300px] overflow-auto rounded p-2 font-mono text-mono whitespace-pre-wrap break-all ${levelCodeBg(entry.level)}`}>
             <LinkifiedText text={entry.args} />
           </pre>
           {entry.stack && (
@@ -262,12 +262,12 @@ function EntryAccordion({ entry, startedAt, syncBaseMs, onSeek, isActive, scroll
               <div className="mb-1 text-xs font-medium">
                 {t("consoleLog.detail.stackTrace")}
               </div>
-              <pre data-testid="console-stack" className={`max-h-[200px] overflow-auto rounded p-2 font-mono text-xs whitespace-pre-wrap break-all ${levelCodeBg(entry.level)}`}>
+              <pre data-testid="console-stack" className={`max-h-[200px] overflow-auto rounded p-2 font-mono text-mono whitespace-pre-wrap break-all ${levelCodeBg(entry.level)}`}>
                 <LinkifiedText text={entry.stack} />
               </pre>
             </div>
           )}
-          <InlineLink href={entry.pageUrl} className="block font-mono text-xs">{entry.pageUrl}</InlineLink>
+          <InlineLink href={entry.pageUrl} className="block font-mono text-mono">{entry.pageUrl}</InlineLink>
         </div>
       )}
     </div>

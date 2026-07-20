@@ -28,6 +28,10 @@
     --input: 214.3 31.8% 91.4%;
     --ring: 214.3 31.8% 91.4%;
     --radius: 0.75rem;
+    /* mono 코드 표면 타입스케일 단일출처. globals.css :root의 손복사본 — 두 값이 같아야 한다
+       (tokens.test.ts가 :root parity를 완전일치로 강제). 별도 빌드라 globals를 못 받는다. */
+    --mono-size: 13px;
+    --mono-leading: 18px;
   }
 
   .dark {

@@ -36,6 +36,11 @@
     --input: 214.3 31.8% 91.4%;
     --ring: 214.3 31.8% 91.4%;
     --radius: 0.75rem;
+    /* mono 코드 표면(로그·CodeMirror·Tiptap·프리뷰) 타입스케일 단일출처. 소비처가 셋(Tailwind
+       text-mono·CodeMirror theme·pre/code CSS)이라 여기 두 줄만 바꾸면 전 표면이 함께 이동한다.
+       log-viewer/styles.css :root에도 같은 값이 있어야 한다(tokens.test.ts가 parity 강제). */
+    --mono-size: 13px;
+    --mono-leading: 18px;
   }
 
   .dark {

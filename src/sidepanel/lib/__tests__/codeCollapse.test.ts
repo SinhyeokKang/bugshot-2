@@ -12,6 +12,20 @@ function lines(n: number): string {
   return Array.from({ length: n }, (_, i) => `line ${i + 1}`).join("\n");
 }
 
+// mono 코드 표면은 --mono-size/--mono-leading(globals.css :root) 단일출처를 참조한다. 아래 높이
+// 계산이 pre의 font-size/line-height·collapse calc의 줄 높이를 실제 px로 풀려면 그 값이 필요하다.
+// 변수가 없으면 var(...) 문자열이 그대로 남아 Number 파싱이 NaN → 테스트가 빨갛게 터진다(의도).
+const GLOBALS_CSS = join(dirname(fileURLToPath(import.meta.url)), "../../../styles/globals.css");
+function resolveMono(value: string): string {
+  const css = readFileSync(GLOBALS_CSS, "utf8");
+  const root = css.slice(css.indexOf(":root {"));
+  const body = root.slice(0, root.indexOf("}"));
+  const get = (name: string) => body.match(new RegExp(`--${name}:\\s*([^;]+);`))?.[1]?.trim();
+  return value
+    .replace(/var\(--mono-size\)/g, get("mono-size") ?? "var(--mono-size)")
+    .replace(/var\(--mono-leading\)/g, get("mono-leading") ?? "var(--mono-leading)");
+}
+
 describe("countCodeLines", () => {
   it("개행으로 구분된 줄 수를 센다", () => {
     expect(countCodeLines("a\nb\nc")).toBe(3);
@@ -78,8 +92,11 @@ describe("shouldCollapseCode", () => {
   // 없는" 유령 접힘이 된다. 스크롤바 10px을 상수로 더했다가 정확히 이게 터진 적이 있다.
   it("CSS 접힘 높이가 임계값+1줄을 실제로 자른다 (유령 접힘 방지)", () => {
     const pre = preStyle("doc-section-body.css", ".doc-section-body pre");
-    const fontPx = Number(pre.fontSize.replace("px", ""));
-    const linePx = Number(pre.lineHeight) * fontPx;
+    const fontPx = Number(resolveMono(pre.fontSize).replace("px", ""));
+    // line-height는 이제 var(--mono-leading)=18px 절대값이다(예전 1.5 무단위 배수에서 이행).
+    // px로 풀리면 그대로 줄 높이, 무단위면 배수로 폴백해 두 모델 다 다룬다.
+    const lh = resolveMono(pre.lineHeight);
+    const linePx = lh.endsWith("px") ? Number(lh.replace("px", "")) : Number(lh) * fontPx;
     const px = (v: string) =>
       v.trim().endsWith("em") ? Number(v.replace("em", "")) * fontPx : Number(v.replace("px", ""));
 
@@ -87,14 +104,15 @@ describe("shouldCollapseCode", () => {
     const collapsedRule = collapseCss.split('[data-collapsed="true"] pre {')[1]?.split("}")[0];
     expect(collapsedRule, "접힘 pre 규칙을 못 찾음").toBeDefined();
 
-    const calc = collapsedRule!.match(/max-height:\s*calc\(([^;]+)\);/)?.[1];
-    expect(calc).toBeDefined();
+    const calc = resolveMono(collapsedRule!.match(/max-height:\s*calc\(([^;]+)\);/)?.[1] ?? "");
+    expect(calc, "접힘 max-height calc를 못 찾음").not.toBe("");
     // 아래 리듀서는 `<n><em|px>` 항의 덧셈만 안다 — 빼기나 다른 단위가 들어오면 조용히
     // 오판정하므로, 파서가 다루는 형태를 벗어나면 여기서 먼저 멈춘다.
-    expect(calc!.replace(/var\([^)]*\)/g, "")).not.toMatch(/-|rem|ch|%/);
+    // (var(--mono-leading)은 resolveMono가 px로 이미 풀었고, var(--code-collapse-lines)만 남는다.)
+    expect(calc.replace(/var\([^)]*\)/g, "")).not.toMatch(/-|rem|ch|%/);
 
     const boxPx = [
-      ...calc!.matchAll(/(?:var\(--code-collapse-lines\)\s*\*\s*)?([\d.]+)(em|px)/g),
+      ...calc.matchAll(/(?:var\(--code-collapse-lines\)\s*\*\s*)?([\d.]+)(em|px)/g),
     ].reduce((sum, [whole, n, unit]) => {
       const value = unit === "em" ? Number(n) * fontPx : Number(n);
       return sum + (whole.startsWith("var(") ? value * CODE_COLLAPSE_LINE_THRESHOLD : value);
@@ -115,6 +133,48 @@ describe("shouldCollapseCode", () => {
   it("15줄은 안 접고 16줄부터 접는다", () => {
     expect(shouldCollapseCode(15)).toBe(false);
     expect(shouldCollapseCode(16)).toBe(true);
+  });
+});
+
+// pre/code는 리터럴 12px/1.5em이 아니라 --mono-size/--mono-leading을 참조해야 한다 — 그래야
+// :root 한 곳으로 로그·CodeMirror·Tiptap·프리뷰가 함께 이동한다. v1.6.0이 13px 통일을 선언하고
+// Tiptap(pre/code)을 놓친 재발을 막는 그물이라, 에딧·프리뷰 두 짝과 접힘 calc를 모두 건다.
+describe("mono 타입스케일: pre/code가 단일출처 변수를 참조한다", () => {
+  const componentsDir = join(dirname(fileURLToPath(import.meta.url)), "../../components");
+
+  function decl(file: string, selector: string, prop: string): string {
+    const css = readFileSync(join(componentsDir, file), "utf8").replace(/\/\*[\s\S]*?\*\//g, "");
+    const body = css.split(`${selector} {`)[1]?.split("}")[0];
+    expect(body, `${selector} 규칙을 ${file}에서 못 찾음`).toBeDefined();
+    const value = body!.match(new RegExp(`(?:^|[^-\\w])${prop}:\\s*([^;]+);`))?.[1]?.trim();
+    expect(value, `${file}의 ${selector}에 ${prop} 선언이 없음`).toBeDefined();
+    return value!;
+  }
+
+  const EDIT = { pre: ".tiptap-editor .ProseMirror pre", code: ".tiptap-editor .ProseMirror code", file: "tiptap-editor.css" };
+  const READ = { pre: ".doc-section-body pre", code: ".doc-section-body code", file: "doc-section-body.css" };
+
+  it("두 짝의 pre가 font-size로 var(--mono-size)를 쓴다", () => {
+    expect(decl(EDIT.file, EDIT.pre, "font-size")).toBe("var(--mono-size)");
+    expect(decl(READ.file, READ.pre, "font-size")).toBe("var(--mono-size)");
+  });
+
+  it("두 짝의 pre가 line-height로 var(--mono-leading)을 쓴다", () => {
+    expect(decl(EDIT.file, EDIT.pre, "line-height")).toBe("var(--mono-leading)");
+    expect(decl(READ.file, READ.pre, "line-height")).toBe("var(--mono-leading)");
+  });
+
+  it("두 짝의 인라인 code가 font-size로 var(--mono-size)를 쓴다", () => {
+    expect(decl(EDIT.file, EDIT.code, "font-size")).toBe("var(--mono-size)");
+    expect(decl(READ.file, READ.code, "font-size")).toBe("var(--mono-size)");
+  });
+
+  it("접힘 calc가 줄 높이로 var(--mono-leading)을 참조한다 (1.5em 하드코딩 금지)", () => {
+    const collapseCss = readFileSync(join(componentsDir, "code-collapse.css"), "utf8");
+    const calc = collapseCss.split('[data-collapsed="true"] pre {')[1]?.split("}")[0];
+    expect(calc, "접힘 pre 규칙을 못 찾음").toBeDefined();
+    expect(calc).toContain("var(--mono-leading)");
+    expect(calc).not.toContain("1.5em");
   });
 });
 

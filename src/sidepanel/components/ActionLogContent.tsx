@@ -326,7 +326,7 @@ function ActionRow({ entry, startedAt, syncBaseMs, onSeek, isActive, muted }: {
           <LogSeekChip ts={entry.timestamp} label={formatRelativeTime(entry.timestamp, base)} onSeek={onSeek} />
         )}
         <KindIcon kind={entry.kind} />
-        <span className="min-w-0 flex-1 break-words font-mono text-xs">
+        <span className="min-w-0 flex-1 break-words font-mono text-mono">
           {renderActionContent(t, entry)}
         </span>
       </div>

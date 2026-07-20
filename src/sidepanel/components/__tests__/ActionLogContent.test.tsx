@@ -37,7 +37,7 @@ describe("ActionLogContent — mono 표면", () => {
     expect(content.className).toContain("font-mono");
   });
 
-  it("콘텐츠 span에 leading-relaxed가 남지 않는다(text-xs 16px 행간에 합류)", () => {
+  it("콘텐츠 span에 leading-relaxed가 남지 않는다(text-mono 18px 행간에 합류)", () => {
     render(<ActionLogContent entries={ENTRIES} />);
     const content = row("a1").querySelector(".flex-1") as HTMLElement;
     expect(content.className).not.toContain("leading-relaxed");
