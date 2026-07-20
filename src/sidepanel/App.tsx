@@ -16,7 +16,7 @@ import { CollapsingTabsList, TabLabel } from "@/components/ui/collapsing-tabs";
 import { cn } from "@/lib/utils";
 import { Toaster } from "@/components/ui/sonner";
 import { PICKER_PORT_NAME, PANEL_PORT_PREFIX } from "@/lib/session-keys";
-import { useEditorStore, useAiLoading } from "@/store/editor-store";
+import { useEditorStore } from "@/store/editor-store";
 import { useSettingsStore } from "@/store/settings-store";
 import { useSettingsUiStore } from "@/store/settings-ui-store";
 import { use30sReplay } from "./30s-replay/use-30s-replay";
@@ -85,7 +85,6 @@ export default function App() {
   usePickerMessages(tabId ?? null);
   useThemeEffect();
 
-  const aiLoading = useAiLoading();
   const aiStylingLoading = useEditorStore((s) => s.aiStylingLoading);
   const aiDraftLoading = useEditorStore((s) => s.aiDraftLoading);
   const reproPrefillLoading = useEditorStore((s) => s.reproPrefillLoading);
@@ -196,7 +195,7 @@ export default function App() {
       }}
     >
     <div className="relative flex h-screen flex-col">
-      {aiLoading && aiSurface && (
+      {aiSurface && (
         <div className="absolute inset-0 z-50 flex items-center justify-center overflow-hidden backdrop-blur-[2px]">
           <div className={cn("absolute inset-0", aiStylingLoading ? "bg-teal-500/5" : "bg-purple-500/5")} />
           <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">

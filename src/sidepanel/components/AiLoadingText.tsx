@@ -17,9 +17,15 @@ export function AiLoadingText({
     if (text === current) return;
     setPrev(current);
     setCurrent(text);
+  }, [text, current]);
+
+  // 이탈 문구는 애니메이션이 끝난 뒤 제거. 타이머는 prev 변화에만 걸어
+  // setCurrent 재렌더의 cleanup에 휩쓸리지 않게 한다.
+  useEffect(() => {
+    if (prev === null) return;
     const id = window.setTimeout(() => setPrev(null), 800);
     return () => window.clearTimeout(id);
-  }, [text, current]);
+  }, [prev]);
 
   return (
     <div className="relative grid place-items-center">
@@ -27,7 +33,7 @@ export function AiLoadingText({
         <span
           key={`out-${prev}`}
           className={cn(
-            "col-start-1 row-start-1 whitespace-nowrap text-center animate-out fade-out slide-out-to-top-5 fill-mode-forwards duration-700 motion-reduce:animate-none",
+            "col-start-1 row-start-1 text-center animate-out fade-out slide-out-to-top-5 fill-mode-forwards duration-700 motion-reduce:hidden",
             className,
           )}
         >
@@ -37,7 +43,7 @@ export function AiLoadingText({
       <span
         key={`in-${current}`}
         className={cn(
-          "col-start-1 row-start-1 whitespace-nowrap text-center animate-in fade-in slide-in-from-bottom-5 duration-700 motion-reduce:animate-none",
+          "col-start-1 row-start-1 text-center animate-in fade-in slide-in-from-bottom-5 duration-700 motion-reduce:animate-none",
           className,
         )}
       >
