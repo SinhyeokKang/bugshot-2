@@ -21,6 +21,13 @@
 
 ---
 
+## 2026-07-20 — mono 13px 통일에서 액션 로그 값 칩만 12px에 남았다: 크기 출처가 `Kbd` base였고, 커스텀 `text-mono`를 twMerge가 색으로 오분류해 지웠다
+
+- **증상**: mono 코드 표면을 13px/18px로 통일(`text-xs`→`text-mono`)했는데, 액션 로그 한 줄 안에서 행 텍스트(13px) 옆의 **값 칩만 12px**로 남아 섞였다. `pnpm test`·typecheck 전부 green — v1.6.0이 Tiptap을 빠뜨린 것과 **같은 "표면 하나 누락"** 패턴이 재발했고, 이번엔 `/code-review` 에이전트가 잡았다(커밋 후·미출시).
+- **근본 원인**: 함정이 둘이 겹쳤다. ① **칩의 크기 출처가 `text-xs`가 아니라 `Kbd` base였다** — 칩은 `Kbd`(base `font-sans text-xs`)를 `CHIP_CLS="font-mono … text-foreground"`로 오버라이드하는데, CHIP_CLS엔 크기 클래스가 없어 base `text-xs`가 살아남았다. `grep 'font-mono.*text-xs'`엔 안 걸린다(칩 자체엔 `text-xs`가 없고 감싼 프리미티브 base에 있다). ② **`text-mono`를 `cn()`의 twMerge가 삭제했다** — `text-mono`는 커스텀 fontSize 토큰이라 tailwind-merge 기본 config가 모른다. twMerge는 이걸 **text-color 그룹으로 오분류**해, CHIP_CLS의 뒤따르는 `text-foreground`(같은 그룹으로 본다)에 밀려 `text-mono`를 통째로 제거하고 base `text-xs`와도 dedupe하지 않았다. 즉 CHIP_CLS에 `text-mono`를 더해도 렌더 결과엔 `text-xs`만 남았다.
+- **재발 방지**: (1) **커스텀 `text-*`(및 Tailwind 클래스 그룹과 충돌하는 임의 유틸)를 도입하면 `cn()`의 `extendTailwindMerge`에 그 그룹으로 등록한다** — 안 하면 `cn()` 경유 컴포넌트에서 같은 그룹 클래스와 만날 때 조용히 사라진다. grep: `grep -rn 'text-mono\|fontSize' src/lib/utils.ts tailwind.config.js`로 토큰↔twMerge 등록 짝을 확인. (2) **"표면 전수"는 리터럴 클래스뿐 아니라 감싼 프리미티브의 base 크기까지 본다** — 표면이 `Kbd`·`Badge`·`Button` 등 shadcn 프리미티브를 쓰면 크기가 그 base에서 올 수 있어 grep에 안 잡힌다. (3) **단위 테스트로 `cn()` 렌더 결과의 className을 단언한다** — `render` 후 `chip.className`에 `text-mono` 포함 + `text-xs` 미포함을 확인하면 twMerge 삭제를 red로 잡는다(`ActionLogContent.test.tsx`). 이건 순수 문자열 대조가 아니라 실제 `cn()`을 태워야 걸린다. 계열: **2026-07-17 mono**(한 셀렉터로 안 잡히는 표면 누락)·2026-07-20 Kbd truncate(프리미티브 교체가 box 모델 전제를 깸) — 둘 다 "프리미티브가 조용히 얹는 것"이 근원.
+- **관련**: `src/lib/utils.ts`(`cn`의 `extendTailwindMerge` — `text-mono`를 font-size 그룹 등록), `src/sidepanel/components/ActionLogContent.tsx:CHIP_CLS`(`text-mono` 추가), `src/components/ui/kbd.tsx`(base `text-xs`), `src/styles/globals.css`·`log-viewer/styles.css`(`--mono-size`/`--mono-leading` `:root` 단일 출처), 그물 `src/sidepanel/components/__tests__/ActionLogContent.test.tsx`·`src/styles/__tests__/tokens.test.ts`·`src/sidepanel/lib/__tests__/codeCollapse.test.ts`. 정본: `docs/DESIGN.md` §4.
+
 ## 2026-07-20 — shadcn `Kbd`(inline-flex)에 `truncate`를 얹었더니 ellipsis가 안 뜨고 `justify-center`가 양끝을 잘랐다
 
 - **증상**: 액션 로그 칩을 `InlineChip`(bespoke, `inline-block`)에서 shadcn `Kbd`로 통일하며 긴 값에 `max-w-[40%] truncate`를 그대로 옮겼다. 짧은 값(`10743`)은 멀쩡했지만, 긴 값은 `앞부분…`이 아니라 **문자열 중간만** 보이고 말줄임표가 없었다. `pnpm test`·typecheck·자체검증 순수 로직은 전부 green — jsdom이 못 잡는 계층이라 자체검증 에이전트의 CSS 추론으로만 걸렸다(커밋 전 발견, 미출시).
