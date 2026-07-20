@@ -177,7 +177,7 @@ export function IssueCreateModal() {
       assigneeAccountId: issueFields.assigneeId,
       priorityId: issueFields.priorityId,
       parentKey: issueFields.parentKey,
-      relatesKey: issueFields.relatesKey,
+      relates: issueFields.relates,
       cc: issueFields.cc,
     });
     if (currentIssueId) {
@@ -199,8 +199,7 @@ export function IssueCreateModal() {
       priorityName: issueFields.priorityName,
       parentKey: issueFields.parentKey,
       parentLabel: issueFields.parentLabel,
-      relatesKey: issueFields.relatesKey,
-      relatesLabel: issueFields.relatesLabel,
+      relates: issueFields.relates,
       cc: issueFields.cc,
     });
     useSettingsStore.getState().setLastSubmittedPlatform("jira");

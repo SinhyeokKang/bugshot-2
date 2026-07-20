@@ -220,16 +220,17 @@ test.describe.serial("style-code-view", () => {
     expect(faces).toContain("loaded");
   });
 
-  // 크기 불변식(전 mono 표면 12px)이 v1.6.0에서 실제로 깨진 자리다 — 그땐 DESIGN.md 한 줄이
-  // 유일한 그물이었고 Tiptap이 조용히 갈렸다. 단위 테스트는 globals.css만 읽어 CM의 인라인
-  // theme을 못 본다. 여기선 선언이 아니라 실제 렌더 computed를 잰다.
-  test("CSS 뷰 본문이 12px / 행간 18px로 렌더된다", async () => {
+  // 크기 불변식(전 mono 표면 --mono-size/--mono-leading = 13px/18px)이 v1.6.0에서 실제로 깨진
+  // 자리다 — 그땐 DESIGN.md 한 줄이 유일한 그물이었고 Tiptap이 조용히 갈렸다. 단위 테스트는
+  // globals.css의 :root 변수만 읽어 CM 인라인 theme의 var() resolve를 못 본다. 여기선 선언이
+  // 아니라 실제 렌더 computed를 잰다(theme이 :root 변수를 상속해 13px로 푸는지).
+  test("CSS 뷰 본문이 13px / 행간 18px로 렌더된다", async () => {
     await expect(cm()).toBeVisible();
     const box = await cm().evaluate((el) => {
       const s = getComputedStyle(el);
       return { fontSize: s.fontSize, lineHeight: s.lineHeight };
     });
-    expect(box).toEqual({ fontSize: "12px", lineHeight: "18px" });
+    expect(box).toEqual({ fontSize: "13px", lineHeight: "18px" });
   });
 
   // Geist Mono의 liga는 브라우저 기본 ON이고 `hyphen + hyphen → hyphen_hyphen.liga`가 실재한다

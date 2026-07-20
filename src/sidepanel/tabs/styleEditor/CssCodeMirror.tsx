@@ -226,7 +226,7 @@ function makeSwatchCompletion(tokens: Token[]) {
 }
 
 // 섹션 자체가 에디터처럼 보이도록: 배경 투명(섹션 bg 노출)·보더/아웃라인 제거,
-// 폰트는 DOM Tree Dialog와 통일(Geist Mono·12px — 래퍼의 font-mono를 상속). 라인랩 없음 → 가로 스크롤.
+// 폰트는 DOM Tree Dialog와 통일(Geist Mono·--mono-size — 래퍼의 font-mono를 상속). 라인랩 없음 → 가로 스크롤.
 // 프리셋(oneDark 등) 없이 배경·텍스트·캐럿·거터·선택색을 전부 semantic 토큰으로 지정 —
 // 라이트/다크가 같은 구성으로 자동 대응(액센트만 cssHighlightLight/Dark). 라인랩 없음 → 가로 스크롤.
 const editorTheme = EditorView.theme({
@@ -234,7 +234,7 @@ const editorTheme = EditorView.theme({
   "&": {
     backgroundColor: "transparent",
     color: "hsl(var(--foreground))",
-    fontSize: "12px",
+    fontSize: "var(--mono-size)",
     flex: "1 1 0",
     minHeight: "0",
   },
@@ -242,7 +242,7 @@ const editorTheme = EditorView.theme({
   // 섹션 패딩을 에디터 내부로 — 가로 스크롤 시 콘텐츠가 가장자리까지 흐르게.
   ".cm-scroller": {
     fontFamily: "inherit",
-    lineHeight: "1.5",
+    lineHeight: "var(--mono-leading)",
     padding: "12px 0",
     overflow: "auto",
   },
@@ -333,15 +333,15 @@ const editorTheme = EditorView.theme({
     maxHeight: "15rem",
   },
   // 2-class로 CM 기본(.cm-tooltip.cm-tooltip-autocomplete > ul > li { padding:1px 3px })를 이겨야 flex/padding이 먹힘.
-  // 편집 패널 CommandItem/TokenItem과 통일: flex + gap-2 + px-2 py-1.5. font-size는 에디터 본문(12px)과 맞춤.
+  // 편집 패널 CommandItem/TokenItem과 통일: flex + gap-2 + px-2 py-1.5. 크기·행간은 에디터 본문(--mono-size/leading)과 맞춤.
   ".cm-tooltip.cm-tooltip-autocomplete > ul > li": {
     display: "flex",
     alignItems: "center",
     gap: "8px",
     padding: "6px 8px",
     borderRadius: "calc(var(--radius) - 4px)",
-    fontSize: "12px",
-    lineHeight: "1.25rem",
+    fontSize: "var(--mono-size)",
+    lineHeight: "var(--mono-leading)",
     color: "hsl(var(--popover-foreground))",
   },
   ".cm-tooltip.cm-tooltip-autocomplete > ul > li[aria-selected]": {

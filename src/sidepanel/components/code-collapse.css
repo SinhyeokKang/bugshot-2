@@ -12,7 +12,7 @@
    오버플로 유무를 분기할 수 없어 상수로 더하면 임계값+1줄 블럭이 안 잘리는데 pill만 뜬다.
    overflow shorthand 금지 — 기존 pre 규칙의 overflow-x: auto를 덮으면 긴 줄을 못 읽는다. */
 .code-collapse[data-collapsible="true"][data-collapsed="true"] pre {
-  max-height: calc(var(--code-collapse-lines) * 1.5em + 16px + 2px + 0.75em);
+  max-height: calc(var(--code-collapse-lines) * var(--mono-leading) + 16px + 2px + 0.75em);
   padding-bottom: 0;
   overflow-y: hidden;
 }

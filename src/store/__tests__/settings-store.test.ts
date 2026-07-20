@@ -5,6 +5,7 @@ import {
   isNotionAccountComplete,
   migrateV2ToV3,
   migrateToV5,
+  migrateToV11,
   pickInitialPlatform,
   useSettingsStore,
 } from "../settings-store";
@@ -316,6 +317,59 @@ describe("migrateToV5 — titlePrefix 전역 승격", () => {
   it("titlePrefix 없으면 빈 문자열", () => {
     const v5 = migrateToV5({ accounts: {}, lastSubmitFields: {} });
     expect(v5.titlePrefix).toBe("");
+  });
+});
+
+describe("migrateToV11 — 연결 이슈 단일→복수 이관", () => {
+  it("jira.relatesKey/relatesLabel을 relates[] 첫 항목으로 옮기고 옛 키는 제거", () => {
+    const out = migrateToV11({
+      accounts: {},
+      lastSubmitFields: {
+        jira: { projectKey: "ENG", relatesKey: "ENG-2", relatesLabel: "ENG-2 Foo" },
+      },
+    });
+    expect(out.lastSubmitFields.jira).toEqual({
+      projectKey: "ENG",
+      relates: [{ key: "ENG-2", label: "ENG-2 Foo" }],
+    });
+  });
+
+  it("relatesLabel이 없으면 label은 key로 폴백", () => {
+    const out = migrateToV11({
+      accounts: {},
+      lastSubmitFields: { jira: { relatesKey: "ENG-2" } },
+    });
+    expect(out.lastSubmitFields.jira?.relates).toEqual([{ key: "ENG-2", label: "ENG-2" }]);
+  });
+
+  it("relatesKey가 없으면 relates를 만들지 않고 다른 필드는 보존", () => {
+    const out = migrateToV11({
+      accounts: {},
+      lastSubmitFields: { jira: { projectKey: "ENG", priorityId: "3" } },
+    });
+    expect(out.lastSubmitFields.jira).toEqual({ projectKey: "ENG", priorityId: "3" });
+    expect(out.lastSubmitFields.jira?.relates).toBeUndefined();
+  });
+
+  it("이미 relates[]로 이관된 상태(옛 키 없음)는 그대로 둔다", () => {
+    const already = {
+      accounts: {},
+      lastSubmitFields: {
+        jira: { relates: [{ key: "ENG-9", label: "ENG-9 Bar" }] },
+      },
+    };
+    const out = migrateToV11(already);
+    expect(out.lastSubmitFields.jira?.relates).toEqual([{ key: "ENG-9", label: "ENG-9 Bar" }]);
+  });
+
+  it("jira lastSubmitFields가 없으면 무변경, accounts·다른 플랫폼 보존", () => {
+    const out = migrateToV11({
+      accounts: { github: { platform: "github" } as never },
+      lastSubmitFields: { github: { repo: "owner/repo" } },
+    });
+    expect(out.accounts.github).toBeDefined();
+    expect(out.lastSubmitFields.github).toEqual({ repo: "owner/repo" });
+    expect(out.lastSubmitFields.jira).toBeUndefined();
   });
 });
 

@@ -119,8 +119,7 @@ export interface EditorIssueFields {
   priorityName?: string;
   parentKey?: string;
   parentLabel?: string;
-  relatesKey?: string;
-  relatesLabel?: string;
+  relates?: { key: string; label: string }[];
   cc?: { accountId: string; displayName: string }[];
 }
 

@@ -12,9 +12,12 @@ export function resolveEpicParentConflict(
     parentLabel: undefined,
   };
 
-  if (!fields.relatesKey) {
-    patch.relatesKey = fields.parentKey;
-    patch.relatesLabel = fields.parentLabel;
+  const current = fields.relates ?? [];
+  if (!current.some((r) => r.key === fields.parentKey)) {
+    patch.relates = [
+      ...current,
+      { key: fields.parentKey, label: fields.parentLabel ?? fields.parentKey },
+    ];
   }
 
   return patch;

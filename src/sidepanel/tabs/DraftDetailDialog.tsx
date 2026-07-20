@@ -109,8 +109,7 @@ type SubmitFields = {
   priorityName?: string;
   parentKey?: string;
   parentLabel?: string;
-  relatesKey?: string;
-  relatesLabel?: string;
+  relates?: { key: string; label: string }[];
   cc?: { accountId: string; displayName: string }[];
 };
 
@@ -426,7 +425,7 @@ export function DraftDetailDialog({
       assigneeAccountId: fields.assigneeId,
       priorityId: fields.priorityId,
       parentKey: fields.parentKey,
-      relatesKey: fields.relatesKey,
+      relates: fields.relates,
       cc: fields.cc,
     });
     // 승격 가드 없음: submitToJira는 업로드+생성이 단일 atomic 호출(jira.submitIssue)이라
@@ -453,8 +452,7 @@ export function DraftDetailDialog({
       priorityName: fields.priorityName,
       parentKey: fields.parentKey,
       parentLabel: fields.parentLabel,
-      relatesKey: fields.relatesKey,
-      relatesLabel: fields.relatesLabel,
+      relates: fields.relates,
       cc: fields.cc,
     });
     useSettingsStore.getState().setLastSubmittedPlatform("jira");

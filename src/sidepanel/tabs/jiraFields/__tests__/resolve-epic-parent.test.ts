@@ -18,22 +18,36 @@ describe("resolveEpicParentConflict", () => {
     expect(resolveEpicParentConflict(fields, 1)).toBeNull();
   });
 
-  it("moves parentKey to relatesKey when epic type and relatesKey empty", () => {
+  it("appends parentKey to relates[] when epic type and relates empty", () => {
     const fields: EditorIssueFields = { parentKey: "PROJ-1", parentLabel: "PROJ-1 Epic" };
     expect(resolveEpicParentConflict(fields, 1)).toEqual({
       parentKey: undefined,
       parentLabel: undefined,
-      relatesKey: "PROJ-1",
-      relatesLabel: "PROJ-1 Epic",
+      relates: [{ key: "PROJ-1", label: "PROJ-1 Epic" }],
     });
   });
 
-  it("clears parentKey without overwriting existing relatesKey", () => {
+  it("appends parentKey to existing relates[] without dropping current entries", () => {
     const fields: EditorIssueFields = {
       parentKey: "PROJ-1",
       parentLabel: "PROJ-1 Epic",
-      relatesKey: "PROJ-2",
-      relatesLabel: "PROJ-2 Other",
+      relates: [{ key: "PROJ-2", label: "PROJ-2 Other" }],
+    };
+    expect(resolveEpicParentConflict(fields, 1)).toEqual({
+      parentKey: undefined,
+      parentLabel: undefined,
+      relates: [
+        { key: "PROJ-2", label: "PROJ-2 Other" },
+        { key: "PROJ-1", label: "PROJ-1 Epic" },
+      ],
+    });
+  });
+
+  it("does not duplicate when parentKey already present in relates[]", () => {
+    const fields: EditorIssueFields = {
+      parentKey: "PROJ-1",
+      parentLabel: "PROJ-1 Epic",
+      relates: [{ key: "PROJ-1", label: "PROJ-1 Epic" }],
     };
     expect(resolveEpicParentConflict(fields, 1)).toEqual({
       parentKey: undefined,
@@ -41,14 +55,21 @@ describe("resolveEpicParentConflict", () => {
     });
   });
 
-  it("handles hierarchyLevel > 1 (custom higher-level types)", () => {
-    const fields: EditorIssueFields = { parentKey: "PROJ-1", parentLabel: "PROJ-1 Epic" };
-    const result = resolveEpicParentConflict(fields, 2);
-    expect(result).toEqual({
+  it("falls back to key as label when parentLabel is missing", () => {
+    const fields: EditorIssueFields = { parentKey: "PROJ-1" };
+    expect(resolveEpicParentConflict(fields, 1)).toEqual({
       parentKey: undefined,
       parentLabel: undefined,
-      relatesKey: "PROJ-1",
-      relatesLabel: "PROJ-1 Epic",
+      relates: [{ key: "PROJ-1", label: "PROJ-1" }],
+    });
+  });
+
+  it("handles hierarchyLevel > 1 (custom higher-level types)", () => {
+    const fields: EditorIssueFields = { parentKey: "PROJ-1", parentLabel: "PROJ-1 Epic" };
+    expect(resolveEpicParentConflict(fields, 2)).toEqual({
+      parentKey: undefined,
+      parentLabel: undefined,
+      relates: [{ key: "PROJ-1", label: "PROJ-1 Epic" }],
     });
   });
 });

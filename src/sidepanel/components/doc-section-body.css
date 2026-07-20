@@ -72,7 +72,7 @@
   background: hsl(var(--muted));
   border-radius: 0.25rem;
   padding: 0.125em 0.25em;
-  font-size: 12px;
+  font-size: var(--mono-size);
 }
 
 .doc-section-body blockquote {
@@ -87,8 +87,8 @@
   border-radius: var(--radius);
   padding: 16px;
   overflow-x: auto;
-  font-size: 12px;
-  line-height: 1.5;
+  font-size: var(--mono-size);
+  line-height: var(--mono-leading);
 }
 
 /* pre 내부 code는 중복 배경 제거 */

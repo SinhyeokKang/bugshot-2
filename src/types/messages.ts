@@ -102,7 +102,7 @@ export type BgRequest =
       type: "jira.submitIssue";
       payload: JiraCreateIssuePayload;
       attachments: JiraAttachmentInput[];
-      relatesKey?: string;
+      relates?: string[];
     }
   | { type: "github.oauth.available" }
   | { type: "github.startOAuth" }

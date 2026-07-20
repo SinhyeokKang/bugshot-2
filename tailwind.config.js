@@ -39,6 +39,11 @@ export default {
           "monospace",
         ],
       },
+      // text-mono = mono 코드 표면(로그) 타입스케일. 값은 globals.css :root의 단일출처 변수를
+      // 그대로 물어, :root 한 곳 수정이 유틸까지 흐르게 한다(리터럴 13px/18px 금지).
+      fontSize: {
+        mono: ["var(--mono-size)", "var(--mono-leading)"],
+      },
       colors: {
         border: "hsl(var(--border))",
         input: "hsl(var(--input))",
