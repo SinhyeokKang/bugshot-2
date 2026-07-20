@@ -40,6 +40,10 @@ interface Props {
   emptyLabel?: string;
   // 한 패널에 콤보박스가 둘 이상이면 testid 충돌을 피하려 덮어쓴다 (기본은 cc용).
   testId?: string;
+  // 유저 아바타는 원형, 이슈 타입 아이콘 등 사각 글리프는 false로 각지게.
+  avatarRounded?: boolean;
+  // 트리거 표시 문구 커스터마이즈 (기본은 선택 label을 ", "로 join).
+  renderTriggerLabel?: (selected: CcUserOption[]) => string;
 }
 
 export function CcMultiCombobox({
@@ -58,6 +62,8 @@ export function CcMultiCombobox({
   searchPlaceholder,
   emptyLabel,
   testId,
+  avatarRounded,
+  renderTriggerLabel,
 }: Props) {
   const t = useT();
   const [open, setOpen] = useState(false);
@@ -104,6 +110,7 @@ export function CcMultiCombobox({
   const triggerLabel = (() => {
     if (disabled) return disabledLabel ?? placeholder;
     if (selected.length === 0) return placeholder;
+    if (renderTriggerLabel) return renderTriggerLabel(selected);
     return selected.map((s) => s.label).join(", ");
   })();
 
@@ -193,7 +200,10 @@ export function CcMultiCombobox({
                           <img
                             src={o.avatarUrl}
                             alt=""
-                            className="mr-2 h-4 w-4 rounded-full"
+                            className={cn(
+                              "mr-2 h-4 w-4",
+                              avatarRounded !== false && "rounded-full",
+                            )}
                           />
                         ) : null}
                         <span className="flex min-w-0 flex-1 flex-col">

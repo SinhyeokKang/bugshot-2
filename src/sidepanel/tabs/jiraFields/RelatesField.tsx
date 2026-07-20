@@ -56,6 +56,7 @@ export function RelatesField({
       options={items.map((i) => ({
         key: i.key,
         label: `${i.key} ${i.fields.summary}`,
+        avatarUrl: i.fields.issuetype?.iconUrl,
       }))}
       selected={value}
       onToggle={toggle}
@@ -68,6 +69,10 @@ export function RelatesField({
       searchPlaceholder={t("field.epic.search")}
       emptyLabel={t("field.epic.empty")}
       testId="relates-combobox"
+      avatarRounded={false}
+      renderTriggerLabel={(sel) =>
+        sel.length === 1 ? sel[0].label : sel.map((s) => s.key).join(", ")
+      }
     />
   );
 }
