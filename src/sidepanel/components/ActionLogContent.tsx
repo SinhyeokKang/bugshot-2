@@ -95,7 +95,7 @@ function DragNodeChip({ node }: { node: ActionNode }) {
       ? view.name
       : `<${view.tagName}${view.tagType ? ` type="${view.tagType}"` : ""}>`;
   return (
-    <InlineChip title={title} className="inline-block max-w-[40%] truncate align-bottom">
+    <InlineChip title={title} className="inline-block max-w-[40%] truncate align-middle">
       <ResolvedTargetChip view={view} />
     </InlineChip>
   );
