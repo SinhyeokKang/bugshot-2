@@ -66,4 +66,14 @@ describe("ActionLogContent — Kbd chip 통일", () => {
     expect(chip).not.toBeNull();
     expect(chip.textContent).toContain("10743");
   });
+
+  // 값 칩은 mono 표면이라 형제 행 텍스트(text-mono=13px)와 같은 크기여야 한다. Kbd 기본 text-xs를
+  // CHIP_CLS가 text-mono로 덮지 않으면 한 줄에 13px 텍스트 + 12px 칩이 섞인다(POSTMORTEM 2026-07-17
+  // "표면 하나 누락" 재발 패턴). tailwind-merge라 렌더된 className에 text-xs가 남으면 안 덮였다는 뜻.
+  it("input value chip이 text-mono로 렌더된다 (Kbd 기본 text-xs를 덮음)", () => {
+    render(<ActionLogContent entries={CHIP_ENTRIES} />);
+    const chip = row("in1").querySelector('[data-testid="action-value-chip"]') as HTMLElement;
+    expect(chip.className).toContain("text-mono");
+    expect(chip.className).not.toContain("text-xs");
+  });
 });

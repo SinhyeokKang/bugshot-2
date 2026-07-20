@@ -57,8 +57,8 @@ function KindIcon({ kind }: { kind: ActionEntryKind }) {
 
 const MASKED_DISPLAY = "[********]";
 
-// 로그는 mono 표면 → Kbd 기본 font-sans를 덮고, 텍스트 라인 중앙 정렬 + 값은 foreground로 또렷하게.
-const CHIP_CLS = "font-mono align-middle text-foreground";
+// 로그는 mono 표면 → Kbd 기본 font-sans·text-xs를 덮어(text-mono=13px 형제 행과 통일) 중앙 정렬 + foreground로 또렷하게.
+const CHIP_CLS = "font-mono text-mono align-middle text-foreground";
 
 // 단일 chip 렌더러 — name/tag/empty view를 그린다. click 타깃과 drag source/target slot이 공유.
 function ResolvedTargetChip({ view }: { view: ClickTargetView }) {
