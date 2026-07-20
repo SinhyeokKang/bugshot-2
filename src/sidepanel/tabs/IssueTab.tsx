@@ -62,7 +62,12 @@ import {
 import { runScrollCapture } from "@/sidepanel/scroll-capture";
 import { startVideoCapture, startScreenCapture } from "@/sidepanel/video-capture";
 import { setAnnotationTool } from "@/sidepanel/annotation-control";
-import { ANNOTATION_TOOLS, type AnnotationTool } from "@/sidepanel/components/annotation/presets";
+import {
+  ANNOTATION_COLORS,
+  ANNOTATION_TOOLS,
+  recordingColorCount,
+  type AnnotationTool,
+} from "@/sidepanel/components/annotation/presets";
 import type { RecordingPenTool } from "@/sidepanel/components/annotation/recording-pen";
 import { ColorSwatches, ThicknessButtons, ToolButtons } from "@/sidepanel/components/annotation/ToolbarGroups";
 import * as videoRecorder from "@/sidepanel/video-recorder";
@@ -529,6 +534,19 @@ function RecordingState({ onStop, onCancel }: { onStop: () => void; onCancel: ()
   const [elapsed, setElapsed] = useState(0);
   const maxDuration = videoRecorder.getMaxDuration();
 
+  // 툴바 폭이 좁으면 우측 색부터 접는다(최소 3색). footer 실제 폭을 관측.
+  const toolbarRef = useRef<HTMLDivElement>(null);
+  const [colorCount, setColorCount] = useState<number>(ANNOTATION_COLORS.length);
+  useEffect(() => {
+    const el = toolbarRef.current;
+    if (!el) return;
+    const update = () => setColorCount(recordingColorCount(el.clientWidth));
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
   // 같은 툴을 다시 누르면 off(null). 색/두께 변경은 현재 툴이 켜져 있을 때만 재전송.
   const pickTool = (picked: AnnotationTool) => {
     // ToolButtons엔 RECORDING_PEN_TOOLS만 넘기지만 onChange 타입은 AnnotationTool — 가드로 좁힌다.
@@ -588,6 +606,7 @@ function RecordingState({ onStop, onCancel }: { onStop: () => void; onCancel: ()
       {/* 화면에 그리기 툴바: [펜·사각형·형광펜] [색] [두께] — 이미지 어노테이션과 동일 그룹 재사용.
           취소·제출 같은 액션이 없는 순수 툴바라 action footer(bg-muted)가 아니라 흰 배경(bg-background). */}
       <div
+        ref={toolbarRef}
         className="flex shrink-0 items-center justify-between gap-2 border-t border-border bg-background p-4"
         title={t("issue.recording.penHint")}
       >
@@ -597,7 +616,12 @@ function RecordingState({ onStop, onCancel }: { onStop: () => void; onCancel: ()
           onChange={pickTool}
           testIdPrefix="rec-annotation-tool"
         />
-        <ColorSwatches value={color} onChange={pickColor} testIdPrefix="rec-annotation-color" />
+        <ColorSwatches
+          value={color}
+          onChange={pickColor}
+          count={colorCount}
+          testIdPrefix="rec-annotation-color"
+        />
         <ThicknessButtons
           value={thickness}
           onChange={pickThickness}

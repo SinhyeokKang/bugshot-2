@@ -121,18 +121,28 @@ export function ColorSwatches({
   onChange,
   disabled,
   className,
+  count,
   testIdPrefix = "annotation-color",
 }: {
   value: string;
   onChange: (color: string) => void;
   disabled?: boolean;
   className?: string;
+  // 앞에서부터 노출할 색 개수(좁은 폭 대응). 활성 색은 잘려도 항상 포함한다.
+  count?: number;
   testIdPrefix?: string;
 }) {
   const t = useT();
+  const shown =
+    count == null
+      ? ANNOTATION_COLORS
+      : ANNOTATION_COLORS.slice(
+          0,
+          Math.max(count, (ANNOTATION_COLORS as readonly string[]).indexOf(value) + 1),
+        );
   return (
     <ButtonGroup className={cn("flex-nowrap", className)}>
-      {ANNOTATION_COLORS.map((c, i) => {
+      {shown.map((c, i) => {
         const active = value === c;
         return (
           <TooltipIconButton

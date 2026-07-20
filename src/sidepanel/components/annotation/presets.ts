@@ -59,6 +59,17 @@ export const ANNOTATION_TOOLS: readonly AnnotationToolMeta[] = [
 
 export const THICKNESS_KEYS = Object.keys(ANNOTATION_THICKNESS) as ThicknessKey[];
 
+// 녹화 footer([펜·사각·형광][색][두께])는 폭이 좁아지면 우측 색부터 하나씩 접어
+// 최소 3색까지 줄인다. 툴 3·두께 3(각 32px)·padding 32·그룹 gap 16은 고정이라
+// 남는 폭으로 색 개수(32px/개)를 정한다. 5색 400 / 4색 368 + 버퍼 4px.
+export const RECORDING_MIN_COLORS = 3;
+
+export function recordingColorCount(footerWidthPx: number): number {
+  if (footerWidthPx >= 404) return 5;
+  if (footerWidthPx >= 372) return 4;
+  return RECORDING_MIN_COLORS;
+}
+
 // 두께가 의미 있는(strokeWidth 활성) 도형 — 툴바 두께 활성·스타일 행 노출 판정의 단일 출처.
 const STROKE_TOOLS: ReadonlySet<AnnotationTool> = new Set<AnnotationTool>([
   "arrow",
