@@ -38,6 +38,8 @@ interface Props {
   selectLabel?: string;
   searchPlaceholder?: string;
   emptyLabel?: string;
+  // 한 패널에 콤보박스가 둘 이상이면 testid 충돌을 피하려 덮어쓴다 (기본은 cc용).
+  testId?: string;
 }
 
 export function CcMultiCombobox({
@@ -55,6 +57,7 @@ export function CcMultiCombobox({
   selectLabel,
   searchPlaceholder,
   emptyLabel,
+  testId,
 }: Props) {
   const t = useT();
   const [open, setOpen] = useState(false);
@@ -112,7 +115,7 @@ export function CcMultiCombobox({
           role="combobox"
           aria-expanded={open}
           disabled={disabled}
-          data-testid="cc-combobox"
+          data-testid={testId ?? "cc-combobox"}
           className="w-full min-w-0 justify-between font-normal"
         >
           <span

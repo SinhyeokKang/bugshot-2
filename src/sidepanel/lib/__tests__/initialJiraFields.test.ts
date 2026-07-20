@@ -90,4 +90,29 @@ describe("initialJiraFields — 직전 제출값 복원", () => {
     expect(out.parentKey).toBeUndefined();
     expect(out.issueTypeId).toBe("10001");
   });
+
+  it("같은 project면 relates[] 복수 연결 이슈를 온전히 복원", () => {
+    const out = initialJiraFields(
+      {
+        projectKey: "ENG",
+        relates: [
+          { key: "ENG-2", label: "ENG-2 Foo" },
+          { key: "ENG-3", label: "ENG-3 Bar" },
+        ],
+      },
+      { projectKey: "ENG", issueTypeId: "10001" },
+    );
+    expect(out.relates).toEqual([
+      { key: "ENG-2", label: "ENG-2 Foo" },
+      { key: "ENG-3", label: "ENG-3 Bar" },
+    ]);
+  });
+
+  it("project가 갈리면 relates[]도 통째로 버린다", () => {
+    const out = initialJiraFields(
+      { projectKey: "OTHER", relates: [{ key: "OTHER-2", label: "OTHER-2 Foo" }] },
+      { projectKey: "ENG", issueTypeId: "10001" },
+    );
+    expect(out.relates).toBeUndefined();
+  });
 });

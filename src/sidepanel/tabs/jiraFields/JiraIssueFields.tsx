@@ -7,6 +7,7 @@ import { CcField } from "./CcField";
 import { EpicField } from "./EpicField";
 import { IssueTypeField } from "./IssueTypeField";
 import { PriorityField } from "./PriorityField";
+import { RelatesField } from "./RelatesField";
 import { resolveEpicParentConflict } from "./resolve-epic-parent";
 
 export function JiraIssueFields({
@@ -66,10 +67,9 @@ export function JiraIssueFields({
         </FieldRow>
       )}
       <FieldRow label={t("create.linkedIssue")}>
-        <EpicField
-          value={fields.relatesKey}
-          fallbackLabel={fields.relatesLabel}
-          onChange={(key, label) => onChange({ relatesKey: key, relatesLabel: label })}
+        <RelatesField
+          value={fields.relates ?? []}
+          onChange={(relates) => onChange({ relates })}
         />
       </FieldRow>
       <FieldRow label={t("field.cc.label")}>

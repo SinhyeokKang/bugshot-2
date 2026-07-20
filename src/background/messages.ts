@@ -275,7 +275,7 @@ export async function handleMessage(
         await ensureFreshAuth(await loadAuth()),
         message.payload,
         message.attachments,
-        message.relatesKey,
+        message.relates,
       );
 
     case "github.startOAuth":
@@ -775,7 +775,7 @@ async function submitIssue(
   auth: JiraAuth,
   payload: JiraCreateIssuePayload,
   attachments: JiraAttachmentInput[],
-  relatesKey: string | undefined,
+  relates: string[] | undefined,
 ): Promise<JiraSubmitResult> {
   const issue = await createIssue(auth, payload);
   const issueUrl = buildIssueUrl(auth, issue.key);
@@ -885,7 +885,7 @@ async function submitIssue(
     }
   }
 
-  if (relatesKey) {
+  for (const relatesKey of relates ?? []) {
     try {
       await createIssueLink(auth, issue.key, relatesKey);
     } catch (err) {

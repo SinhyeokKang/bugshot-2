@@ -4,6 +4,7 @@ import type { JiraAuth } from "@/types/jira";
 import type {
   Accounts,
   JiraAccount,
+  JiraLastSubmitFields,
   LastSubmitFieldsByPlatform,
   PlatformId,
 } from "@/types/platform";
@@ -22,7 +23,8 @@ import { chromeLocalStorage } from "./chrome-storage";
 // v8: asana 플랫폼 추가. 동일하게 새 필드 모두 optional이라 버전 마커만 bump.
 // v9: clickup 플랫폼 추가. 새 필드 모두 optional이라 버전 마커만 bump.
 // v10: slack 플랫폼 추가. 동일하게 새 필드 모두 optional이라 버전 마커만 bump.
-export const SETTINGS_STORE_VERSION = 10;
+// v11: jira 연결 이슈 단일(relatesKey/relatesLabel)→복수(relates[{key,label}]). 직전 제출값 이관(migrateToV11).
+export const SETTINGS_STORE_VERSION = 11;
 
 interface SettingsState {
   accounts: Accounts;
@@ -151,6 +153,32 @@ export function migrateToV5(state: V3Shape): V3Shape & { titlePrefix: string } {
   return { ...state, titlePrefix: prefix };
 }
 
+// v11: jira 연결 이슈 단일→복수. 직전 제출값의 relatesKey/relatesLabel을 relates[] 첫 항목으로 이관.
+// v10 데이터는 jira에 옛 relatesKey/relatesLabel을 들고 오므로 입력 타입에서 그 키를 허용한다.
+type JiraLastSubmitPreV11 = JiraLastSubmitFields & {
+  relatesKey?: string;
+  relatesLabel?: string;
+};
+type PreV11Shape = {
+  accounts: V3Shape["accounts"];
+  lastSubmitFields: Omit<V3Shape["lastSubmitFields"], "jira"> & {
+    jira?: JiraLastSubmitPreV11;
+  };
+};
+
+export function migrateToV11(state: PreV11Shape): V3Shape {
+  const jira = state.lastSubmitFields.jira;
+  if (!jira?.relatesKey) return state as V3Shape;
+  const { relatesKey, relatesLabel, ...rest } = jira;
+  return {
+    ...state,
+    lastSubmitFields: {
+      ...state.lastSubmitFields,
+      jira: { ...rest, relates: [{ key: relatesKey, label: relatesLabel ?? relatesKey }] },
+    },
+  } as V3Shape;
+}
+
 function isV3Shape(state: unknown): state is V3Shape {
   if (!state || typeof state !== "object") return false;
   return "accounts" in state;
@@ -249,6 +277,9 @@ export const useSettingsStore = create<SettingsState>()(
         }
         if (version < 5) {
           state = migrateToV5(state as V3Shape);
+        }
+        if (version < 11) {
+          state = migrateToV11(state as V3Shape) as Record<string, unknown>;
         }
         return state as unknown as SettingsState;
       },
