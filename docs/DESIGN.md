@@ -187,6 +187,7 @@ shadcn `Slider` (`src/components/ui/slider.tsx`, Radix). 표준에서 **멀티 t
 - `Badge`: variant `default`/`secondary`/`destructive`/`outline`, size 없음, `[&>svg]:size-3`.
 - `Toggle`/`ToggleGroup`: variant `default`/`outline`/`segment`/`underline`, size `sm`(h-8)/`default`(h-9)/`lg`(h-10). **현재 앱 사용처 0** — 미사용 primitive다(세그먼트 뷰 토글은 `Tabs`로 구현). `size="xl"`·`variant="destructive"`도 같은 상태.
 - `ButtonGroup`: `orientation` `horizontal`/`vertical`. 서브 export `ButtonGroupText`·`ButtonGroupSeparator`.
+- `Kbd`: 인라인 keycap 칩 — `bg-muted text-muted-foreground rounded-sm inline-flex h-5`. 액션 로그의 값·태그·드래그·마스킹 칩이 단일 출처로 사용(`ActionLogContent`의 `CHIP_CLS` = `font-mono align-middle`로 mono 표면 override + 텍스트 라인 중앙 정렬, 긴 값은 내부 `min-w-0 truncate` span). 마스킹은 `border border-dashed`로 구분. `KbdGroup` 미사용.
 
 ## 11. 레이아웃 & 반응형
 
@@ -246,7 +247,6 @@ shadcn `Slider` (`src/components/ui/slider.tsx`, Radix). 표준에서 **멀티 t
 | `HighlightedText.tsx` / `JsonTreeViewer.tsx` / `LogSeekChip.tsx` | 로그 표시 위젯 — 검색어 `<mark>` 하이라이트(+`HighlightQueryContext`로 JSON 트리 leaf까지 전달) / 네트워크 body JSON 트리 / 영상-로그 동기화 점프 칩. 사이드패널 로그 탭·다이얼로그·log-viewer 공용 |
 | `FieldRow.tsx` | 라벨+필드 쌍 — `grid gap-1.5`, 라벨 `text-xs text-muted-foreground`, `required` 시 빨간 별. **⚠ `tabs/connect/`는 아직 안 따른다** — 8개 폼이 동일 마크업을 raw `div.flex flex-col gap-1.5` + `<label>`로 42곳 반복(시각 결과는 같지만 규칙 미준수). 신규 필드는 `FieldRow`를 쓴다 |
 | **Connect 폼 기본값 필드** (`tabs/connect/*ConnectForm.tsx` — 표 헤더의 `components/` 아님) | 연결 후 기본값(위치·담당자·라벨·이슈 타입) 편집 — **이슈 모달의 콤보박스를 그대로 재사용**한다(`*Fields/AssigneeCombobox` 등). 새 콤보박스를 만들지 말 것. 상위 값(저장소·프로젝트·팀·워크스페이스) 콤보박스의 `onChange`는 **하위 담당자·라벨 defaults를 함께 비운다**(다른 스코프의 멤버라 무효). 후보 조회에 상위 값이 필요한 콤보박스는 `ready` 가드로 비활성 + "먼저 선택하세요" 안내를 트리거 라벨에 노출 |
-| `InlineChip.tsx` | 인라인 텍스트 칩 — `muted`면 dashed/muted, 아니면 `border-primary`. `[box-decoration-break:clone]`로 줄바꿈 대응 |
 | `InlineLink.tsx` | 외부 링크 — `target=_blank rel=noopener noreferrer`, `text-blue-600 underline dark:text-blue-400` |
 | `LinkifiedText.tsx` | 로그 본문 텍스트 linkify — `tokenizeLogText`로 URL 토큰만 `InlineLink`로 렌더(클릭 시 행 토글 방지 stopPropagation). Console 로그 본문·stack 사용 |
 | `ConnectedBadge.tsx` | 연결됨 상태 배지 — CircleCheck + green 톤 |

@@ -21,6 +21,13 @@
 
 ---
 
+## 2026-07-20 — shadcn `Kbd`(inline-flex)에 `truncate`를 얹었더니 ellipsis가 안 뜨고 `justify-center`가 양끝을 잘랐다
+
+- **증상**: 액션 로그 칩을 `InlineChip`(bespoke, `inline-block`)에서 shadcn `Kbd`로 통일하며 긴 값에 `max-w-[40%] truncate`를 그대로 옮겼다. 짧은 값(`10743`)은 멀쩡했지만, 긴 값은 `앞부분…`이 아니라 **문자열 중간만** 보이고 말줄임표가 없었다. `pnpm test`·typecheck·자체검증 순수 로직은 전부 green — jsdom이 못 잡는 계층이라 자체검증 에이전트의 CSS 추론으로만 걸렸다(커밋 전 발견, 미출시).
+- **근본 원인**: `truncate` = `overflow-hidden text-ellipsis whitespace-nowrap`인데 **`text-overflow: ellipsis`는 block 컨테이너에서만 적용된다**. shadcn `Kbd`/`Badge` 등은 base가 `inline-flex`라 텍스트가 익명 flex item이 되어 ellipsis가 **무효**(하드 클립)다. 게다가 `Kbd` base엔 `justify-center`가 있어 넘친 텍스트가 가운데 정렬로 **양끝이 잘린다**. `InlineChip`은 `inline-block`이라 우연히 정상 동작했던 것 — 프리미티브를 바꾸며 box 모델 전제가 조용히 깨졌다.
+- **재발 방지**: (1) **shadcn `inline-flex` 칩(`Kbd`·`Badge`·`ButtonGroup*`)에 `truncate`를 직접 얹지 말 것** — ellipsis가 필요하면 내부에 `<span className="min-w-0 truncate">`로 감싸 flex item을 block화하고 `min-w-0`으로 축소 허용(선례 `ActionLogContent`의 `DragNodeChip`·`valueChip`). (2) grep: `grep -rn 'truncate' src` 결과 중 대상이 `inline-flex`(shadcn Kbd/Badge/Toggle 등)면 냄새 — 부모 `display`를 확인한다. (3) **말줄임·클리핑은 jsdom·순수 테스트로 못 막는다**(레이아웃 계층) — computed style을 읽는 e2e나 육안이 유일한 그물. 이번엔 자체검증 에이전트의 CSS 규칙 추론이 대신 잡았다. 계열: `text-overflow`처럼 **특정 `display`에서만 작동하는 속성**을 프리미티브 교체와 함께 옮기면 조용히 무력화된다.
+- **관련**: `src/sidepanel/components/ActionLogContent.tsx`(`DragNodeChip`·`valueChip` — 내부 `min-w-0 truncate` span), `src/components/ui/kbd.tsx`(base `inline-flex justify-center`), `docs/DESIGN.md` §관련 변형 컴포넌트(`Kbd` 항목).
+
 ## 2026-07-18 — `DB_VERSION`을 올렸더니 무관한 슬랙 spec이 `VersionError`로 죽었다 — e2e가 IndexedDB 버전을 하드코딩 seed
 
 - **증상**: 인라인 이미지 어노테이션(blob-db에 `inlineImageOrigins` store 추가)만 건드렸는데, `/push` e2e 게이트에서 **전혀 무관한** `slack-promote-media-guard.spec`이 `VersionError: The requested version (7) is less than the existing version (8)`로 빨강. 정작 내가 만든 `inline-image-annotation.spec`은 green이었다.
