@@ -187,7 +187,7 @@ shadcn `Slider` (`src/components/ui/slider.tsx`, Radix). 표준에서 **멀티 t
 - `Badge`: variant `default`/`secondary`/`destructive`/`outline`, size 없음, `[&>svg]:size-3`.
 - `Toggle`/`ToggleGroup`: variant `default`/`outline`/`segment`/`underline`, size `sm`(h-8)/`default`(h-9)/`lg`(h-10). **현재 앱 사용처 0** — 미사용 primitive다(세그먼트 뷰 토글은 `Tabs`로 구현). `size="xl"`·`variant="destructive"`도 같은 상태.
 - `ButtonGroup`: `orientation` `horizontal`/`vertical`. 서브 export `ButtonGroupText`·`ButtonGroupSeparator`.
-- `Kbd`: 인라인 keycap 칩 — `bg-muted text-muted-foreground rounded-sm inline-flex h-5`. 액션 로그의 값·태그·드래그·마스킹 칩이 단일 출처로 사용(`ActionLogContent`의 `CHIP_CLS` = `font-mono align-middle`로 mono 표면 override + 텍스트 라인 중앙 정렬, 긴 값은 내부 `min-w-0 truncate` span). 마스킹은 `border border-dashed`로 구분. `KbdGroup` 미사용.
+- `Kbd`: 인라인 keycap 칩 — `bg-muted text-muted-foreground rounded-sm inline-flex h-5`. 액션 로그의 값·태그·드래그·마스킹 칩이 단일 출처로 사용(`ActionLogContent`의 `CHIP_CLS` = `font-mono align-middle text-foreground`로 mono 표면 override + 텍스트 라인 중앙 정렬 + Kbd 기본 muted를 foreground로 또렷하게, 긴 값은 내부 `min-w-0 truncate` span). 마스킹은 `border border-dashed`로만 구분(라벨색은 동일 foreground). `KbdGroup` 미사용.
 
 ## 11. 레이아웃 & 반응형
 
