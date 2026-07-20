@@ -6,7 +6,14 @@ import type { UserAttachmentMeta } from "@/types/attachment";
 import { blobToDataUrl } from "@/store/blob-db";
 import { buildLogsHtml } from "./buildLogsHtml";
 import { buildReportData, type BuildReportDataInput } from "./buildReportData";
-import { supportsConsoleNetworkLog, supportsActionLog } from "./captureLogSupport";
+import {
+  supportsConsoleNetworkLog,
+  supportsActionLog,
+  resolveCapturedLog,
+  EMPTY_CONSOLE_LOG,
+  EMPTY_NETWORK_LOG,
+  EMPTY_ACTION_LOG,
+} from "./captureLogSupport";
 import { recordingFilename } from "./video-mime";
 
 // 선언은 editor-store 단일 출처 — 여기선 기존 import 경로(captureLogSupport 등)를 위해 재export만.
@@ -86,7 +93,18 @@ export async function buildCaptureFiles(
           ? { dataUrl: input.screenshotImage }
           : null;
       const report = input.report ? await buildReportData(input.report) : null;
-      const html = await buildLogsHtml(input.networkLog ?? null, input.consoleLog ?? null, actionLog, videoEmbed, screenshotEmbed, input.pageUrl ?? "", undefined, input.issueTitle, report);
+      // 지원 모드에서 0건이면 null이 아니라 빈 객체 — null은 "미수집"만 뜻하게(AI 소비 명확성).
+      const html = await buildLogsHtml(
+        resolveCapturedLog(input.networkLog, supportsConsoleNetworkLog(input.captureMode), EMPTY_NETWORK_LOG),
+        resolveCapturedLog(input.consoleLog, supportsConsoleNetworkLog(input.captureMode), EMPTY_CONSOLE_LOG),
+        resolveCapturedLog(input.actionLog, supportsActionLog(input.captureMode), EMPTY_ACTION_LOG),
+        videoEmbed,
+        screenshotEmbed,
+        input.pageUrl ?? "",
+        undefined,
+        input.issueTitle,
+        report,
+      );
       const htmlBlob = new Blob([html], { type: "text/html" });
       result.logs.push({
         filename: "logs.html",
