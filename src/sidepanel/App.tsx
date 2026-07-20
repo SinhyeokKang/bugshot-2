@@ -35,6 +35,9 @@ import { useEditorSessionSync } from "./hooks/useEditorSessionSync";
 import { useBackgroundRecorder } from "./hooks/useBackgroundRecorder";
 import { usePickerMessages } from "./hooks/usePickerMessages";
 import { useThemeEffect } from "./hooks/useThemeEffect";
+import { useAiLoadingStep } from "./hooks/useAiLoadingStep";
+import { aiLoadingSurface, aiLoadingPhraseKey } from "./lib/aiLoadingPhrases";
+import { AiLoadingText } from "./components/AiLoadingText";
 import { DebugTab } from "./tabs/DebugTab";
 import { IntegrationsTab } from "./tabs/IntegrationsTab";
 import { IssueListTab } from "./tabs/IssueListTab";
@@ -84,6 +87,14 @@ export default function App() {
 
   const aiLoading = useAiLoading();
   const aiStylingLoading = useEditorStore((s) => s.aiStylingLoading);
+  const aiDraftLoading = useEditorStore((s) => s.aiDraftLoading);
+  const reproPrefillLoading = useEditorStore((s) => s.reproPrefillLoading);
+  const aiSurface = aiLoadingSurface({
+    styling: aiStylingLoading,
+    draft: aiDraftLoading,
+    repro: reproPrefillLoading,
+  });
+  const aiStep = useAiLoadingStep(aiSurface, 3000);
   const replayTrim = useEditorStore((s) => s.replayTrim);
   const [tab, setTab] = useState("debug");
   const [settingsSub, setSettingsSub] = useState("issue");
@@ -185,10 +196,29 @@ export default function App() {
       }}
     >
     <div className="relative flex h-screen flex-col">
-      {aiLoading && (
-        <div className="absolute inset-0 z-50 overflow-hidden backdrop-blur-[2px]">
+      {aiLoading && aiSurface && (
+        <div className="absolute inset-0 z-50 flex items-center justify-center overflow-hidden backdrop-blur-[2px]">
           <div className={cn("absolute inset-0", aiStylingLoading ? "bg-teal-500/5" : "bg-purple-500/5")} />
-          <div className={cn("absolute inset-0 animate-shimmer bg-gradient-to-b from-transparent to-transparent", aiStylingLoading ? "via-teal-400/10" : "via-purple-400/10")} />
+          <div className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2">
+            <div
+              key={aiStep}
+              className={cn(
+                "h-[180vh] w-[180vh] animate-ai-ripple rounded-full blur-3xl motion-reduce:animate-none",
+                aiStylingLoading
+                  ? "bg-[radial-gradient(circle,transparent_0%,rgba(45,212,191,0.1)_46%,transparent_141%)]"
+                  : "bg-[radial-gradient(circle,transparent_0%,rgba(192,132,252,0.1)_46%,transparent_141%)]",
+              )}
+            />
+          </div>
+          <div className="relative z-10 flex animate-text-breathe items-center justify-center px-6 motion-reduce:animate-none">
+            <AiLoadingText
+              text={t(aiLoadingPhraseKey(aiSurface, aiStep))}
+              className={cn(
+                "text-lg font-semibold",
+                aiStylingLoading ? "text-teal-700 dark:text-teal-300" : "text-purple-700 dark:text-purple-300",
+              )}
+            />
+          </div>
         </div>
       )}
       <div className="flex min-h-0 flex-1 flex-col gap-0">
