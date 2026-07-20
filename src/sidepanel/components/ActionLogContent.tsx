@@ -14,8 +14,8 @@ import { useScrollToEntry } from "@/sidepanel/lib/useScrollToEntry";
 import { distinctOriginKeys, originKey, originCounts } from "@/sidepanel/lib/logOrigin";
 import { splitTemplate, resolveClickTarget, resolveActionNode } from "@/sidepanel/lib/actionInline";
 import type { ClickTargetView } from "@/sidepanel/lib/actionInline";
+import { Kbd } from "@/components/ui/kbd";
 import { InlineLink } from "./InlineLink";
-import { InlineChip } from "./InlineChip";
 import { OriginFilterBar } from "./OriginFilterBar";
 import { LogSeekChip } from "./LogSeekChip";
 
@@ -57,6 +57,9 @@ function KindIcon({ kind }: { kind: ActionEntryKind }) {
 
 const MASKED_DISPLAY = "[********]";
 
+// 로그는 mono 표면 → Kbd 기본 font-sans를 덮고, 텍스트 라인 중앙 정렬.
+const CHIP_CLS = "font-mono align-middle";
+
 // 단일 chip 렌더러 — name/tag/empty view를 그린다. click 타깃과 drag source/target slot이 공유.
 function ResolvedTargetChip({ view }: { view: ClickTargetView }) {
   if (view.mode === "name") return <>{view.name}</>;
@@ -95,9 +98,11 @@ function DragNodeChip({ node }: { node: ActionNode }) {
       ? view.name
       : `<${view.tagName}${view.tagType ? ` type="${view.tagType}"` : ""}>`;
   return (
-    <InlineChip title={title} className="inline-block max-w-[40%] truncate align-middle">
-      <ResolvedTargetChip view={view} />
-    </InlineChip>
+    <Kbd title={title} className={`${CHIP_CLS} max-w-[40%]`}>
+      <span className="min-w-0 truncate">
+        <ResolvedTargetChip view={view} />
+      </span>
+    </Kbd>
   );
 }
 
@@ -112,7 +117,9 @@ function fieldText(entry: ActionEntry): string {
 }
 
 function valueChip(value: string | undefined): ReactNode {
-  return value ? <InlineChip data-testid="action-value-chip">{value}</InlineChip> : "";
+  return value
+    ? <Kbd title={value} className={`${CHIP_CLS} max-w-[60%]`} data-testid="action-value-chip"><span className="min-w-0 truncate">{value}</span></Kbd>
+    : "";
 }
 
 function renderActionContent(t: TranslationFn, entry: ActionEntry): ReactNode {
@@ -122,7 +129,7 @@ function renderActionContent(t: TranslationFn, entry: ActionEntry): ReactNode {
     case "input":
       return renderVerb(t("actionLog.verb.input"), {
         value: entry.masked
-          ? <InlineChip muted aria-label={t("actionLog.maskedValue")} data-testid="action-value-chip">{MASKED_DISPLAY}</InlineChip>
+          ? <Kbd className={`${CHIP_CLS} border border-dashed`} aria-label={t("actionLog.maskedValue")} data-testid="action-value-chip">{MASKED_DISPLAY}</Kbd>
           : valueChip(entry.value),
         field: fieldText(entry),
       });
