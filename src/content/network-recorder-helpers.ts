@@ -4,6 +4,31 @@ export type NetworkBodyOmission = Exclude<NetworkRequestBody, string>;
 
 export const BODY_CAP = 3 * 1024 * 1024; // 3 MB
 
+// eviction 계산부 — 선택·집계만 담당하고 buffer 변형과 memoryUsed 대입은 recorder 쪽에 남는다.
+interface BodyBearing {
+  requestBody?: NetworkRequestBody;
+  responseBody?: NetworkRequestBody;
+}
+
+export function estimateBodySize(body: NetworkRequestBody | undefined): number {
+  if (!body || typeof body !== "string") return 0;
+  return body.length * 2;
+}
+
+// 이미 omitted로 치환된 항목을 다시 고르면 회수량 0으로 루프가 끝나지 않으므로 문자열 본문만 후보다.
+export function findOldestBodyIndex(entries: BodyBearing[]): number {
+  for (let i = 0; i < entries.length; i++) {
+    if (typeof entries[i].responseBody === "string" || typeof entries[i].requestBody === "string") {
+      return i;
+    }
+  }
+  return -1;
+}
+
+export function reclaimableSize(entry: BodyBearing): number {
+  return estimateBodySize(entry.requestBody) + estimateBodySize(entry.responseBody);
+}
+
 export const MASKED_QUERY_KEYS = new Set([
   "token",
   "access_token",

@@ -409,6 +409,39 @@ describe("buildMarkers — action 탭", () => {
     expect(markers[0].label).toBe(t("actionLog.verb.navigate", { target: longUrl }));
   });
 
+  it("label: keypress → i18n verb.keypress 템플릿", () => {
+    const data = makeData({
+      actionLog: makeActionLog([makeActionEntry({ kind: "keypress", value: "Enter" })]),
+    });
+    const markers = buildMarkers(data, "action", VIDEO_DURATION_SEC, VIDEO_STARTED_AT);
+    expect(markers[0].label).toBe(t("actionLog.verb.keypress", { keys: "Enter" }));
+  });
+
+  // check/uncheck가 뒤바뀌면 타임라인이 사용자가 한 것과 반대로 표시된다.
+  it("label: toggle → checked/unchecked에 따라 다른 키를 쓴다", () => {
+    const data = makeData({
+      actionLog: makeActionLog([
+        makeActionEntry({ kind: "toggle", fieldLabel: "동의", value: "checked" }),
+        makeActionEntry({ kind: "toggle", fieldLabel: "동의", value: "unchecked" }),
+      ]),
+    });
+    const markers = buildMarkers(data, "action", VIDEO_DURATION_SEC, VIDEO_STARTED_AT);
+    expect(markers[0].label).toBe(t("actionLog.verb.toggle.check", { field: '"동의"' }));
+    expect(markers[1].label).toBe(t("actionLog.verb.toggle.uncheck", { field: '"동의"' }));
+  });
+
+  it("label: select → i18n verb.select 템플릿", () => {
+    const data = makeData({
+      actionLog: makeActionLog([
+        makeActionEntry({ kind: "select", fieldLabel: "국가", value: "대한민국" }),
+      ]),
+    });
+    const markers = buildMarkers(data, "action", VIDEO_DURATION_SEC, VIDEO_STARTED_AT);
+    expect(markers[0].label).toBe(
+      t("actionLog.verb.select", { field: '"국가"', value: '"대한민국"' }),
+    );
+  });
+
   it("label: input → i18n verb.input 템플릿", () => {
     const data = makeData({
       actionLog: makeActionLog([

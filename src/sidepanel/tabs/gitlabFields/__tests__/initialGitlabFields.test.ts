@@ -64,4 +64,27 @@ describe("initialGitlabFields — default assignee", () => {
     expect(out.projectId).toBeUndefined();
     expect(out.assigneeId).toBeUndefined();
   });
+
+  it("last project가 있으면 label을 last에서 가져온다", () => {
+    const out = initialGitlabFields(
+      { projectId: 1, label: "bug" },
+      { projectId: 1, label: "enhancement" },
+    );
+    expect(out.label).toBe("bug");
+  });
+
+  it("last project가 없으면 label을 defaults에서 가져온다", () => {
+    const out = initialGitlabFields(undefined, { projectId: 1, label: "enhancement" });
+    expect(out.label).toBe("enhancement");
+  });
+
+  it("last project가 있으면 cc를 이어받는다", () => {
+    const out = initialGitlabFields({ projectId: 1, cc: [{ username: "alice", name: "Alice" }] }, { projectId: 1 });
+    expect(out.cc).toEqual([{ username: "alice", name: "Alice" }]);
+  });
+
+  it("last project가 없으면 cc를 비운다", () => {
+    const out = initialGitlabFields({ cc: [{ username: "alice", name: "Alice" }] }, { projectId: 1 });
+    expect(out.cc).toBeUndefined();
+  });
 });

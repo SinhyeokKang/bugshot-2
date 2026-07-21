@@ -13,8 +13,9 @@ const buildBody = vi.fn(
 vi.mock("../buildClickupIssueBody", () => ({
   buildClickupIssueBody: (...a: unknown[]) => buildBody(...(a as [never])),
 }));
+const replaceInlineRefs = vi.fn((s: string, _map?: Map<string, string>) => s);
 vi.mock("../resolveInlineImages", () => ({
-  replaceInlineRefs: (s: string) => s,
+  replaceInlineRefs: (s: string, map: Map<string, string>) => replaceInlineRefs(s, map),
 }));
 const injectIssueUrl = vi.fn();
 vi.mock("@/lib/inject-issue-url", () => ({
@@ -52,6 +53,7 @@ beforeEach(() => {
   sendBg.mockReset();
   injectIssueUrl.mockReset();
   buildBody.mockClear();
+  replaceInlineRefs.mockClear();
 });
 
 describe("submitToClickup CC 멘션", () => {
@@ -131,5 +133,51 @@ describe("submitToClickup logsDropped", () => {
     });
 
     expect(res.logsDropped).toBe(true);
+  });
+});
+
+// bespoke 업로드 경로를 가진 어댑터(notion/slack/linear/clickup) 중 clickup이 미커버였다.
+describe("submitToClickup — 인라인 이미지", () => {
+  const TASK = { id: "T1", url: "https://app.clickup.com/t/T1" };
+
+  function mockUpload(results: Array<{ filename: string; url: string | null }>) {
+    sendBg.mockImplementation(async (msg: { type: string }) => {
+      if (msg.type === "clickup.submitIssue") return TASK;
+      if (msg.type === "clickup.uploadFile") return results;
+      return undefined;
+    });
+  }
+
+  it("inline-{refId}.webp 이름으로 업로드 목록에 넣는다", async () => {
+    mockUpload([{ filename: "inline-r1.webp", url: "https://att/r1.webp" }]);
+    await submitToClickup({
+      ctx: makeCtx(),
+      listId: "L",
+      inlineImages: [{ refId: "r1", dataUrl: "data:IMG1" }],
+    } as never);
+    const upload = sendBg.mock.calls.find((c) => c[0].type === "clickup.uploadFile")![0];
+    expect(upload.files.map((f: { filename: string }) => f.filename)).toContain("inline-r1.webp");
+  });
+
+  it("업로드 URL로 본문의 ref를 치환한다", async () => {
+    mockUpload([{ filename: "inline-r1.webp", url: "https://att/r1.webp" }]);
+    await submitToClickup({
+      ctx: makeCtx(),
+      listId: "L",
+      inlineImages: [{ refId: "r1", dataUrl: "data:IMG1" }],
+    } as never);
+    const map = replaceInlineRefs.mock.calls[0][1]!;
+    expect(map.get("r1")).toBe("https://att/r1.webp");
+  });
+
+  // url이 null이면 치환할 게 없다 — 깨진 ref로 본문을 갱신하지 않는다.
+  it("업로드 url이 null이면 치환하지 않는다", async () => {
+    mockUpload([{ filename: "inline-r1.webp", url: null }]);
+    await submitToClickup({
+      ctx: makeCtx(),
+      listId: "L",
+      inlineImages: [{ refId: "r1", dataUrl: "data:IMG1" }],
+    } as never);
+    expect(replaceInlineRefs).not.toHaveBeenCalled();
   });
 });

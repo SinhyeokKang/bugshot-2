@@ -219,7 +219,7 @@ function addEntry(
   list.push(entry);
 }
 
-function splitSelectorList(selectorText: string): string[] {
+export function splitSelectorList(selectorText: string): string[] {
   const parts: string[] = [];
   let depth = 0;
   let start = 0;
@@ -237,7 +237,7 @@ function splitSelectorList(selectorText: string): string[] {
   return parts;
 }
 
-function lastCompound(selector: string): string {
+export function lastCompound(selector: string): string {
   let depth = 0;
   let lastBoundary = -1;
   for (let i = 0; i < selector.length; i++) {
@@ -254,14 +254,14 @@ function lastCompound(selector: string): string {
   return selector.slice(lastBoundary + 1).trim();
 }
 
-interface SimpleTokens {
+export interface SimpleTokens {
   tag?: string;
   classes: string[];
   ids: string[];
   any: boolean;
 }
 
-function extractSimpleTokens(compound: string): SimpleTokens {
+export function extractSimpleTokens(compound: string): SimpleTokens {
   const tokens: SimpleTokens = { classes: [], ids: [], any: false };
   if (!compound) {
     tokens.any = true;
@@ -544,12 +544,12 @@ export function normalizeSelector(s: string): string {
 
 /* ── parser ──────────────────────────────────────── */
 
-interface ParsedRule {
+export interface ParsedRule {
   selectorText: string;
   decls: Map<string, string>;
 }
 
-function parseStylesheet(text: string, out: ParsedRule[]): void {
+export function parseStylesheet(text: string, out: ParsedRule[]): void {
   const cleaned = stripComments(text);
   parseRulesFrom(cleaned, 0, cleaned.length, out);
 }

@@ -6,8 +6,9 @@ vi.mock("@/types/messages", () => ({ sendBg: (...a: unknown[]) => sendBg(...a) }
 vi.mock("../buildLinearIssueBody", () => ({
   buildLinearIssueBody: () => ({ body: "BODY" }),
 }));
+const replaceInlineRefs = vi.fn((s: string, _map?: Map<string, string>) => s);
 vi.mock("../resolveInlineImages", () => ({
-  replaceInlineRefs: (s: string) => s,
+  replaceInlineRefs: (s: string, map: Map<string, string>) => replaceInlineRefs(s, map),
 }));
 vi.mock("@/lib/inject-issue-url", () => ({
   injectIssueUrl: async (dataUrl: string) => dataUrl,
@@ -42,6 +43,7 @@ const ISSUE = { id: "ISSUE_ID", identifier: "ENG-1", url: "https://linear.app/x/
 
 beforeEach(() => {
   sendBg.mockReset();
+  replaceInlineRefs.mockClear();
 });
 
 describe("submitToLinear logsDropped", () => {
@@ -122,5 +124,64 @@ describe("submitToLinear attachment 격리", () => {
     });
 
     expect(res.key).toBe("ENG-1");
+  });
+});
+
+// 본문 붙여넣기 이미지는 업로드 후 assetUrl로 `inline:refId`를 치환한다.
+// bespoke 업로드 경로를 가진 어댑터(notion/slack/linear/clickup) 중 linear가 미커버였다.
+describe("submitToLinear — 인라인 이미지", () => {
+  function mockOk() {
+    sendBg.mockImplementation(async (msg: { type: string; filename?: string }) => {
+      if (msg.type === "linear.submitIssue") return ISSUE;
+      if (msg.type === "linear.uploadFile") return { assetUrl: `asset-${msg.filename}` };
+      if (msg.type === "linear.createAttachment") return { ok: true };
+      return undefined;
+    });
+  }
+
+  it("inline-{refId}.webp 이름으로 업로드한다", async () => {
+    mockOk();
+    await submitToLinear({
+      ctx: makeCtx(),
+      teamId: "T",
+      inlineImages: [{ refId: "r1", dataUrl: "data:IMG1" }],
+    } as never);
+    expect(sendBg).toHaveBeenCalledWith(
+      expect.objectContaining({ type: "linear.uploadFile", filename: "inline-r1.webp" }),
+    );
+  });
+
+  it("업로드한 assetUrl로 본문의 ref를 치환한다", async () => {
+    mockOk();
+    await submitToLinear({
+      ctx: makeCtx(),
+      teamId: "T",
+      inlineImages: [{ refId: "r1", dataUrl: "data:IMG1" }],
+    } as never);
+    const map = replaceInlineRefs.mock.calls[0][1]!;
+    expect(map.get("r1")).toBe("asset-inline-r1.webp");
+  });
+
+  // assetUrl이 안 오면 치환할 게 없다 — 깨진 ref로 본문이 나가지 않도록 map에 넣지 않는다.
+  it("assetUrl이 없으면 치환 맵에 넣지 않는다", async () => {
+    sendBg.mockImplementation(async (msg: { type: string; filename?: string }) => {
+      if (msg.type === "linear.submitIssue") return ISSUE;
+      if (msg.type === "linear.uploadFile") return { assetUrl: null };
+      if (msg.type === "linear.createAttachment") return { ok: true };
+      return undefined;
+    });
+    await submitToLinear({
+      ctx: makeCtx(),
+      teamId: "T",
+      inlineImages: [{ refId: "r1", dataUrl: "data:IMG1" }],
+    } as never);
+    expect(replaceInlineRefs).not.toHaveBeenCalled();
+  });
+
+  it("인라인 이미지가 없으면 업로드하지 않는다", async () => {
+    mockOk();
+    await submitToLinear({ ctx: makeCtx(), teamId: "T" } as never);
+    const uploads = sendBg.mock.calls.filter((c) => c[0].type === "linear.uploadFile");
+    expect(uploads).toHaveLength(0);
   });
 });

@@ -36,10 +36,12 @@ import {
   deleteAttachmentBlobs,
 } from "../blob-db";
 import {
+  migrateIssuesState,
   stripSubmitted,
   useIssuesStore,
   type IssueRecord,
 } from "../issues-store";
+import { dataUrlToBlob, saveImageBlobRaw } from "../blob-db";
 
 interface LegacyShape {
   id: string;
@@ -243,5 +245,130 @@ describe("markSubmitted (대비 — 데이터 폐기 경로)", () => {
     expect(out.status).toBe("submitted");
     expect(out.networkLogBlobKey).toBeUndefined();
     expect(out.draft).toEqual({ title: "", sections: {}, environment: [] });
+  });
+});
+
+// persist migrate 콜백 본체. 구버전에서 올라오는 사용자의 초안·이미지가 지나는 유일한 경로라
+// 여기서 유실되면 복구 수단이 없다 (감사 🔴 항목).
+describe("migrateIssuesState (persist migrate 본체)", () => {
+  beforeEach(() => {
+    vi.mocked(saveImageBlobRaw).mockClear();
+    vi.mocked(saveImageBlobRaw).mockResolvedValue(undefined);
+    vi.mocked(dataUrlToBlob).mockReturnValue(new Blob(["x"]));
+  });
+
+  it("v0: submitted 이슈를 stripSubmitted로 정리한다", async () => {
+    const out = await migrateIssuesState(
+      {
+        issues: [
+          {
+            ...baseLegacy,
+            status: "submitted",
+            draft: { title: "남은 초안", sections: { description: "본문" } },
+            networkLogBlobKey: "x",
+          },
+        ],
+      },
+      0,
+    );
+    expect(out.issues[0].draft).toEqual({ title: "", sections: {}, environment: [] });
+    expect(out.issues[0].networkLogBlobKey).toBeUndefined();
+  });
+
+  it("v0: draft 이슈는 strip하지 않는다", async () => {
+    const out = await migrateIssuesState(
+      {
+        issues: [
+          { ...baseLegacy, status: "draft", draft: { title: "초안", sections: { description: "본문" } } },
+        ],
+      },
+      0,
+    );
+    expect(out.issues[0].draft.title).toBe("초안");
+  });
+
+  it("v1: snapshot의 dataURL을 blob으로 옮기고 boolean으로 정규화한다", async () => {
+    const out = await migrateIssuesState(
+      {
+        issues: [
+          {
+            ...baseLegacy,
+            status: "draft",
+            snapshot: { before: "data:image/png;base64,AAA", after: null },
+          },
+        ],
+      },
+      1,
+    );
+    expect(saveImageBlobRaw).toHaveBeenCalledWith("x", "before", expect.anything());
+    expect(out.issues[0].snapshot).toEqual({ before: true, after: false });
+  });
+
+  // blob 저장이 실패해도 스키마는 boolean으로 정합해야 한다 — 문자열이 남으면 이후 로딩이 깨진다.
+  it("v1: blob 저장이 실패해도 snapshot을 boolean으로 정규화한다", async () => {
+    vi.mocked(saveImageBlobRaw).mockRejectedValueOnce(new Error("quota"));
+    const out = await migrateIssuesState(
+      {
+        issues: [
+          {
+            ...baseLegacy,
+            status: "draft",
+            snapshot: { before: "data:image/png;base64,AAA", after: null },
+          },
+        ],
+      },
+      1,
+    );
+    expect(out.issues[0].snapshot).toEqual({ before: false, after: false });
+  });
+
+  it("v2: legacy draft의 body/expectedResult를 sections로 이관한다", async () => {
+    const out = await migrateIssuesState(
+      {
+        issues: [
+          {
+            ...baseLegacy,
+            status: "draft",
+            draft: { title: "제목", body: "본문", expectedResult: "기대" },
+          },
+        ],
+      },
+      2,
+    );
+    expect(out.issues[0].draft).toEqual({
+      title: "제목",
+      sections: { description: "본문", expectedResult: "기대" },
+    });
+  });
+
+  it("v2: 이미 sections가 있으면 건드리지 않는다", async () => {
+    const sections = { description: "그대로" };
+    const out = await migrateIssuesState(
+      { issues: [{ ...baseLegacy, status: "draft", draft: { title: "t", sections } }] },
+      2,
+    );
+    expect(out.issues[0].draft.sections).toEqual(sections);
+  });
+
+  it("v3: platform 없는 entry를 jira로 채운다", async () => {
+    const out = await migrateIssuesState(
+      { issues: [{ ...baseLegacy, status: "draft", platform: undefined }] },
+      3,
+    );
+    expect(out.issues[0].platform).toBe("jira");
+  });
+
+  it("최신 버전(v5)이면 아무 분기도 타지 않는다", async () => {
+    const issue = { ...baseLegacy, status: "draft" as const, platform: "github" as const };
+    // 입력 객체를 그대로 기대값으로 쓰면 in-place 변형 시 기대값도 같이 변해 무력해진다 — 깊은 복사로 고정.
+    const before = structuredClone(issue);
+    const out = await migrateIssuesState({ issues: [issue] }, 5);
+    expect(out.issues[0]).toEqual(before);
+    expect(saveImageBlobRaw).not.toHaveBeenCalled();
+  });
+
+  it("빈 목록도 안전하게 통과한다", async () => {
+    const out = await migrateIssuesState({ issues: [] }, 0);
+    expect(out.issues).toEqual([]);
   });
 });

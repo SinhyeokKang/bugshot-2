@@ -251,6 +251,61 @@ interface LegacyIssueRecord extends Omit<IssueRecord, "platform"> {
   platform?: PlatformId;
 }
 
+// persist migrate 본체. 구버전 사용자의 초안·이미지가 지나는 유일한 경로라 단위 테스트로 고정한다.
+export async function migrateIssuesState(
+  persisted: unknown,
+  version: number,
+): Promise<IssuesState> {
+  const state = persisted as { issues: LegacyIssueRecord[] };
+  if (version < 4) {
+    state.issues = state.issues.map(migrateIssueToV4);
+  }
+  if (version === 0) {
+    state.issues = state.issues.map((i) =>
+      i.status === "submitted" ? stripSubmitted(i as IssueRecord, {}) : i,
+    );
+  }
+  if (version < 2) {
+    for (const issue of state.issues) {
+      const snap = issue.snapshot as unknown as {
+        before: string | null;
+        after: string | null;
+      };
+      let hasBefore = false;
+      let hasAfter = false;
+      if (typeof snap.before === "string" && snap.before.startsWith("data:")) {
+        try {
+          await saveImageBlobRaw(issue.id, "before", dataUrlToBlob(snap.before));
+          hasBefore = true;
+        } catch { /* image lost on migration failure */ }
+      }
+      if (typeof snap.after === "string" && snap.after.startsWith("data:")) {
+        try {
+          await saveImageBlobRaw(issue.id, "after", dataUrlToBlob(snap.after));
+          hasAfter = true;
+        } catch { /* image lost on migration failure */ }
+      }
+      issue.snapshot = { before: hasBefore, after: hasAfter };
+    }
+  }
+  if (version < 3) {
+    for (const issue of state.issues) {
+      const legacy = issue.draft as unknown as {
+        title?: string;
+        body?: string;
+        expectedResult?: string;
+        sections?: Record<string, string>;
+      };
+      if (legacy.sections) continue;
+      const sections: Record<string, string> = {};
+      if (legacy.body) sections.description = legacy.body;
+      if (legacy.expectedResult) sections.expectedResult = legacy.expectedResult;
+      issue.draft = { title: legacy.title ?? "", sections };
+    }
+  }
+  return state as unknown as IssuesState;
+}
+
 interface IssuesState {
   issues: IssueRecord[];
   saveDraft: (record: IssueRecord) => void;
@@ -365,56 +420,7 @@ export const useIssuesStore = create<IssuesState>()(
       name: "bugshot-issues",
       version: ISSUES_STORE_VERSION,
       storage: createJSONStorage(() => chromeLocalStorage),
-      migrate: async (persisted, version) => {
-        const state = persisted as { issues: LegacyIssueRecord[] };
-        if (version < 4) {
-          state.issues = state.issues.map(migrateIssueToV4);
-        }
-        if (version === 0) {
-          state.issues = state.issues.map((i) =>
-            i.status === "submitted" ? stripSubmitted(i as IssueRecord, {}) : i,
-          );
-        }
-        if (version < 2) {
-          for (const issue of state.issues) {
-            const snap = issue.snapshot as unknown as {
-              before: string | null;
-              after: string | null;
-            };
-            let hasBefore = false;
-            let hasAfter = false;
-            if (typeof snap.before === "string" && snap.before.startsWith("data:")) {
-              try {
-                await saveImageBlobRaw(issue.id, "before", dataUrlToBlob(snap.before));
-                hasBefore = true;
-              } catch { /* image lost on migration failure */ }
-            }
-            if (typeof snap.after === "string" && snap.after.startsWith("data:")) {
-              try {
-                await saveImageBlobRaw(issue.id, "after", dataUrlToBlob(snap.after));
-                hasAfter = true;
-              } catch { /* image lost on migration failure */ }
-            }
-            issue.snapshot = { before: hasBefore, after: hasAfter };
-          }
-        }
-        if (version < 3) {
-          for (const issue of state.issues) {
-            const legacy = issue.draft as unknown as {
-              title?: string;
-              body?: string;
-              expectedResult?: string;
-              sections?: Record<string, string>;
-            };
-            if (legacy.sections) continue;
-            const sections: Record<string, string> = {};
-            if (legacy.body) sections.description = legacy.body;
-            if (legacy.expectedResult) sections.expectedResult = legacy.expectedResult;
-            issue.draft = { title: legacy.title ?? "", sections };
-          }
-        }
-        return state as unknown as IssuesState;
-      },
+      migrate: migrateIssuesState,
       onRehydrateStorage: () => () => {
         void pruneOrphanBlobs();
       },

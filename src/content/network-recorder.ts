@@ -1,4 +1,4 @@
-import { BODY_CAP, classifyBeaconBody, classifyResponseBody, createPatchedFetch, headersToRecord, maskBody, maskUrl, classifyWsFrameData, maskWsFrame } from "./network-recorder-helpers";
+import { BODY_CAP, classifyBeaconBody, classifyResponseBody, createPatchedFetch, headersToRecord, maskBody, maskUrl, classifyWsFrameData, maskWsFrame, estimateBodySize, findOldestBodyIndex, reclaimableSize } from "./network-recorder-helpers";
 import type { FetchRecordHook } from "./network-recorder-helpers";
 import { createTrailingThrottle, FLUSH_INTERVAL_MS } from "./log-throttle";
 import { readPreArmFlag, setPreArmFlag } from "./recorder-prearm";
@@ -86,22 +86,11 @@ function networkRecorderScript(): void {
     return result;
   }
 
-  function estimateBodySize(body: ReqBody | undefined): number {
-    if (!body || typeof body !== "string") return 0;
-    return body.length * 2;
-  }
-
   // 주의: WebSocket 프레임(webSocket.frames)은 memoryUsed에 합류하지 않는다 — 연결당 프레임 수 캡
   // (MAX_WS_FRAMES_PER_CONN) + ENTRY_CAP으로만 bound(수용된 한계, attachWsRecorder 참조).
   function enforceMemoryCap(): void {
     while (memoryUsed > MEMORY_CAP && buffer.length > 0) {
-      let oldestWithBody = -1;
-      for (let i = 0; i < buffer.length; i++) {
-        if (typeof buffer[i].responseBody === "string" || typeof buffer[i].requestBody === "string") {
-          oldestWithBody = i;
-          break;
-        }
-      }
+      const oldestWithBody = findOldestBodyIndex(buffer);
       if (oldestWithBody === -1) break;
       const entry = buffer[oldestWithBody];
       if (typeof entry.responseBody === "string") {
@@ -125,8 +114,7 @@ function networkRecorderScript(): void {
       const evicted = buffer.shift();
       if (!evicted) break;
       evictedEntries.add(evicted);
-      memoryUsed -= estimateBodySize(evicted.requestBody);
-      memoryUsed -= estimateBodySize(evicted.responseBody);
+      memoryUsed -= reclaimableSize(evicted);
       warnings.add("ENTRY_CAPPED");
     }
   }

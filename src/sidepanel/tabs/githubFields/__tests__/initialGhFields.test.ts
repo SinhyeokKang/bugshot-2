@@ -58,4 +58,32 @@ describe("initialGhFields — default assignee", () => {
     expect(out.repo).toBeUndefined();
     expect(out.assignee).toBeUndefined();
   });
+
+  // label·cc는 여태 한 번도 단언되지 않아, 재진입 시 이전 이슈의 라벨·참조자가 남아도 통과했다.
+  it("last repo가 있으면 label을 last에서 가져온다", () => {
+    const out = initialGhFields(
+      { owner: "o", repo: "r", label: "bug" },
+      { owner: "o", repo: "r", label: "enhancement" },
+    );
+    expect(out.label).toBe("bug");
+  });
+
+  it("last repo가 없으면 label을 defaults에서 가져온다", () => {
+    const out = initialGhFields(undefined, { owner: "o", repo: "r", label: "enhancement" });
+    expect(out.label).toBe("enhancement");
+  });
+
+  it("last repo가 있으면 cc를 last에서 이어받는다", () => {
+    const out = initialGhFields(
+      { owner: "o", repo: "r", cc: ["alice"] },
+      { owner: "o", repo: "r" },
+    );
+    expect(out.cc).toEqual(["alice"]);
+  });
+
+  // cc는 repo 하위 개념(그 repo의 collaborator)이라 repo가 없으면 이어받으면 안 된다.
+  it("last repo가 없으면 cc를 비운다", () => {
+    const out = initialGhFields({ label: "bug", cc: ["alice"] }, { owner: "o", repo: "r" });
+    expect(out.cc).toBeUndefined();
+  });
 });

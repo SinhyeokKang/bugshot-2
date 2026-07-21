@@ -35,6 +35,10 @@ vi.mock("@/sidepanel/recorder-control", () => ({
   clearConsoleRecorder: mockClearConsoleRecorder,
 }));
 
+const mockSaveAttachmentBlob = vi.hoisted(() => vi.fn().mockResolvedValue(true));
+const mockDeleteAttachmentBlob = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+const mockDeleteAttachmentBlobs = vi.hoisted(() => vi.fn().mockResolvedValue(undefined));
+
 vi.mock("@/store/issues-store", () => ({
   useIssuesStore: {
     getState: () => ({
@@ -68,6 +72,12 @@ vi.mock("@/store/blob-db", () => ({
   dataUrlToBlob: vi.fn((url: string) => new Blob([url])),
   getNetworkLog: vi.fn().mockResolvedValue(null),
   getConsoleLog: vi.fn().mockResolvedValue(null),
+  saveActionLog: vi.fn().mockResolvedValue(true),
+  deleteActionLog: vi.fn().mockResolvedValue(undefined),
+  saveAttachmentBlob: mockSaveAttachmentBlob,
+  deleteAttachmentBlob: mockDeleteAttachmentBlob,
+  deleteAttachmentBlobs: mockDeleteAttachmentBlobs,
+  rekeyAttachmentBlobs: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock("@/types/messages", () => ({
@@ -1632,5 +1642,245 @@ describe("aiCancel — 진행 중 AI 작업의 취소 콜백 레지스트리", (
     useEditorStore.getState().setAiCancel(vi.fn());
     useEditorStore.getState().reset();
     expect(useEditorStore.getState().aiCancel).toBeNull();
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  confirmDraft element — 최다 사용 플로우인데 그물이 없던 분기          */
+/* ------------------------------------------------------------------ */
+
+describe("confirmDraft element — selection 직렬화", () => {
+  function elementSelection() {
+    return {
+      selector: "#title",
+      tagName: "h1",
+      frameId: 2,
+      classList: ["title", "big"],
+      specifiedStyles: { color: "red" },
+      computedStyles: { color: "rgb(255,0,0)" },
+      propSources: {},
+      hasParent: true,
+      hasChild: false,
+      text: "제목",
+      viewport: { width: 1440, height: 900 },
+      capturedAt: 1700000000000,
+    };
+  }
+
+  function setupElementDrafting(overrides: Record<string, unknown> = {}) {
+    useEditorStore.setState({
+      captureMode: "element" as const,
+      phase: "drafting" as const,
+      targetPlatform: "jira" as const,
+      target,
+      selection: elementSelection() as never,
+      draft: { title: "Bug title", sections: { description: "본문" } },
+      styleEdits: { classList: ["title"], inlineStyle: { color: "blue" }, text: "제목" },
+      ...overrides,
+    });
+  }
+
+  beforeEach(() => {
+    useEditorStore.setState(useEditorStore.getInitialState(), true);
+    mockSaveDraft.mockClear();
+    mockDeleteAttachmentBlobs.mockClear();
+  });
+
+  it("selection이 있으면 저장하고 true를 반환한다", () => {
+    setupElementDrafting();
+    expect(useEditorStore.getState().confirmDraft()).toBe(true);
+    expect(mockSaveDraft).toHaveBeenCalledTimes(1);
+  });
+
+  it("selector·tagName·frameId·viewport를 레코드에 싣는다", () => {
+    setupElementDrafting();
+    useEditorStore.getState().confirmDraft();
+    const record = mockSaveDraft.mock.calls[0][0];
+    expect(record.selector).toBe("#title");
+    expect(record.tagName).toBe("h1");
+    expect(record.frameId).toBe(2);
+    expect(record.viewport).toEqual({ width: 1440, height: 900 });
+  });
+
+  // frameId 없는 구 초안은 0(top)으로 떨어져야 element-key dedup이 깨지지 않는다.
+  it("frameId가 없으면 0(top)으로 채운다", () => {
+    setupElementDrafting({ selection: { ...elementSelection(), frameId: undefined } as never });
+    useEditorStore.getState().confirmDraft();
+    expect(mockSaveDraft.mock.calls[0][0].frameId).toBe(0);
+  });
+
+  it("selectionSnapshot에 재제출용 풀 컨텍스트를 복사한다", () => {
+    setupElementDrafting();
+    useEditorStore.getState().confirmDraft();
+    const snap = mockSaveDraft.mock.calls[0][0].selectionSnapshot;
+    expect(snap).toEqual({
+      classList: ["title", "big"],
+      specifiedStyles: { color: "red" },
+      computedStyles: { color: "rgb(255,0,0)" },
+      text: "제목",
+      viewport: { width: 1440, height: 900 },
+      capturedAt: 1700000000000,
+    });
+  });
+
+  it("styleEdits를 값 복사한다 (원본 mutation 격리)", () => {
+    setupElementDrafting();
+    useEditorStore.getState().confirmDraft();
+    const record = mockSaveDraft.mock.calls[0][0];
+    expect(record.styleEdits).toEqual({
+      classList: ["title"],
+      inlineStyle: { color: "blue" },
+      text: "제목",
+    });
+    expect(record.styleEdits.classList).not.toBe(
+      useEditorStore.getState().styleEdits.classList,
+    );
+  });
+
+  it("tokensSnapshot을 name/value만 남겨 직렬화한다", () => {
+    setupElementDrafting({
+      tokens: [{ name: "--brand", value: "#f00", extra: "drop me" }] as never,
+    });
+    useEditorStore.getState().confirmDraft();
+    expect(mockSaveDraft.mock.calls[0][0].tokensSnapshot).toEqual([
+      { name: "--brand", value: "#f00" },
+    ]);
+  });
+
+  it("snapshot 플래그를 before/after 이미지 유무로 채운다", () => {
+    setupElementDrafting({ beforeImage: "data:image/png;base64,b" });
+    useEditorStore.getState().confirmDraft();
+    expect(mockSaveDraft.mock.calls[0][0].snapshot).toEqual({ before: true, after: false });
+  });
+
+  it("bufferedElements가 없으면 필드를 싣지 않는다", () => {
+    setupElementDrafting();
+    useEditorStore.getState().confirmDraft();
+    expect(mockSaveDraft.mock.calls[0][0].bufferedElements).toBeUndefined();
+  });
+
+  it("bufferedElements의 hasBefore/hasAfter를 이미지 유무로 직렬화한다", () => {
+    setupElementDrafting({
+      bufferedElements: [
+        {
+          selector: ".card",
+          tagName: "div",
+          frameId: 1,
+          origin: "https://page.example",
+          styleEdits: { classList: [], inlineStyle: {}, text: "" },
+          selectionSnapshot: {
+            classList: [],
+            specifiedStyles: {},
+            computedStyles: {},
+            text: null,
+            viewport: { width: 800, height: 600 },
+            capturedAt: 1,
+          },
+          beforeImage: "data:image/png;base64,x",
+          afterImage: null,
+        },
+      ] as never,
+    });
+    useEditorStore.getState().confirmDraft();
+    const buffered = mockSaveDraft.mock.calls[0][0].bufferedElements;
+    expect(buffered).toHaveLength(1);
+    expect(buffered[0].hasBefore).toBe(true);
+    expect(buffered[0].hasAfter).toBe(false);
+    expect(buffered[0].selector).toBe(".card");
+    expect(buffered[0].frameId).toBe(1);
+  });
+
+  // selection 없이 확정하면 draft가 저장되지 않아 pending 첨부가 옮겨갈 곳이 없다 — 고아 blob 방지.
+  it("selection이 없으면 저장하지 않고 pending 첨부를 정리한다", () => {
+    useEditorStore.setState({
+      captureMode: "element" as const,
+      phase: "drafting" as const,
+      target,
+      selection: null,
+      draft: { title: "t", sections: {} },
+      attachments: [{ id: "att-1", filename: "a.png", contentType: "image/png", size: 1 }],
+    });
+    expect(useEditorStore.getState().confirmDraft()).toBe(false);
+    expect(mockSaveDraft).not.toHaveBeenCalled();
+    expect(mockDeleteAttachmentBlobs).toHaveBeenCalledWith(`pending:${target.tabId}`);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  addAttachments / removeAttachment                                   */
+/* ------------------------------------------------------------------ */
+
+describe("addAttachments / removeAttachment", () => {
+  function file(name: string, size: number): File {
+    return { name, size, type: "image/png" } as File;
+  }
+
+  beforeEach(() => {
+    useEditorStore.setState(useEditorStore.getInitialState(), true);
+    mockSaveAttachmentBlob.mockClear();
+    mockSaveAttachmentBlob.mockResolvedValue(true);
+    mockDeleteAttachmentBlob.mockClear();
+  });
+
+  it("target이 없으면 아무것도 받지 않는다", async () => {
+    const result = await useEditorStore.getState().addAttachments([file("a.png", 10)]);
+    expect(result).toEqual({ acceptCount: 0, droppedCount: 0 });
+    expect(mockSaveAttachmentBlob).not.toHaveBeenCalled();
+  });
+
+  it("blob 저장에 성공하면 메타를 목록에 담는다", async () => {
+    useEditorStore.setState({ target });
+    await useEditorStore.getState().addAttachments([file("a.png", 10)]);
+    const atts = useEditorStore.getState().attachments;
+    expect(atts).toHaveLength(1);
+    expect(atts[0].filename).toBe("a.png");
+    expect(atts[0].size).toBe(10);
+  });
+
+  it("confirm 전에는 pending:{tabId} 키로 저장한다", async () => {
+    useEditorStore.setState({ target });
+    await useEditorStore.getState().addAttachments([file("a.png", 10)]);
+    expect(mockSaveAttachmentBlob).toHaveBeenCalledWith(
+      `pending:${target.tabId}`,
+      expect.any(String),
+      expect.anything(),
+    );
+  });
+
+  // 저장이 실패한 파일의 메타가 남으면 목록에는 있는데 blob이 없는 유령 첨부가 된다.
+  it("blob 저장에 실패한 파일은 메타를 남기지 않는다", async () => {
+    useEditorStore.setState({ target });
+    mockSaveAttachmentBlob.mockResolvedValue(false);
+    await useEditorStore.getState().addAttachments([file("a.png", 10)]);
+    expect(useEditorStore.getState().attachments).toHaveLength(0);
+  });
+
+  it("개수 하드캡(10)을 넘는 파일은 드롭하고 사유를 돌려준다", async () => {
+    useEditorStore.setState({ target });
+    const files = Array.from({ length: 12 }, (_, i) => file(`f${i}.png`, 10));
+    const result = await useEditorStore.getState().addAttachments(files);
+    expect(result.acceptCount).toBe(10);
+    expect(result.droppedCount).toBe(2);
+    expect(result.reason).toBe("count");
+    expect(useEditorStore.getState().attachments).toHaveLength(10);
+  });
+
+  it("removeAttachment는 목록에서 지운다", async () => {
+    useEditorStore.setState({ target });
+    await useEditorStore.getState().addAttachments([file("a.png", 10)]);
+    const id = useEditorStore.getState().attachments[0].id;
+    useEditorStore.getState().removeAttachment(id);
+    expect(useEditorStore.getState().attachments).toHaveLength(0);
+  });
+
+  // confirm 전후로 blob 키가 달라 어느 쪽인지 모른다 — 양쪽 다 지워야 고아가 남지 않는다.
+  it("removeAttachment는 pending과 issueId 양쪽 키에서 blob을 지운다", async () => {
+    useEditorStore.setState({ target, currentIssueId: "issue-9" });
+    await useEditorStore.getState().addAttachments([file("a.png", 10)]);
+    const id = useEditorStore.getState().attachments[0].id;
+    mockDeleteAttachmentBlob.mockClear();
+    useEditorStore.getState().removeAttachment(id);
+    expect(mockDeleteAttachmentBlob).toHaveBeenCalledWith(`pending:${target.tabId}`, id);
+    expect(mockDeleteAttachmentBlob).toHaveBeenCalledWith("issue-9", id);
   });
 });

@@ -1,5 +1,8 @@
 import { describe, it, expect, vi } from "vitest";
 import {
+  estimateBodySize,
+  findOldestBodyIndex,
+  reclaimableSize,
   classifyResponseBody,
   classifyBeaconBody,
   createPatchedFetch,
@@ -329,5 +332,67 @@ describe("maskUrl", () => {
     expect(maskUrl("https://x.com/docs?page=2#intro")).toBe(
       "https://x.com/docs?page=2#intro",
     );
+  });
+});
+
+// eviction의 "무엇을 고르고 얼마를 회수하나" 계산부. buffer 변형·memoryUsed 대입은 recorder 쪽에 남기고
+// 선택 로직만 순수 함수로 분리해 FIFO 순서·이중차감을 단위로 고정한다 (감사 🟡 항목).
+describe("eviction 선택 로직", () => {
+  describe("estimateBodySize", () => {
+    it("문자열 본문은 UTF-16 기준 2바이트/문자로 추정한다", () => {
+      expect(estimateBodySize("abc")).toBe(6);
+    });
+
+    it("omitted 객체·undefined는 0으로 센다", () => {
+      expect(estimateBodySize(undefined)).toBe(0);
+      expect(estimateBodySize({ kind: "omitted", reason: "memory-cap" } as const)).toBe(0);
+    });
+
+    it("빈 문자열은 0", () => {
+      expect(estimateBodySize("")).toBe(0);
+    });
+  });
+
+  describe("findOldestBodyIndex", () => {
+    it("문자열 본문을 가진 가장 오래된 항목의 인덱스를 고른다 (FIFO)", () => {
+      const entries = [
+        { requestBody: undefined, responseBody: undefined },
+        { requestBody: undefined, responseBody: "old" },
+        { requestBody: "newer", responseBody: undefined },
+      ];
+      expect(findOldestBodyIndex(entries)).toBe(1);
+    });
+
+    it("requestBody만 있어도 후보로 잡는다", () => {
+      const entries = [
+        { requestBody: undefined, responseBody: undefined },
+        { requestBody: "req", responseBody: undefined },
+      ];
+      expect(findOldestBodyIndex(entries)).toBe(1);
+    });
+
+    // 이미 omitted로 치환된 항목을 다시 고르면 회수량 0인 채 무한 루프가 된다.
+    it("이미 omitted로 치환된 항목은 후보에서 제외한다", () => {
+      const entries = [
+        { requestBody: { kind: "omitted", reason: "memory-cap" } as const, responseBody: { kind: "omitted", reason: "memory-cap" } as const },
+        { requestBody: undefined, responseBody: "live" },
+      ];
+      expect(findOldestBodyIndex(entries)).toBe(1);
+    });
+
+    it("회수할 본문이 하나도 없으면 -1", () => {
+      expect(findOldestBodyIndex([{ requestBody: undefined, responseBody: undefined }])).toBe(-1);
+      expect(findOldestBodyIndex([])).toBe(-1);
+    });
+  });
+
+  describe("reclaimableSize", () => {
+    it("request와 response 본문 크기를 합산한다", () => {
+      expect(reclaimableSize({ requestBody: "ab", responseBody: "cde" })).toBe(10);
+    });
+
+    it("본문이 없으면 0 (evict해도 memoryUsed를 깎지 않는다)", () => {
+      expect(reclaimableSize({ requestBody: undefined, responseBody: undefined })).toBe(0);
+    });
   });
 });
