@@ -14,7 +14,7 @@ The receiver gets the file attached to the issue, but **the person filing the bu
 
 ![Timeline markers](../assets/logs-viewer-2.jpg)
 
-The screen has a timeline alongside the video, with logs plotted on it as markers. There are three kinds.
+The screen has a timeline alongside the video, with logs plotted on it as markers. Whichever log tab you're on, all **three kinds show together on one timeline**, so you can see at a glance what happened at that moment.
 
 - **Console** — Console output and errors.
 - **Network** — Network requests.
@@ -40,7 +40,8 @@ Logs from several origins (including iframes embedded in the page) all land on o
 ![Jump to a moment by clicking a marker](../assets/logs-viewer-3.jpg)
 
 - Play the video and follow the logs at that point in time.
-- **Click a marker and the video jumps to that moment** — see "what the screen looked like when this error fired" right away.
+- **Click a marker and the video jumps to that moment**, switching to that marker's log tab (Console, Network, or Action) — see "what the screen looked like when this error fired" right away.
+- **Clicking a log entry in the list also moves the video to that log's moment** — while skimming the logs, jump straight to the video at any point you're curious about. (Clicking just the time shown on the left of an entry does the same.)
 - Logs and video share one time axis, making it easy to follow the repro from start to finish.
 
 ## Report tab

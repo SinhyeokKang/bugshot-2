@@ -199,7 +199,7 @@ picker content script가 `all_frames: true`라 프레임마다 독립 picker 인
 
 **영상-로그 동기화**: `LogViewerData.video`에 영상 임베드 → log-viewer가 좌(영상)/우(3탭) 분할, `LogSeekChip`으로 행↔영상 양방향 seek + active 행 하이라이트. 동기화 0점은 `video.startedAt`. props 미공급(라이브 사이드패널 서브탭)이면 칩·active 안 생겨 기존 레이아웃 불변.
 
-**타임라인 마커**: `markers.ts:buildMarkers`가 활성 로그 탭(console/network/action)에 따라 프로그레스 바 위에 핀 마커를 생성. 마커 variant(error/warn/info/pending/navigate/default)별 색 분류. `ProgressBar` 위에 `absolute` 핀으로 렌더, 호버 시 포탈 툴팁(stacking context clipping 방지). 마커 클릭 → `onMarkerClick` → 우측 로그 탭에서 해당 entry로 스크롤(`useScrollToEntry` 훅 — CSS.escape + 필터 리셋 후 재시도 + `scrollIntoView`). `VideoPlayer`는 커스텀 플레이어(재생/일시정지/다운로드 + 이슈 제목·키 오버레이).
+**타임라인 마커**: log-viewer는 `trim-markers.ts:buildErrorMarkers`(sidepanel 헬퍼 재사용)로 **console error/warn + network 문제(4xx/error/pending) + action navigate 3타입을 통합**해 프로그레스 바 위에 핀 마커를 생성 — 활성 탭과 무관하게 항상 세 타입을 함께 표시해 영상만 봐도 크로스타입 맥락을 파악한다(과거 활성 탭 타입만 필터하던 방식에서 전환). 마커 variant(error/warn/info/pending/navigate/default)별 색 분류. `ProgressBar` 위에 `absolute` 핀으로 렌더, 호버 시 포탈 툴팁(stacking context clipping 방지). 마커 클릭 → `onMarkerClick` → **해당 마커 타입의 로그 탭으로 전환** 후 그 entry로 스크롤(`useScrollToEntry` 훅 — CSS.escape + 필터 리셋 후 재시도 + `scrollIntoView`). 로그 목록의 **행 클릭·왼쪽 mm:ss 칩 클릭도 영상을 그 로그 시각으로 seek**(`onSeek` 공급 시; 행 기존 동작[network 상세·console 펼치기]과 병행, 칩은 `stopPropagation`으로 단일 발화). `markers.ts:buildMarkers`(활성 탭별 생성)는 buildErrorMarkers의 하위 빌더로 남는다. `VideoPlayer`는 커스텀 플레이어(재생/일시정지/다운로드 + 이슈 제목·키 오버레이).
 
 **issueUrl 주입**: `buildLogsHtml`이 meta 마지막에 빈 `issueUrl:""` 예약. 이슈 생성 후 `injectIssueUrl`이 해당 자리만 치환(청크 단위 btoa로 ~20MB 블로킹 회피). Jira·Linear는 생성 후 주입, Asana·ClickUp은 create가 upload보다 먼저라 업로드 직전 주입(create-first), GitHub·Notion은 구조상 불가(빈 값 → 뷰어가 링크 숨김).
 
