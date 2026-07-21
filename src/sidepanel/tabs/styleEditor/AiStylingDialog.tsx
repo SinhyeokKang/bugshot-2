@@ -202,6 +202,7 @@ export function AiStylingDialog({
           void applyClasses(tabId, frameId, merged.classList);
       }
     } catch (err) {
+      if (run.cancelled) return; // 사용자 중단 후 배경 호출 실패(또는 세션 null-deref)의 오탐 토스트 방지.
       console.error("[AI Styling] error:", err);
       toastLlmError(err, t, "aiStyling.error");
       sessionRef.current?.destroy?.();

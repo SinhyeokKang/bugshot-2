@@ -240,11 +240,11 @@ export default function App() {
             size="sm"
             onClick={() => useEditorStore.getState().aiCancel?.()}
             className={cn(
-              "absolute bottom-8 left-1/2 z-10 -translate-x-1/2 gap-1.5",
+              "absolute bottom-8 left-1/2 z-10 -translate-x-1/2 gap-1.5 [&_svg]:size-3.5",
               AI_OVERLAY_STYLE[aiSurface].text,
             )}
           >
-            <X className="h-3.5 w-3.5" />
+            <X />
             {t("ai.stop")}
           </Button>
         </div>

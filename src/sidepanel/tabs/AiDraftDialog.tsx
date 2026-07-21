@@ -235,6 +235,7 @@ export function AiDraftDialog({
         toast.error(t("draft.aiParseError"));
       }
     } catch (err) {
+      if (run.cancelled) return; // 사용자 중단 후 배경 호출 실패(또는 세션 null-deref)의 오탐 토스트 방지.
       console.error("[AI Draft] error:", err);
       toastLlmError(err, t, "draft.aiError");
       sessionRef.current?.destroy?.();
