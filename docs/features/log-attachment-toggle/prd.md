@@ -11,6 +11,10 @@
 
 즉 3개 토글은 "한 파일 안에 어떤 타입을 넣을지"만 조절하는데, 실사용에서 타입별로 쪼개 넣을 이유가 거의 없고 UI만 복잡하다. 상세 다이얼로그도 타입별로 3개(`NetworkLogPreviewDialog`/`ConsoleLogPreviewDialog`/`ActionLogPreviewDialog`)로 갈려 있어 중복이 크다.
 
+**Why now (트리거)**: (1) 위 3다이얼로그 중복이 유지보수 부담(같은 뷰·푸터·사이즈를 3벌 관리) — 탭형 1개로 접으면 순제거. (2) 현재 세션 복원에 **버그**가 있다 — 토글을 off한 뒤 패널을 닫았다 열면 로그 카드가 통째로 사라져 다시 켤 수 없다(`useEditorSessionSync.ts`가 attach=false면 로그 데이터 로드를 건너뜀). 단일화하며 로그 로드를 attach와 분리해 이 버그를 함께 해소한다. *(주의: "타입별로 쪼갤 이유 거의 없음"은 실측 데이터가 아닌 판단이다 — 저비용 UI 정리라 실측 없이 진행하되, 타입별 제어의 프라이버시 가치는 비목표에서 명시적으로 폐기 결정.)*
+
+**코어밸류 정합**: 순수 client-side UI/store 리팩터로 캡처 데이터 흐름(브라우저 → 이슈 트래커 직행)은 불변 — BugShot 서버 무관, privacy 코어밸류와 충돌 없음.
+
 ## 목표
 
 1. 로그 타입별 3개 첨부 토글을 **단일 토글 하나**로 합친다 — logs.html 첨부를 통째로 on/off.
@@ -20,12 +24,16 @@
 
 ## 비목표 (Non-goals)
 
-- 타입별 개별 첨부 기능 보존 — 명시적으로 폐기한다(all-or-nothing으로 단순화).
-- 첨부 토글을 설정 탭의 영구 설정으로 승격 — **세션별 상태 유지**(리포트마다 on/off, drafting 진입 시 기본 on). 현재 UX와 동일.
-- 본문 인라인 로그 삽입 다이얼로그(`LogInsertDialog`) 기능 변경 — 그대로 둔다(별개 기능: 로그 1건을 본문 코드블록으로 삽입).
-- log-viewer(logs.html) 내부의 HAR/JSON 다운로드 버튼 변경.
-- `buildLogsHtml`/`buildCaptureFiles`의 로그 emit 로직 변경.
-- 저장된 이슈 레코드의 per-type blob 키(`networkLogBlobKey`/`consoleLogBlobKey`/`actionLogBlobKey`) 스키마 변경 — 저장 계층은 그대로, UI 토글만 단일화.
+각 항목에 **[영구]**(이 제품에서 하지 않기로 확정) / **[유예]**(이번 스코프 밖, 후속 여지) 구분.
+
+- **[영구]** 타입별 개별 첨부 기능 보존 — 명시적으로 폐기(all-or-nothing으로 단순화, 확정). network만 제외 같은 타입별 프라이버시 제어는 사라지나, 상세 다이얼로그 탭에서 타입별 내용 **조회**는 유지되므로 "무엇이 첨부되는지" 확인은 가능. 로그 산출물은 이미 단일 `logs.html`이라 타입별 첨부의 실이득이 낮다는 판단.
+- **[유예]** 첨부 토글을 설정 탭의 영구 설정으로 승격 — **세션별 상태 유지**(리포트마다 on/off, drafting 진입 시 기본 on). 현재 UX와 동일.
+- **[영구]** 본문 인라인 로그 삽입 다이얼로그(`LogInsertDialog`)와의 **컴포넌트 통합** — 합치지 않는다(선택+삽입이라는 다른 상호작용). 단 탭 UI 스타일 공유 + **기본 활성 탭 로직만** 통일(console→network→action)한다. 그 외 insert 동작(선택·삽입·직렬화)은 무변경.
+- **[영구]** 단일 토글화를 명분으로 한 **로그 리댁션/타입 필터/마스킹 규칙** 추가 — 이번 스코프 밖(별개 기능). 단일 토글은 첨부 여부만 조절.
+- **[영구]** log-viewer(logs.html) 내부의 HAR/JSON 다운로드 버튼 변경.
+- **[영구]** `buildLogsHtml`/`buildCaptureFiles`의 로그 emit 로직 변경.
+- **[영구]** 저장된 이슈 레코드의 per-type blob 키(`networkLogBlobKey`/`consoleLogBlobKey`/`actionLogBlobKey`) 스키마 변경 — 저장 계층은 그대로, UI 토글만 단일화.
+- **[정리]** 삭제되는 preview 3파일(`Network/Console/ActionLogPreviewDialog.tsx`)은 dead로 남기지 않고 **제거**(내 변경이 만든 고아). 관련 테스트·문서 참조도 함께 정리.
 
 ## 사용자 시나리오
 
@@ -53,7 +61,7 @@
 ### 엣지 케이스
 
 - 캡처 로그가 하나도 없으면(모든 타입 captured 0) 카드·다이얼로그를 렌더하지 않는다(현행과 동일).
-- element 캡처 모드는 로그를 수집하지 않으므로 로그 카드가 없다(현행과 동일).
+- element 캡처 모드는 로그 카드가 없다(현행과 동일). *(레코더는 캡처 모드와 무관하게 always-on이라 store엔 로그가 적재될 수 있으나, element 모드는 표시·첨부·제출이 모두 게이트됨 — `showLogCards = captureMode !== "element"`, `supportsConsoleNetworkLog`/`supportsActionLog`가 element 제외. 즉 "수집 안 함"이 아니라 "표시·첨부 안 함".)*
 - 세션 복원(패널 닫았다 다시 열기): 첨부 토글 상태와 카드 건수가 유지된다. (현행은 off 후 재오픈 시 해당 타입 카드가 사라지는 버그가 있었는데, 단일화하며 로그 데이터를 첨부 상태와 무관하게 복원해 개선한다.)
 
 ## 성공 기준
@@ -63,4 +71,6 @@
 - 카드 클릭 시 열리는 다이얼로그가 캡처된 타입 탭만 노출하고, 탭 전환으로 각 타입 상세를 본다.
 - 첨부 on/off에 따라 제출 시 logs.html 첨부 여부가 정확히 갈린다(기존 `selectAttachedLogs`/`buildEditorLogsCaptureInput` 동작과 결과 동일 — 단, 타입별이 아니라 통짜로).
 - Preview/DraftDetailDialog 읽기 전용 경로가 단일 카드+탭 다이얼로그로 정상 동작한다.
+- 다이얼로그 기본 활성 탭이 캡처된 탭 중 `console → network → action` 순 첫 번째로 열린다(로그 뷰어·로그 상세·로그 추가 3곳 동일).
+- 신규/삭제 i18n 키가 ko/en 대칭이고 placeholder 토큰이 일치한다(`locales.test.ts` 통과).
 - `pnpm test` 통과, `pnpm typecheck` 통과.
