@@ -288,15 +288,18 @@ function emitLogSummaryAdf(
   content.push(paragraph(logsDetailNodes()));
 }
 
-// "logs.html"을 별도 em 노드로 분리해 emit한다. 제출 후처리(injectLogsLink)가
-// 이 노드에 link mark를 붙여 본문에서 첨부로 점프하게 한다.
+// 첫 문장(lead)은 strong, 뒤 안내는 평문. "logs.html"을 별도 평문 노드로 분리해
+// emit하면 제출 후처리(injectLogsLink)가 이 노드에 link mark를 붙여 첨부로 점프하게 한다.
+// (injectLogsLink는 노드 text만 매칭하므로 마크 유무와 무관 — em 제거해도 링크 주입 보존.)
 function logsDetailNodes(): AdfNode[] {
-  const em = [{ type: "em" }];
+  const nodes: AdfNode[] = [
+    { type: "text", text: t("logSummary.logs.lead"), marks: [{ type: "strong" }] },
+    { type: "text", text: " " },
+  ];
   const segments = t("logSummary.logs.detail").split("{file}");
-  const nodes: AdfNode[] = [];
   segments.forEach((seg, i) => {
-    if (seg) nodes.push({ type: "text", text: seg, marks: em });
-    if (i < segments.length - 1) nodes.push({ type: "text", text: LOGS_LINK_LABEL, marks: em });
+    if (seg) nodes.push({ type: "text", text: seg });
+    if (i < segments.length - 1) nodes.push({ type: "text", text: LOGS_LINK_LABEL });
   });
   return nodes;
 }

@@ -62,6 +62,8 @@ export function TimelineMarkers({ markers, className, onMarkerClick, onHoverChan
         <button
           key={m.id}
           type="button"
+          data-testid="timeline-marker"
+          data-marker-type={m.type}
           aria-label={m.label}
           className={`pointer-events-auto absolute bottom-0 cursor-pointer transition-transform duration-200 ${VARIANT_COLOR[m.variant]} [transform:translateX(-50%)_rotate(-45deg)] hover:[transform:translateX(-50%)_rotate(-45deg)_scale(1.1)]`}
           style={{

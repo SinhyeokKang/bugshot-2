@@ -318,8 +318,9 @@ function ActionRow({ entry, startedAt, syncBaseMs, onSeek, isActive, muted }: {
       data-kind={entry.kind}
       data-drag-target={entry.kind === "drag" ? (entry.dragTarget ? "1" : "0") : undefined}
       data-muted={muted || undefined}
-      className={`${syncRowClass(!!onSeek, !!isActive, kindBgColor(entry.kind))}${muted ? " opacity-40" : ""}`}
+      className={`${syncRowClass(!!onSeek, !!isActive, kindBgColor(entry.kind))}${muted ? " opacity-40" : ""}${onSeek ? " cursor-pointer hover:bg-accent/50" : ""}`}
       aria-current={isActive ? "true" : undefined}
+      onClick={onSeek ? () => onSeek(entry.timestamp) : undefined}
     >
       <div className="flex items-center gap-3 px-2.5 py-2 text-[13px]">
         {base != null && (

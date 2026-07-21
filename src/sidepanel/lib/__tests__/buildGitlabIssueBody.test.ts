@@ -184,6 +184,9 @@ describe("buildGitlabIssueBody — element 복수", () => {
       logs: [{ filename: "logs.html", contentType: "text/html", url: "/uploads/abc/logs.html" }],
     });
     expect(out.body).toContain("logSummary.logs.detail file=[logs.html](/uploads/abc/logs.html)");
+    // 첫 문장은 strong, italic 래핑 제거 — 링크 주입 대상(file={file})은 그대로.
+    expect(out.body).toContain("**logSummary.logs.lead**");
+    expect(out.body).not.toContain("_logSummary.logs.detail");
   });
 
   it("logs url이 없으면 로그 요약 안내 문구는 평문 logs.html", () => {
@@ -192,6 +195,8 @@ describe("buildGitlabIssueBody — element 복수", () => {
       logs: [{ filename: "logs.html", contentType: "text/html" }],
     });
     expect(out.body).toContain("logSummary.logs.detail file=logs.html");
+    expect(out.body).toContain("**logSummary.logs.lead**");
+    expect(out.body).not.toContain("_logSummary.logs.detail");
   });
 });
 

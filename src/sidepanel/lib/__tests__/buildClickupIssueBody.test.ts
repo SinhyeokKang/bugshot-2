@@ -84,6 +84,16 @@ describe("buildClickupIssueBody", () => {
     });
     expect(out.body).not.toContain("md.section.attachments");
   });
+
+  it("로그 안내 문구: 첫 문장 strong + italic 제거 + {file} build-time 링크 유지", () => {
+    const out = buildClickupIssueBody({
+      ctx: makeCtx({ captureMode: "video", selector: "", actionLogCaptured: 3 }),
+      logs: [{ filename: "logs.html", contentType: "text/html", url: "https://att/logs.html" }],
+    });
+    expect(out.body).toContain("logSummary.logs.detail file=[logs.html](https://att/logs.html)");
+    expect(out.body).toContain("**logSummary.logs.lead**");
+    expect(out.body).not.toContain("_logSummary.logs.detail");
+  });
 });
 
 describe("buildClickupIssueBody — cc 멘션 (markdown @텍스트)", () => {

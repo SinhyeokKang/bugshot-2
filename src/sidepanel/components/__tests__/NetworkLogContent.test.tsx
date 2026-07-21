@@ -106,3 +106,37 @@ describe("NetworkLogContent — WS 프레임 mono", () => {
     expect(pre.className).not.toContain("font-sans");
   });
 });
+
+describe("NetworkLogContent — 영상 seek 동기화(onSeek 공급)", () => {
+  it("행 클릭이 상세 선택과 함께 onSeek(startTime)을 발화한다", async () => {
+    const onSeek = vi.fn();
+    const onActiveChange = vi.fn();
+    render(<NetworkLogContent requests={REQUESTS} syncBaseMs={0} onSeek={onSeek} onActiveChange={onActiveChange} />);
+    onActiveChange.mockClear();
+
+    await userEvent.click(row("r1"));
+
+    expect(onSeek).toHaveBeenCalledWith(1000);
+    expect(onActiveChange).toHaveBeenCalledWith("r1");
+  });
+
+  it("mm:ss 칩 클릭은 stopPropagation으로 onSeek을 한 번만 발화(행 이중발화 없음)", async () => {
+    const onSeek = vi.fn();
+    const onActiveChange = vi.fn();
+    render(<NetworkLogContent requests={REQUESTS} syncBaseMs={0} onSeek={onSeek} onActiveChange={onActiveChange} />);
+    onActiveChange.mockClear();
+
+    const chip = row("r1").querySelector('[data-testid="log-rel-time"]') as HTMLElement;
+    await userEvent.click(chip);
+
+    expect(onSeek).toHaveBeenCalledTimes(1);
+    expect(onSeek).toHaveBeenCalledWith(1000);
+    expect(onActiveChange).not.toHaveBeenCalled();
+  });
+
+  it("onSeek 미공급 시 mm:ss는 button이 아니라 span(seek UI 없음)", () => {
+    render(<NetworkLogContent requests={REQUESTS} syncBaseMs={0} />);
+    const chip = row("r1").querySelector('[data-testid="log-rel-time"]') as HTMLElement;
+    expect(chip.tagName).toBe("SPAN");
+  });
+});

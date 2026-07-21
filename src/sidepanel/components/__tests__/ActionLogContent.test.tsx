@@ -1,4 +1,5 @@
 import { render } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { ActionLogContent } from "../ActionLogContent";
 import type { ActionEntry } from "@/types/action";
@@ -75,5 +76,27 @@ describe("ActionLogContent — Kbd chip 통일", () => {
     const chip = row("in1").querySelector('[data-testid="action-value-chip"]') as HTMLElement;
     expect(chip.className).toContain("text-mono");
     expect(chip.className).not.toContain("text-xs");
+  });
+});
+
+describe("ActionLogContent — 영상 seek 동기화(onSeek 공급)", () => {
+  it("행 클릭이 onSeek(timestamp)을 발화한다", async () => {
+    const onSeek = vi.fn();
+    render(<ActionLogContent entries={ENTRIES} syncBaseMs={0} onSeek={onSeek} />);
+
+    await userEvent.click(row("a1"));
+
+    expect(onSeek).toHaveBeenCalledWith(1000);
+  });
+
+  it("mm:ss 칩 클릭은 stopPropagation으로 onSeek을 한 번만 발화(행 이중발화 없음)", async () => {
+    const onSeek = vi.fn();
+    render(<ActionLogContent entries={ENTRIES} syncBaseMs={0} onSeek={onSeek} />);
+
+    const chip = row("a1").querySelector('[data-testid="log-rel-time"]') as HTMLElement;
+    await userEvent.click(chip);
+
+    expect(onSeek).toHaveBeenCalledTimes(1);
+    expect(onSeek).toHaveBeenCalledWith(1000);
   });
 });

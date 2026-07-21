@@ -565,4 +565,13 @@ describe("buildIssueAdf — action 로그 단독 (video, net/con 없음)", () =>
     expect(json).toContain("logSummary.action.line n=7");
     expect(json).toContain("logSummary.logs.detail");
   });
+
+  it("로그 안내: 첫 문장 노드는 strong, 본문 노드는 em 제거(평문 → injectLogsLink 매칭 보존)", () => {
+    const doc = buildIssueAdf(makeCtx({ captureMode: "video", selector: "", actionLogCaptured: 7 }));
+    const texts = findNodes(doc, "text");
+    const lead = texts.find((n) => n.text === "logSummary.logs.lead");
+    expect(lead?.marks?.some((m: any) => m.type === "strong")).toBe(true);
+    const detail = texts.find((n) => typeof n.text === "string" && n.text.includes("logSummary.logs.detail"));
+    expect(detail?.marks?.some((m: any) => m.type === "em")).toBeFalsy();
+  });
 });

@@ -46,7 +46,41 @@ export async function openViewer(page: Page, data: Partial<LogViewerData>): Prom
 
 // ── 합성 데이터 빌더 ─────────────────────────────────────────────
 
-const T0 = 1_700_000_000_000;
+export const T0 = 1_700_000_000_000;
+
+// 마커·seek 검증엔 실제 재생 가능한 영상이 필요하다(마커 렌더 게이트 = <video>의 finite duration).
+// 이 헤드리스 chromium은 MediaRecorder 산출물의 duration을 finite로 보고하므로(mp4/webm 공통),
+// canvas를 잠깐 녹화해 data URL을 즉석 생성한다 — 커밋 미디어 fixture 불요. startedAt=T0로 열면
+// T0+ms 타임스탬프 로그가 (ms/1000)초로 매핑된다. openViewer 전(setContent 전) 페이지에서 호출.
+export async function generateTinyVideoDataUrl(page: Page): Promise<string> {
+  return page.evaluate(async () => {
+    const c = document.createElement("canvas");
+    c.width = 64;
+    c.height = 64;
+    const ctx = c.getContext("2d")!;
+    const mime = MediaRecorder.isTypeSupported("video/mp4") ? "video/mp4" : "video/webm";
+    const stream = c.captureStream(15);
+    const mr = new MediaRecorder(stream, { mimeType: mime });
+    const chunks: Blob[] = [];
+    mr.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
+    const stopped = new Promise<void>((res) => { mr.onstop = () => res(); });
+    mr.start();
+    const t0 = performance.now();
+    while (performance.now() - t0 < 1200) {
+      ctx.fillStyle = `hsl(${(performance.now() / 4) % 360},70%,50%)`;
+      ctx.fillRect(0, 0, 64, 64);
+      await new Promise((r) => setTimeout(r, 50));
+    }
+    mr.stop();
+    await stopped;
+    const blob = new Blob(chunks, { type: mime });
+    return await new Promise<string>((res) => {
+      const f = new FileReader();
+      f.onload = () => res(f.result as string);
+      f.readAsDataURL(blob);
+    });
+  });
+}
 
 /** click/navigation/input/keypress/toggle/select 6종 + 2 origin. 필터 6+all, raw-key 회귀용. */
 export function makeActionLog(): ActionLog {

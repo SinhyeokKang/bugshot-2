@@ -116,6 +116,29 @@ describe("buildErrorMarkers — action (navigate)", () => {
   });
 });
 
+describe("buildErrorMarkers — 3타입 혼합(log-viewer 통합 마커)", () => {
+  it("console·network·action 로그를 한 콜에서 합쳐 세 타입 마커를 모두 반환", () => {
+    const consoleLog = makeConsoleLog([
+      makeEntry({ id: "c-err", level: "error", timestamp: START + 1000 }),
+      makeEntry({ id: "c-log", level: "log", timestamp: START + 1500 }),
+    ]);
+    const networkLog = makeNetworkLog([
+      makeRequest({ id: "n-500", status: 500, startTime: START + 2000 }),
+      makeRequest({ id: "n-ok", status: 200, startTime: START + 2500 }),
+    ]);
+    const actionLog = makeActionLog([
+      makeActionEntry({ id: "a-nav", kind: "navigation", navType: "pushState", toUrl: "https://x.com/n", timestamp: START + 3000 }),
+      makeActionEntry({ id: "a-clk", kind: "click", target: "버튼", timestamp: START + 3500 }),
+    ]);
+
+    const markers = buildErrorMarkers({ consoleLog, networkLog, actionLog }, START, DUR);
+
+    // 각 타입의 필터 기준(console error/warn, network 문제, action navigate)이 혼합 후에도 유지
+    expect(markers.map((m) => m.id).sort()).toEqual(["a-nav", "c-err", "n-500"]);
+    expect(new Set(markers.map((m) => m.type))).toEqual(new Set(["console", "network", "action"]));
+  });
+});
+
 describe("buildErrorMarkers — positionPct", () => {
   it("videoStartedAt 기준 환산이 정확 (5s/10s → 50%)", () => {
     const consoleLog = makeConsoleLog([
