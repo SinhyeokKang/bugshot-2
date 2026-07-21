@@ -12,8 +12,8 @@ import { Tabs, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { CollapsingTabsList, TabLabel } from "@/components/ui/collapsing-tabs";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { toVideoSeconds } from "./timeline";
-import { buildMarkers } from "./markers";
 import type { TimelineMarker } from "./markers";
+import { buildErrorMarkers } from "@/sidepanel/30s-replay/trim-markers";
 import { VideoPlayer, type VideoPlayerHandle } from "./components/VideoPlayer";
 import { ImageViewer } from "./components/ImageViewer";
 import { Button } from "@/components/ui/button";
@@ -76,12 +76,19 @@ export function App({ data }: AppProps) {
     if (!data || !video || videoError || videoDurationSec <= 0) return [];
     // Report 탭은 타임라인 마커가 없다(본문 프리뷰라 시간축 매핑 대상 아님).
     if (activeTab === "report") return [];
-    return buildMarkers(data, activeTab, videoDurationSec, video.startedAt);
+    // 활성 탭 타입만이 아니라 3타입 통합(에러/경고·네트워크 문제·페이지 이동) — 영상만 봐도 맥락 파악.
+    return buildErrorMarkers(
+      { consoleLog: data.consoleLog, networkLog: data.networkLog, actionLog: data.actionLog },
+      video.startedAt,
+      videoDurationSec,
+    );
   }, [data, video, videoError, videoDurationSec, activeTab]);
 
   const handleMarkerClick = useCallback((marker: TimelineMarker) => {
     if (!video) return;
     playerRef.current?.seekToSec(toVideoSeconds(marker.absTs, video.startedAt));
+    // 통합 마커라 클릭한 마커의 타입 탭으로 전환 후 스크롤.
+    setActiveTab(marker.type);
     setScrollToEntryId(marker.id);
   }, [video]);
 

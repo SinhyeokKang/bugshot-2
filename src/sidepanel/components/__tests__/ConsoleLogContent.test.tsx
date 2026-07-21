@@ -128,3 +128,28 @@ describe("ConsoleLogContent — 펼침 상세 정렬", () => {
     expect(detail.className).not.toContain("pl-[82px]");
   });
 });
+
+describe("ConsoleLogContent — 영상 seek 동기화(onSeek 공급)", () => {
+  it("행 클릭이 펼치기와 함께 onSeek(timestamp)을 발화한다", async () => {
+    const onSeek = vi.fn();
+    render(<ConsoleLogContent entries={ENTRIES} startedAt={500} onSeek={onSeek} />);
+
+    await clickRow("e1");
+
+    expect(onSeek).toHaveBeenCalledWith(1000);
+    // 펼치기 기존 동작 유지 — 상세 pre가 나타난다
+    expect(row("e1").querySelector(".pt-1")).not.toBeNull();
+  });
+
+  it("mm:ss 칩 클릭은 stopPropagation으로 onSeek을 한 번만 발화(펼치기 미발동)", async () => {
+    const onSeek = vi.fn();
+    render(<ConsoleLogContent entries={ENTRIES} startedAt={500} onSeek={onSeek} />);
+
+    const chip = row("e1").querySelector('[data-testid="log-rel-time"]') as HTMLElement;
+    await userEvent.click(chip);
+
+    expect(onSeek).toHaveBeenCalledTimes(1);
+    expect(onSeek).toHaveBeenCalledWith(1000);
+    expect(row("e1").querySelector(".pt-1")).toBeNull();
+  });
+});

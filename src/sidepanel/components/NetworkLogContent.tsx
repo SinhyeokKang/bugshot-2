@@ -444,7 +444,7 @@ function RequestRow({
       data-muted={muted || undefined}
       className={`flex cursor-pointer items-center gap-3 overflow-hidden px-2.5 py-2 text-[13px] ${syncRowClass(syncBaseMs != null, !!syncActive, rowBg(req, active))}${muted ? " opacity-40" : ""}`}
       aria-current={syncActive ? "true" : undefined}
-      onClick={onClick}
+      onClick={() => { onSeek?.(req.startTime); onClick(); }}
     >
       {syncBaseMs != null && (
         <LogSeekChip ts={req.startTime} label={formatRelativeTime(req.startTime, syncBaseMs)} onSeek={onSeek} />
