@@ -193,5 +193,5 @@ function emitLogSummary(lines: string[], ctx: MarkdownContext, logsHref?: string
   }
   lines.push("");
   const file = logsHref ? `[logs.html](${logsHref})` : "logs.html";
-  lines.push(`_${t("logSummary.logs.detail", { file })}_`, "");
+  lines.push(`**${t("logSummary.logs.lead")}** ${t("logSummary.logs.detail", { file })}`, "");
 }

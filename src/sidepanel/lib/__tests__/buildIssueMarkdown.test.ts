@@ -895,11 +895,15 @@ describe("로그 요약 — action 로그 단독 (video, net/con 없음)", () =>
     expect(md).toContain("logSummary.title");
     expect(md).toContain("logSummary.action.line n=7");
     expect(md).toContain("logSummary.logs.detail file=logs.html");
+    expect(md).toContain("**logSummary.logs.lead**");
+    expect(md).not.toContain("_logSummary.logs.detail");
   });
 
   it("html: action 캡처만 있어도 로그 요약 + logs.html 참조 노출", () => {
     const html = buildIssueHtml(makeCtx({ captureMode: "video", selector: "", actionLogCaptured: 7 }));
     expect(html).toContain("logSummary.action.line n=7");
     expect(html).toContain("logSummary.logs.detail file=logs.html");
+    expect(html).toContain("<strong>logSummary.logs.lead</strong>");
+    expect(html).not.toContain("<em>logSummary.logs.detail");
   });
 });

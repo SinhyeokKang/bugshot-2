@@ -83,6 +83,15 @@ describe("buildSlackBody — 섹션", () => {
   });
 });
 
+describe("buildSlackBody — 로그 안내 문구", () => {
+  it("첫 문장은 mrkdwn *볼드*, italic 래핑 제거", () => {
+    const { body } = buildSlackBody({ ctx: makeCtx({ actionLogCaptured: 5 }) });
+    expect(body).toContain("*logSummary.logs.lead*");
+    expect(body).toContain("logSummary.logs.detail file=logs.html");
+    expect(body).not.toContain("_logSummary.logs.detail");
+  });
+});
+
 describe("buildSlackBody — footer", () => {
   it("footer는 mrkdwn 링크 형식", () => {
     const { body } = buildSlackBody({ ctx: makeCtx() });

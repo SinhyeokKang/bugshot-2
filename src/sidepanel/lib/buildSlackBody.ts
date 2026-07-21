@@ -129,5 +129,5 @@ function emitLogSummary(lines: string[], ctx: MarkdownContext): void {
   }
   if (act) lines.push(`• ${t("logSummary.action.line", { n: act })}`);
   lines.push("");
-  lines.push(`_${t("logSummary.logs.detail", { file: "logs.html" })}_`, "");
+  lines.push(`*${t("logSummary.logs.lead")}* ${t("logSummary.logs.detail", { file: "logs.html" })}`, "");
 }
