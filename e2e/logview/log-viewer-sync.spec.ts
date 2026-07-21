@@ -4,6 +4,7 @@ import {
   makeConsoleLog,
   makeNetworkLog,
   makeActionLog,
+  makeReport,
   generateTinyVideoDataUrl,
   T0,
 } from "./fixtures";
@@ -35,6 +36,24 @@ test.describe("log-viewer 영상↔로그 sync", () => {
     await expect(page.locator('[data-testid="timeline-marker"][data-marker-type="console"]').first()).toBeVisible();
     await expect(page.locator('[data-testid="timeline-marker"][data-marker-type="network"]').first()).toBeVisible();
     await expect(page.locator('[data-testid="timeline-marker"][data-marker-type="action"]').first()).toBeVisible();
+  });
+
+  test("Report 탭을 열어도 타임라인 마커가 유지된다", async ({ page }) => {
+    const dataUrl = await generateTinyVideoDataUrl(page);
+    await openViewer(page, {
+      video: { dataUrl, startedAt: T0 },
+      consoleLog: makeConsoleLog(),
+      networkLog: makeNetworkLog(),
+      actionLog: makeActionLog(),
+      report: makeReport(),
+    });
+    await page.locator("video").waitFor();
+    await expect(page.getByTestId("timeline-marker").first()).toBeVisible();
+
+    // Report 탭으로 전환해도 좌측 영상 타임라인 마커는 그대로여야 한다.
+    await page.getByTestId("logview-tab-report").click();
+    await expect(page.getByTestId("logview-tab-report")).toHaveAttribute("data-state", "active");
+    await expect(page.getByTestId("timeline-marker").first()).toBeVisible();
   });
 
   test("마커 클릭 → 해당 타입 탭으로 전환", async ({ page }) => {

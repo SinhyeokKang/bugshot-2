@@ -74,15 +74,14 @@ export function App({ data }: AppProps) {
 
   const markers = useMemo(() => {
     if (!data || !video || videoError || videoDurationSec <= 0) return [];
-    // Report 탭은 타임라인 마커가 없다(본문 프리뷰라 시간축 매핑 대상 아님).
-    if (activeTab === "report") return [];
-    // 활성 탭 타입만이 아니라 3타입 통합(에러/경고·네트워크 문제·페이지 이동) — 영상만 봐도 맥락 파악.
+    // 마커는 좌측 영상 타임라인에 붙는다 — 우측이 어느 탭이든(Report 포함) 영상은 계속 보이므로
+    // 탭과 무관하게 항상 3타입 통합(에러/경고·네트워크 문제·페이지 이동)으로 표시한다.
     return buildErrorMarkers(
       { consoleLog: data.consoleLog, networkLog: data.networkLog, actionLog: data.actionLog },
       video.startedAt,
       videoDurationSec,
     );
-  }, [data, video, videoError, videoDurationSec, activeTab]);
+  }, [data, video, videoError, videoDurationSec]);
 
   const handleMarkerClick = useCallback((marker: TimelineMarker) => {
     if (!video) return;
