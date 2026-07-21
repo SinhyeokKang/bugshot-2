@@ -103,6 +103,16 @@ export function AiStylingDialog({
     onOpenChange(false);
     useEditorStore.getState().setAiStylingLoading(true);
 
+    // 소프트 취소: 오버레이 '중단'이 부르면 결과를 폐기하고 로딩을 내린다(진행 중 호출은 못 끊는다).
+    const run = { cancelled: false };
+    useEditorStore.getState().setAiCancel(() => {
+      run.cancelled = true;
+      sessionRef.current?.destroy?.();
+      sessionRef.current = null;
+      sessionKeyRef.current = null;
+      useEditorStore.getState().setAiStylingLoading(false);
+    });
+
     try {
       // repick으로 세션이 다른 요소용이면 stale system prompt 폐기 후 재빌드.
       if (sessionRef.current && sessionKeyRef.current !== targetKey) {
@@ -146,6 +156,7 @@ export function AiStylingDialog({
       const raw = await sessionRef.current
         .prompt(turnInput, { responseSchema })
         .catch(mapQuotaError);
+      if (run.cancelled) return; // 사용자 중단 — 결과 폐기(로딩은 canceller가 이미 내렸다).
       lastSentStylesRef.current = currentSent;
       lastSentClassesRef.current = ctx.classList;
 
@@ -191,6 +202,7 @@ export function AiStylingDialog({
           void applyClasses(tabId, frameId, merged.classList);
       }
     } catch (err) {
+      if (run.cancelled) return; // 사용자 중단 후 배경 호출 실패(또는 세션 null-deref)의 오탐 토스트 방지.
       console.error("[AI Styling] error:", err);
       toastLlmError(err, t, "aiStyling.error");
       sessionRef.current?.destroy?.();

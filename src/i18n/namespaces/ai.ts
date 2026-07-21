@@ -1,5 +1,6 @@
 const ko = {
   "ai.badge.chromeAI": "Chrome AI",
+  "ai.stop": "중단",
 
   "aiDraft.title": "AI 초안 작성",
   "aiDraft.placeholder": "버그를 간단히 설명해주세요...",
@@ -36,6 +37,7 @@ type Bundle = Record<keyof typeof ko, string>;
 
 const en = {
   "ai.badge.chromeAI": "Chrome AI",
+  "ai.stop": "Stop",
 
   "aiDraft.title": "AI Draft",
   "aiDraft.placeholder": "Briefly describe the bug...",

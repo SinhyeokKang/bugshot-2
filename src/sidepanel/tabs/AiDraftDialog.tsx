@@ -84,6 +84,15 @@ export function AiDraftDialog({
     onOpenChange(false);
     useEditorStore.getState().setAiDraftLoading(true);
 
+    // 소프트 취소: 오버레이 '중단'이 부르면 결과를 폐기하고 로딩을 내린다(진행 중 호출은 못 끊는다).
+    const run = { cancelled: false };
+    useEditorStore.getState().setAiCancel(() => {
+      run.cancelled = true;
+      sessionRef.current?.destroy?.();
+      sessionRef.current = null;
+      useEditorStore.getState().setAiDraftLoading(false);
+    });
+
     try {
       const store = useEditorStore.getState();
       const settingsUi = useSettingsUiStore.getState();
@@ -180,6 +189,7 @@ export function AiDraftDialog({
       const raw = await sessionRef.current
         .prompt(msg, { responseSchema, images })
         .catch(mapQuotaError);
+      if (run.cancelled) return; // 사용자 중단 — 결과 폐기(로딩은 canceller가 이미 내렸다).
 
       const parsed = parseAiDraftResponse(raw, sectionIds);
       if (parsed) {
@@ -225,6 +235,7 @@ export function AiDraftDialog({
         toast.error(t("draft.aiParseError"));
       }
     } catch (err) {
+      if (run.cancelled) return; // 사용자 중단 후 배경 호출 실패(또는 세션 null-deref)의 오탐 토스트 방지.
       console.error("[AI Draft] error:", err);
       toastLlmError(err, t, "draft.aiError");
       sessionRef.current?.destroy?.();

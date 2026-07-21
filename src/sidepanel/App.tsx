@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from "react";
-import { Blocks, Globe, List, Loader2, Settings, TerminalSquare } from "lucide-react";
+import { Blocks, Globe, List, Loader2, Settings, Square, TerminalSquare } from "lucide-react";
 import { toast } from "sonner";
 import { useT } from "@/i18n";
 import {
@@ -38,6 +38,7 @@ import { useThemeEffect } from "./hooks/useThemeEffect";
 import { useAiLoadingStep } from "./hooks/useAiLoadingStep";
 import { aiLoadingSurface, aiLoadingPhraseKey, type AiLoadingSurface } from "./lib/aiLoadingPhrases";
 import { AiLoadingText } from "./components/AiLoadingText";
+import { Button } from "@/components/ui/button";
 import { DebugTab } from "./tabs/DebugTab";
 import { IntegrationsTab } from "./tabs/IntegrationsTab";
 import { IssueListTab } from "./tabs/IssueListTab";
@@ -76,22 +77,28 @@ function blurActiveElement() {
 
 const AI_OVERLAY_STYLE: Record<
   AiLoadingSurface,
-  { tint: string; ripple: string; text: string }
+  { tint: string; ripple: string; text: string; button: string }
 > = {
   styling: {
     tint: "bg-teal-500/5",
     ripple: "bg-[radial-gradient(circle,transparent_0%,rgba(45,212,191,0.1)_46%,transparent_141%)]",
     text: "text-teal-700 dark:text-teal-300",
+    button:
+      "bg-teal-500/20 text-teal-700 hover:bg-teal-500/30 hover:text-teal-800 dark:bg-teal-400/20 dark:text-teal-300 dark:hover:bg-teal-400/30 dark:hover:text-teal-200",
   },
   draft: {
     tint: "bg-purple-500/5",
     ripple: "bg-[radial-gradient(circle,transparent_0%,rgba(192,132,252,0.1)_46%,transparent_141%)]",
     text: "text-purple-700 dark:text-purple-300",
+    button:
+      "bg-purple-500/20 text-purple-700 hover:bg-purple-500/30 hover:text-purple-800 dark:bg-purple-400/20 dark:text-purple-300 dark:hover:bg-purple-400/30 dark:hover:text-purple-200",
   },
   repro: {
     tint: "bg-amber-500/5",
     ripple: "bg-[radial-gradient(circle,transparent_0%,rgba(251,191,36,0.1)_46%,transparent_141%)]",
     text: "text-amber-700 dark:text-amber-300",
+    button:
+      "bg-amber-500/20 text-amber-700 hover:bg-amber-500/30 hover:text-amber-800 dark:bg-amber-400/20 dark:text-amber-300 dark:hover:bg-amber-400/30 dark:hover:text-amber-200",
   },
 };
 
@@ -234,6 +241,18 @@ export default function App() {
               className={cn("text-lg font-semibold", AI_OVERLAY_STYLE[aiSurface].text)}
             />
           </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => useEditorStore.getState().aiCancel?.()}
+            className={cn(
+              "absolute bottom-8 left-1/2 z-10 -translate-x-1/2 gap-1.5 rounded-full shadow-sm [&_svg]:size-3.5",
+              AI_OVERLAY_STYLE[aiSurface].button,
+            )}
+          >
+            <Square className="fill-current" />
+            {t("ai.stop")}
+          </Button>
         </div>
       )}
       <div className="flex min-h-0 flex-1 flex-col gap-0">

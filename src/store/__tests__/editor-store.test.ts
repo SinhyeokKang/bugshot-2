@@ -1610,3 +1610,27 @@ describe("confirmDraft jira — 기본 담당자 prefill", () => {
     expect(useEditorStore.getState().issueFields).not.toHaveProperty("projectKey");
   });
 });
+
+describe("aiCancel — 진행 중 AI 작업의 취소 콜백 레지스트리", () => {
+  beforeEach(() => {
+    useEditorStore.setState(useEditorStore.getInitialState(), true);
+  });
+
+  it("초기값은 null", () => {
+    expect(useEditorStore.getState().aiCancel).toBeNull();
+  });
+
+  it("setAiCancel로 콜백을 등록/해제한다", () => {
+    const fn = vi.fn();
+    useEditorStore.getState().setAiCancel(fn);
+    expect(useEditorStore.getState().aiCancel).toBe(fn);
+    useEditorStore.getState().setAiCancel(null);
+    expect(useEditorStore.getState().aiCancel).toBeNull();
+  });
+
+  it("reset이 aiCancel을 청소한다 (재캡처 시 stale 콜백 잔류 방지)", () => {
+    useEditorStore.getState().setAiCancel(vi.fn());
+    useEditorStore.getState().reset();
+    expect(useEditorStore.getState().aiCancel).toBeNull();
+  });
+});

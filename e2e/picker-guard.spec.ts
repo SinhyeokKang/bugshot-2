@@ -7,6 +7,11 @@ import { enterDebug, expect, pickElement, test } from "./fixtures/extension";
 // 1-depth iframe 내부 선택(역전된 동작)은 picker-iframe.spec이 커버.
 // unsupported URL(webstore) 경로는 실제 webstore 접근이 필요해 수동 잔여로 둔다.
 test.describe.serial("picker-guard (중첩·미주입 iframe 거부)", () => {
+  // 거부 dismiss의 fire-and-forget clearPicker가 다음 arm을 clobber하는 레이스는 부하 하에서만
+  // 열려 간헐 실패한다(복구 루프로 흡수). one-shot 복구가 겹치면 30s 기본 타임아웃에 걸리므로
+  // 복구 사이클을 여러 번 돌 여유를 준다.
+  test.describe.configure({ timeout: 60_000 });
+
   let fixture: Page;
   let panel: Page;
 
@@ -32,20 +37,24 @@ test.describe.serial("picker-guard (중첩·미주입 iframe 거부)", () => {
       await expect(dialog()).toBeVisible({ timeout: 1000 });
     }).toPass({ timeout: budgetMs });
 
+  // full-suite 부하에서 직전 거부의 fire-and-forget clearPicker가 새 arm을 clobber하면
+  // panel=picking·content=idle로 멈춰 클릭 재시도로는 못 빠져나온다. picking을 취소해
+  // idle로 되돌리고 mode-element로 새로 arm한 뒤 다시 시도한다. clobber가 연달아 나면
+  // one-shot 복구로는 부족하므로 bounded 루프로 여러 번 복구한다(healthy 경로는 첫 시도에 리턴).
   async function pickUntilUnsupported(selector: string, frame?: string) {
-    try {
-      await tryReject(selector, frame, 15000);
-    } catch {
-      if (await dialog().isVisible().catch(() => false)) return; // 늦게 떴으면 성공
-      // full-suite 부하에서 직전 거부의 fire-and-forget clearPicker가 새 arm을 clobber하면
-      // panel=picking·content=idle로 멈춰 클릭 재시도로는 못 빠져나온다. picking을 취소해
-      // idle로 되돌리고 mode-element로 새로 arm한 뒤 한 번 더 시도한다(one-shot 복구).
-      if (await panel.getByTestId("picking-cancel").isVisible().catch(() => false)) {
-        await panel.getByTestId("picking-cancel").click();
+    for (let attempt = 0; ; attempt++) {
+      try {
+        await tryReject(selector, frame, 12000);
+        return;
+      } catch (err) {
+        if (await dialog().isVisible().catch(() => false)) return; // 늦게 떴으면 성공
+        if (attempt >= 3) throw err; // 복구 3회에도 안 뜨면 실제 실패
+        if (await panel.getByTestId("picking-cancel").isVisible().catch(() => false)) {
+          await panel.getByTestId("picking-cancel").click();
+        }
+        await expect(panel.getByTestId("mode-element")).toBeVisible();
+        await panel.getByTestId("mode-element").click();
       }
-      await expect(panel.getByTestId("mode-element")).toBeVisible();
-      await panel.getByTestId("mode-element").click();
-      await tryReject(selector, frame, 15000);
     }
   }
 

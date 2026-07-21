@@ -28,6 +28,8 @@ interface UseReproPrefillArgs {
   setReproPrefillDone: (done: boolean) => void;
   // 스토어의 setReproPrefillLoading — 로딩은 App.tsx AI 오버레이가 소비한다.
   setLoading: (loading: boolean) => void;
+  // 스토어의 setAiCancel — 오버레이 '중단' 버튼이 호출할 소프트 취소 콜백을 등록한다.
+  setAiCancel: (fn: (() => void) | null) => void;
 }
 
 // drafting 진입 시 stepsToReproduce가 비어 있고 AI(나노/BYOK)가 가용하면, 액션 로그를 AI로
@@ -52,6 +54,7 @@ export function useReproPrefill(args: UseReproPrefillArgs): {
     reproPrefillDone,
     setReproPrefillDone,
     setLoading,
+    setAiCancel,
   } = args;
   const [aiGenerated, setAiGenerated] = useState<string | null>(null);
 
@@ -66,7 +69,9 @@ export function useReproPrefill(args: UseReproPrefillArgs): {
   actionLogRef.current = actionLog;
   const doneRef = useRef(reproPrefillDone);
   doneRef.current = reproPrefillDone;
-  const runRef = useRef<{ cancelled: boolean } | null>(null);
+  // cancelled: 비자발적 취소(언마운트·게이트 왕복) — 재개 시 되살릴 수 있다.
+  // userCancelled: 사용자 명시 중단 — 영구 포기라 re-adopt가 되살리면 안 된다.
+  const runRef = useRef<{ cancelled: boolean; userCancelled: boolean } | null>(null);
 
   const hasActionLog = !!actionLog && actionLog.captured > 0;
   const draftReady = !!draft;
@@ -87,6 +92,7 @@ export function useReproPrefill(args: UseReproPrefillArgs): {
     if (doneRef.current) {
       const prev = runRef.current;
       if (!prev) return;
+      if (prev.userCancelled) return; // 사용자가 중단한 요청은 되살리지 않는다.
       prev.cancelled = false;
       return () => {
         prev.cancelled = true;
@@ -96,7 +102,7 @@ export function useReproPrefill(args: UseReproPrefillArgs): {
     setReproPrefillDone(true); // 이하 결과 무관하게 세션 1회(공백·실패여도 재시도 안 함).
     doneRef.current = true; // 리렌더 전에 래치 — store 왕복을 기다리면 이중 실행이 재발화한다.
     const log = actionLogRef.current!;
-    const run = { cancelled: false };
+    const run = { cancelled: false, userCancelled: false };
     runRef.current = run;
 
     const apply = (steps: string) => {
@@ -110,6 +116,14 @@ export function useReproPrefill(args: UseReproPrefillArgs): {
     };
 
     setLoading(true);
+    // 소프트 취소: 오버레이 '중단'이 이 콜백을 부르면 결과를 폐기하고 로딩을 내린다.
+    // 진행 중 nano/BYOK 호출 자체는 못 끊지만(ai-provider에 AbortSignal 없음), 응답은 run.cancelled로 버려진다.
+    // done은 이미 래치돼 재발화 없음 — 사용자 명시 중단 = 영구 포기(reproPrefillDone "결과무관 1회" 설계와 일치).
+    setAiCancel(() => {
+      run.cancelled = true;
+      run.userCancelled = true;
+      setLoading(false);
+    });
     void (async () => {
       try {
         const steps = await generateReproStepsWithAI({
@@ -149,6 +163,7 @@ export function useReproPrefill(args: UseReproPrefillArgs): {
     aiStatus,
     setReproPrefillDone,
     setLoading,
+    setAiCancel,
     setDraft,
     capabilities,
     createSession,
