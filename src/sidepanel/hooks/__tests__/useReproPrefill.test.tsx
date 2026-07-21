@@ -55,6 +55,7 @@ function baseArgs(over: Record<string, unknown> = {}) {
     autoReproPrefill: true,
     reproPrefillDone: false,
     setReproPrefillDone: vi.fn(),
+    setAiCancel: vi.fn(),
     ...over,
   };
 }
@@ -255,6 +256,92 @@ describe("useReproPrefill", () => {
     });
     expect(setDraft).toHaveBeenCalledTimes(1); // 이어받아 적용 — 유실 없음.
     expect(generateReproStepsWithAI).toHaveBeenCalledTimes(1); // 재발화도 없음.
+  });
+
+  it("발화 시 setAiCancel로 취소 콜백(함수)을 등록한다", async () => {
+    const setAiCancel = vi.fn();
+    const { args } = render({ setAiCancel });
+    await waitFor(() => expect(args.setDraft).toHaveBeenCalledTimes(1));
+    expect(setAiCancel).toHaveBeenCalled();
+    expect(typeof setAiCancel.mock.calls[0][0]).toBe("function");
+  });
+
+  it("사용자 중단(등록된 취소 콜백 호출) 시 로딩 해제 + 늦게 온 결과 폐기 + 재발화 없음", async () => {
+    // 소프트 취소: 진짜 abort가 아니라 결과-폐기 가드. done은 이미 래치돼 재발화하지 않는다
+    // (사용자 명시 중단 = 영구 포기 — reproPrefillDone "결과무관 1회" 설계와 일치, POSTMORTEM 2026-07-16/17).
+    let resolveFn: (v: unknown) => void = () => {};
+    vi.mocked(generateReproStepsWithAI).mockReturnValue(
+      new Promise((res) => {
+        resolveFn = res;
+      }) as any,
+    );
+    const setDraft = vi.fn();
+    const setLoading = vi.fn();
+    let cancelFn: (() => void) | null = null;
+    const setAiCancel = vi.fn((fn: (() => void) | null) => {
+      if (fn) cancelFn = fn;
+    });
+    const { args } = render({ setDraft, setLoading, setAiCancel });
+    await flush();
+    expect(generateReproStepsWithAI).toHaveBeenCalledTimes(1);
+    expect(cancelFn).toBeTypeOf("function");
+
+    // 사용자가 중단을 누른다 — in-flight 응답 도착 전.
+    act(() => cancelFn!());
+    expect(setLoading).toHaveBeenLastCalledWith(false);
+
+    // 늦게 도착한 결과는 폐기된다(취소 가드).
+    await act(async () => {
+      resolveFn("AI a");
+      await Promise.resolve();
+    });
+    expect(setDraft).not.toHaveBeenCalled();
+    // done은 소진된 채라 재발화 없음.
+    expect(generateReproStepsWithAI).toHaveBeenCalledTimes(1);
+    expect(args.setReproPrefillDone).toHaveBeenCalledWith(true);
+  });
+
+  it("사용자 중단 후 게이트 왕복으로 effect가 재발화해도 취소된 요청을 되살리지 않는다", async () => {
+    // re-adopt 경로는 비자발적 취소(언마운트·게이트)만 되살린다 — 사용자 명시 중단은 영구 포기.
+    let resolveFn: (v: unknown) => void = () => {};
+    vi.mocked(generateReproStepsWithAI).mockReturnValue(
+      new Promise((res) => {
+        resolveFn = res;
+      }) as any,
+    );
+    const setDraft = vi.fn();
+    let cancelFn: (() => void) | null = null;
+    const setAiCancel = vi.fn((fn: (() => void) | null) => {
+      if (fn) cancelFn = fn;
+    });
+    const stable = {
+      setDraft,
+      setReproPrefillDone: vi.fn(),
+      setLoading: vi.fn(),
+      setAiCancel,
+      createSession: vi.fn(),
+      actionLog: actionLog(),
+      draft: { title: "", sections: {} },
+      aiStatus: "available",
+    };
+    const mk = (over: Record<string, unknown> = {}) => baseArgs({ ...stable, ...over });
+    const { rerender } = renderHook((p: any) => useReproPrefill(p), {
+      initialProps: mk({ trimming: false }),
+    });
+    await flush();
+    expect(cancelFn).toBeTypeOf("function");
+
+    act(() => cancelFn!()); // 사용자 중단(done은 이미 latch됨).
+
+    // 게이트 왕복으로 effect 재발화(re-adopt 경로 진입).
+    rerender(mk({ trimming: true, reproPrefillDone: true }));
+    rerender(mk({ trimming: false, reproPrefillDone: true }));
+
+    await act(async () => {
+      resolveFn("AI a");
+      await Promise.resolve();
+    });
+    expect(setDraft).not.toHaveBeenCalled(); // 되살아나지 않음 — 결과 폐기 유지.
   });
 
   it("StrictMode 이중 마운트에서도 AI 호출은 1회이고 그 결과는 유실되지 않는다", async () => {

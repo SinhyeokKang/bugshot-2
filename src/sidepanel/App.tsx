@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useState } from "react";
-import { Blocks, Globe, List, Loader2, Settings, TerminalSquare } from "lucide-react";
+import { Blocks, Globe, List, Loader2, Settings, TerminalSquare, X } from "lucide-react";
 import { toast } from "sonner";
 import { useT } from "@/i18n";
 import {
@@ -38,6 +38,7 @@ import { useThemeEffect } from "./hooks/useThemeEffect";
 import { useAiLoadingStep } from "./hooks/useAiLoadingStep";
 import { aiLoadingSurface, aiLoadingPhraseKey, type AiLoadingSurface } from "./lib/aiLoadingPhrases";
 import { AiLoadingText } from "./components/AiLoadingText";
+import { Button } from "@/components/ui/button";
 import { DebugTab } from "./tabs/DebugTab";
 import { IntegrationsTab } from "./tabs/IntegrationsTab";
 import { IssueListTab } from "./tabs/IssueListTab";
@@ -234,6 +235,18 @@ export default function App() {
               className={cn("text-lg font-semibold", AI_OVERLAY_STYLE[aiSurface].text)}
             />
           </div>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => useEditorStore.getState().aiCancel?.()}
+            className={cn(
+              "absolute bottom-8 left-1/2 z-10 -translate-x-1/2 gap-1.5",
+              AI_OVERLAY_STYLE[aiSurface].text,
+            )}
+          >
+            <X className="h-3.5 w-3.5" />
+            {t("ai.stop")}
+          </Button>
         </div>
       )}
       <div className="flex min-h-0 flex-1 flex-col gap-0">

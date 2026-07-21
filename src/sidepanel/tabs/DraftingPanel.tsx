@@ -97,6 +97,7 @@ export function DraftingPanel() {
   const setReproPrefillDone = useEditorStore((s) => s.setReproPrefillDone);
   const reproPrefillLoading = useEditorStore((s) => s.reproPrefillLoading);
   const setReproPrefillLoading = useEditorStore((s) => s.setReproPrefillLoading);
+  const setAiCancel = useEditorStore((s) => s.setAiCancel);
   const { trimming } = useReplay();
   const attachments = useEditorStore((s) => s.attachments);
   const addAttachments = useEditorStore((s) => s.addAttachments);
@@ -162,6 +163,7 @@ export function DraftingPanel() {
     reproPrefillDone,
     setReproPrefillDone,
     setLoading: setReproPrefillLoading,
+    setAiCancel,
   });
 
   if (!draft) return null;

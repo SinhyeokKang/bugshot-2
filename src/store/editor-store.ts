@@ -171,6 +171,11 @@ interface EditorState {
   aiDraftLoading: boolean;
   // 재현 단계 자동 채움 로딩. AI draft 오버레이(App.tsx)를 공유해 패널 전체를 덮는다. 비영속(전환 상태).
   reproPrefillLoading: boolean;
+  // 진행 중 AI 작업(styling/draft/repro)의 소프트 취소 콜백. 오버레이 '중단' 버튼이 호출한다.
+  // 단일 슬롯으로 충분 — 오버레이가 하위 클릭을 막아 동시 op 시작이 구조적으로 불가하고,
+  // 각 op가 시작 시 덮어쓴다. 버튼은 로딩 플래그가 true일 때만 보이므로 stale 콜백은 도달 불가.
+  // 비영속. reset/teardown(...initial)이 청소한다.
+  aiCancel: (() => void) | null;
   submitResult: SubmitResult | null;
   inlineCaptureTarget: string | null;
   sessionExpired: boolean;
@@ -185,6 +190,7 @@ interface EditorState {
   setAiStylingLoading: (loading: boolean) => void;
   setAiDraftLoading: (loading: boolean) => void;
   setReproPrefillLoading: (loading: boolean) => void;
+  setAiCancel: (fn: (() => void) | null) => void;
   startPicking: (target: EditorTarget, mode?: CaptureMode) => void;
   startCapturing: (target: EditorTarget) => void;
   startElementShot: (target: EditorTarget) => void;
@@ -333,6 +339,7 @@ const initial = {
   aiStylingLoading: false,
   aiDraftLoading: false,
   reproPrefillLoading: false,
+  aiCancel: null as (() => void) | null,
   submitResult: null as SubmitResult | null,
   sessionExpired: false,
   annotationTool: null as RecordingPenTool | null,
@@ -488,6 +495,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   setAiStylingLoading: (loading) => set({ aiStylingLoading: loading }),
   setAiDraftLoading: (loading) => set({ aiDraftLoading: loading }),
   setReproPrefillLoading: (loading) => set({ reproPrefillLoading: loading }),
+  setAiCancel: (fn) => set({ aiCancel: fn }),
 
   // cross-page 누적 로그와 첨부 토글을 모드 진입 시 보존. 다른 자산 필드는 리셋.
   startPicking: (target, mode) =>
