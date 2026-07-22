@@ -1,5 +1,24 @@
-import { Fragment } from "react";
-import { Bug, ListOrdered, Monitor, Moon, Paperclip, SlidersHorizontal, Sparkles, StickyNote, Sun, Target, WandSparkles } from "lucide-react";
+import { useMemo } from "react";
+import { GripVertical, Monitor, Moon, Paperclip, RotateCcw, SlidersHorizontal, Sparkles, StickyNote, Sun, WandSparkles } from "lucide-react";
+import {
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+  type Announcements,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import { restrictToVerticalAxis } from "@dnd-kit/modifiers";
+import {
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
@@ -10,6 +29,7 @@ import { CollapsingTabsList, TabLabel } from "@/components/ui/collapsing-tabs";
 import { cn } from "@/lib/utils";
 import { useT } from "@/i18n";
 import {
+  DEFAULT_ISSUE_SECTIONS,
   sectionHelpKey,
   sectionLabelKey,
   useSettingsUiStore,
@@ -83,12 +103,71 @@ function IssueSettingsContent() {
   const t = useT();
   const issueSections = useSettingsUiStore((s) => s.issueSections);
   const setIssueEnabled = useSettingsUiStore((s) => s.setIssueEnabled);
+  const reorderIssueSections = useSettingsUiStore((s) => s.reorderIssueSections);
+  const resetIssueSectionOrder = useSettingsUiStore((s) => s.resetIssueSectionOrder);
   const attachmentsEnabled = useSettingsUiStore((s) => s.attachmentsEnabled);
   const setAttachmentsEnabled = useSettingsUiStore((s) => s.setAttachmentsEnabled);
   const autoReproPrefill = useSettingsUiStore((s) => s.autoReproPrefill);
   const setAutoReproPrefill = useSettingsUiStore((s) => s.setAutoReproPrefill);
   const titlePrefix = useSettingsStore((s) => s.titlePrefix);
   const setTitlePrefix = useSettingsStore((s) => s.setTitlePrefix);
+
+  const sectionIds = issueSections.map((s) => s.id);
+  const sectionLabel = (section: IssueSection) =>
+    section.id === "media"
+      ? t("settings.section.media")
+      : section.labelOverride?.trim() || t(sectionLabelKey(section.id));
+
+  const sensors = useSensors(
+    // 활성화 거리를 두지 않으면 핸들의 클릭·포커스가 드래그로 먹힌다.
+    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  // dnd-kit 기본 안내는 영어 고정 — 로케일을 따르게 주입한다.
+  const announcements: Announcements = useMemo(() => {
+    const labelOf = (id: string | number) => {
+      const found = issueSections.find((s) => s.id === id);
+      return found ? sectionLabel(found) : String(id);
+    };
+    const positionOf = (id: string | number) =>
+      issueSections.findIndex((s) => s.id === id) + 1;
+    return {
+      onDragStart: ({ active }) =>
+        t("settings.reorder.announce.start", { label: labelOf(active.id) }),
+      onDragOver: ({ active, over }) =>
+        over
+          ? t("settings.reorder.announce.move", {
+              label: labelOf(active.id),
+              position: positionOf(over.id),
+            })
+          : undefined,
+      onDragEnd: ({ active, over }) =>
+        over
+          ? t("settings.reorder.announce.end", {
+              label: labelOf(active.id),
+              position: positionOf(over.id),
+            })
+          : undefined,
+      onDragCancel: ({ active }) =>
+        t("settings.reorder.announce.cancel", { label: labelOf(active.id) }),
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [issueSections, t]);
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    reorderIssueSections(
+      sectionIds.indexOf(active.id as IssueSection["id"]),
+      sectionIds.indexOf(over.id as IssueSection["id"]),
+    );
+  };
+
+  // 복원 버튼은 순서만 되돌리므로 판정도 순서만 본다(enabled는 사용자 것).
+  const isDefaultOrder =
+    issueSections.length === DEFAULT_ISSUE_SECTIONS.length &&
+    issueSections.every((s, i) => s.id === DEFAULT_ISSUE_SECTIONS[i].id);
 
   return (
     <PageShell>
@@ -113,7 +192,56 @@ function IssueSettingsContent() {
           <RecordingSettingsCard />
         </Section>
 
-        <Section title={t("settings.aiSection")}>
+        <Section
+          title={t("settings.bodyComposition")}
+          action={
+            <Button
+              size="icon"
+              variant="outline"
+              onClick={resetIssueSectionOrder}
+              disabled={isDefaultOrder}
+              title={t("settings.reorder.reset")}
+              aria-label={t("settings.reorder.reset")}
+              className="h-8 w-8 shrink-0"
+              data-testid="reset-body-composition"
+            >
+              <RotateCcw />
+            </Button>
+          }
+        >
+          <Card>
+            <CardContent className="flex flex-col px-3 py-3">
+              <DndContext
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                modifiers={[restrictToVerticalAxis]}
+                onDragEnd={handleDragEnd}
+                accessibility={{
+                  announcements,
+                  screenReaderInstructions: {
+                    draggable: t("settings.reorder.instructions"),
+                  },
+                }}
+              >
+                <SortableContext items={sectionIds} strategy={verticalListSortingStrategy}>
+                  {/* DndContext가 children 뒤에 접근성용 형제 div를 붙여 last:가 안 걸린다 — 한 겹 감싼다. */}
+                  <div className="flex flex-col">
+                    {issueSections.map((section) => (
+                      <IssueSectionRow
+                        key={section.id}
+                        section={section}
+                        label={sectionLabel(section)}
+                        onToggle={(enabled) => setIssueEnabled(section.id, enabled)}
+                      />
+                    ))}
+                  </div>
+                </SortableContext>
+              </DndContext>
+            </CardContent>
+          </Card>
+        </Section>
+
+        <Section title={t("settings.otherSection")}>
           <Card>
             <CardContent className="flex flex-col gap-3 px-3 py-3">
               <AutoReproPrefillToggleRow
@@ -121,22 +249,6 @@ function IssueSettingsContent() {
                 onToggle={setAutoReproPrefill}
                 disabled={!isReproSectionEnabled(issueSections)}
               />
-            </CardContent>
-          </Card>
-        </Section>
-
-        <Section title={t("settings.bodyComposition")}>
-          <Card>
-            <CardContent className="flex flex-col gap-3 px-3 py-3">
-              {issueSections.map((section, idx) => (
-                <Fragment key={section.id}>
-                  {idx > 0 ? <Separator className="-mx-3 w-auto" /> : null}
-                  <IssueSectionRow
-                    section={section}
-                    onToggle={(enabled) => setIssueEnabled(section.id, enabled)}
-                  />
-                </Fragment>
-              ))}
               <Separator className="-mx-3 w-auto" />
               <AttachmentToggleRow
                 enabled={attachmentsEnabled}
@@ -205,13 +317,6 @@ function GeneralSettingsContent() {
   );
 }
 
-const SECTION_ICONS: Record<string, React.ReactNode> = {
-  description: <Bug className="h-4 w-4" />,
-  stepsToReproduce: <ListOrdered className="h-4 w-4" />,
-  expectedResult: <Target className="h-4 w-4" />,
-  notes: <StickyNote className="h-4 w-4" />,
-};
-
 function AttachmentToggleRow({
   enabled,
   onToggle,
@@ -278,29 +383,67 @@ function AutoReproPrefillToggleRow({
 
 function IssueSectionRow({
   section,
+  label,
   onToggle,
 }: {
   section: IssueSection;
+  label: string;
   onToggle: (enabled: boolean) => void;
 }) {
   const t = useT();
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
+    useSortable({ id: section.id });
   const id = `issue-section-${section.id}`;
-  const label = section.labelOverride?.trim() || t(sectionLabelKey(section.id));
-  const help = t(sectionHelpKey(section.id));
+  const isMedia = section.id === "media";
+  const help =
+    section.id === "media"
+      ? t("settings.section.media.help")
+      : t(sectionHelpKey(section.id));
+
   return (
-    <div className="flex items-center gap-3">
-      <div className="shrink-0">{SECTION_ICONS[section.id]}</div>
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      // 구분선은 형제 Separator가 아니라 행 자신의 border — dnd transform과 함께 움직여야 잔상이 없다.
+      className={cn(
+        "-mx-3 flex items-center gap-3 border-t border-border px-3 py-3 first:border-t-0 first:pt-0 last:pb-0",
+        isDragging && "relative z-10 rounded-md bg-card shadow-md",
+      )}
+      data-testid={`issue-section-row-${section.id}`}
+    >
+      <Button
+        size="icon"
+        variant="ghost"
+        // --ring이 --border와 같은 값이라 기본 링은 안 보인다(DESIGN §9) — 키보드 재정렬의
+        // 유일한 진입점이라 이 버튼만 대비색 링을 쓴다.
+        className="h-8 w-8 shrink-0 cursor-grab touch-none focus-visible:ring-primary active:cursor-grabbing"
+        aria-label={t("settings.reorder.handle", { label })}
+        data-testid={`issue-section-handle-${section.id}`}
+        {...attributes}
+        {...listeners}
+      >
+        <GripVertical />
+      </Button>
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <label htmlFor={id} className="cursor-pointer text-sm">
-          {label}
-        </label>
+        {isMedia ? (
+          <span className="text-sm">{label}</span>
+        ) : (
+          <label htmlFor={id} className="cursor-pointer text-sm">
+            {label}
+          </label>
+        )}
         <p className="text-sm text-muted-foreground">{help}</p>
       </div>
-      <Switch
-        id={id}
-        checked={section.enabled}
-        onCheckedChange={(v) => onToggle(v === true)}
-      />
+      {isMedia ? (
+        // 미디어는 사용 여부 스위치가 없다(본문 emit은 데이터 기반) — 우측 정렬만 맞춘다.
+        <div className="h-5 w-8 shrink-0" aria-hidden />
+      ) : (
+        <Switch
+          id={id}
+          checked={section.enabled}
+          onCheckedChange={(v) => onToggle(v === true)}
+        />
+      )}
     </div>
   );
 }

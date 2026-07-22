@@ -1,5 +1,5 @@
 import type { CaptureMode } from "@/store/editor-store";
-import type { IssueSectionId, LocaleMode } from "@/store/settings-ui-store";
+import type { LocaleMode, TextSectionId } from "@/store/settings-ui-store";
 import type { AiDraftSessionContext } from "@/sidepanel/lib/buildAiDraftPrompt";
 import {
   supportsActionLog,
@@ -9,7 +9,7 @@ import { MAX_TITLE_LENGTH, PROMPT_CAPS } from "./caps";
 import { oneLine, selectDraftSections } from "./context";
 import { canRequestLogRefs, selectLogCandidates } from "./logCandidates";
 
-const SECTION_DESC_BASE: Record<LocaleMode, Record<IssueSectionId, string>> = {
+const SECTION_DESC_BASE: Record<LocaleMode, Record<TextSectionId, string>> = {
   ko: {
     description: "현재 관찰되는 문제 현상만 구체적으로 (기대 동작·해결책은 쓰지 말 것)",
     stepsToReproduce: "재현 과정을 줄바꿈으로 구분된 단계로 작성 (번호 없이)",
@@ -24,7 +24,7 @@ const SECTION_DESC_BASE: Record<LocaleMode, Record<IssueSectionId, string>> = {
   },
 };
 
-const MODE_HINTS: Record<CaptureMode, Record<LocaleMode, Partial<Record<IssueSectionId, string>>>> = {
+const MODE_HINTS: Record<CaptureMode, Record<LocaleMode, Partial<Record<TextSectionId, string>>>> = {
   element: {
     ko: { description: " (current 값이 현재 문제 상태)", expectedResult: " (desired 값 기준으로 작성)" },
     en: { description: " (current value is the problem)", expectedResult: " (use the desired value)" },
@@ -46,11 +46,11 @@ const MODE_HINTS: Record<CaptureMode, Record<LocaleMode, Partial<Record<IssueSec
 function getSectionDesc(
   locale: LocaleMode,
   mode: CaptureMode,
-): Record<IssueSectionId, string> {
+): Record<TextSectionId, string> {
   const base = { ...SECTION_DESC_BASE[locale] };
   const hints = MODE_HINTS[mode]?.[locale] ?? {};
   for (const [key, suffix] of Object.entries(hints)) {
-    base[key as IssueSectionId] += suffix;
+    base[key as TextSectionId] += suffix;
   }
   return base;
 }

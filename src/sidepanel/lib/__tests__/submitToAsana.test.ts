@@ -8,7 +8,6 @@ vi.mock("@/i18n", () => ({
   dateBcp47: () => "en-US",
 }));
 vi.mock("@/store/settings-ui-store", () => ({
-  POST_MEDIA_SECTION_IDS: new Set(["expectedResult", "notes"]),
   sectionMdLabelKey: (id: string) => `md.section.${id}`,
 }));
 

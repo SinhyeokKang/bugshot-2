@@ -11,8 +11,8 @@
 - **변경 대상**: `src/sidepanel/lib/__tests__/bodyOutputGolden.test.ts`(신규) 또는 기존 빌더 테스트에 스냅샷 추가
 - **작업 내용**: **현행 코드 상태**에서, 마이그레이션 후 기본 순서를 대표하는 ctx(각 캡처 모드: element/screenshot/video/freeform + 로그 유/무)로 8빌더 + `buildIssueMarkdown`/`buildIssueHtml` + `composePreviewLayout` 출력을 인라인 골든/스냅샷으로 고정. 이 골든이 이후 리팩터의 "바이트 동일" 기준.
 - **검증**:
-  - [ ] Task 3~5 리팩터 후에도 이 골든이 **무수정으로 통과**(기본 순서 출력 불변 증명).
-  - [ ] 골든이 element/screenshot/video/freeform + 로그 유무를 커버.
+  - [x] Task 3~5 리팩터 후에도 이 골든이 **무수정으로 통과**(기본 순서 출력 불변 증명).
+  - [x] 골든이 element/screenshot/video/freeform + 로그 유무를 커버.
 
 ### Task 1: 스토어 순서 모델 + 정규화 + 복원 (테스트 우선)
 - **변경 대상**: `src/store/settings-ui-store.ts`, `src/store/__tests__/settings-ui-store.test.ts`
@@ -25,33 +25,33 @@
   - `setIssueEnabled`에 `id==="media"` 방어 가드.
   - persist `version` 9, `migrateSettingsUi`·rehydrate에서 `normalizeSections`.
 - **검증**:
-  - [ ] `normalizeSections`: 미디어 없음→레거시 앵커 삽입 / 이미 1개→위치 보존 / 2개↑→dedupe / `enabled:false` media→`true` 강제 / notes만 enabled→notes 앞 / post-media 전무→말미. 멱등.
-  - [ ] `reorderIssueSections`: 경계값(0, 마지막) 안전.
-  - [ ] v8 저장 상태 로드→미디어 1개, 나머지 순서·enabled 보존.
-  - [ ] `setIssueEnabled("media", false)` no-op.
+  - [x] `normalizeSections`: 미디어 없음→레거시 앵커 삽입 / 이미 1개→위치 보존 / 2개↑→dedupe / `enabled:false` media→`true` 강제 / notes만 enabled→notes 앞 / post-media 전무→말미. 멱등.
+  - [x] `reorderIssueSections`: 경계값(0, 마지막) 안전.
+  - [x] v8 저장 상태 로드→미디어 1개, 나머지 순서·enabled 보존.
+  - [x] `setIssueEnabled("media", false)` no-op.
 
 ### Task 2: 순서 단일 함수 `bodyBlocks` (테스트 우선)
 - **변경 대상**: `src/sidepanel/lib/bodyBlocks.ts`(신규), `__tests__/bodyBlocks.test.ts`(신규)
 - **작업 내용**: `filter(id==="media" || enabled)` 후 media→`meta`, 그 외→`section` 매핑.
 - **검증**:
-  - [ ] 기본 배열→`[section(desc), section(steps), meta, section(expected)]`.
-  - [ ] media 선두 이동→`meta` 선두.
-  - [ ] disabled 섹션 제외. `enabled:false`로 오염된 media도 포함(오염 방어).
+  - [x] 기본 배열→`[section(desc), section(steps), meta, section(expected)]`.
+  - [x] media 선두 이동→`meta` 선두.
+  - [x] disabled 섹션 제외. `enabled:false`로 오염된 media도 포함(오염 방어).
 
 ### Task 3: 클립보드/프리뷰 빌더 전환 (패턴 확립)
 - **변경 대상**: `buildIssueMarkdown.ts`(`buildIssueMarkdown`,`buildIssueHtml`) + `__tests__/buildIssueMarkdown.test.ts`
 - **작업 내용**: 앵커 분기 + 트레일링 `emitMedia()` 폴백 제거 → `bodyBlocks` 순회. env·footer 유지. 픽스처 `sectionConfig`에 media 엔트리 추가, `vi.mock(POST_MEDIA)` dead mock 제거.
 - **검증**:
-  - [ ] Task 0 골든 무수정 통과(기본 순서 바이트 동일).
-  - [ ] media를 앞으로 옮긴 순서에서 미디어 블록이 해당 위치에 emit.
+  - [x] Task 0 골든 무수정 통과(기본 순서 바이트 동일).
+  - [x] media를 앞으로 옮긴 순서에서 미디어 블록이 해당 위치에 emit.
 
 ### Task 4: 7개 제출 빌더 전환 (Task 3 패턴 복제 — 병렬 가능)
 - **변경 대상**: `buildMarkdownIssueBody.ts`, `buildIssueAdf.ts`, `buildNotionIssueBody.ts`, `buildAsanaIssueBody.ts`, `buildClickupIssueBody.ts`, `buildLinearIssueBody.ts`, `buildSlackBody.ts` + 각 테스트
 - **작업 내용**: Task 3과 동일 패턴. **모든 픽스처(12+ 파일)에 media 엔트리 추가 + dead mock 제거**.
 - **검증**(각 빌더):
-  - [ ] Task 0 골든 무수정 통과.
-  - [ ] 테스트 갱신 대상 누락 없음: `buildMarkdownIssueBody.test`, `buildIssueAdf.test`, `buildNotionIssueBody.test`, `buildAsanaIssueBody.test`, `buildClickupIssueBody.test`, `buildLinearIssueBody.test`, **`buildSlackBody.test`**, `buildGithubIssueBody.test`, `buildGitlabIssueBody.test`, `submitToAsana.test`, **`buildMarkdownContext.test`**, **`buildReportData.test`**.
-  - [ ] 재정렬 순서에서 미디어 위치가 배열 위치를 따름(빌더별 최소 1케이스).
+  - [x] Task 0 골든 무수정 통과.
+  - [x] 테스트 갱신 대상 누락 없음: `buildMarkdownIssueBody.test`, `buildIssueAdf.test`, `buildNotionIssueBody.test`, `buildAsanaIssueBody.test`, `buildClickupIssueBody.test`, `buildLinearIssueBody.test`, **`buildSlackBody.test`**, `buildGithubIssueBody.test`, `buildGitlabIssueBody.test`, `submitToAsana.test`, **`buildMarkdownContext.test`**, **`buildReportData.test`**.
+  - [x] 재정렬 순서에서 미디어 위치가 배열 위치를 따름(빌더별 최소 1케이스).
 
 ### Task 5: 간접 소비처 격리 + 프리뷰·draft UI 전환
 - **변경 대상**: `AiDraftDialog.tsx`, `buildReportData.ts`, `composePreviewLayout.ts`, `IssuePreviewView.tsx`, `PreviewPanel.tsx`, `DraftingPanel.tsx`, `DraftDetailDialog.tsx`
@@ -62,9 +62,9 @@
   - **`IssuePreviewView.tsx`/`PreviewPanel.tsx`**: `postMediaSectionIds` 전달 제거. PreviewPanel은 media를 표시 섹션 목록에서 제외하되 순서용 `sectionIds`(media id 포함)는 레이아웃에 전달.
   - **`DraftingPanel.tsx`/`DraftDetailDialog.tsx`**: 렌더 루프를 `bodyBlocks`로(`meta`→mediaBlock+logCardsBlock).
 - **검증**:
-  - [ ] AI 초안: media 섹션이 프롬프트 스키마·응답 병합에 없음(단위/jsdom).
-  - [ ] `buildReportData`: media 미포함, `pnpm typecheck` 통과.
-  - [ ] `composePreviewLayout.test`(이미 존재 — 갱신): 기본 순서 media→logCards가 기대결과 앞, 재정렬 반영.
+  - [x] AI 초안: media 섹션이 프롬프트 스키마·응답 병합에 없음(단위/jsdom).
+  - [x] `buildReportData`: media 미포함, `pnpm typecheck` 통과.
+  - [x] `composePreviewLayout.test`(이미 존재 — 갱신): 기본 순서 media→logCards가 기대결과 앞, 재정렬 반영.
   - [ ] `DraftDetailDialog`: 재정렬 반영 + 기존 편집 동작(`draft-field-edit.spec`) 회귀 없음.
 
 ### Task 6: 설정 UI — DnD + IA 재편 + 복원 버튼
@@ -80,9 +80,9 @@
   - i18n: `settings.otherSection`·`settings.section.media`·`.help`·복원/핸들 aria-label·dnd 안내(ko/en) 추가. `settings.aiSection` 제거. ⚠️ `section.media` 키는 **불변**(draft 패널 공유).
   - 고아 `SECTION_ICONS` 제거.
 - **검증**:
-  - [ ] `pnpm typecheck`, i18n 훅 `locales.test`(ko/en 대칭) 통과.
-  - [ ] 본문 구성 5행(미디어 행 스위치 없음, 헬프 있음), 기타에 재현채우기→첨부, AI 설정 부재.
-  - [ ] 복원 버튼 기본값 disabled ↔ 변경 시 active ↔ 클릭 시 기본 복원.
+  - [x] `pnpm typecheck`, i18n 훅 `locales.test`(ko/en 대칭) 통과.
+  - [x] 본문 구성 5행(미디어 행 스위치 없음, 헬프 있음), 기타에 재현채우기→첨부, AI 설정 부재.
+  - [x] 복원 버튼 기본값 disabled ↔ 변경 시 active ↔ 클릭 시 기본 복원.
 
 ## 테스트 계획
 
@@ -106,7 +106,7 @@
 ### Task 7: 문서 갱신
 - **변경 대상**: `docs/DIRECTORY.md`(`bodyBlocks.ts` 신규 등재), `docs/ARCHITECTURE.md`(이슈 섹션 구성 "자동 메타 위치" 문단 — `POST_MEDIA_SECTION_IDS` 앵커 → `bodyBlocks`/media 엔트리 서술로 갱신)
 - **검증**:
-  - [ ] `/push` 신선도 검사 통과(diff에 걸린 문서 커버).
+  - [x] `/push` 신선도 검사 통과(diff에 걸린 문서 커버).
 
 ## 구현 순서 권장
 

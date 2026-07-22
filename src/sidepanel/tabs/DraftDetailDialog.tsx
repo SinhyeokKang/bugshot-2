@@ -29,11 +29,11 @@ import {
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import {
-  POST_MEDIA_SECTION_IDS,
   sectionLabelKey,
   useSettingsUiStore,
   type IssueSection,
 } from "@/store/settings-ui-store";
+import { bodyBlocks, type TextIssueSection } from "@/sidepanel/lib/bodyBlocks";
 import { useEditorStore } from "@/store/editor-store";
 import { useIssuesStore, type IssueRecord } from "@/store/issues-store";
 import { clearPicker } from "@/sidepanel/picker-control";
@@ -1102,10 +1102,9 @@ function DraftDetailSections({
   onLogClick: () => void;
   onToggleLogsAttach: (on: boolean) => void;
   editable: boolean;
-  onEditSection: (section: IssueSection) => void;
+  onEditSection: (section: TextIssueSection) => void;
 }) {
   const t = useT();
-  const enabled = sectionConfig.filter((s) => s.enabled);
   const out: React.ReactNode[] = [];
   let mediaInserted = false;
 
@@ -1167,13 +1166,15 @@ function DraftDetailSections({
     </FieldSection>
   ) : null;
 
-  for (const sec of enabled) {
-    const value = issue.draft.sections[sec.id] ?? "";
-    if (POST_MEDIA_SECTION_IDS.has(sec.id) && !mediaInserted) {
+  for (const block of bodyBlocks(sectionConfig)) {
+    if (block.kind === "meta") {
       mediaInserted = true;
       if (mediaBlock) out.push(mediaBlock);
       if (logCardsBlock) out.push(logCardsBlock);
+      continue;
     }
+    const sec = block.section;
+    const value = issue.draft.sections[sec.id] ?? "";
     if (!editable && !value.trim()) continue;
     const label = sec.labelOverride?.trim() || t(sectionLabelKey(sec.id));
     out.push(

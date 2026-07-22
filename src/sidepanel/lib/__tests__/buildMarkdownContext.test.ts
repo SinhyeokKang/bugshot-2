@@ -13,7 +13,6 @@ vi.mock("@/i18n", () => ({
 }));
 
 vi.mock("@/store/settings-ui-store", () => ({
-  POST_MEDIA_SECTION_IDS: new Set(["expectedResult", "notes"]),
   sectionLabelKey: (id: string) => `section.${id}`,
   sectionMdLabelKey: (id: string) => `md.section.${id}`,
 }));
@@ -25,6 +24,7 @@ import type { IssueSection } from "@/store/settings-ui-store";
 const sectionConfig: IssueSection[] = [
   { id: "description", enabled: true, renderAs: "paragraph", builtIn: true },
   { id: "stepsToReproduce", enabled: true, renderAs: "orderedList", builtIn: true },
+  { id: "media", enabled: true, renderAs: "meta", builtIn: true },
 ];
 
 function baseArgs(overrides: Record<string, unknown> = {}) {

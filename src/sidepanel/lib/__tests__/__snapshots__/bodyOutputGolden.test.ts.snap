@@ -1,0 +1,8888 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`본문 출력 골든 — media를 맨 앞으로 재정렬 > buildAsanaIssueBody — 미디어·로그가 본문 선두 1`] = `
+{
+  "attached": [
+    "capture-0.webp",
+  ],
+  "body": "## md.section.env
+
+- **OS**: macOS 15.5
+- **Browser**: Chrome 138
+- **Page**: https://example.com/page
+- **DOM**: \`div.container > button\`
+- **Viewport**: 1920×1080
+- **Captured**: 2023-11-14 22:13:20 GMT+9
+- **Locale**: ko-KR
+
+## md.section.media
+
+![capture-0.webp](capture-0.webp)
+
+## logSummary.title
+
+**logSummary.logs.lead** logSummary.logs.detail file=logs.html
+
+- logSummary.network.line n=12 errors=1
+- logSummary.console.line n=8 errors=2 warns=1
+- logSummary.action.line n=5
+
+## md.section.description
+
+버튼이 눌리지 않음
+
+## md.section.stepsToReproduce
+
+1. 1단계 진입
+2. 2단계 클릭
+
+## md.section.expectedResult
+
+버튼이 눌린다
+
+---
+
+_Reported via [BugShot](https://bug-shot.com)_
+",
+}
+`;
+
+exports[`본문 출력 골든 — media를 맨 앞으로 재정렬 > buildClickupIssueBody — 미디어·로그가 본문 선두 1`] = `
+{
+  "attached": [
+    "capture-0.webp",
+  ],
+  "body": "## md.section.env
+
+- **OS**: macOS 15.5
+- **Browser**: Chrome 138
+- **Page**: https://example.com/page
+- **DOM**: \`div.container > button\`
+- **Viewport**: 1920×1080
+- **Captured**: 2023-11-14 22:13:20 GMT+9
+- **Locale**: ko-KR
+
+## md.section.media
+
+![capture-0.webp](https://cdn.test/c0.webp)
+
+## logSummary.title
+
+**logSummary.logs.lead** logSummary.logs.detail file=[logs.html](https://cdn.test/logs.html)
+
+- logSummary.network.line n=12 errors=1
+- logSummary.console.line n=8 errors=2 warns=1
+- logSummary.action.line n=5
+
+## md.section.description
+
+버튼이 눌리지 않음
+
+## md.section.stepsToReproduce
+
+1. 1단계 진입
+2. 2단계 클릭
+
+## md.section.expectedResult
+
+버튼이 눌린다
+
+---
+
+_Reported via [BugShot](https://bug-shot.com)_
+",
+}
+`;
+
+exports[`본문 출력 골든 — media를 맨 앞으로 재정렬 > buildIssueAdf — 미디어·로그가 본문 선두 1`] = `
+{
+  "content": [
+    {
+      "attrs": {
+        "level": 2,
+      },
+      "content": [
+        {
+          "text": "md.section.env",
+          "type": "text",
+        },
+      ],
+      "type": "heading",
+    },
+    {
+      "content": [
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "OS: ",
+                  "type": "text",
+                },
+                {
+                  "text": "macOS 15.5",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "Browser: ",
+                  "type": "text",
+                },
+                {
+                  "text": "Chrome 138",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "Page: ",
+                  "type": "text",
+                },
+                {
+                  "text": "https://example.com/page",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "DOM: ",
+                  "type": "text",
+                },
+                {
+                  "marks": [
+                    {
+                      "type": "code",
+                    },
+                  ],
+                  "text": "div.container > button",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "Viewport: ",
+                  "type": "text",
+                },
+                {
+                  "text": "1920×1080",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "Captured: ",
+                  "type": "text",
+                },
+                {
+                  "text": "2023-11-14 22:13:20 GMT+9",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "Locale: ",
+                  "type": "text",
+                },
+                {
+                  "text": "ko-KR",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+      ],
+      "type": "bulletList",
+    },
+    {
+      "attrs": {
+        "level": 2,
+      },
+      "content": [
+        {
+          "text": "md.section.media",
+          "type": "text",
+        },
+      ],
+      "type": "heading",
+    },
+    {
+      "content": [
+        {
+          "text": "__BUGSHOT_IMAGE__",
+          "type": "text",
+        },
+      ],
+      "type": "paragraph",
+    },
+    {
+      "attrs": {
+        "level": 2,
+      },
+      "content": [
+        {
+          "text": "logSummary.title",
+          "type": "text",
+        },
+      ],
+      "type": "heading",
+    },
+    {
+      "content": [
+        {
+          "marks": [
+            {
+              "type": "strong",
+            },
+          ],
+          "text": "logSummary.logs.lead",
+          "type": "text",
+        },
+        {
+          "text": " ",
+          "type": "text",
+        },
+        {
+          "text": "logSummary.logs.detail",
+          "type": "text",
+        },
+      ],
+      "type": "paragraph",
+    },
+    {
+      "content": [
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "logSummary.network.line n=12 errors=1",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "logSummary.console.line n=8 errors=2 warns=1",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "logSummary.action.line n=5",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+      ],
+      "type": "bulletList",
+    },
+    {
+      "attrs": {
+        "level": 2,
+      },
+      "content": [
+        {
+          "text": "md.section.description",
+          "type": "text",
+        },
+      ],
+      "type": "heading",
+    },
+    {
+      "content": [
+        {
+          "text": "버튼이 눌리지 않음",
+          "type": "text",
+        },
+      ],
+      "type": "paragraph",
+    },
+    {
+      "attrs": {
+        "level": 2,
+      },
+      "content": [
+        {
+          "text": "md.section.stepsToReproduce",
+          "type": "text",
+        },
+      ],
+      "type": "heading",
+    },
+    {
+      "content": [
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "1단계 진입",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "2단계 클릭",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+      ],
+      "type": "orderedList",
+    },
+    {
+      "attrs": {
+        "level": 2,
+      },
+      "content": [
+        {
+          "text": "md.section.expectedResult",
+          "type": "text",
+        },
+      ],
+      "type": "heading",
+    },
+    {
+      "content": [
+        {
+          "text": "버튼이 눌린다",
+          "type": "text",
+        },
+      ],
+      "type": "paragraph",
+    },
+    {
+      "type": "rule",
+    },
+    {
+      "content": [
+        {
+          "marks": [
+            {
+              "type": "em",
+            },
+          ],
+          "text": "Reported via ",
+          "type": "text",
+        },
+        {
+          "marks": [
+            {
+              "type": "em",
+            },
+            {
+              "attrs": {
+                "href": "https://bug-shot.com",
+              },
+              "type": "link",
+            },
+          ],
+          "text": "BugShot",
+          "type": "text",
+        },
+      ],
+      "type": "paragraph",
+    },
+  ],
+  "type": "doc",
+  "version": 1,
+}
+`;
+
+exports[`본문 출력 골든 — media를 맨 앞으로 재정렬 > buildIssueHtml — 미디어·로그가 본문 선두 1`] = `
+"<!-- bugshot-meta-for-ai
+{
+  "version": 1,
+  "captureMode": "screenshot",
+  "url": "https://example.com/page",
+  "capturedAt": 1700000000000,
+  "os": "macOS 15.5",
+  "browser": "Chrome 138",
+  "viewport": {
+    "width": 1920,
+    "height": 1080
+  },
+  "environment": {
+    "Locale": "ko-KR"
+  },
+  "selector": "div.container > button",
+  "tagName": "button",
+  "classListBefore": [
+    "btn"
+  ],
+  "classListAfter": [
+    "btn",
+    "btn-primary"
+  ],
+  "specifiedStyles": {
+    "color": "#000"
+  },
+  "cssChanges": [
+    {
+      "property": "color",
+      "from": "#000",
+      "to": "#fff"
+    },
+    {
+      "property": "class",
+      "from": "btn",
+      "to": "btn btn-primary"
+    }
+  ],
+  "tokens": [
+    {
+      "name": "--brand",
+      "value": "#4f46e5"
+    }
+  ]
+}
+-->
+<h1>Golden Issue</h1>
+<h2>md.section.env</h2>
+<ul>
+<li><strong>OS</strong>: macOS 15.5</li>
+<li><strong>Browser</strong>: Chrome 138</li>
+<li><strong>Page</strong>: https://example.com/page</li>
+<li><strong>DOM</strong>: <code>div.container &gt; button</code></li>
+<li><strong>Viewport</strong>: 1920×1080</li>
+<li><strong>Captured</strong>: 2023-11-14 22:13:20 GMT+9</li>
+<li><strong>Locale</strong>: ko-KR</li>
+</ul>
+<h2>md.section.media</h2>
+<p>md.imageAttached</p>
+<h2>logSummary.title</h2>
+<p><strong>logSummary.logs.lead</strong> logSummary.logs.detail file=logs.html</p>
+<ul>
+<li>logSummary.network.line n=12 errors=1</li>
+<li>logSummary.console.line n=8 errors=2 warns=1</li>
+<li>logSummary.action.line n=5</li>
+</ul>
+<h2>md.section.description</h2>
+<p>버튼이 눌리지 않음</p>
+
+<h2>md.section.stepsToReproduce</h2>
+<ol><li>1단계 진입</li><li>2단계 클릭</li></ol>
+<h2>md.section.expectedResult</h2>
+<p>버튼이 눌린다</p>
+
+<hr>
+<p><em>Reported via <a href="https://bug-shot.com">BugShot</a></em></p>"
+`;
+
+exports[`본문 출력 골든 — media를 맨 앞으로 재정렬 > buildIssueMarkdown — 미디어·로그가 본문 선두 1`] = `
+"<!-- bugshot-meta-for-ai
+{
+  "version": 1,
+  "captureMode": "screenshot",
+  "url": "https://example.com/page",
+  "capturedAt": 1700000000000,
+  "os": "macOS 15.5",
+  "browser": "Chrome 138",
+  "viewport": {
+    "width": 1920,
+    "height": 1080
+  },
+  "environment": {
+    "Locale": "ko-KR"
+  },
+  "selector": "div.container > button",
+  "tagName": "button",
+  "classListBefore": [
+    "btn"
+  ],
+  "classListAfter": [
+    "btn",
+    "btn-primary"
+  ],
+  "specifiedStyles": {
+    "color": "#000"
+  },
+  "cssChanges": [
+    {
+      "property": "color",
+      "from": "#000",
+      "to": "#fff"
+    },
+    {
+      "property": "class",
+      "from": "btn",
+      "to": "btn btn-primary"
+    }
+  ],
+  "tokens": [
+    {
+      "name": "--brand",
+      "value": "#4f46e5"
+    }
+  ]
+}
+-->
+
+# Golden Issue
+
+## md.section.env
+
+- **OS**: macOS 15.5
+- **Browser**: Chrome 138
+- **Page**: https://example.com/page
+- **DOM**: \`div.container > button\`
+- **Viewport**: 1920×1080
+- **Captured**: 2023-11-14 22:13:20 GMT+9
+- **Locale**: ko-KR
+
+## md.section.media
+
+md.imageAttached
+
+## logSummary.title
+
+**logSummary.logs.lead** logSummary.logs.detail file=logs.html
+
+- logSummary.network.line n=12 errors=1
+- logSummary.console.line n=8 errors=2 warns=1
+- logSummary.action.line n=5
+
+## md.section.description
+
+버튼이 눌리지 않음
+
+## md.section.stepsToReproduce
+
+1. 1단계 진입
+2. 2단계 클릭
+
+## md.section.expectedResult
+
+버튼이 눌린다
+
+---
+
+_Reported via [BugShot](https://bug-shot.com)_
+"
+`;
+
+exports[`본문 출력 골든 — media를 맨 앞으로 재정렬 > buildLinearIssueBody — 미디어·로그가 본문 선두 1`] = `
+{
+  "body": "## md.section.env
+
+- **OS**: macOS 15.5
+- **Browser**: Chrome 138
+- **Page**: https://example.com/page
+- **DOM**: \`div.container > button\`
+- **Viewport**: 1920×1080
+- **Captured**: 2023-11-14 22:13:20 GMT+9
+- **Locale**: ko-KR
+
+## md.section.media
+
+![capture-0.webp](https://cdn.test/c0.webp)
+
+## logSummary.title
+
+**logSummary.logs.lead** logSummary.logs.detail file=logs.html
+
+- logSummary.network.line n=12 errors=1
+- logSummary.console.line n=8 errors=2 warns=1
+- logSummary.action.line n=5
+
+## md.section.description
+
+버튼이 눌리지 않음
+
+## md.section.stepsToReproduce
+
+1. 1단계 진입
+2. 2단계 클릭
+
+## md.section.expectedResult
+
+버튼이 눌린다
+
+---
+
+_Reported via [BugShot](https://bug-shot.com)_
+",
+}
+`;
+
+exports[`본문 출력 골든 — media를 맨 앞으로 재정렬 > buildMarkdownIssueBody(github) — 미디어·로그가 본문 선두 1`] = `
+{
+  "attached": [
+    "capture-0.webp",
+    "logs.html",
+  ],
+  "body": "## md.section.env
+
+- **OS**: macOS 15.5
+- **Browser**: Chrome 138
+- **Page**: https://example.com/page
+- **DOM**: \`div.container > button\`
+- **Viewport**: 1920×1080
+- **Captured**: 2023-11-14 22:13:20 GMT+9
+- **Locale**: ko-KR
+
+## md.section.media
+
+![capture-0.webp](https://cdn.test/c0.webp)
+
+## logSummary.title
+
+**logSummary.logs.lead** logSummary.logs.detail file=[logs.html](https://cdn.test/logs.html)
+
+- logSummary.network.line n=12 errors=1
+- logSummary.console.line n=8 errors=2 warns=1
+- logSummary.action.line n=5
+
+## md.section.description
+
+버튼이 눌리지 않음
+
+## md.section.stepsToReproduce
+
+1. 1단계 진입
+2. 2단계 클릭
+
+## md.section.expectedResult
+
+버튼이 눌린다
+
+## md.section.attachments
+
+[logs.html](https://cdn.test/logs.html)
+
+---
+
+_Reported via [BugShot](https://bug-shot.com)_
+",
+}
+`;
+
+exports[`본문 출력 골든 — media를 맨 앞으로 재정렬 > buildMarkdownIssueBody(gitlab) — 미디어·로그가 본문 선두 1`] = `
+{
+  "attached": [
+    "capture-0.webp",
+    "logs.html",
+  ],
+  "body": "## md.section.env
+
+- **OS**: macOS 15.5
+- **Browser**: Chrome 138
+- **Page**: https://example.com/page
+- **DOM**: \`div.container > button\`
+- **Viewport**: 1920×1080
+- **Captured**: 2023-11-14 22:13:20 GMT+9
+- **Locale**: ko-KR
+
+## md.section.media
+
+![capture-0.webp](https://cdn.test/c0.webp)
+
+## logSummary.title
+
+**logSummary.logs.lead** logSummary.logs.detail file=[logs.html](https://cdn.test/logs.html)
+
+- logSummary.network.line n=12 errors=1
+- logSummary.console.line n=8 errors=2 warns=1
+- logSummary.action.line n=5
+
+## md.section.description
+
+버튼이 눌리지 않음
+
+## md.section.stepsToReproduce
+
+1. 1단계 진입
+2. 2단계 클릭
+
+## md.section.expectedResult
+
+버튼이 눌린다
+
+## md.section.attachments
+
+[logs.html](https://cdn.test/logs.html)
+
+---
+
+_Reported via [BugShot](https://bug-shot.com)_
+",
+}
+`;
+
+exports[`본문 출력 골든 — media를 맨 앞으로 재정렬 > buildNotionIssueBody — 미디어·로그가 본문 선두 1`] = `
+{
+  "attachments": [
+    {
+      "category": "image",
+      "contentType": "image/webp",
+      "dataUrl": "data:image/webp;base64,AAAA",
+      "filename": "capture-0.webp",
+      "placeholderId": "screenshot-0",
+    },
+    {
+      "category": "log",
+      "contentType": "text/html",
+      "dataUrl": "data:text/html;base64,CCCC",
+      "filename": "logs.html",
+      "placeholderId": "log-1",
+    },
+  ],
+  "blocks": [
+    {
+      "text": "md.section.env",
+      "type": "heading_2",
+    },
+    {
+      "text": "OS: macOS 15.5",
+      "type": "bulleted_list_item",
+    },
+    {
+      "text": "Browser: Chrome 138",
+      "type": "bulleted_list_item",
+    },
+    {
+      "text": "Page: https://example.com/page",
+      "type": "bulleted_list_item",
+    },
+    {
+      "richText": [
+        {
+          "text": {
+            "content": "DOM: ",
+          },
+          "type": "text",
+        },
+        {
+          "annotations": {
+            "code": true,
+          },
+          "text": {
+            "content": "div.container > button",
+          },
+          "type": "text",
+        },
+      ],
+      "type": "rich_bulleted_list_item",
+    },
+    {
+      "text": "Viewport: 1920×1080",
+      "type": "bulleted_list_item",
+    },
+    {
+      "text": "Captured: 2023-11-14 22:13:20 GMT+9",
+      "type": "bulleted_list_item",
+    },
+    {
+      "text": "Locale: ko-KR",
+      "type": "bulleted_list_item",
+    },
+    {
+      "text": "md.section.media",
+      "type": "heading_2",
+    },
+    {
+      "placeholderId": "screenshot-0",
+      "type": "image",
+    },
+    {
+      "text": "logSummary.title",
+      "type": "heading_2",
+    },
+    {
+      "language": "plain text",
+      "text": "logSummary.network.line n=12 errors=1
+logSummary.console.line n=8 errors=2 warns=1
+logSummary.action.line n=5",
+      "type": "code",
+    },
+    {
+      "text": "md.section.description",
+      "type": "heading_2",
+    },
+    {
+      "richText": [
+        {
+          "text": {
+            "content": "버튼이 눌리지 않음",
+          },
+          "type": "text",
+        },
+      ],
+      "type": "rich_paragraph",
+    },
+    {
+      "text": "md.section.stepsToReproduce",
+      "type": "heading_2",
+    },
+    {
+      "text": "1단계 진입",
+      "type": "bulleted_list_item",
+    },
+    {
+      "text": "2단계 클릭",
+      "type": "bulleted_list_item",
+    },
+    {
+      "text": "md.section.expectedResult",
+      "type": "heading_2",
+    },
+    {
+      "richText": [
+        {
+          "text": {
+            "content": "버튼이 눌린다",
+          },
+          "type": "text",
+        },
+      ],
+      "type": "rich_paragraph",
+    },
+  ],
+}
+`;
+
+exports[`본문 출력 골든 — media를 맨 앞으로 재정렬 > buildSlackBody — 미디어·로그가 본문 선두 1`] = `
+{
+  "attached": [],
+  "body": "*md.section.env*
+
+• *OS*: macOS 15.5
+• *Browser*: Chrome 138
+• *Page*: https://example.com/page
+• *DOM*: \`div.container > button\`
+• *Viewport*: 1920×1080
+• *Captured*: 2023-11-14 22:13:20 GMT+9
+• *Locale*: ko-KR
+
+*logSummary.title*
+
+*logSummary.logs.lead* logSummary.logs.detail file=logs.html
+
+• logSummary.network.line n=12 errors=1
+• logSummary.console.line n=8 errors=2 warns=1
+• logSummary.action.line n=5
+
+*md.section.description*
+
+버튼이 눌리지 않음
+
+*md.section.stepsToReproduce*
+
+1. 1단계 진입
+2. 2단계 클릭
+
+*md.section.expectedResult*
+
+버튼이 눌린다
+
+_Reported via <https://bug-shot.com|BugShot>_
+",
+}
+`;
+
+exports[`본문 출력 골든 — 기본 순서 > buildAsanaIssueBody > element 모드 + 전체 로그 1`] = `
+{
+  "attached": [
+    "capture-0.webp",
+  ],
+  "body": "## md.section.env
+
+- **OS**: macOS 15.5
+- **Browser**: Chrome 138
+- **Page**: https://example.com/page
+- **DOM**: \`div.container > button\`
+- **Viewport**: 1920×1080
+- **Captured**: 2023-11-14 22:13:20 GMT+9
+- **Locale**: ko-KR
+
+## md.section.description
+
+버튼이 눌리지 않음
+
+## md.section.stepsToReproduce
+
+1. 1단계 진입
+2. 2단계 클릭
+
+## styleTable.asIs (div.container > button)
+
+- **color**: #000
+- **class**: btn
+
+## styleTable.toBe (div.container > button)
+
+- **color**: #fff
+- **class**: btn **btn-primary**
+
+## md.section.media
+
+![capture-0.webp](capture-0.webp)
+
+## logSummary.title
+
+**logSummary.logs.lead** logSummary.logs.detail file=logs.html
+
+- logSummary.network.line n=12 errors=1
+- logSummary.console.line n=8 errors=2 warns=1
+- logSummary.action.line n=5
+
+## md.section.expectedResult
+
+버튼이 눌린다
+
+---
+
+_Reported via [BugShot](https://bug-shot.com)_
+",
+}
+`;
+
+exports[`본문 출력 골든 — 기본 순서 > buildAsanaIssueBody > freeform 모드 + 전체 로그 1`] = `
+{
+  "attached": [],
+  "body": "## md.section.env
+
+- **OS**: macOS 15.5
+- **Browser**: Chrome 138
+- **Page**: https://example.com/page
+- **DOM**: \`div.container > button\`
+- **Viewport**: 1920×1080
+- **Captured**: 2023-11-14 22:13:20 GMT+9
+- **Locale**: ko-KR
+
+## md.section.description
+
+버튼이 눌리지 않음
+
+## md.section.stepsToReproduce
+
+1. 1단계 진입
+2. 2단계 클릭
+
+## logSummary.title
+
+**logSummary.logs.lead** logSummary.logs.detail file=logs.html
+
+- logSummary.network.line n=12 errors=1
+- logSummary.console.line n=8 errors=2 warns=1
+- logSummary.action.line n=5
+
+## md.section.expectedResult
+
+버튼이 눌린다
+
+---
+
+_Reported via [BugShot](https://bug-shot.com)_
+",
+}
+`;
+
+exports[`본문 출력 골든 — 기본 순서 > buildAsanaIssueBody > screenshot 모드 + 전체 로그 1`] = `
+{
+  "attached": [
+    "capture-0.webp",
+  ],
+  "body": "## md.section.env
+
+- **OS**: macOS 15.5
+- **Browser**: Chrome 138
+- **Page**: https://example.com/page
+- **DOM**: \`div.container > button\`
+- **Viewport**: 1920×1080
+- **Captured**: 2023-11-14 22:13:20 GMT+9
+- **Locale**: ko-KR
+
+## md.section.description
+
+버튼이 눌리지 않음
+
+## md.section.stepsToReproduce
+
+1. 1단계 진입
+2. 2단계 클릭
+
+## md.section.media
+
+![capture-0.webp](capture-0.webp)
+
+## logSummary.title
+
+**logSummary.logs.lead** logSummary.logs.detail file=logs.html
+
+- logSummary.network.line n=12 errors=1
+- logSummary.console.line n=8 errors=2 warns=1
+- logSummary.action.line n=5
+
+## md.section.expectedResult
+
+버튼이 눌린다
+
+---
+
+_Reported via [BugShot](https://bug-shot.com)_
+",
+}
+`;
+
+exports[`본문 출력 골든 — 기본 순서 > buildAsanaIssueBody > video 모드 + 전체 로그 1`] = `
+{
+  "attached": [],
+  "body": "## md.section.env
+
+- **OS**: macOS 15.5
+- **Browser**: Chrome 138
+- **Page**: https://example.com/page
+- **DOM**: \`div.container > button\`
+- **Viewport**: 1920×1080
+- **Captured**: 2023-11-14 22:13:20 GMT+9
+- **Locale**: ko-KR
+
+## md.section.description
+
+버튼이 눌리지 않음
+
+## md.section.stepsToReproduce
+
+1. 1단계 진입
+2. 2단계 클릭
+
+## logSummary.title
+
+**logSummary.logs.lead** logSummary.logs.detail file=logs.html
+
+- logSummary.network.line n=12 errors=1
+- logSummary.console.line n=8 errors=2 warns=1
+- logSummary.action.line n=5
+
+## md.section.expectedResult
+
+버튼이 눌린다
+
+---
+
+_Reported via [BugShot](https://bug-shot.com)_
+",
+}
+`;
+
+exports[`본문 출력 골든 — 기본 순서 > buildClickupIssueBody > element 모드 + 전체 로그 1`] = `
+{
+  "attached": [],
+  "body": "## md.section.env
+
+- **OS**: macOS 15.5
+- **Browser**: Chrome 138
+- **Page**: https://example.com/page
+- **DOM**: \`div.container > button\`
+- **Viewport**: 1920×1080
+- **Captured**: 2023-11-14 22:13:20 GMT+9
+- **Locale**: ko-KR
+
+## md.section.description
+
+버튼이 눌리지 않음
+
+## md.section.stepsToReproduce
+
+1. 1단계 진입
+2. 2단계 클릭
+
+## md.section.styleChanges (div.container > button)
+
+| md.column.property | As is | To be |
+| --- | --- | --- |
+| color | #000 | #fff |
+| class | btn | btn **btn-primary** |
+
+## logSummary.title
+
+**logSummary.logs.lead** logSummary.logs.detail file=[logs.html](https://cdn.test/logs.html)
+
+- logSummary.network.line n=12 errors=1
+- logSummary.console.line n=8 errors=2 warns=1
+- logSummary.action.line n=5
+
+## md.section.expectedResult
+
+버튼이 눌린다
+
+---
+
+_Reported via [BugShot](https://bug-shot.com)_
+",
+}
+`;
+
+exports[`본문 출력 골든 — 기본 순서 > buildClickupIssueBody > freeform 모드 + 전체 로그 1`] = `
+{
+  "attached": [],
+  "body": "## md.section.env
+
+- **OS**: macOS 15.5
+- **Browser**: Chrome 138
+- **Page**: https://example.com/page
+- **DOM**: \`div.container > button\`
+- **Viewport**: 1920×1080
+- **Captured**: 2023-11-14 22:13:20 GMT+9
+- **Locale**: ko-KR
+
+## md.section.description
+
+버튼이 눌리지 않음
+
+## md.section.stepsToReproduce
+
+1. 1단계 진입
+2. 2단계 클릭
+
+## logSummary.title
+
+**logSummary.logs.lead** logSummary.logs.detail file=[logs.html](https://cdn.test/logs.html)
+
+- logSummary.network.line n=12 errors=1
+- logSummary.console.line n=8 errors=2 warns=1
+- logSummary.action.line n=5
+
+## md.section.expectedResult
+
+버튼이 눌린다
+
+---
+
+_Reported via [BugShot](https://bug-shot.com)_
+",
+}
+`;
+
+exports[`본문 출력 골든 — 기본 순서 > buildClickupIssueBody > screenshot 모드 + 전체 로그 1`] = `
+{
+  "attached": [
+    "capture-0.webp",
+  ],
+  "body": "## md.section.env
+
+- **OS**: macOS 15.5
+- **Browser**: Chrome 138
+- **Page**: https://example.com/page
+- **DOM**: \`div.container > button\`
+- **Viewport**: 1920×1080
+- **Captured**: 2023-11-14 22:13:20 GMT+9
+- **Locale**: ko-KR
+
+## md.section.description
+
+버튼이 눌리지 않음
+
+## md.section.stepsToReproduce
+
+1. 1단계 진입
+2. 2단계 클릭
+
+## md.section.media
+
+![capture-0.webp](https://cdn.test/c0.webp)
+
+## logSummary.title
+
+**logSummary.logs.lead** logSummary.logs.detail file=[logs.html](https://cdn.test/logs.html)
+
+- logSummary.network.line n=12 errors=1
+- logSummary.console.line n=8 errors=2 warns=1
+- logSummary.action.line n=5
+
+## md.section.expectedResult
+
+버튼이 눌린다
+
+---
+
+_Reported via [BugShot](https://bug-shot.com)_
+",
+}
+`;
+
+exports[`본문 출력 골든 — 기본 순서 > buildClickupIssueBody > video 모드 + 전체 로그 1`] = `
+{
+  "attached": [
+    "recording.mp4",
+  ],
+  "body": "## md.section.env
+
+- **OS**: macOS 15.5
+- **Browser**: Chrome 138
+- **Page**: https://example.com/page
+- **DOM**: \`div.container > button\`
+- **Viewport**: 1920×1080
+- **Captured**: 2023-11-14 22:13:20 GMT+9
+- **Locale**: ko-KR
+
+## md.section.description
+
+버튼이 눌리지 않음
+
+## md.section.stepsToReproduce
+
+1. 1단계 진입
+2. 2단계 클릭
+
+## md.section.media
+
+https://cdn.test/r.mp4?view=open
+
+## logSummary.title
+
+**logSummary.logs.lead** logSummary.logs.detail file=[logs.html](https://cdn.test/logs.html)
+
+- logSummary.network.line n=12 errors=1
+- logSummary.console.line n=8 errors=2 warns=1
+- logSummary.action.line n=5
+
+## md.section.expectedResult
+
+버튼이 눌린다
+
+---
+
+_Reported via [BugShot](https://bug-shot.com)_
+",
+}
+`;
+
+exports[`본문 출력 골든 — 기본 순서 > buildIssueAdf > element 모드 + 전체 로그 1`] = `
+{
+  "content": [
+    {
+      "attrs": {
+        "level": 2,
+      },
+      "content": [
+        {
+          "text": "md.section.env",
+          "type": "text",
+        },
+      ],
+      "type": "heading",
+    },
+    {
+      "content": [
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "OS: ",
+                  "type": "text",
+                },
+                {
+                  "text": "macOS 15.5",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "Browser: ",
+                  "type": "text",
+                },
+                {
+                  "text": "Chrome 138",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "Page: ",
+                  "type": "text",
+                },
+                {
+                  "text": "https://example.com/page",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "DOM: ",
+                  "type": "text",
+                },
+                {
+                  "marks": [
+                    {
+                      "type": "code",
+                    },
+                  ],
+                  "text": "div.container > button",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "Viewport: ",
+                  "type": "text",
+                },
+                {
+                  "text": "1920×1080",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "Captured: ",
+                  "type": "text",
+                },
+                {
+                  "text": "2023-11-14 22:13:20 GMT+9",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "Locale: ",
+                  "type": "text",
+                },
+                {
+                  "text": "ko-KR",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+      ],
+      "type": "bulletList",
+    },
+    {
+      "attrs": {
+        "level": 2,
+      },
+      "content": [
+        {
+          "text": "md.section.description",
+          "type": "text",
+        },
+      ],
+      "type": "heading",
+    },
+    {
+      "content": [
+        {
+          "text": "버튼이 눌리지 않음",
+          "type": "text",
+        },
+      ],
+      "type": "paragraph",
+    },
+    {
+      "attrs": {
+        "level": 2,
+      },
+      "content": [
+        {
+          "text": "md.section.stepsToReproduce",
+          "type": "text",
+        },
+      ],
+      "type": "heading",
+    },
+    {
+      "content": [
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "1단계 진입",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "2단계 클릭",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+      ],
+      "type": "orderedList",
+    },
+    {
+      "attrs": {
+        "level": 2,
+      },
+      "content": [
+        {
+          "text": "md.section.styleChanges (div.container > button)",
+          "type": "text",
+        },
+      ],
+      "type": "heading",
+    },
+    {
+      "attrs": {
+        "isNumberColumnEnabled": false,
+        "layout": "default",
+      },
+      "content": [
+        {
+          "content": [
+            {
+              "attrs": {},
+              "content": [
+                {
+                  "content": [
+                    {
+                      "marks": [
+                        {
+                          "type": "strong",
+                        },
+                      ],
+                      "text": "md.column.property",
+                      "type": "text",
+                    },
+                  ],
+                  "type": "paragraph",
+                },
+              ],
+              "type": "tableHeader",
+            },
+            {
+              "attrs": {},
+              "content": [
+                {
+                  "content": [
+                    {
+                      "marks": [
+                        {
+                          "type": "strong",
+                        },
+                      ],
+                      "text": "As is",
+                      "type": "text",
+                    },
+                  ],
+                  "type": "paragraph",
+                },
+              ],
+              "type": "tableHeader",
+            },
+            {
+              "attrs": {},
+              "content": [
+                {
+                  "content": [
+                    {
+                      "marks": [
+                        {
+                          "type": "strong",
+                        },
+                      ],
+                      "text": "To be",
+                      "type": "text",
+                    },
+                  ],
+                  "type": "paragraph",
+                },
+              ],
+              "type": "tableHeader",
+            },
+          ],
+          "type": "tableRow",
+        },
+        {
+          "content": [
+            {
+              "attrs": {},
+              "content": [
+                {
+                  "content": [
+                    {
+                      "text": "color",
+                      "type": "text",
+                    },
+                  ],
+                  "type": "paragraph",
+                },
+              ],
+              "type": "tableCell",
+            },
+            {
+              "attrs": {},
+              "content": [
+                {
+                  "content": [
+                    {
+                      "text": "#000",
+                      "type": "text",
+                    },
+                  ],
+                  "type": "paragraph",
+                },
+              ],
+              "type": "tableCell",
+            },
+            {
+              "attrs": {},
+              "content": [
+                {
+                  "content": [
+                    {
+                      "text": "#fff",
+                      "type": "text",
+                    },
+                  ],
+                  "type": "paragraph",
+                },
+              ],
+              "type": "tableCell",
+            },
+          ],
+          "type": "tableRow",
+        },
+        {
+          "content": [
+            {
+              "attrs": {},
+              "content": [
+                {
+                  "content": [
+                    {
+                      "text": "class",
+                      "type": "text",
+                    },
+                  ],
+                  "type": "paragraph",
+                },
+              ],
+              "type": "tableCell",
+            },
+            {
+              "attrs": {},
+              "content": [
+                {
+                  "content": [
+                    {
+                      "text": "btn",
+                      "type": "text",
+                    },
+                  ],
+                  "type": "paragraph",
+                },
+              ],
+              "type": "tableCell",
+            },
+            {
+              "attrs": {},
+              "content": [
+                {
+                  "content": [
+                    {
+                      "text": "btn",
+                      "type": "text",
+                    },
+                    {
+                      "text": " ",
+                      "type": "text",
+                    },
+                    {
+                      "marks": [
+                        {
+                          "type": "strong",
+                        },
+                      ],
+                      "text": "btn-primary",
+                      "type": "text",
+                    },
+                  ],
+                  "type": "paragraph",
+                },
+              ],
+              "type": "tableCell",
+            },
+          ],
+          "type": "tableRow",
+        },
+      ],
+      "type": "table",
+    },
+    {
+      "attrs": {
+        "level": 2,
+      },
+      "content": [
+        {
+          "text": "logSummary.title",
+          "type": "text",
+        },
+      ],
+      "type": "heading",
+    },
+    {
+      "content": [
+        {
+          "marks": [
+            {
+              "type": "strong",
+            },
+          ],
+          "text": "logSummary.logs.lead",
+          "type": "text",
+        },
+        {
+          "text": " ",
+          "type": "text",
+        },
+        {
+          "text": "logSummary.logs.detail",
+          "type": "text",
+        },
+      ],
+      "type": "paragraph",
+    },
+    {
+      "content": [
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "logSummary.network.line n=12 errors=1",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "logSummary.console.line n=8 errors=2 warns=1",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "logSummary.action.line n=5",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+      ],
+      "type": "bulletList",
+    },
+    {
+      "attrs": {
+        "level": 2,
+      },
+      "content": [
+        {
+          "text": "md.section.expectedResult",
+          "type": "text",
+        },
+      ],
+      "type": "heading",
+    },
+    {
+      "content": [
+        {
+          "text": "버튼이 눌린다",
+          "type": "text",
+        },
+      ],
+      "type": "paragraph",
+    },
+    {
+      "type": "rule",
+    },
+    {
+      "content": [
+        {
+          "marks": [
+            {
+              "type": "em",
+            },
+          ],
+          "text": "Reported via ",
+          "type": "text",
+        },
+        {
+          "marks": [
+            {
+              "type": "em",
+            },
+            {
+              "attrs": {
+                "href": "https://bug-shot.com",
+              },
+              "type": "link",
+            },
+          ],
+          "text": "BugShot",
+          "type": "text",
+        },
+      ],
+      "type": "paragraph",
+    },
+  ],
+  "type": "doc",
+  "version": 1,
+}
+`;
+
+exports[`본문 출력 골든 — 기본 순서 > buildIssueAdf > freeform 모드 + 전체 로그 1`] = `
+{
+  "content": [
+    {
+      "attrs": {
+        "level": 2,
+      },
+      "content": [
+        {
+          "text": "md.section.env",
+          "type": "text",
+        },
+      ],
+      "type": "heading",
+    },
+    {
+      "content": [
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "OS: ",
+                  "type": "text",
+                },
+                {
+                  "text": "macOS 15.5",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "Browser: ",
+                  "type": "text",
+                },
+                {
+                  "text": "Chrome 138",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "Page: ",
+                  "type": "text",
+                },
+                {
+                  "text": "https://example.com/page",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "DOM: ",
+                  "type": "text",
+                },
+                {
+                  "marks": [
+                    {
+                      "type": "code",
+                    },
+                  ],
+                  "text": "div.container > button",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "Viewport: ",
+                  "type": "text",
+                },
+                {
+                  "text": "1920×1080",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "Captured: ",
+                  "type": "text",
+                },
+                {
+                  "text": "2023-11-14 22:13:20 GMT+9",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "Locale: ",
+                  "type": "text",
+                },
+                {
+                  "text": "ko-KR",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+      ],
+      "type": "bulletList",
+    },
+    {
+      "attrs": {
+        "level": 2,
+      },
+      "content": [
+        {
+          "text": "md.section.description",
+          "type": "text",
+        },
+      ],
+      "type": "heading",
+    },
+    {
+      "content": [
+        {
+          "text": "버튼이 눌리지 않음",
+          "type": "text",
+        },
+      ],
+      "type": "paragraph",
+    },
+    {
+      "attrs": {
+        "level": 2,
+      },
+      "content": [
+        {
+          "text": "md.section.stepsToReproduce",
+          "type": "text",
+        },
+      ],
+      "type": "heading",
+    },
+    {
+      "content": [
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "1단계 진입",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "2단계 클릭",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+      ],
+      "type": "orderedList",
+    },
+    {
+      "attrs": {
+        "level": 2,
+      },
+      "content": [
+        {
+          "text": "logSummary.title",
+          "type": "text",
+        },
+      ],
+      "type": "heading",
+    },
+    {
+      "content": [
+        {
+          "marks": [
+            {
+              "type": "strong",
+            },
+          ],
+          "text": "logSummary.logs.lead",
+          "type": "text",
+        },
+        {
+          "text": " ",
+          "type": "text",
+        },
+        {
+          "text": "logSummary.logs.detail",
+          "type": "text",
+        },
+      ],
+      "type": "paragraph",
+    },
+    {
+      "content": [
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "logSummary.network.line n=12 errors=1",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "logSummary.console.line n=8 errors=2 warns=1",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "logSummary.action.line n=5",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+      ],
+      "type": "bulletList",
+    },
+    {
+      "attrs": {
+        "level": 2,
+      },
+      "content": [
+        {
+          "text": "md.section.expectedResult",
+          "type": "text",
+        },
+      ],
+      "type": "heading",
+    },
+    {
+      "content": [
+        {
+          "text": "버튼이 눌린다",
+          "type": "text",
+        },
+      ],
+      "type": "paragraph",
+    },
+    {
+      "type": "rule",
+    },
+    {
+      "content": [
+        {
+          "marks": [
+            {
+              "type": "em",
+            },
+          ],
+          "text": "Reported via ",
+          "type": "text",
+        },
+        {
+          "marks": [
+            {
+              "type": "em",
+            },
+            {
+              "attrs": {
+                "href": "https://bug-shot.com",
+              },
+              "type": "link",
+            },
+          ],
+          "text": "BugShot",
+          "type": "text",
+        },
+      ],
+      "type": "paragraph",
+    },
+  ],
+  "type": "doc",
+  "version": 1,
+}
+`;
+
+exports[`본문 출력 골든 — 기본 순서 > buildIssueAdf > screenshot 모드 + 전체 로그 1`] = `
+{
+  "content": [
+    {
+      "attrs": {
+        "level": 2,
+      },
+      "content": [
+        {
+          "text": "md.section.env",
+          "type": "text",
+        },
+      ],
+      "type": "heading",
+    },
+    {
+      "content": [
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "OS: ",
+                  "type": "text",
+                },
+                {
+                  "text": "macOS 15.5",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "Browser: ",
+                  "type": "text",
+                },
+                {
+                  "text": "Chrome 138",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "Page: ",
+                  "type": "text",
+                },
+                {
+                  "text": "https://example.com/page",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "DOM: ",
+                  "type": "text",
+                },
+                {
+                  "marks": [
+                    {
+                      "type": "code",
+                    },
+                  ],
+                  "text": "div.container > button",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "Viewport: ",
+                  "type": "text",
+                },
+                {
+                  "text": "1920×1080",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "Captured: ",
+                  "type": "text",
+                },
+                {
+                  "text": "2023-11-14 22:13:20 GMT+9",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "Locale: ",
+                  "type": "text",
+                },
+                {
+                  "text": "ko-KR",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+      ],
+      "type": "bulletList",
+    },
+    {
+      "attrs": {
+        "level": 2,
+      },
+      "content": [
+        {
+          "text": "md.section.description",
+          "type": "text",
+        },
+      ],
+      "type": "heading",
+    },
+    {
+      "content": [
+        {
+          "text": "버튼이 눌리지 않음",
+          "type": "text",
+        },
+      ],
+      "type": "paragraph",
+    },
+    {
+      "attrs": {
+        "level": 2,
+      },
+      "content": [
+        {
+          "text": "md.section.stepsToReproduce",
+          "type": "text",
+        },
+      ],
+      "type": "heading",
+    },
+    {
+      "content": [
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "1단계 진입",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "2단계 클릭",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+      ],
+      "type": "orderedList",
+    },
+    {
+      "attrs": {
+        "level": 2,
+      },
+      "content": [
+        {
+          "text": "md.section.media",
+          "type": "text",
+        },
+      ],
+      "type": "heading",
+    },
+    {
+      "content": [
+        {
+          "text": "__BUGSHOT_IMAGE__",
+          "type": "text",
+        },
+      ],
+      "type": "paragraph",
+    },
+    {
+      "attrs": {
+        "level": 2,
+      },
+      "content": [
+        {
+          "text": "logSummary.title",
+          "type": "text",
+        },
+      ],
+      "type": "heading",
+    },
+    {
+      "content": [
+        {
+          "marks": [
+            {
+              "type": "strong",
+            },
+          ],
+          "text": "logSummary.logs.lead",
+          "type": "text",
+        },
+        {
+          "text": " ",
+          "type": "text",
+        },
+        {
+          "text": "logSummary.logs.detail",
+          "type": "text",
+        },
+      ],
+      "type": "paragraph",
+    },
+    {
+      "content": [
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "logSummary.network.line n=12 errors=1",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "logSummary.console.line n=8 errors=2 warns=1",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "logSummary.action.line n=5",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+      ],
+      "type": "bulletList",
+    },
+    {
+      "attrs": {
+        "level": 2,
+      },
+      "content": [
+        {
+          "text": "md.section.expectedResult",
+          "type": "text",
+        },
+      ],
+      "type": "heading",
+    },
+    {
+      "content": [
+        {
+          "text": "버튼이 눌린다",
+          "type": "text",
+        },
+      ],
+      "type": "paragraph",
+    },
+    {
+      "type": "rule",
+    },
+    {
+      "content": [
+        {
+          "marks": [
+            {
+              "type": "em",
+            },
+          ],
+          "text": "Reported via ",
+          "type": "text",
+        },
+        {
+          "marks": [
+            {
+              "type": "em",
+            },
+            {
+              "attrs": {
+                "href": "https://bug-shot.com",
+              },
+              "type": "link",
+            },
+          ],
+          "text": "BugShot",
+          "type": "text",
+        },
+      ],
+      "type": "paragraph",
+    },
+  ],
+  "type": "doc",
+  "version": 1,
+}
+`;
+
+exports[`본문 출력 골든 — 기본 순서 > buildIssueAdf > video 모드 + 전체 로그 1`] = `
+{
+  "content": [
+    {
+      "attrs": {
+        "level": 2,
+      },
+      "content": [
+        {
+          "text": "md.section.env",
+          "type": "text",
+        },
+      ],
+      "type": "heading",
+    },
+    {
+      "content": [
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "OS: ",
+                  "type": "text",
+                },
+                {
+                  "text": "macOS 15.5",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "Browser: ",
+                  "type": "text",
+                },
+                {
+                  "text": "Chrome 138",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "Page: ",
+                  "type": "text",
+                },
+                {
+                  "text": "https://example.com/page",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "DOM: ",
+                  "type": "text",
+                },
+                {
+                  "marks": [
+                    {
+                      "type": "code",
+                    },
+                  ],
+                  "text": "div.container > button",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "Viewport: ",
+                  "type": "text",
+                },
+                {
+                  "text": "1920×1080",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "Captured: ",
+                  "type": "text",
+                },
+                {
+                  "text": "2023-11-14 22:13:20 GMT+9",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "Locale: ",
+                  "type": "text",
+                },
+                {
+                  "text": "ko-KR",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+      ],
+      "type": "bulletList",
+    },
+    {
+      "attrs": {
+        "level": 2,
+      },
+      "content": [
+        {
+          "text": "md.section.description",
+          "type": "text",
+        },
+      ],
+      "type": "heading",
+    },
+    {
+      "content": [
+        {
+          "text": "버튼이 눌리지 않음",
+          "type": "text",
+        },
+      ],
+      "type": "paragraph",
+    },
+    {
+      "attrs": {
+        "level": 2,
+      },
+      "content": [
+        {
+          "text": "md.section.stepsToReproduce",
+          "type": "text",
+        },
+      ],
+      "type": "heading",
+    },
+    {
+      "content": [
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "1단계 진입",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "2단계 클릭",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+      ],
+      "type": "orderedList",
+    },
+    {
+      "attrs": {
+        "level": 2,
+      },
+      "content": [
+        {
+          "text": "md.section.media",
+          "type": "text",
+        },
+      ],
+      "type": "heading",
+    },
+    {
+      "content": [
+        {
+          "text": "__BUGSHOT_VIDEO__",
+          "type": "text",
+        },
+      ],
+      "type": "paragraph",
+    },
+    {
+      "attrs": {
+        "level": 2,
+      },
+      "content": [
+        {
+          "text": "logSummary.title",
+          "type": "text",
+        },
+      ],
+      "type": "heading",
+    },
+    {
+      "content": [
+        {
+          "marks": [
+            {
+              "type": "strong",
+            },
+          ],
+          "text": "logSummary.logs.lead",
+          "type": "text",
+        },
+        {
+          "text": " ",
+          "type": "text",
+        },
+        {
+          "text": "logSummary.logs.detail",
+          "type": "text",
+        },
+      ],
+      "type": "paragraph",
+    },
+    {
+      "content": [
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "logSummary.network.line n=12 errors=1",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "logSummary.console.line n=8 errors=2 warns=1",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "logSummary.action.line n=5",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+      ],
+      "type": "bulletList",
+    },
+    {
+      "attrs": {
+        "level": 2,
+      },
+      "content": [
+        {
+          "text": "md.section.expectedResult",
+          "type": "text",
+        },
+      ],
+      "type": "heading",
+    },
+    {
+      "content": [
+        {
+          "text": "버튼이 눌린다",
+          "type": "text",
+        },
+      ],
+      "type": "paragraph",
+    },
+    {
+      "type": "rule",
+    },
+    {
+      "content": [
+        {
+          "marks": [
+            {
+              "type": "em",
+            },
+          ],
+          "text": "Reported via ",
+          "type": "text",
+        },
+        {
+          "marks": [
+            {
+              "type": "em",
+            },
+            {
+              "attrs": {
+                "href": "https://bug-shot.com",
+              },
+              "type": "link",
+            },
+          ],
+          "text": "BugShot",
+          "type": "text",
+        },
+      ],
+      "type": "paragraph",
+    },
+  ],
+  "type": "doc",
+  "version": 1,
+}
+`;
+
+exports[`본문 출력 골든 — 기본 순서 > buildIssueHtml > element 모드 + 전체 로그 1`] = `
+"<!-- bugshot-meta-for-ai
+{
+  "version": 1,
+  "captureMode": "element",
+  "url": "https://example.com/page",
+  "capturedAt": 1700000000000,
+  "os": "macOS 15.5",
+  "browser": "Chrome 138",
+  "viewport": {
+    "width": 1920,
+    "height": 1080
+  },
+  "environment": {
+    "Locale": "ko-KR"
+  },
+  "selector": "div.container > button",
+  "tagName": "button",
+  "classListBefore": [
+    "btn"
+  ],
+  "classListAfter": [
+    "btn",
+    "btn-primary"
+  ],
+  "specifiedStyles": {
+    "color": "#000"
+  },
+  "cssChanges": [
+    {
+      "property": "color",
+      "from": "#000",
+      "to": "#fff"
+    },
+    {
+      "property": "class",
+      "from": "btn",
+      "to": "btn btn-primary"
+    }
+  ],
+  "tokens": [
+    {
+      "name": "--brand",
+      "value": "#4f46e5"
+    }
+  ]
+}
+-->
+<h1>Golden Issue</h1>
+<h2>md.section.env</h2>
+<ul>
+<li><strong>OS</strong>: macOS 15.5</li>
+<li><strong>Browser</strong>: Chrome 138</li>
+<li><strong>Page</strong>: https://example.com/page</li>
+<li><strong>DOM</strong>: <code>div.container &gt; button</code></li>
+<li><strong>Viewport</strong>: 1920×1080</li>
+<li><strong>Captured</strong>: 2023-11-14 22:13:20 GMT+9</li>
+<li><strong>Locale</strong>: ko-KR</li>
+</ul>
+<h2>md.section.description</h2>
+<p>버튼이 눌리지 않음</p>
+
+<h2>md.section.stepsToReproduce</h2>
+<ol><li>1단계 진입</li><li>2단계 클릭</li></ol>
+<h2>md.section.styleChanges (div.container &gt; button)</h2>
+<table><thead><tr><th>md.column.property</th><th>As is</th><th>To be</th></tr></thead><tbody>
+<tr><td>color</td><td>#000</td><td>#fff</td></tr>
+<tr><td>class</td><td>btn</td><td>btn <strong>btn-primary</strong></td></tr>
+</tbody></table>
+<h2>logSummary.title</h2>
+<p><strong>logSummary.logs.lead</strong> logSummary.logs.detail file=logs.html</p>
+<ul>
+<li>logSummary.network.line n=12 errors=1</li>
+<li>logSummary.console.line n=8 errors=2 warns=1</li>
+<li>logSummary.action.line n=5</li>
+</ul>
+<h2>md.section.expectedResult</h2>
+<p>버튼이 눌린다</p>
+
+<hr>
+<p><em>Reported via <a href="https://bug-shot.com">BugShot</a></em></p>"
+`;
+
+exports[`본문 출력 골든 — 기본 순서 > buildIssueHtml > freeform 모드 + 전체 로그 1`] = `
+"<!-- bugshot-meta-for-ai
+{
+  "version": 1,
+  "captureMode": "freeform",
+  "url": "https://example.com/page",
+  "capturedAt": 1700000000000,
+  "os": "macOS 15.5",
+  "browser": "Chrome 138",
+  "viewport": {
+    "width": 1920,
+    "height": 1080
+  },
+  "environment": {
+    "Locale": "ko-KR"
+  }
+}
+-->
+<h1>Golden Issue</h1>
+<h2>md.section.env</h2>
+<ul>
+<li><strong>OS</strong>: macOS 15.5</li>
+<li><strong>Browser</strong>: Chrome 138</li>
+<li><strong>Page</strong>: https://example.com/page</li>
+<li><strong>DOM</strong>: <code>div.container &gt; button</code></li>
+<li><strong>Viewport</strong>: 1920×1080</li>
+<li><strong>Captured</strong>: 2023-11-14 22:13:20 GMT+9</li>
+<li><strong>Locale</strong>: ko-KR</li>
+</ul>
+<h2>md.section.description</h2>
+<p>버튼이 눌리지 않음</p>
+
+<h2>md.section.stepsToReproduce</h2>
+<ol><li>1단계 진입</li><li>2단계 클릭</li></ol>
+<h2>logSummary.title</h2>
+<p><strong>logSummary.logs.lead</strong> logSummary.logs.detail file=logs.html</p>
+<ul>
+<li>logSummary.network.line n=12 errors=1</li>
+<li>logSummary.console.line n=8 errors=2 warns=1</li>
+<li>logSummary.action.line n=5</li>
+</ul>
+<h2>md.section.expectedResult</h2>
+<p>버튼이 눌린다</p>
+
+<hr>
+<p><em>Reported via <a href="https://bug-shot.com">BugShot</a></em></p>"
+`;
+
+exports[`본문 출력 골든 — 기본 순서 > buildIssueHtml > screenshot 모드 + 전체 로그 1`] = `
+"<!-- bugshot-meta-for-ai
+{
+  "version": 1,
+  "captureMode": "screenshot",
+  "url": "https://example.com/page",
+  "capturedAt": 1700000000000,
+  "os": "macOS 15.5",
+  "browser": "Chrome 138",
+  "viewport": {
+    "width": 1920,
+    "height": 1080
+  },
+  "environment": {
+    "Locale": "ko-KR"
+  },
+  "selector": "div.container > button",
+  "tagName": "button",
+  "classListBefore": [
+    "btn"
+  ],
+  "classListAfter": [
+    "btn",
+    "btn-primary"
+  ],
+  "specifiedStyles": {
+    "color": "#000"
+  },
+  "cssChanges": [
+    {
+      "property": "color",
+      "from": "#000",
+      "to": "#fff"
+    },
+    {
+      "property": "class",
+      "from": "btn",
+      "to": "btn btn-primary"
+    }
+  ],
+  "tokens": [
+    {
+      "name": "--brand",
+      "value": "#4f46e5"
+    }
+  ]
+}
+-->
+<h1>Golden Issue</h1>
+<h2>md.section.env</h2>
+<ul>
+<li><strong>OS</strong>: macOS 15.5</li>
+<li><strong>Browser</strong>: Chrome 138</li>
+<li><strong>Page</strong>: https://example.com/page</li>
+<li><strong>DOM</strong>: <code>div.container &gt; button</code></li>
+<li><strong>Viewport</strong>: 1920×1080</li>
+<li><strong>Captured</strong>: 2023-11-14 22:13:20 GMT+9</li>
+<li><strong>Locale</strong>: ko-KR</li>
+</ul>
+<h2>md.section.description</h2>
+<p>버튼이 눌리지 않음</p>
+
+<h2>md.section.stepsToReproduce</h2>
+<ol><li>1단계 진입</li><li>2단계 클릭</li></ol>
+<h2>md.section.media</h2>
+<p>md.imageAttached</p>
+<h2>logSummary.title</h2>
+<p><strong>logSummary.logs.lead</strong> logSummary.logs.detail file=logs.html</p>
+<ul>
+<li>logSummary.network.line n=12 errors=1</li>
+<li>logSummary.console.line n=8 errors=2 warns=1</li>
+<li>logSummary.action.line n=5</li>
+</ul>
+<h2>md.section.expectedResult</h2>
+<p>버튼이 눌린다</p>
+
+<hr>
+<p><em>Reported via <a href="https://bug-shot.com">BugShot</a></em></p>"
+`;
+
+exports[`본문 출력 골든 — 기본 순서 > buildIssueHtml > video 모드 + 전체 로그 1`] = `
+"<!-- bugshot-meta-for-ai
+{
+  "version": 1,
+  "captureMode": "video",
+  "url": "https://example.com/page",
+  "capturedAt": 1700000000000,
+  "os": "macOS 15.5",
+  "browser": "Chrome 138",
+  "viewport": {
+    "width": 1920,
+    "height": 1080
+  },
+  "environment": {
+    "Locale": "ko-KR"
+  },
+  "selector": "div.container > button",
+  "tagName": "button",
+  "classListBefore": [
+    "btn"
+  ],
+  "classListAfter": [
+    "btn",
+    "btn-primary"
+  ],
+  "specifiedStyles": {
+    "color": "#000"
+  },
+  "cssChanges": [
+    {
+      "property": "color",
+      "from": "#000",
+      "to": "#fff"
+    },
+    {
+      "property": "class",
+      "from": "btn",
+      "to": "btn btn-primary"
+    }
+  ],
+  "tokens": [
+    {
+      "name": "--brand",
+      "value": "#4f46e5"
+    }
+  ]
+}
+-->
+<h1>Golden Issue</h1>
+<h2>md.section.env</h2>
+<ul>
+<li><strong>OS</strong>: macOS 15.5</li>
+<li><strong>Browser</strong>: Chrome 138</li>
+<li><strong>Page</strong>: https://example.com/page</li>
+<li><strong>DOM</strong>: <code>div.container &gt; button</code></li>
+<li><strong>Viewport</strong>: 1920×1080</li>
+<li><strong>Captured</strong>: 2023-11-14 22:13:20 GMT+9</li>
+<li><strong>Locale</strong>: ko-KR</li>
+</ul>
+<h2>md.section.description</h2>
+<p>버튼이 눌리지 않음</p>
+
+<h2>md.section.stepsToReproduce</h2>
+<ol><li>1단계 진입</li><li>2단계 클릭</li></ol>
+<h2>md.section.media</h2>
+<p>md.videoAttached</p>
+<h2>logSummary.title</h2>
+<p><strong>logSummary.logs.lead</strong> logSummary.logs.detail file=logs.html</p>
+<ul>
+<li>logSummary.network.line n=12 errors=1</li>
+<li>logSummary.console.line n=8 errors=2 warns=1</li>
+<li>logSummary.action.line n=5</li>
+</ul>
+<h2>md.section.expectedResult</h2>
+<p>버튼이 눌린다</p>
+
+<hr>
+<p><em>Reported via <a href="https://bug-shot.com">BugShot</a></em></p>"
+`;
+
+exports[`본문 출력 골든 — 기본 순서 > buildIssueMarkdown > element 모드 + 전체 로그 1`] = `
+"<!-- bugshot-meta-for-ai
+{
+  "version": 1,
+  "captureMode": "element",
+  "url": "https://example.com/page",
+  "capturedAt": 1700000000000,
+  "os": "macOS 15.5",
+  "browser": "Chrome 138",
+  "viewport": {
+    "width": 1920,
+    "height": 1080
+  },
+  "environment": {
+    "Locale": "ko-KR"
+  },
+  "selector": "div.container > button",
+  "tagName": "button",
+  "classListBefore": [
+    "btn"
+  ],
+  "classListAfter": [
+    "btn",
+    "btn-primary"
+  ],
+  "specifiedStyles": {
+    "color": "#000"
+  },
+  "cssChanges": [
+    {
+      "property": "color",
+      "from": "#000",
+      "to": "#fff"
+    },
+    {
+      "property": "class",
+      "from": "btn",
+      "to": "btn btn-primary"
+    }
+  ],
+  "tokens": [
+    {
+      "name": "--brand",
+      "value": "#4f46e5"
+    }
+  ]
+}
+-->
+
+# Golden Issue
+
+## md.section.env
+
+- **OS**: macOS 15.5
+- **Browser**: Chrome 138
+- **Page**: https://example.com/page
+- **DOM**: \`div.container > button\`
+- **Viewport**: 1920×1080
+- **Captured**: 2023-11-14 22:13:20 GMT+9
+- **Locale**: ko-KR
+
+## md.section.description
+
+버튼이 눌리지 않음
+
+## md.section.stepsToReproduce
+
+1. 1단계 진입
+2. 2단계 클릭
+
+## md.section.styleChanges (div.container > button)
+
+| md.column.property | As is | To be |
+| --- | --- | --- |
+| color | #000 | #fff |
+| class | btn | btn **btn-primary** |
+
+## logSummary.title
+
+**logSummary.logs.lead** logSummary.logs.detail file=logs.html
+
+- logSummary.network.line n=12 errors=1
+- logSummary.console.line n=8 errors=2 warns=1
+- logSummary.action.line n=5
+
+## md.section.expectedResult
+
+버튼이 눌린다
+
+---
+
+_Reported via [BugShot](https://bug-shot.com)_
+"
+`;
+
+exports[`본문 출력 골든 — 기본 순서 > buildIssueMarkdown > freeform 모드 + 전체 로그 1`] = `
+"<!-- bugshot-meta-for-ai
+{
+  "version": 1,
+  "captureMode": "freeform",
+  "url": "https://example.com/page",
+  "capturedAt": 1700000000000,
+  "os": "macOS 15.5",
+  "browser": "Chrome 138",
+  "viewport": {
+    "width": 1920,
+    "height": 1080
+  },
+  "environment": {
+    "Locale": "ko-KR"
+  }
+}
+-->
+
+# Golden Issue
+
+## md.section.env
+
+- **OS**: macOS 15.5
+- **Browser**: Chrome 138
+- **Page**: https://example.com/page
+- **DOM**: \`div.container > button\`
+- **Viewport**: 1920×1080
+- **Captured**: 2023-11-14 22:13:20 GMT+9
+- **Locale**: ko-KR
+
+## md.section.description
+
+버튼이 눌리지 않음
+
+## md.section.stepsToReproduce
+
+1. 1단계 진입
+2. 2단계 클릭
+
+## logSummary.title
+
+**logSummary.logs.lead** logSummary.logs.detail file=logs.html
+
+- logSummary.network.line n=12 errors=1
+- logSummary.console.line n=8 errors=2 warns=1
+- logSummary.action.line n=5
+
+## md.section.expectedResult
+
+버튼이 눌린다
+
+---
+
+_Reported via [BugShot](https://bug-shot.com)_
+"
+`;
+
+exports[`본문 출력 골든 — 기본 순서 > buildIssueMarkdown > screenshot 모드 + 전체 로그 1`] = `
+"<!-- bugshot-meta-for-ai
+{
+  "version": 1,
+  "captureMode": "screenshot",
+  "url": "https://example.com/page",
+  "capturedAt": 1700000000000,
+  "os": "macOS 15.5",
+  "browser": "Chrome 138",
+  "viewport": {
+    "width": 1920,
+    "height": 1080
+  },
+  "environment": {
+    "Locale": "ko-KR"
+  },
+  "selector": "div.container > button",
+  "tagName": "button",
+  "classListBefore": [
+    "btn"
+  ],
+  "classListAfter": [
+    "btn",
+    "btn-primary"
+  ],
+  "specifiedStyles": {
+    "color": "#000"
+  },
+  "cssChanges": [
+    {
+      "property": "color",
+      "from": "#000",
+      "to": "#fff"
+    },
+    {
+      "property": "class",
+      "from": "btn",
+      "to": "btn btn-primary"
+    }
+  ],
+  "tokens": [
+    {
+      "name": "--brand",
+      "value": "#4f46e5"
+    }
+  ]
+}
+-->
+
+# Golden Issue
+
+## md.section.env
+
+- **OS**: macOS 15.5
+- **Browser**: Chrome 138
+- **Page**: https://example.com/page
+- **DOM**: \`div.container > button\`
+- **Viewport**: 1920×1080
+- **Captured**: 2023-11-14 22:13:20 GMT+9
+- **Locale**: ko-KR
+
+## md.section.description
+
+버튼이 눌리지 않음
+
+## md.section.stepsToReproduce
+
+1. 1단계 진입
+2. 2단계 클릭
+
+## md.section.media
+
+md.imageAttached
+
+## logSummary.title
+
+**logSummary.logs.lead** logSummary.logs.detail file=logs.html
+
+- logSummary.network.line n=12 errors=1
+- logSummary.console.line n=8 errors=2 warns=1
+- logSummary.action.line n=5
+
+## md.section.expectedResult
+
+버튼이 눌린다
+
+---
+
+_Reported via [BugShot](https://bug-shot.com)_
+"
+`;
+
+exports[`본문 출력 골든 — 기본 순서 > buildIssueMarkdown > video 모드 + 전체 로그 1`] = `
+"<!-- bugshot-meta-for-ai
+{
+  "version": 1,
+  "captureMode": "video",
+  "url": "https://example.com/page",
+  "capturedAt": 1700000000000,
+  "os": "macOS 15.5",
+  "browser": "Chrome 138",
+  "viewport": {
+    "width": 1920,
+    "height": 1080
+  },
+  "environment": {
+    "Locale": "ko-KR"
+  },
+  "selector": "div.container > button",
+  "tagName": "button",
+  "classListBefore": [
+    "btn"
+  ],
+  "classListAfter": [
+    "btn",
+    "btn-primary"
+  ],
+  "specifiedStyles": {
+    "color": "#000"
+  },
+  "cssChanges": [
+    {
+      "property": "color",
+      "from": "#000",
+      "to": "#fff"
+    },
+    {
+      "property": "class",
+      "from": "btn",
+      "to": "btn btn-primary"
+    }
+  ],
+  "tokens": [
+    {
+      "name": "--brand",
+      "value": "#4f46e5"
+    }
+  ]
+}
+-->
+
+# Golden Issue
+
+## md.section.env
+
+- **OS**: macOS 15.5
+- **Browser**: Chrome 138
+- **Page**: https://example.com/page
+- **DOM**: \`div.container > button\`
+- **Viewport**: 1920×1080
+- **Captured**: 2023-11-14 22:13:20 GMT+9
+- **Locale**: ko-KR
+
+## md.section.description
+
+버튼이 눌리지 않음
+
+## md.section.stepsToReproduce
+
+1. 1단계 진입
+2. 2단계 클릭
+
+## md.section.media
+
+md.videoAttached
+
+## logSummary.title
+
+**logSummary.logs.lead** logSummary.logs.detail file=logs.html
+
+- logSummary.network.line n=12 errors=1
+- logSummary.console.line n=8 errors=2 warns=1
+- logSummary.action.line n=5
+
+## md.section.expectedResult
+
+버튼이 눌린다
+
+---
+
+_Reported via [BugShot](https://bug-shot.com)_
+"
+`;
+
+exports[`본문 출력 골든 — 기본 순서 > buildLinearIssueBody > element 모드 + 전체 로그 1`] = `
+{
+  "body": "## md.section.env
+
+- **OS**: macOS 15.5
+- **Browser**: Chrome 138
+- **Page**: https://example.com/page
+- **DOM**: \`div.container > button\`
+- **Viewport**: 1920×1080
+- **Captured**: 2023-11-14 22:13:20 GMT+9
+- **Locale**: ko-KR
+
+## md.section.description
+
+버튼이 눌리지 않음
+
+## md.section.stepsToReproduce
+
+1. 1단계 진입
+2. 2단계 클릭
+
+## md.section.styleChanges (div.container > button)
+
+| md.column.property | As is | To be |
+| --- | --- | --- |
+| color | #000 | #fff |
+| class | btn | btn **btn-primary** |
+
+## logSummary.title
+
+**logSummary.logs.lead** logSummary.logs.detail file=logs.html
+
+- logSummary.network.line n=12 errors=1
+- logSummary.console.line n=8 errors=2 warns=1
+- logSummary.action.line n=5
+
+## md.section.expectedResult
+
+버튼이 눌린다
+
+---
+
+_Reported via [BugShot](https://bug-shot.com)_
+",
+}
+`;
+
+exports[`본문 출력 골든 — 기본 순서 > buildLinearIssueBody > freeform 모드 + 전체 로그 1`] = `
+{
+  "body": "## md.section.env
+
+- **OS**: macOS 15.5
+- **Browser**: Chrome 138
+- **Page**: https://example.com/page
+- **DOM**: \`div.container > button\`
+- **Viewport**: 1920×1080
+- **Captured**: 2023-11-14 22:13:20 GMT+9
+- **Locale**: ko-KR
+
+## md.section.description
+
+버튼이 눌리지 않음
+
+## md.section.stepsToReproduce
+
+1. 1단계 진입
+2. 2단계 클릭
+
+## logSummary.title
+
+**logSummary.logs.lead** logSummary.logs.detail file=logs.html
+
+- logSummary.network.line n=12 errors=1
+- logSummary.console.line n=8 errors=2 warns=1
+- logSummary.action.line n=5
+
+## md.section.expectedResult
+
+버튼이 눌린다
+
+---
+
+_Reported via [BugShot](https://bug-shot.com)_
+",
+}
+`;
+
+exports[`본문 출력 골든 — 기본 순서 > buildLinearIssueBody > screenshot 모드 + 전체 로그 1`] = `
+{
+  "body": "## md.section.env
+
+- **OS**: macOS 15.5
+- **Browser**: Chrome 138
+- **Page**: https://example.com/page
+- **DOM**: \`div.container > button\`
+- **Viewport**: 1920×1080
+- **Captured**: 2023-11-14 22:13:20 GMT+9
+- **Locale**: ko-KR
+
+## md.section.description
+
+버튼이 눌리지 않음
+
+## md.section.stepsToReproduce
+
+1. 1단계 진입
+2. 2단계 클릭
+
+## md.section.media
+
+![capture-0.webp](https://cdn.test/c0.webp)
+
+## logSummary.title
+
+**logSummary.logs.lead** logSummary.logs.detail file=logs.html
+
+- logSummary.network.line n=12 errors=1
+- logSummary.console.line n=8 errors=2 warns=1
+- logSummary.action.line n=5
+
+## md.section.expectedResult
+
+버튼이 눌린다
+
+---
+
+_Reported via [BugShot](https://bug-shot.com)_
+",
+}
+`;
+
+exports[`본문 출력 골든 — 기본 순서 > buildLinearIssueBody > video 모드 + 전체 로그 1`] = `
+{
+  "body": "## md.section.env
+
+- **OS**: macOS 15.5
+- **Browser**: Chrome 138
+- **Page**: https://example.com/page
+- **DOM**: \`div.container > button\`
+- **Viewport**: 1920×1080
+- **Captured**: 2023-11-14 22:13:20 GMT+9
+- **Locale**: ko-KR
+
+## md.section.description
+
+버튼이 눌리지 않음
+
+## md.section.stepsToReproduce
+
+1. 1단계 진입
+2. 2단계 클릭
+
+## md.section.media
+
+![recording.mp4](https://cdn.test/r.mp4)
+
+## logSummary.title
+
+**logSummary.logs.lead** logSummary.logs.detail file=logs.html
+
+- logSummary.network.line n=12 errors=1
+- logSummary.console.line n=8 errors=2 warns=1
+- logSummary.action.line n=5
+
+## md.section.expectedResult
+
+버튼이 눌린다
+
+---
+
+_Reported via [BugShot](https://bug-shot.com)_
+",
+}
+`;
+
+exports[`본문 출력 골든 — 기본 순서 > buildMarkdownIssueBody(github) > element 모드 + 전체 로그 1`] = `
+{
+  "attached": [
+    "capture-0.webp",
+    "logs.html",
+  ],
+  "body": "## md.section.env
+
+- **OS**: macOS 15.5
+- **Browser**: Chrome 138
+- **Page**: https://example.com/page
+- **DOM**: \`div.container > button\`
+- **Viewport**: 1920×1080
+- **Captured**: 2023-11-14 22:13:20 GMT+9
+- **Locale**: ko-KR
+
+## md.section.description
+
+버튼이 눌리지 않음
+
+## md.section.stepsToReproduce
+
+1. 1단계 진입
+2. 2단계 클릭
+
+## md.section.styleChanges (div.container > button)
+
+| md.column.property | As is | To be |
+| --- | --- | --- |
+| color | #000 | #fff |
+| class | btn | btn **btn-primary** |
+
+## logSummary.title
+
+**logSummary.logs.lead** logSummary.logs.detail file=[logs.html](https://cdn.test/logs.html)
+
+- logSummary.network.line n=12 errors=1
+- logSummary.console.line n=8 errors=2 warns=1
+- logSummary.action.line n=5
+
+## md.section.expectedResult
+
+버튼이 눌린다
+
+## md.section.attachments
+
+![capture-0.webp](https://cdn.test/c0.webp)
+[logs.html](https://cdn.test/logs.html)
+
+---
+
+_Reported via [BugShot](https://bug-shot.com)_
+",
+}
+`;
+
+exports[`본문 출력 골든 — 기본 순서 > buildMarkdownIssueBody(github) > freeform 모드 + 전체 로그 1`] = `
+{
+  "attached": [
+    "logs.html",
+  ],
+  "body": "## md.section.env
+
+- **OS**: macOS 15.5
+- **Browser**: Chrome 138
+- **Page**: https://example.com/page
+- **DOM**: \`div.container > button\`
+- **Viewport**: 1920×1080
+- **Captured**: 2023-11-14 22:13:20 GMT+9
+- **Locale**: ko-KR
+
+## md.section.description
+
+버튼이 눌리지 않음
+
+## md.section.stepsToReproduce
+
+1. 1단계 진입
+2. 2단계 클릭
+
+## logSummary.title
+
+**logSummary.logs.lead** logSummary.logs.detail file=[logs.html](https://cdn.test/logs.html)
+
+- logSummary.network.line n=12 errors=1
+- logSummary.console.line n=8 errors=2 warns=1
+- logSummary.action.line n=5
+
+## md.section.expectedResult
+
+버튼이 눌린다
+
+## md.section.attachments
+
+[logs.html](https://cdn.test/logs.html)
+
+---
+
+_Reported via [BugShot](https://bug-shot.com)_
+",
+}
+`;
+
+exports[`본문 출력 골든 — 기본 순서 > buildMarkdownIssueBody(github) > screenshot 모드 + 전체 로그 1`] = `
+{
+  "attached": [
+    "capture-0.webp",
+    "logs.html",
+  ],
+  "body": "## md.section.env
+
+- **OS**: macOS 15.5
+- **Browser**: Chrome 138
+- **Page**: https://example.com/page
+- **DOM**: \`div.container > button\`
+- **Viewport**: 1920×1080
+- **Captured**: 2023-11-14 22:13:20 GMT+9
+- **Locale**: ko-KR
+
+## md.section.description
+
+버튼이 눌리지 않음
+
+## md.section.stepsToReproduce
+
+1. 1단계 진입
+2. 2단계 클릭
+
+## md.section.media
+
+![capture-0.webp](https://cdn.test/c0.webp)
+
+## logSummary.title
+
+**logSummary.logs.lead** logSummary.logs.detail file=[logs.html](https://cdn.test/logs.html)
+
+- logSummary.network.line n=12 errors=1
+- logSummary.console.line n=8 errors=2 warns=1
+- logSummary.action.line n=5
+
+## md.section.expectedResult
+
+버튼이 눌린다
+
+## md.section.attachments
+
+[logs.html](https://cdn.test/logs.html)
+
+---
+
+_Reported via [BugShot](https://bug-shot.com)_
+",
+}
+`;
+
+exports[`본문 출력 골든 — 기본 순서 > buildMarkdownIssueBody(github) > video 모드 + 전체 로그 1`] = `
+{
+  "attached": [
+    "recording.mp4",
+    "logs.html",
+  ],
+  "body": "## md.section.env
+
+- **OS**: macOS 15.5
+- **Browser**: Chrome 138
+- **Page**: https://example.com/page
+- **DOM**: \`div.container > button\`
+- **Viewport**: 1920×1080
+- **Captured**: 2023-11-14 22:13:20 GMT+9
+- **Locale**: ko-KR
+
+## md.section.description
+
+버튼이 눌리지 않음
+
+## md.section.stepsToReproduce
+
+1. 1단계 진입
+2. 2단계 클릭
+
+## md.section.media
+
+![recording.mp4](https://cdn.test/r.mp4)
+
+## logSummary.title
+
+**logSummary.logs.lead** logSummary.logs.detail file=[logs.html](https://cdn.test/logs.html)
+
+- logSummary.network.line n=12 errors=1
+- logSummary.console.line n=8 errors=2 warns=1
+- logSummary.action.line n=5
+
+## md.section.expectedResult
+
+버튼이 눌린다
+
+## md.section.attachments
+
+[logs.html](https://cdn.test/logs.html)
+
+---
+
+_Reported via [BugShot](https://bug-shot.com)_
+",
+}
+`;
+
+exports[`본문 출력 골든 — 기본 순서 > buildMarkdownIssueBody(gitlab) > element 모드 + 전체 로그 1`] = `
+{
+  "attached": [
+    "capture-0.webp",
+    "logs.html",
+  ],
+  "body": "## md.section.env
+
+- **OS**: macOS 15.5
+- **Browser**: Chrome 138
+- **Page**: https://example.com/page
+- **DOM**: \`div.container > button\`
+- **Viewport**: 1920×1080
+- **Captured**: 2023-11-14 22:13:20 GMT+9
+- **Locale**: ko-KR
+
+## md.section.description
+
+버튼이 눌리지 않음
+
+## md.section.stepsToReproduce
+
+1. 1단계 진입
+2. 2단계 클릭
+
+## md.section.styleChanges (div.container > button)
+
+| md.column.property | As is | To be |
+| --- | --- | --- |
+| color | #000 | #fff |
+| class | btn | btn **btn-primary** |
+
+## logSummary.title
+
+**logSummary.logs.lead** logSummary.logs.detail file=[logs.html](https://cdn.test/logs.html)
+
+- logSummary.network.line n=12 errors=1
+- logSummary.console.line n=8 errors=2 warns=1
+- logSummary.action.line n=5
+
+## md.section.expectedResult
+
+버튼이 눌린다
+
+## md.section.attachments
+
+![capture-0.webp](https://cdn.test/c0.webp)
+[logs.html](https://cdn.test/logs.html)
+
+---
+
+_Reported via [BugShot](https://bug-shot.com)_
+",
+}
+`;
+
+exports[`본문 출력 골든 — 기본 순서 > buildMarkdownIssueBody(gitlab) > freeform 모드 + 전체 로그 1`] = `
+{
+  "attached": [
+    "logs.html",
+  ],
+  "body": "## md.section.env
+
+- **OS**: macOS 15.5
+- **Browser**: Chrome 138
+- **Page**: https://example.com/page
+- **DOM**: \`div.container > button\`
+- **Viewport**: 1920×1080
+- **Captured**: 2023-11-14 22:13:20 GMT+9
+- **Locale**: ko-KR
+
+## md.section.description
+
+버튼이 눌리지 않음
+
+## md.section.stepsToReproduce
+
+1. 1단계 진입
+2. 2단계 클릭
+
+## logSummary.title
+
+**logSummary.logs.lead** logSummary.logs.detail file=[logs.html](https://cdn.test/logs.html)
+
+- logSummary.network.line n=12 errors=1
+- logSummary.console.line n=8 errors=2 warns=1
+- logSummary.action.line n=5
+
+## md.section.expectedResult
+
+버튼이 눌린다
+
+## md.section.attachments
+
+[logs.html](https://cdn.test/logs.html)
+
+---
+
+_Reported via [BugShot](https://bug-shot.com)_
+",
+}
+`;
+
+exports[`본문 출력 골든 — 기본 순서 > buildMarkdownIssueBody(gitlab) > screenshot 모드 + 전체 로그 1`] = `
+{
+  "attached": [
+    "capture-0.webp",
+    "logs.html",
+  ],
+  "body": "## md.section.env
+
+- **OS**: macOS 15.5
+- **Browser**: Chrome 138
+- **Page**: https://example.com/page
+- **DOM**: \`div.container > button\`
+- **Viewport**: 1920×1080
+- **Captured**: 2023-11-14 22:13:20 GMT+9
+- **Locale**: ko-KR
+
+## md.section.description
+
+버튼이 눌리지 않음
+
+## md.section.stepsToReproduce
+
+1. 1단계 진입
+2. 2단계 클릭
+
+## md.section.media
+
+![capture-0.webp](https://cdn.test/c0.webp)
+
+## logSummary.title
+
+**logSummary.logs.lead** logSummary.logs.detail file=[logs.html](https://cdn.test/logs.html)
+
+- logSummary.network.line n=12 errors=1
+- logSummary.console.line n=8 errors=2 warns=1
+- logSummary.action.line n=5
+
+## md.section.expectedResult
+
+버튼이 눌린다
+
+## md.section.attachments
+
+[logs.html](https://cdn.test/logs.html)
+
+---
+
+_Reported via [BugShot](https://bug-shot.com)_
+",
+}
+`;
+
+exports[`본문 출력 골든 — 기본 순서 > buildMarkdownIssueBody(gitlab) > video 모드 + 전체 로그 1`] = `
+{
+  "attached": [
+    "recording.mp4",
+    "logs.html",
+  ],
+  "body": "## md.section.env
+
+- **OS**: macOS 15.5
+- **Browser**: Chrome 138
+- **Page**: https://example.com/page
+- **DOM**: \`div.container > button\`
+- **Viewport**: 1920×1080
+- **Captured**: 2023-11-14 22:13:20 GMT+9
+- **Locale**: ko-KR
+
+## md.section.description
+
+버튼이 눌리지 않음
+
+## md.section.stepsToReproduce
+
+1. 1단계 진입
+2. 2단계 클릭
+
+## md.section.media
+
+![recording.mp4](https://cdn.test/r.mp4)
+
+## logSummary.title
+
+**logSummary.logs.lead** logSummary.logs.detail file=[logs.html](https://cdn.test/logs.html)
+
+- logSummary.network.line n=12 errors=1
+- logSummary.console.line n=8 errors=2 warns=1
+- logSummary.action.line n=5
+
+## md.section.expectedResult
+
+버튼이 눌린다
+
+## md.section.attachments
+
+[logs.html](https://cdn.test/logs.html)
+
+---
+
+_Reported via [BugShot](https://bug-shot.com)_
+",
+}
+`;
+
+exports[`본문 출력 골든 — 기본 순서 > buildNotionIssueBody > element 모드 + 전체 로그 1`] = `
+{
+  "attachments": [
+    {
+      "category": "log",
+      "contentType": "text/html",
+      "dataUrl": "data:text/html;base64,CCCC",
+      "filename": "logs.html",
+      "placeholderId": "log-0",
+    },
+  ],
+  "blocks": [
+    {
+      "text": "md.section.env",
+      "type": "heading_2",
+    },
+    {
+      "text": "OS: macOS 15.5",
+      "type": "bulleted_list_item",
+    },
+    {
+      "text": "Browser: Chrome 138",
+      "type": "bulleted_list_item",
+    },
+    {
+      "text": "Page: https://example.com/page",
+      "type": "bulleted_list_item",
+    },
+    {
+      "richText": [
+        {
+          "text": {
+            "content": "DOM: ",
+          },
+          "type": "text",
+        },
+        {
+          "annotations": {
+            "code": true,
+          },
+          "text": {
+            "content": "div.container > button",
+          },
+          "type": "text",
+        },
+      ],
+      "type": "rich_bulleted_list_item",
+    },
+    {
+      "text": "Viewport: 1920×1080",
+      "type": "bulleted_list_item",
+    },
+    {
+      "text": "Captured: 2023-11-14 22:13:20 GMT+9",
+      "type": "bulleted_list_item",
+    },
+    {
+      "text": "Locale: ko-KR",
+      "type": "bulleted_list_item",
+    },
+    {
+      "text": "md.section.description",
+      "type": "heading_2",
+    },
+    {
+      "richText": [
+        {
+          "text": {
+            "content": "버튼이 눌리지 않음",
+          },
+          "type": "text",
+        },
+      ],
+      "type": "rich_paragraph",
+    },
+    {
+      "text": "md.section.stepsToReproduce",
+      "type": "heading_2",
+    },
+    {
+      "text": "1단계 진입",
+      "type": "bulleted_list_item",
+    },
+    {
+      "text": "2단계 클릭",
+      "type": "bulleted_list_item",
+    },
+    {
+      "text": "md.section.styleChanges (div.container > button)",
+      "type": "heading_2",
+    },
+    {
+      "text": "md.section.before",
+      "type": "heading_3",
+    },
+    {
+      "text": "color: #000",
+      "type": "bulleted_list_item",
+    },
+    {
+      "richText": [
+        {
+          "text": {
+            "content": "class: ",
+          },
+          "type": "text",
+        },
+        {
+          "text": {
+            "content": "btn",
+          },
+          "type": "text",
+        },
+      ],
+      "type": "rich_bulleted_list_item",
+    },
+    {
+      "text": "md.section.after",
+      "type": "heading_3",
+    },
+    {
+      "text": "color: #fff",
+      "type": "bulleted_list_item",
+    },
+    {
+      "richText": [
+        {
+          "text": {
+            "content": "class: ",
+          },
+          "type": "text",
+        },
+        {
+          "text": {
+            "content": "btn",
+          },
+          "type": "text",
+        },
+        {
+          "text": {
+            "content": " ",
+          },
+          "type": "text",
+        },
+        {
+          "annotations": {
+            "bold": true,
+          },
+          "text": {
+            "content": "btn-primary",
+          },
+          "type": "text",
+        },
+      ],
+      "type": "rich_bulleted_list_item",
+    },
+    {
+      "text": "logSummary.title",
+      "type": "heading_2",
+    },
+    {
+      "language": "plain text",
+      "text": "logSummary.network.line n=12 errors=1
+logSummary.console.line n=8 errors=2 warns=1
+logSummary.action.line n=5",
+      "type": "code",
+    },
+    {
+      "text": "md.section.expectedResult",
+      "type": "heading_2",
+    },
+    {
+      "richText": [
+        {
+          "text": {
+            "content": "버튼이 눌린다",
+          },
+          "type": "text",
+        },
+      ],
+      "type": "rich_paragraph",
+    },
+  ],
+}
+`;
+
+exports[`본문 출력 골든 — 기본 순서 > buildNotionIssueBody > freeform 모드 + 전체 로그 1`] = `
+{
+  "attachments": [
+    {
+      "category": "log",
+      "contentType": "text/html",
+      "dataUrl": "data:text/html;base64,CCCC",
+      "filename": "logs.html",
+      "placeholderId": "log-0",
+    },
+  ],
+  "blocks": [
+    {
+      "text": "md.section.env",
+      "type": "heading_2",
+    },
+    {
+      "text": "OS: macOS 15.5",
+      "type": "bulleted_list_item",
+    },
+    {
+      "text": "Browser: Chrome 138",
+      "type": "bulleted_list_item",
+    },
+    {
+      "text": "Page: https://example.com/page",
+      "type": "bulleted_list_item",
+    },
+    {
+      "richText": [
+        {
+          "text": {
+            "content": "DOM: ",
+          },
+          "type": "text",
+        },
+        {
+          "annotations": {
+            "code": true,
+          },
+          "text": {
+            "content": "div.container > button",
+          },
+          "type": "text",
+        },
+      ],
+      "type": "rich_bulleted_list_item",
+    },
+    {
+      "text": "Viewport: 1920×1080",
+      "type": "bulleted_list_item",
+    },
+    {
+      "text": "Captured: 2023-11-14 22:13:20 GMT+9",
+      "type": "bulleted_list_item",
+    },
+    {
+      "text": "Locale: ko-KR",
+      "type": "bulleted_list_item",
+    },
+    {
+      "text": "md.section.description",
+      "type": "heading_2",
+    },
+    {
+      "richText": [
+        {
+          "text": {
+            "content": "버튼이 눌리지 않음",
+          },
+          "type": "text",
+        },
+      ],
+      "type": "rich_paragraph",
+    },
+    {
+      "text": "md.section.stepsToReproduce",
+      "type": "heading_2",
+    },
+    {
+      "text": "1단계 진입",
+      "type": "bulleted_list_item",
+    },
+    {
+      "text": "2단계 클릭",
+      "type": "bulleted_list_item",
+    },
+    {
+      "text": "logSummary.title",
+      "type": "heading_2",
+    },
+    {
+      "language": "plain text",
+      "text": "logSummary.network.line n=12 errors=1
+logSummary.console.line n=8 errors=2 warns=1
+logSummary.action.line n=5",
+      "type": "code",
+    },
+    {
+      "text": "md.section.expectedResult",
+      "type": "heading_2",
+    },
+    {
+      "richText": [
+        {
+          "text": {
+            "content": "버튼이 눌린다",
+          },
+          "type": "text",
+        },
+      ],
+      "type": "rich_paragraph",
+    },
+  ],
+}
+`;
+
+exports[`본문 출력 골든 — 기본 순서 > buildNotionIssueBody > screenshot 모드 + 전체 로그 1`] = `
+{
+  "attachments": [
+    {
+      "category": "image",
+      "contentType": "image/webp",
+      "dataUrl": "data:image/webp;base64,AAAA",
+      "filename": "capture-0.webp",
+      "placeholderId": "screenshot-0",
+    },
+    {
+      "category": "log",
+      "contentType": "text/html",
+      "dataUrl": "data:text/html;base64,CCCC",
+      "filename": "logs.html",
+      "placeholderId": "log-1",
+    },
+  ],
+  "blocks": [
+    {
+      "text": "md.section.env",
+      "type": "heading_2",
+    },
+    {
+      "text": "OS: macOS 15.5",
+      "type": "bulleted_list_item",
+    },
+    {
+      "text": "Browser: Chrome 138",
+      "type": "bulleted_list_item",
+    },
+    {
+      "text": "Page: https://example.com/page",
+      "type": "bulleted_list_item",
+    },
+    {
+      "richText": [
+        {
+          "text": {
+            "content": "DOM: ",
+          },
+          "type": "text",
+        },
+        {
+          "annotations": {
+            "code": true,
+          },
+          "text": {
+            "content": "div.container > button",
+          },
+          "type": "text",
+        },
+      ],
+      "type": "rich_bulleted_list_item",
+    },
+    {
+      "text": "Viewport: 1920×1080",
+      "type": "bulleted_list_item",
+    },
+    {
+      "text": "Captured: 2023-11-14 22:13:20 GMT+9",
+      "type": "bulleted_list_item",
+    },
+    {
+      "text": "Locale: ko-KR",
+      "type": "bulleted_list_item",
+    },
+    {
+      "text": "md.section.description",
+      "type": "heading_2",
+    },
+    {
+      "richText": [
+        {
+          "text": {
+            "content": "버튼이 눌리지 않음",
+          },
+          "type": "text",
+        },
+      ],
+      "type": "rich_paragraph",
+    },
+    {
+      "text": "md.section.stepsToReproduce",
+      "type": "heading_2",
+    },
+    {
+      "text": "1단계 진입",
+      "type": "bulleted_list_item",
+    },
+    {
+      "text": "2단계 클릭",
+      "type": "bulleted_list_item",
+    },
+    {
+      "text": "md.section.media",
+      "type": "heading_2",
+    },
+    {
+      "placeholderId": "screenshot-0",
+      "type": "image",
+    },
+    {
+      "text": "logSummary.title",
+      "type": "heading_2",
+    },
+    {
+      "language": "plain text",
+      "text": "logSummary.network.line n=12 errors=1
+logSummary.console.line n=8 errors=2 warns=1
+logSummary.action.line n=5",
+      "type": "code",
+    },
+    {
+      "text": "md.section.expectedResult",
+      "type": "heading_2",
+    },
+    {
+      "richText": [
+        {
+          "text": {
+            "content": "버튼이 눌린다",
+          },
+          "type": "text",
+        },
+      ],
+      "type": "rich_paragraph",
+    },
+  ],
+}
+`;
+
+exports[`본문 출력 골든 — 기본 순서 > buildNotionIssueBody > video 모드 + 전체 로그 1`] = `
+{
+  "attachments": [
+    {
+      "category": "video",
+      "contentType": "video/mp4",
+      "dataUrl": "data:video/mp4;base64,BBBB",
+      "filename": "recording.mp4",
+      "placeholderId": "video-0",
+    },
+    {
+      "category": "log",
+      "contentType": "text/html",
+      "dataUrl": "data:text/html;base64,CCCC",
+      "filename": "logs.html",
+      "placeholderId": "log-1",
+    },
+  ],
+  "blocks": [
+    {
+      "text": "md.section.env",
+      "type": "heading_2",
+    },
+    {
+      "text": "OS: macOS 15.5",
+      "type": "bulleted_list_item",
+    },
+    {
+      "text": "Browser: Chrome 138",
+      "type": "bulleted_list_item",
+    },
+    {
+      "text": "Page: https://example.com/page",
+      "type": "bulleted_list_item",
+    },
+    {
+      "richText": [
+        {
+          "text": {
+            "content": "DOM: ",
+          },
+          "type": "text",
+        },
+        {
+          "annotations": {
+            "code": true,
+          },
+          "text": {
+            "content": "div.container > button",
+          },
+          "type": "text",
+        },
+      ],
+      "type": "rich_bulleted_list_item",
+    },
+    {
+      "text": "Viewport: 1920×1080",
+      "type": "bulleted_list_item",
+    },
+    {
+      "text": "Captured: 2023-11-14 22:13:20 GMT+9",
+      "type": "bulleted_list_item",
+    },
+    {
+      "text": "Locale: ko-KR",
+      "type": "bulleted_list_item",
+    },
+    {
+      "text": "md.section.description",
+      "type": "heading_2",
+    },
+    {
+      "richText": [
+        {
+          "text": {
+            "content": "버튼이 눌리지 않음",
+          },
+          "type": "text",
+        },
+      ],
+      "type": "rich_paragraph",
+    },
+    {
+      "text": "md.section.stepsToReproduce",
+      "type": "heading_2",
+    },
+    {
+      "text": "1단계 진입",
+      "type": "bulleted_list_item",
+    },
+    {
+      "text": "2단계 클릭",
+      "type": "bulleted_list_item",
+    },
+    {
+      "text": "md.section.media",
+      "type": "heading_2",
+    },
+    {
+      "placeholderId": "video-0",
+      "type": "video",
+    },
+    {
+      "text": "logSummary.title",
+      "type": "heading_2",
+    },
+    {
+      "language": "plain text",
+      "text": "logSummary.network.line n=12 errors=1
+logSummary.console.line n=8 errors=2 warns=1
+logSummary.action.line n=5",
+      "type": "code",
+    },
+    {
+      "text": "md.section.expectedResult",
+      "type": "heading_2",
+    },
+    {
+      "richText": [
+        {
+          "text": {
+            "content": "버튼이 눌린다",
+          },
+          "type": "text",
+        },
+      ],
+      "type": "rich_paragraph",
+    },
+  ],
+}
+`;
+
+exports[`본문 출력 골든 — 기본 순서 > buildSlackBody > element 모드 + 전체 로그 1`] = `
+{
+  "attached": [],
+  "body": "*md.section.env*
+
+• *OS*: macOS 15.5
+• *Browser*: Chrome 138
+• *Page*: https://example.com/page
+• *DOM*: \`div.container > button\`
+• *Viewport*: 1920×1080
+• *Captured*: 2023-11-14 22:13:20 GMT+9
+• *Locale*: ko-KR
+
+*md.section.description*
+
+버튼이 눌리지 않음
+
+*md.section.stepsToReproduce*
+
+1. 1단계 진입
+2. 2단계 클릭
+
+*md.section.styleChanges (div.container &gt; button)*
+
+• color: #000 → #fff
+• class: btn → btn btn-primary
+
+*logSummary.title*
+
+*logSummary.logs.lead* logSummary.logs.detail file=logs.html
+
+• logSummary.network.line n=12 errors=1
+• logSummary.console.line n=8 errors=2 warns=1
+• logSummary.action.line n=5
+
+*md.section.expectedResult*
+
+버튼이 눌린다
+
+_Reported via <https://bug-shot.com|BugShot>_
+",
+}
+`;
+
+exports[`본문 출력 골든 — 기본 순서 > buildSlackBody > freeform 모드 + 전체 로그 1`] = `
+{
+  "attached": [],
+  "body": "*md.section.env*
+
+• *OS*: macOS 15.5
+• *Browser*: Chrome 138
+• *Page*: https://example.com/page
+• *DOM*: \`div.container > button\`
+• *Viewport*: 1920×1080
+• *Captured*: 2023-11-14 22:13:20 GMT+9
+• *Locale*: ko-KR
+
+*md.section.description*
+
+버튼이 눌리지 않음
+
+*md.section.stepsToReproduce*
+
+1. 1단계 진입
+2. 2단계 클릭
+
+*logSummary.title*
+
+*logSummary.logs.lead* logSummary.logs.detail file=logs.html
+
+• logSummary.network.line n=12 errors=1
+• logSummary.console.line n=8 errors=2 warns=1
+• logSummary.action.line n=5
+
+*md.section.expectedResult*
+
+버튼이 눌린다
+
+_Reported via <https://bug-shot.com|BugShot>_
+",
+}
+`;
+
+exports[`본문 출력 골든 — 기본 순서 > buildSlackBody > screenshot 모드 + 전체 로그 1`] = `
+{
+  "attached": [],
+  "body": "*md.section.env*
+
+• *OS*: macOS 15.5
+• *Browser*: Chrome 138
+• *Page*: https://example.com/page
+• *DOM*: \`div.container > button\`
+• *Viewport*: 1920×1080
+• *Captured*: 2023-11-14 22:13:20 GMT+9
+• *Locale*: ko-KR
+
+*md.section.description*
+
+버튼이 눌리지 않음
+
+*md.section.stepsToReproduce*
+
+1. 1단계 진입
+2. 2단계 클릭
+
+*logSummary.title*
+
+*logSummary.logs.lead* logSummary.logs.detail file=logs.html
+
+• logSummary.network.line n=12 errors=1
+• logSummary.console.line n=8 errors=2 warns=1
+• logSummary.action.line n=5
+
+*md.section.expectedResult*
+
+버튼이 눌린다
+
+_Reported via <https://bug-shot.com|BugShot>_
+",
+}
+`;
+
+exports[`본문 출력 골든 — 기본 순서 > buildSlackBody > video 모드 + 전체 로그 1`] = `
+{
+  "attached": [],
+  "body": "*md.section.env*
+
+• *OS*: macOS 15.5
+• *Browser*: Chrome 138
+• *Page*: https://example.com/page
+• *DOM*: \`div.container > button\`
+• *Viewport*: 1920×1080
+• *Captured*: 2023-11-14 22:13:20 GMT+9
+• *Locale*: ko-KR
+
+*md.section.description*
+
+버튼이 눌리지 않음
+
+*md.section.stepsToReproduce*
+
+1. 1단계 진입
+2. 2단계 클릭
+
+*logSummary.title*
+
+*logSummary.logs.lead* logSummary.logs.detail file=logs.html
+
+• logSummary.network.line n=12 errors=1
+• logSummary.console.line n=8 errors=2 warns=1
+• logSummary.action.line n=5
+
+*md.section.expectedResult*
+
+버튼이 눌린다
+
+_Reported via <https://bug-shot.com|BugShot>_
+",
+}
+`;
+
+exports[`본문 출력 골든 — 섹션 enabled 변주 > buildIssueAdf — expectedResult 비활성 + notes 활성 1`] = `
+{
+  "content": [
+    {
+      "attrs": {
+        "level": 2,
+      },
+      "content": [
+        {
+          "text": "md.section.env",
+          "type": "text",
+        },
+      ],
+      "type": "heading",
+    },
+    {
+      "content": [
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "OS: ",
+                  "type": "text",
+                },
+                {
+                  "text": "macOS 15.5",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "Browser: ",
+                  "type": "text",
+                },
+                {
+                  "text": "Chrome 138",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "Page: ",
+                  "type": "text",
+                },
+                {
+                  "text": "https://example.com/page",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "DOM: ",
+                  "type": "text",
+                },
+                {
+                  "marks": [
+                    {
+                      "type": "code",
+                    },
+                  ],
+                  "text": "div.container > button",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "Viewport: ",
+                  "type": "text",
+                },
+                {
+                  "text": "1920×1080",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "Captured: ",
+                  "type": "text",
+                },
+                {
+                  "text": "2023-11-14 22:13:20 GMT+9",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "Locale: ",
+                  "type": "text",
+                },
+                {
+                  "text": "ko-KR",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+      ],
+      "type": "bulletList",
+    },
+    {
+      "attrs": {
+        "level": 2,
+      },
+      "content": [
+        {
+          "text": "md.section.description",
+          "type": "text",
+        },
+      ],
+      "type": "heading",
+    },
+    {
+      "content": [
+        {
+          "text": "버튼이 눌리지 않음",
+          "type": "text",
+        },
+      ],
+      "type": "paragraph",
+    },
+    {
+      "attrs": {
+        "level": 2,
+      },
+      "content": [
+        {
+          "text": "md.section.stepsToReproduce",
+          "type": "text",
+        },
+      ],
+      "type": "heading",
+    },
+    {
+      "content": [
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "1단계 진입",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "2단계 클릭",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+      ],
+      "type": "orderedList",
+    },
+    {
+      "attrs": {
+        "level": 2,
+      },
+      "content": [
+        {
+          "text": "md.section.styleChanges (div.container > button)",
+          "type": "text",
+        },
+      ],
+      "type": "heading",
+    },
+    {
+      "attrs": {
+        "isNumberColumnEnabled": false,
+        "layout": "default",
+      },
+      "content": [
+        {
+          "content": [
+            {
+              "attrs": {},
+              "content": [
+                {
+                  "content": [
+                    {
+                      "marks": [
+                        {
+                          "type": "strong",
+                        },
+                      ],
+                      "text": "md.column.property",
+                      "type": "text",
+                    },
+                  ],
+                  "type": "paragraph",
+                },
+              ],
+              "type": "tableHeader",
+            },
+            {
+              "attrs": {},
+              "content": [
+                {
+                  "content": [
+                    {
+                      "marks": [
+                        {
+                          "type": "strong",
+                        },
+                      ],
+                      "text": "As is",
+                      "type": "text",
+                    },
+                  ],
+                  "type": "paragraph",
+                },
+              ],
+              "type": "tableHeader",
+            },
+            {
+              "attrs": {},
+              "content": [
+                {
+                  "content": [
+                    {
+                      "marks": [
+                        {
+                          "type": "strong",
+                        },
+                      ],
+                      "text": "To be",
+                      "type": "text",
+                    },
+                  ],
+                  "type": "paragraph",
+                },
+              ],
+              "type": "tableHeader",
+            },
+          ],
+          "type": "tableRow",
+        },
+        {
+          "content": [
+            {
+              "attrs": {},
+              "content": [
+                {
+                  "content": [
+                    {
+                      "text": "color",
+                      "type": "text",
+                    },
+                  ],
+                  "type": "paragraph",
+                },
+              ],
+              "type": "tableCell",
+            },
+            {
+              "attrs": {},
+              "content": [
+                {
+                  "content": [
+                    {
+                      "text": "#000",
+                      "type": "text",
+                    },
+                  ],
+                  "type": "paragraph",
+                },
+              ],
+              "type": "tableCell",
+            },
+            {
+              "attrs": {},
+              "content": [
+                {
+                  "content": [
+                    {
+                      "text": "#fff",
+                      "type": "text",
+                    },
+                  ],
+                  "type": "paragraph",
+                },
+              ],
+              "type": "tableCell",
+            },
+          ],
+          "type": "tableRow",
+        },
+        {
+          "content": [
+            {
+              "attrs": {},
+              "content": [
+                {
+                  "content": [
+                    {
+                      "text": "class",
+                      "type": "text",
+                    },
+                  ],
+                  "type": "paragraph",
+                },
+              ],
+              "type": "tableCell",
+            },
+            {
+              "attrs": {},
+              "content": [
+                {
+                  "content": [
+                    {
+                      "text": "btn",
+                      "type": "text",
+                    },
+                  ],
+                  "type": "paragraph",
+                },
+              ],
+              "type": "tableCell",
+            },
+            {
+              "attrs": {},
+              "content": [
+                {
+                  "content": [
+                    {
+                      "text": "btn",
+                      "type": "text",
+                    },
+                    {
+                      "text": " ",
+                      "type": "text",
+                    },
+                    {
+                      "marks": [
+                        {
+                          "type": "strong",
+                        },
+                      ],
+                      "text": "btn-primary",
+                      "type": "text",
+                    },
+                  ],
+                  "type": "paragraph",
+                },
+              ],
+              "type": "tableCell",
+            },
+          ],
+          "type": "tableRow",
+        },
+      ],
+      "type": "table",
+    },
+    {
+      "attrs": {
+        "level": 2,
+      },
+      "content": [
+        {
+          "text": "logSummary.title",
+          "type": "text",
+        },
+      ],
+      "type": "heading",
+    },
+    {
+      "content": [
+        {
+          "marks": [
+            {
+              "type": "strong",
+            },
+          ],
+          "text": "logSummary.logs.lead",
+          "type": "text",
+        },
+        {
+          "text": " ",
+          "type": "text",
+        },
+        {
+          "text": "logSummary.logs.detail",
+          "type": "text",
+        },
+      ],
+      "type": "paragraph",
+    },
+    {
+      "content": [
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "logSummary.network.line n=12 errors=1",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "logSummary.console.line n=8 errors=2 warns=1",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "logSummary.action.line n=5",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+      ],
+      "type": "bulletList",
+    },
+    {
+      "attrs": {
+        "level": 2,
+      },
+      "content": [
+        {
+          "text": "md.section.notes",
+          "type": "text",
+        },
+      ],
+      "type": "heading",
+    },
+    {
+      "content": [
+        {
+          "text": "비고 내용",
+          "type": "text",
+        },
+      ],
+      "type": "paragraph",
+    },
+    {
+      "type": "rule",
+    },
+    {
+      "content": [
+        {
+          "marks": [
+            {
+              "type": "em",
+            },
+          ],
+          "text": "Reported via ",
+          "type": "text",
+        },
+        {
+          "marks": [
+            {
+              "type": "em",
+            },
+            {
+              "attrs": {
+                "href": "https://bug-shot.com",
+              },
+              "type": "link",
+            },
+          ],
+          "text": "BugShot",
+          "type": "text",
+        },
+      ],
+      "type": "paragraph",
+    },
+  ],
+  "type": "doc",
+  "version": 1,
+}
+`;
+
+exports[`본문 출력 골든 — 섹션 enabled 변주 > buildIssueAdf — notes까지 enabled 1`] = `
+{
+  "content": [
+    {
+      "attrs": {
+        "level": 2,
+      },
+      "content": [
+        {
+          "text": "md.section.env",
+          "type": "text",
+        },
+      ],
+      "type": "heading",
+    },
+    {
+      "content": [
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "OS: ",
+                  "type": "text",
+                },
+                {
+                  "text": "macOS 15.5",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "Browser: ",
+                  "type": "text",
+                },
+                {
+                  "text": "Chrome 138",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "Page: ",
+                  "type": "text",
+                },
+                {
+                  "text": "https://example.com/page",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "DOM: ",
+                  "type": "text",
+                },
+                {
+                  "marks": [
+                    {
+                      "type": "code",
+                    },
+                  ],
+                  "text": "div.container > button",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "Viewport: ",
+                  "type": "text",
+                },
+                {
+                  "text": "1920×1080",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "Captured: ",
+                  "type": "text",
+                },
+                {
+                  "text": "2023-11-14 22:13:20 GMT+9",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "Locale: ",
+                  "type": "text",
+                },
+                {
+                  "text": "ko-KR",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+      ],
+      "type": "bulletList",
+    },
+    {
+      "attrs": {
+        "level": 2,
+      },
+      "content": [
+        {
+          "text": "md.section.description",
+          "type": "text",
+        },
+      ],
+      "type": "heading",
+    },
+    {
+      "content": [
+        {
+          "text": "버튼이 눌리지 않음",
+          "type": "text",
+        },
+      ],
+      "type": "paragraph",
+    },
+    {
+      "attrs": {
+        "level": 2,
+      },
+      "content": [
+        {
+          "text": "md.section.stepsToReproduce",
+          "type": "text",
+        },
+      ],
+      "type": "heading",
+    },
+    {
+      "content": [
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "1단계 진입",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "2단계 클릭",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+      ],
+      "type": "orderedList",
+    },
+    {
+      "attrs": {
+        "level": 2,
+      },
+      "content": [
+        {
+          "text": "md.section.styleChanges (div.container > button)",
+          "type": "text",
+        },
+      ],
+      "type": "heading",
+    },
+    {
+      "attrs": {
+        "isNumberColumnEnabled": false,
+        "layout": "default",
+      },
+      "content": [
+        {
+          "content": [
+            {
+              "attrs": {},
+              "content": [
+                {
+                  "content": [
+                    {
+                      "marks": [
+                        {
+                          "type": "strong",
+                        },
+                      ],
+                      "text": "md.column.property",
+                      "type": "text",
+                    },
+                  ],
+                  "type": "paragraph",
+                },
+              ],
+              "type": "tableHeader",
+            },
+            {
+              "attrs": {},
+              "content": [
+                {
+                  "content": [
+                    {
+                      "marks": [
+                        {
+                          "type": "strong",
+                        },
+                      ],
+                      "text": "As is",
+                      "type": "text",
+                    },
+                  ],
+                  "type": "paragraph",
+                },
+              ],
+              "type": "tableHeader",
+            },
+            {
+              "attrs": {},
+              "content": [
+                {
+                  "content": [
+                    {
+                      "marks": [
+                        {
+                          "type": "strong",
+                        },
+                      ],
+                      "text": "To be",
+                      "type": "text",
+                    },
+                  ],
+                  "type": "paragraph",
+                },
+              ],
+              "type": "tableHeader",
+            },
+          ],
+          "type": "tableRow",
+        },
+        {
+          "content": [
+            {
+              "attrs": {},
+              "content": [
+                {
+                  "content": [
+                    {
+                      "text": "color",
+                      "type": "text",
+                    },
+                  ],
+                  "type": "paragraph",
+                },
+              ],
+              "type": "tableCell",
+            },
+            {
+              "attrs": {},
+              "content": [
+                {
+                  "content": [
+                    {
+                      "text": "#000",
+                      "type": "text",
+                    },
+                  ],
+                  "type": "paragraph",
+                },
+              ],
+              "type": "tableCell",
+            },
+            {
+              "attrs": {},
+              "content": [
+                {
+                  "content": [
+                    {
+                      "text": "#fff",
+                      "type": "text",
+                    },
+                  ],
+                  "type": "paragraph",
+                },
+              ],
+              "type": "tableCell",
+            },
+          ],
+          "type": "tableRow",
+        },
+        {
+          "content": [
+            {
+              "attrs": {},
+              "content": [
+                {
+                  "content": [
+                    {
+                      "text": "class",
+                      "type": "text",
+                    },
+                  ],
+                  "type": "paragraph",
+                },
+              ],
+              "type": "tableCell",
+            },
+            {
+              "attrs": {},
+              "content": [
+                {
+                  "content": [
+                    {
+                      "text": "btn",
+                      "type": "text",
+                    },
+                  ],
+                  "type": "paragraph",
+                },
+              ],
+              "type": "tableCell",
+            },
+            {
+              "attrs": {},
+              "content": [
+                {
+                  "content": [
+                    {
+                      "text": "btn",
+                      "type": "text",
+                    },
+                    {
+                      "text": " ",
+                      "type": "text",
+                    },
+                    {
+                      "marks": [
+                        {
+                          "type": "strong",
+                        },
+                      ],
+                      "text": "btn-primary",
+                      "type": "text",
+                    },
+                  ],
+                  "type": "paragraph",
+                },
+              ],
+              "type": "tableCell",
+            },
+          ],
+          "type": "tableRow",
+        },
+      ],
+      "type": "table",
+    },
+    {
+      "attrs": {
+        "level": 2,
+      },
+      "content": [
+        {
+          "text": "logSummary.title",
+          "type": "text",
+        },
+      ],
+      "type": "heading",
+    },
+    {
+      "content": [
+        {
+          "marks": [
+            {
+              "type": "strong",
+            },
+          ],
+          "text": "logSummary.logs.lead",
+          "type": "text",
+        },
+        {
+          "text": " ",
+          "type": "text",
+        },
+        {
+          "text": "logSummary.logs.detail",
+          "type": "text",
+        },
+      ],
+      "type": "paragraph",
+    },
+    {
+      "content": [
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "logSummary.network.line n=12 errors=1",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "logSummary.console.line n=8 errors=2 warns=1",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "logSummary.action.line n=5",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+      ],
+      "type": "bulletList",
+    },
+    {
+      "attrs": {
+        "level": 2,
+      },
+      "content": [
+        {
+          "text": "md.section.expectedResult",
+          "type": "text",
+        },
+      ],
+      "type": "heading",
+    },
+    {
+      "content": [
+        {
+          "text": "버튼이 눌린다",
+          "type": "text",
+        },
+      ],
+      "type": "paragraph",
+    },
+    {
+      "attrs": {
+        "level": 2,
+      },
+      "content": [
+        {
+          "text": "md.section.notes",
+          "type": "text",
+        },
+      ],
+      "type": "heading",
+    },
+    {
+      "content": [
+        {
+          "text": "비고 내용",
+          "type": "text",
+        },
+      ],
+      "type": "paragraph",
+    },
+    {
+      "type": "rule",
+    },
+    {
+      "content": [
+        {
+          "marks": [
+            {
+              "type": "em",
+            },
+          ],
+          "text": "Reported via ",
+          "type": "text",
+        },
+        {
+          "marks": [
+            {
+              "type": "em",
+            },
+            {
+              "attrs": {
+                "href": "https://bug-shot.com",
+              },
+              "type": "link",
+            },
+          ],
+          "text": "BugShot",
+          "type": "text",
+        },
+      ],
+      "type": "paragraph",
+    },
+  ],
+  "type": "doc",
+  "version": 1,
+}
+`;
+
+exports[`본문 출력 골든 — 섹션 enabled 변주 > buildIssueAdf — video + 액션 로그만 1`] = `
+{
+  "content": [
+    {
+      "attrs": {
+        "level": 2,
+      },
+      "content": [
+        {
+          "text": "md.section.env",
+          "type": "text",
+        },
+      ],
+      "type": "heading",
+    },
+    {
+      "content": [
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "OS: ",
+                  "type": "text",
+                },
+                {
+                  "text": "macOS 15.5",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "Browser: ",
+                  "type": "text",
+                },
+                {
+                  "text": "Chrome 138",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "Page: ",
+                  "type": "text",
+                },
+                {
+                  "text": "https://example.com/page",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "DOM: ",
+                  "type": "text",
+                },
+                {
+                  "marks": [
+                    {
+                      "type": "code",
+                    },
+                  ],
+                  "text": "div.container > button",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "Viewport: ",
+                  "type": "text",
+                },
+                {
+                  "text": "1920×1080",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "Captured: ",
+                  "type": "text",
+                },
+                {
+                  "text": "2023-11-14 22:13:20 GMT+9",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "Locale: ",
+                  "type": "text",
+                },
+                {
+                  "text": "ko-KR",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+      ],
+      "type": "bulletList",
+    },
+    {
+      "attrs": {
+        "level": 2,
+      },
+      "content": [
+        {
+          "text": "md.section.description",
+          "type": "text",
+        },
+      ],
+      "type": "heading",
+    },
+    {
+      "content": [
+        {
+          "text": "버튼이 눌리지 않음",
+          "type": "text",
+        },
+      ],
+      "type": "paragraph",
+    },
+    {
+      "attrs": {
+        "level": 2,
+      },
+      "content": [
+        {
+          "text": "md.section.stepsToReproduce",
+          "type": "text",
+        },
+      ],
+      "type": "heading",
+    },
+    {
+      "content": [
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "1단계 진입",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "2단계 클릭",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+      ],
+      "type": "orderedList",
+    },
+    {
+      "attrs": {
+        "level": 2,
+      },
+      "content": [
+        {
+          "text": "md.section.media",
+          "type": "text",
+        },
+      ],
+      "type": "heading",
+    },
+    {
+      "content": [
+        {
+          "text": "__BUGSHOT_VIDEO__",
+          "type": "text",
+        },
+      ],
+      "type": "paragraph",
+    },
+    {
+      "attrs": {
+        "level": 2,
+      },
+      "content": [
+        {
+          "text": "logSummary.title",
+          "type": "text",
+        },
+      ],
+      "type": "heading",
+    },
+    {
+      "content": [
+        {
+          "marks": [
+            {
+              "type": "strong",
+            },
+          ],
+          "text": "logSummary.logs.lead",
+          "type": "text",
+        },
+        {
+          "text": " ",
+          "type": "text",
+        },
+        {
+          "text": "logSummary.logs.detail",
+          "type": "text",
+        },
+      ],
+      "type": "paragraph",
+    },
+    {
+      "content": [
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "logSummary.action.line n=7",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+      ],
+      "type": "bulletList",
+    },
+    {
+      "attrs": {
+        "level": 2,
+      },
+      "content": [
+        {
+          "text": "md.section.expectedResult",
+          "type": "text",
+        },
+      ],
+      "type": "heading",
+    },
+    {
+      "content": [
+        {
+          "text": "버튼이 눌린다",
+          "type": "text",
+        },
+      ],
+      "type": "paragraph",
+    },
+    {
+      "type": "rule",
+    },
+    {
+      "content": [
+        {
+          "marks": [
+            {
+              "type": "em",
+            },
+          ],
+          "text": "Reported via ",
+          "type": "text",
+        },
+        {
+          "marks": [
+            {
+              "type": "em",
+            },
+            {
+              "attrs": {
+                "href": "https://bug-shot.com",
+              },
+              "type": "link",
+            },
+          ],
+          "text": "BugShot",
+          "type": "text",
+        },
+      ],
+      "type": "paragraph",
+    },
+  ],
+  "type": "doc",
+  "version": 1,
+}
+`;
+
+exports[`본문 출력 골든 — 섹션 enabled 변주 > buildIssueAdf — 로그 없음(net/con/act 전부 부재) 1`] = `
+{
+  "content": [
+    {
+      "attrs": {
+        "level": 2,
+      },
+      "content": [
+        {
+          "text": "md.section.env",
+          "type": "text",
+        },
+      ],
+      "type": "heading",
+    },
+    {
+      "content": [
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "OS: ",
+                  "type": "text",
+                },
+                {
+                  "text": "macOS 15.5",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "Browser: ",
+                  "type": "text",
+                },
+                {
+                  "text": "Chrome 138",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "Page: ",
+                  "type": "text",
+                },
+                {
+                  "text": "https://example.com/page",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "DOM: ",
+                  "type": "text",
+                },
+                {
+                  "marks": [
+                    {
+                      "type": "code",
+                    },
+                  ],
+                  "text": "div.container > button",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "Viewport: ",
+                  "type": "text",
+                },
+                {
+                  "text": "1920×1080",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "Captured: ",
+                  "type": "text",
+                },
+                {
+                  "text": "2023-11-14 22:13:20 GMT+9",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "Locale: ",
+                  "type": "text",
+                },
+                {
+                  "text": "ko-KR",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+      ],
+      "type": "bulletList",
+    },
+    {
+      "attrs": {
+        "level": 2,
+      },
+      "content": [
+        {
+          "text": "md.section.description",
+          "type": "text",
+        },
+      ],
+      "type": "heading",
+    },
+    {
+      "content": [
+        {
+          "text": "버튼이 눌리지 않음",
+          "type": "text",
+        },
+      ],
+      "type": "paragraph",
+    },
+    {
+      "attrs": {
+        "level": 2,
+      },
+      "content": [
+        {
+          "text": "md.section.stepsToReproduce",
+          "type": "text",
+        },
+      ],
+      "type": "heading",
+    },
+    {
+      "content": [
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "1단계 진입",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "2단계 클릭",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+      ],
+      "type": "orderedList",
+    },
+    {
+      "attrs": {
+        "level": 2,
+      },
+      "content": [
+        {
+          "text": "md.section.styleChanges (div.container > button)",
+          "type": "text",
+        },
+      ],
+      "type": "heading",
+    },
+    {
+      "attrs": {
+        "isNumberColumnEnabled": false,
+        "layout": "default",
+      },
+      "content": [
+        {
+          "content": [
+            {
+              "attrs": {},
+              "content": [
+                {
+                  "content": [
+                    {
+                      "marks": [
+                        {
+                          "type": "strong",
+                        },
+                      ],
+                      "text": "md.column.property",
+                      "type": "text",
+                    },
+                  ],
+                  "type": "paragraph",
+                },
+              ],
+              "type": "tableHeader",
+            },
+            {
+              "attrs": {},
+              "content": [
+                {
+                  "content": [
+                    {
+                      "marks": [
+                        {
+                          "type": "strong",
+                        },
+                      ],
+                      "text": "As is",
+                      "type": "text",
+                    },
+                  ],
+                  "type": "paragraph",
+                },
+              ],
+              "type": "tableHeader",
+            },
+            {
+              "attrs": {},
+              "content": [
+                {
+                  "content": [
+                    {
+                      "marks": [
+                        {
+                          "type": "strong",
+                        },
+                      ],
+                      "text": "To be",
+                      "type": "text",
+                    },
+                  ],
+                  "type": "paragraph",
+                },
+              ],
+              "type": "tableHeader",
+            },
+          ],
+          "type": "tableRow",
+        },
+        {
+          "content": [
+            {
+              "attrs": {},
+              "content": [
+                {
+                  "content": [
+                    {
+                      "text": "color",
+                      "type": "text",
+                    },
+                  ],
+                  "type": "paragraph",
+                },
+              ],
+              "type": "tableCell",
+            },
+            {
+              "attrs": {},
+              "content": [
+                {
+                  "content": [
+                    {
+                      "text": "#000",
+                      "type": "text",
+                    },
+                  ],
+                  "type": "paragraph",
+                },
+              ],
+              "type": "tableCell",
+            },
+            {
+              "attrs": {},
+              "content": [
+                {
+                  "content": [
+                    {
+                      "text": "#fff",
+                      "type": "text",
+                    },
+                  ],
+                  "type": "paragraph",
+                },
+              ],
+              "type": "tableCell",
+            },
+          ],
+          "type": "tableRow",
+        },
+        {
+          "content": [
+            {
+              "attrs": {},
+              "content": [
+                {
+                  "content": [
+                    {
+                      "text": "class",
+                      "type": "text",
+                    },
+                  ],
+                  "type": "paragraph",
+                },
+              ],
+              "type": "tableCell",
+            },
+            {
+              "attrs": {},
+              "content": [
+                {
+                  "content": [
+                    {
+                      "text": "btn",
+                      "type": "text",
+                    },
+                  ],
+                  "type": "paragraph",
+                },
+              ],
+              "type": "tableCell",
+            },
+            {
+              "attrs": {},
+              "content": [
+                {
+                  "content": [
+                    {
+                      "text": "btn",
+                      "type": "text",
+                    },
+                    {
+                      "text": " ",
+                      "type": "text",
+                    },
+                    {
+                      "marks": [
+                        {
+                          "type": "strong",
+                        },
+                      ],
+                      "text": "btn-primary",
+                      "type": "text",
+                    },
+                  ],
+                  "type": "paragraph",
+                },
+              ],
+              "type": "tableCell",
+            },
+          ],
+          "type": "tableRow",
+        },
+      ],
+      "type": "table",
+    },
+    {
+      "attrs": {
+        "level": 2,
+      },
+      "content": [
+        {
+          "text": "md.section.expectedResult",
+          "type": "text",
+        },
+      ],
+      "type": "heading",
+    },
+    {
+      "content": [
+        {
+          "text": "버튼이 눌린다",
+          "type": "text",
+        },
+      ],
+      "type": "paragraph",
+    },
+    {
+      "type": "rule",
+    },
+    {
+      "content": [
+        {
+          "marks": [
+            {
+              "type": "em",
+            },
+          ],
+          "text": "Reported via ",
+          "type": "text",
+        },
+        {
+          "marks": [
+            {
+              "type": "em",
+            },
+            {
+              "attrs": {
+                "href": "https://bug-shot.com",
+              },
+              "type": "link",
+            },
+          ],
+          "text": "BugShot",
+          "type": "text",
+        },
+      ],
+      "type": "paragraph",
+    },
+  ],
+  "type": "doc",
+  "version": 1,
+}
+`;
+
+exports[`본문 출력 골든 — 섹션 enabled 변주 > buildIssueAdf — 미디어 뒤 섹션 전무(미디어가 말미) 1`] = `
+{
+  "content": [
+    {
+      "attrs": {
+        "level": 2,
+      },
+      "content": [
+        {
+          "text": "md.section.env",
+          "type": "text",
+        },
+      ],
+      "type": "heading",
+    },
+    {
+      "content": [
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "OS: ",
+                  "type": "text",
+                },
+                {
+                  "text": "macOS 15.5",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "Browser: ",
+                  "type": "text",
+                },
+                {
+                  "text": "Chrome 138",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "Page: ",
+                  "type": "text",
+                },
+                {
+                  "text": "https://example.com/page",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "DOM: ",
+                  "type": "text",
+                },
+                {
+                  "marks": [
+                    {
+                      "type": "code",
+                    },
+                  ],
+                  "text": "div.container > button",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "Viewport: ",
+                  "type": "text",
+                },
+                {
+                  "text": "1920×1080",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "Captured: ",
+                  "type": "text",
+                },
+                {
+                  "text": "2023-11-14 22:13:20 GMT+9",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "Locale: ",
+                  "type": "text",
+                },
+                {
+                  "text": "ko-KR",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+      ],
+      "type": "bulletList",
+    },
+    {
+      "attrs": {
+        "level": 2,
+      },
+      "content": [
+        {
+          "text": "md.section.description",
+          "type": "text",
+        },
+      ],
+      "type": "heading",
+    },
+    {
+      "content": [
+        {
+          "text": "버튼이 눌리지 않음",
+          "type": "text",
+        },
+      ],
+      "type": "paragraph",
+    },
+    {
+      "attrs": {
+        "level": 2,
+      },
+      "content": [
+        {
+          "text": "md.section.stepsToReproduce",
+          "type": "text",
+        },
+      ],
+      "type": "heading",
+    },
+    {
+      "content": [
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "1단계 진입",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "2단계 클릭",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+      ],
+      "type": "orderedList",
+    },
+    {
+      "attrs": {
+        "level": 2,
+      },
+      "content": [
+        {
+          "text": "md.section.styleChanges (div.container > button)",
+          "type": "text",
+        },
+      ],
+      "type": "heading",
+    },
+    {
+      "attrs": {
+        "isNumberColumnEnabled": false,
+        "layout": "default",
+      },
+      "content": [
+        {
+          "content": [
+            {
+              "attrs": {},
+              "content": [
+                {
+                  "content": [
+                    {
+                      "marks": [
+                        {
+                          "type": "strong",
+                        },
+                      ],
+                      "text": "md.column.property",
+                      "type": "text",
+                    },
+                  ],
+                  "type": "paragraph",
+                },
+              ],
+              "type": "tableHeader",
+            },
+            {
+              "attrs": {},
+              "content": [
+                {
+                  "content": [
+                    {
+                      "marks": [
+                        {
+                          "type": "strong",
+                        },
+                      ],
+                      "text": "As is",
+                      "type": "text",
+                    },
+                  ],
+                  "type": "paragraph",
+                },
+              ],
+              "type": "tableHeader",
+            },
+            {
+              "attrs": {},
+              "content": [
+                {
+                  "content": [
+                    {
+                      "marks": [
+                        {
+                          "type": "strong",
+                        },
+                      ],
+                      "text": "To be",
+                      "type": "text",
+                    },
+                  ],
+                  "type": "paragraph",
+                },
+              ],
+              "type": "tableHeader",
+            },
+          ],
+          "type": "tableRow",
+        },
+        {
+          "content": [
+            {
+              "attrs": {},
+              "content": [
+                {
+                  "content": [
+                    {
+                      "text": "color",
+                      "type": "text",
+                    },
+                  ],
+                  "type": "paragraph",
+                },
+              ],
+              "type": "tableCell",
+            },
+            {
+              "attrs": {},
+              "content": [
+                {
+                  "content": [
+                    {
+                      "text": "#000",
+                      "type": "text",
+                    },
+                  ],
+                  "type": "paragraph",
+                },
+              ],
+              "type": "tableCell",
+            },
+            {
+              "attrs": {},
+              "content": [
+                {
+                  "content": [
+                    {
+                      "text": "#fff",
+                      "type": "text",
+                    },
+                  ],
+                  "type": "paragraph",
+                },
+              ],
+              "type": "tableCell",
+            },
+          ],
+          "type": "tableRow",
+        },
+        {
+          "content": [
+            {
+              "attrs": {},
+              "content": [
+                {
+                  "content": [
+                    {
+                      "text": "class",
+                      "type": "text",
+                    },
+                  ],
+                  "type": "paragraph",
+                },
+              ],
+              "type": "tableCell",
+            },
+            {
+              "attrs": {},
+              "content": [
+                {
+                  "content": [
+                    {
+                      "text": "btn",
+                      "type": "text",
+                    },
+                  ],
+                  "type": "paragraph",
+                },
+              ],
+              "type": "tableCell",
+            },
+            {
+              "attrs": {},
+              "content": [
+                {
+                  "content": [
+                    {
+                      "text": "btn",
+                      "type": "text",
+                    },
+                    {
+                      "text": " ",
+                      "type": "text",
+                    },
+                    {
+                      "marks": [
+                        {
+                          "type": "strong",
+                        },
+                      ],
+                      "text": "btn-primary",
+                      "type": "text",
+                    },
+                  ],
+                  "type": "paragraph",
+                },
+              ],
+              "type": "tableCell",
+            },
+          ],
+          "type": "tableRow",
+        },
+      ],
+      "type": "table",
+    },
+    {
+      "attrs": {
+        "level": 2,
+      },
+      "content": [
+        {
+          "text": "logSummary.title",
+          "type": "text",
+        },
+      ],
+      "type": "heading",
+    },
+    {
+      "content": [
+        {
+          "marks": [
+            {
+              "type": "strong",
+            },
+          ],
+          "text": "logSummary.logs.lead",
+          "type": "text",
+        },
+        {
+          "text": " ",
+          "type": "text",
+        },
+        {
+          "text": "logSummary.logs.detail",
+          "type": "text",
+        },
+      ],
+      "type": "paragraph",
+    },
+    {
+      "content": [
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "logSummary.network.line n=12 errors=1",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "logSummary.console.line n=8 errors=2 warns=1",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "logSummary.action.line n=5",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+      ],
+      "type": "bulletList",
+    },
+    {
+      "type": "rule",
+    },
+    {
+      "content": [
+        {
+          "marks": [
+            {
+              "type": "em",
+            },
+          ],
+          "text": "Reported via ",
+          "type": "text",
+        },
+        {
+          "marks": [
+            {
+              "type": "em",
+            },
+            {
+              "attrs": {
+                "href": "https://bug-shot.com",
+              },
+              "type": "link",
+            },
+          ],
+          "text": "BugShot",
+          "type": "text",
+        },
+      ],
+      "type": "paragraph",
+    },
+  ],
+  "type": "doc",
+  "version": 1,
+}
+`;
+
+exports[`본문 출력 골든 — 섹션 enabled 변주 > buildIssueAdf — 재현과정 비활성 1`] = `
+{
+  "content": [
+    {
+      "attrs": {
+        "level": 2,
+      },
+      "content": [
+        {
+          "text": "md.section.env",
+          "type": "text",
+        },
+      ],
+      "type": "heading",
+    },
+    {
+      "content": [
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "OS: ",
+                  "type": "text",
+                },
+                {
+                  "text": "macOS 15.5",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "Browser: ",
+                  "type": "text",
+                },
+                {
+                  "text": "Chrome 138",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "Page: ",
+                  "type": "text",
+                },
+                {
+                  "text": "https://example.com/page",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "DOM: ",
+                  "type": "text",
+                },
+                {
+                  "marks": [
+                    {
+                      "type": "code",
+                    },
+                  ],
+                  "text": "div.container > button",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "Viewport: ",
+                  "type": "text",
+                },
+                {
+                  "text": "1920×1080",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "Captured: ",
+                  "type": "text",
+                },
+                {
+                  "text": "2023-11-14 22:13:20 GMT+9",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "marks": [
+                    {
+                      "type": "strong",
+                    },
+                  ],
+                  "text": "Locale: ",
+                  "type": "text",
+                },
+                {
+                  "text": "ko-KR",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+      ],
+      "type": "bulletList",
+    },
+    {
+      "attrs": {
+        "level": 2,
+      },
+      "content": [
+        {
+          "text": "md.section.description",
+          "type": "text",
+        },
+      ],
+      "type": "heading",
+    },
+    {
+      "content": [
+        {
+          "text": "버튼이 눌리지 않음",
+          "type": "text",
+        },
+      ],
+      "type": "paragraph",
+    },
+    {
+      "attrs": {
+        "level": 2,
+      },
+      "content": [
+        {
+          "text": "md.section.styleChanges (div.container > button)",
+          "type": "text",
+        },
+      ],
+      "type": "heading",
+    },
+    {
+      "attrs": {
+        "isNumberColumnEnabled": false,
+        "layout": "default",
+      },
+      "content": [
+        {
+          "content": [
+            {
+              "attrs": {},
+              "content": [
+                {
+                  "content": [
+                    {
+                      "marks": [
+                        {
+                          "type": "strong",
+                        },
+                      ],
+                      "text": "md.column.property",
+                      "type": "text",
+                    },
+                  ],
+                  "type": "paragraph",
+                },
+              ],
+              "type": "tableHeader",
+            },
+            {
+              "attrs": {},
+              "content": [
+                {
+                  "content": [
+                    {
+                      "marks": [
+                        {
+                          "type": "strong",
+                        },
+                      ],
+                      "text": "As is",
+                      "type": "text",
+                    },
+                  ],
+                  "type": "paragraph",
+                },
+              ],
+              "type": "tableHeader",
+            },
+            {
+              "attrs": {},
+              "content": [
+                {
+                  "content": [
+                    {
+                      "marks": [
+                        {
+                          "type": "strong",
+                        },
+                      ],
+                      "text": "To be",
+                      "type": "text",
+                    },
+                  ],
+                  "type": "paragraph",
+                },
+              ],
+              "type": "tableHeader",
+            },
+          ],
+          "type": "tableRow",
+        },
+        {
+          "content": [
+            {
+              "attrs": {},
+              "content": [
+                {
+                  "content": [
+                    {
+                      "text": "color",
+                      "type": "text",
+                    },
+                  ],
+                  "type": "paragraph",
+                },
+              ],
+              "type": "tableCell",
+            },
+            {
+              "attrs": {},
+              "content": [
+                {
+                  "content": [
+                    {
+                      "text": "#000",
+                      "type": "text",
+                    },
+                  ],
+                  "type": "paragraph",
+                },
+              ],
+              "type": "tableCell",
+            },
+            {
+              "attrs": {},
+              "content": [
+                {
+                  "content": [
+                    {
+                      "text": "#fff",
+                      "type": "text",
+                    },
+                  ],
+                  "type": "paragraph",
+                },
+              ],
+              "type": "tableCell",
+            },
+          ],
+          "type": "tableRow",
+        },
+        {
+          "content": [
+            {
+              "attrs": {},
+              "content": [
+                {
+                  "content": [
+                    {
+                      "text": "class",
+                      "type": "text",
+                    },
+                  ],
+                  "type": "paragraph",
+                },
+              ],
+              "type": "tableCell",
+            },
+            {
+              "attrs": {},
+              "content": [
+                {
+                  "content": [
+                    {
+                      "text": "btn",
+                      "type": "text",
+                    },
+                  ],
+                  "type": "paragraph",
+                },
+              ],
+              "type": "tableCell",
+            },
+            {
+              "attrs": {},
+              "content": [
+                {
+                  "content": [
+                    {
+                      "text": "btn",
+                      "type": "text",
+                    },
+                    {
+                      "text": " ",
+                      "type": "text",
+                    },
+                    {
+                      "marks": [
+                        {
+                          "type": "strong",
+                        },
+                      ],
+                      "text": "btn-primary",
+                      "type": "text",
+                    },
+                  ],
+                  "type": "paragraph",
+                },
+              ],
+              "type": "tableCell",
+            },
+          ],
+          "type": "tableRow",
+        },
+      ],
+      "type": "table",
+    },
+    {
+      "attrs": {
+        "level": 2,
+      },
+      "content": [
+        {
+          "text": "logSummary.title",
+          "type": "text",
+        },
+      ],
+      "type": "heading",
+    },
+    {
+      "content": [
+        {
+          "marks": [
+            {
+              "type": "strong",
+            },
+          ],
+          "text": "logSummary.logs.lead",
+          "type": "text",
+        },
+        {
+          "text": " ",
+          "type": "text",
+        },
+        {
+          "text": "logSummary.logs.detail",
+          "type": "text",
+        },
+      ],
+      "type": "paragraph",
+    },
+    {
+      "content": [
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "logSummary.network.line n=12 errors=1",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "logSummary.console.line n=8 errors=2 warns=1",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+        {
+          "content": [
+            {
+              "content": [
+                {
+                  "text": "logSummary.action.line n=5",
+                  "type": "text",
+                },
+              ],
+              "type": "paragraph",
+            },
+          ],
+          "type": "listItem",
+        },
+      ],
+      "type": "bulletList",
+    },
+    {
+      "attrs": {
+        "level": 2,
+      },
+      "content": [
+        {
+          "text": "md.section.expectedResult",
+          "type": "text",
+        },
+      ],
+      "type": "heading",
+    },
+    {
+      "content": [
+        {
+          "text": "버튼이 눌린다",
+          "type": "text",
+        },
+      ],
+      "type": "paragraph",
+    },
+    {
+      "type": "rule",
+    },
+    {
+      "content": [
+        {
+          "marks": [
+            {
+              "type": "em",
+            },
+          ],
+          "text": "Reported via ",
+          "type": "text",
+        },
+        {
+          "marks": [
+            {
+              "type": "em",
+            },
+            {
+              "attrs": {
+                "href": "https://bug-shot.com",
+              },
+              "type": "link",
+            },
+          ],
+          "text": "BugShot",
+          "type": "text",
+        },
+      ],
+      "type": "paragraph",
+    },
+  ],
+  "type": "doc",
+  "version": 1,
+}
+`;
+
+exports[`본문 출력 골든 — 섹션 enabled 변주 > buildIssueMarkdown — expectedResult 비활성 + notes 활성 1`] = `
+"<!-- bugshot-meta-for-ai
+{
+  "version": 1,
+  "captureMode": "element",
+  "url": "https://example.com/page",
+  "capturedAt": 1700000000000,
+  "os": "macOS 15.5",
+  "browser": "Chrome 138",
+  "viewport": {
+    "width": 1920,
+    "height": 1080
+  },
+  "environment": {
+    "Locale": "ko-KR"
+  },
+  "selector": "div.container > button",
+  "tagName": "button",
+  "classListBefore": [
+    "btn"
+  ],
+  "classListAfter": [
+    "btn",
+    "btn-primary"
+  ],
+  "specifiedStyles": {
+    "color": "#000"
+  },
+  "cssChanges": [
+    {
+      "property": "color",
+      "from": "#000",
+      "to": "#fff"
+    },
+    {
+      "property": "class",
+      "from": "btn",
+      "to": "btn btn-primary"
+    }
+  ],
+  "tokens": [
+    {
+      "name": "--brand",
+      "value": "#4f46e5"
+    }
+  ]
+}
+-->
+
+# Golden Issue
+
+## md.section.env
+
+- **OS**: macOS 15.5
+- **Browser**: Chrome 138
+- **Page**: https://example.com/page
+- **DOM**: \`div.container > button\`
+- **Viewport**: 1920×1080
+- **Captured**: 2023-11-14 22:13:20 GMT+9
+- **Locale**: ko-KR
+
+## md.section.description
+
+버튼이 눌리지 않음
+
+## md.section.stepsToReproduce
+
+1. 1단계 진입
+2. 2단계 클릭
+
+## md.section.styleChanges (div.container > button)
+
+| md.column.property | As is | To be |
+| --- | --- | --- |
+| color | #000 | #fff |
+| class | btn | btn **btn-primary** |
+
+## logSummary.title
+
+**logSummary.logs.lead** logSummary.logs.detail file=logs.html
+
+- logSummary.network.line n=12 errors=1
+- logSummary.console.line n=8 errors=2 warns=1
+- logSummary.action.line n=5
+
+## md.section.notes
+
+비고 내용
+
+---
+
+_Reported via [BugShot](https://bug-shot.com)_
+"
+`;
+
+exports[`본문 출력 골든 — 섹션 enabled 변주 > buildIssueMarkdown — notes까지 enabled 1`] = `
+"<!-- bugshot-meta-for-ai
+{
+  "version": 1,
+  "captureMode": "element",
+  "url": "https://example.com/page",
+  "capturedAt": 1700000000000,
+  "os": "macOS 15.5",
+  "browser": "Chrome 138",
+  "viewport": {
+    "width": 1920,
+    "height": 1080
+  },
+  "environment": {
+    "Locale": "ko-KR"
+  },
+  "selector": "div.container > button",
+  "tagName": "button",
+  "classListBefore": [
+    "btn"
+  ],
+  "classListAfter": [
+    "btn",
+    "btn-primary"
+  ],
+  "specifiedStyles": {
+    "color": "#000"
+  },
+  "cssChanges": [
+    {
+      "property": "color",
+      "from": "#000",
+      "to": "#fff"
+    },
+    {
+      "property": "class",
+      "from": "btn",
+      "to": "btn btn-primary"
+    }
+  ],
+  "tokens": [
+    {
+      "name": "--brand",
+      "value": "#4f46e5"
+    }
+  ]
+}
+-->
+
+# Golden Issue
+
+## md.section.env
+
+- **OS**: macOS 15.5
+- **Browser**: Chrome 138
+- **Page**: https://example.com/page
+- **DOM**: \`div.container > button\`
+- **Viewport**: 1920×1080
+- **Captured**: 2023-11-14 22:13:20 GMT+9
+- **Locale**: ko-KR
+
+## md.section.description
+
+버튼이 눌리지 않음
+
+## md.section.stepsToReproduce
+
+1. 1단계 진입
+2. 2단계 클릭
+
+## md.section.styleChanges (div.container > button)
+
+| md.column.property | As is | To be |
+| --- | --- | --- |
+| color | #000 | #fff |
+| class | btn | btn **btn-primary** |
+
+## logSummary.title
+
+**logSummary.logs.lead** logSummary.logs.detail file=logs.html
+
+- logSummary.network.line n=12 errors=1
+- logSummary.console.line n=8 errors=2 warns=1
+- logSummary.action.line n=5
+
+## md.section.expectedResult
+
+버튼이 눌린다
+
+## md.section.notes
+
+비고 내용
+
+---
+
+_Reported via [BugShot](https://bug-shot.com)_
+"
+`;
+
+exports[`본문 출력 골든 — 섹션 enabled 변주 > buildIssueMarkdown — video + 액션 로그만 1`] = `
+"<!-- bugshot-meta-for-ai
+{
+  "version": 1,
+  "captureMode": "video",
+  "url": "https://example.com/page",
+  "capturedAt": 1700000000000,
+  "os": "macOS 15.5",
+  "browser": "Chrome 138",
+  "viewport": {
+    "width": 1920,
+    "height": 1080
+  },
+  "environment": {
+    "Locale": "ko-KR"
+  },
+  "selector": "div.container > button",
+  "tagName": "button",
+  "classListBefore": [
+    "btn"
+  ],
+  "classListAfter": [
+    "btn",
+    "btn-primary"
+  ],
+  "specifiedStyles": {
+    "color": "#000"
+  },
+  "cssChanges": [
+    {
+      "property": "color",
+      "from": "#000",
+      "to": "#fff"
+    },
+    {
+      "property": "class",
+      "from": "btn",
+      "to": "btn btn-primary"
+    }
+  ],
+  "tokens": [
+    {
+      "name": "--brand",
+      "value": "#4f46e5"
+    }
+  ]
+}
+-->
+
+# Golden Issue
+
+## md.section.env
+
+- **OS**: macOS 15.5
+- **Browser**: Chrome 138
+- **Page**: https://example.com/page
+- **DOM**: \`div.container > button\`
+- **Viewport**: 1920×1080
+- **Captured**: 2023-11-14 22:13:20 GMT+9
+- **Locale**: ko-KR
+
+## md.section.description
+
+버튼이 눌리지 않음
+
+## md.section.stepsToReproduce
+
+1. 1단계 진입
+2. 2단계 클릭
+
+## md.section.media
+
+md.videoAttached
+
+## logSummary.title
+
+**logSummary.logs.lead** logSummary.logs.detail file=logs.html
+
+- logSummary.action.line n=7
+
+## md.section.expectedResult
+
+버튼이 눌린다
+
+---
+
+_Reported via [BugShot](https://bug-shot.com)_
+"
+`;
+
+exports[`본문 출력 골든 — 섹션 enabled 변주 > buildIssueMarkdown — 로그 없음(net/con/act 전부 부재) 1`] = `
+"<!-- bugshot-meta-for-ai
+{
+  "version": 1,
+  "captureMode": "element",
+  "url": "https://example.com/page",
+  "capturedAt": 1700000000000,
+  "os": "macOS 15.5",
+  "browser": "Chrome 138",
+  "viewport": {
+    "width": 1920,
+    "height": 1080
+  },
+  "environment": {
+    "Locale": "ko-KR"
+  },
+  "selector": "div.container > button",
+  "tagName": "button",
+  "classListBefore": [
+    "btn"
+  ],
+  "classListAfter": [
+    "btn",
+    "btn-primary"
+  ],
+  "specifiedStyles": {
+    "color": "#000"
+  },
+  "cssChanges": [
+    {
+      "property": "color",
+      "from": "#000",
+      "to": "#fff"
+    },
+    {
+      "property": "class",
+      "from": "btn",
+      "to": "btn btn-primary"
+    }
+  ],
+  "tokens": [
+    {
+      "name": "--brand",
+      "value": "#4f46e5"
+    }
+  ]
+}
+-->
+
+# Golden Issue
+
+## md.section.env
+
+- **OS**: macOS 15.5
+- **Browser**: Chrome 138
+- **Page**: https://example.com/page
+- **DOM**: \`div.container > button\`
+- **Viewport**: 1920×1080
+- **Captured**: 2023-11-14 22:13:20 GMT+9
+- **Locale**: ko-KR
+
+## md.section.description
+
+버튼이 눌리지 않음
+
+## md.section.stepsToReproduce
+
+1. 1단계 진입
+2. 2단계 클릭
+
+## md.section.styleChanges (div.container > button)
+
+| md.column.property | As is | To be |
+| --- | --- | --- |
+| color | #000 | #fff |
+| class | btn | btn **btn-primary** |
+
+## md.section.expectedResult
+
+버튼이 눌린다
+
+---
+
+_Reported via [BugShot](https://bug-shot.com)_
+"
+`;
+
+exports[`본문 출력 골든 — 섹션 enabled 변주 > buildIssueMarkdown — 미디어 뒤 섹션 전무(미디어가 말미) 1`] = `
+"<!-- bugshot-meta-for-ai
+{
+  "version": 1,
+  "captureMode": "element",
+  "url": "https://example.com/page",
+  "capturedAt": 1700000000000,
+  "os": "macOS 15.5",
+  "browser": "Chrome 138",
+  "viewport": {
+    "width": 1920,
+    "height": 1080
+  },
+  "environment": {
+    "Locale": "ko-KR"
+  },
+  "selector": "div.container > button",
+  "tagName": "button",
+  "classListBefore": [
+    "btn"
+  ],
+  "classListAfter": [
+    "btn",
+    "btn-primary"
+  ],
+  "specifiedStyles": {
+    "color": "#000"
+  },
+  "cssChanges": [
+    {
+      "property": "color",
+      "from": "#000",
+      "to": "#fff"
+    },
+    {
+      "property": "class",
+      "from": "btn",
+      "to": "btn btn-primary"
+    }
+  ],
+  "tokens": [
+    {
+      "name": "--brand",
+      "value": "#4f46e5"
+    }
+  ]
+}
+-->
+
+# Golden Issue
+
+## md.section.env
+
+- **OS**: macOS 15.5
+- **Browser**: Chrome 138
+- **Page**: https://example.com/page
+- **DOM**: \`div.container > button\`
+- **Viewport**: 1920×1080
+- **Captured**: 2023-11-14 22:13:20 GMT+9
+- **Locale**: ko-KR
+
+## md.section.description
+
+버튼이 눌리지 않음
+
+## md.section.stepsToReproduce
+
+1. 1단계 진입
+2. 2단계 클릭
+
+## md.section.styleChanges (div.container > button)
+
+| md.column.property | As is | To be |
+| --- | --- | --- |
+| color | #000 | #fff |
+| class | btn | btn **btn-primary** |
+
+## logSummary.title
+
+**logSummary.logs.lead** logSummary.logs.detail file=logs.html
+
+- logSummary.network.line n=12 errors=1
+- logSummary.console.line n=8 errors=2 warns=1
+- logSummary.action.line n=5
+
+---
+
+_Reported via [BugShot](https://bug-shot.com)_
+"
+`;
+
+exports[`본문 출력 골든 — 섹션 enabled 변주 > buildIssueMarkdown — 재현과정 비활성 1`] = `
+"<!-- bugshot-meta-for-ai
+{
+  "version": 1,
+  "captureMode": "element",
+  "url": "https://example.com/page",
+  "capturedAt": 1700000000000,
+  "os": "macOS 15.5",
+  "browser": "Chrome 138",
+  "viewport": {
+    "width": 1920,
+    "height": 1080
+  },
+  "environment": {
+    "Locale": "ko-KR"
+  },
+  "selector": "div.container > button",
+  "tagName": "button",
+  "classListBefore": [
+    "btn"
+  ],
+  "classListAfter": [
+    "btn",
+    "btn-primary"
+  ],
+  "specifiedStyles": {
+    "color": "#000"
+  },
+  "cssChanges": [
+    {
+      "property": "color",
+      "from": "#000",
+      "to": "#fff"
+    },
+    {
+      "property": "class",
+      "from": "btn",
+      "to": "btn btn-primary"
+    }
+  ],
+  "tokens": [
+    {
+      "name": "--brand",
+      "value": "#4f46e5"
+    }
+  ]
+}
+-->
+
+# Golden Issue
+
+## md.section.env
+
+- **OS**: macOS 15.5
+- **Browser**: Chrome 138
+- **Page**: https://example.com/page
+- **DOM**: \`div.container > button\`
+- **Viewport**: 1920×1080
+- **Captured**: 2023-11-14 22:13:20 GMT+9
+- **Locale**: ko-KR
+
+## md.section.description
+
+버튼이 눌리지 않음
+
+## md.section.styleChanges (div.container > button)
+
+| md.column.property | As is | To be |
+| --- | --- | --- |
+| color | #000 | #fff |
+| class | btn | btn **btn-primary** |
+
+## logSummary.title
+
+**logSummary.logs.lead** logSummary.logs.detail file=logs.html
+
+- logSummary.network.line n=12 errors=1
+- logSummary.console.line n=8 errors=2 warns=1
+- logSummary.action.line n=5
+
+## md.section.expectedResult
+
+버튼이 눌린다
+
+---
+
+_Reported via [BugShot](https://bug-shot.com)_
+"
+`;

@@ -75,6 +75,7 @@ describe("buildSlackBody — 섹션", () => {
         sections: { stepsToReproduce: "first\nsecond" },
         sectionConfig: [
           { id: "stepsToReproduce", enabled: true, renderAs: "orderedList", builtIn: true },
+          { id: "media", enabled: true, renderAs: "meta", builtIn: true },
         ],
       }),
     });

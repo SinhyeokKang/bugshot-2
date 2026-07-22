@@ -11,7 +11,11 @@ import {
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { useEditorStore, type CaptureMode } from "@/store/editor-store";
-import { useSettingsUiStore } from "@/store/settings-ui-store";
+import {
+  useSettingsUiStore,
+  type IssueSection,
+  type TextSectionId,
+} from "@/store/settings-ui-store";
 import { useSettingsStore } from "@/store/settings-store";
 import {
   buildAiDraftSchema,
@@ -97,8 +101,12 @@ export function AiDraftDialog({
       const store = useEditorStore.getState();
       const settingsUi = useSettingsUiStore.getState();
       const { titlePrefix } = useSettingsStore.getState();
+      // media는 텍스트 섹션이 아니다 — 프롬프트 스키마에 새면 AI가 "media" 본문을 지어낸다.
       const enabledSections = settingsUi.issueSections
-        .filter((s) => s.enabled)
+        .filter(
+          (s): s is IssueSection & { id: TextSectionId } =>
+            s.enabled && s.id !== "media",
+        )
         .map((s) => ({ id: s.id }));
       const sectionIds = enabledSections.map((s) => s.id);
 

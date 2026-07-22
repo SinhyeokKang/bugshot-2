@@ -1,9 +1,6 @@
 import { t } from "@/i18n";
-import {
-  POST_MEDIA_SECTION_IDS,
-  sectionMdLabelKey,
-  type IssueSection,
-} from "@/store/settings-ui-store";
+import { sectionMdLabelKey, type IssueSection } from "@/store/settings-ui-store";
+import { bodyBlocks } from "./bodyBlocks";
 import { IMAGE_PLACEHOLDER, VIDEO_PLACEHOLDER, inlineImagePlaceholder } from "@/lib/adf-sentinels";
 import { LOGS_LINK_LABEL } from "@/background/lib/adf-logs-link";
 import { ccAdfParagraph } from "./ccMention";
@@ -109,11 +106,12 @@ export function buildIssueAdf(
     emitLogSummaryAdf(content, ctx.networkLogSummary, ctx.consoleLogSummary, ctx.actionLogCaptured);
   };
 
-  for (const section of ctx.sectionConfig) {
-    if (!section.enabled) continue;
-    if (POST_MEDIA_SECTION_IDS.has(section.id)) {
+  for (const block of bodyBlocks(ctx.sectionConfig)) {
+    if (block.kind === "meta") {
       emitMedia();
+      continue;
     }
+    const section = block.section;
     const raw = ctx.sections[section.id] ?? "";
     content.push(heading(2, sectionLabel(section)));
     if (section.renderAs === "orderedList") {

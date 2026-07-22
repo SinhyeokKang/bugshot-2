@@ -8,12 +8,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { useT } from "@/i18n";
 import {
-  POST_MEDIA_SECTION_IDS,
   sectionLabelKey,
   sectionPlaceholderKey,
   useSettingsUiStore,
-  type IssueSection,
 } from "@/store/settings-ui-store";
+import { bodyBlocks, type TextIssueSection } from "@/sidepanel/lib/bodyBlocks";
 import { useEditorStore } from "@/store/editor-store";
 import { useSettingsStore } from "@/store/settings-store";
 import { useBoundTabId } from "@/sidepanel/hooks/useBoundTabId";
@@ -171,8 +170,6 @@ export function DraftingPanel() {
     (consoleLog !== null && consoleLog.captured > 0) ||
     showActionCard
   );
-
-  const enabledSections = issueSections.filter((s) => s.enabled);
 
   const isFreeformMode = captureMode === "freeform";
 
@@ -341,12 +338,14 @@ export function DraftingPanel() {
 
   const sectionNodes: React.ReactNode[] = [];
   let mediaInserted = false;
-  for (const sec of enabledSections) {
-    if (POST_MEDIA_SECTION_IDS.has(sec.id) && !mediaInserted) {
+  for (const block of bodyBlocks(issueSections)) {
+    if (block.kind === "meta") {
       mediaInserted = true;
       sectionNodes.push(mediaBlock);
       if (logCardsBlock) sectionNodes.push(logCardsBlock);
+      continue;
     }
+    const sec = block.section;
     sectionNodes.push(
       <SectionTextarea
         key={sec.id}
@@ -659,7 +658,7 @@ function SectionTextarea({
   onChange,
   reproAiHint = false,
 }: {
-  section: IssueSection;
+  section: TextIssueSection;
   value: string;
   onChange: (next: string) => void;
   reproAiHint?: boolean;

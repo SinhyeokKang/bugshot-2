@@ -1,9 +1,9 @@
 import type { IssueRecord } from "@/store/issues-store";
-import type { IssueSection } from "@/store/settings-ui-store";
+import type { TextIssueSection } from "./bodyBlocks";
 
 export type DraftEditTarget =
   | { kind: "title"; value: string }
-  | { kind: "section"; section: IssueSection; value: string };
+  | { kind: "section"; section: TextIssueSection; value: string };
 
 /**
  * 편집 결과를 patchIssue용 부분 패치로 계산.
