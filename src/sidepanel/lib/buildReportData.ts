@@ -40,7 +40,12 @@ export interface BuildReportDataInput {
 export async function buildReportData(
   input: BuildReportDataInput,
 ): Promise<LogViewerReport> {
-  const enabled = input.sectionConfig.filter((s) => s.enabled);
+  // logs.html Report 탭은 텍스트 섹션만 렌더한다 — media 엔트리는 본문 슬롯이라 제외.
+  // 좁히기를 타입 가드로 두면 이 필터가 사라질 때 renderAs 대입이 컴파일 에러로 잡힌다.
+  const enabled = input.sectionConfig.filter(
+    (s): s is IssueSection & { renderAs: "paragraph" | "orderedList" } =>
+      s.enabled && s.renderAs !== "meta",
+  );
   // inline 이미지를 dataURL로 resolve한 섹션 맵 — 표시(sections)와 copy 양쪽에 공용으로 쓴다.
   // 호출처가 넘긴 markdownContext.sections는 플랫폼 제출과 공유돼 raw(inline: 마커) 상태이므로,
   // copy는 여기서 resolve한 섹션으로 빌드해야 클립보드에 깨진 마커가 안 남는다(PreviewPanel copy와 동일).

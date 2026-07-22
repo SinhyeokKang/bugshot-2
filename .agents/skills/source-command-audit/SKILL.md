@@ -9,7 +9,7 @@ Use this skill when the user asks to run the migrated source command `audit`.
 
 ## Command Template
 
-최근 변경이 아닌 **코드베이스 전체**를 AGENTS.md·docs/ARCHITECTURE.md 컨벤션에 비추어 감사한다. 4명의 전문 에이전트가 각자 담당 차원에 집중하여 병렬 감사한다. **리포트 전용 스킬** — 자동 fix 안 하고, 커밋도 안 한다. 무엇을 고칠지·언제 고칠지는 전적으로 사용자가 결정한다.
+최근 변경이 아닌 **코드베이스 전체**를 CLAUDE.md·docs/ARCHITECTURE.md 컨벤션에 비추어 감사한다. 4명의 전문 에이전트가 각자 담당 차원에 집중하여 병렬 감사한다. **리포트 전용 스킬** — 자동 fix 안 하고, 커밋도 안 한다. 무엇을 고칠지·언제 고칠지는 전적으로 사용자가 결정한다.
 
 ## 사용
 
@@ -42,14 +42,14 @@ Use this skill when the user asks to run the migrated source command `audit`.
 
 ### 1. 컨벤션 로드
 
-AGENTS.md와 docs/ARCHITECTURE.md를 읽어 감사 기준을 확립한다. 이 두 문서가 ground truth다.
+CLAUDE.md와 docs/ARCHITECTURE.md를 읽어 감사 기준을 확립한다. 이 두 문서가 ground truth다.
 
 에이전트 인자가 있으면 해당 에이전트만 활성화. 없으면 전체 4개.
 
 ### 2. 전문 에이전트 병렬 감사
 
 활성화된 전문 에이전트를 **동시에** 실행한다 (`subagent_type: general-purpose`). 각 에이전트에게 다음을 전달:
-- AGENTS.md + docs/ARCHITECTURE.md 핵심 컨벤션 (감사 기준)
+- CLAUDE.md + docs/ARCHITECTURE.md 핵심 컨벤션 (감사 기준)
 - 담당 차원의 체크 가이드 (아래 정의)
 - 하위 영역 에이전트 분배 지침
 
@@ -170,7 +170,7 @@ UI·디자인·다국어 이슈 전문.
 
 각 발견을 라벨 하나로 분류해 그룹별로 출력:
 
-- **🔴 심각** — 동작이 깨지는 버그, 데이터 손실, 보안 이슈, AGENTS.md의 명시적 게이트 위반 (예: user gesture 소실, OAuth secret 노출, MAIN world inject에서 클로저 참조, exhaustive switch 누락).
+- **🔴 심각** — 동작이 깨지는 버그, 데이터 손실, 보안 이슈, CLAUDE.md의 명시적 게이트 위반 (예: user gesture 소실, OAuth secret 노출, MAIN world inject에서 클로저 참조, exhaustive switch 누락).
 - **🟡 권장** — 컨벤션 위반, 향후 회귀 위험, 부분 일관성 깨짐 (예: i18n 비대칭, IconButton 사이즈 혼용, 토큰 resolve 룰 위반, `@/` 경로 불일치, 플랫폼 어댑터 비대칭).
 - **⚪ 사소** — 스타일·정리 거리 (예: 잉여 주석, 미사용 import, 빈 줄, 미세한 중복, 미사용 i18n 키).
 
@@ -179,7 +179,7 @@ UI·디자인·다국어 이슈 전문.
 에이전트가 복수 활성이면 각 항목에 출처 태그 `[에이전트]` 표기. 단일 에이전트면 태그 생략.
 
 ```
-1. [ui] 파일:줄 — 한국어 한 줄 요약. (근거: AGENTS.md "X" 룰 / docs/ARCHITECTURE.md "Y" 원칙)
+1. [ui] 파일:줄 — 한국어 한 줄 요약. (근거: CLAUDE.md "X" 룰 / docs/ARCHITECTURE.md "Y" 원칙)
 2. [security] 파일:줄 — …
 ```
 
@@ -226,5 +226,5 @@ UI·디자인·다국어 이슈 전문.
 - **자동 fix 금지** — 발견을 리포트할 뿐 코드를 변경하지 않는다.
 - **"고칠까요?" 같은 후속 액션 제안 금지** — 다음 행동은 전적으로 사용자.
 - **커밋 / staging 안 함**.
-- **추측성 발견 남발 금지** — AGENTS.md·docs/ARCHITECTURE.md·코드 패턴에 근거를 댈 수 있는 것만 보고. "혹시 문제가 될 수 있다" 수준은 보고하지 않는다.
+- **추측성 발견 남발 금지** — CLAUDE.md·docs/ARCHITECTURE.md·코드 패턴에 근거를 댈 수 있는 것만 보고. "혹시 문제가 될 수 있다" 수준은 보고하지 않는다.
 - **shadcn/ui 컴포넌트 파일 내부 감사 금지** — `src/components/ui/*`는 생성기 산출물.

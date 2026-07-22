@@ -3,7 +3,12 @@ import { Download } from "lucide-react";
 import { formatTimestamp } from "@/sidepanel/lib/formatTimestamp";
 import { Button } from "@/components/ui/button";
 import { useT } from "@/i18n";
-import { POST_MEDIA_SECTION_IDS, sectionLabelKey, useSettingsUiStore } from "@/store/settings-ui-store";
+import {
+  sectionLabelKey,
+  useSettingsUiStore,
+  type IssueSection,
+} from "@/store/settings-ui-store";
+import { bodyBlocks } from "@/sidepanel/lib/bodyBlocks";
 import { useEditorStore } from "@/store/editor-store";
 import { connectedPlatforms, useSettingsStore } from "@/store/settings-store";
 import { useTabNav } from "@/sidepanel/tab-nav";
@@ -144,8 +149,15 @@ export function PreviewPanel() {
   }
   envRows.push(...filterEnvironmentRows(draft.environment ?? []));
 
+  // 순서용 id 목록은 media를 포함하고(슬롯 위치), 표시 섹션 목록에서는 제외한다.
+  const layoutSectionIds = bodyBlocks(issueSections).map((b) =>
+    b.kind === "meta" ? "media" : b.section.id,
+  );
   const previewSections = issueSections
-    .filter((s) => s.enabled)
+    .filter(
+      (s): s is IssueSection & { renderAs: "paragraph" | "orderedList" } =>
+        s.enabled && s.renderAs !== "meta",
+    )
     .map((s) => ({
       id: s.id,
       label: s.labelOverride?.trim() || t(sectionLabelKey(s.id)),
@@ -155,6 +167,7 @@ export function PreviewPanel() {
 
   const mediaBlock = isFreeformMode ? null : isVideoMode ? (
     <Section
+      testId="preview-media-block"
       title={t("section.media")}
       action={
         videoBlob ? (
@@ -177,6 +190,7 @@ export function PreviewPanel() {
     styleElements.map((el) => (
       <Section
         key={el.selector}
+        testId="preview-media-block"
         title={`${t("section.styleChanges")} (${el.selector})`}
       >
         <StyleChangesTable
@@ -188,6 +202,7 @@ export function PreviewPanel() {
     ))
   ) : (
     <Section
+      testId="preview-media-block"
       title={t("section.media")}
       action={
         screenshotImage ? (
@@ -377,7 +392,7 @@ export function PreviewPanel() {
           media={mediaBlock}
           logCards={logCardsBlock}
           attachments={attachmentsBlock}
-          postMediaSectionIds={POST_MEDIA_SECTION_IDS}
+          layoutSectionIds={layoutSectionIds}
         />
       </PageScroll>
       {noPlatformConnected && (

@@ -1,10 +1,7 @@
 import { t } from "@/i18n";
 import { escapeTableCell as escapeCell } from "./markdownCell";
-import {
-  POST_MEDIA_SECTION_IDS,
-  sectionMdLabelKey,
-  type IssueSection,
-} from "@/store/settings-ui-store";
+import { sectionMdLabelKey, type IssueSection } from "@/store/settings-ui-store";
+import { bodyBlocks } from "./bodyBlocks";
 import {
   mdInlineCode,
   resolveStyleElements,
@@ -136,11 +133,12 @@ export function buildClickupIssueBody(
     emitLogSummary(lines, ctx, logs.find((l) => l.filename === "logs.html")?.url);
   };
 
-  for (const section of ctx.sectionConfig) {
-    if (!section.enabled) continue;
-    if (POST_MEDIA_SECTION_IDS.has(section.id)) {
+  for (const block of bodyBlocks(ctx.sectionConfig)) {
+    if (block.kind === "meta") {
       emitMedia();
+      continue;
     }
+    const section = block.section;
     const content = ctx.sections[section.id] ?? "";
     lines.push(`## ${sectionLabel(section)}`, "");
     if (section.renderAs === "orderedList") {

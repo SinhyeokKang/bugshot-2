@@ -8,12 +8,11 @@ import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { useT } from "@/i18n";
 import {
-  POST_MEDIA_SECTION_IDS,
   sectionLabelKey,
   sectionPlaceholderKey,
   useSettingsUiStore,
-  type IssueSection,
 } from "@/store/settings-ui-store";
+import { bodyBlocks, type TextIssueSection } from "@/sidepanel/lib/bodyBlocks";
 import { useEditorStore } from "@/store/editor-store";
 import { useSettingsStore } from "@/store/settings-store";
 import { useBoundTabId } from "@/sidepanel/hooks/useBoundTabId";
@@ -172,13 +171,12 @@ export function DraftingPanel() {
     showActionCard
   );
 
-  const enabledSections = issueSections.filter((s) => s.enabled);
-
   const isFreeformMode = captureMode === "freeform";
 
   const mediaBlock = isFreeformMode ? null : isVideoMode ? (
     <Section
       key="__media"
+      testId="draft-media-block"
       title={t("section.media")}
       collapsible
       action={
@@ -203,6 +201,7 @@ export function DraftingPanel() {
       styleElements.map((el) => (
         <Section
           key={el.selector}
+          testId="draft-media-block"
           title={`${t("section.styleChanges")} (${el.selector})`}
           collapsible
         >
@@ -214,7 +213,7 @@ export function DraftingPanel() {
         </Section>
       ))
     ) : (
-      <Section key="__media" title={t("section.media")} collapsible>
+      <Section key="__media" testId="draft-media-block" title={t("section.media")} collapsible>
         {beforeImage ? (
           <div className="aspect-video w-full overflow-hidden rounded-lg border bg-muted/70">
             <img
@@ -229,6 +228,7 @@ export function DraftingPanel() {
   ) : (
     <Section
       key="__media"
+      testId="draft-media-block"
       title={t("section.media")}
       collapsible
       action={
@@ -341,12 +341,14 @@ export function DraftingPanel() {
 
   const sectionNodes: React.ReactNode[] = [];
   let mediaInserted = false;
-  for (const sec of enabledSections) {
-    if (POST_MEDIA_SECTION_IDS.has(sec.id) && !mediaInserted) {
+  for (const block of bodyBlocks(issueSections)) {
+    if (block.kind === "meta") {
       mediaInserted = true;
       sectionNodes.push(mediaBlock);
       if (logCardsBlock) sectionNodes.push(logCardsBlock);
+      continue;
     }
+    const sec = block.section;
     sectionNodes.push(
       <SectionTextarea
         key={sec.id}
@@ -659,7 +661,7 @@ function SectionTextarea({
   onChange,
   reproAiHint = false,
 }: {
-  section: IssueSection;
+  section: TextIssueSection;
   value: string;
   onChange: (next: string) => void;
   reproAiHint?: boolean;

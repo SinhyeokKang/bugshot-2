@@ -9,8 +9,6 @@ import { useCodeCollapse } from "@/sidepanel/hooks/useCodeCollapse";
 import type { CodeCollapseLabels } from "@/sidepanel/lib/codeCollapseShell";
 import "./doc-section-body.css";
 
-const EMPTY_POST_MEDIA: Set<string> = new Set();
-
 export interface IssuePreviewViewSection {
   id: string;
   label: string;
@@ -40,7 +38,9 @@ export interface IssuePreviewViewProps {
   logCards?: React.ReactNode;
   // 사용자 첨부 slot — 본문 모든 섹션 뒤 맨 하단. PreviewPanel만 채움(blob-db 의존 격리).
   attachments?: React.ReactNode;
-  postMediaSectionIds?: Set<string>;
+  // 슬롯 위치를 포함한 순서 id 목록("media" 포함). PreviewPanel만 전달 —
+  // 미지정이면 sections 순서를 그대로 쓴다(log-viewer Report 탭: 슬롯 없음).
+  layoutSectionIds?: string[];
 }
 
 export function IssuePreviewView({
@@ -52,9 +52,7 @@ export function IssuePreviewView({
   media,
   logCards,
   attachments,
-  // 슬롯(media/logCards) 삽입 위치. log-viewer Report 탭은 슬롯이 없어 무관 → 기본 빈 set.
-  // PreviewPanel은 POST_MEDIA_SECTION_IDS를 명시 전달(settings-ui-store 의존을 log-viewer 번들에서 격리).
-  postMediaSectionIds = EMPTY_POST_MEDIA,
+  layoutSectionIds,
 }: IssuePreviewViewProps) {
   const [copied, setCopied] = useState(false);
   useEffect(() => {
@@ -68,12 +66,11 @@ export function IssuePreviewView({
   const layout = useMemo(
     () =>
       composePreviewLayout({
-        sectionIds: sections.map((s) => s.id),
-        postMediaSectionIds,
+        sectionIds: layoutSectionIds ?? sections.map((s) => s.id),
         hasMedia,
         hasLogCards,
       }),
-    [sections, postMediaSectionIds, hasMedia, hasLogCards],
+    [sections, layoutSectionIds, hasMedia, hasLogCards],
   );
 
   const handleCopy = async () => {

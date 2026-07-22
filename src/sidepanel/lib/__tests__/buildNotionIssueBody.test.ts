@@ -13,7 +13,6 @@ vi.mock("@/i18n", () => ({
 }));
 
 vi.mock("@/store/settings-ui-store", () => ({
-  POST_MEDIA_SECTION_IDS: new Set(["expectedResult", "notes"]),
   sectionMdLabelKey: (id: string) => `md.section.${id}`,
 }));
 
@@ -34,6 +33,7 @@ function makeCtx(overrides: Partial<MarkdownContext> = {}): MarkdownContext {
     sections: { description: "본문" },
     sectionConfig: [
       { id: "description", enabled: true, renderAs: "paragraph", builtIn: true },
+      { id: "media", enabled: true, renderAs: "meta", builtIn: true },
       { id: "expectedResult", enabled: true, renderAs: "paragraph", builtIn: true },
     ],
     url: "https://example.com",

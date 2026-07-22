@@ -1,9 +1,6 @@
 import { t } from "@/i18n";
-import {
-  POST_MEDIA_SECTION_IDS,
-  sectionMdLabelKey,
-  type IssueSection,
-} from "@/store/settings-ui-store";
+import { sectionMdLabelKey, type IssueSection } from "@/store/settings-ui-store";
+import { bodyBlocks } from "./bodyBlocks";
 import type {
   NotionAttachmentInput,
   NotionAttachmentCategory,
@@ -240,11 +237,12 @@ export function buildNotionIssueBody(
 
   const uploadedRefSet = new Set(input.inlineImageRefIds ?? []);
 
-  for (const section of ctx.sectionConfig) {
-    if (!section.enabled) continue;
-    if (POST_MEDIA_SECTION_IDS.has(section.id)) {
+  for (const block of bodyBlocks(ctx.sectionConfig)) {
+    if (block.kind === "meta") {
       emitMedia();
+      continue;
     }
+    const section = block.section;
     const content = ctx.sections[section.id] ?? "";
     blocks.push({ type: "heading_2", text: sectionLabel(section) });
     if (section.renderAs === "orderedList") {

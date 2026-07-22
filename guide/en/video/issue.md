@@ -26,7 +26,7 @@ Sections appear per your body composition — Description, Steps to reproduce, E
 
 **Steps to reproduce fills itself in.** The moment you land here after recording, AI reads the action log it just captured and **writes the reproduction steps for you automatically** (only when an AI model is connected — with no AI available, it's left empty). While it's working, an overlay covers the screen for a moment, and the filled-in steps appear when it's done. Don't want to wait it out? Hit **Stop** at the bottom of the overlay — the steps are left empty for you to write yourself. Not quite right? Hit the **trash (Clear all)** button at the top-right of the Steps to reproduce section to wipe them in one click and write your own.
 
-> If this auto-fill isn't for you, turn it off under **Settings > Issue settings > AI settings > Fill steps to reproduce**.
+> If this auto-fill isn't for you, turn it off under **Settings > Issue settings > Other > Fill steps to reproduce**.
 
 ### Pulling the log that matters into the body
 

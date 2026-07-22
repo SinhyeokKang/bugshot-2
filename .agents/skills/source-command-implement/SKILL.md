@@ -48,7 +48,7 @@ Use this skill when the user asks to run the migrated source command `implement`
 영역별로 Explore 에이전트를 동시에 띄워 각각:
 - 변경 대상과 **같은 역할의 기존 구현** 경로·시그니처 (패턴 복제용)
 - 건드릴 타입·메시지·store 키의 현재 정의와 사용처
-- 관련 AGENTS.md / docs/ARCHITECTURE.md 제약 (해당 영역만)
+- 관련 CLAUDE.md / docs/ARCHITECTURE.md 제약 (해당 영역만)
 
 대상이 한 파일·한 영역에 집중되면 Explore 없이 직접 Read해도 무방.
 
@@ -80,7 +80,7 @@ grep -ni -e '<변경 파일명>' -e '<영역 키워드>' docs/POSTMORTEM.md
 ### 4. 테스트 green 확인
 
 - `/tdd`로 박은 테스트가 있으면 `pnpm test --run <테스트파일>`로 **red → green 전환** 확인.
-- tasks.md "테스트 계획"의 단위 테스트 대상이 있는데 테스트가 아직 없으면, 해당 순수 함수의 테스트를 작성하고 통과 확인 (AGENTS.md "테스트 우선" 원칙 — 테스트 없이 코드만 변경하지 않는다).
+- tasks.md "테스트 계획"의 단위 테스트 대상이 있는데 테스트가 아직 없으면, 해당 순수 함수의 테스트를 작성하고 통과 확인 (CLAUDE.md "테스트 우선" 원칙 — 테스트 없이 코드만 변경하지 않는다).
   - 위치: 대상과 같은 디렉터리의 `__tests__/*.test.ts`. 도구: **Vitest**. 기존 파일에 케이스 추가가 자연스러우면 신규 생성 금지.
 - 마지막에 `pnpm test --run` 전체 통과 + `pnpm typecheck` 통과 확인.
 - **`pnpm build`는 돌리지 않는다** (빌드는 `/build`·명시 요청 전용).

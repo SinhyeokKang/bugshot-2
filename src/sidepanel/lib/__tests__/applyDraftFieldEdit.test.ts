@@ -5,14 +5,14 @@ import {
   type DraftEditTarget,
 } from "@/sidepanel/lib/applyDraftFieldEdit";
 import type { IssueRecord } from "@/store/issues-store";
-import type { IssueSection } from "@/store/settings-ui-store";
+import type { TextIssueSection } from "../bodyBlocks";
 
 const NOW = 1_700_000_000_000;
 
 const section = (
-  id: IssueSection["id"],
-  renderAs: IssueSection["renderAs"] = "paragraph",
-): IssueSection => ({ id, enabled: true, renderAs, builtIn: true });
+  id: TextIssueSection["id"],
+  renderAs: TextIssueSection["renderAs"] = "paragraph",
+): TextIssueSection => ({ id, enabled: true, renderAs, builtIn: true });
 
 function makeIssue(overrides: Partial<IssueRecord> = {}): IssueRecord {
   return {

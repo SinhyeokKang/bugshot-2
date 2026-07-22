@@ -1,5 +1,5 @@
 import type { CaptureMode } from "@/store/editor-store";
-import type { IssueSectionId, LocaleMode } from "@/store/settings-ui-store";
+import type { LocaleMode, TextSectionId } from "@/store/settings-ui-store";
 import type { StyleDiffRow } from "@/sidepanel/components/StyleChangesTable";
 import type { NetworkLogSummary, ConsoleLogSummary } from "./buildLogSummary";
 import type { ActionLogSummary } from "@/types/action";
@@ -28,7 +28,7 @@ type SchemaProperty =
 // opts.logRefs는 non-empty여야 한다 — enum: []는 퇴화 스키마라 nano의 문법 컴파일이
 // 깨질 수 있다. 후보가 없으면 호출부가 opts를 생략한다.
 export function buildAiDraftSchema(
-  sectionIds: IssueSectionId[],
+  sectionIds: TextSectionId[],
   opts?: { logRefs: string[] },
 ) {
   const properties: Record<string, SchemaProperty> = {
@@ -64,7 +64,7 @@ export interface AiDraftResponse {
 // 검증·해석은 renderLogRefs 한 곳에만 둔다.
 export function parseAiDraftResponse(
   raw: string,
-  enabledSectionIds: IssueSectionId[],
+  enabledSectionIds: TextSectionId[],
 ): AiDraftResponse | null {
   const json = extractJson(raw);
   if (!json) return null;
@@ -119,7 +119,8 @@ export interface AiDraftSessionContext {
   networkLogSummary?: NetworkLogSummary;
   consoleLogSummary?: ConsoleLogSummary;
   actionLogSummary?: ActionLogSummary;
-  enabledSections: { id: IssueSectionId }[];
+  // media는 텍스트 섹션이 아니라 여기 들어오면 안 된다 — 타입으로 차단(호출처는 사전 필터).
+  enabledSections: { id: TextSectionId }[];
   existingDraft?: { title: string; sections: Record<string, string> };
 }
 

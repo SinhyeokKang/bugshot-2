@@ -4,14 +4,14 @@ export type PreviewLayoutEntry =
   | { kind: "logCards" };
 
 // 이슈 프리뷰의 섹션 사이에 media/logCards 슬롯을 끼우는 순서 규칙.
-// 첫 POST_MEDIA 섹션 바로 앞에 media→logCards를 넣고, 그런 섹션이 없으면 말미에 붙인다.
+// sectionIds의 "media" 자리에 media→logCards를 넣는다(그 id 자체는 섹션으로 렌더하지 않는다).
+// media가 목록에 없으면 말미 — 레거시 순서 배열 방어.
 export function composePreviewLayout(args: {
   sectionIds: string[];
-  postMediaSectionIds: Set<string>;
   hasMedia: boolean;
   hasLogCards: boolean;
 }): PreviewLayoutEntry[] {
-  const { sectionIds, postMediaSectionIds, hasMedia, hasLogCards } = args;
+  const { sectionIds, hasMedia, hasLogCards } = args;
   const out: PreviewLayoutEntry[] = [];
   let inserted = false;
   const insertSlots = () => {
@@ -22,7 +22,10 @@ export function composePreviewLayout(args: {
   };
 
   for (const id of sectionIds) {
-    if (postMediaSectionIds.has(id)) insertSlots();
+    if (id === "media") {
+      insertSlots();
+      continue;
+    }
     out.push({ kind: "section", id });
   }
   insertSlots();

@@ -115,7 +115,7 @@ case stays one click.
 - **File attachments** — attach your own files to the report, uploaded natively to the tracker
 - **Local download** — save the captured screenshot/video and the `logs.html` report
 - **i18n** — Korean / English
-- **Report body composition** — toggle which sections (description, steps to reproduce, expected result, notes, attachments) go into the issue, plus a title prefix
+- **Report body composition** — toggle which sections (description, steps to reproduce, expected result, notes) go into the issue and **drag them into the order you want**, media and logs included; plus a title prefix
 - **Theme** — light / dark / system
 
 ## Development

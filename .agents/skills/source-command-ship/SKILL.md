@@ -1,6 +1,13 @@
 ---
-description: 작은 변경을 tdd→push까지 한 번에 오케스트레이션하는 파이프라인. 각 단계 게이트 통과 시 자동 진행, 하드 실패·사용자 결정 지점에선 즉시 중단+리포트.
+name: "source-command-ship"
+description: "작은 변경을 tdd→push까지 한 번에 오케스트레이션하는 파이프라인. 각 단계 게이트 통과 시 자동 진행, 하드 실패·사용자 결정 지점에선 즉시 중단+리포트."
 ---
+
+# source-command-ship
+
+Use this skill when the user asks to run the migrated source command `ship`.
+
+## Command Template
 
 작은·외과적 변경 하나를 **`/tdd` → `/implement` → 커밋 → `/code-review` → `/refactor` → `/e2e-write` → (`/guide`) → (`/doc-check`) → (`/postmortem`) → `/e2e-run` → `/push` → `/build`** 순서로 자동 오케스트레이션한다. 각 하위 스킬을 순차 호출하고, **단계별 완결 게이트**를 확인해 통과하면 다음으로, 하드 실패나 사용자 결정 지점이면 **즉시 중단하고 현황을 리포트**한다.
 

@@ -2,56 +2,167 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   apiKeyObfuscatingStorage,
   DEFAULT_ISSUE_SECTIONS,
-  POST_MEDIA_SECTION_IDS,
   migrateSettingsUi,
+  normalizeSections,
   sectionHelpKey,
   sectionLabelKey,
   sectionMdLabelKey,
   sectionPlaceholderKey,
   useSettingsUiStore,
+  type IssueSection,
   type IssueSectionId,
+  type TextSectionId,
   type LlmConfig,
 } from "../settings-ui-store";
 
+const section = (
+  id: IssueSectionId,
+  enabled = true,
+  renderAs: IssueSection["renderAs"] = "paragraph",
+): IssueSection => ({ id, enabled, renderAs, builtIn: true });
+
+const ids = (sections: IssueSection[]) => sections.map((s) => s.id);
+
 describe("settings-ui-store", () => {
   describe("DEFAULT_ISSUE_SECTIONS", () => {
-    it("4종 빌트인 섹션이 올바른 순서로 정의됨", () => {
-      const ids = DEFAULT_ISSUE_SECTIONS.map((s) => s.id);
-      expect(ids).toEqual(["description", "stepsToReproduce", "expectedResult", "notes"]);
+    it("5종 빌트인 항목이 올바른 순서로 정의됨 (미디어는 재현과정과 기대결과 사이)", () => {
+      expect(ids(DEFAULT_ISSUE_SECTIONS)).toEqual([
+        "description",
+        "stepsToReproduce",
+        "media",
+        "expectedResult",
+        "notes",
+      ]);
     });
 
-    it("description/stepsToReproduce/expectedResult는 enabled, notes는 disabled", () => {
+    it("notes만 disabled, 나머지는 enabled (media는 항상 enabled)", () => {
       const map = Object.fromEntries(DEFAULT_ISSUE_SECTIONS.map((s) => [s.id, s.enabled]));
       expect(map).toEqual({
         description: true,
         stepsToReproduce: true,
+        media: true,
         expectedResult: true,
         notes: false,
       });
     });
 
-    it("stepsToReproduce만 orderedList, 나머지는 paragraph", () => {
+    it("stepsToReproduce는 orderedList, media는 meta, 나머지는 paragraph", () => {
       const map = Object.fromEntries(DEFAULT_ISSUE_SECTIONS.map((s) => [s.id, s.renderAs]));
       expect(map).toEqual({
         description: "paragraph",
         stepsToReproduce: "orderedList",
+        media: "meta",
         expectedResult: "paragraph",
         notes: "paragraph",
       });
     });
   });
 
-  describe("POST_MEDIA_SECTION_IDS", () => {
-    it("expectedResult와 notes만 포함", () => {
-      expect(POST_MEDIA_SECTION_IDS.has("expectedResult")).toBe(true);
-      expect(POST_MEDIA_SECTION_IDS.has("notes")).toBe(true);
-      expect(POST_MEDIA_SECTION_IDS.has("description")).toBe(false);
-      expect(POST_MEDIA_SECTION_IDS.has("stepsToReproduce")).toBe(false);
+  // 미디어 엔트리는 "정확히 1개" 불변식을 가진다 — 없으면 본문에서 미디어가 소실되고,
+  // 2개면 중복 렌더된다. 마이그레이션·rehydrate 공용 방어선.
+  describe("normalizeSections", () => {
+    it("미디어가 없으면 레거시 앵커(첫 enabled post-media 섹션 직전)에 삽입한다", () => {
+      const legacy = [
+        section("description"),
+        section("stepsToReproduce", true, "orderedList"),
+        section("expectedResult"),
+        section("notes", false),
+      ];
+      expect(ids(normalizeSections(legacy))).toEqual([
+        "description",
+        "stepsToReproduce",
+        "media",
+        "expectedResult",
+        "notes",
+      ]);
+    });
+
+    it("expectedResult가 비활성이면 첫 enabled post-media인 notes 앞에 삽입한다", () => {
+      const legacy = [
+        section("description"),
+        section("expectedResult", false),
+        section("notes", true),
+      ];
+      expect(ids(normalizeSections(legacy))).toEqual([
+        "description",
+        "expectedResult",
+        "media",
+        "notes",
+      ]);
+    });
+
+    it("enabled인 post-media 섹션이 없으면 말미에 붙인다", () => {
+      const legacy = [
+        section("description"),
+        section("expectedResult", false),
+        section("notes", false),
+      ];
+      expect(ids(normalizeSections(legacy))).toEqual([
+        "description",
+        "expectedResult",
+        "notes",
+        "media",
+      ]);
+    });
+
+    it("미디어가 이미 1개면 위치를 보존한다 (사용자가 정한 순서 존중)", () => {
+      const reordered = [
+        section("media", true, "meta"),
+        section("description"),
+        section("expectedResult"),
+      ];
+      expect(ids(normalizeSections(reordered))).toEqual([
+        "media",
+        "description",
+        "expectedResult",
+      ]);
+    });
+
+    it("미디어가 2개 이상이면 첫 항목만 남긴다", () => {
+      const dirty = [
+        section("description"),
+        section("media", true, "meta"),
+        section("expectedResult"),
+        section("media", true, "meta"),
+      ];
+      expect(ids(normalizeSections(dirty))).toEqual([
+        "description",
+        "media",
+        "expectedResult",
+      ]);
+    });
+
+    it("enabled:false로 오염된 미디어는 true로 강제한다", () => {
+      const dirty = [section("description"), section("media", false, "meta")];
+      const out = normalizeSections(dirty);
+      expect(out.find((s) => s.id === "media")?.enabled).toBe(true);
+    });
+
+    it("멱등하다 (두 번 돌려도 결과 동일)", () => {
+      const legacy = [
+        section("description"),
+        section("stepsToReproduce", true, "orderedList"),
+        section("expectedResult"),
+        section("notes", false),
+      ];
+      const once = normalizeSections(legacy);
+      expect(normalizeSections(once)).toEqual(once);
+    });
+
+    it("빈 배열이면 미디어 하나만 남는다", () => {
+      expect(ids(normalizeSections([]))).toEqual(["media"]);
+    });
+
+    it("입력 배열을 변형하지 않는다 (순수 함수)", () => {
+      const input = [section("description"), section("expectedResult")];
+      const snapshot = JSON.parse(JSON.stringify(input));
+      normalizeSections(input);
+      expect(input).toEqual(snapshot);
     });
   });
 
   describe("section key 헬퍼", () => {
-    const ids: IssueSectionId[] = ["description", "stepsToReproduce", "expectedResult", "notes"];
+    const ids: TextSectionId[] = ["description", "stepsToReproduce", "expectedResult", "notes"];
 
     it("sectionLabelKey는 section.{id} 형식", () => {
       ids.forEach((id) => expect(sectionLabelKey(id)).toBe(`section.${id}`));
@@ -96,10 +207,97 @@ describe("settings-ui-store", () => {
       expect(desc?.enabled).toBe(false);
     });
 
+    it("setIssueEnabled('media')는 무시된다 (미디어 카드엔 사용 여부 스위치가 없다)", () => {
+      useSettingsUiStore.getState().resetIssueSections();
+      useSettingsUiStore.getState().setIssueEnabled("media", false);
+      const media = useSettingsUiStore.getState().issueSections.find((s) => s.id === "media");
+      expect(media?.enabled).toBe(true);
+    });
+
     it("resetIssueSections로 기본값 복원", () => {
       useSettingsUiStore.getState().setIssueEnabled("notes", true);
       useSettingsUiStore.getState().setIssueEnabled("description", false);
       useSettingsUiStore.getState().resetIssueSections();
+      expect(useSettingsUiStore.getState().issueSections).toEqual(DEFAULT_ISSUE_SECTIONS);
+    });
+
+    it("reorderIssueSections로 순서 변경 (미디어를 맨 앞으로)", () => {
+      useSettingsUiStore.getState().resetIssueSections();
+      const from = DEFAULT_ISSUE_SECTIONS.findIndex((s) => s.id === "media");
+      useSettingsUiStore.getState().reorderIssueSections(from, 0);
+      expect(ids(useSettingsUiStore.getState().issueSections)).toEqual([
+        "media",
+        "description",
+        "stepsToReproduce",
+        "expectedResult",
+        "notes",
+      ]);
+    });
+
+    it("reorderIssueSections는 뒤로 옮길 때도 나머지 상대 순서를 보존한다", () => {
+      useSettingsUiStore.getState().resetIssueSections();
+      useSettingsUiStore.getState().reorderIssueSections(0, 4);
+      expect(ids(useSettingsUiStore.getState().issueSections)).toEqual([
+        "stepsToReproduce",
+        "media",
+        "expectedResult",
+        "notes",
+        "description",
+      ]);
+    });
+
+    it("reorderIssueSections는 enabled 등 섹션 속성을 보존한다", () => {
+      useSettingsUiStore.getState().resetIssueSections();
+      useSettingsUiStore.getState().reorderIssueSections(4, 0);
+      const notes = useSettingsUiStore.getState().issueSections[0];
+      expect(notes).toEqual(DEFAULT_ISSUE_SECTIONS.find((s) => s.id === "notes"));
+    });
+
+    it("reorderIssueSections는 범위 밖 인덱스에서 no-op (배열 파괴 방지)", () => {
+      useSettingsUiStore.getState().resetIssueSections();
+      useSettingsUiStore.getState().reorderIssueSections(-1, 2);
+      useSettingsUiStore.getState().reorderIssueSections(0, 99);
+      useSettingsUiStore.getState().reorderIssueSections(99, 0);
+      expect(useSettingsUiStore.getState().issueSections).toEqual(DEFAULT_ISSUE_SECTIONS);
+    });
+
+    // 복원 버튼은 "순서"만 되돌린다 — 사용자가 끈 섹션이 조용히 켜지면 안 된다.
+    it("resetIssueSectionOrder는 순서만 기본값으로 되돌리고 enabled는 보존한다", () => {
+      useSettingsUiStore.getState().resetIssueSections();
+      useSettingsUiStore.getState().setIssueEnabled("notes", true);
+      useSettingsUiStore.getState().setIssueEnabled("description", false);
+      useSettingsUiStore.getState().reorderIssueSections(2, 0);
+
+      useSettingsUiStore.getState().resetIssueSectionOrder();
+
+      const after = useSettingsUiStore.getState().issueSections;
+      expect(ids(after)).toEqual(ids(DEFAULT_ISSUE_SECTIONS));
+      const map = Object.fromEntries(after.map((s) => [s.id, s.enabled]));
+      expect(map).toEqual({
+        description: false,
+        stepsToReproduce: true,
+        media: true,
+        expectedResult: true,
+        notes: true,
+      });
+    });
+
+    it("resetIssueSectionOrder는 기본 배열에 없는 항목을 잃지 않는다", () => {
+      useSettingsUiStore.setState({
+        issueSections: [
+          section("notes"),
+          { ...section("custom" as IssueSectionId), builtIn: true },
+          section("description"),
+        ],
+      });
+      useSettingsUiStore.getState().resetIssueSectionOrder();
+      expect(ids(useSettingsUiStore.getState().issueSections)).toContain("custom");
+      useSettingsUiStore.getState().resetIssueSections();
+    });
+
+    it("reorderIssueSections(from===to)는 no-op", () => {
+      useSettingsUiStore.getState().resetIssueSections();
+      useSettingsUiStore.getState().reorderIssueSections(2, 2);
       expect(useSettingsUiStore.getState().issueSections).toEqual(DEFAULT_ISSUE_SECTIONS);
     });
 
@@ -178,16 +376,65 @@ describe("settings-ui-store", () => {
     });
   });
 
+  // v8 사용자는 순서 배열에 미디어 엔트리가 없다 → 레거시 앵커 위치로 backfill해
+  // 마이그레이션 직후 본문 레이아웃이 변하지 않게 한다.
+  describe("미디어 엔트리 마이그레이션 (v8→v9)", () => {
+    it("v8 저장 순서에 미디어를 정확히 1개 삽입한다", () => {
+      const v8 = [
+        section("description"),
+        section("stepsToReproduce", true, "orderedList"),
+        section("expectedResult"),
+        section("notes", false),
+      ];
+      const migrated = migrateSettingsUi({ issueSections: v8 }, 8);
+      expect(ids(migrated.issueSections)).toEqual([
+        "description",
+        "stepsToReproduce",
+        "media",
+        "expectedResult",
+        "notes",
+      ]);
+    });
+
+    it("v8의 사용자 enabled 설정을 보존한다", () => {
+      const v8 = [
+        section("description", false),
+        section("stepsToReproduce", true, "orderedList"),
+        section("expectedResult"),
+        section("notes", true),
+      ];
+      const migrated = migrateSettingsUi({ issueSections: v8 }, 8);
+      const map = Object.fromEntries(migrated.issueSections.map((s) => [s.id, s.enabled]));
+      expect(map).toEqual({
+        description: false,
+        stepsToReproduce: true,
+        media: true,
+        expectedResult: true,
+        notes: true,
+      });
+    });
+
+    it("이미 v9인 상태(미디어 1개)는 순서를 그대로 둔다", () => {
+      const v9 = [
+        section("media", true, "meta"),
+        section("description"),
+        section("expectedResult"),
+      ];
+      const migrated = migrateSettingsUi({ issueSections: v9 }, 9);
+      expect(ids(migrated.issueSections)).toEqual(["media", "description", "expectedResult"]);
+    });
+  });
+
   describe("초기 마이그레이션 분기 (v1→v5)", () => {
     it("v1에서 올라오면 issueSections 기본값을 주입한다", () => {
       const migrated = migrateSettingsUi({}, 1);
       expect(migrated.issueSections).toEqual(DEFAULT_ISSUE_SECTIONS);
     });
 
-    it("issueSections가 이미 있으면 보존한다", () => {
+    it("issueSections가 이미 있으면 보존한다 (미디어 엔트리만 정규화로 보강)", () => {
       const custom = [{ ...DEFAULT_ISSUE_SECTIONS[0], enabled: false }];
       const migrated = migrateSettingsUi({ issueSections: custom }, 2);
-      expect(migrated.issueSections).toEqual(custom);
+      expect(migrated.issueSections).toEqual([...custom, section("media", true, "meta")]);
     });
 
     it("v2에서 올라오면 llm을 null로 초기화한다", () => {
