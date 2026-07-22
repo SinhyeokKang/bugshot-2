@@ -118,8 +118,10 @@ Tailwind 4px 스케일을 그대로 쓴다. 자주 쓰는 값(관용):
 | 표면 | radius |
 |---|---|
 | 기본 컨트롤(버튼·인풋·select) | `rounded-md` |
-| 카드·팝오버·콘텐츠 박스 | `rounded-lg` |
-| 다이얼로그 | `rounded-2xl` |
+| 카드 | `rounded-xl` (shadcn 기본. `tailwind.config.js`가 lg/md/sm만 `--radius`로 리맵해 **`xl`==`lg`==12px** — 표가 스케일처럼 읽히지만 실효는 같다) |
+| 팝오버·select 콘텐츠 | `rounded-md` |
+| 미디어 프레임·로그/표 컨테이너 | `rounded-lg` |
+| 다이얼로그 | primitive 기본은 `rounded-2xl`이나 **화면에 뜨는 사이드패널 다이얼로그는 전부 `rounded-3xl`** — 아래 관용구 참조 |
 | 토스트 | `rounded-xl` |
 | 칩·스와치 등 작은 인라인 요소 | `rounded-sm` / `rounded-[3px]` |
 | 원형(스위치 thumb·pill 배지·아바타) | `rounded-full` |
@@ -226,7 +228,7 @@ shadcn `Slider` (`src/components/ui/slider.tsx`, Radix). 표준에서 **멀티 t
 - 현재 활성 사용처는 없다(이전 유일 예 `LogAttachmentCards`가 단일 카드로 전환되며 `@container`/grid 제거). 플러그인은 설치돼 있어 필요 시 재도입 가능.
 
 ### 오버레이 컴포넌트
-- **Dialog** (`dialog.tsx`): 기본 `DialogContent` = `rounded-2xl`, `w-full max-w-[calc(100%-2rem)]`, `duration-300`. 넓게 띄워야 하면 override(예: `SubmitFieldsDialog`의 `w-[90vw] max-w-[90vw] max-h-[80vh] rounded-3xl`). `DialogFooter`는 `flex-col-reverse sm:flex-row` + `rounded-b-2xl`.
+- **Dialog** (`dialog.tsx`): primitive 기본 `DialogContent` = `rounded-2xl`, `w-full max-w-[calc(100%-2rem)]`, `duration-300`. 다만 **사이드패널 다이얼로그는 예외 없이 `w-[90vw] max-w-[90vw] gap-5 rounded-3xl p-6 sm:rounded-3xl`를 얹는 게 표준**이다(v1.6.11에서 21곳 통일 — 좁은 패널에서 기본 폭이 너무 좁다). 높이가 필요하면 `max-h-[80vh]`를 더한다. 새 다이얼로그는 이 관용구를 복제한다. `AlertDialog`는 primitive 기본(2xl) 유지. `DialogFooter`는 `flex-col-reverse sm:flex-row` + `rounded-b-2xl`.
 - **Popover** (`popover.tsx`): 기본 `align=center sideOffset=4 collisionPadding=8`, `w-72`, 높이는 `--radix-popover-content-available-height`. 콤보박스에 다수 사용.
 - **ScrollArea** (`scroll-area.tsx`): 로그 콘텐츠 패널 공통. 커스텀 스크롤바는 `globals.css`의 `::-webkit-scrollbar`(10px, thumb=border 색, hover 시 muted-foreground/0.5)와 일관.
 - **Resizable** (`resizable.tsx`): 분할 레이아웃(주로 log-viewer 비디오+로그 패널).
@@ -259,7 +261,7 @@ shadcn `Slider` (`src/components/ui/slider.tsx`, Radix). 표준에서 **멀티 t
 | `StyleChangesTable.tsx` | 스타일 diff 표 — DocTable과 별개의 두 번째 테이블 primitive(before/after·변경 토큰 강조) |
 | `OriginFilterBar.tsx` | 출처별 로그 필터 바 — Console/Network/Action 로그 공용, origin 2개+ 일 때만 노출 |
 | `{Console,Network,Action}LogContent.tsx` + `*LogPreviewDialog.tsx` | 로그 목록·상세 렌더와 그 다이얼로그 셸 — 사이드패널 로그 탭·리플레이 트림·로그 추가 다이얼로그·log-viewer가 공유(§14 로그 행 심각도 규칙의 구현체). `NetworkLogContent`는 `onActiveChange`, `ConsoleLogContent`는 `selectedId`+`onActiveChange`로 선택을 노출한다(미공급 시 표시 전용 — 비침습) |
-| `LogAttachmentCards.tsx` | logs.html 단일 첨부 토글 카드(Switch + 스위치 영역 hover-suppress, IssueRow 패턴) — 클릭 시 LogPreviewDialog |
+| `LogAttachmentCards.tsx` | logs.html 단일 첨부 토글 카드(Switch + 스위치 영역 hover-suppress — **`IssueRow`와 공유하는 건 이 hover-suppress 로직뿐**이고 카드 골격은 `AttachmentList`와 동일[`Card`+`p-3`, 제목 `text-sm font-medium`]. `IssueRow`는 Card가 아닌 div에 `px-4 py-3`·제목 `text-base`) — 클릭 시 LogPreviewDialog |
 | `IssuePreviewView.tsx` | 이슈 본문 프리뷰 — 제목·재현 환경·섹션 + 마크다운 복사, `media`/`logCards` 슬롯. PreviewPanel과 log-viewer Report 탭 공용(두 표면이 같은 본문을 그리도록 강제) |
 | `SubmitSuccessView.tsx` | 제출 완료 화면 — 성공 아이콘 + 이슈 링크 + 후기·확인 버튼. IssueTab(작성)·IssueListTab(목록) 공용 |
 | `AttachmentSection.tsx` / `AttachmentList.tsx` | 사용자 파일 첨부 — 편집형(추가·삭제 카드) / 읽기 전용 카드 목록(클릭 시 로컬 재다운로드, `CATEGORY_ICON` 보유). 후자는 PreviewPanel·DraftDetailDialog 공용 |
