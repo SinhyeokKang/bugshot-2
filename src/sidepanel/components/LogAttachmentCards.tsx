@@ -1,4 +1,5 @@
-import { ScrollText } from "lucide-react";
+import { useState } from "react";
+import { FileClock } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
 import { useT } from "@/i18n";
@@ -27,6 +28,12 @@ export function LogAttachmentCards({
   readOnly,
 }: LogAttachmentCardsProps) {
   const t = useT();
+  // 스위치 영역 호버 시 카드 자체의 hover 배경을 끈다(이슈 목록 카드 IssueRow와 동일 패턴).
+  const [hoverSuppressed, setHoverSuppressed] = useState(false);
+  const hoverGuard = {
+    onMouseEnter: () => setHoverSuppressed(true),
+    onMouseLeave: () => setHoverSuppressed(false),
+  };
   const hasNetwork = networkLog !== null && networkLog.captured > 0;
   const hasConsole = consoleLog !== null && consoleLog.captured > 0;
   const hasAction = !!actionLog && actionLog.captured > 0;
@@ -42,7 +49,7 @@ export function LogAttachmentCards({
       data-testid="log-attachment-card"
       role="button"
       tabIndex={0}
-      className="flex cursor-pointer items-center gap-3 p-3 transition-colors hover:bg-accent/50"
+      className={`flex cursor-pointer items-center gap-3 p-3 transition-colors ${hoverSuppressed ? "" : "hover:bg-accent/50"}`}
       onClick={onClick}
       onKeyDown={(e) => {
         // 카드 자체 포커스일 때만 — Switch(중첩 button) 키 활성화가 버블링해 다이얼로그를 열지 않게.
@@ -54,18 +61,16 @@ export function LogAttachmentCards({
       }}
     >
       <div className="shrink-0">
-        <ScrollText className="h-4 w-4" />
+        <FileClock className="h-4 w-4" />
       </div>
       <div className="flex min-w-0 flex-1 flex-col">
-        <span className="truncate text-sm font-medium">{t("logCard.title")}</span>
+        <span className="truncate text-sm font-medium">logs.html</span>
         <span className="truncate text-sm text-muted-foreground">{description}</span>
       </div>
       {!readOnly && (
-        <Switch
-          checked={logsAttach}
-          onCheckedChange={onToggle}
-          onClick={(e) => e.stopPropagation()}
-        />
+        <span {...hoverGuard} onClick={(e) => e.stopPropagation()}>
+          <Switch checked={logsAttach} onCheckedChange={onToggle} />
+        </span>
       )}
     </Card>
   );

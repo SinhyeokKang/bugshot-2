@@ -235,6 +235,8 @@ function emitLogSummary(lines: string[], ctx: MarkdownContext, logsHref?: string
   const { networkLogSummary: net, consoleLogSummary: con, actionLogCaptured: act } = ctx;
   if (!net && !con && !act) return;
   lines.push(`## ${t("logSummary.title")}`, "");
+  const file = logsHref ? `[logs.html](${logsHref})` : "logs.html";
+  lines.push(`**${t("logSummary.logs.lead")}** ${t("logSummary.logs.detail", { file })}`, "");
   if (net) {
     lines.push(
       net.errors.length > 0
@@ -253,6 +255,4 @@ function emitLogSummary(lines: string[], ctx: MarkdownContext, logsHref?: string
     lines.push(`- ${t("logSummary.action.line", { n: act })}`);
   }
   lines.push("");
-  const file = logsHref ? `[logs.html](${logsHref})` : "logs.html";
-  lines.push(`**${t("logSummary.logs.lead")}** ${t("logSummary.logs.detail", { file })}`, "");
 }

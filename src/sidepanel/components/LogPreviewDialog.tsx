@@ -43,19 +43,19 @@ export function LogPreviewDialog({
   syncBaseMs,
 }: LogPreviewDialogProps) {
   const t = useT();
-  const hasConsole = !!consoleLog && consoleLog.captured > 0;
-  const hasNetwork = !!networkLog && networkLog.captured > 0;
-  const hasAction = !!actionLog && actionLog.captured > 0;
 
-  // 기본 활성 탭: 캡처된 탭 중 console → network → action 순 첫 번째(log-viewer와 동일).
-  const defaultTab: LogTab = hasConsole ? "console" : hasNetwork ? "network" : "action";
+  // 탭셋은 항상 console/network/action 고정(LogInsertDialog와 동일 — 0건은 숨기지 않고 EmptyCase).
+  // 기본 활성 탭만 캡처된 탭 중 console → network → action 순 첫 번째로 연다(log-viewer와 동일).
+  const defaultTab: LogTab =
+    consoleLog && consoleLog.entries.length > 0
+      ? "console"
+      : networkLog && networkLog.requests.length > 0
+        ? "network"
+        : "action";
   const [tab, setTab] = useState<LogTab>(defaultTab);
   useEffect(() => {
     if (open) setTab(defaultTab);
   }, [open, defaultTab]);
-
-  const tabCount = [hasConsole, hasNetwork, hasAction].filter(Boolean).length;
-  const cols = tabCount === 3 ? "grid-cols-3" : tabCount === 2 ? "grid-cols-2" : "grid-cols-1";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -64,7 +64,7 @@ export function LogPreviewDialog({
         className="w-[80vw] max-w-[80vw] h-[80vh] gap-5 rounded-3xl p-6 sm:rounded-3xl"
       >
         <DialogHeader>
-          <DialogTitle className="text-xl">{t("logCard.title")}</DialogTitle>
+          <DialogTitle className="text-xl">logs.html</DialogTitle>
         </DialogHeader>
 
         <Tabs
@@ -72,72 +72,60 @@ export function LogPreviewDialog({
           onValueChange={(v) => setTab(v as LogTab)}
           className="flex min-h-0 flex-1 flex-col gap-3"
         >
-          <CollapsingTabsList className={`grid h-9 w-full shrink-0 ${cols}`}>
-            {hasConsole && (
-              <TabsTrigger value="console" className="min-w-0 gap-1.5" data-testid="log-preview-tab-console">
-                <Terminal className="h-3.5 w-3.5 shrink-0" />
-                <TabLabel>{t("debug.tab.console")}</TabLabel>
-                <Badge className="ml-0.5 h-5 min-w-5 shrink-0 px-1.5 text-[10px]">
-                  {consoleLog!.captured}
-                </Badge>
-              </TabsTrigger>
-            )}
-            {hasNetwork && (
-              <TabsTrigger value="network" className="min-w-0 gap-1.5" data-testid="log-preview-tab-network">
-                <ArrowLeftRight className="h-3.5 w-3.5 shrink-0" />
-                <TabLabel>{t("debug.tab.network")}</TabLabel>
-                <Badge className="ml-0.5 h-5 min-w-5 shrink-0 px-1.5 text-[10px]">
-                  {networkLog!.captured}
-                </Badge>
-              </TabsTrigger>
-            )}
-            {hasAction && (
-              <TabsTrigger value="action" className="min-w-0 gap-1.5" data-testid="log-preview-tab-action">
-                <MousePointerClick className="h-3.5 w-3.5 shrink-0" />
-                <TabLabel>{t("debug.tab.action")}</TabLabel>
-                <Badge className="ml-0.5 h-5 min-w-5 shrink-0 px-1.5 text-[10px]">
-                  {actionLog!.captured}
-                </Badge>
-              </TabsTrigger>
-            )}
+          <CollapsingTabsList className="grid h-9 w-full shrink-0 grid-cols-3">
+            <TabsTrigger value="console" className="min-w-0 gap-1.5" data-testid="log-preview-tab-console">
+              <Terminal className="h-3.5 w-3.5 shrink-0" />
+              <TabLabel>{t("debug.tab.console")}</TabLabel>
+              <Badge className="ml-0.5 h-5 min-w-5 shrink-0 px-1.5 text-[10px]">
+                {consoleLog?.entries.length ?? 0}
+              </Badge>
+            </TabsTrigger>
+            <TabsTrigger value="network" className="min-w-0 gap-1.5" data-testid="log-preview-tab-network">
+              <ArrowLeftRight className="h-3.5 w-3.5 shrink-0" />
+              <TabLabel>{t("debug.tab.network")}</TabLabel>
+              <Badge className="ml-0.5 h-5 min-w-5 shrink-0 px-1.5 text-[10px]">
+                {networkLog?.requests.length ?? 0}
+              </Badge>
+            </TabsTrigger>
+            <TabsTrigger value="action" className="min-w-0 gap-1.5" data-testid="log-preview-tab-action">
+              <MousePointerClick className="h-3.5 w-3.5 shrink-0" />
+              <TabLabel>{t("debug.tab.action")}</TabLabel>
+              <Badge className="ml-0.5 h-5 min-w-5 shrink-0 px-1.5 text-[10px]">
+                {actionLog?.entries.length ?? 0}
+              </Badge>
+            </TabsTrigger>
           </CollapsingTabsList>
 
           {/* forceMount — 언마운트되면 Content 내부 검색·필터·스크롤 위치가 탭 왕복마다 날아간다. */}
-          {hasConsole && (
-            <TabsContent
-              forceMount
-              value="console"
-              className="mt-0 flex min-h-0 flex-1 data-[state=inactive]:hidden"
-            >
-              <ConsoleLogContent
-                entries={consoleLog!.entries}
-                startedAt={consoleLog!.startedAt}
-                syncBaseMs={syncBaseMs}
-              />
-            </TabsContent>
-          )}
-          {hasNetwork && (
-            <TabsContent
-              forceMount
-              value="network"
-              className="mt-0 flex min-h-0 flex-1 data-[state=inactive]:hidden"
-            >
-              <NetworkLogContent requests={networkLog!.requests} syncBaseMs={syncBaseMs} />
-            </TabsContent>
-          )}
-          {hasAction && (
-            <TabsContent
-              forceMount
-              value="action"
-              className="mt-0 flex min-h-0 flex-1 data-[state=inactive]:hidden"
-            >
-              <ActionLogContent
-                entries={actionLog!.entries}
-                startedAt={actionLog!.startedAt}
-                syncBaseMs={syncBaseMs}
-              />
-            </TabsContent>
-          )}
+          <TabsContent
+            forceMount
+            value="console"
+            className="mt-0 flex min-h-0 flex-1 data-[state=inactive]:hidden"
+          >
+            <ConsoleLogContent
+              entries={consoleLog?.entries ?? []}
+              startedAt={consoleLog?.startedAt}
+              syncBaseMs={syncBaseMs}
+            />
+          </TabsContent>
+          <TabsContent
+            forceMount
+            value="network"
+            className="mt-0 flex min-h-0 flex-1 data-[state=inactive]:hidden"
+          >
+            <NetworkLogContent requests={networkLog?.requests ?? []} syncBaseMs={syncBaseMs} />
+          </TabsContent>
+          <TabsContent
+            forceMount
+            value="action"
+            className="mt-0 flex min-h-0 flex-1 data-[state=inactive]:hidden"
+          >
+            <ActionLogContent
+              entries={actionLog?.entries ?? []}
+              startedAt={actionLog?.startedAt}
+              syncBaseMs={syncBaseMs}
+            />
+          </TabsContent>
         </Tabs>
 
         <DialogFooter className="!flex-row items-center !justify-end gap-2">

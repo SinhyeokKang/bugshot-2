@@ -116,7 +116,6 @@ const ko = {
   "logSummary.logs.lead": "BugShot 리포트가 첨부되어 있습니다.",
   "logSummary.logs.detail": "{file}에서 사용자 상호작용, 콘솔 로그, 네트워크 로그, 캡처된 미디어 등 추가적인 디버깅 정보를 확인할 수 있습니다.",
 
-  "logCard.title": "로그",
   "logCard.networkCount": "네트워크 {captured}(에러 {errors})",
   "logCard.networkCountNoError": "네트워크 {captured}",
   "logCard.consoleCount": "콘솔 {captured}(에러 {errors})",
@@ -247,7 +246,6 @@ const en = {
   "logSummary.logs.lead": "BugShot report attached.",
   "logSummary.logs.detail": "{file} contains additional debugging context, including user interactions, console logs, network logs, and captured media.",
 
-  "logCard.title": "Logs",
   "logCard.networkCount": "Network {captured} ({errors} err)",
   "logCard.networkCountNoError": "Network {captured}",
   "logCard.consoleCount": "Console {captured} ({errors} err)",

@@ -200,6 +200,9 @@ export interface IssueRecord {
   networkLogBlobKey?: string;
   consoleLogBlobKey?: string;
   actionLogBlobKey?: string;
+  // logs.html 제출 첨부 여부(편집 이슈에서 토글). undefined = 첨부(기존 이슈 기본값). blob은 불변 —
+  // 이 플래그만 게이트하므로 off→on 가역. optional이라 마이그레이션·버전 bump 불필요.
+  logsAttached?: boolean;
 
   // 사용자 직접 첨부 파일 메타. Blob은 attachments store에 `${id}:${meta.id}` 키로. optional이라 버전 bump 불필요.
   attachments?: UserAttachmentMeta[];

@@ -306,16 +306,18 @@ export function DraftDetailDialog({
   async function buildCtxForSubmit() {
     if (!issue) throw new Error(t("create.requiredMissing"));
     const sel = issue.selectionSnapshot;
+    // logsAttached === false면 blob이 있어도 logs.html 미첨부(편집 이슈의 통짜 토글). undefined = 첨부.
+    const logsOn = issue.logsAttached !== false;
     let networkLog: NetworkLog | null = null;
-    if (supportsConsoleNetworkLog(issue.captureMode) && issue.networkLogBlobKey) {
+    if (logsOn && supportsConsoleNetworkLog(issue.captureMode) && issue.networkLogBlobKey) {
       networkLog = await getNetworkLog(issue.networkLogBlobKey);
     }
     let consoleLogForSubmit: ConsoleLog | null = null;
-    if (supportsConsoleNetworkLog(issue.captureMode) && issue.consoleLogBlobKey) {
+    if (logsOn && supportsConsoleNetworkLog(issue.captureMode) && issue.consoleLogBlobKey) {
       consoleLogForSubmit = await getConsoleLog(issue.consoleLogBlobKey);
     }
     let actionLogForSubmit: ActionLog | null = null;
-    if (supportsActionLog(issue.captureMode) && issue.actionLogBlobKey) {
+    if (logsOn && supportsActionLog(issue.captureMode) && issue.actionLogBlobKey) {
       actionLogForSubmit = await getActionLog(issue.actionLogBlobKey);
     }
     // legacy no-diff draft fallback — 현재 element diff도 없고 버퍼도 없을 때만. 버퍼가 있으면
@@ -918,6 +920,7 @@ export function DraftDetailDialog({
                   consoleLogData={consoleLogData}
                   actionLogData={actionLogData}
                   onLogClick={() => setLogDialogOpen(true)}
+                  onToggleLogsAttach={(on) => patchIssue(issue.id, { logsAttached: on })}
                   editable={canEditDraftFields(issue)}
                   onEditSection={(sec) =>
                     setEditTarget({
@@ -991,6 +994,12 @@ export function DraftDetailDialog({
         networkLog={networkLogData}
         consoleLog={consoleLogData}
         actionLog={actionLogData}
+        logsAttach={issue.logsAttached !== false}
+        onToggleAttach={
+          canEditDraftFields(issue)
+            ? (on) => patchIssue(issue.id, { logsAttached: on })
+            : undefined
+        }
       />
       <SubmitFieldsDialog
         open={submitOpen}
@@ -1076,6 +1085,7 @@ function DraftDetailSections({
   consoleLogData,
   actionLogData,
   onLogClick,
+  onToggleLogsAttach,
   editable,
   onEditSection,
 }: {
@@ -1090,6 +1100,7 @@ function DraftDetailSections({
   consoleLogData: ConsoleLog | null;
   actionLogData: ActionLog | null;
   onLogClick: () => void;
+  onToggleLogsAttach: (on: boolean) => void;
   editable: boolean;
   onEditSection: (section: IssueSection) => void;
 }) {
@@ -1148,9 +1159,10 @@ function DraftDetailSections({
         networkLog={networkLogData}
         consoleLog={consoleLogData}
         actionLog={showActionCard ? actionLogData : null}
-        logsAttach={!!(networkLogData || consoleLogData || actionLogData)}
+        logsAttach={editable ? issue.logsAttached !== false : !!(networkLogData || consoleLogData || actionLogData)}
+        onToggle={editable ? onToggleLogsAttach : undefined}
         onClick={onLogClick}
-        readOnly
+        readOnly={!editable}
       />
     </FieldSection>
   ) : null;
