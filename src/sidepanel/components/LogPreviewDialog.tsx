@@ -61,7 +61,7 @@ export function LogPreviewDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         data-testid="log-preview-dialog"
-        className="w-[80vw] max-w-[80vw] h-[80vh] gap-5 rounded-3xl p-6 sm:rounded-3xl"
+        className="w-[90vw] max-w-[90vw] h-[80vh] gap-5 rounded-3xl p-6 sm:rounded-3xl"
       >
         <DialogHeader>
           <DialogTitle className="text-xl">logs.html</DialogTitle>

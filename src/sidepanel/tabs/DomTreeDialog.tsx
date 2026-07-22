@@ -76,7 +76,7 @@ export function DomTreeTitle({ tagName, classList }: { tagName: string; classLis
           {label}
         </button>
       </DialogTrigger>
-      <DialogContent className="w-[80vw] max-w-[80vw] max-h-[80vh] gap-5 rounded-3xl p-6 sm:rounded-3xl">
+      <DialogContent className="w-[90vw] max-w-[90vw] max-h-[80vh] gap-5 rounded-3xl p-6 sm:rounded-3xl">
         <DialogHeader>
           <DialogTitle className="text-xl">{t("dom.dialogTitle")}</DialogTitle>
         </DialogHeader>

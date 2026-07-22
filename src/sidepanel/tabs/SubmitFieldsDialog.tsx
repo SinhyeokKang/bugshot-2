@@ -256,7 +256,7 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-h-[80vh] w-[80vw] max-w-[80vw] gap-5 rounded-3xl p-6 sm:rounded-3xl" data-testid="submit-fields-dialog">
+      <DialogContent className="max-h-[80vh] w-[90vw] max-w-[90vw] gap-5 rounded-3xl p-6 sm:rounded-3xl" data-testid="submit-fields-dialog">
         <DialogHeader>
           <DialogTitle className="text-xl">{title ?? t("issue.submit")}</DialogTitle>
         </DialogHeader>
