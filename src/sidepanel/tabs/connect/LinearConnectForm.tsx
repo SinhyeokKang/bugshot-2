@@ -268,7 +268,7 @@ function ApiKeyDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[80vw] max-w-[80vw] gap-5 rounded-3xl p-6 sm:rounded-3xl">
+      <DialogContent className="w-[90vw] max-w-[90vw] gap-5 rounded-3xl p-6 sm:rounded-3xl">
         <DialogHeader>
           <DialogTitle className="text-xl">{t("linear.apiKeyDialog.title")}</DialogTitle>
           <DialogDescription>

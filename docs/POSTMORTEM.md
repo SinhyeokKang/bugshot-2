@@ -21,6 +21,13 @@
 
 ---
 
+## 2026-07-22 — body-portal 풀스크린 오버레이를 Radix modal Dialog 안에서 트리거하면 캔버스 클릭이 다이얼로그를 닫는다 (latent — 기능 프로토타입은 롤백)
+
+- **증상**: 저장된 초안 편집 창(`DraftEditDialog`, Radix `Dialog`)의 본문 tiptap에 인라인 이미지를 넣고 `[주석 달기]`를 눌러 어노테이션 오버레이가 떠도, 캔버스에 그리려 클릭하면 **편집 다이얼로그가 통째로 닫혀** 주석이 불가능하다. **작성 화면(`DraftingPanel`, 비-modal 패널)에선 같은 오버레이가 정상 동작**해 "여기서만 안 됨"으로 갈린다. (이 경로는 편집 창에 이미지를 붙여넣기/드래그로만 닿아 눈에 잘 안 띄었고, COVERAGE.md에 "DraftEditDialog 오버레이 z-index·focus-trap"이 수동 잔여로만 적혀 있었다. 편집 창에 이미지 추가/로그 삽입 툴바를 얹으려던 시도에서 실사용 경로로 드러났으나 그 기능 자체는 롤백했다 — 함정만 남긴다.)
+- **근본 원인**: 표면(주석이 안 됨)과 원인(오버레이가 다이얼로그를 닫음)이 다른 레이어. `AnnotationOverlay`는 `createPortal(document.body)` + `fixed inset-0 z-50` **풀스크린**이라 DOM상 **Radix `Dialog`의 서브트리 바깥**에 렌더된다. Radix modal Dialog는 `DismissableLayer`로 콘텐츠 **바깥의 pointerdown을 "interact outside"로 잡아 `onOpenChange(false)`**(닫기)를 부른다 → 오버레이 캔버스(=다이얼로그 바깥 DOM) 클릭이 곧 다이얼로그 닫힘 트리거. **z-index를 올려도 안 된다** — 스택 순서가 아니라 pointer/focus 소유권 문제다. DraftingPanel은 비-modal이라 DismissableLayer가 없어 무사하다.
+- **재발 방지**: (1) **`createPortal(document.body)` 풀스크린 인터랙티브 오버레이를 Radix modal `Dialog`/`AlertDialog` 안에서 트리거하지 말 것**. `grep -rn 'createPortal' src/sidepanel/components`로 body-portal 오버레이를 찾고, 그 트리거가 `Dialog`/`AlertDialog`(`src/components/ui/dialog.tsx`·`alert-dialog.tsx`) 안에서 발화하는지 본다. 해법 셋 — ⓐ 그 컨텍스트에서 기능을 끈다(예: 편집 창에선 인라인 이미지 주석을 비활성) ⓑ 오버레이를 다이얼로그 콘텐츠 **안**에 렌더(풀스크린이면 부적합) ⓒ 다이얼로그의 `onInteractOutside`/`onPointerDownOutside`를 오버레이 오픈 동안 `preventDefault`(오버레이 상태를 다이얼로그로 끌어올려야 함). (2) **"A에선 되는데 B에선 안 됨"은 컴포넌트가 아니라 호스트의 래핑(modal vs 비-modal) 차이를 먼저 의심**한다 — pointer/focus 정책이 다르다. (3) **이 부류는 jsdom·순수 테스트로 안 잡힌다** — Radix DismissableLayer 실동작이라 e2e/수동이 유일한 그물. (4) **COVERAGE의 "수동 잔여"에 이미 적힌 위험은 그 경로를 실사용에 노출하기 전에 되짚는다** — 예견됐으나 방치된 항목이 신기능 배선으로 활성화되는 계열.
+- **관련**: `src/sidepanel/components/AnnotationOverlay.tsx`(`fixed inset-0 z-50` + `createPortal(document.body)`), 호스트 `src/components/ui/dialog.tsx`(Radix `DismissableLayer`), 트리거 `src/sidepanel/components/TiptapEditor.tsx`(인라인 이미지 어노테이션 NodeView → 오버레이 오픈), 노출 컨텍스트 `src/sidepanel/tabs/DraftEditDialog.tsx`(Radix Dialog가 tiptap 편집기를 호스트). 계열: **2026-07-01**(두 lazy 청크 동시 마운트 — 같은 "오버레이×다이얼로그" 조합의 다른 함정).
+
 ## 2026-07-21 — AI 오버레이 '중단'(소프트취소)을 3개 AI 콜사이트에 얹을 때, 취소 가드가 한 곳만 있었고 사용자 취소가 re-adopt로 되살아났다
 
 - **증상**: (구현 중 `/code-review`가 잡음 — 미출시) AI 로딩 오버레이에 공용 '중단' 버튼을 달았는데, ① repro에서 사용자가 중단을 눌러도 게이트 왕복(trimming 등 dep 변경)으로 effect가 재발화하면 취소한 요청이 **되살아나 늦게 온 재현 단계가 적용**됐다. ② draft·styling 다이얼로그에서 중단을 누르면 배경 호출이 실패로 끝날 때(특히 `isPromptOverBudget` await 창에서 취소 → canceller가 `sessionRef=null` → 다음 줄 `sessionRef.current.prompt()`가 **null-deref TypeError**) 사용자가 방금 취소한 작업에 **AI 에러 토스트**가 떴다.
