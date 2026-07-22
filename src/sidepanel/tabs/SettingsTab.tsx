@@ -210,7 +210,7 @@ function IssueSettingsContent() {
           }
         >
           <Card>
-            <CardContent className="flex flex-col px-3 py-3">
+            <CardContent className="flex flex-col px-3 py-0">
               <DndContext
                 sensors={sensors}
                 collisionDetection={closestCenter}
@@ -331,7 +331,7 @@ function AttachmentToggleRow({
         <Paperclip className="h-4 w-4" />
       </div>
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <label htmlFor="setting-attachments-enabled" className="cursor-pointer text-sm">
+        <label htmlFor="setting-attachments-enabled" className="cursor-pointer text-sm font-medium">
           {t("settings.attachments.label")}
         </label>
         <p className="text-sm text-muted-foreground">{t("settings.attachments.help")}</p>
@@ -363,7 +363,7 @@ function AutoReproPrefillToggleRow({
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         <label
           htmlFor="setting-auto-repro-prefill"
-          className={cn("text-sm", !disabled && "cursor-pointer")}
+          className={cn("text-sm font-medium", !disabled && "cursor-pointer")}
         >
           {t("settings.autoReproPrefill.label")}
         </label>
@@ -407,10 +407,12 @@ function IssueSectionRow({
   return (
     <div
       ref={setNodeRef}
-      style={{ transform: CSS.Transform.toString(transform), transition }}
+      // CSS.Transform은 scaleX/scaleY까지 문자열에 싣는다 — 높이가 다른 행끼리 자리를 바꿀 때
+      // dnd-kit의 FLIP 보정 scaleY가 카드를 눌러 찌그러뜨리므로 translate만 적용한다.
+      style={{ transform: CSS.Translate.toString(transform), transition }}
       // 구분선은 형제 Separator가 아니라 행 자신의 border — dnd transform과 함께 움직여야 잔상이 없다.
       className={cn(
-        "-mx-3 flex items-center gap-3 border-t border-border px-3 py-3 first:border-t-0 first:pt-0 last:pb-0",
+        "-mx-3 flex items-center gap-3 border-t border-border px-3 py-3 first:border-t-0",
         isDragging && "relative z-10 rounded-md bg-muted shadow-md",
       )}
       data-testid={`issue-section-row-${section.id}`}
@@ -420,7 +422,7 @@ function IssueSectionRow({
         variant="ghost"
         // --ring이 --border와 같은 값이라 기본 링은 안 보인다(DESIGN §9) — 키보드 재정렬의
         // 유일한 진입점이라 이 버튼만 대비색 링을 쓴다.
-        className="h-8 w-8 shrink-0 cursor-grab touch-none focus-visible:ring-primary active:cursor-grabbing"
+        className="h-4 w-4 shrink-0 cursor-grab touch-none text-muted-foreground hover:bg-transparent hover:text-foreground focus-visible:ring-primary active:cursor-grabbing"
         aria-label={t("settings.reorder.handle", { label })}
         data-testid={`issue-section-handle-${section.id}`}
         {...attributes}
@@ -430,18 +432,15 @@ function IssueSectionRow({
       </Button>
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
         {isMedia ? (
-          <span className="text-sm">{label}</span>
+          <span className="text-sm font-medium">{label}</span>
         ) : (
-          <label htmlFor={id} className="cursor-pointer text-sm">
+          <label htmlFor={id} className="cursor-pointer text-sm font-medium">
             {label}
           </label>
         )}
         <p className="text-sm text-muted-foreground">{help}</p>
       </div>
-      {isMedia ? (
-        // 미디어는 사용 여부 스위치가 없다(본문 emit은 데이터 기반) — 우측 정렬만 맞춘다.
-        <div className="h-5 w-8 shrink-0" aria-hidden />
-      ) : (
+      {isMedia ? null : ( // 미디어는 켜고 끄는 대상이 아니다 — 본문 emit은 데이터 기반이라 스위치가 없다.
         <Switch
           id={id}
           checked={section.enabled}

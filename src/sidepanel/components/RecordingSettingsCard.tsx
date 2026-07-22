@@ -31,7 +31,7 @@ export function RecordingSettingsCard({
             <Video className="h-4 w-4" />
           </div>
           <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-            <span className="text-sm">{t("settings.recordingMode.label")}</span>
+            <span className="text-sm font-medium">{t("settings.recordingMode.label")}</span>
             <p className="text-sm text-muted-foreground">
               {t("settings.recordingMode.help")}
             </p>
@@ -57,7 +57,7 @@ export function RecordingSettingsCard({
             <Timer className="h-4 w-4" />
           </div>
           <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-            <label htmlFor={replayInputId} className="cursor-pointer text-sm">
+            <label htmlFor={replayInputId} className="cursor-pointer text-sm font-medium">
               {t("settings.replay.label")}
             </label>
             <p className="text-sm text-muted-foreground">
