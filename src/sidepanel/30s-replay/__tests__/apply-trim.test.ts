@@ -38,9 +38,7 @@ function makeState(
     setNetworkLog: vi.fn(),
     setConsoleLog: vi.fn(),
     setActionLog: vi.fn(),
-    setNetworkLogAttach: vi.fn(),
-    setConsoleLogAttach: vi.fn(),
-    setActionLogAttach: vi.fn(),
+    setLogsAttach: vi.fn(),
     replaceVideo: vi.fn(),
   };
 }
@@ -169,9 +167,7 @@ describe("applyReplayTrim — 타임베이스 분리", () => {
       id: "n", startedAt: 0, endedAt: 0, totalSeen: 0, captured: 0, warnings: [], requests: [],
     });
     await applyReplayTrim({ frames: FRAMES, tabId: 1, startSec: 0.6, endSec: 1.2 });
-    expect(storeState.setNetworkLogAttach).not.toHaveBeenCalled();
-    expect(storeState.setConsoleLogAttach).not.toHaveBeenCalled();
-    expect(storeState.setActionLogAttach).not.toHaveBeenCalled();
+    expect(storeState.setLogsAttach).not.toHaveBeenCalled();
   });
 });
 

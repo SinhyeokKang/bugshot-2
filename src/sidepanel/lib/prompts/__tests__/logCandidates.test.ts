@@ -50,6 +50,7 @@ function withLogs(
   return makeCtx({
     networkLogSummary: {
       captured: netCount,
+      errorCount: netCount,
       errors: Array.from({ length: netCount }, (_, i) => netErr(i)),
     },
     consoleLogSummary: {

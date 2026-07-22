@@ -148,7 +148,7 @@ describe("buildMarkdownIssueBody — 공통 동작 보존", () => {
   it("logs url이 있으면 로그 요약 안내 {file}에 마크다운 링크 주입", () => {
     const out = buildMarkdownIssueBody(
       {
-        ctx: makeCtx({ networkLogSummary: { captured: 5, errors: [] } }),
+        ctx: makeCtx({ networkLogSummary: { captured: 5, errorCount: 0, errors: [] } }),
         logs: [
           { filename: "logs.html", contentType: "text/html", url: "https://up/logs.html" },
         ],

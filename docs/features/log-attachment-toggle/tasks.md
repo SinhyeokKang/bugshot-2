@@ -16,8 +16,8 @@
   - `logCardTypeCounts`: 캡처된 타입만 세그먼트 포함, 에러 건수 반영, 전부 0이면 빈 문자열 등. **에러 건수 입력 모델**: raw `NetworkLog`/`ConsoleLog`에는 에러 필드가 없으므로(`captured`만), 기존 export 순수 헬퍼(`src/sidepanel/lib/buildLogSummary.ts` — `buildNetworkLogSummary().errors[]`·`buildConsoleLogSummary().errorCount`)로 파생한 값을 입력받거나 헬퍼 내부에서 재사용한다(자체 계산 금지). 세그먼트 순서 `console → network → action`.
   - `deriveLogsAttach(snap)`: 구 3플래그 → 단일 `logsAttach` OR 파생. 케이스: 하나라도 true→true / 셋 다 false→false / 전부 undefined(신규 스냅샷)→true / 부분 정의(network:false, console:true)→true.
 - **검증**:
-  - [ ] 새 테스트가 (아직 없는 `logsAttach`/헬퍼에 대해) red
-  - [ ] `pnpm test` 대상 파일 실행
+  - [x] 새 테스트가 (아직 없는 `logsAttach`/헬퍼에 대해) red
+  - [x] `pnpm test` 대상 파일 실행
 
 ### Task 2: editor-store 단일 플래그 교체
 
@@ -26,8 +26,8 @@
   - `networkLogAttach`/`consoleLogAttach`/`actionLogAttach` 상태·세터 → `logsAttach`/`setLogsAttach`.
   - `initial`, `preserveLogs` 대상 타입, 진입점 4곳(`startCapturing`/`startFreeform`/`startElementShot`/`onRecordingComplete`)의 `true` 세팅, `selectAttachedLogs` 게이트, `EditorSnapshot` 필드 반영.
 - **검증**:
-  - [ ] Task 1의 `selectAttachedLogs` 테스트 green
-  - [ ] `pnpm typecheck` (하위 사용처 타입 에러가 남은 태스크를 가리킴)
+  - [x] Task 1의 `selectAttachedLogs` 테스트 green
+  - [x] `pnpm typecheck` (하위 사용처 타입 에러가 남은 태스크를 가리킴)
 
 ### Task 3: 세션 스냅샷/복원 단일화
 
@@ -37,9 +37,9 @@
   - 복원: 세 로그를 attach와 무관하게 pending IDB에서 항상 로드(각 조회 실패/부재 시 null 유지, 예외 삼킴). `logsAttach`는 hydrate. **주의**: 현행은 blob 부재 시 attach를 false로 자가 강등(`useEditorSessionSync.ts:103-126`)하는데, 신규는 이 강등을 제거하고 데이터만 로드 — `logsAttach`는 스냅샷 hydrate 값 유지.
   - 레거시 스냅샷 폴백: 순수 함수 `deriveLogsAttach(snap)`(Task 1에서 테스트) OR 파생을 `migrateLegacyDraft` 안에서 호출(위치 확정 — 인라인 아님).
 - **검증**:
-  - [ ] `pnpm typecheck`
-  - [ ] Task 1의 `deriveLogsAttach` 테스트 green
-  - [ ] 수동: drafting에서 토글 off → 패널 닫기 → 재오픈 시 카드가 유지되고 off 상태 복원
+  - [x] `pnpm typecheck`
+  - [x] Task 1의 `deriveLogsAttach` 테스트 green
+  - [x] 수동: drafting에서 토글 off → 패널 닫기 → 재오픈 시 카드가 유지되고 off 상태 복원
 
 ### Task 4: `LogAttachmentCards` 단일 카드화
 
@@ -50,9 +50,9 @@
   - desc는 기존 `truncate text-sm` 단일 라인 유지(결합 desc 잘림은 수용 — 시각 확인 후 후속 대응).
   - **키보드 접근성**: 카드 컨테이너에 `role="button"` + `tabIndex={0}` + `onKeyDown`(Enter/Space → `onClick`). 스위치의 `stopPropagation`은 유지.
 - **검증**:
-  - [ ] Task 1의 `logCardTypeCounts` 테스트 green
-  - [ ] `pnpm typecheck`
-  - [ ] 수동: 키보드(Tab→Enter/Space)로 카드에서 다이얼로그 열림
+  - [x] Task 1의 `logCardTypeCounts` 테스트 green
+  - [x] `pnpm typecheck`
+  - [x] 수동: 키보드(Tab→Enter/Space)로 카드에서 다이얼로그 열림
 
 ### Task 5: `LogPreviewDialog` 신설 + preview 3파일 제거
 
@@ -62,16 +62,16 @@
   - 기본 활성 탭: 캡처된 탭 중 `console → network → action` 순 첫 번째(log-viewer와 동일).
   - 푸터: 닫기 + (`onToggleAttach`면) 첨부/해제.
 - **검증**:
-  - [ ] `pnpm typecheck` (삭제로 인한 import 에러가 Task 6 사용처를 가리킴)
-  - [ ] 수동: 캡처된 타입 조합별 기본 탭이 console→network→action 순으로 열림
+  - [x] `pnpm typecheck` (삭제로 인한 import 에러가 Task 6 사용처를 가리킴)
+  - [x] 수동: 캡처된 타입 조합별 기본 탭이 console→network→action 순으로 열림
 
 ### Task 5b: `LogInsertDialog` 기본 탭 로직 통일
 
 - **변경 대상**: `src/sidepanel/components/LogInsertDialog.tsx`
 - **작업 내용**: 기본 활성 탭을 network-first(현행 `useState("network")` + `useEffect` 49-54) → **`console → network` 순 첫 번째**(캡처된 탭 기준)로 변경. 그 외 로직 무변경.
 - **검증**:
-  - [ ] `pnpm typecheck`
-  - [ ] 수동: 로그 추가 다이얼로그를 열면 console 탭이 기본(console 비었으면 network)
+  - [x] `pnpm typecheck`
+  - [x] 수동: 로그 추가 다이얼로그를 열면 console 탭이 기본(console 비었으면 network)
 
 ### Task 6: 3개 사용처 배선 교체
 
@@ -81,25 +81,25 @@
   - `<LogAttachmentCards>` 단일 props, preview 3블록 → `<LogPreviewDialog>` 1개.
   - PreviewPanel/DraftDetailDialog는 readOnly(첨부 버튼 없음). DraftDetailDialog 카드/탭은 로드된 로그 데이터 존재로 파생.
 - **검증**:
-  - [ ] `pnpm typecheck` 전체 통과
-  - [ ] 수동: 스크린샷/영상/자유형 각 모드에서 카드 1개·탭 다이얼로그·첨부 토글 동작
+  - [x] `pnpm typecheck` 전체 통과
+  - [x] 수동: 스크린샷/영상/자유형 각 모드에서 카드 1개·탭 다이얼로그·첨부 토글 동작
 
 ### Task 7: `buildEditorCapture` 통짜 게이트
 
 - **변경 대상**: `src/sidepanel/lib/buildEditorCapture.ts`
 - **작업 내용**: 두 함수의 3 attach 게이트 → `logsAttach` 치환. **비대칭 주의**(현행 유지, 동작 불변): `buildEditorMarkdownContext`(함수 선언 line 19, 게이트 37-40)의 action 게이트에는 `supportsActionLog(captureMode)`가 있어 그대로 유지, 반면 `buildEditorLogsCaptureInput`(함수 선언 line 132, 게이트 152-154)의 `hasAct`에는 `supportsActionLog`가 **없다** — 여기선 `actionLogAttach → logsAttach` 치환만 하고 모드 가드를 새로 추가하지 않는다.
 - **검증**:
-  - [ ] `pnpm typecheck`
-  - [ ] 수동: 토글 on 제출 → logs.html에 캡처 전 타입 포함 / off 제출 → logs.html 미첨부
+  - [x] `pnpm typecheck`
+  - [x] 수동: 토글 on 제출 → logs.html에 캡처 전 타입 포함 / off 제출 → logs.html 미첨부
 
 ### Task 8: i18n 키 추가·정리
 
 - **변경 대상**: `src/i18n/namespaces/logs.ts` (ko/en 동시)
 - **작업 내용**: `src/i18n/namespaces/logs.ts`에 `logCard.title` + 타입별 count 키 추가(logCard 키는 이 파일에 있음 — `actionLog.cardDescription` ko 70/en 196, `logCard.description` ko 119/en 245). 미사용된 `logCard.description`/`actionLog.cardDescription`은 실제 미참조 확인 후 제거.
 - **검증**:
-  - [ ] PostToolUse 훅(`locales.test.ts`) 통과(ko/en 대칭·placeholder)
-  - [ ] `logCard.description`/`actionLog.cardDescription` 전 코드베이스 grep 0건 확인 후 제거
-  - [ ] log-viewer 사전(`src/log-viewer/i18n.ts`)에 해당 키 없음 재확인(불필요 갱신 방지 — logCard 키는 log-viewer 사전에 원래 없음, 확인됨)
+  - [x] PostToolUse 훅(`locales.test.ts`) 통과(ko/en 대칭·placeholder)
+  - [x] `logCard.description`/`actionLog.cardDescription` 전 코드베이스 grep 0건 확인 후 제거
+  - [x] log-viewer 사전(`src/log-viewer/i18n.ts`)에 해당 키 없음 재확인(불필요 갱신 방지 — logCard 키는 log-viewer 사전에 원래 없음, 확인됨)
 
 ## 테스트 계획
 

@@ -84,7 +84,8 @@ vi.mock("@/types/messages", () => ({
   onBlobSaveFailed: { fire: vi.fn(), listen: vi.fn() },
 }));
 
-import { useEditorStore, mergeSelectionStyles } from "../editor-store";
+import type { ActionLog } from "@/types/action";
+import { useEditorStore, mergeSelectionStyles, selectAttachedLogs } from "../editor-store";
 
 /* ------------------------------------------------------------------ */
 /*  Fixtures                                                           */
@@ -108,6 +109,15 @@ const fakeConsoleLog: ConsoleLog = {
   endedAt: 2000,
   totalSeen: 10,
   captured: 8,
+  entries: [],
+};
+
+const fakeActionLog: ActionLog = {
+  id: "act-1",
+  startedAt: 1000,
+  endedAt: 2000,
+  totalSeen: 6,
+  captured: 4,
   entries: [],
 };
 
@@ -136,20 +146,12 @@ describe("startCapturing — 백그라운드 로그 보존", () => {
     expect(useEditorStore.getState().consoleLog).toEqual(fakeConsoleLog);
   });
 
-  it("networkLogAttach를 자동으로 켠다 (직전 off여도 on)", () => {
-    useEditorStore.setState({ networkLogAttach: false });
+  it("logsAttach를 자동으로 켠다 (직전 off여도 on)", () => {
+    useEditorStore.setState({ logsAttach: false });
 
     useEditorStore.getState().startCapturing(target);
 
-    expect(useEditorStore.getState().networkLogAttach).toBe(true);
-  });
-
-  it("consoleLogAttach를 자동으로 켠다 (직전 off여도 on)", () => {
-    useEditorStore.setState({ consoleLogAttach: false });
-
-    useEditorStore.getState().startCapturing(target);
-
-    expect(useEditorStore.getState().consoleLogAttach).toBe(true);
+    expect(useEditorStore.getState().logsAttach).toBe(true);
   });
 
   it("phase=capturing, captureMode=screenshot으로 전환한다", () => {
@@ -166,15 +168,13 @@ describe("onAreaCaptured — screenshot 첨부 토글 기본 on", () => {
     useEditorStore.setState(useEditorStore.getInitialState(), true);
   });
 
-  it("신규 진입 시 attach 토글을 모두 켠다", () => {
+  it("신규 진입 시 attach 토글을 켠다", () => {
     useEditorStore.getState().startCapturing(target);
     useEditorStore.getState().onAreaCaptured("data:,", { width: 800, height: 600 });
 
     const s = useEditorStore.getState();
     expect(s.phase).toBe("drafting");
-    expect(s.networkLogAttach).toBe(true);
-    expect(s.consoleLogAttach).toBe(true);
-    expect(s.actionLogAttach).toBe(true);
+    expect(s.logsAttach).toBe(true);
   });
 });
 
@@ -288,7 +288,7 @@ describe("replaceVideo — trim 확정 영상 메타 교체", () => {
   it("영상 메타(blob/thumbnail/startedAt/endedAt)만 바뀌고 phase·attach 토글은 불변", () => {
     const orig = new Blob(["x"], { type: "video/mp4" });
     useEditorStore.getState().onRecordingComplete(orig, "t0", { width: 800, height: 600 }, 1000, 5000);
-    useEditorStore.setState({ networkLogAttach: false });
+    useEditorStore.setState({ logsAttach: false });
 
     const next = new Blob(["y"], { type: "video/mp4" });
     useEditorStore.getState().replaceVideo(next, "t1", 2000, 4000);
@@ -299,9 +299,7 @@ describe("replaceVideo — trim 확정 영상 메타 교체", () => {
     expect(s.videoStartedAt).toBe(2000);
     expect(s.videoEndedAt).toBe(4000);
     expect(s.phase).toBe("drafting");
-    expect(s.networkLogAttach).toBe(false);
-    expect(s.consoleLogAttach).toBe(true);
-    expect(s.actionLogAttach).toBe(true);
+    expect(s.logsAttach).toBe(false);
   });
 
   it("videoCapturedAt은 호출 전 값 그대로(원본 캡처 시각 보존)", () => {
@@ -393,10 +391,10 @@ describe("confirmDraft screenshot — 로그 blobKey 연결", () => {
     expect(mockSaveDraft).not.toHaveBeenCalled();
   });
 
-  it("networkLogAttach=true + captured>0 → networkLogBlobKey를 설정한다", () => {
+  it("logsAttach=true + captured>0 → networkLogBlobKey를 설정한다", () => {
     setupScreenshotDrafting({
       networkLog: fakeNetworkLog,
-      networkLogAttach: true,
+      logsAttach: true,
     });
 
     useEditorStore.getState().confirmDraft();
@@ -407,10 +405,10 @@ describe("confirmDraft screenshot — 로그 blobKey 연결", () => {
     expect(record.networkLogBlobKey).toBe(record.id);
   });
 
-  it("consoleLogAttach=true + captured>0 → consoleLogBlobKey를 설정한다", () => {
+  it("logsAttach=true + captured>0 → consoleLogBlobKey를 설정한다", () => {
     setupScreenshotDrafting({
       consoleLog: fakeConsoleLog,
-      consoleLogAttach: true,
+      logsAttach: true,
     });
 
     useEditorStore.getState().confirmDraft();
@@ -421,10 +419,10 @@ describe("confirmDraft screenshot — 로그 blobKey 연결", () => {
     expect(record.consoleLogBlobKey).toBe(record.id);
   });
 
-  it("networkLogAttach=false → networkLogBlobKey가 undefined", () => {
+  it("logsAttach=false → networkLogBlobKey가 undefined", () => {
     setupScreenshotDrafting({
       networkLog: fakeNetworkLog,
-      networkLogAttach: false,
+      logsAttach: false,
     });
 
     useEditorStore.getState().confirmDraft();
@@ -436,7 +434,7 @@ describe("confirmDraft screenshot — 로그 blobKey 연결", () => {
   it("networkLog가 null → networkLogBlobKey가 undefined", () => {
     setupScreenshotDrafting({
       networkLog: null,
-      networkLogAttach: true,
+      logsAttach: true,
     });
 
     useEditorStore.getState().confirmDraft();
@@ -448,7 +446,7 @@ describe("confirmDraft screenshot — 로그 blobKey 연결", () => {
   it("captured=0 → networkLogBlobKey가 undefined", () => {
     setupScreenshotDrafting({
       networkLog: { ...fakeNetworkLog, captured: 0 },
-      networkLogAttach: true,
+      logsAttach: true,
     });
 
     useEditorStore.getState().confirmDraft();
@@ -509,10 +507,10 @@ describe("confirmDraft screenshot — IIFE 사이드 이펙트", () => {
     });
   }
 
-  it("networkLogAttach=true → saveNetworkLog(issueId, log) + deleteNetworkLog(pending:tabId) 호출", async () => {
+  it("logsAttach=true → saveNetworkLog(issueId, log) + deleteNetworkLog(pending:tabId) 호출", async () => {
     setupScreenshotDrafting({
       networkLog: fakeNetworkLog,
-      networkLogAttach: true,
+      logsAttach: true,
     });
 
     useEditorStore.getState().confirmDraft();
@@ -525,10 +523,10 @@ describe("confirmDraft screenshot — IIFE 사이드 이펙트", () => {
     expect(mockDeleteNetworkLog).toHaveBeenCalledWith(`pending:${target.tabId}`);
   });
 
-  it("consoleLogAttach=true → saveConsoleLog(issueId, log) + deleteConsoleLog(pending:tabId) 호출", async () => {
+  it("logsAttach=true → saveConsoleLog(issueId, log) + deleteConsoleLog(pending:tabId) 호출", async () => {
     setupScreenshotDrafting({
       consoleLog: fakeConsoleLog,
-      consoleLogAttach: true,
+      logsAttach: true,
     });
 
     useEditorStore.getState().confirmDraft();
@@ -541,10 +539,10 @@ describe("confirmDraft screenshot — IIFE 사이드 이펙트", () => {
     expect(mockDeleteConsoleLog).toHaveBeenCalledWith(`pending:${target.tabId}`);
   });
 
-  it("networkLogAttach=false → saveNetworkLog 미호출", async () => {
+  it("logsAttach=false → saveNetworkLog 미호출", async () => {
     setupScreenshotDrafting({
       networkLog: fakeNetworkLog,
-      networkLogAttach: false,
+      logsAttach: false,
     });
 
     useEditorStore.getState().confirmDraft();
@@ -681,8 +679,7 @@ describe("startPicking — 로그·토글 보존", () => {
     useEditorStore.setState({
       networkLog: fakeNetworkLog,
       consoleLog: fakeConsoleLog,
-      networkLogAttach: true,
-      consoleLogAttach: true,
+      logsAttach: true,
     });
 
     useEditorStore.getState().startPicking(target);
@@ -690,8 +687,7 @@ describe("startPicking — 로그·토글 보존", () => {
     const s = useEditorStore.getState();
     expect(s.networkLog).toEqual(fakeNetworkLog);
     expect(s.consoleLog).toEqual(fakeConsoleLog);
-    expect(s.networkLogAttach).toBe(true);
-    expect(s.consoleLogAttach).toBe(true);
+    expect(s.logsAttach).toBe(true);
   });
 
   it("phase=picking, captureMode=element로 전환하고 selection은 리셋한다", () => {
@@ -715,8 +711,7 @@ describe("startFreeform — 로그·토글 보존", () => {
     useEditorStore.setState({
       networkLog: fakeNetworkLog,
       consoleLog: fakeConsoleLog,
-      networkLogAttach: true,
-      consoleLogAttach: true,
+      logsAttach: true,
     });
 
     useEditorStore.getState().startFreeform(target);
@@ -724,8 +719,7 @@ describe("startFreeform — 로그·토글 보존", () => {
     const s = useEditorStore.getState();
     expect(s.networkLog).toEqual(fakeNetworkLog);
     expect(s.consoleLog).toEqual(fakeConsoleLog);
-    expect(s.networkLogAttach).toBe(true);
-    expect(s.consoleLogAttach).toBe(true);
+    expect(s.logsAttach).toBe(true);
   });
 
   it("phase=drafting, captureMode=freeform으로 전환한다", () => {
@@ -809,14 +803,11 @@ describe("startElementShot — 요소 캡처 진입", () => {
     expect(s.shotSelector).toBeNull();
   });
 
-  it("attach 토글을 모두 켠다 (직전 off여도 on)", () => {
-    useEditorStore.setState({ networkLogAttach: false, consoleLogAttach: false });
+  it("attach 토글을 켠다 (직전 off여도 on)", () => {
+    useEditorStore.setState({ logsAttach: false });
     useEditorStore.getState().startElementShot(target);
 
-    const s = useEditorStore.getState();
-    expect(s.networkLogAttach).toBe(true);
-    expect(s.consoleLogAttach).toBe(true);
-    expect(s.actionLogAttach).toBe(true);
+    expect(useEditorStore.getState().logsAttach).toBe(true);
   });
 });
 
@@ -1882,5 +1873,78 @@ describe("addAttachments / removeAttachment", () => {
     useEditorStore.getState().removeAttachment(id);
     expect(mockDeleteAttachmentBlob).toHaveBeenCalledWith(`pending:${target.tabId}`, id);
     expect(mockDeleteAttachmentBlob).toHaveBeenCalledWith("issue-9", id);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  selectAttachedLogs — 단일 logsAttach 통짜 게이트                      */
+/* ------------------------------------------------------------------ */
+
+describe("selectAttachedLogs — 단일 logsAttach 통짜 게이트", () => {
+  type SelectState = Parameters<typeof selectAttachedLogs>[0];
+
+  const makeState = (over: {
+    logsAttach: boolean;
+    networkLog?: NetworkLog | null;
+    consoleLog?: ConsoleLog | null;
+    actionLog?: ActionLog | null;
+  }): SelectState =>
+    ({
+      networkLog: null,
+      consoleLog: null,
+      actionLog: null,
+      ...over,
+    }) as unknown as SelectState;
+
+  const zeroNetworkLog: NetworkLog = { ...fakeNetworkLog, captured: 0 };
+
+  it("logsAttach=false면 캡처된 로그가 있어도 세 필드 모두 null", () => {
+    const result = selectAttachedLogs(
+      makeState({
+        logsAttach: false,
+        networkLog: fakeNetworkLog,
+        consoleLog: fakeConsoleLog,
+        actionLog: fakeActionLog,
+      }),
+    );
+
+    expect(result).toEqual({ networkLog: null, consoleLog: null, actionLog: null });
+  });
+
+  it("logsAttach=true면 captured>0인 타입을 그대로 반환한다", () => {
+    const result = selectAttachedLogs(
+      makeState({
+        logsAttach: true,
+        networkLog: fakeNetworkLog,
+        consoleLog: fakeConsoleLog,
+        actionLog: fakeActionLog,
+      }),
+    );
+
+    expect(result).toEqual({
+      networkLog: fakeNetworkLog,
+      consoleLog: fakeConsoleLog,
+      actionLog: fakeActionLog,
+    });
+  });
+
+  it("logsAttach=true여도 captured=0인 타입은 null로 제외", () => {
+    const result = selectAttachedLogs(
+      makeState({ logsAttach: true, networkLog: zeroNetworkLog }),
+    );
+
+    expect(result.networkLog).toBeNull();
+  });
+
+  it("logsAttach=true여도 로그가 null인 타입은 null 유지", () => {
+    const result = selectAttachedLogs(
+      makeState({ logsAttach: true, consoleLog: fakeConsoleLog }),
+    );
+
+    expect(result).toEqual({
+      networkLog: null,
+      consoleLog: fakeConsoleLog,
+      actionLog: null,
+    });
   });
 });

@@ -78,9 +78,7 @@ import { DocSectionBody } from "@/sidepanel/components/DocSectionBody";
 import { AttachmentList } from "@/sidepanel/components/AttachmentList";
 import { downloadAttachment } from "@/sidepanel/lib/downloadAttachment";
 import { LogAttachmentCards } from "@/sidepanel/components/LogAttachmentCards";
-import { NetworkLogPreviewDialog } from "@/sidepanel/components/NetworkLogPreviewDialog";
-import { ConsoleLogPreviewDialog } from "@/sidepanel/components/ConsoleLogPreviewDialog";
-import { ActionLogPreviewDialog } from "@/sidepanel/components/ActionLogPreviewDialog";
+import { LogPreviewDialog } from "@/sidepanel/components/LogPreviewDialog";
 import {
   StyleChangesTable,
   buildStyleDiff,
@@ -249,9 +247,7 @@ export function DraftDetailDialog({
   const [networkLogData, setNetworkLogData] = useState<NetworkLog | null>(null);
   const [consoleLogData, setConsoleLogData] = useState<ConsoleLog | null>(null);
   const [actionLogData, setActionLogData] = useState<ActionLog | null>(null);
-  const [networkDialogOpen, setNetworkDialogOpen] = useState(false);
-  const [consoleDialogOpen, setConsoleDialogOpen] = useState(false);
-  const [actionDialogOpen, setActionDialogOpen] = useState(false);
+  const [logDialogOpen, setLogDialogOpen] = useState(false);
   useEffect(() => {
     if (!open || !supportsConsoleNetworkLog(issue?.captureMode)) {
       setNetworkLogData(null);
@@ -921,9 +917,7 @@ export function DraftDetailDialog({
                   networkLogData={networkLogData}
                   consoleLogData={consoleLogData}
                   actionLogData={actionLogData}
-                  onNetworkLogClick={() => setNetworkDialogOpen(true)}
-                  onConsoleLogClick={() => setConsoleDialogOpen(true)}
-                  onActionLogClick={() => setActionDialogOpen(true)}
+                  onLogClick={() => setLogDialogOpen(true)}
                   editable={canEditDraftFields(issue)}
                   onEditSection={(sec) =>
                     setEditTarget({
@@ -991,29 +985,13 @@ export function DraftDetailDialog({
         </DialogContent>
       </Dialog>
 
-      {networkLogData && (
-        <NetworkLogPreviewDialog
-          open={networkDialogOpen}
-          onOpenChange={setNetworkDialogOpen}
-          requests={networkLogData.requests}
-        />
-      )}
-      {consoleLogData && (
-        <ConsoleLogPreviewDialog
-          open={consoleDialogOpen}
-          onOpenChange={setConsoleDialogOpen}
-          entries={consoleLogData.entries}
-          startedAt={consoleLogData.startedAt}
-        />
-      )}
-      {actionLogData && (
-        <ActionLogPreviewDialog
-          open={actionDialogOpen}
-          onOpenChange={setActionDialogOpen}
-          entries={actionLogData.entries}
-          startedAt={actionLogData.startedAt}
-        />
-      )}
+      <LogPreviewDialog
+        open={logDialogOpen}
+        onOpenChange={setLogDialogOpen}
+        networkLog={networkLogData}
+        consoleLog={consoleLogData}
+        actionLog={actionLogData}
+      />
       <SubmitFieldsDialog
         open={submitOpen}
         onOpenChange={(v) => {
@@ -1097,9 +1075,7 @@ function DraftDetailSections({
   networkLogData,
   consoleLogData,
   actionLogData,
-  onNetworkLogClick,
-  onConsoleLogClick,
-  onActionLogClick,
+  onLogClick,
   editable,
   onEditSection,
 }: {
@@ -1113,9 +1089,7 @@ function DraftDetailSections({
   networkLogData: NetworkLog | null;
   consoleLogData: ConsoleLog | null;
   actionLogData: ActionLog | null;
-  onNetworkLogClick: () => void;
-  onConsoleLogClick: () => void;
-  onActionLogClick: () => void;
+  onLogClick: () => void;
   editable: boolean;
   onEditSection: (section: IssueSection) => void;
 }) {
@@ -1172,15 +1146,10 @@ function DraftDetailSections({
     <FieldSection key="__logCards" label={t("section.logs")}>
       <LogAttachmentCards
         networkLog={networkLogData}
-        networkLogAttach={!!issue.networkLogBlobKey}
-        onNetworkLogToggle={() => {}}
-        onNetworkLogClick={onNetworkLogClick}
         consoleLog={consoleLogData}
-        consoleLogAttach={!!issue.consoleLogBlobKey}
-        onConsoleLogToggle={() => {}}
-        onConsoleLogClick={onConsoleLogClick}
         actionLog={showActionCard ? actionLogData : null}
-        onActionLogClick={onActionLogClick}
+        logsAttach={!!(networkLogData || consoleLogData || actionLogData)}
+        onClick={onLogClick}
         readOnly
       />
     </FieldSection>

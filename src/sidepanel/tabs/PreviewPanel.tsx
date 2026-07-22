@@ -14,9 +14,7 @@ import { downloadAttachment } from "@/sidepanel/lib/downloadAttachment";
 import { downloadImageDataUrl, downloadVideoBlob } from "@/sidepanel/lib/downloadCapture";
 import { downloadEditorLogsHtml } from "@/sidepanel/lib/buildEditorCapture";
 import { LogAttachmentCards } from "@/sidepanel/components/LogAttachmentCards";
-import { NetworkLogPreviewDialog } from "@/sidepanel/components/NetworkLogPreviewDialog";
-import { ConsoleLogPreviewDialog } from "@/sidepanel/components/ConsoleLogPreviewDialog";
-import { ActionLogPreviewDialog } from "@/sidepanel/components/ActionLogPreviewDialog";
+import { LogPreviewDialog } from "@/sidepanel/components/LogPreviewDialog";
 import {
   PageFooter,
   PageScroll,
@@ -60,11 +58,9 @@ export function PreviewPanel() {
   const freeformCapturedAt = useEditorStore((s) => s.freeformCapturedAt);
   const draft = useEditorStore((s) => s.draft);
   const networkLog = useEditorStore((s) => s.networkLog);
-  const networkLogAttach = useEditorStore((s) => s.networkLogAttach);
   const consoleLog = useEditorStore((s) => s.consoleLog);
-  const consoleLogAttach = useEditorStore((s) => s.consoleLogAttach);
   const actionLog = useEditorStore((s) => s.actionLog);
-  const actionLogAttach = useEditorStore((s) => s.actionLogAttach);
+  const logsAttach = useEditorStore((s) => s.logsAttach);
   const backToDraft = useEditorStore((s) => s.backToDraft);
   const reset = useEditorStore((s) => s.reset);
   const attachments = useEditorStore((s) => s.attachments);
@@ -97,9 +93,7 @@ export function PreviewPanel() {
     [selection, styleEdits, bufferedElements, beforeImage, afterImage],
   );
 
-  const [networkDialogOpen, setNetworkDialogOpen] = useState(false);
-  const [consoleDialogOpen, setConsoleDialogOpen] = useState(false);
-  const [actionDialogOpen, setActionDialogOpen] = useState(false);
+  const [logDialogOpen, setLogDialogOpen] = useState(false);
 
   // 본문 inline 이미지를 dataURL로 미리 resolve(IssuePreviewView는 blob-db 미접근).
   const [resolvedSections, setResolvedSections] = useState<Record<string, string>>(
@@ -123,10 +117,9 @@ export function PreviewPanel() {
   if (!draft) return null;
   if (isElementMode && !selection) return null;
 
-  const attachedNetwork = networkLogAttach && networkLog && networkLog.captured > 0 ? networkLog : null;
-  const attachedConsole = consoleLogAttach && consoleLog && consoleLog.captured > 0 ? consoleLog : null;
-  // action log는 video 모드 한정 첨부.
-  const attachedAction = supportsActionLog(captureMode) && actionLogAttach && actionLog && actionLog.captured > 0 ? actionLog : null;
+  const attachedNetwork = logsAttach && networkLog && networkLog.captured > 0 ? networkLog : null;
+  const attachedConsole = logsAttach && consoleLog && consoleLog.captured > 0 ? consoleLog : null;
+  const attachedAction = supportsActionLog(captureMode) && logsAttach && actionLog && actionLog.captured > 0 ? actionLog : null;
   const showLogCards = supportsConsoleNetworkLog(captureMode) && (attachedNetwork !== null || attachedConsole !== null || attachedAction !== null);
 
   const envRows: { label: string; value: string }[] = [
@@ -241,15 +234,10 @@ export function PreviewPanel() {
     >
       <LogAttachmentCards
         networkLog={attachedNetwork}
-        networkLogAttach={networkLogAttach}
-        onNetworkLogToggle={() => {}}
-        onNetworkLogClick={() => { (document.activeElement as HTMLElement)?.blur?.(); setNetworkDialogOpen(true); }}
         consoleLog={attachedConsole}
-        consoleLogAttach={consoleLogAttach}
-        onConsoleLogToggle={() => {}}
-        onConsoleLogClick={() => { (document.activeElement as HTMLElement)?.blur?.(); setConsoleDialogOpen(true); }}
         actionLog={attachedAction}
-        onActionLogClick={() => { (document.activeElement as HTMLElement)?.blur?.(); setActionDialogOpen(true); }}
+        logsAttach={logsAttach}
+        onClick={() => { (document.activeElement as HTMLElement)?.blur?.(); setLogDialogOpen(true); }}
         readOnly
       />
     </Section>
@@ -415,29 +403,13 @@ export function PreviewPanel() {
           </div>
         </div>
       </PageFooter>
-      {attachedNetwork && (
-        <NetworkLogPreviewDialog
-          open={networkDialogOpen}
-          onOpenChange={setNetworkDialogOpen}
-          requests={attachedNetwork.requests}
-        />
-      )}
-      {attachedConsole && (
-        <ConsoleLogPreviewDialog
-          open={consoleDialogOpen}
-          onOpenChange={setConsoleDialogOpen}
-          entries={attachedConsole.entries}
-          startedAt={attachedConsole.startedAt}
-        />
-      )}
-      {attachedAction && (
-        <ActionLogPreviewDialog
-          open={actionDialogOpen}
-          onOpenChange={setActionDialogOpen}
-          entries={attachedAction.entries}
-          startedAt={attachedAction.startedAt}
-        />
-      )}
+      <LogPreviewDialog
+        open={logDialogOpen}
+        onOpenChange={setLogDialogOpen}
+        networkLog={attachedNetwork}
+        consoleLog={attachedConsole}
+        actionLog={attachedAction}
+      />
     </PageShell>
   );
 }

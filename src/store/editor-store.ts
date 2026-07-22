@@ -159,11 +159,10 @@ interface EditorState {
   freeformViewport: { width: number; height: number } | null;
   freeformCapturedAt: number | null;
   networkLog: NetworkLog | null;
-  networkLogAttach: boolean;
   consoleLog: ConsoleLog | null;
-  consoleLogAttach: boolean;
   actionLog: ActionLog | null;
-  actionLogAttach: boolean;
+  // 타입별 3플래그를 단일화 — logs.html 첨부를 통째로 on/off.
+  logsAttach: boolean;
   // drafting 진입 시 재현 단계 자동 채움을 세션 1회로 제한하는 가드(persist — 삭제 후 재개 시 부활 방지).
   reproPrefillDone: boolean;
   attachments: UserAttachmentMeta[];
@@ -237,11 +236,9 @@ interface EditorState {
   backToDraft: () => void;
   setIssueFields: (patch: Partial<EditorIssueFields>) => void;
   setNetworkLog: (log: NetworkLog) => void;
-  setNetworkLogAttach: (on: boolean) => void;
   setConsoleLog: (log: ConsoleLog) => void;
-  setConsoleLogAttach: (on: boolean) => void;
   setActionLog: (log: ActionLog) => void;
-  setActionLogAttach: (on: boolean) => void;
+  setLogsAttach: (on: boolean) => void;
   setReproPrefillDone: (done: boolean) => void;
   setAnnotationTool: (tool: RecordingPenTool | null) => void;
   setAnnotationColor: (color: string) => void;
@@ -282,9 +279,7 @@ export type EditorSnapshot = Pick<
   | "videoTrimmed"
   | "freeformViewport"
   | "freeformCapturedAt"
-  | "networkLogAttach"
-  | "consoleLogAttach"
-  | "actionLogAttach"
+  | "logsAttach"
   | "reproPrefillDone"
   | "attachments"
   | "draft"
@@ -325,11 +320,9 @@ const initial = {
   freeformViewport: null as { width: number; height: number } | null,
   freeformCapturedAt: null as number | null,
   networkLog: null as NetworkLog | null,
-  networkLogAttach: false,
   consoleLog: null as ConsoleLog | null,
-  consoleLogAttach: false,
   actionLog: null as ActionLog | null,
-  actionLogAttach: false,
+  logsAttach: false,
   reproPrefillDone: false,
   attachments: [] as UserAttachmentMeta[],
   draft: null,
@@ -347,18 +340,16 @@ const initial = {
   annotationThickness: DEFAULT_THICKNESS,
 };
 
-// cross-page 누적 로그·첨부 토글 4필드를 모드 진입 시 보존. element/screenshot/freeform이 공유.
+// cross-page 누적 로그·첨부 토글을 모드 진입 시 보존. element/screenshot/freeform이 공유.
 function preserveLogs(state: EditorState): Pick<
   EditorState,
-  "networkLog" | "consoleLog" | "actionLog" | "networkLogAttach" | "consoleLogAttach" | "actionLogAttach"
+  "networkLog" | "consoleLog" | "actionLog" | "logsAttach"
 > {
   return {
     networkLog: state.networkLog,
     consoleLog: state.consoleLog,
     actionLog: state.actionLog,
-    networkLogAttach: state.networkLogAttach,
-    consoleLogAttach: state.consoleLogAttach,
-    actionLogAttach: state.actionLogAttach,
+    logsAttach: state.logsAttach,
   };
 }
 
@@ -420,22 +411,24 @@ export function whenAttachmentBlobsReady(): Promise<void> {
   return attachmentRekeyInFlight;
 }
 
-function selectAttachedLogs(state: EditorState): {
+// 순수 통짜 게이트 — logsAttach 하나로 세 타입을 함께 켜고 끈다. captured>0인 타입만 반환.
+// supportsActionLog 같은 모드 가드는 참조하지 않는다(모드 가드는 buildEditorCapture의 책임).
+export function selectAttachedLogs(state: EditorState): {
   networkLog: NetworkLog | null;
   consoleLog: ConsoleLog | null;
   actionLog: ActionLog | null;
 } {
   return {
     networkLog:
-      state.networkLogAttach && state.networkLog && state.networkLog.captured > 0
+      state.logsAttach && state.networkLog && state.networkLog.captured > 0
         ? state.networkLog
         : null,
     consoleLog:
-      state.consoleLogAttach && state.consoleLog && state.consoleLog.captured > 0
+      state.logsAttach && state.consoleLog && state.consoleLog.captured > 0
         ? state.consoleLog
         : null,
     actionLog:
-      state.actionLogAttach && state.actionLog && state.actionLog.captured > 0
+      state.logsAttach && state.actionLog && state.actionLog.captured > 0
         ? state.actionLog
         : null,
   };
@@ -516,9 +509,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       phase: "capturing",
       target,
       ...preserveLogs(prev),
-      networkLogAttach: true,
-      consoleLogAttach: true,
-      actionLogAttach: true,
+      logsAttach: true,
     })),
   startFreeform: (target) =>
     set((state) => ({
@@ -527,9 +518,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       phase: "drafting",
       target,
       ...preserveLogs(state),
-      networkLogAttach: true,
-      consoleLogAttach: true,
-      actionLogAttach: true,
+      logsAttach: true,
     })),
   startElementShot: (target) =>
     set((prev) => ({
@@ -538,9 +527,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       phase: "picking",
       target,
       ...preserveLogs(prev),
-      networkLogAttach: true,
-      consoleLogAttach: true,
-      actionLogAttach: true,
+      logsAttach: true,
     })),
   onElementShot: (shot, image, viewport) =>
     set({
@@ -554,7 +541,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   // trim은 drafting 전이와 원자적이어야 한다(replayTrim 선언부 참조). reproPrefillDone은
   // 리플레이가 startRecording(...initial)을 안 거쳐 drafting에 직행하므로 여기서 리셋한다.
   onRecordingComplete: (blob, thumbnail, viewport, startedAt, endedAt, trim = null) => {
-    set({ captureMode: "video", phase: "drafting", videoBlob: blob, videoThumbnail: thumbnail, videoViewport: viewport, videoCapturedAt: Date.now(), videoStartedAt: startedAt, videoEndedAt: endedAt, videoTrimmed: false, replayTrim: trim, reproPrefillDone: false, networkLogAttach: true, consoleLogAttach: true, actionLogAttach: true, annotationTool: null });
+    set({ captureMode: "video", phase: "drafting", videoBlob: blob, videoThumbnail: thumbnail, videoViewport: viewport, videoCapturedAt: Date.now(), videoStartedAt: startedAt, videoEndedAt: endedAt, videoTrimmed: false, replayTrim: trim, reproPrefillDone: false, logsAttach: true, annotationTool: null });
     // drafting 중 패널을 닫아도 영상이 살아남도록 로그와 동일하게 pending:${tabId}에 미러링(hydrate가 복원).
     const tabId = get().target?.tabId;
     if (tabId != null) void saveVideoBlob(`pending:${tabId}`, blob);
@@ -963,14 +950,12 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set((s) => ({ issueFields: { ...s.issueFields, ...patch } })),
 
   setNetworkLog: (log) => set({ networkLog: log }),
-  setNetworkLogAttach: (on) => set({ networkLogAttach: on }),
   setAnnotationTool: (tool) => set({ annotationTool: tool }),
   setAnnotationColor: (color) => set({ annotationColor: color }),
   setAnnotationThickness: (thickness) => set({ annotationThickness: thickness }),
   setConsoleLog: (log) => set({ consoleLog: log }),
-  setConsoleLogAttach: (on) => set({ consoleLogAttach: on }),
   setActionLog: (log) => set({ actionLog: log }),
-  setActionLogAttach: (on) => set({ actionLogAttach: on }),
+  setLogsAttach: (on) => set({ logsAttach: on }),
   setReproPrefillDone: (done) => set({ reproPrefillDone: done }),
   clearNetworkLog: (tabId) => {
     set({ networkLog: null });

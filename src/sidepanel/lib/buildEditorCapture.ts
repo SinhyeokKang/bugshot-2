@@ -24,20 +24,18 @@ export function buildEditorMarkdownContext(): MarkdownContext | null {
     draft,
     target,
     networkLog,
-    networkLogAttach,
     consoleLog,
-    consoleLogAttach,
     actionLog,
-    actionLogAttach,
+    logsAttach,
   } = s;
   if (!draft || !target) return null;
 
   const os = getOsInfo();
   const browser = parseChromeVersion(navigator.userAgent);
-  const hasNetworkLog = networkLogAttach && !!networkLog && networkLog.captured > 0;
-  const hasConsoleLog = consoleLogAttach && !!consoleLog && consoleLog.captured > 0;
+  const hasNetworkLog = logsAttach && !!networkLog && networkLog.captured > 0;
+  const hasConsoleLog = logsAttach && !!consoleLog && consoleLog.captured > 0;
   // 본문 요약엔 캡처 건수만 노출(엔트리는 logs.html).
-  const hasActionLog = supportsActionLog(captureMode) && actionLogAttach && !!actionLog && actionLog.captured > 0;
+  const hasActionLog = supportsActionLog(captureMode) && logsAttach && !!actionLog && actionLog.captured > 0;
   // 로그 요약은 console/network 지원 모드(screenshot/video/freeform)에만 붙는다 — element 분기는 제외(원본 buildCtx와 동일).
   const logSummaries = {
     networkLogSummary: hasNetworkLog ? buildNetworkLogSummary(networkLog!) : undefined,
@@ -143,15 +141,14 @@ export function buildEditorLogsCaptureInput(ctx: MarkdownContext): BuildCaptureF
     videoEndedAt,
     videoThumbnail,
     networkLog,
-    networkLogAttach,
     consoleLog,
-    consoleLogAttach,
     actionLog,
-    actionLogAttach,
+    logsAttach,
   } = s;
-  const hasNet = networkLogAttach && !!networkLog && networkLog.captured > 0;
-  const hasCon = consoleLogAttach && !!consoleLog && consoleLog.captured > 0;
-  const hasAct = actionLogAttach && !!actionLog && actionLog.captured > 0;
+  const hasNet = logsAttach && !!networkLog && networkLog.captured > 0;
+  const hasCon = logsAttach && !!consoleLog && consoleLog.captured > 0;
+  // 현행 비대칭 유지(동작 불변): 이 함수의 action 게이트엔 supportsActionLog 모드 가드가 없다.
+  const hasAct = logsAttach && !!actionLog && actionLog.captured > 0;
   const isElement = captureMode === "element";
   const styleElements = ctx.styleElements ?? [];
   return {

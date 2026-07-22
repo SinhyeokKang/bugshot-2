@@ -482,6 +482,7 @@ describe("buildNotionIssueBody — 로그 요약", () => {
       ctx: makeCtx({
         networkLogSummary: {
           captured: 10,
+          errorCount: 1,
           errors: [
             {
               id: "nr-t1",

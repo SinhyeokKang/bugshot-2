@@ -40,17 +40,18 @@ export function LogInsertDialog({
   onInsert,
 }: LogInsertDialogProps) {
   const t = useT();
-  const [tab, setTab] = useState<LogTab>("network");
+  const [tab, setTab] = useState<LogTab>("console");
   const [activeNetworkId, setActiveNetworkId] = useState<string | null>(null);
   const [activeConsoleId, setActiveConsoleId] = useState<string | null>(null);
 
   // 열 때마다 선택을 비운다 — 네트워크는 content 재마운트로 어차피 리셋되므로,
   // 콘솔만 이전 선택이 살아남으면 "삽입 전 확인" 전제가 한쪽만 깨진다.
+  // 기본 활성 탭은 캡처된 탭 중 console → network 순 첫 번째(뷰어·상세와 통일).
   useEffect(() => {
     if (!open) return;
     setActiveNetworkId(null);
     setActiveConsoleId(null);
-    setTab(requests.length === 0 && entries.length > 0 ? "console" : "network");
+    setTab(entries.length > 0 ? "console" : "network");
   }, [open, requests.length, entries.length]);
 
   const selectedRequest = requests.find((r) => r.id === activeNetworkId) ?? null;

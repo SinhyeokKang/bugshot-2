@@ -1,151 +1,72 @@
-import { ArrowLeftRight, MousePointerClick, Terminal } from "lucide-react";
+import { ScrollText } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
-import { useT, type TranslationFn } from "@/i18n";
+import { useT } from "@/i18n";
 import type { NetworkLog } from "@/types/network";
 import type { ConsoleLog } from "@/types/console";
 import type { ActionLog } from "@/types/action";
+import { logCardTypeCounts } from "@/sidepanel/components/logCardTypeCounts";
 
 interface LogAttachmentCardsProps {
   networkLog: NetworkLog | null;
-  networkLogAttach: boolean;
-  onNetworkLogToggle: (on: boolean) => void;
-  onNetworkLogClick: () => void;
   consoleLog: ConsoleLog | null;
-  consoleLogAttach: boolean;
-  onConsoleLogToggle: (on: boolean) => void;
-  onConsoleLogClick: () => void;
   actionLog?: ActionLog | null;
-  actionLogAttach?: boolean;
-  onActionLogToggle?: (on: boolean) => void;
-  onActionLogClick?: () => void;
+  logsAttach: boolean;
+  onToggle?: (on: boolean) => void;
+  onClick: () => void;
   readOnly?: boolean;
 }
 
 export function LogAttachmentCards({
   networkLog,
-  networkLogAttach,
-  onNetworkLogToggle,
-  onNetworkLogClick,
   consoleLog,
-  consoleLogAttach,
-  onConsoleLogToggle,
-  onConsoleLogClick,
   actionLog,
-  actionLogAttach,
-  onActionLogToggle,
-  onActionLogClick,
-  readOnly,
-}: LogAttachmentCardsProps) {
-  const t = useT();
-  const showNetwork = networkLog !== null && networkLog.captured > 0;
-  const showConsole = consoleLog !== null && consoleLog.captured > 0;
-  const showAction = !!actionLog && actionLog.captured > 0;
-  const count = [showNetwork, showConsole, showAction].filter(Boolean).length;
-  if (count === 0) return null;
-
-  // 좁은 사이드패널·다이얼로그 모두 대응하려 컨테이너 쿼리 사용. 3개일 때만 너비에 따라
-  // 1열↔3열로 끊고(중간 2+1 없음), 1~2개는 기존대로.
-  const cols =
-    count === 3 ? "grid-cols-1 @[35rem]:grid-cols-3" : count === 2 ? "grid-cols-2" : "grid-cols-1";
-
-  return (
-    <div className="@container">
-      <div className={`grid gap-2 ${cols}`}>
-        {showNetwork && (
-          <LogCard
-            testId="network-log-card"
-            icon={<ArrowLeftRight className="h-4 w-4" />}
-            title={t("networkLog.dialog.title")}
-            description={networkDescription(networkLog, t)}
-            attach={networkLogAttach}
-            disabled={networkLog.captured === 0}
-            onToggle={onNetworkLogToggle}
-            onClick={onNetworkLogClick}
-            readOnly={readOnly}
-          />
-        )}
-        {showConsole && (
-          <LogCard
-            testId="console-log-card"
-            icon={<Terminal className="h-4 w-4" />}
-            title={t("consoleLog.dialog.title")}
-            description={consoleDescription(consoleLog, t)}
-            attach={consoleLogAttach}
-            disabled={consoleLog.captured === 0}
-            onToggle={onConsoleLogToggle}
-            onClick={onConsoleLogClick}
-            readOnly={readOnly}
-          />
-        )}
-        {showAction && (
-          <LogCard
-            testId="action-log-card"
-            icon={<MousePointerClick className="h-4 w-4" />}
-            title={t("actionLog.dialog.title")}
-            description={t("actionLog.cardDescription", { captured: actionLog.captured })}
-            attach={!!actionLogAttach}
-            disabled={actionLog.captured === 0}
-            onToggle={onActionLogToggle ?? (() => {})}
-            onClick={onActionLogClick ?? (() => {})}
-            readOnly={readOnly}
-          />
-        )}
-      </div>
-    </div>
-  );
-}
-
-function LogCard({
-  testId,
-  icon,
-  title,
-  description,
-  attach,
-  disabled,
+  logsAttach,
   onToggle,
   onClick,
   readOnly,
-}: {
-  testId?: string;
-  icon: React.ReactNode;
-  title: string;
-  description: string;
-  attach: boolean;
-  disabled: boolean;
-  onToggle: (on: boolean) => void;
-  onClick: () => void;
-  readOnly?: boolean;
-}) {
+}: LogAttachmentCardsProps) {
+  const t = useT();
+  const hasNetwork = networkLog !== null && networkLog.captured > 0;
+  const hasConsole = consoleLog !== null && consoleLog.captured > 0;
+  const hasAction = !!actionLog && actionLog.captured > 0;
+  if (!hasNetwork && !hasConsole && !hasAction) return null;
+
+  const description = logCardTypeCounts(
+    { networkLog, consoleLog, actionLog: actionLog ?? null },
+    t,
+  );
+
   return (
     <Card
-      data-testid={testId}
-      className={`flex cursor-pointer items-center gap-3 p-3 transition-colors hover:bg-accent/50 ${disabled ? "opacity-50" : ""}`}
-      onClick={() => { if (!disabled) onClick(); }}
+      data-testid="log-attachment-card"
+      role="button"
+      tabIndex={0}
+      className="flex cursor-pointer items-center gap-3 p-3 transition-colors hover:bg-accent/50"
+      onClick={onClick}
+      onKeyDown={(e) => {
+        // 카드 자체 포커스일 때만 — Switch(중첩 button) 키 활성화가 버블링해 다이얼로그를 열지 않게.
+        if (e.target !== e.currentTarget) return;
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onClick();
+        }
+      }}
     >
-      <div className="shrink-0">{icon}</div>
+      <div className="shrink-0">
+        <ScrollText className="h-4 w-4" />
+      </div>
       <div className="flex min-w-0 flex-1 flex-col">
-        <span className="truncate text-sm font-medium">{title}</span>
+        <span className="truncate text-sm font-medium">{t("logCard.title")}</span>
         <span className="truncate text-sm text-muted-foreground">{description}</span>
       </div>
       {!readOnly && (
         <Switch
-          checked={attach}
+          checked={logsAttach}
           onCheckedChange={onToggle}
-          disabled={disabled}
           onClick={(e) => e.stopPropagation()}
         />
       )}
     </Card>
   );
-}
-
-function networkDescription(log: NetworkLog, t: TranslationFn): string {
-  const errors = log.requests.filter((r) => r.status >= 400).length;
-  return t("logCard.description", { captured: log.captured, errors });
-}
-
-function consoleDescription(log: ConsoleLog, t: TranslationFn): string {
-  const errors = log.entries.filter((e) => e.level === "error").length;
-  return t("logCard.description", { captured: log.captured, errors });
 }

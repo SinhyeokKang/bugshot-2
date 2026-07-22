@@ -24,11 +24,9 @@ import { clearPicker, startInlineAreaCapture } from "@/sidepanel/picker-control"
 import { CancelConfirmDialog } from "@/sidepanel/components/CancelConfirmDialog";
 import { LogAttachmentCards } from "@/sidepanel/components/LogAttachmentCards";
 import { AttachmentSection } from "@/sidepanel/components/AttachmentSection";
-import { NetworkLogPreviewDialog } from "@/sidepanel/components/NetworkLogPreviewDialog";
+import { LogPreviewDialog } from "@/sidepanel/components/LogPreviewDialog";
 import { LogInsertDialog } from "@/sidepanel/components/LogInsertDialog";
 import { TooltipIconButton } from "@/sidepanel/components/TooltipIconButton";
-import { ConsoleLogPreviewDialog } from "@/sidepanel/components/ConsoleLogPreviewDialog";
-import { ActionLogPreviewDialog } from "@/sidepanel/components/ActionLogPreviewDialog";
 import {
   PageFooter,
   PageScroll,
@@ -80,14 +78,10 @@ export function DraftingPanel() {
   const backToStyling = useEditorStore((s) => s.backToStyling);
   const confirmDraft = useEditorStore((s) => s.confirmDraft);
   const networkLog = useEditorStore((s) => s.networkLog);
-  const networkLogAttach = useEditorStore((s) => s.networkLogAttach);
-  const setNetworkLogAttach = useEditorStore((s) => s.setNetworkLogAttach);
   const consoleLog = useEditorStore((s) => s.consoleLog);
-  const consoleLogAttach = useEditorStore((s) => s.consoleLogAttach);
-  const setConsoleLogAttach = useEditorStore((s) => s.setConsoleLogAttach);
   const actionLog = useEditorStore((s) => s.actionLog);
-  const actionLogAttach = useEditorStore((s) => s.actionLogAttach);
-  const setActionLogAttach = useEditorStore((s) => s.setActionLogAttach);
+  const logsAttach = useEditorStore((s) => s.logsAttach);
+  const setLogsAttach = useEditorStore((s) => s.setLogsAttach);
   const issueSections = useSettingsUiStore((s) => s.issueSections);
   const attachmentsEnabled = useSettingsUiStore((s) => s.attachmentsEnabled);
   const autoReproPrefill = useSettingsUiStore((s) => s.autoReproPrefill);
@@ -107,9 +101,7 @@ export function DraftingPanel() {
   const [annotating, setAnnotating] = useState(false);
   const [aiDialogOpen, setAiDialogOpen] = useState(false);
   const aiDraftLoading = useEditorStore((s) => s.aiDraftLoading);
-  const [networkDialogOpen, setNetworkDialogOpen] = useState(false);
-  const [consoleDialogOpen, setConsoleDialogOpen] = useState(false);
-  const [actionDialogOpen, setActionDialogOpen] = useState(false);
+  const [logDialogOpen, setLogDialogOpen] = useState(false);
   const titlePrefix = useSettingsStore((s) => s.titlePrefix);
   const inlineCaptureTarget = useEditorStore((s) => s.inlineCaptureTarget);
   const isElementMode = captureMode === "element";
@@ -311,17 +303,11 @@ export function DraftingPanel() {
     >
       <LogAttachmentCards
         networkLog={networkLog}
-        networkLogAttach={networkLogAttach}
-        onNetworkLogToggle={setNetworkLogAttach}
-        onNetworkLogClick={() => { (document.activeElement as HTMLElement)?.blur?.(); setNetworkDialogOpen(true); }}
         consoleLog={consoleLog}
-        consoleLogAttach={consoleLogAttach}
-        onConsoleLogToggle={setConsoleLogAttach}
-        onConsoleLogClick={() => { (document.activeElement as HTMLElement)?.blur?.(); setConsoleDialogOpen(true); }}
         actionLog={showActionCard ? actionLog : null}
-        actionLogAttach={actionLogAttach}
-        onActionLogToggle={setActionLogAttach}
-        onActionLogClick={() => { (document.activeElement as HTMLElement)?.blur?.(); setActionDialogOpen(true); }}
+        logsAttach={logsAttach}
+        onToggle={setLogsAttach}
+        onClick={() => { (document.activeElement as HTMLElement)?.blur?.(); setLogDialogOpen(true); }}
       />
     </Section>
   ) : null;
@@ -472,38 +458,16 @@ export function DraftingPanel() {
           </PageFooter>
         </>
       )}
-      {networkLog && (
-        <NetworkLogPreviewDialog
-          open={networkDialogOpen}
-          onOpenChange={setNetworkDialogOpen}
-          requests={networkLog.requests}
-          attach={networkLogAttach}
-          onToggleAttach={setNetworkLogAttach}
-          syncBaseMs={videoStartedAt ?? undefined}
-        />
-      )}
-      {consoleLog && (
-        <ConsoleLogPreviewDialog
-          open={consoleDialogOpen}
-          onOpenChange={setConsoleDialogOpen}
-          entries={consoleLog.entries}
-          startedAt={consoleLog.startedAt}
-          attach={consoleLogAttach}
-          onToggleAttach={setConsoleLogAttach}
-          syncBaseMs={videoStartedAt ?? undefined}
-        />
-      )}
-      {showActionCard && actionLog && (
-        <ActionLogPreviewDialog
-          open={actionDialogOpen}
-          onOpenChange={setActionDialogOpen}
-          entries={actionLog.entries}
-          startedAt={actionLog.startedAt}
-          attach={actionLogAttach}
-          onToggleAttach={setActionLogAttach}
-          syncBaseMs={videoStartedAt ?? undefined}
-        />
-      )}
+      <LogPreviewDialog
+        open={logDialogOpen}
+        onOpenChange={setLogDialogOpen}
+        networkLog={networkLog}
+        consoleLog={consoleLog}
+        actionLog={showActionCard ? actionLog : null}
+        logsAttach={logsAttach}
+        onToggleAttach={setLogsAttach}
+        syncBaseMs={videoStartedAt ?? undefined}
+      />
       <AiDraftDialog
         capabilities={capabilities}
         open={aiDialogOpen}
