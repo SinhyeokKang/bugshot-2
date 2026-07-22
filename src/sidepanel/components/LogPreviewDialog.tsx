@@ -133,7 +133,10 @@ export function LogPreviewDialog({
             {t("common.close")}
           </Button>
           {onToggleAttach && (
-            <Button onClick={() => { onToggleAttach(!logsAttach); onOpenChange(false); }}>
+            <Button
+              data-testid="log-preview-toggle-attach"
+              onClick={() => { onToggleAttach(!logsAttach); onOpenChange(false); }}
+            >
               {logsAttach ? t("common.detach") : t("common.attach")}
             </Button>
           )}

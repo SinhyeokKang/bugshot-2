@@ -222,12 +222,18 @@ test.describe("behavior", () => {
     await expect(page.getByTestId("action-filter-all")).not.toHaveCSS("font-family", /Geist Mono Variable/);
   });
 
-  test("빈 상태 — 없는 로그 탭은 disabled, 데이터 0이면 noData", async ({ page }) => {
-    // actionLog만 → console/network 탭 비활성
+  test("빈 상태 — 없는 로그 타입도 탭 활성 + 0 배지 + EmptyCase (사이드패널 정책 통일)", async ({ page }) => {
+    // actionLog만 → console/network는 미보유. 정책 통일로 disabled가 아니라 활성 + EmptyCase.
     await openViewer(page, { actionLog: makeActionLog() });
-    await expect(page.getByTestId("logview-tab-console")).toBeDisabled();
-    await expect(page.getByTestId("logview-tab-network")).toBeDisabled();
+    await expect(page.getByTestId("logview-tab-console")).toBeEnabled();
+    await expect(page.getByTestId("logview-tab-network")).toBeEnabled();
     await expect(page.getByTestId("logview-tab-action")).toBeEnabled();
+    // 0건도 배지 노출.
+    await expect(page.getByTestId("logview-tab-console")).toContainText("0");
+    await expect(page.getByTestId("logview-tab-network")).toContainText("0");
+    // 빈 탭 조회 시 항목 없음(EmptyCase) — 활성 탭만 visible이라 :visible로 스코프.
+    await page.getByTestId("logview-tab-console").click();
+    await expect(page.locator("[data-entry-id]:visible")).toHaveCount(0);
   });
 
   test("분할 모드 — screenshot 좌측 패널과 로그 탭 공존", async ({ page }) => {
