@@ -224,7 +224,7 @@ shadcn `Slider` (`src/components/ui/slider.tsx`, Radix). 표준에서 **멀티 t
 - 현재 활성 사용처는 없다(이전 유일 예 `LogAttachmentCards`가 단일 카드로 전환되며 `@container`/grid 제거). 플러그인은 설치돼 있어 필요 시 재도입 가능.
 
 ### 오버레이 컴포넌트
-- **Dialog** (`dialog.tsx`): 기본 `DialogContent` = `rounded-2xl`, `w-full max-w-[calc(100%-2rem)]`, `duration-300`. 넓게 띄워야 하면 override(예: `SubmitFieldsDialog`의 `w-[80vw] max-w-[80vw] max-h-[80vh] rounded-3xl`). `DialogFooter`는 `flex-col-reverse sm:flex-row` + `rounded-b-2xl`.
+- **Dialog** (`dialog.tsx`): 기본 `DialogContent` = `rounded-2xl`, `w-full max-w-[calc(100%-2rem)]`, `duration-300`. 넓게 띄워야 하면 override(예: `SubmitFieldsDialog`의 `w-[90vw] max-w-[90vw] max-h-[80vh] rounded-3xl`). `DialogFooter`는 `flex-col-reverse sm:flex-row` + `rounded-b-2xl`.
 - **Popover** (`popover.tsx`): 기본 `align=center sideOffset=4 collisionPadding=8`, `w-72`, 높이는 `--radix-popover-content-available-height`. 콤보박스에 다수 사용.
 - **ScrollArea** (`scroll-area.tsx`): 로그 콘텐츠 패널 공통. 커스텀 스크롤바는 `globals.css`의 `::-webkit-scrollbar`(10px, thumb=border 색, hover 시 muted-foreground/0.5)와 일관.
 - **Resizable** (`resizable.tsx`): 분할 레이아웃(주로 log-viewer 비디오+로그 패널).
