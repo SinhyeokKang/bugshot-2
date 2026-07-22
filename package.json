@@ -13,7 +13,9 @@
     "preview": "vite preview",
     "typecheck": "tsc -b --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "sync:agents": "node scripts/sync-agents.mjs",
+    "sync:agents:check": "node scripts/sync-agents.mjs --check"
   },
   "dependencies": {
     "@codemirror/autocomplete": "6.20.3",

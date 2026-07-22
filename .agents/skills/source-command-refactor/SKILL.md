@@ -9,7 +9,7 @@ Use this skill when the user asks to run the migrated source command `refactor`.
 
 ## Command Template
 
-`/audit`·`/code-review`가 뱉은 발견 목록 중 **사용자가 지정한 항목을 실제로 고치는** 단계 전용 스킬. 리포트는 진단, `/refactor`는 그 처방의 실행이다. AGENTS.md 권장 흐름의 "픽스/리팩터" 칸을 채운다.
+`/audit`·`/code-review`가 뱉은 발견 목록 중 **사용자가 지정한 항목을 실제로 고치는** 단계 전용 스킬. 리포트는 진단, `/refactor`는 그 처방의 실행이다. CLAUDE.md 권장 흐름의 "픽스/리팩터" 칸을 채운다.
 
 구조는 `/implement`와 동일한 자기완결 골격: **수정 본체는 메인 스레드 단일 실행**이고, 병렬은 ① **수정 전 조사**(Explore 병렬)와 ② **수정 후 자체 검증**(전문 에이전트 병렬) 두 군데에만. 차이는 입력이 "신규 tasks/테스트"가 아니라 **이미 진단된 기존 코드의 발견 항목**이라는 점.
 
@@ -43,7 +43,7 @@ Use this skill when the user asks to run the migrated source command `refactor`.
   |---|---|---|
   | **안전 수정** | 동작 불변·국소·근거 명확 (상수 추출, 의존성 정리, 데드 코드 제거 등) | 바로 고침 |
   | **회귀 위험 / 트레이드오프** | 정상 동작에 영향·정책 결정 필요 (FIFO 정책, 타임아웃 상향, race 보강 등) | **강행 전 `AskUserQuestion`으로 방향 확인** |
-  | **수정 부적절** | 의도된 설계·견고한 수정 불가·`/AGENTS.md` 원칙 위반(요청 안 한 추상화 등) | 이유 달아 **보고하고 스킵 제안** |
+  | **수정 부적절** | 의도된 설계·견고한 수정 불가·`/CLAUDE.md` 원칙 위반(요청 안 한 추상화 등) | 이유 달아 **보고하고 스킵 제안** |
 
 - 사용자가 "전부"로 지정했어도 위 분류는 적용한다 — 회귀 위험 항목까지 묻지도 않고 일괄 수정하지 않는다.
 - 멀티 항목이면 TaskCreate로 추적. 단계마다 완료 즉시 마킹.
@@ -54,7 +54,7 @@ Use this skill when the user asks to run the migrated source command `refactor`.
 
 - 변경 대상과 같은 역할의 기존 구현 (패턴 복제용)
 - 건드릴 타입·메시지·store 키의 현재 정의·사용처
-- 관련 AGENTS.md / docs/ARCHITECTURE.md 제약 (해당 영역만)
+- 관련 CLAUDE.md / docs/ARCHITECTURE.md 제약 (해당 영역만)
 
 대상이 한 파일·한 영역에 집중되면 Explore 없이 직접 Read.
 

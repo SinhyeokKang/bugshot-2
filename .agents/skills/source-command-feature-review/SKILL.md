@@ -34,7 +34,7 @@ Use this skill when the user asks to run the migrated source command `feature-re
 |---|---|---|---|
 | `cpo` | **CPO** (Chief Product Officer) | `prd.md` | 스코프 적절성, 시나리오 완전성, 비목표 명확성, 성공 기준 측정 가능성, 사용자 가치 |
 | `cdo` | **CDO** (Chief Design Officer) | `prd.md` + `design.md` | UX 플로우, 사용성 허들, UI 패턴 일관성(기존 codebase 기준), 접근성, 인터랙션 엣지 케이스 |
-| `cto` | **CTO** (Chief Technology Officer) | `design.md` | 아키텍처 정합성, 기존 패턴/컨벤션 준수(AGENTS.md 기준), 오버엔지니어링, 기술 위험, 성능/보안 |
+| `cto` | **CTO** (Chief Technology Officer) | `design.md` | 아키텍처 정합성, 기존 패턴/컨벤션 준수(CLAUDE.md 기준), 오버엔지니어링, 기술 위험, 성능/보안 |
 | `qa` | **QA Lead** | `tasks.md` | 검증 항목 충분성, 엣지 케이스 누락, 태스크 의존 관계, 회귀 리스크, 테스트 계획 실현 가능성 |
 
 ## 절차
@@ -43,13 +43,13 @@ Use this skill when the user asks to run the migrated source command `feature-re
 
 - `docs/features/<slug>/` 에서 `prd.md`, `design.md`, `tasks.md` 3개 파일을 읽는다.
 - 하나라도 없으면 즉시 종료: "문서가 불완전합니다. `/feature`를 먼저 실행해주세요."
-- 컨텍스트용으로 `AGENTS.md`, `docs/ARCHITECTURE.md`도 함께 읽는다 (에이전트에게 전달).
+- 컨텍스트용으로 `CLAUDE.md`, `docs/ARCHITECTURE.md`도 함께 읽는다 (에이전트에게 전달).
 
 ### 2. 병렬 검수
 
 활성화된 전문가 에이전트를 **동시에** 실행한다 (`subagent_type: general-purpose`). 각 에이전트에게 다음을 전달:
 - 담당 문서 전문 + 다른 문서 참고용
-- AGENTS.md + docs/ARCHITECTURE.md (코드베이스 컨텍스트)
+- CLAUDE.md + docs/ARCHITECTURE.md (코드베이스 컨텍스트)
 - 역할별 검수 관점 (아래 프롬프트 가이드)
 - 하위 검증 에이전트 분배 지침
 
@@ -188,7 +188,7 @@ Use this skill when the user asks to run the migrated source command `feature-re
 
 ### CTO 프롬프트 핵심
 
-- AGENTS.md의 아키텍처 원칙·코드 컨벤션과 충돌하지 않는가?
+- CLAUDE.md의 아키텍처 원칙·코드 컨벤션과 충돌하지 않는가?
 - 기존 패턴(서브탭 구조, 스토어 접근, 메시지 패턴)을 정확히 따르는가?
 - 오버엔지니어링이 없는가? 더 단순한 접근이 가능한가?
 - 데이터 흐름이 기존 파이프라인과 정합하는가?

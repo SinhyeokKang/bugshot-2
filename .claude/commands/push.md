@@ -1,5 +1,5 @@
 ---
-description: 원격 푸시 전 상태 점검 + CLAUDE.md/docs/DIRECTORY.md/docs/ARCHITECTURE.md/README.md/docs/PERMISSION.md/docs/privacy.{ko,en}.md/guide/ 신선도 확인 + 푸시
+description: 원격 푸시 전 상태 점검 + CLAUDE.md/docs/DIRECTORY.md/docs/ARCHITECTURE.md/README.md/docs/PERMISSION.md/docs/privacy.{ko,en}.md/guide/ 신선도 확인 + Codex 미러 게이트 + 푸시
 ---
 
 원격(`origin`)에 현재 브랜치를 안전하게 푸시한다. 푸시 전에 저장소 문서의 신선도를 점검하고 필요시 업데이트까지 커밋한다.
@@ -56,6 +56,11 @@ description: 원격 푸시 전 상태 점검 + CLAUDE.md/docs/DIRECTORY.md/docs/
    - 업데이트가 필요하면 확인 없이 바로 Edit으로 반영
    - 문서별로 별도 커밋 (예: `docs(CLAUDE): update tab scope session description`, `docs(README): add new feature description`, `docs(privacy): add new platform data disclosure`)
    - 변경 불필요하면 건너뜀
+
+   **4c. Codex 미러 게이트 (기계 검사, 1줄).** 문서 트리아지와 무관하게 항상 `pnpm sync:agents:check`를 돌린다.
+   - 통과 → 한 줄로 보고하고 다음 단계.
+   - 드리프트 검출 → `pnpm sync:agents`로 재생성하고 `docs(AGENTS): sync codex mirror` 커밋을 얹은 뒤 계속 진행(확인 불필요 — 순수 생성물이다).
+   - 스크립트가 **에러**로 죽으면(치환 assert 실패 등) 중단하고 원인을 보고한다. 미러는 `CLAUDE.md`·`.claude/commands/`의 생성물이므로 원본을 고치는 게 정답이고, `AGENTS.md`·`.agents/skills/`를 직접 편집해 맞추지 않는다.
 
 5. **e2e 게이트.** 문서 신선도 검사 후, 푸시 직전에 수행:
    1. `cat e2e/.last-green`이 `git rev-parse HEAD`와 일치하면 → "직전 green (해시)" 한 줄로 통과.

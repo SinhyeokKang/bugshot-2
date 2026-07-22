@@ -23,7 +23,7 @@ Use this skill when the user asks to run the migrated source command `pull`.
    - 받은 커밋이 없으면 "이미 최신" 알리고 종료.
 
 3. **주요 문서 확인**
-   - `AGENTS.md` — 아키텍처 원칙·컨벤션·게이트웨이 변경 여부
+   - `CLAUDE.md` — 아키텍처 원칙·컨벤션·게이트웨이 변경 여부
 
 4. **맥락 브리핑** — 아래 구조로 **한국어, 간결하게** 보고:
 
@@ -31,7 +31,7 @@ Use this skill when the user asks to run the migrated source command `pull`.
    - 커밋 수, 주요 변경 영역, 핵심 커밋 메시지 1~3개
 
    ### 문서 변경
-   - AGENTS.md에서 달라진 점 (없으면 "변경 없음")
+   - CLAUDE.md에서 달라진 점 (없으면 "변경 없음")
 
 5. **빌드 안내** — 브리핑 마지막에 "빌드가 필요하면 `/build` 실행하세요" 한 줄 추가. 자동으로 빌드하지 않는다.
 
@@ -40,4 +40,4 @@ Use this skill when the user asks to run the migrated source command `pull`.
 - pull 외에 코드 수정은 절대 하지 않는다.
 - 문서를 읽기만 하고 수정하지 않는다.
 - 브리핑은 짧게. 각 섹션 2~4줄 이내.
-- 빌드는 자동 실행하지 않는다 (AGENTS.md 규칙).
+- 빌드는 자동 실행하지 않는다 (CLAUDE.md 규칙).

@@ -17,6 +17,12 @@
             "command": "f=$(jq -r '.tool_input.file_path // empty'); case \"$f\" in *src/i18n/*) out=$(pnpm test --run src/i18n/__tests__/locales.test.ts 2>&1) || { echo \"i18n ko/en 대칭 검사 실패 — locales.test.ts 확인:\" >&2; printf \"%s\\n\" \"$out\" | tail -20 >&2; exit 2; };; esac",
             "timeout": 60,
             "statusMessage": "i18n ko/en 대칭 검사"
+          },
+          {
+            "type": "command",
+            "command": "f=$(jq -r '.tool_input.file_path // empty'); case \"$f\" in */CLAUDE.md|*/.claude/commands/*.md|*/.agents/PREAMBLE.md) out=$(node scripts/sync-agents.mjs 2>&1) || { echo \"Codex 미러 생성 실패 — scripts/sync-agents.mjs 확인:\" >&2; printf \"%s\\n\" \"$out\" | tail -20 >&2; exit 2; };; esac",
+            "timeout": 30,
+            "statusMessage": "Codex 미러 동기화"
           }
         ]
       }
