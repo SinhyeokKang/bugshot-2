@@ -42,7 +42,7 @@ export function bodyBlocks(sections: IssueSection[]): BodyBlock[] {
 
 ### 빌더 (8 플랫폼 + 공용 + 클립보드)
 
-각 파일에서 **동일 패턴 교체**: `POST_MEDIA_SECTION_IDS` import·앵커 분기·트레일링 `emitMedia()` 폴백을 제거하고, `bodyBlocks()` 순회로 바꿔 `kind === "meta"`에서 `emitMedia()` 호출. `emitMedia`의 **내용(미디어/diff/로그 렌더, freeform의 "미디어 없음+로그만" 미묘 동작 포함)은 유지** — 위치 결정만 데이터로 이관.
+각 파일에서 **동일 패턴 교체**: `POST_MEDIA_SECTION_IDS` import·앵커 분기를 제거하고, `bodyBlocks()` 순회로 바꿔 `kind === "meta"`에서 `emitMedia()` 호출. `emitMedia`의 **내용(미디어/diff/로그 렌더, freeform의 "미디어 없음+로그만" 미묘 동작 포함)은 유지** — 위치 결정만 데이터로 이관.
 
 - `buildIssueMarkdown.ts` (`buildIssueMarkdown` + `buildIssueHtml`)
 - `buildMarkdownIssueBody.ts` (GitHub/GitLab 공용)
@@ -53,7 +53,7 @@ export function bodyBlocks(sections: IssueSection[]): BodyBlock[] {
 - `buildLinearIssueBody.ts`
 - `buildSlackBody.ts`
 
-> env 블록은 루프 이전 emit(현행 유지). 첨부 블록은 루프 이후 최하단 emit(현행 유지). 둘 다 `bodyBlocks` 밖. `mediaEmitted` 가드는 유지해도 무해(단일 meta라 1회 호출).
+> env 블록은 루프 이전 emit(현행 유지). 첨부 블록은 루프 이후 최하단 emit(현행 유지). 둘 다 `bodyBlocks` 밖. 루프 뒤 `emitMedia()` 1회 호출은 media 엔트리 없는 레거시 `sectionConfig` 방어로 **유지**하고, `mediaEmitted` 가드가 중복을 막는다.
 
 ### 간접 소비처 격리 (⚠️ 신규 변경 대상 — CTO/QA 지적)
 
@@ -67,7 +67,7 @@ export function bodyBlocks(sections: IssueSection[]): BodyBlock[] {
 - **`src/sidepanel/lib/composePreviewLayout.ts`** — `bodyBlocks` 규칙과 정합하게 재구현하되 **인자는 `sectionIds: string[]` 유지**(현행). `postMediaSectionIds` 인자 제거, `id === "media"`에서 `{kind:"media"}`+`{kind:"logCards"}` push. `IssueSection[]`을 요구하지 **않는다** — `IssuePreviewView`가 log-viewer Report 탭과 공유되고 그쪽은 `settings-ui-store`(`enabled`/`builtIn`) 의존을 격리해야 하므로, 미디어 판별은 `id === "media"`만으로 충분하다.
 - **`src/sidepanel/components/IssuePreviewView.tsx`** — `postMediaSectionIds` prop 제거. `sectionIds`에 media id가 포함된 형태로 전달받아 `composePreviewLayout` 호출. `IssuePreviewViewSection.renderAs`도 `"meta"` 미도달(media는 레이아웃 슬롯으로만, 섹션 목록엔 불포함).
 - **`src/sidepanel/tabs/PreviewPanel.tsx`** — `previewSections` 매핑에서 media 엔트리를 **표시 섹션 목록에서 제외**하고 `sectionIds`(순서용, media id 포함)만 레이아웃에 전달. `postMediaSectionIds` 전달 제거.
-- **`src/sidepanel/tabs/DraftingPanel.tsx`** — 순회를 `bodyBlocks(issueSections)`로 교체. `kind==="meta"`→`mediaBlock`+`logCardsBlock`, `kind==="section"`→`SectionTextarea`. 기존 앵커 삽입·트레일링 append 제거.
+- **`src/sidepanel/tabs/DraftingPanel.tsx`** — 순회를 `bodyBlocks(issueSections)`로 교체. `kind==="meta"`→`mediaBlock`+`logCardsBlock`, `kind==="section"`→`SectionTextarea`. 기존 앵커 삽입 제거(트레일링 append는 레거시 방어로 유지).
 - **`src/sidepanel/tabs/DraftDetailDialog.tsx`** — 동일 패턴 교체(순서는 현재 설정에서 파생).
 
 ### 설정 UI

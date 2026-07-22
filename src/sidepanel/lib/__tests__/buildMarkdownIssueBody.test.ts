@@ -29,8 +29,8 @@ function makeCtx(overrides: Partial<MarkdownContext> = {}): MarkdownContext {
     sections: { description: "본문" },
     sectionConfig: [
       { id: "description", enabled: true, renderAs: "paragraph", builtIn: true },
-      { id: "expectedResult", enabled: true, renderAs: "paragraph", builtIn: true },
       { id: "media", enabled: true, renderAs: "meta", builtIn: true },
+      { id: "expectedResult", enabled: true, renderAs: "paragraph", builtIn: true },
     ],
     url: "https://example.com",
     selector: "div",

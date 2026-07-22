@@ -24,6 +24,7 @@ const ko = {
     "캡처한 미디어·스타일 변경·로그는 항상 포함됩니다. 여기서는 본문에서의 위치만 조정합니다.",
   "settings.reorder.reset": "기본 순서 복원",
   "settings.reorder.handle": "{label} 순서 변경 핸들",
+  "settings.reorder.roleDescription": "순서 변경 가능 항목",
   "settings.reorder.instructions":
     "스페이스바를 눌러 순서 변경을 시작한 뒤 위·아래 방향키로 옮기고 다시 스페이스바를 눌러 놓습니다. Esc로 취소합니다.",
   "settings.reorder.announce.start": "{label} 순서 변경을 시작했습니다.",
@@ -126,6 +127,7 @@ const en = {
     "Captured media, style changes, and logs are always included. Here you only adjust where they appear in the body.",
   "settings.reorder.reset": "Reset order",
   "settings.reorder.handle": "Reorder {label}",
+  "settings.reorder.roleDescription": "sortable",
   "settings.reorder.instructions":
     "Press space to start reordering, use the arrow keys to move, then press space again to drop. Press escape to cancel.",
   "settings.reorder.announce.start": "Picked up {label}.",

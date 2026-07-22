@@ -15,12 +15,19 @@ export type BodyBlock =
 // 이슈 본문의 블록 순서 단일 출처. draft 패널·프리뷰·8개 플랫폼 빌더가 모두 이 결과를
 // 순회한다 — 순서 규칙이 소비처마다 복제되면 한 곳만 고쳐도 나머지가 조용히 어긋난다.
 export function bodyBlocks(sections: IssueSection[]): BodyBlock[] {
-  return sections
-    // media는 enabled와 무관하게 항상 포함 — 오염된 enabled:false로 미디어가 소실되지 않게.
-    .filter((s) => s.id === "media" || s.enabled)
-    .map((s) =>
-      s.id === "media"
-        ? ({ kind: "meta" } as const)
-        : ({ kind: "section", section: s as TextIssueSection } as const),
-    );
+  const out: BodyBlock[] = [];
+  let metaEmitted = false;
+  for (const s of sections) {
+    if (s.id === "media") {
+      // enabled와 무관하게 항상 포함하되 정확히 1개 — 오염된 배열이 미디어를 소실시키거나
+      // 중복 렌더하지 않게 여기서 막는다(소비처마다 가드를 두지 않는다).
+      if (metaEmitted) continue;
+      metaEmitted = true;
+      out.push({ kind: "meta" });
+      continue;
+    }
+    if (!s.enabled) continue;
+    out.push({ kind: "section", section: s as TextIssueSection });
+  }
+  return out;
 }

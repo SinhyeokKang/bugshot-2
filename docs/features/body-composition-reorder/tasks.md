@@ -40,7 +40,7 @@
 
 ### Task 3: 클립보드/프리뷰 빌더 전환 (패턴 확립)
 - **변경 대상**: `buildIssueMarkdown.ts`(`buildIssueMarkdown`,`buildIssueHtml`) + `__tests__/buildIssueMarkdown.test.ts`
-- **작업 내용**: 앵커 분기 + 트레일링 `emitMedia()` 폴백 제거 → `bodyBlocks` 순회. env·footer 유지. 픽스처 `sectionConfig`에 media 엔트리 추가, `vi.mock(POST_MEDIA)` dead mock 제거.
+- **작업 내용**: 앵커 분기 제거 → `bodyBlocks` 순회. 트레일링 `emitMedia()`는 **폴백으로 유지**(media 엔트리 없는 레거시 `sectionConfig`에서 미디어가 통째로 소실되는 것 방어 — `mediaEmitted` 가드로 중복 없음). env·footer 유지. 픽스처 `sectionConfig`에 media 엔트리 추가, `vi.mock(POST_MEDIA)` dead mock 제거.
 - **검증**:
   - [x] Task 0 골든 무수정 통과(기본 순서 바이트 동일).
   - [x] media를 앞으로 옮긴 순서에서 미디어 블록이 해당 위치에 emit.

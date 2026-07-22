@@ -392,7 +392,11 @@ function IssueSectionRow({
 }) {
   const t = useT();
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } =
-    useSortable({ id: section.id });
+    useSortable({
+      id: section.id,
+      // dnd-kit 기본 roleDescription은 영어 고정("sortable") — 로케일을 따르게 덮는다.
+      attributes: { roleDescription: t("settings.reorder.roleDescription") },
+    });
   const id = `issue-section-${section.id}`;
   const isMedia = section.id === "media";
   const help =
@@ -407,7 +411,7 @@ function IssueSectionRow({
       // 구분선은 형제 Separator가 아니라 행 자신의 border — dnd transform과 함께 움직여야 잔상이 없다.
       className={cn(
         "-mx-3 flex items-center gap-3 border-t border-border px-3 py-3 first:border-t-0 first:pt-0 last:pb-0",
-        isDragging && "relative z-10 rounded-md bg-card shadow-md",
+        isDragging && "relative z-10 rounded-md bg-muted shadow-md",
       )}
       data-testid={`issue-section-row-${section.id}`}
     >

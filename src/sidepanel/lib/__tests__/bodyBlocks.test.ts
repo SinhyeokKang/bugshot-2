@@ -79,6 +79,22 @@ describe("bodyBlocks", () => {
     expect(blocks).toEqual([{ kind: "section", section: steps }]);
   });
 
+  // 중복 방어를 소비처가 아니라 여기서 한다 — 8빌더는 mediaEmitted로 흡수하지만
+  // DraftingPanel·DraftDetailDialog엔 가드가 없어, 여기서 안 막으면 같은 블록을 두 번 렌더한다.
+  it("media 엔트리가 2개면 meta 블록은 첫 자리 1개만 (정규화 실패 방어)", () => {
+    const dirty = [
+      section("description"),
+      media(),
+      section("expectedResult"),
+      media(),
+    ];
+    expect(kinds(bodyBlocks(dirty))).toEqual([
+      "description",
+      "meta",
+      "expectedResult",
+    ]);
+  });
+
   it("media 엔트리가 없으면 meta 블록도 없다 (정규화 이전 상태)", () => {
     const legacy = [section("description"), section("expectedResult")];
     expect(kinds(bodyBlocks(legacy))).toEqual(["description", "expectedResult"]);
