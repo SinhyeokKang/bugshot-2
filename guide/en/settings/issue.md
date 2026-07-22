@@ -29,29 +29,17 @@ Turning this toggle on starts keeping the last 30 seconds of your screen. There'
 
 > Curious how to use 30s replay? See [30s Replay](../video/replay.md).
 
-## AI settings
-
-![AI settings — Fill steps to reproduce](../assets/settings-issue-4.jpg)
-
-With **Fill steps to reproduce** on, the moment you land on the issue screen after recording, AI reads the action log it just captured and **fills the Steps to reproduce section for you**. It saves you from retyping each step by hand.
-
-- It's **on** by default.
-- It only kicks in when an AI model is connected — with no AI available, nothing gets auto-filled and Steps to reproduce stays empty. See [AI LLM Integration](./ai.md) to connect one.
-- When it runs, the action log is sent to the connected AI. If you recorded a sensitive screen, feel free to turn it off.
-- If you turn the Steps to reproduce section off under **Body composition** below, there's nothing left to fill, so this option goes inactive too. Your on/off choice is remembered and comes back when you re-enable the section.
-
-> Want to see how it fills things in? Check out [Writing an Issue (Recording mode)](../video/issue.md).
-
 ## Body composition
 
-![Body composition setting](../assets/settings-issue-5.jpg)
+![Body composition setting](../assets/settings-issue-4.jpg)
 
-Turn the body sections on or off. Four sections come ready out of the box.
+Choose which sections go into the issue body — and **what order they go in**. These come ready out of the box.
 
-| Section | Default | Input format |
+| Item | Default | Input format |
 |---|---|---|
 | Description | On | Paragraph |
 | Steps to reproduce | On | Ordered list |
+| Media & Logs | Always | — |
 | Expected result | On | Paragraph |
 | Notes | Off | Paragraph |
 
@@ -59,9 +47,41 @@ Turn the body sections on or off. Four sections come ready out of the box.
 - **Notes** is off by default, so flip it on only when you need it.
 - You can **override each section's label and placeholder text**. Rename "Description" to match your team's wording, for instance.
 
-## File attachments
+### Media & Logs
 
-![File attachments toggle](../assets/settings-issue-6.jpg)
+This is where element style changes, captured media, and collected logs land. Unlike the other items it has **no on/off switch — you only set where it goes**. Nothing is captured, nothing shows up in the body, so there's nothing to turn off. Whether logs ride along with an issue is decided on the issue screen itself, on the log card.
+
+### Reordering
+
+Grab the handle on the left of any row and drag it up or down. The new order saves the moment you drop it, and every issue you write from then on follows it.
+
+You can do the same from the keyboard.
+
+1. Press Tab until the handle has focus.
+2. Press Space to pick the item up.
+3. Use ↑ · ↓ to move it.
+4. Press Space again to drop it. (Esc cancels.)
+
+Move **Media & Logs** to the top, for example, and your screenshots or video will come before the description. Handy for matching your team's issue template.
+
+> Shuffled things around and want the original layout back? Hit the restore button to the right of the **Body composition** heading. It stays inactive while you're on the default order and lights up once you change it. It restores the **order only** — whatever you turned on or off stays that way.
+
+## Other
+
+![Other settings — Fill steps to reproduce, File attachments](../assets/settings-issue-5.jpg)
+
+### Fill steps to reproduce
+
+With **Fill steps to reproduce** on, the moment you land on the issue screen after recording, AI reads the action log it just captured and **fills the Steps to reproduce section for you**. It saves you from retyping each step by hand.
+
+- It's **on** by default.
+- It only kicks in when an AI model is connected — with no AI available, nothing gets auto-filled and Steps to reproduce stays empty. See [AI LLM Integration](./ai.md) to connect one.
+- When it runs, the action log is sent to the connected AI. If you recorded a sensitive screen, feel free to turn it off.
+- If you turn the Steps to reproduce section off under **Body composition** above, there's nothing left to fill, so this option goes inactive too. Your on/off choice is remembered and comes back when you re-enable the section.
+
+> Want to see how it fills things in? Check out [Writing an Issue (Recording mode)](../video/issue.md).
+
+### File attachments
 
 Sometimes you need to drop a file straight onto an issue — something captures or logs can't quite hold. Flip this toggle on and an **Attachments** area appears on the issue screen, where you can pick files to send along.
 
