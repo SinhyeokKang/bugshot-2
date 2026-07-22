@@ -194,6 +194,7 @@ function IssueSettingsContent() {
 
         <Section
           title={t("settings.bodyComposition")}
+          testId="settings-section-body-composition"
           action={
             <Button
               size="icon"
@@ -241,7 +242,7 @@ function IssueSettingsContent() {
           </Card>
         </Section>
 
-        <Section title={t("settings.otherSection")}>
+        <Section title={t("settings.otherSection")} testId="settings-section-other">
           <Card>
             <CardContent className="flex flex-col gap-3 px-3 py-3">
               <AutoReproPrefillToggleRow

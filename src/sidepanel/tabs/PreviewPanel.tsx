@@ -167,6 +167,7 @@ export function PreviewPanel() {
 
   const mediaBlock = isFreeformMode ? null : isVideoMode ? (
     <Section
+      testId="preview-media-block"
       title={t("section.media")}
       action={
         videoBlob ? (
@@ -189,6 +190,7 @@ export function PreviewPanel() {
     styleElements.map((el) => (
       <Section
         key={el.selector}
+        testId="preview-media-block"
         title={`${t("section.styleChanges")} (${el.selector})`}
       >
         <StyleChangesTable
@@ -200,6 +202,7 @@ export function PreviewPanel() {
     ))
   ) : (
     <Section
+      testId="preview-media-block"
       title={t("section.media")}
       action={
         screenshotImage ? (

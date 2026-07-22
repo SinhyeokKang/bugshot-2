@@ -176,6 +176,7 @@ export function DraftingPanel() {
   const mediaBlock = isFreeformMode ? null : isVideoMode ? (
     <Section
       key="__media"
+      testId="draft-media-block"
       title={t("section.media")}
       collapsible
       action={
@@ -200,6 +201,7 @@ export function DraftingPanel() {
       styleElements.map((el) => (
         <Section
           key={el.selector}
+          testId="draft-media-block"
           title={`${t("section.styleChanges")} (${el.selector})`}
           collapsible
         >
@@ -211,7 +213,7 @@ export function DraftingPanel() {
         </Section>
       ))
     ) : (
-      <Section key="__media" title={t("section.media")} collapsible>
+      <Section key="__media" testId="draft-media-block" title={t("section.media")} collapsible>
         {beforeImage ? (
           <div className="aspect-video w-full overflow-hidden rounded-lg border bg-muted/70">
             <img
@@ -226,6 +228,7 @@ export function DraftingPanel() {
   ) : (
     <Section
       key="__media"
+      testId="draft-media-block"
       title={t("section.media")}
       collapsible
       action={
