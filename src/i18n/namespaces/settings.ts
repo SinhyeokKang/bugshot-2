@@ -16,12 +16,10 @@ const ko = {
   "settings.replay.help":
     "화면의 최근 30초를 항상 기록해 둡니다. 버그를 발견하면 버튼 한 번으로 직전 상황을 영상으로 첨부할 수 있습니다.",
   "settings.attachments.label": "파일 첨부",
-  "settings.attachments.help":
-    "이슈에 임의의 파일을 첨부합니다.",
+  "settings.attachments.help": "이슈에 임의의 파일을 첨부할 수 있습니다.",
   "settings.otherSection": "기타",
   "settings.section.media": "미디어 · 로그",
-  "settings.section.media.help":
-    "캡처한 미디어·스타일 변경·로그는 항상 포함됩니다. 여기서는 본문에서의 위치만 조정합니다.",
+  "settings.section.media.help": "요소 스타일 변경, 캡처한 미디어, 수집한 로그입니다.",
   "settings.reorder.reset": "기본 순서 복원",
   "settings.reorder.handle": "{label} 순서 변경 핸들",
   "settings.reorder.roleDescription": "순서 변경 가능 항목",
@@ -33,7 +31,7 @@ const ko = {
   "settings.reorder.announce.cancel": "{label} 순서 변경을 취소했습니다.",
   "settings.autoReproPrefill.label": "재현 과정 채우기",
   "settings.autoReproPrefill.help":
-    "AI 모델을 연결하면 녹화 후 액션 로그로 재현 과정을 자동으로 채웁니다. 이때 액션 로그가 연결된 AI로 전송됩니다.",
+    "녹화 후 액션 로그를 연결된 AI로 보내 재현 과정을 자동으로 채웁니다.",
   "settings.theme": "테마",
   "settings.language": "언어",
   "settings.theme.light": "라이트",
@@ -119,12 +117,10 @@ const en = {
   "settings.replay.help":
     "Always keeps the last 30 seconds of your screen. Spot a bug? Attach what just happened as a video in one click.",
   "settings.attachments.label": "File attachments",
-  "settings.attachments.help":
-    "Attach arbitrary files to issues.",
+  "settings.attachments.help": "You can attach any file to an issue.",
   "settings.otherSection": "Other",
   "settings.section.media": "Media & Logs",
-  "settings.section.media.help":
-    "Captured media, style changes, and logs are always included. Here you only adjust where they appear in the body.",
+  "settings.section.media.help": "Element style changes, captured media, and collected logs.",
   "settings.reorder.reset": "Reset order",
   "settings.reorder.handle": "Reorder {label}",
   "settings.reorder.roleDescription": "sortable",
@@ -136,7 +132,7 @@ const en = {
   "settings.reorder.announce.cancel": "Reordering {label} was cancelled.",
   "settings.autoReproPrefill.label": "Fill steps to reproduce",
   "settings.autoReproPrefill.help":
-    "When an AI model is connected, fills the steps to reproduce from your action log after recording. The action log is then sent to the connected AI.",
+    "Sends your action log to the connected AI after recording to fill in the steps to reproduce.",
   "settings.theme": "Theme",
   "settings.language": "Language",
   "settings.theme.light": "Light",
