@@ -61,7 +61,7 @@ When a still image isn't enough, record the behavior.
 
 - **Tab recording** — record the current tab, up to 60 seconds, encoded to MP4 (WebM fallback where MP4 isn't supported).
 - **Screen recording** — record any window or the full screen via the system picker, up to 60 seconds.
-- **Draw while recording** — a mini toolbar (pen, box, or highlighter; 5 colors; three thicknesses) lets you mark up the page during tab/screen recording. Freehand strokes fade tail-first in draw order over ~3s; a box fades all at once. Either way it's baked into the video.
+- **Draw while recording** — a mini toolbar (pen, box, or highlighter; up to 5 colors, fewer on a narrow panel; three thicknesses) lets you mark up the page during tab/screen recording. Freehand strokes fade tail-first in draw order over ~3s; a box fades all at once. Either way it's baked into the video.
 - **30s Replay** — an opt-in, always-on buffer that keeps the **last 30 seconds** as MP4. It looks back across page navigations, so you can catch the bug even *after* spotting it — no need to hit record beforehand. After capture, **trim** the clip to keep only the bug moment — the attached logs are narrowed to the same range.
 
 ### 📋 Logs
@@ -79,7 +79,7 @@ All three logs ride along with every capture except element style editing, and t
 
 - **AI draft** — BYOK (Bring Your Own Key) with OpenAI, Anthropic, Gemini, and more; falls back to Chrome Built-in AI when no key is set. Drafts the title and body from your capture (styles, screenshot, or log summary) in one go. When the AI cites a relevant error log, the actual console/network entry is inserted into the body as a code block — serialized by the app, so log contents can't be hallucinated.
 - **AI styling** — describe the fix in words and the AI writes the CSS onto the selected element, live on the page.
-- **Repro auto-fill** — opt-in: on a recording, the steps-to-reproduce section is written for you from the action log. The action log is sent to the AI you connected.
+- **Repro auto-fill** — **on by default** once you connect an AI: after a recording, the steps-to-reproduce section is written for you from the action log, which means the action log is sent to that AI. Turn it off under Settings → Issue settings → Other.
 
 ### 📥 Issue list & drafts
 
@@ -132,6 +132,7 @@ pnpm test         # unit tests (Vitest)
 pnpm test:watch   # unit tests in watch mode
 pnpm build:e2e    # e2e-only build → dist-e2e/ (test fixture — never load/upload)
 pnpm test:e2e     # Playwright e2e suite (run build:e2e first)
+pnpm sync:agents  # regenerate the Codex mirror (AGENTS.md, .agents/skills/)
 ```
 
 Load the unpacked extension from `dist/` at `chrome://extensions` (developer mode).
