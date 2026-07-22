@@ -21,6 +21,10 @@ export interface ConsoleLogSummaryError {
 
 export interface NetworkLogSummary {
   captured: number;
+  // 전체 에러 건수(비-dedup·비-cap). errors[]는 dedup+MAX_ERRORS cap된 샘플 목록이라
+  // 개수 표시엔 부적합 — 콘솔 errorCount와 대칭으로 통짜 count를 별도 제공.
+  // buildNetworkLogSummary는 항상 채우지만, 본문 빌더 테스트가 만드는 샘플 리터럴은 안 쓰므로 optional.
+  errorCount?: number;
   errors: NetworkLogSummaryError[];
 }
 
@@ -36,16 +40,19 @@ export function buildNetworkLogSummary(log: NetworkLog): NetworkLogSummary {
   // 반복이 캡을 채워 그 뒤의 distinct 에러가 후보·본문에서 사라진다.
   const seen = new Set<string>();
   const errors: NetworkLogSummaryError[] = [];
+  let errorCount = 0;
   for (const r of log.requests) {
     if (!(r.phase === "error" || r.status >= 400)) continue;
+    errorCount++;
     const path = extractPath(r.url);
     const key = `${r.method} ${path} ${r.status}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    errors.push({ id: r.id, method: r.method, path, status: r.status, statusText: r.statusText });
-    if (errors.length >= MAX_ERRORS) break;
+    if (errors.length < MAX_ERRORS) {
+      errors.push({ id: r.id, method: r.method, path, status: r.status, statusText: r.statusText });
+    }
   }
-  return { captured: log.captured, errors };
+  return { captured: log.captured, errorCount, errors };
 }
 
 export function buildConsoleLogSummary(log: ConsoleLog): ConsoleLogSummary {

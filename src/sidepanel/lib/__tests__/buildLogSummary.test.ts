@@ -99,6 +99,18 @@ describe("buildNetworkLogSummary", () => {
     expect(buildNetworkLogSummary(log).errors).toHaveLength(5);
   });
 
+  it("errorCount는 dedup·cap 없이 전체 에러 건수를 센다", () => {
+    const requests = [
+      makeRequest({ id: "a", url: "https://example.com/x", status: 500, statusText: "Error" }),
+      makeRequest({ id: "b", url: "https://example.com/x", status: 500, statusText: "Error" }), // dup
+      makeRequest({ id: "c", url: "https://example.com/y", status: 404, statusText: "NF" }),
+      makeRequest({ id: "d", url: "https://example.com/ok", status: 200, statusText: "OK" }),
+    ];
+    const summary = buildNetworkLogSummary(makeNetworkLog({ captured: 4, requests }));
+    expect(summary.errorCount).toBe(3); // 500·500(dup)·404
+    expect(summary.errors).toHaveLength(2); // dedup 후 distinct 2
+  });
+
   it("잘못된 URL은 원본 반환", () => {
     const log = makeNetworkLog({
       captured: 1,

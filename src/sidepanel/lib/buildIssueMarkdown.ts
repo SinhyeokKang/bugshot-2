@@ -492,6 +492,8 @@ function emitLogSummaryMd(lines: string[], ctx: MarkdownContext): void {
   if (!net && !con && !act) return;
   lines.push(`## ${t("logSummary.title")}`);
   lines.push("");
+  lines.push(`**${t("logSummary.logs.lead")}** ${t("logSummary.logs.detail", { file: "logs.html" })}`);
+  lines.push("");
   if (net) {
     lines.push(
       net.errors.length > 0
@@ -510,14 +512,13 @@ function emitLogSummaryMd(lines: string[], ctx: MarkdownContext): void {
     lines.push(`- ${t("logSummary.action.line", { n: act })}`);
   }
   lines.push("");
-  lines.push(`**${t("logSummary.logs.lead")}** ${t("logSummary.logs.detail", { file: "logs.html" })}`);
-  lines.push("");
 }
 
 function emitLogSummaryHtml(parts: string[], ctx: MarkdownContext): void {
   const { networkLogSummary: net, consoleLogSummary: con, actionLogCaptured: act } = ctx;
   if (!net && !con && !act) return;
   parts.push(`<h2>${escapeHtml(t("logSummary.title"))}</h2>`);
+  parts.push(`<p><strong>${escapeHtml(t("logSummary.logs.lead"))}</strong> ${escapeHtml(t("logSummary.logs.detail", { file: "logs.html" }))}</p>`);
   parts.push("<ul>");
   if (net) {
     const line = net.errors.length > 0
@@ -535,5 +536,4 @@ function emitLogSummaryHtml(parts: string[], ctx: MarkdownContext): void {
     parts.push(`<li>${escapeHtml(t("logSummary.action.line", { n: act }))}</li>`);
   }
   parts.push("</ul>");
-  parts.push(`<p><strong>${escapeHtml(t("logSummary.logs.lead"))}</strong> ${escapeHtml(t("logSummary.logs.detail", { file: "logs.html" }))}</p>`);
 }

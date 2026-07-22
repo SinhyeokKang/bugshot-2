@@ -232,6 +232,7 @@ describe("buildLinearIssueBody — freeform", () => {
         diffs: [],
         networkLogSummary: {
           captured: 8,
+          errorCount: 1,
           errors: [{ id: "nr-t1", method: "PUT", path: "/api/update", status: 403, statusText: "Forbidden" }],
         },
       }),
@@ -282,6 +283,7 @@ describe("buildLinearIssueBody — 구조", () => {
       ctx: makeCtx({
         networkLogSummary: {
           captured: 10,
+          errorCount: 1,
           errors: [
             { id: "nr-t2", method: "GET", path: "/api/x", status: 500, statusText: "Internal Server Error" },
           ],

@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   connectedPlatforms,
+  jiraHostLabel,
+  jiraSiteId,
   isLinearAccountComplete,
   isNotionAccountComplete,
   migrateV2ToV3,
@@ -423,5 +425,40 @@ describe("removeAccount — 연동 해제 시 prefill 정리", () => {
     const s = useSettingsStore.getState();
     expect(s.accounts).toEqual({});
     expect(s.lastSubmitFields).toEqual({});
+  });
+});
+
+describe("jiraSiteId / jiraHostLabel — 사이트 식별", () => {
+  const oauth = {
+    kind: "oauth" as const,
+    cloudId: "cloud-1",
+    siteUrl: "https://acme.atlassian.net",
+    email: "a@b.c",
+    accessToken: "t",
+    refreshToken: "r",
+    expiresAt: 0,
+  };
+
+  it("oauth는 cloudId를 사이트 id로 쓴다", () => {
+    expect(jiraSiteId(oauth)).toBe("cloud-1");
+  });
+
+  it("apiKey는 baseUrl의 hostname을 사이트 id로 쓴다", () => {
+    const auth = { kind: "apiKey" as const, baseUrl: "https://acme.atlassian.net/x", email: "a", apiToken: "t" };
+    expect(jiraSiteId(auth)).toBe("acme.atlassian.net");
+  });
+
+  // 저장된 baseUrl이 손상돼도 예외로 배지 전체가 죽으면 안 된다 — 원문으로 폴백한다.
+  it("baseUrl이 URL로 파싱되지 않으면 원문을 그대로 돌려준다", () => {
+    const auth = { kind: "apiKey" as const, baseUrl: "not a url", email: "a", apiToken: "t" };
+    expect(jiraSiteId(auth)).toBe("not a url");
+  });
+
+  it("jiraHostLabel은 oauth의 siteUrl hostname을 쓴다", () => {
+    expect(jiraHostLabel(oauth)).toBe("acme.atlassian.net");
+  });
+
+  it("jiraHostLabel도 파싱 실패 시 원문으로 폴백한다", () => {
+    expect(jiraHostLabel({ ...oauth, siteUrl: "://broken" })).toBe("://broken");
   });
 });

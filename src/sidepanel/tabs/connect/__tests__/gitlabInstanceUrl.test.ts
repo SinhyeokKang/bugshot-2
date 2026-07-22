@@ -38,4 +38,20 @@ describe("normalizeInstanceUrl", () => {
   it("호스트 없는 무효 입력은 throw (폼이 catch)", () => {
     expect(() => normalizeInstanceUrl("https://")).toThrow();
   });
+
+  // PAT 평문 전송 방지 — 이 강제가 풀리면 http://gitlab.com이 self-managed로 오분류돼 토큰이 평문으로 나간다.
+  it("http://gitlab.com은 https로 강제한다 (PAT 평문 전송 차단)", () => {
+    expect(normalizeInstanceUrl("http://gitlab.com")).toBe("https://gitlab.com");
+    expect(normalizeInstanceUrl("HTTP://GitLab.com/")).toBe("https://gitlab.com");
+  });
+
+  it("self-managed 인스턴스의 http는 그대로 존중한다", () => {
+    expect(normalizeInstanceUrl("http://gitlab.internal.example")).toBe(
+      "http://gitlab.internal.example",
+    );
+  });
+
+  it("호스트 없는 무효 입력은 throw", () => {
+    expect(() => normalizeInstanceUrl("https://")).toThrow();
+  });
 });

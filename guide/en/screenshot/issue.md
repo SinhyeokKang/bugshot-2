@@ -61,11 +61,13 @@ If error logs were captured, AI does one more thing — it picks the ones direct
 
 ## 5. Log attachments
 
-Screenshot mode attaches three kinds of logs too. **All three toggles are on by default**, so they come along without any extra steps — turn one off if you don't need it.
+Screenshot mode attaches three kinds of logs too. The log section shows a **single `logs.html` card** with its switch **on by default** — that one switch attaches or drops all three logs **together** (there's no per-log toggle). The card summarizes which kinds were captured and how many.
 
 - **Console Logs** — Console output and errors from the session so far.
 - **Network Logs** — Network requests made along the way.
 - **Action Logs** — Clicks, text input, navigation, shortcuts, toggles, dropdown selections, and drag-and-drop — everything you did on the way to the screenshot, captured as reproduction steps.
+
+Click the card and it opens a window split into **Console, Network, and Action tabs** — check what each log actually holds, and hit **Detach** at the bottom to leave them out.
 
 Logs keep collecting the whole time the side panel is open, so whatever happened *before* you hit capture is already in there.
 

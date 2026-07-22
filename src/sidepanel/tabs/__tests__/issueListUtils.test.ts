@@ -11,6 +11,7 @@ import {
   parseGithubIssueUrl,
   promotableTargets,
   resolveGithubCoords,
+  resolveGitlabCoords,
   resolveInitialPlatform,
   resolveNotionPageId,
   submittablePlatforms,
@@ -528,5 +529,62 @@ describe("resolveInitialPlatform", () => {
 
   it("picked=null이지만 available 있으면 available 첫 항목", () => {
     expect(resolveInitialPlatform(null, ["github", "linear"])).toBe("github");
+  });
+});
+
+// isRefreshable은 if 체인 + default false라 분기 누락이 typecheck로 안 잡힌다 —
+// gitlab만 그물이 없어 상태 새로고침이 조용히 죽을 수 있었다 (감사 🟡 항목).
+describe("resolveGitlabCoords", () => {
+  it("projectId와 iid가 모두 있으면 좌표를 만든다", () => {
+    expect(resolveGitlabCoords({ gitlabProjectId: 7, gitlabIssueIid: 42, key: "#42" })).toEqual({
+      projectId: 7,
+      iid: 42,
+    });
+  });
+
+  // project id는 URL에서 복원할 수 없다 — 없으면 refresh 자체가 불가능하다.
+  it("projectId가 없으면 null (URL로 복원 불가)", () => {
+    expect(resolveGitlabCoords({ gitlabProjectId: undefined, gitlabIssueIid: 42, key: "#42" })).toBeNull();
+  });
+
+  it("iid가 없으면 key에서 파싱해 채운다", () => {
+    expect(resolveGitlabCoords({ gitlabProjectId: 7, gitlabIssueIid: undefined, key: "#42" })).toEqual({
+      projectId: 7,
+      iid: 42,
+    });
+  });
+
+  it("iid도 key도 없으면 null", () => {
+    expect(resolveGitlabCoords({ gitlabProjectId: 7, gitlabIssueIid: undefined, key: undefined })).toBeNull();
+  });
+
+  it("iid 0도 유효한 값으로 취급한다 (falsy 함정)", () => {
+    expect(resolveGitlabCoords({ gitlabProjectId: 0, gitlabIssueIid: 0, key: undefined })).toEqual({
+      projectId: 0,
+      iid: 0,
+    });
+  });
+});
+
+describe("isRefreshable — gitlab 분기", () => {
+  it("gitlab + 좌표 완비면 refresh 가능", () => {
+    const issue = makeIssue({
+      platform: "gitlab",
+      key: "#42",
+      url: "https://gitlab.com/g/p/-/issues/42",
+      gitlabProjectId: 7,
+      gitlabIssueIid: 42,
+    });
+    expect(isRefreshable(issue)).toBe(true);
+  });
+
+  it("gitlab인데 projectId가 없으면 refresh 불가", () => {
+    const issue = makeIssue({
+      platform: "gitlab",
+      key: "#42",
+      url: "https://gitlab.com/g/p/-/issues/42",
+      gitlabIssueIid: 42,
+    });
+    expect(isRefreshable(issue)).toBe(false);
   });
 });

@@ -78,9 +78,7 @@ import { DocSectionBody } from "@/sidepanel/components/DocSectionBody";
 import { AttachmentList } from "@/sidepanel/components/AttachmentList";
 import { downloadAttachment } from "@/sidepanel/lib/downloadAttachment";
 import { LogAttachmentCards } from "@/sidepanel/components/LogAttachmentCards";
-import { NetworkLogPreviewDialog } from "@/sidepanel/components/NetworkLogPreviewDialog";
-import { ConsoleLogPreviewDialog } from "@/sidepanel/components/ConsoleLogPreviewDialog";
-import { ActionLogPreviewDialog } from "@/sidepanel/components/ActionLogPreviewDialog";
+import { LogPreviewDialog } from "@/sidepanel/components/LogPreviewDialog";
 import {
   StyleChangesTable,
   buildStyleDiff,
@@ -249,9 +247,7 @@ export function DraftDetailDialog({
   const [networkLogData, setNetworkLogData] = useState<NetworkLog | null>(null);
   const [consoleLogData, setConsoleLogData] = useState<ConsoleLog | null>(null);
   const [actionLogData, setActionLogData] = useState<ActionLog | null>(null);
-  const [networkDialogOpen, setNetworkDialogOpen] = useState(false);
-  const [consoleDialogOpen, setConsoleDialogOpen] = useState(false);
-  const [actionDialogOpen, setActionDialogOpen] = useState(false);
+  const [logDialogOpen, setLogDialogOpen] = useState(false);
   useEffect(() => {
     if (!open || !supportsConsoleNetworkLog(issue?.captureMode)) {
       setNetworkLogData(null);
@@ -310,16 +306,18 @@ export function DraftDetailDialog({
   async function buildCtxForSubmit() {
     if (!issue) throw new Error(t("create.requiredMissing"));
     const sel = issue.selectionSnapshot;
+    // logsAttached === false면 blob이 있어도 logs.html 미첨부(편집 이슈의 통짜 토글). undefined = 첨부.
+    const logsOn = issue.logsAttached !== false;
     let networkLog: NetworkLog | null = null;
-    if (supportsConsoleNetworkLog(issue.captureMode) && issue.networkLogBlobKey) {
+    if (logsOn && supportsConsoleNetworkLog(issue.captureMode) && issue.networkLogBlobKey) {
       networkLog = await getNetworkLog(issue.networkLogBlobKey);
     }
     let consoleLogForSubmit: ConsoleLog | null = null;
-    if (supportsConsoleNetworkLog(issue.captureMode) && issue.consoleLogBlobKey) {
+    if (logsOn && supportsConsoleNetworkLog(issue.captureMode) && issue.consoleLogBlobKey) {
       consoleLogForSubmit = await getConsoleLog(issue.consoleLogBlobKey);
     }
     let actionLogForSubmit: ActionLog | null = null;
-    if (supportsActionLog(issue.captureMode) && issue.actionLogBlobKey) {
+    if (logsOn && supportsActionLog(issue.captureMode) && issue.actionLogBlobKey) {
       actionLogForSubmit = await getActionLog(issue.actionLogBlobKey);
     }
     // legacy no-diff draft fallback — 현재 element diff도 없고 버퍼도 없을 때만. 버퍼가 있으면
@@ -921,9 +919,8 @@ export function DraftDetailDialog({
                   networkLogData={networkLogData}
                   consoleLogData={consoleLogData}
                   actionLogData={actionLogData}
-                  onNetworkLogClick={() => setNetworkDialogOpen(true)}
-                  onConsoleLogClick={() => setConsoleDialogOpen(true)}
-                  onActionLogClick={() => setActionDialogOpen(true)}
+                  onLogClick={() => setLogDialogOpen(true)}
+                  onToggleLogsAttach={(on) => patchIssue(issue.id, { logsAttached: on })}
                   editable={canEditDraftFields(issue)}
                   onEditSection={(sec) =>
                     setEditTarget({
@@ -991,29 +988,19 @@ export function DraftDetailDialog({
         </DialogContent>
       </Dialog>
 
-      {networkLogData && (
-        <NetworkLogPreviewDialog
-          open={networkDialogOpen}
-          onOpenChange={setNetworkDialogOpen}
-          requests={networkLogData.requests}
-        />
-      )}
-      {consoleLogData && (
-        <ConsoleLogPreviewDialog
-          open={consoleDialogOpen}
-          onOpenChange={setConsoleDialogOpen}
-          entries={consoleLogData.entries}
-          startedAt={consoleLogData.startedAt}
-        />
-      )}
-      {actionLogData && (
-        <ActionLogPreviewDialog
-          open={actionDialogOpen}
-          onOpenChange={setActionDialogOpen}
-          entries={actionLogData.entries}
-          startedAt={actionLogData.startedAt}
-        />
-      )}
+      <LogPreviewDialog
+        open={logDialogOpen}
+        onOpenChange={setLogDialogOpen}
+        networkLog={networkLogData}
+        consoleLog={consoleLogData}
+        actionLog={actionLogData}
+        logsAttach={issue.logsAttached !== false}
+        onToggleAttach={
+          canEditDraftFields(issue)
+            ? (on) => patchIssue(issue.id, { logsAttached: on })
+            : undefined
+        }
+      />
       <SubmitFieldsDialog
         open={submitOpen}
         onOpenChange={(v) => {
@@ -1097,9 +1084,8 @@ function DraftDetailSections({
   networkLogData,
   consoleLogData,
   actionLogData,
-  onNetworkLogClick,
-  onConsoleLogClick,
-  onActionLogClick,
+  onLogClick,
+  onToggleLogsAttach,
   editable,
   onEditSection,
 }: {
@@ -1113,9 +1099,8 @@ function DraftDetailSections({
   networkLogData: NetworkLog | null;
   consoleLogData: ConsoleLog | null;
   actionLogData: ActionLog | null;
-  onNetworkLogClick: () => void;
-  onConsoleLogClick: () => void;
-  onActionLogClick: () => void;
+  onLogClick: () => void;
+  onToggleLogsAttach: (on: boolean) => void;
   editable: boolean;
   onEditSection: (section: IssueSection) => void;
 }) {
@@ -1172,16 +1157,12 @@ function DraftDetailSections({
     <FieldSection key="__logCards" label={t("section.logs")}>
       <LogAttachmentCards
         networkLog={networkLogData}
-        networkLogAttach={!!issue.networkLogBlobKey}
-        onNetworkLogToggle={() => {}}
-        onNetworkLogClick={onNetworkLogClick}
         consoleLog={consoleLogData}
-        consoleLogAttach={!!issue.consoleLogBlobKey}
-        onConsoleLogToggle={() => {}}
-        onConsoleLogClick={onConsoleLogClick}
         actionLog={showActionCard ? actionLogData : null}
-        onActionLogClick={onActionLogClick}
-        readOnly
+        logsAttach={editable ? issue.logsAttached !== false : !!(networkLogData || consoleLogData || actionLogData)}
+        onToggle={editable ? onToggleLogsAttach : undefined}
+        onClick={onLogClick}
+        readOnly={!editable}
       />
     </FieldSection>
   ) : null;

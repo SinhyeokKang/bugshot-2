@@ -169,3 +169,79 @@ describe("submitToSlack — 긴 본문 분할", () => {
     }
   });
 });
+
+// 본문에 붙여넣은 인라인 이미지는 스레드 첨부로 함께 올라간다 (감사 🟡 항목).
+describe("submitToSlack — 인라인 이미지", () => {
+  it("inline-{refId}.webp 이름으로 업로드 목록에 넣는다", async () => {
+    sendBg.mockImplementation(async (msg: { type: string }) =>
+      msg.type === "slack.uploadFiles"
+        ? [{ filename: "inline-r1.webp", ok: true }]
+        : defaultSendBg(msg as never),
+    );
+
+    await submitToSlack({
+      ctx: makeCtx(),
+      channelId: "C1",
+      inlineImages: [{ refId: "r1", dataUrl: "data:IMG1" }],
+    } as never);
+
+    const upload = sendBg.mock.calls.find((c) => c[0].type === "slack.uploadFiles")![0];
+    expect(upload.files).toEqual([{ filename: "inline-r1.webp", dataUrl: "data:IMG1" }]);
+  });
+
+  it("일반 첨부와 함께 보내면 이미지·로그 뒤에 인라인이 붙는다", async () => {
+    sendBg.mockImplementation(async (msg: { type: string }) =>
+      msg.type === "slack.uploadFiles" ? [] : defaultSendBg(msg as never),
+    );
+
+    await submitToSlack({
+      ctx: makeCtx(),
+      channelId: "C1",
+      images: [{ filename: "shot.png", dataUrl: "data:SHOT" }],
+      logs: [{ filename: "logs.html", dataUrl: "data:LOGS" }],
+      inlineImages: [{ refId: "r1", dataUrl: "data:IMG1" }],
+    } as never);
+
+    const upload = sendBg.mock.calls.find((c) => c[0].type === "slack.uploadFiles")![0];
+    expect(upload.files.map((f: { filename: string }) => f.filename)).toEqual([
+      "shot.png",
+      "logs.html",
+      "inline-r1.webp",
+    ]);
+  });
+
+  // 인라인 이미지 업로드 실패는 logsDropped(로그 전용 신호)를 오염시키면 안 된다.
+  it("인라인 업로드가 실패해도 logsDropped는 로그 기준으로만 판정한다", async () => {
+    sendBg.mockImplementation(async (msg: { type: string }) =>
+      msg.type === "slack.uploadFiles"
+        ? [
+            { filename: "logs.html", ok: true },
+            { filename: "inline-r1.webp", ok: false },
+          ]
+        : defaultSendBg(msg as never),
+    );
+
+    const res = await submitToSlack({
+      ctx: makeCtx(),
+      channelId: "C1",
+      logs: [{ filename: "logs.html", dataUrl: "data:LOGS" }],
+      inlineImages: [{ refId: "r1", dataUrl: "data:IMG1" }],
+    } as never);
+
+    expect(res.logsDropped).toBe(false);
+  });
+
+  it("인라인 이미지만 있고 다른 첨부가 없어도 업로드를 호출한다", async () => {
+    sendBg.mockImplementation(async (msg: { type: string }) =>
+      msg.type === "slack.uploadFiles" ? [] : defaultSendBg(msg as never),
+    );
+
+    await submitToSlack({
+      ctx: makeCtx(),
+      channelId: "C1",
+      inlineImages: [{ refId: "r1", dataUrl: "data:IMG1" }],
+    } as never);
+
+    expect(sendBg.mock.calls.some((c) => c[0].type === "slack.uploadFiles")).toBe(true);
+  });
+});

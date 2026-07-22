@@ -152,7 +152,7 @@ export function useBackgroundRecorder(tabId: number | null): void {
       stopNetworkRecorder(localTabId).catch(() => {});
       stopConsoleRecorder(localTabId).catch(() => {});
       stopActionRecorder(localTabId).catch(() => {});
-      // pending IDB는 tab close 시 tab-bindings.ts가 정리. 여기서 지우면 패널 재오픈 시 networkLogAttach 복원이 깨진다.
+      // pending IDB는 tab close 시 tab-bindings.ts가 정리. 여기서 지우면 패널 재오픈 시 로그 복원이 깨진다.
     };
   }, [tabId]);
 }

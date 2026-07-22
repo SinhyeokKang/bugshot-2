@@ -67,7 +67,6 @@ const ko = {
   "actionLog.filter.drag": "드래그",
   "actionLog.empty": "캡처된 액션이 없습니다",
   "actionLog.dialog.title": "액션 로그",
-  "actionLog.cardDescription": "총 {captured}건",
   "actionLog.verb.click": "{target} 클릭",
   "actionLog.verb.input": "{field}에 {value} 입력",
   "actionLog.verb.navigate": "{target}(으)로 이동",
@@ -89,6 +88,7 @@ const ko = {
   "debug.tab.issue": "이슈 작성",
   "debug.tab.console": "콘솔",
   "debug.tab.network": "네트워크",
+  "debug.tab.action": "액션",
   "debug.console.empty": "콘솔 로그가 없습니다",
   "debug.network.empty": "네트워크 요청이 없습니다",
 
@@ -116,7 +116,11 @@ const ko = {
   "logSummary.logs.lead": "BugShot 리포트가 첨부되어 있습니다.",
   "logSummary.logs.detail": "{file}에서 사용자 상호작용, 콘솔 로그, 네트워크 로그, 캡처된 미디어 등 추가적인 디버깅 정보를 확인할 수 있습니다.",
 
-  "logCard.description": "총 {captured}건 (에러 {errors}건)",
+  "logCard.networkCount": "네트워크 {captured}(에러 {errors})",
+  "logCard.networkCountNoError": "네트워크 {captured}",
+  "logCard.consoleCount": "콘솔 {captured}(에러 {errors})",
+  "logCard.consoleCountNoError": "콘솔 {captured}",
+  "logCard.actionCount": "액션 {captured}",
 
   "json.showAll": "전체 보기",
   "json.moreItems": "… {n}개 더",
@@ -193,7 +197,6 @@ const en = {
   "actionLog.filter.drag": "Drag",
   "actionLog.empty": "No actions captured",
   "actionLog.dialog.title": "Action Logs",
-  "actionLog.cardDescription": "{captured} captured",
   "actionLog.verb.click": "Clicked {target}",
   "actionLog.verb.input": "Entered {value} in {field}",
   "actionLog.verb.navigate": "Navigated to {target}",
@@ -215,6 +218,7 @@ const en = {
   "debug.tab.issue": "Issue",
   "debug.tab.console": "Console",
   "debug.tab.network": "Network",
+  "debug.tab.action": "Action",
   "debug.console.empty": "No console logs captured",
   "debug.network.empty": "No network requests captured",
 
@@ -242,7 +246,11 @@ const en = {
   "logSummary.logs.lead": "BugShot report attached.",
   "logSummary.logs.detail": "{file} contains additional debugging context, including user interactions, console logs, network logs, and captured media.",
 
-  "logCard.description": "{captured} captured ({errors} errors)",
+  "logCard.networkCount": "Network {captured} ({errors} err)",
+  "logCard.networkCountNoError": "Network {captured}",
+  "logCard.consoleCount": "Console {captured} ({errors} err)",
+  "logCard.consoleCountNoError": "Console {captured}",
+  "logCard.actionCount": "Actions {captured}",
 
   "json.showAll": "show all",
   "json.moreItems": "… {n} more items",

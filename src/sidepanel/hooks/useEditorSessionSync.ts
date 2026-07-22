@@ -9,21 +9,33 @@ import { onSessionSaveExhausted } from "@/types/messages";
 import { clearPicker, rebindStylingSession } from "@/sidepanel/picker-control";
 import { getNetworkLog, getConsoleLog, getActionLog, getVideoBlob, pruneOrphanInlineImages } from "@/store/blob-db";
 import { extractInlineRefs } from "@/sidepanel/lib/resolveInlineImages";
+import { deriveLogsAttach } from "@/sidepanel/hooks/deriveLogsAttach";
 
 function migrateLegacyDraft(snap: EditorSnapshot): EditorSnapshot {
-  if (!snap.draft) return snap;
-  const legacy = snap.draft as unknown as {
+  let next = snap;
+  // 구 3플래그(networkLogAttach/consoleLogAttach/actionLogAttach) 스냅샷 → 단일 logsAttach 파생.
+  const legacyAttach = snap as unknown as {
+    networkLogAttach?: boolean;
+    consoleLogAttach?: boolean;
+    actionLogAttach?: boolean;
+    logsAttach?: boolean;
+  };
+  if (legacyAttach.logsAttach === undefined) {
+    next = { ...next, logsAttach: deriveLogsAttach(legacyAttach) };
+  }
+  if (!next.draft) return next;
+  const legacy = next.draft as unknown as {
     title?: string;
     body?: string;
     expectedResult?: string;
     sections?: Record<string, string>;
   };
-  if (legacy.sections) return snap;
+  if (legacy.sections) return next;
   const sections: Record<string, string> = {};
   if (legacy.body) sections.description = legacy.body;
   if (legacy.expectedResult) sections.expectedResult = legacy.expectedResult;
   const migrated: EditorDraft = { title: legacy.title ?? "", sections };
-  return { ...snap, draft: migrated };
+  return { ...next, draft: migrated };
 }
 
 const SAVE_DEBOUNCE_MS = 300;
@@ -57,9 +69,7 @@ function snapshotFromState(): EditorSnapshot {
     videoTrimmed: s.videoTrimmed,
     freeformViewport: s.freeformViewport,
     freeformCapturedAt: s.freeformCapturedAt,
-    networkLogAttach: s.networkLogAttach,
-    consoleLogAttach: s.consoleLogAttach,
-    actionLogAttach: s.actionLogAttach,
+    logsAttach: s.logsAttach,
     reproPrefillDone: s.reproPrefillDone,
     attachments: s.attachments,
     draft: s.draft,
@@ -100,30 +110,17 @@ export function useEditorSessionSync(tabId: number | null): boolean {
         if (snap.phase === "styling" && snap.captureMode === "element") {
           void rebindStylingSession(tabId);
         }
-        if (snap.networkLogAttach) {
-          getNetworkLog(`pending:${tabId}`).then((log) => {
-            if (log) useEditorStore.getState().setNetworkLog(log);
-            else useEditorStore.setState({ networkLogAttach: false });
-          }).catch(() => {
-            useEditorStore.setState({ networkLogAttach: false });
-          });
-        }
-        if (snap.consoleLogAttach) {
-          getConsoleLog(`pending:${tabId}`).then((log) => {
-            if (log) useEditorStore.getState().setConsoleLog(log);
-            else useEditorStore.setState({ consoleLogAttach: false });
-          }).catch(() => {
-            useEditorStore.setState({ consoleLogAttach: false });
-          });
-        }
-        if (snap.actionLogAttach) {
-          getActionLog(`pending:${tabId}`).then((log) => {
-            if (log) useEditorStore.getState().setActionLog(log);
-            else useEditorStore.setState({ actionLogAttach: false });
-          }).catch(() => {
-            useEditorStore.setState({ actionLogAttach: false });
-          });
-        }
+        // 로그 데이터는 첨부 상태와 무관하게 항상 로드 — off 상태에서도 카드 건수·다이얼로그가
+        // 뜨도록. logsAttach는 스냅샷 hydrate 값 유지(부재 시 카드가 사라지는 구 버그 해소).
+        getNetworkLog(`pending:${tabId}`).then((log) => {
+          if (log) useEditorStore.getState().setNetworkLog(log);
+        }).catch(() => {});
+        getConsoleLog(`pending:${tabId}`).then((log) => {
+          if (log) useEditorStore.getState().setConsoleLog(log);
+        }).catch(() => {});
+        getActionLog(`pending:${tabId}`).then((log) => {
+          if (log) useEditorStore.getState().setActionLog(log);
+        }).catch(() => {});
         // 영상 blob은 스냅샷 밖(직렬화 불가)이라 IDB에서 복원. drafting은 pending:${tabId}에,
         // confirm 후(previewing/done, 또는 backToDraft로 돌아온 drafting)엔 issueId 키에 있으므로
         // pending → currentIssueId 순으로 조회. 둘 다 없으면 썸네일만 남고 videoBlob은 null.

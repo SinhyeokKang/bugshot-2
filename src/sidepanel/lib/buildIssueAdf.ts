@@ -268,6 +268,7 @@ function emitLogSummaryAdf(
 ): void {
   if (!net && !con && !act) return;
   content.push(heading(2, t("logSummary.title")));
+  content.push(paragraph(logsDetailNodes()));
   const items: AdfNode[] = [];
   if (net) {
     const line = net.errors.length > 0
@@ -285,7 +286,6 @@ function emitLogSummaryAdf(
     items.push(listItem([paragraph([textNode(t("logSummary.action.line", { n: act }))])]));
   }
   content.push(bulletList(items));
-  content.push(paragraph(logsDetailNodes()));
 }
 
 // 첫 문장(lead)은 strong, 뒤 안내는 평문. "logs.html"을 별도 평문 노드로 분리해

@@ -111,7 +111,7 @@ export function migrateSettingsUi(
   return state as SettingsUiState;
 }
 
-const apiKeyObfuscatingStorage: StateStorage = {
+export const apiKeyObfuscatingStorage: StateStorage = {
   async getItem(name) {
     const raw = await chromeLocalStorage.getItem(name);
     if (!raw) return null;

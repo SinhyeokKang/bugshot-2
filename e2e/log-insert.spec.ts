@@ -30,7 +30,8 @@ test.describe.serial("log insert", () => {
     await panel.getByTestId("section-log-insert-description").click();
     await expect(dialog).toBeVisible();
 
-    // 네트워크 탭이 기본. 행을 고르면 삽입 버튼이 열린다.
+    // 기본 활성 탭은 console-first지만 이 spec은 network만 시드(console 비어 있음)라 network가 열린다.
+    // 행을 고르면 삽입 버튼이 활성화된다.
     await expect(panel.getByTestId("log-insert-confirm")).toBeDisabled();
     await dialog.locator("[data-entry-id]").first().click();
     await expect(panel.getByTestId("log-insert-confirm")).toBeEnabled();

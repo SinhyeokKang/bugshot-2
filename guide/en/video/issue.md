@@ -67,11 +67,13 @@ If error logs were captured, AI does one more thing — it picks the ones direct
 
 ![Recording-mode log policy](../assets/video-issue-5.jpg)
 
-On top of the video, recording mode bundles three kinds of logs. **All three toggles are on by default**, so they're captured richly without you lifting a finger.
+On top of the video, recording mode bundles three kinds of logs. The log section shows a **single `logs.html` card** with its switch **on by default** — that one switch attaches or drops all three logs **together** (there's no per-log toggle).
 
 - **Console Logs** — Console output and errors during the recording.
 - **Network Logs** — Network requests made during the recording.
 - **Action Logs** — A record of user actions: clicks, text input, and navigation, plus **keyboard shortcuts and special keys (Enter, Esc, ⌘K, and the like), checkbox and radio toggles, dropdown selections, and drag-and-drop**. For shortcuts it captures which key you pressed, not every character you type.
+
+Click the card and it opens a window split into **Console, Network, and Action tabs** so you can check what each log holds, with **Detach** at the bottom to leave them out.
 
 Logs keep collecting the whole time the side panel is open, so whatever happened *before* you hit record is already in there.
 

@@ -43,11 +43,9 @@ function baseState(overrides: Record<string, unknown> = {}) {
     draft: { title: "T", sections: {}, environment: [] },
     target: { url: "https://example.com" },
     networkLog: null,
-    networkLogAttach: false,
     consoleLog: null,
-    consoleLogAttach: false,
     actionLog,
-    actionLogAttach: true,
+    logsAttach: true,
     shotSelector: null,
     screenshotViewport: { width: 800, height: 600 },
     screenshotCapturedAt: 1_700_000_000_000,
@@ -87,8 +85,8 @@ describe("buildEditorMarkdownContext — actionLogCaptured (본문 요약 연결
     expect(ctx?.actionLogCaptured).toBe(3);
   });
 
-  it("actionLogAttach=false면 모드 무관하게 undefined (사용자 토글 존중)", () => {
-    editorState.current = baseState({ captureMode: "screenshot", actionLogAttach: false });
+  it("logsAttach=false면 모드 무관하게 undefined (사용자 토글 존중)", () => {
+    editorState.current = baseState({ captureMode: "screenshot", logsAttach: false });
     expect(buildEditorMarkdownContext()?.actionLogCaptured).toBeUndefined();
   });
 

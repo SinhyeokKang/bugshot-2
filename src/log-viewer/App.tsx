@@ -42,7 +42,13 @@ export function App({ data }: AppProps) {
   const hasAction = !!data?.actionLog;
   const hasReport = !!data?.report;
   // Report는 보조 탭이라 기본 선택에서 제외(의도) — console→network→action 순.
-  const defaultTab: LogTab = hasConsole ? "console" : hasNetwork ? "network" : "action";
+  // 기본 활성 탭: 캡처된 탭 중 console → network → action 순 첫 번째(사이드패널 다이얼로그와 동일 count 기준).
+  const defaultTab: LogTab =
+    data?.consoleLog?.entries.length
+      ? "console"
+      : data?.networkLog?.requests.length
+        ? "network"
+        : "action";
   const [activeTab, setActiveTab] = useState<LogTab>(defaultTab);
 
   const copyReport = useCallback(async () => {
@@ -120,32 +126,26 @@ export function App({ data }: AppProps) {
             <FileText className="h-3.5 w-3.5 shrink-0" />
             <TabLabel>{t("logViewer.tab.report")}</TabLabel>
           </TabsTrigger>
-          <TabsTrigger value="console" disabled={!hasConsole} className="min-w-0 gap-1.5" data-testid="logview-tab-console">
+          <TabsTrigger value="console" className="min-w-0 gap-1.5" data-testid="logview-tab-console">
             <Terminal className="h-3.5 w-3.5 shrink-0" />
             <TabLabel>{t("logViewer.tab.console")}</TabLabel>
-            {hasConsole && (
-              <Badge className="ml-1 h-5 min-w-5 shrink-0 px-1.5 text-[10px]">
-                {data.consoleLog!.entries.length}
-              </Badge>
-            )}
+            <Badge className="ml-0.5 h-5 min-w-5 shrink-0 px-1.5 text-[10px]">
+              {data.consoleLog?.entries.length ?? 0}
+            </Badge>
           </TabsTrigger>
-          <TabsTrigger value="network" disabled={!hasNetwork} className="min-w-0 gap-1.5" data-testid="logview-tab-network">
+          <TabsTrigger value="network" className="min-w-0 gap-1.5" data-testid="logview-tab-network">
             <ArrowLeftRight className="h-3.5 w-3.5 shrink-0" />
             <TabLabel>{t("logViewer.tab.network")}</TabLabel>
-            {hasNetwork && (
-              <Badge className="ml-1 h-5 min-w-5 shrink-0 px-1.5 text-[10px]">
-                {data.networkLog!.requests.length}
-              </Badge>
-            )}
+            <Badge className="ml-0.5 h-5 min-w-5 shrink-0 px-1.5 text-[10px]">
+              {data.networkLog?.requests.length ?? 0}
+            </Badge>
           </TabsTrigger>
-          <TabsTrigger value="action" disabled={!hasAction} className="min-w-0 gap-1.5" data-testid="logview-tab-action">
+          <TabsTrigger value="action" className="min-w-0 gap-1.5" data-testid="logview-tab-action">
             <MousePointerClick className="h-3.5 w-3.5 shrink-0" />
             <TabLabel>{t("logViewer.tab.action")}</TabLabel>
-            {hasAction && (
-              <Badge className="ml-1 h-5 min-w-5 shrink-0 px-1.5 text-[10px]">
-                {data.actionLog!.entries.length}
-              </Badge>
-            )}
+            <Badge className="ml-0.5 h-5 min-w-5 shrink-0 px-1.5 text-[10px]">
+              {data.actionLog?.entries.length ?? 0}
+            </Badge>
           </TabsTrigger>
         </CollapsingTabsList>
       </div>
@@ -183,45 +183,27 @@ export function App({ data }: AppProps) {
       </TabsContent>
 
       <TabsContent value="console" className="mt-0 flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden">
-        {hasConsole ? (
-          <ConsoleLogContent
-            entries={data.consoleLog!.entries}
-            startedAt={data.consoleLog!.startedAt}
-            flush
-            {...sync}
-            {...scrollProps}
-          />
-        ) : (
-          <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
-            {t("logViewer.noConsole")}
-          </div>
-        )}
+        <ConsoleLogContent
+          entries={data.consoleLog?.entries ?? []}
+          startedAt={data.consoleLog?.startedAt}
+          flush
+          {...sync}
+          {...scrollProps}
+        />
       </TabsContent>
 
       <TabsContent value="network" className="mt-0 flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden">
-        {hasNetwork ? (
-          <NetworkLogContent requests={data.networkLog!.requests} flush {...sync} {...scrollProps} />
-        ) : (
-          <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
-            {t("logViewer.noNetwork")}
-          </div>
-        )}
+        <NetworkLogContent requests={data.networkLog?.requests ?? []} flush {...sync} {...scrollProps} />
       </TabsContent>
 
       <TabsContent value="action" className="mt-0 flex min-h-0 flex-1 flex-col data-[state=inactive]:hidden">
-        {hasAction ? (
-          <ActionLogContent
-            entries={data.actionLog!.entries}
-            startedAt={data.actionLog!.startedAt}
-            flush
-            {...sync}
-            {...scrollProps}
-          />
-        ) : (
-          <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
-            {t("logViewer.noAction")}
-          </div>
-        )}
+        <ActionLogContent
+          entries={data.actionLog?.entries ?? []}
+          startedAt={data.actionLog?.startedAt}
+          flush
+          {...sync}
+          {...scrollProps}
+        />
       </TabsContent>
 
       {/* h-[68px] 고정(=Button h-9 + py-4): 탭/이슈버튼 유무로 버튼이 안 뜰 때 높이가 줄어 레이아웃이 점프하는 걸 막는다 */}

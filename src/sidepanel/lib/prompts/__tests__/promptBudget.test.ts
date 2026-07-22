@@ -22,6 +22,7 @@ const NANO_CTX: AiDraftSessionContext = { ...RICH_CTX, caps: NANO_CAPABILITIES }
 const LOGS = {
   networkLogSummary: {
     captured: 10,
+    errorCount: 1,
     errors: [
       { id: "nr-t1", method: "POST", path: "/api/pay", status: 500, statusText: "Err" },
     ],
@@ -133,6 +134,7 @@ describe("fitDraftContext", () => {
       ...NANO_CTX,
       networkLogSummary: {
         captured: 100,
+        errorCount: 50,
         errors: Array.from({ length: 50 }, (_, i) => ({
           id: `nr-${i}`,
           method: "GET",
@@ -279,6 +281,7 @@ describe("fitDraftContext × selectLogCandidates — 절삭 결합", () => {
     ...NANO_CTX,
     networkLogSummary: {
       captured: 3,
+      errorCount: 1,
       errors: [
         {
           id: "nr-1700000000000-a",

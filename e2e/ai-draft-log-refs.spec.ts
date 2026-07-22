@@ -134,7 +134,9 @@ test.describe.serial("AI 초안 logRefs — 로그 코드블럭 자동 삽입 (B
     const dialog = panel.getByTestId("log-insert-dialog");
     await panel.getByTestId("section-log-insert-description").click();
     await expect(dialog).toBeVisible();
-    // 비활성 탭(console) 행이 hidden으로 DOM에 남는다 — :visible + 네트워크 행 텍스트로 특정.
+    // 기본 활성 탭이 console-first라 네트워크 탭으로 전환 후 선택 — 비활성 탭 행은 hidden으로
+    // DOM에 남으므로 :visible + 네트워크 행 텍스트(/e2e-json)로 활성 탭 행만 특정.
+    await panel.getByTestId("log-insert-tab-network").click();
     await dialog.locator('[data-entry-id]:visible', { hasText: "/e2e-json" }).first().click();
     await expect(panel.getByTestId("log-insert-confirm")).toBeEnabled();
     await panel.getByTestId("log-insert-confirm").click();
