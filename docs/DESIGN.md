@@ -7,7 +7,7 @@ bugshot-2의 디자인 시스템·UI 컨벤션 단일 출처. 신규 화면·컴
 ## 1. 기반 스택
 
 - **Tailwind CSS v3** + **shadcn/ui** (style `new-york`, CSS 변수 모드) — `components.json`. base color는 **테마별로 다르다**(라이트 `slate` / 다크 `neutral`) — 아래 §2 색상 참조. `components.json`의 `baseColor`는 CLI 시드일 뿐이다.
-- **`@tailwindcss/container-queries`** — 좁은 사이드패널/다이얼로그 공용 컴포넌트의 컨테이너 기반 리플로우
+- **`@tailwindcss/container-queries`** — 컨테이너 기반 리플로우용(현재 활성 사용처 없음 — 이전 유일 사용처 `LogAttachmentCards`가 단일 카드로 전환되며 제거, 플러그인은 유지)
 - **`tailwindcss-animate`** — Radix data-state 진입/퇴장 애니메이션
 - **lucide-react** — 일반 UI 아이콘 / **`@icons-pack/react-simple-icons`** — 플랫폼 브랜드 마크 (`Si{Name}`)
 - **Pretendard Variable** — 본문 폰트 (`globals.css`에서 dynamic-subset import)
@@ -220,8 +220,8 @@ shadcn `Slider` (`src/components/ui/slider.tsx`, Radix). 표준에서 **멀티 t
 - `collapsing-tabs.tsx` (`CollapsingTabsList`): ResizeObserver/MutationObserver로 폭을 감시해, 트리거가 넘치면 **모든 탭 라벨을 동시에 숨기고 아이콘+배지만** 남긴다. 측정 중엔 `group-data-[measuring]/tabs:inline`로 라벨을 강제 노출해 자연 폭 계산. 사용처: 메인 탭 바, 서브탭.
 
 ### 컨테이너 쿼리
-부모 폭 기준 리플로우로, 같은 컴포넌트를 좁은 패널과 넓은 다이얼로그 양쪽에서 재사용한다.
-- 예: `LogAttachmentCards.tsx` — `@container` 래퍼 + `grid-cols-1 @[35rem]:grid-cols-3`(35rem 미만 1열).
+부모 폭 기준 리플로우로, 같은 컴포넌트를 좁은 패널과 넓은 다이얼로그 양쪽에서 재사용하는 패턴.
+- 현재 활성 사용처는 없다(이전 유일 예 `LogAttachmentCards`가 단일 카드로 전환되며 `@container`/grid 제거). 플러그인은 설치돼 있어 필요 시 재도입 가능.
 
 ### 오버레이 컴포넌트
 - **Dialog** (`dialog.tsx`): 기본 `DialogContent` = `rounded-2xl`, `w-full max-w-[calc(100%-2rem)]`, `duration-300`. 넓게 띄워야 하면 override(예: `SubmitFieldsDialog`의 `w-[80vw] max-w-[80vw] max-h-[80vh] rounded-3xl`). `DialogFooter`는 `flex-col-reverse sm:flex-row` + `rounded-b-2xl`.
@@ -257,7 +257,7 @@ shadcn `Slider` (`src/components/ui/slider.tsx`, Radix). 표준에서 **멀티 t
 | `StyleChangesTable.tsx` | 스타일 diff 표 — DocTable과 별개의 두 번째 테이블 primitive(before/after·변경 토큰 강조) |
 | `OriginFilterBar.tsx` | 출처별 로그 필터 바 — Console/Network/Action 로그 공용, origin 2개+ 일 때만 노출 |
 | `{Console,Network,Action}LogContent.tsx` + `*LogPreviewDialog.tsx` | 로그 목록·상세 렌더와 그 다이얼로그 셸 — 사이드패널 로그 탭·리플레이 트림·로그 추가 다이얼로그·log-viewer가 공유(§14 로그 행 심각도 규칙의 구현체). `NetworkLogContent`는 `onActiveChange`, `ConsoleLogContent`는 `selectedId`+`onActiveChange`로 선택을 노출한다(미공급 시 표시 전용 — 비침습) |
-| `LogAttachmentCards.tsx` | network/console/action 첨부 토글 카드 — §11 컨테이너 쿼리(`@container`) 유일 사용처 |
+| `LogAttachmentCards.tsx` | logs.html 단일 첨부 토글 카드(Switch + 스위치 영역 hover-suppress, IssueRow 패턴) — 클릭 시 LogPreviewDialog |
 | `IssuePreviewView.tsx` | 이슈 본문 프리뷰 — 제목·재현 환경·섹션 + 마크다운 복사, `media`/`logCards` 슬롯. PreviewPanel과 log-viewer Report 탭 공용(두 표면이 같은 본문을 그리도록 강제) |
 | `SubmitSuccessView.tsx` | 제출 완료 화면 — 성공 아이콘 + 이슈 링크 + 후기·확인 버튼. IssueTab(작성)·IssueListTab(목록) 공용 |
 | `AttachmentSection.tsx` / `AttachmentList.tsx` | 사용자 파일 첨부 — 편집형(추가·삭제 카드) / 읽기 전용 카드 목록(클릭 시 로컬 재다운로드, `CATEGORY_ICON` 보유). 후자는 PreviewPanel·DraftDetailDialog 공용 |
