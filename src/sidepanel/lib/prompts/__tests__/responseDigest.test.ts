@@ -54,6 +54,31 @@ describe("digestResponseShape — shape 다이제스트 (키·타입, 값 제외
     expect(d).toContain("<key>:num"); // 타입은 유지, 키는 가림
   });
 
+  it("map형 응답(키 다수 + 값 타입 균일) → collapse, 접두-토큰 키 미인쇄 (🔴 유출 차단)", () => {
+    const map: Record<string, unknown> = {};
+    for (let i = 0; i < 12; i++) map[`cus_H3k9xY2z${i}`] = { name: 1 }; // 접두-토큰형 레코드ID 키
+    const d = digestResponseShape(JSON.stringify(map), JSON_CT);
+    expect(d).not.toContain("cus_H3k9xY2z"); // safeKey는 통과시키지만 collapse가 막는다
+    expect(d).toMatch(/12 entries: obj/);
+  });
+
+  it("map형 str 값 → '{N entries: str}'", () => {
+    const map: Record<string, string> = {};
+    for (let i = 0; i < 10; i++) map[`user_${1000 + i}`] = "x";
+    const d = digestResponseShape(JSON.stringify(map), JSON_CT);
+    expect(d).not.toContain("user_1000");
+    expect(d).toMatch(/10 entries: str/);
+  });
+
+  it("스키마 객체(값 타입 혼합)는 키 다수여도 collapse 안 함 — 키 인쇄 유지", () => {
+    const d = digestResponseShape(
+      '{"a":1,"b":"x","c":true,"d":1,"e":"y","f":false,"g":1,"h":"z","i":true,"j":1}',
+      JSON_CT,
+    );
+    expect(d).toContain("a:num"); // 혼합 타입 → map 아님 → 키 인쇄
+    expect(d).toContain("b:str");
+  });
+
   it("스키마 키(order_id·orderStatus)는 그대로 인쇄", () => {
     const d = digestResponseShape('{"order_id":1,"orderStatus":"X"}', JSON_CT);
     expect(d).toContain("order_id:num");
@@ -89,9 +114,9 @@ describe("digestResponseShape — shape 다이제스트 (키·타입, 값 제외
     expect(digestResponseShape("", JSON_CT)).toBeUndefined();
   });
 
-  it("대형 객체(수백 키) → 캡 발동으로 bounded 출력", () => {
-    const obj: Record<string, number> = {};
-    for (let i = 0; i < 300; i++) obj[`field_${i}`] = i;
+  it("대형 객체(수백 키, 값 타입 혼합) → 키 개수·길이 캡으로 bounded 출력", () => {
+    const obj: Record<string, unknown> = {};
+    for (let i = 0; i < 300; i++) obj[`field_${i}`] = i % 2 ? "s" : 1; // 혼합 → collapse 아닌 캡 경로
     const d = digestResponseShape(JSON.stringify(obj), JSON_CT);
     expect(d).toBeDefined();
     expect(d!.length).toBeLessThan(600); // 무한 팽창 방지 (정확한 캡값은 구현 재량)

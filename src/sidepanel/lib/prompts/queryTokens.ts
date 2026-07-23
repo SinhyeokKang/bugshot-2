@@ -7,6 +7,8 @@ export interface QueryTerm {
 
 const MIN_TERM_LEN = 3;
 const MAX_QUERY_TERMS = 20;
+// IDENT_RE가 긴 letter-only 런에서 O(N²)라, 소스별로 스캔 길이를 bound한다(붙여넣은 로그 등).
+const MAX_SOURCE_CHARS = 2000;
 
 // 식별자 보존: 경로·구분자ID·camelCase·digit포함·ALLCAPS를 통짜로 잡는다(순진한 split은
 // ORD-4821을 부순다). 앞 tier에서 잡힌 조각은 공백으로 마스킹해 다음 tier가 재추출 안 하게 한다.
@@ -32,7 +34,7 @@ export function tokenizeUserQuery(sources: string[]): QueryTerm[] {
 
   for (const src of sources) {
     if (!src || !src.trim()) continue;
-    let rest = src;
+    let rest = src.length > MAX_SOURCE_CHARS ? src.slice(0, MAX_SOURCE_CHARS) : src;
     rest = rest.replace(QUOTED_RE, (_, inner: string) => {
       add(inner, "quoted");
       return " ";

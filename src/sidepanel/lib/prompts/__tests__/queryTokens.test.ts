@@ -61,4 +61,15 @@ describe("tokenizeUserQuery — 3-tier 추출", () => {
     const terms = tokenizeUserQuery(["주문 목록이 안 떠요", "TypeError: cannot read 'orderStatus'"]);
     expect(values(terms)).toContain("orderstatus");
   });
+
+  // 긴 letter-only 소스에서 IDENT_RE가 O(N²)라, tokenize 전 각 소스를 길이 캡으로 자른다.
+  it("긴 소스는 길이 캡으로 잘려 캡 밖 term은 추출 안 됨 (quadratic 폭발 방지)", () => {
+    const src = "a".repeat(5000) + " zzzmarkerword";
+    expect(values(tokenizeUserQuery([src]))).not.toContain("zzzmarkerword");
+  });
+
+  it("캡 안(소스 앞쪽) term은 정상 추출", () => {
+    const terms = tokenizeUserQuery(["startmarkerword " + "a".repeat(5000)]);
+    expect(values(terms)).toContain("startmarkerword");
+  });
 });
