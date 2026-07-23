@@ -71,4 +71,72 @@ describe("scroll capture positioned elements", () => {
       behavior: "instant",
     });
   });
+
+  it("후속 스크롤 임계점에서 fixed로 전환된 요소도 새 후보로 숨긴다", async () => {
+    let scrollY = 0;
+    vi.spyOn(window, "scrollY", "get").mockImplementation(() => scrollY);
+    vi.spyOn(window, "scrollX", "get").mockReturnValue(0);
+    vi.spyOn(window, "scrollTo").mockImplementation((options) => {
+      if (typeof options === "object") scrollY = Number(options.top ?? scrollY);
+    });
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+      callback(0);
+      return 1;
+    });
+
+    const lateFixed = document.createElement("header");
+    document.body.append(lateFixed);
+    vi.spyOn(window, "getComputedStyle").mockImplementation(
+      (el) =>
+        ({
+          position: el === lateFixed && lateFixed.classList.contains("fixed") ? "fixed" : "static",
+          top: "auto",
+          bottom: "auto",
+        }) as CSSStyleDeclaration,
+    );
+
+    const { session } = beginScrollCapture();
+    await scrollCaptureTo(session, 600, true);
+    expect(lateFixed.style.visibility).toBe("");
+
+    lateFixed.classList.add("fixed");
+    await Promise.resolve();
+    await scrollCaptureTo(session, 1200, true);
+    expect(lateFixed.style.visibility).toBe("hidden");
+
+    endScrollCapture(session);
+  });
+
+  it("캡처 도중 추가된 fixed 요소도 새 후보로 숨긴다", async () => {
+    let scrollY = 600;
+    vi.spyOn(window, "scrollY", "get").mockImplementation(() => scrollY);
+    vi.spyOn(window, "scrollX", "get").mockReturnValue(0);
+    vi.spyOn(window, "scrollTo").mockImplementation((options) => {
+      if (typeof options === "object") scrollY = Number(options.top ?? scrollY);
+    });
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => {
+      callback(0);
+      return 1;
+    });
+    vi.spyOn(window, "getComputedStyle").mockImplementation(
+      (el) =>
+        ({
+          position: el instanceof HTMLElement && el.dataset.fixed === "true" ? "fixed" : "static",
+          top: "auto",
+          bottom: "auto",
+        }) as CSSStyleDeclaration,
+    );
+
+    const { session } = beginScrollCapture();
+    await scrollCaptureTo(session, 600, true);
+
+    const inserted = document.createElement("aside");
+    inserted.dataset.fixed = "true";
+    document.body.append(inserted);
+    await Promise.resolve();
+    await scrollCaptureTo(session, 1200, true);
+
+    expect(inserted.style.visibility).toBe("hidden");
+    endScrollCapture(session);
+  });
 });
