@@ -8,7 +8,7 @@
     "description": "Short name for action button"
   },
   "EXT_DESCRIPTION": {
-    "message": "Discover, fix, capture, and report bugs in one workflow.",
+    "message": "Bug reporting for QA from a side panel: screenshot, recording, console/network logs, live CSS edits, sent to Jira, GitHub & Notion.",
     "description": "Chrome Web Store description"
   },
   "CMD_TOGGLE_PANEL": {
