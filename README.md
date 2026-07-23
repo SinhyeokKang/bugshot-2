@@ -53,7 +53,7 @@ Grab exactly what's on screen and mark it up.
 - **Works inside iframes** — the picker reaches one level into embedded frames, cross-origin ones included.
 - **Area capture** — drag any region of the screen to capture a precise slice.
 - **Screen capture** — grab the whole visible viewport in one click, no dragging.
-- **Full-page capture** — scroll and stitch the entire page into one tall screenshot; fixed headers are printed once, and very long pages stop at a limit with a notice.
+- **Full-page capture** — scroll and stitch the entire page into one tall screenshot; fixed and sticky headers are printed once, and very long pages stop at a limit with a notice.
 - **Annotation** — mark up the shot with arrows, a freehand pen, text, shapes, and highlights before attaching it. Zoom (fit-to-width up to 400%) and pan the canvas so you can annotate fine detail on a tall full-page shot; the finished image is always attached at its original resolution.
 - **Inline evidence** — capture an extra area or paste, drop, or add images directly into a body section, then annotate, restore, or delete them in place.
 
