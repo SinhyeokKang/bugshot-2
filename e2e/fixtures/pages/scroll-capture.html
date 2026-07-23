@@ -7,6 +7,8 @@
       body { margin: 0; font-family: system-ui, sans-serif; }
       /* fixed 헤더 — 스크롤 캡처가 첫 타일에만 남기고 이후 타일에서 숨기는 대상 */
       #bar { position: fixed; top: 0; left: 0; right: 0; height: 48px; background: #1d4ed8; color: #fff; }
+      /* sticky 헤더 — 첫 타일에만 남고 후속 타일에서는 중복 제거돼야 한다 */
+      #sticky { position: sticky; top: 48px; height: 40px; background: #d946ef; color: #fff; }
       /* 뷰포트의 1.5배 — 타일 2장으로 고정해 captureVisibleTab quota를 최소로 태운다 */
       #tall { height: 150vh; background: linear-gradient(#fef3c7, #bbf7d0); padding-top: 48px; }
     </style>
@@ -14,6 +16,7 @@
   <body>
     <div id="bar">fixed bar</div>
     <div id="tall">
+      <div id="sticky">sticky bar</div>
       <h1 id="top">top of page</h1>
       <p id="bottom" style="margin-top: 120vh">bottom of page</p>
     </div>
