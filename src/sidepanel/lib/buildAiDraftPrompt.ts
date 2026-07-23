@@ -3,6 +3,7 @@ import type { LocaleMode, TextSectionId } from "@/store/settings-ui-store";
 import type { StyleDiffRow } from "@/sidepanel/components/StyleChangesTable";
 import type { NetworkLogSummary, ConsoleLogSummary } from "./buildLogSummary";
 import type { ActionLogSummary } from "@/types/action";
+import type { NetworkRequest } from "@/types/network";
 import type {
   FewShotExample,
   PromptStyle,
@@ -119,6 +120,8 @@ export interface AiDraftSessionContext {
   networkLogSummary?: NetworkLogSummary;
   consoleLogSummary?: ConsoleLogSummary;
   actionLogSummary?: ActionLogSummary;
+  // 매칭 200 검색 타깃 — 요약과 별개로 본문 포함 full requests. 예산 트리밍 level≥1에서 소멸.
+  requests?: NetworkRequest[];
   // media는 텍스트 섹션이 아니라 여기 들어오면 안 된다 — 타입으로 차단(호출처는 사전 필터).
   enabledSections: { id: TextSectionId }[];
   existingDraft?: { title: string; sections: Record<string, string> };

@@ -104,7 +104,7 @@ function nodeName(node?: ActionNode): string {
   return node?.name?.trim() || node?.selector || "element";
 }
 
-function extractPath(url: string): string {
+export function extractPath(url: string): string {
   try {
     return new URL(url).pathname;
   } catch {

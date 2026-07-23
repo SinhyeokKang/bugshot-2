@@ -12,74 +12,73 @@
 - **변경 대상**: `src/sidepanel/lib/prompts/queryTokens.ts` (+ `__tests__/queryTokens.test.ts`)
 - **작업 내용**: `QueryTier`·`QueryTerm` 타입, `tokenizeUserQuery(sources: string[]): QueryTerm[]`. 3-tier 추출(quoted → ident → word, 앞 tier 추출분은 마스킹 후 다음 tier), `MIN_TERM_LEN=3`(quoted·숫자포함 예외), 소문자화, dedup, `MAX_QUERY_TERMS=20` 캡.
 - **검증**:
-  - [ ] quoted `"ORD-4821"` 추출, tier=quoted
-  - [ ] ident 보존: `/api/v2/orders`, `ORD-4821`, `orderStatus`, `NullPointerException` 각각 통짜 term
-  - [ ] `주문서`(3자)·`the`(3자) 등 word tier로 분류(폐기 안 함), `주문`(2자)·2자 이하는 `MIN_TERM_LEN=3`으로 폐기 (※ quoted·숫자포함은 예외로 유지)
-  - [ ] 소문자 정규화 + 중복 term 제거 + distinct 20개 캡
-  - [ ] 빈/공백 소스 → `[]`
-  - [ ] **빈 문자열 term을 절대 방출하지 않음**(단정). `requestMatchesQuery`는 빈 term에 `includes("")===true`로 전 요청 매칭하므로, tokenizer가 빈 term을 뱉으면 매칭이 오염된다 — 방출 부재를 잠근다.
+  - [x] quoted `"ORD-4821"` 추출, tier=quoted
+  - [x] ident 보존: `/api/v2/orders`, `ORD-4821`, `orderStatus`, `NullPointerException` 각각 통짜 term
+  - [x] `주문서`(3자)·`the`(3자) 등 word tier로 분류(폐기 안 함), `주문`(2자)·2자 이하는 `MIN_TERM_LEN=3`으로 폐기 (※ quoted·숫자포함은 예외로 유지)
+  - [x] 소문자 정규화 + 중복 term 제거 + distinct 20개 캡
+  - [x] 빈/공백 소스 → `[]`
+  - [x] **빈 문자열 term을 절대 방출하지 않음**(단정). `requestMatchesQuery`는 빈 term에 `includes("")===true`로 전 요청 매칭하므로, tokenizer가 빈 term을 뱉으면 매칭이 오염된다 — 방출 부재를 잠근다.
 
 ### Task 2: `digestResponseShape` (신규 순수 함수)
 - **변경 대상**: `src/sidepanel/lib/prompts/responseDigest.ts` (+ `__tests__/responseDigest.test.ts`)
 - **작업 내용**: `digestResponseShape(body, contentType): string | undefined`. json contentType + string body만 처리. 최상위 객체 → `{key:type ...}`(type ∈ str/num/bool/null/obj/arr[N]), 최상위 배열 → `arr[N]`, **최상위 primitive(`true`/`123`/`"OK"`/`null`) → `undefined`**. **값 제외**, 키 개수·다이제스트 문자열 길이 캡, depth 1(중첩은 obj/arr[N]로 축약).
 - **검증**:
-  - [ ] `{"items":[],"total":0,"order_status":"SHIPPED"}` → `{items:arr[0] total:num order_status:str}` (값 없음)
-  - [ ] `{"coupon":null}` → `null` 타입 표기
-  - [ ] 중첩 객체/배열 → `obj`/`arr[N]` 축약
-  - [ ] 마스킹된 json(`{"token":"***"}`) → 파싱 성공, 타입 str
-  - [ ] 비-json contentType / `{kind:"binary"|"truncated"|"stream"|"omitted"}` / 파싱 실패 → `undefined`
-  - [ ] **최상위 primitive(top-level `true`/`123`/`"OK"`) → `undefined`**
-  - [ ] **대형 객체(수백 키) → 키 개수·문자열 길이 캡이 발동해 bounded 출력**(캡 초과분 절삭 단정 — "대량 데이터" 엣지)
-  - [ ] 출력에 어떤 응답 **값도** 등장하지 않음(값 부재 단정). 키 이름은 등장함(마스킹 대상 아님 — 의도된 동작).
+  - [x] `{"items":[],"total":0,"order_status":"SHIPPED"}` → `{items:arr[0] total:num order_status:str}` (값 없음)
+  - [x] `{"coupon":null}` → `null` 타입 표기
+  - [x] 중첩 객체/배열 → `obj`/`arr[N]` 축약
+  - [x] 마스킹된 json(`{"token":"***"}`) → 파싱 성공, 타입 str
+  - [x] 비-json contentType / `{kind:"binary"|"truncated"|"stream"|"omitted"}` / 파싱 실패 → `undefined`
+  - [x] **최상위 primitive(top-level `true`/`123`/`"OK"`) → `undefined`**
+  - [x] **대형 객체(수백 키) → 키 개수·문자열 길이 캡이 발동해 bounded 출력**(캡 초과분 절삭 단정 — "대량 데이터" 엣지)
+  - [x] 출력에 어떤 응답 **값도** 등장하지 않음(값 부재 단정). 키 이름은 등장함(마스킹 대상 아님 — 의도된 동작).
 
 ### Task 3: `selectMatchedLogCandidates` + `MatchedLogCandidate`
 - **변경 대상**: `src/sidepanel/lib/prompts/logCandidates.ts` (+ `__tests__/logCandidates.test.ts` 확장)
 - **작업 내용**: `MatchedLogCandidate` 타입, `selectMatchedLogCandidates(terms, requests, excludeIds, cap)`. 모집단 필터(`!webSocket && phase==="complete" && status 2xx(>=200 && <300) && !excludeIds`), term별 `requestMatchesQuery` 매칭 + `OVERMATCH_CEIL=8` 초과 term 폐기, id union·집계, 랭킹(tier > distinct term 히트 수 > startTime), 상위 cap개 `m1..` ref + `digestResponseShape` 부착. `path`는 `extractPath(r.url)` 파생. **빈 term(`term.term===""`)은 방어적 skip**(tokenizer가 안 뱉는 게 1차 방어, 여기가 2차).
 - **검증**:
-  - [ ] 콘솔 에러 term `orderStatus`가 200 응답 본문에 매칭 → 후보 1개, matchedTerm=`orderStatus`
-  - [ ] `OVERMATCH_CEIL` 초과 term은 후보에 기여 안 함
-  - [ ] `excludeIds`·WebSocket·비-complete·**비-2xx(4xx/5xx/3xx)** 요청 제외
-  - [ ] 랭킹: 다중 term 히트·최신 요청 우선, 상위 cap개만
-  - [ ] ref `m1..` 연속·유일, digest 부착(json)·미부착(non-json)
-  - [ ] `terms=[]`(빈 배열) → `[]` 조기 반환
-  - [ ] 빈 term이 섞여 들어와도 전 요청 오매칭 없이 skip
-  - [ ] `path`가 `r.url`에서 파생됨(`NetworkRequest`에 `path` 필드 없음 — malformed URL 폴백은 extractPath 규칙)
+  - [x] 콘솔 에러 term `orderStatus`가 200 응답 본문에 매칭 → 후보 1개, matchedTerm=`orderStatus`
+  - [x] `OVERMATCH_CEIL` 초과 term은 후보에 기여 안 함
+  - [x] `excludeIds`·WebSocket·비-complete·**비-2xx(4xx/5xx/3xx)** 요청 제외
+  - [x] 랭킹: 다중 term 히트·최신 요청 우선, 상위 cap개만
+  - [x] ref `m1..` 연속·유일, digest 부착(json)·미부착(non-json)
+  - [x] `terms=[]`(빈 배열) → `[]` 조기 반환
+  - [x] 빈 term이 섞여 들어와도 전 요청 오매칭 없이 skip
+  - [x] `path`가 `r.url`에서 파생됨(`NetworkRequest`에 `path` 필드 없음 — malformed URL 폴백은 extractPath 규칙)
 
 ### Task 4: `AiDraftSessionContext.requests` 필드 + `selectLogCandidates` 확장 + refs/find/canRequest
 - **변경 대상**: `src/sidepanel/lib/buildAiDraftPrompt.ts`(필드 정의), `src/sidepanel/lib/prompts/logCandidates.ts` (+ 테스트 확장)
 - **선(先)작업(ORDER)**: `AiDraftSessionContext`에 `requests?: NetworkRequest[]` 필드를 **여기서 먼저 추가**한다. Task 4가 `ctx.requests?.length`를 읽으므로 필드 정의가 이 태스크(또는 그 앞)에 있어야 typecheck가 통과한다 — 필드 추가를 Task 5에 두면 `Property 'requests' does not exist` 컴파일 에러(QA 지적).
 - **작업 내용**: `LogCandidates.matched` 추가. `selectLogCandidates`가 rich 스타일(`ctx.caps.promptStyle==="rich"` — 신규 게이트) + `supportsConsoleNetworkLog` + `ctx.requests?.length`일 때만 토큰화 소스 결합 → `tokenizeUserQuery` → `selectMatchedLogCandidates`(excludeIds=network 후보 id) 호출. `candidateRefs`(matched 포함)·`findCandidate`(`m*`→network, 대소문자 무시)·`canRequestLogRefs`(matched 개수 포함) 확장.
 - **검증**:
-  - [ ] rich + requests 존재 → matched 채워짐 / compact → `matched: []`
-  - [ ] `ctx.requests` 없음 → `matched: []`
-  - [ ] excludeIds가 network 에러 후보 id로 구성돼 중복 인쇄 방지
-  - [ ] `candidateRefs`에 `m*` 포함, `findCandidate("M1")` → network kind
-  - [ ] `canRequestLogRefs`가 matched만 있어도 true(description 활성 시)
+  - [x] rich + requests 존재 → matched 채워짐 / compact → `matched: []`
+  - [x] `ctx.requests` 없음 → `matched: []`
+  - [x] excludeIds가 network 에러 후보 id로 구성돼 중복 인쇄 방지
+  - [x] `candidateRefs`에 `m*` 포함, `findCandidate("M1")` → network kind
+  - [x] `canRequestLogRefs`가 matched만 있어도 true(description 활성 시)
 
 ### Task 5: 컨텍스트 배선 + 예산 트리밍
 - **변경 대상**: `src/sidepanel/lib/prompts/promptBudget.ts`, `src/sidepanel/tabs/AiDraftDialog.tsx` (필드 정의는 Task 4에서 완료)
 - **작업 내용**: `trimDraftContext` level ≥ 1에 `delete out.requests`. `AiDraftDialog` ctx 조립에 `requests: includeCnLog && networkLog?.requests?.length ? networkLog.requests : undefined`(226줄 렌더에서 쓰는 로컬 `networkLog` 재사용).
 - **검증**:
-  - [ ] `trimDraftContext(ctx, 1)`가 `requests` 삭제 (단위 테스트)
-  - [ ] `pnpm typecheck` 통과
-  - [ ] AiDraftDialog가 요약과 별개로 full requests를 ctx에 전달
+  - [x] `trimDraftContext(ctx, 1)`가 `requests` 삭제 (단위 테스트)
+  - [x] `pnpm typecheck` 통과
+  - [x] AiDraftDialog가 요약과 별개로 full requests를 ctx에 전달
 
 ### Task 5b: `renderLogRefs` 공유 캡 회귀 수정 (CAP)
 - **변경 대상**: `src/sidepanel/lib/renderLogRefs.ts` (+ `__tests__` 확장)
 - **작업 내용**: `resolved.length > MAX_LOG_REFS`에서 `return []` → **상위 `MAX_LOG_REFS`개 `slice`**. `resolved`가 모델 반환 순서라 slice 전에 **에러 ref(`n*`/`c*`)를 매칭 ref(`m*`)보다 앞으로 안정 정렬**(`ref.startsWith("m")` 판별)해 에러 로그가 항상 생존하게 한다. warn 로그는 유지.
 - **검증**:
-  - [ ] `["n1","n2","m1","m2"]`(4개) → 3블록 반환, **에러 우선**(n1·n2·m1 생존, m2 절삭) — 기존 `return []`(전멸) 회귀 방어 고정
-  - [ ] `["m1","n1"]` → 정렬 후 n1이 m1 앞
-  - [ ] 3개 이하 → 순서·개수 기존과 동일(무회귀)
+  - [x] `["n1","n2","m1","m2"]`(4개) → 3블록 반환, **에러 우선**(n1·n2·m1 생존, m2 절삭) — 기존 `return []`(전멸) 회귀 방어 고정
+  - [x] 3개 이하 → 순서·개수 기존과 동일(무회귀). ※ 정렬은 **초과(>3)일 때만** 발동 — 3개 이하는 모델 반환 순서 보존(design 스코프대로).
 
 ### Task 6: rich 프롬프트 매칭 섹션
 - **변경 대상**: `src/sidepanel/lib/prompts/draftRich.ts`
 - **작업 내용**: `cand.matched.length > 0`이면 "Possibly related requests (may look OK but could be the cause)" 섹션 인쇄. 줄: `[m1] GET /path → 200 · {digest} (matched "term")`(digest 없으면 생략). logRefs 지시문이 `m*`도 인용 대상임을 포함하도록 문구 조정. **추가로 지시문에 "인용한 각 `m*`는 반드시 description 산문에서 왜 원인인지 설명하라"를 잠금**(LABEL) — `serializeNetworkRequest`가 `→ 200 OK`를 라벨 없이 렌더해 200 블록이 "정상"으로 읽히므로 산문 설명이 유일한 맥락 전달 수단. compact(`draftCompact.ts`)은 `matched` 미인쇄(변경 없음 확인).
 - **검증**:
-  - [ ] matched 있으면 rich 프롬프트에 섹션·`m1` 줄·digest 포함(문자열 단정)
-  - [ ] **rich 지시문에 "각 m*를 산문에서 설명" 요구 문구가 포함됨(문자열 단정)**
-  - [ ] compact 프롬프트엔 matched 미등장
-  - [ ] `renderLogRefBlocks(["m1"], {candidates, requests, entries})`가 원문 코드블럭 반환(roundtrip 테스트)
+  - [x] matched 있으면 rich 프롬프트에 섹션·`m1` 줄·digest 포함(문자열 단정)
+  - [x] **rich 지시문에 "각 m*를 산문에서 설명" 요구 문구가 포함됨(문자열 단정)**
+  - [x] compact 프롬프트엔 matched 미등장
+  - [x] `renderLogRefBlocks(["m1"], {candidates, requests, entries})`가 원문 코드블럭 반환(roundtrip 테스트)
 
 ## 테스트 계획
 

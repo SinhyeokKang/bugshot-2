@@ -121,6 +121,14 @@ export function buildRichDraftPrompt(ctx: AiDraftSessionContext): string {
         }
       }
     }
+    // 유저·캡처 컨텍스트와 exact-match된 성공(2xx) 요청 — "정상으로 보이는 200"이 실제 원인일 수 있다.
+    if (cand.matched.length > 0) {
+      lines.push("- Possibly related requests (returned OK but may be the actual cause — inspect the response shape):");
+      for (const m of cand.matched) {
+        const digest = m.digest ? ` · ${m.digest}` : "";
+        lines.push(`  [${m.ref}] ${m.method} ${m.path} → ${m.status}${digest} (matched "${m.matchedTerm}")`);
+      }
+    }
   }
 
   // action log는 이슈에 실리는 모든 모드(supportsActionLog)에서 재현 단서다 — AI도 같은 데이터를 본다.
@@ -171,7 +179,7 @@ export function buildRichDraftPrompt(ctx: AiDraftSessionContext): string {
   }
   if (hasLogRefs) {
     lines.push(
-      '- "logRefs": tags of the log entries above (e.g. "n1", "c1") that are direct evidence of the described bug. An empty array is the normal result when none apply',
+      '- "logRefs": tags of the log entries above (e.g. "n1", "c1", "m1") that are direct evidence of the described bug. An empty array is the normal result when none apply',
     );
   }
 
@@ -184,6 +192,11 @@ export function buildRichDraftPrompt(ctx: AiDraftSessionContext): string {
   if (hasLogRefs) {
     lines.push(
       "- Name the causal log briefly in prose, then return its tag in logRefs — the app inserts the full log; keep full request/response bodies and stack traces out of the prose.",
+    );
+  }
+  if (hasLogRefs && cand.matched.length > 0) {
+    lines.push(
+      '- For any "m*" request you cite in logRefs, you must explain in the description prose why that OK-looking response is the actual cause (e.g. a field is missing or empty). A 200 with no visible error reads as normal otherwise.',
     );
   }
   lines.push("- The description states only the current problem (as-is). Put any expected or desired behavior in expectedResult, never in description.");

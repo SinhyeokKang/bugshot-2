@@ -30,24 +30,33 @@ export function renderLogRefBlocks(
   src: LogRefSource,
 ): LogCodeBlock[] {
   const seen = new Set<string>();
-  const resolved: { id: string; kind: LogCandidateKind }[] = [];
+  const resolved: { id: string; kind: LogCandidateKind; isMatched: boolean }[] = [];
   for (const ref of refs) {
-    if (seen.has(ref)) continue;
-    const found = findCandidate(src.candidates, ref);
+    const norm = ref.toLowerCase();
+    if (seen.has(norm)) continue;
+    const found = findCandidate(src.candidates, norm);
     if (!found) continue;
-    seen.add(ref);
-    resolved.push(found);
+    seen.add(norm);
+    resolved.push({ ...found, isMatched: norm.startsWith("m") });
   }
 
+  // 초과 시 전부 폐기하면 기존 에러 로그 삽입까지 사라진다(회귀). 상위 MAX_LOG_REFS개만
+  // 취하되, resolved가 모델 반환 순서라 slice 전에 에러 ref(n*/c*)를 매칭 ref(m*)보다 앞으로
+  // 안정 정렬 — 검증된 기존 에러 로그가 항상 생존하고, 넘치면 매칭(m*)만 잘린다.
+  let kept = resolved;
   if (resolved.length > MAX_LOG_REFS) {
     console.warn(
-      `[bugshot] AI draft returned ${resolved.length} log refs (max ${MAX_LOG_REFS}) — dropped all`,
+      `[bugshot] AI draft returned ${resolved.length} log refs (max ${MAX_LOG_REFS}) — keeping top ${MAX_LOG_REFS}, errors first`,
     );
-    return [];
+    kept = resolved
+      .map((r, i) => ({ r, i }))
+      .sort((a, b) => Number(a.r.isMatched) - Number(b.r.isMatched) || a.i - b.i)
+      .slice(0, MAX_LOG_REFS)
+      .map((x) => x.r);
   }
 
   const blocks: LogCodeBlock[] = [];
-  for (const { id, kind } of resolved) {
+  for (const { id, kind } of kept) {
     if (kind === "network") {
       const req = src.requests.find((r) => r.id === id);
       if (req) blocks.push(serializeNetworkRequest(req));

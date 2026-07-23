@@ -1,15 +1,43 @@
 import { describe, it, expect } from "vitest";
 import {
   selectLogCandidates,
+  selectMatchedLogCandidates,
   candidateRefs,
   findCandidate,
+  canRequestLogRefs,
 } from "../logCandidates";
+import type { QueryTerm } from "../queryTokens";
 import { BYOK_CAPABILITIES, NANO_CAPABILITIES } from "../../ai-provider";
 import type { AiDraftSessionContext } from "../../buildAiDraftPrompt";
 import type {
   NetworkLogSummaryError,
   ConsoleLogSummaryError,
 } from "../../buildLogSummary";
+import type { NetworkRequest } from "@/types/network";
+
+function word(term: string): QueryTerm {
+  return { term, tier: "word" };
+}
+function makeReq(overrides: Partial<NetworkRequest> = {}): NetworkRequest {
+  return {
+    id: "r1",
+    url: "https://shop.example.com/api/orders?page=1",
+    method: "GET",
+    status: 200,
+    statusText: "OK",
+    startTime: 1000,
+    durationMs: 20,
+    requestHeaders: {},
+    responseHeaders: {},
+    pageUrl: "",
+    requestBodySize: 0,
+    responseBodySize: 0,
+    contentType: "application/json",
+    phase: "complete",
+    responseBody: '{"orderStatus":"SHIPPED","items":[]}',
+    ...overrides,
+  };
+}
 
 function netErr(i: number, overrides: Partial<NetworkLogSummaryError> = {}): NetworkLogSummaryError {
   return {
@@ -138,5 +166,120 @@ describe("candidateRefs / findCandidate", () => {
     const c = selectLogCandidates(withLogs(1, 1));
     expect(findCandidate(c, "N1")).toEqual({ id: netErr(0).id, kind: "network" });
     expect(findCandidate(c, "C1")).toEqual({ id: conErr(0).id, kind: "console" });
+  });
+});
+
+describe("selectMatchedLogCandidates — 200 매칭 후보", () => {
+  it("term이 200 응답 본문에 매칭 → 후보 1개 (matchedTerm·ref·digest·path)", () => {
+    const out = selectMatchedLogCandidates([word("orderstatus")], [makeReq()], new Set(), 3);
+    expect(out).toHaveLength(1);
+    expect(out[0].ref).toBe("m1");
+    expect(out[0].matchedTerm).toBe("orderstatus");
+    expect(out[0].status).toBe(200);
+    expect(out[0].path).toBe("/api/orders"); // extractPath(url) — 쿼리 스트립
+    expect(out[0].digest).toContain("orderStatus:str"); // 키 이름은 원형 유지
+    expect(out[0].digest).not.toContain("SHIPPED"); // 값 부재
+  });
+
+  it("OVERMATCH_CEIL(8) 초과 term은 후보에 기여 안 함", () => {
+    const many = Array.from({ length: 9 }, (_, i) =>
+      makeReq({ id: `a${i}`, url: `https://x.test/api/${i}`, responseBody: "{}" }),
+    );
+    expect(selectMatchedLogCandidates([word("api")], many, new Set(), 3)).toEqual([]);
+  });
+
+  it("excludeIds·WebSocket·비-complete·비-2xx 제외", () => {
+    const t = [word("orderstatus")];
+    expect(selectMatchedLogCandidates(t, [makeReq({ id: "r1" })], new Set(["r1"]), 3)).toEqual([]);
+    expect(
+      selectMatchedLogCandidates(t, [makeReq({ webSocket: { protocol: "", frames: [], framesTotal: 0 } })], new Set(), 3),
+    ).toEqual([]);
+    expect(selectMatchedLogCandidates(t, [makeReq({ phase: "pending" })], new Set(), 3)).toEqual([]);
+    expect(selectMatchedLogCandidates(t, [makeReq({ status: 404 })], new Set(), 3)).toEqual([]);
+    expect(selectMatchedLogCandidates(t, [makeReq({ status: 302 })], new Set(), 3)).toEqual([]);
+  });
+
+  it("랭킹: distinct term 히트 수 우선 (2히트 > 1히트)", () => {
+    const a = makeReq({ id: "a", responseBody: '{"orderStatus":1,"refund":true}', startTime: 1000 });
+    const b = makeReq({ id: "b", responseBody: '{"orderStatus":1}', startTime: 5000 });
+    const out = selectMatchedLogCandidates([word("orderstatus"), word("refund")], [a, b], new Set(), 3);
+    expect(out[0].id).toBe("a");
+  });
+
+  it("랭킹: tier 우선 (quoted > word)", () => {
+    const a = makeReq({ id: "a", responseBody: '{"orderStatus":1}' });
+    const b = makeReq({ id: "b", responseBody: '{"ord-1":1}' });
+    const terms: QueryTerm[] = [word("orderstatus"), { term: "ord-1", tier: "quoted" }];
+    const out = selectMatchedLogCandidates(terms, [a, b], new Set(), 3);
+    expect(out[0].id).toBe("b");
+  });
+
+  it("cap 초과분 절삭 + ref m1.. 연속·유일", () => {
+    const reqs = Array.from({ length: 3 }, (_, i) =>
+      makeReq({ id: `r${i}`, responseBody: '{"orderStatus":1}', startTime: 1000 + i }),
+    );
+    const out = selectMatchedLogCandidates([word("orderstatus")], reqs, new Set(), 2);
+    expect(out).toHaveLength(2);
+    expect(out.map((m) => m.ref)).toEqual(["m1", "m2"]);
+  });
+
+  it("non-json 200 → 매칭되나 digest 미부착", () => {
+    const req = makeReq({ contentType: "text/plain", responseBody: "orderStatus here" });
+    const out = selectMatchedLogCandidates([word("orderstatus")], [req], new Set(), 3);
+    expect(out).toHaveLength(1);
+    expect(out[0].digest).toBeUndefined();
+  });
+
+  it("terms=[] → []", () => {
+    expect(selectMatchedLogCandidates([], [makeReq()], new Set(), 3)).toEqual([]);
+  });
+
+  it("빈 term 섞여도 전 요청 오매칭 없이 skip", () => {
+    const out = selectMatchedLogCandidates([word("")], [makeReq(), makeReq({ id: "r2" })], new Set(), 3);
+    expect(out).toEqual([]);
+  });
+});
+
+describe("selectLogCandidates — matched 편입 (rich 게이트)", () => {
+  function richCtx(overrides: Partial<AiDraftSessionContext> = {}): AiDraftSessionContext {
+    return makeCtx({
+      userPrompt: "주문 목록에서 orderStatus 매핑이 이상해요",
+      requests: [makeReq()],
+      ...overrides,
+    });
+  }
+
+  it("rich + requests + 매칭 소스 → matched 채워짐 (ref m1)", () => {
+    const c = selectLogCandidates(richCtx());
+    expect(c.matched).toHaveLength(1);
+    expect(c.matched[0].ref).toBe("m1");
+  });
+
+  it("compact → matched []", () => {
+    const c = selectLogCandidates(richCtx({ caps: NANO_CAPABILITIES }));
+    expect(c.matched).toEqual([]);
+  });
+
+  it("ctx.requests 없음 → matched []", () => {
+    const c = selectLogCandidates(makeCtx({ userPrompt: "orderStatus" }));
+    expect(c.matched).toEqual([]);
+  });
+
+  it("candidateRefs에 m* 포함", () => {
+    const c = selectLogCandidates(richCtx());
+    expect(candidateRefs(c)).toContain("m1");
+  });
+
+  it("findCandidate(M1) → network kind (대소문자 무시)", () => {
+    const c = selectLogCandidates(richCtx());
+    expect(findCandidate(c, "m1")).toEqual({ id: "r1", kind: "network" });
+    expect(findCandidate(c, "M1")).toEqual({ id: "r1", kind: "network" });
+  });
+
+  it("canRequestLogRefs: matched만 있어도 true (description 활성)", () => {
+    const c = selectLogCandidates(richCtx());
+    expect(c.network).toEqual([]);
+    expect(c.console).toEqual([]);
+    expect(canRequestLogRefs(richCtx(), c)).toBe(true);
   });
 });

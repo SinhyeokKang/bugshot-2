@@ -143,6 +143,8 @@ export function AiDraftDialog({
           includeActionLog && actionLog && actionLog.captured > 0
             ? buildActionLogSummary(actionLog)
             : undefined,
+        requests:
+          includeCnLog && networkLog?.requests?.length ? networkLog.requests : undefined,
         enabledSections,
         existingDraft: {
           title: store.draft?.title ?? "",
