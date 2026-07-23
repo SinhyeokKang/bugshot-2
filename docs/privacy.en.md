@@ -68,7 +68,7 @@ User action logs record, in addition to the clicked element, input field, and na
 - **By field type and label**: `type=password`, autocomplete hints, and sensitive keywords found in the field's name, id, `aria-label`, associated label (a `label` element or `aria-labelledby`), or placeholder (password, card, cvv, ssn, token, and their Korean equivalents).
 - **By value shape**: even when the label gives no clue, a value is masked if it looks like an email address or a run of 9 or more digits (phone, card, national ID, or bank account numbers).
 
-Every action also records the **page address** it happened on. The address on a navigation action gets the sensitive-query-parameter masking described above, but the address on click, input, toggle, select, shortcut-key, and drag actions is recorded **verbatim** — so take care on pages that carry tokens in the URL itself.
+Every action also records the **page address** it happened on. Sensitive query and fragment parameters are masked for every action, including navigation, click, input, toggle, select, shortcut-key, and drag. Ordinary address information that is not identified as sensitive remains in the log for reproduction.
 
 The **value-shape rule above applies not just to what you type, but to the element's on-screen text and field labels as well** — if the name of the element you clicked looks like an email address or a long digit run, it is masked too.
 
@@ -126,11 +126,11 @@ The extension transmits data only to the services below.
 
 | Destination | Data transmitted | Purpose |
 |---|---|---|
-| Jira REST API (`*.atlassian.net`, `api.atlassian.com`, or the site URL you specify in API token mode) | Issue body, screenshots, video, debug logs | Creating and attaching to issues |
+| Jira REST API (`*.atlassian.net`, `api.atlassian.com`, the site URL you specify in API token mode, and Jira-issued media/CDN URLs) | Issue body, screenshots, video, debug logs | Creating and attaching to issues, and resolving the uploaded attachment's media ID |
 | GitHub REST API (`api.github.com`) | Issue body, labels, assignees | Creating issues |
 | GitHub (`api.github.com`, `github.com`, and GitHub-issued upload URLs [AWS S3]) | Screenshots, video, debug logs | File upload (the github.com upload path uses **the github.com session you are already signed into**; if no github.com tab is open, a background tab is opened for the duration of the upload and closed afterwards) |
 | Linear GraphQL API (`api.linear.app`; attachments to Linear-issued upload URLs) | Issue body, screenshots, video, debug logs | Creating and attaching to issues |
-| Notion REST API (`api.notion.com`) | Page body, screenshots, video, debug logs | Creating and attaching to pages |
+| Notion REST API (`api.notion.com`) and Notion-issued file upload URLs | Page body, screenshots, video, debug logs | Creating and attaching to pages |
 | GitLab REST API (`gitlab.com` or a user-specified self-managed instance) | Issue body, labels, assignees, screenshots, video, debug logs | Creating issues and uploading files |
 | Asana REST API (`app.asana.com`) | Task body, workspace/project/assignee, screenshots, video, debug logs | Creating tasks and uploading files |
 | ClickUp REST API (`api.clickup.com`) | Task body, workspace/space/list/assignee, screenshots, video, debug logs | Creating tasks and uploading files |
@@ -138,7 +138,7 @@ The extension transmits data only to the services below.
 | OAuth proxy server | OAuth authorization code, token refresh requests (refresh token) | Token exchange (Jira, GitHub, Notion, Asana, ClickUp, Slack) |
 | User-specified LLM provider (AI draft) | Issue body draft, page URL/title, element selector/style info and design tokens, screenshot, element before/after images, and inline images placed in the body (optional), debug log summary (optional), the extra instructions you type, and any draft you have already written | AI draft generation |
 | User-specified LLM provider (AI styling) | Selected element's tag, CSS selector, class list, current specified styles, design tokens, computed layout styles (display, position, width, margin, etc.), browser viewport size, and the instruction you type | CSS change suggestion |
-| PostHog (`us.i.posthog.com`) | Anonymous aggregate events (install, panel open, platform connect/disconnect, issue submission) | Anonymous usage analytics |
+| PostHog host configured at build time (default `us.i.posthog.com`) | Anonymous aggregate events (install, panel open, platform connect/disconnect, issue submission) | Anonymous usage analytics |
 
 The OAuth proxy server only relays the token exchange and does not store or log user data. Linear and GitLab exchange tokens directly via PKCE without a proxy.
 
@@ -152,12 +152,13 @@ When searching CC (watcher) mentions, only Jira receives the search term you typ
 
 ## 4. Third-Party Sharing
 
-We do not sell, share, or transfer the information we collect to third parties. Data is transmitted to a given platform, or to the LLM provider you configure, only when you create an issue or request an AI draft or AI styling yourself, or when reproduction-step auto-fill runs (automatically upon entering the drafting screen after a video capture; can be turned off in settings).
+We do not sell the information we collect. Data is transmitted directly to the destinations listed above only as needed to perform a feature. This includes issue submission, integration candidate lookup, AI draft or styling requests, LLM model lookup during setup, OAuth code/token exchange, reproduction-step auto-fill (automatically upon entering the drafting screen after a video capture; can be turned off in settings), and anonymous usage analytics that contain no capture content. BugShot servers do not receive or store capture or report data.
 
 ## 5. Data Deletion
 
 - **Removing the extension**: `chrome.storage` data is deleted automatically.
 - **Media / log data**: You can clear site data in your browser settings, or delete items individually from the issue list inside the extension.
+- **After a regular issue is submitted successfully**: The local draft body, page/style information, and image, video, log, and attachment blobs are deleted automatically; only submission metadata and the issue URL remain. Slack submissions preserve their source data so they can later be promoted to a tracker, and that data is removed after promotion or issue deletion.
 - **Disconnecting a platform**: Disconnecting on each platform's (Jira, GitHub, Linear, Notion, GitLab, Asana, ClickUp, Slack) integration tab deletes the stored credentials.
 - **Deleting an LLM provider**: Disconnecting the provider in settings deletes the stored settings.
 
