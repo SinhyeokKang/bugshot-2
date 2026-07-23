@@ -9,10 +9,23 @@ interface HiddenFixed {
   prevPriority: string;
 }
 
+export interface PositionedElementMetrics {
+  position: string;
+  rectTop: number;
+  rectBottom: number;
+  flowTop: number;
+  flowBottom: number;
+  scrollY: number;
+  viewportHeight: number;
+  topInset: number;
+  bottomInset: number;
+}
+
 export interface ScrollCaptureSession {
   originalScroll: { x: number; y: number };
-  // 첫 hideFixed 호출에서 1회만 수집 — 타일마다 전수 순회하면 강제 리플로우 비용이 반복된다.
+  // fixed·이미 붙은 sticky를 누적 — 캡처 종료 시 원래 visibility를 모두 복원한다.
   hiddenFixed: HiddenFixed[] | null;
+  positionedCandidates: HTMLElement[] | null;
 }
 
 // hidden 탭에서는 rAF가 발화하지 않아 응답이 매달린다(prepareCaptureBySelector 선례).
@@ -28,6 +41,7 @@ export function beginScrollCapture(): {
     session: {
       originalScroll: { x: window.scrollX, y: window.scrollY },
       hiddenFixed: null,
+      positionedCandidates: null,
     },
     metrics: {
       scrollHeight: root.scrollHeight,
@@ -53,7 +67,13 @@ export function scrollCaptureTo(
       if (fallback) clearTimeout(fallback);
       // 스크롤한 뒤에 수집한다 — "스크롤하면 헤더를 fixed로 바꾸는" 사이트가 흔해
       // 스크롤 전에 훑으면 그 헤더를 못 잡고 모든 타일에 반복 인쇄된다.
-      if (hideFixed && !session.hiddenFixed) session.hiddenFixed = hideFixedElements();
+      if (hideFixed) {
+        session.positionedCandidates ??= collectPositionedCandidates();
+        session.hiddenFixed = hideRepeatedElements(
+          session.positionedCandidates,
+          session.hiddenFixed ?? [],
+        );
+      }
       resolve({ y: window.scrollY });
     };
     requestAnimationFrame(() => requestAnimationFrame(settle));
@@ -67,6 +87,7 @@ export function endScrollCapture(session: ScrollCaptureSession): void {
     else el.style.removeProperty("visibility");
   }
   session.hiddenFixed = null;
+  session.positionedCandidates = null;
   window.scrollTo({
     top: session.originalScroll.y,
     left: session.originalScroll.x,
@@ -76,16 +97,49 @@ export function endScrollCapture(session: ScrollCaptureSession): void {
 
 // display:none이 아니라 visibility — 레이아웃이 바뀌면 이미 계획한 타일 좌표가 어긋난다.
 // 페이지의 `visibility: visible !important`에 지지 않도록 important로 덮고 원값을 저장한다.
-// sticky는 제외 — 문서 흐름 안의 실제 콘텐츠(사이드바·표 헤더)라 숨기면 그 자리가 빈다.
-// 반복 인쇄(아티팩트)보다 콘텐츠 소실이 나쁘다.
-function hideFixedElements(): HiddenFixed[] {
-  const hidden: HiddenFixed[] = [];
-  // body 아래만 훑으면 <html> 직속 fixed를 놓친다. shadow DOM·iframe 내부는 여전히 미탐(한계).
+// sticky 전체를 미리 숨기면 아직 첫 등장하지 않은 섹션 헤더가 결과에서 유실되므로,
+// 각 타일에서 실제로 붙었고 원래 위치를 지난 요소만 누적해서 숨긴다.
+function collectPositionedCandidates(): HTMLElement[] {
+  const candidates: HTMLElement[] = [];
   for (const el of document.querySelectorAll<HTMLElement>("*")) {
-    // html·body 자신이 fixed인 페이지(iOS 스크롤락 관용구)를 숨기면 타일이 통째로 백지가 된다.
     if (el === document.documentElement || el === document.body) continue;
     if (el.id === HOST_ID || el.id === ANNOTATION_HOST_ID) continue;
-    if (getComputedStyle(el).position !== "fixed") continue;
+    const position = getComputedStyle(el).position;
+    if (position === "fixed" || position === "sticky") candidates.push(el);
+  }
+  return candidates;
+}
+
+function hideRepeatedElements(
+  candidates: HTMLElement[],
+  hidden: HiddenFixed[],
+): HiddenFixed[] {
+  const alreadyHidden = new Set(hidden.map(({ el }) => el));
+  const toHide: HTMLElement[] = [];
+  for (const el of candidates) {
+    if (alreadyHidden.has(el)) continue;
+    const style = getComputedStyle(el);
+    const rect = el.getBoundingClientRect();
+    const flowTop = documentOffsetTop(el);
+    if (
+      !isRepeatedPositionedElement({
+        position: style.position,
+        rectTop: rect.top,
+        rectBottom: rect.bottom,
+        flowTop,
+        flowBottom: flowTop + el.offsetHeight,
+        scrollY: window.scrollY,
+        viewportHeight: window.innerHeight,
+        topInset: Number.parseFloat(style.top),
+        bottomInset: Number.parseFloat(style.bottom),
+      })
+    ) {
+      continue;
+    }
+    toHide.push(el);
+  }
+
+  for (const el of toHide) {
     hidden.push({
       el,
       prevValue: el.style.getPropertyValue("visibility"),
@@ -94,4 +148,32 @@ function hideFixedElements(): HiddenFixed[] {
     el.style.setProperty("visibility", "hidden", "important");
   }
   return hidden;
+}
+
+export function isRepeatedPositionedElement(metrics: PositionedElementMetrics): boolean {
+  if (metrics.position === "fixed") return true;
+  if (metrics.position !== "sticky") return false;
+
+  const tolerance = 1;
+  const stuckTop =
+    Number.isFinite(metrics.topInset) &&
+    Math.abs(metrics.rectTop - metrics.topInset) <= tolerance &&
+    metrics.flowTop < metrics.scrollY + metrics.topInset &&
+    metrics.flowBottom <= metrics.scrollY + metrics.topInset;
+  const stuckBottom =
+    Number.isFinite(metrics.bottomInset) &&
+    Math.abs(metrics.viewportHeight - metrics.rectBottom - metrics.bottomInset) <= tolerance &&
+    metrics.rectTop >= -tolerance &&
+    metrics.flowBottom > metrics.scrollY + metrics.viewportHeight - metrics.bottomInset;
+  return stuckTop || stuckBottom;
+}
+
+function documentOffsetTop(el: HTMLElement): number {
+  let top = 0;
+  let current: HTMLElement | null = el;
+  while (current) {
+    top += current.offsetTop;
+    current = current.offsetParent as HTMLElement | null;
+  }
+  return top;
 }
