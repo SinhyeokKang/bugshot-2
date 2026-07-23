@@ -106,7 +106,7 @@
 .tiptap-editor .ProseMirror pre {
   background: hsl(var(--muted));
   border: 1px solid hsl(var(--border));
-  border-radius: var(--radius);
+  border-radius: calc(var(--radius) - 4px);
   padding: 16px;
   overflow-x: auto;
   font-size: var(--mono-size);

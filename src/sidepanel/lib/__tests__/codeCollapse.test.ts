@@ -88,6 +88,12 @@ describe("shouldCollapseCode", () => {
     );
   });
 
+  it("에딧·읽기 코드블럭은 rounded-sm 토큰을 쓴다", () => {
+    expect(preStyle("doc-section-body.css", ".doc-section-body pre").borderRadius).toBe(
+      "calc(var(--radius) - 4px)",
+    );
+  });
+
   // 접힘 높이가 임계값+1줄의 자연 높이 이상이면 "안 잘리는데 pill만 뜨고 클릭해도 변화가
   // 없는" 유령 접힘이 된다. 스크롤바 10px을 상수로 더했다가 정확히 이게 터진 적이 있다.
   it("CSS 접힘 높이가 임계값+1줄을 실제로 자른다 (유령 접힘 방지)", () => {
