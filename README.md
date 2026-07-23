@@ -41,6 +41,7 @@ Fix the bug visually before you even describe it.
 - **Element picker** — hover to highlight, click to select any DOM element on the page. Works on nested and deeply styled elements.
 - **DOM tree navigation** — can't reach it by hovering? Browse the live DOM tree in a dialog and pick the node directly, or step to its parent or first child — for wrappers and elements buried under an overlay.
 - **Live CSS editing** — edit layout, spacing, sizing, color, typography, borders, and more through structured fields, or switch to a syntax-highlighted CSS code editor — prefilled with the element's current styles (four-side longhands merged into shorthands), with autocomplete and inline color swatches — to edit raw CSS directly (arbitrary properties, `!important`). Changes apply to the live page instantly, so you can dial in the exact fix and see it in place.
+- **Class & text editing** — edit an element's class list or visible text live; those changes are tracked alongside its style diff.
 - **Design token awareness** — resolves `var()` chains and shows the token name (e.g. `--color-primary`) instead of the raw computed value, so the report speaks your design system's language.
 - **Before/after diff** — every change is tracked and rendered as a before → after table in the issue, so developers see exactly which properties to change. Edits across multiple elements are stacked and preserved until you submit.
 
@@ -54,6 +55,7 @@ Grab exactly what's on screen and mark it up.
 - **Screen capture** — grab the whole visible viewport in one click, no dragging.
 - **Full-page capture** — scroll and stitch the entire page into one tall screenshot; fixed headers are printed once, and very long pages stop at a limit with a notice.
 - **Annotation** — mark up the shot with arrows, a freehand pen, text, shapes, and highlights before attaching it. Zoom (fit-to-width up to 400%) and pan the canvas so you can annotate fine detail on a tall full-page shot; the finished image is always attached at its original resolution.
+- **Inline evidence** — capture an extra area or paste, drop, or add images directly into a body section, then annotate, restore, or delete them in place.
 
 ### 🎬 Recording
 
@@ -150,5 +152,7 @@ The e2e suite lives in `e2e/` — see [`e2e/README.md`](e2e/README.md) for cover
 
 ## Privacy
 
-BugShot stores your data locally and sends issue content only to the tracker you
-choose. See the [Privacy Policy](https://bug-shot.com/en/privacy).
+BugShot stores your data locally. Issue submission data goes directly to the
+destination you choose; AI features send only the context needed for that request
+directly to the AI provider you configure. BugShot servers do not receive capture
+or report content. See the [Privacy Policy](https://bug-shot.com/en/privacy).
