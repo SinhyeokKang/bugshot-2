@@ -167,13 +167,14 @@ type PreV11Shape = {
 };
 
 export function migrateToV11(state: PreV11Shape): V3Shape {
-  const jira = state.lastSubmitFields.jira;
-  if (!jira?.relatesKey) return state as V3Shape;
+  const lastSubmitFields = state.lastSubmitFields ?? {};
+  const jira = lastSubmitFields.jira;
+  if (!jira?.relatesKey) return { ...state, lastSubmitFields } as V3Shape;
   const { relatesKey, relatesLabel, ...rest } = jira;
   return {
     ...state,
     lastSubmitFields: {
-      ...state.lastSubmitFields,
+      ...lastSubmitFields,
       jira: { ...rest, relates: [{ key: relatesKey, label: relatesLabel ?? relatesKey }] },
     },
   } as V3Shape;

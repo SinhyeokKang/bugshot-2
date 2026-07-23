@@ -4,8 +4,8 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 // prune은 chrome.storage에서 활성 refId를 모은다 — 스토리지는 비었다고 가정(넘긴 activeRefIds만 활성).
 vi.stubGlobal("chrome", {
   storage: {
-    session: { get: async () => ({}) },
-    local: { get: async () => ({}) },
+    session: { get: vi.fn(async () => ({})) },
+    local: { get: vi.fn(async () => ({})) },
   },
 });
 
@@ -22,6 +22,8 @@ import {
 } from "../blob-db";
 
 beforeEach(async () => {
+  vi.mocked(chrome.storage.session.get).mockImplementation(async () => ({}));
+  vi.mocked(chrome.storage.local.get).mockImplementation(async () => ({}));
   // 각 테스트 격리: origin·image store를 비운다.
   await deleteInlineOrigins(await getInlineOriginKeys());
   await clearInlineImages();
@@ -64,5 +66,16 @@ describe("pruneOrphanInlineImages — origin 동반 정리", () => {
     expect(await getInlineImage("drop")).toBeNull();
     expect(await hasInlineOrigin("keep")).toBe(true);
     expect(await hasInlineOrigin("drop")).toBe(false);
+  });
+
+  it("active ref 스캔이 실패하면 image·origin을 삭제하지 않는다", async () => {
+    await saveInlineImage("keep", new Blob(["a"]));
+    await saveInlineOrigin("keep", new Blob(["a-orig"]));
+    vi.mocked(chrome.storage.session.get).mockRejectedValueOnce(new Error("unavailable"));
+
+    await pruneOrphanInlineImages([]);
+
+    expect(await getInlineImage("keep")).not.toBeNull();
+    expect(await hasInlineOrigin("keep")).toBe(true);
   });
 });

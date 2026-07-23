@@ -257,6 +257,12 @@ describe("migrateIssuesState (persist migrate 본체)", () => {
     vi.mocked(dataUrlToBlob).mockReturnValue(new Blob(["x"]));
   });
 
+  it.each([null, {}, { issues: null }])("sparse·손상 state %j를 빈 목록으로 보정한다", async (persisted) => {
+    const out = await migrateIssuesState(persisted, 0);
+
+    expect(out.issues).toEqual([]);
+  });
+
   it("v0: submitted 이슈를 stripSubmitted로 정리한다", async () => {
     const out = await migrateIssuesState(
       {

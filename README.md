@@ -41,6 +41,7 @@ Fix the bug visually before you even describe it.
 - **Element picker** — hover to highlight, click to select any DOM element on the page. Works on nested and deeply styled elements.
 - **DOM tree navigation** — can't reach it by hovering? Browse the live DOM tree in a dialog and pick the node directly, or step to its parent or first child — for wrappers and elements buried under an overlay.
 - **Live CSS editing** — edit layout, spacing, sizing, color, typography, borders, and more through structured fields, or switch to a syntax-highlighted CSS code editor — prefilled with the element's current styles (four-side longhands merged into shorthands), with autocomplete and inline color swatches — to edit raw CSS directly (arbitrary properties, `!important`). Changes apply to the live page instantly, so you can dial in the exact fix and see it in place.
+- **Class & text editing** — edit an element's class list or visible text live; those changes are tracked alongside its style diff.
 - **Design token awareness** — resolves `var()` chains and shows the token name (e.g. `--color-primary`) instead of the raw computed value, so the report speaks your design system's language.
 - **Before/after diff** — every change is tracked and rendered as a before → after table in the issue, so developers see exactly which properties to change. Edits across multiple elements are stacked and preserved until you submit.
 
@@ -54,6 +55,7 @@ Grab exactly what's on screen and mark it up.
 - **Screen capture** — grab the whole visible viewport in one click, no dragging.
 - **Full-page capture** — scroll and stitch the entire page into one tall screenshot; fixed headers are printed once, and very long pages stop at a limit with a notice.
 - **Annotation** — mark up the shot with arrows, a freehand pen, text, shapes, and highlights before attaching it. Zoom (fit-to-width up to 400%) and pan the canvas so you can annotate fine detail on a tall full-page shot; the finished image is always attached at its original resolution.
+- **Inline evidence** — capture an extra area or paste, drop, or add images directly into a body section, then annotate, restore, or delete them in place.
 
 ### 🎬 Recording
 
@@ -61,7 +63,7 @@ When a still image isn't enough, record the behavior.
 
 - **Tab recording** — record the current tab, up to 60 seconds, encoded to MP4 (WebM fallback where MP4 isn't supported).
 - **Screen recording** — record any window or the full screen via the system picker, up to 60 seconds.
-- **Draw while recording** — a mini toolbar (pen, box, or highlighter; 5 colors; three thicknesses) lets you mark up the page during tab/screen recording. Freehand strokes fade tail-first in draw order over ~3s; a box fades all at once. Either way it's baked into the video.
+- **Draw while recording** — a mini toolbar (pen, box, or highlighter; up to 5 colors, fewer on a narrow panel; three thicknesses) lets you mark up the page during tab/screen recording. Freehand strokes fade tail-first in draw order over ~3s; a box fades all at once. Either way it's baked into the video.
 - **30s Replay** — an opt-in, always-on buffer that keeps the **last 30 seconds** as MP4. It looks back across page navigations, so you can catch the bug even *after* spotting it — no need to hit record beforehand. After capture, **trim** the clip to keep only the bug moment — the attached logs are narrowed to the same range.
 
 ### 📋 Logs
@@ -79,7 +81,7 @@ All three logs ride along with every capture except element style editing, and t
 
 - **AI draft** — BYOK (Bring Your Own Key) with OpenAI, Anthropic, Gemini, and more; falls back to Chrome Built-in AI when no key is set. Drafts the title and body from your capture (styles, screenshot, or log summary) in one go. When the AI cites a relevant error log, the actual console/network entry is inserted into the body as a code block — serialized by the app, so log contents can't be hallucinated.
 - **AI styling** — describe the fix in words and the AI writes the CSS onto the selected element, live on the page.
-- **Repro auto-fill** — opt-in: on a recording, the steps-to-reproduce section is written for you from the action log. The action log is sent to the AI you connected.
+- **Repro auto-fill** — **on by default** once you connect an AI: after a recording, the steps-to-reproduce section is written for you from the action log, which means the action log is sent to that AI. Turn it off under Settings → Issue settings → Other.
 
 ### 📥 Issue list & drafts
 
@@ -132,6 +134,7 @@ pnpm test         # unit tests (Vitest)
 pnpm test:watch   # unit tests in watch mode
 pnpm build:e2e    # e2e-only build → dist-e2e/ (test fixture — never load/upload)
 pnpm test:e2e     # Playwright e2e suite (run build:e2e first)
+pnpm sync:agents  # regenerate the Codex mirror (AGENTS.md, .agents/skills/)
 ```
 
 Load the unpacked extension from `dist/` at `chrome://extensions` (developer mode).
@@ -149,5 +152,7 @@ The e2e suite lives in `e2e/` — see [`e2e/README.md`](e2e/README.md) for cover
 
 ## Privacy
 
-BugShot stores your data locally and sends issue content only to the tracker you
-choose. See the [Privacy Policy](https://bug-shot.com/en/privacy).
+BugShot stores your data locally. Issue submission data goes directly to the
+destination you choose; AI features send only the context needed for that request
+directly to the AI provider you configure. BugShot servers do not receive capture
+or report content. See the [Privacy Policy](https://bug-shot.com/en/privacy).
