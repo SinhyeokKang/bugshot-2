@@ -337,7 +337,7 @@ idle 복귀 전 캡처를 시도하면 기존 3중 방어(진입 가드 / 런타
 
 ### IndexedDB (Chrome 권한 불요 — 저장 데이터 레퍼런스)
 
-스크린샷·영상·사용자 첨부 **blob**은 `chrome.storage`가 아니라 IndexedDB(`src/store/blob-db.ts`)에 저장된다. `storage` 권한과 무관하지만(웹 표준 API), 정리(prune) 시 위 `chrome.storage.session`/`local`의 레코드를 역참조해 고아 blob을 지운다. privacy 문서의 "저장하는 정보"와 대조할 때 이 경로를 빠뜨리지 말 것.
+스크린샷·영상·사용자 첨부 **blob**, network/console/action 로그, 본문 inline 이미지와 어노테이션 전 원본은 `chrome.storage`가 아니라 IndexedDB(`src/store/blob-db.ts`)에 저장된다. `storage` 권한과 무관하지만(웹 표준 API), 정리(prune) 시 위 `chrome.storage.session`/`local`의 레코드를 역참조해 고아 blob을 지운다. privacy 문서의 "저장하는 정보"와 대조할 때 이 경로를 빠뜨리지 말 것.
 
 ### 쓰기 패턴 특이사항
 
@@ -511,13 +511,15 @@ background/index.ts:136 — webNavigation.onCommitted
 | 모든 페이지 | picker·로그 레코더 주입 + `captureVisibleTab`(화면·페이지 전체 캡처 + 30s Replay) + BYOK LLM 동봉 프리셋 7종(OpenAI·Anthropic·Gemini·Groq·Together·OpenRouter·Ollama(localhost))·사용자 임의 baseUrl·GitLab self-managed 임의 origin fetch + cross-origin stylesheet 원문 fetch(스타일 보강) | `picker.ts`, `recorder-bridge.ts`, `recorders-entry.ts`, `background/messages.ts`(captureVisibleTab·fetchCssSheets), `ai-provider.ts` |
 | `*.atlassian.net` | Jira REST API (API Key 모드) | `jira-api.ts` — `${baseUrl}/rest/api/3/*` |
 | `api.atlassian.com` | Jira OAuth API + accessible-resources | `jira-api.ts`, `oauth.ts` |
+| Jira 발급 media/CDN URL | 첨부 업로드 후 redirect를 따라 byte-range GET/HEAD로 media ID 판별(고정 host 아님) | `jira-api.ts` — `getMediaFileId` |
 | `auth.atlassian.com` | Jira OAuth authorize (launchWebAuthFlow — host_permission 불요) | `oauth.ts` — `launchWebAuthFlow` URL |
 | `api.github.com` | GitHub REST API | `github-api.ts` — repos, issues, users |
 | `github.com` | GitHub 파일 업로드 page injection + 에셋 업로드 정책(`github.com/upload/policies/assets`) | `github-upload.ts` — `executeScript({world:"MAIN"})` |
 | GitHub 발급 S3 업로드 URL | 정책 응답의 동적 `policy.upload_url`로 실제 바이트 PUT (고정 host 아님) | `github-upload.ts` — `policy.upload_url` |
 | `api.linear.app` | Linear GraphQL + OAuth token | `linear-api.ts`, `linear-oauth.ts` |
 | Linear 발급 업로드 URL | `requestFileUpload`가 반환하는 pre-signed URL로 첨부 바이트 PUT (고정 host 아님) | `linear-api.ts` — `uploadUrl` |
-| `api.notion.com` | Notion REST + OAuth token | `notion-api.ts`, `notion-oauth.ts` |
+| `api.notion.com` | Notion REST + OAuth authorize (token 교환은 proxy) | `notion-api.ts`, `notion-oauth.ts` |
+| Notion 발급 업로드 URL | `/file_uploads` 응답의 동적 `upload_url`로 스크린샷·영상·logs.html·사용자 첨부 multipart POST | `notion-api.ts` — `sendFileUpload` |
 | `gitlab.com` | GitLab REST + OAuth token (gitlab.com 한정) | `gitlab-api.ts`, `gitlab-oauth.ts` |
 | `app.asana.com` | Asana REST + OAuth authorize (token 교환은 proxy) | `asana-api.ts`, `asana-oauth.ts` |
 | `api.clickup.com` | ClickUp REST (task 생성·첨부 업로드·본문 갱신) | `clickup-api.ts`, `clickup-oauth.ts` |
