@@ -205,11 +205,11 @@ video-capture.ts:startVideoCapture(tabId)
 |---|---|---|---|
 | 캡처 범위 | 드래그한 사각형 | 뷰포트 1장 | 문서 전체 (스크롤 타일 스티칭) |
 | 호출 횟수 | 1 | 1 | N (타일 수 — bg 큐가 500ms 간격 직렬화) |
-| 페이지 부작용 | 없음 | 없음 | **자동 스크롤** + `position:fixed` 요소 임시 `visibility:hidden !important` 후 복원 + blocker로 클릭·휠 차단 |
+| 페이지 부작용 | 없음 | 없음 | **자동 스크롤** + 반복되는 `fixed`·이미 붙은 `sticky` 요소 임시 `visibility:hidden !important` 후 복원 + blocker로 클릭·휠 차단 |
 | 상한 | — | — | 20타일 / 캔버스 32000px / 출력 4M 픽셀 (초과 시 잘라내고 안내 toast) |
 | 진입 | `picker.startAreaSelect` 드래그 | `picker.selectFullViewport` | `picker.beginScrollCapture` → `scrollCaptureTo` × N → `endScrollCapture` |
 
-주입 경로: 셋 다 **기존 picker content script**(manifest `content_scripts[0]`)에 메시지로 위임 — `chrome.scripting` 신규 사용처 없음. 페이지 전체 캡처의 스크롤·고정 요소 변형은 `finally`의 `endScrollCapture` + picker port disconnect 자가 복원으로 항상 원복된다(`src/content/scroll-capture.ts`). 이 표가 `docs/privacy.{ko,en}.md` §1의 "페이지 전체 캡처" 문단의 근거다.
+주입 경로: 셋 다 **기존 picker content script**(manifest `content_scripts[0]`)에 메시지로 위임 — `chrome.scripting` 신규 사용처 없음. 페이지 전체 캡처는 캡처 중 추가되거나 `class`/`style` 변경으로 positioned 상태가 된 후보도 추적하며, 스크롤·요소 변형은 `finally`의 `endScrollCapture` + picker port disconnect 자가 복원으로 항상 원복된다(`src/content/scroll-capture.ts`). 이 표가 `docs/privacy.{ko,en}.md` §1의 "페이지 전체 캡처" 문단의 근거다.
 
 ### 영상 캡처 3종 (탭 녹화 / 화면 녹화 / 30s Replay)
 
