@@ -62,6 +62,12 @@ test("screenshot 스크롤 캡처 → 뷰포트보다 세로로 긴 이미지로
   const img = panel.getByTestId("media-preview-img");
   await expect(img).toBeVisible();
 
+  const pageMetrics = await fixture.evaluate(() => ({
+    width: window.innerWidth,
+    height: window.innerHeight,
+    scrollHeight: document.documentElement.scrollHeight,
+  }));
+
   // 스티치 결과는 보이는 화면보다 세로로 길어야 한다(뷰포트 캡처와 구분되는 유일한 판정).
   const ratio = await img.evaluate((el) => {
     const image = el as HTMLImageElement;
@@ -69,6 +75,30 @@ test("screenshot 스크롤 캡처 → 뷰포트보다 세로로 긴 이미지로
   });
   const pageRatio = await fixture.evaluate(() => window.innerHeight / window.innerWidth);
   expect(ratio).toBeGreaterThan(pageRatio * 1.2);
+
+  // 자홍 sticky bar는 첫 타일에는 존재하되 두 번째 타일 경계에는 반복되면 안 된다.
+  const stickySamples = await img.evaluate(async (el, metrics) => {
+    const image = el as HTMLImageElement;
+    await image.decode();
+    const canvas = document.createElement("canvas");
+    canvas.width = image.naturalWidth;
+    canvas.height = image.naturalHeight;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) throw new Error("2d context unavailable");
+    ctx.drawImage(image, 0, 0);
+    const scale = image.naturalWidth / metrics.width;
+    const sample = (x: number, y: number) => [...ctx.getImageData(x, y, 1, 1).data];
+    return {
+      first: sample(Math.floor(100 * scale), Math.floor(60 * scale)),
+      repeated: sample(
+        Math.floor(100 * scale),
+        Math.floor((metrics.height + 60) * scale),
+      ),
+    };
+  }, pageMetrics);
+  const isMagenta = ([r, g, b]: number[]) => r > 170 && g < 130 && b > 170;
+  expect(isMagenta(stickySamples.first)).toBe(true);
+  expect(isMagenta(stickySamples.repeated)).toBe(false);
 
   // 캡처가 끝나면 페이지 스크롤이 원위치로 복원된다.
   await expect
