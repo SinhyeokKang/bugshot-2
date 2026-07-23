@@ -423,7 +423,9 @@ function IssueSectionRow({
         variant="ghost"
         // --ring이 --border와 같은 값이라 기본 링은 안 보인다(DESIGN §9) — 키보드 재정렬의
         // 유일한 진입점이라 이 버튼만 대비색 링을 쓴다.
-        className="h-4 w-4 shrink-0 cursor-grab touch-none text-muted-foreground hover:bg-transparent hover:text-foreground focus-visible:ring-primary active:cursor-grabbing"
+        // 히트 영역은 아이콘(h-4 w-4)보다 넓어야 잡기 쉽다 — ::before를 absolute로 깔아
+        // 레이아웃(padding·gap·형제 위치) 무영향으로 포인터/호버/drag 타겟만 확장한다.
+        className="relative h-4 w-4 shrink-0 cursor-grab touch-none text-muted-foreground before:absolute before:-inset-2 before:content-[''] hover:bg-transparent hover:text-foreground focus-visible:ring-primary active:cursor-grabbing"
         aria-label={t("settings.reorder.handle", { label })}
         data-testid={`issue-section-handle-${section.id}`}
         {...attributes}
