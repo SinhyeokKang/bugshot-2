@@ -21,6 +21,13 @@
 
 ---
 
+## 2026-07-23 — 스크롤 캡처에서 sticky를 전부 숨기면 콘텐츠가 사라지고, 첫 후보 스냅샷만 쓰면 늦게 고정된 헤더가 반복된다
+
+- **증상**: 페이지 전체 스크린샷에서 fixed 헤더와 sticky 메뉴가 타일마다 반복해서 찍혔다. 단순히 sticky를 후속 타일에서 모두 숨기는 픽스는 아직 처음 등장하지 않은 섹션 헤더와 뷰포트보다 긴 sticky 사이드바의 일부를 결과에서 영구 누락시킬 수 있었다.
+- **근본 원인**: 반복 요소 판정에 `position` 값만 사용하면 **이미 캡처된 반복분**과 **아직 캡처하지 않은 문서 콘텐츠**를 구별할 수 없다. sticky는 원래 흐름 위치·실제 고착 위치·요소 전체 노출 여부를 함께 봐야 한다. 또한 positioned 후보를 첫 후속 타일에서 한 번만 수집하면 더 아래 스크롤 임계점에서 `static → fixed/sticky`로 바뀌거나 동적으로 추가된 요소를 놓친다.
+- **재발 방지**: (1) `grep -rn 'position.*fixed\|position.*sticky\|getComputedStyle.*position' src/content`로 스크롤 캡처의 positioned 처리 전수를 확인하고, sticky는 top/bottom 고착 + 원래 흐름 위치 통과 + 전체 기노출 조건을 함께 테스트한다. (2) 요소 전체를 `visibility:hidden` 처리할 때는 뷰포트보다 긴 top/bottom sticky 음성 케이스를 둔다. (3) 스크롤 반응형 후보 목록은 1회 스냅샷으로 끝내지 말고 class/style mutation·추가 subtree를 증분 재탐색하며, 확장이 자체 visibility mutation을 다시 dirty로 만들지 않게 한다. (4) 단위 predicate뿐 아니라 첫 타일 보존·후속 은폐·원래 priority/스크롤 복원·후행 전환·동적 삽입을 DOM 테스트와 실제 캡처 픽셀 e2e로 함께 고정한다.
+- **관련**: `src/content/scroll-capture.ts:isRepeatedPositionedElement`·`beginScrollCapture`·`hideRepeatedElements`, 그물 `src/content/__tests__/scroll-capture.test.ts`·`scroll-capture.test.tsx`, `e2e/capture-methods.spec.ts`, fixture `e2e/fixtures/pages/scroll-capture.html`.
+
 ## 2026-07-23 — 살아있는 대상 계산 실패를 빈 집합으로 오독해 참조 중인 로컬 데이터까지 orphan prune할 뻔했다
 
 - **증상**: service worker 부팅 race·storage 잠시 실패·persist JSON 손상 시, 살아있는 탭의 pending 로그·영상·첨부와 다른 탭/저장 draft가 참조 중인 inline image·원본 백업을 orphan으로 판정해 영구 삭제할 수 있었다.
