@@ -20,7 +20,7 @@ When you click **Page capture**, BugShot scrolls the page bit by bit, takes seve
 
 A few things worth knowing:
 
-- **Fixed headers** (menu bars that follow you as you scroll) are kept once at the top and hidden further down, so the same header doesn't get printed over and over through the image.
+- **Fixed and sticky headers** are kept where they first appear and hidden further down. Sticky menus are hidden only after their full content has already been captured, so nothing unseen gets dropped.
 - Only vertical scrolling is stitched. Anything that overflows horizontally is captured up to the visible width.
 - On endless pages (infinite scroll), BugShot stops after a certain length and lets you know that only part of the page was captured.
 
