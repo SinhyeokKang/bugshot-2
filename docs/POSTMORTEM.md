@@ -21,6 +21,20 @@
 
 ---
 
+## 2026-07-23 — 살아있는 대상 계산 실패를 빈 집합으로 오독해 참조 중인 로컬 데이터까지 orphan prune할 뻔했다
+
+- **증상**: service worker 부팅 race·storage 잠시 실패·persist JSON 손상 시, 살아있는 탭의 pending 로그·영상·첨부와 다른 탭/저장 draft가 참조 중인 inline image·원본 백업을 orphan으로 판정해 영구 삭제할 수 있었다.
+- **근본 원인**: 삭제 대상을 계산하는 두 경로가 같은 fail-open 패턴을 가졌다. `getActiveTabIds()`는 `chrome.tabs.query()` reject를 빈 `Set`으로 바꿔 모든 pending owner를 비활성으로 만들었고, `collectAllActiveInlineRefs()`는 session/local 조회·parse 실패를 삼켜 불완전한 ref 집합을 정상 결과로 넘겼다. 즉 **"살아있는 것 계산 실패"와 "살아있는 것 0개"를 구별하지 않은 채 비가역 삭제를 계속**했다.
+- **재발 방지**: (1) orphan/GC/prune 코드에서 `catch { return []|new Set() }`를 금지한다 — `grep -rn 'catch.*\|return \[\]\|new Set' src/store src/lib` 결과 중 반환값이 삭제 predicate로 쓰이는 경로를 전수 확인한다. (2) 참조/활성 집합 계산이 하나라도 실패하면 **삭제 전체를 skip**하는 fail-closed를 기본으로 한다. (3) 세션 1회 prune flag는 삭제 성공 **후**에만 기록해 실패 후 재시도를 막지 않는다. (4) storage/tabs 조회 reject 시 삭제가 0건인 회귀 테스트를 반드시 둔다.
+- **관련**: `src/lib/pending-log-prune.ts:getActiveTabIds`·`pruneOrphanPendingLogsOncePerSession`, `src/store/blob-db.ts:collectAllActiveInlineRefs`·`pruneOrphanInlineImages`, 그물 `src/lib/__tests__/pending-log-prune.test.ts`·`src/store/__tests__/blob-db-inline-origins.test.ts`.
+
+## 2026-07-23 — MAIN world 레코더가 원본 XHR.open보다 먼저 기록하면 idle에서도 페이지 요청을 깨뜨린다
+
+- **증상**: 페이지가 `XMLHttpRequest.open()`에 커스텀 `URL`/`toString()` 객체를 넘겨 변환 중 throw하거나, 다른 라이브러리가 XHR 인스턴스에 충돌 속성을 만든 페이지에서 BugShot 기록 로직의 예외가 정상 요청 흐름으로 전파될 수 있었다. 특히 기존 wrapper는 recorder idle인 때도 `url.toString()`과 `maskUrl()`을 원본 `open()`보다 먼저 실행했다.
+- **근본 원인**: MAIN world 후킹의 불변식은 **"원본 동작 성공이 최우선, 기록은 best-effort"인데**, XHR `open` wrapper만 메타데이터 생성을 원본 호출 앞에 두고 예외 격리도 하지 않았다. 단순히 원본 호출을 앞으로 옮긴 뒤에도, 재사용 XHR의 stale `__bugshot` 제거가 throw하는 경로까지 같은 격리 범위에 넣어야 했다.
+- **재발 방지**: (1) `grep -rn 'XMLHttpRequest\|\.open =\|\.send =\|sendBeacon\|window.fetch =' src/content` 로 MAIN world 후킹을 전수하고, 각 wrapper가 **비활성 gate → 원본 호출 우선 → 기록 전체 try/catch** 순서를 지키는지 본다(원본이 요청 정규화를 해야 하는 XHR `open`은 원본 성공 후 gate). (2) recorder off일 때는 기록용 변환을 실행하지 않고, 재사용 객체의 stale metadata는 예외 격리 안에서 무효화한다. (3) 후킹 검증은 "기록 성공"뿐 아니라 record hook·`toString()`·metadata 조작이 throw해도 원본 반환/예외가 그대로인지를 고정한다. (4) `recorders-entry` 동기 IIFE 제약 때문에 공용 helper import로 빼지 말고 self-contained를 유지한다.
+- **관련**: `src/content/network-recorder.ts:networkRecorderScript`(`XHR.open` wrapper), 비교 패턴 `src/content/network-recorder-helpers.ts:createPatchedFetch`, 그물 `src/content/__tests__/network-recorder.test.ts`·`network-recorder-helpers.test.ts`.
+
 ## 2026-07-22 — body-portal 풀스크린 오버레이를 Radix modal Dialog 안에서 트리거하면 캔버스 클릭이 다이얼로그를 닫는다 (latent — 기능 프로토타입은 롤백)
 
 - **증상**: 저장된 초안 편집 창(`DraftEditDialog`, Radix `Dialog`)의 본문 tiptap에 인라인 이미지를 넣고 `[주석 달기]`를 눌러 어노테이션 오버레이가 떠도, 캔버스에 그리려 클릭하면 **편집 다이얼로그가 통째로 닫혀** 주석이 불가능하다. **작성 화면(`DraftingPanel`, 비-modal 패널)에선 같은 오버레이가 정상 동작**해 "여기서만 안 됨"으로 갈린다. (이 경로는 편집 창에 이미지를 붙여넣기/드래그로만 닿아 눈에 잘 안 띄었고, COVERAGE.md에 "DraftEditDialog 오버레이 z-index·focus-trap"이 수동 잔여로만 적혀 있었다. 편집 창에 이미지 추가/로그 삽입 툴바를 얹으려던 시도에서 실사용 경로로 드러났으나 그 기능 자체는 롤백했다 — 함정만 남긴다.)
