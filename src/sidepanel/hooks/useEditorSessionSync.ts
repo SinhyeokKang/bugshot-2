@@ -80,14 +80,13 @@ function snapshotFromState(): EditorSnapshot {
 }
 
 export function useEditorSessionSync(tabId: number | null): boolean {
-  const [hydrated, setHydrated] = useState(false);
+  const [hydratedTabId, setHydratedTabId] = useState<number | null>(null);
   const saveTimer = useRef<number | null>(null);
   const saveFailCount = useRef(0);
   const saveSuspended = useRef(false);
 
   useEffect(() => {
     if (tabId == null) {
-      setHydrated(true);
       return;
     }
 
@@ -132,7 +131,7 @@ export function useEditorSessionSync(tabId: number | null): boolean {
           })().catch(() => {});
         }
       }
-      setHydrated(true);
+      setHydratedTabId(tabId);
     });
 
     const unsubStore = useEditorStore.subscribe((state, prev) => {
@@ -294,5 +293,5 @@ export function useEditorSessionSync(tabId: number | null): boolean {
     };
   }, [tabId]);
 
-  return hydrated;
+  return tabId == null || hydratedTabId === tabId;
 }

@@ -56,15 +56,11 @@ export function findOrphanPendingAttachmentOwners(
   return [...owners];
 }
 
-async function getActiveTabIds(): Promise<Set<number>> {
-  try {
-    const tabs = await chrome.tabs.query({});
-    const ids = new Set<number>();
-    for (const t of tabs) if (t.id != null) ids.add(t.id);
-    return ids;
-  } catch {
-    return new Set();
-  }
+export async function getActiveTabIds(): Promise<Set<number>> {
+  const tabs = await chrome.tabs.query({});
+  const ids = new Set<number>();
+  for (const t of tabs) if (t.id != null) ids.add(t.id);
+  return ids;
 }
 
 export async function pruneOrphanPendingLogs(): Promise<void> {
@@ -98,9 +94,9 @@ export async function pruneOrphanPendingLogsOncePerSession(): Promise<void> {
   try {
     const data = await chrome.storage.session.get(SESSION_FLAG);
     if (data[SESSION_FLAG]) return;
+    await pruneOrphanPendingLogs();
     await chrome.storage.session.set({ [SESSION_FLAG]: Date.now() });
   } catch {
     return;
   }
-  await pruneOrphanPendingLogs();
 }

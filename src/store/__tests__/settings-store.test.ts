@@ -323,6 +323,13 @@ describe("migrateToV5 — titlePrefix 전역 승격", () => {
 });
 
 describe("migrateToV11 — 연결 이슈 단일→복수 이관", () => {
+  it("sparse v3 state에 lastSubmitFields가 없어도 안전하게 보정한다", () => {
+    const out = migrateToV11({ accounts: {} } as never);
+
+    expect(out.accounts).toEqual({});
+    expect(out.lastSubmitFields).toEqual({});
+  });
+
   it("jira.relatesKey/relatesLabel을 relates[] 첫 항목으로 옮기고 옛 키는 제거", () => {
     const out = migrateToV11({
       accounts: {},

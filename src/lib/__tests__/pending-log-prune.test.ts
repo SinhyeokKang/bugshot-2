@@ -1,8 +1,13 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   findOrphanPendingAttachmentOwners,
   findOrphanPendingKeys,
+  getActiveTabIds,
 } from "../pending-log-prune";
+
+vi.stubGlobal("chrome", {
+  tabs: { query: vi.fn() },
+});
 
 describe("findOrphanPendingKeys", () => {
   it("returns pending keys whose tabId is not in activeTabIds", () => {
@@ -87,5 +92,13 @@ describe("findOrphanPendingAttachmentOwners", () => {
 
   it("빈 키 리스트", () => {
     expect(findOrphanPendingAttachmentOwners([], new Set([1]))).toEqual([]);
+  });
+});
+
+describe("getActiveTabIds", () => {
+  it("tabs.query 실패를 빈 집합으로 바꾸지 않고 prune을 중단시킨다", async () => {
+    vi.mocked(chrome.tabs.query).mockRejectedValueOnce(new Error("unavailable"));
+
+    await expect(getActiveTabIds()).rejects.toThrow("unavailable");
   });
 });

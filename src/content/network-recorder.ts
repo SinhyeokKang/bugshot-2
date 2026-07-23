@@ -268,13 +268,20 @@ function networkRecorderScript(): void {
     url: string | URL,
     ...rest: unknown[]
   ) {
-    (this as any).__bugshot = {
-      method,
-      url: maskUrl(typeof url === "string" ? url : url.toString()),
-      startTime: 0,
-      reqHeaders: {} as Record<string, string>,
-    };
-    return (originalOpen as Function).call(this, method, url, ...rest);
+    const result = (originalOpen as Function).call(this, method, url, ...rest);
+    if (!capturing) {
+      try { delete (this as any).__bugshot; } catch {}
+      return result;
+    }
+    try {
+      (this as any).__bugshot = {
+        method,
+        url: maskUrl(typeof url === "string" ? url : url.toString()),
+        startTime: 0,
+        reqHeaders: {} as Record<string, string>,
+      };
+    } catch { /* recording must not affect the page request */ }
+    return result;
   };
 
   XHR.setRequestHeader = function (this: XMLHttpRequest, name: string, value: string) {

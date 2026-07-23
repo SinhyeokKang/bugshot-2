@@ -259,7 +259,13 @@ export async function migrateIssuesState(
   persisted: unknown,
   version: number,
 ): Promise<IssuesState> {
-  const state = persisted as { issues: LegacyIssueRecord[] };
+  const source = persisted && typeof persisted === "object"
+    ? persisted as Record<string, unknown>
+    : {};
+  const state = {
+    ...source,
+    issues: Array.isArray(source.issues) ? source.issues as LegacyIssueRecord[] : [],
+  };
   if (version < 4) {
     state.issues = state.issues.map(migrateIssueToV4);
   }

@@ -568,28 +568,24 @@ function scanInlineRefs(text: string, out: Set<string>): void {
 
 async function collectAllActiveInlineRefs(): Promise<Set<string>> {
   const refs = new Set<string>();
-  try {
-    const sessionData = await chrome.storage.session.get(null);
-    for (const [key, value] of Object.entries(sessionData)) {
-      if (!key.startsWith(EDITOR_SESSION_PREFIX)) continue;
-      const snap = value as { draft?: { sections?: Record<string, string> } };
-      if (!snap?.draft?.sections) continue;
-      for (const text of Object.values(snap.draft.sections)) scanInlineRefs(text, refs);
+  const sessionData = await chrome.storage.session.get(null);
+  for (const [key, value] of Object.entries(sessionData)) {
+    if (!key.startsWith(EDITOR_SESSION_PREFIX)) continue;
+    const snap = value as { draft?: { sections?: Record<string, string> } };
+    if (!snap?.draft?.sections) continue;
+    for (const text of Object.values(snap.draft.sections)) scanInlineRefs(text, refs);
+  }
+  const localData = await chrome.storage.local.get("bugshot-issues");
+  const raw = localData["bugshot-issues"];
+  const store = (typeof raw === "string" ? JSON.parse(raw) : raw) as
+    | { state?: { issues?: Array<{ draft?: { sections?: Record<string, string> } }> } }
+    | undefined;
+  if (store?.state?.issues) {
+    for (const issue of store.state.issues) {
+      if (!issue.draft?.sections) continue;
+      for (const text of Object.values(issue.draft.sections)) scanInlineRefs(text, refs);
     }
-  } catch { /* session storage unavailable */ }
-  try {
-    const localData = await chrome.storage.local.get("bugshot-issues");
-    const raw = localData["bugshot-issues"];
-    const store = (typeof raw === "string" ? JSON.parse(raw) : raw) as
-      | { state?: { issues?: Array<{ draft?: { sections?: Record<string, string> } }> } }
-      | undefined;
-    if (store?.state?.issues) {
-      for (const issue of store.state.issues) {
-        if (!issue.draft?.sections) continue;
-        for (const text of Object.values(issue.draft.sections)) scanInlineRefs(text, refs);
-      }
-    }
-  } catch { /* local storage unavailable or parse error */ }
+  }
   return refs;
 }
 
