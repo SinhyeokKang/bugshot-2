@@ -238,7 +238,7 @@ export default function App() {
           <div className="relative z-10 flex animate-text-breathe items-center justify-center px-6 motion-reduce:animate-none">
             <AiLoadingText
               text={t(aiLoadingPhraseKey(aiSurface, aiStep))}
-              className={cn("text-lg font-semibold", AI_OVERLAY_STYLE[aiSurface].text)}
+              className={cn("text-xl font-semibold", AI_OVERLAY_STYLE[aiSurface].text)}
             />
           </div>
           <Button
