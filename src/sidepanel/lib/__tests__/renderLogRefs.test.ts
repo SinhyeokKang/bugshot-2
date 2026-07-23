@@ -131,15 +131,44 @@ describe("renderLogRefBlocks", () => {
     expect(renderLogRefBlocks(["n1", "n2", "c1"], src)).toHaveLength(3);
   });
 
-  it("유효 4개 → 전부 버림 + [bugshot] console.warn", () => {
+  // CAP 회귀 수정: 초과 시 return [](전멸) → 상위 3개 slice. 전멸은 기존 에러 로그 삽입까지
+  // 날리는 회귀였다(m* 후보가 같은 3칸을 두고 경쟁하며 확률 증가).
+  it("유효 4개(에러) → 전멸 아니라 상위 3개 slice + [bugshot] console.warn", () => {
     const requests = Array.from({ length: 3 }, (_, i) =>
       makeRequest({ id: `nr-${i}`, url: `https://example.com/e${i}` }),
     );
     const src = makeSource(requests, [makeEntry()]);
-    expect(renderLogRefBlocks(["n1", "n2", "n3", "c1"], src)).toEqual([]);
+    expect(renderLogRefBlocks(["n1", "n2", "n3", "c1"], src)).toHaveLength(3);
     expect(console.warn).toHaveBeenCalled();
     const logged = vi.mocked(console.warn).mock.calls.flat().join(" ");
     expect(logged).toContain("[bugshot]");
+  });
+
+  it("공유 캡 초과: 에러(n*/c*) 우선 정렬 후 slice — 매칭(m*)이 먼저 잘린다", () => {
+    const n1 = makeRequest({ id: "n1id", url: "https://x.test/err1", status: 500 });
+    const n2 = makeRequest({ id: "n2id", url: "https://x.test/err2", status: 500 });
+    const m1req = makeRequest({ id: "m1id", url: "https://x.test/ok1", status: 200 });
+    const m2req = makeRequest({ id: "m2id", url: "https://x.test/ok2", status: 200 });
+    // matched 후보를 직접 구성 (selectLogCandidates 경유 없이 renderLogRefs만 단위 검증).
+    const candidates = {
+      network: [
+        { ref: "n1", id: "n1id", method: "GET", path: "/err1", status: 500, statusText: "" },
+        { ref: "n2", id: "n2id", method: "GET", path: "/err2", status: 500, statusText: "" },
+      ],
+      console: [],
+      matched: [
+        { ref: "m1", id: "m1id", method: "GET", path: "/ok1", status: 200, matchedTerm: "x" },
+        { ref: "m2", id: "m2id", method: "GET", path: "/ok2", status: 200, matchedTerm: "y" },
+      ],
+    };
+    const src: LogRefSource = { candidates, requests: [n1, n2, m1req, m2req], entries: [] };
+    // 모델이 매칭을 먼저 인용해도(m1,m2,n1,n2) 에러 우선 정렬로 n1·n2 생존, m2가 잘린다.
+    const blocks = renderLogRefBlocks(["m1", "m2", "n1", "n2"], src);
+    expect(blocks).toHaveLength(3);
+    expect(blocks).toContainEqual(serializeNetworkRequest(n1));
+    expect(blocks).toContainEqual(serializeNetworkRequest(n2));
+    expect(blocks).toContainEqual(serializeNetworkRequest(m1req)); // 매칭 1개 생존
+    expect(blocks).not.toContainEqual(serializeNetworkRequest(m2req)); // 초과 매칭 절삭
   });
 
   it("미지 ref를 뺀 유효 개수로 상한 판정 (미지 2 + 유효 3 → 3블록)", () => {

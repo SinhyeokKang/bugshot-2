@@ -21,6 +21,20 @@
 
 ---
 
+## 2026-07-23 — 공유 캡(MAX_LOG_REFS)에 새 후보 소스를 더하면 초과 시 전량 폐기가 기존 삽입까지 죽인다
+
+- **증상**: AI 초안이 원인 로그를 코드블럭으로 삽입할 때, 모델이 로그를 여러 개 지목하면 **기존에 잘 삽입되던 에러 로그까지 하나도 안 붙는** 경우가 생긴다(전멸). 200 매칭 후보(`m*`)를 새로 도입하자 발현 확률이 올랐다.
+- **근본 원인**: `renderLogRefBlocks`는 resolved ref가 `MAX_LOG_REFS(3)`를 넘으면 `slice`가 아니라 `return []`로 **전부 버렸다**(원래는 "나열 신호로 보고 폐기"라는 의도). 에러 후보(`n*`/`c*`)와 새 매칭 후보(`m*`)가 **같은 3칸을 두고 경쟁**하면서, 에러 2 + 매칭 2 = 4개 인용 시 검증된 에러 로그 삽입까지 통째로 사라졌다. 새 ref 소스를 공유 캡에 얹으면서 그 캡의 초과 정책(drop-all)을 재검토하지 않은 게 핵심. **문서(ARCHITECTURE 불변식 ③·DIRECTORY renderLogRefs)조차 "전량 폐기"를 의도된 동작으로 박아두고 있어** 코드만 봐선 회귀로 안 보였다.
+- **재발 방지**: (1) 공유 상한에 **새 후보/ref 소스를 추가할 때는 초과 정책이 drop-all인지 slice인지 반드시 확인**한다 — `grep -rn 'MAX_LOG_REFS\|return \[\]' src/sidepanel/lib/renderLogRefs.ts`. (2) 여러 종류의 ref가 한 캡을 공유하면 **우선순위 정렬**(검증된 것 우선) 후 slice해 기존 가치가 새 소스에 밀려 잘리지 않게 한다(여기선 `ref.startsWith("m")`로 에러 우선). (3) 초과-폐기/절삭은 **단위로 고정**한다 — `["n1","n2","m1","m2"] → 3블록(에러 우선)`을 유닛+e2e로 잠가 다음 소스 추가 때 회귀가 소리 없이 확대되지 않게. (4) 캡 동작을 바꾸면 그 동작을 서술한 **문서(불변식)도 같은 커밋에서** 고친다 — 문서가 옛 동작을 "의도"로 못박으면 회귀 진단이 늦어진다.
+- **관련**: `src/sidepanel/lib/renderLogRefs.ts:renderLogRefBlocks`(에러 우선 정렬+slice), `src/sidepanel/lib/prompts/logCandidates.ts:selectMatchedLogCandidates`(새 `m*` 소스), 그물 `src/sidepanel/lib/__tests__/renderLogRefs.test.ts`·`e2e/ai-draft-matching-log.spec.ts`(CAP 회귀), 문서 `docs/ARCHITECTURE.md` 불변식 ③.
+
+## 2026-07-23 — "데이터성 키 redact" 정규식이 접두-토큰 레코드ID를 통과시켜 문서의 수용 경계와 코드가 어긋났다
+
+- **증상**: AI 초안이 성공 응답의 shape 다이제스트(키·타입, 값 제외)를 LLM에 보낼 때, 맵/딕셔너리형 응답(`{"cus_H3k9xY2z":{…}, "user_88213":{…}}`)의 **키가 곧 실제 데이터(레코드ID·세션토큰)**인데도 그대로 LLM에 실렸다. "값은 안 나간다"는 프라이버시 약속의 사각.
+- **근본 원인**: 데이터성 키를 가리려 만든 `safeKey` 정규식 `^[A-Za-z_][A-Za-z0-9_]{0,39}$`는 이메일(`@`)·UUID(`-`)·공백만 redact하고, **식별자 모양의 접두-토큰 ID(`cus_…`·`user_88213`)는 코드 식별자와 구분 불가라 통과**시킨다. 설계 문서엔 이 한계를 "수용 경계"로 적었으나, 실제로는 `u_8471` 같은 좁은 예시만 들어 커버리지를 과장했다(주석도 "근본적으로 키를 안 내보낸다"고 과장). 정규식이 "스키마 키만 통과"라는 **의도를 실제로 달성하는지**를 흔한 ID 포맷으로 검증하지 않은 게 원인. dictionary-shape collapse(키 >8 + 값 타입 균일)로 주경로는 막았으나 작은 맵·혼합 맵은 여전히 잔존.
+- **재발 방지**: (1) 프라이버시 필터(마스킹·redaction·allowlist)를 **"이런 걸 가린다"로 서술할 땐 흔한 실제 포맷(Stripe `cus_`·`sess_`·전화·계좌)으로 통과 테스트**를 두고, 안 걸리는 것을 negative case로 잠근다 — `grep -rn 'safeKey\|SCHEMA_KEY_RE\|maskJsonBody\|MASKED' src`로 필터 전수. (2) 주석·설계 문서의 커버리지 주장은 **정규식이 실제로 achieve하는 범위**로 정확히 적는다(과장 금지 — "근본 차단"과 "주경로 차단+잔여 경계"는 다르다). (3) 코드→문서 방향 리뷰(외부 눈)가 self-review의 확증편향을 깬다 — 이 건도 self-verify는 통과시켰고 fresh `/code-review`가 잡았다.
+- **관련**: `src/sidepanel/lib/prompts/responseDigest.ts:safeKey`·`digestResponseShape`(dictionary collapse), 그물 `src/sidepanel/lib/prompts/__tests__/responseDigest.test.ts`, 경계 서술 `docs/features/ai-draft-matching-log/design.md` 위험 요소·`docs/privacy.{ko,en}.md`.
+
 ## 2026-07-23 — 스크롤 캡처에서 sticky를 전부 숨기면 콘텐츠가 사라지고, 첫 후보 스냅샷만 쓰면 늦게 고정된 헤더가 반복된다
 
 - **증상**: 페이지 전체 스크린샷에서 fixed 헤더와 sticky 메뉴가 타일마다 반복해서 찍혔다. 단순히 sticky를 후속 타일에서 모두 숨기는 픽스는 아직 처음 등장하지 않은 섹션 헤더와 뷰포트보다 긴 sticky 사이드바의 일부를 결과에서 영구 누락시킬 수 있었다.

@@ -8,7 +8,7 @@
     "description": "액션 버튼/짧은 표시용 이름"
   },
   "EXT_DESCRIPTION": {
-    "message": "버그 발견부터 수정, 캡처, 이슈 생성까지 한 번에.",
+    "message": "사이드 패널에서 버그를 캡처하고 QA 리포트를 작성하세요. 스크린샷·녹화·콘솔/네트워크 로그와 실시간 CSS 수정, Jira·GitHub·Notion 전송을 지원합니다.",
     "description": "Chrome 웹스토어용 설명"
   },
   "CMD_TOGGLE_PANEL": {

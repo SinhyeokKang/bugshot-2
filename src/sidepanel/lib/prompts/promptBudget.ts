@@ -19,6 +19,7 @@ export function trimDraftContext(
     delete out.networkLogSummary;
     delete out.consoleLogSummary;
     delete out.actionLogSummary;
+    delete out.requests; // 매칭 후보도 로그와 한 덩어리로 소멸(selectLogCandidates 재실행이 빈 매칭 반환)
   }
   if (level >= 2) {
     delete out.existingDraft;
