@@ -1,16 +1,34 @@
-import { memo, useState, type MouseEvent } from "react";
+import { memo, useState, Fragment, type MouseEvent } from "react";
 import { ChevronDown, ChevronUp } from "lucide-react";
 import { LogSeekChip } from "@/sidepanel/components/LogSeekChip";
 import { LevelIcon } from "@/sidepanel/components/ConsoleLogContent";
 import { LinkifiedText } from "@/sidepanel/components/LinkifiedText";
 import { KindIcon, renderActionContent } from "@/sidepanel/components/ActionLogContent";
 import { ContentTypeIcon, methodColor } from "@/sidepanel/components/NetworkLogContent";
+import { splitTemplate } from "@/sidepanel/lib/actionInline";
 import { formatRelativeTime } from "@/sidepanel/lib/logRow";
 import { networkLogPath } from "@/lib/network-log-path";
 import { TONE_TEXT } from "@/lib/log-colors";
 import { isNetworkError, isNetworkPending, isStatusHidden } from "@/lib/network-status";
 import { t } from "../i18n";
 import { timelineFillClass, type TimelineItem } from "../timeline-merge";
+
+type NetworkReq = Extract<TimelineItem, { kind: "network" }>["req"];
+
+// method → 자연어 동사 키(i18n `timeline.net.verb.*`). action 로그처럼 문장을 조립한다.
+function netVerbKey(req: NetworkReq): string {
+  if (req.webSocket) return "connected";
+  switch (req.method.toUpperCase()) {
+    case "GET": return "fetched";
+    case "POST": return "sent";
+    case "PUT":
+    case "PATCH": return "updated";
+    case "DELETE": return "deleted";
+    case "HEAD":
+    case "OPTIONS": return "checked";
+    default: return "requested";
+  }
+}
 
 interface TimelineRowProps {
   item: TimelineItem;
@@ -24,7 +42,7 @@ function stop(e: MouseEvent) {
   e.stopPropagation();
 }
 
-function statusLabel(req: Extract<TimelineItem, { kind: "network" }>["req"]): string {
+function statusLabel(req: NetworkReq): string {
   if (isNetworkPending(req)) return "···";
   if (isStatusHidden(req) || req.status <= 0) return "—";
   return String(req.status);
@@ -87,12 +105,17 @@ export const TimelineRow = memo(function TimelineRow({
         {item.kind === "network" && (
           <>
             <ContentTypeIcon req={item.req} />
-            {/* method를 동사로 쓴 mono 문장 — action "Clicked {}"처럼 동사는 foreground(무채색).
-                경로는 action log URL처럼 파랑+밑줄 링크 표현이나 <a>가 아니라, 클릭은 행 activation
-                (URL 이동 아님)으로 흐른다. method 색은 우측 sans 메타에만 준다. */}
+            {/* action "Clicked {}"처럼 method를 자연어 동사로 조립. 동사는 foreground mono,
+                경로 슬롯은 action log URL처럼 파랑+밑줄 링크 표현이나 <a>가 아니라 클릭은 행
+                activation(URL 이동 아님)으로 흐른다. raw method 색은 우측 sans 메타에만 준다. */}
             <span className="min-w-0 flex-1 truncate font-mono text-mono">
-              <span className="text-foreground">{item.req.method}</span>{" "}
-              <span className={`${TONE_TEXT.blue} underline`}>{networkLogPath(item.req.url)}</span>
+              {splitTemplate(t(`timeline.net.verb.${netVerbKey(item.req)}`)).map((tok, i) =>
+                tok.type === "slot" ? (
+                  <span key={i} className={`${TONE_TEXT.blue} underline`}>{networkLogPath(item.req.url)}</span>
+                ) : (
+                  <Fragment key={i}>{tok.value}</Fragment>
+                ),
+              )}
             </span>
             <span data-testid="timeline-net-meta" className="flex shrink-0 items-center gap-1.5 text-muted-foreground">
               <span className={methodColor(item.req.method)}>{item.req.method}</span>
