@@ -2,9 +2,10 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Search, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Badge } from "@/components/ui/badge";
 import { useDebouncedValue } from "@/sidepanel/lib/useDebouncedValue";
 import { findActiveIndex } from "../timeline";
-import { matchesTimelineItem, type TimelineFilter, type TimelineItem, type TimelineKind } from "../timeline-merge";
+import { matchesTimelineItem, type TimelineFilter, type TimelineItem } from "../timeline-merge";
 import { TimelineRow } from "./TimelineRow";
 import { t } from "../i18n";
 
@@ -17,7 +18,10 @@ interface TimelinePanelProps {
   onActivate: (item: TimelineItem) => void;
 }
 
-const KIND_LABEL: Record<TimelineKind, string> = {
+// 로그 탭과 동일하게 4개 필터를 항상 노출(없으면 0 뱃지).
+const FILTERS: TimelineFilter[] = ["all", "console", "network", "action"];
+const FILTER_LABEL: Record<TimelineFilter, string> = {
+  all: "timeline.filter.all",
   console: "timeline.filter.console",
   network: "timeline.filter.network",
   action: "timeline.filter.action",
@@ -34,16 +38,12 @@ export function TimelinePanel({ items, videoStartedAt, setTimeListener, onActiva
     return () => setTimeListener(null);
   }, [setTimeListener, videoStartedAt]);
 
-  // 존재하는 kind만 필터 탭 노출(빈 타입 탭 방지). All은 항상.
-  const filters = useMemo<TimelineFilter[]>(() => {
-    const present = new Set(items.map((i) => i.kind));
-    return ["all", ...(["console", "network", "action"] as TimelineKind[]).filter((k) => present.has(k))];
+  // 필터별 카운트(로그 탭 count 뱃지 패턴). all=총합, 없으면 0.
+  const counts = useMemo<Record<TimelineFilter, number>>(() => {
+    const c = { all: items.length, console: 0, network: 0, action: 0 };
+    for (const it of items) c[it.kind]++;
+    return c;
   }, [items]);
-
-  // 필터로 사라진 선택은 all로 복귀.
-  useEffect(() => {
-    if (filter !== "all" && !filters.includes(filter)) setFilter("all");
-  }, [filters, filter]);
 
   const filtered = useMemo(
     () => items.filter((i) => matchesTimelineItem(i, filter, debouncedQuery)),
@@ -86,9 +86,10 @@ export function TimelinePanel({ items, videoStartedAt, setTimeListener, onActiva
         <div className="flex items-center gap-3 border-b px-4 py-4">
           <div className="min-w-0 overflow-x-auto">
             <TabsList>
-              {filters.map((f) => (
-                <TabsTrigger key={f} value={f} data-testid={`timeline-filter-${f}`}>
-                  {f === "all" ? t("timeline.filter.all") : t(KIND_LABEL[f])}
+              {FILTERS.map((f) => (
+                <TabsTrigger key={f} value={f} data-testid={`timeline-filter-${f}`} className="gap-1.5">
+                  {t(FILTER_LABEL[f])}
+                  <Badge className="ml-0.5 h-5 min-w-5 shrink-0 px-1.5 text-[10px]">{counts[f]}</Badge>
                 </TabsTrigger>
               ))}
             </TabsList>
@@ -115,7 +116,7 @@ export function TimelinePanel({ items, videoStartedAt, setTimeListener, onActiva
         </div>
       </Tabs>
 
-      <div ref={scrollRef} onScroll={handleScroll} className="min-h-0 flex-1 overflow-y-auto" data-testid="timeline-scroll">
+      <div ref={scrollRef} onScroll={handleScroll} className="ml-4 min-h-0 flex-1 overflow-y-auto" data-testid="timeline-scroll">
         {items.length === 0 ? (
           <div className="flex h-full items-center justify-center px-4 text-center text-sm text-muted-foreground/70">
             {t("timeline.empty")}
