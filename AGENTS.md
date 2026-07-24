@@ -133,7 +133,7 @@ pnpm version major --no-git-tag-version   # 1.0.0 → 2.0.0 (Breaking change)
 /guide          → guide/ko·en 사용자 가이드 작성·갱신. AUTHORING.md 규칙 로드 → 코드 대조 stale 탐지 → ko/en 동시 갱신 + 검증. 빌드·커밋 안 함
 /doc-check      → 8개 저장소 문서(CLAUDE/DIRECTORY/ARCHITECTURE/DESIGN/README/PERMISSION/privacy/AUTHORING)를 문서별 전담 에이전트가 병렬로 diff 무관 코드 양방향 대조(Pass1 문서→코드 사실오류 + Pass2 코드→문서 누락 커버리지) → 통합 리포트 → 항목별 확인 → 수정. /push 신선도 검사보다 깊다(diff에 안 걸린 누적 stale·섹션 내부 누락까지). guide/ko·en 본문은 제외(/guide 전담, AUTHORING은 검사). 빌드 안 함
 /push           → dev push (main에서 호출 차단) + CLAUDE.md/docs/DIRECTORY.md/docs/ARCHITECTURE.md/README.md/docs/PERMISSION.md/docs/privacy.{ko,en}.md/guide(+AUTHORING.md) 신선도 검사 + Codex 미러 게이트(sync:agents:check — 드리프트면 재생성 커밋) + e2e 게이트(.last-green == HEAD면 스킵 / 빨강이면 푸시 중단)
-/merge          → dev에서 e2e 게이트 교차(통상 /push 기록 해시로 스킵 / 빨강이면 중단) → 버전 bump 커밋 + dev → main squash PR 생성 + 자동 머지
+/merge          → dev에서 e2e 게이트 교차(통상 /push 기록 해시로 스킵 / 빨강이면 중단) → 커버리지 리포트(로직 스코프 vs 베이스라인, 비차단 — 회귀 경고만·개선 시 baseline 자동 래칫 커밋) → 버전 bump 커밋 + dev → main squash PR 생성 + 자동 머지
 /deploy         → main 한정. tag push → 스토어 빌드 → zip → GitHub Release draft → 심사 요청 안내
 /sync           → dev를 origin/main으로 hard reset + force push (배포/머지 후)
 /ship           → 작은·외과적 변경 하나를 /tdd→/implement→커밋→/code-review→/refactor→(/e2e-write)→(/guide)→(/doc-check)→(/postmortem)→/e2e-run→/push→/build로 자동 오케스트레이션. 단계별 게이트 통과 시 진행, 하드 실패·사용자 결정 지점(회귀위험·doc stale·e2e red)에선 즉시 중단+리포트. guide·doc-check은 영향 플래그 게이팅. 호출이 곧 push 지시. 큰·다영역·신규기능(feature 문서 필요)은 스코프 가드로 거부. Codex 런타임은 /e2e-run까지만 돌고 /push·/build를 Claude Code에 인계
