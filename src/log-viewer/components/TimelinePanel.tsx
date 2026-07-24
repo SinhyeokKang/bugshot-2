@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Search, X } from "lucide-react";
+import { List, Search, SearchX, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
@@ -118,12 +118,18 @@ export function TimelinePanel({ items, videoStartedAt, setTimeListener, onActiva
 
       <div ref={scrollRef} onScroll={handleScroll} className="min-h-0 flex-1 overflow-y-auto" data-testid="timeline-scroll">
         {items.length === 0 ? (
-          <div className="flex h-full items-center justify-center px-4 text-center text-sm text-muted-foreground/70">
-            {t("timeline.empty")}
+          <div className="flex h-full flex-col items-center justify-center gap-3 px-4 text-center">
+            <div className="rounded-full bg-muted p-3">
+              <List className="h-6 w-6 text-muted-foreground" />
+            </div>
+            <span className="text-sm text-muted-foreground">{t("timeline.empty")}</span>
           </div>
         ) : filtered.length === 0 ? (
-          <div className="flex h-full items-center justify-center px-4 text-center text-sm text-muted-foreground/70">
-            {t("timeline.filterEmpty")}
+          <div className="flex h-full flex-col items-center justify-center gap-3 px-4 text-center">
+            <div className="rounded-full bg-muted p-3">
+              <SearchX className="h-6 w-6 text-muted-foreground" />
+            </div>
+            <span className="text-sm text-muted-foreground">{t("timeline.filterEmpty")}</span>
           </div>
         ) : (
           filtered.map((item, i) => (
