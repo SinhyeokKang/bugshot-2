@@ -197,14 +197,20 @@ export function NetworkLogContent({ requests, flush, syncBaseMs, onSeek, activeT
     return idx >= 0 ? filteredRequests[idx].id : null;
   }, [filteredRequests, activeTs]);
 
+  // 요청 선택 단일 경로 — 클릭(handleSelect)과 외부 스크롤(useScrollToEntry.onFound) 양쪽이 공유해
+  // detailTab 리셋을 전수한다(한쪽만 리셋하면 타임라인 점프 시 이전 서브탭이 남는다).
+  const selectRequest = useCallback((id: string) => {
+    setActiveId(id);
+    const req = requests.find((r) => r.id === id);
+    setDetailTab(req?.webSocket ? "messages" : "headers");
+  }, [requests]);
+
   const handleSelect = (id: string) => {
     if (activeId === id) {
       setActiveId(null);
       return;
     }
-    setActiveId(id);
-    const req = requests.find((r) => r.id === id);
-    setDetailTab(req?.webSocket ? "messages" : "headers");
+    selectRequest(id);
   };
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -254,7 +260,7 @@ export function NetworkLogContent({ requests, flush, syncBaseMs, onSeek, activeT
     searchSettled: query === debouncedQuery,
     resetFilters: useCallback(() => { setFilter("all"); setOriginFilter(null); setQuery(""); }, []),
     onScrollComplete,
-    onFound: useCallback(() => { if (scrollToEntryId) setActiveId(scrollToEntryId); }, [scrollToEntryId]),
+    onFound: useCallback(() => { if (scrollToEntryId) selectRequest(scrollToEntryId); }, [scrollToEntryId, selectRequest]),
   });
 
   const onDragStart = useCallback((e: React.MouseEvent) => {
@@ -347,7 +353,7 @@ export function NetworkLogContent({ requests, flush, syncBaseMs, onSeek, activeT
         {requests.length === 0 ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-3">
             <div className="rounded-full bg-muted p-3">
-              <Globe className="h-6 w-6 text-muted-foreground" />
+              <Globe className="h-6 w-6 text-foreground" />
             </div>
             <span className="text-sm text-muted-foreground">{t("debug.network.empty")}</span>
           </div>
