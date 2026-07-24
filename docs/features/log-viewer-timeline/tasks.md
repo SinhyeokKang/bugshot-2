@@ -27,20 +27,20 @@
   - `matchesTimelineItem(item, kinds, query)`: 타입 토글 + 검색 매칭. console=`entry.args` includes / network=`requestMatchesQuery` / action=`searchText` includes.
   - `timelineFillClass(item)`: **기존 배경색 함수 위임** — console=`levelBgColor(entry.level)`(info blue 포함, 우측 탭과 완전 sync), network=`isError`/`isPending` 분기로 base 틴트, action=`""`. 값 복제 금지.
 - **검증**:
-  - [ ] 3종 혼합 입력이 시간순으로 병합됨
-  - [ ] 동일 `absTs` 다발이 action→network→console 순으로 안정 정렬됨
-  - [ ] null/빈 로그에서 빈 배열 또는 단일 타입만 반환
-  - [ ] `matchesTimelineItem` — 타입 토글·검색어(kind별 매칭 경로)·빈 query 케이스
-  - [ ] `timelineFillClass`가 위임 함수 반환값과 동일(console 전 레벨 — info blue 포함, network error/pending, action `""`)
-  - [ ] 기존 3종 컴포넌트 렌더 테스트 회귀 없음(export·rowBg base 분리 후) — `pnpm test` 통과
+  - [x] 3종 혼합 입력이 시간순으로 병합됨
+  - [x] 동일 `absTs` 다발이 action→network→console 순으로 안정 정렬됨
+  - [x] null/빈 로그에서 빈 배열 또는 단일 타입만 반환
+  - [x] `matchesTimelineItem` — 타입 토글·검색어(kind별 매칭 경로)·빈 query 케이스
+  - [x] `timelineFillClass`가 위임 함수 반환값과 동일(console 전 레벨 — info blue 포함, network error/pending, action `""`)
+  - [x] 기존 3종 컴포넌트 렌더 테스트 회귀 없음(export·rowBg base 분리 후) — `pnpm test` 통과
 
 ### Task 2: VideoPlayer playhead 콜백
 - **변경 대상**: `src/log-viewer/components/VideoPlayer.tsx`
 - **작업 내용**: `VideoPlayerProps`에 `onTimeUpdate?: (sec: number) => void` 추가, 기존 `handleTimeUpdate`(55행 부근)에서 `setCurrentTimeSec` 직후 콜백 호출. `VideoPlayerHandle`·기존 마커/seek 동작 불변.
 - **검증**:
-  - [ ] `onTimeUpdate` 미공급 시 기존 동작 완전 동일
+  - [x] `onTimeUpdate` 미공급 시 기존 동작 완전 동일
   - [ ] 재생 시 콜백이 초 단위 현재 시각을 방출 — jsdom 렌더 테스트에서 `<video>`에 `timeupdate` dispatch로 판정(어려우면 Task 5 수동 검증으로 이연 명시)
-  - [ ] `pnpm typecheck` 통과
+  - [x] `pnpm typecheck` 통과
 
 ### Task 3: TimelineRow 컴포넌트 (+ jsdom 테스트)
 - **변경 대상**: `src/log-viewer/components/TimelineRow.tsx` (신규), `src/log-viewer/components/__tests__/TimelineRow.test.tsx` (신규), 잔여 프리미티브 export(`LevelIcon`·`KindIcon`·`renderActionContent`·`methodColor`·content-type 아이콘)
@@ -54,12 +54,12 @@
     - network → content-type/Globe 아이콘 + `METHOD·status`(color=`methodColor`/status) + 경로, 우측=소요시간 + "상세" 링크(패딩으로 히트 영역 확보).
   - 접근성: 행 전체 `<button>`(또는 `role="button"`+`tabIndex`) — 클릭/Enter=`onSeek(absTs)`. chevron·"상세"는 별도 포커스 스톱 + `stopPropagation`.
 - **검증** (`TimelineRow.test.tsx` — jsdom):
-  - [ ] 3종 행이 카테고리별 아이콘·토큰 문법으로 구분 렌더됨
-  - [ ] active 행만 스파인 `primary` + `aria-current`, 나머지 `muted`
-  - [ ] 면색이 `timelineFillClass` 결과와 일치(console info blue 포함)
-  - [ ] console 에러 chevron 확장/접기 동작
-  - [ ] 행 클릭=onSeek 호출, chevron·"상세" 클릭 시 onSeek 미호출(stopPropagation)
-  - [ ] 기존 Console/Network/Action 탭 렌더 회귀 없음 — `pnpm test` 통과
+  - [x] 3종 행이 카테고리별 아이콘·토큰 문법으로 구분 렌더됨
+  - [x] active 행만 스파인 `primary` + `aria-current`, 나머지 `muted`
+  - [x] 면색이 `timelineFillClass` 결과와 일치(console info blue 포함)
+  - [x] console 에러 chevron 확장/접기 동작
+  - [x] 행 클릭=onSeek 호출, chevron·"상세" 클릭 시 onSeek 미호출(stopPropagation)
+  - [x] 기존 Console/Network/Action 탭 렌더 회귀 없음 — `pnpm test` 통과
 
 ### Task 4: TimelinePanel (병합 리스트 + 필터·검색 + 동기화)
 - **변경 대상**: `src/log-viewer/components/TimelinePanel.tsx` (신규)
@@ -91,14 +91,14 @@
   - [ ] network "상세" → 우측 Network 탭 전환 + 요청 스크롤·선택(필터에 걸린 요청도 `resetFilters` 보정으로 도달)
   - [ ] 재생 중 우측 탭·VideoPlayer가 timeupdate로 리렌더되지 않음(React DevTools 확인)
   - [ ] 기존 마커 클릭 동선(우측 탭 전환+스크롤) 현행 유지
-  - [ ] `pnpm typecheck` 통과
+  - [x] `pnpm typecheck` 통과
 
 ### Task 6: i18n (log-viewer 복제 사전)
 - **변경 대상**: `src/log-viewer/i18n.ts`, `src/log-viewer/__tests__/i18n.test.ts`(자동 검증)
 - **작업 내용**: `koDict`/`enDict`에 `timeline.detail`("상세"/"Detail"), `timeline.empty`(필수), `timeline.searchPlaceholder`, `timeline.filterEmpty` 추가(양쪽 동시). 타입 토글 라벨은 기존 탭 라벨 키 재사용 우선, 없으면 신설. action 텍스트는 `renderActionContent`가 처리 → 추가 없음.
 - **검증**:
-  - [ ] ko/en 키 대칭·placeholder 일치(테스트 green)
-  - [ ] `pnpm test` 통과
+  - [x] ko/en 키 대칭·placeholder 일치(테스트 green)
+  - [x] `pnpm test` 통과
 
 ## 테스트 계획
 

@@ -98,6 +98,14 @@ export const koDict: Record<string, string> = {
   "logViewer.player.download": "영상 다운로드",
   "logViewer.player.progressBar": "재생 진행 바",
 
+  "timeline.detail": "상세",
+  "timeline.searchPlaceholder": "타임라인 검색…",
+  "timeline.empty": "이 영상 구간에 기록된 로그가 없습니다",
+  "timeline.filterEmpty": "조건에 맞는 로그가 없습니다",
+  "timeline.filter.console": "콘솔",
+  "timeline.filter.network": "네트워크",
+  "timeline.filter.action": "액션",
+
   "json.showAll": "전체 보기",
   "json.moreItems": "… {n}개 더",
 
@@ -201,6 +209,14 @@ export const enDict: Record<string, string> = {
   "logViewer.player.pause": "Pause",
   "logViewer.player.download": "Download video",
   "logViewer.player.progressBar": "Playback progress bar",
+
+  "timeline.detail": "Detail",
+  "timeline.searchPlaceholder": "Search timeline…",
+  "timeline.empty": "No logs recorded in this video range",
+  "timeline.filterEmpty": "No logs match the current filter",
+  "timeline.filter.console": "Console",
+  "timeline.filter.network": "Network",
+  "timeline.filter.action": "Action",
 
   "json.showAll": "show all",
   "json.moreItems": "… {n} more items",

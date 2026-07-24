@@ -12,9 +12,11 @@ import { Tabs, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { CollapsingTabsList, TabLabel } from "@/components/ui/collapsing-tabs";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { toVideoSeconds } from "./timeline";
+import { buildTimeline } from "./timeline-merge";
 import type { TimelineMarker } from "./markers";
 import { buildErrorMarkers } from "@/sidepanel/30s-replay/trim-markers";
 import { VideoPlayer, type VideoPlayerHandle } from "./components/VideoPlayer";
+import { TimelinePanel } from "./components/TimelinePanel";
 import { ImageViewer } from "./components/ImageViewer";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -99,6 +101,23 @@ export function App({ data }: AppProps) {
 
   const handleScrollComplete = useCallback(() => {
     setScrollToEntryId(null);
+  }, []);
+
+  // 병합 타임라인 아이템 — 순수 정렬. 영상 여부와 무관하게 계산(영상일 때만 패널에 노출).
+  const timelineItems = useMemo(
+    () => buildTimeline(data?.consoleLog ?? null, data?.networkLog ?? null, data?.actionLog ?? null),
+    [data],
+  );
+
+  // playhead ref 중계 — App state 없이 VideoPlayer.onTimeUpdate를 TimelinePanel에 직결(리렌더 격리).
+  const timeListener = useRef<((sec: number) => void) | null>(null);
+  const handleTimeUpdate = useCallback((sec: number) => timeListener.current?.(sec), []);
+  const setTimeListener = useCallback((fn: ((sec: number) => void) | null) => { timeListener.current = fn; }, []);
+
+  // network "상세" → 기존 마커 클릭 경로 재사용(우측 Network 탭 전환 + 스크롤·선택·필터 보정).
+  const openNetworkDetail = useCallback((id: string) => {
+    setActiveTab("network");
+    setScrollToEntryId(id);
   }, []);
 
   // 영상·앵커가 살아있을 때만 세 로그 탭에 동기화 props 공급. 부재/에러 시 라이브 서브탭과 동일 동작.
@@ -268,18 +287,33 @@ export function App({ data }: AppProps) {
                 <span className="text-sm text-muted-foreground">{t("logViewer.video.error")}</span>
               </div>
             ) : (
-              <VideoPlayer
-                ref={playerRef}
-                src={video.dataUrl}
-                poster={video.thumbnail}
-                markers={markers}
-                issueTitle={data.meta.issueTitle}
-                issueKey={data.meta.issueKey}
-                issueUrl={data.meta.issueUrl}
-                onMarkerClick={handleMarkerClick}
-                onDurationChange={setVideoDurationSec}
-                onError={() => setVideoError(true)}
-              />
+              <ResizablePanelGroup direction="vertical">
+                <ResizablePanel defaultSize={62} minSize={30} className="flex min-w-0 flex-col">
+                  <VideoPlayer
+                    ref={playerRef}
+                    src={video.dataUrl}
+                    poster={video.thumbnail}
+                    markers={markers}
+                    issueTitle={data.meta.issueTitle}
+                    issueKey={data.meta.issueKey}
+                    issueUrl={data.meta.issueUrl}
+                    onMarkerClick={handleMarkerClick}
+                    onDurationChange={setVideoDurationSec}
+                    onTimeUpdate={handleTimeUpdate}
+                    onError={() => setVideoError(true)}
+                  />
+                </ResizablePanel>
+                <ResizableHandle className="bg-border hover:bg-blue-300 hover:shadow-[0_-1px_0_0_theme(colors.blue.300),0_1px_0_0_theme(colors.blue.300)] dark:hover:bg-blue-700 dark:hover:shadow-[0_-1px_0_0_theme(colors.blue.700),0_1px_0_0_theme(colors.blue.700)]" />
+                <ResizablePanel defaultSize={38} minSize={20} className="flex min-w-0 flex-col">
+                  <TimelinePanel
+                    items={timelineItems}
+                    videoStartedAt={video.startedAt}
+                    setTimeListener={setTimeListener}
+                    onSeek={seekTo}
+                    onOpenNetworkDetail={openNetworkDetail}
+                  />
+                </ResizablePanel>
+              </ResizablePanelGroup>
             )
           ) : (
             <ImageViewer

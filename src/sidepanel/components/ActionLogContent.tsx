@@ -12,7 +12,7 @@ import { TONE_TEXT } from "@/lib/log-colors";
 import { formatRelativeTime, syncRowClass } from "@/sidepanel/lib/logRow";
 import { useScrollToEntry } from "@/sidepanel/lib/useScrollToEntry";
 import { distinctOriginKeys, originKey, originCounts } from "@/sidepanel/lib/logOrigin";
-import { splitTemplate, resolveClickTarget, resolveActionNode } from "@/sidepanel/lib/actionInline";
+import { splitTemplate, resolveClickTarget, resolveActionNode, actionSearchText } from "@/sidepanel/lib/actionInline";
 import type { ClickTargetView } from "@/sidepanel/lib/actionInline";
 import { Kbd } from "@/components/ui/kbd";
 import { InlineLink } from "./InlineLink";
@@ -41,7 +41,7 @@ function kindBgColor(kind: ActionEntryKind): string {
   return kind === "navigation" ? "bg-blue-100 dark:bg-blue-950/50" : "";
 }
 
-function KindIcon({ kind }: { kind: ActionEntryKind }) {
+export function KindIcon({ kind }: { kind: ActionEntryKind }) {
   const base = "h-4 w-4 shrink-0";
   switch (kind) {
     case "click": return <MousePointerClick className={base} />;
@@ -122,7 +122,7 @@ function valueChip(value: string | undefined): ReactNode {
     : "";
 }
 
-function renderActionContent(t: TranslationFn, entry: ActionEntry): ReactNode {
+export function renderActionContent(t: TranslationFn, entry: ActionEntry): ReactNode {
   switch (entry.kind) {
     case "click":
       return renderVerb(t("actionLog.verb.click"), { target: <ClickTarget entry={entry} /> });
@@ -159,13 +159,6 @@ function renderActionContent(t: TranslationFn, entry: ActionEntry): ReactNode {
   }
 }
 
-function searchText(e: ActionEntry): string {
-  return [
-    e.target, e.fieldLabel, e.value, e.toUrl,
-    e.dragSource?.name, e.dragSource?.selector, e.dragTarget?.name, e.dragTarget?.selector,
-  ].filter(Boolean).join(" ").toLowerCase();
-}
-
 export function ActionLogContent({ entries, startedAt, flush, syncBaseMs, onSeek, activeTs, scrollToEntryId, onScrollComplete, isMuted }: ActionLogContentProps) {
   const t = useT();
   const [filter, setFilter] = useState<ActionFilter>("all");
@@ -198,7 +191,7 @@ export function ActionLogContent({ entries, startedAt, flush, syncBaseMs, onSeek
     if (originFilter !== null) result = result.filter((e) => originKey(e.pageUrl) === originFilter);
     if (query) {
       const lower = query.toLowerCase();
-      result = result.filter((e) => searchText(e).includes(lower));
+      result = result.filter((e) => actionSearchText(e).includes(lower));
     }
     return result;
   }, [entries, filter, originFilter, query]);
