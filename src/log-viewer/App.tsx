@@ -12,7 +12,7 @@ import { Tabs, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { CollapsingTabsList, TabLabel } from "@/components/ui/collapsing-tabs";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { toVideoSeconds } from "./timeline";
-import { buildTimeline } from "./timeline-merge";
+import { buildTimeline, type TimelineItem } from "./timeline-merge";
 import type { TimelineMarker } from "./markers";
 import { buildErrorMarkers } from "@/sidepanel/30s-replay/trim-markers";
 import { VideoPlayer, type VideoPlayerHandle } from "./components/VideoPlayer";
@@ -114,11 +114,13 @@ export function App({ data }: AppProps) {
   const handleTimeUpdate = useCallback((sec: number) => timeListener.current?.(sec), []);
   const setTimeListener = useCallback((fn: ((sec: number) => void) | null) => { timeListener.current = fn; }, []);
 
-  // network "상세" → 기존 마커 클릭 경로 재사용(우측 Network 탭 전환 + 스크롤·선택·필터 보정).
-  const openNetworkDetail = useCallback((id: string) => {
-    setActiveTab("network");
-    setScrollToEntryId(id);
-  }, []);
+  // 타임라인 행 클릭 = 영상 seek + 해당 로그 탭 조회 동시 발화(기존 마커 클릭 경로 재사용 —
+  // setActiveTab + scrollToEntryId → useScrollToEntry 스크롤·선택·필터 보정).
+  const activateTimelineItem = useCallback((item: TimelineItem) => {
+    seekTo(item.absTs);
+    setActiveTab(item.kind);
+    setScrollToEntryId(item.id);
+  }, [seekTo]);
 
   // 영상·앵커가 살아있을 때만 세 로그 탭에 동기화 props 공급. 부재/에러 시 라이브 서브탭과 동일 동작.
   const sync = video && !videoError
@@ -303,14 +305,13 @@ export function App({ data }: AppProps) {
                     onError={() => setVideoError(true)}
                   />
                 </ResizablePanel>
-                <ResizableHandle className="bg-border hover:bg-blue-300 hover:shadow-[0_-1px_0_0_theme(colors.blue.300),0_1px_0_0_theme(colors.blue.300)] dark:hover:bg-blue-700 dark:hover:shadow-[0_-1px_0_0_theme(colors.blue.700),0_1px_0_0_theme(colors.blue.700)]" />
+                <ResizableHandle className="hover:after:bg-blue-300 dark:hover:after:bg-blue-700" />
                 <ResizablePanel defaultSize={38} minSize={20} className="flex min-w-0 flex-col">
                   <TimelinePanel
                     items={timelineItems}
                     videoStartedAt={video.startedAt}
                     setTimeListener={setTimeListener}
-                    onSeek={seekTo}
-                    onOpenNetworkDetail={openNetworkDetail}
+                    onActivate={activateTimelineItem}
                   />
                 </ResizablePanel>
               </ResizablePanelGroup>
@@ -324,7 +325,7 @@ export function App({ data }: AppProps) {
             />
           )}
         </ResizablePanel>
-        <ResizableHandle className="bg-border hover:bg-blue-300 hover:shadow-[-1px_0_0_0_theme(colors.blue.300),1px_0_0_0_theme(colors.blue.300)] dark:hover:bg-blue-700 dark:hover:shadow-[-1px_0_0_0_theme(colors.blue.700),1px_0_0_0_theme(colors.blue.700)]" />
+        <ResizableHandle className="hover:after:bg-blue-300 dark:hover:after:bg-blue-700" />
         <ResizablePanel defaultSize={40} className="flex min-w-0 flex-col">
           {tabsPanel}
         </ResizablePanel>

@@ -33,7 +33,7 @@ const noop = () => {};
 
 describe("TimelineRow — 카테고리별 렌더", () => {
   it("action 행: data-kind=action, 면색 없음", () => {
-    render(<TimelineRow item={actionItem()} isActive={false} videoStartedAt={0} onSeek={noop} onOpenNetworkDetail={noop} />);
+    render(<TimelineRow item={actionItem()} isActive={false} videoStartedAt={0} onActivate={noop} />);
     const row = screen.getByTestId("timeline-row");
     expect(row.dataset.kind).toBe("action");
     expect(row.className).not.toContain("bg-red-100");
@@ -41,7 +41,7 @@ describe("TimelineRow — 카테고리별 렌더", () => {
   });
 
   it("console error 행: red 면색 + 스택 chevron", () => {
-    render(<TimelineRow item={consoleItem("error", "boom", "at foo")} isActive={false} videoStartedAt={0} onSeek={noop} onOpenNetworkDetail={noop} />);
+    render(<TimelineRow item={consoleItem("error", "boom", "at foo")} isActive={false} videoStartedAt={0} onActivate={noop} />);
     const row = screen.getByTestId("timeline-row");
     expect(row.dataset.kind).toBe("console");
     expect(row.className).toContain("bg-red-100");
@@ -49,75 +49,72 @@ describe("TimelineRow — 카테고리별 렌더", () => {
   });
 
   it("console info 행: blue 면색 (우측 탭과 sync)", () => {
-    render(<TimelineRow item={consoleItem("info")} isActive={false} videoStartedAt={0} onSeek={noop} onOpenNetworkDetail={noop} />);
+    render(<TimelineRow item={consoleItem("info")} isActive={false} videoStartedAt={0} onActivate={noop} />);
     expect(screen.getByTestId("timeline-row").className).toContain("bg-blue-100");
   });
 
   it("console log 행: 면색·chevron 없음(스택 없는 log)", () => {
-    render(<TimelineRow item={consoleItem("log")} isActive={false} videoStartedAt={0} onSeek={noop} onOpenNetworkDetail={noop} />);
+    render(<TimelineRow item={consoleItem("log")} isActive={false} videoStartedAt={0} onActivate={noop} />);
     expect(screen.getByTestId("timeline-row").className).not.toContain("bg-");
     expect(screen.queryByTestId("timeline-row-expand")).toBeNull();
   });
 
-  it("network 행: METHOD·경로·상세 링크", () => {
-    render(<TimelineRow item={networkItem({ method: "POST", url: "https://api.test/orders" })} isActive={false} videoStartedAt={0} onSeek={noop} onOpenNetworkDetail={noop} />);
-    expect(screen.getByText("POST")).toBeTruthy();
+  it("network 행: 좌측 경로 본문 + 우측 method/status/time, 상세 버튼 없음", () => {
+    render(<TimelineRow item={networkItem({ method: "POST", url: "https://api.test/orders" })} isActive={false} videoStartedAt={0} onActivate={noop} />);
     expect(screen.getByText("/orders")).toBeTruthy();
-    expect(screen.getByTestId("timeline-row-detail")).toBeTruthy();
+    expect(screen.getByText("POST")).toBeTruthy();
+    expect(screen.getByText("42ms")).toBeTruthy();
+    expect(screen.queryByTestId("timeline-row-detail")).toBeNull();
   });
 });
 
-describe("TimelineRow — active 강조", () => {
+describe("TimelineRow — active/spine", () => {
   it("active면 border-l-primary + aria-current", () => {
-    render(<TimelineRow item={actionItem()} isActive videoStartedAt={0} onSeek={noop} onOpenNetworkDetail={noop} />);
+    render(<TimelineRow item={actionItem()} isActive videoStartedAt={0} onActivate={noop} />);
     const row = screen.getByTestId("timeline-row");
     expect(row.className).toContain("border-l-primary");
     expect(row.getAttribute("aria-current")).toBe("true");
   });
 
-  it("비active면 border-l-muted", () => {
-    render(<TimelineRow item={actionItem()} isActive={false} videoStartedAt={0} onSeek={noop} onOpenNetworkDetail={noop} />);
-    expect(screen.getByTestId("timeline-row").className).toContain("border-l-muted");
+  it("비active면 border-l-border (상시 rail 가시)", () => {
+    render(<TimelineRow item={actionItem()} isActive={false} videoStartedAt={0} onActivate={noop} />);
+    expect(screen.getByTestId("timeline-row").className).toContain("border-l-border");
   });
 });
 
-describe("TimelineRow — 타이포 패밀리 우측 탭 sync", () => {
-  it("액션 본문은 mono (ActionLogContent와 동일 패밀리)", () => {
-    render(<TimelineRow item={actionItem()} isActive={false} videoStartedAt={0} onSeek={noop} onOpenNetworkDetail={noop} />);
-    const body = screen.getByText("Clicked", { exact: false });
-    expect(body.className).toContain("font-mono");
+describe("TimelineRow — 타이포: console/action처럼 mono 본문, 요청 메타는 sans", () => {
+  it("액션 본문은 mono", () => {
+    render(<TimelineRow item={actionItem()} isActive={false} videoStartedAt={0} onActivate={noop} />);
+    expect(screen.getByText("Clicked", { exact: false }).className).toContain("font-mono");
   });
 
-  it("네트워크 메서드 토큰은 sans (NetworkLogContent 메서드와 동일 패밀리)", () => {
-    render(<TimelineRow item={networkItem({ method: "POST" })} isActive={false} videoStartedAt={0} onSeek={noop} onOpenNetworkDetail={noop} />);
-    const token = screen.getByText("POST").parentElement!;
-    expect(token.className).not.toContain("font-mono");
+  it("네트워크 좌측 경로 본문은 mono (console/action과 동일)", () => {
+    render(<TimelineRow item={networkItem({ url: "https://api.test/orders" })} isActive={false} videoStartedAt={0} onActivate={noop} />);
+    expect(screen.getByText("/orders").className).toContain("font-mono");
+  });
+
+  it("네트워크 우측 메타(method)는 sans", () => {
+    render(<TimelineRow item={networkItem({ method: "POST" })} isActive={false} videoStartedAt={0} onActivate={noop} />);
+    const meta = screen.getByText("POST").parentElement!;
+    expect(meta.className).not.toContain("font-mono");
   });
 });
 
-describe("TimelineRow — 클릭 라우팅", () => {
-  it("행 클릭 → onSeek(absTs)", async () => {
-    const onSeek = vi.fn();
-    render(<TimelineRow item={networkItem()} isActive={false} videoStartedAt={0} onSeek={onSeek} onOpenNetworkDetail={noop} />);
+describe("TimelineRow — 클릭 = seek + 탭 조회 동시 발화", () => {
+  it("행 클릭 → onActivate(item)", async () => {
+    const onActivate = vi.fn();
+    const item = networkItem();
+    render(<TimelineRow item={item} isActive={false} videoStartedAt={0} onActivate={onActivate} />);
     await userEvent.click(screen.getByText("/orders"));
-    expect(onSeek).toHaveBeenCalledWith(2000);
+    expect(onActivate).toHaveBeenCalledWith(item);
   });
 
-  it("'상세' 클릭 → onOpenNetworkDetail, onSeek 미호출(stopPropagation)", async () => {
-    const onSeek = vi.fn();
-    const onOpen = vi.fn();
-    render(<TimelineRow item={networkItem()} isActive={false} videoStartedAt={0} onSeek={onSeek} onOpenNetworkDetail={onOpen} />);
-    await userEvent.click(screen.getByTestId("timeline-row-detail"));
-    expect(onOpen).toHaveBeenCalledWith("n1");
-    expect(onSeek).not.toHaveBeenCalled();
-  });
-
-  it("chevron 클릭 → 스택 확장, onSeek 미호출", async () => {
-    const onSeek = vi.fn();
-    render(<TimelineRow item={consoleItem("error", "boom", "at foo:1")} isActive={false} videoStartedAt={0} onSeek={onSeek} onOpenNetworkDetail={noop} />);
+  it("chevron 클릭 → 스택 확장, onActivate 미호출(stopPropagation)", async () => {
+    const onActivate = vi.fn();
+    render(<TimelineRow item={consoleItem("error", "boom", "at foo:1")} isActive={false} videoStartedAt={0} onActivate={onActivate} />);
     expect(screen.queryByText("at foo:1")).toBeNull();
     await userEvent.click(screen.getByTestId("timeline-row-expand"));
     expect(screen.getByText("at foo:1")).toBeTruthy();
-    expect(onSeek).not.toHaveBeenCalled();
+    expect(onActivate).not.toHaveBeenCalled();
   });
 });

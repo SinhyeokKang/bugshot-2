@@ -16,35 +16,33 @@ interface TimelineRowProps {
   item: TimelineItem;
   isActive: boolean;
   videoStartedAt: number;
-  onSeek: (absTs: number) => void;
-  onOpenNetworkDetail: (id: string) => void;
+  // 행 클릭: 영상 seek + 해당 로그 탭 조회를 동시 발화(App에서 배선).
+  onActivate: (item: TimelineItem) => void;
 }
 
 function stop(e: MouseEvent) {
   e.stopPropagation();
 }
 
-function statusLabel(item: Extract<TimelineItem, { kind: "network" }>): string {
-  const { req } = item;
+function statusLabel(req: Extract<TimelineItem, { kind: "network" }>["req"]): string {
   if (isNetworkPending(req)) return "···";
   if (isStatusHidden(req) || req.status <= 0) return "—";
   return String(req.status);
 }
 
 // 1행 1이벤트 렌더. 기존 로그 행처럼 컨테이너는 div(중첩 button 무효 HTML 회피) —
-// 행 클릭=seek, 내부 seek 칩/chevron/상세는 focus 가능한 button으로 분리.
+// 행 클릭=activate(seek+탭 조회), 내부 seek 칩/chevron은 focus 가능한 button으로 분리.
 export const TimelineRow = memo(function TimelineRow({
   item,
   isActive,
   videoStartedAt,
-  onSeek,
-  onOpenNetworkDetail,
+  onActivate,
 }: TimelineRowProps) {
   const [expanded, setExpanded] = useState(false);
   const canExpand =
     item.kind === "console" && (item.entry.level === "error" || item.entry.level === "warn") && !!item.entry.stack;
 
-  const spine = isActive ? "border-l-primary" : "border-l-muted";
+  const spine = isActive ? "border-l-primary" : "border-l-border";
   const fill = timelineFillClass(item);
 
   return (
@@ -54,10 +52,10 @@ export const TimelineRow = memo(function TimelineRow({
       data-active={isActive || undefined}
       className={`cursor-pointer border-l-2 ${spine} ${fill}`}
       aria-current={isActive ? "true" : undefined}
-      onClick={() => onSeek(item.absTs)}
+      onClick={() => onActivate(item)}
     >
-      <div className="flex items-center gap-2.5 px-2.5 py-1.5 text-[13px] hover:bg-accent/50">
-        <LogSeekChip ts={item.absTs} label={formatRelativeTime(item.absTs, videoStartedAt)} onSeek={onSeek} />
+      <div className="flex items-center gap-3 px-2.5 py-2 text-[13px] hover:bg-accent/50">
+        <LogSeekChip ts={item.absTs} label={formatRelativeTime(item.absTs, videoStartedAt)} onSeek={() => onActivate(item)} />
 
         {item.kind === "action" && (
           <>
@@ -89,31 +87,20 @@ export const TimelineRow = memo(function TimelineRow({
         {item.kind === "network" && (
           <>
             <ContentTypeIcon req={item.req} />
-            <span className="flex shrink-0 items-center gap-1">
+            {/* console/action처럼 좌측은 mono 본문(경로), 요청 메타는 우측 sans로 분리 */}
+            <span className="min-w-0 flex-1 truncate font-mono text-mono">{networkLogPath(item.req.url)}</span>
+            <span className="flex shrink-0 items-center gap-1.5 text-muted-foreground">
               <span className={methodColor(item.req.method)}>{item.req.method}</span>
-              <span className="text-muted-foreground">·</span>
-              <span className={isNetworkError(item.req) ? TONE_TEXT.red : "text-muted-foreground"}>
-                {statusLabel(item)}
-              </span>
+              <span className={isNetworkError(item.req) ? TONE_TEXT.red : undefined}>{statusLabel(item.req)}</span>
+              {!isNetworkPending(item.req) && <span>{item.req.durationMs}ms</span>}
             </span>
-            <span className="min-w-0 flex-1 truncate">{networkLogPath(item.req.url)}</span>
-            {!isNetworkPending(item.req) && (
-              <span className="shrink-0 text-muted-foreground">{item.req.durationMs}ms</span>
-            )}
-            <button
-              type="button"
-              data-testid="timeline-row-detail"
-              className="shrink-0 rounded px-1.5 py-0.5 text-muted-foreground hover:text-primary hover:underline focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
-              onClick={(e) => { stop(e); onOpenNetworkDetail(item.req.id); }}
-            >
-              {t("timeline.detail")}
-            </button>
           </>
         )}
       </div>
 
       {item.kind === "console" && canExpand && expanded && (
-        <div className="px-2.5 pb-2 pl-[52px] text-xs">
+        // 스택은 메시지 텍스트 시작점(pl-[82px] = px-2.5 10 + chip 32 + gap 12 + icon 16 + gap 12)에 정렬.
+        <div className="px-2.5 pb-2 pl-[82px] text-xs">
           <pre className="max-h-[200px] overflow-auto whitespace-pre-wrap break-all rounded bg-muted p-2 font-mono text-mono">
             <LinkifiedText text={item.entry.stack!} />
           </pre>

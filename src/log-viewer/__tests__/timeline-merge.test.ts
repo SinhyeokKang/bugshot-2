@@ -135,33 +135,36 @@ describe("buildTimeline — 3종 로그 absTs 병합·정렬", () => {
 });
 
 // ── matchesTimelineItem ───────────────────────────────────────
-describe("matchesTimelineItem — 타입 토글 + 검색 매칭", () => {
+describe("matchesTimelineItem — 타입 필터(단일선택) + 검색 매칭", () => {
   const cItem = buildTimeline(consoleLog([consoleEntry("c1", 1, "log", "Failed to Fetch user")]), null, null)[0];
   const nItem = buildTimeline(null, networkLog([networkRequest("n1", 1, { url: "https://api.test/orders" })]), null)[0];
   const aItem = buildTimeline(null, null, actionLog([actionEntry("a1", 1, "click", { target: "Save button" })]))[0];
-  const all = new Set<TimelineItem["kind"]>(["action", "console", "network"]);
 
-  it("kind가 활성 집합에 없으면 query와 무관하게 false", () => {
-    expect(matchesTimelineItem(cItem, new Set(["network"]), "")).toBe(false);
+  it("filter가 다른 kind면 query와 무관하게 false", () => {
+    expect(matchesTimelineItem(cItem, "network", "")).toBe(false);
   });
 
-  it("kind 활성 + 빈 query면 true (텍스트 필터 없음)", () => {
-    expect(matchesTimelineItem(cItem, all, "")).toBe(true);
+  it("filter=all + 빈 query면 true (텍스트 필터 없음)", () => {
+    expect(matchesTimelineItem(cItem, "all", "")).toBe(true);
+  });
+
+  it("filter가 해당 kind면 통과", () => {
+    expect(matchesTimelineItem(cItem, "console", "")).toBe(true);
   });
 
   it("console: entry.args 부분일치 (대소문자 무시)", () => {
-    expect(matchesTimelineItem(cItem, all, "fetch")).toBe(true);
-    expect(matchesTimelineItem(cItem, all, "timeout")).toBe(false);
+    expect(matchesTimelineItem(cItem, "all", "fetch")).toBe(true);
+    expect(matchesTimelineItem(cItem, "all", "timeout")).toBe(false);
   });
 
   it("network: requestMatchesQuery 경유 URL 매칭 (대소문자 무시)", () => {
-    expect(matchesTimelineItem(nItem, all, "ORDERS")).toBe(true);
-    expect(matchesTimelineItem(nItem, all, "users")).toBe(false);
+    expect(matchesTimelineItem(nItem, "all", "ORDERS")).toBe(true);
+    expect(matchesTimelineItem(nItem, "all", "users")).toBe(false);
   });
 
   it("action: searchText 부분일치 (대소문자 무시)", () => {
-    expect(matchesTimelineItem(aItem, all, "save")).toBe(true);
-    expect(matchesTimelineItem(aItem, all, "cancel")).toBe(false);
+    expect(matchesTimelineItem(aItem, "all", "save")).toBe(true);
+    expect(matchesTimelineItem(aItem, "all", "cancel")).toBe(false);
   });
 });
 

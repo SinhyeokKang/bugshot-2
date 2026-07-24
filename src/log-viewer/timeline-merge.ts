@@ -14,6 +14,7 @@ export type TimelineItem =
   | { kind: "network"; id: string; absTs: number; req: NetworkRequest };
 
 export type TimelineKind = TimelineItem["kind"];
+export type TimelineFilter = "all" | TimelineKind;
 
 // 동일 absTs 타이브레이크 순서: 원인(action) → 요청(network) → 결과(console).
 const KIND_ORDER: Record<TimelineKind, number> = { action: 0, network: 1, console: 2 };
@@ -38,13 +39,13 @@ export function buildTimeline(
   return items.sort((a, b) => a.absTs - b.absTs || KIND_ORDER[a.kind] - KIND_ORDER[b.kind]);
 }
 
-// 타입 토글 + 검색 매칭. query는 raw 문자열, 대소문자 무시. 빈 query면 kind 게이트만.
+// 타입 필터(단일선택, all 포함) + 검색 매칭. query는 raw 문자열, 대소문자 무시.
 export function matchesTimelineItem(
   item: TimelineItem,
-  kinds: ReadonlySet<TimelineKind>,
+  filter: TimelineFilter,
   query: string,
 ): boolean {
-  if (!kinds.has(item.kind)) return false;
+  if (filter !== "all" && item.kind !== filter) return false;
   const q = query.trim().toLowerCase();
   if (!q) return true;
   switch (item.kind) {
