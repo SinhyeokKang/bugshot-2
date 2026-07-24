@@ -14,6 +14,9 @@
     "typecheck": "tsc -b --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "coverage:report": "node scripts/coverage-report.mjs",
+    "coverage:update": "node scripts/coverage-report.mjs --update",
     "sync:agents": "node scripts/sync-agents.mjs",
     "sync:agents:check": "node scripts/sync-agents.mjs --check"
   },
@@ -82,6 +85,7 @@
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.3",
+    "@vitest/coverage-v8": "^2.1.9",
     "autoprefixer": "^10.4.20",
     "fake-indexeddb": "^6.2.5",
     "jsdom": "^29.1.1",
