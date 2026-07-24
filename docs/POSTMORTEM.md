@@ -21,6 +21,13 @@
 
 ---
 
+## 2026-07-25 — 도구가 청소하는 출력 디렉터리 안에 git-tracked 파일을 두면 매 실행마다 삭제된다
+
+- **증상**: 커버리지 트렌드 베이스라인(`coverage/baseline.json`, git-tracked)이 `pnpm test:coverage`를 한 번 돌릴 때마다 워킹트리에서 사라졌다. 그 결과 `pnpm coverage:report`가 "베이스라인 없음"으로 떨어져 이전→지금 비교(래칫 회귀 감지)가 아예 작동하지 않았다.
+- **근본 원인**: vitest v8 커버리지는 `reportsDirectory`(기본 `coverage/`)를 매 실행 **청소(clean)**한다 — 그 디렉터리를 자기 스크래치로 소유한다는 전제. 트렌드 기준선을 편의상 같은 `coverage/baseline.json`에 두면서 그 디렉터리가 **도구 소유**라는 걸 놓쳤다. `.gitignore`가 `coverage/*` + `!coverage/baseline.json`로 파일을 tracked로 지켜도, 파일 삭제는 git이 아니라 **vitest가** 하므로 무력하다. 커밋 diff·gitignore만 봐선 "베이스라인 커밋됨"으로 보여 결함이 숨는다 — 실제 실행을 두 번 돌려봐야 드러난다.
+- **재발 방지**: (1) 빌드/테스트 도구의 **출력·캐시·리포트 디렉터리 안에 소스나 tracked 산출물을 co-locate하지 않는다** — 도구가 그 디렉터리를 clean/overwrite한다는 전제로 본다. 트렌드·기준선 같은 영속 파일은 도구가 안 건드리는 별도 경로에 둔다(여기선 리포트를 `coverage/report/` 하위로 격리하고 베이스라인은 `coverage/` 루트에 잔류). (2) `clean`·`reportsDirectory`·`outDir`·`cacheDir` 옵션이 있는 도구를 새로 붙일 때 그 청소 범위를 먼저 확인한다 — `grep -rn 'reportsDirectory\|outDir\|cacheDir\|clean' *.config.ts vite*.config.ts vitest.config.ts`. (3) 영속 파일이 실행에 견디는지 **연속 2회 실행 + 파일 존재 확인**으로 잠근다(1회만 돌리면 첫 생성과 삭제가 안 구분된다).
+- **관련**: `vitest.config.ts`(coverage `reportsDirectory: "coverage/report"`), `scripts/coverage-report.mjs`(`SUMMARY_PATH`=`coverage/report/…`, `BASELINE_PATH`=`coverage/baseline.json`), `.gitignore`(`coverage/*` + `!coverage/baseline.json`).
+
 ## 2026-07-23 — 공유 캡(MAX_LOG_REFS)에 새 후보 소스를 더하면 초과 시 전량 폐기가 기존 삽입까지 죽인다
 
 - **증상**: AI 초안이 원인 로그를 코드블럭으로 삽입할 때, 모델이 로그를 여러 개 지목하면 **기존에 잘 삽입되던 에러 로그까지 하나도 안 붙는** 경우가 생긴다(전멸). 200 매칭 후보(`m*`)를 새로 도입하자 발현 확률이 올랐다.
