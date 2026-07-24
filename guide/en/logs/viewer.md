@@ -44,9 +44,23 @@ Logs from several origins (including iframes embedded in the page) all land on o
 - **Clicking a log entry in the list also moves the video to that log's moment** — while skimming the logs, jump straight to the video at any point you're curious about. (Clicking just the time shown on the left of an entry does the same.)
 - Logs and video share one time axis, making it easy to follow the repro from start to finish.
 
+## The merged timeline
+
+![Merged timeline panel — below the video, console, network, and action logs stacked one per line in time order, with All / Console / Network / Action filter tabs and a search box on top](../assets/logs-viewer-4.jpg)
+
+Right below the video sits a timeline that **merges the console, network, and action logs into one line-by-line stream in time order**. Instead of hopping between the log tabs on the right, you can read straight down what happened at each moment.
+
+- **One event per line** — the time on the left, a kind icon, and the content sit side by side. Network requests read as a sentence, like "Posted `/api/order`", so you can tell what the request was at a glance.
+- **Filter by kind** — the **All · Console · Network · Action** tabs above the list narrow it to a single kind (each tab shows its count too).
+- **Search** — type a word into the search box (`Search timeline…`) and only the lines containing it remain. It scans network request URLs and response bodies too, not just console messages.
+- **Click to jump the video** — click any line and the video moves to that log's moment, with the right side switching to that kind's log tab so you can follow through to the details. (Clicking just the time on the left of a line does the same.)
+- **The current line highlights as it plays** — play the video and the line matching the current position highlights automatically, so "which log fired while this was on screen" is easy to spot.
+
+> Screenshot-mode reports have no video, so this timeline doesn't appear — you get the captured screenshot on the left and the log tabs on the right instead.
+
 ## Report tab
 
-![Log viewer Report tab — title, environment, and body sections shown with inline images, plus a Copy button in the top-right](../assets/logs-viewer-4.jpg)
+![Log viewer Report tab — title, environment, and body sections shown with inline images, plus a Copy button in the top-right](../assets/logs-viewer-5.jpg)
 
 It's not just video and logs — the **issue write-up itself** lives inside this file too. Click the **Report** tab at the top and you'll see the title, the environment, and the body sections (what happened, steps to reproduce, expected result) exactly as they were filed. Any images pasted into the body show up inline as well, so you can grasp "what the problem was" right here, without bouncing back to the original issue page.
 
