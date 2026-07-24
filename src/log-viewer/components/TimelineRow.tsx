@@ -87,9 +87,10 @@ export const TimelineRow = memo(function TimelineRow({
         {item.kind === "network" && (
           <>
             <ContentTypeIcon req={item.req} />
-            {/* method를 동사로 쓴 mono 문장(console/action처럼) — 요청 메타는 우측 sans에 중복 표기 */}
+            {/* method를 동사로 쓴 mono 문장 — action "Clicked {}"처럼 동사는 foreground(무채색).
+                method 색은 우측 sans 메타에만 준다. */}
             <span className="min-w-0 flex-1 truncate font-mono text-mono">
-              <span className={methodColor(item.req.method)}>{item.req.method}</span>{" "}
+              <span className="text-foreground">{item.req.method}</span>{" "}
               {networkLogPath(item.req.url)}
             </span>
             <span data-testid="timeline-net-meta" className="flex shrink-0 items-center gap-1.5 text-muted-foreground">
