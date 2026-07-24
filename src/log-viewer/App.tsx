@@ -39,11 +39,19 @@ function downloadJson(obj: object, filename: string) {
 type LogTab = "report" | "console" | "network" | "action";
 
 // 각 패널은 회색 페이지 위에 떠 있는 라운드 카드. 패널 사이·뷰포트 가장자리 10px gap(투명 핸들 폭).
-const CARD = "overflow-hidden rounded-lg bg-background shadow-sm";
-// 리사이즈 핸들: 10px 투명 gap 안에서 hover/drag 시 8px 파란 pill(::after)로 표시.
-const HANDLE_BLUE = "data-[resize-handle-state=hover]:after:bg-blue-400 data-[resize-handle-state=drag]:after:bg-blue-500 after:rounded-full";
-const HANDLE_H = `w-2.5 bg-transparent after:w-2 ${HANDLE_BLUE}`;
-const HANDLE_V = `data-[panel-group-direction=vertical]:h-2.5 data-[panel-group-direction=vertical]:after:h-2 bg-transparent ${HANDLE_BLUE}`;
+const CARD = "overflow-hidden rounded-lg bg-background shadow";
+// 리사이즈 핸들: 10px 투명 gap 안에서 hover/drag 시 6px 파란 직사각형 바(양끝 fade 그라디언트).
+// opacity 토글로 hover/drag에만 노출. via-blue-500 중심, 양끝 transparent.
+const HANDLE_FADE =
+  "after:from-transparent after:via-blue-500 after:to-transparent after:opacity-0 data-[resize-handle-state=hover]:after:opacity-100 data-[resize-handle-state=drag]:after:opacity-100";
+// 세로 바: full-height, 위/아래로 fade(to-b). 폭 6px.
+const HANDLE_H = `w-2.5 bg-transparent after:w-1.5 after:bg-gradient-to-b ${HANDLE_FADE}`;
+// 가로 바: full-width, 좌/우로 fade(to-r). 높이 6px. base after:inset-y-0가 세로 핸들에선
+// full-height로 늘어나 -translate-y-1/2로 영상 밑에 깔리던 것 → inset-y-auto+top-1/2로 중앙 정렬 보정.
+const HANDLE_V =
+  `data-[panel-group-direction=vertical]:h-2.5 bg-transparent data-[panel-group-direction=vertical]:after:inset-y-auto ` +
+  `data-[panel-group-direction=vertical]:after:top-1/2 data-[panel-group-direction=vertical]:after:h-1.5 ` +
+  `after:bg-gradient-to-r ${HANDLE_FADE}`;
 
 export function App({ data }: AppProps) {
   const hasNetwork = !!data?.networkLog;
