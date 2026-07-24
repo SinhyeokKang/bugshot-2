@@ -409,7 +409,7 @@ export function NetworkLogContent({ requests, flush, syncBaseMs, onSeek, activeT
         ) : (
           <div className="flex flex-1 flex-col items-center justify-center gap-3">
             <div className="rounded-full bg-muted p-3">
-              <MousePointerClick className="h-6 w-6 text-muted-foreground" />
+              <MousePointerClick className="h-6 w-6 text-foreground" />
             </div>
             <span className="text-sm text-muted-foreground">{t("networkLog.dialog.selectRequest")}</span>
           </div>
