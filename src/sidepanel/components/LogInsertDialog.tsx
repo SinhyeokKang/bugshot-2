@@ -72,7 +72,7 @@ export function LogInsertDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
         data-testid="log-insert-dialog"
-        className="w-[90vw] max-w-[90vw] h-[80vh] gap-5 rounded-3xl p-6 sm:rounded-3xl"
+        className="w-[90vw] max-w-[800px] h-[80vh] gap-5 rounded-3xl p-6 sm:rounded-3xl"
       >
         <DialogHeader>
           <DialogTitle className="text-xl">{t("logInsert.dialog.title")}</DialogTitle>

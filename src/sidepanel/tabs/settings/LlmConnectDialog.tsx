@@ -205,7 +205,7 @@ export function LlmConnectDialog({
       onClose={() => setPendingModels(null)}
     />
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="w-[90vw] max-w-[90vw] gap-5 rounded-3xl p-6 sm:rounded-3xl">
+      <DialogContent className="w-[90vw] max-w-[800px] gap-5 rounded-3xl p-6 sm:rounded-3xl">
         <DialogHeader>
           <DialogTitle className="text-xl">{t("llm.dialog.title")}</DialogTitle>
           <DialogDescription>{t("llm.dialog.body")}</DialogDescription>
@@ -343,7 +343,7 @@ function LlmModelDialog({
 
   return (
     <Dialog open={!!pending} onOpenChange={(v) => { if (!v) onClose(); }}>
-      <DialogContent className="w-[90vw] max-w-[90vw] gap-5 rounded-3xl p-6 sm:rounded-3xl">
+      <DialogContent className="w-[90vw] max-w-[800px] gap-5 rounded-3xl p-6 sm:rounded-3xl">
         <DialogHeader>
           <DialogTitle className="text-xl">{t("llm.model.select")}</DialogTitle>
         </DialogHeader>
