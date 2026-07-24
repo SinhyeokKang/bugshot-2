@@ -18,7 +18,9 @@ import { fileURLToPath } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const UPDATE = process.argv.includes("--update");
-const SUMMARY_PATH = join(ROOT, "coverage/coverage-summary.json");
+// 리포트 산출물은 coverage/report/ (vitest가 매 실행 청소). 베이스라인은 그 밖의
+// coverage/baseline.json 에 두어 청소를 피한다 (git-tracked 트렌드 기준선).
+const SUMMARY_PATH = join(ROOT, "coverage/report/coverage-summary.json");
 const BASELINE_PATH = join(ROOT, "coverage/baseline.json");
 
 // ── 로직 분모에서 제외할 브라우저 전용/UI 코드 (전체 지표엔 그대로 포함) ──────────
@@ -70,7 +72,7 @@ function isBrowserBound(rel) {
 function loadSummary() {
   if (!existsSync(SUMMARY_PATH)) {
     console.error(
-      "coverage/coverage-summary.json 없음. 먼저 `pnpm test:coverage` 로 커버리지를 측정해라.",
+      "coverage/report/coverage-summary.json 없음. 먼저 `pnpm test:coverage` 로 커버리지를 측정해라.",
     );
     process.exit(1);
   }

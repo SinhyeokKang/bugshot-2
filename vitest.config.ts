@@ -18,6 +18,9 @@ export default defineConfig({
       // 파티션·비교·개선 후보 랭킹은 scripts/coverage-report.mjs가 담당.
       provider: "v8",
       reporter: ["text-summary", "json-summary"],
+      // vitest는 매 실행마다 reportsDirectory를 청소한다. 트렌드 베이스라인
+      // (coverage/baseline.json)이 지워지지 않도록 리포트 출력을 하위 폴더로 격리.
+      reportsDirectory: "coverage/report",
       include: ["src/**"],
       exclude: [
         "src/**/__tests__/**",
