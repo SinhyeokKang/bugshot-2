@@ -43,14 +43,16 @@ export function App({ data }: AppProps) {
   const hasConsole = !!data?.consoleLog;
   const hasAction = !!data?.actionLog;
   const hasReport = !!data?.report;
-  // Report는 보조 탭이라 기본 선택에서 제외(의도) — console→network→action 순.
-  // 기본 활성 탭: 캡처된 탭 중 console → network → action 순 첫 번째(사이드패널 다이얼로그와 동일 count 기준).
+  // 타임라인이 좌측에서 로그를 훑게 되면서 우측 기본 탭은 버그 리포트 본문(report)으로 연다.
+  // report가 없으면 캡처된 로그 탭 중 console → network → action 순 첫 번째로 폴백.
   const defaultTab: LogTab =
-    data?.consoleLog?.entries.length
-      ? "console"
-      : data?.networkLog?.requests.length
-        ? "network"
-        : "action";
+    data?.report
+      ? "report"
+      : data?.consoleLog?.entries.length
+        ? "console"
+        : data?.networkLog?.requests.length
+          ? "network"
+          : "action";
   const [activeTab, setActiveTab] = useState<LogTab>(defaultTab);
 
   const copyReport = useCallback(async () => {
