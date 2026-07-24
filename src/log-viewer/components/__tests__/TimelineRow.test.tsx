@@ -61,8 +61,8 @@ describe("TimelineRow — 카테고리별 렌더", () => {
 
   it("network 행: 자연어 동사 문장(좌) + method/status/time 메타(우), 상세 버튼 없음", () => {
     render(<TimelineRow item={networkItem({ method: "POST", url: "https://api.test/orders" })} isActive={false} videoStartedAt={0} onActivate={noop} />);
-    // 좌측 문장: POST → "Sent" 자연어 동사 + 경로 슬롯.
-    expect(screen.getByText("Sent", { exact: false })).toBeTruthy();
+    // 좌측 문장: POST → "Posted" 자연어 동사 + 경로 슬롯.
+    expect(screen.getByText("Posted", { exact: false })).toBeTruthy();
     expect(screen.getByText("/orders")).toBeTruthy();
     // 우측 메타: raw method·status·time.
     expect(screen.getByTestId("timeline-net-meta").textContent).toContain("POST");

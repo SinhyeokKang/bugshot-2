@@ -20,7 +20,7 @@ function netVerbKey(req: NetworkReq): string {
   if (req.webSocket) return "connected";
   switch (req.method.toUpperCase()) {
     case "GET": return "fetched";
-    case "POST": return "sent";
+    case "POST": return "posted";
     case "PUT":
     case "PATCH": return "updated";
     case "DELETE": return "deleted";
