@@ -4,9 +4,9 @@ import { useT, type TranslationFn } from "@/i18n";
 import type { NetworkRequest, NetworkRequestBody, WebSocketFrame } from "@/types/network";
 import { formatBytes } from "@/sidepanel/lib/formatBytes";
 import { networkLogPath } from "@/lib/network-log-path";
-import { isStatusHidden } from "@/lib/network-status";
+import { isStatusHidden, isNetworkError, isNetworkPending } from "@/lib/network-status";
 import { requestMatchesQuery } from "@/lib/network-search";
-import { networkMethodTextClass } from "@/lib/log-colors";
+import { networkMethodTextClass, TONE_BG } from "@/lib/log-colors";
 import { useDebouncedValue } from "@/sidepanel/lib/useDebouncedValue";
 import { JsonTreeViewer } from "./JsonTreeViewer";
 import { HighlightedText } from "./HighlightedText";
@@ -40,30 +40,24 @@ interface NetworkLogContentProps {
   onActiveChange?: (id: string | null) => void; // 선택 변경 통지(삽입 다이얼로그 전용, optional)
 }
 
-function methodColor(method: string): string {
+export function methodColor(method: string): string {
   return networkMethodTextClass(method) || "text-foreground";
 }
 
-function isError(req: NetworkRequest): boolean {
-  if (req.phase === "error") return true;
-  if (req.phase === "pending") return false;
-  return req.status >= 400;
-}
-
-function isPending(req: NetworkRequest): boolean {
-  return req.phase === "pending";
-}
+// 로컬 별칭 — 순수 판정은 network-status 단일 출처. 기존 호출부 시그니처 보존.
+const isError = isNetworkError;
+const isPending = isNetworkPending;
 
 function rowBg(req: NetworkRequest, active: boolean): string {
   if (isError(req)) {
     return active
       ? "bg-red-200 dark:bg-red-950/70"
-      : "bg-red-100 hover:bg-red-200/70 dark:bg-red-950/50 dark:hover:bg-red-950/70";
+      : `${TONE_BG.red} hover:bg-red-200/70 dark:hover:bg-red-950/70`;
   }
   if (isPending(req)) {
     return active
       ? "bg-amber-200 dark:bg-amber-950/70"
-      : "bg-amber-100 hover:bg-amber-200/70 dark:bg-amber-950/50 dark:hover:bg-amber-950/70";
+      : `${TONE_BG.amber} hover:bg-amber-200/70 dark:hover:bg-amber-950/70`;
   }
   return active ? "bg-accent" : "hover:bg-accent/50";
 }
@@ -81,7 +75,7 @@ function classifyRequest(req: NetworkRequest): Exclude<RequestFilter, "all"> {
   return "other";
 }
 
-function ContentTypeIcon({ req }: { req: NetworkRequest }) {
+export function ContentTypeIcon({ req }: { req: NetworkRequest }) {
   const base = "h-4 w-4 shrink-0";
   if (req.webSocket) return <ArrowDownUp className={`${base} text-violet-600 dark:text-violet-400`} />;
   const ct = req.contentType.toLowerCase();
@@ -93,7 +87,8 @@ function ContentTypeIcon({ req }: { req: NetworkRequest }) {
   if (ct.includes("font") || url.match(/\.(woff2?|ttf|otf|eot)(\?|$)/)) return <Type className={`${base} text-muted-foreground`} />;
   if (ct.includes("image") || url.match(/\.(png|jpe?g|gif|svg|webp|ico|avif)(\?|$)/)) return <Image className={`${base} text-teal-600 dark:text-teal-400`} />;
   if (ct.includes("html")) return <FileText className={`${base} text-blue-600 dark:text-blue-400`} />;
-  return <File className={`${base} text-muted-foreground`} />;
+  // 알 수 없는 content-type(default) 아이콘은 타임라인·행에서 또렷하게 foreground.
+  return <File className={`${base} text-foreground`} />;
 }
 
 function formatBody(body: NetworkRequestBody | undefined): string {
@@ -203,14 +198,20 @@ export function NetworkLogContent({ requests, flush, syncBaseMs, onSeek, activeT
     return idx >= 0 ? filteredRequests[idx].id : null;
   }, [filteredRequests, activeTs]);
 
+  // 요청 선택 단일 경로 — 클릭(handleSelect)과 외부 스크롤(useScrollToEntry.onFound) 양쪽이 공유해
+  // detailTab 리셋을 전수한다(한쪽만 리셋하면 타임라인 점프 시 이전 서브탭이 남는다).
+  const selectRequest = useCallback((id: string) => {
+    setActiveId(id);
+    const req = requests.find((r) => r.id === id);
+    setDetailTab(req?.webSocket ? "messages" : "headers");
+  }, [requests]);
+
   const handleSelect = (id: string) => {
     if (activeId === id) {
       setActiveId(null);
       return;
     }
-    setActiveId(id);
-    const req = requests.find((r) => r.id === id);
-    setDetailTab(req?.webSocket ? "messages" : "headers");
+    selectRequest(id);
   };
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -260,7 +261,7 @@ export function NetworkLogContent({ requests, flush, syncBaseMs, onSeek, activeT
     searchSettled: query === debouncedQuery,
     resetFilters: useCallback(() => { setFilter("all"); setOriginFilter(null); setQuery(""); }, []),
     onScrollComplete,
-    onFound: useCallback(() => { if (scrollToEntryId) setActiveId(scrollToEntryId); }, [scrollToEntryId]),
+    onFound: useCallback(() => { if (scrollToEntryId) selectRequest(scrollToEntryId); }, [scrollToEntryId, selectRequest]),
   });
 
   const onDragStart = useCallback((e: React.MouseEvent) => {

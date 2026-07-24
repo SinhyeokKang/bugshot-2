@@ -8,11 +8,11 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { findActiveIndex } from "@/log-viewer/timeline";
-import { TONE_TEXT } from "@/lib/log-colors";
+import { TONE_TEXT, TONE_BG } from "@/lib/log-colors";
 import { formatRelativeTime, syncRowClass } from "@/sidepanel/lib/logRow";
 import { useScrollToEntry } from "@/sidepanel/lib/useScrollToEntry";
 import { distinctOriginKeys, originKey, originCounts } from "@/sidepanel/lib/logOrigin";
-import { splitTemplate, resolveClickTarget, resolveActionNode } from "@/sidepanel/lib/actionInline";
+import { splitTemplate, resolveClickTarget, resolveActionNode, actionSearchText } from "@/sidepanel/lib/actionInline";
 import type { ClickTargetView } from "@/sidepanel/lib/actionInline";
 import { Kbd } from "@/components/ui/kbd";
 import { InlineLink } from "./InlineLink";
@@ -36,12 +36,13 @@ interface ActionLogContentProps {
   isMuted?: (absTs: number) => boolean; // 트림 후보(잘려나갈 로그) 흐림 판정
 }
 
-// navigation만 콘솔 info-틴트 배경 재사용, click/input은 중립(배경 없음).
-function kindBgColor(kind: ActionEntryKind): string {
-  return kind === "navigation" ? "bg-blue-100 dark:bg-blue-950/50" : "";
+// navigation만 콘솔 info-틴트(TONE_BG.blue) 배경 재사용, click/input은 중립(배경 없음).
+// timeline-merge.timelineFillClass의 action 케이스가 이 규칙을 동일 TONE_BG.blue로 재사용한다.
+export function kindBgColor(kind: ActionEntryKind): string {
+  return kind === "navigation" ? TONE_BG.blue : "";
 }
 
-function KindIcon({ kind }: { kind: ActionEntryKind }) {
+export function KindIcon({ kind }: { kind: ActionEntryKind }) {
   const base = "h-4 w-4 shrink-0";
   switch (kind) {
     case "click": return <MousePointerClick className={base} />;
@@ -122,7 +123,7 @@ function valueChip(value: string | undefined): ReactNode {
     : "";
 }
 
-function renderActionContent(t: TranslationFn, entry: ActionEntry): ReactNode {
+export function renderActionContent(t: TranslationFn, entry: ActionEntry): ReactNode {
   switch (entry.kind) {
     case "click":
       return renderVerb(t("actionLog.verb.click"), { target: <ClickTarget entry={entry} /> });
@@ -159,13 +160,6 @@ function renderActionContent(t: TranslationFn, entry: ActionEntry): ReactNode {
   }
 }
 
-function searchText(e: ActionEntry): string {
-  return [
-    e.target, e.fieldLabel, e.value, e.toUrl,
-    e.dragSource?.name, e.dragSource?.selector, e.dragTarget?.name, e.dragTarget?.selector,
-  ].filter(Boolean).join(" ").toLowerCase();
-}
-
 export function ActionLogContent({ entries, startedAt, flush, syncBaseMs, onSeek, activeTs, scrollToEntryId, onScrollComplete, isMuted }: ActionLogContentProps) {
   const t = useT();
   const [filter, setFilter] = useState<ActionFilter>("all");
@@ -198,7 +192,7 @@ export function ActionLogContent({ entries, startedAt, flush, syncBaseMs, onSeek
     if (originFilter !== null) result = result.filter((e) => originKey(e.pageUrl) === originFilter);
     if (query) {
       const lower = query.toLowerCase();
-      result = result.filter((e) => searchText(e).includes(lower));
+      result = result.filter((e) => actionSearchText(e).includes(lower));
     }
     return result;
   }, [entries, filter, originFilter, query]);

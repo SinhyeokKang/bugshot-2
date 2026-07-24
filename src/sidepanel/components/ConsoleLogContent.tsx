@@ -8,7 +8,7 @@ import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { distinctOriginKeys, originKey, originCounts } from "@/sidepanel/lib/logOrigin";
 import { OriginFilterBar } from "./OriginFilterBar";
 import { findActiveIndex } from "@/log-viewer/timeline";
-import { consoleLevelTextClass } from "@/lib/log-colors";
+import { consoleLevelTextClass, consoleLevelBgClass } from "@/lib/log-colors";
 import { formatRelativeTime, syncRowClass } from "@/sidepanel/lib/logRow";
 import { useScrollToEntry } from "@/sidepanel/lib/useScrollToEntry";
 import { InlineLink } from "./InlineLink";
@@ -35,15 +35,6 @@ interface ConsoleLogContentProps {
   onActiveChange?: (id: string) => void;
 }
 
-function levelBgColor(level: ConsoleLevel): string {
-  switch (level) {
-    case "error": return "bg-red-100 dark:bg-red-950/50";
-    case "warn": return "bg-amber-100 dark:bg-amber-950/50";
-    case "info": return "bg-blue-100 dark:bg-blue-950/50";
-    default: return "";
-  }
-}
-
 function levelCodeBg(level: ConsoleLevel): string {
   switch (level) {
     case "error": return "bg-red-200 dark:bg-red-950/70";
@@ -53,7 +44,7 @@ function levelCodeBg(level: ConsoleLevel): string {
   }
 }
 
-function LevelIcon({ level }: { level: ConsoleLevel }) {
+export function LevelIcon({ level }: { level: ConsoleLevel }) {
   const color = consoleLevelTextClass(level);
   const cls = color ? `h-4 w-4 shrink-0 ${color}` : "h-4 w-4 shrink-0";
   switch (level) {
@@ -226,7 +217,7 @@ function EntryAccordion({ entry, startedAt, syncBaseMs, onSeek, isActive, scroll
       data-entry-id={entry.id}
       data-level={entry.level}
       data-muted={muted || undefined}
-      className={`${syncRowClass(!!onSeek, !!isActive, levelBgColor(entry.level))}${muted ? " opacity-40" : ""}${selected ? " ring-2 ring-inset ring-primary/40" : ""}`}
+      className={`${syncRowClass(!!onSeek, !!isActive, consoleLevelBgClass(entry.level))}${muted ? " opacity-40" : ""}${selected ? " ring-2 ring-inset ring-primary/40" : ""}`}
       aria-current={isActive ? "true" : undefined}
     >
       <div

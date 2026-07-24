@@ -140,11 +140,11 @@ describe("디자인 토큰 표", () => {
   });
 
   // .font-mono 유틸리티는 tailwind.config.js를 공유해 사이드패널과 log-viewer 두 빌드에 똑같이
-  // 나가는데, @font-face는 globals.css의 @import로만 들어와 사이드패널에만 있다. 즉 log-viewer는
-  // 항상 폴백에 착지한다 — 이 폴백이 유일한 안전망이라, 스택을 Geist 하나로 "정리"하면 내보낸
-  // logs.html의 코드가 깨진다. (globals.css의 @layer base 규칙은 log-viewer가 자체 styles.css를
-  // 쓰므로 안 나간다 — 폰트 스택과 달리 그쪽엔 공유되지 않는다.)
-  describe("mono 폰트 스택 폴백 (log-viewer는 @font-face가 없다)", () => {
+  // 나간다. log-viewer는 styles.css @font-face로 latin Geist Mono만 임베드하므로 non-latin(CJK·
+  // 키릴 등)은 여전히 폴백에 착지한다 — 이 폴백이 안전망이라, 스택을 Geist 하나로 "정리"하면 내보낸
+  // logs.html의 non-latin 코드가 깨진다. (globals.css의 @layer base 규칙은 log-viewer가 자체
+  // styles.css를 쓰므로 안 나간다 — 폰트 스택과 달리 그쪽엔 공유되지 않는다.)
+  describe("mono 폰트 스택 폴백 (log-viewer는 latin만 임베드, 나머진 폴백)", () => {
     it("Geist 뒤에 시스템 폴백이 남아 있다", () => {
       expect(parseFontStack("mono").length).toBeGreaterThan(1);
     });

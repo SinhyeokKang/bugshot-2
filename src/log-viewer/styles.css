@@ -2,6 +2,20 @@
 @tailwind components;
 @tailwind utilities;
 
+/* 내보낸 logs.html은 자립 파일이라 뷰어 시스템 폰트에 의존하지 않도록 Geist Mono(latin·normal)를
+   임베드한다. viteSingleFile이 woff2를 base64로 인라인 → 파일당 ~40KB. weight 축(100 900) 유지라
+   본문 400 등 어떤 굵기든 한 파일로 커버. non-latin(CJK·키릴·베트남 등)은 시스템 mono로 폴백(스택 유지).
+   사이드패널은 globals.css의 @fontsource @import로 전 charset을 받으므로 여긴 latin만으로 충분. */
+@font-face {
+  font-family: "Geist Mono Variable";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url("@fontsource-variable/geist-mono/files/geist-mono-latin-wght-normal.woff2") format("woff2");
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308,
+    U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
 @layer base {
   /* ⚠ 이 토큰 표는 src/styles/globals.css의 복제본이다 — log-viewer는 별도 Vite 빌드라 globals를
      import할 수 없어 손으로 맞춘다. 한쪽만 고치면 사이드패널과 첨부 logs.html이 다른 톤으로 갈린다.
@@ -76,10 +90,10 @@
 
   /* ⚠ 이 블록도 globals.css의 복제본이다 — 위 토큰 표와 같은 이유(별도 빌드)로 손으로 맞춘다.
      App.tsx가 NetworkLogContent·ConsoleLogContent·IssuePreviewView를 사이드패널에서 그대로
-     가져다 써서 여기에도 mono 표면이 있다. @font-face가 없어 보통은 시스템 mono로 폴백하지만,
-     스택 1순위가 "Geist Mono Variable"이라 그 폰트가 설치된 기기에선 로컬 해석돼 liga가 살아난다
-     — 그러면 네트워크 본문의 `------WebKitFormBoundary`가 이어붙는다. 사이드패널은 늘 Geist를
-     받으므로 이 결함은 내보낸 logs.html에만 남아 개발 중엔 안 보인다.
+     가져다 써서 여기에도 mono 표면이 있다. 위 @font-face로 latin Geist Mono를 임베드하지만
+     non-latin은 시스템 mono로 폴백하고, Geist가 로컬 설치된 기기에선 로컬 해석될 수도 있어
+     liga가 살아날 여지가 있다 — 그러면 네트워크 본문의 `------WebKitFormBoundary`가 이어붙는다.
+     이 선언(font-variant-ligatures: none)이 임베드·로컬·폴백 어느 경로든 리거처를 끄는 단독 방어다.
      (tokens.test.ts가 globals.css와의 완전 일치를 강제한다.) */
   .font-mono,
   pre,

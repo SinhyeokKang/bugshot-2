@@ -8,6 +8,14 @@ export type TemplateToken =
 // String.split용이라 캡처 그룹이 중괄호를 포함해 토큰에 `{name}`이 남는다.
 const SLOT_RE = /(\{[a-zA-Z_][a-zA-Z0-9_]*\})/;
 
+// 액션 엔트리의 검색 대상 텍스트(소문자). 로그 탭 검색·타임라인 검색이 공유.
+export function actionSearchText(e: ActionEntry): string {
+  return [
+    e.target, e.fieldLabel, e.value, e.toUrl,
+    e.dragSource?.name, e.dragSource?.selector, e.dragTarget?.name, e.dragTarget?.selector,
+  ].filter(Boolean).join(" ").toLowerCase();
+}
+
 export function splitTemplate(template: string): TemplateToken[] {
   return template
     .split(SLOT_RE)

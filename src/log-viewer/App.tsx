@@ -12,9 +12,11 @@ import { Tabs, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { CollapsingTabsList, TabLabel } from "@/components/ui/collapsing-tabs";
 import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable";
 import { toVideoSeconds } from "./timeline";
+import { buildTimeline, type TimelineItem } from "./timeline-merge";
 import type { TimelineMarker } from "./markers";
 import { buildErrorMarkers } from "@/sidepanel/30s-replay/trim-markers";
 import { VideoPlayer, type VideoPlayerHandle } from "./components/VideoPlayer";
+import { TimelinePanel } from "./components/TimelinePanel";
 import { ImageViewer } from "./components/ImageViewer";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -36,19 +38,36 @@ function downloadJson(obj: object, filename: string) {
 
 type LogTab = "report" | "console" | "network" | "action";
 
+// 각 패널 안에 5px 마진으로 떠 있는 라운드 카드. 마진이 패널 사이·가장자리 gap을 만들고,
+// 카드 그림자가 그 마진 안에 떨어져 라이브러리가 PanelGroup/Panel에 건 overflow:hidden에 안 잘린다.
+const CARD = "m-1.5 flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg bg-background shadow-sm";
+// 리사이즈 핸들: 얇은 1px, hover/drag 시 4px 파란 직사각형 바(양끝 fade 그라디언트, via-blue-300).
+const HANDLE_FADE =
+  "after:from-transparent after:via-blue-300 after:to-transparent after:opacity-0 data-[resize-handle-state=hover]:after:opacity-100 data-[resize-handle-state=drag]:after:opacity-100";
+// 세로 바: full-height, 위/아래로 fade(to-b). 폭 4px.
+const HANDLE_H = `bg-transparent after:w-1 after:bg-gradient-to-b ${HANDLE_FADE}`;
+// 가로 바: full-width, 좌/우로 fade(to-r). 높이 4px. base after:inset-y-0가 세로 핸들에선
+// 바를 늘려 -translate-y-1/2로 영상 밑에 깔리던 것 → inset-y-auto+top-1/2로 중앙 정렬 보정.
+const HANDLE_V =
+  `bg-transparent data-[panel-group-direction=vertical]:after:inset-y-auto ` +
+  `data-[panel-group-direction=vertical]:after:top-1/2 data-[panel-group-direction=vertical]:after:h-1 ` +
+  `after:bg-gradient-to-r ${HANDLE_FADE}`;
+
 export function App({ data }: AppProps) {
   const hasNetwork = !!data?.networkLog;
   const hasConsole = !!data?.consoleLog;
   const hasAction = !!data?.actionLog;
   const hasReport = !!data?.report;
-  // Report는 보조 탭이라 기본 선택에서 제외(의도) — console→network→action 순.
-  // 기본 활성 탭: 캡처된 탭 중 console → network → action 순 첫 번째(사이드패널 다이얼로그와 동일 count 기준).
+  // 타임라인이 좌측에서 로그를 훑게 되면서 우측 기본 탭은 버그 리포트 본문(report)으로 연다.
+  // report가 없으면 캡처된 로그 탭 중 console → network → action 순 첫 번째로 폴백.
   const defaultTab: LogTab =
-    data?.consoleLog?.entries.length
-      ? "console"
-      : data?.networkLog?.requests.length
-        ? "network"
-        : "action";
+    data?.report
+      ? "report"
+      : data?.consoleLog?.entries.length
+        ? "console"
+        : data?.networkLog?.requests.length
+          ? "network"
+          : "action";
   const [activeTab, setActiveTab] = useState<LogTab>(defaultTab);
 
   const copyReport = useCallback(async () => {
@@ -100,6 +119,25 @@ export function App({ data }: AppProps) {
   const handleScrollComplete = useCallback(() => {
     setScrollToEntryId(null);
   }, []);
+
+  // 병합 타임라인 아이템 — 순수 정렬. 영상 여부와 무관하게 계산(영상일 때만 패널에 노출).
+  const timelineItems = useMemo(
+    () => buildTimeline(data?.consoleLog ?? null, data?.networkLog ?? null, data?.actionLog ?? null),
+    [data],
+  );
+
+  // playhead ref 중계 — App state 없이 VideoPlayer.onTimeUpdate를 TimelinePanel에 직결(리렌더 격리).
+  const timeListener = useRef<((sec: number) => void) | null>(null);
+  const handleTimeUpdate = useCallback((sec: number) => timeListener.current?.(sec), []);
+  const setTimeListener = useCallback((fn: ((sec: number) => void) | null) => { timeListener.current = fn; }, []);
+
+  // 타임라인 행 클릭 = 영상 seek + 해당 로그 탭 조회 동시 발화(기존 마커 클릭 경로 재사용 —
+  // setActiveTab + scrollToEntryId → useScrollToEntry 스크롤·선택·필터 보정).
+  const activateTimelineItem = useCallback((item: TimelineItem) => {
+    seekTo(item.absTs);
+    setActiveTab(item.kind);
+    setScrollToEntryId(item.id);
+  }, [seekTo]);
 
   // 영상·앵커가 살아있을 때만 세 로그 탭에 동기화 props 공급. 부재/에러 시 라이브 서브탭과 동일 동작.
   const sync = video && !videoError
@@ -255,44 +293,68 @@ export function App({ data }: AppProps) {
   );
 
   if (!video && !screenshot) {
-    return <div className="flex h-screen flex-col">{tabsPanel}</div>;
+    return (
+      <div className="flex h-screen flex-col bg-muted p-1.5">
+        <div className={CARD}>{tabsPanel}</div>
+      </div>
+    );
   }
 
   return (
-    <div className="h-screen">
+    <div className="h-screen bg-muted p-1.5">
       <ResizablePanelGroup direction="horizontal">
-        <ResizablePanel defaultSize={60} className="flex min-w-0 flex-col">
+        <ResizablePanel defaultSize={60} minSize={25} className="flex min-w-0 flex-col">
           {video ? (
             videoError ? (
-              <div className="flex h-full items-center justify-center bg-black">
+              <div className="m-1.5 flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-lg bg-black shadow-sm">
                 <span className="text-sm text-muted-foreground">{t("logViewer.video.error")}</span>
               </div>
             ) : (
-              <VideoPlayer
-                ref={playerRef}
-                src={video.dataUrl}
-                poster={video.thumbnail}
-                markers={markers}
+              <ResizablePanelGroup direction="vertical">
+                <ResizablePanel defaultSize={62} minSize={30} className="flex min-w-0 flex-col">
+                  <div className={CARD}>
+                    <VideoPlayer
+                      ref={playerRef}
+                      src={video.dataUrl}
+                      poster={video.thumbnail}
+                      markers={markers}
+                      issueTitle={data.meta.issueTitle}
+                      issueKey={data.meta.issueKey}
+                      issueUrl={data.meta.issueUrl}
+                      onMarkerClick={handleMarkerClick}
+                      onDurationChange={setVideoDurationSec}
+                      onTimeUpdate={handleTimeUpdate}
+                      onError={() => setVideoError(true)}
+                    />
+                  </div>
+                </ResizablePanel>
+                <ResizableHandle className={HANDLE_V} />
+                <ResizablePanel defaultSize={38} minSize={20} className="flex min-w-0 flex-col">
+                  <div className={CARD}>
+                    <TimelinePanel
+                      items={timelineItems}
+                      videoStartedAt={video.startedAt}
+                      setTimeListener={setTimeListener}
+                      onActivate={activateTimelineItem}
+                    />
+                  </div>
+                </ResizablePanel>
+              </ResizablePanelGroup>
+            )
+          ) : (
+            <div className={CARD}>
+              <ImageViewer
+                src={screenshot!.dataUrl}
                 issueTitle={data.meta.issueTitle}
                 issueKey={data.meta.issueKey}
                 issueUrl={data.meta.issueUrl}
-                onMarkerClick={handleMarkerClick}
-                onDurationChange={setVideoDurationSec}
-                onError={() => setVideoError(true)}
               />
-            )
-          ) : (
-            <ImageViewer
-              src={screenshot!.dataUrl}
-              issueTitle={data.meta.issueTitle}
-              issueKey={data.meta.issueKey}
-              issueUrl={data.meta.issueUrl}
-            />
+            </div>
           )}
         </ResizablePanel>
-        <ResizableHandle className="bg-border hover:bg-blue-300 hover:shadow-[-1px_0_0_0_theme(colors.blue.300),1px_0_0_0_theme(colors.blue.300)] dark:hover:bg-blue-700 dark:hover:shadow-[-1px_0_0_0_theme(colors.blue.700),1px_0_0_0_theme(colors.blue.700)]" />
-        <ResizablePanel defaultSize={40} className="flex min-w-0 flex-col">
-          {tabsPanel}
+        <ResizableHandle className={HANDLE_H} />
+        <ResizablePanel defaultSize={40} minSize={25} className="flex min-w-0 flex-col">
+          <div className={CARD}>{tabsPanel}</div>
         </ResizablePanel>
       </ResizablePanelGroup>
     </div>

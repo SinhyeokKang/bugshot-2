@@ -20,11 +20,12 @@ interface VideoPlayerProps {
   issueUrl?: string;
   onMarkerClick: (marker: TimelineMarker) => void;
   onDurationChange: (durationSec: number) => void;
+  onTimeUpdate?: (sec: number) => void; // playhead 구독(타임라인 패널 동기화). 미공급 시 기존 동작 불변.
   onError: () => void;
 }
 
 export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
-  function VideoPlayer({ src, poster, markers, issueTitle, issueKey, issueUrl, onMarkerClick, onDurationChange, onError }, ref) {
+  function VideoPlayer({ src, poster, markers, issueTitle, issueKey, issueUrl, onMarkerClick, onDurationChange, onTimeUpdate, onError }, ref) {
     const videoRef = useRef<HTMLVideoElement>(null);
     const [isPlaying, setIsPlaying] = useState(false);
     const [pauseFlash, setPauseFlash] = useState(false);
@@ -53,7 +54,8 @@ export const VideoPlayer = forwardRef<VideoPlayerHandle, VideoPlayerProps>(
       const el = videoRef.current;
       if (!el) return;
       setCurrentTimeSec(el.currentTime);
-    }, []);
+      onTimeUpdate?.(el.currentTime);
+    }, [onTimeUpdate]);
 
     const handleDurationChange = useCallback(() => {
       const el = videoRef.current;

@@ -63,7 +63,7 @@ export function DraftEditDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
-        className="flex w-[90vw] max-w-[90vw] max-h-[80vh] flex-col gap-5 rounded-3xl p-6 sm:rounded-3xl"
+        className="flex w-[90vw] max-w-[800px] max-h-[80vh] flex-col gap-5 rounded-3xl p-6 sm:rounded-3xl"
         data-testid="draft-edit-dialog"
       >
         <DialogHeader>

@@ -18,6 +18,7 @@ import { dirname, join } from "node:path";
 import { koDict, enDict, t } from "../i18n";
 import { logs } from "../../i18n/namespaces/logs";
 import { editor } from "../../i18n/namespaces/editor";
+import { NET_VERB_KEYS } from "../timeline-merge";
 
 describe("log viewer i18n — 사전 구조", () => {
   it("ko/en 키 동일", () => {
@@ -89,6 +90,17 @@ describe("log viewer i18n — 메인 테이블 대조", () => {
     const missing = referencedKeys.filter(
       (k) => !(k in koDict) || !(k in enDict),
     );
+    expect(missing).toEqual([]);
+  });
+
+  // netVerbKey는 t(`timeline.net.verb.${...}`) 동적 조립이라 위 리터럴 스캐너를 우회한다.
+  // 가능한 키를 NET_VERB_KEYS 닫힌 집합(netVerbKey 반환 타입이 바인딩)으로 고정하고
+  // dict 존재를 강제해 verb 추가 시 키 누락(raw 노출)을 잡는다.
+  it("동적 조립 net.verb 키(NET_VERB_KEYS)가 dict에 모두 존재", () => {
+    const missing = NET_VERB_KEYS.flatMap((v) => {
+      const key = `timeline.net.verb.${v}`;
+      return !(key in koDict) || !(key in enDict) ? [key] : [];
+    });
     expect(missing).toEqual([]);
   });
 
