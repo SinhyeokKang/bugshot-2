@@ -305,7 +305,7 @@ export function App({ data }: AppProps) {
                     onError={() => setVideoError(true)}
                   />
                 </ResizablePanel>
-                <ResizableHandle className="hover:after:bg-blue-300 dark:hover:after:bg-blue-700" />
+                <ResizableHandle className="data-[resize-handle-state=hover]:after:bg-blue-300 data-[resize-handle-state=drag]:after:bg-blue-300 dark:data-[resize-handle-state=hover]:after:bg-blue-700 dark:data-[resize-handle-state=drag]:after:bg-blue-700" />
                 <ResizablePanel defaultSize={38} minSize={20} className="flex min-w-0 flex-col">
                   <TimelinePanel
                     items={timelineItems}
@@ -325,7 +325,7 @@ export function App({ data }: AppProps) {
             />
           )}
         </ResizablePanel>
-        <ResizableHandle className="hover:after:bg-blue-300 dark:hover:after:bg-blue-700" />
+        <ResizableHandle className="data-[resize-handle-state=hover]:after:bg-blue-300 data-[resize-handle-state=drag]:after:bg-blue-300 dark:data-[resize-handle-state=hover]:after:bg-blue-700 dark:data-[resize-handle-state=drag]:after:bg-blue-700" />
         <ResizablePanel defaultSize={40} className="flex min-w-0 flex-col">
           {tabsPanel}
         </ResizablePanel>

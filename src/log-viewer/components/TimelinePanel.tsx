@@ -116,7 +116,7 @@ export function TimelinePanel({ items, videoStartedAt, setTimeListener, onActiva
         </div>
       </Tabs>
 
-      <div ref={scrollRef} onScroll={handleScroll} className="ml-4 min-h-0 flex-1 overflow-y-auto" data-testid="timeline-scroll">
+      <div ref={scrollRef} onScroll={handleScroll} className="min-h-0 flex-1 overflow-y-auto" data-testid="timeline-scroll">
         {items.length === 0 ? (
           <div className="flex h-full items-center justify-center px-4 text-center text-sm text-muted-foreground/70">
             {t("timeline.empty")}

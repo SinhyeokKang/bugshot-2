@@ -50,11 +50,11 @@ export const TimelineRow = memo(function TimelineRow({
       data-testid="timeline-row"
       data-kind={item.kind}
       data-active={isActive || undefined}
-      className={`cursor-pointer border-l-2 ${spine} ${fill}`}
+      className={`cursor-pointer border-l-4 ${spine} ${fill}`}
       aria-current={isActive ? "true" : undefined}
       onClick={() => onActivate(item)}
     >
-      <div className="flex items-center gap-4 px-2.5 py-2 text-[13px] hover:bg-accent/50">
+      <div className="flex items-center gap-3 px-2.5 py-2 text-[13px] hover:bg-accent/50">
         <LogSeekChip ts={item.absTs} label={formatRelativeTime(item.absTs, videoStartedAt)} onSeek={() => onActivate(item)} />
 
         {item.kind === "action" && (
@@ -103,8 +103,8 @@ export const TimelineRow = memo(function TimelineRow({
       </div>
 
       {item.kind === "console" && canExpand && expanded && (
-        // 스택은 메시지 텍스트 시작점(pl-[90px] = px-2.5 10 + chip 32 + gap 16 + icon 16 + gap 16)에 정렬.
-        <div className="px-2.5 pb-2 pl-[90px] text-xs">
+        // 스택은 메시지 텍스트 시작점(pl-[82px] = px-2.5 10 + chip 32 + gap 12 + icon 16 + gap 12)에 정렬.
+        <div className="px-2.5 pb-2 pl-[82px] text-xs">
           <pre className="max-h-[200px] overflow-auto whitespace-pre-wrap break-all rounded bg-muted p-2 font-mono text-mono">
             <LinkifiedText text={item.entry.stack!} />
           </pre>
