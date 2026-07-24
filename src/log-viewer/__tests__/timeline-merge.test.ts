@@ -212,8 +212,13 @@ describe("timelineFillClass — 우측 탭 배경색 base 틴트와 동일", () 
     expect(timelineFillClass(item(networkRequest("n", 0, { status: 200 }), "network"))).toBe("");
   });
 
-  it("action → 빈 문자열 (면색 없음)", () => {
-    const aItem: TimelineItem = { kind: "action", id: "a", absTs: 0, entry: actionEntry("a", 0) };
+  it("action navigation → blue 틴트 (액션 탭 kindBgColor와 sync)", () => {
+    const navItem: TimelineItem = { kind: "action", id: "a", absTs: 0, entry: actionEntry("a", 0, "navigation") };
+    expect(timelineFillClass(navItem)).toBe("bg-blue-100 dark:bg-blue-950/50");
+  });
+
+  it("action navigation 외(click 등) → 빈 문자열", () => {
+    const aItem: TimelineItem = { kind: "action", id: "a", absTs: 0, entry: actionEntry("a", 0, "click") };
     expect(timelineFillClass(aItem)).toBe("");
   });
 });

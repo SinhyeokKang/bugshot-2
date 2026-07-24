@@ -55,13 +55,13 @@ export function matchesTimelineItem(
   }
 }
 
-// 면색 = "문제"만. 기존 로그 탭 배경색과 완전 sync(log-colors 단일 출처 위임).
-// console error/warn/info 틴트, network 실패/pending 틴트, action·log·debug·성공은 "".
+// 면색 = 기존 로그 탭 배경색과 완전 sync(log-colors 단일 출처 위임). console error/warn/info 틴트,
+// network 실패/pending 틴트, action은 navigation만 blue(액션 탭 kindBgColor와 동일 규칙·값), 그 외 "".
 export function timelineFillClass(item: TimelineItem): string {
   switch (item.kind) {
     case "console": return consoleLevelBgClass(item.entry.level);
     case "network":
       return isNetworkError(item.req) ? TONE_BG.red : isNetworkPending(item.req) ? TONE_BG.amber : "";
-    case "action": return "";
+    case "action": return item.entry.kind === "navigation" ? TONE_BG.blue : "";
   }
 }

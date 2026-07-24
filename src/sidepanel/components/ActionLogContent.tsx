@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { findActiveIndex } from "@/log-viewer/timeline";
-import { TONE_TEXT } from "@/lib/log-colors";
+import { TONE_TEXT, TONE_BG } from "@/lib/log-colors";
 import { formatRelativeTime, syncRowClass } from "@/sidepanel/lib/logRow";
 import { useScrollToEntry } from "@/sidepanel/lib/useScrollToEntry";
 import { distinctOriginKeys, originKey, originCounts } from "@/sidepanel/lib/logOrigin";
@@ -36,9 +36,10 @@ interface ActionLogContentProps {
   isMuted?: (absTs: number) => boolean; // 트림 후보(잘려나갈 로그) 흐림 판정
 }
 
-// navigation만 콘솔 info-틴트 배경 재사용, click/input은 중립(배경 없음).
-function kindBgColor(kind: ActionEntryKind): string {
-  return kind === "navigation" ? "bg-blue-100 dark:bg-blue-950/50" : "";
+// navigation만 콘솔 info-틴트(TONE_BG.blue) 배경 재사용, click/input은 중립(배경 없음).
+// timeline-merge.timelineFillClass의 action 케이스가 이 규칙을 동일 TONE_BG.blue로 재사용한다.
+export function kindBgColor(kind: ActionEntryKind): string {
+  return kind === "navigation" ? TONE_BG.blue : "";
 }
 
 export function KindIcon({ kind }: { kind: ActionEntryKind }) {
