@@ -271,7 +271,7 @@ export function ActionLogContent({ entries, startedAt, flush, syncBaseMs, onSeek
       {entries.length === 0 ? (
         <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3">
           <div className="rounded-full bg-muted p-3">
-            <MousePointerClick className="h-6 w-6 text-foreground" />
+            <MousePointerClick className="h-6 w-6 text-muted-foreground" />
           </div>
           <span className="text-sm text-muted-foreground">{t("actionLog.empty")}</span>
         </div>

@@ -87,7 +87,8 @@ export function ContentTypeIcon({ req }: { req: NetworkRequest }) {
   if (ct.includes("font") || url.match(/\.(woff2?|ttf|otf|eot)(\?|$)/)) return <Type className={`${base} text-muted-foreground`} />;
   if (ct.includes("image") || url.match(/\.(png|jpe?g|gif|svg|webp|ico|avif)(\?|$)/)) return <Image className={`${base} text-teal-600 dark:text-teal-400`} />;
   if (ct.includes("html")) return <FileText className={`${base} text-blue-600 dark:text-blue-400`} />;
-  return <File className={`${base} text-muted-foreground`} />;
+  // 알 수 없는 content-type(default) 아이콘은 타임라인·행에서 또렷하게 foreground.
+  return <File className={`${base} text-foreground`} />;
 }
 
 function formatBody(body: NetworkRequestBody | undefined): string {
@@ -353,7 +354,7 @@ export function NetworkLogContent({ requests, flush, syncBaseMs, onSeek, activeT
         {requests.length === 0 ? (
           <div className="flex flex-1 flex-col items-center justify-center gap-3">
             <div className="rounded-full bg-muted p-3">
-              <Globe className="h-6 w-6 text-foreground" />
+              <Globe className="h-6 w-6 text-muted-foreground" />
             </div>
             <span className="text-sm text-muted-foreground">{t("debug.network.empty")}</span>
           </div>
@@ -409,7 +410,7 @@ export function NetworkLogContent({ requests, flush, syncBaseMs, onSeek, activeT
         ) : (
           <div className="flex flex-1 flex-col items-center justify-center gap-3">
             <div className="rounded-full bg-muted p-3">
-              <MousePointerClick className="h-6 w-6 text-foreground" />
+              <MousePointerClick className="h-6 w-6 text-muted-foreground" />
             </div>
             <span className="text-sm text-muted-foreground">{t("networkLog.dialog.selectRequest")}</span>
           </div>
@@ -538,7 +539,7 @@ function BodyPanel({ body, query }: { body: NetworkRequestBody | undefined; quer
     return (
       <div className="flex min-h-[300px] flex-col items-center justify-center gap-3">
         <div className="rounded-full bg-muted p-3">
-          <FileText className="h-6 w-6 text-foreground" />
+          <FileText className="h-6 w-6 text-muted-foreground" />
         </div>
         <span className="text-sm text-muted-foreground">{label}</span>
       </div>
