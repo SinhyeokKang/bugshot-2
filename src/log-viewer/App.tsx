@@ -40,7 +40,7 @@ type LogTab = "report" | "console" | "network" | "action";
 
 // 각 패널 안에 5px 마진으로 떠 있는 라운드 카드. 마진이 패널 사이·가장자리 gap을 만들고,
 // 카드 그림자가 그 마진 안에 떨어져 라이브러리가 PanelGroup/Panel에 건 overflow:hidden에 안 잘린다.
-const CARD = "m-1.5 flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg bg-background shadow";
+const CARD = "m-1.5 flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg bg-background shadow-sm";
 // 리사이즈 핸들: 얇은 1px, hover/drag 시 4px 파란 직사각형 바(양끝 fade 그라디언트, via-blue-300).
 const HANDLE_FADE =
   "after:from-transparent after:via-blue-300 after:to-transparent after:opacity-0 data-[resize-handle-state=hover]:after:opacity-100 data-[resize-handle-state=drag]:after:opacity-100";
@@ -306,7 +306,7 @@ export function App({ data }: AppProps) {
         <ResizablePanel defaultSize={60} minSize={25} className="flex min-w-0 flex-col">
           {video ? (
             videoError ? (
-              <div className="m-1.5 flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-lg bg-black shadow">
+              <div className="m-1.5 flex min-h-0 flex-1 items-center justify-center overflow-hidden rounded-lg bg-black shadow-sm">
                 <span className="text-sm text-muted-foreground">{t("logViewer.video.error")}</span>
               </div>
             ) : (
