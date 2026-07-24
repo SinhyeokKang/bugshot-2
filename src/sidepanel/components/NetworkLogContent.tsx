@@ -538,7 +538,7 @@ function BodyPanel({ body, query }: { body: NetworkRequestBody | undefined; quer
     return (
       <div className="flex min-h-[300px] flex-col items-center justify-center gap-3">
         <div className="rounded-full bg-muted p-3">
-          <FileText className="h-6 w-6 text-muted-foreground" />
+          <FileText className="h-6 w-6 text-foreground" />
         </div>
         <span className="text-sm text-muted-foreground">{label}</span>
       </div>
