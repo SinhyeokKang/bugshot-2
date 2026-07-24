@@ -38,6 +38,13 @@ function downloadJson(obj: object, filename: string) {
 
 type LogTab = "report" | "console" | "network" | "action";
 
+// 각 패널은 회색 페이지 위에 떠 있는 라운드 카드. 패널 사이·뷰포트 가장자리 10px gap(투명 핸들 폭).
+const CARD = "overflow-hidden rounded-lg bg-background shadow-sm";
+// 리사이즈 핸들: 10px 투명 gap 안에서 hover/drag 시 8px 파란 pill(::after)로 표시.
+const HANDLE_BLUE = "data-[resize-handle-state=hover]:after:bg-blue-400 data-[resize-handle-state=drag]:after:bg-blue-500 after:rounded-full";
+const HANDLE_H = `w-2.5 bg-transparent after:w-2 ${HANDLE_BLUE}`;
+const HANDLE_V = `data-[panel-group-direction=vertical]:h-2.5 data-[panel-group-direction=vertical]:after:h-2 bg-transparent ${HANDLE_BLUE}`;
+
 export function App({ data }: AppProps) {
   const hasNetwork = !!data?.networkLog;
   const hasConsole = !!data?.consoleLog;
@@ -278,21 +285,25 @@ export function App({ data }: AppProps) {
   );
 
   if (!video && !screenshot) {
-    return <div className="flex h-screen flex-col">{tabsPanel}</div>;
+    return (
+      <div className="flex h-screen flex-col bg-muted p-2.5">
+        <div className={`${CARD} flex min-h-0 flex-1 flex-col`}>{tabsPanel}</div>
+      </div>
+    );
   }
 
   return (
-    <div className="h-screen">
+    <div className="h-screen bg-muted p-2.5">
       <ResizablePanelGroup direction="horizontal">
         <ResizablePanel defaultSize={60} className="flex min-w-0 flex-col">
           {video ? (
             videoError ? (
-              <div className="flex h-full items-center justify-center bg-black">
+              <div className={`${CARD} flex h-full items-center justify-center bg-black`}>
                 <span className="text-sm text-muted-foreground">{t("logViewer.video.error")}</span>
               </div>
             ) : (
               <ResizablePanelGroup direction="vertical">
-                <ResizablePanel defaultSize={62} minSize={30} className="flex min-w-0 flex-col">
+                <ResizablePanel defaultSize={62} minSize={30} className={`${CARD} flex min-w-0 flex-col`}>
                   <VideoPlayer
                     ref={playerRef}
                     src={video.dataUrl}
@@ -307,8 +318,8 @@ export function App({ data }: AppProps) {
                     onError={() => setVideoError(true)}
                   />
                 </ResizablePanel>
-                <ResizableHandle className="data-[resize-handle-state=hover]:after:bg-blue-300 data-[resize-handle-state=drag]:after:bg-blue-300 dark:data-[resize-handle-state=hover]:after:bg-blue-700 dark:data-[resize-handle-state=drag]:after:bg-blue-700" />
-                <ResizablePanel defaultSize={38} minSize={20} className="flex min-w-0 flex-col">
+                <ResizableHandle className={HANDLE_V} />
+                <ResizablePanel defaultSize={38} minSize={20} className={`${CARD} flex min-w-0 flex-col`}>
                   <TimelinePanel
                     items={timelineItems}
                     videoStartedAt={video.startedAt}
@@ -319,16 +330,18 @@ export function App({ data }: AppProps) {
               </ResizablePanelGroup>
             )
           ) : (
-            <ImageViewer
-              src={screenshot!.dataUrl}
-              issueTitle={data.meta.issueTitle}
-              issueKey={data.meta.issueKey}
-              issueUrl={data.meta.issueUrl}
-            />
+            <div className={`${CARD} h-full`}>
+              <ImageViewer
+                src={screenshot!.dataUrl}
+                issueTitle={data.meta.issueTitle}
+                issueKey={data.meta.issueKey}
+                issueUrl={data.meta.issueUrl}
+              />
+            </div>
           )}
         </ResizablePanel>
-        <ResizableHandle className="data-[resize-handle-state=hover]:after:bg-blue-300 data-[resize-handle-state=drag]:after:bg-blue-300 dark:data-[resize-handle-state=hover]:after:bg-blue-700 dark:data-[resize-handle-state=drag]:after:bg-blue-700" />
-        <ResizablePanel defaultSize={40} className="flex min-w-0 flex-col">
+        <ResizableHandle className={HANDLE_H} />
+        <ResizablePanel defaultSize={40} className={`${CARD} flex min-w-0 flex-col`}>
           {tabsPanel}
         </ResizablePanel>
       </ResizablePanelGroup>
