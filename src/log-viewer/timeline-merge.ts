@@ -16,6 +16,25 @@ export type TimelineItem =
 export type TimelineKind = TimelineItem["kind"];
 export type TimelineFilter = "all" | TimelineKind;
 
+// method → 자연어 동사 키(i18n `timeline.net.verb.*`). 동적 조립이라 i18n 스캐너를 우회하므로
+// 가능한 키를 닫힌 집합으로 고정(반환 타입 바인딩) → verb 추가 시 i18n.test가 dict 존재를 강제.
+export const NET_VERB_KEYS = ["fetched", "posted", "updated", "deleted", "checked", "connected", "requested"] as const;
+export type NetVerbKey = (typeof NET_VERB_KEYS)[number];
+
+export function netVerbKey(req: NetworkRequest): NetVerbKey {
+  if (req.webSocket) return "connected";
+  switch (req.method.toUpperCase()) {
+    case "GET": return "fetched";
+    case "POST": return "posted";
+    case "PUT":
+    case "PATCH": return "updated";
+    case "DELETE": return "deleted";
+    case "HEAD":
+    case "OPTIONS": return "checked";
+    default: return "requested";
+  }
+}
+
 // 동일 absTs 타이브레이크 순서: 원인(action) → 요청(network) → 결과(console).
 const KIND_ORDER: Record<TimelineKind, number> = { action: 0, network: 1, console: 2 };
 

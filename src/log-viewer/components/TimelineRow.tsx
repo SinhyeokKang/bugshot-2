@@ -11,24 +11,9 @@ import { networkLogPath } from "@/lib/network-log-path";
 import { TONE_TEXT } from "@/lib/log-colors";
 import { isNetworkError, isNetworkPending, isStatusHidden } from "@/lib/network-status";
 import { t } from "../i18n";
-import { timelineFillClass, type TimelineItem } from "../timeline-merge";
+import { netVerbKey, timelineFillClass, type TimelineItem } from "../timeline-merge";
 
 type NetworkReq = Extract<TimelineItem, { kind: "network" }>["req"];
-
-// method → 자연어 동사 키(i18n `timeline.net.verb.*`). action 로그처럼 문장을 조립한다.
-function netVerbKey(req: NetworkReq): string {
-  if (req.webSocket) return "connected";
-  switch (req.method.toUpperCase()) {
-    case "GET": return "fetched";
-    case "POST": return "posted";
-    case "PUT":
-    case "PATCH": return "updated";
-    case "DELETE": return "deleted";
-    case "HEAD":
-    case "OPTIONS": return "checked";
-    default: return "requested";
-  }
-}
 
 interface TimelineRowProps {
   item: TimelineItem;
