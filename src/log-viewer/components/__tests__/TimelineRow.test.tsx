@@ -81,6 +81,20 @@ describe("TimelineRow — active 강조", () => {
   });
 });
 
+describe("TimelineRow — 타이포 패밀리 우측 탭 sync", () => {
+  it("액션 본문은 mono (ActionLogContent와 동일 패밀리)", () => {
+    render(<TimelineRow item={actionItem()} isActive={false} videoStartedAt={0} onSeek={noop} onOpenNetworkDetail={noop} />);
+    const body = screen.getByText("Clicked", { exact: false });
+    expect(body.className).toContain("font-mono");
+  });
+
+  it("네트워크 메서드 토큰은 sans (NetworkLogContent 메서드와 동일 패밀리)", () => {
+    render(<TimelineRow item={networkItem({ method: "POST" })} isActive={false} videoStartedAt={0} onSeek={noop} onOpenNetworkDetail={noop} />);
+    const token = screen.getByText("POST").parentElement!;
+    expect(token.className).not.toContain("font-mono");
+  });
+});
+
 describe("TimelineRow — 클릭 라우팅", () => {
   it("행 클릭 → onSeek(absTs)", async () => {
     const onSeek = vi.fn();
