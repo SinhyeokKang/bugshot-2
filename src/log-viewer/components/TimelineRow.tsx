@@ -88,10 +88,11 @@ export const TimelineRow = memo(function TimelineRow({
           <>
             <ContentTypeIcon req={item.req} />
             {/* method를 동사로 쓴 mono 문장 — action "Clicked {}"처럼 동사는 foreground(무채색).
-                method 색은 우측 sans 메타에만 준다. */}
+                경로는 action log URL처럼 파랑+밑줄 링크 표현이나 <a>가 아니라, 클릭은 행 activation
+                (URL 이동 아님)으로 흐른다. method 색은 우측 sans 메타에만 준다. */}
             <span className="min-w-0 flex-1 truncate font-mono text-mono">
               <span className="text-foreground">{item.req.method}</span>{" "}
-              {networkLogPath(item.req.url)}
+              <span className={`${TONE_TEXT.blue} underline`}>{networkLogPath(item.req.url)}</span>
             </span>
             <span data-testid="timeline-net-meta" className="flex shrink-0 items-center gap-1.5 text-muted-foreground">
               <span className={methodColor(item.req.method)}>{item.req.method}</span>
