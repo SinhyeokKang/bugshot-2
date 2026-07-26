@@ -801,9 +801,9 @@ export const useEditorStore = create<EditorState>((set, get) => ({
         pageUrl: state.target.url,
         pageTitle: state.target.title,
         captureMode: "screenshot",
-        ...(state.shotSelector
-          ? { selector: state.shotSelector.selector, tagName: state.shotSelector.tagName }
-          : {}),
+        // 조건부 스프레드로 키를 빼면 saveDraft 병합이 이전 selector를 살려낸다 — 항상 명시.
+        selector: state.shotSelector?.selector,
+        tagName: state.shotSelector?.tagName,
         viewport: state.screenshotViewport ?? undefined,
         draft: { ...state.draft },
         snapshot: {
@@ -870,9 +870,10 @@ export const useEditorStore = create<EditorState>((set, get) => ({
           name: t.name,
           value: t.value,
         })),
-        ...(state.bufferedElements.length > 0
-          ? {
-              bufferedElements: state.bufferedElements.map((b) => ({
+        // saveDraft가 병합이라 키를 조건부로 빼면 비워진 버퍼가 되살아난다 — 항상 실어 보낸다.
+        bufferedElements:
+          state.bufferedElements.length > 0
+            ? state.bufferedElements.map((b) => ({
                 selector: b.selector,
                 tagName: b.tagName,
                 frameId: b.frameId ?? 0,
@@ -892,9 +893,8 @@ export const useEditorStore = create<EditorState>((set, get) => ({
                 },
                 hasBefore: !!b.beforeImage,
                 hasAfter: !!b.afterImage,
-              })),
-            }
-          : {}),
+              }))
+            : undefined,
       });
       const bufferedSnapshot = state.bufferedElements;
       void (async () => {

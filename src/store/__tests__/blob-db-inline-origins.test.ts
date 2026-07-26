@@ -79,3 +79,47 @@ describe("pruneOrphanInlineImages — origin 동반 정리", () => {
     expect(await hasInlineOrigin("keep")).toBe(true);
   });
 });
+
+// A-30: 삭제 판정(GC)의 refId 정규식이 해석(resolveInlineImages)보다 좁아, refId 생성 규칙에
+// `_`·`.`이 들어오면 GC만 그 참조를 못 보고 살아있는 이미지를 고아로 지웠다.
+describe("collectAllActiveInlineRefs — refId 문자 집합", () => {
+  it("특수문자가 섞인 refId도 활성으로 인식한다", async () => {
+    await saveInlineImage("inline_2026.07-abc", new Blob(["a"]));
+    await saveInlineOrigin("inline_2026.07-abc", new Blob(["a-orig"]));
+    vi.mocked(chrome.storage.local.get).mockImplementation(async () => ({
+      "bugshot-issues": JSON.stringify({
+        state: {
+          issues: [
+            {
+              draft: {
+                sections: {
+                  description: "본문 ![shot](inline:inline_2026.07-abc) 끝",
+                },
+              },
+            },
+          ],
+        },
+        version: 5,
+      }),
+    }));
+
+    await pruneOrphanInlineImages([]);
+
+    expect(await getInlineImage("inline_2026.07-abc")).not.toBeNull();
+    expect(await hasInlineOrigin("inline_2026.07-abc")).toBe(true);
+  });
+
+  it("본문에서 사라진 refId는 여전히 삭제한다 (과잉 보존 방지)", async () => {
+    await saveInlineImage("gone_1.2", new Blob(["a"]));
+    vi.mocked(chrome.storage.local.get).mockImplementation(async () => ({
+      "bugshot-issues": JSON.stringify({
+        state: { issues: [{ draft: { sections: { description: "본문만" } } }] },
+        version: 5,
+      }),
+    }));
+
+    await pruneOrphanInlineImages([]);
+
+    expect(await getInlineImage("gone_1.2")).toBeNull();
+  });
+});

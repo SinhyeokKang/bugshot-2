@@ -29,6 +29,7 @@ import {
   dataUrlToBlob,
 } from "./blob-db";
 import type { UserAttachmentMeta } from "@/types/attachment";
+import { ISSUES_PERSIST_KEY } from "@/lib/session-keys";
 
 export function stripSubmitted(
   issue: IssueRecord,
@@ -43,6 +44,7 @@ export function stripSubmitted(
     snapshot: { before: false, after: false },
     draft: { title: "", sections: {}, environment: [] },
     styleEdits: undefined,
+    bufferedElements: undefined,
     selectionSnapshot: undefined,
     tokensSnapshot: undefined,
     selector: undefined,
@@ -78,6 +80,7 @@ async function pruneOrphanBlobs(): Promise<void> {
   const imageBlobKeys = await getImageBlobKeys();
   const prunedImageIds = new Set<string>();
   for (const key of imageBlobKeys) {
+    if (key.startsWith("pending:")) continue;
     const issueId = key.split(":")[0];
     if (!currentIds.has(issueId) && !prunedImageIds.has(issueId)) {
       prunedImageIds.add(issueId);
@@ -347,7 +350,11 @@ export const useIssuesStore = create<IssuesState>()(
           const existing = s.issues.find((x) => x.id === record.id);
           const rest = s.issues.filter((x) => x.id !== record.id);
           const createdAt = existing?.createdAt ?? record.createdAt ?? Date.now();
+          // 통째 교체가 아니라 병합 — patchIssue로만 세팅되는 필드(logsAttached·attachments·
+          // 제출 결과)가 재확정 한 번에 사라지던 구멍을 막는다. record가 키를 명시적으로
+          // undefined로 실어 보내면 그건 그대로 폐기된다(spread가 undefined도 덮어쓴다).
           const next: IssueRecord = {
+            ...existing,
             ...record,
             createdAt,
             updatedAt: Date.now(),
@@ -432,7 +439,7 @@ export const useIssuesStore = create<IssuesState>()(
       },
     }),
     {
-      name: "bugshot-issues",
+      name: ISSUES_PERSIST_KEY,
       version: ISSUES_STORE_VERSION,
       storage: createJSONStorage(() => failClosedLocalStorage),
       migrate: migrateIssuesState,
