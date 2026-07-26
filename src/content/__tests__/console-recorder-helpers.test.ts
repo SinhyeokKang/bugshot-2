@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 import {
   ARG_CAP,
   cleanStack,
+  createSafeRecorder,
   formatErrorEvent,
   formatRejectionReason,
   installConsoleWrap,
@@ -189,6 +190,42 @@ describe("shouldCaptureAssertion", () => {
     expect(shouldCaptureAssertion(1)).toBe(false);
     expect(shouldCaptureAssertion("x")).toBe(false);
     expect(shouldCaptureAssertion({})).toBe(false);
+  });
+});
+
+describe("createSafeRecorder", () => {
+  it("비capturing이면 기록 본문을 아예 실행하지 않는다 (직렬화 비용 0)", () => {
+    let capturing = false;
+    const safeRecord = createSafeRecorder(() => capturing);
+    const build = vi.fn();
+
+    safeRecord(build);
+    expect(build).not.toHaveBeenCalled();
+
+    capturing = true;
+    safeRecord(build);
+    expect(build).toHaveBeenCalledTimes(1);
+  });
+
+  it("게이트를 매 호출마다 다시 읽는다 (스냅샷 아님)", () => {
+    let capturing = true;
+    const safeRecord = createSafeRecorder(() => capturing);
+    const build = vi.fn();
+
+    safeRecord(build);
+    capturing = false;
+    safeRecord(build);
+
+    expect(build).toHaveBeenCalledTimes(1);
+  });
+
+  it("기록이 throw해도 호출자로 전파하지 않는다", () => {
+    const safeRecord = createSafeRecorder(() => true);
+    expect(() =>
+      safeRecord(() => {
+        throw new TypeError("serialize boom");
+      }),
+    ).not.toThrow();
   });
 });
 

@@ -180,6 +180,22 @@ export function makeConsoleWrapper(
   };
 }
 
+// 무간섭 원칙: 비활성 구간에서는 record 본문(직렬화·스택 수집)을 아예 실행하지 않고, 기록 중
+// 예외는 페이지의 console.* 호출자로 전파시키지 않는다. wrapper는 원본을 먼저 호출한 뒤 이 함수에
+// 기록 본문만 넘긴다 — 게이트가 직렬화보다 앞이라 녹화를 켠 적 없는 페이지는 비용이 0이다.
+export function createSafeRecorder(
+  isCapturing: () => boolean,
+): (record: () => void) => void {
+  return (record) => {
+    if (!isCapturing()) return;
+    try {
+      record();
+    } catch {
+      // 캡처 실패가 페이지 코드를 깨면 안 된다.
+    }
+  };
+}
+
 // 멱등 설치: arm 시점의 현재 error/warn(페이지 Sentry 등이 덧씌운 wrapper 포함)을 prior로 스냅샷하고
 // 그 prior를 호출하는 wrapper를 설치한다 — prior를 init-native가 아닌 arm 시점값으로 잡아야
 // 페이지 모니터링을 우회·파괴하지 않는다. 이미 installed면 no-op(setSentinel 다회 호출 대비).
