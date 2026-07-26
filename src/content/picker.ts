@@ -102,6 +102,8 @@ const editedEls = new Map<Element, OriginalState>();
 
 let overlay: OverlayHandle | null = null;
 let areaHandle: AreaSelectHandle | null = null;
+// 현재 area-select 세션이 끝난 뒤 선택 상태로 돌아가야 하는지(element 편집 중 본문 이미지 삽입).
+let areaRestoreAfter = false;
 let tokenLookup: TokenLookup | null = null;
 let tokenBuildHandle: number | null = null;
 
@@ -460,6 +462,7 @@ function handleStop(): void {
 }
 
 function handleClear(): void {
+  areaRestoreAfter = false;
   if (scrollSession) {
     endScrollCapture(scrollSession);
     scrollSession = null;
@@ -946,6 +949,7 @@ function handleSelectByPath(selector: string): { found: boolean } {
 /* ── Area Select ─────────────────────────────────── */
 
 function restoreSelected(): void {
+  areaRestoreAfter = false;
   if (areaHandle) {
     cancelAreaSelect(areaHandle);
     areaHandle = null;
@@ -962,6 +966,9 @@ function handleStartAreaSelect(restoreAfter?: boolean): void {
   hideBanner(overlay);
   mode = "area-select";
   const shouldRestore = restoreAfter === true && selectedEl !== null;
+  // 사이드패널이 몰아주는 취소(handleCancelAreaSelect)도 같은 판단을 써야 한다 —
+  // 안 그러면 본문 이미지 삽입을 취소한 것만으로 페이지의 element 편집이 전부 원복된다.
+  areaRestoreAfter = shouldRestore;
   areaHandle = startAreaSelect({
     shadow: overlay.shadow,
     onBlockerRequest(action) {
@@ -1000,6 +1007,10 @@ function handleCancelAreaSelect(): void {
   if (areaHandle) {
     cancelAreaSelect(areaHandle);
     areaHandle = null;
+  }
+  if (areaRestoreAfter) {
+    restoreSelected();
+    return;
   }
   mode = "idle";
   handleClear();

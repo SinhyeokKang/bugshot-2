@@ -251,7 +251,9 @@ export function buildNotionIssueBody(
         blocks.push({ type: "paragraph", text: t("md.noValue") });
       } else {
         for (const it of items) {
-          blocks.push({ type: "bulleted_list_item", text: it });
+          // orderedList 섹션(재현 과정)은 번호 목록으로 — 8개 빌더 중 Notion만 불릿으로
+          // 떨어뜨려 재현 단계의 순서가 사라졌다.
+          blocks.push({ type: "numbered_list_item", text: it });
         }
       }
     } else {

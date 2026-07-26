@@ -100,6 +100,7 @@ export type NotionBlock =
   | { type: "paragraph"; text: string }
   | { type: "code"; language: string; text: string }
   | { type: "bulleted_list_item"; text: string }
+  | { type: "numbered_list_item"; text: string }
   | { type: "image"; placeholderId: string }
   | { type: "video"; placeholderId: string }
   | { type: "table"; rows: string[][] }

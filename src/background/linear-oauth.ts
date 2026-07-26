@@ -1,6 +1,7 @@
 import { t } from "@/i18n";
 import type { LinearAuth, LinearOAuthAuth } from "@/types/linear";
-import { writeStoredLinearOAuthTokens } from "@/lib/settings-storage";
+import { readStoredLinearAuth, writeStoredLinearOAuthTokens } from "@/lib/settings-storage";
+import { pickRotatedAuth } from "./lib/rotatedAuth";
 import { getMyself, setLinearRefreshHook } from "./linear-api";
 import { OAuthError, base64url, launchOAuthWebFlow } from "./oauth";
 import {
@@ -202,7 +203,14 @@ let refreshInFlight: Promise<LinearAuth> | null = null;
 async function refreshOnceWithLock(auth: LinearAuth): Promise<LinearAuth> {
   if (auth.kind !== "oauth") return auth;
   if (refreshInFlight) return refreshInFlight;
-  refreshInFlight = refreshLinearToken(auth).finally(() => {
+  // 락을 잡은 직후 저장분을 다시 본다 — 앞선 요청이 이미 회전을 끝냈다면 인자로 받은
+  // refresh token은 소모된 값이라 invalid_grant가 난다(rotatedAuth 참조).
+  refreshInFlight = (async () => {
+    const stored = await readStoredLinearAuth().catch(() => null);
+    const rotated =
+      stored?.kind === "oauth" ? pickRotatedAuth(auth, stored) : null;
+    return rotated ?? (await refreshLinearToken(auth));
+  })().finally(() => {
     refreshInFlight = null;
   });
   return refreshInFlight;

@@ -19,7 +19,7 @@ import { useBoundTabId } from "@/sidepanel/hooks/useBoundTabId";
 import { useAI } from "@/sidepanel/hooks/useAI";
 import { useReproPrefill } from "@/sidepanel/hooks/useReproPrefill";
 import { useReplay } from "@/sidepanel/30s-replay/replay-context";
-import { clearPicker, startInlineAreaCapture } from "@/sidepanel/picker-control";
+import { cancelAreaSelect, clearPicker, startInlineAreaCapture } from "@/sidepanel/picker-control";
 import { CancelConfirmDialog } from "@/sidepanel/components/CancelConfirmDialog";
 import { LogAttachmentCards } from "@/sidepanel/components/LogAttachmentCards";
 import { AttachmentSection } from "@/sidepanel/components/AttachmentSection";
@@ -165,7 +165,7 @@ export function DraftingPanel() {
   const titleMissing = !draft.title.trim();
 
   const showActionCard = supportsActionLog(captureMode) && actionLog !== null && actionLog.captured > 0;
-  const showLogCards = captureMode !== "element" && (
+  const showLogCards = supportsConsoleNetworkLog(captureMode) && (
     (networkLog !== null && networkLog.captured > 0) ||
     (consoleLog !== null && consoleLog.captured > 0) ||
     showActionCard
@@ -384,9 +384,7 @@ export function DraftingPanel() {
               variant="outline"
               onClick={() => {
                 useEditorStore.getState().cancelInlineCapture();
-                if (tabId) {
-                  chrome.tabs.sendMessage(tabId, { type: "picker.cancelAreaSelect" }).catch(() => {});
-                }
+                if (tabId) void cancelAreaSelect(tabId);
               }}
             >
               {t("common.cancel")}

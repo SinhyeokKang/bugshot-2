@@ -1,6 +1,7 @@
 import { t } from "@/i18n";
 import type { GitlabAuth, GitlabOAuthAuth } from "@/types/gitlab";
-import { writeStoredGitlabOAuthTokens } from "@/lib/settings-storage";
+import { readStoredGitlabAuth, writeStoredGitlabOAuthTokens } from "@/lib/settings-storage";
+import { pickRotatedAuth } from "./lib/rotatedAuth";
 import { getMyself, setGitlabRefreshHook } from "./gitlab-api";
 import { OAuthError, base64url, launchOAuthWebFlow } from "./oauth";
 import {
@@ -206,7 +207,14 @@ let refreshInFlight: Promise<GitlabAuth> | null = null;
 async function refreshOnceWithLock(auth: GitlabAuth): Promise<GitlabAuth> {
   if (auth.kind !== "oauth") return auth;
   if (refreshInFlight) return refreshInFlight;
-  refreshInFlight = refreshGitlabToken(auth).finally(() => {
+  // 락을 잡은 직후 저장분을 다시 본다 — 앞선 요청이 이미 회전을 끝냈다면 인자로 받은
+  // refresh token은 소모된 값이라 invalid_grant가 난다(rotatedAuth 참조).
+  refreshInFlight = (async () => {
+    const stored = await readStoredGitlabAuth().catch(() => null);
+    const rotated =
+      stored?.kind === "oauth" ? pickRotatedAuth(auth, stored) : null;
+    return rotated ?? (await refreshGitlabToken(auth));
+  })().finally(() => {
     refreshInFlight = null;
   });
   return refreshInFlight;

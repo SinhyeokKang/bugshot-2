@@ -48,16 +48,18 @@ export async function startVideoCapture(tabId: number): Promise<void> {
 
   await prepareRecorders(tabId);
 
-  const tab = await chrome.tabs.get(tabId);
-  useEditorStore.getState().startRecording(
-    {
-      tabId,
-      url: tab.url ?? "",
-      title: tab.title ?? "",
-    },
-    "tab",
-  );
+  // tabs.get이 try 밖에 있으면(대상 탭이 그 사이 닫히면) 이미 확보한 스트림이 stop 없이 새어
+  // 나가 공유 표시줄이 남는다 — 스트림을 잡은 뒤의 모든 실패는 같은 정리 경로를 타야 한다.
   try {
+    const tab = await chrome.tabs.get(tabId);
+    useEditorStore.getState().startRecording(
+      {
+        tabId,
+        url: tab.url ?? "",
+        title: tab.title ?? "",
+      },
+      "tab",
+    );
     videoRecorder.beginTabRecording(stream, tabId);
     void showAnnotation(tabId);
   } catch (err) {
@@ -88,16 +90,18 @@ export async function startScreenCapture(tabId: number, opts?: { preferTab?: boo
 
   await prepareRecorders(tabId);
 
-  const tab = await chrome.tabs.get(tabId);
-  useEditorStore.getState().startRecording(
-    {
-      tabId,
-      url: tab.url ?? "",
-      title: tab.title ?? "",
-    },
-    "screen",
-  );
+  // tabs.get이 try 밖에 있으면(대상 탭이 그 사이 닫히면) 이미 확보한 스트림이 stop 없이 새어
+  // 나가 공유 표시줄이 남는다 — 스트림을 잡은 뒤의 모든 실패는 같은 정리 경로를 타야 한다.
   try {
+    const tab = await chrome.tabs.get(tabId);
+    useEditorStore.getState().startRecording(
+      {
+        tabId,
+        url: tab.url ?? "",
+        title: tab.title ?? "",
+      },
+      "screen",
+    );
     videoRecorder.startScreenRecording(stream, tabId);
     void showAnnotation(tabId);
   } catch (err) {

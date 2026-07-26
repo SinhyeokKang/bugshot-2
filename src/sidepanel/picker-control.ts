@@ -619,8 +619,14 @@ export async function startInlineAreaCapture(tabId: number): Promise<void> {
   }
 }
 
-export async function cancelAreaCapture(tabId: number): Promise<void> {
+// area-select는 top(frameId 0)에서만 시작하므로 취소도 top에만 보낸다 — broadcast하면
+// 자기는 area-select를 켠 적 없는 iframe들이 handleClear를 타 그 프레임의 스타일 편집이 날아간다.
+export async function cancelAreaSelect(tabId: number): Promise<void> {
   await send(tabId, { type: "picker.cancelAreaSelect" }, 0);
+}
+
+export async function cancelAreaCapture(tabId: number): Promise<void> {
+  await cancelAreaSelect(tabId);
   useEditorStore.getState().reset();
 }
 

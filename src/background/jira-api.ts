@@ -17,6 +17,8 @@ import type {
 import type { JiraAdfDoc } from "@/types/jira";
 import type { JiraOAuthAuth } from "@/types/jira";
 import { OAuthError, refreshOAuthToken, persistOAuthTokens } from "./oauth";
+import { readStoredAuth } from "@/lib/settings-storage";
+import { pickRotatedAuth } from "./lib/rotatedAuth";
 
 export class JiraError extends Error {
   constructor(
@@ -74,14 +76,19 @@ let refreshInFlight: Promise<JiraOAuthAuth> | null = null;
 
 function refreshOnce(auth: JiraOAuthAuth): Promise<JiraOAuthAuth> {
   if (refreshInFlight) return refreshInFlight;
-  refreshInFlight = refreshOAuthToken(auth)
-    .then(async (refreshed) => {
-      await persistOAuthTokens(refreshed);
-      return refreshed;
-    })
-    .finally(() => {
-      refreshInFlight = null;
-    });
+  // 락을 잡은 직후 저장분을 다시 본다 — 앞선 요청이 이미 회전을 끝냈다면 인자로 받은
+  // refresh token은 소모된 값이라 invalid_grant가 난다(rotatedAuth 참조).
+  refreshInFlight = (async () => {
+    const stored = await readStoredAuth().catch(() => null);
+    const rotated =
+      stored?.kind === "oauth" ? pickRotatedAuth(auth, stored) : null;
+    if (rotated) return rotated;
+    const refreshed = await refreshOAuthToken(auth);
+    await persistOAuthTokens(refreshed);
+    return refreshed;
+  })().finally(() => {
+    refreshInFlight = null;
+  });
   return refreshInFlight;
 }
 
