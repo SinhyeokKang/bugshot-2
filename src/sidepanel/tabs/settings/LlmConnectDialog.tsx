@@ -38,6 +38,7 @@ import {
   detectProviderKind,
   fetchModels,
   GEMINI_MODELS,
+  LlmRedirectError,
   pingAnthropic,
   PROVIDER_PRESETS,
   requestHostPermission,
@@ -176,9 +177,13 @@ export function LlmConnectDialog({
 
       if (cancelledRef.current) return;
       setPendingModels({ models, baseUrl });
-    } catch {
+    } catch (err) {
       if (cancelledRef.current) return;
-      toast.error(t("llm.error.fetch"));
+      toast.error(
+        err instanceof LlmRedirectError
+          ? t("llm.error.redirect")
+          : t("llm.error.fetch"),
+      );
     } finally {
       if (!cancelledRef.current) setConnecting(false);
     }

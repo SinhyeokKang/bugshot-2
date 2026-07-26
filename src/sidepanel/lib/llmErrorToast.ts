@@ -7,6 +7,7 @@ import {
   LlmEmptyResponseError,
   LlmOverloadedError,
   LlmQuotaError,
+  LlmRedirectError,
 } from "./ai-provider";
 
 // 컨텍스트 초과는 원인·해법이 한 줄에 안 담겨 description까지 읽힐 시간이 필요하다.
@@ -30,6 +31,8 @@ export function toastLlmError(
     toast.error(t("llm.error.quota"));
   } else if (err instanceof LlmOverloadedError) {
     toast.error(t("llm.error.overloaded"));
+  } else if (err instanceof LlmRedirectError) {
+    toast.error(t("llm.error.redirect"));
   } else {
     toast.error(t(fallbackKey));
   }
