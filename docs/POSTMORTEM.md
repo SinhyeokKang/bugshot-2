@@ -21,6 +21,17 @@
 
 ---
 
+## 2026-07-26 — 설계 문서가 "Phase 2 문제"로 분류한 가드가 실은 Phase 1의 전제였다 (+ jsdom×chrome 스텁 2함정)
+
+- **증상**: (사전 차단) `activateTab`의 미지원 가드만 지우면 미지원 페이지에서 패널이 열리지만, **다음 탭 전환·네비게이션에 조용히 다시 닫힌다.** 설계 문서는 이 수정(`apply()`의 `supported` 조건 제거)을 Phase 2 태스크로 두고 *"안 고치면 Phase 2가 무효화된다"*고만 적어, Phase 1 단독 커밋이 목표를 달성한다고 읽혔다. 단위·타입체크·e2e 전부 green이라 자동 그물에 안 걸린다(패널 지속성을 관측하는 테스트가 0개).
+- **근본 원인**: `apply()`가 **수동 reader처럼 이름 붙어 있지만 실제로는 disable 액션**이다 — `if (!(activated && supported)) setOptions({enabled:false})`. 설계 검토가 `activateTab`(쓰기)만 "표시 결정" 경로로 보고 `apply()`는 "재적용" 이름값대로 읽기 취급했다. 호출 경로가 셋(`onActivated`, `onUpdated`+`info.url`, `onUpdated`+`status==="complete"`)이라 사용자가 탭을 한 번 오가는 것만으로 발화하고, `shouldPreserveSession` 조기 반환은 idle 세션에선 보호막이 아니다. **불변식을 한쪽(진입점)에서만 바꾸면 그 불변식을 강제하는 다른 지점이 원복시킨다.**
+- **재발 방지**: (1) **불변식을 바꿀 때는 그 불변식을 *쓰는* 곳이 아니라 *강제하는* 곳을 전수 grep한다** — 이번 경우 `grep -n 'enabled: false\|setActivated' src/background/tab-bindings.ts`가 `apply()`·`deactivatePanelIfCrossOrigin` 둘을 즉시 드러낸다. 함수명이 read-only처럼 보이는 것(`apply`·`sync`·`refresh`)일수록 본문의 부수효과를 직접 읽어야 한다. (2) **"열린다"와 "열린 채로 있다"를 별개 성공 기준으로 쓴다** — 실물 프로브도 오픈만 확인하면 지속성 회귀를 놓친다(수동 체크리스트에 "다른 탭 갔다 복귀" 추가). (3) feature 문서의 Phase 분리는 **각 Phase 단독 배포가 일관된지**로 검증한다 — `/feature-review`의 CTO·QA 관점에 이 질문을 명시적으로 넣는다.
+- **부수 함정 2건 (jsdom에서 chrome을 스텁하는 최초 사례라 둘 다 저장소 선례가 없었다)**:
+  - **`afterEach` 등록 역순**: vitest는 afterEach를 등록 역순으로 실행한다. `src/test/setup-dom.ts`가 `afterEach(cleanup)`을 먼저 등록하므로, 테스트 파일의 `afterEach(vi.unstubAllGlobals)`가 **먼저** 돌고 그 뒤 RTL 언마운트가 일어나 훅 cleanup의 `chrome.tabs.onUpdated.removeListener`가 `chrome is not defined`로 죽는다. → 테스트 파일에서 `cleanup()`을 명시적으로 먼저 호출한 뒤 unstub한다. 대상: `grep -rln 'stubGlobal("chrome"' $(git ls-files '*.test.tsx')`.
+  - **`vi.mock` 팩토리 호이스팅**: 팩토리는 파일 최상단으로 끌어올려지므로 top-level 변수(`const resolved = () => vi.fn(...)`)를 참조하면 `Cannot access before initialization`으로 **수집 자체가 실패**한다(테스트 0개 실행 → "no tests"라 red 사유가 안 보인다). 팩토리 안에 인라인할 것.
+- **부수 함정 3건**: 계획 문서가 지시한 순수 술어 추출(`debugTabGates.ts`)이 **같은 커밋에서 근거를 잃었다** — 추출 이유는 "DebugTab 풀 렌더가 tiptap·sonner를 끌어와 비싸다"였는데, 서브탭 본체를 `vi.mock`으로 갈면 셸만 싸게 렌더된다는 걸 테스트 작성 중에 알게 됐다. 계획을 그대로 따랐더니 64줄이 4줄 조건식을 감싸고 `EditorPhase` 타입까지 잃었다. → **tasks.md의 "테스트가 어려우니 추출한다" 지시는 실제로 테스트를 써 본 뒤 재확인한다.**
+- **관련**: `src/background/tab-bindings.ts`(`activateTab`·`apply`), `src/sidepanel/hooks/useTabSupport.ts`, `src/sidepanel/hooks/__tests__/useTabSupport.test.tsx`, `src/sidepanel/tabs/__tests__/DebugTab.test.tsx`, `docs/features/unsupported-url-panel/`.
+
 ## 2026-07-26 — 감사 리포트가 지목한 "1줄 수정"이 프로토콜을 깨뜨리는 경우 (A-51/A-04)
 
 - **증상**: 감사 항목 A-51의 처방("`OFFSET_REQ`도 PRESENT처럼 `data.token !== frameToken`이면 거부 — 1줄")을 그대로 적용하면 **모든 iframe 요소 캡처가 조용히 실패**한다. 유닛·타입체크는 통과하고, iframe 캡처는 e2e 커버가 없어 빨강도 안 뜬다.
