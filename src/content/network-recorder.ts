@@ -1,4 +1,4 @@
-import { BODY_CAP, classifyBeaconBody, classifyResponseBody, createPatchedFetch, headersToRecord, maskBody, maskUrl, classifyWsFrameData, maskWsFrame, estimateBodySize, findOldestBodyIndex, reclaimableSize } from "./network-recorder-helpers";
+import { BODY_CAP, classifyBeaconBody, classifyResponseBody, createPatchedFetch, createPatchedSetRequestHeader, headersToRecord, maskBody, maskUrl, classifyWsFrameData, maskWsFrame, estimateBodySize, findOldestBodyIndex, reclaimableSize } from "./network-recorder-helpers";
 import type { FetchRecordHook } from "./network-recorder-helpers";
 import { createTrailingThrottle, FLUSH_INTERVAL_MS } from "./log-throttle";
 import { readPreArmFlag, setPreArmFlag } from "./recorder-prearm";
@@ -284,13 +284,13 @@ function networkRecorderScript(): void {
     return result;
   };
 
-  XHR.setRequestHeader = function (this: XMLHttpRequest, name: string, value: string) {
-    const meta = (this as any).__bugshot;
-    if (meta) {
-      meta.reqHeaders[name.toLowerCase()] = value;
-    }
-    return originalSetRequestHeader.call(this, name, value);
-  };
+  XHR.setRequestHeader = createPatchedSetRequestHeader(
+    originalSetRequestHeader,
+    (xhr, name, value) => {
+      const meta = (xhr as any).__bugshot;
+      if (meta) meta.reqHeaders[name.toLowerCase()] = value;
+    },
+  );
 
   XHR.send = function (this: XMLHttpRequest, body?: Document | XMLHttpRequestBodyInit | null) {
     if (!capturing) {
@@ -423,7 +423,10 @@ function networkRecorderScript(): void {
     const originalSendBeacon = navigator.sendBeacon.bind(navigator);
     navigator.sendBeacon = function patchedSendBeacon(url: string | URL, data?: BodyInit | null): boolean {
       const queued = originalSendBeacon(url, data);
-      if (capturing) {
+      if (!capturing) return queued;
+      // sendBeacon은 pagehide 핸들러 안에서 불리는 경우가 많아 여기서 throw하면 페이지의 teardown이
+      // 통째로 중단된다. 기록 블록 전체를 격리한다(원본은 이미 호출됨).
+      try {
         totalSeen++;
         const startTime = Date.now();
         const urlStr = maskUrl(typeof url === "string" ? url : url.toString());
@@ -459,6 +462,8 @@ function networkRecorderScript(): void {
         pushEntry(entry);
         enforceMemoryCap();
         throttle.schedule();
+      } catch {
+        /* 레코더 오류는 무시 */
       }
       return queued;
     };

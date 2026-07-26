@@ -303,6 +303,28 @@ function extractRequestInfo(req: Request, init?: RequestInit): PatchedFetchReqIn
   };
 }
 
+// XHR.setRequestHeader wrap. 원본을 **먼저** 호출하고 성공했을 때만 기록한다:
+// 1) 헤더명을 문자열이 아닌 값으로 넘기는 라이브러리에서 `name.toLowerCase()`가 throw해도
+//    원본이 이미 실행돼 페이지 XHR이 깨지지 않는다.
+// 2) send() 이후 호출처럼 네이티브가 거부(throw)한 헤더는 로그에도 남지 않는다.
+export function createPatchedSetRequestHeader(
+  original: (this: XMLHttpRequest, name: string, value: string) => void,
+  record: (xhr: XMLHttpRequest, name: string, value: string) => void,
+): (this: XMLHttpRequest, name: string, value: string) => void {
+  return function patchedSetRequestHeader(
+    this: XMLHttpRequest,
+    name: string,
+    value: string,
+  ) {
+    original.call(this, name, value);
+    try {
+      record(this, name, value);
+    } catch {
+      // 레코더 오류는 페이지로 전파하지 않는다.
+    }
+  };
+}
+
 // fetch wrap. 두 원칙으로 페이지 요청을 절대 방해하지 않는다:
 // 1) `new Request(input, init)`로 만든 req를 그대로 보낸다 — 원본 input/init 재전송 시
 //    Request·ReadableStream body가 이미 소비돼 "body already used"로 실패(GitHub 업로드 회귀).
