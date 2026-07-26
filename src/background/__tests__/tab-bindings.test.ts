@@ -1,9 +1,10 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import {
   shouldPreserveSession,
   resolveTabSwitch,
   resolveNavigationAction,
   isBroadCoveredUrl,
+  activateTab,
 } from "../tab-bindings";
 
 describe("shouldPreserveSession", () => {
@@ -198,5 +199,104 @@ describe("isBroadCoveredUrl", () => {
 
   it("returns false for invalid URL", () => {
     expect(isBroadCoveredUrl("not a url")).toBe(false);
+  });
+});
+
+// activateTab은 action.onClicked / 단축키 / 컨텍스트 메뉴의 유일한 핸들러이고, e2e는
+// ext.openPanel로 이 함수를 우회하며 Playwright는 확장 아이콘을 클릭할 수 없다 —
+// 즉 이 describe가 유일한 자동 그물이다. 두 가지를 잠근다:
+//   1) 미지원 URL에서도 setOptions·open이 호출된다 (미지원 페이지 패널 오픈)
+//   2) 그 호출이 동기다 (await를 끼우면 user gesture가 소실돼 sidePanel.open이 조용히 실패)
+describe("activateTab", () => {
+  // setOptions/open에 .catch가 붙으므로 스텁은 반드시 thenable을 반환해야 한다.
+  // vi.fn()(undefined 반환)이면 TypeError로 죽어 red의 이유가 가드가 아니라 스텁이 된다.
+  function stubChrome() {
+    const order: string[] = [];
+    const setOptions = vi.fn(() => {
+      order.push("setOptions");
+      return Promise.resolve();
+    });
+    const open = vi.fn(() => {
+      order.push("open");
+      return Promise.resolve();
+    });
+    const sessionGet = vi.fn(() => Promise.resolve({}));
+    const sessionSet = vi.fn(() => Promise.resolve());
+    vi.stubGlobal("chrome", {
+      sidePanel: { setOptions, open },
+      storage: { session: { get: sessionGet, set: sessionSet } },
+    });
+    return { setOptions, open, sessionGet, sessionSet, order };
+  }
+
+  const tab = (over: Partial<chrome.tabs.Tab>) => over as chrome.tabs.Tab;
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  const unsupportedUrls = [
+    "https://chromewebstore.google.com/detail/bugshot/abc",
+    "chrome://version",
+  ];
+
+  for (const url of unsupportedUrls) {
+    it(`미지원 URL(${url})에서도 setOptions와 open을 호출한다`, () => {
+      const c = stubChrome();
+      activateTab(tab({ id: 7, url }));
+      // 의도적으로 await 없음 — 아래 단언이 곧 "동기 호출" 단언이다.
+      expect(c.setOptions).toHaveBeenCalledTimes(1);
+      expect(c.setOptions.mock.calls[0][0]).toMatchObject({ tabId: 7, enabled: true });
+      expect(c.open).toHaveBeenCalledWith({ tabId: 7 });
+    });
+  }
+
+  it("setOptions가 open보다 먼저 호출된다", () => {
+    const c = stubChrome();
+    activateTab(tab({ id: 7, url: "chrome://version" }));
+    expect(c.order).toEqual(["setOptions", "open"]);
+  });
+
+  it("동기 함수를 유지한다 (반환값 undefined — async 승격 방지)", () => {
+    stubChrome();
+    expect(activateTab(tab({ id: 7, url: "chrome://version" }))).toBeUndefined();
+  });
+
+  it("path에 tabId 쿼리를 실어 패널 문서를 탭에 바인딩한다", () => {
+    const c = stubChrome();
+    activateTab(tab({ id: 42, url: "chrome://version" }));
+    expect(c.setOptions.mock.calls[0][0]).toMatchObject({
+      path: "src/sidepanel/index.html?tabId=42",
+    });
+  });
+
+  it("tab.id가 없으면 아무것도 호출하지 않는다", () => {
+    const c = stubChrome();
+    activateTab(tab({ url: "https://example.com" }));
+    expect(c.setOptions).not.toHaveBeenCalled();
+    expect(c.open).not.toHaveBeenCalled();
+    expect(c.sessionSet).not.toHaveBeenCalled();
+  });
+
+  it("지원 URL에서도 동일하게 호출한다 (회귀 방지)", () => {
+    const c = stubChrome();
+    activateTab(tab({ id: 3, url: "https://example.com/page" }));
+    expect(c.setOptions).toHaveBeenCalledTimes(1);
+    expect(c.open).toHaveBeenCalledWith({ tabId: 3 });
+  });
+
+  it("tab.url이 있으면 activation URL 세션 키를 기록한다", () => {
+    const c = stubChrome();
+    activateTab(tab({ id: 5, url: "https://example.com/page" }));
+    expect(c.sessionSet).toHaveBeenCalledWith({
+      "sidePanel:url:5": "https://example.com/page",
+    });
+  });
+
+  it("tab.url이 없으면(chrome:// 등 판독 불가) 세션 키를 쓰지 않지만 패널은 연다", () => {
+    const c = stubChrome();
+    activateTab(tab({ id: 9 }));
+    expect(c.sessionSet).not.toHaveBeenCalled();
+    expect(c.open).toHaveBeenCalledWith({ tabId: 9 });
   });
 });
