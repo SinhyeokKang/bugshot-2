@@ -6,10 +6,12 @@ import { CollapsingTabsList, TabLabel } from "@/components/ui/collapsing-tabs";
 import { Badge } from "@/components/ui/badge";
 import { useEditorStore } from "@/store/editor-store";
 import { useBoundTabId } from "@/sidepanel/hooks/useBoundTabId";
+import { useUnsupportedTab } from "@/sidepanel/hooks/useTabSupport";
 import { startFreeformDraft, syncNetworkRecorder, syncConsoleRecorder, syncActionRecorder } from "@/sidepanel/picker-control";
 import { IssueTab } from "./IssueTab";
 import { ConsoleSubTab } from "./ConsoleSubTab";
 import { NetworkSubTab } from "./NetworkSubTab";
+import { areLogTabsLocked, shouldSyncRecorders } from "./debugTabGates";
 
 type DebugSubTab = "issue" | "console" | "network";
 
@@ -17,6 +19,7 @@ export function DebugTab({ activeMainTab }: { activeMainTab: string }) {
   const t = useT();
   const [sub, setSub] = useState<DebugSubTab>("issue");
   const tabId = useBoundTabId();
+  const unsupported = useUnsupportedTab();
   const phase = useEditorStore((s) => s.phase);
   const consoleCount = useEditorStore((s) => s.consoleLog?.entries.length ?? 0);
   const networkCount = useEditorStore((s) => s.networkLog?.requests.length ?? 0);
@@ -28,14 +31,21 @@ export function DebugTab({ activeMainTab }: { activeMainTab: string }) {
     phase === "previewing" ||
     phase === "done";
   // 녹화 중엔 바를 노출하되 콘솔/네트워크는 비활성 — 트리거 카운트 배지로 로그 누적만 확인하고,
-  // Clear로 진행 중 버퍼를 지우는 건 막는다.
-  const logTabsLocked = phase === "recording";
+  // Clear로 진행 중 버퍼를 지우는 건 막는다. 미지원 페이지에서는 로그가 아예 쌓이지 않으므로 함께 잠근다.
+  const logTabsLocked = areLogTabsLocked({ phase, unsupported });
 
   const tabIdRef = useRef(tabId);
   tabIdRef.current = tabId;
 
+  // 미지원 전이는 사용자 액션이 아니라 네비게이션으로 일어난다 — sub를 그대로 두면 잠긴
+  // 트리거 뒤에서 이전 페이지 로그가 계속 렌더되고, 안내는 issue 서브탭에 있어서 보이지 않는다.
+  // 그 서브탭들의 [이슈 작성] 버튼도 활성인 채 남아 미지원 다이얼로그를 띄운다.
   useEffect(() => {
-    if (activeMainTab !== "debug" || sub === "console" || sub === "network") return;
+    if (unsupported) setSub("issue");
+  }, [unsupported]);
+
+  useEffect(() => {
+    if (!shouldSyncRecorders({ activeMainTab, sub, unsupported })) return;
     if (tabIdRef.current == null) return;
     const sync = () => {
       if (tabIdRef.current == null) return;
@@ -46,7 +56,7 @@ export function DebugTab({ activeMainTab }: { activeMainTab: string }) {
     sync();
     const id = setInterval(sync, 1500);
     return () => clearInterval(id);
-  }, [activeMainTab, sub]);
+  }, [activeMainTab, sub, unsupported]);
 
   const handleStartFreeform = useCallback(() => {
     if (tabId == null) return;

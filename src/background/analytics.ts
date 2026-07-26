@@ -27,7 +27,9 @@ const ALLOWED_EVENTS: Record<string, readonly string[]> = {
   platform_connect: ["platform", "result"],
   platform_disconnected: ["platform"],
   extension_installed: ["version"],
-  sidepanel_opened: [],
+  // page_supported: 패널이 미지원 페이지에서도 열리게 되면서 이 이벤트가 기계적으로 늘어난다.
+  // 이 property 없이는 배포 후 상승이 그 증가분인지 실제 activation 회복인지 가를 수 없다.
+  sidepanel_opened: ["page_supported"],
 };
 
 export function isAllowedEvent(event: string): boolean {

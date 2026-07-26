@@ -20,6 +20,7 @@ import { useEditorStore } from "@/store/editor-store";
 import { useSettingsStore } from "@/store/settings-store";
 import { useSettingsUiStore } from "@/store/settings-ui-store";
 import { use30sReplay } from "./30s-replay/use-30s-replay";
+import { useTabSupport, TabSupportProvider } from "./hooks/useTabSupport";
 import { ReplayProvider } from "./30s-replay/replay-context";
 import {
   onBlobSaveFailed,
@@ -109,7 +110,13 @@ export default function App() {
   const editorHydrated = useEditorSessionSync(tabId ?? null);
   useBackgroundRecorder(tabId ?? null);
   const replayEnabled = useSettingsUiStore((s) => s.replayEnabled);
-  const replay = use30sReplay(tabId ?? null, replayEnabled);
+  // 판정은 여기서 한 번만 하고 TabSupportProvider로 내려보낸다 — DebugTab·IssueTab이 각자
+  // 구독하면 같은 탭에 tabs.get·onUpdated가 중복 붙고 판정 출처가 늘어난다.
+  const unsupported = useTabSupport(tabId);
+  // 미지원 페이지에서 캡처를 멈춘다. 웹스토어는 https라 captureVisibleTab이 실제로 성공하므로,
+  // 안 막으면 "캡처할 수 없습니다" 화면에서 프레임 버퍼가 계속 채워진다. enabled가 아니라
+  // suspended로 넘기는 이유는 버퍼를 지우지 않기 위함이다(왕복 후 30초가 살아 있어야 한다).
+  const replay = use30sReplay(tabId ?? null, replayEnabled, unsupported);
   const settingsHydrated = useSettingsHydrated();
   usePickerMessages(tabId ?? null);
   useThemeEffect();
@@ -222,6 +229,7 @@ export default function App() {
 
   return (
     <TabNavContext.Provider value={navTo}>
+    <TabSupportProvider value={unsupported}>
     <ReplayProvider
       value={{
         replayEnabled,
@@ -474,6 +482,7 @@ export default function App() {
     </div>
     <Toaster position="top-center" offset={24} />
     </ReplayProvider>
+    </TabSupportProvider>
     </TabNavContext.Provider>
   );
 }

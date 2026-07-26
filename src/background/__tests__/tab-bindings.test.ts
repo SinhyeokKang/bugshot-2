@@ -212,11 +212,11 @@ describe("activateTab", () => {
   // vi.fn()(undefined 반환)이면 TypeError로 죽어 red의 이유가 가드가 아니라 스텁이 된다.
   function stubChrome() {
     const order: string[] = [];
-    const setOptions = vi.fn(() => {
+    const setOptions = vi.fn((_opts: chrome.sidePanel.PanelOptions) => {
       order.push("setOptions");
       return Promise.resolve();
     });
-    const open = vi.fn(() => {
+    const open = vi.fn((_opts: chrome.sidePanel.OpenOptions) => {
       order.push("open");
       return Promise.resolve();
     });

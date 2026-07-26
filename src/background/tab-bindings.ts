@@ -34,14 +34,16 @@ function setActivated(tabId: number, on: boolean): Promise<void> {
   return task;
 }
 
-async function apply(tabId: number, url: string | undefined): Promise<void> {
-  const supported = isSupportedUrl(url);
+// 패널 표시 여부는 activation만 따른다 — 지원 여부를 여기서 보면 미지원 탭에서 방금 연 패널을
+// onActivated(탭 전환 복귀)·onUpdated가 곧바로 enabled:false로 닫는다. 지원 여부는 패널이
+// 무엇을 그리는지만 결정한다(useTabSupport).
+async function apply(tabId: number): Promise<void> {
   const set = await getActivatedSet();
   const activated = set.has(tabId);
 
   // SW hibernation / 윈도우 이동으로 setOptions가 휘발돼 default_path(쿼리 없음)로
   // fallback되는 경로 차단. preserve 분기와 무관하게 idempotent하게 path 재등록.
-  if (activated && supported) {
+  if (activated) {
     try {
       await chrome.sidePanel.setOptions({
         tabId,
@@ -58,7 +60,7 @@ async function apply(tabId: number, url: string | undefined): Promise<void> {
   const snap = data[key] as SessionSnap | undefined;
   if (shouldPreserveSession(snap)) return;
 
-  if (!(activated && supported)) {
+  if (!activated) {
     try {
       await chrome.sidePanel.setOptions({ tabId, enabled: false });
     } catch (err) {
@@ -205,16 +207,22 @@ async function deactivatePanelIfCrossOrigin(
   }
 }
 
+// 미지원 URL에서도 패널을 연다 — sidePanel API엔 URL 제약이 없고(content script 제약과 별개
+// 스코프), 패널이 안 열리면 클릭이 무음으로 삼켜져 실패가 100% 제품에 귀속된다. 미지원 여부는
+// 패널이 무엇을 그리는지만 결정한다(useTabSupport).
+// setOptions·open은 반드시 동기로 유지한다 — await를 끼우면 user gesture가 소실돼 open이
+// 조용히 실패한다(docs/ARCHITECTURE.md).
 export function activateTab(tab: chrome.tabs.Tab): void {
   if (tab.id == null) return;
-  if (!isSupportedUrl(tab.url)) return;
   const tabId = tab.id;
 
-  void chrome.sidePanel.setOptions({
-    tabId,
-    path: `${SIDEPANEL_PATH}?tabId=${tabId}`,
-    enabled: true,
-  });
+  void chrome.sidePanel
+    .setOptions({
+      tabId,
+      path: `${SIDEPANEL_PATH}?tabId=${tabId}`,
+      enabled: true,
+    })
+    .catch((err) => console.error("[bugshot] sidePanel.setOptions", err));
   void chrome.sidePanel
     .open({ tabId })
     .catch((err) => console.error("[bugshot] sidePanel.open", err));
@@ -256,14 +264,13 @@ export function setupTabBindings(): void {
     const prevTabId = resolveTabSwitch(prevActiveTabByWindow, windowId, tabId);
     if (prevTabId != null) stopRecorders(prevTabId);
 
-    let tab: chrome.tabs.Tab;
     try {
-      tab = await chrome.tabs.get(tabId);
+      await chrome.tabs.get(tabId);
     } catch {
       return; // 활성화 직후 탭이 닫힘 — 적용할 게 없음
     }
     try {
-      await apply(tabId, tab.url);
+      await apply(tabId);
     } catch (err) {
       console.error("[bugshot] onActivated", err);
     }
@@ -278,11 +285,9 @@ export function setupTabBindings(): void {
       return;
     }
     if (info.url) {
-      void clearIfPageChanged(tabId, info.url).then(() =>
-        apply(tabId, info.url),
-      );
+      void clearIfPageChanged(tabId, info.url).then(() => apply(tabId));
     } else if (info.status === "complete") {
-      void apply(tabId, tab.url);
+      void apply(tabId);
     }
   });
 

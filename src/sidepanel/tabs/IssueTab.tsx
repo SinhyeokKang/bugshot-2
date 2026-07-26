@@ -15,6 +15,7 @@ import {
   Timer,
   AppWindow,
   MonitorPlay,
+  Globe,
 } from "lucide-react";
 import { useT } from "@/i18n";
 import { cn } from "@/lib/utils";
@@ -73,6 +74,7 @@ import { ColorSwatches, ThicknessButtons, ToolButtons } from "@/sidepanel/compon
 import * as videoRecorder from "@/sidepanel/video-recorder";
 import { PageFooter, PageShell } from "@/sidepanel/components/Section";
 import { useReplay } from "@/sidepanel/30s-replay/replay-context";
+import { useUnsupportedTab } from "@/sidepanel/hooks/useTabSupport";
 import { DraftingPanel } from "./DraftingPanel";
 import { PreviewPanel } from "./PreviewPanel";
 import { SelectedPanel } from "./StyleEditorPanel";
@@ -84,6 +86,7 @@ export function IssueTab() {
   const reset = useEditorStore((s) => s.reset);
   const sessionExpired = useEditorStore((s) => s.sessionExpired);
   const tabId = useBoundTabId();
+  const unsupported = useUnsupportedTab();
   const { trimming } = useReplay();
   const t = useT();
   const [scrollProgress, setScrollProgress] = useState<{ done: number; total: number } | null>(null);
@@ -247,6 +250,7 @@ export function IssueTab() {
         onStartVideo={() => void startVideoCapture(tabId)}
         onStartScreenRecord={() => void startScreenCapture(tabId)}
         onStartFreeform={() => void startFreeformDraft(tabId)}
+        unsupported={unsupported}
       />
     );
   }
@@ -274,7 +278,9 @@ function UnsupportedPage() {
   );
 }
 
-function EmptyState({ onStartElement, onStartElementShot, onStartScreenshot, onStartVideo, onStartScreenRecord, onStartFreeform }: { onStartElement: () => void; onStartElementShot: () => void; onStartScreenshot: () => void; onStartVideo: () => void; onStartScreenRecord: () => void; onStartFreeform: () => void }) {
+// export 이유: props 직접 주입 테스트. 비-export면 IssueTab 풀 렌더를 거쳐야 하고 그러면
+// DraftingPanel·PreviewPanel·StyleEditorPanel(tiptap·sonner)까지 이 경로에서 평가된다.
+export function EmptyState({ onStartElement, onStartElementShot, onStartScreenshot, onStartVideo, onStartScreenRecord, onStartFreeform, unsupported }: { onStartElement: () => void; onStartElementShot: () => void; onStartScreenshot: () => void; onStartVideo: () => void; onStartScreenRecord: () => void; onStartFreeform: () => void; unsupported: boolean }) {
   const t = useT();
   const locale = useSettingsUiStore((s) => s.locale);
   const recordingMode = useSettingsUiStore((s) => s.recordingMode);
@@ -285,6 +291,16 @@ function EmptyState({ onStartElement, onStartElementShot, onStartScreenshot, onS
   const noPlatformConnected = connectedPlatforms(accounts).length === 0;
   return (
     <PageShell>
+      {unsupported ? (
+        <EmptyShell
+          testId="capture-unsupported"
+          icon={<Globe className="h-6 w-6 text-muted-foreground" />}
+          title={t("app.captureUnsupported.title")}
+        >
+          {/* EmptyShell은 제목↔본문 간격을 주지 않는다(mb-3은 아이콘↔제목, mt-4는 action 슬롯 전용) */}
+          <p className="mt-1 text-sm text-muted-foreground">{t("app.captureUnsupported.body")}</p>
+        </EmptyShell>
+      ) : (
       <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4 px-6 pb-5">
         <div className="flex flex-col items-center gap-1">
           <div className="mb-1 rounded-full bg-muted p-3">
@@ -325,22 +341,29 @@ function EmptyState({ onStartElement, onStartElementShot, onStartScreenshot, onS
           </div>
         </TooltipProvider>
       </div>
+      )}
       {noPlatformConnected && (
         <IntegrationsCta onNavigate={() => navTo("integrations")} />
       )}
       <PageFooter>
+        {/* 미지원이면 [이슈 작성]을 렌더하지 않는다 — aria-disabled는 이 저장소에서 전부
+            transient busy 잠금이고, 회색 버튼 하나만 남기는 건 캡처 버튼을 통째로 없애는
+            결정과도 어긋난다. [가이드]는 chrome.tabs.create라 페이지 무관하게 동작한다. */}
         <div className="flex items-center justify-between">
           <Button
             variant="outline"
+            data-testid="open-guide"
             onClick={() => chrome.tabs.create({ url: USER_GUIDE_URLS[locale], active: true })}
           >
             <BookOpen />
             {t("settings.guide")}
           </Button>
-          <Button variant="outline" onClick={onStartFreeform} data-testid="mode-freeform">
-            <SquarePen />
-            {t("issue.startDraft")}
-          </Button>
+          {!unsupported && (
+            <Button variant="outline" onClick={onStartFreeform} data-testid="mode-freeform">
+              <SquarePen />
+              {t("issue.startDraft")}
+            </Button>
+          )}
         </div>
       </PageFooter>
     </PageShell>
@@ -684,14 +707,19 @@ function EmptyShell({
   title,
   action,
   children,
+  testId,
 }: {
   icon: React.ReactNode;
   title: string;
   action?: React.ReactNode;
   children?: React.ReactNode;
+  testId?: string;
 }) {
   return (
-    <div className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 pb-5 text-center">
+    <div
+      data-testid={testId}
+      className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 pb-5 text-center"
+    >
       <div className="mb-3 rounded-full bg-muted p-3">{icon}</div>
       <h3 className="whitespace-pre-line text-lg font-semibold">{title}</h3>
       {children}

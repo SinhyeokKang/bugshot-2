@@ -5,6 +5,11 @@ const ko = {
   "app.tab.settings": "설정",
   "app.unsupported.title": "이 페이지에서는 사용할 수 없습니다",
   "app.unsupported.body": "웹 페이지(http, https, file)에서 BugShot을 실행해주세요.",
+  // app.unsupported.*는 탭 바인딩 자체가 실패한 전체화면용이라 "BugShot 전체를 못 쓴다"는 뜻이다.
+  // 미지원 URL에서는 연동·설정·이슈 목록이 그대로 동작하므로 캡처 스코프로 따로 쓴다.
+  "app.captureUnsupported.title": "이 페이지에서는 캡처할 수 없습니다",
+  "app.captureUnsupported.body":
+    "브라우저가 확장 프로그램 접근을 막아 둔 화면입니다. 웹 페이지(http, https, file)에서 실행해주세요. 연동·설정은 여기서도 그대로 사용할 수 있습니다.",
   "app.pickerUnavailable.title": "이 페이지에서는 사용할 수 없습니다",
   "app.pickerUnavailable.body": "Chrome 정책상 웹스토어·확장 페이지 등에서는 BugShot이 동작할 수 없습니다. 다른 페이지에서 시도해주세요.",
   "app.iframeUnsupported.title": "이 iframe은 선택할 수 없습니다",
@@ -63,6 +68,9 @@ const en = {
   "app.tab.settings": "Settings",
   "app.unsupported.title": "Unavailable on this page",
   "app.unsupported.body": "Please run BugShot on a web page (http, https, file).",
+  "app.captureUnsupported.title": "Can't capture on this page",
+  "app.captureUnsupported.body":
+    "The browser blocks extensions on this page. Try running BugShot on a web page (http, https, file). Integrations and settings still work here.",
   "app.pickerUnavailable.title": "Unavailable on this page",
   "app.pickerUnavailable.body": "Chrome policy prevents BugShot from running on the Chrome Web Store and similar restricted pages. Try another page.",
   "app.iframeUnsupported.title": "This iframe can't be selected",

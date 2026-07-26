@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { renderHook, waitFor, act } from "@testing-library/react";
+import { renderHook, waitFor, act, cleanup } from "@testing-library/react";
 import { useTabSupport } from "../useTabSupport";
 
 type UpdatedListener = (
@@ -38,7 +38,10 @@ beforeEach(() => {
   });
 });
 
+// 언마운트를 먼저 돌린다 — vitest는 afterEach를 등록 역순으로 실행하므로 setup-dom의
+// cleanup보다 이 훅이 앞서고, unstub 후 언마운트되면 훅의 removeListener가 chrome을 못 찾는다.
 afterEach(() => {
+  cleanup();
   vi.unstubAllGlobals();
 });
 
@@ -136,6 +139,49 @@ describe("useTabSupport — 네비게이션 전이", () => {
     expect(result.current).toBe(false);
   });
 
+  // url·status가 없는 changeInfo(title·favIconUrl·audible 등)는 URL을 바꾸지 않는다.
+  it("url·status 없는 changeInfo는 재조회하지 않는다", async () => {
+    setTabUrl("https://example.com");
+    const { result } = renderHook(() => useTabSupport(1));
+    await waitFor(() => expect(result.current).toBe(false));
+    const before = get.mock.calls.length;
+
+    await act(async () => {
+      emit(1, { title: "새 제목" } as chrome.tabs.TabChangeInfo);
+      emit(1, { favIconUrl: "https://example.com/f.ico" } as chrome.tabs.TabChangeInfo);
+    });
+    expect(get.mock.calls.length).toBe(before);
+  });
+
+  // 한 네비게이션이 onUpdated를 여러 번 발화시켜 classify가 겹친다. 늦게 도착한 옛 응답이
+  // 최신 판정을 덮으면 지원 페이지에 안내가 굳고, 재판정 트리거가 onUpdated뿐이라 회복 수단이 없다.
+  it("늦게 resolve된 옛 응답이 최신 판정을 덮지 않는다", async () => {
+    setTabUrl("chrome://version");
+    const { result } = renderHook(() => useTabSupport(1));
+    await waitFor(() => expect(result.current).toBe(true));
+
+    let releaseStale: (tab: chrome.tabs.Tab) => void = () => {};
+    get.mockImplementationOnce(
+      () => new Promise<chrome.tabs.Tab>((resolve) => (releaseStale = resolve)),
+    );
+
+    await act(async () => {
+      emit(1, { status: "loading" }); // 보류되는 옛 조회
+    });
+
+    setTabUrl("https://example.com");
+    await act(async () => {
+      emit(1, { status: "complete" }); // 새 조회 — 먼저 resolve
+    });
+    await waitFor(() => expect(result.current).toBe(false));
+
+    // 이제 옛 조회가 미지원 스냅샷을 들고 뒤늦게 도착한다.
+    await act(async () => {
+      releaseStale({ url: undefined } as chrome.tabs.Tab);
+    });
+    expect(result.current).toBe(false);
+  });
+
   it("같은 tabId로 여러 번 발화해도 판정이 idempotent", async () => {
     setTabUrl("https://example.com");
     const { result } = renderHook(() => useTabSupport(1));
@@ -152,11 +198,18 @@ describe("useTabSupport — 네비게이션 전이", () => {
 });
 
 describe("useTabSupport — 실패·정리", () => {
-  it("chrome.tabs.get이 reject하면 false로 접히고 예외가 새지 않는다", async () => {
-    get.mockImplementation(() => Promise.reject(new Error("No tab with id")));
+  // true를 먼저 만든 뒤 reject를 태운다 — 초기값이 false라 그냥 reject만 보면
+  // "catch가 능동적으로 false로 접었다"와 "아무 일도 안 일어났다"를 구별할 수 없다.
+  it("chrome.tabs.get이 reject하면 true였던 판정이 false로 접힌다", async () => {
+    setTabUrl("chrome://version");
     const { result } = renderHook(() => useTabSupport(1));
-    await waitFor(() => expect(get).toHaveBeenCalled());
-    expect(result.current).toBe(false);
+    await waitFor(() => expect(result.current).toBe(true));
+
+    get.mockImplementation(() => Promise.reject(new Error("No tab with id")));
+    await act(async () => {
+      emit(1, { status: "complete" });
+    });
+    await waitFor(() => expect(result.current).toBe(false));
   });
 
   it("언마운트 시 onUpdated 리스너를 해제한다", async () => {

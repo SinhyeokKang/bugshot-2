@@ -32,11 +32,12 @@ vi.mock("@/types/messages", async (importOriginal) => {
 
 import { use30sReplay } from "../use-30s-replay";
 
-// 30s Replay의 600ms 폴링엔 지원 URL 게이트가 없다 — "<all_urls>가 required라 권한 확인 없이
+// 30s Replay의 600ms 폴링엔 지원 URL 게이트가 없었다 — "<all_urls>가 required라 권한 확인 없이
 // 폴링을 시작한다"는 전제가 패널이 미지원 페이지에 존재할 수 없다는 가정에 기대고 있었고,
 // 미지원 페이지에서 패널이 열리게 되면서 그 가정이 깨진다. 웹스토어는 https라 캡처가 실제로
-// 성공하므로 "사용할 수 없습니다"라고 써놓고 계속 찍는 상태가 된다.
-// App.tsx가 `replayEnabled && !unsupported`를 enabled로 넘겨 이 게이트를 구동한다.
+// 성공하므로 "캡처할 수 없습니다"라고 써놓고 계속 찍는 상태가 된다.
+// App.tsx는 `unsupported`를 `suspended`로 넘긴다 — `enabled`로 넘기면 effect가 재실행돼
+// buffer.clear()까지 돌아 왕복 시 30초가 날아간다.
 describe("use30sReplay — enabled 게이트", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -80,6 +81,48 @@ describe("use30sReplay — enabled 게이트", () => {
     });
     expect(sendBg).toHaveBeenCalled();
     expect(sendBg.mock.calls[0][0]).toMatchObject({ type: "captureVisibleTab", tabId: 1 });
+  });
+
+  it("suspended=true면 폴링하지 않는다 (미지원 페이지)", async () => {
+    renderHook(() => use30sReplay(1, true, true));
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3000);
+    });
+    expect(sendBg).not.toHaveBeenCalled();
+  });
+
+  // enabled를 끄면 effect가 재실행돼 buffer.clear()가 돌지만 suspended는 tick만 막는다.
+  // 지원 → chrome:// → 지원 왕복에서 모아둔 프레임이 살아 있어야 한다.
+  it("suspended가 true→false로 풀리면 폴링이 재개된다 (버퍼 유지 경로)", async () => {
+    const { rerender } = renderHook(
+      ({ off }: { off: boolean }) => use30sReplay(1, true, off),
+      { initialProps: { off: true } },
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3000);
+    });
+    expect(sendBg).not.toHaveBeenCalled();
+
+    rerender({ off: false });
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1300);
+    });
+    expect(sendBg).toHaveBeenCalled();
+  });
+
+  it("suspended는 interval을 살려둔다 — 재개에 새 effect가 필요하지 않다", async () => {
+    const clearSpy = vi.spyOn(globalThis, "clearInterval");
+    const { rerender } = renderHook(
+      ({ off }: { off: boolean }) => use30sReplay(1, true, off),
+      { initialProps: { off: false } },
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(1300);
+    });
+    clearSpy.mockClear();
+    rerender({ off: true });
+    expect(clearSpy).not.toHaveBeenCalled();
+    clearSpy.mockRestore();
   });
 
   it("enabled가 true→false로 바뀌면 폴링이 멎는다", async () => {
