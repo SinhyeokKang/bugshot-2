@@ -77,13 +77,13 @@ export function GithubStatusBadge({
   };
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={(v) => { if (updating) return; setOpen(v); }}>
       <PopoverTrigger asChild>
         <button
           type="button"
           className="shrink-0 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           onClick={(e) => e.stopPropagation()}
-          disabled={updating}
+          aria-disabled={updating}
         >
           <Badge
             variant="outline"

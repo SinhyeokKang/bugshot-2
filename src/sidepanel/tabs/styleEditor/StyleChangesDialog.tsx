@@ -300,11 +300,13 @@ function ResetButton({
     <Button
       size="icon"
       variant="outline"
-      className="h-8 w-8 shrink-0 hover:text-destructive"
+      className="h-8 w-8 shrink-0 hover:text-destructive aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
       title={label}
       aria-label={label}
-      disabled={disabled}
-      onClick={onClick}
+      // 스피너를 든 버튼은 순수 disabled 대신 aria-disabled — 포커스·접근명을 잃지 않는다.
+      // 대신 클릭이 실제로 들어오므로 핸들러 가드가 짝이다(DESIGN §10).
+      aria-disabled={disabled}
+      onClick={() => { if (disabled) return; onClick(); }}
       data-testid={testid}
     >
       {spinning ? <Loader2 className="animate-spin" /> : <Trash2 />}

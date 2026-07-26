@@ -347,9 +347,12 @@ export default function ReplayTrimDialog({ videoBlob, frames, onConfirm, onCance
             </Button>
             <Button
               size="icon"
-              className="h-8 w-8"
-              disabled={busy || duration <= 0}
-              onClick={() => onConfirm(startSec, endSec)}
+              className="h-8 w-8 aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+              // 스피너를 든 busy는 aria-disabled(포커스 보존) + 핸들러 가드, 진짜 불가 상태
+              // (duration<=0)만 순수 disabled — 8개 연동 폼과 같은 관용구(DESIGN §10).
+              disabled={duration <= 0 && !busy}
+              aria-disabled={busy}
+              onClick={() => { if (busy || duration <= 0) return; onConfirm(startSec, endSec); }}
               aria-label={t("issue.replay.trim.confirm")}
               title={t("issue.replay.trim.confirm")}
               data-testid="replay-trim-confirm"
