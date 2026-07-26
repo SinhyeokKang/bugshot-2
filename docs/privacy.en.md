@@ -140,7 +140,7 @@ The extension transmits data only to the services below.
 | User-specified LLM provider (AI styling) | Selected element's tag, CSS selector, class list, current specified styles, design tokens, computed layout styles (display, position, width, margin, etc.), browser viewport size, and the instruction you type | CSS change suggestion |
 | PostHog host configured at build time (default `us.i.posthog.com`) | Anonymous aggregate events (install, panel open, platform connect/disconnect, issue submission) | Anonymous usage analytics |
 
-The OAuth proxy server only relays the token exchange and does not store or log user data. Linear and GitLab exchange tokens directly via PKCE without a proxy.
+The OAuth proxy server only relays the token exchange and does not store or log request contents (authorization codes, tokens, or issue data). To prevent abuse it does keep **a per-IP request count over a rolling 60-second window**; that count contains no request contents and disappears once the window passes. Linear and GitLab exchange tokens directly via PKCE without a proxy.
 
 Local files you select yourself through the "file attachment" feature are, on issue (task) submission, uploaded as body attachments to each platform above (Jira, GitHub, Linear, Notion, GitLab, Asana, ClickUp), and to the message thread in the case of Slack. This feature is off by default and works only when enabled in settings.
 
