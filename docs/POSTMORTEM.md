@@ -21,6 +21,19 @@
 
 ---
 
+## 2026-07-27 — 검증 안 된 "권한상 못 읽는다"가 설계를 한 단계 크게 만들 뻔했다 (+ 상태 키를 안 갱신해 기능이 hop 1에서만 살았다)
+
+- **증상**: (사전 차단) 미지원 URL 이동 시 패널을 살리는 Phase 2가 **① 착수 자체를 막을 뻔했고 ② 구현 후에도 첫 이동에서만 동작했다.** ①은 "background가 새 URL을 못 읽으니 `webNavigation` 권한 배관을 더하거나 기능을 별도로 분리해야 한다"는 판단이었고, ②는 `https → chrome://settings`(패널 유지 ✅) → `chrome://downloads`(패널 닫힘 ❌).
+- **근본 원인 ①**: 저장소에 *"`chrome://` 탭은 `tab.url`을 못 읽는다(호스트 권한 밖)"*(`e2e/unsupported-url.spec.ts:3`)는 **참인** 기록이 있었다. 거기서 "그러니 네비게이션 중의 `changeInfo.url`도 redact된다"로 넘어간 **확장 추론이 검증 없이 설계에 박혔다.** 리뷰 에이전트 3명이 독립적으로 같은 결론을 냈고(같은 문장을 근거로), 기획 문서는 그걸 전제로 "webNavigation 프로브 → 실패 시 별도 feature 분리"라는 게이트까지 만들었다. 실측하니 정반대였다 — `status:"loading"` 시점(= `deactivatePanelIfCrossOrigin` 호출 시점)의 `changeInfo.url`에는 `chrome://settings/`가 **그대로 실려 온다**. 원 기록은 **정착된** 탭을 말한 것이고, 그 둘은 다른 시점이다. 새 권한도 새 배관도 필요 없었다.
+- **근본 원인 ②**: `sidePanel:url:{tabId}`는 `activateTab`에서 **한 번만** 쓰이고 이후 갱신되지 않는다(`deactivate`도 이 키는 안 지운다 — 지우는 곳은 `onRemoved`뿐). 그래서 hop 2에서 `refUrl`은 여전히 최초 https URL이다. 게다가 그때는 activeTab 그랜트가 회수돼 새 URL이 판독 불가라, "판독 불가 → `file:` 보호를 위해 현행 `deactivate`"라는 보수적 폴백이 **의도한 적 없는 케이스(미지원 → 미지원 이동)까지 삼켰다.** 순수함수 표는 촘촘했지만 그 표의 **입력을 만드는 파생 3줄**(`info.url ?? tab.url` → `readable` → `supported`)에 테스트가 0개였고, 이 결함도 같은 자리의 `!= null`(빈 문자열을 "판독됨"으로 통과시킴)도 전부 거기 있었다.
+- **재발 방지**:
+  1. **"권한상 못 읽는다"류 제약은 시점을 명시해 기록하고, 다른 시점으로 확장하기 전에 실측한다.** 같은 API라도 navigation 중(`changeInfo`)·정착 후(`tab.url`)·이벤트 종류별로 가시성이 다르다. `grep -rn 'redact\|호스트 권한 밖\|못 읽' src/ e2e/ docs/`로 기존 기록을 소환하되, 그 문장이 **어느 시점**을 말하는지 확인하고 인용한다.
+  2. **권한 추가·기능 분리를 결론으로 내기 전에 30줄짜리 프로브를 먼저 붙인다.** 이번엔 `chrome.webNavigation.onCommitted`·`tabs.onUpdated`·`isAllowedFileSchemeAccess`를 한 번에 찍는 임시 리스너 하나로 3분 만에 판정됐고, 그 결과가 "별도 feature 분리"를 취소시켰다. 비용 대비 회수가 압도적이다.
+  3. **순수함수 표를 늘릴 때 그 표의 입력을 만드는 파생부에도 테스트가 있는지 확인한다.** 표가 촘촘할수록 "검증됐다"는 착시가 커진다. 대상: `grep -n 'resolveNavigationAction({' src/background/tab-bindings.ts` 같은 호출부. `describe("activateTab")`이 이미 `chrome` 스텁으로 background를 직접 두드리는 선례를 만들어 뒀으므로 `setupTabBindings()` + 리스너 직접 호출로 행동 레벨 잠금이 가능하다.
+  4. **`url != null` 대신 `Boolean(url)`.** 이 저장소의 URL 소비자(`isSupportedUrl`·`originOf`·`pageKeyOf`·`isBroadCoveredUrl`·`activateTab`)는 전부 빈 문자열을 "없음"으로 취급한다. 한 곳만 `!= null`을 쓰면 자기모순 입력 튜플이 만들어진다.
+  5. **"상태 키를 언제 갱신하나"를 기능 추가 시 함께 본다.** 이동 판정이 참조하는 키가 이동마다 갱신되지 않으면 그 기능은 첫 이동에서만 산다. POSTMORTEM 2026-07-26의 "열린다 vs 열린 채로 있다"와 같은 계열 — 이번엔 "한 번 유지된다 vs 계속 유지된다"였다.
+- **관련**: `src/background/tab-bindings.ts`(`resolveNavigationAction`·`deactivatePanelIfCrossOrigin`), `src/background/__tests__/tab-bindings.test.ts`, `e2e/activetab-broad-permission.spec.ts`, `docs/ARCHITECTURE.md` 패널 종료/유지 정책 표.
+
 ## 2026-07-26 — 설계 문서가 "Phase 2 문제"로 분류한 가드가 실은 Phase 1의 전제였다 (+ jsdom×chrome 스텁 2함정)
 
 - **증상**: (사전 차단) `activateTab`의 미지원 가드만 지우면 미지원 페이지에서 패널이 열리지만, **다음 탭 전환·네비게이션에 조용히 다시 닫힌다.** 설계 문서는 이 수정(`apply()`의 `supported` 조건 제거)을 Phase 2 태스크로 두고 *"안 고치면 Phase 2가 무효화된다"*고만 적어, Phase 1 단독 커밋이 목표를 달성한다고 읽혔다. 단위·타입체크·e2e 전부 green이라 자동 그물에 안 걸린다(패널 지속성을 관측하는 테스트가 0개).
