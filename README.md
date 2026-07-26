@@ -2,6 +2,9 @@
 
 ![BugShot at a glance — capture and report right where you spot the bug](guide/en/assets/readme-1.jpg)
 
+[![Chrome Web Store](https://img.shields.io/chrome-web-store/v/ohakhekagkodklkickemonmifdcbhmig)](https://chromewebstore.google.com/detail/bugshot/ohakhekagkodklkickemonmifdcbhmig)
+[![License](https://img.shields.io/github/license/SinhyeokKang/bugshot-2)](LICENSE)
+
 **Bug reports in one shot.**
 
 Stop explaining bugs in words. BugShot is a Chrome side panel extension that lets
@@ -14,9 +17,6 @@ Asana, or ClickUp, or share it straight to a Slack channel or DM.
 No sign-up required — just install and go. Free, with no paid tier planned:
 there's no server to run, so there's nothing to meter and no hosting bill to
 recover.
-
-[![Chrome Web Store](https://img.shields.io/chrome-web-store/v/ohakhekagkodklkickemonmifdcbhmig)](https://chromewebstore.google.com/detail/bugshot/ohakhekagkodklkickemonmifdcbhmig)
-[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 **Your capture data never touches a BugShot server.** Screenshots, recordings,
 console/network logs, and report bodies go straight from your browser to the
