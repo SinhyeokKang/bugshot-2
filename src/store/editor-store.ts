@@ -17,6 +17,7 @@ import { DEFAULT_COLOR, DEFAULT_THICKNESS, type ThicknessKey } from "@/sidepanel
 import type { RecordingPenTool } from "@/sidepanel/components/annotation/recording-pen";
 import type { CapturedFrame } from "@/sidepanel/30s-replay/frame-buffer";
 import { clearNetworkRecorder, clearConsoleRecorder, clearActionRecorder } from "@/sidepanel/recorder-control";
+import { pendingKey } from "@/lib/session-keys";
 
 export type CaptureMode = "element" | "screenshot" | "video" | "freeform";
 export type RecordingSource = "tab" | "screen";
@@ -445,21 +446,21 @@ async function persistAttachedLogs(
       useIssuesStore.getState().patchIssue(issueId, { networkLogBlobKey: undefined });
       failed = true;
     }
-    deleteNetworkLog(`pending:${targetTabId}`).catch(() => {});
+    deleteNetworkLog(pendingKey(targetTabId)).catch(() => {});
   }
   if (logs.consoleLog) {
     if (!await saveConsoleLog(issueId, logs.consoleLog)) {
       useIssuesStore.getState().patchIssue(issueId, { consoleLogBlobKey: undefined });
       failed = true;
     }
-    deleteConsoleLog(`pending:${targetTabId}`).catch(() => {});
+    deleteConsoleLog(pendingKey(targetTabId)).catch(() => {});
   }
   if (logs.actionLog) {
     if (!await saveActionLog(issueId, logs.actionLog)) {
       useIssuesStore.getState().patchIssue(issueId, { actionLogBlobKey: undefined });
       failed = true;
     }
-    deleteActionLog(`pending:${targetTabId}`).catch(() => {});
+    deleteActionLog(pendingKey(targetTabId)).catch(() => {});
   }
   return failed;
 }
@@ -544,14 +545,14 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set({ captureMode: "video", phase: "drafting", videoBlob: blob, videoThumbnail: thumbnail, videoViewport: viewport, videoCapturedAt: Date.now(), videoStartedAt: startedAt, videoEndedAt: endedAt, videoTrimmed: false, replayTrim: trim, reproPrefillDone: false, logsAttach: true, annotationTool: null });
     // drafting 중 패널을 닫아도 영상이 살아남도록 로그와 동일하게 pending:${tabId}에 미러링(hydrate가 복원).
     const tabId = get().target?.tabId;
-    if (tabId != null) void saveVideoBlob(`pending:${tabId}`, blob);
+    if (tabId != null) void saveVideoBlob(pendingKey(tabId), blob);
   },
   resolveReplayTrim: () => set({ replayTrim: null }),
   // trim 확정 시 영상 메타만 교체 — phase·attach·target·videoCapturedAt(원본 캡처 시각)은 불변.
   replaceVideo: (blob, thumbnail, startedAt, endedAt) => {
     set({ videoBlob: blob, videoThumbnail: thumbnail, videoStartedAt: startedAt, videoEndedAt: endedAt, videoTrimmed: true });
     const tabId = get().target?.tabId;
-    if (tabId != null) void saveVideoBlob(`pending:${tabId}`, blob);
+    if (tabId != null) void saveVideoBlob(pendingKey(tabId), blob);
   },
   cancelRecording: () => set((state) => ({ ...initial, ...preserveLogs(state) })),
   // screenshot도 freeform/video와 동일하게 진입 시 첨부 토글 자동 on (startCapturing·startElementShot). preserveLogs는 로그 데이터 보존용이고 attach는 덮어쓴다.
@@ -777,7 +778,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
             useIssuesStore.getState().patchIssue(id, { captureMode: undefined });
             failed = true;
           }
-          deleteVideoBlob(`pending:${targetTabId}`).catch(() => {});
+          deleteVideoBlob(pendingKey(targetTabId)).catch(() => {});
         }
         if (state.videoThumbnail) {
           if (!await saveImageBlob(id, "before", dataUrlToBlob(state.videoThumbnail))) {
@@ -830,7 +831,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       if (!state.selection) {
         // selection 없으면 draft 미저장 → 첨부도 issueId로 못 옮기므로 pending 정리(고아 방지).
         if (state.attachments.length) {
-          deleteAttachmentBlobs(`pending:${state.target.tabId}`).catch(() => {});
+          deleteAttachmentBlobs(pendingKey(state.target.tabId)).catch(() => {});
         }
         set({ phase: "previewing" });
         return false;
@@ -935,7 +936,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
       const prev = attachmentRekeyInFlight;
       attachmentRekeyInFlight = prev
         .catch(() => {})
-        .then(() => rekeyAttachmentBlobs(`pending:${tabId}`, id, metas.map((a) => a.id)))
+        .then(() => rekeyAttachmentBlobs(pendingKey(tabId), id, metas.map((a) => a.id)))
         .then((ok) => {
           if (!ok) onBlobSaveFailed.fire();
         });
@@ -960,21 +961,21 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   clearNetworkLog: (tabId) => {
     set({ networkLog: null });
     if (tabId != null) {
-      deleteNetworkLog(`pending:${tabId}`).catch(() => {});
+      deleteNetworkLog(pendingKey(tabId)).catch(() => {});
       clearNetworkRecorder(tabId).catch(() => {});
     }
   },
   clearConsoleLog: (tabId) => {
     set({ consoleLog: null });
     if (tabId != null) {
-      deleteConsoleLog(`pending:${tabId}`).catch(() => {});
+      deleteConsoleLog(pendingKey(tabId)).catch(() => {});
       clearConsoleRecorder(tabId).catch(() => {});
     }
   },
   clearActionLog: (tabId) => {
     set({ actionLog: null });
     if (tabId != null) {
-      deleteActionLog(`pending:${tabId}`).catch(() => {});
+      deleteActionLog(pendingKey(tabId)).catch(() => {});
       clearActionRecorder(tabId).catch(() => {});
     }
   },
@@ -982,7 +983,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
   addAttachments: async (files) => {
     const tabId = get().target?.tabId;
     if (tabId == null) return { acceptCount: 0, droppedCount: 0 };
-    const owner = `pending:${tabId}`;
+    const owner = pendingKey(tabId);
     // 하드캡 적용은 여기 단일 출처. 드롭 사유는 호출처(UI)가 result로 받아 토스트.
     const result = takeWithinLimits(
       get().attachments,
@@ -1013,7 +1014,7 @@ export const useEditorStore = create<EditorState>((set, get) => ({
     set((s) => ({ attachments: s.attachments.filter((a) => a.id !== id) }));
     // blob은 confirm 전 pending:${tabId}, confirm 후 issueId 키에 있다. 어느 쪽인지
     // 모르므로 양쪽 삭제(없는 키는 no-op) — confirm 후 제거 시 issueId 고아 방지.
-    if (tabId != null) deleteAttachmentBlob(`pending:${tabId}`, id).catch(() => {});
+    if (tabId != null) deleteAttachmentBlob(pendingKey(tabId), id).catch(() => {});
     if (issueId) deleteAttachmentBlob(issueId, id).catch(() => {});
   },
   setTargetPlatform: (platform) => set({ targetPlatform: platform }),

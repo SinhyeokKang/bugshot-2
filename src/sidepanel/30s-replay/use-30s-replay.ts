@@ -9,6 +9,7 @@ import { networkLogPersist, consoleLogPersist, actionLogPersist } from "@/sidepa
 import { useT } from "@/i18n";
 import { FrameBuffer, REPLAY_MAX_DURATION_MS } from "./frame-buffer";
 import { encodeToMp4 } from "./mp4-encoder";
+import { pendingKey } from "@/lib/session-keys";
 
 const CAPTURE_INTERVAL_MS = 600;
 const MIN_READY_FRAMES = 10;
@@ -169,19 +170,19 @@ export function use30sReplay(
         const requests = trimByTime(networkLog.requests, (r) => r.startTime, logLower, logUpper);
         const trimmed = { ...networkLog, requests, captured: requests.length };
         useEditorStore.getState().setNetworkLog(trimmed);
-        saveNetworkLog(`pending:${id}`, trimmed).catch(() => {});
+        saveNetworkLog(pendingKey(id), trimmed).catch(() => {});
       }
       if (consoleLog) {
         const entries = trimByTime(consoleLog.entries, (e) => e.timestamp, logLower, logUpper);
         const trimmed = { ...consoleLog, entries, captured: entries.length };
         useEditorStore.getState().setConsoleLog(trimmed);
-        saveConsoleLog(`pending:${id}`, trimmed).catch(() => {});
+        saveConsoleLog(pendingKey(id), trimmed).catch(() => {});
       }
       if (actionLog) {
         const entries = trimByTime(actionLog.entries, (e) => e.timestamp, logLower, logUpper);
         const trimmed = { ...actionLog, entries, captured: entries.length };
         useEditorStore.getState().setActionLog(trimmed);
-        saveActionLog(`pending:${id}`, trimmed).catch(() => {});
+        saveActionLog(pendingKey(id), trimmed).catch(() => {});
       }
 
       // idle 직접 진입이라 startRecording이 하던 target 설정을 여기서 대신 — confirmDraft 가드 통과용.

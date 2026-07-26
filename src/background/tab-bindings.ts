@@ -1,4 +1,4 @@
-import { FROZEN_PHASES, originOf, pageKeyOf, sessionKey } from "@/lib/session-keys";
+import { FROZEN_PHASES, originOf, pageKeyOf, sessionKey, pendingKey } from "@/lib/session-keys";
 import { isSupportedUrl } from "@/lib/url-support";
 import { deleteNetworkLog, deleteConsoleLog, deleteActionLog, deleteVideoBlob } from "@/store/blob-db";
 import type { BgInternalMessage } from "@/types/messages";
@@ -293,10 +293,10 @@ export function setupTabBindings(): void {
     }
     void chrome.storage.session.remove([sessionKey(tabId), `${ACTIVATION_URL_PREFIX}${tabId}`]);
     void setActivated(tabId, false);
-    deleteNetworkLog(`pending:${tabId}`).catch(() => {});
-    deleteConsoleLog(`pending:${tabId}`).catch(() => {});
-    deleteActionLog(`pending:${tabId}`).catch(() => {});
-    deleteVideoBlob(`pending:${tabId}`).catch(() => {});
+    deleteNetworkLog(pendingKey(tabId)).catch(() => {});
+    deleteConsoleLog(pendingKey(tabId)).catch(() => {});
+    deleteActionLog(pendingKey(tabId)).catch(() => {});
+    deleteVideoBlob(pendingKey(tabId)).catch(() => {});
   });
 
   // 윈도우 종료 시 해당 윈도우의 직전 탭 엔트리 정리(누수 방지).

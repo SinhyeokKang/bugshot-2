@@ -96,7 +96,14 @@ export function buildActionLogSummary(log: ActionLog): ActionLogSummary {
         ? `Dragged ${src} to ${nodeName(e.dragTarget)}`
         : `Dragged ${src} (drop target unknown)`;
     }
-    return `Clicked: ${e.target ?? e.selector ?? ""}${e.role ? ` (${e.role})` : ""}`;
+    if (e.kind === "click") {
+      return `Clicked: ${e.target ?? e.selector ?? ""}${e.role ? ` (${e.role})` : ""}`;
+    }
+    // ActionEntryKind에 kind를 추가하면 여기서 컴파일 에러가 난다. 무조건 fallback이던
+    // 시절엔 새 kind가 전부 "Clicked: "로 라벨링돼 useReproPrefill을 타고 LLM 프롬프트로
+    // 나가면서 사실과 다른 재현 단계가 자동 삽입됐다.
+    const _exhaustive: never = e.kind;
+    return `${String(_exhaustive)}: ${e.target ?? e.selector ?? ""}`;
   });
 }
 

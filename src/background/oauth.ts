@@ -27,9 +27,15 @@ export function serializeOAuthError(error: OAuthError): {
   status: number | undefined;
   body: Record<string, unknown>;
 } {
-  return error.cancelled
-    ? { status: undefined, body: { oauthCancelled: true, platform: error.platform } }
-    : { status: 401, body: { oauthRefreshFailed: true, platform: error.platform } };
+  if (error.cancelled) {
+    return { status: undefined, body: { oauthCancelled: true, platform: error.platform } };
+  }
+  // 설정 누락은 "세션 만료"가 아니다 — 401로 내리면 App이 onOAuthExpired를 발화해
+  // 연결한 적 없는 사용자에게 재로그인 안내를 띄운다. 400 + 전용 플래그로 분기시킨다.
+  if (error.notConfigured) {
+    return { status: 400, body: { oauthNotConfigured: true, platform: error.platform } };
+  }
+  return { status: 401, body: { oauthRefreshFailed: true, platform: error.platform } };
 }
 
 export function base64url(buffer: ArrayBuffer): string {

@@ -29,7 +29,7 @@ import {
   dataUrlToBlob,
 } from "./blob-db";
 import type { UserAttachmentMeta } from "@/types/attachment";
-import { ISSUES_PERSIST_KEY } from "@/lib/session-keys";
+import { ISSUES_PERSIST_KEY, isPendingKey } from "@/lib/session-keys";
 
 export function stripSubmitted(
   issue: IssueRecord,
@@ -72,7 +72,7 @@ async function pruneOrphanBlobs(): Promise<void> {
   const deletions: Promise<unknown>[] = [];
   const videoBlobKeys = await getVideoBlobKeys();
   for (const key of videoBlobKeys) {
-    if (key.startsWith("pending:")) continue;
+    if (isPendingKey(key)) continue;
     if (!currentIds.has(key)) {
       deletions.push(deleteVideoBlob(key));
     }
@@ -80,7 +80,7 @@ async function pruneOrphanBlobs(): Promise<void> {
   const imageBlobKeys = await getImageBlobKeys();
   const prunedImageIds = new Set<string>();
   for (const key of imageBlobKeys) {
-    if (key.startsWith("pending:")) continue;
+    if (isPendingKey(key)) continue;
     const issueId = key.split(":")[0];
     if (!currentIds.has(issueId) && !prunedImageIds.has(issueId)) {
       prunedImageIds.add(issueId);
@@ -89,21 +89,21 @@ async function pruneOrphanBlobs(): Promise<void> {
   }
   const networkLogKeys = await getNetworkLogKeys();
   for (const key of networkLogKeys) {
-    if (key.startsWith("pending:")) continue;
+    if (isPendingKey(key)) continue;
     if (!currentIds.has(key)) {
       deletions.push(deleteNetworkLog(key));
     }
   }
   const consoleLogKeys = await getConsoleLogKeys();
   for (const key of consoleLogKeys) {
-    if (key.startsWith("pending:")) continue;
+    if (isPendingKey(key)) continue;
     if (!currentIds.has(key)) {
       deletions.push(deleteConsoleLog(key));
     }
   }
   const actionLogKeys = await getActionLogKeys();
   for (const key of actionLogKeys) {
-    if (key.startsWith("pending:")) continue;
+    if (isPendingKey(key)) continue;
     if (!currentIds.has(key)) {
       deletions.push(deleteActionLog(key));
     }
@@ -111,7 +111,7 @@ async function pruneOrphanBlobs(): Promise<void> {
   const attachmentBlobKeys = await getAttachmentBlobKeys();
   const prunedAttIds = new Set<string>();
   for (const key of attachmentBlobKeys) {
-    if (key.startsWith("pending:")) continue;
+    if (isPendingKey(key)) continue;
     const issueId = key.split(":")[0];
     if (!currentIds.has(issueId) && !prunedAttIds.has(issueId)) {
       prunedAttIds.add(issueId);

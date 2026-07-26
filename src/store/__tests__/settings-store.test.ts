@@ -3,6 +3,7 @@ import {
   connectedPlatforms,
   jiraHostLabel,
   jiraSiteId,
+  isJiraAccountComplete,
   isLinearAccountComplete,
   isNotionAccountComplete,
   migrateV2ToV3,
@@ -379,6 +380,23 @@ describe("migrateToV11 — 연결 이슈 단일→복수 이관", () => {
     expect(out.accounts.github).toBeDefined();
     expect(out.lastSubmitFields.github).toEqual({ repo: "owner/repo" });
     expect(out.lastSubmitFields.jira).toBeUndefined();
+  });
+});
+
+// 동형 3개 중 jira만 테스트가 없었다. jira는 auth만으론 부족하고 projectKey까지 있어야
+// "완료"다 — 이 차이가 풀리면 프로젝트 미선택 계정이 제출 가능으로 잘못 뜬다.
+describe("isJiraAccountComplete", () => {
+  it("auth + projectKey가 모두 있어야 true", () => {
+    expect(isJiraAccountComplete({ ...jiraStub, projectKey: "BUG" })).toBe(true);
+  });
+
+  it("projectKey가 없으면 false (linear/notion과 다른 지점)", () => {
+    expect(isJiraAccountComplete(jiraStub)).toBe(false);
+    expect(isJiraAccountComplete({ ...jiraStub, projectKey: "" })).toBe(false);
+  });
+
+  it("undefined면 false", () => {
+    expect(isJiraAccountComplete(undefined)).toBe(false);
   });
 });
 

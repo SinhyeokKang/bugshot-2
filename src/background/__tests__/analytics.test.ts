@@ -1,10 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import {
-  analyticsEnabled,
-  buildCaptureBody,
-  postCapture,
-  resolveInstallationId,
-} from "../analytics";
+import { analyticsEnabled, buildCaptureBody, postCapture, resolveInstallationId, isAllowedEvent, filterProperties } from "../analytics";
 
 describe("analyticsEnabled", () => {
   it("키가 있으면 true", () => {
@@ -53,6 +48,64 @@ describe("buildCaptureBody", () => {
     expect(body.properties.$process_person_profile).toBe(false);
     expect(body.properties.$ip).toBe("0.0.0.0");
     expect(body.properties.$geoip_disable).toBe(true);
+  });
+});
+
+// A-21: analytics.capture는 사이드패널에서 임의 문자열을 받는다. 현재 호출자 4곳이 깨끗해도
+// 런타임 방어가 0이면 Privacy 코어밸류의 유일한 무방비 지점이 된다.
+describe("허용목록", () => {
+  it("현재 호출자 5종 event를 전부 허용한다", () => {
+    for (const e of [
+      "issue_submitted",
+      "platform_connect",
+      "platform_disconnected",
+      "extension_installed",
+      "sidepanel_opened",
+    ]) {
+      expect(isAllowedEvent(e)).toBe(true);
+    }
+  });
+
+  it("목록 밖 event는 거부한다", () => {
+    expect(isAllowedEvent("page_url")).toBe(false);
+    expect(isAllowedEvent("")).toBe(false);
+    // 프로토타입 오염 경유 우회 차단.
+    expect(isAllowedEvent("toString")).toBe(false);
+    expect(isAllowedEvent("constructor")).toBe(false);
+  });
+
+  it("허용 property는 그대로 통과한다", () => {
+    expect(
+      filterProperties("issue_submitted", {
+        platform: "jira",
+        capture_mode: "video",
+        result: "success",
+        replay_trimmed: "false",
+      }),
+    ).toEqual({
+      platform: "jira",
+      capture_mode: "video",
+      result: "success",
+      replay_trimmed: "false",
+    });
+  });
+
+  it("목록 밖 property는 payload에서 빠진다", () => {
+    expect(
+      filterProperties("platform_disconnected", {
+        platform: "github",
+        page_url: "https://secret.internal/orders?token=abc",
+        email: "a@b.c",
+      }),
+    ).toEqual({ platform: "github" });
+  });
+
+  it("property가 없는 event는 빈 객체", () => {
+    expect(filterProperties("sidepanel_opened", { anything: "x" })).toEqual({});
+  });
+
+  it("목록 밖 event의 property는 통째로 드롭", () => {
+    expect(filterProperties("unknown_event", { platform: "jira" })).toEqual({});
   });
 });
 

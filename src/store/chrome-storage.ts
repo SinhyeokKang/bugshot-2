@@ -1,4 +1,5 @@
 import type { StateStorage } from "zustand/middleware";
+import { onStateSaveFailed } from "@/types/messages";
 
 // 조회 실패를 삼켜 null을 주면 소비처가 "저장분 없음"으로 오독한다.
 // settings 계열은 그래도 기본값으로 뜨는 게 낫다 — 사이드패널 렌더 게이트가
@@ -18,7 +19,9 @@ export const chromeLocalStorage: StateStorage = {
     try {
       await chrome.storage.local.set({ [name]: value });
     } catch (e) {
+      // QUOTA 초과·IO 오류. 삼키기만 하면 소비처는 저장에 성공한 줄 안다 — 알림을 올린다.
       console.error("[chrome-storage] setItem failed:", name, e);
+      onStateSaveFailed.fire();
     }
   },
   async removeItem(name) {

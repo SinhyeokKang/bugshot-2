@@ -19,6 +19,8 @@ function consoleRecorderScript(): void {
   const CTRL_KEY = "__bugshot_console_ctrl__";
   if ((window as any)[CTRL_KEY]) return;
 
+  // log-merge.ts CONSOLE_MAX_ENTRIES와 동일 유지 (sidepanel 번들 격리로 값 동기화 —
+  // 공용 상수 모듈로 빼면 recorders-entry가 async loader가 돼 pre-arm이 죽는다).
   const MAX_ENTRIES = 2000;
   const SET_SENTINEL_EVENT = "__bugshot_console_setSentinel__";
 

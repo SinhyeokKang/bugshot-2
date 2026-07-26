@@ -4,10 +4,11 @@ export interface GithubUploadFileEntry {
   dataUrl: string;
 }
 
+// 항상 전용 탭을 만든다. 임의의 github.com 탭을 재사용하면 그 탭에 붙은 유저스크립트·타 확장의
+// MAIN world 후킹이 args로 넘어가는 스크린샷·영상 base64와 asset_upload_authenticity_token을
+// 그대로 가져갈 수 있다(pageBatchUploadFn은 world:"MAIN" 주입이다). 업로드마다 탭 생성/제거라
+// 조금 느려지지만 active:false라 포커스는 뺏기지 않는다.
 async function ensureGithubTab(owner: string, repo: string): Promise<{ tabId: number; created: boolean }> {
-  const tabs = await chrome.tabs.query({ url: "https://github.com/*", status: "complete" });
-  if (tabs[0]?.id != null) return { tabId: tabs[0].id, created: false };
-
   const tab = await chrome.tabs.create({
     url: `https://github.com/${owner}/${repo}`,
     active: false,

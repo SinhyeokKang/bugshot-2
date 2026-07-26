@@ -28,7 +28,7 @@ import { LabelCombobox } from "@/sidepanel/tabs/gitlabFields/LabelCombobox";
 import { ProjectCombobox, type ProjectValue } from "@/sidepanel/tabs/gitlabFields/ProjectCombobox";
 import { connectMethods, type ConnectFlowProps } from "@/sidepanel/tabs/integrationsTabUtils";
 import { ConnectMethodDialog } from "./ConnectMethodDialog";
-import { normalizeInstanceUrl } from "./gitlabInstanceUrl";
+import { InstanceUrlError, normalizeInstanceUrl } from "./gitlabInstanceUrl";
 
 const GITLAB_COM = "https://gitlab.com";
 
@@ -241,8 +241,12 @@ function PatDialog({
       let baseUrl: string;
       try {
         baseUrl = normalizeInstanceUrl(instanceUrl);
-      } catch {
-        toast.error(t("gitlab.instanceUrl.invalid"));
+      } catch (err) {
+        toast.error(
+          err instanceof InstanceUrlError && err.reason === "insecure"
+            ? t("gitlab.instanceUrl.insecure")
+            : t("gitlab.instanceUrl.invalid"),
+        );
         return;
       }
       if (baseUrl !== GITLAB_COM) {

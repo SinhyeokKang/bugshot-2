@@ -10,6 +10,7 @@ import { toast } from "sonner";
 import { useT } from "@/i18n";
 import { Button } from "@/components/ui/button";
 import { FieldRow } from "@/sidepanel/components/FieldRow";
+import { isCredentialSafeUrl } from "@/lib/loopback-host";
 import {
   Command,
   CommandEmpty,
@@ -145,10 +146,16 @@ export function LlmConnectDialog({
   }
 
   async function handleConnect() {
+    let parsed: URL;
     try {
-      new URL(baseUrl);
+      parsed = new URL(baseUrl);
     } catch {
       toast.error(t("llm.error.invalidUrl"));
+      return;
+    }
+    // API 키가 헤더로 나가므로 평문 http는 loopback(ollama 등 로컬 엔드포인트)만 허용한다.
+    if (!isCredentialSafeUrl(parsed)) {
+      toast.error(t("llm.error.insecureUrl"));
       return;
     }
     setConnecting(true);

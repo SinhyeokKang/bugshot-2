@@ -13,6 +13,7 @@ import type { NetworkLogSummary, ConsoleLogSummary } from "./buildLogSummary";
 import { filterEnvironmentRows, type EnvironmentRow } from "./environmentRows";
 import { formatTimestamp } from "./formatTimestamp";
 import { renderMarkdown } from "./renderMarkdown";
+import { escapeHtml } from "./escapeHtml";
 
 // mergeStyleElements가 현재 element에서 실제로 읽는 필드만(EditorSelection의 구조적 부분집합).
 // PreviewPanel/buildMarkdownContext가 EditorSelection 전체 없이도 호출 가능.
@@ -471,14 +472,6 @@ function toCssChanges(diffs: StyleDiffRow[]): {
   to: string;
 }[] {
   return diffs.map((d) => ({ property: d.prop, from: d.asIs, to: d.toBe }));
-}
-
-function escapeHtml(value: string): string {
-  return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
 }
 
 // class 토큰 세그먼트 → HTML 셀(changed 토큰만 <strong>).

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { pageKeyOf, sessionKey } from "@/lib/session-keys";
+import { pageKeyOf, sessionKey, pendingKey } from "@/lib/session-keys";
 import {
   type EditorDraft,
   type EditorSnapshot,
@@ -136,13 +136,13 @@ export function useEditorSessionSync(tabId: number | null): boolean {
         // cancelled가 서지 않으므로 도착 시점에 세션 세대를 다시 본다.
         const superseded = (): boolean =>
           cancelled || ACTIVE_CAPTURE_PHASES.has(useEditorStore.getState().phase);
-        getNetworkLog(`pending:${tabId}`).then((log) => {
+        getNetworkLog(pendingKey(tabId)).then((log) => {
           if (log && !superseded()) useEditorStore.getState().setNetworkLog(log);
         }).catch(() => {});
-        getConsoleLog(`pending:${tabId}`).then((log) => {
+        getConsoleLog(pendingKey(tabId)).then((log) => {
           if (log && !superseded()) useEditorStore.getState().setConsoleLog(log);
         }).catch(() => {});
-        getActionLog(`pending:${tabId}`).then((log) => {
+        getActionLog(pendingKey(tabId)).then((log) => {
           if (log && !superseded()) useEditorStore.getState().setActionLog(log);
         }).catch(() => {});
         // 영상 blob은 스냅샷 밖(직렬화 불가)이라 IDB에서 복원. drafting은 pending:${tabId}에,
@@ -150,7 +150,7 @@ export function useEditorSessionSync(tabId: number | null): boolean {
         // pending → currentIssueId 순으로 조회. 둘 다 없으면 썸네일만 남고 videoBlob은 null.
         if (snap.captureMode === "video" && DRAFT_PHASES.has(snap.phase)) {
           void (async () => {
-            let blob = await getVideoBlob(`pending:${tabId}`);
+            let blob = await getVideoBlob(pendingKey(tabId));
             if (!blob && snap.currentIssueId) blob = await getVideoBlob(snap.currentIssueId);
             if (blob && !superseded()) useEditorStore.setState({ videoBlob: blob });
           })().catch(() => {});

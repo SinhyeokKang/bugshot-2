@@ -38,6 +38,7 @@ import { buildNetworkLogSummary, buildConsoleLogSummary } from "@/sidepanel/lib/
 import { supportsConsoleNetworkLog, supportsActionLog } from "@/sidepanel/lib/captureLogSupport";
 import { resolveSectionImages } from "@/sidepanel/lib/resolveInlineImages";
 import { IssueCreateModal } from "./IssueCreateModal";
+import { pendingKey } from "@/lib/session-keys";
 
 
 export function PreviewPanel() {
@@ -267,9 +268,9 @@ export function PreviewPanel() {
         attachments={attachments}
         onDownload={(m) =>
           void downloadAttachment(
-            currentIssueId ?? `pending:${target?.tabId}`,
+            currentIssueId ?? pendingKey(target?.tabId ?? ""),
             m,
-            target?.tabId != null ? `pending:${target.tabId}` : undefined,
+            target?.tabId != null ? pendingKey(target.tabId) : undefined,
           )
         }
       />

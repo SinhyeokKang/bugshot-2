@@ -1,6 +1,6 @@
 import { t } from "@/i18n";
 import type { PlatformId } from "@/types/platform";
-import { OAuthError } from "../oauth/errors";
+import { OAuthError } from "@/background/oauth/errors";
 
 const TOKEN_REFRESH_THRESHOLD_MS = 60_000;
 

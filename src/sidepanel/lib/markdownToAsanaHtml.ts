@@ -1,6 +1,7 @@
 import MarkdownIt from "markdown-it";
 import type Token from "markdown-it/lib/token.mjs";
 import { findClosingToken } from "./findClosingToken";
+import { escapeHtml } from "./escapeHtml";
 
 // Asana html_notes는 제한된 태그 서브셋만 허용한다:
 // <body><h1><h2><ol><ul><li><strong><em><u><s><code><pre><a href><blockquote><hr><img>.
@@ -223,10 +224,7 @@ function plainText(children: Token[]): string {
   return out;
 }
 
-function escapeHtml(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
-
+// escapeHtml이 이미 `"`까지 처리하므로 속성용 추가 치환이 필요 없다.
 export function escapeAttr(s: string): string {
-  return escapeHtml(s).replace(/"/g, "&quot;");
+  return escapeHtml(s);
 }

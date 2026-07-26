@@ -73,3 +73,42 @@ describe("buildRichDraftPrompt — 매칭 200 섹션", () => {
     expect(p).not.toContain('"logRefs"'); // 스키마 키 없음
   });
 });
+
+// draftCompact는 전용 테스트가 없었다. compact의 불변식(JSON 규칙 미포함·이미지 언급 0·
+// 로케일 반영)이 풀려도 아무도 안 잡던 자리.
+describe("buildCompactDraftPrompt — compact 불변식", () => {
+  it("페이지 주소·제목을 싣는다", () => {
+    const p = buildCompactDraftPrompt(ctx({ caps: NANO_CAPABILITIES }));
+    expect(p).toContain("https://shop.example.com/orders");
+    expect(p).toContain("Orders");
+  });
+
+  it("응답 언어를 로케일로 지시한다", () => {
+    expect(buildCompactDraftPrompt(ctx({ caps: NANO_CAPABILITIES, locale: "ko" }))).toContain("Korean");
+    expect(buildCompactDraftPrompt(ctx({ caps: NANO_CAPABILITIES, locale: "en" }))).toContain("English");
+  });
+
+  // responseConstraint가 구조를 강제하므로 본문에 JSON 규칙을 넣지 않는다(형태는 few-shot이 잡는다).
+  it("JSON 형식 지시문을 본문에 넣지 않는다", () => {
+    const p = buildCompactDraftPrompt(ctx({ caps: NANO_CAPABILITIES }));
+    expect(p).not.toContain("Respond in JSON");
+  });
+
+  // compact는 이미지를 못 받으므로 스크린샷 언급이 새면 없는 첨부를 참조하는 초안이 나온다.
+  it("이미지·스크린샷을 언급하지 않는다", () => {
+    const p = buildCompactDraftPrompt(ctx({ caps: NANO_CAPABILITIES })).toLowerCase();
+    expect(p).not.toContain("screenshot");
+    expect(p).not.toContain("image");
+  });
+
+  it("사실 범위를 컨텍스트로 제한하는 지시가 있다 (환각 억제)", () => {
+    expect(buildCompactDraftPrompt(ctx({ caps: NANO_CAPABILITIES }))).toContain(
+      "Use only facts stated in the context.",
+    );
+  });
+
+  it("rich와 다른 본문을 낸다 (분기 실효)", () => {
+    const c = ctx({ caps: NANO_CAPABILITIES });
+    expect(buildCompactDraftPrompt(c)).not.toBe(buildRichDraftPrompt(c));
+  });
+});

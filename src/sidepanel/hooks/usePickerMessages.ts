@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useEditorStore } from "@/store/editor-store";
 import { sameElementKey } from "@/lib/element-key";
-import { originOf } from "@/lib/session-keys";
+import { originOf, pendingKey } from "@/lib/session-keys";
 import type { PickerMessage, ViewportRect } from "@/types/picker";
 import { type BgInternalMessage, onPickerIframeUnsupported, onPickerPermissionExpired, sendBg } from "@/types/messages";
 import { captureElementSnapshot, cropImage } from "@/sidepanel/capture";
@@ -244,7 +244,7 @@ export function usePickerMessages(myTabId: number | null): void {
         useEditorStore.getState().setNetworkLog(log);
         const tabId = useEditorStore.getState().target?.tabId;
         if (tabId) {
-          networkLogPersist.push(`pending:${tabId}`, log);
+          networkLogPersist.push(pendingKey(tabId), log);
         }
       } else if (message.type === "consoleRecorder.data") {
         if (isLogFrozen(useEditorStore.getState().phase)) return;
@@ -267,7 +267,7 @@ export function usePickerMessages(myTabId: number | null): void {
         useEditorStore.getState().setConsoleLog(log);
         const tabId = useEditorStore.getState().target?.tabId;
         if (tabId) {
-          consoleLogPersist.push(`pending:${tabId}`, log);
+          consoleLogPersist.push(pendingKey(tabId), log);
         }
       } else if (message.type === "actionRecorder.data") {
         if (isLogFrozen(useEditorStore.getState().phase)) return;
@@ -289,7 +289,7 @@ export function usePickerMessages(myTabId: number | null): void {
         useEditorStore.getState().setActionLog(log);
         const tabId = useEditorStore.getState().target?.tabId;
         if (tabId) {
-          actionLogPersist.push(`pending:${tabId}`, log);
+          actionLogPersist.push(pendingKey(tabId), log);
         }
       }
     }

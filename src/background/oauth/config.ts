@@ -136,11 +136,13 @@ export function assertConfigured(cfg: OAuthPlatformConfig): void {
   if (!cfg.clientId) {
     throw new OAuthError(t(cfg.notConfiguredClientKey), {
       platform: cfg.platform,
+      notConfigured: true,
     });
   }
   if (cfg.needsProxy && !cfg.proxyUrl) {
     throw new OAuthError(t(cfg.notConfiguredProxyKey ?? cfg.notConfiguredClientKey), {
       platform: cfg.platform,
+      notConfigured: true,
     });
   }
 }

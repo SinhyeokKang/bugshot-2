@@ -18,6 +18,8 @@ function actionRecorderScript(): void {
   const CTRL_KEY = "__bugshot_action_ctrl__";
   if ((window as any)[CTRL_KEY]) return;
 
+  // log-merge.ts ACTION_MAX_ENTRIES와 동일 유지 (sidepanel 번들 격리로 값 동기화 —
+  // 공용 상수 모듈로 빼면 recorders-entry가 async loader가 돼 pre-arm이 죽는다).
   const MAX_ENTRIES = 1000;
   const VALUE_CAP = 500;
   const SET_SENTINEL_EVENT = "__bugshot_action_setSentinel__";

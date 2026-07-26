@@ -19,6 +19,35 @@ function posthogHost(): string {
     .replace(/\/+$/, "");
 }
 
+// 허용목록. `analytics.capture`는 사이드패널에서 임의 문자열·임의 Record<string,string>을
+// 받으므로 런타임 방어가 없으면 Privacy 코어밸류의 유일한 무방비 지점이 된다 — 목록 밖 event는
+// 통째로 드롭하고, 목록 밖 property 키도 payload에서 뺀다(값은 원문 유지).
+const ALLOWED_EVENTS: Record<string, readonly string[]> = {
+  issue_submitted: ["platform", "capture_mode", "result", "replay_trimmed"],
+  platform_connect: ["platform", "result"],
+  platform_disconnected: ["platform"],
+  extension_installed: ["version"],
+  sidepanel_opened: [],
+};
+
+export function isAllowedEvent(event: string): boolean {
+  return Object.prototype.hasOwnProperty.call(ALLOWED_EVENTS, event);
+}
+
+export function filterProperties(
+  event: string,
+  properties: Record<string, string>,
+): Record<string, string> {
+  const allowed = ALLOWED_EVENTS[event];
+  if (!allowed) return {};
+  const out: Record<string, string> = {};
+  for (const key of allowed) {
+    const value = properties[key];
+    if (typeof value === "string") out[key] = value;
+  }
+  return out;
+}
+
 export function buildCaptureBody(
   event: string,
   properties: Record<string, string>,
@@ -85,8 +114,19 @@ export async function captureEvent(
 ): Promise<void> {
   const key = (import.meta.env.VITE_POSTHOG_KEY ?? "").trim();
   if (!analyticsEnabled(key)) return;
+  if (!isAllowedEvent(event)) {
+    if (import.meta.env.DEV) {
+      console.warn("[bugshot] analytics: dropped unlisted event", event);
+    }
+    return;
+  }
   await postCapture(
     posthogHost(),
-    buildCaptureBody(event, properties, await getInstallationId(), key),
+    buildCaptureBody(
+      event,
+      filterProperties(event, properties),
+      await getInstallationId(),
+      key,
+    ),
   );
 }

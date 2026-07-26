@@ -8,14 +8,15 @@ import {
 import { clearNetworkRecorder, clearConsoleRecorder, clearActionRecorder } from "./recorder-control";
 import { showAnnotation } from "./annotation-control";
 import * as videoRecorder from "./video-recorder";
+import { pendingKey } from "@/lib/session-keys";
 
 // pending IDB 정리 → 3개 레코더 activate → clear 순. 탭/화면 녹화 진입 공통 전처리.
 async function prepareRecorders(tabId: number): Promise<void> {
   // pending IndexedDB는 startRecording의 ...initial 리셋과 무관하게 정리 필요.
-  deleteNetworkLog(`pending:${tabId}`).catch(() => {});
-  deleteConsoleLog(`pending:${tabId}`).catch(() => {});
-  deleteActionLog(`pending:${tabId}`).catch(() => {});
-  deleteVideoBlob(`pending:${tabId}`).catch(() => {});
+  deleteNetworkLog(pendingKey(tabId)).catch(() => {});
+  deleteConsoleLog(pendingKey(tabId)).catch(() => {});
+  deleteActionLog(pendingKey(tabId)).catch(() => {});
+  deleteVideoBlob(pendingKey(tabId)).catch(() => {});
 
   await Promise.all([
     activateNetworkRecorder(tabId).catch((err) => console.warn("[bugshot] network recorder activate failed", err)),
