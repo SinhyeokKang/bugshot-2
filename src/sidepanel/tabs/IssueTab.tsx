@@ -278,8 +278,8 @@ function UnsupportedPage() {
   );
 }
 
-// 캡처 진입 화면 버튼 열과 빈 상태 문구가 공유하는 폭 — 문구를 패널 폭까지 늘리지 않고
-// 버튼 열과 같은 지점에서 줄바꿈시켜 가독성을 맞춘다.
+// 캡처 진입 화면 버튼 열과 빈 상태 문구가 공유하는 폭 상한. 문구가 패널 폭까지 늘어나
+// 한 덩어리로 읽히는 것을 막는다(EmptyShell은 px-4가 있어 실제 콘텐츠 폭은 32px 좁다).
 const CONTENT_MAX_W = "max-w-[336px]";
 
 // export 이유: props 직접 주입 테스트. 비-export면 IssueTab 풀 렌더를 거쳐야 하고 그러면
@@ -365,19 +365,28 @@ export function EmptyState({ onStartElement, onStartElementShot, onStartScreensh
             <BookOpen />
             {t("settings.guide")}
           </Button>
-          <Button
-            variant="outline"
-            data-testid="mode-freeform"
-            aria-disabled={unsupported}
-            className="aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
-            onClick={() => {
-              if (unsupported) return;
-              onStartFreeform();
-            }}
-          >
-            <SquarePen />
-            {t("issue.startDraft")}
-          </Button>
+          <TooltipProvider delayDuration={0}>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="outline"
+                  data-testid="mode-freeform"
+                  aria-disabled={unsupported}
+                  className="aria-disabled:cursor-not-allowed aria-disabled:opacity-50 aria-disabled:hover:bg-background aria-disabled:hover:text-foreground"
+                  onClick={() => {
+                    if (unsupported) return;
+                    onStartFreeform();
+                  }}
+                >
+                  <SquarePen />
+                  {t("issue.startDraft")}
+                </Button>
+              </TooltipTrigger>
+              {/* aria-disabled는 disabled와 달리 hover가 살아 있다 — 이유를 말해주지 않으면
+                  "밝아지는데 안 눌린다"가 된다. 화면 중앙 안내와 같은 문구를 재사용한다. */}
+              {unsupported && <TooltipContent>{t("app.captureUnsupported.title")}</TooltipContent>}
+            </Tooltip>
+          </TooltipProvider>
         </div>
       </PageFooter>
     </PageShell>

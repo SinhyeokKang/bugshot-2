@@ -71,7 +71,8 @@ describe("EmptyState — 지원 페이지 (unsupported=false)", () => {
     const h = handlers();
     render(<EmptyState {...h} unsupported={false} />);
     const btn = screen.getByTestId("mode-freeform");
-    expect(btn.getAttribute("aria-disabled")).toBe("false");
+    // 속성이 아예 없는 구현으로 바뀌어도 통과해야 한다 — 잠그는 것은 "비활성이 아님"이다.
+    expect(btn.getAttribute("aria-disabled")).not.toBe("true");
     await userEvent.click(btn);
     expect(h.onStartFreeform).toHaveBeenCalledTimes(1);
   });

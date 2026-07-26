@@ -89,7 +89,8 @@ test("미지원 탭을 지원 페이지로 이동시키면 조작 없이 캡처 
 
   await expect(panel.getByTestId("mode-element")).toBeVisible();
   await expect(panel.getByTestId("capture-unsupported")).toHaveCount(0);
-  await expect(panel.getByTestId("mode-freeform")).toBeVisible();
+  // 항상 렌더되므로 존재만 보면 무의미하다 — 비활성이 풀리는 것이 복구의 신호다.
+  await expect(panel.getByTestId("mode-freeform")).toHaveAttribute("aria-disabled", "false");
   await expect(panel.getByTestId("subtab-console")).toBeEnabled();
 
   await panel.close();
