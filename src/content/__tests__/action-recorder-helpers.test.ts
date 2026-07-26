@@ -102,6 +102,38 @@ describe("shouldMaskField — 부분일치 오탐 방지", () => {
   });
 });
 
+// A-18: `<input name="apiKey">`의 sk_live_… 가 라벨·값 판정 양쪽을 통과해 평문으로 액션 로그에
+// 실렸다. 네트워크 쪽 MASKED_QUERY_KEYS엔 key/api_key가 있어 두 층의 키 집합이 어긋나 있었다.
+describe("shouldMaskField — key·OTP류", () => {
+  it("키·시크릿 계열 필드를 마스킹", () => {
+    expect(shouldMaskField({ name: "apiKey" })).toBe(true);
+    expect(shouldMaskField({ name: "api_key" })).toBe(true);
+    expect(shouldMaskField({ ariaLabel: "API Key" })).toBe(true);
+    expect(shouldMaskField({ labelText: "Access keys" })).toBe(true);
+    expect(shouldMaskField({ placeholder: "Passphrase" })).toBe(true);
+    expect(shouldMaskField({ name: "mnemonic" })).toBe(true);
+    expect(shouldMaskField({ labelText: "Credential" })).toBe(true);
+    expect(shouldMaskField({ labelText: "Credentials" })).toBe(true);
+  });
+
+  it("OTP 계열 필드를 마스킹", () => {
+    expect(shouldMaskField({ name: "otp" })).toBe(true);
+    expect(shouldMaskField({ name: "otpCode" })).toBe(true);
+    expect(shouldMaskField({ ariaLabel: "OTP" })).toBe(true);
+    // 표준 autocomplete 토큰은 정규식이 아니라 토큰 일치로 잡는다(code는 오탐이 커서 단어 미등록).
+    expect(shouldMaskField({ autocomplete: "one-time-code" })).toBe(true);
+  });
+
+  it("key를 부분 문자열로 품은 일반 라벨은 마스킹 안 함", () => {
+    expect(shouldMaskField({ labelText: "Keyword" })).toBe(false);
+    expect(shouldMaskField({ placeholder: "Search keywords" })).toBe(false);
+    expect(shouldMaskField({ labelText: "Monkey" })).toBe(false);
+    expect(shouldMaskField({ labelText: "Donkey" })).toBe(false);
+    expect(shouldMaskField({ ariaLabel: "Keyboard shortcut" })).toBe(false);
+    expect(shouldMaskField({ labelText: "Adopt a pet" })).toBe(false); // otp ⊂ adopt
+  });
+});
+
 // 라벨 기반 판정의 구조적 한계(생성된 id `:r3:`, 커스텀 폼, 라벨 없는 입력)를 값 자체로 보완.
 describe("isSensitiveValue", () => {
   it("이메일 형태는 민감", () => {

@@ -2,8 +2,10 @@
 
 // 영문은 단어 경계로 끊는다 — placeholder·라벨 문구가 판정 소스라 부분일치는 정상 폼을 죽인다
 // (pin ⊂ shipping, auth ⊂ author, card ⊂ discard). 한글은 \b가 안 먹어 부분일치 유지(안전 측).
+// key·otp류는 네트워크 층 MASKED_QUERY_KEYS(key/api_key)와 집합을 맞추려고 추가했다 —
+// 한쪽에만 있으면 그 차집합이 곧 유출 경로다. `\bkey\b`는 monkey·keyword·keyboard에 안 걸린다.
 const SENSITIVE_NAME_RE =
-  /\b(password|secret|card|cvv|ssn|token|pwd|auth|pin)\b|비밀번호|암호|주민|카드|계좌|전화|연락처|휴대폰|주소/;
+  /\b(password|secret|card|cvv|ssn|token|pwd|auth|pin|keys?|otp|passphrase|mnemonic|credentials?)\b|비밀번호|암호|주민|카드|계좌|전화|연락처|휴대폰|주소/;
 const TARGET_NAME_CAP = 80;
 
 // 라벨에 민감 키워드가 없어도(생성된 id `:r3:`, 커스텀 폼, 라벨 없는 입력) 값 형태로 PII를 잡는다.
@@ -35,7 +37,9 @@ function normalizeName(raw: string): string {
 export function shouldMaskField(input: MaskFieldInput): boolean {
   if (input.type?.toLowerCase() === "password") return true;
   const ac = input.autocomplete?.toLowerCase() ?? "";
-  if (ac.includes("password") || ac.includes("cc-")) return true;
+  // one-time-code는 표준 autocomplete 토큰. `code`를 정규식 단어로 넣으면 zip/error/country code가
+  // 통째로 죽으므로, 토큰 일치로만 좁혀 잡는다.
+  if (ac.includes("password") || ac.includes("cc-") || ac.includes("one-time-code")) return true;
   // fieldLabel()이 라벨로 쓰는 소스(aria-label·label[for]·placeholder·name)를 판정에도 전부 넣는다.
   const name = normalizeName(
     [input.name, input.id, input.ariaLabel, input.labelText, input.placeholder]

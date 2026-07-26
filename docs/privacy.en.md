@@ -1,6 +1,6 @@
 # BugShot Privacy Policy
 
-**Effective date**: July 23, 2026
+**Effective date**: July 26, 2026
 
 BugShot (the "extension") values your privacy and collects and processes only the minimum information necessary. This policy transparently explains what information the extension handles.
 
@@ -65,7 +65,7 @@ User action logs record, in addition to the clicked element, input field, and na
 
 **The values you type into input fields and pick from dropdowns are recorded verbatim (up to 500 characters) and attached to the issue, unless they are caught by the masking rules below.** Knowing which value triggered the bug is what makes a report reproducible. Sensitive information is masked automatically (`***`) in two ways.
 
-- **By field type and label**: `type=password`, autocomplete hints, and sensitive keywords found in the field's name, id, `aria-label`, associated label (a `label` element or `aria-labelledby`), or placeholder (password, card, cvv, ssn, token, and their Korean equivalents).
+- **By field type and label**: `type=password`, autocomplete hints (`current-password`, `cc-*`, `one-time-code`), and sensitive keywords found in the field's name, id, `aria-label`, associated label (a `label` element or `aria-labelledby`), or placeholder (password, card, cvv, ssn, token, key, otp, passphrase, credential, and their Korean equivalents). English keywords are matched on word boundaries (so `keyword` and `monkey` are not flagged), leaving ordinary fields that merely contain a sensitive keyword as a substring unmasked.
 - **By value shape**: even when the label gives no clue, a value is masked if it looks like an email address or a run of 9 or more digits (phone, card, national ID, or bank account numbers).
 
 Every action also records the **page address** it happened on. Sensitive query and fragment parameters are masked for every action, including navigation, click, input, toggle, select, shortcut-key, and drag. Ordinary address information that is not identified as sensitive remains in the log for reproduction.
