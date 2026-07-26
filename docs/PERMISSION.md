@@ -252,8 +252,8 @@ background/index.ts:31 — disableGlobalSidePanel()
 
 | 함수 | 위치 | 동작 |
 |---|---|---|
-| `activateTab()` | `tab-bindings.ts:208` | user gesture → `setOptions({enabled:true})` + `sidePanel.open()` + 활성화 URL 저장(`sidePanel:url:{tabId}`) |
-| `apply()` | `tab-bindings.ts:37` | 탭 전환·URL 변경 시 — activated + supported면 path 재등록, 아니면 비활성화 |
+| `activateTab()` | `tab-bindings.ts:215` | user gesture → `setOptions({enabled:true})` + `sidePanel.open()` + 활성화 URL 저장(`sidePanel:url:{tabId}`, `tab.url`을 읽을 수 있을 때만). **URL 지원 여부를 보지 않는다** — 미지원 페이지에서도 열고 패널이 안내를 그린다 |
+| `apply()` | `tab-bindings.ts:40` | 탭 전환·URL 변경 시 — **activated면** path 재등록, 아니면 비활성화. 지원 여부는 보지 않는다(보면 방금 연 패널을 다음 `onActivated`가 닫는다) |
 | `deactivatePanelIfCrossOrigin()` | `tab-bindings.ts` | origin 비교 → same-origin 유지, cross-origin은 커버 URL(http/https)이면 유지·비커버(file:)면 닫기/deferred |
 
 ### sidePanel.open() 호출 조건
@@ -261,7 +261,7 @@ background/index.ts:31 — disableGlobalSidePanel()
 `sidePanel.open()`은 user gesture 컨텍스트에서만 호출 가능. 코드베이스에서 **단 한 곳**에서만 호출:
 
 ```
-tab-bindings.ts:220 — activateTab() 내부
+tab-bindings.ts:227 — activateTab() 내부
 ```
 
 트리거: `action.onClicked` (아이콘 클릭 / `_execute_action` 단축키) 또는 `contextMenus.onClicked`. 둘 다 동기 이벤트 핸들러에서 즉시 호출 → user gesture 유지.
@@ -321,8 +321,8 @@ idle 복귀 전 캡처를 시도하면 기존 3중 방어(진입 가드 / 런타
 
 | 키 | 데이터 | 사용처 |
 |---|---|---|
-| `sidePanel:activated` | `number[]` (tab ID 목록) | `tab-bindings.ts:13` — 패널 활성화 탭 추적 |
-| `sidePanel:url:{tabId}` | `string` (활성화 시점 URL) | `tab-bindings.ts:164` — idle 상태 origin 비교 fallback |
+| `sidePanel:activated` | `number[]` (tab ID 목록) | `tab-bindings.ts:13` — 패널 활성화 탭 추적. **미지원 탭도 들어온다**(`activateTab`이 URL을 보지 않으므로). `onRemoved`가 무조건 정리 |
+| `sidePanel:url:{tabId}` | `string` (활성화 시점 URL) | `tab-bindings.ts:166` — idle 상태 origin 비교 fallback. `chrome://` 등 `tab.url`을 못 읽는 탭에서는 **기록되지 않고**, 그 부재가 `deactivatePanelIfCrossOrigin`의 조기 return으로 이어져 패널이 유지된다 |
 | `editor:{tabId}` | `EditorSnapshot` 전체 에디터 상태 | `useEditorSessionSync.ts` — 300ms 디바운스 저장·수화 |
 | `pendingPrunedAt` | `number` (timestamp) | `pending-log-prune.ts:93` — 브라우저 세션당 1회 정리 가드 |
 

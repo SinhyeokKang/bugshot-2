@@ -26,9 +26,10 @@ chrome.action.onClicked.addListener(async (tab) => {
 
 // ✅ 올바른 예: open을 동기적으로 호출
 chrome.action.onClicked.addListener((tab) => {
-  if (tab.id == null || !isSupportedUrl(tab.url)) return;
-  void chrome.sidePanel.setOptions({ tabId: tab.id, path, enabled: true });
-  void chrome.sidePanel.open({ tabId: tab.id });
+  // URL 지원 여부는 보지 않는다 — 미지원 페이지에서도 패널을 열고, 패널이 안내를 그린다.
+  if (tab.id == null) return;
+  void chrome.sidePanel.setOptions({ tabId: tab.id, path, enabled: true }).catch(log);
+  void chrome.sidePanel.open({ tabId: tab.id }).catch(log);
   void setActivated(tab.id, true); // fire-and-forget
 });
 ```
