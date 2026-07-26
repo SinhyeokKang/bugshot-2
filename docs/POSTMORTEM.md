@@ -43,7 +43,7 @@
   - **`afterEach` 등록 역순**: vitest는 afterEach를 등록 역순으로 실행한다. `src/test/setup-dom.ts`가 `afterEach(cleanup)`을 먼저 등록하므로, 테스트 파일의 `afterEach(vi.unstubAllGlobals)`가 **먼저** 돌고 그 뒤 RTL 언마운트가 일어나 훅 cleanup의 `chrome.tabs.onUpdated.removeListener`가 `chrome is not defined`로 죽는다. → 테스트 파일에서 `cleanup()`을 명시적으로 먼저 호출한 뒤 unstub한다. 대상: `grep -rln 'stubGlobal("chrome"' $(git ls-files '*.test.tsx')`.
   - **`vi.mock` 팩토리 호이스팅**: 팩토리는 파일 최상단으로 끌어올려지므로 top-level 변수(`const resolved = () => vi.fn(...)`)를 참조하면 `Cannot access before initialization`으로 **수집 자체가 실패**한다(테스트 0개 실행 → "no tests"라 red 사유가 안 보인다). 팩토리 안에 인라인할 것.
 - **부수 함정 3건**: 계획 문서가 지시한 순수 술어 추출(`debugTabGates.ts`)이 **같은 커밋에서 근거를 잃었다** — 추출 이유는 "DebugTab 풀 렌더가 tiptap·sonner를 끌어와 비싸다"였는데, 서브탭 본체를 `vi.mock`으로 갈면 셸만 싸게 렌더된다는 걸 테스트 작성 중에 알게 됐다. 계획을 그대로 따랐더니 64줄이 4줄 조건식을 감싸고 `EditorPhase` 타입까지 잃었다. → **tasks.md의 "테스트가 어려우니 추출한다" 지시는 실제로 테스트를 써 본 뒤 재확인한다.**
-- **관련**: `src/background/tab-bindings.ts`(`activateTab`·`apply`), `src/sidepanel/hooks/useTabSupport.ts`, `src/sidepanel/hooks/__tests__/useTabSupport.test.tsx`, `src/sidepanel/tabs/__tests__/DebugTab.test.tsx`, `docs/features/unsupported-url-panel/`.
+- **관련**: `src/background/tab-bindings.ts`(`activateTab`·`apply`), `src/sidepanel/hooks/useTabSupport.ts`, `src/sidepanel/hooks/__tests__/useTabSupport.test.tsx`, `src/sidepanel/tabs/__tests__/DebugTab.test.tsx`.
 
 ## 2026-07-26 — 감사 리포트가 지목한 "1줄 수정"이 프로토콜을 깨뜨리는 경우 (A-51/A-04)
 
