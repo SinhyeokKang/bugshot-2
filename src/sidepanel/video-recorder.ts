@@ -24,6 +24,35 @@ interface RecorderState {
 
 let state: RecorderState | null = null;
 
+// finalize 창 = onstop이 `state`를 비운 뒤 썸네일 생성·탭 조회를 await 하는 구간. 그 사이엔
+// state가 null이라 cancelRecording이 통째로 no-op이 되어 취소가 씹히고 녹화가 drafting으로
+// 커밋됐다. state를 되살리면 이중 stop 재진입이 열리므로 별도 플래그로 받는다.
+// id는 뒤이은 녹화의 finalize가 창을 덮어쓴 뒤 늦은 continuation이 남의 창을 닫는 걸 막는다.
+export function createFinalizeGuard() {
+  let win: { id: number; cancelled: boolean } | null = null;
+  let seq = 0;
+  return {
+    begin(): number {
+      win = { id: ++seq, cancelled: false };
+      return win.id;
+    },
+    // 열린 창이 있으면 취소로 표시하고 true. 없으면(= 진짜 idle) false.
+    cancel(): boolean {
+      if (!win) return false;
+      win.cancelled = true;
+      return true;
+    },
+    end(id: number): "commit" | "discard" {
+      if (!win || win.id !== id) return "discard";
+      const { cancelled } = win;
+      win = null;
+      return cancelled ? "discard" : "commit";
+    },
+  };
+}
+
+const finalizing = createFinalizeGuard();
+
 // 스트림 획득 이후 공통 본문 — tabCapture(startRecording)·getDisplayMedia(startScreenRecording)가 공유.
 // source가 "screen"이면 viewportHint(track 해상도)를 viewport로 쓰고, 사용자의 "공유 중지"(track ended)에
 // stopRecording을 바인딩한다. tab은 onstop에서 chrome.tabs.get으로 viewport를 잡는다.
@@ -65,6 +94,7 @@ function beginRecording(
     const localStartTime = s.startTime;
     const localSource = s.source;
     state = null;
+    const finalizeId = finalizing.begin();
 
     // 어노테이션 오버레이 정리 — send가 내부에서 예외를 삼키므로 fire-and-forget(녹화 결과물 흐름 무간섭).
     void hideAnnotation(localTabId);
@@ -95,6 +125,9 @@ function beginRecording(
         });
       }
     } catch { /* tab closed */ }
+
+    // await 사이에 사용자가 취소를 눌렀으면 커밋하지 않는다(store는 cancelRecording이 이미 리셋).
+    if (finalizing.end(finalizeId) === "discard") return;
 
     useEditorStore
       .getState()
@@ -188,7 +221,11 @@ export function stopRecording(): void {
 }
 
 export function cancelRecording(): void {
-  if (!state) return;
+  if (!state) {
+    // finalize 창 안이면 플래그만 세우고 store를 되돌린다 — continuation이 커밋 직전 이걸 보고 폐기한다.
+    if (finalizing.cancel()) useEditorStore.getState().cancelRecording();
+    return;
+  }
   const localTabId = state.tabId;
   window.clearTimeout(state.maxTimer);
   if (state.endedTrack && state.endedHandler) {
