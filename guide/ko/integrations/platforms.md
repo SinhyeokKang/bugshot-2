@@ -22,7 +22,7 @@
 | GitHub | OAuth / PAT | PAT | github.com/settings/tokens |
 | Linear | OAuth / API Key | apiKey | linear.app 보안 설정 |
 | Notion | OAuth / Internal Token | token | notion.so 통합(Integration) |
-| GitLab | OAuth / PAT | instanceUrl(self-managed만), pat | gitlab.com PAT |
+| GitLab | OAuth / PAT | instanceUrl(self-managed만 — **https 주소만** 받습니다. localhost는 예외), pat | gitlab.com PAT |
 | Asana | OAuth / PAT | pat | app.asana.com my-apps |
 | ClickUp | OAuth / API Token | pat | app.clickup.com 설정 > Apps |
 | Slack | OAuth 전용 | — (토큰 입력 없음) | — |
