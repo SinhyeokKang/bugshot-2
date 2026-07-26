@@ -18,11 +18,23 @@
 
 | 항목 | 결정 |
 |---|---|
-| A-04 frameToken | **(b)** blocker 핸드오프 직전 chrome 경로 ping으로 실검증 — **W4에서 함께** 처리 |
+| A-04 frameToken | **(c) 보류 + 위험 문서화**로 최종 확정 (W4에서 (b) 착수 중 재검토) — 아래 "A-04 재결정" 참조 |
 | A-08 rate limit | **코드 스코프 밖** — Cloudflare 대시보드 작업으로 사용자에게 인계 |
 | A-12 `setItem` 삼킴 | **보류** — A-02 착지 후 근거를 보고 판단 (W6) |
 | A-20 `http://` 허용 | **(c)** loopback 예외 + 그 외 https 강제 — W6 |
 | A-32 `ActionEntry` union | **(a)** 소비처에만 exhaustive check — W6 |
+
+### A-04 재결정 (W4, 2026-07-26)
+
+(b)안(핸드오프 직전 chrome 경로 ping)은 **그대로는 구현 불가**임이 코드 확인에서 드러났다.
+
+1. **top에는 특정 iframe으로 가는 chrome 경로가 없다.** content script의 `chrome.runtime.sendMessage`는 background/사이드패널로만 간다. 사이드패널을 경유하려면 그 자식의 `frameId`가 필요한데, top이 쥔 건 `<iframe>` 엘리먼트뿐이고 둘을 잇는 유일한 다리가 지금 문제 삼는 `event.source`(postMessage)다.
+2. **postMessage로 오가는 값은 어떤 형태로도 인증에 못 쓴다.** 자식이 `targetOrigin: "*"`로 보내는 순간 부모 MAIN world가 읽고 자기 iframe에서 재생할 수 있다 — 새 nonce·회전·해싱 모두 원 설계의 "하면 안 되는 것"과 같은 이유로 착시다.
+3. **토큰 유출의 증분 위험이 원 서술보다 좁다.** picker는 `all_frames: true`라 **악성 페이지가 만든 iframe에도 진짜 picker가 주입돼 정상 announce로 등록된다** — 토큰을 훔칠 필요가 없다. 실제 증분은 "picker가 없는 iframe(sandbox·2-depth+)을 등록시켜 blocker 핸드오프를 여는 것"뿐이다.
+
+→ **보류.** 위험을 `docs/ARCHITECTURE.md` "등록 핸드셰이크"에 경고 블록으로, `CLAUDE.md` iframe 항목에 한 줄로 명시했다("registry는 인증이 아니라 힌트"). 근본 해결은 chrome 경로 challenge-response 프로토콜 신설이 필요하고, iframe picker는 회귀 밀집 구간이라 **수용된 잔여 위험**으로 남긴다.
+
+**A-51 부수 발견**: 원 태스크의 1줄 수정(`data.token !== frameToken`이면 거부)은 **프로토콜을 깨뜨린다** — `OFFSET_REQ`의 `token`은 자식이 응답을 짝지으려 만든 correlation nonce다. 세션 토큰을 별도 `frameToken` 필드로 함께 실어 검증하는 방식으로 구현했다.
 
 ### W1에서 계획과 달라진 것 (착수 전 필독)
 
