@@ -2,6 +2,7 @@
   "name": "bugshot-2",
   "private": true,
   "version": "1.6.17",
+  "license": "MIT",
   "type": "module",
   "scripts": {
     "dev": "vite",
