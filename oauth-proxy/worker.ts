@@ -70,7 +70,7 @@ export async function handleRequest(
   // Origin 헤더는 브라우저만 강제한다 — 확장 ID도 client_id도 번들에서 읽히는 공개값이라
   // curl로 그대로 재현된다. 상류가 abuse로 우리 client_secret을 정지시키면 전 사용자의
   // 연결이 죽으므로 IP당 상한을 둔다. preflight·비POST는 예산을 안 먹도록 여기서 센다.
-  const limited = await enforceRateLimit(req, env, corsOrigin);
+  const limited = await enforceRateLimit(req, env, corsOrigin, url.pathname);
   if (limited) return limited;
 
   if (url.pathname === "/token") {
@@ -472,11 +472,15 @@ async function enforceRateLimit(
   req: Request,
   env: Env,
   corsOrigin: string,
+  pathname: string,
 ): Promise<Response | null> {
   if (!env.RATE_LIMITER) return null;
   const ip = req.headers.get("CF-Connecting-IP") ?? "unknown";
+  // 키에 경로를 넣어 **상류별로** 예산을 가른다. IP 단독 키면 8개 라우트가 한 예산을 나눠
+  // 써서, 한 사람이 60초 안에 여러 플랫폼을 연결하거나 NAT 뒤 사무실에서 동시에 연결하면
+  // 정상 사용자가 429를 맞는다. 보호 대상은 각 상류의 abuse 태세이므로 경로 단위가 맞다.
   try {
-    const { success } = await env.RATE_LIMITER.limit({ key: ip });
+    const { success } = await env.RATE_LIMITER.limit({ key: `${ip}:${pathname}` });
     if (!success) return jsonError(429, "rate limit exceeded", corsOrigin);
   } catch {
     /* 제한기 장애는 통과 (fail-open) */

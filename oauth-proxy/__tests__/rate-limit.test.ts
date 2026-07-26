@@ -34,7 +34,7 @@ describe("rate limit 게이트", () => {
     const res = await handleRequest(req({ ip: "1.2.3.4" }), env as never, okFetch() as never);
     // 빈 body라 400 — 403/429가 아니라는 게 요점(게이트 통과).
     expect(res.status).toBe(400);
-    expect(env.RATE_LIMITER.limit).toHaveBeenCalledWith({ key: "1.2.3.4" });
+    expect(env.RATE_LIMITER.limit).toHaveBeenCalledWith({ key: "1.2.3.4:/token" });
   });
 
   it("한도 초과면 429로 끊고 상류를 안 부른다", async () => {
@@ -50,9 +50,20 @@ describe("rate limit 게이트", () => {
     await handleRequest(req({ ip: "1.1.1.1" }), env as never, okFetch() as never);
     await handleRequest(req({ ip: "2.2.2.2" }), env as never, okFetch() as never);
     expect(env.RATE_LIMITER.limit.mock.calls.map((c) => c[0].key)).toEqual([
-      "1.1.1.1",
-      "2.2.2.2",
+      "1.1.1.1:/token",
+      "2.2.2.2:/token",
     ]);
+  });
+
+  // IP 단독 키면 8개 라우트가 한 예산을 나눠 써서, 60초 안에 여러 플랫폼을 연결하거나
+  // NAT 뒤 사무실에서 동시에 연결할 때 정상 사용자가 429를 맞는다. 상류별로 갈라야 한다.
+  it("같은 IP라도 라우트가 다르면 예산이 갈린다", async () => {
+    const env = { ...baseEnv, GITHUB_CLIENT_ID_DEV: "gh", GITHUB_CLIENT_SECRET_DEV: "s", RATE_LIMITER: limiter(true) };
+    await handleRequest(req({ ip: "1.1.1.1", path: "/token" }), env as never, okFetch() as never);
+    await handleRequest(req({ ip: "1.1.1.1", path: "/github/token" }), env as never, okFetch() as never);
+    const keys = env.RATE_LIMITER.limit.mock.calls.map((c) => c[0].key);
+    expect(keys).toEqual(["1.1.1.1:/token", "1.1.1.1:/github/token"]);
+    expect(new Set(keys).size).toBe(2);
   });
 
   // 제한기 장애로 전 사용자 토큰 교환이 막히는 쪽이 초과 허용보다 나쁘다.
