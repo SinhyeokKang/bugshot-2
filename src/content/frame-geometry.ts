@@ -66,6 +66,9 @@ function holdPendingPresent(source: MessageEventSource, token: string): void {
 
 export function setFrameToken(token: string | null): void {
   frameToken = token;
+  // 세션 경계에서 registry를 비운다 — WeakSet은 clear가 없어 새 인스턴스로 교체한다.
+  // 안 비우면 세션이 끝난 뒤에도 옛 등록이 남아 다음 세션의 blocker 핸드오프를 연다.
+  childFrames = new WeakSet<Element>();
   const held = pendingPresents.splice(0, pendingPresents.length);
   if (!token) return;
   for (const p of held) {
@@ -86,7 +89,8 @@ export function announceFrameToParent(): void {
 }
 
 // 등록된 자식 iframe element — WeakSet이라 iframe 제거 시 자동 해제.
-const childFrames = new WeakSet<Element>();
+// 세션 리셋(setFrameToken)마다 새 인스턴스로 갈아끼운다.
+let childFrames = new WeakSet<Element>();
 
 export function isRegisteredChildFrame(el: Element): boolean {
   return childFrames.has(el);
@@ -113,7 +117,11 @@ export function installFrameOffsetResponder(hooks: {
 }): void {
   window.addEventListener("message", (event: MessageEvent) => {
     if (window !== window.top) return;
-    const data = event.data as { type?: string; token?: string } | null;
+    const data = event.data as {
+      type?: string;
+      token?: string;
+      frameToken?: string;
+    } | null;
     if (!data || typeof data !== "object") return;
 
     if (data.type === PRESENT_TYPE) {
@@ -130,7 +138,10 @@ export function installFrameOffsetResponder(hooks: {
     }
 
     if (data.type === OFFSET_REQ_TYPE) {
+      // token은 자식이 응답을 짝지으려고 만든 1회성 correlation nonce라 세션 token과 대조할 수
+      // 없다 — 그래서 세션 token은 별도 필드로 함께 싣고 그쪽을 PRESENT와 같은 기준으로 검증한다.
       if (typeof data.token !== "string") return;
+      if (!frameToken || data.frameToken !== frameToken) return;
       const iframe = findChildIframe(event.source);
       if (!iframe?.contentWindow) return;
       // registry 미등록 프레임의 요청은 arm 소비 전에 거부 — 미등록 iframe 스팸이
@@ -197,6 +208,9 @@ export function requestFrameOffset(timeoutMs = 500): Promise<FrameOffset | null>
     };
     window.addEventListener("message", onMessage);
     const timer = window.setTimeout(() => finish(null), timeoutMs);
-    window.parent.postMessage({ type: OFFSET_REQ_TYPE, token }, "*");
+    window.parent.postMessage(
+      { type: OFFSET_REQ_TYPE, token, frameToken },
+      "*",
+    );
   });
 }

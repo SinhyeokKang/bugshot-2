@@ -243,7 +243,7 @@ describe("installFrameOffsetResponder — 부모(top) 측 arm 게이트", () => 
 
     win.dispatch({
       source: childWindow,
-      data: { type: "__bugshot_frame_offset_req__", token: "t1" },
+      data: { type: "__bugshot_frame_offset_req__", token: "t1", frameToken: "session-token" },
     });
 
     expect(childWindow.postMessage).not.toHaveBeenCalled();
@@ -264,12 +264,12 @@ describe("installFrameOffsetResponder — 부모(top) 측 arm 게이트", () => 
 
     win.dispatch({
       source: childWindow,
-      data: { type: "__bugshot_frame_offset_req__", token: "t1" },
+      data: { type: "__bugshot_frame_offset_req__", token: "t1", frameToken: "session-token" },
     });
     // 두 번째 요청은 arm이 이미 소비돼 무응답 (1회성)
     win.dispatch({
       source: childWindow,
-      data: { type: "__bugshot_frame_offset_req__", token: "t2" },
+      data: { type: "__bugshot_frame_offset_req__", token: "t2", frameToken: "session-token" },
     });
 
     expect(childWindow.postMessage).toHaveBeenCalledTimes(1);
@@ -293,7 +293,7 @@ describe("installFrameOffsetResponder — 부모(top) 측 arm 게이트", () => 
 
     win.dispatch({
       source: childWindow,
-      data: { type: "__bugshot_frame_offset_req__", token: "t1" },
+      data: { type: "__bugshot_frame_offset_req__", token: "t1", frameToken: "session-token" },
     });
 
     expect(consumeArm).not.toHaveBeenCalled();
@@ -310,6 +310,60 @@ describe("installFrameOffsetResponder — 부모(top) 측 arm 게이트", () => 
     registerChild();
 
     expect(isRegisteredChildFrame(iframeEl as unknown as Element)).toBe(true);
+  });
+
+  // 세션 리셋(handleClear→setFrameToken(null)) 후에도 옛 등록이 남으면 다음 세션의 blocker가
+  // 그 iframe 위에서 그대로 핸드오프한다 — WeakSet은 clear가 없어 인스턴스 교체가 유일한 수단.
+  it("세션 리셋 후에는 이전 등록이 무효가 된다", () => {
+    installFrameOffsetResponder({
+      onChildCapturePrep: () => ({ width: 1, height: 1 }),
+      consumeArm: () => false,
+    });
+    registerChild();
+    expect(isRegisteredChildFrame(iframeEl as unknown as Element)).toBe(true);
+
+    setFrameToken(null);
+
+    expect(isRegisteredChildFrame(iframeEl as unknown as Element)).toBe(false);
+  });
+
+  it("새 세션 token으로 갈아타도 이전 등록이 이월되지 않는다", () => {
+    installFrameOffsetResponder({
+      onChildCapturePrep: () => ({ width: 1, height: 1 }),
+      consumeArm: () => false,
+    });
+    registerChild();
+
+    setFrameToken("next-session-token");
+
+    expect(isRegisteredChildFrame(iframeEl as unknown as Element)).toBe(false);
+  });
+
+  // OFFSET_REQ의 token은 correlation nonce라 세션 token 대조가 불가능했다 — 등록된 iframe의
+  // 페이지 스크립트가 1회성 arm을 선점해 정상 캡처를 실패시키고 top geometry를 얻을 수 있었다.
+  it("세션 frameToken 없는 offset 요청은 arm을 소비하지 않고 무응답", () => {
+    const consumeArm = vi.fn(() => true);
+    installFrameOffsetResponder({
+      onChildCapturePrep: () => ({ width: 1200, height: 800 }),
+      consumeArm,
+    });
+    registerChild();
+
+    win.dispatch({
+      source: childWindow,
+      data: { type: "__bugshot_frame_offset_req__", token: "t1" },
+    });
+    win.dispatch({
+      source: childWindow,
+      data: {
+        type: "__bugshot_frame_offset_req__",
+        token: "t1",
+        frameToken: "forged",
+      },
+    });
+
+    expect(consumeArm).not.toHaveBeenCalled();
+    expect(childWindow.postMessage).not.toHaveBeenCalled();
   });
 
   it("token 불일치/누락 present는 등록 거부 (무인증 postMessage 위조 차단)", () => {
