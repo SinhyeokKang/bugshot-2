@@ -13,6 +13,7 @@ export const koDict: Record<string, string> = {
   "networkLog.filter.font": "Font",
   "networkLog.filter.doc": "Doc",
   "networkLog.filter.other": "기타",
+  "networkLog.filter.ws": "WS",
   "networkLog.dialog.selectRequest": "요청을 선택하세요",
   "networkLog.detail.general": "일반",
   "networkLog.detail.url": "URL",
@@ -27,6 +28,15 @@ export const koDict: Record<string, string> = {
   "networkLog.tab.headers": "헤더",
   "networkLog.tab.request": "요청 본문",
   "networkLog.tab.response": "응답 본문",
+  "networkLog.tab.messages": "메시지",
+  "networkLog.ws.framesCount": "{n} 프레임",
+  "networkLog.ws.dropped": "{n} 누락",
+  "networkLog.ws.all": "전체",
+  "networkLog.ws.send": "송신",
+  "networkLog.ws.receive": "수신",
+  "networkLog.ws.opened": "연결 열림",
+  "networkLog.ws.closed": "연결 닫힘 ({code})",
+  "networkLog.ws.empty": "아직 프레임이 없습니다",
   "networkLog.display.binary": "바이너리 응답 ({type} · {size}) · 본문 미저장",
   "networkLog.display.stream": "스트리밍 응답 ({type}) · 본문 캡처 안 됨",
   "networkLog.display.bodyTruncated": "본문 잘림 ({size} · 한도 {limit})",
@@ -120,6 +130,11 @@ export const koDict: Record<string, string> = {
   "codeBlock.collapse": "접기",
   "codeBlock.copy": "복사",
   "codeBlock.copied": "복사됨",
+
+  // 번들에 들어오는 Section의 collapsible 토글용. log-viewer는 현재 접이식 섹션을 렌더하지
+  // 않지만, 렌더 도달성은 모듈 그래프로 못 가리므로 사전에 미리 둔다(i18n.test.ts 참조).
+  "common.expand": "펼치기",
+  "common.collapse": "접기",
 };
 
 export const enDict: Record<string, string> = {
@@ -132,6 +147,7 @@ export const enDict: Record<string, string> = {
   "networkLog.filter.font": "Font",
   "networkLog.filter.doc": "Doc",
   "networkLog.filter.other": "Other",
+  "networkLog.filter.ws": "WS",
   "networkLog.dialog.selectRequest": "Select a request",
   "networkLog.detail.general": "General",
   "networkLog.detail.url": "URL",
@@ -146,6 +162,15 @@ export const enDict: Record<string, string> = {
   "networkLog.tab.headers": "Headers",
   "networkLog.tab.request": "Request",
   "networkLog.tab.response": "Response",
+  "networkLog.tab.messages": "Messages",
+  "networkLog.ws.framesCount": "{n} frames",
+  "networkLog.ws.dropped": "{n} dropped",
+  "networkLog.ws.all": "All",
+  "networkLog.ws.send": "Sent",
+  "networkLog.ws.receive": "Received",
+  "networkLog.ws.opened": "Connection opened",
+  "networkLog.ws.closed": "Connection closed ({code})",
+  "networkLog.ws.empty": "No frames yet",
   "networkLog.display.binary": "Binary response ({type} · {size}) · Body not saved",
   "networkLog.display.stream": "Streaming response ({type}) · Body not captured",
   "networkLog.display.bodyTruncated": "Body truncated ({size} · cap {limit})",
@@ -239,6 +264,9 @@ export const enDict: Record<string, string> = {
   "codeBlock.collapse": "Collapse",
   "codeBlock.copy": "Copy",
   "codeBlock.copied": "Copied",
+
+  "common.expand": "Expand",
+  "common.collapse": "Collapse",
 };
 
 // Node 20(전역 navigator 없음)에서 vitest가 이 모듈을 로드해도 깨지지 않게 가드.
