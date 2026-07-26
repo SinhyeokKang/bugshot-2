@@ -1,5 +1,7 @@
 # BugShot
 
+**English** · [한국어](README.ko.md)
+
 ![Bug Reporting in One Shot — the BugShot side panel showing a finished issue with its environment filled in, layered over the captured network and console logs](guide/en/assets/readme-1.jpg)
 
 [![Chrome Web Store](https://img.shields.io/chrome-web-store/v/ohakhekagkodklkickemonmifdcbhmig)](https://chromewebstore.google.com/detail/bugshot/ohakhekagkodklkickemonmifdcbhmig)
@@ -287,11 +289,11 @@ leaves it. If you'd rather narrow the grant, Chrome lets you — **Extensions �
 BugShot → Site access** — with the understanding that the features which need
 the breadth will degrade accordingly.
 
-> **A note on language.** This README is English; the privacy policy and the user
-> guide are maintained in English and Korean. The engineering docs under `docs/`
-> and the source comments are written in Korean — it's a solo project and that's
-> the language it was thought in. Everything you need to audit the privacy claims
-> above is in English.
+> **A note on language.** This README is kept in sync with its
+> [Korean edition](README.ko.md), as are the privacy policy and the user guide.
+> The engineering docs under `docs/` and the source comments are written in
+> Korean — it's a solo project and that's the language it was thought in.
+> Everything you need to audit the privacy claims above is in English.
 
 ## License
 
