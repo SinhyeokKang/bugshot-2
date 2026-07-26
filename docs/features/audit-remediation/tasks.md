@@ -29,6 +29,7 @@
 - **A-02**: `design.md` 함정 8의 예측이 **틀렸다**. `chromeLocalStorage.getItem`을 통째로 rethrow로 바꾸면 `settings-store`의 rehydrate가 에러 경로를 타고, zustand가 `onFinishHydration`을 영영 발화하지 않아 `App.tsx:208`의 렌더 게이트에서 **사이드패널이 빈 화면으로 굳는다**. 그래서 공용 어댑터는 삼킴을 유지하고 `failClosedLocalStorage`를 신설해 **issues-store에만** 연결했다. 상세는 POSTMORTEM 2026-07-26.
 - **A-03**: 누락 키가 10개가 아니라 **12개**였다(`common.expand`/`common.collapse` 추가). 후자 2개는 `Section`의 collapsible 토글 경로라 log-viewer가 실제로 렌더하지는 않지만, 스캐너가 모듈 그래프 기준이라 요구한다 — 의도한 트레이드오프. 상세는 POSTMORTEM 2026-07-26.
 - **A-07**: `LlmRedirectError`가 UI에 안 닿던 구멍을 함께 메웠다(`llmErrorToast.ts` 분기 + `LlmConnectDialog.tsx` 타입 캐치). 원 태스크 범위 밖이었으나 이게 없으면 문구를 추가한 의미가 없다.
+- **A-05**: e2e 게이트가 회귀를 하나 잡았다. 가드를 background 관문으로 승격하자 뷰포트 캡처 spec이 죽었는데, **원인은 프로덕션 코드가 아니라 하네스**다 — e2e에선 사이드패널이 탭이라 패널이 앞에 있으면 fixture 탭이 비활성이다. 스크롤 캡처 spec에만 있던 `bringToFront` 우회를 뷰포트 spec에도 적용하고 `e2e/GOTCHAS.md` 항목의 적용 범위를 넓혔다. **앞으로 캡처 경로를 건드리는 spec은 이 우회가 필요하다.** 상세는 POSTMORTEM 2026-07-26.
 - **A-09**: 단위 테스트로 `createFinalizeGuard()` 상태 전이는 고정했으나, **실제 MediaRecorder 경로는 수동 검증이 남아 있다**(아래 "인계 사항" 참조).
 
 ## 선행 조건

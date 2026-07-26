@@ -21,13 +21,19 @@ test("screenshot 뷰포트 캡처 → drafting 진입", async ({ ext }) => {
   await enterDebug(panel);
 
   // capturing 단계 하단 툴바에서 [뷰포트 캡처] — 드래그 없이 areaSelected가 발화한다.
+  // 아래 스크롤 캡처와 같은 이유로 fixture를 앞으로 보낸 뒤 DOM 클릭한다: background 캡처
+  // 관문이 큐 대기 후 tab.active를 재확인하므로(A-05), 패널이 앞에 있으면 fixture가 비활성이라
+  // 캡처가 거부된다. 실제 제품에선 사이드패널이 탭이 아니라 이 상황 자체가 없다.
   await captureUntilDrafting(panel, async () => {
+    await panel.bringToFront();
     await panel.getByTestId("mode-screenshot").click();
     const viewportBtn = panel.getByTestId("capture-method-viewport");
     await expect(viewportBtn).toBeVisible();
     await expect(viewportBtn).not.toHaveAttribute("aria-disabled", "true");
-    await viewportBtn.click();
+    await fixture.bringToFront();
+    await viewportBtn.evaluate((el) => (el as HTMLElement).click());
   });
+  await panel.bringToFront();
 
   const img = panel.getByTestId("media-preview-img");
   await expect(img).toBeVisible();

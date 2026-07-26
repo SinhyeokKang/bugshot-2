@@ -21,6 +21,13 @@
 
 ---
 
+## 2026-07-26 — 프로덕션에선 옳은 `tab.active` 가드가 e2e 하네스의 구조적 전제를 깨서 캡처 spec이 전멸
+
+- **증상**: 캡처 소유권 가드(A-05)를 background 관문에 넣자 `capture-methods.spec.ts`의 "screenshot 뷰포트 캡처 → drafting 진입"이 40초 타임아웃으로 죽었다. 같은 파일의 "스크롤 캡처"는 통과해서 원인이 캡처 관문으로 안 보였다. `pnpm test --run`·`pnpm typecheck`는 둘 다 green이라 **e2e만이 유일한 검출 경로**였다.
+- **근본 원인**: e2e 하네스의 `openPanel`은 사이드패널을 `context.newPage()`로 **탭**으로 연다(실제 제품에선 사이드패널이 탭이 아니다). 그래서 패널이 앞에 있으면 fixture 탭의 `tab.active`가 false다. 스크롤 캡처는 **예전부터 자체적으로** 타일마다 `active`를 확인했기 때문에 그 spec만 이미 `fixture.bringToFront()` + `locator.evaluate(el => el.click())` 우회를 갖고 있었고, 그 우회의 이유가 **그 spec 안 주석에만** 적혀 있었다. A-05가 같은 검사를 **모든 캡처 경로가 지나는 관문으로 승격**시키자 우회가 없는 나머지 spec이 무너졌다. 즉 결함은 프로덕션 코드가 아니라 **하네스 전제를 아는 지식이 spec 하나에 갇혀 있던 것** — 가드를 넓히면서 그 지식이 따라 넓어지지 않았다.
+- **재발 방지**: (1) **개별 호출처에 있던 가드를 공용 관문으로 승격할 때는, 그 가드를 이미 우회하고 있던 테스트를 먼저 찾아 우회 이유를 확인한다** — `grep -rn 'bringToFront\|el.click()' e2e/`. 우회가 존재한다는 것 자체가 "이 검사는 하네스에서 자연히 성립하지 않는다"는 신호다. (2) 하네스 전제(사이드패널=탭, eval-host 탭 상주 등)는 spec 주석이 아니라 **`e2e/GOTCHAS.md`에 적고, 적용 범위가 넓어지면 그 항목도 같이 넓힌다**. (3) 캡처·탭 소유권처럼 e2e가 유일한 안전망인 영역은 유닛 green을 근거로 삼지 않는다 — 웨이브 사이 `/e2e-run` 게이트가 실제로 잡아낸 사례다.
+- **관련**: `src/background/capture-throttle.ts:captureOwnedTab`(가드 본체), `src/background/messages.ts`(`captureVisibleTab` 관문), `e2e/capture-methods.spec.ts`(뷰포트 spec에 우회 적용), `e2e/GOTCHAS.md`(적용 범위 확대 반영), 선례 `src/sidepanel/scroll-capture.ts:isTabActive`.
+
 ## 2026-07-26 — persist storage 실패를 "전파하면 안전"으로 일반화하면 사이드패널이 통째로 빈 화면으로 굳는다
 
 - **증상**: (사전 차단) `chromeLocalStorage.getItem`의 에러 삼킴이 `pruneOrphanBlobs`에 "저장분 없음"으로 읽혀 살아있는 blob을 전부 고아로 삭제하는 결함(A-02)을 고치려 했는데, 설계 문서가 권한 것은 **`chromeLocalStorage.getItem` 전체를 rethrow로 바꾸는 것**이었다. 그대로 했으면 storage 일시 오류 한 번에 사이드패널이 **영구 빈 화면**이 됐다.
