@@ -1,8 +1,14 @@
 # BugShot
 
-![BugShot at a glance — capture and report right where you spot the bug](guide/en/assets/readme-1.jpg)
+**English** · [한국어](README.ko.md)
 
-**Bug reports in one shot.**
+![Bug Reporting in One Shot — the BugShot side panel showing a finished issue with its environment filled in, layered over the captured network and console logs](guide/en/assets/readme-1.jpg)
+
+[![Chrome Web Store](https://img.shields.io/chrome-web-store/v/ohakhekagkodklkickemonmifdcbhmig)](https://chromewebstore.google.com/detail/bugshot/ohakhekagkodklkickemonmifdcbhmig)
+[![Rating](https://img.shields.io/chrome-web-store/rating/ohakhekagkodklkickemonmifdcbhmig)](https://chromewebstore.google.com/detail/bugshot/ohakhekagkodklkickemonmifdcbhmig/reviews)
+[![License](https://img.shields.io/github/license/SinhyeokKang/bugshot-2)](LICENSE)
+
+**Bug Reporting in One Shot.**
 
 Stop explaining bugs in words. BugShot is a Chrome side panel extension that lets
 you discover, fix, capture, and report bugs — all without leaving the browser. Pick
@@ -11,9 +17,16 @@ complete issue — with the **environment, before/after styles, screenshots, vid
 and console/network logs** bundled in — to Jira, GitHub, Linear, Notion, GitLab,
 Asana, or ClickUp, or share it straight to a Slack channel or DM.
 
-No sign-up required — just install and go.
+No sign-up required — just install and go. Free, with no paid tier planned:
+there's no server to run, so there's nothing to meter and no hosting bill to
+recover.
 
-[![Chrome Web Store](https://img.shields.io/chrome-web-store/v/ohakhekagkodklkickemonmifdcbhmig)](https://chromewebstore.google.com/detail/bugshot/ohakhekagkodklkickemonmifdcbhmig)
+**Your capture data never touches a BugShot server.** Screenshots, recordings,
+console/network logs, and report bodies go straight from your browser to the
+tracker you connected — there is no BugShot backend in that path, no account,
+and no hosted workspace. That isn't a policy promise; it's the architecture, and
+the source is right here to check. See [Privacy](#privacy) for the full list of
+every request the extension makes.
 
 ## Why BugShot
 
@@ -23,6 +36,11 @@ does the busywork for you — capture right where you spot the problem and it sh
 report developers can actually act on.
 
 ## Getting Started
+
+**Requires Chrome 116 or later.** Other Chromium browsers that ship the Side
+Panel API (Edge, Brave, Arc) should work, but Chrome is what's tested. There is
+no Firefox or Safari build — the whole UI is a Chrome MV3 side panel, and
+neither browser implements that API.
 
 1. **Install** from the [Chrome Web Store](https://chromewebstore.google.com/detail/bugshot/ohakhekagkodklkickemonmifdcbhmig).
 2. **Open the panel** — click the toolbar icon or press `Cmd/Ctrl+Shift+E`.
@@ -140,6 +158,30 @@ pnpm sync:agents  # regenerate the Codex mirror (AGENTS.md, .agents/skills/)
 Load the unpacked extension from `dist/` at `chrome://extensions` (developer mode).
 The e2e suite lives in `e2e/` — see [`e2e/README.md`](e2e/README.md) for coverage and gotchas.
 
+### Build it yourself
+
+Don't take the privacy claim on faith — build from source and watch the network
+tab:
+
+```bash
+git clone https://github.com/SinhyeokKang/bugshot-2.git
+cd bugshot-2
+pnpm install
+cp .env.example .env.local   # optional — see below
+pnpm build
+```
+
+Then load `dist/` as an unpacked extension. Every key in `.env.example` is
+optional: without OAuth client IDs the OAuth buttons are hidden and you connect
+platforms with a personal access token instead, and without a PostHog key
+analytics is a no-op. So a build from an empty `.env.local` is fully functional
+*and* makes zero analytics requests.
+
+Open DevTools on the side panel and compare what you see against the
+[transmission table](docs/privacy.en.md#3-external-transmission) — the only
+BugShot-operated endpoint in the whole list is the OAuth token-exchange proxy,
+which relays the code→token swap and never carries capture data.
+
 ## Stack
 
 | | |
@@ -150,9 +192,110 @@ The e2e suite lives in `e2e/` — see [`e2e/README.md`](e2e/README.md) for cover
 | Build | Vite + @crxjs/vite-plugin |
 | Test | Vitest (unit) · Playwright (e2e) |
 
+## Architecture
+
+The decisions that shaped the codebase, and what each one cost:
+
+**No backend, by construction.** There is no BugShot server in the data path —
+not "we don't look at it," but nowhere to look. Captures, logs, and report
+bodies are assembled in the extension and POSTed straight to your tracker with
+your own credentials. The one BugShot-operated endpoint is a Cloudflare Worker
+that swaps an OAuth code for a token, because the client secret can't ship in a
+public bundle; Linear and GitLab skip even that via PKCE. The cost is real:
+no cross-device sync, no team workspace, no server-side processing — features
+that would each require breaking this property, so they don't get built.
+
+**Recorders are a synchronous IIFE, and that constrains the build.** Console and
+network hooks have to be installed at `document_start` *before* the page's own
+inline scripts run, or the first errors are already gone. That only holds if the
+recorder chunk is self-contained — a single external static import turns it into
+an async loader and the hooks land too late. So the throttle helper is
+deliberately duplicated between the recorder and the side panel rather than
+shared, and a `sessionStorage` flag lets recording start buffering before the
+side panel has even connected.
+
+**Full-page capture is orchestrated across three contexts.** The side panel
+drives it, a content-script executor scrolls the page, and each tile goes
+through the background worker's `captureVisibleTab`. Repeated `fixed` headers
+and late-appearing `sticky` elements are suppressed by `visibility` between
+tiles — including elements that appear or change position mid-capture — then
+the original styles and scroll offset are restored.
+
+**iframe support is one level deep, and says so.** The picker is injected into
+all frames; a child registers with the top frame over `postMessage` and elements
+are identified by a `selector + frameId` composite key. Frames that don't
+register — nested two levels deep, or sandboxed — hit an explicit refusal path
+with a dialog rather than failing silently. The registration token is a
+correlation hint, not an authentication boundary: the child broadcasts it, so a
+hostile parent page can read it. That's a documented, accepted limit, not an
+oversight.
+
+**Styles are resolved against your design system.** The CSS pipeline follows
+`var()` chains to report `--color-primary` instead of a computed RGB triple —
+which means fetching cross-origin stylesheets from the background worker at a
+page-supplied URL, i.e. an SSRF surface. It runs behind
+[`src/lib/ssrf-guard.ts`](src/lib/ssrf-guard.ts): http(s) only, with loopback,
+private, link-local, CGNAT, multicast, IPv6 ULA, and IPv4-mapped-IPv6 bypasses
+all rejected, plus `credentials: "omit"`, `redirect: "manual"`, a timeout, a
+content-type check, and size caps. One residual gap is documented in that file
+rather than papered over: a hostname that resolves to an internal address can't
+be caught statically, since `fetch` re-resolves DNS. The fetched CSS is used
+on-device only.
+
+**Eight tracker integrations behind one adapter seam.** Each platform gets its
+own auth (OAuth or token), field schema, and upload path, but the report body is
+built once and rendered per target — Markdown, Jira ADF, Notion blocks, Slack
+mrkdwn.
+
+Much of this can't be unit-tested — DOM measurement, pointer drags, canvas, and
+media APIs need a real browser — so a Playwright suite carries what Vitest
+can't, and the coverage metric deliberately excludes browser-bound files so the
+number stays an honest signal.
+
+Full detail lives in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) (Korean).
+
 ## Privacy
 
 BugShot stores your data locally. Issue submission data goes directly to the
 destination you choose; AI features send only the context needed for that request
 directly to the AI provider you configure. BugShot servers do not receive capture
-or report content. See the [Privacy Policy](https://bug-shot.com/en/privacy).
+or report content.
+
+Every outbound request the extension can make is enumerated here — trackers,
+Slack, your LLM endpoint, the OAuth proxy, and analytics — with the exact data
+each one carries:
+
+- **[External transmission table](docs/privacy.en.md#3-external-transmission)** — every destination, what it receives, and why
+- **[Permissions notice](docs/privacy.en.md#6-permissions-notice)** — why the extension needs `<all_urls>`
+- **[docs/PERMISSION.md](docs/PERMISSION.md)** — per-permission engineering reference: lifecycle, expiry, fallbacks (Korean)
+
+Full policy: [English](docs/privacy.en.md) · [한국어](docs/privacy.ko.md) ·
+[bug-shot.com](https://bug-shot.com/en/privacy)
+
+### Why it asks for access to every site
+
+Chrome renders this permission as *"Read and change all your data on all
+websites"* — the most alarming line in the install dialog, and it's required
+rather than optional. BugShot did ship the optional version first, requesting
+the permission at runtime, and it was dropped because it broke in use:
+`captureVisibleTab` runs on either `activeTab` or a broad host permission, and
+`activeTab` is revoked the moment the page makes a cross-document navigation,
+with no way to re-acquire it programmatically. A recording or a 30-second
+replay would simply die when the bug you were chasing navigated — which is
+precisely when you need it.
+
+So the permission is broad. The data path isn't — everything it unlocks happens
+on your machine, and the transmission table above is the complete list of what
+leaves it. If you'd rather narrow the grant, Chrome lets you — **Extensions →
+BugShot → Site access** — with the understanding that the features which need
+the breadth will degrade accordingly.
+
+> **A note on language.** This README is kept in sync with its
+> [Korean edition](README.ko.md), as are the privacy policy and the user guide.
+> The engineering docs under `docs/` and the source comments are written in
+> Korean — it's a solo project and that's the language it was thought in.
+> Everything you need to audit the privacy claims above is in English.
+
+## License
+
+[MIT](LICENSE) © 2026 Sinhyeok Kang
