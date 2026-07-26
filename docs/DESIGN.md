@@ -188,6 +188,7 @@ shadcn `Slider` (`src/components/ui/slider.tsx`, Radix). 표준에서 **멀티 t
 - 삭제·연결 해제 등 파괴적 액션: idle은 foreground 그대로, **`hover:text-destructive`**(호버 시 빨강)로만 위험을 표현한다.
 - 토글류(`aria-pressed`)도 off의 아이콘은 `foreground`(검정). on/off 대비는 색이 아니라 **배경·테두리**로 표현한다. 두 관용구: ① **약대비** `data-active={active||undefined}` + `aria-pressed` + `cn(..., active && "bg-muted")` — 사이드패널 아이콘 토글의 지배적 패턴. 툴바류는 `TooltipIconButton`(§13)이 단일 출처(캡처 방식 툴바·어노테이션 툴바), 그 외 텍스트 pill은 `OriginFilterBar`·`NetworkLogContent`, ② **강대비** on=`bg-foreground text-background`, off=기본 + `hover:bg-muted`(`LinkToggle`).
 - 예외: empty state·로딩 스피너·상태 표시 아이콘은 *버튼이 아니므로* `text-muted-foreground` 허용(장식·저대비 정보).
+- 예외: **입력 필드 안에 얹히는 클리어 어포던스**(검색창 우측 `X` — `IssueListTab`·`Action/Console/NetworkLogContent`·log-viewer `TimelinePanel` 5곳)는 raw `<button>` + idle `text-muted-foreground` + `hover:text-foreground`. 위 두 규칙(shadcn `Button` 사용·idle foreground)의 근거가 여기선 반대로 작동한다 — `Button`의 최소 사이즈(`size="icon"` = h-9 w-9)가 필드 안에 안 들어가 결국 직접 스타일링이 되고, 풀 대비 `X`는 입력 중인 텍스트와 대비를 다툰다. 드래그 핸들과 같은 논리로 hover 전이가 "비활성처럼 보임"을 해소한다. **`aria-label`은 필수**(`common.clearSearch`).
 - 예외: **드래그 핸들**(`SettingsTab`의 본문 구성 재정렬 `GripVertical`)은 idle `text-muted-foreground` + `hover:text-foreground`. 행마다 하나씩 세로로 쌓여 전부 풀 대비면 목록이 시끄럽고, 위 금지의 근거인 "비활성처럼 보임"은 **hover에서 foreground로 올라오는 전이**가 해소한다. 면색 hover(`hover:bg-accent`)는 끄고 글자색 전이만 쓴다(§2의 muted 표면 관용구와 같은 방향). 키보드 어포던스는 `focus-visible:ring-primary`가 별도로 담당.
 
 **관련 변형 컴포넌트**

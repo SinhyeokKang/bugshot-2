@@ -9,6 +9,7 @@ import {
 import { toast } from "sonner";
 import { useT } from "@/i18n";
 import { Button } from "@/components/ui/button";
+import { FieldRow } from "@/sidepanel/components/FieldRow";
 import {
   Command,
   CommandEmpty,
@@ -217,10 +218,7 @@ export function LlmConnectDialog({
         </DialogHeader>
 
         <div className="flex flex-col gap-3">
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs text-muted-foreground">
-              {t("llm.provider")}
-            </label>
+          <FieldRow label={t("llm.provider")}>
             <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
               <PopoverTrigger asChild>
                 <Button
@@ -281,12 +279,9 @@ export function LlmConnectDialog({
                 </Command>
               </PopoverContent>
             </Popover>
-          </div>
+          </FieldRow>
 
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs text-muted-foreground">
-              {t("llm.apiKey")}
-            </label>
+          <FieldRow label={t("llm.apiKey")}>
             <div className="space-y-2">
               <Input
                 type="password"
@@ -300,8 +295,7 @@ export function LlmConnectDialog({
                 {t("llm.apiKey.help")}
               </p>
             </div>
-          </div>
-
+          </FieldRow>
         </div>
 
         <DialogFooter className="flex-row justify-end">
