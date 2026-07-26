@@ -121,6 +121,10 @@ export function resolveNavigationAction(input: {
   pageKeyChanged: boolean;
   broadGranted: boolean;
   newUrlBroadCovered: boolean;
+  // 판독 가능 여부와 지원 여부를 별도 축으로 둔다 — isSupportedUrl(undefined)도 false라
+  // 한 축으로 접으면 "URL을 못 읽었다"가 "미지원"으로 접혀 file: 동작까지 함께 바뀐다.
+  newUrlReadable: boolean;
+  newUrlSupported: boolean;
 }): NavigationAction {
   const effectiveSameOrigin =
     input.sameOrigin || (input.broadGranted && input.newUrlBroadCovered);
@@ -128,7 +132,10 @@ export function resolveNavigationAction(input: {
     if (input.preserved) return "keep";
     return input.pageKeyChanged ? "clearSession" : "keep";
   }
-  return input.preserved ? "notifyDeferredExpiry" : "deactivate";
+  if (input.preserved) return "notifyDeferredExpiry";
+  // 판독된 미지원 URL(chrome://·웹스토어)이면 패널을 살려 안내를 그리게 한다. 판독 불가는
+  // chrome://와 file:(파일 접근 OFF)를 구분할 수 없으므로 file: 동작을 보존하는 쪽으로 남긴다.
+  return input.newUrlReadable && !input.newUrlSupported ? "clearSession" : "deactivate";
 }
 
 const BROAD_COVERED_SCHEMES = new Set(["http:", "https:"]);
@@ -181,6 +188,10 @@ async function deactivatePanelIfCrossOrigin(
       pageKeyChanged: pageKeyOf(refUrl) !== pageKeyOf(newUrl),
       broadGranted: true,
       newUrlBroadCovered: isBroadCoveredUrl(newUrl),
+      // newUrl은 onUpdated의 `info.url ?? tab.url`이다. 미지원 URL로의 이동에서도
+      // loading 시점에는 값이 실려 온다(정착된 뒤에야 tab.url이 비는 것과 별개).
+      newUrlReadable: newUrl != null,
+      newUrlSupported: isSupportedUrl(newUrl),
     });
 
     switch (action) {

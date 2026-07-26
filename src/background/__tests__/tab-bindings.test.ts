@@ -84,38 +84,38 @@ describe("resolveNavigationAction", () => {
   const legacyCases: Case[] = [
     {
       name: "보존 + same-origin → keep (pageKeyChanged 무관)",
-      input: { preserved: true, sameOrigin: true, pageKeyChanged: true, broadGranted: false, newUrlBroadCovered: false },
+      input: { preserved: true, sameOrigin: true, pageKeyChanged: true, broadGranted: false, newUrlBroadCovered: false, newUrlReadable: true, newUrlSupported: true },
       expected: "keep",
     },
     {
       name: "보존 + cross-origin → notifyDeferredExpiry",
-      input: { preserved: true, sameOrigin: false, pageKeyChanged: true, broadGranted: false, newUrlBroadCovered: false },
+      input: { preserved: true, sameOrigin: false, pageKeyChanged: true, broadGranted: false, newUrlBroadCovered: false, newUrlReadable: true, newUrlSupported: true },
       expected: "notifyDeferredExpiry",
     },
     {
       name: "비보존 + same-origin + pageKey 변경 → clearSession",
-      input: { preserved: false, sameOrigin: true, pageKeyChanged: true, broadGranted: false, newUrlBroadCovered: false },
+      input: { preserved: false, sameOrigin: true, pageKeyChanged: true, broadGranted: false, newUrlBroadCovered: false, newUrlReadable: true, newUrlSupported: true },
       expected: "clearSession",
     },
     {
       name: "비보존 + same-origin + pageKey 유지 → keep",
-      input: { preserved: false, sameOrigin: true, pageKeyChanged: false, broadGranted: false, newUrlBroadCovered: false },
+      input: { preserved: false, sameOrigin: true, pageKeyChanged: false, broadGranted: false, newUrlBroadCovered: false, newUrlReadable: true, newUrlSupported: true },
       expected: "keep",
     },
     {
       name: "비보존 + cross-origin → deactivate",
-      input: { preserved: false, sameOrigin: false, pageKeyChanged: true, broadGranted: false, newUrlBroadCovered: false },
+      input: { preserved: false, sameOrigin: false, pageKeyChanged: true, broadGranted: false, newUrlBroadCovered: false, newUrlReadable: true, newUrlSupported: true },
       expected: "deactivate",
     },
     // 미보유 사용자의 가장 흔한 현실 입력 — 새 URL이 커버 범위(http/https)여도 권한이 없으면 현행 분기.
     {
       name: "미보유 + 보존 + cross-origin + 커버 URL → notifyDeferredExpiry",
-      input: { preserved: true, sameOrigin: false, pageKeyChanged: true, broadGranted: false, newUrlBroadCovered: true },
+      input: { preserved: true, sameOrigin: false, pageKeyChanged: true, broadGranted: false, newUrlBroadCovered: true, newUrlReadable: true, newUrlSupported: true },
       expected: "notifyDeferredExpiry",
     },
     {
       name: "미보유 + 비보존 + cross-origin + 커버 URL → deactivate",
-      input: { preserved: false, sameOrigin: false, pageKeyChanged: true, broadGranted: false, newUrlBroadCovered: true },
+      input: { preserved: false, sameOrigin: false, pageKeyChanged: true, broadGranted: false, newUrlBroadCovered: true, newUrlReadable: true, newUrlSupported: true },
       expected: "deactivate",
     },
   ];
@@ -124,12 +124,12 @@ describe("resolveNavigationAction", () => {
   const broadCoveredCases: Case[] = [
     {
       name: "광역 보유 + 비보존 + cross-origin + 커버 URL → clearSession (패널 유지)",
-      input: { preserved: false, sameOrigin: false, pageKeyChanged: true, broadGranted: true, newUrlBroadCovered: true },
+      input: { preserved: false, sameOrigin: false, pageKeyChanged: true, broadGranted: true, newUrlBroadCovered: true, newUrlReadable: true, newUrlSupported: true },
       expected: "clearSession",
     },
     {
       name: "광역 보유 + 보존 + cross-origin + 커버 URL → keep (deferred 예약 없음)",
-      input: { preserved: true, sameOrigin: false, pageKeyChanged: true, broadGranted: true, newUrlBroadCovered: true },
+      input: { preserved: true, sameOrigin: false, pageKeyChanged: true, broadGranted: true, newUrlBroadCovered: true, newUrlReadable: true, newUrlSupported: true },
       expected: "keep",
     },
   ];
@@ -138,13 +138,42 @@ describe("resolveNavigationAction", () => {
   const broadUncoveredCases: Case[] = [
     {
       name: "광역 보유 + 비보존 + cross-origin + 비커버 URL(file:) → deactivate (현행)",
-      input: { preserved: false, sameOrigin: false, pageKeyChanged: true, broadGranted: true, newUrlBroadCovered: false },
+      input: { preserved: false, sameOrigin: false, pageKeyChanged: true, broadGranted: true, newUrlBroadCovered: false, newUrlReadable: true, newUrlSupported: true },
       expected: "deactivate",
     },
     {
       name: "광역 보유 + 보존 + cross-origin + 비커버 URL(file:) → notifyDeferredExpiry (현행)",
-      input: { preserved: true, sameOrigin: false, pageKeyChanged: true, broadGranted: true, newUrlBroadCovered: false },
+      input: { preserved: true, sameOrigin: false, pageKeyChanged: true, broadGranted: true, newUrlBroadCovered: false, newUrlReadable: true, newUrlSupported: true },
       expected: "notifyDeferredExpiry",
+    },
+  ];
+
+  // 미지원 URL(chrome://·웹스토어)로의 이동 — 판독은 됐고 지원 스킴이 아니다.
+  // 여기서만 deactivate 대신 clearSession으로 갈라, 패널이 살아남아 안내를 그린다.
+  // "판독 가능"과 "지원"을 별도 축으로 두는 이유: isSupportedUrl(undefined)도 false라
+  // 한 축으로 접으면 URL을 못 읽은 경우까지 미지원으로 취급돼 file: 동작이 함께 바뀐다.
+  const unsupportedUrlCases: Case[] = [
+    {
+      name: "비보존 + cross-origin + 판독된 미지원 URL → clearSession (패널 유지, 안내 렌더)",
+      input: { preserved: false, sameOrigin: false, pageKeyChanged: true, broadGranted: true, newUrlBroadCovered: false, newUrlReadable: true, newUrlSupported: false },
+      expected: "clearSession",
+    },
+    {
+      name: "보존 + cross-origin + 판독된 미지원 URL → notifyDeferredExpiry (기존 동작 유지)",
+      input: { preserved: true, sameOrigin: false, pageKeyChanged: true, broadGranted: true, newUrlBroadCovered: false, newUrlReadable: true, newUrlSupported: false },
+      expected: "notifyDeferredExpiry",
+    },
+    // 판독 불가 = chrome://와 file:(파일 접근 OFF)를 구분할 수 없는 상태. 둘을 가르지 못하므로
+    // file: 동작을 보존하는 쪽(현행 deactivate)으로 남긴다.
+    {
+      name: "비보존 + cross-origin + 판독 불가 → deactivate (현행 유지 — file:과 구분 불가)",
+      input: { preserved: false, sameOrigin: false, pageKeyChanged: true, broadGranted: true, newUrlBroadCovered: false, newUrlReadable: false, newUrlSupported: false },
+      expected: "deactivate",
+    },
+    {
+      name: "same-origin이면 미지원 판정과 무관하게 기존 분기 (pageKey 변경 → clearSession)",
+      input: { preserved: false, sameOrigin: true, pageKeyChanged: true, broadGranted: true, newUrlBroadCovered: false, newUrlReadable: true, newUrlSupported: false },
+      expected: "clearSession",
     },
   ];
 
@@ -152,17 +181,17 @@ describe("resolveNavigationAction", () => {
   const invariantCases: Case[] = [
     {
       name: "same-origin이면 broadGranted=true여도 비보존+pageKey 변경 → clearSession",
-      input: { preserved: false, sameOrigin: true, pageKeyChanged: true, broadGranted: true, newUrlBroadCovered: true },
+      input: { preserved: false, sameOrigin: true, pageKeyChanged: true, broadGranted: true, newUrlBroadCovered: true, newUrlReadable: true, newUrlSupported: true },
       expected: "clearSession",
     },
     {
       name: "광역 보유 + 비보존 + cross-origin + 커버 + pageKey 유지(refUrl 동일 path) → keep",
-      input: { preserved: false, sameOrigin: false, pageKeyChanged: false, broadGranted: true, newUrlBroadCovered: true },
+      input: { preserved: false, sameOrigin: false, pageKeyChanged: false, broadGranted: true, newUrlBroadCovered: true, newUrlReadable: true, newUrlSupported: true },
       expected: "keep",
     },
   ];
 
-  for (const c of [...legacyCases, ...broadCoveredCases, ...broadUncoveredCases, ...invariantCases]) {
+  for (const c of [...legacyCases, ...broadCoveredCases, ...broadUncoveredCases, ...unsupportedUrlCases, ...invariantCases]) {
     it(c.name, () => {
       expect(resolveNavigationAction(c.input)).toBe(c.expected);
     });
