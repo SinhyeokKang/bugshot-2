@@ -46,7 +46,7 @@ bugshot-2: Chrome MV3 Side Panel 버그 리포팅 확장. 웹 페이지의 버�
 | e2e용 빌드 | `pnpm build:e2e` (`dist-e2e/` 분리 산출 — 테스트 전용) |
 | e2e 테스트 | `pnpm test:e2e` (Playwright. 사전 `pnpm build:e2e` 필요) |
 | 타입 체크만 | `pnpm typecheck` |
-| 테스트 | `pnpm test` |
+| 테스트 | `pnpm test` (pre-훅이 `build:log-viewer`를 먼저 돌린다 — `buildLogsHtml.ts`가 `dist-log-viewer/index.html`을 `?raw`로 import하는데 그건 gitignore된 산출물이라, 새 체크아웃에서 이게 없으면 3개 테스트 파일이 ENOENT로 죽는다. `test:coverage`도 동일) |
 | 테스트 (watch) | `pnpm test:watch` |
 | 커버리지 측정 | `pnpm test:coverage` (vitest v8 → `coverage/coverage-summary.json`) |
 | 커버리지 리포트·비교 | `pnpm coverage:report` (베이스라인 대비 이전→지금 비교. 갱신: `pnpm coverage:update`) — `/coverage` 스킬이 래핑 |
