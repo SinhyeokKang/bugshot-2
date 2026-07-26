@@ -141,6 +141,8 @@ async function exchangeCodeForTokens(code: string): Promise<TokenResponse> {
       grant_type: "authorization_code",
       code,
       redirect_uri: redirectUri(),
+      // 프록시가 8개 플랫폼 전부에서 client_id 화이트리스트를 검사한다 — 빠뜨리면 400.
+      client_id: OAUTH_CONFIG.jira.clientId,
     }),
   });
   if (!res.ok) {
@@ -191,6 +193,7 @@ export async function refreshOAuthToken(
     body: JSON.stringify({
       grant_type: "refresh_token",
       refresh_token: auth.refreshToken,
+      client_id: OAUTH_CONFIG.jira.clientId,
     }),
   });
   if (!res.ok) {

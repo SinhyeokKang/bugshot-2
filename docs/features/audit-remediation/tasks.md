@@ -678,12 +678,13 @@ W2 (설계 결정) ── 독립. 합의되면 해당 항목만 위 흐름에 �
 ### 2. A-08 인프라 (사용자 작업)
 oauth-proxy에 rate limit이 전무하다. Cloudflare 대시보드에서 WAF Rate Limiting Rule을 건다 — 코드 변경 없음. 권장: `/oauth/*` 경로에 IP당 분당 20회.
 
-### 3. Atlassian `client_id` 누락 — **배포 순서 제약** ⚠️
-`src/background/oauth.ts`의 `exchangeCodeForTokens`(~130행)·`refreshOAuthToken`(~182행)이 Atlassian `/token` 요청에 **`client_id`를 안 싣는다** (나머지 7개 플랫폼은 싣는다). A-22가 프록시에 `body.client_id !== env.ATLASSIAN_CLIENT_ID → 400` 가드를 추가했으므로:
+### 3. Atlassian `client_id` — **확장 쪽 수정 완료, 배포 순서 제약은 유효** ⚠️
+`src/background/oauth.ts`의 `exchangeCodeForTokens`·`refreshOAuthToken`이 Atlassian `/token` 요청에 `client_id`를 안 싣던 문제는 **수정됐다**(`OAUTH_CONFIG.jira.clientId` 추가, 나머지 7개 플랫폼과 동일 형태). 회귀 테스트: `src/background/__tests__/oauth-client-id.test.ts` — 인가코드 교환·토큰 갱신 양쪽 body에 `client_id`가 실리는지 고정한다(프록시 쪽 대응 그물은 `oauth-proxy/__tests__/client-id-required.test.ts`).
 
-- **프록시를 먼저 배포하면 모든 Jira 연동·토큰 갱신이 400으로 죽는다.**
-- 안전한 순서: ① 확장에서 `client_id` 추가 → ② 스토어 배포·전파 → ③ 그다음 프록시 배포.
-- 또는 프록시의 Atlassian `client_id` 검사만 한시적으로 빼고 배포한 뒤, 확장 전파 후 다시 넣는다.
+**그래도 배포 순서 제약은 남는다** — 이미 설치된 구버전 확장은 여전히 `client_id`를 안 보내므로, 프록시를 먼저 배포하면 그 사용자들의 Jira 연동·토큰 갱신이 400으로 죽는다.
+
+- 안전한 순서: ① 이 수정을 포함한 스토어 배포 → ② **리뷰 통과 + 자동 업데이트 전파 대기**(리뷰 통과만으론 부족 — Chrome 자동 업데이트는 수 시간~수 일에 걸쳐 퍼진다) → ③ 그다음 프록시 배포.
+- 프록시 수정을 더 빨리 넣어야 하면, A-22의 세 변경 중 **Atlassian `client_id` 검사 줄만** 빼고 배포한다(나머지 둘 — 미설정 시 503, `ALLOWED_ORIGINS: "*"` 거부 — 은 배포 제약이 없다). 전파 후 그 줄을 되살린다. 참고로 `client_id`는 번들에서 읽히는 공개값이라 이 검사의 보안 이득은 크지 않다 — 주 목적은 나머지 7개와의 일관성이다.
 
 ### 4. `ALLOWED_ORIGINS` 실값 확인 (배포 전)
 A-22가 `resolveCorsOrigin`에서 `*`를 거부하도록 바꿨다. `ALLOWED_ORIGINS`는 wrangler secret이라 저장소에서 실값을 볼 수 없다 — **배포 전 대시보드에서 `*`가 들어있지 않은지 확인**한다. 들어있으면 배포 즉시 전 origin이 차단된다.
