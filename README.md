@@ -11,7 +11,9 @@ complete issue — with the **environment, before/after styles, screenshots, vid
 and console/network logs** bundled in — to Jira, GitHub, Linear, Notion, GitLab,
 Asana, or ClickUp, or share it straight to a Slack channel or DM.
 
-No sign-up required — just install and go.
+No sign-up required — just install and go. Free, with no paid tier planned:
+there's no server to run, so there's nothing to meter and no hosting bill to
+recover.
 
 [![Chrome Web Store](https://img.shields.io/chrome-web-store/v/ohakhekagkodklkickemonmifdcbhmig)](https://chromewebstore.google.com/detail/bugshot/ohakhekagkodklkickemonmifdcbhmig)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -31,6 +33,11 @@ does the busywork for you — capture right where you spot the problem and it sh
 report developers can actually act on.
 
 ## Getting Started
+
+**Requires Chrome 116 or later.** Other Chromium browsers that ship the Side
+Panel API (Edge, Brave, Arc) should work, but Chrome is what's tested. There is
+no Firefox or Safari build — the whole UI is a Chrome MV3 side panel, and
+neither browser implements that API.
 
 1. **Install** from the [Chrome Web Store](https://chromewebstore.google.com/detail/bugshot/ohakhekagkodklkickemonmifdcbhmig).
 2. **Open the panel** — click the toolbar icon or press `Cmd/Ctrl+Shift+E`.
@@ -261,6 +268,24 @@ each one carries:
 
 Full policy: [English](docs/privacy.en.md) · [한국어](docs/privacy.ko.md) ·
 [bug-shot.com](https://bug-shot.com/en/privacy)
+
+### Why it asks for access to every site
+
+Chrome renders this permission as *"Read and change all your data on all
+websites"* — the most alarming line in the install dialog, and it's required
+rather than optional. BugShot did ship the optional version first, requesting
+the permission at runtime, and it was dropped because it broke in use:
+`captureVisibleTab` runs on either `activeTab` or a broad host permission, and
+`activeTab` is revoked the moment the page makes a cross-document navigation,
+with no way to re-acquire it programmatically. A recording or a 30-second
+replay would simply die when the bug you were chasing navigated — which is
+precisely when you need it.
+
+So the permission is broad. The data path isn't — everything it unlocks happens
+on your machine, and the transmission table above is the complete list of what
+leaves it. If you'd rather narrow the grant, Chrome lets you — **Extensions →
+BugShot → Site access** — with the understanding that the features which need
+the breadth will degrade accordingly.
 
 > **A note on language.** This README is English; the privacy policy and the user
 > guide are maintained in English and Korean. The engineering docs under `docs/`
