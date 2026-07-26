@@ -2,6 +2,35 @@
 
 `/audit`(2026-07-26) 발견 63건을 `A-01`~`A-63`으로 번호 고정했다. 번호는 원 리포트 순번과 1:1이다.
 
+## 진행 현황 (2026-07-26 갱신)
+
+| 웨이브 | 상태 | 비고 |
+|---|---|---|
+| W0 (2건) | ✅ 완료 | `225ecb4` |
+| W1 (8건) | ✅ 완료 | A-02·A-03은 W0 그물과 짝지어 `55e5915`, 나머지 6건은 `fe5e2ba`~`24246ad` 항목별 커밋 |
+| W2 (5건) | 🟡 결정 완료·코드 미착수 | 아래 "W2 결정 기록" 참조 |
+| W3 (5건) | ⬜ 미착수 | |
+| W4 (19건 + A-04) | ⬜ 미착수 | |
+| W5 (10건) | ⬜ 미착수 | |
+| W6 (13건 + W2 잔여) | ⬜ 미착수 | |
+
+### W2 결정 기록
+
+| 항목 | 결정 |
+|---|---|
+| A-04 frameToken | **(b)** blocker 핸드오프 직전 chrome 경로 ping으로 실검증 — **W4에서 함께** 처리 |
+| A-08 rate limit | **코드 스코프 밖** — Cloudflare 대시보드 작업으로 사용자에게 인계 |
+| A-12 `setItem` 삼킴 | **보류** — A-02 착지 후 근거를 보고 판단 (W6) |
+| A-20 `http://` 허용 | **(c)** loopback 예외 + 그 외 https 강제 — W6 |
+| A-32 `ActionEntry` union | **(a)** 소비처에만 exhaustive check — W6 |
+
+### W1에서 계획과 달라진 것 (착수 전 필독)
+
+- **A-02**: `design.md` 함정 8의 예측이 **틀렸다**. `chromeLocalStorage.getItem`을 통째로 rethrow로 바꾸면 `settings-store`의 rehydrate가 에러 경로를 타고, zustand가 `onFinishHydration`을 영영 발화하지 않아 `App.tsx:208`의 렌더 게이트에서 **사이드패널이 빈 화면으로 굳는다**. 그래서 공용 어댑터는 삼킴을 유지하고 `failClosedLocalStorage`를 신설해 **issues-store에만** 연결했다. 상세는 POSTMORTEM 2026-07-26.
+- **A-03**: 누락 키가 10개가 아니라 **12개**였다(`common.expand`/`common.collapse` 추가). 후자 2개는 `Section`의 collapsible 토글 경로라 log-viewer가 실제로 렌더하지는 않지만, 스캐너가 모듈 그래프 기준이라 요구한다 — 의도한 트레이드오프. 상세는 POSTMORTEM 2026-07-26.
+- **A-07**: `LlmRedirectError`가 UI에 안 닿던 구멍을 함께 메웠다(`llmErrorToast.ts` 분기 + `LlmConnectDialog.tsx` 타입 캐치). 원 태스크 범위 밖이었으나 이게 없으면 문구를 추가한 의미가 없다.
+- **A-09**: 단위 테스트로 `createFinalizeGuard()` 상태 전이는 고정했으나, **실제 MediaRecorder 경로는 수동 검증이 남아 있다**(아래 "인계 사항" 참조).
+
 ## 선행 조건
 
 - 브랜치: `dev` 기준. 웨이브 단위 커밋.
@@ -604,3 +633,31 @@ W2 (설계 결정) ── 독립. 합의되면 해당 항목만 위 흐름에 �
 - **A-37** — DESIGN.md §11 다이얼로그 관용구 원문(`max-w-[90vw]`)이 실제 코드(`max-w-[800px]`)와 어긋난다. **코드가 아니라 문서를 고친다.**
 - **A-59** — DESIGN.md §10에 미디어 플레이어 아이콘 버튼(`h-12 w-12`) 예외를 명시한다.
 - **A-06·A-18** — 마스킹 대상 키가 바뀌면 `docs/privacy.{ko,en}.md`의 "무엇을 가리는가" 서술을 대조한다(ko 원본 + en 번역 **양쪽** + 상단 시행일). POSTMORTEM이 "필터 커버리지 주장은 정규식이 실제로 achieve하는 범위로 정확히 적는다"고 경고한 지점이다.
+
+---
+
+## 인계 사항 (코드 밖 / 다음 세션이 이어받을 것)
+
+### 1. A-09 수동 검증 (미이행)
+`createFinalizeGuard()`의 상태 전이는 단위로 고정했지만 **실제 MediaRecorder 경로는 검증되지 않았다.** 절차:
+1. `src/sidepanel/video-recorder.ts`의 `void hideAnnotation(localTabId);` 바로 뒤에 임시로 `await new Promise((r) => setTimeout(r, 8000));` 삽입
+2. `pnpm build` → 확장 재로드
+3. 탭 녹화 시작 → 중지 → 8초 창 동안 취소 클릭 → **drafting으로 넘어가지 않고 idle 복귀**해야 정상
+4. 취소하지 않은 경우 정상 커밋되는지도 확인
+5. 임시 지연 제거
+
+### 2. A-08 인프라 (사용자 작업)
+oauth-proxy에 rate limit이 전무하다. Cloudflare 대시보드에서 WAF Rate Limiting Rule을 건다 — 코드 변경 없음. 권장: `/oauth/*` 경로에 IP당 분당 20회.
+
+### 3. Atlassian `client_id` 누락 — **배포 순서 제약** ⚠️
+`src/background/oauth.ts`의 `exchangeCodeForTokens`(~130행)·`refreshOAuthToken`(~182행)이 Atlassian `/token` 요청에 **`client_id`를 안 싣는다** (나머지 7개 플랫폼은 싣는다). A-22가 프록시에 `body.client_id !== env.ATLASSIAN_CLIENT_ID → 400` 가드를 추가했으므로:
+
+- **프록시를 먼저 배포하면 모든 Jira 연동·토큰 갱신이 400으로 죽는다.**
+- 안전한 순서: ① 확장에서 `client_id` 추가 → ② 스토어 배포·전파 → ③ 그다음 프록시 배포.
+- 또는 프록시의 Atlassian `client_id` 검사만 한시적으로 빼고 배포한 뒤, 확장 전파 후 다시 넣는다.
+
+### 4. `ALLOWED_ORIGINS` 실값 확인 (배포 전)
+A-22가 `resolveCorsOrigin`에서 `*`를 거부하도록 바꿨다. `ALLOWED_ORIGINS`는 wrangler secret이라 저장소에서 실값을 볼 수 없다 — **배포 전 대시보드에서 `*`가 들어있지 않은지 확인**한다. 들어있으면 배포 즉시 전 origin이 차단된다.
+
+### 5. privacy 문서 — 이번엔 갱신 불필요 (판단 근거)
+A-06은 마스킹 **대상을 넓히기만** 했다(superset). `docs/privacy.ko.md`의 "`token`·`password`·`secret` 등 민감 키" 서술과 WebSocket "JSON 형식 프레임에 한하며" 서술 모두 여전히 참이고, 새 수집·전송 동작이 없다. **A-18(W3) 착수 시 다시 대조**한다 — 그때는 서술 범위가 바뀔 수 있다.

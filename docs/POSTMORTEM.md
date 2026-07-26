@@ -21,6 +21,20 @@
 
 ---
 
+## 2026-07-26 — persist storage 실패를 "전파하면 안전"으로 일반화하면 사이드패널이 통째로 빈 화면으로 굳는다
+
+- **증상**: (사전 차단) `chromeLocalStorage.getItem`의 에러 삼킴이 `pruneOrphanBlobs`에 "저장분 없음"으로 읽혀 살아있는 blob을 전부 고아로 삭제하는 결함(A-02)을 고치려 했는데, 설계 문서가 권한 것은 **`chromeLocalStorage.getItem` 전체를 rethrow로 바꾸는 것**이었다. 그대로 했으면 storage 일시 오류 한 번에 사이드패널이 **영구 빈 화면**이 됐다.
+- **근본 원인**: 설계 시점의 예측("실패를 전파해도 사용자 눈엔 똑같이 '빈 상태'")이 틀렸다. zustand v5 persist는 rehydrate가 reject하면 `postRehydrationCallback(undefined, error)`만 부르고 **`hasHydrated`를 false로 남긴 채 `onFinishHydration`을 영영 발화하지 않는다**(`node_modules/zustand/middleware.js`). 그런데 `src/sidepanel/App.tsx`는 `useSettingsHydrated()`가 그 `onFinishHydration`을 기다리고 `if (!editorHydrated || !settingsHydrated) return null;`로 **패널 전체 렌더를 막는다**. 즉 storage 어댑터는 공유 모듈이지만 **실패 전파의 결과는 스토어마다 다르다** — 렌더 게이트에 물린 스토어(settings/editor)는 전파가 곧 화면 사망이고, 게이트에 안 물린 스토어(issues)만 전파가 안전하다. 어댑터 파일만 읽어선 이 차이가 안 보인다.
+- **재발 방지**: (1) persist storage 어댑터의 에러 정책을 바꿀 땐 **그 어댑터를 쓰는 스토어 전수**를 먼저 뽑고(`grep -rn 'chromeLocalStorage\|createJSONStorage' src/store`), 각 스토어의 hydration이 **렌더 게이트에 물려 있는지** 확인한다(`grep -rn 'onFinishHydration\|hasHydrated\|Hydrated' src/sidepanel`). 하나라도 물려 있으면 공용 어댑터를 바꾸지 말고 **fail-closed 어댑터를 따로 만들어 해당 스토어에만** 연결한다(`failClosedLocalStorage`). (2) 미들웨어의 에러 경로 동작은 추측하지 말고 `node_modules`의 구현을 직접 읽어 확인한다 — "실패해도 빈 상태로 뜨겠지"는 라이브러리가 보장한 적 없는 가정이다. (3) 설계 문서의 위험도 예측은 **착수 시 코드로 재검증**한다. 문서가 틀렸으면 문서도 같은 커밋에서 고친다.
+- **관련**: `src/store/chrome-storage.ts`(`chromeLocalStorage` 삼킴 유지 + `failClosedLocalStorage` 신설), `src/store/issues-store.ts`(`shouldPruneAfterRehydrate`·`onRehydrateStorage`), 그물 `src/store/__tests__/issues-store.test.ts`, 렌더 게이트 `src/sidepanel/App.tsx:59-68,208`.
+
+## 2026-07-26 — 복제 사전 그물의 스캔 범위가 번들 그래프보다 좁으면 누락을 못 잡고 조용히 green
+
+- **증상**: log-viewer 번들에서 WebSocket 로그 라벨 10개가 i18n 키 문자열 그대로 노출됐다(`networkLog.ws.frames` 등). ko/en 대칭·placeholder 일치·메인 테이블 drift를 다 검사하는 전용 테스트(`src/log-viewer/__tests__/i18n.test.ts`)가 **이미 있었는데도** 계속 green이었다.
+- **근본 원인**: 그 테스트의 키 스캐너가 `walk(srcRoot)` — **`src/log-viewer/` 디렉터리만** 훑었다. 하지만 log-viewer 번들은 사이드패널 공용 컴포넌트(`NetworkLogContent`·`ConsoleLogContent`·`ActionLogContent`·`IssuePreviewView`)를 재사용하고, `vite.log-viewer.config.ts`가 `@/i18n`을 복제 사전으로 alias하므로 **그 컴포넌트들의 `t()` 키도 복제 사전에서 해결돼야 한다**. 스캐너의 스캔 범위와 번들러의 실제 모듈 그래프가 어긋난 것 — 검사 대상 집합이 틀리면 검사 내용이 아무리 정교해도 무의미하다. 2026-06-28 회고("복제 dict 미동기화")로 그물을 깔았는데 **그물 자체의 구멍**은 그때 안 잡혔다.
+- **재발 방지**: (1) 복제·부분집합 사전을 검사하는 그물은 디렉터리가 아니라 **엔트리에서 출발한 import 그래프 BFS**로 대상을 정한다 — 스캐너를 고쳐 `resolveImport()`(`@/` alias·상대경로·index 해석, `import type` 제외)로 그래프를 타게 했다. 새 공용 컴포넌트가 log-viewer에 유입돼도 자동으로 사정권에 든다. (2) 스캐너류 테스트에는 **자기검증 앵커**를 같이 둔다 — 여기선 "그래프가 `NetworkLogContent` 등 4개에 실제로 도달한다"를 별도 `it`으로 고정했다. 앵커가 없으면 resolver가 조용히 아무것도 못 찾을 때 vacuous green으로 되돌아간다. (3) 트레이드오프를 남긴다: 그래프에 들어오지만 log-viewer가 렌더하지 않는 경로의 키(`common.expand`/`collapse` — `Section`의 collapsible 토글)도 사전을 요구한다. 모듈 그래프로는 렌더 도달성을 못 가리므로 **몇 개 더 넣는 쪽**을 택했다 — 조용한 누락보다 나은 실패 모드.
+- **관련**: `src/log-viewer/__tests__/i18n.test.ts`(`resolveImport`·`bundledFiles` BFS·앵커 `it`), `src/log-viewer/i18n.ts`(WS 키 10개 + `common.expand`/`collapse` 추가), `vite.log-viewer.config.ts`(`@/i18n` alias).
+
 ## 2026-07-25 — 도구가 청소하는 출력 디렉터리 안에 git-tracked 파일을 두면 매 실행마다 삭제된다
 
 - **증상**: 커버리지 트렌드 베이스라인(`coverage/baseline.json`, git-tracked)이 `pnpm test:coverage`를 한 번 돌릴 때마다 워킹트리에서 사라졌다. 그 결과 `pnpm coverage:report`가 "베이스라인 없음"으로 떨어져 이전→지금 비교(래칫 회귀 감지)가 아예 작동하지 않았다.
