@@ -16,6 +16,8 @@ Click the BugShot icon in the toolbar, or press `Cmd/Ctrl+Shift+E` to open the s
 
 > If the shortcut doesn't respond, it may be clashing with your OS or another extension — just open it from the toolbar icon instead.
 
+> Right after installing you're probably still on the Chrome Web Store, where capture isn't available — the panel will say "Can't capture on this page". That's expected: step 3 below (connecting a platform) works fine from here, and the panel switches over on its own once you navigate to the page you want to capture.
+
 ## 3. Connect a platform
 
 ![Connecting a platform in the Integrations tab](assets/quick-start-3.jpg)

@@ -50,7 +50,7 @@ Yes. You can record the current tab or your screen live and attach it, and there
 
 ### Are there pages where it won't work?
 
-It works on regular web pages (`http`, `https`) and local files (`file`). It can't run on pages where the browser blocks extension access, like the Chrome Web Store or `chrome://` settings pages. The panel simply won't activate there, so use it on a regular web page instead.
+Capture works on regular web pages (`http`, `https`) and local files (`file`). It can't capture on pages where the browser blocks extension access, like the Chrome Web Store or `chrome://` settings pages. No worries though — the panel still opens there and tells you "Can't capture on this page", so you'll never click the icon and get nothing at all. **Integrations, settings and your issue list keep working** on those pages, so you can connect a platform while you're still standing on the Web Store right after installing. And once you navigate to the page you want to capture, the panel switches to the capture screen on its own — no refresh needed.
 
 ### Where is my data stored?
 
