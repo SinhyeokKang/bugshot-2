@@ -3,7 +3,7 @@ import { persist, createJSONStorage } from "zustand/middleware";
 import type { PlatformId } from "@/types/platform";
 import type { EnvironmentRow } from "@/types/environment";
 import { migrateIssueToV4 } from "./issues-migrations";
-import { chromeLocalStorage } from "./chrome-storage";
+import { failClosedLocalStorage } from "./chrome-storage";
 import { useEditorStore, type CaptureMode } from "./editor-store";
 import { clearPicker } from "@/sidepanel/picker-control";
 import {
@@ -55,6 +55,12 @@ export function stripSubmitted(
     attachments: undefined,
     slackPreserved: undefined,
   };
+}
+
+// zustand의 postRehydration 콜백은 성공·실패 양쪽에서 발화한다. 실패 시엔 저장분을 못 읽은
+// 것이므로 참조 집합(issues)이 비어 보이고, 그대로 prune하면 살아있는 blob을 전부 지운다.
+export function shouldPruneAfterRehydrate(error: unknown): boolean {
+  return error == null;
 }
 
 async function pruneOrphanBlobs(): Promise<void> {
@@ -428,9 +434,10 @@ export const useIssuesStore = create<IssuesState>()(
     {
       name: "bugshot-issues",
       version: ISSUES_STORE_VERSION,
-      storage: createJSONStorage(() => chromeLocalStorage),
+      storage: createJSONStorage(() => failClosedLocalStorage),
       migrate: migrateIssuesState,
-      onRehydrateStorage: () => () => {
+      onRehydrateStorage: () => (_state, error) => {
+        if (!shouldPruneAfterRehydrate(error)) return;
         void pruneOrphanBlobs();
       },
     },

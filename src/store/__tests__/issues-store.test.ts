@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { migrateIssueToV4 } from "../issues-migrations";
 import type { PlatformId } from "@/types/platform";
 
@@ -34,9 +34,16 @@ import {
   deleteConsoleLog,
   deleteActionLog,
   deleteAttachmentBlobs,
+  getVideoBlobKeys,
+  getImageBlobKeys,
+  getNetworkLogKeys,
+  getConsoleLogKeys,
+  getActionLogKeys,
+  getAttachmentBlobKeys,
 } from "../blob-db";
 import {
   migrateIssuesState,
+  shouldPruneAfterRehydrate,
   stripSubmitted,
   useIssuesStore,
   type IssueRecord,
@@ -376,5 +383,75 @@ describe("migrateIssuesState (persist migrate 본체)", () => {
   it("빈 목록도 안전하게 통과한다", async () => {
     const out = await migrateIssuesState({ issues: [] }, 0);
     expect(out.issues).toEqual([]);
+  });
+});
+
+// 참조 집합(= 저장된 이슈 목록) 계산이 실패했는데 그걸 "저장분 없음"으로 오독하면
+// 살아있는 blob 전부가 orphan으로 판정돼 삭제된다 — POSTMORTEM 2026-07-23의 재발방지 (4)가
+// "storage 조회 reject 시 삭제 0건 회귀 테스트를 반드시 둔다"고 적어둔 그물이다.
+describe("pruneOrphanBlobs — rehydrate 실패 시 fail-closed", () => {
+  const KEY = "bugshot-issues";
+  let getItem: ReturnType<typeof vi.fn>;
+
+  const allDeletes = () => [
+    deleteVideoBlob,
+    deleteImageBlobs,
+    deleteNetworkLog,
+    deleteConsoleLog,
+    deleteActionLog,
+    deleteAttachmentBlobs,
+  ];
+
+  // prune은 rehydrate 콜백에서 void로 띄워지므로 await 대상이 없다.
+  // 매크로태스크 한 번이면 즉시 resolve하는 목들의 마이크로태스크 체인이 전부 소진된다.
+  const flush = () => new Promise((r) => setTimeout(r, 0));
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    getItem = vi.fn();
+    vi.stubGlobal("chrome", {
+      storage: { local: { get: getItem, set: vi.fn(async () => {}), remove: vi.fn(async () => {}) } },
+    });
+    // 확장 기동 직후의 상태 — 메모리에는 아직 이슈가 없고 저장소에만 있다.
+    useIssuesStore.setState({ issues: [] });
+    vi.mocked(getVideoBlobKeys).mockResolvedValue(["issue-1"]);
+    vi.mocked(getImageBlobKeys).mockResolvedValue(["issue-1:b0-before"]);
+    vi.mocked(getNetworkLogKeys).mockResolvedValue(["issue-1"]);
+    vi.mocked(getConsoleLogKeys).mockResolvedValue(["issue-1"]);
+    vi.mocked(getActionLogKeys).mockResolvedValue(["issue-1"]);
+    vi.mocked(getAttachmentBlobKeys).mockResolvedValue(["issue-1:a0"]);
+  });
+
+  afterEach(() => {
+    // setState는 persist의 setItem을 태우므로 chrome 스텁이 살아있는 동안 되돌린다.
+    useIssuesStore.setState({ issues: [] });
+    vi.unstubAllGlobals();
+  });
+
+  it("에러가 있으면 prune 판정이 false, 없으면 true", () => {
+    expect(shouldPruneAfterRehydrate(new Error("io"))).toBe(false);
+    expect(shouldPruneAfterRehydrate(undefined)).toBe(true);
+  });
+
+  it("storage 조회가 reject하면 삭제가 0건 (전부 orphan 오판 금지)", async () => {
+    getItem.mockRejectedValue(new Error("storage io"));
+
+    await useIssuesStore.persist.rehydrate();
+    await flush();
+
+    for (const del of allDeletes()) expect(del).not.toHaveBeenCalled();
+  });
+
+  it("정상 rehydrate에서는 진짜 고아만 삭제한다 (과잉 스킵 방지)", async () => {
+    getItem.mockResolvedValue({
+      [KEY]: JSON.stringify({ state: { issues: [{ id: "keep" }] }, version: 5 }),
+    });
+    vi.mocked(getVideoBlobKeys).mockResolvedValue(["keep", "orphan"]);
+
+    await useIssuesStore.persist.rehydrate();
+    await flush();
+
+    expect(deleteVideoBlob).toHaveBeenCalledWith("orphan");
+    expect(deleteVideoBlob).not.toHaveBeenCalledWith("keep");
   });
 });
