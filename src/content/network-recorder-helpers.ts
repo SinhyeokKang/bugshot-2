@@ -29,7 +29,8 @@ export function reclaimableSize(entry: BodyBearing): number {
   return estimateBodySize(entry.requestBody) + estimateBodySize(entry.responseBody);
 }
 
-export const MASKED_QUERY_KEYS = new Set([
+// exact-match 전용. 부분일치로 넓히면 재현값이 죽는다(pin⊂shipping, auth⊂author — POSTMORTEM 2026-07-14).
+const MASKED_COMMON_KEYS = [
   "token",
   "access_token",
   "id_token",
@@ -41,8 +42,31 @@ export const MASKED_QUERY_KEYS = new Set([
   "password",
   "pwd",
   "auth",
+];
+
+// `code`는 query 전용 — 본문의 error_code·status_code 오탐이 많아 body set에서 제외.
+export const MASKED_QUERY_KEYS = new Set([...MASKED_COMMON_KEYS, "code"]);
+
+const MASKED_BODY_KEYS = new Set([
+  ...MASKED_COMMON_KEYS,
+  "client_secret",
+  "newpassword",
+  "new_password",
+  "currentpassword",
+  "current_password",
+  "oldpassword",
+  "old_password",
+  "session_token",
+  "sessiontoken",
+  "refreshtoken",
+  "accesstoken",
+  "idtoken",
+  "credential",
+  "private_key",
+  "privatekey",
+  "passwd",
+  "otp",
 ]);
-const MASKED_BODY_KEYS = MASKED_QUERY_KEYS;
 
 // ?query 와 #fragment(OAuth implicit의 access_token 등) 양쪽의 민감 키(token·password 등)를
 // ***로 마스킹. network/console/action 레코더 공용. 히트한 part만 재직렬화 — 순수 앵커(#top) 보존.
@@ -109,6 +133,13 @@ export function maskBody(body: string, contentType: string): string {
         }
       }
       return changed ? params.toString() : body;
+    } catch { return body; }
+  }
+  // contentType이 틀리거나 없는 JSON 본문(text/plain 등)이 흔해 형태로 한 번 더 시도.
+  const head = body.trimStart()[0];
+  if (head === "{" || head === "[") {
+    try {
+      return JSON.stringify(maskJsonBody(JSON.parse(body), 0));
     } catch { return body; }
   }
   return body;
