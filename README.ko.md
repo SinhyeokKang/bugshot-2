@@ -5,6 +5,7 @@
 ![Bug Reporting in One Shot — 환경 정보까지 채워진 이슈가 담긴 BugShot 사이드 패널, 그 뒤로 함께 수집된 네트워크·콘솔 로그](guide/ko/assets/readme-1.jpg)
 
 [![Chrome Web Store](https://img.shields.io/chrome-web-store/v/ohakhekagkodklkickemonmifdcbhmig)](https://chromewebstore.google.com/detail/bugshot/ohakhekagkodklkickemonmifdcbhmig)
+[![Rating](https://img.shields.io/chrome-web-store/rating/ohakhekagkodklkickemonmifdcbhmig)](https://chromewebstore.google.com/detail/bugshot/ohakhekagkodklkickemonmifdcbhmig/reviews)
 [![License](https://img.shields.io/github/license/SinhyeokKang/bugshot-2)](LICENSE)
 
 **Bug Reporting in One Shot.**

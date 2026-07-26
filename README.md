@@ -5,6 +5,7 @@
 ![Bug Reporting in One Shot — the BugShot side panel showing a finished issue with its environment filled in, layered over the captured network and console logs](guide/en/assets/readme-1.jpg)
 
 [![Chrome Web Store](https://img.shields.io/chrome-web-store/v/ohakhekagkodklkickemonmifdcbhmig)](https://chromewebstore.google.com/detail/bugshot/ohakhekagkodklkickemonmifdcbhmig)
+[![Rating](https://img.shields.io/chrome-web-store/rating/ohakhekagkodklkickemonmifdcbhmig)](https://chromewebstore.google.com/detail/bugshot/ohakhekagkodklkickemonmifdcbhmig/reviews)
 [![License](https://img.shields.io/github/license/SinhyeokKang/bugshot-2)](LICENSE)
 
 **Bug Reporting in One Shot.**
