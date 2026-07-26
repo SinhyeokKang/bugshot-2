@@ -350,9 +350,12 @@ export function EmptyState({ onStartElement, onStartElementShot, onStartScreensh
         <IntegrationsCta onNavigate={() => navTo("integrations")} />
       )}
       <PageFooter>
-        {/* 미지원이면 [이슈 작성]을 렌더하지 않는다 — aria-disabled는 이 저장소에서 전부
-            transient busy 잠금이고, 회색 버튼 하나만 남기는 건 캡처 버튼을 통째로 없애는
-            결정과도 어긋난다. [가이드]는 chrome.tabs.create라 페이지 무관하게 동작한다. */}
+        {/* 미지원이면 [이슈 작성]을 지우지 않고 비활성으로 남긴다 — 미지원 페이지는 첫 실행
+            사용자가 가장 오래 머무는 화면이라, 버튼 자리를 미리 익히게 하는 편이 낫다.
+            disabled 대신 aria-disabled를 쓰는 이유는 DESIGN.md §14(shadcn Button base의
+            disabled:pointer-events-none이 hover·툴팁을 죽인다). 영속 상태에 aria-disabled를
+            쓰는 선례는 같은 파일의 ReplayButton(설정 off)이다.
+            [가이드]는 chrome.tabs.create라 페이지 무관하게 동작하므로 그대로 활성. */}
         <div className="flex items-center justify-between">
           <Button
             variant="outline"
@@ -362,12 +365,19 @@ export function EmptyState({ onStartElement, onStartElementShot, onStartScreensh
             <BookOpen />
             {t("settings.guide")}
           </Button>
-          {!unsupported && (
-            <Button variant="outline" onClick={onStartFreeform} data-testid="mode-freeform">
-              <SquarePen />
-              {t("issue.startDraft")}
-            </Button>
-          )}
+          <Button
+            variant="outline"
+            data-testid="mode-freeform"
+            aria-disabled={unsupported}
+            className="aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
+            onClick={() => {
+              if (unsupported) return;
+              onStartFreeform();
+            }}
+          >
+            <SquarePen />
+            {t("issue.startDraft")}
+          </Button>
         </div>
       </PageFooter>
     </PageShell>

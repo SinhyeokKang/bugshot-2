@@ -67,10 +67,12 @@ describe("EmptyState — 지원 페이지 (unsupported=false)", () => {
     expect(screen.queryByText("app.captureUnsupported.title")).toBeNull();
   });
 
-  it("[이슈 작성]이 보이고 클릭하면 핸들러가 호출된다", async () => {
+  it("[이슈 작성]이 활성이고 클릭하면 핸들러가 호출된다", async () => {
     const h = handlers();
     render(<EmptyState {...h} unsupported={false} />);
-    await userEvent.click(screen.getByTestId("mode-freeform"));
+    const btn = screen.getByTestId("mode-freeform");
+    expect(btn.getAttribute("aria-disabled")).toBe("false");
+    await userEvent.click(btn);
     expect(h.onStartFreeform).toHaveBeenCalledTimes(1);
   });
 
@@ -114,12 +116,22 @@ describe("EmptyState — 미지원 페이지 (unsupported=true)", () => {
     expect(chrome.tabs.create).toHaveBeenCalled();
   });
 
-  // aria-disabled가 아니라 렌더 제외다 — 저장소의 aria-disabled 30+곳은 전부 transient busy
-  // 잠금이고 영속적 환경 제약에 쓴 선례가 0곳이며, "회색 버튼이 섞인 화면이 더 헷갈린다"는
-  // 대안 E 기각 근거와도 일관된다.
-  it("[이슈 작성]은 DOM에서 제거된다 (aria-disabled가 아니라 렌더 제외)", () => {
+  // 지우지 않고 비활성으로 남긴다 — 미지원 페이지는 첫 실행 사용자가 가장 오래 머무는
+  // 화면이라 버튼 자리를 미리 익히게 하는 편이 낫다는 제품 결정.
+  it("[이슈 작성]은 남아 있되 aria-disabled이고 클릭해도 핸들러가 불리지 않는다", async () => {
+    const h = handlers();
+    render(<EmptyState {...h} unsupported />);
+    const btn = screen.getByTestId("mode-freeform");
+    expect(btn.getAttribute("aria-disabled")).toBe("true");
+    await userEvent.click(btn);
+    expect(h.onStartFreeform).not.toHaveBeenCalled();
+  });
+
+  // disabled 속성이면 shadcn Button base의 disabled:pointer-events-none이 hover·툴팁을 죽인다
+  // (DESIGN.md §14). 나중에 이유를 툴팁으로 붙일 여지를 남기려면 aria-disabled여야 한다.
+  it("disabled 속성이 아니라 aria-disabled를 쓴다", () => {
     render(<EmptyState {...handlers()} unsupported />);
-    expect(screen.queryByTestId("mode-freeform")).toBeNull();
+    expect((screen.getByTestId("mode-freeform") as HTMLButtonElement).disabled).toBe(false);
   });
 
   it("연동 0개면 IntegrationsCta가 보인다 (첫 실행에서 완주 가능한 유일한 행동)", () => {

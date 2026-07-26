@@ -55,8 +55,8 @@ test("chrome:// 탭에서 패널을 열면 캡처 대신 미지원 안내가 보
   for (const id of CAPTURE_BUTTONS) {
     await expect(panel.getByTestId(id)).toHaveCount(0);
   }
-  // [이슈 작성]은 aria-disabled가 아니라 렌더 제외다.
-  await expect(panel.getByTestId("mode-freeform")).toHaveCount(0);
+  // [이슈 작성]은 지우지 않고 비활성으로 남긴다 — 버튼 자리를 미리 익히게 하려는 제품 결정.
+  await expect(panel.getByTestId("mode-freeform")).toHaveAttribute("aria-disabled", "true");
 
   // 로그가 쌓이지 않으므로 console/network 서브탭은 잠긴다.
   await expect(panel.getByTestId("subtab-console")).toBeDisabled();
