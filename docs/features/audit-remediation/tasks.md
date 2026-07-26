@@ -8,11 +8,27 @@
 |---|---|---|
 | W0 (2건) | ✅ 완료 | `225ecb4` |
 | W1 (8건) | ✅ 완료 | A-02·A-03은 W0 그물과 짝지어 `55e5915`, 나머지 6건은 `fe5e2ba`~`24246ad` 항목별 커밋 |
-| W2 (5건) | 🟡 결정 완료·코드 미착수 | 아래 "W2 결정 기록" 참조 |
-| W3 (5건) | ⬜ 미착수 | |
-| W4 (19건 + A-04) | ⬜ 미착수 | |
-| W5 (10건) | ⬜ 미착수 | |
-| W6 (13건 + W2 잔여) | ⬜ 미착수 | |
+| W2 (5건) | ✅ 종결 | A-04 보류(재결정)·A-08 인계·A-12/20/32는 W6에서 코드 반영 |
+| W3 (5건) | ✅ 완료 | `f5cddd4`~`4e84ece` 항목별 커밋. e2e 238 green |
+| W4 (19건 + A-04) | ✅ 완료 | `07f93f2`(store)·`8459e4d`(css)·`7f705c4`(frame)·`93363b1`(sidepanel)·`ba583ca`(A-04 문서). e2e 238 green |
+| W5 (10건) | ✅ 완료 | `35c9d3f`(a11y)·`48e1878`(토큰·다이얼로그)·`002daf9`(A-34)·`060ed9d`(A-39). e2e 238 green |
+| W6 (13건 + W2 잔여) | ✅ 완료 | `4599ad8` 단일 커밋. e2e 238 green |
+
+**전체 결과**: 유닛 255 files / 4051 tests green, `pnpm typecheck` 클린, e2e 238 green(`e2e/.last-green` = `4599ad8`). 미적용으로 남긴 항목과 그 근거는 아래 "적용하지 않은 항목" 참조.
+
+### 적용하지 않은 항목 (근거 포함)
+
+| 항목 | 처리 | 근거 |
+|---|---|---|
+| A-04 | 보류 + 문서화 | (b)안이 구현 불가 — 위 "A-04 재결정" |
+| A-08 | 사용자 인계 | Cloudflare 대시보드 작업(아래 인계 사항 2) |
+| A-34 일부 | Button/DropdownMenu 전환 미실시 | DESIGN이 그 전환을 규정하지 않고, 트리거가 Badge를 감싸 Button 패딩이 레이아웃을 바꾼다. 접근성 결함(순수 disabled)은 수정 |
+| A-36 (2) | 미실시 + DESIGN 예외 문서화 | Button 최소 사이즈(h-9 w-9)가 입력 필드 안에 안 들어가 결국 직접 스타일링이 된다. `aria-label`은 적용 |
+| A-43 | 주석 + 대조 테스트만 | 중앙화하면 recorders-entry 동기 IIFE가 깨져 pre-arm 사망 |
+| A-55·56·60 | 기록만 | dead code·중복 골격 — CLAUDE.md 방침 |
+| A-57 | 주석만 | 리네임 churn 대비 이득 없음 |
+| A-62 | 미적용 | GitLab project path 이중 인코딩 404 위험 |
+| A-63 | 수용 | 잔여 위험 문서화 완료 |
 
 ### W2 결정 기록
 
@@ -672,5 +688,17 @@ oauth-proxy에 rate limit이 전무하다. Cloudflare 대시보드에서 WAF Rat
 ### 4. `ALLOWED_ORIGINS` 실값 확인 (배포 전)
 A-22가 `resolveCorsOrigin`에서 `*`를 거부하도록 바꿨다. `ALLOWED_ORIGINS`는 wrangler secret이라 저장소에서 실값을 볼 수 없다 — **배포 전 대시보드에서 `*`가 들어있지 않은지 확인**한다. 들어있으면 배포 즉시 전 origin이 차단된다.
 
-### 5. privacy 문서 — 이번엔 갱신 불필요 (판단 근거)
+### 5. 사용자 영향이 있는 동작 변경 2건 (가이드 대조 필요)
+
+W6에서 A-20 (c)안을 적용해 **평문 http 엔드포인트가 거부**된다(loopback 예외).
+- GitLab self-managed: `http://gitlab.corp` 입력 시 연결 거부 + 전용 안내(`gitlab.instanceUrl.insecure`).
+- BYOK LLM: `http://` base URL 거부 + 전용 안내(`llm.error.insecureUrl`). ollama `http://localhost:11434/v1`은 그대로 동작.
+
+사내 http GitLab을 쓰던 사용자가 있으면 이 변경으로 연결이 막힌다 — **제품 결정으로 확정된 (c)안**이지만, `guide/ko`·`guide/en`의 GitLab 연동·AI 설정 문서에 https 요구가 적혀 있는지 `/guide`로 대조가 필요하다. (이번 세션에서는 미이행.)
+
+### 6. privacy 문서 — A-18 반영 완료
+
+A-18로 액션 로그 마스킹에 `key`·`otp`·`passphrase`·`mnemonic`·`credential`·autocomplete `one-time-code`가 추가돼 `docs/privacy.{ko,en}.md`의 키워드 예시와 단어 경계 규칙을 갱신하고 시행일을 2026-07-26으로 올렸다(ko/en 양쪽).
+
+### 7. privacy 문서 — A-06 판단 근거 (유지)
 A-06은 마스킹 **대상을 넓히기만** 했다(superset). `docs/privacy.ko.md`의 "`token`·`password`·`secret` 등 민감 키" 서술과 WebSocket "JSON 형식 프레임에 한하며" 서술 모두 여전히 참이고, 새 수집·전송 동작이 없다. **A-18(W3) 착수 시 다시 대조**한다 — 그때는 서술 범위가 바뀔 수 있다.

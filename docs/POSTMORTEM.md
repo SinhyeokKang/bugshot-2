@@ -21,6 +21,20 @@
 
 ---
 
+## 2026-07-26 — 감사 리포트가 지목한 "1줄 수정"이 프로토콜을 깨뜨리는 경우 (A-51/A-04)
+
+- **증상**: 감사 항목 A-51의 처방("`OFFSET_REQ`도 PRESENT처럼 `data.token !== frameToken`이면 거부 — 1줄")을 그대로 적용하면 **모든 iframe 요소 캡처가 조용히 실패**한다. 유닛·타입체크는 통과하고, iframe 캡처는 e2e 커버가 없어 빨강도 안 뜬다.
+- **근본 원인**: 같은 이름의 필드가 두 메시지에서 **다른 것을 뜻했다.** `PRESENT`의 `token`은 사이드패널이 `picker.start`로 broadcast한 **세션 토큰**이고, `OFFSET_REQ`의 `token`은 자식이 `crypto.randomUUID()`로 만들어 응답을 짝짓는 **1회성 correlation nonce**다. 리포트는 "한쪽만 대조를 안 한다"는 표면 비대칭을 보고 처방을 냈고, 그 비대칭은 결함이 아니라 **의미 차이**였다. 부수적으로 A-04(토큰이 `postMessage(..., "*")`로 페이지에 노출)를 파고들다 보니 원 서술의 위협 전제도 과대평가였음이 드러났다 — picker는 `all_frames: true`라 **악성 페이지가 만든 iframe에도 진짜 picker가 주입돼 정상 announce로 등록된다.** 토큰을 훔칠 필요가 없다. 즉 유출의 실제 증분 위험은 "picker가 없는 iframe(sandbox·2-depth+)을 등록시키는 것"뿐이다.
+- **재발 방지**: (1) **감사·리뷰 리포트의 "1줄 수정"은 그 줄이 읽는 값이 어디서 오는지를 먼저 역추적한다** — 특히 같은 이름의 필드가 여러 메시지 타입에 걸쳐 있으면(`grep -n 'token' src/content/frame-geometry.ts`) 이름이 아니라 **생성 지점**으로 동일성을 판단한다. 여기선 `requestFrameOffset`의 `crypto.randomUUID()` 한 줄이 답이었다. (2) **e2e 커버가 없는 영역의 리포트 처방은 "적용 후 유닛 green"을 근거로 삼지 않는다** — iframe picker·OAuth가 그 영역이다. 처방을 코드로 옮기기 전에 프로토콜 양쪽 끝(발신·수신)을 같이 읽는다. (3) **보안 처방은 위협 전제부터 재확인한다** — "값이 새면 위조 가능"은 공격자가 그 값 없이는 같은 결과를 못 얻을 때만 성립한다. `all_frames` 주입처럼 공격자가 정공법으로 같은 상태를 만들 수 있으면 그 값은 애초에 인증 수단이 아니다. 결론은 코드가 아니라 문서(`docs/ARCHITECTURE.md` "등록 핸드셰이크" 경고 블록)에 남겼다.
+- **관련**: `src/content/frame-geometry.ts`(`OFFSET_REQ`에 세션 토큰을 별도 `frameToken` 필드로 추가·`childFrames` WeakSet 세션 교체), `requestFrameOffset`(nonce 생성 지점), `docs/ARCHITECTURE.md`·`CLAUDE.md`(registry는 인증이 아니라 힌트), `docs/features/audit-remediation/tasks.md`("A-04 재결정").
+
+## 2026-07-26 — zustand persist 병합은 "키 없음"과 "명시적 undefined"를 구분한다 (A-11)
+
+- **증상**: `saveDraft`를 통째 교체에서 병합(`{...existing, ...record}`)으로 바꾸자, 사용자가 지운 버퍼 요소·해제한 요소 selector가 **재확정 한 번에 되살아날 수** 있는 상태가 됐다. 원 결함(patchIssue로만 세팅되는 `logsAttached`·`attachments`가 재확정에 사라짐)은 고쳐지지만 반대 방향 구멍이 열린다.
+- **근본 원인**: `confirmDraft`가 만드는 record에 **조건부 스프레드**(`...(state.bufferedElements.length > 0 ? {...} : {})`)가 있었다. 통째 교체 시절엔 키가 없으면 결과에도 없어서 동작이 같았지만, 병합에서는 **"키 없음 = 기존 값 유지"**로 의미가 뒤집힌다. 반면 `networkLogBlobKey: logs.networkLog ? id : undefined`처럼 **값이 undefined인 키는 스프레드가 그대로 덮어써서** 의도대로 비워진다 — 두 표기의 차이가 병합 도입 순간 동작 차이가 된다.
+- **재발 방지**: (1) **교체 → 병합 전환 시 소스 객체의 조건부 스프레드를 전수한다** — `grep -n '\.\.\.(' src/store/editor-store.ts`. 조건부 스프레드는 전부 `key: cond ? v : undefined` 형태로 펴서 "비운다"는 의도를 명시로 만든다. (2) **"의도적으로 비운 필드"가 있는지는 소비처가 아니라 생산처(record를 만드는 함수)에서 확인한다** — `removeBufferedElement`·`resetAllStyleEdits`처럼 상태를 비우는 액션이 존재하면 그 필드는 반드시 명시 undefined여야 한다. (3) 회귀 테스트는 양방향으로 둔다 — "record에 없는 필드는 살아남는다" + "record가 undefined로 명시한 필드는 비워진다".
+- **관련**: `src/store/issues-store.ts:saveDraft`(병합), `src/store/editor-store.ts:confirmDraft`(`bufferedElements`·`selector`/`tagName` 조건부 스프레드 → 명시 키), 그물 `src/store/__tests__/issues-store.test.ts`("saveDraft — 재확정 시 optional 필드 보존").
+
 ## 2026-07-26 — 프로덕션에선 옳은 `tab.active` 가드가 e2e 하네스의 구조적 전제를 깨서 캡처 spec이 전멸
 
 - **증상**: 캡처 소유권 가드(A-05)를 background 관문에 넣자 `capture-methods.spec.ts`의 "screenshot 뷰포트 캡처 → drafting 진입"이 40초 타임아웃으로 죽었다. 같은 파일의 "스크롤 캡처"는 통과해서 원인이 캡처 관문으로 안 보였다. `pnpm test --run`·`pnpm typecheck`는 둘 다 green이라 **e2e만이 유일한 검출 경로**였다.
