@@ -20,6 +20,8 @@ import { useEditorStore } from "@/store/editor-store";
 import { useSettingsStore } from "@/store/settings-store";
 import { useSettingsUiStore } from "@/store/settings-ui-store";
 import { use30sReplay } from "./30s-replay/use-30s-replay";
+import { useTabUnsupported } from "./hooks/useTabSupport";
+import { TabSupportProvider } from "./hooks/tab-support-context";
 import { ReplayProvider } from "./30s-replay/replay-context";
 import {
   onBlobSaveFailed,
@@ -109,7 +111,10 @@ export default function App() {
   const editorHydrated = useEditorSessionSync(tabId ?? null);
   useBackgroundRecorder(tabId ?? null);
   const replayEnabled = useSettingsUiStore((s) => s.replayEnabled);
-  const replay = use30sReplay(tabId ?? null, replayEnabled);
+  const unsupported = useTabUnsupported(tabId);
+  // 웹스토어는 https라 captureVisibleTab이 실제로 성공한다 — 안 막으면 "캡처할 수 없습니다"
+  // 화면에서 프레임 버퍼가 계속 채워진다.
+  const replay = use30sReplay(tabId ?? null, replayEnabled, unsupported);
   const settingsHydrated = useSettingsHydrated();
   usePickerMessages(tabId ?? null);
   useThemeEffect();
@@ -222,6 +227,7 @@ export default function App() {
 
   return (
     <TabNavContext.Provider value={navTo}>
+    <TabSupportProvider value={unsupported}>
     <ReplayProvider
       value={{
         replayEnabled,
@@ -474,6 +480,7 @@ export default function App() {
     </div>
     <Toaster position="top-center" offset={24} />
     </ReplayProvider>
+    </TabSupportProvider>
     </TabNavContext.Provider>
   );
 }

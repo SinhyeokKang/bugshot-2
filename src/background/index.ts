@@ -1,6 +1,7 @@
 import { t } from "@/i18n";
 import { initBgLocale } from "@/i18n/bg-init";
 import { PANEL_PORT_PREFIX, sessionKey } from "@/lib/session-keys";
+import { isSupportedUrl } from "@/lib/url-support";
 import { GithubError } from "./github-api";
 import { JiraError } from "./jira-api";
 import { LinearError } from "./linear-api";
@@ -86,7 +87,13 @@ chrome.runtime.onConnect.addListener((port) => {
   if (!port.name.startsWith(PANEL_PORT_PREFIX)) return;
   const tabId = Number(port.name.slice(PANEL_PORT_PREFIX.length));
   if (Number.isNaN(tabId)) return;
-  void captureEvent("sidepanel_opened", {});
+  void chrome.tabs
+    .get(tabId)
+    .then((tab) => isSupportedUrl(tab.url))
+    .catch(() => false)
+    .then((supported) =>
+      captureEvent("sidepanel_opened", { page_supported: String(supported) }),
+    );
   port.onDisconnect.addListener(() => {
     // 보존 phase(drafting/previewing/done/video)는 패널을 닫았다 열어도 복원돼야 하므로
     // 세션·picker 상태를 남긴다 (tab-bindings의 phase별 보존 정책과 동일 기준).

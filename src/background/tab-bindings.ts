@@ -34,14 +34,16 @@ function setActivated(tabId: number, on: boolean): Promise<void> {
   return task;
 }
 
-async function apply(tabId: number, url: string | undefined): Promise<void> {
-  const supported = isSupportedUrl(url);
+// 패널 표시 여부는 activation만 따른다 — 지원 여부를 여기서 보면 미지원 탭에서 방금 연 패널을
+// onActivated(탭 전환 복귀)·onUpdated가 곧바로 enabled:false로 닫는다. 지원 여부는 패널이
+// 무엇을 그리는지만 결정한다(useTabSupport).
+async function apply(tabId: number): Promise<void> {
   const set = await getActivatedSet();
   const activated = set.has(tabId);
 
   // SW hibernation / 윈도우 이동으로 setOptions가 휘발돼 default_path(쿼리 없음)로
   // fallback되는 경로 차단. preserve 분기와 무관하게 idempotent하게 path 재등록.
-  if (activated && supported) {
+  if (activated) {
     try {
       await chrome.sidePanel.setOptions({
         tabId,
@@ -58,7 +60,7 @@ async function apply(tabId: number, url: string | undefined): Promise<void> {
   const snap = data[key] as SessionSnap | undefined;
   if (shouldPreserveSession(snap)) return;
 
-  if (!(activated && supported)) {
+  if (!activated) {
     try {
       await chrome.sidePanel.setOptions({ tabId, enabled: false });
     } catch (err) {
@@ -119,6 +121,12 @@ export function resolveNavigationAction(input: {
   pageKeyChanged: boolean;
   broadGranted: boolean;
   newUrlBroadCovered: boolean;
+  // 판독 가능 여부와 지원 여부를 별도 축으로 둔다 — isSupportedUrl(undefined)도 false라
+  // 한 축으로 접으면 "URL을 못 읽었다"가 "미지원"으로 접혀 file: 동작까지 함께 바뀐다.
+  newUrlReadable: boolean;
+  newUrlSupported: boolean;
+  // 판독 불가일 때의 폴백 판정용. 출발지가 이미 미지원이면 보호할 file:이 없다.
+  prevUrlSupported: boolean;
 }): NavigationAction {
   const effectiveSameOrigin =
     input.sameOrigin || (input.broadGranted && input.newUrlBroadCovered);
@@ -126,7 +134,14 @@ export function resolveNavigationAction(input: {
     if (input.preserved) return "keep";
     return input.pageKeyChanged ? "clearSession" : "keep";
   }
-  return input.preserved ? "notifyDeferredExpiry" : "deactivate";
+  if (input.preserved) return "notifyDeferredExpiry";
+  // 판독됐으면 그대로 판정한다 — 미지원(chrome://·웹스토어)이면 패널을 살려 안내를 그리게 하고,
+  // 지원 스킴(광역 커버 밖의 file:)이면 캡처 권한이 없는 상태라 현행대로 닫는다.
+  if (input.newUrlReadable) return input.newUrlSupported ? "deactivate" : "clearSession";
+  // 판독 불가는 chrome://와 file:(파일 접근 OFF)를 구분할 수 없다. 출발지로 가른다 —
+  // 이미 미지원 페이지였다면 보호할 file:이 없으므로 패널을 유지한다(미지원 안에서의 이동).
+  // 이 폴백이 없으면 activeTab 그랜트가 회수된 뒤의 두 번째 이동에서 패널이 다시 닫힌다.
+  return input.prevUrlSupported ? "deactivate" : "clearSession";
 }
 
 const BROAD_COVERED_SCHEMES = new Set(["http:", "https:"]);
@@ -152,6 +167,7 @@ async function deactivatePanelIfCrossOrigin(
   newUrl: string | undefined,
 ): Promise<void> {
   const key = sessionKey(tabId);
+  const urlKey = `${ACTIVATION_URL_PREFIX}${tabId}`;
   try {
     const set = await getActivatedSet();
     if (!set.has(tabId)) return;
@@ -161,7 +177,6 @@ async function deactivatePanelIfCrossOrigin(
 
     let refUrl = snap?.target?.url;
     if (!refUrl) {
-      const urlKey = `${ACTIVATION_URL_PREFIX}${tabId}`;
       const urlData = await chrome.storage.session.get(urlKey);
       refUrl = urlData[urlKey] as string | undefined;
     }
@@ -179,12 +194,23 @@ async function deactivatePanelIfCrossOrigin(
       pageKeyChanged: pageKeyOf(refUrl) !== pageKeyOf(newUrl),
       broadGranted: true,
       newUrlBroadCovered: isBroadCoveredUrl(newUrl),
+      // newUrl은 onUpdated의 `info.url ?? tab.url`이다. 미지원 URL로의 이동에서도 아이콘 클릭
+      // activeTab 그랜트가 살아 있는 동안엔 loading 시점에 값이 실려 온다. 빈 문자열도 판독
+      // 불가로 접는다 — isSupportedUrl·originOf·pageKeyOf가 전부 그렇게 취급한다.
+      newUrlReadable: Boolean(newUrl),
+      newUrlSupported: isSupportedUrl(newUrl),
+      prevUrlSupported: isSupportedUrl(refUrl),
     });
 
+    // 패널을 유지하는 분기에서는 기준 URL을 새 URL로 옮긴다. 안 그러면 다음 이동이 여전히
+    // 최초 URL을 보고 판정한다 — https → chrome:// → chrome:// 에서 두 번째 이동이
+    // prevUrlSupported=true로 읽혀 패널이 닫혔다.
     switch (action) {
       case "keep":
+        if (newUrl) await chrome.storage.session.set({ [urlKey]: newUrl });
         return;
       case "clearSession":
+        if (newUrl) await chrome.storage.session.set({ [urlKey]: newUrl });
         await chrome.storage.session.remove(key);
         return;
       case "notifyDeferredExpiry":
@@ -196,6 +222,9 @@ async function deactivatePanelIfCrossOrigin(
         await setActivated(tabId, false);
         await chrome.sidePanel.setOptions({ tabId, enabled: false });
         await chrome.storage.session.remove(key);
+        // 기준 URL도 지운다 — 남겨두면 미지원 페이지에서 아이콘을 다시 눌러 패널을 열었을 때
+        // activateTab이 URL을 못 읽어 키를 안 쓰므로 stale 값이 그대로 다음 판정에 쓰인다.
+        await chrome.storage.session.remove(urlKey);
         return;
       default:
         action satisfies never;
@@ -205,16 +234,22 @@ async function deactivatePanelIfCrossOrigin(
   }
 }
 
+// 미지원 URL에서도 패널을 연다 — sidePanel API엔 URL 제약이 없고(content script 제약과 별개
+// 스코프), 패널이 안 열리면 클릭이 무음으로 삼켜져 실패가 100% 제품에 귀속된다. 미지원 여부는
+// 패널이 무엇을 그리는지만 결정한다(useTabSupport).
+// setOptions·open은 반드시 동기로 유지한다 — await를 끼우면 user gesture가 소실돼 open이
+// 조용히 실패한다(docs/ARCHITECTURE.md).
 export function activateTab(tab: chrome.tabs.Tab): void {
   if (tab.id == null) return;
-  if (!isSupportedUrl(tab.url)) return;
   const tabId = tab.id;
 
-  void chrome.sidePanel.setOptions({
-    tabId,
-    path: `${SIDEPANEL_PATH}?tabId=${tabId}`,
-    enabled: true,
-  });
+  void chrome.sidePanel
+    .setOptions({
+      tabId,
+      path: `${SIDEPANEL_PATH}?tabId=${tabId}`,
+      enabled: true,
+    })
+    .catch((err) => console.error("[bugshot] sidePanel.setOptions", err));
   void chrome.sidePanel
     .open({ tabId })
     .catch((err) => console.error("[bugshot] sidePanel.open", err));
@@ -256,14 +291,13 @@ export function setupTabBindings(): void {
     const prevTabId = resolveTabSwitch(prevActiveTabByWindow, windowId, tabId);
     if (prevTabId != null) stopRecorders(prevTabId);
 
-    let tab: chrome.tabs.Tab;
     try {
-      tab = await chrome.tabs.get(tabId);
+      await chrome.tabs.get(tabId);
     } catch {
       return; // 활성화 직후 탭이 닫힘 — 적용할 게 없음
     }
     try {
-      await apply(tabId, tab.url);
+      await apply(tabId);
     } catch (err) {
       console.error("[bugshot] onActivated", err);
     }
@@ -278,11 +312,9 @@ export function setupTabBindings(): void {
       return;
     }
     if (info.url) {
-      void clearIfPageChanged(tabId, info.url).then(() =>
-        apply(tabId, info.url),
-      );
+      void clearIfPageChanged(tabId, info.url).then(() => apply(tabId));
     } else if (info.status === "complete") {
-      void apply(tabId, tab.url);
+      void apply(tabId);
     }
   });
 

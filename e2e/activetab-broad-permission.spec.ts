@@ -91,13 +91,19 @@ test("광역 권한 보유: cross-origin 커버 URL 이동 → 패널 유지(세
   await fixture.close();
 });
 
-test("광역 권한 보유라도 비커버 URL(chrome://) 이동 → 패널 종료(deactivate)", async ({ ext }) => {
+// 이 spec은 **판독 불가** 경로를 고정한다. 프로덕션에서 chrome://로 이동할 때 changeInfo.url에
+// 새 URL이 실리는 것은 아이콘 클릭으로 받은 activeTab 그랜트가 살아 있는 동안뿐인데(2026-07-27
+// 실측), Playwright는 확장 액션을 클릭할 수 없어 여기선 그 그랜트가 없다 → newUrl이 undefined다.
+// 그래서 "판독된 미지원 URL → clearSession" 분기는 e2e로 도달 불가이고, 순수함수 테이블
+// (tab-bindings.test.ts unsupportedUrlCases)과 수동 검증이 담당한다.
+// 여기서 잠그는 것은 그 반대편 — URL을 못 읽으면 chrome://와 file:(파일 접근 OFF)를 구분할 수
+// 없으므로 file: 동작을 보존하는 현행 deactivate로 남는다는 것.
+test("비커버 URL(chrome://) 이동 + 새 URL 판독 불가 → 현행 deactivate", async ({ ext }) => {
   const fixture = await ext.context.newPage();
   await fixture.goto(ext.fixtureUrl("basic.html"));
   const tabId = await ext.fixtureTabId();
   await seedActivatedSession(ext, tabId, ext.fixtureUrl("basic.html"));
 
-  // chrome://는 지원 스킴 밖이라 newUrlBroadCovered=false → 현행 deactivate 분기.
   await fixture.goto("chrome://version");
 
   await expect.poll(() => isActivated(ext, tabId)).toBe(false);

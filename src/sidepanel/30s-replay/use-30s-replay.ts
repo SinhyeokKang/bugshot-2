@@ -27,6 +27,9 @@ export interface Use30sReplayReturn {
 export function use30sReplay(
   tabId: number | null,
   enabled: boolean,
+  // 미지원 페이지에서 캡처만 멈춘다. enabled를 끄면 effect가 재실행돼 buffer.clear()까지 돌아
+  // 모아둔 30초가 날아가는데, ARCHITECTURE.md는 버퍼를 네비게이션과 무관하게 유지한다고 명시한다.
+  suspended = false,
 ): Use30sReplayReturn {
   const t = useT();
   const tRef = useRef(t);
@@ -44,6 +47,8 @@ export function use30sReplay(
   tabIdRef.current = tabId;
   const enabledRef = useRef(enabled);
   enabledRef.current = enabled;
+  const suspendedRef = useRef(suspended);
+  suspendedRef.current = suspended;
 
   useEffect(() => {
     const buffer = bufferRef.current;
@@ -59,7 +64,7 @@ export function use30sReplay(
     let displayId: ReturnType<typeof setInterval> | null = null;
 
     async function tick(): Promise<void> {
-      if (cancelled || inFlightRef.current || pausedRef.current) return;
+      if (cancelled || inFlightRef.current || pausedRef.current || suspendedRef.current) return;
       if (useEditorStore.getState().phase !== "idle") return;
       const id = tabIdRef.current;
       if (id == null) return;

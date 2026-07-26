@@ -100,8 +100,35 @@ describe("허용목록", () => {
     ).toEqual({ platform: "github" });
   });
 
-  it("property가 없는 event는 빈 객체", () => {
+  it("허용목록 밖 property만 준 경우 빈 객체", () => {
     expect(filterProperties("sidepanel_opened", { anything: "x" })).toEqual({});
+  });
+
+  // sidepanel_opened는 미지원 페이지에서도 발화하게 됐다(패널이 열리므로). property가 없으면
+  // 배포 후 지표 상승이 "미지원 페이지 오픈으로 인한 기계적 증가"인지 "실제 activation 회복"인지
+  // 가를 수 없다 — 허용목록에 page_supported가 없으면 emit이 조용히 무효화되므로 여기서 잠근다.
+  it("sidepanel_opened의 page_supported가 통과한다", () => {
+    expect(filterProperties("sidepanel_opened", { page_supported: "true" })).toEqual({
+      page_supported: "true",
+    });
+    expect(filterProperties("sidepanel_opened", { page_supported: "false" })).toEqual({
+      page_supported: "false",
+    });
+  });
+
+  it("page_supported와 함께 온 목록 밖 property는 여전히 빠진다", () => {
+    expect(
+      filterProperties("sidepanel_opened", {
+        page_supported: "false",
+        page_url: "chrome://settings",
+      }),
+    ).toEqual({ page_supported: "false" });
+  });
+
+  it("page_supported는 sidepanel_opened 전용 — 다른 event엔 통과하지 않는다", () => {
+    expect(
+      filterProperties("platform_disconnected", { platform: "github", page_supported: "true" }),
+    ).toEqual({ platform: "github" });
   });
 
   it("목록 밖 event의 property는 통째로 드롭", () => {
