@@ -268,6 +268,8 @@ export function PreviewPanel() {
         attachments={attachments}
         onDownload={(m) =>
           void downloadAttachment(
+            // tabId·currentIssueId 둘 다 없으면 존재할 수 없는 키가 되고, downloadAttachment가
+            // 조회 실패로 끝난다(구현 전 `pending:undefined`와 결과 동일).
             currentIssueId ?? pendingKey(target?.tabId ?? ""),
             m,
             target?.tabId != null ? pendingKey(target.tabId) : undefined,
