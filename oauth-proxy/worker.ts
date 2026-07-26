@@ -288,6 +288,12 @@ async function handleAtlassianToken(
   } catch {
     return jsonError(400, "invalid JSON body", corsOrigin);
   }
+  if (!env.ATLASSIAN_CLIENT_ID || !env.ATLASSIAN_CLIENT_SECRET) {
+    return jsonError(503, "atlassian oauth not configured", corsOrigin);
+  }
+  if (body.client_id !== env.ATLASSIAN_CLIENT_ID) {
+    return jsonError(400, "client_id not registered", corsOrigin);
+  }
 
   const forward: Record<string, string> = {
     client_id: env.ATLASSIAN_CLIENT_ID,
@@ -430,9 +436,12 @@ async function relayUpstream(upstream: Response, corsOrigin: string): Promise<Re
 export function resolveCorsOrigin(origin: string, allowedEnv: string | undefined): string {
   // allowed 리스트가 비었거나(설정 누락) origin이 미허용이면 "null"을 반환 —
   // 브라우저가 cross-origin 응답을 거부하는 명시적 차단값(허용 안 함).
-  const list = (allowedEnv ?? "").split(",").map((s) => s.trim()).filter(Boolean);
+  // client_secret을 다루는 프록시라 와일드카드 모드는 없다 — "*"는 항목에서 제외.
+  const list = (allowedEnv ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter((s) => s && s !== "*");
   if (list.length === 0) return "null";
-  if (list.includes("*")) return origin || "*";
   if (origin && list.includes(origin)) return origin;
   return "null";
 }

@@ -32,7 +32,7 @@ compatibility_date = "2026-04-01"
 # ALLOWED_ORIGINS 값 예시:
 #   chrome-extension://abcdefghij...,chrome-extension://xxxxxxxxxx...
 #   - 프로덕션 확장 ID + 로컬 dev key의 ID를 콤마로 나열
-#   - 와일드카드 필요 시 단독 "*" (운영에서는 권장하지 않음)
+#   - 와일드카드("*")는 지원하지 않는다 — 항목에서 무시되고 거부된다
 #   - 미설정 시 모든 origin이 403 거부됨
 #
 # 배포:
