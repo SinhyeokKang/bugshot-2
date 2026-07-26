@@ -35,5 +35,17 @@ compatibility_date = "2026-04-01"
 #   - 와일드카드("*")는 지원하지 않는다 — 항목에서 무시되고 거부된다
 #   - 미설정 시 모든 origin이 403 거부됨
 #
+# Rate limiting (Workers 네이티브 바인딩 — WAF 규칙·대시보드 불필요):
+#   Origin 헤더는 브라우저만 강제하고 확장 ID·client_id는 둘 다 공개값이라, 이 프록시는
+#   curl로 재현 가능하다. 상류가 abuse로 client_secret을 정지시키면 전 사용자 연결이 죽는다.
+#   namespace_id는 계정 내에서 이 제한기를 식별하는 임의 정수(다른 제한기와만 겹치지 않으면 된다).
+#   토큰 교환은 연결 1회 + 갱신 시간당 1회 수준이라 분당 20회는 정상 사용에 여유가 크다.
+#   (NAT 뒤 사무실은 IP를 공유하므로, 대규모 팀에서 429가 보이면 limit을 올린다.)
+[[unsafe.bindings]]
+name = "RATE_LIMITER"
+type = "ratelimit"
+namespace_id = "1001"
+simple = { limit = 20, period = 60 }
+
 # 배포:
 #   wrangler deploy

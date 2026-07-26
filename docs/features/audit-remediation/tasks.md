@@ -680,8 +680,10 @@ W2 (설계 결정) ── 독립. 합의되면 해당 항목만 위 흐름에 �
 4. 취소하지 않은 경우 정상 커밋되는지도 확인
 5. 임시 지연 제거
 
-### 2. A-08 인프라 (사용자 작업)
-oauth-proxy에 rate limit이 전무하다. Cloudflare 대시보드에서 WAF Rate Limiting Rule을 건다 — 코드 변경 없음. 권장: `/oauth/*` 경로에 IP당 분당 20회.
+### 2. A-08 rate limit — **코드로 해결됨, 배포 시 자동 적용**
+Cloudflare 대시보드 WAF 규칙 대신 **Workers 네이티브 rate limit 바인딩**으로 넣었다(`wrangler.toml`의 `[[unsafe.bindings]]` + `worker.ts:enforceRateLimit`). IP당 분당 20회, `CF-Connecting-IP` 기준. preflight·미허용 origin은 예산을 안 먹고, 제한기 장애 시엔 통과(fail-open — 제한기 때문에 전 사용자 토큰 교환이 막히는 쪽이 더 나쁘다). 바인딩이 없으면 건너뛰므로 로컬·테스트 env는 무영향.
+
+대시보드가 아니라 저장소에 설정이 남아 리뷰·버전관리 대상이 된다는 게 부수 이득이다(WAF 규칙은 대시보드에만 존재해 흔적이 없다). `wrangler deploy --dry-run`으로 스키마 통과 확인 완료. **프록시 배포 때 같이 실린다 — 별도 작업 없음.**
 
 ### 3. Atlassian `client_id` — **확장 쪽 수정 완료, 배포 순서 제약은 유효** ⚠️
 `src/background/oauth.ts`의 `exchangeCodeForTokens`·`refreshOAuthToken`이 Atlassian `/token` 요청에 `client_id`를 안 싣던 문제는 **수정됐다**(`OAUTH_CONFIG.jira.clientId` 추가, 나머지 7개 플랫폼과 동일 형태). 회귀 테스트: `src/background/__tests__/oauth-client-id.test.ts` — 인가코드 교환·토큰 갱신 양쪽 body에 `client_id`가 실리는지 고정한다(프록시 쪽 대응 그물은 `oauth-proxy/__tests__/client-id-required.test.ts`).
@@ -691,8 +693,19 @@ oauth-proxy에 rate limit이 전무하다. Cloudflare 대시보드에서 WAF Rat
 - 안전한 순서: ① 이 수정을 포함한 스토어 배포 → ② **리뷰 통과 + 자동 업데이트 전파 대기**(리뷰 통과만으론 부족 — Chrome 자동 업데이트는 수 시간~수 일에 걸쳐 퍼진다) → ③ 그다음 프록시 배포.
 - 프록시 수정을 더 빨리 넣어야 하면, A-22의 세 변경 중 **Atlassian `client_id` 검사 줄만** 빼고 배포한다(나머지 둘 — 미설정 시 503, `ALLOWED_ORIGINS: "*"` 거부 — 은 배포 제약이 없다). 전파 후 그 줄을 되살린다. 참고로 `client_id`는 번들에서 읽히는 공개값이라 이 검사의 보안 이득은 크지 않다 — 주 목적은 나머지 7개와의 일관성이다.
 
-### 4. `ALLOWED_ORIGINS` 실값 확인 (배포 전)
-A-22가 `resolveCorsOrigin`에서 `*`를 거부하도록 바꿨다. `ALLOWED_ORIGINS`는 wrangler secret이라 저장소에서 실값을 볼 수 없다 — **배포 전 대시보드에서 `*`가 들어있지 않은지 확인**한다. 들어있으면 배포 즉시 전 origin이 차단된다.
+### 4. `ALLOWED_ORIGINS` — **확인 완료, 조치 불필요** ✅
+A-22가 `resolveCorsOrigin`에서 `*`를 거부하도록 바꿔, 실값에 `*`가 있으면 배포 즉시 전 origin이 차단된다. secret이라 값을 읽을 수는 없지만 **살아있는 프록시에 비파괴 프로브를 던져 판정**했다(2026-07-26):
+
+```
+POST /token  Origin: chrome-extension://<스토어 ID>  → 400 (통과)
+POST /token  Origin: chrome-extension://<dev ID>     → 400 (통과)
+POST /token  Origin: chrome-extension://zzzz…        → 403 (차단)
+POST /token  Origin: https://evil.example            → 403 (차단)
+```
+
+구버전(배포 중) 코드는 `*`면 임의 origin을 통과시키므로, 가짜 origin이 403이라는 것이 **명시 목록**이라는 증거다. 등록된 두 ID만 통과한다 → **`*` 아님, 배포 안전.** 값을 덮어쓸 필요 없다(secret은 이전 값을 못 읽어 되돌리기 불가라, 굳이 건드리지 않는 편이 낫다).
+
+배포 후 같은 프로브로 스모크 테스트하면 회귀를 즉시 잡을 수 있다.
 
 ### 5. 사용자 영향이 있는 동작 변경 2건 (가이드 대조 필요)
 

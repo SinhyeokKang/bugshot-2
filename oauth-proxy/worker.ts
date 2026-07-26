@@ -1,4 +1,7 @@
 interface Env {
+  // Workers 네이티브 rate limit 바인딩(wrangler.toml [[unsafe.bindings]]).
+  // 로컬·단위 테스트 env엔 없으므로 optional — 미설정이면 제한을 건너뛴다.
+  RATE_LIMITER?: { limit(opts: { key: string }): Promise<{ success: boolean }> };
   ATLASSIAN_CLIENT_ID: string;
   ATLASSIAN_CLIENT_SECRET: string;
   // GitHub OAuth — DEV/PROD 두 OAuth App을 동시 운영. 클라이언트가 보낸 client_id로 매칭.
@@ -63,6 +66,12 @@ export async function handleRequest(
 
   const url = new URL(req.url);
   if (req.method !== "POST") return jsonError(404, "not found", corsOrigin);
+
+  // Origin 헤더는 브라우저만 강제한다 — 확장 ID도 client_id도 번들에서 읽히는 공개값이라
+  // curl로 그대로 재현된다. 상류가 abuse로 우리 client_secret을 정지시키면 전 사용자의
+  // 연결이 죽으므로 IP당 상한을 둔다. preflight·비POST는 예산을 안 먹도록 여기서 센다.
+  const limited = await enforceRateLimit(req, env, corsOrigin);
+  if (limited) return limited;
 
   if (url.pathname === "/token") {
     return handleAtlassianToken(req, env, corsOrigin, fetchImpl);
@@ -454,6 +463,25 @@ function corsHeaders(origin: string): Record<string, string> {
     "Access-Control-Max-Age": "86400",
     Vary: "Origin",
   };
+}
+
+// 초과면 429, 통과면 null. 바인딩이 없으면(로컬·테스트) 제한하지 않는다.
+// 제한기 자체가 실패하면 **통과**시킨다 — 가용성 우선. rate limiter 장애로 전 사용자의
+// 토큰 교환이 막히는 쪽이 초과 허용보다 훨씬 나쁘다.
+async function enforceRateLimit(
+  req: Request,
+  env: Env,
+  corsOrigin: string,
+): Promise<Response | null> {
+  if (!env.RATE_LIMITER) return null;
+  const ip = req.headers.get("CF-Connecting-IP") ?? "unknown";
+  try {
+    const { success } = await env.RATE_LIMITER.limit({ key: ip });
+    if (!success) return jsonError(429, "rate limit exceeded", corsOrigin);
+  } catch {
+    /* 제한기 장애는 통과 (fail-open) */
+  }
+  return null;
 }
 
 function jsonError(status: number, message: string, corsOrigin: string): Response {
