@@ -6,12 +6,11 @@ import { CollapsingTabsList, TabLabel } from "@/components/ui/collapsing-tabs";
 import { Badge } from "@/components/ui/badge";
 import { useEditorStore } from "@/store/editor-store";
 import { useBoundTabId } from "@/sidepanel/hooks/useBoundTabId";
-import { useUnsupportedTab } from "@/sidepanel/hooks/useTabSupport";
+import { useUnsupportedTab } from "@/sidepanel/hooks/tab-support-context";
 import { startFreeformDraft, syncNetworkRecorder, syncConsoleRecorder, syncActionRecorder } from "@/sidepanel/picker-control";
 import { IssueTab } from "./IssueTab";
 import { ConsoleSubTab } from "./ConsoleSubTab";
 import { NetworkSubTab } from "./NetworkSubTab";
-import { areLogTabsLocked, shouldSyncRecorders } from "./debugTabGates";
 
 type DebugSubTab = "issue" | "console" | "network";
 
@@ -32,7 +31,7 @@ export function DebugTab({ activeMainTab }: { activeMainTab: string }) {
     phase === "done";
   // 녹화 중엔 바를 노출하되 콘솔/네트워크는 비활성 — 트리거 카운트 배지로 로그 누적만 확인하고,
   // Clear로 진행 중 버퍼를 지우는 건 막는다. 미지원 페이지에서는 로그가 아예 쌓이지 않으므로 함께 잠근다.
-  const logTabsLocked = areLogTabsLocked({ phase, unsupported });
+  const logTabsLocked = phase === "recording" || unsupported;
 
   const tabIdRef = useRef(tabId);
   tabIdRef.current = tabId;
@@ -45,7 +44,7 @@ export function DebugTab({ activeMainTab }: { activeMainTab: string }) {
   }, [unsupported]);
 
   useEffect(() => {
-    if (!shouldSyncRecorders({ activeMainTab, sub, unsupported })) return;
+    if (activeMainTab !== "debug" || sub !== "issue" || unsupported) return;
     if (tabIdRef.current == null) return;
     const sync = () => {
       if (tabIdRef.current == null) return;

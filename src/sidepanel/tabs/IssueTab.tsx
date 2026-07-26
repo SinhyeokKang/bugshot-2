@@ -74,7 +74,7 @@ import { ColorSwatches, ThicknessButtons, ToolButtons } from "@/sidepanel/compon
 import * as videoRecorder from "@/sidepanel/video-recorder";
 import { PageFooter, PageShell } from "@/sidepanel/components/Section";
 import { useReplay } from "@/sidepanel/30s-replay/replay-context";
-import { useUnsupportedTab } from "@/sidepanel/hooks/useTabSupport";
+import { useUnsupportedTab } from "@/sidepanel/hooks/tab-support-context";
 import { DraftingPanel } from "./DraftingPanel";
 import { PreviewPanel } from "./PreviewPanel";
 import { SelectedPanel } from "./StyleEditorPanel";
@@ -247,8 +247,8 @@ export function IssueTab() {
         onStartElement={() => void startPicker(tabId)}
         onStartElementShot={() => void startElementShot(tabId)}
         onStartScreenshot={() => void startAreaCapture(tabId)}
-        onStartVideo={() => void startVideoCapture(tabId)}
-        onStartScreenRecord={() => void startScreenCapture(tabId)}
+        onStartVideo={() => void startVideoCapture(tabId, { unsupported })}
+        onStartScreenRecord={() => void startScreenCapture(tabId, { unsupported })}
         onStartFreeform={() => void startFreeformDraft(tabId)}
         unsupported={unsupported}
       />

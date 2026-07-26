@@ -9,6 +9,21 @@ import { clearNetworkRecorder, clearConsoleRecorder, clearActionRecorder } from 
 import { showAnnotation } from "./annotation-control";
 import * as videoRecorder from "./video-recorder";
 import { pendingKey } from "@/lib/session-keys";
+import { isSupportedUrl } from "@/lib/url-support";
+import { onPickerUnavailable } from "@/types/messages";
+
+// 영상 캡처만 다른 5종처럼 ensureSupportedTab 게이트가 없었다 — 패널이 미지원 페이지에서
+// 살아나면서 렌더 게이트(mode-record 미노출)가 단일 방어선이 됐다. 방어선을 두 겹으로 둔다:
+//  (1) 아래 각 진입부의 동기 사전 판정 — await가 없어야 첫 await(스트림 획득)의 user gesture가
+//      살아있다(POSTMORTEM 2026-06-28: getMediaStreamId는 핸들러의 생 첫 await여야 한다).
+//  (2) 스트림 획득 뒤 이미 존재하는 chrome.tabs.get 결과로 하는 재확인 — 패널 판정이 아직
+//      갱신되지 않은 전이 창을 잡는다. chrome API 왕복을 새로 늘리지 않는다.
+// 둘 다 url 없는 녹화가 트래커 이슈로 등록되는 것을 막는다(design.md 대안 E 기각 근거).
+function rejectUnsupported(stream: MediaStream): void {
+  useEditorStore.getState().cancelRecording();
+  stream.getTracks().forEach((t) => t.stop());
+  onPickerUnavailable.fire();
+}
 
 // pending IDB 정리 → 3개 레코더 activate → clear 순. 탭/화면 녹화 진입 공통 전처리.
 async function prepareRecorders(tabId: number): Promise<void> {
@@ -30,7 +45,15 @@ async function prepareRecorders(tabId: number): Promise<void> {
   ]);
 }
 
-export async function startVideoCapture(tabId: number): Promise<void> {
+export async function startVideoCapture(
+  tabId: number,
+  opts?: { unsupported?: boolean },
+): Promise<void> {
+  // 동기 사전 판정 — await 금지(아래 첫 await의 gesture를 소비하면 폴백 picker가 안 뜬다).
+  if (opts?.unsupported) {
+    onPickerUnavailable.fire();
+    return;
+  }
   // 탭 스트림을 첫 await로 획득해 activeTab을 시험한다. cross-origin 이동 등으로 막히면
   // (사이드패널은 activeTab 재획득 불가 — Chrome 정책) user activation이 살아있는 동안
   // 화면 공유(getDisplayMedia)로 자동 폴백한다. getMediaStreamId 실패는 미디어 캡처 API가
@@ -40,7 +63,7 @@ export async function startVideoCapture(tabId: number): Promise<void> {
     stream = await videoRecorder.startTabStream(tabId);
   } catch (err) {
     if (isTabCaptureUnavailable(err)) {
-      await startScreenCapture(tabId, { preferTab: true });
+      await startScreenCapture(tabId, { preferTab: true, unsupported: opts?.unsupported });
     } else {
       console.warn("[bugshot] video recording failed to start", err);
     }
@@ -53,6 +76,10 @@ export async function startVideoCapture(tabId: number): Promise<void> {
   // 나가 공유 표시줄이 남는다 — 스트림을 잡은 뒤의 모든 실패는 같은 정리 경로를 타야 한다.
   try {
     const tab = await chrome.tabs.get(tabId);
+    if (!isSupportedUrl(tab.url)) {
+      rejectUnsupported(stream);
+      return;
+    }
     useEditorStore.getState().startRecording(
       {
         tabId,
@@ -73,7 +100,15 @@ export async function startVideoCapture(tabId: number): Promise<void> {
 // 화면 전체 녹화 — getDisplayMedia를 첫 await로 호출(transient user activation 보존:
 // 그 전에 다른 await를 두면 picker가 안 뜬다). 취소(NotAllowedError)는 조용히 no-op.
 // preferTab: 탭 녹화 폴백 경로 — picker가 "Chrome 탭"을 먼저 보이게 유도(displaySurface "browser").
-export async function startScreenCapture(tabId: number, opts?: { preferTab?: boolean }): Promise<void> {
+export async function startScreenCapture(
+  tabId: number,
+  opts?: { preferTab?: boolean; unsupported?: boolean },
+): Promise<void> {
+  // 동기 사전 판정 — 미지원이면 시스템 화면 공유 picker조차 띄우지 않는다.
+  if (opts?.unsupported) {
+    onPickerUnavailable.fire();
+    return;
+  }
   let stream: MediaStream;
   try {
     stream = await navigator.mediaDevices.getDisplayMedia({
@@ -95,6 +130,10 @@ export async function startScreenCapture(tabId: number, opts?: { preferTab?: boo
   // 나가 공유 표시줄이 남는다 — 스트림을 잡은 뒤의 모든 실패는 같은 정리 경로를 타야 한다.
   try {
     const tab = await chrome.tabs.get(tabId);
+    if (!isSupportedUrl(tab.url)) {
+      rejectUnsupported(stream);
+      return;
+    }
     useEditorStore.getState().startRecording(
       {
         tabId,

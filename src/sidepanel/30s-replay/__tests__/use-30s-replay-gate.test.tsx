@@ -32,12 +32,8 @@ vi.mock("@/types/messages", async (importOriginal) => {
 
 import { use30sReplay } from "../use-30s-replay";
 
-// 30s Replay의 600ms 폴링엔 지원 URL 게이트가 없었다 — "<all_urls>가 required라 권한 확인 없이
-// 폴링을 시작한다"는 전제가 패널이 미지원 페이지에 존재할 수 없다는 가정에 기대고 있었고,
-// 미지원 페이지에서 패널이 열리게 되면서 그 가정이 깨진다. 웹스토어는 https라 캡처가 실제로
-// 성공하므로 "캡처할 수 없습니다"라고 써놓고 계속 찍는 상태가 된다.
-// App.tsx는 `unsupported`를 `suspended`로 넘긴다 — `enabled`로 넘기면 effect가 재실행돼
-// buffer.clear()까지 돌아 왕복 시 30초가 날아간다.
+// "<all_urls>가 required라 권한 확인 없이 폴링을 시작한다"는 전제가 패널이 미지원 페이지에
+// 존재할 수 없다는 가정에 기대고 있었고, 이번 변경이 그 가정을 깬다.
 describe("use30sReplay — enabled 게이트", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -110,19 +106,38 @@ describe("use30sReplay — enabled 게이트", () => {
     expect(sendBg).toHaveBeenCalled();
   });
 
-  it("suspended는 interval을 살려둔다 — 재개에 새 effect가 필요하지 않다", async () => {
-    const clearSpy = vi.spyOn(globalThis, "clearInterval");
-    const { rerender } = renderHook(
+  // 이게 suspended를 enabled와 분리한 진짜 이유다 — ARCHITECTURE.md는 replay 버퍼가
+  // 네비게이션과 무관하게 유지된다고 명시한다. enabled를 끄면 teardown이 buffer.clear()까지
+  // 돌아 모아둔 30초가 날아간다.
+  it("suspended는 모아둔 버퍼를 유지한다 (isReady 보존)", async () => {
+    const { result, rerender } = renderHook(
       ({ off }: { off: boolean }) => use30sReplay(1, true, off),
       { initialProps: { off: false } },
     );
     await act(async () => {
-      await vi.advanceTimersByTimeAsync(1300);
+      await vi.advanceTimersByTimeAsync(9000);
     });
-    clearSpy.mockClear();
+    expect(result.current.isReady).toBe(true);
+
     rerender({ off: true });
-    expect(clearSpy).not.toHaveBeenCalled();
-    clearSpy.mockRestore();
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(3000);
+    });
+    expect(result.current.isReady).toBe(true);
+  });
+
+  it("반대로 enabled를 끄면 버퍼가 비워진다 (대조군)", async () => {
+    const { result, rerender } = renderHook(
+      ({ on }: { on: boolean }) => use30sReplay(1, on),
+      { initialProps: { on: true } },
+    );
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(9000);
+    });
+    expect(result.current.isReady).toBe(true);
+
+    rerender({ on: false });
+    expect(result.current.isReady).toBe(false);
   });
 
   it("enabled가 true→false로 바뀌면 폴링이 멎는다", async () => {

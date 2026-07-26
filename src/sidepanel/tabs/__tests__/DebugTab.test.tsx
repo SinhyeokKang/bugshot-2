@@ -37,7 +37,7 @@ vi.mock("@/store/editor-store", () => ({
 }));
 
 import { DebugTab } from "../DebugTab";
-import { TabSupportProvider } from "@/sidepanel/hooks/useTabSupport";
+import { TabSupportProvider } from "@/sidepanel/hooks/tab-support-context";
 
 const trigger = (id: string) => screen.getByTestId(id) as HTMLButtonElement;
 
@@ -87,9 +87,6 @@ describe("DebugTab — 서브탭 잠금", () => {
   });
 });
 
-// 미지원 전이는 사용자 액션이 아니라 네비게이션으로 일어난다 — sub를 그대로 두면 잠긴 트리거
-// 뒤에서 이전 페이지 로그가 계속 렌더되고, 안내는 issue 서브탭에 있어서 보이지 않는다.
-// 그 서브탭의 [이슈 작성] 버튼도 활성인 채 남아 미지원 다이얼로그를 띄운다.
 describe("DebugTab — 미지원 전이 시 서브탭 복귀", () => {
   it("console 서브탭에 있다가 미지원으로 전이하면 issue로 돌아온다", async () => {
     const { rerender } = renderDebug(false);

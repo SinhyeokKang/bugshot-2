@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderHook, waitFor, act, cleanup } from "@testing-library/react";
-import { useTabSupport } from "../useTabSupport";
+import { useTabUnsupported } from "../useTabSupport";
 
 type UpdatedListener = (
   tabId: number,
@@ -45,23 +45,23 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("useTabSupport — 초기 판정", () => {
+describe("useTabUnsupported — 초기 판정", () => {
   it("지원 URL이면 false", async () => {
     setTabUrl("https://example.com/page");
-    const { result } = renderHook(() => useTabSupport(1));
+    const { result } = renderHook(() => useTabUnsupported(1));
     await waitFor(() => expect(result.current).toBe(false));
     expect(get).toHaveBeenCalledWith(1);
   });
 
   it("차단 호스트(웹스토어)면 true", async () => {
     setTabUrl("https://chromewebstore.google.com/detail/bugshot/abc");
-    const { result } = renderHook(() => useTabSupport(1));
+    const { result } = renderHook(() => useTabUnsupported(1));
     await waitFor(() => expect(result.current).toBe(true));
   });
 
   it("미지원 스킴(chrome://)이면 true", async () => {
     setTabUrl("chrome://version");
-    const { result } = renderHook(() => useTabSupport(1));
+    const { result } = renderHook(() => useTabUnsupported(1));
     await waitFor(() => expect(result.current).toBe(true));
   });
 
@@ -69,41 +69,41 @@ describe("useTabSupport — 초기 판정", () => {
   // 실제 chrome:// 모양이므로, 빈 값을 "지원"으로 접으면 chrome:// 시나리오가 통째로 무효가 된다.
   it("tab.url이 undefined면 true (판독 불가 = 미지원)", async () => {
     setTabUrl(undefined);
-    const { result } = renderHook(() => useTabSupport(1));
+    const { result } = renderHook(() => useTabUnsupported(1));
     await waitFor(() => expect(result.current).toBe(true));
   });
 
   it("tab.url이 빈 문자열이면 true", async () => {
     setTabUrl("");
-    const { result } = renderHook(() => useTabSupport(1));
+    const { result } = renderHook(() => useTabUnsupported(1));
     await waitFor(() => expect(result.current).toBe(true));
   });
 
   it("판정 진행 중에는 false (기존 UI 유지 — first-paint 단언 보호)", () => {
     setTabUrl("chrome://version");
-    const { result } = renderHook(() => useTabSupport(1));
+    const { result } = renderHook(() => useTabUnsupported(1));
     expect(result.current).toBe(false);
   });
 });
 
-describe("useTabSupport — tabId 부재", () => {
+describe("useTabUnsupported — tabId 부재", () => {
   it("null이면 false이고 chrome.tabs.get을 호출하지 않는다", () => {
-    const { result } = renderHook(() => useTabSupport(null));
+    const { result } = renderHook(() => useTabUnsupported(null));
     expect(result.current).toBe(false);
     expect(get).not.toHaveBeenCalled();
   });
 
   it("undefined면 false이고 chrome.tabs.get을 호출하지 않는다", () => {
-    const { result } = renderHook(() => useTabSupport(undefined));
+    const { result } = renderHook(() => useTabUnsupported(undefined));
     expect(result.current).toBe(false);
     expect(get).not.toHaveBeenCalled();
   });
 });
 
-describe("useTabSupport — 네비게이션 전이", () => {
+describe("useTabUnsupported — 네비게이션 전이", () => {
   it("미지원 → 지원: info.url이 실려 오면 그것으로 재판정", async () => {
     setTabUrl("chrome://version");
-    const { result } = renderHook(() => useTabSupport(1));
+    const { result } = renderHook(() => useTabUnsupported(1));
     await waitFor(() => expect(result.current).toBe(true));
 
     setTabUrl("https://example.com");
@@ -117,7 +117,7 @@ describe("useTabSupport — 네비게이션 전이", () => {
   // info.url이 redact되어 도착하지 않는다. info.url만 보면 이 방향을 영구히 놓친다.
   it("지원 → 미지원: info.url 없이 info.status만 와도 tabs.get으로 재판정", async () => {
     setTabUrl("https://example.com");
-    const { result } = renderHook(() => useTabSupport(1));
+    const { result } = renderHook(() => useTabUnsupported(1));
     await waitFor(() => expect(result.current).toBe(false));
 
     setTabUrl(undefined);
@@ -129,7 +129,7 @@ describe("useTabSupport — 네비게이션 전이", () => {
 
   it("다른 tabId의 onUpdated는 무시한다", async () => {
     setTabUrl("https://example.com");
-    const { result } = renderHook(() => useTabSupport(1));
+    const { result } = renderHook(() => useTabUnsupported(1));
     await waitFor(() => expect(result.current).toBe(false));
 
     setTabUrl("chrome://version");
@@ -142,7 +142,7 @@ describe("useTabSupport — 네비게이션 전이", () => {
   // url·status가 없는 changeInfo(title·favIconUrl·audible 등)는 URL을 바꾸지 않는다.
   it("url·status 없는 changeInfo는 재조회하지 않는다", async () => {
     setTabUrl("https://example.com");
-    const { result } = renderHook(() => useTabSupport(1));
+    const { result } = renderHook(() => useTabUnsupported(1));
     await waitFor(() => expect(result.current).toBe(false));
     const before = get.mock.calls.length;
 
@@ -157,7 +157,7 @@ describe("useTabSupport — 네비게이션 전이", () => {
   // 최신 판정을 덮으면 지원 페이지에 안내가 굳고, 재판정 트리거가 onUpdated뿐이라 회복 수단이 없다.
   it("늦게 resolve된 옛 응답이 최신 판정을 덮지 않는다", async () => {
     setTabUrl("chrome://version");
-    const { result } = renderHook(() => useTabSupport(1));
+    const { result } = renderHook(() => useTabUnsupported(1));
     await waitFor(() => expect(result.current).toBe(true));
 
     let releaseStale: (tab: chrome.tabs.Tab) => void = () => {};
@@ -184,7 +184,7 @@ describe("useTabSupport — 네비게이션 전이", () => {
 
   it("같은 tabId로 여러 번 발화해도 판정이 idempotent", async () => {
     setTabUrl("https://example.com");
-    const { result } = renderHook(() => useTabSupport(1));
+    const { result } = renderHook(() => useTabUnsupported(1));
     await waitFor(() => expect(result.current).toBe(false));
 
     setTabUrl(undefined);
@@ -197,12 +197,12 @@ describe("useTabSupport — 네비게이션 전이", () => {
   });
 });
 
-describe("useTabSupport — 실패·정리", () => {
+describe("useTabUnsupported — 실패·정리", () => {
   // true를 먼저 만든 뒤 reject를 태운다 — 초기값이 false라 그냥 reject만 보면
   // "catch가 능동적으로 false로 접었다"와 "아무 일도 안 일어났다"를 구별할 수 없다.
   it("chrome.tabs.get이 reject하면 true였던 판정이 false로 접힌다", async () => {
     setTabUrl("chrome://version");
-    const { result } = renderHook(() => useTabSupport(1));
+    const { result } = renderHook(() => useTabUnsupported(1));
     await waitFor(() => expect(result.current).toBe(true));
 
     get.mockImplementation(() => Promise.reject(new Error("No tab with id")));
@@ -214,7 +214,7 @@ describe("useTabSupport — 실패·정리", () => {
 
   it("언마운트 시 onUpdated 리스너를 해제한다", async () => {
     setTabUrl("https://example.com");
-    const { unmount } = renderHook(() => useTabSupport(1));
+    const { unmount } = renderHook(() => useTabUnsupported(1));
     await waitFor(() => expect(listeners.length).toBe(1));
     unmount();
     expect(removeListener).toHaveBeenCalledTimes(1);
@@ -223,7 +223,7 @@ describe("useTabSupport — 실패·정리", () => {
 
   it("언마운트 후 도착한 onUpdated는 상태를 갱신하지 않는다", async () => {
     setTabUrl("https://example.com");
-    const { result, unmount } = renderHook(() => useTabSupport(1));
+    const { result, unmount } = renderHook(() => useTabUnsupported(1));
     await waitFor(() => expect(result.current).toBe(false));
     unmount();
     setTabUrl(undefined);
