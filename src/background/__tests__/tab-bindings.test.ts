@@ -467,3 +467,96 @@ describe("deactivatePanelIfCrossOrigin — 입력 파생", () => {
     expect(c.isActivated()).toBe(false);
   });
 });
+
+// 라우팅 폴백만으로는 부족하다 — refUrl(sidePanel:url:)이 이동마다 갱신되지 않으면 hop 2에서도
+// 여전히 최초 https URL을 보고 prevUrlSupported=true로 판정해 패널을 닫는다.
+describe("deactivatePanelIfCrossOrigin — 활성화 URL 갱신", () => {
+  type UpdatedListener = (
+    tabId: number,
+    info: chrome.tabs.TabChangeInfo,
+    tab: chrome.tabs.Tab,
+  ) => void;
+
+  const TAB = 9;
+  const ACTIVATED_KEY = "sidePanel:activated";
+  const URL_KEY = `sidePanel:url:${TAB}`;
+
+  function armed(refUrl: string) {
+    const store: Record<string, unknown> = { [ACTIVATED_KEY]: [TAB], [URL_KEY]: refUrl };
+    let onUpdated: UpdatedListener = () => {};
+    vi.stubGlobal("chrome", {
+      action: { onClicked: { addListener: vi.fn() } },
+      sidePanel: {
+        setOptions: vi.fn(() => Promise.resolve()),
+        open: vi.fn(() => Promise.resolve()),
+      },
+      storage: {
+        session: {
+          get: vi.fn((k: string) => Promise.resolve(k in store ? { [k]: store[k] } : {})),
+          set: vi.fn((o: Record<string, unknown>) => {
+            Object.assign(store, o);
+            return Promise.resolve();
+          }),
+          remove: vi.fn((k: string) => {
+            delete store[k];
+            return Promise.resolve();
+          }),
+        },
+      },
+      tabs: {
+        get: vi.fn(() => Promise.resolve({ id: TAB } as chrome.tabs.Tab)),
+        sendMessage: vi.fn(() => Promise.resolve()),
+        onActivated: { addListener: vi.fn() },
+        onRemoved: { addListener: vi.fn() },
+        onUpdated: {
+          addListener: (l: UpdatedListener) => {
+            onUpdated = l;
+          },
+        },
+      },
+      windows: { onRemoved: { addListener: vi.fn() } },
+      runtime: { sendMessage: vi.fn(() => Promise.resolve()) },
+    });
+    setupTabBindings();
+    return {
+      navigate: (info: chrome.tabs.TabChangeInfo) =>
+        onUpdated(TAB, { status: "loading", ...info }, {} as chrome.tabs.Tab),
+      activationUrl: () => store[URL_KEY] as string | undefined,
+      isActivated: () => ((store[ACTIVATED_KEY] as number[] | undefined) ?? []).includes(TAB),
+    };
+  }
+
+  const settle = () => new Promise((r) => setTimeout(r, 0));
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("패널을 유지할 때 활성화 URL을 새 URL로 갱신한다", async () => {
+    const c = armed("https://ex.com/page");
+    c.navigate({ url: "chrome://settings" });
+    await settle();
+    expect(c.activationUrl()).toBe("chrome://settings");
+  });
+
+  // 사용자가 실제로 밟은 경로: https → chrome://settings → chrome://downloads.
+  // 두 번째 이동은 activeTab 그랜트가 회수돼 판독 불가다.
+  it("https → chrome:// → chrome:// 연속 이동에서도 패널이 유지된다", async () => {
+    const c = armed("https://ex.com/page");
+    c.navigate({ url: "chrome://settings" });
+    await settle();
+    expect(c.isActivated()).toBe(true);
+
+    c.navigate({}); // 판독 불가
+    await settle();
+    expect(c.isActivated()).toBe(true);
+  });
+
+  it("패널을 닫을 때는 활성화 URL도 지운다 — 재오픈이 stale 값을 물려받지 않게", async () => {
+    const c = armed("https://ex.com/page");
+    c.navigate({ url: "file:///Users/me/x.html" });
+    await settle();
+    expect(c.isActivated()).toBe(false);
+    expect(c.activationUrl()).toBeUndefined();
+  });
+});

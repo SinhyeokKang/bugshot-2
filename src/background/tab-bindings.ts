@@ -167,6 +167,7 @@ async function deactivatePanelIfCrossOrigin(
   newUrl: string | undefined,
 ): Promise<void> {
   const key = sessionKey(tabId);
+  const urlKey = `${ACTIVATION_URL_PREFIX}${tabId}`;
   try {
     const set = await getActivatedSet();
     if (!set.has(tabId)) return;
@@ -176,7 +177,6 @@ async function deactivatePanelIfCrossOrigin(
 
     let refUrl = snap?.target?.url;
     if (!refUrl) {
-      const urlKey = `${ACTIVATION_URL_PREFIX}${tabId}`;
       const urlData = await chrome.storage.session.get(urlKey);
       refUrl = urlData[urlKey] as string | undefined;
     }
@@ -202,10 +202,15 @@ async function deactivatePanelIfCrossOrigin(
       prevUrlSupported: isSupportedUrl(refUrl),
     });
 
+    // 패널을 유지하는 분기에서는 기준 URL을 새 URL로 옮긴다. 안 그러면 다음 이동이 여전히
+    // 최초 URL을 보고 판정한다 — https → chrome:// → chrome:// 에서 두 번째 이동이
+    // prevUrlSupported=true로 읽혀 패널이 닫혔다.
     switch (action) {
       case "keep":
+        if (newUrl) await chrome.storage.session.set({ [urlKey]: newUrl });
         return;
       case "clearSession":
+        if (newUrl) await chrome.storage.session.set({ [urlKey]: newUrl });
         await chrome.storage.session.remove(key);
         return;
       case "notifyDeferredExpiry":
@@ -217,6 +222,9 @@ async function deactivatePanelIfCrossOrigin(
         await setActivated(tabId, false);
         await chrome.sidePanel.setOptions({ tabId, enabled: false });
         await chrome.storage.session.remove(key);
+        // 기준 URL도 지운다 — 남겨두면 미지원 페이지에서 아이콘을 다시 눌러 패널을 열었을 때
+        // activateTab이 URL을 못 읽어 키를 안 쓰므로 stale 값이 그대로 다음 판정에 쓰인다.
+        await chrome.storage.session.remove(urlKey);
         return;
       default:
         action satisfies never;
