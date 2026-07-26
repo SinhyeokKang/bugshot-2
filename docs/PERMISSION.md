@@ -96,7 +96,7 @@ url-support.ts:classifyTabSupport()
 ```
 
 - `picker-control.ts:183` — `ensureSupportedTab()`: 모든 캡처 진입점(picker, area, inline, freeform, video)에서 호출
-- `tab-bindings.ts:150` — `deactivatePanelIfCrossOrigin()`: URL 판독 불가 시 cross-origin으로 간주
+- `tab-bindings.ts:159` — `deactivatePanelIfCrossOrigin()`: URL 판독 불가 시 cross-origin으로 간주하고, 닫을지 유지할지는 **출발지 URL**로 가른다(§ 패널 종료/유지 정책)
 
 #### 2단계: 캡처 시점 에러 매칭 (런타임 가드)
 
@@ -126,7 +126,7 @@ video-capture.ts:isTabCaptureUnavailable()
 
 ### 만료 시 동작
 
-`<all_urls>`가 required라 광역 host 권한은 **항상 보유**한다. 새 URL이 커버 범위(http/https 지원 URL)면 cross-origin도 same-origin처럼 패널 유지 — `<all_urls>`가 captureVisibleTab 캡처 권한을 실제로 주므로 만료 자체가 발생하지 않는다. 아래 두 경로는 **`file:`·미지원 URL 등 비커버 URL로의 이동에만** 적용된다(`<all_urls>`는 file:을 포함하지만 캡처는 별도 "파일 URL 액세스" 토글을 요구해 `isBroadCoveredUrl`이 의도적으로 배제).
+`<all_urls>`가 required라 광역 host 권한은 **항상 보유**한다. 새 URL이 커버 범위(http/https 지원 URL)면 cross-origin도 same-origin처럼 패널 유지 — `<all_urls>`가 captureVisibleTab 캡처 권한을 실제로 주므로 만료 자체가 발생하지 않는다. 아래 경로는 **`file:` 등 비커버 URL로의 이동에만** 적용된다(미지원 URL은 이제 패널을 유지하고 안내를 그린다 — § 패널 종료/유지 정책)(`<all_urls>`는 file:을 포함하지만 캡처는 별도 "파일 URL 액세스" 토글을 요구해 `isBroadCoveredUrl`이 의도적으로 배제).
 
 **즉시 경로 (비보존 상태)**:
 
@@ -254,7 +254,7 @@ background/index.ts:31 — disableGlobalSidePanel()
 |---|---|---|
 | `activateTab()` | `tab-bindings.ts:215` | user gesture → `setOptions({enabled:true})` + `sidePanel.open()` + 활성화 URL 저장(`sidePanel:url:{tabId}`, `tab.url`을 읽을 수 있을 때만). **URL 지원 여부를 보지 않는다** — 미지원 페이지에서도 열고 패널이 안내를 그린다 |
 | `apply()` | `tab-bindings.ts:40` | 탭 전환·URL 변경 시 — **activated면** path 재등록, 아니면 비활성화. 지원 여부는 보지 않는다(보면 방금 연 패널을 다음 `onActivated`가 닫는다) |
-| `deactivatePanelIfCrossOrigin()` | `tab-bindings.ts` | origin 비교 → same-origin 유지, cross-origin은 커버 URL(http/https)이면 유지·비커버(file:)면 닫기/deferred |
+| `deactivatePanelIfCrossOrigin()` | `tab-bindings.ts` | origin 비교 → same-origin 유지, cross-origin은 커버 URL(http/https)이면 유지·판독된 미지원 URL이면 유지(세션만 제거)·비커버 지원 URL(file:)이면 닫기/deferred |
 
 ### sidePanel.open() 호출 조건
 
@@ -278,9 +278,10 @@ tab-bindings.ts:227 — activateTab() 내부
 |---|---|---|
 | same-origin | 보존/비보존 무관 | 패널 유지. 비보존이고 page key 변경 시 stale 세션만 제거 |
 | cross-origin + 커버 URL(http/https 지원 URL) | 보존/비보존 무관 | same-origin과 동일 취급 — 패널 유지, 비보존이면 stale 세션만 제거. deferred 미발생 |
-| cross-origin + 비커버(`file:`) | 비보존 (idle 포함) | 패널 닫기 + `setActivated(false)` + 세션 제거 |
-| cross-origin + 비커버(`file:`) | 보존 (drafting/previewing/done/video) | 패널 유지, `activeTabExpiredDeferred` 메시지 전송 → idle 복귀 시 만료 다이얼로그 |
-| URL 판별 불가 | — | cross-origin·비커버로 간주 → 닫기/deferred 분기 |
+| cross-origin + 비커버 + **판독된 미지원 URL**(`chrome://`·웹스토어) | 비보존 | **패널 유지** + 세션만 제거 — 패널이 "캡처할 수 없습니다" 안내를 그린다 |
+| cross-origin + 비커버 + **판독된 지원 URL**(`file:`) | 비보존 (idle 포함) | 패널 닫기 + `setActivated(false)` + 세션 제거 |
+| cross-origin + 비커버 | 보존 (drafting/previewing/done/video) | 패널 유지, `activeTabExpiredDeferred` 메시지 전송 → idle 복귀 시 만료 다이얼로그 |
+| **URL 판별 불가** | 비보존 | 출발지로 가른다 — 이전 URL이 지원이면 닫기(`file:` 보호), 이미 미지원이면 패널 유지 |
 
 `chrome.permissions.contains` 조회는 제거됐다(`broadGranted=true` 고정). `file:`은 지원 URL이지만 광역 권한 커버 밖(Chrome '파일 URL 액세스' 별도 토글 필요)이라 닫힘/만료 분기를 탄다. 미보유 분기는 프로덕션 도달 불가 — `resolveNavigationAction` 순수함수 테스트의 회귀 자산으로만 남는다.
 
@@ -601,10 +602,14 @@ required 권한이라 설치 시 "모든 사이트의 데이터 읽기/변경"�
   │   → [패널 유지] (same-origin 취급,            │
   │      deferred 미발생 — <all_urls> required)   │
   │                                            │
+  ├─ cross-origin + 비커버 + 미지원 URL + 비보존   │
+  │   → [패널 유지 + 세션 제거]                   │
+  │      (패널이 캡처 불가 안내를 그림)             │
+  │                                            │
   ├─ cross-origin + 비커버(file:) + 비보존        │
   │   → 패널 닫기 ─────────────────────────────┘
   │                                            │
-  └─ cross-origin + 비커버(file:) + 보존         │
+  └─ cross-origin + 비커버 + 보존                │
       → [패널 유지 + deferred 플래그]              │
          │                                      │
          ├─ 캡처 시도 → 3중 방어 → 즉시 다이얼로그  │
