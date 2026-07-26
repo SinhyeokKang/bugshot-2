@@ -121,8 +121,12 @@ docs/                    # 프로젝트 레퍼런스 문서 (루트엔 CLAUDE.md
 guide/                   # 사용자 가이드 소스 (ko/en). bugshot-web docs-portal이 빌드타임에 fetch → bug-shot.com/{locale}/docs로 서빙. guide/{ko,en}/ 각각 SUMMARY.md + README.md + quick-start.md + faq.md + assets/ + 6개 섹션(integrations·settings·element·screenshot·video·logs) 25페이지. 작성 규칙은 guide/AUTHORING.md
 scripts/                 # 저장소 유지보수 스크립트 (빌드 파이프라인 밖)
 ├── sync-agents.mjs   # Codex 미러 생성기 — CLAUDE.md→AGENTS.md(.agents/PREAMBLE.md 프리펜드) + .claude/commands/*.md→.agents/skills/source-command-*/SKILL.md. 본문 무치환 복제, 고아 미러 삭제, `--check`로 드리프트만 검출(exit 1). `pnpm sync:agents` / PostToolUse 훅 / `/push` 게이트가 호출
+├── check-prearm-chunk.mjs  # pre-arm 청크 형태 검사 — 빌드 산출물의 manifest에서 recorders-entry 항목을 찾아 world=MAIN·run_at=document_start·loader 미강등·IIFE 시작·잔여 static import 0을 대조(exit 1). recorders-entry에 외부 static import가 유입되면 crxjs가 async loader로 되돌아가 pre-arm 버퍼링이 조용히 죽는데 typecheck·유닛이 못 잡는다(행동 검증은 e2e/logs-prearm.spec.ts지만 CI에 없음). `pnpm check:prearm` / CI가 호출
 └── coverage-report.mjs  # 커버리지 리포트·트렌드 비교기 — coverage/coverage-summary.json(vitest v8) 읽어 로직 스코프(isBrowserBound() 단일 출처로 브라우저/UI 코드 제외) vs 전체 두 지표 계산 + git-tracked coverage/baseline.json 대비 이전→지금 비교·회귀 래칫·개선 후보 랭킹. `--update`로 베이스라인 갱신. `pnpm coverage:report`/`coverage:update` / `/coverage` 스킬이 호출
 coverage/                # 커버리지 산출물 — 리포트 본체는 .gitignore, baseline.json(트렌드 기준선)만 git-tracked
+.github/workflows/       # GitHub Actions
+├── ci.yml            # dev push·main PR — typecheck → sync:agents:check → test → build → check:prearm. 브라우저·시크릿 없이 결정적. e2e는 headed 강제(headless에서 확장 SW 미기동)라 제외 — 로컬 /e2e-run 게이트가 담당
+└── trigger-web-deploy.yml  # main의 privacy/guide 변경 시 bugshot-web 배포 훅 호출
 .agents/                 # Codex 런타임 미러 (전부 생성물 — PREAMBLE.md만 수기)
 ├── PREAMBLE.md       # AGENTS.md 상단에 붙는 Codex 런타임 차이 (스킬 매핑·미제공 스킬·훅 부재·커밋 트레일러)
 └── skills/           # .claude/commands/ 미러 15개 (push·merge·deploy·sync 제외)

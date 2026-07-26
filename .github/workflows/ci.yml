@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+    branches: [dev]
+  pull_request:
+    branches: [main]
+
+# 같은 ref로 연달아 푸시하면 이전 런은 취소 — 러너 시간 절약.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    # 유닛 ~20s + 빌드 ~10s. 넉넉히 잡되 무한 대기는 막는다.
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      # pnpm 버전은 package.json의 packageManager 필드에서 가져온다(단일 출처).
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      # lockfile 고정 — pnpm-workspace.yaml의 minimumReleaseAge는 신규 resolve에만
+      # 걸리므로 frozen 설치에는 영향이 없다.
+      - run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      # Codex 미러(AGENTS.md·.agents/skills/)는 CLAUDE.md·.claude/commands/에서 생성된다.
+      # 로컬 훅은 Claude Code 전용이라 Codex 세션에선 안 돌고, /push 게이트도 로컬 한정 —
+      # 드리프트를 잡는 유일한 공용 그물이 여기다.
+      - name: Codex mirror drift
+        run: pnpm sync:agents:check
+
+      - name: Unit + DOM tests
+        run: pnpm test
+
+      # e2e는 여기서 안 돈다(확장 SW가 headless에서 안 깨어나 headed 강제 + workers:1,
+      # retries:0). 대신 pre-arm의 **구조적** 전제만 빌드 산출물로 검증한다 —
+      # recorders-entry가 async loader로 강등되면 로드 초반 로그가 조용히 사라지는데,
+      # typecheck도 유닛도 그걸 못 잡고 행동 검증(e2e/logs-prearm.spec.ts)은 여기 없다.
+      - name: Build
+        run: pnpm build
+
+      - name: Pre-arm chunk shape
+        run: node scripts/check-prearm-chunk.mjs dist

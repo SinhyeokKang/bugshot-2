@@ -3,6 +3,7 @@
   "private": true,
   "version": "1.6.17",
   "license": "MIT",
+  "packageManager": "pnpm@10.33.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -19,7 +20,8 @@
     "coverage:report": "node scripts/coverage-report.mjs",
     "coverage:update": "node scripts/coverage-report.mjs --update",
     "sync:agents": "node scripts/sync-agents.mjs",
-    "sync:agents:check": "node scripts/sync-agents.mjs --check"
+    "sync:agents:check": "node scripts/sync-agents.mjs --check",
+    "check:prearm": "node scripts/check-prearm-chunk.mjs"
   },
   "dependencies": {
     "@codemirror/autocomplete": "6.20.3",

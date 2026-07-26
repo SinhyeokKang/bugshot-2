@@ -51,6 +51,15 @@ bugshot-2: Chrome MV3 Side Panel 버그 리포팅 확장. 웹 페이지의 버�
 | 커버리지 측정 | `pnpm test:coverage` (vitest v8 → `coverage/coverage-summary.json`) |
 | 커버리지 리포트·비교 | `pnpm coverage:report` (베이스라인 대비 이전→지금 비교. 갱신: `pnpm coverage:update`) — `/coverage` 스킬이 래핑 |
 | Codex 미러 동기화 | `pnpm sync:agents` (드리프트 검사만: `pnpm sync:agents:check`) |
+| pre-arm 청크 검사 | `pnpm check:prearm` (빌드 후 `dist` 검사. `pnpm check:prearm dist-e2e`도 가능) |
+
+### CI (GitHub Actions)
+
+`.github/workflows/ci.yml` — dev push · main PR에서 **typecheck → sync:agents:check → test → build → check:prearm** 순으로 돈다. 전부 브라우저·시크릿 없이 결정적이다.
+
+**e2e는 CI에서 안 돈다.** 확장 SW가 headless에서 안 깨어나 `headless: false`가 강제고(`e2e/fixtures/extension.ts`), `workers: 1`·`retries: 0`이라 63개를 직렬로 돌리면서 환경 flaky 하나가 곧바로 빨간 배지가 된다. 로컬 게이트(`/e2e-run` → `e2e/.last-green` → `/push` 검사)가 그 역할을 한다 — 단 **`.last-green`은 gitignore라 머신 로컬**이므로 외부 PR에는 적용되지 않는다. 외부 기여를 받기 시작하면 nightly·수동 트리거 e2e 잡을 추가한다.
+
+`build` + `check:prearm` 스텝이 CI에 있는 이유: `recorders-entry`가 async loader로 강등되는 회귀는 typecheck도 유닛도 못 잡고, 유일한 행동 검증(`e2e/logs-prearm.spec.ts`)이 CI에 없다. `scripts/check-prearm-chunk.mjs`가 manifest의 `world`/`run_at`·loader 여부·IIFE 시작·잔여 static import를 대조해 구조만 확인한다.
 
 **빌드는 자동 실행하지 않는다.** 사용자가 명시적으로 요청하거나 `/build` 스킬을 실행할 때만 돌린다. 타입 확인이 필요하면 `pnpm typecheck` 선호. 예외: `build:e2e`(dist-e2e)는 `/e2e-write`·`/e2e-run`·`/push`/`/merge` e2e 게이트에서 실행 허용 — 배포 산출물(dist)과 분리돼 있다.
 
