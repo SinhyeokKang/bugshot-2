@@ -99,7 +99,7 @@ The extension collects anonymous aggregate events to improve the product (effect
 | Information | When collected | Purpose |
 |---|---|---|
 | Install (extension_installed, extension version) | On new install | Understanding install scale and version distribution |
-| Side panel opened (sidepanel_opened) | When the side panel is opened | Understanding activation level |
+| Side panel opened (sidepanel_opened: whether the page is supported) | When the side panel is opened | Understanding activation level |
 | Platform connect (platform_connect: platform, success/cancel/failure) | On an OAuth connection attempt | Understanding per-platform popularity and connect success/cancel/failure rates |
 | Platform disconnected (platform_disconnected: platform) | On disconnect | Understanding integration churn |
 | Issue submitted (issue_submitted: platform, capture mode, submission result, replay-trim flag) | On issue submission | Understanding per-platform usage, capture-method priority, submission success/failure rates, and 30-second replay trimming usage |
