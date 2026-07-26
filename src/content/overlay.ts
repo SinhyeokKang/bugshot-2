@@ -66,10 +66,12 @@ const OVERLAY_CSS = `
     white-space: nowrap;
   }
   .picker-label[data-mode="inspector"] {
+    /* globals.css :root 실값과 일치시킨다 — content script라 CSS 변수를 import할 수 없어
+       사본은 불가피하지만 값이 갈리면 인스펙터 카드만 다른 색이 된다(tokens.test.ts가 대조). */
     --popover: hsl(0 0% 100%);
-    --popover-foreground: hsl(224 71.4% 4.1%);
-    --muted-foreground: hsl(220 8.9% 46.1%);
-    --border: hsl(220 13% 91%);
+    --popover-foreground: hsl(222.2 84% 4.9%);
+    --muted-foreground: hsl(215.4 16.3% 46.9%);
+    --border: hsl(214.3 31.8% 91.4%);
     background: var(--popover);
     color: var(--popover-foreground);
     border: 1px solid var(--border);
@@ -147,14 +149,15 @@ const OVERLAY_CSS = `
   }
   @media (prefers-color-scheme: dark) {
     .picker-label[data-mode="inspector"] {
-      --popover: hsl(224 71.4% 4.1%);
-      --popover-foreground: hsl(210 20% 98%);
-      --muted-foreground: hsl(217.9 10.6% 64.9%);
-      --border: hsl(215 27.9% 16.9%);
+      /* 다크는 neutral(채도 0) — DESIGN §2. globals.css .dark 실값. */
+      --popover: hsl(0 0% 3.9%);
+      --popover-foreground: hsl(0 0% 98%);
+      --muted-foreground: hsl(0 0% 63.9%);
+      --border: hsl(0 0% 14.9%);
     }
   }
   .box-label {
-    font: 10px/1 Pretendard, -apple-system, BlinkMacSystemFont, sans-serif;
+    font: 10px/1 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     pointer-events: none;
   }
   .box-label-margin { fill: #b45309; }

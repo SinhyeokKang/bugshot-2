@@ -229,7 +229,7 @@ export function JiraConnectFlow({ connected, onConnected }: ConnectFlowProps) {
   );
 }
 
-function JiraSiteDialog({
+export function JiraSiteDialog({
   open,
   onOpenChange,
   sites,
@@ -255,9 +255,10 @@ function JiraSiteDialog({
             <Button
               key={site.id}
               variant="outline"
-              disabled={connecting}
-              onClick={() => onSelect(site)}
-              className="h-auto justify-start gap-2 px-3 py-2 text-xs"
+              // 8개 폼 공통 패턴 — aria-disabled는 클릭이 실제로 들어오므로 핸들러 가드가 짝이다.
+              aria-disabled={connecting}
+              onClick={() => { if (connecting) return; onSelect(site); }}
+              className="h-auto justify-start gap-2 px-3 py-2 text-xs aria-disabled:cursor-not-allowed"
             >
               {site.avatarUrl ? (
                 <img src={site.avatarUrl} alt="" className="h-6 w-6 rounded" />

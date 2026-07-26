@@ -7,6 +7,23 @@ import { describe, expect, it } from "vitest";
 const GLOBALS = resolve(__dirname, "../globals.css");
 const LOG_VIEWER = resolve(__dirname, "../../log-viewer/styles.css");
 const TAILWIND_CONFIG = resolve(__dirname, "../../../tailwind.config.js");
+// 세 번째 사본: picker 인스펙터 카드. content script는 CSS 변수를 import할 수 없어 overlay.ts의
+// CSS 문자열 안에 hsl() 리터럴로 복제돼 있다 — 사본 자체는 불가피하니 값만 대조해 잠근다.
+const OVERLAY = resolve(__dirname, "../../content/overlay.ts");
+
+// overlay.ts의 `--x: hsl(a b% c%);` 리터럴을 globals.css와 같은 `a b% c%` 표기로 되돌린다.
+function parseOverlayTokens(scope: "light" | "dark"): Record<string, string> {
+  const src = readFileSync(OVERLAY, "utf8");
+  const darkStart = src.indexOf("@media (prefers-color-scheme: dark)");
+  if (darkStart === -1) throw new Error("overlay.ts에 다크 미디어쿼리가 없다");
+  const region = scope === "dark" ? src.slice(darkStart) : src.slice(0, darkStart);
+  const start = region.indexOf('.picker-label[data-mode="inspector"]');
+  if (start === -1) throw new Error(`overlay.ts ${scope} 인스펙터 블록이 없다`);
+  const body = region.slice(start, region.indexOf("}", start));
+  const out: Record<string, string> = {};
+  for (const m of body.matchAll(/--([\w-]+):\s*hsl\(([^)]+)\);/g)) out[m[1]] = m[2].trim();
+  return out;
+}
 
 function parseTokens(path: string, selector: string): Record<string, string> {
   const css = readFileSync(path, "utf8");
@@ -123,6 +140,28 @@ describe("디자인 토큰 표", () => {
   // 테마별로 base가 다른 건 의도다(라이트=slate 틴트 / 다크=neutral 무채색) — 같은 채도가
   // 고명도에선 "맑음", 저명도에선 배경을 남색으로 물들여 "칙칙함"으로 읽히기 때문.
   // 표만 보면 갈린 게 실수처럼 보여 "일관성" 명목으로 한쪽을 밀기 쉬워서, 여기서 양방향으로 막는다.
+  // 세 번째 사본이 조용히 drift해 인스펙터 카드만 다른 색(라이트 popover-foreground 224 71.4%
+  // 4.1%, 다크 border 채도 27.9%)으로 떠 있었다 — 두 표만 대조하던 그물의 사각지대.
+  describe("세 번째 사본 (content/overlay.ts 인스펙터 카드)", () => {
+    it("라이트 인스펙터 토큰이 globals.css :root와 같다", () => {
+      const light = parseTokens(GLOBALS, ":root");
+      const overlay = parseOverlayTokens("light");
+      expect(Object.keys(overlay).length).toBeGreaterThan(0);
+      for (const [name, value] of Object.entries(overlay)) {
+        expect([name, value]).toEqual([name, light[name]]);
+      }
+    });
+
+    it("다크 인스펙터 토큰이 globals.css .dark와 같다", () => {
+      const dark = parseTokens(GLOBALS, ".dark");
+      const overlay = parseOverlayTokens("dark");
+      expect(Object.keys(overlay).length).toBeGreaterThan(0);
+      for (const [name, value] of Object.entries(overlay)) {
+        expect([name, value]).toEqual([name, dark[name]]);
+      }
+    });
+  });
+
   describe("테마별 base 비대칭 (라이트=slate / 다크=neutral)", () => {
     it("라이트 회색 토큰은 틴트를 유지한다 (순백 표면은 틴트 여지가 없어 제외)", () => {
       const flattened = grayTokens(parseTokens(GLOBALS, ":root"))

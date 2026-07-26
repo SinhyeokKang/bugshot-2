@@ -35,6 +35,9 @@ export const OAUTH_CONFIG = {
       "user_cancelled_login",
       "user_cancelled_authorize",
     ]),
+    // 선례는 `{platform}.oauth.notConfigured*`다(나머지 6개). jira·github만 `oauth.error.*`
+    // 하위에 남아 있는데, 전부 정상 resolve되고 리네임은 i18n ko/en 동시 갱신 churn만 낳는다 —
+    // 9번째 플랫폼을 추가할 땐 이 두 개가 아니라 다수 선례를 따른다.
     notConfiguredClientKey: "oauth.error.notConfiguredClient",
     notConfiguredProxyKey: "oauth.error.notConfiguredProxy",
   },
