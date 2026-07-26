@@ -1,5 +1,5 @@
 ---
-description: 원격 푸시 전 상태 점검 + CLAUDE.md/docs/DIRECTORY.md/docs/ARCHITECTURE.md/README.md/docs/PERMISSION.md/docs/privacy.{ko,en}.md/guide/ 신선도 확인 + Codex 미러 게이트 + 푸시
+description: 원격 푸시 전 상태 점검 + CLAUDE.md/docs/DIRECTORY.md/docs/ARCHITECTURE.md/README.{md,ko.md}/docs/PERMISSION.md/docs/privacy.{ko,en}.md/guide/ 신선도 확인 + Codex 미러 게이트 + 푸시
 ---
 
 원격(`origin`)에 현재 브랜치를 안전하게 푸시한다. 푸시 전에 저장소 문서의 신선도를 점검하고 필요시 업데이트까지 커밋한다.
@@ -45,7 +45,7 @@ description: 원격 푸시 전 상태 점검 + CLAUDE.md/docs/DIRECTORY.md/docs/
    - **CLAUDE.md** — 코드 컨벤션, 게이트웨이, 워크플로우 등 해당 섹션이 최신인지 확인
    - **docs/DIRECTORY.md** — 디렉터리 구조·파일별 역할이 현재 코드베이스와 일치하는지 확인
    - **docs/ARCHITECTURE.md** — Side Panel 탭 스코프, 세션 영속화, 인증 플로우, 어댑터 패턴, 토큰 체인, CSSOM 캐시, DOM lazy load, 이슈 섹션 구성, 마이그레이션 등 설계 상세가 최신인지 확인
-   - **README.md** — 기능 목록, 설치/사용법, 스크린샷 설명 등이 현재 코드와 맞는지 확인
+   - **README.{md,ko.md}** — 기능 목록, 설치/사용법, 스크린샷 설명, 아키텍처·개인정보 섹션이 현재 코드와 맞는지 확인. **en(`README.md`)이 원본, ko(`README.ko.md`)가 번역이라 내용이 항상 같아야 한다 — 한쪽을 고치면 반드시 다른 쪽도 같은 커밋에서 함께 고친다**(한쪽만 고치면 즉시 stale). 섹션 구성(헤딩 순서·개수)도 대칭을 유지한다. ko는 링크를 한국어 리소스로 돌린다(`docs/privacy.ko.md`, `bug-shot.com/ko/…`, 히어로는 `guide/ko/assets/`) — 이건 대칭 위반이 아니라 의도된 로케일 차이다.
    - **docs/PERMISSION.md** — Chrome 권한 전체 레퍼런스(activeTab 라이프사이클, OAuth 토큰 흐름, optional permission 등)가 현재 manifest·코드와 일치하는지 확인. 권한 추가/삭제, 사용처 변경, 새 API 호출 추가 시 갱신
    - **docs/privacy.{ko,en}.md** — 권한·호스트 권한·수집 정보·외부 전송 대상·저장 방식이 현재 매니페스트·**코드 동작**과 일치하는지 확인. 매니페스트뿐 아니라 캡처/수집/전송 *동작*까지 본다. **ko가 원본, en은 번역이라 내용이 항상 같아야 한다 — 갱신 시 ko/en 양쪽 본문과 상단 시행일을 오늘 날짜로 함께 갱신**한다(한쪽만 고치면 en이 stale).
    - **guide/** — 사용자 노출 UX·기능 변경 시 `guide/ko`·`guide/en`(사용 가이드, ko/en 양쪽)이 현재 동작과 맞는지 대조. **작성·수정에 들어가기 전 `guide/AUTHORING.md`를 먼저 읽어 IA·톤·UI 라벨·footer·검증 규칙을 그대로 따른다** (가이드 작업의 단일 출처). **변경 규모가 크면(여러 페이지·IA 변경) 여기서 직접 쓰지 말고 `/guide` 스킬로 분리**하고, 작은 문구 수정만 인라인 처리. 커밋 prefix `docs(guide): ...`

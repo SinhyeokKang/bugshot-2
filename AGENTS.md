@@ -132,7 +132,7 @@ pnpm version major --no-git-tag-version   # 1.0.0 → 2.0.0 (Breaking change)
 /postmortem     → 직전에 잡은 버그/회귀를 docs/POSTMORTEM.md에 회고 항목으로 추가 (비자명 함정만, 재발방지 grep/전수 대상 명시). 코드·빌드·커밋 안 함
 /guide          → guide/ko·en 사용자 가이드 작성·갱신. AUTHORING.md 규칙 로드 → 코드 대조 stale 탐지 → ko/en 동시 갱신 + 검증. 빌드·커밋 안 함
 /doc-check      → 8개 저장소 문서(CLAUDE/DIRECTORY/ARCHITECTURE/DESIGN/README/PERMISSION/privacy/AUTHORING)를 문서별 전담 에이전트가 병렬로 diff 무관 코드 양방향 대조(Pass1 문서→코드 사실오류 + Pass2 코드→문서 누락 커버리지) → 통합 리포트 → 항목별 확인 → 수정. /push 신선도 검사보다 깊다(diff에 안 걸린 누적 stale·섹션 내부 누락까지). guide/ko·en 본문은 제외(/guide 전담, AUTHORING은 검사). 빌드 안 함
-/push           → dev push (main에서 호출 차단) + CLAUDE.md/docs/DIRECTORY.md/docs/ARCHITECTURE.md/README.md/docs/PERMISSION.md/docs/privacy.{ko,en}.md/guide(+AUTHORING.md) 신선도 검사 + Codex 미러 게이트(sync:agents:check — 드리프트면 재생성 커밋) + e2e 게이트(.last-green == HEAD면 스킵 / 빨강이면 푸시 중단)
+/push           → dev push (main에서 호출 차단) + CLAUDE.md/docs/DIRECTORY.md/docs/ARCHITECTURE.md/README.{md,ko.md}/docs/PERMISSION.md/docs/privacy.{ko,en}.md/guide(+AUTHORING.md) 신선도 검사 + Codex 미러 게이트(sync:agents:check — 드리프트면 재생성 커밋) + e2e 게이트(.last-green == HEAD면 스킵 / 빨강이면 푸시 중단)
 /merge          → dev에서 e2e 게이트 교차(통상 /push 기록 해시로 스킵 / 빨강이면 중단) → 커버리지 리포트(로직 스코프 vs 베이스라인, 비차단 — 회귀 경고만·개선 시 baseline 자동 래칫 커밋) → 버전 bump 커밋 + dev → main squash PR 생성 + 자동 머지
 /deploy         → main 한정. tag push → 스토어 빌드 → zip → GitHub Release draft → 심사 요청 안내
 /sync           → dev를 origin/main으로 hard reset + force push (배포/머지 후)
@@ -145,14 +145,14 @@ pnpm version major --no-git-tag-version   # 1.0.0 → 2.0.0 (Breaking change)
 
 ### 문서 신선도
 
-`/push`는 항상 CLAUDE.md / docs/DIRECTORY.md / docs/ARCHITECTURE.md / README.md / docs/PERMISSION.md / docs/privacy.{ko,en}.md / guide/ (`guide/AUTHORING.md` 포함) 신선도 검사를 거친다 — 단, **푸시될 diff에 걸린 문서만** 트라이아지하는 2차 안전망이다. diff와 무관하게 누적된 stale(예: 오래 방치된 docs/ARCHITECTURE.md 섹션)을 잡으려면 `/doc-check`로 8개 문서 전문을 코드와 직접 대조한다. 아래 중 하나라도 해당하면 문서 갱신을 별도 커밋(`docs(CLAUDE): ...` / `docs(DIRECTORY): ...` / `docs(ARCHITECTURE): ...` / `docs(README): ...` / `docs(PERMISSION): ...` / `docs(privacy): ...` / `docs(guide): ...`)으로 묶어 함께 푸시:
+`/push`는 항상 CLAUDE.md / docs/DIRECTORY.md / docs/ARCHITECTURE.md / README.{md,ko.md} / docs/PERMISSION.md / docs/privacy.{ko,en}.md / guide/ (`guide/AUTHORING.md` 포함) 신선도 검사를 거친다 — 단, **푸시될 diff에 걸린 문서만** 트라이아지하는 2차 안전망이다. diff와 무관하게 누적된 stale(예: 오래 방치된 docs/ARCHITECTURE.md 섹션)을 잡으려면 `/doc-check`로 8개 문서 전문을 코드와 직접 대조한다. 아래 중 하나라도 해당하면 문서 갱신을 별도 커밋(`docs(CLAUDE): ...` / `docs(DIRECTORY): ...` / `docs(ARCHITECTURE): ...` / `docs(README): ...` / `docs(PERMISSION): ...` / `docs(privacy): ...` / `docs(guide): ...`)으로 묶어 함께 푸시:
 
 - 새 디렉터리·파일 추가/삭제 (특히 `src/` 하위 구조 변화)
 - `package.json` scripts 변경
 - `manifest.config.ts` 변경 (권한·명령어·스킴)
 - 새 하위 시스템·아키텍처 핵심 파일 큰 변경
 - 새 컨벤션·게이트웨이 도입
-- 기능 추가/삭제로 README의 사용법·기능 설명이 어긋남
+- 기능 추가/삭제로 README의 사용법·기능 설명이 어긋남 → **`README.md`(en 원본)와 `README.ko.md`(ko 번역)는 항상 같은 내용을 담아야 하므로 양쪽을 같은 커밋에서 함께 갱신**한다(한쪽만 고치면 즉시 stale). 섹션 구성도 대칭 유지. ko가 링크를 한국어 리소스(`docs/privacy.ko.md`·`bug-shot.com/ko/…`·`guide/ko/assets/`)로 돌리는 것은 의도된 로케일 차이다.
 - 사용자 노출 UX·기능 추가/변경 → `guide/ko`·`guide/en`(사용 가이드, ko/en 양쪽) 대조·갱신 (`docs(guide): ...`). **가이드 작성·수정 전 `guide/AUTHORING.md`를 먼저 읽고 그 규칙(IA·톤·UI 라벨·footer·검증)대로 한다 — 가이드 작업의 단일 출처.**
 - 가이드 작성 기준 자체(IA·운영 방식·톤·UI 라벨 규칙·사실 스냅샷·플랫폼 표·지원 플랫폼)가 바뀜 → `guide/AUTHORING.md` 대조·갱신 (`docs(guide): ...`). 새 플랫폼 연동·단축키/로그 정책/본문 섹션 변경·새 페이지 추가가 트리거.
 - 워크플로우/스킬 라인업 변경
