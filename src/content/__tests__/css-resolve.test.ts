@@ -415,10 +415,43 @@ describe("resolveVarChain", () => {
     );
   });
 
-  it("fallback var: primary 없고 fallback이 public이면 보존", () => {
+  // public 토큰은 여전히 이름으로 보존하되, **실효 토큰의 이름**으로 좁힌다. 원문을 그대로
+  // 돌려주면 firstVarName·extractTokenRefs가 죽은 변수(--missing)만 노출한다.
+  it("fallback var: primary 없고 fallback이 public이면 실효 토큰 이름으로 좁힌다", () => {
     const props = { "--spacing-4": "16px" };
     const result = resolveVarChain("var(--missing, var(--spacing-4))", props);
-    expect(result).toBe("var(--missing, var(--spacing-4))");
+    expect(result).toBe("var(--spacing-4)");
+  });
+
+  it("fallback 체인 전체가 미정의면 원문 보존", () => {
+    expect(resolveVarChain("var(--missing, var(--also-missing))", {})).toBe(
+      "var(--missing, var(--also-missing))",
+    );
+  });
+
+  // 2단 이상 중첩 fallback. 정규식 `[^)]*`가 닫는 괄호를 못 먹어 1단에서만 동작했다.
+  it("2단 중첩 fallback의 private alias를 리터럴까지 펼친다", () => {
+    const props = { "--_ink": "#111" };
+    expect(resolveVarChain("var(--a, var(--b, var(--_ink)))", props)).toBe("#111");
+  });
+
+  it("3단 중첩 fallback도 끝까지 따라간다", () => {
+    const props = { "--_ink": "#111" };
+    expect(
+      resolveVarChain("var(--a, var(--b, var(--c, var(--_ink))))", props),
+    ).toBe("#111");
+  });
+
+  it("중첩 fallback 중간에 정의된 값이 있으면 거기서 멈춘다", () => {
+    const props = { "--_mid": "4px", "--_ink": "#111" };
+    expect(resolveVarChain("var(--a, var(--_mid, var(--_ink)))", props)).toBe("4px");
+  });
+
+  it("중첩 fallback이 public 토큰이면 그 이름으로 좁힌다", () => {
+    const props = { "--spacing-4": "16px" };
+    expect(
+      resolveVarChain("var(--a, var(--b, var(--spacing-4)))", props),
+    ).toBe("var(--spacing-4)");
   });
 
   it("복수 var가 있는 값", () => {

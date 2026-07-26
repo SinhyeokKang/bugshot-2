@@ -19,6 +19,10 @@ let loadPromise: Promise<void> | null = null;
 let isReady = false;
 let observer: MutationObserver | null = null;
 let observerDebounce: number | null = null;
+// 진행 중인 로드는 취소할 수 없다. invalidate가 에폭을 올리면 그 전에 시작한 로드는 늦게
+// 도착하더라도 결과를 버린다 — 안 그러면 비워진 캐시 위에 isReady만 켜지거나(패널 열기→즉시
+// 닫기→재오픈에서 raw 캐시가 빈 채 확정), cross-origin seq가 0부터 중복 발급돼 last-wins가 깨진다.
+let epoch = 0;
 
 interface IndexedRule {
   rule: CSSStyleRule;
@@ -50,10 +54,17 @@ function dlog(...args: unknown[]): void {
 
 export function ensureLoaded(): Promise<void> {
   if (loadPromise) return loadPromise;
-  loadPromise = loadAll().then(() => {
+  const started = epoch;
+  loadPromise = loadAll(started).then(() => {
+    if (isStaleLoad(started)) return;
     isReady = true;
   });
   return loadPromise;
+}
+
+// 로드 시작 시점의 에폭이 아직 유효한지. 로드가 여러 await를 건너다니므로 저장 직전마다 묻는다.
+function isStaleLoad(startedEpoch: number): boolean {
+  return startedEpoch !== epoch;
 }
 
 export function isCacheReady(): boolean {
@@ -67,6 +78,7 @@ export function getRawDeclarationsFor(
 }
 
 export function invalidate(): void {
+  epoch++;
   ruleToRaw.clear();
   loadPromise = null;
   isReady = false;
@@ -333,6 +345,14 @@ function skipBracket(s: string, i: number): number {
   return i;
 }
 
+// 재로드는 raw 캐시만 갱신한다. 그 위에 얹힌 소비처 캐시(picker의 tokenLookup·inspectorCache)는
+// 여전히 주입 이전 시트로 굳어 있으므로 재로드 완료를 알려 함께 무효화시킨다.
+let onReloaded: (() => void) | null = null;
+
+export function setOnCacheReloaded(cb: (() => void) | null): void {
+  onReloaded = cb;
+}
+
 export function startObserver(): void {
   if (observer) return;
   observer = new MutationObserver((muts) => {
@@ -341,7 +361,7 @@ export function startObserver(): void {
     observerDebounce = window.setTimeout(() => {
       observerDebounce = null;
       invalidate();
-      void ensureLoaded();
+      void ensureLoaded().then(() => onReloaded?.());
     }, 200);
   });
   // head만 관찰 — 99% stylesheet은 head에 추가됨. body 변경 폭증 사이트(SPA)에서 콜백 폭증 회피.
@@ -377,12 +397,12 @@ function isRelevant(muts: MutationRecord[]): boolean {
 
 /* ── load ────────────────────────────────────────── */
 
-async function loadAll(): Promise<void> {
+async function loadAll(startedEpoch: number): Promise<void> {
   const sheets = collectAllSheets();
   dlog("loadAll start", { sheetCount: sheets.length });
   await Promise.all(
     sheets.map((sheet, i) =>
-      loadSheet(sheet).catch((err) => dlog("loadSheet error", { i, err })),
+      loadSheet(sheet, startedEpoch).catch((err) => dlog("loadSheet error", { i, err })),
     ),
   );
   dlog("loadAll done", { mappedRules: ruleToRaw.size });
@@ -396,7 +416,7 @@ function collectAllSheets(): CSSStyleSheet[] {
   return [...regular, ...adopted];
 }
 
-async function loadSheet(sheet: CSSStyleSheet): Promise<void> {
+async function loadSheet(sheet: CSSStyleSheet, startedEpoch: number): Promise<void> {
   const owner = sheet.ownerNode;
   let text: string | null = null;
   let kind = "unknown";
@@ -413,6 +433,10 @@ async function loadSheet(sheet: CSSStyleSheet): Promise<void> {
   }
   if (text == null) {
     dlog("skip — no text", { kind, href: sheet.href });
+    return;
+  }
+  if (isStaleLoad(startedEpoch)) {
+    dlog("drop — invalidated mid-load", { kind, href: sheet.href });
     return;
   }
   alignAndStore(sheet, text, kind);
@@ -843,11 +867,11 @@ export function indexCrossOriginRules(
 // content(ISOLATED)는 cross-origin sheet fetch 불가 → background 위임. 멱등(픽커 세션 1회 배치).
 export function ensureCrossOriginLoaded(): Promise<void> {
   if (crossLoadPromise) return crossLoadPromise;
-  crossLoadPromise = loadCrossOrigin();
+  crossLoadPromise = loadCrossOrigin(epoch);
   return crossLoadPromise;
 }
 
-async function loadCrossOrigin(): Promise<void> {
+async function loadCrossOrigin(startedEpoch: number): Promise<void> {
   const urls = collectCrossOriginHrefs();
   if (urls.length === 0) return;
   let sheets: Array<{ url: string; text: string }>;
@@ -860,6 +884,9 @@ async function loadCrossOrigin(): Promise<void> {
   } catch {
     return;
   }
+  // invalidate가 crossOriginRules를 비운 뒤라면 seq가 0부터 다시 발급돼 sort 동점에서
+  // last-wins가 깨진다 — 옛 로드의 결과는 통째로 버린다.
+  if (isStaleLoad(startedEpoch)) return;
   let seq = crossOriginRules.length;
   for (const sheet of sheets) {
     const parsed: ParsedRule[] = [];

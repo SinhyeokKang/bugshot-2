@@ -77,6 +77,7 @@ import {
   isCacheReady as isCssCacheReady,
   startObserver as startCssCacheObserver,
   stopObserver as stopCssCacheObserver,
+  setOnCacheReloaded,
 } from "./css-source-cache";
 
 type Mode = "idle" | "hover" | "selected" | "area-select";
@@ -443,6 +444,9 @@ function handleStart(frameToken?: string): void {
   selectedEl = null;
   lastHover = null;
   tokenLookup = null;
+  // 시트가 뒤늦게 주입·교체되면(다크모드 토글·SPA 라우트) raw 캐시만 갱신되고 토큰 표는
+  // 옛 시트로 굳는다 — 재로드 완료마다 다시 세운다.
+  setOnCacheReloaded(scheduleTokenBuild);
   startCssCacheObserver();
   void ensureCssCacheLoaded();
   scheduleTokenBuild();
@@ -488,6 +492,7 @@ function handleClear(): void {
   frameOffsetArmCount = 0;
   // 세션 종료 후 옛 token PRESENT가 계속 등록되지 않게 top 검증 상태도 함께 리셋.
   setFrameToken(null);
+  setOnCacheReloaded(null);
   stopCssCacheObserver();
   invalidateCssCache();
 }
