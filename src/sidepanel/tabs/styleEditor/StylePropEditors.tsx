@@ -20,6 +20,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { FieldRow } from "@/sidepanel/components/FieldRow";
 import { cn } from "@/lib/utils";
 import { useEditorStore, type EditorSelection } from "@/store/editor-store";
 import { useBoundTabId } from "@/sidepanel/hooks/useBoundTabId";
@@ -212,16 +213,14 @@ function PropRow({
   children: React.ReactNode;
 }) {
   const t = useT();
+  // 공용 FieldRow에 위임 — 이 컴포넌트가 더하는 건 source 툴팁뿐이다(DESIGN §12).
   return (
-    <div className="flex flex-col gap-1.5">
-      <label
-        className="text-xs text-muted-foreground"
-        title={source ? t("prop.source", { value: source }) : undefined}
-      >
-        {label}
-      </label>
+    <FieldRow
+      label={label}
+      labelTitle={source ? t("prop.source", { value: source }) : undefined}
+    >
       {children}
-    </div>
+    </FieldRow>
   );
 }
 

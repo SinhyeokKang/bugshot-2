@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { migrateIssueToV4 } from "../issues-migrations";
 import type { PlatformId } from "@/types/platform";
 
@@ -34,9 +34,16 @@ import {
   deleteConsoleLog,
   deleteActionLog,
   deleteAttachmentBlobs,
+  getVideoBlobKeys,
+  getImageBlobKeys,
+  getNetworkLogKeys,
+  getConsoleLogKeys,
+  getActionLogKeys,
+  getAttachmentBlobKeys,
 } from "../blob-db";
 import {
   migrateIssuesState,
+  shouldPruneAfterRehydrate,
   stripSubmitted,
   useIssuesStore,
   type IssueRecord,
@@ -136,6 +143,35 @@ describe("stripSubmitted (제출 시 record 정리)", () => {
     expect(out.url).toBe("https://linear.app/x");
   });
 
+  // markSubmitted가 b{i}-before/after blob을 이미 지우므로, 플래그만 남으면 blob과 불일치한
+  // 스타일 덤프가 제출된 이슈에 영구 잔존한다.
+  it("bufferedElements를 폐기한다 (blob 삭제와 짝)", () => {
+    const withBuffer = {
+      ...draft,
+      bufferedElements: [
+        {
+          selector: "div.a",
+          tagName: "div",
+          frameId: 0,
+          origin: "",
+          styleEdits: { classList: [], inlineStyle: {}, text: "" },
+          selectionSnapshot: {
+            classList: [],
+            specifiedStyles: {},
+            computedStyles: {},
+            text: null,
+            viewport: { width: 1, height: 1 },
+            capturedAt: 0,
+          },
+          hasBefore: true,
+          hasAfter: false,
+        },
+      ],
+    } as IssueRecord;
+    const out = stripSubmitted(withBuffer, { key: "BUG-1" });
+    expect(out.bufferedElements).toBeUndefined();
+  });
+
   // 승격(일반 트래커로 제출) 시 Slack 보존 플래그까지 폐기 — 일반 submitted와 동격 (목표 6).
   it("slackPreserved 플래그를 폐기한다 (승격 후 잔존 방지)", () => {
     const preserved = {
@@ -203,6 +239,62 @@ describe("markSlackShared (Slack 제출 데이터 보존)", () => {
     expect(deleteConsoleLog).not.toHaveBeenCalled();
     expect(deleteActionLog).not.toHaveBeenCalled();
     expect(deleteAttachmentBlobs).not.toHaveBeenCalled();
+  });
+});
+
+// saveDraft가 레코드를 통째로 교체하던 시절엔, confirmDraft가 만드는 record에 없는 필드는
+// 재확정 한 번에 전부 사라졌다 — patchIssue로만 세팅되는 필드(logsAttached·attachments·
+// 제출 결과 등)가 그 사각지대다.
+describe("saveDraft (재확정 시 optional 필드 보존)", () => {
+  const base: IssueRecord = {
+    id: "dr-1",
+    status: "draft",
+    platform: "jira",
+    title: "x",
+    createdAt: 10,
+    updatedAt: 10,
+    pageUrl: "https://example.com",
+    draft: { title: "t", sections: { description: "d" } },
+    snapshot: { before: false, after: false },
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useIssuesStore.setState({ issues: [] });
+  });
+
+  it("record에 없는 필드는 기존 레코드에서 살린다", () => {
+    const store = useIssuesStore.getState();
+    store.saveDraft({ ...base });
+    store.patchIssue("dr-1", { logsAttached: false, attachments: [] });
+
+    store.saveDraft({ ...base, title: "y" });
+
+    const out = useIssuesStore.getState().issues[0];
+    expect(out.title).toBe("y");
+    expect(out.logsAttached).toBe(false);
+    expect(out.attachments).toEqual([]);
+  });
+
+  it("record가 undefined로 명시한 필드는 비운다 (로그 첨부 해제)", () => {
+    const store = useIssuesStore.getState();
+    store.saveDraft({ ...base, networkLogBlobKey: "dr-1" });
+
+    store.saveDraft({ ...base, networkLogBlobKey: undefined });
+
+    expect(useIssuesStore.getState().issues[0].networkLogBlobKey).toBeUndefined();
+  });
+
+  it("createdAt은 최초 생성 시각을 유지하고 updatedAt만 갱신한다", () => {
+    const store = useIssuesStore.getState();
+    store.saveDraft({ ...base });
+    const first = useIssuesStore.getState().issues[0];
+
+    store.saveDraft({ ...base, createdAt: 999 });
+
+    const out = useIssuesStore.getState().issues[0];
+    expect(out.createdAt).toBe(10);
+    expect(out.updatedAt).toBeGreaterThanOrEqual(first.updatedAt);
   });
 });
 
@@ -376,5 +468,96 @@ describe("migrateIssuesState (persist migrate 본체)", () => {
   it("빈 목록도 안전하게 통과한다", async () => {
     const out = await migrateIssuesState({ issues: [] }, 0);
     expect(out.issues).toEqual([]);
+  });
+});
+
+// 참조 집합(= 저장된 이슈 목록) 계산이 실패했는데 그걸 "저장분 없음"으로 오독하면
+// 살아있는 blob 전부가 orphan으로 판정돼 삭제된다 — POSTMORTEM 2026-07-23의 재발방지 (4)가
+// "storage 조회 reject 시 삭제 0건 회귀 테스트를 반드시 둔다"고 적어둔 그물이다.
+describe("pruneOrphanBlobs — rehydrate 실패 시 fail-closed", () => {
+  const KEY = "bugshot-issues";
+  let getItem: ReturnType<typeof vi.fn>;
+
+  const allDeletes = () => [
+    deleteVideoBlob,
+    deleteImageBlobs,
+    deleteNetworkLog,
+    deleteConsoleLog,
+    deleteActionLog,
+    deleteAttachmentBlobs,
+  ];
+
+  // prune은 rehydrate 콜백에서 void로 띄워지므로 await 대상이 없다.
+  // 매크로태스크 한 번이면 즉시 resolve하는 목들의 마이크로태스크 체인이 전부 소진된다.
+  const flush = () => new Promise((r) => setTimeout(r, 0));
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    getItem = vi.fn();
+    vi.stubGlobal("chrome", {
+      storage: { local: { get: getItem, set: vi.fn(async () => {}), remove: vi.fn(async () => {}) } },
+    });
+    // 확장 기동 직후의 상태 — 메모리에는 아직 이슈가 없고 저장소에만 있다.
+    useIssuesStore.setState({ issues: [] });
+    vi.mocked(getVideoBlobKeys).mockResolvedValue(["issue-1"]);
+    vi.mocked(getImageBlobKeys).mockResolvedValue(["issue-1:b0-before"]);
+    vi.mocked(getNetworkLogKeys).mockResolvedValue(["issue-1"]);
+    vi.mocked(getConsoleLogKeys).mockResolvedValue(["issue-1"]);
+    vi.mocked(getActionLogKeys).mockResolvedValue(["issue-1"]);
+    vi.mocked(getAttachmentBlobKeys).mockResolvedValue(["issue-1:a0"]);
+  });
+
+  afterEach(() => {
+    // setState는 persist의 setItem을 태우므로 chrome 스텁이 살아있는 동안 되돌린다.
+    useIssuesStore.setState({ issues: [] });
+    vi.unstubAllGlobals();
+  });
+
+  it("에러가 있으면 prune 판정이 false, 없으면 true", () => {
+    expect(shouldPruneAfterRehydrate(new Error("io"))).toBe(false);
+    expect(shouldPruneAfterRehydrate(undefined)).toBe(true);
+  });
+
+  it("storage 조회가 reject하면 삭제가 0건 (전부 orphan 오판 금지)", async () => {
+    getItem.mockRejectedValue(new Error("storage io"));
+
+    await useIssuesStore.persist.rehydrate();
+    await flush();
+
+    for (const del of allDeletes()) expect(del).not.toHaveBeenCalled();
+  });
+
+  // video/network/console/action/attachment 루프엔 전부 있는 pending 가드가 image 루프에만
+  // 없었다. "pending:5:before".split(":")[0] === "pending"이 currentIds에 있을 리 없으므로
+  // 썸네일을 pending으로 미러링하는 순간 전 탭 pending 이미지가 일괄 삭제된다.
+  it("pending: 키의 이미지는 고아 판정에서 제외한다", async () => {
+    getItem.mockResolvedValue({
+      [KEY]: JSON.stringify({ state: { issues: [{ id: "keep" }] }, version: 5 }),
+    });
+    vi.mocked(getImageBlobKeys).mockResolvedValue([
+      "pending:5:before",
+      "keep:before",
+      "orphan:before",
+    ]);
+
+    await useIssuesStore.persist.rehydrate();
+    await flush();
+
+    expect(deleteImageBlobs).toHaveBeenCalledWith("orphan");
+    expect(deleteImageBlobs).not.toHaveBeenCalledWith("pending");
+    expect(deleteImageBlobs).not.toHaveBeenCalledWith("keep");
+  });
+
+  it("정상 rehydrate에서는 진짜 고아만 삭제한다 (과잉 스킵 방지)", async () => {
+    getItem.mockResolvedValue({
+      [KEY]: JSON.stringify({ state: { issues: [{ id: "keep" }] }, version: 5 }),
+    });
+    vi.mocked(getVideoBlobKeys).mockResolvedValue(["keep", "orphan"]);
+
+    await useIssuesStore.persist.rehydrate();
+    await flush();
+
+    expect(deleteVideoBlob).toHaveBeenCalledWith("orphan");
+    expect(deleteVideoBlob).not.toHaveBeenCalledWith("keep");
   });
 });

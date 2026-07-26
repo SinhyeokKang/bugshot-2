@@ -4,7 +4,10 @@ import type { ActionLog, ActionEntry } from "@/types/action";
 import type { EditorPhase } from "@/store/editor-store";
 import { FROZEN_PHASES, originOf } from "@/lib/session-keys";
 
-// network-recorder.ts MAX_REQUEST_ENTRIES와 동일 유지 (MAIN world 격리로 import 불가)
+// 레코더 3종의 MAX_ENTRIES와 동일 유지 (MAIN world 격리로 import 불가 — 중앙화하면
+// recorders-entry 청크에 외부 static import가 생겨 동기 IIFE emit이 깨지고 pre-arm이 무력화된다.
+// 대응: network-recorder.ts MAX_REQUEST_ENTRIES / console-recorder.ts·action-recorder.ts MAX_ENTRIES.
+// __tests__/log-cap-sync.test.ts가 값 일치를 대조한다.
 export const NETWORK_MAX_ENTRIES = 5000;
 export const CONSOLE_MAX_ENTRIES = 2000;
 export const ACTION_MAX_ENTRIES = 1000;

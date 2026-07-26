@@ -21,6 +21,48 @@
 
 ---
 
+## 2026-07-26 — 감사 리포트가 지목한 "1줄 수정"이 프로토콜을 깨뜨리는 경우 (A-51/A-04)
+
+- **증상**: 감사 항목 A-51의 처방("`OFFSET_REQ`도 PRESENT처럼 `data.token !== frameToken`이면 거부 — 1줄")을 그대로 적용하면 **모든 iframe 요소 캡처가 조용히 실패**한다. 유닛·타입체크는 통과하고, iframe 캡처는 e2e 커버가 없어 빨강도 안 뜬다.
+- **근본 원인**: 같은 이름의 필드가 두 메시지에서 **다른 것을 뜻했다.** `PRESENT`의 `token`은 사이드패널이 `picker.start`로 broadcast한 **세션 토큰**이고, `OFFSET_REQ`의 `token`은 자식이 `crypto.randomUUID()`로 만들어 응답을 짝짓는 **1회성 correlation nonce**다. 리포트는 "한쪽만 대조를 안 한다"는 표면 비대칭을 보고 처방을 냈고, 그 비대칭은 결함이 아니라 **의미 차이**였다. 부수적으로 A-04(토큰이 `postMessage(..., "*")`로 페이지에 노출)를 파고들다 보니 원 서술의 위협 전제도 과대평가였음이 드러났다 — picker는 `all_frames: true`라 **악성 페이지가 만든 iframe에도 진짜 picker가 주입돼 정상 announce로 등록된다.** 토큰을 훔칠 필요가 없다. 즉 유출의 실제 증분 위험은 "picker가 없는 iframe(sandbox·2-depth+)을 등록시키는 것"뿐이다.
+- **재발 방지**: (1) **감사·리뷰 리포트의 "1줄 수정"은 그 줄이 읽는 값이 어디서 오는지를 먼저 역추적한다** — 특히 같은 이름의 필드가 여러 메시지 타입에 걸쳐 있으면(`grep -n 'token' src/content/frame-geometry.ts`) 이름이 아니라 **생성 지점**으로 동일성을 판단한다. 여기선 `requestFrameOffset`의 `crypto.randomUUID()` 한 줄이 답이었다. (2) **e2e 커버가 없는 영역의 리포트 처방은 "적용 후 유닛 green"을 근거로 삼지 않는다** — iframe picker·OAuth가 그 영역이다. 처방을 코드로 옮기기 전에 프로토콜 양쪽 끝(발신·수신)을 같이 읽는다. (3) **보안 처방은 위협 전제부터 재확인한다** — "값이 새면 위조 가능"은 공격자가 그 값 없이는 같은 결과를 못 얻을 때만 성립한다. `all_frames` 주입처럼 공격자가 정공법으로 같은 상태를 만들 수 있으면 그 값은 애초에 인증 수단이 아니다. 결론은 코드가 아니라 문서(`docs/ARCHITECTURE.md` "등록 핸드셰이크" 경고 블록)에 남겼다.
+- **관련**: `src/content/frame-geometry.ts`(`OFFSET_REQ`에 세션 토큰을 별도 `frameToken` 필드로 추가·`childFrames` WeakSet 세션 교체), `requestFrameOffset`(nonce 생성 지점), `docs/ARCHITECTURE.md`·`CLAUDE.md`(registry는 인증이 아니라 힌트), `docs/features/audit-remediation/tasks.md`("A-04 재결정").
+
+## 2026-07-26 — zustand persist 병합은 "키 없음"과 "명시적 undefined"를 구분한다 (A-11)
+
+- **증상**: `saveDraft`를 통째 교체에서 병합(`{...existing, ...record}`)으로 바꾸자, 사용자가 지운 버퍼 요소·해제한 요소 selector가 **재확정 한 번에 되살아날 수** 있는 상태가 됐다. 원 결함(patchIssue로만 세팅되는 `logsAttached`·`attachments`가 재확정에 사라짐)은 고쳐지지만 반대 방향 구멍이 열린다.
+- **근본 원인**: `confirmDraft`가 만드는 record에 **조건부 스프레드**(`...(state.bufferedElements.length > 0 ? {...} : {})`)가 있었다. 통째 교체 시절엔 키가 없으면 결과에도 없어서 동작이 같았지만, 병합에서는 **"키 없음 = 기존 값 유지"**로 의미가 뒤집힌다. 반면 `networkLogBlobKey: logs.networkLog ? id : undefined`처럼 **값이 undefined인 키는 스프레드가 그대로 덮어써서** 의도대로 비워진다 — 두 표기의 차이가 병합 도입 순간 동작 차이가 된다.
+- **재발 방지**: (1) **교체 → 병합 전환 시 소스 객체의 조건부 스프레드를 전수한다** — `grep -n '\.\.\.(' src/store/editor-store.ts`. 조건부 스프레드는 전부 `key: cond ? v : undefined` 형태로 펴서 "비운다"는 의도를 명시로 만든다. (2) **"의도적으로 비운 필드"가 있는지는 소비처가 아니라 생산처(record를 만드는 함수)에서 확인한다** — `removeBufferedElement`·`resetAllStyleEdits`처럼 상태를 비우는 액션이 존재하면 그 필드는 반드시 명시 undefined여야 한다. (3) 회귀 테스트는 양방향으로 둔다 — "record에 없는 필드는 살아남는다" + "record가 undefined로 명시한 필드는 비워진다".
+- **관련**: `src/store/issues-store.ts:saveDraft`(병합), `src/store/editor-store.ts:confirmDraft`(`bufferedElements`·`selector`/`tagName` 조건부 스프레드 → 명시 키), 그물 `src/store/__tests__/issues-store.test.ts`("saveDraft — 재확정 시 optional 필드 보존").
+
+## 2026-07-26 — 프로덕션에선 옳은 `tab.active` 가드가 e2e 하네스의 구조적 전제를 깨서 캡처 spec이 전멸
+
+- **증상**: 캡처 소유권 가드(A-05)를 background 관문에 넣자 `capture-methods.spec.ts`의 "screenshot 뷰포트 캡처 → drafting 진입"이 40초 타임아웃으로 죽었다. 같은 파일의 "스크롤 캡처"는 통과해서 원인이 캡처 관문으로 안 보였다. `pnpm test --run`·`pnpm typecheck`는 둘 다 green이라 **e2e만이 유일한 검출 경로**였다.
+- **근본 원인**: e2e 하네스의 `openPanel`은 사이드패널을 `context.newPage()`로 **탭**으로 연다(실제 제품에선 사이드패널이 탭이 아니다). 그래서 패널이 앞에 있으면 fixture 탭의 `tab.active`가 false다. 스크롤 캡처는 **예전부터 자체적으로** 타일마다 `active`를 확인했기 때문에 그 spec만 이미 `fixture.bringToFront()` + `locator.evaluate(el => el.click())` 우회를 갖고 있었고, 그 우회의 이유가 **그 spec 안 주석에만** 적혀 있었다. A-05가 같은 검사를 **모든 캡처 경로가 지나는 관문으로 승격**시키자 우회가 없는 나머지 spec이 무너졌다. 즉 결함은 프로덕션 코드가 아니라 **하네스 전제를 아는 지식이 spec 하나에 갇혀 있던 것** — 가드를 넓히면서 그 지식이 따라 넓어지지 않았다.
+- **재발 방지**: (1) **개별 호출처에 있던 가드를 공용 관문으로 승격할 때는, 그 가드를 이미 우회하고 있던 테스트를 먼저 찾아 우회 이유를 확인한다** — `grep -rn 'bringToFront\|el.click()' e2e/`. 우회가 존재한다는 것 자체가 "이 검사는 하네스에서 자연히 성립하지 않는다"는 신호다. (2) 하네스 전제(사이드패널=탭, eval-host 탭 상주 등)는 spec 주석이 아니라 **`e2e/GOTCHAS.md`에 적고, 적용 범위가 넓어지면 그 항목도 같이 넓힌다**. (3) 캡처·탭 소유권처럼 e2e가 유일한 안전망인 영역은 유닛 green을 근거로 삼지 않는다 — 웨이브 사이 `/e2e-run` 게이트가 실제로 잡아낸 사례다.
+- **관련**: `src/background/capture-throttle.ts:captureOwnedTab`(가드 본체), `src/background/messages.ts`(`captureVisibleTab` 관문), `e2e/capture-methods.spec.ts`(뷰포트 spec에 우회 적용), `e2e/GOTCHAS.md`(적용 범위 확대 반영), 선례 `src/sidepanel/scroll-capture.ts:isTabActive`.
+
+## 2026-07-26 — persist storage 실패를 "전파하면 안전"으로 일반화하면 사이드패널이 통째로 빈 화면으로 굳는다
+
+- **증상**: (사전 차단) `chromeLocalStorage.getItem`의 에러 삼킴이 `pruneOrphanBlobs`에 "저장분 없음"으로 읽혀 살아있는 blob을 전부 고아로 삭제하는 결함(A-02)을 고치려 했는데, 설계 문서가 권한 것은 **`chromeLocalStorage.getItem` 전체를 rethrow로 바꾸는 것**이었다. 그대로 했으면 storage 일시 오류 한 번에 사이드패널이 **영구 빈 화면**이 됐다.
+- **근본 원인**: 설계 시점의 예측("실패를 전파해도 사용자 눈엔 똑같이 '빈 상태'")이 틀렸다. zustand v5 persist는 rehydrate가 reject하면 `postRehydrationCallback(undefined, error)`만 부르고 **`hasHydrated`를 false로 남긴 채 `onFinishHydration`을 영영 발화하지 않는다**(`node_modules/zustand/middleware.js`). 그런데 `src/sidepanel/App.tsx`는 `useSettingsHydrated()`가 그 `onFinishHydration`을 기다리고 `if (!editorHydrated || !settingsHydrated) return null;`로 **패널 전체 렌더를 막는다**. 즉 storage 어댑터는 공유 모듈이지만 **실패 전파의 결과는 스토어마다 다르다** — 렌더 게이트에 물린 스토어(settings/editor)는 전파가 곧 화면 사망이고, 게이트에 안 물린 스토어(issues)만 전파가 안전하다. 어댑터 파일만 읽어선 이 차이가 안 보인다.
+- **재발 방지**: (1) persist storage 어댑터의 에러 정책을 바꿀 땐 **그 어댑터를 쓰는 스토어 전수**를 먼저 뽑고(`grep -rn 'chromeLocalStorage\|createJSONStorage' src/store`), 각 스토어의 hydration이 **렌더 게이트에 물려 있는지** 확인한다(`grep -rn 'onFinishHydration\|hasHydrated\|Hydrated' src/sidepanel`). 하나라도 물려 있으면 공용 어댑터를 바꾸지 말고 **fail-closed 어댑터를 따로 만들어 해당 스토어에만** 연결한다(`failClosedLocalStorage`). (2) 미들웨어의 에러 경로 동작은 추측하지 말고 `node_modules`의 구현을 직접 읽어 확인한다 — "실패해도 빈 상태로 뜨겠지"는 라이브러리가 보장한 적 없는 가정이다. (3) 설계 문서의 위험도 예측은 **착수 시 코드로 재검증**한다. 문서가 틀렸으면 문서도 같은 커밋에서 고친다.
+- **관련**: `src/store/chrome-storage.ts`(`chromeLocalStorage` 삼킴 유지 + `failClosedLocalStorage` 신설), `src/store/issues-store.ts`(`shouldPruneAfterRehydrate`·`onRehydrateStorage`), 그물 `src/store/__tests__/issues-store.test.ts`, 렌더 게이트 `src/sidepanel/App.tsx:59-68,208`.
+
+## 2026-07-26 — 복제 사전 그물의 스캔 범위가 번들 그래프보다 좁으면 누락을 못 잡고 조용히 green
+
+- **증상**: log-viewer 번들에서 WebSocket 로그 라벨 10개가 i18n 키 문자열 그대로 노출됐다(`networkLog.ws.frames` 등). ko/en 대칭·placeholder 일치·메인 테이블 drift를 다 검사하는 전용 테스트(`src/log-viewer/__tests__/i18n.test.ts`)가 **이미 있었는데도** 계속 green이었다.
+- **근본 원인**: 그 테스트의 키 스캐너가 `walk(srcRoot)` — **`src/log-viewer/` 디렉터리만** 훑었다. 하지만 log-viewer 번들은 사이드패널 공용 컴포넌트(`NetworkLogContent`·`ConsoleLogContent`·`ActionLogContent`·`IssuePreviewView`)를 재사용하고, `vite.log-viewer.config.ts`가 `@/i18n`을 복제 사전으로 alias하므로 **그 컴포넌트들의 `t()` 키도 복제 사전에서 해결돼야 한다**. 스캐너의 스캔 범위와 번들러의 실제 모듈 그래프가 어긋난 것 — 검사 대상 집합이 틀리면 검사 내용이 아무리 정교해도 무의미하다. 2026-06-28 회고("복제 dict 미동기화")로 그물을 깔았는데 **그물 자체의 구멍**은 그때 안 잡혔다.
+- **재발 방지**: (1) 복제·부분집합 사전을 검사하는 그물은 디렉터리가 아니라 **엔트리에서 출발한 import 그래프 BFS**로 대상을 정한다 — 스캐너를 고쳐 `resolveImport()`(`@/` alias·상대경로·index 해석, `import type` 제외)로 그래프를 타게 했다. 새 공용 컴포넌트가 log-viewer에 유입돼도 자동으로 사정권에 든다. (2) 스캐너류 테스트에는 **자기검증 앵커**를 같이 둔다 — 여기선 "그래프가 `NetworkLogContent` 등 4개에 실제로 도달한다"를 별도 `it`으로 고정했다. 앵커가 없으면 resolver가 조용히 아무것도 못 찾을 때 vacuous green으로 되돌아간다. (3) 트레이드오프를 남긴다: 그래프에 들어오지만 log-viewer가 렌더하지 않는 경로의 키(`common.expand`/`collapse` — `Section`의 collapsible 토글)도 사전을 요구한다. 모듈 그래프로는 렌더 도달성을 못 가리므로 **몇 개 더 넣는 쪽**을 택했다 — 조용한 누락보다 나은 실패 모드.
+- **관련**: `src/log-viewer/__tests__/i18n.test.ts`(`resolveImport`·`bundledFiles` BFS·앵커 `it`), `src/log-viewer/i18n.ts`(WS 키 10개 + `common.expand`/`collapse` 추가), `vite.log-viewer.config.ts`(`@/i18n` alias).
+
+## 2026-07-25 — 도구가 청소하는 출력 디렉터리 안에 git-tracked 파일을 두면 매 실행마다 삭제된다
+
+- **증상**: 커버리지 트렌드 베이스라인(`coverage/baseline.json`, git-tracked)이 `pnpm test:coverage`를 한 번 돌릴 때마다 워킹트리에서 사라졌다. 그 결과 `pnpm coverage:report`가 "베이스라인 없음"으로 떨어져 이전→지금 비교(래칫 회귀 감지)가 아예 작동하지 않았다.
+- **근본 원인**: vitest v8 커버리지는 `reportsDirectory`(기본 `coverage/`)를 매 실행 **청소(clean)**한다 — 그 디렉터리를 자기 스크래치로 소유한다는 전제. 트렌드 기준선을 편의상 같은 `coverage/baseline.json`에 두면서 그 디렉터리가 **도구 소유**라는 걸 놓쳤다. `.gitignore`가 `coverage/*` + `!coverage/baseline.json`로 파일을 tracked로 지켜도, 파일 삭제는 git이 아니라 **vitest가** 하므로 무력하다. 커밋 diff·gitignore만 봐선 "베이스라인 커밋됨"으로 보여 결함이 숨는다 — 실제 실행을 두 번 돌려봐야 드러난다.
+- **재발 방지**: (1) 빌드/테스트 도구의 **출력·캐시·리포트 디렉터리 안에 소스나 tracked 산출물을 co-locate하지 않는다** — 도구가 그 디렉터리를 clean/overwrite한다는 전제로 본다. 트렌드·기준선 같은 영속 파일은 도구가 안 건드리는 별도 경로에 둔다(여기선 리포트를 `coverage/report/` 하위로 격리하고 베이스라인은 `coverage/` 루트에 잔류). (2) `clean`·`reportsDirectory`·`outDir`·`cacheDir` 옵션이 있는 도구를 새로 붙일 때 그 청소 범위를 먼저 확인한다 — `grep -rn 'reportsDirectory\|outDir\|cacheDir\|clean' *.config.ts vite*.config.ts vitest.config.ts`. (3) 영속 파일이 실행에 견디는지 **연속 2회 실행 + 파일 존재 확인**으로 잠근다(1회만 돌리면 첫 생성과 삭제가 안 구분된다).
+- **관련**: `vitest.config.ts`(coverage `reportsDirectory: "coverage/report"`), `scripts/coverage-report.mjs`(`SUMMARY_PATH`=`coverage/report/…`, `BASELINE_PATH`=`coverage/baseline.json`), `.gitignore`(`coverage/*` + `!coverage/baseline.json`).
+
 ## 2026-07-23 — 공유 캡(MAX_LOG_REFS)에 새 후보 소스를 더하면 초과 시 전량 폐기가 기존 삽입까지 죽인다
 
 - **증상**: AI 초안이 원인 로그를 코드블럭으로 삽입할 때, 모델이 로그를 여러 개 지목하면 **기존에 잘 삽입되던 에러 로그까지 하나도 안 붙는** 경우가 생긴다(전멸). 200 매칭 후보(`m*`)를 새로 도입하자 발현 확률이 올랐다.

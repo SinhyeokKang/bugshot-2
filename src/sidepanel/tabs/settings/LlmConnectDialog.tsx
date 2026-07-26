@@ -9,6 +9,8 @@ import {
 import { toast } from "sonner";
 import { useT } from "@/i18n";
 import { Button } from "@/components/ui/button";
+import { FieldRow } from "@/sidepanel/components/FieldRow";
+import { isCredentialSafeUrl } from "@/lib/loopback-host";
 import {
   Command,
   CommandEmpty,
@@ -38,6 +40,7 @@ import {
   detectProviderKind,
   fetchModels,
   GEMINI_MODELS,
+  LlmRedirectError,
   pingAnthropic,
   PROVIDER_PRESETS,
   requestHostPermission,
@@ -143,10 +146,16 @@ export function LlmConnectDialog({
   }
 
   async function handleConnect() {
+    let parsed: URL;
     try {
-      new URL(baseUrl);
+      parsed = new URL(baseUrl);
     } catch {
       toast.error(t("llm.error.invalidUrl"));
+      return;
+    }
+    // API 키가 헤더로 나가므로 평문 http는 loopback(ollama 등 로컬 엔드포인트)만 허용한다.
+    if (!isCredentialSafeUrl(parsed)) {
+      toast.error(t("llm.error.insecureUrl"));
       return;
     }
     setConnecting(true);
@@ -176,9 +185,13 @@ export function LlmConnectDialog({
 
       if (cancelledRef.current) return;
       setPendingModels({ models, baseUrl });
-    } catch {
+    } catch (err) {
       if (cancelledRef.current) return;
-      toast.error(t("llm.error.fetch"));
+      toast.error(
+        err instanceof LlmRedirectError
+          ? t("llm.error.redirect")
+          : t("llm.error.fetch"),
+      );
     } finally {
       if (!cancelledRef.current) setConnecting(false);
     }
@@ -212,10 +225,7 @@ export function LlmConnectDialog({
         </DialogHeader>
 
         <div className="flex flex-col gap-3">
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs text-muted-foreground">
-              {t("llm.provider")}
-            </label>
+          <FieldRow label={t("llm.provider")}>
             <Popover open={popoverOpen} onOpenChange={setPopoverOpen}>
               <PopoverTrigger asChild>
                 <Button
@@ -276,12 +286,9 @@ export function LlmConnectDialog({
                 </Command>
               </PopoverContent>
             </Popover>
-          </div>
+          </FieldRow>
 
-          <div className="flex flex-col gap-1.5">
-            <label className="text-xs text-muted-foreground">
-              {t("llm.apiKey")}
-            </label>
+          <FieldRow label={t("llm.apiKey")}>
             <div className="space-y-2">
               <Input
                 type="password"
@@ -295,8 +302,7 @@ export function LlmConnectDialog({
                 {t("llm.apiKey.help")}
               </p>
             </div>
-          </div>
-
+          </FieldRow>
         </div>
 
         <DialogFooter className="flex-row justify-end">

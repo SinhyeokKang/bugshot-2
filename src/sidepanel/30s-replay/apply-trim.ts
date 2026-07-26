@@ -9,6 +9,7 @@ import {
 import type { CapturedFrame } from "./frame-buffer";
 import { encodeToMp4, computeFrameDurationsUs, MAX_FRAME_DURATION_MS } from "./mp4-encoder";
 import { secondsToFrameRange, isFullRange, replayLogTrimBounds } from "./trim-math";
+import { pendingKey } from "@/lib/session-keys";
 
 // 리플레이 트리밍 적용: 선택 구간 프레임만 재인코딩 → 영상 메타 교체 + 로그 재trim.
 // 타임베이스 분리 — 영상 메타는 raw 프레임 timestamp, 로그 trim은 replayLogBounds(guard 적용).
@@ -44,19 +45,19 @@ export async function applyReplayTrim(opts: {
     const requests = trimByTime(networkLog.requests, (r) => r.startTime, lower, upper);
     const trimmed = { ...networkLog, requests, captured: requests.length };
     useEditorStore.getState().setNetworkLog(trimmed);
-    saves.push(saveNetworkLog(`pending:${tabId}`, trimmed));
+    saves.push(saveNetworkLog(pendingKey(tabId), trimmed));
   }
   if (consoleLog) {
     const entries = trimByTime(consoleLog.entries, (e) => e.timestamp, lower, upper);
     const trimmed = { ...consoleLog, entries, captured: entries.length };
     useEditorStore.getState().setConsoleLog(trimmed);
-    saves.push(saveConsoleLog(`pending:${tabId}`, trimmed));
+    saves.push(saveConsoleLog(pendingKey(tabId), trimmed));
   }
   if (actionLog) {
     const entries = trimByTime(actionLog.entries, (e) => e.timestamp, lower, upper);
     const trimmed = { ...actionLog, entries, captured: entries.length };
     useEditorStore.getState().setActionLog(trimmed);
-    saves.push(saveActionLog(`pending:${tabId}`, trimmed));
+    saves.push(saveActionLog(pendingKey(tabId), trimmed));
   }
   // 영상 메타도 store에서 trim본으로 교체 — 로그 set과 함께 인메모리 상태를 원자적으로 맞춘다.
   useEditorStore.getState().replaceVideo(blob, thumbnail, videoStartedAt, videoEndedAt);

@@ -11,12 +11,15 @@ import {
   detectProviderKind,
   fetchWithRetry,
   getProviderLabel,
+  fetchModels,
   LlmAuthError,
   LlmOverloadedError,
   LlmQuotaError,
+  LlmRedirectError,
   mapQuotaError,
   NANO_CAPABILITIES,
   parseRetryAfterMs,
+  pingAnthropic,
   PROVIDER_PRESETS,
   ANTHROPIC_MODELS,
   GEMINI_MODELS,
@@ -479,6 +482,162 @@ describe("createAnthropicProvider 헤더", () => {
 
     const headers = mockFetch.mock.calls[0][1].headers;
     expect(headers["x-api-key"]).toBe("sk-ant-test");
+  });
+});
+
+// x-api-key는 Authorization과 달리 cross-origin 리다이렉트에서 스펙상 제거되지 않는다.
+// redirect:"manual"이 빠지면 302를 내는 엔드포인트로 원본 키가 그대로 따라간다.
+describe("Anthropic 경로 redirect 차단 (A-07)", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  function stubOk(extra: Record<string, unknown> = {}) {
+    const fn = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      json: () => Promise.resolve({ content: [{ text: "ok" }] }),
+      text: () => Promise.resolve(""),
+      ...extra,
+    });
+    vi.stubGlobal("fetch", fn);
+    return fn;
+  }
+
+  function stubOpaqueRedirect() {
+    const fn = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 0,
+      type: "opaqueredirect",
+      headers: { get: () => null },
+      text: () => Promise.resolve(""),
+      json: () => Promise.reject(new Error("no body")),
+    });
+    vi.stubGlobal("fetch", fn);
+    return fn;
+  }
+
+  it("generate 호출이 redirect:'manual'로 나간다", async () => {
+    const fn = stubOk();
+
+    await createAnthropicProvider({
+      baseUrl: "https://api.anthropic.com/v1",
+      apiKey: "sk-ant-test",
+      modelId: "claude-sonnet-4-6",
+    }).generate({ prompt: "hi" });
+
+    expect(fn.mock.calls[0][1].redirect).toBe("manual");
+  });
+
+  it("createSession prompt 호출도 redirect:'manual'로 나간다", async () => {
+    const fn = stubOk();
+
+    const session = await createAnthropicProvider({
+      baseUrl: "https://api.anthropic.com/v1",
+      apiKey: "sk-ant-test",
+      modelId: "claude-sonnet-4-6",
+    }).createSession("SYS");
+    await session.prompt("hi");
+
+    expect(fn.mock.calls[0][1].redirect).toBe("manual");
+  });
+
+  it("pingAnthropic도 redirect:'manual'로 나간다", async () => {
+    const fn = stubOk();
+
+    await pingAnthropic("https://api.anthropic.com/v1", "sk-ant-test");
+
+    expect(fn.mock.calls[0][1].redirect).toBe("manual");
+  });
+
+  it("opaqueredirect 응답이면 LlmRedirectError (일반 에러와 구분)", async () => {
+    stubOpaqueRedirect();
+
+    await expect(
+      createAnthropicProvider({
+        baseUrl: "https://api.anthropic.com/v1",
+        apiKey: "sk-ant-test",
+        modelId: "claude-sonnet-4-6",
+      }).generate({ prompt: "hi" }),
+    ).rejects.toBeInstanceOf(LlmRedirectError);
+  });
+
+  it("pingAnthropic도 opaqueredirect면 LlmRedirectError", async () => {
+    stubOpaqueRedirect();
+
+    await expect(
+      pingAnthropic("https://api.anthropic.com/v1", "sk-ant-test"),
+    ).rejects.toBeInstanceOf(LlmRedirectError);
+  });
+
+  // type이 안 실린 환경/목에서도 status 0만으로 판정돼야 한다.
+  it("type 없이 status 0만이어도 LlmRedirectError", async () => {
+    const fn = vi.fn().mockResolvedValue({
+      ok: false,
+      status: 0,
+      headers: { get: () => null },
+      text: () => Promise.resolve(""),
+    });
+    vi.stubGlobal("fetch", fn);
+
+    await expect(
+      pingAnthropic("https://api.anthropic.com/v1", "sk-ant-test"),
+    ).rejects.toBeInstanceOf(LlmRedirectError);
+  });
+
+  it("정상 응답에서는 LlmRedirectError를 던지지 않는다", async () => {
+    stubOk();
+
+    await expect(
+      createAnthropicProvider({
+        baseUrl: "https://api.anthropic.com/v1",
+        apiKey: "sk-ant-test",
+        modelId: "claude-sonnet-4-6",
+      }).generate({ prompt: "hi" }),
+    ).resolves.toBe("ok");
+  });
+});
+
+// Authorization은 스펙상 cross-origin 리다이렉트에서 제거되므로 누출 경로가 없다.
+// 조이면 301/308을 내는 사용자 게이트웨이가 깨지므로 건드리지 않는다.
+describe("OpenAI 호환 경로는 redirect를 지정하지 않는다 (A-07 비대상)", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("chat/completions 요청에 redirect 옵션이 없다", async () => {
+    const fn = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      json: () => Promise.resolve({ choices: [{ message: { content: "x" } }] }),
+    });
+    vi.stubGlobal("fetch", fn);
+
+    await createOpenAICompatibleProvider({
+      baseUrl: "https://api.openai.com/v1",
+      apiKey: "k",
+      modelId: "gpt-4o",
+    }).generate({ prompt: "hi" });
+
+    expect(fn.mock.calls[0][1].redirect).toBeUndefined();
+  });
+
+  it("fetchModels 요청에도 redirect 옵션이 없다", async () => {
+    const fn = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: { get: () => null },
+      json: () => Promise.resolve({ data: [{ id: "gpt-4o" }] }),
+    });
+    vi.stubGlobal("fetch", fn);
+
+    await fetchModels("https://api.openai.com/v1", "k");
+
+    expect(fn.mock.calls[0][1].redirect).toBeUndefined();
   });
 });
 

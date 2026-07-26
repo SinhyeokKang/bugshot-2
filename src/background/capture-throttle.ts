@@ -51,3 +51,31 @@ export function createCaptureThrottle(deps: ThrottleDeps = realDeps) {
 }
 
 export const captureThrottle = createCaptureThrottle();
+
+export interface CaptureOwnerDeps {
+  getTab: (tabId: number) => Promise<{ active?: boolean; windowId?: number }>;
+  captureVisibleTab: (
+    windowId: number,
+    opts: chrome.tabs.CaptureVisibleTabOptions,
+  ) => Promise<string>;
+}
+
+const realOwnerDeps: CaptureOwnerDeps = {
+  getTab: (tabId) => chrome.tabs.get(tabId),
+  captureVisibleTab: (windowId, opts) =>
+    chrome.tabs.captureVisibleTab(windowId, opts),
+};
+
+// captureVisibleTab은 탭이 아니라 "그 창에서 지금 보이는 탭"을 찍는다. 큐 대기(최대 ~2.6s)
+// 동안 사용자가 탭을 바꿨으면 남의 페이지를 찍게 되므로, 소유권 확인은 반드시 run() 콜백
+// 안에서 — 대기가 끝난 뒤에 — 해야 한다.
+export async function captureOwnedTab(
+  tabId: number,
+  opts: chrome.tabs.CaptureVisibleTabOptions,
+  deps: CaptureOwnerDeps = realOwnerDeps,
+): Promise<string> {
+  const tab = await deps.getTab(tabId);
+  if (!tab.windowId) throw new Error("tab has no window");
+  if (!tab.active) throw new Error(`tab ${tabId} is no longer the active tab`);
+  return deps.captureVisibleTab(tab.windowId, opts);
+}

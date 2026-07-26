@@ -38,6 +38,7 @@ import { buildNetworkLogSummary, buildConsoleLogSummary } from "@/sidepanel/lib/
 import { supportsConsoleNetworkLog, supportsActionLog } from "@/sidepanel/lib/captureLogSupport";
 import { resolveSectionImages } from "@/sidepanel/lib/resolveInlineImages";
 import { IssueCreateModal } from "./IssueCreateModal";
+import { pendingKey } from "@/lib/session-keys";
 
 
 export function PreviewPanel() {
@@ -176,6 +177,7 @@ export function PreviewPanel() {
             variant="outline"
             className="h-8 w-8 shrink-0"
             title={t("common.download")}
+            aria-label={t("common.download")}
             data-testid="download-media"
             onClick={() => downloadVideoBlob(videoBlob)}
           >
@@ -211,6 +213,7 @@ export function PreviewPanel() {
             variant="outline"
             className="h-8 w-8 shrink-0"
             title={t("common.download")}
+            aria-label={t("common.download")}
             data-testid="download-media"
             onClick={() => downloadImageDataUrl(screenshotImage)}
           >
@@ -240,6 +243,7 @@ export function PreviewPanel() {
           variant="outline"
           className="h-8 w-8 shrink-0"
           title={t("common.download")}
+          aria-label={t("common.download")}
           data-testid="download-logs"
           onClick={() => void downloadEditorLogsHtml()}
         >
@@ -264,9 +268,11 @@ export function PreviewPanel() {
         attachments={attachments}
         onDownload={(m) =>
           void downloadAttachment(
-            currentIssueId ?? `pending:${target?.tabId}`,
+            // tabId·currentIssueId 둘 다 없으면 존재할 수 없는 키가 되고, downloadAttachment가
+            // 조회 실패로 끝난다(구현 전 `pending:undefined`와 결과 동일).
+            currentIssueId ?? pendingKey(target?.tabId ?? ""),
             m,
-            target?.tabId != null ? `pending:${target.tabId}` : undefined,
+            target?.tabId != null ? pendingKey(target.tabId) : undefined,
           )
         }
       />

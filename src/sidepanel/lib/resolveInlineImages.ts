@@ -1,6 +1,5 @@
 import { getInlineImage, blobToDataUrl } from "@/store/blob-db";
-
-const INLINE_REF_RE = /!\[([^\]]*)\]\(inline:([^)]+)\)/g;
+import { INLINE_REF_RE } from "@/lib/inline-ref";
 
 export function extractInlineRefs(markdown: string): string[] {
   const refs = new Set<string>();

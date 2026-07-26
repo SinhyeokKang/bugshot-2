@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { createPatchedFetch } from "../network-recorder-helpers";
+import { createPatchedFetch, createPatchedSetRequestHeader } from "../network-recorder-helpers";
 
 // 회귀: patchedFetch가 `new Request(input, init)`로 본문을 소비한 뒤
 // 원본 input/init을 originalFetch에 재전달해 "body already used"로 요청이 실패하던 버그.
@@ -195,5 +195,60 @@ describe("createPatchedFetch — shouldRecord 게이트", () => {
     await patched("https://example.com/api");
 
     expect(record).toHaveBeenCalledTimes(1);
+  });
+});
+
+// 회귀(A-16): setRequestHeader wrap이 기록을 원본보다 **먼저** 하고 보호도 없어,
+// 헤더명이 문자열이 아닌 호출에서 `name.toLowerCase()`가 throw하면 페이지 XHR이 깨지던 버그.
+describe("createPatchedSetRequestHeader — 무간섭 3원칙", () => {
+  function fakeXhr(): XMLHttpRequest {
+    return { __bugshot: { reqHeaders: {} as Record<string, string> } } as unknown as XMLHttpRequest;
+  }
+
+  it("원본을 먼저 호출한 뒤 기록한다", () => {
+    const order: string[] = [];
+    const original = vi.fn(function () { order.push("original"); });
+    const record = vi.fn(() => { order.push("record"); });
+    const patched = createPatchedSetRequestHeader(original, record);
+
+    patched.call(fakeXhr(), "X-Test", "1");
+
+    expect(order).toEqual(["original", "record"]);
+    expect(original).toHaveBeenCalledWith("X-Test", "1");
+  });
+
+  it("기록이 throw해도 페이지 호출자로 전파하지 않는다", () => {
+    const original = vi.fn();
+    const patched = createPatchedSetRequestHeader(original, () => {
+      throw new TypeError("name.toLowerCase is not a function");
+    });
+
+    expect(() => patched.call(fakeXhr(), "X-Test", "1")).not.toThrow();
+    expect(original).toHaveBeenCalledTimes(1);
+  });
+
+  it("toLowerCase가 불가능한 헤더명에도 원본이 호출되고 throw하지 않는다", () => {
+    const original = vi.fn();
+    const patched = createPatchedSetRequestHeader(original, (xhr, name, value) => {
+      (xhr as unknown as { __bugshot: { reqHeaders: Record<string, string> } })
+        .__bugshot.reqHeaders[name.toLowerCase()] = value;
+    });
+    const xhr = fakeXhr();
+
+    expect(() =>
+      patched.call(xhr, { toString: () => "x" } as unknown as string, "1"),
+    ).not.toThrow();
+    expect(original).toHaveBeenCalledTimes(1);
+    expect((xhr as unknown as { __bugshot: { reqHeaders: Record<string, string> } }).__bugshot.reqHeaders).toEqual({});
+  });
+
+  it("원본이 throw하면(send 이후 호출 등) 기록도 남기지 않는다", () => {
+    const record = vi.fn();
+    const patched = createPatchedSetRequestHeader(() => {
+      throw new DOMException("InvalidStateError");
+    }, record);
+
+    expect(() => patched.call(fakeXhr(), "X-Test", "1")).toThrow();
+    expect(record).not.toHaveBeenCalled();
   });
 });

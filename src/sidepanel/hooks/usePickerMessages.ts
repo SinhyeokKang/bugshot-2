@@ -1,7 +1,7 @@
 import { useEffect } from "react";
 import { useEditorStore } from "@/store/editor-store";
 import { sameElementKey } from "@/lib/element-key";
-import { originOf } from "@/lib/session-keys";
+import { originOf, pendingKey } from "@/lib/session-keys";
 import type { PickerMessage, ViewportRect } from "@/types/picker";
 import { type BgInternalMessage, onPickerIframeUnsupported, onPickerPermissionExpired, sendBg } from "@/types/messages";
 import { captureElementSnapshot, cropImage } from "@/sidepanel/capture";
@@ -11,6 +11,7 @@ import { shouldCompact, compactImage } from "@/sidepanel/lib/compactImage";
 import { shouldPreserveBackgroundLogs } from "@/sidepanel/hooks/useBackgroundRecorder";
 import { createLogPersistGuard } from "@/sidepanel/lib/log-persist-guard";
 import { shouldDropPreArmEntry } from "@/sidepanel/lib/log-prearm-filter";
+import { isForeignTabMessage } from "@/sidepanel/lib/tab-scope";
 import {
   mergeLogItems,
   rebuildNetworkLog,
@@ -73,14 +74,8 @@ export function usePickerMessages(myTabId: number | null): void {
       // content script가 보낸 메시지는 chrome.runtime.sendMessage로 모든 extension contexts에
       // broadcast된다. 다른 탭의 side panel 인스턴스가 같이 받아서 내 store/IDB를 덮는 걸 차단.
       // sender.tab은 content script에서 온 경우만 존재 — 미존재 시(side panel/background 내부
-      // 통신) 통과시킨다.
-      if (
-        myTabId != null &&
-        sender.tab?.id != null &&
-        sender.tab.id !== myTabId
-      ) {
-        return;
-      }
+      // 통신) 통과시킨다. tabId 미해소 구간도 드롭(fail-closed) — tab-scope 참조.
+      if (isForeignTabMessage(myTabId, sender.tab?.id)) return;
 
       if (message.type === "picker.selected") {
         const msg = message as Extract<PickerMessage, { type: "picker.selected" }>;
@@ -198,12 +193,12 @@ export function usePickerMessages(myTabId: number | null): void {
         onPickerIframeUnsupported.fire();
       } else if (message.type === "activeTabExpiredDeferred") {
         const msg = message as Extract<BgInternalMessage, { type: "activeTabExpiredDeferred" }>;
-        if (myTabId != null && msg.tabId !== myTabId) return;
+        if (isForeignTabMessage(myTabId, msg.tabId)) return;
         deferredActiveTabExpiry = true;
       } else if (message.type === "frameCommitted") {
         // 캡처 시작 이후 커밋된 iframe에 보유 sentinel 재발행 → dormant 레코더 활성화.
         const msg = message as Extract<BgInternalMessage, { type: "frameCommitted" }>;
-        if (myTabId != null && msg.tabId !== myTabId) return;
+        if (isForeignTabMessage(myTabId, msg.tabId)) return;
         rebroadcastSentinelsToFrame(msg.tabId, msg.frameId);
         // picking 중 네비게이션된 iframe의 새 picker는 idle — 재시작하지 않으면 stale
         // registry 핸드오프로 클릭이 선택 없이 iframe 페이지에 유실된다.
@@ -216,7 +211,7 @@ export function usePickerMessages(myTabId: number | null): void {
         // (단 *.data 머지는 isLogFrozen 기준이라 녹화 중 새 로그 유입은 계속된다.)
         if (shouldPreserveBackgroundLogs(useEditorStore.getState().phase)) return;
         const msg = message as Extract<BgInternalMessage, { type: "logClear" }>;
-        if (myTabId != null && msg.tabId !== myTabId) return;
+        if (isForeignTabMessage(myTabId, msg.tabId)) return;
         lastLogClearAt = Date.now();
         // store clear가 IDB의 pending 로그를 delete하므로, 대기 중 throttle write를 먼저 폐기해
         // delete 이후 stale 버퍼가 IDB에 부활하는 걸 막는다(30s replay trim 경로와 대칭).
@@ -249,7 +244,7 @@ export function usePickerMessages(myTabId: number | null): void {
         useEditorStore.getState().setNetworkLog(log);
         const tabId = useEditorStore.getState().target?.tabId;
         if (tabId) {
-          networkLogPersist.push(`pending:${tabId}`, log);
+          networkLogPersist.push(pendingKey(tabId), log);
         }
       } else if (message.type === "consoleRecorder.data") {
         if (isLogFrozen(useEditorStore.getState().phase)) return;
@@ -272,7 +267,7 @@ export function usePickerMessages(myTabId: number | null): void {
         useEditorStore.getState().setConsoleLog(log);
         const tabId = useEditorStore.getState().target?.tabId;
         if (tabId) {
-          consoleLogPersist.push(`pending:${tabId}`, log);
+          consoleLogPersist.push(pendingKey(tabId), log);
         }
       } else if (message.type === "actionRecorder.data") {
         if (isLogFrozen(useEditorStore.getState().phase)) return;
@@ -294,7 +289,7 @@ export function usePickerMessages(myTabId: number | null): void {
         useEditorStore.getState().setActionLog(log);
         const tabId = useEditorStore.getState().target?.tabId;
         if (tabId) {
-          actionLogPersist.push(`pending:${tabId}`, log);
+          actionLogPersist.push(pendingKey(tabId), log);
         }
       }
     }
@@ -341,7 +336,11 @@ async function captureElementShot(
   // iframe 요소 샷의 payload viewport도 iframe 내부 크기 — 기록 메타는 브라우저 뷰포트로.
   const viewport =
     frameId !== 0 ? (await getTopViewport(tabId)) ?? payload.viewport : payload.viewport;
-  useEditorStore.getState().onElementShot(
+  // 캡처는 background 큐를 거쳐 수백 ms 걸린다 — 그 사이 취소·세션 만료·탭 변경이 있었으면
+  // 결과를 버린다(captureAndCrop과 동일 규약). 안 그러면 유령 drafting으로 전이한다.
+  const s = useEditorStore.getState();
+  if (s.phase !== "picking" || s.target?.tabId !== tabId) return;
+  s.onElementShot(
     { selector: payload.selector, tagName: payload.tagName },
     img,
     viewport,

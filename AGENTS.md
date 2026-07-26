@@ -68,7 +68,18 @@ bugshot-2: Chrome MV3 Side Panel 버그 리포팅 확장. 웹 페이지의 버�
 | 타입 체크만 | `pnpm typecheck` |
 | 테스트 | `pnpm test` |
 | 테스트 (watch) | `pnpm test:watch` |
+| 커버리지 측정 | `pnpm test:coverage` (vitest v8 → `coverage/coverage-summary.json`) |
+| 커버리지 리포트·비교 | `pnpm coverage:report` (베이스라인 대비 이전→지금 비교. 갱신: `pnpm coverage:update`) — `/coverage` 스킬이 래핑 |
 | Codex 미러 동기화 | `pnpm sync:agents` (드리프트 검사만: `pnpm sync:agents:check`) |
+| pre-arm 청크 검사 | `pnpm check:prearm` (빌드 후 `dist` 검사. `pnpm check:prearm dist-e2e`도 가능) |
+
+### CI (GitHub Actions)
+
+`.github/workflows/ci.yml` — dev push · main PR에서 **typecheck → sync:agents:check → test → build → check:prearm** 순으로 돈다. 전부 브라우저·시크릿 없이 결정적이다.
+
+**e2e는 CI에서 안 돈다.** 확장 SW가 headless에서 안 깨어나 `headless: false`가 강제고(`e2e/fixtures/extension.ts`), `workers: 1`·`retries: 0`이라 63개를 직렬로 돌리면서 환경 flaky 하나가 곧바로 빨간 배지가 된다. 로컬 게이트(`/e2e-run` → `e2e/.last-green` → `/push` 검사)가 그 역할을 한다 — 단 **`.last-green`은 gitignore라 머신 로컬**이므로 외부 PR에는 적용되지 않는다. 외부 기여를 받기 시작하면 nightly·수동 트리거 e2e 잡을 추가한다.
+
+`build` + `check:prearm` 스텝이 CI에 있는 이유: `recorders-entry`가 async loader로 강등되는 회귀는 typecheck도 유닛도 못 잡고, 유일한 행동 검증(`e2e/logs-prearm.spec.ts`)이 CI에 없다. `scripts/check-prearm-chunk.mjs`가 manifest의 `world`/`run_at`·loader 여부·IIFE 시작·잔여 static import를 대조해 구조만 확인한다.
 
 **빌드는 자동 실행하지 않는다.** 사용자가 명시적으로 요청하거나 `/build` 스킬을 실행할 때만 돌린다. 타입 확인이 필요하면 `pnpm typecheck` 선호. 예외: `build:e2e`(dist-e2e)는 `/e2e-write`·`/e2e-run`·`/push`/`/merge` e2e 게이트에서 실행 허용 — 배포 산출물(dist)과 분리돼 있다.
 
@@ -125,12 +136,13 @@ pnpm version major --no-git-tag-version   # 1.0.0 → 2.0.0 (Breaking change)
 /build          → pnpm build + 테스트 체크리스트 (작업 중 검증)
 /code-review    → 변경 코드를 ui·security·dataflow·codehealth 4개 에이전트가 병렬 리뷰 (선택 호출 가능). 리포트 전용
 /audit          → 코드베이스 전체를 ui·security·dataflow·codehealth 4개 에이전트가 병렬 감사 (선택 호출 가능). 리포트 전용
+/coverage       → pnpm test:coverage → 로직 스코프(브라우저/UI 코드 제외) 라인 % 를 주 지표로 베이스라인 대비 이전→지금 비교 + 회귀 래칫 경고 + 개선 후보 랭킹. 개선 시 baseline 갱신 제안. fix·빌드·커밋 안 함
 /refactor       → audit·code-review 리포트의 지정 항목 수정 (메인 단일). 회귀 재현 테스트 먼저(TDD red) → 수정으로 green → 4관점 자체 검증 → CTO 게이트. 회귀 위험 항목은 강행 전 확인. 빌드·커밋 안 함
 /postmortem     → 직전에 잡은 버그/회귀를 docs/POSTMORTEM.md에 회고 항목으로 추가 (비자명 함정만, 재발방지 grep/전수 대상 명시). 코드·빌드·커밋 안 함
 /guide          → guide/ko·en 사용자 가이드 작성·갱신. AUTHORING.md 규칙 로드 → 코드 대조 stale 탐지 → ko/en 동시 갱신 + 검증. 빌드·커밋 안 함
 /doc-check      → 8개 저장소 문서(CLAUDE/DIRECTORY/ARCHITECTURE/DESIGN/README/PERMISSION/privacy/AUTHORING)를 문서별 전담 에이전트가 병렬로 diff 무관 코드 양방향 대조(Pass1 문서→코드 사실오류 + Pass2 코드→문서 누락 커버리지) → 통합 리포트 → 항목별 확인 → 수정. /push 신선도 검사보다 깊다(diff에 안 걸린 누적 stale·섹션 내부 누락까지). guide/ko·en 본문은 제외(/guide 전담, AUTHORING은 검사). 빌드 안 함
-/push           → dev push (main에서 호출 차단) + CLAUDE.md/docs/DIRECTORY.md/docs/ARCHITECTURE.md/README.md/docs/PERMISSION.md/docs/privacy.{ko,en}.md/guide(+AUTHORING.md) 신선도 검사 + Codex 미러 게이트(sync:agents:check — 드리프트면 재생성 커밋) + e2e 게이트(.last-green == HEAD면 스킵 / 빨강이면 푸시 중단)
-/merge          → dev에서 e2e 게이트 교차(통상 /push 기록 해시로 스킵 / 빨강이면 중단) → 버전 bump 커밋 + dev → main squash PR 생성 + 자동 머지
+/push           → dev push (main에서 호출 차단) + CLAUDE.md/docs/DIRECTORY.md/docs/ARCHITECTURE.md/README.{md,ko.md}/docs/PERMISSION.md/docs/privacy.{ko,en}.md/guide(+AUTHORING.md) 신선도 검사 + Codex 미러 게이트(sync:agents:check — 드리프트면 재생성 커밋) + e2e 게이트(.last-green == HEAD면 스킵 / 빨강이면 푸시 중단)
+/merge          → dev에서 e2e 게이트 교차(통상 /push 기록 해시로 스킵 / 빨강이면 중단) → 커버리지 리포트(로직 스코프 vs 베이스라인, 비차단 — 회귀 경고만·개선 시 baseline 자동 래칫 커밋) → 버전 bump 커밋 + dev → main squash PR 생성 + 자동 머지
 /deploy         → main 한정. tag push → 스토어 빌드 → zip → GitHub Release draft → 심사 요청 안내
 /sync           → dev를 origin/main으로 hard reset + force push (배포/머지 후)
 /ship           → 작은·외과적 변경 하나를 /tdd→/implement→커밋→/code-review→/refactor→(/e2e-write)→(/guide)→(/doc-check)→(/postmortem)→/e2e-run→/push→/build로 자동 오케스트레이션. 단계별 게이트 통과 시 진행, 하드 실패·사용자 결정 지점(회귀위험·doc stale·e2e red)에선 즉시 중단+리포트. guide·doc-check은 영향 플래그 게이팅. 호출이 곧 push 지시. 큰·다영역·신규기능(feature 문서 필요)은 스코프 가드로 거부. Codex 런타임은 /e2e-run까지만 돌고 /push·/build를 Claude Code에 인계
@@ -142,14 +154,14 @@ pnpm version major --no-git-tag-version   # 1.0.0 → 2.0.0 (Breaking change)
 
 ### 문서 신선도
 
-`/push`는 항상 CLAUDE.md / docs/DIRECTORY.md / docs/ARCHITECTURE.md / README.md / docs/PERMISSION.md / docs/privacy.{ko,en}.md / guide/ (`guide/AUTHORING.md` 포함) 신선도 검사를 거친다 — 단, **푸시될 diff에 걸린 문서만** 트라이아지하는 2차 안전망이다. diff와 무관하게 누적된 stale(예: 오래 방치된 docs/ARCHITECTURE.md 섹션)을 잡으려면 `/doc-check`로 8개 문서 전문을 코드와 직접 대조한다. 아래 중 하나라도 해당하면 문서 갱신을 별도 커밋(`docs(CLAUDE): ...` / `docs(DIRECTORY): ...` / `docs(ARCHITECTURE): ...` / `docs(README): ...` / `docs(PERMISSION): ...` / `docs(privacy): ...` / `docs(guide): ...`)으로 묶어 함께 푸시:
+`/push`는 항상 CLAUDE.md / docs/DIRECTORY.md / docs/ARCHITECTURE.md / README.{md,ko.md} / docs/PERMISSION.md / docs/privacy.{ko,en}.md / guide/ (`guide/AUTHORING.md` 포함) 신선도 검사를 거친다 — 단, **푸시될 diff에 걸린 문서만** 트라이아지하는 2차 안전망이다. diff와 무관하게 누적된 stale(예: 오래 방치된 docs/ARCHITECTURE.md 섹션)을 잡으려면 `/doc-check`로 8개 문서 전문을 코드와 직접 대조한다. 아래 중 하나라도 해당하면 문서 갱신을 별도 커밋(`docs(CLAUDE): ...` / `docs(DIRECTORY): ...` / `docs(ARCHITECTURE): ...` / `docs(README): ...` / `docs(PERMISSION): ...` / `docs(privacy): ...` / `docs(guide): ...`)으로 묶어 함께 푸시:
 
 - 새 디렉터리·파일 추가/삭제 (특히 `src/` 하위 구조 변화)
 - `package.json` scripts 변경
 - `manifest.config.ts` 변경 (권한·명령어·스킴)
 - 새 하위 시스템·아키텍처 핵심 파일 큰 변경
 - 새 컨벤션·게이트웨이 도입
-- 기능 추가/삭제로 README의 사용법·기능 설명이 어긋남
+- 기능 추가/삭제로 README의 사용법·기능 설명이 어긋남 → **`README.md`(en 원본)와 `README.ko.md`(ko 번역)는 항상 같은 내용을 담아야 하므로 양쪽을 같은 커밋에서 함께 갱신**한다(한쪽만 고치면 즉시 stale). 섹션 구성도 대칭 유지. ko가 링크를 한국어 리소스(`docs/privacy.ko.md`·`bug-shot.com/ko/…`·`guide/ko/assets/`)로 돌리는 것은 의도된 로케일 차이다.
 - 사용자 노출 UX·기능 추가/변경 → `guide/ko`·`guide/en`(사용 가이드, ko/en 양쪽) 대조·갱신 (`docs(guide): ...`). **가이드 작성·수정 전 `guide/AUTHORING.md`를 먼저 읽고 그 규칙(IA·톤·UI 라벨·footer·검증)대로 한다 — 가이드 작업의 단일 출처.**
 - 가이드 작성 기준 자체(IA·운영 방식·톤·UI 라벨 규칙·사실 스냅샷·플랫폼 표·지원 플랫폼)가 바뀜 → `guide/AUTHORING.md` 대조·갱신 (`docs(guide): ...`). 새 플랫폼 연동·단축키/로그 정책/본문 섹션 변경·새 페이지 추가가 트리거.
 - 워크플로우/스킬 라인업 변경
@@ -165,6 +177,7 @@ pnpm version major --no-git-tag-version   # 1.0.0 → 2.0.0 (Breaking change)
 - **테스트**: 코드 변경 시 관련 테스트 작성 + `pnpm test` 통과 확인 필수. 대상과 같은 디렉터리의 `__tests__/`에 두고 Vitest를 쓴다. **2트랙**:
   - `*.test.ts` — node 환경. 순수 함수·헬퍼(기본 트랙).
   - `*.test.tsx` — **jsdom + @testing-library/react**(+ `@testing-library/user-event` — 인터랙션 시뮬레이션. `vitest.config.ts`의 `environmentMatchGlobs`가 확장자로 자동 분기, 셋업은 `src/test/setup-dom.ts` — cleanup + ResizeObserver·PointerCapture·scrollIntoView 폴리필). 렌더·인터랙션이 상태 전이를 좌우하는 컴포넌트(콤보박스 등)와, 실제 DOM이 필요한 비컴포넌트 검증(헤드리스 Tiptap 왕복·vanilla DOM 셸 등)에 쓴다. 단, **포인터 드래그·캔버스처럼 브라우저 실동작에 걸린 것은 jsdom으로도 못 잡는다** — e2e·수동이 유일한 안전망(docs/POSTMORTEM.md).
+  - **커버리지**: `pnpm test:coverage`(vitest v8) → `/coverage` 스킬이 리포트. **주 지표는 "로직 스코프" 라인 %**(브라우저 전용·UI 코드를 분모에서 제외 — 전체 %는 의도적 0% 코드가 섞여 TDD 다이얼로 안 맞다). 제외 규칙 단일 출처는 `scripts/coverage-report.mjs`의 `isBrowserBound()` — 유닛테스트 불가능한 새 런타임 파일(content DOM·미디어·OAuth 런처·SW 엔트리)을 추가하면 여기 등록. 트렌드 베이스라인은 git-tracked `coverage/baseline.json`(리포트 본체는 `.gitignore`), 개선 시 `pnpm coverage:update`로 래칫.
 - **Codex 미러 자동 동기화**: `CLAUDE.md`·`.claude/commands/*.md`·`.agents/PREAMBLE.md`를 Edit/Write하면 `.claude/settings.json`의 PostToolUse 훅이 `pnpm sync:agents`를 실행해 `AGENTS.md`·`.agents/skills/`를 재생성한다. 생성물이므로 직접 편집 금지 — 상세는 아래 "메모리 & 참고 문서" 참조.
 - **i18n 자동 검사**: `src/i18n/` 파일을 Edit/Write하면 `.claude/settings.json`의 PostToolUse 훅이 `src/i18n/__tests__/locales.test.ts`(ko/en 키 대칭·빈 값·placeholder 토큰 일치)를 자동 실행해 불일치 시 차단. 키 추가 시 ko/en 양쪽을 함께 갱신할 것.
   - **사전은 두 벌이다** — log-viewer는 별도 빌드라 `src/log-viewer/i18n.ts`에 `koDict`/`enDict` **복제 사전**을 따로 둔다. 훅 matcher가 `*src/i18n/*`라 이 파일엔 **안 걸리고**, 대신 `src/log-viewer/__tests__/i18n.test.ts`가 ko/en 대칭·placeholder·**메인 테이블(`logs`·`editor`) 값 일치**를 대조한다 — 즉 저장 즉시가 아니라 `pnpm test`에서 잡힌다. log-viewer가 재사용하는 공용 컴포넌트(NetworkLog·ConsoleLog·ActionLog·IssuePreview)에 키를 추가하면 **두 사전을 함께** 갱신할 것.
@@ -173,7 +186,7 @@ pnpm version major --no-git-tag-version   # 1.0.0 → 2.0.0 (Breaking change)
 
 - 매니페스트 `minimum_chrome_version: "116"` — sidePanel API 요구사항
 - 지원 URL: `http:`, `https:`, `file:` 스킴만. 추가로 `chromewebstore.google.com` 전체와 `chrome.google.com/webstore/*` 트리는 Chrome이 content script 주입을 차단해서 `src/lib/url-support.ts`의 `isSupportedUrl()`이 미지원으로 처리. 그 외 페이지에서는 side panel을 enable하지 않고, 사용 중 race로 unsupported로 진입하면 picker가 `onPickerUnavailable` 이벤트를 발화해 안내 다이얼로그 노출.
-- iframe 지원 (picker): picker content script(`picker.ts`, content_scripts[0])는 로그 레코더처럼 `all_frames: true`로 전 프레임에 주입 — **1-depth iframe** 내부 요소 선택·스타일링·캡처를 지원한다(cross-origin 포함). 자식 picker가 `picker.start`에 실린 frameToken으로 부모 registry에 등록(`frame-geometry.ts` postMessage 핸드셰이크, token 검증으로 페이지 위조 차단)되면 top blocker가 그 iframe 위에서만 pointerEvents 핸드오프. 캡처는 offset 핸드셰이크(arm 게이트 + registry 확인)로 top 좌표 합성. **미등록 iframe(중첩 2-depth+·sandbox)** 클릭은 기존 거부 경로 유지 — `picker.iframeUnsupported` → `onPickerIframeUnsupported` 안내 다이얼로그 + idle 복귀. 사이드패널 라우팅은 `sender.frameId` 기반(`send(tabId, msg, frameId)` required), 요소 식별은 selector+frameId 복합키(`@/lib/element-key.ts`의 `sameElementKey` 단일 출처).
+- iframe 지원 (picker): picker content script(`picker.ts`, content_scripts[0])는 로그 레코더처럼 `all_frames: true`로 전 프레임에 주입 — **1-depth iframe** 내부 요소 선택·스타일링·캡처를 지원한다(cross-origin 포함). 자식 picker가 `picker.start`에 실린 frameToken으로 부모 registry에 등록(`frame-geometry.ts` postMessage 핸드셰이크 + token 검증 — **단 token은 자식이 `postMessage(..., "*")`로 보내 부모 페이지도 읽으므로 인증이 아니라 힌트다.** 상세·수용된 잔여 위험은 ARCHITECTURE.md "등록 핸드셰이크" 참조)되면 top blocker가 그 iframe 위에서만 pointerEvents 핸드오프. 캡처는 offset 핸드셰이크(arm 게이트 + registry 확인)로 top 좌표 합성. **미등록 iframe(중첩 2-depth+·sandbox)** 클릭은 기존 거부 경로 유지 — `picker.iframeUnsupported` → `onPickerIframeUnsupported` 안내 다이얼로그 + idle 복귀. 사이드패널 라우팅은 `sender.frameId` 기반(`send(tabId, msg, frameId)` required), 요소 식별은 selector+frameId 복합키(`@/lib/element-key.ts`의 `sameElementKey` 단일 출처).
 - iframe 로그 커버리지: 로그 레코더는 picker와 분리된 별도 content_scripts 2개로 **모든 프레임**에 주입(`all_frames: true`) — `recorder-bridge.ts`(ISOLATED, sentinel 수신·data 중계)와 `recorders-entry.ts`(MAIN, console/network/action 후크). cross-origin iframe(Stripe·임베드 위젯 등)의 console/network 로그까지 캡처한다. `webNavigation.onCommitted`로 커밋된 iframe에 sentinel 재발행. origin은 entry의 `pageUrl`에서 `originOf()`로 런타임 파생 — cap evict 시 top-page-origin 우선 보존(`mergeLogItems`, console/network만 — action은 광고 폭증이 없어 순수 FIFO), 로그 탭에 origin 필터(`OriginFilterBar`, console/network/action 공용) 노출. picker DOM 선택은 위 항목대로 1-depth iframe까지 지원(중첩·sandbox 제외).
 - pre-arm 버퍼링 (동기 IIFE 빌드 제약): `recorders-entry`는 self-contained 청크(외부 static import 0)여야 crxjs가 **동기 IIFE**로 emit → document_start 후크가 페이지 인라인 스크립트보다 먼저 깔린다. 그래야 `recorder-prearm.ts`의 sessionStorage 플래그(`__bugshot_recorder_active__`)를 읽어 active origin(한 번이라도 armed된 origin)이면 sentinel 도착 **전**부터 로그를 버퍼 적재(적재 게이트 `capturing` vs dispatch 게이트 `recording` 분리, sentinel 없으면 전송 no-op). 레코더는 `content/log-throttle.ts`, 사이드패널 수신부는 복제본 `sidepanel/lib/trailing-throttle.ts`를 쓰는 분리가 이 제약 때문 — 청크에 외부 static import가 유입되면 async loader로 되돌아가 pre-arm이 무력화된다(리팩터 시 회귀 주의).
 - 단축키: `_execute_action`(`Cmd/Ctrl+Shift+E`, 사이드패널 토글) 1개만 등록. Chrome이 `action.onClicked`로 내부 처리하므로 별도 `onCommand` 리스너 불필요. (캡처 단축키 3개는 제거됨 — manifest 전용이라 영속 데이터·마이그레이션 없이 무손실. 캡처는 진입 화면 버튼으로만.)
@@ -191,7 +204,7 @@ pnpm version major --no-git-tag-version   # 1.0.0 → 2.0.0 (Breaking change)
 
 - `docs/PERMISSION.md` — Chrome 권한 전체 레퍼런스 (activeTab 라이프사이클, OAuth 토큰 흐름, optional permission 등)
 - `AGENTS.md` · `.agents/skills/` — CLAUDE.md·`.claude/commands/`의 **Codex 호환 미러**. `scripts/sync-agents.mjs`(`pnpm sync:agents`)가 만드는 **순수 생성물이라 손으로 편집하지 않는다** — 고칠 건 원본에서 고친다. 본문은 치환 없이 그대로 복제하므로 미러가 `CLAUDE.md`·`.claude/commands/`를 가리켜도 그 경로가 맞다. Codex 런타임 차이(훅 부재·미제공 스킬·커밋 트레일러)만 `.agents/PREAMBLE.md`에 손으로 관리해 AGENTS.md 상단에 붙는다.
-  - **역할 분담**: Codex는 **작업 → 커밋까지**, 원격으로 나가는 건 Claude Code 단일 창구. `/push`·`/merge`·`/deploy`·`/sync`는 미러하지 않는다(스크립트 `EXCLUDE`) — 릴리스 게이트(`e2e/.last-green` HEAD 해시 캐시, 버전 bump, tag)가 두 창구에서 경쟁하면 깨지기 때문. 나머지 15개가 미러 대상이고, 원본이 없어진 미러 디렉터리는 sync가 지운다. `/ship`은 미러하되 **Codex에선 12단계(`/e2e-run`)까지만** 돌고 13·14단계(`/push`·`/build`)를 인계한다 — 이 분기는 `ship.md` 본문("push 권한 / 런타임별 종착점")에 박혀 있어 미러에 그대로 따라간다.
+  - **역할 분담**: Codex는 **작업 → 커밋까지**, 원격으로 나가는 건 Claude Code 단일 창구. `/push`·`/merge`·`/deploy`·`/sync`는 미러하지 않는다(스크립트 `EXCLUDE`) — 릴리스 게이트(`e2e/.last-green` HEAD 해시 캐시, 버전 bump, tag)가 두 창구에서 경쟁하면 깨지기 때문. 나머지 16개가 미러 대상이고, 원본이 없어진 미러 디렉터리는 sync가 지운다. `/ship`은 미러하되 **Codex에선 12단계(`/e2e-run`)까지만** 돌고 13·14단계(`/push`·`/build`)를 인계한다 — 이 분기는 `ship.md` 본문("push 권한 / 런타임별 종착점")에 박혀 있어 미러에 그대로 따라간다.
   - **드리프트 방지 2단**: ① `.claude/settings.json`의 PostToolUse 훅이 `CLAUDE.md`·`.claude/commands/*.md`·`.agents/PREAMBLE.md` 편집 시 sync를 자동 실행 ② `/push`가 `pnpm sync:agents:check`로 최종 차단. **훅은 Claude Code 전용이라 Codex 세션에선 안 돈다** — Codex가 원본을 고쳤으면 `pnpm sync:agents`를 손으로 돌린다.
 - `docs/POSTMORTEM.md` — 회귀·버그 사후분석 회고 누적 (git 공유). `/postmortem` 스킬이 픽스마다 비자명 함정·재발방지를 한 항목씩 추가
 - `docs/privacy.ko.md` · `docs/privacy.en.md` — 개인정보처리방침 (ko 원본 + en 번역, 항상 동기화). bug-shot.com/{ko,en}/privacy로 서빙

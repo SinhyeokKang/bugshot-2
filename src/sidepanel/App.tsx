@@ -15,7 +15,7 @@ import { Tabs, TabsTrigger } from "@/components/ui/tabs";
 import { CollapsingTabsList, TabLabel } from "@/components/ui/collapsing-tabs";
 import { cn } from "@/lib/utils";
 import { Toaster } from "@/components/ui/sonner";
-import { PICKER_PORT_NAME, PANEL_PORT_PREFIX } from "@/lib/session-keys";
+import { PICKER_PORT_NAME, PANEL_PORT_PREFIX, pendingKey } from "@/lib/session-keys";
 import { useEditorStore } from "@/store/editor-store";
 import { useSettingsStore } from "@/store/settings-store";
 import { useSettingsUiStore } from "@/store/settings-ui-store";
@@ -23,6 +23,7 @@ import { use30sReplay } from "./30s-replay/use-30s-replay";
 import { ReplayProvider } from "./30s-replay/replay-context";
 import {
   onBlobSaveFailed,
+  onStateSaveFailed,
   onOAuthExpired,
   onPickerIframeUnsupported,
   onPickerPermissionExpired,
@@ -133,6 +134,7 @@ export default function App() {
   const [pickerUnavailable, setPickerUnavailable] = useState(false);
   const [iframeUnsupported, setIframeUnsupported] = useState(false);
   const [blobSaveFailed, setBlobSaveFailed] = useState(false);
+  const [stateSaveFailed, setStateSaveFailed] = useState(false);
   const [sessionSaveExhausted, setSessionSaveExhausted] = useState(false);
   const [permissionExpired, setPermissionExpired] = useState(false);
   const [trimBusy, setTrimBusy] = useState(false);
@@ -165,6 +167,14 @@ export default function App() {
     const unsub = onBlobSaveFailed.subscribe(() => {
       blurActiveElement();
       setBlobSaveFailed(true);
+    });
+    return unsub;
+  }, []);
+
+  useEffect(() => {
+    const unsub = onStateSaveFailed.subscribe(() => {
+      blurActiveElement();
+      setStateSaveFailed(true);
     });
     return unsub;
   }, []);
@@ -374,6 +384,22 @@ export default function App() {
         </AlertDialogContent>
       </AlertDialog>
 
+      <AlertDialog open={stateSaveFailed} onOpenChange={setStateSaveFailed}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("app.stateSaveFailed.title")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t("app.stateSaveFailed.body")}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogAction onClick={() => setStateSaveFailed(false)}>
+              {t("common.ok")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <AlertDialog open={sessionSaveExhausted} onOpenChange={setSessionSaveExhausted}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -436,11 +462,11 @@ export default function App() {
             onCancel={() => {
               useEditorStore.getState().reset(); // ...initial이 replayTrim까지 청소 — resolveTrim 불요.
               void clearPicker(tabId);
-              void deleteNetworkLog(`pending:${tabId}`);
-              void deleteConsoleLog(`pending:${tabId}`);
-              void deleteActionLog(`pending:${tabId}`);
-              void deleteVideoBlob(`pending:${tabId}`);
-              void deleteAttachmentBlobs(`pending:${tabId}`);
+              void deleteNetworkLog(pendingKey(tabId));
+              void deleteConsoleLog(pendingKey(tabId));
+              void deleteActionLog(pendingKey(tabId));
+              void deleteVideoBlob(pendingKey(tabId));
+              void deleteAttachmentBlobs(pendingKey(tabId));
             }}
           />
         </Suspense>

@@ -22,7 +22,7 @@ OAuth is usually the easiest. That said, if your org policy blocks OAuth or you'
 | GitHub | OAuth / PAT | PAT | github.com/settings/tokens |
 | Linear | OAuth / API Key | apiKey | linear.app security settings |
 | Notion | OAuth / Internal Token | token | notion.so integration |
-| GitLab | OAuth / PAT | instanceUrl (self-managed only), pat | gitlab.com PAT |
+| GitLab | OAuth / PAT | instanceUrl (self-managed only — **https addresses only**; localhost is exempt), pat | gitlab.com PAT |
 | Asana | OAuth / PAT | pat | app.asana.com my-apps |
 | ClickUp | OAuth / API Token | pat | app.clickup.com Settings > Apps |
 | Slack | OAuth only | — (no token entry) | — |

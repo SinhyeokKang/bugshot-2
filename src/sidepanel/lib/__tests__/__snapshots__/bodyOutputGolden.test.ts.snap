@@ -934,11 +934,11 @@ logSummary.action.line n=5",
     },
     {
       "text": "1단계 진입",
-      "type": "bulleted_list_item",
+      "type": "numbered_list_item",
     },
     {
       "text": "2단계 클릭",
-      "type": "bulleted_list_item",
+      "type": "numbered_list_item",
     },
     {
       "text": "md.section.expectedResult",
@@ -4474,11 +4474,11 @@ exports[`본문 출력 골든 — 기본 순서 > buildNotionIssueBody > element
     },
     {
       "text": "1단계 진입",
-      "type": "bulleted_list_item",
+      "type": "numbered_list_item",
     },
     {
       "text": "2단계 클릭",
-      "type": "bulleted_list_item",
+      "type": "numbered_list_item",
     },
     {
       "text": "md.section.styleChanges (div.container > button)",
@@ -4660,11 +4660,11 @@ exports[`본문 출력 골든 — 기본 순서 > buildNotionIssueBody > freefor
     },
     {
       "text": "1단계 진입",
-      "type": "bulleted_list_item",
+      "type": "numbered_list_item",
     },
     {
       "text": "2단계 클릭",
-      "type": "bulleted_list_item",
+      "type": "numbered_list_item",
     },
     {
       "text": "logSummary.title",
@@ -4784,11 +4784,11 @@ exports[`본문 출력 골든 — 기본 순서 > buildNotionIssueBody > screens
     },
     {
       "text": "1단계 진입",
-      "type": "bulleted_list_item",
+      "type": "numbered_list_item",
     },
     {
       "text": "2단계 클릭",
-      "type": "bulleted_list_item",
+      "type": "numbered_list_item",
     },
     {
       "text": "md.section.media",
@@ -4916,11 +4916,11 @@ exports[`본문 출력 골든 — 기본 순서 > buildNotionIssueBody > video �
     },
     {
       "text": "1단계 진입",
-      "type": "bulleted_list_item",
+      "type": "numbered_list_item",
     },
     {
       "text": "2단계 클릭",
-      "type": "bulleted_list_item",
+      "type": "numbered_list_item",
     },
     {
       "text": "md.section.media",

@@ -181,12 +181,14 @@ shadcn `Slider` (`src/components/ui/slider.tsx`, Radix). 표준에서 **멀티 t
 **아이콘 버튼(`size="icon"`) 두 사이즈**
 - `h-8 w-8` (32px): 패널/섹션 헤더·행 액션의 기본.
 - `h-9 w-9` (36px): Input/Textarea 우측에 직접 붙거나, **인접한 h-9 컨트롤(텍스트 버튼 등)과 높이를 맞춰야 할 때**(예: `DraftingPanel`의 입력 우측 액션). 항상 `shrink-0` 동반.
+- 예외 — **미디어 플레이어 주 컨트롤**(`log-viewer/components/VideoPlayer.tsx`의 재생·다운로드)은 `h-12 w-12`(48px). 영상 위에 얹히는 오버레이 컨트롤이라 위 두 사이즈로 줄이면 터치·조준이 나빠진다. 이 예외는 log-viewer 플레이어 한정이고 사이드패널에는 적용하지 않는다.
 
 **아이콘 버튼 색**
 - idle은 **`foreground`(기본 검정)**. 아이콘 *버튼*의 idle에 `text-muted-foreground`(회색)를 쓰지 않는다 — 비활성처럼 보여 클릭 가능성이 약해진다.
 - 삭제·연결 해제 등 파괴적 액션: idle은 foreground 그대로, **`hover:text-destructive`**(호버 시 빨강)로만 위험을 표현한다.
 - 토글류(`aria-pressed`)도 off의 아이콘은 `foreground`(검정). on/off 대비는 색이 아니라 **배경·테두리**로 표현한다. 두 관용구: ① **약대비** `data-active={active||undefined}` + `aria-pressed` + `cn(..., active && "bg-muted")` — 사이드패널 아이콘 토글의 지배적 패턴. 툴바류는 `TooltipIconButton`(§13)이 단일 출처(캡처 방식 툴바·어노테이션 툴바), 그 외 텍스트 pill은 `OriginFilterBar`·`NetworkLogContent`, ② **강대비** on=`bg-foreground text-background`, off=기본 + `hover:bg-muted`(`LinkToggle`).
 - 예외: empty state·로딩 스피너·상태 표시 아이콘은 *버튼이 아니므로* `text-muted-foreground` 허용(장식·저대비 정보).
+- 예외: **입력 필드 안에 얹히는 클리어 어포던스**(검색창 우측 `X` — `IssueListTab`·`Action/Console/NetworkLogContent`·log-viewer `TimelinePanel` 5곳)는 raw `<button>` + idle `text-muted-foreground` + `hover:text-foreground`. 위 두 규칙(shadcn `Button` 사용·idle foreground)의 근거가 여기선 반대로 작동한다 — `Button`의 최소 사이즈(`size="icon"` = h-9 w-9)가 필드 안에 안 들어가 결국 직접 스타일링이 되고, 풀 대비 `X`는 입력 중인 텍스트와 대비를 다툰다. 드래그 핸들과 같은 논리로 hover 전이가 "비활성처럼 보임"을 해소한다. **`aria-label`은 필수**(`common.clearSearch`).
 - 예외: **드래그 핸들**(`SettingsTab`의 본문 구성 재정렬 `GripVertical`)은 idle `text-muted-foreground` + `hover:text-foreground`. 행마다 하나씩 세로로 쌓여 전부 풀 대비면 목록이 시끄럽고, 위 금지의 근거인 "비활성처럼 보임"은 **hover에서 foreground로 올라오는 전이**가 해소한다. 면색 hover(`hover:bg-accent`)는 끄고 글자색 전이만 쓴다(§2의 muted 표면 관용구와 같은 방향). 키보드 어포던스는 `focus-visible:ring-primary`가 별도로 담당.
 
 **관련 변형 컴포넌트**
@@ -228,7 +230,7 @@ shadcn `Slider` (`src/components/ui/slider.tsx`, Radix). 표준에서 **멀티 t
 - 현재 활성 사용처는 없다(이전 유일 예 `LogAttachmentCards`가 단일 카드로 전환되며 `@container`/grid 제거). 플러그인은 설치돼 있어 필요 시 재도입 가능.
 
 ### 오버레이 컴포넌트
-- **Dialog** (`dialog.tsx`): primitive 기본 `DialogContent` = `rounded-2xl`, `w-full max-w-[calc(100%-2rem)]`, `duration-300`. 다만 **사이드패널 다이얼로그는 예외 없이 `w-[90vw] max-w-[90vw] gap-5 rounded-3xl p-6 sm:rounded-3xl`를 얹는 게 표준**이다(v1.6.11에서 21곳 통일 — 좁은 패널에서 기본 폭이 너무 좁다). 높이가 필요하면 `max-h-[80vh]`를 더한다. 새 다이얼로그는 이 관용구를 복제한다. `AlertDialog`는 primitive 기본(2xl) 유지. `DialogFooter`는 `flex-col-reverse sm:flex-row` + `rounded-b-2xl`.
+- **Dialog** (`dialog.tsx`): primitive 기본 `DialogContent` = `rounded-2xl`, `w-full max-w-[calc(100%-2rem)]`, `duration-300`. 다만 **사이드패널 다이얼로그는 예외 없이 `w-[90vw] max-w-[800px] gap-5 rounded-3xl p-6 sm:rounded-3xl`를 얹는 게 표준**이다(v1.6.11에서 21곳 통일 — 좁은 패널에서 기본 폭이 너무 좁다. 상한은 전수가 `max-w-[800px]`이고 `max-w-[90vw]`를 쓰는 곳은 없다). 높이가 필요하면 **`max-h-[80vh]`**를 더한다 — `h-[80vh]` 고정은 짧은 내용에서도 빈 다이얼로그를 만든다. 새 다이얼로그는 이 관용구를 복제한다. `AlertDialog`는 primitive 기본(2xl) 유지. `DialogFooter`는 `flex-col-reverse sm:flex-row` + `rounded-b-2xl`.
 - **Popover** (`popover.tsx`): 기본 `align=center sideOffset=4 collisionPadding=8`, `w-72`, 높이는 `--radix-popover-content-available-height`. 콤보박스에 다수 사용.
 - **ScrollArea** (`scroll-area.tsx`): 로그 콘텐츠 패널 공통. 커스텀 스크롤바는 `globals.css`의 `::-webkit-scrollbar`(10px, thumb=border 색, hover 시 muted-foreground/0.5)와 일관.
 - **Resizable** (`resizable.tsx`): 분할 레이아웃(주로 log-viewer 비디오+로그 패널).

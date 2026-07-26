@@ -461,6 +461,12 @@ export function expandBlock(
         type: "bulleted_list_item",
         bulleted_list_item: { rich_text: richText(block.text) },
       };
+    case "numbered_list_item":
+      return {
+        object: "block",
+        type: "numbered_list_item",
+        numbered_list_item: { rich_text: richText(block.text) },
+      };
     case "image": {
       const att = attachmentMap.get(block.placeholderId);
       if (!att) return null;

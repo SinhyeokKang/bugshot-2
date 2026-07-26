@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeInstanceUrl } from "../gitlabInstanceUrl";
+import { InstanceUrlError, normalizeInstanceUrl } from "../gitlabInstanceUrl";
 
 describe("normalizeInstanceUrl", () => {
   it("빈 값 / 공백 → https://gitlab.com 폴백", () => {
@@ -45,10 +45,30 @@ describe("normalizeInstanceUrl", () => {
     expect(normalizeInstanceUrl("HTTP://GitLab.com/")).toBe("https://gitlab.com");
   });
 
-  it("self-managed 인스턴스의 http는 그대로 존중한다", () => {
-    expect(normalizeInstanceUrl("http://gitlab.internal.example")).toBe(
-      "http://gitlab.internal.example",
+  // 사내 self-managed에도 http를 허용하면 `api` 전체 스코프 PAT가 Authorization 헤더에
+  // 평문으로 나간다. loopback만 예외(개발용 로컬 인스턴스).
+  it("사내 self-managed의 평문 http는 거부한다 (PAT 평문 전송 차단)", () => {
+    expect(() => normalizeInstanceUrl("http://gitlab.internal.example")).toThrow(
+      InstanceUrlError,
     );
+    try {
+      normalizeInstanceUrl("http://gitlab.corp");
+    } catch (e) {
+      expect((e as InstanceUrlError).reason).toBe("insecure");
+    }
+  });
+
+  it("loopback http는 예외로 허용한다 (로컬 인스턴스)", () => {
+    expect(normalizeInstanceUrl("http://localhost:8929")).toBe("http://localhost:8929");
+    expect(normalizeInstanceUrl("http://127.0.0.1:8929")).toBe("http://127.0.0.1:8929");
+  });
+
+  it("무효 입력은 reason=invalid로 구분된다 (안내 문구가 갈린다)", () => {
+    try {
+      normalizeInstanceUrl("https://");
+    } catch (e) {
+      expect((e as InstanceUrlError).reason).toBe("invalid");
+    }
   });
 
   it("호스트 없는 무효 입력은 throw", () => {

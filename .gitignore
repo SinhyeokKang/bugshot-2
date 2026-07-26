@@ -15,3 +15,6 @@ test-results
 playwright-report
 .wrangler
 *.zip
+# 커버리지 리포트 본체는 무시하되, git-tracked 트렌드 베이스라인은 커밋한다.
+coverage/*
+!coverage/baseline.json

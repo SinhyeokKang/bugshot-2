@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from "react";
-import { pageKeyOf, sessionKey } from "@/lib/session-keys";
+import { pageKeyOf, sessionKey, pendingKey } from "@/lib/session-keys";
 import {
   type EditorDraft,
   type EditorSnapshot,
   useEditorStore,
 } from "@/store/editor-store";
 import { onSessionSaveExhausted } from "@/types/messages";
-import { clearPicker, rebindStylingSession } from "@/sidepanel/picker-control";
+import { cancelAreaSelect, clearPicker, rebindStylingSession } from "@/sidepanel/picker-control";
 import { getNetworkLog, getConsoleLog, getActionLog, getVideoBlob, pruneOrphanInlineImages } from "@/store/blob-db";
 import { extractInlineRefs } from "@/sidepanel/lib/resolveInlineImages";
 import { deriveLogsAttach } from "@/sidepanel/hooks/deriveLogsAttach";
@@ -40,6 +40,27 @@ function migrateLegacyDraft(snap: EditorSnapshot): EditorSnapshot {
 
 const SAVE_DEBOUNCE_MS = 300;
 const DRAFT_PHASES = new Set(["drafting", "previewing", "done"]);
+// hydrate는 이 세 phase를 idle로 강등하므로, IDB 왕복 뒤 store가 여기 있다면 그 사이
+// 사용자가 **새 캡처를 시작한 것**이다 — 직전 세션의 늦은 복원분으로 덮지 않는다.
+const ACTIVE_CAPTURE_PHASES = new Set(["picking", "capturing", "recording"]);
+
+// 이미지·영상 썸네일을 뺀 경량 스냅샷. session storage 쿼터 초과 시의 2차 시도용.
+function toLiteSnapshot(snap: EditorSnapshot): EditorSnapshot {
+  return {
+    ...snap,
+    beforeImage: null,
+    afterImage: null,
+    // bufferedElements는 배열 안 base64라 얕은 스프레드로는 안 비워짐 → 명시 변환.
+    bufferedElements: snap.bufferedElements.map((e) => ({
+      ...e,
+      beforeImage: null,
+      afterImage: null,
+    })),
+    screenshotRaw: null,
+    screenshotAnnotated: null,
+    videoThumbnail: null,
+  };
+}
 
 // videoBlob 제외: Blob은 chrome.storage 직렬화 불가 → 로그와 동일하게 IndexedDB(pending:${tabId})에
 // 별도 저장하고 hydrate가 복원. onRecordingComplete/replaceVideo 시점에 미러링된다.
@@ -111,23 +132,27 @@ export function useEditorSessionSync(tabId: number | null): boolean {
         }
         // 로그 데이터는 첨부 상태와 무관하게 항상 로드 — off 상태에서도 카드 건수·다이얼로그가
         // 뜨도록. logsAttach는 스냅샷 hydrate 값 유지(부재 시 카드가 사라지는 구 버그 해소).
-        getNetworkLog(`pending:${tabId}`).then((log) => {
-          if (log) useEditorStore.getState().setNetworkLog(log);
+        // 바깥 .then의 cancelled 확인만으론 부족하다 — 같은 탭에서 새 캡처가 시작되는 경우는
+        // cancelled가 서지 않으므로 도착 시점에 세션 세대를 다시 본다.
+        const superseded = (): boolean =>
+          cancelled || ACTIVE_CAPTURE_PHASES.has(useEditorStore.getState().phase);
+        getNetworkLog(pendingKey(tabId)).then((log) => {
+          if (log && !superseded()) useEditorStore.getState().setNetworkLog(log);
         }).catch(() => {});
-        getConsoleLog(`pending:${tabId}`).then((log) => {
-          if (log) useEditorStore.getState().setConsoleLog(log);
+        getConsoleLog(pendingKey(tabId)).then((log) => {
+          if (log && !superseded()) useEditorStore.getState().setConsoleLog(log);
         }).catch(() => {});
-        getActionLog(`pending:${tabId}`).then((log) => {
-          if (log) useEditorStore.getState().setActionLog(log);
+        getActionLog(pendingKey(tabId)).then((log) => {
+          if (log && !superseded()) useEditorStore.getState().setActionLog(log);
         }).catch(() => {});
         // 영상 blob은 스냅샷 밖(직렬화 불가)이라 IDB에서 복원. drafting은 pending:${tabId}에,
         // confirm 후(previewing/done, 또는 backToDraft로 돌아온 drafting)엔 issueId 키에 있으므로
         // pending → currentIssueId 순으로 조회. 둘 다 없으면 썸네일만 남고 videoBlob은 null.
         if (snap.captureMode === "video" && DRAFT_PHASES.has(snap.phase)) {
           void (async () => {
-            let blob = await getVideoBlob(`pending:${tabId}`);
+            let blob = await getVideoBlob(pendingKey(tabId));
             if (!blob && snap.currentIssueId) blob = await getVideoBlob(snap.currentIssueId);
-            if (blob) useEditorStore.setState({ videoBlob: blob });
+            if (blob && !superseded()) useEditorStore.setState({ videoBlob: blob });
           })().catch(() => {});
         }
       }
@@ -160,21 +185,7 @@ export function useEditorSessionSync(tabId: number | null): boolean {
           .set({ [key]: snap })
           .then(() => { saveFailCount.current = 0; })
           .catch(() => {
-            // bufferedElements는 배열 안 base64라 얕은 스프레드로는 안 비워짐 → 명시 변환.
-            const lite = {
-              ...snap,
-              beforeImage: null,
-              afterImage: null,
-              bufferedElements: snap.bufferedElements.map((e) => ({
-                ...e,
-                beforeImage: null,
-                afterImage: null,
-              })),
-              screenshotRaw: null,
-              screenshotAnnotated: null,
-              videoThumbnail: null,
-            };
-            void chrome.storage.session.set({ [key]: lite })
+            void chrome.storage.session.set({ [key]: toLiteSnapshot(snap) })
               .then(() => { saveFailCount.current = 0; })
               .catch(() => {
                 saveFailCount.current++;
@@ -212,7 +223,7 @@ export function useEditorSessionSync(tabId: number | null): boolean {
         // 콘텐츠 picker 정리: area-select(screenshot+capturing)만 cancelAreaSelect,
         // 그 외 element-select picker(element 스타일 / 요소 캡처 picking)는 clear.
         if (captureMode === "screenshot" && phase === "capturing") {
-          void chrome.tabs.sendMessage(tabId, { type: "picker.cancelAreaSelect" }).catch(() => {});
+          void cancelAreaSelect(tabId);
         } else if (needsExpiry || needsReset) {
           void clearPicker(tabId).catch(() => {});
         }
@@ -253,9 +264,7 @@ export function useEditorSessionSync(tabId: number | null): boolean {
         useEditorStore.getState().reset();
         // area-select(screenshot+capturing)만 cancelAreaSelect, element-select picker는 clear.
         if (captureMode === "screenshot" && phase === "capturing") {
-          void chrome.tabs
-            .sendMessage(tabId, { type: "picker.cancelAreaSelect" })
-            .catch(() => {});
+          void cancelAreaSelect(tabId);
         } else {
           void clearPicker(tabId).catch(() => {});
         }
@@ -279,7 +288,11 @@ export function useEditorSessionSync(tabId: number | null): boolean {
       saveTimer.current = null;
       if (useEditorStore.getState().sessionExpired) return;
       if (saveSuspended.current) return;
-      void chrome.storage.session.set({ [key]: snapshotFromState() }).catch(() => {});
+      // debounce 경로와 같은 lite 폴백 — 쿼터 초과 시 통째 유실되던 마지막 꼬리를 살린다.
+      const snap = snapshotFromState();
+      void chrome.storage.session.set({ [key]: snap }).catch(() => {
+        void chrome.storage.session.set({ [key]: toLiteSnapshot(snap) }).catch(() => {});
+      });
     };
     window.addEventListener("pagehide", flushPendingSave);
 

@@ -5,6 +5,8 @@ export type ActionEntryKind =
   | "keypress" // value: 키 조합 문자열, target?: 포커스 요소 이름, selector
   | "toggle" // checkbox/radio. fieldLabel, value: "checked"|"unchecked", selector
   | "select" // <select>. fieldLabel, value: 선택 옵션 텍스트, selector
+  // 새 kind를 추가하면 `sidepanel/lib/buildLogSummary.ts:buildActionLogSummary`의
+  // exhaustive check가 컴파일 에러로 잡는다 — 라벨 분기를 반드시 함께 추가할 것.
   | "drag"; // dragSource(항상) + dragTarget(네이티브 DnD에서만 — 신뢰 가능한 드롭존)
 
 // drag endpoint 1개를 기술 — recordClick의 인라인 로직(accessibleName→truncateName,

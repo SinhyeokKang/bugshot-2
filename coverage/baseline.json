@@ -1,0 +1,1827 @@
+{
+  "generatedAt": "2026-07-24T14:59:52.863Z",
+  "logic": {
+    "covered": 15601,
+    "total": 21002,
+    "pct": 74.28340158080182
+  },
+  "global": {
+    "lines": {
+      "covered": 18877,
+      "total": 49916,
+      "pct": 37.81
+    },
+    "branches": {
+      "covered": 5680,
+      "total": 6524,
+      "pct": 87.06
+    },
+    "functions": {
+      "covered": 1045,
+      "total": 1812,
+      "pct": 57.67
+    }
+  },
+  "files": {
+    "src/background/analytics.ts": {
+      "covered": 44,
+      "total": 69
+    },
+    "src/background/asana-api.ts": {
+      "covered": 93,
+      "total": 203
+    },
+    "src/background/asana-oauth.ts": {
+      "covered": 30,
+      "total": 146
+    },
+    "src/background/bgRequestTypes.ts": {
+      "covered": 0,
+      "total": 110
+    },
+    "src/background/capture-throttle.ts": {
+      "covered": 35,
+      "total": 35
+    },
+    "src/background/clickup-api.ts": {
+      "covered": 24,
+      "total": 217
+    },
+    "src/background/clickup-oauth.ts": {
+      "covered": 27,
+      "total": 85
+    },
+    "src/background/connect-tracking.ts": {
+      "covered": 20,
+      "total": 20
+    },
+    "src/background/github-api.ts": {
+      "covered": 144,
+      "total": 251
+    },
+    "src/background/github-oauth.ts": {
+      "covered": 31,
+      "total": 174
+    },
+    "src/background/github-upload.ts": {
+      "covered": 0,
+      "total": 142
+    },
+    "src/background/gitlab-api.ts": {
+      "covered": 49,
+      "total": 235
+    },
+    "src/background/gitlab-oauth.ts": {
+      "covered": 32,
+      "total": 171
+    },
+    "src/background/index.ts": {
+      "covered": 0,
+      "total": 212
+    },
+    "src/background/injectSnapshotRows.ts": {
+      "covered": 30,
+      "total": 30
+    },
+    "src/background/jira-api.ts": {
+      "covered": 138,
+      "total": 407
+    },
+    "src/background/linear-api.ts": {
+      "covered": 99,
+      "total": 267
+    },
+    "src/background/linear-oauth.ts": {
+      "covered": 42,
+      "total": 171
+    },
+    "src/background/messages.ts": {
+      "covered": 0,
+      "total": 673
+    },
+    "src/background/notion-api.ts": {
+      "covered": 200,
+      "total": 553
+    },
+    "src/background/notion-oauth.ts": {
+      "covered": 29,
+      "total": 93
+    },
+    "src/background/oauth.ts": {
+      "covered": 25,
+      "total": 165
+    },
+    "src/background/slack-api.ts": {
+      "covered": 39,
+      "total": 185
+    },
+    "src/background/slack-oauth.ts": {
+      "covered": 29,
+      "total": 98
+    },
+    "src/background/tab-bindings.ts": {
+      "covered": 46,
+      "total": 230
+    },
+    "src/background/lib/adf-logs-link.ts": {
+      "covered": 16,
+      "total": 16
+    },
+    "src/background/lib/adf-media.ts": {
+      "covered": 27,
+      "total": 27
+    },
+    "src/background/lib/createRefreshRunner.ts": {
+      "covered": 36,
+      "total": 36
+    },
+    "src/background/lib/readErrorBody.ts": {
+      "covered": 8,
+      "total": 12
+    },
+    "src/background/oauth/config.ts": {
+      "covered": 98,
+      "total": 129
+    },
+    "src/background/oauth/errors.ts": {
+      "covered": 10,
+      "total": 10
+    },
+    "src/components/icons/SlackIcon.tsx": {
+      "covered": 0,
+      "total": 26
+    },
+    "src/components/ui/alert-dialog.tsx": {
+      "covered": 28,
+      "total": 98
+    },
+    "src/components/ui/alert.tsx": {
+      "covered": 0,
+      "total": 46
+    },
+    "src/components/ui/badge.tsx": {
+      "covered": 35,
+      "total": 35
+    },
+    "src/components/ui/button-group.tsx": {
+      "covered": 31,
+      "total": 63
+    },
+    "src/components/ui/button.tsx": {
+      "covered": 45,
+      "total": 45
+    },
+    "src/components/ui/card.tsx": {
+      "covered": 20,
+      "total": 54
+    },
+    "src/components/ui/checkbox.tsx": {
+      "covered": 0,
+      "total": 17
+    },
+    "src/components/ui/collapsible.tsx": {
+      "covered": 4,
+      "total": 4
+    },
+    "src/components/ui/collapsing-tabs.tsx": {
+      "covered": 4,
+      "total": 53
+    },
+    "src/components/ui/command.tsx": {
+      "covered": 75,
+      "total": 75
+    },
+    "src/components/ui/dialog.tsx": {
+      "covered": 22,
+      "total": 81
+    },
+    "src/components/ui/input.tsx": {
+      "covered": 16,
+      "total": 16
+    },
+    "src/components/ui/kbd.tsx": {
+      "covered": 14,
+      "total": 22
+    },
+    "src/components/ui/label.tsx": {
+      "covered": 0,
+      "total": 13
+    },
+    "src/components/ui/popover.tsx": {
+      "covered": 21,
+      "total": 21
+    },
+    "src/components/ui/resizable.tsx": {
+      "covered": 0,
+      "total": 29
+    },
+    "src/components/ui/scroll-area.tsx": {
+      "covered": 31,
+      "total": 31
+    },
+    "src/components/ui/select.tsx": {
+      "covered": 27,
+      "total": 110
+    },
+    "src/components/ui/separator.tsx": {
+      "covered": 5,
+      "total": 18
+    },
+    "src/components/ui/slider.tsx": {
+      "covered": 0,
+      "total": 34
+    },
+    "src/components/ui/sonner.tsx": {
+      "covered": 0,
+      "total": 26
+    },
+    "src/components/ui/switch.tsx": {
+      "covered": 4,
+      "total": 18
+    },
+    "src/components/ui/tabs.tsx": {
+      "covered": 38,
+      "total": 38
+    },
+    "src/components/ui/textarea.tsx": {
+      "covered": 4,
+      "total": 14
+    },
+    "src/components/ui/toggle-group.tsx": {
+      "covered": 0,
+      "total": 40
+    },
+    "src/components/ui/toggle.tsx": {
+      "covered": 0,
+      "total": 35
+    },
+    "src/components/ui/tooltip.tsx": {
+      "covered": 8,
+      "total": 19
+    },
+    "src/content/action-recorder-helpers.ts": {
+      "covered": 83,
+      "total": 95
+    },
+    "src/content/action-recorder.ts": {
+      "covered": 0,
+      "total": 493
+    },
+    "src/content/annotation-draw.ts": {
+      "covered": 49,
+      "total": 49
+    },
+    "src/content/annotation.ts": {
+      "covered": 9,
+      "total": 182
+    },
+    "src/content/area-select.ts": {
+      "covered": 0,
+      "total": 154
+    },
+    "src/content/console-recorder-helpers.ts": {
+      "covered": 147,
+      "total": 164
+    },
+    "src/content/console-recorder.ts": {
+      "covered": 0,
+      "total": 263
+    },
+    "src/content/css-resolve.ts": {
+      "covered": 535,
+      "total": 1065
+    },
+    "src/content/css-source-cache.ts": {
+      "covered": 355,
+      "total": 787
+    },
+    "src/content/dom-describe.ts": {
+      "covered": 0,
+      "total": 119
+    },
+    "src/content/frame-geometry.ts": {
+      "covered": 129,
+      "total": 134
+    },
+    "src/content/log-throttle.ts": {
+      "covered": 36,
+      "total": 37
+    },
+    "src/content/network-recorder-helpers.ts": {
+      "covered": 238,
+      "total": 255
+    },
+    "src/content/network-recorder.ts": {
+      "covered": 0,
+      "total": 529
+    },
+    "src/content/overlay.ts": {
+      "covered": 17,
+      "total": 461
+    },
+    "src/content/picker.ts": {
+      "covered": 0,
+      "total": 828
+    },
+    "src/content/post-to-runtime.ts": {
+      "covered": 1,
+      "total": 7
+    },
+    "src/content/recorder-bridge.ts": {
+      "covered": 0,
+      "total": 166
+    },
+    "src/content/recorder-prearm.ts": {
+      "covered": 17,
+      "total": 17
+    },
+    "src/content/recorders-entry.ts": {
+      "covered": 0,
+      "total": 4
+    },
+    "src/content/scroll-capture.ts": {
+      "covered": 171,
+      "total": 173
+    },
+    "src/i18n/bg-init.ts": {
+      "covered": 0,
+      "total": 20
+    },
+    "src/i18n/en.ts": {
+      "covered": 19,
+      "total": 19
+    },
+    "src/i18n/index.ts": {
+      "covered": 34,
+      "total": 34
+    },
+    "src/i18n/ko.ts": {
+      "covered": 19,
+      "total": 19
+    },
+    "src/i18n/namespaces/ai.ts": {
+      "covered": 63,
+      "total": 63
+    },
+    "src/i18n/namespaces/app.ts": {
+      "covered": 101,
+      "total": 101
+    },
+    "src/i18n/namespaces/common.ts": {
+      "covered": 61,
+      "total": 61
+    },
+    "src/i18n/namespaces/editor.ts": {
+      "covered": 299,
+      "total": 299
+    },
+    "src/i18n/namespaces/integrations.ts": {
+      "covered": 539,
+      "total": 539
+    },
+    "src/i18n/namespaces/issue.ts": {
+      "covered": 237,
+      "total": 237
+    },
+    "src/i18n/namespaces/logs.ts": {
+      "covered": 239,
+      "total": 239
+    },
+    "src/i18n/namespaces/settings.ts": {
+      "covered": 193,
+      "total": 193
+    },
+    "src/lib/adf-sentinels.ts": {
+      "covered": 10,
+      "total": 10
+    },
+    "src/lib/capture-commands.ts": {
+      "covered": 3,
+      "total": 3
+    },
+    "src/lib/element-key.ts": {
+      "covered": 6,
+      "total": 6
+    },
+    "src/lib/element-label.ts": {
+      "covered": 15,
+      "total": 15
+    },
+    "src/lib/external-links.ts": {
+      "covered": 0,
+      "total": 6
+    },
+    "src/lib/gzip-base64.ts": {
+      "covered": 31,
+      "total": 31
+    },
+    "src/lib/highlight-text.ts": {
+      "covered": 17,
+      "total": 17
+    },
+    "src/lib/inject-issue-url.ts": {
+      "covered": 31,
+      "total": 31
+    },
+    "src/lib/key-obfuscation.ts": {
+      "covered": 28,
+      "total": 28
+    },
+    "src/lib/log-colors.ts": {
+      "covered": 37,
+      "total": 37
+    },
+    "src/lib/named-colors.ts": {
+      "covered": 30,
+      "total": 30
+    },
+    "src/lib/navigation-clear.ts": {
+      "covered": 13,
+      "total": 13
+    },
+    "src/lib/network-log-path.ts": {
+      "covered": 8,
+      "total": 8
+    },
+    "src/lib/network-search.ts": {
+      "covered": 17,
+      "total": 17
+    },
+    "src/lib/network-status.ts": {
+      "covered": 13,
+      "total": 13
+    },
+    "src/lib/notion-page-id.ts": {
+      "covered": 12,
+      "total": 12
+    },
+    "src/lib/pending-log-prune.ts": {
+      "covered": 40,
+      "total": 79
+    },
+    "src/lib/session-keys.ts": {
+      "covered": 28,
+      "total": 28
+    },
+    "src/lib/settings-storage.ts": {
+      "covered": 111,
+      "total": 111
+    },
+    "src/lib/ssrf-guard.ts": {
+      "covered": 57,
+      "total": 61
+    },
+    "src/lib/url-support.ts": {
+      "covered": 33,
+      "total": 33
+    },
+    "src/lib/utils.ts": {
+      "covered": 7,
+      "total": 7
+    },
+    "src/log-viewer/App.tsx": {
+      "covered": 0,
+      "total": 272
+    },
+    "src/log-viewer/i18n.ts": {
+      "covered": 237,
+      "total": 239
+    },
+    "src/log-viewer/main.tsx": {
+      "covered": 0,
+      "total": 41
+    },
+    "src/log-viewer/markers.ts": {
+      "covered": 139,
+      "total": 139
+    },
+    "src/log-viewer/timeline-merge.ts": {
+      "covered": 55,
+      "total": 55
+    },
+    "src/log-viewer/timeline.ts": {
+      "covered": 34,
+      "total": 34
+    },
+    "src/log-viewer/components/ImageViewer.tsx": {
+      "covered": 0,
+      "total": 22
+    },
+    "src/log-viewer/components/IssueTitleOverlay.tsx": {
+      "covered": 0,
+      "total": 18
+    },
+    "src/log-viewer/components/ProgressBar.tsx": {
+      "covered": 0,
+      "total": 85
+    },
+    "src/log-viewer/components/TimelineMarkers.tsx": {
+      "covered": 82,
+      "total": 87
+    },
+    "src/log-viewer/components/TimelinePanel.tsx": {
+      "covered": 0,
+      "total": 109
+    },
+    "src/log-viewer/components/TimelineRow.tsx": {
+      "covered": 76,
+      "total": 76
+    },
+    "src/log-viewer/components/VideoPlayer.tsx": {
+      "covered": 0,
+      "total": 123
+    },
+    "src/sidepanel/App.tsx": {
+      "covered": 0,
+      "total": 369
+    },
+    "src/sidepanel/annotation-control.ts": {
+      "covered": 1,
+      "total": 26
+    },
+    "src/sidepanel/capture.ts": {
+      "covered": 3,
+      "total": 81
+    },
+    "src/sidepanel/main.tsx": {
+      "covered": 0,
+      "total": 35
+    },
+    "src/sidepanel/picker-control.ts": {
+      "covered": 10,
+      "total": 615
+    },
+    "src/sidepanel/recorder-control.ts": {
+      "covered": 0,
+      "total": 15
+    },
+    "src/sidepanel/scroll-capture.ts": {
+      "covered": 45,
+      "total": 75
+    },
+    "src/sidepanel/tab-nav.ts": {
+      "covered": 0,
+      "total": 3
+    },
+    "src/sidepanel/video-capture.ts": {
+      "covered": 0,
+      "total": 88
+    },
+    "src/sidepanel/video-recorder.ts": {
+      "covered": 10,
+      "total": 184
+    },
+    "src/sidepanel/30s-replay/apply-trim.ts": {
+      "covered": 39,
+      "total": 39
+    },
+    "src/sidepanel/30s-replay/frame-buffer.ts": {
+      "covered": 32,
+      "total": 34
+    },
+    "src/sidepanel/30s-replay/mp4-encoder.ts": {
+      "covered": 87,
+      "total": 175
+    },
+    "src/sidepanel/30s-replay/replay-context.ts": {
+      "covered": 11,
+      "total": 11
+    },
+    "src/sidepanel/30s-replay/trim-markers.ts": {
+      "covered": 27,
+      "total": 27
+    },
+    "src/sidepanel/30s-replay/trim-math.ts": {
+      "covered": 75,
+      "total": 75
+    },
+    "src/sidepanel/30s-replay/use-30s-replay.ts": {
+      "covered": 0,
+      "total": 152
+    },
+    "src/sidepanel/components/ActionLogContent.tsx": {
+      "covered": 203,
+      "total": 253
+    },
+    "src/sidepanel/components/AiLoadingText.tsx": {
+      "covered": 39,
+      "total": 39
+    },
+    "src/sidepanel/components/AnnotationOverlay.tsx": {
+      "covered": 0,
+      "total": 469
+    },
+    "src/sidepanel/components/AttachmentList.tsx": {
+      "covered": 11,
+      "total": 47
+    },
+    "src/sidepanel/components/AttachmentSection.tsx": {
+      "covered": 2,
+      "total": 78
+    },
+    "src/sidepanel/components/CancelConfirmDialog.tsx": {
+      "covered": 2,
+      "total": 24
+    },
+    "src/sidepanel/components/CcMultiCombobox.tsx": {
+      "covered": 127,
+      "total": 162
+    },
+    "src/sidepanel/components/ColorSwatch.tsx": {
+      "covered": 5,
+      "total": 24
+    },
+    "src/sidepanel/components/ConnectedBadge.tsx": {
+      "covered": 0,
+      "total": 8
+    },
+    "src/sidepanel/components/ConsoleLogContent.tsx": {
+      "covered": 176,
+      "total": 195
+    },
+    "src/sidepanel/components/DocSectionBody.tsx": {
+      "covered": 44,
+      "total": 87
+    },
+    "src/sidepanel/components/DocTable.tsx": {
+      "covered": 5,
+      "total": 20
+    },
+    "src/sidepanel/components/FieldRow.tsx": {
+      "covered": 2,
+      "total": 16
+    },
+    "src/sidepanel/components/HighlightedText.tsx": {
+      "covered": 5,
+      "total": 20
+    },
+    "src/sidepanel/components/InlineLink.tsx": {
+      "covered": 22,
+      "total": 22
+    },
+    "src/sidepanel/components/IntegrationsCta.tsx": {
+      "covered": 0,
+      "total": 26
+    },
+    "src/sidepanel/components/IssuePreviewView.tsx": {
+      "covered": 0,
+      "total": 127
+    },
+    "src/sidepanel/components/JsonTreeViewer.tsx": {
+      "covered": 158,
+      "total": 219
+    },
+    "src/sidepanel/components/LinkifiedText.tsx": {
+      "covered": 10,
+      "total": 13
+    },
+    "src/sidepanel/components/LogAttachmentCards.tsx": {
+      "covered": 2,
+      "total": 51
+    },
+    "src/sidepanel/components/LogInsertDialog.tsx": {
+      "covered": 2,
+      "total": 94
+    },
+    "src/sidepanel/components/LogPreviewDialog.tsx": {
+      "covered": 2,
+      "total": 98
+    },
+    "src/sidepanel/components/LogSeekChip.tsx": {
+      "covered": 20,
+      "total": 20
+    },
+    "src/sidepanel/components/NetworkLogContent.tsx": {
+      "covered": 417,
+      "total": 594
+    },
+    "src/sidepanel/components/OrderedListEditor.tsx": {
+      "covered": 2,
+      "total": 89
+    },
+    "src/sidepanel/components/OriginFilterBar.tsx": {
+      "covered": 11,
+      "total": 24
+    },
+    "src/sidepanel/components/RecordingSettingsCard.tsx": {
+      "covered": 0,
+      "total": 60
+    },
+    "src/sidepanel/components/Section.tsx": {
+      "covered": 5,
+      "total": 97
+    },
+    "src/sidepanel/components/SingleLazyCombobox.tsx": {
+      "covered": 2,
+      "total": 93
+    },
+    "src/sidepanel/components/StyleChangesTable.tsx": {
+      "covered": 125,
+      "total": 232
+    },
+    "src/sidepanel/components/SubmitSuccessView.tsx": {
+      "covered": 0,
+      "total": 33
+    },
+    "src/sidepanel/components/TiptapEditor.tsx": {
+      "covered": 70,
+      "total": 647
+    },
+    "src/sidepanel/components/TooltipIconButton.tsx": {
+      "covered": 2,
+      "total": 37
+    },
+    "src/sidepanel/components/ccOptions.ts": {
+      "covered": 21,
+      "total": 21
+    },
+    "src/sidepanel/components/logCardTypeCounts.ts": {
+      "covered": 26,
+      "total": 28
+    },
+    "src/sidepanel/components/annotation/AnnotationToolbar.tsx": {
+      "covered": 0,
+      "total": 162
+    },
+    "src/sidepanel/components/annotation/ShapeNode.tsx": {
+      "covered": 0,
+      "total": 140
+    },
+    "src/sidepanel/components/annotation/ToolbarGroups.tsx": {
+      "covered": 0,
+      "total": 161
+    },
+    "src/sidepanel/components/annotation/ZoomControl.tsx": {
+      "covered": 0,
+      "total": 59
+    },
+    "src/sidepanel/components/annotation/history.ts": {
+      "covered": 30,
+      "total": 30
+    },
+    "src/sidepanel/components/annotation/presets.ts": {
+      "covered": 43,
+      "total": 45
+    },
+    "src/sidepanel/components/annotation/recording-pen.ts": {
+      "covered": 10,
+      "total": 10
+    },
+    "src/sidepanel/components/annotation/shapes.ts": {
+      "covered": 96,
+      "total": 98
+    },
+    "src/sidepanel/components/annotation/viewport.ts": {
+      "covered": 77,
+      "total": 77
+    },
+    "src/sidepanel/hooks/deriveLogsAttach.ts": {
+      "covered": 12,
+      "total": 12
+    },
+    "src/sidepanel/hooks/useAI.ts": {
+      "covered": 2,
+      "total": 51
+    },
+    "src/sidepanel/hooks/useAiLoadingStep.ts": {
+      "covered": 14,
+      "total": 14
+    },
+    "src/sidepanel/hooks/useBackgroundRecorder.ts": {
+      "covered": 9,
+      "total": 108
+    },
+    "src/sidepanel/hooks/useBoundTabId.ts": {
+      "covered": 2,
+      "total": 32
+    },
+    "src/sidepanel/hooks/useBufferThenSwitch.ts": {
+      "covered": 0,
+      "total": 22
+    },
+    "src/sidepanel/hooks/useCodeCollapse.ts": {
+      "covered": 26,
+      "total": 26
+    },
+    "src/sidepanel/hooks/useDraftStyleElements.ts": {
+      "covered": 0,
+      "total": 39
+    },
+    "src/sidepanel/hooks/useEditorSessionSync.ts": {
+      "covered": 0,
+      "total": 238
+    },
+    "src/sidepanel/hooks/useIssueImages.ts": {
+      "covered": 0,
+      "total": 65
+    },
+    "src/sidepanel/hooks/useLazyListOnOpen.ts": {
+      "covered": 3,
+      "total": 41
+    },
+    "src/sidepanel/hooks/usePickerMessages.ts": {
+      "covered": 0,
+      "total": 322
+    },
+    "src/sidepanel/hooks/usePlatformFields.ts": {
+      "covered": 0,
+      "total": 110
+    },
+    "src/sidepanel/hooks/useRecorderSyncInterval.ts": {
+      "covered": 0,
+      "total": 22
+    },
+    "src/sidepanel/hooks/useReproPrefill.ts": {
+      "covered": 114,
+      "total": 114
+    },
+    "src/sidepanel/hooks/useThemeEffect.ts": {
+      "covered": 0,
+      "total": 19
+    },
+    "src/sidepanel/lib/actionInline.ts": {
+      "covered": 34,
+      "total": 34
+    },
+    "src/sidepanel/lib/ai-provider.ts": {
+      "covered": 282,
+      "total": 402
+    },
+    "src/sidepanel/lib/aiLoadingPhrases.ts": {
+      "covered": 38,
+      "total": 38
+    },
+    "src/sidepanel/lib/aiLogsManual.ts": {
+      "covered": 68,
+      "total": 68
+    },
+    "src/sidepanel/lib/aiStylingPostProcess.ts": {
+      "covered": 249,
+      "total": 249
+    },
+    "src/sidepanel/lib/applyDraftFieldEdit.ts": {
+      "covered": 21,
+      "total": 21
+    },
+    "src/sidepanel/lib/attachmentDimensions.ts": {
+      "covered": 0,
+      "total": 43
+    },
+    "src/sidepanel/lib/attachmentLimits.ts": {
+      "covered": 44,
+      "total": 44
+    },
+    "src/sidepanel/lib/blockActions.ts": {
+      "covered": 73,
+      "total": 73
+    },
+    "src/sidepanel/lib/bodyBlocks.ts": {
+      "covered": 15,
+      "total": 15
+    },
+    "src/sidepanel/lib/buildActionLogJson.ts": {
+      "covered": 29,
+      "total": 29
+    },
+    "src/sidepanel/lib/buildAiDraftPrompt.ts": {
+      "covered": 83,
+      "total": 85
+    },
+    "src/sidepanel/lib/buildAiDraftRequest.ts": {
+      "covered": 7,
+      "total": 7
+    },
+    "src/sidepanel/lib/buildAiStylingPrompt.ts": {
+      "covered": 86,
+      "total": 88
+    },
+    "src/sidepanel/lib/buildAsanaIssueBody.ts": {
+      "covered": 115,
+      "total": 117
+    },
+    "src/sidepanel/lib/buildCaptureFiles.ts": {
+      "covered": 80,
+      "total": 80
+    },
+    "src/sidepanel/lib/buildClickupIssueBody.ts": {
+      "covered": 127,
+      "total": 138
+    },
+    "src/sidepanel/lib/buildConsoleLogJson.ts": {
+      "covered": 23,
+      "total": 23
+    },
+    "src/sidepanel/lib/buildEditorCapture.ts": {
+      "covered": 82,
+      "total": 161
+    },
+    "src/sidepanel/lib/buildGithubIssueBody.ts": {
+      "covered": 9,
+      "total": 9
+    },
+    "src/sidepanel/lib/buildGitlabIssueBody.ts": {
+      "covered": 6,
+      "total": 6
+    },
+    "src/sidepanel/lib/buildHar.ts": {
+      "covered": 154,
+      "total": 154
+    },
+    "src/sidepanel/lib/buildIssueAdf.ts": {
+      "covered": 236,
+      "total": 238
+    },
+    "src/sidepanel/lib/buildIssueMarkdown.ts": {
+      "covered": 397,
+      "total": 401
+    },
+    "src/sidepanel/lib/buildLinearIssueBody.ts": {
+      "covered": 136,
+      "total": 139
+    },
+    "src/sidepanel/lib/buildLogSummary.ts": {
+      "covered": 75,
+      "total": 75
+    },
+    "src/sidepanel/lib/buildLogsHtml.ts": {
+      "covered": 44,
+      "total": 44
+    },
+    "src/sidepanel/lib/buildMarkdownContext.ts": {
+      "covered": 55,
+      "total": 62
+    },
+    "src/sidepanel/lib/buildMarkdownIssueBody.ts": {
+      "covered": 185,
+      "total": 187
+    },
+    "src/sidepanel/lib/buildNotionIssueBody.ts": {
+      "covered": 229,
+      "total": 238
+    },
+    "src/sidepanel/lib/buildReportData.ts": {
+      "covered": 46,
+      "total": 46
+    },
+    "src/sidepanel/lib/buildSlackBody.ts": {
+      "covered": 94,
+      "total": 97
+    },
+    "src/sidepanel/lib/capture-error.ts": {
+      "covered": 7,
+      "total": 7
+    },
+    "src/sidepanel/lib/captureLogSupport.ts": {
+      "covered": 39,
+      "total": 39
+    },
+    "src/sidepanel/lib/ccMention.ts": {
+      "covered": 40,
+      "total": 40
+    },
+    "src/sidepanel/lib/classDiff.ts": {
+      "covered": 20,
+      "total": 20
+    },
+    "src/sidepanel/lib/codeCollapse.ts": {
+      "covered": 8,
+      "total": 8
+    },
+    "src/sidepanel/lib/codeCollapseShell.ts": {
+      "covered": 109,
+      "total": 114
+    },
+    "src/sidepanel/lib/compactImage.ts": {
+      "covered": 15,
+      "total": 23
+    },
+    "src/sidepanel/lib/composePreviewLayout.ts": {
+      "covered": 21,
+      "total": 21
+    },
+    "src/sidepanel/lib/crop-rect.ts": {
+      "covered": 17,
+      "total": 17
+    },
+    "src/sidepanel/lib/downloadAttachment.ts": {
+      "covered": 0,
+      "total": 12
+    },
+    "src/sidepanel/lib/downloadCapture.ts": {
+      "covered": 10,
+      "total": 23
+    },
+    "src/sidepanel/lib/environmentRows.ts": {
+      "covered": 39,
+      "total": 39
+    },
+    "src/sidepanel/lib/extractJson.ts": {
+      "covered": 9,
+      "total": 9
+    },
+    "src/sidepanel/lib/fileMeta.ts": {
+      "covered": 34,
+      "total": 34
+    },
+    "src/sidepanel/lib/findClosingToken.ts": {
+      "covered": 16,
+      "total": 16
+    },
+    "src/sidepanel/lib/formatBytes.ts": {
+      "covered": 6,
+      "total": 6
+    },
+    "src/sidepanel/lib/formatTimestamp.ts": {
+      "covered": 23,
+      "total": 23
+    },
+    "src/sidepanel/lib/generateReproPrefill.ts": {
+      "covered": 43,
+      "total": 45
+    },
+    "src/sidepanel/lib/hasStyleChange.ts": {
+      "covered": 15,
+      "total": 15
+    },
+    "src/sidepanel/lib/highlightJson.ts": {
+      "covered": 35,
+      "total": 35
+    },
+    "src/sidepanel/lib/hrInputRule.ts": {
+      "covered": 3,
+      "total": 3
+    },
+    "src/sidepanel/lib/initialJiraFields.ts": {
+      "covered": 15,
+      "total": 15
+    },
+    "src/sidepanel/lib/inlineImageAnnotation.ts": {
+      "covered": 20,
+      "total": 20
+    },
+    "src/sidepanel/lib/linkify.ts": {
+      "covered": 27,
+      "total": 27
+    },
+    "src/sidepanel/lib/listKeymap.ts": {
+      "covered": 8,
+      "total": 8
+    },
+    "src/sidepanel/lib/llmErrorToast.ts": {
+      "covered": 24,
+      "total": 24
+    },
+    "src/sidepanel/lib/log-merge.ts": {
+      "covered": 106,
+      "total": 106
+    },
+    "src/sidepanel/lib/log-persist-guard.ts": {
+      "covered": 47,
+      "total": 47
+    },
+    "src/sidepanel/lib/log-prearm-filter.ts": {
+      "covered": 7,
+      "total": 7
+    },
+    "src/sidepanel/lib/logOrigin.ts": {
+      "covered": 32,
+      "total": 34
+    },
+    "src/sidepanel/lib/logRow.ts": {
+      "covered": 15,
+      "total": 15
+    },
+    "src/sidepanel/lib/logToCodeBlock.ts": {
+      "covered": 58,
+      "total": 58
+    },
+    "src/sidepanel/lib/markdown-logs-link.ts": {
+      "covered": 6,
+      "total": 6
+    },
+    "src/sidepanel/lib/markdownBlocks.ts": {
+      "covered": 36,
+      "total": 36
+    },
+    "src/sidepanel/lib/markdownCell.ts": {
+      "covered": 3,
+      "total": 3
+    },
+    "src/sidepanel/lib/markdownToAdf.ts": {
+      "covered": 148,
+      "total": 154
+    },
+    "src/sidepanel/lib/markdownToAsanaHtml.ts": {
+      "covered": 180,
+      "total": 192
+    },
+    "src/sidepanel/lib/markdownToMrkdwn.ts": {
+      "covered": 54,
+      "total": 54
+    },
+    "src/sidepanel/lib/markdownToNotionBlocks.ts": {
+      "covered": 154,
+      "total": 162
+    },
+    "src/sidepanel/lib/mergeAiDraftSections.ts": {
+      "covered": 29,
+      "total": 29
+    },
+    "src/sidepanel/lib/osInfo.ts": {
+      "covered": 21,
+      "total": 34
+    },
+    "src/sidepanel/lib/prepareUpload.ts": {
+      "covered": 83,
+      "total": 83
+    },
+    "src/sidepanel/lib/recordModeMeta.ts": {
+      "covered": 5,
+      "total": 5
+    },
+    "src/sidepanel/lib/renderLogRefs.ts": {
+      "covered": 59,
+      "total": 59
+    },
+    "src/sidepanel/lib/renderMarkdown.ts": {
+      "covered": 21,
+      "total": 21
+    },
+    "src/sidepanel/lib/reproSectionEnabled.ts": {
+      "covered": 3,
+      "total": 3
+    },
+    "src/sidepanel/lib/resolveDraftStyleElements.ts": {
+      "covered": 42,
+      "total": 42
+    },
+    "src/sidepanel/lib/resolveInlineImages.ts": {
+      "covered": 59,
+      "total": 80
+    },
+    "src/sidepanel/lib/scroll-capture-plan.ts": {
+      "covered": 77,
+      "total": 77
+    },
+    "src/sidepanel/lib/sectionDefaultOpen.ts": {
+      "covered": 13,
+      "total": 13
+    },
+    "src/sidepanel/lib/slackPromotionLink.ts": {
+      "covered": 17,
+      "total": 17
+    },
+    "src/sidepanel/lib/splitSlackText.ts": {
+      "covered": 51,
+      "total": 51
+    },
+    "src/sidepanel/lib/styleChangeGroups.ts": {
+      "covered": 91,
+      "total": 91
+    },
+    "src/sidepanel/lib/submitToAsana.ts": {
+      "covered": 148,
+      "total": 172
+    },
+    "src/sidepanel/lib/submitToClickup.ts": {
+      "covered": 101,
+      "total": 102
+    },
+    "src/sidepanel/lib/submitToGithub.ts": {
+      "covered": 38,
+      "total": 38
+    },
+    "src/sidepanel/lib/submitToGitlab.ts": {
+      "covered": 63,
+      "total": 63
+    },
+    "src/sidepanel/lib/submitToJira.ts": {
+      "covered": 31,
+      "total": 31
+    },
+    "src/sidepanel/lib/submitToLinear.ts": {
+      "covered": 105,
+      "total": 121
+    },
+    "src/sidepanel/lib/submitToNotion.ts": {
+      "covered": 96,
+      "total": 110
+    },
+    "src/sidepanel/lib/submitToSlack.ts": {
+      "covered": 53,
+      "total": 53
+    },
+    "src/sidepanel/lib/track-submit.ts": {
+      "covered": 33,
+      "total": 33
+    },
+    "src/sidepanel/lib/trackViewport.ts": {
+      "covered": 9,
+      "total": 9
+    },
+    "src/sidepanel/lib/trailing-throttle.ts": {
+      "covered": 35,
+      "total": 36
+    },
+    "src/sidepanel/lib/uploadMime.ts": {
+      "covered": 10,
+      "total": 10
+    },
+    "src/sidepanel/lib/useDebouncedValue.ts": {
+      "covered": 9,
+      "total": 9
+    },
+    "src/sidepanel/lib/useScrollToEntry.ts": {
+      "covered": 10,
+      "total": 27
+    },
+    "src/sidepanel/lib/video-mime.ts": {
+      "covered": 24,
+      "total": 25
+    },
+    "src/sidepanel/lib/zipLogsHtml.ts": {
+      "covered": 94,
+      "total": 94
+    },
+    "src/sidepanel/lib/prompts/caps.ts": {
+      "covered": 25,
+      "total": 25
+    },
+    "src/sidepanel/lib/prompts/context.ts": {
+      "covered": 136,
+      "total": 136
+    },
+    "src/sidepanel/lib/prompts/draftCompact.ts": {
+      "covered": 102,
+      "total": 105
+    },
+    "src/sidepanel/lib/prompts/draftRich.ts": {
+      "covered": 184,
+      "total": 184
+    },
+    "src/sidepanel/lib/prompts/logCandidates.ts": {
+      "covered": 109,
+      "total": 115
+    },
+    "src/sidepanel/lib/prompts/promptBudget.ts": {
+      "covered": 78,
+      "total": 78
+    },
+    "src/sidepanel/lib/prompts/queryTokens.ts": {
+      "covered": 33,
+      "total": 33
+    },
+    "src/sidepanel/lib/prompts/responseDigest.ts": {
+      "covered": 60,
+      "total": 62
+    },
+    "src/sidepanel/lib/prompts/stylingCompact.ts": {
+      "covered": 43,
+      "total": 43
+    },
+    "src/sidepanel/lib/prompts/stylingRich.ts": {
+      "covered": 60,
+      "total": 60
+    },
+    "src/sidepanel/tabs/AiDraftDialog.tsx": {
+      "covered": 18,
+      "total": 223
+    },
+    "src/sidepanel/tabs/ConsoleSubTab.tsx": {
+      "covered": 0,
+      "total": 33
+    },
+    "src/sidepanel/tabs/DebugTab.tsx": {
+      "covered": 0,
+      "total": 79
+    },
+    "src/sidepanel/tabs/DomTreeDialog.tsx": {
+      "covered": 0,
+      "total": 255
+    },
+    "src/sidepanel/tabs/DraftDetailDialog.tsx": {
+      "covered": 0,
+      "total": 1038
+    },
+    "src/sidepanel/tabs/DraftEditDialog.tsx": {
+      "covered": 0,
+      "total": 93
+    },
+    "src/sidepanel/tabs/DraftingPanel.tsx": {
+      "covered": 6,
+      "total": 690
+    },
+    "src/sidepanel/tabs/IntegrationsTab.tsx": {
+      "covered": 0,
+      "total": 198
+    },
+    "src/sidepanel/tabs/IssueCreateModal.tsx": {
+      "covered": 0,
+      "total": 529
+    },
+    "src/sidepanel/tabs/IssueListTab.tsx": {
+      "covered": 0,
+      "total": 196
+    },
+    "src/sidepanel/tabs/IssueRow.tsx": {
+      "covered": 0,
+      "total": 131
+    },
+    "src/sidepanel/tabs/IssueTab.tsx": {
+      "covered": 0,
+      "total": 515
+    },
+    "src/sidepanel/tabs/IssueTypeCombobox.tsx": {
+      "covered": 0,
+      "total": 120
+    },
+    "src/sidepanel/tabs/NetworkSubTab.tsx": {
+      "covered": 0,
+      "total": 30
+    },
+    "src/sidepanel/tabs/PreviewPanel.tsx": {
+      "covered": 0,
+      "total": 377
+    },
+    "src/sidepanel/tabs/ProjectCombobox.tsx": {
+      "covered": 0,
+      "total": 114
+    },
+    "src/sidepanel/tabs/ReplayTrimDialog.tsx": {
+      "covered": 0,
+      "total": 278
+    },
+    "src/sidepanel/tabs/SettingsTab.tsx": {
+      "covered": 0,
+      "total": 346
+    },
+    "src/sidepanel/tabs/StyleEditorPanel.tsx": {
+      "covered": 0,
+      "total": 569
+    },
+    "src/sidepanel/tabs/SubmitFieldsDialog.tsx": {
+      "covered": 0,
+      "total": 226
+    },
+    "src/sidepanel/tabs/TrimTimeline.tsx": {
+      "covered": 0,
+      "total": 84
+    },
+    "src/sidepanel/tabs/integrationsTabUtils.ts": {
+      "covered": 17,
+      "total": 17
+    },
+    "src/sidepanel/tabs/issueListUtils.ts": {
+      "covered": 118,
+      "total": 146
+    },
+    "src/sidepanel/tabs/notionStatusColors.ts": {
+      "covered": 11,
+      "total": 11
+    },
+    "src/sidepanel/tabs/asanaFields/AsanaIssueFields.tsx": {
+      "covered": 20,
+      "total": 79
+    },
+    "src/sidepanel/tabs/asanaFields/AssigneeCombobox.tsx": {
+      "covered": 2,
+      "total": 114
+    },
+    "src/sidepanel/tabs/asanaFields/CcCombobox.tsx": {
+      "covered": 2,
+      "total": 35
+    },
+    "src/sidepanel/tabs/asanaFields/ProjectCombobox.tsx": {
+      "covered": 2,
+      "total": 111
+    },
+    "src/sidepanel/tabs/asanaFields/WorkspaceCombobox.tsx": {
+      "covered": 2,
+      "total": 99
+    },
+    "src/sidepanel/tabs/clickupFields/AssigneeCombobox.tsx": {
+      "covered": 2,
+      "total": 37
+    },
+    "src/sidepanel/tabs/clickupFields/CcCombobox.tsx": {
+      "covered": 2,
+      "total": 34
+    },
+    "src/sidepanel/tabs/clickupFields/ClickupIssueFields.tsx": {
+      "covered": 22,
+      "total": 95
+    },
+    "src/sidepanel/tabs/clickupFields/ListCombobox.tsx": {
+      "covered": 2,
+      "total": 36
+    },
+    "src/sidepanel/tabs/clickupFields/SpaceCombobox.tsx": {
+      "covered": 2,
+      "total": 27
+    },
+    "src/sidepanel/tabs/clickupFields/WorkspaceCombobox.tsx": {
+      "covered": 2,
+      "total": 22
+    },
+    "src/sidepanel/tabs/connect/AsanaConnectForm.tsx": {
+      "covered": 0,
+      "total": 286
+    },
+    "src/sidepanel/tabs/connect/ClickupConnectForm.tsx": {
+      "covered": 0,
+      "total": 310
+    },
+    "src/sidepanel/tabs/connect/ConnectMethodDialog.tsx": {
+      "covered": 0,
+      "total": 46
+    },
+    "src/sidepanel/tabs/connect/GithubConnectForm.tsx": {
+      "covered": 0,
+      "total": 257
+    },
+    "src/sidepanel/tabs/connect/GitlabConnectForm.tsx": {
+      "covered": 0,
+      "total": 313
+    },
+    "src/sidepanel/tabs/connect/JiraConnectForm.tsx": {
+      "covered": 0,
+      "total": 403
+    },
+    "src/sidepanel/tabs/connect/LinearConnectForm.tsx": {
+      "covered": 0,
+      "total": 278
+    },
+    "src/sidepanel/tabs/connect/NotionConnectForm.tsx": {
+      "covered": 0,
+      "total": 333
+    },
+    "src/sidepanel/tabs/connect/SlackConnectForm.tsx": {
+      "covered": 0,
+      "total": 108
+    },
+    "src/sidepanel/tabs/connect/gitlabInstanceUrl.ts": {
+      "covered": 12,
+      "total": 12
+    },
+    "src/sidepanel/tabs/githubFields/AssigneeCombobox.tsx": {
+      "covered": 2,
+      "total": 109
+    },
+    "src/sidepanel/tabs/githubFields/CcCombobox.tsx": {
+      "covered": 2,
+      "total": 39
+    },
+    "src/sidepanel/tabs/githubFields/GithubIssueFields.tsx": {
+      "covered": 19,
+      "total": 61
+    },
+    "src/sidepanel/tabs/githubFields/LabelCombobox.tsx": {
+      "covered": 2,
+      "total": 100
+    },
+    "src/sidepanel/tabs/githubFields/RepoCombobox.tsx": {
+      "covered": 2,
+      "total": 103
+    },
+    "src/sidepanel/tabs/gitlabFields/AssigneeCombobox.tsx": {
+      "covered": 2,
+      "total": 110
+    },
+    "src/sidepanel/tabs/gitlabFields/CcCombobox.tsx": {
+      "covered": 2,
+      "total": 37
+    },
+    "src/sidepanel/tabs/gitlabFields/GitlabIssueFields.tsx": {
+      "covered": 20,
+      "total": 82
+    },
+    "src/sidepanel/tabs/gitlabFields/LabelCombobox.tsx": {
+      "covered": 2,
+      "total": 96
+    },
+    "src/sidepanel/tabs/gitlabFields/ProjectCombobox.tsx": {
+      "covered": 2,
+      "total": 102
+    },
+    "src/sidepanel/tabs/jiraFields/AssigneeField.tsx": {
+      "covered": 102,
+      "total": 113
+    },
+    "src/sidepanel/tabs/jiraFields/CcField.tsx": {
+      "covered": 0,
+      "total": 56
+    },
+    "src/sidepanel/tabs/jiraFields/EpicField.tsx": {
+      "covered": 0,
+      "total": 71
+    },
+    "src/sidepanel/tabs/jiraFields/FieldCombobox.tsx": {
+      "covered": 71,
+      "total": 77
+    },
+    "src/sidepanel/tabs/jiraFields/IssueTypeField.tsx": {
+      "covered": 0,
+      "total": 75
+    },
+    "src/sidepanel/tabs/jiraFields/JiraIssueFields.tsx": {
+      "covered": 0,
+      "total": 63
+    },
+    "src/sidepanel/tabs/jiraFields/PriorityField.tsx": {
+      "covered": 0,
+      "total": 66
+    },
+    "src/sidepanel/tabs/jiraFields/RelatesField.tsx": {
+      "covered": 0,
+      "total": 54
+    },
+    "src/sidepanel/tabs/jiraFields/resolve-epic-parent.ts": {
+      "covered": 19,
+      "total": 19
+    },
+    "src/sidepanel/tabs/jiraFields/useDebouncedSearch.ts": {
+      "covered": 31,
+      "total": 33
+    },
+    "src/sidepanel/tabs/jiraFields/useJiraConfig.ts": {
+      "covered": 0,
+      "total": 8
+    },
+    "src/sidepanel/tabs/linearFields/AssigneeCombobox.tsx": {
+      "covered": 2,
+      "total": 85
+    },
+    "src/sidepanel/tabs/linearFields/CcCombobox.tsx": {
+      "covered": 2,
+      "total": 29
+    },
+    "src/sidepanel/tabs/linearFields/LabelCombobox.tsx": {
+      "covered": 2,
+      "total": 79
+    },
+    "src/sidepanel/tabs/linearFields/LinearIssueFields.tsx": {
+      "covered": 37,
+      "total": 115
+    },
+    "src/sidepanel/tabs/linearFields/PrioritySelect.tsx": {
+      "covered": 9,
+      "total": 30
+    },
+    "src/sidepanel/tabs/linearFields/ProjectCombobox.tsx": {
+      "covered": 2,
+      "total": 78
+    },
+    "src/sidepanel/tabs/linearFields/TeamCombobox.tsx": {
+      "covered": 2,
+      "total": 75
+    },
+    "src/sidepanel/tabs/notionFields/CcCombobox.tsx": {
+      "covered": 2,
+      "total": 42
+    },
+    "src/sidepanel/tabs/notionFields/DatabaseCombobox.tsx": {
+      "covered": 2,
+      "total": 112
+    },
+    "src/sidepanel/tabs/notionFields/NotionIssueFields.tsx": {
+      "covered": 26,
+      "total": 112
+    },
+    "src/sidepanel/tabs/notionFields/PropertiesFieldset.tsx": {
+      "covered": 2,
+      "total": 29
+    },
+    "src/sidepanel/tabs/notionFields/PropertySelectCombobox.tsx": {
+      "covered": 2,
+      "total": 68
+    },
+    "src/sidepanel/tabs/notionFields/StatusSelect.tsx": {
+      "covered": 3,
+      "total": 28
+    },
+    "src/sidepanel/tabs/notionFields/reconcileNotionFields.ts": {
+      "covered": 45,
+      "total": 45
+    },
+    "src/sidepanel/tabs/settings/LlmConnectDialog.tsx": {
+      "covered": 0,
+      "total": 323
+    },
+    "src/sidepanel/tabs/settings/LlmConnectForm.tsx": {
+      "covered": 0,
+      "total": 173
+    },
+    "src/sidepanel/tabs/settings/SettingsFooter.tsx": {
+      "covered": 0,
+      "total": 24
+    },
+    "src/sidepanel/tabs/slackFields/ChannelCombobox.tsx": {
+      "covered": 2,
+      "total": 26
+    },
+    "src/sidepanel/tabs/slackFields/ChannelIcon.tsx": {
+      "covered": 2,
+      "total": 19
+    },
+    "src/sidepanel/tabs/slackFields/MentionCombobox.tsx": {
+      "covered": 2,
+      "total": 30
+    },
+    "src/sidepanel/tabs/slackFields/SlackIssueFields.tsx": {
+      "covered": 15,
+      "total": 37
+    },
+    "src/sidepanel/tabs/statusBadges/AsanaStatusBadge.tsx": {
+      "covered": 2,
+      "total": 78
+    },
+    "src/sidepanel/tabs/statusBadges/AsanaSubmittedBadge.tsx": {
+      "covered": 2,
+      "total": 59
+    },
+    "src/sidepanel/tabs/statusBadges/ClickupStatusBadge.tsx": {
+      "covered": 2,
+      "total": 78
+    },
+    "src/sidepanel/tabs/statusBadges/ClickupSubmittedBadge.tsx": {
+      "covered": 2,
+      "total": 59
+    },
+    "src/sidepanel/tabs/statusBadges/GithubStatusBadge.tsx": {
+      "covered": 64,
+      "total": 88
+    },
+    "src/sidepanel/tabs/statusBadges/GithubSubmittedBadge.tsx": {
+      "covered": 69,
+      "total": 93
+    },
+    "src/sidepanel/tabs/statusBadges/GitlabStatusBadge.tsx": {
+      "covered": 2,
+      "total": 81
+    },
+    "src/sidepanel/tabs/statusBadges/GitlabSubmittedBadge.tsx": {
+      "covered": 2,
+      "total": 64
+    },
+    "src/sidepanel/tabs/statusBadges/JiraStatusBadge.tsx": {
+      "covered": 45,
+      "total": 99
+    },
+    "src/sidepanel/tabs/statusBadges/JiraSubmittedBadge.tsx": {
+      "covered": 55,
+      "total": 60
+    },
+    "src/sidepanel/tabs/statusBadges/LinearStatusBadge.tsx": {
+      "covered": 2,
+      "total": 92
+    },
+    "src/sidepanel/tabs/statusBadges/LinearSubmittedBadge.tsx": {
+      "covered": 2,
+      "total": 68
+    },
+    "src/sidepanel/tabs/statusBadges/NotionStatusBadge.tsx": {
+      "covered": 2,
+      "total": 101
+    },
+    "src/sidepanel/tabs/statusBadges/NotionSubmittedBadge.tsx": {
+      "covered": 2,
+      "total": 75
+    },
+    "src/sidepanel/tabs/statusBadges/PlatformChip.tsx": {
+      "covered": 0,
+      "total": 58
+    },
+    "src/sidepanel/tabs/statusBadges/SlackSubmittedBadge.tsx": {
+      "covered": 11,
+      "total": 11
+    },
+    "src/sidepanel/tabs/statusBadges/SubmittedBadge.tsx": {
+      "covered": 50,
+      "total": 97
+    },
+    "src/sidepanel/tabs/statusBadges/constants.ts": {
+      "covered": 41,
+      "total": 41
+    },
+    "src/sidepanel/tabs/statusBadges/utils.ts": {
+      "covered": 4,
+      "total": 4
+    },
+    "src/sidepanel/tabs/styleEditor/AiStylingDialog.tsx": {
+      "covered": 0,
+      "total": 181
+    },
+    "src/sidepanel/tabs/styleEditor/CssCodeMirror.tsx": {
+      "covered": 0,
+      "total": 578
+    },
+    "src/sidepanel/tabs/styleEditor/StyleChangesDialog.tsx": {
+      "covered": 0,
+      "total": 224
+    },
+    "src/sidepanel/tabs/styleEditor/StyleCssView.tsx": {
+      "covered": 0,
+      "total": 64
+    },
+    "src/sidepanel/tabs/styleEditor/StylePropEditors.tsx": {
+      "covered": 94,
+      "total": 680
+    },
+    "src/sidepanel/tabs/styleEditor/TokenChip.tsx": {
+      "covered": 3,
+      "total": 61
+    },
+    "src/sidepanel/tabs/styleEditor/ValueCombobox.tsx": {
+      "covered": 2,
+      "total": 346
+    },
+    "src/sidepanel/tabs/styleEditor/colorLiteral.ts": {
+      "covered": 10,
+      "total": 10
+    },
+    "src/sidepanel/tabs/styleEditor/cssBlock.ts": {
+      "covered": 138,
+      "total": 138
+    },
+    "src/sidepanel/tabs/styleEditor/cssSwatch.ts": {
+      "covered": 9,
+      "total": 9
+    },
+    "src/sidepanel/tabs/styleEditor/docSync.ts": {
+      "covered": 4,
+      "total": 4
+    },
+    "src/sidepanel/tabs/styleEditor/hexUtils.ts": {
+      "covered": 23,
+      "total": 23
+    },
+    "src/sidepanel/tabs/styleEditor/inlineCssText.ts": {
+      "covered": 48,
+      "total": 48
+    },
+    "src/sidepanel/tabs/styleEditor/propMetadata.ts": {
+      "covered": 140,
+      "total": 140
+    },
+    "src/sidepanel/tabs/styleEditor/propValues.ts": {
+      "covered": 86,
+      "total": 88
+    },
+    "src/sidepanel/tabs/styleEditor/selectorLock.ts": {
+      "covered": 10,
+      "total": 10
+    },
+    "src/sidepanel/tabs/styleEditor/styleHooks.ts": {
+      "covered": 4,
+      "total": 36
+    },
+    "src/sidepanel/tabs/styleEditor/tokenSuggest.ts": {
+      "covered": 54,
+      "total": 54
+    },
+    "src/sidepanel/tabs/styleEditor/tokenUtils.ts": {
+      "covered": 70,
+      "total": 72
+    },
+    "src/sidepanel/tabs/styleEditor/valueFormat.ts": {
+      "covered": 60,
+      "total": 62
+    },
+    "src/store/blob-db.ts": {
+      "covered": 232,
+      "total": 642
+    },
+    "src/store/chrome-storage.ts": {
+      "covered": 19,
+      "total": 25
+    },
+    "src/store/editor-store.ts": {
+      "covered": 572,
+      "total": 653
+    },
+    "src/store/issues-migrations.ts": {
+      "covered": 6,
+      "total": 6
+    },
+    "src/store/issues-store.ts": {
+      "covered": 146,
+      "total": 244
+    },
+    "src/store/settings-store.ts": {
+      "covered": 143,
+      "total": 224
+    },
+    "src/store/settings-ui-store.ts": {
+      "covered": 165,
+      "total": 170
+    },
+    "src/types/messages.ts": {
+      "covered": 68,
+      "total": 90
+    },
+    "src/types/platform.ts": {
+      "covered": 12,
+      "total": 12
+    }
+  }
+}

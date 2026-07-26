@@ -1,5 +1,6 @@
 import {
   cleanStack,
+  createSafeRecorder,
   formatErrorEvent,
   formatRejectionReason,
   installConsoleWrap,
@@ -18,6 +19,8 @@ function consoleRecorderScript(): void {
   const CTRL_KEY = "__bugshot_console_ctrl__";
   if ((window as any)[CTRL_KEY]) return;
 
+  // log-merge.ts CONSOLE_MAX_ENTRIES와 동일 유지 (sidepanel 번들 격리로 값 동기화 —
+  // 공용 상수 모듈로 빼면 recorders-entry가 async loader가 돼 pre-arm이 죽는다).
   const MAX_ENTRIES = 2000;
   const SET_SENTINEL_EVENT = "__bugshot_console_setSentinel__";
 
@@ -69,12 +72,16 @@ function consoleRecorderScript(): void {
     throttle.schedule();
   }
 
+  // 모든 wrap은 `원본 호출 → safeRecord(기록)` 순서를 지킨다. safeRecord가 capturing 게이트와
+  // try/catch를 함께 들고 있어 비녹화 시 직렬화가 돌지 않고, 기록 실패도 페이지로 새지 않는다.
+  const safeRecord = createSafeRecorder(() => capturing);
+
   // error/warn은 arm(setSentinel) 구간에만 wrap해 attribution 오염 창을 한정한다(상시 설치 회피).
   // install이 그 시점의 직전 메서드(페이지 Sentry 등 포함)를 먼저 호출하므로 DevTools 출력·페이지
   // 모니터링을 보존한다. record 경로(wrapper→record→captureStack)의 스택은 cleanStack이
   // 우리 레코더·확장 프레임을 내용 기준으로 걸러 페이지 코드 프레임만 남긴다(깊이 가정 없음).
   const record = (level: "error" | "warn", args: unknown[]) =>
-    pushEntry(level, serializeArgs(args), captureStack());
+    safeRecord(() => pushEntry(level, serializeArgs(args), captureStack()));
   const ewState: EwState = { installed: false, prior: null, ours: null };
 
   function installEwWrap(): void {
@@ -93,7 +100,7 @@ function consoleRecorderScript(): void {
     const original = console[level].bind(console);
     console[level] = function (...args: unknown[]) {
       original(...args);
-      pushEntry(level, serializeArgs(args));
+      safeRecord(() => pushEntry(level, serializeArgs(args)));
     };
   }
 
@@ -103,7 +110,7 @@ function consoleRecorderScript(): void {
   if (originalTrace) {
     console.trace = function (...args: unknown[]) {
       originalTrace(...args);
-      pushEntry("log", `console.trace: ${serializeArgs(args)}`, captureStack());
+      safeRecord(() => pushEntry("log", `console.trace: ${serializeArgs(args)}`, captureStack()));
     };
   }
 
@@ -111,10 +118,11 @@ function consoleRecorderScript(): void {
   if (originalAssert) {
     console.assert = function (condition?: unknown, ...args: unknown[]) {
       (originalAssert as (c?: boolean, ...a: unknown[]) => void)(condition as boolean | undefined, ...args);
-      if (shouldCaptureAssertion(condition)) {
+      safeRecord(() => {
+        if (!shouldCaptureAssertion(condition)) return;
         const head = args.length > 0 ? `Assertion failed: ${serializeArgs(args)}` : "Assertion failed";
         pushEntry("error", head, captureStack());
-      }
+      });
     };
   }
 
@@ -122,7 +130,7 @@ function consoleRecorderScript(): void {
   if (originalDir) {
     console.dir = function (item?: unknown, options?: unknown) {
       originalDir(item, options);
-      pushEntry("log", `console.dir: ${safeStringify(item, 0)}`);
+      safeRecord(() => pushEntry("log", `console.dir: ${safeStringify(item, 0)}`));
     };
   }
 
@@ -130,7 +138,7 @@ function consoleRecorderScript(): void {
   if (originalDirxml) {
     console.dirxml = function (...args: unknown[]) {
       originalDirxml(...args);
-      pushEntry("log", `console.dirxml: ${serializeArgs(args)}`.trimEnd());
+      safeRecord(() => pushEntry("log", `console.dirxml: ${serializeArgs(args)}`.trimEnd()));
     };
   }
 
@@ -138,7 +146,7 @@ function consoleRecorderScript(): void {
   if (originalTable) {
     console.table = function (data?: unknown, columns?: unknown) {
       (originalTable as (d?: unknown, c?: string[]) => void)(data, columns as string[] | undefined);
-      pushEntry("log", `console.table: ${safeStringify(data, 0)}`);
+      safeRecord(() => pushEntry("log", `console.table: ${safeStringify(data, 0)}`));
     };
   }
 
@@ -146,21 +154,21 @@ function consoleRecorderScript(): void {
   if (originalGroup) {
     console.group = function (...args: unknown[]) {
       originalGroup(...args);
-      pushEntry("log", `▶ ${serializeArgs(args) || "group"}`);
+      safeRecord(() => pushEntry("log", `▶ ${serializeArgs(args) || "group"}`));
     };
   }
   const originalGroupCollapsed = console.groupCollapsed?.bind(console);
   if (originalGroupCollapsed) {
     console.groupCollapsed = function (...args: unknown[]) {
       originalGroupCollapsed(...args);
-      pushEntry("log", `▶ ${serializeArgs(args) || "group"}`);
+      safeRecord(() => pushEntry("log", `▶ ${serializeArgs(args) || "group"}`));
     };
   }
   const originalGroupEnd = console.groupEnd?.bind(console);
   if (originalGroupEnd) {
     console.groupEnd = function () {
       originalGroupEnd();
-      pushEntry("log", "◀ groupEnd");
+      safeRecord(() => pushEntry("log", "◀ groupEnd"));
     };
   }
 
@@ -172,7 +180,7 @@ function consoleRecorderScript(): void {
       const key = label ?? "default";
       const next = (counters.get(key) ?? 0) + 1;
       counters.set(key, next);
-      pushEntry("log", `${key}: ${next}`);
+      safeRecord(() => pushEntry("log", `${key}: ${next}`));
     };
   }
   const originalCountReset = console.countReset?.bind(console);
@@ -199,7 +207,7 @@ function consoleRecorderScript(): void {
       const start = timers.get(key);
       timers.delete(key);
       const elapsed = start != null ? Date.now() - start : NaN;
-      pushEntry("log", `${key}: ${isNaN(elapsed) ? "?" : `${elapsed}ms`}`);
+      safeRecord(() => pushEntry("log", `${key}: ${isNaN(elapsed) ? "?" : `${elapsed}ms`}`));
     };
   }
   const originalTimeLog = console.timeLog?.bind(console);
@@ -209,8 +217,10 @@ function consoleRecorderScript(): void {
       const key = label ?? "default";
       const start = timers.get(key);
       const elapsed = start != null ? Date.now() - start : NaN;
-      const tail = args.length > 0 ? ` ${serializeArgs(args)}` : "";
-      pushEntry("log", `${key}: ${isNaN(elapsed) ? "?" : `${elapsed}ms`}${tail}`);
+      safeRecord(() => {
+        const tail = args.length > 0 ? ` ${serializeArgs(args)}` : "";
+        pushEntry("log", `${key}: ${isNaN(elapsed) ? "?" : `${elapsed}ms`}${tail}`);
+      });
     };
   }
 
@@ -218,7 +228,7 @@ function consoleRecorderScript(): void {
   if (originalTimeStamp) {
     console.timeStamp = function (label?: string) {
       (originalTimeStamp as (l?: string) => void)(label);
-      pushEntry("log", `console.timeStamp: ${label ?? ""}`.trimEnd());
+      safeRecord(() => pushEntry("log", `console.timeStamp: ${label ?? ""}`.trimEnd()));
     };
   }
 
@@ -227,7 +237,7 @@ function consoleRecorderScript(): void {
   if (originalClear) {
     console.clear = function () {
       originalClear();
-      pushEntry("log", "console.clear()");
+      safeRecord(() => pushEntry("log", "console.clear()"));
     };
   }
 
@@ -236,14 +246,17 @@ function consoleRecorderScript(): void {
   window.addEventListener(
     "error",
     (e: ErrorEvent) => {
-      const { args, stack } = formatErrorEvent({
-        message: e.message,
-        filename: e.filename,
-        lineno: e.lineno,
-        colno: e.colno,
-        error: e.error,
+      // 에러 리스너 안에서 throw하면 새 error 이벤트가 나 우리 리스너를 다시 태운다 — 반드시 격리.
+      safeRecord(() => {
+        const { args, stack } = formatErrorEvent({
+          message: e.message,
+          filename: e.filename,
+          lineno: e.lineno,
+          colno: e.colno,
+          error: e.error,
+        });
+        pushEntry("error", args, stack);
       });
-      pushEntry("error", args, stack);
     },
     true,
   );
@@ -251,8 +264,10 @@ function consoleRecorderScript(): void {
   window.addEventListener(
     "unhandledrejection",
     (e: PromiseRejectionEvent) => {
-      const { args, stack } = formatRejectionReason(e.reason);
-      pushEntry("error", args, stack);
+      safeRecord(() => {
+        const { args, stack } = formatRejectionReason(e.reason);
+        pushEntry("error", args, stack);
+      });
     },
     true,
   );

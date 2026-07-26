@@ -1,7 +1,8 @@
 import type { NetworkLog } from "@/types/network";
 import type { ConsoleLog } from "@/types/console";
 import type { ActionLog } from "@/types/action";
-import { EDITOR_SESSION_PREFIX } from "@/lib/session-keys";
+import { EDITOR_SESSION_PREFIX, ISSUES_PERSIST_KEY } from "@/lib/session-keys";
+import { INLINE_REF_RE } from "@/lib/inline-ref";
 
 const DB_NAME = "bugshot-video";
 const DB_VERSION = 8;
@@ -560,10 +561,8 @@ export async function getInlineOriginKeys(): Promise<string[]> {
   }
 }
 
-const INLINE_REF_SCAN_RE = /!\[[^\]]*\]\(inline:([a-zA-Z0-9-]+)\)/g;
-
 function scanInlineRefs(text: string, out: Set<string>): void {
-  for (const m of text.matchAll(INLINE_REF_SCAN_RE)) out.add(m[1]);
+  for (const m of text.matchAll(INLINE_REF_RE)) out.add(m[2]);
 }
 
 async function collectAllActiveInlineRefs(): Promise<Set<string>> {
@@ -575,8 +574,8 @@ async function collectAllActiveInlineRefs(): Promise<Set<string>> {
     if (!snap?.draft?.sections) continue;
     for (const text of Object.values(snap.draft.sections)) scanInlineRefs(text, refs);
   }
-  const localData = await chrome.storage.local.get("bugshot-issues");
-  const raw = localData["bugshot-issues"];
+  const localData = await chrome.storage.local.get(ISSUES_PERSIST_KEY);
+  const raw = localData[ISSUES_PERSIST_KEY];
   const store = (typeof raw === "string" ? JSON.parse(raw) : raw) as
     | { state?: { issues?: Array<{ draft?: { sections?: Record<string, string> } }> } }
     | undefined;

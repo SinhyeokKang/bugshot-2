@@ -5,7 +5,7 @@ import { IMAGE_PLACEHOLDER, VIDEO_PLACEHOLDER, parseInlinePlaceholder } from "@/
 import { adfMediaNode, adfMediaSingle, adfVideoMediaSingle, type MediaSource } from "./lib/adf-media";
 import { injectLogsLink } from "./lib/adf-logs-link";
 import { injectSnapshotRows } from "./injectSnapshotRows";
-import { captureThrottle } from "./capture-throttle";
+import { captureOwnedTab, captureThrottle } from "./capture-throttle";
 import { injectIssueUrl } from "@/lib/inject-issue-url";
 import { isFetchableSheetUrl } from "@/lib/ssrf-guard";
 import type { JiraAttachmentInput, JiraAuth, JiraCreateIssuePayload, JiraSubmitResult } from "@/types/jira";
@@ -202,17 +202,13 @@ export async function handleMessage(
       return { pong: true, at: Date.now() };
 
     case "captureVisibleTab": {
-      const tab = await chrome.tabs.get(message.tabId);
-      if (!tab.windowId) throw new Error("tab has no window");
-      const windowId = tab.windowId;
       const format = message.format ?? "png";
       const opts: chrome.tabs.CaptureVisibleTabOptions = { format };
       if (format === "jpeg" && message.quality != null) {
         opts.quality = message.quality;
       }
-      return captureThrottle.run(() =>
-        chrome.tabs.captureVisibleTab(windowId, opts),
-      );
+      const tabId = message.tabId;
+      return captureThrottle.run(() => captureOwnedTab(tabId, opts));
     }
 
     case "oauth.available":

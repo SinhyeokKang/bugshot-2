@@ -11,9 +11,9 @@ vi.hoisted(() => {
   });
 });
 
-import { readFileSync, readdirSync } from "node:fs";
+import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 
 import { koDict, enDict, t } from "../i18n";
 import { logs } from "../../i18n/namespaces/logs";
@@ -75,9 +75,55 @@ describe("log viewer i18n — 메인 테이블 대조", () => {
   }
 
   const srcRoot = join(dirname(fileURLToPath(import.meta.url)), "..");
+  const srcDir = join(srcRoot, "..");
+
+  // log-viewer 번들은 사이드패널 공용 컴포넌트(NetworkLogContent 등)를 재사용하고,
+  // vite.log-viewer.config.ts가 @/i18n을 이 복제 사전으로 alias하므로 그 컴포넌트의 t() 키도
+  // 여기서 해결돼야 한다. log-viewer 디렉터리만 스캔하던 이전 스캐너는 그 바깥을 못 봐서
+  // WebSocket 키 10개가 raw 노출된 채 통과했다. 그래서 스캔 범위를 실제 import 그래프로 넓힌다 —
+  // 번들에 들어가는 파일이면 그 키도 해결돼야 한다는 규칙이 판정 기준이다.
+  // 트레이드오프: 번들에 들어가지만 log-viewer가 렌더하지 않는 경로의 키(Section의 collapsible
+  // 토글 등)까지 사전에 요구한다. 모듈 단위 그래프로는 렌더 도달성을 못 가리므로, 몇 개를 더
+  // 넣는 쪽을 택했다 — 조용한 누락보다 나은 실패 모드다.
+  function resolveImport(spec: string, fromFile: string): string | null {
+    let base: string;
+    if (spec === "@/i18n" || spec.startsWith("@/i18n/")) base = join(srcRoot, "i18n");
+    else if (spec.startsWith("@/")) base = join(srcDir, spec.slice(2));
+    else if (spec.startsWith(".")) base = resolve(dirname(fromFile), spec);
+    else return null;
+    const candidates = [
+      `${base}.ts`,
+      `${base}.tsx`,
+      join(base, "index.ts"),
+      join(base, "index.tsx"),
+    ];
+    return candidates.find((c) => existsSync(c) && statSync(c).isFile()) ?? null;
+  }
+
+  const bundledFiles = (() => {
+    const seen = new Set(walk(srcRoot));
+    const queue = [...seen];
+    while (queue.length) {
+      const file = queue.shift()!;
+      const code = readFileSync(file, "utf8");
+      // 타입 전용 import/export는 번들에 안 남으므로 그래프에서 제외한다.
+      const specs = [
+        ...code.matchAll(/\bimport\s+(?!type\s)[\s\S]*?\bfrom\s*["']([^"']+)["']/g),
+        ...code.matchAll(/\bexport\s+(?!type\s)[\s\S]*?\bfrom\s*["']([^"']+)["']/g),
+      ].map((m) => m[1]);
+      for (const spec of specs) {
+        const target = resolveImport(spec, file);
+        if (!target || seen.has(target)) continue;
+        seen.add(target);
+        queue.push(target);
+      }
+    }
+    return [...seen].sort();
+  })();
+
   const referencedKeys = (() => {
     const keys = new Set<string>();
-    for (const file of walk(srcRoot)) {
+    for (const file of bundledFiles) {
       const src = readFileSync(file, "utf8");
       for (const m of src.matchAll(/\bt\(\s*["'`]([a-zA-Z][\w.]*)["'`]/g)) {
         keys.add(m[1]);
@@ -85,6 +131,20 @@ describe("log viewer i18n — 메인 테이블 대조", () => {
     }
     return [...keys].sort();
   })();
+
+  // resolveImport가 조용히 아무것도 못 찾으면 위 검사가 log-viewer 디렉터리만 보던 상태로
+  // 되돌아가면서 vacuous green이 된다. 스캐너가 실제로 그래프를 탄다는 것 자체를 고정한다.
+  it("스캐너가 공용 로그 컴포넌트까지 도달한다 (자기검증 앵커)", () => {
+    const relative = bundledFiles.map((f) => f.slice(srcDir.length + 1));
+    expect(relative).toEqual(
+      expect.arrayContaining([
+        join("sidepanel", "components", "NetworkLogContent.tsx"),
+        join("sidepanel", "components", "ConsoleLogContent.tsx"),
+        join("sidepanel", "components", "ActionLogContent.tsx"),
+        join("sidepanel", "components", "IssuePreviewView.tsx"),
+      ]),
+    );
+  });
 
   it("코드가 t()로 참조하는 리터럴 키는 dict에 모두 존재", () => {
     const missing = referencedKeys.filter(

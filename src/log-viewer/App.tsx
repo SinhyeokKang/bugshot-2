@@ -20,6 +20,7 @@ import { TimelinePanel } from "./components/TimelinePanel";
 import { ImageViewer } from "./components/ImageViewer";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { isSafeExternalUrl } from "@/lib/external-url";
 import { t } from "./i18n";
 
 interface AppProps {
@@ -246,7 +247,7 @@ export function App({ data }: AppProps) {
 
       {/* h-[68px] 고정(=Button h-9 + py-4): 탭/이슈버튼 유무로 버튼이 안 뜰 때 높이가 줄어 레이아웃이 점프하는 걸 막는다 */}
       <div className="flex h-[68px] shrink-0 items-center gap-2 border-t border-border bg-muted/50 px-4">
-        {data.meta.issueUrl ? (
+        {isSafeExternalUrl(data.meta.issueUrl) ? (
           <Button variant="outline" asChild>
             <a href={data.meta.issueUrl} target="_blank" rel="noopener noreferrer">
               <ExternalLink className="h-3.5 w-3.5" />

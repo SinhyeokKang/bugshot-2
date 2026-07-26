@@ -146,7 +146,7 @@ element/screenshot/video 세 `issue.md`는 아래 7단계를 **그대로 반복*
   | GitHub | OAuth / PAT | PAT | github.com/settings/tokens |
   | Linear | OAuth / API Key | apiKey | linear.app 보안 설정 |
   | Notion | OAuth / Internal Token | token | notion.so 통합 |
-  | GitLab | OAuth / PAT | instanceUrl(기본 gitlab.com prefill — self-managed면 변경), pat | gitlab.com PAT |
+  | GitLab | OAuth / PAT | instanceUrl(기본 gitlab.com prefill — self-managed면 변경. **https 강제**, loopback만 예외 — 평문 http는 `gitlab.instanceUrl.insecure` 안내로 거부), pat | gitlab.com PAT |
   | Asana | OAuth / PAT | pat | app.asana.com my-apps |
   | ClickUp | OAuth / API Token | pat(`pk_...`) | app.clickup.com 설정 > Apps |
   | Slack | OAuth 전용 | — (토큰 입력 없음) | — |

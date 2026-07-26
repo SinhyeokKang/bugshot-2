@@ -3,7 +3,7 @@ import { persist, createJSONStorage } from "zustand/middleware";
 import type { PlatformId } from "@/types/platform";
 import type { EnvironmentRow } from "@/types/environment";
 import { migrateIssueToV4 } from "./issues-migrations";
-import { chromeLocalStorage } from "./chrome-storage";
+import { failClosedLocalStorage } from "./chrome-storage";
 import { useEditorStore, type CaptureMode } from "./editor-store";
 import { clearPicker } from "@/sidepanel/picker-control";
 import {
@@ -29,6 +29,7 @@ import {
   dataUrlToBlob,
 } from "./blob-db";
 import type { UserAttachmentMeta } from "@/types/attachment";
+import { ISSUES_PERSIST_KEY, isPendingKey } from "@/lib/session-keys";
 
 export function stripSubmitted(
   issue: IssueRecord,
@@ -43,6 +44,7 @@ export function stripSubmitted(
     snapshot: { before: false, after: false },
     draft: { title: "", sections: {}, environment: [] },
     styleEdits: undefined,
+    bufferedElements: undefined,
     selectionSnapshot: undefined,
     tokensSnapshot: undefined,
     selector: undefined,
@@ -57,6 +59,12 @@ export function stripSubmitted(
   };
 }
 
+// zustand의 postRehydration 콜백은 성공·실패 양쪽에서 발화한다. 실패 시엔 저장분을 못 읽은
+// 것이므로 참조 집합(issues)이 비어 보이고, 그대로 prune하면 살아있는 blob을 전부 지운다.
+export function shouldPruneAfterRehydrate(error: unknown): boolean {
+  return error == null;
+}
+
 async function pruneOrphanBlobs(): Promise<void> {
   const currentIds = new Set(
     useIssuesStore.getState().issues.map((i) => i.id),
@@ -64,7 +72,7 @@ async function pruneOrphanBlobs(): Promise<void> {
   const deletions: Promise<unknown>[] = [];
   const videoBlobKeys = await getVideoBlobKeys();
   for (const key of videoBlobKeys) {
-    if (key.startsWith("pending:")) continue;
+    if (isPendingKey(key)) continue;
     if (!currentIds.has(key)) {
       deletions.push(deleteVideoBlob(key));
     }
@@ -72,6 +80,7 @@ async function pruneOrphanBlobs(): Promise<void> {
   const imageBlobKeys = await getImageBlobKeys();
   const prunedImageIds = new Set<string>();
   for (const key of imageBlobKeys) {
+    if (isPendingKey(key)) continue;
     const issueId = key.split(":")[0];
     if (!currentIds.has(issueId) && !prunedImageIds.has(issueId)) {
       prunedImageIds.add(issueId);
@@ -80,21 +89,21 @@ async function pruneOrphanBlobs(): Promise<void> {
   }
   const networkLogKeys = await getNetworkLogKeys();
   for (const key of networkLogKeys) {
-    if (key.startsWith("pending:")) continue;
+    if (isPendingKey(key)) continue;
     if (!currentIds.has(key)) {
       deletions.push(deleteNetworkLog(key));
     }
   }
   const consoleLogKeys = await getConsoleLogKeys();
   for (const key of consoleLogKeys) {
-    if (key.startsWith("pending:")) continue;
+    if (isPendingKey(key)) continue;
     if (!currentIds.has(key)) {
       deletions.push(deleteConsoleLog(key));
     }
   }
   const actionLogKeys = await getActionLogKeys();
   for (const key of actionLogKeys) {
-    if (key.startsWith("pending:")) continue;
+    if (isPendingKey(key)) continue;
     if (!currentIds.has(key)) {
       deletions.push(deleteActionLog(key));
     }
@@ -102,7 +111,7 @@ async function pruneOrphanBlobs(): Promise<void> {
   const attachmentBlobKeys = await getAttachmentBlobKeys();
   const prunedAttIds = new Set<string>();
   for (const key of attachmentBlobKeys) {
-    if (key.startsWith("pending:")) continue;
+    if (isPendingKey(key)) continue;
     const issueId = key.split(":")[0];
     if (!currentIds.has(issueId) && !prunedAttIds.has(issueId)) {
       prunedAttIds.add(issueId);
@@ -341,7 +350,11 @@ export const useIssuesStore = create<IssuesState>()(
           const existing = s.issues.find((x) => x.id === record.id);
           const rest = s.issues.filter((x) => x.id !== record.id);
           const createdAt = existing?.createdAt ?? record.createdAt ?? Date.now();
+          // 통째 교체가 아니라 병합 — patchIssue로만 세팅되는 필드(logsAttached·attachments·
+          // 제출 결과)가 재확정 한 번에 사라지던 구멍을 막는다. record가 키를 명시적으로
+          // undefined로 실어 보내면 그건 그대로 폐기된다(spread가 undefined도 덮어쓴다).
           const next: IssueRecord = {
+            ...existing,
             ...record,
             createdAt,
             updatedAt: Date.now(),
@@ -426,11 +439,12 @@ export const useIssuesStore = create<IssuesState>()(
       },
     }),
     {
-      name: "bugshot-issues",
+      name: ISSUES_PERSIST_KEY,
       version: ISSUES_STORE_VERSION,
-      storage: createJSONStorage(() => chromeLocalStorage),
+      storage: createJSONStorage(() => failClosedLocalStorage),
       migrate: migrateIssuesState,
-      onRehydrateStorage: () => () => {
+      onRehydrateStorage: () => (_state, error) => {
+        if (!shouldPruneAfterRehydrate(error)) return;
         void pruneOrphanBlobs();
       },
     },

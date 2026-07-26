@@ -27,9 +27,15 @@ export function serializeOAuthError(error: OAuthError): {
   status: number | undefined;
   body: Record<string, unknown>;
 } {
-  return error.cancelled
-    ? { status: undefined, body: { oauthCancelled: true, platform: error.platform } }
-    : { status: 401, body: { oauthRefreshFailed: true, platform: error.platform } };
+  if (error.cancelled) {
+    return { status: undefined, body: { oauthCancelled: true, platform: error.platform } };
+  }
+  // 설정 누락은 "세션 만료"가 아니다 — 401로 내리면 App이 onOAuthExpired를 발화해
+  // 연결한 적 없는 사용자에게 재로그인 안내를 띄운다. 400 + 전용 플래그로 분기시킨다.
+  if (error.notConfigured) {
+    return { status: 400, body: { oauthNotConfigured: true, platform: error.platform } };
+  }
+  return { status: 401, body: { oauthRefreshFailed: true, platform: error.platform } };
 }
 
 export function base64url(buffer: ArrayBuffer): string {
@@ -135,6 +141,8 @@ async function exchangeCodeForTokens(code: string): Promise<TokenResponse> {
       grant_type: "authorization_code",
       code,
       redirect_uri: redirectUri(),
+      // 프록시가 8개 플랫폼 전부에서 client_id 화이트리스트를 검사한다 — 빠뜨리면 400.
+      client_id: OAUTH_CONFIG.jira.clientId,
     }),
   });
   if (!res.ok) {
@@ -185,6 +193,7 @@ export async function refreshOAuthToken(
     body: JSON.stringify({
       grant_type: "refresh_token",
       refresh_token: auth.refreshToken,
+      client_id: OAUTH_CONFIG.jira.clientId,
     }),
   });
   if (!res.ok) {

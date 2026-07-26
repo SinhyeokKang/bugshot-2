@@ -77,6 +77,7 @@ import {
   isCacheReady as isCssCacheReady,
   startObserver as startCssCacheObserver,
   stopObserver as stopCssCacheObserver,
+  setOnCacheReloaded,
 } from "./css-source-cache";
 
 type Mode = "idle" | "hover" | "selected" | "area-select";
@@ -101,6 +102,8 @@ const editedEls = new Map<Element, OriginalState>();
 
 let overlay: OverlayHandle | null = null;
 let areaHandle: AreaSelectHandle | null = null;
+// 현재 area-select 세션이 끝난 뒤 선택 상태로 돌아가야 하는지(element 편집 중 본문 이미지 삽입).
+let areaRestoreAfter = false;
 let tokenLookup: TokenLookup | null = null;
 let tokenBuildHandle: number | null = null;
 
@@ -443,6 +446,9 @@ function handleStart(frameToken?: string): void {
   selectedEl = null;
   lastHover = null;
   tokenLookup = null;
+  // 시트가 뒤늦게 주입·교체되면(다크모드 토글·SPA 라우트) raw 캐시만 갱신되고 토큰 표는
+  // 옛 시트로 굳는다 — 재로드 완료마다 다시 세운다.
+  setOnCacheReloaded(scheduleTokenBuild);
   startCssCacheObserver();
   void ensureCssCacheLoaded();
   scheduleTokenBuild();
@@ -456,6 +462,7 @@ function handleStop(): void {
 }
 
 function handleClear(): void {
+  areaRestoreAfter = false;
   if (scrollSession) {
     endScrollCapture(scrollSession);
     scrollSession = null;
@@ -488,6 +495,7 @@ function handleClear(): void {
   frameOffsetArmCount = 0;
   // 세션 종료 후 옛 token PRESENT가 계속 등록되지 않게 top 검증 상태도 함께 리셋.
   setFrameToken(null);
+  setOnCacheReloaded(null);
   stopCssCacheObserver();
   invalidateCssCache();
 }
@@ -941,6 +949,7 @@ function handleSelectByPath(selector: string): { found: boolean } {
 /* ── Area Select ─────────────────────────────────── */
 
 function restoreSelected(): void {
+  areaRestoreAfter = false;
   if (areaHandle) {
     cancelAreaSelect(areaHandle);
     areaHandle = null;
@@ -957,6 +966,9 @@ function handleStartAreaSelect(restoreAfter?: boolean): void {
   hideBanner(overlay);
   mode = "area-select";
   const shouldRestore = restoreAfter === true && selectedEl !== null;
+  // 사이드패널이 몰아주는 취소(handleCancelAreaSelect)도 같은 판단을 써야 한다 —
+  // 안 그러면 본문 이미지 삽입을 취소한 것만으로 페이지의 element 편집이 전부 원복된다.
+  areaRestoreAfter = shouldRestore;
   areaHandle = startAreaSelect({
     shadow: overlay.shadow,
     onBlockerRequest(action) {
@@ -995,6 +1007,10 @@ function handleCancelAreaSelect(): void {
   if (areaHandle) {
     cancelAreaSelect(areaHandle);
     areaHandle = null;
+  }
+  if (areaRestoreAfter) {
+    restoreSelected();
+    return;
   }
   mode = "idle";
   handleClear();

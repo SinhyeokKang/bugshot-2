@@ -211,7 +211,7 @@ const BORDER_SHORTHAND_SIDES: Record<string, readonly string[]> = {
 };
 
 const VAR_REF_RE = /var\(\s*(--[\w-]+)(?:\s*,\s*([^)]*))?\)/g;
-const SIMPLE_VAR_FALLBACK_RE = /^\s*var\(\s*(--[\w-]+)(?:\s*,\s*[^)]*)?\s*\)\s*$/;
+const VAR_NAME_RE = /^--[\w-]+$/;
 const CSS_DECL_RE = /([\w-]+)\s*:\s*([^;]+)/g;
 
 // length 단위 단일 출처 — categorizeToken·isBorderWidthToken이 공유(목록 불일치 방지).
@@ -1128,6 +1128,31 @@ function replaceVarRefs(
   return out;
 }
 
+// 값 전체가 var() 참조 하나뿐이면 그 이름·fallback을 돌려준다. 정규식(`[^)]*`)은 닫는 괄호를
+// 못 먹어 `var(--a, var(--b, var(--c)))` 같은 2단 이상 중첩에서 조용히 매치 실패했다 —
+// 괄호 깊이를 세는 스캔으로 바꿔 중첩 깊이에 무관하게 동작한다.
+function parseSoleVarRef(
+  value: string,
+): { name: string; fallback: string | null } | null {
+  const s = value.trim();
+  if (!s.startsWith("var(")) return null;
+  let depth = 0;
+  for (let i = 3; i < s.length; i++) {
+    if (s[i] === "(") depth++;
+    else if (s[i] === ")") {
+      depth--;
+      if (depth > 0) continue;
+      if (i !== s.length - 1) return null; // var() 뒤에 뭔가 더 있으면 단일 참조가 아니다.
+      const inner = s.slice(4, i);
+      const comma = topLevelComma(inner);
+      const name = (comma < 0 ? inner : inner.slice(0, comma)).trim();
+      if (!VAR_NAME_RE.test(name)) return null;
+      return { name, fallback: comma < 0 ? null : inner.slice(comma + 1).trim() };
+    }
+  }
+  return null;
+}
+
 function topLevelComma(s: string): number {
   let depth = 0;
   for (let i = 0; i < s.length; i++) {
@@ -1150,16 +1175,27 @@ export function resolveVarChain(
   const next = replaceVarRefs(value, (name, fallback, match) => {
     let resolvedName = name;
     let replacement = customProps[name];
-    if (replacement === undefined && fallback) {
-      const fb = SIMPLE_VAR_FALLBACK_RE.exec(fallback);
-      if (fb && customProps[fb[1]] !== undefined) {
-        resolvedName = fb[1];
-        replacement = customProps[fb[1]];
+    // primary가 미정의면 fallback 체인을 따라 내려가며 실제로 값을 가진 이름을 찾는다.
+    // depth 캡은 resolveVarChain과 같은 정신 — 병적인 중첩에서 멈춘다.
+    for (let fb = replacement === undefined && fallback ? parseSoleVarRef(fallback) : null, hops = 0;
+         fb && hops < 10;
+         fb = fb.fallback ? parseSoleVarRef(fb.fallback) : null, hops++) {
+      const v = customProps[fb.name];
+      if (v !== undefined) {
+        resolvedName = fb.name;
+        replacement = v;
+        break;
       }
     }
     if (replacement === undefined) return match;
-    // public 토큰은 보존(처음 이름에서 멈춤), private(--_)만 끝까지 펼침.
-    if (!resolvedName.startsWith("--_")) return match;
+    // public 토큰은 이름으로 보존한다. 단 fallback으로 넘어갔다면 **실효 토큰의 이름**으로
+    // 좁힌다 — 원문을 그대로 두면 소비처(firstVarName·extractTokenRefs)가 값이 없는 primary를
+    // 디자인 토큰으로 표시한다. 대가로 specified 표기에서 죽은 primary가 사라진다.
+    if (!resolvedName.startsWith("--_")) {
+      if (resolvedName === name) return match;
+      changed = true;
+      return `var(${resolvedName})`;
+    }
     // chain은 현재 해석 경로 — 같은 이름이 자기 펼침에서 재등장하면 사이클로 멈춘다.
     // 같은 값 내 sibling 반복(var(--_x) var(--_x))은 chain이 분기별 복제라 각자 펼쳐진다.
     const seen = chain ?? new Set<string>();

@@ -109,6 +109,7 @@ function JsonNode({
   expanded: Set<string>;
   onToggle: (path: string) => void;
 }) {
+  const t = useT();
   if (value === null) return <PrimitiveRow keyName={keyName} depth={depth} valueClass={JSON_TOKEN_CLASS.null} display="null" />;
   if (typeof value === "string") return <StringRow keyName={keyName} value={value} depth={depth} />;
   if (typeof value === "number") return <PrimitiveRow keyName={keyName} depth={depth} valueClass={JSON_TOKEN_CLASS.number} display={String(value)} />;
@@ -144,6 +145,8 @@ function JsonNode({
       >
         <button
           type="button"
+          aria-label={isOpen ? t("common.collapse") : t("common.expand")}
+          aria-expanded={isOpen}
           className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded hover:bg-muted-foreground/15"
           onClick={(e) => { e.stopPropagation(); onToggle(path); }}
         >

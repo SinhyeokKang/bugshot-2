@@ -30,6 +30,8 @@ export function JiraStatusBadge({
   const colors = STATUS_CATEGORY_COLORS[currentStatus.categoryKey] ?? STATUS_CATEGORY_COLORS.new;
 
   const handleOpenChange = (v: boolean) => {
+    // aria-disabled는 클릭이 실제로 들어온다 — 갱신 중 재오픈을 여기서 막는다.
+    if (updating) return;
     setOpen(v);
     if (v && !transitions) {
       setLoading(true);
@@ -74,7 +76,7 @@ export function JiraStatusBadge({
           type="button"
           className="shrink-0 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           onClick={(e) => e.stopPropagation()}
-          disabled={updating}
+          aria-disabled={updating}
         >
           <Badge
             variant="outline"

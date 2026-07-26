@@ -238,6 +238,81 @@ describe("maskBody — 본문 민감 키 마스킹 (요청·응답 공용)", () 
     expect(maskBody("token=abc", "text/plain")).toBe("token=abc");
     expect(maskBody("{not json", "application/json")).toBe("{not json");
   });
+
+  it("비밀번호 변경·자격증명 계열 body 전용 키를 마스킹한다", () => {
+    const masked = JSON.parse(
+      maskBody(
+        '{"currentPassword":"a","newPassword":"b"}',
+        "application/json",
+      ),
+    );
+    expect(masked.currentPassword).toBe("***");
+    expect(masked.newPassword).toBe("***");
+  });
+
+  it("추가된 body 전용 키 전수 — client_secret·otp·private_key 등", () => {
+    const keys = [
+      "client_secret", "newpassword", "new_password", "currentpassword",
+      "current_password", "oldpassword", "old_password", "session_token",
+      "sessiontoken", "refreshtoken", "accesstoken", "idtoken", "credential",
+      "private_key", "privatekey", "passwd", "otp",
+    ];
+    const masked = JSON.parse(
+      maskBody(JSON.stringify(Object.fromEntries(keys.map((k) => [k, "v"]))), "application/json"),
+    );
+    for (const k of keys) expect(masked[k]).toBe("***");
+  });
+
+  it("본문이 {·[로 시작하면 contentType 무관 JSON으로 파싱해 마스킹한다", () => {
+    expect(maskBody('{"password":"p","q":1}', "text/plain")).toBe(
+      '{"password":"***","q":1}',
+    );
+    expect(maskBody('[{"token":"t"}]', "")).toBe('[{"token":"***"}]');
+  });
+
+  it("{·[로 시작해도 JSON 파싱에 실패하면 원문을 그대로 둔다", () => {
+    expect(maskBody("{not json", "text/plain")).toBe("{not json");
+    expect(maskBody("[1,2", "")).toBe("[1,2");
+    expect(maskBody("{{mustache}}", "text/html")).toBe("{{mustache}}");
+  });
+});
+
+// 마스킹 강화는 항상 오탐 쪽도 같이 고정한다 (POSTMORTEM 2026-07-14).
+describe("maskBody — 부분일치 오탐 방지 (exact-match 유지)", () => {
+  it("code 계열은 body에서 마스킹하지 않는다 — query 전용 키", () => {
+    const masked = JSON.parse(
+      maskBody(
+        '{"code":"E401","error_code":"429","status_code":500,"zipcode":"06236"}',
+        "application/json",
+      ),
+    );
+    expect(masked.code).toBe("E401");
+    expect(masked.error_code).toBe("429");
+    expect(masked.status_code).toBe(500);
+    expect(masked.zipcode).toBe("06236");
+  });
+
+  it("민감 키를 부분 문자열로 포함하는 일반 키는 마스킹하지 않는다", () => {
+    const masked = JSON.parse(
+      maskBody(
+        '{"author":"kim","keyword":"bug","secretary":"lee","shipping":"KR","tokenizer":"bpe","credentials":["a"],"password_hint_shown":true}',
+        "application/json",
+      ),
+    );
+    expect(masked.author).toBe("kim"); // auth ⊂ author
+    expect(masked.keyword).toBe("bug"); // key ⊂ keyword
+    expect(masked.secretary).toBe("lee"); // secret ⊂ secretary
+    expect(masked.shipping).toBe("KR"); // pin ⊂ shipping
+    expect(masked.tokenizer).toBe("bpe"); // token ⊂ tokenizer
+    expect(masked.credentials).toEqual(["a"]); // credential ⊂ credentials
+    expect(masked.password_hint_shown).toBe(true);
+  });
+
+  it("urlencoded 본문에서도 오탐이 없다", () => {
+    expect(maskBody("error_code=429&author=kim", "application/x-www-form-urlencoded")).toBe(
+      "error_code=429&author=kim",
+    );
+  });
 });
 
 describe("classifyWsFrameData", () => {
@@ -323,6 +398,20 @@ describe("maskUrl", () => {
     expect(
       maskUrl("https://x.com/cb#access_token=SECRET&token_type=bearer"),
     ).toBe("https://x.com/cb#access_token=***&token_type=bearer");
+  });
+
+  // OAuth authorization code는 교환 가능한 자격증명이라 query에서 마스킹한다.
+  // 대가: ?code=KR 같은 국가·에러 코드 재현값도 함께 손실 (수용).
+  it("OAuth code 쿼리를 마스킹한다 (query 전용 키)", () => {
+    expect(maskUrl("https://app/cb?code=4/0AY&state=x")).toBe(
+      "https://app/cb?code=***&state=x",
+    );
+    expect(maskUrl("https://x.com/?code=KR")).toBe("https://x.com/?code=***");
+  });
+
+  it("code를 부분 문자열로 포함하는 쿼리 키는 마스킹하지 않는다", () => {
+    const url = "https://x.com/?error_code=429&zipcode=06236&keyword=bug";
+    expect(maskUrl(url)).toBe(url);
   });
 
   it("민감 키 없는 순수 앵커(#section)는 원문을 유지한다", () => {

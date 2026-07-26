@@ -301,6 +301,12 @@ export function isOAuthCancelled(err: unknown): boolean {
   return readErrorBodyFlag(err, "oauthCancelled");
 }
 
+// 빌드에 client_id·proxy URL이 없어 OAuth를 시작조차 못 한 경우. isOAuthRefreshFailed와
+// 배타적이라 onOAuthExpired가 발화하지 않는다.
+export function isOAuthNotConfigured(err: unknown): boolean {
+  return readErrorBodyFlag(err, "oauthNotConfigured");
+}
+
 export function getOAuthErrorPlatform(err: unknown): PlatformId | null {
   if (!(err instanceof BgError)) return null;
   if (!err.body || typeof err.body !== "object") return null;
@@ -345,6 +351,16 @@ export const onPickerIframeUnsupported = {
 };
 
 export const onBlobSaveFailed = {
+  _listeners: new Set<Listener>(),
+  subscribe(fn: Listener) { this._listeners.add(fn); return () => { this._listeners.delete(fn); }; },
+  fire() { this._listeners.forEach((fn) => fn()); },
+};
+
+// 레코드 본체(chrome.storage.local) 저장 실패. blob 실패에는 onBlobSaveFailed가 있는데
+// 레코드엔 알림 채널이 없어, confirmDraft가 true를 반환하며 "초안 저장됨"만 뜨고 레코드는
+// 없는 상태가 조용히 만들어졌다. rethrow는 zustand persist 경로에 unhandled rejection을
+// 낳으므로 blob 쪽과 대칭인 이벤트로 올린다.
+export const onStateSaveFailed = {
   _listeners: new Set<Listener>(),
   subscribe(fn: Listener) { this._listeners.add(fn); return () => { this._listeners.delete(fn); }; },
   fire() { this._listeners.forEach((fn) => fn()); },

@@ -83,6 +83,9 @@ export function buildMarkdownContext(args: BuildMarkdownContextArgs): MarkdownCo
 
     return {
       ...base,
+      // element 분기만 captureMode를 빠뜨려, 8개 빌더가 element를 "그 외"로 부정형 판정하며
+      // 우연히 맞아떨어지고 있었다(buildEditorCapture·DraftDetailDialog는 명시한다).
+      captureMode: "element",
       selector: selection.selector,
       tagName: selection.tagName,
       classListBefore: selection.classList,

@@ -20,6 +20,7 @@ const ko = {
   "common.download": "다운로드",
   "common.expand": "펼치기",
   "common.collapse": "접기",
+  "common.clearSearch": "검색어 지우기",
 
   "time.justNow": "방금",
   "time.minutesAgo": "{n}분 전",
@@ -55,6 +56,7 @@ const en = {
   "common.download": "Download",
   "common.expand": "Expand",
   "common.collapse": "Collapse",
+  "common.clearSearch": "Clear search",
 
   "time.justNow": "Just now",
   "time.minutesAgo": "{n}m ago",

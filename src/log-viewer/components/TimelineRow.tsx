@@ -78,6 +78,7 @@ export const TimelineRow = memo(function TimelineRow({
                 type="button"
                 data-testid="timeline-row-expand"
                 className="shrink-0 rounded p-0.5 hover:text-primary focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                aria-label={expanded ? t("common.collapse") : t("common.expand")}
                 aria-expanded={expanded}
                 onClick={(e) => { stop(e); setExpanded((v) => !v); }}
               >

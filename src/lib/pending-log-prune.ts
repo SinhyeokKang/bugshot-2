@@ -1,3 +1,4 @@
+import { PENDING_PREFIX } from "./session-keys";
 import {
   deleteActionLog,
   deleteAttachmentBlobs,
@@ -11,7 +12,6 @@ import {
   getVideoBlobKeys,
 } from "@/store/blob-db";
 
-const PENDING_PREFIX = "pending:";
 
 export function findOrphanPendingKeys(
   keys: string[],

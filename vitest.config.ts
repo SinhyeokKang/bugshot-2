@@ -9,9 +9,27 @@ export default defineConfig({
   },
   test: {
     // e2e/*.spec.ts는 Playwright 전용 — vitest 기본 include가 수집하면 test()가 throw.
-    exclude: [...configDefaults.exclude, "e2e/**"],
+    // .claude/worktrees/**는 `/feature` 워크트리 사본 — 같은 테스트를 두 벌 수집해 실패한다
+    // (사본 경로는 environmentMatchGlobs의 jsdom 분기도 못 타서 document 미정의로 죽는다).
+    exclude: [...configDefaults.exclude, "e2e/**", ".claude/**"],
     // 컴포넌트 렌더 테스트(*.test.tsx)만 jsdom. 순수 함수 테스트는 node 유지.
     environmentMatchGlobs: [["**/*.test.tsx", "jsdom"]],
     setupFiles: ["./src/test/setup-dom.ts"],
+    coverage: {
+      // 전체 정직한 분모를 유지한다(브라우저 전용/UI 코드 포함). "로직 스코프"
+      // 파티션·비교·개선 후보 랭킹은 scripts/coverage-report.mjs가 담당.
+      provider: "v8",
+      reporter: ["text-summary", "json-summary"],
+      // vitest는 매 실행마다 reportsDirectory를 청소한다. 트렌드 베이스라인
+      // (coverage/baseline.json)이 지워지지 않도록 리포트 출력을 하위 폴더로 격리.
+      reportsDirectory: "coverage/report",
+      include: ["src/**"],
+      exclude: [
+        "src/**/__tests__/**",
+        "src/**/*.test.*",
+        "src/**/*.d.ts",
+        "src/test/**",
+      ],
+    },
   },
 });

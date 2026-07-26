@@ -109,6 +109,8 @@ describe("buildMarkdownContext", () => {
       }),
     );
 
+    // element 분기만 captureMode를 안 실어, 빌더들이 부정형("그 외") 판정으로 우연히 흡수했다.
+    expect(ctx.captureMode).toBe("element");
     expect(ctx.selector).toBe("div.container");
     expect(ctx.tagName).toBe("div");
     expect(ctx.classListBefore).toEqual(["container"]);

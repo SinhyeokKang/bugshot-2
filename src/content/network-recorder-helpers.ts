@@ -29,7 +29,8 @@ export function reclaimableSize(entry: BodyBearing): number {
   return estimateBodySize(entry.requestBody) + estimateBodySize(entry.responseBody);
 }
 
-export const MASKED_QUERY_KEYS = new Set([
+// exact-match 전용. 부분일치로 넓히면 재현값이 죽는다(pin⊂shipping, auth⊂author — POSTMORTEM 2026-07-14).
+const MASKED_COMMON_KEYS = [
   "token",
   "access_token",
   "id_token",
@@ -41,8 +42,31 @@ export const MASKED_QUERY_KEYS = new Set([
   "password",
   "pwd",
   "auth",
+];
+
+// `code`는 query 전용 — 본문의 error_code·status_code 오탐이 많아 body set에서 제외.
+export const MASKED_QUERY_KEYS = new Set([...MASKED_COMMON_KEYS, "code"]);
+
+const MASKED_BODY_KEYS = new Set([
+  ...MASKED_COMMON_KEYS,
+  "client_secret",
+  "newpassword",
+  "new_password",
+  "currentpassword",
+  "current_password",
+  "oldpassword",
+  "old_password",
+  "session_token",
+  "sessiontoken",
+  "refreshtoken",
+  "accesstoken",
+  "idtoken",
+  "credential",
+  "private_key",
+  "privatekey",
+  "passwd",
+  "otp",
 ]);
-const MASKED_BODY_KEYS = MASKED_QUERY_KEYS;
 
 // ?query 와 #fragment(OAuth implicit의 access_token 등) 양쪽의 민감 키(token·password 등)를
 // ***로 마스킹. network/console/action 레코더 공용. 히트한 part만 재직렬화 — 순수 앵커(#top) 보존.
@@ -109,6 +133,13 @@ export function maskBody(body: string, contentType: string): string {
         }
       }
       return changed ? params.toString() : body;
+    } catch { return body; }
+  }
+  // contentType이 틀리거나 없는 JSON 본문(text/plain 등)이 흔해 형태로 한 번 더 시도.
+  const head = body.trimStart()[0];
+  if (head === "{" || head === "[") {
+    try {
+      return JSON.stringify(maskJsonBody(JSON.parse(body), 0));
     } catch { return body; }
   }
   return body;
@@ -269,6 +300,28 @@ function extractRequestInfo(req: Request, init?: RequestInit): PatchedFetchReqIn
     contentType,
     rawBody,
     requestBodySize,
+  };
+}
+
+// XHR.setRequestHeader wrap. 원본을 **먼저** 호출하고 성공했을 때만 기록한다:
+// 1) 헤더명을 문자열이 아닌 값으로 넘기는 라이브러리에서 `name.toLowerCase()`가 throw해도
+//    원본이 이미 실행돼 페이지 XHR이 깨지지 않는다.
+// 2) send() 이후 호출처럼 네이티브가 거부(throw)한 헤더는 로그에도 남지 않는다.
+export function createPatchedSetRequestHeader(
+  original: (this: XMLHttpRequest, name: string, value: string) => void,
+  record: (xhr: XMLHttpRequest, name: string, value: string) => void,
+): (this: XMLHttpRequest, name: string, value: string) => void {
+  return function patchedSetRequestHeader(
+    this: XMLHttpRequest,
+    name: string,
+    value: string,
+  ) {
+    original.call(this, name, value);
+    try {
+      record(this, name, value);
+    } catch {
+      // 레코더 오류는 페이지로 전파하지 않는다.
+    }
   };
 }
 

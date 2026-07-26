@@ -82,7 +82,8 @@ describe("buildNotionIssueBody — block 변환", () => {
     expect(rt.some((r: any) => r.annotations?.bold === true)).toBe(true);
   });
 
-  it("orderedList 섹션은 bulleted_list_item 다중", () => {
+  // 8개 빌더 중 Notion만 orderedList를 불릿으로 떨어뜨려 재현 단계의 번호가 사라졌다.
+  it("orderedList 섹션은 numbered_list_item 다중", () => {
     const ctx = makeCtx({
       sections: { stepsToReproduce: "1\n2\n3" },
       sectionConfig: [
@@ -95,11 +96,16 @@ describe("buildNotionIssueBody — block 변환", () => {
       ],
     });
     const out = buildNotionIssueBody({ ctx });
-    const bullets = out.blocks.filter((b) => b.type === "bulleted_list_item");
-    const stepBullets = bullets.filter(
+    const numbered = out.blocks.filter((b) => b.type === "numbered_list_item");
+    const stepItems = numbered.filter(
       (b) => "text" in b && ["1", "2", "3"].includes(b.text),
     );
-    expect(stepBullets.length).toBe(3);
+    expect(stepItems.length).toBe(3);
+    // 같은 항목이 불릿으로도 남지 않는지 — 회귀 방향(불릿 강등) 재발 차단.
+    const asBullets = out.blocks.filter(
+      (b) => b.type === "bulleted_list_item" && "text" in b && ["1", "2", "3"].includes(b.text),
+    );
+    expect(asBullets.length).toBe(0);
   });
 
   it("class 행: 변경된 토큰만 bold annotation (rich_bulleted_list_item)", () => {

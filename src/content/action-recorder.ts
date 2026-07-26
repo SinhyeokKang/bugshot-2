@@ -18,6 +18,8 @@ function actionRecorderScript(): void {
   const CTRL_KEY = "__bugshot_action_ctrl__";
   if ((window as any)[CTRL_KEY]) return;
 
+  // log-merge.ts ACTION_MAX_ENTRIES와 동일 유지 (sidepanel 번들 격리로 값 동기화 —
+  // 공용 상수 모듈로 빼면 recorders-entry가 async loader가 돼 pre-arm이 죽는다).
   const MAX_ENTRIES = 1000;
   const VALUE_CAP = 500;
   const SET_SENTINEL_EVENT = "__bugshot_action_setSentinel__";
@@ -369,6 +371,9 @@ function actionRecorderScript(): void {
     (e: MouseEvent) => {
       // 직전 포인터 드래그가 합성한 click 1회를 삼킨다(pointerdown에서 리셋되어 1제스처 한정).
       if (suppressNextClick) { suppressNextClick = false; return; }
+      // 게이트는 suppressNextClick 소비 **뒤**에 — 그 플래그는 비녹화 구간에서도 1제스처 한정으로
+      // 소진돼야 한다. 아래는 composedPath·closest 질의라 비녹화 시 전부 건너뛴다.
+      if (!capturing) return;
       const target = e.target as Element | null;
       if (!target) return;
       const path = typeof e.composedPath === "function" ? e.composedPath() : undefined;
@@ -483,6 +488,8 @@ function actionRecorderScript(): void {
   document.addEventListener(
     "keydown",
     (e: KeyboardEvent) => {
+      // 조합 상태·억제 플래그 같은 부수효과가 없는 핸들러라 최상단 게이트가 안전하다.
+      if (!capturing) return;
       const target = e.target as Element | null;
       const path = typeof e.composedPath === "function" ? e.composedPath() : undefined;
       if (isOwnUi(target, path)) return;
@@ -509,6 +516,7 @@ function actionRecorderScript(): void {
 
   // --- Text input (capture) ---
   function onInput(e: Event): void {
+    if (!capturing) return;
     const target = e.target as Element | null;
     if (!target) return;
     const path = typeof e.composedPath === "function" ? e.composedPath() : undefined;

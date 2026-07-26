@@ -19,7 +19,7 @@ import { useBoundTabId } from "@/sidepanel/hooks/useBoundTabId";
 import { useAI } from "@/sidepanel/hooks/useAI";
 import { useReproPrefill } from "@/sidepanel/hooks/useReproPrefill";
 import { useReplay } from "@/sidepanel/30s-replay/replay-context";
-import { clearPicker, startInlineAreaCapture } from "@/sidepanel/picker-control";
+import { cancelAreaSelect, clearPicker, startInlineAreaCapture } from "@/sidepanel/picker-control";
 import { CancelConfirmDialog } from "@/sidepanel/components/CancelConfirmDialog";
 import { LogAttachmentCards } from "@/sidepanel/components/LogAttachmentCards";
 import { AttachmentSection } from "@/sidepanel/components/AttachmentSection";
@@ -165,7 +165,7 @@ export function DraftingPanel() {
   const titleMissing = !draft.title.trim();
 
   const showActionCard = supportsActionLog(captureMode) && actionLog !== null && actionLog.captured > 0;
-  const showLogCards = captureMode !== "element" && (
+  const showLogCards = supportsConsoleNetworkLog(captureMode) && (
     (networkLog !== null && networkLog.captured > 0) ||
     (consoleLog !== null && consoleLog.captured > 0) ||
     showActionCard
@@ -186,6 +186,7 @@ export function DraftingPanel() {
             variant="outline"
             className="h-8 w-8 shrink-0"
             title={t("common.download")}
+            aria-label={t("common.download")}
             data-testid="download-media"
             onClick={() => downloadVideoBlob(videoBlob)}
           >
@@ -240,6 +241,7 @@ export function DraftingPanel() {
                 variant="outline"
                 className="h-8 w-8 shrink-0"
                 title={t("draft.removeAnnotation")}
+                aria-label={t("draft.removeAnnotation")}
                 data-testid="annotation-remove"
                 onClick={() => useEditorStore.setState({ screenshotAnnotated: null })}
               >
@@ -251,6 +253,7 @@ export function DraftingPanel() {
               variant="outline"
               className="h-8 w-8 shrink-0"
               title={screenshotAnnotated ? t("draft.editAnnotation") : t("draft.addAnnotation")}
+              aria-label={screenshotAnnotated ? t("draft.editAnnotation") : t("draft.addAnnotation")}
               data-testid="annotation-edit"
               onClick={() => setAnnotating(true)}
             >
@@ -261,6 +264,7 @@ export function DraftingPanel() {
               variant="outline"
               className="h-8 w-8 shrink-0"
               title={t("common.download")}
+              aria-label={t("common.download")}
               data-testid="download-media"
               onClick={() => downloadImageDataUrl(screenshotImage)}
             >
@@ -294,6 +298,7 @@ export function DraftingPanel() {
           variant="outline"
           className="h-8 w-8 shrink-0"
           title={t("common.download")}
+          aria-label={t("common.download")}
           data-testid="download-logs"
           onClick={() => void downloadEditorLogsHtml()}
         >
@@ -384,9 +389,7 @@ export function DraftingPanel() {
               variant="outline"
               onClick={() => {
                 useEditorStore.getState().cancelInlineCapture();
-                if (tabId) {
-                  chrome.tabs.sendMessage(tabId, { type: "picker.cancelAreaSelect" }).catch(() => {});
-                }
+                if (tabId) void cancelAreaSelect(tabId);
               }}
             >
               {t("common.cancel")}
@@ -565,6 +568,7 @@ function ReproEnvironmentSection() {
       variant="outline"
       className="h-9 w-9 shrink-0"
       title={t("draft.envAddRow")}
+      aria-label={t("draft.envAddRow")}
       onClick={() => updateRows([...customRows, { label: "", value: "" }])}
     >
       <Plus />
@@ -606,6 +610,7 @@ function ReproEnvironmentSection() {
               variant="outline"
               className="h-9 w-9 shrink-0 hover:text-destructive"
               title={t("common.delete")}
+              aria-label={t("common.delete")}
               disabled
             >
               <Trash2 />
@@ -643,6 +648,7 @@ function ReproEnvironmentSection() {
               variant="outline"
               className="h-9 w-9 shrink-0 hover:text-destructive"
               title={t("common.delete")}
+              aria-label={t("common.delete")}
               onClick={() => updateRows(customRows.filter((_, i) => i !== idx))}
             >
               <Trash2 />
@@ -762,6 +768,7 @@ function SectionTextarea({
             variant="outline"
             className="h-8 w-8 shrink-0 hover:text-destructive"
             title={t("draft.stepsReset")}
+            aria-label={t("draft.stepsReset")}
             data-testid={`draft-section-${section.id}-reset`}
             disabled={!value.trim()}
             onClick={() => onChange("")}

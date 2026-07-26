@@ -1,3 +1,5 @@
+import { safeExternalHref } from "@/lib/external-url";
+
 interface IssueTitleOverlayProps {
   issueTitle?: string;
   issueKey?: string;
@@ -14,7 +16,7 @@ export function IssueTitleOverlay({ issueTitle, issueKey, issueUrl }: IssueTitle
       <h1 className="relative truncate text-[20px] font-bold leading-snug text-white opacity-0 transition-opacity duration-300 group-hover:opacity-100">{issueTitle}</h1>
       {issueKey && (
         <a
-          href={issueUrl && /^https?:\/\//.test(issueUrl) ? issueUrl : undefined}
+          href={safeExternalHref(issueUrl)}
           target="_blank"
           rel="noopener noreferrer"
           className="relative mt-1 inline-block text-[14px] font-medium text-white/60 opacity-0 transition-opacity duration-300 hover:text-white/80 group-hover:opacity-100"

@@ -1,6 +1,6 @@
 # BugShot 소개
 
-![BugShot 대표 화면 — 버그를 발견한 그 자리에서 캡처하고 리포트](assets/readme-1.jpg)
+![Bug Reporting in One Shot — 환경 정보까지 채워진 이슈가 담긴 BugShot 사이드 패널, 그 뒤로 함께 수집된 네트워크·콘솔 로그](assets/readme-1.jpg)
 
 웹에서 버그를 발견할 때마다 "이거 어떻게 설명하지…" 하고 막막했던 적, 다들 있으시죠. BugShot은 바로 그 순간을 도와드립니다.
 

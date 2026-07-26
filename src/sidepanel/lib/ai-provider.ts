@@ -179,6 +179,22 @@ export class LlmEmptyResponseError extends Error {
   }
 }
 
+// x-api-key는 Authorization과 달리 cross-origin 리다이렉트에서 스펙상 제거되지 않는다.
+// redirect:"manual"로 막고, opaqueredirect(status 0)는 일반 네트워크 실패와 구분되지
+// 않으므로 전용 에러로 승격해 사용자가 baseUrl을 고칠 수 있게 한다.
+export class LlmRedirectError extends Error {
+  constructor() {
+    super("endpoint_redirect");
+    this.name = "LlmRedirectError";
+  }
+}
+
+function throwIfRedirected(res: Response): void {
+  if (res.type === "opaqueredirect" || res.status === 0) {
+    throw new LlmRedirectError();
+  }
+}
+
 export class AiContextOverflowError extends Error {
   constructor() {
     super("context_overflow");
@@ -477,6 +493,7 @@ export function createAnthropicProvider(config: LlmConfig): AIProvider {
       {
         method: "POST",
         headers,
+        redirect: "manual",
         body: JSON.stringify({
           model: config.modelId,
           max_tokens: LLM_MAX_TOKENS,
@@ -486,6 +503,7 @@ export function createAnthropicProvider(config: LlmConfig): AIProvider {
       },
       [502, 504, 529],
     );
+    throwIfRedirected(res);
     if (!res.ok) {
       if (res.status === 401 || res.status === 403) throw new LlmAuthError();
       if (res.status === 429) throw new LlmQuotaError();
@@ -546,12 +564,14 @@ export async function pingAnthropic(
       "anthropic-version": ANTHROPIC_VERSION,
       "anthropic-dangerous-direct-browser-access": "true",
     },
+    redirect: "manual",
     body: JSON.stringify({
       model: ANTHROPIC_MODELS[0].id,
       max_tokens: 1,
       messages: [{ role: "user", content: "hi" }],
     }),
   });
+  throwIfRedirected(res);
   if (!res.ok) {
     const text = await res.text().catch(() => "");
     throw new Error(`Anthropic API error ${res.status}: ${text}`);

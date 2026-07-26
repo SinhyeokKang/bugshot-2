@@ -7,6 +7,7 @@ import {
   LlmEmptyResponseError,
   LlmOverloadedError,
   LlmQuotaError,
+  LlmRedirectError,
 } from "../ai-provider";
 
 vi.mock("sonner", () => ({
@@ -46,6 +47,13 @@ describe("toastLlmError", () => {
   it("빈/파싱실패 응답 → 재시도 유도 공통 문구", () => {
     toastLlmError(new LlmEmptyResponseError(), t, "draft.aiError");
     expect(toast.error).toHaveBeenCalledWith("llm.error.empty");
+  });
+
+  // 리다이렉트 차단은 fallback("요청 실패")으로 뭉개면 사용자가 Base URL 오타를
+  // 네트워크 장애로 오독한다. 전용 문구로 원인을 지목한다.
+  it("리다이렉트 차단 → 전용 문구", () => {
+    toastLlmError(new LlmRedirectError(), t, "draft.aiError");
+    expect(toast.error).toHaveBeenCalledWith("llm.error.redirect");
   });
 
   it("그 외 에러 → 호출부가 준 fallback 키", () => {
