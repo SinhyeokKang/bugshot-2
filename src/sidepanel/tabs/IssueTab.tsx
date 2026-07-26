@@ -278,6 +278,10 @@ function UnsupportedPage() {
   );
 }
 
+// 캡처 진입 화면 버튼 열과 빈 상태 문구가 공유하는 폭 — 문구를 패널 폭까지 늘리지 않고
+// 버튼 열과 같은 지점에서 줄바꿈시켜 가독성을 맞춘다.
+const CONTENT_MAX_W = "max-w-[336px]";
+
 // export 이유: props 직접 주입 테스트. 비-export면 IssueTab 풀 렌더를 거쳐야 하고 그러면
 // DraftingPanel·PreviewPanel·StyleEditorPanel(tiptap·sonner)까지 이 경로에서 평가된다.
 export function EmptyState({ onStartElement, onStartElementShot, onStartScreenshot, onStartVideo, onStartScreenRecord, onStartFreeform, unsupported }: { onStartElement: () => void; onStartElementShot: () => void; onStartScreenshot: () => void; onStartVideo: () => void; onStartScreenRecord: () => void; onStartFreeform: () => void; unsupported: boolean }) {
@@ -309,7 +313,7 @@ export function EmptyState({ onStartElement, onStartElementShot, onStartScreensh
           <h3 className="whitespace-pre-line text-center text-lg font-semibold">{t("issue.empty.title")}</h3>
         </div>
         <TooltipProvider delayDuration={0}>
-          <div className="flex w-full max-w-[336px] flex-col gap-2">
+          <div className={cn("flex w-full flex-col gap-2", CONTENT_MAX_W)}>
             <Button className="w-full" onClick={onStartElement} data-testid="mode-element">
               <Crosshair />
               {t("issue.mode.element")}
@@ -718,7 +722,10 @@ function EmptyShell({
   return (
     <div
       data-testid={testId}
-      className="flex min-h-0 flex-1 flex-col items-center justify-center px-4 pb-5 text-center"
+      className={cn(
+        "mx-auto flex min-h-0 flex-1 flex-col items-center justify-center px-4 pb-5 text-center",
+        CONTENT_MAX_W,
+      )}
     >
       <div className="mb-3 rounded-full bg-muted p-3">{icon}</div>
       <h3 className="whitespace-pre-line text-lg font-semibold">{title}</h3>

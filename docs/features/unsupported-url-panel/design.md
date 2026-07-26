@@ -382,9 +382,13 @@ export function resolveNavigationAction(input: {
 
 `docs/POSTMORTEM.md:301-305`: crxjs가 서비스워커를 `type:module`로 emit하는데 Playwright `worker.evaluate`가 그 실행 컨텍스트를 못 잡아 **무한 대기**하며, `workers:1`이라 첫 `sw.evaluate` 하나가 전 스위트를 정지시킨 전례가 있다. 따라서 background 동작은 관찰 가능한 신호(activated set·세션 키를 SW storage로 읽기)로 우회 검증해야 한다 — `activetab-broad-permission.spec.ts`가 그 우회의 선례다.
 
-### 4. 판정 중 플래시 (중간 / Phase 1 — 수용)
+### 4. 판정 중 플래시 (해소 — 실측 결과 체감 없음)
 
-미지원 페이지에서 패널을 열면 캡처 버튼 5개가 1~3프레임 그려진 뒤 안내로 교체된다. prd.md S1에서 **100% 발생**한다. 3-상태로 뒤집을 수 있지만 기존 e2e 42개에 `waitFor` 보정이 필요하다 — 설계 결정 3 참조. 수용된 트레이드오프.
+미지원 페이지에서 패널을 열면 판정(`chrome.tabs.get` 왕복) 전까지 캡처 버튼 5개가 그려진다. 설계 시점에는 prd.md S1에서 100% 발생하는 시각 거스러미로 보고 3-상태 전환을 대안으로 남겨뒀다.
+
+**2026-07-27 실측: 체감되지 않는다.** 웹스토어·`chrome://settings` 양쪽에서 아이콘 클릭 시 버튼이 눈에 보이지 않았다. 원인은 `useTabUnsupported`가 `App.tsx`의 하이드레이션 게이트(`if (!editorHydrated || !settingsHydrated) return null`)보다 **위**에서 호출되어, `tabs.get`이 `chrome.storage` 왕복 2건과 **병렬로 경합**하고 먼저 끝나기 때문이다 — 패널이 첫 페인트를 하기 전에 판정이 이미 도착한다.
+
+→ 3-상태 전환은 불필요하다(기존 e2e 42개의 first-paint 단언도 그대로 지킨다). 단 이 결과는 storage 왕복이 `tabs.get`보다 느리다는 **경합에 기댄 것**이므로, 하이드레이션을 최적화하거나 판정에 왕복을 추가하면 다시 드러날 수 있다.
 
 ### 5. `picker-unavailable-dialog`의 주 트리거 소실 (중간)
 
