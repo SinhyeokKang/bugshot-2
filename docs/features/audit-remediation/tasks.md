@@ -672,13 +672,8 @@ W2 (설계 결정) ── 독립. 합의되면 해당 항목만 위 흐름에 �
 
 ## 인계 사항 (코드 밖 / 다음 세션이 이어받을 것)
 
-### 1. A-09 수동 검증 (미이행)
-`createFinalizeGuard()`의 상태 전이는 단위로 고정했지만 **실제 MediaRecorder 경로는 검증되지 않았다.** 절차:
-1. `src/sidepanel/video-recorder.ts`의 `void hideAnnotation(localTabId);` 바로 뒤에 임시로 `await new Promise((r) => setTimeout(r, 8000));` 삽입
-2. `pnpm build` → 확장 재로드
-3. 탭 녹화 시작 → 중지 → 8초 창 동안 취소 클릭 → **drafting으로 넘어가지 않고 idle 복귀**해야 정상
-4. 취소하지 않은 경우 정상 커밋되는지도 확인
-5. 임시 지연 제거
+### 1. A-09 수동 검증 — **완료** ✅ (2026-07-26)
+`createFinalizeGuard()`의 상태 전이는 단위로 고정돼 있었고, 실제 MediaRecorder 경로도 확인했다 — 녹화 중지 후 finalize 창(썸네일 생성·탭 조회)에서 취소하면 **drafting으로 넘어가지 않고 idle 복귀**, 취소하지 않으면 정상 커밋. 검증용 임시 지연은 제거됐다(`grep -c "setTimeout(r, 8000)" src/sidepanel/video-recorder.ts` → 0).
 
 ### 2. A-08 rate limit — **코드로 해결됨, 배포 시 자동 적용**
 Cloudflare 대시보드 WAF 규칙 대신 **Workers 네이티브 rate limit 바인딩**으로 넣었다(`wrangler.toml`의 `[[unsafe.bindings]]` + `worker.ts:enforceRateLimit`). IP당 분당 20회, `CF-Connecting-IP` 기준. preflight·미허용 origin은 예산을 안 먹고, 제한기 장애 시엔 통과(fail-open — 제한기 때문에 전 사용자 토큰 교환이 막히는 쪽이 더 나쁘다). 바인딩이 없으면 건너뛰므로 로컬·테스트 env는 무영향.
@@ -691,6 +686,14 @@ Cloudflare 대시보드 WAF 규칙 대신 **Workers 네이티브 rate limit 바�
 **그래도 배포 순서 제약은 남는다** — 이미 설치된 구버전 확장은 여전히 `client_id`를 안 보내므로, 프록시를 먼저 배포하면 그 사용자들의 Jira 연동·토큰 갱신이 400으로 죽는다.
 
 - 안전한 순서: ① 이 수정을 포함한 스토어 배포 → ② **리뷰 통과 + 자동 업데이트 전파 대기**(리뷰 통과만으론 부족 — Chrome 자동 업데이트는 수 시간~수 일에 걸쳐 퍼진다) → ③ 그다음 프록시 배포.
+
+> 🗓️ **목표일: 2026-08-09** (스토어 배포일 2026-07-26 기준 +2주)
+>
+> 그날 아래를 확인하고 진행한다:
+> 1. **웹스토어 심사가 통과·게시됐는가?** 아직 심사 중이면 이 날짜는 무의미하다 — 통과일 기준으로 +1~2주를 다시 잡는다.
+> 2. 통과했으면 `cd oauth-proxy && wrangler deploy` **한 번**이면 끝난다(rate limit 바인딩 포함, `ALLOWED_ORIGINS`는 확인 완료).
+> 3. 배포 후 스모크 테스트 — 인계 4번의 curl 프로브로 스토어 ID가 400(통과), 가짜 origin이 403(차단)인지 확인.
+> 4. 끝나면 **`.claude/commands/deploy.md` 절차 8 + "주의" 마지막 항목 + 이 문서(`docs/features/audit-remediation/`) 전체 + 개인 메모리 `project_oauth_proxy_deploy_order`를 함께 정리**한다.
 - 프록시 수정을 더 빨리 넣어야 하면, A-22의 세 변경 중 **Atlassian `client_id` 검사 줄만** 빼고 배포한다(나머지 둘 — 미설정 시 503, `ALLOWED_ORIGINS: "*"` 거부 — 은 배포 제약이 없다). 전파 후 그 줄을 되살린다. 참고로 `client_id`는 번들에서 읽히는 공개값이라 이 검사의 보안 이득은 크지 않다 — 주 목적은 나머지 7개와의 일관성이다.
 
 ### 4. `ALLOWED_ORIGINS` — **확인 완료, 조치 불필요** ✅
