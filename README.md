@@ -1,11 +1,11 @@
 # BugShot
 
-![BugShot at a glance — capture and report right where you spot the bug](guide/en/assets/readme-1.jpg)
+![Bug Reporting in One Shot — the BugShot side panel showing a finished issue with its environment filled in, layered over the captured network and console logs](guide/en/assets/readme-1.jpg)
 
 [![Chrome Web Store](https://img.shields.io/chrome-web-store/v/ohakhekagkodklkickemonmifdcbhmig)](https://chromewebstore.google.com/detail/bugshot/ohakhekagkodklkickemonmifdcbhmig)
 [![License](https://img.shields.io/github/license/SinhyeokKang/bugshot-2)](LICENSE)
 
-**Bug reports in one shot.**
+**Bug Reporting in One Shot.**
 
 Stop explaining bugs in words. BugShot is a Chrome side panel extension that lets
 you discover, fix, capture, and report bugs — all without leaving the browser. Pick

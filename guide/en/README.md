@@ -1,6 +1,6 @@
 # About BugShot
 
-![BugShot at a glance — capture and report right where you spot the bug](assets/readme-1.jpg)
+![Bug Reporting in One Shot — the BugShot side panel showing a finished issue with its environment filled in, layered over the captured network and console logs](assets/readme-1.jpg)
 
 Ever spotted a bug and thought, "how do I even explain this?" That's exactly the moment BugShot was built for.
 
