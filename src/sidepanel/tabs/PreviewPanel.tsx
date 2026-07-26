@@ -176,6 +176,7 @@ export function PreviewPanel() {
             variant="outline"
             className="h-8 w-8 shrink-0"
             title={t("common.download")}
+            aria-label={t("common.download")}
             data-testid="download-media"
             onClick={() => downloadVideoBlob(videoBlob)}
           >
@@ -211,6 +212,7 @@ export function PreviewPanel() {
             variant="outline"
             className="h-8 w-8 shrink-0"
             title={t("common.download")}
+            aria-label={t("common.download")}
             data-testid="download-media"
             onClick={() => downloadImageDataUrl(screenshotImage)}
           >
@@ -240,6 +242,7 @@ export function PreviewPanel() {
           variant="outline"
           className="h-8 w-8 shrink-0"
           title={t("common.download")}
+          aria-label={t("common.download")}
           data-testid="download-logs"
           onClick={() => void downloadEditorLogsHtml()}
         >

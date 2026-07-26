@@ -106,6 +106,7 @@ export function TimelinePanel({ items, videoStartedAt, setTimeListener, onActiva
             {query && (
               <button
                 type="button"
+                aria-label={t("common.clearSearch")}
                 onClick={() => setQuery("")}
                 className="absolute right-2 top-1/2 -translate-y-1/2 rounded-sm p-0.5 text-muted-foreground hover:text-foreground"
               >

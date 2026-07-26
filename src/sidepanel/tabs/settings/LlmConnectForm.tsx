@@ -148,6 +148,7 @@ function LlmConnected() {
                   size="icon"
                   className="h-8 w-8 shrink-0 hover:text-destructive"
                   title={t("llm.disconnect")}
+                  aria-label={t("llm.disconnect")}
                 >
                   <Unplug />
                 </Button>
@@ -195,6 +196,7 @@ function LlmConnected() {
                 onClick={() => { if (modelsLoading) return; void loadModels(); }}
                 aria-disabled={modelsLoading}
                 title={t("llm.model.refresh")}
+                aria-label={t("llm.model.refresh")}
               >
                 <RefreshCw className={cn("h-4 w-4", modelsLoading && "animate-spin")} />
               </Button>

@@ -186,6 +186,7 @@ export function DraftingPanel() {
             variant="outline"
             className="h-8 w-8 shrink-0"
             title={t("common.download")}
+            aria-label={t("common.download")}
             data-testid="download-media"
             onClick={() => downloadVideoBlob(videoBlob)}
           >
@@ -240,6 +241,7 @@ export function DraftingPanel() {
                 variant="outline"
                 className="h-8 w-8 shrink-0"
                 title={t("draft.removeAnnotation")}
+                aria-label={t("draft.removeAnnotation")}
                 data-testid="annotation-remove"
                 onClick={() => useEditorStore.setState({ screenshotAnnotated: null })}
               >
@@ -251,6 +253,7 @@ export function DraftingPanel() {
               variant="outline"
               className="h-8 w-8 shrink-0"
               title={screenshotAnnotated ? t("draft.editAnnotation") : t("draft.addAnnotation")}
+              aria-label={screenshotAnnotated ? t("draft.editAnnotation") : t("draft.addAnnotation")}
               data-testid="annotation-edit"
               onClick={() => setAnnotating(true)}
             >
@@ -261,6 +264,7 @@ export function DraftingPanel() {
               variant="outline"
               className="h-8 w-8 shrink-0"
               title={t("common.download")}
+              aria-label={t("common.download")}
               data-testid="download-media"
               onClick={() => downloadImageDataUrl(screenshotImage)}
             >
@@ -294,6 +298,7 @@ export function DraftingPanel() {
           variant="outline"
           className="h-8 w-8 shrink-0"
           title={t("common.download")}
+          aria-label={t("common.download")}
           data-testid="download-logs"
           onClick={() => void downloadEditorLogsHtml()}
         >
@@ -563,6 +568,7 @@ function ReproEnvironmentSection() {
       variant="outline"
       className="h-9 w-9 shrink-0"
       title={t("draft.envAddRow")}
+      aria-label={t("draft.envAddRow")}
       onClick={() => updateRows([...customRows, { label: "", value: "" }])}
     >
       <Plus />
@@ -604,6 +610,7 @@ function ReproEnvironmentSection() {
               variant="outline"
               className="h-9 w-9 shrink-0 hover:text-destructive"
               title={t("common.delete")}
+              aria-label={t("common.delete")}
               disabled
             >
               <Trash2 />
@@ -641,6 +648,7 @@ function ReproEnvironmentSection() {
               variant="outline"
               className="h-9 w-9 shrink-0 hover:text-destructive"
               title={t("common.delete")}
+              aria-label={t("common.delete")}
               onClick={() => updateRows(customRows.filter((_, i) => i !== idx))}
             >
               <Trash2 />
@@ -760,6 +768,7 @@ function SectionTextarea({
             variant="outline"
             className="h-8 w-8 shrink-0 hover:text-destructive"
             title={t("draft.stepsReset")}
+            aria-label={t("draft.stepsReset")}
             data-testid={`draft-section-${section.id}-reset`}
             disabled={!value.trim()}
             onClick={() => onChange("")}

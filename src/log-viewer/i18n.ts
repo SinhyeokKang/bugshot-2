@@ -135,6 +135,7 @@ export const koDict: Record<string, string> = {
   // 않지만, 렌더 도달성은 모듈 그래프로 못 가리므로 사전에 미리 둔다(i18n.test.ts 참조).
   "common.expand": "펼치기",
   "common.collapse": "접기",
+  "common.clearSearch": "검색어 지우기",
 };
 
 export const enDict: Record<string, string> = {
@@ -267,6 +268,7 @@ export const enDict: Record<string, string> = {
 
   "common.expand": "Expand",
   "common.collapse": "Collapse",
+  "common.clearSearch": "Clear search",
 };
 
 // Node 20(전역 navigator 없음)에서 vitest가 이 모듈을 로드해도 깨지지 않게 가드.
