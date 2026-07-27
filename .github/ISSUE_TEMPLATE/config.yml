@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: How do I ...? (user guide)
+    url: https://bug-shot.com/en/docs
+    about: Setup, capture modes, integrations, and the FAQ.
+  - name: Report a security vulnerability
+    url: https://github.com/SinhyeokKang/bugshot-2/security/advisories/new
+    about: Private disclosure — please don't open a public issue.
+  - name: What data leaves the browser
+    url: https://github.com/SinhyeokKang/bugshot-2/blob/main/docs/privacy.en.md#3-external-transmission
+    about: The full table of outbound destinations, before you ask.

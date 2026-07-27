@@ -1,0 +1,31 @@
+name: Feature request
+description: Suggest something BugShot should do
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What's the problem
+      description: What are you trying to do that BugShot makes hard or impossible today? Describe the situation, not the solution.
+    validations:
+      required: true
+
+  - type: textarea
+    id: idea
+    attributes:
+      label: What you have in mind
+      description: Optional. If you already pictured how it would work, say so.
+
+  - type: textarea
+    id: workaround
+    attributes:
+      label: What you do instead right now
+      description: Optional, but it helps a lot — it tells me how much the gap actually costs.
+
+  - type: checkboxes
+    id: constraints
+    attributes:
+      label: Scope check
+      options:
+        - label: This doesn't require BugShot to store capture data on a server, host a workspace, or add user accounts — capture data goes from the browser straight to the user's own tracker, and that's not negotiable.
+          required: true

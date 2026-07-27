@@ -10,30 +10,78 @@
 
 **Bug Reporting in One Shot.**
 
-Stop explaining bugs in words. BugShot is a Chrome side panel extension that lets
-you discover, fix, capture, and report bugs — all without leaving the browser. Pick
-an element and tweak its CSS live, capture a screenshot or recording, and file a
-complete issue — with the **environment, before/after styles, screenshots, video,
-and console/network logs** bundled in — to Jira, GitHub, Linear, Notion, GitLab,
-Asana, or ClickUp, or share it straight to a Slack channel or DM.
+Open-source bug reporting from your browser, straight to your tracker.
 
-No sign-up required — just install and go. Free, with no paid tier planned:
-there's no server to run, so there's nothing to meter and no hosting bill to
-recover.
+BugShot is a Chrome side panel that captures what happened — screenshots,
+recordings, console and network logs, user actions, environment details, and
+even CSS before/after diffs — and turns it into a report for Jira, GitHub,
+Linear, Notion, GitLab, Asana, ClickUp, or Slack.
 
-**Your capture data never touches a BugShot server.** Screenshots, recordings,
-console/network logs, and report bodies go straight from your browser to the
-tracker you connected — there is no BugShot backend in that path, no account,
-and no hosted workspace. That isn't a policy promise; it's the architecture, and
-the source is right here to check. See [Privacy](#privacy) for the full list of
-every request the extension makes.
+No BugShot account. No hosted workspace. Your capture data never passes through
+a BugShot server. BugShot is free, with no paid tier planned: there is no
+capture backend to run, no usage to meter, and no hosting bill to recover.
 
-## Why BugShot
+[Install from the Chrome Web Store](https://chromewebstore.google.com/detail/bugshot/ohakhekagkodklkickemonmifdcbhmig)
+· [Read the docs](https://bug-shot.com/en/docs)
+· [Privacy](#privacy)
 
-Filing a good bug report is tedious: reproduce it, screenshot it, copy the URL and
-browser version, dig through the console, paste it all into the tracker. BugShot
-does the busywork for you — capture right where you spot the problem and it ships a
-report developers can actually act on.
+## From a visible bug to an actionable report
+
+1. **Capture the problem** — pick an element, take a screenshot, or record it.
+2. **Collect the evidence** — environment, console, network, and action logs
+   are attached automatically.
+3. **Send it where work happens** — review the report and submit it directly
+   to your tracker or Slack.
+
+## Why I built it
+
+I'm a product designer. When I found a UI bug, I used to inspect the page in
+DevTools, change the CSS, take screenshots, move over to Jira, and manually
+build a before/after table for the issue.
+
+That was tedious, so I made a tool that let me finish the whole workflow in one
+place and send the result to Jira in the format I wanted.
+
+As I used it at work, our QA team asked if it could handle general bug reports
+too. That added screenshots and recordings, followed by network requests,
+console logs, and the rest of the evidence needed to reproduce a bug. It became
+an internal tool for the QA team; I still use it every day and keep
+improving it.
+
+What started as a way to avoid making CSS diff tables by hand grew into this
+product in its first three months.
+
+## Privacy by architecture
+
+Bug reports can contain some of the most sensitive parts of a production
+session: customer data in screenshots, tokens in network traffic, internal
+identifiers in console output, and the contents of form interactions.
+
+I didn't want BugShot to become another server that received and stored that
+data. These are the core data paths:
+
+```text
+Your browser ────────────────────────→ Your tracker or Slack
+     │
+     ├── when you use AI ────────────→ The LLM endpoint you selected
+     │
+     ├── OAuth exchange only ────────→ BugShot OAuth proxy
+     │
+     └── anonymous usage events ─────→ The configured PostHog host
+```
+
+Screenshots, recordings, logs, CSS changes, attachments, and report bodies are
+assembled in the extension and sent directly to the destination you connected.
+For Jira, GitHub, Notion, Asana, ClickUp, and Slack, the BugShot-operated OAuth
+proxy relays authorization-code exchanges and token refreshes; Linear and
+GitLab exchange tokens directly via PKCE. Capture data never goes through the
+proxy. Anonymous analytics contain no capture or report content.
+
+This has deliberate trade-offs: there is no BugShot account, team workspace,
+cloud sync, or server-side capture processing. The project is open source so
+you can inspect that architecture instead of taking the privacy claim on trust.
+
+[See every external request BugShot makes](docs/privacy.en.md#3-external-transmission).
 
 ## Getting Started
 
@@ -44,9 +92,11 @@ neither browser implements that API.
 
 1. **Install** from the [Chrome Web Store](https://chromewebstore.google.com/detail/bugshot/ohakhekagkodklkickemonmifdcbhmig).
 2. **Open the panel** — click the toolbar icon or press `Cmd/Ctrl+Shift+E`.
-3. **Connect a destination** — in the *Integrations* tab, connect at least one of Jira, GitHub, Linear, Notion, GitLab, Asana, ClickUp, or Slack.
-4. **Capture** — in the *Debug* tab, pick a mode: edit element style, capture an element, capture an area (drag, viewport, or full page), or record the screen. You can also start a report from logs alone (no capture) via the console/network log tabs.
-5. **Submit** — the environment fills itself in; add a title, review the preview, and submit. A link to the created issue pops right up, and the report is kept in the *Issue list* tab (save it as a draft instead if it isn't ready).
+3. **Connect a destination** — choose a tracker or Slack in the *Integrations* tab.
+4. **Capture** — edit an element's styles, capture an element or area, take a
+   viewport or full-page screenshot, or record the tab or screen. You can also
+   start a report without a capture from the console or network log tabs.
+5. **Submit** — review the evidence and send the completed report.
 
 Full walkthrough in the [Quick Start guide](https://bug-shot.com/en/docs/quick-start).
 
@@ -157,6 +207,8 @@ pnpm sync:agents  # regenerate the Codex mirror (AGENTS.md, .agents/skills/)
 
 Load the unpacked extension from `dist/` at `chrome://extensions` (developer mode).
 The e2e suite lives in `e2e/` — see [`e2e/README.md`](e2e/README.md) for coverage and gotchas.
+Patches are welcome: [`CONTRIBUTING.md`](CONTRIBUTING.md) covers which branch to
+target, what CI checks, and what won't be merged.
 
 ### Build it yourself
 
@@ -256,11 +308,6 @@ Full detail lives in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) (Korean).
 
 ## Privacy
 
-BugShot stores your data locally. Issue submission data goes directly to the
-destination you choose; AI features send only the context needed for that request
-directly to the AI provider you configure. BugShot servers do not receive capture
-or report content.
-
 Every outbound request the extension can make is enumerated here — trackers,
 Slack, your LLM endpoint, the OAuth proxy, and analytics — with the exact data
 each one carries:
@@ -293,7 +340,8 @@ the breadth will degrade accordingly.
 > **A note on language.** This README is kept in sync with its
 > [Korean edition](README.ko.md), as are the privacy policy and the user guide.
 > The engineering docs under `docs/` and the source comments are written in
-> Korean — it's a solo project and that's the language it was thought in.
+> Korean — the project is built and maintained by one person, and that's the
+> language it was thought in.
 > Everything you need to audit the privacy claims above is in English.
 
 ## License

@@ -1,6 +1,6 @@
 # BugShot Privacy Policy
 
-**Effective date**: July 26, 2026
+**Effective date**: July 27, 2026
 
 BugShot (the "extension") values your privacy and collects and processes only the minimum information necessary. This policy transparently explains what information the extension handles.
 
@@ -135,6 +135,7 @@ The extension transmits data only to the services below.
 | Asana REST API (`app.asana.com`) | Task body, workspace/project/assignee, screenshots, video, debug logs | Creating tasks and uploading files |
 | ClickUp REST API (`api.clickup.com`) | Task body, workspace/space/list/assignee, screenshots, video, debug logs | Creating tasks and uploading files |
 | Slack Web API (`slack.com` and Slack-issued file upload URLs) | Message body (title, detail), mention targets, screenshots, video, debug logs, and — on promotion — the tracker issue link | Sending messages/attachments to channels/DMs in your own workspace, and auto-commenting the issue link in the original message thread when promoting to a tracker |
+| HTTP(S) origin hosting a cross-origin stylesheet referenced by the current page | GET request for the stylesheet URL (including its path/query and standard request metadata; cookies and other credentials are omitted) | Reading CSS text on-device to supplement style values and design-token names when the browser CSSOM does not expose the cross-origin stylesheet. Page-supplied URLs pass through a static SSRF guard that rejects loopback, private, link-local, and other non-public literal address ranges; redirects are not followed |
 | OAuth proxy server | OAuth authorization code, token refresh requests (refresh token) | Token exchange (Jira, GitHub, Notion, Asana, ClickUp, Slack) |
 | User-specified LLM provider (AI draft) | Issue body draft, page URL/title, element selector/style info and design tokens, screenshot, element before/after images, and inline images placed in the body (optional), debug log summary (optional), **the shape digest of a bug-related successful (2xx) response body** (top-level key names and value types only, **values excluded**; key names are not masked, but email-, UUID-, and map-shaped record keys are redacted) (optional), the extra instructions you type, and any draft you have already written | AI draft generation |
 | User-specified LLM provider (AI styling) | Selected element's tag, CSS selector, class list, current specified styles, design tokens, computed layout styles (display, position, width, margin, etc.), browser viewport size, and the instruction you type | CSS change suggestion |

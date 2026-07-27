@@ -1,0 +1,80 @@
+name: Bug report
+description: Something in the extension doesn't work
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Found a security problem? Please don't file it here — see [SECURITY.md](https://github.com/SinhyeokKang/bugshot-2/blob/main/SECURITY.md).
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what you got instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open the side panel on ...
+        2. Pick ...
+        3. ...
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: BugShot version
+      description: From `chrome://extensions`, or "built from source" plus the commit.
+    validations:
+      required: true
+
+  - type: input
+    id: chrome
+    attributes:
+      label: Chrome version and OS
+      placeholder: "Chrome 140 / macOS 15"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Where it happens
+      options:
+        - Element styling
+        - Screenshot capture
+        - Video recording / 30s replay
+        - Console / network / action logs
+        - Log viewer (logs.html)
+        - Issue submission to a platform
+        - AI features
+        - Settings / integrations
+        - Something else
+    validations:
+      required: true
+
+  - type: input
+    id: platform
+    attributes:
+      label: Platform involved
+      description: If it's about submitting an issue — Jira, GitHub, Linear, Notion, GitLab, Asana, ClickUp, or Slack. Leave blank if not applicable.
+
+  - type: textarea
+    id: errors
+    attributes:
+      label: Errors from the extension's own console
+      description: |
+        Right-click the side panel → Inspect, and paste anything red. For service-worker errors, open `chrome://extensions` → BugShot → "service worker".
+      render: text
+
+  - type: textarea
+    id: page
+    attributes:
+      label: Page it happens on
+      description: A URL if it's public, or what the page is like if it isn't (heavy iframes, a canvas app, an SPA that navigates a lot, ...). Many bugs only show up on a specific kind of page.
