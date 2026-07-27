@@ -67,7 +67,7 @@ Up top, the trim screen has **Video**, **Console**, **Network**, and **Action** 
 
 When you're happy, hit **Apply**. The video is rebuilt to keep only the selected range, and the console, network, and action logs get narrowed to match (the ones shown dimmed drop out).
 
-> While the video is being rebuilt, you'll see the progress along with a **"Keep this tab open while trimming"** note. If you switch to another tab the work pauses and picks back up when you return, so just give it a moment.
+> While the video is being rebuilt, a **"Trimming the video"** screen takes over and shows the progress. It stays until the work is done, so just leave it be and give it a moment. Closing the panel or switching to another tab pauses the work, and it picks back up when you return.
 
 Nothing to trim? Leave the handles alone and hit **Apply**. Nothing gets re-encoded, so you go **straight** to the issue draft with no waiting.
 
