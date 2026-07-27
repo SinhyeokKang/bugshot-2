@@ -270,13 +270,13 @@ picker content script가 `all_frames: true`라 프레임마다 독립 picker 인
 | 조건 | 동작 |
 |---|---|
 | **same-origin** | 패널 유지. 비보존+page key 변경 시 stale 세션 제거 |
-| **cross-origin + 커버 URL** (http/https 지원 URL) | same-origin과 동일 취급 — 패널 유지, 비보존이면 stale 세션만 제거. deferred 미발생 |
+| **cross-origin + 커버 URL** (http/https 지원 URL, 또는 파일 접근 토글 ON인 `file:`) | same-origin과 동일 취급 — 패널 유지, 비보존이면 stale 세션만 제거. deferred 미발생 |
 | **cross-origin + 비커버 + 판독된 미지원 URL + 비보존** (`chrome://`·웹스토어) | **패널 유지** + 세션만 제거 — 패널이 "캡처할 수 없습니다" 안내를 그린다 |
-| **cross-origin + 비커버 + 판독된 지원 URL(`file:`) + 비보존** | 패널 닫기 + 세션 제거 |
+| **cross-origin + 비커버 + 판독된 지원 URL(`file:`, 파일 접근 토글 OFF) + 비보존** | 패널 닫기 + 세션 제거 |
 | **cross-origin + 비커버 + 판독 불가 + 비보존** | 출발지로 가른다 — 이전 URL이 지원이면 닫기(`file:` 보호), 이미 미지원이면 패널 유지 |
 | **cross-origin + 비커버 + 보존** (drafting/previewing/done/video) | 패널 유지, `activeTabExpiredDeferred` → idle 복귀 시 만료 다이얼로그 |
 
-`<all_urls>`가 required라 광역 권한이 항상 보유 → cross-origin 이동에도 캡처가 끊기지 않으므로 커버 URL(http/https)이면 same-origin처럼 패널을 유지한다. `file:`은 지원 URL이지만 광역 커버 밖(Chrome '파일 URL 액세스' 별도 토글 필요)이라 닫힘/만료 분기를 탄다. **판독 가능 여부는 지원 여부와 별도 축**이다 — `isSupportedUrl(undefined)`도 `false`라 한 축으로 접으면 "URL을 못 읽었다"가 "미지원"으로 접혀 `file:` 동작까지 함께 바뀐다. 미지원 URL로 이동할 때 새 URL이 `changeInfo.url`에 실려 오는 것은 **아이콘 클릭으로 받은 activeTab 그랜트가 살아 있는 동안**이고(2026-07-27 실측 — 정착된 `chrome://` 탭의 `tab.url`이 비는 것과는 별개다), 그 그랜트가 회수된 뒤의 이동은 판독 불가로 떨어져 출발지 기준 폴백을 탄다. (과거 `chrome.permissions.contains` 조회는 제거 — 미보유 분기는 `resolveNavigationAction` 순수함수 테스트의 회귀 자산으로만 남음.)
+`<all_urls>`가 required라 광역 권한이 항상 보유 → cross-origin 이동에도 캡처가 끊기지 않으므로 커버 URL(http/https)이면 same-origin처럼 패널을 유지한다. `file:`은 지원 URL이지만 광역 커버는 Chrome '파일 URL 액세스' 토글에 달렸다 — `deactivatePanelIfCrossOrigin`이 `chrome.extension.isAllowedFileSchemeAccess()`를 실측(실패 시 false 폴백)해 `isBroadCoveredUrl(url, fileAccessAllowed)`로 넘긴다. 토글 ON이면 `<all_urls>`가 file:을 영속 커버(activeTab 없이도 캡처 가능)해 http/https처럼 패널을 유지하고, OFF면 커버 밖이라 닫힘/만료 분기를 탄다(크로스오리진 네비게이션은 activeTab 그랜트를 회수하므로 토글 OFF면 새 file: 페이지 캡처 불가). **판독 가능 여부는 지원 여부와 별도 축**이다 — `isSupportedUrl(undefined)`도 `false`라 한 축으로 접으면 "URL을 못 읽었다"가 "미지원"으로 접혀 `file:` 동작까지 함께 바뀐다. 미지원 URL로 이동할 때 새 URL이 `changeInfo.url`에 실려 오는 것은 **아이콘 클릭으로 받은 activeTab 그랜트가 살아 있는 동안**이고(2026-07-27 실측 — 정착된 `chrome://` 탭의 `tab.url`이 비는 것과는 별개다), 그 그랜트가 회수된 뒤의 이동은 판독 불가로 떨어져 출발지 기준 폴백을 탄다. (과거 `chrome.permissions.contains` 조회는 제거 — 미보유 분기는 `resolveNavigationAction` 순수함수 테스트의 회귀 자산으로만 남음.)
 
 보존 → idle 사이 "좀비 구간"에서 캡처 시도 시 3중 방어(진입 `classifyTabSupport` / 런타임 `isActiveTabPermissionError` / tabCapture `isTabCaptureUnavailable`)가 즉시 만료 다이얼로그.
 

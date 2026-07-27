@@ -147,12 +147,18 @@ export function resolveNavigationAction(input: {
 const BROAD_COVERED_SCHEMES = new Set(["http:", "https:"]);
 
 // 광역 host 권한(<all_urls>)이 captureVisibleTab 캡처 능력을 주는 URL인지.
-// <all_urls>는 file:도 포함하지만, file: 캡처는 Chrome이 별도 "파일 URL 액세스" 토글을
-// 요구하므로 명시적 스킴 체크로 의도적으로 배제한다(navigation 분기는 file:을 만료 폴백 처리).
-export function isBroadCoveredUrl(url: string | undefined): boolean {
+// <all_urls>는 file:도 포함하지만, file: 접근은 Chrome이 별도 "파일 URL 액세스" 토글을
+// 요구한다 — 토글 ON이면 <all_urls>가 file:을 영속 커버(activeTab 없이도 캡처 가능)하므로
+// fileAccessAllowed일 때만 커버로 친다. 토글 OFF면 종전대로 배제(navigation 분기가 만료 폴백 처리).
+export function isBroadCoveredUrl(
+  url: string | undefined,
+  fileAccessAllowed = false,
+): boolean {
   if (!url || !isSupportedUrl(url)) return false;
   try {
-    return BROAD_COVERED_SCHEMES.has(new URL(url).protocol);
+    const { protocol } = new URL(url);
+    if (protocol === "file:") return fileAccessAllowed;
+    return BROAD_COVERED_SCHEMES.has(protocol);
   } catch {
     return false;
   }
@@ -188,12 +194,17 @@ async function deactivatePanelIfCrossOrigin(
       oldOrigin != null && newOrigin != null && oldOrigin === newOrigin;
 
     // <all_urls>가 required라 광역 권한은 항상 보유 — 분기 판정은 newUrl 커버 여부에만 달림.
+    // file:은 "파일 URL 액세스" 토글이 켜져야 광역 커버라, 토글 상태를 실측해 넘긴다.
+    // 실패 시 false 폴백 — 종전 닫힘 동작을 보존한다.
+    const fileAccessAllowed = await chrome.extension
+      .isAllowedFileSchemeAccess()
+      .catch(() => false);
     const action = resolveNavigationAction({
       preserved,
       sameOrigin,
       pageKeyChanged: pageKeyOf(refUrl) !== pageKeyOf(newUrl),
       broadGranted: true,
-      newUrlBroadCovered: isBroadCoveredUrl(newUrl),
+      newUrlBroadCovered: isBroadCoveredUrl(newUrl, fileAccessAllowed),
       // newUrl은 onUpdated의 `info.url ?? tab.url`이다. 미지원 URL로의 이동에서도 아이콘 클릭
       // activeTab 그랜트가 살아 있는 동안엔 loading 시점에 값이 실려 온다. 빈 문자열도 판독
       // 불가로 접는다 — isSupportedUrl·originOf·pageKeyOf가 전부 그렇게 취급한다.

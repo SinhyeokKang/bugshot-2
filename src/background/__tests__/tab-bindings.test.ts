@@ -229,8 +229,20 @@ describe("isBroadCoveredUrl", () => {
     expect(isBroadCoveredUrl("http://example.com")).toBe(true);
   });
 
-  it("returns false for file: URL (<all_urls> includes it but capture needs a separate toggle)", () => {
+  it("returns false for file: URL when file access toggle is off (default)", () => {
     expect(isBroadCoveredUrl("file:///Users/me/page.html")).toBe(false);
+  });
+
+  it("returns true for file: URL when file access toggle is on", () => {
+    expect(isBroadCoveredUrl("file:///Users/me/page.html", true)).toBe(true);
+  });
+
+  it("returns false for file: URL when file access is explicitly off", () => {
+    expect(isBroadCoveredUrl("file:///Users/me/page.html", false)).toBe(false);
+  });
+
+  it("file access toggle does not rescue an unsupported scheme", () => {
+    expect(isBroadCoveredUrl("chrome://settings", true)).toBe(false);
   });
 
   it("returns false for unsupported scheme (chrome:)", () => {
@@ -365,7 +377,7 @@ describe("deactivatePanelIfCrossOrigin — 입력 파생", () => {
   const SESSION_KEY = `editor:${TAB}`;
 
   /** activated + 세션 없음(비보존) + refUrl 지정 상태로 SW storage를 세운다. */
-  function armed(refUrl: string) {
+  function armed(refUrl: string, fileAccessAllowed = false) {
     const store: Record<string, unknown> = {
       [ACTIVATED_KEY]: [TAB],
       [URL_KEY]: refUrl,
@@ -376,6 +388,9 @@ describe("deactivatePanelIfCrossOrigin — 입력 파생", () => {
 
     vi.stubGlobal("chrome", {
       action: { onClicked: { addListener: vi.fn() } },
+      extension: {
+        isAllowedFileSchemeAccess: vi.fn(() => Promise.resolve(fileAccessAllowed)),
+      },
       sidePanel: { setOptions, open: vi.fn(() => Promise.resolve()) },
       storage: {
         session: {
@@ -460,11 +475,18 @@ describe("deactivatePanelIfCrossOrigin — 입력 파생", () => {
     expect(c.isActivated()).toBe(true);
   });
 
-  it("판독된 지원 URL(file:)은 현행대로 deactivate", async () => {
-    const c = armed("https://ex.com/page");
+  it("판독된 file:은 파일 접근 off면 deactivate (광역 커버 밖)", async () => {
+    const c = armed("https://ex.com/page", false);
     c.navigate({ url: "file:///Users/me/x.html" });
     await settle();
     expect(c.isActivated()).toBe(false);
+  });
+
+  it("판독된 file:은 파일 접근 on이면 패널 유지 (광역 커버 안)", async () => {
+    const c = armed("https://ex.com/page", true);
+    c.navigate({ url: "file:///Users/me/x.html" });
+    await settle();
+    expect(c.isActivated()).toBe(true);
   });
 });
 
@@ -486,6 +508,9 @@ describe("deactivatePanelIfCrossOrigin — 활성화 URL 갱신", () => {
     let onUpdated: UpdatedListener = () => {};
     vi.stubGlobal("chrome", {
       action: { onClicked: { addListener: vi.fn() } },
+      extension: {
+        isAllowedFileSchemeAccess: vi.fn(() => Promise.resolve(false)),
+      },
       sidePanel: {
         setOptions: vi.fn(() => Promise.resolve()),
         open: vi.fn(() => Promise.resolve()),

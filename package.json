@@ -1,7 +1,7 @@
 {
   "name": "bugshot-2",
   "private": true,
-  "version": "1.6.19",
+  "version": "1.6.20",
   "license": "MIT",
   "packageManager": "pnpm@10.33.0",
   "type": "module",
@@ -21,6 +21,8 @@
     "test:coverage": "vitest run --coverage",
     "coverage:report": "node scripts/coverage-report.mjs",
     "coverage:update": "node scripts/coverage-report.mjs --update",
+    "postmortem:report": "node scripts/postmortem-report.mjs",
+    "postmortem:check": "node scripts/postmortem-report.mjs --check",
     "sync:agents": "node scripts/sync-agents.mjs",
     "sync:agents:check": "node scripts/sync-agents.mjs --check",
     "check:prearm": "node scripts/check-prearm-chunk.mjs"

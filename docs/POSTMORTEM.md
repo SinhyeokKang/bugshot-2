@@ -11,6 +11,9 @@
 ```
 ## YYYY-MM-DD — <한 줄 제목>
 
+- **영역**: `background`, `store`          ← 1개 이상
+- **계열**: `미검증단언`, `드리프트`            ← 0개 이상 (해당 없으면 줄 생략)
+- **그물**: `unit`                        ← 정확히 1개
 - **증상**: 사용자가 관측한 잘못된 동작.
 - **근본 원인**: 코드상의 진짜 원인(표면 증상 말고).
 - **재발 방지**: 다음에 같은 류를 막는 구체적 체크(grep 패턴·전수 대상·테스트).
@@ -19,10 +22,39 @@
 
 자명한 것(git diff만 봐도 아는 것)은 빼고, **코드만 읽어선 안 보이는 구조적 함정·재발 패턴**만 남긴다.
 
+## 태그 (집계용)
+
+기록만 쌓고 집계가 없으면 "어느 영역이 반복 함정인가"를 못 센다. 세 축을 태그로 달아 `pnpm postmortem:report`가 랭킹을 재생산한다. **vocab 단일 출처는 `scripts/postmortem-report.mjs`의 `AREAS`·`PATTERNS`·`NETS`** — 여기 없는 값은 `pnpm postmortem:check`가 거부한다(오타·태그 누락·헤딩 유실도 함께 잡는다).
+
+| 축 | 개수 | 값 |
+|---|---|---|
+| **영역** — 어디서 깨졌나 | 1+ | `디자인` `스타일해석` `어댑터` `에디터` `AI` `background` `content` `store` `e2e` `툴체인` `i18n` `컴포넌트` `미디어` `lib` |
+| **계열** — 왜 깨졌나 | 0+ | `복제본`(같은 수정을 N곳에) `라이브러리전제`(프리미티브의 숨은 기본동작) `미검증단언`(문서·설계를 실측 없이 전제) `fail-open`(에러 삼킴·전량 폐기) `취소래치`(비동기 취소↔상태 레인) `드리프트`(하드코딩·버전이 단일 출처와 갈라짐) `cross-origin` |
+| **그물** — 무엇이 잡았어야 했나 | 1 | `unit` `jsdom` `e2e` `시각`(레이아웃·색·포인터) `수동`(실제 탭 조작) `없음`(외부·인프라) |
+
+새 값이 필요하면 vocab에 추가하되, **축이 잘게 쪼개질수록 반복이 안 드러난다** — 기존 값으로 억지가 아니면 기존 값을 쓴다.
+
 ---
+
+## 2026-07-27 — 정적 스킴 화이트리스트가 런타임 권한 토글을 안 봐서, 파일 접근 ON인데도 https→file: 이동에 패널이 닫혔다
+
+- **영역**: `background`
+- **계열**: `미검증단언`, `라이브러리전제`
+- **그물**: `unit`
+- **증상**: "파일 URL 액세스" 토글이 **ON**인데도, `https://` 페이지에서 `file://`로 탭 내 이동하면 사이드패널이 닫혔다. 토글 ON이면 `<all_urls>`가 file:을 영속 커버해 캡처가 되는데도 deactivate 분기를 탔다.
+- **근본 원인**: `isBroadCoveredUrl`이 커버 판정을 `BROAD_COVERED_SCHEMES`(http/https) **정적 집합**으로만 했고, file:은 무조건 배제였다. 주석은 "file: 캡처는 별도 토글 요구라 배제"라고만 적어 **토글 ON이면 커버된다는 반대 케이스를 통째로 빠뜨렸다.** 커버 능력은 스킴만으로 정해지지 않고 **런타임 권한 토글(`chrome.extension.isAllowedFileSchemeAccess()`)에 묶인다** — 정적 화이트리스트가 그 축을 접었다.
+- **재발 방지**:
+  1. **"이 스킴은 못 한다"류 정적 배제는 런타임 권한 축이 붙는지 먼저 본다.** file:은 스킴이 아니라 사용자 토글이 게이트다. `grep -rn 'BROAD_COVERED_SCHEMES\|isBroadCoveredUrl\|SUPPORTED_SCHEMES' src/`로 스킴 집합 판정부를 소환해, 각 판정이 정적으로 끝나도 되는지(권한 토글·`isAllowedFileSchemeAccess`에 의존해야 하는지) 재확인.
+  2. **주석이 "왜 배제"만 적고 반대 조건을 안 적었으면 그게 빠진 분기 신호다.** "X라서 배제"는 "X가 아니면?"을 강제로 묻게 한다.
+  3. **activeTab의 file 스킴 커버는 시점 비대칭이다(실측).** 토글 OFF여도 file:// 페이지에서 **아이콘 클릭(fresh invoke)**하면 activeTab이 file 스킴까지 커버해 캡처·picker·`tab.url` 판독이 된다(2026-07-27 실측 — 문서상 "activeTab은 file 못 준다" 예측과 어긋남). 단 **크로스오리진 네비게이션은 그 grant를 회수**하므로 https→file: 이동 후엔 토글 OFF면 캡처 불가 — 이 비대칭이 "토글 ON일 때만 keep"의 근거다. `grep -rn 'isAllowedFileSchemeAccess\|activeTab' src/ docs/`.
+  4. **파생부 테스트를 이번엔 걸었다(2026-07-27 상단 회귀 대응 계승).** `deactivatePanelIfCrossOrigin`이 export라, async 파생 줄(`isAllowedFileSchemeAccess` resolve → `isBroadCoveredUrl` 주입)을 `chrome.extension` 스텁 + 리스너 직접 호출로 행동 레벨 잠금. 순수함수(`isBroadCoveredUrl`)만이 아니라 파생부까지 커버.
+- **관련**: `src/background/tab-bindings.ts`(`isBroadCoveredUrl`·`deactivatePanelIfCrossOrigin`), `src/background/__tests__/tab-bindings.test.ts`, `src/sidepanel/hooks/useTabSupport.ts`(:7-8 주석이 "file:+토글 off → 빈 tab.url"이라 단언하나 실측 반증 — stale 정정 후보), `docs/ARCHITECTURE.md`·`docs/PERMISSION.md` 패널 종료/유지 정책.
 
 ## 2026-07-27 — 검증 안 된 "권한상 못 읽는다"가 설계를 한 단계 크게 만들 뻔했다 (+ 상태 키를 안 갱신해 기능이 hop 1에서만 살았다)
 
+- **영역**: `background`
+- **계열**: `미검증단언`, `드리프트`
+- **그물**: `unit`
 - **증상**: (사전 차단) 미지원 URL 이동 시 패널을 살리는 Phase 2가 **① 착수 자체를 막을 뻔했고 ② 구현 후에도 첫 이동에서만 동작했다.** ①은 "background가 새 URL을 못 읽으니 `webNavigation` 권한 배관을 더하거나 기능을 별도로 분리해야 한다"는 판단이었고, ②는 `https → chrome://settings`(패널 유지 ✅) → `chrome://downloads`(패널 닫힘 ❌).
 - **근본 원인 ①**: 저장소에 *"`chrome://` 탭은 `tab.url`을 못 읽는다(호스트 권한 밖)"*(`e2e/unsupported-url.spec.ts:3`)는 **참인** 기록이 있었다. 거기서 "그러니 네비게이션 중의 `changeInfo.url`도 redact된다"로 넘어간 **확장 추론이 검증 없이 설계에 박혔다.** 리뷰 에이전트 3명이 독립적으로 같은 결론을 냈고(같은 문장을 근거로), 기획 문서는 그걸 전제로 "webNavigation 프로브 → 실패 시 별도 feature 분리"라는 게이트까지 만들었다. 실측하니 정반대였다 — `status:"loading"` 시점(= `deactivatePanelIfCrossOrigin` 호출 시점)의 `changeInfo.url`에는 `chrome://settings/`가 **그대로 실려 온다**. 원 기록은 **정착된** 탭을 말한 것이고, 그 둘은 다른 시점이다. 새 권한도 새 배관도 필요 없었다.
 - **근본 원인 ②**: `sidePanel:url:{tabId}`는 `activateTab`에서 **한 번만** 쓰이고 이후 갱신되지 않는다(`deactivate`도 이 키는 안 지운다 — 지우는 곳은 `onRemoved`뿐). 그래서 hop 2에서 `refUrl`은 여전히 최초 https URL이다. 게다가 그때는 activeTab 그랜트가 회수돼 새 URL이 판독 불가라, "판독 불가 → `file:` 보호를 위해 현행 `deactivate`"라는 보수적 폴백이 **의도한 적 없는 케이스(미지원 → 미지원 이동)까지 삼켰다.** 순수함수 표는 촘촘했지만 그 표의 **입력을 만드는 파생 3줄**(`info.url ?? tab.url` → `readable` → `supported`)에 테스트가 0개였고, 이 결함도 같은 자리의 `!= null`(빈 문자열을 "판독됨"으로 통과시킴)도 전부 거기 있었다.
@@ -36,6 +68,9 @@
 
 ## 2026-07-26 — 설계 문서가 "Phase 2 문제"로 분류한 가드가 실은 Phase 1의 전제였다 (+ jsdom×chrome 스텁 2함정)
 
+- **영역**: `background`
+- **계열**: `미검증단언`
+- **그물**: `e2e`
 - **증상**: (사전 차단) `activateTab`의 미지원 가드만 지우면 미지원 페이지에서 패널이 열리지만, **다음 탭 전환·네비게이션에 조용히 다시 닫힌다.** 설계 문서는 이 수정(`apply()`의 `supported` 조건 제거)을 Phase 2 태스크로 두고 *"안 고치면 Phase 2가 무효화된다"*고만 적어, Phase 1 단독 커밋이 목표를 달성한다고 읽혔다. 단위·타입체크·e2e 전부 green이라 자동 그물에 안 걸린다(패널 지속성을 관측하는 테스트가 0개).
 - **근본 원인**: `apply()`가 **수동 reader처럼 이름 붙어 있지만 실제로는 disable 액션**이다 — `if (!(activated && supported)) setOptions({enabled:false})`. 설계 검토가 `activateTab`(쓰기)만 "표시 결정" 경로로 보고 `apply()`는 "재적용" 이름값대로 읽기 취급했다. 호출 경로가 셋(`onActivated`, `onUpdated`+`info.url`, `onUpdated`+`status==="complete"`)이라 사용자가 탭을 한 번 오가는 것만으로 발화하고, `shouldPreserveSession` 조기 반환은 idle 세션에선 보호막이 아니다. **불변식을 한쪽(진입점)에서만 바꾸면 그 불변식을 강제하는 다른 지점이 원복시킨다.**
 - **재발 방지**: (1) **불변식을 바꿀 때는 그 불변식을 *쓰는* 곳이 아니라 *강제하는* 곳을 전수 grep한다** — 이번 경우 `grep -n 'enabled: false\|setActivated' src/background/tab-bindings.ts`가 `apply()`·`deactivatePanelIfCrossOrigin` 둘을 즉시 드러낸다. 함수명이 read-only처럼 보이는 것(`apply`·`sync`·`refresh`)일수록 본문의 부수효과를 직접 읽어야 한다. (2) **"열린다"와 "열린 채로 있다"를 별개 성공 기준으로 쓴다** — 실물 프로브도 오픈만 확인하면 지속성 회귀를 놓친다(수동 체크리스트에 "다른 탭 갔다 복귀" 추가). (3) feature 문서의 Phase 분리는 **각 Phase 단독 배포가 일관된지**로 검증한다 — `/feature-review`의 CTO·QA 관점에 이 질문을 명시적으로 넣는다.
@@ -47,6 +82,9 @@
 
 ## 2026-07-26 — 감사 리포트가 지목한 "1줄 수정"이 프로토콜을 깨뜨리는 경우 (A-51/A-04)
 
+- **영역**: `content`
+- **계열**: `미검증단언`
+- **그물**: `e2e`
 - **증상**: 감사 항목 A-51의 처방("`OFFSET_REQ`도 PRESENT처럼 `data.token !== frameToken`이면 거부 — 1줄")을 그대로 적용하면 **모든 iframe 요소 캡처가 조용히 실패**한다. 유닛·타입체크는 통과하고, iframe 캡처는 e2e 커버가 없어 빨강도 안 뜬다.
 - **근본 원인**: 같은 이름의 필드가 두 메시지에서 **다른 것을 뜻했다.** `PRESENT`의 `token`은 사이드패널이 `picker.start`로 broadcast한 **세션 토큰**이고, `OFFSET_REQ`의 `token`은 자식이 `crypto.randomUUID()`로 만들어 응답을 짝짓는 **1회성 correlation nonce**다. 리포트는 "한쪽만 대조를 안 한다"는 표면 비대칭을 보고 처방을 냈고, 그 비대칭은 결함이 아니라 **의미 차이**였다. 부수적으로 A-04(토큰이 `postMessage(..., "*")`로 페이지에 노출)를 파고들다 보니 원 서술의 위협 전제도 과대평가였음이 드러났다 — picker는 `all_frames: true`라 **악성 페이지가 만든 iframe에도 진짜 picker가 주입돼 정상 announce로 등록된다.** 토큰을 훔칠 필요가 없다. 즉 유출의 실제 증분 위험은 "picker가 없는 iframe(sandbox·2-depth+)을 등록시키는 것"뿐이다.
 - **재발 방지**: (1) **감사·리뷰 리포트의 "1줄 수정"은 그 줄이 읽는 값이 어디서 오는지를 먼저 역추적한다** — 특히 같은 이름의 필드가 여러 메시지 타입에 걸쳐 있으면(`grep -n 'token' src/content/frame-geometry.ts`) 이름이 아니라 **생성 지점**으로 동일성을 판단한다. 여기선 `requestFrameOffset`의 `crypto.randomUUID()` 한 줄이 답이었다. (2) **e2e 커버가 없는 영역의 리포트 처방은 "적용 후 유닛 green"을 근거로 삼지 않는다** — iframe picker·OAuth가 그 영역이다. 처방을 코드로 옮기기 전에 프로토콜 양쪽 끝(발신·수신)을 같이 읽는다. (3) **보안 처방은 위협 전제부터 재확인한다** — "값이 새면 위조 가능"은 공격자가 그 값 없이는 같은 결과를 못 얻을 때만 성립한다. `all_frames` 주입처럼 공격자가 정공법으로 같은 상태를 만들 수 있으면 그 값은 애초에 인증 수단이 아니다. 결론은 코드가 아니라 문서(`docs/ARCHITECTURE.md` "등록 핸드셰이크" 경고 블록)에 남겼다.
@@ -54,6 +92,9 @@
 
 ## 2026-07-26 — zustand persist 병합은 "키 없음"과 "명시적 undefined"를 구분한다 (A-11)
 
+- **영역**: `store`
+- **계열**: `라이브러리전제`
+- **그물**: `unit`
 - **증상**: `saveDraft`를 통째 교체에서 병합(`{...existing, ...record}`)으로 바꾸자, 사용자가 지운 버퍼 요소·해제한 요소 selector가 **재확정 한 번에 되살아날 수** 있는 상태가 됐다. 원 결함(patchIssue로만 세팅되는 `logsAttached`·`attachments`가 재확정에 사라짐)은 고쳐지지만 반대 방향 구멍이 열린다.
 - **근본 원인**: `confirmDraft`가 만드는 record에 **조건부 스프레드**(`...(state.bufferedElements.length > 0 ? {...} : {})`)가 있었다. 통째 교체 시절엔 키가 없으면 결과에도 없어서 동작이 같았지만, 병합에서는 **"키 없음 = 기존 값 유지"**로 의미가 뒤집힌다. 반면 `networkLogBlobKey: logs.networkLog ? id : undefined`처럼 **값이 undefined인 키는 스프레드가 그대로 덮어써서** 의도대로 비워진다 — 두 표기의 차이가 병합 도입 순간 동작 차이가 된다.
 - **재발 방지**: (1) **교체 → 병합 전환 시 소스 객체의 조건부 스프레드를 전수한다** — `grep -n '\.\.\.(' src/store/editor-store.ts`. 조건부 스프레드는 전부 `key: cond ? v : undefined` 형태로 펴서 "비운다"는 의도를 명시로 만든다. (2) **"의도적으로 비운 필드"가 있는지는 소비처가 아니라 생산처(record를 만드는 함수)에서 확인한다** — `removeBufferedElement`·`resetAllStyleEdits`처럼 상태를 비우는 액션이 존재하면 그 필드는 반드시 명시 undefined여야 한다. (3) 회귀 테스트는 양방향으로 둔다 — "record에 없는 필드는 살아남는다" + "record가 undefined로 명시한 필드는 비워진다".
@@ -61,6 +102,9 @@
 
 ## 2026-07-26 — 프로덕션에선 옳은 `tab.active` 가드가 e2e 하네스의 구조적 전제를 깨서 캡처 spec이 전멸
 
+- **영역**: `e2e`, `background`
+- **계열**: `드리프트`
+- **그물**: `e2e`
 - **증상**: 캡처 소유권 가드(A-05)를 background 관문에 넣자 `capture-methods.spec.ts`의 "screenshot 뷰포트 캡처 → drafting 진입"이 40초 타임아웃으로 죽었다. 같은 파일의 "스크롤 캡처"는 통과해서 원인이 캡처 관문으로 안 보였다. `pnpm test --run`·`pnpm typecheck`는 둘 다 green이라 **e2e만이 유일한 검출 경로**였다.
 - **근본 원인**: e2e 하네스의 `openPanel`은 사이드패널을 `context.newPage()`로 **탭**으로 연다(실제 제품에선 사이드패널이 탭이 아니다). 그래서 패널이 앞에 있으면 fixture 탭의 `tab.active`가 false다. 스크롤 캡처는 **예전부터 자체적으로** 타일마다 `active`를 확인했기 때문에 그 spec만 이미 `fixture.bringToFront()` + `locator.evaluate(el => el.click())` 우회를 갖고 있었고, 그 우회의 이유가 **그 spec 안 주석에만** 적혀 있었다. A-05가 같은 검사를 **모든 캡처 경로가 지나는 관문으로 승격**시키자 우회가 없는 나머지 spec이 무너졌다. 즉 결함은 프로덕션 코드가 아니라 **하네스 전제를 아는 지식이 spec 하나에 갇혀 있던 것** — 가드를 넓히면서 그 지식이 따라 넓어지지 않았다.
 - **재발 방지**: (1) **개별 호출처에 있던 가드를 공용 관문으로 승격할 때는, 그 가드를 이미 우회하고 있던 테스트를 먼저 찾아 우회 이유를 확인한다** — `grep -rn 'bringToFront\|el.click()' e2e/`. 우회가 존재한다는 것 자체가 "이 검사는 하네스에서 자연히 성립하지 않는다"는 신호다. (2) 하네스 전제(사이드패널=탭, eval-host 탭 상주 등)는 spec 주석이 아니라 **`e2e/GOTCHAS.md`에 적고, 적용 범위가 넓어지면 그 항목도 같이 넓힌다**. (3) 캡처·탭 소유권처럼 e2e가 유일한 안전망인 영역은 유닛 green을 근거로 삼지 않는다 — 웨이브 사이 `/e2e-run` 게이트가 실제로 잡아낸 사례다.
@@ -68,6 +112,9 @@
 
 ## 2026-07-26 — persist storage 실패를 "전파하면 안전"으로 일반화하면 사이드패널이 통째로 빈 화면으로 굳는다
 
+- **영역**: `store`
+- **계열**: `라이브러리전제`, `fail-open`, `미검증단언`
+- **그물**: `unit`
 - **증상**: (사전 차단) `chromeLocalStorage.getItem`의 에러 삼킴이 `pruneOrphanBlobs`에 "저장분 없음"으로 읽혀 살아있는 blob을 전부 고아로 삭제하는 결함(A-02)을 고치려 했는데, 설계 문서가 권한 것은 **`chromeLocalStorage.getItem` 전체를 rethrow로 바꾸는 것**이었다. 그대로 했으면 storage 일시 오류 한 번에 사이드패널이 **영구 빈 화면**이 됐다.
 - **근본 원인**: 설계 시점의 예측("실패를 전파해도 사용자 눈엔 똑같이 '빈 상태'")이 틀렸다. zustand v5 persist는 rehydrate가 reject하면 `postRehydrationCallback(undefined, error)`만 부르고 **`hasHydrated`를 false로 남긴 채 `onFinishHydration`을 영영 발화하지 않는다**(`node_modules/zustand/middleware.js`). 그런데 `src/sidepanel/App.tsx`는 `useSettingsHydrated()`가 그 `onFinishHydration`을 기다리고 `if (!editorHydrated || !settingsHydrated) return null;`로 **패널 전체 렌더를 막는다**. 즉 storage 어댑터는 공유 모듈이지만 **실패 전파의 결과는 스토어마다 다르다** — 렌더 게이트에 물린 스토어(settings/editor)는 전파가 곧 화면 사망이고, 게이트에 안 물린 스토어(issues)만 전파가 안전하다. 어댑터 파일만 읽어선 이 차이가 안 보인다.
 - **재발 방지**: (1) persist storage 어댑터의 에러 정책을 바꿀 땐 **그 어댑터를 쓰는 스토어 전수**를 먼저 뽑고(`grep -rn 'chromeLocalStorage\|createJSONStorage' src/store`), 각 스토어의 hydration이 **렌더 게이트에 물려 있는지** 확인한다(`grep -rn 'onFinishHydration\|hasHydrated\|Hydrated' src/sidepanel`). 하나라도 물려 있으면 공용 어댑터를 바꾸지 말고 **fail-closed 어댑터를 따로 만들어 해당 스토어에만** 연결한다(`failClosedLocalStorage`). (2) 미들웨어의 에러 경로 동작은 추측하지 말고 `node_modules`의 구현을 직접 읽어 확인한다 — "실패해도 빈 상태로 뜨겠지"는 라이브러리가 보장한 적 없는 가정이다. (3) 설계 문서의 위험도 예측은 **착수 시 코드로 재검증**한다. 문서가 틀렸으면 문서도 같은 커밋에서 고친다.
@@ -75,6 +122,9 @@
 
 ## 2026-07-26 — 복제 사전 그물의 스캔 범위가 번들 그래프보다 좁으면 누락을 못 잡고 조용히 green
 
+- **영역**: `i18n`
+- **계열**: `복제본`
+- **그물**: `unit`
 - **증상**: log-viewer 번들에서 WebSocket 로그 라벨 10개가 i18n 키 문자열 그대로 노출됐다(`networkLog.ws.frames` 등). ko/en 대칭·placeholder 일치·메인 테이블 drift를 다 검사하는 전용 테스트(`src/log-viewer/__tests__/i18n.test.ts`)가 **이미 있었는데도** 계속 green이었다.
 - **근본 원인**: 그 테스트의 키 스캐너가 `walk(srcRoot)` — **`src/log-viewer/` 디렉터리만** 훑었다. 하지만 log-viewer 번들은 사이드패널 공용 컴포넌트(`NetworkLogContent`·`ConsoleLogContent`·`ActionLogContent`·`IssuePreviewView`)를 재사용하고, `vite.log-viewer.config.ts`가 `@/i18n`을 복제 사전으로 alias하므로 **그 컴포넌트들의 `t()` 키도 복제 사전에서 해결돼야 한다**. 스캐너의 스캔 범위와 번들러의 실제 모듈 그래프가 어긋난 것 — 검사 대상 집합이 틀리면 검사 내용이 아무리 정교해도 무의미하다. 2026-06-28 회고("복제 dict 미동기화")로 그물을 깔았는데 **그물 자체의 구멍**은 그때 안 잡혔다.
 - **재발 방지**: (1) 복제·부분집합 사전을 검사하는 그물은 디렉터리가 아니라 **엔트리에서 출발한 import 그래프 BFS**로 대상을 정한다 — 스캐너를 고쳐 `resolveImport()`(`@/` alias·상대경로·index 해석, `import type` 제외)로 그래프를 타게 했다. 새 공용 컴포넌트가 log-viewer에 유입돼도 자동으로 사정권에 든다. (2) 스캐너류 테스트에는 **자기검증 앵커**를 같이 둔다 — 여기선 "그래프가 `NetworkLogContent` 등 4개에 실제로 도달한다"를 별도 `it`으로 고정했다. 앵커가 없으면 resolver가 조용히 아무것도 못 찾을 때 vacuous green으로 되돌아간다. (3) 트레이드오프를 남긴다: 그래프에 들어오지만 log-viewer가 렌더하지 않는 경로의 키(`common.expand`/`collapse` — `Section`의 collapsible 토글)도 사전을 요구한다. 모듈 그래프로는 렌더 도달성을 못 가리므로 **몇 개 더 넣는 쪽**을 택했다 — 조용한 누락보다 나은 실패 모드.
@@ -82,6 +132,9 @@
 
 ## 2026-07-25 — 도구가 청소하는 출력 디렉터리 안에 git-tracked 파일을 두면 매 실행마다 삭제된다
 
+- **영역**: `툴체인`
+- **계열**: `라이브러리전제`, `드리프트`
+- **그물**: `없음`
 - **증상**: 커버리지 트렌드 베이스라인(`coverage/baseline.json`, git-tracked)이 `pnpm test:coverage`를 한 번 돌릴 때마다 워킹트리에서 사라졌다. 그 결과 `pnpm coverage:report`가 "베이스라인 없음"으로 떨어져 이전→지금 비교(래칫 회귀 감지)가 아예 작동하지 않았다.
 - **근본 원인**: vitest v8 커버리지는 `reportsDirectory`(기본 `coverage/`)를 매 실행 **청소(clean)**한다 — 그 디렉터리를 자기 스크래치로 소유한다는 전제. 트렌드 기준선을 편의상 같은 `coverage/baseline.json`에 두면서 그 디렉터리가 **도구 소유**라는 걸 놓쳤다. `.gitignore`가 `coverage/*` + `!coverage/baseline.json`로 파일을 tracked로 지켜도, 파일 삭제는 git이 아니라 **vitest가** 하므로 무력하다. 커밋 diff·gitignore만 봐선 "베이스라인 커밋됨"으로 보여 결함이 숨는다 — 실제 실행을 두 번 돌려봐야 드러난다.
 - **재발 방지**: (1) 빌드/테스트 도구의 **출력·캐시·리포트 디렉터리 안에 소스나 tracked 산출물을 co-locate하지 않는다** — 도구가 그 디렉터리를 clean/overwrite한다는 전제로 본다. 트렌드·기준선 같은 영속 파일은 도구가 안 건드리는 별도 경로에 둔다(여기선 리포트를 `coverage/report/` 하위로 격리하고 베이스라인은 `coverage/` 루트에 잔류). (2) `clean`·`reportsDirectory`·`outDir`·`cacheDir` 옵션이 있는 도구를 새로 붙일 때 그 청소 범위를 먼저 확인한다 — `grep -rn 'reportsDirectory\|outDir\|cacheDir\|clean' *.config.ts vite*.config.ts vitest.config.ts`. (3) 영속 파일이 실행에 견디는지 **연속 2회 실행 + 파일 존재 확인**으로 잠근다(1회만 돌리면 첫 생성과 삭제가 안 구분된다).
@@ -89,6 +142,9 @@
 
 ## 2026-07-23 — 공유 캡(MAX_LOG_REFS)에 새 후보 소스를 더하면 초과 시 전량 폐기가 기존 삽입까지 죽인다
 
+- **영역**: `AI`
+- **계열**: `fail-open`
+- **그물**: `unit`
 - **증상**: AI 초안이 원인 로그를 코드블럭으로 삽입할 때, 모델이 로그를 여러 개 지목하면 **기존에 잘 삽입되던 에러 로그까지 하나도 안 붙는** 경우가 생긴다(전멸). 200 매칭 후보(`m*`)를 새로 도입하자 발현 확률이 올랐다.
 - **근본 원인**: `renderLogRefBlocks`는 resolved ref가 `MAX_LOG_REFS(3)`를 넘으면 `slice`가 아니라 `return []`로 **전부 버렸다**(원래는 "나열 신호로 보고 폐기"라는 의도). 에러 후보(`n*`/`c*`)와 새 매칭 후보(`m*`)가 **같은 3칸을 두고 경쟁**하면서, 에러 2 + 매칭 2 = 4개 인용 시 검증된 에러 로그 삽입까지 통째로 사라졌다. 새 ref 소스를 공유 캡에 얹으면서 그 캡의 초과 정책(drop-all)을 재검토하지 않은 게 핵심. **문서(ARCHITECTURE 불변식 ③·DIRECTORY renderLogRefs)조차 "전량 폐기"를 의도된 동작으로 박아두고 있어** 코드만 봐선 회귀로 안 보였다.
 - **재발 방지**: (1) 공유 상한에 **새 후보/ref 소스를 추가할 때는 초과 정책이 drop-all인지 slice인지 반드시 확인**한다 — `grep -rn 'MAX_LOG_REFS\|return \[\]' src/sidepanel/lib/renderLogRefs.ts`. (2) 여러 종류의 ref가 한 캡을 공유하면 **우선순위 정렬**(검증된 것 우선) 후 slice해 기존 가치가 새 소스에 밀려 잘리지 않게 한다(여기선 `ref.startsWith("m")`로 에러 우선). (3) 초과-폐기/절삭은 **단위로 고정**한다 — `["n1","n2","m1","m2"] → 3블록(에러 우선)`을 유닛+e2e로 잠가 다음 소스 추가 때 회귀가 소리 없이 확대되지 않게. (4) 캡 동작을 바꾸면 그 동작을 서술한 **문서(불변식)도 같은 커밋에서** 고친다 — 문서가 옛 동작을 "의도"로 못박으면 회귀 진단이 늦어진다.
@@ -96,6 +152,9 @@
 
 ## 2026-07-23 — "데이터성 키 redact" 정규식이 접두-토큰 레코드ID를 통과시켜 문서의 수용 경계와 코드가 어긋났다
 
+- **영역**: `AI`
+- **계열**: `미검증단언`
+- **그물**: `unit`
 - **증상**: AI 초안이 성공 응답의 shape 다이제스트(키·타입, 값 제외)를 LLM에 보낼 때, 맵/딕셔너리형 응답(`{"cus_H3k9xY2z":{…}, "user_88213":{…}}`)의 **키가 곧 실제 데이터(레코드ID·세션토큰)**인데도 그대로 LLM에 실렸다. "값은 안 나간다"는 프라이버시 약속의 사각.
 - **근본 원인**: 데이터성 키를 가리려 만든 `safeKey` 정규식 `^[A-Za-z_][A-Za-z0-9_]{0,39}$`는 이메일(`@`)·UUID(`-`)·공백만 redact하고, **식별자 모양의 접두-토큰 ID(`cus_…`·`user_88213`)는 코드 식별자와 구분 불가라 통과**시킨다. 설계 문서엔 이 한계를 "수용 경계"로 적었으나, 실제로는 `u_8471` 같은 좁은 예시만 들어 커버리지를 과장했다(주석도 "근본적으로 키를 안 내보낸다"고 과장). 정규식이 "스키마 키만 통과"라는 **의도를 실제로 달성하는지**를 흔한 ID 포맷으로 검증하지 않은 게 원인. dictionary-shape collapse(키 >8 + 값 타입 균일)로 주경로는 막았으나 작은 맵·혼합 맵은 여전히 잔존.
 - **재발 방지**: (1) 프라이버시 필터(마스킹·redaction·allowlist)를 **"이런 걸 가린다"로 서술할 땐 흔한 실제 포맷(Stripe `cus_`·`sess_`·전화·계좌)으로 통과 테스트**를 두고, 안 걸리는 것을 negative case로 잠근다 — `grep -rn 'safeKey\|SCHEMA_KEY_RE\|maskJsonBody\|MASKED' src`로 필터 전수. (2) 주석·설계 문서의 커버리지 주장은 **정규식이 실제로 achieve하는 범위**로 정확히 적는다(과장 금지 — "근본 차단"과 "주경로 차단+잔여 경계"는 다르다). (3) 코드→문서 방향 리뷰(외부 눈)가 self-review의 확증편향을 깬다 — 이 건도 self-verify는 통과시켰고 fresh `/code-review`가 잡았다.
@@ -103,6 +162,8 @@
 
 ## 2026-07-23 — 스크롤 캡처에서 sticky를 전부 숨기면 콘텐츠가 사라지고, 첫 후보 스냅샷만 쓰면 늦게 고정된 헤더가 반복된다
 
+- **영역**: `content`
+- **그물**: `시각`
 - **증상**: 페이지 전체 스크린샷에서 fixed 헤더와 sticky 메뉴가 타일마다 반복해서 찍혔다. 단순히 sticky를 후속 타일에서 모두 숨기는 픽스는 아직 처음 등장하지 않은 섹션 헤더와 뷰포트보다 긴 sticky 사이드바의 일부를 결과에서 영구 누락시킬 수 있었다.
 - **근본 원인**: 반복 요소 판정에 `position` 값만 사용하면 **이미 캡처된 반복분**과 **아직 캡처하지 않은 문서 콘텐츠**를 구별할 수 없다. sticky는 원래 흐름 위치·실제 고착 위치·요소 전체 노출 여부를 함께 봐야 한다. 또한 positioned 후보를 첫 후속 타일에서 한 번만 수집하면 더 아래 스크롤 임계점에서 `static → fixed/sticky`로 바뀌거나 동적으로 추가된 요소를 놓친다.
 - **재발 방지**: (1) `grep -rn 'position.*fixed\|position.*sticky\|getComputedStyle.*position' src/content`로 스크롤 캡처의 positioned 처리 전수를 확인하고, sticky는 top/bottom 고착 + 원래 흐름 위치 통과 + 전체 기노출 조건을 함께 테스트한다. (2) 요소 전체를 `visibility:hidden` 처리할 때는 뷰포트보다 긴 top/bottom sticky 음성 케이스를 둔다. (3) 스크롤 반응형 후보 목록은 1회 스냅샷으로 끝내지 말고 class/style mutation·추가 subtree를 증분 재탐색하며, 확장이 자체 visibility mutation을 다시 dirty로 만들지 않게 한다. (4) 단위 predicate뿐 아니라 첫 타일 보존·후속 은폐·원래 priority/스크롤 복원·후행 전환·동적 삽입을 DOM 테스트와 실제 캡처 픽셀 e2e로 함께 고정한다.
@@ -110,6 +171,9 @@
 
 ## 2026-07-23 — 살아있는 대상 계산 실패를 빈 집합으로 오독해 참조 중인 로컬 데이터까지 orphan prune할 뻔했다
 
+- **영역**: `store`
+- **계열**: `fail-open`
+- **그물**: `unit`
 - **증상**: service worker 부팅 race·storage 잠시 실패·persist JSON 손상 시, 살아있는 탭의 pending 로그·영상·첨부와 다른 탭/저장 draft가 참조 중인 inline image·원본 백업을 orphan으로 판정해 영구 삭제할 수 있었다.
 - **근본 원인**: 삭제 대상을 계산하는 두 경로가 같은 fail-open 패턴을 가졌다. `getActiveTabIds()`는 `chrome.tabs.query()` reject를 빈 `Set`으로 바꿔 모든 pending owner를 비활성으로 만들었고, `collectAllActiveInlineRefs()`는 session/local 조회·parse 실패를 삼켜 불완전한 ref 집합을 정상 결과로 넘겼다. 즉 **"살아있는 것 계산 실패"와 "살아있는 것 0개"를 구별하지 않은 채 비가역 삭제를 계속**했다.
 - **재발 방지**: (1) orphan/GC/prune 코드에서 `catch { return []|new Set() }`를 금지한다 — `grep -rn 'catch.*\|return \[\]\|new Set' src/store src/lib` 결과 중 반환값이 삭제 predicate로 쓰이는 경로를 전수 확인한다. (2) 참조/활성 집합 계산이 하나라도 실패하면 **삭제 전체를 skip**하는 fail-closed를 기본으로 한다. (3) 세션 1회 prune flag는 삭제 성공 **후**에만 기록해 실패 후 재시도를 막지 않는다. (4) storage/tabs 조회 reject 시 삭제가 0건인 회귀 테스트를 반드시 둔다.
@@ -117,6 +181,9 @@
 
 ## 2026-07-23 — MAIN world 레코더가 원본 XHR.open보다 먼저 기록하면 idle에서도 페이지 요청을 깨뜨린다
 
+- **영역**: `content`
+- **계열**: `라이브러리전제`
+- **그물**: `unit`
 - **증상**: 페이지가 `XMLHttpRequest.open()`에 커스텀 `URL`/`toString()` 객체를 넘겨 변환 중 throw하거나, 다른 라이브러리가 XHR 인스턴스에 충돌 속성을 만든 페이지에서 BugShot 기록 로직의 예외가 정상 요청 흐름으로 전파될 수 있었다. 특히 기존 wrapper는 recorder idle인 때도 `url.toString()`과 `maskUrl()`을 원본 `open()`보다 먼저 실행했다.
 - **근본 원인**: MAIN world 후킹의 불변식은 **"원본 동작 성공이 최우선, 기록은 best-effort"인데**, XHR `open` wrapper만 메타데이터 생성을 원본 호출 앞에 두고 예외 격리도 하지 않았다. 단순히 원본 호출을 앞으로 옮긴 뒤에도, 재사용 XHR의 stale `__bugshot` 제거가 throw하는 경로까지 같은 격리 범위에 넣어야 했다.
 - **재발 방지**: (1) `grep -rn 'XMLHttpRequest\|\.open =\|\.send =\|sendBeacon\|window.fetch =' src/content` 로 MAIN world 후킹을 전수하고, 각 wrapper가 **비활성 gate → 원본 호출 우선 → 기록 전체 try/catch** 순서를 지키는지 본다(원본이 요청 정규화를 해야 하는 XHR `open`은 원본 성공 후 gate). (2) recorder off일 때는 기록용 변환을 실행하지 않고, 재사용 객체의 stale metadata는 예외 격리 안에서 무효화한다. (3) 후킹 검증은 "기록 성공"뿐 아니라 record hook·`toString()`·metadata 조작이 throw해도 원본 반환/예외가 그대로인지를 고정한다. (4) `recorders-entry` 동기 IIFE 제약 때문에 공용 helper import로 빼지 말고 self-contained를 유지한다.
@@ -124,6 +191,9 @@
 
 ## 2026-07-22 — body-portal 풀스크린 오버레이를 Radix modal Dialog 안에서 트리거하면 캔버스 클릭이 다이얼로그를 닫는다 (latent — 기능 프로토타입은 롤백)
 
+- **영역**: `에디터`
+- **계열**: `라이브러리전제`
+- **그물**: `수동`
 - **증상**: 저장된 초안 편집 창(`DraftEditDialog`, Radix `Dialog`)의 본문 tiptap에 인라인 이미지를 넣고 `[주석 달기]`를 눌러 어노테이션 오버레이가 떠도, 캔버스에 그리려 클릭하면 **편집 다이얼로그가 통째로 닫혀** 주석이 불가능하다. **작성 화면(`DraftingPanel`, 비-modal 패널)에선 같은 오버레이가 정상 동작**해 "여기서만 안 됨"으로 갈린다. (이 경로는 편집 창에 이미지를 붙여넣기/드래그로만 닿아 눈에 잘 안 띄었고, COVERAGE.md에 "DraftEditDialog 오버레이 z-index·focus-trap"이 수동 잔여로만 적혀 있었다. 편집 창에 이미지 추가/로그 삽입 툴바를 얹으려던 시도에서 실사용 경로로 드러났으나 그 기능 자체는 롤백했다 — 함정만 남긴다.)
 - **근본 원인**: 표면(주석이 안 됨)과 원인(오버레이가 다이얼로그를 닫음)이 다른 레이어. `AnnotationOverlay`는 `createPortal(document.body)` + `fixed inset-0 z-50` **풀스크린**이라 DOM상 **Radix `Dialog`의 서브트리 바깥**에 렌더된다. Radix modal Dialog는 `DismissableLayer`로 콘텐츠 **바깥의 pointerdown을 "interact outside"로 잡아 `onOpenChange(false)`**(닫기)를 부른다 → 오버레이 캔버스(=다이얼로그 바깥 DOM) 클릭이 곧 다이얼로그 닫힘 트리거. **z-index를 올려도 안 된다** — 스택 순서가 아니라 pointer/focus 소유권 문제다. DraftingPanel은 비-modal이라 DismissableLayer가 없어 무사하다.
 - **재발 방지**: (1) **`createPortal(document.body)` 풀스크린 인터랙티브 오버레이를 Radix modal `Dialog`/`AlertDialog` 안에서 트리거하지 말 것**. `grep -rn 'createPortal' src/sidepanel/components`로 body-portal 오버레이를 찾고, 그 트리거가 `Dialog`/`AlertDialog`(`src/components/ui/dialog.tsx`·`alert-dialog.tsx`) 안에서 발화하는지 본다. 해법 셋 — ⓐ 그 컨텍스트에서 기능을 끈다(예: 편집 창에선 인라인 이미지 주석을 비활성) ⓑ 오버레이를 다이얼로그 콘텐츠 **안**에 렌더(풀스크린이면 부적합) ⓒ 다이얼로그의 `onInteractOutside`/`onPointerDownOutside`를 오버레이 오픈 동안 `preventDefault`(오버레이 상태를 다이얼로그로 끌어올려야 함). (2) **"A에선 되는데 B에선 안 됨"은 컴포넌트가 아니라 호스트의 래핑(modal vs 비-modal) 차이를 먼저 의심**한다 — pointer/focus 정책이 다르다. (3) **이 부류는 jsdom·순수 테스트로 안 잡힌다** — Radix DismissableLayer 실동작이라 e2e/수동이 유일한 그물. (4) **COVERAGE의 "수동 잔여"에 이미 적힌 위험은 그 경로를 실사용에 노출하기 전에 되짚는다** — 예견됐으나 방치된 항목이 신기능 배선으로 활성화되는 계열.
@@ -131,11 +201,19 @@
 
 ## 2026-07-21 — AI 오버레이 '중단'(소프트취소)을 3개 AI 콜사이트에 얹을 때, 취소 가드가 한 곳만 있었고 사용자 취소가 re-adopt로 되살아났다
 
+- **영역**: `AI`
+- **계열**: `복제본`, `취소래치`
+- **그물**: `jsdom`
 - **증상**: (구현 중 `/code-review`가 잡음 — 미출시) AI 로딩 오버레이에 공용 '중단' 버튼을 달았는데, ① repro에서 사용자가 중단을 눌러도 게이트 왕복(trimming 등 dep 변경)으로 effect가 재발화하면 취소한 요청이 **되살아나 늦게 온 재현 단계가 적용**됐다. ② draft·styling 다이얼로그에서 중단을 누르면 배경 호출이 실패로 끝날 때(특히 `isPromptOverBudget` await 창에서 취소 → canceller가 `sessionRef=null` → 다음 줄 `sessionRef.current.prompt()`가 **null-deref TypeError**) 사용자가 방금 취소한 작업에 **AI 에러 토스트**가 떴다.
 - **근본 원인**: 취소↔래치 구역(2026-07-16/17)의 두 함정이 새 기능에서 변주로 재발. ① **취소 의미가 두 종류인데 플래그가 하나였다** — `useReproPrefill`의 re-adopt 경로는 원래 **비자발적 취소**(언마운트·게이트 왕복)를 되살려 in-flight를 이어받게 설계됐다(`prev.cancelled = false`). 사용자 명시 중단을 같은 `run.cancelled`로 표현하니, re-adopt가 그것까지 되살려 "영구 포기"가 "되살아나 적용"으로 뒤집혔다. ② **소프트 취소는 세 콜사이트에 동시에 가드가 필요한데 한 곳만 있었다** — `useReproPrefill`은 catch에 `if(!run.cancelled) toast`가 있었지만(2026-07-16 유산), 새로 얹은 두 다이얼로그 catch엔 그 가드가 없어, 결과-폐기 가드(`await prompt()` 직후)가 **못 미치는 이른 await 창**의 취소가 catch로 새 토스트를 띄웠다. "복제된 로직에 같은 수정을 동시에" 원칙을 놓친 것.
 - **재발 방지**: (1) **비동기 취소에 "복구 가능(비자발)"과 "영구(사용자)"가 공존하면 플래그를 분리한다** — 되살리는 경로(re-adopt·재시도)가 있으면 사용자 취소는 별도 플래그(`userCancelled`)로 표시하고 되살림 분기가 그걸 먼저 검사(`if(prev.userCancelled) return`). grep: `grep -rn 'cancelled = false\|\.cancelled =' src/sidepanel`로 되살림 지점을 훑고, 사용자 취소와 충돌하는지 본다. (2) **소프트 취소를 여러 AI 콜사이트에 얹을 땐 세 지점을 한 벌로 본다** — `grep -rn 'setAiCancel\|run.cancelled' src/sidepanel`로 canceller 등록·결과폐기 가드·**catch 가드** 세 짝이 모든 콜사이트에 있는지 확인(현재 콜사이트: `useReproPrefill`·`AiDraftDialog`·`AiStylingDialog`). 한 곳(reproPrefill)만 catch 가드가 있으면 나머지도 맞춘다. (3) **결과-폐기 가드는 `await prompt()` 직후에만 두면 이른 await 창의 취소를 놓친다** — canceller가 세션을 null로 만드는 설계면 그 뒤 동기 접근이 null-deref로 catch에 빠지므로, **catch 최상단에도 `if(run.cancelled) return`을 둔다**(가드를 두 겹으로). (4) **소프트 취소는 진짜 abort가 아님을 인지** — ai-provider엔 AbortSignal이 없고 nano `destroy()`가 prompt를 끊는다는 근거도 없다. 백그라운드 호출은 완주하고 결과만 버려진다(느린 nano에서 중단해도 연산은 계속됨). 단일 슬롯 `aiCancel`이 충분한 이유는 오버레이가 `pointer-events`로 동시 op 시작을 구조적으로 막기 때문(App.tsx 오버레이 div가 하위 클릭 흡수) — 이 전제가 깨지면(오버레이에 `pointer-events-none`가 붙거나 op가 오버레이 밖에서 발화) 단일 슬롯 clobber가 되살아난다.
 - **관련**: `src/store/editor-store.ts`(`aiCancel`·`setAiCancel` — 비영속 단일 슬롯, `EditorSnapshot` Pick 제외·`...initial` 청소), `src/sidepanel/hooks/useReproPrefill.ts`(`userCancelled` 분리 + re-adopt `if(prev.userCancelled) return` + canceller), `src/sidepanel/tabs/AiDraftDialog.tsx`·`src/sidepanel/tabs/styleEditor/AiStylingDialog.tsx`(canceller 등록 + `await prompt()` 직후·catch 최상단 이중 가드), `src/sidepanel/App.tsx`(오버레이 '중단' 버튼 — `aiSurface` 게이트, `aiCancel?.()`), 그물 `src/sidepanel/hooks/__tests__/useReproPrefill.test.tsx`("사용자 중단…결과 폐기"·"게이트 왕복해도 되살리지 않는다")·`src/store/__tests__/editor-store.test.ts`("aiCancel…레지스트리"). 선행 회고: **2026-07-16**·**2026-07-17**(같은 취소↔래치 구역).
+## 2026-07-20 — mono 통일이 `Kbd` base에 가려진 값 칩을 빠뜨렸고, twMerge가 커스텀 `text-mono`를 조용히 삭제했다
 
+
+- **영역**: `디자인`
+- **계열**: `라이브러리전제`, `복제본`
+- **그물**: `jsdom`
 - **증상**: mono 코드 표면을 13px/18px로 통일(`text-xs`→`text-mono`)했는데, 액션 로그 한 줄 안에서 행 텍스트(13px) 옆의 **값 칩만 12px**로 남아 섞였다. `pnpm test`·typecheck 전부 green — v1.6.0이 Tiptap을 빠뜨린 것과 **같은 "표면 하나 누락"** 패턴이 재발했고, 이번엔 `/code-review` 에이전트가 잡았다(커밋 후·미출시).
 - **근본 원인**: 함정이 둘이 겹쳤다. ① **칩의 크기 출처가 `text-xs`가 아니라 `Kbd` base였다** — 칩은 `Kbd`(base `font-sans text-xs`)를 `CHIP_CLS="font-mono … text-foreground"`로 오버라이드하는데, CHIP_CLS엔 크기 클래스가 없어 base `text-xs`가 살아남았다. `grep 'font-mono.*text-xs'`엔 안 걸린다(칩 자체엔 `text-xs`가 없고 감싼 프리미티브 base에 있다). ② **`text-mono`를 `cn()`의 twMerge가 삭제했다** — `text-mono`는 커스텀 fontSize 토큰이라 tailwind-merge 기본 config가 모른다. twMerge는 이걸 **text-color 그룹으로 오분류**해, CHIP_CLS의 뒤따르는 `text-foreground`(같은 그룹으로 본다)에 밀려 `text-mono`를 통째로 제거하고 base `text-xs`와도 dedupe하지 않았다. 즉 CHIP_CLS에 `text-mono`를 더해도 렌더 결과엔 `text-xs`만 남았다.
 - **재발 방지**: (1) **커스텀 `text-*`(및 Tailwind 클래스 그룹과 충돌하는 임의 유틸)를 도입하면 `cn()`의 `extendTailwindMerge`에 그 그룹으로 등록한다** — 안 하면 `cn()` 경유 컴포넌트에서 같은 그룹 클래스와 만날 때 조용히 사라진다. grep: `grep -rn 'text-mono\|fontSize' src/lib/utils.ts tailwind.config.js`로 토큰↔twMerge 등록 짝을 확인. (2) **"표면 전수"는 리터럴 클래스뿐 아니라 감싼 프리미티브의 base 크기까지 본다** — 표면이 `Kbd`·`Badge`·`Button` 등 shadcn 프리미티브를 쓰면 크기가 그 base에서 올 수 있어 grep에 안 잡힌다. (3) **단위 테스트로 `cn()` 렌더 결과의 className을 단언한다** — `render` 후 `chip.className`에 `text-mono` 포함 + `text-xs` 미포함을 확인하면 twMerge 삭제를 red로 잡는다(`ActionLogContent.test.tsx`). 이건 순수 문자열 대조가 아니라 실제 `cn()`을 태워야 걸린다. 계열: **2026-07-17 mono**(한 셀렉터로 안 잡히는 표면 누락)·2026-07-20 Kbd truncate(프리미티브 교체가 box 모델 전제를 깸) — 둘 다 "프리미티브가 조용히 얹는 것"이 근원.
@@ -143,6 +221,9 @@
 
 ## 2026-07-20 — shadcn `Kbd`(inline-flex)에 `truncate`를 얹었더니 ellipsis가 안 뜨고 `justify-center`가 양끝을 잘랐다
 
+- **영역**: `디자인`
+- **계열**: `라이브러리전제`
+- **그물**: `시각`
 - **증상**: 액션 로그 칩을 `InlineChip`(bespoke, `inline-block`)에서 shadcn `Kbd`로 통일하며 긴 값에 `max-w-[40%] truncate`를 그대로 옮겼다. 짧은 값(`10743`)은 멀쩡했지만, 긴 값은 `앞부분…`이 아니라 **문자열 중간만** 보이고 말줄임표가 없었다. `pnpm test`·typecheck·자체검증 순수 로직은 전부 green — jsdom이 못 잡는 계층이라 자체검증 에이전트의 CSS 추론으로만 걸렸다(커밋 전 발견, 미출시).
 - **근본 원인**: `truncate` = `overflow-hidden text-ellipsis whitespace-nowrap`인데 **`text-overflow: ellipsis`는 block 컨테이너에서만 적용된다**. shadcn `Kbd`/`Badge` 등은 base가 `inline-flex`라 텍스트가 익명 flex item이 되어 ellipsis가 **무효**(하드 클립)다. 게다가 `Kbd` base엔 `justify-center`가 있어 넘친 텍스트가 가운데 정렬로 **양끝이 잘린다**. `InlineChip`은 `inline-block`이라 우연히 정상 동작했던 것 — 프리미티브를 바꾸며 box 모델 전제가 조용히 깨졌다.
 - **재발 방지**: (1) **shadcn `inline-flex` 칩(`Kbd`·`Badge`·`ButtonGroup*`)에 `truncate`를 직접 얹지 말 것** — ellipsis가 필요하면 내부에 `<span className="min-w-0 truncate">`로 감싸 flex item을 block화하고 `min-w-0`으로 축소 허용(선례 `ActionLogContent`의 `DragNodeChip`·`valueChip`). (2) grep: `grep -rn 'truncate' src` 결과 중 대상이 `inline-flex`(shadcn Kbd/Badge/Toggle 등)면 냄새 — 부모 `display`를 확인한다. (3) **말줄임·클리핑은 jsdom·순수 테스트로 못 막는다**(레이아웃 계층) — computed style을 읽는 e2e나 육안이 유일한 그물. 이번엔 자체검증 에이전트의 CSS 규칙 추론이 대신 잡았다. 계열: `text-overflow`처럼 **특정 `display`에서만 작동하는 속성**을 프리미티브 교체와 함께 옮기면 조용히 무력화된다.
@@ -150,6 +231,9 @@
 
 ## 2026-07-18 — `DB_VERSION`을 올렸더니 무관한 슬랙 spec이 `VersionError`로 죽었다 — e2e가 IndexedDB 버전을 하드코딩 seed
 
+- **영역**: `e2e`, `store`
+- **계열**: `복제본`, `드리프트`
+- **그물**: `e2e`
 - **증상**: 인라인 이미지 어노테이션(blob-db에 `inlineImageOrigins` store 추가)만 건드렸는데, `/push` e2e 게이트에서 **전혀 무관한** `slack-promote-media-guard.spec`이 `VersionError: The requested version (7) is less than the existing version (8)`로 빨강. 정작 내가 만든 `inline-image-annotation.spec`은 green이었다.
 - **근본 원인**: `DB_VERSION`을 7→8로 bump하면 앱 `openDb`는 `onupgradeneeded`로 새 store를 만들지만, **e2e가 IndexedDB를 직접 seed하는 곳**(`slack-promote-media-guard.spec:seedBeforeImage`)이 `indexedDB.open("bugshot-video", 7)`로 **버전을 하드코딩**한다. 앱이 먼저 DB를 v8로 올려놓은 뒤 테스트가 v7로 열면 IndexedDB 규약상 요청 버전 < 기존 버전이라 **즉시 throw**. 스키마 단일 출처(`blob-db.ts`)와 e2e의 복제 seed가 조용히 갈라졌다 — 증상이 터진 파일과 원인이 있는 파일이 무관하다.
 - **재발 방지**: (1) **`DB_VERSION`을 bump할 땐 `grep -rn 'indexedDB.open("bugshot-video"' e2e/`로 하드코딩 seed를 전수**하고, **버전 숫자 + store 목록 둘 다** 앱 스키마에 맞춘다(store만 추가하고 버전을 안 올리면 반대로 기존 커넥션에서 upgrade가 안 돈다). GOTCHAS의 seed 함정 항목에 "DB_VERSION bump 시 seed의 버전·store도 함께"를 명시했다. (2) **무관한 spec에서 터지므로 변경 spec만 돌리면 절대 안 잡힌다** — 전체 스위트(`/push` e2e 게이트 = `pnpm test:e2e` 전량)가 유일한 그물이다. 이번에도 `inline-image-annotation`만 돌렸을 땐 green, 전체를 돌려서야 잡혔다.
@@ -157,6 +241,9 @@
 
 ## 2026-07-18 — `hidden` 속성으로 숨긴 버튼이 여전히 `:first-child`를 차지해 ButtonGroup 좌측 모서리가 각졌다
 
+- **영역**: `디자인`
+- **계열**: `라이브러리전제`
+- **그물**: `시각`
 - **증상**: 본문 인라인 이미지에 hover하면 뜨는 액션 그룹(`[초기화][주석][삭제]`)에서, 어노테이션 기록이 없어 **초기화 버튼이 숨겨진** 상태일 때 보이는 첫 버튼(연필)의 **좌측 모서리가 둥글지 않고 각지게** 나왔다(좌상단·좌하단 라운딩 소실 + 좌측 테두리 처리도 어긋남). 어노테이션을 한 번 넣어 초기화가 보이면 정상.
 - **근본 원인**: `blockActions.setHidden`이 버튼을 **`hidden` 속성(=`display:none`)** 으로 숨기는데, `display:none` 요소도 **DOM 자식으로 남아 CSS `:first-child`를 계속 차지**한다. `block-actions.css`의 ButtonGroup 라운딩은 `.block-actions-button:first-child`(좌측 라운딩)·`:not(:first-child){border-left:0}` 같은 **구조 선택자**에 걸려 있어서, 숨은 초기화 버튼이 여전히 `:first-child`고 실제 보이는 첫 버튼(연필)은 `:nth-child(2)` → 좌측 라운딩도 좌측 테두리도 못 받는다. 증상은 CSS(모서리)인데 원인은 **"visibility를 `hidden` 속성으로 표현"과 "구조 선택자"의 상호작용** — 서로 다른 레이어다. (feature-review에서 CDO가 "hover 중 라운딩 점프" 위험을 지적했으나 실제 버그는 그 async 타이밍이 아니라 hidden이 상시 `:first-child`를 점유하는 정적 문제였다 — 예측한 위험과 실제 버그가 갈렸다.)
 - **재발 방지**: **`hidden`/`display:none`으로 요소를 숨기면서 `:first-child`/`:last-child`/`:nth-child`에 의존하는 스타일이 있으면 반드시 깨진다.** 숨김을 "보이는 것 중 첫/막"으로 해석하려면 `[hidden] + sibling` 인접 선택자로 다음 요소를 승격하거나(이번 픽스), 아예 DOM에서 detach한다. `grep -rn ":first-child\|:last-child\|:only-child" src/**/*.css`로 구조 선택자 쓰는 그룹을 찾아, 그 소비처가 `setHidden`·조건부 `hidden`을 쓰는지 대조. **e2e 판정 주의**: Playwright `toBeVisible()`은 `opacity:0`은 visible로, `display:none`(hidden 속성)만 not-visible로 친다 — 모서리 라운딩은 `toHaveCSS("border-top-left-radius", ...)`로 실측해야 하고(버그 시 `0px`), `inline-image-annotation.spec`이 이 값으로 가드한다.
@@ -164,6 +251,9 @@
 
 ## 2026-07-18 — 접힘=readonly로 들어가는 경로가 둘인데 caret 보정은 한쪽(pill 클릭)에만 있었다
 
+- **영역**: `에디터`
+- **계열**: `복제본`
+- **그물**: `e2e`
 - **증상**: 에디터에서 코드블럭에 타이핑으로 16번째 줄을 치는 순간 블럭이 접히는데, caret이 잘린(접힌) 영역 안에 갇힌 채 접힌다 — 브라우저가 caret을 보이게 pre를 스크롤해 둔 상태라 **로그 중간이 보인 채 접히고**, 안 보이는 줄이 keymap 키(Enter·Backspace)로 계속 편집된다(문자 입력은 `contenteditable="false"`로 죽지만 keymap은 `state.selection`에 트랜잭션을 넣어 **편집은 되는데 안 보이는** 비대칭).
 - **근본 원인**: **readonly(접힘)로 진입하는 경로가 둘인데 보정이 한쪽에만 있었다.** ① pill 클릭 → `setExpanded(false)`: caret 축출(`onCollapse`=`moveCaretOut`)·`scrollTop=0` 보정을 **한다**. ② 타이핑·붙여넣기로 줄 수가 임계값을 넘음 → `update()`→`render()`: `contenteditable="false"`만 걸고 **caret 축출도 스크롤 리셋도 안 한다**. `setExpanded`가 실사용 제보로 정확히 이 "로그 중간이 보인 채 접힘" 아티팩트를 고쳤는데(주석까지 달아뒀는데), 그 보정이 두 번째 진입로엔 복제되지 않았다 — "펼침 전이는 pill로만 일어난다"는 암묵 전제가 틀렸다. 픽스는 보정을 복제하는 대신 **편집 중엔 접지 않는다**로 갔다(read/edit 모델: caret이 블럭 안이면 `update()`가 `setExpanded(true)`로 승격) — 접기 자체를 안 하니 갇힐 caret이 없다.
 - **재발 방지**: (1) **같은 종단 상태(readonly)로 가는 진입로가 여럿이면 보정도 전수한다** — 상태 전이 보정을 한 경로(`setExpanded`)에만 넣으면 다른 경로(`update()`)가 조용히 우회한다. `grep -n "contenteditable" src/sidepanel/lib/codeCollapseShell.ts`로 readonly를 거는 지점을 세고, 각 지점이 같은 후처리(caret 축출·scroll 리셋)를 지나는지 대조. (2) **이 축은 jsdom·클릭 e2e로 안 잡힌다** — 2026-07-17 항목대로 접힌 블럭 **클릭**은 우리 핸들러가 먼저 펼쳐 프로브를 무효화하고, "타이핑으로 임계 돌파"는 살아있는 PM view + keymap이 필요해 단위 테스트가 불가. e2e에서 **펼친 블럭에 타이핑으로 16줄을 만들어** `data-collapsed=false` 유지 + caret이 블럭 안에서 정상 편집됨을 실측해야 갈린다. (3) **잔존 경로(미해결 관찰)**: 16줄+ 코드블럭을 **통째로 붙여넣어 새 노드가 생기는 constructor 경로**는 `update()`가 아니라 constructor라 auto-expand를 안 타고 접힌 채 만들어진다 — 단 e2e가 "삽입된 로그는 접힘"을 의도 UX로 단언하므로 여기서 auto-expand하면 그 계약이 깨진다. 붙여넣기 후 caret 유입 여부는 실기 확인 후 판단.
@@ -171,6 +261,9 @@
 
 ## 2026-07-17 — 설계가 단언한 "이 가드가 이 회귀를 막는다"가 넷 다 틀렸고, 그 문장을 이름표로 옮긴 e2e가 공허했다 (같은 실수를 같은 세션에서 두 번)
 
+- **영역**: `에디터`, `e2e`
+- **계열**: `미검증단언`
+- **그물**: `e2e`
 - **증상**: 코드엔 증상이 없었다 — 결론(가드를 둔다)이 옳아서 아무도 못 느꼈다. 드러난 건 e2e에서다. `design.md` 위험 3이 *"`stopEvent` 누락 → pill 클릭이 커서를 점프시킨다"*라 못박았고 그걸 근거로 e2e 시나리오를 **"`stopEvent` 회귀 가드"**로 승격시켰는데, `stopEvent`를 통째로 `return false`로 만들어도 **전 테스트가 green**이었다. "회귀 가드" 이름표를 단 채 그 회귀를 전혀 안 무는 테스트가 머지될 뻔했다.
 - **근본 원인**: 설계 단계에서 **검증 없이 인과를 단언**하고, 구현·테스트가 그 문장을 이름표로 옮겼다. 가드를 하나씩 무력화해 실측하니 넷 다 달랐다 — ① **커서를 지키는 건 `stopEvent`가 아니라 `contenteditable="false"`**(위험 11)다. ② **셸 중첩을 막는 건 `closest` 가드가 아니라 cleanup의 `unwrap()`**이다(위험 10은 반대로 적었다): 가드만 빼면 green, `unwrap()`만 빼면 리스너 없는 죽은 pill이 남는다 — **실패 모드가 서로 다르다**. ③ `useMemo`는 펼침 리셋을 막지 않는다(위험 12): `html`은 문자열이라 `Object.is`·React의 innerHTML diff 모두 **값 비교**라 내용이 같으면 dep이 안 변한다 — 실익은 markdown-it 재실행 회피뿐. ④ 같은 계열로 리뷰가 승인한 **`+10px` 스크롤바 보정**은 "오버플로 없는 16줄" 케이스를 모델링하지 않아 `max-height` 313px > 자연 높이 312px가 되어, **안 잘리는데 pill만 뜨고 클릭해도 무반응인 유령 접힘**을 만들었다.
 - **같은 세션에서 재발 — 이게 이 항목의 핵심**: 위를 적어놓고 곧바로 **또 밟았다.** UI를 접힘=readonly 모델로 개편한 뒤 "접힌 블럭에 caret이 안 들어간다"를 **클릭으로** 검증했는데, 접힌 블럭 클릭은 **우리 핸들러가 먼저 펼쳐버려서** caret이 들어와도 이미 편집 가능 상태라 가드 유무가 결과에 안 나타난다. 세 가드(`contenteditable`·`stopEvent`의 readonly 분기·`moveCaretOut`)를 각각 빼고 돌려도 관측값이 **한 글자도 안 바뀌었다** — 프로브가 셋을 구분조차 못 했다. 갈린 건 **방향키**뿐이었다(우리 핸들러를 안 거치고 PM/브라우저가 직접 caret을 옮기는 유일한 경로): `contenteditable`을 빼면 anchor가 코드 안으로 들어가고 **타이핑이 접힌 줄에 유입**된다.
@@ -179,6 +272,9 @@
 
 ## 2026-07-17 — `--accent`가 `--muted`와 같은 값이라, 관용구대로 넣은 `hover:bg-accent`가 pill을 코드블럭에 녹여버림
 
+- **영역**: `디자인`
+- **계열**: `라이브러리전제`
+- **그물**: `시각`
 - **증상**: 코드블럭 접기 pill에 마우스를 올리면 **pill이 코드블럭 배경에 녹아 글자만 남았다**(다크에선 테두리까지 사라짐). hover가 이 pill의 **유일한 출현 경로**라 체감이 컸다. 더 나쁜 건 경로다 — 자체 검증(4관점)이 *"저장소 텍스트 버튼 관용구(`Button variant="outline"`)를 안 따랐다 — `hover:bg-accent`·`shadow-sm` 누락"*이라 지적했고, **그 지적을 그대로 따르자 회귀가 생겼다**.
 - **근본 원인**: `--accent`·`--secondary`·`--muted`가 **라이트·다크 모두 값이 같다**(라이트 `210 40% 96.1%` / 다크 `0 0% 14.9%`). shadcn outline variant의 `bg-background → hover:bg-accent`는 **`--background` 표면 위에 놓일 걸 전제한 "떠오름"**인데, 이 pill은 코드블럭(`--muted`) 위에 앉아서 hover가 곧 주변과 동일색이 됐다 — 관용구의 방향이 표면을 옮기며 뒤집힌 것이다. 다크는 `--border`·`--input`·`--ring`까지 같은 `0 0% 14.9%`라 테두리·포커스 링도 그 표면 위에선 소실된다. 그런데 `docs/DESIGN.md` 토큰 표는 셋을 "hover 강조"/"보조 텍스트·비활성 배경"/"보조 버튼·탭 바 바탕"으로 **용도만** 적어둬 값이 같다는 사실이 어디에도 없었다(§9가 `--ring`==`--border`는 경고하면서 이 셋은 침묵).
 - **재발 방지**: (1) **관용구는 그것이 얹히는 표면을 전제한다** — shadcn variant를 `background`가 아닌 표면(`muted`·`secondary`·`card`)으로 이식할 땐 `grep -nE '\-\-(accent|secondary|muted|border|input|ring):' src/styles/globals.css`로 **값 충돌을 먼저 본다**. muted·secondary 표면 위 컨트롤의 hover는 배경이 아니라 **등장(opacity)·글자색·그림자**로 낸다. (2) **토큰 표의 "용도"는 의미 구분이지 시각 구분이 아니다** — `docs/DESIGN.md` §2에 동일값 사실과 그 귀결을 명시했다. 토큰을 고를 땐 이름이 아니라 `globals.css`의 값을 본다. (3) **자체 검증의 "관용구 위반" 지적은 관용구의 전제가 이 자리에서도 성립하는지 확인한 뒤 따른다** — 이번엔 **지적이 맞고 처방이 틀렸다**(치수·`shadow-sm`·`user-select`는 옳았고 hover만 아니었다). 에이전트 지적을 통째로 수용/기각하지 말 것.
@@ -186,6 +282,9 @@
 
 ## 2026-07-17 — "mono 표면"이 한 셀렉터로 안 잡혀 v1.6.0의 13px 통일이 표면을 빠뜨렸고, 폰트를 안 열어본 리거처 단언 탓에 `--`가 CSS 토큰마다 그리드를 무너뜨림
 
+- **영역**: `디자인`
+- **계열**: `복제본`
+- **그물**: `unit`
 - **증상**: v1.6.0이 Geist Mono를 실은 뒤, CSS 코드 뷰에서 `var(--space-lg)` 같은 토큰의 `--`가 **한 글자로 뭉쳐** 회색 칩을 삐져나왔다. 이슈 본문 코드블럭은 긴 줄이 접히며 **들여쓰기가 소실**됐고(중첩 JSON에서 즉시 보임), 코드 표면 크기는 13 / 12.25 / 11px로 제각각이었다. 폰트는 정상 로드됐고(e2e가 `@font-face`를 고정), `pnpm test`·`typecheck`·e2e 전부 green — **어느 게이트에도 안 걸렸다.**
 - **근본 원인**: 세 겹이고, 전부 "코드만 읽어선 안 보이는" 층에 있었다.
   1. **폰트 파일을 안 열어본 단언.** v1.6.0 design.md가 *"Geist Mono엔 코딩 리거처가 없어 `calt`가 작용할 대상이 없다"*고 단언했다. fontTools로 열어보니 **절반만 맞았다** — `calt`·`rlig`는 없지만 **`liga`가 있고** 그 안에 `hyphen + [hyphen] → hyphen_hyphen.liga`가 실재한다. `liga`는 브라우저 **기본 ON**이라 켠 적이 없어도 작동하고, 그 리거처의 **advance가 600으로 hyphen 하나와 같다**(1200이 아니다) — 즉 잉크 오버플로가 아니라 **2셀이 1셀로 붕괴**해 `--` 뒤 텍스트가 통째로 한 칸 밀린다. CSS 커스텀 프로퍼티는 전부 `--`로 시작하므로 **에디터의 모든 토큰이 이걸 밟았다.**
@@ -202,6 +301,9 @@
 
 ## 2026-07-17 — zustand 전이와 React state 게이트가 다른 레인이라 한 렌더가 새고, 그 틈에 발화한 재현 단계 자동 채움이 취소↔래치 함정으로 영구 미충전 (2026-07-16 함정의 하루 만의 재발)
 
+- **영역**: `store`, `AI`
+- **계열**: `취소래치`
+- **그물**: `jsdom`
 - **증상**: 30s 리플레이로 캡처 → 트림 오버레이에서 구간 확정 → 작성 화면의 **재현 과정이 빈 값**. 실패 토스트도 없다. **매번** 재현되고, 탭/화면 녹화는 멀쩡하다. 2026-07-16 항목의 증상과 **글자 그대로 같다** — 그 항목이 이미 고쳤다고 기록한 그 증상이 하루 만에 돌아왔다.
 - **근본 원인**: **기존 회고 두 개의 교차점**이고, 어느 한쪽만 읽어선 안 보인다. (1) **2026-07-01 픽스가 이번 트리거를 심었다** — 흰 화면을 막으려 "트림 중엔 DraftingPanel을 마운트하지 않는다"는 게이트를 넣었는데, 그 게이트가 `use-30s-replay`의 **React state**(`pendingTrim`)인 반면 drafting 전이는 **zustand**다. zustand 5는 `useSyncExternalStore`(SyncLane), `setState`는 DefaultLane이라 같은 동기 블록에서 연달아 불러도 **두 렌더로 갈린다**(추론이 아니라 실측 — mount count를 세는 최소 probe로 확인). 그래서 `phase="drafting"`인데 `trimming=false`인 렌더가 **정확히 한 번** 새고, 그 틈에 DraftingPanel이 마운트된다. BYOK면 `aiStatus`가 즉시 `available`이라 `useReproPrefill`이 그 한 렌더 안에서 발화하고 `reproPrefillDone`을 래치한다. (2) **2026-07-16이 심은 인수인계가 여기선 무력하다** — 그때 취소↔래치 함정을 `runRef`로 이어받게 고쳤지만, 그 인수인계는 **같은 컴포넌트 인스턴스** 전제다. 다음 렌더에서 `trimming=true`가 되며 패널이 **언마운트**되면 cleanup이 `run.cancelled=true`를 놓고, 사용자가 트림 구간 고르는 몇 초 사이 AI 응답이 도착해 `if (run.cancelled) return`으로 **조용히 폐기**된다(취소는 에러가 아니라 토스트도 없다). 트림 확정 후 **재마운트**되면 `runRef.current`는 새 인스턴스라 `null`인데 `doneRef`는 store에서 `true`로 살아 돌아와 `if (!prev) return` — **이어받을 요청이 없으니 영구 포기**. 즉 2026-07-16이 기록한 "취소는 원래 '다시 하겠다'는 뜻인데 래치가 '다시 안 한다'고 못박아 취소가 곧 영구 포기로 뒤집힌다"가 **트리거만 deps 재실행 → 언마운트/재마운트로 바뀐 채 그대로 재발**했다.
 - **재발 방지**: (1) **불변식 — store 전이가 마운트를 여는 쪽이면, 그걸 막는 게이트는 반드시 같은 `set()`에 실려야 한다.** React state 게이트 + zustand 전이 조합은 레인이 갈려 게이트가 늦게 닫히고, 그 한 렌더가 마운트를 흘린다. 반대 방향(게이트가 store보다 늦게 **열리는** 쪽)은 안전 — `useEditorSessionSync.ts:97,138`(`hydrate` → `setHydrated`)이 그 예로, `App.tsx`의 `if (!editorHydrated) return null`이 새는 렌더를 삼킨다. 전수: `grep -rn "useEditorStore.getState()\.\|useEditorStore.setState" src/sidepanel`로 store 전이 **직후 React setState**가 오는 자리를 뽑고, 그 setState가 마운트를 게이팅하는지 본다(특히 `grep -rn "lazy(" src/sidepanel`의 청크 게이트). **순서 스왑은 해결책이 아니다** — DefaultLane은 SyncLane 렌더에 안 실린다(실측 확인). 게이트를 store로 올리는 것만이 답. (2) **레인 분리는 추론하지 말고 probe로 실측한다** — 마운트 횟수를 세는 10줄짜리 테스트가 며칠치 코드 리딩을 이긴다. (3) **테스트는 "전이를 보는 첫 알림에 게이트가 이미 켜져 있나"를 `subscribe`로 단언**한다 — `editor-store.test.ts`의 "전이 원자성" 케이스가 선례이고, `set()`을 둘로 쪼개는 미세 회귀까지 잡는 **유일한** 가드다. (4) **jsdom fixture가 실물 컴포넌트를 못 올려 게이트를 복사하면, 그 테스트는 배선을 원리적으로 못 잡는다** — 이번에 그 사실을 모른 채 163줄짜리 통합 테스트를 짰다가 **mutation(픽스 무력화 후 무엇이 빨개지나)으로 확인하고 통째로 삭제**했다. 새 테스트가 회귀 가드라고 주장하기 전에 mutation으로 검증할 것. "잡는 척하는 테스트"는 없느니만 못하다. (5) `useReproPrefill`의 취소↔래치 함정 **자체는 여전히 살아있다** — 이번엔 트리거만 없앴다. 잔존 트리거는 "in-flight 중 패널 닫기" 1건이고, `reproPrefillDone`의 "결과 무관 세션 1회" 설계가 의도한 귀결이라 남긴다. **DraftingPanel을 언마운트시키는 새 게이트를 추가하면 이 함정이 즉시 되살아난다** — `grep -n "return null" src/sidepanel/tabs/IssueTab.tsx`. (6) **주석이 아직 없는 회고를 가리키면 거짓말이 된다** — 이번에 `(POSTMORTEM 2026-07-17)`을 코드에 먼저 박았고 CTO 게이트가 `grep -n "2026-07-17" docs/POSTMORTEM.md` → 0건으로 잡았다. 회고 참조 주석을 쓰면 push 전 그 항목의 존재를 grep으로 확인할 것.
@@ -209,6 +311,9 @@
 
 ## 2026-07-16 — vitest에서 멀쩡히 되는 `import`가 typecheck만 깨, 설정 파일 읽는 방식을 두 번 갈아엎음
 
+- **영역**: `툴체인`
+- **계열**: `라이브러리전제`
+- **그물**: `없음`
 - **증상**: `tokens.test.ts`가 `tailwind.config.js`의 `fontFamily.mono`를 단언해야 했다. `import config from "../../../tailwind.config.js"`는 `pnpm test` 8/8 green인데 `pnpm typecheck`만 **TS7016**(`Could not find a declaration file`)으로 실패한다. 한쪽 게이트만 돌리면 안 잡힌다.
 - **근본 원인**: **런타임 게이트와 타입 게이트가 서로 다른 판정을 한다.** 런타임은 통과한다 — vite-node가 모든 모듈에 `require`를 주입해(`node_modules/vite-node/dist/client.mjs:371` `require: createRequire(href)`) config 마지막 줄의 `require("tailwindcss-animate")`가 `"type":"module"`에서도 살아난다. 하지만 `tsconfig.app.json`엔 `allowJs`가 없고(기본 false) `strict:true`(→`noImplicitAny`)라 tsc가 선언 파일 없는 `.js` import를 거부한다. **더 나쁜 건 근거가 두 번 다 틀렸다는 것**: 1판은 "config가 `require()`를 쓰니 vitest에서 터진다"는 **미검증 전제**로 텍스트 파싱을 택했고(거짓 — 런타임은 성공), 리뷰가 그걸 반박해 `import`로 갈아탔더니 typecheck가 깨졌다. 결론(텍스트 파싱)은 처음부터 맞았는데 **이유가 두 번 다 달랐다** — 즉 "왜"를 실측하지 않으면 맞는 결론도 다음 리뷰에 뒤집힌다.
 - **재발 방지**: (1) **"돌아가더라"는 절반의 검증** — 게이트가 둘(`pnpm test` + `pnpm typecheck`)이면 **둘 다 돌려야** 판정이다. 한쪽 green을 근거로 설계를 확정하지 말 것. (2) **`src/**/__tests__/`에서 저장소 루트의 `.js` 설정 파일(`tailwind.config.js`·`postcss.config.js`)을 읽어야 하면 `import` 금지, `readFileSync`+정규식** — `tokens.test.ts:parseTokens`/`parseFontStack`이 선례다. 확인: `grep -n "allowJs" tsconfig.app.json`(없으면 import 불가) + `grep -rn "@ts-expect-error\|@ts-ignore" src/`(**0건이 저장소 관례** — 테스트 하나 때문에 첫 사례를 만들지 말 것). (3) 코드를 읽는 정규식은 **주석 선제거 후 따옴표 리터럴만 추출**해야 배열 내 주석·prettier 리플로우에 안 깨진다. 파서를 새로 쓰면 **기존 배열로 먼저 검증**한다(`parseFontStack("sans")`가 12개·`sans-serif` 종료를 내는지).
@@ -216,6 +321,9 @@
 
 ## 2026-07-16 — `pnpm add pkg@X`가 박은 정확 고정을 손으로 캐럿으로 고쳐, lockfile specifier가 드리프트해 `--frozen-lockfile`이 깨짐
 
+- **영역**: `툴체인`
+- **계열**: `드리프트`
+- **그물**: `없음`
 - **증상**: `pnpm install --frozen-lockfile`이 `ERR_PNPM_OUTDATED_LOCKFILE`로 실패한다(`@fontsource-variable/geist-mono` — lockfile: `5.2.8`, manifest: `^5.2.8`). **로컬에선 아무 증상이 없다** — `.github/workflows`에 install 잡이 없어 깨지는 게이트가 지금은 없고, 다음에 누가 `pnpm install`을 돌리면 무관한 커밋에 lockfile 변경이 딸려온다.
 - **근본 원인**: `pnpm add pkg@5.2.8`은 manifest에 **정확 고정**(`"5.2.8"`)을 쓴다. 그런데 이 저장소는 캐럿이 관례라(`dependencies` 47개 중 캐럿 46 : 정확 1) 손으로 `^`를 붙이게 되는데, **`pnpm install`을 다시 안 돌리면 lockfile의 `specifier` 필드는 옛 값 그대로** 남는다. `version`은 같아서 설치 결과물은 동일하고, 그래서 테스트·빌드·typecheck가 전부 green이라 **어느 게이트에도 안 걸린다**. 설계 문서가 "`minimumReleaseAge` 때문에 버전을 명시한다"고 적은 것도 혼동을 키웠다 — 그건 **설치 명령**에 버전을 쓰라는 논거이지 manifest를 정확 고정하라는 논거가 아니다(재결정은 lockfile이 이미 막는다).
 - **재발 방지**: (1) **새 의존성을 추가하고 manifest 범위를 손으로 고쳤으면 반드시 `pnpm install`을 다시 돌린다.** 확인은 `pnpm install --frozen-lockfile`이 `Already up to date`를 내는지 — 이게 유일한 자동 검사다(로컬 test/build/typecheck는 전부 통과한다). (2) 범위 표기는 저장소 관례를 따른다: `node -e 'const d=Object.entries(require("./package.json").dependencies); console.log("caret",d.filter(([,v])=>v.startsWith("^")).length,"exact",d.filter(([,v])=>/^\d/.test(v)).length)'`. (3) 이 함정은 **specifier만 갈리고 version은 같아** diff에서 두 파일을 대조해야 보인다 — `git diff -- package.json pnpm-lock.yaml`을 같이 본다.
@@ -223,6 +331,9 @@
 
 ## 2026-07-16 — 본문에 삽입한 로그가 Slack에서 평문화되고 엉뚱한 섹션이 코드블럭에 씌워짐 (4000자 초과분을 Slack이 임의로 쪼개 fence를 끊음)
 
+- **영역**: `어댑터`
+- **계열**: `라이브러리전제`
+- **그물**: `unit`
 - **증상**: 실사용 리포트. 로그 삽입 기능으로 만든 이슈를 Slack에 보냈더니 한 건은 **로그가 코드블럭이 아니라 일반 인라인 텍스트**로 나왔고, 다른 건은 **코드블럭이 엉뚱한 "재현 과정" 섹션에 씌워졌다.** 결정적 단서는 "짧은 로그는 정상"이었다 — 내용이 아니라 **크기**에 걸린 문제.
 - **근본 원인**: 2층이다. ① `chat.postMessage`의 `text`는 **4000자 한계**이고 넘으면 **Slack이 알아서 여러 메시지로 쪼갠다**(리포트에 `[오후 9:15]`가 여러 번 찍힌 게 그 증거였다). 코드블럭 fence는 메시지 경계를 못 넘으므로 첫 조각만 블록으로 닫히고 나머지는 평문으로 흐르며, 경계가 펜스 사이에 떨어지면 뒤 섹션이 통째로 코드블럭에 말려든다. `submitToSlack`은 본문 전체를 `text` 하나로 넘기고 **어디에도 길이 처리가 없었다** — 삽입 로그는 body당 16384자 캡이라 4000을 우습게 넘는다. ② 그 전에 심어둔 `neutralizeFences`(본문의 라인 시작 백틱 런을 4칸 들여써 무해화)는 **CommonMark의 닫힘 fence 들여쓰기 ≤3 규칙**을 전제하는데, Slack의 `markdownToMrkdwn`만 손으로 짠 라인 스캐너라 `/^```/.test(line.trim())` — `.trim()`이 들여쓰기를 지워 무해화가 무력화됐다. **8개 빌더 중 7개(markdown-it 계열·GFM)는 통하고 Slack만 샜다.**
 - **재발 방지**: (1) **본문에 들어가는 텍스트의 상한을 정할 땐 "가장 빡빡한 소비처"를 기준으로 센다** — 설계 때 Notion 2000자는 잡았으면서 Slack의 per-message 4000자는 계산에 없었다. `grep -rn "postMessage\|chat\.\|/messages" src/background/*-api.ts`로 메시지형 API의 길이 한계를 먼저 확인할 것. 트래커(이슈 본문)와 **메시지 앱은 길이 축이 다르다**. (2) **"짧으면 정상, 길면 깨짐"은 렌더러가 아니라 전송 계층을 의심**한다 — 마크다운 문법을 아무리 봐도 안 나온다. (3) **8개 빌더에 공통으로 나가는 텍스트를 만들 땐 빌더별 파서 전제를 전수 확인**한다: markdown-it 계열(Jira ADF·Notion·Asana)·GFM(GitHub·GitLab·Linear·ClickUp)은 CommonMark 규칙을 따르지만 **Slack만 자체 라인 스캐너**다. `grep -rn "inFence\|```" src/sidepanel/lib/markdownToMrkdwn.ts`로 그 예외를 확인. (4) 단위 `splitSlackText.test.ts`(펜스 보존 분할·하드 분할 원문 보존)·`submitToSlack.test.ts > 긴 본문 분할`(답글 N개·조각마다 펜스 짝수·각 ≤4000자)·`markdownToMrkdwn.test.ts`(들여쓰기 ≤3 규칙)가 고정. (5) **Slack 화면의 실제 렌더는 저장소 안에서 검증 불가** — mrkdwn은 CommonMark가 아니라 4칸 들여쓴 백틱이 Slack에서 어떻게 보이는지는 실제 제출로만 확인된다(수동 잔여).
@@ -230,6 +341,9 @@
 
 ## 2026-07-16 — 접힌 섹션에서 로그를 삽입하면 다이얼로그만 닫히고 아무 일도 안 일어남 (Section이 children을 언마운트해 editorRef가 null)
 
+- **영역**: `에디터`
+- **계열**: `라이브러리전제`
+- **그물**: `수동`
 - **증상**: 섹션을 접은 채 헤더의 [로그 추가]를 누르면 다이얼로그가 정상으로 열리고, 탭을 고르고 행을 선택하고 [추가]까지 눌러도 **다이얼로그만 닫히고 본문엔 아무것도 안 들어간다.** 에러도 토스트도 없다.
 - **근본 원인**: 표면(삽입 실패)과 원인(레이아웃 컴포넌트)이 다른 레이어. `Section.tsx`가 `{(!collapsible || open) && <div>{children}</div>}`로 **접히면 children을 통째로 언마운트**하는데, 액션 버튼은 헤더에 있어 접힌 상태에서도 살아 있다. 그래서 `editorRef.current`가 null인 채 `editorRef.current?.insertCodeBlock(...)`이 **optional chaining으로 조용히 no-op**된다. ref를 통한 명령형 호출 + 조건부 언마운트 + `?.`의 조합이 "실패를 성공처럼" 만든다.
 - **재발 방지**: (1) **명령형 ref 호출의 대상이 조건부로 언마운트되는지 확인한다** — `grep -rn "Ref.current?\." src/sidepanel/tabs src/sidepanel/components`로 `?.` 호출을 훑고, 그 ref가 가리키는 컴포넌트가 `collapsible`·탭·Suspense 안에 있으면 no-op 경로가 있다. `?.`는 null을 **정상 흐름으로 삼켜** 실패가 안 보인다. (2) **트리거와 대상이 같은 마운트 스코프에 있는지 본다** — 헤더(항상 렌더)에서 body(조건부 렌더)를 조작하는 구조가 이 함정의 형태다. (3) 고칠 땐 트리거가 **먼저 펼치게** 한다(`Section`에 optional 제어 `open`/`onOpenChange` 추가, 미공급 시 기존 비제어 동작 유지 — 공용 컴포넌트라 비침습이 조건). (4) **같은 함정이 `draft.addImage`에 그대로 남아 있다**(`DraftingPanel.tsx`의 `editorRef.current?.insertImageFile`) — 접힌 섹션에서 이미지 추가도 조용히 사라진다. 캡처 버튼은 store 경로(`startInlineCapture` → `appendInlineImage`)라 무관. (5) 이 부류는 **순수 함수 테스트로 절대 안 잡힌다** — 직렬화도 다이얼로그도 전부 green인데 화면만 아무 일이 없다. 렌더 테스트나 실제 클릭이 유일한 감지 수단.
@@ -237,6 +351,9 @@
 
 ## 2026-07-16 — "팔레트를 단일 출처로 승격했다"는 주석·커밋 메시지가 거짓인 채 머지됨 (복제본이 그대로 남아 있었다)
 
+- **영역**: `디자인`
+- **계열**: `복제본`, `미검증단언`
+- **그물**: `unit`
 - **증상**: 코드 동작엔 증상이 없었다. `highlightJson.ts` 헤더 주석이 "JsonTreeViewer와도 팔레트를 공유해 세 화면이 안 갈린다"고 단언하고 커밋 메시지도 "palette lifted out of the component"라고 했는데, **실제로는 `JsonTreeViewer.tsx`가 자기 `VALUE_COLORS`를 그대로 들고 있었고 `highlightJson`을 import조차 안 했다.** 값이 같아서 아무도 못 느낀 잠복 상태.
 - **근본 원인**: 새 파일(`highlightJson.ts`)에 팔레트를 **복사해 넣고 원본을 안 지웠다.** diff에는 신규 파일과 그 주석만 보이고 `JsonTreeViewer.tsx`는 등장하지 않으니 **리뷰에서 diff만 봐선 구조적으로 안 보인다** — "승격했다"는 주장은 diff 밖 파일의 상태에 대한 것이라 diff 리뷰의 사각이다. 정작 2026-06-28 항목이 같은 계열에 "**복제본은 늘 대조 테스트로 묶는다**"고 못박아 뒀는데 그걸 다시 밟았다.
 - **재발 방지**: (1) **"단일 출처로 승격/통합했다"고 쓸 땐 원본이 실제로 사라졌는지 grep으로 확인**한다 — `grep -rn "<옛 상수명>" src`가 0이어야 주장이 참이다. 주석·커밋 메시지의 "공유한다/단일 출처다"는 **검증 가능한 단언**이지 수사가 아니다. (2) **새 모듈에 값 테이블을 만들 땐 그 값이 이미 어딘가 있는지 먼저 찾는다** — `grep -rn "text-purple-700\|text-red-700" src`류로 같은 값의 복제를 잡는다. (3) 이 건은 **`/doc-check`가 잡았다**(문서 에이전트 2개가 주석을 읽고 코드로 대조) — 주석이 코드보다 앞서 나간 거짓말은 diff 리뷰가 아니라 **문서↔코드 양방향 대조**에 걸린다. 코드 주석도 검사 대상으로 취급할 것. (4) 복제가 불가피하면(별도 번들 등) 대조 테스트로 묶는다 — 선례 `log-viewer/__tests__/i18n.test.ts`(메인 테이블 drift 대조), `styles/__tests__/tokens.test.ts`(두 토큰 표 동등성).
@@ -244,6 +361,9 @@
 
 ## 2026-07-16 — 배경용으로 설계된 shadcn `--destructive`를 글자색으로만 소비해, 다크에서 "작성 취소"가 대비 2:1로 안 읽힘
 
+- **영역**: `디자인`
+- **계열**: `복제본`
+- **그물**: `unit`
 - **증상**: 다크 테마에서 `destructive-outline` 버튼(작성 취소 등) 레이블이 **엄청 흐리게** 보였다. 라이트에선 멀쩡해서 오래 방치됐다.
 - **근본 원인**: 토큰의 **설계 용도와 실제 소비처가 어긋났다**. shadcn 다크 프리셋의 `--destructive: 0 62.8% 30.6%`는 `bg-destructive` + `text-destructive-foreground`(흰 글자) 조합, 즉 **배경색**으로 쓰라고 어두운 빨강(= red-900)으로 잡힌 값이다. 그런데 이 앱은 `variant="destructive"`(bg 형)를 **한 번도 안 쓰고** `text-destructive`(27곳)·`destructive-outline`(5곳)로 **글자색으로만** 소비한다 → 거의 검은 배경(`0 0% 3.9%`) 위 red-900 글자 = **실측 2.0:1**(WCAG AA 4.5:1의 절반 미만). 라이트가 무증상인 건 우연 — 라이트 `--destructive`는 같은 토큰인데 shadcn이 red-500(`0 84.2% 60.2%`)으로 잡아둬서 글자로 써도 3.76:1은 나온다. **한 토큰이 테마별로 다른 용도를 전제**하는데 코드는 한 용도로만 쓰는 구조라, 라이트만 보면 영원히 안 보인다.
 - **재발 방지**: (1) **shadcn 프리셋 값을 그대로 받을 땐 "그 값이 어느 용도로 잡혔나"를 확인**한다 — `--destructive`·`--primary`처럼 `bg`/`text` 양쪽으로 쓸 수 있는 토큰은, 실제 소비 형태를 `grep -rn 'variant="destructive"' src`(bg 형 사용 여부) / `grep -rEoh '\b(text|bg)-destructive\b' src | sort | uniq -c`로 **먼저 세고** 값을 고른다. bg 소비처가 0이면 프리셋의 bg용 값은 그냥 틀린 값이다. (2) **대비는 눈이 아니라 수치로 고정**한다 — `src/styles/__tests__/tokens.test.ts`가 hsl→상대휘도→대비비로 다크 destructive 4.5:1 하한을 박았다. 색은 단위 테스트로 "예쁨"은 못 잡아도 **대비는 잡는다**. (3) **테마 한쪽만 증상이 나는 버그는 반대 테마 검증을 통과한다** — 색 토큰을 건드리면 라이트/다크를 **양쪽 다** 계산하거나 눈으로 본다(같은 교훈: 2026-07-03 로그뷰어 툴팁 항목의 "다크 전용 발산은 라이트/일반 테스트에 안 잡힌다"). (4) 같은 토큰이 **라이트에서도 3.76:1로 AA 미달**이었다(shadcn red-500). 다크가 워낙 심해서(2:1) 라이트는 "읽히니까" 안 보였던 것 — **증상이 심한 테마를 고칠 때 반대 테마도 같이 재라.** 지금은 라이트 red-600(4.83:1)/다크 red-500(5.26:1)으로 갈라 양쪽 AA를 넘겼고, `tokens.test.ts`가 두 테마 모두 4.5 하한으로 고정한다.
@@ -251,6 +371,9 @@
 
 ## 2026-07-16 — "결과 무관 1회" 래치와 effect cleanup 취소가 만나, 취소된 AI 요청을 아무도 이어받지 않아 재현 단계가 영구 미충전
 
+- **영역**: `AI`
+- **계열**: `취소래치`
+- **그물**: `jsdom`
 - **증상**: video 캡처 후 작성 화면에서 재현 단계 자동 채움이 **조용히 안 됐다** — 로딩 오버레이는 떴다 사라지고, 실패 토스트도 없고, BYOK 호출은 1회 소진됐는데 섹션은 빈 채로 남고 재시도도 없다. 재현 조건이 좁아(in-flight 중 `trimming` 왕복, 또는 설정 변경으로 `capabilities`/`createSession` 정체성 변경) 육안으론 잡히지 않았고, `/code-review`는 이 자리를 **"dev StrictMode 이중 발화(⚪ dev 전용 비용)"로만 분류**해 지나갔다.
 - **근본 원인**: 각각 옳은 두 설계의 **결합**이 함정이었다. (1) `setReproPrefillDone(true)`를 응답 **전에** 선기록한다 — 실패·공백이어도 세션 1회로 못박아 BYOK 할당량 반복 소모를 막는 의도된 설계. (2) effect cleanup이 `cancelled = true`로 in-flight를 취소한다 — stale 적용을 막는 표준 패턴. 둘이 만나면: effect 재실행 시 cleanup이 요청을 취소하고, 재실행된 setup은 done 래치에 걸려 early-return하므로 **아무도 그 요청을 이어받지 않는다.** 응답이 도착해도 `if (cancelled) return`으로 폐기되고 done은 이미 true라 재발화도 없다. **취소는 원래 "다시 하겠다"는 뜻인데 래치가 "다시 안 한다"고 못박아, 취소가 곧 영구 포기로 뒤집힌 것.** deps의 `trimming`·`capabilities`·`createSession`(`useAI`가 `llm`에 memo)이 prod에서 실제로 재실행을 만든다. StrictMode는 이 결함의 **원인이 아니라 드러내는 특수 케이스**였을 뿐인데, 그 표면만 보고 dev 이슈로 오분류한 게 진단 실패의 핵심. 더 나쁜 건 1차 픽스였다 — 이중 발화를 막으려 `doneRef.current = true` 래치를 **추가**하자, 같은 함정의 반대쪽으로 빠져 dev에서 결과 유실이 100% 재현되게 됐다(호출 2회·적용 1회 → 호출 1회·적용 0회).
 - **재발 방지**: (1) **"결과 무관 1회" 래치와 cleanup 취소를 같은 흐름에 두면, 재실행이 in-flight를 이어받는 경로가 반드시 있어야 한다** — 래치를 추가할 땐 "취소된 요청은 누가 이어받나?"를 먼저 답한다. `grep -rn "Done(true)\|doneRef\|cancelled = true" src/sidepanel/hooks/`로 래치+취소 결합 지점을 훑는다. (2) **"dev 전용"·"StrictMode 한정" 분류를 의심하라** — StrictMode 이중 실행은 prod에 없지만 그것이 드러내는 결함(cleanup↔래치 결합)은 **prod의 deps 변경으로 똑같이 터진다.** StrictMode 발견은 dev 비용이 아니라 **prod 재실행 경로의 리허설**로 취급하고, non-StrictMode deps 왕복 테스트로 환산해 재현해 본다(이번에 그 환산이 prod 유실을 드러냈다). (3) **비동기 1회성 작업의 가드는 호출 횟수가 아니라 결과를 단언** — 1차 픽스의 테스트는 `generateReproStepsWithAI` 1회만 봐서 `setDraft` 0회(유실)를 green으로 통과시켰다. "몇 번 불렀나"와 "채워졌나"를 **함께** 본다. (4) **가드의 비공허성은 분기를 일시 제거해 red를 확인**한다 — 채택 분기를 지우면 "게이트 왕복"·"StrictMode" 2케이스가 red가 되는 걸 실증했다.
@@ -258,6 +381,9 @@
 
 ## 2026-07-16 — toLocaleString의 timeZoneName 옵션이 ko 시간 스켈레톤을 바꿔 콜론 포맷이 깨짐
 
+- **영역**: `lib`
+- **계열**: `라이브러리전제`
+- **그물**: `unit`
 - **증상**: Captured 시각에 타임존 표기를 추가(`timeZoneName: "shortOffset"`)했더니, ko-KR UI에서 시간이 `09:01:50`(콜론) → `09시 1분 50초`로 바뀌고 분 2-digit 패딩까지 깨졌다(`1분`). en-US는 `09:01:50 AM GMT+9`로 멀쩡. 단위테스트는 `dateBcp47`을 en-US로 고정 mock해서 **green이었는데도 ko 화면이 깨진** 상태 — 사용자가 육안으로 발견.
 - **근본 원인**: `Intl.DateTimeFormat`(`toLocaleString`)에 `timeZoneName`을 옵션으로 섞으면 **ICU가 로케일별 time skeleton을 재선택**한다. ko 기본 패턴은 timezone 동반 시 `시/분/초` 한글 표기를 쓰고, 그 과정에서 `hour/minute/second: "2-digit"` 지정이 무력화된다. "오프셋을 뒤에 붙인다"는 의도와 달리 옵션 한 줄이 시간 표기 스타일 전체를 갈아치웠다. en 패턴은 timezone에도 콜론을 유지해 **en-only 테스트로는 구조적으로 못 잡힌다**.
 - **재발 방지**: (1) **표시용 날짜/시각에 오프셋·타임존을 넣을 땐 `timeZoneName` 옵션이 아니라 offset suffix를 수동 조립**한다(`getTimezoneOffset` → `GMT+9`). `grep -rn "timeZoneName" src/`로 신규 유입 감시. (2) **로케일 의존 포맷 함수 테스트는 en 하나로 끝내지 않는다** — `dateBcp47` mock을 `vi.hoisted` ref로 가변화해 **ko-KR 등 CJK 로케일 케이스**를 반드시 포함(콜론 시간 유지 + `시/분/초` 미전환 단언). `grep -rn "toLocaleString\|Intl.DateTimeFormat" src/`가 로케일 편차 위험 지점. (3) 넓게 퍼지는 표시 헬퍼(`formatTimestamp`는 Captured 13곳 단일 출처)는 로케일 회귀가 전 트래커 본문에 번지므로 mock 로케일 스윕이 값싸고 필수.
@@ -265,6 +391,8 @@
 
 ## 2026-07-14 — 액션 로그 마스킹이 값 경로만 막아, 이름 경로(accessibleName)로 저작물·PII가 그대로 유출
 
+- **영역**: `content`
+- **그물**: `unit`
 - **증상**: 액션 로그의 민감 입력 마스킹은 "구현돼 있다"고 믿고 있었는데, 실제로는 리치 에디터(Gmail·Notion·Slack) 본문을 클릭하거나 그 안에서 Enter만 눌러도 **작성 중인 글 80자가 엔트리의 `target`에 그대로 실렸다.** 값(`value`)은 마스킹되는데 이름(`target`)으로 같은 텍스트가 도로 나가는 구조. 스크린샷 캡처에도 액션 로그가 붙기 시작하면서(v1.5.8) 이 구멍이 가장 흔한 경로에 올라탔다.
 - **근본 원인**: 마스킹 게이트가 **값을 쓰는 함수에만** 붙어 있었다(`recordInput`·`recordSelect`). 그런데 액션 엔트리에 텍스트가 실리는 경로는 값 말고 **이름**이 하나 더 있다 — `accessibleName()`이 aria-label이 없으면 `el.textContent`로 폴백하고, 그 결과가 click·drag·keypress의 `target`이 된다. 즉 "무엇을 입력했나"는 막았는데 "무엇을 클릭했나"가 같은 텍스트를 실어 날랐다. 두 경로가 대칭이라는 걸 못 본 게 핵심. 부수적으로 라벨 판정(`shouldMaskField`)이 `fieldLabel()`이 이미 읽는 소스(`label[for]`·암묵 라벨·`aria-labelledby`·placeholder)를 안 받고 있어서 `<label for>Card number</label>` 같은 평범한 폼이 통째로 새고 있었고, 정규식이 영문 전용이라 **한국어 라벨 폼은 전부 미탐**이었다.
 - **재발 방지**: (1) **액션 엔트리에 페이지 텍스트가 실리는 경로는 값·이름 둘 다** — `grep -n "accessibleName\|fieldLabel\|recordInput\|recordSelect" src/content/action-recorder.ts`로 네 곳을 전수 확인한다. 새 `record*` 함수를 추가하면 **어느 필드로 페이지 텍스트가 들어가는지**를 먼저 묻고, 값이면 `isSensitiveValue`, 이름이면 `accessibleName`/`fieldLabel`을 경유시킨다(직접 `textContent`를 읽지 않는다). (2) **마스킹 판정 소스는 라벨 추출 소스와 같아야 한다** — `fieldLabel()`이 읽는 것(`aria-label`·`label[for]`·`aria-labelledby`·placeholder·name)과 `shouldMaskField`의 `MaskFieldInput`이 어긋나면 그 차집합이 곧 유출 경로다. 한쪽에 소스를 추가하면 다른 쪽도 본다. (3) **라벨 기반 판정만으론 구조적으로 못 막는다** — 생성된 id(`:r3:`)·커스텀 폼·라벨 없는 입력이 항상 남으므로 값 형태 판정(`isSensitiveValue`)이 2층으로 필요하다. (4) **판정 소스를 넓히면 부분일치 오탐이 터진다** — placeholder·라벨은 사람이 읽는 문구라 `pin`⊂ship**pin**g, `auth`⊂**auth**or, `card`⊂dis**card**가 정상 폼을 죽인다. 영문은 `\b` + `normalizeName`(camel/snake 분해)로 끊는다. 반대로 구분자에 `.`을 넣으면 소수(`1234.56789`)·IP가 9자리 숫자열로 승격돼 **재현에 필요한 값이 마스킹된다** — 마스킹 강화는 항상 오탐 쪽도 테스트로 고정한다(`action-recorder-helpers.test.ts`의 "부분일치 오탐 방지"·"소수·IP는 원문 유지").
@@ -272,6 +400,9 @@
 
 ## 2026-07-14 — 로그 지원 매트릭스 단일 출처를 우회한 하드코딩 1곳이 남아, 액션 로그가 UI 없이 침묵 첨부
 
+- **영역**: `어댑터`
+- **계열**: `복제본`, `드리프트`
+- **그물**: `unit`
 - **증상**: `supportsActionLog`를 확장해(video 전용 → screenshot·freeform) 액션 로그를 스크린샷 리포트에도 붙였는데, drafting 화면에 **액션 로그 카드도 첨부 토글도 안 나타났다.** 그런데 첨부는 정상으로 됐다 — 즉 사용자는 액션 로그(입력값 포함)가 리포트에 실려 나가는 걸 보지도, 끄지도 못하는 상태. preview로 넘어가면 그제야 카드가 나타나 같은 세션에서 UI가 모순됐다.
 - **근본 원인**: `captureLogSupport.ts`가 "로그 정책 매트릭스 단일 진실"이고 소비처가 5곳이라 믿었는데 **6번째가 있었다** — `DraftingPanel.tsx`가 `supportsActionLog`를 import조차 안 하고 `isVideoMode`를 하드코딩해 카드를 게이트하고 있었다. 계약(함수)을 고쳐도 그 함수를 안 쓰는 곳은 따라오지 않는다. 더 나쁜 건 방향이었다 — **첨부 경로(`buildCaptureFiles`)는 게이트를 경유해 새 계약을 따랐고 UI만 옛 계약에 남아서**, "첨부는 되는데 안 보인다"는 최악의 조합(침묵 첨부)이 됐다. 반대 방향(보이는데 첨부 안 됨)이었으면 즉시 눈에 띄었을 것이다. 이건 POSTMORTEM 2026-06-25(video+action-only에서 본문이 첨부를 참조 못 해 고아가 됨)와 **같은 계열**이다 — 단일 출처를 우회한 지점이 하나라도 있으면 첨부·본문·UI 중 하나가 조용히 어긋난다.
 - **재발 방지**: (1) **게이트 함수를 고칠 땐 그 함수를 "안 쓰는" 곳을 찾는다** — `grep -rn "supportsActionLog\|supportsConsoleNetworkLog" src/`로 소비처를 세는 것만으론 부족하고, `grep -rn 'isVideoMode\|=== "video"' src/sidepanel/ | grep -i "log\|action"`처럼 **같은 판정을 하드코딩한 잔여**를 반대로 훑어야 한다. 이번에도 이 역방향 grep이 6번째를 잡았다. (2) **첨부·본문·UI 세 표면이 항상 같은 게이트를 타는지 확인** — 하나만 새 계약을 따르면 침묵 첨부(UI 없음) 또는 고아 첨부(본문 참조 없음)가 된다. `captureLogSupport`의 소비처는 현재 6곳: `DraftingPanel`·`PreviewPanel`·`DraftDetailDialog`(UI) / `buildCaptureFiles`(첨부) / `buildEditorCapture`(본문 ctx) / `captureLogSupport` 자신. (3) **프라이버시 데이터의 노출 확대는 opt-out UI가 같은 커밋에 없으면 미완성** — 첨부 스코프를 넓히는 변경은 그 데이터를 끌 수 있는 UI가 함께 노출되는지를 완료 조건으로 본다. (4) e2e `action-log-scope.spec`이 스크린샷 drafting에서 카드 노출 + 토글 기본 ON + element 부재를 고정한다(과거엔 액션 UI가 video 전용이라 e2e로 못 잡았고, 그게 COVERAGE의 제외 사유였다 — 스코프 확장이 오히려 테스트 표면을 열었다).
@@ -279,6 +410,9 @@
 
 ## 2026-07-14 — 토큰 갱신이 authedFetch 안에만 갇혀, Jira 영상이 간헐적으로 본문에서 누락
 
+- **영역**: `어댑터`
+- **계열**: `복제본`
+- **그물**: `unit`
 - **증상**: Jira(OAuth) 이슈 제출 시 영상이 본문에 인라인되지 않고 "(첨부 녹화 파일 참조)" 텍스트로 폴백. **일부 이슈에서만** 발생하고 파일 크기와 무관(173KB짜리도 발생). 영상 파일 자체는 첨부 패널에 정상으로 남아 있어 "업로드는 됐는데 본문에만 없음". 이미지·로그는 멀쩡해서 영상만 골라 사라지는 것처럼 보였다.
 - **근본 원인**: 갱신된 토큰이 **갱신을 수행한 함수 밖으로 안 나간다**. `authedFetch`는 401이면 `refreshOnce`로 토큰을 갱신하지만 그 결과를 **지역 변수에만** 담는다(`jira-api.ts`). 반면 `submitIssue`(`messages.ts`)는 `loadAuth()`로 읽은 auth 객체를 **값으로** 들고 전 호출 체인에 넘긴다 — 그래서 `createIssue`·`uploadAttachment`는 각자 내부 갱신으로 성공하지만(그래서 **파일은 첨부됨**), `submitIssue`가 쥔 사본은 끝까지 낡은 accessToken이다. 그리고 `getMediaFileId`만 유일하게 `authedFetch`를 안 탄다 — redirect된 `res.url`을 봐야 해서 생 `fetch`를 쓰고, `res.ok`를 검사하지 않는다. 결과적으로 **401 응답과 "아직 media 변환 전이라 리다이렉트가 없음"이 둘 다 `extractMediaId(res.url) === undefined`로 수렴**해 구분되지 않고, mediaId 없이 external 폴백 → 영상만 텍스트로 강등(이미지는 external media로도 렌더링돼 무증상). **간헐적인 이유**: 제출 직전에 필드 조회(프로젝트·이슈타입·담당자)가 돌면 그 갱신본이 storage에 박혀 `loadAuth()`가 fresh 토큰을 읽는다. 폼을 오래 열어뒀거나 드래프트에서 바로 제출해 **만료 토큰으로 submit에 진입한 경우**에만 이 경로를 밟는다.
 - **재발 방지**: (1) **갱신 경로를 우회하는 fetch를 의심하라** — `grep -n "await fetch(" src/background/*.ts`로 `authedFetch`/`*Fetch` 래퍼를 안 타는 생 `fetch`를 전수하고, 각각 401을 어떻게 다루는지 확인한다. 리다이렉트 URL·헤더처럼 **응답 본문이 아닌 걸 봐야 해서 래퍼를 못 쓰는 함수**가 이 사각지대의 전형이다. (2) **실패와 "아직 안 됨"이 같은 값(undefined/null)으로 수렴하면 재시도는 영원히 무의미하다** — probe류는 상태 코드를 분기하고, 재시도로 흡수할 것(변환 지연)과 흡수 못 할 것(401)을 갈라라. (3) **auth를 값으로 넘기는 긴 호출 체인은 갱신본을 못 받는다** — 갱신이 호출자에게 전파되는지 확인하고, 안 되면 진입점에서 한 번 신선화(`ensureFreshAuth`)한다. 안 그러면 낡은 `expiresAt` 때문에 호출마다 refresh가 새로 트리거되고, Atlassian은 refresh token을 rotate하므로 **같은 rotate-out된 토큰 재사용 → `invalid_grant` 연결 끊김**으로도 번질 수 있다. (4) 회귀 테스트는 `__tests__/jira-media-id.test.ts > getMediaFileId`(만료 토큰 → 갱신 후 probe / probe 401 → 갱신 재시도 / 갱신 후에도 401이면 refresh 1회로 상한 / apiKey는 갱신 안 함 / 재시도 예산 ≥5초). e2e로는 못 잡는다 — 실제 만료 토큰과 Jira media API의 302가 필요해 결정적이지 않다.
@@ -288,6 +422,9 @@
 
 ## 2026-07-14 — 콤보박스 검색어 state가 팝오버 언마운트와 수명이 달라 "선택자 상단 고정"이 영구히 꺼짐
 
+- **영역**: `컴포넌트`
+- **계열**: `라이브러리전제`
+- **그물**: `jsdom`
 - **증상**: Jira 담당자 필드(이슈 제출/드래프트 다이얼로그)에서 선택된 사람이 목록 최상단에 안 나온다. 스펙(v1.4.5)대로 구현돼 있고 `orderSelectedFirst`도 그대로인데 실제로는 거의 항상 안 보인다 — 다이얼로그를 갓 열고 **검색을 한 번도 안 한 채** 열었을 때만 핀이 뜬다. CC·참조자·Slack 멘션(`CcMultiCombobox`)도 동일.
 - **근본 원인**: 핀 정책에는 "검색 중이면 핀 해제"(결과가 화면 밖으로 밀리는 걸 막는 의도된 가드)가 붙어 있고, 그 판정이 컴포넌트 state `query`다. 그런데 **검색어의 실제 소유자는 cmdk의 `CommandInput`(uncontrolled)이고, 그건 `PopoverContent`와 함께 언마운트되며 리셋된다**. 반면 `query`는 필드 컴포넌트에 살아남는다. 즉 두 값의 **수명이 다르다** — 팝오버를 닫으면 입력창은 비었는데 `query`는 `"홍길"`로 남아 `searching === true`가 고착되고, 재오픈 시 목록은 전체로 다시 채워지는데 핀만 계속 꺼진 채다. 담당자를 검색해서 고르는 게 정상 흐름이라 사실상 상시 재현. 게다가 **`AssigneeField`의 항목 선택 경로가 `setOpen(false)`를 직접 호출해 `onOpenChange` 핸들러를 우회**하고 있어서, 닫기 핸들러에만 리셋을 넣은 1차 픽스는 여전히 red였다(핸들러를 안 타는 닫힘 경로가 따로 있었다).
 - **재발 방지**: (1) **팝오버/다이얼로그 내부 입력의 파생 state는 열림 상태에 종속시켜라** — 언마운트로 리셋되는 uncontrolled 입력과 살아남는 `useState`를 짝지으면 조용히 어긋난다. `grep -rn "useState(\"\")" src/sidepanel/components src/sidepanel/tabs | grep -i "query\|search"`로 검색어 state를 전수하고, 각각 닫힐 때 리셋되는지 확인. (2) **팝오버를 닫는 경로가 하나인지 확인** — `grep -rn "setOpen(false)" src/sidepanel`에서 `onOpenChange` 핸들러를 우회하는 호출이 있으면 리셋·정리 로직이 새는 지점이다. 닫기 부수효과가 생기면 전부 단일 핸들러로 모은다. (3) 이 부류는 **순수 함수 테스트로 절대 안 잡힌다** — `ccOptions.test.ts`(`orderSelectedFirst`/`pinSelectedFirst`)는 도입 때부터 전부 green이었고 버그는 그 함수를 *호출하지 않는* 조건 쪽에 있었다. 헬퍼가 green인데 화면이 틀리면 **호출 게이트를 의심**하라. 회귀 테스트는 렌더 테스트로만 가능해서 이 픽스에서 jsdom + @testing-library를 처음 도입했다(`*.test.tsx`만 jsdom, 순수 함수 테스트는 node 유지 — `vitest.config.ts`의 `environmentMatchGlobs`). 재현 시나리오: **검색어를 타이핑해서** 고른 뒤 재오픈 — 검색 없이 고르면 통과한다. (4) 같은 v1.4.5가 GitHub·GitLab 담당자에는 핀 자체를 안 넣었다(이메일/동명이인 사유로 세 정책을 한꺼번에 제외) — 미해결로 남아 있음.
@@ -297,6 +434,9 @@
 
 ## 2026-07-14 — 어노테이션 드래그: pointer capture 상실을 "제스처 취소"로 오독해 두 번째 도형부터 커서를 따라다님
 
+- **영역**: `미디어`
+- **계열**: `라이브러리전제`
+- **그물**: `수동`
 - **증상**: 스크린샷 주석에서 **첫 도형은 정상**인데, 두 번째부터 클릭(down→up) 후에도 도형이 커밋되지 않고 **마우스를 놓은 뒤에도 커서를 계속 따라다녔다**. 이후 모든 클릭이 먹지 않는다(진행 중 draft가 down 가드에 걸려). 캔버스 줌·팬을 붙이며 mouse → pointer 이벤트 + `setPointerCapture`로 전환한 것이 원인.
 - **근본 원인**: **캡처 상실(`lostpointercapture`)은 제스처 취소가 아니다.** 포인터 아래에 이미 도형이 있는 상태에서 down하면 Chrome이 `stage.content`의 DOM pointer capture를 **제스처 도중 암묵적으로 놓는다**(첫 도형은 빈 캔버스라 hit이 없어 안 일어남 → "두 번째부터"라는 비대칭이 여기서 나온다). 이걸 취소 신호로 받아 `abortGesture`가 `drawPointerRef`를 비웠고, 뒤이어 도착한 **진짜 `pointerup`이 id 불일치로 early-return**해 `draftShape`가 영원히 살아남았다. 표면(그리기 UI)과 원인(브라우저 캡처 수명주기)이 다른 레이어. 그 위에 Konva의 두 함정이 겹쳐 3연속 오진을 만들었다: (1) Konva는 리스너를 `stage.container()`가 아니라 자식 `.konvajs-content`에 걸어서 container에 캡처를 걸면 드래그가 통째로 죽고, (2) Konva는 DOM `pointercancel`을 받아도 **노드 `pointercancel`을 발화하지 않고** 포인터 아래 도형이 있으면 **`pointerup`으로 둔갑시켜 쏜다**(`Stage.js:_pointercancel`) — 그래서 취소가 커밋으로 뒤집힌다. **최종 해법은 캡처를 쓰지 않는 것**: `pointerdown`만 Konva에서 받고 `pointermove`/`pointerup`/`pointercancel`은 **window에서** 받는다(좌표는 `stage.setPointersPositions(e)` → `getPointerPosition()`으로 얻어 CSS transform 역보정 유지).
 - **재발 방지**: (1) **`lostpointercapture`를 종료 신호로 쓰지 말 것.** 제스처의 끝은 `pointerup`/`pointercancel`뿐이다. `grep -rn "lostpointercapture\|setPointerCapture" src/`로 캡처 의존 코드를 점검하고, 캡처는 "이벤트 배달 보조"로만 취급한다. (2) **Konva에 pointer 이벤트를 맡기지 말 것** — `grep -rn "onPointerCancel\|onPointerUp" src/sidepanel/components/annotation/`이 0이어야 한다(드래그 종료는 window). konva 업그레이드 시 `Stage.js`의 `_pointercancel`/`_bindContentEvents`를 재확인. (3) **드래그·포인터 로직은 단위 테스트로 절대 못 잡는다** — 순수 함수(`viewport.ts`) 46개가 전부 green인데 실제 캔버스는 먹통이었다. 게다가 **Playwright 합성 입력에서도 재현되지 않았다**(CDP 입력은 실제 Chrome의 암묵적 캡처 해제를 유발하지 않음 — 영역/전체 캡처·클릭/드래그 3조건 프로브 전부 통과). 이 부류는 **실제 Chrome + 콘솔 계측(어떤 이벤트가 어떤 순서로 오는가)만이 진실**이다. 의심되면 추론하지 말고 down/move/up/cancel/lostpointercapture를 전부 찍어라 — 로그 6줄이 3번의 잘못된 가설을 한 번에 끝냈다. (4) 회귀 감지: 실 브라우저에서 **도형을 두 개 연속으로, 두 번째를 첫 도형 위에서 시작**해 그린다(한 개만 그리면 통과한다).
@@ -306,6 +446,9 @@
 
 ## 2026-07-10 — CodeMirror changeFilter의 protected range가 프로그램적 doc 교체를 삼켜 CSS 뷰 본문 전멸
 
+- **영역**: `스타일해석`
+- **계열**: `라이브러리전제`
+- **그물**: `unit`
 - **증상**: element 스타일 편집기 CSS 탭에서 AI 스타일링을 돌리거나 "모든 스타일 리셋"을 누르면, 코드 뷰가 선택자 1행(`a:nth-child(4) {`)만 남고 선언이 통째로 사라졌다. 편집 탭으로 갔다 돌아오면 멀쩡히 복구돼 "가끔 그러는 것 같은 느낌"으로만 보였다.
 - **근본 원인**: 1행(가려진 `{`) 보호용 `EditorState.changeFilter`가 `[0, firstLineTo]`를 protected range로 반환한다. CodeMirror는 protected range와 **겹치는 변경 조각을 통째로 드롭**하는데(`ChangeSet.filter`), `@uiw/react-codemirror`는 `value` prop 동기화를 `{from:0, to:doc.length, insert:newDoc}` **전체 교체**로 dispatch한다. 이 교체는 1행과 겹치므로 삽입 텍스트가 붙은 조각이 드롭되고 **삭제만 살아남아** doc이 1행으로 붕괴한다. 즉 "1행만 보호"가 실제로는 "프로그램적 doc 교체 전체를 파괴"였다. 표면(본문 전멸)과 원인(다른 레이어의 필터가 상위 React 동기화를 클립)이 어긋난 케이스. **함정 포인트 3개**: (1) 타이핑은 본문 안에서만 변경하므로 필터가 무해해 보인다 — 회귀는 오직 *프로그램적* 재동기화에서만 터진다. (2) `StyleCssView`는 CSS 탭에서만 마운트되고 `key`로 remount되므로, **탭을 한 번만 왕복해도 `EditorState.create({doc: value})`로 재파생돼 증상이 사라진다**(create는 changeFilter를 안 거친다) — 재현·판정 시 탭 전환 금지. (3) 이 경로를 처음 노출시킨 건 직전 픽스([2026-07-08](#2026-07-08--ai-스타일-적용이-css-code-view-포커스-중이면-다음-타이핑에-조용히-덮어써짐))의 "AI 적용 시 포커스 무관 강행 재동기화"였다 — 강행 재동기화가 없었으면 setValue가 안 일어나 잠복했다. `onChange`가 안 불린 건 uiw가 외부 dispatch에 `External` 어노테이션을 달아 스킵해준 덕 — 안 그랬으면 `computeOverrides({}, specified)`가 전 속성을 `initial`로 방출해 페이지까지 리셋됐다.
 - **재발 방지**: (1) **`changeFilter`/`transactionFilter`로 문서 일부를 보호할 땐 "사용자 입력에만" 걸어라** — 프로그램적 dispatch엔 `userEvent`가 없다. 판별은 `tr.annotation(Transaction.userEvent) !== undefined`. grep: `grep -rn "changeFilter\|transactionFilter" src/`. (2) **React 바인딩(`value` prop)이 doc을 어떻게 밀어넣는지 확인** — uiw는 full-range replace다. 부분 보호 필터와 full-range replace는 항상 충돌한다. (3) 마운트 조건이 붙은 에디터(`styleEditorView === "code"` + `key=elementKey`)는 **탭 왕복이 증상을 지운다** — 회귀 판정은 탭에 머문 채. e2e는 `ai-styling.spec.ts`의 "CSS 탭 유지 상태에서 AI 스타일링" 케이스가 그 지점(픽스를 되돌리면 red 확인됨). (4) 단위는 `selectorLock.test.ts`가 실제 `EditorState.update`로 전체 교체를 태워 본문 보존을 단언한다 — `@codemirror/state`는 직접 dep가 아니라 `@uiw/react-codemirror`의 re-export로 import.
@@ -315,6 +458,9 @@
 
 ## 2026-07-08 — AI 스타일 적용이 CSS code view 포커스 중이면 다음 타이핑에 조용히 덮어써짐
 
+- **영역**: `스타일해석`, `AI`
+- **계열**: `취소래치`
+- **그물**: `unit`
 - **증상**: element 스타일 편집기의 CSS code view(CodeMirror)에 포커스한 채 AI 스타일링을 실행하면, AI가 넣은 값이 store·DOM엔 반영되지만 에디터 doc은 옛 상태로 남고, 사용자가 이어서 한 글자라도 치면 AI가 넣은 inlineStyle이 흔적 없이 사라졌다.
 - **근본 원인**: 표면(AI 편집 손실)과 원인(포커스 가드로 인한 store↔doc divergence)이 다른 레이어. `StyleCssView`는 타이핑 커서 튐·늦은 cross-origin specified 보강을 막으려고 **포커스 중엔 외부 재동기화(doc 통째 교체)를 스킵**한다. AI 응답이 `setStyleEdits`로 store를 갱신할 때 마침 포커스면 이 가드에 걸려 doc이 stale해지고, 이후 `handleChange`가 stale doc 기준으로 override를 재계산해 store를 덮어쓴다. **함정 포인트**: read-only 잠금만으론 못 막는다 — `AiStylingDialog`가 `setStyleEdits(merged)`(응답 적용)를 `setAiStylingLoading(false)`보다 **먼저** 호출하므로, 로딩이 풀리는 순간 doc은 이미 stale 확정. 로딩 해제 전이 시점에 포커스 무관 강행 재동기화가 있어야 store가 진실의 원천으로 회복된다.
 - **재발 방지**: (1) **store↔로컬 파생 상태(에디터 doc 등)를 포커스/편집 가드로 스킵하는 곳에선, 외부 프로그램적 변경(AI·자동 적용)이 그 가드를 뚫는 예외 경로가 있는지 확인** — 사용자 편집 충돌 방지 가드가 프로그램적 write까지 막으면 조용한 손실이 된다. `StyleCssView`의 `shouldResyncDoc({focused, aiApplied})`가 선례(평시 포커스 스킵 + AI 적용 시 강행). (2) grep: `grep -rn "focusedRef\|focused.*current" src/sidepanel` — 포커스 가드가 store 재동기화를 막는 지점에 프로그램적 변경 예외가 있는지 점검. (3) **적용(setState)과 로딩 플래그 해제의 순서에 의존하지 말 것** — 적용이 먼저면 "로딩 중 read-only"는 이미 늦다. 상태 전이(true→false) 자체를 트리거로 삼아 만회한다. (4) 이 로직은 순수함수(`docSync.ts`)로 뽑아 `docSync.test.ts`에서 `focused=true, aiApplied=true → true` 조합이 회귀 감지 지점 — 컴포넌트 통합은 인프라 부재로 스킵.
@@ -324,6 +470,9 @@
 
 ## 2026-07-05 — e2e 전 스위트가 "시작도 안 됨"으로 hang — Playwright `worker.evaluate`가 crxjs 모듈 SW에서 무한 대기
 
+- **영역**: `e2e`
+- **계열**: `라이브러리전제`
+- **그물**: `e2e`
 - **증상**: 어느 순간부터 `pnpm test:e2e`가 첫 테스트에서 멈춰 스위트가 통째로 진행 안 됨("시작도 안 됨"). 브라우저는 뜨는데 안 보이던 **크롬 번역 버블**까지 관측돼 "환경이 바뀌었다"는 오해를 부름. 코드 diff는 무관(직전 green 이후 guide 이미지 1개뿐).
 - **근본 원인**: 표면(스위트 hang·번역 버블)과 원인이 다른 레이어. crxjs가 서비스워커를 `type:module`(`service-worker-loader.js`가 real 청크를 `import`)로 emit하는데, **Playwright `worker.evaluate`가 이 모듈 SW의 실행 컨텍스트를 못 잡아 무한 대기**한다. fixture(`fixtureTabId`)와 여러 spec이 `sw.evaluate`에 의존하고 `workers:1`이라 **첫 `sw.evaluate` 한 번이 전 스위트를 정지**시킴. SW 자체는 정상(로드 예외 0, `chrome` 바인딩 OK) — 순전히 Playwright 한계. 오진 유발 요소: node 버전(22·25·26 전부 동일 실패), chromium 버전, 번역 UI는 **전부 무관**. 그리고 **Playwright `CDPSession.send(method, params)`는 3번째 sessionId 인자를 조용히 무시**해서, raw CDP로 SW 타깃에 붙어 우회하려던 시도가 전부 앵커 페이지 컨텍스트에서 돌아(`chrome` undefined) 삽질을 길게 만듦.
 - **재발 방지**: (1) **e2e에서 `chrome.*`는 SW가 아니라 확장 페이지에서 평가** — fixture `ext.evalInExt(fn, arg)`(빈 특권 확장 페이지 `e2e-eval.html`, `vite.config.ts`의 `e2eEvalHostPlugin`이 `dist-e2e`에만 emit). `grep -rn "serviceWorkers()\|\.evaluate" e2e | grep -i worker` 로 `worker.evaluate` 신규 유입 감시 — 모듈 SW에선 반드시 hang한다. (2) **`worker.evaluate`가 hang하면 node/chromium/브라우저 UI를 의심하지 말 것** — crxjs=type:module SW가 원인. `dist-e2e/manifest.json`의 `background.type==="module"` + `service-worker-loader.js`가 `import`만 하는 셔틀인지 확인. (3) **Playwright `CDPSession.send`에 sessionId 3번째 인자는 안 먹는다** — flatten 자식 세션(SW 등) 라우팅을 이걸로 시도 말 것(앵커 페이지에서 돌아 조용히 오답). (4) 진단 중 `brew install node@22`가 simdutf를 올려 시스템 node를 dyld로 깨뜨린 전례 — **버전 가설 검증하겠다고 brew로 형제 node 깔지 말 것**(공유 의존 churn), 필요하면 격리된 바이너리를 쓴다.
@@ -333,6 +482,9 @@
 
 ## 2026-07-04 — Radix Tabs 정렬 편집기 "재클릭 해제" 구현이 정상 설정까지 지움 (pointerdown에서 값 변경 → click은 리렌더 후 발화)
 
+- **영역**: `컴포넌트`
+- **계열**: `라이브러리전제`
+- **그물**: `e2e`
 - **증상**: element 스타일 편집기의 AlignmentProp(text-align 등)에서 비활성 정렬 탭(center)을 한 번 눌렀는데, 적용됐다가 **즉시 지워져** 기본값(start)으로 남았다. `pnpm test`(2645개)·자체 검증 에이전트의 순수 로직 리뷰는 전부 통과 — **e2e(`style-changes-stacked`)만** 잡아냈다.
 - **근본 원인**: 표면(정렬이 안 먹음)과 원인(이벤트 순서/리렌더 타이밍)이 다른 레이어. Radix Tabs는 **pointerdown**(포커스→automatic activation)에서 값을 바꾸고, **활성 탭 재클릭 시엔 `onValueChange`를 안 쏜다**. toggle-off(재클릭 해제)를 `onClick`에서 `value && o.v === resolvedValue`로 판정했는데, click은 pointerdown→store set→**리렌더 후** 발화한다. 그래서 비활성 center를 누르면: pointerdown이 center로 set → resolvedValue가 "center"로 리렌더 → click 핸들러의 클로저가 갱신된 상태를 보고 "활성 탭을 다시 눌렀다"고 오판 → `set("")`로 clear. 정상 설정과 toggle-off가 click 시점 상태로는 구분 불가능했던 게 함정. 순수 함수가 아니라 **DOM 이벤트 순서에 의존**하는 로직이라 단위/코드리뷰가 못 잡고 실제 클릭을 구동하는 e2e만 재현.
 - **재발 방지**: (1) **controlled Radix(Tabs/Toggle/RadioGroup 등)의 클릭 판정을 렌더 상태로 하지 말 것** — 컴포넌트가 pointerdown/focus에서 값을 먼저 바꾸므로 `onClick` 클로저의 값은 이미 갱신된 뒤다. 클릭 직전 상태가 필요하면 **`onPointerDownCapture`(캡처 페이즈, 라이브러리 핸들러보다 먼저)로 ref에 스냅샷**하고 `onClick`에서 그 ref를 읽는다(AlignmentProp가 선례). (2) grep: `grep -rn "onValueChange\|onPressedChange" src/sidepanel/tabs/styleEditor` — 재클릭/토글 판정을 하는 곳이 렌더 상태(`resolvedValue`/`value`)를 직접 비교하면 냄새. (3) **정렬·토글류 인터랙션은 순수 단위 테스트로 못 막는다** — 상태 전이가 라이브러리 이벤트 순서에 걸리므로 `/tdd` 분류상 컴포넌트=스킵이 맞고, **e2e(실제 `.click()`)가 유일한 안전망**. 이런 인터랙션 수정 후엔 e2e 재실행 필수. (4) `setAlignment` 헬퍼를 쓰는 `style-changes-stacked`가 회귀 감지 지점.
@@ -342,6 +494,8 @@
 
 ## 2026-07-03 — GitHub Pages 배포가 몇 시간째 실패 (build job은 성공, deploy job만 실패 = GitHub 백엔드 stuck, 코드 무관)
 
+- **영역**: `툴체인`
+- **그물**: `없음`
 - **증상**: `/deploy`(tag push + #125 main 머지) 후 privacy.md 공개용 GitHub Pages가 `Deployment failed, try again later`로 **몇 시간 반복 실패**. 워크플로우 재실행·강제 빌드해도 계속 빨강.
 - **근본 원인**: 우리 코드/docs 무관. `pages-build-deployment` 워크플로우에서 **build job은 매번 success(Jekyll 빌드·아티팩트 정상 생성)**, `actions/deploy-pages`의 **deploy job만** "Getting Pages deployment status…"에서 즉시 실패. 배포 자체는 생성되는데(`Created deployment`) 상태 조회에서 서버가 실패 반환 → **GitHub Pages 배포 백엔드가 이 repo에 대해 stuck**. 전역 status는 green, github-pages 환경 branch policy(main)도 허용, docs Jekyll도 통과 — 전부 정상인데 배포 파이프라인만 잠김. "빌드 실패"로 보이지만 실제론 빌드 성공 후 배포단 단독 실패라 원인 레이어가 표면과 다르다.
 - **재발 방지**: (1) **진단은 build job vs deploy job 분리부터**: `gh run view <id> --json jobs --jq '.jobs[]|"\(.name):\(.conclusion)"'`. **build=success & deploy=failure면 GitHub 백엔드 문제(코드 아님)** — `docs/` 콘텐츠 뒤지느라 시간 낭비 말 것. 우리 콘텐츠 문제는 build 단계 실패여야 성립. (2) **긴급도 체크**: 새 배포가 실패해도 **직전 성공본은 계속 서빙**된다. `curl -sS -o /dev/null -w "%{http_code}\n" https://sinhyeokkang.github.io/bugshot-2/privacy.html`가 200이면 사이트 살아있음 → 안 올라간 건 최신 편집분뿐이라 급하지 않음. (3) **효과 없던 조치**(백엔드 stuck엔 무력): 워크플로우 재실행, `gh api -X POST .../pages/builds`(강제 빌드), `gh api -X PUT .../pages`(source 재저장). (4) **먹힌 조치 = Pages 완전 삭제 후 재생성**: `gh api -X DELETE repos/<o>/<r>/pages` → `gh api -X POST repos/<o>/<r>/pages -f 'source[branch]=main' -f 'source[path]=/docs'`. 파이프라인을 통째 teardown/rebuild해 stuck 해소(이번에 deploy job success로 복구). 단 재생성 사이 **잠깐 404 위험** — privacy는 스토어 심사 제출 URL이라, 200으로 서빙 중이면 급하지 않은 한 강행 전 재고.
@@ -351,6 +505,9 @@
 
 ## 2026-07-03 — 로그 색이 탭/다이얼로그와 마커 툴팁에서 발산 (같은 로그를 두 독립 렌더 경로가 그림 — 값+패턴 둘 다 어긋남)
 
+- **영역**: `디자인`
+- **계열**: `복제본`
+- **그물**: `unit`
 - **증상**: 로그뷰어 타임라인 마커에 hover하면 뜨는 툴팁의 문구 색이 좌/하단 로그 탭·다이얼로그와 미묘하게 달랐다. (1) **다크모드에서** 툴팁의 레벨/메서드 색이 탭보다 어두웠다(탭은 밝은 `-400`, 툴팁은 `-600` 고정). (2) action **navigation**은 탭이 URL만 파랑인데 툴팁은 **문장 전체가 파랑**이었다.
 - **근본 원인**: "같은 로그"를 **완전히 분리된 두 렌더 경로**가 그린다 — 사이드패널 `{Console,Network,Action}LogContent.tsx`(React, 아이콘·`InlineLink`·`renderVerb`)와 로그뷰어 `markers.ts`(plain `labelParts`의 text+className, 별도 Vite 빌드). 공유 색 소스가 없어 두 축이 독립적으로 어긋났다. **값 축**: 탭은 `text-*-600 dark:text-*-400` 쌍, 툴팁은 `dark:` 없이 `-600`만 → 다크에서 발산. **패턴 축**(어느 토큰을 칠하나): 탭은 `renderVerb`+`splitTemplate`로 `{target}` 슬롯(URL)만 `InlineLink` 처리, 툴팁은 `label` 문장 전체에 `text-blue-600`를 통짜로 입힘 → navigation 과채색. 값만 통일하면 패턴은 여전히 어긋나는 **2층 구조**가 함정.
 - **재발 방지**: (1) **로그 텍스트 색은 두 표면을 항상 함께 고친다** — `src/sidepanel/components/{Console,Network,Action}LogContent.tsx`와 `src/log-viewer/markers.ts`. 한쪽만 바꾸면 발산. markers는 별도 빌드라 잊기 쉬운 게 이 함정의 뿌리. (2) **값은 반드시 `src/lib/log-colors.ts` 경유**(`TONE_TEXT`/`consoleLevelTextClass`/`networkMethodTextClass`). `grep -rnE "text-(red|amber|blue|green)-600" src/sidepanel/components/*LogContent.tsx src/log-viewer/markers.ts`로 우회 인라인 색을 잡는다 — 로그 표면의 인라인 색은 냄새. (3) **패턴은 슬롯 헬퍼를 공유**: 툴팁 `labelParts`가 탭 `renderVerb`의 슬롯 채색과 일치하도록 markers.ts도 `splitTemplate`를 재사용한다(navigation이 그 선례). 새 action verb에 색 구간을 추가하면 두 경로 모두 갱신. (4) **다크 전용 발산은 라이트/일반 테스트에 안 잡힌다** — 로그 UI 색을 건드리면 **다크모드에서 툴팁 vs 탭을 눈으로** 대조. (5) 단위 `markers.test.ts > labelParts: navigation`(URL 조각만 `TONE_TEXT.blue`, verb 텍스트 무색).
@@ -360,6 +517,9 @@
 
 ## 2026-07-01 — 30s replay 트림 진입 시 흰 화면 (두 lazy 청크 동시 첫 마운트 → tiptap storage 레이스)
 
+- **영역**: `에디터`
+- **계열**: `라이브러리전제`
+- **그물**: `수동`
 - **증상**: 30s replay 캡처 직후 트림 오버레이가 떠야 하는데 **사이드패널 전체가 흰 화면**. 콘솔에 `Cannot read properties of undefined (reading 'getMarkdown')`. element·스크린샷·일반 녹화 모드는 멀쩡하고 **오직 30s replay만** 깨짐.
 - **근본 원인**: 표면(getMarkdown of undefined)과 원인(컴포넌트 마운트 레이스)이 다른 레이어. 30s replay만 캡처 직후 `phase=drafting`(DraftingPanel→`LazyTiptapEditor`)과 `pendingTrim`(`ReplayTrimDialog`)을 **같은 커밋에 set**해서, 두 `lazy()` 청크가 같은 Suspense 사이클에서 동시 첫 로드된다. 그 레이스 중 tiptap editor 인스턴스는 살아있는데 `editor.storage.markdown`이 아직 없는(초기화 미완/stale) 순간이 생기고, value-sync useEffect의 `editorMarkdown`이 `storage.markdown.getMarkdown()`을 호출 → throw → 에러 바운더리가 없어 **App 트리 전체 unmount**. 다른 모드는 DraftingPanel만(overlay 없음) 마운트라 동시 로드가 안 일어나 무사. replay-trim(원본)은 ReplayTrimDialog가 가벼웠는데 refactor로 LogContent 3개를 정적 import해 청크가 무거워지며 이 레이스를 깨움.
 - **재발 방지**: (1) **lazy 컴포넌트 두 개가 같은 트리에 동시 첫 마운트되는 구조를 피한다** — 한쪽이 모달/오버레이로 다른 쪽을 덮으면, 덮이는 쪽은 아예 마운트하지 않는다(트림 대기 중 IssueTab이 DraftingPanel을 마운트 안 함, `ReplayContext.trimming` 플래그). `grep -rn "lazy(" src/sidepanel`로 동시 마운트 후보를 점검. **덮는 쪽과 덮이는 쪽이 반드시 같은 값에서 파생돼야 한다** — 게이트를 둘로 나누면 해제 순간 둘 다 뜬다(2026-07-17에서 store `replayTrim` 단일 값으로 합침). (2) **외부 라이브러리 storage 접근 전 존재 가드** — `editor.storage.markdown` 같은 비동기 초기화 storage는 throw 대신 빈 값 반환(`editorMarkdown`가 안전망). `grep -rn "\.storage\." src/sidepanel/components/TiptapEditor.tsx`. (3) **이 증상이 e2e capture flaky(captureVisibleTab cold-start)에 가려져 한참 "환경 문제"로 오판**했다 — 캡처 의존 e2e가 빨갛다고 환경 탓만 하지 말고, **실제 빌드+Chrome 수동 재현**으로 src 회귀를 분리한다. "특정 모드만 깨짐"(여기선 replay만)이 src 인과의 결정적 단서. (4) 단위 `TiptapEditor.test.ts > editorMarkdown`(storage 없으면 "" 반환).
@@ -369,6 +529,9 @@
 
 ## 2026-06-30 — Slack 승격 미디어 가드를 7개 트래커로 확장 (업로드 모델이 달라 균일 복제 불가 — 가능한 곳만 가드, 불가한 곳은 명시)
 
+- **영역**: `어댑터`
+- **계열**: `복제본`
+- **그물**: `unit`
 - **증상**: GitHub 단독 픽스(아래 항목)의 `requireMediaUpload` 가드가 **GitHub 핸들러에만** 있었다. Slack 보존 이슈를 GitHub *외* 트래커로 승격하면 동일한 미디어 업로드 부분 실패에서 여전히 `markSubmitted`가 원본을 비가역 파괴한다(아래 항목 재발방지 (3)이 경고했던 미수정 갭).
 - **근본 원인**: 7개 어댑터의 업로드 모델이 제각각이라 GitHub 패턴을 그대로 복제할 수 없다. **업로드→생성 + soft-fail(href/url:null)** 인 GitHub·GitLab만 "생성 전 누락 감지 후 throw" 가드가 성립한다. 나머지는 (a) **Linear**: 미디어를 생성 전 업로드하되 실패 시 **throw**(soft-fail 맵 없음) → 가드 효과가 이미 내재, (b) **Notion**: 이미지·비디오는 생성 전 strict throw라 안전하고 **사용자 첨부(category `other`)만 soft-fail** 갭, (c) **ClickUp·Asana**: **생성→업로드 역순**(첨부에 task id/parent gid 필요)이라 업로드 실패를 안 시점엔 task가 이미 존재 → 사전 throw 가드 **구조적 불가**, (d) **Jira**: 업로드+생성이 **단일 atomic 호출**이라 프론트가 첨부 부분 실패를 신호받지 못함. "전 플랫폼에 같은 한 줄"이라는 직관이 어긋나는 지점.
 - **재발 방지**: (1) **가능한 곳만 가드, 불가한 곳은 코드 주석 + 이 문서로 명시**한다(은폐 금지). 추가분: **GitLab** = GitHub 가드 직접 복제(`someUploadMissing` 재사용, `href`→`url`), **Notion** = 승격 시 `other` 첨부도 strict throw(`requireMediaUpload && category==="other"`). (2) **소실 위험이 남은 트래커**: ClickUp·Asana(생성→업로드)·Jira(atomic). 보호하려면 *사전 upload-probe* 또는 *생성 task 롤백* 또는 *background 핸들러가 첨부 실패를 반환*하도록 프로토콜 변경이 필요 — 단순 가드로 안 됨. 새 작업 전 `grep -n "승격 가드" src/sidepanel/tabs/DraftDetailDialog.tsx`로 현 상태 확인. (3) **새 트래커 어댑터를 추가할 때** 그 업로드 모델이 위 (a)~(d) 중 무엇인지 먼저 분류하고, 승격 가드 가능 여부를 `markSubmitted` 옆 주석에 박는다. (4) 단위 `submitToGitlab.test.ts`/`submitToNotion.test.ts > requireMediaUpload`(미디어/첨부 실패 → submit 0회, 로그 실패는 best-effort).
@@ -378,6 +541,9 @@
 
 ## 2026-06-30 — Slack 이슈 GitHub 승격 실패 시 원본까지 소실 (업로드 soft-fail이 실패로 안 잡혀 비가역 파괴 진행)
 
+- **영역**: `어댑터`
+- **계열**: `fail-open`
+- **그물**: `unit`
 - **증상**: Slack으로 제출한 이슈를 GitHub로 승격 시도 → GitHub 인증 문제로 실패했는데, 실패 후 원본 **Slack 보존 이슈까지 목록에서 사라짐**(복구 불가).
 - **근본 원인**: 승격이 **원자적이지 않다**. `submitToGithub`은 2단계(`github.uploadFiles`→`github.submitIssue`)이고, 성공 resolve 시 `markSubmitted`→`stripSubmitted`가 `slackPreserved`·draft·snapshot·blob을 **전부 파괴**한다(되돌릴 수 없음). 그런데 파일 업로드 `uploadGithubFiles`는 **모든 실패 경로**(github.com 쿠키 세션 401·403, S3 에러, 탭 없음, injection 실패)를 throw가 아니라 `href: null`로 **soft-fail 반환**하고, `submitToGithub`은 `logsDropped`만 계산하고 그대로 `submitIssue`로 진행했다. 그래서 **OAuth 토큰은 살아있고(=submitIssue 성공) github.com 쿠키 세션만 죽은** 부분 실패에서, 깨진 이미지 링크의 GitHub 이슈가 생성되며 `markSubmitted`가 돌아 원본을 폐기했다. 표면("실패 후 소실")과 원인("업로드 soft-fail이 실패로 취급 안 됨 + 비가역 파괴가 업로드 성공과 무관")이 다른 레이어. 역설적으로 **OAuth 토큰 자체가 죽으면** `loadGithubAuth`가 업로드 *전에* throw해 오히려 안전 — 쿠키 세션만 죽는 부분 실패가 유일한 소실 경로라 재현이 까다로웠다.
 - **재발 방지**: (1) **원본을 비가역 파괴하는 흐름(markSubmitted의 slackPreserved 폐기·blob 삭제)은 미디어 업로드 성공을 확인한 뒤에만** 진행한다 — `submitToGithub({requireMediaUpload})`가 미디어(로그 제외) href 누락 시 `submitIssue` 전에 throw해 markSubmitted 미도달·원본 보존. 승격(`isSlackPreserved`)일 때만 엄격, 일반 제출은 best-effort 유지. (2) **`uploadGithubFiles`는 절대 throw하지 않는 계약**임을 기억 — `grep -n "href: null" src/background/github-upload.ts`로 모든 실패가 soft-fail임을 확인. 호출부가 null href를 실패로 *해석*해야 하며, sendBg가 throw해 주리라 가정하면 안 된다. (3) 새 플랫폼 승격/비가역 제출을 추가할 때 `await submitToXxx` 다음 줄에서 `markSubmitted`를 부르기 전에, 그 submit이 **업로드 부분 실패를 어떻게 신호하는지**(throw인지 silent인지) 확인 — `grep -rn "markSubmitted" src/sidepanel/tabs/DraftDetailDialog.tsx`. (4) e2e `slack-promote-media-guard.spec`(미디어 업로드 실패 → submitIssue 0회·원본 불변) + 단위 `submitToGithub.test.ts > requireMediaUpload`.
@@ -387,6 +553,9 @@
 
 ## 2026-06-30 — Slack 채널·멘션 직전값 미기억 (7개 어댑터 중 Slack만 prefill 우선순위 역전)
 
+- **영역**: `어댑터`
+- **계열**: `복제본`
+- **그물**: `unit`
 - **증상**: Slack 이슈를 제출할 때 직전에 고른 채널·멘션이 기본값으로 안 떴다. 통합 설정에 "기본 채널"을 지정해 둔 경우 그 기본 채널만 뜨고, 직전에 쓴 채널과 멘션은 매번 사라짐.
 - **근본 원인**: `initialSlackFields`가 `defaults?.channelId ?? last?.channelId`로 **사용자 지정 기본 채널을 직전 제출 채널보다 우선**했다. 기본 채널이 한 번 설정되면 직전 채널이 영구히 가려지고, 멘션 복원이 `sameChannel`(last.channelId === 해석된 channelId) 게이트에 묶여 있어 기본 채널 ≠ 직전 채널이면 **멘션까지 드롭**된다. GitHub·Linear·Notion·GitLab은 동일 위상 필드(repo/team/database/project = 제출 목적지)에서 전부 **last 우선**(`last?.x ?? defaults` 또는 `last?.x ? last : defaults`)인데 Slack의 channel만 역전돼 있었다. 7개 플랫폼의 `initial*Fields`가 "제출 목적지 필드는 last 우선"이라는 같은 규칙을 공유해야 하는데 하나만 어긋난 케이스. (Asana/ClickUp이 `defaults` 우선인 건 그게 **workspace = 가장 거친 스코프**라 의도적이고, 하위 project/assignee는 `sameWs ? last : defaults`로 여전히 last를 반영 — Slack의 channel은 거친 스코프가 아니라 제출 목적지 자체라 repo/team에 대응.)
 - **재발 방지**: (1) **새 플랫폼 IssueFields의 `initial*Fields`는 주 제출 목적지 필드를 last 우선**으로 박는다(`defaults`는 last가 없을 때 fallback). `grep -rn "defaults?\." src/sidepanel/tabs/*Fields/*.tsx` 또는 `grep -rln "initial.*Fields" src`로 7개 어댑터의 우선순위 일관성을 전수 대조 — `defaults?.x ?? last` 패턴이 **제출 목적지 필드**에 보이면 역전 의심. (2) Asana/ClickUp의 `defaults` 우선은 **workspace(거친 스코프) 한정** 예외임을 기억 — channel/repo/team/project/database 같은 목적지 필드는 last 우선이 규칙. (3) 단위 `SlackIssueFields.test.ts`(기본≠직전일 때 last 우선·멘션 복원) + e2e `slack-submit-gating.spec`(채널/멘션 복원).
@@ -396,6 +565,8 @@
 
 ## 2026-06-29 — captureVisibleTab 쿼터 초과로 스냅샷 실패 (캡처 호출처 N개가 직렬화 큐 없이 경쟁)
 
+- **영역**: `background`, `미디어`
+- **그물**: `unit`
 - **증상**: 30s 리플레이가 켜진 상태에서 엘리먼트 스냅샷·스타일 before/after를 찍으면 `BgError: This request exceeds the MAX_CAPTURE_VISIBLE_TAB_CALLS_PER_SECOND quota.` → 콘솔에 `[bugshot] snapshot failed`, 스냅샷 null 반환.
 - **근본 원인**: Chrome `chrome.tabs.captureVisibleTab`는 **윈도우 단위로 초당 2회**(`MAX_CAPTURE_VISIBLE_TAB_CALLS_PER_SECOND`) 제한인데, 캡처를 쏘는 경로가 4개(30s 리플레이 폴링 600ms·`use-30s-replay.ts`, 엘리먼트 스냅샷·`capture.ts`, 스타일 next after·`StyleEditorPanel`, element 전환 buffer·`useBufferThenSwitch`)고 전부 background `captureVisibleTab` 핸들러를 **직렬화·간격 제어 없이** 그대로 호출했다. 리플레이 폴링 단독으로도 한계 근처(~1.67회/초)라, 사용자 액션 캡처가 같은 1초 창에 끼면 초과. 표면("스냅샷 1건 실패")과 원인(**전역 캡처 호출 빈도가 쿼터를 넘음** — 한 호출처가 아니라 경합)이 다른 레이어. 리플레이 tick은 에러를 `catch {}`로 삼켜 증상이 사용자 액션 경로에서만 드러났다.
 - **재발 방지**: (1) **captureVisibleTab은 반드시 한 큐로 직렬화 + 최소 간격**을 거친다 — background 핸들러가 `captureThrottle.run()` 경유(`src/background/capture-throttle.ts`). 새 캡처 경로를 추가할 때 background 핸들러를 우회해 `chrome.tabs.captureVisibleTab`을 직접 부르면 다시 깨진다. `grep -rn "captureVisibleTab" src/` 결과는 **호출처(sendBg type 발신)만** 늘어야 하고 실제 API 호출은 `messages.ts` 1곳·`capture-throttle` 경유로 유지. (2) **rate-limit은 정상 동작 — 재시도로 흡수**한다(`isCaptureRateLimitError` 매칭 시만 백오프, 그 외 에러는 즉시 throw해 탭 닫힘 등을 무한 재시도하지 않음). (3) 단위 테스트(`capture-throttle.test.ts`)로 직렬화·최소 간격·재시도·실패 격리 고정.
@@ -405,6 +576,9 @@
 
 ## 2026-06-29 — 스타일 패널 Transition 섹션이 트랜지션 없어도 항상 펼침 (computed longhand 유령 기본값)
 
+- **영역**: `스타일해석`
+- **계열**: `라이브러리전제`
+- **그물**: `unit`
 - **증상**: 스타일 에디터에서 섹션 초기 펼침 조건을 손본 뒤, Transition 섹션만 어떤 요소를 골라도 **항상 펼쳐진** 상태로 떴다. 실제로 transition이 걸린 요소가 아닌데도 "값 있음"으로 취급.
 - **근본 원인**: `sectionDefaultOpen`은 specified에 키가 없으면 computed 값이 `isKnownDefault`인지로 펼침을 판단한다. 그런데 `getComputedStyle`은 **트랜지션이 전혀 없는 요소에도 transition-* longhand 4개를 항상 채워** 돌려준다(`transition-property: all`, `transition-duration: 0s`, `transition-timing-function: ease`, `transition-delay: 0s`). 이 4개가 `KNOWN_DEFAULTS`(propMetadata.ts)에 빠져 있어 `isKnownDefault`가 `false`(테이블에 prop 없음 → 기본값 아님) → 늘 "값 있음" → 항상 펼침. 표면("섹션 펼침 로직 버그")과 원인(특정 longhand 그룹의 computed 기본값 미등록)이 다른 레이어다. **getComputedStyle이 longhand로 항상 채우는 단축 프롭(transition·animation·background·font·grid 등)은 전부 같은 함정** — shorthand 섹션을 추가할 때마다 재발한다.
 - **재발 방지**: (1) **새 스타일 섹션을 `SECTION_PROPS`에 추가하면 그 prop들의 computed 기본값을 `KNOWN_DEFAULTS`에 동시 등록**한다 — 안 하면 그 섹션은 무조건 펼침. `grep -n "transition\|animation\|background-\|grid-" src/sidepanel/tabs/styleEditor/propMetadata.ts`로 longhand 그룹 커버리지 확인. (2) **전수 체크**: `SECTION_PROPS`(StyleEditorPanel.tsx)의 모든 prop이 `KNOWN_DEFAULTS` 또는 `isInactiveBorderColor` 같은 별도 가드로 "기본값 판정"이 가능한지 — getComputedStyle은 거의 모든 prop을 빈값 아닌 resolve값으로 돌려주므로, KNOWN_DEFAULTS에 없으면 그 prop은 항상 활성으로 샌다. (3) 단위 테스트(`propMetadata.test.ts`)로 computed 기본값 → `isKnownDefault` true, 실제 값 → false를 섹션별로 고정.
@@ -414,6 +588,9 @@
 
 ## 2026-06-28 — 내보낸 로그 뷰어 라벨이 i18n 키 raw 노출 + 검색 placeholder stale (복제 dict 미동기화)
 
+- **영역**: `i18n`
+- **계열**: `복제본`
+- **그물**: `unit`
 - **증상**: 다운로드한 `logs.html`(로그 뷰어)에서 액션 로그 필터가 번역 대신 `actionLog.filter.keypress`처럼 **키 문자열 그대로** 노출. 네트워크 탭 검색 placeholder도 "URL 검색…"이라 본문(body)까지 검색되는 걸 안내 못 함.
 - **근본 원인**: log-viewer는 사이드패널과 **별도 standalone 번들**(`dist-log-viewer`, 빌드 시 사이드패널에 inline)이라 메인 React i18n 시스템을 import 못 하고 `src/log-viewer/i18n.ts`에 ko/en dict를 **수작업 복제**한다. 메인 테이블(`src/i18n/namespaces/logs.ts`)에 키가 추가(`actionLog.filter.keypress/toggle/select`)되거나 문구가 갱신(`networkLog.search`에 "·본문" 추가)될 때 복제본이 안 따라온 게 근본. 두 실패 모드가 다른 얼굴을 한다: (1) **누락** = 복제 dict에 키 자체가 없어 `t()`가 키 문자열로 폴백 → raw 노출. (2) **drift** = 키는 있는데 값이 옛 문구 → 조용히 stale. 기존 log-viewer 테스트의 ko/en 대칭 검사는 **양쪽 dict에 동시에 빠지면** 대칭이 유지돼 누락을 못 걸렀다(대칭 ≠ 완전성).
 - **재발 방지**: (1) **복제 dict의 회귀는 ko/en 대칭으론 안 잡힌다 — 메인 테이블을 source of truth로 대조**해야 한다. 추가한 두 검사(`log-viewer/__tests__/i18n.test.ts`): 코드가 `t("리터럴")`로 참조하는 키 전부가 dict에 존재(누락 차단) + 메인과 공통 키는 값도 일치(drift 차단). (2) **메인 i18n 키·문구를 바꾸면 log-viewer dict도 본다** — `grep -nE '"(actionLog|networkLog|consoleLog|debug)\.' src/log-viewer/i18n.ts`로 복제 범위 확인. (3) **이미 내보낸 `logs.html`은 빌드 시점 i18n이 박혀 소급 수정 안 됨** — `pnpm build:log-viewer` 후 재내보내기 필요(고쳐도 옛 파일은 그대로). (4) 같은 "standalone 번들이 메인 모듈을 복제" 함정 류: recorder pre-arm 청크(외부 static import 0 제약, `content/log-throttle.ts` vs `sidepanel/lib/trailing-throttle.ts` 복제)도 동일 구조 — **복제본은 늘 대조 테스트로 묶는다.**
@@ -423,6 +600,9 @@
 
 ## 2026-06-28 — 사이드패널 탭 녹화가 cross-origin 이동 후 권한 에러 (activeTab은 패널에선 재취득 불가)
 
+- **영역**: `미디어`, `background`
+- **계열**: `cross-origin`
+- **그물**: `수동`
 - **증상**: A origin에서 사이드패널을 연 뒤 B origin으로 이동하고 탭 녹화를 누르면 `getMediaStreamId`가 "extension has not been invoked"로 거부됐다. `host_permissions: <all_urls>`를 required로 갖고 있는데도 막혀서 "광역 권한 있는데 왜?"
 - **근본 원인**: 두 겹의 비자명 함정. (1) **`<all_urls>`는 `tabCapture`를 커버하지 못한다** — `captureVisibleTab`은 `<all_urls> OR activeTab`이라 30s Replay가 광역 권한으로 우회됐지만, `tabCapture.getMediaStreamId`는 host permission으로 대체 불가하고 **"현재 페이지에서 확장이 invoke됨"(activeTab) 상태가 필수**다(Chrome이 `<all_urls`로 tabCapture 허용하는 옵션을 의도적으로 거부). (2) **사이드패널 열기는 activeTab을 부여하지 않는다** — Chrome 공식 입장("패널 열기는 충분한 user intent가 아님", 변경 계획 없음). 그래서 패널을 연 invoke(아이콘 클릭/단축키)의 activeTab은 그 origin에만 유효하고, cross-origin 이동 시 회수된다. 패널 내부 버튼 클릭은 invoke가 아니라 activeTab을 새로 주지 못한다. Jam이 같은 증상을 안 겪는 건 **popup 기반**이라 매 녹화가 아이콘 클릭(=invoke)에서 시작해 현재 탭에 activeTab을 fresh하게 받기 때문 — 아키텍처 차이지 우회 트릭이 아니다.
 - **재발 방지**: (1) **`chrome.permissions.request(['activeTab'])`로 activeTab을 "재취득"하려는 시도는 무효다** — activeTab은 optional permission처럼 request로 부여되지 않고 오직 사용자 invoke(action click·command 단축키·contextMenu)로만 생긴다. Jam popup이 이걸 부르는 건 popup이 이미 아이콘클릭 activeTab을 가진 상태의 보강일 뿐, 사이드패널에선 효과 없다(첫 패치가 이걸로 실패함). (2) **사이드패널에서 tabCapture가 막히면 정공법은 getDisplayMedia 폴백** — 단 user activation 보존이 관건이다. 스트림 획득(`getMediaStreamId`)을 핸들러의 **첫 await**로 빼야, 실패 시점에 activation이 살아있어 곧장 getDisplayMedia picker를 띄울 수 있다. `getMediaStreamId`는 미디어 캡처 API가 아니라 실패해도 activation을 소비하지 않는다. (3) **스트림 획득과 recorder 시작을 분리**(`startTabStream`/`beginTabRecording`)해 그 사이에 `prepareRecorders`(로그 레코더 준비)를 끼운다 — 붙여두면 폴백 위해 분리할 때 streamId 만료(수초) 위험. 로그가 녹화 시작 시점부터 잡히도록 recorder.start는 prepareRecorders 뒤. (4) 새 캡처 진입점을 추가할 때 `grep -rn 'getMediaStreamId\|getDisplayMedia\|captureVisibleTab' src`로 권한 모델(activeTab 요구 vs 광역 허용)을 분기별로 확인 — 셋이 권한 요구가 다 다르다.
@@ -432,6 +612,9 @@
 
 ## 2026-06-28 — 하드코딩 색(placeholder)·입력중·diff에서 색 swatch 누락 (value 분기만 칠함)
 
+- **영역**: `디자인`, `스타일해석`
+- **계열**: `복제본`
+- **그물**: `시각`
 - **증상**: 요소 색이 `#444444`처럼 하드코딩이면 스타일 편집기 필드에 색 미리보기 사각형(swatch)이 안 떴다. 같은 hex를 사용자가 combobox로 직접 입력하면 swatch가 떴다. "prefill인데 왜 색 칩만 없나?"
 - **근본 원인**: swatch가 **렌더 분기마다 따로 인라인**돼 있고 각 분기가 독립적으로 swatch 여부를 결정했다. `ValueCombobox`는 `value`(사용자 입력 = `inlineStyle[prop]`) 분기에만 swatch를 그렸고, 페이지 하드코딩 색은 `value`가 아니라 `placeholder`(`specifiedStyles`/`computedStyles`)로 들어온다. placeholder 분기는 토큰 참조(`var(...)`)만 칠하고 일반 색 리터럴은 텍스트만 표시 → 누락. 같은 누락이 manual-input 드롭다운 항목·diff 비교 뷰(`DiffValue`)에도 독립적으로 존재했다. "색이 있으면 swatch"라는 불변식이 한 곳이 아니라 **N개 렌더 분기에 흩어져** 있어, 한 분기(value)만 충족하고 나머지는 조용히 빠진 게 핵심.
 - **재발 방지**: (1) **swatch는 분기마다 인라인하지 말고 단일 컴포넌트(`ColorSwatch`)를 거치게** 한다 — 색 표시 지점이 늘 때 swatch를 빠뜨릴 구조적 여지를 없앤다. 색을 텍스트로 그리는 새 지점을 추가하면 `isRenderableColorLiteral(v)`면 `ColorSwatch`도 같이. (2) **전수 점검 grep**: `grep -rn 'backgroundColor\|isRenderableColorLiteral\|ColorSwatch' src/sidepanel`로 색 렌더 지점을 모아 swatch 동반 여부 확인 — value/placeholder/manual-input/diff처럼 분기가 갈리면 각각 본다. (3) swatch 스타일도 분기·content script마다 제각각이었다(필드 10px/12px·radius 4px vs picker 툴팁 12px/3px) — `ColorSwatch`로 필드를 picker `.pl-swatch`에 통일. content script(`overlay.ts`)는 raw HTML이라 컴포넌트 공유 불가, 시각만 맞춤(리팩터 시 양쪽 동기 주의). (4) `isRenderableColorLiteral=false`(`currentColor`·`inherit`·`calc()`)는 미리보기 불가라 의도적 텍스트-only — computed는 이미 `rgb()`로 resolve돼 통과.
@@ -441,6 +624,9 @@
 
 ## 2026-06-28 — 테두리 없는 요소에 유령 border-color(글자색)가 실제 값처럼 노출
 
+- **영역**: `스타일해석`
+- **계열**: `라이브러리전제`
+- **그물**: `unit`
 - **증상**: `course-chatbot-nine.vercel.app`의 form(`.welcome-form form`)은 DevTools Styles에 border/border-color 선언이 **전혀 없는데** BugShot 스타일 편집기가 `rgb(45, 49, 54)`를 border-color로 뿌렸다(= 그 요소의 글자색). border 섹션도 자동으로 펼쳐졌다. "DevTools엔 없는 색이 왜 뜨나?"
 - **근본 원인**: 증상(border-color 값)과 원인(다른 레이어)이 어긋났다. `getComputedStyle`은 테두리가 없어도(`border-style:none`/`border-width:0`) `border-{side}-color`를 **항상 `currentColor`의 resolve값**(= `color`, 여기선 `rgb(45,49,54)`)으로 돌려준다. `propMetadata.ts`의 `KNOWN_DEFAULTS`엔 `"border-*-color": ["rgb(0, 0, 0)", "currentcolor"]`로 기본값을 박아뒀지만 **`"currentcolor"` 엔트리는 dead** — `getComputedStyle`은 그 키워드를 절대 리터럴로 안 돌려주고 이미 concrete rgb로 해석해 준다. 그래서 `isKnownDefault`가 매칭에 실패 → 유령색이 non-default로 판정 → `sectionDefaultOpen`이 섹션을 펼치고 `ValueCombobox`가 값을 실값처럼 표시. **border-color는 단독으로 의미가 없고 같은 side의 style/width에 종속**인데 그 cross-prop 가드가 없었던 게 핵심.
 - **재발 방지**: (1) **dead keyword default 패턴** — `KNOWN_DEFAULTS`에 `currentcolor`/`auto`/`medium`처럼 *getComputedStyle이 concrete로 resolve해 버리는 키워드*를 적는 건 무효다. `getComputedStyle`이 그 키워드를 그대로 돌려주는지 콘솔로 먼저 확인하고 박을 것. 같은 함정이 `width/height: ["auto"]`에도 잠재(이번엔 실해 없어 미수정 — `auto`→used px라 Size 섹션이 늘 펼쳐지지만 진짜 크기라 무해). (2) **cross-prop 종속 값** — 한 prop의 의미가 다른 prop에 묶이면(border-color↔style/width) 단일 `isKnownDefault(prop, value)`로는 못 거른다. computedStyles 전체를 받는 가드(`isInactiveBorderColor`)가 필요. 비활성 = `style===none OR width===0px`(가시 조건 `style!=none AND width>0`의 드모르간). (3) 같은 판정을 쓰는 **3곳을 동시에** 맞춰야 한다 — `grep -rn 'isInactiveBorderColor\|isKnownDefault' src/sidepanel`로 `sectionDefaultOpen`(섹션 펼침)·`ValueCombobox`(값 디밍) 누락 점검. author가 명시한 값은 가드를 우회해야(`specifiedStyles` 존중) 두 경로가 일관. 순수 함수는 `propMetadata.test.ts`·`sectionDefaultOpen.test.ts`로 고정.
@@ -450,6 +636,9 @@
 
 ## 2026-06-28 — cross-origin 전용 custom prop 토큰은 이름만 뜨고 swatch/hex hint 누락
 
+- **영역**: `스타일해석`
+- **계열**: `cross-origin`
+- **그물**: `unit`
 - **증상**: naver(`#account > div > a`)에서 `--color-primary-background-default` 같은 변수가 스타일 편집기에 **이름은 잘 뜨는데** 옆의 색 swatch·hex 미리보기가 안 떴다. 값(`var(--…)`)도 정상 표시. "이름은 찾았는데 왜 색 칩만 없나?"
 - **근본 원인**: **변수 이름과 swatch가 서로 다른 데이터 경로**에서 나온다. 이름은 속성 값 문자열을 `extractTokenRefs`가 정규식으로 뽑아 항상 표시되지만, swatch는 `findTokenValue(tokens, name)`로 store `tokens` 배열에서 그 변수를 찾아야 칠해진다. 그 배열을 만드는 `collectTokens`(`css-resolve.ts`)는 same-origin `cssRules`(cross-origin이면 `sheet.cssRules`가 throw→`catch{}`로 skip)와 inline만 모아서, cross-origin 시트에 정의된 변수는 `tokens`에 안 들어가 `findTokenValue`가 undefined → swatch 누락. 값 경로(`mergeCrossOriginDecls`)는 이미 cross-origin 보강을 소비하는데 토큰 수집 경로만 비대칭으로 빠져 있었다(2026-06-28 위 항목·06-27 항목과 **같은 "same-origin/cross-origin 경로 비대칭" 가족**).
 - **1차 fix가 불충분했던 이유 (핵심 교훈)**: 처음엔 `collectTokens`가 `getCrossOriginCustomProps()`를 merge하도록 고쳤다(변수 **정의** 수집). 그런데 그게 잡는 건 cross-origin **`:root`/`html`/`*` 전역 셀렉터** 정의뿐(`GLOBAL_CUSTOM_PROP_SELECTORS` 필터). naver는 토큰을 **스코프 셀렉터**(테마 클래스/`[data-theme]`)에 정의해서 그 필터를 빠져나가 여전히 누락. **정의 수집은 fetch 성공 + 전역 스코프 두 전제에 의존**한다. 진짜 해법은 정의가 아니라 **참조**를 모으는 것: 요소의 specified 값에 남아있는 `var(--x)` 참조 이름만 `seen`에 넣고(`collectReferencedTokenNames`), 값은 `getComputedStyle(el).getPropertyValue('--x')`가 채우게 한다 — `getComputedStyle`은 **출처·스코프·fetch 여부 무관**하게 적용된 custom prop을 concrete 값으로 해석(콘솔에서 `--color-primary-background-default` → `#03A94D` 확인). 즉 cross-origin enrichment 자체에 매달리지 말고, **브라우저가 이미 해석해 둔 computed 값을 쓰라**.
@@ -460,6 +649,9 @@
 
 ## 2026-06-28 — cross-origin author 스타일에서 var() 토큰이 일부 prop만 computed로 강등
 
+- **영역**: `스타일해석`
+- **계열**: `cross-origin`
+- **그물**: `unit`
 - **증상**: naver 로그인 버튼(`#account > div > a`)에서 `background-color`는 토큰(`var(--…)`)으로 잡히는데 `color`·`border-color`는 computed 리터럴로 표시. DevTools Styles엔 셋 다 `var()` 존재. "왜 일부 prop만 토큰?"
 - **근본 원인**: `mergeCrossOriginDecls`(`css-resolve.ts`)가 cross-origin 매칭 룰을 seq 오름차순 **무조건 last-wins**로 병합했다. same-origin 경로(`collectRulesForElement`의 decl 루프)엔 있던 var 보존 가드(`out[name]?.includes("var(") && !val.includes("var(")` → skip)가 cross-origin 병합엔 빠져 있었다(8c949b4가 shorthand-claim 가드만 추가하며 누락). `<a>`처럼 한 prop이 여러 룰에서 재선언되면(테마 `color: var(--fg)` → 일반 `a { color:#333 }` 리셋) 이른 토큰을 나중 리터럴이 덮어 강등. `background-color`는 `<a>`에 단일 선언이라 안 덮여서 토큰 유지 → "일부 prop만 토큰" 비대칭. `styleHooks`의 `placeholder = specified || computed`라 specified가 비어서가 아니라 **리터럴로 채워져** computed처럼 보였다(빈 폴백 아님 — 강등).
 - **두 번째 메커니즘 (같은 증상, 다른 원인)**: border는 naver가 `border: 1px solid var(--color-neutral-stroke-subtle-2)` **shorthand**로 선언. `border`는 width|style|color 혼합이라 `SHORTHAND_MAP`(동질 longhand 리스트/TRBL split 전제)에 없어 `expandShorthands`가 border-*-color로 전개하지 못했다 → color 토큰이 specified에 안 잡혀 computed로 폴백. 토큰 클로버(첫 메커니즘)와 별개로, **shorthand 미전개**가 원인. `parseBorderShorthand`(토큰을 width/style/color로 분류, 모호한 var는 color로)로 분해해 `border`/`border-{side}`를 변별 longhand에 fill-if-absent 전개.
@@ -470,6 +662,9 @@
 
 ## 2026-06-27 — cross-origin stylesheet면 스타일 섹션이 전부 접혀 "값 있는데 안 보임"
 
+- **영역**: `스타일해석`
+- **계열**: `cross-origin`
+- **그물**: `e2e`
 - **증상**: naver.com 로그인 버튼(`#account > div > a`)을 picker로 선택하면 BugShot 스타일 편집기에 클래스명만 보이고 스타일 섹션이 전부 비어 보였다. 개발자도구 Styles 패널에선 정상으로 보였다.
 - **근본 원인**: 두 레이어가 겹쳤다. (1) 스타일 수집의 specified(author rule) 채널은 `sheet.cssRules` 접근 시 cross-origin이면 SecurityError, fetch도 cross-origin이면 skip(`css-source-cache.ts:fetchSheetText`) → naver는 CSS가 `pstatic.net`(페이지는 `naver.com`)이라 specified가 통째로 빈다. (2) `StyleEditorPanel.tsx`의 섹션 `defaultOpen`이 specified 채널에만 묶여 있어(`props.some(p => p in specifiedStyles)`), specified가 비면 **모든 섹션이 접힌 채 시작**. computed 값(getComputedStyle, cross-origin 무관)은 살아있어 수동으로 펼치면 보였다 — 그래서 "값은 있는데 안 보임". 표면 증상은 "스타일 수집 실패"인데 사용자 체감 원인은 UI 펼침 상태였다.
 - **재발 방지**: cross-origin이면 비는 채널(specifiedStyles·propSources·var() 토큰 전개)에 UI 가시성/상태를 **단독으로** 묶지 말 것 — computed fallback을 함께 본다. `grep "specifiedStyles\|propSources"`로 그 채널에 의존하는 UI 분기를 점검. 단순 `specified || computed` OR는 금물(computed는 `INTERESTING_PROPS` 전부 항상 채워서 모든 섹션이 늘 펼쳐짐) → "specified 전무일 때만 computed fallback" 분기. e2e는 `127.0.0.1` 페이지 + `localhost` stylesheet로 cross-origin 재현(`style-cross-origin-section.spec.ts`, fixture 서버 `.css`는 `text/css`로 — text/html이면 strict MIME 거부).
@@ -479,6 +674,9 @@
 
 ## 2026-06-25 — video + action-only일 때 logs.html이 본문에서 누락
 
+- **영역**: `어댑터`
+- **계열**: `복제본`
+- **그물**: `unit`
 - **증상**: 녹화(video) 모드에서 콘솔/네트워크 로그 없이 **액션 로그만** 있을 때, logs.html이 이슈에 첨부되지 않는 것처럼 보였다.
 - **근본 원인**: `MarkdownContext`에 액션 로그 요약 필드가 아예 없었다. 이슈 본문 빌더 8개(`emitLogSummary*`)가 전부 `if (!net && !con) return`으로 로그 요약 섹션을 게이트해, 액션만 있으면 섹션을 통째로 스킵했다. `buildCaptureFiles`는 logs.html을 정상 생성·업로드했지만 본문이 참조(href/링크 노드)를 안 넣어 첨부가 고아가 됐다(GitLab/GitHub는 링크 누락, Jira ADF는 `injectLogsLink`가 붙을 노드 자체가 없음).
 - **재발 방지**: 로그/미디어 종류를 본문에 노출·변경할 땐 `grep "emitLogSummary"`로 **8개 빌더**(buildIssueMarkdown md/html · buildIssueAdf · linear/github/gitlab/asana/notion)와 ctx 생성 **4곳**(buildMarkdownContext 헬퍼 · buildEditorMarkdownContext · PreviewPanel · DraftDetailDialog)을 전수 확인한다. 빌더 한 곳만 고치면 나머지 7곳이 조용히 빠진다. 빌더별 회귀 테스트 필수.
