@@ -36,6 +36,19 @@
 
 ---
 
+## 2026-07-28 — 리뷰가 "abort 누락"이라 부른 것이 re-adopt의 생명줄이었고, signal을 무시하는 mock이 그 회귀를 green으로 통과시켰다
+
+- **영역**: `AI`
+- **계열**: `미검증단언`, `취소래치`
+- **그물**: `jsdom`
+- **증상**: 재현 단계 AI 자동 채움이 진행 중일 때 게이트를 왕복하면(트림 오버레이 개폐·섹션 토글 등) `stepsToReproduce`가 **영구히 안 채워지고** 그 위에 실패 토스트까지 떴다. `reproPrefillDone`이 이미 래치돼 재시도도 없다. 출하 전에 잡았지만 `pnpm test` 4236개가 **전부 green인 채로** 커밋 직전까지 갔다.
+- **근본 원인**: `/code-review`가 "cleanup에 `controller.abort()`가 없다"를 🟡로 지목했고 그대로 1줄을 넣었는데, **그 부재가 설계였다.** effect cleanup은 언마운트와 deps 변경 재실행을 구분하지 못한다. 그래서 `cancelled`는 "비자발 취소 — 되살릴 수 있음"으로 정의돼 있고, 게이트가 다시 열리면 상단 re-adopt 분기가 `prev.cancelled = false`로 **같은 in-flight 요청을 되살려** 결과를 이어받는다(`useReproPrefill.ts:92-100`). cleanup에서 진짜로 끊으면 되살릴 요청이 이미 죽어 있고, 되살아난 `cancelled=false` 탓에 catch의 `if (!run.cancelled)` 가드까지 통과해 AbortError 토스트가 뜬다. abort가 정당한 자리는 `userCancelled`를 함께 세우는 canceller뿐이다 — 거기만 re-adopt가 되살리지 않는다.
+- **재발 방지**:
+  1. **AbortSignal을 넘기는 코드에 회귀 테스트를 걸 땐 mock이 signal을 존중하는지 먼저 본다.** 이 함정을 막으려고 존재하던 테스트("in-flight 중 게이트가 껐다 켜져도 …이어받는다")가 green이었던 이유는 `generateReproStepsWithAI` mock이 `input.signal`을 그냥 버려서다. `grep -rn "signal" src/sidepanel/**/__tests__/` 로 signal을 받는 mock을 훑고, 단언이 결과값에만 걸려 있으면 `signal.aborted`를 직접 단언하는 케이스를 더한다. 픽스 검증은 "테스트가 green"이 아니라 **문제 코드를 임시로 되돌려 red를 확인**해야 성립한다(이번에도 그렇게 해서 새 케이스만 red, 기존 케이스는 여전히 green임을 확인했다).
+  2. **취소 레인이 둘 이상이면(되살릴 수 있는 취소 / 영구 포기) abort는 되살리지 않는 레인에만 건다.** `grep -rn "controller.abort()\|userCancelled" src/sidepanel`로 콜사이트를 전수하고 각 abort 옆에 되살림 분기가 있는지 본다. cleanup처럼 **호출 이유를 구분할 수 없는 자리**엔 파괴적 동작을 넣지 않는다.
+  3. **리뷰 리포트의 "누락" 판정은 그 부재가 의도인지 먼저 확인한다.** 방어 코드가 없는 게 아니라 **없어야 하는** 경우가 있다 — 근처 주석·되살림 분기·기존 테스트 제목이 그 근거를 들고 있었다.
+- **관련**: `src/sidepanel/hooks/useReproPrefill.ts:92-100`(re-adopt 분기)·`:122-128`(canceller — `userCancelled`와 함께 abort)·`:154-160`(cleanup, abort 금지 근거 주석), 그물 `src/sidepanel/hooks/__tests__/useReproPrefill.test.tsx`("게이트 왕복 cleanup은 in-flight 요청을 abort하지 않는다" — `signal.aborted` 직접 단언). 계열: 같은 날 **2026-07-28**(같은 `미검증단언` — 그때는 설계 문서·헬퍼 계약을 실측 없이 전제), 취소 레인은 **2026-07-16/17**과 같은 구역.
+
 ## 2026-07-28 — 계약을 구현 대신 문서·직관으로 읽어 방어 코드 3개가 조용히 무력화됐다 (소비형 가드·falsy resolve·손으로 맞춘 화이트리스트)
 
 - **영역**: `미디어`, `store`, `background`
