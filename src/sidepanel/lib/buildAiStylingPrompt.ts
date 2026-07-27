@@ -57,6 +57,44 @@ export function isDeniedStyleValue(value: string): boolean {
   return /https?:|\/\//i.test(withoutDataUris);
 }
 
+export function filterDeniedStyleValues(
+  styles: Record<string, string>,
+  tokens: Token[],
+): Record<string, string> {
+  const tokenValues = new Map(tokens.map((token) => [token.name, token.value]));
+  const resolvedIsDenied = (
+    value: string,
+    seen = new Set<string>(),
+  ): boolean => {
+    if (isDeniedStyleValue(value)) return true;
+    for (const match of value.matchAll(/var\(\s*(--[\w-]+)/g)) {
+      const name = match[1];
+      if (seen.has(name)) return true;
+      const tokenValue = tokenValues.get(name);
+      if (!tokenValue) return true;
+      const nextSeen = new Set(seen).add(name);
+      if (resolvedIsDenied(tokenValue, nextSeen)) return true;
+    }
+    return false;
+  };
+
+  return Object.fromEntries(
+    Object.entries(styles).filter(([, value]) => !resolvedIsDenied(value)),
+  );
+}
+
+// 요청이 전부 걸러진 것과 모델이 명시한 빈 배열(= 클래스 전부 삭제)은 다르다. 전자를 []로
+// 내보내면 호출부가 둘을 구분하지 못해 el.className=""까지 흘러가 클래스가 통째로 날아간다.
+export function filterClassListToExisting(
+  requested: string[],
+  existing: string[],
+): string[] | undefined {
+  const allowed = new Set(existing);
+  const filtered = [...new Set(requested)].filter((name) => allowed.has(name));
+  if (requested.length > 0 && filtered.length === 0) return undefined;
+  return filtered;
+}
+
 const STYLING_BUILDERS: Record<
   PromptStyle,
   (ctx: AiStylingContext) => string
@@ -141,7 +179,7 @@ export function parseAiStylingResponse(raw: string): {
     const classList = parsed.classList.filter(
       (c): c is string => typeof c === "string" && c.trim() !== "",
     );
-    if (classList.length > 0) edits.classList = classList;
+    edits.classList = classList;
   }
 
   return { explanation: parsed.explanation, edits };

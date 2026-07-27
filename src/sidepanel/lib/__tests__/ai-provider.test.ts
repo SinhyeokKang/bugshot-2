@@ -16,6 +16,7 @@ import {
   LlmOverloadedError,
   LlmQuotaError,
   LlmRedirectError,
+  LlmResponseTooLargeError,
   mapQuotaError,
   NANO_CAPABILITIES,
   parseRetryAfterMs,
@@ -271,6 +272,24 @@ describe("fetchWithRetry", () => {
     expect(res.status).toBe(200);
     expect(fetchFn).toHaveBeenCalledTimes(2);
   });
+
+  it("retry 대기 중 signal abort면 추가 요청하지 않는다", async () => {
+    const fetchFn = mockFetchSequence([{ status: 503 }, { status: 200 }]);
+    vi.spyOn(console, "warn").mockImplementation(() => {});
+    const controller = new AbortController();
+
+    const promise = fetchWithRetry(
+      "http://x",
+      { signal: controller.signal },
+      [503],
+    );
+    promise.catch(() => {});
+    controller.abort();
+    await vi.runAllTimersAsync();
+
+    await expect(promise).rejects.toMatchObject({ name: "AbortError" });
+    expect(fetchFn).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("createOpenAICompatibleProvider 재시도 통합", () => {
@@ -499,7 +518,8 @@ describe("Anthropic 경로 redirect 차단 (A-07)", () => {
       status: 200,
       headers: { get: () => null },
       json: () => Promise.resolve({ content: [{ text: "ok" }] }),
-      text: () => Promise.resolve(""),
+      text: () =>
+        Promise.resolve(JSON.stringify({ content: [{ text: "ok" }] })),
       ...extra,
     });
     vi.stubGlobal("fetch", fn);
@@ -600,15 +620,13 @@ describe("Anthropic 경로 redirect 차단 (A-07)", () => {
   });
 });
 
-// Authorization은 스펙상 cross-origin 리다이렉트에서 제거되므로 누출 경로가 없다.
-// 조이면 301/308을 내는 사용자 게이트웨이가 깨지므로 건드리지 않는다.
-describe("OpenAI 호환 경로는 redirect를 지정하지 않는다 (A-07 비대상)", () => {
+describe("OpenAI 호환 경로 redirect 차단", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
     vi.restoreAllMocks();
   });
 
-  it("chat/completions 요청에 redirect 옵션이 없다", async () => {
+  it("chat/completions 요청도 redirect:'manual'로 나간다", async () => {
     const fn = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
@@ -623,7 +641,7 @@ describe("OpenAI 호환 경로는 redirect를 지정하지 않는다 (A-07 비�
       modelId: "gpt-4o",
     }).generate({ prompt: "hi" });
 
-    expect(fn.mock.calls[0][1].redirect).toBeUndefined();
+    expect(fn.mock.calls[0][1].redirect).toBe("manual");
   });
 
   it("fetchModels 요청에도 redirect 옵션이 없다", async () => {
@@ -638,6 +656,112 @@ describe("OpenAI 호환 경로는 redirect를 지정하지 않는다 (A-07 비�
     await fetchModels("https://api.openai.com/v1", "k");
 
     expect(fn.mock.calls[0][1].redirect).toBeUndefined();
+  });
+});
+
+describe("LLM 응답 크기 cap", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it("Content-Length가 cap을 넘으면 body 파싱 전에 거부", async () => {
+    const json = vi.fn();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        headers: { get: (key: string) => key === "content-length" ? "2000000" : null },
+        json,
+      }),
+    );
+
+    await expect(
+      createOpenAICompatibleProvider({
+        baseUrl: "https://api.openai.com/v1",
+        apiKey: "k",
+        modelId: "gpt-4o",
+      }).generate({ prompt: "hi" }),
+    ).rejects.toBeInstanceOf(LlmResponseTooLargeError);
+    expect(json).not.toHaveBeenCalled();
+  });
+
+  it("오류 응답 body도 cap 초과를 삼키지 않는다", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 500,
+        headers: { get: (key: string) => key === "content-length" ? "2000000" : null },
+        text: vi.fn(),
+      }),
+    );
+
+    await expect(
+      createOpenAICompatibleProvider({
+        baseUrl: "https://api.openai.com/v1",
+        apiKey: "k",
+        modelId: "gpt-4o",
+      }).generate({ prompt: "hi" }),
+    ).rejects.toBeInstanceOf(LlmResponseTooLargeError);
+  });
+
+  it("Content-Length 없는 chunked JSON을 UTF-8 경계와 무관하게 파싱", async () => {
+    const bytes = new TextEncoder().encode(
+      JSON.stringify({ choices: [{ message: { content: "한글" } }] }),
+    );
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(
+          new ReadableStream({
+            start(controller) {
+              controller.enqueue(bytes.slice(0, bytes.length - 1));
+              controller.enqueue(bytes.slice(bytes.length - 1));
+              controller.close();
+            },
+          }),
+          { status: 200 },
+        ),
+      ),
+    );
+
+    await expect(
+      createOpenAICompatibleProvider({
+        baseUrl: "https://api.openai.com/v1",
+        apiKey: "k",
+        modelId: "gpt-4o",
+      }).generate({ prompt: "hi" }),
+    ).resolves.toBe("한글");
+  });
+
+  it("Content-Length 없는 chunk 누적이 cap을 넘으면 reader를 취소", async () => {
+    const cancel = vi.fn();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        headers: { get: () => null },
+        body: {
+          getReader: () => ({
+            read: vi.fn()
+              .mockResolvedValueOnce({ done: false, value: new Uint8Array(600_000) })
+              .mockResolvedValueOnce({ done: false, value: new Uint8Array(600_000) }),
+            cancel,
+          }),
+        },
+      }),
+    );
+
+    await expect(
+      createOpenAICompatibleProvider({
+        baseUrl: "https://api.openai.com/v1",
+        apiKey: "k",
+        modelId: "gpt-4o",
+      }).generate({ prompt: "hi" }),
+    ).rejects.toBeInstanceOf(LlmResponseTooLargeError);
+    expect(cancel).toHaveBeenCalledOnce();
   });
 });
 

@@ -36,6 +36,47 @@
 
 ---
 
+## 2026-07-28 — 리뷰가 "abort 누락"이라 부른 것이 re-adopt의 생명줄이었고, signal을 무시하는 mock이 그 회귀를 green으로 통과시켰다
+
+- **영역**: `AI`
+- **계열**: `미검증단언`, `취소래치`
+- **그물**: `jsdom`
+- **증상**: 재현 단계 AI 자동 채움이 진행 중일 때 게이트를 왕복하면(트림 오버레이 개폐·섹션 토글 등) `stepsToReproduce`가 **영구히 안 채워지고** 그 위에 실패 토스트까지 떴다. `reproPrefillDone`이 이미 래치돼 재시도도 없다. 출하 전에 잡았지만 `pnpm test` 4236개가 **전부 green인 채로** 커밋 직전까지 갔다.
+- **근본 원인**: `/code-review`가 "cleanup에 `controller.abort()`가 없다"를 🟡로 지목했고 그대로 1줄을 넣었는데, **그 부재가 설계였다.** effect cleanup은 언마운트와 deps 변경 재실행을 구분하지 못한다. 그래서 `cancelled`는 "비자발 취소 — 되살릴 수 있음"으로 정의돼 있고, 게이트가 다시 열리면 상단 re-adopt 분기가 `prev.cancelled = false`로 **같은 in-flight 요청을 되살려** 결과를 이어받는다(`useReproPrefill.ts:92-100`). cleanup에서 진짜로 끊으면 되살릴 요청이 이미 죽어 있고, 되살아난 `cancelled=false` 탓에 catch의 `if (!run.cancelled)` 가드까지 통과해 AbortError 토스트가 뜬다. abort가 정당한 자리는 `userCancelled`를 함께 세우는 canceller뿐이다 — 거기만 re-adopt가 되살리지 않는다.
+- **재발 방지**:
+  1. **AbortSignal을 넘기는 코드에 회귀 테스트를 걸 땐 mock이 signal을 존중하는지 먼저 본다.** 이 함정을 막으려고 존재하던 테스트("in-flight 중 게이트가 껐다 켜져도 …이어받는다")가 green이었던 이유는 `generateReproStepsWithAI` mock이 `input.signal`을 그냥 버려서다. `grep -rn "signal" src/sidepanel/**/__tests__/` 로 signal을 받는 mock을 훑고, 단언이 결과값에만 걸려 있으면 `signal.aborted`를 직접 단언하는 케이스를 더한다. 픽스 검증은 "테스트가 green"이 아니라 **문제 코드를 임시로 되돌려 red를 확인**해야 성립한다(이번에도 그렇게 해서 새 케이스만 red, 기존 케이스는 여전히 green임을 확인했다).
+  2. **취소 레인이 둘 이상이면(되살릴 수 있는 취소 / 영구 포기) abort는 되살리지 않는 레인에만 건다.** `grep -rn "controller.abort()\|userCancelled" src/sidepanel`로 콜사이트를 전수하고 각 abort 옆에 되살림 분기가 있는지 본다. cleanup처럼 **호출 이유를 구분할 수 없는 자리**엔 파괴적 동작을 넣지 않는다.
+  3. **리뷰 리포트의 "누락" 판정은 그 부재가 의도인지 먼저 확인한다.** 방어 코드가 없는 게 아니라 **없어야 하는** 경우가 있다 — 근처 주석·되살림 분기·기존 테스트 제목이 그 근거를 들고 있었다.
+- **관련**: `src/sidepanel/hooks/useReproPrefill.ts:92-100`(re-adopt 분기)·`:122-128`(canceller — `userCancelled`와 함께 abort)·`:154-160`(cleanup, abort 금지 근거 주석), 그물 `src/sidepanel/hooks/__tests__/useReproPrefill.test.tsx`("게이트 왕복 cleanup은 in-flight 요청을 abort하지 않는다" — `signal.aborted` 직접 단언). 계열: 같은 날 **2026-07-28**(같은 `미검증단언` — 그때는 설계 문서·헬퍼 계약을 실측 없이 전제), 취소 레인은 **2026-07-16/17**과 같은 구역.
+
+## 2026-07-28 — 계약을 구현 대신 문서·직관으로 읽어 방어 코드 3개가 조용히 무력화됐다 (소비형 가드·falsy resolve·손으로 맞춘 화이트리스트)
+
+- **영역**: `미디어`, `store`, `background`
+- **계열**: `미검증단언`, `fail-open`, `드리프트`
+- **그물**: `unit`
+- **증상**: recording-trim 구현 중 **셋 다 green인 채로** 커밋 직전까지 갔다. ① 녹화 정지 직후 취소를 누르면 아무 일도 안 일어나고 그대로 작성 화면으로 커밋된다(취소 버튼은 살아 있다). ② 트림본 로그 저장이 실패해도 사용자에게 아무 안내가 없다 — 재오픈하면 "잘린 영상 + 안 잘린 로그"가 된다. ③ 새로 추가한 `trim_source` 지표가 PostHog에 **도달하지 않는다**(전송은 되고 수신에서 버려진다).
+- **근본 원인**: 세 방어가 전부 **"이 함수는 이렇게 동작할 것"이라는 미검증 전제** 위에 세워졌다. 셋 다 구현을 열어보면 5초면 반증됐다.
+  1. **소비형 가드의 창을 이미 닫은 뒤에 await을 추가했다.** `createFinalizeGuard().end(id)`는 `win = null`로 **창을 소비**한다(`video-recorder.ts:47-52`). `end()` 뒤에 `await syncAndSettleLogs`를 두면 그 구간엔 `state === null`이라 `cancelRecording()`이 `finalizing.cancel()` → `win === null` → `false` → 그냥 return. 즉 **취소가 통째로 no-op**이 되고 continuation이 커밋을 밀어붙인다. 이건 같은 파일 상단 주석(*"state가 null이라 cancelRecording이 통째로 no-op이 되어 취소가 씹히고 녹화가 drafting으로 커밋됐다"*)이 명시한 그 버그의 재발이고, `__tests__/video-recorder.test.ts`가 `end()` 후 `cancel()`이 `false`임을 이미 단언하고 있었다. **경계를 만드는 호출 뒤에 await을 넣으면 경계가 뒤로 밀리는 게 아니라 사라진다.**
+     - 선행 오염: `docs/features/recording-trim/design.md`가 `finalizing.end(finalizeId) === "commit"`이라는 **실존하지 않는 조건문**을 지시했다(실제는 `=== "discard"` 조기 리턴). 그대로 조건을 *추가*했다면 두 번째 `end()`가 항상 `"discard"`를 반환해 **모든 녹화가 조용히 폐기**됐다.
+  2. **`Promise.allSettled` + `status === "rejected"`를 썼는데 그 Promise는 reject하지 않는다.** `blob-db`의 save 헬퍼 9개가 전부 내부 `try/catch`로 삼키고 `Promise<boolean>`을 **resolve**한다(`return false;` 9곳). 그래서 실패 감지가 **런타임에 절대 발화하지 않는 죽은 코드**였고, design.md가 "위험 8"로 식별해 둔 위험이 코드로는 전혀 막히지 않았다. 테스트 mock도 `async () => true`뿐이라 false 경로가 없어 그냥 통과했다.
+  3. **양쪽을 손으로 맞추는 계약인데 한쪽만 늘렸다.** `background/analytics.ts:26`의 `ALLOWED_EVENTS.issue_submitted`는 사이드패널 송신부와 손으로 동기화하는 화이트리스트다. `track-submit.ts`에 `trim_source`를 추가하고 배선까지 했지만 허용목록은 4키 그대로라 `filterProperties`가 통째로 버렸다. 양쪽 테스트가 각자 자기 숫자(송신 5키 / 수신 4키)를 하드코딩해 **둘 다 green**이었다. 게다가 이건 privacy 문서로 연쇄된다 — 고치기 전에 `docs/privacy.*`에 `trim_source`를 적었으면 **거짓 서술**이 됐다.
+- **재발 방지**:
+  1. **소비형(one-shot) 가드 뒤에 await을 추가하지 않는다.** `grep -n "finalizing\.\(end\|cancel\|begin\)" src/sidepanel/video-recorder.ts`로 창의 시작·끝을 뽑고, 그 사이에 새 `await`을 넣을 때는 **그 구간에서 취소·이중 stop이 어떻게 처리되는지** 먼저 확인한다. 이번엔 settle을 `end()` **앞**으로 옮겨 해결했다(`video-recorder.ts:136` → `:141`). 같은 형태(`begin/end`가 상태를 소비하는 가드)를 새로 만들면 "창 안에서만 유효" 주석을 함수 옆에 박는다.
+  2. **`allSettled`의 `rejected` 판정 전에 그 Promise가 실제로 reject하는지 구현을 연다.** 이 저장소의 `src/store/blob-db.ts`는 **전 함수가 catch-and-return-falsy 패턴**이다 — `grep -c "return false;" src/store/blob-db.ts`(현재 9). 판정은 `r.status === "rejected" || r.value === false`처럼 **값까지** 봐야 하고, 회귀 테스트는 mock을 `mockResolvedValueOnce(false)`로 걸어야 잡힌다(`apply-trim.test.ts`의 "IDB save가 false를 resolve하면 TrimLogsPersistError로 알린다").
+  3. **손으로 맞추는 계약은 한쪽을 다른 쪽에 실제로 먹여 보는 대조 테스트로 잠근다.** 양쪽이 각자 리터럴을 단언하면 드리프트가 안 잡힌다. `analytics.test.ts`에 `submitEventProperties(...)` → `filterProperties(...)` 왕복이 항등인지 보는 테스트를 추가했다. 같은 구조를 찾으려면 `grep -rn "ALLOWED_EVENTS\|BG_REQUEST_TYPES" src/background/` — 메시지 union 3곳 일치도 같은 계열이다.
+  4. **설계 문서의 코드 인용은 구현으로 검증하고 착수한다.** 이번엔 `/feature-review`의 CTO 에이전트가 ①의 선행 오염(존재하지 않는 조건문)을 **구현 전에** 잡았고, `/code-review`의 dataflow·codehealth가 ①의 실제 발생과 ②를, `/doc-check`의 3개 에이전트가 독립적으로 ③을 잡았다. 리뷰 단계가 없었으면 셋 다 나갔다 — 문서를 계획 원본으로 쓰는 `/ship bypass` 경로에서 특히 위험하다.
+- **관련**: `src/sidepanel/video-recorder.ts:47-52`(`createFinalizeGuard.end` — 창 소비)·`:136-141`(settle을 `end()` 앞으로), `src/sidepanel/30s-replay/apply-trim.ts:143-147`(`settleLogSaves` — 값 판정)·`:56`(`TrimLogsPersistError`), `src/store/blob-db.ts`(save 9종 catch-and-false), `src/background/analytics.ts:26`(`ALLOWED_EVENTS`)·`src/sidepanel/lib/track-submit.ts:21`, 그물 `src/background/__tests__/analytics.test.ts`(송신↔허용목록 왕복)·`src/sidepanel/30s-replay/__tests__/apply-trim.test.ts`(false resolve)·`src/sidepanel/__tests__/video-recorder.test.ts`(`end()` 후 `cancel()`=false). 계열: **2026-07-27**×2(같은 `미검증단언` — 그때는 기록·권한 문서를 실측 없이 확장 추론).
+
+## 2026-07-27 — 최종 본문은 복수 스타일 요소를 합쳤지만 AI 초안 경로는 현재 selector 하나만 전송했다
+
+- **영역**: `AI`, `에디터`
+- **계열**: `드리프트`
+- **그물**: `unit`
+- **증상**: 여러 DOM 요소의 스타일을 차례로 수정한 뒤 AI 초안을 작성하면, 모델이 전체 변경이 아니라 마지막으로 선택한 selector 하나의 변경처럼 리포트를 작성했다. 버퍼 요소만 변경되고 현재 선택은 무변경인 경우에는 selector와 diff가 서로 다른 요소를 가리킬 수도 있었다.
+- **근본 원인**: 최종 이슈 본문과 스타일 변경 표는 `mergeStyleElements(bufferedElements, current)`를 사용했지만, AI 다이얼로그 prop과 프롬프트 컨텍스트는 현재 `selection`의 `selector`·`tagName`·`styleEdits`만 별도로 조립했다. 같은 캡처 상태를 소비하는 두 출력 경로가 서로 다른 데이터 모델을 사용해 저장은 정상인데 LLM endpoint 경계에서 복수 요소 정보가 소실됐다.
+- **재발 방지**: 캡처 상태를 새 소비처로 전달할 때 `grep -rn 'mergeStyleElements\|bufferedElements\|styleElements\|elementDiffs' src/sidepanel`로 최종 본문·미리보기·AI 요청의 입력 모델을 함께 대조한다. 복수 요소 selector 보존, 버퍼만 변경+현재 무변경, frameId 구분, compact/rich 전역 diff·이미지 cap을 요청 경계 단위 테스트로 고정한다.
+- **관련**: `src/sidepanel/tabs/DraftingPanel.tsx`(`styleElements`), `src/sidepanel/tabs/AiDraftDialog.tsx`(`AiDraftDialog`), `src/sidepanel/lib/prompts/draftStyleElements.ts`(`resolveAiDraftStyleElements`), `src/sidepanel/lib/buildAiDraftRequest.ts`(`buildAiDraftRequest`).
+
 ## 2026-07-27 — 정적 스킴 화이트리스트가 런타임 권한 토글을 안 봐서, 파일 접근 ON인데도 https→file: 이동에 패널이 닫혔다
 
 - **영역**: `background`

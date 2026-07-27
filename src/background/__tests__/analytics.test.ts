@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { analyticsEnabled, buildCaptureBody, postCapture, resolveInstallationId, isAllowedEvent, filterProperties } from "../analytics";
+import { submitEventProperties } from "@/sidepanel/lib/track-submit";
 
 describe("analyticsEnabled", () => {
   it("키가 있으면 true", () => {
@@ -88,6 +89,13 @@ describe("허용목록", () => {
       result: "success",
       replay_trimmed: "false",
     });
+  });
+
+  // 허용목록은 사이드패널 송신부와 손으로 맞춘 계약이다 — 한쪽만 늘리면 새 차원이 조용히
+  // 드롭돼 지표가 무용지물이 된다(trim_source가 실제로 그렇게 새어나갔다).
+  it("issue_submitted 허용목록이 track-submit 송신 키와 일치한다", () => {
+    const sent = submitEventProperties("github", "video", "success", true, "recording");
+    expect(filterProperties("issue_submitted", sent)).toEqual(sent);
   });
 
   it("목록 밖 property는 payload에서 빠진다", () => {

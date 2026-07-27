@@ -52,6 +52,10 @@ const BROWSER_BOUND_EXACT = new Set([
   "src/sidepanel/annotation-control.ts",
   "src/sidepanel/recorder-control.ts",
   "src/sidepanel/tab-nav.ts",
+  "src/sidepanel/lib/video-thumbnail.ts",
+  // 재생 기반 구간 재인코딩 — <video>+requestVideoFrameCallback+WebCodecs. 순수 부분은
+  // trim-math.ts에 있어 로직 분모에 남는다(mp4-encoder.ts가 미등록인 이유도 같다).
+  "src/sidepanel/30s-replay/encode-range.ts",
   // 기타 글루
   "src/i18n/bg-init.ts",
   "src/lib/external-links.ts",

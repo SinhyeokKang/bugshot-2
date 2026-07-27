@@ -1,6 +1,12 @@
 import type { CapturedFrame } from "./frame-buffer";
+import type { TrimSource } from "./trim-source";
 import { computeFrameDurationsUs } from "./mp4-encoder";
 import { REPLAY_LOG_GUARD_MS } from "@/sidepanel/lib/log-merge";
+
+// 2세대 인코딩 비트레이트 범위. 하한은 저모션 원본이 과하게 뭉개지지 않을 바닥,
+// 상한은 자르기만 했는데 파일이 폭증하지 않게 막는 천장.
+const TRIM_BITRATE_MIN = 800_000;
+const TRIM_BITRATE_MAX = 4_000_000;
 
 // 각 프레임의 영상 내 표시 시작 오프셋(ms) 누적 배열. encodeToMp4와 동일한
 // computeFrameDurationsUs/maxFrameDurationMs를 써 <video> 시각과 프레임 인덱스 매핑이 드리프트하지 않게 한다.
@@ -89,6 +95,55 @@ export function previewTrimBounds(
   const { inIndex, outIndex } = secondsToFrameRange(frames, startSec, endSec, maxFrameDurationMs);
   if (isFullRange(frames, inIndex, outIndex)) return null;
   return replayLogTrimBounds(frames, inIndex, outIndex);
+}
+
+// 초 단위 전체 구간 판정 — isFullRange(프레임 인덱스)의 카운터파트. eps는 핸들 스냅 오차 흡수.
+export function isFullRangeSec(
+  startSec: number,
+  endSec: number,
+  durationSec: number,
+  eps = 0.05,
+): boolean {
+  return startSec <= eps && endSec >= durationSec - eps;
+}
+
+// 녹화용 로그 trim 경계(벽시계 ms). 전체 구간이면 null.
+// 가드밴드를 두지 않는다 — replayLogTrimBounds의 REPLAY_LOG_GUARD_MS는 프레임 timestamp 양자화
+// (프레임 간격)를 흡수하려는 것이고, 녹화는 벽시계 연속축이라 흡수할 양자화가 없다.
+// lower는 필수 number라 "하한 없음"을 -Infinity로 표현한다(isTrimmedOut·trimByTime과 호환).
+export function recordingLogTrimBounds(
+  startedAt: number,
+  startSec: number,
+  endSec: number,
+  durationSec: number,
+): ReplayLogBounds | null {
+  if (isFullRangeSec(startSec, endSec, durationSec)) return null;
+  return {
+    lower: startSec > 0 ? startedAt + startSec * 1000 : Number.NEGATIVE_INFINITY,
+    upper: endSec < durationSec ? startedAt + endSec * 1000 : undefined,
+  };
+}
+
+// 소스 판별 후 위임 — 흐림 미리보기와 apply가 같은 경계를 보게 하는 단일 출처.
+// range/opts를 객체로 받는다: 위치 인자 4개가 전부 number면 frames의 maxFrameDurationMs와
+// recording의 durationSec이 뒤바뀌어도 컴파일이 통과한다.
+export function previewBoundsFor(
+  source: TrimSource,
+  range: { startSec: number; endSec: number },
+  opts: { durationSec: number; maxFrameDurationMs: number },
+): ReplayLogBounds | null {
+  if (source.kind === "frames") {
+    return previewTrimBounds(source.frames, range.startSec, range.endSec, opts.maxFrameDurationMs);
+  }
+  return recordingLogTrimBounds(source.startedAt, range.startSec, range.endSec, opts.durationSec);
+}
+
+// 재인코딩 비트레이트 — 원본 실측 기반 적응. 녹화 상한은 2Mbps지만 저모션은 quality-bound라
+// 실측이 훨씬 낮다(video-recorder.ts 참조). 고정값을 쓰면 자르기만 했는데 파일이 몇 배로 커진다.
+export function pickTrimBitrate(byteSize: number, durationSec: number): number {
+  if (!(durationSec > 0)) return TRIM_BITRATE_MAX;
+  const observed = (byteSize * 8) / durationSec;
+  return Math.min(TRIM_BITRATE_MAX, Math.max(TRIM_BITRATE_MIN, observed * 1.5));
 }
 
 // 로그 timestamp가 trim 경계 밖이면 true(잘려나갈 후보). trimByTime과 동일 inclusive 경계.

@@ -81,8 +81,14 @@ function matchSources(ctx: AiDraftSessionContext): string[] {
   }
   for (const e of ctx.consoleLogSummary?.topErrors ?? []) sources.push(e.message);
   if (ctx.actionLogSummary) sources.push(...ctx.actionLogSummary);
-  if (ctx.selector) sources.push(ctx.selector);
-  if (ctx.tagName) sources.push(ctx.tagName);
+  if (ctx.styleElements?.length) {
+    for (const element of ctx.styleElements) {
+      sources.push(element.selector, element.tagName);
+    }
+  } else {
+    if (ctx.selector) sources.push(ctx.selector);
+    if (ctx.tagName) sources.push(ctx.tagName);
+  }
   return sources;
 }
 

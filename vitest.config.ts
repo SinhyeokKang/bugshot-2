@@ -9,9 +9,10 @@ export default defineConfig({
   },
   test: {
     // e2e/*.spec.ts는 Playwright 전용 — vitest 기본 include가 수집하면 test()가 throw.
-    // .claude/worktrees/**는 `/feature` 워크트리 사본 — 같은 테스트를 두 벌 수집해 실패한다
+    // .claude/**·.worktrees/**는 워크트리 사본 — 같은 테스트를 두 벌 수집해 실패한다
     // (사본 경로는 environmentMatchGlobs의 jsdom 분기도 못 타서 document 미정의로 죽는다).
-    exclude: [...configDefaults.exclude, "e2e/**", ".claude/**"],
+    // 워크트리 위치가 바뀌면 여기도 같이 늘린다.
+    exclude: [...configDefaults.exclude, "e2e/**", ".claude/**", ".worktrees/**"],
     // 컴포넌트 렌더 테스트(*.test.tsx)만 jsdom. 순수 함수 테스트는 node 유지.
     environmentMatchGlobs: [["**/*.test.tsx", "jsdom"]],
     setupFiles: ["./src/test/setup-dom.ts"],

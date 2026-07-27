@@ -74,6 +74,48 @@ describe("getModeImages", () => {
     expect(result).toEqual(["data:before", "data:after"]);
   });
 
+  it("element 모드 + 복수 styleElements → 요소별 before/after 순서로 반환", () => {
+    const result = getModeImages(EMPTY, "element", [
+      {
+        selector: "button.cta",
+        tagName: "button",
+        frameId: 0,
+        diffs: [],
+        beforeImage: "data:before-button",
+        afterImage: "data:after-button",
+      },
+      {
+        selector: "div.card",
+        tagName: "div",
+        frameId: 0,
+        diffs: [],
+        beforeImage: "data:before-card",
+        afterImage: "data:after-card",
+      },
+    ]);
+
+    expect(result).toEqual([
+      "data:before-button",
+      "data:after-button",
+      "data:before-card",
+      "data:after-card",
+    ]);
+  });
+
+  it("element 모드 legacy 경로는 store before/after로 폴백", () => {
+    expect(
+      getModeImages(
+        {
+          ...EMPTY,
+          beforeImage: "data:before",
+          afterImage: "data:after",
+        },
+        "element",
+        undefined,
+      ),
+    ).toEqual(["data:before", "data:after"]);
+  });
+
   it("video 모드 → undefined (다른 모드 이미지 무시)", () => {
     const result = getModeImages(
       {

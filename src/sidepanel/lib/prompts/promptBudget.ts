@@ -1,4 +1,4 @@
-import type { AISession } from "../ai-provider";
+import type { AISession, FewShotExample } from "../ai-provider";
 import type { AiDraftSessionContext } from "../buildAiDraftPrompt";
 import { stripPreservedContent } from "../markdownBlocks";
 import { PROMPT_CAPS } from "./caps";
@@ -26,6 +26,12 @@ export function trimDraftContext(
   }
   if (level >= 3) {
     delete out.diffs;
+    if (out.styleElements) {
+      out.styleElements = out.styleElements.map((element) => ({
+        ...element,
+        diffs: [],
+      }));
+    }
     delete out.tokens;
   }
 
@@ -117,4 +123,19 @@ export async function isPromptOverBudget(
   } catch {
     return false;
   }
+}
+
+export function isTextOverBudget(
+  contextChars: number,
+  input: string,
+  budgetChars: number,
+): boolean {
+  return contextChars + input.length > budgetChars;
+}
+
+export function fewShotChars(fewShot?: FewShotExample[]): number {
+  return (fewShot ?? []).reduce(
+    (sum, item) => sum + item.user.length + item.assistant.length,
+    0,
+  );
 }

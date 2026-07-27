@@ -29,14 +29,16 @@ function ctx(overrides: Partial<AiStylingContext> = {}): AiStylingContext {
 describe("buildCompactStylingPrompt", () => {
   it("요소 식별자·클래스·현재 스타일을 싣는다", () => {
     const p = buildCompactStylingPrompt(ctx());
-    expect(p).toContain("<button>");
+    expect(p).toContain('"tagName":"button"');
     expect(p).toContain("#checkout > button.primary");
-    expect(p).toContain("primary lg");
+    expect(p).toContain('"classList":["primary","lg"]');
     expect(p).toContain("background-color");
   });
 
-  it("클래스가 없으면 (none)으로 표기한다 (빈 줄 대신)", () => {
-    expect(buildCompactStylingPrompt(ctx({ classList: [] }))).toContain("(none)");
+  it("클래스가 없으면 빈 배열로 표기한다", () => {
+    expect(buildCompactStylingPrompt(ctx({ classList: [] }))).toContain(
+      '"classList":[]',
+    );
   });
 
   // compact는 responseConstraint가 구조를 강제하므로 본문에 JSON 규칙을 넣지 않는다.
@@ -69,9 +71,9 @@ describe("buildRichStylingPrompt", () => {
 
   it("요소 식별자·현재 클래스를 싣는다", () => {
     const p = buildRichStylingPrompt(ctx());
-    expect(p).toContain("<button>");
+    expect(p).toContain('"tagName":"button"');
     expect(p).toContain("#checkout > button.primary");
-    expect(p).toContain("primary lg");
+    expect(p).toContain('"classList":["primary","lg"]');
   });
 
   it("값에서 참조된 토큰을 먼저 싣는다", () => {

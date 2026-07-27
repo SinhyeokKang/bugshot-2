@@ -2,6 +2,7 @@ import type { CaptureMode } from "@/store/editor-store";
 import type { LocaleMode } from "@/store/settings-ui-store";
 import type { ActionLogSummary } from "@/types/action";
 import {
+  AiContextOverflowError,
   LlmEmptyResponseError,
   type AIProvider,
   type AISession,
@@ -15,6 +16,7 @@ import {
   type AiDraftSessionContext,
 } from "./buildAiDraftPrompt";
 import { extractJson } from "./extractJson";
+import { fewShotChars, isTextOverBudget } from "./prompts/promptBudget";
 
 export interface ReproPrefillInput {
   capabilities: ProviderCapabilities;
@@ -24,6 +26,7 @@ export interface ReproPrefillInput {
   url: string;
   pageTitle: string;
   actionLogSummary: ActionLogSummary;
+  signal?: AbortSignal;
 }
 
 // 기존 AI draft 파이프라인을 stepsToReproduce 단일 섹션으로 좁혀 재사용. userPrompt·이미지·diff
@@ -46,13 +49,26 @@ export async function generateReproStepsWithAI(
   };
   const systemPrompt = buildAiDraftSessionPrompt(ctx);
   const schema = buildAiDraftSchema(["stepsToReproduce"]);
+  const fewShot = getDraftFewShot(ctx);
+  if (
+    isTextOverBudget(
+      systemPrompt.length + fewShotChars(fewShot),
+      REQUEST_MESSAGE,
+      input.capabilities.contextBudgetChars,
+    )
+  ) {
+    throw new AiContextOverflowError();
+  }
 
   const session: AISession = await input.createSession(
     systemPrompt,
-    getDraftFewShot(ctx),
+    fewShot,
   );
   try {
-    const raw = await session.prompt(REQUEST_MESSAGE, { responseSchema: schema });
+    const raw = await session.prompt(REQUEST_MESSAGE, {
+      responseSchema: schema,
+      signal: input.signal,
+    });
     const steps = parseSteps(raw);
     if (!steps) {
       // raw는 액션 로그 파생이라 사용자 입력이 섞일 수 있다 — 본문은 남기지 않는다.

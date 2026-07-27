@@ -23,7 +23,12 @@ import {
   getDraftFewShot,
   parseAiDraftResponse,
   type AiDraftSessionContext,
+  type AiDraftStyleElement,
 } from "@/sidepanel/lib/buildAiDraftPrompt";
+import {
+  resolveAiDraftStyleElements,
+  selectAiDraftTokens,
+} from "@/sidepanel/lib/prompts/draftStyleElements";
 import { buildAiDraftRequest } from "@/sidepanel/lib/buildAiDraftRequest";
 import { mergeAiSectionsPreservingBlocks } from "@/sidepanel/lib/mergeAiDraftSections";
 import {
@@ -36,7 +41,6 @@ import {
   renderLogRefBlocks,
 } from "@/sidepanel/lib/renderLogRefs";
 import { resolveInlineImagesForSections } from "@/sidepanel/lib/resolveInlineImages";
-import type { StyleDiffRow } from "@/sidepanel/components/StyleChangesTable";
 import { buildNetworkLogSummary, buildConsoleLogSummary, buildActionLogSummary } from "@/sidepanel/lib/buildLogSummary";
 import {
   AiContextOverflowError,
@@ -50,7 +54,12 @@ import {
   supportsActionLog,
   supportsConsoleNetworkLog,
 } from "@/sidepanel/lib/captureLogSupport";
-import { fitDraftContext, isPromptOverBudget } from "@/sidepanel/lib/prompts/promptBudget";
+import {
+  fitDraftContext,
+  fewShotChars,
+  isPromptOverBudget,
+  isTextOverBudget,
+} from "@/sidepanel/lib/prompts/promptBudget";
 import { defaultTitle } from "./DraftingPanel";
 
 export function AiDraftDialog({
@@ -58,23 +67,35 @@ export function AiDraftDialog({
   onOpenChange,
   createSession,
   capabilities,
-  elementDiffs,
+  elementStyleElements,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   createSession: AIProvider["createSession"];
   capabilities: ProviderCapabilities;
-  elementDiffs?: StyleDiffRow[];
+  elementStyleElements?: AiDraftStyleElement[];
 }) {
   const t = useT();
   const [input, setInput] = useState("");
   const captureMode = useEditorStore((s) => s.captureMode);
   const sessionRef = useRef<AISession | null>(null);
+  const activeRunRef = useRef<{
+    cancelled: boolean;
+    controller: AbortController;
+  } | null>(null);
   const createSessionRef = useRef(createSession);
   createSessionRef.current = createSession;
 
   useEffect(() => {
     return () => {
+      const run = activeRunRef.current;
+      if (run) {
+        run.cancelled = true;
+        run.controller.abort();
+        activeRunRef.current = null;
+        useEditorStore.getState().setAiDraftLoading(false);
+        useEditorStore.getState().setAiCancel(null);
+      }
       sessionRef.current?.destroy?.();
       sessionRef.current = null;
     };
@@ -88,10 +109,12 @@ export function AiDraftDialog({
     onOpenChange(false);
     useEditorStore.getState().setAiDraftLoading(true);
 
-    // 소프트 취소: 오버레이 '중단'이 부르면 결과를 폐기하고 로딩을 내린다(진행 중 호출은 못 끊는다).
-    const run = { cancelled: false };
+    // 중단 시 BYOK 요청·retry를 abort하고 Chrome 세션은 destroy한 뒤 결과를 폐기한다.
+    const run = { cancelled: false, controller: new AbortController() };
+    activeRunRef.current = run;
     useEditorStore.getState().setAiCancel(() => {
       run.cancelled = true;
+      run.controller.abort();
       sessionRef.current?.destroy?.();
       sessionRef.current = null;
       useEditorStore.getState().setAiDraftLoading(false);
@@ -125,11 +148,17 @@ export function AiDraftDialog({
         pageTitle: store.target?.title ?? "",
         selector: isElement ? store.selection?.selector : store.shotSelector?.selector,
         tagName: isElement ? store.selection?.tagName : store.shotSelector?.tagName,
-        diffs: isElement && elementDiffs?.length ? elementDiffs : undefined,
-        tokens:
-          isElement && store.tokens.length > 0
-            ? store.tokens.map((tk) => ({ name: tk.name, value: tk.value }))
+        styleElements:
+          isElement && elementStyleElements?.length
+            ? elementStyleElements
             : undefined,
+        tokens: isElement
+          ? selectAiDraftTokens(
+              store.tokens.map((tk) => ({ name: tk.name, value: tk.value })),
+              elementStyleElements ?? [],
+              store.selection,
+            )
+          : undefined,
         userPrompt: msg,
         networkLogSummary:
           includeCnLog && networkLog && networkLog.captured > 0
@@ -162,11 +191,30 @@ export function AiDraftDialog({
           ).map((img) => img.dataUrl)
         : [];
 
-      const fitted = fitDraftContext(
+      let fitted = fitDraftContext(
         ctx,
         buildAiDraftSessionPrompt,
-        capabilities.contextBudgetChars,
+        Math.max(0, capabilities.contextBudgetChars - msg.length),
       );
+      let fewShot = getDraftFewShot(fitted.ctx);
+      fitted = fitDraftContext(
+        ctx,
+        buildAiDraftSessionPrompt,
+        Math.max(
+          0,
+          capabilities.contextBudgetChars - msg.length - fewShotChars(fewShot),
+        ),
+      );
+      fewShot = getDraftFewShot(fitted.ctx);
+      if (
+        isTextOverBudget(
+          fitted.prompt.length + fewShotChars(fewShot),
+          msg,
+          capabilities.contextBudgetChars,
+        )
+      ) {
+        throw new AiContextOverflowError();
+      }
 
       // 후보·스키마·few-shot 전부 fitted.ctx 파생 — 절삭이 로그를 지우면 셋이 동시 소멸.
       // description 비활성 게이트도 canRequestLogRefs 단일 출처(프롬프트 빌더와 동일 판정).
@@ -175,19 +223,30 @@ export function AiDraftDialog({
         ? candidateRefs(candidates)
         : [];
 
-      const { systemPrompt, images } = buildAiDraftRequest({
+      const { systemPrompt, images, droppedImages } = buildAiDraftRequest({
         caps: capabilities,
         systemPrompt: fitted.prompt,
-        modeImages: getModeImages(store, captureMode),
+        modeImages: getModeImages(
+          store,
+          captureMode,
+          fitted.ctx.styleElements?.length
+            ? resolveAiDraftStyleElements(fitted.ctx)
+            : undefined,
+        ),
         inlineImageDataUrls,
       });
 
       // 매 요청마다 최신 선입력으로 세션 재생성 — 재오픈·재생성 시 갱신된 컨텍스트 반영.
       sessionRef.current?.destroy?.();
-      sessionRef.current = await createSessionRef.current(
+      const createdSession = await createSessionRef.current(
         systemPrompt,
-        getDraftFewShot(fitted.ctx),
+        fewShot,
       );
+      if (run.cancelled || activeRunRef.current !== run) {
+        createdSession.destroy?.();
+        return;
+      }
+      sessionRef.current = createdSession;
 
       const responseSchema = buildAiDraftSchema(
         sectionIds,
@@ -197,7 +256,11 @@ export function AiDraftDialog({
         throw new AiContextOverflowError();
       }
       const raw = await sessionRef.current
-        .prompt(msg, { responseSchema, images })
+        .prompt(msg, {
+          responseSchema,
+          images,
+          signal: run.controller.signal,
+        })
         .catch(mapQuotaError);
       if (run.cancelled) return; // 사용자 중단 — 결과 폐기(로딩은 canceller가 이미 내렸다).
 
@@ -237,7 +300,13 @@ export function AiDraftDialog({
         });
         // 절삭·섹션 누락은 결과를 조용히 열화시킨다 — 무엇이 빠졌는지까진 아니어도
         // "온전한 컨텍스트로 쓴 초안이 아니다"는 사실은 알아야 한다.
-        if (fitted.level >= 1 || fitted.omittedSections.length > 0) {
+        // 이미지 cap 초과분도 같은 고지에 얹는다 — 본문에 직접 붙인 인라인 이미지가
+        // 요소 before/after에 밀려 통째로 빠질 수 있다.
+        if (
+          fitted.level >= 1 ||
+          fitted.omittedSections.length > 0 ||
+          droppedImages > 0
+        ) {
           toast.info(t("aiDraft.contextTrimmed"));
         }
       } else {
@@ -251,9 +320,13 @@ export function AiDraftDialog({
       sessionRef.current?.destroy?.();
       sessionRef.current = null;
     } finally {
-      useEditorStore.getState().setAiDraftLoading(false);
+      if (activeRunRef.current === run) {
+        activeRunRef.current = null;
+        useEditorStore.getState().setAiCancel(null);
+        useEditorStore.getState().setAiDraftLoading(false);
+      }
     }
-  }, [input, captureMode, capabilities, elementDiffs, onOpenChange, t]);
+  }, [input, captureMode, capabilities, elementStyleElements, onOpenChange, t]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
@@ -306,13 +379,21 @@ export function getModeImages(
     "screenshotAnnotated" | "screenshotRaw" | "beforeImage" | "afterImage"
   >,
   captureMode: CaptureMode,
+  styleElements?: AiDraftStyleElement[],
 ): string[] | undefined {
   if (captureMode === "screenshot") {
     const img = store.screenshotAnnotated ?? store.screenshotRaw;
     return img ? [img] : undefined;
   }
   if (captureMode === "element") {
-    const imgs = [store.beforeImage, store.afterImage].filter(
+    const imgs = (
+      styleElements && styleElements.length > 0
+        ? styleElements.flatMap((element) => [
+            element.beforeImage,
+            element.afterImage,
+          ])
+        : [store.beforeImage, store.afterImage]
+    ).filter(
       (s): s is string => !!s,
     );
     return imgs.length > 0 ? imgs : undefined;

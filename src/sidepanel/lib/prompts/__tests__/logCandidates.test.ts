@@ -249,6 +249,33 @@ describe("selectLogCandidates — matched 편입 (rich 게이트)", () => {
     });
   }
 
+  it("복수 style element selector를 모두 성공 요청 매칭 term으로 사용", () => {
+    const c = selectLogCandidates(
+      richCtx({
+        selector: ".current-without-diff",
+        tagName: "div",
+        styleElements: [
+          { selector: "#billing-card", tagName: "section", diffs: [] },
+          { selector: ".submit-order", tagName: "button", diffs: [] },
+        ],
+        requests: [
+          makeReq({
+            id: "billing",
+            url: "https://example.com/api/billing-card",
+            startTime: 100,
+          }),
+          makeReq({
+            id: "submit",
+            url: "https://example.com/api/submit-order",
+            startTime: 200,
+          }),
+        ],
+      }),
+    );
+
+    expect(c.matched.map((item) => item.id)).toEqual(["submit", "billing"]);
+  });
+
   it("rich + requests + 매칭 소스 → matched 채워짐 (ref m1)", () => {
     const c = selectLogCandidates(richCtx());
     expect(c.matched).toHaveLength(1);

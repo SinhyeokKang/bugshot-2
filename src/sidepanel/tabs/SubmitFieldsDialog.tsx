@@ -223,7 +223,10 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
     } catch (err) {
       // result는 onSubmit 성공/예외에만 묶는다. onSuccess/onOpenChange 예외가
       // failure로 오집계·toast 오표시되지 않게 try를 onSubmit으로 좁힌다.
-      trackSubmit(platform, captureMode, "failure", useEditorStore.getState().videoTrimmed);
+      {
+        const s = useEditorStore.getState();
+        trackSubmit(platform, captureMode, "failure", s.videoTrimmed, s.videoTrimSource);
+      }
       const ccCount = {
         jira: jiraFields.cc?.length,
         github: ghFields.cc?.length,
@@ -241,7 +244,8 @@ export function SubmitFieldsDialog(props: SubmitFieldsDialogProps) {
       setSubmit({ status: "idle" });
       return;
     }
-    trackSubmit(platform, captureMode, "success", useEditorStore.getState().videoTrimmed);
+    const submitted = useEditorStore.getState();
+    trackSubmit(platform, captureMode, "success", submitted.videoTrimmed, submitted.videoTrimSource);
     onOpenChange(false);
     onSuccess?.(result);
   }

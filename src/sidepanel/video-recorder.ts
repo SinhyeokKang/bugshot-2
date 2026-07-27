@@ -3,8 +3,10 @@ import {
   stopConsoleRecorder,
   stopNetworkRecorder,
   stopActionRecorder,
+  syncAndSettleLogs,
 } from "./picker-control";
 import { pickVideoRecorderMime } from "./lib/video-mime";
+import { generateThumbnail } from "./lib/video-thumbnail";
 import { trackViewport } from "./lib/trackViewport";
 import { hideAnnotation } from "./annotation-control";
 
@@ -126,12 +128,29 @@ function beginRecording(
       }
     } catch { /* tab closed */ }
 
+    // 정지 직전 로그 꼬리를 정착시킨다 — drafting 전이가 로그를 동결하므로 늦게 도착한 flush는
+    // 드롭된다. 자르기 화면이 로그를 표·마커로 보여주게 되면서 그 누락이 눈에 보인다.
+    // 반드시 finalize 창을 닫기 **전**에 — end()가 창을 소비한 뒤에 await을 두면 그 사이의
+    // 취소가 cancelRecording에서 통째로 no-op이 되어 씹힌다(이 파일 상단 주석의 그 버그).
+    // syncAndSettleLogs는 sendMessage·settle 양쪽에 자체 상한이 있어 여기서 무한 대기하지 않는다.
+    await syncAndSettleLogs(localTabId);
+
     // await 사이에 사용자가 취소를 눌렀으면 커밋하지 않는다(store는 cancelRecording이 이미 리셋).
+    // end()는 호출 즉시 창을 소비하므로 이 가드를 두 번 부르면 뒤쪽이 항상 discard가 된다 —
+    // "commit" 체크를 추가하지 말 것.
     if (finalizing.end(finalizeId) === "discard") return;
 
+    // 트림 오버레이 페이로드 — 길이 무관 항상 만든다(자를 게 없으면 그대로 확정하면 되고 그
+    // 경로는 재인코딩이 없다). 별도 setter 없이 onRecordingComplete 인자로만 넘겨야 게이트가
+    // drafting 전이와 같은 set()에 실린다(POSTMORTEM 2026-07-17).
+    const trim = {
+      videoBlob: blob,
+      source: { kind: "recording" as const, startedAt: localStartTime, endedAt: localEndedAt },
+      ownerTabId: localTabId,
+    };
     useEditorStore
       .getState()
-      .onRecordingComplete(blob, thumbnail, viewport, localStartTime, localEndedAt);
+      .onRecordingComplete(blob, thumbnail, viewport, localStartTime, localEndedAt, trim);
   };
 
   recorder.start(1000);
@@ -255,34 +274,3 @@ export function getMaxDuration(): number {
   return MAX_DURATION_SEC;
 }
 
-async function generateThumbnail(blob: Blob): Promise<string> {
-  const url = URL.createObjectURL(blob);
-  try {
-    const video = document.createElement("video");
-    video.muted = true;
-    video.playsInline = true;
-    video.src = url;
-
-    await new Promise<void>((resolve, reject) => {
-      video.onloadeddata = () => resolve();
-      video.onerror = () => reject(new Error("video load failed"));
-      video.load();
-    });
-
-    await new Promise<void>((resolve) => {
-      video.onseeked = () => resolve();
-      video.currentTime = 0.001;
-    });
-
-    const MAX_W = 480;
-    const scale = Math.min(1, MAX_W / video.videoWidth);
-    const canvas = document.createElement("canvas");
-    canvas.width = Math.round(video.videoWidth * scale);
-    canvas.height = Math.round(video.videoHeight * scale);
-    const ctx = canvas.getContext("2d")!;
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-    return canvas.toDataURL("image/webp", 0.7);
-  } finally {
-    URL.revokeObjectURL(url);
-  }
-}

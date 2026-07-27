@@ -61,6 +61,15 @@ export interface AiDraftResponse {
   logRefs: string[];
 }
 
+export interface AiDraftStyleElement {
+  selector: string;
+  tagName: string;
+  frameId?: number;
+  diffs: StyleDiffRow[];
+  beforeImage?: string | null;
+  afterImage?: string | null;
+}
+
 // logRefs의 후보 대조는 여기서 하지 않는다 — 순수 JSON 디코더로 남기고,
 // 검증·해석은 renderLogRefs 한 곳에만 둔다.
 export function parseAiDraftResponse(
@@ -115,6 +124,7 @@ export interface AiDraftSessionContext {
   selector?: string;
   tagName?: string;
   diffs?: StyleDiffRow[];
+  styleElements?: AiDraftStyleElement[];
   tokens?: { name: string; value: string }[];
   userPrompt?: string;
   networkLogSummary?: NetworkLogSummary;

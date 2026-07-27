@@ -18,3 +18,6 @@ playwright-report
 # 커버리지 리포트 본체는 무시하되, git-tracked 트렌드 베이스라인은 커밋한다.
 coverage/*
 !coverage/baseline.json
+
+# git worktree 체크아웃 (다른 브랜치 사본 — 커밋·테스트 수집 대상 아님)
+.worktrees/

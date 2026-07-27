@@ -1,6 +1,6 @@
 # BugShot Privacy Policy
 
-**Effective date**: July 27, 2026
+**Effective date**: July 28, 2026
 
 BugShot (the "extension") values your privacy and collects and processes only the minimum information necessary. This policy transparently explains what information the extension handles.
 
@@ -31,7 +31,7 @@ BugShot (the "extension") values your privacy and collects and processes only th
 
 ### Assignees, CC (Watchers), and Mention Targets
 
-When you use a field that selects a user — such as assignee, CC (watcher), or Slack mention — the extension fetches candidates (name, handle, avatar, email) from the connected platform (Jira, GitHub, Linear, Notion, GitLab, Asana, ClickUp, Slack). **Only Jira receives the search term you type** — it goes to Jira's user-search API. Every other platform returns the user list for the project or workspace and the **search runs on your device**, so your search term never leaves it, though the member directory for that scope (name, handle, avatar, email) is delivered to your device (it is not stored). Avatar images in the candidate list are loaded directly from each platform's image CDN. To display already-selected users at the top of the list, the extension may additionally fetch those users' profiles (name, avatar, email). **This lookup happens not only when you write an issue, but also when you set a default assignee in the Integrations tab.** The identifiers of the targets you select are included in the body of the created issue (or Slack message) and sent to that platform.
+When you use a field that selects a user — such as assignee, CC (watcher), or Slack mention — the extension fetches candidates (name, handle, avatar, email) from the connected platform (Jira, GitHub, Linear, Notion, GitLab, Asana, ClickUp, Slack). **For user lookups (assignee, CC, mentions), only Jira receives the search term you type** — it goes to Jira's user-search API. Every other platform returns the user list for the project or workspace and the **search runs on your device**, so your search term never leaves it, though the member directory for that scope (name, handle, avatar, email) is delivered to your device (it is not stored). Fields that pick a **destination rather than a person** (Jira projects and issues, GitHub repositories, GitLab projects, Notion databases, and so on) have too many candidates for that, so they search on the server — the term you type there is sent to that platform. Avatar images in the candidate list are loaded directly from each platform's image CDN. To display already-selected users at the top of the list, the extension may additionally fetch those users' profiles (name, avatar, email). **This lookup happens not only when you write an issue, but also when you set a default assignee in the Integrations tab.** The identifiers of the targets you select are included in the body of the created issue (or Slack message) and sent to that platform.
 
 Search terms and the candidate/profile lists returned are not stored on the device. However, **the identifier and display name of the assignee, CC, or mention target you picked are stored on your device** so they can be filled in again next time (as the default assignee in your integration settings, and as your last submission).
 
@@ -39,6 +39,7 @@ Search terms and the candidate/profile lists returned are not stored on the devi
 
 | Information | When collected | Purpose |
 |---|---|---|
+| Environment details (OS, browser name and version, window size, current page URL and title) | When you enter the issue drafting screen | Filled into the "Environment" section of the issue body automatically — saved with the issue and sent to the platform you submit to |
 | DOM element style information | When selecting an element | Style comparison and issue body generation |
 | Screenshots (area / screen / full page / element) / tab recordings | When capturing / recording a tab | Capturing the range you choose to attach to an issue — **full-page capture automatically scrolls the page beyond the visible screen and stitches multiple shots together, so content that was off-screen is included in the image** |
 | Inline editor images | When inserting part of the screen into the issue body | Capturing the current tab's screen (`captureVisibleTab`) and inserting only the selected region into the body |
@@ -102,7 +103,7 @@ The extension collects anonymous aggregate events to improve the product (effect
 | Side panel opened (sidepanel_opened: whether the page is supported) | When the side panel is opened | Understanding activation level |
 | Platform connect (platform_connect: platform, success/cancel/failure) | On an OAuth connection attempt | Understanding per-platform popularity and connect success/cancel/failure rates |
 | Platform disconnected (platform_disconnected: platform) | On disconnect | Understanding integration churn |
-| Issue submitted (issue_submitted: platform, capture mode, submission result, replay-trim flag) | On issue submission | Understanding per-platform usage, capture-method priority, submission success/failure rates, and 30-second replay trimming usage |
+| Issue submitted (issue_submitted: platform, capture mode, submission result, whether the clip was trimmed and which capture it came from) | On issue submission | Understanding per-platform usage, capture-method priority, submission success/failure rates, and trimming usage (30-second replay vs. regular recording) |
 
 These events carry only the classification strings above and never include issue titles, bodies, URLs, or personally identifiable information. To distinguish the same installation, a random identifier (distinct_id) is generated once on install, stored on the device, and sent with subsequent events. This identifier is merely a random value and is not linked to any personal information such as email, account, or IP. To ensure the actual IP address is not stored, events are sent with the IP value set to `0.0.0.0`, location estimation (GeoIP) is disabled (`$geoip_disable`), and personal profile creation is disabled (`$process_person_profile: false`). There is no separate opt-out (off) setting for this analytics.
 
@@ -137,7 +138,7 @@ The extension transmits data only to the services below.
 | Slack Web API (`slack.com` and Slack-issued file upload URLs) | Message body (title, detail), mention targets, screenshots, video, debug logs, and — on promotion — the tracker issue link | Sending messages/attachments to channels/DMs in your own workspace, and auto-commenting the issue link in the original message thread when promoting to a tracker |
 | HTTP(S) origin hosting a cross-origin stylesheet referenced by the current page | GET request for the stylesheet URL (including its path/query and standard request metadata; cookies and other credentials are omitted) | Reading CSS text on-device to supplement style values and design-token names when the browser CSSOM does not expose the cross-origin stylesheet. Page-supplied URLs pass through a static SSRF guard that rejects loopback, private, link-local, and other non-public literal address ranges; redirects are not followed |
 | OAuth proxy server | OAuth authorization code, token refresh requests (refresh token) | Token exchange (Jira, GitHub, Notion, Asana, ClickUp, Slack) |
-| User-specified LLM provider (AI draft) | Issue body draft, page URL/title, element selector/style info and design tokens, screenshot, element before/after images, and inline images placed in the body (optional), debug log summary (optional), **the shape digest of a bug-related successful (2xx) response body** (top-level key names and value types only, **values excluded**; key names are not masked, but email-, UUID-, and map-shaped record keys are redacted) (optional), the extra instructions you type, and any draft you have already written | AI draft generation |
+| User-specified LLM provider (AI draft) | Issue body draft, page URL/title, selector/style information for **multiple elements edited in styling mode**, design tokens for single-element reports, screenshots, before/after images for those elements, and inline images placed in the body (optional), debug log summary (optional), **the shape digest of a bug-related successful (2xx) response body** (top-level key names and value types only, **values excluded**; key names are not masked, but email-, UUID-, and map-shaped record keys are redacted) (optional), the extra instructions you type, and any draft you have already written | AI draft generation |
 | User-specified LLM provider (AI styling) | Selected element's tag, CSS selector, class list, current specified styles, design tokens, computed layout styles (display, position, width, margin, etc.), browser viewport size, and the instruction you type | CSS change suggestion |
 | PostHog host configured at build time (default `us.i.posthog.com`) | Anonymous aggregate events (install, panel open, platform connect/disconnect, issue submission) | Anonymous usage analytics |
 
@@ -149,7 +150,7 @@ When connecting to a GitLab self-managed instance with a PAT, the extension comm
 
 The LLM provider receives data only at the endpoint you configure yourself. AI draft generation and AI styling run only when you explicitly trigger them, while reproduction-step auto-fill runs automatically once per session when you enter the drafting screen after a video capture (on by default, can be turned off in settings). Access to that host is covered by the required broad host permission (`<all_urls>`).
 
-When searching CC (watcher) mentions, only Jira receives the search term you type (see 1-2 above), and the mention targets you select are sent as part of the issue body. All of this works only when you search and select yourself.
+When searching for **people** — CC (watcher) mentions and the like — only Jira receives the search term you type (destination pickers are the exception; see 1-2 above), and the mention targets you select are sent as part of the issue body. All of this works only when you search and select yourself.
 
 ## 4. Third-Party Sharing
 

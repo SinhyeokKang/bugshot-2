@@ -194,7 +194,10 @@ export function use30sReplay(
       useEditorStore.setState({ target });
       // 보존한 프레임으로 trim 오버레이 대기 상태를 켠다(2프레임 미만이면 trim 무의미 → 전체 클립 직행).
       // drafting 전이와 같은 set()에 실어야 게이트가 늦게 닫히는 렌더가 안 생긴다.
-      const trim = frames.length >= 2 ? { videoBlob: blob, frames } : null;
+      const trim =
+        frames.length >= 2
+          ? { videoBlob: blob, source: { kind: "frames" as const, frames }, ownerTabId: id }
+          : null;
       useEditorStore.getState().onRecordingComplete(blob, thumbnail, viewport, lower, captureTime, trim);
     } catch {
       toast.error(tRef.current("issue.replay.encodeFailed"));
