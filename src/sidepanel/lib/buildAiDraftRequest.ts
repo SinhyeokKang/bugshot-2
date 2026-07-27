@@ -1,4 +1,5 @@
 import type { ProviderCapabilities } from "./ai-provider";
+import { PROMPT_CAPS } from "./prompts/caps";
 
 // LLM 요청(systemPrompt + 최종 images)을 결정적으로 조립하는 순수 함수.
 // systemPrompt는 예산 절삭을 거친 본문을 호출부가 그대로 넘긴다 — 여기서 다시 빌드하면
@@ -15,6 +16,14 @@ export function buildAiDraftRequest(input: {
   const { caps, systemPrompt } = input;
   if (!caps.supportsImages) return { systemPrompt, images: undefined };
 
-  const images = [...(input.modeImages ?? []), ...input.inlineImageDataUrls];
+  const limits = PROMPT_CAPS[caps.promptStyle];
+  let remainingChars = limits.imageChars;
+  const images: string[] = [];
+  for (const image of [...(input.modeImages ?? []), ...input.inlineImageDataUrls]) {
+    if (images.length >= limits.images) break;
+    if (image.length > remainingChars) continue;
+    images.push(image);
+    remainingChars -= image.length;
+  }
   return { systemPrompt, images: images.length > 0 ? images : undefined };
 }

@@ -34,7 +34,6 @@ import {
 } from "@/sidepanel/components/Section";
 import {
   StyleChangesTable,
-  buildStyleDiff,
 } from "@/sidepanel/components/StyleChangesTable";
 import { mergeStyleElements, joinStyleSelectors } from "@/sidepanel/lib/buildIssueMarkdown";
 import { downloadImageDataUrl, downloadVideoBlob } from "@/sidepanel/lib/downloadCapture";
@@ -106,11 +105,6 @@ export function DraftingPanel() {
   const isElementMode = captureMode === "element";
   const isVideoMode = captureMode === "video";
   const screenshotImage = screenshotAnnotated ?? screenshotRaw;
-
-  const diffs = useMemo(
-    () => (selection ? buildStyleDiff(selection, styleEdits) : []),
-    [selection, styleEdits],
-  );
 
   const styleElements = useMemo(
     () =>
@@ -478,7 +472,7 @@ export function DraftingPanel() {
         open={aiDialogOpen}
         onOpenChange={setAiDialogOpen}
         createSession={createSession}
-        elementDiffs={isElementMode ? diffs : undefined}
+        elementStyleElements={isElementMode ? styleElements : undefined}
       />
       {annotating && screenshotRaw ? (
         <Suspense
@@ -843,4 +837,3 @@ export function defaultTitle(prefix: string): string {
   if (!prefix) return "";
   return prefix.endsWith(" ") ? prefix : `${prefix} `;
 }
-

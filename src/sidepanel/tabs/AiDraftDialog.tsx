@@ -23,7 +23,12 @@ import {
   getDraftFewShot,
   parseAiDraftResponse,
   type AiDraftSessionContext,
+  type AiDraftStyleElement,
 } from "@/sidepanel/lib/buildAiDraftPrompt";
+import {
+  resolveAiDraftStyleElements,
+  selectAiDraftTokens,
+} from "@/sidepanel/lib/prompts/draftStyleElements";
 import { buildAiDraftRequest } from "@/sidepanel/lib/buildAiDraftRequest";
 import { mergeAiSectionsPreservingBlocks } from "@/sidepanel/lib/mergeAiDraftSections";
 import {
@@ -36,7 +41,6 @@ import {
   renderLogRefBlocks,
 } from "@/sidepanel/lib/renderLogRefs";
 import { resolveInlineImagesForSections } from "@/sidepanel/lib/resolveInlineImages";
-import type { StyleDiffRow } from "@/sidepanel/components/StyleChangesTable";
 import { buildNetworkLogSummary, buildConsoleLogSummary, buildActionLogSummary } from "@/sidepanel/lib/buildLogSummary";
 import {
   AiContextOverflowError,
@@ -58,13 +62,13 @@ export function AiDraftDialog({
   onOpenChange,
   createSession,
   capabilities,
-  elementDiffs,
+  elementStyleElements,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   createSession: AIProvider["createSession"];
   capabilities: ProviderCapabilities;
-  elementDiffs?: StyleDiffRow[];
+  elementStyleElements?: AiDraftStyleElement[];
 }) {
   const t = useT();
   const [input, setInput] = useState("");
@@ -125,11 +129,17 @@ export function AiDraftDialog({
         pageTitle: store.target?.title ?? "",
         selector: isElement ? store.selection?.selector : store.shotSelector?.selector,
         tagName: isElement ? store.selection?.tagName : store.shotSelector?.tagName,
-        diffs: isElement && elementDiffs?.length ? elementDiffs : undefined,
-        tokens:
-          isElement && store.tokens.length > 0
-            ? store.tokens.map((tk) => ({ name: tk.name, value: tk.value }))
+        styleElements:
+          isElement && elementStyleElements?.length
+            ? elementStyleElements
             : undefined,
+        tokens: isElement
+          ? selectAiDraftTokens(
+              store.tokens.map((tk) => ({ name: tk.name, value: tk.value })),
+              elementStyleElements ?? [],
+              store.selection,
+            )
+          : undefined,
         userPrompt: msg,
         networkLogSummary:
           includeCnLog && networkLog && networkLog.captured > 0
@@ -178,7 +188,13 @@ export function AiDraftDialog({
       const { systemPrompt, images } = buildAiDraftRequest({
         caps: capabilities,
         systemPrompt: fitted.prompt,
-        modeImages: getModeImages(store, captureMode),
+        modeImages: getModeImages(
+          store,
+          captureMode,
+          fitted.ctx.styleElements?.length
+            ? resolveAiDraftStyleElements(fitted.ctx)
+            : undefined,
+        ),
         inlineImageDataUrls,
       });
 
@@ -253,7 +269,7 @@ export function AiDraftDialog({
     } finally {
       useEditorStore.getState().setAiDraftLoading(false);
     }
-  }, [input, captureMode, capabilities, elementDiffs, onOpenChange, t]);
+  }, [input, captureMode, capabilities, elementStyleElements, onOpenChange, t]);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
@@ -306,13 +322,21 @@ export function getModeImages(
     "screenshotAnnotated" | "screenshotRaw" | "beforeImage" | "afterImage"
   >,
   captureMode: CaptureMode,
+  styleElements?: AiDraftStyleElement[],
 ): string[] | undefined {
   if (captureMode === "screenshot") {
     const img = store.screenshotAnnotated ?? store.screenshotRaw;
     return img ? [img] : undefined;
   }
   if (captureMode === "element") {
-    const imgs = [store.beforeImage, store.afterImage].filter(
+    const imgs = (
+      styleElements && styleElements.length > 0
+        ? styleElements.flatMap((element) => [
+            element.beforeImage,
+            element.afterImage,
+          ])
+        : [store.beforeImage, store.afterImage]
+    ).filter(
       (s): s is string => !!s,
     );
     return imgs.length > 0 ? imgs : undefined;

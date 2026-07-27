@@ -43,6 +43,20 @@ const DRAFT = {
 
 const ELEMENT_EXTRAS = {
   diffs: [{ prop: "border-radius", asIs: "8px", toBe: "4px" }],
+  styleElements: [
+    {
+      selector: "button.cta",
+      tagName: "button",
+      frameId: 0,
+      diffs: [{ prop: "color", asIs: "#000", toBe: "#fff" }],
+    },
+    {
+      selector: "div.card",
+      tagName: "div",
+      frameId: 0,
+      diffs: [{ prop: "padding", asIs: "8px", toBe: "16px" }],
+    },
+  ],
   tokens: [{ name: "--radius-lg", value: "12px" }],
 };
 
@@ -63,6 +77,7 @@ const build = (c: AiDraftSessionContext) =>
     act: c.actionLogSummary ?? null,
     draft: c.existingDraft ?? null,
     diffs: c.diffs ?? null,
+    styleElements: c.styleElements ?? null,
     tokens: c.tokens ?? null,
   });
 
@@ -87,6 +102,26 @@ describe("trimDraftContext", () => {
     expect(out.networkLogSummary).toBeUndefined();
     expect(out.existingDraft).toBeUndefined();
     expect(out.diffs).toBeDefined();
+  });
+
+  it("level 3 — 복수 selector는 유지하고 각 요소의 diff만 제거", () => {
+    const out = trimDraftContext(FULL_CTX, 3);
+
+    expect(out.styleElements).toEqual([
+      {
+        selector: "button.cta",
+        tagName: "button",
+        frameId: 0,
+        diffs: [],
+      },
+      {
+        selector: "div.card",
+        tagName: "div",
+        frameId: 0,
+        diffs: [],
+      },
+    ]);
+    expect(out.tokens).toBeUndefined();
   });
 
   it("level 3 — 로그 + 초안 + diff·토큰까지 제거", () => {

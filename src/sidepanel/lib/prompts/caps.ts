@@ -2,6 +2,8 @@ import type { PromptStyle } from "../ai-provider";
 
 export interface PromptCaps {
   diffs: number;
+  images: number;
+  imageChars: number;
   designTokens: number;
   styles: number;
   networkErrors: number;
@@ -18,6 +20,8 @@ const UNLIMITED = Number.MAX_SAFE_INTEGER;
 export const PROMPT_CAPS: Record<PromptStyle, PromptCaps> = {
   compact: {
     diffs: 8,
+    images: 2,
+    imageChars: 6_000_000,
     designTokens: 5,
     styles: 12,
     networkErrors: 3,
@@ -28,6 +32,8 @@ export const PROMPT_CAPS: Record<PromptStyle, PromptCaps> = {
   },
   rich: {
     diffs: 50,
+    images: 8,
+    imageChars: 24_000_000,
     designTokens: 40,
     styles: 80,
     networkErrors: 5,

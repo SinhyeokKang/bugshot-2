@@ -3,6 +3,8 @@ import { PROMPT_CAPS, type PromptCaps } from "../caps";
 
 const CAP_KEYS: (keyof PromptCaps)[] = [
   "diffs",
+  "images",
+  "imageChars",
   "designTokens",
   "styles",
   "networkErrors",

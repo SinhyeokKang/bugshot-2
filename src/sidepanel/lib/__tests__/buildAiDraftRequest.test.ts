@@ -100,4 +100,27 @@ describe("buildAiDraftRequest", () => {
     });
     expect(images).toEqual(["data:cap1", "data:in1"]);
   });
+
+  it("mode와 inline을 합친 최종 이미지에 rich 전역 개수 cap을 적용", () => {
+    const { images } = buildAiDraftRequest({
+      caps: BYOK_CAPABILITIES,
+      systemPrompt: SYS,
+      modeImages: Array.from({ length: 6 }, (_, i) => `data:cap${i}`),
+      inlineImageDataUrls: Array.from(
+        { length: 4 },
+        (_, i) => `data:inline${i}`,
+      ),
+    });
+
+    expect(images).toEqual([
+      "data:cap0",
+      "data:cap1",
+      "data:cap2",
+      "data:cap3",
+      "data:cap4",
+      "data:cap5",
+      "data:inline0",
+      "data:inline1",
+    ]);
+  });
 });

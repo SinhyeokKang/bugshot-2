@@ -26,6 +26,12 @@ export function trimDraftContext(
   }
   if (level >= 3) {
     delete out.diffs;
+    if (out.styleElements) {
+      out.styleElements = out.styleElements.map((element) => ({
+        ...element,
+        diffs: [],
+      }));
+    }
     delete out.tokens;
   }
 

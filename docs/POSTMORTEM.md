@@ -54,6 +54,16 @@
   4. **설계 문서의 코드 인용은 구현으로 검증하고 착수한다.** 이번엔 `/feature-review`의 CTO 에이전트가 ①의 선행 오염(존재하지 않는 조건문)을 **구현 전에** 잡았고, `/code-review`의 dataflow·codehealth가 ①의 실제 발생과 ②를, `/doc-check`의 3개 에이전트가 독립적으로 ③을 잡았다. 리뷰 단계가 없었으면 셋 다 나갔다 — 문서를 계획 원본으로 쓰는 `/ship bypass` 경로에서 특히 위험하다.
 - **관련**: `src/sidepanel/video-recorder.ts:47-52`(`createFinalizeGuard.end` — 창 소비)·`:136-141`(settle을 `end()` 앞으로), `src/sidepanel/30s-replay/apply-trim.ts:143-147`(`settleLogSaves` — 값 판정)·`:56`(`TrimLogsPersistError`), `src/store/blob-db.ts`(save 9종 catch-and-false), `src/background/analytics.ts:26`(`ALLOWED_EVENTS`)·`src/sidepanel/lib/track-submit.ts:21`, 그물 `src/background/__tests__/analytics.test.ts`(송신↔허용목록 왕복)·`src/sidepanel/30s-replay/__tests__/apply-trim.test.ts`(false resolve)·`src/sidepanel/__tests__/video-recorder.test.ts`(`end()` 후 `cancel()`=false). 계열: **2026-07-27**×2(같은 `미검증단언` — 그때는 기록·권한 문서를 실측 없이 확장 추론).
 
+## 2026-07-27 — 최종 본문은 복수 스타일 요소를 합쳤지만 AI 초안 경로는 현재 selector 하나만 전송했다
+
+- **영역**: `AI`, `에디터`
+- **계열**: `드리프트`
+- **그물**: `unit`
+- **증상**: 여러 DOM 요소의 스타일을 차례로 수정한 뒤 AI 초안을 작성하면, 모델이 전체 변경이 아니라 마지막으로 선택한 selector 하나의 변경처럼 리포트를 작성했다. 버퍼 요소만 변경되고 현재 선택은 무변경인 경우에는 selector와 diff가 서로 다른 요소를 가리킬 수도 있었다.
+- **근본 원인**: 최종 이슈 본문과 스타일 변경 표는 `mergeStyleElements(bufferedElements, current)`를 사용했지만, AI 다이얼로그 prop과 프롬프트 컨텍스트는 현재 `selection`의 `selector`·`tagName`·`styleEdits`만 별도로 조립했다. 같은 캡처 상태를 소비하는 두 출력 경로가 서로 다른 데이터 모델을 사용해 저장은 정상인데 LLM endpoint 경계에서 복수 요소 정보가 소실됐다.
+- **재발 방지**: 캡처 상태를 새 소비처로 전달할 때 `grep -rn 'mergeStyleElements\|bufferedElements\|styleElements\|elementDiffs' src/sidepanel`로 최종 본문·미리보기·AI 요청의 입력 모델을 함께 대조한다. 복수 요소 selector 보존, 버퍼만 변경+현재 무변경, frameId 구분, compact/rich 전역 diff·이미지 cap을 요청 경계 단위 테스트로 고정한다.
+- **관련**: `src/sidepanel/tabs/DraftingPanel.tsx`(`styleElements`), `src/sidepanel/tabs/AiDraftDialog.tsx`(`AiDraftDialog`), `src/sidepanel/lib/prompts/draftStyleElements.ts`(`resolveAiDraftStyleElements`), `src/sidepanel/lib/buildAiDraftRequest.ts`(`buildAiDraftRequest`).
+
 ## 2026-07-27 — 정적 스킴 화이트리스트가 런타임 권한 토글을 안 봐서, 파일 접근 ON인데도 https→file: 이동에 패널이 닫혔다
 
 - **영역**: `background`
