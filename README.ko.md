@@ -200,6 +200,8 @@ pnpm sync:agents  # Codex 미러 재생성 (AGENTS.md, .agents/skills/)
 
 `chrome://extensions`에서 개발자 모드로 `dist/`를 압축 해제된 확장으로 로드하세요.
 e2e 스위트는 `e2e/`에 있고, 커버리지와 함정은 [`e2e/README.md`](e2e/README.md)를 참고하세요.
+패치 환영합니다. 기준 브랜치·CI 검사 항목·머지되지 않는 변경은
+[`CONTRIBUTING.md`](CONTRIBUTING.md)에 정리돼 있습니다.
 
 ### 직접 빌드해서 확인하기
 

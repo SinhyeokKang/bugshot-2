@@ -207,6 +207,8 @@ pnpm sync:agents  # regenerate the Codex mirror (AGENTS.md, .agents/skills/)
 
 Load the unpacked extension from `dist/` at `chrome://extensions` (developer mode).
 The e2e suite lives in `e2e/` — see [`e2e/README.md`](e2e/README.md) for coverage and gotchas.
+Patches are welcome: [`CONTRIBUTING.md`](CONTRIBUTING.md) covers which branch to
+target, what CI checks, and what won't be merged.
 
 ### Build it yourself
 

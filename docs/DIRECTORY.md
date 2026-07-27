@@ -110,7 +110,7 @@ e2e/                     # Playwright e2e 스위트 (@playwright/test, BUGSHOT_E
 ├── logview/             # 확장 없는 standalone 로그 뷰어 스위트(project: logview) — fixtures.ts(dist-log-viewer/index.html에 합성 로그를 평문 JSON으로 setContent 주입 + makeAction/Console/Network/Report 빌더 + clipboard stub + generateTinyVideoDataUrl[in-page MediaRecorder로 finite-duration 영상 즉석 생성 — 마커·seek 검증용]) · log-viewer.spec.ts(i18n 라벨 raw-key 회귀·필터·검색·origin 필터·Report 탭·다운로드 버튼, ko/en) · log-viewer-sync.spec.ts(영상 모드 — 마커 3타입 통합·마커 클릭 탭전환·로그 행/칩 클릭 seek) · timeline-panel.spec.ts(병합 타임라인 패널 — 시간순 병합·필터 개수배지·타입 단일선택·검색[console args·network 본문]·행 클릭 seek+탭전환·playhead active 하이라이트)
 └── *.spec.ts            # activetab-broad-permission · style-edit-flow · style-code-view · style-zindex · style-position-section · style-changes-dialog · style-changes-stacked · style-field-fixes · style-token-hint · style-bugfix-regression · style-cross-origin-section · border-per-side · linked-quad-merge · buffered-reselect-edit · body-composition-reorder(본문 구성 순서 재정렬·영속·복원·draft 반영) · dom-tree-nav · capture · capture-modes-layout · annotation-overlay · download-buttons · draft-resume · freeform-draft · log-capture · logs-cross-page · logs-error-warn · logs-iframe · logs-origin-filter · logs-prearm · console-linkify · network-body-search · websocket-log · onboarding · picker-guard · session · settings-sections · attachments · clickup-submit-gating · slack-submit-gating · slack-issue-promotion · slack-promote-media-guard · ai-draft · ai-draft-log-refs(AI 지목 로그 코드블럭 삽입 — 왕복 dedup·수동 블럭 보존) · ai-local-provider · ai-styling · capture-methods(화면·페이지 전체 캡처 툴바) · draft-field-edit · network-search-highlight · picker-iframe · recording-annotation(녹화 오버레이 — 펜·박스·형광펜 setTool + 드래그 판정) · annotation-zoom · action-log-scope(액션 로그 지원 모드 — screenshot drafting 카드·토글·기록, element 부재) · unsupported-url · log-insert · repro-prefill · style-class-section · style-code-value-hints · style-table-section · code-block-collapse · inline-image-annotation(본문 삽입 이미지 어노테이션 — hover 액션 노출·초기화 숨김·오버레이 진입·삭제) (커버리지 맵은 COVERAGE.md)
 oauth-proxy/             # Cloudflare Worker — Atlassian /token + GitHub /github/{token,refresh} + Notion /notion/token + Asana /asana/{token,refresh} + ClickUp /clickup/token(refresh 없음) + Slack /slack/token(oauth.v2.access, refresh 없음) 교환 (client_secret 서버 보관, Linear·GitLab은 PKCE라 proxy 불필요)
-docs/                    # 프로젝트 레퍼런스 문서 (루트엔 CLAUDE.md·README.md만 유지)
+docs/                    # 프로젝트 레퍼런스 문서 (루트엔 CLAUDE.md·README.{md,ko.md}와 GitHub 규약 파일 LICENSE·SECURITY.md·CONTRIBUTING.md만 유지)
 ├── DIRECTORY.md     # 이 문서 — 디렉터리 구조·파일별 역할
 ├── ARCHITECTURE.md  # 설계 상세 (탭 스코프·인증·어댑터·토큰 체인·CSSOM 캐시·마이그레이션 등)
 ├── DESIGN.md        # 디자인 시스템·UI 컨벤션 (토큰·레이아웃·합성 컴포넌트·상태 표현)
@@ -125,9 +125,11 @@ scripts/                 # 저장소 유지보수 스크립트 (빌드 파이프
 ├── postmortem-report.mjs  # 회고 집계기 — docs/POSTMORTEM.md 항목의 영역·계열·그물 태그를 파싱해 축별 랭킹 + 영역×계열 반복 함정 교차 + 자동 그물 밖(시각·수동) 비율을 리포트. vocab 단일 출처(AREAS·PATTERNS·NETS)이자 `--check`로 태그 누락·오타·헤딩 유실을 차단(exit 1). `pnpm postmortem:report`/`postmortem:check` / `/postmortem` 스킬이 호출. 그물 `scripts/__tests__/postmortem-report.test.mjs`
 └── coverage-report.mjs  # 커버리지 리포트·트렌드 비교기 — coverage/coverage-summary.json(vitest v8) 읽어 로직 스코프(isBrowserBound() 단일 출처로 브라우저/UI 코드 제외) vs 전체 두 지표 계산 + git-tracked coverage/baseline.json 대비 이전→지금 비교·회귀 래칫·개선 후보 랭킹. `--update`로 베이스라인 갱신. `pnpm coverage:report`/`coverage:update` / `/coverage` 스킬이 호출
 coverage/                # 커버리지 산출물 — 리포트 본체는 .gitignore, baseline.json(트렌드 기준선)만 git-tracked
-.github/workflows/       # GitHub Actions
-├── ci.yml            # dev push·main PR — typecheck → sync:agents:check → test → build → check:prearm. 브라우저·시크릿 없이 결정적. e2e는 headed 강제(headless에서 확장 SW 미기동)라 제외 — 로컬 /e2e-run 게이트가 담당
-└── trigger-web-deploy.yml  # main의 privacy/guide 변경 시 bugshot-web 배포 훅 호출
+.github/                 # GitHub Actions + 외부 기여자용 이슈·PR 템플릿
+├── workflows/ci.yml  # dev push·main PR — typecheck → sync:agents:check → test → build → check:prearm. 브라우저·시크릿 없이 결정적. e2e는 headed 강제(headless에서 확장 SW 미기동)라 제외 — 로컬 /e2e-run 게이트가 담당
+├── workflows/trigger-web-deploy.yml  # main의 privacy/guide 변경 시 bugshot-web 배포 훅 호출
+├── ISSUE_TEMPLATE/   # 이슈 폼 — bug_report.yml(버전·Chrome/OS·영역·플랫폼·확장 콘솔 에러·문제 페이지 성격) + feature_request.yml(문제 우선 서술 + 캡처 백엔드 불가 스코프 체크) + config.yml(가이드·보안 신고·privacy 전송 표 링크)
+└── pull_request_template.md  # PR 체크리스트 — main 기준 브랜치 안내 + typecheck/test/build + privacy ko/en 동시 갱신 조건
 .agents/                 # Codex 런타임 미러 (전부 생성물 — PREAMBLE.md만 수기)
 ├── PREAMBLE.md       # AGENTS.md 상단에 붙는 Codex 런타임 차이 (스킬 매핑·미제공 스킬·훅 부재·커밋 트레일러)
 └── skills/           # .claude/commands/ 미러 15개 (push·merge·deploy·sync 제외)
