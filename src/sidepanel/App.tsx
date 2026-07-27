@@ -47,7 +47,7 @@ import { IntegrationsTab } from "./tabs/IntegrationsTab";
 import { IssueListTab } from "./tabs/IssueListTab";
 import { SettingsTab } from "./tabs/SettingsTab";
 import { TabNavContext } from "./tab-nav";
-import { applyReplayTrim } from "./30s-replay/apply-trim";
+import { applyReplayTrim, applyRecordingTrim, TrimLogsPersistError } from "./30s-replay/apply-trim";
 import { clearPicker } from "@/sidepanel/picker-control";
 import {
   deleteNetworkLog,
@@ -143,6 +143,7 @@ export default function App() {
   const [sessionSaveExhausted, setSessionSaveExhausted] = useState(false);
   const [permissionExpired, setPermissionExpired] = useState(false);
   const [trimBusy, setTrimBusy] = useState(false);
+  const [trimProgress, setTrimProgress] = useState(0);
 
   useEffect(() => {
     const unsub = onOAuthExpired.subscribe((platform) => {
@@ -453,15 +454,53 @@ export default function App() {
         >
           <ReplayTrimDialog
             videoBlob={replayTrim.videoBlob}
-            frames={replayTrim.frames}
+            source={replayTrim.source}
             busy={trimBusy}
-            onConfirm={(startSec, endSec) => {
-              const frames = replayTrim.frames;
+            // 리플레이(frames) 트림은 진행률을 내지 않는다(프레임이 메모리에 있어 즉시 끝난다) —
+            // undefined를 넘겨 다이얼로그가 0% 바 대신 기존 readout을 유지하게 한다.
+            progress={replayTrim.source.kind === "recording" ? trimProgress : undefined}
+            onConfirm={({ startSec, endSec, durationSec, mediaScale }) => {
+              const { source, ownerTabId, videoBlob } = replayTrim;
+              // 오버레이는 탭을 전환해도 남는다(hydrate가 merge). 그 상태로 확정하면 남의 탭
+              // 로그를 자르므로, 원본을 유지한 채 작성 화면으로 보낸다.
+              if (ownerTabId !== tabId) {
+                toast.error(t("issue.replay.trim.wrongTab"));
+                replay.resolveTrim();
+                return;
+              }
               setTrimBusy(true);
-              applyReplayTrim({ frames, tabId, startSec, endSec })
-                .catch(() => toast.error(t("issue.replay.encodeFailed")))
+              setTrimProgress(0);
+              const done =
+                source.kind === "recording"
+                  ? applyRecordingTrim({
+                      videoBlob,
+                      tabId,
+                      startedAt: source.startedAt,
+                      startSec,
+                      endSec,
+                      durationSec,
+                      mediaScale,
+                      // 인코딩은 rVFC 콜백마다(4배속이면 초당 수십 회) 진행률을 낸다.
+                      // 정수 %가 바뀔 때만 반영해 App 서브트리 리렌더가 인코더와 CPU를 다투지 않게 한다.
+                      onProgress: (ratio) =>
+                        setTrimProgress((prev) =>
+                          Math.round(ratio * 100) === Math.round(prev * 100) ? prev : ratio,
+                        ),
+                    })
+                  : applyReplayTrim({ frames: source.frames, tabId, startSec, endSec });
+              done
+                .catch((err) =>
+                  toast.error(
+                    // 로그 저장 실패는 replaceVideo 뒤라 잘린 영상이 이미 붙어 있다 —
+                    // "원본이 첨부된다"는 인코딩 실패 문구를 쓰면 거짓말이 된다.
+                    err instanceof TrimLogsPersistError
+                      ? t("issue.replay.trim.logsPersistFailed")
+                      : t("issue.replay.trimFailed"),
+                  ),
+                )
                 .finally(() => {
                   setTrimBusy(false);
+                  setTrimProgress(0);
                   replay.resolveTrim();
                 });
             }}

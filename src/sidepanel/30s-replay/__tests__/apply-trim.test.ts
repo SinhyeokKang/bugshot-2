@@ -82,6 +82,7 @@ const FRAMES = frames(10000, 10600, 11200, 11800, 12400);
 
 let applyReplayTrim: typeof import("../apply-trim").applyReplayTrim;
 let applyRecordingTrim: typeof import("../apply-trim").applyRecordingTrim;
+let TrimLogsPersistError: typeof import("../apply-trim").TrimLogsPersistError;
 
 // 마이크로태스크 수를 세지 않고 "지금까지 진행된 만큼"을 관찰하기 위한 매크로태스크 한 틱.
 function tick(ms = 20): Promise<void> {
@@ -91,7 +92,7 @@ function tick(ms = 20): Promise<void> {
 beforeEach(async () => {
   vi.clearAllMocks();
   storeState = makeState(null);
-  ({ applyReplayTrim, applyRecordingTrim } = await import("../apply-trim"));
+  ({ applyReplayTrim, applyRecordingTrim, TrimLogsPersistError } = await import("../apply-trim"));
 });
 
 describe("applyReplayTrim — no-op", () => {
@@ -343,6 +344,26 @@ describe("applyRecordingTrim — 정상 경로", () => {
     ];
     expect(opts.startSec).toBeCloseTo(1);
     expect(opts.endSec).toBeCloseTo(4);
+  });
+
+  // blob-db의 save 헬퍼는 내부에서 catch하고 false를 **resolve**한다(reject가 아니다).
+  // rejected만 보면 이 경로가 통째로 죽은 코드가 된다.
+  it("IDB save가 false를 resolve하면 TrimLogsPersistError로 알린다", async () => {
+    saveNetworkLog.mockResolvedValueOnce(false);
+    storeState = makeState({
+      id: "n", startedAt: 0, endedAt: 0, totalSeen: 1, captured: 1,
+      warnings: [], requests: [makeRequest({ id: "keep", startTime: 13000 })],
+    });
+
+    await expect(
+      applyRecordingTrim({
+        videoBlob: new Blob(["orig"], { type: "video/mp4" }),
+        tabId: 1, startedAt: BASE, startSec: 2, endSec: 8, durationSec: 10, mediaScale: 1,
+      }),
+    ).rejects.toBeInstanceOf(TrimLogsPersistError);
+
+    // 영상은 이미 교체된 뒤다 — 호출자가 "원본 유지" 문구를 쓰면 안 되는 이유.
+    expect(storeState.replaceVideo).toHaveBeenCalledTimes(1);
   });
 
   it("로그 set과 replaceVideo 사이에 IDB 왕복이 끼지 않는다", async () => {

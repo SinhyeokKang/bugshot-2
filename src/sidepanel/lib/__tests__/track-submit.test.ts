@@ -48,14 +48,31 @@ describe("submitEventProperties", () => {
     expect(submitEventProperties("github", "element", "failure").result).toBe("failure");
   });
 
-  it("반환 키가 정확히 platform/capture_mode/result/replay_trimmed 4개 (식별 정보 없음)", () => {
+  it("반환 키가 정확히 platform/capture_mode/result/replay_trimmed/trim_source 5개 (식별 정보 없음)", () => {
     const out = submitEventProperties("github", "element", "success");
-    expect(Object.keys(out).sort()).toEqual(["capture_mode", "platform", "replay_trimmed", "result"]);
+    expect(Object.keys(out).sort()).toEqual([
+      "capture_mode",
+      "platform",
+      "replay_trimmed",
+      "result",
+      "trim_source",
+    ]);
   });
 
   it("replay_trimmed 플래그 — 기본 false, 전달 시 문자열 'true'", () => {
     expect(submitEventProperties("github", "video", "success").replay_trimmed).toBe("false");
     expect(submitEventProperties("github", "video", "success", true).replay_trimmed).toBe("true");
+  });
+
+  // replay_trimmed가 리플레이 전용에서 영상 전체로 넓어졌다 — 어느 경로가 잘랐는지 남긴다.
+  it("trim_source — 미트림은 'none', 리플레이는 'frames', 녹화는 'recording'", () => {
+    expect(submitEventProperties("github", "video", "success").trim_source).toBe("none");
+    expect(submitEventProperties("github", "video", "success", true, "frames").trim_source).toBe(
+      "frames",
+    );
+    expect(submitEventProperties("github", "video", "success", true, "recording").trim_source).toBe(
+      "recording",
+    );
   });
 });
 
@@ -77,6 +94,7 @@ describe("trackSubmit", () => {
         capture_mode: "element",
         result: "success",
         replay_trimmed: "false",
+        trim_source: "none",
       },
     });
   });

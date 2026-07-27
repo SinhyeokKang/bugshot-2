@@ -36,19 +36,19 @@
   - `onRecordingComplete`·`resolveReplayTrim`·`replaceVideo` 시그니처는 건드리지 않는다.
   - `editor-store.test.ts`의 `replayTrim()` 헬퍼(`:182-190`)를 새 페이로드 형태로 갱신한다.
 - **검증**:
-  - [ ] `rg -n "mp4|muxer" src/store/editor-store.ts` 결과 0 (타입 포함 새 import 없음)
-  - [ ] `src/store/__tests__/editor-store.test.ts`의 `"전이 원자성"`(`:242`)·`"reset이 replayTrim까지 청소한다"`(`:260`)·`"resolveReplayTrim이 게이트를 내린다"`(`:271`) 3개가 새 페이로드로 갱신되고 통과
-  - [ ] `:232` `it("trim 인자 생략(탭/화면 녹화)이면 replayTrim은 null이다")` — Task 8 이후 이 서술이 **거짓**이 되므로 케이스 이름을 "trim 인자를 생략하면 replayTrim은 null이다"로 바꾸고, 녹화 경로가 항상 인자를 넘긴다는 사실을 주석으로 남긴다
-  - [ ] `pnpm test` — `src/store/__tests__/` green
-  - [ ] `pnpm typecheck` 에러가 위 표의 Task 2·8 사이트 3곳으로만 남는다
+  - [x] `rg -n "mp4|muxer" src/store/editor-store.ts` 결과 0 (타입 포함 새 import 없음)
+  - [x] `src/store/__tests__/editor-store.test.ts`의 `"전이 원자성"`(`:242`)·`"reset이 replayTrim까지 청소한다"`(`:260`)·`"resolveReplayTrim이 게이트를 내린다"`(`:271`) 3개가 새 페이로드로 갱신되고 통과
+  - [x] `:232` `it("trim 인자 생략(탭/화면 녹화)이면 replayTrim은 null이다")` — Task 8 이후 이 서술이 **거짓**이 되므로 케이스 이름을 "trim 인자를 생략하면 replayTrim은 null이다"로 바꾸고, 녹화 경로가 항상 인자를 넘긴다는 사실을 주석으로 남긴다
+  - [x] `pnpm test` — `src/store/__tests__/` green
+  - [x] `pnpm typecheck` 에러가 위 표의 Task 2·8 사이트 3곳으로만 남는다
 
 ### Task 2: 리플레이 경로를 새 페이로드로 이행 (동작 무변경)
 
 - **변경 대상**: `src/sidepanel/30s-replay/use-30s-replay.ts`
 - **작업 내용**: `capture()`의 트림 페이로드를 `{ videoBlob: blob, source: { kind: "frames", frames }, ownerTabId: id }`로 바꾼다. `frames.length >= 2` 조건은 그대로 유지(리플레이 한정).
 - **검증**:
-  - [ ] `pnpm test` — `src/sidepanel/30s-replay/__tests__/` 전체 green
-  - [ ] `pnpm typecheck` 에러가 `App.tsx` 2곳만 남는다
+  - [x] `pnpm test` — `src/sidepanel/30s-replay/__tests__/` 전체 green
+  - [x] `pnpm typecheck` 에러가 `App.tsx` 2곳만 남는다
   - [ ] 수동(Task 9 이후): 30s 리플레이 캡처 → 자르기 화면 진입·확정·취소가 **변경 전과 동일**
 
 ### Task 3: 초 단위 트림 경계 + 적응 비트레이트 순수 함수 (**TDD 선행**)
@@ -62,12 +62,12 @@
   - `previewBoundsFor(source, {startSec, endSec}, {durationSec, maxFrameDurationMs})` — `source.kind`로 `previewTrimBounds` / `recordingLogTrimBounds` 위임. **위치 인자 4개를 전부 `number`로 두지 않는다**(frames의 `maxFrameDurationMs`와 recording의 `durationSec`이 뒤바뀌어도 컴파일이 통과한다).
   - `pickTrimBitrate(byteSize, durationSec)` — `clamp(byteSize * 8 / durationSec * 1.5, 800_000, 4_000_000)`
 - **검증**:
-  - [ ] `isFullRangeSec`: 전체 구간 true / 앞만 자름 false / 뒤만 자름 false / eps 안쪽 미세 오차(0.03초) true / eps 밖(0.2초) false
-  - [ ] `recordingLogTrimBounds`: 전체 구간 → `null` / 앞만 자름 → `lower = startedAt + startSec*1000`, `upper === undefined` / 뒤만 자름 → `lower === Number.NEGATIVE_INFINITY`, `upper = startedAt + endSec*1000` / 양쪽 → 둘 다 유한값
-  - [ ] `recordingLogTrimBounds` 결과를 `isTrimmedOut`에 먹였을 때 경계값(정확히 `lower`·`upper`)이 **잘리지 않는다**(inclusive — `trimByTime`과 동일). `lower === -Infinity`인 결과도 어떤 timestamp도 자르지 않는다
-  - [ ] `previewBoundsFor`: `kind:"frames"`는 `previewTrimBounds(frames, s, e, maxFrameDurationMs)`와 동일 결과 / `kind:"recording"`은 `recordingLogTrimBounds`와 동일 결과
-  - [ ] `pickTrimBitrate`: 저모션(3MB/60s → 하한 800k 근처) / 고모션(15MB/60s → 실측×1.5) / 상한 초과 입력 → 4Mbps로 clamp / `durationSec === 0` 방어
-  - [ ] `pnpm test` green
+  - [x] `isFullRangeSec`: 전체 구간 true / 앞만 자름 false / 뒤만 자름 false / eps 안쪽 미세 오차(0.03초) true / eps 밖(0.2초) false
+  - [x] `recordingLogTrimBounds`: 전체 구간 → `null` / 앞만 자름 → `lower = startedAt + startSec*1000`, `upper === undefined` / 뒤만 자름 → `lower === Number.NEGATIVE_INFINITY`, `upper = startedAt + endSec*1000` / 양쪽 → 둘 다 유한값
+  - [x] `recordingLogTrimBounds` 결과를 `isTrimmedOut`에 먹였을 때 경계값(정확히 `lower`·`upper`)이 **잘리지 않는다**(inclusive — `trimByTime`과 동일). `lower === -Infinity`인 결과도 어떤 timestamp도 자르지 않는다
+  - [x] `previewBoundsFor`: `kind:"frames"`는 `previewTrimBounds(frames, s, e, maxFrameDurationMs)`와 동일 결과 / `kind:"recording"`은 `recordingLogTrimBounds`와 동일 결과
+  - [x] `pickTrimBitrate`: 저모션(3MB/60s → 하한 800k 근처) / 고모션(15MB/60s → 실측×1.5) / 상한 초과 입력 → 4Mbps로 clamp / `durationSec === 0` 방어
+  - [x] `pnpm test` green
 
 ### Task 4: `mp4-encoder` 공유 지점 추출
 
@@ -76,8 +76,8 @@
   - `CODEC_CANDIDATES`(`:4-10`)·`ceilEven`(`:34`) **export 추가** — 둘 다 현재 module-private다. (`pickEvenDimensions`(`:39`)는 `maxWidth`가 **required 3번째 인자**라 "원본 해상도 유지"와 충돌하므로 `encode-range`에서는 쓰지 않는다.)
   - `createMp4Sink({ width, height, codec, bitrate })` **추출** — `Muxer` 생성 + `encoderError` 래치 + `VideoEncoder.configure` + `flush`/`finalize`/Blob 생성(`:147-166`, `:198-207`)을 팩토리로 뽑는다. `encodeToMp4`가 이걸 쓰도록 바꾸되 **동작 불변**.
 - **검증**:
-  - [ ] `pnpm test` — 기존 `mp4-encoder` 관련 테스트 전부 green(추출이 동작을 바꾸지 않았다는 증거)
-  - [ ] `createMp4Sink`가 `firstTimestampBehavior`를 설정하지 않는 현행을 유지한다(0-base 정규화는 호출자 책임)
+  - [x] `pnpm test` — 기존 `mp4-encoder` 관련 테스트 전부 green(추출이 동작을 바꾸지 않았다는 증거)
+  - [x] `createMp4Sink`가 `firstTimestampBehavior`를 설정하지 않는 현행을 유지한다(0-base 정규화는 호출자 책임)
 
 ### Task 5: 구간 재인코딩 (`encodeVideoRange`)
 
@@ -94,9 +94,16 @@
   - `onProgress((mediaTime - startSec) / (endSec - startSec))`를 매 콜백에서 호출.
   - `finally`에서 **보류 중인 `VideoFrame.close()`** / `video.pause()` / `src=""` / `URL.revokeObjectURL` / `encoder.close()`를 반드시 정리한다(lookahead라 항상 보류 프레임 1개가 있다).
   - `scripts/coverage-report.mjs`의 `BROWSER_BOUND_EXACT`에 `src/sidepanel/30s-replay/encode-range.ts`를 등록한다. 이건 `30s-replay/`의 **첫 등록 사례**다(같은 WebCodecs 의존인 `mp4-encoder.ts`는 순수 헬퍼가 실제로 테스트되고 있어 미등록) — 등록 사유를 한 줄 주석으로 남긴다.
+  - **구현 중 정정된 것**(자체 검증에서 드러난 사항 — 위 지시보다 이쪽이 최종이다):
+    - 0-base 기준은 `startSec`이 아니라 **실제로 인코딩한 첫 프레임의 `mediaTime`**이다. seek이 표시한 프레임을 놓치면 첫 `mediaTime`이 `startSec`보다 커져 `max(0, ...)` clamp가 무력하고 muxer strict가 throw한다.
+    - mid-stream 리사이즈에 `visibleRect` 오버라이드를 쓰지 않는다 — `codedWidth/Height`는 매크로블록 패딩 때문에 정상 상황에서도 config와 다르고, `displayWidth/Height`는 리샘플링하지 않는다. `VideoEncoder`가 config 크기로 스케일하므로 timestamp/duration만 갈아끼운 클론을 넘긴다.
+    - watchdog은 "프레임 도착"이 아니라 **`video.currentTime` 진행**을 감시한다. MediaRecorder는 damage 기반이라 정지 화면의 긴 프레임 간격이 정상이고, `drain()` 대기 중에도 재생은 흐른다.
+    - hidden 동안 watchdog만 재우면 `<video>`가 계속 재생돼 구간을 건너뛴다 — `visibilitychange`로 **재생 자체를 pause/resume**한다.
+    - 프레임 duration에 **상한을 두지 않는다**(정지 화면 구간이 압축돼 결과가 선택 구간보다 짧아진다). hidden 폭주는 위 pause가 원인 단계에서 막는다.
+    - `startSec === 0`이면 `currentTime` 재대입이 `seeked`를 안 낼 수 있어 seek을 건너뛴다.
 - **검증**:
-  - [ ] `pnpm coverage:report` — 로직 스코프 분모에 `encode-range.ts`가 **포함되지 않는다**
-  - [ ] 코드 확인: 첫 청크 timestamp가 0이다(`rg -n "timestampUs" src/sidepanel/30s-replay/encode-range.ts`로 0-base 계산 존재 확인)
+  - [x] `pnpm coverage:report` — 로직 스코프 분모에 `encode-range.ts`가 **포함되지 않는다**
+  - [x] 코드 확인: 첫 청크 timestamp가 0이다(`rg -n "timestampUs" src/sidepanel/30s-replay/encode-range.ts`로 0-base 계산 존재 확인)
   - [ ] 수동(Task 8 이후 통합 확인): 자른 영상의 재생 길이가 선택 구간과 일치(±1프레임), 해상도가 원본과 동일, 재생 중 깨짐 없음
 
 ### Task 6: 썸네일 헬퍼 분리 + 로그 트림 추출 + `applyRecordingTrim`
@@ -118,12 +125,12 @@
     6. `await Promise.allSettled(saves)` — rejected가 하나라도 있으면 호출자가 경고할 수 있게 알린다(throw하지 않는다 — 영상 교체는 이미 끝났다)
   - 2~3단계에서 throw되면 `replaceVideo` 전이므로 store는 원본 그대로 남는다 — **이 순서를 바꾸지 않는다**.
 - **검증**:
-  - [ ] `pnpm test` — 기존 `apply-trim.test.ts` 전부 green
-  - [ ] **순서 회귀 테스트 추가**: `applyReplayTrim`에서 `replaceVideo`가 `saveNetworkLog`/`saveConsoleLog`/`saveActionLog`의 resolve **전에** 호출된다(기존 테스트는 호출 횟수·인자만 단언해 순서를 못 잡는다). 예: save mock을 수동 resolve deferred로 만들고 `replaceVideo` 호출 시점을 확인
-  - [ ] `applyRecordingTrim`에 전체 구간을 넣으면 `encodeVideoRange`·`replaceVideo`가 **호출되지 않는다**(`vi.mock("../encode-range")`)
-  - [ ] `applyRecordingTrim`에서 `encodeVideoRange`가 reject하면 `replaceVideo`가 호출되지 않고 reject이 전파된다
-  - [ ] 정상 경로에서 로그 3종이 경계로 좁혀지고 `replaceVideo`가 `startedAt + startSec*1000` / `startedAt + endSec*1000`으로 호출된다
-  - [ ] `rg -n "video-recorder" src/sidepanel/30s-replay/apply-trim.ts` 결과 0
+  - [x] `pnpm test` — 기존 `apply-trim.test.ts` 전부 green
+  - [x] **순서 회귀 테스트 추가**: `applyReplayTrim`에서 `replaceVideo`가 `saveNetworkLog`/`saveConsoleLog`/`saveActionLog`의 resolve **전에** 호출된다(기존 테스트는 호출 횟수·인자만 단언해 순서를 못 잡는다). 예: save mock을 수동 resolve deferred로 만들고 `replaceVideo` 호출 시점을 확인
+  - [x] `applyRecordingTrim`에 전체 구간을 넣으면 `encodeVideoRange`·`replaceVideo`가 **호출되지 않는다**(`vi.mock("../encode-range")`)
+  - [x] `applyRecordingTrim`에서 `encodeVideoRange`가 reject하면 `replaceVideo`가 호출되지 않고 reject이 전파된다
+  - [x] 정상 경로에서 로그 3종이 경계로 좁혀지고 `replaceVideo`가 `startedAt + startSec*1000` / `startedAt + endSec*1000`으로 호출된다
+  - [x] `rg -n "video-recorder" src/sidepanel/30s-replay/apply-trim.ts` 결과 0
 
 ### Task 7: 자르기 화면 소스 일반화 + 진행률 + ARIA
 
@@ -142,10 +149,10 @@
     - 진행률 문구 **신규**.
     - 구간 readout·4탭·타임라인·마커·undo/redo·`data-testid`는 **그대로**.
 - **검증**:
-  - [ ] `pnpm test` — i18n 대칭(ko/en 키·placeholder) green. `src/i18n/` 저장 시 PostToolUse 훅이 자동 실행
+  - [x] `pnpm test` — i18n 대칭(ko/en 키·placeholder) green. `src/i18n/` 저장 시 PostToolUse 훅이 자동 실행
   - [ ] 30s 리플레이 자르기 화면의 표시·동작이 변경 전과 동일(수동)
   - [ ] `<video>`가 로드되지 않는 상황(DevTools로 blob URL 차단 등)에서도 타임라인이 그려지고 확정 버튼이 활성 상태다(수동)
-  - [ ] `rg -n "cancelConfirm" src/sidepanel/tabs/ReplayTrimDialog.tsx` — `editor.cancelConfirm`이 아니라 새 키를 참조한다
+  - [x] `rg -n "cancelConfirm" src/sidepanel/tabs/ReplayTrimDialog.tsx` — `editor.cancelConfirm`이 아니라 새 키를 참조한다
 
 ### Task 8: 녹화 경로 배선 (video-recorder + App)
 
@@ -163,10 +170,10 @@
     - `.catch(토스트)` `.finally(setTrimBusy(false) + resolveTrim())` 구조는 유지.
     - `onCancel`은 손대지 않는다.
 - **검증**:
-  - [ ] `pnpm typecheck` **전체 통과**(여기서 처음으로 0 에러)
-  - [ ] `pnpm test` 통과
-  - [ ] 코드 확인: `rg -n "replayTrim|resolveReplayTrim" src/sidepanel/video-recorder.ts` 결과 0 (게이트를 세우는 경로가 `onRecordingComplete` 인자 하나뿐)
-  - [ ] 코드 확인: `rg -n 'end\(finalizeId\)' src/sidepanel/video-recorder.ts` 결과가 **1건**(`=== "discard"`)이다
+  - [x] `pnpm typecheck` **전체 통과**(여기서 처음으로 0 에러)
+  - [x] `pnpm test` 통과
+  - [x] 코드 확인: `rg -n "replayTrim|resolveReplayTrim" src/sidepanel/video-recorder.ts` 결과 0 (게이트를 세우는 경로가 `onRecordingComplete` 인자 하나뿐)
+  - [x] 코드 확인: `rg -n 'end\(finalizeId\)' src/sidepanel/video-recorder.ts` 결과가 **1건**(`=== "discard"`)이다
   - [ ] 수동: 탭 녹화 정지 → 자르기 화면 자동 진입 (Task 10 체크리스트로 이어짐)
 
 ### Task 9: 문서 갱신
@@ -187,8 +194,8 @@
 - **변경 대상**: `src/sidepanel/lib/track-submit.ts`, 호출부(`SubmitFieldsDialog.tsx`)
 - **작업 내용**: `replay_trimmed`와 함께 `trim_source: "frames" | "recording"`를 보낸다. 녹화 경로가 `videoTrimmed`를 켜기 시작하면 기존 시계열의 의미가 "리플레이 전용" → "영상 전체"로 소급 없이 바뀌기 때문이다. 익명 집계 범위 내라 privacy 영향 없음.
 - **검증**:
-  - [ ] `pnpm test` — `track-submit` 관련 테스트 green(없으면 프로퍼티 구성 단위 테스트 추가)
-  - [ ] `docs/privacy.{ko,en}.md` 트리거 해당 없음을 확인(새 수집 항목이 아니라 기존 이벤트의 차원 추가 — 판단 근거를 커밋 메시지에 남긴다)
+  - [x] `pnpm test` — `track-submit` 관련 테스트 green(없으면 프로퍼티 구성 단위 테스트 추가)
+  - [x] `docs/privacy.{ko,en}.md` 트리거 해당 없음을 확인(새 수집 항목이 아니라 기존 이벤트의 차원 추가 — 판단 근거를 커밋 메시지에 남긴다)
 
 ---
 
@@ -240,6 +247,8 @@
 시간축 정합
 - [ ] **정지 화면 30초를 포함한 60초 녹화**에서 자르기 화면의 총 길이 readout이 실제 경과(60초)와 일치한다(`<video>.duration`이 짧아도 벽시계 축 유지)
 - [ ] 그 상태에서 끝 핸들을 조금만 당겨 확정했을 때 뒤쪽 로그가 통째로 사라지지 않는다
+- [ ] **자른 영상의 첫 장면이 선택 시작점과 일치한다** — `mediaScale`이 1에서 벗어난 소스에서 인코딩 창(비례 축소)과 로그 경계(벽시계)의 전제가 갈리는 유일한 관측 지점이다. 어긋나면 `mediaScale`을 1로 고정하고 꼬리만 따로 처리하도록 바꾼다
+- [ ] 정지 화면이 긴 구간을 포함해 자른 영상의 **재생 길이가 선택 구간과 일치**한다(프레임 duration 상한을 두지 않았는지 확인)
 - [ ] `<video>`가 로드되지 않는 상황에서도 타임라인·확정이 살아 있다(미리보기 재생만 불가)
 
 인코딩 중 이탈
