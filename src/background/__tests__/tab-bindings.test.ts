@@ -229,8 +229,20 @@ describe("isBroadCoveredUrl", () => {
     expect(isBroadCoveredUrl("http://example.com")).toBe(true);
   });
 
-  it("returns false for file: URL (<all_urls> includes it but capture needs a separate toggle)", () => {
+  it("returns false for file: URL when file access toggle is off (default)", () => {
     expect(isBroadCoveredUrl("file:///Users/me/page.html")).toBe(false);
+  });
+
+  it("returns true for file: URL when file access toggle is on", () => {
+    expect(isBroadCoveredUrl("file:///Users/me/page.html", true)).toBe(true);
+  });
+
+  it("returns false for file: URL when file access is explicitly off", () => {
+    expect(isBroadCoveredUrl("file:///Users/me/page.html", false)).toBe(false);
+  });
+
+  it("file access toggle does not rescue an unsupported scheme", () => {
+    expect(isBroadCoveredUrl("chrome://settings", true)).toBe(false);
   });
 
   it("returns false for unsupported scheme (chrome:)", () => {
