@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { ArrowLeftRight, Check, Film, Loader2, MousePointerClick, Pause, Play, Redo2, Terminal, Undo2, X } from "lucide-react";
+import { ArrowLeftRight, Check, Film, Loader2, MousePointerClick, Pause, Play, Redo2, Scissors, Terminal, Undo2, X } from "lucide-react";
 import { toast } from "sonner";
 import { useT } from "@/i18n";
 import { cn } from "@/lib/utils";
@@ -18,6 +18,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { LoadingDialog } from "@/sidepanel/components/LoadingDialog";
 import { useEditorStore } from "@/store/editor-store";
 import { ConsoleLogContent } from "@/sidepanel/components/ConsoleLogContent";
 import { NetworkLogContent } from "@/sidepanel/components/NetworkLogContent";
@@ -126,18 +127,12 @@ export default function ReplayTrimDialog({ videoBlob, source, onConfirm, onCance
   const [startSec, endSec] = value;
   const currentPct = duration > 0 ? (currentTime / duration) * 100 : 0;
 
-  // 재인코딩은 <video> 재생 기반이라 패널이 hidden이면 진행이 멈춘다. 액션바 중앙 슬롯은
-  // percent만 들어갈 폭이라(≈144px) 이 안내는 토스트로 낸다.
   // 전체 구간 확정은 재인코딩 없이 즉시 끝나는데도 busy 렌더가 한 번 나간다 — busy만 보면
-  // "자르지 않고 넘어가기"에서도 안내가 뜬다(PRD의 "즉시" 계약 위반). progress>0으로 거르면
-  // loadedmetadata·seek·코덱 선택이 끝날 때까지 바가 안 떠서 정작 긴 대기를 못 덮으므로,
+  // "자르지 않고 넘어가기"에서도 대기 화면이 뜬다(PRD의 "즉시" 계약 위반). progress>0으로 거르면
+  // loadedmetadata·seek·코덱 선택이 끝날 때까지 화면이 안 떠서 정작 긴 대기를 못 덮으므로,
   // apply 경로와 같은 판정(isFullRangeSec)으로 no-op을 직접 가려낸다.
   const encoding =
     busy === true && progress !== undefined && !isFullRangeSec(startSec, endSec, duration);
-  useEffect(() => {
-    if (encoding) toast.info(t("issue.replay.trim.keepTab"));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [encoding]);
 
   const markers = useMemo(
     () => buildErrorMarkers({ consoleLog, networkLog, actionLog }, videoStartedAt ?? 0, duration),
@@ -386,34 +381,12 @@ export default function ReplayTrimDialog({ videoBlob, source, onConfirm, onCance
               <Redo2 className="h-4 w-4" />
             </Button>
           </ButtonGroup>
-          {/* 선택 길이 readout — 1단에서 옮겨와 액션바 중앙에. 확정 중엔 진행률로 교체
-              (최대 15초 걸리는데 스피너만 두면 멈춘 것처럼 보인다). 바 마크업은 IssueTab의
-              스크롤 캡처 진행률(CapturingState)과 같은 토큰·전환, 폭만 좁은 슬롯에 맞췄다.
-              문구는 percent만 — 여기 가용폭이 ~144px라 안내 문장은 잘린다(진입 시 토스트로 안내). */}
-          {encoding ? (
-            <div className="flex min-w-0 flex-col items-center gap-1">
-              <span className="text-xs tabular-nums text-muted-foreground">
-                {t("issue.replay.trim.progress", { percent })}
-              </span>
-              <div
-                className="h-1.5 w-24 overflow-hidden rounded-full bg-muted"
-                role="progressbar"
-                aria-valuenow={percent}
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-label={t("issue.replay.trim.progressLabel")}
-              >
-                <div
-                  className="h-full rounded-full bg-foreground transition-all duration-300"
-                  style={{ width: `${percent}%` }}
-                />
-              </div>
-            </div>
-          ) : (
-            <span className="font-medium tabular-nums text-sm" aria-live="polite">
-              {t("issue.replay.trim.selection", { sel, total })}
-            </span>
-          )}
+          {/* 선택 길이 readout — 1단에서 옮겨와 액션바 중앙에. 재인코딩 진행률은 여기 두지
+              않는다(가용폭 ≈144px라 안내 문장이 잘려 토스트로 갈라졌던 자리) — LoadingDialog가
+              제목·안내·진행률을 한 화면에서 대기 내내 들고 있는다. */}
+          <span className="font-medium tabular-nums text-sm" aria-live="polite">
+            {t("issue.replay.trim.selection", { sel, total })}
+          </span>
           <ButtonGroup className="shrink-0">
             <Button
               variant="outline"
@@ -451,6 +424,18 @@ export default function ReplayTrimDialog({ videoBlob, source, onConfirm, onCance
           </ButtonGroup>
         </div>
       </div>
+
+      {/* 재인코딩은 끊을 수 없다 — 액션바를 회색으로 잠그는 대신 대기 화면으로 덮어 "지금은
+          기다리는 시간"임을 화면 자체로 말한다. 안내와 진행률이 한 곳에 있고 닫히지 않는다. */}
+      <LoadingDialog
+        open={encoding}
+        className="z-[60]"
+        icon={<Scissors className="h-6 w-6 text-muted-foreground" />}
+        title={t("issue.replay.trim.encoding")}
+        description={t("issue.replay.trim.keepTab")}
+        percent={percent}
+        progressLabel={t("issue.replay.trim.progressLabel")}
+      />
 
       <AlertDialog open={cancelOpen} onOpenChange={setCancelOpen}>
         <AlertDialogContent className="z-[60]">
