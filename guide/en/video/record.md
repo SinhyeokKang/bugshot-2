@@ -50,6 +50,29 @@ Your drawings are baked right into the recorded video, so teammates watching lat
 
 ## Processing and output
 
-When you stop, the video is processed to MP4 and a thumbnail is generated. Once processing finishes, you move on to the issue draft naturally.
+When you stop, the video is processed to MP4 and a thumbnail is generated. Once processing finishes, the **trim screen** opens right away so you can keep just the part you need before moving on to the issue draft.
+
+## Trimming the clip
+
+![The trim screen for a recording](../assets/video-record-5.jpg)
+
+Stopping a recording takes you to a **trim screen** first, not straight to the issue draft. The bug itself usually happens in just a moment of the whole recording, so cutting the ends means teammates reading your report don't have to hunt for it. And it's not just the video — **the logs attached with it get narrowed to the same range**.
+
+Up top, the trim screen has **Video**, **Console**, **Network**, and **Action** tabs. The Video tab plays your clip in the middle; switch to a log tab and that type of captured log opens up in the same spot (each tab shows a count of what it caught). No matter which tab you're on, the timeline handles and buttons like undo and apply stay right there, so you can trim while reading the logs.
+
+- **Pick the range** — Drag the **Start** and **End** handles at the ends of the timeline to set what to keep. As you move a handle, the selected length ("8s / 42s") shows in the middle of the button row below.
+- **Play / pause** — Use the **Video** tab to scrub through the clip and find the bug (playback pauses for a moment when you switch to a log tab). The timeline marks **where errors occurred** (console/network) and **where the page navigated** to help you decide what to keep — click a mark to jump straight to that log tab.
+- **Preview what gets cut** — As you move a handle, the logs that will be cut go **dimmed** in the log tabs. So before you apply, you can see exactly which logs are about to drop.
+- **Undo / redo** — Moved a handle by mistake? No worries — undo or redo it.
+
+When you're happy, hit **Apply**. The video is rebuilt to keep only the selected range, and the console, network, and action logs get narrowed to match (the ones shown dimmed drop out).
+
+> While the video is being rebuilt, you'll see the progress along with a **"Keep this tab open while trimming"** note. If you switch to another tab the work pauses and picks back up when you return, so just give it a moment.
+
+Nothing to trim? Leave the handles alone and hit **Apply**. Nothing gets re-encoded, so you go **straight** to the issue draft with no waiting.
+
+> To drop the recording entirely, hit **Discard recording**. You'll confirm with "Discard this recording?", then the video you just captured and the logs collected with it are deleted and you're back at the start screen.
+
+> And if rebuilding the video ever fails, nothing to worry about — the **untrimmed original is attached as is** and you move on to the issue draft. Your recording never disappears.
 
 > Continue with [Write an Issue](issue.md).
