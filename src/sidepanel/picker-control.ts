@@ -704,6 +704,8 @@ export async function syncActionRecorder(tabId: number): Promise<void> {
 
 // capture 시 sync broadcast가 누적기에 머지될 때까지 대기하는 상한. 머지 도착 즉시 조기 탈출.
 const LOG_SYNC_SETTLE_MS = 300;
+// sync 메시지 왕복 상한. 페이지가 멈춰 응답이 없어도 호출부가 진행하게 한다.
+const LOG_SYNC_SEND_CAP_MS = 500;
 
 // 양 레코더 sync를 보낸 뒤, data round-trip(usePickerMessages 머지)이 누적기에 반영될 때까지 대기한다.
 // sync는 메시지 전달까지만 await하고 실제 데이터는 별도 비동기 경로로 도착하므로, store의 endedAt 증가로
@@ -717,10 +719,18 @@ export async function syncAndSettleLogs(
   const prevConEnded = useEditorStore.getState().consoleLog?.endedAt ?? 0;
   // action도 함께 flush(freeform 진입 freeze 전 tail 보존). 빈 버퍼면 endedAt이 안 올라
   // settle 무한대기 위험이 있으므로 settle 조건엔 넣지 않고 net/con settle 동안 머지에 묻어가게 둔다.
-  await Promise.all([
-    syncNetworkRecorder(tabId).catch(() => {}),
-    syncConsoleRecorder(tabId).catch(() => {}),
-    syncActionRecorder(tabId).catch(() => {}),
+  // sendMessage 단계에 상한이 필수다 — content 리스너는 페이지 메인 스레드에서 디스패치되므로
+  // 대상 탭이 alert()·동기 무한루프에 걸려 있으면(BugShot이 겨냥하는 바로 그 페이지) 응답이
+  // 영영 안 오고, sendAll의 catch는 예외만 삼킬 뿐 pending은 못 푼다. 호출부 셋(녹화 정지·
+  // 리플레이 캡처·freeform 진입)이 전부 이 await 뒤에서 세션을 커밋하므로 여기서 멈추면
+  // 녹화 유실·영구 스피너가 된다. 꼬리 몇 건보다 그쪽 손실이 크다.
+  await Promise.race([
+    Promise.all([
+      syncNetworkRecorder(tabId).catch(() => {}),
+      syncConsoleRecorder(tabId).catch(() => {}),
+      syncActionRecorder(tabId).catch(() => {}),
+    ]),
+    new Promise<void>((r) => setTimeout(r, LOG_SYNC_SEND_CAP_MS)),
   ]);
   const deadline = Date.now() + settleMs;
   while (Date.now() < deadline) {

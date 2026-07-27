@@ -505,6 +505,13 @@ export default function App() {
                 });
             }}
             onCancel={() => {
+              // confirm과 같은 소유권 가드. 이쪽이 비가역 삭제라 오히려 더 엄해야 한다 —
+              // 소유 탭이 아니면 남의 pending 로그·영상을 지우지 않고 오버레이만 닫는다.
+              if (replayTrim.ownerTabId !== tabId) {
+                toast.error(t("issue.replay.trim.wrongTabDiscard"));
+                replay.resolveTrim();
+                return;
+              }
               useEditorStore.getState().reset(); // ...initial이 replayTrim까지 청소 — resolveTrim 불요.
               void clearPicker(tabId);
               void deleteNetworkLog(pendingKey(tabId));

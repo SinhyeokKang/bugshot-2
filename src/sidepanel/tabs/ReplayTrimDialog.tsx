@@ -32,7 +32,7 @@ import {
   type History,
 } from "@/sidepanel/components/annotation/history";
 import { buildErrorMarkers } from "@/sidepanel/30s-replay/trim-markers";
-import { previewBoundsFor, isTrimmedOut } from "@/sidepanel/30s-replay/trim-math";
+import { previewBoundsFor, isTrimmedOut, isFullRangeSec } from "@/sidepanel/30s-replay/trim-math";
 import { MAX_FRAME_DURATION_MS } from "@/sidepanel/30s-replay/mp4-encoder";
 import type { TrimSource } from "@/sidepanel/30s-replay/trim-source";
 import { TrimTimeline } from "./TrimTimeline";
@@ -123,16 +123,21 @@ export default function ReplayTrimDialog({ videoBlob, source, onConfirm, onCance
     if (activeTab !== "video") videoRef.current?.pause();
   }, [activeTab]);
 
+  const [startSec, endSec] = value;
+  const currentPct = duration > 0 ? (currentTime / duration) * 100 : 0;
+
   // 재인코딩은 <video> 재생 기반이라 패널이 hidden이면 진행이 멈춘다. 액션바 중앙 슬롯은
-  // percent만 들어갈 폭이라(≈144px) 이 안내는 토스트로 낸다. 재인코딩이 있는 소스만.
-  const encoding = busy === true && progress !== undefined;
+  // percent만 들어갈 폭이라(≈144px) 이 안내는 토스트로 낸다.
+  // 전체 구간 확정은 재인코딩 없이 즉시 끝나는데도 busy 렌더가 한 번 나간다 — busy만 보면
+  // "자르지 않고 넘어가기"에서도 안내가 뜬다(PRD의 "즉시" 계약 위반). progress>0으로 거르면
+  // loadedmetadata·seek·코덱 선택이 끝날 때까지 바가 안 떠서 정작 긴 대기를 못 덮으므로,
+  // apply 경로와 같은 판정(isFullRangeSec)으로 no-op을 직접 가려낸다.
+  const encoding =
+    busy === true && progress !== undefined && !isFullRangeSec(startSec, endSec, duration);
   useEffect(() => {
     if (encoding) toast.info(t("issue.replay.trim.keepTab"));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [encoding]);
-
-  const [startSec, endSec] = value;
-  const currentPct = duration > 0 ? (currentTime / duration) * 100 : 0;
 
   const markers = useMemo(
     () => buildErrorMarkers({ consoleLog, networkLog, actionLog }, videoStartedAt ?? 0, duration),
@@ -385,7 +390,7 @@ export default function ReplayTrimDialog({ videoBlob, source, onConfirm, onCance
               (최대 15초 걸리는데 스피너만 두면 멈춘 것처럼 보인다). 바 마크업은 IssueTab의
               스크롤 캡처 진행률(CapturingState)과 같은 토큰·전환, 폭만 좁은 슬롯에 맞췄다.
               문구는 percent만 — 여기 가용폭이 ~144px라 안내 문장은 잘린다(진입 시 토스트로 안내). */}
-          {busy && progress !== undefined ? (
+          {encoding ? (
             <div className="flex min-w-0 flex-col items-center gap-1">
               <span className="text-xs tabular-nums text-muted-foreground">
                 {t("issue.replay.trim.progress", { percent })}

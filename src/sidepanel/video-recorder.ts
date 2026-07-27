@@ -132,6 +132,7 @@ function beginRecording(
     // 드롭된다. 자르기 화면이 로그를 표·마커로 보여주게 되면서 그 누락이 눈에 보인다.
     // 반드시 finalize 창을 닫기 **전**에 — end()가 창을 소비한 뒤에 await을 두면 그 사이의
     // 취소가 cancelRecording에서 통째로 no-op이 되어 씹힌다(이 파일 상단 주석의 그 버그).
+    // syncAndSettleLogs는 sendMessage·settle 양쪽에 자체 상한이 있어 여기서 무한 대기하지 않는다.
     await syncAndSettleLogs(localTabId);
 
     // await 사이에 사용자가 취소를 눌렀으면 커밋하지 않는다(store는 cancelRecording이 이미 리셋).

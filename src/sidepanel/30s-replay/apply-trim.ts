@@ -48,9 +48,7 @@ export async function applyReplayTrim(opts: {
   // 이 호출과 위 로그 set 사이에 await을 넣지 말 것(그 사이 렌더가 "로그만 잘린" 상태를 노출).
   useEditorStore.getState().replaceVideo(blob, thumbnail, videoStartedAt, videoEndedAt, "frames");
   // discard()는 in-flight IDB write를 못 막으므로 save 정착을 await(경계 밖 로그 부활 방지).
-  // allSettled로 best-effort 저장(capture의 fire-and-forget과 동일) — 일부 save 실패가
-  // 이미 맞춰둔 인메모리 영상·로그 일관성을 깨지 않게 한다.
-  await Promise.allSettled(saves);
+  await settleLogSaves(saves);
 }
 
 // 트림본 로그를 IDB에 못 남긴 경우. 이 시점엔 replaceVideo가 이미 끝나 잘린 영상이 붙어 있고,
@@ -96,7 +94,8 @@ export function trimStoredLogs(tabId: number, bounds: ReplayLogBounds): Promise<
 
 // 녹화(탭/화면) 트리밍 적용: 선택 구간 재인코딩 → 영상 메타 교체 + 로그 재trim.
 // 전체 구간이면 아무것도 하지 않는다(재인코딩 skip · videoTrimmed는 false 유지).
-// 인코딩·썸네일 단계에서 throw되면 replaceVideo 전이라 store는 원본 그대로 남는다 — 순서 유지.
+// 인코딩이 throw되면 replaceVideo 전이라 store는 원본 그대로 남는다 — 이 순서를 바꾸지 말 것.
+// (썸네일은 장식이라 실패를 흡수한다 — 아래 참조.)
 export async function applyRecordingTrim(opts: {
   videoBlob: Blob;
   tabId: number;
@@ -125,16 +124,24 @@ export async function applyRecordingTrim(opts: {
     bitrate: pickTrimBitrate(videoBlob.size, durationSec * mediaScale),
     onProgress,
   });
-  const thumbnail = await generateThumbnail(blob);
+  // 썸네일은 장식이다 — 여기서 throw하면 방금 끝난 재인코딩을 통째로 버리고 원본을 첨부하게
+  // 된다(자동 진입 1회라 재시도 경로도 없다). video-recorder·mp4-encoder의 두 호출부와 동일하게
+  // 실패를 빈 문자열로 흡수한다.
+  const thumbnail = await generateThumbnail(blob).catch(() => "");
 
   const saves = trimStoredLogs(tabId, bounds);
   useEditorStore
     .getState()
     .replaceVideo(blob, thumbnail, startedAt + startSec * 1000, startedAt + endSec * 1000, "recording");
+  await settleLogSaves(saves);
+}
+
+// save 정착을 await하고 하나라도 실패하면 알린다. 두 경로 모두 trim 전에 pending으로 더 넓은
+// 경계의 로그를 이미 저장해 뒀으므로(녹화는 drafting 전이 flushNow, 리플레이는 capture 시점),
+// trim본 save가 실패하면 재오픈 시 hydrate가 그걸 되살려 "잘린 영상 + 안 잘린 로그"가 된다.
+// blob-db의 save 헬퍼는 내부에서 catch하고 false를 resolve한다(reject가 아니다) — 값으로 판정.
+async function settleLogSaves(saves: Promise<boolean>[]): Promise<void> {
   const settled = await Promise.allSettled(saves);
-  // 녹화는 drafting 전이 flushNow()로 원본 로그가 이미 pending에 박혀 있다. trim본 save가 실패하면
-  // 패널 재오픈 시 hydrate가 원본을 되살려 "잘린 영상 + 안 잘린 로그"가 된다 — 호출자가 알려야 한다.
-  // save 헬퍼는 내부에서 catch하고 false를 resolve한다(reject가 아니다) — 값으로 판정해야 한다.
   const failed = settled.some((r) => r.status === "rejected" || r.value === false);
   if (failed) throw new TrimLogsPersistError();
 }

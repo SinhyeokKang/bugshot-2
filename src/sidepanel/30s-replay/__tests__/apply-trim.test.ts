@@ -218,6 +218,36 @@ describe("applyReplayTrim — console/action accessor + 빈 결과", () => {
   });
 });
 
+// 리플레이도 capture 시점에 pendingKey로 넓은 경계의 로그를 이미 저장해 둔다
+// (use-30s-replay.ts). 2차 save가 실패하면 녹화와 똑같이 "잘린 영상 + 안 잘린 로그"가 되므로
+// 두 경로가 trimStoredLogs를 공유하는 만큼 실패 판정도 공유해야 한다.
+describe("applyReplayTrim — 로그 저장 실패 판정", () => {
+  it("IDB save가 false를 resolve하면 TrimLogsPersistError로 알린다", async () => {
+    saveNetworkLog.mockResolvedValueOnce(false);
+    storeState = makeState({
+      id: "n", startedAt: 0, endedAt: 0, totalSeen: 1, captured: 1,
+      warnings: [], requests: [makeRequest({ id: "keep", startTime: 11000 })],
+    });
+
+    await expect(
+      applyReplayTrim({ frames: FRAMES, tabId: 1, startSec: 0.6, endSec: 1.2 }),
+    ).rejects.toBeInstanceOf(TrimLogsPersistError);
+
+    expect(storeState.replaceVideo).toHaveBeenCalledTimes(1);
+  });
+
+  it("save가 전부 성공하면 throw하지 않는다", async () => {
+    storeState = makeState({
+      id: "n", startedAt: 0, endedAt: 0, totalSeen: 1, captured: 1,
+      warnings: [], requests: [makeRequest({ id: "keep", startTime: 11000 })],
+    });
+
+    await expect(
+      applyReplayTrim({ frames: FRAMES, tabId: 1, startSec: 0.6, endSec: 1.2 }),
+    ).resolves.toBeUndefined();
+  });
+});
+
 // 순서 회귀 가드. 현재 코드는 set*Log ×3 → replaceVideo → await allSettled(saves) 순이고,
 // 주석이 "로그 set과 함께 인메모리 상태를 원자적으로 맞춘다"고 못박고 있다.
 // trimStoredLogs 추출이 allSettled까지 삼키면 replaceVideo가 IDB 왕복 뒤로 밀려
@@ -364,6 +394,23 @@ describe("applyRecordingTrim — 정상 경로", () => {
 
     // 영상은 이미 교체된 뒤다 — 호출자가 "원본 유지" 문구를 쓰면 안 되는 이유.
     expect(storeState.replaceVideo).toHaveBeenCalledTimes(1);
+  });
+
+  // 썸네일은 장식이다. 15초 걸린 재인코딩 성공본을 장식 실패로 버리면 사용자는 재시도 경로도
+  // 없이(자동 진입 1회) 원본을 받는다. video-recorder.ts·mp4-encoder.ts의 두 호출부는 이미
+  // 실패를 ""로 흡수한다 — 여기만 비대칭이었다.
+  it("썸네일 생성이 실패해도 트림 결과를 버리지 않는다", async () => {
+    generateThumbnail.mockRejectedValueOnce(new Error("seek timed out"));
+
+    await applyRecordingTrim({
+      videoBlob: new Blob(["orig"], { type: "video/mp4" }),
+      tabId: 1, startedAt: BASE, startSec: 2, endSec: 8, durationSec: 10, mediaScale: 1,
+    });
+
+    expect(storeState.replaceVideo).toHaveBeenCalledTimes(1);
+    const [blob, thumb] = storeState.replaceVideo.mock.calls[0];
+    expect(await (blob as Blob).text()).toBe("trimmed");
+    expect(thumb).toBe("");
   });
 
   it("로그 set과 replaceVideo 사이에 IDB 왕복이 끼지 않는다", async () => {
