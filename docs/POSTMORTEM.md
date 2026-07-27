@@ -36,6 +36,20 @@
 
 ---
 
+## 2026-07-27 — 정적 스킴 화이트리스트가 런타임 권한 토글을 안 봐서, 파일 접근 ON인데도 https→file: 이동에 패널이 닫혔다
+
+- **영역**: `background`
+- **계열**: `미검증단언`, `라이브러리전제`
+- **그물**: `unit`
+- **증상**: "파일 URL 액세스" 토글이 **ON**인데도, `https://` 페이지에서 `file://`로 탭 내 이동하면 사이드패널이 닫혔다. 토글 ON이면 `<all_urls>`가 file:을 영속 커버해 캡처가 되는데도 deactivate 분기를 탔다.
+- **근본 원인**: `isBroadCoveredUrl`이 커버 판정을 `BROAD_COVERED_SCHEMES`(http/https) **정적 집합**으로만 했고, file:은 무조건 배제였다. 주석은 "file: 캡처는 별도 토글 요구라 배제"라고만 적어 **토글 ON이면 커버된다는 반대 케이스를 통째로 빠뜨렸다.** 커버 능력은 스킴만으로 정해지지 않고 **런타임 권한 토글(`chrome.extension.isAllowedFileSchemeAccess()`)에 묶인다** — 정적 화이트리스트가 그 축을 접었다.
+- **재발 방지**:
+  1. **"이 스킴은 못 한다"류 정적 배제는 런타임 권한 축이 붙는지 먼저 본다.** file:은 스킴이 아니라 사용자 토글이 게이트다. `grep -rn 'BROAD_COVERED_SCHEMES\|isBroadCoveredUrl\|SUPPORTED_SCHEMES' src/`로 스킴 집합 판정부를 소환해, 각 판정이 정적으로 끝나도 되는지(권한 토글·`isAllowedFileSchemeAccess`에 의존해야 하는지) 재확인.
+  2. **주석이 "왜 배제"만 적고 반대 조건을 안 적었으면 그게 빠진 분기 신호다.** "X라서 배제"는 "X가 아니면?"을 강제로 묻게 한다.
+  3. **activeTab의 file 스킴 커버는 시점 비대칭이다(실측).** 토글 OFF여도 file:// 페이지에서 **아이콘 클릭(fresh invoke)**하면 activeTab이 file 스킴까지 커버해 캡처·picker·`tab.url` 판독이 된다(2026-07-27 실측 — 문서상 "activeTab은 file 못 준다" 예측과 어긋남). 단 **크로스오리진 네비게이션은 그 grant를 회수**하므로 https→file: 이동 후엔 토글 OFF면 캡처 불가 — 이 비대칭이 "토글 ON일 때만 keep"의 근거다. `grep -rn 'isAllowedFileSchemeAccess\|activeTab' src/ docs/`.
+  4. **파생부 테스트를 이번엔 걸었다(2026-07-27 상단 회귀 대응 계승).** `deactivatePanelIfCrossOrigin`이 export라, async 파생 줄(`isAllowedFileSchemeAccess` resolve → `isBroadCoveredUrl` 주입)을 `chrome.extension` 스텁 + 리스너 직접 호출로 행동 레벨 잠금. 순수함수(`isBroadCoveredUrl`)만이 아니라 파생부까지 커버.
+- **관련**: `src/background/tab-bindings.ts`(`isBroadCoveredUrl`·`deactivatePanelIfCrossOrigin`), `src/background/__tests__/tab-bindings.test.ts`, `src/sidepanel/hooks/useTabSupport.ts`(:7-8 주석이 "file:+토글 off → 빈 tab.url"이라 단언하나 실측 반증 — stale 정정 후보), `docs/ARCHITECTURE.md`·`docs/PERMISSION.md` 패널 종료/유지 정책.
+
 ## 2026-07-27 — 검증 안 된 "권한상 못 읽는다"가 설계를 한 단계 크게 만들 뻔했다 (+ 상태 키를 안 갱신해 기능이 hop 1에서만 살았다)
 
 - **영역**: `background`
