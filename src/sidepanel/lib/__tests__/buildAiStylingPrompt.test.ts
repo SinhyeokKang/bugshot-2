@@ -139,6 +139,19 @@ describe("filterClassListToExisting", () => {
     ).toEqual(["btn"]);
     expect(filterClassListToExisting([], ["btn"])).toEqual([]);
   });
+
+  // 회귀: []를 그대로 내보내면 호출부의 hasEdits가 truthy로 통과해
+  // applyClasses(tabId, frameId, [])까지 흘러가 el.className=""로 클래스가 전멸한다.
+  // 명시적 빈 배열(전부 삭제 의도)과 구분되도록 undefined로 내보낸다.
+  it("요청이 전부 걸러지면 전체 삭제와 구분되게 undefined", () => {
+    expect(
+      filterClassListToExisting(["danger"], ["btn", "btn-primary"]),
+    ).toBeUndefined();
+  });
+
+  it("클래스가 없는 요소에 새 클래스만 요청해도 undefined", () => {
+    expect(filterClassListToExisting(["highlight"], [])).toBeUndefined();
+  });
 });
 
 describe("buildAiStylingSystemPrompt — compact 계약", () => {

@@ -83,12 +83,16 @@ export function filterDeniedStyleValues(
   );
 }
 
+// 요청이 전부 걸러진 것과 모델이 명시한 빈 배열(= 클래스 전부 삭제)은 다르다. 전자를 []로
+// 내보내면 호출부가 둘을 구분하지 못해 el.className=""까지 흘러가 클래스가 통째로 날아간다.
 export function filterClassListToExisting(
   requested: string[],
   existing: string[],
-): string[] {
+): string[] | undefined {
   const allowed = new Set(existing);
-  return [...new Set(requested)].filter((name) => allowed.has(name));
+  const filtered = [...new Set(requested)].filter((name) => allowed.has(name));
+  if (requested.length > 0 && filtered.length === 0) return undefined;
+  return filtered;
 }
 
 const STYLING_BUILDERS: Record<

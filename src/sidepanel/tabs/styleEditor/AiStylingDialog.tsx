@@ -237,10 +237,12 @@ export function AiStylingDialog({
         }
       }
       if (parsed.edits.classList) {
-        parsed.edits.classList = filterClassListToExisting(
+        const allowed = filterClassListToExisting(
           parsed.edits.classList,
           ctx.classList,
         );
+        if (allowed === undefined) delete parsed.edits.classList;
+        else parsed.edits.classList = allowed;
       }
 
       const hasEdits = parsed.edits.inlineStyle || parsed.edits.classList;
