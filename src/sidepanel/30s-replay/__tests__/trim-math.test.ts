@@ -6,10 +6,15 @@ import {
   replayLogTrimBounds,
   previewTrimBounds,
   isTrimmedOut,
+  isFullRangeSec,
+  recordingLogTrimBounds,
+  previewBoundsFor,
+  pickTrimBitrate,
 } from "../trim-math";
 import { computeFrameDurationsUs } from "../mp4-encoder";
 import { REPLAY_LOG_GUARD_MS } from "@/sidepanel/lib/log-merge";
 import type { CapturedFrame } from "../frame-buffer";
+import type { TrimSource } from "../trim-source";
 
 // mp4-encoder의 MAX_FRAME_DURATION_MS(export 승격 예정)와 동일 상수.
 const MAX = 1000;
@@ -178,5 +183,160 @@ describe("isTrimmedOut", () => {
   it("upper=undefined면 상한 없음 — lower 이상은 전부 유지", () => {
     expect(isTrimmedOut(99999, { lower: 10600, upper: undefined })).toBe(false);
     expect(isTrimmedOut(10000, { lower: 10600, upper: undefined })).toBe(true);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// 녹화(recording) 소스 — 벽시계 선형 축. 프레임 인덱스가 아니라 초 단위로 판정한다.
+// ─────────────────────────────────────────────────────────────────────────────
+
+describe("isFullRangeSec", () => {
+  it("전체 구간이면 true", () => {
+    expect(isFullRangeSec(0, 10, 10)).toBe(true);
+  });
+
+  it("앞만 자르면 false", () => {
+    expect(isFullRangeSec(1, 10, 10)).toBe(false);
+  });
+
+  it("뒤만 자르면 false", () => {
+    expect(isFullRangeSec(0, 9, 10)).toBe(false);
+  });
+
+  it("eps 안쪽 미세 오차(핸들 스냅)는 전체 구간으로 본다", () => {
+    expect(isFullRangeSec(0.03, 9.97, 10)).toBe(true);
+  });
+
+  it("eps 밖이면 전체 구간이 아니다", () => {
+    expect(isFullRangeSec(0.2, 10, 10)).toBe(false);
+    expect(isFullRangeSec(0, 9.8, 10)).toBe(false);
+  });
+});
+
+describe("recordingLogTrimBounds", () => {
+  // 벽시계 base=10000ms, 길이 10초 → [10000, 20000].
+  const BASE = 10000;
+  const DUR = 10;
+
+  it("전체 구간이면 null(잘림 없음)", () => {
+    expect(recordingLogTrimBounds(BASE, 0, DUR, DUR)).toBeNull();
+  });
+
+  it("앞만 자르면 lower=startedAt+startSec*1000, 상한 없음", () => {
+    expect(recordingLogTrimBounds(BASE, 2, DUR, DUR)).toEqual({
+      lower: 12000,
+      upper: undefined,
+    });
+  });
+
+  it("뒤만 자르면 하한 없음(-Infinity), upper=startedAt+endSec*1000", () => {
+    expect(recordingLogTrimBounds(BASE, 0, 8, DUR)).toEqual({
+      lower: Number.NEGATIVE_INFINITY,
+      upper: 18000,
+    });
+  });
+
+  it("양쪽 자르면 lower/upper 둘 다 유한값", () => {
+    const b = recordingLogTrimBounds(BASE, 2, 8, DUR);
+    expect(b).toEqual({ lower: 12000, upper: 18000 });
+    expect(Number.isFinite(b!.lower)).toBe(true);
+    expect(Number.isFinite(b!.upper!)).toBe(true);
+  });
+
+  // 리플레이는 프레임 timestamp 양자화를 흡수하려고 가드밴드를 두지만,
+  // 녹화는 벽시계 연속축이라 양자화가 없어 가드밴드를 적용하지 않는다.
+  it("가드밴드를 적용하지 않는다 (REPLAY_LOG_GUARD_MS 미반영)", () => {
+    const b = recordingLogTrimBounds(BASE, 0, 8, DUR)!;
+    expect(b.lower).not.toBe(BASE - REPLAY_LOG_GUARD_MS);
+    expect(recordingLogTrimBounds(BASE, 2, 8, DUR)!.lower).toBe(12000);
+  });
+
+  it("경계값은 잘리지 않는다 (isTrimmedOut inclusive — trimByTime과 동일)", () => {
+    const b = recordingLogTrimBounds(BASE, 2, 8, DUR)!;
+    expect(isTrimmedOut(12000, b)).toBe(false);
+    expect(isTrimmedOut(18000, b)).toBe(false);
+    expect(isTrimmedOut(11999, b)).toBe(true);
+    expect(isTrimmedOut(18001, b)).toBe(true);
+  });
+
+  it("lower=-Infinity면 아무리 이른 timestamp도 자르지 않는다", () => {
+    const b = recordingLogTrimBounds(BASE, 0, 8, DUR)!;
+    expect(isTrimmedOut(0, b)).toBe(false);
+    expect(isTrimmedOut(-99999, b)).toBe(false);
+  });
+});
+
+describe("previewBoundsFor", () => {
+  const f = frames(10000, 10600, 11200, 11800, 12400); // 오프셋 [0,600,1200,1800,2400]ms
+  const framesSource: TrimSource = { kind: "frames", frames: f };
+  const recordingSource: TrimSource = { kind: "recording", startedAt: 10000, endedAt: 20000 };
+
+  it("frames 소스는 previewTrimBounds와 동일 결과", () => {
+    expect(
+      previewBoundsFor(
+        framesSource,
+        { startSec: 0.6, endSec: 1.2 },
+        { durationSec: 3, maxFrameDurationMs: MAX },
+      ),
+    ).toEqual(previewTrimBounds(f, 0.6, 1.2, MAX));
+  });
+
+  it("frames 소스의 전체 구간은 null", () => {
+    expect(
+      previewBoundsFor(
+        framesSource,
+        { startSec: 0, endSec: 99 },
+        { durationSec: 3, maxFrameDurationMs: MAX },
+      ),
+    ).toBeNull();
+  });
+
+  it("recording 소스는 recordingLogTrimBounds와 동일 결과", () => {
+    expect(
+      previewBoundsFor(
+        recordingSource,
+        { startSec: 2, endSec: 8 },
+        { durationSec: 10, maxFrameDurationMs: MAX },
+      ),
+    ).toEqual(recordingLogTrimBounds(10000, 2, 8, 10));
+  });
+
+  it("recording 소스의 전체 구간은 null", () => {
+    expect(
+      previewBoundsFor(
+        recordingSource,
+        { startSec: 0, endSec: 10 },
+        { durationSec: 10, maxFrameDurationMs: MAX },
+      ),
+    ).toBeNull();
+  });
+});
+
+describe("pickTrimBitrate", () => {
+  // clamp(byteSize * 8 / durationSec * 1.5, 800_000, 4_000_000)
+  it("저모션(3MB/60s)은 하한 800kbps로 clamp", () => {
+    // 3e6*8/60 = 400_000 → ×1.5 = 600_000 → 하한
+    expect(pickTrimBitrate(3_000_000, 60)).toBe(800_000);
+  });
+
+  it("고모션(15MB/60s)은 실측의 1.5배", () => {
+    // 15e6*8/60 = 2_000_000 → ×1.5 = 3_000_000
+    expect(pickTrimBitrate(15_000_000, 60)).toBe(3_000_000);
+  });
+
+  it("상한 초과는 4Mbps로 clamp", () => {
+    // 60e6*8/60 = 8_000_000 → ×1.5 = 12_000_000 → 상한
+    expect(pickTrimBitrate(60_000_000, 60)).toBe(4_000_000);
+  });
+
+  it("빈 블롭은 하한", () => {
+    expect(pickTrimBitrate(0, 60)).toBe(800_000);
+  });
+
+  // durationSec=0이면 실측이 불가능(0 나눗셈) — NaN/Infinity를 흘리지 말고 상한으로 떨어뜨린다.
+  it("durationSec=0이어도 NaN/Infinity를 반환하지 않는다", () => {
+    expect(pickTrimBitrate(1_000_000, 0)).toBe(4_000_000);
+    expect(pickTrimBitrate(0, 0)).toBe(4_000_000);
+    expect(Number.isFinite(pickTrimBitrate(1_000_000, 0))).toBe(true);
   });
 });

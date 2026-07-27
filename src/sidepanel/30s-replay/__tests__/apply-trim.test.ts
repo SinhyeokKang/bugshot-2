@@ -12,6 +12,13 @@ vi.mock("../mp4-encoder", async (importActual) => {
   return { ...actual, encodeToMp4 };
 });
 
+// 구간 재인코딩은 <video>+rVFC+WebCodecs라 jsdom 대상이 아니다 → 경계에서 mock.
+const encodeVideoRange = vi.fn(async () => new Blob(["trimmed"], { type: "video/mp4" }));
+vi.mock("../encode-range", () => ({ encodeVideoRange }));
+
+const generateThumbnail = vi.fn(async () => "trimmed-thumb");
+vi.mock("@/sidepanel/lib/video-thumbnail", () => ({ generateThumbnail }));
+
 const saveNetworkLog = vi.fn(async (_key: string, _log: NetworkLog) => true);
 const saveConsoleLog = vi.fn(async (_key: string, _log: unknown) => true);
 const saveActionLog = vi.fn(async (_key: string, _log: unknown) => true);
@@ -74,11 +81,17 @@ function frames(...ts: number[]): CapturedFrame[] {
 const FRAMES = frames(10000, 10600, 11200, 11800, 12400);
 
 let applyReplayTrim: typeof import("../apply-trim").applyReplayTrim;
+let applyRecordingTrim: typeof import("../apply-trim").applyRecordingTrim;
+
+// 마이크로태스크 수를 세지 않고 "지금까지 진행된 만큼"을 관찰하기 위한 매크로태스크 한 틱.
+function tick(ms = 20): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
 
 beforeEach(async () => {
   vi.clearAllMocks();
   storeState = makeState(null);
-  ({ applyReplayTrim } = await import("../apply-trim"));
+  ({ applyReplayTrim, applyRecordingTrim } = await import("../apply-trim"));
 });
 
 describe("applyReplayTrim — no-op", () => {
@@ -201,5 +214,159 @@ describe("applyReplayTrim — console/action accessor + 빈 결과", () => {
     const [, csaved] = saveConsoleLog.mock.calls[0] as [string, ConsoleLog];
     expect(csaved.entries).toEqual([]);
     expect(csaved.captured).toBe(0);
+  });
+});
+
+// 순서 회귀 가드. 현재 코드는 set*Log ×3 → replaceVideo → await allSettled(saves) 순이고,
+// 주석이 "로그 set과 함께 인메모리 상태를 원자적으로 맞춘다"고 못박고 있다.
+// trimStoredLogs 추출이 allSettled까지 삼키면 replaceVideo가 IDB 왕복 뒤로 밀려
+// "로그는 잘렸는데 영상은 원본"인 상태가 렌더에 노출된다.
+describe("applyReplayTrim — 로그 set ↔ replaceVideo 원자성", () => {
+  it("replaceVideo가 IDB save resolve 전에 호출된다", async () => {
+    let releaseSave!: () => void;
+    const gate = new Promise<boolean>((resolve) => {
+      releaseSave = () => resolve(true);
+    });
+    saveNetworkLog.mockReturnValueOnce(gate);
+
+    storeState = makeState({
+      id: "n", startedAt: 0, endedAt: 0, totalSeen: 1, captured: 1,
+      warnings: [], requests: [makeRequest({ id: "keep", startTime: 11000 })],
+    });
+
+    const pending = applyReplayTrim({ frames: FRAMES, tabId: 1, startSec: 0.6, endSec: 1.2 });
+
+    // gate가 아직 열리지 않았으므로 pending은 allSettled에서 멈춰 있다.
+    // 그 시점에 replaceVideo는 이미 불렸어야 한다.
+    await Promise.race([pending, tick()]);
+    expect(saveNetworkLog).toHaveBeenCalledTimes(1);
+    expect(storeState.replaceVideo).toHaveBeenCalledTimes(1);
+
+    releaseSave();
+    await pending;
+  });
+});
+
+describe("applyRecordingTrim — 전체 구간 skip", () => {
+  const BASE = 10000;
+
+  it("전체 구간이면 encodeVideoRange·replaceVideo 호출 0회", async () => {
+    await applyRecordingTrim({
+      videoBlob: new Blob(["orig"], { type: "video/mp4" }),
+      tabId: 1, startedAt: BASE, startSec: 0, endSec: 10, durationSec: 10, mediaScale: 1,
+    });
+
+    expect(encodeVideoRange).toHaveBeenCalledTimes(0);
+    expect(generateThumbnail).toHaveBeenCalledTimes(0);
+    expect(storeState.replaceVideo).toHaveBeenCalledTimes(0);
+    expect(saveNetworkLog).toHaveBeenCalledTimes(0);
+  });
+});
+
+describe("applyRecordingTrim — 실패 시 원본 유지", () => {
+  const BASE = 10000;
+
+  it("encodeVideoRange가 reject하면 replaceVideo 미호출 + reject 전파", async () => {
+    encodeVideoRange.mockRejectedValueOnce(new Error("no codec"));
+
+    await expect(
+      applyRecordingTrim({
+        videoBlob: new Blob(["orig"], { type: "video/mp4" }),
+        tabId: 1, startedAt: BASE, startSec: 2, endSec: 8, durationSec: 10, mediaScale: 1,
+      }),
+    ).rejects.toThrow("no codec");
+
+    expect(storeState.replaceVideo).toHaveBeenCalledTimes(0);
+    expect(saveNetworkLog).toHaveBeenCalledTimes(0);
+  });
+});
+
+describe("applyRecordingTrim — 정상 경로", () => {
+  const BASE = 10000;
+
+  it("로그 3종이 벽시계 경계로 좁혀진다", async () => {
+    storeState = makeState(
+      {
+        id: "n", startedAt: 0, endedAt: 0, totalSeen: 4, captured: 4, warnings: [],
+        requests: [
+          makeRequest({ id: "tooEarly", startTime: 11999 }),
+          makeRequest({ id: "atLower", startTime: 12000 }),
+          makeRequest({ id: "atUpper", startTime: 18000 }),
+          makeRequest({ id: "tooLate", startTime: 18001 }),
+        ],
+      },
+      makeConsoleLog(11999, 12000, 18000, 18001),
+      makeActionLog(11999, 12000, 18000, 18001),
+    );
+
+    await applyRecordingTrim({
+      videoBlob: new Blob(["orig"], { type: "video/mp4" }),
+      tabId: 5, startedAt: BASE, startSec: 2, endSec: 8, durationSec: 10, mediaScale: 1,
+    });
+
+    const [nkey, nsaved] = saveNetworkLog.mock.calls[0];
+    expect(nkey).toBe("pending:5");
+    expect(nsaved.requests.map((r: NetworkRequest) => r.id)).toEqual(["atLower", "atUpper"]);
+    expect(nsaved.captured).toBe(2);
+
+    const [, csaved] = saveConsoleLog.mock.calls[0] as [string, ConsoleLog];
+    expect(csaved.entries.map((e) => e.id)).toEqual(["c1", "c2"]);
+
+    const [, asaved] = saveActionLog.mock.calls[0] as [string, ActionLog];
+    expect(asaved.entries.map((e) => e.id)).toEqual(["a1", "a2"]);
+  });
+
+  it("replaceVideo가 벽시계 startedAt/endedAt으로 호출된다", async () => {
+    await applyRecordingTrim({
+      videoBlob: new Blob(["orig"], { type: "video/mp4" }),
+      tabId: 1, startedAt: BASE, startSec: 2, endSec: 8, durationSec: 10, mediaScale: 1,
+    });
+
+    expect(storeState.replaceVideo).toHaveBeenCalledTimes(1);
+    const [blob, thumb, startedAt, endedAt] = storeState.replaceVideo.mock.calls[0];
+    expect(await (blob as Blob).text()).toBe("trimmed");
+    expect(thumb).toBe("trimmed-thumb");
+    expect(startedAt).toBe(BASE + 2000);
+    expect(endedAt).toBe(BASE + 8000);
+  });
+
+  it("mediaScale이 encodeVideoRange의 미디어 타임 인자에 반영된다", async () => {
+    // 미디어 길이가 벽시계의 절반(가변 fps 드리프트) → 벽시계 2~8s는 미디어 1~4s.
+    await applyRecordingTrim({
+      videoBlob: new Blob(["orig"], { type: "video/mp4" }),
+      tabId: 1, startedAt: BASE, startSec: 2, endSec: 8, durationSec: 10, mediaScale: 0.5,
+    });
+
+    expect(encodeVideoRange).toHaveBeenCalledTimes(1);
+    const [opts] = encodeVideoRange.mock.calls[0] as unknown as [
+      { startSec: number; endSec: number },
+    ];
+    expect(opts.startSec).toBeCloseTo(1);
+    expect(opts.endSec).toBeCloseTo(4);
+  });
+
+  it("로그 set과 replaceVideo 사이에 IDB 왕복이 끼지 않는다", async () => {
+    let releaseSave!: () => void;
+    const gate = new Promise<boolean>((resolve) => {
+      releaseSave = () => resolve(true);
+    });
+    saveNetworkLog.mockReturnValueOnce(gate);
+
+    storeState = makeState({
+      id: "n", startedAt: 0, endedAt: 0, totalSeen: 1, captured: 1,
+      warnings: [], requests: [makeRequest({ id: "keep", startTime: 13000 })],
+    });
+
+    const pending = applyRecordingTrim({
+      videoBlob: new Blob(["orig"], { type: "video/mp4" }),
+      tabId: 1, startedAt: BASE, startSec: 2, endSec: 8, durationSec: 10, mediaScale: 1,
+    });
+
+    await Promise.race([pending, tick()]);
+    expect(saveNetworkLog).toHaveBeenCalledTimes(1);
+    expect(storeState.replaceVideo).toHaveBeenCalledTimes(1);
+
+    releaseSave();
+    await pending;
   });
 });

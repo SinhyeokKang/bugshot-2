@@ -179,13 +179,27 @@ describe("onAreaCaptured — screenshot 첨부 토글 기본 on", () => {
 });
 
 // 트림 오버레이 페이로드 — 게이트와 한 몸이라 onRecordingComplete 인자로 실린다.
+// source로 리플레이(frames)·일반 녹화(recording) 양쪽을 태운다. ownerTabId는 탭 전환 후
+// 확정으로 엉뚱한 탭 로그를 자르는 것을 막는 소유자 표식.
 function replayTrim() {
   return {
     videoBlob: new Blob(["v"], { type: "video/mp4" }),
-    frames: [
-      { blob: new Blob(["f0"]), timestamp: 0 },
-      { blob: new Blob(["f1"]), timestamp: 100 },
-    ],
+    source: {
+      kind: "frames" as const,
+      frames: [
+        { blob: new Blob(["f0"]), timestamp: 0 },
+        { blob: new Blob(["f1"]), timestamp: 100 },
+      ],
+    },
+    ownerTabId: 7,
+  };
+}
+
+function recordingTrim() {
+  return {
+    videoBlob: new Blob(["v"], { type: "video/mp4" }),
+    source: { kind: "recording" as const, startedAt: 1000, endedAt: 5000 },
+    ownerTabId: 7,
   };
 }
 
@@ -229,10 +243,22 @@ describe("onRecordingComplete — idle 직접 호출 (30s Replay)", () => {
     expect(useEditorStore.getState().reproPrefillDone).toBe(false);
   });
 
-  it("trim 인자 생략(탭/화면 녹화)이면 replayTrim은 null이다", () => {
+  // 인자를 생략한 호출의 계약만 규정한다. 탭/화면 녹화 경로는 이제 길이와 무관하게
+  // 항상 trim 인자를 넘기므로(video-recorder.ts onstop), "녹화 = 생략"이 아니다.
+  it("trim 인자를 생략하면 replayTrim은 null이다", () => {
     useEditorStore.getState().onRecordingComplete(new Blob(["x"]), "t", { width: 800, height: 600 }, 1000, 5000);
 
     expect(useEditorStore.getState().replayTrim).toBe(null);
+  });
+
+  it("recording 소스 페이로드도 같은 게이트에 실린다", () => {
+    useEditorStore
+      .getState()
+      .onRecordingComplete(new Blob(["x"]), "t", { width: 800, height: 600 }, 1000, 5000, recordingTrim());
+
+    const trim = useEditorStore.getState().replayTrim;
+    expect(trim?.source.kind).toBe("recording");
+    expect(trim?.ownerTabId).toBe(7);
   });
 
   // 회귀 가드의 핵심 계약. drafting 전이(zustand)와 trim 게이트(과거 React state)가 다른 레인으로
