@@ -132,7 +132,8 @@ When a still image isn't enough, record the behavior.
 - **Tab recording** — record the current tab, up to 60 seconds, encoded to MP4 (WebM fallback where MP4 isn't supported).
 - **Screen recording** — record any window or the full screen via the system picker, up to 60 seconds.
 - **Draw while recording** — a mini toolbar (pen, box, or highlighter; up to 5 colors, fewer on a narrow panel; three thicknesses) lets you mark up the page during tab/screen recording. Freehand strokes fade tail-first in draw order over ~3s; a box fades all at once. Either way it's baked into the video.
-- **30s Replay** — an opt-in, always-on buffer that keeps the **last 30 seconds** as MP4. It looks back across page navigations, so you can catch the bug even *after* spotting it — no need to hit record beforehand. After capture, **trim** the clip to keep only the bug moment — the attached logs are narrowed to the same range.
+- **30s Replay** — an opt-in, always-on buffer that keeps the **last 30 seconds** as MP4. It looks back across page navigations, so you can catch the bug even *after* spotting it — no need to hit record beforehand.
+- **Trim before you file** — stopping any recording (tab, screen, or 30s Replay) opens a trim screen. Drag the handles to keep just the bug moment, and the attached console, network, and action logs are narrowed to the same range. Leave the handles alone and nothing is re-encoded; if re-encoding fails, the original clip is attached as is.
 
 ### 📋 Logs
 
