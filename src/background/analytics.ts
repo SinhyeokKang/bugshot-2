@@ -23,7 +23,7 @@ function posthogHost(): string {
 // 받으므로 런타임 방어가 없으면 Privacy 코어밸류의 유일한 무방비 지점이 된다 — 목록 밖 event는
 // 통째로 드롭하고, 목록 밖 property 키도 payload에서 뺀다(값은 원문 유지).
 const ALLOWED_EVENTS: Record<string, readonly string[]> = {
-  issue_submitted: ["platform", "capture_mode", "result", "replay_trimmed"],
+  issue_submitted: ["platform", "capture_mode", "result", "replay_trimmed", "trim_source"],
   platform_connect: ["platform", "result"],
   platform_disconnected: ["platform"],
   extension_installed: ["version"],

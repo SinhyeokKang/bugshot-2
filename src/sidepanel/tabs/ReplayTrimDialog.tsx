@@ -420,7 +420,7 @@ export default function ReplayTrimDialog({ videoBlob, source, onConfirm, onCance
               size="icon"
               className="h-8 w-8 aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
               // 확정 버튼과 같은 관용구 — busy는 최대 15초라 pointer-events까지 죽이면
-              // hover·title이 사라져 "왜 안 눌리나"에 대한 답이 화면에서 없어진다(DESIGN §10).
+              // hover·title이 사라져 "왜 안 눌리나"에 대한 답이 화면에서 없어진다(DESIGN §14).
               aria-disabled={busy}
               onClick={() => { if (busy) return; setCancelOpen(true); }}
               aria-label={t("issue.replay.trim.cancel")}
@@ -433,7 +433,7 @@ export default function ReplayTrimDialog({ videoBlob, source, onConfirm, onCance
               size="icon"
               className="h-8 w-8 aria-disabled:cursor-not-allowed aria-disabled:opacity-50"
               // 스피너를 든 busy는 aria-disabled(포커스 보존) + 핸들러 가드, 진짜 불가 상태
-              // (duration<=0)만 순수 disabled — 8개 연동 폼과 같은 관용구(DESIGN §10).
+              // (duration<=0)만 순수 disabled — 8개 연동 폼과 같은 관용구(DESIGN §14).
               disabled={duration <= 0 && !busy}
               aria-disabled={busy}
               onClick={() => {
