@@ -118,6 +118,7 @@ export interface AISession {
     options?: {
       responseSchema?: Record<string, unknown>;
       images?: string[];
+      signal?: AbortSignal;
     },
   ): Promise<string>;
   destroy(): void;
@@ -137,6 +138,7 @@ export interface AIProvider {
     prompt: string;
     images?: string[];
     responseSchema?: Record<string, unknown>;
+    signal?: AbortSignal;
   }): Promise<string>;
 
   createSession(
@@ -189,6 +191,13 @@ export class LlmRedirectError extends Error {
   }
 }
 
+export class LlmResponseTooLargeError extends Error {
+  constructor() {
+    super("response_too_large");
+    this.name = "LlmResponseTooLargeError";
+  }
+}
+
 function throwIfRedirected(res: Response): void {
   if (res.type === "opaqueredirect" || res.status === 0) {
     throw new LlmRedirectError();
@@ -216,6 +225,7 @@ const RETRY_DELAYS_MS = [1000, 2000];
 
 // 출력 토큰 상한 — 모든 프로바이더 공통. 초안/스타일링 출력은 한참 밑이라 잘림 방지용 방어값.
 const LLM_MAX_TOKENS = 4096;
+const LLM_RESPONSE_MAX_BYTES = 1_000_000;
 
 export function parseRetryAfterMs(value: string | null): number | null {
   if (!value) return null;
@@ -241,7 +251,81 @@ export async function fetchWithRetry(
     console.warn(
       `[ai-provider] ${res.status} from ${url} → retry in ${wait}ms (${attempt + 1}/${RETRY_DELAYS_MS.length})`,
     );
-    await new Promise((r) => setTimeout(r, wait));
+    await waitForRetry(wait, init.signal);
+  }
+}
+
+function waitForRetry(ms: number, signal?: AbortSignal | null): Promise<void> {
+  if (!signal) return new Promise((resolve) => setTimeout(resolve, ms));
+  signal.throwIfAborted();
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      signal.removeEventListener("abort", onAbort);
+      resolve();
+    }, ms);
+    const onAbort = () => {
+      clearTimeout(timer);
+      reject(signal.reason ?? new DOMException("Aborted", "AbortError"));
+    };
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
+}
+
+async function readLimitedText(res: Response): Promise<string> {
+  assertResponseSizeHeader(res);
+  if (!res.body) {
+    const text = await res.text();
+    if (new TextEncoder().encode(text).byteLength > LLM_RESPONSE_MAX_BYTES) {
+      throw new LlmResponseTooLargeError();
+    }
+    return text;
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let bytes = 0;
+  let text = "";
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    bytes += value.byteLength;
+    if (bytes > LLM_RESPONSE_MAX_BYTES) {
+      await reader.cancel();
+      throw new LlmResponseTooLargeError();
+    }
+    text += decoder.decode(value, { stream: true });
+  }
+  return text + decoder.decode();
+}
+
+async function readLimitedJson(res: Response): Promise<unknown> {
+  assertResponseSizeHeader(res);
+  if (!res.body && typeof res.text !== "function") {
+    const data = await res.json();
+    if (
+      new TextEncoder().encode(JSON.stringify(data)).byteLength >
+      LLM_RESPONSE_MAX_BYTES
+    ) {
+      throw new LlmResponseTooLargeError();
+    }
+    return data;
+  }
+  return JSON.parse(await readLimitedText(res));
+}
+
+async function readLimitedErrorText(res: Response): Promise<string> {
+  try {
+    return await readLimitedText(res);
+  } catch (err) {
+    if (err instanceof LlmResponseTooLargeError) throw err;
+    return "";
+  }
+}
+
+function assertResponseSizeHeader(res: Response): void {
+  const declared = Number(res.headers?.get("content-length"));
+  if (Number.isFinite(declared) && declared > LLM_RESPONSE_MAX_BYTES) {
+    throw new LlmResponseTooLargeError();
   }
 }
 
@@ -306,15 +390,17 @@ function buildInitialPrompts(
 function wrapChromeSession(native: LanguageModelInstance): AISession {
   const measure = native.measureContextUsage ?? native.measureInputUsage;
   return {
-    prompt: (input, options) =>
-      native
+    prompt: (input, options) => {
+      options?.signal?.throwIfAborted();
+      return native
         .prompt(
           input,
           options?.responseSchema
             ? { responseConstraint: options.responseSchema }
             : undefined,
         )
-        .catch(mapQuotaError),
+        .catch(mapQuotaError);
+    },
     destroy: () => native.destroy(),
     get contextUsage() {
       return native.contextUsage ?? native.inputUsage;
@@ -339,7 +425,8 @@ export function createChromeAIProvider(): AIProvider {
   return {
     capabilities: NANO_CAPABILITIES,
 
-    async generate({ systemPrompt, prompt, responseSchema }) {
+    async generate({ systemPrompt, prompt, responseSchema, signal }) {
+      signal?.throwIfAborted();
       if (!globalThis.LanguageModel) throw new Error("Chrome AI unavailable");
       const session = await globalThis.LanguageModel.create({
         initialPrompts: buildInitialPrompts(systemPrompt ?? ""),
@@ -387,6 +474,7 @@ export function createOpenAICompatibleProvider(config: LlmConfig): AIProvider {
   async function callChatCompletions(
     messages: Array<{ role: string; content: OpenAIContent }>,
     jsonMode: boolean,
+    signal?: AbortSignal,
   ): Promise<string> {
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
@@ -402,17 +490,26 @@ export function createOpenAICompatibleProvider(config: LlmConfig): AIProvider {
 
     const res = await fetchWithRetry(
       `${config.baseUrl}/chat/completions`,
-      { method: "POST", headers, body: JSON.stringify(body) },
+      {
+        method: "POST",
+        headers,
+        redirect: "manual",
+        signal,
+        body: JSON.stringify(body),
+      },
       [502, 503, 504],
     );
+    throwIfRedirected(res);
     if (!res.ok) {
       if (res.status === 401 || res.status === 403) throw new LlmAuthError();
       if (res.status === 429) throw new LlmQuotaError();
       if (res.status === 503) throw new LlmOverloadedError();
-      const text = await res.text().catch(() => "");
+      const text = await readLimitedErrorText(res);
       throw new Error(`LLM API error ${res.status}: ${text}`);
     }
-    const data = await res.json();
+    const data = await readLimitedJson(res) as {
+      choices?: Array<{ message?: { content?: unknown } }>;
+    };
     const content = data?.choices?.[0]?.message?.content;
     if (typeof content !== "string") {
       throw new Error("LLM API: empty or malformed response");
@@ -423,11 +520,11 @@ export function createOpenAICompatibleProvider(config: LlmConfig): AIProvider {
   return {
     capabilities: byokCapabilities(config.baseUrl),
 
-    async generate({ systemPrompt, prompt, images, responseSchema }) {
+    async generate({ systemPrompt, prompt, images, responseSchema, signal }) {
       const messages: Array<{ role: string; content: OpenAIContent }> = [];
       if (systemPrompt) messages.push({ role: "system", content: systemPrompt });
       messages.push({ role: "user", content: buildOpenAIContent(prompt, images) });
-      return callChatCompletions(messages, !!responseSchema);
+      return callChatCompletions(messages, !!responseSchema, signal);
     },
     async createSession(systemPrompt, fewShot) {
       const messages: Array<{ role: string; content: OpenAIContent }> = [
@@ -440,7 +537,11 @@ export function createOpenAICompatibleProvider(config: LlmConfig): AIProvider {
       return {
         async prompt(input, options) {
           messages.push({ role: "user", content: buildOpenAIContent(input, options?.images) });
-          const result = await callChatCompletions(messages, !!options?.responseSchema);
+          const result = await callChatCompletions(
+            messages,
+            !!options?.responseSchema,
+            options?.signal,
+          );
           messages.push({ role: "assistant", content: result });
           return result;
         },
@@ -480,6 +581,7 @@ export function createAnthropicProvider(config: LlmConfig): AIProvider {
   async function callMessages(
     system: string,
     messages: Array<{ role: string; content: AnthropicContent }>,
+    signal?: AbortSignal,
   ): Promise<string> {
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
@@ -494,6 +596,7 @@ export function createAnthropicProvider(config: LlmConfig): AIProvider {
         method: "POST",
         headers,
         redirect: "manual",
+        signal,
         body: JSON.stringify({
           model: config.modelId,
           max_tokens: LLM_MAX_TOKENS,
@@ -508,10 +611,12 @@ export function createAnthropicProvider(config: LlmConfig): AIProvider {
       if (res.status === 401 || res.status === 403) throw new LlmAuthError();
       if (res.status === 429) throw new LlmQuotaError();
       if (res.status === 529) throw new LlmOverloadedError();
-      const text = await res.text().catch(() => "");
+      const text = await readLimitedErrorText(res);
       throw new Error(`Anthropic API error ${res.status}: ${text}`);
     }
-    const data = await res.json();
+    const data = await readLimitedJson(res) as {
+      content?: Array<{ text?: unknown }>;
+    };
     const text = data?.content?.[0]?.text;
     if (typeof text !== "string") {
       throw new Error("Anthropic API: empty or malformed response");
@@ -522,11 +627,15 @@ export function createAnthropicProvider(config: LlmConfig): AIProvider {
   return {
     capabilities: byokCapabilities(config.baseUrl),
 
-    async generate({ systemPrompt, prompt, images, responseSchema }) {
+    async generate({ systemPrompt, prompt, images, responseSchema, signal }) {
       const sys = responseSchema
         ? `${systemPrompt ?? ""}\n\nRespond with valid JSON only. Schema: ${JSON.stringify(responseSchema)}`
         : (systemPrompt ?? "");
-      return callMessages(sys, [{ role: "user", content: buildAnthropicContent(prompt, images) }]);
+      return callMessages(
+        sys,
+        [{ role: "user", content: buildAnthropicContent(prompt, images) }],
+        signal,
+      );
     },
     async createSession(systemPrompt, fewShot) {
       const messages: Array<{ role: string; content: AnthropicContent }> = [];
@@ -540,7 +649,7 @@ export function createAnthropicProvider(config: LlmConfig): AIProvider {
             ? `${systemPrompt}\n\nRespond with valid JSON only. Schema: ${JSON.stringify(options.responseSchema)}`
             : systemPrompt;
           messages.push({ role: "user", content: buildAnthropicContent(input, options?.images) });
-          const result = await callMessages(sys, messages);
+          const result = await callMessages(sys, messages, options?.signal);
           messages.push({ role: "assistant", content: result });
           return result;
         },
