@@ -12,18 +12,33 @@ export function buildAiDraftRequest(input: {
   systemPrompt: string;
   modeImages: string[] | undefined;
   inlineImageDataUrls: string[];
-}): { systemPrompt: string; images: string[] | undefined } {
+}): {
+  systemPrompt: string;
+  images: string[] | undefined;
+  droppedImages: number;
+} {
   const { caps, systemPrompt } = input;
-  if (!caps.supportsImages) return { systemPrompt, images: undefined };
+  // 이미지를 못 받는 프로바이더는 애초에 실을 게 없다 — 이건 절삭이 아니라 미지원이라
+  // droppedImages로 세지 않는다(고지할 손실이 아니다).
+  if (!caps.supportsImages) {
+    return { systemPrompt, images: undefined, droppedImages: 0 };
+  }
 
   const limits = PROMPT_CAPS[caps.promptStyle];
   let remainingChars = limits.imageChars;
   const images: string[] = [];
-  for (const image of [...(input.modeImages ?? []), ...input.inlineImageDataUrls]) {
+  // 순서는 modeImages 먼저로 고정 — 프롬프트가 캡처 이미지를 1-based 인덱스로 지목하므로
+  // 인라인을 앞세워 살리면 그 지목이 통째로 어긋난다. 대신 빠진 수를 호출부가 고지한다.
+  const candidates = [...(input.modeImages ?? []), ...input.inlineImageDataUrls];
+  for (const image of candidates) {
     if (images.length >= limits.images) break;
     if (image.length > remainingChars) continue;
     images.push(image);
     remainingChars -= image.length;
   }
-  return { systemPrompt, images: images.length > 0 ? images : undefined };
+  return {
+    systemPrompt,
+    images: images.length > 0 ? images : undefined,
+    droppedImages: candidates.length - images.length,
+  };
 }

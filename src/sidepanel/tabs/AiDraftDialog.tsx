@@ -223,7 +223,7 @@ export function AiDraftDialog({
         ? candidateRefs(candidates)
         : [];
 
-      const { systemPrompt, images } = buildAiDraftRequest({
+      const { systemPrompt, images, droppedImages } = buildAiDraftRequest({
         caps: capabilities,
         systemPrompt: fitted.prompt,
         modeImages: getModeImages(
@@ -300,7 +300,13 @@ export function AiDraftDialog({
         });
         // 절삭·섹션 누락은 결과를 조용히 열화시킨다 — 무엇이 빠졌는지까진 아니어도
         // "온전한 컨텍스트로 쓴 초안이 아니다"는 사실은 알아야 한다.
-        if (fitted.level >= 1 || fitted.omittedSections.length > 0) {
+        // 이미지 cap 초과분도 같은 고지에 얹는다 — 본문에 직접 붙인 인라인 이미지가
+        // 요소 before/after에 밀려 통째로 빠질 수 있다.
+        if (
+          fitted.level >= 1 ||
+          fitted.omittedSections.length > 0 ||
+          droppedImages > 0
+        ) {
           toast.info(t("aiDraft.contextTrimmed"));
         }
       } else {

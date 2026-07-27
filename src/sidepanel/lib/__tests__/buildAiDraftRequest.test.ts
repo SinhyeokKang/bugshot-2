@@ -26,6 +26,41 @@ describe("buildAiDraftRequest", () => {
     expect(images).toBeUndefined();
   });
 
+  // cap에 걸려 빠진 이미지는 호출부가 사용자에게 고지해야 한다 — 프롬프트는 modeImages를
+  // 1-based 인덱스로 지목하므로 순서를 바꿔 인라인을 살릴 수는 없다(지목이 어긋난다).
+  it("cap에 걸려 빠진 이미지 수를 droppedImages로 알린다", () => {
+    const { images, droppedImages } = buildAiDraftRequest({
+      caps: BYOK_CAPABILITIES,
+      systemPrompt: SYS,
+      modeImages: Array.from({ length: 8 }, (_, i) => `data:cap${i}`),
+      inlineImageDataUrls: ["data:inline0", "data:inline1"],
+    });
+
+    expect(images).toHaveLength(8);
+    expect(droppedImages).toBe(2);
+  });
+
+  it("전부 실렸으면 droppedImages=0", () => {
+    const { droppedImages } = buildAiDraftRequest({
+      caps: BYOK_CAPABILITIES,
+      systemPrompt: SYS,
+      modeImages: ["data:cap1"],
+      inlineImageDataUrls: ["data:in1"],
+    });
+    expect(droppedImages).toBe(0);
+  });
+
+  it("이미지를 못 받는 프로바이더면 실을 게 없으니 droppedImages=0", () => {
+    const { images, droppedImages } = buildAiDraftRequest({
+      caps: NANO_CAPABILITIES,
+      systemPrompt: SYS,
+      modeImages: ["data:cap1"],
+      inlineImageDataUrls: ["data:in1"],
+    });
+    expect(images).toBeUndefined();
+    expect(droppedImages).toBe(0);
+  });
+
   it("캡처 이미지 + inline 이미지 → 캡처 먼저, inline 뒤 순서로 concat", () => {
     const { images } = buildAiDraftRequest({
       caps: BYOK_CAPABILITIES,
