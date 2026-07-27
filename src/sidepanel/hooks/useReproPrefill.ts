@@ -152,6 +152,10 @@ export function useReproPrefill(args: UseReproPrefillArgs): {
     })();
 
     return () => {
+      // abort하지 않는다 — 이 cleanup은 언마운트와 게이트 왕복을 구분하지 못하고,
+      // 후자는 위 re-adopt 분기가 prev.cancelled를 되돌려 이 요청의 결과를 이어받는다.
+      // 여기서 끊으면 되살릴 요청이 이미 죽어 영구히 안 채워진다. 진짜 끊어야 하는
+      // 사용자 명시 중단은 userCancelled와 함께 canceller에서 abort한다.
       run.cancelled = true;
     };
     // deps는 발화 판정용 원시 플래그만 — draft/actionLog·locale/url/pageTitle을 넣으면 로딩 중 무관한 변경이 재실행→취소를 유발해 AI 결과 유실·로딩 고착을 만든다(발화 시점 closure로 읽는다).

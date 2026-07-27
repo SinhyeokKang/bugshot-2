@@ -258,6 +258,45 @@ describe("useReproPrefill", () => {
     expect(generateReproStepsWithAI).toHaveBeenCalledTimes(1); // 재발화도 없음.
   });
 
+  // 위 re-adopt는 in-flight 요청이 살아 있어야 성립한다. cleanup은 언마운트와 게이트 왕복을
+  // 구분하지 못하므로 거기서 abort하면 되살릴 요청이 이미 죽어 영구히 안 채워진다.
+  // signal을 무시하는 mock으로는 그 회귀가 green으로 통과하므로 signal 자체를 단언한다.
+  it("게이트 왕복 cleanup은 in-flight 요청을 abort하지 않는다", async () => {
+    let signal: AbortSignal | undefined;
+    let resolveFn: (v: unknown) => void = () => {};
+    vi.mocked(generateReproStepsWithAI).mockImplementation((input: any) => {
+      signal = input.signal;
+      return new Promise((res) => {
+        resolveFn = res;
+      }) as any;
+    });
+    const setDraft = vi.fn();
+    const stable = {
+      setDraft,
+      setReproPrefillDone: vi.fn(),
+      setLoading: vi.fn(),
+      createSession: vi.fn(),
+      actionLog: actionLog(),
+      draft: { title: "", sections: {} },
+      aiStatus: "available",
+    };
+    const mk = (over: Record<string, unknown> = {}) => baseArgs({ ...stable, ...over });
+    const { rerender } = renderHook((p: any) => useReproPrefill(p), {
+      initialProps: mk({ trimming: false }),
+    });
+    await flush();
+
+    rerender(mk({ trimming: true, reproPrefillDone: true }));
+    rerender(mk({ trimming: false, reproPrefillDone: true }));
+
+    expect(signal?.aborted).toBe(false);
+    await act(async () => {
+      resolveFn("AI a");
+      await Promise.resolve();
+    });
+    expect(setDraft).toHaveBeenCalledTimes(1);
+  });
+
   it("발화 시 setAiCancel로 취소 콜백(함수)을 등록한다", async () => {
     const setAiCancel = vi.fn();
     const { args } = render({ setAiCancel });
