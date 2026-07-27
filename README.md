@@ -35,21 +35,21 @@ capture backend to run, no usage to meter, and no hosting bill to recover.
 
 ## Why I built it
 
-I'm a product designer. My job often involves noticing that something is a few
-pixels off, but reporting it meant translating a visual problem into vague
-instructions like "the spacing looks wrong here."
+I'm a product designer. When I found a UI bug, I used to inspect the page in
+DevTools, change the CSS, take screenshots, move over to Jira, and manually
+build a before/after table for the issue.
 
-I originally built BugShot for myself so I could select an element, fix its CSS
-on the live page, and send the developer the actual before/after values instead
-of describing them in words.
+That was tedious, so I made a tool that let me finish the whole workflow in one
+place and send the result to Jira in the format I wanted.
 
-That small tool kept growing. A useful bug report also needed a screenshot,
-browser and viewport details, reproduction steps, console errors, network
-requests, recordings, and a way to deliver everything to the tracker the team
-already used.
+As I used it at work, our QA team asked if it could handle general bug reports
+too. That added screenshots and recordings, followed by network requests,
+console logs, and the rest of the evidence needed to reproduce a bug. It became
+an internal tool for the QA team; I still use it every day and keep
+improving it.
 
-BugShot is the result: a personal design-debugging tool that grew into a
-complete, browser-based bug reporting workflow.
+What started as a way to avoid making CSS diff tables by hand grew into this
+product in its first three months.
 
 ## Privacy by architecture
 
@@ -338,7 +338,8 @@ the breadth will degrade accordingly.
 > **A note on language.** This README is kept in sync with its
 > [Korean edition](README.ko.md), as are the privacy policy and the user guide.
 > The engineering docs under `docs/` and the source comments are written in
-> Korean — it's a solo project and that's the language it was thought in.
+> Korean — the project is built and maintained by one person, and that's the
+> language it was thought in.
 > Everything you need to audit the privacy claims above is in English.
 
 ## License
