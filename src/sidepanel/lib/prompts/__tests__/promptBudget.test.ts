@@ -1,7 +1,9 @@
 import { describe, it, expect, vi } from "vitest";
 import {
   fitDraftContext,
+  fewShotChars,
   isPromptOverBudget,
+  isTextOverBudget,
   trimDraftContext,
 } from "../promptBudget";
 import { NANO_CAPABILITIES, BYOK_CAPABILITIES, type AISession } from "../../ai-provider";
@@ -245,6 +247,22 @@ describe("fitDraftContext", () => {
       100_000,
     );
     expect(result.includedSections).toEqual(["description"]);
+  });
+});
+
+describe("isTextOverBudget", () => {
+  it("system prompt와 user turn 합계를 budget과 비교", () => {
+    expect(isTextOverBudget(7, "1234", 10)).toBe(true);
+    expect(isTextOverBudget(6, "1234", 10)).toBe(false);
+  });
+});
+
+describe("fewShotChars", () => {
+  it("user와 assistant 예시 문자를 모두 예약", () => {
+    expect(
+      fewShotChars([{ user: "123", assistant: "4567" }]),
+    ).toBe(7);
+    expect(fewShotChars(undefined)).toBe(0);
   });
 });
 

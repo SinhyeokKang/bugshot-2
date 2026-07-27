@@ -20,6 +20,8 @@ import {
   buildAiStylingSystemPrompt,
   buildAiStylingResponseSchema,
   parseAiStylingResponse,
+  filterDeniedStyleValues,
+  filterClassListToExisting,
   getStylingFewShot,
   stylesSentInPrompt,
   type AiStylingContext,
@@ -34,7 +36,10 @@ import {
   type ProviderCapabilities,
 } from "@/sidepanel/lib/ai-provider";
 import { toastLlmError } from "@/sidepanel/lib/llmErrorToast";
-import { isPromptOverBudget } from "@/sidepanel/lib/prompts/promptBudget";
+import {
+  isPromptOverBudget,
+  isTextOverBudget,
+} from "@/sidepanel/lib/prompts/promptBudget";
 
 export function AiStylingDialog({
   open,
@@ -51,6 +56,10 @@ export function AiStylingDialog({
   const tabId = useBoundTabId();
   const [input, setInput] = useState("");
   const sessionRef = useRef<AISession | null>(null);
+  const activeRunRef = useRef<{
+    cancelled: boolean;
+    controller: AbortController;
+  } | null>(null);
   // 세션이 어느 요소(selector+frameId)용으로 빌드됐는지 — repick 시 stale system prompt 재빌드 판정.
   const sessionKeyRef = useRef<string | null>(null);
   // 멀티턴 delta의 기준선 = 직전에 모델이 실제로 본 스타일 맵. 세션 생성 직후 한 곳에서만
@@ -58,11 +67,20 @@ export function AiStylingDialog({
   // 리셋을 흩뿌리면 누락된다.
   const lastSentStylesRef = useRef<Record<string, string>>({});
   const lastSentClassesRef = useRef<string[]>([]);
+  const conversationCharsRef = useRef(0);
   const createSessionRef = useRef(createSession);
   createSessionRef.current = createSession;
 
   useEffect(() => {
     return () => {
+      const run = activeRunRef.current;
+      if (run) {
+        run.cancelled = true;
+        run.controller.abort();
+        activeRunRef.current = null;
+        useEditorStore.getState().setAiStylingLoading(false);
+        useEditorStore.getState().setAiCancel(null);
+      }
       sessionRef.current?.destroy?.();
       sessionRef.current = null;
       sessionKeyRef.current = null;
@@ -103,10 +121,12 @@ export function AiStylingDialog({
     onOpenChange(false);
     useEditorStore.getState().setAiStylingLoading(true);
 
-    // 소프트 취소: 오버레이 '중단'이 부르면 결과를 폐기하고 로딩을 내린다(진행 중 호출은 못 끊는다).
-    const run = { cancelled: false };
+    // 중단 시 BYOK 요청·retry를 abort하고 Chrome 세션은 destroy한 뒤 결과를 폐기한다.
+    const run = { cancelled: false, controller: new AbortController() };
+    activeRunRef.current = run;
     useEditorStore.getState().setAiCancel(() => {
       run.cancelled = true;
+      run.controller.abort();
       sessionRef.current?.destroy?.();
       sessionRef.current = null;
       sessionKeyRef.current = null;
@@ -120,15 +140,28 @@ export function AiStylingDialog({
         sessionRef.current = null;
       }
       if (!sessionRef.current) {
-        sessionRef.current = await createSessionRef.current(
-          buildAiStylingSystemPrompt(ctx),
-          getStylingFewShot(ctx),
+        const systemPrompt = buildAiStylingSystemPrompt(ctx);
+        const fewShot = getStylingFewShot(ctx);
+        const createdSession = await createSessionRef.current(
+          systemPrompt,
+          fewShot,
         );
+        if (run.cancelled || activeRunRef.current !== run) {
+          createdSession.destroy?.();
+          return;
+        }
+        sessionRef.current = createdSession;
         sessionKeyRef.current = targetKey;
         // 기준선은 원본 specifiedStyles 전체가 아니라 캡 적용 후 실제로 실린 맵이어야 한다.
         // 어긋나면 모델이 못 본 prop을 delta가 "변경 없음"으로 판단해 영영 안 보낸다.
         lastSentStylesRef.current = stylesSentInPrompt(ctx);
         lastSentClassesRef.current = ctx.classList;
+        conversationCharsRef.current =
+          systemPrompt.length +
+          (fewShot ?? []).reduce(
+            (sum, item) => sum + item.user.length + item.assistant.length,
+            0,
+          );
       }
 
       // 스타일링은 1차 게이트(문자 예산 절삭)를 쓰지 않는다 — 모든 컨텍스트가 PROMPT_CAPS로
@@ -149,16 +182,29 @@ export function AiStylingDialog({
       const delta = [styleDelta, classDelta].filter(Boolean).join("\n");
       const responseSchema = buildAiStylingResponseSchema();
       const turnInput = delta ? `${delta}\n\n${msg}` : msg;
+      if (
+        isTextOverBudget(
+          conversationCharsRef.current,
+          turnInput,
+          capabilities.contextBudgetChars,
+        )
+      ) {
+        throw new AiContextOverflowError();
+      }
 
       if (await isPromptOverBudget(sessionRef.current, turnInput, responseSchema)) {
         throw new AiContextOverflowError();
       }
       const raw = await sessionRef.current
-        .prompt(turnInput, { responseSchema })
+        .prompt(turnInput, {
+          responseSchema,
+          signal: run.controller.signal,
+        })
         .catch(mapQuotaError);
       if (run.cancelled) return; // 사용자 중단 — 결과 폐기(로딩은 canceller가 이미 내렸다).
       lastSentStylesRef.current = currentSent;
       lastSentClassesRef.current = ctx.classList;
+      conversationCharsRef.current += turnInput.length + raw.length;
 
       // 호출 중 다른 요소로 repick됐으면 옛 요소용 결과를 새 요소에 적용하지 않는다(frameId 포함).
       const cur = useEditorStore.getState().selection;
@@ -176,18 +222,31 @@ export function AiStylingDialog({
         return;
       }
 
-      const hasEdits = parsed.edits.inlineStyle || parsed.edits.classList;
-      if (!hasEdits) {
-        toast(t("aiStyling.noChanges"));
-        return;
-      }
-
       if (parsed.edits.inlineStyle) {
         parsed.edits.inlineStyle = replaceRawWithTokens(
           parsed.edits.inlineStyle,
           ctx.tokens,
           ctx.specifiedStyles,
         );
+        parsed.edits.inlineStyle = filterDeniedStyleValues(
+          parsed.edits.inlineStyle,
+          ctx.tokens,
+        );
+        if (Object.keys(parsed.edits.inlineStyle).length === 0) {
+          delete parsed.edits.inlineStyle;
+        }
+      }
+      if (parsed.edits.classList) {
+        parsed.edits.classList = filterClassListToExisting(
+          parsed.edits.classList,
+          ctx.classList,
+        );
+      }
+
+      const hasEdits = parsed.edits.inlineStyle || parsed.edits.classList;
+      if (!hasEdits) {
+        toast(t("aiStyling.noChanges"));
+        return;
       }
 
       const currentEdits = useEditorStore.getState().styleEdits;
@@ -209,7 +268,11 @@ export function AiStylingDialog({
       sessionRef.current = null;
       sessionKeyRef.current = null;
     } finally {
-      useEditorStore.getState().setAiStylingLoading(false);
+      if (activeRunRef.current === run) {
+        activeRunRef.current = null;
+        useEditorStore.getState().setAiCancel(null);
+        useEditorStore.getState().setAiStylingLoading(false);
+      }
     }
   }, [input, tabId, buildContext, onOpenChange, t]);
 

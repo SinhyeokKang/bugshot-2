@@ -104,6 +104,7 @@ export function useReproPrefill(args: UseReproPrefillArgs): {
     const log = actionLogRef.current!;
     const run = { cancelled: false, userCancelled: false };
     runRef.current = run;
+    const controller = new AbortController();
 
     const apply = (steps: string) => {
       const current = draftRef.current;
@@ -116,13 +117,14 @@ export function useReproPrefill(args: UseReproPrefillArgs): {
     };
 
     setLoading(true);
-    // 소프트 취소: 오버레이 '중단'이 이 콜백을 부르면 결과를 폐기하고 로딩을 내린다.
-    // 진행 중 nano/BYOK 호출 자체는 못 끊지만(ai-provider에 AbortSignal 없음), 응답은 run.cancelled로 버려진다.
+    // BYOK 요청은 abort하고 Chrome 세션 결과는 run.cancelled로 폐기한다.
     // done은 이미 래치돼 재발화 없음 — 사용자 명시 중단 = 영구 포기(reproPrefillDone "결과무관 1회" 설계와 일치).
     setAiCancel(() => {
       run.cancelled = true;
       run.userCancelled = true;
+      controller.abort();
       setLoading(false);
+      setAiCancel(null);
     });
     void (async () => {
       try {
@@ -134,6 +136,7 @@ export function useReproPrefill(args: UseReproPrefillArgs): {
           url,
           pageTitle,
           actionLogSummary: buildActionLogSummary(log),
+          signal: controller.signal,
         });
         if (run.cancelled) return;
         apply(steps);
@@ -144,6 +147,7 @@ export function useReproPrefill(args: UseReproPrefillArgs): {
       } finally {
         // 취소(재실행/언마운트) 경로에서도 로딩을 반드시 해제 — 안 하면 스피너 소프트락.
         setLoading(false);
+        if (runRef.current === run) setAiCancel(null);
       }
     })();
 

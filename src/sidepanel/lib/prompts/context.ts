@@ -7,6 +7,10 @@ export function oneLine(text: string): string {
   return text.replace(/[\r\n\u2028\u2029]+/g, " ");
 }
 
+export function stringifyUntrustedContext(value: unknown): string {
+  return JSON.stringify(value).replace(/</g, "\\u003c");
+}
+
 export function extractVarRefs(styles: Record<string, string>): string[] {
   const refs: string[] = [];
   for (const value of Object.values(styles)) {

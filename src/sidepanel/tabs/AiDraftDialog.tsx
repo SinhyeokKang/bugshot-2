@@ -54,7 +54,12 @@ import {
   supportsActionLog,
   supportsConsoleNetworkLog,
 } from "@/sidepanel/lib/captureLogSupport";
-import { fitDraftContext, isPromptOverBudget } from "@/sidepanel/lib/prompts/promptBudget";
+import {
+  fitDraftContext,
+  fewShotChars,
+  isPromptOverBudget,
+  isTextOverBudget,
+} from "@/sidepanel/lib/prompts/promptBudget";
 import { defaultTitle } from "./DraftingPanel";
 
 export function AiDraftDialog({
@@ -74,11 +79,23 @@ export function AiDraftDialog({
   const [input, setInput] = useState("");
   const captureMode = useEditorStore((s) => s.captureMode);
   const sessionRef = useRef<AISession | null>(null);
+  const activeRunRef = useRef<{
+    cancelled: boolean;
+    controller: AbortController;
+  } | null>(null);
   const createSessionRef = useRef(createSession);
   createSessionRef.current = createSession;
 
   useEffect(() => {
     return () => {
+      const run = activeRunRef.current;
+      if (run) {
+        run.cancelled = true;
+        run.controller.abort();
+        activeRunRef.current = null;
+        useEditorStore.getState().setAiDraftLoading(false);
+        useEditorStore.getState().setAiCancel(null);
+      }
       sessionRef.current?.destroy?.();
       sessionRef.current = null;
     };
@@ -92,10 +109,12 @@ export function AiDraftDialog({
     onOpenChange(false);
     useEditorStore.getState().setAiDraftLoading(true);
 
-    // 소프트 취소: 오버레이 '중단'이 부르면 결과를 폐기하고 로딩을 내린다(진행 중 호출은 못 끊는다).
-    const run = { cancelled: false };
+    // 중단 시 BYOK 요청·retry를 abort하고 Chrome 세션은 destroy한 뒤 결과를 폐기한다.
+    const run = { cancelled: false, controller: new AbortController() };
+    activeRunRef.current = run;
     useEditorStore.getState().setAiCancel(() => {
       run.cancelled = true;
+      run.controller.abort();
       sessionRef.current?.destroy?.();
       sessionRef.current = null;
       useEditorStore.getState().setAiDraftLoading(false);
@@ -172,11 +191,30 @@ export function AiDraftDialog({
           ).map((img) => img.dataUrl)
         : [];
 
-      const fitted = fitDraftContext(
+      let fitted = fitDraftContext(
         ctx,
         buildAiDraftSessionPrompt,
-        capabilities.contextBudgetChars,
+        Math.max(0, capabilities.contextBudgetChars - msg.length),
       );
+      let fewShot = getDraftFewShot(fitted.ctx);
+      fitted = fitDraftContext(
+        ctx,
+        buildAiDraftSessionPrompt,
+        Math.max(
+          0,
+          capabilities.contextBudgetChars - msg.length - fewShotChars(fewShot),
+        ),
+      );
+      fewShot = getDraftFewShot(fitted.ctx);
+      if (
+        isTextOverBudget(
+          fitted.prompt.length + fewShotChars(fewShot),
+          msg,
+          capabilities.contextBudgetChars,
+        )
+      ) {
+        throw new AiContextOverflowError();
+      }
 
       // 후보·스키마·few-shot 전부 fitted.ctx 파생 — 절삭이 로그를 지우면 셋이 동시 소멸.
       // description 비활성 게이트도 canRequestLogRefs 단일 출처(프롬프트 빌더와 동일 판정).
@@ -200,10 +238,15 @@ export function AiDraftDialog({
 
       // 매 요청마다 최신 선입력으로 세션 재생성 — 재오픈·재생성 시 갱신된 컨텍스트 반영.
       sessionRef.current?.destroy?.();
-      sessionRef.current = await createSessionRef.current(
+      const createdSession = await createSessionRef.current(
         systemPrompt,
-        getDraftFewShot(fitted.ctx),
+        fewShot,
       );
+      if (run.cancelled || activeRunRef.current !== run) {
+        createdSession.destroy?.();
+        return;
+      }
+      sessionRef.current = createdSession;
 
       const responseSchema = buildAiDraftSchema(
         sectionIds,
@@ -213,7 +256,11 @@ export function AiDraftDialog({
         throw new AiContextOverflowError();
       }
       const raw = await sessionRef.current
-        .prompt(msg, { responseSchema, images })
+        .prompt(msg, {
+          responseSchema,
+          images,
+          signal: run.controller.signal,
+        })
         .catch(mapQuotaError);
       if (run.cancelled) return; // 사용자 중단 — 결과 폐기(로딩은 canceller가 이미 내렸다).
 
@@ -267,7 +314,11 @@ export function AiDraftDialog({
       sessionRef.current?.destroy?.();
       sessionRef.current = null;
     } finally {
-      useEditorStore.getState().setAiDraftLoading(false);
+      if (activeRunRef.current === run) {
+        activeRunRef.current = null;
+        useEditorStore.getState().setAiCancel(null);
+        useEditorStore.getState().setAiDraftLoading(false);
+      }
     }
   }, [input, captureMode, capabilities, elementStyleElements, onOpenChange, t]);
 
