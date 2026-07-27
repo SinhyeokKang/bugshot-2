@@ -414,7 +414,8 @@ function IssueSectionRow({
       // 구분선은 형제 Separator가 아니라 행 자신의 border — dnd transform과 함께 움직여야 잔상이 없다.
       className={cn(
         "-mx-3 flex items-center gap-3 border-t border-border px-3 py-3 first:border-t-0",
-        isDragging && "relative z-10 rounded-md bg-muted shadow-md",
+        // 드래그 중에도 배경색은 그대로 — 다만 아래 행이 비쳐 보이면 안 되므로 Card와 같은 불투명 배경을 깐다.
+        isDragging && "relative z-10 rounded-md bg-card shadow-md",
       )}
       data-testid={`issue-section-row-${section.id}`}
     >
