@@ -170,6 +170,14 @@ describe("mono 타입스케일: pre/code가 단일출처 변수를 참조한다"
     expect(decl(READ.file, READ.pre, "line-height")).toBe("var(--mono-leading)");
   });
 
+  // 이 한 줄이 뒤집히면 줄이 접혀 논리 줄 ≠ 화면 줄이 된다 — 예전엔 들여쓰기 소실(시각 열화)로
+  // 끝났지만 행 번호가 생긴 뒤로는 **번호가 다른 줄을 가리키는** 정보 오류가 된다. @tiptap/core가
+  // 런타임 주입하는 pre-wrap을 특이도로 이기는 구조라, tiptap 업그레이드가 셀렉터를 바꾸면 조용히
+  // 뒤집힌다. (읽기 표면은 UA 기본 pre라 선언 자체가 없는 게 정상 — 편집 쪽만 pin한다.)
+  it("편집 표면 pre가 줄을 안 접는다 — 행 번호 정확성의 전제", () => {
+    expect(decl(EDIT.file, EDIT.pre, "white-space")).toBe("pre");
+  });
+
   it("두 짝의 인라인 code가 font-size로 var(--mono-size)를 쓴다", () => {
     expect(decl(EDIT.file, EDIT.code, "font-size")).toBe("var(--mono-size)");
     expect(decl(READ.file, READ.code, "font-size")).toBe("var(--mono-size)");
@@ -257,12 +265,31 @@ describe("행 번호 gutter 배치", () => {
 
   const gutter = () => rule("code-collapse.css", ".code-collapse-gutter");
 
+  const readPre = () => rule("doc-section-body.css", ".doc-section-body pre");
+
+  // 인셋은 pre의 테두리 두께에서 **파생**돼야 한다 — 리터럴을 복제해 pin하면 pre가 2px
+  // 테두리로 바뀌어도 green인 공허한 그물이 된다(POSTMORTEM 2026-07-18 (4)).
   it("wrapper에 붙어 세로 전체를 덮고 넘치는 만큼 잘린다 (접힘 대응)", () => {
     const g = gutter();
+    const borderWidth = decl(readPre(), "border", "read pre").split(/\s+/)[0];
     expect(decl(g, "position", "gutter")).toBe("absolute");
-    expect(decl(g, "top", "gutter")).toBe("0");
-    expect(decl(g, "bottom", "gutter")).toBe("0");
+    expect(decl(g, "top", "gutter")).toBe(borderWidth);
+    expect(decl(g, "bottom", "gutter")).toBe(borderWidth);
+    expect(decl(g, "left", "gutter")).toBe(borderWidth);
     expect(decl(g, "overflow", "gutter")).toBe("hidden");
+  });
+
+  // 배경이 없으면 가로 스크롤 시 pre의 padding-left가 밀려 코드 글리프가 번호 위로 올라온다.
+  // pre와 같은 토큰이어야 다크모드가 함께 따라간다.
+  it("코드가 번호 밑으로 파고들지 않도록 pre와 같은 배경을 덮는다", () => {
+    expect(decl(gutter(), "background", "gutter")).toBe(decl(readPre(), "background", "read pre"));
+  });
+
+  // 번호 첫 줄과 코드 첫 줄이 같은 y에서 시작하려면 gutter의 위 패딩이 pre의 패딩과 같아야
+  // 한다. 파일이 갈려 있어(code-collapse.css vs 표면 2벌) 한쪽만 바꾸면 조용히 어긋난다.
+  it("첫 줄 정렬 — gutter 위 패딩이 pre 패딩과 같다", () => {
+    const preTop = decl(rule("doc-section-body.css", ".doc-section-body pre"), "padding", "read pre");
+    expect(decl(gutter(), "padding-top", "gutter")).toBe(preTop);
   });
 
   it("번호 줄 높이가 코드 줄 높이와 같은 단일출처를 쓴다 (정렬 전제)", () => {
@@ -285,7 +312,26 @@ describe("행 번호 gutter 배치", () => {
     );
     const read = decl(rule("doc-section-body.css", ".doc-section-body pre"), "padding-left", "read pre");
     expect(edit).toBe(read);
-    expect(edit).toContain("--code-gutter-digits");
+    // 자릿수(--code-gutter-digits)를 각자 환산하지 않고 폭 변수 하나를 공유한다 — 번호 열과
+    // 코드 시작선이 같은 출처를 봐야 갈라지지 않는다.
+    expect(edit).toContain("--code-gutter-width");
+    expect(rule("code-collapse.css", ".code-collapse")).toContain("--code-gutter-digits");
+    // 번호 열 자신도 같은 출처를 봐야 한다 — 한쪽만 검사하면 gutter 폭을 리터럴로 바꿔도
+    // green인데 실제로는 번호와 코드가 겹치거나 벌어진다.
+    expect(decl(gutter(), "width", "gutter")).toContain("--code-gutter-width");
+  });
+
+  // 셸에 안 감싸인 pre(첫 페인트 한 프레임 등)는 --code-gutter-width가 없어 폴백을 탄다.
+  // 그때 좌측 패딩이 나머지 세 변과 같아야 코드블럭이 짝짝이로 안 보인다 — 폴백과 간격
+  // 리터럴이 pre의 padding과 맞물린 암묵 산술이라, 한쪽만 바뀌면 조용히 어긋난다.
+  it("셸 없는 pre의 폴백 좌측 패딩이 나머지 변과 같다", () => {
+    const paddingLeft = decl(readPre(), "padding-left", "read pre");
+    const [, fallback, gap] =
+      paddingLeft.match(/var\(--code-gutter-width,\s*([\d.]+)px\)\s*\+\s*([\d.]+)px/) ?? [];
+    expect(fallback, `폴백 형태를 못 읽음: ${paddingLeft}`).toBeDefined();
+    expect(Number(fallback) + Number(gap)).toBe(
+      Number(decl(readPre(), "padding", "read pre").replace("px", "")),
+    );
   });
 });
 

@@ -1,6 +1,7 @@
 // .tsx라 jsdom 환경 — 셸은 vanilla DOM 팩토리라 노드 환경으론 못 돌린다.
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createCodeCollapseShell, type CodeCollapseLabels } from "../codeCollapseShell";
+import { CODE_COLLAPSE_LINE_THRESHOLD } from "../codeCollapse";
 
 const labels: CodeCollapseLabels = {
   expand: (lines) => `expand ${lines}`,
@@ -86,6 +87,33 @@ describe("codeCollapseShell 행 번호 gutter", () => {
     const gutter = gutterOf(shell);
     expect(gutter.getAttribute("contenteditable")).toBe("false");
     expect(gutter.getAttribute("aria-hidden")).toBe("true");
+    shell.destroy();
+  });
+
+  // 접힌 블럭은 임계값+1줄까지만 보인다 — 그 아래 번호는 잘려서 안 보이는 DOM일 뿐이고,
+  // 삽입 로그는 수천 줄까지 가므로 만들지 않는다.
+  it("접힌 블럭은 보이는 줄까지만 번호를 만든다", () => {
+    const { shell } = makeBare(2000);
+    expect(gutterOf(shell).childElementCount).toBeLessThanOrEqual(
+      CODE_COLLAPSE_LINE_THRESHOLD + 1,
+    );
+    shell.setExpanded(true);
+    expect(gutterOf(shell).childElementCount).toBe(2000);
+    shell.destroy();
+  });
+
+  // 폭까지 보이는 줄 기준으로 줄이면 펼치는 순간 코드 시작선이 옆으로 튄다.
+  it("접혀 있어도 폭은 전체 줄 수 자릿수로 잡는다 (펼칠 때 안 튀게)", () => {
+    const { shell } = makeBare(2000);
+    expect(shell.wrapper.style.getPropertyValue("--code-gutter-digits").trim()).toBe("4");
+    shell.destroy();
+  });
+
+  // 1ch는 요소 자신의 폰트로 환산된다 — gutter가 mono를 못 받으면 --code-gutter-digits로
+  // 계산한 폭이 실제 번호 폭과 갈라져 코드 시작선이 어긋난다.
+  it("gutter가 mono 폰트를 받는다 (ch 환산의 전제)", () => {
+    const { shell } = makeBare(3);
+    expect(gutterOf(shell).classList.contains("font-mono")).toBe(true);
     shell.destroy();
   });
 
