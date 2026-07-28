@@ -25,7 +25,7 @@ checkout → pnpm/action-setup → setup-node(cache: pnpm) → pnpm install --fr
 → cp .env.ci .env.local
 → pnpm exec playwright install --with-deps chromium
 → pnpm build:e2e
-→ xvfb-run -a --server-args="-screen 0 1920x1080x24" pnpm test:e2e -- --shard=${{ matrix.shard }}/4
+→ xvfb-run -a --server-args="-screen 0 1920x1080x24" pnpm test:e2e --shard=${{ matrix.shard }}/4
 → (if: failure()) actions/upload-artifact — playwright-report/ + test-results/
 ```
 
@@ -227,7 +227,7 @@ process.env.E2E_SHOW === "1" || process.env.CI   // off-screen 창 위치 생략
 strategy:
   matrix:
     shard: [1, 2, 3, 4]
-run: ... pnpm test:e2e -- --shard=${{ matrix.shard }}/4
+run: ... pnpm test:e2e --shard=${{ matrix.shard }}/4
 ```
 
 `e2e-gate`가 집계하므로 required check 이름은 샤드 개수와 무관하다 — 개수를 바꿔도 브랜치 프로텍션을 다시 건드리지 않는다.

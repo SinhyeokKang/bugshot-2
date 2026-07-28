@@ -12,7 +12,8 @@ Chrome 확장을 실제 브라우저에서 구동해 사용자 플로우를 검�
 ## 실행
 
 - **CI에서 자동으로 돈다** — `.github/workflows/ci.yml`의 `e2e` job이 dev push · main PR · nightly에서 전 스위트를 `--shard=N/4` 매트릭스(러너 4대)로 돌린다. headed 강제라 `xvfb-run`(가상 스크린 1920×1080×**24**) 경유고, 더미 `.env.ci`만 쓰므로 secret 없이 fork PR에서도 동작한다. 아래 로컬 실행은 CI를 기다리지 않고 미리 확인할 때 쓴다.
-- 빌드/실행: `pnpm build:e2e` → `pnpm test:e2e` (단일 spec: `pnpm test:e2e -- <이름 일부>`, 샤드 재현: `pnpm test:e2e -- --shard=1/4`). dist-e2e는 **테스트 전용**(`<all_urls>` 포함, 수동 로드·스토어 업로드 금지).
+- 빌드/실행: `pnpm build:e2e` → `pnpm test:e2e` (단일 spec: `pnpm test:e2e -- <이름 일부>`, 샤드 재현: `pnpm test:e2e --shard=1/4`). dist-e2e는 **테스트 전용**(`<all_urls>` 포함, 수동 로드·스토어 업로드 금지).
+  - **`--`는 이름 필터에만 붙인다.** pnpm이 `--`를 리터럴로 넘기고 playwright는 그 뒤를 전부 **positional 파일 필터**로 읽으므로, `pnpm test:e2e -- --shard=1/4`처럼 플래그에 붙이면 플래그로 인식되지 않고 `No tests found`로 죽는다. 플래그(`--shard`·`--project`·`--list` 등)는 `--` 없이 그대로 준다.
 - **두 project**(`playwright.config.ts`):
   - `sidepanel` — 확장 구동 메인 게이트.
   - `logview` — 확장 없이 `dist-log-viewer/index.html`을 합성 데이터로 직접 여는 standalone(`e2e/logview/*.spec.ts`, viewport 1280×800). 단독 실행: `pnpm test:e2e --project=logview`(dist-log-viewer는 `build:log-viewer`/`build:e2e`가 생성). **`dependencies:["sidepanel"]`는 없다** — 실제 의존이 아니었고, `--shard` 사용 시 의존 project가 샤드마다 전량 실행돼 샤딩 효과를 지운다.

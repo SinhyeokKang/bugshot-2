@@ -40,7 +40,7 @@
 - **작업 내용**: `args` 배열의 `--window-position=-10000,-10000` 조건을 `process.env.E2E_SHOW === "1" || process.env.CI`로 확장. 인접 주석에 "CI(xvfb)에선 볼 화면이 없고, 가상 스크린 밖으로 밀면 렌더가 클립될 수 있어 생략한다"를 추가한다. `headless: false`는 유지.
 - **검증**:
   - [ ] `pnpm typecheck` 통과
-  - [ ] 로컬 `pnpm test:e2e -- --shard=1/4` 실행 시 창이 여전히 화면 밖(깜빡임 없음)
+  - [ ] 로컬 `pnpm test:e2e --shard=1/4` 실행 시 창이 여전히 화면 밖(깜빡임 없음)
   - [ ] `CI=1 E2E_SHOW=1`·`CI=1` 조합 모두 `--window-position`이 args에 없음(코드 리뷰로 확인)
 
 ### Task 4: CI 워크플로에 e2e 매트릭스 + 집계 job 추가
@@ -49,7 +49,7 @@
 - **작업 내용**:
   - 워크플로 최상단에 `permissions: contents: read`를 명시해 `GITHUB_TOKEN` 권한을 최소화한다.
   - `on`에 `schedule: - cron: "0 18 * * *"`(03:00 KST)와 `workflow_dispatch: {}` 추가.
-  - `e2e` job 추가: `runs-on: ubuntu-latest`, `timeout-minutes: 30`, `strategy: { fail-fast: false, matrix: { shard: [1,2,3,4] } }`. 스텝은 checkout → pnpm/action-setup → setup-node(node 22, cache pnpm) → `pnpm install --frozen-lockfile` → `cp .env.ci .env.local` → `pnpm exec playwright install --with-deps chromium` → `pnpm build:e2e` → `xvfb-run -a --server-args="-screen 0 1920x1080x24" pnpm test:e2e -- --shard=${{ matrix.shard }}/4` → `if: failure()` artifact 업로드(`playwright-report/`, `test-results/`, `retention-days: 7`, 이름에 샤드 번호 포함).
+  - `e2e` job 추가: `runs-on: ubuntu-latest`, `timeout-minutes: 30`, `strategy: { fail-fast: false, matrix: { shard: [1,2,3,4] } }`. 스텝은 checkout → pnpm/action-setup → setup-node(node 22, cache pnpm) → `pnpm install --frozen-lockfile` → `cp .env.ci .env.local` → `pnpm exec playwright install --with-deps chromium` → `pnpm build:e2e` → `xvfb-run -a --server-args="-screen 0 1920x1080x24" pnpm test:e2e --shard=${{ matrix.shard }}/4` → `if: failure()` artifact 업로드(`playwright-report/`, `test-results/`, `retention-days: 7`, 이름에 샤드 번호 포함).
   - `e2e-gate` job 추가: `needs: [e2e]`, `if: always()`, `runs-on: ubuntu-latest`. `needs.e2e.result != 'success'`면 exit 1.
   - `verify`는 수정하지 않는다. `e2e`에 `needs`를 걸지 않아 병렬 실행.
   - 기존 주석 스타일(왜 이 스텝이 있는지 한국어 설명)을 따라 xvfb 24비트 깊이 이유, `.env.ci` 복사 이유, `e2e-gate` 존재 이유를 각각 남긴다. 기존 "e2e는 여기서 안 돈다" 주석 블록은 삭제.
@@ -166,7 +166,7 @@
 - **e2e 시나리오**: 신규 spec 없음. 기존 63개 spec이 그대로 판정 대상이며, 이번 작업의 "e2e 시나리오"에 해당하는 것은 Task 9·10의 CI 런 자체다.
 - **수동 테스트** (Chrome/GitHub에서 확인):
   - [ ] 로컬 `pnpm test:e2e`가 변경 전과 동일하게 동작 — 창이 화면 밖, `retries: 0`, 실패 시 즉시 red
-  - [ ] `E2E_SHOW=1 pnpm test:e2e -- --shard=1/4`로 창이 보임(디버그 경로 보존)
+  - [ ] `E2E_SHOW=1 pnpm test:e2e --shard=1/4`로 창이 보임(디버그 경로 보존)
   - [ ] `pnpm test:e2e --project=logview`가 sidepanel 없이 단독 실행됨
   - [ ] `/push` 실행 시 e2e가 돌지 않고 CI URL이 보고됨
   - [ ] `/merge` 실행 시 dev HEAD CI 결론을 조회해 게이트로 씀 (실제 릴리스 때 확인)

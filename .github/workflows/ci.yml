@@ -100,8 +100,12 @@ jobs:
       # 확장 SW가 headless에선 안 깨어나 headed 강제 — xvfb 가상 디스플레이로 우회한다.
       # 깊이 24는 필수: xvfb-run 기본이 8비트인 배포판이 있고, 캡처 spec이 스티칭 결과의
       # 픽셀 색을 직접 판정한다(fixtures/pages/scroll-capture.html의 자홍 sticky).
+      #
+      # `--`를 붙이지 않는다. pnpm이 리터럴로 넘기면 playwright가 그 뒤를 전부 positional
+      # 파일 필터로 읽어 --shard가 플래그로 인식되지 않고 "No tests found"로 죽는다
+      # (README의 `pnpm test:e2e -- <이름>`은 positional이라 그 형태가 맞다).
       - name: e2e (shard ${{ matrix.shard }}/4)
-        run: xvfb-run -a --server-args="-screen 0 1920x1080x24" pnpm test:e2e -- --shard=${{ matrix.shard }}/4
+        run: xvfb-run -a --server-args="-screen 0 1920x1080x24" pnpm test:e2e --shard=${{ matrix.shard }}/4
 
       - name: Upload report
         if: failure()
