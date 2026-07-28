@@ -86,9 +86,10 @@
   border: 1px solid hsl(var(--border));
   border-radius: calc(var(--radius) - 4px);
   padding: 16px;
-  /* 행 번호 열(.code-collapse-gutter)이 차지한 만큼 코드 시작선을 민다. 폴백 4px은
-     셸에 안 감싸인 pre를 위한 것 — 그 경우 4+12=16px로 위 padding과 같아진다. */
-  padding-left: calc(var(--code-gutter-width, 4px) + 12px);
+  /* 행 번호 열(.code-collapse-gutter)이 차지한 만큼 코드 시작선을 민다. 더한 16px이
+     번호와 코드 사이 간격이고, 폴백 0px은 셸에 안 감싸인 pre를 위한 것 —
+     그 경우 위 padding과 정확히 같아진다. */
+  padding-left: calc(var(--code-gutter-width, 0px) + 16px);
   overflow-x: auto;
   font-size: var(--mono-size);
   line-height: var(--mono-leading);
