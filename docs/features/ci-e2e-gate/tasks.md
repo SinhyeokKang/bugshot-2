@@ -5,7 +5,7 @@
 - `gh` CLI 인증 상태에서 브랜치 프로텍션 수정 권한 필요(Task 8). `gh api repos/:owner/:repo/branches/main/protection`이 200이면 OK.
 - 새 의존성 없음. `@playwright/test`(^1.60.0)는 이미 devDependency이고 `--shard`·`github` reporter·`forbidOnly`는 전부 기본 제공.
 - `manifest.config.ts`·권한·캡처 동작 변경 없음 → `docs/privacy.*`·`docs/PERMISSION.md`는 대상 아님.
-- **Task 1~4는 로컬 검증만으로 완결되지 않는다.** Task 9에서 첫 CI green을 확인해야 Task 5~8의 로컬 게이트 제거·문서 전환·브랜치 프로텍션으로 진행할 수 있다.
+- **Task 1~4·7a는 로컬 검증만으로 완결되지 않는다.** Task 9에서 첫 CI green을 확인해야 Task 5·6·7b·8의 로컬 게이트 제거·브랜치 프로텍션으로 진행할 수 있다.
 
 ## 태스크
 
@@ -84,19 +84,33 @@
   - [ ] Codex에서는 원본 수정 뒤 `pnpm sync:agents` 직접 실행. 이어서 `pnpm sync:agents:check` 통과 (`ship`·`e2e-run` 미러 반영됨, `merge`는 EXCLUDE)
   - [ ] `e2e/.last-green` 파일 삭제 (`rm -f e2e/.last-green` — gitignore였으므로 git 상태 무관)
 
-### Task 7: 문서 갱신
+### Task 7a: 문서 갱신 — CI 실행 사실 (1차 커밋에 포함)
 
 - **변경 대상**: `CLAUDE.md`, `docs/DIRECTORY.md`, `e2e/README.md`, `CONTRIBUTING.md`
+- **왜 1차인가**: Task 4가 워크플로에 e2e를 넣는 순간 "e2e는 CI에서 안 돈다"는 서술이 **즉시 거짓**이 된다. 이 상태로 push하면 `/push` 문서 신선도 검사(`.github/workflows/ci.yml` 변경 → 새 게이트웨이 도입 트리거)에 걸려 어차피 멈춘다. **로컬 게이트가 아직 살아있다는 서술은 이 단계에서 그대로 둔다** — 그 시점엔 참이다.
 - **작업 내용**:
-  - `CLAUDE.md` "CI (GitHub Actions)" 섹션: "e2e는 CI에서 안 돈다" 문단 전체 교체 → e2e 4샤드·xvfb·`.env.ci`·`e2e-gate` required check·nightly(main) 설명. 로컬 게이트(`.last-green`) 언급 삭제. `build`+`check:prearm`이 CI에 있는 이유 문단은 유지하되 "유일한 행동 검증이 CI에 없다"는 서술이 더 이상 맞지 않으므로 수정(`logs-prearm.spec.ts`가 이제 CI에서 돈다 — 구조 검사는 빠른 1차 그물로 재정의).
-  - `CLAUDE.md` 스킬 라인업 표: `/e2e-run`·`/push`·`/merge`·`/ship` 줄에서 `.last-green` 제거. "권장 흐름" 문단의 `/push`(e2e 게이트)·`/merge`(게이트 교차) 서술 갱신.
-  - `docs/DIRECTORY.md`: 102행(`e2e/` — `.last-green` 서술 제거), 106행(`playwright.config.ts` 요약 — `retries: CI 1 / 로컬 0`, logview `dependencies` 제거 반영), 129행(`workflows/ci.yml` 요약 — e2e 매트릭스·집계 job 추가), 루트 파일 목록에 `.env.ci` 항목 추가.
-  - `e2e/README.md` "실행" 섹션: CI 자동 실행 명시(트리거·샤드·xvfb), `--no-deps` 안내 삭제(의존 제거로 불필요), "창 깜빡임" 문단에 CI에선 off-screen 미적용 추가, `retries` 서술 갱신(`sidepanel — 확장 구동 메인 게이트(retries:0, 결정적)` → CI 분기 반영).
-  - `CONTRIBUTING.md` 51~53행: "isn't in CI and you don't need to run it. I run it locally before merging" → CI에서 자동 실행되고 PR에 required check로 걸린다는 서술로 교체(영문).
+  - `CLAUDE.md` "CI (GitHub Actions)" 섹션: "e2e는 여기서 안 돈다" 문단을 e2e 4샤드·xvfb·`.env.ci`·nightly(main) 설명으로 교체. `build`+`check:prearm` 문단의 "유일한 행동 검증(`logs-prearm.spec.ts`)이 CI에 없다"를 수정(이제 CI에서 돈다 — 구조 검사는 빠른 1차 그물로 재정의). **`.last-green`·스킬 라인업은 건드리지 않는다**(Task 7b).
+  - `docs/DIRECTORY.md`: 106행(`playwright.config.ts` 요약 — `retries: CI 1 / 로컬 0`, logview `dependencies` 제거 반영), 129행(`workflows/ci.yml` 요약 — e2e 매트릭스·집계 job 추가), 루트 파일 목록에 `.env.ci` 항목 추가.
+  - `e2e/README.md` "실행" 섹션: CI 자동 실행 명시(트리거·샤드·xvfb), `--no-deps` 안내 삭제(의존 제거로 불필요), "창 깜빡임" 문단에 CI에선 off-screen 미적용 추가, `retries` 서술에 CI 분기 반영.
+  - `CONTRIBUTING.md` 51~53행: "isn't in CI and you don't need to run it. I run it locally before merging" → **"CI에서 자동 실행된다"까지만**(영문). required check 문구는 Task 8 완료 후(7b)에 넣는다 — 그 전엔 아직 required가 아니다.
 - **검증**:
-  - [ ] `grep -rni "e2e.*not.*in CI\|isn't in CI\|CI에서 안 돈다\|CI에 없다" CLAUDE.md CONTRIBUTING.md e2e/README.md docs/DIRECTORY.md` 0건
+  - [ ] `grep -rni "isn't in CI\|not in CI\|CI에서 안 돈다\|CI에 없다" CLAUDE.md CONTRIBUTING.md e2e/README.md docs/DIRECTORY.md` 0건
+  - [ ] 이 시점에 `.last-green` 서술은 **의도적으로 남아 있다** — `grep -rn "last-green" CLAUDE.md docs/DIRECTORY.md`가 여전히 hit (7b에서 제거)
   - [ ] Codex에서는 `pnpm sync:agents` 직접 실행 후 `pnpm sync:agents:check` 통과 (CLAUDE.md 편집 → `AGENTS.md` 재생성 반영)
-  - [ ] `README.md`/`README.ko.md`의 e2e 서술(198·205·210행 등)이 여전히 정확한지 확인 — 명령어만 나열하므로 수정 불필요할 가능성 높으나 대조는 한다
+  - [ ] `README.md`/`README.ko.md`의 e2e 서술(198·205·210행 등) 대조 — 명령어만 나열하므로 수정 불필요할 가능성 높음
+
+### Task 7b: 문서 갱신 — 로컬 게이트 제거 반영 (2차 커밋)
+
+- **변경 대상**: `CLAUDE.md`, `docs/DIRECTORY.md`, `e2e/README.md`, `CONTRIBUTING.md`
+- **진입 조건**: Task 5·6·8 완료(스킬에서 `.last-green` 제거 + required check 등록).
+- **작업 내용**:
+  - `CLAUDE.md`: "CI (GitHub Actions)" 섹션에 `e2e-gate` required check 추가, 로컬 게이트(`.last-green`) 언급 삭제. 스킬 라인업 표의 `/e2e-run`·`/push`·`/merge`·`/ship` 줄에서 `.last-green` 제거. "권장 흐름" 문단의 `/push`(e2e 게이트)·`/merge`(게이트 교차) 서술 갱신.
+  - `docs/DIRECTORY.md` 102행: `e2e/` 항목의 `.last-green` 서술 제거.
+  - `e2e/README.md`: 로컬 게이트 관련 서술 정리.
+  - `CONTRIBUTING.md`: 7a에서 미룬 "PR에 required check로 걸린다" 문구 추가(영문).
+- **검증**:
+  - [ ] `rg -n "last-green" .gitignore .claude/commands CLAUDE.md AGENTS.md .agents/skills docs/DIRECTORY.md e2e/README.md`가 0건(feature 설계 문서의 역사 설명은 검사 대상 제외)
+  - [ ] Codex에서는 `pnpm sync:agents` 직접 실행 후 `pnpm sync:agents:check` 통과
 
 ### Task 8: 브랜치 프로텍션에 `e2e-gate` required check 추가
 
@@ -109,8 +123,11 @@
     -f 'contexts[]=e2e-gate'
   ```
 - **검증**:
+  - [ ] 실행 **전** 현재 값 백업: `gh api repos/:owner/:repo/branches/main/protection/required_status_checks > /tmp/rsc-before.json`
   - [ ] `gh api repos/:owner/:repo/branches/main/protection --jq '.required_status_checks.contexts'`가 `["verify","e2e-gate"]`
+  - [ ] `.required_status_checks.strict`가 실행 전과 동일(`false`) — contexts 전용 endpoint가 보존해야 하는 값
   - [ ] 테스트 PR에서 두 check가 모두 required로 표시됨
+  - [ ] POST endpoint가 실패하면 design.md "저장소 설정"의 PATCH 폴백(현재 `strict`·`app_id`를 명시적으로 함께 전달)을 쓴다
 
 ### Task 9: 첫 CI 런 검증 + 실패 대응
 
@@ -157,18 +174,23 @@
 
 ```
 Task 1 (.env.ci)  ─┐
-Task 2 (config)   ─┼─> Task 4 (워크플로) ─> Task 9 (첫 green)
-Task 3 (fixture)  ─┘                              │
-                                                   ├─> Task 5·6 (로컬 게이트 제거) ─> Task 7 (문서)
-                                                   └─> Task 8 (프로텍션) ─> Task 10 (음성 케이스)
+Task 2 (config)   ─┼─> Task 4 (워크플로) ─> Task 7a (CI 사실 문서) ─> [1차 커밋 + push] ─> Task 9 (첫 green)
+Task 3 (fixture)  ─┘                                                                          │
+                                        ┌─────────────────────────────────────────────────────┘
+                                        ├─> Task 5 ─> Task 6 (로컬 게이트 제거) ─┐
+                                        └─> Task 8 (프로텍션) ──────────────────┼─> Task 7b (문서) ─> [2차 커밋]
+                                                                                 └─> Task 10 (음성 케이스)
 ```
 
 - **Task 1·2·3은 병렬 가능** — 서로 독립이고 전부 Task 4의 전제다.
-- **Task 5·6은 Task 9 green 뒤에만 시작한다.** 서로 다른 스킬 파일이지만, Task 6의 제한 경로 `last-green` 검색 0건 검증은 Task 5 완료 후에만 성립하므로 순차가 안전하다.
 - **Task 4는 Task 1~3 이후.** 워크플로가 `.env.ci`와 CI 분기를 전제한다.
+- **Task 7a는 1차 커밋에 반드시 포함.** 워크플로에 e2e가 들어간 순간 "CI에서 안 돈다"는 서술이 거짓이 되고, `/push` 문서 신선도 검사가 이를 잡는다. 이 단계에선 `.last-green` 서술을 **남겨둔다** — 로컬 게이트가 아직 살아있으니 참이다.
+- **Task 5·6은 Task 9 green 뒤에만 시작한다.** 서로 다른 스킬 파일이지만, Task 6의 제한 경로 `last-green` 검색 0건 검증은 Task 5 완료 후에만 성립하므로 순차가 안전하다.
 - **Task 8은 반드시 Task 9 green 이후.** 존재한 적 없거나 아직 동작하지 않는 check를 required로 걸면 이후 모든 PR이 영구 pending이 된다.
-- **Task 7(문서)은 Task 4·6 이후** — 확정된 동작을 서술해야 한다. Task 9에서 워크플로를 수정하면 문서도 함께 갱신한다.
-- 커밋 분리 필수: 1차 `ci(e2e): run Playwright suite on GitHub Actions`(Task 1~4) → Task 9 green 확인 → 2차 `chore(skills): drop local e2e gate`(Task 5~6) / `docs: ...`(Task 7).
+- **Task 7b는 Task 5·6·8 이후** — required check 등록과 스킬 전환이 끝난 사실을 서술해야 한다. Task 9에서 워크플로를 수정했으면 7a 서술도 여기서 함께 보정한다.
+- 커밋 분리 필수:
+  - 1차 `ci(e2e): run Playwright suite on GitHub Actions` (Task 1~4) + `docs: describe e2e in CI` (Task 7a) → push → Task 9 green 확인
+  - 2차 `chore(skills): drop local e2e gate` (Task 5~6) + `docs: drop local e2e gate references` (Task 7b)
 
 ## 가이드 영향
 

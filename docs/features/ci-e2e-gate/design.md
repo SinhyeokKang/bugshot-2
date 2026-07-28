@@ -144,13 +144,15 @@ gh run list --branch dev --workflow ci.yml --limit 20 \
 
 ### 문서 (수정)
 
-| 파일 | 변경 |
-|---|---|
-| `CLAUDE.md` | "CI (GitHub Actions)" 섹션 전면 재작성(e2e 4샤드·xvfb·`.env.ci`·required check). 스킬 라인업의 `/e2e-run`·`/push`·`/merge`·`/ship` 한 줄 설명에서 `.last-green` 제거. "권장 흐름" 문단의 e2e 게이트 서술 갱신 |
-| `docs/DIRECTORY.md` | 102행(`e2e/` — `.last-green` 서술 제거), 106행(playwright.config 요약 — retries·projects), 128~129행(`.github/workflows/ci.yml` 요약), 신규 `.env.ci` 항목 |
-| `e2e/README.md` | "실행" 섹션 — CI 실행 명시, `--no-deps` 안내 수정, 창 깜빡임 문단에 CI 분기 추가 |
-| `CONTRIBUTING.md` | 51~53행 "isn't in CI and you don't need to run it. I run it locally before merging" → CI에서 자동 실행됨으로 교체 |
-| `.env.example` | 최상단 주석에 `.env.ci`(CI 전용 더미)의 존재와 목적 한 줄 |
+문서 갱신은 **전환 2단계에 맞춰 쪼갠다.** 1차(CI 워크플로와 같은 커밋)는 "e2e가 CI에서 돈다"는 사실만 반영하고 `.last-green` 서술은 남긴다 — 그 시점에 로컬 게이트는 아직 살아있으니 참이다. 2차(로컬 게이트 제거와 같은 커밋)에서 `.last-green`을 걷어낸다. 1차를 미루면 워크플로에 e2e가 들어간 채 "CI에서 안 돈다"고 적힌 문서가 함께 push되고, `/push` 문서 신선도 검사가 거기서 멈춘다.
+
+| 파일 | 1차 (CI 실행 사실) | 2차 (로컬 게이트 제거) |
+|---|---|---|
+| `CLAUDE.md` | "CI (GitHub Actions)" 섹션의 "e2e는 여기서 안 돈다" 문단 → 4샤드·xvfb·`.env.ci`·nightly 설명. `build`+`check:prearm` 문단의 "행동 검증이 CI에 없다" 수정 | `e2e-gate` required check 추가, `.last-green` 언급 삭제. 스킬 라인업 4줄 + "권장 흐름" 갱신 |
+| `docs/DIRECTORY.md` | 106행(playwright.config 요약 — retries·projects), 129행(`workflows/ci.yml` 요약), 루트 `.env.ci` 항목 | 102행(`e2e/` — `.last-green` 서술 제거) |
+| `e2e/README.md` | "실행" 섹션 — CI 실행 명시, `--no-deps` 안내 삭제, 창 깜빡임 문단 CI 분기, retries 분기 | 로컬 게이트 서술 정리 |
+| `CONTRIBUTING.md` | 51~53행 "isn't in CI and you don't need to run it" → CI에서 자동 실행됨 | "PR에 required check로 걸린다" 추가 |
+| `.env.example` | 최상단 주석에 `.env.ci`(CI 전용 더미)의 존재와 목적 한 줄 | — |
 
 `AGENTS.md`·`.agents/skills/`는 Claude Code에서는 `.claude/settings.json` PostToolUse 훅이 자동 재생성한다. Codex에는 이 훅이 없으므로 원본 수정 뒤 `pnpm sync:agents`를 직접 실행해 미러를 함께 커밋한다(`/push`·`/merge`는 sync 스크립트 `EXCLUDE`라 미러 대상이 아니고, `/e2e-run`·`/ship`은 대상).
 
@@ -162,6 +164,15 @@ gh run list --branch dev --workflow ci.yml --limit 20 \
 gh api -X POST \
   repos/:owner/:repo/branches/main/protection/required_status_checks/contexts \
   -f 'contexts[]=e2e-gate'
+```
+
+한 가지 손실을 감수한다: 현재 `verify`는 `checks: [{app_id: 15368, context: "verify"}]`로 **app_id 바인딩**돼 있는데(GitHub Actions만 이 체크를 보고할 수 있다), contexts 전용 endpoint로 추가한 `e2e-gate`는 바인딩 없이 들어가 어떤 앱이든 보고할 수 있다. 단일 메인테이너 저장소에서 실질 위험은 없다. 바인딩까지 맞추려면 PATCH로 `checks` 배열 전체를 다시 써야 하고, 그러면 Codex가 지적한 `strict` 보존 문제가 되살아난다 — 그때는 아래처럼 현재 값을 명시적으로 함께 넘긴다.
+
+```
+gh api -X PATCH repos/:owner/:repo/branches/main/protection/required_status_checks \
+  -F strict=false \
+  -f 'checks[][context]=verify'   -F 'checks[][app_id]=15368' \
+  -f 'checks[][context]=e2e-gate' -F 'checks[][app_id]=15368'
 ```
 
 ## 데이터 흐름
@@ -287,5 +298,5 @@ dev HEAD CI 확인(대개 이미 끝나 있음) + bump 커밋 push 후 PR CI 대
 **7. 러너 시간 소비.**
 dev push마다 4러너 × 5~7분 ≈ 25러너분. public 저장소라 무료지만, `concurrency` 취소 설정이 없으면 연속 push 시 누적된다. 기존 설정이 이미 이를 막고 있다.
 
-**9. hard timeout 시 artifact 부재.**
+**8. hard timeout 시 artifact 부재.**
 일반 테스트 실패는 후속 `upload-artifact` 스텝이 report와 trace를 올리지만, job이 `timeout-minutes`에 걸려 강제 종료되면 후속 스텝 자체가 실행되지 않을 수 있다. 이 경우 Actions job 로그와 timeout 결론만 남는 한계를 수용한다.
